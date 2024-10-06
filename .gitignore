@@ -1,0 +1,9 @@
+*~
+cli
+srv
+tmp
+static
+my-keep-private-dir
+known_tls_hosts
+known_client_keys
+known_server_keys
