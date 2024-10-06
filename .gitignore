@@ -1,9 +1,13 @@
 *~
-cli
-srv
+./cli
+./srv
+./selfy
 tmp
-static
+certs
 my-keep-private-dir
 known_tls_hosts
 known_client_keys
 known_server_keys
+selfy
+srv
+cli

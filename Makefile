@@ -1,6 +1,13 @@
 all:
+	go generate
+	mkdir -p certs
+	touch certs/.placeholder ## go:embed cannot deal with an empty dir
 	go build -o cli ./cmd/cli
 	go build -o srv ./cmd/srv
+	go build -o selfy ./cmd/selfy
+	cp -p selfy ~/go/bin
+	cp -p srv ~/go/bin
+	cp -p cli ~/go/bin
 
 run:
 	./srv &

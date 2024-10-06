@@ -1,11 +1,17 @@
-package edwardsrpc
+package rpc25519
 
 import (
-	"crypto/tls"
+	"net"
+	//"crypto/tls"
 	"encoding/binary"
+	"fmt"
 	"io"
 	//"net"
 	"time"
+)
+
+const (
+	maxMessage = 1024 * 1024 // 1MB max message size, prevents TLS clients from talking to TCP servers.
 )
 
 var _ = io.EOF
@@ -14,83 +20,150 @@ var _ = io.EOF
 //
 // message structure
 //
-// first 8 bytes: *command*, big endian uint64.
-//                *command* == 0 means FIN. All done. No length or message follows.
-//                This stream can/should be torn down.
-//                The other meanings of *command* are application specific.
+// 1. seqno: first 8 bytes: *sequenceNumber*, big endian uint64.
+//                0 means no response needed/expected
+//                odd means initiating; and expect +1 as the response.
 //
-// next  8 bytes: *length*, big endian uint64.
-//                The *length* says how many bytes are in the message.
+// 2. lenHeader: next  8 bytes: *header_length*, big endian uint64.
+//                The *header_length* says how many bytes are in the header.
 //
-// next length bytes: *message*. The *message* is *length* bytes long.
-//                The contents of the *message* should be determined
-//                from the *command* and inspection of the *message* bytes.
+// 3. header: next header_length bytes: *header*. The *header* is *header_length* bytes long.
+//
+// 4. lenBody: next  8 bytes: *body_length*, big endian uint64.
+//                The *body_length* says how many bytes are in the body.
+//
+// 5. body: next length bytes: *body*. The *body* is *body_length* bytes long.
 //
 // =========================
 
+// a work (workspace) lets us re-use memory
+// without constantly allocating.
+// There should be one for reading, and
+// a separate one for writing, so each
+// goroutine needs its own so as to not
+// colide with any other goroutine.
+type workspace struct {
+	buf []byte
+}
+
+// currently only used for headers; but bodies may
+// well benefit as well. In which case, bump up
+// to maxMessage+1024 or so, rather than this 64KB.
+func newWorkspace() *workspace {
+	return &workspace{
+		buf: make([]byte, 1<<16),
+	}
+}
+
 // receiveMessage reads a framed message from conn
 // nil or 0 timeout means no timeout.
-func receiveMessage(conn *tls.Conn, timeout *time.Duration) ([]byte, error) {
+func (w *workspace) receiveMessage(conn net.Conn, timeout *time.Duration) (seqno uint64, msg *Message, err error) {
 
-	// Read the first 8 bytes as the command.
-	cmdBytes := make([]byte, 8)
-	if err := readFull(conn, cmdBytes, timeout); err != nil {
-		return nil, err
+	// Read the first 8 bytes as the seqno
+	seqnoBytes := make([]byte, 8)
+	if err := readFull(conn, seqnoBytes, timeout); err != nil {
+		return 0, nil, err
 	}
-	cmd := binary.BigEndian.Uint64(cmdBytes)
+	seqno = binary.BigEndian.Uint64(seqnoBytes)
 
-	// zero means no command, no message: time to shutdown. fin.
-	if cmd == 0 {
-		return nil, io.EOF
+	// Read the next 8 bytes for the MID header length
+	lenHeaderBytes := make([]byte, 8)
+	if err := readFull(conn, lenHeaderBytes, timeout); err != nil {
+		return seqno, nil, err
 	}
+	headerLen := binary.BigEndian.Uint64(lenHeaderBytes)
 
-	// Read the next 8 bytes for the message length
-	lenBytes := make([]byte, 8)
-	if err := readFull(conn, lenBytes, timeout); err != nil {
-		return nil, err
-	}
-	msgLen := binary.BigEndian.Uint64(lenBytes)
-
-	// Read the message based on the length
-	msg := make([]byte, msgLen)
-	if err := readFull(conn, msg, timeout); err != nil {
-		return nil, err
+	// Read the MID header based on the headerLen
+	if headerLen > maxMessage {
+		// probably an encrypted client against an unencrypted server
+		return 0, nil, fmt.Errorf("message header too long: %v is over 1MB; encrypted client vs an un-encrypted server?", headerLen)
 	}
 
-	return msg, nil
+	header := make([]byte, headerLen)
+	if err := readFull(conn, header, timeout); err != nil {
+		return seqno, nil, err
+	}
+
+	// Ugh. JSON can be so crippled for floating point NaN/Inf. Prefer greenpack.
+	//mid, err := MIDFromBytes(header) // json
+	mid, err := MIDFromGreenpack(header) // greenpack/msgpack
+	if err != nil {
+		return seqno, nil, err
+	}
+
+	msg = NewMessage()
+	msg.MID = *mid
+	msg.Seqno = seqno
+
+	// Read the body len
+	lenBodyBytes := make([]byte, 8)
+	if err := readFull(conn, lenBodyBytes, timeout); err != nil {
+		return seqno, nil, err
+	}
+	bodyLen := binary.BigEndian.Uint64(lenBodyBytes)
+	if bodyLen > maxMessage {
+		// probably an encrypted client against an unencrypted server
+		return 0, nil, fmt.Errorf("message too long: %v is over 1MB; encrypted client vs an un-encrypted server?", bodyLen)
+	}
+
+	// Read the body
+	body := make([]byte, bodyLen)
+	if err := readFull(conn, body, timeout); err != nil {
+		return seqno, nil, err
+	}
+	msg.JobSerz = body
+
+	return seqno, msg, nil
 }
 
 // sendMessage sends a framed message to conn
 // nil or 0 timeout means no timeout.
-func sendMessage(command int64, conn *tls.Conn, msg []byte, timeout *time.Duration) error {
+func (w *workspace) sendMessage(seqno uint64, conn net.Conn, msg *Message, timeout *time.Duration) error {
 
-	cmdBytes := make([]byte, 8)
-	if command != 0 {
-		binary.BigEndian.PutUint64(cmdBytes, uint64(command))
-	}
-	// Write command
-	if err := writeFull(conn, cmdBytes, timeout); err != nil {
-		return err
-	}
-	if command == 0 {
-		return nil // because 0 means, EOF, all done. signing off.
-	}
-	// Otherwise assume a length word (8 bytes) then the message of that length.
+	msg.Seqno = seqno
 
-	lenBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(lenBytes, uint64(len(msg)))
-
-	// Write length
-	if err := writeFull(conn, lenBytes, timeout); err != nil {
+	// write seqno
+	seqnoBytes := make([]byte, 8)
+	if seqno != 0 {
+		binary.BigEndian.PutUint64(seqnoBytes, seqno)
+	}
+	if err := writeFull(conn, seqnoBytes, timeout); err != nil {
 		return err
 	}
 
-	// Write message
-	return writeFull(conn, msg, timeout)
+	// Write MID header length
+	//header := msg.MID.Bytes() // json
+	header, err := msg.MID.AsGreenpack(w.buf) // greenpack/msgpack
+	if err != nil {
+		return err
+	}
+	nheader := len(header)
+
+	nheaderBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(nheaderBytes, uint64(nheader))
+	if err := writeFull(conn, nheaderBytes, timeout); err != nil {
+		return err
+	}
+
+	// Write MID header
+	if err := writeFull(conn, header, timeout); err != nil {
+		return err
+	}
+
+	// Write len of body msg.JobSerz
+
+	bodyLenBytes := make([]byte, 8)
+	binary.BigEndian.PutUint64(bodyLenBytes, uint64(len(msg.JobSerz)))
+	if err := writeFull(conn, bodyLenBytes, timeout); err != nil {
+		return err
+	}
+
+	// Write body msg.JobSerz
+	return writeFull(conn, msg.JobSerz, timeout)
 }
 
 // readFull reads exactly len(buf) bytes from conn
-func readFull(conn *tls.Conn, buf []byte, timeout *time.Duration) error {
+func readFull(conn net.Conn, buf []byte, timeout *time.Duration) error {
 
 	if timeout != nil && *timeout > 0 {
 		conn.SetReadDeadline(time.Now().Add(*timeout))
@@ -113,7 +186,7 @@ func readFull(conn *tls.Conn, buf []byte, timeout *time.Duration) error {
 }
 
 // writeFull writes all bytes in buf to conn
-func writeFull(conn *tls.Conn, buf []byte, timeout *time.Duration) error {
+func writeFull(conn net.Conn, buf []byte, timeout *time.Duration) error {
 
 	if timeout != nil && *timeout > 0 {
 		conn.SetWriteDeadline(time.Now().Add(*timeout))

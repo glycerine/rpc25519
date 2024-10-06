@@ -1,4 +1,4 @@
-package main
+package selfcert
 
 import (
 	"crypto/ed25519"
@@ -23,7 +23,8 @@ const (
 
 var sep = string(os.PathSeparator)
 
-func main() {
+// pathCA "my-keep-private-dir" is the default.
+func Step1_MakeCertificatAuthority(pathCA string) {
 	// Step 1: Generate the ED25519 private key
 	pubKey, privKey, err := ed25519.GenerateKey(nil)
 	if err != nil {
@@ -61,7 +62,7 @@ func main() {
 	}
 
 	// Step 5: Write the private key to a file
-	odir := "my-keep-private-dir" + sep
+	odir := pathCA + sep
 	os.MkdirAll(odir, 0777)
 	privfn := odir + "ca.key"
 	privKeyFile, err := os.Create(privfn)

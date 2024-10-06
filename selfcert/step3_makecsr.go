@@ -1,4 +1,4 @@
-package main
+package selfcert
 
 import (
 	"crypto/ed25519"
@@ -12,16 +12,19 @@ import (
 	"os"
 )
 
-func main() {
+func Step3_MakeCertSigningRequests(names []string, emails []string, odirCert string) {
 
-	err := createCertSigningRequest("client@example.com", "static/certs/client/client.key", "static/certs/client/client.csr")
-	if err != nil {
-		log.Fatalf("could not createCertSigningRequest: '%v'", err)
-	}
+	os.MkdirAll(odirCert, 0777)
 
-	err = createCertSigningRequest("node@example.com", "static/certs/server/node.key", "static/certs/server/node.csr")
-	if err != nil {
-		log.Fatalf("could not createCertSigningRequest: '%v'", err)
+	for i, name := range names {
+		keyPath := fmt.Sprintf("%v%v%v.key", odirCert, sep, name)
+		csrPath := fmt.Sprintf("%v%v%v.csr", odirCert, sep, name)
+		email := emails[i]
+
+		err := createCertSigningRequest(email, keyPath, csrPath)
+		if err != nil {
+			log.Fatalf("could not createCertSigningRequest: '%v'", err)
+		}
 	}
 
 }

@@ -1,4 +1,4 @@
-package main
+package selfcert
 
 import (
 	"crypto/ed25519"
@@ -15,6 +15,51 @@ import (
 	"path/filepath"
 	"time"
 )
+
+func Step4_MakeCertificates(odirCA string, names []string, odirCerts string) {
+
+	os.MkdirAll(odirCerts, 0777)
+	caPrivKeyPath := odirCA + sep + "ca.key"
+	caCertPath := odirCA + sep + "ca.crt"
+
+	for _, name := range names {
+		//keyPath := fmt.Sprintf("%v%v%v.key", odirCerts, sep, name)
+		csrInPath := fmt.Sprintf("%v%v%v.csr", odirCerts, sep, name)
+		certOutPath := fmt.Sprintf("%v%v%v.crt", odirCerts, sep, name)
+
+		makeCerts(caPrivKeyPath, caCertPath, csrInPath, certOutPath)
+
+		copyFileToDir(caCertPath, filepath.Dir(certOutPath))
+
+		// discard the Certificate signing requests; they are just confusing
+		// and all the information is in the cert anyhow.
+		os.Remove(csrInPath)
+	}
+
+}
+
+func makeCerts(caPrivKeyPath, caCertPath, csrInPath, certOutPath string) {
+
+	// Step 1: Load the CA certificate and CA private key
+	caCert, caKey, err := loadCA(caCertPath, caPrivKeyPath)
+	if err != nil {
+		log.Fatalf("Failed to load CA: %v", err)
+	}
+
+	// Step 2: Load the CSR from file
+	csr, err := loadCSR(csrInPath)
+	if err != nil {
+		log.Fatalf("Failed to load CSR: %v", err)
+	}
+
+	// Step 3: Sign the certificate and save it
+	err = signCertificate(csr, caCert, caKey, certOutPath)
+	if err != nil {
+		log.Fatalf("Failed to sign certificate: %v", err)
+	}
+
+	log.Printf("Signed certificate saved to '%v'", certOutPath)
+}
 
 // Load the CA certificate and CA private key
 func loadCA(certPath, keyPath string) (*x509.Certificate, ed25519.PrivateKey, error) {
@@ -140,43 +185,4 @@ func copyFileToDir(copyMePath string, toDir string) error {
 	}
 
 	return nil
-}
-
-func main() {
-
-	caPrivKeyPath := "my-keep-private-dir/ca.key"
-	caCertPath := "my-keep-private-dir/ca.crt"
-	csrInPath := "static/certs/client/client.csr"
-	certOutPath := "static/certs/client/client.crt"
-	makeCerts(caPrivKeyPath, caCertPath, csrInPath, certOutPath)
-	copyFileToDir(caCertPath, filepath.Dir(certOutPath))
-
-	csrInPath = "static/certs/server/node.csr"
-	certOutPath = "static/certs/server/node.crt"
-	makeCerts(caPrivKeyPath, caCertPath, csrInPath, certOutPath)
-	copyFileToDir(caCertPath, filepath.Dir(certOutPath))
-
-}
-
-func makeCerts(caPrivKeyPath, caCertPath, csrInPath, certOutPath string) {
-
-	// Step 1: Load the CA certificate and CA private key
-	caCert, caKey, err := loadCA(caCertPath, caPrivKeyPath)
-	if err != nil {
-		log.Fatalf("Failed to load CA: %v", err)
-	}
-
-	// Step 2: Load the CSR from file
-	csr, err := loadCSR(csrInPath)
-	if err != nil {
-		log.Fatalf("Failed to load CSR: %v", err)
-	}
-
-	// Step 3: Sign the certificate and save it
-	err = signCertificate(csr, caCert, caKey, certOutPath)
-	if err != nil {
-		log.Fatalf("Failed to sign certificate: %v", err)
-	}
-
-	log.Printf("Signed certificate saved to '%v'", certOutPath)
 }

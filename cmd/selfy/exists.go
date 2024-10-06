@@ -1,4 +1,4 @@
-package rpc25519
+package main
 
 import (
 	"os"
@@ -39,12 +39,15 @@ func FileSize(name string) (int64, error) {
 // the write bits. If any write bits
 // (owner, group, others) are set, then
 // we return true. Otherwise false.
+// We panic if os.Stat() gives us an error.
 func IsWritable(path string) bool {
 	if !FileExists(path) {
 		return true
 	}
 	fileInfo, err := os.Stat(path)
-	panicOn(err)
+	if err != nil {
+		panic(err)
+	}
 
 	// Get the file's mode (permission bits)
 	mode := fileInfo.Mode()

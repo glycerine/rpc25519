@@ -1,0 +1,52 @@
+package main
+
+import (
+	//"fmt"
+	"flag"
+	"log"
+	"os"
+
+	"github.com/glycerine/rpc25519"
+)
+
+func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
+
+	var dest = flag.String("s", "127.0.0.1:8443", "server address to send echo request to.")
+	var remoteDefault = flag.Bool("r", false, "ping the default test remote at 192.168.254.151")
+	var tcp = flag.Bool("tcp", false, "use TCP instead of the default TLS")
+	var skipVerify = flag.Bool("skip-verify", false, "skip verify-ing that server certs are in-use and authorized by our CA; only possible with TLS.")
+	var useName = flag.String("k", "", "specifies name of keypairs to use (certs/name.crt and certs/name.key); instead of the default certs/client.crt and certs/client.key")
+	var certPath = flag.String("certs", "", "use this path on the lived filesystem for certs; instead of the embedded certs/ from build-time.")
+
+	flag.Parse()
+
+	if *remoteDefault {
+		*dest = "192.168.254.151:8443"
+	}
+
+	cfg := &rpc25519.Config{
+		ServerAddr:     *dest, // "127.0.0.1:8443",
+		TCPonly_no_TLS: *tcp,
+		SkipVerifyKeys: *skipVerify,
+		KeyPairName:    *useName,
+		CertPath:       *certPath,
+	}
+	cli, err := rpc25519.NewClient("cli", cfg)
+	if err != nil {
+		log.Printf("client could not connect: '%v'\n", err)
+		os.Exit(1)
+	}
+	defer cli.Close()
+
+	req := rpc25519.NewMessage()
+	req.JobSerz = []byte("client says hello and requests this be echoed back with a timestamp!")
+
+	reply, err := cli.SendAndGetReply(req, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	log.Printf("client sees reply (Seqno=%v) = '%v'\n", reply.Seqno, string(reply.JobSerz))
+
+}

@@ -1,0 +1,18 @@
+[ req ]
+distinguished_name  = req_distinguished_name
+x509_extensions = v3_ca   # Extensions to add to self-signed cert
+prompt = no
+
+[ req_distinguished_name ]
+C = US
+ST = State
+L = City
+O = Organization
+OU = Org Unit
+CN = localhost
+
+[ v3_ca ]
+basicConstraints = critical,CA:TRUE
+keyUsage = critical, keyCertSign, cRLSign
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer

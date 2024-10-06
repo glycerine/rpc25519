@@ -1,18 +1,36 @@
-package main
+package selfcert
 
 import (
 	"crypto/ed25519"
 	"crypto/x509"
-	//"encoding/hex"
+	"crypto/x509/pkix"
+	"encoding/asn1"
+
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	//"math/big"
 	//"net"
 	"strings"
 	"time"
 )
+
+var _ = hex.EncodeToString
+
+// optional
+func Step5_ViewCertificate(path string) {
+	// Load the certificate from the PEM file
+	cert, err := loadCertificate(path)
+	if err != nil {
+		log.Fatalf("Error loading certificate: %v", err)
+	}
+
+	// Print the certificate details
+	printCertificateDetails(cert)
+}
 
 // Load and parse the certificate from the PEM file
 func loadCertificate(certPath string) (*x509.Certificate, error) {
@@ -71,33 +89,41 @@ func printCertificateDetails(cert *x509.Certificate) {
 		fmt.Printf("                Public Key not ED25519\n")
 	}
 
-	// Display the X509v3 extensions
+	// Print X.509v3 extensions
 	fmt.Printf("        X509v3 extensions:\n")
-	for _, ext := range cert.Extensions {
-		extName := ext.Id.String()
 
-		// Handle known extensions
-		switch extName {
-		case "2.5.29.15": // Key Usage
-			fmt.Printf("            X509v3 Key Usage: critical\n")
-			if cert.KeyUsage&x509.KeyUsageCertSign != 0 {
-				fmt.Printf("                Certificate Sign")
-			}
-			if cert.KeyUsage&x509.KeyUsageCRLSign != 0 {
-				fmt.Printf(", CRL Sign\n")
-			}
-		case "2.5.29.37": // Extended Key Usage
-			fmt.Printf("            X509v3 Extended Key Usage:\n")
-			fmt.Printf("                Any Extended Key Usage\n")
-		case "2.5.29.19": // Basic Constraints
-			fmt.Printf("            X509v3 Basic Constraints: critical\n")
-			fmt.Printf("                CA:TRUE\n")
-		case "2.5.29.14": // Subject Key Identifier
-			fmt.Printf("            X509v3 Subject Key Identifier:\n")
-			fmt.Printf("                %s\n", formatHexBytes(ext.Value))
-		default:
-			fmt.Printf("            Unknown extension: %s\n", extName)
+	// Print Basic Constraints
+	printBasicConstraints(cert)
+
+	// Print Key Usage
+	printKeyUsage(cert)
+
+	// Print Extended Key Usage
+	printExtendedKeyUsage(cert)
+
+	// Parse X.509v3 extensions to match OpenSSL output
+	for _, ext := range cert.Extensions {
+
+		// Key Usage
+		//if ext.Id.Equal([]int{2, 5, 29, 15}) { // Key Usage OID
+		//	printKeyUsage(ext)
+		//}
+
+		// Subject Key Identifier
+		if ext.Id.Equal([]int{2, 5, 29, 14}) {
+			printSubjectKeyIdentifier(ext)
 		}
+
+		// Authority Key Identifier
+		if ext.Id.Equal([]int{2, 5, 29, 35}) {
+			printAuthorityKeyIdentifier(ext)
+		}
+
+		// Subject Alternative Name
+		if ext.Id.Equal([]int{2, 5, 29, 17}) {
+			printSubjectAlternativeName(ext)
+		}
+
 	}
 
 	// Signature
@@ -119,13 +145,155 @@ func formatSignature(signature []byte) string {
 	return strings.Join(lines, "\n        ")
 }
 
-func main() {
-	// Load the certificate from the PEM file
-	cert, err := loadCertificate("my-keep-private-dir/ca.crt")
-	if err != nil {
-		log.Fatalf("Error loading certificate: %v", err)
-	}
+func printExtendedKeyUsage(cert *x509.Certificate) {
+	if len(cert.ExtKeyUsage) > 0 {
+		usages := []string{}
 
-	// Print the certificate details
-	printCertificateDetails(cert)
+		for _, usage := range cert.ExtKeyUsage {
+			switch usage {
+			case x509.ExtKeyUsageAny:
+				usages = append(usages, "Any Extended Key Usage")
+				// If "Any Extended Key Usage" is set, no need to print others
+				break
+			case x509.ExtKeyUsageServerAuth:
+				usages = append(usages, "TLS Web Server Authentication")
+			case x509.ExtKeyUsageClientAuth:
+				usages = append(usages, "TLS Web Client Authentication")
+			case x509.ExtKeyUsageCodeSigning:
+				usages = append(usages, "Code Signing")
+			case x509.ExtKeyUsageEmailProtection:
+				usages = append(usages, "E-mail Protection")
+			case x509.ExtKeyUsageTimeStamping:
+				usages = append(usages, "Time Stamping")
+			case x509.ExtKeyUsageOCSPSigning:
+				usages = append(usages, "OCSP Signing")
+			case x509.ExtKeyUsageMicrosoftServerGatedCrypto:
+				usages = append(usages, "Microsoft Server Gated Crypto")
+			case x509.ExtKeyUsageNetscapeServerGatedCrypto:
+				usages = append(usages, "Netscape Server Gated Crypto")
+			case x509.ExtKeyUsageIPSECEndSystem:
+				usages = append(usages, "IPSec End System")
+			case x509.ExtKeyUsageIPSECTunnel:
+				usages = append(usages, "IPSec Tunnel")
+			case x509.ExtKeyUsageIPSECUser:
+				usages = append(usages, "IPSec User")
+			case x509.ExtKeyUsageMicrosoftCommercialCodeSigning:
+				usages = append(usages, "Microsoft Commercial Code Signing")
+			case x509.ExtKeyUsageMicrosoftKernelCodeSigning:
+				usages = append(usages, "Microsoft Kernel Code Signing")
+			}
+		}
+
+		fmt.Printf("            X509v3 Extended Key Usage:\n")
+		fmt.Printf("                %s\n", strings.Join(usages, ", "))
+	}
+}
+
+// Helper to print Authority Key Identifier
+func printAuthorityKeyIdentifier(ext pkix.Extension) {
+	fmt.Printf("            X509v3 Authority Key Identifier:\n")
+	// The value is typically the key identifier in hex format
+	var authorityKeyIdentifier struct {
+		KeyIdentifier []byte `asn1:"optional,tag:0"`
+	}
+	_, err := asn1.Unmarshal(ext.Value, &authorityKeyIdentifier)
+	if err == nil {
+		//fmt.Printf("                %s\n", strings.ToUpper(hex.EncodeToString(authorityKeyIdentifier.KeyIdentifier)))
+		fmt.Printf("                %s\n", strings.ToUpper(formatHexBytes(authorityKeyIdentifier.KeyIdentifier)))
+	}
+}
+
+// Helper to print Subject Alternative Name (SAN)
+func printSubjectAlternativeName(ext pkix.Extension) {
+	fmt.Printf("            X509v3 Subject Alternative Name:\n")
+	var altNames []asn1.RawValue
+	_, err := asn1.Unmarshal(ext.Value, &altNames)
+	if err == nil {
+		for _, altName := range altNames {
+			switch altName.Tag {
+			case 2: // DNS name
+				fmt.Printf("                DNS:%s\n", string(altName.Bytes))
+			case 1: // Email address
+				fmt.Printf("                email:%s\n", string(altName.Bytes))
+			case 7: // IP address
+				ip := net.IP(altName.Bytes)
+				fmt.Printf("                IP Address:%s\n", ip)
+			}
+		}
+	}
+}
+
+// Helper to print Basic Constraints
+func printBasicConstraints(cert *x509.Certificate) {
+	fmt.Printf("            X509v3 Basic Constraints: critical\n")
+	if cert.IsCA {
+		fmt.Printf("                CA:TRUE\n")
+	} else {
+		fmt.Printf("                CA:FALSE\n")
+	}
+}
+
+// Helper to print Subject Key Identifier
+func printSubjectKeyIdentifier(ext pkix.Extension) {
+	fmt.Printf("            X509v3 Subject Key Identifier:\n")
+	// The value is typically the key identifier in hex format
+	var subjectKeyIdentifier []byte
+	_, err := asn1.Unmarshal(ext.Value, &subjectKeyIdentifier)
+	if err == nil {
+		//fmt.Printf("                %s\n", strings.ToUpper(hex.EncodeToString(subjectKeyIdentifier)))
+		fmt.Printf("                %s\n", strings.ToUpper(formatHexBytes(subjectKeyIdentifier)))
+	}
+}
+
+// Key Usage bits mapping
+var keyUsageNames = []string{
+	"Digital Signature",
+	"Non Repudiation",
+	"Key Encipherment",
+	"Data Encipherment",
+	"Key Agreement",
+	"Certificate Sign",
+	"CRL Sign",
+	"Encipher Only",
+	"Decipher Only",
+}
+
+// Function to parse and display Key Usage using the x509.Certificate struct
+func printKeyUsage(cert *x509.Certificate) {
+	if cert.KeyUsage != 0 { // Check if Key Usage is set
+		fmt.Printf("            X509v3 Key Usage: critical\n")
+		usages := []string{}
+
+		// Map the bitmask to human-readable usage descriptions
+		if cert.KeyUsage&x509.KeyUsageDigitalSignature != 0 {
+			usages = append(usages, "Digital Signature")
+		}
+		if cert.KeyUsage&x509.KeyUsageContentCommitment != 0 { // This is "Non Repudiation"
+			usages = append(usages, "Non Repudiation (Content Commitment)")
+		}
+		if cert.KeyUsage&x509.KeyUsageKeyEncipherment != 0 {
+			usages = append(usages, "Key Encipherment")
+		}
+		if cert.KeyUsage&x509.KeyUsageDataEncipherment != 0 {
+			usages = append(usages, "Data Encipherment")
+		}
+		if cert.KeyUsage&x509.KeyUsageKeyAgreement != 0 {
+			usages = append(usages, "Key Agreement")
+		}
+		if cert.KeyUsage&x509.KeyUsageCertSign != 0 {
+			usages = append(usages, "Certificate Sign")
+		}
+		if cert.KeyUsage&x509.KeyUsageCRLSign != 0 {
+			usages = append(usages, "CRL Sign")
+		}
+		if cert.KeyUsage&x509.KeyUsageEncipherOnly != 0 {
+			usages = append(usages, "Encipher Only")
+		}
+		if cert.KeyUsage&x509.KeyUsageDecipherOnly != 0 {
+			usages = append(usages, "Decipher Only")
+		}
+
+		// Print the joined usages in a comma-separated list
+		fmt.Printf("                %s\n", strings.Join(usages, ", "))
+	}
 }

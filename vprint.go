@@ -1,4 +1,4 @@
-package edwardsrpc
+package rpc25519
 
 import (
 	"fmt"
@@ -6,22 +6,47 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"sync"
 	"time"
+
+	"4d63.com/tz"
 )
 
-var vv = VV
-
 // for tons of debug output
-var VerboseVerbose bool
-var Verbose bool
+var Verbose bool = false
+var VerboseVerbose bool = false
 
+var GTZ *time.Location
+var Chicago *time.Location
+var UtcTz *time.Location
 var NYC *time.Location
+var London *time.Location
+var Frankfurt *time.Location
 
 func init() {
+
+	// do this is ~/.bashrc so we get the default.
+	os.Setenv("TZ", "America/Chicago")
+
 	var err error
-	NYC, err = time.LoadLocation("America/New_York")
+	Chicago, err = tz.LoadLocation("America/Chicago")
 	panicOn(err)
+	UtcTz, err = tz.LoadLocation("UTC")
+	panicOn(err)
+	NYC, err = tz.LoadLocation("America/New_York")
+	panicOn(err)
+	Frankfurt, err = tz.LoadLocation("Europe/Berlin")
+	panicOn(err)
+	London, err = tz.LoadLocation("Europe/London")
+	panicOn(err)
+
+	GTZ = Chicago
 }
+
+const RFC3339MsecTz0 = "2006-01-02T15:04:05.000Z07:00"
+
+var MyPid = os.Getpid()
+var ShowPid bool
 
 func P(format string, a ...interface{}) {
 	if Verbose {
@@ -35,9 +60,20 @@ func PP(format string, a ...interface{}) {
 	}
 }
 
+// useful during git bisect
+var ForceQuiet = false
+
 func VV(format string, a ...interface{}) {
+	if !ForceQuiet {
+		TSPrintf(format, a...)
+	}
+}
+
+func AlwaysPrintf(format string, a ...interface{}) {
 	TSPrintf(format, a...)
 }
+
+var vv = VV
 
 // without the file/line, otherwise the same as PP
 func PPP(format string, a ...interface{}) {
@@ -53,19 +89,24 @@ func PB(w io.Writer, format string, a ...interface{}) {
 	}
 }
 
-func AlwaysPrintf(format string, a ...interface{}) {
-	TSPrintf(format, a...)
-}
+var tsPrintfMut sync.Mutex
 
 // time-stamped printf
 func TSPrintf(format string, a ...interface{}) {
-	Printf("\n%s %s ", FileLine(3), ts())
+	tsPrintfMut.Lock()
+	if ShowPid {
+		Printf("\n%s [pid %v] %s ", FileLine(3), MyPid, ts())
+	} else {
+		Printf("\n%s %s ", FileLine(3), ts())
+	}
 	Printf(format+"\n", a...)
+	tsPrintfMut.Unlock()
 }
 
 // get timestamp for logging purposes
 func ts() string {
-	return time.Now().In(NYC).Format("2006-01-02 15:04:05.999 -0700 MST")
+	return time.Now().In(Chicago).Format("2006-01-02 15:04:05.999 -0700 MST")
+	//return time.Now().In(NYC).Format("2006-01-02 15:04:05.999 -0700 MST")
 }
 
 // so we can multi write easily, use our own printf
@@ -96,7 +137,7 @@ func p(format string, a ...interface{}) {
 
 var pp = PP
 
-func pb(w io.Writer, format string, a ...interface{}) {
+func pbb(w io.Writer, format string, a ...interface{}) {
 	if Verbose {
 		fmt.Fprintf(w, "\n"+format+"\n", a...)
 	}
@@ -113,10 +154,27 @@ func QPrintf(format string, a ...interface{}) (n int, err error) {
 	return
 }
 
-func Stack() string {
-	buf := make([]byte, 64000)
-	n := runtime.Stack(buf, false)
-	return string(buf[:n])
+func Caller(upStack int) string {
+	// elide ourself and runtime.Callers
+	target := upStack + 2
+
+	pc := make([]uintptr, target+2)
+	n := runtime.Callers(0, pc)
+
+	f := runtime.Frame{Function: "unknown"}
+	if n > 0 {
+		frames := runtime.CallersFrames(pc[:n])
+		for i := 0; i <= target; i++ {
+			contender, more := frames.Next()
+			if i == target {
+				f = contender
+			}
+			if !more {
+				break
+			}
+		}
+	}
+	return f.Function
 }
 
 func panicOn(err error) {

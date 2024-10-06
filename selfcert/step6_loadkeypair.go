@@ -1,4 +1,4 @@
-package main
+package selfcert
 
 import (
 	"crypto/ed25519"
@@ -9,6 +9,32 @@ import (
 	"log"
 	//"os"
 )
+
+// optional, for further use of keys.
+//
+// typcially:
+//
+//	privateKeyPath = "static/certs/server/node.key"
+//	certKeyPath = "static/certs/server/node.crt"
+func Step6_LoadKeyPair(privateKeyPath, certPath string) {
+
+	// Load the private key from the PEM file
+	privateKey, err := loadEd25519PrivateKey(privateKeyPath)
+	if err != nil {
+		log.Fatalf("Error loading private key: %v", err)
+	}
+	_ = privateKey
+	fmt.Printf("Private Key Loaded Successfully: %v\n", privateKeyPath)
+
+	// Load the certificate from the PEM file
+	certificate, err := loadCertificate(certPath)
+	if err != nil {
+		log.Fatalf("Error loading certificate: %v", err)
+	}
+	fmt.Printf("Certificate Loaded Successfully: Subject: %v\n", certificate.Subject)
+	fmt.Printf("Certificate Loaded Successfully: DNSNames: %v\n", certificate.DNSNames)
+	fmt.Printf("Certificate Loaded Successfully: EmailAddress: %v\n", certificate.EmailAddresses)
+}
 
 // Load and parse the PEM-encoded Ed25519 private key
 func loadEd25519PrivateKey(keyPath string) (ed25519.PrivateKey, error) {
@@ -39,6 +65,8 @@ func loadEd25519PrivateKey(keyPath string) (ed25519.PrivateKey, error) {
 	return edKey, nil
 }
 
+/* duplicated in step5_viewcert.go; use that one.
+
 // Load and parse the PEM-encoded certificate
 func loadCertificate(certPath string) (*x509.Certificate, error) {
 	// Read the certificate file
@@ -61,23 +89,4 @@ func loadCertificate(certPath string) (*x509.Certificate, error) {
 
 	return cert, nil
 }
-
-func main() {
-	// Load the private key from the PEM file
-	privateKeyPath := "static/certs/server/node.key"
-	privateKey, err := loadEd25519PrivateKey(privateKeyPath)
-	if err != nil {
-		log.Fatalf("Error loading private key: %v", err)
-	}
-	_ = privateKey
-	fmt.Printf("Private Key Loaded Successfully: %v\n", privateKeyPath)
-
-	// Load the certificate from the PEM file
-	certificate, err := loadCertificate("static/certs/server/node.crt")
-	if err != nil {
-		log.Fatalf("Error loading certificate: %v", err)
-	}
-	fmt.Printf("Certificate Loaded Successfully: Subject: %v\n", certificate.Subject)
-	fmt.Printf("Certificate Loaded Successfully: DNSNames: %v\n", certificate.DNSNames)
-	fmt.Printf("Certificate Loaded Successfully: EmailAddress: %v\n", certificate.EmailAddresses)
-}
+*/

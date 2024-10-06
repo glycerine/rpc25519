@@ -1,4 +1,4 @@
-package edwardsrpc
+package rpc25519
 
 import (
 	"bytes"
@@ -19,9 +19,9 @@ import (
 var ErrPubKeyMismath = fmt.Errorf("remote host pubkey does not match that on file!")
 var ErrPubKeyUnknown = fmt.Errorf("remote host pubkey is not on file, and TOFU is off!")
 
-// KnownHost saved to a file results in lines like
-// 127.0.0.1 pubkey@minusrpc-ed25519-9ZrrEXxvoqmj9UkgiPjHNZP41N9wuLyQTEUCg5S7VjPuJbXXL8a:froggy@example.com
-type KnownHost struct {
+// KnownKey saved to a file results in lines like
+// 127.0.0.1 pubkey@edwardsRPC-ed25519-b58c-9ZrrEXxvoqmj9UkgiPjHNZP41N9wuLyQTEUCg5S7VjPuJbXXL8a:froggy@example.com
+type KnownKey struct {
 	Addr    string // 192.168.254.151:8443
 	KeyType string // ed25519
 	PubKey  string // 9aTjVYv1K7vj3WYX3EktjaGPycNwym5Rn5Vo1WuxLdF7bxpMDV6
@@ -29,27 +29,27 @@ type KnownHost struct {
 	Line    int
 }
 
-func (kh *KnownHost) String() string {
-	return fmt.Sprintf("%v pubkey@minusrpc-%v-%v:%v", kh.Addr, kh.KeyType, kh.PubKey, kh.Emails)
+func (kh *KnownKey) String() string {
+	return fmt.Sprintf("%v pubkey@edwardsRPC-%v-b58c-%v:%v", kh.Addr, kh.KeyType, kh.PubKey, kh.Emails)
 }
 
-// e.g. "pubkey@minusrpc-ed25519-9ZrrEXxvoqmj9UkgiPjHNZP41N9wuLyQTEUCg5S7VjPuJbXXL8a:froggy@example.com"
-func (kh *KnownHost) IdentityString() string {
-	return fmt.Sprintf("pubkey@minusrpc-%v-%v:%v", kh.KeyType, kh.PubKey, kh.Emails)
+// e.g. "pubkey@edwardsRPC-ed25519-b58c-9ZrrEXxvoqmj9UkgiPjHNZP41N9wuLyQTEUCg5S7VjPuJbXXL8a:froggy@example.com"
+func (kh *KnownKey) IdentityString() string {
+	return fmt.Sprintf("pubkey@edwardsRPC-%v-b58c-%v:%v", kh.KeyType, kh.PubKey, kh.Emails)
 }
 
 type Known struct {
 	Path  string
-	Hosts []*KnownHost
+	Hosts []*KnownKey
 
-	// "6v0qwCgyE6SrR7DYsuvbjih67HppzHBLPfSxnE" -> *KnownHost
-	PubKeyMap map[string]*KnownHost
+	// "6v0qwCgyE6SrR7DYsuvbjih67HppzHBLPfSxnE" -> *KnownKey
+	PubKeyMap map[string]*KnownKey
 }
 
 func NewKnown(path string) *Known {
 	return &Known{
 		Path:      path,
-		PubKeyMap: make(map[string]*KnownHost),
+		PubKeyMap: make(map[string]*KnownKey),
 	}
 }
 
@@ -72,7 +72,7 @@ func (k *Known) WriteOut() (err error) {
 	return
 }
 
-func (k *Known) Add(kh *KnownHost) {
+func (k *Known) Add(kh *KnownKey) {
 
 	_, found := k.PubKeyMap[kh.PubKey]
 	if !found {
@@ -83,7 +83,7 @@ func (k *Known) Add(kh *KnownHost) {
 
 var ErrNotFound = fmt.Errorf("known_tls_hosts file not found")
 
-func readKnownHosts(path string) (kn *Known, err error) {
+func readKnownKeys(path string) (kn *Known, err error) {
 
 	if !FileExists(path) {
 		return nil, ErrNotFound
@@ -109,7 +109,7 @@ func readKnownHosts(path string) (kn *Known, err error) {
 			continue // skip comments
 		}
 		// addr      pubkey-identity-string (artificially shorted for readability)
-		// 127.0.0.1 pubkey@minusrpc-ed25519-9aTjVYv1K:froggy@example.com
+		// 127.0.0.1 pubkey@edwardsRPC-ed25519-b58c-9aTjVYv1K:froggy@example.com
 		splt := strings.Fields(l)
 		//vv("splt = '%#v'", splt)
 		if len(splt) >= 2 {
@@ -117,10 +117,10 @@ func readKnownHosts(path string) (kn *Known, err error) {
 			identString := splt[1]
 
 			//vv("addr='%v'; identString =  '%v'", addr, identString)
-			const prefix string = "pubkey@minusrpc-ed25519-"
+			const prefix string = "pubkey@edwardsRPC-ed25519-b58c-"
 			if !strings.HasPrefix(identString, prefix) {
 				return nil, fmt.Errorf("badly formatted known pubkey file '%v' at "+
-					"line %v: identity string did not start with 'pubkey@minusrpc-ed25519-'; "+
+					"line %v: identity string did not start with 'pubkey@edwardsRPC-ed25519-b58c-'; "+
 					"line = '%v'", path, i, l)
 			}
 			rest := identString[len(prefix):]
@@ -133,7 +133,7 @@ func readKnownHosts(path string) (kn *Known, err error) {
 			}
 			pubkey := splt2[0]
 			emails := splt2[1]
-			kh := &KnownHost{Addr: addr, KeyType: "ed25519", PubKey: pubkey, Emails: emails, Line: i}
+			kh := &KnownKey{Addr: addr, KeyType: "ed25519", PubKey: pubkey, Emails: emails, Line: i}
 
 			kn.Hosts = append(kn.Hosts, kh)
 			kn.PubKeyMap[pubkey] = kh
@@ -143,12 +143,15 @@ func readKnownHosts(path string) (kn *Known, err error) {
 }
 
 // server will want stripPort true since client's port will change all the time.
-// tofu true means we add any unknown cert to our knownHostsPath.
+// tofu true means we add any unknown cert to our knownKeysPath.
 // We don't really care what the IP or hostname is, as
 // long as we recognized a certified public key (in one of the identities), we accept.
 // The IP or port could change, we don't care.
+//
+// NB only ed25519 keys are permitted, any others will result
+// in an immediate error and no further keys will be evaluated.
 func HostKeyVerifies(
-	knownHostsPath string,
+	knownKeysPath string,
 	connState *tls.ConnectionState,
 	remoteAddr string) (good, bad []string, wasNew bool, err0 error) {
 
@@ -163,22 +166,31 @@ func HostKeyVerifies(
 	// If the file is read-only, then we do no Trust-On-First-Use (tofu).
 	// But if the file does not exist, then we do tofu.
 	tofu := true
-	if FileExists(knownHostsPath) && !IsWritable(knownHostsPath) {
-		tofu = false // no writing/modification of the read-only file.
-	}
+	haveKnown := false
+	var known *Known
+	var err error
 
-	known, err := readKnownHosts(knownHostsPath)
-	haveKnown := true
-	if err != nil && err == ErrNotFound {
-		err = nil
-		haveKnown = false
-		if !tofu {
-			panic(fmt.Sprintf("Empty host key file '%v' AND it is not writable!"+
-				" We will never accept any connections.", knownHostsPath))
+	// we use the existance of the known keys file to decide
+	// whether to use it or not. So touch the file to start using it.
+	recordKeys := FileExists(knownKeysPath)
+	if recordKeys {
+		if !IsWritable(knownKeysPath) {
+			tofu = false // no writing/modification of the read-only file.
 		}
-	}
-	if err != nil {
-		return nil, nil, false, err
+
+		known, err = readKnownKeys(knownKeysPath)
+		haveKnown = true // default, adjust below
+		if err != nil && err == ErrNotFound {
+			err = nil
+			haveKnown = false
+			if !tofu {
+				panic(fmt.Sprintf("Empty host key file '%v' AND it is not writable!"+
+					" We will never accept any connections.", knownKeysPath))
+			}
+		}
+		if err != nil {
+			return nil, nil, false, err
+		}
 	}
 
 	// Retrieve the server's certificate chain
@@ -207,11 +219,16 @@ func HostKeyVerifies(
 			ed25519pubkey = key
 			//vv("key = '%#v' (len %v) : '%x'", key, len(key), key)
 		default:
-			vv("Unknown Public Key Type '%#v'", pubKeyIface)
-			continue
+			vv("Unknown Public Key Type '%T'", pubKeyIface)
+			return nil, nil, false, fmt.Errorf("unknown public key-type, not ed25519 but: '%T'", pubKeyIface)
 		}
 
 		if len(ed25519pubkey) == 0 {
+			return nil, nil, false, fmt.Errorf("empty public key bytes??? ed25519 but no key present.")
+		}
+
+		if !recordKeys {
+			// this flags false means: we don't want to create or read known_{client,server}_keys
 			continue
 		}
 
@@ -233,14 +250,14 @@ func HostKeyVerifies(
 		if len(serverCert.EmailAddresses) > 0 {
 			emails = strings.Join(serverCert.EmailAddresses, ",")
 		}
-		kh := &KnownHost{Addr: host, KeyType: keyType, PubKey: pubkey, Emails: emails}
+		kh := &KnownKey{Addr: host, KeyType: keyType, PubKey: pubkey, Emails: emails}
 
 		combo := kh.IdentityString()
 
 		if !haveKnown {
 			// INVAR: tofu is true. See above panic.
 			// first time
-			known = NewKnown(knownHostsPath)
+			known = NewKnown(knownKeysPath)
 			known.Add(kh)
 			good = append(good, combo)
 			known.WriteOut()
@@ -265,7 +282,7 @@ func HostKeyVerifies(
 		// INVAR: this is a new identity for us.
 
 		if tofu {
-			// first time, add to list of known hosts
+			// first time, add to list of known keys
 			known.Add(kh)
 			good = append(good, combo)
 			known.WriteOut()
@@ -302,4 +319,11 @@ func fromBase58Check(encodedStr string) []byte {
 	//vv("Version = %v", version) // 255
 	panicOn(err) // panic if checksum verification fails.
 	return decoded
+}
+
+func toBase58(by []byte) string {
+	return base58.Encode(by)
+}
+func fromBase58(encodedStr string) []byte {
+	return base58.Decode(encodedStr)
 }

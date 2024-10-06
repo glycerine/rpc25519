@@ -1,7 +1,7 @@
 #!/bin/bash
 
 rm -rf static tmp
-mkdir -p static/certs/
+mkdir -p static
 mkdir -p tmp
 
 ## warning/helpful: these are good for 100 years.
@@ -19,7 +19,7 @@ echo "verify that CA:TRUE is there on ca-cert.pem"
 openssl x509 -in ca-cert.pem -text -noout | grep -A 1 "X509v3 Basic Constraints"
 
 cp ca-cert.pem tmp/ca.crt
-mv ca-cert.pem static/certs/ca.crt
+mv ca-cert.pem static/ca.crt
 mv ca-key.pem  tmp/ca.key
 
 echo "verify that CA:TRUE is there on ca.crt"

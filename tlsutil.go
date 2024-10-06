@@ -13,7 +13,7 @@
 // implied. See the License for the specific language governing
 // permissions and limitations under the License.
 
-package edwardsrpc
+package rpc25519
 
 import (
 	"crypto/tls"
@@ -26,7 +26,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-//go:embed static/*
+//go:embed certs/*
 var static embed.FS
 
 /*
