@@ -1,6 +1,15 @@
 rpc25519: Edwards curve ed25519 based identity RPC for Go/golang
 ==========
 
+Not generally available at the moment.
+
+At the moment I wrote this to support goq moving
+to a sane RPC system. It does not have the bells
+and whistles needed for general purpose usability.
+But the bones are there.
+
+It is public because goq is public and needs this now.
+
 TLS-1.3 over TCP
 ----------------
 
