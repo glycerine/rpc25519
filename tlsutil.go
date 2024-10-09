@@ -26,7 +26,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-//go:embed certs/*
+//go:embed certs
 var static embed.FS
 
 /*
