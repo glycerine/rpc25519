@@ -533,7 +533,8 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		clone := *config
 		cfg = &clone
 	} else {
-		cfg = &Config{} // defaults.
+		return nil, fmt.Errorf("missing config.ServerAddr to connect to")
+		//cfg = &Config{} // defaults.
 	}
 	c = &Client{
 		cfg:          cfg,

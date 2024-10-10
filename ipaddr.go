@@ -199,6 +199,12 @@ func LocalAddrMatching(addr string) (local string, err error) {
 	// Resolve the server address
 	addr = removeNetworkPrefix(addr)
 
+	// if localhost, return same
+	isLocal, host := IsLocalhost(addr)
+	if isLocal {
+		return host, nil
+	}
+
 	serverAddr, err := net.ResolveUDPAddr("udp", addr)
 	if err != nil {
 		return "", fmt.Errorf("Failed to resolve server address: %v", err)
@@ -293,4 +299,18 @@ func isPrivateIP(ip net.IP) bool {
 		}
 	}
 	return false
+}
+
+func IsLocalhost(ipStr string) (isLocal bool, hostOnlyNoPort string) {
+	host, _, err := net.SplitHostPort(ipStr)
+	if err == nil {
+		ipStr = host
+	}
+	hostOnlyNoPort = ipStr
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		isLocal = false // Invalid IP
+	}
+	isLocal = ip.IsLoopback() || ip.Equal(net.IPv4(127, 0, 0, 1)) || ip.Equal(net.IPv6loopback)
+	return
 }

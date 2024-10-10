@@ -34,6 +34,14 @@ func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
 	ctxWithCancel, outerCancel := context.WithCancel(ctx)
 	defer outerCancel()
 
+	// could also try context.AfterFunc(ctxWithCancelt, func() {
+	// 		select {
+	//      case <-ctxWithCancel.Done():
+	//			//vv("quic_client '%v' sees ctxWithCancel is Done.", c.name) // yes! seen on shutdown.
+	//			c.halt.ReqStop.Close()
+	//		case <-c.halt.ReqStop.Chan:
+	//		}
+	// })  // to avoid a goroutine.
 	go func() {
 		select {
 		case <-ctxWithCancel.Done():
@@ -45,7 +53,7 @@ func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
 
 	localHost, err := LocalAddrMatching(quicServerAddr)
 	panicOn(err)
-	//vv("localHost = '%v'", localHost)
+	vv("localHost = '%v', matched to quicServerAddr = '%v'", localHost, quicServerAddr)
 	localHostPort := localHost + ":0" // client can pick any port
 
 	// Server address to connect to
@@ -58,7 +66,7 @@ func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
 
 	localAddr, err := net.ResolveUDPAddr("udp", localHostPort) // get net.UDPAddr
 	panicOn(err)
-	//vv("localHostPort '%v' -> '%v'", localHostPort, localAddr)
+	vv("quic client using localAddr '%v' -> serverAddr '%v'", localHostPort, serverAddr)
 
 	// Create the UDP connection bound to the specified local address
 	udpConn, err := net.ListenUDP("udp", localAddr)
