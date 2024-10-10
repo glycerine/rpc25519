@@ -298,17 +298,18 @@ mountain of complexity that is `openssl`, but more limited in scope.
 In our opinion, this a good thing.
 
 If you are in a hurry to get started, the most basic 
-use of `selfy` is to create a new ed25519 key-pair once
-you already have a CA (Certificate Authority):
+use of `selfy` is to create a new ed25519 key-pair:
 
 ~~~
 $ selfy -k name_of_your_identity -e your@email.here.org
 ~~~
 
-If you lack a CA in the default directory (see -p below), then,
+With other tools you would need to already have a CA (Certificate Authority).
+
+But we've got your back. If you lack a CA in the default directory (see -p below), then,
 for your convenience, a self-signed CA will be auto-generated for you.
 It will then be used to sign the new cert. Hence the above
-command is all that a typical developer needs to get started(!)
+command is all that a typical developer needs to get started. Yay(!)
 
 If you want to first create a CA manually, you can do that
 with the `-ca` flag. The  `-p` flag will let you put it somewhere
