@@ -559,8 +559,14 @@ func (c *Client) SendAndGetReplyWithTimeout(timeout time.Duration, req *Message)
 // doneCh is optional; can be nil.
 func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *Message, err error) {
 
-	from := local(c.Conn)
-	to := remote(c.Conn)
+	var from, to string
+	if c.isQUIC {
+		from = local(c.QuicConn)
+		to = remote(c.QuicConn)
+	} else {
+		from = local(c.Conn)
+		to = remote(c.Conn)
+	}
 	isRPC := true
 	isLeg2 := false
 	mid := NewMID(from, to, req.Subject, isRPC, isLeg2)
@@ -593,8 +599,15 @@ func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *M
 // doneCh is optional, can be nil.
 func (c *Client) OneWaySend(msg *Message, doneCh <-chan struct{}) (err error) {
 
-	from := local(c.Conn)
-	to := remote(c.Conn)
+	var from, to string
+	if c.isQUIC {
+		from = local(c.QuicConn)
+		to = remote(c.QuicConn)
+	} else {
+		from = local(c.Conn)
+		to = remote(c.Conn)
+	}
+
 	isRPC := false
 	isLeg2 := false
 
