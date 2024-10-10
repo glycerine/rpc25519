@@ -509,11 +509,12 @@ func (s *Server) RegisterFunc(callme CallbackFunc) {
 func (s *Server) Start() (serverAddr net.Addr, err error) {
 	//vv("Server.Start() called")
 	if s.cfg == nil {
+		s.cfg = &Config{}
+	}
+	if s.cfg.ServerAddr == "" {
 		hostport := "127.0.0.1:0" // default to safe loopback
-		AlwaysPrintf("Server.Start(): warning: nil config, binding to '%v'", hostport)
-		s.cfg = &Config{
-			ServerAddr: hostport,
-		}
+		AlwaysPrintf("Server.Start(): warning: nil config or no ServerAddr specified, binding to '%v'", hostport)
+		s.cfg.ServerAddr = hostport
 	}
 	boundCh := make(chan net.Addr, 1)
 	go s.RunServerMain(s.cfg.ServerAddr, s.cfg.TCPonly_no_TLS, s.cfg.CertPath, boundCh)
