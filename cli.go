@@ -17,6 +17,7 @@ import (
 
 	"github.com/glycerine/idem"
 	"github.com/glycerine/rpc25519/selfcert"
+	"github.com/quic-go/quic-go"
 )
 
 var sep = string(os.PathSeparator)
@@ -82,6 +83,14 @@ func (c *Client) RunClientMain(serverAddr string, tcp_only bool, certPath string
 
 	if c.cfg.SkipVerifyKeys {
 		config.InsecureSkipVerify = true // true would be insecure
+	}
+
+	if c.cfg.UseQUIC {
+		if c.cfg.TCPonly_no_TLS {
+			panic("cannot have both UseQUIC and TCPonly_no_TLS true")
+		}
+		c.RunQUIC(serverAddr, config)
+		return
 	}
 
 	// Dial the server, with a timeout
@@ -369,6 +378,9 @@ type Config struct {
 	// TCP false means TLS-1.3 secured. true here means do TCP only.
 	TCPonly_no_TLS bool
 
+	// UseQUIC cannot be true if TCPonly_no_TLS is true.
+	UseQUIC bool
+
 	// path to certs/ like certificate
 	// directory on the live filesystem. If left
 	// empty then the embedded certs/ from build-time, those
@@ -431,8 +443,11 @@ type Client struct {
 	notifyOnRead []chan *Message
 	notifyOnce   map[uint64]chan *Message
 
-	Conn  net.Conn // the default.
-	isTLS bool
+	Conn     net.Conn // the default.
+	QuicConn quic.Connection
+
+	isTLS  bool
+	isQUIC bool
 
 	oneWayCh    chan *Message
 	roundTripCh chan *Message
