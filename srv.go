@@ -510,6 +510,7 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 	//vv("Server.Start() called")
 	if s.cfg == nil {
 		hostport := "127.0.0.1:0" // default to safe loopback
+		AlwaysPrintf("Server.Start(): warning: nil config, binding to '%v'", hostport)
 		s.cfg = &Config{
 			ServerAddr: hostport,
 		}
