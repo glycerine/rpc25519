@@ -53,7 +53,7 @@ func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
 
 	localHost, err := LocalAddrMatching(quicServerAddr)
 	panicOn(err)
-	vv("localHost = '%v', matched to quicServerAddr = '%v'", localHost, quicServerAddr)
+	//vv("localHost = '%v', matched to quicServerAddr = '%v'", localHost, quicServerAddr)
 	localHostPort := localHost + ":0" // client can pick any port
 
 	// Server address to connect to
@@ -66,7 +66,7 @@ func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
 
 	localAddr, err := net.ResolveUDPAddr("udp", localHostPort) // get net.UDPAddr
 	panicOn(err)
-	vv("quic client using localAddr '%v' -> serverAddr '%v'", localHostPort, serverAddr)
+	//vv("quic client using localAddr '%v' -> serverAddr '%v'", localHostPort, serverAddr)
 
 	// Create the UDP connection bound to the specified local address
 	udpConn, err := net.ListenUDP("udp", localAddr)
