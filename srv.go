@@ -96,7 +96,7 @@ func (s *Server) RunServerMain(serverAddress string, tcp_only bool, certPath str
 	defer listener.Close()
 
 	addr := listener.Addr()
-	//log.Printf("Server listening on %v:%v", addr.Network(), addr.String())
+	//vv("Server listening on %v:%v", addr.Network(), addr.String())
 	if boundCh != nil {
 		select {
 		case boundCh <- addr:
@@ -124,10 +124,10 @@ func (s *Server) RunServerMain(serverAddress string, tcp_only bool, certPath str
 				default:
 				}
 			}
-			log.Printf("Failed to accept connection: %v", err)
+			vv("Failed to accept connection: %v", err)
 			continue
 		}
-		//log.Printf("Accepted connection from %v", conn.RemoteAddr())
+		//vv("Accepted connection from %v", conn.RemoteAddr())
 
 		// Handle the connection in a new goroutine
 		tlsConn := conn.(*tls.Conn)
@@ -146,7 +146,7 @@ func (s *Server) RunTCP(serverAddress string, boundCh chan net.Addr) {
 	defer listener.Close()
 
 	addr := listener.Addr()
-	//log.Printf("Server listening on %v:%v", addr.Network(), addr.String())
+	//vv("Server listening on %v:%v", addr.Network(), addr.String())
 	if boundCh != nil {
 		select {
 		case boundCh <- addr:
@@ -171,10 +171,10 @@ acceptAgain:
 			if strings.Contains(err.Error(), "use of closed network connection") {
 				continue acceptAgain // fullRestart
 			}
-			log.Printf("Failed to accept connection: %v", err)
+			vv("Failed to accept connection: %v", err)
 			continue acceptAgain
 		}
-		//log.Printf("server accepted connection from %v", conn.RemoteAddr())
+		//vv("server accepted connection from %v", conn.RemoteAddr())
 
 		if false {
 			// another rpc system did this:
@@ -200,7 +200,7 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 	//vv("top of handleConnection()")
 
 	defer func() {
-		//log.Printf("Closing connection from %v", conn.RemoteAddr())
+		//vv("Closing connection from %v", conn.RemoteAddr())
 		conn.Close()
 	}()
 
@@ -225,7 +225,7 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 	// ctx gives us a timeout. Otherwise, one must set a deadline
 	// on the conn to avoid an infinite hang during handshake.
 	if err := conn.HandshakeContext(ctx); err != nil {
-		log.Printf("tlsConn.Handshake() failed: '%v'", err)
+		vv("tlsConn.Handshake() failed: '%v'", err)
 		return
 	}
 
@@ -271,7 +271,7 @@ func (s *RWPair) runSendLoop(conn net.Conn) {
 		case msg := <-s.SendCh:
 			err := w.sendMessage(msg.Seqno, conn, msg, &s.cfg.WriteTimeout)
 			if err != nil {
-				log.Printf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.Seqno)
+				vv("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.Seqno)
 			}
 		case <-s.halt.ReqStop.Chan:
 			return
@@ -281,7 +281,7 @@ func (s *RWPair) runSendLoop(conn net.Conn) {
 
 func (s *RWPair) runRecvLoop(conn net.Conn) {
 	defer func() {
-		//log.Printf("rpc25519.Server: runRecvLoop shutting down for local conn = '%v'", conn.LocalAddr())
+		//vv("rpc25519.Server: runRecvLoop shutting down for local conn = '%v'", conn.LocalAddr())
 
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
@@ -301,7 +301,7 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 
 		seqno, req, err := w.receiveMessage(conn, &s.cfg.ReadTimeout)
 		if err == io.EOF {
-			//log.Printf("server sees io.EOF from receiveMessage")
+			//vv("server sees io.EOF from receiveMessage")
 			continue // close of socket before read of full message.
 		}
 		if err != nil {
@@ -314,7 +314,7 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 				return // shutting down
 			}
 
-			log.Printf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
+			vv("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
 			return
 		}
 
@@ -345,7 +345,7 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 				// <-req.DoneCh
 
 				if reply != nil && reply.Err != nil {
-					log.Printf("note: callback on seqno %v from '%v' got Err='%v", seqno, conn.RemoteAddr(), err)
+					vv("note: callback on seqno %v from '%v' got Err='%v", seqno, conn.RemoteAddr(), err)
 				}
 				// if reply is nil, then we return nothing; it was probably a OneWaySend() target.
 
@@ -482,6 +482,9 @@ func (s *Server) SendMessage(callID, subject, destAddr string, by []byte, seqno 
 	return nil
 }
 
+// NewServer will keep its own copy of
+// config. If config is nil, the
+// server will make its own upon Start().
 func NewServer(config *Config) *Server {
 
 	var cfg *Config
@@ -506,7 +509,7 @@ func (s *Server) RegisterFunc(callme CallbackFunc) {
 func (s *Server) Start() (serverAddr net.Addr, err error) {
 	//vv("Server.Start() called")
 	if s.cfg == nil {
-		hostport := GetExternalIP() + ":0"
+		hostport := "127.0.0.1:0" // default to safe loopback
 		s.cfg = &Config{
 			ServerAddr: hostport,
 		}
