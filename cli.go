@@ -16,7 +16,10 @@ import (
 	"time"
 
 	"github.com/glycerine/idem"
+	"github.com/glycerine/rpc25519/selfcert"
 )
+
+var sep = string(os.PathSeparator)
 
 // eg. serverAddr = "localhost:8443"
 // serverAddr = "192.168.254.151:8443"
@@ -624,4 +627,23 @@ func local(nc net.Conn) string {
 // issue 3, 5, 7, 9, ...
 func (c *Client) nextOddSeqno() (n uint64) {
 	return atomic.AddUint64(&c.lastOddSeqno, 2)
+}
+
+// odir/my-keep-private-dir and odir/certs will be created.
+func SelfyNewKey(createKeyPairNamed, odir string) error {
+	odirPrivateKey := odir + sep + "my-keep-private-dir"
+	odirCerts := odir + sep + "certs"
+	host, _ := os.Hostname()
+	email := createKeyPairNamed + "@" + host
+
+	if !DirExists(odirPrivateKey) || !FileExists(odirPrivateKey+sep+"ca.crt") {
+		log.Printf("key-pair '%v' requested but CA does not exist in '%v', so auto-generating a self-signed CA for your first.", createKeyPairNamed, odirPrivateKey)
+		selfcert.Step1_MakeCertificatAuthority(odirPrivateKey)
+	}
+
+	selfcert.Step2_MakeEd25519PrivateKeys([]string{createKeyPairNamed}, odirCerts)
+	selfcert.Step3_MakeCertSigningRequests([]string{createKeyPairNamed}, []string{email}, odirCerts)
+	selfcert.Step4_MakeCertificates(odirPrivateKey, []string{createKeyPairNamed}, odirCerts)
+
+	return nil
 }
