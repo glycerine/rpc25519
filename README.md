@@ -14,7 +14,9 @@ facility goq](https://github.com/glycerine/goq) is public and it needed it.
 TLS-1.3 over TCP
 ----------------
 
-TLS-1.3 over QUIC is viable (on the TODO list). See 
+TLS-v1.3 over TCP or plain TCP work now.
+
+QUIC, which always implicitly uses TLS-v1.3, is viable, but is not done. See 
 the quicrpc/ sub-directory for work in progress.
 
 How to KYC or Know Your Clients
