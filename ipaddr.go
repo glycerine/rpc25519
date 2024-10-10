@@ -155,6 +155,26 @@ func removeNetworkPrefix(address string) string {
 	return address
 }
 
+// if it needs [] ipv6 brackets, add them
+func WrapWithBrackets(local string) string {
+
+	if local == "" {
+		return local
+	}
+	if local[0] == '[' {
+		return local
+	}
+
+	ip := net.ParseIP(local)
+	if ip != nil {
+		if ip.To4() == nil {
+			// is IP v6
+			return "[" + local + "]"
+		}
+	}
+	return local
+}
+
 // LocalAddrMatching finds a matching interface IP to a server destination address
 //
 // addr should b "host:port" of server, we'll find the local IP to use.
@@ -183,6 +203,8 @@ func LocalAddrMatching(addr string) (local string, err error) {
 	if err != nil {
 		return "", fmt.Errorf("Failed to resolve server address: %v", err)
 	}
+
+	remote6 := serverAddr.IP.To4() == nil
 
 	// Get a list of network interfaces on the machine
 	interfaces, err := net.Interfaces()
@@ -218,9 +240,14 @@ func LocalAddrMatching(addr string) (local string, err error) {
 				ip = v.IP
 			}
 
-			// Skip if not IPv4 or no IPNet
-			//if ip == nil|| ip.To4() == nil || ipNet == nil {
+			// Skip if no IPNet
 			if ip == nil || ipNet == nil {
+				//if ip == nil || ipNet == nil {
+				continue
+			}
+
+			local6 := ip.To4() == nil
+			if local6 != remote6 {
 				continue
 			}
 

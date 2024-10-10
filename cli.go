@@ -158,8 +158,8 @@ func (c *Client) RunClientMain(serverAddr string, tcp_only bool, certPath string
 		//}
 	}
 
-	go c.RunReadLoop(conn)
-	c.RunSendLoop(conn)
+	go c.RunSendLoop(conn)
+	c.RunReadLoop(conn)
 }
 
 func (c *Client) RunClientTCP(serverAddr string) {
@@ -183,9 +183,8 @@ func (c *Client) RunClientTCP(serverAddr string) {
 	defer conn.Close()
 	//log.Printf("Connected to server %s", serverAddr)
 
-	// TODO debug reverse this comment out. should we just be single threaded client??
-	go c.RunReadLoop(conn)
-	c.RunSendLoop(conn)
+	go c.RunSendLoop(conn)
+	c.RunReadLoop(conn)
 }
 
 func (c *Client) RunReadLoop(conn net.Conn) {
@@ -209,8 +208,18 @@ func (c *Client) RunReadLoop(conn net.Conn) {
 		seqno, msg, err := w.receiveMessage(conn, &readTimeout)
 		if err != nil {
 			r := err.Error()
-			if strings.Contains(r, "timeout") {
+			if strings.Contains(r, "timeout") || strings.Contains(r, "deadline exceeded") {
 				continue
+			}
+			// quic server specific
+			if strings.Contains(r, "Application error 0x0 (remote)") {
+				//vv("normal quic shutdown.")
+				return
+			}
+
+			if strings.Contains(r, "server shutdown") {
+				//vv("client sees quic server shutdown")
+				return
 			}
 			if strings.Contains(r, "use of closed network connection") {
 				return
@@ -218,10 +227,16 @@ func (c *Client) RunReadLoop(conn net.Conn) {
 			if strings.Contains(r, "connection reset by peer") {
 				return
 			}
+			if strings.Contains(r, "Application error 0x0 (local)") {
+				return
+			}
 			if r == "EOF" && msg == nil {
 				return
 			}
 			//vv("ignore err = '%v'; msg = '%v'", err, msg)
+		}
+		if msg == nil {
+			continue
 		}
 
 		//vv("client %v received message with seqno=%v, msg='%v'", c.name, seqno, msg)
@@ -273,6 +288,7 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 			// one-way always use seqno 0,
 			// so we know that no follow up is expected.
 			msg.Seqno = 0
+			msg.MID.Seqno = 0
 
 			if msg.Nc == nil {
 				// use default conn
@@ -292,12 +308,13 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 			// these will start at 3 and go up, in each client.
 			seqno := c.nextOddSeqno()
 			msg.Seqno = seqno
+			msg.MID.Seqno = seqno
 
 			//vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v", c.name, seqno+1)
 			c.GetOneRead(seqno+1, msg.DoneCh)
 
 			if err := w.sendMessage(msg.Seqno, conn, msg, &c.cfg.WriteTimeout); err != nil {
-				log.Printf("Failed to send message: %v", err)
+				//vv("Failed to send message: %v", err)
 				msg.Err = err
 				close(msg.DoneCh)
 				continue
@@ -558,6 +575,9 @@ func (c *Client) SendAndGetReplyWithTimeout(timeout time.Duration, req *Message)
 // doneCh is optional; can be nil.
 func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *Message, err error) {
 
+	if len(req.DoneCh) > cap(req.DoneCh) || cap(req.DoneCh) < 1 {
+		panic(fmt.Sprintf("req.DoneCh did not have capacity; cap = %v, len=%v", cap(req.DoneCh), len(req.DoneCh)))
+	}
 	var from, to string
 	if c.isQUIC {
 		from = local(c.QuicConn)
@@ -571,16 +591,20 @@ func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *M
 	mid := NewMID(from, to, req.Subject, isRPC, isLeg2)
 	req.MID = *mid
 
+	//vv("Client '%v' SendAndGetReply(req='%v') (ignore req.Seqno:0 not yet assigned)", c.name, req)
 	select {
 	case c.roundTripCh <- req:
 		// proceed
-
+		//vv("Client '%v' SendAndGetReply(req='%v') delivered on roundTripCh", c.name, req)
 	case <-doneCh:
+		//vv("Client '%v' SendAndGetReply(req='%v'): doneCh files before roundTripCh", c.name, req)
 		return nil, ErrDone
 	case <-c.halt.ReqStop.Chan:
 		c.halt.Done.Close()
 		return nil, ErrShutdown
 	}
+
+	//vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req)
 
 	select { // shutdown test stuck here, even with calls in own goro. goq.go has exited.
 	case reply = <-req.DoneCh:
@@ -678,7 +702,7 @@ func SelfyNewKey(createKeyPairNamed, odir string) error {
 	email := createKeyPairNamed + "@" + host
 
 	if !DirExists(odirPrivateKey) || !FileExists(odirPrivateKey+sep+"ca.crt") {
-		log.Printf("key-pair '%v' requested but CA does not exist in '%v', so auto-generating a self-signed CA for your first.", createKeyPairNamed, odirPrivateKey)
+		//vv("key-pair '%v' requested but CA does not exist in '%v', so auto-generating a self-signed CA for your first.", createKeyPairNamed, odirPrivateKey)
 		selfcert.Step1_MakeCertificatAuthority(odirPrivateKey)
 	}
 

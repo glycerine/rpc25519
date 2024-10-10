@@ -3,7 +3,7 @@ package rpc25519
 import (
 	"context"
 	"crypto/tls"
-	//"fmt"
+	"fmt"
 	"log"
 	//"os"
 	"net"
@@ -48,18 +48,40 @@ Add the following lines to the /etc/sysctl.conf file to keep this setting across
 kern.ipc.maxsockbuf=8441037
 */
 
-func (s *Server) RunQUICServer(serverAddr string, tlsConfig *tls.Config, boundCh chan net.Addr) {
-	// Load server certificate and private key
+func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, boundCh chan net.Addr) {
+	defer func() {
+		s.halt.Done.Close()
+		//	vv("exiting Server.RunQUICServer()") // seen, yes, on shutdown test.
+	}()
+
+	// Server address to connect to
+	serverAddr, err := net.ResolveUDPAddr("udp", quicServerAddr)
+	if err != nil {
+		AlwaysPrintf("Failed to resolve server address: %v", err)
+		return
+	}
+	//vv("quicServerAddr '%v' -> '%v'", quicServerAddr, serverAddr)
+
+	// Create the UDP listener on the specified interface
+	udpConn, err := net.ListenUDP("udp", serverAddr)
+	if err != nil {
+		fmt.Printf("Failed to bind to address: %v\n", err)
+		return
+	}
+	defer udpConn.Close()
 
 	// Create a QUIC listener
-	listener, err := quic.ListenAddr(serverAddr, tlsConfig, nil)
+
+	listener, err := quic.Listen(udpConn, tlsConfig, nil)
+
+	//listener, err := quic.ListenAddr(serverAddr, tlsConfig, nil)
 	if err != nil {
 		log.Fatalf("Error starting QUIC listener: %v", err)
 	}
 	defer listener.Close()
 
 	addr := listener.Addr()
-	log.Printf("QUIC Server listening on %v://%v", addr.Network(), addr.String())
+	//vv("QUIC Server listening on %v://%v", addr.Network(), addr.String())
 	if boundCh != nil {
 		select {
 		case boundCh <- addr:
@@ -74,8 +96,10 @@ func (s *Server) RunQUICServer(serverAddr string, tlsConfig *tls.Config, boundCh
 		// Accept a QUIC connection
 		conn, err := listener.Accept(ctx)
 		if err != nil {
-			log.Printf("Error accepting session: %v", err)
+			//vv("Error accepting session: %v", err)
 			r := err.Error()
+
+			// Error accepting session: quic: server closed
 			if strings.Contains(r, "quic: server closed") {
 				return
 			}
@@ -99,7 +123,7 @@ func (s *Server) RunQUICServer(serverAddr string, tlsConfig *tls.Config, boundCh
 				return
 			}
 			if err != nil {
-				vv("HostKeyVerifies returned error '%v' for remote addr '%v'", err, remoteAddr)
+				//vv("HostKeyVerifies returned error '%v' for remote addr '%v'", err, remoteAddr)
 				return
 			}
 			//for i := range good {
@@ -128,10 +152,14 @@ func (s *Server) RunQUICServer(serverAddr string, tlsConfig *tls.Config, boundCh
 					}
 					if strings.Contains(err.Error(), "Application error 0x0 (remote)") {
 						// normal shutdown.
-						log.Printf("client finished.")
+						//vv("client finished.")
 						return
 					}
-					log.Printf("Error accepting stream: %v", err)
+
+					// Error accepting stream: INTERNAL_ERROR (local):
+					//  write udp [::]:42677->[fdc8:... 61e]:59299: use of closed network connection
+					// quic_server.go:164 2024-10-10 04:33:25.953 -0500 CDT quic_server: Error accepting stream: Application error 0x0 (local): server shutdown
+					//vv("quic_server: Error accepting stream: %v", err)
 					return
 				}
 
@@ -152,8 +180,8 @@ func (s *Server) NewQUIC_RWPair(stream quic.Stream, conn quic.Connection) *QUIC_
 
 	wrap := &NetConnWrapper{Stream: stream, Connection: conn}
 
-	vv("Server new quic pair: local = '%v'", local(wrap))
-	vv("Server new quic pair: remote = '%v'", remote(wrap))
+	//vv("Server new quic pair: local = '%v'", local(wrap))
+	//vv("Server new quic pair: remote = '%v'", remote(wrap))
 
 	p := &QUIC_RWPair{
 		RWPair: RWPair{
@@ -192,7 +220,7 @@ func (s *QUIC_RWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 		case msg := <-s.SendCh:
 			err := w.sendMessage(msg.Seqno, stream, msg, &s.cfg.WriteTimeout)
 			if err != nil {
-				log.Printf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.Seqno)
+				//vv("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.Seqno)
 			}
 		case <-s.halt.ReqStop.Chan:
 			return
@@ -202,11 +230,13 @@ func (s *QUIC_RWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 
 func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 	defer func() {
-		//log.Printf("rpc25519.Server: runRecvLoop shutting down for local conn = '%v'", conn.LocalAddr())
+		//vv("rpc25519.Server: QUIC_WRPair runRecvLoop shutting down for local conn = '%v'", conn.LocalAddr())
 
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
-		conn.CloseWithError(0, "") // just the one, let other clients continue.
+
+		stream.Close()
+		conn.CloseWithError(0, "server shutdown") // just the one, let other clients continue.
 	}()
 
 	w := newWorkspace()
@@ -221,13 +251,13 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 
 		seqno, req, err := w.receiveMessage(stream, &s.cfg.ReadTimeout)
 		if err == io.EOF {
-			//log.Printf("server sees io.EOF from receiveMessage")
+			//vv("server sees io.EOF from receiveMessage")
 			continue // close of socket before read of full message.
 		}
 		if err != nil {
 			r := err.Error()
 			if strings.Contains(r, "remote error: tls: bad certificate") {
-				vv("ignoring client connection with bad TLS cert.")
+				//vv("ignoring client connection with bad TLS cert.")
 				continue
 			}
 			if strings.Contains(r, "use of closed network connection") {
@@ -257,9 +287,9 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 				wrap := &NetConnWrapper{Stream: stream, Connection: conn}
 				req.Nc = wrap
 
-				vv("req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
-				//vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
-				vv("conn   local = '%v', remote = '%v'", local(conn), remote(conn))
+				//vv("req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
+				////vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
+				//vv("conn   local = '%v', remote = '%v'", local(conn), remote(conn))
 
 				req.Seqno = seqno
 				if cap(req.DoneCh) < 1 || len(req.DoneCh) >= cap(req.DoneCh) {
@@ -270,7 +300,7 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 				// <-req.DoneCh
 
 				if reply != nil && reply.Err != nil {
-					log.Printf("note: callback on seqno %v from '%v' got Err='%v", seqno, conn.RemoteAddr(), err)
+					//vv("note: callback on seqno %v from '%v' got Err='%v", seqno, conn.RemoteAddr(), err)
 				}
 				// if reply is nil, then we return nothing; it was probably a OneWaySend() target.
 
@@ -308,49 +338,3 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 		}
 	}
 }
-
-/*
-func handleStream(stream quic.Stream, conn quic.Connection) {
-	defer func() {
-		stream.Close()
-		vv("done with handleStream.")
-	}()
-
-	timeout := time.Minute
-	for {
-
-		msg, err := receiveMessage(stream, &timeout)
-		if err == io.EOF {
-			return // close of socket before read of full message.
-		}
-		if err != nil && strings.Contains(err.Error(), "remote error: tls: bad certificate") {
-			vv("ignoring client connection with bad TLS cert.")
-			return
-		}
-		if err != nil {
-			if strings.Contains(err.Error(), "timeout: no recent network activity") {
-				vv("timeout, finishing stream")
-				return
-			}
-			if strings.Contains(err.Error(), "Application error 0x0 (remote)") {
-				// normal shutdown.
-				return
-			}
-		}
-		panicOn(err)
-
-		log.Printf("Received message from %v: '%v'", conn.RemoteAddr(), string(msg))
-
-		// Echo the message back to the client
-		//
-		// command 0: nothing else, not even a message. We are shutting down, done. close the stream.
-		// command 1: one-shot. Just this one message, then we are done.
-		// command >=2: leave the stream open, many possible commands with messages arriving.
-		if err := sendMessage(1, stream, msg, &timeout); err != nil {
-			log.Printf("Error sending message to %v: %v", conn.RemoteAddr(), err)
-			return
-		}
-	}
-
-}
-*/

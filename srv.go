@@ -245,7 +245,7 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 			return
 		}
 		if err != nil {
-			vv("HostKeyVerifies returned error '%v' for remote addr '%v'", err, remoteAddr)
+			//vv("HostKeyVerifies returned error '%v' for remote addr '%v'", err, remoteAddr)
 			return
 		}
 		//for i := range good {
@@ -307,7 +307,7 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 		if err != nil {
 			r := err.Error()
 			if strings.Contains(r, "remote error: tls: bad certificate") {
-				vv("ignoring client connection with bad TLS cert.")
+				//vv("ignoring client connection with bad TLS cert.")
 				continue
 			}
 			if strings.Contains(r, "use of closed network connection") {
@@ -315,8 +315,6 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 			}
 
 			log.Printf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
-			//conn.Close()
-			//s.halt.Done.Close()
 			return
 		}
 
@@ -333,9 +331,12 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 
 		if foundCallback {
 			// run the callback in a goto, so we can keep doing reads.
-			go func(req *Message, callme CallbackFunc) {
+			go func(seqno uint64, req *Message, callme CallbackFunc) {
+
 				req.Nc = conn
 				req.Seqno = seqno
+				req.MID.Seqno = seqno
+
 				if cap(req.DoneCh) < 1 || len(req.DoneCh) >= cap(req.DoneCh) {
 					panic("req.DoneCh too small; fails the sanity check to be received on.")
 				}
@@ -369,6 +370,7 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 
 					// We are able to match call and response rigourously on the CallID alone.
 					mid.CallID = req.MID.CallID
+					mid.Seqno = reply.Seqno
 					reply.MID = *mid
 
 					select {
@@ -378,7 +380,7 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 						return
 					}
 				}
-			}(req, callme)
+			}(seqno, req, callme)
 		}
 	}
 }
@@ -450,13 +452,14 @@ func (s *Server) SendMessage(callID, subject, destAddr string, by []byte, seqno 
 
 	pair, ok := s.remote2pair[destAddr]
 	if !ok {
-		vv("could not find destAddr='%v' in our map: '%#v'", destAddr, s.remote2pair)
+		//vv("could not find destAddr='%v' in our map: '%#v'", destAddr, s.remote2pair)
 
 		return ErrNetConnectionNotFound
 	}
 	msg := NewMessage()
 	msg.JobSerz = by
 	msg.Seqno = seqno
+	msg.MID.Seqno = seqno
 
 	from := local(pair.Conn)
 	to := remote(pair.Conn)
@@ -503,8 +506,9 @@ func (s *Server) RegisterFunc(callme CallbackFunc) {
 func (s *Server) Start() (serverAddr net.Addr, err error) {
 	//vv("Server.Start() called")
 	if s.cfg == nil {
+		hostport := GetExternalIP() + ":0"
 		s.cfg = &Config{
-			ServerAddr: "0.0.0.0:0",
+			ServerAddr: hostport,
 		}
 	}
 	boundCh := make(chan net.Addr, 1)
@@ -520,6 +524,7 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 }
 
 func (s *Server) Close() error {
+	//vv("Server.Close() called.")
 	s.halt.ReqStop.Close()
 	s.lsn.Close() // cause RunServerMain listening loop to exit.
 	<-s.halt.Done.Chan

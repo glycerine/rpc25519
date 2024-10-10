@@ -21,7 +21,7 @@ func (z *MID) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields0zgensym_db31ae8ee6d36a77_1 = 9
+	const maxFields0zgensym_db31ae8ee6d36a77_1 = 10
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields0zgensym_db31ae8ee6d36a77_1 uint32
@@ -124,6 +124,12 @@ doneWithStruct0zgensym_db31ae8ee6d36a77_1:
 			if err != nil {
 				return
 			}
+		case "Seqno_zid09_u64":
+			found0zgensym_db31ae8ee6d36a77_1[9] = true
+			z.Seqno, err = dc.ReadUint64()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -147,16 +153,16 @@ doneWithStruct0zgensym_db31ae8ee6d36a77_1:
 }
 
 // fields of MID
-var decodeMsgFieldOrder0zgensym_db31ae8ee6d36a77_1 = []string{"Created_zid00_str", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "IsRPC_zid04_boo", "IsLeg2_zid05_boo", "Serial_zid06_i64", "CallID_zid07_str", "PID_zid08_i64"}
+var decodeMsgFieldOrder0zgensym_db31ae8ee6d36a77_1 = []string{"Created_zid00_str", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "IsRPC_zid04_boo", "IsLeg2_zid05_boo", "Serial_zid06_i64", "CallID_zid07_str", "PID_zid08_i64", "Seqno_zid09_u64"}
 
-var decodeMsgFieldSkip0zgensym_db31ae8ee6d36a77_1 = []bool{false, false, false, false, false, false, false, false, false}
+var decodeMsgFieldSkip0zgensym_db31ae8ee6d36a77_1 = []bool{false, false, false, false, false, false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *MID) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 9
+		return 10
 	}
-	var fieldsInUse uint32 = 9
+	var fieldsInUse uint32 = 10
 	isempty[0] = (len(z.Created) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -193,6 +199,10 @@ func (z *MID) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[8] {
 		fieldsInUse--
 	}
+	isempty[9] = (z.Seqno == 0) // number, omitempty
+	if isempty[9] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -204,7 +214,7 @@ func (z *MID) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_db31ae8ee6d36a77_2 [9]bool
+	var empty_zgensym_db31ae8ee6d36a77_2 [10]bool
 	fieldsInUse_zgensym_db31ae8ee6d36a77_3 := z.fieldsNotEmpty(empty_zgensym_db31ae8ee6d36a77_2[:])
 
 	// map header
@@ -331,6 +341,18 @@ func (z *MID) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_db31ae8ee6d36a77_2[9] {
+		// write "Seqno_zid09_u64"
+		err = en.Append(0xaf, 0x53, 0x65, 0x71, 0x6e, 0x6f, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x39, 0x5f, 0x75, 0x36, 0x34)
+		if err != nil {
+			return err
+		}
+		err = en.WriteUint64(z.Seqno)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -343,7 +365,7 @@ func (z *MID) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [9]bool
+	var empty [10]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -401,6 +423,12 @@ func (z *MID) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendInt64(o, z.PID)
 	}
 
+	if !empty[9] {
+		// string "Seqno_zid09_u64"
+		o = append(o, 0xaf, 0x53, 0x65, 0x71, 0x6e, 0x6f, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x39, 0x5f, 0x75, 0x36, 0x34)
+		o = msgp.AppendUint64(o, z.Seqno)
+	}
+
 	return
 }
 
@@ -419,7 +447,7 @@ func (z *MID) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte
 
 	var field []byte
 	_ = field
-	const maxFields4zgensym_db31ae8ee6d36a77_5 = 9
+	const maxFields4zgensym_db31ae8ee6d36a77_5 = 10
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields4zgensym_db31ae8ee6d36a77_5 uint32
@@ -532,6 +560,13 @@ doneWithStruct4zgensym_db31ae8ee6d36a77_5:
 			if err != nil {
 				return
 			}
+		case "Seqno_zid09_u64":
+			found4zgensym_db31ae8ee6d36a77_5[9] = true
+			z.Seqno, bts, err = nbs.ReadUint64Bytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -555,12 +590,12 @@ doneWithStruct4zgensym_db31ae8ee6d36a77_5:
 }
 
 // fields of MID
-var unmarshalMsgFieldOrder4zgensym_db31ae8ee6d36a77_5 = []string{"Created_zid00_str", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "IsRPC_zid04_boo", "IsLeg2_zid05_boo", "Serial_zid06_i64", "CallID_zid07_str", "PID_zid08_i64"}
+var unmarshalMsgFieldOrder4zgensym_db31ae8ee6d36a77_5 = []string{"Created_zid00_str", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "IsRPC_zid04_boo", "IsLeg2_zid05_boo", "Serial_zid06_i64", "CallID_zid07_str", "PID_zid08_i64", "Seqno_zid09_u64"}
 
-var unmarshalMsgFieldSkip4zgensym_db31ae8ee6d36a77_5 = []bool{false, false, false, false, false, false, false, false, false}
+var unmarshalMsgFieldSkip4zgensym_db31ae8ee6d36a77_5 = []bool{false, false, false, false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *MID) Msgsize() (s int) {
-	s = 1 + 18 + msgp.StringPrefixSize + len(z.Created) + 15 + msgp.StringPrefixSize + len(z.From) + 13 + msgp.StringPrefixSize + len(z.To) + 18 + msgp.StringPrefixSize + len(z.Subject) + 16 + msgp.BoolSize + 17 + msgp.BoolSize + 17 + msgp.Int64Size + 17 + msgp.StringPrefixSize + len(z.CallID) + 14 + msgp.Int64Size
+	s = 1 + 18 + msgp.StringPrefixSize + len(z.Created) + 15 + msgp.StringPrefixSize + len(z.From) + 13 + msgp.StringPrefixSize + len(z.To) + 18 + msgp.StringPrefixSize + len(z.Subject) + 16 + msgp.BoolSize + 17 + msgp.BoolSize + 17 + msgp.Int64Size + 17 + msgp.StringPrefixSize + len(z.CallID) + 14 + msgp.Int64Size + 16 + msgp.Uint64Size
 	return
 }

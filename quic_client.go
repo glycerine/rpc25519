@@ -9,50 +9,76 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 	//"os"
 
 	"github.com/quic-go/quic-go"
 )
 
+var _ = time.Time{}
+
 func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
 
+	//defer func() {
+	//	vv("finishing '%v' Client.RunQUIC(quicServerAddr='%v')", c.name, quicServerAddr)
+	//}()
+
 	ctx := context.Background()
-	if c.cfg.ConnectTimeout > 0 {
-		// Create a context with a timeout
-		ctx2, cancel := context.WithTimeout(ctx, c.cfg.ConnectTimeout)
-		defer cancel()
-		ctx = ctx2
-	}
+	// Warning: do not WithTimeout this ctx, because that
+	// will kill it while it is working... the ctx timeout
+	// applies to the full lifecycle not just the dial/handshake.
+
+	// this way we for sure get notified of when the connection has closed,
+	// and our little goro <-ctxWithCancel will see the
+	// Done() channel closed.
+	ctxWithCancel, outerCancel := context.WithCancel(ctx)
+	defer outerCancel()
+
+	go func() {
+		select {
+		case <-ctxWithCancel.Done():
+			//vv("quic_client '%v' sees ctxWithCancel is Done.", c.name) // yes! seen on shutdown.
+			c.halt.ReqStop.Close()
+		case <-c.halt.ReqStop.Chan:
+		}
+	}()
 
 	localHost, err := LocalAddrMatching(quicServerAddr)
 	panicOn(err)
-	vv("localHost = '%v'", localHost)
+	//vv("localHost = '%v'", localHost)
 	localHostPort := localHost + ":0" // client can pick any port
 
 	// Server address to connect to
 	serverAddr, err := net.ResolveUDPAddr("udp", quicServerAddr)
 	if err != nil {
-		vv("Failed to resolve server address: %v\n", err)
+		AlwaysPrintf("Failed to resolve server address: %v\n", err)
 		return
 	}
-	vv("quicServerAddr '%v' -> '%v'", quicServerAddr, serverAddr)
+	//vv("quicServerAddr '%v' -> '%v'", quicServerAddr, serverAddr)
 
 	localAddr, err := net.ResolveUDPAddr("udp", localHostPort) // get net.UDPAddr
 	panicOn(err)
-	vv("localHostPort '%v' -> '%v'", localHostPort, localAddr)
+	//vv("localHostPort '%v' -> '%v'", localHostPort, localAddr)
 
 	// Create the UDP connection bound to the specified local address
 	udpConn, err := net.ListenUDP("udp", localAddr)
 	if err != nil {
-		vv("Failed to bind UPD client to '%v'/'%v': '%v'\n", localAddr, localHostPort, err)
+		AlwaysPrintf("Failed to bind UPD client to '%v'/'%v': '%v'\n", localAddr, localHostPort, err)
 		return
 	}
 	defer udpConn.Close()
 
-	// didn't allow us to bind a specific iface, so we do the 3 steps above first.
+	quicConfig := &quic.Config{
+		KeepAlivePeriod:      5 * time.Second,
+		HandshakeIdleTimeout: c.cfg.ConnectTimeout,
+	}
+
+	// didn't allow us to bind a specific network interface,
+	// and thus get an actual IP address for local/remote;
+	// so we do the 3 steps above first; instead of:
 	//conn, err := quic.DialAddr(ctx, quicServerAddr, tlsConfig, nil)
 
-	conn, err := quic.Dial(ctx, udpConn, serverAddr, tlsConfig, nil)
+	conn, err := quic.Dial(ctx, udpConn, serverAddr, tlsConfig, quicConfig)
 	if err != nil {
 		c.err = err
 		c.Connected <- err
@@ -71,7 +97,7 @@ func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
 	la := conn.LocalAddr()
 	c.cfg.LocalAddress = la.Network() + "://" + la.String()
 
-	log.Printf("QUIC connected to server %v, with local addr='%v'", quicServerAddr, c.cfg.LocalAddress)
+	//vv("QUIC connected to server %v, with local addr='%v'", remote(conn), c.cfg.LocalAddress)
 
 	// possible to check host keys for TOFU like SSH does,
 	// but be aware that if they have the contents of
@@ -114,35 +140,11 @@ func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
 
 	wrap := &NetConnWrapper{Stream: stream, Connection: conn}
 
-	vv("client: local = '%v'", local(wrap))
-	vv("client: remote = '%v'", remote(wrap))
+	//vv("client: local = '%v'", local(wrap))
+	//vv("client: remote = '%v'", remote(wrap))
 
-	go c.RunReadLoop(wrap)
-	c.RunSendLoop(wrap)
-	/*
-	   timeout := 20 * time.Second
-
-	   // Send the message
-
-	   	if err := sendMessage(1, stream, []byte(*message), &timeout); err != nil {
-	   		log.Fatalf("Failed to send message: %v", err)
-	   	}
-
-	   log.Printf("Sent message: %s", *message)
-
-	   // Receive the echoed message
-	   response, err := receiveMessage(stream, &timeout)
-
-	   	if err != nil {
-	   		if strings.Contains(err.Error(), "Application error 0x0 (remote)") {
-	   			// normal shutdown.
-	   			return
-	   		}
-	   		log.Fatalf("Failed to receive response: %v", err)
-	   	}
-
-	   log.Printf("Received response: %s", string(response))
-	*/
+	go c.RunSendLoop(wrap)
+	c.RunReadLoop(wrap)
 }
 
 type NetConnWrapper struct {

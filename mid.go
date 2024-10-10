@@ -34,6 +34,7 @@ type MID struct {
 	Serial  int64  `zid:"6"`
 	CallID  string `zid:"7"` // able to match call and response on this alone.
 	PID     int64  `zid:"8"`
+	Seqno   uint64 `zid:"9"`
 }
 
 func NewMID(from, to, subject string, isRPC bool, isLeg2 bool) (m *MID) {
