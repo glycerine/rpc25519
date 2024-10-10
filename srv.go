@@ -49,8 +49,8 @@ func (s *Server) RunServerMain(serverAddress string, tcp_only bool, certPath str
 		embedded = false
 		sslCA = fixSlash(fmt.Sprintf("%v/ca.crt", certPath)) // path to CA cert
 		sslClientCA = sslCA
-		sslCert = fixSlash(fmt.Sprintf("%v/%v.crt", keyName, certPath))    // path to server cert
-		sslCertKey = fixSlash(fmt.Sprintf("%v/%v.key", keyName, certPath)) // path to server key
+		sslCert = fixSlash(fmt.Sprintf("%v/%v.crt", certPath, keyName))    // path to server cert
+		sslCertKey = fixSlash(fmt.Sprintf("%v/%v.key", certPath, keyName)) // path to server key
 	}
 
 	var err error
