@@ -64,8 +64,27 @@ either end.
 TOFU or not
 -----------
 
-New clients can be accepted, or rejected, depending
-on the writability of the known_client_keys file.
+By creating (touch will do) a known_client_keys file on the server
+directory where the server is running, you activate
+the key tracking system on the server.
+
+Similarly, by touching the known_server_keys file
+in the directory where the client is running, you
+tell the client to record the server certificates
+it has seen.
+
+Without these files, no history of seen certs is
+recorded. While certs are still checked (assuming
+you have left SkipVerifyKeys at the default false 
+value in the config), they are not remembered.
+
+In a typical use case, touch the file to record
+the certs in use, then make the known keys file
+read-only to block out any new certs.
+
+This works because clients are accepted or rejected depending
+on the writability of the known_client_keys file,
+and the presence of their certificates in that file.
 
 Trust on first use, or TOFU, is used if the 
 known_client_keys file is writable. 
