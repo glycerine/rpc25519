@@ -19,6 +19,8 @@ import (
 func Step4_MakeCertificates(odirCA string, names []string, odirCerts string) {
 
 	os.MkdirAll(odirCerts, 0700)
+	ownerOnly(odirCerts)
+
 	caPrivKeyPath := odirCA + sep + "ca.key"
 	caCertPath := odirCA + sep + "ca.crt"
 
@@ -170,6 +172,7 @@ func copyFileToDir(copyMePath string, toDir string) error {
 	if err := os.MkdirAll(toDir, 0700); err != nil {
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
+	ownerOnly(toDir)
 
 	// Construct the destination file path
 	destFilePath := filepath.Join(toDir, filepath.Base(copyMePath))

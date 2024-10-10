@@ -14,6 +14,7 @@ import (
 func Step2_MakeEd25519PrivateKeys(names []string, odirCert string) {
 
 	os.MkdirAll(odirCert, 0700)
+	ownerOnly(odirCert)
 
 	for _, name := range names {
 		keyPath := fmt.Sprintf("%v%v%v.key", odirCert, sep, name)
@@ -46,6 +47,7 @@ func GenerateED25519Key(privateKeyPath string) error {
 	if err != nil {
 		return err
 	}
+	ownerOnly(odir)
 
 	// Step 4: Write the private key to a file in PEM format
 	privKeyFile, err := os.Create(privateKeyPath)

@@ -65,6 +65,8 @@ func Step1_MakeCertificatAuthority(pathCA string) {
 	// Step 5: Write the private key to a file
 	odir := pathCA + sep
 	os.MkdirAll(odir, 0700)
+	ownerOnly(odir)
+
 	privfn := odir + "ca.key"
 	privKeyFile, err := os.Create(privfn)
 	if err != nil {

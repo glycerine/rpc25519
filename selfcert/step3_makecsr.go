@@ -15,6 +15,7 @@ import (
 func Step3_MakeCertSigningRequests(names []string, emails []string, odirCert string) {
 
 	os.MkdirAll(odirCert, 0700)
+	ownerOnly(odirCert)
 
 	for i, name := range names {
 		keyPath := fmt.Sprintf("%v%v%v.key", odirCert, sep, name)
