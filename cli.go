@@ -310,7 +310,8 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 // interface for goq
 
 type Message struct {
-	Nc    net.Conn
+	//Nc    net.Conn
+	Nc    uConn
 	Seqno uint64
 
 	Subject string // intent. example: "rpc call to ThisFunc()"
@@ -629,12 +630,17 @@ func (c *Client) LocalAddr() string {
 	return c.cfg.LocalAddress
 }
 
-func remote(nc net.Conn) string {
+type localRemoteAddr interface {
+	RemoteAddr() net.Addr
+	LocalAddr() net.Addr
+}
+
+func remote(nc localRemoteAddr) string {
 	ra := nc.RemoteAddr()
 	return ra.Network() + "://" + ra.String()
 }
 
-func local(nc net.Conn) string {
+func local(nc localRemoteAddr) string {
 	la := nc.LocalAddr()
 	return la.Network() + "://" + la.String()
 }

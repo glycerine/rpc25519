@@ -117,3 +117,15 @@ type NetConnWrapper struct {
 	quic.Stream
 	quic.Connection
 }
+
+/*
+func remoteQ(nc quic.Connection) string {
+	ra := nc.RemoteAddr()
+	return ra.Network() + "://" + ra.String()
+}
+
+func localQ(nc quic.Connection) string {
+	la := nc.LocalAddr()
+	return la.Network() + "://" + la.String()
+}
+*/

@@ -1,7 +1,7 @@
 package rpc25519
 
 import (
-	"net"
+	//"net"
 	//"crypto/tls"
 	"encoding/binary"
 	"fmt"
@@ -15,6 +15,15 @@ const (
 )
 
 var _ = io.EOF
+
+// uConn hopefully works for both quic.Stream and net.Conn, universally.
+type uConn interface {
+	io.Writer
+	SetWriteDeadline(t time.Time) error
+
+	io.Reader
+	SetReadDeadline(t time.Time) error
+}
 
 // =========================
 //
@@ -57,7 +66,7 @@ func newWorkspace() *workspace {
 
 // receiveMessage reads a framed message from conn
 // nil or 0 timeout means no timeout.
-func (w *workspace) receiveMessage(conn net.Conn, timeout *time.Duration) (seqno uint64, msg *Message, err error) {
+func (w *workspace) receiveMessage(conn uConn, timeout *time.Duration) (seqno uint64, msg *Message, err error) {
 
 	// Read the first 8 bytes as the seqno
 	seqnoBytes := make([]byte, 8)
@@ -118,7 +127,7 @@ func (w *workspace) receiveMessage(conn net.Conn, timeout *time.Duration) (seqno
 
 // sendMessage sends a framed message to conn
 // nil or 0 timeout means no timeout.
-func (w *workspace) sendMessage(seqno uint64, conn net.Conn, msg *Message, timeout *time.Duration) error {
+func (w *workspace) sendMessage(seqno uint64, conn uConn, msg *Message, timeout *time.Duration) error {
 
 	msg.Seqno = seqno
 
@@ -163,7 +172,7 @@ func (w *workspace) sendMessage(seqno uint64, conn net.Conn, msg *Message, timeo
 }
 
 // readFull reads exactly len(buf) bytes from conn
-func readFull(conn net.Conn, buf []byte, timeout *time.Duration) error {
+func readFull(conn uConn, buf []byte, timeout *time.Duration) error {
 
 	if timeout != nil && *timeout > 0 {
 		conn.SetReadDeadline(time.Now().Add(*timeout))
@@ -186,7 +195,7 @@ func readFull(conn net.Conn, buf []byte, timeout *time.Duration) error {
 }
 
 // writeFull writes all bytes in buf to conn
-func writeFull(conn net.Conn, buf []byte, timeout *time.Duration) error {
+func writeFull(conn uConn, buf []byte, timeout *time.Duration) error {
 
 	if timeout != nil && *timeout > 0 {
 		conn.SetWriteDeadline(time.Now().Add(*timeout))
