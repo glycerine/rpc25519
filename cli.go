@@ -20,6 +20,8 @@ import (
 	"github.com/quic-go/quic-go"
 )
 
+var _ quic.Connection
+
 var sep = string(os.PathSeparator)
 
 // eg. serverAddr = "localhost:8443"
@@ -311,7 +313,7 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 
 type Message struct {
 	//Nc    net.Conn
-	Nc    uConn
+	Nc    uConnLR
 	Seqno uint64
 
 	Subject string // intent. example: "rpc call to ThisFunc()"
@@ -444,7 +446,8 @@ type Client struct {
 	notifyOnRead []chan *Message
 	notifyOnce   map[uint64]chan *Message
 
-	Conn     net.Conn // the default.
+	Conn uConnLR
+	//	Conn     net.Conn // the default.
 	QuicConn quic.Connection
 
 	isTLS  bool
@@ -633,6 +636,11 @@ func (c *Client) LocalAddr() string {
 type localRemoteAddr interface {
 	RemoteAddr() net.Addr
 	LocalAddr() net.Addr
+}
+
+type uConnLR interface {
+	uConn
+	localRemoteAddr
 }
 
 func remote(nc localRemoteAddr) string {

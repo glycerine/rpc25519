@@ -247,7 +247,8 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 		if foundCallback {
 			// run the callback in a goto, so we can keep doing reads.
 			go func(req *Message, callme CallbackFunc) {
-				req.Nc = stream
+				wrap := &NetConnWrapper{Stream: stream, Connection: conn}
+				req.Nc = wrap
 				req.Seqno = seqno
 				if cap(req.DoneCh) < 1 || len(req.DoneCh) >= cap(req.DoneCh) {
 					panic("req.DoneCh too small; fails the sanity check to be received on.")

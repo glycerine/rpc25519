@@ -21,11 +21,14 @@ func main() {
 	// too complicated, just use skipverify
 	//var skipClientCerts = flag.Bool("skip-client-certs", false, "skip verify-ing that client certs are in-use and authorized by our CA; only possible with TLS.")
 
+	var quic = flag.Bool("q", false, "use QUIC instead of TCP/TLS")
+
 	flag.Parse()
 
 	cfg := &rpc25519.Config{
 		ServerAddr:     *addr, // "0.0.0.0:8443"
 		TCPonly_no_TLS: *tcp,
+		UseQUIC:        *quic,
 		SkipVerifyKeys: *skipVerify,
 		KeyPairName:    *useName,
 		CertPath:       *certPath,

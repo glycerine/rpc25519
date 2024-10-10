@@ -34,6 +34,7 @@ func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
 	}
 	// do this before signaling on c.Connected, else tests will race and panic
 	// not having a connection
+	//c.Conn = conn
 	c.QuicConn = conn
 	c.isQUIC = true
 	c.Connected <- nil
