@@ -58,7 +58,7 @@ func makeCerts(caPrivKeyPath, caCertPath, csrInPath, certOutPath string) {
 		log.Fatalf("Failed to sign certificate: %v", err)
 	}
 
-	log.Printf("Signed certificate saved to '%v'", certOutPath)
+	//log.Printf("Signed certificate saved to '%v'", certOutPath)
 }
 
 // Load the CA certificate and CA private key

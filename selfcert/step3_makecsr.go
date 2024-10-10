@@ -63,7 +63,7 @@ func createCertSigningRequest(emailAddress, inputPrivateKeyPath, outputCsrPath s
 		return fmt.Errorf("Failed to save CSR: %v", err)
 	}
 
-	log.Printf("CSR generated successfully at %v", outputCsrPath)
+	//log.Printf("CSR generated successfully at %v", outputCsrPath)
 	return nil
 }
 

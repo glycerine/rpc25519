@@ -3,8 +3,10 @@ package rpc25519
 import (
 	"fmt"
 	"net"
+	//"os"
 	"regexp"
 	"runtime"
+	"strings"
 	"time"
 )
 
@@ -138,4 +140,130 @@ func WaitUntilCanConnect(addr string) {
 		break
 	}
 	vv("WaitUntilCanConnect finished after %v", time.Since(t0))
+}
+
+func removeNetworkPrefix(address string) string {
+	// Split the address into two parts, at the first occurrence of "://"
+	parts := strings.SplitN(address, "://", 2)
+
+	// If the split resulted in two parts, return the second part (i.e., address without prefix)
+	if len(parts) == 2 {
+		return parts[1]
+	}
+
+	// Otherwise, return the original address (no prefix found)
+	return address
+}
+
+// LocalAddrMatching finds a matching interface IP to a server destination address
+//
+// addr should b "host:port" of server, we'll find the local IP to use.
+func LocalAddrMatching(addr string) (local string, err error) {
+
+	defer func() {
+		// wrap IPv6 in [] if need be.
+		if local != "" && err == nil {
+			if local[0] == '[' {
+				return
+			}
+			ip := net.ParseIP(local)
+			if ip != nil {
+				if ip.To4() == nil {
+					// is IP v6
+					local = "[" + local + "]"
+				}
+			}
+		}
+	}()
+
+	// Resolve the server address
+	addr = removeNetworkPrefix(addr)
+
+	serverAddr, err := net.ResolveUDPAddr("udp", addr)
+	if err != nil {
+		return "", fmt.Errorf("Failed to resolve server address: %v", err)
+	}
+
+	// Get a list of network interfaces on the machine
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return "", fmt.Errorf("Failed to get network interfaces: %v", err)
+	}
+
+	// Iterate over interfaces and inspect their addresses
+	var selectedIP net.IP
+	for _, iface := range interfaces {
+		// Ignore down or loopback interfaces
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+
+		addrs, err := iface.Addrs()
+		if err != nil {
+			//fmt.Printf("Failed to get addresses for interface %s: %v\n", iface.Name, err)
+			continue
+		}
+
+		// Iterate over each address of the interface
+		for _, addr := range addrs {
+			var ip net.IP
+			var ipNet *net.IPNet
+
+			// Check if the address is an IPNet (which gives both IP and mask)
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+				ipNet = v
+			case *net.IPAddr:
+				ip = v.IP
+			}
+
+			// Skip if not IPv4 or no IPNet
+			//if ip == nil|| ip.To4() == nil || ipNet == nil {
+			if ip == nil || ipNet == nil {
+				continue
+			}
+
+			// If the server IP is private, check for same subnet
+			if isPrivateIP(serverAddr.IP) && isPrivateIP(ip) {
+				if ipNet.Contains(serverAddr.IP) {
+					return ip.String(), nil
+				}
+			} else if !isPrivateIP(serverAddr.IP) && !isPrivateIP(ip) {
+				// If the server has a public IP, pick a public client IP
+				return ip.String(), nil
+				//fmt.Printf("Selected local interface: %s, IP: %s (Public IP)\n", iface.Name, ip.String())
+			}
+		}
+
+		// Stop searching if a valid IP is found
+		if selectedIP != nil {
+			break
+		}
+	}
+
+	if selectedIP == nil {
+		return "", fmt.Errorf("No suitable local interface found that can connect to the server '%v'", serverAddr)
+	}
+
+	return selectedIP.String(), nil
+}
+
+// Helper function to check if an IP is private
+func isPrivateIP(ip net.IP) bool {
+	privateIPBlocks := []net.IPNet{
+		// 10.0.0.0/8
+		{IP: net.IPv4(10, 0, 0, 0), Mask: net.CIDRMask(8, 32)},
+		// 172.16.0.0/12
+		{IP: net.IPv4(172, 16, 0, 0), Mask: net.CIDRMask(12, 32)},
+		// 192.168.0.0/16
+		{IP: net.IPv4(192, 168, 0, 0), Mask: net.CIDRMask(16, 32)},
+	}
+
+	for _, block := range privateIPBlocks {
+		if block.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }

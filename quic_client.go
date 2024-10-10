@@ -6,7 +6,7 @@ import (
 	//"crypto/x509"
 	"fmt"
 	"log"
-	//"net"
+	"net"
 	"os"
 	"strings"
 	//"os"
@@ -24,8 +24,35 @@ func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
 		ctx = ctx2
 	}
 
-	// Establish a QUIC connection
-	conn, err := quic.DialAddr(ctx, quicServerAddr, tlsConfig, nil)
+	localHost, err := LocalAddrMatching(quicServerAddr)
+	panicOn(err)
+	vv("localHost = '%v'", localHost)
+	localHostPort := localHost + ":0" // client can pick any port
+
+	// Server address to connect to
+	serverAddr, err := net.ResolveUDPAddr("udp", quicServerAddr)
+	if err != nil {
+		vv("Failed to resolve server address: %v\n", err)
+		return
+	}
+	vv("quicServerAddr '%v' -> '%v'", quicServerAddr, serverAddr)
+
+	localAddr, err := net.ResolveUDPAddr("udp", localHostPort) // get net.UDPAddr
+	panicOn(err)
+	vv("localHostPort '%v' -> '%v'", localHostPort, localAddr)
+
+	// Create the UDP connection bound to the specified local address
+	udpConn, err := net.ListenUDP("udp", localAddr)
+	if err != nil {
+		vv("Failed to bind UPD client to '%v'/'%v': '%v'\n", localAddr, localHostPort, err)
+		return
+	}
+	defer udpConn.Close()
+
+	// didn't allow us to bind a specific iface, so we do the 3 steps above first.
+	//conn, err := quic.DialAddr(ctx, quicServerAddr, tlsConfig, nil)
+
+	conn, err := quic.Dial(ctx, udpConn, serverAddr, tlsConfig, nil)
 	if err != nil {
 		c.err = err
 		c.Connected <- err
@@ -41,10 +68,10 @@ func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
 
 	defer conn.CloseWithError(0, "")
 
-	log.Printf("QUIC connected to server %s", quicServerAddr)
-
 	la := conn.LocalAddr()
 	c.cfg.LocalAddress = la.Network() + "://" + la.String()
+
+	log.Printf("QUIC connected to server %v, with local addr='%v'", quicServerAddr, c.cfg.LocalAddress)
 
 	// possible to check host keys for TOFU like SSH does,
 	// but be aware that if they have the contents of
@@ -86,6 +113,10 @@ func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
 	defer stream.Close()
 
 	wrap := &NetConnWrapper{Stream: stream, Connection: conn}
+
+	vv("client: local = '%v'", local(wrap))
+	vv("client: remote = '%v'", remote(wrap))
+
 	go c.RunReadLoop(wrap)
 	c.RunSendLoop(wrap)
 	/*

@@ -59,7 +59,7 @@ func (s *Server) RunQUICServer(serverAddr string, tlsConfig *tls.Config, boundCh
 	defer listener.Close()
 
 	addr := listener.Addr()
-	log.Printf("QUIC Server listening on %v:%v", addr.Network(), addr.String())
+	log.Printf("QUIC Server listening on %v://%v", addr.Network(), addr.String())
 	if boundCh != nil {
 		select {
 		case boundCh <- addr:
@@ -151,6 +151,9 @@ type QUIC_RWPair struct {
 func (s *Server) NewQUIC_RWPair(stream quic.Stream, conn quic.Connection) *QUIC_RWPair {
 
 	wrap := &NetConnWrapper{Stream: stream, Connection: conn}
+
+	vv("Server new quic pair: local = '%v'", local(wrap))
+	vv("Server new quic pair: remote = '%v'", remote(wrap))
 
 	p := &QUIC_RWPair{
 		RWPair: RWPair{
@@ -253,6 +256,11 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 			go func(req *Message, callme CallbackFunc) {
 				wrap := &NetConnWrapper{Stream: stream, Connection: conn}
 				req.Nc = wrap
+
+				vv("req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
+				//vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
+				vv("conn   local = '%v', remote = '%v'", local(conn), remote(conn))
+
 				req.Seqno = seqno
 				if cap(req.DoneCh) < 1 || len(req.DoneCh) >= cap(req.DoneCh) {
 					panic("req.DoneCh too small; fails the sanity check to be received on.")

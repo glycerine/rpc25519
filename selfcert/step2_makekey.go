@@ -62,6 +62,6 @@ func GenerateED25519Key(privateKeyPath string) error {
 		return err
 	}
 
-	log.Printf("Private key saved to %s\n", privateKeyPath)
+	//log.Printf("Private key saved to %s\n", privateKeyPath)
 	return nil
 }

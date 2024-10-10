@@ -92,5 +92,5 @@ func Step1_MakeCertificatAuthority(pathCA string) {
 		log.Fatalf("Failed to write certificate to ca-cert.pem: %v", err)
 	}
 
-	log.Printf("CA private key and self-signed certificate generated successfully in '%v' and '%v'.", privfn, certfn)
+	//log.Printf("CA private key and self-signed certificate generated successfully in '%v' and '%v'.", privfn, certfn)
 }
