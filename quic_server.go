@@ -75,6 +75,10 @@ func (s *Server) RunQUICServer(serverAddr string, tlsConfig *tls.Config, boundCh
 		conn, err := listener.Accept(ctx)
 		if err != nil {
 			log.Printf("Error accepting session: %v", err)
+			r := err.Error()
+			if strings.Contains(r, "quic: server closed") {
+				return
+			}
 			continue
 		}
 
@@ -106,7 +110,7 @@ func (s *Server) RunQUICServer(serverAddr string, tlsConfig *tls.Config, boundCh
 		go func(conn quic.Connection) {
 			defer func() {
 				conn.CloseWithError(0, "")
-				vv("finished with this quic connection.")
+				//vv("finished with this quic connection.")
 			}()
 
 			for {
@@ -119,7 +123,7 @@ func (s *Server) RunQUICServer(serverAddr string, tlsConfig *tls.Config, boundCh
 						//log.Printf("ignoring timeout")
 						//continue
 						// or does this means it is time to close up shop?
-						vv("timeout, finishing quic session/connection")
+						//vv("timeout, finishing quic session/connection")
 						return
 					}
 					if strings.Contains(err.Error(), "Application error 0x0 (remote)") {
@@ -227,7 +231,7 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 				return // shutting down
 			}
 
-			log.Printf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
+			//vv("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
 			//conn.Close()
 			//s.halt.Done.Close()
 			return

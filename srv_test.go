@@ -10,7 +10,7 @@ import (
 
 func Test001_RoundTrip_SendAndGetReply_TCP(t *testing.T) {
 
-	cv.Convey("basic TCP remote procedure call with edwardsRPC: register a callback on the server, and have the client call it.", t, func() {
+	cv.Convey("basic TCP remote procedure call with rpc25519: register a callback on the server, and have the client call it.", t, func() {
 
 		cfg := &Config{
 			TCPonly_no_TLS: true,
@@ -43,7 +43,7 @@ func Test001_RoundTrip_SendAndGetReply_TCP(t *testing.T) {
 
 func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 
-	cv.Convey("basic TLS remote procedure call with edwardsRPC: register a callback on the server, and have the client call it.", t, func() {
+	cv.Convey("basic TLS remote procedure call with rpc25519: register a callback on the server, and have the client call it.", t, func() {
 
 		cfg := &Config{
 			TCPonly_no_TLS: false,
@@ -222,5 +222,54 @@ func Test004_server_push(t *testing.T) {
 		close(done)
 		<-ackDone
 
+	})
+}
+
+func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
+
+	cv.Convey("basic QUIC remote procedure call with rpc25519: register a callback on the server, and have the client call it.", t, func() {
+
+		cfg := &Config{
+			UseQUIC: true,
+		}
+		srv := NewServer(cfg)
+		defer srv.Close()
+
+		serverAddr, err := srv.Start()
+		panicOn(err)
+
+		cfg.ServerAddr = serverAddr.String()
+		vv("server Start() returned serverAddr = '%v'", cfg.ServerAddr)
+
+		// Commands with odd numbers (1, 3, 5, 7, ...) are for starting an RPC call,
+		// requesting an action, initiating a command.
+		// The even numbered commands are the replies to those odds.
+		// Think of "start counting at 1".
+		srv.RegisterFunc(customEcho)
+
+		cli, err := NewClient("test002", cfg)
+		panicOn(err)
+		defer cli.Close()
+
+		req := NewMessage()
+		req.JobSerz = []byte("Hello from client!")
+
+		reply, err := cli.SendAndGetReply(req, nil)
+		panicOn(err)
+
+		vv("srv_test sees reply (Seqno=%v) = '%v'", reply.Seqno, string(reply.JobSerz))
+
+		srv.RegisterFunc(oneWayStreet)
+		req = NewMessage()
+		req.JobSerz = []byte("One-way Hello from client!")
+
+		err = cli.OneWaySend(req, nil)
+		panicOn(err)
+		<-oneWayStreetChan
+		cv.So(true, cv.ShouldEqual, true)
+		vv("yay. we confirmed that oneWayStreen func has run")
+		// sleep a little to avoid shutting down before server can decide
+		// not to process/return a reply.
+		time.Sleep(time.Millisecond * 50)
 	})
 }
