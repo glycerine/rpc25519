@@ -23,7 +23,7 @@ plain TCP, and QUIC which uses TLS-v1.3 over UDP.
 
 QUIC is probably most useful if ports are scarce. Since
 it also needs extra buffer tuning, it is unlikely to
-be a fast as TLS.
+be a fast as TLS over TCP.
 
 How to KYC or Know Your Clients
 ------------------------
