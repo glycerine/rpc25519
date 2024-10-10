@@ -6,7 +6,11 @@ Not generally available at the moment.
 At the moment I wrote this to support goq moving
 to a sane RPC system. It does not have the bells
 and whistles needed for general purpose usability.
-But the bones are there.
+But the bones are there. It works well under my `goq`
+distributed job queueing system as a transport.
+
+The docs and examples and user facing API just
+need some polish to remove any rough edges.
 
 It is public because my [distributed job queuing
 facility goq](https://github.com/glycerine/goq) is public and it needed it.
@@ -14,10 +18,12 @@ facility goq](https://github.com/glycerine/goq) is public and it needed it.
 TLS-1.3 over TCP
 ----------------
 
-TLS-v1.3 over TCP or plain TCP work now.
+Three transports are available: TLS-v1.3 over TCP, 
+plain TCP, and QUIC which uses TLS-v1.3 over UDP.
 
-QUIC, which always implicitly uses TLS-v1.3, is viable, but is not done. See 
-the quicrpc/ sub-directory for work in progress.
+QUIC is probably most useful if ports are scarce. Since
+it also needs extra buffer tuning, it is unlikely to
+be a fast as TLS.
 
 How to KYC or Know Your Clients
 ------------------------
