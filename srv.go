@@ -80,6 +80,14 @@ func (s *Server) RunServerMain(serverAddress string, tcp_only bool, certPath str
 		config.ClientAuth = tls.RequireAndVerifyClientCert
 	}
 
+	if s.cfg.UseQUIC {
+		if s.cfg.TCPonly_no_TLS {
+			panic("cannot have both UseQUIC and TCPonly_no_TLS true")
+		}
+		s.RunQUICServer(serverAddress, config, boundCh)
+		return
+	}
+
 	// Listen on the specified serverAddress
 	listener, err := tls.Listen("tcp", serverAddress, config)
 	if err != nil {
@@ -384,7 +392,7 @@ type Server struct {
 
 	callme CallbackFunc
 
-	lsn  net.Listener
+	lsn  io.Closer // net.Listener
 	halt *idem.Halter
 
 	remote2pair map[string]*RWPair

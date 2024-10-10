@@ -1,21 +1,21 @@
 package rpc25519
 
-/*
 import (
-	"context"
+	//"context"
 	"crypto/tls"
-	"fmt"
+	//"fmt"
 	"log"
-	"os"
+	//"os"
+	"net"
 	"time"
 
 	"github.com/quic-go/quic-go"
-	"io"
-	"strings"
+	//"io"
+	//"strings"
 )
 
 // Important machine settings in order to use QUIC:
-
+/*
 https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes
 
 UDP Buffer Sizes
@@ -44,151 +44,134 @@ sysctl -w kern.ipc.maxsockbuf=8441037
 Add the following lines to the /etc/sysctl.conf file to keep this setting across reboots:
 
 kern.ipc.maxsockbuf=8441037
+*/
 
-
-func RunQuicServerMain(quicServerAddr string) error {
+func (s *Server) RunQUICServer(serverAddr string, tlsConfig *tls.Config, boundCh chan net.Addr) {
 	// Load server certificate and private key
 
-	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
-
-	sslCA := fixSlash("certs/ca.crt") // path to CA cert
-
-	// path to CA cert to verify client certs, can be same as sslCA
-	sslClientCA := fixSlash("certs/ca.crt")
-	sslCert := fixSlash("certs/node.crt")    // path to server cert
-	sslCertKey := fixSlash("certs/node.key") // path to server key
-
-	embedded := true
-	tlsConfig, err := LoadServerTLSConfig(embedded, sslCA, sslClientCA, sslCert, sslCertKey)
-	panicOn(err)
-	// Not needed now that we have proper CA cert from gen.sh
-	//config.ServerName = "localhost"
-
-	//	const insecure = false
-	//	if insecure {
-	//		//insecure to turn off client cert checking with:
-	//		config.ClientAuth = tls.NoClientCert
-	//	} else {
-	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-
-	//	cert, err := tls.LoadX509KeyPair("server.crt", "server.key")
-	//	if err != nil {
-	//		log.Fatalf("Error loading server certificate: %v", err)
-	//	}
-
 	// Create a QUIC listener
-	listener, err := quic.ListenAddr(quicServerAddr, tlsConfig, nil)
+	listener, err := quic.ListenAddr(serverAddr, tlsConfig, nil)
 	if err != nil {
 		log.Fatalf("Error starting QUIC listener: %v", err)
 	}
 	defer listener.Close()
 
-	log.Println("QUIC server is listening on localhost:4242")
-
-	ctx := context.Background()
-	for {
-		// Accept a QUIC connection
-		conn, err := listener.Accept(ctx)
-		if err != nil {
-			log.Printf("Error accepting session: %v", err)
-			continue
-		}
-
-		// client key verification.
-		knownHostsPath := "known_client_keys"
-		connState := conn.ConnectionState().TLS
-		raddr := conn.RemoteAddr()
-		remoteAddr := strings.TrimSpace(raddr.String())
-
-		// return error on host-key change to detect MITM.
-		good, bad, wasNew, err := HostKeyVerifies(knownHostsPath, &connState, remoteAddr)
-		if err != nil && len(good) == 0 && len(bad) > 0 {
-			fmt.Fprintf(os.Stderr, "key failed list:'%#v': '%v'\n", bad, err)
-			continue
-		}
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "on checking for known identity, err = '%v' ", err)
-			continue
-		}
-		for i := range good {
-			vv("accepted identity for client: '%v' (was new: %v)\n", good[i], wasNew)
-		}
-
-		go func(conn quic.Connection) {
-			defer func() {
-				conn.CloseWithError(0, "")
-				vv("finished with this quic connection.")
-			}()
-
-			for {
-				// Accept a stream
-				stream, err := conn.AcceptStream(context.Background())
-
-				if err != nil {
-					if strings.Contains(err.Error(), "timeout: no recent network activity") {
-						// ignore these, they happen every 30 seconds or so.
-						//log.Printf("ignoring timeout")
-						//continue
-						// or does this means it is time to close up shop?
-						vv("timeout, finishing quic session/connection")
-						return
-					}
-					if strings.Contains(err.Error(), "Application error 0x0 (remote)") {
-						// normal shutdown.
-						log.Printf("client finished.")
-						return
-					}
-					log.Printf("Error accepting stream: %v", err)
-					return
-				}
-
-				go handleStream(stream, conn)
-			}
-		}(conn)
-	}
-}
-
-func handleStream(stream quic.Stream, conn quic.Connection) {
-	defer func() {
-		stream.Close()
-		vv("done with handleStream.")
-	}()
-
-	timeout := time.Minute
-	for {
-
-		msg, err := receiveMessage(stream, &timeout)
-		if err == io.EOF {
-			return // close of socket before read of full message.
-		}
-		if err != nil && strings.Contains(err.Error(), "remote error: tls: bad certificate") {
-			vv("ignoring client connection with bad TLS cert.")
-			return
-		}
-		if err != nil {
-			if strings.Contains(err.Error(), "timeout: no recent network activity") {
-				vv("timeout, finishing stream")
-				return
-			}
-			if strings.Contains(err.Error(), "Application error 0x0 (remote)") {
-				// normal shutdown.
-				return
-			}
-		}
-		panicOn(err)
-
-		log.Printf("Received message from %v: '%v'", conn.RemoteAddr(), string(msg))
-
-		// Echo the message back to the client
-		//
-		// command 0: nothing else, not even a message. We are shutting down, done. close the stream.
-		// command 1: one-shot. Just this one message, then we are done.
-		// command >=2: leave the stream open, many possible commands with messages arriving.
-		if err := sendMessage(1, stream, msg, &timeout); err != nil {
-			log.Printf("Error sending message to %v: %v", conn.RemoteAddr(), err)
-			return
+	addr := listener.Addr()
+	log.Printf("QUIC Server listening on %v:%v", addr.Network(), addr.String())
+	if boundCh != nil {
+		select {
+		case boundCh <- addr:
+		case <-time.After(100 * time.Millisecond):
 		}
 	}
 
+	s.lsn = listener // allow shutdown
+	/*
+	   		ctx := context.Background()
+	   		for {
+	   			// Accept a QUIC connection
+	   			conn, err := listener.Accept(ctx)
+	   			if err != nil {
+	   				log.Printf("Error accepting session: %v", err)
+	   				continue
+	   			}
+
+	   			// client key verification.
+	   			knownHostsPath := "known_client_keys"
+	   			connState := conn.ConnectionState().TLS
+	   			raddr := conn.RemoteAddr()
+	   			remoteAddr := strings.TrimSpace(raddr.String())
+
+	   			// return error on host-key change to detect MITM.
+	   			good, bad, wasNew, err := HostKeyVerifies(knownHostsPath, &connState, remoteAddr)
+	   			if err != nil && len(good) == 0 && len(bad) > 0 {
+	   				fmt.Fprintf(os.Stderr, "key failed list:'%#v': '%v'\n", bad, err)
+	   				continue
+	   			}
+	   			if err != nil {
+	   				fmt.Fprintf(os.Stderr, "on checking for known identity, err = '%v' ", err)
+	   				continue
+	   			}
+	   			for i := range good {
+	   				vv("accepted identity for client: '%v' (was new: %v)\n", good[i], wasNew)
+	   			}
+
+	   			go func(conn quic.Connection) {
+	   				defer func() {
+	   					conn.CloseWithError(0, "")
+	   					vv("finished with this quic connection.")
+	   				}()
+
+	   				for {
+	   					// Accept a stream
+	   					stream, err := conn.AcceptStream(context.Background())
+
+	   					if err != nil {
+	   						if strings.Contains(err.Error(), "timeout: no recent network activity") {
+	   							// ignore these, they happen every 30 seconds or so.
+	   							//log.Printf("ignoring timeout")
+	   							//continue
+	   							// or does this means it is time to close up shop?
+	   							vv("timeout, finishing quic session/connection")
+	   							return
+	   						}
+	   						if strings.Contains(err.Error(), "Application error 0x0 (remote)") {
+	   							// normal shutdown.
+	   							log.Printf("client finished.")
+	   							return
+	   						}
+	   						log.Printf("Error accepting stream: %v", err)
+	   						return
+	   					}
+
+	   					go handleStream(stream, conn)
+	   				}
+	   			}(conn)
+	   		}
+	   	}
+
+	   	func handleStream(stream quic.Stream, conn quic.Connection) {
+	   		defer func() {
+	   			stream.Close()
+	   			vv("done with handleStream.")
+	   		}()
+
+	   		timeout := time.Minute
+	   		for {
+
+	   			msg, err := receiveMessage(stream, &timeout)
+	   			if err == io.EOF {
+	   				return // close of socket before read of full message.
+	   			}
+	   			if err != nil && strings.Contains(err.Error(), "remote error: tls: bad certificate") {
+	   				vv("ignoring client connection with bad TLS cert.")
+	   				return
+	   			}
+	   			if err != nil {
+	   				if strings.Contains(err.Error(), "timeout: no recent network activity") {
+	   					vv("timeout, finishing stream")
+	   					return
+	   				}
+	   				if strings.Contains(err.Error(), "Application error 0x0 (remote)") {
+	   					// normal shutdown.
+	   					return
+	   				}
+	   			}
+	   			panicOn(err)
+
+	   			log.Printf("Received message from %v: '%v'", conn.RemoteAddr(), string(msg))
+
+	   			// Echo the message back to the client
+	   			//
+	   			// command 0: nothing else, not even a message. We are shutting down, done. close the stream.
+	   			// command 1: one-shot. Just this one message, then we are done.
+	   			// command >=2: leave the stream open, many possible commands with messages arriving.
+	   			if err := sendMessage(1, stream, msg, &timeout); err != nil {
+	   				log.Printf("Error sending message to %v: %v", conn.RemoteAddr(), err)
+	   				return
+	   			}
+	   		}
+
+	   }
+	*/
 }
-*/
