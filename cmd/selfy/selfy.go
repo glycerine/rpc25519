@@ -23,6 +23,7 @@ type SelfCertConfig struct {
 	CreateKeyPairNamed string
 	Viewpath           string
 	Email              string
+	Quiet              bool
 }
 
 var sep = string(os.PathSeparator)
@@ -40,6 +41,8 @@ func (c *SelfCertConfig) DefineFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.Email, "e", "", "email to write into the certificate (who to contact about this job) (strongly encouraged when making new certs! defaults to name@host if not given)")
 
 	fs.BoolVar(&c.CreateCA, "ca", false, "create a new self-signed certificate authority (1st of 2 steps in making new certs). Written to the -p directory (see selfy -p flag, where -p is for private). The CA uses ed25519 keys too.")
+
+	fs.BoolVar(&c.Quiet, "quiet", false, "run quietly. don't print a log of actions taken as we go")
 }
 
 // Call c.ValidateConfig() just after fs.Parse() to finish
@@ -71,18 +74,20 @@ func main() {
 		log.Fatalf("%v command line flag error: '%v'", ProgramName, err)
 	}
 
+	verbose := !c.Quiet
+
 	if c.CreateCA {
-		selfcert.Step1_MakeCertificatAuthority(c.OdirCA_privateKey)
+		selfcert.Step1_MakeCertificatAuthority(c.OdirCA_privateKey, verbose)
 	}
 
 	if c.CreateKeyPairNamed != "" {
 		if !DirExists(c.OdirCA_privateKey) || !FileExists(c.OdirCA_privateKey+sep+"ca.crt") {
 			log.Printf("key-pair '%v' requested but CA does not exist in '%v', so auto-generating a self-signed CA for your first.", c.CreateKeyPairNamed, c.OdirCA_privateKey)
-			selfcert.Step1_MakeCertificatAuthority(c.OdirCA_privateKey)
+			selfcert.Step1_MakeCertificatAuthority(c.OdirCA_privateKey, verbose)
 		}
-		selfcert.Step2_MakeEd25519PrivateKeys([]string{c.CreateKeyPairNamed}, c.OdirCerts)
+		selfcert.Step2_MakeEd25519PrivateKeys([]string{c.CreateKeyPairNamed}, c.OdirCerts, verbose)
 		selfcert.Step3_MakeCertSigningRequests([]string{c.CreateKeyPairNamed}, []string{c.Email}, c.OdirCerts)
-		selfcert.Step4_MakeCertificates(c.OdirCA_privateKey, []string{c.CreateKeyPairNamed}, c.OdirCerts)
+		selfcert.Step4_MakeCertificates(c.OdirCA_privateKey, []string{c.CreateKeyPairNamed}, c.OdirCerts, verbose)
 	}
 
 	// useful utilities. Not needed to make keys and certificates.

@@ -25,7 +25,7 @@ const (
 var sep = string(os.PathSeparator)
 
 // pathCA "my-keep-private-dir" is the default.
-func Step1_MakeCertificatAuthority(pathCA string) {
+func Step1_MakeCertificatAuthority(pathCA string, verbose bool) {
 	// Step 1: Generate the ED25519 private key
 	pubKey, privKey, err := ed25519.GenerateKey(nil)
 	if err != nil {
@@ -97,7 +97,9 @@ func Step1_MakeCertificatAuthority(pathCA string) {
 		log.Fatalf("Failed to write certificate to ca-cert.pem: %v", err)
 	}
 
-	//log.Printf("CA private key and self-signed certificate generated successfully in '%v' and '%v'.", privfn, certfn)
+	if verbose {
+		log.Printf("CA private key and self-signed certificate generated successfully in '%v' and '%v'.", privfn, certfn)
+	}
 }
 
 // chmod og-wrx path

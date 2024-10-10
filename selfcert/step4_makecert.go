@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-func Step4_MakeCertificates(odirCA string, names []string, odirCerts string) {
+func Step4_MakeCertificates(odirCA string, names []string, odirCerts string, verbose bool) {
 
 	os.MkdirAll(odirCerts, 0700)
 	ownerOnly(odirCerts)
@@ -29,7 +29,7 @@ func Step4_MakeCertificates(odirCA string, names []string, odirCerts string) {
 		csrInPath := fmt.Sprintf("%v%v%v.csr", odirCerts, sep, name)
 		certOutPath := fmt.Sprintf("%v%v%v.crt", odirCerts, sep, name)
 
-		makeCerts(caPrivKeyPath, caCertPath, csrInPath, certOutPath)
+		makeCerts(caPrivKeyPath, caCertPath, csrInPath, certOutPath, verbose)
 
 		copyFileToDir(caCertPath, filepath.Dir(certOutPath))
 		ownerOnly(certOutPath)
@@ -41,7 +41,7 @@ func Step4_MakeCertificates(odirCA string, names []string, odirCerts string) {
 
 }
 
-func makeCerts(caPrivKeyPath, caCertPath, csrInPath, certOutPath string) {
+func makeCerts(caPrivKeyPath, caCertPath, csrInPath, certOutPath string, verbose bool) {
 
 	// Step 1: Load the CA certificate and CA private key
 	caCert, caKey, err := loadCA(caCertPath, caPrivKeyPath)
@@ -61,7 +61,9 @@ func makeCerts(caPrivKeyPath, caCertPath, csrInPath, certOutPath string) {
 		log.Fatalf("Failed to sign certificate: %v", err)
 	}
 
-	//log.Printf("Signed certificate saved to '%v'", certOutPath)
+	if verbose {
+		log.Printf("Signed certificate saved to '%v'", certOutPath)
+	}
 }
 
 // Load the CA certificate and CA private key

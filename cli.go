@@ -701,14 +701,16 @@ func SelfyNewKey(createKeyPairNamed, odir string) error {
 	host, _ := os.Hostname()
 	email := createKeyPairNamed + "@" + host
 
+	const verbose = false
+
 	if !DirExists(odirPrivateKey) || !FileExists(odirPrivateKey+sep+"ca.crt") {
 		//vv("key-pair '%v' requested but CA does not exist in '%v', so auto-generating a self-signed CA for your first.", createKeyPairNamed, odirPrivateKey)
-		selfcert.Step1_MakeCertificatAuthority(odirPrivateKey)
+		selfcert.Step1_MakeCertificatAuthority(odirPrivateKey, verbose)
 	}
 
-	selfcert.Step2_MakeEd25519PrivateKeys([]string{createKeyPairNamed}, odirCerts)
+	selfcert.Step2_MakeEd25519PrivateKeys([]string{createKeyPairNamed}, odirCerts, verbose)
 	selfcert.Step3_MakeCertSigningRequests([]string{createKeyPairNamed}, []string{email}, odirCerts)
-	selfcert.Step4_MakeCertificates(odirPrivateKey, []string{createKeyPairNamed}, odirCerts)
+	selfcert.Step4_MakeCertificates(odirPrivateKey, []string{createKeyPairNamed}, odirCerts, verbose)
 
 	return nil
 }
