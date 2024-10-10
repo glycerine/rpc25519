@@ -26,7 +26,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-//go:embed certs/*
+// turn off, as it is hard to install as package, the go
+// embed certs/*
 var static embed.FS
 
 /*
