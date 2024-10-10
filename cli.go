@@ -312,8 +312,7 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 // interface for goq
 
 type Message struct {
-	//Nc    net.Conn
-	Nc    uConnLR
+	Nc    net.Conn
 	Seqno uint64
 
 	Subject string // intent. example: "rpc call to ThisFunc()"
