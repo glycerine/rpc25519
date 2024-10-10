@@ -8,7 +8,8 @@ to a sane RPC system. It does not have the bells
 and whistles needed for general purpose usability.
 But the bones are there.
 
-It is public because goq is public and needs this now.
+It is public because my [distributed job queuing
+facility goq](https://github.com/glycerine/goq) is public and it needed it.
 
 TLS-1.3 over TCP
 ----------------
