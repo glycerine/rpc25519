@@ -38,7 +38,7 @@ func (c *Client) RunClientMain(serverAddr string, tcp_only bool, certPath string
 		return
 	}
 
-	embedded := true
+	embedded := false                 // always false now
 	sslCA := fixSlash("certs/ca.crt") // path to CA cert
 
 	keyName := "client"

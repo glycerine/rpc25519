@@ -32,7 +32,7 @@ func (s *Server) RunServerMain(serverAddress string, tcp_only bool, certPath str
 	}()
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
-	embedded := true
+	embedded := false                 // always false now
 	sslCA := fixSlash("certs/ca.crt") // path to CA cert
 
 	keyName := "node"
