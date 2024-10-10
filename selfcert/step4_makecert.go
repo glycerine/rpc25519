@@ -18,7 +18,7 @@ import (
 
 func Step4_MakeCertificates(odirCA string, names []string, odirCerts string) {
 
-	os.MkdirAll(odirCerts, 0777)
+	os.MkdirAll(odirCerts, 0700)
 	caPrivKeyPath := odirCA + sep + "ca.key"
 	caCertPath := odirCA + sep + "ca.crt"
 
@@ -30,6 +30,7 @@ func Step4_MakeCertificates(odirCA string, names []string, odirCerts string) {
 		makeCerts(caPrivKeyPath, caCertPath, csrInPath, certOutPath)
 
 		copyFileToDir(caCertPath, filepath.Dir(certOutPath))
+		ownerOnly(certOutPath)
 
 		// discard the Certificate signing requests; they are just confusing
 		// and all the information is in the cert anyhow.
@@ -145,6 +146,7 @@ func signCertificate(csr *x509.CertificateRequest, caCert *x509.Certificate, caK
 	if err != nil {
 		return fmt.Errorf("failed to create certificate file: %w", err)
 	}
+	defer ownerOnly(certPath)
 	defer certFile.Close()
 
 	err = pem.Encode(certFile, &pem.Block{Type: "CERTIFICATE", Bytes: certBytes})
@@ -165,7 +167,7 @@ func copyFileToDir(copyMePath string, toDir string) error {
 	defer sourceFile.Close()
 
 	// Ensure the destination directory exists
-	if err := os.MkdirAll(toDir, 0755); err != nil {
+	if err := os.MkdirAll(toDir, 0700); err != nil {
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
@@ -177,6 +179,7 @@ func copyFileToDir(copyMePath string, toDir string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create destination file: %w", err)
 	}
+	defer ownerOnly(destFilePath)
 	defer destFile.Close()
 
 	// Copy the contents of the source file to the destination file

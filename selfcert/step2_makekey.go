@@ -13,7 +13,7 @@ import (
 // name might be "client" or "node"; odirCert default might be "static/certs/client".
 func Step2_MakeEd25519PrivateKeys(names []string, odirCert string) {
 
-	os.MkdirAll(odirCert, 0777)
+	os.MkdirAll(odirCert, 0700)
 
 	for _, name := range names {
 		keyPath := fmt.Sprintf("%v%v%v.key", odirCert, sep, name)
@@ -42,7 +42,7 @@ func GenerateED25519Key(privateKeyPath string) error {
 
 	// Step 3: Create the directory if it doesn't exist
 	odir := filepath.Dir(privateKeyPath)
-	err = os.MkdirAll(odir, os.ModePerm)
+	err = os.MkdirAll(odir, 0700)
 	if err != nil {
 		return err
 	}
@@ -52,6 +52,7 @@ func GenerateED25519Key(privateKeyPath string) error {
 	if err != nil {
 		return err
 	}
+	defer ownerOnly(privateKeyPath)
 	defer privKeyFile.Close()
 
 	// Step 5: Encode the private key as PEM

@@ -14,7 +14,7 @@ import (
 
 func Step3_MakeCertSigningRequests(names []string, emails []string, odirCert string) {
 
-	os.MkdirAll(odirCert, 0777)
+	os.MkdirAll(odirCert, 0700)
 
 	for i, name := range names {
 		keyPath := fmt.Sprintf("%v%v%v.key", odirCert, sep, name)
@@ -99,6 +99,7 @@ func saveCSR(path string, csrBytes []byte) error {
 	if err != nil {
 		return fmt.Errorf("unable to create CSR file: %w", err)
 	}
+	defer ownerOnly(path)
 	defer csrFile.Close()
 
 	err = pem.Encode(csrFile, &pem.Block{

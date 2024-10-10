@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"log"
 	"math/big"
 	"os"
@@ -63,12 +64,13 @@ func Step1_MakeCertificatAuthority(pathCA string) {
 
 	// Step 5: Write the private key to a file
 	odir := pathCA + sep
-	os.MkdirAll(odir, 0777)
+	os.MkdirAll(odir, 0700)
 	privfn := odir + "ca.key"
 	privKeyFile, err := os.Create(privfn)
 	if err != nil {
 		log.Fatalf("Failed to create '%v': %v", privfn, err)
 	}
+	defer ownerOnly(privfn)
 	defer privKeyFile.Close()
 
 	privKeyBytes, err := x509.MarshalPKCS8PrivateKey(privKey)
@@ -86,6 +88,7 @@ func Step1_MakeCertificatAuthority(pathCA string) {
 	if err != nil {
 		log.Fatalf("Failed to create %v: '%v'", certfn, err)
 	}
+	defer ownerOnly(certfn)
 	defer certFile.Close()
 
 	if err := pem.Encode(certFile, &pem.Block{Type: "CERTIFICATE", Bytes: certBytes}); err != nil {
@@ -93,4 +96,27 @@ func Step1_MakeCertificatAuthority(pathCA string) {
 	}
 
 	//log.Printf("CA private key and self-signed certificate generated successfully in '%v' and '%v'.", privfn, certfn)
+}
+
+// chmod og-wrx path
+func ownerOnly(path string) error {
+
+	// Get the current file info
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("Error getting file '%v' stat: '%v'", path, err)
+	}
+
+	// Get the current permissions
+	currentPerm := fileInfo.Mode().Perm()
+
+	// Remove read, write, and execute permissions for group and others
+	newPerm := currentPerm &^ (os.FileMode(0o077))
+
+	// Change the file permissions
+	err = os.Chmod(path, newPerm)
+	if err != nil {
+		return fmt.Errorf("Error changing file permissions on '%v': '%v'", path, err)
+	}
+	return nil
 }
