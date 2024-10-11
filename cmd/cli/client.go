@@ -27,14 +27,15 @@ func main() {
 		*dest = "192.168.254.151:8443"
 	}
 
-	cfg := &rpc25519.Config{
-		ServerAddr:     *dest, // "127.0.0.1:8443",
-		TCPonly_no_TLS: *tcp,
-		UseQUIC:        *quic,
-		SkipVerifyKeys: *skipVerify,
-		KeyPairName:    *useName,
-		CertPath:       *certPath,
-	}
+	cfg := rpc25519.NewConfig()
+	cfg.ServerAddr = *dest // "127.0.0.1:8443",
+	cfg.TCPonly_no_TLS = *tcp
+	cfg.UseQUIC = *quic
+	cfg.SkipVerifyKeys = *skipVerify
+	cfg.KeyPairName = *useName
+	cfg.CertPath = *certPath
+	//cfg.SkipClientCerts= *skipClientCerts
+
 	cli, err := rpc25519.NewClient("cli", cfg)
 	if err != nil {
 		log.Printf("client could not connect: '%v'\n", err)

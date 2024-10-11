@@ -16,4 +16,11 @@ run:
 	sleep 1
 	pkill -9 srv
 
+runq:
+	./srv -q &
+	sleep 1
+	./cli -q
+	sleep 1
+	pkill -9 srv
+
 

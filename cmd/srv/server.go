@@ -25,15 +25,15 @@ func main() {
 
 	flag.Parse()
 
-	cfg := &rpc25519.Config{
-		ServerAddr:     *addr, // "0.0.0.0:8443"
-		TCPonly_no_TLS: *tcp,
-		UseQUIC:        *quic,
-		SkipVerifyKeys: *skipVerify,
-		KeyPairName:    *useName,
-		CertPath:       *certPath,
-		//SkipClientCerts: *skipClientCerts,
-	}
+	cfg := rpc25519.NewConfig()
+	cfg.ServerAddr = *addr // "0.0.0.0:8443"
+	cfg.TCPonly_no_TLS = *tcp
+	cfg.UseQUIC = *quic
+	cfg.SkipVerifyKeys = *skipVerify
+	cfg.KeyPairName = *useName
+	cfg.CertPath = *certPath
+	//cfg.SkipClientCerts= *skipClientCerts
+
 	srv := rpc25519.NewServer(cfg)
 	defer srv.Close()
 
