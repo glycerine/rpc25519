@@ -536,6 +536,9 @@ func (s *Server) Close() error {
 	if s.cfg.UseQUIC {
 		s.cfg.shared.mut.Lock()
 		s.cfg.shared.shareCount--
+		if s.cfg.shared.shareCount < 0 {
+			panic("server count should never be < 0")
+		}
 		vv("s.cfg.shared.shareCount = '%v' for '%v'", s.cfg.shared.shareCount, s.name)
 		if s.cfg.shared.shareCount <= 0 {
 			s.cfg.shared.quicTransport.Conn.Close()
