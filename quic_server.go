@@ -99,7 +99,7 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 	// Create a QUIC listener
 
 	quicConfig := &quic.Config{
-		//Allow0RTT:         true,
+		Allow0RTT:         true,
 		InitialPacketSize: 1200, // needed to work over Tailscale that defaults to MTU 1280.
 	}
 
@@ -144,6 +144,7 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 		}
 
 		// wait for the handshake to complete so we are encrypted/can verify host keys.
+		// see https://quic-go.net/docs/quic/server/
 		select {
 		case <-conn.HandshakeComplete():
 			//vv("quic_server handshake completed")

@@ -91,7 +91,14 @@ func (c *Client) RunClientMain(serverAddr string, tcp_only bool, certPath string
 		if c.cfg.TCPonly_no_TLS {
 			panic("cannot have both UseQUIC and TCPonly_no_TLS true")
 		}
-		c.RunQUIC(serverAddr, config)
+		localHostPort := c.cfg.ClientHostPort
+		if localHostPort == "" {
+			localHost, err := LocalAddrMatching(serverAddr)
+			panicOn(err)
+			//vv("localHost = '%v', matched to quicServerAddr = '%v'", localHost, quicServerAddr)
+			localHostPort = localHost + ":0" // client can pick any port
+		}
+		c.RunQUIC(localHostPort, serverAddr, config)
 		return
 	}
 
@@ -393,6 +400,10 @@ type Config struct {
 
 	// ServerAddr host:port of the rpc25519.Server to contact.
 	ServerAddr string
+
+	// optional. Can be used to force client to use a specific host:port;
+	// say for port sharing with a server.
+	ClientHostPort string
 
 	// TCP false means TLS-1.3 secured. true here means do TCP only.
 	TCPonly_no_TLS bool

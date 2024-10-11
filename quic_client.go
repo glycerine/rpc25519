@@ -17,7 +17,7 @@ import (
 
 var _ = time.Time{}
 
-func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
+func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Config) {
 
 	//defer func() {
 	//	vv("finishing '%v' Client.RunQUIC(quicServerAddr='%v')", c.name, quicServerAddr)
@@ -34,7 +34,7 @@ func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
 	ctxWithCancel, outerCancel := context.WithCancel(ctx)
 	defer outerCancel()
 
-	// could also try context.AfterFunc(ctxWithCancelt, func() {
+	// could also try context.AfterFunc(ctxWithCancel, func() {
 	// 		select {
 	//      case <-ctxWithCancel.Done():
 	//			//vv("quic_client '%v' sees ctxWithCancel is Done.", c.name) // yes! seen on shutdown.
@@ -50,11 +50,6 @@ func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
 		case <-c.halt.ReqStop.Chan:
 		}
 	}()
-
-	localHost, err := LocalAddrMatching(quicServerAddr)
-	panicOn(err)
-	//vv("localHost = '%v', matched to quicServerAddr = '%v'", localHost, quicServerAddr)
-	localHostPort := localHost + ":0" // client can pick any port
 
 	// Server address to connect to
 	serverAddr, err := net.ResolveUDPAddr("udp", quicServerAddr)
@@ -99,7 +94,7 @@ func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
 	*/
 
 	quicConfig := &quic.Config{
-		//Allow0RTT:            true,
+		Allow0RTT:            true,
 		KeepAlivePeriod:      5 * time.Second,
 		HandshakeIdleTimeout: c.cfg.ConnectTimeout,
 		InitialPacketSize:    1200,
@@ -131,6 +126,7 @@ func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
 	defer conn.CloseWithError(0, "")
 
 	// wait for the handshake to complete so we are encrypted/can verify host keys.
+	// see https://quic-go.net/docs/quic/server/
 	select {
 	case <-conn.HandshakeComplete():
 		//vv("quic_client handshake completed")
