@@ -142,7 +142,8 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 			r := err.Error()
 
 			// Error accepting session: quic: server closed
-			if strings.Contains(r, "quic: server closed") {
+			if strings.Contains(r, "quic: server closed") ||
+				strings.Contains(r, "use of closed network connection") {
 				return
 			}
 			continue

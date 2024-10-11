@@ -535,14 +535,17 @@ func (s *Server) Close() error {
 	vv("Server.Close() '%v' called.", s.name)
 	if s.cfg.UseQUIC {
 		s.cfg.shared.mut.Lock()
-		s.cfg.shared.shareCount--
-		if s.cfg.shared.shareCount < 0 {
-			panic("server count should never be < 0")
-		}
-		vv("s.cfg.shared.shareCount = '%v' for '%v'", s.cfg.shared.shareCount, s.name)
-		if s.cfg.shared.shareCount <= 0 {
-			s.cfg.shared.quicTransport.Conn.Close()
-			vv("s.cfg.shared.quicTransport.Conn.Close() called for '%v'.", s.name)
+		if !s.cfg.shared.isClosed { // since Server.Close() might be called more than once.
+			s.cfg.shared.shareCount--
+			if s.cfg.shared.shareCount < 0 {
+				panic("server count should never be < 0")
+			}
+			vv("s.cfg.shared.shareCount = '%v' for '%v'", s.cfg.shared.shareCount, s.name)
+			if s.cfg.shared.shareCount == 0 {
+				s.cfg.shared.quicTransport.Conn.Close()
+				s.cfg.shared.isClosed = true
+				vv("s.cfg.shared.quicTransport.Conn.Close() called for '%v'.", s.name)
+			}
 		}
 		s.cfg.shared.mut.Unlock()
 	}

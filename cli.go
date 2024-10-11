@@ -500,6 +500,7 @@ type SharedTransport struct {
 	mut           sync.Mutex
 	quicTransport *quic.Transport
 	shareCount    int
+	isClosed      bool
 }
 
 func NewConfig() *Config {
@@ -612,13 +613,16 @@ func (c *Client) Close() error {
 	//vv("Client.Close() called.") // not seen in shutdown.
 	if c.cfg.UseQUIC {
 		c.cfg.shared.mut.Lock()
-		c.cfg.shared.shareCount--
-		if c.cfg.shared.shareCount < 0 {
-			panic("client count should never be < 0")
-		}
-		vv("c.cfg.shared.shareCount = '%v' for '%v'", c.cfg.shared.shareCount, c.name)
-		if c.cfg.shared.shareCount <= 0 {
-			c.cfg.shared.quicTransport.Conn.Close()
+		if !c.cfg.shared.isClosed { // since Client.Close() might be called more than once.
+			c.cfg.shared.shareCount--
+			if c.cfg.shared.shareCount < 0 {
+				panic("client count should never be < 0")
+			}
+			vv("c.cfg.shared.shareCount = '%v' for '%v'", c.cfg.shared.shareCount, c.name)
+			if c.cfg.shared.shareCount == 0 {
+				c.cfg.shared.quicTransport.Conn.Close()
+				c.cfg.shared.isClosed = true
+			}
 		}
 		c.cfg.shared.mut.Unlock()
 	}
