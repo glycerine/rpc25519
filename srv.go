@@ -392,6 +392,8 @@ type Server struct {
 	mut sync.Mutex
 	cfg *Config
 
+	name string // which server, for debugging.
+
 	callme CallbackFunc
 
 	lsn  io.Closer // net.Listener
@@ -485,7 +487,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, by []byte, seqno 
 // NewServer will keep its own copy of
 // config. If config is nil, the
 // server will make its own upon Start().
-func NewServer(config *Config) *Server {
+func NewServer(name string, config *Config) *Server {
 
 	var cfg *Config
 	if config != nil {
@@ -493,6 +495,7 @@ func NewServer(config *Config) *Server {
 		cfg = &clone
 	}
 	return &Server{
+		name:              name,
 		cfg:               cfg,
 		remote2pair:       make(map[string]*RWPair),
 		halt:              idem.NewHalter(),
@@ -529,7 +532,7 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 }
 
 func (s *Server) Close() error {
-	//vv("Server.Close() called.")
+	vv("Server.Close() '%v' called.", s.name)
 	s.halt.ReqStop.Close()
 	s.lsn.Close() // cause RunServerMain listening loop to exit.
 	<-s.halt.Done.Chan

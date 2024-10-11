@@ -34,7 +34,7 @@ func main() {
 	cfg.CertPath = *certPath
 	//cfg.SkipClientCerts= *skipClientCerts
 
-	srv := rpc25519.NewServer(cfg)
+	srv := rpc25519.NewServer("srv", cfg)
 	defer srv.Close()
 
 	srv.RegisterFunc(customEcho)

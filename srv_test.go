@@ -15,7 +15,7 @@ func Test001_RoundTrip_SendAndGetReply_TCP(t *testing.T) {
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = true
 
-		srv := NewServer(cfg)
+		srv := NewServer("srv_test001", cfg)
 		defer srv.Close()
 
 		serverAddr, err := srv.Start()
@@ -48,7 +48,7 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = false
 
-		srv := NewServer(cfg)
+		srv := NewServer("srv_test002", cfg)
 		defer srv.Close()
 
 		serverAddr, err := srv.Start()
@@ -115,7 +115,7 @@ func Test003_client_notification_callbacks(t *testing.T) {
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = true
 
-		srv := NewServer(cfg)
+		srv := NewServer("srv_test003", cfg)
 		defer srv.Close()
 
 		serverAddr, err := srv.Start()
@@ -166,7 +166,7 @@ func Test004_server_push(t *testing.T) {
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = true
 
-		srv := NewServer(cfg)
+		srv := NewServer("srv_test004", cfg)
 		defer srv.Close()
 
 		serverAddr, err := srv.Start()
@@ -232,7 +232,7 @@ func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 		cfg := NewConfig()
 		cfg.UseQUIC = true
 
-		srv := NewServer(cfg)
+		srv := NewServer("srv_test005", cfg)
 		defer srv.Close()
 
 		serverAddr, err := srv.Start()
