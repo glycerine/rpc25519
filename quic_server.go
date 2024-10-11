@@ -146,7 +146,7 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 		// wait for the handshake to complete so we are encrypted/can verify host keys.
 		select {
 		case <-conn.HandshakeComplete():
-			vv("quic_server handshake completed")
+			//vv("quic_server handshake completed")
 		case <-conn.Context().Done():
 			// connection closed before handshake completion, e.g. due to handshake failure
 			vv("quic_server handshake failure on earlyListener.Accept()")
