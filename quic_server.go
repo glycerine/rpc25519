@@ -66,21 +66,50 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 	}
 	//vv("quicServerAddr '%v' -> '%v'", quicServerAddr, serverAddr)
 
-	// Create the UDP listener on the specified interface
-	udpConn, err := net.ListenUDP("udp", serverAddr)
-	if err != nil {
-		fmt.Printf("Failed to bind to address: %v\n", err)
-		return
+	var transport *quic.Transport
+	s.cfg.shared.mut.Lock()
+	if s.cfg.shared.quicTransport != nil {
+		transport = s.cfg.shared.quicTransport
+		s.cfg.shared.mut.Unlock()
+	} else {
+		udpConn, err := net.ListenUDP("udp", serverAddr)
+		if err != nil {
+			AlwaysPrintf("Failed to bind UPD server to '%v': '%v'\n", serverAddr, err)
+			s.cfg.shared.mut.Unlock()
+			return
+		}
+		transport = &quic.Transport{
+			Conn: udpConn,
+		}
+		s.cfg.shared.quicTransport = transport
+		s.cfg.shared.mut.Unlock()
 	}
-	defer udpConn.Close()
+	// note: we do not defer updConn.Close() because it may be shared with other clients/servers.
+
+	// Create the UDP listener on the specified interface
+	/*
+		udpConn, err := net.ListenUDP("udp", serverAddr)
+		if err != nil {
+			fmt.Printf("Failed to bind to address: %v\n", err)
+			return
+		}
+		defer udpConn.Close()
+	*/
 
 	// Create a QUIC listener
 
 	quicConfig := &quic.Config{
+		//Allow0RTT:         true,
 		InitialPacketSize: 1200, // needed to work over Tailscale that defaults to MTU 1280.
 	}
 
-	listener, err := quic.Listen(udpConn, tlsConfig, quicConfig)
+	// "ListenEarly starts listening for incoming QUIC connections.
+	//  There can only be a single listener on any net.PacketConn.
+	//  Listen may only be called again after the current Listener was closed."
+	//  -- https://pkg.go.dev/github.com/quic-go/quic-go#section-readme
+
+	listener, err := transport.ListenEarly(tlsConfig, quicConfig)
+	//listener, err := quic.Listen(udpConn, tlsConfig, quicConfig)
 
 	//listener, err := quic.ListenAddr(serverAddr, tlsConfig, nil)
 	if err != nil {
@@ -111,6 +140,16 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 			if strings.Contains(r, "quic: server closed") {
 				return
 			}
+			continue
+		}
+
+		// wait for the handshake to complete so we are encrypted/can verify host keys.
+		select {
+		case <-conn.HandshakeComplete():
+			vv("quic_server handshake completed")
+		case <-conn.Context().Done():
+			// connection closed before handshake completion, e.g. due to handshake failure
+			vv("quic_server handshake failure on earlyListener.Accept()")
 			continue
 		}
 

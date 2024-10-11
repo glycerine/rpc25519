@@ -489,7 +489,7 @@ func NewServer(config *Config) *Server {
 
 	var cfg *Config
 	if config != nil {
-		clone := *config // cfg.mutTr is a pointer to enable this copy.
+		clone := *config // cfg.shared is a pointer to enable this shallow copy.
 		cfg = &clone
 	}
 	return &Server{
