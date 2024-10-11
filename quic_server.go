@@ -51,7 +51,7 @@ kern.ipc.maxsockbuf=8441037
 func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, boundCh chan net.Addr) {
 	defer func() {
 		s.halt.Done.Close()
-		//	vv("exiting Server.RunQUICServer()") // seen, yes, on shutdown test.
+		vv("exiting Server.RunQUICServer('%v')", quicServerAddr) // seen, yes, on shutdown test.
 	}()
 
 	// Server address to connect to
