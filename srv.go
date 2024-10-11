@@ -104,7 +104,9 @@ func (s *Server) RunServerMain(serverAddress string, tcp_only bool, certPath str
 		}
 	}
 
+	s.mut.Lock()     // avoid data race
 	s.lsn = listener // allow shutdown
+	s.mut.Unlock()
 
 	for {
 		select {
@@ -550,7 +552,9 @@ func (s *Server) Close() error {
 		s.cfg.shared.mut.Unlock()
 	}
 	s.halt.ReqStop.Close()
+	s.mut.Lock()  // avoid data race
 	s.lsn.Close() // cause RunServerMain listening loop to exit.
+	s.mut.Unlock()
 	<-s.halt.Done.Chan
 	return nil
 }
