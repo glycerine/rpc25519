@@ -69,7 +69,7 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	if c.cfg.shared.quicTransport != nil {
 		transport = c.cfg.shared.quicTransport
 		c.cfg.shared.shareCount++
-		vv("c.cfg.shared.shareCount is now %v on client '%v'", c.cfg.shared.shareCount, c.name)
+		//vv("c.cfg.shared.shareCount is now %v on client '%v'", c.cfg.shared.shareCount, c.name)
 		c.cfg.shared.mut.Unlock()
 	} else {
 		udpConn, err := net.ListenUDP("udp", localAddr)
@@ -83,7 +83,7 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 		}
 		c.cfg.shared.quicTransport = transport
 		c.cfg.shared.shareCount++
-		vv("c.cfg.shared.shareCount is now %v on client '%v'", c.cfg.shared.shareCount, c.name)
+		//vv("c.cfg.shared.shareCount is now %v on client '%v'", c.cfg.shared.shareCount, c.name)
 		c.cfg.shared.mut.Unlock()
 	}
 	// note: we do not defer updConn.Close() because it may be shared with other clients/servers.

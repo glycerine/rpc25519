@@ -532,7 +532,7 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 }
 
 func (s *Server) Close() error {
-	vv("Server.Close() '%v' called.", s.name)
+	//vv("Server.Close() '%v' called.", s.name)
 	if s.cfg.UseQUIC {
 		s.cfg.shared.mut.Lock()
 		if !s.cfg.shared.isClosed { // since Server.Close() might be called more than once.
@@ -540,7 +540,7 @@ func (s *Server) Close() error {
 			if s.cfg.shared.shareCount < 0 {
 				panic("server count should never be < 0")
 			}
-			vv("s.cfg.shared.shareCount = '%v' for '%v'", s.cfg.shared.shareCount, s.name)
+			//vv("s.cfg.shared.shareCount = '%v' for '%v'", s.cfg.shared.shareCount, s.name)
 			if s.cfg.shared.shareCount == 0 {
 				s.cfg.shared.quicTransport.Conn.Close()
 				s.cfg.shared.isClosed = true

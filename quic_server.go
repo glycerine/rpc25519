@@ -51,7 +51,7 @@ kern.ipc.maxsockbuf=8441037
 func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, boundCh chan net.Addr) {
 	defer func() {
 		s.halt.Done.Close()
-		vv("exiting Server.RunQUICServer('%v')", quicServerAddr) // seen, yes, on shutdown test.
+		//vv("exiting Server.RunQUICServer('%v')", quicServerAddr) // seen, yes, on shutdown test.
 	}()
 
 	// Server address to connect to
@@ -71,7 +71,7 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 	if s.cfg.shared.quicTransport != nil {
 		transport = s.cfg.shared.quicTransport
 		s.cfg.shared.shareCount++
-		vv("s.cfg.shared.shareCount is now %v on server '%v'", s.cfg.shared.shareCount, s.name)
+		//vv("s.cfg.shared.shareCount is now %v on server '%v'", s.cfg.shared.shareCount, s.name)
 		s.cfg.shared.mut.Unlock()
 	} else {
 		udpConn, err := net.ListenUDP("udp", serverAddr)
@@ -85,7 +85,7 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 		}
 		s.cfg.shared.quicTransport = transport
 		s.cfg.shared.shareCount++
-		vv("s.cfg.shared.shareCount is now %v on server '%v'", s.cfg.shared.shareCount, s.name)
+		//vv("s.cfg.shared.shareCount is now %v on server '%v'", s.cfg.shared.shareCount, s.name)
 		s.cfg.shared.mut.Unlock()
 	}
 	// note: we do not defer updConn.Close() because it may be shared with other clients/servers.

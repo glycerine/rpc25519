@@ -618,7 +618,7 @@ func (c *Client) Close() error {
 			if c.cfg.shared.shareCount < 0 {
 				panic("client count should never be < 0")
 			}
-			vv("c.cfg.shared.shareCount = '%v' for '%v'", c.cfg.shared.shareCount, c.name)
+			//vv("c.cfg.shared.shareCount = '%v' for '%v'", c.cfg.shared.shareCount, c.name)
 			if c.cfg.shared.shareCount == 0 {
 				c.cfg.shared.quicTransport.Conn.Close()
 				c.cfg.shared.isClosed = true
