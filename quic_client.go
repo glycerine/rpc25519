@@ -68,6 +68,7 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	c.cfg.shared.mut.Lock()
 	if c.cfg.shared.quicTransport != nil {
 		transport = c.cfg.shared.quicTransport
+		c.cfg.shared.shareCount++
 		c.cfg.shared.mut.Unlock()
 	} else {
 		udpConn, err := net.ListenUDP("udp", localAddr)
@@ -83,6 +84,7 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 		c.cfg.shared.mut.Unlock()
 	}
 	// note: we do not defer updConn.Close() because it may be shared with other clients/servers.
+	// Instead: reference count in cfg.shareCount and call in Close()
 	/*
 		// Create the UDP connection bound to the specified local address
 		udpConn, err := net.ListenUDP("udp", localAddr)

@@ -499,6 +499,7 @@ type SharedTransport struct {
 
 	mut           sync.Mutex
 	quicTransport *quic.Transport
+	shareCount    int
 }
 
 func NewConfig() *Config {
@@ -609,6 +610,14 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 
 func (c *Client) Close() error {
 	//vv("Client.Close() called.") // not seen in shutdown.
+	if c.cfg.shared != nil {
+		c.cfg.shared.mut.Lock()
+		c.cfg.shared.shareCount--
+		if c.cfg.shared.shareCount == 0 {
+			c.cfg.shared.quicTransport.Conn.Close()
+		}
+		c.cfg.shared.mut.Unlock()
+	}
 	c.halt.ReqStop.Close()
 	<-c.halt.Done.Chan
 	//vv("Client.Close() finished.")

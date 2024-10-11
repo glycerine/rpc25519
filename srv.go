@@ -533,6 +533,14 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 
 func (s *Server) Close() error {
 	vv("Server.Close() '%v' called.", s.name)
+	if s.cfg.shared != nil {
+		s.cfg.shared.mut.Lock()
+		s.cfg.shared.shareCount--
+		if s.cfg.shared.shareCount == 0 {
+			s.cfg.shared.quicTransport.Conn.Close()
+		}
+		s.cfg.shared.mut.Unlock()
+	}
 	s.halt.ReqStop.Close()
 	s.lsn.Close() // cause RunServerMain listening loop to exit.
 	<-s.halt.Done.Chan
