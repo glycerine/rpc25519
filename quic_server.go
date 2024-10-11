@@ -60,6 +60,10 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 		AlwaysPrintf("Failed to resolve server address: %v", err)
 		return
 	}
+	isIPv6 := serverAddr.IP.To4() == nil
+	if isIPv6 {
+		panic(fmt.Sprintf("quic-go does not work well over IPv6, so we reject this server address '%v'. Please use an IPv4 network with quic, or if IPv6 is required then use TCP/TLS over TCP.", serverAddr.String()))
+	}
 	//vv("quicServerAddr '%v' -> '%v'", quicServerAddr, serverAddr)
 
 	// Create the UDP listener on the specified interface
@@ -73,7 +77,7 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 	// Create a QUIC listener
 
 	quicConfig := &quic.Config{
-		InitialPacketSize: 1200,
+		InitialPacketSize: 1200, // needed to work over Tailscale that defaults to MTU 1280.
 	}
 
 	listener, err := quic.Listen(udpConn, tlsConfig, quicConfig)
