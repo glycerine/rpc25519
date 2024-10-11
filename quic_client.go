@@ -79,6 +79,7 @@ func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
 	quicConfig := &quic.Config{
 		KeepAlivePeriod:      5 * time.Second,
 		HandshakeIdleTimeout: c.cfg.ConnectTimeout,
+		InitialPacketSize:    1280,
 	}
 
 	// didn't allow us to bind a specific network interface,

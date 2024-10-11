@@ -72,7 +72,11 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 
 	// Create a QUIC listener
 
-	listener, err := quic.Listen(udpConn, tlsConfig, nil)
+	quicConfig := &quic.Config{
+		InitialPacketSize: 1280,
+	}
+
+	listener, err := quic.Listen(udpConn, tlsConfig, quicConfig)
 
 	//listener, err := quic.ListenAddr(serverAddr, tlsConfig, nil)
 	if err != nil {
