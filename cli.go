@@ -137,7 +137,7 @@ func (c *Client) RunClientMain(serverAddr string, tcp_only bool, certPath string
 	//log.Printf("Connected to server %s", serverAddr)
 
 	la := conn.LocalAddr()
-	c.cfg.LocalAddress = la.Network() + "://" + la.String()
+	c.SetLocalAddr(la.Network() + "://" + la.String())
 
 	// possible to check host keys for TOFU like SSH does,
 	// but be aware that if they have the contents of
@@ -737,7 +737,14 @@ func (c *Client) OneWaySend(msg *Message, doneCh <-chan struct{}) (err error) {
 	}
 }
 
+func (c *Client) SetLocalAddr(local string) {
+	c.mut.Lock()
+	defer c.mut.Unlock()
+	c.cfg.LocalAddress = local
+}
 func (c *Client) LocalAddr() string {
+	c.mut.Lock()
+	defer c.mut.Unlock()
 	return c.cfg.LocalAddress
 }
 
