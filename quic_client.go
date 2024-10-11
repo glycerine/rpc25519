@@ -68,13 +68,35 @@ func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
 	panicOn(err)
 	//vv("quic client using localAddr '%v' -> serverAddr '%v'", localHostPort, serverAddr)
 
-	// Create the UDP connection bound to the specified local address
-	udpConn, err := net.ListenUDP("udp", localAddr)
-	if err != nil {
-		AlwaysPrintf("Failed to bind UPD client to '%v'/'%v': '%v'\n", localAddr, localHostPort, err)
-		return
+	// prep for same-same port sharing, change Dial to DialEarly on a quic.Transport.
+	var transport *quic.Transport
+	c.cfg.shared.mut.Lock()
+	if c.cfg.shared.quicTransport != nil {
+		transport = c.cfg.shared.quicTransport
+		c.cfg.shared.mut.Unlock()
+	} else {
+		udpConn, err := net.ListenUDP("udp", localAddr)
+		if err != nil {
+			AlwaysPrintf("Failed to bind UPD client to '%v'/'%v': '%v'\n", localAddr, localHostPort, err)
+			c.cfg.shared.mut.Unlock()
+			return
+		}
+		transport = &quic.Transport{
+			Conn: udpConn,
+		}
+		c.cfg.shared.quicTransport = transport
+		c.cfg.shared.mut.Unlock()
 	}
-	defer udpConn.Close()
+	// note: we do not defer updConn.Close() because it may be shared with other clients/servers.
+	/*
+		// Create the UDP connection bound to the specified local address
+		udpConn, err := net.ListenUDP("udp", localAddr)
+		if err != nil {
+			AlwaysPrintf("Failed to bind UPD client to '%v'/'%v': '%v'\n", localAddr, localHostPort, err)
+			return
+		}
+		defer udpConn.Close()
+	*/
 
 	quicConfig := &quic.Config{
 		KeepAlivePeriod:      5 * time.Second,
@@ -87,7 +109,11 @@ func (c *Client) RunQUIC(quicServerAddr string, tlsConfig *tls.Config) {
 	// so we do the 3 steps above first; instead of:
 	//conn, err := quic.DialAddr(ctx, quicServerAddr, tlsConfig, nil)
 
-	conn, err := quic.Dial(ctx, udpConn, serverAddr, tlsConfig, quicConfig)
+	// this conn is a quic.Connection
+	//conn, err := quic.Dial(ctx, udpConn, serverAddr, tlsConfig, quicConfig)
+
+	// this conn is a quic.EarlyConnection
+	conn, err := transport.DialEarly(ctx, serverAddr, tlsConfig, quicConfig)
 	if err != nil {
 		c.err = err
 		c.Connected <- err

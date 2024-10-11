@@ -489,7 +489,7 @@ func NewServer(config *Config) *Server {
 
 	var cfg *Config
 	if config != nil {
-		clone := *config
+		clone := *config // cfg.mutTr is a pointer to enable this copy.
 		cfg = &clone
 	}
 	return &Server{
@@ -509,7 +509,7 @@ func (s *Server) RegisterFunc(callme CallbackFunc) {
 func (s *Server) Start() (serverAddr net.Addr, err error) {
 	//vv("Server.Start() called")
 	if s.cfg == nil {
-		s.cfg = &Config{}
+		s.cfg = NewConfig()
 	}
 	if s.cfg.ServerAddr == "" {
 		hostport := "127.0.0.1:0" // default to safe loopback

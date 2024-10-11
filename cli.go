@@ -450,6 +450,50 @@ type Config struct {
 	WriteTimeout   time.Duration
 
 	LocalAddress string
+
+	// for port sharing over QUIC
+	shared *SharedTransport
+}
+
+type SharedTransport struct {
+
+	// shared quic.Transport
+	// https://github.com/quic-go/quic-go/issues/4113 say it worked for them.
+	// https://github.com/quic-go/quic-go/pull/4246/files added docs for it:
+	// from the http3/README PR there:
+	// ## Using the same UDP Socket for Server and Roundtripper (over http3 but we only need QUIC)
+	//
+	//	"Since QUIC demultiplexes packets based on their connection IDs, it is possible allows running a QUIC server and client on the same UDP socket. This also works when using HTTP/3: HTTP requests can be sent from the same socket that a server is listening on.
+	//
+	//	To achieve this using this package, first initialize a single `quic.Transport`, and pass a `quic.EarlyListner` obtained from that transport to `http3.Server.ServeListener`, and use the `DialEarly` function of the transport as the `Dial` function for the `http3.RoundTripper`."
+	//
+	// two client can share the same port too:
+	// https://github.com/quic-go/quic-go/pull/1407/files
+	// client and server sharing:
+	// https://github.com/quic-go/quic-go/issues/561
+	// @marten-seemann: "The cool thing is, we won't need any new API for this:
+	// You'll just pass the same packet conn to Dial and to Listen,
+	// and things will work automatically."
+	// Cloudflare says they got it to work in quiche:
+	// https://github.com/cloudflare/quiche/issues/1378
+	//
+	// example from line 33 of
+	// https://github.com/quic-go/quic-go/pull/4246/files#diff-fcb5b7ebfd659b68bdd2f837219b90210f4ed74d027cfa95bbd45d69dcef0804R33
+	// tr := quic.Transport{Conn: conn}
+	// tlsConf := http3.ConfigureTLSConfig(&tls.Config{})  // use your tls.Config here
+	// quicConf := &quic.Config{} // QUIC connection options
+	// server := http3.Server{}
+	// ln, _ := tr.ListenEarly(tlsConf, quicConf)
+	// server.ServeListener(ln)
+
+	mut           sync.Mutex
+	quicTransport *quic.Transport
+}
+
+func NewConfig() *Config {
+	return &Config{
+		shared: &SharedTransport{},
+	}
 }
 
 // Clients write requests, and maybe wait for responses.
@@ -534,7 +578,6 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		cfg = &clone
 	} else {
 		return nil, fmt.Errorf("missing config.ServerAddr to connect to")
-		//cfg = &Config{} // defaults.
 	}
 	c = &Client{
 		cfg:          cfg,

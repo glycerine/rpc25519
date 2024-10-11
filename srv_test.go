@@ -12,9 +12,9 @@ func Test001_RoundTrip_SendAndGetReply_TCP(t *testing.T) {
 
 	cv.Convey("basic TCP remote procedure call with rpc25519: register a callback on the server, and have the client call it.", t, func() {
 
-		cfg := &Config{
-			TCPonly_no_TLS: true,
-		}
+		cfg := NewConfig()
+		cfg.TCPonly_no_TLS = true
+
 		srv := NewServer(cfg)
 		defer srv.Close()
 
@@ -45,9 +45,9 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 
 	cv.Convey("basic TLS remote procedure call with rpc25519: register a callback on the server, and have the client call it.", t, func() {
 
-		cfg := &Config{
-			TCPonly_no_TLS: false,
-		}
+		cfg := NewConfig()
+		cfg.TCPonly_no_TLS = false
+
 		srv := NewServer(cfg)
 		defer srv.Close()
 
@@ -112,9 +112,9 @@ func Test003_client_notification_callbacks(t *testing.T) {
 
 	cv.Convey("client.GetReads() and GetOneRead() can be used to monitor all messages or just the next one ", t, func() {
 
-		cfg := &Config{
-			TCPonly_no_TLS: true,
-		}
+		cfg := NewConfig()
+		cfg.TCPonly_no_TLS = true
+
 		srv := NewServer(cfg)
 		defer srv.Close()
 
@@ -163,9 +163,9 @@ func Test004_server_push(t *testing.T) {
 
 	cv.Convey("server.SendCh should push messages to the client", t, func() {
 
-		cfg := &Config{
-			TCPonly_no_TLS: true,
-		}
+		cfg := NewConfig()
+		cfg.TCPonly_no_TLS = true
+
 		srv := NewServer(cfg)
 		defer srv.Close()
 
@@ -229,9 +229,9 @@ func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 
 	cv.Convey("basic QUIC remote procedure call with rpc25519: register a callback on the server, and have the client call it.", t, func() {
 
-		cfg := &Config{
-			UseQUIC: true,
-		}
+		cfg := NewConfig()
+		cfg.UseQUIC = true
+
 		srv := NewServer(cfg)
 		defer srv.Close()
 
