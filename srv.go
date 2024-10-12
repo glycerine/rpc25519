@@ -36,8 +36,8 @@ func (s *Server) RunServerMain(serverAddress string, tcp_only bool, certPath str
 	sslCA := fixSlash("certs/ca.crt") // path to CA cert
 
 	keyName := "node"
-	if s.cfg.KeyPairName != "" {
-		keyName = s.cfg.KeyPairName
+	if s.cfg.ServerKeyPairName != "" {
+		keyName = s.cfg.ServerKeyPairName
 	}
 
 	// path to CA cert to verify client certs, can be same as sslCA

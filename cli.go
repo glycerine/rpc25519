@@ -42,8 +42,8 @@ func (c *Client) RunClientMain(serverAddr string, tcp_only bool, certPath string
 	sslCA := fixSlash("certs/ca.crt") // path to CA cert
 
 	keyName := "client"
-	if c.cfg.KeyPairName != "" {
-		keyName = c.cfg.KeyPairName
+	if c.cfg.ClientKeyPairName != "" {
+		keyName = c.cfg.ClientKeyPairName
 	}
 
 	sslCert := fixSlash(fmt.Sprintf("certs/%v.crt", keyName))    // path to server cert
@@ -464,7 +464,8 @@ type Config struct {
 	// able to contact us. The server will notice
 	// this and crash since why bother being up.
 
-	KeyPairName string // default "client" means use certs/client.crt and certs/client.key
+	ClientKeyPairName string // default "client" means use certs/client.crt and certs/client.key
+	ServerKeyPairName string // default "node" means use certs/node.crt and certs/node.key
 
 	// These are timeouts for connection and transport tuning.
 	// The defaults of 0 mean wait forever.
