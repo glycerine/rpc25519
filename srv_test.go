@@ -15,17 +15,18 @@ func Test001_RoundTrip_SendAndGetReply_TCP(t *testing.T) {
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = true
 
+		cfg.ServerAddr = "127.0.0.1:0"
 		srv := NewServer("srv_test001", cfg)
-		defer srv.Close()
 
 		serverAddr, err := srv.Start()
 		panicOn(err)
+		defer srv.Close()
 
-		cfg.ServerAddr = serverAddr.String()
-		vv("server Start() returned serverAddr = '%v'", cfg.ServerAddr)
+		vv("server Start() returned serverAddr = '%v'", serverAddr)
 
 		srv.RegisterFunc(customEcho)
 
+		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test001", cfg)
 		panicOn(err)
 		defer cli.Close()
@@ -48,14 +49,14 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = false
 
+		cfg.ServerAddr = "127.0.0.1:0"
 		srv := NewServer("srv_test002", cfg)
-		defer srv.Close()
 
 		serverAddr, err := srv.Start()
 		panicOn(err)
+		defer srv.Close()
 
-		cfg.ServerAddr = serverAddr.String()
-		vv("server Start() returned serverAddr = '%v'", cfg.ServerAddr)
+		vv("server Start() returned serverAddr = '%v'", serverAddr)
 
 		// Commands with odd numbers (1, 3, 5, 7, ...) are for starting an RPC call,
 		// requesting an action, initiating a command.
@@ -63,6 +64,7 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 		// Think of "start counting at 1".
 		srv.RegisterFunc(customEcho)
 
+		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test002", cfg)
 		panicOn(err)
 		defer cli.Close()
@@ -115,17 +117,18 @@ func Test003_client_notification_callbacks(t *testing.T) {
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = true
 
+		cfg.ServerAddr = "127.0.0.1:0"
 		srv := NewServer("srv_test003", cfg)
-		defer srv.Close()
 
 		serverAddr, err := srv.Start()
 		panicOn(err)
+		defer srv.Close()
 
-		cfg.ServerAddr = serverAddr.String()
-		vv("server Start() returned serverAddr = '%v'", cfg.ServerAddr)
+		vv("server Start() returned serverAddr = '%v'", serverAddr)
 
 		srv.RegisterFunc(customEcho)
 
+		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test003", cfg)
 		panicOn(err)
 		defer cli.Close()
@@ -166,17 +169,18 @@ func Test004_server_push(t *testing.T) {
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = true
 
+		cfg.ServerAddr = "127.0.0.1:0"
 		srv := NewServer("srv_test004", cfg)
-		defer srv.Close()
 
 		serverAddr, err := srv.Start()
 		panicOn(err)
+		defer srv.Close()
 
-		cfg.ServerAddr = serverAddr.String()
-		vv("server Start() returned serverAddr = '%v'", cfg.ServerAddr)
+		vv("server Start() returned serverAddr = '%v'", serverAddr)
 
 		//srv.RegisterFunc(5, customEcho)
 
+		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test004", cfg)
 		panicOn(err)
 		defer cli.Close()
@@ -232,14 +236,13 @@ func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 		cfg := NewConfig()
 		cfg.UseQUIC = true
 
+		cfg.ServerAddr = "127.0.0.1:0"
 		srv := NewServer("srv_test005", cfg)
-		defer srv.Close()
-
 		serverAddr, err := srv.Start()
 		panicOn(err)
+		defer srv.Close()
 
-		cfg.ServerAddr = serverAddr.String()
-		vv("server Start() returned serverAddr = '%v'", cfg.ServerAddr)
+		vv("server Start() returned serverAddr = '%v'", serverAddr.String())
 
 		// Commands with odd numbers (1, 3, 5, 7, ...) are for starting an RPC call,
 		// requesting an action, initiating a command.
@@ -247,6 +250,7 @@ func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 		// Think of "start counting at 1".
 		srv.RegisterFunc(customEcho)
 
+		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test002", cfg)
 		panicOn(err)
 		defer cli.Close()

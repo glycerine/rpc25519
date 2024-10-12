@@ -517,9 +517,10 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 		s.cfg = NewConfig()
 	}
 	if s.cfg.ServerAddr == "" {
-		hostport := "127.0.0.1:0" // default to safe loopback
-		AlwaysPrintf("Server.Start(): warning: nil config or no ServerAddr specified, binding to '%v'", hostport)
-		s.cfg.ServerAddr = hostport
+		panic(fmt.Errorf("no ServerAddr specified in Server.cfg"))
+		//hostport := "127.0.0.1:0" // default to safe loopback
+		//AlwaysPrintf("Server.Start(): warning: nil config or no ServerAddr specified, binding to '%v'", hostport)
+		//s.cfg.ServerAddr = hostport
 	}
 	boundCh := make(chan net.Addr, 1)
 	go s.RunServerMain(s.cfg.ServerAddr, s.cfg.TCPonly_no_TLS, s.cfg.CertPath, boundCh)
