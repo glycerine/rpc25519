@@ -375,24 +375,34 @@ func NewMessageFromBytes(by []byte) (msg *Message) {
 // CallbackFunc is the user's own function that they
 // register with the server for remote procedure calls.
 //
-// The user's func may not want to return anything: be a one-way.
-// In that case they should return nil.
+// The user's CallbackFunc may not want to return anything.
+// In that case they should return nil. It will then be
+// a 'one-way' function, and no reply will be returned over
+// the network.
 //
-// If they want to return anything, even an error, they
-// must allocate with rpc25519.NewMessage() and return
-// that (as the out *Message). The out.Err field should be assigned
-// for an error to be returned. The
+// If the user's CallbackFunc wants to return anything,
+// even an error, they must either 1) modify and return
+// the inputMsg; or 2) allocate a new Message with
+// rpc25519.NewMessage() and return that.
+//
+// Typically the JobSerz and/or Err fields are all that need
+// setting, but Subject may also want updating.
+// The outputMsg.Err field should be assigned
+// any error to be returned. The
 // JobSerz []byte are the main place to return structured
 // information, but it can be nil if there is only an
-// error. It is fine to set neither and still allocate out.
-// The caller will get a response that nil or no error was returned,
-// which maybe useful to know on its own.
+// error. It is fine to set both JobServ and Err to nil.
+// The caller will get a response that no error was returned,
+// which may be a useful acknowledgement.
 //
-// Again, a one-way function is equivalent to returning nil. No
-// reply will be sent to the caller, and so they hopefully
-// sent using SendOneWay(). This may be desired in many designs
-// where a later server push will unblock them.
-type CallbackFunc func(in *Message) (out *Message)
+// The system will overwrite the MID field while sending the
+// reply, so the user should not bother writing it.
+//
+// Again, a one-way function is created by returning
+// a nil outputMsg. No reply will be sent to the caller.
+// Presumably the caller will have called with SendOneWay().
+// Otherwise they will hang waiting for a reply.
+type CallbackFunc func(inputMsg *Message) (outputMsg *Message)
 
 // Config says who to contact (for a client), or
 // where to listen (for a server); and sets how

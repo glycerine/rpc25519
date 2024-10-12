@@ -32,7 +32,7 @@ func main() {
 	cfg.TCPonly_no_TLS = *tcp
 	cfg.UseQUIC = *quic
 	cfg.SkipVerifyKeys = *skipVerify
-	cfg.KeyPairName = *useName
+	cfg.ClientKeyPairName = *useName
 	cfg.CertPath = *certPath
 	//cfg.SkipClientCerts= *skipClientCerts
 

@@ -5,9 +5,11 @@ all:
 	go build -o cli ./cmd/cli
 	go build -o srv ./cmd/srv
 	go build -o selfy ./cmd/selfy
+	go build -o same ./cmd/samesame
 	cp -p selfy ~/go/bin
 	cp -p srv ~/go/bin
 	cp -p cli ~/go/bin
+	cp -p same ~/go/bin
 
 run:
 	./srv &

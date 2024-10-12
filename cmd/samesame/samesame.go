@@ -1,10 +1,10 @@
 package main
 
 import (
-	//"fmt"
 	"flag"
+	"fmt"
 	"log"
-	"os"
+	"time"
 
 	"github.com/glycerine/rpc25519"
 )
@@ -77,4 +77,12 @@ func main() {
 		break
 	}
 	select {}
+}
+
+// echo implements rpc25519.CallbackFunc
+func customEcho(in *rpc25519.Message) (out *rpc25519.Message) {
+	log.Printf("server customEcho called, Seqno=%v, msg='%v'", in.Seqno, string(in.JobSerz))
+	//vv("callback to echo: with msg='%#v'", in)
+	in.JobSerz = append(in.JobSerz, []byte(fmt.Sprintf("\n with time customEcho sees this: '%v'", time.Now()))...)
+	return in // echo
 }
