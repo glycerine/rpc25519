@@ -3,14 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/glycerine/rpc25519"
 )
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
 	var local = flag.String("c", "127.0.0.1:8445", "client address to send echo request from.")
 	var dest = flag.String("s", "127.0.0.1:8443", "server address to send echo request to.")
@@ -58,13 +56,14 @@ func main() {
 		panic(fmt.Sprintf("could not start rpc25519.Server with config = '%#v'; err='%v'", cfg, err))
 	}
 
-	log.Printf("rpc25519.server Start() returned serverAddr = '%v'", serverAddr)
+	fmt.Printf("rpc25519.server Start() returned serverAddr = '%v'\n", serverAddr)
 
-	for {
+	sends := 0
+	for sends < 2 {
 
 		cli, err := rpc25519.NewClient(cfg.ClientKeyPairName, cfg)
 		if err != nil {
-			log.Printf("client '%v' could not connect: '%v'. Wait 2 sec and try again...\n", cfg.ClientKeyPairName, err)
+			fmt.Printf("client '%v' could not connect: '%v'. Wait 2 sec and try again...\n", cfg.ClientKeyPairName, err)
 			time.Sleep(time.Second * 2)
 			continue
 		}
@@ -77,16 +76,17 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+		sends++
 
-		log.Printf("client sees reply (Seqno=%v) = '%v'\n", reply.Seqno, string(reply.JobSerz))
-		break
+		fmt.Printf("client sees reply (Seqno=%v) = '%v'\n", reply.Seqno, string(reply.JobSerz))
 	}
+	fmt.Printf("sends done: %v\n", sends)
 	select {}
 }
 
 // echo implements rpc25519.CallbackFunc
 func customEcho(in *rpc25519.Message) (out *rpc25519.Message) {
-	log.Printf("server customEcho called, Seqno=%v, msg='%v'", in.Seqno, string(in.JobSerz))
+	fmt.Printf("server customEcho called, Seqno=%v, msg='%v'\n", in.Seqno, string(in.JobSerz))
 	//vv("callback to echo: with msg='%#v'", in)
 	in.JobSerz = append(in.JobSerz, []byte(fmt.Sprintf("\n with time customEcho sees this: '%v'", time.Now()))...)
 	return in // echo

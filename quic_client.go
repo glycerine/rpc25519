@@ -119,7 +119,7 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	if err != nil {
 		c.err = err
 		c.Connected <- err
-		log.Printf("Failed to connect to server: %v", err)
+		AlwaysPrintf("Failed to connect to server: %v", err)
 		return
 	}
 	// do this before signaling on c.Connected, else tests will race and panic
