@@ -380,28 +380,19 @@ func NewMessageFromBytes(by []byte) (msg *Message) {
 // a 'one-way' function, and no reply will be returned over
 // the network.
 //
-// If the user's CallbackFunc wants to return anything,
-// even an error, they must either 1) modify and return
-// the inputMsg; or 2) allocate a new Message with
-// rpc25519.NewMessage() and return that.
+// If the user's CallbackFunc wants to reply,
+// they should modify the inputMsg.JobSerz bytes
+// and then return the modified inputMsg as the outputMsg.
+// This can be as simple as setting inputMsg.JobSerz = nil,
+// or encoding a reponse into JobSerz, or encoding an
+// error into JobSerz.
 //
-// Typically the JobSerz and/or Err fields are all that need
-// setting, but Subject may also want updating.
-// The outputMsg.Err field should be assigned
-// any error to be returned. The
-// JobSerz []byte are the main place to return structured
-// information, but it can be nil if there is only an
-// error. It is fine to set both JobServ and Err to nil.
-// The caller will get a response that no error was returned,
-// which may be a useful acknowledgement.
+// At the moment Message.Err is only for local system errors
+// and is not sent on the wire. Hence it is not available to
+// to communicate user job errors.
 //
-// The system will overwrite the MID field while sending the
-// reply, so the user should not bother writing it.
-//
-// Again, a one-way function is created by returning
-// a nil outputMsg. No reply will be sent to the caller.
-// Presumably the caller will have called with SendOneWay().
-// Otherwise they will hang waiting for a reply.
+// The system will overwrite the outputMsg.MID field while sending the
+// reply, so the user should not bother changing it.
 type CallbackFunc func(inputMsg *Message) (outputMsg *Message)
 
 // Config says who to contact (for a client), or
