@@ -375,27 +375,39 @@ func NewMessageFromBytes(by []byte) (msg *Message) {
 // CallbackFunc is the user's own function that they
 // register with the server for remote procedure calls.
 //
-// The users's func may not want to return anything: be a one-way.
-// In that case they should return nil in out.
+// The user's func may not want to return anything: be a one-way.
+// In that case they should return nil.
 //
 // If they want to return anything, even an error, they
 // must allocate with rpc25519.NewMessage() and return
-// that (in out). The out.Err field can be assigned
+// that (as the out *Message). The out.Err field should be assigned
 // for an error to be returned. The
 // JobSerz []byte are the main place to return structured
 // information, but it can be nil if there is only an
 // error. It is fine to set neither and still allocate out.
-// The caller will get a response that no error was encountered.
+// The caller will get a response that nil or no error was returned,
+// which maybe useful to know on its own.
 //
-// A one-way function is equivalent to returning nil. No
+// Again, a one-way function is equivalent to returning nil. No
 // reply will be sent to the caller, and so they hopefully
-// sent using SendOneWay(). This may be desired though:
-// a later asynchronous server push will unblock them.
+// sent using SendOneWay(). This may be desired in many designs
+// where a later server push will unblock them.
 type CallbackFunc func(in *Message) (out *Message)
 
 // Config says who to contact (for a client), or
 // where to listen (for a server); and sets how
 // strong a security posture we adopt.
+//
+// Copying a Config is fine, but it should be a simple
+// shallow copy to preserve the shared *SharedTransport struct.
+//
+// This shared pointer is the basis of port (and file handle) reuse where a single
+// process can maintain a server and multiple clients
+// in a "star" pattern. This only works with QUIC of course,
+// and is one of the main reasons to use QUIC.
+// The shared pointer is reference counted and the underlying
+// net.UDPConn is only closed when the last instance
+// in use is Close()-ed.
 type Config struct {
 
 	// ServerAddr host:port of the rpc25519.Server to contact.
