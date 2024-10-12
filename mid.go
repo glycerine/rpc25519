@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -14,13 +15,32 @@ import (
 	gjson "github.com/goccy/go-json"
 )
 
-//go:generate greenpack
+//go:generate greenpack2
 
 const RFC3339NanoNumericTZ0pad = "2006-01-02T15:04:05.000000000-07:00"
 
 var lastSerial int64
 
 var myPID = int64(os.Getpid())
+
+// Message basic substrate.
+type Message struct {
+	Nc    net.Conn `msg:"-"`
+	Seqno uint64   `zid:"0"`
+
+	Subject string `zid:"1"`
+	MID     MID    `zid:"2"`
+
+	JobSerz []byte `zid:"3"`
+
+	// Err is not serialized on the wire by the server,
+	// so communicates only local information. Callback
+	// functions should convey errors in-band within
+	// JobSerz.
+	Err error `msg:"-"`
+
+	DoneCh chan *Message `msg:"-"`
+}
 
 // The Multiverse Identitifer: for when there are
 // multiple universes and so a UUID just won't do.

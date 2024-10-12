@@ -335,24 +335,6 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 
 // interface for goq
 
-type Message struct {
-	Nc    net.Conn
-	Seqno uint64
-
-	Subject string // intent. example: "rpc call to ThisFunc()"
-	MID     MID
-
-	JobSerz []byte
-
-	// Err is not serialized on the wire by the server,
-	// so communicates only local information. Callback
-	// functions should convey errors in-band within
-	// JobSerz.
-	Err error
-
-	DoneCh chan *Message
-}
-
 func NewMessage() *Message {
 	return &Message{
 		// NOTE: buffer size must be at least 1, so our Client.RunSendLoop never blocks.
