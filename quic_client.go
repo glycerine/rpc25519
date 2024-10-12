@@ -79,7 +79,8 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 			return
 		}
 		transport = &quic.Transport{
-			Conn: udpConn,
+			Conn:               udpConn,
+			ConnectionIDLength: 20,
 		}
 		c.cfg.shared.quicTransport = transport
 		c.cfg.shared.shareCount++

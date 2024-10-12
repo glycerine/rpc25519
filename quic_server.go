@@ -81,7 +81,8 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 			return
 		}
 		transport = &quic.Transport{
-			Conn: udpConn,
+			Conn:               udpConn,
+			ConnectionIDLength: 20,
 		}
 		s.cfg.shared.quicTransport = transport
 		s.cfg.shared.shareCount++
