@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strings"
@@ -12,6 +13,7 @@ import (
 
 	crand "crypto/rand"
 	"github.com/btcsuite/btcd/btcutil/base58"
+	"github.com/glycerine/greenpack2/msgp"
 	gjson "github.com/goccy/go-json"
 )
 
@@ -23,6 +25,10 @@ var lastSerial int64
 
 var myPID = int64(os.Getpid())
 
+// A simple wrapper header on all msgpack messages; has the length and the bytes.
+// Allows us length delimited messages; with length knowledge up front.
+type ByteSlice []byte
+
 // Message basic substrate.
 type Message struct {
 	Nc    net.Conn `msg:"-"`
@@ -33,6 +39,8 @@ type Message struct {
 
 	JobSerz []byte `zid:"3"`
 
+	JobErr string `zid:"4"`
+
 	// Err is not serialized on the wire by the server,
 	// so communicates only local information. Callback
 	// functions should convey errors in-band within
@@ -40,6 +48,41 @@ type Message struct {
 	Err error `msg:"-"`
 
 	DoneCh chan *Message `msg:"-"`
+}
+
+// the scrach workspace can be nil or reused to avoid allocation.
+func (msg *Message) WriteAsGreenpack(w io.Writer, scratch []byte) error {
+
+	// MarshalMsg appends the marshalled
+	// form of the object to the provided
+	// byte slice, returning the extended
+	// slice and any errors encountered.
+
+	// We don't use a global scratchspace because we
+	// don't want goroutines to collide over it.
+
+	by, err := msg.MarshalMsg(scratch[:0])
+	if err != nil {
+		return err
+	}
+	slc := ByteSlice(by)
+	return msgp.Encode(w, slc)
+}
+
+func MessageFromGreenpack(r io.Reader) (*Message, error) {
+
+	var by ByteSlice
+	err := msgp.Decode(r, &by)
+	if err != nil {
+		return nil, err
+	}
+	msg := NewMessage()
+
+	// UnmarshalMsg unmarshals the object
+	// from binary, returing any leftover
+	// bytes and any errors encountered.
+	_, err = msg.UnmarshalMsg(by)
+	return msg, err
 }
 
 // The Multiverse Identitifer: for when there are
@@ -183,7 +226,6 @@ func fromUncheckedBase58(encodedStr string) []byte {
 	return base58.Decode(encodedStr)
 }
 
-// workspace can be nil or reused to avoid allocation.
 func MIDFromGreenpack(header []byte) (*MID, error) {
 	var mid MID
 
