@@ -33,6 +33,8 @@ type Message struct {
 
 	JobSerz []byte `zid:"3"`
 
+	JobErrs string `zid:"4"`
+
 	// Err is not serialized on the wire by the server,
 	// so communicates only local information. Callback
 	// functions should convey errors in-band within
@@ -40,6 +42,17 @@ type Message struct {
 	Err error `msg:"-"`
 
 	DoneCh chan *Message `msg:"-"`
+}
+
+func MessageFromGreenpack(by []byte) (*Message, error) {
+	msg := NewMessage()
+	_, err := msg.UnmarshalMsg(by)
+	return msg, err
+}
+
+// the scrach workspace can be nil or reused to avoid allocation.
+func (m *Message) AsGreenpack(scratch []byte) (o []byte, err error) {
+	return m.MarshalMsg(scratch[:0])
 }
 
 // The Multiverse Identitifer: for when there are
