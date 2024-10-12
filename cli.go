@@ -420,12 +420,15 @@ type CallbackFunc func(inputMsg *Message) (outputMsg *Message)
 // in use is Close()-ed.
 type Config struct {
 
-	// ServerAddr host:port of the rpc25519.Server to contact.
+	// ServerAddr host:port that the rpc25519.Server should bind to.
 	ServerAddr string
 
 	// optional. Can be used to force client to use a specific host:port;
 	// say for port sharing with a server.
 	ClientHostPort string
+
+	// Who the client should contact
+	ClientDialToHostPort string
 
 	// TCP false means TLS-1.3 secured. true here means do TCP only.
 	TCPonly_no_TLS bool
@@ -625,7 +628,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		lastOddSeqno: 1,
 		notifyOnce:   make(map[uint64]chan *Message),
 	}
-	go c.RunClientMain(c.cfg.ServerAddr, c.cfg.TCPonly_no_TLS, c.cfg.CertPath)
+	go c.RunClientMain(c.cfg.ClientDialToHostPort, c.cfg.TCPonly_no_TLS, c.cfg.CertPath)
 
 	// wait for connection (or not).
 	err = <-c.Connected

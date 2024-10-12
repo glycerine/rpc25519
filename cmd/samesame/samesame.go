@@ -27,8 +27,11 @@ func main() {
 	flag.Parse()
 
 	cfg := rpc25519.NewConfig()
-	cfg.ServerAddr = *dest
+
+	cfg.ServerAddr = *local
 	cfg.ClientHostPort = *local
+	cfg.ClientDialToHostPort = *dest
+
 	cfg.TCPonly_no_TLS = false
 	cfg.UseQUIC = true
 	cfg.SkipVerifyKeys = *skipVerify
@@ -37,8 +40,10 @@ func main() {
 	cfg.CertPath = *certPath
 
 	if *reverse {
-		cfg.ServerAddr = *local
+		cfg.ServerAddr = *dest
 		cfg.ClientHostPort = *dest
+		cfg.ClientDialToHostPort = *local
+
 		cfg.ClientKeyPairName = *serverName
 		cfg.ServerKeyPairName = *cliName
 	}
