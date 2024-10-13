@@ -154,7 +154,7 @@ func decryptPrivateKey(encryptedPEM []byte, password []byte) (ed25519.PrivateKey
 		return nil, fmt.Errorf("failed to decrypt data: %w", err)
 	}
 	fmt.Printf("decrypt good.\n")
-	fmt.Printf("%v\n", string(decryptedData))
+	//fmt.Printf("%v\n", string(decryptedData))
 
 	// Parse the private key (Ed25519)
 	privkey, err := x509.ParsePKCS8PrivateKey(decryptedData)
