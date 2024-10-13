@@ -28,6 +28,10 @@ func Step5_ViewCertificate(path string) (cert *x509.Certificate, err error, wasP
 		log.Fatalf("Error loading certificate: %v", err)
 	}
 
+	if wasPrivKey {
+		return
+	}
+
 	// Print the certificate details
 	printCertificateDetails(cert)
 
