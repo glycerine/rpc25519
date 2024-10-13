@@ -127,6 +127,10 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	//c.Conn = conn
 	c.QuicConn = conn
 	c.isQUIC = true
+
+	la := conn.LocalAddr()
+	c.SetLocalAddr(la.Network() + "://" + la.String())
+
 	c.Connected <- nil
 
 	defer conn.CloseWithError(0, "")
@@ -141,9 +145,6 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 		vv("quic_client handshake failure on DialEarly")
 		return
 	}
-
-	la := conn.LocalAddr()
-	c.SetLocalAddr(la.Network() + "://" + la.String())
 
 	//vv("QUIC connected to server %v, with local addr='%v'", remote(conn), c.cfg.LocalAddress)
 

@@ -130,14 +130,17 @@ func (c *Client) RunClientMain(serverAddr string, tcp_only bool, certPath string
 	// do this before signaling on c.Connected, else tests will race and panic
 	// not having a connection
 	c.Conn = nconn
-	c.Connected <- nil
+
 	conn := nconn.(*tls.Conn) // docs say this is for sure.
 	defer conn.Close()
 
-	//log.Printf("Connected to server %s", serverAddr)
-
 	la := conn.LocalAddr()
 	c.SetLocalAddr(la.Network() + "://" + la.String())
+
+	// only signal ready once SetLocalAddr() is done, else submitter can crash.
+	c.Connected <- nil
+
+	//log.Printf("Connected to server %s", serverAddr)
 
 	// possible to check host keys for TOFU like SSH does,
 	// but be aware that if they have the contents of
@@ -181,7 +184,7 @@ func (c *Client) RunClientTCP(serverAddr string) {
 	}
 
 	la := conn.LocalAddr()
-	c.cfg.LocalAddress = la.Network() + "://" + la.String()
+	c.SetLocalAddr(la.Network() + "://" + la.String())
 
 	c.isTLS = false
 	c.Conn = conn
