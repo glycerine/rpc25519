@@ -21,9 +21,19 @@ TLS-1.3 over TCP
 Three transports are available: TLS-v1.3 over TCP, 
 plain TCP, and QUIC which uses TLS-v1.3 over UDP.
 
-QUIC is probably most useful if ports are scarce. Since
-it also needs extra buffer tuning, it is unlikely to
-be a fast as TLS over TCP.
+QUIC is so much faster than even plain TCP, it
+should probably be your default choice. 
+
+The only difficulty comes to IPv6 networks.
+They are not very friend to QUIC with their small 1280 MTU
+if any kind of proxy layer is in use (an extra 28 bytes of
+ICMP/IP headers to keep packets 1:1) such as Tailscale/Wireguard.
+
+Context: https://github.com/tailscale/tailscale/issues/2633
+
+At the moment we will detect and panic in the
+case an IPv6 network is used to warn you
+of this issue.
 
 How to KYC or Know Your Clients
 ------------------------
