@@ -283,7 +283,7 @@ func SavePrivateKeyToPathUnderPassphrase(privateKey []byte, path string) error {
 	}
 
 	fmt.Printf("Encrypted Private Key in %v\n", time.Since(t0))
-	fmt.Println(string(encryptedPEM))
+	//fmt.Println(string(encryptedPEM))
 	fd, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("Could not create key path '%v': %v\n", path, err)

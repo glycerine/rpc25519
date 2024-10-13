@@ -61,9 +61,9 @@ func loadCertificate(certPath string) (cert *x509.Certificate, err error, wasPri
 	if bytes.Contains(certPEM, []byte("BEGIN ENCRYPTED PRIVATE KEY")) {
 		privKey, err := LoadEncryptedEd25519PrivateKey(certPath)
 		if err != nil {
-			return nil, fmt.Errorf("detected encrypted private key '%v' but unable to decode it: %v", certPath, err), true
+			return nil, fmt.Errorf("Failed to de-crypt with pass phrase the private key '%v': error = '%v'", certPath, err), true
 		}
-		fmt.Printf("Successfully decoded encrypted private key file '%v'.\n", certPath)
+		fmt.Printf("Pass phrase successfully de-crypted private key '%v'.\n", certPath)
 		_ = privKey
 		return nil, nil, true
 	}

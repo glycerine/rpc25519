@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"crypto/x509"
 	//"crypto/x509/pkix"
+	"bytes"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
@@ -83,25 +84,37 @@ func loadCA(caPrivKey ed25519.PrivateKey, certPath, keyPath string) (*x509.Certi
 
 	if caPrivKey == nil {
 		// Load CA private key
+
 		caKeyBytes, err := ioutil.ReadFile(keyPath)
 		if err != nil {
 			return nil, nil, fmt.Errorf("unable to read CA key file: %w", err)
 		}
-		caKeyBlock, _ := pem.Decode(caKeyBytes)
-		if caKeyBlock == nil || caKeyBlock.Type != "PRIVATE KEY" {
-			return nil, nil, fmt.Errorf("failed to decode CA private key PEM block")
-		}
-		caKey, err := x509.ParsePKCS8PrivateKey(caKeyBlock.Bytes)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to parse CA private key: %w", err)
-		}
 
-		// Ensure the key is an ED25519 private key
-		privKey, ok := caKey.(ed25519.PrivateKey)
-		if !ok {
-			return nil, nil, fmt.Errorf("not an ED25519 private key")
+		if bytes.Contains(caKeyBytes, []byte("BEGIN ENCRYPTED PRIVATE KEY")) {
+			caPrivKey, err = LoadEncryptedEd25519PrivateKey(keyPath)
+			if err != nil {
+				return nil, nil, fmt.Errorf("Failed to de-crypt with pass phrase "+
+					"the private key for the CA '%v': error = '%v'", keyPath, err)
+			}
+		} else {
+
+			caKeyBlock, _ := pem.Decode(caKeyBytes)
+			if caKeyBlock == nil || caKeyBlock.Type != "PRIVATE KEY" {
+				return nil, nil, fmt.Errorf("failed to decode CA private key PEM block")
+			}
+			caKey, err := x509.ParsePKCS8PrivateKey(caKeyBlock.Bytes)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to parse CA private key: %w", err)
+			}
+
+			// Ensure the key is an ED25519 private key
+			ok := false
+			caPrivKey, ok = caKey.(ed25519.PrivateKey)
+			if !ok {
+				return nil, nil, fmt.Errorf("not an ED25519 private key")
+			}
 		}
-		return caCert, privKey, nil
+		return caCert, caPrivKey, nil
 	}
 	return caCert, caPrivKey, nil
 }
