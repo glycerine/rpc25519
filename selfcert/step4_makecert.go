@@ -44,6 +44,8 @@ func Step4_MakeCertificate(caPrivKey ed25519.PrivateKey, odirCA string, name str
 func makeCerts(caPrivKey ed25519.PrivateKey, caPrivKeyPath, caCertPath, csrInPath, certOutPath string, verbose bool) {
 
 	// Step 1: Load the CA certificate and CA private key
+	fmt.Printf("\nLoading Certificate Authority...\n")
+
 	caCert, caKey, err := loadCA(caPrivKey, caCertPath, caPrivKeyPath)
 	if err != nil {
 		log.Fatalf("Failed to load CA: %v", err)
@@ -68,6 +70,7 @@ func makeCerts(caPrivKey ed25519.PrivateKey, caPrivKeyPath, caCertPath, csrInPat
 
 // Load the CA certificate and CA private key
 func loadCA(caPrivKey ed25519.PrivateKey, certPath, keyPath string) (*x509.Certificate, ed25519.PrivateKey, error) {
+
 	// Load CA certificate
 	caCertBytes, err := ioutil.ReadFile(certPath)
 	if err != nil {

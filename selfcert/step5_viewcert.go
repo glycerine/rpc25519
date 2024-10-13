@@ -25,7 +25,7 @@ func Step5_ViewCertificate(path string) (cert *x509.Certificate, err error, wasP
 	// Load the certificate from the PEM file
 	cert, err, wasPrivKey = loadCertificate(path)
 	if err != nil {
-		log.Fatalf("Error loading certificate: %v", err)
+		log.Fatalf("Error during load: %v", err)
 	}
 
 	if wasPrivKey {
