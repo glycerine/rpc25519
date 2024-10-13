@@ -29,9 +29,12 @@ func Step6_LoadKeyPair(privateKeyPath, certPath string) {
 	fmt.Printf("Private Key Loaded Successfully: %v\n", privateKeyPath)
 
 	// Load the certificate from the PEM file
-	certificate, err := loadCertificate(certPath)
+	certificate, err, wasPrivKey := loadCertificate(certPath)
 	if err != nil {
 		log.Fatalf("Error loading certificate: %v", err)
+	}
+	if wasPrivKey {
+		log.Fatalf("Arg! path '%v' was a private key and not a cert", certPath)
 	}
 	fmt.Printf("Certificate Loaded Successfully: Subject: %v\n", certificate.Subject)
 	fmt.Printf("Certificate Loaded Successfully: DNSNames: %v\n", certificate.DNSNames)

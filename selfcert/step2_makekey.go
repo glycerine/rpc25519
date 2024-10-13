@@ -43,8 +43,15 @@ func GenerateED25519Key(privateKeyPath string, verbose, encrypt bool, name strin
 	ownerOnly(odir)
 
 	if encrypt {
+
+		// Step 3: Marshal the private key into PKCS8 format
+		privKeyBytes, err := x509.MarshalPKCS8PrivateKey(privKey)
+		if err != nil {
+			return nil, err
+		}
+
 		fmt.Printf("Setting pass phrase for the '%v' private key in '%v'.\n", name, privateKeyPath)
-		err = SavePrivateKeyToPathUnderPassphrase(privKey, privateKeyPath)
+		err = SavePrivateKeyToPathUnderPassphrase(privKeyBytes, privateKeyPath)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to create encrypted key for '%v' at path '%v': %v", name, privateKeyPath, err)
 		}

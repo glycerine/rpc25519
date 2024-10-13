@@ -105,11 +105,12 @@ func main() {
 
 	// useful utilities. Not needed to make keys and certificates.
 	if c.Viewpath != "" {
-		selfcert.Step5_ViewCertificate(c.Viewpath)
-
-		cert, err := loadCertificate(c.Viewpath)
+		cert, err, wasPrivKey := selfcert.Step5_ViewCertificate(c.Viewpath)
 		if err != nil {
-			log.Fatalf("Error loading certificate: %v", err)
+			log.Fatalf("Error loading '%v': %v", c.Viewpath, err)
+		}
+		if wasPrivKey {
+			return
 		}
 
 		ed, ok := cert.PublicKey.(ed25519.PublicKey)

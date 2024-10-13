@@ -1,11 +1,11 @@
 package selfcert
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
-
 	"encoding/hex"
 	"encoding/pem"
 	"fmt"
@@ -21,38 +21,62 @@ import (
 var _ = hex.EncodeToString
 
 // optional
-func Step5_ViewCertificate(path string) {
+func Step5_ViewCertificate(path string) (cert *x509.Certificate, err error, wasPrivKey bool) {
 	// Load the certificate from the PEM file
-	cert, err := loadCertificate(path)
+	cert, err, wasPrivKey = loadCertificate(path)
 	if err != nil {
 		log.Fatalf("Error loading certificate: %v", err)
 	}
 
 	// Print the certificate details
 	printCertificateDetails(cert)
+
+	return
 }
 
-// Load and parse the certificate from the PEM file
-func loadCertificate(certPath string) (*x509.Certificate, error) {
+// Load and parse the certificate from the PEM file; also
+// handles private key files, just checking that they can be loaded.
+func loadCertificate(certPath string) (cert *x509.Certificate, err error, wasPrivKey bool) {
 	// Read the certificate file
-	certPEM, err := ioutil.ReadFile(certPath)
+	var certPEM []byte
+	certPEM, err = ioutil.ReadFile(certPath)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read certificate file: %w", err)
+		return nil, fmt.Errorf("unable to read certificate file: %v", err), false
+	}
+
+	if bytes.Contains(certPEM, []byte("BEGIN PRIVATE KEY")) {
+		privKey, err := loadPrivateKey(certPath)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to load private key '%v': %v", certPath, err), true
+		}
+		fmt.Printf("Successfully loaded un-encrypted private key file '%v'.\n", certPath)
+		_ = privKey
+		return nil, nil, true
+	}
+
+	if bytes.Contains(certPEM, []byte("BEGIN ENCRYPTED PRIVATE KEY")) {
+		privKey, err := LoadEncryptedEd25519PrivateKey(certPath)
+		if err != nil {
+			return nil, fmt.Errorf("detected encrypted private key '%v' but unable to decode it: %v", certPath, err), true
+		}
+		fmt.Printf("Successfully decoded encrypted private key file '%v'.\n", certPath)
+		_ = privKey
+		return nil, nil, true
 	}
 
 	// Decode the PEM block
 	block, _ := pem.Decode(certPEM)
 	if block == nil || block.Type != "CERTIFICATE" {
-		return nil, fmt.Errorf("failed to decode PEM block containing certificate")
+		return nil, fmt.Errorf("failed to decode PEM block containing certificate"), false
 	}
 
 	// Parse the certificate
-	cert, err := x509.ParseCertificate(block.Bytes)
+	cert, err = x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse certificate: %w", err)
+		return nil, fmt.Errorf("failed to parse certificate: %w", err), false
 	}
 
-	return cert, nil
+	return cert, nil, false
 }
 
 // Helper to format bytes into hex colon-separated format
