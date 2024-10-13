@@ -33,11 +33,14 @@ type EncryptionParameters struct {
 
 // DefaultEncryptionParameters provides default settings for Argon2id and encryption.
 var DefaultEncryptionParameters = EncryptionParameters{
-	Iterations:  2,           // Iterations
-	Memory:      1024 * 1024, // 1 GB
-	Threads:     1,           // Parallelism
-	KeyLength:   32,          // 256-bit key for AES-256
+	Iterations:  12,         // More iterations for increased security, t for times.
+	Memory:      256 * 1024, // 256 MB
+	Threads:     1,          // Parallelism
+	KeyLength:   32,         // 256-bit key for AES-256
 	CipherSuite: "AES-GCM",
+
+	// Salt is 16 bytes
+	// Nonce is 12 bytes
 }
 
 // encryptPrivateKey encrypts the private key using Argon2id and AES-GCM, then encodes it in PEM format.
@@ -267,13 +270,7 @@ func SavePrivateKeyToPathUnderPassphrase(privateKey []byte, path string) error {
 	}
 
 	// // these take about 1.5 on rog to encode.
-	customParams := &EncryptionParameters{
-		Iterations:  8,          // More iterations for increased security, t.
-		Memory:      256 * 1024, // 256 MB
-		Threads:     1,          // Increased parallelism, p.
-		KeyLength:   32,         // 256-bit key
-		CipherSuite: "AES-GCM",
-	}
+	customParams := &DefaultEncryptionParameters
 
 	// Encrypt the private key
 	t0 := time.Now()
