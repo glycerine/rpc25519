@@ -24,6 +24,10 @@ type SelfCertConfig struct {
 	Viewpath           string
 	Email              string
 	Quiet              bool
+	EncryptPrivateKeys bool
+}
+
+type EncryptedKeyFile struct {
 }
 
 var sep = string(os.PathSeparator)
@@ -43,6 +47,7 @@ func (c *SelfCertConfig) DefineFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.CreateCA, "ca", false, "create a new self-signed certificate authority (1st of 2 steps in making new certs). Written to the -p directory (see selfy -p flag, where -p is for private). The CA uses ed25519 keys too.")
 
 	fs.BoolVar(&c.Quiet, "quiet", false, "run quietly. don't print a log of actions taken as we go")
+	fs.BoolVar(&c.EncryptPrivateKeys, "pass", false, "request a password and use it with Argon2id to encyprt the private key file.")
 }
 
 // Call c.ValidateConfig() just after fs.Parse() to finish
