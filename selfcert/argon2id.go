@@ -22,7 +22,7 @@ import (
 
 // EncryptionParameters holds the Argon2id parameters used for key derivation.
 type EncryptionParameters struct {
-	Time        uint32 // Number of iterations
+	Iterations  uint32 // Number of iterations
 	Memory      uint32 // Memory usage in KB
 	Threads     uint8  // Degree of parallelism
 	KeyLength   uint32 // Length of the derived key in bytes
@@ -33,7 +33,7 @@ type EncryptionParameters struct {
 
 // DefaultEncryptionParameters provides default settings for Argon2id and encryption.
 var DefaultEncryptionParameters = EncryptionParameters{
-	Time:        2,           // Iterations
+	Iterations:  2,           // Iterations
 	Memory:      1024 * 1024, // 1 GB
 	Threads:     1,           // Parallelism
 	KeyLength:   32,          // 256-bit key for AES-256
@@ -55,7 +55,7 @@ func encryptPrivateKey(privateKey []byte, password []byte, params *EncryptionPar
 	}
 
 	// Derive a key using Argon2id
-	key := argon2.IDKey(password, params.Salt, params.Time, params.Memory, params.Threads, params.KeyLength)
+	key := argon2.IDKey(password, params.Salt, params.Iterations, params.Memory, params.Threads, params.KeyLength)
 
 	// Create AES-GCM cipher
 	block, err := aes.NewCipher(key)
@@ -82,13 +82,13 @@ func encryptPrivateKey(privateKey []byte, password []byte, params *EncryptionPar
 
 	// Create PEM headers with encryption parameters
 	headers := map[string]string{
-		"CipherSuite":        strconv.Quote(params.CipherSuite),
-		"Argon2id.Time":      strconv.FormatUint(uint64(params.Time), 10),
-		"Argon2id.Memory":    strconv.FormatUint(uint64(params.Memory), 10),
-		"Argon2id.Threads":   strconv.FormatUint(uint64(params.Threads), 10),
-		"Argon2id.KeyLength": strconv.FormatUint(uint64(params.KeyLength), 10),
-		"Argon2id.Salt":      hex.EncodeToString(params.Salt),
-		"AESGCM.Nonce":       hex.EncodeToString(params.Nonce),
+		"CipherSuite":         strconv.Quote(params.CipherSuite),
+		"Argon2id.Iterations": strconv.FormatUint(uint64(params.Iterations), 10),
+		"Argon2id.Memory":     strconv.FormatUint(uint64(params.Memory), 10),
+		"Argon2id.Threads":    strconv.FormatUint(uint64(params.Threads), 10),
+		"Argon2id.KeyLength":  strconv.FormatUint(uint64(params.KeyLength), 10),
+		"Argon2id.Salt":       hex.EncodeToString(params.Salt),
+		"AESGCM.Nonce":        hex.EncodeToString(params.Nonce),
 	}
 
 	// Create a PEM block with the encrypted data and headers
@@ -121,7 +121,7 @@ func decryptPrivateKey(encryptedPEM []byte, password []byte) (ed25519.PrivateKey
 	}
 
 	// Derive the key using Argon2id with extracted parameters
-	key := argon2.IDKey(password, params.Salt, params.Time, params.Memory, params.Threads, params.KeyLength)
+	key := argon2.IDKey(password, params.Salt, params.Iterations, params.Memory, params.Threads, params.KeyLength)
 
 	// Ensure the CipherSuite matches expected value
 	if params.CipherSuite != "AES-GCM" {
@@ -190,15 +190,15 @@ func parseEncryptionParameters(headers map[string]string) (*EncryptionParameters
 		return nil, errors.New("missing CipherSuite header")
 	}
 
-	// Parse Argon2id.Time
-	if timeStr, ok := headers["Argon2id.Time"]; ok {
+	// Parse Argon2id.Iterations
+	if timeStr, ok := headers["Argon2id.Iterations"]; ok {
 		timeVal, err := strconv.ParseUint(timeStr, 10, 32)
 		if err != nil {
-			return nil, fmt.Errorf("invalid Argon2id.Time: %w", err)
+			return nil, fmt.Errorf("invalid Argon2id.Iterations: %w", err)
 		}
-		params.Time = uint32(timeVal)
+		params.Iterations = uint32(timeVal)
 	} else {
-		return nil, errors.New("missing Argon2id.Time header")
+		return nil, errors.New("missing Argon2id.Iterations header")
 	}
 
 	// Parse Argon2id.Memory
@@ -268,10 +268,10 @@ func SavePrivateKeyToPathUnderPassphrase(privateKey []byte, path string) error {
 
 	// // these take about 1.5 on rog to encode.
 	customParams := &EncryptionParameters{
-		Time:        2,           // More iterations for increased security, t.
-		Memory:      1024 * 1024, // 1 GB
-		Threads:     1,           // Increased parallelism, p.
-		KeyLength:   32,          // 256-bit key
+		Iterations:  8,          // More iterations for increased security, t.
+		Memory:      256 * 1024, // 256 MB
+		Threads:     1,          // Increased parallelism, p.
+		KeyLength:   32,         // 256-bit key
 		CipherSuite: "AES-GCM",
 	}
 
@@ -309,7 +309,7 @@ func LoadEncryptedEd25519PrivateKey(path string) (decryptedPrivateKey []byte, er
 	if err != nil {
 		return nil, fmt.Errorf("could not get password from terminal: '%v'", err)
 	}
-	fmt.Printf("trying to unlock and load the private key...\n")
+	fmt.Printf("Trying to unlock and load the private key... ")
 
 	// Decrypt the private key
 	//t1 := time.Now()

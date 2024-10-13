@@ -78,7 +78,8 @@ func Step1_MakeCertificatAuthority(pathCA string, verbose bool, encrypt bool) (e
 			log.Fatalf("Failed to marshal private key: %v", err)
 		}
 
-		fmt.Printf("Setting pass phrase for the Certificate Authority private key.\n")
+		fmt.Printf("\n =========  first making new self-signed CA  ========\n\n" +
+			"====  Setting pass phrase for the Certificate Authority private key:\n\n")
 		err = SavePrivateKeyToPathUnderPassphrase(privKeyBytes, privfn)
 		if err != nil {
 			log.Fatalf("Failed to create encrypted key path '%v': %v", privfn, err)

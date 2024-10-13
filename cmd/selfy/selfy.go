@@ -89,7 +89,7 @@ func main() {
 
 	if c.CreateKeyPairNamed != "" {
 		if !DirExists(c.OdirCA_privateKey) || !FileExists(c.OdirCA_privateKey+sep+"ca.crt") {
-			log.Printf("key-pair '%v' requested but CA does not exist in '%v', so auto-generating a self-signed CA for your first.", c.CreateKeyPairNamed, c.OdirCA_privateKey)
+			log.Printf("key-pair '%v' requested but CA does not exist in '%v'...\n  ... auto-generating a self-signed CA for your first...\n", c.CreateKeyPairNamed, c.OdirCA_privateKey)
 			caPrivKey, err = selfcert.Step1_MakeCertificatAuthority(c.OdirCA_privateKey, verbose, !c.SkipEncryptPrivateKeys)
 			if err != nil {
 				log.Fatalf("selfy could not make Certficate Authority in '%v': '%v'", c.OdirCA_privateKey, err)
