@@ -28,7 +28,7 @@ func main() {
 	}
 
 	cfg := rpc25519.NewConfig()
-	cfg.ServerAddr = *dest // "127.0.0.1:8443",
+	cfg.ClientDialToHostPort = *dest // "127.0.0.1:8443",
 	cfg.TCPonly_no_TLS = *tcp
 	cfg.UseQUIC = *quic
 	cfg.SkipVerifyKeys = *skipVerify
