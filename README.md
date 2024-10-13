@@ -25,9 +25,16 @@ QUIC is so much faster than even plain TCP, it
 should probably be your default choice. 
 
 The only difficulty comes to IPv6 networks.
-They are not very friend to QUIC with their small 1280 MTU
-if any kind of proxy layer is in use (an extra 28 bytes of
-ICMP/IP headers to keep packets 1:1) such as Tailscale/Wireguard.
+They are not very friendly to QUIC. Typically they have
+minimal 1280 MTU, so we'll have a problem if any kind of 
+VPN layer is in use. Tailscale/Wireguard
+add an extra 28 bytes of ICMP/IP headers and try to keep packets 1:1,
+thus going over the MTU and not really working. IPv6
+cannot fragment packets in the network, so they just
+get rejected outright. This is my surmize. I could
+be misunderstanding the root cause. The fact remains
+that in testing over IPv6 VPN links, rpc25519's QUIC
+nodes could not talk to each other.
 
 Context: https://github.com/tailscale/tailscale/issues/2633
 
