@@ -273,6 +273,13 @@ func (s *RWPair) runSendLoop(conn net.Conn) {
 		case msg := <-s.SendCh:
 			err := w.sendMessage(msg.Seqno, conn, msg, &s.cfg.WriteTimeout)
 			if err != nil {
+				r := err.Error()
+				if strings.Contains(r, "broken pipe") {
+					msg.Err = err
+					// how can we restart the connection? problem is, submitters reach out to us.
+					// Maybe with quic if they run a server too, since we'll know the port
+					// to find them on, if they are still up.
+				}
 				vv("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.Seqno)
 			}
 		case <-s.halt.ReqStop.Chan:
