@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/ed25519"
 	cryrand "crypto/rand"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
 	"errors"
@@ -100,7 +102,7 @@ func encryptPrivateKey(privateKey []byte, password []byte, params *EncryptionPar
 }
 
 // decryptPrivateKey decrypts the PEM-encoded encrypted private key using stored encryption parameters.
-func decryptPrivateKey(encryptedPEM []byte, password []byte) ([]byte, error) {
+func decryptPrivateKey(encryptedPEM []byte, password []byte) (ed25519.PrivateKey, error) {
 	// Decode the PEM block
 	pemBlock, _ := pem.Decode(encryptedPEM)
 	if pemBlock == nil {
@@ -152,7 +154,19 @@ func decryptPrivateKey(encryptedPEM []byte, password []byte) ([]byte, error) {
 		return nil, fmt.Errorf("failed to decrypt data: %w", err)
 	}
 
-	return decryptedData, nil
+	// Parse the private key (Ed25519)
+	privkey, err := x509.ParsePKCS8PrivateKey(decryptedData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse private key: %w", err)
+	}
+
+	// Assert the key type to Ed25519
+	edKey, ok := privkey.(ed25519.PrivateKey)
+	if !ok {
+		return nil, fmt.Errorf("not an Ed25519 private key")
+	}
+
+	return edKey, nil
 }
 
 // parseEncryptionParameters extracts and parses encryption parameters from PEM headers.
@@ -266,7 +280,7 @@ func SavePrivateKeyToPathUnderPassword(privateKey []byte, path string) error {
 		return fmt.Errorf("Encryption failed: %v\n", err)
 	}
 
-	fmt.Printf("Encrypted Private Key: in %v\n", time.Since(t0))
+	fmt.Printf("Encrypted Private Key in %v\n", time.Since(t0))
 	fmt.Println(string(encryptedPEM))
 	fd, err := os.Create(path)
 	if err != nil {
@@ -282,7 +296,7 @@ func SavePrivateKeyToPathUnderPassword(privateKey []byte, path string) error {
 }
 
 // asks for password
-func LoadEncryptedPrivateKey(path string) (decryptedPrivateKey []byte, err error) {
+func LoadEncryptedEd25519PrivateKey(path string) (decryptedPrivateKey []byte, err error) {
 
 	encryptedPEM2, err := os.ReadFile(path)
 	if err != nil {

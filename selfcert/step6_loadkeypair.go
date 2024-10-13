@@ -1,6 +1,7 @@
 package selfcert
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/x509"
 	"encoding/pem"
@@ -23,6 +24,7 @@ func Step6_LoadKeyPair(privateKeyPath, certPath string) {
 	if err != nil {
 		log.Fatalf("Error loading private key: %v", err)
 	}
+
 	_ = privateKey
 	fmt.Printf("Private Key Loaded Successfully: %v\n", privateKeyPath)
 
@@ -42,6 +44,10 @@ func loadEd25519PrivateKey(keyPath string) (ed25519.PrivateKey, error) {
 	keyPEM, err := ioutil.ReadFile(keyPath)
 	if err != nil {
 		return nil, fmt.Errorf("unable to read private key file: %w", err)
+	}
+
+	if bytes.Contains(keyPEM, []byte("BEGIN ENCRYPTED PRIVATE KEY")) {
+		return LoadEncryptedEd25519PrivateKey(keyPath)
 	}
 
 	// Decode the PEM block

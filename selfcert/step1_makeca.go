@@ -70,6 +70,7 @@ func Step1_MakeCertificatAuthority(pathCA string, verbose bool, encrypt bool) {
 	privfn := odir + "ca.key"
 
 	if encrypt {
+		fmt.Printf("Setting pass phrase for the Certificate Authority private key.\n")
 		err = SavePrivateKeyToPathUnderPassword(privKey, privfn)
 		if err != nil {
 			log.Fatalf("Failed to create encrypted key path '%v': %v", privfn, err)
