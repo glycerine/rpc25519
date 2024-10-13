@@ -17,14 +17,14 @@ import (
 )
 
 type SelfCertConfig struct {
-	OdirCerts          string
-	OdirCA_privateKey  string
-	CreateCA           bool
-	CreateKeyPairNamed string
-	Viewpath           string
-	Email              string
-	Quiet              bool
-	EncryptPrivateKeys bool
+	OdirCerts              string
+	OdirCA_privateKey      string
+	CreateCA               bool
+	CreateKeyPairNamed     string
+	Viewpath               string
+	Email                  string
+	Quiet                  bool
+	SkipEncryptPrivateKeys bool
 }
 
 type EncryptedKeyFile struct {
@@ -47,7 +47,7 @@ func (c *SelfCertConfig) DefineFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.CreateCA, "ca", false, "create a new self-signed certificate authority (1st of 2 steps in making new certs). Written to the -p directory (see selfy -p flag, where -p is for private). The CA uses ed25519 keys too.")
 
 	fs.BoolVar(&c.Quiet, "quiet", false, "run quietly. don't print a log of actions taken as we go")
-	fs.BoolVar(&c.EncryptPrivateKeys, "pass", false, "request a password and use it with Argon2id to encrypt the private key file.")
+	fs.BoolVar(&c.SkipEncryptPrivateKeys, "nopass", false, "by default we request a password and use it with Argon2id to encrypt the private key file. Setting -nopass means we generate an un-encrypted private key; this is not recommended.")
 }
 
 // Call c.ValidateConfig() just after fs.Parse() to finish
@@ -81,7 +81,7 @@ func main() {
 
 	var caPrivKey ed25519.PrivateKey
 	if c.CreateCA {
-		caPrivKey, err = selfcert.Step1_MakeCertificatAuthority(c.OdirCA_privateKey, verbose, c.EncryptPrivateKeys)
+		caPrivKey, err = selfcert.Step1_MakeCertificatAuthority(c.OdirCA_privateKey, verbose, !c.SkipEncryptPrivateKeys)
 		if err != nil {
 			log.Fatalf("selfy could not make Certficate Authority in '%v': '%v'", c.OdirCA_privateKey, err)
 		}
@@ -90,12 +90,12 @@ func main() {
 	if c.CreateKeyPairNamed != "" {
 		if !DirExists(c.OdirCA_privateKey) || !FileExists(c.OdirCA_privateKey+sep+"ca.crt") {
 			log.Printf("key-pair '%v' requested but CA does not exist in '%v', so auto-generating a self-signed CA for your first.", c.CreateKeyPairNamed, c.OdirCA_privateKey)
-			caPrivKey, err = selfcert.Step1_MakeCertificatAuthority(c.OdirCA_privateKey, verbose, c.EncryptPrivateKeys)
+			caPrivKey, err = selfcert.Step1_MakeCertificatAuthority(c.OdirCA_privateKey, verbose, !c.SkipEncryptPrivateKeys)
 			if err != nil {
 				log.Fatalf("selfy could not make Certficate Authority in '%v': '%v'", c.OdirCA_privateKey, err)
 			}
 		}
-		privKey, err := selfcert.Step2_MakeEd25519PrivateKey(c.CreateKeyPairNamed, c.OdirCerts, verbose, c.EncryptPrivateKeys)
+		privKey, err := selfcert.Step2_MakeEd25519PrivateKey(c.CreateKeyPairNamed, c.OdirCerts, verbose, !c.SkipEncryptPrivateKeys)
 		if err != nil {
 			log.Fatalf("selfy could not make private key '%v' in path '%v': '%v'", c.CreateKeyPairNamed, c.OdirCerts, err)
 		}
