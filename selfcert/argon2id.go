@@ -257,7 +257,7 @@ func parseEncryptionParameters(headers map[string]string) (*EncryptionParameters
 	return params, nil
 }
 
-func SavePrivateKeyToPathUnderPassword(privateKey []byte, path string) error {
+func SavePrivateKeyToPathUnderPassphrase(privateKey []byte, path string) error {
 
 	password, err := getPasswordFromTerminal(true)
 	if err != nil {

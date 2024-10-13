@@ -61,8 +61,6 @@ func (c *SelfCertConfig) ValidateConfig(fs *flag.FlagSet) (err error) {
 	return
 }
 
-var ProgramName = "selfy"
-
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
@@ -72,27 +70,37 @@ func main() {
 
 	err := myflags.Parse(os.Args[1:])
 	if err != nil {
-		log.Fatalf("%v command line flag parse error: '%v'", ProgramName, err)
+		log.Fatalf("selfy command line flag parse error: '%v'", err)
 	}
 	err = c.ValidateConfig(myflags)
 	if err != nil {
-		log.Fatalf("%v command line flag error: '%v'", ProgramName, err)
+		log.Fatalf("selfy command line flag error: '%v'", err)
 	}
 
 	verbose := !c.Quiet
 
+	var caPrivKey ed25519.PrivateKey
 	if c.CreateCA {
-		selfcert.Step1_MakeCertificatAuthority(c.OdirCA_privateKey, verbose)
+		caPrivKey, err = selfcert.Step1_MakeCertificatAuthority(c.OdirCA_privateKey, verbose, c.EncryptPrivateKeys)
+		if err != nil {
+			log.Fatalf("selfy could not make Certficate Authority in '%v': '%v'", c.OdirCA_privateKey, err)
+		}
 	}
 
 	if c.CreateKeyPairNamed != "" {
 		if !DirExists(c.OdirCA_privateKey) || !FileExists(c.OdirCA_privateKey+sep+"ca.crt") {
 			log.Printf("key-pair '%v' requested but CA does not exist in '%v', so auto-generating a self-signed CA for your first.", c.CreateKeyPairNamed, c.OdirCA_privateKey)
-			selfcert.Step1_MakeCertificatAuthority(c.OdirCA_privateKey, verbose, c.EncryptPrivateKeys)
+			caPrivKey, err = selfcert.Step1_MakeCertificatAuthority(c.OdirCA_privateKey, verbose, c.EncryptPrivateKeys)
+			if err != nil {
+				log.Fatalf("selfy could not make Certficate Authority in '%v': '%v'", c.OdirCA_privateKey, err)
+			}
 		}
-		selfcert.Step2_MakeEd25519PrivateKeys([]string{c.CreateKeyPairNamed}, c.OdirCerts, verbose, c.EncryptPrivateKeys)
-		selfcert.Step3_MakeCertSigningRequests([]string{c.CreateKeyPairNamed}, []string{c.Email}, c.OdirCerts)
-		selfcert.Step4_MakeCertificates(c.OdirCA_privateKey, []string{c.CreateKeyPairNamed}, c.OdirCerts, verbose)
+		privKey, err := selfcert.Step2_MakeEd25519PrivateKey(c.CreateKeyPairNamed, c.OdirCerts, verbose, c.EncryptPrivateKeys)
+		if err != nil {
+			log.Fatalf("selfy could not make private key '%v' in path '%v': '%v'", c.CreateKeyPairNamed, c.OdirCerts, err)
+		}
+		selfcert.Step3_MakeCertSigningRequest(privKey, c.CreateKeyPairNamed, c.Email, c.OdirCerts)
+		selfcert.Step4_MakeCertificate(caPrivKey, c.OdirCA_privateKey, c.CreateKeyPairNamed, c.OdirCerts, verbose)
 	}
 
 	// useful utilities. Not needed to make keys and certificates.

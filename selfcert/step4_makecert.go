@@ -16,7 +16,9 @@ import (
 	"time"
 )
 
-func Step4_MakeCertificates(odirCA string, names []string, odirCerts string, verbose bool) {
+// if caPrivKey is provided (to avoid asking for pw), then odirCA/ca.key
+// is assummed to be encrypted and we will use caPrivKey instead.
+func Step4_MakeCertificate(caPrivKey ed25519.PrivateKey, odirCA string, name string, odirCerts string, verbose bool) {
 
 	os.MkdirAll(odirCerts, 0700)
 	ownerOnly(odirCerts)
@@ -24,27 +26,24 @@ func Step4_MakeCertificates(odirCA string, names []string, odirCerts string, ver
 	caPrivKeyPath := odirCA + sep + "ca.key"
 	caCertPath := odirCA + sep + "ca.crt"
 
-	for _, name := range names {
-		//keyPath := fmt.Sprintf("%v%v%v.key", odirCerts, sep, name)
-		csrInPath := fmt.Sprintf("%v%v%v.csr", odirCerts, sep, name)
-		certOutPath := fmt.Sprintf("%v%v%v.crt", odirCerts, sep, name)
+	//keyPath := fmt.Sprintf("%v%v%v.key", odirCerts, sep, name)
+	csrInPath := fmt.Sprintf("%v%v%v.csr", odirCerts, sep, name)
+	certOutPath := fmt.Sprintf("%v%v%v.crt", odirCerts, sep, name)
 
-		makeCerts(caPrivKeyPath, caCertPath, csrInPath, certOutPath, verbose)
+	makeCerts(caPrivKey, caPrivKeyPath, caCertPath, csrInPath, certOutPath, verbose)
 
-		copyFileToDir(caCertPath, filepath.Dir(certOutPath))
-		ownerOnly(certOutPath)
+	copyFileToDir(caCertPath, filepath.Dir(certOutPath))
+	ownerOnly(certOutPath)
 
-		// discard the Certificate signing requests; they are just confusing
-		// and all the information is in the cert anyhow.
-		os.Remove(csrInPath)
-	}
-
+	// discard the Certificate signing requests; they are just confusing
+	// and all the information is in the cert anyhow.
+	os.Remove(csrInPath)
 }
 
-func makeCerts(caPrivKeyPath, caCertPath, csrInPath, certOutPath string, verbose bool) {
+func makeCerts(caPrivKey ed25519.PrivateKey, caPrivKeyPath, caCertPath, csrInPath, certOutPath string, verbose bool) {
 
 	// Step 1: Load the CA certificate and CA private key
-	caCert, caKey, err := loadCA(caCertPath, caPrivKeyPath)
+	caCert, caKey, err := loadCA(caPrivKey, caCertPath, caPrivKeyPath)
 	if err != nil {
 		log.Fatalf("Failed to load CA: %v", err)
 	}
@@ -67,7 +66,7 @@ func makeCerts(caPrivKeyPath, caCertPath, csrInPath, certOutPath string, verbose
 }
 
 // Load the CA certificate and CA private key
-func loadCA(certPath, keyPath string) (*x509.Certificate, ed25519.PrivateKey, error) {
+func loadCA(caPrivKey ed25519.PrivateKey, certPath, keyPath string) (*x509.Certificate, ed25519.PrivateKey, error) {
 	// Load CA certificate
 	caCertBytes, err := ioutil.ReadFile(certPath)
 	if err != nil {
@@ -82,27 +81,29 @@ func loadCA(certPath, keyPath string) (*x509.Certificate, ed25519.PrivateKey, er
 		return nil, nil, fmt.Errorf("failed to parse CA certificate: %w", err)
 	}
 
-	// Load CA private key
-	caKeyBytes, err := ioutil.ReadFile(keyPath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("unable to read CA key file: %w", err)
-	}
-	caKeyBlock, _ := pem.Decode(caKeyBytes)
-	if caKeyBlock == nil || caKeyBlock.Type != "PRIVATE KEY" {
-		return nil, nil, fmt.Errorf("failed to decode CA private key PEM block")
-	}
-	caKey, err := x509.ParsePKCS8PrivateKey(caKeyBlock.Bytes)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse CA private key: %w", err)
-	}
+	if caPrivKey == nil {
+		// Load CA private key
+		caKeyBytes, err := ioutil.ReadFile(keyPath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("unable to read CA key file: %w", err)
+		}
+		caKeyBlock, _ := pem.Decode(caKeyBytes)
+		if caKeyBlock == nil || caKeyBlock.Type != "PRIVATE KEY" {
+			return nil, nil, fmt.Errorf("failed to decode CA private key PEM block")
+		}
+		caKey, err := x509.ParsePKCS8PrivateKey(caKeyBlock.Bytes)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to parse CA private key: %w", err)
+		}
 
-	// Ensure the key is an ED25519 private key
-	privKey, ok := caKey.(ed25519.PrivateKey)
-	if !ok {
-		return nil, nil, fmt.Errorf("not an ED25519 private key")
+		// Ensure the key is an ED25519 private key
+		privKey, ok := caKey.(ed25519.PrivateKey)
+		if !ok {
+			return nil, nil, fmt.Errorf("not an ED25519 private key")
+		}
+		return caCert, privKey, nil
 	}
-
-	return caCert, privKey, nil
+	return caCert, caPrivKey, nil
 }
 
 // Load the CSR from a file

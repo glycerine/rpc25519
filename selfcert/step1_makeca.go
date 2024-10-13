@@ -25,7 +25,9 @@ const (
 var sep = string(os.PathSeparator)
 
 // pathCA "my-keep-private-dir" is the default.
-func Step1_MakeCertificatAuthority(pathCA string, verbose bool, encrypt bool) {
+// return the un-encrypted key to be used in subsequent signing steps without
+// having to request the passphrase again.
+func Step1_MakeCertificatAuthority(pathCA string, verbose bool, encrypt bool) (ed25519.PrivateKey, error) {
 	// Step 1: Generate the ED25519 private key
 	pubKey, privKey, err := ed25519.GenerateKey(nil)
 	if err != nil {
@@ -71,7 +73,7 @@ func Step1_MakeCertificatAuthority(pathCA string, verbose bool, encrypt bool) {
 
 	if encrypt {
 		fmt.Printf("Setting pass phrase for the Certificate Authority private key.\n")
-		err = SavePrivateKeyToPathUnderPassword(privKey, privfn)
+		err = SavePrivateKeyToPathUnderPassphrase(privKey, privfn)
 		if err != nil {
 			log.Fatalf("Failed to create encrypted key path '%v': %v", privfn, err)
 		}
@@ -111,6 +113,7 @@ func Step1_MakeCertificatAuthority(pathCA string, verbose bool, encrypt bool) {
 	if verbose {
 		log.Printf("CA private key and self-signed certificate generated successfully in '%v' and '%v'.", privfn, certfn)
 	}
+	return privKey, nil
 }
 
 // chmod og-wrx path

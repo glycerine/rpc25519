@@ -12,29 +12,30 @@ import (
 	"os"
 )
 
-func Step3_MakeCertSigningRequests(names []string, emails []string, odirCert string) {
+func Step3_MakeCertSigningRequest(privKey ed25519.PrivateKey, name string, email string, odirCert string) {
 
 	os.MkdirAll(odirCert, 0700)
 	ownerOnly(odirCert)
 
-	for i, name := range names {
-		keyPath := fmt.Sprintf("%v%v%v.key", odirCert, sep, name)
-		csrPath := fmt.Sprintf("%v%v%v.csr", odirCert, sep, name)
-		email := emails[i]
+	keyPath := fmt.Sprintf("%v%v%v.key", odirCert, sep, name)
+	csrPath := fmt.Sprintf("%v%v%v.csr", odirCert, sep, name)
 
-		err := createCertSigningRequest(email, keyPath, csrPath)
-		if err != nil {
-			log.Fatalf("could not createCertSigningRequest: '%v'", err)
-		}
+	err := createCertSigningRequest(privKey, email, keyPath, csrPath)
+	if err != nil {
+		log.Fatalf("could not createCertSigningRequest: '%v'", err)
 	}
 
 }
 
-func createCertSigningRequest(emailAddress, inputPrivateKeyPath, outputCsrPath string) error {
-	// Step 1: Load the private key from static/certs/client.key
-	privateKey, err := loadPrivateKey(inputPrivateKeyPath)
-	if err != nil {
-		return fmt.Errorf("Failed to load private key: %v", err)
+func createCertSigningRequest(privateKey ed25519.PrivateKey, emailAddress, inputPrivateKeyPath, outputCsrPath string) error {
+
+	if privateKey == nil {
+		// Step 1: Load the private key from static/certs/client.key
+		var err error
+		privateKey, err = loadPrivateKey(inputPrivateKeyPath)
+		if err != nil {
+			return fmt.Errorf("Failed to load private key: %v", err)
+		}
 	}
 
 	// Step 2: Create the CSR template (with subject and SAN extensions)
