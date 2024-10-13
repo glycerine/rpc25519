@@ -53,6 +53,9 @@ type uConn interface {
 // colide with any other goroutine.
 type workspace struct {
 	buf []byte
+
+	readLenMessageBytes  []byte
+	writeLenMessageBytes []byte
 }
 
 // currently only used for headers; but bodies may
@@ -60,7 +63,9 @@ type workspace struct {
 // to maxMessage+1024 or so, rather than this 64KB.
 func newWorkspace() *workspace {
 	return &workspace{
-		buf: make([]byte, 1<<16),
+		buf:                  make([]byte, 1<<16),
+		readLenMessageBytes:  make([]byte, 8),
+		writeLenMessageBytes: make([]byte, 8),
 	}
 }
 
@@ -69,11 +74,10 @@ func newWorkspace() *workspace {
 func (w *workspace) receiveMessage(conn uConn, timeout *time.Duration) (seqno uint64, msg *Message, err error) {
 
 	// Read the first 8 bytes for the Message length
-	lenMessageBytes := make([]byte, 8)
-	if err := readFull(conn, lenMessageBytes, timeout); err != nil {
+	if err := readFull(conn, w.readLenMessageBytes, timeout); err != nil {
 		return seqno, nil, err
 	}
-	messageLen := binary.BigEndian.Uint64(lenMessageBytes)
+	messageLen := binary.BigEndian.Uint64(w.readLenMessageBytes)
 
 	// Read the message based on the messageLen
 	if messageLen > maxMessage {
@@ -107,11 +111,10 @@ func (w *workspace) sendMessage(seqno uint64, conn uConn, msg *Message, timeout 
 	}
 	nbytesMsg := len(bytesMsg)
 
-	nbytesMsgBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(nbytesMsgBytes, uint64(nbytesMsg))
+	binary.BigEndian.PutUint64(w.writeLenMessageBytes, uint64(nbytesMsg))
 
 	// Write Message length
-	if err := writeFull(conn, nbytesMsgBytes, timeout); err != nil {
+	if err := writeFull(conn, w.writeLenMessageBytes, timeout); err != nil {
 		return err
 	}
 
