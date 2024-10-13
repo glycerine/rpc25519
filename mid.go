@@ -15,7 +15,7 @@ import (
 	gjson "github.com/goccy/go-json"
 )
 
-//go:generate greenpack2
+//go:generate greenpack
 
 const RFC3339NanoNumericTZ0pad = "2006-01-02T15:04:05.000000000-07:00"
 
