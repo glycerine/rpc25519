@@ -47,7 +47,7 @@ func (c *SelfCertConfig) DefineFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.CreateCA, "ca", false, "create a new self-signed certificate authority (1st of 2 steps in making new certs). Written to the -p directory (see selfy -p flag, where -p is for private). The CA uses ed25519 keys too.")
 
 	fs.BoolVar(&c.Quiet, "quiet", false, "run quietly. don't print a log of actions taken as we go")
-	fs.BoolVar(&c.EncryptPrivateKeys, "pass", false, "request a password and use it with Argon2id to encyprt the private key file.")
+	fs.BoolVar(&c.EncryptPrivateKeys, "pass", false, "request a password and use it with Argon2id to encrypt the private key file.")
 }
 
 // Call c.ValidateConfig() just after fs.Parse() to finish
@@ -88,9 +88,9 @@ func main() {
 	if c.CreateKeyPairNamed != "" {
 		if !DirExists(c.OdirCA_privateKey) || !FileExists(c.OdirCA_privateKey+sep+"ca.crt") {
 			log.Printf("key-pair '%v' requested but CA does not exist in '%v', so auto-generating a self-signed CA for your first.", c.CreateKeyPairNamed, c.OdirCA_privateKey)
-			selfcert.Step1_MakeCertificatAuthority(c.OdirCA_privateKey, verbose)
+			selfcert.Step1_MakeCertificatAuthority(c.OdirCA_privateKey, verbose, c.EncryptPrivateKeys)
 		}
-		selfcert.Step2_MakeEd25519PrivateKeys([]string{c.CreateKeyPairNamed}, c.OdirCerts, verbose)
+		selfcert.Step2_MakeEd25519PrivateKeys([]string{c.CreateKeyPairNamed}, c.OdirCerts, verbose, c.EncryptPrivateKeys)
 		selfcert.Step3_MakeCertSigningRequests([]string{c.CreateKeyPairNamed}, []string{c.Email}, c.OdirCerts)
 		selfcert.Step4_MakeCertificates(c.OdirCA_privateKey, []string{c.CreateKeyPairNamed}, c.OdirCerts, verbose)
 	}

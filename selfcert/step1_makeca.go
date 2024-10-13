@@ -25,7 +25,7 @@ const (
 var sep = string(os.PathSeparator)
 
 // pathCA "my-keep-private-dir" is the default.
-func Step1_MakeCertificatAuthority(pathCA string, verbose bool) {
+func Step1_MakeCertificatAuthority(pathCA string, verbose bool, encrypt bool) {
 	// Step 1: Generate the ED25519 private key
 	pubKey, privKey, err := ed25519.GenerateKey(nil)
 	if err != nil {
@@ -68,20 +68,30 @@ func Step1_MakeCertificatAuthority(pathCA string, verbose bool) {
 	ownerOnly(odir)
 
 	privfn := odir + "ca.key"
-	privKeyFile, err := os.Create(privfn)
-	if err != nil {
-		log.Fatalf("Failed to create '%v': %v", privfn, err)
-	}
-	defer ownerOnly(privfn)
-	defer privKeyFile.Close()
 
-	privKeyBytes, err := x509.MarshalPKCS8PrivateKey(privKey)
-	if err != nil {
-		log.Fatalf("Failed to marshal private key: %v", err)
-	}
+	if encrypt {
+		err = SavePrivateKeyToPathUnderPassword(privKey, privfn)
+		if err != nil {
+			log.Fatalf("Failed to create encrypted key path '%v': %v", privfn, err)
+		}
+		ownerOnly(privfn)
+	} else {
 
-	if err := pem.Encode(privKeyFile, &pem.Block{Type: "PRIVATE KEY", Bytes: privKeyBytes}); err != nil {
-		log.Fatalf("Failed to write private key to ca-key.pem: %v", err)
+		privKeyFile, err := os.Create(privfn)
+		if err != nil {
+			log.Fatalf("Failed to create '%v': %v", privfn, err)
+		}
+		defer ownerOnly(privfn)
+		defer privKeyFile.Close()
+
+		privKeyBytes, err := x509.MarshalPKCS8PrivateKey(privKey)
+		if err != nil {
+			log.Fatalf("Failed to marshal private key: %v", err)
+		}
+
+		if err := pem.Encode(privKeyFile, &pem.Block{Type: "PRIVATE KEY", Bytes: privKeyBytes}); err != nil {
+			log.Fatalf("Failed to write private key to ca-key.pem: %v", err)
+		}
 	}
 
 	// Step 6: Write the self-signed certificate to a file
