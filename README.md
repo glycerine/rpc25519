@@ -376,6 +376,10 @@ By default, the CA is stored in the `./my-keep-private-dir/ca.{crt,key}`,
 while the -k named identifying cert is stored in `certs/name.crt`.
 The corresponding private key is stored in `certs/name.key`.
 
+Update: we have added pass-phrase protection to the private keys by default.
+In order to forgoe this protection and use the original behavior, supply the
+`selfy --nopass` flag.
+
 ~~~
 $ selfy -h
 
@@ -401,7 +405,13 @@ Usage of selfy:
 		to contact when needed. A CA will be auto-generated 
 		if none is found in the -p directory, which has 
 		a default name which warns the user to protect it.
-		
+
+  -nopass
+    	by default we request a password and use 
+		it with Argon2id to encrypt private key files (CA & identity). 
+		Setting -nopass means we generate an un-encrypted 
+		private key; this is not recommended.
+
   -o string
     	directory to save newly created certs into. (default "certs")
 		
