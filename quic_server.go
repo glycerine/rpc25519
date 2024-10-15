@@ -222,7 +222,7 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 					return
 				}
 
-				pair := s.NewQUIC_RWPair(stream, conn)
+				pair := s.newQUIC_RWPair(stream, conn)
 				go pair.runSendLoop(stream, conn)
 				go pair.runRecvLoop(stream, conn)
 			}
@@ -230,20 +230,20 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 	}
 }
 
-type QUIC_RWPair struct {
-	RWPair
+type quicRWPair struct {
+	rwPair
 	Stream quic.Stream
 }
 
-func (s *Server) NewQUIC_RWPair(stream quic.Stream, conn quic.Connection) *QUIC_RWPair {
+func (s *Server) newQUIC_RWPair(stream quic.Stream, conn quic.Connection) *quicRWPair {
 
 	wrap := &NetConnWrapper{Stream: stream, Connection: conn}
 
 	//vv("Server new quic pair: local = '%v'", local(wrap))
 	//vv("Server new quic pair: remote = '%v'", remote(wrap))
 
-	p := &QUIC_RWPair{
-		RWPair: RWPair{
+	p := &quicRWPair{
+		rwPair: rwPair{
 			cfg:    s.cfg,
 			Server: s,
 			Conn:   wrap,
@@ -265,7 +265,7 @@ func (s *Server) NewQUIC_RWPair(stream quic.Stream, conn quic.Connection) *QUIC_
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
-	s.remote2pair[key] = &p.RWPair
+	s.remote2pair[key] = &p.rwPair
 
 	select {
 	case s.RemoteConnectedCh <- key:
@@ -274,7 +274,7 @@ func (s *Server) NewQUIC_RWPair(stream quic.Stream, conn quic.Connection) *QUIC_
 	return p
 }
 
-func (s *QUIC_RWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
+func (s *quicRWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 	defer func() {
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
@@ -295,7 +295,7 @@ func (s *QUIC_RWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 	}
 }
 
-func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
+func (s *quicRWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 	defer func() {
 		//vv("rpc25519.Server: QUIC_WRPair runRecvLoop shutting down for local conn = '%v'", conn.LocalAddr())
 

@@ -198,7 +198,7 @@ acceptAgain:
 			}
 		}
 
-		pair := s.NewRWPair(conn)
+		pair := s.newRWPair(conn)
 		go pair.runSendLoop(conn)
 		go pair.runRecvLoop(conn)
 	}
@@ -261,12 +261,12 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 		//}
 	}
 
-	pair := s.NewRWPair(conn)
+	pair := s.newRWPair(conn)
 	go pair.runSendLoop(conn)
 	pair.runRecvLoop(conn)
 }
 
-func (s *RWPair) runSendLoop(conn net.Conn) {
+func (s *rwPair) runSendLoop(conn net.Conn) {
 	defer func() {
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
@@ -294,7 +294,7 @@ func (s *RWPair) runSendLoop(conn net.Conn) {
 	}
 }
 
-func (s *RWPair) runRecvLoop(conn net.Conn) {
+func (s *rwPair) runRecvLoop(conn net.Conn) {
 	defer func() {
 		//vv("rpc25519.Server: runRecvLoop shutting down for local conn = '%v'", conn.LocalAddr())
 
@@ -416,9 +416,18 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 	}
 }
 
-// Servers read and respond to requests.
-// Server.Register() says which callback to call.
-// Only one call back func is supported at the moment.
+// Servers read and respond to requests. Two APIs are available.
+//
+// Using the rpc25519.Message based API:
+//
+//	Register1Func() and Register2Func() register callbacks.
+//
+// Using the net/rpc API:
+//
+//	Server.Register() registers structs with callback methods on them.
+//
+// The net/rpc API is implemented as a layer on top of the rpc25519.Message
+// based API. Both can be used concurrently if desired.
 type Server struct {
 	mut sync.Mutex
 	cfg *Config
@@ -431,7 +440,7 @@ type Server struct {
 	lsn  io.Closer // net.Listener
 	halt *idem.Halter
 
-	remote2pair map[string]*RWPair
+	remote2pair map[string]*rwPair
 
 	// remote when server gets a new client,
 	// So test 004 can avoid a race/panic.
@@ -486,7 +495,7 @@ func (server *Server) freeResponse(resp *Response) {
 }
 
 // like net_server.go NetServer.ServeCodec
-func (p *RWPair) callBridgeNetRpc(reqMsg *Message) error {
+func (p *rwPair) callBridgeNetRpc(reqMsg *Message) error {
 	//vv("bridge called! subject: '%v'", reqMsg.HDR.Subject)
 
 	p.encBuf.Reset()
@@ -518,7 +527,7 @@ func (p *RWPair) callBridgeNetRpc(reqMsg *Message) error {
 	return nil
 }
 
-func (s *service) call25519(pair *RWPair, reqMsg *Message, mtype *methodType, req *Request, argv, replyv reflect.Value, codec ServerCodec) {
+func (s *service) call25519(pair *rwPair, reqMsg *Message, mtype *methodType, req *Request, argv, replyv reflect.Value, codec ServerCodec) {
 
 	mtype.Lock()
 	mtype.numCalls++
@@ -536,7 +545,7 @@ func (s *service) call25519(pair *RWPair, reqMsg *Message, mtype *methodType, re
 	pair.Server.freeRequest(req)
 }
 
-func (p *RWPair) sendResponse(reqMsg *Message, req *Request, reply any, codec ServerCodec, errmsg string) {
+func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply any, codec ServerCodec, errmsg string) {
 
 	//vv("pair sendResponse() top")
 
@@ -588,7 +597,7 @@ func (p *RWPair) sendResponse(reqMsg *Message, req *Request, reply any, codec Se
 }
 
 // from net/rpc Server.readRequest
-func (p *RWPair) readRequest(codec ServerCodec) (service *service, mtype *methodType, req *Request, argv, replyv reflect.Value, keepReading bool, err error) {
+func (p *rwPair) readRequest(codec ServerCodec) (service *service, mtype *methodType, req *Request, argv, replyv reflect.Value, keepReading bool, err error) {
 	//vv("pair readRequest() top")
 
 	service, mtype, req, keepReading, err = p.readRequestHeader(codec)
@@ -630,7 +639,7 @@ func (p *RWPair) readRequest(codec ServerCodec) (service *service, mtype *method
 	return
 }
 
-func (p *RWPair) readRequestHeader(codec ServerCodec) (svc *service, mtype *methodType, req *Request, keepReading bool, err error) {
+func (p *rwPair) readRequestHeader(codec ServerCodec) (svc *service, mtype *methodType, req *Request, keepReading bool, err error) {
 	// Grab the request header.
 	req = p.Server.getRequest()
 	err = codec.ReadRequestHeader(req)
@@ -686,10 +695,25 @@ func (p *RWPair) readRequestHeader(codec ServerCodec) (svc *service, mtype *meth
 	return
 }
 
-// Register method bearing types like net/rpc Server.Register()
+// Register implements the net/rpc Server.Register() API. Its docs:
+//
+// Register publishes in the server the set of methods of the
+// receiver value that satisfy the following conditions:
+//   - exported method of exported type
+//   - two arguments, both of exported type
+//   - the second argument is a pointer
+//   - one return value, of type error
+//
+// It returns an error if the receiver is not an exported type or has
+// no suitable methods. It also logs the error using package log.
+// The client accesses each method using a string of the form "Type.Method",
+// where Type is the receiver's concrete type.
 func (s *Server) Register(rcvr any) error {
 	return s.register(rcvr, "", false)
 }
+
+// RegisterName is like [Register] but uses the provided name for the type
+// instead of the receiver's concrete type.
 func (s *Server) RegisterName(name string, rcvr any) error {
 	return s.register(rcvr, name, true)
 }
@@ -742,7 +766,7 @@ func (s *Server) register(rcvr any, name string, useName bool) error {
 // for a given connection together so
 // we can figure out who to SendCh to
 // and how to halt each other.
-type RWPair struct {
+type rwPair struct {
 	// our parent Server
 	Server *Server
 
@@ -763,9 +787,9 @@ type RWPair struct {
 
 }
 
-func (s *Server) NewRWPair(conn net.Conn) *RWPair {
+func (s *Server) newRWPair(conn net.Conn) *rwPair {
 
-	p := &RWPair{
+	p := &rwPair{
 		cfg:    s.cfg,
 		Server: s,
 		Conn:   conn,
@@ -845,7 +869,7 @@ func NewServer(name string, config *Config) *Server {
 	return &Server{
 		name:              name,
 		cfg:               cfg,
-		remote2pair:       make(map[string]*RWPair),
+		remote2pair:       make(map[string]*rwPair),
 		halt:              idem.NewHalter(),
 		RemoteConnectedCh: make(chan string, 20),
 	}

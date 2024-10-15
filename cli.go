@@ -541,7 +541,7 @@ type Client struct {
 	shutdown bool // server has told us to stop
 }
 
-// Go implements the net/rpc Client.Go() API.
+// Go implements the net/rpc Client.Go() API; its docs:
 //
 // Go invokes the function asynchronously. It returns the [Call] structure representing
 // the invocation. The done channel will signal when the call is complete by returning
@@ -574,7 +574,7 @@ func (c *Client) Go(serviceMethod string, args any, reply any, done chan *Call) 
 	return call
 }
 
-// Call implements the net/rpc Client.Call() API.
+// Call implements the net/rpc Client.Call() API; its docs:
 //
 // Call invokes the named function, waits for it to complete, and returns its error status.
 func (c *Client) Call(serviceMethod string, args any, reply any) error {
@@ -728,10 +728,15 @@ func (c *Client) netRpcShutdownCleanup(err error) {
 
 // original, not net/rpc derived below:
 
+// Err returns any Client stored error.
 func (c *Client) Err() error {
 	return c.err
 }
 
+// GetReadIncomingCh creates and returns
+// a buffered channel that reads incoming
+// messages that are server-pushed (not associated
+// with a round-trip rpc call request/response pair.
 func (c *Client) GetReadIncomingCh() (ch chan *Message) {
 	ch = make(chan *Message, 100)
 	//vv("GetReadIncommingCh is %p on client '%v'", ch, c.name)
@@ -750,7 +755,9 @@ func (c *Client) GetReads(ch chan *Message) {
 	c.notifyOnRead = append(c.notifyOnRead, ch)
 }
 
-// auto unregister after a single send on ch.
+// GetOneRead responds on ch with the first incoming message
+// whose Seqno matches seqno, then auto unregisters itself
+// after that single send on ch.
 func (c *Client) GetOneRead(seqno uint64, ch chan *Message) {
 	if cap(ch) == 0 {
 		panic("ch must be bufferred")
@@ -760,7 +767,9 @@ func (c *Client) GetOneRead(seqno uint64, ch chan *Message) {
 	c.notifyOnce[seqno] = ch
 }
 
-// un-register to get any received messages on ch.
+// UngetReads reverses what GetReads does:
+// un-register and have ch be deaf from now on.
+// Idempotent: if ch is already gone, no foul is reported.
 func (c *Client) UngetReads(ch chan *Message) {
 	c.mut.Lock()
 	defer c.mut.Unlock()
@@ -772,6 +781,10 @@ func (c *Client) UngetReads(ch chan *Message) {
 	}
 }
 
+// NewClient attemps to connect to config.ClientDialToHostPort;
+// err will come back with any problems encountered.
+// The name setting allows users to track multiple instances
+// of Clients, and the Client.Name() method will retreive it.
 func NewClient(name string, config *Config) (c *Client, err error) {
 
 	// make our own copy
@@ -810,10 +823,12 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 	return c, err
 }
 
+// Name reports the name the Client was created with.
 func (c *Client) Name() string {
 	return c.name
 }
 
+// Close shuts down the Client.
 func (c *Client) Close() error {
 	//vv("Client.Close() called.") // not seen in shutdown.
 	if c.cfg.UseQUIC {
@@ -840,6 +855,8 @@ func (c *Client) Close() error {
 var ErrShutdown = fmt.Errorf("shutting down")
 var ErrDone = fmt.Errorf("done channel closed")
 
+// SendAndGetReplyWithTimeout expires the call after
+// timeout.
 func (c *Client) SendAndGetReplyWithTimeout(timeout time.Duration, req *Message) (reply *Message, err error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	go func() {
@@ -849,7 +866,11 @@ func (c *Client) SendAndGetReplyWithTimeout(timeout time.Duration, req *Message)
 	return c.SendAndGetReply(req, ctx.Done())
 }
 
-// doneCh is optional; can be nil.
+// SendAndGetReply starts a round-trip RPC call.
+// We will wait for a response before retuning.
+// The doneCh is optional; it can be nil. A
+// context.Done() like channel can be supplied there to
+// stop waiting before a reply comes back.
 func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *Message, err error) {
 
 	if len(req.DoneCh) > cap(req.DoneCh) || cap(req.DoneCh) < 1 {
@@ -901,7 +922,8 @@ func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *M
 	}
 }
 
-// doneCh is optional, can be nil.
+// OneWaySend sends a message without expecting or waiting for a response.
+// The doneCh is optional, and can be nil.
 func (c *Client) OneWaySend(msg *Message, doneCh <-chan struct{}) (err error) {
 
 	var from, to string
@@ -969,6 +991,10 @@ func (c *Client) nextSeqno() (n uint64) {
 	return atomic.AddUint64(&c.lastSeqno, 1)
 }
 
+// SelfyNewKey will generate a self-signed certificate
+// authority, a new ed25519 key pair, sign the public
+// key to create a cert, and write these four
+// new files to disk. The directories
 // odir/my-keep-private-dir and odir/certs will be created.
 func SelfyNewKey(createKeyPairNamed, odir string) error {
 	odirPrivateKey := odir + sep + "my-keep-private-dir"
