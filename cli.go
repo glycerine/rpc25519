@@ -259,7 +259,7 @@ func (c *Client) RunReadLoop(conn net.Conn) {
 		}
 
 		seqno := msg.HDR.Seqno
-		vv("client %v received message with seqno=%v, msg.HDR='%v'", c.name, seqno, msg.HDR.String())
+		//vv("client %v received message with seqno=%v, msg.HDR='%v'", c.name, seqno, msg.HDR.String())
 
 		c.mut.Lock()
 		whoCh, waiting := c.notifyOnce[seqno]
@@ -330,7 +330,7 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 			seqno := c.nextSeqno()
 			msg.HDR.Seqno = seqno
 
-			vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v: '%v'", c.name, seqno, msg)
+			//vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v: '%v'", c.name, seqno, msg)
 			c.GetOneRead(seqno, msg.DoneCh)
 
 			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
@@ -339,7 +339,7 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 				close(msg.DoneCh)
 				continue
 			} else {
-				vv("(client %v) Sent message: (seqno=%v): '%v'", c.name, msg.HDR.Seqno, msg)
+				//vv("(client %v) Sent message: (seqno=%v): '%v'", c.name, msg.HDR.Seqno, msg)
 			}
 
 		}
@@ -906,7 +906,7 @@ func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *M
 		return nil, ErrShutdown
 	}
 
-	vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req)
+	//vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req)
 
 	select { // shutdown test stuck here, even with calls in own goro. goq.go has exited.
 	case reply = <-req.DoneCh:

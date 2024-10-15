@@ -338,7 +338,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			return
 		}
 
-		vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
+		//vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
 
 		req.HDR.Nc = conn
 
@@ -368,7 +368,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		s.Server.mut.Unlock()
 
 		if !foundCallback1 && !foundCallback2 {
-			vv("warning! no callbacks found for req = '%v'", req)
+			//vv("warning! no callbacks found for req = '%v'", req)
 		}
 
 		if foundCallback1 {
