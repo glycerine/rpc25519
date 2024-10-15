@@ -250,20 +250,20 @@ func (c *Client) RunReadLoop(conn net.Conn) {
 		}
 
 		seqno := msg.HDR.Seqno
-		vv("client %v received message with seqno=%v, msg.HDR='%v'", c.name, seqno, msg.HDR.String())
+		//vv("client %v received message with seqno=%v, msg.HDR='%v'", c.name, seqno, msg.HDR.String())
 
 		// server's responsibility is to increment the responses +1, from odd to even.
 
 		c.mut.Lock()
 		whoCh, waiting := c.notifyOnce[seqno]
-		vv("notifyOnce waiting = %v", waiting)
+		//vv("notifyOnce waiting = %v", waiting)
 		if waiting {
 			delete(c.notifyOnce, seqno)
 			select {
 			case whoCh <- msg:
-				vv("client %v: yay. sent on notifyOnce channel! for seqno=%v", c.name, seqno)
+				//vv("client %v: yay. sent on notifyOnce channel! for seqno=%v", c.name, seqno)
 			default:
-				vv("could not send to notifyOnce channel!")
+				//vv("could not send to notifyOnce channel!")
 			}
 		} else {
 			//vv("len c.notifyOnRead = %v", len(c.notifyOnRead))
