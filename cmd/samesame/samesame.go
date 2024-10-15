@@ -85,8 +85,9 @@ func main() {
 }
 
 // echo implements rpc25519.CallbackFunc
-func customEcho(in *rpc25519.Message, out *rpc25519.Message) {
+func customEcho(in *rpc25519.Message, out *rpc25519.Message) error {
 	fmt.Printf("server customEcho called, Seqno=%v, msg='%v'\n", in.Seqno, string(in.JobSerz))
 	//vv("callback to echo: with msg='%#v'", in)
 	out.JobSerz = append(in.JobSerz, []byte(fmt.Sprintf("\n with time customEcho sees this: '%v'", time.Now()))...)
+	return nil
 }
