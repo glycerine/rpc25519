@@ -51,6 +51,6 @@ func main() {
 		panic(err)
 	}
 
-	log.Printf("client sees reply (Seqno=%v) = '%v'\n", reply.Seqno, string(reply.JobSerz))
+	log.Printf("client sees reply (Seqno=%v) = '%v'\n", reply.HDR.Seqno, string(reply.JobSerz))
 
 }

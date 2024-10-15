@@ -78,7 +78,7 @@ func main() {
 		}
 		sends++
 
-		fmt.Printf("client sees reply (Seqno=%v) = '%v'\n", reply.Seqno, string(reply.JobSerz))
+		fmt.Printf("client sees reply (Seqno=%v) = '%v'\n", reply.HDR.Seqno, string(reply.JobSerz))
 	}
 	fmt.Printf("sends done: %v\n", sends)
 	select {}
@@ -86,7 +86,7 @@ func main() {
 
 // echo implements rpc25519.CallbackFunc
 func customEcho(in *rpc25519.Message, out *rpc25519.Message) error {
-	fmt.Printf("server customEcho called, Seqno=%v, msg='%v'\n", in.Seqno, string(in.JobSerz))
+	fmt.Printf("server customEcho called, Seqno=%v, msg='%v'\n", in.HDR.Seqno, string(in.JobSerz))
 	//vv("callback to echo: with msg='%#v'", in)
 	out.JobSerz = append(in.JobSerz, []byte(fmt.Sprintf("\n with time customEcho sees this: '%v'", time.Now()))...)
 	return nil
