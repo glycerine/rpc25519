@@ -203,10 +203,8 @@ func (client *NetClient) input() {
 }
 
 func (call *Call) done() {
-	vv("Call.done() called")
 	select {
 	case call.Done <- call:
-		vv("sent back call on call.Done channel")
 	default:
 		// We don't want to block here. It is the caller's responsibility to make
 		// sure the channel has enough buffer space. See comment in Go().

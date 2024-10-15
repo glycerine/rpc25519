@@ -36,6 +36,10 @@ func (c *Client) RunClientMain(serverAddr string, tcp_only bool, certPath string
 
 	defer func() {
 		c.halt.Done.Close()
+
+		if c.seenNetRPCCalls {
+			c.netRpcShutdownCleanup(ErrShutdown)
+		}
 	}()
 
 	if tcp_only {
@@ -321,8 +325,7 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 
 		case msg := <-c.roundTripCh:
 
-			// these will start at 3 and go up, in each client.
-			seqno := c.nextOddSeqno()
+			seqno := c.nextSeqno()
 			msg.HDR.Seqno = seqno
 
 			vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v: '%v'", c.name, seqno, msg)
@@ -515,9 +518,11 @@ type Client struct {
 
 	err error // detect inability to connect.
 
-	lastOddSeqno uint64
+	lastSeqno uint64
 
 	// net/rpc api implementation
+	seenNetRPCCalls bool
+
 	encBuf  bytes.Buffer // target for codec writes: encode gobs into here first
 	encBufW *bufio.Writer
 	decBuf  bytes.Buffer // target for code reads.
@@ -534,13 +539,17 @@ type Client struct {
 	shutdown bool // server has told us to stop
 }
 
-// Go like net/rpc Client.Go() API.
+// Go implements the net/rpc Client.Go() API.
 //
 // Go invokes the function asynchronously. It returns the [Call] structure representing
 // the invocation. The done channel will signal when the call is complete by returning
 // the same Call object. If done is nil, Go will allocate a new channel.
 // If non-nil, done must be buffered or Go will deliberately crash.
 func (c *Client) Go(serviceMethod string, args any, reply any, done chan *Call) *Call {
+	c.mut.Lock()
+	c.seenNetRPCCalls = true
+	c.mut.Unlock()
+
 	call := new(Call)
 	call.ServiceMethod = serviceMethod
 	call.Args = args
@@ -561,12 +570,22 @@ func (c *Client) Go(serviceMethod string, args any, reply any, done chan *Call) 
 	return call
 }
 
-// Call like net/rpc Client.Call().
+// Call implements the net/rpc Client.Call() API.
 //
 // Call invokes the named function, waits for it to complete, and returns its error status.
 func (c *Client) Call(serviceMethod string, args any, reply any) error {
-	call := <-c.Go(serviceMethod, args, reply, make(chan *Call, 1)).Done
-	return call.Error
+	c.mut.Lock()
+	c.seenNetRPCCalls = true
+	c.mut.Unlock()
+
+	doneCh := make(chan *Call, 1)
+	call := c.Go(serviceMethod, args, reply, doneCh)
+	select {
+	case call = <-doneCh:
+		return call.Error
+	case <-c.halt.ReqStop.Chan:
+		return ErrShutdown
+	}
 }
 
 func (c *Client) send(call *Call) {
@@ -673,7 +692,8 @@ func (c *Client) gotNetRpcInput(replyMsg *Message) (err error) {
 	return nil
 }
 
-func (c *Client) netRpcShutdownOnError(err error) {
+// any pending calls are unlocked with err set.
+func (c *Client) netRpcShutdownCleanup(err error) {
 
 	// Terminate pending calls.
 	c.reqMutex.Lock()
@@ -755,14 +775,14 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		return nil, fmt.Errorf("missing config.ServerAddr to connect to")
 	}
 	c = &Client{
-		cfg:          cfg,
-		name:         name,
-		oneWayCh:     make(chan *Message),
-		roundTripCh:  make(chan *Message),
-		halt:         idem.NewHalter(),
-		Connected:    make(chan error, 1),
-		lastOddSeqno: 1,
-		notifyOnce:   make(map[uint64]chan *Message),
+		cfg:         cfg,
+		name:        name,
+		oneWayCh:    make(chan *Message),
+		roundTripCh: make(chan *Message),
+		halt:        idem.NewHalter(),
+		Connected:   make(chan error, 1),
+		lastSeqno:   1,
+		notifyOnce:  make(map[uint64]chan *Message),
 
 		// net/rpc
 		pending: make(map[uint64]*Call),
@@ -937,9 +957,8 @@ func local(nc localRemoteAddr) string {
 	return la.Network() + "://" + la.String()
 }
 
-// issue 3, 5, 7, 9, ...
-func (c *Client) nextOddSeqno() (n uint64) {
-	return atomic.AddUint64(&c.lastOddSeqno, 2)
+func (c *Client) nextSeqno() (n uint64) {
+	return atomic.AddUint64(&c.lastSeqno, 1)
 }
 
 // odir/my-keep-private-dir and odir/certs will be created.
