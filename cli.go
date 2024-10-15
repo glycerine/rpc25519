@@ -215,7 +215,7 @@ func (c *Client) RunReadLoop(conn net.Conn) {
 		}
 
 		// Receive a message
-		seqno, msg, err := w.receiveMessage(conn, &readTimeout)
+		msg, err := w.receiveMessage(conn, &readTimeout)
 		if err != nil {
 			r := err.Error()
 			if strings.Contains(r, "timeout") || strings.Contains(r, "deadline exceeded") {
@@ -249,20 +249,21 @@ func (c *Client) RunReadLoop(conn net.Conn) {
 			continue
 		}
 
-		//vv("client %v received message with seqno=%v, msg.MID='%v'", c.name, seqno, msg.MID.String())
+		seqno := msg.HDR.Seqno
+		vv("client %v received message with seqno=%v, msg.HDR='%v'", c.name, seqno, msg.HDR.String())
 
 		// server's responsibility is to increment the responses +1, from odd to even.
 
 		c.mut.Lock()
 		whoCh, waiting := c.notifyOnce[seqno]
-		//vv("waiting = %v", waiting)
+		vv("notifyOnce waiting = %v", waiting)
 		if waiting {
 			delete(c.notifyOnce, seqno)
 			select {
 			case whoCh <- msg:
-				//vv("client %v: yay. sent on notifyOnce channel! for seqno=%v", c.name, seqno)
+				vv("client %v: yay. sent on notifyOnce channel! for seqno=%v", c.name, seqno)
 			default:
-				//vv("could not send to notifyOnce channel!")
+				vv("could not send to notifyOnce channel!")
 			}
 		} else {
 			//vv("len c.notifyOnRead = %v", len(c.notifyOnRead))
@@ -299,15 +300,14 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 
 			// one-way always use seqno 0,
 			// so we know that no follow up is expected.
-			msg.Seqno = 0
-			msg.MID.Seqno = 0
+			msg.HDR.Seqno = 0
 
-			if msg.Nc == nil {
+			if msg.HDR.Nc == nil {
 				// use default conn
-				msg.Nc = conn
+				msg.HDR.Nc = conn
 			}
 			// Send the message
-			if err := w.sendMessage(msg.Seqno, conn, msg, &c.cfg.WriteTimeout); err != nil {
+			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
 				log.Printf("Failed to send message: %v", err)
 				msg.Err = err
 			} else {
@@ -319,13 +319,12 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 
 			// these will start at 3 and go up, in each client.
 			seqno := c.nextOddSeqno()
-			msg.Seqno = seqno
-			msg.MID.Seqno = seqno
+			msg.HDR.Seqno = seqno
 
 			//vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v", c.name, seqno+1)
 			c.GetOneRead(seqno+1, msg.DoneCh)
 
-			if err := w.sendMessage(msg.Seqno, conn, msg, &c.cfg.WriteTimeout); err != nil {
+			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
 				//vv("Failed to send message: %v", err)
 				msg.Err = err
 				close(msg.DoneCh)
@@ -350,7 +349,7 @@ func NewMessage() *Message {
 }
 
 func (msg *Message) String() string {
-	return fmt.Sprintf("&Message{Seqno:%v, MID:%v, Err:'%v'}", msg.Seqno, msg.MID.String(), msg.Err)
+	return fmt.Sprintf("&Message{HDR:%v, Err:'%v'}", msg.HDR.String(), msg.Err)
 }
 
 func NewMessageFromBytes(by []byte) (msg *Message) {
@@ -374,7 +373,7 @@ func NewMessageFromBytes(by []byte) (msg *Message) {
 // Any errors can be returned on reply.JobErrs; this is optional.
 // Not that JobErrs is a string value.
 //
-// The system will overwrite the reply.MID field when sending the
+// The system will overwrite the reply.HDR field when sending the
 // reply, so the user should not bother trying to alter it.
 type TwoWayFunc func(req *Message, reply *Message) error
 
@@ -641,8 +640,8 @@ func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *M
 	}
 	isRPC := true
 	isLeg2 := false
-	mid := NewMID(from, to, req.Subject, isRPC, isLeg2)
-	req.MID = *mid
+	mid := NewHDR(from, to, req.HDR.Subject, isRPC, isLeg2)
+	req.HDR = *mid
 
 	//vv("Client '%v' SendAndGetReply(req='%v') (ignore req.Seqno:0 not yet assigned)", c.name, req)
 	select {
@@ -688,8 +687,8 @@ func (c *Client) OneWaySend(msg *Message, doneCh <-chan struct{}) (err error) {
 	isRPC := false
 	isLeg2 := false
 
-	mid := NewMID(from, to, msg.Subject, isRPC, isLeg2)
-	msg.MID = *mid
+	mid := NewHDR(from, to, msg.HDR.Subject, isRPC, isLeg2)
+	msg.HDR = *mid
 	// allow msg.CallID to not be empty; in case we get a reply.
 	// isRPC=false so this is 1-way, but it might in turn still
 	// generate a response.

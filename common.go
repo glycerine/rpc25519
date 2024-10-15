@@ -71,38 +71,35 @@ func newWorkspace() *workspace {
 
 // receiveMessage reads a framed message from conn
 // nil or 0 timeout means no timeout.
-func (w *workspace) receiveMessage(conn uConn, timeout *time.Duration) (seqno uint64, msg *Message, err error) {
+func (w *workspace) receiveMessage(conn uConn, timeout *time.Duration) (msg *Message, err error) {
 
 	// Read the first 8 bytes for the Message length
 	if err := readFull(conn, w.readLenMessageBytes, timeout); err != nil {
-		return seqno, nil, err
+		return nil, err
 	}
 	messageLen := binary.BigEndian.Uint64(w.readLenMessageBytes)
 
 	// Read the message based on the messageLen
 	if messageLen > maxMessage {
 		// probably an encrypted client against an unencrypted server
-		return 0, nil, fmt.Errorf("message message too long: %v is over 1MB; encrypted client vs an un-encrypted server?", messageLen)
+		return nil, fmt.Errorf("message message too long: %v is over 1MB; encrypted client vs an un-encrypted server?", messageLen)
 	}
 
 	message := make([]byte, messageLen)
 	if err := readFull(conn, message, timeout); err != nil {
-		return seqno, nil, err
+		return nil, err
 	}
 
 	msg, err = MessageFromGreenpack(message)
 	if err != nil {
-		return seqno, nil, err
+		return nil, err
 	}
-	return msg.Seqno, msg, nil
+	return msg, nil
 }
 
 // sendMessage sends a framed message to conn
 // nil or 0 timeout means no timeout.
-func (w *workspace) sendMessage(seqno uint64, conn uConn, msg *Message, timeout *time.Duration) error {
-
-	msg.Seqno = seqno
-	msg.MID.Seqno = seqno
+func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
 
 	// serialize message to bytes
 	bytesMsg, err := msg.AsGreenpack(w.buf)

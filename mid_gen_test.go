@@ -9,8 +9,8 @@ import (
 	"github.com/glycerine/greenpack/msgp"
 )
 
-func TestMarshalUnmarshalMID(t *testing.T) {
-	v := MID{}
+func TestMarshalUnmarshalHDR(t *testing.T) {
+	v := HDR{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -32,8 +32,8 @@ func TestMarshalUnmarshalMID(t *testing.T) {
 	}
 }
 
-func BenchmarkMarshalMsgMID(b *testing.B) {
-	v := MID{}
+func BenchmarkMarshalMsgHDR(b *testing.B) {
+	v := HDR{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -41,8 +41,8 @@ func BenchmarkMarshalMsgMID(b *testing.B) {
 	}
 }
 
-func BenchmarkAppendMsgMID(b *testing.B) {
-	v := MID{}
+func BenchmarkAppendMsgHDR(b *testing.B) {
+	v := HDR{}
 	bts := make([]byte, 0, v.Msgsize())
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -53,8 +53,8 @@ func BenchmarkAppendMsgMID(b *testing.B) {
 	}
 }
 
-func BenchmarkUnmarshalMID(b *testing.B) {
-	v := MID{}
+func BenchmarkUnmarshalHDR(b *testing.B) {
+	v := HDR{}
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
@@ -67,8 +67,8 @@ func BenchmarkUnmarshalMID(b *testing.B) {
 	}
 }
 
-func TestEncodeDecodeMID(t *testing.T) {
-	v := MID{}
+func TestEncodeDecodeHDR(t *testing.T) {
+	v := HDR{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
@@ -77,7 +77,7 @@ func TestEncodeDecodeMID(t *testing.T) {
 		t.Logf("WARNING: Msgsize() for %v is inaccurate", v)
 	}
 
-	vn := MID{}
+	vn := HDR{}
 	err := msgp.Decode(&buf, &vn)
 	if err != nil {
 		t.Error(err)
@@ -91,8 +91,8 @@ func TestEncodeDecodeMID(t *testing.T) {
 	}
 }
 
-func BenchmarkEncodeMID(b *testing.B) {
-	v := MID{}
+func BenchmarkEncodeHDR(b *testing.B) {
+	v := HDR{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -105,8 +105,8 @@ func BenchmarkEncodeMID(b *testing.B) {
 	en.Flush()
 }
 
-func BenchmarkDecodeMID(b *testing.B) {
-	v := MID{}
+func BenchmarkDecodeHDR(b *testing.B) {
+	v := HDR{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))

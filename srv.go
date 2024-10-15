@@ -271,7 +271,7 @@ func (s *RWPair) runSendLoop(conn net.Conn) {
 	for {
 		select {
 		case msg := <-s.SendCh:
-			err := w.sendMessage(msg.Seqno, conn, msg, &s.cfg.WriteTimeout)
+			err := w.sendMessage(conn, msg, &s.cfg.WriteTimeout)
 			if err != nil {
 				r := err.Error()
 				if strings.Contains(r, "broken pipe") {
@@ -280,7 +280,7 @@ func (s *RWPair) runSendLoop(conn net.Conn) {
 					// Maybe with quic if they run a server too, since we'll know the port
 					// to find them on, if they are still up.
 				}
-				AlwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.Seqno)
+				AlwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
 			}
 		case <-s.halt.ReqStop.Chan:
 			return
@@ -313,8 +313,7 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 		default:
 		}
 
-		seqno, req, err := w.receiveMessage(conn, &s.cfg.ReadTimeout)
-		_ = seqno
+		req, err := w.receiveMessage(conn, &s.cfg.ReadTimeout)
 		if err == io.EOF {
 			//vv("server sees io.EOF from receiveMessage")
 			continue // close of socket before read of full message.
@@ -333,9 +332,9 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 			return
 		}
 
-		//vv("server received message with seqno=%v: %v", seqno, req)
+		//vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
 
-		req.Nc = conn
+		req.HDR.Nc = conn
 
 		foundCallback1 = false
 		foundCallback2 = false
@@ -343,7 +342,7 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 		callme2 = nil
 
 		s.Server.mut.Lock()
-		if req.MID.IsRPC {
+		if req.HDR.IsRPC {
 			if s.Server.callme2 != nil {
 				callme2 = s.Server.callme2
 				foundCallback2 = true
@@ -376,29 +375,28 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 				reply := NewMessage()
 
 				// Seqno: increment by one; so request 3 return response 4.
-				replySeqno := req.Seqno + 1
-				subject := req.Subject
-				reqCallID := req.MID.CallID
+				replySeqno := req.HDR.Seqno + 1
+				subject := req.HDR.Subject
+				reqCallID := req.HDR.CallID
 
 				callme2(req, reply)
 				// don't read from req now, just in case callme2 messed with it.
-
-				reply.Seqno = replySeqno
 
 				from := local(conn)
 				to := remote(conn)
 				isRPC := true
 				isLeg2 := true
 
-				mid := NewMID(from, to, subject, isRPC, isLeg2)
+				mid := NewHDR(from, to, subject, isRPC, isLeg2)
 
 				// We are able to match call and response rigourously on the CallID alone.
 				mid.CallID = reqCallID
-				reply.MID = *mid
+				mid.Seqno = replySeqno
+				reply.HDR = *mid
 
 				select {
 				case s.SendCh <- reply:
-					//vv("reply went over pair.SendCh to the send goro write loop")
+					//vv("reply went over pair.SendCh to the send goro write loop: '%v'", reply)
 				case <-s.halt.ReqStop.Chan:
 					return
 				}
@@ -483,8 +481,8 @@ func (s *Server) SendMessage(callID, subject, destAddr string, by []byte, seqno 
 	}
 	msg := NewMessage()
 	msg.JobSerz = by
-	msg.Seqno = seqno
-	msg.MID.Seqno = seqno
+	msg.HDR.Seqno = seqno
+	msg.HDR.Seqno = seqno
 
 	from := local(pair.Conn)
 	to := remote(pair.Conn)
@@ -492,9 +490,9 @@ func (s *Server) SendMessage(callID, subject, destAddr string, by []byte, seqno 
 	isLeg2 := false
 	subject = fmt.Sprintf("srv.SendMessage('%v')", subject)
 
-	mid := NewMID(from, to, subject, isRPC, isLeg2)
+	mid := NewHDR(from, to, subject, isRPC, isLeg2)
 	mid.CallID = callID
-	msg.MID = *mid
+	msg.HDR = *mid
 
 	//vv("send message attempting to send %v bytes to '%v'", len(by), destAddr)
 	select {

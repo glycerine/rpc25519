@@ -8,7 +8,7 @@ import (
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
-func (z *MID) DecodeMsg(dc *msgp.Reader) (err error) {
+func (z *HDR) DecodeMsg(dc *msgp.Reader) (err error) {
 	var sawTopNil bool
 	if dc.IsNil() {
 		sawTopNil = true
@@ -21,7 +21,7 @@ func (z *MID) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields0zgensym_db31ae8ee6d36a77_1 = 10
+	const maxFields0zgensym_db31ae8ee6d36a77_1 = 11
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields0zgensym_db31ae8ee6d36a77_1 uint32
@@ -152,13 +152,13 @@ doneWithStruct0zgensym_db31ae8ee6d36a77_1:
 	return
 }
 
-// fields of MID
-var decodeMsgFieldOrder0zgensym_db31ae8ee6d36a77_1 = []string{"Created_zid00_str", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "IsRPC_zid04_boo", "IsLeg2_zid05_boo", "Serial_zid06_i64", "CallID_zid07_str", "PID_zid08_i64", "Seqno_zid09_u64"}
+// fields of HDR
+var decodeMsgFieldOrder0zgensym_db31ae8ee6d36a77_1 = []string{"Created_zid00_str", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "IsRPC_zid04_boo", "IsLeg2_zid05_boo", "Serial_zid06_i64", "CallID_zid07_str", "PID_zid08_i64", "Seqno_zid09_u64", ""}
 
-var decodeMsgFieldSkip0zgensym_db31ae8ee6d36a77_1 = []bool{false, false, false, false, false, false, false, false, false, false}
+var decodeMsgFieldSkip0zgensym_db31ae8ee6d36a77_1 = []bool{false, false, false, false, false, false, false, false, false, false, true}
 
 // fieldsNotEmpty supports omitempty tags
-func (z *MID) fieldsNotEmpty(isempty []bool) uint32 {
+func (z *HDR) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
 		return 10
 	}
@@ -208,13 +208,13 @@ func (z *MID) fieldsNotEmpty(isempty []bool) uint32 {
 }
 
 // EncodeMsg implements msgp.Encodable
-func (z *MID) EncodeMsg(en *msgp.Writer) (err error) {
+func (z *HDR) EncodeMsg(en *msgp.Writer) (err error) {
 	if p, ok := interface{}(z).(msgp.PreSave); ok {
 		p.PreSaveHook()
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_db31ae8ee6d36a77_2 [10]bool
+	var empty_zgensym_db31ae8ee6d36a77_2 [11]bool
 	fieldsInUse_zgensym_db31ae8ee6d36a77_3 := z.fieldsNotEmpty(empty_zgensym_db31ae8ee6d36a77_2[:])
 
 	// map header
@@ -223,12 +223,12 @@ func (z *MID) EncodeMsg(en *msgp.Writer) (err error) {
 		return err
 	}
 
-	// runtime struct type identification for 'MID'
+	// runtime struct type identification for 'HDR'
 	err = en.Append(0xa1, 0x40)
 	if err != nil {
 		return err
 	}
-	err = en.WriteStringFromBytes([]byte{0x4d, 0x49, 0x44})
+	err = en.WriteStringFromBytes([]byte{0x48, 0x44, 0x52})
 	if err != nil {
 		return err
 	}
@@ -357,7 +357,7 @@ func (z *MID) EncodeMsg(en *msgp.Writer) (err error) {
 }
 
 // MarshalMsg implements msgp.Marshaler
-func (z *MID) MarshalMsg(b []byte) (o []byte, err error) {
+func (z *HDR) MarshalMsg(b []byte) (o []byte, err error) {
 	if p, ok := interface{}(z).(msgp.PreSave); ok {
 		p.PreSaveHook()
 	}
@@ -365,7 +365,7 @@ func (z *MID) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [10]bool
+	var empty [11]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -433,10 +433,10 @@ func (z *MID) MarshalMsg(b []byte) (o []byte, err error) {
 }
 
 // UnmarshalMsg implements msgp.Unmarshaler
-func (z *MID) UnmarshalMsg(bts []byte) (o []byte, err error) {
+func (z *HDR) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	return z.UnmarshalMsgWithCfg(bts, nil)
 }
-func (z *MID) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte, err error) {
+func (z *HDR) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte, err error) {
 	var nbs msgp.NilBitsStack
 	nbs.Init(cfg)
 	var sawTopNil bool
@@ -447,7 +447,7 @@ func (z *MID) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte
 
 	var field []byte
 	_ = field
-	const maxFields4zgensym_db31ae8ee6d36a77_5 = 10
+	const maxFields4zgensym_db31ae8ee6d36a77_5 = 11
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields4zgensym_db31ae8ee6d36a77_5 uint32
@@ -589,13 +589,13 @@ doneWithStruct4zgensym_db31ae8ee6d36a77_5:
 	return
 }
 
-// fields of MID
-var unmarshalMsgFieldOrder4zgensym_db31ae8ee6d36a77_5 = []string{"Created_zid00_str", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "IsRPC_zid04_boo", "IsLeg2_zid05_boo", "Serial_zid06_i64", "CallID_zid07_str", "PID_zid08_i64", "Seqno_zid09_u64"}
+// fields of HDR
+var unmarshalMsgFieldOrder4zgensym_db31ae8ee6d36a77_5 = []string{"Created_zid00_str", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "IsRPC_zid04_boo", "IsLeg2_zid05_boo", "Serial_zid06_i64", "CallID_zid07_str", "PID_zid08_i64", "Seqno_zid09_u64", ""}
 
-var unmarshalMsgFieldSkip4zgensym_db31ae8ee6d36a77_5 = []bool{false, false, false, false, false, false, false, false, false, false}
+var unmarshalMsgFieldSkip4zgensym_db31ae8ee6d36a77_5 = []bool{false, false, false, false, false, false, false, false, false, false, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
-func (z *MID) Msgsize() (s int) {
+func (z *HDR) Msgsize() (s int) {
 	s = 1 + 18 + msgp.StringPrefixSize + len(z.Created) + 15 + msgp.StringPrefixSize + len(z.From) + 13 + msgp.StringPrefixSize + len(z.To) + 18 + msgp.StringPrefixSize + len(z.Subject) + 16 + msgp.BoolSize + 17 + msgp.BoolSize + 17 + msgp.Int64Size + 17 + msgp.StringPrefixSize + len(z.CallID) + 14 + msgp.Int64Size + 16 + msgp.Uint64Size
 	return
 }
@@ -615,7 +615,7 @@ func (z *Message) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields6zgensym_db31ae8ee6d36a77_7 = 8
+	const maxFields6zgensym_db31ae8ee6d36a77_7 = 5
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields6zgensym_db31ae8ee6d36a77_7 uint32
@@ -664,32 +664,20 @@ doneWithStruct6zgensym_db31ae8ee6d36a77_7:
 		switch curField6zgensym_db31ae8ee6d36a77_7 {
 		// -- templateDecodeMsg ends here --
 
-		case "Seqno_zid00_u64":
+		case "HDR_zid00_rct":
 			found6zgensym_db31ae8ee6d36a77_7[0] = true
-			z.Seqno, err = dc.ReadUint64()
+			err = z.HDR.DecodeMsg(dc)
 			if err != nil {
 				return
 			}
-		case "Subject_zid01_str":
+		case "JobSerz_zid01_bin":
 			found6zgensym_db31ae8ee6d36a77_7[1] = true
-			z.Subject, err = dc.ReadString()
-			if err != nil {
-				return
-			}
-		case "MID_zid02_rct":
-			found6zgensym_db31ae8ee6d36a77_7[2] = true
-			err = z.MID.DecodeMsg(dc)
-			if err != nil {
-				return
-			}
-		case "JobSerz_zid03_bin":
-			found6zgensym_db31ae8ee6d36a77_7[3] = true
 			z.JobSerz, err = dc.ReadBytes(z.JobSerz)
 			if err != nil {
 				return
 			}
-		case "JobErrs_zid04_str":
-			found6zgensym_db31ae8ee6d36a77_7[4] = true
+		case "JobErrs_zid02_str":
+			found6zgensym_db31ae8ee6d36a77_7[2] = true
 			z.JobErrs, err = dc.ReadString()
 			if err != nil {
 				return
@@ -717,34 +705,26 @@ doneWithStruct6zgensym_db31ae8ee6d36a77_7:
 }
 
 // fields of Message
-var decodeMsgFieldOrder6zgensym_db31ae8ee6d36a77_7 = []string{"Seqno_zid00_u64", "Subject_zid01_str", "MID_zid02_rct", "JobSerz_zid03_bin", "JobErrs_zid04_str", "", "", ""}
+var decodeMsgFieldOrder6zgensym_db31ae8ee6d36a77_7 = []string{"HDR_zid00_rct", "JobSerz_zid01_bin", "JobErrs_zid02_str", "", ""}
 
-var decodeMsgFieldSkip6zgensym_db31ae8ee6d36a77_7 = []bool{false, false, false, false, false, true, true, true}
+var decodeMsgFieldSkip6zgensym_db31ae8ee6d36a77_7 = []bool{false, false, false, true, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *Message) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 5
+		return 3
 	}
-	var fieldsInUse uint32 = 5
-	isempty[0] = (z.Seqno == 0) // number, omitempty
+	var fieldsInUse uint32 = 3
+	isempty[0] = false
 	if isempty[0] {
 		fieldsInUse--
 	}
-	isempty[1] = (len(z.Subject) == 0) // string, omitempty
+	isempty[1] = (len(z.JobSerz) == 0) // string, omitempty
 	if isempty[1] {
 		fieldsInUse--
 	}
-	isempty[2] = false
+	isempty[2] = (len(z.JobErrs) == 0) // string, omitempty
 	if isempty[2] {
-		fieldsInUse--
-	}
-	isempty[3] = (len(z.JobSerz) == 0) // string, omitempty
-	if isempty[3] {
-		fieldsInUse--
-	}
-	isempty[4] = (len(z.JobErrs) == 0) // string, omitempty
-	if isempty[4] {
 		fieldsInUse--
 	}
 
@@ -758,7 +738,7 @@ func (z *Message) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_db31ae8ee6d36a77_8 [8]bool
+	var empty_zgensym_db31ae8ee6d36a77_8 [5]bool
 	fieldsInUse_zgensym_db31ae8ee6d36a77_9 := z.fieldsNotEmpty(empty_zgensym_db31ae8ee6d36a77_8[:])
 
 	// map header
@@ -778,32 +758,8 @@ func (z *Message) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_db31ae8ee6d36a77_8[0] {
-		// write "Seqno_zid00_u64"
-		err = en.Append(0xaf, 0x53, 0x65, 0x71, 0x6e, 0x6f, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x75, 0x36, 0x34)
-		if err != nil {
-			return err
-		}
-		err = en.WriteUint64(z.Seqno)
-		if err != nil {
-			return
-		}
-	}
-
-	if !empty_zgensym_db31ae8ee6d36a77_8[1] {
-		// write "Subject_zid01_str"
-		err = en.Append(0xb1, 0x53, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x73, 0x74, 0x72)
-		if err != nil {
-			return err
-		}
-		err = en.WriteString(z.Subject)
-		if err != nil {
-			return
-		}
-	}
-
-	if !empty_zgensym_db31ae8ee6d36a77_8[2] {
-		// write "MID_zid02_rct"
-		err = en.Append(0xad, 0x4d, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x72, 0x63, 0x74)
+		// write "HDR_zid00_rct"
+		err = en.Append(0xad, 0x48, 0x44, 0x52, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x72, 0x63, 0x74)
 		if err != nil {
 			return err
 		}
@@ -811,21 +767,21 @@ func (z *Message) EncodeMsg(en *msgp.Writer) (err error) {
 
 		// record the interface for deduplication
 		var dup bool
-		dup, err = en.DedupWriteIsDup(z.MID)
+		dup, err = en.DedupWriteIsDup(z.HDR)
 		if err != nil {
 			return
 		}
 		if !dup {
-			err = z.MID.EncodeMsg(en)
+			err = z.HDR.EncodeMsg(en)
 			if err != nil {
 				return
 			}
 		}
 	}
 
-	if !empty_zgensym_db31ae8ee6d36a77_8[3] {
-		// write "JobSerz_zid03_bin"
-		err = en.Append(0xb1, 0x4a, 0x6f, 0x62, 0x53, 0x65, 0x72, 0x7a, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x62, 0x69, 0x6e)
+	if !empty_zgensym_db31ae8ee6d36a77_8[1] {
+		// write "JobSerz_zid01_bin"
+		err = en.Append(0xb1, 0x4a, 0x6f, 0x62, 0x53, 0x65, 0x72, 0x7a, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x62, 0x69, 0x6e)
 		if err != nil {
 			return err
 		}
@@ -835,9 +791,9 @@ func (z *Message) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_db31ae8ee6d36a77_8[4] {
-		// write "JobErrs_zid04_str"
-		err = en.Append(0xb1, 0x4a, 0x6f, 0x62, 0x45, 0x72, 0x72, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x73, 0x74, 0x72)
+	if !empty_zgensym_db31ae8ee6d36a77_8[2] {
+		// write "JobErrs_zid02_str"
+		err = en.Append(0xb1, 0x4a, 0x6f, 0x62, 0x45, 0x72, 0x72, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
@@ -859,40 +815,28 @@ func (z *Message) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [8]bool
+	var empty [5]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
 	if !empty[0] {
-		// string "Seqno_zid00_u64"
-		o = append(o, 0xaf, 0x53, 0x65, 0x71, 0x6e, 0x6f, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x75, 0x36, 0x34)
-		o = msgp.AppendUint64(o, z.Seqno)
-	}
-
-	if !empty[1] {
-		// string "Subject_zid01_str"
-		o = append(o, 0xb1, 0x53, 0x75, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x73, 0x74, 0x72)
-		o = msgp.AppendString(o, z.Subject)
-	}
-
-	if !empty[2] {
-		// string "MID_zid02_rct"
-		o = append(o, 0xad, 0x4d, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x72, 0x63, 0x74)
-		o, err = z.MID.MarshalMsg(o) // not is.iface, gen/marshal.go:243
+		// string "HDR_zid00_rct"
+		o = append(o, 0xad, 0x48, 0x44, 0x52, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x72, 0x63, 0x74)
+		o, err = z.HDR.MarshalMsg(o) // not is.iface, gen/marshal.go:243
 		if err != nil {
 			return
 		}
 	}
 
-	if !empty[3] {
-		// string "JobSerz_zid03_bin"
-		o = append(o, 0xb1, 0x4a, 0x6f, 0x62, 0x53, 0x65, 0x72, 0x7a, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x62, 0x69, 0x6e)
+	if !empty[1] {
+		// string "JobSerz_zid01_bin"
+		o = append(o, 0xb1, 0x4a, 0x6f, 0x62, 0x53, 0x65, 0x72, 0x7a, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x62, 0x69, 0x6e)
 		o = msgp.AppendBytes(o, z.JobSerz)
 	}
 
-	if !empty[4] {
-		// string "JobErrs_zid04_str"
-		o = append(o, 0xb1, 0x4a, 0x6f, 0x62, 0x45, 0x72, 0x72, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x73, 0x74, 0x72)
+	if !empty[2] {
+		// string "JobErrs_zid02_str"
+		o = append(o, 0xb1, 0x4a, 0x6f, 0x62, 0x45, 0x72, 0x72, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x73, 0x74, 0x72)
 		o = msgp.AppendString(o, z.JobErrs)
 	}
 
@@ -914,7 +858,7 @@ func (z *Message) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []
 
 	var field []byte
 	_ = field
-	const maxFields10zgensym_db31ae8ee6d36a77_11 = 8
+	const maxFields10zgensym_db31ae8ee6d36a77_11 = 5
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields10zgensym_db31ae8ee6d36a77_11 uint32
@@ -964,28 +908,14 @@ doneWithStruct10zgensym_db31ae8ee6d36a77_11:
 		switch curField10zgensym_db31ae8ee6d36a77_11 {
 		// -- templateUnmarshalMsg ends here --
 
-		case "Seqno_zid00_u64":
+		case "HDR_zid00_rct":
 			found10zgensym_db31ae8ee6d36a77_11[0] = true
-			z.Seqno, bts, err = nbs.ReadUint64Bytes(bts)
-
+			bts, err = z.HDR.UnmarshalMsg(bts)
 			if err != nil {
 				return
 			}
-		case "Subject_zid01_str":
+		case "JobSerz_zid01_bin":
 			found10zgensym_db31ae8ee6d36a77_11[1] = true
-			z.Subject, bts, err = nbs.ReadStringBytes(bts)
-
-			if err != nil {
-				return
-			}
-		case "MID_zid02_rct":
-			found10zgensym_db31ae8ee6d36a77_11[2] = true
-			bts, err = z.MID.UnmarshalMsg(bts)
-			if err != nil {
-				return
-			}
-		case "JobSerz_zid03_bin":
-			found10zgensym_db31ae8ee6d36a77_11[3] = true
 			if nbs.AlwaysNil || msgp.IsNil(bts) {
 				if !nbs.AlwaysNil {
 					bts = bts[1:]
@@ -1001,8 +931,8 @@ doneWithStruct10zgensym_db31ae8ee6d36a77_11:
 			if err != nil {
 				return
 			}
-		case "JobErrs_zid04_str":
-			found10zgensym_db31ae8ee6d36a77_11[4] = true
+		case "JobErrs_zid02_str":
+			found10zgensym_db31ae8ee6d36a77_11[2] = true
 			z.JobErrs, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
@@ -1031,12 +961,12 @@ doneWithStruct10zgensym_db31ae8ee6d36a77_11:
 }
 
 // fields of Message
-var unmarshalMsgFieldOrder10zgensym_db31ae8ee6d36a77_11 = []string{"Seqno_zid00_u64", "Subject_zid01_str", "MID_zid02_rct", "JobSerz_zid03_bin", "JobErrs_zid04_str", "", "", ""}
+var unmarshalMsgFieldOrder10zgensym_db31ae8ee6d36a77_11 = []string{"HDR_zid00_rct", "JobSerz_zid01_bin", "JobErrs_zid02_str", "", ""}
 
-var unmarshalMsgFieldSkip10zgensym_db31ae8ee6d36a77_11 = []bool{false, false, false, false, false, true, true, true}
+var unmarshalMsgFieldSkip10zgensym_db31ae8ee6d36a77_11 = []bool{false, false, false, true, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Message) Msgsize() (s int) {
-	s = 1 + 16 + msgp.Uint64Size + 18 + msgp.StringPrefixSize + len(z.Subject) + 14 + z.MID.Msgsize() + 18 + msgp.BytesPrefixSize + len(z.JobSerz) + 18 + msgp.StringPrefixSize + len(z.JobErrs)
+	s = 1 + 14 + z.HDR.Msgsize() + 18 + msgp.BytesPrefixSize + len(z.JobSerz) + 18 + msgp.StringPrefixSize + len(z.JobErrs)
 	return
 }

@@ -25,15 +25,13 @@ var myPID = int64(os.Getpid())
 
 // Message basic substrate.
 type Message struct {
-	Nc    net.Conn `msg:"-"`
-	Seqno uint64   `zid:"0"`
 
-	Subject string `zid:"1"`
-	MID     MID    `zid:"2"`
+	// HDR contains header information.
+	HDR HDR `zid:"0"`
 
-	JobSerz []byte `zid:"3"`
+	JobSerz []byte `zid:"1"`
 
-	JobErrs string `zid:"4"`
+	JobErrs string `zid:"2"`
 
 	// Err is not serialized on the wire by the server,
 	// so communicates only local information. Callback
@@ -57,7 +55,9 @@ func (m *Message) AsGreenpack(scratch []byte) (o []byte, err error) {
 
 // The Multiverse Identitifer: for when there are
 // multiple universes and so a UUID just won't do.
-type MID struct {
+type HDR struct {
+	Nc net.Conn `msg:"-"`
+
 	Created string `zid:"0"`
 	From    string `zid:"1"`
 	To      string `zid:"2"`
@@ -70,13 +70,13 @@ type MID struct {
 	Seqno   uint64 `zid:"9"`
 }
 
-func NewMID(from, to, subject string, isRPC bool, isLeg2 bool) (m *MID) {
+func NewHDR(from, to, subject string, isRPC bool, isLeg2 bool) (m *HDR) {
 	t0 := time.Now()
 	created := t0.In(Chicago).Format(RFC3339NanoNumericTZ0pad)
 	serial := atomic.AddInt64(&lastSerial, 1)
 	// unchecked base58
 	rness := toUncheckedBase58(cryptoRandBytes(40))
-	m = &MID{
+	m = &HDR{
 		Created: created,
 		From:    from,
 		To:      to,
@@ -91,8 +91,8 @@ func NewMID(from, to, subject string, isRPC bool, isLeg2 bool) (m *MID) {
 	return
 }
 
-// Equal compares two *MID structs field by field for structural equality
-func (a *MID) Equal(b *MID) bool {
+// Equal compares two *HDR structs field by field for structural equality
+func (a *HDR) Equal(b *HDR) bool {
 	if a == b {
 		return true
 	}
@@ -112,37 +112,37 @@ func (a *MID) Equal(b *MID) bool {
 		a.PID == b.PID
 }
 
-func (m *MID) String() string {
+func (m *HDR) String() string {
 	return m.Pretty()
 }
 
 // Compact is all on one line.
-func (m *MID) Compact() string {
+func (m *HDR) Compact() string {
 	return fmt.Sprintf("%#v", m)
 }
 
 // JSON serializes to JSON.
-func (m *MID) JSON() []byte {
+func (m *HDR) JSON() []byte {
 	jsonData, err := json.Marshal(m)
 	panicOn(err)
 	return jsonData
 }
 
 // Bytes serializes to compact JSON formatted bytes.
-func (m *MID) Bytes() []byte {
+func (m *HDR) Bytes() []byte {
 	return m.JSON()
 }
 
 // Unbytes reverses Bytes.
-func Unbytes(jsonData []byte) *MID {
-	var mid MID
+func Unbytes(jsonData []byte) *HDR {
+	var mid HDR
 	err := gjson.Unmarshal(jsonData, &mid)
 	panicOn(err)
 	return &mid
 }
 
-func MIDFromBytes(jsonData []byte) (*MID, error) {
-	var mid MID
+func HDRFromBytes(jsonData []byte) (*HDR, error) {
+	var mid HDR
 	err := gjson.Unmarshal(jsonData, &mid)
 	if err != nil {
 		return nil, err
@@ -151,7 +151,7 @@ func MIDFromBytes(jsonData []byte) (*MID, error) {
 }
 
 // Pretty shows in pretty-printed JSON format.
-func (m *MID) Pretty() string {
+func (m *HDR) Pretty() string {
 	by := m.JSON()
 	var pretty bytes.Buffer
 	err := json.Indent(&pretty, by, "", "    ")
@@ -159,7 +159,7 @@ func (m *MID) Pretty() string {
 	return pretty.String()
 }
 
-func (m *MID) OpaqueURLFriendly() string {
+func (m *HDR) OpaqueURLFriendly() string {
 	j := m.JSON()
 	s := toUncheckedBase58(j)
 	return "mid2024-" + s
@@ -167,12 +167,12 @@ func (m *MID) OpaqueURLFriendly() string {
 
 const prefix = "mid2024-"
 
-func MIDFromOpaqueURLFriendly(s string) (*MID, error) {
+func HDRFromOpaqueURLFriendly(s string) (*HDR, error) {
 	if !strings.HasPrefix(s, prefix) {
 		return nil, fmt.Errorf("did not begin with prefix 'mid2024-'")
 	}
 	jsonData := fromUncheckedBase58(s[len(prefix):])
-	var mid MID
+	var mid HDR
 	err := gjson.Unmarshal(jsonData, &mid)
 	if err != nil {
 		return nil, err
@@ -197,8 +197,8 @@ func fromUncheckedBase58(encodedStr string) []byte {
 }
 
 // workspace can be nil or reused to avoid allocation.
-func MIDFromGreenpack(header []byte) (*MID, error) {
-	var mid MID
+func HDRFromGreenpack(header []byte) (*HDR, error) {
+	var mid HDR
 
 	// UnmarshalMsg unmarshals the object
 	// from binary, returing any leftover
@@ -208,7 +208,7 @@ func MIDFromGreenpack(header []byte) (*MID, error) {
 }
 
 // the scrach workspace can be nil or reused to avoid allocation.
-func (mid *MID) AsGreenpack(scratch []byte) (o []byte, err error) {
+func (mid *HDR) AsGreenpack(scratch []byte) (o []byte, err error) {
 
 	// MarshalMsg appends the marshalled
 	// form of the object to the provided

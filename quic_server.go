@@ -275,7 +275,7 @@ func (s *QUIC_RWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 	for {
 		select {
 		case msg := <-s.SendCh:
-			err := w.sendMessage(msg.Seqno, stream, msg, &s.cfg.WriteTimeout)
+			err := w.sendMessage(stream, msg, &s.cfg.WriteTimeout)
 			if err != nil {
 				//vv("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.Seqno)
 			}
@@ -313,7 +313,7 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 		default:
 		}
 
-		seqno, req, err := w.receiveMessage(stream, &s.cfg.ReadTimeout)
+		req, err := w.receiveMessage(stream, &s.cfg.ReadTimeout)
 		if err == io.EOF {
 			//vv("server sees io.EOF from receiveMessage")
 			continue // close of socket before read of full message.
@@ -336,7 +336,7 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 
 		//vv("server received message with seqno=%v: %v", seqno, req)
 
-		req.Nc = wrap
+		req.HDR.Nc = wrap
 
 		foundCallback1 = false
 		foundCallback2 = false
@@ -344,7 +344,7 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 		callme2 = nil
 
 		s.Server.mut.Lock()
-		if req.MID.IsRPC {
+		if req.HDR.IsRPC {
 			if s.Server.callme2 != nil {
 				callme2 = s.Server.callme2
 				foundCallback2 = true
@@ -360,7 +360,7 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 
 		if foundCallback1 {
 			// run the callback in a goro, so we can keep doing reads.
-			vv("callme1 about to run req.MID='%v'", req.MID)
+			//vv("callme1 about to run req.HDR='%v'", req.HDR)
 			go callme1(req)
 		}
 
@@ -368,11 +368,10 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 			// run the callback in a goro, so we can keep doing reads.
 			go func(req *Message, callme2 TwoWayFunc) {
 
-				vv("callme2 about to run, req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
+				//vv("callme2 about to run, req.Nc local = '%v', remote = '%v'", local(req.HDR.Nc), remote(req.HDR.Nc))
 				////vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
 				//vv("conn   local = '%v', remote = '%v'", local(conn), remote(conn))
 
-				req.Seqno = seqno
 				if cap(req.DoneCh) < 1 || len(req.DoneCh) >= cap(req.DoneCh) {
 					panic("req.DoneCh too small; fails the sanity check to be received on.")
 				}
@@ -380,25 +379,24 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 				reply := NewMessage()
 
 				// Seqno: increment by one; so request 3 return response 4.
-				replySeqno := req.Seqno + 1
-				subject := req.Subject
-				reqCallID := req.MID.CallID
+				replySeqno := req.HDR.Seqno + 1
+				subject := req.HDR.Subject
+				reqCallID := req.HDR.CallID
 
 				callme2(req, reply)
 				// don't read from req now, just in case callme2 messed with it.
-
-				reply.Seqno = replySeqno
 
 				from := local(conn)
 				to := remote(conn)
 				isRPC := true
 				isLeg2 := true
 
-				mid := NewMID(from, to, subject, isRPC, isLeg2)
+				mid := NewHDR(from, to, subject, isRPC, isLeg2)
 
 				// We are able to match call and response rigourously on the CallID alone.
 				mid.CallID = reqCallID
-				reply.MID = *mid
+				mid.Seqno = replySeqno
+				reply.HDR = *mid
 
 				select {
 				case s.SendCh <- reply:

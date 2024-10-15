@@ -37,7 +37,7 @@ func Test001_RoundTrip_SendAndGetReply_TCP(t *testing.T) {
 		reply, err := cli.SendAndGetReply(req, nil)
 		panicOn(err)
 
-		vv("server sees reply (Seqno=%v) = '%v'", reply.Seqno, string(reply.JobSerz))
+		vv("server sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
 
 	})
 }
@@ -75,7 +75,7 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 		reply, err := cli.SendAndGetReply(req, nil)
 		panicOn(err)
 
-		vv("srv_test sees reply (Seqno=%v) = '%v'", reply.Seqno, string(reply.JobSerz))
+		vv("srv_test sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
 
 		srv.Register1Func(oneWayStreet)
 		req = NewMessage()
@@ -94,7 +94,7 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 
 // echo implements rpc25519.TwoWayFunc
 func customEcho(in *Message, out *Message) error {
-	vv("customEcho called, Seqno=%v, msg='%v'", in.Seqno, string(in.JobSerz))
+	vv("customEcho called, Seqno=%v, msg='%v'", in.HDR.Seqno, string(in.JobSerz))
 	//vv("callback to echo: with msg='%#v'", in)
 	out.JobSerz = append(in.JobSerz, []byte(fmt.Sprintf("\n with time customEcho sees this: '%v'", time.Now()))...)
 	return nil
@@ -105,7 +105,7 @@ var oneWayStreetChan = make(chan bool, 10)
 // oneWayStreet does not reply. for testing cli.OneWaySend(); the
 // client will not wait for a reply, and we need not send one.
 func oneWayStreet(in *Message) {
-	vv("oneWayStreet() called. sending on oneWayStreetChan and returning nil. seqno=%v, msg='%v'", in.Seqno, string(in.JobSerz))
+	vv("oneWayStreet() called. sending on oneWayStreetChan and returning nil. seqno=%v, msg='%v'", in.HDR.Seqno, string(in.JobSerz))
 	oneWayStreetChan <- true
 }
 
@@ -153,7 +153,7 @@ func Test003_client_notification_callbacks(t *testing.T) {
 		for i := 0; i < 3; i++ {
 			reply, err := cli.SendAndGetReply(req, nil)
 			panicOn(err)
-			vv("server sees reply (Seqno=%v) = '%v'", reply.Seqno, string(reply.JobSerz))
+			vv("server sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
 		}
 
 		close(done)
@@ -260,7 +260,7 @@ func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 		reply, err := cli.SendAndGetReply(req, nil)
 		panicOn(err)
 
-		vv("srv_test sees reply (Seqno=%v) = '%v'", reply.Seqno, string(reply.JobSerz))
+		vv("srv_test sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
 
 		srv.Register1Func(oneWayStreet)
 		req = NewMessage()

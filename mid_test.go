@@ -16,7 +16,7 @@ func Test010_MID_generation(t *testing.T) {
 		//isLeg2 := false
 
 		// call:
-		mid := NewMID(from, to, subject, isRPC, false)
+		mid := NewHDR(from, to, subject, isRPC, false)
 
 		smid := mid.String()
 		jmid := mid.JSON()
@@ -25,7 +25,7 @@ func Test010_MID_generation(t *testing.T) {
 		vv("jmid = '%v'", string(jmid))
 
 		// response:
-		mid2 := NewMID(to, from, subject, isRPC, true)
+		mid2 := NewHDR(to, from, subject, isRPC, true)
 		smid2 := mid2.String()
 		jmid2 := mid2.JSON()
 
@@ -36,7 +36,7 @@ func Test010_MID_generation(t *testing.T) {
 
 		vv("friendly = '%v'", friendly)
 
-		mid2back, err := MIDFromOpaqueURLFriendly(friendly)
+		mid2back, err := HDRFromOpaqueURLFriendly(friendly)
 		panicOn(err)
 
 		cv.So(mid2back.Equal(mid2), cv.ShouldBeTrue)
@@ -53,7 +53,7 @@ func Test010_MID_generation(t *testing.T) {
 		w := newWorkspace()
 		green, err := mid.AsGreenpack(w.buf)
 		panicOn(err)
-		mid3, err := MIDFromGreenpack(green)
+		mid3, err := HDRFromGreenpack(green)
 		panicOn(err)
 		cv.So(mid3.Equal(mid), cv.ShouldBeTrue)
 
