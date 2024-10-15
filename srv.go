@@ -533,6 +533,7 @@ func (s *Server) Register2Func(callme2 TwoWayFunc) {
 }
 
 func (s *Server) Register1Func(callme1 OneWayFunc) {
+	vv("Register1Func called with callme1 = %p", callme1)
 	s.mut.Lock()
 	defer s.mut.Unlock()
 	s.callme1 = callme1

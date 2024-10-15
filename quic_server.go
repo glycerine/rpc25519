@@ -334,7 +334,7 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 			return
 		}
 
-		//vv("server received message with seqno=%v: %v", seqno, req)
+		vv("server received message with seqno=%v: %v", seqno, req)
 
 		req.Nc = wrap
 
@@ -350,6 +350,7 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 				foundCallback2 = true
 			}
 		} else {
+			vv("not rpc, do we have a callme1: '%p'", s.Server.callme1)
 			if s.Server.callme1 != nil {
 				callme1 = s.Server.callme1
 				foundCallback1 = true
@@ -359,6 +360,7 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 
 		if foundCallback1 {
 			// run the callback in a goro, so we can keep doing reads.
+			vv("callme1 about to run req.MID='%v'", req.MID)
 			go callme1(req)
 		}
 
@@ -366,7 +368,7 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 			// run the callback in a goro, so we can keep doing reads.
 			go func(req *Message, callme2 TwoWayFunc) {
 
-				//vv("req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
+				vv("callme2 about to run, req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
 				////vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
 				//vv("conn   local = '%v', remote = '%v'", local(conn), remote(conn))
 
