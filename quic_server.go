@@ -232,7 +232,7 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 
 type quicRWPair struct {
 	rwPair
-	Stream quic.Stream
+	stream quic.Stream
 }
 
 func (s *Server) newQUIC_RWPair(stream quic.Stream, conn quic.Connection) *quicRWPair {
@@ -250,7 +250,7 @@ func (s *Server) newQUIC_RWPair(stream quic.Stream, conn quic.Connection) *quicR
 			SendCh: make(chan *Message, 10),
 			halt:   idem.NewHalter(),
 		},
-		Stream: stream,
+		stream: stream,
 	}
 	p.encBufW = bufio.NewWriter(&p.encBuf)
 	p.gobCodec = &gobServerCodec{
