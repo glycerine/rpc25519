@@ -50,6 +50,6 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		if reply.C != args.A+args.B {
 			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
 		}
-
+		vv("Arith.Add got: %v + %v = %v", args.A, args.B, reply.C)
 	})
 }
