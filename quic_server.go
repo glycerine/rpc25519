@@ -298,6 +298,13 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 
 	w := newWorkspace()
 
+	wrap := &NetConnWrapper{Stream: stream, Connection: conn}
+
+	var callme1 OneWayFunc
+	var callme2 TwoWayFunc
+	foundCallback1 := false
+	foundCallback2 := false
+
 	for {
 
 		select {
@@ -329,20 +336,35 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 
 		//vv("server received message with seqno=%v: %v", seqno, req)
 
+		req.Nc = wrap
+
+		foundCallback1 = false
+		foundCallback2 = false
+		callme1 = nil
+		callme2 = nil
+
 		s.Server.mut.Lock()
-		var callme CallbackFunc
-		foundCallback := false
-		if s.Server.callme != nil {
-			callme = s.Server.callme
-			foundCallback = true
+		if req.MID.IsRPC {
+			if s.Server.callme2 != nil {
+				callme2 = s.Server.callme2
+				foundCallback2 = true
+			}
+		} else {
+			if s.Server.callme1 != nil {
+				callme1 = s.Server.callme1
+				foundCallback1 = true
+			}
 		}
 		s.Server.mut.Unlock()
 
-		if foundCallback {
-			// run the callback in a goto, so we can keep doing reads.
-			go func(req *Message, callme CallbackFunc) {
-				wrap := &NetConnWrapper{Stream: stream, Connection: conn}
-				req.Nc = wrap
+		if foundCallback1 {
+			// run the callback in a goro, so we can keep doing reads.
+			go callme1(req)
+		}
+
+		if foundCallback2 {
+			// run the callback in a goro, so we can keep doing reads.
+			go func(req *Message, callme2 TwoWayFunc) {
 
 				//vv("req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
 				////vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
@@ -353,45 +375,33 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 					panic("req.DoneCh too small; fails the sanity check to be received on.")
 				}
 
-				reply := callme(req)
+				reply := NewMessage()
+
+				callme2(req, reply)
 				// <-req.DoneCh
 
-				if reply != nil && reply.Err != nil {
-					//vv("note: callback on seqno %v from '%v' got Err='%v", seqno, conn.RemoteAddr(), err)
+				// Seqno: increment by one; so request 3 return response 4.
+				reply.Seqno = req.Seqno + 1
+
+				from := local(conn)
+				to := remote(conn)
+				isRPC := true
+				isLeg2 := true
+				subject := req.Subject
+
+				mid := NewMID(from, to, subject, isRPC, isLeg2)
+
+				// We are able to match call and response rigourously on the CallID alone.
+				mid.CallID = req.MID.CallID
+				reply.MID = *mid
+
+				select {
+				case s.SendCh <- reply:
+					//vv("reply went over pair.SendCh to the send goro write loop")
+				case <-s.halt.ReqStop.Chan:
+					return
 				}
-				// if reply is nil, then we return nothing; it was probably a OneWaySend() target.
-
-				if reply == nil && seqno > 0 {
-					//vv("back from Server.callme() callback: nil reply but calling seqno=%v. huh", seqno)
-				}
-				// Since seqno was >0, we know that
-				// a reply is eventually, expected, even though this callme gave none.
-				// That's okay, server might just respond to it later with a sendMessage().
-
-				if reply != nil {
-					// Seqno: increment by one; so request 3 return response 4.
-					reply.Seqno = req.Seqno + 1
-
-					from := local(conn)
-					to := remote(conn)
-					isRPC := true
-					isLeg2 := true
-					subject := req.Subject
-
-					mid := NewMID(from, to, subject, isRPC, isLeg2)
-
-					// We are able to match call and response rigourously on the CallID alone.
-					mid.CallID = req.MID.CallID
-					reply.MID = *mid
-
-					select {
-					case s.SendCh <- reply:
-						//vv("reply went over pair.SendCh to the send goro write loop")
-					case <-s.halt.ReqStop.Chan:
-						return
-					}
-				}
-			}(req, callme)
+			}(req, callme2)
 		}
 	}
 }

@@ -357,28 +357,30 @@ func NewMessageFromBytes(by []byte) (msg *Message) {
 	return
 }
 
-// CallbackFunc is the user's own function that they
+// TwoWayFunc is the user's own function that they
 // register with the server for remote procedure calls.
 //
-// The user's CallbackFunc may not want to return anything.
-// In that case they should return nil. It will then be
-// a 'one-way' function, and no reply will be returned over
-// the network.
+// The user's Func may not want to return anything.
+// In that case they should register a OneWayFunc instead.
 //
-// If the user's CallbackFunc wants to reply,
-// they should modify the inputMsg.JobSerz bytes
-// and then return the modified inputMsg as the outputMsg.
-// This can be as simple as setting inputMsg.JobSerz = nil,
-// or encoding a reponse into JobSerz, or encoding an
-// error into JobSerz.
+// req.JobSerz []byte contains the job payload.
 //
-// At the moment Message.Err is only for local system errors
-// and is not sent on the wire. Hence it is not available to
-// to communicate user job errors.
+// Implementers of TwoWayFunc should assign their
+// return []byte to reply.JobSerz. reply.Jobserz can also
+// be left nil, of course.
 //
-// The system will overwrite the outputMsg.MID field while sending the
-// reply, so the user should not bother changing it.
-type CallbackFunc func(inputMsg *Message) (outputMsg *Message)
+// Any errors can be returned on reply.JobErrs; this is optional.
+// Not that JobErrs is a string value.
+//
+// The system will overwrite the reply.MID field when sending the
+// reply, so the user should not bother trying to alter it.
+type TwoWayFunc func(req *Message, reply *Message)
+
+// OneWayFunc is the simpler sibling to the above.
+// A OneWayFunc will not return anything to the sender.
+//
+// As above req.JobSerz [] byte contains the job payload.
+type OneWayFunc func(req *Message)
 
 // Config says who to contact (for a client), or
 // where to listen (for a server); and sets how
@@ -464,41 +466,11 @@ type Config struct {
 
 	LocalAddress string
 
-	// for port sharing over QUIC
+	// for port sharing between a server and 1 or more clients over QUIC
 	shared *SharedTransport
 }
 
 type SharedTransport struct {
-
-	// shared quic.Transport
-	// https://github.com/quic-go/quic-go/issues/4113 say it worked for them.
-	// https://github.com/quic-go/quic-go/pull/4246/files added docs for it:
-	// from the http3/README PR there:
-	// ## Using the same UDP Socket for Server and Roundtripper (over http3 but we only need QUIC)
-	//
-	//	"Since QUIC demultiplexes packets based on their connection IDs, it is possible allows running a QUIC server and client on the same UDP socket. This also works when using HTTP/3: HTTP requests can be sent from the same socket that a server is listening on.
-	//
-	//	To achieve this using this package, first initialize a single `quic.Transport`, and pass a `quic.EarlyListner` obtained from that transport to `http3.Server.ServeListener`, and use the `DialEarly` function of the transport as the `Dial` function for the `http3.RoundTripper`."
-	//
-	// two client can share the same port too:
-	// https://github.com/quic-go/quic-go/pull/1407/files
-	// client and server sharing:
-	// https://github.com/quic-go/quic-go/issues/561
-	// @marten-seemann: "The cool thing is, we won't need any new API for this:
-	// You'll just pass the same packet conn to Dial and to Listen,
-	// and things will work automatically."
-	// Cloudflare says they got it to work in quiche:
-	// https://github.com/cloudflare/quiche/issues/1378
-	//
-	// example from line 33 of
-	// https://github.com/quic-go/quic-go/pull/4246/files#diff-fcb5b7ebfd659b68bdd2f837219b90210f4ed74d027cfa95bbd45d69dcef0804R33
-	// tr := quic.Transport{Conn: conn}
-	// tlsConf := http3.ConfigureTLSConfig(&tls.Config{})  // use your tls.Config here
-	// quicConf := &quic.Config{} // QUIC connection options
-	// server := http3.Server{}
-	// ln, _ := tr.ListenEarly(tlsConf, quicConf)
-	// server.ServeListener(ln)
-
 	mut           sync.Mutex
 	quicTransport *quic.Transport
 	shareCount    int
@@ -683,6 +655,7 @@ func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *M
 	select { // shutdown test stuck here, even with calls in own goro. goq.go has exited.
 	case reply = <-req.DoneCh:
 		err = reply.Err
+		//vv("client.SendAndGetReply() got on reply.Err = '%v'", err)
 		return
 	case <-doneCh:
 		// usually a timeout
@@ -725,18 +698,19 @@ func (c *Client) OneWaySend(msg *Message, doneCh <-chan struct{}) (err error) {
 		return ErrShutdown
 	}
 
-	select {
-	case <-msg.DoneCh: // closed, but  Err set possibly on msg.
-		err = msg.Err
-		return
+	// none of this was reachable. comment out for later deletion.
+	// select {
+	// case <-msg.DoneCh: // closed, but  Err set possibly on msg.
+	// 	err = msg.Err
+	// 	return
 
-	case <-doneCh:
-		return ErrDone
+	// case <-doneCh:
+	// 	return ErrDone
 
-	case <-c.halt.ReqStop.Chan:
-		c.halt.Done.Close()
-		return ErrShutdown
-	}
+	// case <-c.halt.ReqStop.Chan:
+	// 	c.halt.Done.Close()
+	// 	return ErrShutdown
+	// }
 }
 
 func (c *Client) SetLocalAddr(local string) {

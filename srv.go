@@ -300,6 +300,11 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 
 	w := newWorkspace()
 
+	var callme1 OneWayFunc
+	var callme2 TwoWayFunc
+	foundCallback1 := false
+	foundCallback2 := false
+
 	for {
 
 		select {
@@ -309,6 +314,7 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 		}
 
 		seqno, req, err := w.receiveMessage(conn, &s.cfg.ReadTimeout)
+		_ = seqno
 		if err == io.EOF {
 			//vv("server sees io.EOF from receiveMessage")
 			continue // close of socket before read of full message.
@@ -329,73 +335,78 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 
 		//vv("server received message with seqno=%v: %v", seqno, req)
 
+		req.Nc = conn
+
+		foundCallback1 = false
+		foundCallback2 = false
+		callme1 = nil
+		callme2 = nil
+
 		s.Server.mut.Lock()
-		var callme CallbackFunc
-		foundCallback := false
-		if s.Server.callme != nil {
-			callme = s.Server.callme
-			foundCallback = true
+		if req.MID.IsRPC {
+			if s.Server.callme2 != nil {
+				callme2 = s.Server.callme2
+				foundCallback2 = true
+			}
+		} else {
+			if s.Server.callme1 != nil {
+				callme1 = s.Server.callme1
+				foundCallback1 = true
+			}
 		}
 		s.Server.mut.Unlock()
 
-		if foundCallback {
-			// run the callback in a goto, so we can keep doing reads.
-			go func(seqno uint64, req *Message, callme CallbackFunc) {
+		if foundCallback1 {
+			// run the callback in a goro, so we can keep doing reads.
+			go callme1(req)
+		}
 
-				req.Nc = conn
-				req.Seqno = seqno
-				req.MID.Seqno = seqno
+		if foundCallback2 {
+			// run the callback in a goro, so we can keep doing reads.
+			go func(req *Message, callme2 TwoWayFunc) {
+
+				//vv("req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
+				////vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
+				//vv("conn   local = '%v', remote = '%v'", local(conn), remote(conn))
 
 				if cap(req.DoneCh) < 1 || len(req.DoneCh) >= cap(req.DoneCh) {
 					panic("req.DoneCh too small; fails the sanity check to be received on.")
 				}
 
-				reply := callme(req)
+				reply := NewMessage()
+				reply.Seqno = req.Seqno + 1
+
+				callme2(req, reply)
 				// <-req.DoneCh
 
-				if reply != nil && reply.Err != nil {
-					vv("note: callback on seqno %v from '%v' got Err='%v", seqno, conn.RemoteAddr(), err)
+				// Seqno: increment by one; so request 3 return response 4.
+				reply.Seqno = req.Seqno + 1
+
+				from := local(conn)
+				to := remote(conn)
+				isRPC := true
+				isLeg2 := true
+				subject := req.Subject
+
+				mid := NewMID(from, to, subject, isRPC, isLeg2)
+
+				// We are able to match call and response rigourously on the CallID alone.
+				mid.CallID = req.MID.CallID
+				reply.MID = *mid
+
+				select {
+				case s.SendCh <- reply:
+					//vv("reply went over pair.SendCh to the send goro write loop")
+				case <-s.halt.ReqStop.Chan:
+					return
 				}
-				// if reply is nil, then we return nothing; it was probably a OneWaySend() target.
-
-				if reply == nil && seqno > 0 {
-					//vv("back from Server.callme() callback: nil reply but calling seqno=%v. huh", seqno)
-				}
-				// Since seqno was >0, we know that
-				// a reply is eventually, expected, even though this callme gave none.
-				// That's okay, server might just respond to it later with a sendMessage().
-
-				if reply != nil {
-					// Seqno: increment by one; so request 3 return response 4.
-					reply.Seqno = req.Seqno + 1
-
-					from := local(conn)
-					to := remote(conn)
-					isRPC := true
-					isLeg2 := true
-					subject := req.Subject
-
-					mid := NewMID(from, to, subject, isRPC, isLeg2)
-
-					// We are able to match call and response rigourously on the CallID alone.
-					mid.CallID = req.MID.CallID
-					mid.Seqno = reply.Seqno
-					reply.MID = *mid
-
-					select {
-					case s.SendCh <- reply:
-						//vv("reply went over pair.SendCh to the send goro write loop")
-					case <-s.halt.ReqStop.Chan:
-						return
-					}
-				}
-			}(seqno, req, callme)
+			}(req, callme2)
 		}
 	}
 }
 
 // Servers read and respond to requests.
-// Server.Register() says which CallbackFunc to call.
+// Server.Register() says which callback to call.
 // Only one call back func is supported at the moment.
 type Server struct {
 	mut sync.Mutex
@@ -403,7 +414,8 @@ type Server struct {
 
 	name string // which server, for debugging.
 
-	callme CallbackFunc
+	callme2 TwoWayFunc
+	callme1 OneWayFunc
 
 	lsn  io.Closer // net.Listener
 	halt *idem.Halter
@@ -512,10 +524,16 @@ func NewServer(name string, config *Config) *Server {
 	}
 }
 
-func (s *Server) RegisterFunc(callme CallbackFunc) {
+func (s *Server) Register2Func(callme2 TwoWayFunc) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	s.callme = callme
+	s.callme2 = callme2
+}
+
+func (s *Server) Register1Func(callme1 OneWayFunc) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	s.callme1 = callme1
 }
 
 func (s *Server) Start() (serverAddr net.Addr, err error) {

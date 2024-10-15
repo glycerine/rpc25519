@@ -49,7 +49,7 @@ func main() {
 	srv := rpc25519.NewServer(cfg.ServerKeyPairName, cfg)
 	defer srv.Close()
 
-	srv.RegisterFunc(customEcho)
+	srv.Register2Func(customEcho)
 
 	serverAddr, err := srv.Start()
 	if err != nil {
@@ -85,9 +85,8 @@ func main() {
 }
 
 // echo implements rpc25519.CallbackFunc
-func customEcho(in *rpc25519.Message) (out *rpc25519.Message) {
+func customEcho(in *rpc25519.Message, out *rpc25519.Message) {
 	fmt.Printf("server customEcho called, Seqno=%v, msg='%v'\n", in.Seqno, string(in.JobSerz))
 	//vv("callback to echo: with msg='%#v'", in)
-	in.JobSerz = append(in.JobSerz, []byte(fmt.Sprintf("\n with time customEcho sees this: '%v'", time.Now()))...)
-	return in // echo
+	out.JobSerz = append(in.JobSerz, []byte(fmt.Sprintf("\n with time customEcho sees this: '%v'", time.Now()))...)
 }

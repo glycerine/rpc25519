@@ -44,7 +44,9 @@ func Step4_MakeCertificate(caPrivKey ed25519.PrivateKey, odirCA string, name str
 func makeCerts(caPrivKey ed25519.PrivateKey, caPrivKeyPath, caCertPath, csrInPath, certOutPath string, verbose bool) {
 
 	// Step 1: Load the CA certificate and CA private key
-	fmt.Printf("\nLoading Certificate Authority...\n")
+	if verbose {
+		fmt.Printf("\nLoading Certificate Authority...\n")
+	}
 
 	caCert, caKey, err := loadCA(caPrivKey, caCertPath, caPrivKeyPath)
 	if err != nil {

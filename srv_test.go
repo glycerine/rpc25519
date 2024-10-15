@@ -24,7 +24,7 @@ func Test001_RoundTrip_SendAndGetReply_TCP(t *testing.T) {
 
 		vv("server Start() returned serverAddr = '%v'", serverAddr)
 
-		srv.RegisterFunc(customEcho)
+		srv.Register2Func(customEcho)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test001", cfg)
@@ -62,7 +62,7 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 		// requesting an action, initiating a command.
 		// The even numbered commands are the replies to those odds.
 		// Think of "start counting at 1".
-		srv.RegisterFunc(customEcho)
+		srv.Register2Func(customEcho)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test002", cfg)
@@ -77,7 +77,7 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 
 		vv("srv_test sees reply (Seqno=%v) = '%v'", reply.Seqno, string(reply.JobSerz))
 
-		srv.RegisterFunc(oneWayStreet)
+		srv.Register1Func(oneWayStreet)
 		req = NewMessage()
 		req.JobSerz = []byte("One-way Hello from client!")
 
@@ -92,22 +92,20 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 	})
 }
 
-// echo implements rpc25519.CallbackFunc
-func customEcho(in *Message) (out *Message) {
+// echo implements rpc25519.TwoWayFunc
+func customEcho(in *Message, out *Message) {
 	vv("customEcho called, Seqno=%v, msg='%v'", in.Seqno, string(in.JobSerz))
 	//vv("callback to echo: with msg='%#v'", in)
-	in.JobSerz = append(in.JobSerz, []byte(fmt.Sprintf("\n with time customEcho sees this: '%v'", time.Now()))...)
-	return in // echo
+	out.JobSerz = append(in.JobSerz, []byte(fmt.Sprintf("\n with time customEcho sees this: '%v'", time.Now()))...)
 }
 
 var oneWayStreetChan = make(chan bool, 10)
 
 // oneWayStreet does not reply. for testing cli.OneWaySend(); the
 // client will not wait for a reply, and we need not send one.
-func oneWayStreet(in *Message) (out *Message) {
+func oneWayStreet(in *Message) {
 	vv("oneWayStreet() called. sending on oneWayStreetChan and returning nil. seqno=%v, msg='%v'", in.Seqno, string(in.JobSerz))
 	oneWayStreetChan <- true
-	return nil
 }
 
 func Test003_client_notification_callbacks(t *testing.T) {
@@ -126,7 +124,7 @@ func Test003_client_notification_callbacks(t *testing.T) {
 
 		vv("server Start() returned serverAddr = '%v'", serverAddr)
 
-		srv.RegisterFunc(customEcho)
+		srv.Register2Func(customEcho)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test003", cfg)
@@ -248,7 +246,7 @@ func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 		// requesting an action, initiating a command.
 		// The even numbered commands are the replies to those odds.
 		// Think of "start counting at 1".
-		srv.RegisterFunc(customEcho)
+		srv.Register2Func(customEcho)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test002", cfg)
@@ -263,7 +261,7 @@ func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 
 		vv("srv_test sees reply (Seqno=%v) = '%v'", reply.Seqno, string(reply.JobSerz))
 
-		srv.RegisterFunc(oneWayStreet)
+		srv.Register1Func(oneWayStreet)
 		req = NewMessage()
 		req.JobSerz = []byte("One-way Hello from client!")
 
