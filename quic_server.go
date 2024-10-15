@@ -377,22 +377,25 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 
 				reply := NewMessage()
 
-				callme2(req, reply)
-				// <-req.DoneCh
-
 				// Seqno: increment by one; so request 3 return response 4.
-				reply.Seqno = req.Seqno + 1
+				replySeqno := req.Seqno + 1
+				subject := req.Subject
+				reqCallID := req.MID.CallID
+
+				callme2(req, reply)
+				// don't read from req now, just in case callme2 messed with it.
+
+				reply.Seqno = replySeqno
 
 				from := local(conn)
 				to := remote(conn)
 				isRPC := true
 				isLeg2 := true
-				subject := req.Subject
 
 				mid := NewMID(from, to, subject, isRPC, isLeg2)
 
 				// We are able to match call and response rigourously on the CallID alone.
-				mid.CallID = req.MID.CallID
+				mid.CallID = reqCallID
 				reply.MID = *mid
 
 				select {

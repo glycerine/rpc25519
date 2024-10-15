@@ -249,7 +249,7 @@ func (c *Client) RunReadLoop(conn net.Conn) {
 			continue
 		}
 
-		//vv("client %v received message with seqno=%v, msg='%v'", c.name, seqno, msg)
+		vv("client %v received message with seqno=%v, msg.MID='%v'", c.name, seqno, msg.MID.String())
 
 		// server's responsibility is to increment the responses +1, from odd to even.
 
@@ -581,6 +581,10 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 	// wait for connection (or not).
 	err = <-c.Connected
 	return c, err
+}
+
+func (c *Client) Name() string {
+	return c.name
 }
 
 func (c *Client) Close() error {
