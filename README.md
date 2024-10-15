@@ -1,21 +1,43 @@
 rpc25519: Edwards curve ed25519 based identity RPC for Go/golang
 ==========
 
-Not generally available at the moment.
+Motivation: I needed a small, simple, and compact RPC system
+with modern, strong cryptography. Other RPC systems were too
+sprawling, had bugs their devs would not address, or could
+not be properly or easily secured. To that end, `rpc25519` only uses
+ed25519 Edwards curve based public-key cryptography. Moroever
+it supports QUIC as a transport, which is very fast even
+though it is always encrypted, due to its 0-RTT implementation
+and the mature [quic-go](https://github.com/quic-go/quic-go) 
+implementation of the protocol.
 
-At the moment I wrote this to support goq moving
-to a sane RPC system. It does not have the bells
-and whistles needed for general purpose usability.
-But the bones are there. It works well under my `goq`
-distributed job queueing system as a transport.
+In the broadest of strokes:
 
-The docs and examples and user facing API just
-need some polish to remove any rough edges.
+`rpc25519` is a Remote Procedure Call system with two APIs.
 
-It is public because my [distributed job queuing
-facility goq](https://github.com/glycerine/goq) is public and it needed it.
+We offer both a traditional [net/rpc](https://pkg.go.dev/net/rpc) 
+style API, and generic []byte oriented API for carrying
+untyped []byte payloads (in `Message.JobSerz`).
 
-TLS-1.3 over TCP
+Using the rpc25519.Message based API:
+
+ * `Register1Func()` registers one-way (no reply) callbacks on the server; and
+ * `Register2Func()` register traditional two-way callbacks.
+
+Using the net/rpc API:
+
+ * `Server.Register()` registers structs with callback methods on them.
+
+See [the net/rpc docs for full guidance on using that API](https://pkg.go.dev/net/rpc).
+
+The net/rpc API is implemented as a layer on top of the rpc25519.Message
+based API. Both can be used concurrently if desired.
+
+In the following we'll look at choice of transport, why
+public-key certs are preferred, and how to use the included `selfy`
+tool to easily generate self-signed certificates.
+
+TLS-v1.3 over TCP
 ----------------
 
 Three transports are available: TLS-v1.3 over TCP, 
