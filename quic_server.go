@@ -338,6 +338,12 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 
 		req.HDR.Nc = wrap
 
+		if req.HDR.IsNetRPC {
+			vv("have IsNetRPC call: '%v'", req.HDR.Subject)
+			s.callBridgeNetRpc(req)
+			continue
+		}
+
 		foundCallback1 = false
 		foundCallback2 = false
 		callme1 = nil

@@ -89,30 +89,15 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	}
 	// note: we do not defer updConn.Close() because it may be shared with other clients/servers.
 	// Instead: reference count in cfg.shareCount and call in Close()
-	/*
-		// Create the UDP connection bound to the specified local address
-		udpConn, err := net.ListenUDP("udp", localAddr)
-		if err != nil {
-			AlwaysPrintf("Failed to bind UPD client to '%v'/'%v': '%v'\n", localAddr, localHostPort, err)
-			return
-		}
-		defer udpConn.Close()
-	*/
 
 	quicConfig := &quic.Config{
 		Allow0RTT:            true,
 		KeepAlivePeriod:      5 * time.Second,
 		HandshakeIdleTimeout: c.cfg.ConnectTimeout,
-		InitialPacketSize:    1200,
+
+		// 1200 is important, else we will have trouble with MTU 1280 networks like Tailscale.
+		InitialPacketSize: 1200,
 	}
-
-	// didn't allow us to bind a specific network interface,
-	// and thus get an actual IP address for local/remote;
-	// so we do the 3 steps above first; instead of:
-	//conn, err := quic.DialAddr(ctx, quicServerAddr, tlsConfig, nil)
-
-	// this conn is a quic.Connection
-	//conn, err := quic.Dial(ctx, udpConn, serverAddr, tlsConfig, quicConfig)
 
 	// this conn is a quic.EarlyConnection
 	conn, err := transport.DialEarly(ctx, serverAddr, tlsConfig, quicConfig)
@@ -122,9 +107,8 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 		AlwaysPrintf("Failed to connect to server: %v", err)
 		return
 	}
-	// do this before signaling on c.Connected, else tests will race and panic
+	// assing QuicConn before signaling on c.Connected, else tests will race and panic
 	// not having a connection
-	//c.Conn = conn
 	c.QuicConn = conn
 	c.isQUIC = true
 
@@ -148,12 +132,15 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 
 	//vv("QUIC connected to server %v, with local addr='%v'", remote(conn), c.cfg.LocalAddress)
 
-	// possible to check host keys for TOFU like SSH does,
-	// but be aware that if they have the contents of
-	// certs/node.key that has the server key,
+	// We check host keys like SSH does,
+	// but be aware that if attackers have the contents of
+	// an un-encrypted certs/node.key that has the server key,
 	// they can use that to impersonate the server and MITM the connection.
-	// So protect both node.key and client.key from
-	// distribution.
+	//
+	// So: protect both node.key and client.key (and ca.key) from
+	// distribution. selfy will password protect them
+	// by default, but that makes it difficult to run
+	// and restart un-attended.
 	knownHostsPath := "known_server_keys"
 	// return error on host-key change.
 	connState := conn.ConnectionState()
@@ -200,15 +187,3 @@ type NetConnWrapper struct {
 	quic.Stream
 	quic.Connection
 }
-
-/*
-func remoteQ(nc quic.Connection) string {
-	ra := nc.RemoteAddr()
-	return ra.Network() + "://" + ra.String()
-}
-
-func localQ(nc quic.Connection) string {
-	la := nc.LocalAddr()
-	return la.Network() + "://" + la.String()
-}
-*/
