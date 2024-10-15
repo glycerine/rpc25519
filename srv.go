@@ -5,11 +5,14 @@ package rpc25519
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
+	"go/token"
 	"io"
 	"log"
 	"net"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -176,7 +179,7 @@ acceptAgain:
 			AlwaysPrintf("Failed to accept connection: %v", err)
 			continue acceptAgain
 		}
-		//vv("server accepted connection from %v", conn.RemoteAddr())
+		vv("server accepted connection from %v", conn.RemoteAddr())
 
 		if false {
 			// another rpc system did this:
@@ -332,7 +335,7 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 			return
 		}
 
-		//vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
+		vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
 
 		req.HDR.Nc = conn
 
@@ -424,6 +427,63 @@ type Server struct {
 	// remote when server gets a new client,
 	// So test 004 can avoid a race/panic.
 	RemoteConnectedCh chan string
+
+	// net/rpc implementation details
+	serviceMap sync.Map   // map[string]*service
+	reqLock    sync.Mutex // protects freeReq
+	freeReq    *Request
+	respLock   sync.Mutex // protects freeResp
+	freeResp   *Response
+}
+
+// Register method bearing types like net/rpc Server.Register()
+func (s *Server) Register(rcvr any) error {
+	return s.register(rcvr, "", false)
+}
+func (s *Server) RegisterName(name string, rcvr any) error {
+	return s.register(rcvr, name, true)
+}
+func (s *Server) register(rcvr any, name string, useName bool) error {
+	svc := new(service)
+	svc.typ = reflect.TypeOf(rcvr)
+	svc.rcvr = reflect.ValueOf(rcvr)
+	sname := name
+	if !useName {
+		sname = reflect.Indirect(svc.rcvr).Type().Name()
+	}
+	if sname == "" {
+		s := "rpc.Register: no service name for type " + svc.typ.String()
+		log.Print(s)
+		return errors.New(s)
+	}
+	if !useName && !token.IsExported(sname) {
+		s := "rpc.Register: type " + sname + " is not exported"
+		log.Print(s)
+		return errors.New(s)
+	}
+	svc.name = sname
+
+	// Install the methods
+	svc.method = suitableMethods(svc.typ, logRegisterError)
+
+	if len(svc.method) == 0 {
+		str := ""
+
+		// To help the user, see if a pointer receiver would work.
+		method := suitableMethods(reflect.PointerTo(svc.typ), false)
+		if len(method) != 0 {
+			str = "rpc.Register: type " + sname + " has no exported methods of suitable type (hint: pass a pointer to value of that type)"
+		} else {
+			str = "rpc.Register: type " + sname + " has no exported methods of suitable type"
+		}
+		log.Print(str)
+		return errors.New(str)
+	}
+
+	if _, dup := s.serviceMap.LoadOrStore(sname, svc); dup {
+		return errors.New("rpc: service already defined: " + sname)
+	}
+	return nil
 }
 
 // keep the pair of goroutines running

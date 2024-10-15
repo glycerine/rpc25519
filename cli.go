@@ -7,6 +7,9 @@ import (
 	"crypto/tls"
 	"fmt"
 	//"io"
+	"bufio"
+	"bytes"
+	"encoding/gob"
 	"log"
 	"net"
 	"os"
@@ -250,7 +253,7 @@ func (c *Client) RunReadLoop(conn net.Conn) {
 		}
 
 		seqno := msg.HDR.Seqno
-		//vv("client %v received message with seqno=%v, msg.HDR='%v'", c.name, seqno, msg.HDR.String())
+		vv("client %v received message with seqno=%v, msg.HDR='%v'", c.name, seqno, msg.HDR.String())
 
 		// server's responsibility is to increment the responses +1, from odd to even.
 
@@ -321,16 +324,16 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 			seqno := c.nextOddSeqno()
 			msg.HDR.Seqno = seqno
 
-			//vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v", c.name, seqno+1)
+			vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v", c.name, seqno+1)
 			c.GetOneRead(seqno, msg.DoneCh)
 
 			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
-				//vv("Failed to send message: %v", err)
+				vv("Failed to send message: %v", err)
 				msg.Err = err
 				close(msg.DoneCh)
 				continue
 			} else {
-				//vv("(client %v) Sent message: (seqno=%v): '%v'", c.name, msg.Seqno, msg)
+				vv("(client %v) Sent message: (seqno=%v): '%v'", c.name, msg.HDR.Seqno, msg)
 			}
 
 		}
@@ -512,7 +515,109 @@ type Client struct {
 	err error // detect inability to connect.
 
 	lastOddSeqno uint64
+
+	// net/rpc api implementation
+	encBuf  bytes.Buffer // target for codec writes: encode gobs into here first
+	encBufW *bufio.Writer
+	decBuf  bytes.Buffer // target for code reads.
+
+	codec ClientCodec
+
+	reqMutex sync.Mutex // protects following
+	request  Request
+
+	mutex    sync.Mutex // protects following
+	seq      uint64
+	pending  map[uint64]*Call
+	closing  bool // user has called Close
+	shutdown bool // server has told us to stop
 }
+
+// Go like net/rpc Client.Go() API.
+//
+// Go invokes the function asynchronously. It returns the [Call] structure representing
+// the invocation. The done channel will signal when the call is complete by returning
+// the same Call object. If done is nil, Go will allocate a new channel.
+// If non-nil, done must be buffered or Go will deliberately crash.
+func (c *Client) Go(serviceMethod string, args any, reply any, done chan *Call) *Call {
+	call := new(Call)
+	call.ServiceMethod = serviceMethod
+	call.Args = args
+	call.Reply = reply
+	if done == nil {
+		done = make(chan *Call, 10) // buffered.
+	} else {
+		// If caller passes done != nil, it must arrange that
+		// done has enough buffer for the number of simultaneous
+		// RPCs that will be using that channel. If the channel
+		// is totally unbuffered, it's best not to run at all.
+		if cap(done) == 0 {
+			log.Panic("rpc: done channel is unbuffered")
+		}
+	}
+	call.Done = done
+	c.send(call)
+	return call
+}
+
+// Call like net/rpc Client.Call().
+//
+// Call invokes the named function, waits for it to complete, and returns its error status.
+func (c *Client) Call(serviceMethod string, args any, reply any) error {
+	call := <-c.Go(serviceMethod, args, reply, make(chan *Call, 1)).Done
+	return call.Error
+}
+
+func (c *Client) send(call *Call) {
+	c.reqMutex.Lock()
+	defer c.reqMutex.Unlock()
+
+	// Register this call.
+	c.mutex.Lock()
+	if c.shutdown || c.closing {
+		c.mutex.Unlock()
+		call.Error = ErrIsShutdown
+		call.done()
+		return
+	}
+	seq := c.seq
+	c.seq++
+	c.pending[seq] = call
+	c.mutex.Unlock()
+
+	// Encode and send the request.
+	c.request.Seq = seq
+	c.request.ServiceMethod = call.ServiceMethod
+	err := c.codec.WriteRequest(&c.request, call.Args)
+
+	// should be in c.encBuf.Bytes() now
+	vv("Client.send(Call): c.encBuf.Bytes() is now len %v", len(c.encBuf.Bytes()))
+	//vv("Client.send(Call): c.encBuf.Bytes() is now '%v'", string(c.encBuf.Bytes()))
+
+	req := NewMessage()
+	req.HDR.Subject = call.ServiceMethod
+
+	by := c.encBuf.Bytes()
+	req.JobSerz = make([]byte, len(by))
+	copy(req.JobSerz, by)
+
+	reply, err := c.SendAndGetReply(req, nil)
+	_ = reply
+	vv("got reply '%v'; err = '%v'", reply, err)
+
+	if err != nil {
+		c.mutex.Lock()
+		call = c.pending[seq]
+		delete(c.pending, seq)
+		c.mutex.Unlock()
+		if call != nil {
+			call.Error = err
+			call.done()
+		}
+	}
+}
+
+// original, not net/rpc derived below:
 
 func (c *Client) Err() error {
 	return c.err
@@ -577,7 +682,18 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		Connected:    make(chan error, 1),
 		lastOddSeqno: 1,
 		notifyOnce:   make(map[uint64]chan *Message),
+
+		// net/rpc
+		pending: make(map[uint64]*Call),
 	}
+	c.encBufW = bufio.NewWriter(&c.encBuf)
+	c.codec = &gobClientCodec{
+		rwc:    nil,
+		dec:    gob.NewDecoder(&c.decBuf),
+		enc:    gob.NewEncoder(c.encBufW),
+		encBuf: c.encBufW,
+	}
+
 	go c.RunClientMain(c.cfg.ClientDialToHostPort, c.cfg.TCPonly_no_TLS, c.cfg.CertPath)
 
 	// wait for connection (or not).

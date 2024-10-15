@@ -187,14 +187,6 @@ const (
 // Precompute the reflect type for error.
 var typeOfError = reflect.TypeFor[error]()
 
-type Args struct {
-	A, B int
-}
-
-type Reply struct {
-	C int
-}
-
 type methodType struct {
 	sync.Mutex // protects counters
 	method     reflect.Method

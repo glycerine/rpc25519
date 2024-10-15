@@ -31,8 +31,6 @@ const (
 	newHttpPath = "/foo"
 )
 
-/* Args and Reply were moved to net_server for greenpack codegen.
-
 type Args struct {
 	A, B int
 }
@@ -40,7 +38,6 @@ type Args struct {
 type Reply struct {
 	C int
 }
-*/
 
 type Arith int
 
