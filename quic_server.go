@@ -378,8 +378,7 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 
 				reply := NewMessage()
 
-				// Seqno: increment by one; so request 3 return response 4.
-				replySeqno := req.HDR.Seqno + 1
+				replySeqno := req.HDR.Seqno // just echo back same
 				subject := req.HDR.Subject
 				reqCallID := req.HDR.CallID
 

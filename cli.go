@@ -322,7 +322,7 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 			msg.HDR.Seqno = seqno
 
 			//vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v", c.name, seqno+1)
-			c.GetOneRead(seqno+1, msg.DoneCh)
+			c.GetOneRead(seqno, msg.DoneCh)
 
 			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
 				//vv("Failed to send message: %v", err)

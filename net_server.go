@@ -176,14 +176,24 @@ import (
 	"sync"
 )
 
+//go:generate greenpack
+
 const (
 	// Defaults used by HandleHTTP
-	DefaultRPCPath   = "/_goRPC_"
-	DefaultDebugPath = "/debug/rpc"
+	DefaultRPCPath   = "/_goRPC25519_"
+	DefaultDebugPath = "/debug/rpc25519"
 )
 
 // Precompute the reflect type for error.
 var typeOfError = reflect.TypeFor[error]()
+
+type Args struct {
+	A, B int
+}
+
+type Reply struct {
+	C int
+}
 
 type methodType struct {
 	sync.Mutex // protects counters
@@ -219,7 +229,7 @@ type Response struct {
 	next          *Response // for free list in Server
 }
 
-// Server represents an RPC Server.
+// NetServer represents an RPC Server, using the Go standard lib's net/rpc API.
 type NetServer struct {
 	serviceMap sync.Map   // map[string]*service
 	reqLock    sync.Mutex // protects freeReq
@@ -725,7 +735,7 @@ func ServeRequest(codec ServerCodec) error {
 func Accept(lis net.Listener) { DefaultNetServer.Accept(lis) }
 
 // Can connect to RPC service using HTTP CONNECT to rpcPath.
-var connected = "200 Connected to Go RPC"
+var connected = "200 Connected to Go RPC25519"
 
 // ServeHTTP implements an [http.Handler] that answers RPC requests.
 func (server *NetServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
