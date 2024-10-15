@@ -48,7 +48,7 @@ func main() {
 	select {}
 }
 
-// echo implements rpc25519.CallbackFunc
+// echo implements rpc25519.TwoWayFunc
 func customEcho(req, reply *rpc25519.Message) error {
 	log.Printf("server customEcho called, Seqno=%v, msg='%v'", req.HDR.Seqno, string(req.JobSerz))
 	//vv("callback to echo: with msg='%#v'", in)

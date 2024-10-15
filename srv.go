@@ -436,6 +436,11 @@ type Server struct {
 	freeResp   *Response
 }
 
+func (s *Server) bridgeNetRpc(req, reply *Message) error {
+	vv("bridge called!")
+	return nil
+}
+
 // Register method bearing types like net/rpc Server.Register()
 func (s *Server) Register(rcvr any) error {
 	return s.register(rcvr, "", false)
@@ -444,6 +449,8 @@ func (s *Server) RegisterName(name string, rcvr any) error {
 	return s.register(rcvr, name, true)
 }
 func (s *Server) register(rcvr any, name string, useName bool) error {
+	s.Register2Func(s.bridgeNetRpc)
+
 	svc := new(service)
 	svc.typ = reflect.TypeOf(rcvr)
 	svc.rcvr = reflect.ValueOf(rcvr)
