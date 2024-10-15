@@ -259,7 +259,7 @@ func (c *Client) RunReadLoop(conn net.Conn) {
 		}
 
 		seqno := msg.HDR.Seqno
-		vv("client %v received message with seqno=%v, msg.HDR='%v'", c.name, seqno, msg.HDR.String())
+		//vv("client %v received message with seqno=%v, msg.HDR='%v'", c.name, seqno, msg.HDR.String())
 
 		c.mut.Lock()
 		whoCh, waiting := c.notifyOnce[seqno]
@@ -306,7 +306,7 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 			return
 		case msg := <-c.oneWayCh:
 
-			vv("cli %v has had a one-way requested: '%v'", c.name, msg)
+			//vv("cli %v has had a one-way requested: '%v'", c.name, msg)
 
 			// one-way always use seqno 0,
 			// so we know that no follow up is expected.
@@ -330,16 +330,16 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 			seqno := c.nextSeqno()
 			msg.HDR.Seqno = seqno
 
-			vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v: '%v'", c.name, seqno, msg)
+			//vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v: '%v'", c.name, seqno, msg)
 			c.GetOneRead(seqno, msg.DoneCh)
 
 			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
-				vv("Failed to send message: %v", err)
+				//vv("Failed to send message: %v", err)
 				msg.Err = err
 				close(msg.DoneCh)
 				continue
 			} else {
-				vv("(client %v) Sent message: (seqno=%v): '%v'", c.name, msg.HDR.Seqno, msg)
+				//vv("(client %v) Sent message: (seqno=%v): '%v'", c.name, msg.HDR.Seqno, msg)
 			}
 
 		}
@@ -568,9 +568,9 @@ func (c *Client) Go(serviceMethod string, args any, reply any, done chan *Call) 
 		}
 	}
 	call.Done = done
-	vv("Go() about to send()")
+	//vv("Go() about to send()")
 	c.send(call)
-	vv("Go() back from send()")
+	//vv("Go() back from send()")
 	return call
 }
 
@@ -619,7 +619,7 @@ func (c *Client) send(call *Call) {
 	err := c.codec.WriteRequest(&c.request, call.Args)
 
 	// should be in c.encBuf.Bytes() now
-	vv("Client.send(Call): c.encBuf.Bytes() is now len %v", len(c.encBuf.Bytes()))
+	//vv("Client.send(Call): c.encBuf.Bytes() is now len %v", len(c.encBuf.Bytes()))
 	//vv("Client.send(Call): c.encBuf.Bytes() is now '%v'", string(c.encBuf.Bytes()))
 
 	req := NewMessage()
@@ -632,7 +632,7 @@ func (c *Client) send(call *Call) {
 
 	reply, err := c.SendAndGetReply(req, nil)
 	_ = reply
-	vv("got reply '%v'; err = '%v'", reply, err)
+	//vv("got reply '%v'; err = '%v'", reply, err)
 
 	if err == nil {
 		err = c.gotNetRpcInput(reply)

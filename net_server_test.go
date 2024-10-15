@@ -45,13 +45,13 @@ type Arith int
 
 func (t *Arith) Add(args Args, reply *Reply) error {
 	reply.C = args.A + args.B
-	vv("Arith.Add(%v + %v) called.", args.A, args.B)
+	//vv("Arith.Add(%v + %v) called.", args.A, args.B)
 	return nil
 }
 
 func (t *Arith) Mul(args *Args, reply *Reply) error {
 	reply.C = args.A * args.B
-	vv("Arith.Mul(%v * %v) called.", args.A, args.B)
+	//vv("Arith.Mul(%v * %v) called.", args.A, args.B)
 	return nil
 }
 
@@ -60,13 +60,13 @@ func (t *Arith) Div(args Args, reply *Reply) error {
 		return errors.New("divide by zero")
 	}
 	reply.C = args.A / args.B
-	vv("Arith.Div(%v / %v) called.", args.A, args.B)
+	//vv("Arith.Div(%v / %v) called.", args.A, args.B)
 	return nil
 }
 
 func (t *Arith) String(args *Args, reply *string) error {
 	*reply = fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
-	vv("Arith.Strings(%v, %v -> '%v') called.", args.A, args.B, *reply)
+	//vv("Arith.Strings(%v, %v -> '%v') called.", args.A, args.B, *reply)
 	return nil
 }
 

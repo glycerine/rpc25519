@@ -349,7 +349,7 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 		req.HDR.Nc = wrap
 
 		if req.HDR.IsNetRPC {
-			vv("have IsNetRPC call: '%v'", req.HDR.Subject)
+			//vv("have IsNetRPC call: '%v'", req.HDR.Subject)
 			s.callBridgeNetRpc(req)
 			continue
 		}
@@ -385,7 +385,7 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 			go func(req *Message, callme2 TwoWayFunc) {
 
 				//vv("callme2 about to run, req.Nc local = '%v', remote = '%v'", local(req.HDR.Nc), remote(req.HDR.Nc))
-				////vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
+				//vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
 				//vv("conn   local = '%v', remote = '%v'", local(conn), remote(conn))
 
 				if cap(req.DoneCh) < 1 || len(req.DoneCh) >= cap(req.DoneCh) {

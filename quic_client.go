@@ -126,7 +126,7 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 		//vv("quic_client handshake completed")
 	case <-conn.Context().Done():
 		// connection closed before handshake completion, e.g. due to handshake failure
-		vv("quic_client handshake failure on DialEarly")
+		AlwaysPrintf("quic_client handshake failure on DialEarly")
 		return
 	}
 

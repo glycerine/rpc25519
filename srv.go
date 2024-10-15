@@ -182,7 +182,7 @@ acceptAgain:
 			AlwaysPrintf("Failed to accept connection: %v", err)
 			continue acceptAgain
 		}
-		vv("server accepted connection from %v", conn.RemoteAddr())
+		//vv("server accepted connection from %v", conn.RemoteAddr())
 
 		if false {
 			// another rpc system did this:
@@ -338,12 +338,12 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 			return
 		}
 
-		vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
+		//vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
 
 		req.HDR.Nc = conn
 
 		if req.HDR.IsNetRPC {
-			vv("have IsNetRPC call: '%v'", req.HDR.Subject)
+			//vv("have IsNetRPC call: '%v'", req.HDR.Subject)
 			s.callBridgeNetRpc(req)
 			continue
 		}
@@ -377,7 +377,7 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 			go func(req *Message, callme2 TwoWayFunc) {
 
 				//vv("req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
-				////vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
+				//vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
 				//vv("conn   local = '%v', remote = '%v'", local(conn), remote(conn))
 
 				if cap(req.DoneCh) < 1 || len(req.DoneCh) >= cap(req.DoneCh) {
@@ -487,7 +487,7 @@ func (server *Server) freeResponse(resp *Response) {
 
 // like net_server.go NetServer.ServeCodec
 func (p *RWPair) callBridgeNetRpc(reqMsg *Message) error {
-	vv("bridge called! subject: '%v'", reqMsg.HDR.Subject)
+	//vv("bridge called! subject: '%v'", reqMsg.HDR.Subject)
 
 	p.encBuf.Reset()
 	p.encBufW.Reset(&p.encBuf)
@@ -496,7 +496,7 @@ func (p *RWPair) callBridgeNetRpc(reqMsg *Message) error {
 	p.decBuf.Write(reqMsg.JobSerz)
 
 	service, mtype, req, argv, replyv, keepReading, err := p.readRequest(p.gobCodec)
-	vv("p.readRequest() back with err = '%v'", err)
+	//vv("p.readRequest() back with err = '%v'", err)
 	if err != nil {
 		if debugLog && err != io.EOF {
 			log.Println("rpc:", err)
@@ -512,7 +512,7 @@ func (p *RWPair) callBridgeNetRpc(reqMsg *Message) error {
 		return err
 	}
 	//wg.Add(1)
-	vv("about to call25519")
+	//vv("about to call25519")
 	service.call25519(p, reqMsg, mtype, req, argv, replyv, p.gobCodec)
 
 	return nil
@@ -538,7 +538,7 @@ func (s *service) call25519(pair *RWPair, reqMsg *Message, mtype *methodType, re
 
 func (p *RWPair) sendResponse(reqMsg *Message, req *Request, reply any, codec ServerCodec, errmsg string) {
 
-	vv("pair sendResponse() top")
+	//vv("pair sendResponse() top")
 
 	resp := p.Server.getResponse()
 	// Encode the response header
@@ -580,7 +580,7 @@ func (p *RWPair) sendResponse(reqMsg *Message, req *Request, reply any, codec Se
 
 	select {
 	case p.SendCh <- msg:
-		vv("reply msg went over pair.SendCh to the send goro write loop: '%v'", msg)
+		//vv("reply msg went over pair.SendCh to the send goro write loop: '%v'", msg)
 	case <-p.halt.ReqStop.Chan:
 		return
 	}
@@ -589,7 +589,7 @@ func (p *RWPair) sendResponse(reqMsg *Message, req *Request, reply any, codec Se
 
 // from net/rpc Server.readRequest
 func (p *RWPair) readRequest(codec ServerCodec) (service *service, mtype *methodType, req *Request, argv, replyv reflect.Value, keepReading bool, err error) {
-	vv("pair readRequest() top")
+	//vv("pair readRequest() top")
 
 	service, mtype, req, keepReading, err = p.readRequestHeader(codec)
 	// err can legit be: rpc: can't find method Arith.BadOperation
