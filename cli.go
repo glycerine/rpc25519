@@ -477,10 +477,10 @@ type Config struct {
 	LocalAddress string
 
 	// for port sharing between a server and 1 or more clients over QUIC
-	shared *SharedTransport
+	shared *sharedTransport
 }
 
-type SharedTransport struct {
+type sharedTransport struct {
 	mut           sync.Mutex
 	quicTransport *quic.Transport
 	shareCount    int
@@ -489,7 +489,7 @@ type SharedTransport struct {
 
 func NewConfig() *Config {
 	return &Config{
-		shared: &SharedTransport{},
+		shared: &sharedTransport{},
 	}
 }
 
