@@ -306,6 +306,8 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 			return
 		case msg := <-c.oneWayCh:
 
+			vv("cli %v has had a one-way requested: '%v'", c.name, msg)
+
 			// one-way always use seqno 0,
 			// so we know that no follow up is expected.
 			msg.HDR.Seqno = 0
@@ -566,7 +568,9 @@ func (c *Client) Go(serviceMethod string, args any, reply any, done chan *Call) 
 		}
 	}
 	call.Done = done
+	vv("Go() about to send()")
 	c.send(call)
+	vv("Go() back from send()")
 	return call
 }
 
@@ -606,6 +610,10 @@ func (c *Client) send(call *Call) {
 	c.mutex.Unlock()
 
 	// Encode and send the request.
+
+	c.encBuf.Reset()
+	c.encBufW.Reset(&c.encBuf)
+
 	c.request.Seq = seq
 	c.request.ServiceMethod = call.ServiceMethod
 	err := c.codec.WriteRequest(&c.request, call.Args)

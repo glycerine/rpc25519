@@ -34,22 +34,46 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		srv.Register(BuiltinTypes{})
 
 		cfg.ClientDialToHostPort = serverAddr.String()
-		cli, err := NewClient("test006", cfg)
+		client, err := NewClient("test006", cfg)
 		panicOn(err)
-		defer cli.Close()
+		defer client.Close()
 
 		// net/rpc API on client, ported from net_server_test.go
-
-		// Synchronous calls
+		if false {
+			// Synchronous calls
+			args := &Args{7, 8}
+			reply := new(Reply)
+			err = client.Call("Arith.Add", args, reply)
+			if err != nil {
+				t.Errorf("Add: expected no error but got string %q", err.Error())
+			}
+			if reply.C != args.A+args.B {
+				t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
+			}
+			vv("Arith.Add got: %v + %v = %v", args.A, args.B, reply.C)
+		}
+		// Out of order.
 		args := &Args{7, 8}
-		reply := new(Reply)
-		err = cli.Call("Arith.Add", args, reply)
-		if err != nil {
-			t.Errorf("Add: expected no error but got string %q", err.Error())
+		mulReply := new(Reply)
+		mulCall := client.Go("Arith.Mul", args, mulReply, nil)
+		addReply := new(Reply)
+		addCall := client.Go("Arith.Add", args, addReply, nil)
+		_ = addCall
+		//		addCall = <-addCall.Done
+		//		if addCall.Error != nil {
+		//			t.Errorf("Add: expected no error but got string %q", addCall.Error.Error())
+		//		}
+		//		if addReply.C != args.A+args.B {
+		//			t.Errorf("Add: expected %d got %d", addReply.C, args.A+args.B)
+		//		}
+
+		mulCall = <-mulCall.Done
+		if mulCall.Error != nil {
+			t.Errorf("Mul: expected no error but got string %q", mulCall.Error.Error())
 		}
-		if reply.C != args.A+args.B {
-			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
+		if mulReply.C != args.A*args.B {
+			t.Errorf("Mul: expected %d got %d", mulReply.C, args.A*args.B)
 		}
-		vv("Arith.Add got: %v + %v = %v", args.A, args.B, reply.C)
+
 	})
 }

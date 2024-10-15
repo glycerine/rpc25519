@@ -489,12 +489,14 @@ func (server *Server) freeResponse(resp *Response) {
 func (p *RWPair) callBridgeNetRpc(reqMsg *Message) error {
 	vv("bridge called! subject: '%v'", reqMsg.HDR.Subject)
 
-	p.encBufW.Flush()
 	p.encBuf.Reset()
+	p.encBufW.Reset(&p.encBuf)
+
 	p.decBuf.Reset()
 	p.decBuf.Write(reqMsg.JobSerz)
 
 	service, mtype, req, argv, replyv, keepReading, err := p.readRequest(p.gobCodec)
+	vv("p.readRequest() back with err = '%v'", err)
 	if err != nil {
 		if debugLog && err != io.EOF {
 			log.Println("rpc:", err)
@@ -510,6 +512,7 @@ func (p *RWPair) callBridgeNetRpc(reqMsg *Message) error {
 		return err
 	}
 	//wg.Add(1)
+	vv("about to call25519")
 	service.call25519(p, reqMsg, mtype, req, argv, replyv, p.gobCodec)
 
 	return nil
@@ -534,6 +537,9 @@ func (s *service) call25519(pair *RWPair, reqMsg *Message, mtype *methodType, re
 }
 
 func (p *RWPair) sendResponse(reqMsg *Message, req *Request, reply any, codec ServerCodec, errmsg string) {
+
+	vv("pair sendResponse() top")
+
 	resp := p.Server.getResponse()
 	// Encode the response header
 	resp.ServiceMethod = req.ServiceMethod
@@ -583,6 +589,8 @@ func (p *RWPair) sendResponse(reqMsg *Message, req *Request, reply any, codec Se
 
 // from net/rpc Server.readRequest
 func (p *RWPair) readRequest(codec ServerCodec) (service *service, mtype *methodType, req *Request, argv, replyv reflect.Value, keepReading bool, err error) {
+	vv("pair readRequest() top")
+
 	service, mtype, req, keepReading, err = p.readRequestHeader(codec)
 	if err != nil {
 		if !keepReading {
@@ -631,6 +639,23 @@ func (p *RWPair) readRequestHeader(codec ServerCodec) (svc *service, mtype *meth
 		}
 		err = errors.New("rpc: server cannot decode request: " + err.Error())
 		return
+		// re error: rpc: server cannot decode request: gob: duplicate type received.
+		// fixed by clearing client encBuf before each new gob encoding.
+		//
+		// per https://www.reddit.com/r/golang/comments/ucmbmu/gob_duplicate_types_received/
+		//
+		// "You have to use one Encoder for one stream!
+		//  The error suggests that you write to the file with
+		//  several Encoders, so the Decoder meets the same type
+		//  two times (gob encodes the type information once per
+		//  stream, so the Decoder wants to meet a type description only one time)
+		//
+		// "You have to use gob.Encoder and gob.Decoder in pair, Decode all the stream that
+		//  has been Encoded with one Encoder, with one Decoder.
+		//	Either Encode/Decode each and every object (struct) separately
+		//  (use a separate Encoder/Decoder for each value), or use one
+		//  Encoder/Decoder for one stream (file)."
+		//
 	}
 
 	// We read the header successfully. If we see an error now,
