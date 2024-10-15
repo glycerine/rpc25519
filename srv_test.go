@@ -93,10 +93,11 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 }
 
 // echo implements rpc25519.TwoWayFunc
-func customEcho(in *Message, out *Message) {
+func customEcho(in *Message, out *Message) error {
 	vv("customEcho called, Seqno=%v, msg='%v'", in.Seqno, string(in.JobSerz))
 	//vv("callback to echo: with msg='%#v'", in)
 	out.JobSerz = append(in.JobSerz, []byte(fmt.Sprintf("\n with time customEcho sees this: '%v'", time.Now()))...)
+	return nil
 }
 
 var oneWayStreetChan = make(chan bool, 10)

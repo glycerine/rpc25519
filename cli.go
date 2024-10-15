@@ -376,7 +376,7 @@ func NewMessageFromBytes(by []byte) (msg *Message) {
 //
 // The system will overwrite the reply.MID field when sending the
 // reply, so the user should not bother trying to alter it.
-type TwoWayFunc func(req *Message, reply *Message)
+type TwoWayFunc func(req *Message, reply *Message) error
 
 // OneWayFunc is the simpler sibling to the above.
 // A OneWayFunc will not return anything to the sender.
@@ -704,20 +704,6 @@ func (c *Client) OneWaySend(msg *Message, doneCh <-chan struct{}) (err error) {
 		c.halt.Done.Close()
 		return ErrShutdown
 	}
-
-	// none of this was reachable. comment out for later deletion.
-	// select {
-	// case <-msg.DoneCh: // closed, but  Err set possibly on msg.
-	// 	err = msg.Err
-	// 	return
-
-	// case <-doneCh:
-	// 	return ErrDone
-
-	// case <-c.halt.ReqStop.Chan:
-	// 	c.halt.Done.Close()
-	// 	return ErrShutdown
-	// }
 }
 
 func (c *Client) SetLocalAddr(local string) {
