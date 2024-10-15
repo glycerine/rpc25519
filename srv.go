@@ -3,8 +3,11 @@ package rpc25519
 // srv.go: simple TCP server, with TLS encryption.
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"go/token"
@@ -339,6 +342,12 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 
 		req.HDR.Nc = conn
 
+		if req.HDR.IsNetRPC {
+			vv("have IsNetRPC call: '%v'", req.HDR.Subject)
+			s.callBridgeNetRpc(req)
+			continue
+		}
+
 		foundCallback1 = false
 		foundCallback2 = false
 		callme1 = nil
@@ -436,9 +445,205 @@ type Server struct {
 	freeResp   *Response
 }
 
-func (s *Server) bridgeNetRpc(req, reply *Message) error {
-	vv("bridge called!")
+func (server *Server) getRequest() *Request {
+	server.reqLock.Lock()
+	req := server.freeReq
+	if req == nil {
+		req = new(Request)
+	} else {
+		server.freeReq = req.next
+		*req = Request{}
+	}
+	server.reqLock.Unlock()
+	return req
+}
+
+func (server *Server) freeRequest(req *Request) {
+	server.reqLock.Lock()
+	req.next = server.freeReq
+	server.freeReq = req
+	server.reqLock.Unlock()
+}
+
+func (server *Server) getResponse() *Response {
+	server.respLock.Lock()
+	resp := server.freeResp
+	if resp == nil {
+		resp = new(Response)
+	} else {
+		server.freeResp = resp.next
+		*resp = Response{}
+	}
+	server.respLock.Unlock()
+	return resp
+}
+
+func (server *Server) freeResponse(resp *Response) {
+	server.respLock.Lock()
+	resp.next = server.freeResp
+	server.freeResp = resp
+	server.respLock.Unlock()
+}
+
+// like net_server.go NetServer.ServeCodec
+func (p *RWPair) callBridgeNetRpc(reqMsg *Message) error {
+	vv("bridge called! subject: '%v'", reqMsg.HDR.Subject)
+
+	p.encBufW.Flush()
+	p.encBuf.Reset()
+	p.decBuf.Reset()
+	p.decBuf.Write(reqMsg.JobSerz)
+
+	service, mtype, req, argv, replyv, keepReading, err := p.readRequest(p.gobCodec)
+	if err != nil {
+		if debugLog && err != io.EOF {
+			log.Println("rpc:", err)
+		}
+		if !keepReading {
+			return err
+		}
+		// send a response if we actually managed to read a header.
+		if req != nil {
+			p.sendResponse(reqMsg, req, invalidRequest, p.gobCodec, err.Error())
+			p.Server.freeRequest(req)
+		}
+		return err
+	}
+	//wg.Add(1)
+	service.call25519(p, reqMsg, mtype, req, argv, replyv, p.gobCodec)
+
 	return nil
+}
+
+func (s *service) call25519(pair *RWPair, reqMsg *Message, mtype *methodType, req *Request, argv, replyv reflect.Value, codec ServerCodec) {
+
+	mtype.Lock()
+	mtype.numCalls++
+	mtype.Unlock()
+	function := mtype.method.Func
+	// Invoke the method, providing a new value for the reply.
+	returnValues := function.Call([]reflect.Value{s.rcvr, argv, replyv})
+	// The return value for the method is an error.
+	errInter := returnValues[0].Interface()
+	errmsg := ""
+	if errInter != nil {
+		errmsg = errInter.(error).Error()
+	}
+	pair.sendResponse(reqMsg, req, replyv.Interface(), codec, errmsg)
+	pair.Server.freeRequest(req)
+}
+
+func (p *RWPair) sendResponse(reqMsg *Message, req *Request, reply any, codec ServerCodec, errmsg string) {
+	resp := p.Server.getResponse()
+	// Encode the response header
+	resp.ServiceMethod = req.ServiceMethod
+	if errmsg != "" {
+		resp.Error = errmsg
+		reply = invalidRequest
+	}
+	resp.Seq = req.Seq
+	//p.sending.Lock()
+	err := codec.WriteResponse(resp, reply)
+	if debugLog && err != nil {
+		log.Println("rpc: writing response:", err)
+	}
+	//p.sending.Unlock()
+	p.Server.freeResponse(resp)
+
+	msg := NewMessage()
+	msg.HDR.Seqno = reqMsg.HDR.Seqno
+	msg.HDR.Subject = reqMsg.HDR.Subject
+	msg.HDR.IsNetRPC = true
+
+	by := p.encBuf.Bytes()
+	msg.JobSerz = make([]byte, len(by))
+	copy(msg.JobSerz, by)
+
+	select {
+	case p.SendCh <- msg:
+		vv("reply msg went over pair.SendCh to the send goro write loop: '%v'", msg)
+	case <-p.halt.ReqStop.Chan:
+		return
+	}
+
+}
+
+// from net/rpc Server.readRequest
+func (p *RWPair) readRequest(codec ServerCodec) (service *service, mtype *methodType, req *Request, argv, replyv reflect.Value, keepReading bool, err error) {
+	service, mtype, req, keepReading, err = p.readRequestHeader(codec)
+	if err != nil {
+		if !keepReading {
+			return
+		}
+		// discard body
+		codec.ReadRequestBody(nil)
+		return
+	}
+
+	// Decode the argument value.
+	argIsValue := false // if true, need to indirect before calling.
+	if mtype.ArgType.Kind() == reflect.Pointer {
+		argv = reflect.New(mtype.ArgType.Elem())
+	} else {
+		argv = reflect.New(mtype.ArgType)
+		argIsValue = true
+	}
+	// argv guaranteed to be a pointer now.
+	if err = codec.ReadRequestBody(argv.Interface()); err != nil {
+		return
+	}
+	if argIsValue {
+		argv = argv.Elem()
+	}
+
+	replyv = reflect.New(mtype.ReplyType.Elem())
+
+	switch mtype.ReplyType.Elem().Kind() {
+	case reflect.Map:
+		replyv.Elem().Set(reflect.MakeMap(mtype.ReplyType.Elem()))
+	case reflect.Slice:
+		replyv.Elem().Set(reflect.MakeSlice(mtype.ReplyType.Elem(), 0, 0))
+	}
+	return
+}
+
+func (p *RWPair) readRequestHeader(codec ServerCodec) (svc *service, mtype *methodType, req *Request, keepReading bool, err error) {
+	// Grab the request header.
+	req = p.Server.getRequest()
+	err = codec.ReadRequestHeader(req)
+	if err != nil {
+		req = nil
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			return
+		}
+		err = errors.New("rpc: server cannot decode request: " + err.Error())
+		return
+	}
+
+	// We read the header successfully. If we see an error now,
+	// we can still recover and move on to the next request.
+	keepReading = true
+
+	dot := strings.LastIndex(req.ServiceMethod, ".")
+	if dot < 0 {
+		err = errors.New("rpc: service/method request ill-formed: " + req.ServiceMethod)
+		return
+	}
+	serviceName := req.ServiceMethod[:dot]
+	methodName := req.ServiceMethod[dot+1:]
+
+	// Look up the request.
+	svci, ok := p.Server.serviceMap.Load(serviceName)
+	if !ok {
+		err = errors.New("rpc: can't find service " + req.ServiceMethod)
+		return
+	}
+	svc = svci.(*service)
+	mtype = svc.method[methodName]
+	if mtype == nil {
+		err = errors.New("rpc: can't find method " + req.ServiceMethod)
+	}
+	return
 }
 
 // Register method bearing types like net/rpc Server.Register()
@@ -449,7 +654,6 @@ func (s *Server) RegisterName(name string, rcvr any) error {
 	return s.register(rcvr, name, true)
 }
 func (s *Server) register(rcvr any, name string, useName bool) error {
-	s.Register2Func(s.bridgeNetRpc)
 
 	svc := new(service)
 	svc.typ = reflect.TypeOf(rcvr)
@@ -509,9 +713,18 @@ type RWPair struct {
 	SendCh chan *Message
 
 	halt *idem.Halter
+
+	// net/rpc api
+	gobCodec *gobServerCodec
+	//sending  sync.Mutex
+	encBuf  bytes.Buffer // target for codec writes: encode gobs into here first
+	encBufW *bufio.Writer
+	decBuf  bytes.Buffer // target for code reads.
+
 }
 
 func (s *Server) NewRWPair(conn net.Conn) *RWPair {
+
 	p := &RWPair{
 		cfg:    s.cfg,
 		Server: s,
@@ -519,6 +732,14 @@ func (s *Server) NewRWPair(conn net.Conn) *RWPair {
 		SendCh: make(chan *Message, 10),
 		halt:   idem.NewHalter(),
 	}
+	p.encBufW = bufio.NewWriter(&p.encBuf)
+	p.gobCodec = &gobServerCodec{
+		rwc:    nil,
+		dec:    gob.NewDecoder(&p.decBuf),
+		enc:    gob.NewEncoder(p.encBufW),
+		encBuf: p.encBufW,
+	}
+
 	key := remote(conn)
 
 	s.mut.Lock()

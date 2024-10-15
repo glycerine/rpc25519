@@ -324,7 +324,7 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 			seqno := c.nextOddSeqno()
 			msg.HDR.Seqno = seqno
 
-			vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v", c.name, seqno+1)
+			vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v: '%v'", c.name, seqno, msg)
 			c.GetOneRead(seqno, msg.DoneCh)
 
 			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
@@ -596,6 +596,7 @@ func (c *Client) send(call *Call) {
 
 	req := NewMessage()
 	req.HDR.Subject = call.ServiceMethod
+	req.HDR.IsNetRPC = true
 
 	by := c.encBuf.Bytes()
 	req.JobSerz = make([]byte, len(by))
@@ -756,7 +757,11 @@ func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *M
 	}
 	isRPC := true
 	isLeg2 := false
+	isNetRPC := req.HDR.IsNetRPC
+
 	mid := NewHDR(from, to, req.HDR.Subject, isRPC, isLeg2)
+	mid.IsNetRPC = isNetRPC
+
 	req.HDR = *mid
 
 	//vv("Client '%v' SendAndGetReply(req='%v') (ignore req.Seqno:0 not yet assigned)", c.name, req)

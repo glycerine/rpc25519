@@ -58,16 +58,17 @@ func (m *Message) AsGreenpack(scratch []byte) (o []byte, err error) {
 type HDR struct {
 	Nc net.Conn `msg:"-"`
 
-	Created string `zid:"0"`
-	From    string `zid:"1"`
-	To      string `zid:"2"`
-	Subject string `zid:"3"`
-	IsRPC   bool   `zid:"4"`
-	IsLeg2  bool   `zid:"5"`
-	Serial  int64  `zid:"6"`
-	CallID  string `zid:"7"` // able to match call and response on this alone.
-	PID     int64  `zid:"8"`
-	Seqno   uint64 `zid:"9"`
+	Created  string `zid:"0"`
+	From     string `zid:"1"`
+	To       string `zid:"2"`
+	Subject  string `zid:"3"`
+	IsRPC    bool   `zid:"4"`
+	IsLeg2   bool   `zid:"5"`
+	Serial   int64  `zid:"6"`
+	CallID   string `zid:"7"` // able to match call and response on this alone.
+	PID      int64  `zid:"8"`
+	Seqno    uint64 `zid:"9"`
+	IsNetRPC bool   `zid:"10"`
 }
 
 func NewHDR(from, to, subject string, isRPC bool, isLeg2 bool) (m *HDR) {
@@ -109,7 +110,8 @@ func (a *HDR) Equal(b *HDR) bool {
 		a.IsLeg2 == b.IsLeg2 &&
 		a.Serial == b.Serial &&
 		a.CallID == b.CallID &&
-		a.PID == b.PID
+		a.PID == b.PID &&
+		a.IsNetRPC == b.IsNetRPC
 }
 
 func (m *HDR) String() string {
