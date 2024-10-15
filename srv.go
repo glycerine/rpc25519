@@ -200,7 +200,7 @@ acceptAgain:
 
 		pair := s.newRWPair(conn)
 		go pair.runSendLoop(conn)
-		go pair.runRecvLoop(conn)
+		go pair.runReadLoop(conn)
 	}
 }
 
@@ -263,7 +263,7 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 
 	pair := s.newRWPair(conn)
 	go pair.runSendLoop(conn)
-	pair.runRecvLoop(conn)
+	pair.runReadLoop(conn)
 }
 
 func (s *rwPair) runSendLoop(conn net.Conn) {
@@ -294,9 +294,9 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 	}
 }
 
-func (s *rwPair) runRecvLoop(conn net.Conn) {
+func (s *rwPair) runReadLoop(conn net.Conn) {
 	defer func() {
-		//vv("rpc25519.Server: runRecvLoop shutting down for local conn = '%v'", conn.LocalAddr())
+		//vv("rpc25519.Server: runReadLoop shutting down for local conn = '%v'", conn.LocalAddr())
 
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
@@ -338,7 +338,7 @@ func (s *rwPair) runRecvLoop(conn net.Conn) {
 			return
 		}
 
-		//vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
+		vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
 
 		req.HDR.Nc = conn
 
@@ -366,6 +366,10 @@ func (s *rwPair) runRecvLoop(conn net.Conn) {
 			}
 		}
 		s.Server.mut.Unlock()
+
+		if !foundCallback1 && !foundCallback2 {
+			vv("warning! no callbacks found for req = '%v'", req)
+		}
 
 		if foundCallback1 {
 			// run the callback in a goro, so we can keep doing reads.
@@ -832,8 +836,6 @@ func (s *Server) SendMessage(callID, subject, destAddr string, by []byte, seqno 
 	}
 	msg := NewMessage()
 	msg.JobSerz = by
-	msg.HDR.Seqno = seqno
-	msg.HDR.Seqno = seqno
 
 	from := local(pair.Conn)
 	to := remote(pair.Conn)
@@ -843,6 +845,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, by []byte, seqno 
 
 	mid := NewHDR(from, to, subject, isRPC, isLeg2)
 	mid.CallID = callID
+	mid.Seqno = seqno
 	msg.HDR = *mid
 
 	//vv("send message attempting to send %v bytes to '%v'", len(by), destAddr)

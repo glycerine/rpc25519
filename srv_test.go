@@ -187,6 +187,8 @@ func Test004_server_push(t *testing.T) {
 		incoming := cli.GetReadIncomingCh()
 		done := make(chan bool)
 		ackDone := make(chan bool)
+		seqno := uint64(43)
+
 		go func() {
 			for {
 				select {
@@ -195,6 +197,9 @@ func Test004_server_push(t *testing.T) {
 					return
 				case msg := <-incoming:
 					vv("got incoming msg = '%v'", string(msg.JobSerz))
+					if msg.HDR.Seqno != seqno {
+						panic(fmt.Sprintf("expected seqno %v, but got %v", seqno, msg.HDR.Seqno))
+					}
 				}
 			}
 		}()
@@ -216,7 +221,7 @@ func Test004_server_push(t *testing.T) {
 
 		callID := "callID_here"
 		subject := "subject_here"
-		err = srv.SendMessage(callID, subject, destAddr, req.JobSerz, 0)
+		err = srv.SendMessage(callID, subject, destAddr, req.JobSerz, seqno)
 		panicOn(err) // net.Conn not found
 
 		// does the client get it?
