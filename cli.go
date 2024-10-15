@@ -10,6 +10,8 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/gob"
+	"errors"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -255,13 +257,12 @@ func (c *Client) RunReadLoop(conn net.Conn) {
 		seqno := msg.HDR.Seqno
 		vv("client %v received message with seqno=%v, msg.HDR='%v'", c.name, seqno, msg.HDR.String())
 
-		// server's responsibility is to increment the responses +1, from odd to even.
-
 		c.mut.Lock()
 		whoCh, waiting := c.notifyOnce[seqno]
 		//vv("notifyOnce waiting = %v", waiting)
 		if waiting {
 			delete(c.notifyOnce, seqno)
+
 			select {
 			case whoCh <- msg:
 				//vv("client %v: yay. sent on notifyOnce channel! for seqno=%v", c.name, seqno)
@@ -606,6 +607,10 @@ func (c *Client) send(call *Call) {
 	_ = reply
 	vv("got reply '%v'; err = '%v'", reply, err)
 
+	if err == nil {
+		err = c.gotNetRpcInput(reply)
+	}
+
 	if err != nil {
 		c.mutex.Lock()
 		call = c.pending[seq]
@@ -615,6 +620,81 @@ func (c *Client) send(call *Call) {
 			call.Error = err
 			call.done()
 		}
+	}
+}
+
+// like net/rpc Client.input()
+func (c *Client) gotNetRpcInput(replyMsg *Message) (err error) {
+
+	var response Response
+
+	c.decBuf.Reset()
+	c.decBuf.Write(replyMsg.JobSerz)
+
+	err = c.codec.ReadResponseHeader(&response)
+	panicOn(err)
+	if err != nil {
+		return err
+	}
+	seq := response.Seq
+	c.mutex.Lock()
+	call := c.pending[seq]
+	delete(c.pending, seq)
+	c.mutex.Unlock()
+
+	switch {
+	case call == nil:
+		// We've got no pending call. That usually means that
+		// WriteRequest partially failed, and call was already
+		// removed; response is a server telling us about an
+		// error reading request body. We should still attempt
+		// to read error body, but there's no one to give it to.
+		err = c.codec.ReadResponseBody(nil)
+		if err != nil {
+			err = errors.New("reading error body: " + err.Error())
+		}
+	case response.Error != "":
+		// We've got an error response. Give this to the request;
+		// any subsequent requests will get the ReadResponseBody
+		// error if there is one.
+		call.Error = ServerError(response.Error)
+		err = c.codec.ReadResponseBody(nil)
+		if err != nil {
+			err = errors.New("reading error body: " + err.Error())
+		}
+		call.done()
+	default:
+		err = c.codec.ReadResponseBody(call.Reply)
+		if err != nil {
+			call.Error = errors.New("reading body " + err.Error())
+		}
+		call.done()
+	}
+	return nil
+}
+
+func (c *Client) netRpcShutdownOnError(err error) {
+
+	// Terminate pending calls.
+	c.reqMutex.Lock()
+	c.mutex.Lock()
+	c.shutdown = true
+	closing := c.closing
+	if err == io.EOF {
+		if closing {
+			err = ErrIsShutdown
+		} else {
+			err = io.ErrUnexpectedEOF
+		}
+	}
+	for _, call := range c.pending {
+		call.Error = err
+		call.done()
+	}
+	c.mutex.Unlock()
+	c.reqMutex.Unlock()
+	if debugLog && err != io.EOF && !closing {
+		log.Println("rpc: client protocol error:", err)
 	}
 }
 
