@@ -592,6 +592,8 @@ func (p *RWPair) readRequest(codec ServerCodec) (service *service, mtype *method
 	vv("pair readRequest() top")
 
 	service, mtype, req, keepReading, err = p.readRequestHeader(codec)
+	// err can legit be: rpc: can't find method Arith.BadOperation
+	// if a method is not found, so do not panic on err here.
 	if err != nil {
 		if !keepReading {
 			return

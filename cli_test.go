@@ -2,6 +2,7 @@ package rpc25519
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,33 +40,59 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		defer client.Close()
 
 		// net/rpc API on client, ported from net_server_test.go
-		if false {
-			// Synchronous calls
-			args := &Args{7, 8}
-			reply := new(Reply)
-			err = client.Call("Arith.Add", args, reply)
-			if err != nil {
-				t.Errorf("Add: expected no error but got string %q", err.Error())
-			}
-			if reply.C != args.A+args.B {
-				t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
-			}
-			vv("Arith.Add got: %v + %v = %v", args.A, args.B, reply.C)
+		var args *Args
+		var reply *Reply
+
+		// Nonexistent method
+		args = &Args{7, 0}
+		reply = new(Reply)
+		err = client.Call("Arith.BadOperation", args, reply)
+		// expect an error
+		if err == nil {
+			t.Error("BadOperation: expected error")
+		} else if !strings.HasPrefix(err.Error(), "rpc: can't find method ") {
+			t.Errorf("BadOperation: expected can't find method error; got %q", err)
 		}
+
+		return
+
+		// Synchronous calls
+		args = &Args{7, 8}
+		reply = new(Reply)
+		err = client.Call("Arith.Add", args, reply)
+		if err != nil {
+			t.Errorf("Add: expected no error but got string %q", err.Error())
+		}
+		if reply.C != args.A+args.B {
+			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
+		}
+		vv("Arith.Add got: %v + %v = %v", args.A, args.B, reply.C)
+
+		// Methods exported from unexported embedded structs
+		args = &Args{7, 0}
+		reply = new(Reply)
+		err = client.Call("Embed.Exported", args, reply)
+		if err != nil {
+			t.Errorf("Add: expected no error but got string %q", err.Error())
+		}
+		if reply.C != args.A+args.B {
+			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
+		}
+
 		// Out of order.
-		args := &Args{7, 8}
+		args = &Args{7, 8}
 		mulReply := new(Reply)
 		mulCall := client.Go("Arith.Mul", args, mulReply, nil)
 		addReply := new(Reply)
 		addCall := client.Go("Arith.Add", args, addReply, nil)
-		_ = addCall
-		//		addCall = <-addCall.Done
-		//		if addCall.Error != nil {
-		//			t.Errorf("Add: expected no error but got string %q", addCall.Error.Error())
-		//		}
-		//		if addReply.C != args.A+args.B {
-		//			t.Errorf("Add: expected %d got %d", addReply.C, args.A+args.B)
-		//		}
+
+		addCall = <-addCall.Done
+		if addCall.Error != nil {
+			t.Errorf("Add: expected no error but got string %q", addCall.Error.Error())
+		}
+		if addReply.C != args.A+args.B {
+			t.Errorf("Add: expected %d got %d", addReply.C, args.A+args.B)
+		}
 
 		mulCall = <-mulCall.Done
 		if mulCall.Error != nil {
