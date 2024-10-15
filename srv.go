@@ -551,9 +551,22 @@ func (p *RWPair) sendResponse(reqMsg *Message, req *Request, reply any, codec Se
 	p.Server.freeResponse(resp)
 
 	msg := NewMessage()
-	msg.HDR.Seqno = reqMsg.HDR.Seqno
-	msg.HDR.Subject = reqMsg.HDR.Subject
-	msg.HDR.IsNetRPC = true
+	replySeqno := reqMsg.HDR.Seqno // just echo back same.
+	subject := reqMsg.HDR.Subject
+	reqCallID := reqMsg.HDR.CallID
+
+	from := local(p.Conn)
+	to := remote(p.Conn)
+	isRPC := true
+	isLeg2 := true
+
+	mid := NewHDR(from, to, subject, isRPC, isLeg2)
+
+	// We are able to match call and response rigourously on the CallID alone.
+	mid.CallID = reqCallID
+	mid.Seqno = replySeqno
+	mid.IsNetRPC = true
+	msg.HDR = *mid
 
 	by := p.encBuf.Bytes()
 	msg.JobSerz = make([]byte, len(by))
