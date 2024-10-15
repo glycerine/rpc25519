@@ -126,7 +126,7 @@ func (s *Server) RunServerMain(serverAddress string, tcp_only bool, certPath str
 				default:
 				}
 			}
-			vv("Failed to accept connection: %v", err)
+			AlwaysPrintf("Failed to accept connection: %v", err)
 			continue
 		}
 		//vv("Accepted connection from %v", conn.RemoteAddr())
@@ -173,7 +173,7 @@ acceptAgain:
 			if strings.Contains(err.Error(), "use of closed network connection") {
 				continue acceptAgain // fullRestart
 			}
-			vv("Failed to accept connection: %v", err)
+			AlwaysPrintf("Failed to accept connection: %v", err)
 			continue acceptAgain
 		}
 		//vv("server accepted connection from %v", conn.RemoteAddr())
@@ -227,7 +227,7 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 	// ctx gives us a timeout. Otherwise, one must set a deadline
 	// on the conn to avoid an infinite hang during handshake.
 	if err := conn.HandshakeContext(ctx); err != nil {
-		vv("tlsConn.Handshake() failed: '%v'", err)
+		AlwaysPrintf("tlsConn.Handshake() failed: '%v'", err)
 		return
 	}
 
@@ -280,7 +280,7 @@ func (s *RWPair) runSendLoop(conn net.Conn) {
 					// Maybe with quic if they run a server too, since we'll know the port
 					// to find them on, if they are still up.
 				}
-				vv("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.Seqno)
+				AlwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.Seqno)
 			}
 		case <-s.halt.ReqStop.Chan:
 			return
@@ -329,7 +329,7 @@ func (s *RWPair) runRecvLoop(conn net.Conn) {
 				return // shutting down
 			}
 
-			vv("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
+			AlwaysPrintf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
 			return
 		}
 
@@ -533,7 +533,7 @@ func (s *Server) Register2Func(callme2 TwoWayFunc) {
 }
 
 func (s *Server) Register1Func(callme1 OneWayFunc) {
-	vv("Register1Func called with callme1 = %p", callme1)
+	//vv("Register1Func called with callme1 = %p", callme1)
 	s.mut.Lock()
 	defer s.mut.Unlock()
 	s.callme1 = callme1
@@ -575,7 +575,7 @@ func (s *Server) Close() error {
 			if s.cfg.shared.shareCount == 0 {
 				s.cfg.shared.quicTransport.Conn.Close()
 				s.cfg.shared.isClosed = true
-				vv("s.cfg.shared.quicTransport.Conn.Close() called for '%v'.", s.name)
+				//vv("s.cfg.shared.quicTransport.Conn.Close() called for '%v'.", s.name)
 			}
 		}
 		s.cfg.shared.mut.Unlock()

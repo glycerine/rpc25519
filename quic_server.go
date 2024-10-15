@@ -159,7 +159,7 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 			//vv("quic_server handshake completed")
 		case <-conn.Context().Done():
 			// connection closed before handshake completion, e.g. due to handshake failure
-			vv("quic_server handshake failure on earlyListener.Accept()")
+			AlwaysPrintf("quic_server handshake failure on earlyListener.Accept()")
 			continue
 		}
 
@@ -334,7 +334,7 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 			return
 		}
 
-		vv("server received message with seqno=%v: %v", seqno, req)
+		//vv("server received message with seqno=%v: %v", seqno, req)
 
 		req.Nc = wrap
 
@@ -350,7 +350,7 @@ func (s *QUIC_RWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 				foundCallback2 = true
 			}
 		} else {
-			vv("not rpc, do we have a callme1: '%p'", s.Server.callme1)
+			//vv("not rpc, do we have a callme1: '%p'", s.Server.callme1)
 			if s.Server.callme1 != nil {
 				callme1 = s.Server.callme1
 				foundCallback1 = true

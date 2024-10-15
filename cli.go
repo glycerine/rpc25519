@@ -249,7 +249,7 @@ func (c *Client) RunReadLoop(conn net.Conn) {
 			continue
 		}
 
-		vv("client %v received message with seqno=%v, msg.MID='%v'", c.name, seqno, msg.MID.String())
+		//vv("client %v received message with seqno=%v, msg.MID='%v'", c.name, seqno, msg.MID.String())
 
 		// server's responsibility is to increment the responses +1, from odd to even.
 
@@ -265,16 +265,16 @@ func (c *Client) RunReadLoop(conn net.Conn) {
 				//vv("could not send to notifyOnce channel!")
 			}
 		} else {
-			vv("len c.notifyOnRead = %v", len(c.notifyOnRead))
+			//vv("len c.notifyOnRead = %v", len(c.notifyOnRead))
 			// assume the round-trip "calls" should be consumed,
 			// and not repeated here to client listeners who want events???
 			// trying to match what other RPC systems do.
 			for _, ch := range c.notifyOnRead {
 				select {
 				case ch <- msg:
-					vv("client: %v: yay. sent on notifyOnRead channel: %p", c.name, ch)
+					//vv("client: %v: yay. sent on notifyOnRead channel: %p", c.name, ch)
 				default:
-					vv("could not send to notifyOnRead channel!")
+					//vv("could not send to notifyOnRead channel!")
 				}
 			}
 		}
@@ -521,7 +521,7 @@ func (c *Client) Err() error {
 
 func (c *Client) GetReadIncomingCh() (ch chan *Message) {
 	ch = make(chan *Message, 100)
-	vv("GetReadIncommingCh is %p on client '%v'", ch, c.name)
+	//vv("GetReadIncommingCh is %p on client '%v'", ch, c.name)
 	c.GetReads(ch)
 	return
 }
