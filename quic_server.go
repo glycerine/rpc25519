@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	//"os"
+	"bufio"
+	"encoding/gob"
 	"net"
 	"time"
 
@@ -250,6 +252,14 @@ func (s *Server) NewQUIC_RWPair(stream quic.Stream, conn quic.Connection) *QUIC_
 		},
 		Stream: stream,
 	}
+	p.encBufW = bufio.NewWriter(&p.encBuf)
+	p.gobCodec = &gobServerCodec{
+		rwc:    nil,
+		dec:    gob.NewDecoder(&p.decBuf),
+		enc:    gob.NewEncoder(p.encBufW),
+		encBuf: p.encBufW,
+	}
+
 	key := remote(conn)
 
 	s.mut.Lock()
