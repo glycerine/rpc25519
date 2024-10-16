@@ -160,7 +160,8 @@ Modern Ed25519 keys are used with TLS-1.3. The TLS_CHACHA20_POLY1305_SHA256
 cipher suite is the only one configured. This is similar
 to the crypto suite used in Wireguard (TailScale), 
 the only difference being that Wireguard uses
-Blake2s as a hash function (apparently faster than SHA-256).
+Blake2s as a hash function (apparently faster than SHA-256
+when hardware support SHA-extensions/SHA-NI instructions are not available).
 The ChaCha20, Poly1305, and Curve25519 parts are the same.
 
 security posture for both extremes
