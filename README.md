@@ -248,7 +248,7 @@ to create keys).
 // strong a security posture we adopt.
 type Config struct {
 
-	// ServerAddr host:port of the rpc25519.Server to contact.
+	// ServerAddr host:port where the server should listen.
 	ServerAddr string
 
 	// optional. Can be used to suggest that the 

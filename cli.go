@@ -418,7 +418,7 @@ type OneWayFunc func(req *Message)
 // in use is Close()-ed.
 type Config struct {
 
-	// ServerAddr host:port that the rpc25519.Server should bind to.
+	// ServerAddr host:port where the server should listen.
 	ServerAddr string
 
 	// optional. Can be used to suggest that the
