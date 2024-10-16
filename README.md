@@ -74,7 +74,7 @@ plain TCP, and QUIC which uses TLS-v1.3 over UDP.
 QUIC is so much faster than even plain TCP, it
 should probably be your default choice. 
 
-The only difficulty comes to IPv6 networks.
+The only difficulty comes from IPv6 networks with VPNs.
 They are not very friendly to QUIC. Typically they have
 minimal 1280 MTU, so we'll have a problem if any kind of 
 VPN layer is in use. Tailscale/Wireguard
