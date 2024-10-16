@@ -251,8 +251,20 @@ type Config struct {
 	// ServerAddr host:port of the rpc25519.Server to contact.
 	ServerAddr string
 
-	// false means TLS-1.3 secured. true here means do TCP only.
+	// optional. Can be used to have suggest that the 
+	// client use a specific host:port. NB: For QUIC, by default, the client and
+	// server will share the same port if they are in the same process.
+	// In that case this setting will definitely be ignored.
+	ClientHostPort string
+
+	// Who the client should contact
+	ClientDialToHostPort string
+
+	// TCP false means TLS-1.3 secured. true here means do TCP only; with no encryption.
 	TCPonly_no_TLS bool
+
+	// UseQUIC cannot be true if TCPonly_no_TLS is true.
+	UseQUIC bool
 
 	// path to certs/ like certificate directory 
 	// on the live filesystem. If left
