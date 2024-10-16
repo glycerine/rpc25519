@@ -251,7 +251,7 @@ type Config struct {
 	// ServerAddr host:port of the rpc25519.Server to contact.
 	ServerAddr string
 
-	// optional. Can be used to have suggest that the 
+	// optional. Can be used to suggest that the 
 	// client use a specific host:port. NB: For QUIC, by default, the client and
 	// server will share the same port if they are in the same process.
 	// In that case this setting will definitely be ignored.
