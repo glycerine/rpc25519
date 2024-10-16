@@ -54,6 +54,8 @@ func (s *Service) GetsContext(ctx context.Context, args *Args, reply *Reply) err
 }
 ~~~
 
+TODO: The client does not transmit context to server at the moment.
+
 The net/rpc API is implemented as a layer on top of the rpc25519.Message
 based API. Both can be used concurrently if desired.
 
