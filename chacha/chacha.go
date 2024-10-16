@@ -40,7 +40,7 @@ type Decoder struct {
 	aead cipher.AEAD
 	ciph bytes.Buffer // written until read is needed
 
-	plain []byte // extra decrypted not yet read, from here first.
+	plain []byte // extra decrypted not yet read; read from here first.
 
 	noncesize int
 	overhead  int
@@ -94,7 +94,7 @@ func (e *Encoder) Read(ciph []byte) (n int, err error) {
 	return e.ciph.Read(ciph)
 }
 
-// Write encrypts data and writes it to the underlying writer.
+// Write encrypts data and writes it to the underlying stream.
 func (e *Encoder) Write(plaintext []byte) (n int, err error) {
 	// encryption
 	e.mut.Lock()
@@ -104,9 +104,6 @@ func (e *Encoder) Write(plaintext []byte) (n int, err error) {
 	space := make([]byte, e.noncesize, e.noncesize+len(plaintext)+e.overhead)
 	copy(space, e.writeNonce)
 	noncePlusEncrypted := e.aead.Seal(space, e.writeNonce, plaintext, nil)
-
-	//vv("encrypted = '%x'", encrypted)
-	//vv("writeNonce = '%x' is it the prefix of encrypted?/?", e.writeNonce)
 
 	// Increment the nonce: hold mut if not already.
 	err = incrementNonce(e.writeNonce)
@@ -130,73 +127,71 @@ func (e *Encoder) Write(plaintext []byte) (n int, err error) {
 	return len(plaintext), nil
 }
 
-// Read decrypts data from the underlying reader.
+// Read decrypts data from the underlying stream.
 func (d *Decoder) Read(plain []byte) (n int, err error) {
 	d.mut.Lock()
 	defer d.mut.Unlock()
 
-	if len(d.plain) >= len(plain) {
-		n = copy(plain, d.plain)
-		d.plain = d.plain[n:]
-		return
-	}
-	// INVAR: len(d.plain) < len(plain)
-	if len(d.plain) > 0 {
-		// accumulate into n as we write more to plain.
-		n = copy(plain, d.plain)
-		d.plain = d.plain[:0]
-		plain = plain[n:]
-	}
+	goal := len(plain)
+	for n < goal {
 
-	// Read the length prefix (uint32)
-	var length uint32
-	err = binary.Read(&d.ciph, binary.BigEndian, &length)
-	if err != nil {
-		return
-	}
+		if len(d.plain) >= len(plain) {
+			n += copy(plain, d.plain)
+			d.plain = d.plain[n:]
+			return
+		}
+		// INVAR: len(d.plain) < len(plain)
+		if len(d.plain) > 0 {
+			// accumulate into n as we write more to plain.
+			n += copy(plain, d.plain)
+			d.plain = d.plain[:0]
+			plain = plain[n:]
+		}
 
-	// Read the encrypted data
-	encrypted := make([]byte, length)
-	_, err = io.ReadFull(&d.ciph, encrypted)
-	if err != nil {
-		return
-	}
+		// Read the length prefix (uint32)
+		var length uint32
+		err = binary.Read(&d.ciph, binary.BigEndian, &length)
+		if err != nil {
+			return
+		}
 
-	// Decrypt the data
-	var decrypted []byte
-	decrypted, err = d.aead.Open(nil, encrypted[:d.noncesize], encrypted[d.noncesize:], nil)
-	if err != nil {
-		return
-	}
+		// Read the encrypted data
+		encrypted := make([]byte, length)
+		_, err = io.ReadFull(&d.ciph, encrypted)
+		if err != nil {
+			return
+		}
 
-	// Copy decrypted data to plain
-	more := copy(plain, decrypted)
-	n += more
-	if len(decrypted) > more {
-		d.plain = append(d.plain, decrypted[more:]...)
+		// Decrypt the data
+		var decrypted []byte
+		decrypted, err = d.aead.Open(nil, encrypted[:d.noncesize], encrypted[d.noncesize:], nil)
+		if err != nil {
+			return
+		}
+
+		// Copy decrypted data to plain
+		more := copy(plain, decrypted)
+		plain = plain[more:]
+		n += more
+		if len(decrypted) > more {
+			d.plain = append(d.plain, decrypted[more:]...)
+		}
+		if len(plain) == 0 {
+			return
+		}
 	}
 	return
 }
 
+// Write ciphertext to be decoded into the Decoder.
 func (d *Decoder) Write(ciphertext []byte) (n int, err error) {
 	// write into d.ciph to accumulate
 	d.mut.Lock()
 	defer d.mut.Unlock()
 
+	// lazily wait until we are read from to decode,
+	// because we might not have it all?
 	return d.ciph.Write(ciphertext)
-
-	/*
-		plain, err := decryptChaCha20Poly1305(ciphertext, d.key)
-		if err != nil {
-			return 0, err
-		}
-		nw, err := d.plain.Write(plain)
-		panicOn(err)
-		if nw != len(plain) {
-			panic("short write")
-		}
-		return len(ciphertext), nil
-	*/
 }
 
 // ReadFrom reads plaintext data from src, encrypts it, and writes encrypted data to the underlying writer.
