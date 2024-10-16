@@ -7,14 +7,14 @@ package rpc25519
 // license that can be found in the LICENSE file.
 
 import (
-	"reflect"
-	//"io"
 	"bufio"
+	"context"
 	"encoding/gob"
 	"errors"
 	"go/token"
 	"io"
 	"log"
+	"reflect"
 	"sync"
 )
 
@@ -143,10 +143,11 @@ type methodType struct {
 }
 
 type service struct {
-	name   string                 // name of service
-	rcvr   reflect.Value          // receiver of methods for the service
-	typ    reflect.Type           // type of the receiver
-	method map[string]*methodType // registered methods
+	name      string                 // name of service
+	rcvr      reflect.Value          // receiver of methods for the service
+	typ       reflect.Type           // type of the receiver
+	method    map[string]*methodType // registered methods
+	ctxMethod map[string]*methodType // registered methods that start with ctx in callback
 
 	rpcHDRavail bool
 	rpcHDRfield reflect.Value
@@ -193,6 +194,73 @@ func suitableMethods(typ reflect.Type, logErr bool) map[string]*methodType {
 		}
 		// Second arg must be a pointer.
 		replyType := mtype.In(2)
+		if replyType.Kind() != reflect.Pointer {
+			if logErr {
+				log.Printf("rpc.Register: reply type of method %q is not a pointer: %q\n", mname, replyType)
+			}
+			continue
+		}
+		// Reply type must be exported.
+		if !isExportedOrBuiltinType(replyType) {
+			if logErr {
+				log.Printf("rpc.Register: reply type of method %q is not exported: %q\n", mname, replyType)
+			}
+			continue
+		}
+		// Method needs one out.
+		if mtype.NumOut() != 1 {
+			if logErr {
+				log.Printf("rpc.Register: method %q has %d output parameters; needs exactly one\n", mname, mtype.NumOut())
+			}
+			continue
+		}
+		// The return type of the method must be error.
+		if returnType := mtype.Out(0); returnType != typeOfError {
+			if logErr {
+				log.Printf("rpc.Register: return type of method %q is %q, must be error\n", mname, returnType)
+			}
+			continue
+		}
+		methods[mname] = &methodType{method: method, ArgType: argType, ReplyType: replyType}
+	}
+	return methods
+}
+
+// contextFirstSuitableMethods returns suitable Rpc methods of typ. It will log
+// errors if logErr is true.
+func contextFirstSuitableMethods(typ reflect.Type, logErr bool) map[string]*methodType {
+	methods := make(map[string]*methodType)
+	for m := 0; m < typ.NumMethod(); m++ {
+		method := typ.Method(m)
+		mtype := method.Type
+		mname := method.Name
+		// Method must be exported.
+		if !method.IsExported() {
+			continue
+		}
+		// Method needs four ins: receiver, ctx, *args, *reply.
+		if mtype.NumIn() != 4 {
+			if logErr {
+				log.Printf("rpc.Register: method %q has %d input parameters; needs exactly four\n", mname, mtype.NumIn())
+			}
+			continue
+		}
+		// First arg
+		firstType := mtype.In(1)
+		if firstType != reflect.TypeOf((*context.Context)(nil)).Elem() {
+			continue
+		}
+
+		// Second arg need not be a pointer.
+		argType := mtype.In(2)
+		if !isExportedOrBuiltinType(argType) {
+			if logErr {
+				log.Printf("rpc.Register: argument type of method %q is not exported: %q\n", mname, argType)
+			}
+			continue
+		}
+		// third arg must be a pointer.
+		replyType := mtype.In(3)
 		if replyType.Kind() != reflect.Pointer {
 			if logErr {
 				log.Printf("rpc.Register: reply type of method %q is not a pointer: %q\n", mname, replyType)

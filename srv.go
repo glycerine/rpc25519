@@ -508,7 +508,7 @@ func (p *rwPair) callBridgeNetRpc(reqMsg *Message) error {
 	p.decBuf.Reset()
 	p.decBuf.Write(reqMsg.JobSerz)
 
-	service, mtype, req, argv, replyv, keepReading, err := p.readRequest(p.gobCodec)
+	service, mtype, req, argv, replyv, keepReading, wantsCtx, err := p.readRequest(p.gobCodec)
 	//vv("p.readRequest() back with err = '%v'", err)
 	if err != nil {
 		if debugLog && err != io.EOF {
@@ -526,12 +526,12 @@ func (p *rwPair) callBridgeNetRpc(reqMsg *Message) error {
 	}
 	//wg.Add(1)
 	//vv("about to callMethodByReflection")
-	service.callMethodByReflection(p, reqMsg, mtype, req, argv, replyv, p.gobCodec)
+	service.callMethodByReflection(p, reqMsg, mtype, req, argv, replyv, p.gobCodec, wantsCtx)
 
 	return nil
 }
 
-func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *methodType, req *Request, argv, replyv reflect.Value, codec ServerCodec) {
+func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *methodType, req *Request, argv, replyv reflect.Value, codec ServerCodec, wantsCtx bool) {
 
 	mtype.Lock()
 	mtype.numCalls++
@@ -539,7 +539,14 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 	function := mtype.method.Func
 
 	// Invoke the method, providing a new value for the reply.
-	returnValues := function.Call([]reflect.Value{s.rcvr, argv, replyv})
+	var returnValues []reflect.Value
+	if wantsCtx {
+		ctx := context.WithValue(context.Background(), "HDR", &reqMsg.HDR)
+		rctx := reflect.ValueOf(ctx)
+		returnValues = function.Call([]reflect.Value{s.rcvr, rctx, argv, replyv})
+	} else {
+		returnValues = function.Call([]reflect.Value{s.rcvr, argv, replyv})
+	}
 	// The return value for the method is an error.
 	errInter := returnValues[0].Interface()
 	errmsg := ""
@@ -602,10 +609,10 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply any, codec Se
 }
 
 // from net/rpc Server.readRequest
-func (p *rwPair) readRequest(codec ServerCodec) (service *service, mtype *methodType, req *Request, argv, replyv reflect.Value, keepReading bool, err error) {
+func (p *rwPair) readRequest(codec ServerCodec) (service *service, mtype *methodType, req *Request, argv, replyv reflect.Value, keepReading bool, wantsCtx bool, err error) {
 	//vv("pair readRequest() top")
 
-	service, mtype, req, keepReading, err = p.readRequestHeader(codec)
+	service, mtype, req, keepReading, wantsCtx, err = p.readRequestHeader(codec)
 	// err can legit be: rpc: can't find method Arith.BadOperation
 	// if a method is not found, so do not panic on err here.
 	if err != nil {
@@ -644,7 +651,7 @@ func (p *rwPair) readRequest(codec ServerCodec) (service *service, mtype *method
 	return
 }
 
-func (p *rwPair) readRequestHeader(codec ServerCodec) (svc *service, mtype *methodType, req *Request, keepReading bool, err error) {
+func (p *rwPair) readRequestHeader(codec ServerCodec) (svc *service, mtype *methodType, req *Request, keepReading bool, wantsCtx bool, err error) {
 	// Grab the request header.
 	req = p.Server.getRequest()
 	err = codec.ReadRequestHeader(req)
@@ -695,7 +702,12 @@ func (p *rwPair) readRequestHeader(codec ServerCodec) (svc *service, mtype *meth
 	svc = svci.(*service)
 	mtype = svc.method[methodName]
 	if mtype == nil {
-		err = errors.New("rpc: can't find method " + req.ServiceMethod)
+		mtype = svc.ctxMethod[methodName]
+		if mtype == nil {
+			err = errors.New("rpc: can't find method " + req.ServiceMethod)
+		} else {
+			wantsCtx = true
+		}
 	}
 	return
 }
@@ -746,12 +758,16 @@ func (s *Server) register(rcvr any, name string, useName bool) error {
 	// Install the methods
 	svc.method = suitableMethods(svc.typ, logRegisterError)
 
-	if len(svc.method) == 0 {
+	svc.ctxMethod = contextFirstSuitableMethods(svc.typ, logRegisterError)
+
+	if len(svc.method) == 0 && len(svc.ctxMethod) == 0 {
 		str := ""
 
 		// To help the user, see if a pointer receiver would work.
 		method := suitableMethods(reflect.PointerTo(svc.typ), false)
-		if len(method) != 0 {
+		ctxMethod := contextFirstSuitableMethods(reflect.PointerTo(svc.typ), false)
+
+		if len(method) != 0 || len(ctxMethod) != 0 {
 			str = "rpc.Register: type " + sname + " has no exported methods of suitable type (hint: pass a pointer to value of that type)"
 		} else {
 			str = "rpc.Register: type " + sname + " has no exported methods of suitable type"

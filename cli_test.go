@@ -1,6 +1,7 @@
 package rpc25519
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -94,6 +95,19 @@ func (BuiltinTypes) Slice(args *Args, reply *[]int) error {
 func (BuiltinTypes) Array(args *Args, reply *[2]int) error {
 	(*reply)[0] = args.A
 	(*reply)[1] = args.B
+	return nil
+}
+
+// mimic Array's reply
+func (BuiltinTypes) WantsContext(ctx context.Context, args *Args, reply *[2]int) error {
+	if hdr := ctx.Value("HDR"); hdr != nil {
+		fmt.Printf("WantsContext called with HDR = '%v'\n", hdr.(*HDR).String())
+
+		(*reply)[0] = args.A
+		(*reply)[1] = args.B
+	} else {
+		fmt.Println("HDR not found")
+	}
 	return nil
 }
 
@@ -692,6 +706,14 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 		args = &Args{7, 8}
 		replyArray := [2]int{}
 		err = client.Call("BuiltinTypes.Array", args, &replyArray)
+		if err != nil {
+			t.Errorf("Array: expected no error but got string %q", err.Error())
+		}
+		if e := [2]int{args.A, args.B}; !reflect.DeepEqual(replyArray, e) {
+			t.Errorf("Array: expected %v got %v", e, replyArray)
+		}
+
+		err = client.Call("BuiltinTypes.WantsContext", args, &replyArray)
 		if err != nil {
 			t.Errorf("Array: expected no error but got string %q", err.Error())
 		}
