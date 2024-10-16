@@ -91,7 +91,7 @@ Context: https://github.com/tailscale/tailscale/issues/2633
 Comments/links: https://gist.github.com/jj1bdx/1adac3e305d0fb6dee90dd5b909513ed
 
 At the moment we will detect and panic in the
-case an IPv6 network is used to warn you
+case an IPv6 network is used with QUIC to warn you
 of this issue.
 
 How to KYC or Know Your Clients
