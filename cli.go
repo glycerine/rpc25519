@@ -3,14 +3,13 @@ package rpc25519
 // cli.go: simple TCP client, with TLS encryption.
 
 import (
-	"context"
-	"crypto/tls"
-	"fmt"
-	//"io"
 	"bufio"
 	"bytes"
+	"context"
+	"crypto/tls"
 	"encoding/gob"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -31,7 +30,7 @@ var sep = string(os.PathSeparator)
 
 // eg. serverAddr = "localhost:8443"
 // serverAddr = "192.168.254.151:8443"
-func (c *Client) RunClientMain(serverAddr string, tcp_only bool, certPath string) {
+func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string) {
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
 	defer func() {
@@ -817,7 +816,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		encBuf: c.encBufW,
 	}
 
-	go c.RunClientMain(c.cfg.ClientDialToHostPort, c.cfg.TCPonly_no_TLS, c.cfg.CertPath)
+	go c.runClientMain(c.cfg.ClientDialToHostPort, c.cfg.TCPonly_no_TLS, c.cfg.CertPath)
 
 	// wait for connection (or not).
 	err = <-c.Connected
