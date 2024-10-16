@@ -109,7 +109,7 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	}
 	// assing QuicConn before signaling on c.Connected, else tests will race and panic
 	// not having a connection
-	c.QuicConn = conn
+	c.quicConn = conn
 	c.isQUIC = true
 
 	la := conn.LocalAddr()

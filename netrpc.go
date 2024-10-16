@@ -147,6 +147,9 @@ type service struct {
 	rcvr   reflect.Value          // receiver of methods for the service
 	typ    reflect.Type           // type of the receiver
 	method map[string]*methodType // registered methods
+
+	rpcHDRavail bool
+	rpcHDRfield reflect.Value
 }
 
 func (call *Call) done() {

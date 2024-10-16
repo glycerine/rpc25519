@@ -21,8 +21,8 @@ untyped []byte payloads (in `Message.JobSerz`).
 
 Using the rpc25519.Message based API:
 
- * `Register1Func()` registers one-way (no reply) callbacks on the server; and
- * `Register2Func()` register traditional two-way callbacks.
+ * `Server.Register1Func()` registers one-way (no reply) callbacks on the server; and
+ * `Server.Register2Func()` register traditional two-way callbacks.
 
 Using the net/rpc API:
 
@@ -32,6 +32,8 @@ See [the net/rpc docs for full guidance on using that API](https://pkg.go.dev/ne
 
 The net/rpc API is implemented as a layer on top of the rpc25519.Message
 based API. Both can be used concurrently if desired.
+
+Server push is available too. Use [Client.GetReadIncomingCh](https://pkg.go.dev/github.com/glycerine/rpc25519#Client.GetReadIncomingCh) or [Client.GetReads](https://pkg.go.dev/github.com/glycerine/rpc25519#Client.GetReads) on the client side to received server initiated messages.
 
 In the following we'll look at choice of transport, why
 public-key certs are preferred, and how to use the included `selfy`

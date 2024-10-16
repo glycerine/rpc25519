@@ -209,9 +209,9 @@ func Test004_server_push(t *testing.T) {
 
 		// the new stuff under test
 
-		vv("cli.Conn remote key = '%v'", remote(cli.Conn))
-		vv("cli.Conn local key = '%v'", local(cli.Conn))
-		destAddr := local(cli.Conn)
+		vv("cli.Conn remote key = '%v'", remote(cli.conn))
+		vv("cli.Conn local key = '%v'", local(cli.conn))
+		destAddr := local(cli.conn)
 
 		for rem := range srv.RemoteConnectedCh {
 			if rem == destAddr {

@@ -525,18 +525,19 @@ func (p *rwPair) callBridgeNetRpc(reqMsg *Message) error {
 		return err
 	}
 	//wg.Add(1)
-	//vv("about to call25519")
-	service.call25519(p, reqMsg, mtype, req, argv, replyv, p.gobCodec)
+	//vv("about to callMethodByReflection")
+	service.callMethodByReflection(p, reqMsg, mtype, req, argv, replyv, p.gobCodec)
 
 	return nil
 }
 
-func (s *service) call25519(pair *rwPair, reqMsg *Message, mtype *methodType, req *Request, argv, replyv reflect.Value, codec ServerCodec) {
+func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *methodType, req *Request, argv, replyv reflect.Value, codec ServerCodec) {
 
 	mtype.Lock()
 	mtype.numCalls++
 	mtype.Unlock()
 	function := mtype.method.Func
+
 	// Invoke the method, providing a new value for the reply.
 	returnValues := function.Call([]reflect.Value{s.rcvr, argv, replyv})
 	// The return value for the method is an error.
@@ -762,6 +763,7 @@ func (s *Server) register(rcvr any, name string, useName bool) error {
 	if _, dup := s.serviceMap.LoadOrStore(sname, svc); dup {
 		return errors.New("rpc: service already defined: " + sname)
 	}
+
 	return nil
 }
 

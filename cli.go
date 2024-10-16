@@ -24,6 +24,16 @@ import (
 	"github.com/quic-go/quic-go"
 )
 
+type localRemoteAddr interface {
+	RemoteAddr() net.Addr
+	LocalAddr() net.Addr
+}
+
+type uConnLR interface {
+	uConn
+	localRemoteAddr
+}
+
 var _ quic.Connection
 
 var sep = string(os.PathSeparator)
@@ -137,7 +147,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	c.isTLS = true
 	// do this before signaling on c.Connected, else tests will race and panic
 	// not having a connection
-	c.Conn = nconn
+	c.conn = nconn
 
 	conn := nconn.(*tls.Conn) // docs say this is for sure.
 	defer conn.Close()
@@ -195,7 +205,7 @@ func (c *Client) RunClientTCP(serverAddr string) {
 	c.SetLocalAddr(la.Network() + "://" + la.String())
 
 	c.isTLS = false
-	c.Conn = conn
+	c.conn = conn
 
 	c.Connected <- nil
 	defer conn.Close()
@@ -418,7 +428,7 @@ type Config struct {
 	// Who the client should contact
 	ClientDialToHostPort string
 
-	// TCP false means TLS-1.3 secured. true here means do TCP only.
+	// TCP false means TLS-1.3 secured. true here means do TCP only; with no encryption.
 	TCPonly_no_TLS bool
 
 	// UseQUIC cannot be true if TCPonly_no_TLS is true.
@@ -503,9 +513,8 @@ type Client struct {
 	notifyOnRead []chan *Message
 	notifyOnce   map[uint64]chan *Message
 
-	Conn uConnLR
-	//	Conn     net.Conn // the default.
-	QuicConn quic.Connection
+	conn     uConnLR
+	quicConn quic.Connection
 
 	isTLS  bool
 	isQUIC bool
@@ -515,7 +524,10 @@ type Client struct {
 
 	halt *idem.Halter
 
-	// if connecting suceeds, a nil will be sent; else the error.
+	// Connected lets the user wait for
+	// handshake to complete. If connecting suceeds,
+	// a nil will be sent on this chan, otherwise
+	// the error will be provided.
 	Connected chan error
 
 	err error // detect inability to connect.
@@ -878,11 +890,11 @@ func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *M
 	}
 	var from, to string
 	if c.isQUIC {
-		from = local(c.QuicConn)
-		to = remote(c.QuicConn)
+		from = local(c.quicConn)
+		to = remote(c.quicConn)
 	} else {
-		from = local(c.Conn)
-		to = remote(c.Conn)
+		from = local(c.conn)
+		to = remote(c.conn)
 	}
 	isRPC := true
 	isLeg2 := false
@@ -930,11 +942,11 @@ func (c *Client) OneWaySend(msg *Message, doneCh <-chan struct{}) (err error) {
 
 	var from, to string
 	if c.isQUIC {
-		from = local(c.QuicConn)
-		to = remote(c.QuicConn)
+		from = local(c.quicConn)
+		to = remote(c.quicConn)
 	} else {
-		from = local(c.Conn)
-		to = remote(c.Conn)
+		from = local(c.conn)
+		to = remote(c.conn)
 	}
 
 	isRPC := false
@@ -967,16 +979,6 @@ func (c *Client) LocalAddr() string {
 	c.mut.Lock()
 	defer c.mut.Unlock()
 	return c.cfg.LocalAddress
-}
-
-type localRemoteAddr interface {
-	RemoteAddr() net.Addr
-	LocalAddr() net.Addr
-}
-
-type uConnLR interface {
-	uConn
-	localRemoteAddr
 }
 
 func remote(nc localRemoteAddr) string {

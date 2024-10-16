@@ -3,6 +3,7 @@ package rpc25519
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -77,7 +78,8 @@ type Embed struct {
 	hidden
 }
 
-type BuiltinTypes struct{}
+type BuiltinTypes struct {
+}
 
 func (BuiltinTypes) Map(args *Args, reply *map[int]int) error {
 	(*reply)[args.A] = args.B
@@ -450,7 +452,8 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 		srv.Register(new(Arith))
 		srv.Register(new(Embed))
 		srv.RegisterName("net.rpc.Arith", new(Arith))
-		srv.Register(BuiltinTypes{})
+		bit := &BuiltinTypes{}
+		srv.Register(bit)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		client, err := NewClient("test006", cfg)
@@ -589,6 +592,41 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 		}
 		if reply.C != args.A+args.B {
 			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
+		}
+
+		// BuiltinTypes
+
+		// Map
+		args = &Args{7, 8}
+		replyMap := map[int]int{}
+		err = client.Call("BuiltinTypes.Map", args, &replyMap)
+		if err != nil {
+			t.Errorf("Map: expected no error but got string %q", err.Error())
+		}
+		if replyMap[args.A] != args.B {
+			t.Errorf("Map: expected %d got %d", args.B, replyMap[args.A])
+		}
+
+		// Slice
+		args = &Args{7, 8}
+		replySlice := []int{}
+		err = client.Call("BuiltinTypes.Slice", args, &replySlice)
+		if err != nil {
+			t.Errorf("Slice: expected no error but got string %q", err.Error())
+		}
+		if e := []int{args.A, args.B}; !reflect.DeepEqual(replySlice, e) {
+			t.Errorf("Slice: expected %v got %v", e, replySlice)
+		}
+
+		// Array
+		args = &Args{7, 8}
+		replyArray := [2]int{}
+		err = client.Call("BuiltinTypes.Array", args, &replyArray)
+		if err != nil {
+			t.Errorf("Array: expected no error but got string %q", err.Error())
+		}
+		if e := [2]int{args.A, args.B}; !reflect.DeepEqual(replyArray, e) {
+			t.Errorf("Array: expected %v got %v", e, replyArray)
 		}
 
 	})

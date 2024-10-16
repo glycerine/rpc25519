@@ -71,7 +71,7 @@ type HDR struct {
 	IsRPC    bool   `zid:"4"`
 	IsLeg2   bool   `zid:"5"`
 	Serial   int64  `zid:"6"`
-	CallID   string `zid:"7"` // able to match call and response on this alone.
+	CallID   string `zid:"7"`
 	PID      int64  `zid:"8"`
 	Seqno    uint64 `zid:"9"`
 	IsNetRPC bool   `zid:"10"`
