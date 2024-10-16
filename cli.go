@@ -310,7 +310,8 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 
 			// one-way always use seqno 0,
 			// so we know that no follow up is expected.
-			msg.HDR.Seqno = 0
+			seqno := c.nextSeqno()
+			msg.HDR.Seqno = seqno
 
 			if msg.HDR.Nc == nil {
 				// use default conn
@@ -534,8 +535,8 @@ type Client struct {
 	reqMutex sync.Mutex // protects following
 	request  Request
 
-	mutex    sync.Mutex // protects following
-	seq      uint64
+	mutex sync.Mutex // protects following
+
 	pending  map[uint64]*Call
 	closing  bool // user has called Close
 	shutdown bool // server has told us to stop
@@ -604,8 +605,8 @@ func (c *Client) send(call *Call) {
 		call.done()
 		return
 	}
-	seq := c.seq
-	c.seq++
+
+	seq := c.nextSeqno()
 	c.pending[seq] = call
 	c.mutex.Unlock()
 
