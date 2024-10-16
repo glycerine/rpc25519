@@ -102,6 +102,7 @@ for sane development and deployment on any hardware a developer
 can access with ssh, without compromising on encryption on
 either end.
 
+
 TOFU or not
 -----------
 
@@ -273,6 +274,9 @@ type Config struct {
 The `selfy` tool: create new keys quickly; view certificates
 ---------------------
 
+Certificates are great, but making them has traditionally
+been a massive pain. That is why I wrote `selfy`.
+
 The `selfy` command is an easy way to create private keys, certificates,
 and self-signed certficate authories. It is vastly more usable than
 mountain of complexity that is `openssl`, but more limited in scope.
@@ -312,7 +316,7 @@ while the -k named identifying cert is stored in `certs/name.crt`.
 The corresponding private key is stored in `certs/name.key`.
 
 Update: we have added pass-phrase protection to the private keys by default.
-In order to forgoe this protection and use the original behavior, supply the
+In order to forgo this protection and use the original behavior, supply the
 `selfy --nopass` flag.
 
 ~~~
@@ -408,11 +412,7 @@ usability `ssh`. To me `ssh` has
 always been so much easier to deal with than
 certificates. rpc25519 aims for
 usability on par with `ssh`. Leveraging
-SNI is one way we get there. Anther
-is by providing the bespoke tool, `selfy`, 
-which is described in the next section. It
-takes alot of the pain out of creating certficates.
-
+SNI is one way we get there.
 
 [1]  https://en.wikipedia.org/wiki/Server_Name_Indication ,
 
