@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	maxMessage = 1024 * 1024 // 1MB max message size, prevents TLS clients from talking to TCP servers.
+	maxMessage = 2 * 1024 * 1024 * 1024 // 2GB max message size, prevents TLS clients from talking to TCP servers.
 )
 
 var _ = io.EOF
@@ -82,7 +82,7 @@ func (w *workspace) receiveMessage(conn uConn, timeout *time.Duration) (msg *Mes
 	// Read the message based on the messageLen
 	if messageLen > maxMessage {
 		// probably an encrypted client against an unencrypted server
-		return nil, fmt.Errorf("message message too long: %v is over 1MB; encrypted client vs an un-encrypted server?", messageLen)
+		return nil, fmt.Errorf("message message too long: %v is over 2GB; encrypted client vs an un-encrypted server?", messageLen)
 	}
 
 	message := make([]byte, messageLen)
