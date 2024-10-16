@@ -17,7 +17,7 @@ import (
 
 //go:generate greenpack
 
-const RFC3339NanoNumericTZ0pad = "2006-01-02T15:04:05.000000000-07:00"
+const rfc3339NanoNumericTZ0pad = "2006-01-02T15:04:05.000000000-07:00"
 
 var lastSerial int64
 
@@ -79,7 +79,7 @@ type HDR struct {
 
 func NewHDR(from, to, subject string, isRPC bool, isLeg2 bool) (m *HDR) {
 	t0 := time.Now()
-	created := t0.In(Chicago).Format(RFC3339NanoNumericTZ0pad)
+	created := t0.In(Chicago).Format(rfc3339NanoNumericTZ0pad)
 	serial := atomic.AddInt64(&lastSerial, 1)
 	// unchecked base58
 	rness := toUncheckedBase58(cryptoRandBytes(40))

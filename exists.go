@@ -4,7 +4,7 @@ import (
 	"os"
 )
 
-func FileExists(name string) bool {
+func fileExists(name string) bool {
 	fi, err := os.Stat(name)
 	if err != nil {
 		return false
@@ -15,7 +15,7 @@ func FileExists(name string) bool {
 	return true
 }
 
-func DirExists(name string) bool {
+func dirExists(name string) bool {
 	fi, err := os.Stat(name)
 	if err != nil {
 		return false
@@ -26,7 +26,7 @@ func DirExists(name string) bool {
 	return false
 }
 
-func FileSize(name string) (int64, error) {
+func fileSize(name string) (int64, error) {
 	fi, err := os.Stat(name)
 	if err != nil {
 		return -1, err
@@ -39,8 +39,8 @@ func FileSize(name string) (int64, error) {
 // the write bits. If any write bits
 // (owner, group, others) are set, then
 // we return true. Otherwise false.
-func IsWritable(path string) bool {
-	if !FileExists(path) {
+func isWritable(path string) bool {
+	if !fileExists(path) {
 		return true
 	}
 	fileInfo, err := os.Stat(path)

@@ -1007,7 +1007,7 @@ func SelfyNewKey(createKeyPairNamed, odir string) error {
 	const verbose = false
 	const encryptWithPassphhrase = false
 
-	if !DirExists(odirPrivateKey) || !FileExists(odirPrivateKey+sep+"ca.crt") {
+	if !dirExists(odirPrivateKey) || !fileExists(odirPrivateKey+sep+"ca.crt") {
 		//vv("key-pair '%v' requested but CA does not exist in '%v', so auto-generating a self-signed CA for your first.", createKeyPairNamed, odirPrivateKey)
 		selfcert.Step1_MakeCertificatAuthority(odirPrivateKey, verbose, encryptWithPassphhrase)
 	}

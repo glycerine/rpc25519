@@ -56,7 +56,7 @@ func NewKnown(path string) *Known {
 func (k *Known) WriteOut() (err error) {
 
 	// try to back up any corrupt/previous file for inspection
-	if FileExists(k.Path) {
+	if fileExists(k.Path) {
 		old := k.Path + ".old"
 		os.Remove(old)
 		os.Rename(k.Path, old)
@@ -85,7 +85,7 @@ var ErrNotFound = fmt.Errorf("known_tls_hosts file not found")
 
 func readKnownKeys(path string) (kn *Known, err error) {
 
-	if !FileExists(path) {
+	if !fileExists(path) {
 		return nil, ErrNotFound
 	}
 
@@ -172,9 +172,9 @@ func HostKeyVerifies(
 
 	// we use the existance of the known keys file to decide
 	// whether to use it or not. So touch the file to start using it.
-	recordKeys := FileExists(knownKeysPath)
+	recordKeys := fileExists(knownKeysPath)
 	if recordKeys {
-		if !IsWritable(knownKeysPath) {
+		if !isWritable(knownKeysPath) {
 			tofu = false // no writing/modification of the read-only file.
 		}
 
@@ -308,10 +308,10 @@ func computeFingerprint(cert *x509.Certificate) string {
 }
 
 // we always use 255, which is -1 in 8-bit 2's compliment.
-const VersionByteBase59Checked byte = 255
+const versionByteBase59Checked byte = 255
 
 func toBase58Check(by []byte) string {
-	return base58.CheckEncode(by, VersionByteBase59Checked)
+	return base58.CheckEncode(by, versionByteBase59Checked)
 }
 func fromBase58Check(encodedStr string) []byte {
 	decoded, version, err := base58.CheckDecode(encodedStr)

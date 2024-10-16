@@ -13,8 +13,8 @@ import (
 )
 
 // for tons of debug output
-var Verbose bool = false
-var VerboseVerbose bool = false
+var verbose bool = false
+var verboseVerbose bool = false
 
 var GTZ *time.Location
 var Chicago *time.Location
@@ -43,19 +43,19 @@ func init() {
 	GTZ = Chicago
 }
 
-const RFC3339MsecTz0 = "2006-01-02T15:04:05.000Z07:00"
+const rfc3339MsecTz0 = "2006-01-02T15:04:05.000Z07:00"
 
 var MyPid = os.Getpid()
 var ShowPid bool
 
 func P(format string, a ...interface{}) {
-	if Verbose {
+	if verbose {
 		TSPrintf(format, a...)
 	}
 }
 
 func PP(format string, a ...interface{}) {
-	if VerboseVerbose {
+	if verboseVerbose {
 		TSPrintf(format, a...)
 	}
 }
@@ -77,14 +77,14 @@ var vv = VV
 
 // without the file/line, otherwise the same as PP
 func PPP(format string, a ...interface{}) {
-	if VerboseVerbose {
+	if verboseVerbose {
 		Printf("\n%s ", ts())
 		Printf(format+"\n", a...)
 	}
 }
 
 func PB(w io.Writer, format string, a ...interface{}) {
-	if Verbose {
+	if verbose {
 		fmt.Fprintf(w, "\n"+format+"\n", a...)
 	}
 }
@@ -110,12 +110,12 @@ func ts() string {
 }
 
 // so we can multi write easily, use our own printf
-var OurStdout io.Writer = os.Stdout
+var ourStdout io.Writer = os.Stdout
 
 // Printf formats according to a format specifier and writes to standard output.
 // It returns the number of bytes written and any write error encountered.
 func Printf(format string, a ...interface{}) (n int, err error) {
-	return fmt.Fprintf(OurStdout, format, a...)
+	return fmt.Fprintf(ourStdout, format, a...)
 }
 
 func FileLine(depth int) string {
@@ -130,7 +130,7 @@ func FileLine(depth int) string {
 }
 
 func p(format string, a ...interface{}) {
-	if Verbose {
+	if verbose {
 		TSPrintf(format, a...)
 	}
 }
@@ -138,19 +138,19 @@ func p(format string, a ...interface{}) {
 var pp = PP
 
 func pbb(w io.Writer, format string, a ...interface{}) {
-	if Verbose {
+	if verbose {
 		fmt.Fprintf(w, "\n"+format+"\n", a...)
 	}
 }
 
 // quieted for now, uncomment below to display
 func VPrintf(format string, a ...interface{}) (n int, err error) {
-	//return fmt.Fprintf(OurStdout, format, a...)
+	//return fmt.Fprintf(ourStdout, format, a...)
 	return
 }
 
 func QPrintf(format string, a ...interface{}) (n int, err error) {
-	//return fmt.Fprintf(OurStdout, format, a...)
+	//return fmt.Fprintf(ourStdout, format, a...)
 	return
 }
 
