@@ -324,7 +324,7 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 			} else {
 				//vv("cli %v has sent a 1-way message: %v'", c.name, msg)
 			}
-			close(msg.DoneCh) // convey the error or lack thereof.
+			msg.DoneCh <- msg // convey the error or lack thereof.
 
 		case msg := <-c.roundTripCh:
 
@@ -337,7 +337,7 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
 				//vv("Failed to send message: %v", err)
 				msg.Err = err
-				close(msg.DoneCh)
+				msg.DoneCh <- msg
 				continue
 			} else {
 				//vv("(client %v) Sent message: (seqno=%v): '%v'", c.name, msg.HDR.Seqno, msg)
@@ -911,7 +911,9 @@ func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *M
 
 	select { // shutdown test stuck here, even with calls in own goro. goq.go has exited.
 	case reply = <-req.DoneCh:
-		err = reply.Err
+		if reply != nil {
+			err = reply.Err
+		}
 		//vv("client.SendAndGetReply() got on reply.Err = '%v'", err)
 		return
 	case <-doneCh:

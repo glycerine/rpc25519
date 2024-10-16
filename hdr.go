@@ -23,14 +23,20 @@ var lastSerial int64
 
 var myPID = int64(os.Getpid())
 
-// Message basic substrate.
+// Message transports JobSerz []byte slices for
+// the user, who can de-serialize them they wish.
+// The HDR header field provides transport details.
 type Message struct {
 
 	// HDR contains header information.
 	HDR HDR `zid:"0"`
 
+	// JobSerz is the "body" of the message.
+	// The user provides and interprets this.
 	JobSerz []byte `zid:"1"`
 
+	// JobErrs returns error information from the server-registered
+	// user-defined callback functions.
 	JobErrs string `zid:"2"`
 
 	// Err is not serialized on the wire by the server,
@@ -53,8 +59,8 @@ func (m *Message) AsGreenpack(scratch []byte) (o []byte, err error) {
 	return m.MarshalMsg(scratch[:0])
 }
 
-// The Multiverse Identitifer: for when there are
-// multiple universes and so a UUID just won't do.
+// HDR provides header information and details
+// about the transport. It is the first thing in every Message.
 type HDR struct {
 	Nc net.Conn `msg:"-"`
 
