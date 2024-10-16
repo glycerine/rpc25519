@@ -17,6 +17,8 @@ import (
 
 var _ = time.Time{}
 
+var ErrHandshakeQUIC = fmt.Errorf("quic handshake failure")
+
 func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Config) {
 
 	//defer func() {
@@ -63,7 +65,7 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	panicOn(err)
 	//vv("quic client using localAddr '%v' -> serverAddr '%v'", localHostPort, serverAddr)
 
-	// prep for same-same port sharing, change Dial to DialEarly on a quic.Transport.
+	// We'll share the port with the same process server (if he's around).
 	var transport *quic.Transport
 	c.cfg.shared.mut.Lock()
 	if c.cfg.shared.quicTransport != nil {
@@ -112,11 +114,6 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	c.quicConn = conn
 	c.isQUIC = true
 
-	la := conn.LocalAddr()
-	c.SetLocalAddr(la.Network() + "://" + la.String())
-
-	c.Connected <- nil
-
 	defer conn.CloseWithError(0, "")
 
 	// wait for the handshake to complete so we are encrypted/can verify host keys.
@@ -126,11 +123,17 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 		//vv("quic_client handshake completed")
 	case <-conn.Context().Done():
 		// connection closed before handshake completion, e.g. due to handshake failure
+		c.Connected <- ErrHandshakeQUIC
 		AlwaysPrintf("quic_client handshake failure on DialEarly")
 		return
 	}
 
-	//vv("QUIC connected to server %v, with local addr='%v'", remote(conn), c.cfg.LocalAddress)
+	la := conn.LocalAddr()
+	c.SetLocalAddr(la.Network() + "://" + la.String())
+
+	c.Connected <- nil
+
+	//vv("QUIC client connected to server %v, with local addr='%v'", remote(conn), c.cfg.LocalAddress)
 
 	// We check host keys like SSH does,
 	// but be aware that if attackers have the contents of

@@ -543,11 +543,18 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 		srv.Register(bit)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
+
+		// The QUIC client will share the port with the QUIC server typically;
+		// port sharing is on by default. So don't bother
+		// setting the ClientHostPort. It is just a
+		// suggestion anyway.
+		//cfg.ClientHostPort = fmt.Sprintf("%v:%v", host, port+1)
+
 		client, err := NewClient("test008", cfg)
 		panicOn(err)
 		defer client.Close()
 
-		vv("client local = '%v'", client.LocalAddr())
+		//vv("client local = '%v'", client.LocalAddr())
 
 		// net/rpc API on client, ported from net_server_test.go
 		//var args *Args
