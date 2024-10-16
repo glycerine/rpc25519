@@ -4,9 +4,9 @@ The combined whole is Copyright (c) 2024, Jason E. Aten, Ph.D. All rights reserv
 Portions are derived from works that are
 Copyright (c) 2009, 2014 The Go Authors. All rights reserved.
 
-Specifically, the net_client.go, net_client_test.go, net_server.go, and
-net_server_test.go files are derived from the standard
-libraries net/rpc folder. The rest are my original work.
+Specifically, the net_client.go, net_client_test.go, net_server.go,
+net_debug.go, and net_server_test.go files are derived from the Go standard
+library's net/rpc folder. The rest are my original work.
 
 
 Redistribution and use in source and binary forms, with or without
