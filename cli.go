@@ -6,6 +6,9 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/hmac"
+	cryrand "crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"encoding/gob"
 	"errors"
@@ -23,6 +26,8 @@ import (
 	"github.com/glycerine/rpc25519/selfcert"
 	"github.com/quic-go/quic-go"
 )
+
+var _ = cryrand.Read
 
 type localRemoteAddr interface {
 	RemoteAddr() net.Addr
@@ -80,13 +85,12 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		panic(c.err)
 	}
 	_ = err2 // skip panic: x509: certificate signed by unknown authority (possibly because of "crypto/rsa: verification error" while trying to verify candidate authority certificate "Cockroach CA")
-	//panicOn(err2)
-	// under test vs...?
+
 	// without this ServerName assignment, we used to get (before gen.sh put in SANs using openssl-san.cnf)
 	// 2019/01/04 09:36:18 failed to call: x509: cannot validate certificate for 127.0.0.1 because it doesn't contain any IP SANs
 	//
 	// update:
-	// This is still needed in order to run the server on a different TCP host.
+	// ServerName set to "localhost" is still needed in order to run the server on a different TCP host.
 	// otherwise we get:
 	// 2024/10/04 21:27:50 Failed to connect to server: tls: failed to verify certificate: x509: certificate is valid for 127.0.0.1, not 192.168.254.151
 	//
@@ -480,6 +484,12 @@ type Config struct {
 	ClientKeyPairName string // default "client" means use certs/client.crt and certs/client.key
 	ServerKeyPairName string // default "node" means use certs/node.crt and certs/node.key
 
+	// PreSharedKeyPath locates an optional pre-shared
+	// hex written in hex that must be 32 bytes (or more) long
+	// (so 64 hex characters). Only the first 32 bytes will
+	// be used to create a symmetric 2nd encryption layer.
+	PreSharedKeyPath string
+
 	// These are timeouts for connection and transport tuning.
 	// The defaults of 0 mean wait forever.
 	ConnectTimeout time.Duration
@@ -553,6 +563,16 @@ type Client struct {
 	pending  map[uint64]*Call
 	closing  bool // user has called Close
 	shutdown bool // server has told us to stop
+
+	// 2nd encryption layer for post-quantum resistance like Wireguard.
+	layer2
+}
+
+// Compute HMAC using SHA-256
+func computeHMAC(plaintext []byte, key []byte) (hash []byte) {
+	h := hmac.New(sha256.New, key)
+	h.Write([]byte(plaintext))
+	return h.Sum(nil)
 }
 
 // Go implements the net/rpc Client.Go() API; its docs:

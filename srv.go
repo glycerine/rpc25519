@@ -70,6 +70,7 @@ func (s *Server) RunServerMain(serverAddress string, tcp_only bool, certPath str
 		if err != nil {
 			panic(fmt.Sprintf("error on LoadServerTLSConfig() (using embedded=%v): '%v'", embedded, err))
 		}
+
 		// Not needed now that we have proper CA cert from gen.sh; or
 		// perhaps this is the default anyway(?)
 		// In any event, "localhost" is what we see during handshake; but
@@ -456,6 +457,36 @@ type Server struct {
 	freeReq    *Request
 	respLock   sync.Mutex // protects freeResp
 	freeResp   *Response
+
+	// 2nd encryption layer for post-quantum resistance like Wireguard.
+	layer2
+}
+
+// layer2 will provide a 2nd, symmetric encryption
+// layer for post-quantum resistance like Wireguard.
+type layer2 struct {
+	preSharedKey  []byte // must be 32 bytes, else we will panic.
+	sessionSecret bytes.Buffer
+	// symKey will be our 2nd layer of symmetric encryption key.
+	// It is the SHA-256 HMAC of sessionSecret using key preSharedKey.
+	symkey []byte
+}
+
+func (l *layer2) setup() {
+	if len(l.preSharedKey) != 32 {
+		panic("preSharedKey must be 32 bytes long")
+	}
+	sec := l.sessionSecret.Bytes()
+	if len(sec) < 100 {
+		panic("session key too short")
+	}
+	l.symkey = computeHMAC(sec, l.preSharedKey)
+
+	// clear out the sessionSecret
+	for i := range sec {
+		sec[i] = 0
+	}
+	l.sessionSecret = bytes.Buffer{}
 }
 
 func (server *Server) getRequest() *Request {
