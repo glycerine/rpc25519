@@ -52,4 +52,23 @@ func main() {
 
 		//time.Sleep(1 * time.Second)
 	}
+
+	// send a bit message
+	by, err := os.ReadFile("big")
+	panicOn(err)
+	_, err = enc.Write(by)
+	panicOn(err)
+	vv("wrote big: %v message", len(by))
+
+	// Read response
+	buffer := make([]byte, 40*1024*1024)
+	n, err := dec.Read(buffer)
+	if err == nil {
+		vv("got response to big of len %v", n)
+	}
+	if err != nil {
+		if err != io.EOF {
+			log.Fatalf("Read error: %v", err)
+		}
+	}
 }

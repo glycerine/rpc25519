@@ -61,7 +61,7 @@ func handleConnection(conn net.Conn, key []byte) {
 
 	enc, dec := NewEncoderDecoderPair(key, conn)
 	//vv("top of handle connection")
-	buffer := make([]byte, 4096)
+	buffer := make([]byte, 40*1024*1024)
 	for {
 		n, err := dec.Read(buffer)
 		//vv("dec.Read: n=%v, err='%v'; msg='%v'", n, err, string(buffer[:n]))
@@ -73,13 +73,22 @@ func handleConnection(conn net.Conn, key []byte) {
 		}
 
 		message := string(buffer[:n])
-		log.Printf("Received: %s", message)
+		if n < 100 {
+			log.Printf("Received: %s", message)
+		} else {
+			log.Printf("Received msg of len %v", n)
+		}
 
 		//vv("about to echo")
 		// Echo back the message
-		response := fmt.Sprintf("Echo: %s", message)
+		var response []byte
+		if n < 100 {
+			response = []byte(fmt.Sprintf("Echo: %s", message))
+		} else {
+			response = buffer[:n]
+		}
 
-		nw, err := enc.Write([]byte(response))
+		nw, err := enc.Write(response)
 		if nw == len(response) {
 			//vv("echo suceeded")
 			continue
