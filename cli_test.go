@@ -101,10 +101,13 @@ func (BuiltinTypes) Array(args *Args, reply *[2]int) error {
 // mimic Array's reply
 func (BuiltinTypes) WantsContext(ctx context.Context, args *Args, reply *[2]int) error {
 	if hdr := ctx.Value("HDR"); hdr != nil {
-		fmt.Printf("WantsContext called with HDR = '%v'\n", hdr.(*HDR).String())
+		h, ok := hdr.(*HDR)
+		if ok {
+			fmt.Printf("WantsContext called with HDR = '%v'; HDR.Nc.RemoteAddr() gives '%v'; HDR.Nc.LocalAddr() gives '%v'\n", h.String(), h.Nc.RemoteAddr(), h.Nc.LocalAddr())
 
-		(*reply)[0] = args.A
-		(*reply)[1] = args.B
+			(*reply)[0] = args.A
+			(*reply)[1] = args.B
+		}
 	} else {
 		fmt.Println("HDR not found")
 	}
@@ -338,7 +341,7 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 		srv.Register(BuiltinTypes{})
 
 		cfg.ClientDialToHostPort = serverAddr.String()
-		client, err := NewClient("test006", cfg)
+		client, err := NewClient("test007", cfg)
 		panicOn(err)
 		defer client.Close()
 
@@ -540,9 +543,11 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 		srv.Register(bit)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
-		client, err := NewClient("test006", cfg)
+		client, err := NewClient("test008", cfg)
 		panicOn(err)
 		defer client.Close()
+
+		vv("client local = '%v'", client.LocalAddr())
 
 		// net/rpc API on client, ported from net_server_test.go
 		//var args *Args
