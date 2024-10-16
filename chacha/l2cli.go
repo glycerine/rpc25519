@@ -3,13 +3,14 @@ package main
 // layer2 client
 
 import (
-	//cryrand "crypto/rand"
+	cryrand "crypto/rand"
 	//"fmt"
+	"bytes"
 	"io"
 	"log"
 	"net"
 	"os"
-	// "time"
+	"time"
 )
 
 func main() {
@@ -53,22 +54,39 @@ func main() {
 		//time.Sleep(1 * time.Second)
 	}
 
-	// send a bit message
-	by, err := os.ReadFile("big")
+	// send a big message
+	//	by, err := os.ReadFile("big")
+	//	panicOn(err)
+
+	by := make([]byte, 2*1024*1024*1024-44) // 2GB, our max message size. minus 44 bytes of overhead+nonce+msgLen 4 bytes
+	t0 := time.Now()
+	_, err = cryrand.Read(by)
 	panicOn(err)
+	// elap 4.998854362s to generate 2GB cryrand data => 400 MB/sec.
+	vv("elap %v to generate 2GB cryrand data", time.Since(t0))
+
+	t1 := time.Now()
 	_, err = enc.Write(by)
 	panicOn(err)
-	vv("wrote big: %v message", len(by))
+	vv("wrote big: %v message, took: %v", len(by), time.Since(t1))
 
 	// Read response
-	buffer := make([]byte, 40*1024*1024)
+	buffer := make([]byte, 2*1024*1024*1024)
+	t2 := time.Now()
 	n, err := dec.Read(buffer)
 	if err == nil {
-		vv("got response to big of len %v", n)
+		vv("got response to big of len %v in %v", n, time.Since(t2))
 	}
 	if err != nil {
 		if err != io.EOF {
 			log.Fatalf("Read error: %v", err)
 		}
 	}
+	// On localhost, over TCP.
+	// total roundtrip time 7.099127628s => 281 MB/second to do
+	// encryption on cli, decryption on srv, encryption on srv, decryption on cli.
+	//
+	// So-one way bandwidth of 562 MB/sec to encrypt and then decrypt.
+	//
+	vv("compared equal: %v, total roundtrip time %v (not including data gen)", bytes.Equal(by, buffer[:n]), time.Since(t1))
 }

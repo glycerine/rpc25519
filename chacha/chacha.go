@@ -77,9 +77,13 @@ func NewEncoderDecoderPair(key []byte, rw io.ReadWriter) (enc *Encoder, dec *Dec
 	aeadDec, err := chacha20poly1305.NewX(key)
 	panicOn(err)
 
-	// Use random nonces, since XChaCha20 was specifically
-	// designed to support them without collision risk, and
-	// its much less dangerous than accidentally re-using a nonce.
+	// Use random nonces, since XChaCha20 supports them
+	// without collision risk, and
+	// it is much less dangerous than accidentally re-using a nonce.
+	//
+	// See "Extending the Salsa20 nonce" by Daniel J. Bernstein.
+	// https://cr.yp.to/snuffle/xsalsa-20110204.pdf
+	//
 	writeNonce := make([]byte, aeadEnc.NonceSize()) // 24 bytes
 	_, err = cryrand.Read(writeNonce)
 	panicOn(err)

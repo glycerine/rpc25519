@@ -61,7 +61,7 @@ func handleConnection(conn net.Conn, key []byte) {
 
 	enc, dec := NewEncoderDecoderPair(key, conn)
 	//vv("top of handle connection")
-	buffer := make([]byte, 40*1024*1024)
+	buffer := make([]byte, 3*1024*1024*1024)
 	for {
 		n, err := dec.Read(buffer)
 		//vv("dec.Read: n=%v, err='%v'; msg='%v'", n, err, string(buffer[:n]))
@@ -90,7 +90,7 @@ func handleConnection(conn net.Conn, key []byte) {
 
 		nw, err := enc.Write(response)
 		if nw == len(response) {
-			//vv("echo suceeded")
+			vv("server: echo %v suceeded", n)
 			continue
 		}
 		vv("enc.Write got err = '%v', nw=%v out of %v", err, nw, len(response))
