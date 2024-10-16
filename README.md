@@ -419,4 +419,4 @@ SNI is one way we get there.
 -----------
 Author: Jason E. Aten, Ph.D.
 
-License: MIT
+License: See the LICENSE file for the 3-clause BSD-style license; the same as Go.
