@@ -307,8 +307,8 @@ Certificates are great, but making them has traditionally
 been a massive pain. That is why I wrote `selfy`.
 
 The `selfy` command is an easy way to create private keys, certificates,
-and self-signed certficate authories. It is vastly more usable than
-mountain of complexity that is `openssl`, but more limited in scope.
+and self-signed certficate authories. It is vastly more usable than the
+mountain of complexity that is `openssl`. It is more limited in scope.
 In our opinion, this a good thing.
 
 If you are in a hurry to get started, the most basic 
