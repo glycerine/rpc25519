@@ -30,6 +30,30 @@ Using the net/rpc API:
 
 See [the net/rpc docs for full guidance on using that API](https://pkg.go.dev/net/rpc).
 
+* Extended method types:
+
+Callback methods in the `net/rpc` style traditionally look like this first
+`NoContext` example. We allow a context.Context as an additional first
+parameter. The ctx will have an "HDR" value set on it giving a pointer to
+the `rpc25519.HDR` header from the incoming Message. 
+
+~~~
+func (s *Service) NoContext(args *Args, reply *Reply) error
+
+func (s *Service) GetsContext(ctx context.Context, args *Args, reply *Reply) error {
+	if hdr := ctx.Value("HDR"); hdr != nil {
+		h, ok := hdr.(*rpc25519.HDR)
+		if ok {
+			fmt.Printf("WantsContext called with HDR = '%v'; "+
+			    "HDR.Nc.RemoteAddr() gives '%v'; HDR.Nc.LocalAddr() gives '%v'\n", 
+			    h.String(), h.Nc.RemoteAddr(), h.Nc.LocalAddr())
+		}
+	} else {
+		fmt.Println("HDR not found")
+	}
+}
+~~~
+
 The net/rpc API is implemented as a layer on top of the rpc25519.Message
 based API. Both can be used concurrently if desired.
 
