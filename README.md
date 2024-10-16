@@ -269,93 +269,6 @@ type Config struct {
 }
 ~~~
 
-generating keys with emails inside
----------------
-
-See the `selfy` command below for details.
-
-Delightfully, email addresses can be stored 
-in certificates! 
-
-This provides a fantastically convenient way to identify the
-job and/or the owner of the job. Importantly,
-if you are supporting work loads from many
-people, this can be critical in telling who
-needs to know when something goes wrong with
-a job.
-
-the private parts, embedded
----------------------------
-
-On running make, by default the 'certs' directory will be embedded
-in client and server executables. This means that
-the binary executables contain sensitive private
-keys, and should be kept confidential and secure.
-
-While this is convenient for deployment, just a single
-binary, it does make it difficult to rotate keys.
-Normally one would just compile a new binary with
-new keys, but if one wishes to rotate keys only,
-then there is also the ability to read keys
-from disk rather from the embedded filesystem.
-
-The certificate authority private key is never included
-in the binary. However, the private keys for the
-client and server must be available in order to
-handshake, and so they are included. This means
-that anyone possessing the binary (just as anyone
-possessing the private key files deployed on disk)
-could use that private key to man-in-the-middle
-the communication. Mostly this is moot: if you
-don't trust the computer you are running the
-binary on, you equally cannot trust the private
-key sitting on the filesystem. Hence there is 
-generally no loss of security from embedding the keys into
-the binary, as long as one protects the binary as
-would one's private keys; do not publish to the world
-the compiled binary with the embedded keys.
-
-A lovely side effect of embedding is that the
-binary can be run from any directory. For example,
-submitting a job to a work-management queue 
-will frequently need to be in the context of
-the work to be done; the current directory
-matters a great deal, and is unlikely to be
-nearby the original certs/ directory where
-the rpc client was built.
-
-A localhost by any other name would not smell as sweet
-------------------------------------
-
-The server name will always be 'localhost' on these
-certificates, and this is critical to allowing
-our processes to run on any machine. By doing so,
-we leverage the SNI technology[1], 
-to break the troublesome adhesion of IP address
-and certificate. SNI was
-developed to let a single IP address host many 
-different web sites. We want multiple
-IP addresses to run many different jobs, and
-to be able to migrate jobs between hosts.
-Brilliantly, SNI lets us move our clients and servers
-between machines without having to re-issue
-the certificates. The certs are always
-issued to 'localhost' and clients always
-request ServerName 'localhost' in their
-tls.Config.ServerName field.
-
-This is much more like the convenience and
-usability `ssh`. To me `ssh` has 
-always been so much easier to deal with than
-certificates. rpc25519 aims for
-usability on par with `ssh`. Leveraging
-SNI is one way we get there. Anther
-is by providing the bespoke tool, `selfy`, 
-which is described in the next section. It
-takes alot of the pain out of creating certficates.
-
-
-[1]  https://en.wikipedia.org/wiki/Server_Name_Indication ,
 
 The `selfy` tool: create new keys quickly; view certificates
 ---------------------
@@ -453,6 +366,55 @@ Usage of selfy:
 The `openssl` commands in the included gen.sh script do the same things as
 `selfy` does, but it is more painful to incorporate an email because
 you have to modify the `openssl-san.cnf` file to do so each time.
+
+generating keys with emails inside
+---------------
+
+See the `selfy -e` flag above for details.
+
+Delightfully, email addresses can be stored 
+in certificates! 
+
+This provides a fantastically convenient way to identify the
+job and/or the owner of the job. Importantly,
+if you are supporting work loads from many
+people, this can be critical in telling who
+needs to know when something goes wrong with
+a job.
+
+
+A localhost by any other name would not smell as sweet
+------------------------------------
+
+The server name will always be 'localhost' on `selfy`
+generated certificates, and this is critical to allowing
+our processes to run on any machine. By doing so,
+we leverage the SNI technology[1], 
+to break the troublesome adhesion of IP address
+and certificate. SNI was
+developed to let a single IP address host many 
+different web sites. We want multiple
+IP addresses to run many different jobs, and
+to be able to migrate jobs between hosts.
+Brilliantly, SNI lets us move our clients and servers
+between machines without having to re-issue
+the certificates. The certs are always
+issued to 'localhost' and clients always
+request ServerName 'localhost' in their
+tls.Config.ServerName field.
+
+This is much more like the convenience and
+usability `ssh`. To me `ssh` has 
+always been so much easier to deal with than
+certificates. rpc25519 aims for
+usability on par with `ssh`. Leveraging
+SNI is one way we get there. Anther
+is by providing the bespoke tool, `selfy`, 
+which is described in the next section. It
+takes alot of the pain out of creating certficates.
+
+
+[1]  https://en.wikipedia.org/wiki/Server_Name_Indication ,
 
 -----------
 Author: Jason E. Aten, Ph.D.
