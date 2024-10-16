@@ -5,7 +5,7 @@ Motivation: I needed a small, simple, and compact RPC system
 with modern, strong cryptography. Other RPC systems were too
 sprawling, had bugs their devs would not address, or could
 not be properly or easily secured. To that end, `rpc25519` only uses
-ed25519 Edwards curve based public-key cryptography. Moroever
+ed25519 Edwards curve based public-key cryptography. Morever
 it supports QUIC as a transport, which is very fast even
 though it is always encrypted, due to its 0-RTT implementation
 and the mature [quic-go](https://github.com/quic-go/quic-go) 
