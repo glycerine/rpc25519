@@ -417,17 +417,22 @@ type TwoWayFunc func(req *Message, reply *Message) error
 // As above req.JobSerz [] byte contains the job payload.
 type OneWayFunc func(req *Message)
 
+// Config is the same struct type for both NewClient
+// and NewServer setup.
+//
 // Config says who to contact (for a client), or
-// where to listen (for a server); and sets how
+// where to listen (for a server and/or client); and sets how
 // strong a security posture we adopt.
 //
 // Copying a Config is fine, but it should be a simple
 // shallow copy to preserve the shared *SharedTransport struct.
 //
-// This shared pointer is the basis of port (and file handle) reuse where a single
+// nitty gritty details/internal note: the `shared` pointer is the
+// basis of port (and file handle) reuse where a single
 // process can maintain a server and multiple clients
 // in a "star" pattern. This only works with QUIC of course,
 // and is one of the main reasons to use QUIC.
+//
 // The shared pointer is reference counted and the underlying
 // net.UDPConn is only closed when the last instance
 // in use is Close()-ed.
@@ -536,6 +541,8 @@ type sharedTransport struct {
 	isClosed      bool
 }
 
+// NewConfig should be used to create Config
+// for use in NewClient or NewServer setup.
 func NewConfig() *Config {
 	return &Config{
 		shared: &sharedTransport{},
