@@ -186,6 +186,9 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	c.RunReadLoop(wrap)
 }
 
+// NetConnWrapper is exported so that clients
+// like `goq` and others that want to inspect
+// that context of their calls can do so.
 type NetConnWrapper struct {
 	quic.Stream
 	quic.Connection
