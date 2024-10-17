@@ -30,18 +30,19 @@ untyped []byte payloads (in `Message.JobSerz`).
 
 Using the rpc25519.Message based API:
 
- * `Server.Register1Func()` registers one-way (no reply) callbacks on the server; and
- * `Server.Register2Func()` register traditional two-way callbacks.
+ * (`Server.Register1Func()`)[#Server.Register1Func] registers one-way (no reply) callbacks on the server; and
+ * (`Server.Register2Func()`)[#Server.Register2Func] register traditional two-way callbacks.
 
 Using the net/rpc API:
 
- * `Server.Register()` registers structs with callback methods on them.
+ * (`Server.Register()`)[#Server.Register] registers structs with callback methods on them.
 
 See [the net/rpc docs for full guidance on using that API](https://pkg.go.dev/net/rpc).
 
 * Extended method types:
 
-Callback methods in the `net/rpc` style traditionally look like this first
+Callback methods in the [net/rpc](https://pkg.go.dev/net/rpc) 
+style traditionally look like this first
 `NoContext` example. We allow a context.Context as an additional first
 parameter. The ctx will have an "HDR" value set on it giving a pointer to
 the `rpc25519.HDR` header from the incoming Message. 
@@ -63,7 +64,11 @@ if hdr := ctx.Value("HDR"); hdr != nil {
 }
 ~~~
 
-TODO: The client does not transmit context to server at the moment.
+TODO/deferred: The client does not transmit context to server at the moment.
+Although the context package clearly describes this is an intended
+use, I don't have a use case myself for it, and so I'm not sure how 
+the implementation should work. How are cancellation requests
+coordinated across a network? Do they initiate their own messages?
 
 The net/rpc API is implemented as a layer on top of the rpc25519.Message
 based API. Both can be used concurrently if desired.
