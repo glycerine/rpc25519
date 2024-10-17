@@ -60,26 +60,22 @@ func main() {
 func handleConnection(conn net.Conn, key []byte) {
 	defer conn.Close()
 
-	skipCrypt := true
+	encrypt := false
+	blab := newBlabber(key, conn, encrypt, maxMessage)
+
 	var err error
-	enc, dec := NewEncoderDecoderPair(key, conn)
+
 	//vv("top of handle connection")
-	buf := make([]byte, 3*1024*1024*1024)
 	var msg []byte
 	for {
 		n := 0
-		if skipCrypt {
-
-			msg, err = receiveMessage(conn, buf, nil)
-			if err == io.EOF {
-				continue
-			}
-			panicOn(err)
-			n = len(msg)
-		} else {
-			n, err = dec.Read(buf)
-			msg = buf[:n]
+		msg, err = blab.readMessage(conn, nil)
+		if err == io.EOF {
+			continue
 		}
+		panicOn(err)
+		n = len(msg)
+
 		//vv("dec.Read: n=%v, err='%v'; msg='%v'", n, err, string(buffer[:n]))
 		if err != nil {
 			if err != io.EOF {
@@ -104,17 +100,12 @@ func handleConnection(conn net.Conn, key []byte) {
 		}
 
 		nw := 0
-		if skipCrypt {
-			err = sendMessage(conn, response, nil)
-			panicOn(err)
-			nw = len(response)
-		} else {
-			nw, err = enc.Write(response)
-		}
-		if nw == len(response) {
-			vv("server: echo %v suceeded", nw)
-			continue
-		}
+		err = blab.sendMessage(conn, response, nil)
+		panicOn(err)
+
+		vv("server: echo %v suceeded", nw)
+		continue
+
 		vv("send / enc.Write got err = '%v', nw=%v out of %v", err, nw, len(response))
 		if err != nil {
 			log.Printf("Write error: %v", err)

@@ -29,53 +29,23 @@ func main() {
 	defer conn.Close()
 	log.Println("Connected to server")
 
-	enc, dec := NewEncoderDecoderPair(key, conn)
+	encrypt := false
+	blab := newBlabber(key, conn, encrypt, maxMessage)
 
-	if false {
-		// Send messages
-		messages := []string{"Hello, Server!", "How are you?", "Goodbye!"}
-		for _, msg := range messages {
-			_, err := enc.Write([]byte(msg))
-			if err != nil {
-				log.Fatalf("Write error: %v", err)
-			}
-			log.Printf("Sent: %s", msg)
-
-			// Read response
-			buffer := make([]byte, 4096)
-			n, err := dec.Read(buffer)
-			if err != nil {
-				if err != io.EOF {
-					log.Fatalf("Read error: %v", err)
-				}
-				break
-			}
-			response := string(buffer[:n])
-			log.Printf("Received: %s", response)
-
-			//time.Sleep(1 * time.Second)
-		}
-	}
 	// send a big message
 	//	by, err := os.ReadFile("big")
 	//	panicOn(err)
 
-	by := make([]byte, 2*1024*1024*1024-44) // 2GB, our max message size. minus 44 bytes of overhead+nonce+msgLen 4 bytes
-	buf := make([]byte, 2*1024*1024*1024)   // 2GB
+	by := make([]byte, maxMessage-44) // 2GB - 44, our max message size minus 44 bytes of overhead+nonce+msgLen 4 bytes
 	t0 := time.Now()
 	_, err = cryrand.Read(by)
 	panicOn(err)
 	// elap 4.998854362s to generate 2GB cryrand data => 400 MB/sec.
 	vv("elap %v to generate 2GB cryrand data: %v", time.Since(t0), len(by))
 
-	skipCrypt := true
-
 	t1 := time.Now()
-	if skipCrypt {
-		err = sendMessage(conn, by, nil)
-	} else {
-		_, err = enc.Write(by)
-	}
+
+	err = blab.sendMessage(conn, by, nil)
 	panicOn(err)
 	vv("wrote big: %v message, took: %v", len(by), time.Since(t1))
 
@@ -84,15 +54,9 @@ func main() {
 
 	t2 := time.Now()
 	n := 0
-	if skipCrypt {
-
-		msg, err = receiveMessage(conn, buf, nil)
-		panicOn(err)
-		n = len(msg)
-	} else {
-		n, err = dec.Read(buf)
-		msg = buf[:n]
-	}
+	msg, err = blab.readMessage(conn, nil)
+	panicOn(err)
+	n = len(msg)
 	if err == nil {
 		vv("got response to big of len %v in %v", n, time.Since(t2))
 	}

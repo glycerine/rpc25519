@@ -29,20 +29,43 @@ type uConn interface {
 
 var ErrNotEnoughSpace = fmt.Errorf("not enough space in buf to write message")
 
+// a work (workspace) lets us re-use memory
+// without constantly allocating.
+// There should be one for reading, and
+// a separate one for writing, so each
+// goroutine needs its own so as to not
+// colide with any other goroutine.
+type workspace struct {
+	buf []byte
+
+	readLenMessageBytes  []byte
+	writeLenMessageBytes []byte
+}
+
+// currently only used for headers; but bodies may
+// well benefit as well. In which case, bump up
+// to maxMessage+1024 or so, rather than this 64KB.
+func newWorkspace(maxMsgSize int) *workspace {
+	return &workspace{
+		buf:                  make([]byte, maxMsgSize),
+		readLenMessageBytes:  make([]byte, 8),
+		writeLenMessageBytes: make([]byte, 8),
+	}
+}
+
 // receiveMessage reads a framed message from conn
 // nil or 0 timeout means no timeout.
 // buf provides re-usable space to write the message bytes into.
 // We will grow the underlying backing array of buf if need be.
 // The returned msg will share the backing array of buf.
-func receiveMessage(conn uConn, buf []byte, timeout *time.Duration) (msg []byte, err error) {
+func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg []byte, err error) {
 
-	var lenBytes [8]byte
 	// Read the first 8 bytes for the Message length
-	err = readFull(conn, lenBytes[:], timeout)
+	err = readFull(conn, w.readLenMessageBytes, timeout)
 	if err != nil {
 		return
 	}
-	messageLen := int(binary.BigEndian.Uint64(lenBytes[:]))
+	messageLen := int(binary.BigEndian.Uint64(w.readLenMessageBytes))
 
 	// Read the message based on the messageLen
 	if messageLen > maxMessage {
@@ -51,26 +74,26 @@ func receiveMessage(conn uConn, buf []byte, timeout *time.Duration) (msg []byte,
 	}
 
 	// only grow buf if we have to
-	buf = buf[0:cap(buf)]
-	if len(buf) < messageLen {
-		buf = append(buf, make([]byte, messageLen-len(buf))...)
+
+	w.buf = w.buf[0:cap(w.buf)]
+	if len(w.buf) < messageLen {
+		w.buf = append(w.buf, make([]byte, messageLen-len(w.buf))...)
 	}
 
-	msg = buf[:messageLen]
+	msg = w.buf[:messageLen]
 	err = readFull(conn, msg, timeout)
 	return msg, err
 }
 
 // sendMessage sends a framed message to conn
 // nil or 0 timeout means no timeout.
-func sendMessage(conn uConn, bytesMsg []byte, timeout *time.Duration) error {
+func (w *workspace) sendMessage(conn uConn, bytesMsg []byte, timeout *time.Duration) error {
 
 	nbytesMsg := len(bytesMsg)
-	var lenBytes [8]byte
-	binary.BigEndian.PutUint64(lenBytes[:], uint64(nbytesMsg))
+	binary.BigEndian.PutUint64(w.writeLenMessageBytes, uint64(nbytesMsg))
 
 	// Write Message length
-	if err := writeFull(conn, lenBytes[:], timeout); err != nil {
+	if err := writeFull(conn, w.writeLenMessageBytes, timeout); err != nil {
 		return err
 	}
 

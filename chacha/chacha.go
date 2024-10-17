@@ -8,6 +8,7 @@ import (
 	//"errors"
 	"fmt"
 	"io"
+	"time"
 	//"io"
 	"log"
 	"sync"
@@ -19,52 +20,47 @@ import (
 
 const LEN_XCHACHA20_NONCE_BYTES = 24
 
-func generateXChaChaNonce24(nonce *[LEN_XCHACHA20_NONCE_BYTES]byte) {
-	_, err := cryrand.Read(nonce[:])
-	if err != nil {
-		panic(err)
-	}
-}
+// blabber holds stream encryption/decryption facilities.
+// What comes out is just blah, blah, blah.
+type blabber struct {
+	encrypt    bool
+	maxMsgSize int
 
-func NewXChaCha20CryptoRandKey() []byte {
-	key := make([]byte, chacha20poly1305.KeySize) // 32 bytes
-	if _, err := cryrand.Read(key); err != nil {
-		log.Fatal(err)
-	}
-	return key
+	enc *encoder
+	dec *decoder
 }
 
 // users write to an encoder
-type Encoder struct {
+type encoder struct {
 	key  []byte      // must be 32 bytes == chacha20poly1305.KeySize
 	aead cipher.AEAD // XChaCha20-Poly1305, needs 256-bit key
 
-	ciph io.Writer
-	//ciph bytes.Buffer // stored encrypted for the reader
+	conn io.Writer // can be net.Conn
 
 	writeNonce []byte
 	noncesize  int
 	overhead   int
 
-	mut sync.Mutex
+	mut  sync.Mutex
+	work *workspace
 }
 
 // users read from a decoder
-type Decoder struct {
+type decoder struct {
 	key  []byte
 	aead cipher.AEAD
 
-	ciph io.Reader // can be net.Conn
-
-	plain []byte // extra []byte, decrypted but not yet read; read from here first.
+	conn io.Reader // can be net.Conn
 
 	noncesize int
 	overhead  int
 
-	mut sync.Mutex
+	mut  sync.Mutex
+	work *workspace
 }
 
-func NewEncoderDecoderPair(key []byte, rw io.ReadWriter) (enc *Encoder, dec *Decoder) {
+func newBlabber(key []byte, rw io.ReadWriter, encrypt bool, maxMsgSize int) *blabber {
+
 	aeadEnc, err := chacha20poly1305.NewX(key)
 	panicOn(err)
 
@@ -82,22 +78,60 @@ func NewEncoderDecoderPair(key []byte, rw io.ReadWriter) (enc *Encoder, dec *Dec
 	_, err = cryrand.Read(writeNonce)
 	panicOn(err)
 
-	enc = &Encoder{
-		ciph:       rw,
+	enc := &encoder{
+		conn:       rw,
 		key:        key,
 		aead:       aeadEnc,
 		writeNonce: writeNonce,
 		noncesize:  aeadEnc.NonceSize(),
 		overhead:   aeadEnc.Overhead(),
+		work:       newWorkspace(maxMsgSize),
 	}
-	dec = &Decoder{
-		ciph:      rw,
+	dec := &decoder{
+		conn:      rw,
 		key:       key,
 		aead:      aeadDec,
 		noncesize: aeadEnc.NonceSize(),
 		overhead:  aeadEnc.Overhead(),
+		work:      newWorkspace(maxMsgSize),
 	}
-	return
+
+	return &blabber{
+		maxMsgSize: maxMsgSize,
+		encrypt:    encrypt,
+
+		enc: enc,
+		dec: dec,
+	}
+}
+
+func (blab *blabber) readMessage(conn uConn, timeout *time.Duration) (msg []byte, err error) {
+	if !blab.encrypt {
+		return blab.dec.work.readMessage(conn, timeout)
+	}
+	return blab.dec.readMessage(conn, timeout)
+}
+
+func (blab *blabber) sendMessage(conn uConn, bytesMsg []byte, timeout *time.Duration) error {
+	if !blab.encrypt {
+		return blab.enc.work.sendMessage(conn, bytesMsg, timeout)
+	}
+	return blab.enc.sendMessage(conn, bytesMsg, timeout)
+}
+
+func generateXChaChaNonce24(nonce *[LEN_XCHACHA20_NONCE_BYTES]byte) {
+	_, err := cryrand.Read(nonce[:])
+	if err != nil {
+		panic(err)
+	}
+}
+
+func NewXChaCha20CryptoRandKey() []byte {
+	key := make([]byte, chacha20poly1305.KeySize) // 32 bytes
+	if _, err := cryrand.Read(key); err != nil {
+		log.Fatal(err)
+	}
+	return key
 }
 
 // incrementNonce safely increments the nonce.
@@ -120,7 +154,7 @@ func writeNewCryRandomNonce(nonce []byte) error {
 
 /*
 // net.Conn does this, so client does not really need it.
-func (e *Encoder) Read(ciph []byte) (n int, err error) {
+func (e *encoder) Read(ciph []byte) (n int, err error) {
 	e.mut.Lock()
 	defer e.mut.Unlock()
 
@@ -130,22 +164,33 @@ func (e *Encoder) Read(ciph []byte) (n int, err error) {
 
 // Write encrypts data and writes it to the underlying stream.
 // This is what a client actively does when they write to net.Conn.
-func (e *Encoder) Write(plaintext []byte) (n int, err error) {
+// Write(plaintext []byte) (n int, err error)
+func (e *encoder) sendMessage(conn uConn, bytesMsg []byte, timeout *time.Duration) error {
+
 	// encryption
 	e.mut.Lock()
 	defer e.mut.Unlock()
 
-	// Encrypt the data (prepends the nonce? nope need to do space)
-	var sz uint32 = uint32(e.noncesize + len(plaintext) + e.overhead)
-	var lenBy [4]byte
-	nl, lerr := binary.Encode(lenBy[:], binary.BigEndian, sz)
-	panicOn(lerr)
-	if nl != 4 {
-		panic("short write")
+	sz := len(bytesMsg) + e.noncesize + e.overhead
+	binary.BigEndian.PutUint64(e.work.writeLenMessageBytes, uint64(sz))
+
+	// Write Message length
+	if err := writeFull(conn, e.work.writeLenMessageBytes, timeout); err != nil {
+		return err
 	}
-	space := make([]byte, e.noncesize, sz)
-	copy(space, e.writeNonce)
-	noncePlusEncrypted := e.aead.Seal(space, e.writeNonce, plaintext, lenBy[:])
+	assocData := e.work.writeLenMessageBytes
+
+	// grow buf if need be
+	buf := e.work.buf
+	buf = buf[0:cap(buf)]
+	if len(buf) < sz {
+		e.work.buf = append(e.work.buf, make([]byte, sz-len(buf))...)
+		buf = e.work.buf
+	}
+
+	// Encrypt the data (prepends the nonce? nope need to do so ourselves)
+	copy(buf[:e.noncesize], e.writeNonce)
+	noncePlusEncrypted := e.aead.Seal(buf[:e.noncesize], e.writeNonce, bytesMsg, assocData)
 	// verify size assumption was correct
 	if len(noncePlusEncrypted) != int(sz) {
 		panic(fmt.Sprintf("noncePlusEncrypted(%v) != sz(%v): our associated data in lenBy is wrong!",
@@ -153,119 +198,60 @@ func (e *Encoder) Write(plaintext []byte) (n int, err error) {
 	}
 
 	// update the nonce. random is better tha incrementing;
-	err = writeNewCryRandomNonce(e.writeNonce)
-	if err != nil {
-		return 0, err
-	}
-
-	// Write the length prefix
-	err = binary.Write(e.ciph, binary.BigEndian, uint32(len(noncePlusEncrypted)))
-	if err != nil {
-		//e.ciph.Reset()
-		return 0, err
-	}
+	err := writeNewCryRandomNonce(e.writeNonce)
+	panicOn(err) // really should never fail unless whole system is borked.
 
 	// Write the encrypted data
-	_, err = e.ciph.Write(noncePlusEncrypted)
-	if err != nil {
-		return 0, err
-	}
-
-	return len(plaintext), nil
+	return writeFull(conn, noncePlusEncrypted, timeout)
 }
 
 // Read decrypts data from the underlying stream.
 // When a client actively reads from a net.Conn they are doing this.
-func (d *Decoder) Read(plain []byte) (n int, err error) {
+// Read(plain []byte) (n int, err error) {
+func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg []byte, err error) {
+
 	d.mut.Lock()
 	defer d.mut.Unlock()
 
-	//goal := len(plain)
-	//	for n < goal {
-
-	if len(d.plain) >= len(plain) {
-		n += copy(plain, d.plain)
-		d.plain = d.plain[n:]
-		return
-	}
-	// INVAR: len(d.plain) < len(plain)
-	if len(d.plain) > 0 {
-		// accumulate into n as we write more to plain.
-		n += copy(plain, d.plain)
-		d.plain = d.plain[:0]
-		plain = plain[n:]
-	}
-
-	// Read the length prefix (uint32)
-	var length uint32
-	lenBy := make([]byte, 4)
-	var nr int
-	nr, err = d.ciph.Read(lenBy)
-	//vv("nr=%v, err =%v", nr, err)
-	tot := nr
-	for tot < 4 {
-		if err != nil {
-			return
-		}
-		nr, err = d.ciph.Read(lenBy[nr:])
-		tot += nr
-	}
-	var used int
-	used, err = binary.Decode(lenBy, binary.BigEndian, &length)
-	panicOn(err)
-	if used != len(lenBy) {
-		panic("short read")
-	}
-	//err = binary.Read(d.ciph, binary.BigEndian, &length)
+	// Read the first 8 bytes for the Message length
+	err = readFull(conn, d.work.readLenMessageBytes, timeout)
 	if err != nil {
 		return
 	}
-	if length > maxMessage {
-		return n, ErrTooLong
+	messageLen := int(binary.BigEndian.Uint64(d.work.readLenMessageBytes))
+
+	// Read the message based on the messageLen
+	if messageLen > maxMessage {
+		// probably an encrypted client against an unencrypted server
+		return nil, ErrTooLong
+	}
+
+	// only grow buf if we have to
+	buf := d.work.buf
+	buf = buf[0:cap(buf)]
+	if len(buf) < messageLen {
+		d.work.buf = append(d.work.buf, make([]byte, messageLen-len(buf))...)
+		buf = d.work.buf
 	}
 
 	// Read the encrypted data
-	var nfull int
-	encrypted := make([]byte, length)
-	nfull, err = io.ReadFull(d.ciph, encrypted)
-	if err != nil {
-		return
-	}
-	_ = nfull
-	//vv("past ReadFull, nfull=%v", nfull)
+	encrypted := buf[:messageLen]
+	err = readFull(conn, encrypted, timeout)
 
 	// Decrypt the data
-	var decrypted []byte
 
-	// if the "autheticated data" of lenBy got messed with, do we detect it? yep!
+	// if the "autheticated associated data" of lenBy got messed with, do we detect it? yep!
 	// lenBy[3]++
 	// error: chacha20poly1305: message authentication failed
 
-	decrypted, err = d.aead.Open(nil, encrypted[:d.noncesize], encrypted[d.noncesize:], lenBy)
-	if err != nil {
-		return
-	}
-	//vv("decoder.read decrypted data ok: '%v'", string(decrypted))
-
-	// Copy decrypted data to plain
-	more := copy(plain, decrypted)
-	plain = plain[more:]
-	n += more
-	//vv("copy to plain, more=%v; now len = %v", more, len(plain))
-	if len(decrypted) > more {
-		d.plain = append(d.plain, decrypted[more:]...)
-	}
-	if len(plain) == 0 {
-		return
-	}
-	//	}
-	return
+	assocData := d.work.readLenMessageBytes // length of message should be authentic too.
+	return d.aead.Open(nil, encrypted[:d.noncesize], encrypted[d.noncesize:], assocData)
 }
 
 /*
-// Write ciphertext to be decoded into the Decoder.
+// Write ciphertext to be decoded into the decoder.
 // net.Conn will do this for us, when we read from decoder, so not really needed.
-func (d *Decoder) Write(ciphertext []byte) (n int, err error) {
+func (d *decoder) Write(ciphertext []byte) (n int, err error) {
 	// write into d.ciph to accumulate
 	d.mut.Lock()
 	defer d.mut.Unlock()
@@ -278,7 +264,7 @@ func (d *Decoder) Write(ciphertext []byte) (n int, err error) {
 
 /*
 // ReadFrom reads plaintext data from src, encrypts it, and writes encrypted data to the underlying writer.
-func (e *Encoder) ReadFrom(src io.Reader) (n int64, err error) {
+func (e *encoder) ReadFrom(src io.Reader) (n int64, err error) {
 	// Buffer size can be adjusted based on expected data sizes.
 	bufferSize := 32 * 1024 // 32KB buffer
 	buffer := make([]byte, bufferSize)
