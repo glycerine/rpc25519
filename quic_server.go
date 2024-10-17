@@ -237,7 +237,7 @@ type quicRWPair struct {
 
 func (s *Server) newQUIC_RWPair(stream quic.Stream, conn quic.Connection) *quicRWPair {
 
-	wrap := &NetConnWrapper{Stream: stream, Connection: conn}
+	wrap := &netConnWrapper{Stream: stream, Connection: conn}
 
 	//vv("Server new quic pair: local = '%v'", local(wrap))
 	//vv("Server new quic pair: remote = '%v'", remote(wrap))
@@ -310,7 +310,7 @@ func (s *quicRWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 	w := newBlabber(s.Server.cfg.preSharedKey, stream, s.Server.cfg.encryptPSK, maxMessage)
 	//w := newWorkspace(maxMessage)
 
-	wrap := &NetConnWrapper{Stream: stream, Connection: conn}
+	wrap := &netConnWrapper{Stream: stream, Connection: conn}
 
 	var callme1 OneWayFunc
 	var callme2 TwoWayFunc

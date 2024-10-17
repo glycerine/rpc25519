@@ -177,7 +177,7 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	}
 	defer stream.Close()
 
-	wrap := &NetConnWrapper{Stream: stream, Connection: conn}
+	wrap := &netConnWrapper{Stream: stream, Connection: conn}
 
 	//vv("client: local = '%v'", local(wrap))
 	//vv("client: remote = '%v'", remote(wrap))
@@ -186,7 +186,7 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	c.RunReadLoop(wrap)
 }
 
-type NetConnWrapper struct {
+type netConnWrapper struct {
 	quic.Stream
 	quic.Connection
 }
