@@ -7,11 +7,18 @@ for [goq](https://github.com/glycerine/goq).
 Other RPC systems were too
 sprawling, had bugs their devs would not address, or could
 not be properly or easily secured. To that end, `rpc25519` only uses
-ed25519 Edwards curve based public-key cryptography. Moreover
-it supports QUIC as a transport, which is very fast even
-though it is always encrypted, due to its 0-RTT implementation
+ed25519 Edwards curve based public-key cryptography. A
+second pre-shared-key layer, based on XChaCha20-Poly1305
+symmetric stream encryption, can also be added.
+
+Excitedly, I am delighted to report this package also
+supports QUIC as a transport. QUIC is very fast even
+though it is always encrypted. This is due to its 0-RTT implementation
 and the mature [quic-go](https://github.com/quic-go/quic-go) 
-implementation of the protocol.
+implementation of the protocol. QUIC allows a local
+client and server in the same process to share a UDP port.
+This feature can be super useful for conserving ports
+and connecting across networks.
 
 In the broadest of strokes:
 
