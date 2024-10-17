@@ -757,6 +757,30 @@ func (p *rwPair) readRequestHeader(codec ServerCodec) (svc *service, mtype *meth
 // no suitable methods. It also logs the error using package log.
 // The client accesses each method using a string of the form "Type.Method",
 // where Type is the receiver's concrete type.
+//
+// rpc25519 addendum:
+//
+// Callback methods in the `net/rpc` style traditionally look like this first
+// `NoContext` example below. We now allow a context.Context as an additional first
+// parameter. The ctx will have an "HDR" value set on it giving a pointer to
+// the `rpc25519.HDR` header from the incoming Message.
+//
+//	func (s *Service) NoContext(args *Args, reply *Reply) error
+//
+// * new:
+//
+//	func (s *Service) GetsContext(ctx context.Context, args *Args, reply *Reply) error {
+//	   if hdr := ctx.Value("HDR"); hdr != nil {
+//	      h, ok := hdr.(*rpc25519.HDR)
+//	      if ok {
+//	        fmt.Printf("GetsContext called with HDR = '%v'; "+
+//	           "HDR.Nc.RemoteAddr() gives '%v'; HDR.Nc.LocalAddr() gives '%v'\n",
+//	           h.String(), h.Nc.RemoteAddr(), h.Nc.LocalAddr())
+//	      }
+//	   } else {
+//	      fmt.Println("HDR not found")
+//	   }
+//	}
 func (s *Server) Register(rcvr any) error {
 	return s.register(rcvr, "", false)
 }

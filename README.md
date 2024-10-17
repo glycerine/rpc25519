@@ -41,16 +41,16 @@ the `rpc25519.HDR` header from the incoming Message.
 func (s *Service) NoContext(args *Args, reply *Reply) error
 
 func (s *Service) GetsContext(ctx context.Context, args *Args, reply *Reply) error {
-	if hdr := ctx.Value("HDR"); hdr != nil {
-		h, ok := hdr.(*rpc25519.HDR)
-		if ok {
-			fmt.Printf("WantsContext called with HDR = '%v'; "+
-			    "HDR.Nc.RemoteAddr() gives '%v'; HDR.Nc.LocalAddr() gives '%v'\n", 
-			    h.String(), h.Nc.RemoteAddr(), h.Nc.LocalAddr())
-		}
-	} else {
-		fmt.Println("HDR not found")
-	}
+if hdr := ctx.Value("HDR"); hdr != nil {
+     h, ok := hdr.(*rpc25519.HDR)
+     if ok {
+        fmt.Printf("GetsContext called with HDR = '%v'; "+
+           "HDR.Nc.RemoteAddr() gives '%v'; HDR.Nc.LocalAddr() gives '%v'\n", 
+           h.String(), h.Nc.RemoteAddr(), h.Nc.LocalAddr())
+      }
+   } else {
+      fmt.Println("HDR not found")
+   }
 }
 ~~~
 
