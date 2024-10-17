@@ -12,7 +12,7 @@ second pre-shared-key layer, based on XChaCha20-Poly1305
 symmetric stream encryption, can also be added.
 
 Excitedly, I am delighted to report this package also
-supports [https://en.wikipedia.org/wiki/QUIC](QUIC as a transport). 
+supports [QUIC as a transport](https://en.wikipedia.org/wiki/QUIC). 
 QUIC is very fast even
 though it is always encrypted. This is due to its 0-RTT design
 and the mature [quic-go](https://github.com/quic-go/quic-go) 
