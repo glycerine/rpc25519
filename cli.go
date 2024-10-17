@@ -161,7 +161,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	defer conn.Close()
 
 	la := conn.LocalAddr()
-	c.SetLocalAddr(la.Network() + "://" + la.String())
+	c.setLocalAddr(la.Network() + "://" + la.String())
 
 	// only signal ready once SetLocalAddr() is done, else submitter can crash.
 	c.Connected <- nil
@@ -210,7 +210,7 @@ func (c *Client) runClientTCP(serverAddr string) {
 	}
 
 	la := conn.LocalAddr()
-	c.SetLocalAddr(la.Network() + "://" + la.String())
+	c.setLocalAddr(la.Network() + "://" + la.String())
 
 	c.isTLS = false
 	c.conn = conn
@@ -564,7 +564,7 @@ type Client struct {
 	halt *idem.Halter
 
 	// Connected lets the user wait for
-	// handshake to complete. If connecting suceeds,
+	// handshake to complete. If connecting succeeds,
 	// a nil will be sent on this chan, otherwise
 	// the error will be provided.
 	Connected chan error
@@ -794,7 +794,7 @@ func (c *Client) Err() error {
 // GetReadIncomingCh creates and returns
 // a buffered channel that reads incoming
 // messages that are server-pushed (not associated
-// with a round-trip rpc call request/response pair.
+// with a round-trip rpc call request/response pair).
 func (c *Client) GetReadIncomingCh() (ch chan *Message) {
 	ch = make(chan *Message, 100)
 	//vv("GetReadIncommingCh is %p on client '%v'", ch, c.name)
@@ -802,7 +802,9 @@ func (c *Client) GetReadIncomingCh() (ch chan *Message) {
 	return
 }
 
-// register to get any received messages on ch.
+// GetReads registers to get any received messages on ch.
+// It is similar to GetReadIncomingCh but for when ch
+// already exists and you do not want a new one.
 func (c *Client) GetReads(ch chan *Message) {
 	//vv("GetReads called! stack='\n\n%v\n'", stack())
 	if cap(ch) == 0 {
@@ -1019,11 +1021,14 @@ func (c *Client) OneWaySend(msg *Message, doneCh <-chan struct{}) (err error) {
 	}
 }
 
-func (c *Client) SetLocalAddr(local string) {
+func (c *Client) setLocalAddr(local string) {
 	c.mut.Lock()
 	defer c.mut.Unlock()
 	c.cfg.LocalAddress = local
 }
+
+// LocalAddr retreives the local host/port that the
+// Client is calling from.
 func (c *Client) LocalAddr() string {
 	c.mut.Lock()
 	defer c.mut.Unlock()

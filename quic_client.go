@@ -129,7 +129,7 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	}
 
 	la := conn.LocalAddr()
-	c.SetLocalAddr(la.Network() + "://" + la.String())
+	c.setLocalAddr(la.Network() + "://" + la.String())
 
 	c.Connected <- nil
 
