@@ -151,12 +151,12 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	remoteAddr := strings.TrimSpace(raddr.String())
 
 	if !c.cfg.SkipVerifyKeys {
-		good, bad, wasNew, err := HostKeyVerifies(knownHostsPath, &connState.TLS, remoteAddr)
+		good, bad, wasNew, err := hostKeyVerifies(knownHostsPath, &connState.TLS, remoteAddr)
 		_ = good
 		_ = wasNew
 		_ = bad
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "HostKeyVerifies has failed: key failed list:'%#v': '%v'\n", bad, err)
+			fmt.Fprintf(os.Stderr, "hostKeyVerifies has failed: key failed list:'%#v': '%v'\n", bad, err)
 			return
 		}
 		//for i := range good {

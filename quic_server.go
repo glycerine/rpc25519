@@ -174,7 +174,7 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 		if !s.cfg.SkipVerifyKeys {
 			// NB only ed25519 keys are permitted, any others will result
 			// in an immediate error
-			good, bad, wasNew, err := HostKeyVerifies(knownHostsPath, &connState, remoteAddr)
+			good, bad, wasNew, err := hostKeyVerifies(knownHostsPath, &connState, remoteAddr)
 			_ = wasNew
 			_ = bad
 			if err != nil && len(good) == 0 {
@@ -182,7 +182,7 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 				return
 			}
 			if err != nil {
-				//vv("HostKeyVerifies returned error '%v' for remote addr '%v'", err, remoteAddr)
+				//vv("hostKeyVerifies returned error '%v' for remote addr '%v'", err, remoteAddr)
 				return
 			}
 			//for i := range good {
