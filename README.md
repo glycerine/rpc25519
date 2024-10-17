@@ -23,7 +23,7 @@ and connecting across networks.
 
 In the broadest of strokes:
 
-`rpc25519` is a Remote Procedure Call system with two APIs.
+[`rpc25519`](https://github.com/glycerine/rpc25519) is a Remote Procedure Call system with two APIs.
 
 We offer both a traditional [net/rpc](https://pkg.go.dev/net/rpc) 
 style API, and a generic []byte oriented API for carrying
