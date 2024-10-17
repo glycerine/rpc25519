@@ -83,7 +83,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		sslCertKey = fixSlash(fmt.Sprintf("%v/%v.key", certPath, keyName)) // path to server key
 	}
 
-	config, err2 := LoadClientTLSConfig(embedded, sslCA, sslCert, sslCertKey)
+	config, err2 := loadClientTLSConfig(embedded, sslCA, sslCert, sslCertKey)
 	if err2 != nil {
 		c.err = fmt.Errorf("error on LoadClientTLSConfig() (using embedded=%v): '%v'", embedded, err2)
 		panic(c.err)
@@ -655,7 +655,7 @@ func (c *Client) send(call *Call) {
 	c.mutex.Lock()
 	if c.shutdown || c.closing {
 		c.mutex.Unlock()
-		call.Error = ErrIsShutdown
+		call.Error = ErrNetRpcShutdown
 		call.done()
 		return
 	}
@@ -765,7 +765,7 @@ func (c *Client) netRpcShutdownCleanup(err error) {
 	closing := c.closing
 	if err == io.EOF {
 		if closing {
-			err = ErrIsShutdown
+			err = ErrNetRpcShutdown
 		} else {
 			err = io.ErrUnexpectedEOF
 		}

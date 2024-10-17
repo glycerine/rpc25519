@@ -120,7 +120,11 @@ type Response struct {
 	next          *Response // for free list in Server
 }
 
-var ErrIsShutdown = errors.New("connection is shut down")
+// ErrNetRpcShutdown is still distinct from ErrShutdown to help locate
+// when and where the error was generated. It indicates the
+// system, or at least the network connection or stream, is
+// closed or shutting down.
+var ErrNetRpcShutdown = errors.New("connection is shut down")
 
 // Call represents an active RPC.
 type Call struct {

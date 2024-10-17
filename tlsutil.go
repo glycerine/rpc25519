@@ -70,10 +70,10 @@ ref: https://www.cockroachlabs.com/docs/stable/secure-a-cluster.html
 //
 // embedded true means load from the static embedded files, created
 // at compile time. If embedded is false, then we read from the filesystem.
-func LoadServerTLSConfig(embedded bool, sslCA, sslClientCA, sslCert, sslCertKey string) (*tls.Config, error) {
+func loadServerTLSConfig(embedded bool, sslCA, sslClientCA, sslCert, sslCertKey string) (*tls.Config, error) {
 
 	if !embedded {
-		return LoadServerTLSConfigFilesystem(sslCA, sslClientCA, sslCert, sslCertKey)
+		return loadServerTLSConfigFilesystem(sslCA, sslClientCA, sslCert, sslCertKey)
 	}
 
 	certPEM, err := static.ReadFile(sslCert)
@@ -95,7 +95,7 @@ func LoadServerTLSConfig(embedded bool, sslCA, sslClientCA, sslCert, sslCertKey 
 	return newServerTLSConfig(certPEM, keyPEM, caPEM, clientCAPEM)
 }
 
-func LoadServerTLSConfigFilesystem(sslCA, sslClientCA, sslCert, sslCertKey string) (*tls.Config, error) {
+func loadServerTLSConfigFilesystem(sslCA, sslClientCA, sslCert, sslCertKey string) (*tls.Config, error) {
 
 	certPEM, err := ioutil.ReadFile(sslCert)
 	if err != nil {
@@ -177,10 +177,10 @@ func newUIServerTLSConfig(certPEM, keyPEM []byte) (*tls.Config, error) {
 //
 // embedded true means load from the static embedded files, created
 // at compile time. If embedded is false, then we read from the filesystem.
-func LoadClientTLSConfig(embedded bool, sslCA, sslCert, sslCertKey string) (*tls.Config, error) {
+func loadClientTLSConfig(embedded bool, sslCA, sslCert, sslCertKey string) (*tls.Config, error) {
 
 	if !embedded {
-		return LoadClientTLSConfigFilesystem(sslCA, sslCert, sslCertKey)
+		return loadClientTLSConfigFilesystem(sslCA, sslCert, sslCertKey)
 	}
 	certPEM, err := static.ReadFile(sslCert)
 	if err != nil {
@@ -198,7 +198,7 @@ func LoadClientTLSConfig(embedded bool, sslCA, sslCert, sslCertKey string) (*tls
 	return newClientTLSConfig(certPEM, keyPEM, caPEM)
 }
 
-func LoadClientTLSConfigFilesystem(sslCA, sslCert, sslCertKey string) (*tls.Config, error) {
+func loadClientTLSConfigFilesystem(sslCA, sslCert, sslCertKey string) (*tls.Config, error) {
 	certPEM, err := ioutil.ReadFile(sslCert)
 	if err != nil {
 		return nil, err

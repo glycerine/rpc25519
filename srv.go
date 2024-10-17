@@ -68,7 +68,7 @@ func (s *Server) RunServerMain(serverAddress string, tcp_only bool, certPath str
 		s.RunTCP(serverAddress, boundCh)
 		return
 	} else {
-		config, err = LoadServerTLSConfig(embedded, sslCA, sslClientCA, sslCert, sslCertKey)
+		config, err = loadServerTLSConfig(embedded, sslCA, sslClientCA, sslCert, sslCertKey)
 		if err != nil {
 			panic(fmt.Sprintf("error on LoadServerTLSConfig() (using embedded=%v): '%v'", embedded, err))
 		}
