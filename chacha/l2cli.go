@@ -29,7 +29,7 @@ func main() {
 	defer conn.Close()
 	log.Println("Connected to server")
 
-	encrypt := false
+	encrypt := true
 	blab := newBlabber(key, conn, encrypt, maxMessage)
 
 	// send a big message
@@ -66,10 +66,10 @@ func main() {
 		}
 	}
 	// On localhost, over TCP.
-	// on linux amd rhyzen total roundtrip time 7.099127628s => 281 MB/second to do
+	// on linux amd rhyzen total roundtrip time 5.860731946s => 341 MB/second to do
 	// encryption on cli, decryption on srv, encryption on srv, decryption on cli.
 	//
-	// So-one way bandwidth of 562 MB/sec to encrypt and then decrypt.
+	// So one-way bandwidth of 682 MB/sec to encrypt and decrypt and transfer through kernel loopback.
 	//
 	// On mac intel i7 2.3GHz, total roundtrip time 48.117771412. So 83 MB/sec one-way enc+dec bandwidth.
 	//

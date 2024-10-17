@@ -60,7 +60,7 @@ func main() {
 func handleConnection(conn net.Conn, key []byte) {
 	defer conn.Close()
 
-	encrypt := false
+	encrypt := true
 	blab := newBlabber(key, conn, encrypt, maxMessage)
 
 	var err error
@@ -99,17 +99,9 @@ func handleConnection(conn net.Conn, key []byte) {
 			response = msg
 		}
 
-		nw := 0
 		err = blab.sendMessage(conn, response, nil)
 		panicOn(err)
 
-		vv("server: echo %v suceeded", nw)
-		continue
-
-		vv("send / enc.Write got err = '%v', nw=%v out of %v", err, nw, len(response))
-		if err != nil {
-			log.Printf("Write error: %v", err)
-			break
-		}
+		vv("server: echo %v suceeded", len(response))
 	}
 }
