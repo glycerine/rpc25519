@@ -1045,7 +1045,15 @@ func (c *Client) nextSeqno() (n uint64) {
 // authority, a new ed25519 key pair, sign the public
 // key to create a cert, and write these four
 // new files to disk. The directories
-// odir/my-keep-private-dir and odir/certs will be created.
+// odir/my-keep-private-dir and odir/certs will be created,
+// based on the odir argument.
+// For a given createKeyPairNamed name, we will
+// create odir/certs/name.crt and odir/certs/name.key files.
+// The odir/certs/name.key and my-keep-private-dir/ca.key files
+// contain private keys and should be kept confidential.
+// The `selfy` command in this package can be used to produce the
+// same keys but with password protection, which is
+// recommended.
 func SelfyNewKey(createKeyPairNamed, odir string) error {
 	odirPrivateKey := odir + sep + "my-keep-private-dir"
 	odirCerts := odir + sep + "certs"
