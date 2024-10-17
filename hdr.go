@@ -61,6 +61,8 @@ func (m *Message) AsGreenpack(scratch []byte) (o []byte, err error) {
 
 // HDR provides header information and details
 // about the transport. It is the first thing in every Message.
+// It is public so that clients can understand the
+// context of their calls.
 type HDR struct {
 	Nc net.Conn `msg:"-"`
 
