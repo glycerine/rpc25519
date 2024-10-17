@@ -900,7 +900,15 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 
 var ErrNetConnectionNotFound = fmt.Errorf("error: net.Conn not found")
 
-func (s *Server) SendMessage(callID, subject, destAddr string, by []byte, seqno uint64) error {
+// SendMessage can be used on the server to push data to
+// one of the connected clients; that found at destAdddr.
+//
+// A NewMessage() Message will be created and JobSerz will contain the data.
+// The HDR fields Subject, CallID, and Seqno will also be set from the arguments.
+//
+// If the destAddr is not already connected to the server, the
+// ErrNetConnectionNotFound error will be returned.
+func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqno uint64) error {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
@@ -911,7 +919,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, by []byte, seqno 
 		return ErrNetConnectionNotFound
 	}
 	msg := NewMessage()
-	msg.JobSerz = by
+	msg.JobSerz = data
 
 	from := local(pair.Conn)
 	to := remote(pair.Conn)
@@ -924,7 +932,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, by []byte, seqno 
 	mid.Seqno = seqno
 	msg.HDR = *mid
 
-	//vv("send message attempting to send %v bytes to '%v'", len(by), destAddr)
+	//vv("send message attempting to send %v bytes to '%v'", len(data), destAddr)
 	select {
 	case pair.SendCh <- msg:
 		//	case <-time.After(time.Second):
