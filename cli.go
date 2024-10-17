@@ -458,11 +458,7 @@ type Config struct {
 	UseQUIC bool
 
 	// path to certs/ like certificate
-	// directory on the live filesystem. If left
-	// empty then the embedded certs/ from build-time, those
-	// copied from the on-disk certs/ directory and baked
-	// into the executable as a virtual file system with
-	// the go:embed directive are used.
+	// directory on the live filesystem.
 	CertPath string
 
 	// SkipVerifyKeys true allows any incoming
