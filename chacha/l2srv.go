@@ -60,7 +60,7 @@ func main() {
 func handleConnection(conn net.Conn, key []byte) {
 	defer conn.Close()
 
-	encrypt := true
+	encrypt := false
 	blab := newBlabber(key, conn, encrypt, maxMessage)
 
 	var err error
