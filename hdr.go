@@ -48,7 +48,7 @@ type Message struct {
 	// DoneCh will receive this Message itself when the call completes.
 	// It must be buffered, with at least capacity 1.
 	// NewMessage() automatically allocates DoneCh correctly and
-	// so should be the preferred for creating Message(s).
+	// should be used when creating a new Message.
 	DoneCh chan *Message `msg:"-"`
 }
 
