@@ -225,7 +225,7 @@ func (c *Client) RunReadLoop(conn net.Conn) {
 		c.halt.Done.Close()
 	}()
 
-	w := newWorkspace()
+	w := newWorkspace(maxMessage)
 	readTimeout := time.Millisecond * 100
 	for {
 
@@ -237,7 +237,7 @@ func (c *Client) RunReadLoop(conn net.Conn) {
 		}
 
 		// Receive a message
-		msg, err := w.receiveMessage(conn, &readTimeout)
+		msg, err := w.readMessage(conn, &readTimeout)
 		if err != nil {
 			r := err.Error()
 			if strings.Contains(r, "timeout") || strings.Contains(r, "deadline exceeded") {
@@ -310,7 +310,7 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 		c.halt.Done.Close()
 	}()
 
-	w := newWorkspace()
+	w := newWorkspace(maxMessage)
 
 	// PRE: Message.DoneCh must be buffered at least 1, so our logic below does not have to deal with ever blocking.
 	for {

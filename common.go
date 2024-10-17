@@ -11,8 +11,10 @@ import (
 )
 
 const (
-	maxMessage = 2 * 1024 * 1024 * 1024 // 2GB max message size, prevents TLS clients from talking to TCP servers.
+	maxMessage = 2*1024*1024*1024 - 64 // 2GB max message size, prevents TLS clients from talking to TCP servers.
 )
+
+var ErrTooLong = fmt.Errorf("message message too long:  over 2GB; encrypted client vs an un-encrypted server?")
 
 var _ = io.EOF
 
@@ -52,7 +54,8 @@ type uConn interface {
 // goroutine needs its own so as to not
 // colide with any other goroutine.
 type workspace struct {
-	buf []byte
+	maxMsgSize int
+	buf        []byte
 
 	readLenMessageBytes  []byte
 	writeLenMessageBytes []byte
@@ -61,9 +64,10 @@ type workspace struct {
 // currently only used for headers; but bodies may
 // well benefit as well. In which case, bump up
 // to maxMessage+1024 or so, rather than this 64KB.
-func newWorkspace() *workspace {
+func newWorkspace(maxMsgSize int) *workspace {
 	return &workspace{
-		buf:                  make([]byte, 1<<16),
+		maxMsgSize:           maxMsgSize,
+		buf:                  make([]byte, maxMsgSize+64), // +64 for poly1305 tag, nonce, and 8-byte msgLength.
 		readLenMessageBytes:  make([]byte, 8),
 		writeLenMessageBytes: make([]byte, 8),
 	}
@@ -71,7 +75,7 @@ func newWorkspace() *workspace {
 
 // receiveMessage reads a framed message from conn
 // nil or 0 timeout means no timeout.
-func (w *workspace) receiveMessage(conn uConn, timeout *time.Duration) (msg *Message, err error) {
+func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Message, err error) {
 
 	// Read the first 8 bytes for the Message length
 	if err := readFull(conn, w.readLenMessageBytes, timeout); err != nil {
@@ -82,7 +86,7 @@ func (w *workspace) receiveMessage(conn uConn, timeout *time.Duration) (msg *Mes
 	// Read the message based on the messageLen
 	if messageLen > maxMessage {
 		// probably an encrypted client against an unencrypted server
-		return nil, fmt.Errorf("message message too long: %v is over 2GB; encrypted client vs an un-encrypted server?", messageLen)
+		return nil, ErrTooLong
 	}
 
 	message := make([]byte, messageLen)

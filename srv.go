@@ -273,7 +273,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		s.halt.Done.Close()
 	}()
 
-	w := newWorkspace()
+	w := newWorkspace(maxMessage)
 
 	for {
 		select {
@@ -305,7 +305,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 	}()
 
-	w := newWorkspace()
+	w := newWorkspace(maxMessage)
 
 	var callme1 OneWayFunc
 	var callme2 TwoWayFunc
@@ -320,7 +320,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		default:
 		}
 
-		req, err := w.receiveMessage(conn, &s.cfg.ReadTimeout)
+		req, err := w.readMessage(conn, &s.cfg.ReadTimeout)
 		if err == io.EOF {
 			//vv("server sees io.EOF from receiveMessage")
 			continue // close of socket before read of full message.

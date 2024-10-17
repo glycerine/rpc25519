@@ -280,7 +280,7 @@ func (s *quicRWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 		s.halt.Done.Close()
 	}()
 
-	w := newWorkspace()
+	w := newWorkspace(maxMessage)
 
 	for {
 		select {
@@ -306,7 +306,7 @@ func (s *quicRWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 		conn.CloseWithError(0, "server shutdown") // just the one, let other clients continue.
 	}()
 
-	w := newWorkspace()
+	w := newWorkspace(maxMessage)
 
 	wrap := &NetConnWrapper{Stream: stream, Connection: conn}
 
@@ -323,7 +323,7 @@ func (s *quicRWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 		default:
 		}
 
-		req, err := w.receiveMessage(stream, &s.cfg.ReadTimeout)
+		req, err := w.readMessage(stream, &s.cfg.ReadTimeout)
 		if err == io.EOF {
 			//vv("server sees io.EOF from receiveMessage")
 			continue // close of socket before read of full message.
