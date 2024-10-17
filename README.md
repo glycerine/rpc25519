@@ -192,6 +192,11 @@ Blake2s as a hash function (apparently faster than SHA-256
 when hardware support SHA-extensions/SHA-NI instructions are not available).
 The ChaCha20, Poly1305, and Curve25519 parts are the same.
 
+`Config.PreSharedKeyPath` allows specifying a 32 byte pre-shared key
+file for further security. An additional, independent layer of XChaCha20-Poly1305
+stream cipher/AEAD will be applied based on that key. The same
+key content must be available to both client and server.
+
 security posture for both extremes
 ----------------
 
