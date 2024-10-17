@@ -2,7 +2,9 @@ rpc25519: Edwards curve ed25519 based identity RPC for Go/golang
 ==========
 
 Motivation: I needed a small, simple, and compact RPC system
-with modern, strong cryptography. Other RPC systems were too
+with modern, strong cryptography 
+for [goq](https://github.com/glycerine/goq). 
+Other RPC systems were too
 sprawling, had bugs their devs would not address, or could
 not be properly or easily secured. To that end, `rpc25519` only uses
 ed25519 Edwards curve based public-key cryptography. Moreover
@@ -60,6 +62,9 @@ The net/rpc API is implemented as a layer on top of the rpc25519.Message
 based API. Both can be used concurrently if desired.
 
 Server push is available too. Use [Client.GetReadIncomingCh](https://pkg.go.dev/github.com/glycerine/rpc25519#Client.GetReadIncomingCh) or [Client.GetReads](https://pkg.go.dev/github.com/glycerine/rpc25519#Client.GetReads) on the client side to receive server initiated messages.
+
+See [my distributed job-queuing server `goq`](https://github.com/glycerine/goq)
+as an example application that illustrates use of this, the `rpc25519` package.
 
 In the following we'll look at choice of transport, why
 public-key certs are preferred, and how to use the included `selfy`
