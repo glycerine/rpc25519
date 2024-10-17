@@ -39,8 +39,8 @@ type Message struct {
 	// user-defined callback functions.
 	JobErrs string `zid:"2"`
 
-	// Err is not serialized on the wire by the server,
-	// so communicates only local information. Callback
+	// Err is not serialized on the wire by the server.
+	// It communicates only local (client side) information. Callback
 	// functions should convey errors in JobErrs or in-band within
 	// JobSerz.
 	Err error `msg:"-"`
