@@ -13,6 +13,8 @@ import (
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
+var _ = fmt.Printf
+
 // blabber holds stream encryption/decryption facilities.
 //
 // It uses the XChaCha20-Poly1305 AEAD which works well
@@ -161,46 +163,26 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	}
 
 	sz := len(bytesMsg) + e.noncesize + e.overhead
-	vv("pre-encryption is sz=%v, being written as first 8-bytes; bytesMsg=%v", sz, len(bytesMsg))
-
-	vv("plaintext = '%x'", bytesMsg)
 
 	binary.BigEndian.PutUint64(e.work.buf[:8], uint64(sz))
 	assocData := e.work.buf[:8]
-	_ = assocData
+
 	buf := e.work.buf
 
 	// Encrypt the data (prepends the nonce? nope need to do so ourselves)
 
 	// write the nonce
 	copy(buf[8:8+e.noncesize], e.writeNonce)
-	vv("nonce is '%x'", e.writeNonce)
 
 	// encrypt. notice we get to re-use the plain text buf for the encrypted output.
 	// So ideally, no allocation necessary.
-
-	sealOut := e.aead.Seal(buf[8+e.noncesize:8+e.noncesize], e.writeNonce, buf[8+e.noncesize:8+e.noncesize+len(bytesMsg)], assocData)
-
-	if e.noncesize+len(sealOut) != sz {
-		panic(fmt.Sprintf("e.noncesize+len(sealOut)=%v != sz(%v)", e.noncesize+len(sealOut), sz))
-	}
+	sealOut := e.aead.Seal(buf[8+e.noncesize:8+e.noncesize], buf[8:8+e.noncesize], buf[8+e.noncesize:8+e.noncesize+len(bytesMsg)], assocData)
 
 	// Update the nonce: ONLY AFTER using it above in Seal!
 	// random is better tha incrementing, and the same speed.
 	// Much less chance of losing security by having a nonce re-used.
 	err = writeNewCryRandomNonce(e.writeNonce)
 	panicOn(err) // really should never fail unless whole system is borked.
-
-	ns := len(sealOut)
-	vv("sealOut len = %v : '%x'", ns, sealOut)
-
-	// DEBUG TODO REMOVE
-	message2, err := e.aead.Open(nil, buf[8:8+e.noncesize], sealOut, assocData)
-	panicOn(err)
-	vv("was able to Open after Seal, plaintext back='%x'", message2)
-
-	vv("seal got first 60 bytes: '%x'", sealOut[:60])
-	vv("buf is first 60 bytes: '%x'", buf[:60])
 
 	// Write the 8 bytes of msglen + the nonce + encrypted data with authentication tag.
 	return writeFull(conn, buf[:8+e.noncesize+len(sealOut)], timeout)
@@ -221,8 +203,6 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	}
 	messageLen := int(binary.BigEndian.Uint64(d.work.readLenMessageBytes))
 
-	vv("readMessage() sees messageLen = %v (first 8-bytes): '%x'", messageLen, d.work.readLenMessageBytes)
-
 	// Read the message based on the messageLen
 	if messageLen > maxMessage {
 		// probably an encrypted client against an unencrypted server
@@ -230,15 +210,6 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	}
 
 	buf := d.work.buf
-
-	/* should never be needed.
-	// only grow buf if we have to
-	buf = buf[0:cap(buf)]
-	if len(buf) < messageLen {
-		d.work.buf = append(d.work.buf, make([]byte, messageLen-len(buf))...)
-		buf = d.work.buf
-	}
-	*/
 
 	// Read the encrypted data
 	encrypted := buf[:messageLen]
@@ -252,8 +223,6 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 
 	assocData := d.work.readLenMessageBytes // length of message should be authentic too.
 	nonce := encrypted[:d.noncesize]
-	vv("nonce = '%x'", nonce)
-	vv("pre decryption, encrypted = len %v: '%x'", len(encrypted[d.noncesize:]), encrypted[d.noncesize:])
 
 	message, err := d.aead.Open(nil, nonce, encrypted[d.noncesize:], assocData)
 	panicOn(err)
