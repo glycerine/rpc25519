@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/glycerine/idem"
+	"github.com/glycerine/ipaddr"
 	"github.com/glycerine/rpc25519/selfcert"
 	"github.com/quic-go/quic-go"
 )
@@ -118,7 +119,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		}
 		localHostPort := c.cfg.ClientHostPort
 		if localHostPort == "" {
-			localHost, err := LocalAddrMatching(serverAddr)
+			localHost, err := ipaddr.LocalAddrMatching(serverAddr)
 			panicOn(err)
 			//vv("localHost = '%v', matched to quicServerAddr = '%v'", localHost, quicServerAddr)
 			localHostPort = localHost + ":0" // client can pick any port
