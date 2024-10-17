@@ -101,6 +101,7 @@ type HDR struct {
 	IsNetRPC bool   `zid:"10"` // is net/rpc API in use for this request/response?
 }
 
+// NewHDR creates a new HDR header.
 func NewHDR(from, to, subject string, isRPC bool, isLeg2 bool) (m *HDR) {
 	t0 := time.Now()
 	created := t0.In(chicago).Format(rfc3339NanoNumericTZ0pad)
