@@ -31,13 +31,13 @@ untyped []byte payloads (in `Message.JobSerz`).
 
 Using the rpc25519.Message based API:
 
- * [`Server.Register1Func()`](#Server.Register1Func) registers one-way (no reply) callbacks on the server; and
+ * [`Server.Register1Func()`](https://pkg.go.dev/github.com/glycerine/rpc25519#Server.Register1Func) registers one-way (no reply) callbacks on the server; and
 
- * [`Server.Register2Func()`](#Server.Register2Func) register traditional two-way callbacks.
+ * [`Server.Register2Func()`](https://pkg.go.dev/github.com/glycerine/rpc25519#Server.Register2Func) register traditional two-way callbacks.
 
 Using the net/rpc API:
 
- * [`Server.Register()`](#Server.Register) registers structs with callback methods on them.
+ * [`Server.Register()`](https://pkg.go.dev/github.com/glycerine/rpc25519#Server.Register) registers structs with callback methods on them.
 
 See [the net/rpc docs for full guidance on using that API](https://pkg.go.dev/net/rpc).
 
