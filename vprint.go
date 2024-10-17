@@ -16,31 +16,31 @@ import (
 var verbose bool = false
 var verboseVerbose bool = false
 
-var GTZ *time.Location
-var Chicago *time.Location
-var UtcTz *time.Location
-var NYC *time.Location
-var London *time.Location
-var Frankfurt *time.Location
+var gtz *time.Location
+var chicago *time.Location
+var utcTz *time.Location
+var nyc *time.Location
+var londonTz *time.Location
+var frankfurt *time.Location
 
 func init() {
 
 	// do this is ~/.bashrc so we get the default.
-	os.Setenv("TZ", "America/Chicago")
+	os.Setenv("TZ", "America/chicago")
 
 	var err error
-	Chicago, err = tz.LoadLocation("America/Chicago")
+	chicago, err = tz.LoadLocation("America/Chicago")
 	panicOn(err)
-	UtcTz, err = tz.LoadLocation("UTC")
+	utcTz, err = tz.LoadLocation("UTC")
 	panicOn(err)
-	NYC, err = tz.LoadLocation("America/New_York")
+	nyc, err = tz.LoadLocation("America/New_York")
 	panicOn(err)
-	Frankfurt, err = tz.LoadLocation("Europe/Berlin")
+	frankfurt, err = tz.LoadLocation("Europe/Berlin")
 	panicOn(err)
-	London, err = tz.LoadLocation("Europe/London")
+	londonTz, err = tz.LoadLocation("Europe/London")
 	panicOn(err)
 
-	GTZ = Chicago
+	gtz = chicago
 }
 
 const rfc3339MsecTz0 = "2006-01-02T15:04:05.000Z07:00"
@@ -105,8 +105,8 @@ func TSPrintf(format string, a ...interface{}) {
 
 // get timestamp for logging purposes
 func ts() string {
-	return time.Now().In(Chicago).Format("2006-01-02 15:04:05.999 -0700 MST")
-	//return time.Now().In(NYC).Format("2006-01-02 15:04:05.999 -0700 MST")
+	return time.Now().In(chicago).Format("2006-01-02 15:04:05.999 -0700 MST")
+	//return time.Now().In(nyc).Format("2006-01-02 15:04:05.999 -0700 MST")
 }
 
 // so we can multi write easily, use our own printf
