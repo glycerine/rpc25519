@@ -549,7 +549,7 @@ func NewConfig() *Config {
 	}
 }
 
-// Clients write requests, and maybe wait for responses.
+// A Client starts requests, and (might) wait for responses.
 type Client struct {
 	cfg *Config
 	mut sync.Mutex
