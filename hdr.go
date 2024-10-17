@@ -54,13 +54,16 @@ type Message struct {
 
 // MessageFromGreenpack unmarshals the by slice
 // into a Message and returns it.
+// The [greenpack format](https://github.com/glycerine/greenpack) is expected.
 func MessageFromGreenpack(by []byte) (*Message, error) {
 	msg := NewMessage()
 	_, err := msg.UnmarshalMsg(by)
 	return msg, err
 }
 
-// the scrach workspace can be nil or reused to avoid allocation.
+// AsGreenpack marshalls m into o.
+// The scrach workspace can be nil or reused to avoid allocation.
+// The [greenpack format](https://github.com/glycerine/greenpack) is used.
 func (m *Message) AsGreenpack(scratch []byte) (o []byte, err error) {
 	return m.MarshalMsg(scratch[:0])
 }
@@ -231,6 +234,7 @@ func fromUncheckedBase58(encodedStr string) []byte {
 
 // HDRFromGreenpack will unmarshal the header
 // into the returned struct.
+// The [greenpack format](https://github.com/glycerine/greenpack) is expected.
 func HDRFromGreenpack(header []byte) (*HDR, error) {
 	var mid HDR
 
@@ -244,6 +248,7 @@ func HDRFromGreenpack(header []byte) (*HDR, error) {
 // AsGreenpack will marshall hdr into the o output bytes.
 // The scratch bytes can be nil or
 // reused and returned to avoid allocation.
+// The [greenpack format](https://github.com/glycerine/greenpack) is used.
 func (hdr *HDR) AsGreenpack(scratch []byte) (o []byte, err error) {
 
 	// MarshalMsg appends the marshalled
