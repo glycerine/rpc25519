@@ -954,12 +954,17 @@ func NewServer(name string, config *Config) *Server {
 	}
 }
 
+// Register2Func tells the server about a func or method
+// that will have a returned Message value. See the
+// [TwoWayFunc] definition.
 func (s *Server) Register2Func(callme2 TwoWayFunc) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 	s.callme2 = callme2
 }
 
+// Register1Func tells the server about a func or method
+// that will not reply. See the [OneWayFunc] definition.
 func (s *Server) Register1Func(callme1 OneWayFunc) {
 	//vv("Register1Func called with callme1 = %p", callme1)
 	s.mut.Lock()
@@ -967,6 +972,8 @@ func (s *Server) Register1Func(callme1 OneWayFunc) {
 	s.callme1 = callme1
 }
 
+// Start has the Server begin receiving and processing RPC calls.
+// The Config.ServerAddr tells us what host:port to bind and listen on.
 func (s *Server) Start() (serverAddr net.Addr, err error) {
 	//vv("Server.Start() called")
 	if s.cfg == nil {
@@ -974,9 +981,6 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 	}
 	if s.cfg.ServerAddr == "" {
 		panic(fmt.Errorf("no ServerAddr specified in Server.cfg"))
-		//hostport := "127.0.0.1:0" // default to safe loopback
-		//alwaysPrintf("Server.Start(): warning: nil config or no ServerAddr specified, binding to '%v'", hostport)
-		//s.cfg.ServerAddr = hostport
 	}
 	boundCh := make(chan net.Addr, 1)
 	go s.runServerMain(s.cfg.ServerAddr, s.cfg.TCPonly_no_TLS, s.cfg.CertPath, boundCh)
@@ -990,6 +994,7 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 	return
 }
 
+// Close asks the Server to shut down.
 func (s *Server) Close() error {
 	//vv("Server.Close() '%v' called.", s.name)
 	if s.cfg.UseQUIC {
