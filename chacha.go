@@ -45,8 +45,8 @@ type blabber struct {
 // then the following *mlen* bytes are
 //
 //	24 bytes of random nonce
-//	xx bytes of 1:1 cyphertext (same length as plaintext) (current maxMessage is slightly less than 2GB)
-//	16 bytes of poly1305 authentication tag.
+//	xx bytes of 1:1 cyphertext (same length as plaintext) } these two are output
+//	16 bytes of poly1305 authentication tag.              } by the e.aead.Seal() call.
 //
 // encoder uses a workspace to avoid allocation.
 type encoder struct {
