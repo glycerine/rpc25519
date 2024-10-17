@@ -135,7 +135,7 @@ func (s *Server) RunServerMain(serverAddress string, tcp_only bool, certPath str
 				default:
 				}
 			}
-			AlwaysPrintf("Failed to accept connection: %v", err)
+			alwaysPrintf("Failed to accept connection: %v", err)
 			continue
 		}
 		//vv("Accepted connection from %v", conn.RemoteAddr())
@@ -182,7 +182,7 @@ acceptAgain:
 			if strings.Contains(err.Error(), "use of closed network connection") {
 				continue acceptAgain // fullRestart
 			}
-			AlwaysPrintf("Failed to accept connection: %v", err)
+			alwaysPrintf("Failed to accept connection: %v", err)
 			continue acceptAgain
 		}
 		//vv("server accepted connection from %v", conn.RemoteAddr())
@@ -236,7 +236,7 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 	// ctx gives us a timeout. Otherwise, one must set a deadline
 	// on the conn to avoid an infinite hang during handshake.
 	if err := conn.HandshakeContext(ctx); err != nil {
-		AlwaysPrintf("tlsConn.Handshake() failed: '%v'", err)
+		alwaysPrintf("tlsConn.Handshake() failed: '%v'", err)
 		return
 	}
 
@@ -290,7 +290,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 					// Maybe with quic if they run a server too, since we'll know the port
 					// to find them on, if they are still up.
 				}
-				AlwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
+				alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
 			}
 		case <-s.halt.ReqStop.Chan:
 			return
@@ -339,7 +339,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 				return // shutting down
 			}
 
-			AlwaysPrintf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
+			alwaysPrintf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
 			return
 		}
 
@@ -949,7 +949,7 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 	if s.cfg.ServerAddr == "" {
 		panic(fmt.Errorf("no ServerAddr specified in Server.cfg"))
 		//hostport := "127.0.0.1:0" // default to safe loopback
-		//AlwaysPrintf("Server.Start(): warning: nil config or no ServerAddr specified, binding to '%v'", hostport)
+		//alwaysPrintf("Server.Start(): warning: nil config or no ServerAddr specified, binding to '%v'", hostport)
 		//s.cfg.ServerAddr = hostport
 	}
 	boundCh := make(chan net.Addr, 1)

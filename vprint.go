@@ -45,61 +45,39 @@ func init() {
 
 const rfc3339MsecTz0 = "2006-01-02T15:04:05.000Z07:00"
 
-var MyPid = os.Getpid()
-var ShowPid bool
+var myPid = os.Getpid()
+var showPid bool
 
-func P(format string, a ...interface{}) {
-	if verbose {
-		TSPrintf(format, a...)
-	}
-}
-
-func PP(format string, a ...interface{}) {
+func pp(format string, a ...interface{}) {
 	if verboseVerbose {
-		TSPrintf(format, a...)
+		tsPrintf(format, a...)
 	}
 }
 
 // useful during git bisect
-var ForceQuiet = false
+var forceQuiet = false
 
-func VV(format string, a ...interface{}) {
-	if !ForceQuiet {
-		TSPrintf(format, a...)
+func vv(format string, a ...interface{}) {
+	if !forceQuiet {
+		tsPrintf(format, a...)
 	}
 }
 
-func AlwaysPrintf(format string, a ...interface{}) {
-	TSPrintf(format, a...)
-}
-
-var vv = VV
-
-// without the file/line, otherwise the same as PP
-func PPP(format string, a ...interface{}) {
-	if verboseVerbose {
-		Printf("\n%s ", ts())
-		Printf(format+"\n", a...)
-	}
-}
-
-func PB(w io.Writer, format string, a ...interface{}) {
-	if verbose {
-		fmt.Fprintf(w, "\n"+format+"\n", a...)
-	}
+func alwaysPrintf(format string, a ...interface{}) {
+	tsPrintf(format, a...)
 }
 
 var tsPrintfMut sync.Mutex
 
 // time-stamped printf
-func TSPrintf(format string, a ...interface{}) {
+func tsPrintf(format string, a ...interface{}) {
 	tsPrintfMut.Lock()
-	if ShowPid {
-		Printf("\n%s [pid %v] %s ", FileLine(3), MyPid, ts())
+	if showPid {
+		printf("\n%s [pid %v] %s ", fileLine(3), myPid, ts())
 	} else {
-		Printf("\n%s %s ", FileLine(3), ts())
+		printf("\n%s %s ", fileLine(3), ts())
 	}
-	Printf(format+"\n", a...)
+	printf(format+"\n", a...)
 	tsPrintfMut.Unlock()
 }
 
@@ -114,11 +92,11 @@ var ourStdout io.Writer = os.Stdout
 
 // Printf formats according to a format specifier and writes to standard output.
 // It returns the number of bytes written and any write error encountered.
-func Printf(format string, a ...interface{}) (n int, err error) {
+func printf(format string, a ...interface{}) (n int, err error) {
 	return fmt.Fprintf(ourStdout, format, a...)
 }
 
-func FileLine(depth int) string {
+func fileLine(depth int) string {
 	_, fileName, fileLine, ok := runtime.Caller(depth)
 	var s string
 	if ok {
@@ -131,30 +109,11 @@ func FileLine(depth int) string {
 
 func p(format string, a ...interface{}) {
 	if verbose {
-		TSPrintf(format, a...)
+		tsPrintf(format, a...)
 	}
 }
 
-var pp = PP
-
-func pbb(w io.Writer, format string, a ...interface{}) {
-	if verbose {
-		fmt.Fprintf(w, "\n"+format+"\n", a...)
-	}
-}
-
-// quieted for now, uncomment below to display
-func VPrintf(format string, a ...interface{}) (n int, err error) {
-	//return fmt.Fprintf(ourStdout, format, a...)
-	return
-}
-
-func QPrintf(format string, a ...interface{}) (n int, err error) {
-	//return fmt.Fprintf(ourStdout, format, a...)
-	return
-}
-
-func Caller(upStack int) string {
+func caller(upStack int) string {
 	// elide ourself and runtime.Callers
 	target := upStack + 2
 

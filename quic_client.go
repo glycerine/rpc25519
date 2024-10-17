@@ -56,7 +56,7 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	// Server address to connect to
 	serverAddr, err := net.ResolveUDPAddr("udp", quicServerAddr)
 	if err != nil {
-		AlwaysPrintf("Failed to resolve server address: %v\n", err)
+		alwaysPrintf("Failed to resolve server address: %v\n", err)
 		return
 	}
 	//vv("quicServerAddr '%v' -> '%v'", quicServerAddr, serverAddr)
@@ -76,7 +76,7 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	} else {
 		udpConn, err := net.ListenUDP("udp", localAddr)
 		if err != nil {
-			AlwaysPrintf("Failed to bind UPD client to '%v'/'%v': '%v'\n", localAddr, localHostPort, err)
+			alwaysPrintf("Failed to bind UPD client to '%v'/'%v': '%v'\n", localAddr, localHostPort, err)
 			c.cfg.shared.mut.Unlock()
 			return
 		}
@@ -106,7 +106,7 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	if err != nil {
 		c.err = err
 		c.Connected <- err
-		AlwaysPrintf("Failed to connect to server: %v", err)
+		alwaysPrintf("Failed to connect to server: %v", err)
 		return
 	}
 	// assing QuicConn before signaling on c.Connected, else tests will race and panic
@@ -124,7 +124,7 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	case <-conn.Context().Done():
 		// connection closed before handshake completion, e.g. due to handshake failure
 		c.Connected <- ErrHandshakeQUIC
-		AlwaysPrintf("quic_client handshake failure on DialEarly")
+		alwaysPrintf("quic_client handshake failure on DialEarly")
 		return
 	}
 

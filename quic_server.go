@@ -59,7 +59,7 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 	// Server address to connect to
 	serverAddr, err := net.ResolveUDPAddr("udp", quicServerAddr)
 	if err != nil {
-		AlwaysPrintf("Failed to resolve server address: %v", err)
+		alwaysPrintf("Failed to resolve server address: %v", err)
 		return
 	}
 	isIPv6 := serverAddr.IP.To4() == nil
@@ -78,7 +78,7 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 	} else {
 		udpConn, err := net.ListenUDP("udp", serverAddr)
 		if err != nil {
-			AlwaysPrintf("Failed to bind UPD server to '%v': '%v'\n", serverAddr, err)
+			alwaysPrintf("Failed to bind UPD server to '%v': '%v'\n", serverAddr, err)
 			s.cfg.shared.mut.Unlock()
 			return
 		}
@@ -161,7 +161,7 @@ func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 			//vv("quic_server handshake completed")
 		case <-conn.Context().Done():
 			// connection closed before handshake completion, e.g. due to handshake failure
-			AlwaysPrintf("quic_server handshake failure on earlyListener.Accept()")
+			alwaysPrintf("quic_server handshake failure on earlyListener.Accept()")
 			continue
 		}
 

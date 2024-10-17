@@ -521,7 +521,7 @@ func (cfg *Config) checkPreSharedKey(name string) {
 		}
 		copy(cfg.preSharedKey[:], by)
 		cfg.encryptPSK = true
-		AlwaysPrintf("activated pre-shared-key on '%v' from cfg.PreSharedKeyPath='%v'", name, cfg.PreSharedKeyPath)
+		alwaysPrintf("activated pre-shared-key on '%v' from cfg.PreSharedKeyPath='%v'", name, cfg.PreSharedKeyPath)
 	}
 }
 
