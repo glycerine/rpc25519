@@ -425,9 +425,10 @@ type OneWayFunc func(req *Message)
 // strong a security posture we adopt.
 //
 // Copying a Config is fine, but it should be a simple
-// shallow copy to preserve the shared *SharedTransport struct.
+// shallow copy to preserve the shared *sharedTransport struct.
+// See/use the Config.Clone() method if in doubt.
 //
-// nitty gritty details/internal note: the `shared` pointer is the
+// nitty gritty details/dev note: the `shared` pointer here is the
 // basis of port (and file handle) reuse where a single
 // process can maintain a server and multiple clients
 // in a "star" pattern. This only works with QUIC of course,
@@ -519,6 +520,14 @@ type Config struct {
 
 	// for port sharing between a server and 1 or more clients over QUIC
 	shared *sharedTransport
+}
+
+// Clone returns a copy of cfg. This is a shallow copy to
+// enable shared transport between a QUIC client and a QUIC
+// server on the same port.
+func (cfg *Config) Clone() *Config {
+	clone := *cfg
+	return &clone
 }
 
 func (cfg *Config) checkPreSharedKey(name string) {
