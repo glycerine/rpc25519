@@ -50,10 +50,10 @@ Add the following lines to the /etc/sysctl.conf file to keep this setting across
 kern.ipc.maxsockbuf=8441037
 */
 
-func (s *Server) RunQUICServer(quicServerAddr string, tlsConfig *tls.Config, boundCh chan net.Addr) {
+func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, boundCh chan net.Addr) {
 	defer func() {
 		s.halt.Done.Close()
-		//vv("exiting Server.RunQUICServer('%v')", quicServerAddr) // seen, yes, on shutdown test.
+		//vv("exiting Server.runQUICServer('%v')", quicServerAddr) // seen, yes, on shutdown test.
 	}()
 
 	// Server address to connect to

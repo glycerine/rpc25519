@@ -61,7 +61,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	c.cfg.checkPreSharedKey("client")
 
 	if tcp_only {
-		c.RunClientTCP(serverAddr)
+		c.runClientTCP(serverAddr)
 		return
 	}
 
@@ -124,7 +124,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 			//vv("localHost = '%v', matched to quicServerAddr = '%v'", localHost, quicServerAddr)
 			localHostPort = localHost + ":0" // client can pick any port
 		}
-		c.RunQUIC(localHostPort, serverAddr, config)
+		c.runQUIC(localHostPort, serverAddr, config)
 		return
 	}
 
@@ -194,11 +194,11 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		//}
 	}
 
-	go c.RunSendLoop(conn)
-	c.RunReadLoop(conn)
+	go c.runSendLoop(conn)
+	c.runReadLoop(conn)
 }
 
-func (c *Client) RunClientTCP(serverAddr string) {
+func (c *Client) runClientTCP(serverAddr string) {
 
 	// Dial the server
 	conn, err := net.Dial("tcp", serverAddr)
@@ -219,11 +219,11 @@ func (c *Client) RunClientTCP(serverAddr string) {
 	defer conn.Close()
 	//log.Printf("Connected to server %s", serverAddr)
 
-	go c.RunSendLoop(conn)
-	c.RunReadLoop(conn)
+	go c.runSendLoop(conn)
+	c.runReadLoop(conn)
 }
 
-func (c *Client) RunReadLoop(conn net.Conn) {
+func (c *Client) runReadLoop(conn net.Conn) {
 	defer func() {
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
@@ -311,7 +311,7 @@ func (c *Client) RunReadLoop(conn net.Conn) {
 	}
 }
 
-func (c *Client) RunSendLoop(conn net.Conn) {
+func (c *Client) runSendLoop(conn net.Conn) {
 	defer func() {
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
@@ -372,7 +372,7 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 
 func NewMessage() *Message {
 	return &Message{
-		// NOTE: buffer size must be at least 1, so our Client.RunSendLoop never blocks.
+		// NOTE: buffer size must be at least 1, so our Client.runSendLoop never blocks.
 		// Thus we simplify the logic there, not requiring a ton of extra selects to
 		// handle shutdown/timeout/etc.
 		DoneCh: make(chan *Message, 1),

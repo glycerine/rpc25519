@@ -19,10 +19,10 @@ var _ = time.Time{}
 
 var ErrHandshakeQUIC = fmt.Errorf("quic handshake failure")
 
-func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Config) {
+func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Config) {
 
 	//defer func() {
-	//	vv("finishing '%v' Client.RunQUIC(quicServerAddr='%v')", c.name, quicServerAddr)
+	//	vv("finishing '%v' Client.runQUIC(quicServerAddr='%v')", c.name, quicServerAddr)
 	//}()
 
 	ctx := context.Background()
@@ -182,8 +182,8 @@ func (c *Client) RunQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	//vv("client: local = '%v'", local(wrap))
 	//vv("client: remote = '%v'", remote(wrap))
 
-	go c.RunSendLoop(wrap)
-	c.RunReadLoop(wrap)
+	go c.runSendLoop(wrap)
+	c.runReadLoop(wrap)
 }
 
 // NetConnWrapper is exported so that clients

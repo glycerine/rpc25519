@@ -32,7 +32,7 @@ var _ = fmt.Printf
 
 // boundCh should be buffered, at least 1, if it is not nil. If not nil, we
 // will send the bound net.Addr back on it after we have started listening.
-func (s *Server) RunServerMain(serverAddress string, tcp_only bool, certPath string, boundCh chan net.Addr) {
+func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath string, boundCh chan net.Addr) {
 	defer func() {
 		s.halt.Done.Close()
 	}()
@@ -65,7 +65,7 @@ func (s *Server) RunServerMain(serverAddress string, tcp_only bool, certPath str
 	var config *tls.Config
 	if tcp_only {
 		// actually just run TCP and not TLS, since we might not have cert authority (e.g. under test)
-		s.RunTCP(serverAddress, boundCh)
+		s.runTCP(serverAddress, boundCh)
 		return
 	} else {
 		config, err = loadServerTLSConfig(embedded, sslCA, sslClientCA, sslCert, sslCertKey)
@@ -93,7 +93,7 @@ func (s *Server) RunServerMain(serverAddress string, tcp_only bool, certPath str
 		if s.cfg.TCPonly_no_TLS {
 			panic("cannot have both UseQUIC and TCPonly_no_TLS true")
 		}
-		s.RunQUICServer(serverAddress, config, boundCh)
+		s.runQUICServer(serverAddress, config, boundCh)
 		return
 	}
 
@@ -147,7 +147,7 @@ func (s *Server) RunServerMain(serverAddress string, tcp_only bool, certPath str
 	}
 }
 
-func (s *Server) RunTCP(serverAddress string, boundCh chan net.Addr) {
+func (s *Server) runTCP(serverAddress string, boundCh chan net.Addr) {
 
 	// Listen on the specified serverAddress
 	listener, err := net.Listen("tcp", serverAddress)
@@ -979,7 +979,7 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 		//s.cfg.ServerAddr = hostport
 	}
 	boundCh := make(chan net.Addr, 1)
-	go s.RunServerMain(s.cfg.ServerAddr, s.cfg.TCPonly_no_TLS, s.cfg.CertPath, boundCh)
+	go s.runServerMain(s.cfg.ServerAddr, s.cfg.TCPonly_no_TLS, s.cfg.CertPath, boundCh)
 
 	select {
 	case serverAddr = <-boundCh:
@@ -1010,7 +1010,7 @@ func (s *Server) Close() error {
 	}
 	s.halt.ReqStop.Close()
 	s.mut.Lock()  // avoid data race
-	s.lsn.Close() // cause RunServerMain listening loop to exit.
+	s.lsn.Close() // cause runServerMain listening loop to exit.
 	s.mut.Unlock()
 	<-s.halt.Done.Chan
 	return nil
