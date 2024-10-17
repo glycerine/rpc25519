@@ -32,7 +32,21 @@ type blabber struct {
 	dec *decoder
 }
 
-// users write to an encoder
+// encoder organizes the encryption of messages
+// passing through a net.Conn like connection.
+// Users write or sendMessage() to an encoder.
+//
+// encrypted message structure is:
+//
+// 8 bytes of *mlen* message length: big endian
+//
+// the the following *mlen* bytes are
+//
+//	24 bytes of random nonce
+//	xx bytes of 1:1 cyphertext (same length as plaintext)
+//	16 bytes of poly1305 authentication tag.
+//
+// encoder uses a workspace to avoid allocation.
 type encoder struct {
 	key  []byte      // must be 32 bytes == chacha20poly1305.KeySize (256 bits)
 	aead cipher.AEAD // XChaCha20-Poly1305, needs 256-bit key
@@ -45,7 +59,9 @@ type encoder struct {
 	work *workspace
 }
 
-// users read from a decoder
+// decoder organizes the decryption of messages
+// passing through a net.Conn like connection.
+// users read from a decoder / call readMessage().
 type decoder struct {
 	key  []byte
 	aead cipher.AEAD
@@ -233,7 +249,8 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	return MessageFromGreenpack(message)
 }
 
-func HashAlotSha256(input []byte) [32]byte {
+// utility for doing 100 hashes
+func hashAlotSha256(input []byte) [32]byte {
 	var res [32]byte
 	hashprev := input
 	for i := 0; i < 100; i++ {
