@@ -68,7 +68,23 @@ func (m *Message) AsGreenpack(scratch []byte) (o []byte, err error) {
 // HDR provides header information and details
 // about the transport. It is the first thing in every Message.
 // It is public so that clients can understand the
-// context of their calls.
+// context of their calls. Traditional `net/rpc` API users
+// can use the `ctx context.Context` first argument
+// form of callback methods and get an *HDR with ctx.Value("HDR")
+// as in the README.md introduction. Reproduced here:
+//
+//	func (s *Service) GetsContext(ctx context.Context, args *Args, reply *Reply) error {
+//	  if hdr := ctx.Value("HDR"); hdr != nil {
+//	     h, ok := hdr.(*rpc25519.HDR)
+//	     if ok {
+//	       fmt.Printf("GetsContext called with HDR = '%v'; "+
+//	          "HDR.Nc.RemoteAddr() gives '%v'; HDR.Nc.LocalAddr() gives '%v'\n",
+//	          h.String(), h.Nc.RemoteAddr(), h.Nc.LocalAddr())
+//	     }
+//	  } else {
+//	     fmt.Println("HDR not found")
+//	  }
+//	}
 type HDR struct {
 	Nc net.Conn `msg:"-"` // registered func can query caller details.
 
