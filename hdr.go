@@ -41,13 +41,19 @@ type Message struct {
 
 	// Err is not serialized on the wire by the server,
 	// so communicates only local information. Callback
-	// functions should convey errors in-band within
+	// functions should convey errors in JobErrs or in-band within
 	// JobSerz.
 	Err error `msg:"-"`
 
+	// DoneCh will receive this Message itself when the call completes.
+	// It must be buffered, with at least capacity 1.
+	// NewMessage() automatically allocates DoneCh correctly and
+	// so should be the preferred for creating Message(s).
 	DoneCh chan *Message `msg:"-"`
 }
 
+// MessageFromGreenpack unmarshals the by slice
+// into a Message and returns it.
 func MessageFromGreenpack(by []byte) (*Message, error) {
 	msg := NewMessage()
 	_, err := msg.UnmarshalMsg(by)

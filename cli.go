@@ -370,6 +370,7 @@ func (c *Client) runSendLoop(conn net.Conn) {
 
 // interface for goq
 
+// NewMessage allocates a new Message with a DoneCh properly created (buffered 1).
 func NewMessage() *Message {
 	return &Message{
 		// NOTE: buffer size must be at least 1, so our Client.runSendLoop never blocks.
@@ -379,10 +380,12 @@ func NewMessage() *Message {
 	}
 }
 
+// String returns a string representation of msg.
 func (msg *Message) String() string {
 	return fmt.Sprintf("&Message{HDR:%v, Err:'%v'}", msg.HDR.String(), msg.Err)
 }
 
+// NewMessageFromBytes calls NewMessage() and sets by as the JobSerz field.
 func NewMessageFromBytes(by []byte) (msg *Message) {
 	msg = NewMessage()
 	msg.JobSerz = by
