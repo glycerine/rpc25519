@@ -29,7 +29,7 @@ func main() {
 	defer conn.Close()
 	log.Println("Connected to server")
 
-	encrypt := false
+	encrypt := true
 	blab := newBlabber(key, conn, encrypt, maxMessage)
 
 	// send a big message
@@ -74,6 +74,7 @@ func main() {
 	// On mac intel i7 2.3GHz, total roundtrip time 14.823133954s; So 138*2 = 276 MB/sec one-way enc+dec bandwidth.
 	//   but cryrand generation is 3x faster, huh!
 	//
-	// compared to linux unencrypted: 1.400682196s roundtrip. So 4.2x slower.
+	// compared to linux unencrypted: 1.400682196s roundtrip. So 4.2x slower when encrypted.
+	// compared to intel i7 mac unencrypted: 2s roundtrip, so 7x slower when encrypted.
 	vv("compared equal: %v, total roundtrip time %v (not including data gen)", bytes.Equal(by, msg), time.Since(t1))
 }
