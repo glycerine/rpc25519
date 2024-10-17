@@ -4,7 +4,7 @@ import (
 	"crypto/cipher"
 	cryrand "crypto/rand"
 	"encoding/binary"
-	"fmt"
+	//"fmt"
 	"log"
 	"sync"
 	"time"
@@ -153,42 +153,34 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 		return err
 	}
 
+	if len(bytesMsg) > maxMessage {
+		// We don't want to go over because client will just drop it,
+		// thinking it an encrypted vs unencrypted mix up.
+		return ErrTooLong
+	}
+
 	sz := len(bytesMsg) + e.noncesize + e.overhead
 	binary.BigEndian.PutUint64(e.work.buf[:8], uint64(sz))
-
-	// No. Wait and do one big write
-	// Write Message length.
-	//	if err := writeFull(conn, e.work.writeLenMessageBytes, timeout); err != nil {
-	//		return err
-	//	}
 	assocData := e.work.buf[:8]
 
 	buf := e.work.buf
-	/*
-		// grow buf if need be
-		buf = buf[0:cap(buf)]
-		if len(buf) < sz {
-			e.work.buf = append(e.work.buf, make([]byte, sz-len(buf))...)
-			buf = e.work.buf
-		}
-	*/
 
 	// Encrypt the data (prepends the nonce? nope need to do so ourselves)
+
+	// write the nonce
 	copy(buf[8:8+e.noncesize], e.writeNonce)
-	lenNoncePlusEncrypted := e.aead.Seal(buf[8+e.noncesize:8+e.noncesize], e.writeNonce, buf[8+e.noncesize:8+e.noncesize+len(bytesMsg)], assocData)
-	// verify size assumption was correct
-	if len(lenNoncePlusEncrypted) != int(sz) {
-		panic(fmt.Sprintf("lenNoncePlusEncrypted(%v) != sz(%v): our associated data in lenBy is wrong!",
-			len(lenNoncePlusEncrypted), sz))
-	}
 
 	// Update the nonce. random is better tha incrementing, and the same speed.
 	// Much less chance of losing security by having a nonce re-used.
 	err = writeNewCryRandomNonce(e.writeNonce)
 	panicOn(err) // really should never fail unless whole system is borked.
 
-	// Write the encrypted data
-	return writeFull(conn, lenNoncePlusEncrypted, timeout)
+	// encrypt. notice we get to re-use the plain text buf for the encrypted output.
+	// So ideally, no allocation necessary.
+	sealOut := e.aead.Seal(buf[8+e.noncesize:8+e.noncesize], e.writeNonce, buf[8+e.noncesize:8+e.noncesize+len(bytesMsg)], assocData)
+
+	// Write the 8 bytes of msglen + the nonce + encrypted data with authentication tag.
+	return writeFull(conn, buf[:8+e.noncesize+len(sealOut)], timeout)
 }
 
 // Read decrypts data from the underlying stream.

@@ -31,20 +31,11 @@ type uConn interface {
 //
 // message structure
 //
-// 1. seqno: first 8 bytes: *sequenceNumber*, big endian uint64.
-//                0 means no response needed/expected
-//                odd means initiating; and expect +1 as the response.
-//
-// 2. lenHeader: next  8 bytes: *header_length*, big endian uint64.
-//                The *header_length* says how many bytes are in the header.
-//
-// 3. header: next header_length bytes: *header*. The *header* is *header_length* bytes long.
-//
-// 4. lenBody: next  8 bytes: *body_length*, big endian uint64.
+// 1. lenBody: next  8 bytes: *body_length*, big endian uint64.
 //                The *body_length* says how many bytes are in the body.
 //
-// 5. body: next length bytes: *body*. The *body* is *body_length* bytes long.
-//
+// 2. body: next length bytes: *body*. The *body* is *body_length* bytes long.
+//          These are greenpack encoded (msgpack) bytes.
 // =========================
 
 // a work (workspace) lets us re-use memory
@@ -66,8 +57,9 @@ type workspace struct {
 // to maxMessage+1024 or so, rather than this 64KB.
 func newWorkspace(maxMsgSize int) *workspace {
 	return &workspace{
-		maxMsgSize:           maxMsgSize,
-		buf:                  make([]byte, maxMsgSize+64), // +64 for poly1305 tag, nonce, and 8-byte msgLength.
+		maxMsgSize: maxMsgSize,
+		// need at least len(msg) + 44; 44 because == msglen(8) + nonceX(24) + overhead(16)
+		buf:                  make([]byte, maxMsgSize+64),
 		readLenMessageBytes:  make([]byte, 8),
 		writeLenMessageBytes: make([]byte, 8),
 	}
