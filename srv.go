@@ -451,8 +451,10 @@ type Server struct {
 
 	remote2pair map[string]*rwPair
 
-	// remote when server gets a new client,
-	// So test 004 can avoid a race/panic.
+	// RemoteConnectedCh sends the remote host:port address
+	// when the server gets a new client,
+	// See srv_test.go Test004_server_push for example,
+	// where it is used to avoid a race/panic.
 	RemoteConnectedCh chan string
 
 	// net/rpc implementation details
