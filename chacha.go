@@ -17,7 +17,9 @@ var _ = fmt.Printf
 
 // blabber holds stream encryption/decryption facilities.
 //
-// It uses the XChaCha20-Poly1305 AEAD which works well
+// It is typically used for encrypting net.Conn connections.
+//
+// A blabber uses the XChaCha20-Poly1305 AEAD which works
 // with random 24 byte nonces. XChaCha20 is the stream cipher.
 // Poly1305 is the message authentication code.
 //
@@ -38,12 +40,12 @@ type blabber struct {
 //
 // encrypted message structure is:
 //
-// 8 bytes of *mlen* message length: big endian
+//	8 bytes of *mlen* message length: big endian
 //
-// the the following *mlen* bytes are
+// then the following *mlen* bytes are
 //
 //	24 bytes of random nonce
-//	xx bytes of 1:1 cyphertext (same length as plaintext)
+//	xx bytes of 1:1 cyphertext (same length as plaintext) (current maxMessage is slightly less than 2GB)
 //	16 bytes of poly1305 authentication tag.
 //
 // encoder uses a workspace to avoid allocation.
