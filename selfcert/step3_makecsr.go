@@ -69,6 +69,11 @@ func createCertSigningRequest(privateKey ed25519.PrivateKey, emailAddress, input
 	return nil
 }
 
+// also exported
+func LoadPrivateKey(path string) (ed25519.PrivateKey, error) {
+	return loadPrivateKey(path)
+}
+
 // loadPrivateKey loads an ED25519 private key from the given file
 func loadPrivateKey(path string) (ed25519.PrivateKey, error) {
 	keyBytes, err := ioutil.ReadFile(path)

@@ -3,6 +3,7 @@ package rpc25519
 import (
 	"crypto/cipher"
 	cryrand "crypto/rand"
+	"crypto/sha256"
 	"encoding/binary"
 	//"fmt"
 	"log"
@@ -54,12 +55,12 @@ type decoder struct {
 	work *workspace
 }
 
-func newBlabber(key []byte, conn uConn, encrypt bool, maxMsgSize int) *blabber {
+func newBlabber(key [32]byte, conn uConn, encrypt bool, maxMsgSize int) *blabber {
 
-	aeadEnc, err := chacha20poly1305.NewX(key)
+	aeadEnc, err := chacha20poly1305.NewX(key[:])
 	panicOn(err)
 
-	aeadDec, err := chacha20poly1305.NewX(key)
+	aeadDec, err := chacha20poly1305.NewX(key[:])
 	panicOn(err)
 
 	// Use random nonces, since XChaCha20 supports them
@@ -74,7 +75,7 @@ func newBlabber(key []byte, conn uConn, encrypt bool, maxMsgSize int) *blabber {
 	panicOn(err)
 
 	enc := &encoder{
-		key:        key,
+		key:        key[:],
 		aead:       aeadEnc,
 		writeNonce: writeNonce,
 		noncesize:  aeadEnc.NonceSize(),
@@ -82,7 +83,7 @@ func newBlabber(key []byte, conn uConn, encrypt bool, maxMsgSize int) *blabber {
 		work:       newWorkspace(maxMsgSize),
 	}
 	dec := &decoder{
-		key:       key,
+		key:       key[:],
 		aead:      aeadDec,
 		noncesize: aeadEnc.NonceSize(),
 		overhead:  aeadEnc.Overhead(),
@@ -230,4 +231,15 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	}
 
 	return MessageFromGreenpack(message)
+}
+
+func HashAlotSha256(input []byte) [32]byte {
+	var res [32]byte
+	hashprev := input
+	for i := 0; i < 100; i++ {
+		res = sha256.Sum256(hashprev)
+		hashprev = res[:]
+		//fmt.Printf("hashprev = '%v'\n", string(hashprev))
+	}
+	return res
 }

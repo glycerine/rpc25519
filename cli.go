@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -60,6 +61,8 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		c.RunClientTCP(serverAddr)
 		return
 	}
+
+	c.cfg.checkPreSharedKey()
 
 	embedded := false                 // always false now
 	sslCA := fixSlash("certs/ca.crt") // path to CA cert
@@ -225,7 +228,9 @@ func (c *Client) RunReadLoop(conn net.Conn) {
 		c.halt.Done.Close()
 	}()
 
-	w := newWorkspace(maxMessage)
+	//w := newWorkspace(maxMessage)
+	w := newBlabber(c.cfg.preSharedKey, conn, c.cfg.encryptPSK, maxMessage)
+
 	readTimeout := time.Millisecond * 100
 	for {
 
@@ -237,7 +242,7 @@ func (c *Client) RunReadLoop(conn net.Conn) {
 		}
 
 		// Receive a message
-		msg, err := w.readMessage(conn, &readTimeout)
+		msg, err := w.readMessage(&readTimeout)
 		if err != nil {
 			r := err.Error()
 			if strings.Contains(r, "timeout") || strings.Contains(r, "deadline exceeded") {
@@ -310,7 +315,8 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 		c.halt.Done.Close()
 	}()
 
-	w := newWorkspace(maxMessage)
+	//w := newWorkspace(maxMessage)
+	w := newBlabber(c.cfg.preSharedKey, conn, c.cfg.encryptPSK, maxMessage)
 
 	// PRE: Message.DoneCh must be buffered at least 1, so our logic below does not have to deal with ever blocking.
 	for {
@@ -331,7 +337,7 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 				msg.HDR.Nc = conn
 			}
 			// Send the message
-			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
+			if err := w.sendMessage(msg, &c.cfg.WriteTimeout); err != nil {
 				log.Printf("Failed to send message: %v", err)
 				msg.Err = err
 			} else {
@@ -347,7 +353,7 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 			//vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v: '%v'", c.name, seqno, msg)
 			c.GetOneRead(seqno, msg.DoneCh)
 
-			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
+			if err := w.sendMessage(msg, &c.cfg.WriteTimeout); err != nil {
 				//vv("Failed to send message: %v", err)
 				msg.Err = err
 				msg.DoneCh <- msg
@@ -490,6 +496,9 @@ type Config struct {
 	// be used to create a symmetric 2nd encryption layer.
 	PreSharedKeyPath string
 
+	preSharedKey [32]byte
+	encryptPSK   bool
+
 	// These are timeouts for connection and transport tuning.
 	// The defaults of 0 mean wait forever.
 	ConnectTimeout time.Duration
@@ -500,6 +509,19 @@ type Config struct {
 
 	// for port sharing between a server and 1 or more clients over QUIC
 	shared *sharedTransport
+}
+
+func (cfg *Config) checkPreSharedKey() {
+
+	if cfg.PreSharedKeyPath != "" && fileExists(cfg.PreSharedKeyPath) {
+		by, err := ioutil.ReadFile(cfg.PreSharedKeyPath)
+		panicOn(err)
+		if len(by) < 32 {
+			panic(fmt.Sprintf("cfg.PreSharedKeyPath '%v' did not have 32 bytes of data in it.", cfg.PreSharedKeyPath))
+		}
+		copy(cfg.preSharedKey[:], by)
+		cfg.encryptPSK = true
+	}
 }
 
 type sharedTransport struct {
@@ -563,9 +585,6 @@ type Client struct {
 	pending  map[uint64]*Call
 	closing  bool // user has called Close
 	shutdown bool // server has told us to stop
-
-	// 2nd encryption layer for post-quantum resistance like Wireguard.
-	layer2
 }
 
 // Compute HMAC using SHA-256

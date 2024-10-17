@@ -38,6 +38,8 @@ func (s *Server) RunServerMain(serverAddress string, tcp_only bool, certPath str
 	}()
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
+	s.cfg.checkPreSharedKey()
+
 	embedded := false                 // always false now
 	sslCA := fixSlash("certs/ca.crt") // path to CA cert
 
@@ -273,12 +275,13 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		s.halt.Done.Close()
 	}()
 
-	w := newWorkspace(maxMessage)
+	w := newBlabber(s.Server.cfg.preSharedKey, conn, s.Server.cfg.encryptPSK, maxMessage)
+	//w := newWorkspace(maxMessage)
 
 	for {
 		select {
 		case msg := <-s.SendCh:
-			err := w.sendMessage(conn, msg, &s.cfg.WriteTimeout)
+			err := w.sendMessage(msg, &s.cfg.WriteTimeout)
 			if err != nil {
 				r := err.Error()
 				if strings.Contains(r, "broken pipe") {
@@ -305,7 +308,8 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 	}()
 
-	w := newWorkspace(maxMessage)
+	w := newBlabber(s.Server.cfg.preSharedKey, conn, s.Server.cfg.encryptPSK, maxMessage)
+	//w := newWorkspace(maxMessage)
 
 	var callme1 OneWayFunc
 	var callme2 TwoWayFunc
@@ -320,7 +324,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		default:
 		}
 
-		req, err := w.readMessage(conn, &s.cfg.ReadTimeout)
+		req, err := w.readMessage(&s.cfg.ReadTimeout)
 		if err == io.EOF {
 			//vv("server sees io.EOF from receiveMessage")
 			continue // close of socket before read of full message.
@@ -457,9 +461,6 @@ type Server struct {
 	freeReq    *Request
 	respLock   sync.Mutex // protects freeResp
 	freeResp   *Response
-
-	// 2nd encryption layer for post-quantum resistance like Wireguard.
-	layer2
 }
 
 // layer2 will provide a 2nd, symmetric encryption
