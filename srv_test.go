@@ -288,7 +288,8 @@ func Test011_PreSharedKey_over_TCP(t *testing.T) {
 	cv.Convey("If we enable pre-shared-key encryption, round trips should still work", t, func() {
 
 		cfg := NewConfig()
-		cfg.TCPonly_no_TLS = true
+		cfg.UseQUIC = true
+		//cfg.TCPonly_no_TLS = true
 
 		path := "certs/psk.binary"
 		if !fileExists(path) {
@@ -309,7 +310,7 @@ func Test011_PreSharedKey_over_TCP(t *testing.T) {
 		cfg.PreSharedKeyPath = path
 
 		cfg.ServerAddr = "127.0.0.1:0"
-		srv := NewServer("srv_test001", cfg)
+		srv := NewServer("srv_test011", cfg)
 
 		serverAddr, err := srv.Start()
 		panicOn(err)
@@ -320,7 +321,7 @@ func Test011_PreSharedKey_over_TCP(t *testing.T) {
 		srv.Register2Func(customEcho)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
-		cli, err := NewClient("test001", cfg)
+		cli, err := NewClient("test011", cfg)
 		panicOn(err)
 		defer cli.Close()
 

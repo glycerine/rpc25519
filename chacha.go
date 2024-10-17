@@ -168,6 +168,14 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	e.mut.Lock()
 	defer e.mut.Unlock()
 
+	defer func() {
+		r := recover()
+		if r != nil {
+			vv("encoder.sendMessage recovers from panic: '%v'", r)
+			panic(r)
+		}
+	}()
+
 	// serialize message to bytes
 	bytesMsg, err := msg.AsGreenpack(e.work.buf[8+e.noncesize : cap(e.work.buf)])
 	if err != nil {
@@ -214,9 +222,19 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	d.mut.Lock()
 	defer d.mut.Unlock()
 
+	defer func() {
+		vv("decoder.readMessage returning msg=%p and err='%v'", msg, err) // nil, EOF
+		r := recover()
+		if r != nil {
+			vv("decoder.readMessage recovers from panic: '%v'", r)
+			panic(r)
+		}
+	}()
+
 	// Read the first 8 bytes for the Message length
 	err = readFull(conn, d.work.readLenMessageBytes, timeout)
 	if err != nil {
+		vv("err = '%v'", err) // Application error 0x0 (remote): server shutdown
 		return
 	}
 	messageLen := int(binary.BigEndian.Uint64(d.work.readLenMessageBytes))
@@ -245,6 +263,7 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	message, err := d.aead.Open(nil, nonce, encrypted[d.noncesize:], assocData)
 	panicOn(err)
 	if err != nil {
+		vv("err = '%v'", err)
 		return nil, err
 	}
 

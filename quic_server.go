@@ -280,7 +280,8 @@ func (s *quicRWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 		s.halt.Done.Close()
 	}()
 
-	w := newWorkspace(maxMessage)
+	//w := newWorkspace(maxMessage)
+	w := newBlabber(s.Server.cfg.preSharedKey, stream, s.Server.cfg.encryptPSK, maxMessage)
 
 	for {
 		select {
@@ -306,7 +307,8 @@ func (s *quicRWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 		conn.CloseWithError(0, "server shutdown") // just the one, let other clients continue.
 	}()
 
-	w := newWorkspace(maxMessage)
+	w := newBlabber(s.Server.cfg.preSharedKey, stream, s.Server.cfg.encryptPSK, maxMessage)
+	//w := newWorkspace(maxMessage)
 
 	wrap := &NetConnWrapper{Stream: stream, Connection: conn}
 
