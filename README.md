@@ -121,7 +121,7 @@ spoofed or phished, and are not reliable or desirable
 identitiers. Only access to the private key corresponding to our cert should convey identity
 during a TLS handshake. The later part of the handshake 
 verifies that the key was signed by our CA. 
-This should suffice.
+This more than suffices.
 
 Such a requirement maintains the strongest security but still allows
 elastic clouds to grow and shrink and migrate

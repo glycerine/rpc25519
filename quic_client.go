@@ -105,11 +105,11 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	conn, err := transport.DialEarly(ctx, serverAddr, tlsConfig, quicConfig)
 	if err != nil {
 		c.err = err
-		c.Connected <- err
+		c.connected <- err
 		alwaysPrintf("Failed to connect to server: %v", err)
 		return
 	}
-	// assing QuicConn before signaling on c.Connected, else tests will race and panic
+	// assing QuicConn before signaling on c.connected, else tests will race and panic
 	// not having a connection
 	c.quicConn = conn
 	c.isQUIC = true
@@ -123,7 +123,7 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 		//vv("quic_client handshake completed")
 	case <-conn.Context().Done():
 		// connection closed before handshake completion, e.g. due to handshake failure
-		c.Connected <- ErrHandshakeQUIC
+		c.connected <- ErrHandshakeQUIC
 		alwaysPrintf("quic_client handshake failure on DialEarly")
 		return
 	}
@@ -131,7 +131,7 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	la := conn.LocalAddr()
 	c.setLocalAddr(la.Network() + "://" + la.String())
 
-	c.Connected <- nil
+	c.connected <- nil
 
 	//vv("QUIC client connected to server %v, with local addr='%v'", remote(conn), c.cfg.LocalAddress)
 

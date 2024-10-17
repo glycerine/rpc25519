@@ -148,12 +148,12 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	nconn, err := d.DialContext(ctx, "tcp", serverAddr)
 	if err != nil {
 		c.err = err
-		c.Connected <- err
+		c.connected <- err
 		log.Printf("Failed to connect to server: %v", err)
 		return
 	}
 	c.isTLS = true
-	// do this before signaling on c.Connected, else tests will race and panic
+	// do this before signaling on c.connected, else tests will race and panic
 	// not having a connection
 	c.conn = nconn
 
@@ -164,9 +164,9 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	c.setLocalAddr(la.Network() + "://" + la.String())
 
 	// only signal ready once SetLocalAddr() is done, else submitter can crash.
-	c.Connected <- nil
+	c.connected <- nil
 
-	//log.Printf("Connected to server %s", serverAddr)
+	//log.Printf("connected to server %s", serverAddr)
 
 	// possible to check host keys for TOFU like SSH does,
 	// but be aware that if they have the contents of
@@ -204,7 +204,7 @@ func (c *Client) runClientTCP(serverAddr string) {
 	conn, err := net.Dial("tcp", serverAddr)
 	if err != nil {
 		c.err = err
-		c.Connected <- err
+		c.connected <- err
 		log.Printf("Failed to connect to server: %v", err)
 		return
 	}
@@ -215,9 +215,9 @@ func (c *Client) runClientTCP(serverAddr string) {
 	c.isTLS = false
 	c.conn = conn
 
-	c.Connected <- nil
+	c.connected <- nil
 	defer conn.Close()
-	//log.Printf("Connected to server %s", serverAddr)
+	//log.Printf("connected to server %s", serverAddr)
 
 	go c.runSendLoop(conn)
 	c.runReadLoop(conn)
@@ -570,11 +570,10 @@ type Client struct {
 
 	halt *idem.Halter
 
-	// Connected lets the user wait for
-	// handshake to complete. If connecting succeeds,
+	// internal use: if connecting succeeds,
 	// a nil will be sent on this chan, otherwise
 	// the error will be provided.
-	Connected chan error
+	connected chan error
 
 	err error // detect inability to connect.
 
@@ -868,7 +867,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		oneWayCh:    make(chan *Message),
 		roundTripCh: make(chan *Message),
 		halt:        idem.NewHalter(),
-		Connected:   make(chan error, 1),
+		connected:   make(chan error, 1),
 		lastSeqno:   1,
 		notifyOnce:  make(map[uint64]chan *Message),
 
@@ -886,7 +885,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 	go c.runClientMain(c.cfg.ClientDialToHostPort, c.cfg.TCPonly_no_TLS, c.cfg.CertPath)
 
 	// wait for connection (or not).
-	err = <-c.Connected
+	err = <-c.connected
 	return c, err
 }
 
