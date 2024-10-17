@@ -79,7 +79,7 @@ type HDR struct {
 	IsRPC    bool   `zid:"4"`  // in rpc25519 Message API, is this a TwoWayFunc call?
 	IsLeg2   bool   `zid:"5"`  // in rpc25519 Message API, is TwoWayFunc reply?
 	Serial   int64  `zid:"6"`  // serially incremented tracking number
-	CallID   string `zid:"7"`  // multiverse unique random string for each call (same on response).
+	CallID   string `zid:"7"`  // 40-byte crypto/rand base-58 coded string (same on response).
 	PID      int64  `zid:"8"`  // Process ID of originator.
 	Seqno    uint64 `zid:"9"`  // client set sequence number for each call (same on response).
 	IsNetRPC bool   `zid:"10"` // is net/rpc API in use for this request/response?
