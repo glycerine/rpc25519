@@ -9,7 +9,7 @@ sprawling, had bugs their devs would not address, or could
 not be properly or easily secured. To that end, `rpc25519` only uses
 ed25519 Edwards curve based public-key cryptography. A
 second pre-shared-key layer, based on XChaCha20-Poly1305
-symmetric stream encryption, can also be added.
+symmetric stream encryption, can also be configured.
 
 Excitedly, I am delighted to report this package also
 supports [QUIC as a transport](https://en.wikipedia.org/wiki/QUIC). 
