@@ -75,7 +75,7 @@ coordinated across a network? Do they initiate their own messages?
 The net/rpc API is implemented as a layer on top of the rpc25519.Message
 based API. Both can be used concurrently if desired.
 
-Server push is available too. Use [Client.GetReadIncomingCh](https://pkg.go.dev/github.com/glycerine/rpc25519#Client.GetReadIncomingCh) or [Client.GetReads](https://pkg.go.dev/github.com/glycerine/rpc25519#Client.GetReads) on the client side to receive server initiated messages. To push from the server (in a callback func), see [Server.SendMessage](https://pkg.go.dev/github.com/glycerine/rpc25519#Server.SendMessage). An live application [example of server push is here](https://github.com/glycerine/goq/blob/master/xs.go#L186).
+Server push is available too. Use [Client.GetReadIncomingCh](https://pkg.go.dev/github.com/glycerine/rpc25519#Client.GetReadIncomingCh) or [Client.GetReads](https://pkg.go.dev/github.com/glycerine/rpc25519#Client.GetReads) on the client side to receive server initiated messages. To push from the server (in a callback func), see [Server.SendMessage](https://pkg.go.dev/github.com/glycerine/rpc25519#Server.SendMessage). An live application [example of server push is here](https://github.com/glycerine/goq/blob/master/xs.go#L186), in the `ServerCallbackMgr.pushToClient()` method.
 
 See [the full source for my distributed job-queuing server `goq`](https://github.com/glycerine/goq)
 as an example application that uses most all features of this, the `rpc25519` package.
