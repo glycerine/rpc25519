@@ -50,7 +50,7 @@ func Test010_MID_generation(t *testing.T) {
 		cv.So(un1.Equal(mid), cv.ShouldBeTrue)
 
 		// greenpack serz
-		w := newWorkspace()
+		w := newWorkspace(4096) // max possible message len, to pre-allocate memory.
 		green, err := mid.AsGreenpack(w.buf)
 		panicOn(err)
 		mid3, err := HDRFromGreenpack(green)
