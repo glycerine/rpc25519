@@ -222,19 +222,10 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	d.mut.Lock()
 	defer d.mut.Unlock()
 
-	defer func() {
-		vv("decoder.readMessage returning msg=%p and err='%v'", msg, err) // nil, EOF
-		r := recover()
-		if r != nil {
-			vv("decoder.readMessage recovers from panic: '%v'", r)
-			panic(r)
-		}
-	}()
-
 	// Read the first 8 bytes for the Message length
 	err = readFull(conn, d.work.readLenMessageBytes, timeout)
 	if err != nil {
-		vv("err = '%v'", err) // Application error 0x0 (remote): server shutdown
+		//vv("err = '%v'", err) // Application error 0x0 (remote): server shutdown
 		return
 	}
 	messageLen := int(binary.BigEndian.Uint64(d.work.readLenMessageBytes))
@@ -263,7 +254,6 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	message, err := d.aead.Open(nil, nonce, encrypted[d.noncesize:], assocData)
 	panicOn(err)
 	if err != nil {
-		vv("err = '%v'", err)
 		return nil, err
 	}
 
@@ -277,7 +267,6 @@ func hashAlotSha256(input []byte) [32]byte {
 	for i := 0; i < 100; i++ {
 		res = sha256.Sum256(hashprev)
 		hashprev = res[:]
-		//fmt.Printf("hashprev = '%v'\n", string(hashprev))
 	}
 	return res
 }

@@ -249,14 +249,14 @@ func (c *Client) RunReadLoop(conn net.Conn) {
 				continue
 			}
 			// quic server specific
-			vv("err = '%v'", err)
+			//vv("err = '%v'", err)
 			if strings.Contains(r, "Application error 0x0 (remote)") {
-				vv("normal quic shutdown.")
+				//vv("normal quic shutdown.")
 				return
 			}
 
 			if strings.Contains(r, "server shutdown") {
-				vv("client sees quic server shutdown")
+				//vv("client sees quic server shutdown")
 				return
 			}
 			if strings.Contains(r, "use of closed network connection") {
@@ -956,25 +956,25 @@ func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *M
 		//vv("Client '%v' SendAndGetReply(req='%v'): doneCh files before roundTripCh", c.name, req)
 		return nil, ErrDone
 	case <-c.halt.ReqStop.Chan:
-		vv("Client '%v' SendAndGetReply(req='%v'): sees halt.ReqStop before roundTripCh <- req", c.name, req)
+		//vv("Client '%v' SendAndGetReply(req='%v'): sees halt.ReqStop before roundTripCh <- req", c.name, req)
 		c.halt.Done.Close()
 		return nil, ErrShutdown
 	}
 
-	vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req)
+	//vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req)
 
 	select { // shutdown test stuck here, even with calls in own goro. goq.go has exited.
 	case reply = <-req.DoneCh:
 		if reply != nil {
 			err = reply.Err
 		}
-		vv("client.SendAndGetReply() got on reply.Err = '%v'", err)
+		//vv("client.SendAndGetReply() got on reply.Err = '%v'", err)
 		return
 	case <-doneCh:
 		// usually a timeout
 		return nil, ErrDone
 	case <-c.halt.ReqStop.Chan:
-		vv("Client '%v' SendAndGetReply(req='%v'): sees halt.ReqStop", c.name, req) // here
+		//vv("Client '%v' SendAndGetReply(req='%v'): sees halt.ReqStop", c.name, req) // here
 
 		c.halt.Done.Close()
 		return nil, ErrShutdown

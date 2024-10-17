@@ -343,7 +343,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			return
 		}
 
-		vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
+		//vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
 
 		req.HDR.Nc = conn
 
