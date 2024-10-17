@@ -38,6 +38,8 @@ func (e ServerError) Error() string {
 	return string(e)
 }
 
+// ClientCodec is part of the net/rpc API. Its docs:
+//
 // A ClientCodec implements writing of RPC requests and
 // reading of RPC responses for the client side of an RPC session.
 // The client calls [ClientCodec.WriteRequest] to write a request to the connection
@@ -55,6 +57,8 @@ type ClientCodec interface {
 	Close() error
 }
 
+// ServerCodec is part of the net/rpc API. Its docs:
+//
 // A ServerCodec implements reading of RPC requests and writing of
 // RPC responses for the server side of an RPC session.
 // The server calls [ServerCodec.ReadRequestHeader] and [ServerCodec.ReadRequestBody] in pairs
@@ -101,6 +105,8 @@ func (c *gobClientCodec) Close() error {
 	return c.rwc.Close()
 }
 
+// Request is part of the net/rpc API. Its docs:
+//
 // Request is a header written before every RPC call. It is used internally
 // but documented here as an aid to debugging, such as when analyzing
 // network traffic.
@@ -110,6 +116,8 @@ type Request struct {
 	next          *Request // for free list in Server
 }
 
+// Response is part of the net/rpc API. Its docs:
+//
 // Response is a header written before every RPC return. It is used internally
 // but documented here as an aid to debugging, such as when analyzing
 // network traffic.
@@ -120,13 +128,14 @@ type Response struct {
 	next          *Response // for free list in Server
 }
 
-// ErrNetRpcShutdown is still distinct from ErrShutdown to help locate
+// ErrNetRpcShutdown is from net/rpc, and still
+// distinct from ErrShutdown to help locate
 // when and where the error was generated. It indicates the
 // system, or at least the network connection or stream, is
 // closed or shutting down.
 var ErrNetRpcShutdown = errors.New("connection is shut down")
 
-// Call represents an active RPC.
+// Call represents an active net/rpc RPC.
 type Call struct {
 	ServiceMethod string     // The name of the service and method to call.
 	Args          any        // The argument to the function (*struct).
