@@ -45,7 +45,7 @@ func main() {
 
 	t1 := time.Now()
 
-	err = blab.sendMessage(conn, by, nil)
+	err = blab.sendMessage(by, nil)
 	panicOn(err)
 	vv("wrote big: %v message, took: %v", len(by), time.Since(t1))
 
@@ -54,7 +54,7 @@ func main() {
 
 	t2 := time.Now()
 	n := 0
-	msg, err = blab.readMessage(conn, nil)
+	msg, err = blab.readMessage(nil)
 	panicOn(err)
 	n = len(msg)
 	if err == nil {

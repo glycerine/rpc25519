@@ -1,30 +1,29 @@
 package main
 
 import (
-	//"bytes"
 	"crypto/cipher"
 	cryrand "crypto/rand"
 	"encoding/binary"
-	//"errors"
 	"fmt"
-	"io"
-	"time"
-	//"io"
 	"log"
 	"sync"
+	"time"
 
 	"golang.org/x/crypto/chacha20poly1305"
-	//"crypto/sha256"
-	//nacl "golang.org/x/crypto/nacl/secretbox"
 )
 
-const LEN_XCHACHA20_NONCE_BYTES = 24
-
 // blabber holds stream encryption/decryption facilities.
+//
+// It uses the XChaCha20-Poly1305 AEAD which works well
+// with random 24 byte nonces. XChaCha20 is the stream cipher.
+// Poly1305 is the message authentication code.
+//
 // What comes out is just blah, blah, blah.
 type blabber struct {
 	encrypt    bool
 	maxMsgSize int
+
+	conn uConn // can be net.Conn
 
 	enc *encoder
 	dec *decoder
@@ -32,10 +31,8 @@ type blabber struct {
 
 // users write to an encoder
 type encoder struct {
-	key  []byte      // must be 32 bytes == chacha20poly1305.KeySize
+	key  []byte      // must be 32 bytes == chacha20poly1305.KeySize (256 bits)
 	aead cipher.AEAD // XChaCha20-Poly1305, needs 256-bit key
-
-	conn io.Writer // can be net.Conn
 
 	writeNonce []byte
 	noncesize  int
@@ -50,8 +47,6 @@ type decoder struct {
 	key  []byte
 	aead cipher.AEAD
 
-	conn io.Reader // can be net.Conn
-
 	noncesize int
 	overhead  int
 
@@ -59,7 +54,7 @@ type decoder struct {
 	work *workspace
 }
 
-func newBlabber(key []byte, rw io.ReadWriter, encrypt bool, maxMsgSize int) *blabber {
+func newBlabber(key []byte, conn uConn, encrypt bool, maxMsgSize int) *blabber {
 
 	aeadEnc, err := chacha20poly1305.NewX(key)
 	panicOn(err)
@@ -79,7 +74,6 @@ func newBlabber(key []byte, rw io.ReadWriter, encrypt bool, maxMsgSize int) *bla
 	panicOn(err)
 
 	enc := &encoder{
-		conn:       rw,
 		key:        key,
 		aead:       aeadEnc,
 		writeNonce: writeNonce,
@@ -88,7 +82,6 @@ func newBlabber(key []byte, rw io.ReadWriter, encrypt bool, maxMsgSize int) *bla
 		work:       newWorkspace(maxMsgSize),
 	}
 	dec := &decoder{
-		conn:      rw,
 		key:       key,
 		aead:      aeadDec,
 		noncesize: aeadEnc.NonceSize(),
@@ -97,6 +90,7 @@ func newBlabber(key []byte, rw io.ReadWriter, encrypt bool, maxMsgSize int) *bla
 	}
 
 	return &blabber{
+		conn:       conn,
 		maxMsgSize: maxMsgSize,
 		encrypt:    encrypt,
 
@@ -105,28 +99,21 @@ func newBlabber(key []byte, rw io.ReadWriter, encrypt bool, maxMsgSize int) *bla
 	}
 }
 
-func (blab *blabber) readMessage(conn uConn, timeout *time.Duration) (msg []byte, err error) {
+func (blab *blabber) readMessage(timeout *time.Duration) (msg []byte, err error) {
 	if !blab.encrypt {
-		return blab.dec.work.readMessage(conn, timeout)
+		return blab.dec.work.readMessage(blab.conn, timeout)
 	}
-	return blab.dec.readMessage(conn, timeout)
+	return blab.dec.readMessage(blab.conn, timeout)
 }
 
-func (blab *blabber) sendMessage(conn uConn, bytesMsg []byte, timeout *time.Duration) error {
+func (blab *blabber) sendMessage(bytesMsg []byte, timeout *time.Duration) error {
 	if !blab.encrypt {
-		return blab.enc.work.sendMessage(conn, bytesMsg, timeout)
+		return blab.enc.work.sendMessage(blab.conn, bytesMsg, timeout)
 	}
-	return blab.enc.sendMessage(conn, bytesMsg, timeout)
+	return blab.enc.sendMessage(blab.conn, bytesMsg, timeout)
 }
 
-func generateXChaChaNonce24(nonce *[LEN_XCHACHA20_NONCE_BYTES]byte) {
-	_, err := cryrand.Read(nonce[:])
-	if err != nil {
-		panic(err)
-	}
-}
-
-func NewXChaCha20CryptoRandKey() []byte {
+func newXChaCha20CryptoRandKey() []byte {
 	key := make([]byte, chacha20poly1305.KeySize) // 32 bytes
 	if _, err := cryrand.Read(key); err != nil {
 		log.Fatal(err)
@@ -144,23 +131,12 @@ func incrementNonce(nonce []byte) error {
 	}
 	// overflow, start at random point.
 	return writeNewCryRandomNonce(nonce)
-	//return errors.New("nonce overflow")
 }
 
 func writeNewCryRandomNonce(nonce []byte) error {
 	_, err := cryrand.Read(nonce)
 	return err
 }
-
-/*
-// net.Conn does this, so client does not really need it.
-func (e *encoder) Read(ciph []byte) (n int, err error) {
-	e.mut.Lock()
-	defer e.mut.Unlock()
-
-	return e.ciph.Read(ciph)
-}
-*/
 
 // Write encrypts data and writes it to the underlying stream.
 // This is what a client actively does when they write to net.Conn.
@@ -197,7 +173,8 @@ func (e *encoder) sendMessage(conn uConn, bytesMsg []byte, timeout *time.Duratio
 			len(noncePlusEncrypted), sz))
 	}
 
-	// update the nonce. random is better tha incrementing;
+	// Update the nonce. random is better tha incrementing, and the same speed.
+	// Much less chance of losing security by having a nonce re-used.
 	err := writeNewCryRandomNonce(e.writeNonce)
 	panicOn(err) // really should never fail unless whole system is borked.
 
@@ -247,137 +224,3 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg []byte, e
 	assocData := d.work.readLenMessageBytes // length of message should be authentic too.
 	return d.aead.Open(nil, encrypted[:d.noncesize], encrypted[d.noncesize:], assocData)
 }
-
-/*
-// Write ciphertext to be decoded into the decoder.
-// net.Conn will do this for us, when we read from decoder, so not really needed.
-func (d *decoder) Write(ciphertext []byte) (n int, err error) {
-	// write into d.ciph to accumulate
-	d.mut.Lock()
-	defer d.mut.Unlock()
-
-	// lazily wait until we are read from to decode,
-	// because we might not have it all?
-	return d.ciph.Write(ciphertext)
-}
-*/
-
-/*
-// ReadFrom reads plaintext data from src, encrypts it, and writes encrypted data to the underlying writer.
-func (e *encoder) ReadFrom(src io.Reader) (n int64, err error) {
-	// Buffer size can be adjusted based on expected data sizes.
-	bufferSize := 32 * 1024 // 32KB buffer
-	buffer := make([]byte, bufferSize)
-
-	for {
-		readBytes, readErr := src.Read(buffer)
-		if readBytes > 0 {
-			// Encrypt the data
-			encrypted := e.aead.Seal(nil, e.writeNonce, buffer[:readBytes], nil)
-
-			// Increment the nonce
-			e.mut.Lock()
-			err = incrementNonce(e.writeNonce)
-			e.mut.Unlock()
-			if err != nil {
-				return n, err
-			}
-
-			// Write the length prefix
-			err = binary.Write(&e.ciph, binary.BigEndian, uint32(len(encrypted)))
-			if err != nil {
-				return n, err
-			}
-
-			// Write the encrypted data
-			written, writeErr := e.ciph.Write(encrypted)
-			if writeErr != nil {
-				return n, writeErr
-			}
-
-			if written != len(encrypted) {
-				return n, io.ErrShortWrite
-			}
-
-			n += int64(readBytes)
-		}
-
-		if readErr != nil {
-			if readErr == io.EOF {
-				return n, nil
-			}
-			return n, readErr
-		}
-	}
-}
-*/
-
-func encryptChaCha20Poly1305(plaintext, key []byte) ([]byte, error) {
-
-	aead, err := chacha20poly1305.NewX(key)
-	if err != nil {
-		return nil, err
-	}
-
-	// Select a random nonce, and leave capacity for the ciphertext.
-	nonce := make([]byte, aead.NonceSize(), aead.NonceSize()+len(plaintext)+aead.Overhead())
-	if _, err := cryrand.Read(nonce); err != nil {
-		panic(err)
-	}
-
-	// Encrypt the message and append the ciphertext to the nonce.
-	ciphertext := aead.Seal(nonce, nonce, plaintext, nil)
-	return ciphertext, nil
-}
-
-func decryptChaCha20Poly1305(encryptedMsg, key []byte) ([]byte, error) {
-	aead, err := chacha20poly1305.NewX(key)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(encryptedMsg) < aead.NonceSize() {
-		panic("ciphertext too short")
-	}
-
-	nonceSize := chacha20poly1305.NonceSizeX
-	if len(encryptedMsg) < nonceSize {
-		return nil, err
-	}
-
-	if chacha20poly1305.NonceSizeX != aead.NonceSize() {
-		panic(fmt.Sprintf("chacha20poly1305.NonceSizeX(%v) != aead.NonceSize(%v)", chacha20poly1305.NonceSizeX, aead.NonceSize()))
-	}
-
-	// Split nonce and ciphertext.
-	nonce, ciphertext := encryptedMsg[:aead.NonceSize()], encryptedMsg[aead.NonceSize():]
-
-	plaintext, err := aead.Open(nil, nonce, ciphertext, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return plaintext, nil
-}
-
-/*
-func main() {
-	key := make([]byte, chacha20poly1305.KeySize)
-	if _, err := cryrand.Read(key); err != nil {
-		log.Fatal(err)
-	}
-
-	plaintext := []byte("Secure Message: gophers, gophers, everywhere!")
-	ciphertext, err := encryptChaCha20Poly1305(plaintext, key)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	decrypted, err := decryptChaCha20Poly1305(ciphertext, key)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	log.Printf("Decrypted Text: %s", decrypted)
-}
-*/

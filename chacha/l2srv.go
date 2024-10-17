@@ -17,7 +17,7 @@ func main() {
 	var key []byte
 	if !fileExists(path) {
 		// Define a shared secret key (32 bytes for AES-256-GCM)
-		key := NewXChaCha20CryptoRandKey()
+		key := newXChaCha20CryptoRandKey()
 		fd, err := os.Create(path)
 		panicOn(err)
 		n, err := fd.Write(key)
@@ -69,7 +69,7 @@ func handleConnection(conn net.Conn, key []byte) {
 	var msg []byte
 	for {
 		n := 0
-		msg, err = blab.readMessage(conn, nil)
+		msg, err = blab.readMessage(nil)
 		if err == io.EOF {
 			continue
 		}
@@ -99,7 +99,7 @@ func handleConnection(conn net.Conn, key []byte) {
 			response = msg
 		}
 
-		err = blab.sendMessage(conn, response, nil)
+		err = blab.sendMessage(response, nil)
 		panicOn(err)
 
 		vv("server: echo %v suceeded", len(response))
