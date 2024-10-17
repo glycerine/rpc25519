@@ -228,7 +228,8 @@ func fromUncheckedBase58(encodedStr string) []byte {
 	return base58.Decode(encodedStr)
 }
 
-// workspace can be nil or reused to avoid allocation.
+// HDRFromGreenpack will unmarshal the header
+// into the returned struct.
 func HDRFromGreenpack(header []byte) (*HDR, error) {
 	var mid HDR
 
@@ -239,8 +240,10 @@ func HDRFromGreenpack(header []byte) (*HDR, error) {
 	return &mid, err
 }
 
-// the scrach workspace can be nil or reused to avoid allocation.
-func (mid *HDR) AsGreenpack(scratch []byte) (o []byte, err error) {
+// AsGreenpack will marshall hdr into the o output bytes.
+// The scratch bytes can be nil or
+// reused and returned to avoid allocation.
+func (hdr *HDR) AsGreenpack(scratch []byte) (o []byte, err error) {
 
 	// MarshalMsg appends the marshalled
 	// form of the object to the provided
@@ -250,5 +253,5 @@ func (mid *HDR) AsGreenpack(scratch []byte) (o []byte, err error) {
 	// We don't use a global scratchspace because we
 	// don't want goroutines to collide over it.
 	// For memory tuning,
-	return mid.MarshalMsg(scratch[:0])
+	return hdr.MarshalMsg(scratch[:0])
 }
