@@ -27,7 +27,10 @@ In the broadest of strokes:
 
 We offer both a traditional [net/rpc](https://pkg.go.dev/net/rpc) 
 style API, and a generic []byte oriented API for carrying
-untyped []byte payloads (in `Message.JobSerz`).
+untyped []byte payloads (in `Message.JobSerz`). This byte slice
+transport is designed to work smoothly 
+with our [greenpack serialization format](https://github.com/glycerine/greenpack)
+that requires no extra IDL file.
 
 Using the rpc25519.Message based API:
 
