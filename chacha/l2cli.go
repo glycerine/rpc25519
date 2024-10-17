@@ -66,12 +66,12 @@ func main() {
 		}
 	}
 	// On localhost, over TCP.
-	// on linux amd rhyzen total roundtrip time 5.860731946s => 341 MB/second to do
+	// on linux amd rhyzen total roundtrip time 5.860731946s => 349 MB/second to do
 	// encryption on cli, decryption on srv, encryption on srv, decryption on cli.
 	//
-	// So one-way bandwidth of 682 MB/sec to encrypt and decrypt and transfer through kernel loopback.
+	// So one-way bandwidth of 698 MB/sec to encrypt and decrypt and transfer through kernel loopback.
 	//
-	// On mac intel i7 2.3GHz, total roundtrip time 48.117771412. So 83 MB/sec one-way enc+dec bandwidth.
-	//
+	// On mac intel i7 2.3GHz, total roundtrip time 14.823133954s; So 138*2 = 276 MB/sec one-way enc+dec bandwidth.
+	//   but cryrand generation is 3x faster, huh!
 	vv("compared equal: %v, total roundtrip time %v (not including data gen)", bytes.Equal(by, msg), time.Since(t1))
 }
