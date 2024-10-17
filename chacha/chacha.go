@@ -17,12 +17,6 @@ import (
 	//nacl "golang.org/x/crypto/nacl/secretbox"
 )
 
-const (
-	maxMessage = 2 * 1024 * 1024 * 1024 // 2GB max message size, prevents TLS clients from talking to TCP servers.
-)
-
-var ErrTooLong = fmt.Errorf("message message too long:  over 1MB; encrypted client vs an un-encrypted server?")
-
 const LEN_XCHACHA20_NONCE_BYTES = 24
 
 func generateXChaChaNonce24(nonce *[LEN_XCHACHA20_NONCE_BYTES]byte) {

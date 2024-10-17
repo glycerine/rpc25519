@@ -6,6 +6,7 @@ import (
 	cryrand "crypto/rand"
 	//"fmt"
 	"bytes"
+	//"encoding/binary"
 	"io"
 	"log"
 	"net"
@@ -30,50 +31,68 @@ func main() {
 
 	enc, dec := NewEncoderDecoderPair(key, conn)
 
-	// Send messages
-	messages := []string{"Hello, Server!", "How are you?", "Goodbye!"}
-	for _, msg := range messages {
-		_, err := enc.Write([]byte(msg))
-		if err != nil {
-			log.Fatalf("Write error: %v", err)
-		}
-		log.Printf("Sent: %s", msg)
-
-		// Read response
-		buffer := make([]byte, 4096)
-		n, err := dec.Read(buffer)
-		if err != nil {
-			if err != io.EOF {
-				log.Fatalf("Read error: %v", err)
+	if false {
+		// Send messages
+		messages := []string{"Hello, Server!", "How are you?", "Goodbye!"}
+		for _, msg := range messages {
+			_, err := enc.Write([]byte(msg))
+			if err != nil {
+				log.Fatalf("Write error: %v", err)
 			}
-			break
+			log.Printf("Sent: %s", msg)
+
+			// Read response
+			buffer := make([]byte, 4096)
+			n, err := dec.Read(buffer)
+			if err != nil {
+				if err != io.EOF {
+					log.Fatalf("Read error: %v", err)
+				}
+				break
+			}
+			response := string(buffer[:n])
+			log.Printf("Received: %s", response)
+
+			//time.Sleep(1 * time.Second)
 		}
-		response := string(buffer[:n])
-		log.Printf("Received: %s", response)
-
-		//time.Sleep(1 * time.Second)
 	}
-
 	// send a big message
 	//	by, err := os.ReadFile("big")
 	//	panicOn(err)
 
 	by := make([]byte, 2*1024*1024*1024-44) // 2GB, our max message size. minus 44 bytes of overhead+nonce+msgLen 4 bytes
+	buf := make([]byte, 2*1024*1024*1024)   // 2GB
 	t0 := time.Now()
 	_, err = cryrand.Read(by)
 	panicOn(err)
 	// elap 4.998854362s to generate 2GB cryrand data => 400 MB/sec.
-	vv("elap %v to generate 2GB cryrand data", time.Since(t0))
+	vv("elap %v to generate 2GB cryrand data: %v", time.Since(t0), len(by))
+
+	skipCrypt := true
 
 	t1 := time.Now()
-	_, err = enc.Write(by)
+	if skipCrypt {
+		err = sendMessage(conn, by, nil)
+	} else {
+		_, err = enc.Write(by)
+	}
 	panicOn(err)
 	vv("wrote big: %v message, took: %v", len(by), time.Since(t1))
 
 	// Read response
-	buffer := make([]byte, 2*1024*1024*1024)
+	var msg []byte
+
 	t2 := time.Now()
-	n, err := dec.Read(buffer)
+	n := 0
+	if skipCrypt {
+
+		msg, err = receiveMessage(conn, buf, nil)
+		panicOn(err)
+		n = len(msg)
+	} else {
+		n, err = dec.Read(buf)
+		msg = buf[:n]
+	}
 	if err == nil {
 		vv("got response to big of len %v in %v", n, time.Since(t2))
 	}
@@ -90,5 +109,5 @@ func main() {
 	//
 	// On mac intel i7 2.3GHz, total roundtrip time 48.117771412. So 83 MB/sec one-way enc+dec bandwidth.
 	//
-	vv("compared equal: %v, total roundtrip time %v (not including data gen)", bytes.Equal(by, buffer[:n]), time.Since(t1))
+	vv("compared equal: %v, total roundtrip time %v (not including data gen)", bytes.Equal(by, msg), time.Since(t1))
 }

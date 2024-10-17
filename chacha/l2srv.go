@@ -4,6 +4,7 @@ package main
 
 import (
 	//cryrand "crypto/rand"
+	//"encoding/binary"
 	"fmt"
 	"io"
 	"log"
@@ -59,11 +60,26 @@ func main() {
 func handleConnection(conn net.Conn, key []byte) {
 	defer conn.Close()
 
+	skipCrypt := true
+	var err error
 	enc, dec := NewEncoderDecoderPair(key, conn)
 	//vv("top of handle connection")
-	buffer := make([]byte, 3*1024*1024*1024)
+	buf := make([]byte, 3*1024*1024*1024)
+	var msg []byte
 	for {
-		n, err := dec.Read(buffer)
+		n := 0
+		if skipCrypt {
+
+			msg, err = receiveMessage(conn, buf, nil)
+			if err == io.EOF {
+				continue
+			}
+			panicOn(err)
+			n = len(msg)
+		} else {
+			n, err = dec.Read(buf)
+			msg = buf[:n]
+		}
 		//vv("dec.Read: n=%v, err='%v'; msg='%v'", n, err, string(buffer[:n]))
 		if err != nil {
 			if err != io.EOF {
@@ -72,28 +88,34 @@ func handleConnection(conn net.Conn, key []byte) {
 			break
 		}
 
-		message := string(buffer[:n])
 		if n < 100 {
-			log.Printf("Received: %s", message)
+			vv("Received: %s", string(msg))
 		} else {
-			log.Printf("Received msg of len %v", n)
+			vv("Received msg of len %v", n)
 		}
 
 		//vv("about to echo")
 		// Echo back the message
 		var response []byte
 		if n < 100 {
-			response = []byte(fmt.Sprintf("Echo: %s", message))
+			response = []byte(fmt.Sprintf("Echo: %s", string(msg)))
 		} else {
-			response = buffer[:n]
+			response = msg
 		}
 
-		nw, err := enc.Write(response)
+		nw := 0
+		if skipCrypt {
+			err = sendMessage(conn, response, nil)
+			panicOn(err)
+			nw = len(response)
+		} else {
+			nw, err = enc.Write(response)
+		}
 		if nw == len(response) {
-			vv("server: echo %v suceeded", n)
+			vv("server: echo %v suceeded", nw)
 			continue
 		}
-		vv("enc.Write got err = '%v', nw=%v out of %v", err, nw, len(response))
+		vv("send / enc.Write got err = '%v', nw=%v out of %v", err, nw, len(response))
 		if err != nil {
 			log.Printf("Write error: %v", err)
 			break
