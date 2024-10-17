@@ -510,7 +510,7 @@ type Config struct {
 	ReadTimeout    time.Duration
 	WriteTimeout   time.Duration
 
-	LocalAddress string
+	localAddress string
 
 	// for port sharing between a server and 1 or more clients over QUIC
 	shared *sharedTransport
@@ -1024,7 +1024,7 @@ func (c *Client) OneWaySend(msg *Message, doneCh <-chan struct{}) (err error) {
 func (c *Client) setLocalAddr(local string) {
 	c.mut.Lock()
 	defer c.mut.Unlock()
-	c.cfg.LocalAddress = local
+	c.cfg.localAddress = local
 }
 
 // LocalAddr retreives the local host/port that the
@@ -1032,7 +1032,7 @@ func (c *Client) setLocalAddr(local string) {
 func (c *Client) LocalAddr() string {
 	c.mut.Lock()
 	defer c.mut.Unlock()
-	return c.cfg.LocalAddress
+	return c.cfg.localAddress
 }
 
 func remote(nc localRemoteAddr) string {
