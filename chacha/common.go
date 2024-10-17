@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	maxMessage = 2 * 1024 * 1024 * 1024 // 2GB max message size, prevents TLS clients from talking to TCP servers.
+	maxMessage = 2*1024*1024*1024 - 64 // 2GB max message size, prevents TLS clients from talking to TCP servers.
 )
 
 var ErrTooLong = fmt.Errorf("message message too long:  over 2GB; encrypted client vs an un-encrypted server?")
@@ -47,7 +47,8 @@ type workspace struct {
 // to maxMessage+1024 or so, rather than this 64KB.
 func newWorkspace(maxMsgSize int) *workspace {
 	return &workspace{
-		buf:                  make([]byte, maxMsgSize),
+		// need at least len(msg) + 44; 44 because == msglen(8) + nonceX(24) + overhead(16)
+		buf:                  make([]byte, maxMsgSize+64),
 		readLenMessageBytes:  make([]byte, 8),
 		writeLenMessageBytes: make([]byte, 8),
 	}

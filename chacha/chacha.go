@@ -148,29 +148,35 @@ func (e *encoder) sendMessage(conn uConn, bytesMsg []byte, timeout *time.Duratio
 	defer e.mut.Unlock()
 
 	sz := len(bytesMsg) + e.noncesize + e.overhead
-	binary.BigEndian.PutUint64(e.work.writeLenMessageBytes, uint64(sz))
+	//binary.BigEndian.PutUint64(e.work.writeLenMessageBytes, uint64(sz))
+	binary.BigEndian.PutUint64(e.work.buf[:8], uint64(sz))
 
+	// No. Wait and do one big write.
 	// Write Message length
-	if err := writeFull(conn, e.work.writeLenMessageBytes, timeout); err != nil {
-		return err
-	}
-	assocData := e.work.writeLenMessageBytes
+	//if err := writeFull(conn, e.work.writeLenMessageBytes, timeout); err != nil {
+	//	return err
+	//}
+	//assocData := e.work.writeLenMessageBytes
+	assocData := e.work.buf[:8]
 
-	// grow buf if need be
 	buf := e.work.buf
-	buf = buf[0:cap(buf)]
-	if len(buf) < sz {
-		e.work.buf = append(e.work.buf, make([]byte, sz-len(buf))...)
-		buf = e.work.buf
-	}
+	/*
+		// grow buf if need be
+		buf = buf[0:cap(buf)]
+		if len(buf) < sz {
+			e.work.buf = append(e.work.buf, make([]byte, sz-len(buf))...)
+			buf = e.work.buf
+		}
+	*/
 
 	// Encrypt the data (prepends the nonce? nope need to do so ourselves)
-	copy(buf[:e.noncesize], e.writeNonce)
-	noncePlusEncrypted := e.aead.Seal(buf[:e.noncesize], e.writeNonce, bytesMsg, assocData)
+	copy(buf[8:8+e.noncesize], e.writeNonce)
+	copy(buf[8+e.noncesize:8+e.noncesize+len(bytesMsg)], bytesMsg) // like greenpack will do.
+	sealOut := e.aead.Seal(buf[8+e.noncesize:8+e.noncesize], e.writeNonce, buf[8+e.noncesize:8+e.noncesize+len(bytesMsg)], assocData)
 	// verify size assumption was correct
-	if len(noncePlusEncrypted) != int(sz) {
-		panic(fmt.Sprintf("noncePlusEncrypted(%v) != sz(%v): our associated data in lenBy is wrong!",
-			len(noncePlusEncrypted), sz))
+	if len(sealOut) != (sz - e.noncesize) {
+		panic(fmt.Sprintf("sealOut(%v) != sz - e.noncesize = %v: our associated data in lenBy is wrong!",
+			len(sealOut), sz-e.noncesize))
 	}
 
 	// Update the nonce. random is better tha incrementing, and the same speed.
@@ -179,7 +185,7 @@ func (e *encoder) sendMessage(conn uConn, bytesMsg []byte, timeout *time.Duratio
 	panicOn(err) // really should never fail unless whole system is borked.
 
 	// Write the encrypted data
-	return writeFull(conn, noncePlusEncrypted, timeout)
+	return writeFull(conn, buf[:8+e.noncesize+len(sealOut)], timeout)
 }
 
 // Read decrypts data from the underlying stream.
