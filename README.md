@@ -12,8 +12,9 @@ second pre-shared-key layer, based on XChaCha20-Poly1305
 symmetric stream encryption, can also be added.
 
 Excitedly, I am delighted to report this package also
-supports QUIC as a transport. QUIC is very fast even
-though it is always encrypted. This is due to its 0-RTT implementation
+supports [https://en.wikipedia.org/wiki/QUIC](QUIC as a transport). 
+QUIC is very fast even
+though it is always encrypted. This is due to its 0-RTT design
 and the mature [quic-go](https://github.com/quic-go/quic-go) 
 implementation of the protocol. QUIC allows a local
 client and server in the same process to share a UDP port.
@@ -30,13 +31,13 @@ untyped []byte payloads (in `Message.JobSerz`).
 
 Using the rpc25519.Message based API:
 
-(`Server.Register1Func()`)[#Server.Register1Func] registers one-way (no reply) callbacks on the server; and
+ * [`Server.Register1Func()`](#Server.Register1Func) registers one-way (no reply) callbacks on the server; and
 
-(`Server.Register2Func()`)[#Server.Register2Func] register traditional two-way callbacks.
+ * [`Server.Register2Func()`](#Server.Register2Func) register traditional two-way callbacks.
 
 Using the net/rpc API:
 
-(`Server.Register()`)[#Server.Register] registers structs with callback methods on them.
+ * [`Server.Register()`](#Server.Register) registers structs with callback methods on them.
 
 See [the net/rpc docs for full guidance on using that API](https://pkg.go.dev/net/rpc).
 
