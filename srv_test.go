@@ -2,6 +2,7 @@ package rpc25519
 
 import (
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -279,5 +280,57 @@ func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 		// sleep a little to avoid shutting down before server can decide
 		// not to process/return a reply.
 		time.Sleep(time.Millisecond * 50)
+	})
+}
+
+func Test011_PreSharedKey_over_TCP(t *testing.T) {
+
+	cv.Convey("If we enable pre-shared-key encryption, round trips should still work", t, func() {
+
+		cfg := NewConfig()
+		cfg.TCPonly_no_TLS = true
+
+		path := "certs/psk.binary"
+		if !fileExists(path) {
+			// Define a shared secret key (32 bytes for AES-256-GCM)
+			key := newXChaCha20CryptoRandKey()
+			fd, err := os.Create(path)
+			panicOn(err)
+			n, err := fd.Write(key)
+			panicOn(err)
+			if n != len(key) {
+				panic("short write")
+			}
+			fd.Close()
+			ownerOnly(path)
+		} else {
+			vv("using existing psk file '%v'", path)
+		}
+		cfg.PreSharedKeyPath = path
+
+		cfg.ServerAddr = "127.0.0.1:0"
+		srv := NewServer("srv_test001", cfg)
+
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
+
+		vv("server Start() returned serverAddr = '%v'", serverAddr)
+
+		srv.Register2Func(customEcho)
+
+		cfg.ClientDialToHostPort = serverAddr.String()
+		cli, err := NewClient("test001", cfg)
+		panicOn(err)
+		defer cli.Close()
+
+		req := NewMessage()
+		req.JobSerz = []byte("Hello from client!")
+
+		reply, err := cli.SendAndGetReply(req, nil)
+		panicOn(err)
+
+		vv("server sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
+
 	})
 }

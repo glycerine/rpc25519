@@ -57,12 +57,12 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		}
 	}()
 
+	c.cfg.checkPreSharedKey("client")
+
 	if tcp_only {
 		c.RunClientTCP(serverAddr)
 		return
 	}
-
-	c.cfg.checkPreSharedKey()
 
 	embedded := false                 // always false now
 	sslCA := fixSlash("certs/ca.crt") // path to CA cert
@@ -242,7 +242,7 @@ func (c *Client) RunReadLoop(conn net.Conn) {
 		}
 
 		// Receive a message
-		msg, err := w.readMessage(&readTimeout)
+		msg, err := w.readMessage(conn, &readTimeout)
 		if err != nil {
 			r := err.Error()
 			if strings.Contains(r, "timeout") || strings.Contains(r, "deadline exceeded") {
@@ -337,7 +337,7 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 				msg.HDR.Nc = conn
 			}
 			// Send the message
-			if err := w.sendMessage(msg, &c.cfg.WriteTimeout); err != nil {
+			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
 				log.Printf("Failed to send message: %v", err)
 				msg.Err = err
 			} else {
@@ -353,7 +353,7 @@ func (c *Client) RunSendLoop(conn net.Conn) {
 			//vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v: '%v'", c.name, seqno, msg)
 			c.GetOneRead(seqno, msg.DoneCh)
 
-			if err := w.sendMessage(msg, &c.cfg.WriteTimeout); err != nil {
+			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
 				//vv("Failed to send message: %v", err)
 				msg.Err = err
 				msg.DoneCh <- msg
@@ -511,8 +511,7 @@ type Config struct {
 	shared *sharedTransport
 }
 
-func (cfg *Config) checkPreSharedKey() {
-
+func (cfg *Config) checkPreSharedKey(name string) {
 	if cfg.PreSharedKeyPath != "" && fileExists(cfg.PreSharedKeyPath) {
 		by, err := ioutil.ReadFile(cfg.PreSharedKeyPath)
 		panicOn(err)
@@ -521,6 +520,7 @@ func (cfg *Config) checkPreSharedKey() {
 		}
 		copy(cfg.preSharedKey[:], by)
 		cfg.encryptPSK = true
+		AlwaysPrintf("activated pre-shared-key on '%v' from cfg.PreSharedKeyPath='%v': '%x'", name, cfg.PreSharedKeyPath, cfg.preSharedKey)
 	}
 }
 
@@ -1060,5 +1060,28 @@ func SelfyNewKey(createKeyPairNamed, odir string) error {
 	selfcert.Step3_MakeCertSigningRequest(privKey, createKeyPairNamed, email, odirCerts)
 	selfcert.Step4_MakeCertificate(nil, odirPrivateKey, createKeyPairNamed, odirCerts, verbose)
 
+	return nil
+}
+
+// chmod og-wrx path
+func ownerOnly(path string) error {
+
+	// Get the current file info
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("Error getting file '%v' stat: '%v'", path, err)
+	}
+
+	// Get the current permissions
+	currentPerm := fileInfo.Mode().Perm()
+
+	// Remove read, write, and execute permissions for group and others
+	newPerm := currentPerm &^ (os.FileMode(0o077))
+
+	// Change the file permissions
+	err = os.Chmod(path, newPerm)
+	if err != nil {
+		return fmt.Errorf("Error changing file permissions on '%v': '%v'", path, err)
+	}
 	return nil
 }

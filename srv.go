@@ -38,7 +38,7 @@ func (s *Server) RunServerMain(serverAddress string, tcp_only bool, certPath str
 	}()
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
-	s.cfg.checkPreSharedKey()
+	s.cfg.checkPreSharedKey("server")
 
 	embedded := false                 // always false now
 	sslCA := fixSlash("certs/ca.crt") // path to CA cert
@@ -281,7 +281,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 	for {
 		select {
 		case msg := <-s.SendCh:
-			err := w.sendMessage(msg, &s.cfg.WriteTimeout)
+			err := w.sendMessage(conn, msg, &s.cfg.WriteTimeout)
 			if err != nil {
 				r := err.Error()
 				if strings.Contains(r, "broken pipe") {
@@ -324,7 +324,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		default:
 		}
 
-		req, err := w.readMessage(&s.cfg.ReadTimeout)
+		req, err := w.readMessage(conn, &s.cfg.ReadTimeout)
 		if err == io.EOF {
 			//vv("server sees io.EOF from receiveMessage")
 			continue // close of socket before read of full message.
