@@ -402,7 +402,7 @@ func NewMessageFromBytes(by []byte) (msg *Message) {
 // be left nil, of course.
 //
 // Any errors can be returned on reply.JobErrs; this is optional.
-// Not that JobErrs is a string value.
+// Note that JobErrs is a string value rather than an error.
 //
 // The system will overwrite the reply.HDR field when sending the
 // reply, so the user should not bother trying to alter it.
