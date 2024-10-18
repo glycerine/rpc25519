@@ -24,9 +24,9 @@ and connecting across networks.
 The [rpc25519 package docs are here](https://pkg.go.dev/github.com/glycerine/rpc25519). 
 
 ~~~
-# to install/get started:
+# to install/get started: (assumes ~/go/bin is in your $PATH)
 #
-$ git clone https://github.com/glycerine/greenpack ## pre-requisite for building
+$ git clone https://github.com/glycerine/greenpack ## pre-req
 $ cd greenpack; make; cd ..
 $ git clone https://github.com/glycerine/rpc25519
 $ cd rpc25519;  make
