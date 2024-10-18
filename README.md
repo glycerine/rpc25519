@@ -343,81 +343,82 @@ to create keys).
 ~~~
 type Config struct {
 
-	// ServerAddr host:port where the server should listen.
-	ServerAddr string
+   // ServerAddr host:port where the server should listen.
+   ServerAddr string
 
-	// optional. Can be used to suggest that the
-	// client use a specific host:port. NB: For QUIC, by default, the client and
-	// server will share the same port if they are in the same process.
-	// In that case this setting will definitely be ignored.
-	ClientHostPort string
+   // optional. Can be used to suggest that the
+   // client use a specific host:port. NB: For QUIC, by default, the client and
+   // server will share the same port if they are in the same process.
+   // In that case this setting will definitely be ignored.
+   ClientHostPort string
 
-	// Who the client should contact
-	ClientDialToHostPort string
+   // Who the client should contact
+   ClientDialToHostPort string
 
-	// TCP false means TLS-1.3 secured. true here means do TCP only; with no encryption.
-	TCPonly_no_TLS bool
+   // TCP false means TLS-1.3 secured. 
+   // So true here means do TCP only; with no encryption.
+   TCPonly_no_TLS bool
 
-	// UseQUIC cannot be true if TCPonly_no_TLS is true.
-	UseQUIC bool
+   // UseQUIC cannot be true if TCPonly_no_TLS is true.
+   UseQUIC bool
 
-	// path to certs/ like certificate
-	// directory on the live filesystem.
-	CertPath string
+   // path to certs/ like certificate
+   // directory on the live filesystem.
+   CertPath string
 
-	// SkipVerifyKeys true allows any incoming
-	// key to be signed by
-	// any CA; it does not have to be ours. Obviously
-	// this discards almost all access control; it
-	// should rarely be used unless communication
-	// with the any random agent/hacker/public person
-	// is desired.
-	SkipVerifyKeys bool
+   // SkipVerifyKeys true allows any incoming
+   // key to be signed by
+   // any CA; it does not have to be ours. Obviously
+   // this discards almost all access control; it
+   // should rarely be used unless communication
+   // with the any random agent/hacker/public person
+   // is desired.
+   SkipVerifyKeys bool
 
-    // default "client" means use certs/client.crt and certs/client.key
-	ClientKeyPairName string 
-	
-	// default "node" means use certs/node.crt and certs/node.key
-	ServerKeyPairName string 
+   // default "client" means use certs/client.crt and certs/client.key
+   ClientKeyPairName string 
+   
+   // default "node" means use certs/node.crt and certs/node.key
+   ServerKeyPairName string 
 
-	// PreSharedKeyPath locates an optional pre-shared
-	// hex written in hex that must be 32 bytes (or more) long
-	// (so 64 hex characters). Only the first 32 bytes will
-	// be used to create a symmetric 2nd encryption layer.
-	PreSharedKeyPath string
+   // PreSharedKeyPath locates an optional pre-shared
+   // hex written in hex that must be 32 bytes (or more) long
+   // (so 64 hex characters). Only the first 32 bytes will
+   // be used to create a symmetric 2nd encryption layer.
+   PreSharedKeyPath string
 
-	// These are timeouts for connection and transport tuning.
-	// The defaults of 0 mean wait forever.
-	ConnectTimeout time.Duration
-	ReadTimeout    time.Duration
-	WriteTimeout   time.Duration
+   // These are timeouts for connection and transport tuning.
+   // The defaults of 0 mean wait forever.
+   ConnectTimeout time.Duration
+   ReadTimeout    time.Duration
+   WriteTimeout   time.Duration
 
-	...
-	
-	// This is not a Config option, but creating
-	// the known_{client,server}_keys file on the client/server is
-	// typically the last security measure in hardening.
-	//
-	// If known_client_keys exists in the server's directory,
-	// then we will read from it.
-	// Likewise, if known_server_keys exists in
-	// the client's directory, then we will read from it.
-	//
-	// If the known keys file is read-only: Read-only
-	// means we are in lockdown mode and no unknown
-	// client certs will be accepted, even if they
-	// have been properly signed by our CA.
-	//
-	// If the known keys file is writable then we are
-	// Trust On First Use mode, and new remote parties
-	// are recorded in the file if their certs are valid (signed
-	// by us/our CA).
-	//
-	// Note if the known_client_keys is read-only, it
-	// had better not be empty or nobody will be
-	// able to contact us. The server will notice
-	// this and crash since why bother being up.
-	
+   ...
+   
+   // This is not a Config option, but creating
+   // the known_{client,server}_keys file on the client/server is
+   // typically the last security measure in hardening.
+   //
+   // If known_client_keys exists in the server's directory,
+   // then we will read from it.
+   // Likewise, if known_server_keys exists in
+   // the client's directory, then we will read from it.
+   //
+   // If the known keys file is read-only: Read-only
+   // means we are in lockdown mode and no unknown
+   // client certs will be accepted, even if they
+   // have been properly signed by our CA.
+   //
+   // If the known keys file is writable then we are
+   // Trust On First Use mode, and new remote parties
+   // are recorded in the file if their certs are valid (signed
+   // by us/our CA).
+   //
+   // Note if the known_client_keys is read-only, it
+   // had better not be empty or nobody will be
+   // able to contact us. The server will notice
+   // this and crash since why bother being up.
+   
 }
 ~~~
 
