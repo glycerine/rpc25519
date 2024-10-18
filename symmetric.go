@@ -8,40 +8,50 @@ import (
 	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/hkdf"
 	"io"
-	"net"
+	//"net"
 )
 
-func symmetricServerMain(psk []byte) (sharedSecretRandomSymmetricKey []byte, err error) {
+func symmetricServerMain(conn uConn, psk []byte) (sharedSecretRandomSymmetricKey []byte, err error) {
 	if len(psk) != 32 {
 		panic(fmt.Sprintf("psk must be 32 bytes: we see %v", len(psk)))
 	}
-	conn, err := net.Dial("tcp", "localhost:8080")
-	if err != nil {
-		panic(err)
-	}
-	defer conn.Close()
+
+	/*
+		listener, err := net.Listen("tcp", ":8080")
+		if err != nil {
+			panic(err)
+		}
+		defer listener.Close()
+		conn, err := listener.Accept()
+		if err != nil {
+			panic(err)
+		}
+		defer conn.Close()
+
+		fmt.Printf("listening on '%v'\n", conn.LocalAddr())
+	*/
 
 	// Generate ephemeral X25519 key pair
-	clientPrivateKey, clientPublicKey, err := generateX25519KeyPair()
+	serverPrivateKey, serverPublicKey, err := generateX25519KeyPair()
 	if err != nil {
 		panic(err)
 	}
 
-	// Read the server's public key
-	serverPublicKey := make([]byte, 32)
-	_, err = io.ReadFull(conn, serverPublicKey)
+	// Send the public key to the client
+	_, err = conn.Write(serverPublicKey[:])
 	if err != nil {
 		panic(err)
 	}
 
-	// Send the client's public key to the server
-	_, err = conn.Write(clientPublicKey[:])
+	// Read the client's public key
+	clientPublicKey := make([]byte, 32)
+	_, err = io.ReadFull(conn, clientPublicKey)
 	if err != nil {
 		panic(err)
 	}
 
 	// Compute the shared secret
-	sharedSecret, err := curve25519.X25519(clientPrivateKey[:], serverPublicKey)
+	sharedSecret, err := curve25519.X25519(serverPrivateKey[:], clientPublicKey)
 	if err != nil {
 		panic(err)
 	}
@@ -50,7 +60,8 @@ func symmetricServerMain(psk []byte) (sharedSecretRandomSymmetricKey []byte, err
 	key := deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk)
 
 	// Print the symmetric key (for demonstration purposes)
-	//fmt.Printf("Client derived symmetric key: %x\n", key[:])
+	fmt.Printf("Server derived symmetric key: %x\n", key[:])
+
 	return key[:], nil
 }
 
@@ -87,15 +98,17 @@ func deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk 
 	return finalKey
 }
 
-func symmetricClientMain(psk []byte) (sharedSecretRandomSymmetricKey []byte, err error) {
+func symmetricClientMain(conn uConn, psk []byte) (sharedSecretRandomSymmetricKey []byte, err error) {
 	if len(psk) != 32 {
 		panic(fmt.Sprintf("psk must be 32 bytes: we see %v", len(psk)))
 	}
-	conn, err := net.Dial("tcp", "localhost:8080")
-	if err != nil {
-		panic(err)
-	}
-	defer conn.Close()
+	/*
+		conn, err := net.Dial("tcp", "localhost:8080")
+		if err != nil {
+			panic(err)
+		}
+		defer conn.Close()
+	*/
 
 	// Generate ephemeral X25519 key pair
 	clientPrivateKey, clientPublicKey, err := generateX25519KeyPair()
@@ -126,6 +139,6 @@ func symmetricClientMain(psk []byte) (sharedSecretRandomSymmetricKey []byte, err
 	key := deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk)
 
 	// Print the symmetric key (for demonstration purposes)
-	//fmt.Printf("Client derived symmetric key: %x\n", key[:])
+	fmt.Printf("Client derived symmetric key: %x\n", key[:])
 	return key[:], nil
 }
