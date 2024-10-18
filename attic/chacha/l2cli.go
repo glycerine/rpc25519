@@ -3,6 +3,8 @@ package main
 // layer2 client
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	cryrand "crypto/rand"
 	mathrandv2 "math/rand/v2"
 	//"fmt"
@@ -14,6 +16,8 @@ import (
 	"os"
 	"time"
 )
+
+var _ = mathrandv2.NewChaCha8
 
 func main() {
 	path := "psk.hex"
@@ -37,7 +41,7 @@ func main() {
 	//	by, err := os.ReadFile("big")
 	//	panicOn(err)
 
-	by := make([]byte, maxMessage-44) // 2GB - 44, our max message size minus 44 bytes of overhead+nonce+msgLen 4 bytes
+	by := make([]byte, maxMessage-64) // 2GB - 44, our max message size minus 44 bytes of overhead+nonce+msgLen 4 bytes
 	t0 := time.Now()
 
 	trueRandom := false
@@ -47,14 +51,39 @@ func main() {
 		vv("elap %v to generate 2GB cryrand data: %v", time.Since(t0), len(by))
 
 	} else {
-		var seed [32]byte
-		_, err = cryrand.Read(seed[:])
-		panicOn(err)
+		const chacha8 = false
+		if chacha8 {
 
-		cc := mathrandv2.NewChaCha8(seed)
-		_, err = cc.Read(by)
-		panicOn(err)
-		vv("elap %v to generate 2GB ChaCha8 data: %v", time.Since(t0), len(by))
+			var seed [32]byte
+			_, err = cryrand.Read(seed[:])
+			panicOn(err)
+
+			cc := mathrandv2.NewChaCha8(seed)
+			_, err = cc.Read(by)
+			panicOn(err)
+			vv("elap %v to generate 2GB ChaCha8 data: %v", time.Since(t0), len(by))
+
+		} else {
+			keysz := 32
+
+			key := make([]byte, keysz)
+			_, err = io.ReadFull(cryrand.Reader, key)
+			panicOn(err)
+
+			nonce := make([]byte, 12)
+			_, err = io.ReadFull(cryrand.Reader, nonce)
+			panicOn(err)
+
+			block, err := aes.NewCipher(key)
+			panicOn(err)
+
+			aesgcm, err := cipher.NewGCM(block)
+			panicOn(err)
+
+			ciphertext := aesgcm.Seal(by[:0], nonce, by, nil)
+			by = ciphertext
+			vv("elap %v to generate AES-GCM-%v: %v", time.Since(t0), keysz*8, len(by))
+		}
 	}
 	// elap 4.998854362s to generate 2GB cryrand data => 400 MB/sec.
 
