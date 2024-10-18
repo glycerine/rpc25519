@@ -25,12 +25,15 @@ The [rpc25519 package docs are here](https://pkg.go.dev/github.com/glycerine/rpc
 
 ~~~
 # to install/get started: (assumes ~/go/bin is in your $PATH)
+#   warning: will overwrite ~/go/bin/{cli,srv,same,selfy}
 #
 $ git clone https://github.com/glycerine/greenpack ## pre-req
 $ cd greenpack; make; cd ..
 $ git clone https://github.com/glycerine/rpc25519
 $ cd rpc25519;  make
-$ ./selfy -k client -nopass; ./selfy -k node -nopass ## make test keys and CA
+# make test keys and CA: saved to certs/ and my-keep-private-dir/
+$ ./selfy -k client -nopass; ./selfy -k node -nopass 
+$ ./selfy -gensym psk.binary ## see my-keep-private-dir/psk.binary
 $ make run && make runq  ## verify TLS over TCP and QUIC
 ~~~
 
