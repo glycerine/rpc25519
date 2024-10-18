@@ -203,8 +203,8 @@ we can confirm that the associated public-key has been signed
 by our certificate authority. Public keys signed in
 this way are more commonly called certificates or "certs".
 
-An email address for convenience of identification
-of jobs can be listed in the certificate.
+An email address for convenience in identifying 
+jobs can be listed in the certificate.
 
 This is a much saner approach than tying a
 work-load identity to a specific machine, 
