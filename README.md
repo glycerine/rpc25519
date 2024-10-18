@@ -483,47 +483,52 @@ $ selfy -h
 
 Usage of selfy:
   -ca
-    	create a new self-signed certificate authority (1st of 2 
-		steps in making new certs). Written to the -p directory 
-		(see selfy -p flag, where -p is for private).
-		The CA uses ed25519 keys too.
-		
+        create a new self-signed certificate authority (1st of 2 
+        steps in making new certs). Written to the -p directory 
+        (see selfy -p flag, where -p is for private).
+        The CA uses ed25519 keys too.
+        
   -e string
-    	email to write into the certificate (who to contact 
-		about this job) (strongly encouraged when making 
-		new certs! defaults to name@host if not given)
-		
+        email to write into the certificate (who to contact 
+        about this job) (strongly encouraged when making 
+        new certs! defaults to name@host if not given)
+    
+  -gensym string
+        generate a new 32-byte symmetric encryption 
+		key with crypto/rand, and save it under 
+		this filename in the -p directory.
+    
   -k string
-    	2nd of 2 steps: -k {key_name} ; create a new ed25519 
-		key pair (key and cert), and save it to this name. 
-		The pair will be saved under the -o directory; 
-		we strongly suggest you also use the 
-		-e your_email@actually.org flag to 
-		describe the job and/or provide the owner's email 
-		to contact when needed. A CA will be auto-generated 
-		if none is found in the -p directory, which has 
-		a default name which warns the user to protect it.
+        2nd of 2 steps: -k {key_name} ; create a new ed25519 
+        key pair (key and cert), and save it to this name. 
+        The pair will be saved under the -o directory; 
+        we strongly suggest you also use the 
+        -e your_email@actually.org flag to 
+        describe the job and/or provide the owner's email 
+        to contact when needed. A CA will be auto-generated 
+        if none is found in the -p directory, which has 
+        a default name which warns the user to protect it.
 
   -nopass
-    	by default we request a password and use 
-		it with Argon2id to encrypt private key files (CA & identity). 
-		Setting -nopass means we generate an un-encrypted 
-		private key; this is not recommended.
+        by default we request a password and use 
+        it with Argon2id to encrypt private key files (CA & identity). 
+        Setting -nopass means we generate an un-encrypted 
+        private key; this is not recommended.
 
   -o string
-    	directory to save newly created certs into. (default "certs")
-		
+        directory to save newly created certs into. (default "certs")
+        
   -p string
-    	directory to find the CA in. If doing -ca, we will save 
-		the newly created Certificate Authority (CA) private 
-		key to this directory. If doing -k to create a new key, 
-		we'll look for the CA here. (default "my-keep-private-dir")  
-		
+        directory to find the CA in. If doing -ca, we will save 
+        the newly created Certificate Authority (CA) private 
+        key to this directory. If doing -k to create a new key, 
+        we'll look for the CA here. (default "my-keep-private-dir")  
+        
   -v string
-    	path to cert to view. Similar output as the openssl 
-		command: 'openssl x509 -in certs/client.crt  -text -noout', 
-		which you could use instead; just replace certs/client.crt 
-		with the path to your cert.
+        path to cert to view. Similar output as the openssl 
+        command: 'openssl x509 -in certs/client.crt  -text -noout', 
+        which you could use instead; just replace certs/client.crt 
+        with the path to your cert.
 ~~~
 
 The `openssl` commands in the included gen.sh script do the same things as
