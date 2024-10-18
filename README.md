@@ -34,34 +34,44 @@ In the broadest of strokes:
 
 We offer both a traditional [net/rpc](https://pkg.go.dev/net/rpc) 
 style API, and a generic []byte oriented API for carrying
-untyped []byte payloads (in `Message.JobSerz`). This byte slice
-transport is designed to work smoothly 
+user typed or self describing []byte payloads (in `Message.JobSerz`). 
+
+The `net/rpc` API continues to use gobs. We have simply
+layered that packages client-facing layer over our 
+[]byte slice transport infrastructure.
+
+The byte slice API is designed to work smoothly 
 with our [greenpack serialization format](https://github.com/glycerine/greenpack)
-that requires no extra IDL file.
+that requires no extra IDL file. See the https://github.com/glycerine/rpc25519/blob/master/hdr.go#L18 file herein, for example.
 
 Using the rpc25519.Message based API:
 
- * [`Server.Register1Func()`](https://pkg.go.dev/github.com/glycerine/rpc25519#Server.Register1Func) registers one-way (no reply) callbacks on the server; and
+ * [`Server.Register1Func()`](https://pkg.go.dev/github.com/glycerine/rpc25519#Server.Register1Func) registers one-way (no reply) callbacks on the server. They look like this:
+ 
+  func ExampleOneWayFunc(req *Message) {}
 
- * [`Server.Register2Func()`](https://pkg.go.dev/github.com/glycerine/rpc25519#Server.Register2Func) register traditional two-way callbacks.
+ * [`Server.Register2Func()`](https://pkg.go.dev/github.com/glycerine/rpc25519#Server.Register2Func) registers traditional two-way callbacks. The look like this:
+
+  func ExampleTwoWayFunc(req *Message, reply *Message) error { ... }
 
 Using the net/rpc API:
 
- * [`Server.Register()`](https://pkg.go.dev/github.com/glycerine/rpc25519#Server.Register) registers structs with callback methods on them.
+ * [`Server.Register()`](https://pkg.go.dev/github.com/glycerine/rpc25519#Server.Register) registers structs with callback methods on them. For a struct called `Service`, this method would be identified and registered:
+
+  func (s *Service) NoContext(args *Args, reply *Reply) error { ... }
 
 See [the net/rpc docs for full guidance on using that API](https://pkg.go.dev/net/rpc).
 
 * Extended method types:
 
 Callback methods in the [net/rpc](https://pkg.go.dev/net/rpc) 
-style traditionally look like this first
-`NoContext` example. We allow a context.Context as an additional first
-parameter. The ctx will have an "HDR" value set on it giving a pointer to
+style traditionally look like the `NoContext` func above. 
+We also allow a ctx context.Context as an additional first
+parameter. This is an extension to what `net/rpc` provides.
+The ctx will have an "HDR" value set on it giving a pointer to
 the `rpc25519.HDR` header from the incoming Message. 
 
 ~~~
-func (s *Service) NoContext(args *Args, reply *Reply) error
-
 func (s *Service) GetsContext(ctx context.Context, args *Args, reply *Reply) error {
 if hdr := ctx.Value("HDR"); hdr != nil {
      h, ok := hdr.(*rpc25519.HDR)
