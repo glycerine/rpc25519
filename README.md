@@ -114,7 +114,9 @@ Comments/links: https://gist.github.com/jj1bdx/1adac3e305d0fb6dee90dd5b909513ed
 
 At the moment we will detect and panic in the
 case an IPv6 network is used with QUIC to warn you
-of this issue.
+of this issue. Comment out the panic at
+https://github.com/glycerine/rpc25519/blob/master/quic_server.go#L67
+to disregard this warning and try your luck.
 
 How to KYC or Know Your Clients
 ------------------------
