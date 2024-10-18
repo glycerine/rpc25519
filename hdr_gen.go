@@ -70,9 +70,9 @@ doneWithStruct0zgensym_28874796354aa7f3_1:
 		switch curField0zgensym_28874796354aa7f3_1 {
 		// -- templateDecodeMsg ends here --
 
-		case "Created_zid00_str":
+		case "Created_zid00_tim":
 			found0zgensym_28874796354aa7f3_1[0] = true
-			z.Created, err = dc.ReadString()
+			z.Created, err = dc.ReadTime()
 			if err != nil {
 				return
 			}
@@ -159,7 +159,7 @@ doneWithStruct0zgensym_28874796354aa7f3_1:
 }
 
 // fields of HDR
-var decodeMsgFieldOrder0zgensym_28874796354aa7f3_1 = []string{"Created_zid00_str", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "IsRPC_zid04_boo", "IsLeg2_zid05_boo", "Serial_zid06_i64", "CallID_zid07_str", "PID_zid08_i64", "Seqno_zid09_u64", "IsNetRPC_zid10_boo", ""}
+var decodeMsgFieldOrder0zgensym_28874796354aa7f3_1 = []string{"Created_zid00_tim", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "IsRPC_zid04_boo", "IsLeg2_zid05_boo", "Serial_zid06_i64", "CallID_zid07_str", "PID_zid08_i64", "Seqno_zid09_u64", "IsNetRPC_zid10_boo", ""}
 
 var decodeMsgFieldSkip0zgensym_28874796354aa7f3_1 = []bool{false, false, false, false, false, false, false, false, false, false, false, true}
 
@@ -169,7 +169,7 @@ func (z *HDR) fieldsNotEmpty(isempty []bool) uint32 {
 		return 11
 	}
 	var fieldsInUse uint32 = 11
-	isempty[0] = (len(z.Created) == 0) // string, omitempty
+	isempty[0] = (z.Created.IsZero()) // time.Time, omitempty
 	if isempty[0] {
 		fieldsInUse--
 	}
@@ -244,12 +244,12 @@ func (z *HDR) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_28874796354aa7f3_2[0] {
-		// write "Created_zid00_str"
-		err = en.Append(0xb1, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x73, 0x74, 0x72)
+		// write "Created_zid00_tim"
+		err = en.Append(0xb1, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x74, 0x69, 0x6d)
 		if err != nil {
 			return err
 		}
-		err = en.WriteString(z.Created)
+		err = en.WriteTime(z.Created)
 		if err != nil {
 			return
 		}
@@ -392,9 +392,9 @@ func (z *HDR) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
 	if !empty[0] {
-		// string "Created_zid00_str"
-		o = append(o, 0xb1, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x73, 0x74, 0x72)
-		o = msgp.AppendString(o, z.Created)
+		// string "Created_zid00_tim"
+		o = append(o, 0xb1, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x64, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x74, 0x69, 0x6d)
+		o = msgp.AppendTime(o, z.Created)
 	}
 
 	if !empty[1] {
@@ -525,9 +525,9 @@ doneWithStruct4zgensym_28874796354aa7f3_5:
 		switch curField4zgensym_28874796354aa7f3_5 {
 		// -- templateUnmarshalMsg ends here --
 
-		case "Created_zid00_str":
+		case "Created_zid00_tim":
 			found4zgensym_28874796354aa7f3_5[0] = true
-			z.Created, bts, err = nbs.ReadStringBytes(bts)
+			z.Created, bts, err = nbs.ReadTimeBytes(bts)
 
 			if err != nil {
 				return
@@ -625,13 +625,13 @@ doneWithStruct4zgensym_28874796354aa7f3_5:
 }
 
 // fields of HDR
-var unmarshalMsgFieldOrder4zgensym_28874796354aa7f3_5 = []string{"Created_zid00_str", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "IsRPC_zid04_boo", "IsLeg2_zid05_boo", "Serial_zid06_i64", "CallID_zid07_str", "PID_zid08_i64", "Seqno_zid09_u64", "IsNetRPC_zid10_boo", ""}
+var unmarshalMsgFieldOrder4zgensym_28874796354aa7f3_5 = []string{"Created_zid00_tim", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "IsRPC_zid04_boo", "IsLeg2_zid05_boo", "Serial_zid06_i64", "CallID_zid07_str", "PID_zid08_i64", "Seqno_zid09_u64", "IsNetRPC_zid10_boo", ""}
 
 var unmarshalMsgFieldSkip4zgensym_28874796354aa7f3_5 = []bool{false, false, false, false, false, false, false, false, false, false, false, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *HDR) Msgsize() (s int) {
-	s = 1 + 18 + msgp.StringPrefixSize + len(z.Created) + 15 + msgp.StringPrefixSize + len(z.From) + 13 + msgp.StringPrefixSize + len(z.To) + 18 + msgp.StringPrefixSize + len(z.Subject) + 16 + msgp.BoolSize + 17 + msgp.BoolSize + 17 + msgp.Int64Size + 17 + msgp.StringPrefixSize + len(z.CallID) + 14 + msgp.Int64Size + 16 + msgp.Uint64Size + 19 + msgp.BoolSize
+	s = 1 + 18 + msgp.TimeSize + 15 + msgp.StringPrefixSize + len(z.From) + 13 + msgp.StringPrefixSize + len(z.To) + 18 + msgp.StringPrefixSize + len(z.Subject) + 16 + msgp.BoolSize + 17 + msgp.BoolSize + 17 + msgp.Int64Size + 17 + msgp.StringPrefixSize + len(z.CallID) + 14 + msgp.Int64Size + 16 + msgp.Uint64Size + 19 + msgp.BoolSize
 	return
 }
 

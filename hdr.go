@@ -91,28 +91,28 @@ func (m *Message) AsGreenpack(scratch []byte) (o []byte, err error) {
 type HDR struct {
 	Nc net.Conn `msg:"-"` // registered func can query caller details.
 
-	Created  string `zid:"0"`  // HDR creation time stamp.
-	From     string `zid:"1"`  // originator host:port address.
-	To       string `zid:"2"`  // destination host:port address.
-	Subject  string `zid:"3"`  // in net/rpc, the "Service.Method" ServiceName
-	IsRPC    bool   `zid:"4"`  // in rpc25519 Message API, is this a TwoWayFunc call?
-	IsLeg2   bool   `zid:"5"`  // in rpc25519 Message API, is TwoWayFunc reply?
-	Serial   int64  `zid:"6"`  // serially incremented tracking number
-	CallID   string `zid:"7"`  // 40-byte crypto/rand base-58 coded string (same on response).
-	PID      int64  `zid:"8"`  // Process ID of originator.
-	Seqno    uint64 `zid:"9"`  // client set sequence number for each call (same on response).
-	IsNetRPC bool   `zid:"10"` // is net/rpc API in use for this request/response?
+	Created  time.Time `zid:"0"`  // HDR creation time stamp.
+	From     string    `zid:"1"`  // originator host:port address.
+	To       string    `zid:"2"`  // destination host:port address.
+	Subject  string    `zid:"3"`  // in net/rpc, the "Service.Method" ServiceName
+	IsRPC    bool      `zid:"4"`  // in rpc25519 Message API, is this a TwoWayFunc call?
+	IsLeg2   bool      `zid:"5"`  // in rpc25519 Message API, is TwoWayFunc reply?
+	Serial   int64     `zid:"6"`  // serially incremented tracking number
+	CallID   string    `zid:"7"`  // 40-byte crypto/rand base-58 coded string (same on response).
+	PID      int64     `zid:"8"`  // Process ID of originator.
+	Seqno    uint64    `zid:"9"`  // client set sequence number for each call (same on response).
+	IsNetRPC bool      `zid:"10"` // is net/rpc API in use for this request/response?
 }
 
 // NewHDR creates a new HDR header.
 func NewHDR(from, to, subject string, isRPC bool, isLeg2 bool) (m *HDR) {
 	t0 := time.Now()
-	created := t0.In(chicago).Format(rfc3339NanoNumericTZ0pad)
+	//created := t0.In(chicago).Format(rfc3339NanoNumericTZ0pad)
 	serial := atomic.AddInt64(&lastSerial, 1)
 	// unchecked base58
 	rness := toUncheckedBase58(cryptoRandBytes(40))
 	m = &HDR{
-		Created: created,
+		Created: t0,
 		From:    from,
 		To:      to,
 		Subject: subject,
@@ -136,7 +136,7 @@ func (a *HDR) Equal(b *HDR) bool {
 		return false
 	}
 
-	return a.Created == b.Created &&
+	return a.Created.Equal(b.Created) &&
 		a.From == b.From &&
 		a.To == b.To &&
 		a.Subject == b.Subject &&

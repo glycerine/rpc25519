@@ -39,6 +39,8 @@ func Test010_MID_generation(t *testing.T) {
 		mid2back, err := HDRFromOpaqueURLFriendly(friendly)
 		panicOn(err)
 
+		//vv("mid2back = '%v'", mid2back)
+		//vv("mid2 = '%v'", mid2)
 		cv.So(mid2back.Equal(mid2), cv.ShouldBeTrue)
 
 		vv("back from friendly: '%v'", mid2back.String())

@@ -3,6 +3,7 @@ package rpc25519
 import (
 	cryrand "crypto/rand"
 	"crypto/sha256"
+	"fmt"
 	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/hkdf"
 	"io"
@@ -39,7 +40,15 @@ import (
 // are not used.
 //
 // It can also provide post-quantum resistance for the TCP
-// alone option, but this is still vulnerable to replay attacks.
+// alone option, but this is still vulnerable to active
+// replay/DoS attacks. For details of such attacks, see for example the
+// discussion under "DoS Mitigation" in the
+// Wireguard docs: https://www.wireguard.com/protocol/
+//
+// We cannot, therefore, recommend that you use TCP alone --
+// even if secured by the ephemeral ECDH handshake with PSK --
+// unless your application's security model can afford
+// to ignore active attackers and denial-of-service attacks.
 //
 // [1] Using the "HMAC-based Extract-and-Expand Key Derivation
 //     Function (HKDF) as defined in RFC 5869" as implemented
@@ -78,6 +87,8 @@ in crypto/tls. Quoting the release notes:
 Best,
 Russ
 */
+
+var _ = fmt.Printf
 
 func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymmetricKey [32]byte, err error) {
 	//vv("top of symmetricServerHandshake")
