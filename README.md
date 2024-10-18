@@ -21,6 +21,13 @@ client and server in the same process to share a UDP port.
 This feature can be super useful for conserving ports
 and connecting across networks.
 
+The [docs are here](https://pkg.go.dev/github.com/glycerine/rpc25519). 
+
+For getting started, see the small example programs here: https://github.com/glycerine/rpc25519/tree/master/cmd
+
+These illustrate client (`cli`), server (`srv`), and QUIC port sharing 
+by a client and a server (`samesame`).
+
 In the broadest of strokes:
 
 [`rpc25519`](https://github.com/glycerine/rpc25519) is a Remote Procedure Call system with two APIs.
@@ -219,7 +226,12 @@ The ChaCha20, Poly1305, and Curve25519 parts are the same.
 `Config.PreSharedKeyPath` allows specifying a 32 byte pre-shared key
 file for further security. An additional, independent layer of XChaCha20-Poly1305
 stream cipher/AEAD will be applied based on that key. The same
-key content must be available to both client and server.
+pre-shared-key must be available to both client and server.
+The file format is just raw random binary bytes. See
+the srv_test.go `Test011_PreSharedKey_over_TCP` test in
+https://github.com/glycerine/rpc25519/blob/master/srv_test.go#L297
+for an example of using `NewXChaCha20CryptoRandKey()`
+to generate a key programmatically.
 
 security posture for both extremes
 ----------------

@@ -134,7 +134,7 @@ func (blab *blabber) sendMessage(conn uConn, msg *Message, timeout *time.Duratio
 	return blab.enc.sendMessage(conn, msg, timeout)
 }
 
-func newXChaCha20CryptoRandKey() []byte {
+func NewXChaCha20CryptoRandKey() []byte {
 	key := make([]byte, chacha20poly1305.KeySize) // 32 bytes
 	if _, err := cryrand.Read(key); err != nil {
 		log.Fatal(err)

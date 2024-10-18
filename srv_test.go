@@ -294,7 +294,7 @@ func Test011_PreSharedKey_over_TCP(t *testing.T) {
 		path := "certs/psk.binary"
 		if !fileExists(path) {
 			// Define a shared secret key (32 bytes for AES-256-GCM)
-			key := newXChaCha20CryptoRandKey()
+			key := NewXChaCha20CryptoRandKey()
 			fd, err := os.Create(path)
 			panicOn(err)
 			n, err := fd.Write(key)
