@@ -145,6 +145,7 @@ func (a *HDR) Equal(b *HDR) bool {
 		a.Serial == b.Serial &&
 		a.CallID == b.CallID &&
 		a.PID == b.PID &&
+		a.Seqno == b.Seqno &&
 		a.IsNetRPC == b.IsNetRPC
 }
 
