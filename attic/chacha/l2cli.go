@@ -4,6 +4,7 @@ package main
 
 import (
 	cryrand "crypto/rand"
+	mathrandv2 "math/rand/v2"
 	//"fmt"
 	"bytes"
 	//"encoding/binary"
@@ -38,10 +39,24 @@ func main() {
 
 	by := make([]byte, maxMessage-44) // 2GB - 44, our max message size minus 44 bytes of overhead+nonce+msgLen 4 bytes
 	t0 := time.Now()
-	_, err = cryrand.Read(by)
-	panicOn(err)
+
+	trueRandom := false
+	if trueRandom {
+		_, err = cryrand.Read(by)
+		panicOn(err)
+		vv("elap %v to generate 2GB cryrand data: %v", time.Since(t0), len(by))
+
+	} else {
+		var seed [32]byte
+		_, err = cryrand.Read(seed[:])
+		panicOn(err)
+
+		cc := mathrandv2.NewChaCha8(seed)
+		_, err = cc.Read(by)
+		panicOn(err)
+		vv("elap %v to generate 2GB ChaCha8 data: %v", time.Since(t0), len(by))
+	}
 	// elap 4.998854362s to generate 2GB cryrand data => 400 MB/sec.
-	vv("elap %v to generate 2GB cryrand data: %v", time.Since(t0), len(by))
 
 	t1 := time.Now()
 
