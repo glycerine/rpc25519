@@ -1,4 +1,4 @@
-rpc25519: Edwards curve ed25519 based identity RPC for Go/golang
+rpc25519: ed25519 based RPC for Go/golang
 ==========
 
 Motivation: I needed a small, simple, and compact RPC system
