@@ -63,7 +63,7 @@ Using the rpc25519.Message based API:
  * [`Server.Register1Func()`](https://pkg.go.dev/github.com/glycerine/rpc25519#Server.Register1Func) registers one-way (no reply) callbacks on the server. They look like this:
 
 ~~~
-  func ExampleOneWayFunc(req *Message) {}
+  func ExampleOneWayFunc(req *Message) { ... }
 ~~~
 
  * [`Server.Register2Func()`](https://pkg.go.dev/github.com/glycerine/rpc25519#Server.Register2Func) registers traditional two-way callbacks. They look like this:
