@@ -24,11 +24,14 @@ and connecting across networks.
 The [rpc25519 package docs are here](https://pkg.go.dev/github.com/glycerine/rpc25519). 
 
 ~~~
-# to install:
+# to install/get started:
+#
 $ git clone https://github.com/glycerine/greenpack ## pre-requisite for building
 $ cd greenpack; make; cd ..
 $ git clone https://github.com/glycerine/rpc25519
-$ cd rpc25519; make; make run  ## build and verify with a simple cli/srv test run
+$ cd rpc25519;  make
+$ ./selfy -k client -nopass; ./selfy -k node -nopass ## make test keys and CA
+$ make run && make runq  ## verify TLS over TCP and QUIC
 ~~~
 
 For getting started, see the small example programs here: https://github.com/glycerine/rpc25519/tree/master/cmd . These illustrate client (`cli`), server (`srv`), and QUIC port sharing 
