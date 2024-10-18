@@ -68,6 +68,34 @@ Using the rpc25519.Message based API:
 ~~~
   func ExampleTwoWayFunc(req *Message, reply *Message) error { ... }
 ~~~
+The central Message struct itself is simple.
+~~~
+  type Message struct {
+
+   // HDR contains header information.
+   HDR HDR `zid:"0"`
+
+   // JobSerz is the "body" of the message.
+   // The user provides and interprets this.
+   JobSerz []byte `zid:"1"`
+
+   // JobErrs returns error information from the server-registered
+   // user-defined callback functions.
+   JobErrs string `zid:"2"`
+
+   // Err is not serialized on the wire by the server.
+   // It communicates only local (client side) information. Callback
+   // functions should convey errors in JobErrs or in-band within
+   // JobSerz.
+   Err error `msg:"-"`
+
+   // DoneCh will receive this Message itself when the call completes.
+   // It must be buffered, with at least capacity 1.
+   // NewMessage() automatically allocates DoneCh correctly and
+   // should be used when creating a new Message.
+   DoneCh chan *Message `msg:"-"`
+}
+~~~
 
 Using the net/rpc API:
 
@@ -313,15 +341,12 @@ to create keys).
 
 
 ~~~
-// Config says who to contact (for a client), or
-// where to listen (for a server); and sets how
-// strong a security posture we adopt.
 type Config struct {
 
 	// ServerAddr host:port where the server should listen.
 	ServerAddr string
 
-	// optional. Can be used to suggest that the 
+	// optional. Can be used to suggest that the
 	// client use a specific host:port. NB: For QUIC, by default, the client and
 	// server will share the same port if they are in the same process.
 	// In that case this setting will definitely be ignored.
@@ -336,12 +361,8 @@ type Config struct {
 	// UseQUIC cannot be true if TCPonly_no_TLS is true.
 	UseQUIC bool
 
-	// path to certs/ like certificate directory 
-	// on the live filesystem. If left
-	// empty then the embedded certs/ from build-time, those 
-	// copied from the on-disk certs/ directory and baked 
-	// into the executable as a virtual file system with
-	// the go:embed directive are used.
+	// path to certs/ like certificate
+	// directory on the live filesystem.
 	CertPath string
 
 	// SkipVerifyKeys true allows any incoming
@@ -352,15 +373,35 @@ type Config struct {
 	// with the any random agent/hacker/public person
 	// is desired.
 	SkipVerifyKeys bool
+
+    // default "client" means use certs/client.crt and certs/client.key
+	ClientKeyPairName string 
+	
+	// default "node" means use certs/node.crt and certs/node.key
+	ServerKeyPairName string 
+
+	// PreSharedKeyPath locates an optional pre-shared
+	// hex written in hex that must be 32 bytes (or more) long
+	// (so 64 hex characters). Only the first 32 bytes will
+	// be used to create a symmetric 2nd encryption layer.
+	PreSharedKeyPath string
+
+	// These are timeouts for connection and transport tuning.
+	// The defaults of 0 mean wait forever.
+	ConnectTimeout time.Duration
+	ReadTimeout    time.Duration
+	WriteTimeout   time.Duration
+
+	...
 	
 	// This is not a Config option, but creating
-	// the known key file on the client/server is
+	// the known_{client,server}_keys file on the client/server is
 	// typically the last security measure in hardening.
 	//
-	// If known_client_keys exists on the server,
+	// If known_client_keys exists in the server's directory,
 	// then we will read from it.
-	// Likewise, if known_server_keys exists on
-	// the client, then we will read from it.
+	// Likewise, if known_server_keys exists in
+	// the client's directory, then we will read from it.
 	//
 	// If the known keys file is read-only: Read-only
 	// means we are in lockdown mode and no unknown
@@ -376,8 +417,7 @@ type Config struct {
 	// had better not be empty or nobody will be
 	// able to contact us. The server will notice
 	// this and crash since why bother being up.
-
-	...
+	
 }
 ~~~
 
