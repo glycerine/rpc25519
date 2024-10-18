@@ -113,7 +113,7 @@ See [the net/rpc docs for full guidance on using that API](https://pkg.go.dev/ne
 * Extended method types:
 
 Callback methods in the [net/rpc](https://pkg.go.dev/net/rpc) 
-style traditionally look like the `NoContext` func above. 
+style traditionally look like the `NoContext` method above. 
 We also allow a ctx context.Context as an additional first
 parameter. This is an extension to what `net/rpc` provides.
 The ctx will have an "HDR" value set on it giving a pointer to
