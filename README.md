@@ -52,7 +52,7 @@ Using the rpc25519.Message based API:
   func ExampleOneWayFunc(req *Message) {}
 ~~~
 
- * [`Server.Register2Func()`](https://pkg.go.dev/github.com/glycerine/rpc25519#Server.Register2Func) registers traditional two-way callbacks. The look like this:
+ * [`Server.Register2Func()`](https://pkg.go.dev/github.com/glycerine/rpc25519#Server.Register2Func) registers traditional two-way callbacks. They look like this:
 
 ~~~
   func ExampleTwoWayFunc(req *Message, reply *Message) error { ... }
@@ -89,6 +89,8 @@ if hdr := ctx.Value("HDR"); hdr != nil {
    } else {
       fmt.Println("HDR not found")
    }
+   ...
+   return nil
 }
 ~~~
 
