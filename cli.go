@@ -194,6 +194,11 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		//}
 	}
 
+	if c.cfg.encryptPSK {
+		c.cfg.randomSymmetricSessKeyFromPreSharedKey, err = symmetricClientHandshake(conn, c.cfg.preSharedKey)
+		panicOn(err)
+	}
+
 	go c.runSendLoop(conn)
 	c.runReadLoop(conn)
 }
@@ -219,6 +224,11 @@ func (c *Client) runClientTCP(serverAddr string) {
 	defer conn.Close()
 	//log.Printf("connected to server %s", serverAddr)
 
+	if c.cfg.encryptPSK {
+		c.cfg.randomSymmetricSessKeyFromPreSharedKey, err = symmetricClientHandshake(conn, c.cfg.preSharedKey)
+		panicOn(err)
+	}
+
 	go c.runSendLoop(conn)
 	c.runReadLoop(conn)
 }
@@ -229,8 +239,13 @@ func (c *Client) runReadLoop(conn net.Conn) {
 		c.halt.Done.Close()
 	}()
 
+	symkey := c.cfg.preSharedKey
+	if c.cfg.encryptPSK {
+		symkey = c.cfg.randomSymmetricSessKeyFromPreSharedKey
+	}
+
 	//w := newWorkspace(maxMessage)
-	w := newBlabber(c.cfg.preSharedKey, conn, c.cfg.encryptPSK, maxMessage)
+	w := newBlabber(symkey, conn, c.cfg.encryptPSK, maxMessage)
 
 	readTimeout := time.Millisecond * 100
 	for {
@@ -317,8 +332,13 @@ func (c *Client) runSendLoop(conn net.Conn) {
 		c.halt.Done.Close()
 	}()
 
+	symkey := c.cfg.preSharedKey
+	if c.cfg.encryptPSK {
+		symkey = c.cfg.randomSymmetricSessKeyFromPreSharedKey
+	}
+
 	//w := newWorkspace(maxMessage)
-	w := newBlabber(c.cfg.preSharedKey, conn, c.cfg.encryptPSK, maxMessage)
+	w := newBlabber(symkey, conn, c.cfg.encryptPSK, maxMessage)
 
 	// PRE: Message.DoneCh must be buffered at least 1, so our logic below does not have to deal with ever blocking.
 	for {
@@ -503,8 +523,9 @@ type Config struct {
 	// be used to create a symmetric 2nd encryption layer.
 	PreSharedKeyPath string
 
-	preSharedKey [32]byte
-	encryptPSK   bool
+	preSharedKey                           [32]byte
+	randomSymmetricSessKeyFromPreSharedKey [32]byte
+	encryptPSK                             bool
 
 	// These are timeouts for connection and transport tuning.
 	// The defaults of 0 mean wait forever.

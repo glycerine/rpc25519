@@ -179,8 +179,14 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 
 	wrap := &NetConnWrapper{Stream: stream, Connection: conn}
 
-	//vv("client: local = '%v'", local(wrap))
-	//vv("client: remote = '%v'", remote(wrap))
+	vv("quic client stream: local = '%v'", local(wrap))
+	vv("quic client stream: remote = '%v'", remote(wrap))
+
+	vv("quic client: s.cfg.encryptPSK = %v", c.cfg.encryptPSK)
+	if c.cfg.encryptPSK {
+		c.cfg.randomSymmetricSessKeyFromPreSharedKey, err = symmetricClientHandshake(wrap, c.cfg.preSharedKey)
+		panicOn(err)
+	}
 
 	go c.runSendLoop(wrap)
 	c.runReadLoop(wrap)

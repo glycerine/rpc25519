@@ -39,6 +39,7 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
 	s.cfg.checkPreSharedKey("server")
+	vv("server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 
 	embedded := false                 // always false now
 	sslCA := fixSlash("certs/ca.crt") // path to CA cert
@@ -201,6 +202,13 @@ acceptAgain:
 			}
 		}
 
+		vv("tcp only server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
+		if s.cfg.encryptPSK {
+			var err error
+			s.cfg.randomSymmetricSessKeyFromPreSharedKey, err = symmetricServerHandshake(conn, s.cfg.preSharedKey)
+			panicOn(err)
+		}
+
 		pair := s.newRWPair(conn)
 		go pair.runSendLoop(conn)
 		go pair.runReadLoop(conn)
@@ -264,6 +272,13 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 		//}
 	}
 
+	vv("tls server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
+	if s.cfg.encryptPSK {
+		var err error
+		s.cfg.randomSymmetricSessKeyFromPreSharedKey, err = symmetricServerHandshake(conn, s.cfg.preSharedKey)
+		panicOn(err)
+	}
+
 	pair := s.newRWPair(conn)
 	go pair.runSendLoop(conn)
 	pair.runReadLoop(conn)
@@ -275,7 +290,12 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		s.halt.Done.Close()
 	}()
 
-	w := newBlabber(s.Server.cfg.preSharedKey, conn, s.Server.cfg.encryptPSK, maxMessage)
+	symkey := s.Server.cfg.preSharedKey
+	if s.cfg.encryptPSK {
+		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
+	}
+
+	w := newBlabber(symkey, conn, s.Server.cfg.encryptPSK, maxMessage)
 	//w := newWorkspace(maxMessage)
 
 	for {
@@ -308,7 +328,11 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 	}()
 
-	w := newBlabber(s.Server.cfg.preSharedKey, conn, s.Server.cfg.encryptPSK, maxMessage)
+	symkey := s.Server.cfg.preSharedKey
+	if s.cfg.encryptPSK {
+		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
+	}
+	w := newBlabber(symkey, conn, s.Server.cfg.encryptPSK, maxMessage)
 	//w := newWorkspace(maxMessage)
 
 	var callme1 OneWayFunc

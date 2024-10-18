@@ -199,7 +199,7 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 			for {
 				// Accept a stream
 				stream, err := conn.AcceptStream(context.Background())
-
+				vv("quic server accepted a stream, err='%v'", err)
 				if err != nil {
 					if strings.Contains(err.Error(), "timeout: no recent network activity") {
 						// ignore these, they happen every 30 seconds or so.
@@ -220,6 +220,13 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 					// quic_server.go:164 2024-10-10 04:33:25.953 -0500 CDT quic_server: Error accepting stream: Application error 0x0 (local): server shutdown
 					//vv("quic_server: Error accepting stream: %v", err)
 					return
+				}
+
+				vv("quic server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
+				if s.cfg.encryptPSK {
+					wrap := &NetConnWrapper{Stream: stream, Connection: conn}
+					s.cfg.randomSymmetricSessKeyFromPreSharedKey, err = symmetricServerHandshake(wrap, s.cfg.preSharedKey)
+					panicOn(err)
 				}
 
 				pair := s.newQUIC_RWPair(stream, conn)
@@ -280,8 +287,12 @@ func (s *quicRWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 		s.halt.Done.Close()
 	}()
 
+	symkey := s.Server.cfg.preSharedKey
+	if s.cfg.encryptPSK {
+		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
+	}
 	//w := newWorkspace(maxMessage)
-	w := newBlabber(s.Server.cfg.preSharedKey, stream, s.Server.cfg.encryptPSK, maxMessage)
+	w := newBlabber(symkey, stream, s.Server.cfg.encryptPSK, maxMessage)
 
 	for {
 		select {
@@ -307,7 +318,11 @@ func (s *quicRWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 		conn.CloseWithError(0, "server shutdown") // just the one, let other clients continue.
 	}()
 
-	w := newBlabber(s.Server.cfg.preSharedKey, stream, s.Server.cfg.encryptPSK, maxMessage)
+	symkey := s.Server.cfg.preSharedKey
+	if s.cfg.encryptPSK {
+		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
+	}
+	w := newBlabber(symkey, stream, s.Server.cfg.encryptPSK, maxMessage)
 	//w := newWorkspace(maxMessage)
 
 	wrap := &NetConnWrapper{Stream: stream, Connection: conn}

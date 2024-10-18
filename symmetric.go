@@ -11,25 +11,8 @@ import (
 	//"net"
 )
 
-func symmetricServerMain(conn uConn, psk []byte) (sharedSecretRandomSymmetricKey []byte, err error) {
-	if len(psk) != 32 {
-		panic(fmt.Sprintf("psk must be 32 bytes: we see %v", len(psk)))
-	}
-
-	/*
-		listener, err := net.Listen("tcp", ":8080")
-		if err != nil {
-			panic(err)
-		}
-		defer listener.Close()
-		conn, err := listener.Accept()
-		if err != nil {
-			panic(err)
-		}
-		defer conn.Close()
-
-		fmt.Printf("listening on '%v'\n", conn.LocalAddr())
-	*/
+func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymmetricKey [32]byte, err error) {
+	vv("top of symmetricServerHandshake")
 
 	// Generate ephemeral X25519 key pair
 	serverPrivateKey, serverPublicKey, err := generateX25519KeyPair()
@@ -37,15 +20,15 @@ func symmetricServerMain(conn uConn, psk []byte) (sharedSecretRandomSymmetricKey
 		panic(err)
 	}
 
-	// Send the public key to the client
-	_, err = conn.Write(serverPublicKey[:])
+	// Read the client's public key. Server *must* read first.
+	clientPublicKey := make([]byte, 32)
+	_, err = io.ReadFull(conn, clientPublicKey)
 	if err != nil {
 		panic(err)
 	}
 
-	// Read the client's public key
-	clientPublicKey := make([]byte, 32)
-	_, err = io.ReadFull(conn, clientPublicKey)
+	// Send the public key to the client
+	_, err = conn.Write(serverPublicKey[:])
 	if err != nil {
 		panic(err)
 	}
@@ -57,12 +40,18 @@ func symmetricServerMain(conn uConn, psk []byte) (sharedSecretRandomSymmetricKey
 	}
 
 	// Derive the final symmetric key using HKDF
-	key := deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk)
+	var ssec [32]byte
+	n := copy(ssec[:], sharedSecret)
+	if n != 32 {
+		panic("sharedSecret must be 32 bytes")
+	}
+
+	key := deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(ssec, psk)
 
 	// Print the symmetric key (for demonstration purposes)
 	fmt.Printf("Server derived symmetric key: %x\n", key[:])
 
-	return key[:], nil
+	return key, nil
 }
 
 func generateX25519KeyPair() (privateKey, publicKey [32]byte, err error) {
@@ -85,9 +74,9 @@ func generateX25519KeyPair() (privateKey, publicKey [32]byte, err error) {
 	return privateKey, publicKey, nil
 }
 
-func deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk []byte) [32]byte {
+func deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk [32]byte) [32]byte {
 	// Use HKDF with SHA-256, mixing in the pre-shared key
-	hkdf := hkdf.New(sha256.New, sharedSecret, psk, nil)
+	hkdf := hkdf.New(sha256.New, sharedSecret[:], psk[:], nil)
 
 	var finalKey [32]byte
 	_, err := io.ReadFull(hkdf, finalKey[:])
@@ -98,10 +87,9 @@ func deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk 
 	return finalKey
 }
 
-func symmetricClientMain(conn uConn, psk []byte) (sharedSecretRandomSymmetricKey []byte, err error) {
-	if len(psk) != 32 {
-		panic(fmt.Sprintf("psk must be 32 bytes: we see %v", len(psk)))
-	}
+func symmetricClientHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymmetricKey [32]byte, err error) {
+	vv("top of symmetricClientHandshake")
+
 	/*
 		conn, err := net.Dial("tcp", "localhost:8080")
 		if err != nil {
@@ -116,15 +104,15 @@ func symmetricClientMain(conn uConn, psk []byte) (sharedSecretRandomSymmetricKey
 		panic(err)
 	}
 
-	// Read the server's public key
-	serverPublicKey := make([]byte, 32)
-	_, err = io.ReadFull(conn, serverPublicKey)
+	// Send the client's public key to the server. Client must write first (for QUIC).
+	_, err = conn.Write(clientPublicKey[:])
 	if err != nil {
 		panic(err)
 	}
 
-	// Send the client's public key to the server
-	_, err = conn.Write(clientPublicKey[:])
+	// Read the server's public key
+	serverPublicKey := make([]byte, 32)
+	_, err = io.ReadFull(conn, serverPublicKey)
 	if err != nil {
 		panic(err)
 	}
@@ -136,9 +124,14 @@ func symmetricClientMain(conn uConn, psk []byte) (sharedSecretRandomSymmetricKey
 	}
 
 	// Derive the final symmetric key using HKDF
-	key := deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk)
+	var ssec [32]byte
+	n := copy(ssec[:], sharedSecret)
+	if n != 32 {
+		panic("sharedSecret must be 32 bytes")
+	}
+	key := deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(ssec, psk)
 
 	// Print the symmetric key (for demonstration purposes)
 	fmt.Printf("Client derived symmetric key: %x\n", key[:])
-	return key[:], nil
+	return key, nil
 }
