@@ -4,12 +4,10 @@ rpc25519: ed25519 based RPC for Go/golang
 Motivation: I needed a small, simple, and compact RPC system
 with modern, strong cryptography 
 for [goq](https://github.com/glycerine/goq). 
-Other RPC systems were too
-sprawling, had bugs their devs would not address, or could
-not be properly or easily secured. To that end, `rpc25519` only uses
-ed25519 keys for public-key cryptography. A
+To that end, `rpc25519` uses only
+ed25519 keys for its public-key cryptography. A
 second pre-shared-key layer can also be configured
-for post-quantum/extra security.
+for post-quantum security.
 
 Excitedly, I am delighted to report this package also
 supports [QUIC as a transport](https://en.wikipedia.org/wiki/QUIC). 
