@@ -311,9 +311,15 @@ security posture for both extremes
 ----------------
 
 The strength of security is controlled by the Config options
-to NewServer() and NewClient().
+to NewServer() and NewClient(). This section was written
+before we added the second symmetric encryption by
+pre-shared key option. All comments below about 
+lack of security (e.g. in TCPonly_no_TLS = true mode)
+should be read modulo the pre-shared-key stuff: 
+assume there is no 2nd layer.
 
-See the cli.go file. 
+See the cli.go file and the Config struct there;
+also copied below.
 
 By default security is very strong, requiring TLS-1.3 and valid
 signed client certs, but allowing TOFU for previously unseen clients
