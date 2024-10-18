@@ -297,7 +297,9 @@ to generate a key programmatically. Or just use
 ~~~
 selfy -gensym my_pre_shared_key.binary
 ~~~
-on the command line.
+on the command line. For safety, `selfy -gensym` will 
+not over-write an existing file. If you want 
+to change keys, `mv` the old key out of the way first.
 
 security posture for both extremes
 ----------------
