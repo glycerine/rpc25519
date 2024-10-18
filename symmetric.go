@@ -11,7 +11,7 @@ import (
 	"net"
 )
 
-func symmetricServerMain(psk []byte) {
+func symmetricServerMain(psk []byte) (sharedSecretRandomSymmetricKey []byte, err error) {
 	if len(psk) != 32 {
 		panic(fmt.Sprintf("psk must be 32 bytes: we see %v", len(psk)))
 	}
@@ -50,7 +50,8 @@ func symmetricServerMain(psk []byte) {
 	key := deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk)
 
 	// Print the symmetric key (for demonstration purposes)
-	fmt.Printf("Client derived symmetric key: %x\n", key[:])
+	//fmt.Printf("Client derived symmetric key: %x\n", key[:])
+	return key[:], nil
 }
 
 func generateX25519KeyPair() (privateKey, publicKey [32]byte, err error) {
@@ -86,7 +87,7 @@ func deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk 
 	return finalKey
 }
 
-func symmetricClientMain(psk []byte) {
+func symmetricClientMain(psk []byte) (sharedSecretRandomSymmetricKey []byte, err error) {
 	if len(psk) != 32 {
 		panic(fmt.Sprintf("psk must be 32 bytes: we see %v", len(psk)))
 	}
@@ -125,5 +126,6 @@ func symmetricClientMain(psk []byte) {
 	key := deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk)
 
 	// Print the symmetric key (for demonstration purposes)
-	fmt.Printf("Client derived symmetric key: %x\n", key[:])
+	//fmt.Printf("Client derived symmetric key: %x\n", key[:])
+	return key[:], nil
 }
