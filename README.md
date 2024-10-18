@@ -36,9 +36,10 @@ We offer both a traditional [net/rpc](https://pkg.go.dev/net/rpc)
 style API, and a generic []byte oriented API for carrying
 user typed or self describing []byte payloads (in `Message.JobSerz`). 
 
-The `net/rpc` API continues to use gobs. We have simply
-layered that packages client-facing layer over our 
-[]byte slice transport infrastructure.
+The `net/rpc` API continues to use [gob encoding](https://pkg.go.dev/encoding/gob). 
+We simply re-used that package's client-facing code layer, and
+wired it into/on top of our native []byte slice `Message` transport infrastructure.
+(The LICENSE file reflects this code re-use.)
 
 The byte slice API is designed to work smoothly 
 with our [greenpack serialization format](https://github.com/glycerine/greenpack)
