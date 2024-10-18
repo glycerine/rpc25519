@@ -8,31 +8,76 @@ import (
 	"io"
 )
 
-// Intent of symmetric.go:
+// Intent of symmetric.go: provide "inside" layer of
+// encryption for post-quantum resistance.
 //
 // Like Wireguard, we do not use the symmetric
-// pre-shared-key from disk directly for encryption.
-// Instead we do an elyptic curve Diffie-Helmann handshake
-// first to get a shared random secret for this session. Then
-// we mix the session random secret with the symmetric pre-shared
-// key from disk to derive the symmetric encryption session
-// key for this session (quic stream). Each quic stream or
-// tls connection or tcp session will do this handshake if
-// pre-shared-keys are enabled, providing forward secrecy
-// even if the symmetric pre-shared key from disk is compromised.
+// pre-shared-key (PSK) from disk directly for encryption.
 //
-// This also greatly reduces the risk of nonce reuse, because
-// a repeated nonce with a different session key is not actually
-// reused. Wireguard can then use incrementing nonces
-// to also detect and reject replay attacks. We might want
-// to do the same, but since our symmetric psk is intended
-// to be used *inside* quic or tls already, and because
-// random nonces are much easier to manage, we forgo that
-// complication. If you use TCP only with the symmetric
-// pre-shared-key, then you may want to consider
-// incrementing nonces, but then a cryptography review
-// of your entire protocol would be in order and that
-// is out of scope here.
+// Instead we do an elliptic curve Diffie-Helmann handshake
+// first to get a shared random secret for this session.
+// TLS-v1.3 does the same. This provides forward secrecy
+// and a per-session (shared) random secret for the symmetric
+// encryption that follows.
+//
+// The difference with the PSK is: we then strong-hash[1] together
+// the per-session random secret with the PSK from
+// disk to derive the symmetric encryption session
+// key for this session (QUIC stream/TLS conn).
+// Wireguard does the same but in the "outer" session;
+// it has no "inner" session.
+//
+// Each of our QUIC streams or TLS connections (or TCP sessions)
+// will do this second handshake if pre-shared-keys are enabled.
+// We do this handshake as the very first communication
+// inside the already encrypted stream, before any other
+// messages are exchanged.
+//
+// This provides the 2nd layer with post-quantum resistance,
+// even if the newer post-quantum resistance options
+// for the outer TLS-v1.3 (that came in go1.23; see below)
+// are not used.
+//
+// It can also provide post-quantum resistance for the TCP
+// alone option, but this is still vulnerable to replay attacks.
+//
+// [1] Using the "HMAC-based Extract-and-Expand Key Derivation
+//     Function (HKDF) as defined in RFC 5869" as implemented
+//     in https://pkg.go.dev/golang.org/x/crypto/hkdf
+//     Its docs:
+//     "HKDF is a cryptographic key derivation function (KDF)
+//      with the goal of expanding limited input keying material
+//      into one or more cryptographically strong secret keys."
+//
+// Note: In go1.23 there actually is some post-quantum resistance
+// for the TLS handshake built in by default:
+/*
+https://groups.google.com/g/golang-dev/c/-hmSqJm03V0/m/MYGjVWUzCgAJ
+Aug 28, 2024, 3:26:47 AM
+Russ Cox wrote:
+
+A year ago Filippo wrote back to you saying:
+
+> We're experimenting with Kyber, as KEMs are the most
+> urgent concern to protect against collect-now-decrypt-later
+> attacks. It's unlikely we'll expose an API in the
+> standard library before NIST produces a final specification,
+> but we might enable draft hybrid key exchanges in
+> crypto/tls in the meantime, maybe behind a GOEXPERIMENT flag.
+
+That happened. Go 1.23, released a couple weeks ago, includes
+a production Kyber implementation that is enabled by default
+in crypto/tls. Quoting the release notes:
+
+> The experimental post-quantum key exchange mechanism
+> X25519Kyber768Draft00 is now enabled by default when
+> Config.CurvePreferences is nil. The default can be
+> reverted by adding tlskyber=0 to the GODEBUG
+> environment variable.
+
+Best,
+Russ
+*/
 
 func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymmetricKey [32]byte, err error) {
 	//vv("top of symmetricServerHandshake")
@@ -79,11 +124,15 @@ func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymme
 }
 
 func generateX25519KeyPair() (privateKey, publicKey [32]byte, err error) {
-	_, err = cryrand.Read(privateKey[:])
-	if err != nil {
-		return privateKey, publicKey, err
+
+	nr := 0
+	nr, err = cryrand.Read(privateKey[:])
+	panicOn(err)
+	if nr != 32 {
+		panic("short read from cryrand.Read()")
 	}
 
+	// https://cr.yp.to/ecdh.html
 	privateKey[0] &= 248
 	privateKey[31] &= 127
 	privateKey[31] |= 64
@@ -99,7 +148,10 @@ func generateX25519KeyPair() (privateKey, publicKey [32]byte, err error) {
 }
 
 func deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk [32]byte) [32]byte {
-	// Use HKDF with SHA-256, mixing in the pre-shared key
+
+	// Use HKDF with SHA-256, mixing in the pre-shared key.
+	// Note that the psk plays the role of the "salt" in this,
+	// but still must be kept secret in our application.
 	hkdf := hkdf.New(sha256.New, sharedSecret[:], psk[:], nil)
 
 	var finalKey [32]byte
