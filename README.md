@@ -396,7 +396,7 @@ type Config struct {
    ...
    
    // This is not a Config option, but creating
-   // the known_{client,server}_keys file on the client/server is
+   // the known_{server,client}_keys file on the client/server is
    // typically the last security measure in hardening.
    //
    // If known_client_keys exists in the server's directory,
