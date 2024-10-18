@@ -8,6 +8,32 @@ import (
 	"io"
 )
 
+// Intent of symmetric.go:
+//
+// Like Wireguard, we do not use the symmetric
+// pre-shared-key from disk directly for encryption.
+// Instead we do an elyptic curve Diffie-Helmann handshake
+// first to get a shared random secret for this session. Then
+// we mix the session random secret with the symmetric pre-shared
+// key from disk to derive the symmetric encryption session
+// key for this session (quic stream). Each quic stream or
+// tls connection or tcp session will do this handshake if
+// pre-shared-keys are enabled, providing forward secrecy
+// even if the symmetric pre-shared key from disk is compromised.
+//
+// This also greatly reduces the risk of nonce reuse, because
+// a repeated nonce with a different session key is not actually
+// reused. Wireguard can then use incrementing nonces
+// to also detect and reject replay attacks. We might want
+// to do the same, but since our symmetric psk is intended
+// to be used *inside* quic or tls already, and because
+// random nonces are much easier to manage, we forgo that
+// complication. If you use TCP only with the symmetric
+// pre-shared-key, then you may want to consider
+// incrementing nonces, but then a cryptography review
+// of your entire protocol would be in order and that
+// is out of scope here.
+
 func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymmetricKey [32]byte, err error) {
 	//vv("top of symmetricServerHandshake")
 
