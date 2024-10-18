@@ -49,6 +49,15 @@ import (
 // even if secured by the ephemeral ECDH handshake with PSK --
 // unless your application's security model can afford
 // to ignore active attackers and denial-of-service attacks.
+// This may be the case if you are already inside a VPN,
+// for instance. Then opting for triple encryption
+// (VPN + TLS + 2nd symmetric) may be overkill. If
+// you already have pre-shared keys and means to
+// rotate them, then under this scenario opting for just
+// two layers (VPN + TCP with PSK symmetric encryption)
+// might make sense. However consider the limitations of
+// your VPN here[2], as it will be doing the heavy
+// lifting/providing most of the security.
 //
 // [1] Using the "HMAC-based Extract-and-Expand Key Derivation
 //     Function (HKDF) as defined in RFC 5869" as implemented
@@ -57,6 +66,8 @@ import (
 //     "HKDF is a cryptographic key derivation function (KDF)
 //      with the goal of expanding limited input keying material
 //      into one or more cryptographically strong secret keys."
+//
+// [2] for example: https://www.wireguard.com/known-limitations/
 //
 // Note: In go1.23 there actually is some post-quantum resistance
 // for the TLS handshake built in by default:
