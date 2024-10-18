@@ -39,7 +39,7 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
 	s.cfg.checkPreSharedKey("server")
-	vv("server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
+	//vv("server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 
 	embedded := false                 // always false now
 	sslCA := fixSlash("certs/ca.crt") // path to CA cert
@@ -202,7 +202,7 @@ acceptAgain:
 			}
 		}
 
-		vv("tcp only server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
+		//vv("tcp only server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 		if s.cfg.encryptPSK {
 			var err error
 			s.cfg.randomSymmetricSessKeyFromPreSharedKey, err = symmetricServerHandshake(conn, s.cfg.preSharedKey)
@@ -272,7 +272,7 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 		//}
 	}
 
-	vv("tls server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
+	//vv("tls server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 	if s.cfg.encryptPSK {
 		var err error
 		s.cfg.randomSymmetricSessKeyFromPreSharedKey, err = symmetricServerHandshake(conn, s.cfg.preSharedKey)

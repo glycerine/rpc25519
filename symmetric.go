@@ -1,18 +1,15 @@
 package rpc25519
 
 import (
-	//"crypto/hmac"
 	cryrand "crypto/rand"
 	"crypto/sha256"
-	"fmt"
 	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/hkdf"
 	"io"
-	//"net"
 )
 
 func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymmetricKey [32]byte, err error) {
-	vv("top of symmetricServerHandshake")
+	//vv("top of symmetricServerHandshake")
 
 	// Generate ephemeral X25519 key pair
 	serverPrivateKey, serverPublicKey, err := generateX25519KeyPair()
@@ -20,7 +17,8 @@ func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymme
 		panic(err)
 	}
 
-	// Read the client's public key. Server *must* read first.
+	// Read the client's public key. Server *must* read first, since
+	// QUIC streams are only established when the client writes.
 	clientPublicKey := make([]byte, 32)
 	_, err = io.ReadFull(conn, clientPublicKey)
 	if err != nil {
@@ -49,7 +47,7 @@ func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymme
 	key := deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(ssec, psk)
 
 	// Print the symmetric key (for demonstration purposes)
-	fmt.Printf("Server derived symmetric key: %x\n", key[:])
+	//fmt.Printf("Server derived symmetric key: %x\n", key[:])
 
 	return key, nil
 }
@@ -88,15 +86,7 @@ func deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk 
 }
 
 func symmetricClientHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymmetricKey [32]byte, err error) {
-	vv("top of symmetricClientHandshake")
-
-	/*
-		conn, err := net.Dial("tcp", "localhost:8080")
-		if err != nil {
-			panic(err)
-		}
-		defer conn.Close()
-	*/
+	//vv("top of symmetricClientHandshake")
 
 	// Generate ephemeral X25519 key pair
 	clientPrivateKey, clientPublicKey, err := generateX25519KeyPair()
@@ -132,6 +122,6 @@ func symmetricClientHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymme
 	key := deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(ssec, psk)
 
 	// Print the symmetric key (for demonstration purposes)
-	fmt.Printf("Client derived symmetric key: %x\n", key[:])
+	//fmt.Printf("Client derived symmetric key: %x\n", key[:])
 	return key, nil
 }
