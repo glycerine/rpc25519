@@ -41,7 +41,8 @@ For getting started, see the small example programs here: https://github.com/gly
 by a client and a server (`samesame`). The tests in srv_test.go and 
 cli_test.go also make great starting points.
 
-In the broadest of strokes:
+overview
+--------
 
 [`rpc25519`](https://github.com/glycerine/rpc25519) is a Remote Procedure Call system with two APIs.
 
