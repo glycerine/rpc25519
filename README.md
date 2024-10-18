@@ -26,7 +26,7 @@ The [rpc25519 package docs are here](https://pkg.go.dev/github.com/glycerine/rpc
 ~~~
 # to install/get started: (assumes ~/go/bin is in your $PATH)
 #   warning: will overwrite ~/go/bin/{cli,srv,same,selfy,greenpack}
-#      -->   Adjust the Makefile before running if this is a problem.
+#      -->   Adjust the Makefiles before running if this is a problem.
 #
 $ git clone https://github.com/glycerine/greenpack ## pre-req
 $ cd greenpack; make; cd ..
