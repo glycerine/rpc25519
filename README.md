@@ -382,9 +382,9 @@ type Config struct {
    ServerKeyPairName string 
 
    // PreSharedKeyPath locates an optional pre-shared
-   // hex written in hex that must be 32 bytes (or more) long
-   // (so 64 hex characters). Only the first 32 bytes will
-   // be used to create a symmetric 2nd encryption layer.
+   // binary that  must be 32 bytes long.
+   // If supplied, this key will be used in a symmetric 
+   // encryption layer inside the outer TLS encryption.
    PreSharedKeyPath string
 
    // These are timeouts for connection and transport tuning.
