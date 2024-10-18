@@ -7,11 +7,9 @@ for [goq](https://github.com/glycerine/goq).
 Other RPC systems were too
 sprawling, had bugs their devs would not address, or could
 not be properly or easily secured. To that end, `rpc25519` only uses
-ed25519 Edwards curve based public-key cryptography. A
-second pre-shared-key layer based on the XChaCha20-Poly1305
-symmetric stream encryption can also be configured. The
-pre-shared-key traffic is "tunnelled" or runs 
-inside the outer encryption layer.
+ed25519 keys for public-key cryptography. A
+second pre-shared-key layer can also be configured
+for post-quantum/extra security.
 
 Excitedly, I am delighted to report this package also
 supports [QUIC as a transport](https://en.wikipedia.org/wiki/QUIC). 
@@ -291,7 +289,13 @@ The ChaCha20, Poly1305, and Curve25519 parts are the same.
 file for further security. An additional, independent layer of XChaCha20-Poly1305
 stream cipher/AEAD will be applied based on that key. The same
 pre-shared-key must be available to both client and server.
-The file format is just raw random binary bytes. See
+
+The pre-shared-key traffic is "tunnelled" or runs 
+inside the outer encryption layer. Thus a different
+symmetric encryption scheme could be wired in without
+much difficulty.
+
+The pre-shared-key file format is just raw random binary bytes. See
 the srv_test.go `Test011_PreSharedKey_over_TCP` test in
 https://github.com/glycerine/rpc25519/blob/master/srv_test.go#L297
 for an example of using `NewXChaCha20CryptoRandKey()`
