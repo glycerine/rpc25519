@@ -21,7 +21,7 @@ client and server in the same process to share a UDP port.
 This feature can be super useful for conserving ports
 and connecting across networks.
 
-The [docs are here](https://pkg.go.dev/github.com/glycerine/rpc25519). 
+The [rpc25519 package docs are here](https://pkg.go.dev/github.com/glycerine/rpc25519). 
 
 For getting started, see the small example programs here: https://github.com/glycerine/rpc25519/tree/master/cmd . These illustrate client (`cli`), server (`srv`), and QUIC port sharing 
 by a client and a server (`samesame`). The tests in srv_test.go and 
