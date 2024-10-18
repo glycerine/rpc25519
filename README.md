@@ -495,8 +495,8 @@ Usage of selfy:
     
   -gensym string
         generate a new 32-byte symmetric encryption 
-		key with crypto/rand, and save it under 
-		this filename in the -p directory.
+        key with crypto/rand, and save it under 
+        this filename in the -p directory.
     
   -k string
         2nd of 2 steps: -k {key_name} ; create a new ed25519 
