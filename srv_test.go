@@ -3,6 +3,7 @@ package rpc25519
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -291,17 +292,17 @@ func Test011_PreSharedKey_over_TCP(t *testing.T) {
 		cfg.UseQUIC = true
 		//cfg.TCPonly_no_TLS = true
 
-		path := "certs/psk.binary"
+		path := "my-keep-private-dir/psk.binary"
 		if !fileExists(path) {
 			// Define a shared secret key (32 bytes for AES-256-GCM)
 			key := NewXChaCha20CryptoRandKey()
+			odir := filepath.Dir(path)
+			os.MkdirAll(odir, 0700)
+			ownerOnly(odir)
 			fd, err := os.Create(path)
 			panicOn(err)
-			n, err := fd.Write(key)
+			_, err = fd.Write(key)
 			panicOn(err)
-			if n != len(key) {
-				panic("short write")
-			}
 			fd.Close()
 			ownerOnly(path)
 		} else {

@@ -129,17 +129,20 @@ func main() {
 	}
 
 	if c.GenSymmetricKey32bytes != "" {
-		if FileExists(c.GenSymmetricKey32bytes) {
-			fmt.Fprintf(os.Stderr, "-gensym '%v' already exists. "+
-				"refusing to overwrite.", c.GenSymmetricKey32bytes)
+
+		odir := c.OdirCA_privateKey
+		key := newXChaCha20CryptoRandKey()
+		path := odir + string(os.PathSeparator) + c.GenSymmetricKey32bytes
+
+		if FileExists(path) {
+			fmt.Fprintf(os.Stderr, "ERROR! selfy -gensym '%v' already exists. "+
+				"refusing to overwrite.\n", path)
 			os.Exit(1)
 		}
 
-		odir := c.OdirCA_privateKey
 		os.MkdirAll(odir, 0700)
 		ownerOnly(odir)
-		key := newXChaCha20CryptoRandKey()
-		path := odir + string(os.PathSeparator) + c.GenSymmetricKey32bytes
+
 		fd, err := os.Create(path)
 		panicOn(err)
 		_, err = fd.Write(key)
