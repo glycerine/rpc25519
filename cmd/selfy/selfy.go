@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/ed25519"
+	cryrand "crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
 	"flag"
@@ -25,6 +26,7 @@ type SelfCertConfig struct {
 	Email                  string
 	Quiet                  bool
 	SkipEncryptPrivateKeys bool
+	GenSymmetricKey32bytes string
 }
 
 type EncryptedKeyFile struct {
@@ -48,6 +50,8 @@ func (c *SelfCertConfig) DefineFlags(fs *flag.FlagSet) {
 
 	fs.BoolVar(&c.Quiet, "quiet", false, "run quietly. don't print a log of actions taken as we go")
 	fs.BoolVar(&c.SkipEncryptPrivateKeys, "nopass", false, "by default we request a password and use it with Argon2id to encrypt the private key file. Setting -nopass means we generate an un-encrypted private key; this is not recommended.")
+
+	fs.StringVar(&c.GenSymmetricKey32bytes, "gensym", "", "generate a new 32-byte symmetric encryption key with crypto/rand, and save it under this filename in the -p directory.")
 }
 
 // Call c.ValidateConfig() just after fs.Parse() to finish
@@ -123,6 +127,27 @@ func main() {
 			panic(fmt.Sprintf("what? not a ed25519 key? type = '%T'", cert.PublicKey))
 		}
 	}
+
+	if c.GenSymmetricKey32bytes != "" {
+		if FileExists(c.GenSymmetricKey32bytes) {
+			fmt.Fprintf(os.Stderr, "-gensym '%v' already exists. "+
+				"refusing to overwrite.", c.GenSymmetricKey32bytes)
+			os.Exit(1)
+		}
+
+		odir := c.OdirCA_privateKey
+		os.MkdirAll(odir, 0700)
+		ownerOnly(odir)
+		key := newXChaCha20CryptoRandKey()
+		path := odir + string(os.PathSeparator) + c.GenSymmetricKey32bytes
+		fd, err := os.Create(path)
+		panicOn(err)
+		_, err = fd.Write(key)
+		panicOn(err)
+		panicOn(fd.Close())
+		ownerOnly(path)
+		fmt.Printf("\nwrote 32 cryptographically random bytes to %v\n", path)
+	}
 }
 
 // we always use 255, which is -1 in 8-bit 2's compliment.
@@ -153,4 +178,41 @@ func loadCertificate(certPath string) (*x509.Certificate, error) {
 	}
 
 	return cert, nil
+}
+
+// chmod og-wrx path
+func ownerOnly(path string) error {
+
+	// Get the current file info
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("Error getting file '%v' stat: '%v'", path, err)
+	}
+
+	// Get the current permissions
+	currentPerm := fileInfo.Mode().Perm()
+
+	// Remove read, write, and execute permissions for group and others
+	newPerm := currentPerm &^ (os.FileMode(0o077))
+
+	// Change the file permissions
+	err = os.Chmod(path, newPerm)
+	if err != nil {
+		return fmt.Errorf("Error changing file permissions on '%v': '%v'", path, err)
+	}
+	return nil
+}
+
+func newXChaCha20CryptoRandKey() []byte {
+	key := make([]byte, 32)
+	if _, err := cryrand.Read(key); err != nil {
+		log.Fatal(err)
+	}
+	return key
+}
+
+func panicOn(err error) {
+	if err != nil {
+		panic(err)
+	}
 }
