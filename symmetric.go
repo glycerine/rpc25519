@@ -15,7 +15,7 @@ import (
 // Like Wireguard, we do not use the symmetric
 // pre-shared-key (PSK) from disk directly for encryption.
 //
-// Instead we do an elliptic curve Diffie-Helmann handshake
+// Instead we do an elliptic curve Diffie-Hellman handshake
 // first to get a shared random secret for this session.
 // TLS-v1.3 does the same. This provides forward secrecy
 // and a per-session (shared) random secret for the symmetric
