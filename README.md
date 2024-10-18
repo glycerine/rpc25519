@@ -47,18 +47,24 @@ that requires no extra IDL file. See the https://github.com/glycerine/rpc25519/b
 Using the rpc25519.Message based API:
 
  * [`Server.Register1Func()`](https://pkg.go.dev/github.com/glycerine/rpc25519#Server.Register1Func) registers one-way (no reply) callbacks on the server. They look like this:
- 
+
+~~~
   func ExampleOneWayFunc(req *Message) {}
+~~~
 
  * [`Server.Register2Func()`](https://pkg.go.dev/github.com/glycerine/rpc25519#Server.Register2Func) registers traditional two-way callbacks. The look like this:
 
+~~~
   func ExampleTwoWayFunc(req *Message, reply *Message) error { ... }
+~~~
 
 Using the net/rpc API:
 
  * [`Server.Register()`](https://pkg.go.dev/github.com/glycerine/rpc25519#Server.Register) registers structs with callback methods on them. For a struct called `Service`, this method would be identified and registered:
 
+~~~
   func (s *Service) NoContext(args *Args, reply *Reply) error { ... }
+~~~
 
 See [the net/rpc docs for full guidance on using that API](https://pkg.go.dev/net/rpc).
 
