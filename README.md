@@ -294,8 +294,10 @@ the srv_test.go `Test011_PreSharedKey_over_TCP` test in
 https://github.com/glycerine/rpc25519/blob/master/srv_test.go#L297
 for an example of using `NewXChaCha20CryptoRandKey()`
 to generate a key programmatically. Or just use
-`selfy -gensym my_pre_shared_key.binary` on the command line.
-
+~~~
+selfy -gensym my_pre_shared_key.binary
+~~~
+on the command line.
 
 security posture for both extremes
 ----------------
