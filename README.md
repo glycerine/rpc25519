@@ -23,6 +23,14 @@ and connecting across networks.
 
 The [rpc25519 package docs are here](https://pkg.go.dev/github.com/glycerine/rpc25519). 
 
+~~~
+# to install:
+$ git clone https://github.com/glycerine/greenpack ## pre-requisite for building
+$ cd greenpack; make; cd ..
+$ git clone https://github.com/glycerine/rpc25519
+$ cd rpc25519; make; make run  ## build and verify with a simple cli/srv test run
+~~~
+
 For getting started, see the small example programs here: https://github.com/glycerine/rpc25519/tree/master/cmd . These illustrate client (`cli`), server (`srv`), and QUIC port sharing 
 by a client and a server (`samesame`). The tests in srv_test.go and 
 cli_test.go also make great starting points.
