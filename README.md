@@ -23,7 +23,7 @@ and connecting across networks.
 
 The [docs are here](https://pkg.go.dev/github.com/glycerine/rpc25519). 
 
-For getting started, see the small example programs here: https://github.com/glycerine/rpc25519/tree/master/cmd
+For getting started, see the small example programs here: https://github.com/glycerine/rpc25519/tree/master/cmd ; the tests in srv_test.go and cli_test.go also make great starting points.
 
 These illustrate client (`cli`), server (`srv`), and QUIC port sharing 
 by a client and a server (`samesame`).
