@@ -44,14 +44,14 @@ func main() {
 	by := make([]byte, maxMessage-64) // 2GB - 44, our max message size minus 44 bytes of overhead+nonce+msgLen 4 bytes
 	t0 := time.Now()
 
-	trueRandom := false
+	trueRandom := true
 	if trueRandom {
 		_, err = cryrand.Read(by)
 		panicOn(err)
 		vv("elap %v to generate 2GB cryrand data: %v", time.Since(t0), len(by))
 
 	} else {
-		const chacha8 = false
+		const chacha8 = true
 		if chacha8 {
 
 			var seed [32]byte
@@ -82,6 +82,8 @@ func main() {
 
 			ciphertext := aesgcm.Seal(by[:0], nonce, by, nil)
 			by = ciphertext
+			// we don't care about pre-pending the nonce here,
+			// because we are treating this as random plaintext.
 			vv("elap %v to generate AES-GCM-%v: %v", time.Since(t0), keysz*8, len(by))
 		}
 	}
