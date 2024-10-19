@@ -231,7 +231,7 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 
 				pair := s.newQUIC_RWPair(stream, conn)
 				go pair.runSendLoop(stream, conn)
-				go pair.runRecvLoop(stream, conn)
+				go pair.runReadLoop(stream, conn)
 			}
 		}(conn)
 	}
@@ -307,9 +307,9 @@ func (s *quicRWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 	}
 }
 
-func (s *quicRWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
+func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 	defer func() {
-		//vv("rpc25519.Server: QUIC_WRPair runRecvLoop shutting down for local conn = '%v'", conn.LocalAddr())
+		//vv("rpc25519.Server: QUIC_WRPair runReadLoop shutting down for local conn = '%v'", conn.LocalAddr())
 
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()

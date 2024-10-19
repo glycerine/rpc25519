@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"runtime"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -140,4 +141,8 @@ func panicOn(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func stack() string {
+	return string(debug.Stack())
 }

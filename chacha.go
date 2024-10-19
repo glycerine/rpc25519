@@ -31,8 +31,8 @@ var _ = fmt.Printf
 // Since our secret key is derived from a random
 // ephemeral elliptic Diffie-Hellman handshake
 // combined with the pre-shared-key, the
-// only real danger of re-using the nonces for
-// that key comes from the client and
+// only real danger of re-using a nonce
+// comes from the client and
 // server picking the same nonce. To avoid
 // any chance of these two colliding, we
 // choose the initial nonce on the server
@@ -42,7 +42,7 @@ var _ = fmt.Printf
 // the high nibble set to 0 (binary 0000xxxx)
 //
 // Then each increments the initial (random) nonce
-// by one after each use. Even the client
+// by one after each use. Even if the client
 // picked 0 as its inital nonce (the lowest possible),
 // and the server randomly picked the
 // highest possible nonce,
@@ -111,6 +111,13 @@ type decoder struct {
 	work *workspace
 }
 
+// newBlabber: at the moment it gets setup to do both read
+// and write every time, even though, because there is only
+// one workspace and we don't want that workspace to be
+// shared between the readLoop and the writeLoop, only
+// one half of its facility will ever get used in each
+// instance. That's okay. The symmetry makes it simple
+// to maintain.
 func newBlabber(key [32]byte, conn uConn, encrypt bool, maxMsgSize int, isServer bool) *blabber {
 
 	aeadEnc, err := chacha20poly1305.NewX(key[:])
