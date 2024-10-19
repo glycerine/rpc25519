@@ -284,6 +284,25 @@ func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 	})
 }
 
+func setupPSK(path string) error {
+	if !fileExists(path) {
+		// Define a shared secret key (32 bytes for AES-256-GCM)
+		key := NewChaCha20CryptoRandKey()
+		odir := filepath.Dir(path)
+		os.MkdirAll(odir, 0700)
+		ownerOnly(odir)
+		fd, err := os.Create(path)
+		panicOn(err)
+		_, err = fd.Write(key)
+		panicOn(err)
+		fd.Close()
+		ownerOnly(path)
+	} else {
+		vv("using existing psk file '%v'", path)
+	}
+	return nil
+}
+
 func Test011_PreSharedKey_over_TCP(t *testing.T) {
 
 	cv.Convey("If we enable pre-shared-key encryption, round trips should still work", t, func() {
@@ -293,21 +312,7 @@ func Test011_PreSharedKey_over_TCP(t *testing.T) {
 		//cfg.TCPonly_no_TLS = true
 
 		path := "my-keep-private-dir/psk.binary"
-		if !fileExists(path) {
-			// Define a shared secret key (32 bytes for AES-256-GCM)
-			key := NewChaCha20CryptoRandKey()
-			odir := filepath.Dir(path)
-			os.MkdirAll(odir, 0700)
-			ownerOnly(odir)
-			fd, err := os.Create(path)
-			panicOn(err)
-			_, err = fd.Write(key)
-			panicOn(err)
-			fd.Close()
-			ownerOnly(path)
-		} else {
-			vv("using existing psk file '%v'", path)
-		}
+		panicOn(setupPSK(path))
 		cfg.PreSharedKeyPath = path
 
 		cfg.ServerAddr = "127.0.0.1:0"
