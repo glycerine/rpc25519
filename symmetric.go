@@ -197,7 +197,7 @@ func symmetricClientHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymme
 	serverPublicKey := make([]byte, 32)
 	_, err = io.ReadFull(conn, serverPublicKey)
 	if err != nil {
-		panic(err)
+		return [32]byte{}, fmt.Errorf("symmetricClientHandshake error: could not read handshake: '%v'", err)
 	}
 
 	// Compute the shared secret

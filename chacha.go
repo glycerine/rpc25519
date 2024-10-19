@@ -105,7 +105,7 @@ type decoder struct {
 // one half of its facility will ever get used in each
 // instance. That's okay. The symmetry makes it simple
 // to maintain.
-func newBlabber(key [32]byte, conn uConn, encrypt bool, maxMsgSize int, isServer bool) *blabber {
+func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize int, isServer bool) *blabber {
 
 	// changed to ChaCha20 instead of XChaCha20 since it should be faster.
 	aeadEnc, err := chacha20poly1305.New(key[:])
@@ -129,14 +129,14 @@ func newBlabber(key [32]byte, conn uConn, encrypt bool, maxMsgSize int, isServer
 		writeNonce: writeNonce,
 		noncesize:  nsz,
 		overhead:   aeadEnc.Overhead(),
-		work:       newWorkspace(maxMsgSize),
+		work:       newWorkspace(name+"_enc", maxMsgSize),
 	}
 	dec := &decoder{
 		key:       key[:],
 		aead:      aeadDec,
 		noncesize: nsz,
 		overhead:  aeadEnc.Overhead(),
-		work:      newWorkspace(maxMsgSize),
+		work:      newWorkspace(name+"_dec", maxMsgSize),
 	}
 
 	return &blabber{
@@ -276,8 +276,9 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	nonce := encrypted[:d.noncesize]
 
 	message, err := d.aead.Open(nil, nonce, encrypted[d.noncesize:], assocData)
-	panicOn(err)
 	if err != nil {
+		//panic(fmt.Sprintf("decrypt failed: '%v'", err))
+		alwaysPrintf("decryption failure on '%v' readMessage: '%v'", d.work.name, err)
 		return nil, err
 	}
 

@@ -295,7 +295,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
 	}
 
-	w := newBlabber(symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true)
+	w := newBlabber("server send loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true)
 	//w := newWorkspace(maxMessage)
 
 	for {
@@ -332,7 +332,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 	if s.cfg.encryptPSK {
 		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
 	}
-	w := newBlabber(symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true)
+	w := newBlabber("server read loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true)
 	//w := newWorkspace(maxMessage)
 
 	var callme1 OneWayFunc

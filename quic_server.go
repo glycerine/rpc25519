@@ -292,7 +292,7 @@ func (s *quicRWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
 	}
 	//w := newWorkspace(maxMessage)
-	w := newBlabber(symkey, stream, s.Server.cfg.encryptPSK, maxMessage, true)
+	w := newBlabber("quic server send loop", symkey, stream, s.Server.cfg.encryptPSK, maxMessage, true)
 
 	for {
 		select {
@@ -322,7 +322,7 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 	if s.cfg.encryptPSK {
 		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
 	}
-	w := newBlabber(symkey, stream, s.Server.cfg.encryptPSK, maxMessage, true)
+	w := newBlabber("quic server read loop", symkey, stream, s.Server.cfg.encryptPSK, maxMessage, true)
 	//w := newWorkspace(maxMessage)
 
 	wrap := &NetConnWrapper{Stream: stream, Connection: conn}
@@ -355,7 +355,7 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 				return // shutting down
 			}
 
-			//vv("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
+			alwaysPrintf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
 			//conn.Close()
 			//s.halt.Done.Close()
 			return

@@ -341,3 +341,55 @@ func Test011_PreSharedKey_over_TCP(t *testing.T) {
 
 	})
 }
+
+func Test012_PreSharedKey_must_agree(t *testing.T) {
+
+	cv.Convey("If the pre-shared-keys disagree, we should not communicate", t, func() {
+
+		ccfg := NewConfig()
+		ccfg.UseQUIC = true
+		//cfg.TCPonly_no_TLS = true
+
+		scfg := NewConfig()
+		scfg.UseQUIC = true
+
+		path := "my-keep-private-dir/client_psk.binary"
+		panicOn(setupPSK(path))
+		ccfg.PreSharedKeyPath = path
+
+		path2 := "my-keep-private-dir/server_psk2.binary"
+		panicOn(setupPSK(path2))
+		scfg.PreSharedKeyPath = path2
+
+		scfg.ServerAddr = "127.0.0.1:0"
+		srv := NewServer("srv_test011", scfg)
+
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
+
+		vv("server Start() returned serverAddr = '%v'", serverAddr)
+
+		srv.Register2Func(customEcho)
+
+		ccfg.ClientDialToHostPort = serverAddr.String()
+		cli, err := NewClient("test011", ccfg)
+		panicOn(err)
+		defer cli.Close()
+
+		req := NewMessage()
+		req.JobSerz = []byte("Hello from client!")
+
+		reply, err := cli.SendAndGetReply(req, nil)
+		_ = reply
+		// expect an error here
+		if err == nil {
+			panic("expected error from bad handshake!")
+		} else {
+			vv("good, got err = '%v'", err)
+		}
+
+		//vv("server sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
+
+	})
+}

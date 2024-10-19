@@ -51,13 +51,16 @@ type workspace struct {
 
 	readLenMessageBytes  []byte
 	writeLenMessageBytes []byte
+
+	name string
 }
 
 // currently only used for headers; but bodies may
 // well benefit as well. In which case, bump up
 // to maxMessage+1024 or so, rather than this 64KB.
-func newWorkspace(maxMsgSize int) *workspace {
+func newWorkspace(name string, maxMsgSize int) *workspace {
 	return &workspace{
+		name:       name,
 		maxMsgSize: maxMsgSize,
 		// need at least len(msg) + 44; 44 because == msglen(8) + nonceX(24) + overhead(16)
 		buf:                  make([]byte, maxMsgSize+64),
