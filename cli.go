@@ -13,6 +13,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"golang.org/x/crypto/hkdf"
 	"io"
 	"io/ioutil"
 	"log"
@@ -554,6 +555,16 @@ func (cfg *Config) checkPreSharedKey(name string) {
 		if len(by) < 32 {
 			panic(fmt.Sprintf("cfg.PreSharedKeyPath '%v' did not have 32 bytes of data in it.", cfg.PreSharedKeyPath))
 		}
+
+		// We might have gotten a file of hex string text instead of binary.
+		// Or, we might have gotten some other user-defined stuff. Either
+		// way still use all of it, but run through an HKDF for safety first.
+		hkdf := hkdf.New(sha256.New, by, by, nil)
+		var finalKey [32]byte
+		_, err = io.ReadFull(hkdf, finalKey[:])
+		panicOn(err)
+		by = finalKey[:]
+
 		copy(cfg.preSharedKey[:], by)
 		cfg.encryptPSK = true
 		alwaysPrintf("activated pre-shared-key on '%v' from cfg.PreSharedKeyPath='%v'", name, cfg.PreSharedKeyPath)
