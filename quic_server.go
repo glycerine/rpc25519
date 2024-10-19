@@ -199,7 +199,7 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 			for {
 				// Accept a stream
 				stream, err := conn.AcceptStream(context.Background())
-				vv("quic server accepted a stream, err='%v'", err)
+				//vv("quic server accepted a stream, err='%v'", err)
 				if err != nil {
 					if strings.Contains(err.Error(), "timeout: no recent network activity") {
 						// ignore these, they happen every 30 seconds or so.
@@ -222,7 +222,7 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 					return
 				}
 
-				vv("quic server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
+				//vv("quic server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 				if s.cfg.encryptPSK {
 					wrap := &NetConnWrapper{Stream: stream, Connection: conn}
 					s.cfg.randomSymmetricSessKeyFromPreSharedKey, err = symmetricServerHandshake(wrap, s.cfg.preSharedKey)
