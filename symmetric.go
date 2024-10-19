@@ -144,12 +144,8 @@ func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymme
 
 func generateX25519KeyPair() (privateKey, publicKey [32]byte, err error) {
 
-	nr := 0
-	nr, err = cryrand.Read(privateKey[:])
+	_, err = cryrand.Read(privateKey[:])
 	panicOn(err)
-	if nr != 32 {
-		panic("short read from cryrand.Read()")
-	}
 
 	// https://cr.yp.to/ecdh.html
 	privateKey[0] &= 248
