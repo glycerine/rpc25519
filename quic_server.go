@@ -292,7 +292,7 @@ func (s *quicRWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
 	}
 	//w := newWorkspace(maxMessage)
-	w := newBlabber(symkey, stream, s.Server.cfg.encryptPSK, maxMessage)
+	w := newBlabber(symkey, stream, s.Server.cfg.encryptPSK, maxMessage, true)
 
 	for {
 		select {
@@ -322,7 +322,7 @@ func (s *quicRWPair) runRecvLoop(stream quic.Stream, conn quic.Connection) {
 	if s.cfg.encryptPSK {
 		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
 	}
-	w := newBlabber(symkey, stream, s.Server.cfg.encryptPSK, maxMessage)
+	w := newBlabber(symkey, stream, s.Server.cfg.encryptPSK, maxMessage, true)
 	//w := newWorkspace(maxMessage)
 
 	wrap := &NetConnWrapper{Stream: stream, Connection: conn}

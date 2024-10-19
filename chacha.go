@@ -20,10 +20,46 @@ var _ = fmt.Printf
 // It is typically used for encrypting net.Conn connections.
 //
 // A blabber uses the XChaCha20-Poly1305 AEAD which works
-// with random 24 byte nonces. XChaCha20 is the stream cipher.
+// with 24 byte nonces. XChaCha20 is the stream cipher.
 // Poly1305 is the message authentication code.
 //
-// What comes out is just blah, blah, blah.
+// Reference: "Extending the Salsa20 nonce" by Daniel J. Bernstein.
+// https://cr.yp.to/snuffle/xsalsa-20110204.pdf
+//
+// A note on nonce selection:
+//
+// Since our secret key is derived from a random
+// ephemeral elliptic Diffie-Hellman handshake
+// combined with the pre-shared-key, the
+// only real danger of re-using the nonces for
+// that key comes from the client and
+// server picking the same nonce. To avoid
+// any chance of these two colliding, we
+// choose the initial nonce on the server
+// randomly from those with the high nibble set
+// to 16 (binary 0100xxxx), while the
+// client chooses randomly from those with
+// the high nibble set to 0 (binary 0000xxxx)
+//
+// Then each increments the initial (random) nonce
+// by one after each use. Even the client
+// picked 0 as its inital nonce (the lowest possible),
+// and the server randomly picked the
+// highest possible nonce,
+// the incrementing by one
+// still has 3<<184 increments
+// before nonce reuse, which is ~ 1e55 increments.
+//
+// Even at the astounding rate of one
+// increment for each bit in 128 GB per
+// *nanosecond*, in order to wrap
+// and collide would require 1e28 years.
+// This is long, long after the sun has
+// destroyed the Earth in ~ 8e9 years. So
+// on our timescale, its never going to happen.
+//
+// The name blabber? Well... what comes
+// out is just blah, blah, blah.
 type blabber struct {
 	encrypt    bool
 	maxMsgSize int
@@ -44,7 +80,7 @@ type blabber struct {
 //
 // then the following *mlen* bytes are
 //
-//	24 bytes of random nonce
+//	24 bytes of nonce
 //	xx bytes of 1:1 cyphertext (same length as plaintext) } these two are output
 //	16 bytes of poly1305 authentication tag.              } by the e.aead.Seal() call.
 //
@@ -75,7 +111,7 @@ type decoder struct {
 	work *workspace
 }
 
-func newBlabber(key [32]byte, conn uConn, encrypt bool, maxMsgSize int) *blabber {
+func newBlabber(key [32]byte, conn uConn, encrypt bool, maxMsgSize int, isServer bool) *blabber {
 
 	aeadEnc, err := chacha20poly1305.NewX(key[:])
 	panicOn(err)
@@ -83,16 +119,15 @@ func newBlabber(key [32]byte, conn uConn, encrypt bool, maxMsgSize int) *blabber
 	aeadDec, err := chacha20poly1305.NewX(key[:])
 	panicOn(err)
 
-	// Use random nonces, since XChaCha20 supports them
-	// without collision risk, and
-	// it is much less dangerous than accidentally re-using a nonce.
-	//
-	// See "Extending the Salsa20 nonce" by Daniel J. Bernstein.
-	// https://cr.yp.to/snuffle/xsalsa-20110204.pdf
-	//
+	// See discussion of nonce planning above.
 	writeNonce := make([]byte, aeadEnc.NonceSize()) // 24 bytes
-	_, err = cryrand.Read(writeNonce)
-	panicOn(err)
+	writeNewCryRandomNonce(writeNonce)
+
+	// little endian to make increment faster.
+	writeNonce[23] &= 15 // clear highest 4 bits
+	if isServer {
+		writeNonce[23] |= 64 // set 2nd highest bit
+	}
 
 	enc := &encoder{
 		key:        key[:],
@@ -142,21 +177,28 @@ func NewXChaCha20CryptoRandKey() []byte {
 	return key
 }
 
-// incrementNonce safely increments the nonce.
-func incrementNonce(nonce []byte) error {
-	for i := len(nonce) - 1; i >= 0; i-- {
+// incrementNonce safely increments the nonce. We
+// do little endian (least significant bit first)
+// to make this faster and avoid bounds checking.
+func incrementNonce(nonce []byte) {
+	for i := range nonce {
 		nonce[i]++
 		if nonce[i] != 0 {
-			return nil
+			return
 		}
 	}
-	// overflow, start at random point.
-	return writeNewCryRandomNonce(nonce)
+	// overflow. will never happen with XChaCha20.
+	// *And* we would like this function to get inlined,
+	// so we aren't going to do anything here.
 }
 
-func writeNewCryRandomNonce(nonce []byte) error {
+func writeNewCryRandomNonce(nonce []byte) {
 	_, err := cryrand.Read(nonce)
-	return err
+
+	// docs: cryrand.Read "is a helper function that
+	// calls Reader.Read using io.ReadFull.
+	// On return, n == len(b) if and only if err == nil."
+	panicOn(err) // system borked if we cannot read.
 }
 
 // Write encrypts data and writes it to the underlying stream.
@@ -205,10 +247,7 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	sealOut := e.aead.Seal(buf[8+e.noncesize:8+e.noncesize], buf[8:8+e.noncesize], buf[8+e.noncesize:8+e.noncesize+len(bytesMsg)], assocData)
 
 	// Update the nonce: ONLY AFTER using it above in Seal!
-	// random is better tha incrementing, and the same speed.
-	// Much less chance of losing security by having a nonce re-used.
-	err = writeNewCryRandomNonce(e.writeNonce)
-	panicOn(err) // really should never fail unless whole system is borked.
+	incrementNonce(e.writeNonce)
 
 	// Write the 8 bytes of msglen + the nonce + encrypted data with authentication tag.
 	return writeFull(conn, buf[:8+e.noncesize+len(sealOut)], timeout)
