@@ -282,9 +282,12 @@ when hardware support SHA-extensions/SHA-NI instructions are not available).
 The ChaCha20, Poly1305, and Curve25519 parts are the same.
 
 `Config.PreSharedKeyPath` allows specifying a 32 byte pre-shared key
-file for further security. An additional, independent layer of XChaCha20-Poly1305
-stream cipher/AEAD will be applied based on that key. The same
-pre-shared-key must be available to both client and server.
+file for further security. An additional, independently keyed
+layer of ChaCha20-Poly1305 stream cipher/AEAD will be applied 
+by mixing that key into the shared secret from an ephemeral 
+Elliptic Curve Diffie-Hellman handshake. The same pre-shared-key must be pre-installed 
+on both client and server.
+
 
 The pre-shared-key traffic is "tunnelled" or runs 
 inside the outer encryption layer. Thus a different
@@ -294,7 +297,7 @@ much difficulty.
 The pre-shared-key file format is just raw random binary bytes. See
 the srv_test.go `Test011_PreSharedKey_over_TCP` test in
 https://github.com/glycerine/rpc25519/blob/master/srv_test.go#L297
-for an example of using `NewXChaCha20CryptoRandKey()`
+for an example of using `NewChaCha20CryptoRandKey()`
 to generate a key programmatically. Or just use
 ~~~
 selfy -gensym my_pre_shared_key.binary
