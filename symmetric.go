@@ -56,8 +56,8 @@ import (
 // rotate them, then under this scenario opting for just
 // two layers (VPN + TCP with PSK symmetric encryption)
 // might make sense. However consider the limitations of
-// your VPN here[2], as it will be doing the heavy
-// lifting/providing most of the security.
+// your VPN carefully[2], as needs to help with replay/DoS
+// attacks since TCP + PSK alone is weak there.
 //
 // [1] Using the "HMAC-based Extract-and-Expand Key Derivation
 //     Function (HKDF) as defined in RFC 5869" as implemented
@@ -94,9 +94,6 @@ in crypto/tls. Quoting the release notes:
 > Config.CurvePreferences is nil. The default can be
 > reverted by adding tlskyber=0 to the GODEBUG
 > environment variable.
-
-Best,
-Russ
 */
 
 var _ = fmt.Printf
