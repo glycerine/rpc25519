@@ -19,11 +19,12 @@ var _ = fmt.Printf
 //
 // It is typically used for encrypting net.Conn connections.
 //
-// A blabber uses the XChaCha20-Poly1305 AEAD which works
-// with 24 byte nonces. XChaCha20 is the stream cipher.
+// A blabber uses the ChaCha20-Poly1305 AEAD which works
+// with 12 byte nonces. ChaCha20 is the stream cipher.
 // Poly1305 is the message authentication code.
 //
-// Reference: "Extending the Salsa20 nonce" by Daniel J. Bernstein.
+// Reference for XChaCha and its 24 bytes nonce:
+// "Extending the Salsa20 nonce" by Daniel J. Bernstein.
 // https://cr.yp.to/snuffle/xsalsa-20110204.pdf
 //
 // A note on nonce selection:
@@ -32,31 +33,17 @@ var _ = fmt.Printf
 // ephemeral elliptic Diffie-Hellman handshake
 // combined with the pre-shared-key, the
 // only real danger of re-using a nonce
-// comes from the client and
+// for this key comes from the client and
 // server picking the same nonce. To avoid
 // any chance of these two colliding, we
-// choose the initial nonce on the server
-// randomly from those with the high nibble set
-// to 16 (binary 0100xxxx), while the
-// client chooses randomly from those with
-// the high nibble set to 0 (binary 0000xxxx)
+// count on the server starting with
+// 1 << (nonce_size_in_bits-2), while the
+// client starts at 0.
 //
-// Then each increments the initial (random) nonce
-// by one after each use. Even if the client
-// picked 0 as its inital nonce (the lowest possible),
-// and the server randomly picked the
-// highest possible nonce,
-// the incrementing by one
-// still has 3<<184 increments
-// before nonce reuse, which is ~ 1e55 increments.
-//
-// Even at the astounding rate of one
-// increment for each bit in 128 GB per
-// *nanosecond*, in order to wrap
-// and collide would require 1e28 years.
-// This is long, long after the sun has
-// destroyed the Earth in ~ 8e9 years. So
-// on our timescale, its never going to happen.
+// Then each increments their nonce
+// by one after each use. ChaCha20's
+// 12 byte nonce (even minus 2 bits)
+// is not going to overflow.
 //
 // The name blabber? Well... what comes
 // out is just blah, blah, blah.
@@ -80,14 +67,14 @@ type blabber struct {
 //
 // then the following *mlen* bytes are
 //
-//	24 bytes of nonce
+//	12/24 bytes of nonce, if ChaCha20 or XChaCah20 is used.
 //	xx bytes of 1:1 cyphertext (same length as plaintext) } these two are output
 //	16 bytes of poly1305 authentication tag.              } by the e.aead.Seal() call.
 //
 // encoder uses a workspace to avoid allocation.
 type encoder struct {
 	key  []byte      // must be 32 bytes == chacha20poly1305.KeySize (256 bits)
-	aead cipher.AEAD // XChaCha20-Poly1305, needs 256-bit key
+	aead cipher.AEAD // (X)ChaCha20-Poly1305, needs 256-bit key
 
 	writeNonce []byte
 	noncesize  int
@@ -120,34 +107,34 @@ type decoder struct {
 // to maintain.
 func newBlabber(key [32]byte, conn uConn, encrypt bool, maxMsgSize int, isServer bool) *blabber {
 
-	aeadEnc, err := chacha20poly1305.NewX(key[:])
+	// changed to ChaCha20 instead of XChaCha20 since it should be faster.
+	aeadEnc, err := chacha20poly1305.New(key[:])
 	panicOn(err)
 
-	aeadDec, err := chacha20poly1305.NewX(key[:])
+	aeadDec, err := chacha20poly1305.New(key[:])
 	panicOn(err)
+	nsz := aeadDec.NonceSize()
 
-	// See discussion of nonce planning above.
-	writeNonce := make([]byte, aeadEnc.NonceSize()) // 24 bytes
-	writeNewCryRandomNonce(writeNonce)
+	// Nonce starts at 0 on the client. At 1 << (nsz-2) on the server.
+	writeNonce := make([]byte, nsz) // 24 bytes for X, 12 bytes for orig
 
 	// little endian to make increment faster.
-	writeNonce[23] &= 15 // clear highest 4 bits
 	if isServer {
-		writeNonce[23] |= 64 // set 2nd highest bit
+		writeNonce[nsz-1] |= 64 // set 2nd highest bit
 	}
 
 	enc := &encoder{
 		key:        key[:],
 		aead:       aeadEnc,
 		writeNonce: writeNonce,
-		noncesize:  aeadEnc.NonceSize(),
+		noncesize:  nsz,
 		overhead:   aeadEnc.Overhead(),
 		work:       newWorkspace(maxMsgSize),
 	}
 	dec := &decoder{
 		key:       key[:],
 		aead:      aeadDec,
-		noncesize: aeadEnc.NonceSize(),
+		noncesize: nsz,
 		overhead:  aeadEnc.Overhead(),
 		work:      newWorkspace(maxMsgSize),
 	}
@@ -176,7 +163,7 @@ func (blab *blabber) sendMessage(conn uConn, msg *Message, timeout *time.Duratio
 	return blab.enc.sendMessage(conn, msg, timeout)
 }
 
-func NewXChaCha20CryptoRandKey() []byte {
+func NewChaCha20CryptoRandKey() []byte {
 	key := make([]byte, chacha20poly1305.KeySize) // 32 bytes
 	if _, err := cryrand.Read(key); err != nil {
 		log.Fatal(err)
@@ -194,18 +181,9 @@ func incrementNonce(nonce []byte) {
 			return
 		}
 	}
-	// overflow. will never happen with XChaCha20.
+	// overflow. will never happen.
 	// *And* we would like this function to get inlined,
 	// so we aren't going to do anything here.
-}
-
-func writeNewCryRandomNonce(nonce []byte) {
-	_, err := cryrand.Read(nonce)
-
-	// docs: cryrand.Read "is a helper function that
-	// calls Reader.Read using io.ReadFull.
-	// On return, n == len(b) if and only if err == nil."
-	panicOn(err) // system borked if we cannot read.
 }
 
 // Write encrypts data and writes it to the underlying stream.

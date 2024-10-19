@@ -295,7 +295,7 @@ func Test011_PreSharedKey_over_TCP(t *testing.T) {
 		path := "my-keep-private-dir/psk.binary"
 		if !fileExists(path) {
 			// Define a shared secret key (32 bytes for AES-256-GCM)
-			key := NewXChaCha20CryptoRandKey()
+			key := NewChaCha20CryptoRandKey()
 			odir := filepath.Dir(path)
 			os.MkdirAll(odir, 0700)
 			ownerOnly(odir)
