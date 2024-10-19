@@ -559,7 +559,9 @@ func (cfg *Config) checkPreSharedKey(name string) {
 		// We might have gotten a file of hex string text instead of binary.
 		// Or, we might have gotten some other user-defined stuff. Either
 		// way still use all of it, but run through an HKDF for safety first.
-		hkdf := hkdf.New(sha256.New, by, by, nil)
+		salt := make([]byte, 32)
+		salt[0] = 43 // make it apparent, not a great salt.
+		hkdf := hkdf.New(sha256.New, by, salt, nil)
 		var finalKey [32]byte
 		_, err = io.ReadFull(hkdf, finalKey[:])
 		panicOn(err)
