@@ -3,7 +3,9 @@ package selfcert
 // notes on if you wanted to convert an ed25519 key-pair
 // from signing into an x25519 key-pair for encryption...
 // See  https://words.filippo.io/using-ed25519-keys-for-encryption/
-
+// See also
+// https://eprint.iacr.org/2021/509.pdf
+// https://signal.org/docs/specifications/xeddsa/
 /*
 from https://words.filippo.io/using-ed25519-keys-for-encryption/
 
