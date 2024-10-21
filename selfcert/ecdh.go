@@ -4,8 +4,12 @@ package selfcert
 // from signing into an x25519 key-pair for encryption...
 // See  https://words.filippo.io/using-ed25519-keys-for-encryption/
 // See also
+// https://blog.mozilla.org/warner/2011/11/29/ed25519-keys/
+// http://ed25519.cr.yp.to/ed25519-20110926.pdf (original)
+//   "High-speed high-security signatures" by DJB et al.
 // https://eprint.iacr.org/2021/509.pdf
 // https://signal.org/docs/specifications/xeddsa/
+// https://eprint.iacr.org/2017/212.pdf
 /*
 from https://words.filippo.io/using-ed25519-keys-for-encryption/
 
