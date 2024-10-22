@@ -291,7 +291,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 			if r == "EOF" && msg == nil {
 				return
 			}
-			if err == io.EOF {
+			if err == io.EOF && msg == nil {
 				return
 			}
 			//vv("ignore err = '%v'; msg = '%v'", err, msg)
