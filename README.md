@@ -35,6 +35,7 @@ The [rpc25519 package docs are here](https://pkg.go.dev/github.com/glycerine/rpc
  ./selfy -k client -nopass; ./selfy -k node -nopass 
  ./selfy -gensym psk.binary ## saved to my-keep-private-dir/psk.binary
  make run && make runq  ## verify TLS over TCP and QUIC
+ 
 ~~~
 
 For getting started, see the small example programs here: https://github.com/glycerine/rpc25519/tree/master/cmd . These illustrate client (`cli`), server (`srv`), and QUIC port sharing 
