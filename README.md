@@ -22,13 +22,16 @@ and connecting across networks.
 The [rpc25519 package docs are here](https://pkg.go.dev/github.com/glycerine/rpc25519). 
 
 ~~~
-# to install/get started: *warning: ~/go/bin/{srv,cli,selfy,greenpack} are written
+# to install/get started: 
+#   *warning: ~/go/bin/{srv,cli,selfy,greenpack} are written
 #
+
  git clone https://github.com/glycerine/greenpack ## pre-req
  cd greenpack; make; cd ..
  git clone https://github.com/glycerine/rpc25519
  cd rpc25519;  make
-# make test keys and CA: saved to certs/ and my-keep-private-dir/
+ 
+ # make test keys and CA: saved to certs/ and my-keep-private-dir/
  ./selfy -k client -nopass; ./selfy -k node -nopass 
  ./selfy -gensym psk.binary ## saved to my-keep-private-dir/psk.binary
  make run && make runq  ## verify TLS over TCP and QUIC
