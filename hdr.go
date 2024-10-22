@@ -89,7 +89,11 @@ func (m *Message) AsGreenpack(scratch []byte) (o []byte, err error) {
 //	  }
 //	}
 type HDR struct {
-	Nc net.Conn `msg:"-"` // registered func can query caller details.
+
+	// Nc is supplied to reveal the LocalAddr() or RemoteAddr() end points.
+	// Do not read from, or write to, this connection;
+	// that will cause the RPC connection to fail.
+	Nc net.Conn `msg:"-"`
 
 	Created  time.Time `zid:"0"`  // HDR creation time stamp.
 	From     string    `zid:"1"`  // originator host:port address.
