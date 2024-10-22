@@ -27,7 +27,7 @@ var sep = string(os.PathSeparator)
 // pathCA "my-keep-private-dir" is the default.
 // return the un-encrypted key to be used in subsequent signing steps without
 // having to request the passphrase again.
-func Step1_MakeCertificatAuthority(pathCA string, verbose bool, encrypt bool) (ed25519.PrivateKey, error) {
+func Step1_MakeCertificateAuthority(pathCA string, verbose bool, encrypt bool) (ed25519.PrivateKey, error) {
 	// Step 1: Generate the ED25519 private key
 	pubKey, privKey, err := ed25519.GenerateKey(nil)
 	if err != nil {

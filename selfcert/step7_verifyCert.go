@@ -8,7 +8,7 @@ import (
 	"io/ioutil"
 )
 
-func Step7_VerifyCertIsSignedByCertificatAuthority(verifyMeCertPath, caCertPath string, verbose bool) error {
+func Step7_VerifyCertIsSignedByCertificateAuthority(verifyMeCertPath, caCertPath string, verbose bool) error {
 
 	// Load CA certificate
 	if !fileExists(caCertPath) {

@@ -96,17 +96,18 @@ func main() {
 	if c.VerifySignatureOnCertPath != "" {
 		caCertPath := c.OdirCA_privateKey + sep + "ca.crt"
 		verifyMeCertPath := c.VerifySignatureOnCertPath
-		err = selfcert.Step7_VerifyCertIsSignedByCertificatAuthority(verifyMeCertPath, caCertPath, verbose)
+		err = selfcert.Step7_VerifyCertIsSignedByCertificateAuthority(verifyMeCertPath, caCertPath, verbose)
 		if err != nil {
 			log.Fatalf("error: cert '%v' was NOT signed by '%v': '%v'", verifyMeCertPath, caCertPath, err)
 		} else {
 			fmt.Printf("cert '%v' was indeed signed by '%v'.\n", verifyMeCertPath, caCertPath)
 		}
+		return
 	}
 
 	var caPrivKey ed25519.PrivateKey
 	if c.CreateCA {
-		caPrivKey, err = selfcert.Step1_MakeCertificatAuthority(c.OdirCA_privateKey, verbose, !c.SkipEncryptPrivateKeys)
+		caPrivKey, err = selfcert.Step1_MakeCertificateAuthority(c.OdirCA_privateKey, verbose, !c.SkipEncryptPrivateKeys)
 		if err != nil {
 			log.Fatalf("selfy could not make Certficate Authority in '%v': '%v'", c.OdirCA_privateKey, err)
 		}
@@ -115,7 +116,7 @@ func main() {
 	if c.CreateKeyPairNamed != "" {
 		if !DirExists(c.OdirCA_privateKey) || !FileExists(c.OdirCA_privateKey+sep+"ca.crt") {
 			log.Printf("key-pair '%v' requested but CA does not exist in '%v'...\n  ... auto-generating a self-signed CA for your first...\n", c.CreateKeyPairNamed, c.OdirCA_privateKey)
-			caPrivKey, err = selfcert.Step1_MakeCertificatAuthority(c.OdirCA_privateKey, verbose, !c.SkipEncryptPrivateKeys)
+			caPrivKey, err = selfcert.Step1_MakeCertificateAuthority(c.OdirCA_privateKey, verbose, !c.SkipEncryptPrivateKeys)
 			if err != nil {
 				log.Fatalf("selfy could not make Certficate Authority in '%v': '%v'", c.OdirCA_privateKey, err)
 			}
