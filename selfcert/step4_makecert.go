@@ -70,22 +70,33 @@ func makeCerts(caPrivKey ed25519.PrivateKey, caPrivKeyPath, caCertPath, csrInPat
 	}
 }
 
+// Load CA certificate
+func caLoadCert(certPath string) (caCert *x509.Certificate, caCertBytes []byte, err error) {
+
+	caCertBytes, err = ioutil.ReadFile(certPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to read CA certificate path '%v': %v", certPath, err)
+	}
+	caCertBlock, _ := pem.Decode(caCertBytes)
+	if caCertBlock == nil || caCertBlock.Type != "CERTIFICATE" {
+		return nil, nil, fmt.Errorf("failed to decode CA certificate PEM block from '%v'", certPath)
+	}
+	caCert, err = x509.ParseCertificate(caCertBlock.Bytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse CA certificate '%v': %v", certPath, err)
+	}
+	return caCert, caCertBytes, nil
+}
+
 // Load the CA certificate and CA private key
 func loadCA(caPrivKey ed25519.PrivateKey, certPath, keyPath string) (*x509.Certificate, ed25519.PrivateKey, error) {
 
 	// Load CA certificate
-	caCertBytes, err := ioutil.ReadFile(certPath)
-	if err != nil {
-		return nil, nil, fmt.Errorf("unable to read CA certificate file: %w", err)
-	}
-	caCertBlock, _ := pem.Decode(caCertBytes)
-	if caCertBlock == nil || caCertBlock.Type != "CERTIFICATE" {
-		return nil, nil, fmt.Errorf("failed to decode CA certificate PEM block")
-	}
-	caCert, err := x509.ParseCertificate(caCertBlock.Bytes)
+	caCert, caCertPEMBytes, err := caLoadCert(certPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to parse CA certificate: %w", err)
 	}
+	_ = caCertPEMBytes
 
 	if caPrivKey == nil {
 		// Load CA private key
@@ -96,7 +107,7 @@ func loadCA(caPrivKey ed25519.PrivateKey, certPath, keyPath string) (*x509.Certi
 		}
 
 		if bytes.Contains(caKeyBytes, []byte("BEGIN ENCRYPTED PRIVATE KEY")) {
-			caPrivKey, err = LoadEncryptedEd25519PrivateKey(keyPath)
+			caPrivKey, _, err = LoadEncryptedEd25519PrivateKey(keyPath)
 			if err != nil {
 				return nil, nil, fmt.Errorf("Failed to de-crypt with pass phrase "+
 					"the private key for the CA '%v': error = '%v'", keyPath, err)

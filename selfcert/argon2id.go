@@ -105,22 +105,22 @@ func encryptPrivateKey(privateKey []byte, password []byte, params *EncryptionPar
 }
 
 // decryptPrivateKey decrypts the PEM-encoded encrypted private key using stored encryption parameters.
-func decryptPrivateKey(encryptedPEM []byte, password []byte) (ed25519.PrivateKey, error) {
+func decryptPrivateKey(encryptedPEM []byte, password []byte) (edPriv ed25519.PrivateKey, pemKeyUncrypt []byte, err error) {
 	// Decode the PEM block
 	pemBlock, _ := pem.Decode(encryptedPEM)
 	if pemBlock == nil {
-		return nil, errors.New("failed to decode PEM block")
+		return nil, nil, errors.New("failed to decode PEM block")
 	}
 
 	// Check PEM type
 	if pemBlock.Type != "ENCRYPTED PRIVATE KEY" {
-		return nil, fmt.Errorf("unexpected PEM type: %s", pemBlock.Type)
+		return nil, nil, fmt.Errorf("unexpected PEM type: %s", pemBlock.Type)
 	}
 
 	// Extract and parse encryption parameters from headers
 	params, err := parseEncryptionParameters(pemBlock.Headers)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse encryption parameters: %w", err)
+		return nil, nil, fmt.Errorf("failed to parse encryption parameters: %w", err)
 	}
 
 	// Derive the key using Argon2id with extracted parameters
@@ -128,23 +128,23 @@ func decryptPrivateKey(encryptedPEM []byte, password []byte) (ed25519.PrivateKey
 
 	// Ensure the CipherSuite matches expected value
 	if params.CipherSuite != "AES-GCM" {
-		return nil, fmt.Errorf("unsupported cipher suite (only AES-GCM accepted): '%v'", params.CipherSuite)
+		return nil, nil, fmt.Errorf("unsupported cipher suite (only AES-GCM accepted): '%v'", params.CipherSuite)
 	}
 
 	// Create AES-GCM cipher
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create cipher: %w", err)
+		return nil, nil, fmt.Errorf("failed to create cipher: %w", err)
 	}
 
 	aesGCM, err := cipher.NewGCM(block)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create GCM: %w", err)
+		return nil, nil, fmt.Errorf("failed to create GCM: %w", err)
 	}
 
 	// Ensure the encrypted data is at least as long as the nonce
 	if len(pemBlock.Bytes) < aesGCM.NonceSize() {
-		return nil, errors.New("ciphertext too short")
+		return nil, nil, errors.New("ciphertext too short")
 	}
 
 	// Split nonce and ciphertext
@@ -154,7 +154,7 @@ func decryptPrivateKey(encryptedPEM []byte, password []byte) (ed25519.PrivateKey
 	// Decrypt the ciphertext
 	decryptedData, err := aesGCM.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt data: %w", err)
+		return nil, nil, fmt.Errorf("failed to decrypt data: %w", err)
 	}
 	fmt.Printf("decrypt good.\n")
 	//fmt.Printf("%v\n", string(decryptedData))
@@ -162,16 +162,20 @@ func decryptPrivateKey(encryptedPEM []byte, password []byte) (ed25519.PrivateKey
 	// Parse the private key (Ed25519)
 	privkey, err := x509.ParsePKCS8PrivateKey(decryptedData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse private key: %w", err)
+		return nil, nil, fmt.Errorf("failed to parse private key: %w", err)
 	}
 
 	// Assert the key type to Ed25519
 	edKey, ok := privkey.(ed25519.PrivateKey)
 	if !ok {
-		return nil, fmt.Errorf("not an Ed25519 private key")
+		return nil, nil, fmt.Errorf("not an Ed25519 private key")
 	}
 
-	return edKey, nil
+	// decryptedData is already a PEM without encryption,
+	// produced by x509.MarshalPKCS8PrivateKey(), so it should
+	// be ready for tls.X509KeyPair() can take it.
+
+	return edKey, decryptedData, nil
 }
 
 // parseEncryptionParameters extracts and parses encryption parameters from PEM headers.
@@ -262,6 +266,7 @@ func parseEncryptionParameters(headers map[string]string) (*EncryptionParameters
 	return params, nil
 }
 
+// privateKey should be the output of x509.MarshalPKCS8PrivateKey(priv)
 func SavePrivateKeyToPathUnderPassphrase(privateKey []byte, path string) error {
 
 	password, err := getPasswordFromTerminal(true)
@@ -295,29 +300,29 @@ func SavePrivateKeyToPathUnderPassphrase(privateKey []byte, path string) error {
 }
 
 // asks for password
-func LoadEncryptedEd25519PrivateKey(path string) (decryptedPrivateKey []byte, err error) {
+func LoadEncryptedEd25519PrivateKey(path string) (decryptedPrivateKey []byte, keyPEM []byte, err error) {
 
 	encryptedPEM2, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("could not read encrypted private key file '%v': '%v'", path, err)
+		return nil, nil, fmt.Errorf("could not read encrypted private key file '%v': '%v'", path, err)
 	}
 
 	password2, err := getPasswordFromTerminal(false)
 	if err != nil {
-		return nil, fmt.Errorf("could not get password from terminal: '%v'", err)
+		return nil, nil, fmt.Errorf("could not get password from terminal: '%v'", err)
 	}
 	fmt.Printf("Trying to unlock and load the private key... ")
 
 	// Decrypt the private key
 	//t1 := time.Now()
-	decryptedKey, err := decryptPrivateKey(encryptedPEM2, password2)
+	decryptedKey, keyPEM, err := decryptPrivateKey(encryptedPEM2, password2)
 	if err != nil {
-		return nil, fmt.Errorf("Decryption of path '%v' with supplied pw failed: %v", path, err)
+		return nil, nil, fmt.Errorf("Decryption of path '%v' with supplied pw failed: %v", path, err)
 	}
 
 	//fmt.Printf("Decrypted Private Key: in %v\n", time.Since(t1))
 	//fmt.Println(string(decryptedKey))
-	return decryptedKey, nil
+	return decryptedKey, keyPEM, nil
 }
 
 // writeAll writes the entire byte slice to the provided file descriptor (fd).

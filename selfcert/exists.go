@@ -52,9 +52,3 @@ func isWritable(path string) bool {
 	// Check write permission for owner, group, and others
 	return mode&0222 != 0 // Write permission for any?
 }
-
-func panicOn(err error) {
-	if err != nil {
-		panic(err)
-	}
-}

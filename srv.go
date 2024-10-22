@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/glycerine/idem"
+	"github.com/glycerine/rpc25519/selfcert"
 )
 
 var _ = os.MkdirAll
@@ -49,15 +50,19 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 		keyName = s.cfg.ServerKeyPairName
 	}
 
+	// since was redundant always,
+	// selfcert.LoadNodeTLSConfigProtected() below does not use.
+	// So commenting out:
 	// path to CA cert to verify client certs, can be same as sslCA
-	sslClientCA := sslCA
+	// sslClientCA := sslCA
+
 	sslCert := fixSlash(fmt.Sprintf("certs/%v.crt", keyName))    // path to server cert
 	sslCertKey := fixSlash(fmt.Sprintf("certs/%v.key", keyName)) // path to server key
 
 	if certPath != "" {
 		embedded = false
 		sslCA = fixSlash(fmt.Sprintf("%v/ca.crt", certPath)) // path to CA cert
-		sslClientCA = sslCA
+		//sslClientCA = sslCA
 		sslCert = fixSlash(fmt.Sprintf("%v/%v.crt", certPath, keyName))    // path to server cert
 		sslCertKey = fixSlash(fmt.Sprintf("%v/%v.key", certPath, keyName)) // path to server key
 	}
@@ -69,7 +74,9 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 		s.runTCP(serverAddress, boundCh)
 		return
 	} else {
-		config, err = loadServerTLSConfig(embedded, sslCA, sslClientCA, sslCert, sslCertKey)
+		// handle pass-phrase protected certs/node.key
+		config, err = selfcert.LoadNodeTLSConfigProtected(sslCA, sslCert, sslCertKey)
+		//config, err = loadServerTLSConfig(embedded, sslCA, sslClientCA, sslCert, sslCertKey)
 		if err != nil {
 			panic(fmt.Sprintf("error on LoadServerTLSConfig() (using embedded=%v): '%v'", embedded, err))
 		}
