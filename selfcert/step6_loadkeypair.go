@@ -52,7 +52,7 @@ func LoadNodeTLSConfigProtected(isServer bool, caCertPath, clientCertPath, priva
 	}
 	_ = caCert
 
-	vv("len keyPEM = '%v'; len certPEM = %v", string(keyPEM), string(certPEM))
+	//vv("keyPEM = '%v';\n certPEM = %v", string(keyPEM), string(certPEM))
 	pair, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
 		return nil, fmt.Errorf("error in LoadNodeTLSConfigProtected: "+
