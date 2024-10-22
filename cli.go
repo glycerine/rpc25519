@@ -196,7 +196,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	}
 
 	if c.cfg.encryptPSK {
-		c.cfg.randomSymmetricSessKeyFromPreSharedKey, err = symmetricClientHandshake(conn, c.cfg.preSharedKey)
+		c.cfg.randomSymmetricSessKeyFromPreSharedKey, c.cfg.cliEphemPub, c.cfg.srvEphemPub, err = symmetricClientHandshake(conn, c.cfg.preSharedKey)
 		panicOn(err)
 	}
 
@@ -226,7 +226,8 @@ func (c *Client) runClientTCP(serverAddr string) {
 	//log.Printf("connected to server %s", serverAddr)
 
 	if c.cfg.encryptPSK {
-		c.cfg.randomSymmetricSessKeyFromPreSharedKey, err = symmetricClientHandshake(conn, c.cfg.preSharedKey)
+		c.cfg.randomSymmetricSessKeyFromPreSharedKey, c.cfg.cliEphemPub, c.cfg.srvEphemPub, err =
+			symmetricClientHandshake(conn, c.cfg.preSharedKey)
 		panicOn(err)
 	}
 
@@ -527,6 +528,11 @@ type Config struct {
 	preSharedKey                           [32]byte
 	randomSymmetricSessKeyFromPreSharedKey [32]byte
 	encryptPSK                             bool
+
+	// the ephemeral keys from the ephemeral ECDH handshake
+	// to estblish randomSymmetricSessKeyFromPreSharedKey
+	cliEphemPub []byte
+	srvEphemPub []byte
 
 	// These are timeouts for connection and transport tuning.
 	// The defaults of 0 mean wait forever.

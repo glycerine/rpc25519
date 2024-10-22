@@ -205,7 +205,8 @@ acceptAgain:
 		//vv("tcp only server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 		if s.cfg.encryptPSK {
 			var err error
-			s.cfg.randomSymmetricSessKeyFromPreSharedKey, err = symmetricServerHandshake(conn, s.cfg.preSharedKey)
+			s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
+				symmetricServerHandshake(conn, s.cfg.preSharedKey)
 			panicOn(err)
 		}
 
@@ -275,7 +276,8 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 	//vv("tls server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 	if s.cfg.encryptPSK {
 		var err error
-		s.cfg.randomSymmetricSessKeyFromPreSharedKey, err = symmetricServerHandshake(conn, s.cfg.preSharedKey)
+		s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
+			symmetricServerHandshake(conn, s.cfg.preSharedKey)
 		panicOn(err)
 	}
 

@@ -98,7 +98,10 @@ in crypto/tls. Quoting the release notes:
 
 var _ = fmt.Printf
 
-func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymmetricKey [32]byte, err error) {
+// For forward privacy, the ephemeral ECDH handshake
+// serverPrivateKey generated here
+// is deliberately forgotten and not returned.
+func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedRandomSecret [32]byte, cliEphemPub, srvEphemPub []byte, err0 error) {
 	//vv("top of symmetricServerHandshake")
 
 	// Generate ephemeral X25519 key pair
@@ -106,6 +109,7 @@ func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymme
 	if err != nil {
 		panic(err)
 	}
+	srvEphemPub = serverPublicKey[:]
 
 	// Read the client's public key. Server *must* read first, since
 	// QUIC streams are only established when the client writes.
@@ -114,6 +118,7 @@ func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymme
 	if err != nil {
 		panic(err)
 	}
+	cliEphemPub = clientPublicKey
 
 	// Send the public key to the client
 	_, err = conn.Write(serverPublicKey[:])
@@ -134,12 +139,12 @@ func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymme
 		panic("sharedSecret must be 32 bytes")
 	}
 
-	key := deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(ssec, psk)
+	sharedRandomSecret = deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(ssec, psk)
 
 	// Print the symmetric key (for demonstration purposes)
-	//fmt.Printf("Server derived symmetric key: %x\n", key[:])
+	//fmt.Printf("Server derived symmetric key: %x\n", sharedRandomSecret[:])
 
-	return key, nil
+	return
 }
 
 func generateX25519KeyPair() (privateKey, publicKey [32]byte, err error) {
@@ -178,7 +183,10 @@ func deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk 
 	return finalKey
 }
 
-func symmetricClientHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymmetricKey [32]byte, err error) {
+// For forward privacy, the ephemeral ECDH handshake
+// clientPrivateKey generated here
+// is deliberately forgotten and not returned.
+func symmetricClientHandshake(conn uConn, psk [32]byte) (sharedRandomSecret [32]byte, cliEphemPub, srvEphemPub []byte, err0 error) {
 	//vv("top of symmetricClientHandshake")
 
 	// Generate ephemeral X25519 key pair
@@ -186,6 +194,7 @@ func symmetricClientHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymme
 	if err != nil {
 		panic(err)
 	}
+	cliEphemPub = clientPublicKey[:]
 
 	// Send the client's public key to the server. Client must write first (for QUIC).
 	_, err = conn.Write(clientPublicKey[:])
@@ -197,8 +206,10 @@ func symmetricClientHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymme
 	serverPublicKey := make([]byte, 32)
 	_, err = io.ReadFull(conn, serverPublicKey)
 	if err != nil {
-		return [32]byte{}, fmt.Errorf("symmetricClientHandshake error: could not read handshake: '%v'", err)
+		err0 = fmt.Errorf("symmetricClientHandshake error: could not read handshake: '%v'", err)
+		return
 	}
+	srvEphemPub = serverPublicKey
 
 	// Compute the shared secret
 	sharedSecret, err := curve25519.X25519(clientPrivateKey[:], serverPublicKey)
@@ -212,9 +223,9 @@ func symmetricClientHandshake(conn uConn, psk [32]byte) (sharedSecretRandomSymme
 	if n != 32 {
 		panic("sharedSecret must be 32 bytes")
 	}
-	key := deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(ssec, psk)
+	sharedRandomSecret = deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(ssec, psk)
 
 	// Print the symmetric key (for demonstration purposes)
-	//fmt.Printf("Client derived symmetric key: %x\n", key[:])
-	return key, nil
+	//fmt.Printf("Client derived symmetric key: %x\n", sharedRandomSecret[:])
+	return
 }
