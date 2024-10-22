@@ -1,7 +1,6 @@
 package selfcert
 
 import (
-	//"crypto/ed25519"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
@@ -9,6 +8,7 @@ import (
 )
 
 func Step7_VerifyCertIsSignedByCertificateAuthority(verifyMeCertPath, caCertPath string, verbose bool) error {
+	//fmt.Printf("step7 verifyMeCertPath='%v', caCertPath='%v'\n", verifyMeCertPath, caCertPath)
 
 	// Load CA certificate
 	if !fileExists(caCertPath) {

@@ -15,6 +15,7 @@ func Test101_certificate_signing_check(t *testing.T) {
 
 		// cd to tmpdir as side effect
 		origdir, tmpdir, err := MakeAndMoveToTempDir()
+		_ = tmpdir
 		panicOn(err)
 		defer func() {
 			os.Chdir(origdir)
