@@ -75,7 +75,7 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 		return
 	} else {
 		// handle pass-phrase protected certs/node.key
-		config, err = selfcert.LoadNodeTLSConfigProtected(sslCA, sslCert, sslCertKey)
+		config, err = selfcert.LoadNodeTLSConfigProtected(true, sslCA, sslCert, sslCertKey)
 		//config, err = loadServerTLSConfig(embedded, sslCA, sslClientCA, sslCert, sslCertKey)
 		if err != nil {
 			panic(fmt.Sprintf("error on LoadServerTLSConfig() (using embedded=%v): '%v'", embedded, err))

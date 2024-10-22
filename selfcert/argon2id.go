@@ -171,11 +171,20 @@ func decryptPrivateKey(encryptedPEM []byte, password []byte) (edPriv ed25519.Pri
 		return nil, nil, fmt.Errorf("not an Ed25519 private key")
 	}
 
-	// decryptedData is already a PEM without encryption,
-	// produced by x509.MarshalPKCS8PrivateKey(), so it should
-	// be ready for tls.X509KeyPair() can take it.
+	// decryptedData is the inner bytes, buts needs a PEM
+	// wrapper to
+	// be ready for tls.X509KeyPair().
 
-	return edKey, decryptedData, nil
+	var pembuf bytes.Buffer
+	err = pem.Encode(&pembuf, &pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: decryptedData,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to pem.Encode private key: %v", err)
+	}
+
+	return edKey, pembuf.Bytes(), nil
 }
 
 // parseEncryptionParameters extracts and parses encryption parameters from PEM headers.

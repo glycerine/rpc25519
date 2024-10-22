@@ -85,7 +85,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	}
 
 	// handle pass-phrase protected certs/client.key
-	config, err2 := selfcert.LoadNodeTLSConfigProtected(sslCA, sslCert, sslCertKey)
+	config, err2 := selfcert.LoadNodeTLSConfigProtected(false, sslCA, sslCert, sslCertKey)
 	//config, err2 := loadClientTLSConfig(embedded, sslCA, sslCert, sslCertKey)
 	if err2 != nil {
 		c.err = fmt.Errorf("error on LoadClientTLSConfig() (using embedded=%v): '%v'", embedded, err2)

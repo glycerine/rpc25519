@@ -14,7 +14,7 @@ import (
 
 // LoadNodeTLSConfigProtected will prompt
 // for the pass-phrase if the key is protected.
-func LoadNodeTLSConfigProtected(caCertPath, clientCertPath, privateKeyPath string) (*tls.Config, error) {
+func LoadNodeTLSConfigProtected(isServer bool, caCertPath, clientCertPath, privateKeyPath string) (*tls.Config, error) {
 
 	// Load the private key from the PEM file
 	privateKey, keyPEM, err := LoadEd25519PrivateKey(privateKeyPath)
@@ -52,6 +52,7 @@ func LoadNodeTLSConfigProtected(caCertPath, clientCertPath, privateKeyPath strin
 	}
 	_ = caCert
 
+	vv("len keyPEM = '%v'; len certPEM = %v", string(keyPEM), string(certPEM))
 	pair, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
 		return nil, fmt.Errorf("error in LoadNodeTLSConfigProtected: "+
@@ -73,11 +74,16 @@ func LoadNodeTLSConfigProtected(caCertPath, clientCertPath, privateKeyPath strin
 		MinVersion: tls.VersionTLS13,
 		ClientAuth: tls.RequireAndVerifyClientCert,
 
-		ClientCAs:                certPool,
-		PreferServerCipherSuites: true,
-	}
+		Certificates: []tls.Certificate{pair},
 
-	cfg.Certificates = []tls.Certificate{pair}
+		PreferServerCipherSuites: true,
+
+		// Should we disable session resumption? This may break forward secrecy.
+		// SessionTicketsDisabled: true,
+	}
+	//if isServer {
+	cfg.ClientAuth = tls.RequireAndVerifyClientCert // not tls.VerifyClientCertIfGiven
+	cfg.ClientCAs = certPool
 
 	//vv("loaded fine: caCertPath = '%v', clientCertPath='%v', privateKeyPath='%v'", caCertPath, clientCertPath, privateKeyPath)
 	return cfg, nil
