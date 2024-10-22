@@ -22,7 +22,7 @@ and connecting across networks.
 The [rpc25519 package docs are here](https://pkg.go.dev/github.com/glycerine/rpc25519). 
 
 ~~~
-# to install/get started: 
+# to install/get started: *warning: ~/go/bin/{srv,cli,selfy} are written
 #
 $ git clone https://github.com/glycerine/greenpack ## pre-req
 $ cd greenpack; make; cd ..

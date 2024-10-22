@@ -114,6 +114,10 @@ func main() {
 	}
 
 	if c.CreateKeyPairNamed != "" {
+
+		if !c.SkipEncryptPrivateKeys {
+			fmt.Printf("\nincautious reminder: the selfy -nopass flag will omit password protection...\n\n")
+		}
 		if !DirExists(c.OdirCA_privateKey) || !FileExists(c.OdirCA_privateKey+sep+"ca.crt") {
 			log.Printf("key-pair '%v' requested but CA does not exist in '%v'...\n  ... auto-generating a self-signed CA for your first...\n", c.CreateKeyPairNamed, c.OdirCA_privateKey)
 			caPrivKey, err = selfcert.Step1_MakeCertificateAuthority(c.OdirCA_privateKey, verbose, !c.SkipEncryptPrivateKeys)
