@@ -431,6 +431,11 @@ func NewMessageFromBytes(by []byte) (msg *Message) {
 //
 // The system will overwrite the reply.HDR field when sending the
 // reply, so the user should not bother trying to alter it.
+// The one exception to this rule is the reply.HDR.Subject string, which
+// can be set by the user to return user-defined information.
+// The reply will still be matched to the request on the HDR.Seqno, so
+// a change of HDR.Subject will not change which goroutine
+// receives the reply.
 type TwoWayFunc func(req *Message, reply *Message) error
 
 // OneWayFunc is the simpler sibling to the above.

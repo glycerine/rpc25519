@@ -413,7 +413,8 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 				reply := NewMessage()
 
 				replySeqno := req.HDR.Seqno // just echo back same
-				subject := req.HDR.Subject
+				// allow user to change Subject
+				reply.HDR.Subject = req.HDR.Subject
 				reqCallID := req.HDR.CallID
 
 				callme2(req, reply)
@@ -424,7 +425,7 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 				isRPC := true
 				isLeg2 := true
 
-				mid := NewHDR(from, to, subject, isRPC, isLeg2)
+				mid := NewHDR(from, to, reply.HDR.Subject, isRPC, isLeg2)
 
 				// We are able to match call and response rigourously on the CallID alone.
 				mid.CallID = reqCallID
