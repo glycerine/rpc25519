@@ -1118,7 +1118,7 @@ func SelfyNewKey(createKeyPairNamed, odir string) error {
 
 	if !dirExists(odirPrivateKey) || !fileExists(odirPrivateKey+sep+"ca.crt") {
 		//vv("key-pair '%v' requested but CA does not exist in '%v', so auto-generating a self-signed CA for your first.", createKeyPairNamed, odirPrivateKey)
-		selfcert.Step1_MakeCertificatAuthority(odirPrivateKey, verbose, encryptWithPassphhrase)
+		selfcert.Step1_MakeCertificateAuthority(odirPrivateKey, verbose, encryptWithPassphhrase)
 	}
 
 	privKey, err := selfcert.Step2_MakeEd25519PrivateKey(createKeyPairNamed, odirCerts, verbose, encryptWithPassphhrase)
