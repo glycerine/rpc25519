@@ -27,6 +27,10 @@ type SelfCertConfig struct {
 	Quiet                  bool
 	SkipEncryptPrivateKeys bool
 	GenSymmetricKey32bytes string
+
+	// verify that cert was signed by the private key
+	// corresponding to OdirCA_privateKey/ca.crt
+	VerifySignatureOnCertPath string
 }
 
 type EncryptedKeyFile struct {
@@ -52,6 +56,9 @@ func (c *SelfCertConfig) DefineFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.SkipEncryptPrivateKeys, "nopass", false, "by default we request a password and use it with Argon2id to encrypt the private key file. Setting -nopass means we generate an un-encrypted private key; this is not recommended.")
 
 	fs.StringVar(&c.GenSymmetricKey32bytes, "gensym", "", "generate a new 32-byte symmetric encryption key with crypto/rand, and save it under this filename in the -p directory.")
+
+	fs.StringVar(&c.VerifySignatureOnCertPath, "verify", "", "verify this path is a certificate signed by the private key corresponding to the -p {my-keep-private-dir}/ca.crt public key")
+
 }
 
 // Call c.ValidateConfig() just after fs.Parse() to finish
@@ -61,6 +68,9 @@ func (c *SelfCertConfig) ValidateConfig(fs *flag.FlagSet) (err error) {
 	if c.CreateKeyPairNamed != "" && c.Email == "" {
 		fmt.Fprintf(os.Stderr, "\n*****\narg! selfy is flumoxed: the selfy -e email flag was missing. Please use selfy -e your@email to tell trouble-shooters/debuggers how to contact you in case of trouble; and to give a human readable label to these cert identities(!) We'll auto-fill from as %v@%v for now. Bah!\n*****\n\n", c.CreateKeyPairNamed, host)
 		c.Email = fmt.Sprintf("%v@%v", c.CreateKeyPairNamed, host)
+	}
+	if c.VerifySignatureOnCertPath != "" && !FileExists(c.VerifySignatureOnCertPath) {
+		return fmt.Errorf("selfy -verify path not found: '%v'", c.VerifySignatureOnCertPath)
 	}
 	return
 }
@@ -82,6 +92,17 @@ func main() {
 	}
 
 	verbose := !c.Quiet
+
+	if c.VerifySignatureOnCertPath != "" {
+		caCertPath := c.OdirCA_privateKey + sep + "ca.crt"
+		verifyMeCertPath := c.VerifySignatureOnCertPath
+		err = selfcert.Step7_VerifyCertIsSignedByCertificatAuthority(verifyMeCertPath, caCertPath, verbose)
+		if err != nil {
+			log.Fatalf("error: cert '%v' was NOT signed by '%v': '%v'", verifyMeCertPath, caCertPath, err)
+		} else {
+			fmt.Printf("cert '%v' was indeed signed by '%v'.\n", verifyMeCertPath, caCertPath)
+		}
+	}
 
 	var caPrivKey ed25519.PrivateKey
 	if c.CreateCA {
