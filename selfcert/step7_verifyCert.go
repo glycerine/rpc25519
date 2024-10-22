@@ -26,7 +26,6 @@ func Step7_VerifyCertIsSignedByCertificatAuthority(verifyMeCertPath, caCertPath 
 	if err != nil {
 		return fmt.Errorf("failed to parse CA certificate: %v", err)
 	}
-	_ = caCert
 
 	// load verifyMeCertPath
 	if !fileExists(verifyMeCertPath) {
@@ -44,7 +43,22 @@ func Step7_VerifyCertIsSignedByCertificatAuthority(verifyMeCertPath, caCertPath 
 	if err != nil {
 		return fmt.Errorf("failed to parse CA certificate: %v", err)
 	}
-	_ = verifyMeCert
 
-	return nil
+	// Verify that verifyMeCert is signed by caCert
+	roots := x509.NewCertPool()
+	roots.AddCert(caCert)
+
+	_, err = verifyMeCert.Verify(x509.VerifyOptions{
+		Roots: roots,
+	})
+
+	if verbose {
+		if err != nil {
+			fmt.Println("The certificate failed verification.")
+		} else {
+			fmt.Println("The certificate is valid and signed by the CA.")
+		}
+	}
+
+	return err
 }
