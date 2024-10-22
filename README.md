@@ -6,7 +6,7 @@ with modern, strong cryptography
 for [goq](https://github.com/glycerine/goq). 
 To that end, `rpc25519` uses only
 ed25519 keys for its public-key cryptography. A
-second pre-shared-key layer can also be configured
+pre-shared-key layer can also be configured
 for post-quantum security.
 
 Excitedly, I am delighted to report this package also
@@ -41,7 +41,7 @@ cli_test.go also make great starting points.
 overview
 --------
 
-[`rpc25519`](https://github.com/glycerine/rpc25519) is a Remote Procedure Call system with two APIs.
+[`rpc25519`](https://github.com/glycerine/rpc25519) is a Remote Procedure Call (RPC) system with two APIs.
 
 We offer both a traditional [net/rpc](https://pkg.go.dev/net/rpc) 
 style API, and a generic []byte oriented API for carrying
@@ -52,7 +52,12 @@ We simply re-used that package's client-facing code layer, and
 wired it into/on top of our native []byte slice `Message` transport infrastructure.
 (The LICENSE file reflects this code re-use.)
 
-The byte slice API is designed to work smoothly 
+Note that since we are oriented around distributed job management 
+and use TLS/QUIC directly, under no circumstances does our
+binary protocol pretend to be, or emulate, an http client or server. 
+This is another difference from the original `net/rpc` package.
+
+The generic byte-slice API is designed to work smoothly 
 with our [greenpack serialization format](https://github.com/glycerine/greenpack)
 that requires no extra IDL file. See the https://github.com/glycerine/rpc25519/blob/master/hdr.go#L18 file herein, for example.
 
