@@ -360,7 +360,10 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		req, err := w.readMessage(conn, &s.cfg.ReadTimeout)
 		if err == io.EOF {
 			//vv("server sees io.EOF from receiveMessage")
-			continue // close of socket before read of full message.
+			// close of socket before read of full message.
+			// shutdown this connection or we'll just
+			// spin here at 500% cpu.
+			return
 		}
 		if err != nil {
 			r := err.Error()

@@ -344,7 +344,10 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 		req, err := w.readMessage(stream, &s.cfg.ReadTimeout)
 		if err == io.EOF {
 			//vv("server sees io.EOF from receiveMessage")
-			continue // close of socket before read of full message.
+			// close of socket before read of full message.
+			// shutdown this connection or we'll just
+			// spin here at 500% cpu.
+			return
 		}
 		if err != nil {
 			r := err.Error()
