@@ -4,7 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"time"
+
+	_ "net/http/pprof" // for web based profiling while running
 
 	"github.com/glycerine/rpc25519"
 )
@@ -23,7 +26,16 @@ func main() {
 
 	var quic = flag.Bool("q", false, "use QUIC instead of TCP/TLS")
 
+	var profile = flag.String("prof", "", "host:port to start web profiler on. host can be empty for all localhost interfaces")
+
 	flag.Parse()
+
+	if *profile != "" {
+		fmt.Printf("webprofile starting at '%v'...\n", *profile)
+		go func() {
+			http.ListenAndServe(*profile, nil)
+		}()
+	}
 
 	cfg := rpc25519.NewConfig()
 	cfg.ServerAddr = *addr // "0.0.0.0:8443"
