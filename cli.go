@@ -530,9 +530,10 @@ type Config struct {
 	ServerKeyPairName string // default "node" means use certs/node.crt and certs/node.key
 
 	// PreSharedKeyPath locates an optional pre-shared
-	// hex written in hex that must be 32 bytes (or more) long
-	// (so 64 hex characters). Only the first 32 bytes will
-	// be used to create a symmetric 2nd encryption layer.
+	// key. It must be 32 bytes (or more). Ideally
+	// it should be generated from crypto/rand.
+	// The `selfy -gensym outpath` command will
+	// write 32 randomly bytes to output.
 	PreSharedKeyPath string
 
 	preSharedKey                           [32]byte
