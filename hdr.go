@@ -62,7 +62,7 @@ func MessageFromGreenpack(by []byte) (*Message, error) {
 }
 
 // AsGreenpack marshalls m into o.
-// The scrach workspace can be nil or reused to avoid allocation.
+// The scratch workspace can be nil or reused to avoid allocation.
 // The [greenpack format](https://github.com/glycerine/greenpack) is used.
 func (m *Message) AsGreenpack(scratch []byte) (o []byte, err error) {
 	return m.MarshalMsg(scratch[:0])
