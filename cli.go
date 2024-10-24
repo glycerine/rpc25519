@@ -124,7 +124,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		if localHostPort == "" {
 			localHost, err := ipaddr.LocalAddrMatching(serverAddr)
 			panicOn(err)
-			//vv("localHost = '%v', matched to quicServerAddr = '%v'", localHost, quicServerAddr)
+			//vv("localHost = '%v', matched to quicServerAddr = '%v'", localHost, serverAddr)
 			localHostPort = localHost + ":0" // client can pick any port
 		}
 		c.runQUIC(localHostPort, serverAddr, config)

@@ -18,6 +18,8 @@ import (
 	"github.com/glycerine/idem"
 )
 
+var _ = fmt.Printf
+
 // Important machine settings in order to use QUIC:
 /*
 https://github.com/quic-go/quic-go/wiki/UDP-Buffer-Sizes
@@ -64,7 +66,9 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 	}
 	isIPv6 := serverAddr.IP.To4() == nil
 	if isIPv6 {
-		panic(fmt.Sprintf("quic-go does not work well over IPv6, so we reject this server address '%v'. Please use an IPv4 network with quic, or if IPv6 is required then use TCP/TLS over TCP.", serverAddr.String()))
+		// don't presume.
+		//panic(fmt.Sprintf("quic-go does not work well over IPv6 VPNs, so we reject this server address '%v'. Please use an IPv4 network with quic, or if IPv6 is required then use TCP/TLS over TCP.", serverAddr.String()))
+		//alwaysPrintf("warning: quic serverAddr '%v' is IPv6.", serverAddr.String())
 	}
 	//vv("quicServerAddr '%v' -> '%v'", quicServerAddr, serverAddr)
 
