@@ -208,10 +208,10 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 					if strings.Contains(err.Error(), "timeout: no recent network activity") {
 						// ignore these, they happen every 30 seconds or so.
 						//log.Printf("ignoring timeout")
-						//continue
+						continue
 						// or does this means it is time to close up shop?
 						//vv("timeout, finishing quic session/connection")
-						return
+						//return
 					}
 					if strings.Contains(err.Error(), "Application error 0x0 (remote)") {
 						// normal shutdown.
@@ -361,6 +361,16 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 			}
 			if strings.Contains(r, "use of closed network connection") {
 				return // shutting down
+			}
+
+			// "timeout: no recent network activity" is simply an idle
+			// timeout (after ~ 30seconds), which can happen often enough
+			// for long waiting workers in goq. Let's not trash their connection.
+			// Instead continue to leave the connection intact. Otherwise
+			// workers can be ready but not get jobs because the server
+			// thinks they are disconnected.
+			if strings.Contains(r, "timeout: no recent network activity") {
+				continue // ignore this.
 			}
 
 			alwaysPrintf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
