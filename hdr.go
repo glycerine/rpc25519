@@ -40,7 +40,7 @@ type Message struct {
 	JobErrs string `zid:"2"`
 
 	// Err is not serialized on the wire by the server.
-	// It communicates only local (client side) information. Callback
+	// It communicates only local (client/server side) information. Callback
 	// functions should convey errors in JobErrs or in-band within
 	// JobSerz.
 	Err error `msg:"-"`

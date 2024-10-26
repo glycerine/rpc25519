@@ -312,9 +312,14 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		case msg := <-s.SendCh:
 			err := w.sendMessage(conn, msg, &s.cfg.WriteTimeout)
 			if err != nil {
+				// notify any short waiting server push user.
+				msg.Err = err
+				select {
+				case msg.DoneCh <- msg:
+				default:
+				}
 				r := err.Error()
 				if strings.Contains(r, "broken pipe") {
-					msg.Err = err
 					// how can we restart the connection? problem is, submitters reach out to us.
 					// Maybe with quic if they run a server too, since we'll know the port
 					// to find them on, if they are still up.
@@ -976,6 +981,17 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 		//vv("warning: time out trying to send on pair.SendCh")
 	case <-s.halt.ReqStop.Chan:
 		// shutting down
+		return ErrShutdown
+	}
+
+	if s.cfg.WriteTimeout == 0 {
+		// default, waiting a very long time to talk to client.
+		// Do a fast 20msec check for disconnected client error.
+		select {
+		case <-msg.DoneCh:
+			return msg.Err
+		case <-time.After(20 * time.Millisecond):
+		}
 	}
 	return nil
 }
