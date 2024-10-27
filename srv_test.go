@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -568,12 +569,6 @@ func Test015_server_push_quic_notice_disco_quickly(t *testing.T) {
 		<-rem.GoneCh
 		vv("server has seen that rem '%v' is gone", rem.Remote)
 
-		//select {}
-		//time.Sleep(time.Millisecond * 1000)
-
-		// good here; we see
-		// quic_server.go:376 2024-10-26 17:00:48.716 -0500 CDT ugh. error from remote 127.0.0.1:64891: Application error 0x0 (remote)
-
 		vv("now try having server push to disco client")
 
 		req := NewMessage()
@@ -590,8 +585,13 @@ func Test015_server_push_quic_notice_disco_quickly(t *testing.T) {
 		if err == ErrNetConnectionNotFound {
 			vv("good: got error back on SendMessage to shutdown client, like we want: '%v'", err)
 			err = nil
+		} else if strings.Contains(err.Error(), "Application error 0x0 (remote)") {
+			// good. This is Server.SendMessage() bubbling up the error from
+			// the quic client actively closing on us. Exactly what we want.
+			vv("good! got expected error '%v'", err)
+		} else {
+			panicOn(err) // unexpected error type!
 		}
-		panicOn(err) // unexpected error type!
 
 		close(done)
 		<-ackDone

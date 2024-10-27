@@ -1033,18 +1033,6 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 		return ErrShutdown
 	}
 
-	if s.cfg.WriteTimeout == 0 {
-		// default, waiting a very long time to talk to client.
-		// Do a fast 20msec check for disconnected client error.
-		vv("srv SendMessage wait 10 msec to check on connection")
-		select {
-		case <-msg.DoneCh:
-			vv("srv SendMessage got back msg.Err = '%v'", msg.Err)
-			return msg.Err
-		case <-time.After(10 * time.Millisecond):
-			vv("srv SendMessage timeout after waiting 10 msec")
-		}
-	}
 	return nil
 }
 
