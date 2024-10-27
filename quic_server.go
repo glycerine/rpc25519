@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/quic-go/quic-go"
+	"github.com/quic-go/quic-go/qlog"
 	"io"
 	"strings"
 )
@@ -109,6 +110,7 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 		Allow0RTT:         true,
 		InitialPacketSize: 1200, // needed to work over Tailscale that defaults to MTU 1280.
 		KeepAlivePeriod:   5 * time.Second,
+		Tracer:            qlog.DefaultConnectionTracer,
 	}
 
 	// "ListenEarly starts listening for incoming QUIC connections.
