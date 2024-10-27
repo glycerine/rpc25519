@@ -251,7 +251,8 @@ func (c *Client) runReadLoop(conn net.Conn) {
 	//w := newWorkspace(maxMessage)
 	w := newBlabber("client read loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false)
 
-	readTimeout := time.Millisecond * 100
+	//readTimeout := time.Millisecond * 100
+	readTimeout := time.Millisecond * 2000 // jea debug
 	for {
 
 		// shutting down?
@@ -265,11 +266,20 @@ func (c *Client) runReadLoop(conn net.Conn) {
 		msg, err := w.readMessage(conn, &readTimeout)
 		if err != nil {
 			r := err.Error()
-			if strings.Contains(r, "timeout") || strings.Contains(r, "deadline exceeded") {
+			//if strings.Contains(r, "timeout") || strings.Contains(r, "deadline exceeded") {
+			if strings.Contains(r, "deadline exceeded") {
+				// just our readTimeout happening, so we can poll on shutting down, above.
 				continue
 			}
+
+			vv("err = '%v'", err)
+			if strings.Contains(r, "timeout: no recent network activity") {
+				// we will hard spin the CPU to 100% (after disconnect)
+				// if we don't exit on this.
+				vv("cli read loop exiting on '%v'", err)
+				return
+			}
 			// quic server specific
-			//vv("err = '%v'", err)
 			if strings.Contains(r, "Application error 0x0 (remote)") {
 				//vv("normal quic shutdown.")
 				return
@@ -853,6 +863,19 @@ func (c *Client) netRpcShutdownCleanup(err error) {
 }
 
 // original, not net/rpc derived below:
+
+func (c *Client) IsDown() (down bool) {
+	c.mut.Lock()
+	down = c.halt.ReqStop.IsClosed()
+	c.mut.Unlock()
+	if down {
+		return
+	}
+	c.mutex.Lock()
+	down = c.shutdown
+	c.mutex.Unlock()
+	return
+}
 
 // Err returns any Client stored error.
 func (c *Client) Err() error {

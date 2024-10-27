@@ -16,6 +16,8 @@ require (
 	golang.org/x/term v0.25.0
 )
 
+replace github.com/quic-go/quic-go => ../../quic-go/quic-go
+
 require (
 	4d63.com/embedfiles v0.0.0-20190311033909-995e0740726f // indirect
 	github.com/glycerine/fwd v1.1.4-beta.jea // indirect

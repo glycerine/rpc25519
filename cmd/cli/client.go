@@ -21,6 +21,8 @@ func main() {
 
 	var quic = flag.Bool("q", false, "use QUIC instead of TCP/TLS")
 
+	var hang = flag.Bool("hang", false, "hang at the end, to see if keep-alives are working.")
+
 	flag.Parse()
 
 	if *remoteDefault {
@@ -53,4 +55,8 @@ func main() {
 
 	log.Printf("client sees reply (Seqno=%v) = '%v'\n", reply.HDR.Seqno, string(reply.JobSerz))
 
+	if *hang {
+		log.Printf("client hanging to see if keep-alives happen...")
+		select {}
+	}
 }

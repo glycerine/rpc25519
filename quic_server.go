@@ -108,6 +108,7 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 	quicConfig := &quic.Config{
 		Allow0RTT:         true,
 		InitialPacketSize: 1200, // needed to work over Tailscale that defaults to MTU 1280.
+		KeepAlivePeriod:   5 * time.Second,
 	}
 
 	// "ListenEarly starts listening for incoming QUIC connections.
@@ -335,7 +336,7 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 			return
 		}
 		if err != nil {
-			//vv("quic server read loop sees err = '%v'", err)
+			vv("quic server read loop sees err = '%v'", err)
 			r := err.Error()
 			if strings.Contains(r, "remote error: tls: bad certificate") {
 				//vv("ignoring client connection with bad TLS cert.")
