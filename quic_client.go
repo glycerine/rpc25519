@@ -116,7 +116,7 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 
 	defer func() {
 		conn.CloseWithError(0, "") // in runQUIC() here. fired when read loop returns.
-		vv("quic_client has called quicConn.CloseWithError(0)")
+		//vv("quic_client has called quicConn.CloseWithError(0)")
 	}()
 
 	// wait for the handshake to complete so we are encrypted/can verify host keys.

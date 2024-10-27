@@ -311,7 +311,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 	for {
 		select {
 		case msg := <-s.SendCh:
-			vv("srv got from s.SendCh, sending msg.HDR = '%v'", msg.HDR)
+			//vv("srv got from s.SendCh, sending msg.HDR = '%v'", msg.HDR)
 			err := w.sendMessage(conn, msg, &s.cfg.WriteTimeout)
 			if err != nil {
 				// notify any short waiting server push user.
@@ -976,8 +976,10 @@ func (s *Server) deletePair(p *rwPair) {
 	}
 	delete(s.pair2remote, p)
 	delete(s.remote2pair, key)
+
+	// see srv_test 015 for example use.
 	close(p.allDone)
-	vv("Server.deletePair() has closed allDone for pair '%v'", p)
+	//vv("Server.deletePair() has closed allDone for pair '%v'", p)
 }
 
 var ErrNetConnectionNotFound = fmt.Errorf("error: net.Conn not found")

@@ -964,7 +964,7 @@ func (c *Client) Close() error {
 			// try to tell server we are gone before
 			// we tear down the communication framework.
 			c.quicConn.CloseWithError(0, "")
-			vv("cli quicConn.CloseWithError(0) sent.")
+			//vv("cli quicConn.CloseWithError(0) sent.")
 		}
 		c.cfg.shared.mut.Lock()
 		if !c.cfg.shared.isClosed { // since Client.Close() might be called more than once.
@@ -982,7 +982,7 @@ func (c *Client) Close() error {
 	}
 	c.halt.ReqStop.Close()
 	<-c.halt.Done.Chan
-	vv("Client.Close() finished.")
+	//vv("Client.Close() finished.")
 	return nil
 }
 

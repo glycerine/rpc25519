@@ -5,17 +5,12 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log"
-	//"os"
-	"bufio"
-	"encoding/gob"
 	"net"
 	"time"
 
 	"github.com/quic-go/quic-go"
 	"io"
 	"strings"
-
-	"github.com/glycerine/idem"
 )
 
 var _ = fmt.Printf
@@ -243,7 +238,7 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 }
 
 type quicRWPair struct {
-	rwPair
+	*rwPair
 	stream quic.Stream
 }
 
@@ -254,46 +249,19 @@ func (s *Server) newQUIC_RWPair(stream quic.Stream, conn quic.Connection) *quicR
 	//vv("Server new quic pair: local = '%v'", local(wrap))
 	//vv("Server new quic pair: remote = '%v'", remote(wrap))
 
-	p := &quicRWPair{
-		rwPair: rwPair{
-			cfg:    s.cfg,
-			Server: s,
-			Conn:   wrap,
-			SendCh: make(chan *Message, 10),
-			halt:   idem.NewHalter(),
-		},
+	// No longer duplicate everything that newRWPair() does.
+	// It was a burden to keep them in sync. Just point to it.
+	return &quicRWPair{
+		rwPair: s.newRWPair(wrap),
 		stream: stream,
 	}
-	p.encBufW = bufio.NewWriter(&p.encBuf)
-	p.gobCodec = &gobServerCodec{
-		rwc:    nil,
-		dec:    gob.NewDecoder(&p.decBuf),
-		enc:    gob.NewEncoder(p.encBufW),
-		encBuf: p.encBufW,
-	}
-
-	key := remote(conn)
-
-	s.mut.Lock()
-	defer s.mut.Unlock()
-
-	s.remote2pair[key] = &p.rwPair
-	s.pair2remote[&p.rwPair] = key
-
-	sc := newServerClient(key)
-	p.allDone = sc.GoneCh
-	select {
-	case s.RemoteConnectedCh <- sc:
-	default:
-	}
-	return p
 }
 
 func (s *quicRWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 	defer func() {
 
 		//vv("quick server send loop shutting down for conn.Remote = '%v'", conn.RemoteAddr())
-		s.Server.deletePair(&s.rwPair)
+		s.Server.deletePair(s.rwPair)
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
 	}()
