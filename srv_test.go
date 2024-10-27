@@ -225,7 +225,7 @@ func Test004_server_push(t *testing.T) {
 
 		callID := "callID_here"
 		subject := "subject_here"
-		err = srv.SendMessage(callID, subject, destAddr, req.JobSerz, seqno)
+		err = srv.SendMessage(callID, subject, destAddr, req.JobSerz, seqno, nil)
 		panicOn(err) // net.Conn not found
 
 		// does the client get it?
@@ -466,7 +466,7 @@ func Test014_server_push_quic(t *testing.T) {
 
 		callID := "callID_here"
 		subject := "subject_here"
-		err = srv.SendMessage(callID, subject, destAddr, req.JobSerz, seqno)
+		err = srv.SendMessage(callID, subject, destAddr, req.JobSerz, seqno, nil)
 		panicOn(err) // net.Conn not found
 
 		// does the client get it?
@@ -576,7 +576,7 @@ func Test015_server_push_quic_notice_disco_quickly(t *testing.T) {
 
 		callID := "server_push_callID_here"
 		subject := "server push"
-		err = srv.SendMessage(callID, subject, destAddr, req.JobSerz, seqno)
+		err = srv.SendMessage(callID, subject, destAddr, req.JobSerz, seqno, nil)
 
 		// do we get an error since client is not there?
 		if err == nil {

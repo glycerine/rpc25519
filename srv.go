@@ -989,12 +989,28 @@ var ErrNetConnectionNotFound = fmt.Errorf("error: net.Conn not found")
 //
 // A NewMessage() Message will be created and JobSerz will contain the data.
 // The HDR fields Subject, CallID, and Seqno will also be set from the arguments.
-// If callID argument is the empty string, we will use a default
+// If callID argument is the empty string, we will use a crypto/rand
 // randomly generated one.
 //
 // If the destAddr is not already connected to the server, the
 // ErrNetConnectionNotFound error will be returned.
-func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqno uint64) error {
+//
+// errWriteDur is how long we pause waiting for the
+// writing goroutine to send the message or give us a fast
+// error reply. Early discovery of client disconnect
+// can allow us to try other (worker) clients, rather
+// than wait for pings or other slow error paths.
+//
+// The errWriteDur can be set to a few seconds if this would
+// save the caller a minute of two of waiting to discover
+// the send is unlikely to suceed; or to time.Duration(0) if
+// they want no pause after writing Message to the connection.
+// The default is 30 msec. It is a guess and aims at balance:
+// allowing enough time to get an error back from quic-go i
+// f we are going to discover "Application error 0x0 (remote)"
+// right away, and not wanting to stall the caller too much.
+func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqno uint64,
+	errWriteDur *time.Duration) error {
 
 	s.mut.Lock()
 	pair, ok := s.remote2pair[destAddr]
@@ -1035,20 +1051,20 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 		return ErrShutdown
 	}
 
-	// This is basically just enough time to instantly
-	// get an error back from quic-go if we are going to
-	// discover "Application error 0x0 (remote)" right away,
-	// rather than wait for pings or other errors.
-	dur := 10 * time.Millisecond
-	//vv("srv SendMessage about to wait %v to check on connection.", dur)
-	select {
-	case <-msg.DoneCh:
-		//vv("srv SendMessage got back msg.Err = '%v'", msg.Err)
-		return msg.Err
-	case <-time.After(dur):
-		//vv("srv SendMessage timeout after waiting %v", dur)
+	dur := 30 * time.Millisecond
+	if errWriteDur != nil {
+		dur = *errWriteDur
 	}
-
+	if dur > 0 {
+		//vv("srv SendMessage about to wait %v to check on connection.", dur)
+		select {
+		case <-msg.DoneCh:
+			//vv("srv SendMessage got back msg.Err = '%v'", msg.Err)
+			return msg.Err
+		case <-time.After(dur):
+			//vv("srv SendMessage timeout after waiting %v", dur)
+		}
+	}
 	return nil
 }
 
