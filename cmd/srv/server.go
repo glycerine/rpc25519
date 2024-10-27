@@ -44,6 +44,7 @@ func main() {
 	cfg.SkipVerifyKeys = *skipVerify
 	cfg.ServerKeyPairName = *useName
 	cfg.CertPath = *certPath
+	cfg.ServerSendKeepAlive = time.Second * 5
 	//cfg.SkipClientCerts= *skipClientCerts
 
 	srv := rpc25519.NewServer("srv", cfg)

@@ -13,7 +13,7 @@ import (
 	//"os"
 
 	"github.com/quic-go/quic-go"
-	"github.com/quic-go/quic-go/qlog"
+	//"github.com/quic-go/quic-go/qlog"
 )
 
 var _ = time.Time{}
