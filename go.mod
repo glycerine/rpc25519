@@ -18,8 +18,11 @@ require (
 
 replace github.com/quic-go/quic-go => ../../quic-go/quic-go
 
+replace github.com/quic-go/quic-go/qlog => ../../quic-go/quic-go/qlog
+
 require (
 	4d63.com/embedfiles v0.0.0-20190311033909-995e0740726f // indirect
+	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/glycerine/fwd v1.1.4-beta.jea // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect

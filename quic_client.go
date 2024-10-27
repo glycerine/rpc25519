@@ -13,6 +13,7 @@ import (
 	//"os"
 
 	"github.com/quic-go/quic-go"
+	"github.com/quic-go/quic-go/qlog"
 )
 
 var _ = time.Time{}
@@ -99,6 +100,8 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 
 		// 1200 is important, else we will have trouble with MTU 1280 networks like Tailscale.
 		InitialPacketSize: 1200,
+
+		Tracer: qlog.DefaultConnectionTracer,
 	}
 
 	// this conn is a quic.EarlyConnection
