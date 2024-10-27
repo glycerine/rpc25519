@@ -1035,6 +1035,20 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 		return ErrShutdown
 	}
 
+	// This is basically just enough time to instantly
+	// get an error back from quic-go if we are going to
+	// discover "Application error 0x0 (remote)" right away,
+	// rather than wait for pings or other errors.
+	dur := 10 * time.Millisecond
+	//vv("srv SendMessage about to wait %v to check on connection.", dur)
+	select {
+	case <-msg.DoneCh:
+		//vv("srv SendMessage got back msg.Err = '%v'", msg.Err)
+		return msg.Err
+	case <-time.After(dur):
+		//vv("srv SendMessage timeout after waiting %v", dur)
+	}
+
 	return nil
 }
 
