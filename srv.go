@@ -295,6 +295,7 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 
 func (s *rwPair) runSendLoop(conn net.Conn) {
 	defer func() {
+		s.Server.deletePair(s)
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
 	}()
@@ -310,6 +311,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 	for {
 		select {
 		case msg := <-s.SendCh:
+			vv("srv got from s.SendCh, sending msg.HDR = '%v'", msg.HDR)
 			err := w.sendMessage(conn, msg, &s.cfg.WriteTimeout)
 			if err != nil {
 				// notify any short waiting server push user.
@@ -325,6 +327,12 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 					// to find them on, if they are still up.
 				}
 				alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
+			} else {
+				// tell caller there was no error.
+				select {
+				case msg.DoneCh <- msg:
+				default:
+				}
 			}
 		case <-s.halt.ReqStop.Chan:
 			return
@@ -492,12 +500,13 @@ type Server struct {
 	halt *idem.Halter
 
 	remote2pair map[string]*rwPair
+	pair2remote map[*rwPair]string
 
 	// RemoteConnectedCh sends the remote host:port address
 	// when the server gets a new client,
 	// See srv_test.go Test004_server_push for example,
 	// where it is used to avoid a race/panic.
-	RemoteConnectedCh chan string
+	RemoteConnectedCh chan *ServerClient
 
 	// net/rpc implementation details
 	serviceMap sync.Map   // map[string]*service
@@ -505,6 +514,18 @@ type Server struct {
 	freeReq    *Request
 	respLock   sync.Mutex // protects freeResp
 	freeResp   *Response
+}
+
+type ServerClient struct {
+	Remote string
+	GoneCh chan struct{}
+}
+
+func newServerClient(remote string) *ServerClient {
+	return &ServerClient{
+		Remote: remote,
+		GoneCh: make(chan struct{}),
+	}
 }
 
 // layer2 will provide a 2nd, symmetric encryption
@@ -900,6 +921,8 @@ type rwPair struct {
 
 	halt *idem.Halter
 
+	allDone chan struct{}
+
 	// net/rpc api
 	gobCodec *gobServerCodec
 	//sending  sync.Mutex
@@ -932,12 +955,29 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 	defer s.mut.Unlock()
 
 	s.remote2pair[key] = p
+	s.pair2remote[p] = key
 
+	sc := newServerClient(key)
+	p.allDone = sc.GoneCh
 	select {
-	case s.RemoteConnectedCh <- key:
+	case s.RemoteConnectedCh <- sc:
 	default:
 	}
 	return p
+}
+
+func (s *Server) deletePair(p *rwPair) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
+	key, ok := s.pair2remote[p]
+	if !ok {
+		return
+	}
+	delete(s.pair2remote, p)
+	delete(s.remote2pair, key)
+	close(p.allDone)
+	vv("Server.deletePair() has closed allDone for pair '%v'", p)
 }
 
 var ErrNetConnectionNotFound = fmt.Errorf("error: net.Conn not found")
@@ -947,19 +987,24 @@ var ErrNetConnectionNotFound = fmt.Errorf("error: net.Conn not found")
 //
 // A NewMessage() Message will be created and JobSerz will contain the data.
 // The HDR fields Subject, CallID, and Seqno will also be set from the arguments.
+// If callID argument is the empty string, we will use a default
+// randomly generated one.
 //
 // If the destAddr is not already connected to the server, the
 // ErrNetConnectionNotFound error will be returned.
 func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqno uint64) error {
-	s.mut.Lock()
-	defer s.mut.Unlock()
 
+	s.mut.Lock()
 	pair, ok := s.remote2pair[destAddr]
+	// if we hold this too long then our pair cannot shutdown asap.
+	s.mut.Unlock()
+
 	if !ok {
 		//vv("could not find destAddr='%v' in our map: '%#v'", destAddr, s.remote2pair)
-
 		return ErrNetConnectionNotFound
 	}
+	//vv("found remote2pair for destAddr = '%v': '%#v'", destAddr, pair)
+
 	msg := NewMessage()
 	msg.JobSerz = data
 
@@ -970,13 +1015,17 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 	subject = fmt.Sprintf("srv.SendMessage('%v')", subject)
 
 	mid := NewHDR(from, to, subject, isRPC, isLeg2)
-	mid.CallID = callID
+	if callID != "" {
+		mid.CallID = callID
+	}
 	mid.Seqno = seqno
 	msg.HDR = *mid
 
 	//vv("send message attempting to send %v bytes to '%v'", len(data), destAddr)
 	select {
 	case pair.SendCh <- msg:
+		//vv("sent to pair.SendCh, msg='%v'", msg.HDR.String())
+
 		//	case <-time.After(time.Second):
 		//vv("warning: time out trying to send on pair.SendCh")
 	case <-s.halt.ReqStop.Chan:
@@ -987,10 +1036,13 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 	if s.cfg.WriteTimeout == 0 {
 		// default, waiting a very long time to talk to client.
 		// Do a fast 20msec check for disconnected client error.
+		vv("srv SendMessage wait 10 msec to check on connection")
 		select {
 		case <-msg.DoneCh:
+			vv("srv SendMessage got back msg.Err = '%v'", msg.Err)
 			return msg.Err
-		case <-time.After(20 * time.Millisecond):
+		case <-time.After(10 * time.Millisecond):
+			vv("srv SendMessage timeout after waiting 10 msec")
 		}
 	}
 	return nil
@@ -1010,8 +1062,9 @@ func NewServer(name string, config *Config) *Server {
 		name:              name,
 		cfg:               cfg,
 		remote2pair:       make(map[string]*rwPair),
+		pair2remote:       make(map[*rwPair]string),
 		halt:              idem.NewHalter(),
-		RemoteConnectedCh: make(chan string, 20),
+		RemoteConnectedCh: make(chan *ServerClient, 20),
 	}
 }
 

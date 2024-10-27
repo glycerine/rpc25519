@@ -161,7 +161,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	c.conn = nconn
 
 	conn := nconn.(*tls.Conn) // docs say this is for sure.
-	defer conn.Close()
+	defer conn.Close()        // in runClientMain() here.
 
 	la := conn.LocalAddr()
 	c.setLocalAddr(la.Network() + "://" + la.String())
@@ -224,7 +224,7 @@ func (c *Client) runClientTCP(serverAddr string) {
 	c.conn = conn
 
 	c.connected <- nil
-	defer conn.Close()
+	defer conn.Close() // in runClientTCP() here.
 	//log.Printf("connected to server %s", serverAddr)
 
 	if c.cfg.encryptPSK {
@@ -488,6 +488,12 @@ type Config struct {
 
 	// UseQUIC cannot be true if TCPonly_no_TLS is true.
 	UseQUIC bool
+
+	// NoSharePortQUIC defaults false so sharing is allowed.
+	// If true, then we do not share same UDP port between a QUIC
+	// client and server (in the same process). Used
+	// for testing client shutdown paths too.
+	NoSharePortQUIC bool
 
 	// path to certs/ like certificate
 	// directory on the live filesystem.
@@ -954,6 +960,12 @@ func (c *Client) Name() string {
 func (c *Client) Close() error {
 	//vv("Client.Close() called.") // not seen in shutdown.
 	if c.cfg.UseQUIC {
+		if c.isQUIC && c.quicConn != nil {
+			// try to tell server we are gone before
+			// we tear down the communication framework.
+			c.quicConn.CloseWithError(0, "")
+			vv("cli quicConn.CloseWithError(0) sent.")
+		}
 		c.cfg.shared.mut.Lock()
 		if !c.cfg.shared.isClosed { // since Client.Close() might be called more than once.
 			c.cfg.shared.shareCount--
@@ -970,7 +982,7 @@ func (c *Client) Close() error {
 	}
 	c.halt.ReqStop.Close()
 	<-c.halt.Done.Chan
-	//vv("Client.Close() finished.")
+	vv("Client.Close() finished.")
 	return nil
 }
 

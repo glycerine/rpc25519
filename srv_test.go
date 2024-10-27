@@ -163,6 +163,7 @@ func Test003_client_notification_callbacks(t *testing.T) {
 	})
 }
 
+// see below Test014 for QUIC version
 func Test004_server_push(t *testing.T) {
 
 	cv.Convey("server.SendCh should push messages to the client", t, func() {
@@ -216,7 +217,7 @@ func Test004_server_push(t *testing.T) {
 		destAddr := local(cli.conn)
 
 		for rem := range srv.RemoteConnectedCh {
-			if rem == destAddr {
+			if rem.Remote == destAddr {
 				break // we should not encounter net.Conn not found now.
 			}
 		}
@@ -390,6 +391,210 @@ func Test012_PreSharedKey_must_agree(t *testing.T) {
 		}
 
 		//vv("server sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
+
+	})
+}
+
+func Test014_server_push_quic(t *testing.T) {
+
+	cv.Convey("server.SendCh should push messages to the client under QUIC", t, func() {
+
+		cfg := NewConfig()
+		cfg.UseQUIC = true
+
+		cfg.ServerAddr = "127.0.0.1:0"
+		srv := NewServer("srv_test014", cfg)
+
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
+
+		vv("server Start() returned serverAddr = '%v'", serverAddr)
+
+		//srv.RegisterFunc(5, customEcho)
+
+		cfg.ClientDialToHostPort = serverAddr.String()
+		cli, err := NewClient("test014", cfg)
+		panicOn(err)
+		defer cli.Close()
+
+		incoming := cli.GetReadIncomingCh()
+		done := make(chan bool)
+		ackDone := make(chan bool)
+		seqno := uint64(43)
+
+		go func() {
+			for {
+				select {
+				case <-done:
+					close(ackDone)
+					return
+				case msg := <-incoming:
+					vv("got incoming msg = '%v'", string(msg.JobSerz))
+					if msg.HDR.Seqno != seqno {
+						panic(fmt.Sprintf("expected seqno %v, but got %v", seqno, msg.HDR.Seqno))
+					}
+				}
+			}
+		}()
+
+		req := NewMessage()
+		req.JobSerz = []byte("Hello from server push.")
+
+		// the new stuff under test
+
+		vv("cli.Conn remote key = '%v'", remote(cli.quicConn))
+		vv("cli.Conn local key = '%v'", local(cli.quicConn))
+		destAddr := local(cli.quicConn)
+
+		// client has to initiate to get a stream, otherwise
+		// server will never know about them.
+		clireq := NewMessage()
+		clireq.HDR.Subject = "one way hello"
+		clireq.JobSerz = []byte("one way Hello from client!")
+		err = cli.OneWaySend(clireq, nil)
+		panicOn(err)
+
+		for rem := range srv.RemoteConnectedCh {
+			if rem.Remote == destAddr {
+				break // we should not encounter net.Conn not found now.
+			}
+			panic(fmt.Sprintf("who else is connecting to us??: '%v'", rem))
+		}
+		vv("srv is connected to client")
+
+		callID := "callID_here"
+		subject := "subject_here"
+		err = srv.SendMessage(callID, subject, destAddr, req.JobSerz, seqno)
+		panicOn(err) // net.Conn not found
+
+		// does the client get it?
+
+		time.Sleep(time.Millisecond * 50)
+		close(done)
+		<-ackDone
+
+	})
+}
+
+func Test015_server_push_quic_notice_disco_quickly(t *testing.T) {
+
+	cv.Convey("server.SendCh should push messages to the client under QUIC, and notice quickly if client has already disconnected.", t, func() {
+
+		cfg := NewConfig()
+		cfg.UseQUIC = true
+
+		cfg.ServerAddr = "127.0.0.1:0"
+		srv := NewServer("srv_test015", cfg)
+
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
+
+		vv("server Start() returned serverAddr = '%v'", serverAddr)
+
+		//srv.RegisterFunc(5, customEcho)
+
+		// NOTE: for QUIC and this test, we might not want
+		// port sharing between the client and the server,
+		// since we want to shut down the client and have
+		// the server notice. Its hard to shut down the
+		// client if the same udp listener stays up to
+		// support the server, no?
+
+		ccfg := NewConfig()
+		ccfg.UseQUIC = true
+		ccfg.ClientDialToHostPort = serverAddr.String()
+		ccfg.NoSharePortQUIC = true
+
+		cli, err := NewClient("test015", ccfg)
+		panicOn(err)
+		// we will manually Close below
+		//defer cli.Close()
+
+		if cli.cfg.shared.shareCount > 1 {
+			panic("must set up this test with independent " +
+				"client and server to be able to simulate the " +
+				"client process vanishing on the other end")
+		}
+
+		incoming := cli.GetReadIncomingCh()
+		done := make(chan bool)
+		ackDone := make(chan bool)
+		seqno := uint64(43)
+
+		go func() {
+			for {
+				select {
+				case <-done:
+					close(ackDone)
+					return
+				case msg := <-incoming:
+					vv("got incoming msg = '%v'", string(msg.JobSerz))
+					if msg.HDR.Seqno != seqno {
+						panic(fmt.Sprintf("expected seqno %v, but got %v", seqno, msg.HDR.Seqno))
+					}
+				}
+			}
+		}()
+
+		// the new stuff under test
+
+		vv("cli.Conn remote key = '%v'", remote(cli.quicConn))
+		vv("cli.Conn local key = '%v'", local(cli.quicConn))
+		destAddr := local(cli.quicConn)
+
+		// client has to initiate to get a stream, otherwise
+		// server will never know about them.
+		clireq := NewMessage()
+		clireq.HDR.Subject = "one way hello"
+		clireq.JobSerz = []byte("one way Hello from client!")
+		err = cli.OneWaySend(clireq, nil)
+		panicOn(err)
+
+		var rem *ServerClient
+		for rem = range srv.RemoteConnectedCh {
+			if rem.Remote == destAddr {
+				break // we should not encounter net.Conn not found now.
+			}
+			panic(fmt.Sprintf("who else is connecting to us??: '%v'", rem))
+		}
+		vv("srv is connected to client")
+
+		vv("shutting down client before server can send to us")
+		cli.Close()
+
+		// wait for server to notice the client's disconnect.
+		<-rem.GoneCh
+		vv("server has seen that rem '%v' is gone", rem.Remote)
+
+		//select {}
+		//time.Sleep(time.Millisecond * 1000)
+
+		// good here; we see
+		// quic_server.go:376 2024-10-26 17:00:48.716 -0500 CDT ugh. error from remote 127.0.0.1:64891: Application error 0x0 (remote)
+
+		vv("now try having server push to disco client")
+
+		req := NewMessage()
+		req.JobSerz = []byte("Hello from server push.")
+
+		callID := "server_push_callID_here"
+		subject := "server push"
+		err = srv.SendMessage(callID, subject, destAddr, req.JobSerz, seqno)
+
+		// do we get an error since client is not there?
+		if err == nil {
+			panic("expected error from send message since client is gone")
+		}
+		if err == ErrNetConnectionNotFound {
+			vv("good: got error back on SendMessage to shutdown client, like we want: '%v'", err)
+			err = nil
+		}
+		panicOn(err) // unexpected error type!
+
+		close(done)
+		<-ackDone
 
 	})
 }

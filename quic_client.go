@@ -68,7 +68,7 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	// We'll share the port with the same process server (if he's around).
 	var transport *quic.Transport
 	c.cfg.shared.mut.Lock()
-	if c.cfg.shared.quicTransport != nil {
+	if !c.cfg.NoSharePortQUIC && c.cfg.shared.quicTransport != nil {
 		transport = c.cfg.shared.quicTransport
 		c.cfg.shared.shareCount++
 		//vv("c.cfg.shared.shareCount is now %v on client '%v'", c.cfg.shared.shareCount, c.name)
@@ -109,12 +109,15 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 		alwaysPrintf("Failed to connect to server: %v", err)
 		return
 	}
-	// assing QuicConn before signaling on c.connected, else tests will race and panic
+	// assigning QuicConn before signaling on c.connected, else tests will race and panic
 	// not having a connection
 	c.quicConn = conn
 	c.isQUIC = true
 
-	defer conn.CloseWithError(0, "")
+	defer func() {
+		conn.CloseWithError(0, "") // in runQUIC() here. fired when read loop returns.
+		vv("quic_client has called quicConn.CloseWithError(0)")
+	}()
 
 	// wait for the handshake to complete so we are encrypted/can verify host keys.
 	// see https://quic-go.net/docs/quic/server/

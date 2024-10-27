@@ -74,7 +74,7 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 
 	var transport *quic.Transport
 	s.cfg.shared.mut.Lock()
-	if s.cfg.shared.quicTransport != nil {
+	if !s.cfg.NoSharePortQUIC && s.cfg.shared.quicTransport != nil {
 		transport = s.cfg.shared.quicTransport
 		s.cfg.shared.shareCount++
 		//vv("s.cfg.shared.shareCount is now %v on server '%v'", s.cfg.shared.shareCount, s.name)
@@ -278,9 +278,12 @@ func (s *Server) newQUIC_RWPair(stream quic.Stream, conn quic.Connection) *quicR
 	defer s.mut.Unlock()
 
 	s.remote2pair[key] = &p.rwPair
+	s.pair2remote[&p.rwPair] = key
 
+	sc := newServerClient(key)
+	p.allDone = sc.GoneCh
 	select {
-	case s.RemoteConnectedCh <- key:
+	case s.RemoteConnectedCh <- sc:
 	default:
 	}
 	return p
@@ -288,6 +291,9 @@ func (s *Server) newQUIC_RWPair(stream quic.Stream, conn quic.Connection) *quicR
 
 func (s *quicRWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 	defer func() {
+
+		//vv("quick server send loop shutting down for conn.Remote = '%v'", conn.RemoteAddr())
+		s.Server.deletePair(&s.rwPair)
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
 	}()
@@ -302,9 +308,16 @@ func (s *quicRWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 	for {
 		select {
 		case msg := <-s.SendCh:
+			//vv("quic_server got from s.SendCh, sending msg.HDR = '%v'", msg.HDR.String())
 			err := w.sendMessage(stream, msg, &s.cfg.WriteTimeout)
 			if err != nil {
-				//vv("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.Seqno)
+				//vv("quic_server sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Subject)
+				// notify any short waiting server push user.
+				msg.Err = err
+				select {
+				case msg.DoneCh <- msg:
+				default:
+				}
 			}
 		case <-s.halt.ReqStop.Chan:
 			return
@@ -314,7 +327,7 @@ func (s *quicRWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 
 func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 	defer func() {
-		//vv("rpc25519.Server: QUIC_WRPair runReadLoop shutting down for local conn = '%v'", conn.LocalAddr())
+		//vv("quic server read loop shutting down for remote conn = '%v'", conn.RemoteAddr())
 
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
@@ -354,6 +367,7 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 			return
 		}
 		if err != nil {
+			//vv("quic server read loop sees err = '%v'", err)
 			r := err.Error()
 			if strings.Contains(r, "remote error: tls: bad certificate") {
 				//vv("ignoring client connection with bad TLS cert.")
@@ -363,14 +377,17 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 				return // shutting down
 			}
 
-			// "timeout: no recent network activity" is simply an idle
-			// timeout (after ~ 30seconds), which can happen often enough
-			// for long waiting workers in goq. Let's not trash their connection.
-			// Instead continue to leave the connection intact. Otherwise
-			// workers can be ready but not get jobs because the server
-			// thinks they are disconnected.
+			// "timeout: no recent network activity" should only
+			// be seen on disconnection of a client because we
+			// have a 5 second heartbeat going.
 			if strings.Contains(r, "timeout: no recent network activity") {
-				continue // ignore this.
+				return
+			}
+			if strings.Contains(r, "Application error 0x0 (remote)") {
+				// normal message from active client who knew they were
+				// closing down and politely let us know too. Otherwise
+				// we just have to time out.
+				return
 			}
 
 			alwaysPrintf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
