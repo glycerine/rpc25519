@@ -291,7 +291,7 @@ func (s *quicRWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 			now := time.Now()
 			if time.Since(lastPing) > pingEvery {
 				err := w.sendMessage(stream, keepAliveMsg, &s.cfg.WriteTimeout)
-				vv("quic server sent rpc25519 keep alive. err='%v'", err)
+				//vv("quic server sent rpc25519 keep alive. err='%v'", err)
 				_ = err
 				lastPing = now
 				pingWakeCh = time.After(pingEvery)

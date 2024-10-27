@@ -310,7 +310,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 			continue
 		}
 		if msg.HDR.IsKeepAlive {
-			vv("client got an rpc25519 keep alive.")
+			//vv("client got an rpc25519 keep alive.")
 			continue
 		}
 
