@@ -22,6 +22,7 @@ import (
 
 	"github.com/glycerine/idem"
 	"github.com/glycerine/rpc25519/selfcert"
+	"github.com/quic-go/quic-go"
 )
 
 var _ = os.MkdirAll
@@ -488,8 +489,9 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 // The net/rpc API is implemented as a layer on top of the rpc25519.Message
 // based API. Both can be used concurrently if desired.
 type Server struct {
-	mut sync.Mutex
-	cfg *Config
+	mut        sync.Mutex
+	cfg        *Config
+	quicConfig *quic.Config
 
 	name string // which server, for debugging.
 

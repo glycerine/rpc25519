@@ -251,8 +251,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 	//w := newWorkspace(maxMessage)
 	w := newBlabber("client read loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false)
 
-	//readTimeout := time.Millisecond * 100
-	readTimeout := time.Millisecond * 2000 // jea debug
+	readTimeout := time.Millisecond * 100
 	for {
 
 		// shutting down?
@@ -266,13 +265,14 @@ func (c *Client) runReadLoop(conn net.Conn) {
 		msg, err := w.readMessage(conn, &readTimeout)
 		if err != nil {
 			r := err.Error()
-			//if strings.Contains(r, "timeout") || strings.Contains(r, "deadline exceeded") {
-			if strings.Contains(r, "deadline exceeded") {
+
+			// under TCP: its normal to see 'read tcp y.y.y.y:59705->x.x.x.x:9999: i/o timeout'
+			if strings.Contains(r, "i/o timeout") || strings.Contains(r, "deadline exceeded") {
+				//if strings.Contains(r, "deadline exceeded") {
 				// just our readTimeout happening, so we can poll on shutting down, above.
 				continue
 			}
-
-			vv("err = '%v'", err)
+			//vv("err = '%v'", err)
 			if strings.Contains(r, "timeout: no recent network activity") {
 				// we will hard spin the CPU to 100% (after disconnect)
 				// if we don't exit on this.
@@ -307,6 +307,10 @@ func (c *Client) runReadLoop(conn net.Conn) {
 			//vv("ignore err = '%v'; msg = '%v'", err, msg)
 		}
 		if msg == nil {
+			continue
+		}
+		if msg.HDR.IsKeepAlive {
+			vv("client got an rpc25519 keep alive.")
 			continue
 		}
 
@@ -567,6 +571,8 @@ type Config struct {
 	ReadTimeout    time.Duration
 	WriteTimeout   time.Duration
 
+	ServerSendKeepAlive time.Duration
+
 	localAddress string
 
 	// for port sharing between a server and 1 or more clients over QUIC
@@ -631,8 +637,9 @@ type Client struct {
 	notifyOnRead []chan *Message
 	notifyOnce   map[uint64]chan *Message
 
-	conn     uConnLR
-	quicConn quic.Connection
+	conn       uConnLR
+	quicConn   quic.Connection
+	quicConfig *quic.Config
 
 	isTLS  bool
 	isQUIC bool

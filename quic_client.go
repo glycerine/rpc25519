@@ -95,13 +95,18 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 
 	quicConfig := &quic.Config{
 		Allow0RTT:            true,
-		KeepAlivePeriod:      5 * time.Second,
 		HandshakeIdleTimeout: c.cfg.ConnectTimeout,
 
 		// 1200 is important, else we will have trouble with MTU 1280 networks like Tailscale.
 		InitialPacketSize: 1200,
 
-		Tracer: qlog.DefaultConnectionTracer,
+		// export QLOGDIR and set this get get qlog tracing.
+		//Tracer: qlog.DefaultConnectionTracer,
+
+		// quic-go keep alives are unreliable, so do them ourselves
+		// in the quic server send loop. See
+		// https://github.com/quic-go/quic-go/issues/4710
+		//KeepAlivePeriod: 5 * time.Second,
 	}
 
 	// this conn is a quic.EarlyConnection
@@ -116,6 +121,7 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	// not having a connection
 	c.quicConn = conn
 	c.isQUIC = true
+	c.quicConfig = quicConfig
 
 	defer func() {
 		conn.CloseWithError(0, "") // in runQUIC() here. fired when read loop returns.

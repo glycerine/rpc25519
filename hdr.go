@@ -52,6 +52,11 @@ type Message struct {
 	DoneCh chan *Message `msg:"-"`
 }
 
+// allocate this just once
+var keepAliveMsg = &Message{
+	HDR: HDR{IsKeepAlive: true},
+}
+
 // MessageFromGreenpack unmarshals the by slice
 // into a Message and returns it.
 // The [greenpack format](https://github.com/glycerine/greenpack) is expected.
@@ -95,17 +100,18 @@ type HDR struct {
 	// that will cause the RPC connection to fail.
 	Nc net.Conn `msg:"-"`
 
-	Created  time.Time `zid:"0"`  // HDR creation time stamp.
-	From     string    `zid:"1"`  // originator host:port address.
-	To       string    `zid:"2"`  // destination host:port address.
-	Subject  string    `zid:"3"`  // in net/rpc, the "Service.Method" ServiceName
-	IsRPC    bool      `zid:"4"`  // in rpc25519 Message API, is this a TwoWayFunc call?
-	IsLeg2   bool      `zid:"5"`  // in rpc25519 Message API, is TwoWayFunc reply?
-	Serial   int64     `zid:"6"`  // serially incremented tracking number
-	CallID   string    `zid:"7"`  // 40-byte crypto/rand base-58 coded string (same on response).
-	PID      int64     `zid:"8"`  // Process ID of originator.
-	Seqno    uint64    `zid:"9"`  // client set sequence number for each call (same on response).
-	IsNetRPC bool      `zid:"10"` // is net/rpc API in use for this request/response?
+	Created     time.Time `zid:"0"`  // HDR creation time stamp.
+	From        string    `zid:"1"`  // originator host:port address.
+	To          string    `zid:"2"`  // destination host:port address.
+	Subject     string    `zid:"3"`  // in net/rpc, the "Service.Method" ServiceName
+	IsRPC       bool      `zid:"4"`  // in rpc25519 Message API, is this a TwoWayFunc call?
+	IsLeg2      bool      `zid:"5"`  // in rpc25519 Message API, is TwoWayFunc reply?
+	Serial      int64     `zid:"6"`  // serially incremented tracking number
+	CallID      string    `zid:"7"`  // 40-byte crypto/rand base-58 coded string (same on response).
+	PID         int64     `zid:"8"`  // Process ID of originator.
+	Seqno       uint64    `zid:"9"`  // client set sequence number for each call (same on response).
+	IsNetRPC    bool      `zid:"10"` // is net/rpc API in use for this request/response?
+	IsKeepAlive bool      `zid:"11"` // keepalive message, no other fields expected.
 }
 
 // NewHDR creates a new HDR header.

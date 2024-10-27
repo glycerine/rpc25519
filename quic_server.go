@@ -4,14 +4,14 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"strings"
 	"time"
 
+	//"github.com/quic-go/quic-go/qlog"
 	"github.com/quic-go/quic-go"
-	"github.com/quic-go/quic-go/qlog"
-	"io"
-	"strings"
 )
 
 var _ = fmt.Printf
@@ -94,23 +94,19 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 	// note: we do not defer updConn.Close() because it may be shared with other clients/servers.
 	// Instead: reference count in cfg.shareCount and call in Close()
 
-	// Create the UDP listener on the specified interface
-	/*
-		udpConn, err := net.ListenUDP("udp", serverAddr)
-		if err != nil {
-			fmt.Printf("Failed to bind to address: %v\n", err)
-			return
-		}
-		defer udpConn.Close()
-	*/
-
 	// Create a QUIC listener
 
 	quicConfig := &quic.Config{
 		Allow0RTT:         true,
 		InitialPacketSize: 1200, // needed to work over Tailscale that defaults to MTU 1280.
-		KeepAlivePeriod:   5 * time.Second,
-		Tracer:            qlog.DefaultConnectionTracer,
+
+		// export QLOGDIR and set this for qlog tracing.
+		//Tracer:            qlog.DefaultConnectionTracer,
+
+		// quic-go keep alives are unreliable, so do them ourselves
+		// in the quic server send loop. See
+		// https://github.com/quic-go/quic-go/issues/4710
+		//KeepAlivePeriod:   5 * time.Second,
 	}
 
 	// "ListenEarly starts listening for incoming QUIC connections.
@@ -119,9 +115,7 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 	//  -- https://pkg.go.dev/github.com/quic-go/quic-go#section-readme
 
 	listener, err := transport.ListenEarly(tlsConfig, quicConfig)
-	//listener, err := quic.Listen(udpConn, tlsConfig, quicConfig)
 
-	//listener, err := quic.ListenAddr(serverAddr, tlsConfig, nil)
 	if err != nil {
 		log.Fatalf("Error starting QUIC listener: %v", err)
 	}
@@ -138,6 +132,7 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 
 	s.mut.Lock()     // avoid data race
 	s.lsn = listener // allow shutdown
+	s.quicConfig = quicConfig
 	s.mut.Unlock()
 
 	ctx := context.Background()
@@ -273,11 +268,41 @@ func (s *quicRWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 	if s.cfg.encryptPSK {
 		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
 	}
-	//w := newWorkspace(maxMessage)
+
 	w := newBlabber("quic server send loop", symkey, stream, s.Server.cfg.encryptPSK, maxMessage, true)
 
+	var lastPing time.Time
+	var doPing bool
+	var pingEvery time.Duration
+	var pingWakeCh <-chan time.Time
+
+	if s.cfg.ServerSendKeepAlive > 0 {
+		// quic-go keepalives are broken at v0.47.0 - v0.48.1 over tailscale;
+		// https://github.com/quic-go/quic-go/issues/4710
+		// Do them ourselves at application layer.
+		doPing = true
+		pingEvery = s.cfg.ServerSendKeepAlive
+		lastPing = time.Now()
+		pingWakeCh = time.After(pingEvery)
+	}
+
 	for {
+		if doPing {
+			now := time.Now()
+			if time.Since(lastPing) > pingEvery {
+				err := w.sendMessage(stream, keepAliveMsg, &s.cfg.WriteTimeout)
+				vv("quic server sent rpc25519 keep alive. err='%v'", err)
+				_ = err
+				lastPing = now
+				pingWakeCh = time.After(pingEvery)
+			} else {
+				pingWakeCh = time.After(lastPing.Add(pingEvery).Sub(now))
+			}
+		}
+
 		select {
+		case <-pingWakeCh:
+			// check and send above.
 		case msg := <-s.SendCh:
 			//vv("quic_server got from s.SendCh, sending msg.HDR = '%v'", msg.HDR.String())
 			err := w.sendMessage(stream, msg, &s.cfg.WriteTimeout)
@@ -289,6 +314,8 @@ func (s *quicRWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 				case msg.DoneCh <- msg:
 				default:
 				}
+			} else {
+				lastPing = time.Now() // no need for ping
 			}
 		case <-s.halt.ReqStop.Chan:
 			return
@@ -338,7 +365,7 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 			return
 		}
 		if err != nil {
-			vv("quic server read loop sees err = '%v'", err)
+			//vv("quic server read loop sees err = '%v'", err)
 			r := err.Error()
 			if strings.Contains(r, "remote error: tls: bad certificate") {
 				//vv("ignoring client connection with bad TLS cert.")
@@ -352,6 +379,7 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 			// be seen on disconnection of a client because we
 			// have a 5 second heartbeat going.
 			if strings.Contains(r, "timeout: no recent network activity") {
+				vv("quic read loop exiting on '%v'", err)
 				return
 			}
 			if strings.Contains(r, "Application error 0x0 (remote)") {

@@ -16,10 +16,6 @@ require (
 	golang.org/x/term v0.25.0
 )
 
-replace github.com/quic-go/quic-go => ../../quic-go/quic-go
-
-replace github.com/quic-go/quic-go/qlog => ../../quic-go/quic-go/qlog
-
 require (
 	4d63.com/embedfiles v0.0.0-20190311033909-995e0740726f // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
