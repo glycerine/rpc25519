@@ -450,7 +450,10 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 				reply.HDR.Subject = req.HDR.Subject
 				reqCallID := req.HDR.CallID
 
-				callme2(req, reply)
+				err := callme2(req, reply)
+				if err != nil {
+					reply.JobErrs = err.Error()
+				}
 				// don't read from req now, just in case callme2 messed with it.
 
 				from := local(conn)

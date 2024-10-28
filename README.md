@@ -82,27 +82,34 @@ The central Message struct itself is simple.
 ~~~
   type Message struct {
 
-   // HDR contains header information.
+   // HDR contains header information. See hdr.go.
    HDR HDR `zid:"0"`
 
    // JobSerz is the "body" of the message.
    // The user provides and interprets this.
    JobSerz []byte `zid:"1"`
 
-   // JobErrs returns error information from the server-registered
-   // user-defined callback functions.
+   // JobErrs returns error information from 
+   // user-defined callback functions. If a 
+   // TwoWayFunc returns a non-nil error, its
+   // err.Error() will be set here.
    JobErrs string `zid:"2"`
 
-   // Err is not serialized on the wire by the server.
-   // It communicates only local (client side) information. Callback
-   // functions should convey errors in JobErrs or in-band within
+   // Err is not serialized on the wire.
+   // It communicates only local (client/server side) 
+   // API information. For example, Server.SendMessage() or
+   // Client.SendAndGetReply() can read it after
+   // DoneCh has been received on.
+   //
+   // Callback functions should convey 
+   // errors in JobErrs or in-band within
    // JobSerz.
    Err error `msg:"-"`
 
    // DoneCh will receive this Message itself when the call completes.
    // It must be buffered, with at least capacity 1.
    // NewMessage() automatically allocates DoneCh correctly and
-   // should be used when creating a new Message.
+   // should always be used when creating a new Message.
    DoneCh chan *Message `msg:"-"`
 }
 ~~~
