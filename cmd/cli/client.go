@@ -44,6 +44,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer cli.Close()
+	log.Printf("client connected from local addr='%v'\n", cli.LocalAddr())
 
 	req := rpc25519.NewMessage()
 	req.JobSerz = []byte("client says hello and requests this be echoed back with a timestamp!")
