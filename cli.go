@@ -255,7 +255,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 	readTimeout := time.Millisecond * 100
 	for {
 
-		// shutting down?
+		// poll for: shutting down?
 		select {
 		case <-c.halt.ReqStop.Chan:
 			return
@@ -277,7 +277,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 			if strings.Contains(r, "timeout: no recent network activity") {
 				// we will hard spin the CPU to 100% (after disconnect)
 				// if we don't exit on this.
-				vv("cli read loop exiting on '%v'", err)
+				//vv("cli read loop exiting on '%v'", err)
 				return
 			}
 			// quic server specific

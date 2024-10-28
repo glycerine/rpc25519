@@ -199,22 +199,26 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 				//vv("quic server accepted a stream, err='%v'", err)
 				if err != nil {
 					if strings.Contains(err.Error(), "timeout: no recent network activity") {
-						// ignore these, they happen every 30 seconds or so.
-						//log.Printf("ignoring timeout")
-						continue
-						// or does this means it is time to close up shop?
-						//vv("timeout, finishing quic session/connection")
-						//return
+						// Now that we have app-level keep-alives, this
+						// really does mean the other end went away.
+						// Hopefully we see "Application error 0x0 (remote)"
+						// but if the client crashed before it could
+						// send it, we may not.
+						// vv("quic server read loop finishing quic session/connection: '%v'", err)
+						return
 					}
 					if strings.Contains(err.Error(), "Application error 0x0 (remote)") {
 						// normal shutdown.
 						//vv("client finished.")
 						return
 					}
+					if err == io.EOF {
+						return
+					}
 
 					// Error accepting stream: INTERNAL_ERROR (local):
 					//  write udp [::]:42677->[fdc8:... 61e]:59299: use of closed network connection
-					// quic_server.go:164 2024-10-10 04:33:25.953 -0500 CDT quic_server: Error accepting stream: Application error 0x0 (local): server shutdown
+					// quic_server.go:164 quic_server: Error accepting stream: Application error 0x0 (local): server shutdown
 					//vv("quic_server: Error accepting stream: %v", err)
 					return
 				}
@@ -227,6 +231,7 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 					panicOn(err)
 				}
 
+				// each stream gets its own read/send pair.
 				pair := s.newQUIC_RWPair(stream, conn)
 				go pair.runSendLoop(stream, conn)
 				go pair.runReadLoop(stream, conn)
@@ -331,7 +336,11 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 		s.halt.Done.Close()
 
 		stream.Close()
-		conn.CloseWithError(0, "server shutdown") // just the one, let other clients continue.
+
+		// hmm: can we let other streams continue?
+		// Too hard to distinguish a stream vs conn error, for now.
+		// We let other clients continue for sure.
+		conn.CloseWithError(0, "server shutdown")
 	}()
 
 	symkey := s.Server.cfg.preSharedKey
@@ -339,7 +348,6 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
 	}
 	w := newBlabber("quic server read loop", symkey, stream, s.Server.cfg.encryptPSK, maxMessage, true)
-	//w := newWorkspace(maxMessage)
 
 	wrap := &NetConnWrapper{Stream: stream, Connection: conn}
 
@@ -379,7 +387,9 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 			// be seen on disconnection of a client because we
 			// have a 5 second heartbeat going.
 			if strings.Contains(r, "timeout: no recent network activity") {
-				vv("quic read loop exiting on '%v'", err)
+				// We should never see this because of our app level keep-alives.
+				// If we do, then it means the client really went down.
+				//vv("quic server read loop exiting on '%v'", err)
 				return
 			}
 			if strings.Contains(r, "Application error 0x0 (remote)") {
