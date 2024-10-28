@@ -563,10 +563,10 @@ Usage of selfy:
         command: 'openssl x509 -in certs/client.crt  -text -noout', 
         which you could use instead; just replace certs/client.crt 
         with the path to your cert.
-		
+
   -verify string
-    	verify this path is a certificate signed by the private key 
-		corresponding to the -p {my-keep-private-dir}/ca.crt public key		
+        verify this path is a certificate signed by the private key 
+        corresponding to the -p {my-keep-private-dir}/ca.crt public key
 ~~~
 
 The `openssl` commands in the included gen.sh script do the same things as
