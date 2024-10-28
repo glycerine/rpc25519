@@ -151,8 +151,9 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	nconn, err := d.DialContext(ctx, "tcp", serverAddr)
 	if err != nil {
 		c.err = err
-		c.connected <- err
-		log.Printf("Failed to connect to server: %v", err)
+		c.connected <- fmt.Errorf("error: client local: '%v' failed to "+
+			"connect to server: '%v'", c.cfg.ClientHostPort, err)
+		alwaysPrintf("error: client from '%v' failed to connect to server: %v", c.cfg.ClientHostPort, err)
 		return
 	}
 	c.isTLS = true

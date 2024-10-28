@@ -8,7 +8,7 @@ require (
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31
 	github.com/glycerine/greenpack v0.517.0
 	github.com/glycerine/idem v0.0.0-20240925232718-fc20a7f9bca6
-	github.com/glycerine/ipaddr v0.2.1
+	github.com/glycerine/ipaddr v0.2.3
 	github.com/goccy/go-json v0.10.3
 	github.com/pkg/errors v0.9.1
 	github.com/quic-go/quic-go v0.47.0

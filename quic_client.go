@@ -113,8 +113,9 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	conn, err := transport.DialEarly(ctx, serverAddr, tlsConfig, quicConfig)
 	if err != nil {
 		c.err = err
-		c.connected <- err
-		alwaysPrintf("Failed to connect to server: %v", err)
+		c.connected <- fmt.Errorf("error: client local: '%v' failed to "+
+			"connect to server: '%v'", localHostPort, err)
+		alwaysPrintf("error: client from '%v' failed to connect to server: %v", localHostPort, err)
 		return
 	}
 	// assigning QuicConn before signaling on c.connected, else tests will race and panic
