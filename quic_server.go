@@ -276,6 +276,7 @@ func (s *quicRWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 
 	w := newBlabber("quic server send loop", symkey, stream, s.Server.cfg.encryptPSK, maxMessage, true)
 
+	// implement ServerSendKeepAlive
 	var lastPing time.Time
 	var doPing bool
 	var pingEvery time.Duration
@@ -308,18 +309,27 @@ func (s *quicRWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 		select {
 		case <-pingWakeCh:
 			// check and send above.
+			continue
 		case msg := <-s.SendCh:
 			//vv("quic_server got from s.SendCh, sending msg.HDR = '%v'", msg.HDR.String())
 			err := w.sendMessage(stream, msg, &s.cfg.WriteTimeout)
 			if err != nil {
 				//vv("quic_server sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Subject)
-				// notify any short waiting server push user.
+				// notify any short-time-waiting server push user.
+				// This is super useful to let goq retry jobs quickly.
 				msg.Err = err
 				select {
 				case msg.DoneCh <- msg:
 				default:
 				}
+				alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
+				// just let user try again?
 			} else {
+				// tell caller there was no error.
+				select {
+				case msg.DoneCh <- msg:
+				default:
+				}
 				lastPing = time.Now() // no need for ping
 			}
 		case <-s.halt.ReqStop.Chan:
@@ -405,6 +415,11 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 			return
 		}
 
+		if req.HDR.IsKeepAlive {
+			//vv("quic_server read loop got an rpc25519 keep alive.")
+			continue
+
+		}
 		//vv("server received message with seqno=%v: %v", seqno, req)
 
 		req.HDR.Nc = wrap

@@ -359,12 +359,55 @@ func (c *Client) runSendLoop(conn net.Conn) {
 		symkey = c.cfg.randomSymmetricSessKeyFromPreSharedKey
 	}
 
-	//w := newWorkspace(maxMessage)
 	w := newBlabber("client send loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false)
 
-	// PRE: Message.DoneCh must be buffered at least 1, so our logic below does not have to deal with ever blocking.
+	// PRE: Message.DoneCh must be buffered at least 1, so
+	// our logic below does not have to deal with ever blocking.
+
+	// implement ClientSendKeepAlive
+	var lastPing time.Time
+	var doPing bool
+	var pingEvery time.Duration
+	var pingWakeCh <-chan time.Time
+
+	if c.cfg.ClientSendKeepAlive > 0 {
+		doPing = true
+		pingEvery = c.cfg.ClientSendKeepAlive
+		lastPing = time.Now()
+		pingWakeCh = time.After(pingEvery)
+	}
+
 	for {
+		if doPing {
+			now := time.Now()
+			if time.Since(lastPing) > pingEvery {
+				err := w.sendMessage(conn, keepAliveMsg, &c.cfg.WriteTimeout)
+				//vv("cli sent rpc25519 keep alive. err='%v'", err)
+				_ = err
+				lastPing = now
+				pingWakeCh = time.After(pingEvery)
+			} else {
+				// Pre go1.23 this would have leaked timer memory, but not now.
+				// https://pkg.go.dev/time#After says
+				// Before Go 1.23, this documentation warned that the
+				// underlying Timer would not be recovered by the garbage
+				// collector until the timer fired, and that if efficiency
+				// was a concern, code should use NewTimer instead and call
+				// Timer.Stop if the timer is no longer needed. As of Go 1.23,
+				// the garbage collector can recover unreferenced,
+				// unstopped timers. There is no reason to prefer NewTimer
+				// when After will do.
+				// If using pre go1.23, see
+				// https://medium.com/@oboturov/golang-time-after-is-not-garbage-collected-4cbc94740082
+				// for a memory leak story.
+				pingWakeCh = time.After(lastPing.Add(pingEvery).Sub(now))
+			}
+		}
+
 		select {
+		case <-pingWakeCh:
+			// check and send above.
+			continue
 		case <-c.halt.ReqStop.Chan:
 			return
 		case msg := <-c.oneWayCh:
@@ -386,6 +429,7 @@ func (c *Client) runSendLoop(conn net.Conn) {
 				msg.Err = err
 			} else {
 				//vv("cli %v has sent a 1-way message: %v'", c.name, msg)
+				lastPing = time.Now() // no need for ping
 			}
 			msg.DoneCh <- msg // convey the error or lack thereof.
 
@@ -404,6 +448,7 @@ func (c *Client) runSendLoop(conn net.Conn) {
 				continue
 			} else {
 				//vv("(client %v) Sent message: (seqno=%v): '%v'", c.name, msg.HDR.Seqno, msg)
+				lastPing = time.Now() // no need for ping
 			}
 
 		}
@@ -573,6 +618,7 @@ type Config struct {
 	WriteTimeout   time.Duration
 
 	ServerSendKeepAlive time.Duration
+	ClientSendKeepAlive time.Duration
 
 	localAddress string
 

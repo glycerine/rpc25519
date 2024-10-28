@@ -307,33 +307,59 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 	}
 
 	w := newBlabber("server send loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true)
-	//w := newWorkspace(maxMessage)
+
+	// implement ServerSendKeepAlive
+	var lastPing time.Time
+	var doPing bool
+	var pingEvery time.Duration
+	var pingWakeCh <-chan time.Time
+
+	if s.cfg.ServerSendKeepAlive > 0 {
+		doPing = true
+		pingEvery = s.cfg.ServerSendKeepAlive
+		lastPing = time.Now()
+		pingWakeCh = time.After(pingEvery)
+	}
 
 	for {
+		if doPing {
+			now := time.Now()
+			if time.Since(lastPing) > pingEvery {
+				err := w.sendMessage(conn, keepAliveMsg, &s.cfg.WriteTimeout)
+				//vv("quic server sent rpc25519 keep alive. err='%v'", err)
+				_ = err
+				lastPing = now
+				pingWakeCh = time.After(pingEvery)
+			} else {
+				pingWakeCh = time.After(lastPing.Add(pingEvery).Sub(now))
+			}
+		}
+
 		select {
+		case <-pingWakeCh:
+			// check and send above.
+			continue
+
 		case msg := <-s.SendCh:
 			//vv("srv got from s.SendCh, sending msg.HDR = '%v'", msg.HDR)
 			err := w.sendMessage(conn, msg, &s.cfg.WriteTimeout)
 			if err != nil {
-				// notify any short waiting server push user.
+				// notify any short-time-waiting server push user.
+				// This is super useful to let goq retry jobs quickly.
 				msg.Err = err
 				select {
 				case msg.DoneCh <- msg:
 				default:
 				}
-				r := err.Error()
-				if strings.Contains(r, "broken pipe") {
-					// how can we restart the connection? problem is, submitters reach out to us.
-					// Maybe with quic if they run a server too, since we'll know the port
-					// to find them on, if they are still up.
-				}
 				alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
+				// just let user try again?
 			} else {
 				// tell caller there was no error.
 				select {
 				case msg.DoneCh <- msg:
 				default:
 				}
+				lastPing = time.Now() // no need for ping
 			}
 		case <-s.halt.ReqStop.Chan:
 			return
@@ -391,6 +417,10 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 			alwaysPrintf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
 			return
+		}
+		if req.HDR.IsKeepAlive {
+			//vv("srv read loop got an rpc25519 keep alive.")
+			continue
 		}
 
 		//vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
