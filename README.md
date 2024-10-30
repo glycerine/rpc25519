@@ -56,9 +56,13 @@ As of v1.1.0, the `net/rpc` API has been updated to use
 rather than gob encoding, to provide a self-describing, 
 evolvable serialization format. Greenpack allows fields to be added
 or deprecated over time and is multi-language compatible.
-Then we simply re-used that package's client-facing code layer, and
+We re-used net/rpc's client-facing API layer, and
 wired it into/on top of our native []byte slice `Message` transport infrastructure.
-(The LICENSE file reflects this code re-use.)
+(The LICENSE file reflects this code re-use.) Instead
+of taking `any` struct, arguments and responses must now have greenpack
+generated methods. Typically this means adding
+`go:generate greenpack` to the files that define the
+structs that will go over the wire, and running `go generate`.
 
 Note that since we are oriented around distributed job management 
 and use TLS/QUIC directly, under no circumstances does our
