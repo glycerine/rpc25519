@@ -689,15 +689,15 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 		errmsg = errInter.(error).Error()
 	}
 
-	greenReplyv, ok := replyv.Interface().(Greenpackable)
+	greenReplyv, ok := replyv.Interface().(Green)
 	if !ok {
-		panic(fmt.Sprintf("reply must be Greenpackable. type '%T' was not.", replyv.Interface()))
+		panic(fmt.Sprintf("reply must be Green. type '%T' was not.", replyv.Interface()))
 	}
 	pair.sendResponse(reqMsg, req, greenReplyv, codec, errmsg)
 	pair.Server.freeRequest(req)
 }
 
-func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Greenpackable, codec ServerCodec, errmsg string) {
+func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec ServerCodec, errmsg string) {
 
 	vv("pair sendResponse() top, reply: '%#v'", reply)
 
@@ -778,9 +778,10 @@ func (p *rwPair) readRequest(codec ServerCodec) (service *service, mtype *method
 	}
 	// argv guaranteed to be a pointer now.
 
-	greenArgv, ok := argv.Interface().(Greenpackable)
+	vv("argv is '%#v'", argv)
+	greenArgv, ok := argv.Interface().(Green)
 	if !ok {
-		panic(fmt.Sprintf("argv must be Greenpackable. type '%T' was not.", argv.Interface()))
+		panic(fmt.Sprintf("argv must be Green. type '%T' was not.", argv.Interface()))
 	}
 
 	if err = codec.ReadRequestBody(greenArgv); err != nil {
@@ -835,7 +836,10 @@ func (p *rwPair) readRequestHeader(codec ServerCodec) (svc *service, mtype *meth
 	// we can still recover and move on to the next request.
 	keepReading = true
 
-	vv("srv: readRequestHeader(): header was read successfully, req = '%#v'", req)
+	nextDecoderType, err := p.greenCodec.dec.NextType()
+	if err == nil {
+		vv("srv: readRequestHeader(): header was read successfully, req = '%#v', left in reader ='%v' of type '%v'", req, p.greenCodec.dec.Buffered(), nextDecoderType)
+	}
 
 	dot := strings.LastIndex(req.ServiceMethod, ".")
 	if dot < 0 {

@@ -79,6 +79,7 @@ type ServerCodec interface {
 }
 
 type greenpackClientCodec struct {
+	cli    *Client
 	rwc    io.ReadWriteCloser
 	dec    *msgp.Reader
 	enc    *msgp.Writer
@@ -104,11 +105,15 @@ func (c *greenpackClientCodec) ReadResponseHeader(r *Response) error {
 	//return c.dec.Decode(r)
 }
 
-func (c *greenpackClientCodec) ReadResponseBody(body msgp.Decodable) error {
+func (c *greenpackClientCodec) ReadResponseBody(body msgp.Decodable) (err error) {
 	if body == nil {
 		return nil
 	}
-	return body.DecodeMsg(c.dec)
+	vv("ReadResponseBody pre DecodeMsg: '%#v'", body)
+	vv("cli.decBuf has len %v: '%v'", len(c.cli.decBuf.Bytes()), string(c.cli.decBuf.Bytes()))
+	err = body.DecodeMsg(c.dec)
+
+	return
 	//return c.dec.Decode(body)
 }
 
@@ -123,18 +128,18 @@ func (c *greenpackClientCodec) Close() error {
 // closed or shutting down.
 var ErrNetRpcShutdown = errors.New("connection is shut down")
 
-type Greenpackable interface {
+type Green interface {
 	msgp.Encodable
 	msgp.Decodable
 }
 
 // Call represents an active net/rpc RPC.
 type Call struct {
-	ServiceMethod string        // The name of the service and method to call.
-	Args          Greenpackable // The argument to the function (*struct).
-	Reply         Greenpackable // The reply from the function (*struct).
-	Error         error         // After completion, the error status.
-	Done          chan *Call    // Receives *Call when Go is complete.
+	ServiceMethod string     // The name of the service and method to call.
+	Args          Green      // The argument to the function (*struct).
+	Reply         Green      // The reply from the function (*struct).
+	Error         error      // After completion, the error status.
+	Done          chan *Call // Receives *Call when Go is complete.
 }
 
 // Precompute the reflect type for error.
@@ -317,15 +322,19 @@ func (c *greenpackServerCodec) ReadRequestHeader(r *Request) (err error) {
 	//return c.dec.Decode(r)
 }
 
-func (c *greenpackServerCodec) ReadRequestBody(body msgp.Decodable) error {
+func (c *greenpackServerCodec) ReadRequestBody(body msgp.Decodable) (err error) {
 	if body == nil {
 		// srv.go:671 readRequest() trying to discard body.
 		// We should be able to no-op this because we'll
 		// just ignore the remainder of the JobSerz bytes in our Message.
 		return nil
 	}
-	return body.DecodeMsg(c.dec)
+	vv("server side is doing ReadRequestBody into '%#v'", body)
+	vv("server side decBuf = '%v'", string(c.pair.decBuf.Bytes()))
+	err = body.DecodeMsg(c.dec)
 	//return c.dec.Decode(body)
+	vv("server side after fill in of body ='%#v'", body)
+	return
 }
 
 func (c *greenpackServerCodec) WriteResponse(r *Response, body msgp.Encodable) (err error) {

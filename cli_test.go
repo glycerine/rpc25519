@@ -156,6 +156,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 
 		// net/rpc API on client, ported from attic/net_server_test.go
 		var args *Args
+		_ = args
 		var reply *Reply
 
 		// Synchronous calls
@@ -240,42 +241,6 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		}
 		vv("good 006: past error test")
 
-		// Bad type.
-		reply = new(Reply)
-		err = client.Call("Arith.Add", reply, reply) // args, reply would be the correct thing to use
-		if err == nil {
-			t.Error("expected error calling Arith.Add with wrong arg type")
-		} else if !strings.Contains(err.Error(), "type") {
-			t.Error("expected error about type; got", err)
-		}
-		vv("good 006: past bad type")
-
-		// Non-struct argument: won't work with greenpack
-		/*
-			const Val = 12345
-			str := fmt.Sprint(Val)
-			reply = new(Reply)
-			err = client.Call("Arith.Scan", &str, reply)
-			if err != nil {
-				t.Errorf("Scan: expected no error but got string %q", err.Error())
-			} else if reply.C != Val {
-				t.Errorf("Scan: expected %d got %d", Val, reply.C)
-			}
-		*/
-		// Non-struct reply: won't work under greenpack
-		/*
-			args = &Args{27, 35}
-			str = ""
-			err = client.Call("Arith.String", args, &str)
-			if err != nil {
-				t.Errorf("String: expected no error but got string %q", err.Error())
-			}
-			expect := fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
-			if str != expect {
-				t.Errorf("String: expected %s got %s", expect, str)
-			}
-		*/
-
 		args = &Args{7, 8}
 		reply = new(Reply)
 		err = client.Call("Arith.Mul", args, reply)
@@ -299,8 +264,50 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		}
 		vv("good 006: past ServiceName with dot . test")
 
-		// BuiltinTypes
 		/*
+			// actually we read what we can into it. Since greenpack is
+			// designed to be evolvable; in other words,
+			// to ignore unknown and missing fields, this is not a legit test
+			// when using greenpack.
+
+			// Bad type.
+			reply = new(Reply)
+			err = client.Call("Arith.Add", reply, reply) // args, reply would be the correct thing to use
+			if err == nil {
+				vv("err was nil but should not have been!")
+				t.Error("expected error calling Arith.Add with wrong arg type")
+			} else if !strings.Contains(err.Error(), "type") {
+				t.Error("expected error about type; got", err)
+			}
+			vv("good 006: past bad type")
+
+			// Non-struct argument: won't work with greenpack
+
+			const Val = 12345
+			str := fmt.Sprint(Val)
+			reply = new(Reply)
+			err = client.Call("Arith.Scan", &str, reply)
+			if err != nil {
+				t.Errorf("Scan: expected no error but got string %q", err.Error())
+			} else if reply.C != Val {
+				t.Errorf("Scan: expected %d got %d", Val, reply.C)
+			}
+
+			// Non-struct reply: won't work under greenpack
+
+			args = &Args{27, 35}
+			str = ""
+			err = client.Call("Arith.String", args, &str)
+			if err != nil {
+				t.Errorf("String: expected no error but got string %q", err.Error())
+			}
+			expect := fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
+			if str != expect {
+				t.Errorf("String: expected %s got %s", expect, str)
+			}
+
+			// BuiltinTypes
+
 			// Map
 			args = &Args{7, 8}
 			replyMap := map[int]int{}
@@ -334,6 +341,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 				t.Errorf("Array: expected %v got %v", e, replyArray)
 			}
 		*/
+
 		cv.So(true, cv.ShouldBeTrue)
 	})
 }

@@ -739,7 +739,7 @@ func computeHMAC(plaintext []byte, key []byte) (hash []byte) {
 // the invocation. The done channel will signal when the call is complete by returning
 // the same Call object. If done is nil, Go will allocate a new channel.
 // If non-nil, done must be buffered or Go will deliberately crash.
-func (c *Client) Go(serviceMethod string, args Greenpackable, reply Greenpackable, done chan *Call) *Call {
+func (c *Client) Go(serviceMethod string, args Green, reply Green, done chan *Call) *Call {
 	c.mut.Lock()
 	c.seenNetRPCCalls = true
 	c.mut.Unlock()
@@ -769,7 +769,7 @@ func (c *Client) Go(serviceMethod string, args Greenpackable, reply Greenpackabl
 // Call implements the net/rpc Client.Call() API; its docs:
 //
 // Call invokes the named function, waits for it to complete, and returns its error status.
-func (c *Client) Call(serviceMethod string, args, reply Greenpackable) error {
+func (c *Client) Call(serviceMethod string, args, reply Green) error {
 	c.mut.Lock()
 	c.seenNetRPCCalls = true
 	c.mut.Unlock()
@@ -853,12 +853,16 @@ func (c *Client) gotNetRpcInput(replyMsg *Message) (err error) {
 	c.decBuf.Reset()
 	c.decBuf.Write(replyMsg.JobSerz)
 	c.codec.dec.Reset(&c.decBuf)
+	vv("gotNetRpcInput replyMsg.JobSerz is len %v", len(replyMsg.JobSerz))
+	vv("c.decBuf has %v", len(c.decBuf.Bytes()))
 
 	err = c.codec.ReadResponseHeader(&response)
 	panicOn(err)
 	if err != nil {
 		return err
 	}
+	vv("after reading header, c.decBuf has %v", len(c.decBuf.Bytes()))
+
 	seq := response.Seq
 	c.mutex.Lock()
 	vv("c.pending looking for seq=%v is: '%#v'; response was '%#v'", seq, c.pending, response)
@@ -1025,6 +1029,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 	}
 	c.encBufW = bufio.NewWriter(&c.encBuf)
 	c.codec = &greenpackClientCodec{
+		cli:    c,
 		rwc:    nil,
 		dec:    msgp.NewReader(&c.decBuf),
 		enc:    msgp.NewWriter(c.encBufW),

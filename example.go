@@ -34,7 +34,7 @@ type Arith int
 
 func (t *Arith) Add(args Args, reply *Reply) error {
 	reply.C = args.A + args.B
-	//vv("Arith.Add(%v + %v) called.", args.A, args.B)
+	vv("Arith.Add(%v + %v) called.", args.A, args.B)
 	return nil
 }
 

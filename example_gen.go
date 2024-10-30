@@ -3,6 +3,7 @@
 package rpc25519
 
 import (
+	"fmt"
 	"github.com/glycerine/greenpack/msgp"
 )
 
@@ -40,7 +41,7 @@ doneWithStruct0zgensym_7ba73e3e9c15c593_1:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft0zgensym_7ba73e3e9c15c593_1 > 0 || missingFieldsLeft0zgensym_7ba73e3e9c15c593_1 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft0zgensym_7ba73e3e9c15c593_1, missingFieldsLeft0zgensym_7ba73e3e9c15c593_1, msgp.ShowFound(found0zgensym_7ba73e3e9c15c593_1[:]), decodeMsgFieldOrder0zgensym_7ba73e3e9c15c593_1)
+		fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft0zgensym_7ba73e3e9c15c593_1, missingFieldsLeft0zgensym_7ba73e3e9c15c593_1, msgp.ShowFound(found0zgensym_7ba73e3e9c15c593_1[:]), decodeMsgFieldOrder0zgensym_7ba73e3e9c15c593_1)
 		if encodedFieldsLeft0zgensym_7ba73e3e9c15c593_1 > 0 {
 			encodedFieldsLeft0zgensym_7ba73e3e9c15c593_1--
 			field, err = dc.ReadMapKeyPtr()
@@ -66,7 +67,7 @@ doneWithStruct0zgensym_7ba73e3e9c15c593_1:
 			missingFieldsLeft0zgensym_7ba73e3e9c15c593_1--
 			curField0zgensym_7ba73e3e9c15c593_1 = decodeMsgFieldOrder0zgensym_7ba73e3e9c15c593_1[nextMiss0zgensym_7ba73e3e9c15c593_1]
 		}
-		//fmt.Printf("switching on curField: '%v'\n", curField0zgensym_7ba73e3e9c15c593_1)
+		fmt.Printf("switching on curField: '%v'\n", curField0zgensym_7ba73e3e9c15c593_1)
 		switch curField0zgensym_7ba73e3e9c15c593_1 {
 		// -- templateDecodeMsg ends here --
 
