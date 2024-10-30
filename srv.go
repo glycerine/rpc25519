@@ -44,7 +44,6 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 	s.cfg.checkPreSharedKey("server")
 	//vv("server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 
-	embedded := false                 // always false now
 	sslCA := fixSlash("certs/ca.crt") // path to CA cert
 
 	keyName := "node"
@@ -62,7 +61,6 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 	sslCertKey := fixSlash(fmt.Sprintf("certs/%v.key", keyName)) // path to server key
 
 	if certPath != "" {
-		embedded = false
 		sslCA = fixSlash(fmt.Sprintf("%v/ca.crt", certPath)) // path to CA cert
 		//sslClientCA = sslCA
 		sslCert = fixSlash(fmt.Sprintf("%v/%v.crt", certPath, keyName))    // path to server cert
@@ -71,24 +69,24 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 
 	var err error
 	var config *tls.Config
+
+	// handle pass-phrase protected certs/node.key
+	config, s.creds, err = selfcert.LoadNodeTLSConfigProtected(true, sslCA, sslCert, sslCertKey)
+	if err != nil {
+		panic(fmt.Sprintf("error on LoadServerTLSConfig(): '%v'", err))
+	}
+
+	// Not needed now that we have proper CA cert from gen.sh; or
+	// perhaps this is the default anyway(?)
+	// In any event, "localhost" is what we see during handshake; but
+	// maybe that is because localhost is what we put in the ca.cnf and openssl-san.cnf
+	// as the CN and DNS.1 names too(!)
+	//config.ServerName = "localhost" // this would be the name of the remote client.
+
 	if tcp_only {
 		// actually just run TCP and not TLS, since we might not have cert authority (e.g. under test)
 		s.runTCP(serverAddress, boundCh)
 		return
-	} else {
-		// handle pass-phrase protected certs/node.key
-		config, err = selfcert.LoadNodeTLSConfigProtected(true, sslCA, sslCert, sslCertKey)
-		//config, err = loadServerTLSConfig(embedded, sslCA, sslClientCA, sslCert, sslCertKey)
-		if err != nil {
-			panic(fmt.Sprintf("error on LoadServerTLSConfig() (using embedded=%v): '%v'", embedded, err))
-		}
-
-		// Not needed now that we have proper CA cert from gen.sh; or
-		// perhaps this is the default anyway(?)
-		// In any event, "localhost" is what we see during handshake; but
-		// maybe that is because localhost is what we put in the ca.cnf and openssl-san.cnf
-		// as the CN and DNS.1 names too(!)
-		//config.ServerName = "localhost" // this would be the name of the remote client.
 	}
 
 	if s.cfg.SkipVerifyKeys {
@@ -214,8 +212,12 @@ acceptAgain:
 		//vv("tcp only server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 		if s.cfg.encryptPSK {
 			var err error
+
+			//s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
+			//      symmetricServerHandshake(conn, s.cfg.preSharedKey)
 			s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
-				symmetricServerHandshake(conn, s.cfg.preSharedKey)
+				symmetricServerVerifiedHandshake(conn, s.cfg.preSharedKey, s.creds)
+
 			panicOn(err)
 		}
 
@@ -285,8 +287,13 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 	//vv("tls server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 	if s.cfg.encryptPSK {
 		var err error
+
+		//s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
+		//	symmetricServerHandshake(conn, s.cfg.preSharedKey)
+
 		s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
-			symmetricServerHandshake(conn, s.cfg.preSharedKey)
+			symmetricServerVerifiedHandshake(conn, s.cfg.preSharedKey, s.creds)
+
 		panicOn(err)
 	}
 
@@ -527,7 +534,8 @@ type Server struct {
 	cfg        *Config
 	quicConfig *quic.Config
 
-	name string // which server, for debugging.
+	name  string // which server, for debugging.
+	creds *selfcert.Creds
 
 	callme2 TwoWayFunc
 	callme1 OneWayFunc

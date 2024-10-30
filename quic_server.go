@@ -226,8 +226,13 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 				//vv("quic server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 				if s.cfg.encryptPSK {
 					wrap := &NetConnWrapper{Stream: stream, Connection: conn}
+
+					//s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
+					//	symmetricServerHandshake(wrap, s.cfg.preSharedKey)
+
 					s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
-						symmetricServerHandshake(wrap, s.cfg.preSharedKey)
+						symmetricServerVerifiedHandshake(wrap, s.cfg.preSharedKey, s.creds)
+
 					panicOn(err)
 				}
 

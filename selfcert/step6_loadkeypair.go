@@ -12,59 +12,81 @@ import (
 	//"os"
 )
 
+type Creds struct {
+	IsServer   bool
+	CaCertPath string
+
+	NodeCertPath       string
+	NodePrivateKeyPath string
+
+	NodePrivateKey ed25519.PrivateKey
+	NodeCert       *x509.Certificate
+
+	CACert     *x509.Certificate
+	CACertPool *x509.CertPool
+}
+
 // LoadNodeTLSConfigProtected will prompt
 // for the pass-phrase if the key is protected.
-func LoadNodeTLSConfigProtected(isServer bool, caCertPath, clientCertPath, privateKeyPath string) (*tls.Config, error) {
+func LoadNodeTLSConfigProtected(isServer bool, caCertPath, clientCertPath, privateKeyPath string) (*tls.Config, *Creds, error) {
+
+	creds := &Creds{
+		IsServer:           isServer,
+		CaCertPath:         caCertPath,
+		NodeCertPath:       clientCertPath,
+		NodePrivateKeyPath: privateKeyPath,
+	}
 
 	// Load the private key from the PEM file
 	privateKey, keyPEM, err := LoadEd25519PrivateKey(privateKeyPath)
 	if err != nil {
-		return nil, fmt.Errorf("error in LoadNodeTLSConfigProtected "+
+		return nil, nil, fmt.Errorf("error in LoadNodeTLSConfigProtected "+
 			"loading client private key '%v': %v", privateKeyPath, err)
 	}
-	_ = privateKey
+	creds.NodePrivateKey = privateKey
 
 	// Load the certificate from the PEM file
 
 	certPEM, err := ioutil.ReadFile(clientCertPath)
 	if err != nil {
-		return nil, fmt.Errorf("error in LoadNodeTLSConfigProtected: unable to read certificate file '%v': %v", clientCertPath, err)
+		return nil, nil, fmt.Errorf("error in LoadNodeTLSConfigProtected: unable to read certificate file '%v': %v", clientCertPath, err)
 	}
 
 	// Decode the PEM block
 	block, _ := pem.Decode(certPEM)
 	if block == nil || block.Type != "CERTIFICATE" {
-		return nil, fmt.Errorf("error in LoadNodeTLSConfigProtected: failed to decode PEM block containing certificate, from path '%v'", clientCertPath)
+		return nil, nil, fmt.Errorf("error in LoadNodeTLSConfigProtected: failed to decode PEM block containing certificate, from path '%v'", clientCertPath)
 	}
 
 	// Parse the certificate
 	certificate, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("error in LoadNodeTLSConfigProtected "+
+		return nil, nil, fmt.Errorf("error in LoadNodeTLSConfigProtected "+
 			"loading client certificate path '%v': %v", clientCertPath, err)
 	}
-	_ = certificate
+	creds.NodeCert = certificate
 
 	caCert, caPEM, err := caLoadCert(caCertPath)
 	if err != nil {
-		return nil, fmt.Errorf("error in LoadNodeTLSConfigProtected "+
+		return nil, nil, fmt.Errorf("error in LoadNodeTLSConfigProtected "+
 			"loading CA cert path '%v': '%v'", caCertPath, err)
 	}
-	_ = caCert
+	creds.CACert = caCert
 
 	//vv("keyPEM = '%v';\n certPEM = %v", string(keyPEM), string(certPEM))
 	pair, err := tls.X509KeyPair(certPEM, keyPEM)
 	if err != nil {
-		return nil, fmt.Errorf("error in LoadNodeTLSConfigProtected: "+
+		return nil, nil, fmt.Errorf("error in LoadNodeTLSConfigProtected: "+
 			"failed call to tls.X509Keypair(): '%v'", err)
 	}
 
 	certPool := x509.NewCertPool()
 
 	if !certPool.AppendCertsFromPEM(caPEM) {
-		return nil, fmt.Errorf("error in LoadNodeTLSConfigProtected: " +
+		return nil, nil, fmt.Errorf("error in LoadNodeTLSConfigProtected: " +
 			"failed to parse PEM data to certPool")
 	}
+	creds.CACertPool = certPool
 
 	cfg := &tls.Config{
 		RootCAs: certPool,
@@ -86,7 +108,7 @@ func LoadNodeTLSConfigProtected(isServer bool, caCertPath, clientCertPath, priva
 	cfg.ClientCAs = certPool
 
 	//vv("loaded fine: caCertPath = '%v', clientCertPath='%v', privateKeyPath='%v'", caCertPath, clientCertPath, privateKeyPath)
-	return cfg, nil
+	return cfg, creds, nil
 }
 
 // typcially:

@@ -62,12 +62,6 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 
 	c.cfg.checkPreSharedKey("client")
 
-	if tcp_only {
-		c.runClientTCP(serverAddr)
-		return
-	}
-
-	embedded := false                 // always false now
 	sslCA := fixSlash("certs/ca.crt") // path to CA cert
 
 	keyName := "client"
@@ -79,19 +73,26 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	sslCertKey := fixSlash(fmt.Sprintf("certs/%v.key", keyName)) // path to server key
 
 	if certPath != "" {
-		embedded = false
 		sslCA = fixSlash(fmt.Sprintf("%v/ca.crt", certPath))               // path to CA cert
 		sslCert = fixSlash(fmt.Sprintf("%v/%v.crt", certPath, keyName))    // path to server cert
 		sslCertKey = fixSlash(fmt.Sprintf("%v/%v.key", certPath, keyName)) // path to server key
 	}
 
 	// handle pass-phrase protected certs/client.key
-	config, err2 := selfcert.LoadNodeTLSConfigProtected(false, sslCA, sslCert, sslCertKey)
+	config, creds, err2 := selfcert.LoadNodeTLSConfigProtected(false, sslCA, sslCert, sslCertKey)
 	//config, err2 := loadClientTLSConfig(embedded, sslCA, sslCert, sslCertKey)
 	if err2 != nil {
-		c.err = fmt.Errorf("error on LoadClientTLSConfig() (using embedded=%v): '%v'", embedded, err2)
+		c.err = fmt.Errorf("error on LoadClientTLSConfig()'%v'", err2)
 		panic(c.err)
 	}
+	c.creds = creds
+
+	// since TCP may verify creds now too, only run TCP client *after* loading creds.
+	if tcp_only {
+		c.runClientTCP(serverAddr)
+		return
+	}
+
 	_ = err2 // skip panic: x509: certificate signed by unknown authority (possibly because of "crypto/rsa: verification error" while trying to verify candidate authority certificate "Cockroach CA")
 
 	// without this ServerName assignment, we used to get (before gen.sh put in SANs using openssl-san.cnf)
@@ -200,7 +201,8 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	}
 
 	if c.cfg.encryptPSK {
-		c.cfg.randomSymmetricSessKeyFromPreSharedKey, c.cfg.cliEphemPub, c.cfg.srvEphemPub, err = symmetricClientHandshake(conn, c.cfg.preSharedKey)
+		//c.cfg.randomSymmetricSessKeyFromPreSharedKey, c.cfg.cliEphemPub, c.cfg.srvEphemPub, err = symmetricClientHandshake(conn, c.cfg.preSharedKey)
+		c.cfg.randomSymmetricSessKeyFromPreSharedKey, c.cfg.cliEphemPub, c.cfg.srvEphemPub, err = symmetricClientVerifiedHandshake(conn, c.cfg.preSharedKey, c.creds)
 		panicOn(err)
 	}
 
@@ -230,8 +232,10 @@ func (c *Client) runClientTCP(serverAddr string) {
 	//log.Printf("connected to server %s", serverAddr)
 
 	if c.cfg.encryptPSK {
+		//c.cfg.randomSymmetricSessKeyFromPreSharedKey, c.cfg.cliEphemPub, c.cfg.srvEphemPub, err =
+		//	symmetricClientHandshake(conn, c.cfg.preSharedKey)
 		c.cfg.randomSymmetricSessKeyFromPreSharedKey, c.cfg.cliEphemPub, c.cfg.srvEphemPub, err =
-			symmetricClientHandshake(conn, c.cfg.preSharedKey)
+			symmetricClientVerifiedHandshake(conn, c.cfg.preSharedKey, c.creds)
 		panicOn(err)
 	}
 
@@ -680,7 +684,8 @@ type Client struct {
 	cfg *Config
 	mut sync.Mutex
 
-	name string
+	name  string
+	creds *selfcert.Creds
 
 	notifyOnRead []chan *Message
 	notifyOnce   map[uint64]chan *Message
