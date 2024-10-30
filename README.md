@@ -55,7 +55,7 @@ As of v1.1.0, the `net/rpc` API has been updated to use
 [greenpack encoding](https://pkg.go.dev/github.com/glycerine/greenpack2)
 rather than gob encoding, to provide a self-describing, 
 evolvable serialization format. Greenpack allows fields to be added
-or deprecated over time and that is multi-language compatible.
+or deprecated over time and is multi-language compatible.
 Then we simply re-used that package's client-facing code layer, and
 wired it into/on top of our native []byte slice `Message` transport infrastructure.
 (The LICENSE file reflects this code re-use.)
