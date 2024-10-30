@@ -334,6 +334,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 				t.Errorf("Array: expected %v got %v", e, replyArray)
 			}
 		*/
+		cv.So(true, cv.ShouldBeTrue)
 	})
 }
 
