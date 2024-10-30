@@ -20,9 +20,7 @@ func main() {
 	var skipVerify = flag.Bool("skip-verify", false, "do not require client certs be from our CA, nor remember client certs in a known_client_keys file for later lockdown")
 
 	var useName = flag.String("k", "node", "specifies name of keypairs to use (certs/name.crt and certs/name.key); instead of the default certs/node.crt and certs/node.key for the server.")
-	var certPath = flag.String("certs", "", "use this path on the lived filesystem for certs; instead of the embedded certs/ from build-time.")
-	// too complicated, just use skipverify
-	//var skipClientCerts = flag.Bool("skip-client-certs", false, "skip verify-ing that client certs are in-use and authorized by our CA; only possible with TLS.")
+	var certPath = flag.String("certs", "", "use this path for certs; instead of the local ./certs/ directory.")
 
 	var quic = flag.Bool("q", false, "use QUIC instead of TCP/TLS")
 
@@ -45,7 +43,6 @@ func main() {
 	cfg.ServerKeyPairName = *useName
 	cfg.CertPath = *certPath
 	cfg.ServerSendKeepAlive = time.Second * 5
-	//cfg.SkipClientCerts= *skipClientCerts
 
 	srv := rpc25519.NewServer("srv", cfg)
 	defer srv.Close()
