@@ -456,39 +456,6 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 			t.Error("Div: expected divide by zero error; got", err)
 		}
 
-		// Bad type.
-		reply = new(Reply)
-		err = client.Call("Arith.Add", reply, reply) // args, reply would be the correct thing to use
-		if err == nil {
-			t.Error("expected error calling Arith.Add with wrong arg type")
-		} else if !strings.Contains(err.Error(), "type") {
-			t.Error("expected error about type; got", err)
-		}
-
-		/*
-			// Non-struct argument
-			const Val = 12345
-			str := fmt.Sprint(Val)
-			reply = new(Reply)
-			err = client.Call("Arith.Scan", &str, reply)
-			if err != nil {
-				t.Errorf("Scan: expected no error but got string %q", err.Error())
-			} else if reply.C != Val {
-				t.Errorf("Scan: expected %d got %d", Val, reply.C)
-			}
-
-			// Non-struct reply
-			args = &Args{27, 35}
-			str = ""
-			err = client.Call("Arith.String", args, &str)
-			if err != nil {
-				t.Errorf("String: expected no error but got string %q", err.Error())
-			}
-			expect := fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
-			if str != expect {
-				t.Errorf("String: expected %s got %s", expect, str)
-			}
-		*/
 		args = &Args{7, 8}
 		reply = new(Reply)
 		err = client.Call("Arith.Mul", args, reply)
@@ -511,6 +478,38 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 		}
 
 		/*
+			// Bad type.
+			reply = new(Reply)
+			err = client.Call("Arith.Add", reply, reply) // args, reply would be the correct thing to use
+			if err == nil {
+				t.Error("expected error calling Arith.Add with wrong arg type")
+			} else if !strings.Contains(err.Error(), "type") {
+				t.Error("expected error about type; got", err)
+			}
+
+			// Non-struct argument
+			const Val = 12345
+			str := fmt.Sprint(Val)
+			reply = new(Reply)
+			err = client.Call("Arith.Scan", &str, reply)
+			if err != nil {
+				t.Errorf("Scan: expected no error but got string %q", err.Error())
+			} else if reply.C != Val {
+				t.Errorf("Scan: expected %d got %d", Val, reply.C)
+			}
+
+			// Non-struct reply
+			args = &Args{27, 35}
+			str = ""
+			err = client.Call("Arith.String", args, &str)
+			if err != nil {
+				t.Errorf("String: expected no error but got string %q", err.Error())
+			}
+			expect := fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
+			if str != expect {
+				t.Errorf("String: expected %s got %s", expect, str)
+			}
+
 			// BuiltinTypes
 
 			// Map
@@ -669,40 +668,6 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 			t.Error("Div: expected divide by zero error; got", err)
 		}
 
-		// Bad type.
-		reply = new(Reply)
-		err = client.Call("Arith.Add", reply, reply) // args, reply would be the correct thing to use
-		if err == nil {
-			t.Error("expected error calling Arith.Add with wrong arg type")
-		} else if !strings.Contains(err.Error(), "type") {
-			t.Error("expected error about type; got", err)
-		}
-
-		/*
-			// Non-struct argument
-			const Val = 12345
-			str := fmt.Sprint(Val)
-			reply = new(Reply)
-			err = client.Call("Arith.Scan", &str, reply)
-			if err != nil {
-				t.Errorf("Scan: expected no error but got string %q", err.Error())
-			} else if reply.C != Val {
-				t.Errorf("Scan: expected %d got %d", Val, reply.C)
-			}
-
-			// Non-struct reply
-			args = &Args{27, 35}
-			str = ""
-			err = client.Call("Arith.String", args, &str)
-			if err != nil {
-				t.Errorf("String: expected no error but got string %q", err.Error())
-			}
-			expect := fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
-			if str != expect {
-				t.Errorf("String: expected %s got %s", expect, str)
-			}
-		*/
-
 		args = &Args{7, 8}
 		reply = new(Reply)
 		err = client.Call("Arith.Mul", args, reply)
@@ -725,6 +690,38 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 		}
 
 		/*
+			// Bad type.
+			reply = new(Reply)
+			err = client.Call("Arith.Add", reply, reply) // args, reply would be the correct thing to use
+			if err == nil {
+				t.Error("expected error calling Arith.Add with wrong arg type")
+			} else if !strings.Contains(err.Error(), "type") {
+				t.Error("expected error about type; got", err)
+			}
+
+			// Non-struct argument
+			const Val = 12345
+			str := fmt.Sprint(Val)
+			reply = new(Reply)
+			err = client.Call("Arith.Scan", &str, reply)
+			if err != nil {
+				t.Errorf("Scan: expected no error but got string %q", err.Error())
+			} else if reply.C != Val {
+				t.Errorf("Scan: expected %d got %d", Val, reply.C)
+			}
+
+			// Non-struct reply
+			args = &Args{27, 35}
+			str = ""
+			err = client.Call("Arith.String", args, &str)
+			if err != nil {
+				t.Errorf("String: expected no error but got string %q", err.Error())
+			}
+			expect := fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
+			if str != expect {
+				t.Errorf("String: expected %s got %s", expect, str)
+			}
+
 			// BuiltinTypes
 
 			// Map

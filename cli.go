@@ -815,7 +815,7 @@ func (c *Client) send(call *Call) {
 	//vv("Client.send(Call): c.encBuf.Bytes() is now len %v", len(c.encBuf.Bytes()))
 	//vv("Client.send(Call): c.encBuf.Bytes() is now '%v'", string(c.encBuf.Bytes()))
 
-	vv("cli c.request.Seq = %v; request='%#v'", c.request.Seq, c.request)
+	//vv("cli c.request.Seq = %v; request='%#v'", c.request.Seq, c.request)
 
 	req := NewMessage()
 	req.HDR.Subject = call.ServiceMethod
@@ -827,7 +827,7 @@ func (c *Client) send(call *Call) {
 
 	reply, err := c.SendAndGetReply(req, nil)
 	_ = reply
-	vv("cli got reply '%v'; err = '%v'", reply, err)
+	//vv("cli got reply '%v'; err = '%v'", reply, err)
 
 	if err == nil {
 		err = c.gotNetRpcInput(reply)
@@ -853,19 +853,19 @@ func (c *Client) gotNetRpcInput(replyMsg *Message) (err error) {
 	c.decBuf.Reset()
 	c.decBuf.Write(replyMsg.JobSerz)
 	c.codec.dec.Reset(&c.decBuf)
-	vv("gotNetRpcInput replyMsg.JobSerz is len %v", len(replyMsg.JobSerz))
-	vv("c.decBuf has %v", len(c.decBuf.Bytes()))
+	//vv("gotNetRpcInput replyMsg.JobSerz is len %v", len(replyMsg.JobSerz))
+	//vv("c.decBuf has %v", len(c.decBuf.Bytes()))
 
 	err = c.codec.ReadResponseHeader(&response)
 	panicOn(err)
 	if err != nil {
 		return err
 	}
-	vv("after reading header, c.decBuf has %v", len(c.decBuf.Bytes()))
+	//vv("after reading header, c.decBuf has %v", len(c.decBuf.Bytes()))
 
 	seq := response.Seq
 	c.mutex.Lock()
-	vv("c.pending looking for seq=%v is: '%#v'; response was '%#v'", seq, c.pending, response)
+	//vv("c.pending looking for seq=%v is: '%#v'; response was '%#v'", seq, c.pending, response)
 	call := c.pending[seq]
 	delete(c.pending, seq)
 	c.mutex.Unlock()
@@ -881,7 +881,7 @@ func (c *Client) gotNetRpcInput(replyMsg *Message) (err error) {
 		if err != nil {
 			err = errors.New("reading error body: " + err.Error())
 		}
-		vv("no one to give body to? pending = '%#v'", c.pending) // here we see
+		//vv("no one to give body to? pending = '%#v'", c.pending) // here we see
 	case response.Error != "":
 		// We've got an error response. Give this to the request;
 		// any subsequent requests will get the ReadResponseBody
@@ -892,14 +892,14 @@ func (c *Client) gotNetRpcInput(replyMsg *Message) (err error) {
 			err = errors.New("reading error body: " + err.Error())
 		}
 		call.done()
-		vv("response.Error was '%v'", response.Error)
+		//vv("response.Error was '%v'", response.Error)
 	default:
 		err = c.codec.ReadResponseBody(call.Reply)
 		if err != nil {
 			call.Error = errors.New("reading body " + err.Error())
 		}
 		call.done()
-		vv("default cli switch on call")
+		//vv("default cli switch on call")
 	}
 	return nil
 }

@@ -9,7 +9,6 @@ package rpc25519
 import (
 	"bufio"
 	"context"
-	//"encoding/gob"
 	"errors"
 	"go/token"
 	"io"
@@ -102,19 +101,16 @@ func (c *greenpackClientCodec) WriteRequest(r *Request, body msgp.Encodable) (er
 
 func (c *greenpackClientCodec) ReadResponseHeader(r *Response) error {
 	return r.DecodeMsg(c.dec)
-	//return c.dec.Decode(r)
 }
 
 func (c *greenpackClientCodec) ReadResponseBody(body msgp.Decodable) (err error) {
 	if body == nil {
 		return nil
 	}
-	vv("ReadResponseBody pre DecodeMsg: '%#v'", body)
-	vv("cli.decBuf has len %v: '%v'", len(c.cli.decBuf.Bytes()), string(c.cli.decBuf.Bytes()))
+	//vv("ReadResponseBody pre DecodeMsg: '%#v'", body)
+	//vv("cli.decBuf has len %v: '%v'", len(c.cli.decBuf.Bytes()), string(c.cli.decBuf.Bytes()))
 	err = body.DecodeMsg(c.dec)
-
 	return
-	//return c.dec.Decode(body)
 }
 
 func (c *greenpackClientCodec) Close() error {
@@ -314,12 +310,11 @@ type greenpackServerCodec struct {
 }
 
 func (c *greenpackServerCodec) ReadRequestHeader(r *Request) (err error) {
-	vv("ReadRequestHeader before DecodeMsg: '%#v'; avail=%v  decBuf='%v'", r, len(c.pair.decBuf.Bytes()), string(c.pair.decBuf.Bytes()))
-	err = r.DecodeMsg(c.dec)
+	//vv("ReadRequestHeader before DecodeMsg: '%#v'; avail=%v  decBuf='%v'", r, len(c.pair.decBuf.Bytes()), string(c.pair.decBuf.Bytes()))
 
-	vv("ReadRequestHeader after fill in r='%#v'", r)
+	err = r.DecodeMsg(c.dec)
+	//vv("ReadRequestHeader after fill in r='%#v'", r)
 	return
-	//return c.dec.Decode(r)
 }
 
 func (c *greenpackServerCodec) ReadRequestBody(body msgp.Decodable) (err error) {
@@ -329,11 +324,10 @@ func (c *greenpackServerCodec) ReadRequestBody(body msgp.Decodable) (err error) 
 		// just ignore the remainder of the JobSerz bytes in our Message.
 		return nil
 	}
-	vv("server side is doing ReadRequestBody into '%#v'", body)
-	vv("server side decBuf = '%v'", string(c.pair.decBuf.Bytes()))
+	//vv("server side is doing ReadRequestBody into '%#v'", body)
+	//vv("server side decBuf = '%v'", string(c.pair.decBuf.Bytes()))
 	err = body.DecodeMsg(c.dec)
-	//return c.dec.Decode(body)
-	vv("server side after fill in of body ='%#v'", body)
+	//vv("server side after fill in of body ='%#v'", body)
 	return
 }
 
@@ -341,7 +335,7 @@ func (c *greenpackServerCodec) WriteResponse(r *Response, body msgp.Encodable) (
 
 	if err = r.EncodeMsg(c.enc); err != nil {
 		if c.enc.Flush() == nil {
-			// Gob couldn't encode the header. Should not happen, so if it does,
+			// couldn't encode the header. Should not happen, so if it does,
 			// shut down the connection to signal that the connection is broken.
 			log.Println("rpc: gob error encoding response:", err)
 			c.Close()
@@ -351,7 +345,7 @@ func (c *greenpackServerCodec) WriteResponse(r *Response, body msgp.Encodable) (
 
 	if err = body.EncodeMsg(c.enc); err != nil {
 		if c.enc.Flush() == nil {
-			// Was a gob problem encoding the body but the header has been written.
+			// Was a problem encoding the body but the header has been written.
 			// Shut down the connection to signal that the connection is broken.
 			log.Println("rpc: gob error encoding body:", err)
 			c.Close()

@@ -644,7 +644,7 @@ func (p *rwPair) callBridgeNetRpc(reqMsg *Message) error {
 	p.greenCodec.dec.Reset(&p.decBuf)
 
 	service, mtype, req, argv, replyv, keepReading, wantsCtx, err := p.readRequest(p.greenCodec)
-	vv("p.readRequest() back with err = '%v'; req='%#v'", err, req)
+	//vv("p.readRequest() back with err = '%v'; req='%#v'", err, req)
 	if err != nil {
 		if debugLog && err != io.EOF {
 			log.Println("rpc:", err)
@@ -660,7 +660,7 @@ func (p *rwPair) callBridgeNetRpc(reqMsg *Message) error {
 		return err
 	}
 	//wg.Add(1)
-	vv("about to callMethodByReflection")
+	//vv("about to callMethodByReflection")
 	service.callMethodByReflection(p, reqMsg, mtype, req, argv, replyv, p.greenCodec, wantsCtx)
 
 	return nil
@@ -699,7 +699,7 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 
 func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec ServerCodec, errmsg string) {
 
-	vv("pair sendResponse() top, reply: '%#v'", reply)
+	//vv("pair sendResponse() top, reply: '%#v'", reply)
 
 	resp := p.Server.getResponse()
 	// Encode the response header
@@ -709,7 +709,7 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 		reply = invalidRequest
 	}
 	resp.Seq = req.Seq
-	vv("srv sendResonse() for req.Seq = %v", req.Seq)
+	//vv("srv sendResonse() for req.Seq = %v", req.Seq)
 	//p.sending.Lock()
 	err := codec.WriteResponse(resp, reply)
 	if debugLog && err != nil {
@@ -739,7 +739,7 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 	by := p.encBuf.Bytes()
 	msg.JobSerz = make([]byte, len(by))
 	copy(msg.JobSerz, by)
-	vv("response JobSerz is len %v", len(by))
+	//vv("response JobSerz is len %v", len(by))
 
 	select {
 	case p.SendCh <- msg:
@@ -763,10 +763,10 @@ func (p *rwPair) readRequest(codec ServerCodec) (service *service, mtype *method
 		}
 		// discard body
 		codec.ReadRequestBody(nil)
-		vv("srv readRequest got err='%v' back: req='%#v'", err, req)
+		//vv("srv readRequest got err='%v' back: req='%#v'", err, req)
 		return
 	}
-	vv("srv readRequest got back: req='%#v'", req)
+	//vv("srv readRequest got back: req='%#v'", req)
 
 	// Decode the argument value.
 	argIsValue := false // if true, need to indirect before calling.
@@ -778,7 +778,7 @@ func (p *rwPair) readRequest(codec ServerCodec) (service *service, mtype *method
 	}
 	// argv guaranteed to be a pointer now.
 
-	vv("argv is '%#v'", argv)
+	//vv("argv is '%#v'", argv)
 	greenArgv, ok := argv.Interface().(Green)
 	if !ok {
 		panic(fmt.Sprintf("argv must be Green. type '%T' was not.", argv.Interface()))
@@ -836,10 +836,10 @@ func (p *rwPair) readRequestHeader(codec ServerCodec) (svc *service, mtype *meth
 	// we can still recover and move on to the next request.
 	keepReading = true
 
-	nextDecoderType, err := p.greenCodec.dec.NextType()
-	if err == nil {
-		vv("srv: readRequestHeader(): header was read successfully, req = '%#v', left in reader ='%v' of type '%v'", req, p.greenCodec.dec.Buffered(), nextDecoderType)
-	}
+	//nextDecoderType, err := p.greenCodec.dec.NextType()
+	//if err == nil {
+	//vv("srv: readRequestHeader(): header was read successfully, req = '%#v', left in reader ='%v' of type '%v'", req, p.greenCodec.dec.Buffered(), nextDecoderType)
+	//}
 
 	dot := strings.LastIndex(req.ServiceMethod, ".")
 	if dot < 0 {
