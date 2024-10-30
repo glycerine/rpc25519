@@ -1,8 +1,6 @@
 package rpc25519
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -14,6 +12,13 @@ import (
 
 var _ = fmt.Printf
 var _ = time.Now
+
+/*
+   Note: these testing types (originally from net/rpc)
+   were moved to example.go because having
+   generating greenapck on a test file makes cli_test_gen.go
+   which does not look like a test file so a main build tries
+   to use it and then cannot find these types.
 
 type Args struct {
 	A, B int
@@ -113,9 +118,10 @@ func (BuiltinTypes) WantsContext(ctx context.Context, args *Args, reply *[2]int)
 	}
 	return nil
 }
+*/
 
 // This is a port of net/rpc server_test.go testRPC().
-// See net_server_test.go:169 herein, which is a copy, with renaming
+// See attic/net_server_test.go:169 herein, which is a copy, with renaming
 // to build here without conflict over who is the real Server{}.
 func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 
@@ -148,7 +154,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		panicOn(err)
 		defer client.Close()
 
-		// net/rpc API on client, ported from net_server_test.go
+		// net/rpc API on client, ported from attic/net_server_test.go
 		//var args *Args
 		//var reply *Reply
 
