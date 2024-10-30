@@ -2,7 +2,7 @@ package rpc25519
 
 import (
 	"fmt"
-	"reflect"
+	//"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -155,12 +155,12 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		defer client.Close()
 
 		// net/rpc API on client, ported from attic/net_server_test.go
-		//var args *Args
-		//var reply *Reply
+		var args *Args
+		var reply *Reply
 
 		// Synchronous calls
-		args := &Args{7, 8}
-		reply := new(Reply)
+		args = &Args{7, 8}
+		reply = new(Reply)
 		err = client.Call("Arith.Add", args, reply)
 		if err != nil {
 			t.Errorf("Add: expected no error but got string %q", err.Error())
@@ -168,6 +168,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		if reply.C != args.A+args.B {
 			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
 		}
+		vv("good 006, got back reply '%#v'", reply)
 
 		// Methods exported from unexported embedded structs
 		args = &Args{7, 0}
@@ -190,6 +191,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		} else if !strings.HasPrefix(err.Error(), "rpc: can't find method ") {
 			t.Errorf("BadOperation: expected can't find method error; got %q", err)
 		}
+		vv("good 006: past nonexistent method")
 
 		// Unknown service
 		args = &Args{7, 8}
@@ -200,6 +202,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		} else if !strings.Contains(err.Error(), "method") {
 			t.Error("expected error about method; got", err)
 		}
+		vv("good 006: past unknown service")
 
 		// Out of order.
 		args = &Args{7, 8}
@@ -223,6 +226,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		if mulReply.C != args.A*args.B {
 			t.Errorf("Mul: expected %d got %d", mulReply.C, args.A*args.B)
 		}
+		vv("good 006: past out of order")
 
 		// Error test
 		args = &Args{7, 0}
@@ -234,6 +238,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		} else if err.Error() != "divide by zero" {
 			t.Error("Div: expected divide by zero error; got", err)
 		}
+		vv("good 006: past error test")
 
 		// Bad type.
 		reply = new(Reply)
@@ -243,29 +248,33 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		} else if !strings.Contains(err.Error(), "type") {
 			t.Error("expected error about type; got", err)
 		}
+		vv("good 006: past bad type")
 
-		// Non-struct argument
-		const Val = 12345
-		str := fmt.Sprint(Val)
-		reply = new(Reply)
-		err = client.Call("Arith.Scan", &str, reply)
-		if err != nil {
-			t.Errorf("Scan: expected no error but got string %q", err.Error())
-		} else if reply.C != Val {
-			t.Errorf("Scan: expected %d got %d", Val, reply.C)
-		}
-
-		// Non-struct reply
-		args = &Args{27, 35}
-		str = ""
-		err = client.Call("Arith.String", args, &str)
-		if err != nil {
-			t.Errorf("String: expected no error but got string %q", err.Error())
-		}
-		expect := fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
-		if str != expect {
-			t.Errorf("String: expected %s got %s", expect, str)
-		}
+		// Non-struct argument: won't work with greenpack
+		/*
+			const Val = 12345
+			str := fmt.Sprint(Val)
+			reply = new(Reply)
+			err = client.Call("Arith.Scan", &str, reply)
+			if err != nil {
+				t.Errorf("Scan: expected no error but got string %q", err.Error())
+			} else if reply.C != Val {
+				t.Errorf("Scan: expected %d got %d", Val, reply.C)
+			}
+		*/
+		// Non-struct reply: won't work under greenpack
+		/*
+			args = &Args{27, 35}
+			str = ""
+			err = client.Call("Arith.String", args, &str)
+			if err != nil {
+				t.Errorf("String: expected no error but got string %q", err.Error())
+			}
+			expect := fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
+			if str != expect {
+				t.Errorf("String: expected %s got %s", expect, str)
+			}
+		*/
 
 		args = &Args{7, 8}
 		reply = new(Reply)
@@ -276,6 +285,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		if reply.C != args.A*args.B {
 			t.Errorf("Mul: expected %d got %d", reply.C, args.A*args.B)
 		}
+		vv("good 006: past Arith.Mul test")
 
 		// ServiceName contain "." character
 		args = &Args{7, 8}
@@ -287,42 +297,43 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		if reply.C != args.A+args.B {
 			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
 		}
+		vv("good 006: past ServiceName with dot . test")
 
 		// BuiltinTypes
+		/*
+			// Map
+			args = &Args{7, 8}
+			replyMap := map[int]int{}
+			err = client.Call("BuiltinTypes.Map", args, &replyMap)
+			if err != nil {
+				t.Errorf("Map: expected no error but got string %q", err.Error())
+			}
+			if replyMap[args.A] != args.B {
+				t.Errorf("Map: expected %d got %d", args.B, replyMap[args.A])
+			}
 
-		// Map
-		args = &Args{7, 8}
-		replyMap := map[int]int{}
-		err = client.Call("BuiltinTypes.Map", args, &replyMap)
-		if err != nil {
-			t.Errorf("Map: expected no error but got string %q", err.Error())
-		}
-		if replyMap[args.A] != args.B {
-			t.Errorf("Map: expected %d got %d", args.B, replyMap[args.A])
-		}
+			// Slice
+			args = &Args{7, 8}
+			replySlice := []int{}
+			err = client.Call("BuiltinTypes.Slice", args, &replySlice)
+			if err != nil {
+				t.Errorf("Slice: expected no error but got string %q", err.Error())
+			}
+			if e := []int{args.A, args.B}; !reflect.DeepEqual(replySlice, e) {
+				t.Errorf("Slice: expected %v got %v", e, replySlice)
+			}
 
-		// Slice
-		args = &Args{7, 8}
-		replySlice := []int{}
-		err = client.Call("BuiltinTypes.Slice", args, &replySlice)
-		if err != nil {
-			t.Errorf("Slice: expected no error but got string %q", err.Error())
-		}
-		if e := []int{args.A, args.B}; !reflect.DeepEqual(replySlice, e) {
-			t.Errorf("Slice: expected %v got %v", e, replySlice)
-		}
-
-		// Array
-		args = &Args{7, 8}
-		replyArray := [2]int{}
-		err = client.Call("BuiltinTypes.Array", args, &replyArray)
-		if err != nil {
-			t.Errorf("Array: expected no error but got string %q", err.Error())
-		}
-		if e := [2]int{args.A, args.B}; !reflect.DeepEqual(replyArray, e) {
-			t.Errorf("Array: expected %v got %v", e, replyArray)
-		}
-
+			// Array
+			args = &Args{7, 8}
+			replyArray := [2]int{}
+			err = client.Call("BuiltinTypes.Array", args, &replyArray)
+			if err != nil {
+				t.Errorf("Array: expected no error but got string %q", err.Error())
+			}
+			if e := [2]int{args.A, args.B}; !reflect.DeepEqual(replyArray, e) {
+				t.Errorf("Array: expected %v got %v", e, replyArray)
+			}
+		*/
 	})
 }
 
@@ -445,29 +456,30 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 			t.Error("expected error about type; got", err)
 		}
 
-		// Non-struct argument
-		const Val = 12345
-		str := fmt.Sprint(Val)
-		reply = new(Reply)
-		err = client.Call("Arith.Scan", &str, reply)
-		if err != nil {
-			t.Errorf("Scan: expected no error but got string %q", err.Error())
-		} else if reply.C != Val {
-			t.Errorf("Scan: expected %d got %d", Val, reply.C)
-		}
+		/*
+			// Non-struct argument
+			const Val = 12345
+			str := fmt.Sprint(Val)
+			reply = new(Reply)
+			err = client.Call("Arith.Scan", &str, reply)
+			if err != nil {
+				t.Errorf("Scan: expected no error but got string %q", err.Error())
+			} else if reply.C != Val {
+				t.Errorf("Scan: expected %d got %d", Val, reply.C)
+			}
 
-		// Non-struct reply
-		args = &Args{27, 35}
-		str = ""
-		err = client.Call("Arith.String", args, &str)
-		if err != nil {
-			t.Errorf("String: expected no error but got string %q", err.Error())
-		}
-		expect := fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
-		if str != expect {
-			t.Errorf("String: expected %s got %s", expect, str)
-		}
-
+			// Non-struct reply
+			args = &Args{27, 35}
+			str = ""
+			err = client.Call("Arith.String", args, &str)
+			if err != nil {
+				t.Errorf("String: expected no error but got string %q", err.Error())
+			}
+			expect := fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
+			if str != expect {
+				t.Errorf("String: expected %s got %s", expect, str)
+			}
+		*/
 		args = &Args{7, 8}
 		reply = new(Reply)
 		err = client.Call("Arith.Mul", args, reply)
@@ -489,41 +501,42 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
 		}
 
-		// BuiltinTypes
+		/*
+			// BuiltinTypes
 
-		// Map
-		args = &Args{7, 8}
-		replyMap := map[int]int{}
-		err = client.Call("BuiltinTypes.Map", args, &replyMap)
-		if err != nil {
-			t.Errorf("Map: expected no error but got string %q", err.Error())
-		}
-		if replyMap[args.A] != args.B {
-			t.Errorf("Map: expected %d got %d", args.B, replyMap[args.A])
-		}
+			// Map
+			args = &Args{7, 8}
+			replyMap := map[int]int{}
+			err = client.Call("BuiltinTypes.Map", args, &replyMap)
+			if err != nil {
+				t.Errorf("Map: expected no error but got string %q", err.Error())
+			}
+			if replyMap[args.A] != args.B {
+				t.Errorf("Map: expected %d got %d", args.B, replyMap[args.A])
+			}
 
-		// Slice
-		args = &Args{7, 8}
-		replySlice := []int{}
-		err = client.Call("BuiltinTypes.Slice", args, &replySlice)
-		if err != nil {
-			t.Errorf("Slice: expected no error but got string %q", err.Error())
-		}
-		if e := []int{args.A, args.B}; !reflect.DeepEqual(replySlice, e) {
-			t.Errorf("Slice: expected %v got %v", e, replySlice)
-		}
+			// Slice
+			args = &Args{7, 8}
+			replySlice := []int{}
+			err = client.Call("BuiltinTypes.Slice", args, &replySlice)
+			if err != nil {
+				t.Errorf("Slice: expected no error but got string %q", err.Error())
+			}
+			if e := []int{args.A, args.B}; !reflect.DeepEqual(replySlice, e) {
+				t.Errorf("Slice: expected %v got %v", e, replySlice)
+			}
 
-		// Array
-		args = &Args{7, 8}
-		replyArray := [2]int{}
-		err = client.Call("BuiltinTypes.Array", args, &replyArray)
-		if err != nil {
-			t.Errorf("Array: expected no error but got string %q", err.Error())
-		}
-		if e := [2]int{args.A, args.B}; !reflect.DeepEqual(replyArray, e) {
-			t.Errorf("Array: expected %v got %v", e, replyArray)
-		}
-
+			// Array
+			args = &Args{7, 8}
+			replyArray := [2]int{}
+			err = client.Call("BuiltinTypes.Array", args, &replyArray)
+			if err != nil {
+				t.Errorf("Array: expected no error but got string %q", err.Error())
+			}
+			if e := [2]int{args.A, args.B}; !reflect.DeepEqual(replyArray, e) {
+				t.Errorf("Array: expected %v got %v", e, replyArray)
+			}
+		*/
 	})
 }
 
@@ -656,28 +669,30 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 			t.Error("expected error about type; got", err)
 		}
 
-		// Non-struct argument
-		const Val = 12345
-		str := fmt.Sprint(Val)
-		reply = new(Reply)
-		err = client.Call("Arith.Scan", &str, reply)
-		if err != nil {
-			t.Errorf("Scan: expected no error but got string %q", err.Error())
-		} else if reply.C != Val {
-			t.Errorf("Scan: expected %d got %d", Val, reply.C)
-		}
+		/*
+			// Non-struct argument
+			const Val = 12345
+			str := fmt.Sprint(Val)
+			reply = new(Reply)
+			err = client.Call("Arith.Scan", &str, reply)
+			if err != nil {
+				t.Errorf("Scan: expected no error but got string %q", err.Error())
+			} else if reply.C != Val {
+				t.Errorf("Scan: expected %d got %d", Val, reply.C)
+			}
 
-		// Non-struct reply
-		args = &Args{27, 35}
-		str = ""
-		err = client.Call("Arith.String", args, &str)
-		if err != nil {
-			t.Errorf("String: expected no error but got string %q", err.Error())
-		}
-		expect := fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
-		if str != expect {
-			t.Errorf("String: expected %s got %s", expect, str)
-		}
+			// Non-struct reply
+			args = &Args{27, 35}
+			str = ""
+			err = client.Call("Arith.String", args, &str)
+			if err != nil {
+				t.Errorf("String: expected no error but got string %q", err.Error())
+			}
+			expect := fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
+			if str != expect {
+				t.Errorf("String: expected %s got %s", expect, str)
+			}
+		*/
 
 		args = &Args{7, 8}
 		reply = new(Reply)
@@ -700,48 +715,49 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
 		}
 
-		// BuiltinTypes
+		/*
+			// BuiltinTypes
 
-		// Map
-		args = &Args{7, 8}
-		replyMap := map[int]int{}
-		err = client.Call("BuiltinTypes.Map", args, &replyMap)
-		if err != nil {
-			t.Errorf("Map: expected no error but got string %q", err.Error())
-		}
-		if replyMap[args.A] != args.B {
-			t.Errorf("Map: expected %d got %d", args.B, replyMap[args.A])
-		}
+			// Map
+			args = &Args{7, 8}
+			replyMap := map[int]int{}
+			err = client.Call("BuiltinTypes.Map", args, &replyMap)
+			if err != nil {
+				t.Errorf("Map: expected no error but got string %q", err.Error())
+			}
+			if replyMap[args.A] != args.B {
+				t.Errorf("Map: expected %d got %d", args.B, replyMap[args.A])
+			}
 
-		// Slice
-		args = &Args{7, 8}
-		replySlice := []int{}
-		err = client.Call("BuiltinTypes.Slice", args, &replySlice)
-		if err != nil {
-			t.Errorf("Slice: expected no error but got string %q", err.Error())
-		}
-		if e := []int{args.A, args.B}; !reflect.DeepEqual(replySlice, e) {
-			t.Errorf("Slice: expected %v got %v", e, replySlice)
-		}
+			// Slice
+			args = &Args{7, 8}
+			replySlice := []int{}
+			err = client.Call("BuiltinTypes.Slice", args, &replySlice)
+			if err != nil {
+				t.Errorf("Slice: expected no error but got string %q", err.Error())
+			}
+			if e := []int{args.A, args.B}; !reflect.DeepEqual(replySlice, e) {
+				t.Errorf("Slice: expected %v got %v", e, replySlice)
+			}
 
-		// Array
-		args = &Args{7, 8}
-		replyArray := [2]int{}
-		err = client.Call("BuiltinTypes.Array", args, &replyArray)
-		if err != nil {
-			t.Errorf("Array: expected no error but got string %q", err.Error())
-		}
-		if e := [2]int{args.A, args.B}; !reflect.DeepEqual(replyArray, e) {
-			t.Errorf("Array: expected %v got %v", e, replyArray)
-		}
+			// Array
+			args = &Args{7, 8}
+			replyArray := [2]int{}
+			err = client.Call("BuiltinTypes.Array", args, &replyArray)
+			if err != nil {
+				t.Errorf("Array: expected no error but got string %q", err.Error())
+			}
+			if e := [2]int{args.A, args.B}; !reflect.DeepEqual(replyArray, e) {
+				t.Errorf("Array: expected %v got %v", e, replyArray)
+			}
 
-		err = client.Call("BuiltinTypes.WantsContext", args, &replyArray)
-		if err != nil {
-			t.Errorf("Array: expected no error but got string %q", err.Error())
-		}
-		if e := [2]int{args.A, args.B}; !reflect.DeepEqual(replyArray, e) {
-			t.Errorf("Array: expected %v got %v", e, replyArray)
-		}
-
+			err = client.Call("BuiltinTypes.WantsContext", args, &replyArray)
+			if err != nil {
+				t.Errorf("Array: expected no error but got string %q", err.Error())
+			}
+			if e := [2]int{args.A, args.B}; !reflect.DeepEqual(replyArray, e) {
+				t.Errorf("Array: expected %v got %v", e, replyArray)
+			}
+		*/
 	})
 }

@@ -3,6 +3,7 @@
 package rpc25519
 
 import (
+	"fmt"
 	"github.com/glycerine/greenpack/msgp"
 )
 
@@ -1573,7 +1574,7 @@ doneWithStruct34zgensym_7ba73e3e9c15c593_35:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft34zgensym_7ba73e3e9c15c593_35 > 0 || missingFieldsLeft34zgensym_7ba73e3e9c15c593_35 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft34zgensym_7ba73e3e9c15c593_35, missingFieldsLeft34zgensym_7ba73e3e9c15c593_35, msgp.ShowFound(found34zgensym_7ba73e3e9c15c593_35[:]), decodeMsgFieldOrder34zgensym_7ba73e3e9c15c593_35)
+		fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft34zgensym_7ba73e3e9c15c593_35, missingFieldsLeft34zgensym_7ba73e3e9c15c593_35, msgp.ShowFound(found34zgensym_7ba73e3e9c15c593_35[:]), decodeMsgFieldOrder34zgensym_7ba73e3e9c15c593_35)
 		if encodedFieldsLeft34zgensym_7ba73e3e9c15c593_35 > 0 {
 			encodedFieldsLeft34zgensym_7ba73e3e9c15c593_35--
 			field, err = dc.ReadMapKeyPtr()
@@ -1599,7 +1600,7 @@ doneWithStruct34zgensym_7ba73e3e9c15c593_35:
 			missingFieldsLeft34zgensym_7ba73e3e9c15c593_35--
 			curField34zgensym_7ba73e3e9c15c593_35 = decodeMsgFieldOrder34zgensym_7ba73e3e9c15c593_35[nextMiss34zgensym_7ba73e3e9c15c593_35]
 		}
-		//fmt.Printf("switching on curField: '%v'\n", curField34zgensym_7ba73e3e9c15c593_35)
+		fmt.Printf("switching on curField: '%v'\n", curField34zgensym_7ba73e3e9c15c593_35)
 		switch curField34zgensym_7ba73e3e9c15c593_35 {
 		// -- templateDecodeMsg ends here --
 
@@ -1607,8 +1608,10 @@ doneWithStruct34zgensym_7ba73e3e9c15c593_35:
 			found34zgensym_7ba73e3e9c15c593_35[0] = true
 			z.ServiceMethod, err = dc.ReadString()
 			if err != nil {
+				vv("no error reading ServiceMethod err=", err)
 				return
 			}
+			vv("no error reading ServiceMethod: '%v'", z.ServiceMethod)
 		case "Seq_zid01_u64":
 			found34zgensym_7ba73e3e9c15c593_35[1] = true
 			z.Seq, err = dc.ReadUint64()
