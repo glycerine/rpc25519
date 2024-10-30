@@ -12,15 +12,19 @@ var _ = time.Now
 
 //go:generate greenpack
 
+// These example test structs and types were
 // moved here (example.go) from cli_test.go so
 // example_test_gen.go can build when not testing.
+// This is to enable using/testing greenpack
+// rather than gobs by default.
 
 type Args struct {
-	A, B int
+	A int `zid:"0"`
+	B int `zid:"1"`
 }
 
 type Reply struct {
-	C int
+	C int `zid:"0"`
 }
 
 type Arith int
@@ -69,18 +73,19 @@ func (t *Arith) SleepMilli(args *Args, reply *Reply) error {
 	return nil
 }
 
-type hidden int
+type Simple int
 
-func (t *hidden) Exported(args Args, reply *Reply) error {
+func (t *Simple) Exported(args Args, reply *Reply) error {
 	reply.C = args.A + args.B
 	return nil
 }
 
 type Embed struct {
-	hidden
+	Simple `zid:"0"`
 }
 
 type BuiltinTypes struct {
+	Placeholder int `zid:"0"` // greenpack refuses to serialize an empty struct.
 }
 
 func (BuiltinTypes) Map(args *Args, reply *map[int]int) error {
@@ -113,4 +118,35 @@ func (BuiltinTypes) WantsContext(ctx context.Context, args *Args, reply *[2]int)
 		fmt.Println("HDR not found")
 	}
 	return nil
+}
+
+// these are placed here for greenpack, so generate will
+// write greenpack serialization code for them.
+
+// Request is part of the net/rpc API. Its docs:
+//
+// Request is a header written before every RPC call. It is used internally
+// but documented here as an aid to debugging, such as when analyzing
+// network traffic.
+type Request struct {
+	ServiceMethod string   `zid:"0"` // format: "Service.Method"
+	Seq           uint64   `zid:"1"` // sequence number chosen by client
+	next          *Request // for free list in Server
+}
+
+// InvalidRequest used instead of struct{} since greenpack needs one member element.
+type InvalidRequest struct {
+	Placeholder int `zid:"0"`
+}
+
+// Response is part of the net/rpc API. Its docs:
+//
+// Response is a header written before every RPC return. It is used internally
+// but documented here as an aid to debugging, such as when analyzing
+// network traffic.
+type Response struct {
+	ServiceMethod string    `zid:"0"` // echoes that of the Request
+	Seq           uint64    `zid:"1"` // echoes that of the request
+	Error         string    `zid:"2"` // error, if any.
+	next          *Response // for free list in Server
 }

@@ -10,7 +10,7 @@ import (
 	cryrand "crypto/rand"
 	"crypto/sha256"
 	"crypto/tls"
-	"encoding/gob"
+	//"encoding/gob"
 	"errors"
 	"fmt"
 	"golang.org/x/crypto/hkdf"
@@ -24,6 +24,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/glycerine/greenpack/msgp"
 	"github.com/glycerine/idem"
 	"github.com/glycerine/ipaddr"
 	"github.com/glycerine/rpc25519/selfcert"
@@ -710,9 +711,10 @@ type Client struct {
 
 	encBuf  bytes.Buffer // target for codec writes: encode gobs into here first
 	encBufW *bufio.Writer
-	decBuf  bytes.Buffer // target for code reads.
 
-	codec ClientCodec
+	decBuf bytes.Buffer // target for code reads.
+
+	codec *greenpackClientCodec
 
 	reqMutex sync.Mutex // protects following
 	request  Request
@@ -737,7 +739,7 @@ func computeHMAC(plaintext []byte, key []byte) (hash []byte) {
 // the invocation. The done channel will signal when the call is complete by returning
 // the same Call object. If done is nil, Go will allocate a new channel.
 // If non-nil, done must be buffered or Go will deliberately crash.
-func (c *Client) Go(serviceMethod string, args any, reply any, done chan *Call) *Call {
+func (c *Client) Go(serviceMethod string, args Greenpackable, reply Greenpackable, done chan *Call) *Call {
 	c.mut.Lock()
 	c.seenNetRPCCalls = true
 	c.mut.Unlock()
@@ -767,7 +769,7 @@ func (c *Client) Go(serviceMethod string, args any, reply any, done chan *Call) 
 // Call implements the net/rpc Client.Call() API; its docs:
 //
 // Call invokes the named function, waits for it to complete, and returns its error status.
-func (c *Client) Call(serviceMethod string, args any, reply any) error {
+func (c *Client) Call(serviceMethod string, args, reply Greenpackable) error {
 	c.mut.Lock()
 	c.seenNetRPCCalls = true
 	c.mut.Unlock()
@@ -1014,10 +1016,10 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		pending: make(map[uint64]*Call),
 	}
 	c.encBufW = bufio.NewWriter(&c.encBuf)
-	c.codec = &gobClientCodec{
+	c.codec = &greenpackClientCodec{
 		rwc:    nil,
-		dec:    gob.NewDecoder(&c.decBuf),
-		enc:    gob.NewEncoder(c.encBufW),
+		dec:    msgp.NewReader(&c.decBuf),
+		enc:    msgp.NewWriter(c.encBufW),
 		encBuf: c.encBufW,
 	}
 

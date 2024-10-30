@@ -7,7 +7,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/gob"
+	//"encoding/gob"
 	"errors"
 	"fmt"
 	"go/token"
@@ -20,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/glycerine/greenpack/msgp"
 	"github.com/glycerine/idem"
 	"github.com/glycerine/rpc25519/selfcert"
 	"github.com/quic-go/quic-go"
@@ -640,7 +641,7 @@ func (p *rwPair) callBridgeNetRpc(reqMsg *Message) error {
 	p.decBuf.Reset()
 	p.decBuf.Write(reqMsg.JobSerz)
 
-	service, mtype, req, argv, replyv, keepReading, wantsCtx, err := p.readRequest(p.gobCodec)
+	service, mtype, req, argv, replyv, keepReading, wantsCtx, err := p.readRequest(p.greenCodec)
 	//vv("p.readRequest() back with err = '%v'", err)
 	if err != nil {
 		if debugLog && err != io.EOF {
@@ -651,14 +652,14 @@ func (p *rwPair) callBridgeNetRpc(reqMsg *Message) error {
 		}
 		// send a response if we actually managed to read a header.
 		if req != nil {
-			p.sendResponse(reqMsg, req, invalidRequest, p.gobCodec, err.Error())
+			p.sendResponse(reqMsg, req, invalidRequest, p.greenCodec, err.Error())
 			p.Server.freeRequest(req)
 		}
 		return err
 	}
 	//wg.Add(1)
 	//vv("about to callMethodByReflection")
-	service.callMethodByReflection(p, reqMsg, mtype, req, argv, replyv, p.gobCodec, wantsCtx)
+	service.callMethodByReflection(p, reqMsg, mtype, req, argv, replyv, p.greenCodec, wantsCtx)
 
 	return nil
 }
@@ -685,11 +686,16 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 	if errInter != nil {
 		errmsg = errInter.(error).Error()
 	}
-	pair.sendResponse(reqMsg, req, replyv.Interface(), codec, errmsg)
+
+	greenReplyv, ok := replyv.Interface().(Greenpackable)
+	if !ok {
+		panic(fmt.Sprintf("reply must be Greenpackable. type '%T' was not.", replyv.Interface()))
+	}
+	pair.sendResponse(reqMsg, req, greenReplyv, codec, errmsg)
 	pair.Server.freeRequest(req)
 }
 
-func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply any, codec ServerCodec, errmsg string) {
+func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Greenpackable, codec ServerCodec, errmsg string) {
 
 	//vv("pair sendResponse() top")
 
@@ -765,7 +771,13 @@ func (p *rwPair) readRequest(codec ServerCodec) (service *service, mtype *method
 		argIsValue = true
 	}
 	// argv guaranteed to be a pointer now.
-	if err = codec.ReadRequestBody(argv.Interface()); err != nil {
+
+	greenArgv, ok := argv.Interface().(Greenpackable)
+	if !ok {
+		panic(fmt.Sprintf("argv must be Greenpackable. type '%T' was not.", argv.Interface()))
+	}
+
+	if err = codec.ReadRequestBody(greenArgv); err != nil {
 		return
 	}
 	if argIsValue {
@@ -881,16 +893,16 @@ func (p *rwPair) readRequestHeader(codec ServerCodec) (svc *service, mtype *meth
 //	      fmt.Println("HDR not found")
 //	   }
 //	}
-func (s *Server) Register(rcvr any) error {
+func (s *Server) Register(rcvr msgp.Encodable) error {
 	return s.register(rcvr, "", false)
 }
 
 // RegisterName is like [Register] but uses the provided name for the type
 // instead of the receiver's concrete type.
-func (s *Server) RegisterName(name string, rcvr any) error {
+func (s *Server) RegisterName(name string, rcvr msgp.Encodable) error {
 	return s.register(rcvr, name, true)
 }
-func (s *Server) register(rcvr any, name string, useName bool) error {
+func (s *Server) register(rcvr msgp.Encodable, name string, useName bool) error {
 
 	svc := new(service)
 	svc.typ = reflect.TypeOf(rcvr)
@@ -959,12 +971,11 @@ type rwPair struct {
 	allDone chan struct{}
 
 	// net/rpc api
-	gobCodec *gobServerCodec
+	greenCodec *greenpackServerCodec
 	//sending  sync.Mutex
 	encBuf  bytes.Buffer // target for codec writes: encode gobs into here first
 	encBufW *bufio.Writer
 	decBuf  bytes.Buffer // target for code reads.
-
 }
 
 func (s *Server) newRWPair(conn net.Conn) *rwPair {
@@ -976,11 +987,12 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 		SendCh: make(chan *Message, 10),
 		halt:   idem.NewHalter(),
 	}
+
 	p.encBufW = bufio.NewWriter(&p.encBuf)
-	p.gobCodec = &gobServerCodec{
+	p.greenCodec = &greenpackServerCodec{
 		rwc:    nil,
-		dec:    gob.NewDecoder(&p.decBuf),
-		enc:    gob.NewEncoder(p.encBufW),
+		dec:    msgp.NewReader(&p.decBuf),
+		enc:    msgp.NewWriter(p.encBufW),
 		encBuf: p.encBufW,
 	}
 

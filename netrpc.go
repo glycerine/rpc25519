@@ -1,5 +1,6 @@
 package rpc25519
 
+/*
 // imported from net/rpc client.go
 
 // Copyright 2009 The Go Authors. All rights reserved.
@@ -103,29 +104,6 @@ func (c *gobClientCodec) ReadResponseBody(body any) error {
 
 func (c *gobClientCodec) Close() error {
 	return c.rwc.Close()
-}
-
-// Request is part of the net/rpc API. Its docs:
-//
-// Request is a header written before every RPC call. It is used internally
-// but documented here as an aid to debugging, such as when analyzing
-// network traffic.
-type Request struct {
-	ServiceMethod string   // format: "Service.Method"
-	Seq           uint64   // sequence number chosen by client
-	next          *Request // for free list in Server
-}
-
-// Response is part of the net/rpc API. Its docs:
-//
-// Response is a header written before every RPC return. It is used internally
-// but documented here as an aid to debugging, such as when analyzing
-// network traffic.
-type Response struct {
-	ServiceMethod string    // echoes that of the Request
-	Seq           uint64    // echoes that of the request
-	Error         string    // error, if any.
-	next          *Response // for free list in Server
 }
 
 // ErrNetRpcShutdown is from net/rpc, and still
@@ -362,3 +340,4 @@ func isExportedOrBuiltinType(t reflect.Type) bool {
 	// so we need to check the type name as well.
 	return token.IsExported(t.Name()) || t.PkgPath() == ""
 }
+*/
