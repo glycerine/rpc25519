@@ -26,6 +26,8 @@ func main() {
 
 	var profile = flag.String("prof", "", "host:port to start web profiler on. host can be empty for all localhost interfaces")
 
+	var psk = flag.String("psk", "", "path to pre-shared key file")
+
 	flag.Parse()
 
 	if *profile != "" {
@@ -43,6 +45,7 @@ func main() {
 	cfg.ServerKeyPairName = *useName
 	cfg.CertPath = *certPath
 	cfg.ServerSendKeepAlive = time.Second * 5
+	cfg.PreSharedKeyPath = *psk
 
 	srv := rpc25519.NewServer("srv", cfg)
 	defer srv.Close()

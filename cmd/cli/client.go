@@ -20,8 +20,8 @@ func main() {
 	var certPath = flag.String("certs", "", "use this path on the lived filesystem for certs; instead of the embedded certs/ from build-time.")
 
 	var quic = flag.Bool("q", false, "use QUIC instead of TCP/TLS")
-
 	var hang = flag.Bool("hang", false, "hang at the end, to see if keep-alives are working.")
+	var psk = flag.String("psk", "", "path to pre-shared key file")
 
 	flag.Parse()
 
@@ -36,7 +36,7 @@ func main() {
 	cfg.SkipVerifyKeys = *skipVerify
 	cfg.ClientKeyPairName = *useName
 	cfg.CertPath = *certPath
-	//cfg.SkipClientCerts= *skipClientCerts
+	cfg.PreSharedKeyPath = *psk
 
 	cli, err := rpc25519.NewClient("cli", cfg)
 	if err != nil {
