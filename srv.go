@@ -218,7 +218,10 @@ acceptAgain:
 			s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
 				symmetricServerVerifiedHandshake(conn, s.cfg.preSharedKey, s.creds)
 
-			panicOn(err)
+			if err != nil {
+				alwaysPrintf("tcp failed to athenticate: '%v'", err)
+				continue acceptAgain
+			}
 		}
 
 		pair := s.newRWPair(conn)
@@ -294,7 +297,10 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 		s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
 			symmetricServerVerifiedHandshake(conn, s.cfg.preSharedKey, s.creds)
 
-		panicOn(err)
+		if err != nil {
+			alwaysPrintf("tls failed to athenticate: '%v'", err)
+			return
+		}
 	}
 
 	pair := s.newRWPair(conn)

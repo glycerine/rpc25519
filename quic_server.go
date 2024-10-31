@@ -233,7 +233,10 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 					s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
 						symmetricServerVerifiedHandshake(wrap, s.cfg.preSharedKey, s.creds)
 
-					panicOn(err)
+					if err != nil {
+						alwaysPrintf("stream failed to athenticate: '%v'", err)
+						return
+					}
 				}
 
 				// each stream gets its own read/send pair.
