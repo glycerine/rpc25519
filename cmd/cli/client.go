@@ -22,6 +22,7 @@ func main() {
 	var quic = flag.Bool("q", false, "use QUIC instead of TCP/TLS")
 	var hang = flag.Bool("hang", false, "hang at the end, to see if keep-alives are working.")
 	var psk = flag.String("psk", "", "path to pre-shared key file")
+	var clientHostPort = flag.String("hostport", ":0", "client will use use this host and port (port can be 0) to dial from.")
 
 	flag.Parse()
 
@@ -37,6 +38,7 @@ func main() {
 	cfg.ClientKeyPairName = *useName
 	cfg.CertPath = *certPath
 	cfg.PreSharedKeyPath = *psk
+	cfg.ClientHostPort = *clientHostPort
 
 	cli, err := rpc25519.NewClient("cli", cfg)
 	if err != nil {
