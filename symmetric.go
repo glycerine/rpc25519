@@ -79,7 +79,7 @@ import (
 // for the TLS handshake built in by default:
 /*
 https://groups.google.com/g/golang-dev/c/-hmSqJm03V0/m/MYGjVWUzCgAJ
-Aug 28, 2024, 3:26:47 AM
+Aug 28, 2024, 3:26:47 AM
 Russ Cox wrote:
 
 A year ago Filippo wrote back to you saying:
@@ -157,6 +157,12 @@ func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedRandomSecret [32]
 
 //go:generate greenpack
 
+// VerifiedHandshake lets us verify that our CA has signed
+// the SigningCert, and that the SigningCert has in turn signed
+// the EphemPubKey. The EphemPubKey is X25519 not ed25519,
+// but that is the right thing for doing the ephemeral
+// elliptic curve Diffie-Hellman handshake that gives us
+// a shared secret to mix with our pre-shared key.
 type VerifiedHandshake struct {
 	EphemPubKey      []byte `zid:"0"`
 	SignatureOfEphem []byte `zid:"1"`
@@ -201,7 +207,7 @@ func symmetricServerVerifiedHandshake(
 	err = msgp.Encode(conn, &sshake)
 	if err != nil {
 		panic(err)
-		err0 = fmt.Errorf("could not encode at server our server side handshake: '%v'", err)
+		err0 = fmt.Errorf("at server, could not encode our server side handshake: '%v'", err)
 		return
 	}
 
@@ -210,7 +216,7 @@ func symmetricServerVerifiedHandshake(
 	err = msgp.Decode(conn, &cshake)
 	if err != nil {
 		panic(err)
-		err0 = fmt.Errorf("could not decode from client a client handshake: '%v'", err)
+		err0 = fmt.Errorf("at server, could not decode from client the client handshake: '%v'", err)
 		return
 	}
 
@@ -398,7 +404,7 @@ func symmetricClientVerifiedHandshake(
 	err = msgp.Encode(conn, &cshake)
 	if err != nil {
 		panic(err)
-		err0 = fmt.Errorf("could not encode at client our client side handshake: '%v'", err)
+		err0 = fmt.Errorf("at client, could not encode our client side handshake: '%v'", err)
 		return
 	}
 
@@ -406,7 +412,7 @@ func symmetricClientVerifiedHandshake(
 	err = msgp.Decode(conn, &sshake)
 	if err != nil {
 		panic(err)
-		err0 = fmt.Errorf("could not decode from server a server handshake: '%v'", err)
+		err0 = fmt.Errorf("at client, could not decode from server the server handshake: '%v'", err)
 		return
 	}
 
