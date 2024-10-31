@@ -731,7 +731,7 @@ type Client struct {
 	shutdown bool // server has told us to stop
 }
 
-// Compute HMAC using SHA-256
+// Compute HMAC using SHA-256, so 32 bytes long.
 func computeHMAC(plaintext []byte, key []byte) (hash []byte) {
 	h := hmac.New(sha256.New, key)
 	h.Write([]byte(plaintext))

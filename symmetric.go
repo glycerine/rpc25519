@@ -1,10 +1,12 @@
 package rpc25519
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	cryrand "crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"time"
@@ -170,6 +172,12 @@ type VerifiedHandshake struct {
 	SigningCert      []byte `zid:"2"`
 }
 
+// VerifiedHandshake when encoded to greenpack must be under this length inx bytes.
+// This allows us to reject binary/bad handshake messages. It prevents
+// DDOS/Denial of service attacks, because we cannot be tricked into allocating
+// more than this.
+const maxHandshakeBytes = 785
+
 // symmetricServerVerifiedHandshake
 // is a version of the above that also checks the counterparty's
 // cert was signed by our shared CA.
@@ -198,24 +206,14 @@ func symmetricServerVerifiedHandshake(
 	// Marshal the server's certificate
 	//serverCertBytes := serverCert.Raw
 
-	// server shake
-	sshake := VerifiedHandshake{
-		EphemPubKey:      srvEphemPub,
-		SignatureOfEphem: signature,
-		SigningCert:      creds.NodeCert.Raw,
-	}
-
-	err = msgp.Encode(conn, &sshake)
-	if err != nil {
-		err0 = fmt.Errorf("at server, could not encode our server side handshake: '%v'", err)
-		return
-	}
-
-	// client shake
+	// Read the client's public key/handshake. Server *must* read first, since
+	// QUIC streams are only established when the client writes.
 	var cshake VerifiedHandshake
-	err = msgp.Decode(conn, &cshake)
+
+	timeout := time.Second * 10
+	err = readLenThenShakeTag(conn, &cshake, &timeout)
 	if err != nil {
-		err0 = fmt.Errorf("at server, could not decode from client the client handshake: '%v'", err)
+		err0 = fmt.Errorf("at server could not decode from client the client handshake: '%v'", err)
 		return
 	}
 
@@ -252,6 +250,22 @@ func symmetricServerVerifiedHandshake(
 
 	// set return value
 	cliEphemPub = cshake.EphemPubKey
+
+	// since client checked out so far, send our empheral key to handshake.
+	// Otherwise we don't even bother generating the network traffic.
+
+	// server shake
+	sshake := VerifiedHandshake{
+		EphemPubKey:      srvEphemPub,
+		SignatureOfEphem: signature,
+		SigningCert:      creds.NodeCert.Raw,
+	}
+
+	err = sendLenThenShakeTag(conn, &sshake, &timeout)
+	if err != nil {
+		err0 = fmt.Errorf("at server, could not encode/send our server side handshake: '%v'", err)
+		return
+	}
 
 	// Compute the shared secret
 	sharedSecret, err := curve25519.X25519(serverEphemPrivateKey[:], cshake.EphemPubKey)
@@ -401,14 +415,15 @@ func symmetricClientVerifiedHandshake(
 		SigningCert:      creds.NodeCert.Raw,
 	}
 
-	err = msgp.Encode(conn, &cshake)
-	if err != nil {
-		err0 = fmt.Errorf("at client, could not encode our client side handshake: '%v'", err)
+	// client sending first to open quic stream (if using quic).
+	timeout := time.Second * 10
+	err0 = sendLenThenShakeTag(conn, &cshake, &timeout)
+	if err0 != nil {
 		return
 	}
 
 	var sshake VerifiedHandshake
-	err = msgp.Decode(conn, &sshake)
+	err = readLenThenShakeTag(conn, &sshake, &timeout)
 	if err != nil {
 		err0 = fmt.Errorf("at client, could not decode from server the server handshake: '%v'", err)
 		return
@@ -465,4 +480,85 @@ func symmetricClientVerifiedHandshake(
 	// Print the symmetric key (for demonstration purposes)
 	//fmt.Printf("(verified) Client derived symmetric key: %x\n", sharedRandomSecret[:])
 	return
+}
+
+const authTagLen = 32
+
+func sendLenThenShakeTag(conn uConn, shake *VerifiedHandshake, timeout *time.Duration) error {
+
+	var buf bytes.Buffer
+	err := msgp.Encode(&buf, shake)
+	if err != nil {
+		return fmt.Errorf("sendLenThenShake could not Encode: '%v'", err)
+	}
+
+	shakeBytes := buf.Bytes()
+	n := len(shakeBytes)
+	allby := make([]byte, 8, 8+n+authTagLen) // 8 for length, the handshake, 32 bytes for auth tag based on sha256.
+
+	//vv("allby was length %v -- to set our max length for handshake", 8+n+authTagLen) // 777, 775.
+
+	if 8+n+authTagLen > maxHandshakeBytes {
+		panic(fmt.Sprintf("our handshake %v bytes is bigger than maxHandshakeBytes = %v", 8+n+authTagLen, maxHandshakeBytes))
+	}
+
+	// write in this order.
+	// 8 bytes of n = the length of the greenpack (cannot be over maxHandshakeBytes).
+	// n bytes of greenpack
+	// 32 bytes of hmac tag computer over the n bytes, with key the first 8 bytes (those encoding n).
+
+	binary.BigEndian.PutUint64(allby[:8], uint64(n))
+	allby = append(allby, shakeBytes...)
+
+	// compute an hmac. Use the length bytes as the key
+	// to be sure the data is the expected length.
+	// The len is all we've got at this point, so
+	// early (first thing) in the handshake.
+	authTag := computeHMAC(shakeBytes, allby[:8])
+	allby = append(allby, authTag...)
+
+	// Write
+	if err := writeFull(conn, allby, timeout); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// verifies the hmac tag, keeps length of handshake sane, under maxHandshakeBytes.
+func readLenThenShakeTag(conn uConn, shake *VerifiedHandshake, timeout *time.Duration) error {
+
+	// Read the first 8 bytes for the Message length
+	var lenby [8]byte
+	if err := readFull(conn, lenby[:], timeout); err != nil {
+		return err
+	}
+	n := binary.BigEndian.Uint64(lenby[:])
+
+	// Read the message based on the messageLen
+	if n > maxHandshakeBytes {
+		// probably an encrypted client against an unencrypted server
+		return ErrTooLong
+	}
+
+	shakeAndTagBytes := make([]byte, n+authTagLen)
+	if err := readFull(conn, shakeAndTagBytes, timeout); err != nil {
+		return fmt.Errorf("error reading shakeAndTagBytes: '%v'", err)
+	}
+
+	conveyedTag := shakeAndTagBytes[n:]
+	shakeBytes := shakeAndTagBytes[:n]
+	computedTag := computeHMAC(shakeBytes, lenby[:])
+
+	if !bytes.Equal(conveyedTag, computedTag) {
+		return fmt.Errorf("auth tag did not match on handshake")
+	}
+
+	// after authentication, then msgp decode.
+	err := msgp.Decode(bytes.NewBuffer(shakeBytes), shake)
+	if err != nil {
+		return fmt.Errorf("could not msgp.Decode() handshake: '%v'", err)
+	}
+
+	return nil
 }
