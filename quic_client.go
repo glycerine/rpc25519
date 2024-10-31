@@ -13,7 +13,7 @@ import (
 	//"os"
 
 	"github.com/quic-go/quic-go"
-	//"github.com/quic-go/quic-go/qlog"
+	"github.com/quic-go/quic-go/qlog"
 )
 
 var _ = time.Time{}
@@ -101,12 +101,12 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 		InitialPacketSize: 1200,
 
 		// export QLOGDIR and set this get get qlog tracing.
-		//Tracer: qlog.DefaultConnectionTracer,
+		Tracer: qlog.DefaultConnectionTracer,
 
 		// quic-go keep alives are unreliable, so do them ourselves
 		// in the quic server send loop. See
 		// https://github.com/quic-go/quic-go/issues/4710
-		//KeepAlivePeriod: 5 * time.Second,
+		KeepAlivePeriod: 5 * time.Second,
 	}
 
 	// this conn is a quic.EarlyConnection
