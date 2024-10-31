@@ -124,7 +124,8 @@ func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedRandomSecret [32]
 	clientPublicKey := make([]byte, 32)
 	_, err = io.ReadFull(conn, clientPublicKey)
 	if err != nil {
-		panic(err)
+		err0 = fmt.Errorf("could not read client public key from conn: '%v'", err)
+		return
 	}
 	cliEphemPub = clientPublicKey
 
@@ -206,7 +207,6 @@ func symmetricServerVerifiedHandshake(
 
 	err = msgp.Encode(conn, &sshake)
 	if err != nil {
-		panic(err)
 		err0 = fmt.Errorf("at server, could not encode our server side handshake: '%v'", err)
 		return
 	}
@@ -215,7 +215,6 @@ func symmetricServerVerifiedHandshake(
 	var cshake VerifiedHandshake
 	err = msgp.Decode(conn, &cshake)
 	if err != nil {
-		panic(err)
 		err0 = fmt.Errorf("at server, could not decode from client the client handshake: '%v'", err)
 		return
 	}
@@ -338,7 +337,8 @@ func symmetricClientHandshake(conn uConn, psk [32]byte) (sharedRandomSecret [32]
 	// Send the client's public key to the server. Client must write first (for QUIC).
 	_, err = conn.Write(clientPublicKey[:])
 	if err != nil {
-		panic(err)
+		err0 = fmt.Errorf("symmetricClientHandshake error: could not write client eph pub key: '%v'", err)
+		return
 	}
 
 	// Read the server's public key
@@ -403,7 +403,6 @@ func symmetricClientVerifiedHandshake(
 
 	err = msgp.Encode(conn, &cshake)
 	if err != nil {
-		panic(err)
 		err0 = fmt.Errorf("at client, could not encode our client side handshake: '%v'", err)
 		return
 	}
@@ -411,7 +410,6 @@ func symmetricClientVerifiedHandshake(
 	var sshake VerifiedHandshake
 	err = msgp.Decode(conn, &sshake)
 	if err != nil {
-		panic(err)
 		err0 = fmt.Errorf("at client, could not decode from server the server handshake: '%v'", err)
 		return
 	}
@@ -419,7 +417,6 @@ func symmetricClientVerifiedHandshake(
 	// Parse the server's certificate
 	serverCert, err := x509.ParseCertificate(sshake.SigningCert)
 	if err != nil {
-		panic(err)
 		err0 = fmt.Errorf("failed to parse servers certificate: '%v'", err)
 		return
 	}
