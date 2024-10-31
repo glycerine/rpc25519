@@ -190,6 +190,8 @@ func symmetricServerVerifiedHandshake(
 	creds *selfcert.Creds,
 ) (sharedRandomSecret [32]byte, cliEphemPub, srvEphemPub []byte, err0 error) {
 
+	//vv("server creds = '%#v'", creds)
+
 	// Generate ephemeral X25519 key pair
 	serverEphemPrivateKey, serverEphemPublicKey, err := generateX25519KeyPair()
 	if err != nil {
@@ -231,7 +233,8 @@ func symmetricServerVerifiedHandshake(
 		Intermediates: x509.NewCertPool(),
 	}
 	if _, err = clientCert.Verify(opts); err != nil {
-		err0 = fmt.Errorf("client certificate verification failed: %v", err)
+		//vv("server sees bad client cert")
+		err0 = fmt.Errorf("server cannot verify client cert: %v", err)
 		return
 	}
 
@@ -392,6 +395,8 @@ func symmetricClientVerifiedHandshake(
 
 	//vv("top of symmetricClientVerifiedHandshake")
 
+	//vv("client creds = '%#v'", creds)
+
 	// Generate ephemeral X25519 key pair
 	clientEphemPrivateKey, clientEphemPublicKey, err := generateX25519KeyPair()
 	if err != nil {
@@ -430,7 +435,7 @@ func symmetricClientVerifiedHandshake(
 	}
 
 	// Parse the server's certificate
-	serverCert, err := x509.ParseCertificate(sshake.SigningCert)
+	serverStaticCert, err := x509.ParseCertificate(sshake.SigningCert)
 	if err != nil {
 		err0 = fmt.Errorf("failed to parse servers certificate: '%v'", err)
 		return
@@ -442,13 +447,15 @@ func symmetricClientVerifiedHandshake(
 		CurrentTime:   time.Now(),
 		Intermediates: x509.NewCertPool(),
 	}
-	if _, err = serverCert.Verify(opts); err != nil {
-		err0 = fmt.Errorf("server certificate verification failed: '%v'", err)
+	if _, err = serverStaticCert.Verify(opts); err != nil {
+		//vv("client sees bad server signing")
+		err0 = fmt.Errorf("client could not verify servers static cert: '%v'", err)
 		return
 	}
+	//vv("client sees ok server signing")
 
 	// Extract the server's static Ed25519 public key from the certificate
-	serverStaticPubKey, ok := serverCert.PublicKey.(ed25519.PublicKey)
+	serverStaticPubKey, ok := serverStaticCert.PublicKey.(ed25519.PublicKey)
 	if !ok {
 		err0 = fmt.Errorf("server certificate does not contain an Ed25519 public key")
 		return

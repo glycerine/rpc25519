@@ -598,3 +598,98 @@ func Test015_server_push_quic_notice_disco_quickly(t *testing.T) {
 
 	})
 }
+
+func Test016_WithPreSharedKey_inner_handshake_must_be_properly_signed(t *testing.T) {
+
+	cv.Convey("Even if the pre-shared-keys agree, if the initial handshake ephemeral keys are not signed by a key that is signed by our CA, then we should error out on authentication failure.", t, func() {
+
+		testServer := false
+
+		for i := 0; i < 2; i++ {
+			if i == 1 {
+				testServer = true
+			}
+
+			// Don't copy over top level certs/ca.crt,
+			// as that would mess up other tests/manual testing.
+			// Instead, setup two entirely new CA:
+
+			// set up 1st test CA
+			ca1path := fmt.Sprintf("temp-1st-ca-for-testing-%v", i)
+			panicOn(SelfyNewKey("node1", ca1path))
+			panicOn(SelfyNewKey("client", ca1path))
+			defer os.RemoveAll(ca1path)
+
+			// set up 2nd, different CA
+			ca2path := fmt.Sprintf("temp-2nd-ca-for-testing-%v", i)
+			panicOn(SelfyNewKey("node2", ca2path))
+			panicOn(SelfyNewKey("client", ca2path))
+			defer os.RemoveAll(ca2path)
+
+			ccfg := NewConfig()
+			ccfg.UseQUIC = true
+			//cfg.TCPonly_no_TLS = true
+			ccfg.CertPath = ca2path + "/certs"
+			ccfg.ClientKeyPairName = "client"
+
+			scfg := NewConfig()
+			scfg.UseQUIC = true
+			scfg.ServerKeyPairName = "node1"
+			scfg.CertPath = ca1path + "/certs"
+
+			// let the client initially handshake so we can test the inner tunnel
+			// symmetric.go rejection path, rather than the outer quic/tls handshake.
+			scfg.SkipVerifyKeys = true
+			ccfg.SkipVerifyKeys = true
+
+			// even if same psk
+			path := ca2path + "/test_client_psk.binary"
+			panicOn(setupPSK(path))
+			ccfg.PreSharedKeyPath = path
+			scfg.PreSharedKeyPath = path
+
+			// even if the CA is the same (but node2 from a different CA).
+			if testServer {
+				// should cause failure on the server
+				copyFileDestSrc(ca2path+"/certs/ca.crt", ca1path+"/certs/ca.crt")
+			} else {
+				// and the reverse, should cause failure on the client
+				copyFileDestSrc(ca1path+"/certs/ca.crt", ca2path+"/certs/ca.crt")
+			}
+
+			scfg.ServerAddr = "127.0.0.1:0"
+			srv := NewServer("srv_test016", scfg)
+
+			serverAddr, err := srv.Start()
+			panicOn(err)
+			defer srv.Close()
+
+			vv("server Start() returned serverAddr = '%v'", serverAddr)
+
+			srv.Register2Func(customEcho)
+
+			ccfg.ClientDialToHostPort = serverAddr.String()
+			cli, err := NewClient("test016", ccfg)
+			panicOn(err)
+			defer cli.Close()
+
+			// we want and expect to get here, because only on opening
+			// a new quic stream does the inner symmetric crypto get
+			// applied. We must create a new quic stream to test the inside crypto.
+
+			req := NewMessage()
+			req.JobSerz = []byte("Hello from client!")
+
+			reply, err := cli.SendAndGetReply(req, nil)
+			_ = reply
+			// expect an error here
+			if err == nil {
+				panic("expected error from bad handshake!")
+			} else {
+				vv("good, got err = '%v'", err)
+			}
+
+			//vv("server sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
+		}
+	})
+}

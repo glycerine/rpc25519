@@ -1,6 +1,8 @@
 package rpc25519
 
 import (
+	"io"
+	"io/fs"
 	"os"
 )
 
@@ -51,4 +53,24 @@ func isWritable(path string) bool {
 
 	// Check write permission for owner, group, and others
 	return mode&0222 != 0 // Write permission for any?
+}
+
+func copyFileDestSrc(topath, frompath string) (int64, error) {
+	if !fileExists(frompath) {
+		return 0, fs.ErrNotExist
+	}
+
+	src, err := os.Open(frompath)
+	if err != nil {
+		return 0, err
+	}
+	defer src.Close()
+
+	dest, err := os.Create(topath)
+	if err != nil {
+		return 0, err
+	}
+	defer dest.Close()
+
+	return io.Copy(dest, src)
 }
