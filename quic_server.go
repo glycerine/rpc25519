@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/quic-go/quic-go"
-	"github.com/quic-go/quic-go/qlog"
+	//"github.com/quic-go/quic-go/qlog"
 )
 
 var _ = fmt.Printf
@@ -101,12 +101,12 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 		InitialPacketSize: 1200, // needed to work over Tailscale that defaults to MTU 1280.
 
 		// export QLOGDIR and set this for qlog tracing.
-		Tracer: qlog.DefaultConnectionTracer,
+		//Tracer: qlog.DefaultConnectionTracer,
 
 		// quic-go keep alives are unreliable, so do them ourselves
 		// in the quic server send loop. See
 		// https://github.com/quic-go/quic-go/issues/4710
-		KeepAlivePeriod: 5 * time.Second,
+		//KeepAlivePeriod: 5 * time.Second,
 	}
 
 	// "ListenEarly starts listening for incoming QUIC connections.
