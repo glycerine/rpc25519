@@ -10,6 +10,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"time"
 
 	"github.com/glycerine/rpc25519/selfcert"
 
@@ -106,8 +107,10 @@ func main() {
 	}
 
 	var caPrivKey ed25519.PrivateKey
+	caValidForDur := 36600 * 24 * time.Hour // 100 years.
 	if c.CreateCA {
-		caPrivKey, err = selfcert.Step1_MakeCertificateAuthority(c.OdirCA_privateKey, verbose, !c.SkipEncryptPrivateKeys)
+		caPrivKey, err = selfcert.Step1_MakeCertificateAuthority(
+			c.OdirCA_privateKey, verbose, !c.SkipEncryptPrivateKeys, caValidForDur)
 		if err != nil {
 			log.Fatalf("selfy could not make Certficate Authority in '%v': '%v'", c.OdirCA_privateKey, err)
 		}
@@ -120,7 +123,7 @@ func main() {
 		}
 		if !DirExists(c.OdirCA_privateKey) || !FileExists(c.OdirCA_privateKey+sep+"ca.crt") {
 			log.Printf("key-pair '%v' requested but CA does not exist in '%v'...\n  ... auto-generating a self-signed CA for your first...\n", c.CreateKeyPairNamed, c.OdirCA_privateKey)
-			caPrivKey, err = selfcert.Step1_MakeCertificateAuthority(c.OdirCA_privateKey, verbose, !c.SkipEncryptPrivateKeys)
+			caPrivKey, err = selfcert.Step1_MakeCertificateAuthority(c.OdirCA_privateKey, verbose, !c.SkipEncryptPrivateKeys, caValidForDur)
 			if err != nil {
 				log.Fatalf("selfy could not make Certficate Authority in '%v': '%v'", c.OdirCA_privateKey, err)
 			}
@@ -130,7 +133,8 @@ func main() {
 			log.Fatalf("selfy could not make private key '%v' in path '%v': '%v'", c.CreateKeyPairNamed, c.OdirCerts, err)
 		}
 		selfcert.Step3_MakeCertSigningRequest(privKey, c.CreateKeyPairNamed, c.Email, c.OdirCerts)
-		selfcert.Step4_MakeCertificate(caPrivKey, c.OdirCA_privateKey, c.CreateKeyPairNamed, c.OdirCerts, verbose)
+		goodForDur := 36600 * 24 * time.Hour // 100 years validity
+		selfcert.Step4_MakeCertificate(caPrivKey, c.OdirCA_privateKey, c.CreateKeyPairNamed, c.OdirCerts, goodForDur, verbose)
 	}
 
 	// useful utilities. Not needed to make keys and certificates.

@@ -1242,15 +1242,17 @@ func SelfyNewKey(createKeyPairNamed, odir string) error {
 	const verbose = false
 	const encryptWithPassphhrase = false
 
+	caValidForDur := 36600 * 24 * time.Hour // 100 years validity
 	if !dirExists(odirPrivateKey) || !fileExists(odirPrivateKey+sep+"ca.crt") {
 		//vv("key-pair '%v' requested but CA does not exist in '%v', so auto-generating a self-signed CA for your first.", createKeyPairNamed, odirPrivateKey)
-		selfcert.Step1_MakeCertificateAuthority(odirPrivateKey, verbose, encryptWithPassphhrase)
+		selfcert.Step1_MakeCertificateAuthority(odirPrivateKey, verbose, encryptWithPassphhrase, caValidForDur)
 	}
 
 	privKey, err := selfcert.Step2_MakeEd25519PrivateKey(createKeyPairNamed, odirCerts, verbose, encryptWithPassphhrase)
 	panicOn(err)
 	selfcert.Step3_MakeCertSigningRequest(privKey, createKeyPairNamed, email, odirCerts)
-	selfcert.Step4_MakeCertificate(nil, odirPrivateKey, createKeyPairNamed, odirCerts, verbose)
+	certGoodForDur := 36600 * 24 * time.Hour // 100 years validity
+	selfcert.Step4_MakeCertificate(nil, odirPrivateKey, createKeyPairNamed, odirCerts, certGoodForDur, verbose)
 
 	return nil
 }

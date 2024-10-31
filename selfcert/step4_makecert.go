@@ -19,7 +19,8 @@ import (
 
 // if caPrivKey is provided (to avoid asking for pw), then odirCA/ca.key
 // is assummed to be encrypted and we will use caPrivKey instead.
-func Step4_MakeCertificate(caPrivKey ed25519.PrivateKey, odirCA string, name string, odirCerts string, verbose bool) {
+func Step4_MakeCertificate(caPrivKey ed25519.PrivateKey, odirCA string,
+	name string, odirCerts string, goodForDur time.Duration, verbose bool) {
 
 	os.MkdirAll(odirCerts, 0700)
 	ownerOnly(odirCerts)
@@ -31,7 +32,7 @@ func Step4_MakeCertificate(caPrivKey ed25519.PrivateKey, odirCA string, name str
 	csrInPath := fmt.Sprintf("%v%v%v.csr", odirCerts, sep, name)
 	certOutPath := fmt.Sprintf("%v%v%v.crt", odirCerts, sep, name)
 
-	makeCerts(caPrivKey, caPrivKeyPath, caCertPath, csrInPath, certOutPath, verbose)
+	makeCerts(caPrivKey, caPrivKeyPath, caCertPath, csrInPath, certOutPath, goodForDur, verbose)
 
 	copyFileToDir(caCertPath, filepath.Dir(certOutPath))
 	ownerOnly(certOutPath)
@@ -41,7 +42,8 @@ func Step4_MakeCertificate(caPrivKey ed25519.PrivateKey, odirCA string, name str
 	os.Remove(csrInPath)
 }
 
-func makeCerts(caPrivKey ed25519.PrivateKey, caPrivKeyPath, caCertPath, csrInPath, certOutPath string, verbose bool) {
+func makeCerts(caPrivKey ed25519.PrivateKey, caPrivKeyPath, caCertPath, csrInPath, certOutPath string,
+	goodForDur time.Duration, verbose bool) {
 
 	// Step 1: Load the CA certificate and CA private key
 	if verbose {
@@ -60,7 +62,7 @@ func makeCerts(caPrivKey ed25519.PrivateKey, caPrivKeyPath, caCertPath, csrInPat
 	}
 
 	// Step 3: Sign the certificate and save it
-	err = signCertificate(csr, caCert, caKey, certOutPath)
+	err = signCertificate(csr, caCert, caKey, certOutPath, goodForDur)
 	if err != nil {
 		log.Fatalf("Failed to sign certificate: %v", err)
 	}
@@ -153,13 +155,20 @@ func loadCSR(csrPath string) (*x509.CertificateRequest, error) {
 }
 
 // Sign the CSR using the CA certificate and private key, and write the signed certificate to a file
-func signCertificate(csr *x509.CertificateRequest, caCert *x509.Certificate, caKey ed25519.PrivateKey, certPath string) error {
+func signCertificate(
+	csr *x509.CertificateRequest,
+	caCert *x509.Certificate,
+	caKey ed25519.PrivateKey,
+	certPath string,
+	goodForDur time.Duration,
+) error {
+
 	// Create the certificate template
 	certTemplate := x509.Certificate{
 		SerialNumber: big.NewInt(2),
 		Subject:      csr.Subject,
 		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(36600 * 24 * time.Hour), // 36600 days validity
+		NotAfter:     time.Now().Add(goodForDur),
 
 		KeyUsage:    x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},

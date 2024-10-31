@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"testing"
+	"time"
 
 	cv "github.com/glycerine/goconvey/convey"
 )
@@ -28,14 +29,17 @@ func Test101_certificate_signing_check(t *testing.T) {
 		pathCA0 := "ca0"
 		caCertPath0 := pathCA0 + "/ca.crt"
 		odirCerts0 := "certs0"
-		caKey0, err := Step1_MakeCertificateAuthority(pathCA0, verbose, encrypt)
+		caValidForDur := time.Hour
+
+		caKey0, err := Step1_MakeCertificateAuthority(pathCA0, verbose, encrypt, caValidForDur)
 		panicOn(err)
 
 		// make client0 signed by CA0
 		clientKey0, err := Step2_MakeEd25519PrivateKey("client0", pathCA0, verbose, encrypt)
 		panicOn(err)
 		Step3_MakeCertSigningRequest(clientKey0, "client0", "client0@email", odirCerts0)
-		Step4_MakeCertificate(caKey0, pathCA0, "client0", odirCerts0, verbose)
+		goodForDur := time.Hour
+		Step4_MakeCertificate(caKey0, pathCA0, "client0", odirCerts0, goodForDur, verbose)
 		verifyMeCertPath0 := odirCerts0 + "/client0.crt"
 
 		// same check: client0 should verify with ca0
@@ -50,7 +54,7 @@ func Test101_certificate_signing_check(t *testing.T) {
 		pathCA1 := "ca1"
 		caCertPath1 := pathCA1 + "/ca.crt"
 		odirCerts1 := "certs1"
-		caKey1, err := Step1_MakeCertificateAuthority(pathCA1, verbose, encrypt)
+		caKey1, err := Step1_MakeCertificateAuthority(pathCA1, verbose, encrypt, caValidForDur)
 		panicOn(err)
 		_ = caKey1
 
@@ -58,7 +62,8 @@ func Test101_certificate_signing_check(t *testing.T) {
 		clientKey1, err := Step2_MakeEd25519PrivateKey("client1", pathCA1, verbose, encrypt)
 		panicOn(err)
 		Step3_MakeCertSigningRequest(clientKey1, "client1", "client1@email", odirCerts1)
-		Step4_MakeCertificate(caKey1, pathCA1, "client1", odirCerts1, verbose)
+
+		Step4_MakeCertificate(caKey1, pathCA1, "client1", odirCerts1, goodForDur, verbose)
 		verifyMeCertPath1 := odirCerts1 + "/client1.crt"
 
 		// same check: client1 should verify with ca1
