@@ -61,12 +61,14 @@ func main() {
 
 	if *hang {
 		log.Printf("client hanging to see if keep-alives happen...")
-		select {
-		case <-time.After(time.Second * 35):
-			if cli.IsDown() {
-				log.Printf("client is down")
-			} else {
-				log.Printf("client is up")
+		for {
+			select {
+			case <-time.After(time.Second * 35):
+				if cli.IsDown() {
+					log.Printf("client is down")
+				} else {
+					log.Printf("client is up")
+				}
 			}
 		}
 	}
