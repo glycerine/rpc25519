@@ -298,7 +298,7 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 		//vv("err = '%v'", err) // Application error 0x0 (remote): server shutdown
 		return
 	}
-	messageLen := int(binary.BigEndian.Uint64(d.work.readLenMessageBytes))
+	messageLen := binary.BigEndian.Uint64(d.work.readLenMessageBytes)
 
 	// Read the message based on the messageLen
 	if messageLen > maxMessage {
