@@ -199,12 +199,18 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	if c.cfg.encryptPSK {
 		//c.cfg.randomSymmetricSessKeyFromPreSharedKey, c.cfg.cliEphemPub, c.cfg.srvEphemPub, err =
 		//	symmetricClientHandshake(wrap, c.cfg.preSharedKey)
-		c.cfg.randomSymmetricSessKeyFromPreSharedKey, c.cfg.cliEphemPub, c.cfg.srvEphemPub, err =
+		randomSymmetricSessKey, cliEphemPub, srvEphemPub, err :=
 			symmetricClientVerifiedHandshake(wrap, c.cfg.preSharedKey, c.creds)
 		if err != nil {
 			alwaysPrintf("failed handshake with server: '%v'", err)
 			return
 		}
+		// prevent data race
+		c.cfg.mut.Lock()
+		c.cfg.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+		c.cfg.cliEphemPub = cliEphemPub
+		c.cfg.srvEphemPub = srvEphemPub
+		c.cfg.mut.Unlock()
 	}
 
 	go c.runSendLoop(wrap)

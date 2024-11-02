@@ -215,13 +215,20 @@ acceptAgain:
 
 			//s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
 			//      symmetricServerHandshake(conn, s.cfg.preSharedKey)
-			s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
+			randomSymmetricSessKey, cliEphemPub, srvEphemPub, err :=
 				symmetricServerVerifiedHandshake(conn, s.cfg.preSharedKey, s.creds)
 
 			if err != nil {
 				alwaysPrintf("tcp failed to athenticate: '%v'", err)
 				continue acceptAgain
 			}
+			// prevent data race
+			s.cfg.mut.Lock()
+			s.cfg.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+			s.cfg.cliEphemPub = cliEphemPub
+			s.cfg.srvEphemPub = srvEphemPub
+			s.cfg.mut.Unlock()
+
 		}
 
 		pair := s.newRWPair(conn)
@@ -294,13 +301,20 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 		//s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
 		//	symmetricServerHandshake(conn, s.cfg.preSharedKey)
 
-		s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
+		randomSymmetricSessKey, cliEphemPub, srvEphemPub, err :=
 			symmetricServerVerifiedHandshake(conn, s.cfg.preSharedKey, s.creds)
 
 		if err != nil {
 			alwaysPrintf("tls failed to athenticate: '%v'", err)
 			return
 		}
+		// prevent data race
+		s.cfg.mut.Lock()
+		s.cfg.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+		s.cfg.cliEphemPub = cliEphemPub
+		s.cfg.srvEphemPub = srvEphemPub
+		s.cfg.mut.Unlock()
+
 	}
 
 	pair := s.newRWPair(conn)
@@ -317,7 +331,9 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 
 	symkey := s.Server.cfg.preSharedKey
 	if s.cfg.encryptPSK {
+		s.cfg.mut.Lock()
 		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
+		s.cfg.mut.Unlock()
 	}
 
 	w := newBlabber("server send loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true)
@@ -393,7 +409,9 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 	symkey := s.Server.cfg.preSharedKey
 	if s.cfg.encryptPSK {
+		s.cfg.mut.Lock()
 		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
+		s.cfg.mut.Unlock()
 	}
 	w := newBlabber("server read loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true)
 	//w := newWorkspace(maxMessage)

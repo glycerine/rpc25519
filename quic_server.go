@@ -230,13 +230,21 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 					//s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
 					//	symmetricServerHandshake(wrap, s.cfg.preSharedKey)
 
-					s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
+					randomSymmetricSessKey, cliEphemPub, srvEphemPub, err :=
 						symmetricServerVerifiedHandshake(wrap, s.cfg.preSharedKey, s.creds)
 
 					if err != nil {
 						alwaysPrintf("stream failed to athenticate: '%v'", err)
 						return
 					}
+
+					// prevent data race
+					s.cfg.mut.Lock()
+					s.cfg.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+					s.cfg.cliEphemPub = cliEphemPub
+					s.cfg.srvEphemPub = srvEphemPub
+					s.cfg.mut.Unlock()
+
 				}
 
 				// each stream gets its own read/send pair.
@@ -279,7 +287,9 @@ func (s *quicRWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 
 	symkey := s.Server.cfg.preSharedKey
 	if s.cfg.encryptPSK {
+		s.cfg.mut.Lock()
 		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
+		s.cfg.mut.Unlock()
 	}
 
 	w := newBlabber("quic server send loop", symkey, stream, s.Server.cfg.encryptPSK, maxMessage, true)
@@ -363,7 +373,9 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 
 	symkey := s.Server.cfg.preSharedKey
 	if s.cfg.encryptPSK {
+		s.cfg.mut.Lock()
 		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
+		s.cfg.mut.Unlock()
 	}
 	w := newBlabber("quic server read loop", symkey, stream, s.Server.cfg.encryptPSK, maxMessage, true)
 

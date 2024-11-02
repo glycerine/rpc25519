@@ -202,8 +202,14 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 
 	if c.cfg.encryptPSK {
 		//c.cfg.randomSymmetricSessKeyFromPreSharedKey, c.cfg.cliEphemPub, c.cfg.srvEphemPub, err = symmetricClientHandshake(conn, c.cfg.preSharedKey)
-		c.cfg.randomSymmetricSessKeyFromPreSharedKey, c.cfg.cliEphemPub, c.cfg.srvEphemPub, err = symmetricClientVerifiedHandshake(conn, c.cfg.preSharedKey, c.creds)
+		randomSymmetricSessKey, cliEphemPub, srvEphemPub, err := symmetricClientVerifiedHandshake(conn, c.cfg.preSharedKey, c.creds)
 		panicOn(err)
+		// prevent data race
+		c.cfg.mut.Lock()
+		c.cfg.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+		c.cfg.cliEphemPub = cliEphemPub
+		c.cfg.srvEphemPub = srvEphemPub
+		c.cfg.mut.Unlock()
 	}
 
 	go c.runSendLoop(conn)
@@ -234,9 +240,16 @@ func (c *Client) runClientTCP(serverAddr string) {
 	if c.cfg.encryptPSK {
 		//c.cfg.randomSymmetricSessKeyFromPreSharedKey, c.cfg.cliEphemPub, c.cfg.srvEphemPub, err =
 		//	symmetricClientHandshake(conn, c.cfg.preSharedKey)
-		c.cfg.randomSymmetricSessKeyFromPreSharedKey, c.cfg.cliEphemPub, c.cfg.srvEphemPub, err =
+		randomSymmetricSessKey, cliEphemPub, srvEphemPub, err :=
 			symmetricClientVerifiedHandshake(conn, c.cfg.preSharedKey, c.creds)
 		panicOn(err)
+
+		// prevent data race
+		c.cfg.mut.Lock()
+		c.cfg.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+		c.cfg.cliEphemPub = cliEphemPub
+		c.cfg.srvEphemPub = srvEphemPub
+		c.cfg.mut.Unlock()
 	}
 
 	go c.runSendLoop(conn)
@@ -251,7 +264,9 @@ func (c *Client) runReadLoop(conn net.Conn) {
 
 	symkey := c.cfg.preSharedKey
 	if c.cfg.encryptPSK {
+		c.cfg.mut.Lock()
 		symkey = c.cfg.randomSymmetricSessKeyFromPreSharedKey
+		c.cfg.mut.Unlock()
 	}
 
 	//w := newWorkspace(maxMessage)
@@ -361,7 +376,9 @@ func (c *Client) runSendLoop(conn net.Conn) {
 
 	symkey := c.cfg.preSharedKey
 	if c.cfg.encryptPSK {
+		c.cfg.mut.Lock()
 		symkey = c.cfg.randomSymmetricSessKeyFromPreSharedKey
+		c.cfg.mut.Unlock()
 	}
 
 	w := newBlabber("client send loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false)
@@ -606,6 +623,10 @@ type Config struct {
 	// The `selfy -gensym outpath` command will
 	// write 32 randomly bytes to output.
 	PreSharedKeyPath string
+
+	// protect randomSymmetricSessKeyFromPreSharedKey
+	// or else the race detector will hate it.
+	mut sync.Mutex
 
 	preSharedKey                           [32]byte
 	randomSymmetricSessKeyFromPreSharedKey [32]byte
