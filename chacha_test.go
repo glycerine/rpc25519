@@ -16,11 +16,14 @@ func Test020_nonce_sequence_not_reused(t *testing.T) {
 		bcli := newBlabber("test", key, nil, true, 1024, false)
 		bsrv := newBlabber("test", key, nil, true, 1024, true)
 		n := 1100
-		m := make(map[[12]byte]int)
 
-		var last [12]byte
+		const nonceSize = 16
+
+		m := make(map[[nonceSize]byte]int)
+
+		var last [nonceSize]byte
 		if len(last) != bcli.enc.noncesize {
-			panic("need to update this test, nonce size is no longer 12")
+			panic(fmt.Sprintf("need to update this test, nonce size is no longer %v", nonceSize))
 		}
 		var i int
 		add := func(by []byte, offset int) {

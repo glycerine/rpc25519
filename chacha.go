@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cloudflare/circl/cipher/ascon"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
@@ -106,14 +107,30 @@ type decoder struct {
 // one half of its facility will ever get used in each
 // instance. That's okay. The symmetry makes it simple
 // to maintain.
+//
+// Latest: use ASCON 128a inside, so inner tunnel can
+// differ from outer. Is about 2x faster than ChaChan20.
 func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize int, isServer bool) *blabber {
 
-	// changed to ChaCha20 instead of XChaCha20 since it should be faster.
-	aeadEnc, err := chacha20poly1305.New(key[:])
-	panicOn(err)
+	var err error
+	var aeadEnc, aeadDec cipher.AEAD
 
-	aeadDec, err := chacha20poly1305.New(key[:])
-	panicOn(err)
+	useAscon128a := true
+	if useAscon128a {
+		aeadEnc, err = ascon.New(key[:16], ascon.Ascon128a)
+		panicOn(err)
+
+		aeadDec, err = ascon.New(key[:16], ascon.Ascon128a)
+		panicOn(err)
+	} else {
+		// changed to ChaCha20 instead of XChaCha20 since it should be faster.
+		aeadEnc, err = chacha20poly1305.New(key[:])
+		panicOn(err)
+
+		aeadDec, err = chacha20poly1305.New(key[:])
+		panicOn(err)
+	}
+
 	nsz := aeadDec.NonceSize()
 
 	// nonces: start random, then alter each time.
