@@ -131,6 +131,11 @@ func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedRandomSecret [32]
 	}
 	cliEphemPub = clientPublicKey
 
+	if !isValidX25519PublicKey(clientPublicKey) {
+		err0 = fmt.Errorf("we read an invalid clientPublicKey: '%x'", clientPublicKey)
+		return
+	}
+
 	// Send the public key to the client
 	_, err = conn.Write(serverPublicKey[:])
 	if err != nil {
@@ -216,6 +221,11 @@ func symmetricServerVerifiedHandshake(
 	err = readLenThenShakeTag(conn, &cshake, &timeout)
 	if err != nil {
 		err0 = fmt.Errorf("at server could not decode from client the client handshake: '%v'", err)
+		return
+	}
+
+	if !isValidX25519PublicKey(cshake.EphemPubKey) {
+		err0 = fmt.Errorf("we read an invalid client cshake ephem public key: '%x'", cshake.EphemPubKey)
 		return
 	}
 
@@ -367,6 +377,11 @@ func symmetricClientHandshake(conn uConn, psk [32]byte) (sharedRandomSecret [32]
 	}
 	srvEphemPub = serverPublicKey
 
+	if !isValidX25519PublicKey(serverPublicKey) {
+		err0 = fmt.Errorf("we read an invalid serverPublicKey: '%x'", serverPublicKey)
+		return
+	}
+
 	// Compute the shared secret
 	sharedSecret, err := curve25519.X25519(clientPrivateKey[:], serverPublicKey)
 	if err != nil {
@@ -431,6 +446,11 @@ func symmetricClientVerifiedHandshake(
 	err = readLenThenShakeTag(conn, &sshake, &timeout)
 	if err != nil {
 		err0 = fmt.Errorf("at client, could not decode from server the server handshake: '%v'", err)
+		return
+	}
+
+	if !isValidX25519PublicKey(sshake.EphemPubKey) {
+		err0 = fmt.Errorf("we read an invalid server sshake public key: '%x'", sshake.EphemPubKey)
 		return
 	}
 
@@ -568,4 +588,23 @@ func readLenThenShakeTag(conn uConn, shake *VerifiedHandshake, timeout *time.Dur
 	}
 
 	return nil
+}
+
+// isValidX25519PublicKey checks if the provided public key is a valid X25519 public key.
+// According to RFC 7748, all 32-byte strings are accepted as valid
+// public keys, and the scalar multiplication function processes them securely.
+func isValidX25519PublicKey(pubKey []byte) (valid bool) {
+	// Check that the public key is exactly 32 bytes long
+	if len(pubKey) != 32 {
+		return false
+	}
+
+	// Check that the public key is not all zeros
+	var zero [32]byte
+	if bytes.Equal(pubKey, zero[:]) {
+		return false
+	}
+
+	// No further validation is necessary for X25519
+	return true
 }
