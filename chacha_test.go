@@ -23,7 +23,7 @@ func Test020_nonce_sequence_not_reused(t *testing.T) {
 
 		var last [nonceSize]byte
 		if len(last) != bcli.enc.noncesize {
-			panic(fmt.Sprintf("need to update this test, nonce size is no longer %v", nonceSize))
+			panic(fmt.Sprintf("need to update this test, nonce size is no longer %v, but rather %v", nonceSize, bcli.enc.noncesize))
 		}
 		var i int
 		add := func(by []byte, offset int) {

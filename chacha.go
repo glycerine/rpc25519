@@ -1,6 +1,7 @@
 package rpc25519
 
 import (
+	"crypto/aes"
 	"crypto/cipher"
 	cryrand "crypto/rand"
 	"crypto/sha256"
@@ -115,8 +116,17 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 	var err error
 	var aeadEnc, aeadDec cipher.AEAD
 
+	// options for inner cipher:
 	useAscon128a := true
-	if useAscon128a {
+	useAesGCM := false
+	if useAesGCM {
+		block, err := aes.NewCipher(key[:])
+		panicOn(err)
+		aeadEnc, err = cipher.NewGCM(block)
+		panicOn(err)
+		aeadDec = aeadEnc
+
+	} else if useAscon128a {
 		aeadEnc, err = ascon.New(key[:16], ascon.Ascon128a)
 		panicOn(err)
 
