@@ -311,6 +311,9 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	// Read the encrypted data
 	encrypted := buf[:messageLen]
 	err = readFull(conn, encrypted, timeout)
+	if err != nil {
+		return
+	}
 
 	// Decrypt the data
 

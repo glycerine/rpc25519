@@ -139,7 +139,8 @@ func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedRandomSecret [32]
 	// Send the public key to the client
 	_, err = conn.Write(serverPublicKey[:])
 	if err != nil {
-		panic(err)
+		err0 = fmt.Errorf("symmetricServerHandshake could not write to conn: '%v'", err)
+		return
 	}
 
 	// Compute the shared secret
@@ -526,7 +527,8 @@ func sendLenThenShakeTag(conn uConn, shake *VerifiedHandshake, timeout *time.Dur
 	//vv("allby was length %v -- to set our max length for handshake", 8+n+authTagLen) // 777, 775.
 
 	if 8+n+authTagLen > maxHandshakeBytes {
-		panic(fmt.Sprintf("our handshake %v bytes is bigger than maxHandshakeBytes = %v", 8+n+authTagLen, maxHandshakeBytes))
+		panic(fmt.Sprintf("internal error, need to raise maxHandshakeBytes? our "+
+			"handshake %v bytes is bigger than maxHandshakeBytes = %v", 8+n+authTagLen, maxHandshakeBytes))
 	}
 
 	// write in this order.
@@ -546,7 +548,7 @@ func sendLenThenShakeTag(conn uConn, shake *VerifiedHandshake, timeout *time.Dur
 
 	// Write
 	if err := writeFull(conn, allby, timeout); err != nil {
-		return err
+		return fmt.Errorf("sendLenThenShakeTagcould not write to conn: '%v'", err)
 	}
 
 	return nil
@@ -570,7 +572,7 @@ func readLenThenShakeTag(conn uConn, shake *VerifiedHandshake, timeout *time.Dur
 
 	shakeAndTagBytes := make([]byte, n+authTagLen)
 	if err := readFull(conn, shakeAndTagBytes, timeout); err != nil {
-		return fmt.Errorf("error reading shakeAndTagBytes: '%v'", err)
+		return fmt.Errorf("readLenThenhakeTag error reading from conn: '%v'", err)
 	}
 
 	conveyedTag := shakeAndTagBytes[n:]
