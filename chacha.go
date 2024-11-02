@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -76,9 +75,11 @@ type encoder struct {
 	key  []byte      // must be 32 bytes == chacha20poly1305.KeySize (256 bits)
 	aead cipher.AEAD // (X)ChaCha20-Poly1305, needs 256-bit key
 
-	writeNonce []byte
-	noncesize  int
-	overhead   int
+	initialNonce   []byte
+	writeNonce     []byte
+	noncesize      int
+	overhead       int
+	lastNonceSeqno uint64
 
 	mut  sync.Mutex
 	work *workspace
@@ -115,21 +116,36 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 	panicOn(err)
 	nsz := aeadDec.NonceSize()
 
-	// Nonce starts at 0 on the client. At 1 << (nsz-2) on the server.
+	// nonces: start random, then alter each time.
+	// The use of random starting nonce means even if we
+	// have multple clients (or both clients?) on say
+	// a multicast channel, we are still not going
+	// to re-use the same nonce (probabilistically neglible chance).
 	writeNonce := make([]byte, nsz) // 24 bytes for X, 12 bytes for orig
+	_, err = cryrand.Read(writeNonce)
+	panicOn(err)
 
-	// little endian to make increment faster.
+	// Insure client and server nonces are different by at least 1 bit,
+	// even if we use the 0 starting nonce or the same on each side.
+	// So: the 2 high bits of the Nonce start at 0 on the client,
+	// and at 1 on the server.
+	// (This is little endian to make increment faster.)
+	writeNonce[nsz-1] &= 63 // clear highest 2 bits
 	if isServer {
-		writeNonce[nsz-1] |= 64 // set 2nd highest bit
+		writeNonce[nsz-1] |= 127 // set high bit on server only.
 	}
 
+	initialNonce := make([]byte, nsz)
+	copy(initialNonce, writeNonce)
+
 	enc := &encoder{
-		key:        key[:],
-		aead:       aeadEnc,
-		writeNonce: writeNonce,
-		noncesize:  nsz,
-		overhead:   aeadEnc.Overhead(),
-		work:       newWorkspace(name+"_enc", maxMsgSize),
+		key:          key[:],
+		aead:         aeadEnc,
+		initialNonce: initialNonce,
+		writeNonce:   writeNonce,
+		noncesize:    nsz,
+		overhead:     aeadEnc.Overhead(),
+		work:         newWorkspace(name+"_enc", maxMsgSize),
 	}
 	dec := &decoder{
 		key:       key[:],
@@ -166,7 +182,7 @@ func (blab *blabber) sendMessage(conn uConn, msg *Message, timeout *time.Duratio
 func NewChaCha20CryptoRandKey() []byte {
 	key := make([]byte, chacha20poly1305.KeySize) // 32 bytes
 	if _, err := cryrand.Read(key); err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 	return key
 }
@@ -184,6 +200,35 @@ func incrementNonce(nonce []byte) {
 	// overflow. will never happen.
 	// *And* we would like this function to get inlined,
 	// so we aren't going to do anything here.
+}
+
+// moveToNextNonce must insure never to repeat a e.writeNonce value.
+func (e *encoder) moveToNextNonce() {
+	e.lastNonceSeqno++ // just for reference, not actually used atm.
+	incrementNonce(e.writeNonce)
+
+	//xorNonceWithNextNonceSeqno(e.initialNonce, e.lastNonceSeqno, e.writeNonce)
+}
+
+// xorNonceWithUint64 XORs a nonce with a 64-bit integer.
+func xorNonceWithNextNonceSeqno(input []byte, seqno uint64, output []byte) {
+
+	// Convert the uint64 num to bytes
+	var numBytes [8]byte
+	binary.BigEndian.PutUint64(numBytes[:], seqno)
+	//vv("%v -> numBytes = '%x'", seqno, numBytes)
+
+	nw := copy(output, input)
+	if nw != len(input) {
+		panic("output too small")
+	}
+
+	//vv("output starting: '%x'", output)
+	// XOR the input with the numBytes
+	for i := 0; i < 8; i++ {
+		output[i] ^= numBytes[i]
+	}
+	//vv("output ending: '%x'", output)
 }
 
 // Write encrypts data and writes it to the underlying stream.
@@ -232,7 +277,8 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	sealOut := e.aead.Seal(buf[8+e.noncesize:8+e.noncesize], buf[8:8+e.noncesize], buf[8+e.noncesize:8+e.noncesize+len(bytesMsg)], assocData)
 
 	// Update the nonce: ONLY AFTER using it above in Seal!
-	incrementNonce(e.writeNonce)
+	e.moveToNextNonce()
+	//e.xorNonceWithNextNonceSeqno(e.writeNonce, e.lastNonceSeqno)
 
 	// Write the 8 bytes of msglen + the nonce + encrypted data with authentication tag.
 	return writeFull(conn, buf[:8+e.noncesize+len(sealOut)], timeout)
