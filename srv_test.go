@@ -32,6 +32,9 @@ func Test001_RoundTrip_SendAndGetReply_TCP(t *testing.T) {
 		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test001", cfg)
 		panicOn(err)
+		err = cli.Start()
+		panicOn(err)
+
 		defer cli.Close()
 
 		req := NewMessage()
@@ -70,6 +73,9 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test002", cfg)
 		panicOn(err)
+		err = cli.Start()
+		panicOn(err)
+
 		defer cli.Close()
 
 		req := NewMessage()
@@ -133,6 +139,9 @@ func Test003_client_notification_callbacks(t *testing.T) {
 		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test003", cfg)
 		panicOn(err)
+		err = cli.Start()
+		panicOn(err)
+
 		defer cli.Close()
 
 		req := NewMessage()
@@ -186,6 +195,9 @@ func Test004_server_push(t *testing.T) {
 		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test004", cfg)
 		panicOn(err)
+		err = cli.Start()
+		panicOn(err)
+
 		defer cli.Close()
 
 		incoming := cli.GetReadIncomingCh()
@@ -261,6 +273,9 @@ func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test002", cfg)
 		panicOn(err)
+		err = cli.Start()
+		panicOn(err)
+
 		defer cli.Close()
 
 		req := NewMessage()
@@ -331,6 +346,9 @@ func Test011_PreSharedKey_over_TCP(t *testing.T) {
 		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test011", cfg)
 		panicOn(err)
+		err = cli.Start()
+		panicOn(err)
+
 		defer cli.Close()
 
 		req := NewMessage()
@@ -377,6 +395,9 @@ func Test012_PreSharedKey_must_agree(t *testing.T) {
 		ccfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test011", ccfg)
 		panicOn(err)
+		err = cli.Start()
+		panicOn(err)
+
 		defer cli.Close()
 
 		req := NewMessage()
@@ -417,6 +438,9 @@ func Test014_server_push_quic(t *testing.T) {
 		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test014", cfg)
 		panicOn(err)
+		err = cli.Start()
+		panicOn(err)
+
 		defer cli.Close()
 
 		incoming := cli.GetReadIncomingCh()
@@ -510,6 +534,9 @@ func Test015_server_push_quic_notice_disco_quickly(t *testing.T) {
 
 		cli, err := NewClient("test015", ccfg)
 		panicOn(err)
+		err = cli.Start()
+		panicOn(err)
+
 		// we will manually Close below
 		//defer cli.Close()
 
@@ -671,6 +698,9 @@ func Test016_WithPreSharedKey_inner_handshake_must_be_properly_signed(t *testing
 			ccfg.ClientDialToHostPort = serverAddr.String()
 			cli, err := NewClient("test016", ccfg)
 			panicOn(err)
+			err = cli.Start()
+			panicOn(err)
+
 			defer cli.Close()
 
 			// we want and expect to get here, because only on opening

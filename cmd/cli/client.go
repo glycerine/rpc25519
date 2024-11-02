@@ -43,6 +43,11 @@ func main() {
 
 	cli, err := rpc25519.NewClient("cli", cfg)
 	if err != nil {
+		log.Printf("bad client config: '%v'\n", err)
+		os.Exit(1)
+	}
+	err = cli.Start()
+	if err != nil {
 		log.Printf("client could not connect: '%v'\n", err)
 		os.Exit(1)
 	}

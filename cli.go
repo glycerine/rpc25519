@@ -1026,8 +1026,7 @@ func (c *Client) UngetReads(ch chan *Message) {
 	}
 }
 
-// NewClient attemps to connect to config.ClientDialToHostPort;
-// err will come back with any problems encountered.
+// NewClient creates a new client. Call Start() to begin a connection.
 // The name setting allows users to track multiple instances
 // of Clients, and the Client.Name() method will retreive it.
 func NewClient(name string, config *Config) (c *Client, err error) {
@@ -1061,12 +1060,19 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		enc:    msgp.NewWriter(c.encBufW),
 		encBuf: c.encBufW,
 	}
+	return c, nil
+}
+
+// Start dials the server.
+// That is, Start attemps to connect to config.ClientDialToHostPort.
+// The err will come back with any problems encountered.
+func (c *Client) Start() error {
 
 	go c.runClientMain(c.cfg.ClientDialToHostPort, c.cfg.TCPonly_no_TLS, c.cfg.CertPath)
 
 	// wait for connection (or not).
-	err = <-c.connected
-	return c, err
+	err := <-c.connected
+	return err
 }
 
 // Name reports the name the Client was created with.

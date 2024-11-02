@@ -152,6 +152,8 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		cfg.ClientDialToHostPort = serverAddr.String()
 		client, err := NewClient("test006", cfg)
 		panicOn(err)
+		err = client.Start()
+		panicOn(err)
 		defer client.Close()
 
 		// net/rpc API on client, ported from attic/net_server_test.go
@@ -373,6 +375,9 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 		cfg.ClientDialToHostPort = serverAddr.String()
 		client, err := NewClient("test007", cfg)
 		panicOn(err)
+		err = client.Start()
+		panicOn(err)
+
 		defer client.Close()
 
 		// net/rpc API on client, ported from net_server_test.go
@@ -583,6 +588,9 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 
 		client, err := NewClient("test008", cfg)
 		panicOn(err)
+		err = client.Start()
+		panicOn(err)
+
 		defer client.Close()
 
 		//vv("client local = '%v'", client.LocalAddr())
