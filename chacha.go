@@ -38,13 +38,17 @@ var _ = fmt.Printf
 // server picking the same nonce. To avoid
 // any chance of these two colliding, we
 // count on the server starting with
-// 1 << (nonce_size_in_bits-2), while the
-// client starts at 0.
+// 0b10 << (nonce_size_in_bits-2), while the
+// client starts at 0b00 << (nonce_size_in_bits-2).
+// Nonces are chosen randomly from
+// cyprto/rand input.
 //
-// Then each increments their nonce
-// by one after each use. ChaCha20's
-// 12 byte nonce (even minus 2 bits)
-// is not going to overflow.
+// Each sides increments their nonce
+// by one after each write. A 94-bit
+// integer (ChaCha's 12 byte nonce) is not going to overflow,
+// and the client and server start
+// in different subsets of the full 96-bit
+// space to begin with.
 //
 // The name blabber? Well... what comes
 // out is just blah, blah, blah.
@@ -148,7 +152,7 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 	// have multple clients (or both clients?) on say
 	// a multicast channel, we are still not going
 	// to re-use the same nonce (probabilistically neglible chance).
-	writeNonce := make([]byte, nsz) // 24 bytes for X, 12 bytes for orig
+	writeNonce := make([]byte, nsz) // 24 bytes for XChaCha20, 12 bytes for ChaCha20.
 	_, err = cryrand.Read(writeNonce)
 	panicOn(err)
 
