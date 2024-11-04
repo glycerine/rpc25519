@@ -183,30 +183,7 @@ Three transports are available: TLS-v1.3 over TCP,
 plain TCP, and QUIC which uses TLS-v1.3 over UDP.
 
 QUIC is so much faster than even plain TCP, it
-should probably be your default choice. 
-
-The only difficulty comes from IPv6 networks with VPNs.
-They are not very friendly to QUIC. Typically they have
-minimal 1280 MTU, so we'll have a problem if any kind of 
-VPN layer is in use. Tailscale/Wireguard
-add an extra 28 bytes of ICMP/IP headers and try to keep packets 1:1,
-thus going over the MTU and not really working. IPv6
-cannot fragment packets in the network, so they just
-get rejected outright. This is my surmize. I could
-be misunderstanding the root cause. The fact remains
-that in testing over IPv6 VPN links, rpc25519's QUIC
-nodes could not talk to each other.
-
-Context: https://github.com/tailscale/tailscale/issues/2633
-
-Comments/links: https://gist.github.com/jj1bdx/1adac3e305d0fb6dee90dd5b909513ed
-
-At the moment we will allow and do not panic in the
-case an IPv6 network is used with QUIC. That is, we let you
-try your luck. If you want a stronger warning/prevention, 
-then comment in the panic at
-https://github.com/glycerine/rpc25519/blob/master/quic_server.go#L67
-to prevent using a problematic setup un-awares.
+should probably be your default choice.
 
 How to KYC or Know Your Clients
 ------------------------
