@@ -180,9 +180,11 @@ type VerifiedHandshake struct {
 	SigningCert      []byte `zid:"2"`
 }
 
-// VerifiedHandshake when encoded to greenpack must be under this length inx bytes.
-// This allows us to reject binary/bad handshake messages. It prevents
-// DDOS/Denial of service attacks, because we cannot be tricked into allocating
+// VerifiedHandshake when encoded to greenpack
+// must be under this length in bytes.
+// This allows us to reject binary/bad handshake
+// messages. It prevents DDOS/Denial of service
+// attacks, because we cannot be tricked into allocating
 // more than this.
 const maxHandshakeBytes = 785
 
