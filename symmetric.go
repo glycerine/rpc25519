@@ -106,6 +106,8 @@ in crypto/tls. Quoting the release notes:
 
 var _ = fmt.Printf
 
+// Note: you probably want the symmetricServerVerifiedHandshake()
+// function below, as it prevents man-in-the-middle attacks.
 // For forward privacy, the ephemeral ECDH handshake
 // serverPrivateKey generated here
 // is deliberately forgotten and not returned.
@@ -210,9 +212,6 @@ func symmetricServerVerifiedHandshake(
 
 	// Sign the server's ephemeral public key with the static Ed25519 private key
 	signature := ed25519.Sign(creds.NodePrivateKey, srvEphemPub)
-
-	// Marshal the server's certificate
-	//serverCertBytes := serverCert.Raw
 
 	// Read the client's public key/handshake. Server *must* read first, since
 	// QUIC streams are only established when the client writes.
@@ -347,6 +346,8 @@ func deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk 
 	return finalKey
 }
 
+// Note: you probably want the symmetricClientVerifiedHandshake()
+// function below, as it prevents man-in-the-middle attacks.
 // For forward privacy, the ephemeral ECDH handshake
 // clientPrivateKey generated here
 // is deliberately forgotten and not returned.
@@ -426,9 +427,6 @@ func symmetricClientVerifiedHandshake(
 
 	// Sign the client's ephemeral public key with the static Ed25519 private key
 	signature := ed25519.Sign(creds.NodePrivateKey, cliEphemPub)
-
-	// Marshal the server's certificate
-	//clientCertBytes := clientCert.Raw
 
 	cshake := VerifiedHandshake{
 		EphemPubKey:      cliEphemPub,
