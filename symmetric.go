@@ -572,7 +572,7 @@ func readLenThenShakeTag(conn uConn, shake *VerifiedHandshake, timeout *time.Dur
 
 	shakeAndTagBytes := make([]byte, n+authTagLen)
 	if err := readFull(conn, shakeAndTagBytes, timeout); err != nil {
-		return fmt.Errorf("readLenThenhakeTag error reading from conn: '%v'", err)
+		return fmt.Errorf("readLenThenShakeTag error reading from conn: '%v'", err)
 	}
 
 	conveyedTag := shakeAndTagBytes[n:]
