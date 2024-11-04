@@ -1,5 +1,7 @@
 package selfcert
 
+/* prototype code for experiment.
+
 // verify against a CA stored in the ssh-agent.
 
 import (
@@ -126,3 +128,4 @@ func example() {
 		log.Fatalf("Failed to start QUIC server: %v", err)
 	}
 }
+*/

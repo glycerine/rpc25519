@@ -337,7 +337,7 @@ func (c *greenpackServerCodec) WriteResponse(r *Response, body msgp.Encodable) (
 		if c.enc.Flush() == nil {
 			// couldn't encode the header. Should not happen, so if it does,
 			// shut down the connection to signal that the connection is broken.
-			log.Println("rpc: gob error encoding response:", err)
+			log.Println("rpc: greenpack error encoding response:", err)
 			c.Close()
 		}
 		return
@@ -347,7 +347,7 @@ func (c *greenpackServerCodec) WriteResponse(r *Response, body msgp.Encodable) (
 		if c.enc.Flush() == nil {
 			// Was a problem encoding the body but the header has been written.
 			// Shut down the connection to signal that the connection is broken.
-			log.Println("rpc: gob error encoding body:", err)
+			log.Println("rpc: greenpack error encoding body:", err)
 			c.Close()
 		}
 		return

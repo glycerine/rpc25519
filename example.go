@@ -16,7 +16,7 @@ var _ = time.Now
 // moved here (example.go) from cli_test.go so
 // example_test_gen.go can build when not testing.
 // This is to enable using/testing greenpack
-// rather than gobs by default.
+// rather than the old serialization system by default.
 
 type Args struct {
 	A int `zid:"0"`

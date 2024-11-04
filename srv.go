@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	//"encoding/gob"
 	"errors"
 	"fmt"
 	"go/token"
@@ -461,7 +460,10 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		if req.HDR.IsNetRPC {
 			//vv("have IsNetRPC call: '%v'", req.HDR.Subject)
-			s.callBridgeNetRpc(req)
+			err = s.callBridgeNetRpc(req)
+			if err != nil {
+				alwaysPrintf("callBridgeNetRpc errored out: '%v'", err)
+			}
 			continue
 		}
 
@@ -845,23 +847,6 @@ func (p *rwPair) readRequestHeader(codec ServerCodec) (svc *service, mtype *meth
 		}
 		err = errors.New("rpc: server cannot decode request: " + err.Error())
 		return
-		// re error: rpc: server cannot decode request: gob: duplicate type received.
-		// fixed by clearing client encBuf before each new gob encoding.
-		//
-		// per https://www.reddit.com/r/golang/comments/ucmbmu/gob_duplicate_types_received/
-		//
-		// "You have to use one Encoder for one stream!
-		//  The error suggests that you write to the file with
-		//  several Encoders, so the Decoder meets the same type
-		//  two times (gob encodes the type information once per
-		//  stream, so the Decoder wants to meet a type description only one time)
-		//
-		// "You have to use gob.Encoder and gob.Decoder in pair, Decode all the stream that
-		//  has been Encoded with one Encoder, with one Decoder.
-		//	Either Encode/Decode each and every object (struct) separately
-		//  (use a separate Encoder/Decoder for each value), or use one
-		//  Encoder/Decoder for one stream (file)."
-		//
 	}
 
 	// We read the header successfully. If we see an error now,
@@ -1017,7 +1002,7 @@ type rwPair struct {
 	// net/rpc api
 	greenCodec *greenpackServerCodec
 	//sending  sync.Mutex
-	encBuf  bytes.Buffer // target for codec writes: encode gobs into here first
+	encBuf  bytes.Buffer // target for codec writes: encode into here first
 	encBufW *bufio.Writer
 	decBuf  bytes.Buffer // target for code reads.
 }

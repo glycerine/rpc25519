@@ -446,7 +446,10 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 
 		if req.HDR.IsNetRPC {
 			//vv("have IsNetRPC call: '%v'", req.HDR.Subject)
-			s.callBridgeNetRpc(req)
+			err = s.callBridgeNetRpc(req)
+			if err != nil {
+				alwaysPrintf("callBridgeNetRpc errored out: '%v'", err)
+			}
 			continue
 		}
 
@@ -495,7 +498,10 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 				reply.HDR.Subject = req.HDR.Subject
 				reqCallID := req.HDR.CallID
 
-				callme2(req, reply)
+				err := callme2(req, reply)
+				if err != nil {
+					reply.JobErrs = err.Error()
+				}
 				// don't read from req now, just in case callme2 messed with it.
 
 				from := local(conn)

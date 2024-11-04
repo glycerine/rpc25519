@@ -10,7 +10,6 @@ import (
 	cryrand "crypto/rand"
 	"crypto/sha256"
 	"crypto/tls"
-	//"encoding/gob"
 	"errors"
 	"fmt"
 	"golang.org/x/crypto/hkdf"
@@ -19,6 +18,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -735,7 +735,7 @@ type Client struct {
 	// net/rpc api implementation
 	seenNetRPCCalls bool
 
-	encBuf  bytes.Buffer // target for codec writes: encode gobs into here first
+	encBuf  bytes.Buffer // target for codec writes: encode into here first
 	encBufW *bufio.Writer
 
 	decBuf bytes.Buffer // target for code reads.
@@ -1247,6 +1247,10 @@ func (c *Client) nextSeqno() (n uint64) {
 	return atomic.AddUint64(&c.lastSeqno, 1)
 }
 
+// SelfyNewKey is only for testing, not production.
+// It is used by the tests to check that certs
+// are signed by the expected CA.
+//
 // SelfyNewKey will generate a self-signed certificate
 // authority, a new ed25519 key pair, sign the public
 // key to create a cert, and write these four
@@ -1305,4 +1309,11 @@ func ownerOnly(path string) error {
 		return fmt.Errorf("Error changing file permissions on '%v': '%v'", path, err)
 	}
 	return nil
+}
+
+func fixSlash(s string) string {
+	if runtime.GOOS != "windows" {
+		return s
+	}
+	return strings.Replace(s, "/", "\\", -1)
 }
