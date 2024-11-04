@@ -2,6 +2,7 @@ package rpc25519
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -223,32 +224,31 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 					return
 				}
 
+				var randomSymmetricSessKey [32]byte
+				var cliEphemPub []byte
+				var srvEphemPub []byte
+				var cliStaticPub ed25519.PublicKey
+
 				//vv("quic server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 				if s.cfg.encryptPSK {
 					wrap := &NetConnWrapper{Stream: stream, Connection: conn}
 
-					//s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
-					//	symmetricServerHandshake(wrap, s.cfg.preSharedKey)
-
-					randomSymmetricSessKey, cliEphemPub, srvEphemPub, err :=
+					randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
 						symmetricServerVerifiedHandshake(wrap, s.cfg.preSharedKey, s.creds)
 
 					if err != nil {
 						alwaysPrintf("stream failed to athenticate: '%v'", err)
 						return
 					}
-
-					// prevent data race
-					s.cfg.mut.Lock()
-					s.cfg.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
-					s.cfg.cliEphemPub = cliEphemPub
-					s.cfg.srvEphemPub = srvEphemPub
-					s.cfg.mut.Unlock()
-
 				}
 
 				// each stream gets its own read/send pair.
 				pair := s.newQUIC_RWPair(stream, conn)
+				pair.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+				pair.cliEphemPub = cliEphemPub
+				pair.srvEphemPub = srvEphemPub
+				pair.cliStaticPub = cliStaticPub
+
 				go pair.runSendLoop(stream, conn)
 				go pair.runReadLoop(stream, conn)
 			}
@@ -285,11 +285,11 @@ func (s *quicRWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 		s.halt.Done.Close()
 	}()
 
-	symkey := s.Server.cfg.preSharedKey
+	symkey := s.cfg.preSharedKey
 	if s.cfg.encryptPSK {
-		s.cfg.mut.Lock()
-		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
-		s.cfg.mut.Unlock()
+		s.mut.Lock()
+		symkey = s.randomSymmetricSessKeyFromPreSharedKey
+		s.mut.Unlock()
 	}
 
 	w := newBlabber("quic server send loop", symkey, stream, s.Server.cfg.encryptPSK, maxMessage, true)
@@ -371,11 +371,11 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 		conn.CloseWithError(0, "server shutdown")
 	}()
 
-	symkey := s.Server.cfg.preSharedKey
+	symkey := s.cfg.preSharedKey
 	if s.cfg.encryptPSK {
-		s.cfg.mut.Lock()
-		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
-		s.cfg.mut.Unlock()
+		s.mut.Lock()
+		symkey = s.randomSymmetricSessKeyFromPreSharedKey
+		s.mut.Unlock()
 	}
 	w := newBlabber("quic server read loop", symkey, stream, s.Server.cfg.encryptPSK, maxMessage, true)
 

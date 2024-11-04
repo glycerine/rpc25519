@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -209,28 +210,30 @@ acceptAgain:
 		}
 
 		//vv("tcp only server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
+
+		var randomSymmetricSessKey [32]byte
+		var cliEphemPub []byte
+		var srvEphemPub []byte
+		var cliStaticPub ed25519.PublicKey
+
 		if s.cfg.encryptPSK {
 			var err error
 
-			//s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
-			//      symmetricServerHandshake(conn, s.cfg.preSharedKey)
-			randomSymmetricSessKey, cliEphemPub, srvEphemPub, err :=
+			randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
 				symmetricServerVerifiedHandshake(conn, s.cfg.preSharedKey, s.creds)
 
 			if err != nil {
 				alwaysPrintf("tcp failed to athenticate: '%v'", err)
 				continue acceptAgain
 			}
-			// prevent data race
-			s.cfg.mut.Lock()
-			s.cfg.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
-			s.cfg.cliEphemPub = cliEphemPub
-			s.cfg.srvEphemPub = srvEphemPub
-			s.cfg.mut.Unlock()
-
 		}
 
 		pair := s.newRWPair(conn)
+		pair.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+		pair.cliEphemPub = cliEphemPub
+		pair.srvEphemPub = srvEphemPub
+		pair.cliStaticPub = cliStaticPub
+
 		go pair.runSendLoop(conn)
 		go pair.runReadLoop(conn)
 	}
@@ -293,30 +296,30 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 		//}
 	}
 
+	var randomSymmetricSessKey [32]byte
+	var cliEphemPub []byte
+	var srvEphemPub []byte
+	var cliStaticPub ed25519.PublicKey
+
 	//vv("tls server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 	if s.cfg.encryptPSK {
 		var err error
 
-		//s.cfg.randomSymmetricSessKeyFromPreSharedKey, s.cfg.cliEphemPub, s.cfg.srvEphemPub, err =
-		//	symmetricServerHandshake(conn, s.cfg.preSharedKey)
-
-		randomSymmetricSessKey, cliEphemPub, srvEphemPub, err :=
+		randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
 			symmetricServerVerifiedHandshake(conn, s.cfg.preSharedKey, s.creds)
 
 		if err != nil {
 			alwaysPrintf("tls failed to athenticate: '%v'", err)
 			return
 		}
-		// prevent data race
-		s.cfg.mut.Lock()
-		s.cfg.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
-		s.cfg.cliEphemPub = cliEphemPub
-		s.cfg.srvEphemPub = srvEphemPub
-		s.cfg.mut.Unlock()
-
 	}
 
 	pair := s.newRWPair(conn)
+	pair.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+	pair.cliEphemPub = cliEphemPub
+	pair.srvEphemPub = srvEphemPub
+	pair.cliStaticPub = cliStaticPub
+
 	go pair.runSendLoop(conn)
 	pair.runReadLoop(conn)
 }
@@ -328,11 +331,11 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		s.halt.Done.Close()
 	}()
 
-	symkey := s.Server.cfg.preSharedKey
+	symkey := s.cfg.preSharedKey
 	if s.cfg.encryptPSK {
-		s.cfg.mut.Lock()
-		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
-		s.cfg.mut.Unlock()
+		s.mut.Lock()
+		symkey = s.randomSymmetricSessKeyFromPreSharedKey
+		s.mut.Unlock()
 	}
 
 	w := newBlabber("server send loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true)
@@ -406,11 +409,11 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 	}()
 
-	symkey := s.Server.cfg.preSharedKey
+	symkey := s.cfg.preSharedKey
 	if s.cfg.encryptPSK {
-		s.cfg.mut.Lock()
-		symkey = s.cfg.randomSymmetricSessKeyFromPreSharedKey
-		s.cfg.mut.Unlock()
+		s.mut.Lock()
+		symkey = s.randomSymmetricSessKeyFromPreSharedKey
+		s.mut.Unlock()
 	}
 	w := newBlabber("server read loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true)
 	//w := newWorkspace(maxMessage)
@@ -1005,12 +1008,26 @@ type rwPair struct {
 	encBuf  bytes.Buffer // target for codec writes: encode into here first
 	encBufW *bufio.Writer
 	decBuf  bytes.Buffer // target for code reads.
+
+	// creds:
+
+	// mut protects the following
+	mut sync.Mutex
+
+	// the ephemeral keys from the ephemeral ECDH handshake
+	// to estblish randomSymmetricSessKeyFromPreSharedKey
+	randomSymmetricSessKeyFromPreSharedKey [32]byte
+	cliEphemPub                            []byte
+	srvEphemPub                            []byte
+	// only one of these two will be filled here, depending on if we are client or server.
+	srvStaticPub ed25519.PublicKey
+	cliStaticPub ed25519.PublicKey
 }
 
 func (s *Server) newRWPair(conn net.Conn) *rwPair {
 
 	p := &rwPair{
-		cfg:    s.cfg,
+		cfg:    s.cfg.Clone(),
 		Server: s,
 		Conn:   conn,
 		SendCh: make(chan *Message, 10),

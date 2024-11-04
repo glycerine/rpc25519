@@ -198,7 +198,7 @@ func symmetricServerVerifiedHandshake(
 	conn uConn,
 	psk [32]byte,
 	creds *selfcert.Creds,
-) (sharedRandomSecret [32]byte, cliEphemPub, srvEphemPub []byte, err0 error) {
+) (sharedRandomSecret [32]byte, cliEphemPub, srvEphemPub []byte, clientStaticPubKey ed25519.PublicKey, err0 error) {
 
 	//vv("server creds = '%#v'", creds)
 
@@ -251,7 +251,8 @@ func symmetricServerVerifiedHandshake(
 	}
 
 	// Extract the client's static Ed25519 public key from the certificate
-	clientStaticPubKey, ok := clientCert.PublicKey.(ed25519.PublicKey)
+	var ok bool
+	clientStaticPubKey, ok = clientCert.PublicKey.(ed25519.PublicKey)
 	if !ok {
 		err0 = fmt.Errorf("client certificate does not contain an Ed25519 public key")
 		return
@@ -410,7 +411,7 @@ func symmetricClientVerifiedHandshake(
 	conn uConn,
 	psk [32]byte,
 	creds *selfcert.Creds,
-) (sharedRandomSecret [32]byte, cliEphemPub, srvEphemPub []byte, err0 error) {
+) (sharedRandomSecret [32]byte, cliEphemPub, srvEphemPub []byte, serverStaticPubKey ed25519.PublicKey, err0 error) {
 
 	//vv("top of symmetricClientVerifiedHandshake")
 
@@ -476,7 +477,8 @@ func symmetricClientVerifiedHandshake(
 	//vv("client sees ok server signing")
 
 	// Extract the server's static Ed25519 public key from the certificate
-	serverStaticPubKey, ok := serverStaticCert.PublicKey.(ed25519.PublicKey)
+	var ok bool
+	serverStaticPubKey, ok = serverStaticCert.PublicKey.(ed25519.PublicKey)
 	if !ok {
 		err0 = fmt.Errorf("server certificate does not contain an Ed25519 public key")
 		return

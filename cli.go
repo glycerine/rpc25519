@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"crypto/hmac"
 	cryrand "crypto/rand"
 	"crypto/sha256"
@@ -201,15 +202,13 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	}
 
 	if c.cfg.encryptPSK {
-		//c.cfg.randomSymmetricSessKeyFromPreSharedKey, c.cfg.cliEphemPub, c.cfg.srvEphemPub, err = symmetricClientHandshake(conn, c.cfg.preSharedKey)
-		randomSymmetricSessKey, cliEphemPub, srvEphemPub, err := symmetricClientVerifiedHandshake(conn, c.cfg.preSharedKey, c.creds)
+		randomSymmetricSessKey, cliEphemPub, srvEphemPub, srvStaticPub, err := symmetricClientVerifiedHandshake(conn, c.cfg.preSharedKey, c.creds)
 		panicOn(err)
-		// prevent data race
-		c.cfg.mut.Lock()
-		c.cfg.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
-		c.cfg.cliEphemPub = cliEphemPub
-		c.cfg.srvEphemPub = srvEphemPub
-		c.cfg.mut.Unlock()
+
+		c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+		c.cliEphemPub = cliEphemPub
+		c.srvEphemPub = srvEphemPub
+		c.srvStaticPub = srvStaticPub
 	}
 
 	go c.runSendLoop(conn)
@@ -238,18 +237,15 @@ func (c *Client) runClientTCP(serverAddr string) {
 	//log.Printf("connected to server %s", serverAddr)
 
 	if c.cfg.encryptPSK {
-		//c.cfg.randomSymmetricSessKeyFromPreSharedKey, c.cfg.cliEphemPub, c.cfg.srvEphemPub, err =
-		//	symmetricClientHandshake(conn, c.cfg.preSharedKey)
-		randomSymmetricSessKey, cliEphemPub, srvEphemPub, err :=
+
+		randomSymmetricSessKey, cliEphemPub, srvEphemPub, srvStaticPub, err :=
 			symmetricClientVerifiedHandshake(conn, c.cfg.preSharedKey, c.creds)
 		panicOn(err)
 
-		// prevent data race
-		c.cfg.mut.Lock()
-		c.cfg.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
-		c.cfg.cliEphemPub = cliEphemPub
-		c.cfg.srvEphemPub = srvEphemPub
-		c.cfg.mut.Unlock()
+		c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+		c.cliEphemPub = cliEphemPub
+		c.srvEphemPub = srvEphemPub
+		c.srvStaticPub = srvStaticPub
 	}
 
 	go c.runSendLoop(conn)
@@ -264,9 +260,9 @@ func (c *Client) runReadLoop(conn net.Conn) {
 
 	symkey := c.cfg.preSharedKey
 	if c.cfg.encryptPSK {
-		c.cfg.mut.Lock()
-		symkey = c.cfg.randomSymmetricSessKeyFromPreSharedKey
-		c.cfg.mut.Unlock()
+		c.mut.Lock()
+		symkey = c.randomSymmetricSessKeyFromPreSharedKey
+		c.mut.Unlock()
 	}
 
 	//w := newWorkspace(maxMessage)
@@ -376,9 +372,9 @@ func (c *Client) runSendLoop(conn net.Conn) {
 
 	symkey := c.cfg.preSharedKey
 	if c.cfg.encryptPSK {
-		c.cfg.mut.Lock()
-		symkey = c.cfg.randomSymmetricSessKeyFromPreSharedKey
-		c.cfg.mut.Unlock()
+		c.mut.Lock()
+		symkey = c.randomSymmetricSessKeyFromPreSharedKey
+		c.mut.Unlock()
 	}
 
 	w := newBlabber("client send loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false)
@@ -624,18 +620,8 @@ type Config struct {
 	// write 32 randomly bytes to output.
 	PreSharedKeyPath string
 
-	// protect randomSymmetricSessKeyFromPreSharedKey
-	// or else the race detector will hate it.
-	mut sync.Mutex
-
-	preSharedKey                           [32]byte
-	randomSymmetricSessKeyFromPreSharedKey [32]byte
-	encryptPSK                             bool
-
-	// the ephemeral keys from the ephemeral ECDH handshake
-	// to estblish randomSymmetricSessKeyFromPreSharedKey
-	cliEphemPub []byte
-	srvEphemPub []byte
+	preSharedKey [32]byte
+	encryptPSK   bool
 
 	// These are timeouts for connection and transport tuning.
 	// The defaults of 0 mean wait forever.
@@ -704,6 +690,15 @@ func NewConfig() *Config {
 type Client struct {
 	cfg *Config
 	mut sync.Mutex
+
+	// these are client only. server keeps track
+	// per connection in their rwPair.
+	// These ephemeral keys are from the ephemeral ECDH handshake
+	// to estblish randomSymmetricSessKeyFromPreSharedKey.
+	randomSymmetricSessKeyFromPreSharedKey [32]byte
+	cliEphemPub                            []byte
+	srvEphemPub                            []byte
+	srvStaticPub                           ed25519.PublicKey
 
 	name  string
 	creds *selfcert.Creds
