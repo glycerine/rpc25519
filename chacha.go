@@ -35,20 +35,19 @@ var _ = fmt.Printf
 // combined with the pre-shared-key, the
 // only real danger of re-using a nonce
 // for this key comes from the client and
-// server picking the same nonce. To avoid
-// any chance of these two colliding, we
-// count on the server starting with
-// 0b10 << (nonce_size_in_bits-2), while the
-// client starts at 0b00 << (nonce_size_in_bits-2).
+// server picking the same nonce.
 // Nonces are chosen randomly from
 // cyprto/rand input.
+// To avoid any chance of these two colliding, we
+// set the two high bits on the server to 0b10,
+// and the two high bits on the client to 0b00.
 //
 // Each sides increments their nonce
 // by one after each write. A 94-bit
-// integer (ChaCha's 12 byte nonce) is not going to overflow,
-// and the client and server start
-// in different subsets of the full 96-bit
-// space to begin with.
+// integer (ChaCha's 12 byte nonce minus
+// 2 bits) is not going to overflow
+// while the Earth exists, and even then
+// there is one extra bit of safety.
 //
 // The name blabber? Well... what comes
 // out is just blah, blah, blah.
