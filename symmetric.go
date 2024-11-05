@@ -179,16 +179,6 @@ type verifiedHandshake struct {
 	SenderSentAt     time.Time `zid:"3"`
 }
 
-type clientEncryptedHandshake struct {
-	CliEphemPubKey0 []byte `zid:"0"` // client's ephemeral public key 0
-	EncPayload      []byte `zid:"1"` // payload: verifiedHandshake, encrypted with client EphemPubKey.
-}
-
-type serverEncryptedHandshake struct {
-	SrvEphemPubKey0 []byte `zid:"0"` // server's ephemeral public key 0
-	EncPayload      []byte `zid:"1"` // payload: caboose, encrypted with dervied symmetric key.
-}
-
 // caboose may be sent (only on server response,
 // encrypted with symm key); if useCaboose is true.
 //
@@ -397,6 +387,15 @@ func generateX25519KeyPair() (privateKey, publicKey [32]byte, err error) {
 
 	_, err = cryrand.Read(privateKey[:])
 	panicOn(err)
+
+	return generateX25519PairFrom(privateKey)
+}
+
+// seed can be random, or, for instance, the
+// hmac of a pre-shared key (our use case).
+func generateX25519PairFrom(seed [32]byte) (privateKey, publicKey [32]byte, err error) {
+
+	privateKey = seed
 
 	// https://cr.yp.to/ecdh.html
 	privateKey[0] &= 248
@@ -630,7 +629,11 @@ func sendLenThenShakeTag(conn uConn, shake *verifiedHandshake, timeout *time.Dur
 		return nil, fmt.Errorf("sendLenThenShake could not Encode: '%v'", err)
 	}
 
-	shakeBytes := buf.Bytes()
+	return sendLenThenBytesTag(conn, buf.Bytes(), timeout)
+}
+
+func sendLenThenBytesTag(conn uConn, shakeBytes []byte, timeout *time.Duration) (authTag []byte, err error) {
+
 	n := len(shakeBytes)
 	allby := make([]byte, 8, 8+n+authTagLen) // 8 for length, the handshake, 32 bytes for auth tag based on sha256.
 
@@ -659,7 +662,7 @@ func sendLenThenShakeTag(conn uConn, shake *verifiedHandshake, timeout *time.Dur
 	// Write
 	err = writeFull(conn, allby, timeout)
 	if err != nil {
-		return nil, fmt.Errorf("sendLenThenShakeTagcould not write to conn: '%v'", err)
+		return nil, fmt.Errorf("sendLenThenBytesTag could not write to conn: '%v'", err)
 	}
 
 	return authTag, nil
@@ -668,39 +671,44 @@ func sendLenThenShakeTag(conn uConn, shake *verifiedHandshake, timeout *time.Dur
 // fills in shake as the major aim.
 // verifies the hmac tag, keeps length of handshake sane, under maxHandshakeBytes.
 func readLenThenShakeTag(conn uConn, shake *verifiedHandshake, timeout *time.Duration) (tag []byte, err error) {
-
-	// Read the first 8 bytes for the Message length
-	var lenby [8]byte
-	if err := readFull(conn, lenby[:], timeout); err != nil {
-		return nil, err
-	}
-	n := binary.BigEndian.Uint64(lenby[:])
-
-	// Read the message based on the messageLen
-	if n > maxHandshakeBytes {
-		// probably an encrypted client against an unencrypted server
-		return nil, ErrTooLong
-	}
-
-	shakeAndTagBytes := make([]byte, n+authTagLen)
-	if err := readFull(conn, shakeAndTagBytes, timeout); err != nil {
-		return nil, fmt.Errorf("readLenThenShakeTag error reading from conn: '%v'", err)
-	}
-
-	conveyedTag := shakeAndTagBytes[n:]
-	shakeBytes := shakeAndTagBytes[:n]
-	computedTag := computeHMAC(shakeBytes, lenby[:])
-
-	if !bytes.Equal(conveyedTag, computedTag) {
-		return nil, fmt.Errorf("auth tag did not match on handshake")
-	}
-	tag = conveyedTag
+	var shakeBytes []byte
+	shakeBytes, tag, err = readLenThenBytesTag(conn, timeout)
 
 	// after authentication, then msgp decode.
 	err = msgp.Decode(bytes.NewBuffer(shakeBytes), shake)
 	if err != nil {
 		return nil, fmt.Errorf("could not msgp.Decode() handshake: '%v'", err)
 	}
+	return
+}
+
+func readLenThenBytesTag(conn uConn, timeout *time.Duration) (shakeBytes, tag []byte, err error) {
+	// Read the first 8 bytes for the Message length
+	var lenby [8]byte
+	if err := readFull(conn, lenby[:], timeout); err != nil {
+		return nil, nil, err
+	}
+	n := binary.BigEndian.Uint64(lenby[:])
+
+	// Read the message based on the messageLen
+	if n > maxHandshakeBytes {
+		// probably an encrypted client against an unencrypted server
+		return nil, nil, ErrTooLong
+	}
+
+	shakeAndTagBytes := make([]byte, n+authTagLen)
+	if err := readFull(conn, shakeAndTagBytes, timeout); err != nil {
+		return nil, nil, fmt.Errorf("readLenThenBytesTag error reading from conn: '%v'", err)
+	}
+
+	conveyedTag := shakeAndTagBytes[n:]
+	shakeBytes = shakeAndTagBytes[:n]
+	computedTag := computeHMAC(shakeBytes, lenby[:])
+
+	if !bytes.Equal(conveyedTag, computedTag) {
+		return nil, nil, fmt.Errorf("auth tag did not match on handshake")
+	}
+	tag = conveyedTag
 
 	return
 }
@@ -891,6 +899,17 @@ func encryptWithPubKey(
 	ephemeralPrivateKey, ephemeralPublicKey, err0 = generateX25519KeyPair()
 	panicOn(err0)
 
+	ciphertext, err0 = encryptWithPair(ephemeralPrivateKey, ephemeralPublicKey, recipientPublicKey, plaintext)
+	return
+}
+
+func encryptWithPair(
+	ephemeralPrivateKey, ephemeralPublicKey [32]byte,
+	recipientPublicKey [32]byte,
+	plaintext []byte,
+
+) (ciphertext []byte, err0 error) {
+
 	// Compute shared secret
 
 	// func X25519(scalar, point []byte) ([]byte, error)
@@ -965,289 +984,58 @@ type handshakeRecord struct {
 	Cshake             *verifiedHandshake `zid:"0"`
 	Sshake             *verifiedHandshake `zid:"1"`
 	SharedRandomSecret []byte             `zid:"2"`
+
+	cliEphemPub        []byte
+	srvEphemPub        []byte
+	serverStaticPubKey []byte
 }
 
-// encrypt more with the public/private keys.
-func symmetricServerVerifiedHandshake2(
+func simpleSymmetricClientHandshake(
 	conn uConn,
 	psk [32]byte,
 	creds *selfcert.Creds,
-) (r *handshakeRecord, err0 error) {
+) (symkey [32]byte, err0 error) {
 
-	r = &handshakeRecord{}
+	salt := make([]byte, 32)
+	_, err := cryrand.Read(salt)
+	panicOn(err)
 
-	var cliEphemPub, srvEphemPub []byte
-	_ = cliEphemPub
-	var clientStaticPubKey ed25519.PublicKey
+	hkdf := hkdf.New(sha256.New, psk[:], salt, nil)
+	_, err = io.ReadFull(hkdf, symkey[:])
+	panicOn(err)
 
-	//vv("server creds = '%#v'", creds)
-
-	// Generate ephemeral X25519 key pair
-	serverEphemPrivateKey, serverEphemPublicKey, err := generateX25519KeyPair()
+	// Send the salt to the server
+	_, err = conn.Write(salt[:])
 	if err != nil {
-		err0 = fmt.Errorf("failed to generate server X25519 key pair: %v", err)
+		err0 = fmt.Errorf("simpleSymmetricClientHandshake could not write to conn: '%v'", err)
 		return
 	}
-
-	// set return value
-	srvEphemPub = serverEphemPublicKey[:]
-
-	// Sign the server's ephemeral public key with the static Ed25519 private key
-	signature := ed25519.Sign(creds.NodePrivateKey, srvEphemPub)
-
-	// Read the client's public key/handshake. Server *must* read first, since
-	// QUIC streams are only established when the client writes.
-	var cshake verifiedHandshake
-
-	timeout := time.Second * 10
-	cshakeTag, err := readLenThenShakeTag(conn, &cshake, &timeout)
-	if err != nil {
-		err0 = fmt.Errorf("at server could not decode from client the client handshake: '%v'", err)
-		return
-	}
-
-	if !isValidX25519PublicKey(cshake.EphemPubKey) {
-		err0 = fmt.Errorf("we read an invalid client cshake ephem public key: '%x'", cshake.EphemPubKey)
-		return
-	}
-
-	// Parse the client's certificate
-	clientCert, err := x509.ParseCertificate(cshake.SigningCert)
-	if err != nil {
-		err0 = fmt.Errorf("failed to parse client certificate: %v", err)
-		return
-	}
-
-	// Verify the client's certificate against the CA
-	opts := x509.VerifyOptions{
-		Roots:         creds.CACertPool,
-		CurrentTime:   time.Now(),
-		Intermediates: x509.NewCertPool(),
-	}
-	if _, err = clientCert.Verify(opts); err != nil {
-		//vv("server sees bad client cert")
-		err0 = fmt.Errorf("server cannot verify client cert: %v", err)
-		return
-	}
-
-	// Extract the client's static Ed25519 public key from the certificate
-	var ok bool
-	clientStaticPubKey, ok = clientCert.PublicKey.(ed25519.PublicKey)
-	if !ok {
-		err0 = fmt.Errorf("client certificate does not contain an Ed25519 public key")
-		return
-	}
-
-	// Verify the client's signature on their ephemeral public key
-	if !ed25519.Verify(clientStaticPubKey, cshake.EphemPubKey, cshake.SignatureOfEphem) {
-		err0 = fmt.Errorf("client's ephemeral public key signature verification failed")
-		return
-	}
-
-	// set return value
-	cliEphemPub = cshake.EphemPubKey
-
-	// since client checked out so far, send our empheral key to handshake.
-	// Otherwise we don't even bother generating the network traffic.
-
-	// server shake
-	sshake := verifiedHandshake{
-		EphemPubKey:      srvEphemPub,
-		SignatureOfEphem: signature,
-		SigningCert:      creds.NodeCert.Raw,
-		SenderSentAt:     time.Now(),
-	}
-	//vv("len SigningCert = %v", len(sshake.SigningCert)) // 540
-
-	sshakeTag, err := sendLenThenShakeTag(conn, &sshake, &timeout)
-	if err != nil {
-		err0 = fmt.Errorf("at server, could not encode/send our server side handshake: '%v'", err)
-		return
-	}
-
-	// Compute the shared secret
-	sharedSecret, err := curve25519.X25519(serverEphemPrivateKey[:], cshake.EphemPubKey)
-	if err != nil {
-		panic(err)
-	}
-
-	// Derive the final symmetric key using HKDF
-	sharedRandomSecret := deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk[:])
-	r.SharedRandomSecret = sharedRandomSecret[:]
 
 	// Print the symmetric key (for demonstration purposes)
-	//fmt.Printf("(verified) Server derived symmetric key: %x\n", sharedRandomSecret[:])
-
-	if useCaboose {
-		// Generate new, 2nd, ephemeral X25519 key pair
-		serverEphemPrivateKey2, serverEphemPublicKey2, err := generateX25519KeyPair()
-		if err != nil {
-			err0 = fmt.Errorf("failed to generate server X25519 key pair: %v", err)
-			return
-		}
-
-		cab := &caboose{
-			ClientAuthTag:     cshakeTag,
-			ServerAuthTag:     sshakeTag,
-			ClientEphemPubKey: cshake.EphemPubKey,
-			ServerEphemPubKey: sshake.EphemPubKey,
-			ClientSentAt:      cshake.SenderSentAt,
-			ServerSentAt:      sshake.SenderSentAt,
-			ClientSigningCert: cshake.SigningCert,
-			ServerSigningCert: sshake.SigningCert,
-			ClientSigOfEphem:  cshake.SignatureOfEphem,
-			ServerSigOfEphem:  sshake.SignatureOfEphem,
-			ServerNewPub:      serverEphemPublicKey2[:],
-		}
-		err0 = sendCrypticCaboose(conn, cab, sharedRandomSecret[:], &timeout)
-		if err0 != nil {
-			return
-		}
-
-		// Compute the new shared secret, based on the serverEphemPrivateKey2
-		sharedSecret2, err := curve25519.X25519(serverEphemPrivateKey2[:], cshake.EphemPubKey)
-		if err != nil {
-			panic(err)
-		}
-		_ = sharedSecret2
-	}
-
+	fmt.Printf("salted client derived symmetric key: %x\n", symkey[:])
 	return
 }
 
-func symmetricClientVerifiedHandshake2(
+// simplest use of pre-shared-key: just take the salt,
+// mix it with the psk, and keep going.
+func simpleSymmetricServerHandshake(
 	conn uConn,
 	psk [32]byte,
 	creds *selfcert.Creds,
-) (r *handshakeRecord, err0 error) {
 
-	r = &handshakeRecord{}
+) (symkey [32]byte, err0 error) {
 
-	var cliEphemPub, srvEphemPub []byte
-	_ = srvEphemPub
-	var serverStaticPubKey ed25519.PublicKey
-
-	//vv("top of symmetricClientVerifiedHandshake")
-
-	//vv("client creds = '%#v'", creds)
-
-	// Generate ephemeral X25519 key pair
-	clientEphemPrivateKey, clientEphemPublicKey, err := generateX25519KeyPair()
+	// read the salt from the client
+	salt := make([]byte, 32)
+	_, err := io.ReadFull(conn, salt)
 	if err != nil {
-		panic(err)
-	}
-
-	// set return value
-	cliEphemPub = clientEphemPublicKey[:]
-
-	// Send the client's public key to the server. Client must write first (for QUIC).
-
-	// Sign the client's ephemeral public key with the static Ed25519 private key
-	signature := ed25519.Sign(creds.NodePrivateKey, cliEphemPub)
-
-	cshake := verifiedHandshake{
-		EphemPubKey:      cliEphemPub,
-		SignatureOfEphem: signature,
-		SigningCert:      creds.NodeCert.Raw,
-		SenderSentAt:     time.Now(),
-	}
-
-	// client sending first to open quic stream (if using quic).
-	timeout := time.Second * 10
-	var cshakeTag []byte
-	cshakeTag, err0 = sendLenThenShakeTag(conn, &cshake, &timeout)
-	if err0 != nil {
+		err0 = fmt.Errorf("could not read client salt from conn: '%v'", err)
 		return
 	}
 
-	var sshake verifiedHandshake
-	var sshakeTag []byte
-	sshakeTag, err = readLenThenShakeTag(conn, &sshake, &timeout)
-	if err != nil {
-		err0 = fmt.Errorf("at client, could not decode from server the server handshake: '%v'", err)
-		return
-	}
+	hkdf := hkdf.New(sha256.New, psk[:], salt, nil)
+	_, err = io.ReadFull(hkdf, symkey[:])
+	panicOn(err)
 
-	if !isValidX25519PublicKey(sshake.EphemPubKey) {
-		err0 = fmt.Errorf("we read an invalid server sshake public key: '%x'", sshake.EphemPubKey)
-		return
-	}
-
-	// Parse the server's certificate
-	serverStaticCert, err := x509.ParseCertificate(sshake.SigningCert)
-	if err != nil {
-		err0 = fmt.Errorf("failed to parse servers certificate: '%v'", err)
-		return
-	}
-
-	// Verify the server's certificate against the CA
-	opts := x509.VerifyOptions{
-		Roots:         creds.CACertPool,
-		CurrentTime:   time.Now(),
-		Intermediates: x509.NewCertPool(),
-	}
-	if _, err = serverStaticCert.Verify(opts); err != nil {
-		//vv("client sees bad server signing")
-		err0 = fmt.Errorf("client could not verify servers static cert: '%v'", err)
-		return
-	}
-	//vv("client sees ok server signing")
-
-	// Extract the server's static Ed25519 public key from the certificate
-	var ok bool
-	serverStaticPubKey, ok = serverStaticCert.PublicKey.(ed25519.PublicKey)
-	if !ok {
-		err0 = fmt.Errorf("server certificate does not contain an Ed25519 public key")
-		return
-	}
-
-	// Verify the server's signature on their ephemeral public key
-	if !ed25519.Verify(serverStaticPubKey, sshake.EphemPubKey, sshake.SignatureOfEphem) {
-		err0 = fmt.Errorf("server's ephemeral public key signature verification failed")
-		return
-	}
-
-	// set return value
-	srvEphemPub = sshake.EphemPubKey
-
-	// Compute the shared secret
-	sharedSecret, err := curve25519.X25519(clientEphemPrivateKey[:], sshake.EphemPubKey)
-	if err != nil {
-		panic(err)
-	}
-
-	// Derive the final symmetric key using HKDF
-	sharedRandomSecret := deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk[:])
-	r.SharedRandomSecret = sharedRandomSecret[:]
-
-	if useCaboose {
-		cab := &caboose{}
-		err0 = readCrypticCaboose(conn, cab, sharedRandomSecret[:], &timeout)
-		if err0 != nil {
-			return
-		}
-		// the legit server put the fields as:
-		expected := &caboose{
-			ClientAuthTag:     cshakeTag,
-			ServerAuthTag:     sshakeTag,
-			ClientEphemPubKey: cshake.EphemPubKey,
-			ServerEphemPubKey: sshake.EphemPubKey,
-			ClientSentAt:      cshake.SenderSentAt,
-			ServerSentAt:      sshake.SenderSentAt,
-			ClientSigningCert: cshake.SigningCert,
-			ServerSigningCert: sshake.SigningCert,
-			ClientSigOfEphem:  cshake.SignatureOfEphem,
-			ServerSigOfEphem:  sshake.SignatureOfEphem,
-		}
-		if !cab.Equal(expected) {
-			err0 = fmt.Errorf("caboose mismatch: got '%#v'; \n\n versus expected '%#v'", cab, expected)
-			//vv("err0 = '%v'", err0)
-			return
-		}
-		//vv("caboose was as expected")
-	}
-
-	// Print the symmetric key (for demonstration purposes)
-	//fmt.Printf("(verified) Client derived symmetric key: %x\n", sharedRandomSecret[:])
 	return
 }
