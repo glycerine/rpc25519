@@ -54,6 +54,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
 	defer func() {
+		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
 
 		if c.seenNetRPCCalls {
@@ -240,6 +241,7 @@ func (c *Client) runClientTCP(serverAddr string) {
 
 		randomSymmetricSessKey, cliEphemPub, srvEphemPub, srvStaticPub, err :=
 			symmetricClientVerifiedHandshake(conn, c.cfg.preSharedKey, c.creds)
+		//vv("err back was '%v'", err)
 		panicOn(err)
 
 		c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey

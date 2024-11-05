@@ -9,8 +9,8 @@ import (
 	"github.com/glycerine/greenpack/msgp"
 )
 
-func TestMarshalUnmarshalVerifiedHandshake(t *testing.T) {
-	v := VerifiedHandshake{}
+func TestMarshalUnmarshalcaboose(t *testing.T) {
+	v := caboose{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -32,8 +32,8 @@ func TestMarshalUnmarshalVerifiedHandshake(t *testing.T) {
 	}
 }
 
-func BenchmarkMarshalMsgVerifiedHandshake(b *testing.B) {
-	v := VerifiedHandshake{}
+func BenchmarkMarshalMsgcaboose(b *testing.B) {
+	v := caboose{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -41,8 +41,8 @@ func BenchmarkMarshalMsgVerifiedHandshake(b *testing.B) {
 	}
 }
 
-func BenchmarkAppendMsgVerifiedHandshake(b *testing.B) {
-	v := VerifiedHandshake{}
+func BenchmarkAppendMsgcaboose(b *testing.B) {
+	v := caboose{}
 	bts := make([]byte, 0, v.Msgsize())
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -53,8 +53,8 @@ func BenchmarkAppendMsgVerifiedHandshake(b *testing.B) {
 	}
 }
 
-func BenchmarkUnmarshalVerifiedHandshake(b *testing.B) {
-	v := VerifiedHandshake{}
+func BenchmarkUnmarshalcaboose(b *testing.B) {
+	v := caboose{}
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
@@ -67,8 +67,8 @@ func BenchmarkUnmarshalVerifiedHandshake(b *testing.B) {
 	}
 }
 
-func TestEncodeDecodeVerifiedHandshake(t *testing.T) {
-	v := VerifiedHandshake{}
+func TestEncodeDecodecaboose(t *testing.T) {
+	v := caboose{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
@@ -77,7 +77,7 @@ func TestEncodeDecodeVerifiedHandshake(t *testing.T) {
 		t.Logf("WARNING: Msgsize() for %v is inaccurate", v)
 	}
 
-	vn := VerifiedHandshake{}
+	vn := caboose{}
 	err := msgp.Decode(&buf, &vn)
 	if err != nil {
 		t.Error(err)
@@ -91,8 +91,8 @@ func TestEncodeDecodeVerifiedHandshake(t *testing.T) {
 	}
 }
 
-func BenchmarkEncodeVerifiedHandshake(b *testing.B) {
-	v := VerifiedHandshake{}
+func BenchmarkEncodecaboose(b *testing.B) {
+	v := caboose{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -105,8 +105,121 @@ func BenchmarkEncodeVerifiedHandshake(b *testing.B) {
 	en.Flush()
 }
 
-func BenchmarkDecodeVerifiedHandshake(b *testing.B) {
-	v := VerifiedHandshake{}
+func BenchmarkDecodecaboose(b *testing.B) {
+	v := caboose{}
+	var buf bytes.Buffer
+	msgp.Encode(&buf, &v)
+	b.SetBytes(int64(buf.Len()))
+	rd := msgp.NewEndlessReader(buf.Bytes(), b)
+	dc := msgp.NewReader(rd)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err := v.DecodeMsg(dc)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func TestMarshalUnmarshalverifiedHandshake(t *testing.T) {
+	v := verifiedHandshake{}
+	bts, err := v.MarshalMsg(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	left, err := v.UnmarshalMsg(bts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(left) > 0 {
+		t.Errorf("%d bytes left over after UnmarshalMsg(): %q", len(left), left)
+	}
+
+	left, err = msgp.Skip(bts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(left) > 0 {
+		t.Errorf("%d bytes left over after Skip(): %q", len(left), left)
+	}
+}
+
+func BenchmarkMarshalMsgverifiedHandshake(b *testing.B) {
+	v := verifiedHandshake{}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		v.MarshalMsg(nil)
+	}
+}
+
+func BenchmarkAppendMsgverifiedHandshake(b *testing.B) {
+	v := verifiedHandshake{}
+	bts := make([]byte, 0, v.Msgsize())
+	bts, _ = v.MarshalMsg(bts[0:0])
+	b.SetBytes(int64(len(bts)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bts, _ = v.MarshalMsg(bts[0:0])
+	}
+}
+
+func BenchmarkUnmarshalverifiedHandshake(b *testing.B) {
+	v := verifiedHandshake{}
+	bts, _ := v.MarshalMsg(nil)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(bts)))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := v.UnmarshalMsg(bts)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func TestEncodeDecodeverifiedHandshake(t *testing.T) {
+	v := verifiedHandshake{}
+	var buf bytes.Buffer
+	msgp.Encode(&buf, &v)
+
+	m := v.Msgsize()
+	if buf.Len() > m {
+		t.Logf("WARNING: Msgsize() for %v is inaccurate", v)
+	}
+
+	vn := verifiedHandshake{}
+	err := msgp.Decode(&buf, &vn)
+	if err != nil {
+		t.Error(err)
+	}
+
+	buf.Reset()
+	msgp.Encode(&buf, &v)
+	err = msgp.NewReader(&buf).Skip()
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func BenchmarkEncodeverifiedHandshake(b *testing.B) {
+	v := verifiedHandshake{}
+	var buf bytes.Buffer
+	msgp.Encode(&buf, &v)
+	b.SetBytes(int64(buf.Len()))
+	en := msgp.NewWriter(msgp.Nowhere)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		v.EncodeMsg(en)
+	}
+	en.Flush()
+}
+
+func BenchmarkDecodeverifiedHandshake(b *testing.B) {
+	v := verifiedHandshake{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))

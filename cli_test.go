@@ -133,6 +133,8 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		path := "my-keep-private-dir/psk.binary"
 		panicOn(setupPSK(path))
 		cfg.PreSharedKeyPath = path
+		cfg.ReadTimeout = 2 * time.Second
+		cfg.WriteTimeout = 2 * time.Second
 
 		cfg.ServerAddr = "127.0.0.1:0"
 		srv := NewServer("srv_test001", cfg)

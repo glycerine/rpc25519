@@ -270,13 +270,13 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	e.mut.Lock()
 	defer e.mut.Unlock()
 
-	defer func() {
-		r := recover()
-		if r != nil {
-			alwaysPrintf("encoder.sendMessage recovers from panic: '%v'", r)
-			panic(r)
-		}
-	}()
+	// defer func() {
+	// 	r := recover()
+	// 	if r != nil {
+	// 		alwaysPrintf("encoder.sendMessage recovers from panic: '%v'", r)
+	// 		panic(r)
+	// 	}
+	// }()
 
 	// serialize message to bytes
 	bytesMsg, err := msg.AsGreenpack(e.work.buf[8+e.noncesize : cap(e.work.buf)])

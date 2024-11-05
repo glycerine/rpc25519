@@ -1,8 +1,11 @@
 package rpc25519
 
 import (
+	"bytes"
+	cryrand "crypto/rand"
 	"fmt"
 	"testing"
+	"time"
 
 	cv "github.com/glycerine/goconvey/convey"
 )
@@ -53,5 +56,65 @@ func Test020_nonce_sequence_not_reused(t *testing.T) {
 		}
 		vv("checked up to %v-1 for collision in the first (cli+server) %v values.", n, len(m))
 		cv.So(true, cv.ShouldBeTrue)
+	})
+}
+
+type fakeConn struct {
+	bytes.Buffer
+}
+
+func (f *fakeConn) SetWriteDeadline(t time.Time) error {
+	return nil
+}
+
+func (f *fakeConn) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
+func Test021_caboose_encrypt_decrypt(t *testing.T) {
+
+	cv.Convey("sendCrypticCaboose and readCrypticCaboose are inverses of each other", t, func() {
+
+		symkey := make([]byte, 32)
+		_, err := cryrand.Read(symkey)
+		panicOn(err)
+
+		tag := make([]byte, 32)
+		_, err = cryrand.Read(tag)
+		panicOn(err)
+
+		clientSigningCert := make([]byte, 540)
+		serverSigningCert := make([]byte, 540)
+		_, err = cryrand.Read(clientSigningCert)
+		panicOn(err)
+		_, err = cryrand.Read(serverSigningCert)
+		panicOn(err)
+
+		// treat the private key like a public key, just to quickly
+		// generate some random keys.
+		key1, key2, err := generateX25519KeyPair()
+		panicOn(err)
+		now := time.Now()
+		f := &fakeConn{}
+		cab := &caboose{
+			RespondingToTag:   tag,
+			ClientEphemPubKey: key1[:],
+			ServerEphemPubKey: key2[:],
+			ClientSentAt:      now,
+			ServerSentAt:      now.Add(time.Second),
+			ClientSigningCert: clientSigningCert,
+			ServerSigningCert: serverSigningCert,
+		}
+		panicOn(sendCrypticCaboose(f, cab, symkey, nil))
+
+		//vv("f says len is '%x'", f.Bytes()[:8])
+		//vv("f has '%x'", f.Bytes())
+
+		var cab1 caboose
+		panicOn(readCrypticCaboose(f, &cab1, symkey, nil))
+
+		if !cab.Equal(&cab1) {
+			panic("not inverses: cab1 != cab")
+		}
 	})
 }

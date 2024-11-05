@@ -2,6 +2,8 @@ package rpc25519
 
 import (
 	"bytes"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/ed25519"
 	cryrand "crypto/rand"
 	"crypto/sha256"
@@ -49,13 +51,14 @@ import (
 //
 // It can also provide post-quantum resistance for the TCP
 // alone option, but this is still vulnerable to active
-// replay/DoS attacks. For details of such attacks, see for example the
+// denial-of-service (DoS) attacks. For details of such
+// attacks, see for example the
 // discussion under "DoS Mitigation" in the
 // Wireguard docs: https://www.wireguard.com/protocol/
 //
 // We cannot, therefore, recommend that you use TCP alone --
 // even if secured by the ephemeral ECDH handshake with PSK --
-// unless your application's security model can afford
+// _unless_ your application's security model can afford
 // to ignore active attackers and denial-of-service attacks.
 // This may be the case if you are already inside a VPN,
 // for instance. Then opting for triple encryption
@@ -64,7 +67,7 @@ import (
 // rotate them, then under this scenario opting for just
 // two layers (VPN + TCP with PSK symmetric encryption)
 // might make sense. However consider the limitations of
-// your VPN carefully[2], as needs to help with replay/DoS
+// your VPN carefully[2], as needs to help with active DoS
 // attacks since TCP + PSK alone is weak there.
 //
 // [1] Using the "HMAC-based Extract-and-Expand Key Derivation
@@ -166,19 +169,57 @@ func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedRandomSecret [32]
 	return
 }
 
-//go:generate greenpack
+//go:generate greenpack -unexported
 
-// VerifiedHandshake lets us verify that our CA has signed
+// verifiedHandshake lets us verify that our CA has signed
 // the SigningCert, and that the SigningCert has in turn signed
 // the EphemPubKey. The EphemPubKey is X25519 not ed25519,
 // but that is the right thing for doing the ephemeral
 // elliptic curve Diffie-Hellman handshake that gives us
 // a shared secret to mix with our pre-shared key.
-type VerifiedHandshake struct {
-	EphemPubKey      []byte `zid:"0"`
-	SignatureOfEphem []byte `zid:"1"`
-	SigningCert      []byte `zid:"2"`
+type verifiedHandshake struct {
+	EphemPubKey      []byte    `zid:"0"`
+	SignatureOfEphem []byte    `zid:"1"`
+	SigningCert      []byte    `zid:"2"`
+	SenderSentAt     time.Time `zid:"3"`
 }
+
+// caboose may be sent (only on server response,
+// encrypted with symm key); if useCaboose is true.
+//
+// The caboose is here to match what TLS does if we are being
+// used without an outer wrapper: to immediately
+// use the symmetric encryption key to verify the
+// previously received handshake and thereby to allow the
+// client detect and reject replay/active attacks.
+//
+// It is only sent by the server after the
+// server's verifiedHandshake response. It is
+// only verified by the client--at the moment--
+// so that we don't need another round trip. Everything
+// is encrypted anyway with the symmetric key after
+// the handshake, and authenticated with that key
+// since AEAD is used, so this is largely redundant.
+//
+// Possible rationale: belt and suspenders,
+// defense in depth? Certainly the client
+// can detect and drop a falty connection faster this
+// way, since output of the encryption
+// using the symmetric key is available
+// immediately for checking.
+type caboose struct {
+	RespondingToTag   []byte    `zid:"0"` // copy of the Auth tag of the initiating shake. (32 bytes)
+	ClientEphemPubKey []byte    `zid:"1"` // 32 bytes
+	ServerEphemPubKey []byte    `zid:"2"` // 32 bytes
+	ClientSentAt      time.Time `zid:"3"` // 12 bytes
+	ServerSentAt      time.Time `zid:"4"` // 12 bytes
+	ClientSigningCert []byte    `zid:"5"` // 540 bytes
+	ServerSigningCert []byte    `zid:"6"` // 540 bytes
+}
+
+const useCaboose = true
+
+const maxCabooseBytes = 1450
 
 // VerifiedHandshake when encoded to greenpack
 // must be under this length in bytes.
@@ -186,7 +227,7 @@ type VerifiedHandshake struct {
 // messages. It prevents DDOS/Denial of service
 // attacks, because we cannot be tricked into allocating
 // more than this.
-const maxHandshakeBytes = 785
+const maxHandshakeBytes = 914
 
 // symmetricServerVerifiedHandshake
 // is a version of the above that also checks the counterparty's
@@ -217,10 +258,10 @@ func symmetricServerVerifiedHandshake(
 
 	// Read the client's public key/handshake. Server *must* read first, since
 	// QUIC streams are only established when the client writes.
-	var cshake VerifiedHandshake
+	var cshake verifiedHandshake
 
 	timeout := time.Second * 10
-	err = readLenThenShakeTag(conn, &cshake, &timeout)
+	cshakeTag, err := readLenThenShakeTag(conn, &cshake, &timeout)
 	if err != nil {
 		err0 = fmt.Errorf("at server could not decode from client the client handshake: '%v'", err)
 		return
@@ -271,13 +312,15 @@ func symmetricServerVerifiedHandshake(
 	// Otherwise we don't even bother generating the network traffic.
 
 	// server shake
-	sshake := VerifiedHandshake{
+	sshake := verifiedHandshake{
 		EphemPubKey:      srvEphemPub,
 		SignatureOfEphem: signature,
 		SigningCert:      creds.NodeCert.Raw,
+		SenderSentAt:     time.Now(),
 	}
+	//vv("len SigningCert = %v", len(sshake.SigningCert)) // 540
 
-	err = sendLenThenShakeTag(conn, &sshake, &timeout)
+	_, err = sendLenThenShakeTag(conn, &sshake, &timeout)
 	if err != nil {
 		err0 = fmt.Errorf("at server, could not encode/send our server side handshake: '%v'", err)
 		return
@@ -300,6 +343,22 @@ func symmetricServerVerifiedHandshake(
 
 	// Print the symmetric key (for demonstration purposes)
 	//fmt.Printf("(verified) Server derived symmetric key: %x\n", sharedRandomSecret[:])
+
+	if useCaboose {
+		cab := &caboose{
+			RespondingToTag:   cshakeTag,
+			ClientEphemPubKey: cshake.EphemPubKey,
+			ServerEphemPubKey: sshake.EphemPubKey,
+			ClientSentAt:      cshake.SenderSentAt,
+			ServerSentAt:      sshake.SenderSentAt,
+			ClientSigningCert: cshake.SigningCert,
+			ServerSigningCert: sshake.SigningCert,
+		}
+		err0 = sendCrypticCaboose(conn, cab, sharedRandomSecret[:], &timeout)
+		if err0 != nil {
+			return
+		}
+	}
 
 	return
 }
@@ -431,21 +490,23 @@ func symmetricClientVerifiedHandshake(
 	// Sign the client's ephemeral public key with the static Ed25519 private key
 	signature := ed25519.Sign(creds.NodePrivateKey, cliEphemPub)
 
-	cshake := VerifiedHandshake{
+	cshake := verifiedHandshake{
 		EphemPubKey:      cliEphemPub,
 		SignatureOfEphem: signature,
 		SigningCert:      creds.NodeCert.Raw,
+		SenderSentAt:     time.Now(),
 	}
 
 	// client sending first to open quic stream (if using quic).
 	timeout := time.Second * 10
-	err0 = sendLenThenShakeTag(conn, &cshake, &timeout)
+	var cshakeTag []byte
+	cshakeTag, err0 = sendLenThenShakeTag(conn, &cshake, &timeout)
 	if err0 != nil {
 		return
 	}
 
-	var sshake VerifiedHandshake
-	err = readLenThenShakeTag(conn, &sshake, &timeout)
+	var sshake verifiedHandshake
+	_, err = readLenThenShakeTag(conn, &sshake, &timeout)
 	if err != nil {
 		err0 = fmt.Errorf("at client, could not decode from server the server handshake: '%v'", err)
 		return
@@ -507,6 +568,30 @@ func symmetricClientVerifiedHandshake(
 	}
 	sharedRandomSecret = deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(ssec, psk)
 
+	if useCaboose {
+		cab := &caboose{}
+		err0 = readCrypticCaboose(conn, cab, sharedRandomSecret[:], &timeout)
+		if err0 != nil {
+			return
+		}
+		// the legit server put the fields as:
+		expected := &caboose{
+			RespondingToTag:   cshakeTag,
+			ClientEphemPubKey: cshake.EphemPubKey,
+			ServerEphemPubKey: sshake.EphemPubKey,
+			ClientSentAt:      cshake.SenderSentAt,
+			ServerSentAt:      sshake.SenderSentAt,
+			ClientSigningCert: cshake.SigningCert,
+			ServerSigningCert: sshake.SigningCert,
+		}
+		if !cab.Equal(expected) {
+			err0 = fmt.Errorf("caboose mismatch: got '%#v'; \n\n versus expected '%#v'", cab, expected)
+			//vv("err0 = '%v'", err0)
+			return
+		}
+		//vv("caboose was as expected")
+	}
+
 	// Print the symmetric key (for demonstration purposes)
 	//fmt.Printf("(verified) Client derived symmetric key: %x\n", sharedRandomSecret[:])
 	return
@@ -514,12 +599,12 @@ func symmetricClientVerifiedHandshake(
 
 const authTagLen = 32
 
-func sendLenThenShakeTag(conn uConn, shake *VerifiedHandshake, timeout *time.Duration) error {
+func sendLenThenShakeTag(conn uConn, shake *verifiedHandshake, timeout *time.Duration) (authTag []byte, err error) {
 
 	var buf bytes.Buffer
-	err := msgp.Encode(&buf, shake)
+	err = msgp.Encode(&buf, shake)
 	if err != nil {
-		return fmt.Errorf("sendLenThenShake could not Encode: '%v'", err)
+		return nil, fmt.Errorf("sendLenThenShake could not Encode: '%v'", err)
 	}
 
 	shakeBytes := buf.Bytes()
@@ -545,36 +630,38 @@ func sendLenThenShakeTag(conn uConn, shake *VerifiedHandshake, timeout *time.Dur
 	// to be sure the data is the expected length.
 	// The len is all we've got at this point, so
 	// early (first thing) in the handshake.
-	authTag := computeHMAC(shakeBytes, allby[:8])
+	authTag = computeHMAC(shakeBytes, allby[:8])
 	allby = append(allby, authTag...)
 
 	// Write
-	if err := writeFull(conn, allby, timeout); err != nil {
-		return fmt.Errorf("sendLenThenShakeTagcould not write to conn: '%v'", err)
+	err = writeFull(conn, allby, timeout)
+	if err != nil {
+		return nil, fmt.Errorf("sendLenThenShakeTagcould not write to conn: '%v'", err)
 	}
 
-	return nil
+	return authTag, nil
 }
 
+// fills in shake as the major aim.
 // verifies the hmac tag, keeps length of handshake sane, under maxHandshakeBytes.
-func readLenThenShakeTag(conn uConn, shake *VerifiedHandshake, timeout *time.Duration) error {
+func readLenThenShakeTag(conn uConn, shake *verifiedHandshake, timeout *time.Duration) (tag []byte, err error) {
 
 	// Read the first 8 bytes for the Message length
 	var lenby [8]byte
 	if err := readFull(conn, lenby[:], timeout); err != nil {
-		return err
+		return nil, err
 	}
 	n := binary.BigEndian.Uint64(lenby[:])
 
 	// Read the message based on the messageLen
 	if n > maxHandshakeBytes {
 		// probably an encrypted client against an unencrypted server
-		return ErrTooLong
+		return nil, ErrTooLong
 	}
 
 	shakeAndTagBytes := make([]byte, n+authTagLen)
 	if err := readFull(conn, shakeAndTagBytes, timeout); err != nil {
-		return fmt.Errorf("readLenThenShakeTag error reading from conn: '%v'", err)
+		return nil, fmt.Errorf("readLenThenShakeTag error reading from conn: '%v'", err)
 	}
 
 	conveyedTag := shakeAndTagBytes[n:]
@@ -582,16 +669,17 @@ func readLenThenShakeTag(conn uConn, shake *VerifiedHandshake, timeout *time.Dur
 	computedTag := computeHMAC(shakeBytes, lenby[:])
 
 	if !bytes.Equal(conveyedTag, computedTag) {
-		return fmt.Errorf("auth tag did not match on handshake")
+		return nil, fmt.Errorf("auth tag did not match on handshake")
 	}
+	tag = conveyedTag
 
 	// after authentication, then msgp decode.
-	err := msgp.Decode(bytes.NewBuffer(shakeBytes), shake)
+	err = msgp.Decode(bytes.NewBuffer(shakeBytes), shake)
 	if err != nil {
-		return fmt.Errorf("could not msgp.Decode() handshake: '%v'", err)
+		return nil, fmt.Errorf("could not msgp.Decode() handshake: '%v'", err)
 	}
 
-	return nil
+	return
 }
 
 // isValidX25519PublicKey checks if the provided public key is a valid X25519 public key.
@@ -610,5 +698,146 @@ func isValidX25519PublicKey(pubKey []byte) (valid bool) {
 	}
 
 	// No further validation is necessary for X25519
+	return true
+}
+
+func sendCrypticCaboose(conn uConn, cab *caboose, symkey []byte, timeout *time.Duration) error {
+
+	if len(symkey) != 32 {
+		panic("symkey must be 32 bytes")
+	}
+
+	var bb bytes.Buffer
+	err := msgp.Encode(&bb, cab)
+	if err != nil {
+		return fmt.Errorf("sendCrypticCaboose could not Encode: '%v'", err)
+	}
+
+	bytesMsg := bb.Bytes()
+	if len(bytesMsg) > maxCabooseBytes {
+		panic(fmt.Sprintf("internal error, need to raise maxCabooseBytes? our "+
+			"caboose %v bytes is bigger than maxCabooseBytes = %v", len(bytesMsg), maxCabooseBytes))
+	}
+
+	block, err := aes.NewCipher(symkey)
+	panicOn(err)
+	aeadEnc, err := cipher.NewGCM(block)
+	panicOn(err)
+
+	noncesize := aeadEnc.NonceSize()
+	overhead := aeadEnc.Overhead()
+
+	n := len(bytesMsg)
+	sz := n + noncesize + overhead // does not include the 8 bytes len prefix.
+	buf := make([]byte, 8+sz)
+	nw := copy(buf[8+noncesize:8+noncesize+n], bytesMsg)
+	if nw != n {
+		panic("logic error above") // assert our copy was correct.
+	}
+
+	// write order/contents of buf:
+	// 8 bytes len ; sz = noncesize + n bytes cipher/plain text + authtag overhead (everything that follows).
+	// noncesize bytes of nonce
+	// len(bytesMsg) cyphertext
+	// authtag (overhead) bytes.
+
+	binary.BigEndian.PutUint64(buf[:8], uint64(sz))
+	assocData := buf[:8]
+
+	nonce := buf[8 : 8+noncesize]
+	_, err = cryrand.Read(nonce)
+	panicOn(err)
+
+	// Seal(dst, nonce, plaintext, associatedData) does not prepend the nonce,
+	// thus we must ourselves arrange that.
+	sealOut := aeadEnc.Seal(
+		buf[8+noncesize:8+noncesize],               // destination to be appended to;
+		buf[8:8+noncesize],                         // nonce
+		buf[8+noncesize:8+noncesize+len(bytesMsg)], // plaintext (will be overwritten with cyphertext)
+		assocData)
+
+	// assert all bytes present and accounted for.
+	if len(sealOut)+8+noncesize != len(buf) {
+		panic("internal miscalc; sealOut len != len(buf)")
+	}
+	return writeFull(conn, buf, timeout)
+}
+
+// fill in cab
+func readCrypticCaboose(conn uConn, cab *caboose, symkey []byte, timeout *time.Duration) error {
+
+	if len(symkey) != 32 {
+		panic("symkey must be 32 bytes")
+	}
+
+	// Read the first 8 bytes for the Message length
+	var lenby [8]byte
+	if err := readFull(conn, lenby[:], timeout); err != nil {
+		return err
+	}
+	n := binary.BigEndian.Uint64(lenby[:])
+
+	if n > maxCabooseBytes {
+		// probably an encrypted client against an unencrypted server
+		return fmt.Errorf("Caboose too big: %v bytes indicated, but maxCabooseBytes = %v", n, maxCabooseBytes)
+	}
+	// Read the message based on the messageLen
+
+	block, err := aes.NewCipher(symkey)
+	panicOn(err)
+	aeadDec, err := cipher.NewGCM(block)
+	panicOn(err)
+
+	noncesize := aeadDec.NonceSize()
+	//overhead := aeadDec.Overhead()
+
+	// Read the encrypted data
+	encrypted := make([]byte, n)
+	err = readFull(conn, encrypted, timeout)
+	if err != nil {
+		return err
+	}
+
+	// Decrypt the data
+	assocData := lenby[:] // length of message should be authentic too.
+	nonce := encrypted[:noncesize]
+
+	message, err := aeadDec.Open(nil, nonce, encrypted[noncesize:], assocData)
+	if err != nil {
+		alwaysPrintf("decryption failure at readCrypticCaboose : '%v'", err)
+		return err
+	}
+
+	err = msgp.Decode(bytes.NewBuffer(message), cab)
+	if err != nil {
+		return fmt.Errorf("could not msgp.Decode() crypticCaboose: '%v'", err)
+	}
+
+	return nil
+}
+
+func (a *caboose) Equal(b *caboose) bool {
+	if !bytes.Equal(a.RespondingToTag, b.RespondingToTag) {
+		return false
+	}
+	if !bytes.Equal(a.ServerEphemPubKey, b.ServerEphemPubKey) {
+		return false
+	}
+	if !bytes.Equal(a.ClientEphemPubKey, b.ClientEphemPubKey) {
+		return false
+	}
+	if !a.ClientSentAt.Equal(b.ClientSentAt) {
+		return false
+	}
+	if !a.ServerSentAt.Equal(b.ServerSentAt) {
+		return false
+	}
+	if !bytes.Equal(a.ClientSigningCert, b.ClientSigningCert) {
+		return false
+	}
+	if !bytes.Equal(a.ServerSigningCert, b.ServerSigningCert) {
+		return false
+	}
+
 	return true
 }
