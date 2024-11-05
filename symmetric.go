@@ -203,7 +203,7 @@ type verifiedHandshake struct {
 //
 // Possible rationale: belt and suspenders,
 // defense in depth? Certainly the client
-// can detect and drop a falty connection faster this
+// can detect and drop a faulty connection faster this
 // way, since output of the encryption
 // using the symmetric key is available
 // immediately for checking.
