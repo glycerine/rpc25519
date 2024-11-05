@@ -79,8 +79,11 @@ func Test021_caboose_encrypt_decrypt(t *testing.T) {
 		_, err := cryrand.Read(symkey)
 		panicOn(err)
 
-		tag := make([]byte, 32)
-		_, err = cryrand.Read(tag)
+		cshakeTag := make([]byte, 32)
+		_, err = cryrand.Read(cshakeTag)
+		panicOn(err)
+		sshakeTag := make([]byte, 32)
+		_, err = cryrand.Read(sshakeTag)
 		panicOn(err)
 
 		clientSigningCert := make([]byte, 540)
@@ -97,7 +100,8 @@ func Test021_caboose_encrypt_decrypt(t *testing.T) {
 		now := time.Now()
 		f := &fakeConn{}
 		cab := &caboose{
-			RespondingToTag:   tag,
+			ClientAuthTag:     cshakeTag,
+			ServerAuthTag:     sshakeTag,
 			ClientEphemPubKey: key1[:],
 			ServerEphemPubKey: key2[:],
 			ClientSentAt:      now,

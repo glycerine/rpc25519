@@ -21,7 +21,7 @@ func (z *caboose) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields0zgensym_a7cb2775ed474a48_1 = 7
+	const maxFields0zgensym_a7cb2775ed474a48_1 = 10
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields0zgensym_a7cb2775ed474a48_1 uint32
@@ -70,9 +70,9 @@ doneWithStruct0zgensym_a7cb2775ed474a48_1:
 		switch curField0zgensym_a7cb2775ed474a48_1 {
 		// -- templateDecodeMsg ends here --
 
-		case "RespondingToTag_zid00_bin":
+		case "ClientAuthTag_zid00_bin":
 			found0zgensym_a7cb2775ed474a48_1[0] = true
-			z.RespondingToTag, err = dc.ReadBytes(z.RespondingToTag)
+			z.ClientAuthTag, err = dc.ReadBytes(z.ClientAuthTag)
 			if err != nil {
 				return
 			}
@@ -82,33 +82,51 @@ doneWithStruct0zgensym_a7cb2775ed474a48_1:
 			if err != nil {
 				return
 			}
-		case "ServerEphemPubKey_zid02_bin":
+		case "ClientSigOfEphem_zid02_bin":
 			found0zgensym_a7cb2775ed474a48_1[2] = true
-			z.ServerEphemPubKey, err = dc.ReadBytes(z.ServerEphemPubKey)
+			z.ClientSigOfEphem, err = dc.ReadBytes(z.ClientSigOfEphem)
 			if err != nil {
 				return
 			}
-		case "ClientSentAt_zid03_tim":
+		case "ClientSigningCert_zid03_bin":
 			found0zgensym_a7cb2775ed474a48_1[3] = true
-			z.ClientSentAt, err = dc.ReadTime()
-			if err != nil {
-				return
-			}
-		case "ServerSentAt_zid04_tim":
-			found0zgensym_a7cb2775ed474a48_1[4] = true
-			z.ServerSentAt, err = dc.ReadTime()
-			if err != nil {
-				return
-			}
-		case "ClientSigningCert_zid05_bin":
-			found0zgensym_a7cb2775ed474a48_1[5] = true
 			z.ClientSigningCert, err = dc.ReadBytes(z.ClientSigningCert)
 			if err != nil {
 				return
 			}
-		case "ServerSigningCert_zid06_bin":
+		case "ClientSentAt_zid04_tim":
+			found0zgensym_a7cb2775ed474a48_1[4] = true
+			z.ClientSentAt, err = dc.ReadTime()
+			if err != nil {
+				return
+			}
+		case "ServerAuthTag_zid05_bin":
+			found0zgensym_a7cb2775ed474a48_1[5] = true
+			z.ServerAuthTag, err = dc.ReadBytes(z.ServerAuthTag)
+			if err != nil {
+				return
+			}
+		case "ServerEphemPubKey_zid06_bin":
 			found0zgensym_a7cb2775ed474a48_1[6] = true
+			z.ServerEphemPubKey, err = dc.ReadBytes(z.ServerEphemPubKey)
+			if err != nil {
+				return
+			}
+		case "ServerSigOfEphem_zid07_bin":
+			found0zgensym_a7cb2775ed474a48_1[7] = true
+			z.ServerSigOfEphem, err = dc.ReadBytes(z.ServerSigOfEphem)
+			if err != nil {
+				return
+			}
+		case "ServerSigningCert_zid08_bin":
+			found0zgensym_a7cb2775ed474a48_1[8] = true
 			z.ServerSigningCert, err = dc.ReadBytes(z.ServerSigningCert)
+			if err != nil {
+				return
+			}
+		case "ServerSentAt_zid09_tim":
+			found0zgensym_a7cb2775ed474a48_1[9] = true
+			z.ServerSentAt, err = dc.ReadTime()
 			if err != nil {
 				return
 			}
@@ -135,17 +153,17 @@ doneWithStruct0zgensym_a7cb2775ed474a48_1:
 }
 
 // fields of caboose
-var decodeMsgFieldOrder0zgensym_a7cb2775ed474a48_1 = []string{"RespondingToTag_zid00_bin", "ClientEphemPubKey_zid01_bin", "ServerEphemPubKey_zid02_bin", "ClientSentAt_zid03_tim", "ServerSentAt_zid04_tim", "ClientSigningCert_zid05_bin", "ServerSigningCert_zid06_bin"}
+var decodeMsgFieldOrder0zgensym_a7cb2775ed474a48_1 = []string{"ClientAuthTag_zid00_bin", "ClientEphemPubKey_zid01_bin", "ClientSigOfEphem_zid02_bin", "ClientSigningCert_zid03_bin", "ClientSentAt_zid04_tim", "ServerAuthTag_zid05_bin", "ServerEphemPubKey_zid06_bin", "ServerSigOfEphem_zid07_bin", "ServerSigningCert_zid08_bin", "ServerSentAt_zid09_tim"}
 
-var decodeMsgFieldSkip0zgensym_a7cb2775ed474a48_1 = []bool{false, false, false, false, false, false, false}
+var decodeMsgFieldSkip0zgensym_a7cb2775ed474a48_1 = []bool{false, false, false, false, false, false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *caboose) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 7
+		return 10
 	}
-	var fieldsInUse uint32 = 7
-	isempty[0] = (len(z.RespondingToTag) == 0) // string, omitempty
+	var fieldsInUse uint32 = 10
+	isempty[0] = (len(z.ClientAuthTag) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
 	}
@@ -153,24 +171,36 @@ func (z *caboose) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[1] {
 		fieldsInUse--
 	}
-	isempty[2] = (len(z.ServerEphemPubKey) == 0) // string, omitempty
+	isempty[2] = (len(z.ClientSigOfEphem) == 0) // string, omitempty
 	if isempty[2] {
 		fieldsInUse--
 	}
-	isempty[3] = (z.ClientSentAt.IsZero()) // time.Time, omitempty
+	isempty[3] = (len(z.ClientSigningCert) == 0) // string, omitempty
 	if isempty[3] {
 		fieldsInUse--
 	}
-	isempty[4] = (z.ServerSentAt.IsZero()) // time.Time, omitempty
+	isempty[4] = (z.ClientSentAt.IsZero()) // time.Time, omitempty
 	if isempty[4] {
 		fieldsInUse--
 	}
-	isempty[5] = (len(z.ClientSigningCert) == 0) // string, omitempty
+	isempty[5] = (len(z.ServerAuthTag) == 0) // string, omitempty
 	if isempty[5] {
 		fieldsInUse--
 	}
-	isempty[6] = (len(z.ServerSigningCert) == 0) // string, omitempty
+	isempty[6] = (len(z.ServerEphemPubKey) == 0) // string, omitempty
 	if isempty[6] {
+		fieldsInUse--
+	}
+	isempty[7] = (len(z.ServerSigOfEphem) == 0) // string, omitempty
+	if isempty[7] {
+		fieldsInUse--
+	}
+	isempty[8] = (len(z.ServerSigningCert) == 0) // string, omitempty
+	if isempty[8] {
+		fieldsInUse--
+	}
+	isempty[9] = (z.ServerSentAt.IsZero()) // time.Time, omitempty
+	if isempty[9] {
 		fieldsInUse--
 	}
 
@@ -184,7 +214,7 @@ func (z *caboose) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_a7cb2775ed474a48_2 [7]bool
+	var empty_zgensym_a7cb2775ed474a48_2 [10]bool
 	fieldsInUse_zgensym_a7cb2775ed474a48_3 := z.fieldsNotEmpty(empty_zgensym_a7cb2775ed474a48_2[:])
 
 	// map header
@@ -204,12 +234,12 @@ func (z *caboose) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_a7cb2775ed474a48_2[0] {
-		// write "RespondingToTag_zid00_bin"
-		err = en.Append(0xb9, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x64, 0x69, 0x6e, 0x67, 0x54, 0x6f, 0x54, 0x61, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x62, 0x69, 0x6e)
+		// write "ClientAuthTag_zid00_bin"
+		err = en.Append(0xb7, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x41, 0x75, 0x74, 0x68, 0x54, 0x61, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x62, 0x69, 0x6e)
 		if err != nil {
 			return err
 		}
-		err = en.WriteBytes(z.RespondingToTag)
+		err = en.WriteBytes(z.ClientAuthTag)
 		if err != nil {
 			return
 		}
@@ -228,44 +258,20 @@ func (z *caboose) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_a7cb2775ed474a48_2[2] {
-		// write "ServerEphemPubKey_zid02_bin"
-		err = en.Append(0xbb, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x45, 0x70, 0x68, 0x65, 0x6d, 0x50, 0x75, 0x62, 0x4b, 0x65, 0x79, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x62, 0x69, 0x6e)
+		// write "ClientSigOfEphem_zid02_bin"
+		err = en.Append(0xba, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x53, 0x69, 0x67, 0x4f, 0x66, 0x45, 0x70, 0x68, 0x65, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x62, 0x69, 0x6e)
 		if err != nil {
 			return err
 		}
-		err = en.WriteBytes(z.ServerEphemPubKey)
+		err = en.WriteBytes(z.ClientSigOfEphem)
 		if err != nil {
 			return
 		}
 	}
 
 	if !empty_zgensym_a7cb2775ed474a48_2[3] {
-		// write "ClientSentAt_zid03_tim"
-		err = en.Append(0xb6, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x53, 0x65, 0x6e, 0x74, 0x41, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x74, 0x69, 0x6d)
-		if err != nil {
-			return err
-		}
-		err = en.WriteTime(z.ClientSentAt)
-		if err != nil {
-			return
-		}
-	}
-
-	if !empty_zgensym_a7cb2775ed474a48_2[4] {
-		// write "ServerSentAt_zid04_tim"
-		err = en.Append(0xb6, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x65, 0x6e, 0x74, 0x41, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x74, 0x69, 0x6d)
-		if err != nil {
-			return err
-		}
-		err = en.WriteTime(z.ServerSentAt)
-		if err != nil {
-			return
-		}
-	}
-
-	if !empty_zgensym_a7cb2775ed474a48_2[5] {
-		// write "ClientSigningCert_zid05_bin"
-		err = en.Append(0xbb, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x53, 0x69, 0x67, 0x6e, 0x69, 0x6e, 0x67, 0x43, 0x65, 0x72, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x62, 0x69, 0x6e)
+		// write "ClientSigningCert_zid03_bin"
+		err = en.Append(0xbb, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x53, 0x69, 0x67, 0x6e, 0x69, 0x6e, 0x67, 0x43, 0x65, 0x72, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x62, 0x69, 0x6e)
 		if err != nil {
 			return err
 		}
@@ -275,13 +281,73 @@ func (z *caboose) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_a7cb2775ed474a48_2[4] {
+		// write "ClientSentAt_zid04_tim"
+		err = en.Append(0xb6, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x53, 0x65, 0x6e, 0x74, 0x41, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x74, 0x69, 0x6d)
+		if err != nil {
+			return err
+		}
+		err = en.WriteTime(z.ClientSentAt)
+		if err != nil {
+			return
+		}
+	}
+
+	if !empty_zgensym_a7cb2775ed474a48_2[5] {
+		// write "ServerAuthTag_zid05_bin"
+		err = en.Append(0xb7, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x41, 0x75, 0x74, 0x68, 0x54, 0x61, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x62, 0x69, 0x6e)
+		if err != nil {
+			return err
+		}
+		err = en.WriteBytes(z.ServerAuthTag)
+		if err != nil {
+			return
+		}
+	}
+
 	if !empty_zgensym_a7cb2775ed474a48_2[6] {
-		// write "ServerSigningCert_zid06_bin"
-		err = en.Append(0xbb, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x69, 0x67, 0x6e, 0x69, 0x6e, 0x67, 0x43, 0x65, 0x72, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x62, 0x69, 0x6e)
+		// write "ServerEphemPubKey_zid06_bin"
+		err = en.Append(0xbb, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x45, 0x70, 0x68, 0x65, 0x6d, 0x50, 0x75, 0x62, 0x4b, 0x65, 0x79, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x62, 0x69, 0x6e)
+		if err != nil {
+			return err
+		}
+		err = en.WriteBytes(z.ServerEphemPubKey)
+		if err != nil {
+			return
+		}
+	}
+
+	if !empty_zgensym_a7cb2775ed474a48_2[7] {
+		// write "ServerSigOfEphem_zid07_bin"
+		err = en.Append(0xba, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x69, 0x67, 0x4f, 0x66, 0x45, 0x70, 0x68, 0x65, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x62, 0x69, 0x6e)
+		if err != nil {
+			return err
+		}
+		err = en.WriteBytes(z.ServerSigOfEphem)
+		if err != nil {
+			return
+		}
+	}
+
+	if !empty_zgensym_a7cb2775ed474a48_2[8] {
+		// write "ServerSigningCert_zid08_bin"
+		err = en.Append(0xbb, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x69, 0x67, 0x6e, 0x69, 0x6e, 0x67, 0x43, 0x65, 0x72, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x62, 0x69, 0x6e)
 		if err != nil {
 			return err
 		}
 		err = en.WriteBytes(z.ServerSigningCert)
+		if err != nil {
+			return
+		}
+	}
+
+	if !empty_zgensym_a7cb2775ed474a48_2[9] {
+		// write "ServerSentAt_zid09_tim"
+		err = en.Append(0xb6, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x65, 0x6e, 0x74, 0x41, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x39, 0x5f, 0x74, 0x69, 0x6d)
+		if err != nil {
+			return err
+		}
+		err = en.WriteTime(z.ServerSentAt)
 		if err != nil {
 			return
 		}
@@ -299,14 +365,14 @@ func (z *caboose) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [7]bool
+	var empty [10]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
 	if !empty[0] {
-		// string "RespondingToTag_zid00_bin"
-		o = append(o, 0xb9, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x64, 0x69, 0x6e, 0x67, 0x54, 0x6f, 0x54, 0x61, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x62, 0x69, 0x6e)
-		o = msgp.AppendBytes(o, z.RespondingToTag)
+		// string "ClientAuthTag_zid00_bin"
+		o = append(o, 0xb7, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x41, 0x75, 0x74, 0x68, 0x54, 0x61, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x62, 0x69, 0x6e)
+		o = msgp.AppendBytes(o, z.ClientAuthTag)
 	}
 
 	if !empty[1] {
@@ -316,33 +382,51 @@ func (z *caboose) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[2] {
-		// string "ServerEphemPubKey_zid02_bin"
-		o = append(o, 0xbb, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x45, 0x70, 0x68, 0x65, 0x6d, 0x50, 0x75, 0x62, 0x4b, 0x65, 0x79, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x62, 0x69, 0x6e)
-		o = msgp.AppendBytes(o, z.ServerEphemPubKey)
+		// string "ClientSigOfEphem_zid02_bin"
+		o = append(o, 0xba, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x53, 0x69, 0x67, 0x4f, 0x66, 0x45, 0x70, 0x68, 0x65, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x62, 0x69, 0x6e)
+		o = msgp.AppendBytes(o, z.ClientSigOfEphem)
 	}
 
 	if !empty[3] {
-		// string "ClientSentAt_zid03_tim"
-		o = append(o, 0xb6, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x53, 0x65, 0x6e, 0x74, 0x41, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x74, 0x69, 0x6d)
-		o = msgp.AppendTime(o, z.ClientSentAt)
-	}
-
-	if !empty[4] {
-		// string "ServerSentAt_zid04_tim"
-		o = append(o, 0xb6, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x65, 0x6e, 0x74, 0x41, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x74, 0x69, 0x6d)
-		o = msgp.AppendTime(o, z.ServerSentAt)
-	}
-
-	if !empty[5] {
-		// string "ClientSigningCert_zid05_bin"
-		o = append(o, 0xbb, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x53, 0x69, 0x67, 0x6e, 0x69, 0x6e, 0x67, 0x43, 0x65, 0x72, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x62, 0x69, 0x6e)
+		// string "ClientSigningCert_zid03_bin"
+		o = append(o, 0xbb, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x53, 0x69, 0x67, 0x6e, 0x69, 0x6e, 0x67, 0x43, 0x65, 0x72, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x62, 0x69, 0x6e)
 		o = msgp.AppendBytes(o, z.ClientSigningCert)
 	}
 
+	if !empty[4] {
+		// string "ClientSentAt_zid04_tim"
+		o = append(o, 0xb6, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x53, 0x65, 0x6e, 0x74, 0x41, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x74, 0x69, 0x6d)
+		o = msgp.AppendTime(o, z.ClientSentAt)
+	}
+
+	if !empty[5] {
+		// string "ServerAuthTag_zid05_bin"
+		o = append(o, 0xb7, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x41, 0x75, 0x74, 0x68, 0x54, 0x61, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x62, 0x69, 0x6e)
+		o = msgp.AppendBytes(o, z.ServerAuthTag)
+	}
+
 	if !empty[6] {
-		// string "ServerSigningCert_zid06_bin"
-		o = append(o, 0xbb, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x69, 0x67, 0x6e, 0x69, 0x6e, 0x67, 0x43, 0x65, 0x72, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x62, 0x69, 0x6e)
+		// string "ServerEphemPubKey_zid06_bin"
+		o = append(o, 0xbb, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x45, 0x70, 0x68, 0x65, 0x6d, 0x50, 0x75, 0x62, 0x4b, 0x65, 0x79, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x62, 0x69, 0x6e)
+		o = msgp.AppendBytes(o, z.ServerEphemPubKey)
+	}
+
+	if !empty[7] {
+		// string "ServerSigOfEphem_zid07_bin"
+		o = append(o, 0xba, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x69, 0x67, 0x4f, 0x66, 0x45, 0x70, 0x68, 0x65, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x62, 0x69, 0x6e)
+		o = msgp.AppendBytes(o, z.ServerSigOfEphem)
+	}
+
+	if !empty[8] {
+		// string "ServerSigningCert_zid08_bin"
+		o = append(o, 0xbb, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x69, 0x67, 0x6e, 0x69, 0x6e, 0x67, 0x43, 0x65, 0x72, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x62, 0x69, 0x6e)
 		o = msgp.AppendBytes(o, z.ServerSigningCert)
+	}
+
+	if !empty[9] {
+		// string "ServerSentAt_zid09_tim"
+		o = append(o, 0xb6, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x65, 0x6e, 0x74, 0x41, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x39, 0x5f, 0x74, 0x69, 0x6d)
+		o = msgp.AppendTime(o, z.ServerSentAt)
 	}
 
 	return
@@ -363,7 +447,7 @@ func (z *caboose) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []
 
 	var field []byte
 	_ = field
-	const maxFields4zgensym_a7cb2775ed474a48_5 = 7
+	const maxFields4zgensym_a7cb2775ed474a48_5 = 10
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields4zgensym_a7cb2775ed474a48_5 uint32
@@ -413,15 +497,15 @@ doneWithStruct4zgensym_a7cb2775ed474a48_5:
 		switch curField4zgensym_a7cb2775ed474a48_5 {
 		// -- templateUnmarshalMsg ends here --
 
-		case "RespondingToTag_zid00_bin":
+		case "ClientAuthTag_zid00_bin":
 			found4zgensym_a7cb2775ed474a48_5[0] = true
 			if nbs.AlwaysNil || msgp.IsNil(bts) {
 				if !nbs.AlwaysNil {
 					bts = bts[1:]
 				}
-				z.RespondingToTag = z.RespondingToTag[:0]
+				z.ClientAuthTag = z.ClientAuthTag[:0]
 			} else {
-				z.RespondingToTag, bts, err = nbs.ReadBytesBytes(bts, z.RespondingToTag)
+				z.ClientAuthTag, bts, err = nbs.ReadBytesBytes(bts, z.ClientAuthTag)
 
 				if err != nil {
 					return
@@ -447,15 +531,15 @@ doneWithStruct4zgensym_a7cb2775ed474a48_5:
 			if err != nil {
 				return
 			}
-		case "ServerEphemPubKey_zid02_bin":
+		case "ClientSigOfEphem_zid02_bin":
 			found4zgensym_a7cb2775ed474a48_5[2] = true
 			if nbs.AlwaysNil || msgp.IsNil(bts) {
 				if !nbs.AlwaysNil {
 					bts = bts[1:]
 				}
-				z.ServerEphemPubKey = z.ServerEphemPubKey[:0]
+				z.ClientSigOfEphem = z.ClientSigOfEphem[:0]
 			} else {
-				z.ServerEphemPubKey, bts, err = nbs.ReadBytesBytes(bts, z.ServerEphemPubKey)
+				z.ClientSigOfEphem, bts, err = nbs.ReadBytesBytes(bts, z.ClientSigOfEphem)
 
 				if err != nil {
 					return
@@ -464,22 +548,8 @@ doneWithStruct4zgensym_a7cb2775ed474a48_5:
 			if err != nil {
 				return
 			}
-		case "ClientSentAt_zid03_tim":
+		case "ClientSigningCert_zid03_bin":
 			found4zgensym_a7cb2775ed474a48_5[3] = true
-			z.ClientSentAt, bts, err = nbs.ReadTimeBytes(bts)
-
-			if err != nil {
-				return
-			}
-		case "ServerSentAt_zid04_tim":
-			found4zgensym_a7cb2775ed474a48_5[4] = true
-			z.ServerSentAt, bts, err = nbs.ReadTimeBytes(bts)
-
-			if err != nil {
-				return
-			}
-		case "ClientSigningCert_zid05_bin":
-			found4zgensym_a7cb2775ed474a48_5[5] = true
 			if nbs.AlwaysNil || msgp.IsNil(bts) {
 				if !nbs.AlwaysNil {
 					bts = bts[1:]
@@ -495,8 +565,66 @@ doneWithStruct4zgensym_a7cb2775ed474a48_5:
 			if err != nil {
 				return
 			}
-		case "ServerSigningCert_zid06_bin":
+		case "ClientSentAt_zid04_tim":
+			found4zgensym_a7cb2775ed474a48_5[4] = true
+			z.ClientSentAt, bts, err = nbs.ReadTimeBytes(bts)
+
+			if err != nil {
+				return
+			}
+		case "ServerAuthTag_zid05_bin":
+			found4zgensym_a7cb2775ed474a48_5[5] = true
+			if nbs.AlwaysNil || msgp.IsNil(bts) {
+				if !nbs.AlwaysNil {
+					bts = bts[1:]
+				}
+				z.ServerAuthTag = z.ServerAuthTag[:0]
+			} else {
+				z.ServerAuthTag, bts, err = nbs.ReadBytesBytes(bts, z.ServerAuthTag)
+
+				if err != nil {
+					return
+				}
+			}
+			if err != nil {
+				return
+			}
+		case "ServerEphemPubKey_zid06_bin":
 			found4zgensym_a7cb2775ed474a48_5[6] = true
+			if nbs.AlwaysNil || msgp.IsNil(bts) {
+				if !nbs.AlwaysNil {
+					bts = bts[1:]
+				}
+				z.ServerEphemPubKey = z.ServerEphemPubKey[:0]
+			} else {
+				z.ServerEphemPubKey, bts, err = nbs.ReadBytesBytes(bts, z.ServerEphemPubKey)
+
+				if err != nil {
+					return
+				}
+			}
+			if err != nil {
+				return
+			}
+		case "ServerSigOfEphem_zid07_bin":
+			found4zgensym_a7cb2775ed474a48_5[7] = true
+			if nbs.AlwaysNil || msgp.IsNil(bts) {
+				if !nbs.AlwaysNil {
+					bts = bts[1:]
+				}
+				z.ServerSigOfEphem = z.ServerSigOfEphem[:0]
+			} else {
+				z.ServerSigOfEphem, bts, err = nbs.ReadBytesBytes(bts, z.ServerSigOfEphem)
+
+				if err != nil {
+					return
+				}
+			}
+			if err != nil {
+				return
+			}
+		case "ServerSigningCert_zid08_bin":
+			found4zgensym_a7cb2775ed474a48_5[8] = true
 			if nbs.AlwaysNil || msgp.IsNil(bts) {
 				if !nbs.AlwaysNil {
 					bts = bts[1:]
@@ -509,6 +637,13 @@ doneWithStruct4zgensym_a7cb2775ed474a48_5:
 					return
 				}
 			}
+			if err != nil {
+				return
+			}
+		case "ServerSentAt_zid09_tim":
+			found4zgensym_a7cb2775ed474a48_5[9] = true
+			z.ServerSentAt, bts, err = nbs.ReadTimeBytes(bts)
+
 			if err != nil {
 				return
 			}
@@ -535,13 +670,13 @@ doneWithStruct4zgensym_a7cb2775ed474a48_5:
 }
 
 // fields of caboose
-var unmarshalMsgFieldOrder4zgensym_a7cb2775ed474a48_5 = []string{"RespondingToTag_zid00_bin", "ClientEphemPubKey_zid01_bin", "ServerEphemPubKey_zid02_bin", "ClientSentAt_zid03_tim", "ServerSentAt_zid04_tim", "ClientSigningCert_zid05_bin", "ServerSigningCert_zid06_bin"}
+var unmarshalMsgFieldOrder4zgensym_a7cb2775ed474a48_5 = []string{"ClientAuthTag_zid00_bin", "ClientEphemPubKey_zid01_bin", "ClientSigOfEphem_zid02_bin", "ClientSigningCert_zid03_bin", "ClientSentAt_zid04_tim", "ServerAuthTag_zid05_bin", "ServerEphemPubKey_zid06_bin", "ServerSigOfEphem_zid07_bin", "ServerSigningCert_zid08_bin", "ServerSentAt_zid09_tim"}
 
-var unmarshalMsgFieldSkip4zgensym_a7cb2775ed474a48_5 = []bool{false, false, false, false, false, false, false}
+var unmarshalMsgFieldSkip4zgensym_a7cb2775ed474a48_5 = []bool{false, false, false, false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *caboose) Msgsize() (s int) {
-	s = 1 + 26 + msgp.BytesPrefixSize + len(z.RespondingToTag) + 28 + msgp.BytesPrefixSize + len(z.ClientEphemPubKey) + 28 + msgp.BytesPrefixSize + len(z.ServerEphemPubKey) + 23 + msgp.TimeSize + 23 + msgp.TimeSize + 28 + msgp.BytesPrefixSize + len(z.ClientSigningCert) + 28 + msgp.BytesPrefixSize + len(z.ServerSigningCert)
+	s = 1 + 24 + msgp.BytesPrefixSize + len(z.ClientAuthTag) + 28 + msgp.BytesPrefixSize + len(z.ClientEphemPubKey) + 27 + msgp.BytesPrefixSize + len(z.ClientSigOfEphem) + 28 + msgp.BytesPrefixSize + len(z.ClientSigningCert) + 23 + msgp.TimeSize + 24 + msgp.BytesPrefixSize + len(z.ServerAuthTag) + 28 + msgp.BytesPrefixSize + len(z.ServerEphemPubKey) + 27 + msgp.BytesPrefixSize + len(z.ServerSigOfEphem) + 28 + msgp.BytesPrefixSize + len(z.ServerSigningCert) + 23 + msgp.TimeSize
 	return
 }
 

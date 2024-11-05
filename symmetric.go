@@ -195,31 +195,32 @@ type verifiedHandshake struct {
 //
 // It is only sent by the server after the
 // server's verifiedHandshake response. It is
-// only verified by the client--at the moment--
+// only verified by the client
 // so that we don't need another round trip. Everything
 // is encrypted anyway with the symmetric key after
 // the handshake, and authenticated with that key
-// since AEAD is used, so this is largely redundant.
-//
-// Possible rationale: belt and suspenders,
-// defense in depth? Certainly the client
-// can detect and drop a faulty connection faster this
-// way, since output of the encryption
-// using the symmetric key is available
-// immediately for checking.
+// since AEAD is used, so this is
+// largely redundant, but does allow
+// the client to detect and drop a faulty
+// connection faster than waiting for
+// future communication to fail to decrypt.
 type caboose struct {
-	RespondingToTag   []byte    `zid:"0"` // copy of the Auth tag of the initiating shake. (32 bytes)
+	ClientAuthTag     []byte    `zid:"0"` // 32 bytes
 	ClientEphemPubKey []byte    `zid:"1"` // 32 bytes
-	ServerEphemPubKey []byte    `zid:"2"` // 32 bytes
-	ClientSentAt      time.Time `zid:"3"` // 12 bytes
-	ServerSentAt      time.Time `zid:"4"` // 12 bytes
-	ClientSigningCert []byte    `zid:"5"` // 540 bytes
-	ServerSigningCert []byte    `zid:"6"` // 540 bytes
+	ClientSigOfEphem  []byte    `zid:"2"` // 64 bytes
+	ClientSigningCert []byte    `zid:"3"` // 540 bytes
+	ClientSentAt      time.Time `zid:"4"` // 12 bytes
+
+	ServerAuthTag     []byte    `zid:"5"` // 32 bytes
+	ServerEphemPubKey []byte    `zid:"6"` // 32 bytes
+	ServerSigOfEphem  []byte    `zid:"7"` // 64 bytes
+	ServerSigningCert []byte    `zid:"8"` // 540 bytes
+	ServerSentAt      time.Time `zid:"9"` // 12 bytes
 }
 
 const useCaboose = true
 
-const maxCabooseBytes = 1450
+const maxCabooseBytes = 1690
 
 // VerifiedHandshake when encoded to greenpack
 // must be under this length in bytes.
@@ -320,7 +321,7 @@ func symmetricServerVerifiedHandshake(
 	}
 	//vv("len SigningCert = %v", len(sshake.SigningCert)) // 540
 
-	_, err = sendLenThenShakeTag(conn, &sshake, &timeout)
+	sshakeTag, err := sendLenThenShakeTag(conn, &sshake, &timeout)
 	if err != nil {
 		err0 = fmt.Errorf("at server, could not encode/send our server side handshake: '%v'", err)
 		return
@@ -346,13 +347,16 @@ func symmetricServerVerifiedHandshake(
 
 	if useCaboose {
 		cab := &caboose{
-			RespondingToTag:   cshakeTag,
+			ClientAuthTag:     cshakeTag,
+			ServerAuthTag:     sshakeTag,
 			ClientEphemPubKey: cshake.EphemPubKey,
 			ServerEphemPubKey: sshake.EphemPubKey,
 			ClientSentAt:      cshake.SenderSentAt,
 			ServerSentAt:      sshake.SenderSentAt,
 			ClientSigningCert: cshake.SigningCert,
 			ServerSigningCert: sshake.SigningCert,
+			ClientSigOfEphem:  cshake.SignatureOfEphem,
+			ServerSigOfEphem:  sshake.SignatureOfEphem,
 		}
 		err0 = sendCrypticCaboose(conn, cab, sharedRandomSecret[:], &timeout)
 		if err0 != nil {
@@ -506,7 +510,8 @@ func symmetricClientVerifiedHandshake(
 	}
 
 	var sshake verifiedHandshake
-	_, err = readLenThenShakeTag(conn, &sshake, &timeout)
+	var sshakeTag []byte
+	sshakeTag, err = readLenThenShakeTag(conn, &sshake, &timeout)
 	if err != nil {
 		err0 = fmt.Errorf("at client, could not decode from server the server handshake: '%v'", err)
 		return
@@ -576,13 +581,16 @@ func symmetricClientVerifiedHandshake(
 		}
 		// the legit server put the fields as:
 		expected := &caboose{
-			RespondingToTag:   cshakeTag,
+			ClientAuthTag:     cshakeTag,
+			ServerAuthTag:     sshakeTag,
 			ClientEphemPubKey: cshake.EphemPubKey,
 			ServerEphemPubKey: sshake.EphemPubKey,
 			ClientSentAt:      cshake.SenderSentAt,
 			ServerSentAt:      sshake.SenderSentAt,
 			ClientSigningCert: cshake.SigningCert,
 			ServerSigningCert: sshake.SigningCert,
+			ClientSigOfEphem:  cshake.SignatureOfEphem,
+			ServerSigOfEphem:  sshake.SignatureOfEphem,
 		}
 		if !cab.Equal(expected) {
 			err0 = fmt.Errorf("caboose mismatch: got '%#v'; \n\n versus expected '%#v'", cab, expected)
@@ -817,7 +825,10 @@ func readCrypticCaboose(conn uConn, cab *caboose, symkey []byte, timeout *time.D
 }
 
 func (a *caboose) Equal(b *caboose) bool {
-	if !bytes.Equal(a.RespondingToTag, b.RespondingToTag) {
+	if !bytes.Equal(a.ClientAuthTag, b.ClientAuthTag) {
+		return false
+	}
+	if !bytes.Equal(a.ServerAuthTag, b.ServerAuthTag) {
 		return false
 	}
 	if !bytes.Equal(a.ServerEphemPubKey, b.ServerEphemPubKey) {
@@ -838,6 +849,11 @@ func (a *caboose) Equal(b *caboose) bool {
 	if !bytes.Equal(a.ServerSigningCert, b.ServerSigningCert) {
 		return false
 	}
-
+	if !bytes.Equal(a.ClientSigOfEphem, b.ClientSigOfEphem) {
+		return false
+	}
+	if !bytes.Equal(a.ServerSigOfEphem, b.ServerSigOfEphem) {
+		return false
+	}
 	return true
 }
