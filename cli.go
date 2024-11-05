@@ -411,7 +411,9 @@ func (c *Client) runSendLoop(conn net.Conn) {
 			if time.Since(lastPing) > pingEvery {
 				err := w.sendMessage(conn, keepAliveMsg, &keepAliveWriteTimeout)
 				//vv("cli sent rpc25519 keep alive. err='%v'; keepAliveWriteTimeout='%v'", err, keepAliveWriteTimeout)
-				_ = err
+				if err != nil {
+					alwaysPrintf("client had problem sending keep alive: '%v'", err)
+				}
 				lastPing = now
 				pingWakeCh = time.After(pingEvery)
 			} else {
