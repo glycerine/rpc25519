@@ -15,6 +15,7 @@ import (
 
 	"github.com/glycerine/greenpack/msgp"
 	"github.com/glycerine/rpc25519/selfcert"
+	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/hkdf"
 )
@@ -155,13 +156,7 @@ func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedRandomSecret [32]
 	}
 
 	// Derive the final symmetric key using HKDF
-	var ssec [32]byte
-	n := copy(ssec[:], sharedSecret)
-	if n != 32 {
-		panic("sharedSecret must be 32 bytes")
-	}
-
-	sharedRandomSecret = deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(ssec, psk)
+	sharedRandomSecret = deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk[:])
 
 	// Print the symmetric key (for demonstration purposes)
 	//fmt.Printf("Server derived symmetric key: %x\n", sharedRandomSecret[:])
@@ -182,6 +177,16 @@ type verifiedHandshake struct {
 	SignatureOfEphem []byte    `zid:"1"`
 	SigningCert      []byte    `zid:"2"`
 	SenderSentAt     time.Time `zid:"3"`
+}
+
+type clientEncryptedHandshake struct {
+	CliEphemPubKey0 []byte `zid:"0"` // client's ephemeral public key 0
+	EncPayload      []byte `zid:"1"` // payload: verifiedHandshake, encrypted with client EphemPubKey.
+}
+
+type serverEncryptedHandshake struct {
+	SrvEphemPubKey0 []byte `zid:"0"` // server's ephemeral public key 0
+	EncPayload      []byte `zid:"1"` // payload: caboose, encrypted with dervied symmetric key.
 }
 
 // caboose may be sent (only on server response,
@@ -216,11 +221,14 @@ type caboose struct {
 	ServerSigOfEphem  []byte    `zid:"7"` // 64 bytes
 	ServerSigningCert []byte    `zid:"8"` // 540 bytes
 	ServerSentAt      time.Time `zid:"9"` // 12 bytes
+
+	// client must rotate to this new public key from server.
+	ServerNewPub []byte `zid:"10"` // 32 bytes
 }
 
 const useCaboose = true
 
-const maxCabooseBytes = 1690
+const maxCabooseBytes = 1750
 
 // VerifiedHandshake when encoded to greenpack
 // must be under this length in bytes.
@@ -334,18 +342,19 @@ func symmetricServerVerifiedHandshake(
 	}
 
 	// Derive the final symmetric key using HKDF
-	var ssec [32]byte
-	n := copy(ssec[:], sharedSecret)
-	if n != 32 {
-		panic("sharedSecret must be 32 bytes")
-	}
-
-	sharedRandomSecret = deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(ssec, psk)
+	sharedRandomSecret = deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk[:])
 
 	// Print the symmetric key (for demonstration purposes)
 	//fmt.Printf("(verified) Server derived symmetric key: %x\n", sharedRandomSecret[:])
 
 	if useCaboose {
+		// Generate new, 2nd, ephemeral X25519 key pair
+		serverEphemPrivateKey2, serverEphemPublicKey2, err := generateX25519KeyPair()
+		if err != nil {
+			err0 = fmt.Errorf("failed to generate server X25519 key pair: %v", err)
+			return
+		}
+
 		cab := &caboose{
 			ClientAuthTag:     cshakeTag,
 			ServerAuthTag:     sshakeTag,
@@ -357,11 +366,19 @@ func symmetricServerVerifiedHandshake(
 			ServerSigningCert: sshake.SigningCert,
 			ClientSigOfEphem:  cshake.SignatureOfEphem,
 			ServerSigOfEphem:  sshake.SignatureOfEphem,
+			ServerNewPub:      serverEphemPublicKey2[:],
 		}
 		err0 = sendCrypticCaboose(conn, cab, sharedRandomSecret[:], &timeout)
 		if err0 != nil {
 			return
 		}
+
+		// Compute the new shared secret, based on the serverEphemPrivateKey2
+		sharedSecret2, err := curve25519.X25519(serverEphemPrivateKey2[:], cshake.EphemPubKey)
+		if err != nil {
+			panic(err)
+		}
+		_ = sharedSecret2
 	}
 
 	return
@@ -396,12 +413,20 @@ func generateX25519KeyPair() (privateKey, publicKey [32]byte, err error) {
 	return privateKey, publicKey, nil
 }
 
-func deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk [32]byte) [32]byte {
+func deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk []byte) [32]byte {
+
+	if len(sharedSecret) != 32 {
+		panic("sharedSecret must be len 32")
+	}
+
+	if len(psk) != 32 {
+		panic("psk must be len 32")
+	}
 
 	// Use HKDF with SHA-256, mixing in the pre-shared key.
 	// Note that the psk plays the role of the "salt" in this,
 	// but still must be kept secret in our application.
-	hkdf := hkdf.New(sha256.New, sharedSecret[:], psk[:], nil)
+	hkdf := hkdf.New(sha256.New, sharedSecret, psk, nil)
 
 	var finalKey [32]byte
 	_, err := io.ReadFull(hkdf, finalKey[:])
@@ -457,12 +482,7 @@ func symmetricClientHandshake(conn uConn, psk [32]byte) (sharedRandomSecret [32]
 	}
 
 	// Derive the final symmetric key using HKDF
-	var ssec [32]byte
-	n := copy(ssec[:], sharedSecret)
-	if n != 32 {
-		panic("sharedSecret must be 32 bytes")
-	}
-	sharedRandomSecret = deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(ssec, psk)
+	sharedRandomSecret = deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk[:])
 
 	// Print the symmetric key (for demonstration purposes)
 	//fmt.Printf("Client derived symmetric key: %x\n", sharedRandomSecret[:])
@@ -566,12 +586,7 @@ func symmetricClientVerifiedHandshake(
 	}
 
 	// Derive the final symmetric key using HKDF
-	var ssec [32]byte
-	n := copy(ssec[:], sharedSecret)
-	if n != 32 {
-		panic("sharedSecret must be 32 bytes")
-	}
-	sharedRandomSecret = deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(ssec, psk)
+	sharedRandomSecret = deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk[:])
 
 	if useCaboose {
 		cab := &caboose{}
@@ -856,4 +871,361 @@ func (a *caboose) Equal(b *caboose) bool {
 		return false
 	}
 	return true
+}
+
+func encryptWithPubKey(
+	recipientPublicKey [32]byte,
+	plaintext []byte,
+) (ephemeralPublicKey [32]byte, ciphertext []byte, err0 error) {
+
+	// Generate ephemeral X25519 key pair
+	var ephemeralPrivateKey [32]byte
+	ephemeralPrivateKey, ephemeralPublicKey, err0 = generateX25519KeyPair()
+	panicOn(err0)
+
+	// Compute shared secret
+	sharedSecret, err := curve25519.X25519(ephemeralPrivateKey[:], recipientPublicKey[:])
+	panicOn(err)
+
+	// Derive symmetric key using HKDF with SHA-256
+	hkdf := hkdf.New(sha256.New, sharedSecret[:], nil, nil)
+	symmetricKey := make([]byte, chacha20poly1305.KeySize)
+	_, err0 = io.ReadFull(hkdf, symmetricKey)
+	panicOn(err0)
+
+	// Encrypt the plaintext using ChaCha20-Poly1305
+	aead, err := chacha20poly1305.New(symmetricKey)
+	panicOn(err)
+
+	nonce := make([]byte, aead.NonceSize())
+	_, err = cryrand.Read(nonce)
+	panicOn(err)
+
+	ciphertext = aead.Seal(nonce, nonce, plaintext, nil)
+	return
+}
+
+func decryptWithPrivKey(
+	recipientPrivateKey [32]byte,
+	ephemeralPublicKey [32]byte,
+	ciphertext []byte,
+) (plaintext []byte, err0 error) {
+
+	// Compute shared secret
+	sharedSecret, err := curve25519.X25519(recipientPrivateKey[:], ephemeralPublicKey[:])
+	panicOn(err)
+
+	// Derive symmetric key using HKDF with SHA-256
+	hkdf := hkdf.New(sha256.New, sharedSecret[:], nil, nil)
+	symmetricKey := make([]byte, chacha20poly1305.KeySize)
+	_, err = io.ReadFull(hkdf, symmetricKey)
+	panicOn(err)
+
+	// Decrypt the ciphertext using ChaCha20-Poly1305
+	aead, err := chacha20poly1305.New(symmetricKey)
+	panicOn(err)
+	if len(ciphertext) < aead.NonceSize() {
+		err0 = fmt.Errorf("decryptWithPrivKey(): ciphertext too short")
+		return
+	}
+	nonce, ct := ciphertext[:aead.NonceSize()], ciphertext[aead.NonceSize():]
+	return aead.Open(nil, nonce, ct, nil)
+}
+
+// handshakeRecord records what was exchanged and verified
+// between client and server.
+type handshakeRecord struct {
+	ClientAuthTag     []byte    `zid:"0"` // 32 bytes
+	ClientEphemPubKey []byte    `zid:"1"` // 32 bytes
+	ClientSigOfEphem  []byte    `zid:"2"` // 64 bytes
+	ClientSigningCert []byte    `zid:"3"` // 540 bytes
+	ClientSentAt      time.Time `zid:"4"` // 12 bytes
+
+	ServerAuthTag     []byte    `zid:"5"` // 32 bytes
+	ServerEphemPubKey []byte    `zid:"6"` // 32 bytes
+	ServerSigOfEphem  []byte    `zid:"7"` // 64 bytes
+	ServerSigningCert []byte    `zid:"8"` // 540 bytes
+	ServerSentAt      time.Time `zid:"9"` // 12 bytes
+
+	// client must rotate to this new public key from server.
+	ServerNewPub []byte `zid:"10"` // 32 bytes
+}
+
+// encrypt more with the public/private keys.
+func symmetricServerVerifiedHandshake2(
+	conn uConn,
+	psk [32]byte,
+	creds *selfcert.Creds,
+) (sharedRandomSecret [32]byte, rec *handshakeRecord, err0 error) {
+
+	var cliEphemPub, srvEphemPub []byte
+	_ = cliEphemPub
+	var clientStaticPubKey ed25519.PublicKey
+
+	//vv("server creds = '%#v'", creds)
+
+	// Generate ephemeral X25519 key pair
+	serverEphemPrivateKey, serverEphemPublicKey, err := generateX25519KeyPair()
+	if err != nil {
+		err0 = fmt.Errorf("failed to generate server X25519 key pair: %v", err)
+		return
+	}
+
+	// set return value
+	srvEphemPub = serverEphemPublicKey[:]
+
+	// Sign the server's ephemeral public key with the static Ed25519 private key
+	signature := ed25519.Sign(creds.NodePrivateKey, srvEphemPub)
+
+	// Read the client's public key/handshake. Server *must* read first, since
+	// QUIC streams are only established when the client writes.
+	var cshake verifiedHandshake
+
+	timeout := time.Second * 10
+	cshakeTag, err := readLenThenShakeTag(conn, &cshake, &timeout)
+	if err != nil {
+		err0 = fmt.Errorf("at server could not decode from client the client handshake: '%v'", err)
+		return
+	}
+
+	if !isValidX25519PublicKey(cshake.EphemPubKey) {
+		err0 = fmt.Errorf("we read an invalid client cshake ephem public key: '%x'", cshake.EphemPubKey)
+		return
+	}
+
+	// Parse the client's certificate
+	clientCert, err := x509.ParseCertificate(cshake.SigningCert)
+	if err != nil {
+		err0 = fmt.Errorf("failed to parse client certificate: %v", err)
+		return
+	}
+
+	// Verify the client's certificate against the CA
+	opts := x509.VerifyOptions{
+		Roots:         creds.CACertPool,
+		CurrentTime:   time.Now(),
+		Intermediates: x509.NewCertPool(),
+	}
+	if _, err = clientCert.Verify(opts); err != nil {
+		//vv("server sees bad client cert")
+		err0 = fmt.Errorf("server cannot verify client cert: %v", err)
+		return
+	}
+
+	// Extract the client's static Ed25519 public key from the certificate
+	var ok bool
+	clientStaticPubKey, ok = clientCert.PublicKey.(ed25519.PublicKey)
+	if !ok {
+		err0 = fmt.Errorf("client certificate does not contain an Ed25519 public key")
+		return
+	}
+
+	// Verify the client's signature on their ephemeral public key
+	if !ed25519.Verify(clientStaticPubKey, cshake.EphemPubKey, cshake.SignatureOfEphem) {
+		err0 = fmt.Errorf("client's ephemeral public key signature verification failed")
+		return
+	}
+
+	// set return value
+	cliEphemPub = cshake.EphemPubKey
+
+	// since client checked out so far, send our empheral key to handshake.
+	// Otherwise we don't even bother generating the network traffic.
+
+	// server shake
+	sshake := verifiedHandshake{
+		EphemPubKey:      srvEphemPub,
+		SignatureOfEphem: signature,
+		SigningCert:      creds.NodeCert.Raw,
+		SenderSentAt:     time.Now(),
+	}
+	//vv("len SigningCert = %v", len(sshake.SigningCert)) // 540
+
+	sshakeTag, err := sendLenThenShakeTag(conn, &sshake, &timeout)
+	if err != nil {
+		err0 = fmt.Errorf("at server, could not encode/send our server side handshake: '%v'", err)
+		return
+	}
+
+	// Compute the shared secret
+	sharedSecret, err := curve25519.X25519(serverEphemPrivateKey[:], cshake.EphemPubKey)
+	if err != nil {
+		panic(err)
+	}
+
+	// Derive the final symmetric key using HKDF
+	sharedRandomSecret = deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk[:])
+
+	// Print the symmetric key (for demonstration purposes)
+	//fmt.Printf("(verified) Server derived symmetric key: %x\n", sharedRandomSecret[:])
+
+	if useCaboose {
+		// Generate new, 2nd, ephemeral X25519 key pair
+		serverEphemPrivateKey2, serverEphemPublicKey2, err := generateX25519KeyPair()
+		if err != nil {
+			err0 = fmt.Errorf("failed to generate server X25519 key pair: %v", err)
+			return
+		}
+
+		cab := &caboose{
+			ClientAuthTag:     cshakeTag,
+			ServerAuthTag:     sshakeTag,
+			ClientEphemPubKey: cshake.EphemPubKey,
+			ServerEphemPubKey: sshake.EphemPubKey,
+			ClientSentAt:      cshake.SenderSentAt,
+			ServerSentAt:      sshake.SenderSentAt,
+			ClientSigningCert: cshake.SigningCert,
+			ServerSigningCert: sshake.SigningCert,
+			ClientSigOfEphem:  cshake.SignatureOfEphem,
+			ServerSigOfEphem:  sshake.SignatureOfEphem,
+			ServerNewPub:      serverEphemPublicKey2[:],
+		}
+		err0 = sendCrypticCaboose(conn, cab, sharedRandomSecret[:], &timeout)
+		if err0 != nil {
+			return
+		}
+
+		// Compute the new shared secret, based on the serverEphemPrivateKey2
+		sharedSecret2, err := curve25519.X25519(serverEphemPrivateKey2[:], cshake.EphemPubKey)
+		if err != nil {
+			panic(err)
+		}
+		_ = sharedSecret2
+	}
+
+	return
+}
+
+func symmetricClientVerifiedHandshake2(
+	conn uConn,
+	psk [32]byte,
+	creds *selfcert.Creds,
+) (sharedRandomSecret [32]byte, rec *handshakeRecord, err0 error) {
+
+	var cliEphemPub, srvEphemPub []byte
+	_ = srvEphemPub
+	var serverStaticPubKey ed25519.PublicKey
+
+	//vv("top of symmetricClientVerifiedHandshake")
+
+	//vv("client creds = '%#v'", creds)
+
+	// Generate ephemeral X25519 key pair
+	clientEphemPrivateKey, clientEphemPublicKey, err := generateX25519KeyPair()
+	if err != nil {
+		panic(err)
+	}
+
+	// set return value
+	cliEphemPub = clientEphemPublicKey[:]
+
+	// Send the client's public key to the server. Client must write first (for QUIC).
+
+	// Sign the client's ephemeral public key with the static Ed25519 private key
+	signature := ed25519.Sign(creds.NodePrivateKey, cliEphemPub)
+
+	cshake := verifiedHandshake{
+		EphemPubKey:      cliEphemPub,
+		SignatureOfEphem: signature,
+		SigningCert:      creds.NodeCert.Raw,
+		SenderSentAt:     time.Now(),
+	}
+
+	// client sending first to open quic stream (if using quic).
+	timeout := time.Second * 10
+	var cshakeTag []byte
+	cshakeTag, err0 = sendLenThenShakeTag(conn, &cshake, &timeout)
+	if err0 != nil {
+		return
+	}
+
+	var sshake verifiedHandshake
+	var sshakeTag []byte
+	sshakeTag, err = readLenThenShakeTag(conn, &sshake, &timeout)
+	if err != nil {
+		err0 = fmt.Errorf("at client, could not decode from server the server handshake: '%v'", err)
+		return
+	}
+
+	if !isValidX25519PublicKey(sshake.EphemPubKey) {
+		err0 = fmt.Errorf("we read an invalid server sshake public key: '%x'", sshake.EphemPubKey)
+		return
+	}
+
+	// Parse the server's certificate
+	serverStaticCert, err := x509.ParseCertificate(sshake.SigningCert)
+	if err != nil {
+		err0 = fmt.Errorf("failed to parse servers certificate: '%v'", err)
+		return
+	}
+
+	// Verify the server's certificate against the CA
+	opts := x509.VerifyOptions{
+		Roots:         creds.CACertPool,
+		CurrentTime:   time.Now(),
+		Intermediates: x509.NewCertPool(),
+	}
+	if _, err = serverStaticCert.Verify(opts); err != nil {
+		//vv("client sees bad server signing")
+		err0 = fmt.Errorf("client could not verify servers static cert: '%v'", err)
+		return
+	}
+	//vv("client sees ok server signing")
+
+	// Extract the server's static Ed25519 public key from the certificate
+	var ok bool
+	serverStaticPubKey, ok = serverStaticCert.PublicKey.(ed25519.PublicKey)
+	if !ok {
+		err0 = fmt.Errorf("server certificate does not contain an Ed25519 public key")
+		return
+	}
+
+	// Verify the server's signature on their ephemeral public key
+	if !ed25519.Verify(serverStaticPubKey, sshake.EphemPubKey, sshake.SignatureOfEphem) {
+		err0 = fmt.Errorf("server's ephemeral public key signature verification failed")
+		return
+	}
+
+	// set return value
+	srvEphemPub = sshake.EphemPubKey
+
+	// Compute the shared secret
+	sharedSecret, err := curve25519.X25519(clientEphemPrivateKey[:], sshake.EphemPubKey)
+	if err != nil {
+		panic(err)
+	}
+
+	// Derive the final symmetric key using HKDF
+	sharedRandomSecret = deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk[:])
+
+	if useCaboose {
+		cab := &caboose{}
+		err0 = readCrypticCaboose(conn, cab, sharedRandomSecret[:], &timeout)
+		if err0 != nil {
+			return
+		}
+		// the legit server put the fields as:
+		expected := &caboose{
+			ClientAuthTag:     cshakeTag,
+			ServerAuthTag:     sshakeTag,
+			ClientEphemPubKey: cshake.EphemPubKey,
+			ServerEphemPubKey: sshake.EphemPubKey,
+			ClientSentAt:      cshake.SenderSentAt,
+			ServerSentAt:      sshake.SenderSentAt,
+			ClientSigningCert: cshake.SigningCert,
+			ServerSigningCert: sshake.SigningCert,
+			ClientSigOfEphem:  cshake.SignatureOfEphem,
+			ServerSigOfEphem:  sshake.SignatureOfEphem,
+		}
+		if !cab.Equal(expected) {
+			err0 = fmt.Errorf("caboose mismatch: got '%#v'; \n\n versus expected '%#v'", cab, expected)
+			//vv("err0 = '%v'", err0)
+			return
+		}
+		//vv("caboose was as expected")
+	}
+
+	// Print the symmetric key (for demonstration purposes)
+	//fmt.Printf("(verified) Client derived symmetric key: %x\n", sharedRandomSecret[:])
+	return
 }
