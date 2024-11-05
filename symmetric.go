@@ -110,6 +110,10 @@ in crypto/tls. Quoting the release notes:
 
 var _ = fmt.Printf
 
+// == Configuring the 2nd (or only?) tunnel ==
+//
+// Assuming TCP only, no TLS or QUIC:
+//
 // useVerifiedHandshake = true prevents Man-in-the-middle attacks
 // by requiring that the counterparty have a cert signed
 // by our CA in order to communicate with us. This
@@ -131,8 +135,16 @@ var _ = fmt.Printf
 // the pre-shared-key is compromised. Pretty weak
 // sauce, for sure. This does nothing to deter
 // recording.
+//
+// But of course, if this is just for
+// the second, inside tunnel so you _are_ already inside
+// TLS or QUIC, then using a pre-shared-
+// key at all for an inner symmetric cipher
+// adds post-quantum resistance, which may
+// be all you are after.
 const useVerifiedHandshake = true
 const wantForwardSecrecy = true
+const mixRandomnessWithPSK = true // all 3 false means just use pre-shared-key directly.
 
 // Note: you probably want the symmetricServerVerifiedHandshake()
 // function below, as it prevents man-in-the-middle attacks.

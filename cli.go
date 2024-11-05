@@ -202,29 +202,10 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		//}
 	}
 
-	if c.cfg.encryptPSK {
-		if useVerifiedHandshake {
-			randomSymmetricSessKey, cliEphemPub, srvEphemPub, srvStaticPub, err := symmetricClientVerifiedHandshake(conn, c.cfg.preSharedKey, c.creds)
-			panicOn(err)
-			c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
-			c.cliEphemPub = cliEphemPub
-			c.srvEphemPub = srvEphemPub
-			c.srvStaticPub = srvStaticPub
-		} else {
-			if wantForwardSecrecy {
-				randomSymmetricSessKey, cliEphemPub, srvEphemPub, srvStaticPub, err := symmetricClientHandshake(conn, c.cfg.preSharedKey, c.creds)
-				panicOn(err)
-				c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
-				c.cliEphemPub = cliEphemPub
-				c.srvEphemPub = srvEphemPub
-				c.srvStaticPub = srvStaticPub
-
-			} else {
-				randomSymmetricSessKey, err := simpleSymmetricClientHandshake(conn, c.cfg.preSharedKey, c.creds)
-				panicOn(err)
-				c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
-			}
-		}
+	err = c.setupPSK(conn)
+	if err != nil {
+		alwaysPrintf("setupPSK error: '%v'", err)
+		return
 	}
 
 	go c.runSendLoop(conn)
@@ -252,31 +233,10 @@ func (c *Client) runClientTCP(serverAddr string) {
 	defer conn.Close() // in runClientTCP() here.
 	//log.Printf("connected to server %s", serverAddr)
 
-	if c.cfg.encryptPSK {
-
-		if useVerifiedHandshake {
-			randomSymmetricSessKey, cliEphemPub, srvEphemPub, srvStaticPub, err :=
-				symmetricClientVerifiedHandshake(conn, c.cfg.preSharedKey, c.creds)
-			panicOn(err)
-			c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
-			c.cliEphemPub = cliEphemPub
-			c.srvEphemPub = srvEphemPub
-			c.srvStaticPub = srvStaticPub
-		} else {
-			if wantForwardSecrecy {
-				randomSymmetricSessKey, cliEphemPub, srvEphemPub, srvStaticPub, err :=
-					symmetricClientHandshake(conn, c.cfg.preSharedKey, c.creds)
-				panicOn(err)
-				c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
-				c.cliEphemPub = cliEphemPub
-				c.srvEphemPub = srvEphemPub
-				c.srvStaticPub = srvStaticPub
-			} else {
-				randomSymmetricSessKey, err := simpleSymmetricClientHandshake(conn, c.cfg.preSharedKey, c.creds)
-				panicOn(err)
-				c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
-			}
-		}
+	err = c.setupPSK(conn)
+	if err != nil {
+		alwaysPrintf("setupPSK error: '%v'", err)
+		return
 	}
 
 	go c.runSendLoop(conn)
@@ -1357,4 +1317,45 @@ func fixSlash(s string) string {
 		return s
 	}
 	return strings.Replace(s, "/", "\\", -1)
+}
+
+func (c *Client) setupPSK(conn uConn) error {
+	if !c.cfg.encryptPSK {
+		return nil
+	}
+	if useVerifiedHandshake {
+		randomSymmetricSessKey, cliEphemPub, srvEphemPub, srvStaticPub, err :=
+			symmetricClientVerifiedHandshake(conn, c.cfg.preSharedKey, c.creds)
+		if err != nil {
+			return err
+		}
+		c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+		c.cliEphemPub = cliEphemPub
+		c.srvEphemPub = srvEphemPub
+		c.srvStaticPub = srvStaticPub
+	} else {
+		if wantForwardSecrecy {
+			randomSymmetricSessKey, cliEphemPub, srvEphemPub, srvStaticPub, err :=
+				symmetricClientHandshake(conn, c.cfg.preSharedKey, c.creds)
+			if err != nil {
+				return err
+			}
+			c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+			c.cliEphemPub = cliEphemPub
+			c.srvEphemPub = srvEphemPub
+			c.srvStaticPub = srvStaticPub
+		} else {
+			if mixRandomnessWithPSK {
+				randomSymmetricSessKey, err := simpleSymmetricClientHandshake(conn, c.cfg.preSharedKey, c.creds)
+				if err != nil {
+					return err
+				}
+				c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+			} else {
+				c.randomSymmetricSessKeyFromPreSharedKey = c.cfg.preSharedKey
+			}
+
+		}
+	}
+	return nil
 }

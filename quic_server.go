@@ -232,19 +232,21 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 				//vv("quic server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 				if s.cfg.encryptPSK {
 					wrap := &NetConnWrapper{Stream: stream, Connection: conn}
-
-					if useVerifiedHandshake {
+					switch {
+					case useVerifiedHandshake:
 						randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
 							symmetricServerVerifiedHandshake(wrap, s.cfg.preSharedKey, s.creds)
-					} else {
-						if wantForwardSecrecy {
-							randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
-								symmetricServerHandshake(wrap, s.cfg.preSharedKey, s.creds)
-						} else {
-							randomSymmetricSessKey, err = simpleSymmetricServerHandshake(wrap, s.cfg.preSharedKey, s.creds)
-						}
-					}
 
+					case wantForwardSecrecy:
+						randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
+							symmetricServerHandshake(wrap, s.cfg.preSharedKey, s.creds)
+
+					case mixRandomnessWithPSK:
+						randomSymmetricSessKey, err = simpleSymmetricServerHandshake(wrap, s.cfg.preSharedKey, s.creds)
+
+					default:
+						randomSymmetricSessKey = s.cfg.preSharedKey
+					}
 					if err != nil {
 						alwaysPrintf("stream failed to athenticate: '%v'", err)
 						return

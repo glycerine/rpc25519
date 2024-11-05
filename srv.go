@@ -218,17 +218,20 @@ acceptAgain:
 
 		if s.cfg.encryptPSK {
 			var err error
-
-			if useVerifiedHandshake {
+			switch {
+			case useVerifiedHandshake:
 				randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
 					symmetricServerVerifiedHandshake(conn, s.cfg.preSharedKey, s.creds)
-			} else {
-				if wantForwardSecrecy {
-					randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
-						symmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
-				} else {
-					randomSymmetricSessKey, err = simpleSymmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
-				}
+
+			case wantForwardSecrecy:
+				randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
+					symmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
+
+			case mixRandomnessWithPSK:
+				randomSymmetricSessKey, err = simpleSymmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
+
+			default:
+				randomSymmetricSessKey = s.cfg.preSharedKey
 			}
 
 			if err != nil {
@@ -313,17 +316,20 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 	//vv("tls server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 	if s.cfg.encryptPSK {
 		var err error
-
-		if useVerifiedHandshake {
+		switch {
+		case useVerifiedHandshake:
 			randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
 				symmetricServerVerifiedHandshake(conn, s.cfg.preSharedKey, s.creds)
-		} else {
-			if wantForwardSecrecy {
-				randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
-					symmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
-			} else {
-				randomSymmetricSessKey, err = simpleSymmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
-			}
+
+		case wantForwardSecrecy:
+			randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
+				symmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
+
+		case mixRandomnessWithPSK:
+			randomSymmetricSessKey, err = simpleSymmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
+
+		default:
+			randomSymmetricSessKey = s.cfg.preSharedKey
 		}
 
 		if err != nil {
