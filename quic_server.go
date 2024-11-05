@@ -299,23 +299,29 @@ func (s *quicRWPair) runSendLoop(stream quic.Stream, conn quic.Connection) {
 	var doPing bool
 	var pingEvery time.Duration
 	var pingWakeCh <-chan time.Time
+	keepAliveWriteTimeout := s.cfg.WriteTimeout
 
 	if s.cfg.ServerSendKeepAlive > 0 {
 		// quic-go keepalives are broken at v0.47.0 - v0.48.1 over tailscale;
 		// https://github.com/quic-go/quic-go/issues/4710
 		// Do them ourselves at application layer.
+		//vv("quic server side pings are on")
 		doPing = true
 		pingEvery = s.cfg.ServerSendKeepAlive
 		lastPing = time.Now()
 		pingWakeCh = time.After(pingEvery)
+		// keep the ping attempts to a minimum to keep this loop lively.
+		if keepAliveWriteTimeout == 0 || keepAliveWriteTimeout > 10*time.Second {
+			keepAliveWriteTimeout = 2 * time.Second
+		}
 	}
 
 	for {
 		if doPing {
 			now := time.Now()
 			if time.Since(lastPing) > pingEvery {
-				err := w.sendMessage(stream, keepAliveMsg, &s.cfg.WriteTimeout)
-				//vv("quic server sent rpc25519 keep alive. err='%v'", err)
+				err := w.sendMessage(stream, keepAliveMsg, &keepAliveWriteTimeout)
+				//vv("quic server sent rpc25519 keep alive. err='%v'; keepAliveWriteTimeout='%v'", err, keepAliveWriteTimeout)
 				_ = err
 				lastPing = now
 				pingWakeCh = time.After(pingEvery)
@@ -409,6 +415,13 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 				//vv("ignoring client connection with bad TLS cert.")
 				continue
 			}
+
+			if strings.Contains(r, "i/o timeout") || strings.Contains(r, "deadline exceeded") {
+				//if strings.Contains(r, "deadline exceeded") {
+				// just our readTimeout happening, so we can poll on shutting down, above.
+				continue
+			}
+
 			if strings.Contains(r, "use of closed network connection") {
 				return // shutting down
 			}

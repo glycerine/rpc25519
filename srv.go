@@ -345,20 +345,25 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 	var doPing bool
 	var pingEvery time.Duration
 	var pingWakeCh <-chan time.Time
+	keepAliveWriteTimeout := s.cfg.WriteTimeout
 
 	if s.cfg.ServerSendKeepAlive > 0 {
 		doPing = true
 		pingEvery = s.cfg.ServerSendKeepAlive
 		lastPing = time.Now()
 		pingWakeCh = time.After(pingEvery)
+		// keep the ping attempts to a minimum to keep this loop lively.
+		if keepAliveWriteTimeout == 0 || keepAliveWriteTimeout > 10*time.Second {
+			keepAliveWriteTimeout = 2 * time.Second
+		}
 	}
 
 	for {
 		if doPing {
 			now := time.Now()
 			if time.Since(lastPing) > pingEvery {
-				err := w.sendMessage(conn, keepAliveMsg, &s.cfg.WriteTimeout)
-				//vv("quic server sent rpc25519 keep alive. err='%v'", err)
+				err := w.sendMessage(conn, keepAliveMsg, &keepAliveWriteTimeout)
+				//vv("srv sent rpc25519 keep alive. err='%v'; keepAliveWriteTimeout='%v'", err, keepAliveWriteTimeout)
 				_ = err
 				lastPing = now
 				pingWakeCh = time.After(pingEvery)
@@ -443,6 +448,11 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			r := err.Error()
 			if strings.Contains(r, "remote error: tls: bad certificate") {
 				//vv("ignoring client connection with bad TLS cert.")
+				continue
+			}
+			if strings.Contains(r, "i/o timeout") || strings.Contains(r, "deadline exceeded") {
+				//if strings.Contains(r, "deadline exceeded") {
+				// just our readTimeout happening, so we can poll on shutting down, above.
 				continue
 			}
 			if strings.Contains(r, "use of closed network connection") {

@@ -91,7 +91,7 @@ func readknownKeys(path string) (kn *known, err error) {
 
 	by, err := os.ReadFile(path)
 	if err != nil {
-		vv("Failed to read file: %v", err)
+		alwaysPrintf("readKnownKeys failed to read file: %v", err)
 		return nil, err
 
 	}
@@ -219,7 +219,7 @@ func hostKeyVerifies(
 			ed25519pubkey = key
 			//vv("key = '%#v' (len %v) : '%x'", key, len(key), key)
 		default:
-			vv("Unknown Public Key Type '%T'", pubKeyIface)
+			alwaysPrintf("Unknown Public Key Type '%T'", pubKeyIface)
 			return nil, nil, false, fmt.Errorf("unknown public key-type, not ed25519 but: '%T'", pubKeyIface)
 		}
 

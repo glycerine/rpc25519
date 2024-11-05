@@ -253,7 +253,9 @@ func (c *Client) runClientTCP(serverAddr string) {
 }
 
 func (c *Client) runReadLoop(conn net.Conn) {
+	var err error
 	defer func() {
+		//vv("client runReadLoop exiting, last err = '%v'", err)
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
 	}()
@@ -269,6 +271,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 	w := newBlabber("client read loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false)
 
 	readTimeout := time.Millisecond * 100
+	var msg *Message
 	for {
 
 		// poll for: shutting down?
@@ -279,7 +282,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 		}
 
 		// Receive a message
-		msg, err := w.readMessage(conn, &readTimeout)
+		msg, err = w.readMessage(conn, &readTimeout)
 		if err != nil {
 			r := err.Error()
 
@@ -366,6 +369,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 
 func (c *Client) runSendLoop(conn net.Conn) {
 	defer func() {
+		//vv("client runSendLoop shutting down")
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
 	}()
@@ -387,20 +391,26 @@ func (c *Client) runSendLoop(conn net.Conn) {
 	var doPing bool
 	var pingEvery time.Duration
 	var pingWakeCh <-chan time.Time
+	keepAliveWriteTimeout := c.cfg.WriteTimeout
 
 	if c.cfg.ClientSendKeepAlive > 0 {
+		//vv("client side pings are on")
 		doPing = true
 		pingEvery = c.cfg.ClientSendKeepAlive
 		lastPing = time.Now()
 		pingWakeCh = time.After(pingEvery)
+		// keep the ping attempts to a minimum to keep this loop lively.
+		if keepAliveWriteTimeout == 0 || keepAliveWriteTimeout > 10*time.Second {
+			keepAliveWriteTimeout = 2 * time.Second
+		}
 	}
 
 	for {
 		if doPing {
 			now := time.Now()
 			if time.Since(lastPing) > pingEvery {
-				err := w.sendMessage(conn, keepAliveMsg, &c.cfg.WriteTimeout)
-				//vv("cli sent rpc25519 keep alive. err='%v'", err)
+				err := w.sendMessage(conn, keepAliveMsg, &keepAliveWriteTimeout)
+				//vv("cli sent rpc25519 keep alive. err='%v'; keepAliveWriteTimeout='%v'", err, keepAliveWriteTimeout)
 				_ = err
 				lastPing = now
 				pingWakeCh = time.After(pingEvery)
@@ -927,6 +937,7 @@ func (c *Client) gotNetRpcInput(replyMsg *Message) (err error) {
 
 // any pending calls are unlocked with err set.
 func (c *Client) netRpcShutdownCleanup(err error) {
+	//vv("netRpcShutdownCleanup called.")
 
 	// Terminate pending calls.
 	c.reqMutex.Lock()
@@ -958,11 +969,13 @@ func (c *Client) IsDown() (down bool) {
 	down = c.halt.ReqStop.IsClosed()
 	c.mut.Unlock()
 	if down {
+		//vv("c.halt.ReqStop has been closed, IsDown returning true")
 		return
 	}
 	c.mutex.Lock()
 	down = c.shutdown
 	c.mutex.Unlock()
+	//vv("IsDown returning %v after checking on c.shutdown", down)
 	return
 }
 

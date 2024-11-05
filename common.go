@@ -1,12 +1,9 @@
 package rpc25519
 
 import (
-	//"net"
-	//"crypto/tls"
 	"encoding/binary"
 	"fmt"
 	"io"
-	//"net"
 	"time"
 )
 
@@ -119,11 +116,16 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 	return writeFull(conn, bytesMsg, timeout)
 }
 
+var zeroTime = time.Time{}
+
 // readFull reads exactly len(buf) bytes from conn
 func readFull(conn uConn, buf []byte, timeout *time.Duration) error {
 
 	if timeout != nil && *timeout > 0 {
 		conn.SetReadDeadline(time.Now().Add(*timeout))
+	} else {
+		// do not let previous deadlines contaminate this one.
+		conn.SetReadDeadline(zeroTime)
 	}
 
 	need := len(buf)
@@ -146,7 +148,13 @@ func readFull(conn uConn, buf []byte, timeout *time.Duration) error {
 func writeFull(conn uConn, buf []byte, timeout *time.Duration) error {
 
 	if timeout != nil && *timeout > 0 {
-		conn.SetWriteDeadline(time.Now().Add(*timeout))
+		line := time.Now().Add(*timeout)
+		//vv("writeFull setting deadline to '%v'", line)
+		conn.SetWriteDeadline(line)
+	} else {
+		//vv("writeFull has no deadline")
+		// do not let previous deadlines contaminate this one.
+		conn.SetWriteDeadline(zeroTime)
 	}
 
 	need := len(buf)
@@ -155,9 +163,11 @@ func writeFull(conn uConn, buf []byte, timeout *time.Duration) error {
 		n, err := conn.Write(buf[total:])
 		total += n
 		if total == need {
+			//vv("writeFull returning nil after seeing total == need = %v", total)
 			return nil
 		}
 		if err != nil {
+			//vv("writeFull returning err '%v'", err)
 			return err
 		}
 	}

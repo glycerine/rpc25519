@@ -273,7 +273,7 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	defer func() {
 		r := recover()
 		if r != nil {
-			vv("encoder.sendMessage recovers from panic: '%v'", r)
+			alwaysPrintf("encoder.sendMessage recovers from panic: '%v'", r)
 			panic(r)
 		}
 	}()
