@@ -1074,7 +1074,7 @@ func (z *handshakeRecord) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields12zgensym_a7cb2775ed474a48_13 = 11
+	const maxFields12zgensym_a7cb2775ed474a48_13 = 3
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields12zgensym_a7cb2775ed474a48_13 uint32
@@ -1123,69 +1123,67 @@ doneWithStruct12zgensym_a7cb2775ed474a48_13:
 		switch curField12zgensym_a7cb2775ed474a48_13 {
 		// -- templateDecodeMsg ends here --
 
-		case "ClientAuthTag_zid00_bin":
+		case "Cshake_zid00_ptr":
 			found12zgensym_a7cb2775ed474a48_13[0] = true
-			z.ClientAuthTag, err = dc.ReadBytes(z.ClientAuthTag)
-			if err != nil {
-				return
+			if dc.IsNil() {
+				err = dc.ReadNil()
+				if err != nil {
+					return
+				}
+
+				if z.Cshake != nil {
+					dc.PushAlwaysNil()
+					err = z.Cshake.DecodeMsg(dc)
+					if err != nil {
+						return
+					}
+					dc.PopAlwaysNil()
+				}
+			} else {
+				// not Nil, we have something to read
+
+				if z.Cshake == nil {
+					z.Cshake = new(verifiedHandshake)
+				}
+				dc.DedupIndexEachPtr(z.Cshake)
+
+				err = z.Cshake.DecodeMsg(dc)
+				if err != nil {
+					return
+				}
 			}
-		case "ClientEphemPubKey_zid01_bin":
+		case "Sshake_zid01_ptr":
 			found12zgensym_a7cb2775ed474a48_13[1] = true
-			z.ClientEphemPubKey, err = dc.ReadBytes(z.ClientEphemPubKey)
-			if err != nil {
-				return
+			if dc.IsNil() {
+				err = dc.ReadNil()
+				if err != nil {
+					return
+				}
+
+				if z.Sshake != nil {
+					dc.PushAlwaysNil()
+					err = z.Sshake.DecodeMsg(dc)
+					if err != nil {
+						return
+					}
+					dc.PopAlwaysNil()
+				}
+			} else {
+				// not Nil, we have something to read
+
+				if z.Sshake == nil {
+					z.Sshake = new(verifiedHandshake)
+				}
+				dc.DedupIndexEachPtr(z.Sshake)
+
+				err = z.Sshake.DecodeMsg(dc)
+				if err != nil {
+					return
+				}
 			}
-		case "ClientSigOfEphem_zid02_bin":
+		case "SharedRandomSecret_zid02_bin":
 			found12zgensym_a7cb2775ed474a48_13[2] = true
-			z.ClientSigOfEphem, err = dc.ReadBytes(z.ClientSigOfEphem)
-			if err != nil {
-				return
-			}
-		case "ClientSigningCert_zid03_bin":
-			found12zgensym_a7cb2775ed474a48_13[3] = true
-			z.ClientSigningCert, err = dc.ReadBytes(z.ClientSigningCert)
-			if err != nil {
-				return
-			}
-		case "ClientSentAt_zid04_tim":
-			found12zgensym_a7cb2775ed474a48_13[4] = true
-			z.ClientSentAt, err = dc.ReadTime()
-			if err != nil {
-				return
-			}
-		case "ServerAuthTag_zid05_bin":
-			found12zgensym_a7cb2775ed474a48_13[5] = true
-			z.ServerAuthTag, err = dc.ReadBytes(z.ServerAuthTag)
-			if err != nil {
-				return
-			}
-		case "ServerEphemPubKey_zid06_bin":
-			found12zgensym_a7cb2775ed474a48_13[6] = true
-			z.ServerEphemPubKey, err = dc.ReadBytes(z.ServerEphemPubKey)
-			if err != nil {
-				return
-			}
-		case "ServerSigOfEphem_zid07_bin":
-			found12zgensym_a7cb2775ed474a48_13[7] = true
-			z.ServerSigOfEphem, err = dc.ReadBytes(z.ServerSigOfEphem)
-			if err != nil {
-				return
-			}
-		case "ServerSigningCert_zid08_bin":
-			found12zgensym_a7cb2775ed474a48_13[8] = true
-			z.ServerSigningCert, err = dc.ReadBytes(z.ServerSigningCert)
-			if err != nil {
-				return
-			}
-		case "ServerSentAt_zid09_tim":
-			found12zgensym_a7cb2775ed474a48_13[9] = true
-			z.ServerSentAt, err = dc.ReadTime()
-			if err != nil {
-				return
-			}
-		case "ServerNewPub_zid10_bin":
-			found12zgensym_a7cb2775ed474a48_13[10] = true
-			z.ServerNewPub, err = dc.ReadBytes(z.ServerNewPub)
+			z.SharedRandomSecret, err = dc.ReadBytes(z.SharedRandomSecret)
 			if err != nil {
 				return
 			}
@@ -1212,58 +1210,26 @@ doneWithStruct12zgensym_a7cb2775ed474a48_13:
 }
 
 // fields of handshakeRecord
-var decodeMsgFieldOrder12zgensym_a7cb2775ed474a48_13 = []string{"ClientAuthTag_zid00_bin", "ClientEphemPubKey_zid01_bin", "ClientSigOfEphem_zid02_bin", "ClientSigningCert_zid03_bin", "ClientSentAt_zid04_tim", "ServerAuthTag_zid05_bin", "ServerEphemPubKey_zid06_bin", "ServerSigOfEphem_zid07_bin", "ServerSigningCert_zid08_bin", "ServerSentAt_zid09_tim", "ServerNewPub_zid10_bin"}
+var decodeMsgFieldOrder12zgensym_a7cb2775ed474a48_13 = []string{"Cshake_zid00_ptr", "Sshake_zid01_ptr", "SharedRandomSecret_zid02_bin"}
 
-var decodeMsgFieldSkip12zgensym_a7cb2775ed474a48_13 = []bool{false, false, false, false, false, false, false, false, false, false, false}
+var decodeMsgFieldSkip12zgensym_a7cb2775ed474a48_13 = []bool{false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *handshakeRecord) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 11
+		return 3
 	}
-	var fieldsInUse uint32 = 11
-	isempty[0] = (len(z.ClientAuthTag) == 0) // string, omitempty
+	var fieldsInUse uint32 = 3
+	isempty[0] = (z.Cshake == nil) // pointer, omitempty
 	if isempty[0] {
 		fieldsInUse--
 	}
-	isempty[1] = (len(z.ClientEphemPubKey) == 0) // string, omitempty
+	isempty[1] = (z.Sshake == nil) // pointer, omitempty
 	if isempty[1] {
 		fieldsInUse--
 	}
-	isempty[2] = (len(z.ClientSigOfEphem) == 0) // string, omitempty
+	isempty[2] = (len(z.SharedRandomSecret) == 0) // string, omitempty
 	if isempty[2] {
-		fieldsInUse--
-	}
-	isempty[3] = (len(z.ClientSigningCert) == 0) // string, omitempty
-	if isempty[3] {
-		fieldsInUse--
-	}
-	isempty[4] = (z.ClientSentAt.IsZero()) // time.Time, omitempty
-	if isempty[4] {
-		fieldsInUse--
-	}
-	isempty[5] = (len(z.ServerAuthTag) == 0) // string, omitempty
-	if isempty[5] {
-		fieldsInUse--
-	}
-	isempty[6] = (len(z.ServerEphemPubKey) == 0) // string, omitempty
-	if isempty[6] {
-		fieldsInUse--
-	}
-	isempty[7] = (len(z.ServerSigOfEphem) == 0) // string, omitempty
-	if isempty[7] {
-		fieldsInUse--
-	}
-	isempty[8] = (len(z.ServerSigningCert) == 0) // string, omitempty
-	if isempty[8] {
-		fieldsInUse--
-	}
-	isempty[9] = (z.ServerSentAt.IsZero()) // time.Time, omitempty
-	if isempty[9] {
-		fieldsInUse--
-	}
-	isempty[10] = (len(z.ServerNewPub) == 0) // string, omitempty
-	if isempty[10] {
 		fieldsInUse--
 	}
 
@@ -1277,7 +1243,7 @@ func (z *handshakeRecord) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_a7cb2775ed474a48_14 [11]bool
+	var empty_zgensym_a7cb2775ed474a48_14 [3]bool
 	fieldsInUse_zgensym_a7cb2775ed474a48_15 := z.fieldsNotEmpty(empty_zgensym_a7cb2775ed474a48_14[:])
 
 	// map header
@@ -1297,132 +1263,74 @@ func (z *handshakeRecord) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_a7cb2775ed474a48_14[0] {
-		// write "ClientAuthTag_zid00_bin"
-		err = en.Append(0xb7, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x41, 0x75, 0x74, 0x68, 0x54, 0x61, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x62, 0x69, 0x6e)
+		// write "Cshake_zid00_ptr"
+		err = en.Append(0xb0, 0x43, 0x73, 0x68, 0x61, 0x6b, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x70, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
-		err = en.WriteBytes(z.ClientAuthTag)
-		if err != nil {
-			return
+		// gPtr.encodeGen():
+
+		if z.Cshake == nil {
+			err = en.WriteNil()
+			if err != nil {
+				return
+			}
+		} else {
+			// encodeGen.gBase IDENT
+
+			// record the interface for deduplication
+			var dup bool
+			dup, err = en.DedupWriteIsDup(z.Cshake)
+			if err != nil {
+				return
+			}
+			if !dup {
+				err = z.Cshake.EncodeMsg(en)
+				if err != nil {
+					return
+				}
+			}
 		}
 	}
 
 	if !empty_zgensym_a7cb2775ed474a48_14[1] {
-		// write "ClientEphemPubKey_zid01_bin"
-		err = en.Append(0xbb, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x45, 0x70, 0x68, 0x65, 0x6d, 0x50, 0x75, 0x62, 0x4b, 0x65, 0x79, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x62, 0x69, 0x6e)
+		// write "Sshake_zid01_ptr"
+		err = en.Append(0xb0, 0x53, 0x73, 0x68, 0x61, 0x6b, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x70, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
-		err = en.WriteBytes(z.ClientEphemPubKey)
-		if err != nil {
-			return
+		// gPtr.encodeGen():
+
+		if z.Sshake == nil {
+			err = en.WriteNil()
+			if err != nil {
+				return
+			}
+		} else {
+			// encodeGen.gBase IDENT
+
+			// record the interface for deduplication
+			var dup bool
+			dup, err = en.DedupWriteIsDup(z.Sshake)
+			if err != nil {
+				return
+			}
+			if !dup {
+				err = z.Sshake.EncodeMsg(en)
+				if err != nil {
+					return
+				}
+			}
 		}
 	}
 
 	if !empty_zgensym_a7cb2775ed474a48_14[2] {
-		// write "ClientSigOfEphem_zid02_bin"
-		err = en.Append(0xba, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x53, 0x69, 0x67, 0x4f, 0x66, 0x45, 0x70, 0x68, 0x65, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x62, 0x69, 0x6e)
+		// write "SharedRandomSecret_zid02_bin"
+		err = en.Append(0xbc, 0x53, 0x68, 0x61, 0x72, 0x65, 0x64, 0x52, 0x61, 0x6e, 0x64, 0x6f, 0x6d, 0x53, 0x65, 0x63, 0x72, 0x65, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x62, 0x69, 0x6e)
 		if err != nil {
 			return err
 		}
-		err = en.WriteBytes(z.ClientSigOfEphem)
-		if err != nil {
-			return
-		}
-	}
-
-	if !empty_zgensym_a7cb2775ed474a48_14[3] {
-		// write "ClientSigningCert_zid03_bin"
-		err = en.Append(0xbb, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x53, 0x69, 0x67, 0x6e, 0x69, 0x6e, 0x67, 0x43, 0x65, 0x72, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x62, 0x69, 0x6e)
-		if err != nil {
-			return err
-		}
-		err = en.WriteBytes(z.ClientSigningCert)
-		if err != nil {
-			return
-		}
-	}
-
-	if !empty_zgensym_a7cb2775ed474a48_14[4] {
-		// write "ClientSentAt_zid04_tim"
-		err = en.Append(0xb6, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x53, 0x65, 0x6e, 0x74, 0x41, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x74, 0x69, 0x6d)
-		if err != nil {
-			return err
-		}
-		err = en.WriteTime(z.ClientSentAt)
-		if err != nil {
-			return
-		}
-	}
-
-	if !empty_zgensym_a7cb2775ed474a48_14[5] {
-		// write "ServerAuthTag_zid05_bin"
-		err = en.Append(0xb7, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x41, 0x75, 0x74, 0x68, 0x54, 0x61, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x62, 0x69, 0x6e)
-		if err != nil {
-			return err
-		}
-		err = en.WriteBytes(z.ServerAuthTag)
-		if err != nil {
-			return
-		}
-	}
-
-	if !empty_zgensym_a7cb2775ed474a48_14[6] {
-		// write "ServerEphemPubKey_zid06_bin"
-		err = en.Append(0xbb, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x45, 0x70, 0x68, 0x65, 0x6d, 0x50, 0x75, 0x62, 0x4b, 0x65, 0x79, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x62, 0x69, 0x6e)
-		if err != nil {
-			return err
-		}
-		err = en.WriteBytes(z.ServerEphemPubKey)
-		if err != nil {
-			return
-		}
-	}
-
-	if !empty_zgensym_a7cb2775ed474a48_14[7] {
-		// write "ServerSigOfEphem_zid07_bin"
-		err = en.Append(0xba, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x69, 0x67, 0x4f, 0x66, 0x45, 0x70, 0x68, 0x65, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x62, 0x69, 0x6e)
-		if err != nil {
-			return err
-		}
-		err = en.WriteBytes(z.ServerSigOfEphem)
-		if err != nil {
-			return
-		}
-	}
-
-	if !empty_zgensym_a7cb2775ed474a48_14[8] {
-		// write "ServerSigningCert_zid08_bin"
-		err = en.Append(0xbb, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x69, 0x67, 0x6e, 0x69, 0x6e, 0x67, 0x43, 0x65, 0x72, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x62, 0x69, 0x6e)
-		if err != nil {
-			return err
-		}
-		err = en.WriteBytes(z.ServerSigningCert)
-		if err != nil {
-			return
-		}
-	}
-
-	if !empty_zgensym_a7cb2775ed474a48_14[9] {
-		// write "ServerSentAt_zid09_tim"
-		err = en.Append(0xb6, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x65, 0x6e, 0x74, 0x41, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x39, 0x5f, 0x74, 0x69, 0x6d)
-		if err != nil {
-			return err
-		}
-		err = en.WriteTime(z.ServerSentAt)
-		if err != nil {
-			return
-		}
-	}
-
-	if !empty_zgensym_a7cb2775ed474a48_14[10] {
-		// write "ServerNewPub_zid10_bin"
-		err = en.Append(0xb6, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4e, 0x65, 0x77, 0x50, 0x75, 0x62, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x30, 0x5f, 0x62, 0x69, 0x6e)
-		if err != nil {
-			return err
-		}
-		err = en.WriteBytes(z.ServerNewPub)
+		err = en.WriteBytes(z.SharedRandomSecret)
 		if err != nil {
 			return
 		}
@@ -1440,74 +1348,48 @@ func (z *handshakeRecord) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [11]bool
+	var empty [3]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
 	if !empty[0] {
-		// string "ClientAuthTag_zid00_bin"
-		o = append(o, 0xb7, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x41, 0x75, 0x74, 0x68, 0x54, 0x61, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x62, 0x69, 0x6e)
-		o = msgp.AppendBytes(o, z.ClientAuthTag)
+		// string "Cshake_zid00_ptr"
+		o = append(o, 0xb0, 0x43, 0x73, 0x68, 0x61, 0x6b, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x70, 0x74, 0x72)
+		// marshalGen.gPtr()
+
+		if z.Cshake == nil {
+			o = msgp.AppendNil(o)
+		} else {
+			// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+			o, err = z.Cshake.MarshalMsg(o) // not is.iface, gen/marshal.go:243
+			if err != nil {
+				return
+			}
+		}
 	}
 
 	if !empty[1] {
-		// string "ClientEphemPubKey_zid01_bin"
-		o = append(o, 0xbb, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x45, 0x70, 0x68, 0x65, 0x6d, 0x50, 0x75, 0x62, 0x4b, 0x65, 0x79, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x62, 0x69, 0x6e)
-		o = msgp.AppendBytes(o, z.ClientEphemPubKey)
+		// string "Sshake_zid01_ptr"
+		o = append(o, 0xb0, 0x53, 0x73, 0x68, 0x61, 0x6b, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x70, 0x74, 0x72)
+		// marshalGen.gPtr()
+
+		if z.Sshake == nil {
+			o = msgp.AppendNil(o)
+		} else {
+			// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+			o, err = z.Sshake.MarshalMsg(o) // not is.iface, gen/marshal.go:243
+			if err != nil {
+				return
+			}
+		}
 	}
 
 	if !empty[2] {
-		// string "ClientSigOfEphem_zid02_bin"
-		o = append(o, 0xba, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x53, 0x69, 0x67, 0x4f, 0x66, 0x45, 0x70, 0x68, 0x65, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x62, 0x69, 0x6e)
-		o = msgp.AppendBytes(o, z.ClientSigOfEphem)
-	}
-
-	if !empty[3] {
-		// string "ClientSigningCert_zid03_bin"
-		o = append(o, 0xbb, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x53, 0x69, 0x67, 0x6e, 0x69, 0x6e, 0x67, 0x43, 0x65, 0x72, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x62, 0x69, 0x6e)
-		o = msgp.AppendBytes(o, z.ClientSigningCert)
-	}
-
-	if !empty[4] {
-		// string "ClientSentAt_zid04_tim"
-		o = append(o, 0xb6, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x53, 0x65, 0x6e, 0x74, 0x41, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x74, 0x69, 0x6d)
-		o = msgp.AppendTime(o, z.ClientSentAt)
-	}
-
-	if !empty[5] {
-		// string "ServerAuthTag_zid05_bin"
-		o = append(o, 0xb7, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x41, 0x75, 0x74, 0x68, 0x54, 0x61, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x62, 0x69, 0x6e)
-		o = msgp.AppendBytes(o, z.ServerAuthTag)
-	}
-
-	if !empty[6] {
-		// string "ServerEphemPubKey_zid06_bin"
-		o = append(o, 0xbb, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x45, 0x70, 0x68, 0x65, 0x6d, 0x50, 0x75, 0x62, 0x4b, 0x65, 0x79, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x62, 0x69, 0x6e)
-		o = msgp.AppendBytes(o, z.ServerEphemPubKey)
-	}
-
-	if !empty[7] {
-		// string "ServerSigOfEphem_zid07_bin"
-		o = append(o, 0xba, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x69, 0x67, 0x4f, 0x66, 0x45, 0x70, 0x68, 0x65, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x62, 0x69, 0x6e)
-		o = msgp.AppendBytes(o, z.ServerSigOfEphem)
-	}
-
-	if !empty[8] {
-		// string "ServerSigningCert_zid08_bin"
-		o = append(o, 0xbb, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x69, 0x67, 0x6e, 0x69, 0x6e, 0x67, 0x43, 0x65, 0x72, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x62, 0x69, 0x6e)
-		o = msgp.AppendBytes(o, z.ServerSigningCert)
-	}
-
-	if !empty[9] {
-		// string "ServerSentAt_zid09_tim"
-		o = append(o, 0xb6, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x53, 0x65, 0x6e, 0x74, 0x41, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x39, 0x5f, 0x74, 0x69, 0x6d)
-		o = msgp.AppendTime(o, z.ServerSentAt)
-	}
-
-	if !empty[10] {
-		// string "ServerNewPub_zid10_bin"
-		o = append(o, 0xb6, 0x53, 0x65, 0x72, 0x76, 0x65, 0x72, 0x4e, 0x65, 0x77, 0x50, 0x75, 0x62, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x30, 0x5f, 0x62, 0x69, 0x6e)
-		o = msgp.AppendBytes(o, z.ServerNewPub)
+		// string "SharedRandomSecret_zid02_bin"
+		o = append(o, 0xbc, 0x53, 0x68, 0x61, 0x72, 0x65, 0x64, 0x52, 0x61, 0x6e, 0x64, 0x6f, 0x6d, 0x53, 0x65, 0x63, 0x72, 0x65, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x62, 0x69, 0x6e)
+		o = msgp.AppendBytes(o, z.SharedRandomSecret)
 	}
 
 	return
@@ -1528,7 +1410,7 @@ func (z *handshakeRecord) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfi
 
 	var field []byte
 	_ = field
-	const maxFields16zgensym_a7cb2775ed474a48_17 = 11
+	const maxFields16zgensym_a7cb2775ed474a48_17 = 3
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields16zgensym_a7cb2775ed474a48_17 uint32
@@ -1578,165 +1460,75 @@ doneWithStruct16zgensym_a7cb2775ed474a48_17:
 		switch curField16zgensym_a7cb2775ed474a48_17 {
 		// -- templateUnmarshalMsg ends here --
 
-		case "ClientAuthTag_zid00_bin":
+		case "Cshake_zid00_ptr":
 			found16zgensym_a7cb2775ed474a48_17[0] = true
-			if nbs.AlwaysNil || msgp.IsNil(bts) {
-				if !nbs.AlwaysNil {
-					bts = bts[1:]
-				}
-				z.ClientAuthTag = z.ClientAuthTag[:0]
-			} else {
-				z.ClientAuthTag, bts, err = nbs.ReadBytesBytes(bts, z.ClientAuthTag)
+			// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"z.Cshake", alias:"verifiedHandshake", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x16, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-				if err != nil {
-					return
+			// unmarshalGen.gPtr(): we have an IDENT:
+
+			if nbs.AlwaysNil {
+				if z.Cshake != nil {
+					z.Cshake.UnmarshalMsg(msgp.OnlyNilSlice)
+				}
+			} else {
+				// not nbs.AlwaysNil
+				if msgp.IsNil(bts) {
+					bts = bts[1:]
+					if nil != z.Cshake {
+						z.Cshake.UnmarshalMsg(msgp.OnlyNilSlice)
+					}
+				} else {
+					// not nbs.AlwaysNil and not IsNil(bts): have something to read
+
+					if z.Cshake == nil {
+						z.Cshake = new(verifiedHandshake)
+					}
+
+					bts, err = z.Cshake.UnmarshalMsg(bts)
+					if err != nil {
+						return
+					}
 				}
 			}
-			if err != nil {
-				return
-			}
-		case "ClientEphemPubKey_zid01_bin":
+		case "Sshake_zid01_ptr":
 			found16zgensym_a7cb2775ed474a48_17[1] = true
-			if nbs.AlwaysNil || msgp.IsNil(bts) {
-				if !nbs.AlwaysNil {
-					bts = bts[1:]
-				}
-				z.ClientEphemPubKey = z.ClientEphemPubKey[:0]
-			} else {
-				z.ClientEphemPubKey, bts, err = nbs.ReadBytesBytes(bts, z.ClientEphemPubKey)
+			// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"z.Sshake", alias:"verifiedHandshake", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x16, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-				if err != nil {
-					return
+			// unmarshalGen.gPtr(): we have an IDENT:
+
+			if nbs.AlwaysNil {
+				if z.Sshake != nil {
+					z.Sshake.UnmarshalMsg(msgp.OnlyNilSlice)
+				}
+			} else {
+				// not nbs.AlwaysNil
+				if msgp.IsNil(bts) {
+					bts = bts[1:]
+					if nil != z.Sshake {
+						z.Sshake.UnmarshalMsg(msgp.OnlyNilSlice)
+					}
+				} else {
+					// not nbs.AlwaysNil and not IsNil(bts): have something to read
+
+					if z.Sshake == nil {
+						z.Sshake = new(verifiedHandshake)
+					}
+
+					bts, err = z.Sshake.UnmarshalMsg(bts)
+					if err != nil {
+						return
+					}
 				}
 			}
-			if err != nil {
-				return
-			}
-		case "ClientSigOfEphem_zid02_bin":
+		case "SharedRandomSecret_zid02_bin":
 			found16zgensym_a7cb2775ed474a48_17[2] = true
 			if nbs.AlwaysNil || msgp.IsNil(bts) {
 				if !nbs.AlwaysNil {
 					bts = bts[1:]
 				}
-				z.ClientSigOfEphem = z.ClientSigOfEphem[:0]
+				z.SharedRandomSecret = z.SharedRandomSecret[:0]
 			} else {
-				z.ClientSigOfEphem, bts, err = nbs.ReadBytesBytes(bts, z.ClientSigOfEphem)
-
-				if err != nil {
-					return
-				}
-			}
-			if err != nil {
-				return
-			}
-		case "ClientSigningCert_zid03_bin":
-			found16zgensym_a7cb2775ed474a48_17[3] = true
-			if nbs.AlwaysNil || msgp.IsNil(bts) {
-				if !nbs.AlwaysNil {
-					bts = bts[1:]
-				}
-				z.ClientSigningCert = z.ClientSigningCert[:0]
-			} else {
-				z.ClientSigningCert, bts, err = nbs.ReadBytesBytes(bts, z.ClientSigningCert)
-
-				if err != nil {
-					return
-				}
-			}
-			if err != nil {
-				return
-			}
-		case "ClientSentAt_zid04_tim":
-			found16zgensym_a7cb2775ed474a48_17[4] = true
-			z.ClientSentAt, bts, err = nbs.ReadTimeBytes(bts)
-
-			if err != nil {
-				return
-			}
-		case "ServerAuthTag_zid05_bin":
-			found16zgensym_a7cb2775ed474a48_17[5] = true
-			if nbs.AlwaysNil || msgp.IsNil(bts) {
-				if !nbs.AlwaysNil {
-					bts = bts[1:]
-				}
-				z.ServerAuthTag = z.ServerAuthTag[:0]
-			} else {
-				z.ServerAuthTag, bts, err = nbs.ReadBytesBytes(bts, z.ServerAuthTag)
-
-				if err != nil {
-					return
-				}
-			}
-			if err != nil {
-				return
-			}
-		case "ServerEphemPubKey_zid06_bin":
-			found16zgensym_a7cb2775ed474a48_17[6] = true
-			if nbs.AlwaysNil || msgp.IsNil(bts) {
-				if !nbs.AlwaysNil {
-					bts = bts[1:]
-				}
-				z.ServerEphemPubKey = z.ServerEphemPubKey[:0]
-			} else {
-				z.ServerEphemPubKey, bts, err = nbs.ReadBytesBytes(bts, z.ServerEphemPubKey)
-
-				if err != nil {
-					return
-				}
-			}
-			if err != nil {
-				return
-			}
-		case "ServerSigOfEphem_zid07_bin":
-			found16zgensym_a7cb2775ed474a48_17[7] = true
-			if nbs.AlwaysNil || msgp.IsNil(bts) {
-				if !nbs.AlwaysNil {
-					bts = bts[1:]
-				}
-				z.ServerSigOfEphem = z.ServerSigOfEphem[:0]
-			} else {
-				z.ServerSigOfEphem, bts, err = nbs.ReadBytesBytes(bts, z.ServerSigOfEphem)
-
-				if err != nil {
-					return
-				}
-			}
-			if err != nil {
-				return
-			}
-		case "ServerSigningCert_zid08_bin":
-			found16zgensym_a7cb2775ed474a48_17[8] = true
-			if nbs.AlwaysNil || msgp.IsNil(bts) {
-				if !nbs.AlwaysNil {
-					bts = bts[1:]
-				}
-				z.ServerSigningCert = z.ServerSigningCert[:0]
-			} else {
-				z.ServerSigningCert, bts, err = nbs.ReadBytesBytes(bts, z.ServerSigningCert)
-
-				if err != nil {
-					return
-				}
-			}
-			if err != nil {
-				return
-			}
-		case "ServerSentAt_zid09_tim":
-			found16zgensym_a7cb2775ed474a48_17[9] = true
-			z.ServerSentAt, bts, err = nbs.ReadTimeBytes(bts)
-
-			if err != nil {
-				return
-			}
-		case "ServerNewPub_zid10_bin":
-			found16zgensym_a7cb2775ed474a48_17[10] = true
-			if nbs.AlwaysNil || msgp.IsNil(bts) {
-				if !nbs.AlwaysNil {
-					bts = bts[1:]
-				}
-				z.ServerNewPub = z.ServerNewPub[:0]
-			} else {
-				z.ServerNewPub, bts, err = nbs.ReadBytesBytes(bts, z.ServerNewPub)
+				z.SharedRandomSecret, bts, err = nbs.ReadBytesBytes(bts, z.SharedRandomSecret)
 
 				if err != nil {
 					return
@@ -1768,13 +1560,25 @@ doneWithStruct16zgensym_a7cb2775ed474a48_17:
 }
 
 // fields of handshakeRecord
-var unmarshalMsgFieldOrder16zgensym_a7cb2775ed474a48_17 = []string{"ClientAuthTag_zid00_bin", "ClientEphemPubKey_zid01_bin", "ClientSigOfEphem_zid02_bin", "ClientSigningCert_zid03_bin", "ClientSentAt_zid04_tim", "ServerAuthTag_zid05_bin", "ServerEphemPubKey_zid06_bin", "ServerSigOfEphem_zid07_bin", "ServerSigningCert_zid08_bin", "ServerSentAt_zid09_tim", "ServerNewPub_zid10_bin"}
+var unmarshalMsgFieldOrder16zgensym_a7cb2775ed474a48_17 = []string{"Cshake_zid00_ptr", "Sshake_zid01_ptr", "SharedRandomSecret_zid02_bin"}
 
-var unmarshalMsgFieldSkip16zgensym_a7cb2775ed474a48_17 = []bool{false, false, false, false, false, false, false, false, false, false, false}
+var unmarshalMsgFieldSkip16zgensym_a7cb2775ed474a48_17 = []bool{false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *handshakeRecord) Msgsize() (s int) {
-	s = 1 + 24 + msgp.BytesPrefixSize + len(z.ClientAuthTag) + 28 + msgp.BytesPrefixSize + len(z.ClientEphemPubKey) + 27 + msgp.BytesPrefixSize + len(z.ClientSigOfEphem) + 28 + msgp.BytesPrefixSize + len(z.ClientSigningCert) + 23 + msgp.TimeSize + 24 + msgp.BytesPrefixSize + len(z.ServerAuthTag) + 28 + msgp.BytesPrefixSize + len(z.ServerEphemPubKey) + 27 + msgp.BytesPrefixSize + len(z.ServerSigOfEphem) + 28 + msgp.BytesPrefixSize + len(z.ServerSigningCert) + 23 + msgp.TimeSize + 23 + msgp.BytesPrefixSize + len(z.ServerNewPub)
+	s = 1 + 17
+	if z.Cshake == nil {
+		s += msgp.NilSize
+	} else {
+		s += z.Cshake.Msgsize()
+	}
+	s += 17
+	if z.Sshake == nil {
+		s += msgp.NilSize
+	} else {
+		s += z.Sshake.Msgsize()
+	}
+	s += 29 + msgp.BytesPrefixSize + len(z.SharedRandomSecret)
 	return
 }
 

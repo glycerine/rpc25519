@@ -876,6 +876,8 @@ func (a *caboose) Equal(b *caboose) bool {
 func encryptWithPubKey(
 	recipientPublicKey [32]byte,
 	plaintext []byte,
+	scratch []byte,
+
 ) (ephemeralPublicKey [32]byte, ciphertext []byte, err0 error) {
 
 	// Generate ephemeral X25519 key pair
@@ -884,6 +886,15 @@ func encryptWithPubKey(
 	panicOn(err0)
 
 	// Compute shared secret
+
+	// func X25519(scalar, point []byte) ([]byte, error)
+	//   X25519 returns the result of the scalar
+	//   multiplication (scalar * point), according to RFC 7748, Section 5.
+	//   scalar, point and the return value are slices of 32 bytes.
+	//   scalar can be generated at random, for example with
+	//   crypto/rand. point should be either Basepoint or the
+	//   output of another X25519 call.
+
 	sharedSecret, err := curve25519.X25519(ephemeralPrivateKey[:], recipientPublicKey[:])
 	panicOn(err)
 
@@ -900,8 +911,9 @@ func encryptWithPubKey(
 	nonce := make([]byte, aead.NonceSize())
 	_, err = cryrand.Read(nonce)
 	panicOn(err)
+	scratch = append(scratch, nonce...)
 
-	ciphertext = aead.Seal(nonce, nonce, plaintext, nil)
+	ciphertext = aead.Seal(scratch, nonce, plaintext, nil)
 	return
 }
 
@@ -909,6 +921,8 @@ func decryptWithPrivKey(
 	recipientPrivateKey [32]byte,
 	ephemeralPublicKey [32]byte,
 	ciphertext []byte,
+	scratch []byte,
+
 ) (plaintext []byte, err0 error) {
 
 	// Compute shared secret
@@ -929,26 +943,15 @@ func decryptWithPrivKey(
 		return
 	}
 	nonce, ct := ciphertext[:aead.NonceSize()], ciphertext[aead.NonceSize():]
-	return aead.Open(nil, nonce, ct, nil)
+	return aead.Open(scratch, nonce, ct, nil)
 }
 
-// handshakeRecord records what was exchanged and verified
+// handshakeRecord shows what was exchanged and verified
 // between client and server.
 type handshakeRecord struct {
-	ClientAuthTag     []byte    `zid:"0"` // 32 bytes
-	ClientEphemPubKey []byte    `zid:"1"` // 32 bytes
-	ClientSigOfEphem  []byte    `zid:"2"` // 64 bytes
-	ClientSigningCert []byte    `zid:"3"` // 540 bytes
-	ClientSentAt      time.Time `zid:"4"` // 12 bytes
-
-	ServerAuthTag     []byte    `zid:"5"` // 32 bytes
-	ServerEphemPubKey []byte    `zid:"6"` // 32 bytes
-	ServerSigOfEphem  []byte    `zid:"7"` // 64 bytes
-	ServerSigningCert []byte    `zid:"8"` // 540 bytes
-	ServerSentAt      time.Time `zid:"9"` // 12 bytes
-
-	// client must rotate to this new public key from server.
-	ServerNewPub []byte `zid:"10"` // 32 bytes
+	Cshake             *verifiedHandshake `zid:"0"`
+	Sshake             *verifiedHandshake `zid:"1"`
+	SharedRandomSecret []byte             `zid:"2"`
 }
 
 // encrypt more with the public/private keys.
@@ -956,7 +959,9 @@ func symmetricServerVerifiedHandshake2(
 	conn uConn,
 	psk [32]byte,
 	creds *selfcert.Creds,
-) (sharedRandomSecret [32]byte, rec *handshakeRecord, err0 error) {
+) (r *handshakeRecord, err0 error) {
+
+	r = &handshakeRecord{}
 
 	var cliEphemPub, srvEphemPub []byte
 	_ = cliEphemPub
@@ -1054,7 +1059,8 @@ func symmetricServerVerifiedHandshake2(
 	}
 
 	// Derive the final symmetric key using HKDF
-	sharedRandomSecret = deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk[:])
+	sharedRandomSecret := deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk[:])
+	r.SharedRandomSecret = sharedRandomSecret[:]
 
 	// Print the symmetric key (for demonstration purposes)
 	//fmt.Printf("(verified) Server derived symmetric key: %x\n", sharedRandomSecret[:])
@@ -1100,7 +1106,9 @@ func symmetricClientVerifiedHandshake2(
 	conn uConn,
 	psk [32]byte,
 	creds *selfcert.Creds,
-) (sharedRandomSecret [32]byte, rec *handshakeRecord, err0 error) {
+) (r *handshakeRecord, err0 error) {
+
+	r = &handshakeRecord{}
 
 	var cliEphemPub, srvEphemPub []byte
 	_ = srvEphemPub
@@ -1196,7 +1204,8 @@ func symmetricClientVerifiedHandshake2(
 	}
 
 	// Derive the final symmetric key using HKDF
-	sharedRandomSecret = deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk[:])
+	sharedRandomSecret := deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk[:])
+	r.SharedRandomSecret = sharedRandomSecret[:]
 
 	if useCaboose {
 		cab := &caboose{}
