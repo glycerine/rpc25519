@@ -978,18 +978,6 @@ func decryptWithPrivKey(
 	return aead.Open(nil, nonce, ct, nil)
 }
 
-// handshakeRecord shows what was exchanged and verified
-// between client and server.
-type handshakeRecord struct {
-	Cshake             *verifiedHandshake `zid:"0"`
-	Sshake             *verifiedHandshake `zid:"1"`
-	SharedRandomSecret []byte             `zid:"2"`
-
-	cliEphemPub        []byte
-	srvEphemPub        []byte
-	serverStaticPubKey []byte
-}
-
 func simpleSymmetricClientHandshake(
 	conn uConn,
 	psk [32]byte,
@@ -1000,6 +988,7 @@ func simpleSymmetricClientHandshake(
 	_, err := cryrand.Read(salt)
 	panicOn(err)
 
+	// compute symkey from psk and salt.
 	hkdf := hkdf.New(sha256.New, psk[:], salt, nil)
 	_, err = io.ReadFull(hkdf, symkey[:])
 	panicOn(err)
@@ -1012,7 +1001,7 @@ func simpleSymmetricClientHandshake(
 	}
 
 	// Print the symmetric key (for demonstration purposes)
-	fmt.Printf("salted client derived symmetric key: %x\n", symkey[:])
+	//fmt.Printf("salted client derived symmetric key: %x\n", symkey[:])
 	return
 }
 
@@ -1033,9 +1022,11 @@ func simpleSymmetricServerHandshake(
 		return
 	}
 
+	// compute symkey from psk and salt.
 	hkdf := hkdf.New(sha256.New, psk[:], salt, nil)
 	_, err = io.ReadFull(hkdf, symkey[:])
 	panicOn(err)
 
+	//fmt.Printf("salted server derived symmetric key: %x\n", symkey[:])
 	return
 }
