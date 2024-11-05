@@ -219,10 +219,12 @@ acceptAgain:
 		if s.cfg.encryptPSK {
 			var err error
 
-			//randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
-			//	symmetricServerVerifiedHandshake(conn, s.cfg.preSharedKey, s.creds)
-
-			randomSymmetricSessKey, err = simpleSymmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
+			if useVerifiedHandshake {
+				randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
+					symmetricServerVerifiedHandshake(conn, s.cfg.preSharedKey, s.creds)
+			} else {
+				randomSymmetricSessKey, err = simpleSymmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
+			}
 
 			if err != nil {
 				alwaysPrintf("tcp failed to athenticate: '%v'", err)
@@ -307,10 +309,12 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 	if s.cfg.encryptPSK {
 		var err error
 
-		//randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
-		//	symmetricServerVerifiedHandshake(conn, s.cfg.preSharedKey, s.creds)
-
-		randomSymmetricSessKey, err = simpleSymmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
+		if useVerifiedHandshake {
+			randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
+				symmetricServerVerifiedHandshake(conn, s.cfg.preSharedKey, s.creds)
+		} else {
+			randomSymmetricSessKey, err = simpleSymmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
+		}
 
 		if err != nil {
 			alwaysPrintf("tls failed to athenticate: '%v'", err)

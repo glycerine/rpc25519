@@ -203,16 +203,18 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	}
 
 	if c.cfg.encryptPSK {
-		// randomSymmetricSessKey, cliEphemPub, srvEphemPub, srvStaticPub, err := symmetricClientVerifiedHandshake(conn, c.cfg.preSharedKey, c.creds)
-		// panicOn(err)
-		// c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
-		// c.cliEphemPub = cliEphemPub
-		// c.srvEphemPub = srvEphemPub
-		// c.srvStaticPub = srvStaticPub
-
-		randomSymmetricSessKey, err := simpleSymmetricClientHandshake(conn, c.cfg.preSharedKey, c.creds)
-		panicOn(err)
-		c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+		if useVerifiedHandshake {
+			randomSymmetricSessKey, cliEphemPub, srvEphemPub, srvStaticPub, err := symmetricClientVerifiedHandshake(conn, c.cfg.preSharedKey, c.creds)
+			panicOn(err)
+			c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+			c.cliEphemPub = cliEphemPub
+			c.srvEphemPub = srvEphemPub
+			c.srvStaticPub = srvStaticPub
+		} else {
+			randomSymmetricSessKey, err := simpleSymmetricClientHandshake(conn, c.cfg.preSharedKey, c.creds)
+			panicOn(err)
+			c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+		}
 	}
 
 	go c.runSendLoop(conn)
@@ -242,19 +244,20 @@ func (c *Client) runClientTCP(serverAddr string) {
 
 	if c.cfg.encryptPSK {
 
-		// randomSymmetricSessKey, cliEphemPub, srvEphemPub, srvStaticPub, err :=
-		// 	symmetricClientVerifiedHandshake(conn, c.cfg.preSharedKey, c.creds)
-		// //vv("err back was '%v'", err)
-		// panicOn(err)
-		// c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
-		// c.cliEphemPub = cliEphemPub
-		// c.srvEphemPub = srvEphemPub
-		// c.srvStaticPub = srvStaticPub
-
-		randomSymmetricSessKey, err := simpleSymmetricClientHandshake(conn, c.cfg.preSharedKey, c.creds)
-		panicOn(err)
-		c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
-
+		if useVerifiedHandshake {
+			randomSymmetricSessKey, cliEphemPub, srvEphemPub, srvStaticPub, err :=
+				symmetricClientVerifiedHandshake(conn, c.cfg.preSharedKey, c.creds)
+			//vv("err back was '%v'", err)
+			panicOn(err)
+			c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+			c.cliEphemPub = cliEphemPub
+			c.srvEphemPub = srvEphemPub
+			c.srvStaticPub = srvStaticPub
+		} else {
+			randomSymmetricSessKey, err := simpleSymmetricClientHandshake(conn, c.cfg.preSharedKey, c.creds)
+			panicOn(err)
+			c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+		}
 	}
 
 	go c.runSendLoop(conn)

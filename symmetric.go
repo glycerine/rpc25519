@@ -110,6 +110,8 @@ in crypto/tls. Quoting the release notes:
 
 var _ = fmt.Printf
 
+const useVerifiedHandshake = true // otherwise use simplest at end
+
 // Note: you probably want the symmetricServerVerifiedHandshake()
 // function below, as it prevents man-in-the-middle attacks.
 // For forward privacy, the ephemeral ECDH handshake
@@ -172,6 +174,10 @@ func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedRandomSecret [32]
 // but that is the right thing for doing the ephemeral
 // elliptic curve Diffie-Hellman handshake that gives us
 // a shared secret to mix with our pre-shared key.
+// Thus 1) forward secrecy: if the key is compromised,
+// no (recorded) past conversations can be broken; and
+// 2) Man-in-the-middles cannot intervene without
+// getting a cert signed by our CA.
 type verifiedHandshake struct {
 	EphemPubKey      []byte    `zid:"0"`
 	SignatureOfEphem []byte    `zid:"1"`
@@ -340,10 +346,14 @@ func symmetricServerVerifiedHandshake(
 	if useCaboose {
 		// Generate new, 2nd, ephemeral X25519 key pair
 		serverEphemPrivateKey2, serverEphemPublicKey2, err := generateX25519KeyPair()
+		_ = serverEphemPrivateKey2
 		if err != nil {
 			err0 = fmt.Errorf("failed to generate server X25519 key pair: %v", err)
 			return
 		}
+
+		serverNewPub := make([]byte, 32)
+		copy(serverNewPub, serverEphemPublicKey2[:])
 
 		cab := &caboose{
 			ClientAuthTag:     cshakeTag,
@@ -356,19 +366,24 @@ func symmetricServerVerifiedHandshake(
 			ServerSigningCert: sshake.SigningCert,
 			ClientSigOfEphem:  cshake.SignatureOfEphem,
 			ServerSigOfEphem:  sshake.SignatureOfEphem,
-			ServerNewPub:      serverEphemPublicKey2[:],
+			ServerNewPub:      serverNewPub,
 		}
 		err0 = sendCrypticCaboose(conn, cab, sharedRandomSecret[:], &timeout)
 		if err0 != nil {
 			return
 		}
 
-		// Compute the new shared secret, based on the serverEphemPrivateKey2
-		sharedSecret2, err := curve25519.X25519(serverEphemPrivateKey2[:], cshake.EphemPubKey)
+		//vv("server sharedRandomSecret = '%x'", sharedRandomSecret[:])
+		//vv("server cab.ServerNewPub = '%x'", cab.ServerNewPub)
+
+		// Compute the new shared secret
+		sharedSecret2, err := curve25519.X25519(sharedRandomSecret[:], cab.ServerNewPub)
 		if err != nil {
 			panic(err)
 		}
 		_ = sharedSecret2
+		//vv("server sharedSecret2 = '%x'", sharedSecret2)
+		copy(sharedRandomSecret[:], sharedSecret2)
 	}
 
 	return
@@ -612,6 +627,19 @@ func symmetricClientVerifiedHandshake(
 			return
 		}
 		//vv("caboose was as expected")
+		//vv("client sharedRandomSecret = '%x'", sharedRandomSecret[:])
+		//vv("client cab.ServerNewPub = '%x'", cab.ServerNewPub)
+
+		if len(cab.ServerNewPub) == 32 {
+			// Compute the new shared secret, based on the serverEphemPrivateKey2
+			sharedSecret2, err := curve25519.X25519(sharedRandomSecret[:], cab.ServerNewPub)
+			if err != nil {
+				panic(err)
+			}
+			_ = sharedSecret2
+			//vv("client sharedSecret2 = '%x'", sharedSecret2)
+			copy(sharedRandomSecret[:], sharedSecret2)
+		}
 	}
 
 	// Print the symmetric key (for demonstration purposes)
@@ -978,6 +1006,11 @@ func decryptWithPrivKey(
 	return aead.Open(nil, nonce, ct, nil)
 }
 
+// simplest use of pre-shared-key: just send
+// a random salt to mix with the psk to get a symkey.
+// Only drawback is: No forward privacy. If
+// the psk is compromised, all past conversations
+// that used that psk can be recovered.
 func simpleSymmetricClientHandshake(
 	conn uConn,
 	psk [32]byte,
@@ -1006,7 +1039,7 @@ func simpleSymmetricClientHandshake(
 }
 
 // simplest use of pre-shared-key: just take the salt,
-// mix it with the psk, and keep going.
+// mix it with the psk to create your final key.
 func simpleSymmetricServerHandshake(
 	conn uConn,
 	psk [32]byte,

@@ -628,7 +628,9 @@ func Test015_server_push_quic_notice_disco_quickly(t *testing.T) {
 
 func Test016_WithPreSharedKey_inner_handshake_must_be_properly_signed(t *testing.T) {
 
-	return // currently pre-shared-key is super simple and not verified.
+	if !useVerifiedHandshake {
+		return // currently pre-shared-key is super simple and not verified.
+	}
 
 	cv.Convey("Even if the pre-shared-keys agree, if the initial handshake ephemeral keys are not signed by a key that is signed by our CA, then we should error out on authentication failure.", t, func() {
 

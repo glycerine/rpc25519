@@ -198,20 +198,22 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 	//vv("quic client: s.cfg.encryptPSK = %v", c.cfg.encryptPSK)
 	if c.cfg.encryptPSK {
 
-		// randomSymmetricSessKey, cliEphemPub, srvEphemPub, srvStaticPub, err :=
-		// 	symmetricClientVerifiedHandshake(wrap, c.cfg.preSharedKey, c.creds)
-		// if err != nil {
-		// 	alwaysPrintf("failed handshake with server: '%v'", err)
-		// 	return
-		// }
-		// c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
-		// c.cliEphemPub = cliEphemPub
-		// c.srvEphemPub = srvEphemPub
-		// c.srvStaticPub = srvStaticPub
-
-		randomSymmetricSessKey, err := simpleSymmetricClientHandshake(wrap, c.cfg.preSharedKey, c.creds)
-		panicOn(err)
-		c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+		if useVerifiedHandshake {
+			randomSymmetricSessKey, cliEphemPub, srvEphemPub, srvStaticPub, err :=
+				symmetricClientVerifiedHandshake(wrap, c.cfg.preSharedKey, c.creds)
+			if err != nil {
+				alwaysPrintf("failed handshake with server: '%v'", err)
+				return
+			}
+			c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+			c.cliEphemPub = cliEphemPub
+			c.srvEphemPub = srvEphemPub
+			c.srvStaticPub = srvStaticPub
+		} else {
+			randomSymmetricSessKey, err := simpleSymmetricClientHandshake(wrap, c.cfg.preSharedKey, c.creds)
+			panicOn(err)
+			c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+		}
 	}
 
 	go c.runSendLoop(wrap)
