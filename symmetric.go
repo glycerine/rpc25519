@@ -873,11 +873,17 @@ func (a *caboose) Equal(b *caboose) bool {
 	return true
 }
 
+// encryptWithPubKey encrypts plaintext with recipientPublicKey
+// so that only the recipient with:
+//
+// 1) the matching private key;
+// 2) the returned ephemeralPublicKey (a nonce, effectively); and
+// 3) the ciphertext
+//
+// can decode it. Parts 2) and 3) must be sent to the recipient.
 func encryptWithPubKey(
 	recipientPublicKey [32]byte,
 	plaintext []byte,
-	scratch []byte,
-
 ) (ephemeralPublicKey [32]byte, ciphertext []byte, err0 error) {
 
 	// Generate ephemeral X25519 key pair
@@ -911,17 +917,24 @@ func encryptWithPubKey(
 	nonce := make([]byte, aead.NonceSize())
 	_, err = cryrand.Read(nonce)
 	panicOn(err)
-	scratch = append(scratch, nonce...)
 
-	ciphertext = aead.Seal(scratch, nonce, plaintext, nil)
+	ciphertext = aead.Seal(nonce, nonce, plaintext, nil)
 	return
 }
 
+// decryptWithPrivKey reverses encryptWithPubKey.
+//
+// We take in:
+//
+// 1) our private key, known only to us;
+// 2) an ephemeral public key, (a nonce, effectively) transmitted to us;
+// 3) a ciphertext encrypted with our public key, aslo transmitted to us.
+//
+// Then we return the plaintext decryption of ciphertext.
 func decryptWithPrivKey(
 	recipientPrivateKey [32]byte,
 	ephemeralPublicKey [32]byte,
 	ciphertext []byte,
-	scratch []byte,
 
 ) (plaintext []byte, err0 error) {
 
@@ -943,7 +956,7 @@ func decryptWithPrivKey(
 		return
 	}
 	nonce, ct := ciphertext[:aead.NonceSize()], ciphertext[aead.NonceSize():]
-	return aead.Open(scratch, nonce, ct, nil)
+	return aead.Open(nil, nonce, ct, nil)
 }
 
 // handshakeRecord shows what was exchanged and verified

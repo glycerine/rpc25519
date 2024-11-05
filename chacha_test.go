@@ -127,7 +127,6 @@ func Test022_encryptWithPubKey(t *testing.T) {
 
 	cv.Convey("encryptWithPubKey and decryptWithPrivKey are inverses of each other", t, func() {
 
-		scratch := make([]byte, 200)
 		plaintext := make([]byte, 100)
 		_, err := cryrand.Read(plaintext)
 		panicOn(err)
@@ -138,13 +137,13 @@ func Test022_encryptWithPubKey(t *testing.T) {
 		panicOn(err)
 
 		// Sender encrypts the message
-		ephemeralPublicKey, ciphertext, err := encryptWithPubKey(recipientPublicKey, plaintext, scratch[:0])
+		ephemeralPublicKey, ciphertext, err := encryptWithPubKey(recipientPublicKey, plaintext)
 		if err != nil {
 			panic(err)
 		}
 
 		// Recipient decrypts the message
-		decryptedMessage, err := decryptWithPrivKey(recipientPrivateKey, ephemeralPublicKey, ciphertext, scratch[:0])
+		decryptedMessage, err := decryptWithPrivKey(recipientPrivateKey, ephemeralPublicKey, ciphertext)
 		if err != nil {
 			panic(err)
 		}
