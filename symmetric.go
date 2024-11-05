@@ -110,14 +110,20 @@ in crypto/tls. Quoting the release notes:
 
 var _ = fmt.Printf
 
-const useVerifiedHandshake = true // otherwise use simplest at end
+const useVerifiedHandshake = true // true implies wantForwardSecrecy true too.
+const wantForwardSecrecy = true
 
 // Note: you probably want the symmetricServerVerifiedHandshake()
 // function below, as it prevents man-in-the-middle attacks.
-// For forward privacy, the ephemeral ECDH handshake
+// This does provide forward privacy: the ephemeral ECDH handshake
 // serverPrivateKey generated here
 // is deliberately forgotten and not returned.
-func symmetricServerHandshake(conn uConn, psk [32]byte) (sharedRandomSecret [32]byte, cliEphemPub, srvEphemPub []byte, err0 error) {
+func symmetricServerHandshake(
+	conn uConn,
+	psk [32]byte,
+	creds *selfcert.Creds,
+) (sharedRandomSecret [32]byte, cliEphemPub, srvEphemPub []byte, clientStaticPubKey ed25519.PublicKey, err0 error) {
+
 	//vv("top of symmetricServerHandshake")
 
 	// Generate ephemeral X25519 key pair
@@ -453,10 +459,15 @@ func deriveSymmetricKeyFromBaseSymmetricAndSharedRandomSecret(sharedSecret, psk 
 
 // Note: you probably want the symmetricClientVerifiedHandshake()
 // function below, as it prevents man-in-the-middle attacks.
-// For forward privacy, the ephemeral ECDH handshake
+// This does give forward privacy: the ephemeral ECDH handshake
 // clientPrivateKey generated here
 // is deliberately forgotten and not returned.
-func symmetricClientHandshake(conn uConn, psk [32]byte) (sharedRandomSecret [32]byte, cliEphemPub, srvEphemPub []byte, err0 error) {
+func symmetricClientHandshake(
+	conn uConn,
+	psk [32]byte,
+	creds *selfcert.Creds,
+) (sharedRandomSecret [32]byte, cliEphemPub, srvEphemPub []byte, serverStaticPubKey ed25519.PublicKey, err0 error) {
+
 	//vv("top of symmetricClientHandshake")
 
 	// Generate ephemeral X25519 key pair

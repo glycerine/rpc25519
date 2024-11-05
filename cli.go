@@ -211,9 +211,19 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 			c.srvEphemPub = srvEphemPub
 			c.srvStaticPub = srvStaticPub
 		} else {
-			randomSymmetricSessKey, err := simpleSymmetricClientHandshake(conn, c.cfg.preSharedKey, c.creds)
-			panicOn(err)
-			c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+			if wantForwardSecrecy {
+				randomSymmetricSessKey, cliEphemPub, srvEphemPub, srvStaticPub, err := symmetricClientHandshake(conn, c.cfg.preSharedKey, c.creds)
+				panicOn(err)
+				c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+				c.cliEphemPub = cliEphemPub
+				c.srvEphemPub = srvEphemPub
+				c.srvStaticPub = srvStaticPub
+
+			} else {
+				randomSymmetricSessKey, err := simpleSymmetricClientHandshake(conn, c.cfg.preSharedKey, c.creds)
+				panicOn(err)
+				c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+			}
 		}
 	}
 
@@ -247,16 +257,25 @@ func (c *Client) runClientTCP(serverAddr string) {
 		if useVerifiedHandshake {
 			randomSymmetricSessKey, cliEphemPub, srvEphemPub, srvStaticPub, err :=
 				symmetricClientVerifiedHandshake(conn, c.cfg.preSharedKey, c.creds)
-			//vv("err back was '%v'", err)
 			panicOn(err)
 			c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
 			c.cliEphemPub = cliEphemPub
 			c.srvEphemPub = srvEphemPub
 			c.srvStaticPub = srvStaticPub
 		} else {
-			randomSymmetricSessKey, err := simpleSymmetricClientHandshake(conn, c.cfg.preSharedKey, c.creds)
-			panicOn(err)
-			c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+			if wantForwardSecrecy {
+				randomSymmetricSessKey, cliEphemPub, srvEphemPub, srvStaticPub, err :=
+					symmetricClientHandshake(conn, c.cfg.preSharedKey, c.creds)
+				panicOn(err)
+				c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+				c.cliEphemPub = cliEphemPub
+				c.srvEphemPub = srvEphemPub
+				c.srvStaticPub = srvStaticPub
+			} else {
+				randomSymmetricSessKey, err := simpleSymmetricClientHandshake(conn, c.cfg.preSharedKey, c.creds)
+				panicOn(err)
+				c.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+			}
 		}
 	}
 

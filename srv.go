@@ -223,7 +223,12 @@ acceptAgain:
 				randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
 					symmetricServerVerifiedHandshake(conn, s.cfg.preSharedKey, s.creds)
 			} else {
-				randomSymmetricSessKey, err = simpleSymmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
+				if wantForwardSecrecy {
+					randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
+						symmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
+				} else {
+					randomSymmetricSessKey, err = simpleSymmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
+				}
 			}
 
 			if err != nil {
@@ -313,7 +318,12 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 			randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
 				symmetricServerVerifiedHandshake(conn, s.cfg.preSharedKey, s.creds)
 		} else {
-			randomSymmetricSessKey, err = simpleSymmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
+			if wantForwardSecrecy {
+				randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
+					symmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
+			} else {
+				randomSymmetricSessKey, err = simpleSymmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
+			}
 		}
 
 		if err != nil {

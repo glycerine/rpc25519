@@ -237,7 +237,12 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 						randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
 							symmetricServerVerifiedHandshake(wrap, s.cfg.preSharedKey, s.creds)
 					} else {
-						randomSymmetricSessKey, err = simpleSymmetricServerHandshake(wrap, s.cfg.preSharedKey, s.creds)
+						if wantForwardSecrecy {
+							randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
+								symmetricServerHandshake(wrap, s.cfg.preSharedKey, s.creds)
+						} else {
+							randomSymmetricSessKey, err = simpleSymmetricServerHandshake(wrap, s.cfg.preSharedKey, s.creds)
+						}
 					}
 
 					if err != nil {
