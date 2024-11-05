@@ -110,7 +110,28 @@ in crypto/tls. Quoting the release notes:
 
 var _ = fmt.Printf
 
-const useVerifiedHandshake = true // true implies wantForwardSecrecy true too.
+// useVerifiedHandshake = true prevents Man-in-the-middle attacks
+// by requiring that the counterparty have a cert signed
+// by our CA in order to communicate with us. This
+// also deploys ephemeral session keys for forward privacy.
+//
+// So useVerifiedHandshake = true implies wantForwardSecrecy true too.
+//
+// If useVerifiedHandshake is false, and wantForwardSecrecy is
+// true, then we won't sign the public keys in the Diffie-
+// Hellman handshake that we use to generate secret session keys.
+//
+// If wantForwardSecrecy is false, we simply have the
+// client send a random salt and mix that with the
+// pre-shared-key to reate a session key. An attacker
+// who records traffic and then compromises the
+// psk can break and view all past traffic too.
+// If they are not recording the salt then the
+// past traffic becomes un-recoverable even if
+// the pre-shared-key is compromised. Pretty weak
+// sauce, for sure. This does nothing to deter
+// recording.
+const useVerifiedHandshake = true
 const wantForwardSecrecy = true
 
 // Note: you probably want the symmetricServerVerifiedHandshake()
