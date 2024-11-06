@@ -5,8 +5,10 @@ import (
 	//"encoding/hex"
 	"encoding/json"
 	"fmt"
+	mathrand2 "math/rand/v2"
 	"net"
 	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -22,6 +24,16 @@ const rfc3339NanoNumericTZ0pad = "2006-01-02T15:04:05.000000000-07:00"
 var lastSerial int64
 
 var myPID = int64(os.Getpid())
+
+var chacha8randMut sync.Mutex
+var chacha8rand *mathrand2.ChaCha8
+
+func init() {
+	var seed [32]byte
+	_, err := cryrand.Read(seed[:])
+	panicOn(err)
+	chacha8rand = mathrand2.NewChaCha8(seed)
+}
 
 // Message transports JobSerz []byte slices for
 // the user, who can de-serialize them they wish.
@@ -124,8 +136,17 @@ const (
 func NewHDR(from, to, subject string, typ CallType) (m *HDR) {
 	t0 := time.Now()
 	serial := atomic.AddInt64(&lastSerial, 1)
-	//rness := hex.EncodeToString(cryptoRandBytes(40))
-	rness := base64.URLEncoding.EncodeToString(cryptoRandBytes(20))
+
+	// a bit slow
+	//rness := base64.URLEncoding.EncodeToString(cryptoRandBytes(20))
+
+	// try this
+	var pseudo [20]byte // not cryptographically random.
+	chacha8randMut.Lock()
+	chacha8rand.Read(pseudo[:])
+	chacha8randMut.Unlock()
+	rness := base64.URLEncoding.EncodeToString(pseudo[:])
+
 	m = &HDR{
 		Created: t0,
 		From:    from,
