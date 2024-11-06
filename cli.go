@@ -1113,6 +1113,7 @@ func (c *Client) Close() error {
 
 var ErrShutdown = fmt.Errorf("shutting down")
 var ErrDone = fmt.Errorf("done channel closed")
+var ErrTimeout = fmt.Errorf("time-out waiting for call to complete")
 
 // SendAndGetReplyWithTimeout expires the call after
 // timeout.
@@ -1130,11 +1131,33 @@ func (c *Client) SendAndGetReplyWithTimeout(timeout time.Duration, req *Message)
 // The doneCh is optional; it can be nil. A
 // context.Done() like channel can be supplied there to
 // stop waiting before a reply comes back.
+//
+// UPDATE: DEFAULT timeout in force now. Because
+// server failure or blink (down then up) can
+// leave us stalled forever, we put in a default
+// timeout of 10 seconds, if not otherwise
+// specified. If you expect your call to take
+// more than a few seconds, you should set
+// the timeout directly with
+// SendAndGetReplyWithTimeout() or pass in
+// a doneCh here to manage it. Otherwise, to
+// handle the vast majority of expected very
+// fast replies, if doneCh is nil we will
+// provide a time.After() channel the
+// sends after 10 seconds.
 func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *Message, err error) {
 
 	if len(req.DoneCh) > cap(req.DoneCh) || cap(req.DoneCh) < 1 {
 		panic(fmt.Sprintf("req.DoneCh did not have capacity; cap = %v, len=%v", cap(req.DoneCh), len(req.DoneCh)))
 	}
+
+	var defaultTimeout <-chan time.Time
+	// leave deafultTimeout nil if user supplied a doneCh.
+	if doneCh == nil {
+		// try hard not to get stuck when server goes away.
+		defaultTimeout = time.After(10 * time.Second)
+	}
+
 	var from, to string
 	if c.isQUIC {
 		from = local(c.quicConn)
@@ -1160,6 +1183,11 @@ func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *M
 	case <-doneCh:
 		//vv("Client '%v' SendAndGetReply(req='%v'): doneCh files before roundTripCh", c.name, req)
 		return nil, ErrDone
+
+	case <-defaultTimeout:
+		// definitely a timeout
+		return nil, ErrTimeout
+
 	case <-c.halt.ReqStop.Chan:
 		//vv("Client '%v' SendAndGetReply(req='%v'): sees halt.ReqStop before roundTripCh <- req", c.name, req)
 		c.halt.Done.Close()
@@ -1178,6 +1206,9 @@ func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *M
 	case <-doneCh:
 		// usually a timeout
 		return nil, ErrDone
+	case <-defaultTimeout:
+		// definitely a timeout
+		return nil, ErrTimeout
 	case <-c.halt.ReqStop.Chan:
 		//vv("Client '%v' SendAndGetReply(req='%v'): sees halt.ReqStop", c.name, req) // here
 
