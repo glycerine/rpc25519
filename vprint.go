@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"reflect"
 	"runtime"
 	"runtime/debug"
 	"sync"
@@ -145,4 +146,17 @@ func panicOn(err error) {
 
 func stack() string {
 	return string(debug.Stack())
+}
+
+// IsNil uses reflect to to return true iff the face
+// contains a nil pointer, map, array, slice, or channel.
+func IsNil(face interface{}) bool {
+	if face == nil {
+		return true
+	}
+	switch reflect.TypeOf(face).Kind() {
+	case reflect.Ptr, reflect.Array, reflect.Map, reflect.Slice, reflect.Chan:
+		return reflect.ValueOf(face).IsNil()
+	}
+	return false
 }

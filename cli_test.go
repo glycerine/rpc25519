@@ -166,7 +166,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		// Synchronous calls
 		args = &Args{7, 8}
 		reply = new(Reply)
-		err = client.Call("Arith.Add", args, reply)
+		err = client.Call("Arith.Add", args, reply, nil)
 		if err != nil {
 			t.Errorf("Add: expected no error but got string %q", err.Error())
 		}
@@ -178,7 +178,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		// Methods exported from unexported embedded structs
 		args = &Args{7, 0}
 		reply = new(Reply)
-		err = client.Call("Embed.Exported", args, reply)
+		err = client.Call("Embed.Exported", args, reply, nil)
 		if err != nil {
 			t.Errorf("Add: expected no error but got string %q", err.Error())
 		}
@@ -189,7 +189,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		// Nonexistent method
 		args = &Args{7, 0}
 		reply = new(Reply)
-		err = client.Call("Arith.BadOperation", args, reply)
+		err = client.Call("Arith.BadOperation", args, reply, nil)
 		// expect an error
 		if err == nil {
 			t.Error("BadOperation: expected error")
@@ -201,7 +201,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		// Unknown service
 		args = &Args{7, 8}
 		reply = new(Reply)
-		err = client.Call("Arith.Unknown", args, reply)
+		err = client.Call("Arith.Unknown", args, reply, nil)
 		if err == nil {
 			t.Error("expected error calling unknown service")
 		} else if !strings.Contains(err.Error(), "method") {
@@ -212,9 +212,9 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		// Out of order.
 		args = &Args{7, 8}
 		mulReply := new(Reply)
-		mulCall := client.Go("Arith.Mul", args, mulReply, nil)
+		mulCall := client.Go("Arith.Mul", args, mulReply, nil, nil)
 		addReply := new(Reply)
-		addCall := client.Go("Arith.Add", args, addReply, nil)
+		addCall := client.Go("Arith.Add", args, addReply, nil, nil)
 
 		addCall = <-addCall.Done
 		if addCall.Error != nil {
@@ -236,7 +236,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		// Error test
 		args = &Args{7, 0}
 		reply = new(Reply)
-		err = client.Call("Arith.Div", args, reply)
+		err = client.Call("Arith.Div", args, reply, nil)
 		// expect an error: zero divide
 		if err == nil {
 			t.Error("Div: expected error")
@@ -247,7 +247,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 
 		args = &Args{7, 8}
 		reply = new(Reply)
-		err = client.Call("Arith.Mul", args, reply)
+		err = client.Call("Arith.Mul", args, reply, nil)
 		if err != nil {
 			t.Errorf("Mul: expected no error but got string %q", err.Error())
 		}
@@ -259,7 +259,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		// ServiceName contain "." character
 		args = &Args{7, 8}
 		reply = new(Reply)
-		err = client.Call("net.rpc.Arith.Add", args, reply)
+		err = client.Call("net.rpc.Arith.Add", args, reply, nil)
 		if err != nil {
 			t.Errorf("Add: expected no error but got string %q", err.Error())
 		}
@@ -389,7 +389,7 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 		// Synchronous calls
 		args := &Args{7, 8}
 		reply := new(Reply)
-		err = client.Call("Arith.Add", args, reply)
+		err = client.Call("Arith.Add", args, reply, nil)
 		if err != nil {
 			t.Errorf("Add: expected no error but got string %q", err.Error())
 		}
@@ -400,7 +400,7 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 		// Methods exported from unexported embedded structs
 		args = &Args{7, 0}
 		reply = new(Reply)
-		err = client.Call("Embed.Exported", args, reply)
+		err = client.Call("Embed.Exported", args, reply, nil)
 		if err != nil {
 			t.Errorf("Add: expected no error but got string %q", err.Error())
 		}
@@ -411,7 +411,7 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 		// Nonexistent method
 		args = &Args{7, 0}
 		reply = new(Reply)
-		err = client.Call("Arith.BadOperation", args, reply)
+		err = client.Call("Arith.BadOperation", args, reply, nil)
 		// expect an error
 		if err == nil {
 			t.Error("BadOperation: expected error")
@@ -422,7 +422,7 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 		// Unknown service
 		args = &Args{7, 8}
 		reply = new(Reply)
-		err = client.Call("Arith.Unknown", args, reply)
+		err = client.Call("Arith.Unknown", args, reply, nil)
 		if err == nil {
 			t.Error("expected error calling unknown service")
 		} else if !strings.Contains(err.Error(), "method") {
@@ -432,9 +432,9 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 		// Out of order.
 		args = &Args{7, 8}
 		mulReply := new(Reply)
-		mulCall := client.Go("Arith.Mul", args, mulReply, nil)
+		mulCall := client.Go("Arith.Mul", args, mulReply, nil, nil)
 		addReply := new(Reply)
-		addCall := client.Go("Arith.Add", args, addReply, nil)
+		addCall := client.Go("Arith.Add", args, addReply, nil, nil)
 
 		addCall = <-addCall.Done
 		if addCall.Error != nil {
@@ -455,7 +455,7 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 		// Error test
 		args = &Args{7, 0}
 		reply = new(Reply)
-		err = client.Call("Arith.Div", args, reply)
+		err = client.Call("Arith.Div", args, reply, nil)
 		// expect an error: zero divide
 		if err == nil {
 			t.Error("Div: expected error")
@@ -465,7 +465,7 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 
 		args = &Args{7, 8}
 		reply = new(Reply)
-		err = client.Call("Arith.Mul", args, reply)
+		err = client.Call("Arith.Mul", args, reply, nil)
 		if err != nil {
 			t.Errorf("Mul: expected no error but got string %q", err.Error())
 		}
@@ -476,7 +476,7 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 		// ServiceName contain "." character
 		args = &Args{7, 8}
 		reply = new(Reply)
-		err = client.Call("net.rpc.Arith.Add", args, reply)
+		err = client.Call("net.rpc.Arith.Add", args, reply, nil)
 		if err != nil {
 			t.Errorf("Add: expected no error but got string %q", err.Error())
 		}
@@ -604,7 +604,7 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 		// Synchronous calls
 		args := &Args{7, 8}
 		reply := new(Reply)
-		err = client.Call("Arith.Add", args, reply)
+		err = client.Call("Arith.Add", args, reply, nil)
 		if err != nil {
 			t.Errorf("Add: expected no error but got string %q", err.Error())
 		}
@@ -615,7 +615,7 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 		// Methods exported from unexported embedded structs
 		args = &Args{7, 0}
 		reply = new(Reply)
-		err = client.Call("Embed.Exported", args, reply)
+		err = client.Call("Embed.Exported", args, reply, nil)
 		if err != nil {
 			t.Errorf("Add: expected no error but got string %q", err.Error())
 		}
@@ -626,7 +626,7 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 		// Nonexistent method
 		args = &Args{7, 0}
 		reply = new(Reply)
-		err = client.Call("Arith.BadOperation", args, reply)
+		err = client.Call("Arith.BadOperation", args, reply, nil)
 		// expect an error
 		if err == nil {
 			t.Error("BadOperation: expected error")
@@ -637,7 +637,7 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 		// Unknown service
 		args = &Args{7, 8}
 		reply = new(Reply)
-		err = client.Call("Arith.Unknown", args, reply)
+		err = client.Call("Arith.Unknown", args, reply, nil)
 		if err == nil {
 			t.Error("expected error calling unknown service")
 		} else if !strings.Contains(err.Error(), "method") {
@@ -647,9 +647,9 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 		// Out of order.
 		args = &Args{7, 8}
 		mulReply := new(Reply)
-		mulCall := client.Go("Arith.Mul", args, mulReply, nil)
+		mulCall := client.Go("Arith.Mul", args, mulReply, nil, nil)
 		addReply := new(Reply)
-		addCall := client.Go("Arith.Add", args, addReply, nil)
+		addCall := client.Go("Arith.Add", args, addReply, nil, nil)
 
 		addCall = <-addCall.Done
 		if addCall.Error != nil {
@@ -670,7 +670,7 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 		// Error test
 		args = &Args{7, 0}
 		reply = new(Reply)
-		err = client.Call("Arith.Div", args, reply)
+		err = client.Call("Arith.Div", args, reply, nil)
 		// expect an error: zero divide
 		if err == nil {
 			t.Error("Div: expected error")
@@ -680,7 +680,7 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 
 		args = &Args{7, 8}
 		reply = new(Reply)
-		err = client.Call("Arith.Mul", args, reply)
+		err = client.Call("Arith.Mul", args, reply, nil)
 		if err != nil {
 			t.Errorf("Mul: expected no error but got string %q", err.Error())
 		}
@@ -691,7 +691,7 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 		// ServiceName contain "." character
 		args = &Args{7, 8}
 		reply = new(Reply)
-		err = client.Call("net.rpc.Arith.Add", args, reply)
+		err = client.Call("net.rpc.Arith.Add", args, reply, nil)
 		if err != nil {
 			t.Errorf("Add: expected no error but got string %q", err.Error())
 		}
@@ -829,7 +829,7 @@ func BenchmarkHelloRpcxMessage(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err = client.Call("Hello.Say", args, reply)
+		err = client.Call("Hello.Say", args, reply, nil)
 		panicOn(err)
 		if reply.Field1 != "OK" || reply.Field2 != 100 {
 			panic("Hello.Say not called?")

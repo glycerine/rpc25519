@@ -763,7 +763,10 @@ func computeHMAC(plaintext []byte, key []byte) (hash []byte) {
 // the invocation. The done channel will signal when the call is complete by returning
 // the same Call object. If done is nil, Go will allocate a new channel.
 // If non-nil, done must be buffered or Go will deliberately crash.
-func (c *Client) Go(serviceMethod string, args Green, reply Green, done chan *Call) *Call {
+//
+// octx is an optional context, for early cancelling of
+// a job. It can be nil.
+func (c *Client) Go(serviceMethod string, args Green, reply Green, done chan *Call, octx context.Context) *Call {
 	c.mut.Lock()
 	c.seenNetRPCCalls = true
 	c.mut.Unlock()
@@ -785,7 +788,7 @@ func (c *Client) Go(serviceMethod string, args Green, reply Green, done chan *Ca
 	}
 	call.Done = done
 	//vv("Go() about to send()")
-	c.send(call)
+	c.send(call, octx)
 	//vv("Go() back from send()")
 	return call
 }
@@ -793,13 +796,16 @@ func (c *Client) Go(serviceMethod string, args Green, reply Green, done chan *Ca
 // Call implements the net/rpc Client.Call() API; its docs:
 //
 // Call invokes the named function, waits for it to complete, and returns its error status.
-func (c *Client) Call(serviceMethod string, args, reply Green) error {
+//
+// Added: octx is an optional context for cancelling the job.
+// It can be nil.
+func (c *Client) Call(serviceMethod string, args, reply Green, octx context.Context) error {
 	c.mut.Lock()
 	c.seenNetRPCCalls = true
 	c.mut.Unlock()
 
 	doneCh := make(chan *Call, 1)
-	call := c.Go(serviceMethod, args, reply, doneCh)
+	call := c.Go(serviceMethod, args, reply, doneCh, octx)
 	select {
 	case call = <-doneCh:
 		return call.Error
@@ -808,7 +814,7 @@ func (c *Client) Call(serviceMethod string, args, reply Green) error {
 	}
 }
 
-func (c *Client) send(call *Call) {
+func (c *Client) send(call *Call, octx context.Context) {
 	c.reqMutex.Lock()
 	defer c.reqMutex.Unlock()
 
@@ -849,7 +855,12 @@ func (c *Client) send(call *Call) {
 	req.JobSerz = make([]byte, len(by))
 	copy(req.JobSerz, by)
 
-	reply, err := c.SendAndGetReply(req, nil)
+	var requestStopCh <-chan struct{}
+	if octx != nil && !IsNil(octx) {
+		requestStopCh = octx.Done()
+	} // else leave it nil.
+
+	reply, err := c.SendAndGetReply(req, requestStopCh)
 	_ = reply
 	//vv("cli got reply '%v'; err = '%v'", reply, err)
 
@@ -1118,21 +1129,27 @@ var ErrTimeout = fmt.Errorf("time-out waiting for call to complete")
 // SendAndGetReplyWithTimeout expires the call after
 // timeout.
 func (c *Client) SendAndGetReplyWithTimeout(timeout time.Duration, req *Message) (reply *Message, err error) {
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	go func() {
-		time.Sleep(timeout)
-		cancelFunc()
-	}()
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), timeout)
+	defer cancelFunc()
+
+	// ctx, cancelFunc := context.WithCancel(context.Background())
+	// go func() {
+	// 	time.Sleep(timeout)
+	// 	cancelFunc()
+	// }()
+
 	return c.SendAndGetReply(req, ctx.Done())
 }
 
 // SendAndGetReply starts a round-trip RPC call.
 // We will wait for a response before retuning.
-// The doneCh is optional; it can be nil. A
+// The requestStopCh is optional; it can be nil. A
 // context.Done() like channel can be supplied there to
-// stop waiting before a reply comes back.
+// cancel the job and stop waiting before a
+// reply comes back.
 //
-// UPDATE: DEFAULT timeout in force now. Because
+// UPDATE: a DEFAULT timeout is in force now. Because
 // server failure or blink (down then up) can
 // leave us stalled forever, we put in a default
 // timeout of 10 seconds, if not otherwise
@@ -1140,20 +1157,19 @@ func (c *Client) SendAndGetReplyWithTimeout(timeout time.Duration, req *Message)
 // more than a few seconds, you should set
 // the timeout directly with
 // SendAndGetReplyWithTimeout() or pass in
-// a doneCh here to manage it. Otherwise, to
-// handle the vast majority of expected very
-// fast replies, if doneCh is nil we will
-// provide a time.After() channel the
-// sends after 10 seconds.
-func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *Message, err error) {
+// a cancelJobCh here to manage it. Otherwise, to
+// handle the common case when we expect very
+// fast replies, if cancelJobCh is nil, we will
+// cancel the job if it has not finished after 10 seconds.
+func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (reply *Message, err error) {
 
 	if len(req.DoneCh) > cap(req.DoneCh) || cap(req.DoneCh) < 1 {
 		panic(fmt.Sprintf("req.DoneCh did not have capacity; cap = %v, len=%v", cap(req.DoneCh), len(req.DoneCh)))
 	}
 
 	var defaultTimeout <-chan time.Time
-	// leave deafultTimeout nil if user supplied a doneCh.
-	if doneCh == nil {
+	// leave deafultTimeout nil if user supplied a cancelJobCh.
+	if cancelJobCh == nil {
 		// try hard not to get stuck when server goes away.
 		defaultTimeout = time.After(10 * time.Second)
 	}
@@ -1180,8 +1196,8 @@ func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *M
 	case c.roundTripCh <- req:
 		// proceed
 		//vv("Client '%v' SendAndGetReply(req='%v') delivered on roundTripCh", c.name, req)
-	case <-doneCh:
-		//vv("Client '%v' SendAndGetReply(req='%v'): doneCh files before roundTripCh", c.name, req)
+	case <-cancelJobCh:
+		//vv("Client '%v' SendAndGetReply(req='%v'): cancelJobCh files before roundTripCh", c.name, req)
 		return nil, ErrDone
 
 	case <-defaultTimeout:
@@ -1203,7 +1219,7 @@ func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *M
 		}
 		//vv("client.SendAndGetReply() got on reply.Err = '%v'", err)
 		return
-	case <-doneCh:
+	case <-cancelJobCh:
 		// usually a timeout
 		return nil, ErrDone
 	case <-defaultTimeout:
@@ -1218,8 +1234,8 @@ func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *M
 }
 
 // OneWaySend sends a message without expecting or waiting for a response.
-// The doneCh is optional, and can be nil.
-func (c *Client) OneWaySend(msg *Message, doneCh <-chan struct{}) (err error) {
+// The cancelJobCh is optional, and can be nil.
+func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err error) {
 
 	var from, to string
 	if c.isQUIC {
@@ -1239,7 +1255,7 @@ func (c *Client) OneWaySend(msg *Message, doneCh <-chan struct{}) (err error) {
 	select {
 	case c.oneWayCh <- msg:
 		return nil // not worth waiting?
-	case <-doneCh:
+	case <-cancelJobCh:
 		return ErrDone
 
 	case <-c.halt.ReqStop.Chan:
