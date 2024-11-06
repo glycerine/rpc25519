@@ -21,10 +21,13 @@ var quiet *bool
 var calls int64
 
 func noticeControlC() {
+	t0 := time.Now()
 	sigChan := make(chan os.Signal, 1)
 	go func() {
 		for _ = range sigChan {
-			fmt.Printf("\n\nserver calls seen: %v\n", atomic.LoadInt64(&calls))
+			n := atomic.LoadInt64(&calls)
+			elap := time.Since(t0)
+			fmt.Printf("\n\nserver %v for calls seen: %v  => %v calls/second.\n", elap, n, float64(n)/float64(int64(elap)/1e9))
 			os.Exit(0)
 		}
 	}()
