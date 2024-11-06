@@ -127,7 +127,7 @@ var _ = fmt.Printf
 //
 // If wantForwardSecrecy is false, we simply have the
 // client send a random salt and mix that with the
-// pre-shared-key to reate a session key. An attacker
+// pre-shared-key to create a session key. An attacker
 // who records traffic and then compromises the
 // psk can break and view all past traffic too.
 // If they are not recording the salt then the
@@ -140,7 +140,7 @@ var _ = fmt.Printf
 // the second, inside tunnel so you _are_ already inside
 // TLS or QUIC, then using a pre-shared-
 // key at all for an inner symmetric cipher
-// adds post-quantum resistance, which may
+// adds robust post-quantum resistance, which may
 // be all you are after.
 const useVerifiedHandshake = true
 const wantForwardSecrecy = true
@@ -788,6 +788,8 @@ func readLenThenBytesTag(conn uConn, timeout *time.Duration) (shakeBytes, tag []
 // isValidX25519PublicKey checks if the provided public key is a valid X25519 public key.
 // According to RFC 7748, all 32-byte strings are accepted as valid
 // public keys, and the scalar multiplication function processes them securely.
+// We reject only the all zero key, since this is almost
+// surely a mis configuration.
 func isValidX25519PublicKey(pubKey []byte) (valid bool) {
 	// Check that the public key is exactly 32 bytes long
 	if len(pubKey) != 32 {
@@ -958,7 +960,7 @@ func (a *caboose) Equal(b *caboose) bool {
 //
 // 1) the matching private key;
 // 2) the returned ephemeralPublicKey (a nonce, effectively); and
-// 3) the ciphertext
+// 3) the returned ciphertext
 //
 // can decode it. Parts 2) and 3) must be sent to the recipient.
 func encryptWithPubKey(
