@@ -21,6 +21,7 @@ require (
 require (
 	4d63.com/embedfiles v0.0.0-20190311033909-995e0740726f // indirect
 	github.com/cloudflare/circl v1.5.0 // indirect
+	github.com/cristalhq/base64 v0.1.2 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/glycerine/fwd v1.1.4-beta.jea // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect

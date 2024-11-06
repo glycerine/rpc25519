@@ -1145,6 +1145,7 @@ func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *M
 	}
 
 	hdr := NewHDR(from, to, req.HDR.Subject, req.HDR.Typ)
+
 	// don't override a CallNetRPC
 	if hdr.Typ == CallNone {
 		hdr.Typ = CallRPC
@@ -1182,6 +1183,10 @@ func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *M
 
 		c.halt.Done.Close()
 		return nil, ErrShutdown
+
+		// DEBUG TODO REMOVE THIS!
+	case <-time.After(10 * time.Second):
+		panic("why are we stuck after 10 seconds?")
 	}
 }
 

@@ -2,7 +2,7 @@ package rpc25519
 
 import (
 	"bytes"
-	"encoding/hex"
+	//"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -11,6 +11,7 @@ import (
 	"time"
 
 	cryrand "crypto/rand"
+	"github.com/cristalhq/base64"
 	gjson "github.com/goccy/go-json"
 )
 
@@ -123,7 +124,8 @@ const (
 func NewHDR(from, to, subject string, typ CallType) (m *HDR) {
 	t0 := time.Now()
 	serial := atomic.AddInt64(&lastSerial, 1)
-	rness := hex.EncodeToString(cryptoRandBytes(40))
+	//rness := hex.EncodeToString(cryptoRandBytes(40))
+	rness := base64.URLEncoding.EncodeToString(cryptoRandBytes(20))
 	m = &HDR{
 		Created: t0,
 		From:    from,
