@@ -488,7 +488,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			alwaysPrintf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
 			return
 		}
-		if req.HDR.IsKeepAlive {
+		if req.HDR.Typ == CallKeepAlive {
 			//vv("srv read loop got an rpc25519 keep alive.")
 			continue
 		}
@@ -497,7 +497,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		req.HDR.Nc = conn
 
-		if req.HDR.IsNetRPC {
+		if req.HDR.Typ == CallNetRPC {
 			//vv("have IsNetRPC call: '%v'", req.HDR.Subject)
 			err = s.callBridgeNetRpc(req)
 			if err != nil {
@@ -512,7 +512,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		callme2 = nil
 
 		s.Server.mut.Lock()
-		if req.HDR.IsRPC {
+		if req.HDR.Typ == CallRPC {
 			if s.Server.callme2 != nil {
 				callme2 = s.Server.callme2
 				foundCallback2 = true
@@ -561,15 +561,12 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 				from := local(conn)
 				to := remote(conn)
-				isRPC := true
-				isLeg2 := true
-
-				mid := NewHDR(from, to, reply.HDR.Subject, isRPC, isLeg2)
+				hdr := NewHDR(from, to, reply.HDR.Subject, CallRPC)
 
 				// We are able to match call and response rigourously on the CallID alone.
-				mid.CallID = reqCallID
-				mid.Seqno = replySeqno
-				reply.HDR = *mid
+				hdr.CallID = reqCallID
+				hdr.Seqno = replySeqno
+				reply.HDR = *hdr
 
 				select {
 				case s.SendCh <- reply:
@@ -798,15 +795,11 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 
 	from := local(p.Conn)
 	to := remote(p.Conn)
-	isRPC := true
-	isLeg2 := true
-
-	mid := NewHDR(from, to, subject, isRPC, isLeg2)
+	mid := NewHDR(from, to, subject, CallNetRPC)
 
 	// We are able to match call and response rigourously on the CallID alone.
 	mid.CallID = reqCallID
 	mid.Seqno = replySeqno
-	mid.IsNetRPC = true
 	msg.HDR = *mid
 
 	by := p.encBuf.Bytes()
@@ -1158,11 +1151,9 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 
 	from := local(pair.Conn)
 	to := remote(pair.Conn)
-	isRPC := false
-	isLeg2 := false
 	subject = fmt.Sprintf("srv.SendMessage('%v')", subject)
 
-	mid := NewHDR(from, to, subject, isRPC, isLeg2)
+	mid := NewHDR(from, to, subject, CallOneWay)
 	if callID != "" {
 		mid.CallID = callID
 	}

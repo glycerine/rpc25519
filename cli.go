@@ -320,7 +320,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 		if msg == nil {
 			continue
 		}
-		if msg.HDR.IsKeepAlive {
+		if msg.HDR.Typ == CallKeepAlive {
 			//vv("client got an rpc25519 keep alive.")
 			continue
 		}
@@ -843,7 +843,7 @@ func (c *Client) send(call *Call) {
 
 	req := NewMessage()
 	req.HDR.Subject = call.ServiceMethod
-	req.HDR.IsNetRPC = true
+	req.HDR.Typ = CallNetRPC
 
 	by := c.encBuf.Bytes()
 	req.JobSerz = make([]byte, len(by))
@@ -1143,14 +1143,13 @@ func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *M
 		from = local(c.conn)
 		to = remote(c.conn)
 	}
-	isRPC := true
-	isLeg2 := false
-	isNetRPC := req.HDR.IsNetRPC
 
-	mid := NewHDR(from, to, req.HDR.Subject, isRPC, isLeg2)
-	mid.IsNetRPC = isNetRPC
-
-	req.HDR = *mid
+	hdr := NewHDR(from, to, req.HDR.Subject, req.HDR.Typ)
+	// don't override a CallNetRPC
+	if hdr.Typ == CallNone {
+		hdr.Typ = CallRPC
+	}
+	req.HDR = *hdr
 
 	//vv("Client '%v' SendAndGetReply(req='%v') (ignore req.Seqno:0 not yet assigned)", c.name, req)
 	select {
@@ -1199,11 +1198,8 @@ func (c *Client) OneWaySend(msg *Message, doneCh <-chan struct{}) (err error) {
 		to = remote(c.conn)
 	}
 
-	isRPC := false
-	isLeg2 := false
-
-	mid := NewHDR(from, to, msg.HDR.Subject, isRPC, isLeg2)
-	msg.HDR = *mid
+	hdr := NewHDR(from, to, msg.HDR.Subject, CallOneWay)
+	msg.HDR = *hdr
 	// allow msg.CallID to not be empty; in case we get a reply.
 	// isRPC=false so this is 1-way, but it might in turn still
 	// generate a response.

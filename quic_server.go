@@ -461,7 +461,7 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 			return
 		}
 
-		if req.HDR.IsKeepAlive {
+		if req.HDR.Typ == CallKeepAlive {
 			//vv("quic_server read loop got an rpc25519 keep alive.")
 			continue
 
@@ -470,7 +470,7 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 
 		req.HDR.Nc = wrap
 
-		if req.HDR.IsNetRPC {
+		if req.HDR.Typ == CallNetRPC {
 			//vv("have IsNetRPC call: '%v'", req.HDR.Subject)
 			err = s.callBridgeNetRpc(req)
 			if err != nil {
@@ -485,7 +485,7 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 		callme2 = nil
 
 		s.Server.mut.Lock()
-		if req.HDR.IsRPC {
+		if req.HDR.Typ == CallRPC {
 			if s.Server.callme2 != nil {
 				callme2 = s.Server.callme2
 				foundCallback2 = true
@@ -532,15 +532,12 @@ func (s *quicRWPair) runReadLoop(stream quic.Stream, conn quic.Connection) {
 
 				from := local(conn)
 				to := remote(conn)
-				isRPC := true
-				isLeg2 := true
-
-				mid := NewHDR(from, to, reply.HDR.Subject, isRPC, isLeg2)
+				hdr := NewHDR(from, to, reply.HDR.Subject, CallRPC)
 
 				// We are able to match call and response rigourously on the CallID alone.
-				mid.CallID = reqCallID
-				mid.Seqno = replySeqno
-				reply.HDR = *mid
+				hdr.CallID = reqCallID
+				hdr.Seqno = replySeqno
+				reply.HDR = *hdr
 
 				select {
 				case s.SendCh <- reply:

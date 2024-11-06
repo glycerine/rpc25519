@@ -6,58 +6,58 @@ import (
 	cv "github.com/glycerine/goconvey/convey"
 )
 
-func Test010_MID_generation(t *testing.T) {
+func Test010_HDR_generation(t *testing.T) {
 
-	cv.Convey("A MID should look nice in both String() and JSON() output", t, func() {
+	cv.Convey("A HDR should look nice in both String() and JSON() output", t, func() {
 		from := "client"
 		to := "server"
 		subject := "myRPC_call_name()"
-		isRPC := true
+		//isRPC := true
 		//isLeg2 := false
 
 		// call:
-		mid := NewHDR(from, to, subject, isRPC, false)
+		hdr := NewHDR(from, to, subject, CallRPC)
 
-		smid := mid.String()
-		jmid := mid.JSON()
+		shdr := hdr.String()
+		jhdr := hdr.JSON()
 
-		vv("smid = '%v'", smid)
-		vv("jmid = '%v'", string(jmid))
+		vv("shdr = '%v'", shdr)
+		vv("jhdr = '%v'", string(jhdr))
 
 		// response:
-		mid2 := NewHDR(to, from, subject, isRPC, true)
-		smid2 := mid2.String()
-		jmid2 := mid2.JSON()
+		hdr2 := NewHDR(to, from, subject, CallRPC)
+		shdr2 := hdr2.String()
+		jhdr2 := hdr2.JSON()
 
-		vv("smid2 = '%v'", smid2)
-		vv("jmid2 = '%v'", string(jmid2))
+		vv("shdr2 = '%v'", shdr2)
+		vv("jhdr2 = '%v'", string(jhdr2))
 
-		friendly := mid2.OpaqueURLFriendly()
+		friendly := hdr2.OpaqueURLFriendly()
 
 		vv("friendly = '%v'", friendly)
 
-		mid2back, err := HDRFromOpaqueURLFriendly(friendly)
+		hdr2back, err := HDRFromOpaqueURLFriendly(friendly)
 		panicOn(err)
 
-		//vv("mid2back = '%v'", mid2back)
-		//vv("mid2 = '%v'", mid2)
-		cv.So(mid2back.Equal(mid2), cv.ShouldBeTrue)
+		//vv("hdr2back = '%v'", hdr2back)
+		//vv("hdr2 = '%v'", hdr2)
+		cv.So(hdr2back.Equal(hdr2), cv.ShouldBeTrue)
 
-		vv("back from friendly: '%v'", mid2back.String())
-		vv("pretty: '%v'", mid2back.Pretty())
+		vv("back from friendly: '%v'", hdr2back.String())
+		vv("pretty: '%v'", hdr2back.Pretty())
 
 		// json serz
-		by1 := mid.Bytes()
+		by1 := hdr.Bytes()
 		un1 := Unbytes(by1)
-		cv.So(un1.Equal(mid), cv.ShouldBeTrue)
+		cv.So(un1.Equal(hdr), cv.ShouldBeTrue)
 
 		// greenpack serz
 		w := newWorkspace("hdr_test", 4096) // max possible message len, to pre-allocate memory.
-		green, err := mid.AsGreenpack(w.buf)
+		green, err := hdr.AsGreenpack(w.buf)
 		panicOn(err)
-		mid3, err := HDRFromGreenpack(green)
+		hdr3, err := HDRFromGreenpack(green)
 		panicOn(err)
-		cv.So(mid3.Equal(mid), cv.ShouldBeTrue)
+		cv.So(hdr3.Equal(hdr), cv.ShouldBeTrue)
 
 	})
 }
