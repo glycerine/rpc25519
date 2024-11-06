@@ -25,6 +25,7 @@ func main() {
 	var psk = flag.String("psk", "", "path to pre-shared key file")
 	var clientHostPort = flag.String("hostport", ":0", "client will use use this host and port (port can be 0) to dial from.")
 	var n = flag.Int("n", 1, "number of calls to make")
+	var quiet = flag.Bool("quiet", false, "operate quietly")
 
 	flag.Parse()
 
@@ -69,8 +70,9 @@ func main() {
 		}
 	}
 
-	log.Printf("client sees reply (Seqno=%v) = '%v'\n", reply.HDR.Seqno, string(reply.JobSerz))
-
+	if !*quiet {
+		log.Printf("client sees reply (Seqno=%v) = '%v'\n", reply.HDR.Seqno, string(reply.JobSerz))
+	}
 	if *hang {
 		log.Printf("client hanging to see if keep-alives happen...")
 		for {
