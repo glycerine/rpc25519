@@ -2,18 +2,15 @@ package rpc25519
 
 import (
 	"bytes"
-	//"encoding/hex"
 	"encoding/json"
 	"fmt"
-	mathrand2 "math/rand/v2"
 	"net"
 	"os"
-	"sync"
 	"sync/atomic"
 	"time"
 
 	cryrand "crypto/rand"
-	"github.com/cristalhq/base64"
+	cristalbase64 "github.com/cristalhq/base64"
 	gjson "github.com/goccy/go-json"
 )
 
@@ -24,16 +21,6 @@ const rfc3339NanoNumericTZ0pad = "2006-01-02T15:04:05.000000000-07:00"
 var lastSerial int64
 
 var myPID = int64(os.Getpid())
-
-var chacha8randMut sync.Mutex
-var chacha8rand *mathrand2.ChaCha8
-
-func init() {
-	var seed [32]byte
-	_, err := cryrand.Read(seed[:])
-	panicOn(err)
-	chacha8rand = mathrand2.NewChaCha8(seed)
-}
 
 // Message transports JobSerz []byte slices for
 // the user, who can de-serialize them they wish.
@@ -118,7 +105,7 @@ type HDR struct {
 	Subject string    `zid:"3"` // in net/rpc, the "Service.Method" ServiceName
 	Seqno   uint64    `zid:"4"` // user (client) set sequence number for each call (same on response).
 	Typ     CallType  `zid:"5"` // see constants below.
-	CallID  string    `zid:"6"` // 40-byte crypto/rand base-58 coded string (same on response).
+	CallID  string    `zid:"6"` // 32-byte crypto/rand base-64 coded string (same on response).
 	Serial  int64     `zid:"7"` // system serial number
 }
 
@@ -137,15 +124,7 @@ func NewHDR(from, to, subject string, typ CallType) (m *HDR) {
 	t0 := time.Now()
 	serial := atomic.AddInt64(&lastSerial, 1)
 
-	// a bit slow
-	//rness := base64.URLEncoding.EncodeToString(cryptoRandBytes(20))
-
-	// try this
-	var pseudo [20]byte // not cryptographically random.
-	chacha8randMut.Lock()
-	chacha8rand.Read(pseudo[:])
-	chacha8randMut.Unlock()
-	rness := base64.URLEncoding.EncodeToString(pseudo[:])
+	rness := cristalbase64.URLEncoding.EncodeToString(cryptoRandBytes(32))
 
 	m = &HDR{
 		Created: t0,

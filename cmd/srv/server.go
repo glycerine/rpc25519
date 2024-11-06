@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"sync/atomic"
+	"syscall"
 	"time"
 
 	_ "net/http/pprof" // for web based profiling while running
@@ -14,8 +18,23 @@ import (
 
 var quiet *bool
 
+var calls int64
+
+func noticeControlC() {
+	sigChan := make(chan os.Signal, 1)
+	go func() {
+		for _ = range sigChan {
+			fmt.Printf("\n\nserver calls seen: %v\n", atomic.LoadInt64(&calls))
+			os.Exit(0)
+		}
+	}()
+	signal.Notify(sigChan, syscall.SIGINT)
+}
+
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
+
+	noticeControlC()
 
 	var addr = flag.String("s", "0.0.0.0:8443", "server address to bind and listen on")
 	var tcp = flag.Bool("tcp", false, "use TCP instead of the default TLS")
@@ -29,6 +48,8 @@ func main() {
 	var profile = flag.String("prof", "", "host:port to start web profiler on. host can be empty for all localhost interfaces")
 
 	var psk = flag.String("psk", "", "path to pre-shared key file")
+
+	var seconds = flag.Int("sec", 0, "run for this many seconds")
 
 	quiet = flag.Bool("quiet", false, "for profiling, do not log answer")
 
@@ -62,7 +83,12 @@ func main() {
 	}
 
 	log.Printf("rpc25519.server Start() returned serverAddr = '%v'", serverAddr)
-	select {}
+	if *seconds > 0 {
+		<-time.After(time.Second * time.Duration(*seconds))
+		fmt.Printf("\nAfter %v seconds, server calls seen: %v\n", *seconds, atomic.LoadInt64(&calls))
+	} else {
+		select {}
+	}
 }
 
 // echo implements rpc25519.TwoWayFunc
@@ -70,6 +96,7 @@ func customEcho(req, reply *rpc25519.Message) error {
 	if !*quiet {
 		log.Printf("server customEcho called, Seqno=%v, msg='%v'", req.HDR.Seqno, string(req.JobSerz))
 	}
+	atomic.AddInt64(&calls, 1)
 	//vv("callback to echo: with msg='%#v'", in)
 	reply.JobSerz = append(req.JobSerz, []byte(fmt.Sprintf("\n with time customEcho sees this: '%v'", time.Now()))...)
 	return nil
