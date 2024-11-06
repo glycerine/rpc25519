@@ -1183,10 +1183,6 @@ func (c *Client) SendAndGetReply(req *Message, doneCh <-chan struct{}) (reply *M
 
 		c.halt.Done.Close()
 		return nil, ErrShutdown
-
-		// DEBUG TODO REMOVE THIS!
-		//case <-time.After(10 * time.Second):
-		//	panic("why are we stuck after 10 seconds?")
 	}
 }
 
