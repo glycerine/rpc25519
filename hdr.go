@@ -2,16 +2,15 @@ package rpc25519
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
 	"os"
-	"strings"
 	"sync/atomic"
 	"time"
 
-	crand "crypto/rand"
-	"github.com/btcsuite/btcd/btcutil/base58"
+	cryrand "crypto/rand"
 	gjson "github.com/goccy/go-json"
 )
 
@@ -124,7 +123,7 @@ const (
 func NewHDR(from, to, subject string, typ CallType) (m *HDR) {
 	t0 := time.Now()
 	serial := atomic.AddInt64(&lastSerial, 1)
-	rness := toUncheckedBase58(cryptoRandBytes(40))
+	rness := hex.EncodeToString(cryptoRandBytes(40))
 	m = &HDR{
 		Created: t0,
 		From:    from,
@@ -205,41 +204,13 @@ func (m *HDR) Pretty() string {
 	return pretty.String()
 }
 
-func (m *HDR) OpaqueURLFriendly() string {
-	j := m.JSON()
-	s := toUncheckedBase58(j)
-	return "mid2024-" + s
-}
-
-const prefix = "mid2024-"
-
-func HDRFromOpaqueURLFriendly(s string) (*HDR, error) {
-	if !strings.HasPrefix(s, prefix) {
-		return nil, fmt.Errorf("did not begin with prefix 'mid2024-'")
-	}
-	jsonData := fromUncheckedBase58(s[len(prefix):])
-	var mid HDR
-	err := gjson.Unmarshal(jsonData, &mid)
-	if err != nil {
-		return nil, err
-	}
-	return &mid, nil
-}
-
 func cryptoRandBytes(n int) []byte {
 	b := make([]byte, n)
-	_, err := crand.Read(b)
+	_, err := cryrand.Read(b)
 	if err != nil {
 		panic(err)
 	}
 	return b
-}
-
-func toUncheckedBase58(by []byte) string {
-	return base58.Encode(by)
-}
-func fromUncheckedBase58(encodedStr string) []byte {
-	return base58.Decode(encodedStr)
 }
 
 // HDRFromGreenpack will unmarshal the header

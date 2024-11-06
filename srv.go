@@ -1129,8 +1129,8 @@ var ErrNetConnectionNotFound = fmt.Errorf("error: net.Conn not found")
 // the send is unlikely to suceed; or to time.Duration(0) if
 // they want no pause after writing Message to the connection.
 // The default is 30 msec. It is a guess and aims at balance:
-// allowing enough time to get an error back from quic-go i
-// f we are going to discover "Application error 0x0 (remote)"
+// allowing enough time to get an error back from quic-go
+// if we are going to discover "Application error 0x0 (remote)"
 // right away, and not wanting to stall the caller too much.
 func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqno uint64,
 	errWriteDur *time.Duration) error {

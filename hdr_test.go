@@ -32,19 +32,17 @@ func Test010_HDR_generation(t *testing.T) {
 		vv("shdr2 = '%v'", shdr2)
 		vv("jhdr2 = '%v'", string(jhdr2))
 
-		friendly := hdr2.OpaqueURLFriendly()
-
-		vv("friendly = '%v'", friendly)
-
-		hdr2back, err := HDRFromOpaqueURLFriendly(friendly)
-		panicOn(err)
+		//friendly := hdr2.OpaqueURLFriendly()
+		//vv("friendly = '%v'", friendly)
+		//hdr2back, err := HDRFromOpaqueURLFriendly(friendly)
+		//panicOn(err)
 
 		//vv("hdr2back = '%v'", hdr2back)
 		//vv("hdr2 = '%v'", hdr2)
-		cv.So(hdr2back.Equal(hdr2), cv.ShouldBeTrue)
+		//cv.So(hdr2back.Equal(hdr2), cv.ShouldBeTrue)
 
-		vv("back from friendly: '%v'", hdr2back.String())
-		vv("pretty: '%v'", hdr2back.Pretty())
+		//vv("back from friendly: '%v'", hdr2back.String())
+		//vv("pretty: '%v'", hdr2back.Pretty())
 
 		// json serz
 		by1 := hdr.Bytes()

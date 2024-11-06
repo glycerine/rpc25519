@@ -24,6 +24,7 @@ func main() {
 	var hang = flag.Bool("hang", false, "hang at the end, to see if keep-alives are working.")
 	var psk = flag.String("psk", "", "path to pre-shared key file")
 	var clientHostPort = flag.String("hostport", ":0", "client will use use this host and port (port can be 0) to dial from.")
+	var n = flag.Int("n", 1, "number of calls to make")
 
 	flag.Parse()
 
@@ -57,9 +58,15 @@ func main() {
 	req := rpc25519.NewMessage()
 	req.JobSerz = []byte("client says hello and requests this be echoed back with a timestamp!")
 
-	reply, err := cli.SendAndGetReply(req, nil)
-	if err != nil {
-		panic(err)
+	if *n > 1 {
+		log.Printf("about to do n = %v calls.\n", *n)
+	}
+	var reply *rpc25519.Message
+	for i := 0; i < *n; i++ {
+		reply, err = cli.SendAndGetReply(req, nil)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	log.Printf("client sees reply (Seqno=%v) = '%v'\n", reply.HDR.Seqno, string(reply.JobSerz))

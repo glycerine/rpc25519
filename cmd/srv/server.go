@@ -12,6 +12,8 @@ import (
 	"github.com/glycerine/rpc25519"
 )
 
+var quiet *bool
+
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
@@ -27,6 +29,8 @@ func main() {
 	var profile = flag.String("prof", "", "host:port to start web profiler on. host can be empty for all localhost interfaces")
 
 	var psk = flag.String("psk", "", "path to pre-shared key file")
+
+	quiet = flag.Bool("quiet", false, "for profiling, do not log answer")
 
 	flag.Parse()
 
@@ -63,7 +67,9 @@ func main() {
 
 // echo implements rpc25519.TwoWayFunc
 func customEcho(req, reply *rpc25519.Message) error {
-	log.Printf("server customEcho called, Seqno=%v, msg='%v'", req.HDR.Seqno, string(req.JobSerz))
+	if !*quiet {
+		log.Printf("server customEcho called, Seqno=%v, msg='%v'", req.HDR.Seqno, string(req.JobSerz))
+	}
 	//vv("callback to echo: with msg='%#v'", in)
 	reply.JobSerz = append(req.JobSerz, []byte(fmt.Sprintf("\n with time customEcho sees this: '%v'", time.Now()))...)
 	return nil
