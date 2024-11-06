@@ -2727,7 +2727,7 @@ doneWithStruct31zgensym_7ba73e3e9c15c593_32:
 		switch curField31zgensym_7ba73e3e9c15c593_32 {
 		// -- templateDecodeMsg ends here --
 
-		case "Placeholder__int":
+		case "Placeholder_zid00_int":
 			found31zgensym_7ba73e3e9c15c593_32[0] = true
 			z.Placeholder, err = dc.ReadInt()
 			if err != nil {
@@ -2756,7 +2756,7 @@ doneWithStruct31zgensym_7ba73e3e9c15c593_32:
 }
 
 // fields of Hello
-var decodeMsgFieldOrder31zgensym_7ba73e3e9c15c593_32 = []string{"Placeholder__int"}
+var decodeMsgFieldOrder31zgensym_7ba73e3e9c15c593_32 = []string{"Placeholder_zid00_int"}
 
 var decodeMsgFieldSkip31zgensym_7ba73e3e9c15c593_32 = []bool{false}
 
@@ -2801,8 +2801,8 @@ func (z Hello) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_7ba73e3e9c15c593_33[0] {
-		// write "Placeholder__int"
-		err = en.Append(0xb0, 0x50, 0x6c, 0x61, 0x63, 0x65, 0x68, 0x6f, 0x6c, 0x64, 0x65, 0x72, 0x5f, 0x5f, 0x69, 0x6e, 0x74)
+		// write "Placeholder_zid00_int"
+		err = en.Append(0xb5, 0x50, 0x6c, 0x61, 0x63, 0x65, 0x68, 0x6f, 0x6c, 0x64, 0x65, 0x72, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x69, 0x6e, 0x74)
 		if err != nil {
 			return err
 		}
@@ -2829,8 +2829,8 @@ func (z Hello) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
 	if !empty[0] {
-		// string "Placeholder__int"
-		o = append(o, 0xb0, 0x50, 0x6c, 0x61, 0x63, 0x65, 0x68, 0x6f, 0x6c, 0x64, 0x65, 0x72, 0x5f, 0x5f, 0x69, 0x6e, 0x74)
+		// string "Placeholder_zid00_int"
+		o = append(o, 0xb5, 0x50, 0x6c, 0x61, 0x63, 0x65, 0x68, 0x6f, 0x6c, 0x64, 0x65, 0x72, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x69, 0x6e, 0x74)
 		o = msgp.AppendInt(o, z.Placeholder)
 	}
 
@@ -2902,7 +2902,7 @@ doneWithStruct35zgensym_7ba73e3e9c15c593_36:
 		switch curField35zgensym_7ba73e3e9c15c593_36 {
 		// -- templateUnmarshalMsg ends here --
 
-		case "Placeholder__int":
+		case "Placeholder_zid00_int":
 			found35zgensym_7ba73e3e9c15c593_36[0] = true
 			z.Placeholder, bts, err = nbs.ReadIntBytes(bts)
 
@@ -2932,13 +2932,13 @@ doneWithStruct35zgensym_7ba73e3e9c15c593_36:
 }
 
 // fields of Hello
-var unmarshalMsgFieldOrder35zgensym_7ba73e3e9c15c593_36 = []string{"Placeholder__int"}
+var unmarshalMsgFieldOrder35zgensym_7ba73e3e9c15c593_36 = []string{"Placeholder_zid00_int"}
 
 var unmarshalMsgFieldSkip35zgensym_7ba73e3e9c15c593_36 = []bool{false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z Hello) Msgsize() (s int) {
-	s = 1 + 17 + msgp.IntSize
+	s = 1 + 22 + msgp.IntSize
 	return
 }
 
