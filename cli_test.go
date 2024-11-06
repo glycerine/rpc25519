@@ -777,3 +777,62 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 		*/
 	})
 }
+
+func (t *Hello) Say(args *BenchmarkMessage, reply *BenchmarkMessage) (err error) {
+	s := "OK"
+	var i int32 = 100
+	*reply = *args
+	reply.Field1 = s
+	reply.Field2 = i
+
+	//vv("Hello.Say has been called.")
+	return nil
+}
+
+func BenchmarkHelloRpcxMessage(b *testing.B) {
+
+	cfg := NewConfig()
+	cfg.UseQUIC = true
+
+	cfg.ServerAddr = "127.0.0.1:0"
+	srv := NewServer("srv_bench", cfg)
+
+	serverAddr, err := srv.Start()
+	panicOn(err)
+	defer srv.Close()
+
+	vv("server Start() returned serverAddr = '%v'", serverAddr)
+
+	// net/rpc API on server
+	srv.Register(new(Hello))
+
+	cfg.ClientDialToHostPort = serverAddr.String()
+
+	// The QUIC client will share the port with the QUIC server typically;
+	// port sharing is on by default. So don't bother
+	// setting the ClientHostPort. It is just a
+	// suggestion anyway.
+	//cfg.ClientHostPort = fmt.Sprintf("%v:%v", host, port+1)
+
+	client, err := NewClient("cli_bench", cfg)
+	panicOn(err)
+	err = client.Start()
+	panicOn(err)
+	defer client.Close()
+
+	args := &BenchmarkMessage{}
+	reply := &BenchmarkMessage{}
+
+	sz := args.Msgsize() * 2
+	b.SetBytes(int64(sz))
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err = client.Call("Hello.Say", args, reply)
+		panicOn(err)
+		if reply.Field1 != "OK" || reply.Field2 != 100 {
+			panic("Hello.Say not called?")
+		}
+	}
+}

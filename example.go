@@ -150,3 +150,55 @@ type Response struct {
 	Error         string    `zid:"2"` // error, if any.
 	next          *Response // for free list in Server
 }
+
+// for the cli_test.go benchmark
+// ala https://github.com/rpcx-ecosystem/rpcx-benchmark
+// translation:
+// https://github-com.translate.goog/rpcx-ecosystem/rpcx-benchmark?_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en-US&_x_tr_pto=wapp
+
+type Hello struct {
+	Placeholder int `zid:"0"` // must have public field or greenpack will ignore it.
+}
+
+type BenchmarkMessage struct {
+	Field1   string   `zid:"0"`
+	Field9   string   `zid:"1"`
+	Field18  string   `zid:"2"`
+	Field80  bool     `zid:"3"`
+	Field81  bool     `zid:"4"`
+	Field2   int32    `zid:"5"`
+	Field3   int32    `zid:"6"`
+	Field280 int32    `zid:"7"`
+	Field6   int32    `zid:"8"`
+	Field22  int64    `zid:"9"`
+	Field4   string   `zid:"10"`
+	Field5   []uint64 `zid:"11"`
+	Field59  bool     `zid:"12"`
+	Field7   string   `zid:"13"`
+	Field16  int32    `zid:"14"`
+	Field130 int32    `zid:"15"`
+	Field12  bool     `zid:"16"`
+	Field17  bool     `zid:"17"`
+	Field13  bool     `zid:"18"`
+	Field14  bool     `zid:"19"`
+	Field104 int32    `zid:"20"`
+	Field100 int32    `zid:"21"`
+	Field101 int32    `zid:"22"`
+	Field102 string   `zid:"23"`
+	Field103 string   `zid:"24"`
+	Field29  int32    `zid:"25"`
+	Field30  bool     `zid:"26"`
+	Field60  int32    `zid:"27"`
+	Field271 int32    `zid:"28"`
+	Field272 int32    `zid:"29"`
+	Field150 int32    `zid:"30"`
+	Field23  int32    `zid:"31"`
+	Field24  bool     `zid:"32"`
+	Field25  int32    `zid:"33"`
+	Field78  bool     `zid:"34"`
+	Field67  int32    `zid:"35"`
+	Field68  int32    `zid:"36"`
+	Field128 int32    `zid:"37"`
+	Field129 string   `zid:"38"`
+	Field131 int32    `zid:"39"`
+}
