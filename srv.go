@@ -179,7 +179,6 @@ func (s *Server) runTCP(serverAddress string, boundCh chan net.Addr) {
 	s.lsn = listener // allow shutdown
 
 	if s.cfg.HTTPConnectRequired {
-		// on the default http server, for now.
 		mux := http.NewServeMux()
 		mux.Handle(DefaultRPCPath, s) // calls back to http.go's Server.ServeHTTP(),
 		httpsrv := &http.Server{Handler: mux}
@@ -253,7 +252,7 @@ func (s *Server) serveConn(conn net.Conn) {
 		}
 
 		if err != nil {
-			alwaysPrintf("tcp failed to athenticate: '%v'", err)
+			alwaysPrintf("tcp/tls failed to athenticate: '%v'", err)
 			//continue acceptAgain
 			return
 		}
@@ -270,12 +269,7 @@ func (s *Server) serveConn(conn net.Conn) {
 }
 
 func (s *Server) handleTLSConnection(conn *tls.Conn) {
-	//vv("top of handleConnection()")
-
-	defer func() {
-		//vv("Closing connection from %v", conn.RemoteAddr())
-		conn.Close()
-	}()
+	//vv("top of handleTLSConnection()")
 
 	// Perform the handshake; it is lazy on first Read/Write, and
 	// we want to check the certifcates from the client; we
@@ -326,44 +320,12 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 		//}
 	}
 
-	var randomSymmetricSessKey [32]byte
-	var cliEphemPub []byte
-	var srvEphemPub []byte
-	var cliStaticPub ed25519.PublicKey
-
-	//vv("tls server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
-	if s.cfg.encryptPSK {
-		var err error
-		switch {
-		case useVerifiedHandshake:
-			randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
-				symmetricServerVerifiedHandshake(conn, s.cfg.preSharedKey, s.creds)
-
-		case wantForwardSecrecy:
-			randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
-				symmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
-
-		case mixRandomnessWithPSK:
-			randomSymmetricSessKey, err = simpleSymmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
-
-		default:
-			randomSymmetricSessKey = s.cfg.preSharedKey
-		}
-
-		if err != nil {
-			alwaysPrintf("tls failed to athenticate: '%v'", err)
-			return
-		}
+	if s.cfg.HTTPConnectRequired {
+		// this might be too late to try and do CONNECT stuff here.
 	}
 
-	pair := s.newRWPair(conn)
-	pair.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
-	pair.cliEphemPub = cliEphemPub
-	pair.srvEphemPub = srvEphemPub
-	pair.cliStaticPub = cliStaticPub
-
-	go pair.runSendLoop(conn)
-	pair.runReadLoop(conn)
+	// end of handleTLSConnection()
+	s.serveConn(conn)
 }
 
 func (s *rwPair) runSendLoop(conn net.Conn) {
