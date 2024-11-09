@@ -14,6 +14,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"reflect"
 	"strings"
@@ -82,6 +83,8 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 	// maybe that is because localhost is what we put in the ca.cnf and openssl-san.cnf
 	// as the CN and DNS.1 names too(!)
 	//config.ServerName = "localhost" // this would be the name of the remote client.
+
+	// start of as http, the get CONNECT and hijack to TCP.
 
 	if tcp_only {
 		// actually just run TCP and not TLS, since we might not have cert authority (e.g. under test)
@@ -175,6 +178,15 @@ func (s *Server) runTCP(serverAddress string, boundCh chan net.Addr) {
 
 	s.lsn = listener // allow shutdown
 
+	if s.cfg.HTTPConnectRequired {
+		// on the default http server, for now.
+		mux := http.NewServeMux()
+		mux.Handle(DefaultRPCPath, s) // calls back to http.go's Server.ServeHTTP(),
+		httpsrv := &http.Server{Handler: mux}
+		httpsrv.Serve(listener) // calls Server.serveConn(conn) with each new connection.
+		return
+	}
+
 acceptAgain:
 	for {
 		select {
@@ -209,46 +221,52 @@ acceptAgain:
 			}
 		}
 
-		//vv("tcp only server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
+		s.serveConn(conn)
+	}
+}
 
-		var randomSymmetricSessKey [32]byte
-		var cliEphemPub []byte
-		var srvEphemPub []byte
-		var cliStaticPub ed25519.PublicKey
+// can be called after HTTP CONNECT hijack too; see http.go.
+func (s *Server) serveConn(conn net.Conn) {
 
-		if s.cfg.encryptPSK {
-			var err error
-			switch {
-			case useVerifiedHandshake:
-				randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
-					symmetricServerVerifiedHandshake(conn, s.cfg.preSharedKey, s.creds)
+	//vv("tcp only server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
+	var randomSymmetricSessKey [32]byte
+	var cliEphemPub []byte
+	var srvEphemPub []byte
+	var cliStaticPub ed25519.PublicKey
 
-			case wantForwardSecrecy:
-				randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
-					symmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
+	if s.cfg.encryptPSK {
+		var err error
+		switch {
+		case useVerifiedHandshake:
+			randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
+				symmetricServerVerifiedHandshake(conn, s.cfg.preSharedKey, s.creds)
 
-			case mixRandomnessWithPSK:
-				randomSymmetricSessKey, err = simpleSymmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
+		case wantForwardSecrecy:
+			randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
+				symmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
 
-			default:
-				randomSymmetricSessKey = s.cfg.preSharedKey
-			}
+		case mixRandomnessWithPSK:
+			randomSymmetricSessKey, err = simpleSymmetricServerHandshake(conn, s.cfg.preSharedKey, s.creds)
 
-			if err != nil {
-				alwaysPrintf("tcp failed to athenticate: '%v'", err)
-				continue acceptAgain
-			}
+		default:
+			randomSymmetricSessKey = s.cfg.preSharedKey
 		}
 
-		pair := s.newRWPair(conn)
-		pair.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
-		pair.cliEphemPub = cliEphemPub
-		pair.srvEphemPub = srvEphemPub
-		pair.cliStaticPub = cliStaticPub
-
-		go pair.runSendLoop(conn)
-		go pair.runReadLoop(conn)
+		if err != nil {
+			alwaysPrintf("tcp failed to athenticate: '%v'", err)
+			//continue acceptAgain
+			return
+		}
 	}
+
+	pair := s.newRWPair(conn)
+	pair.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
+	pair.cliEphemPub = cliEphemPub
+	pair.srvEphemPub = srvEphemPub
+	pair.cliStaticPub = cliStaticPub
+
+	go pair.runSendLoop(conn)
+	go pair.runReadLoop(conn)
 }
 
 func (s *Server) handleTLSConnection(conn *tls.Conn) {
@@ -1274,4 +1292,31 @@ func (s *Server) Close() error {
 	s.mut.Unlock()
 	<-s.halt.Done.Chan
 	return nil
+}
+
+// http CONNECT -> hijack to TCP stuff, from net/rpc
+
+const (
+	// Defaults used by HandleHTTP
+	DefaultRPCPath = "/_goRPC_"
+)
+
+// Can connect to RPC service using HTTP CONNECT to rpcPath.
+var connectedToGoRPC = "200 Connected to Go RPC"
+
+// ServeHTTP implements an [http.Handler] that answers RPC requests.
+func (server *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if req.Method != "CONNECT" {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		io.WriteString(w, "405 must CONNECT\n")
+		return
+	}
+	conn, _, err := w.(http.Hijacker).Hijack()
+	if err != nil {
+		log.Print("rpc hijacking ", req.RemoteAddr, ": ", err.Error())
+		return
+	}
+	io.WriteString(conn, "HTTP/1.0 "+connectedToGoRPC+"\n\n")
+	server.serveConn(conn)
 }

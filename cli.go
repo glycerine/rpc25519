@@ -18,6 +18,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"runtime"
 	"strings"
@@ -232,6 +233,19 @@ func (c *Client) runClientTCP(serverAddr string) {
 	c.connected <- nil
 	defer conn.Close() // in runClientTCP() here.
 	//log.Printf("connected to server %s", serverAddr)
+
+	if c.cfg.HTTPConnectRequired {
+		io.WriteString(conn, "CONNECT "+DefaultRPCPath+" HTTP/1.0\n\n")
+
+		// Require successful HTTP response
+		// before switching to RPC protocol.
+		resp, err := http.ReadResponse(bufio.NewReader(conn), &http.Request{Method: "CONNECT"})
+		if err != nil || resp.Status != connectedToGoRPC {
+			alwaysPrintf("unexpected HTTP response: '%v'; err = '%v'", resp.Status, err)
+			return // does the conn.Close() above in the defer.
+		}
+		//vv("resp.Status = '%v'", resp.Status)
+	}
 
 	err = c.setupPSK(conn)
 	if err != nil {
@@ -634,6 +648,14 @@ type Config struct {
 
 	ServerSendKeepAlive time.Duration
 	ClientSendKeepAlive time.Duration
+
+	// Intially speak HTTP and only
+	// accept CONNECT requests that
+	// we turn into our protocol.
+	// Only works with TCPonly_no_TLS true also,
+	// at the moment. Also adds on another
+	// round trip.
+	HTTPConnectRequired bool
 
 	localAddress string
 
