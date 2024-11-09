@@ -213,3 +213,9 @@ type NetConnWrapper struct {
 	quic.Stream
 	quic.Connection
 }
+
+func (w *NetConnWrapper) Close() error {
+	//vv("NetConnWrapper Close() called")
+	w.Stream.Close()
+	return w.Connection.CloseWithError(0, "server shutdown")
+}

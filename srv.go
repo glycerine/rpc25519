@@ -503,6 +503,22 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 				return // shutting down
 			}
 
+			// "timeout: no recent network activity" should only
+			// be seen on disconnection of a client because we
+			// have a 10 second heartbeat going.
+			if strings.Contains(r, "timeout: no recent network activity") {
+				// We should never see this because of our app level keep-alives.
+				// If we do, then it means the client really went down.
+				//vv("quic server read loop exiting on '%v'", err)
+				return
+			}
+			if strings.Contains(r, "Application error 0x0 (remote)") {
+				// normal message from active client who knew they were
+				// closing down and politely let us know too. Otherwise
+				// we just have to time out.
+				return
+			}
+
 			alwaysPrintf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
 			return
 		}
