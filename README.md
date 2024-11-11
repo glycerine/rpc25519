@@ -206,13 +206,16 @@ jobs can be listed in the certificate.
 
 This is a much saner approach than tying a
 work-load identity to a specific machine, 
-domain name, or machine port. These incidental
-details are artifacts of the network design, easily
-spoofed or phished, and are not reliable or desirable 
-identitiers. Only access to the private key corresponding to our cert should convey identity
+domain name, or machine port. Access to the 
+private key corresponding to our cert should convey identity
 during a TLS handshake. The later part of the handshake 
 verifies that the key was signed by our CA. 
-This more than suffices.
+This suffices. We may also want to
+reject based on IP address to block off clearly 
+irrelevant traffic; both to for DDos mitigration 
+and to keep our CPU cycles low, but these
+are second order optimizations. The crytographic
+proof is the central identifying factor.
 
 Such a requirement maintains the strongest security but still allows
 elastic clouds to grow and shrink and migrate
