@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -54,9 +55,15 @@ func main() {
 
 	var seconds = flag.Int("sec", 0, "run for this many seconds")
 
+	var max = flag.Int("max", 0, "set runtime.GOMAXPROCS to this value.")
+
 	quiet = flag.Bool("quiet", false, "for profiling, do not log answer")
 
 	flag.Parse()
+
+	if *max > 0 {
+		runtime.GOMAXPROCS(*max)
+	}
 
 	if *profile != "" {
 		fmt.Printf("webprofile starting at '%v'...\n", *profile)
