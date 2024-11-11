@@ -59,6 +59,8 @@ func main() {
 
 	quiet = flag.Bool("quiet", false, "for profiling, do not log answer")
 
+	var readto = flag.Duration("read", 0, "timeout on reads")
+
 	flag.Parse()
 
 	if *max > 0 {
@@ -81,6 +83,7 @@ func main() {
 	cfg.CertPath = *certPath
 	//cfg.ServerSendKeepAlive = time.Second * 5
 	cfg.PreSharedKeyPath = *psk
+	cfg.ReadTimeout = *readto
 
 	srv := rpc25519.NewServer("srv", cfg)
 	defer srv.Close()

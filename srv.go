@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +28,7 @@ import (
 	"github.com/quic-go/quic-go"
 )
 
+var _ = runtime.Gosched
 var _ = os.MkdirAll
 var _ = fmt.Printf
 
@@ -442,6 +444,10 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		default:
 		}
 
+		// we see starvation of responses to clients under load.
+		// Not sure if this will help or hurt that. Seems worse.
+		// runtime.Gosched()
+
 		req, err := w.readMessage(conn, &s.cfg.ReadTimeout)
 		if err == io.EOF {
 			//vv("server sees io.EOF from receiveMessage")
@@ -533,6 +539,8 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		if foundCallback2 {
 			// run the callback in a goro, so we can keep doing reads.
 			go func(req *Message, callme2 TwoWayFunc) {
+				// might have helped?
+				// runtime.Gosched()
 
 				//vv("req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
 				//vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
