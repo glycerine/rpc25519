@@ -18,8 +18,10 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/glycerine/greenpack/msgp"
@@ -497,8 +499,33 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		//vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
 
+		s.Server.mut.Lock()
+		s.Server.pair2jobs[s.pairID]++
+		s.Server.jobcount++
+		if s.Server.jobcount%1000 == 1 {
+			s.Server.reportOnJobs()
+		}
+		s.Server.mut.Unlock()
 		s.Server.workQ <- &job{req: req, conn: conn, pair: s, w: w}
 	}
+}
+
+// PRE: s.mut must be locked already
+func (s *Server) reportOnJobs() {
+	var counts []int
+	for _, count := range s.pair2jobs {
+		counts = append(counts, count)
+	}
+	sort.Ints(counts)
+	fmt.Printf("count of jobs done by each client:\n a=c(")
+	for i, n := range counts {
+		if i == 0 {
+			fmt.Printf("%v", n)
+		} else {
+			fmt.Printf(", %v", n)
+		}
+	}
+	fmt.Printf(")\n\n")
 }
 
 type job struct {
@@ -656,6 +683,12 @@ type Server struct {
 	mut        sync.Mutex
 	cfg        *Config
 	quicConfig *quic.Config
+
+	lastPairID atomic.Int64
+
+	// pair2jobs is: pairID(i.e. client) -> number of jobs requested.
+	pair2jobs map[int64]int
+	jobcount  int64
 
 	name  string // which server, for debugging.
 	creds *selfcert.Creds
@@ -1080,6 +1113,8 @@ func (s *Server) register(rcvr msgp.Encodable, name string, useName bool) error 
 // we can figure out who to SendCh to
 // and how to halt each other.
 type rwPair struct {
+	pairID int64 // for metrics, looking at fairness/starvation
+
 	// our parent Server
 	Server *Server
 
@@ -1118,6 +1153,7 @@ type rwPair struct {
 func (s *Server) newRWPair(conn net.Conn) *rwPair {
 
 	p := &rwPair{
+		pairID: s.lastPairID.Add(1),
 		cfg:    s.cfg.Clone(),
 		Server: s,
 		Conn:   conn,
@@ -1269,6 +1305,7 @@ func NewServer(name string, config *Config) *Server {
 		halt:              idem.NewHalter(),
 		RemoteConnectedCh: make(chan *ServerClient, 20),
 		workQ:             make(chan *job, 1000),
+		pair2jobs:         make(map[int64]int),
 	}
 }
 
