@@ -7,8 +7,11 @@ import (
 	"os"
 	"time"
 
+	tdigest "github.com/caio/go-tdigest"
 	"github.com/glycerine/rpc25519"
 )
+
+var td *tdigest.TDigest
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
@@ -34,6 +37,12 @@ func main() {
 	if *remoteDefault {
 		*dest = "192.168.254.151:8443"
 	}
+
+	// compress of 100 still gives 1000x compression,
+	// about 8KB for 1e6 samples; good accuracy at tails
+	var err error
+	td, err = tdigest.New(tdigest.Compression(100))
+	panicOn(err)
 
 	cfg := rpc25519.NewConfig()
 	cfg.ClientDialToHostPort = *dest // "127.0.0.1:8443",
@@ -66,14 +75,25 @@ func main() {
 	}
 	var reply *rpc25519.Message
 	var i int
+	slowest := -1.0
 	defer func() {
-		log.Printf("client did %v calls.  err = '%v'\n", i, err)
+		q999 := td.Quantile(0.999)
+		q99 := td.Quantile(0.99)
+		q50 := td.Quantile(0.50)
+		log.Printf("client did %v calls.  err = '%v' slowest='%v nanosec'; q999='%v nanoseconds'; q99='%v nanoseconds'; q50='%v nanoseconds'\n", i, err, slowest, q999, q99, q50)
 	}()
 	for i = 0; i < *n; i++ {
 		//reply, err = cli.SendAndGetReply(req, nil)
+		t0 := time.Now()
 		reply, err = cli.SendAndGetReplyWithTimeout(*wait, req)
 		if err != nil {
 			panic(err)
+		}
+		elap := float64(time.Since(t0))
+		err = td.Add(elap) // nanoseconds
+		panicOn(err)
+		if elap > slowest {
+			slowest = elap
 		}
 	}
 
@@ -92,5 +112,11 @@ func main() {
 				}
 			}
 		}
+	}
+}
+
+func panicOn(err error) {
+	if err != nil {
+		panic(err)
 	}
 }

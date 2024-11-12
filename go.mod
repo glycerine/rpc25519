@@ -20,6 +20,7 @@ require (
 
 require (
 	4d63.com/embedfiles v0.0.0-20190311033909-995e0740726f // indirect
+	github.com/caio/go-tdigest v3.1.0+incompatible // indirect
 	github.com/cloudflare/circl v1.5.0 // indirect
 	github.com/cristalhq/base64 v0.1.2 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
