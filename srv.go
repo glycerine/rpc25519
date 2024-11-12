@@ -46,11 +46,6 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 	}()
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
-	nCPU := runtime.NumCPU()
-	for i := 0; i < nCPU; i++ {
-		go s.processWorkQ()
-	}
-
 	s.cfg.checkPreSharedKey("server")
 	//vv("server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 
