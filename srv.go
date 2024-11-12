@@ -537,7 +537,7 @@ func (s *Server) reportOnJobs() {
 
 type job struct {
 	req  *Message
-	conn uConnLR
+	conn net.Conn
 	pair *rwPair
 	w    *blabber
 }
@@ -559,7 +559,7 @@ func (s *Server) processWorkQ() {
 			pair := job.pair
 			w := job.w
 
-			req.HDR.Nc = conn.(net.Conn)
+			req.HDR.Nc = conn
 
 			if req.HDR.Typ == CallNetRPC {
 				//vv("have IsNetRPC call: '%v'", req.HDR.Subject)
