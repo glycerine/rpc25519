@@ -1063,7 +1063,10 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 		cfg:    s.cfg.Clone(),
 		Server: s,
 		Conn:   conn,
-		SendCh: make(chan *Message, 10),
+		// yikes: SendCh with a 10 long buffer makes us
+		// starve clients (at v1.1.33).
+		// So for v1.1.34 change SendCh to be unbuffered.
+		SendCh: make(chan *Message), // , 10),
 		halt:   idem.NewHalter(),
 	}
 
