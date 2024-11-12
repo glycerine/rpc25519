@@ -272,7 +272,6 @@ func (c *Client) runReadLoop(conn net.Conn) {
 		c.mut.Unlock()
 	}
 
-	//w := newWorkspace(maxMessage)
 	w := newBlabber("client read loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false)
 
 	readTimeout := time.Millisecond * 100
@@ -1224,6 +1223,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 
 	case <-defaultTimeout:
 		// definitely a timeout
+		//vv("ErrTimeout being returned from SendAndGetReply()")
 		return nil, ErrTimeout
 
 	case <-c.halt.ReqStop.Chan:
@@ -1246,6 +1246,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		return nil, ErrDone
 	case <-defaultTimeout:
 		// definitely a timeout
+		//vv("ErrTimeout being returned from SendAndGetReply(), 2nd part")
 		return nil, ErrTimeout
 	case <-c.halt.ReqStop.Chan:
 		//vv("Client '%v' SendAndGetReply(req='%v'): sees halt.ReqStop", c.name, req) // here

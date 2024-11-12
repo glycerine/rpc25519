@@ -435,7 +435,6 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		s.mut.Unlock()
 	}
 	w := newBlabber("server read loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true)
-	//w := newWorkspace(maxMessage)
 
 	for {
 
@@ -511,9 +510,17 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		// we service jobs fairly in FIFO order.
 		select {
 		case s.Server.workQ <- &job{req: req, conn: conn, pair: s, w: w}:
+			//vv("sent job to workQ")
 		case <-s.halt.ReqStop.Chan:
 			return
 		}
+		// workers requesting jobs can keep calls open for
+		// minutes or hours or days; so we cannot just have
+		// a single worker (say for 1 cpu) that blocks waiting
+		// to finish. We try to keep the workQ since it makes
+		// servicing jobs FIFO, but we still need to process
+		// requests on separate goroutines.
+		go s.Server.processWorkQ()
 	}
 }
 
@@ -548,124 +555,125 @@ func (s *Server) processWorkQ() {
 	foundCallback1 := false
 	foundCallback2 := false
 
-	for {
-		select {
-		case <-s.halt.ReqStop.Chan:
+	//vv("top of processWorkQ")
+	select {
+	case <-s.halt.ReqStop.Chan:
+		return
+	case job := <-s.workQ:
+
+		req := job.req
+		//vv("processWorkQ got job: req.HDR='%v'", req.HDR.String())
+		conn := job.conn
+		pair := job.pair
+		w := job.w
+
+		req.HDR.Nc = conn
+
+		if req.HDR.Typ == CallNetRPC {
+			//vv("have IsNetRPC call: '%v'", req.HDR.Subject)
+			err := pair.callBridgeNetRpc(req)
+			if err != nil {
+				alwaysPrintf("callBridgeNetRpc errored out: '%v'", err)
+			}
+			return // continue
+		}
+
+		foundCallback1 = false
+		foundCallback2 = false
+		callme1 = nil
+		callme2 = nil
+
+		s.mut.Lock()
+		if req.HDR.Typ == CallRPC {
+			if s.callme2 != nil {
+				callme2 = s.callme2
+				foundCallback2 = true
+			}
+		} else {
+			if s.callme1 != nil {
+				callme1 = s.callme1
+				foundCallback1 = true
+			}
+		}
+		s.mut.Unlock()
+
+		if !foundCallback1 && !foundCallback2 {
+			//vv("warning! no callbacks found for req = '%v'", req)
+		}
+
+		if foundCallback1 {
+			// run the callback in a goro, so we can keep doing reads.
+			//go callme1(req)
+			callme1(req)
 			return
-		case job := <-s.workQ:
+		}
 
-			req := job.req
-			conn := job.conn
-			pair := job.pair
-			w := job.w
+		if foundCallback2 {
+			//vv("foundCallback2 true, req.HDR = '%v'", req.HDR) // not seen
 
-			req.HDR.Nc = conn
+			//vv("req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
+			//vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
+			//vv("conn   local = '%v', remote = '%v'", local(conn), remote(conn))
 
-			if req.HDR.Typ == CallNetRPC {
-				//vv("have IsNetRPC call: '%v'", req.HDR.Subject)
-				err := pair.callBridgeNetRpc(req)
-				if err != nil {
-					alwaysPrintf("callBridgeNetRpc errored out: '%v'", err)
-				}
-				continue
+			if cap(req.DoneCh) < 1 || len(req.DoneCh) >= cap(req.DoneCh) {
+				panic("req.DoneCh too small; fails the sanity check to be received on.")
 			}
 
-			foundCallback1 = false
-			foundCallback2 = false
-			callme1 = nil
-			callme2 = nil
+			reply := NewMessage()
 
-			s.mut.Lock()
-			if req.HDR.Typ == CallRPC {
-				if s.callme2 != nil {
-					callme2 = s.callme2
-					foundCallback2 = true
+			replySeqno := req.HDR.Seqno // just echo back same.
+			// allow user to change Subject
+			reply.HDR.Subject = req.HDR.Subject
+			reqCallID := req.HDR.CallID
+
+			err := callme2(req, reply)
+			if err != nil {
+				reply.JobErrs = err.Error()
+			}
+			// don't read from req now, just in case callme2 messed with it.
+
+			from := local(conn)
+			to := remote(conn)
+			hdr := NewHDR(from, to, reply.HDR.Subject, CallRPC)
+
+			// We are able to match call and response rigourously on the CallID alone.
+			hdr.CallID = reqCallID
+			hdr.Seqno = replySeqno
+			reply.HDR = *hdr
+
+			// what if we just do the send ourself? why
+			// wait for a channel send on s.SendCh?
+			// We've added a mutex
+			// inside sendMessage so we for sure won't conflict
+			// with keep-alive pings. Will we get less
+			// scheduling starvation and clients timing out
+			// if we just do the w.sendMessage() ourselves?
+			if false {
+				select {
+				case pair.SendCh <- reply:
+					//vv("reply went over pair.SendCh to the send goro write loop: '%v'", reply)
+				case <-s.halt.ReqStop.Chan:
+					return
 				}
 			} else {
-				if s.callme1 != nil {
-					callme1 = s.callme1
-					foundCallback1 = true
-				}
-			}
-			s.mut.Unlock()
-
-			if !foundCallback1 && !foundCallback2 {
-				//vv("warning! no callbacks found for req = '%v'", req)
-			}
-
-			if foundCallback1 {
-				// run the callback in a goro, so we can keep doing reads.
-				//go callme1(req)
-				callme1(req)
-				return
-			}
-
-			if foundCallback2 {
-
-				//vv("req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
-				//vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
-				//vv("conn   local = '%v', remote = '%v'", local(conn), remote(conn))
-
-				if cap(req.DoneCh) < 1 || len(req.DoneCh) >= cap(req.DoneCh) {
-					panic("req.DoneCh too small; fails the sanity check to be received on.")
-				}
-
-				reply := NewMessage()
-
-				replySeqno := req.HDR.Seqno // just echo back same.
-				// allow user to change Subject
-				reply.HDR.Subject = req.HDR.Subject
-				reqCallID := req.HDR.CallID
-
-				err := callme2(req, reply)
+				err := w.sendMessage(conn, reply, &s.cfg.WriteTimeout)
 				if err != nil {
-					reply.JobErrs = err.Error()
-				}
-				// don't read from req now, just in case callme2 messed with it.
-
-				from := local(conn)
-				to := remote(conn)
-				hdr := NewHDR(from, to, reply.HDR.Subject, CallRPC)
-
-				// We are able to match call and response rigourously on the CallID alone.
-				hdr.CallID = reqCallID
-				hdr.Seqno = replySeqno
-				reply.HDR = *hdr
-
-				// what if we just do the send ourself? why
-				// wait for a channel send on s.SendCh?
-				// We've added a mutex
-				// inside sendMessage so we for sure won't conflict
-				// with keep-alive pings. Will we get less
-				// scheduling starvation and clients timing out
-				// if we just do the w.sendMessage() ourselves?
-				if false {
+					// notify any short-time-waiting server push user.
+					// This is super useful to let goq retry jobs quickly.
+					reply.Err = err
 					select {
-					case pair.SendCh <- reply:
-						//vv("reply went over pair.SendCh to the send goro write loop: '%v'", reply)
-					case <-s.halt.ReqStop.Chan:
-						return
+					case reply.DoneCh <- reply:
+					default:
 					}
+					alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, reply.HDR.Seqno)
+					// just let user try again?
 				} else {
-					err := w.sendMessage(conn, reply, &s.cfg.WriteTimeout)
-					if err != nil {
-						// notify any short-time-waiting server push user.
-						// This is super useful to let goq retry jobs quickly.
-						reply.Err = err
-						select {
-						case reply.DoneCh <- reply:
-						default:
-						}
-						alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, reply.HDR.Seqno)
-						// just let user try again?
-					} else {
-						// tell caller there was no error.
-						select {
-						case reply.DoneCh <- reply:
-						default:
-						}
-						//lastPing = time.Now() // no need for ping
+					// tell caller there was no error.
+					select {
+					case reply.DoneCh <- reply:
+					default:
 					}
+					//lastPing = time.Now() // no need for ping
 				}
 			}
 		}
