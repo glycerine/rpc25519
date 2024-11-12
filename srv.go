@@ -559,6 +559,8 @@ func (s *Server) processWorkQ() {
 			pair := job.pair
 			w := job.w
 
+			req.HDR.Nc = conn.(net.Conn)
+
 			if req.HDR.Typ == CallNetRPC {
 				//vv("have IsNetRPC call: '%v'", req.HDR.Subject)
 				err := pair.callBridgeNetRpc(req)
@@ -595,6 +597,7 @@ func (s *Server) processWorkQ() {
 				// run the callback in a goro, so we can keep doing reads.
 				//go callme1(req)
 				callme1(req)
+				return
 			}
 
 			if foundCallback2 {
