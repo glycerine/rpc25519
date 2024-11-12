@@ -80,7 +80,7 @@ func main() {
 		q999 := td.Quantile(0.999)
 		q99 := td.Quantile(0.99)
 		q50 := td.Quantile(0.50)
-		log.Printf("client did %v calls.  err = '%v' \nslowest= %v nanosec\nq999_= %v nanoseconds\nq99_= %v nanoseconds\nq50= %v nanoseconds\n", i, err, slowest, q999, q99, q50)
+		log.Printf("client did %v calls.  err = '%v' \nslowest= %v nanosec\nq999_= %v nanoseconds\nq99_= %v nanoseconds\nq50_= %v nanoseconds\n", i, err, slowest, q999, q99, q50)
 	}()
 	for i = 0; i < *n; i++ {
 		//reply, err = cli.SendAndGetReply(req, nil)
