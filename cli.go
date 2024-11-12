@@ -1171,8 +1171,7 @@ func (c *Client) SendAndGetReplyWithTimeout(timeout time.Duration, req *Message)
 // We will wait for a response before retuning.
 // The requestStopCh is optional; it can be nil. A
 // context.Done() like channel can be supplied there to
-// cancel the job and stop waiting before a
-// reply comes back.
+// cancel the job before a reply comes back.
 //
 // UPDATE: a DEFAULT timeout is in force now. Because
 // server failure or blink (down then up) can

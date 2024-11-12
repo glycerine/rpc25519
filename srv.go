@@ -17,7 +17,6 @@ import (
 	"net/http"
 	"os"
 	"reflect"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -30,7 +29,6 @@ import (
 	"github.com/quic-go/quic-go"
 )
 
-var _ = runtime.Gosched
 var _ = os.MkdirAll
 var _ = fmt.Printf
 
@@ -439,10 +437,6 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		default:
 		}
 
-		// we see starvation of responses to clients under load.
-		// Not sure if this will help or hurt that. Seems worse.
-		// runtime.Gosched()
-
 		req, err := w.readMessage(conn, &s.cfg.ReadTimeout)
 		if err == io.EOF {
 			//vv("server sees io.EOF from receiveMessage")
@@ -493,7 +487,9 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		//vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
 
 		// show diagnostics for fairness/starvation
-		s.statsPairIDAddCountAndReportOnJobs()
+		if s.cfg.ReportStats > 0 {
+			s.statsPairIDAddCountAndReportOnJobs()
+		}
 
 		// send the job to the central work queue, so
 		// we service jobs fairly in FIFO order.
@@ -661,6 +657,9 @@ func (s *Server) processWorkQ() {
 			// with keep-alive pings. Will we get less
 			// scheduling starvation and clients timing out
 			// if we just do the w.sendMessage() ourselves?
+			// The workQ in fifo order seemed to do much more,
+			// but these does seem like it would be faster, so
+			// leave it in.
 			if false {
 				select {
 				case pair.SendCh <- reply:
@@ -686,7 +685,6 @@ func (s *Server) processWorkQ() {
 					case reply.DoneCh <- reply:
 					default:
 					}
-					//lastPing = time.Now() // no need for ping
 				}
 			}
 		}
