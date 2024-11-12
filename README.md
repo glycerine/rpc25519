@@ -19,6 +19,14 @@ client and server in the same process to share a UDP port.
 This feature can be super useful for conserving ports
 and connecting across networks.
 
+The UDP/QUIC versus TCP/TLS decision is one of latency
+versus throughput. QUIC can have much lower latency.
+TCP/TLS however can acheive 4-5x greater throughput,
+in my measurements. If client connections come and go frequently, QUIC
+may be much better. If you have long lived connections
+doing alot of work each, TCP/TLS may get more done
+in less time.
+
 The [rpc25519 package docs are here](https://pkg.go.dev/github.com/glycerine/rpc25519). 
 
 ~~~
