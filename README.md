@@ -116,16 +116,16 @@ The central Message struct itself is simple.
    // err.Error() will be set here.
    JobErrs string `zid:"2"`
 
-   // Err is not serialized on the wire.
+   // LocalErr is not serialized on the wire.
    // It communicates only local (client/server side) 
    // API information. For example, Server.SendMessage() or
    // Client.SendAndGetReply() can read it after
    // DoneCh has been received on.
    //
    // Callback functions should convey 
-   // errors in JobErrs or in-band within
-   // JobSerz.
-   Err error `msg:"-"`
+   // errors in JobErrs (by returning an error); 
+   // or in-band within JobSerz.
+   LocalErr error `msg:"-"`
 
    // DoneCh will receive this Message itself when the call completes.
    // It must be buffered, with at least capacity 1.

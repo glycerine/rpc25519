@@ -460,7 +460,7 @@ func (c *Client) runSendLoop(conn net.Conn) {
 			// Send the message
 			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
 				log.Printf("Failed to send message: %v", err)
-				msg.Err = err
+				msg.LocalErr = err
 			} else {
 				//vv("cli %v has sent a 1-way message: %v'", c.name, msg)
 				lastPing = time.Now() // no need for ping
@@ -477,7 +477,7 @@ func (c *Client) runSendLoop(conn net.Conn) {
 
 			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
 				//vv("Failed to send message: %v", err)
-				msg.Err = err
+				msg.LocalErr = err
 				msg.DoneCh <- msg
 				continue
 			} else {
@@ -503,7 +503,7 @@ func NewMessage() *Message {
 
 // String returns a string representation of msg.
 func (msg *Message) String() string {
-	return fmt.Sprintf("&Message{HDR:%v, Err:'%v'}", msg.HDR.String(), msg.Err)
+	return fmt.Sprintf("&Message{HDR:%v, LocalErr:'%v'}", msg.HDR.String(), msg.LocalErr)
 }
 
 // NewMessageFromBytes calls NewMessage() and sets by as the JobSerz field.
@@ -1240,7 +1240,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 	select { // shutdown test stuck here, even with calls in own goro. goq.go has exited.
 	case reply = <-req.DoneCh:
 		if reply != nil {
-			err = reply.Err
+			err = reply.LocalErr
 		}
 		//vv("client.SendAndGetReply() got on reply.Err = '%v'", err)
 		return

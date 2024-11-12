@@ -390,7 +390,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 			if err != nil {
 				// notify any short-time-waiting server push user.
 				// This is super useful to let goq retry jobs quickly.
-				msg.Err = err
+				msg.LocalErr = err
 				select {
 				case msg.DoneCh <- msg:
 				default:
@@ -672,7 +672,7 @@ func (s *Server) processWorkQ() {
 				if err != nil {
 					// notify any short-time-waiting server push user.
 					// This is super useful to let goq retry jobs quickly.
-					reply.Err = err
+					reply.LocalErr = err
 					select {
 					case reply.DoneCh <- reply:
 					default:
@@ -1302,8 +1302,8 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 		//vv("srv SendMessage about to wait %v to check on connection.", dur)
 		select {
 		case <-msg.DoneCh:
-			//vv("srv SendMessage got back msg.Err = '%v'", msg.Err)
-			return msg.Err
+			//vv("srv SendMessage got back msg.LocalErr = '%v'", msg.LocalErr)
+			return msg.LocalErr
 		case <-time.After(dur):
 			//vv("srv SendMessage timeout after waiting %v", dur)
 		}

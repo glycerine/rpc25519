@@ -51,11 +51,13 @@ type Message struct {
 	// user-defined callback functions.
 	JobErrs string `zid:"2"`
 
-	// Err is not serialized on the wire by the server.
-	// It communicates only local (client/server side) information. Callback
-	// functions should convey errors in JobErrs or in-band within
-	// JobSerz.
-	Err error `msg:"-"`
+	// LocalErr is not serialized on the wire by the server.
+	// It communicates only local (client/server side) information.
+	//
+	// Callback functions convey
+	// errors in JobErrs (by returning an error);
+	// or in-band within JobSerz.
+	LocalErr error `msg:"-"`
 
 	// DoneCh will receive this Message itself when the call completes.
 	// It must be buffered, with at least capacity 1.
