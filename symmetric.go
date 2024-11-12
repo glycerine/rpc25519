@@ -261,7 +261,7 @@ type caboose struct {
 	ServerNewPub []byte `zid:"10"` // 32 bytes
 }
 
-const useCaboose = true
+const useCaboose = false
 
 const maxCabooseBytes = 1750
 
