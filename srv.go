@@ -102,7 +102,6 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 	}
 
 	if s.cfg.SkipVerifyKeys {
-		//if s.cfg.SkipClientCerts {
 		//turn off client cert checking, allowing any random person on the internet to connect...
 		config.ClientAuth = tls.NoClientCert
 	} else {
@@ -499,14 +498,22 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		//vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
 
-		s.Server.mut.Lock()
-		s.Server.pair2jobs[s.pairID]++
-		s.Server.jobcount++
-		if s.Server.jobcount%1000 == 1 {
-			s.Server.reportOnJobs()
+		if false { // show diagnostics for fairness/starvation
+			s.Server.mut.Lock()
+			s.Server.pair2jobs[s.pairID]++
+			s.Server.jobcount++
+			if s.Server.jobcount%100000 == 1 {
+				s.Server.reportOnJobs()
+			}
+			s.Server.mut.Unlock()
 		}
-		s.Server.mut.Unlock()
-		s.Server.workQ <- &job{req: req, conn: conn, pair: s, w: w}
+		// send the job to the central work queue, so
+		// we service jobs fairly in FIFO order.
+		select {
+		case s.Server.workQ <- &job{req: req, conn: conn, pair: s, w: w}:
+		case <-s.halt.ReqStop.Chan:
+			return
+		}
 	}
 }
 
@@ -591,10 +598,6 @@ func (s *Server) processWorkQ() {
 			}
 
 			if foundCallback2 {
-				// run the callback in a goro, so we can keep doing reads.
-
-				//go func(req *Message, callme2 TwoWayFunc) {
-				//func(req *Message, callme2 TwoWayFunc) {
 
 				//vv("req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
 				//vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
@@ -661,7 +664,6 @@ func (s *Server) processWorkQ() {
 						//lastPing = time.Now() // no need for ping
 					}
 				}
-				//}(req, callme2)
 			}
 		}
 	}
