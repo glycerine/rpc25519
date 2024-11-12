@@ -65,7 +65,11 @@ func main() {
 		log.Printf("about to do n = %v calls.\n", *n)
 	}
 	var reply *rpc25519.Message
-	for i := 0; i < *n; i++ {
+	var i int
+	defer func() {
+		log.Printf("client did %v calls.  err = '%v'\n", i, err)
+	}()
+	for i = 0; i < *n; i++ {
 		//reply, err = cli.SendAndGetReply(req, nil)
 		reply, err = cli.SendAndGetReplyWithTimeout(*wait, req)
 		if err != nil {
