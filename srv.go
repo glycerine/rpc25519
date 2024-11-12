@@ -425,7 +425,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
 		conn.Close() // just the one, let other clients continue.
-
+		s.statsPairIDdone()
 	}()
 
 	symkey := s.cfg.preSharedKey
@@ -497,15 +497,9 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		//vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
 
-		if false { // show diagnostics for fairness/starvation
-			s.Server.mut.Lock()
-			s.Server.pair2jobs[s.pairID]++
-			s.Server.jobcount++
-			if s.Server.jobcount%100000 == 1 {
-				s.Server.reportOnJobs()
-			}
-			s.Server.mut.Unlock()
-		}
+		// show diagnostics for fairness/starvation
+		s.statsPairIDAddCountAndReportOnJobs()
+
 		// send the job to the central work queue, so
 		// we service jobs fairly in FIFO order.
 		select {
@@ -521,6 +515,30 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		// servicing jobs FIFO, but we still need to process
 		// requests on separate goroutines.
 		go s.Server.processWorkQ()
+	}
+}
+
+func (s *rwPair) statsPairIDdone() {
+	if s.cfg.ReportStats > 0 {
+		s.Server.mut.Lock()
+		count := s.Server.pair2jobs[s.pairID]
+		if count > 0 {
+			// negative count means pair (connection) is finished.
+			s.Server.pair2jobs[s.pairID] = -count
+		}
+		s.Server.mut.Unlock()
+	}
+}
+
+func (s *rwPair) statsPairIDAddCountAndReportOnJobs() {
+	if s.cfg.ReportStats > 0 {
+		s.Server.mut.Lock()
+		s.Server.pair2jobs[s.pairID]++
+		s.Server.jobcount++
+		if s.Server.jobcount%s.cfg.ReportStats == 1 {
+			s.Server.reportOnJobs()
+		}
+		s.Server.mut.Unlock()
 	}
 }
 

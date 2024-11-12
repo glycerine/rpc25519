@@ -656,6 +656,10 @@ type Config struct {
 	// round trip.
 	HTTPConnectRequired bool
 
+	// if > 0, keep diagnostics for starvation/fairness,
+	// and report every this many jobs. Server only currently.
+	ReportStats int64
+
 	localAddress string
 
 	// for port sharing between a server and 1 or more clients over QUIC
