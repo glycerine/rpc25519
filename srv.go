@@ -531,14 +531,25 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			//vv("warning! no callbacks found for req = '%v'", req)
 		}
 
+		// thesis: better to put back-pressure on
+		// a client by serving their requests sequentially
+		// than to starve other clients by trying to
+		// do everything in parallel at once. So:
+		// we now call callme1() and callme2() in-line
+		// synchronously below, without launching
+		// another goroutine.
+
 		if foundCallback1 {
 			// run the callback in a goro, so we can keep doing reads.
-			go callme1(req)
+			//go callme1(req)
+			callme1(req)
 		}
 
 		if foundCallback2 {
 			// run the callback in a goro, so we can keep doing reads.
-			go func(req *Message, callme2 TwoWayFunc) {
+
+			//go func(req *Message, callme2 TwoWayFunc) {
+			func(req *Message, callme2 TwoWayFunc) {
 				// might have helped?
 				// runtime.Gosched()
 
@@ -572,11 +583,40 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 				hdr.Seqno = replySeqno
 				reply.HDR = *hdr
 
-				select {
-				case s.SendCh <- reply:
-					//vv("reply went over pair.SendCh to the send goro write loop: '%v'", reply)
-				case <-s.halt.ReqStop.Chan:
-					return
+				// what if we just do the send ourself? why
+				// wait for a channel send on s.SendCh?
+				// We've added a mutex
+				// inside sendMessage so we for sure won't conflict
+				// with keep-alive pings. Will we get less
+				// scheduling starvation and clients timing out
+				// if we just do the w.sendMessage() ourselves?
+				if false {
+					select {
+					case s.SendCh <- reply:
+						//vv("reply went over pair.SendCh to the send goro write loop: '%v'", reply)
+					case <-s.halt.ReqStop.Chan:
+						return
+					}
+				} else {
+					err := w.sendMessage(conn, reply, &s.cfg.WriteTimeout)
+					if err != nil {
+						// notify any short-time-waiting server push user.
+						// This is super useful to let goq retry jobs quickly.
+						reply.Err = err
+						select {
+						case reply.DoneCh <- reply:
+						default:
+						}
+						alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, reply.HDR.Seqno)
+						// just let user try again?
+					} else {
+						// tell caller there was no error.
+						select {
+						case reply.DoneCh <- reply:
+						default:
+						}
+						//lastPing = time.Now() // no need for ping
+					}
 				}
 			}(req, callme2)
 		}
@@ -1066,7 +1106,7 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 		// yikes: SendCh with a 10 long buffer makes us
 		// starve clients (at v1.1.33).
 		// So for v1.1.34 change SendCh to be unbuffered.
-		SendCh: make(chan *Message), // , 10),
+		SendCh: make(chan *Message),
 		halt:   idem.NewHalter(),
 	}
 

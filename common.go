@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 )
 
@@ -50,6 +51,9 @@ type workspace struct {
 	writeLenMessageBytes []byte
 
 	name string
+
+	// one writer at a time.
+	wmut sync.Mutex
 }
 
 // currently only used for headers; but bodies may
@@ -97,6 +101,8 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 // sendMessage sends a framed message to conn
 // nil or 0 timeout means no timeout.
 func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
+	w.wmut.Lock()
+	defer w.wmut.Unlock()
 
 	// serialize message to bytes
 	bytesMsg, err := msg.AsGreenpack(w.buf)

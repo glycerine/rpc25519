@@ -27,6 +27,8 @@ func main() {
 	var n = flag.Int("n", 1, "number of calls to make")
 	var quiet = flag.Bool("quiet", false, "operate quietly")
 
+	var wait = flag.Duration("wait", 10*time.Second, "time to wait for call to complete")
+
 	flag.Parse()
 
 	if *remoteDefault {
@@ -64,7 +66,8 @@ func main() {
 	}
 	var reply *rpc25519.Message
 	for i := 0; i < *n; i++ {
-		reply, err = cli.SendAndGetReply(req, nil)
+		//reply, err = cli.SendAndGetReply(req, nil)
+		reply, err = cli.SendAndGetReplyWithTimeout(*wait, req)
 		if err != nil {
 			panic(err)
 		}
