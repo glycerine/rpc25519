@@ -59,10 +59,6 @@ type blabber struct {
 
 	enc *encoder
 	dec *decoder
-
-	// only one writer at a time per channel, so
-	// heartbeats and responses do not collide.
-	wmut sync.Mutex
 }
 
 // encoder organizes the encryption of messages

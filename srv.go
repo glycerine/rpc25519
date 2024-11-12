@@ -44,6 +44,11 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 	}()
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
+	nCPU := runtime.NumCPU()
+	for i := 0; i < nCPU; i++ {
+		go s.processWorkQ()
+	}
+
 	s.cfg.checkPreSharedKey("server")
 	//vv("server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 
@@ -431,11 +436,6 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 	w := newBlabber("server read loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true)
 	//w := newWorkspace(maxMessage)
 
-	var callme1 OneWayFunc
-	var callme2 TwoWayFunc
-	foundCallback1 := false
-	foundCallback2 := false
-
 	for {
 
 		select {
@@ -497,61 +497,77 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		//vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
 
-		req.HDR.Nc = conn
+		s.Server.workQ <- &job{req: req, conn: conn, pair: s, w: w}
+	}
+}
 
-		if req.HDR.Typ == CallNetRPC {
-			//vv("have IsNetRPC call: '%v'", req.HDR.Subject)
-			err = s.callBridgeNetRpc(req)
-			if err != nil {
-				alwaysPrintf("callBridgeNetRpc errored out: '%v'", err)
+type job struct {
+	req  *Message
+	conn uConnLR
+	pair *rwPair
+	w    *blabber
+}
+
+func (s *Server) processWorkQ() {
+	var callme1 OneWayFunc
+	var callme2 TwoWayFunc
+	foundCallback1 := false
+	foundCallback2 := false
+
+	for {
+		select {
+		case <-s.halt.ReqStop.Chan:
+			return
+		case job := <-s.workQ:
+
+			req := job.req
+			conn := job.conn
+			pair := job.pair
+			w := job.w
+
+			if req.HDR.Typ == CallNetRPC {
+				//vv("have IsNetRPC call: '%v'", req.HDR.Subject)
+				err := pair.callBridgeNetRpc(req)
+				if err != nil {
+					alwaysPrintf("callBridgeNetRpc errored out: '%v'", err)
+				}
+				continue
 			}
-			continue
-		}
 
-		foundCallback1 = false
-		foundCallback2 = false
-		callme1 = nil
-		callme2 = nil
+			foundCallback1 = false
+			foundCallback2 = false
+			callme1 = nil
+			callme2 = nil
 
-		s.Server.mut.Lock()
-		if req.HDR.Typ == CallRPC {
-			if s.Server.callme2 != nil {
-				callme2 = s.Server.callme2
-				foundCallback2 = true
+			s.mut.Lock()
+			if req.HDR.Typ == CallRPC {
+				if s.callme2 != nil {
+					callme2 = s.callme2
+					foundCallback2 = true
+				}
+			} else {
+				if s.callme1 != nil {
+					callme1 = s.callme1
+					foundCallback1 = true
+				}
 			}
-		} else {
-			if s.Server.callme1 != nil {
-				callme1 = s.Server.callme1
-				foundCallback1 = true
+			s.mut.Unlock()
+
+			if !foundCallback1 && !foundCallback2 {
+				//vv("warning! no callbacks found for req = '%v'", req)
 			}
-		}
-		s.Server.mut.Unlock()
 
-		if !foundCallback1 && !foundCallback2 {
-			//vv("warning! no callbacks found for req = '%v'", req)
-		}
+			if foundCallback1 {
+				// run the callback in a goro, so we can keep doing reads.
+				//go callme1(req)
+				callme1(req)
+			}
 
-		// thesis: better to put back-pressure on
-		// a client by serving their requests sequentially
-		// than to starve other clients by trying to
-		// do everything in parallel at once. So:
-		// we now call callme1() and callme2() in-line
-		// synchronously below, without launching
-		// another goroutine.
+			if foundCallback2 {
+				// run the callback in a goro, so we can keep doing reads.
 
-		if foundCallback1 {
-			// run the callback in a goro, so we can keep doing reads.
-			//go callme1(req)
-			callme1(req)
-		}
-
-		if foundCallback2 {
-			// run the callback in a goro, so we can keep doing reads.
-
-			//go func(req *Message, callme2 TwoWayFunc) {
-			func(req *Message, callme2 TwoWayFunc) {
-				// might have helped?
-				// runtime.Gosched()
+				//go func(req *Message, callme2 TwoWayFunc) {
+				//func(req *Message, callme2 TwoWayFunc) {
 
 				//vv("req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
 				//vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
@@ -592,7 +608,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 				// if we just do the w.sendMessage() ourselves?
 				if false {
 					select {
-					case s.SendCh <- reply:
+					case pair.SendCh <- reply:
 						//vv("reply went over pair.SendCh to the send goro write loop: '%v'", reply)
 					case <-s.halt.ReqStop.Chan:
 						return
@@ -618,7 +634,8 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 						//lastPing = time.Now() // no need for ping
 					}
 				}
-			}(req, callme2)
+				//}(req, callme2)
+			}
 		}
 	}
 }
@@ -643,6 +660,7 @@ type Server struct {
 	name  string // which server, for debugging.
 	creds *selfcert.Creds
 
+	workQ   chan *job
 	callme2 TwoWayFunc
 	callme1 OneWayFunc
 
@@ -1103,9 +1121,6 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 		cfg:    s.cfg.Clone(),
 		Server: s,
 		Conn:   conn,
-		// yikes: SendCh with a 10 long buffer makes us
-		// starve clients (at v1.1.33).
-		// So for v1.1.34 change SendCh to be unbuffered.
 		SendCh: make(chan *Message),
 		halt:   idem.NewHalter(),
 	}
@@ -1253,6 +1268,7 @@ func NewServer(name string, config *Config) *Server {
 		pair2remote:       make(map[*rwPair]string),
 		halt:              idem.NewHalter(),
 		RemoteConnectedCh: make(chan *ServerClient, 20),
+		workQ:             make(chan *job, 1000),
 	}
 }
 
