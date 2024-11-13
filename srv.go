@@ -491,16 +491,12 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			s.statsPairIDAddCountAndReportOnJobs()
 		}
 
-		// send the job to the central work queue, so
+		// Idea: send the job to the central work queue, so
 		// we service jobs fairly in FIFO order.
+		// Update: turns out this didn't really matter.
+		// So we got rid of the work queue.
 		job := &job{req: req, conn: conn, pair: s, w: w}
-		/*		select {
-				case s.Server.workQ <- job:
-					//vv("sent job to workQ")
-				case <-s.halt.ReqStop.Chan:
-					return
-				}
-		*/
+
 		// workers requesting jobs can keep calls open for
 		// minutes or hours or days; so we cannot just have
 		// a single worker (say for 1 cpu) that blocks waiting
@@ -565,12 +561,6 @@ func (s *Server) processWorkQ(job *job) {
 	var callme2 TwoWayFunc
 	foundCallback1 := false
 	foundCallback2 := false
-
-	//vv("top of processWorkQ")
-	//	select {
-	//	case <-s.halt.ReqStop.Chan:
-	//		return
-	//	case job := <-s.workQ:
 
 	req := job.req
 	//vv("processWorkQ got job: req.HDR='%v'", req.HDR.String())
@@ -690,7 +680,6 @@ func (s *Server) processWorkQ(job *job) {
 			}
 		}
 	}
-	// }
 }
 
 // Servers read and respond to requests. Two APIs are available.
@@ -719,7 +708,6 @@ type Server struct {
 	name  string // which server, for debugging.
 	creds *selfcert.Creds
 
-	workQ   chan *job
 	callme2 TwoWayFunc
 	callme1 OneWayFunc
 
@@ -1330,7 +1318,6 @@ func NewServer(name string, config *Config) *Server {
 		pair2remote:       make(map[*rwPair]string),
 		halt:              idem.NewHalter(),
 		RemoteConnectedCh: make(chan *ServerClient, 20),
-		workQ:             make(chan *job, 1000),
 		pair2jobs:         make(map[int64]int),
 	}
 }
