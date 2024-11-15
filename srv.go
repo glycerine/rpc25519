@@ -423,6 +423,8 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		s.statsPairIDdone()
 	}()
 
+	readLoopGoroNum := GoroNumber()
+
 	symkey := s.cfg.preSharedKey
 	if s.cfg.encryptPSK {
 		s.mut.Lock()
@@ -490,7 +492,14 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		// show diagnostics for fairness/starvation
 		if s.cfg.ReportStats > 0 {
-			s.statsPairIDAddCountAndReportOnJobs()
+			s.statsPairIDAddCountAndReportOnJobs(readLoopGoroNum)
+			s.Server.mut.Lock()
+			if s.Server.stuckPair != nil && s.Server.stuckPair.pairID == s.pairID {
+				alwaysPrintf("have stuck read loop! pairID = %v", s.pairID)
+				os.Stdout.Write(thisStack())
+				s.Server.stuckPair = nil
+			}
+			s.Server.mut.Unlock()
 		}
 
 		// Idea: send the job to the central work queue, so
@@ -508,7 +517,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		// Workers requesting jobs can keep calls open for
 		// minutes or hours or days; so we cannot just have
 		// a single worker (say for 1 cpu) that blocks waiting
-		// to finish.
+		// to finish. So this has to be in a new goroutine.
 		go s.Server.processWorkQ(job)
 	}
 }
@@ -516,19 +525,28 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 func (s *rwPair) statsPairIDdone() {
 	if s.cfg.ReportStats > 0 {
 		s.Server.mut.Lock()
-		count := s.Server.pair2jobs[s.pairID]
-		if count > 0 {
-			// negative count means pair (connection) is finished.
-			s.Server.pair2jobs[s.pairID] = -count
-		}
+		stats := s.Server.pair2jobs[s.pairID]
+		// negative count means pair (connection) is finished.
+		stats.count = -stats.count
 		s.Server.mut.Unlock()
 	}
 }
 
-func (s *rwPair) statsPairIDAddCountAndReportOnJobs() {
+type pairstat struct {
+	count   int
+	goronum int
+	pairID  int64
+}
+
+func (s *rwPair) statsPairIDAddCountAndReportOnJobs(goronum int) {
 	if s.cfg.ReportStats > 0 {
 		s.Server.mut.Lock()
-		s.Server.pair2jobs[s.pairID]++
+		stats, ok := s.Server.pair2jobs[s.pairID]
+		if !ok {
+			stats = &pairstat{goronum: goronum, pairID: s.pairID}
+			s.Server.pair2jobs[s.pairID] = stats
+		}
+		stats.count++
 		s.Server.jobcount++
 		if s.Server.jobcount%s.cfg.ReportStats == 1 {
 			s.Server.reportOnJobs()
@@ -537,22 +555,63 @@ func (s *rwPair) statsPairIDAddCountAndReportOnJobs() {
 	}
 }
 
+type pairstatSlice []*pairstat
+
+func (p pairstatSlice) Len() int { return len(p) }
+func (p pairstatSlice) Less(i, j int) bool {
+	return p[i].count < p[j].count
+}
+func (p pairstatSlice) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
+
 // PRE: s.mut must be locked already
 func (s *Server) reportOnJobs() {
-	var counts []int
-	for _, count := range s.pair2jobs {
-		counts = append(counts, count)
+	var stats pairstatSlice
+	for _, stat := range s.pair2jobs {
+		stats = append(stats, stat)
 	}
-	sort.Ints(counts)
+	sort.Sort(stats)
+
 	fmt.Printf("(%v since start). count of jobs done by each client:\n a=c(", time.Since(s.tmStart))
-	for i, n := range counts {
+	for i, stat := range stats {
 		if i == 0 {
-			fmt.Printf("%v", n)
+			fmt.Printf("%v[%v]", stat.count, stat.goronum)
 		} else {
-			fmt.Printf(", %v", n)
+			fmt.Printf(", %v[%v]", stat.count, stat.goronum)
 		}
 	}
 	fmt.Printf(")\n\n")
+
+	// any stuck but still alive?
+	if len(s.prevStats) > 0 {
+		for _, stat := range stats {
+			if stat.count <= 0 {
+				continue // ignore dead goroutine, cannot dump their stacks.
+			}
+			// INVAR: stat is live, compare current count to prev count
+			prev, ok := s.prevPair2jobs[stat.pairID]
+			if !ok {
+				continue // ignore, probably just a new client.
+			}
+			if prev.count == stat.count {
+				// found stuck goroutine, still live, note the pairID
+				clone := *stat
+				s.stuckPair = &clone
+				break
+			}
+		}
+	}
+
+	// copy so we can detect stuck goro.
+	s.prevPair2jobs = clonePair2jobs(s.pair2jobs)
+	s.prevStats = append([]*pairstat{}, stats...)
+}
+
+func clonePair2jobs(m map[int64]*pairstat) (r map[int64]*pairstat) {
+	r = make(map[int64]*pairstat)
+	for k, v := range m {
+		r[k] = v
+	}
+	return
 }
 
 type job struct {
@@ -717,9 +776,15 @@ type Server struct {
 	lastPairID atomic.Int64
 
 	// pair2jobs is: pairID(i.e. client) -> number of jobs requested.
-	pair2jobs map[int64]int
-	jobcount  int64
-	workQ     chan *job
+	// update: use pairstat to track with goroutine is stalled to
+	// help analyze stack dump.
+	pair2jobs     map[int64]*pairstat
+	prevPair2jobs map[int64]*pairstat
+	prevStats     []*pairstat
+	stuckPair     *pairstat // if set, have stuck read loop => dump its stack.
+
+	jobcount int64
+	workQ    chan *job
 
 	name  string // which server, for debugging.
 	creds *selfcert.Creds
@@ -1334,7 +1399,7 @@ func NewServer(name string, config *Config) *Server {
 		pair2remote:       make(map[*rwPair]string),
 		halt:              idem.NewHalter(),
 		RemoteConnectedCh: make(chan *ServerClient, 20),
-		pair2jobs:         make(map[int64]int),
+		pair2jobs:         make(map[int64]*pairstat),
 		workQ:             make(chan *job, 1000),
 	}
 }

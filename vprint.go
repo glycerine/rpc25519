@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"sync"
 	"time"
 
@@ -159,4 +160,24 @@ func IsNil(face interface{}) bool {
 		return reflect.ValueOf(face).IsNil()
 	}
 	return false
+}
+
+func thisStack() []byte {
+	buf := make([]byte, 8092)
+	nw := runtime.Stack(buf, false) // false => just us, no other goro.
+	buf = buf[:nw]
+	return buf
+}
+
+// GoroNumber returns the calling goroutine's number.
+func GoroNumber() int {
+	buf := thisStack()
+	// prefix "goroutine " is len 10.
+	i := 10
+	for buf[i] != ' ' && i < 30 {
+		i++
+	}
+	n, err := strconv.Atoi(string(buf[10:i]))
+	panicOn(err)
+	return n
 }
