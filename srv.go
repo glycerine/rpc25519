@@ -44,6 +44,8 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 	}()
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
+	s.tmStart = time.Now()
+
 	s.cfg.checkPreSharedKey("server")
 	//vv("server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 
@@ -500,9 +502,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		// workers requesting jobs can keep calls open for
 		// minutes or hours or days; so we cannot just have
 		// a single worker (say for 1 cpu) that blocks waiting
-		// to finish. We try to keep the workQ since it makes
-		// servicing jobs FIFO, but we still need to process
-		// requests on separate goroutines.
+		// to finish.
 		go s.Server.processWorkQ(job)
 	}
 }
@@ -538,7 +538,7 @@ func (s *Server) reportOnJobs() {
 		counts = append(counts, count)
 	}
 	sort.Ints(counts)
-	fmt.Printf("count of jobs done by each client:\n a=c(")
+	fmt.Printf("(%v since start). count of jobs done by each client:\n a=c(", time.Since(s.tmStart))
 	for i, n := range counts {
 		if i == 0 {
 			fmt.Printf("%v", n)
@@ -649,9 +649,6 @@ func (s *Server) processWorkQ(job *job) {
 		// with keep-alive pings. Will we get less
 		// scheduling starvation and clients timing out
 		// if we just do the w.sendMessage() ourselves?
-		// The workQ in fifo order seemed to do much more,
-		// but these does seem like it would be faster, so
-		// leave it in.
 		if false {
 			select {
 			case pair.SendCh <- reply:
@@ -698,6 +695,7 @@ type Server struct {
 	mut        sync.Mutex
 	cfg        *Config
 	quicConfig *quic.Config
+	tmStart    time.Time
 
 	lastPairID atomic.Int64
 
