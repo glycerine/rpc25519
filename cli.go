@@ -1149,6 +1149,7 @@ func (c *Client) Close() error {
 
 var ErrShutdown = fmt.Errorf("shutting down")
 var ErrDone = fmt.Errorf("done channel closed")
+var ErrDone2 = fmt.Errorf("done channel closed 2")
 var ErrTimeout = fmt.Errorf("time-out waiting for call to complete")
 
 // SendAndGetReplyWithTimeout expires the call after
@@ -1157,12 +1158,6 @@ func (c *Client) SendAndGetReplyWithTimeout(timeout time.Duration, req *Message)
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), timeout)
 	defer cancelFunc()
-
-	// ctx, cancelFunc := context.WithCancel(context.Background())
-	// go func() {
-	// 	time.Sleep(timeout)
-	// 	cancelFunc()
-	// }()
 
 	return c.SendAndGetReply(req, ctx.Done())
 }
@@ -1246,7 +1241,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		return
 	case <-cancelJobCh:
 		// usually a timeout
-		return nil, ErrDone
+		return nil, ErrDone2
 	case <-defaultTimeout:
 		// definitely a timeout
 		//vv("ErrTimeout being returned from SendAndGetReply(), 2nd part")
