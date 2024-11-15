@@ -597,6 +597,7 @@ func (s *Server) reportOnJobs() {
 				// found stuck goroutine, still live, note the pairID
 				clone := *stat
 				s.stuckPair = &clone
+				vv("all stacks = \n\n%v\n\n", allstacks())
 				break
 			}
 		}

@@ -145,8 +145,21 @@ func panicOn(err error) {
 	}
 }
 
+// return stack dump for calling goroutine.
 func stack() string {
 	return string(debug.Stack())
+}
+
+// return stack dump for all goroutines
+func allstacks() string {
+	buf := make([]byte, 8192)
+	for {
+		n := runtime.Stack(buf, true)
+		if n < len(buf) {
+			return string(buf[:n])
+		}
+		buf = make([]byte, 2*len(buf))
+	}
 }
 
 // IsNil uses reflect to to return true iff the face
@@ -163,7 +176,7 @@ func IsNil(face interface{}) bool {
 }
 
 func thisStack() []byte {
-	buf := make([]byte, 8092)
+	buf := make([]byte, 8192)
 	nw := runtime.Stack(buf, false) // false => just us, no other goro.
 	buf = buf[:nw]
 	return buf
