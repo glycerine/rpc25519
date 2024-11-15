@@ -183,7 +183,7 @@ func (s *Server) runTCP(serverAddress string, boundCh chan net.Addr) {
 
 	if s.cfg.HTTPConnectRequired {
 		mux := http.NewServeMux()
-		mux.Handle(DefaultRPCPath, s) // calls back to http.go's Server.ServeHTTP(),
+		mux.Handle(DefaultRPCPath, s) // calls back to Server.ServeHTTP(),
 		httpsrv := &http.Server{Handler: mux}
 		httpsrv.Serve(listener) // calls Server.serveConn(conn) with each new connection.
 		return
@@ -227,7 +227,7 @@ acceptAgain:
 	}
 }
 
-// can be called after HTTP CONNECT hijack too; see http.go.
+// can be called after HTTP CONNECT hijack too; see Server.ServeHTTP().
 func (s *Server) serveConn(conn net.Conn) {
 
 	//vv("tcp only server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
@@ -499,7 +499,13 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		// So we got rid of the work queue.
 		job := &job{req: req, conn: conn, pair: s, w: w}
 
-		// workers requesting jobs can keep calls open for
+		// select {
+		// case s.Server.workQ <- job:
+		// case <-s.halt.ReqStop.Chan:
+		// 	return
+		// }
+
+		// Workers requesting jobs can keep calls open for
 		// minutes or hours or days; so we cannot just have
 		// a single worker (say for 1 cpu) that blocks waiting
 		// to finish.
@@ -561,6 +567,17 @@ func (s *Server) processWorkQ(job *job) {
 	var callme2 TwoWayFunc
 	foundCallback1 := false
 	foundCallback2 := false
+
+	// qjob := job
+	// select {
+	// case qjob = <-s.workQ:
+	// case <-s.halt.ReqStop.Chan:
+	// 	return
+	// }
+	//if qjob != job {
+	//vv("processWorkQ was not fifo?") // seen alot
+	//	job = qjob // didn't help starvation on macOS.
+	//}
 
 	req := job.req
 	//vv("processWorkQ got job: req.HDR='%v'", req.HDR.String())
@@ -702,6 +719,7 @@ type Server struct {
 	// pair2jobs is: pairID(i.e. client) -> number of jobs requested.
 	pair2jobs map[int64]int
 	jobcount  int64
+	workQ     chan *job
 
 	name  string // which server, for debugging.
 	creds *selfcert.Creds
@@ -1317,6 +1335,7 @@ func NewServer(name string, config *Config) *Server {
 		halt:              idem.NewHalter(),
 		RemoteConnectedCh: make(chan *ServerClient, 20),
 		pair2jobs:         make(map[int64]int),
+		workQ:             make(chan *job, 1000),
 	}
 }
 

@@ -86,14 +86,15 @@ func main() {
 		//reply, err = cli.SendAndGetReply(req, nil)
 		t0 := time.Now()
 		reply, err = cli.SendAndGetReplyWithTimeout(*wait, req)
-		if err != nil {
-			panic(err)
-		}
 		elap := float64(time.Since(t0))
-		err = td.Add(elap) // nanoseconds
-		panicOn(err)
+		errTd := td.Add(elap) // nanoseconds
+		panicOn(errTd)
 		if elap > slowest {
 			slowest = elap
+		}
+		// only now panic on timeout, so our 10 sec / 20 sec timeout is the slowest.
+		if err != nil {
+			panic(err)
 		}
 	}
 
