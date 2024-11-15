@@ -495,7 +495,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			s.statsPairIDAddCountAndReportOnJobs(readLoopGoroNum)
 			s.Server.mut.Lock()
 			if s.Server.stuckPair != nil && s.Server.stuckPair.pairID == s.pairID {
-				alwaysPrintf("have stuck read loop! pairID = %v", s.pairID)
+				alwaysPrintf("have stuck read loop! pairID = %v; goro = %v", s.pairID, readLoopGoroNum)
 				os.Stdout.Write(thisStack())
 				s.Server.stuckPair = nil
 			}
@@ -593,6 +593,7 @@ func (s *Server) reportOnJobs() {
 				continue // ignore, probably just a new client.
 			}
 			if prev.count == stat.count {
+				alwaysPrintf("have same count %v as last time. goro = [%v]", prev.count, stat.goronum)
 				// found stuck goroutine, still live, note the pairID
 				clone := *stat
 				s.stuckPair = &clone
@@ -609,7 +610,9 @@ func (s *Server) reportOnJobs() {
 func clonePair2jobs(m map[int64]*pairstat) (r map[int64]*pairstat) {
 	r = make(map[int64]*pairstat)
 	for k, v := range m {
-		r[k] = v
+		// have to copy previous state of paristat
+		cp := *v
+		r[k] = &cp
 	}
 	return
 }
