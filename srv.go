@@ -446,7 +446,11 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		default:
 		}
 
-		req, err := w.readMessage(conn, &s.cfg.ReadTimeout)
+		//req, err := w.readMessage(conn, &s.cfg.ReadTimeout)
+		// read deadlines cause lost data on receives on
+		// a TCP socket on darwin. (at least at go1.23.2).
+		// So do not use them.
+		req, err := w.readMessage(conn, nil)
 		if err == io.EOF {
 			// this is the cause of our "starved" conn.
 			// why is it happening? client is closing
