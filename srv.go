@@ -450,12 +450,35 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		if err == io.EOF {
 			// this is the cause of our "starved" conn.
 			// why is it happening? client is closing
-			// its end of the connection first on done chan closed 2 error.
-			vv("server sees io.EOF from receiveMessage")
+			// its end of the connection first. why? because
+			// it sent but did not receive a response to
+			// that send in 10 seconds. So somewhere that
+			// sent message is getting lost, and/or not
+			// responded to.
+			//
+			//vv("server sees io.EOF from receiveMessage")
 			// close of socket before read of full message.
 			// shutdown this connection or we'll just
 			// spin here at 500% cpu.
 			return
+		}
+		if req != nil && req.HDR.Typ == CallDebugWasSeen {
+			prev, ok := s.callIDseen[req.HDR.Subject]
+			if ok {
+				vv("333333333 CallDebugWasSeen request received prev we did see the subject. debug hdr = '%v'\n\n prev.HDR = '%v'", req.HDR.String(), prev.HDR.String()) // seen 10 seconds after client times out. So the server did indeed receive the request! It just failed to ever reply!
+				// was a reply sent? yes.
+				s.replyMut.Lock()
+				seen, ok := s.repliedCallID[req.HDR.Subject]
+				s.replyMut.Unlock()
+				if ok {
+					vv("reply was sent to CallID: it was: '%v'", seen.HDR.String())
+				} else {
+					vv("reply was never sent to req.CallID = '%v'", req.HDR.Subject) // not seen
+				}
+
+			} else {
+				vv("333333333 CallDebugWasSeen: have not seen this subject as a previous CallID. debug hdr = '%v'", req.HDR.String()) // never seen.
+			}
 		}
 		if err != nil {
 			vv("srv read loop err = '%v'", err)
@@ -492,11 +515,15 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			alwaysPrintf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
 			return
 		}
+		//vv("srv read loop sees req = '%v'", req.HDR.String())
 		if req.HDR.Typ == CallKeepAlive {
 			//vv("srv read loop got an rpc25519 keep alive.")
 			continue
 		}
 
+		// save message for diagnostics. too slow to log.
+		s.callIDseen[req.HDR.CallID] = req
+		s.callIDseq = append(s.callIDseq, req)
 		//vv("8888888 got req (seqno=%v): CallID= %v", req.HDR.Seqno, req.HDR.CallID)
 		//vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
 
@@ -513,9 +540,9 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		// Workers requesting jobs can keep calls open for
 		// minutes or hours or days; so we cannot just have
-		// a single readLoop worker (say for 1 cpu) that
-		// blocks waiting to finish: this has to be in
-		// a new goroutine.
+		// just use this readLoop goroutine to process
+		// call sequentially; we cannot block here: this
+		// has to be in a new goroutine.
 		go s.Server.processWorkQ(job)
 	}
 }
@@ -761,6 +788,11 @@ func (s *Server) processWorkQ(job *job) {
 				case reply.DoneCh <- reply:
 				default:
 				}
+
+				pair.replyMut.Lock()
+				pair.repliedCallID[reply.HDR.CallID] = reply
+				pair.replyMut.Unlock()
+
 			}
 		}
 	}
@@ -1263,17 +1295,28 @@ type rwPair struct {
 	// only one of these two will be filled here, depending on if we are client or server.
 	srvStaticPub ed25519.PublicKey
 	cliStaticPub ed25519.PublicKey
+
+	// debug seen callID
+	callIDseen map[string]*Message
+	callIDseq  []*Message
+
+	// debug the reply path, since we *are* seeing on the
+	// server the calls that the client never gets a reply to.
+	repliedCallID map[string]*Message
+	replyMut      sync.Mutex
 }
 
 func (s *Server) newRWPair(conn net.Conn) *rwPair {
 
 	p := &rwPair{
-		pairID: s.lastPairID.Add(1),
-		cfg:    s.cfg.Clone(),
-		Server: s,
-		Conn:   conn,
-		SendCh: make(chan *Message),
-		halt:   idem.NewHalter(),
+		pairID:        s.lastPairID.Add(1),
+		cfg:           s.cfg.Clone(),
+		Server:        s,
+		Conn:          conn,
+		SendCh:        make(chan *Message),
+		halt:          idem.NewHalter(),
+		callIDseen:    make(map[string]*Message),
+		repliedCallID: make(map[string]*Message),
 	}
 
 	p.encBufW = bufio.NewWriter(&p.encBuf)

@@ -141,6 +141,7 @@ func readFull(conn uConn, buf []byte, timeout *time.Duration) error {
 		total += n
 		if total == need {
 			// probably just EOF
+			panicOn(err)
 			return nil
 		}
 		if err != nil {
@@ -149,6 +150,8 @@ func readFull(conn uConn, buf []byte, timeout *time.Duration) error {
 	}
 	return nil
 }
+
+var emptyByteSlice = []byte{}
 
 // writeFull writes all bytes in buf to conn
 func writeFull(conn uConn, buf []byte, timeout *time.Duration) error {
@@ -169,8 +172,16 @@ func writeFull(conn uConn, buf []byte, timeout *time.Duration) error {
 		n, err := conn.Write(buf[total:])
 		total += n
 		if total == need {
+			panicOn(err) // just EOF?
 			//vv("writeFull returning nil after seeing total == need = %v", total)
+
+			// see flushConn() comment below.
+			err = conn.SetWriteDeadline(time.Now().Add(-1 * time.Second))
+			panicOn(err)
+			conn.Write(emptyByteSlice)
+
 			return nil
+
 		}
 		if err != nil {
 			//vv("writeFull returning err '%v'", err)
@@ -178,4 +189,25 @@ func writeFull(conn uConn, buf []byte, timeout *time.Duration) error {
 		}
 	}
 	return nil
+}
+
+func flushConn(conn uConn) {
+
+	// from
+	// https://devhubby.com/thread/how-to-flush-a-tcp-socket-in-go
+	//
+	// In Go, there is no direct method to flush a
+	// TCP socket. However, you can achieve a similar
+	// effect by using the net.Conn interface's SetWriteDeadline
+	// method to set a write deadline in the past and writing
+	// an empty message to the socket. This will cause any
+	// pending data in the socket buffer to be flushed.
+
+	// Set a write deadline in the past
+	err := conn.SetWriteDeadline(time.Now().Add(-1 * time.Second))
+	panicOn(err)
+
+	// Write an empty message to flush the socket
+	_, err = conn.Write([]byte(""))
+	panicOn(err)
 }

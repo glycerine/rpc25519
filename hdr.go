@@ -122,16 +122,19 @@ type HDR struct {
 	Typ     CallType  `zid:"5"` // see constants below.
 	CallID  string    `zid:"6"` // 20 bytes pseudo random base-64 coded string (same on response).
 	Serial  int64     `zid:"7"` // system serial number
+
+	LocalRecvTm time.Time `zid:"8"`
 }
 
 type CallType int
 
 const (
-	CallNone      CallType = 0
-	CallRPC       CallType = 1
-	CallOneWay    CallType = 2
-	CallNetRPC    CallType = 3
-	CallKeepAlive CallType = 4
+	CallNone         CallType = 0
+	CallRPC          CallType = 1
+	CallOneWay       CallType = 2
+	CallNetRPC       CallType = 3
+	CallKeepAlive    CallType = 4
+	CallDebugWasSeen CallType = 5
 )
 
 // NewHDR creates a new HDR header.

@@ -275,6 +275,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 	w := newBlabber("client read loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false)
 
 	readTimeout := time.Millisecond * 100
+	_ = readTimeout
 	var msg *Message
 	for {
 
@@ -286,8 +287,15 @@ func (c *Client) runReadLoop(conn net.Conn) {
 		}
 
 		// Receive a message
-		msg, err = w.readMessage(conn, &readTimeout)
+
+		// Does not work to use a timeout: we will drop packets
+		//msg, err = w.readMessage(conn, &readTimeout)
+		// Always read without a timeout! (especially for darwin).
+		msg, err = w.readMessage(conn, nil) // does no timeout keep us from missing messages?
 		if err != nil {
+			if msg != nil {
+				panic("should not have a message if error back!")
+			}
 			r := err.Error()
 
 			// under TCP: its normal to see 'read tcp y.y.y.y:59705->x.x.x.x:9999: i/o timeout'
@@ -328,7 +336,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 			if err == io.EOF && msg == nil {
 				return
 			}
-			//vv("ignore err = '%v'; msg = '%v'", err, msg)
+			//vvv("ignore err = '%v'; msg = '%v'", err, msg)
 		}
 		if msg == nil {
 			continue
@@ -337,9 +345,17 @@ func (c *Client) runReadLoop(conn net.Conn) {
 			//vv("client got an rpc25519 keep alive.")
 			continue
 		}
+		msg.HDR.LocalRecvTm = time.Now()
 
 		seqno := msg.HDR.Seqno
 		//vv("client %v received message with seqno=%v, msg.HDR='%v'", c.name, seqno, msg.HDR.String())
+
+		// debug, why are messages getting lost on the client?
+		// server is sending reply but then we are not matching them...
+		// not seeing that reply here... hmm....
+		c.MutDebug.Lock()
+		c.AllReply[msg.HDR.CallID] = msg
+		c.MutDebug.Unlock()
 
 		c.mut.Lock()
 		whoCh, waiting := c.notifyOnce[seqno]
@@ -467,6 +483,10 @@ func (c *Client) runSendLoop(conn net.Conn) {
 			} else {
 				//vv("cli %v has sent a 1-way message: %v'", c.name, msg)
 				lastPing = time.Now() // no need for ping
+
+				c.MutDebug.Lock()
+				c.AllReq[msg.HDR.CallID] = msg
+				c.MutDebug.Unlock()
 			}
 			msg.DoneCh <- msg // convey the error or lack thereof.
 
@@ -486,6 +506,10 @@ func (c *Client) runSendLoop(conn net.Conn) {
 			} else {
 				//vv("7777777 (client %v) Sent message: (seqno=%v): CallID= %v", c.name, msg.HDR.Seqno, msg.HDR.CallID)
 				lastPing = time.Now() // no need for ping
+
+				c.MutDebug.Lock()
+				c.AllReq[msg.HDR.CallID] = msg
+				c.MutDebug.Unlock()
 			}
 
 		}
@@ -776,6 +800,11 @@ type Client struct {
 	pending  map[uint64]*Call
 	closing  bool // user has called Close
 	shutdown bool // server has told us to stop
+
+	// diagnostics
+	MutDebug sync.Mutex
+	AllReq   map[string]*Message
+	AllReply map[string]*Message
 }
 
 // Compute HMAC using SHA-256, so 32 bytes long.
@@ -1091,6 +1120,10 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 
 		// net/rpc
 		pending: make(map[uint64]*Call),
+
+		// diagnostics
+		AllReq:   make(map[string]*Message),
+		AllReply: make(map[string]*Message),
 	}
 	c.encBufW = bufio.NewWriter(&c.encBuf)
 	c.codec = &greenpackClientCodec{
@@ -1278,6 +1311,10 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err erro
 	}
 
 	hdr := NewHDR(from, to, msg.HDR.Subject, CallOneWay)
+	if msg.HDR.Typ == CallDebugWasSeen {
+		// let the debug messages through!
+		hdr.Typ = CallDebugWasSeen
+	}
 	msg.HDR = *hdr
 	// allow msg.CallID to not be empty; in case we get a reply.
 	// isRPC=false so this is 1-way, but it might in turn still
