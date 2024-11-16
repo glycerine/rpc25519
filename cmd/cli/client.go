@@ -38,8 +38,9 @@ func main() {
 		*dest = "192.168.254.151:8443"
 	}
 
-	// compress of 100 still gives 1000x compression,
-	// about 8KB for 1e6 samples; good accuracy at tails
+	// A tdigest compress setting of 100 gives 1000x compression,
+	// about 8KB for 1e6 float64 samples; and retains good accuracy
+	// at the tails of the distribution.
 	var err error
 	td, err = tdigest.New(tdigest.Compression(100))
 	panicOn(err)
@@ -76,11 +77,12 @@ func main() {
 	var reply *rpc25519.Message
 	var i int
 	slowest := -1.0
+	nextSlowest := -1.0
 	defer func() {
 		q999 := td.Quantile(0.999)
 		q99 := td.Quantile(0.99)
 		q50 := td.Quantile(0.50)
-		log.Printf("client did %v calls.  err = '%v' \nslowest= %v nanosec\nq999_= %v nanoseconds\nq99_= %v nanoseconds\nq50_= %v nanoseconds\n", i, err, slowest, q999, q99, q50)
+		log.Printf("client did %v calls.  err = '%v' \nslowest= %v nanosec\nnextSlowest= %v nanosec\nq999_= %v nanosec\nq99_= %v nanosec\nq50_= %v nanosec\n", i, err, slowest, nextSlowest, q999, q99, q50)
 	}()
 	for i = 0; i < *n; i++ {
 		//reply, err = cli.SendAndGetReply(req, nil)
@@ -90,6 +92,7 @@ func main() {
 		errTd := td.Add(elap) // nanoseconds
 		panicOn(errTd)
 		if elap > slowest {
+			nextSlowest = slowest
 			slowest = elap
 		}
 		// only now panic on timeout, so our 10 sec / 20 sec timeout is the slowest.

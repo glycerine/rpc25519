@@ -505,16 +505,11 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		// So we got rid of the work queue.
 		job := &job{req: req, conn: conn, pair: s, w: w}
 
-		// select {
-		// case s.Server.workQ <- job:
-		// case <-s.halt.ReqStop.Chan:
-		// 	return
-		// }
-
 		// Workers requesting jobs can keep calls open for
 		// minutes or hours or days; so we cannot just have
-		// a single worker (say for 1 cpu) that blocks waiting
-		// to finish. So this has to be in a new goroutine.
+		// a single readLoop worker (say for 1 cpu) that
+		// blocks waiting to finish: this has to be in
+		// a new goroutine.
 		go s.Server.processWorkQ(job)
 	}
 }
@@ -579,31 +574,34 @@ func (s *Server) reportOnJobs() {
 	}
 	fmt.Printf(")\n\n")
 
-	// any stuck but still alive?
-	if len(s.prevStats) > 0 {
-		for _, stat := range stats {
-			if stat.count <= 0 {
-				continue // ignore dead goroutine, cannot dump their stacks.
-			}
-			// INVAR: stat is live, compare current count to prev count
-			prev, ok := s.prevPair2jobs[stat.pairID]
-			if !ok {
-				continue // ignore, probably just a new client.
-			}
-			if prev.count == stat.count {
-				alwaysPrintf("have same count %v as last time. goro = [%v]; pairID = %v ; last call goro = [%v]", prev.count, stat.goronum, stat.pairID, stat.pair.lastCallGoro)
-				// found stuck goroutine, still live, note the pairID
-				clone := *stat
-				s.stuckPair = &clone
-				vv("allstacks = \n\n%v\n\n", allstacks())
-				break
+	const dumpStacksWhenStuck = false // off for now
+	if dumpStacksWhenStuck {
+		// any stuck but still alive?
+		if len(s.prevStats) > 0 {
+			for _, stat := range stats {
+				if stat.count <= 0 {
+					continue // ignore dead goroutine, cannot dump their stacks.
+				}
+				// INVAR: stat is live, compare current count to prev count
+				prev, ok := s.prevPair2jobs[stat.pairID]
+				if !ok {
+					continue // ignore, probably just a new client.
+				}
+				if prev.count == stat.count {
+					alwaysPrintf("have same count %v as last time. goro = [%v]; pairID = %v ; last call goro = [%v]", prev.count, stat.goronum, stat.pairID, stat.pair.lastCallGoro)
+					// found stuck goroutine, still live, note the pairID
+					clone := *stat
+					s.stuckPair = &clone
+					vv("allstacks = \n\n%v\n\n", allstacks())
+					break
+				}
 			}
 		}
-	}
 
-	// copy so we can detect stuck goro.
-	s.prevPair2jobs = clonePair2jobs(s.pair2jobs)
-	s.prevStats = append([]*pairstat{}, stats...)
+		// copy so we can detect stuck goro.
+		s.prevPair2jobs = clonePair2jobs(s.pair2jobs)
+		s.prevStats = append([]*pairstat{}, stats...)
+	}
 }
 
 func clonePair2jobs(m map[int64]*pairstat) (r map[int64]*pairstat) {
