@@ -351,9 +351,12 @@ func (c *Client) runReadLoop(conn net.Conn) {
 			case whoCh <- msg:
 				//vv("client %v: yay. sent on notifyOnce channel! for seqno=%v", c.name, seqno)
 			default:
-				//vv("could not send to notifyOnce channel!")
+				vv("could not send to whoCh from notifyOnce; for seqno = %v", seqno)
+				panic("should never happen")
 			}
 		} else {
+			vv("notifyOnce: nobody was waiting for seqno = %v", seqno)
+
 			//vv("len c.notifyOnRead = %v", len(c.notifyOnRead))
 			// assume the round-trip "calls" should be consumed,
 			// and not repeated here to client listeners who want events???
@@ -476,12 +479,12 @@ func (c *Client) runSendLoop(conn net.Conn) {
 			c.GetOneRead(seqno, msg.DoneCh)
 
 			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
-				//vv("Failed to send message: %v", err)
+				vv("Failed to send message: %v", err)
 				msg.LocalErr = err
 				msg.DoneCh <- msg
 				continue
 			} else {
-				//vv("(client %v) Sent message: (seqno=%v): '%v'", c.name, msg.HDR.Seqno, msg)
+				//vv("7777777 (client %v) Sent message: (seqno=%v): CallID= %v", c.name, msg.HDR.Seqno, msg.HDR.CallID)
 				lastPing = time.Now() // no need for ping
 			}
 
@@ -1155,6 +1158,13 @@ var ErrTimeout = fmt.Errorf("time-out waiting for call to complete")
 // SendAndGetReplyWithTimeout expires the call after
 // timeout.
 func (c *Client) SendAndGetReplyWithTimeout(timeout time.Duration, req *Message) (reply *Message, err error) {
+	t0 := time.Now()
+	defer func() {
+		elap := time.Since(t0)
+		if elap > 5*time.Second {
+			vv("SendAndGetReplyWithTimeout(timeout='%v') is returning after %v", timeout, elap)
+		}
+	}()
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), timeout)
 	defer cancelFunc()

@@ -1,8 +1,8 @@
 package main
 
 import (
-	//"fmt"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -66,13 +66,10 @@ func main() {
 		os.Exit(1)
 	}
 	defer cli.Close()
-	log.Printf("client connected from local addr='%v'\n", cli.LocalAddr())
-
-	req := rpc25519.NewMessage()
-	req.JobSerz = []byte("client says hello and requests this be echoed back with a timestamp!")
+	vv("client connected from local addr='%v'", cli.LocalAddr())
 
 	if *n > 1 {
-		log.Printf("about to do n = %v calls.\n", *n)
+		vv("about to do n = %v calls.\n", *n)
 	}
 	var reply *rpc25519.Message
 	var i int
@@ -82,13 +79,21 @@ func main() {
 		q999 := td.Quantile(0.999)
 		q99 := td.Quantile(0.99)
 		q50 := td.Quantile(0.50)
-		log.Printf("client did %v calls.  err = '%v' \nslowest= %v nanosec\nnextSlowest= %v nanosec\nq999_= %v nanosec\nq99_= %v nanosec\nq50_= %v nanosec\n", i, err, slowest, nextSlowest, q999, q99, q50)
+		vv("client did %v calls.  err = '%v' \nslowest= %v nanosec\nnextSlowest= %v nanosec\nq999_= %v nanosec\nq99_= %v nanosec\nq50_= %v nanosec\n", i, err, slowest, nextSlowest, q999, q99, q50)
 	}()
+
+	var elaps []time.Duration
+
+	req := rpc25519.NewMessage()
+	req.JobSerz = []byte("client says hello and requests this be echoed back with a timestamp!")
+
 	for i = 0; i < *n; i++ {
 		//reply, err = cli.SendAndGetReply(req, nil)
 		t0 := time.Now()
 		reply, err = cli.SendAndGetReplyWithTimeout(*wait, req)
-		elap := float64(time.Since(t0))
+		e := time.Since(t0)
+		elaps = append(elaps, e)
+		elap := float64(e)
 		errTd := td.Add(elap) // nanoseconds
 		panicOn(errTd)
 		if elap > slowest {
@@ -97,12 +102,21 @@ func main() {
 		}
 		// only now panic on timeout, so our 10 sec / 20 sec timeout is the slowest.
 		if err != nil {
+			vv("client stop sending on err = '%v', elap = '%v'. history=", err, elap)
+			var sum time.Duration
+			for i, e := range elaps {
+				if i < 10 || i > len(elaps)-5 {
+					fmt.Printf("%v : %v\n", i, e)
+				}
+				sum += e
+			}
+			fmt.Printf("\n ========= sum = %v \n", sum)
 			panic(err)
 		}
 	}
 
 	if !*quiet {
-		log.Printf("client sees reply (Seqno=%v) = '%v'\n", reply.HDR.Seqno, string(reply.JobSerz))
+		vv("client sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
 	}
 	if *hang {
 		log.Printf("client hanging to see if keep-alives happen...")
@@ -116,11 +130,5 @@ func main() {
 				}
 			}
 		}
-	}
-}
-
-func panicOn(err error) {
-	if err != nil {
-		panic(err)
 	}
 }

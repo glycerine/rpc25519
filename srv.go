@@ -441,19 +441,24 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		select {
 		case <-s.halt.ReqStop.Chan:
+			vv("s.halt.ReqStop.Chan requested!")
 			return
 		default:
 		}
 
 		req, err := w.readMessage(conn, &s.cfg.ReadTimeout)
 		if err == io.EOF {
-			//vv("server sees io.EOF from receiveMessage")
+			// this is the cause of our "starved" conn.
+			// why is it happening? client is closing
+			// its end of the connection first on done chan closed 2 error.
+			vv("server sees io.EOF from receiveMessage")
 			// close of socket before read of full message.
 			// shutdown this connection or we'll just
 			// spin here at 500% cpu.
 			return
 		}
 		if err != nil {
+			vv("srv read loop err = '%v'", err)
 			r := err.Error()
 			if strings.Contains(r, "remote error: tls: bad certificate") {
 				//vv("ignoring client connection with bad TLS cert.")
@@ -492,6 +497,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			continue
 		}
 
+		//vv("8888888 got req (seqno=%v): CallID= %v", req.HDR.Seqno, req.HDR.CallID)
 		//vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
 
 		// show diagnostics for fairness/starvation
