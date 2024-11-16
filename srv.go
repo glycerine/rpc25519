@@ -653,7 +653,7 @@ func (s *Server) processWorkQ(job *job) {
 
 	if req.HDR.Typ == CallNetRPC {
 		//vv("have IsNetRPC call: '%v'", req.HDR.Subject)
-		err := pair.callBridgeNetRpc(req)
+		err := pair.callBridgeNetRpc(req, job)
 		if err != nil {
 			alwaysPrintf("callBridgeNetRpc errored out: '%v'", err)
 		}
@@ -897,7 +897,7 @@ func (server *Server) freeResponse(resp *Response) {
 }
 
 // like net_server.go NetServer.ServeCodec
-func (p *rwPair) callBridgeNetRpc(reqMsg *Message) error {
+func (p *rwPair) callBridgeNetRpc(reqMsg *Message, job *job) error {
 	//vv("bridge called! subject: '%v'", reqMsg.HDR.Subject)
 
 	p.encBuf.Reset()
@@ -919,19 +919,19 @@ func (p *rwPair) callBridgeNetRpc(reqMsg *Message) error {
 		}
 		// send a response if we actually managed to read a header.
 		if req != nil {
-			p.sendResponse(reqMsg, req, invalidRequest, p.greenCodec, err.Error())
+			p.sendResponse(reqMsg, req, invalidRequest, p.greenCodec, err.Error(), job)
 			p.Server.freeRequest(req)
 		}
 		return err
 	}
 	//wg.Add(1)
 	//vv("about to callMethodByReflection")
-	service.callMethodByReflection(p, reqMsg, mtype, req, argv, replyv, p.greenCodec, wantsCtx)
+	service.callMethodByReflection(p, reqMsg, mtype, req, argv, replyv, p.greenCodec, wantsCtx, job)
 
 	return nil
 }
 
-func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *methodType, req *Request, argv, replyv reflect.Value, codec ServerCodec, wantsCtx bool) {
+func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *methodType, req *Request, argv, replyv reflect.Value, codec ServerCodec, wantsCtx bool, job *job) {
 
 	mtype.Lock()
 	mtype.numCalls++
@@ -958,11 +958,11 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 	if !ok {
 		panic(fmt.Sprintf("reply must be Green. type '%T' was not.", replyv.Interface()))
 	}
-	pair.sendResponse(reqMsg, req, greenReplyv, codec, errmsg)
+	pair.sendResponse(reqMsg, req, greenReplyv, codec, errmsg, job)
 	pair.Server.freeRequest(req)
 }
 
-func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec ServerCodec, errmsg string) {
+func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec ServerCodec, errmsg string, job *job) {
 
 	//vv("pair sendResponse() top, reply: '%#v'", reply)
 
@@ -1002,13 +1002,20 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 	copy(msg.JobSerz, by)
 	//vv("response JobSerz is len %v", len(by))
 
-	select {
-	case p.SendCh <- msg:
-		//vv("reply msg went over pair.SendCh to the send goro write loop: '%v'", msg)
-	case <-p.halt.ReqStop.Chan:
-		return
+	if false {
+		select {
+		case p.SendCh <- msg:
+			//vv("reply msg went over pair.SendCh to the send goro write loop: '%v'", msg)
+		case <-p.halt.ReqStop.Chan:
+			return
+		}
+	} else {
+		err := job.w.sendMessage(p.Conn, msg, &p.cfg.WriteTimeout)
+		if err != nil {
+			alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
+			// just let user try again?
+		}
 	}
-
 }
 
 // from net/rpc Server.readRequest
