@@ -338,6 +338,10 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		s.halt.Done.Close()
 	}()
 
+	sendLoopGoroNum := GoroNumber()
+	_ = sendLoopGoroNum
+	vv("sendLoopGoroNum = [%v] for pairID = '%v'", sendLoopGoroNum, s.pairID)
+
 	symkey := s.cfg.preSharedKey
 	if s.cfg.encryptPSK {
 		s.mut.Lock()
@@ -493,13 +497,6 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		// show diagnostics for fairness/starvation
 		if s.cfg.ReportStats > 0 {
 			s.statsPairIDAddCountAndReportOnJobs(readLoopGoroNum)
-			s.Server.mut.Lock()
-			if s.Server.stuckPair != nil && s.Server.stuckPair.pairID == s.pairID {
-				alwaysPrintf("have stuck read loop! pairID = %v; goro = %v", s.pairID, readLoopGoroNum)
-				os.Stdout.Write(thisStack())
-				s.Server.stuckPair = nil
-			}
-			s.Server.mut.Unlock()
 		}
 
 		// Idea: send the job to the central work queue, so
@@ -536,6 +533,7 @@ type pairstat struct {
 	count   int
 	goronum int
 	pairID  int64
+	pair    *rwPair
 }
 
 func (s *rwPair) statsPairIDAddCountAndReportOnJobs(goronum int) {
@@ -543,7 +541,7 @@ func (s *rwPair) statsPairIDAddCountAndReportOnJobs(goronum int) {
 		s.Server.mut.Lock()
 		stats, ok := s.Server.pair2jobs[s.pairID]
 		if !ok {
-			stats = &pairstat{goronum: goronum, pairID: s.pairID}
+			stats = &pairstat{goronum: goronum, pairID: s.pairID, pair: s}
 			s.Server.pair2jobs[s.pairID] = stats
 		}
 		stats.count++
@@ -593,11 +591,11 @@ func (s *Server) reportOnJobs() {
 				continue // ignore, probably just a new client.
 			}
 			if prev.count == stat.count {
-				alwaysPrintf("have same count %v as last time. goro = [%v]", prev.count, stat.goronum)
+				alwaysPrintf("have same count %v as last time. goro = [%v]; pairID = %v ; last call goro = [%v]", prev.count, stat.goronum, stat.pairID, stat.pair.lastCallGoro)
 				// found stuck goroutine, still live, note the pairID
 				clone := *stat
 				s.stuckPair = &clone
-				vv("all stacks = \n\n%v\n\n", allstacks())
+				vv("allstacks = \n\n%v\n\n", allstacks())
 				break
 			}
 		}
@@ -626,6 +624,7 @@ type job struct {
 }
 
 func (s *Server) processWorkQ(job *job) {
+
 	var callme1 OneWayFunc
 	var callme2 TwoWayFunc
 	foundCallback1 := false
@@ -647,6 +646,10 @@ func (s *Server) processWorkQ(job *job) {
 	conn := job.conn
 	pair := job.pair
 	w := job.w
+
+	pair.mut.Lock()
+	pair.lastCallGoro = GoroNumber() // to locate the stuck call goroutine.
+	pair.mut.Unlock()
 
 	req.HDR.Nc = conn
 
@@ -1238,6 +1241,8 @@ type rwPair struct {
 
 	// mut protects the following
 	mut sync.Mutex
+
+	lastCallGoro int // to locate the stuck call goroutine.
 
 	// the ephemeral keys from the ephemeral ECDH handshake
 	// to estblish randomSymmetricSessKeyFromPreSharedKey

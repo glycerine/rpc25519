@@ -184,7 +184,10 @@ func thisStack() []byte {
 
 // GoroNumber returns the calling goroutine's number.
 func GoroNumber() int {
-	buf := thisStack()
+	buf := make([]byte, 48)
+	nw := runtime.Stack(buf, false) // false => just us, no other goro.
+	buf = buf[:nw]
+
 	// prefix "goroutine " is len 10.
 	i := 10
 	for buf[i] != ' ' && i < 30 {
