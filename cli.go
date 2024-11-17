@@ -290,8 +290,9 @@ func (c *Client) runReadLoop(conn net.Conn) {
 
 		// Does not work to use a timeout: we will drop packets
 		//msg, err = w.readMessage(conn, &readTimeout)
-		// Always read without a timeout! (especially for darwin).
-		msg, err = w.readMessage(conn, nil) // does no timeout keep us from missing messages?
+		// Always read without a timeout (nil 2nd param)!
+		// (especially for darwin with go1.23.2 or earlier).
+		msg, err = w.readMessage(conn, nil)
 		if err != nil {
 			if msg != nil {
 				panic("should not have a message if error back!")

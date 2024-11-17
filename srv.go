@@ -444,7 +444,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		//req, err := w.readMessage(conn, &s.cfg.ReadTimeout)
 		// read deadlines cause lost data on receives on
 		// a TCP socket on darwin. (at least at go1.23.2).
-		// So do not use them.
+		// So do not use them. We always want nil for 2nd param here.
 		req, err := w.readMessage(conn, nil)
 		if err == io.EOF {
 			// this is the cause of our "starved" conn.
@@ -869,20 +869,10 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 	msg.JobSerz = make([]byte, len(by))
 	copy(msg.JobSerz, by)
 	//vv("response JobSerz is len %v", len(by))
-
-	if false {
-		select {
-		case p.SendCh <- msg:
-			//vv("reply msg went over pair.SendCh to the send goro write loop: '%v'", msg)
-		case <-p.halt.ReqStop.Chan:
-			return
-		}
-	} else {
-		err := job.w.sendMessage(p.Conn, msg, &p.cfg.WriteTimeout)
-		if err != nil {
-			alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
-			// just let user try again?
-		}
+	err = job.w.sendMessage(p.Conn, msg, &p.cfg.WriteTimeout)
+	if err != nil {
+		alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
+		// just let user try again?
 	}
 }
 
