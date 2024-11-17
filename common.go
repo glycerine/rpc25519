@@ -151,8 +151,6 @@ func readFull(conn uConn, buf []byte, timeout *time.Duration) error {
 	return nil
 }
 
-var emptyByteSlice = []byte{}
-
 // writeFull writes all bytes in buf to conn
 func writeFull(conn uConn, buf []byte, timeout *time.Duration) error {
 
