@@ -447,14 +447,6 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		// So do not use them. We always want nil for 2nd param here.
 		req, err := w.readMessage(conn, nil)
 		if err == io.EOF {
-			// this is the cause of our "starved" conn.
-			// why is it happening? client is closing
-			// its end of the connection first. why? because
-			// it sent but did not receive a response to
-			// that send in 10 seconds. So somewhere that
-			// sent message is getting lost, and/or not
-			// responded to.
-			//
 			//vv("server sees io.EOF from receiveMessage")
 			// close of socket before read of full message.
 			// shutdown this connection or we'll just
@@ -614,9 +606,7 @@ func (s *Server) processWork(job *job) {
 		// We write ourselves rather than switch
 		// goroutines. We've added a mutex
 		// inside sendMessage so our writes won't conflict
-		// with keep-alive pings. Will we get less
-		// scheduling starvation and clients timing out
-		// if we just do the w.sendMessage() ourselves?
+		// with keep-alive pings.
 		err = w.sendMessage(conn, reply, &s.cfg.WriteTimeout)
 		if err != nil {
 			// notify any short-time-waiting server push user.
