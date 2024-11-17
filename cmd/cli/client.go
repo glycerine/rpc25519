@@ -69,7 +69,7 @@ func main() {
 	vv("client connected from local addr='%v'", cli.LocalAddr())
 
 	if *n > 1 {
-		vv("about to do n = %v calls.\n", *n)
+		alwaysPrintf("about to do n = %v calls.\n", *n)
 	}
 	var reply *rpc25519.Message
 	var i int
@@ -79,7 +79,7 @@ func main() {
 		q999 := td.Quantile(0.999)
 		q99 := td.Quantile(0.99)
 		q50 := td.Quantile(0.50)
-		vv("client did %v calls.  err = '%v' \nslowest= %v nanosec\nnextSlowest= %v nanosec\nq999_= %v nanosec\nq99_= %v nanosec\nq50_= %v nanosec\n", i, err, slowest, nextSlowest, q999, q99, q50)
+		alwaysPrintf("client did %v calls.  err = '%v' \nslowest= %v nanosec\nnextSlowest= %v nanosec\nq999_= %v nanosec\nq99_= %v nanosec\nq50_= %v nanosec\n", i, err, slowest, nextSlowest, q999, q99, q50)
 	}()
 
 	var elaps []time.Duration
@@ -100,7 +100,6 @@ func main() {
 			nextSlowest = slowest
 			slowest = elap
 		}
-		// only now panic on timeout, so our 10 sec / 20 sec timeout is the slowest.
 		if err != nil {
 
 			var sum time.Duration
