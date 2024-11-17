@@ -141,7 +141,7 @@ func readFull(conn uConn, buf []byte, timeout *time.Duration) error {
 		total += n
 		if total == need {
 			// probably just EOF
-			panicOn(err)
+			//panicOn(err)
 			return nil
 		}
 		if err != nil {
@@ -170,7 +170,7 @@ func writeFull(conn uConn, buf []byte, timeout *time.Duration) error {
 		n, err := conn.Write(buf[total:])
 		total += n
 		if total == need {
-			panicOn(err) // probably just EOF
+			//panicOn(err) // probably just EOF
 			//vv("writeFull returning nil after seeing total == need = %v", total)
 			return nil
 
