@@ -57,8 +57,6 @@ func main() {
 
 	var max = flag.Int("max", 0, "set runtime.GOMAXPROCS to this value.")
 
-	var stats = flag.Int64("stats", 0, "report fairness stats after this many calls.")
-
 	quiet = flag.Bool("quiet", false, "for profiling, do not log answer")
 
 	var readto = flag.Duration("read", 0, "timeout on reads")
@@ -86,7 +84,6 @@ func main() {
 	//cfg.ServerSendKeepAlive = time.Second * 5
 	cfg.PreSharedKeyPath = *psk
 	cfg.ReadTimeout = *readto
-	cfg.ReportStats = *stats
 
 	srv := rpc25519.NewServer("srv", cfg)
 	defer srv.Close()
