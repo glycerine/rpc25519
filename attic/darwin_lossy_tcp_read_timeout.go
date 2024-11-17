@@ -62,19 +62,42 @@ func client(id int) {
 
 	buff := make([]byte, 364)
 	var i uint64
-	timeout := time.Millisecond * 100
+	timeout := time.Millisecond
 
+	t0 := time.Now()
+	defer func() {
+		fmt.Printf("elapsed since starting: %v\n", time.Since(t0))
+	}()
 	for i = 0; i < 1e8; i++ {
 
-		// Read with 100 msec timeouts, as if we also
+		// The repeated-read loop. Here we
+		// read with timeouts; as if we also
 		// need to periodically check for other events, e.g. shutdown, pause, etc.
+		//
+		// When we do so, we observe data loss under load.
+		// Originally the library that revealed this issue used
+		// 100 msec timeouts, and multiple 50 client processes.
+		// Under this reproducer when we put everything in
+		// one process for ease of repro, we cranked it down
+		// to 1 msec to make it happen faster and more reliably.
+		//
 		// On darwin, at go1.23.3, the read timeouts occassionally
-		// causes us to lose TCP data. Estimated around every 1 in 500K
-		// reads when under load. We could see the data packets being sent
-		// to the client in Wireshark, but the client would never see them.
+		// causes us to lose TCP data. Estimated around every 1 in 500K (maybe)
+		// reads when under load. We could see the TCP data packets being sent
+		// to the client in Wireshark, but the Go client would never get
+		// delivery of the response to their RPC call.
+		// MacOS Sonoma 14.0 on darwin/amd64.
+		//
+		// I was expecting to see a skipped number and not zero (to match
+		// the original library's experience of not getting an RPC
+		// reply), but in this compressed reproducer, observing
+		// getting a zero instead of the next expected number
+		// still qualifies as a bug. This may be as close as we can
+		// easily get with this little code (the original library is much bigger).
 		for {
 			err := readFull(conn, buff, &timeout)
 			if err != nil {
+				//fmt.Printf("err = '%v'\n", err)
 				r := err.Error()
 				if strings.Contains(r, "i/o timeout") || strings.Contains(r, "deadline exceeded") {
 					continue // normal, expected, timeout
@@ -86,9 +109,9 @@ func client(id int) {
 		}
 		j := fromBytes(buff[:8])
 		if i != j {
-			panic(fmt.Sprintf("next expected is i=%v, but we got j=%v", i, j))
+			panic(fmt.Sprintf("expected next number: %v, but we got %v", i, j))
 		}
-		if i%10000 == 0 {
+		if i%100000 == 0 {
 			fmt.Printf("at i = %v\n", i)
 		}
 	}
@@ -143,3 +166,68 @@ func main() {
 	startClients()
 	select {}
 }
+
+/*
+sample output 1
+...
+at i = 200000
+elapsed since starting: 15.691497196s
+panic: expected next number: 203963, but we got 0
+
+goroutine 111 [running]:
+main.client(0x0?)
+	/Users/jaten/trash/darwin_lossy_tcp_read_timeout.go:98 +0x2fa
+created by main.startClients in goroutine 1
+	/Users/jaten/trash/darwin_lossy_tcp_read_timeout.go:139 +0x3d
+exit status 2
+
+Compilation exited abnormally with code 1 at Sat Nov 16 21:28:33
+
+
+sample output 2
+...
+at i = 400000
+elapsed since starting: 35.007915405s
+panic: expected next number: 420721, but we got 0
+
+goroutine 68 [running]:
+main.client(0x0?)
+	/Users/jaten/trash/darwin_lossy_tcp_read_timeout.go:98 +0x2fa
+created by main.startClients in goroutine 1
+	/Users/jaten/trash/darwin_lossy_tcp_read_timeout.go:139 +0x3d
+exit status 2
+
+Compilation exited abnormally with code 1 at Sat Nov 16 21:29:57
+
+sample output 3
+
+at i = 100000
+elapsed since starting: 12.453088565s
+panic: expected next number: 148173, but we got 0
+
+goroutine 125 [running]:
+main.client(0x0?)
+	/Users/jaten/trash/darwin_lossy_tcp_read_timeout.go:105 +0x2fa
+created by main.startClients in goroutine 1
+	/Users/jaten/trash/darwin_lossy_tcp_read_timeout.go:146 +0x3d
+exit status 2
+
+Compilation exited abnormally with code 1 at Sat Nov 16 21:37:24
+
+sample output 4
+
+...
+at i = 800000
+elapsed since starting: 1m10.034763283s
+panic: expected next number: 829960, but we got 0
+
+goroutine 130 [running]:
+main.client(0x0?)
+	/Users/jaten/trash/darwin_lossy_tcp_read_timeout.go:112 +0x2fa
+created by main.startClients in goroutine 1
+	/Users/jaten/trash/darwin_lossy_tcp_read_timeout.go:153 +0x3d
+exit status 2
+
+Compilation exited abnormally with code 1 at Sat Nov 16 21:41:49
+
+*/
