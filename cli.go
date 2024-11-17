@@ -350,13 +350,6 @@ func (c *Client) runReadLoop(conn net.Conn) {
 		seqno := msg.HDR.Seqno
 		//vv("client %v received message with seqno=%v, msg.HDR='%v'", c.name, seqno, msg.HDR.String())
 
-		// debug, why are messages getting lost on the client?
-		// server is sending reply but then we are not matching them...
-		// not seeing that reply here... hmm....
-		c.MutDebug.Lock()
-		c.AllReply[msg.HDR.CallID] = msg
-		c.MutDebug.Unlock()
-
 		c.mut.Lock()
 		whoCh, waiting := c.notifyOnce[seqno]
 		//vv("notifyOnce waiting = %v", waiting)
@@ -482,10 +475,6 @@ func (c *Client) runSendLoop(conn net.Conn) {
 			} else {
 				//vv("cli %v has sent a 1-way message: %v'", c.name, msg)
 				lastPing = time.Now() // no need for ping
-
-				c.MutDebug.Lock()
-				c.AllReq[msg.HDR.CallID] = msg
-				c.MutDebug.Unlock()
 			}
 			msg.DoneCh <- msg // convey the error or lack thereof.
 
@@ -505,10 +494,6 @@ func (c *Client) runSendLoop(conn net.Conn) {
 			} else {
 				//vv("7777777 (client %v) Sent message: (seqno=%v): CallID= %v", c.name, msg.HDR.Seqno, msg.HDR.CallID)
 				lastPing = time.Now() // no need for ping
-
-				c.MutDebug.Lock()
-				c.AllReq[msg.HDR.CallID] = msg
-				c.MutDebug.Unlock()
 			}
 
 		}
@@ -799,11 +784,6 @@ type Client struct {
 	pending  map[uint64]*Call
 	closing  bool // user has called Close
 	shutdown bool // server has told us to stop
-
-	// diagnostics
-	MutDebug sync.Mutex
-	AllReq   map[string]*Message
-	AllReply map[string]*Message
 }
 
 // Compute HMAC using SHA-256, so 32 bytes long.
@@ -1119,10 +1099,6 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 
 		// net/rpc
 		pending: make(map[uint64]*Call),
-
-		// diagnostics
-		AllReq:   make(map[string]*Message),
-		AllReply: make(map[string]*Message),
 	}
 	c.encBufW = bufio.NewWriter(&c.encBuf)
 	c.codec = &greenpackClientCodec{

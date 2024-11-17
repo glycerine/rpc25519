@@ -91,17 +91,6 @@ func main() {
 		//reply, err = cli.SendAndGetReply(req, nil)
 		t0 := time.Now()
 		reply, err = cli.SendAndGetReplyWithTimeout(*wait, req)
-
-		/*		if err == nil && i == 0 {
-					// verify that our diagnostics actually print on the server
-					diag := rpc25519.NewMessage()
-					diag.HDR.Typ = rpc25519.CallDebugWasSeen
-					diag.HDR.Subject = req.HDR.CallID
-					panicOn(cli.OneWaySend(diag, nil))
-					vv("sent diagnostic for first good call, callID = '%v'", req.HDR.CallID)
-				}
-		*/
-
 		e := time.Since(t0)
 		elaps = append(elaps, e)
 		elap := float64(e)
@@ -113,33 +102,6 @@ func main() {
 		}
 		// only now panic on timeout, so our 10 sec / 20 sec timeout is the slowest.
 		if err != nil {
-			/*
-				vv("client stop sending on err = '%v', elap = '%v'. req = '%v'; history=", err, elap, req.HDR.String())
-				vv("try re-sending!")
-
-				t1 := time.Now()
-				reply, err = cli.SendAndGetReplyWithTimeout(*wait, req)
-				vv("re-send completed in %v", time.Since(t1))
-			*/
-
-			vv("client stopping on err='%v'; sending diagnostic for CallID='%v'", err, req.HDR.CallID)
-			// send diagnostic: did it get there before? yes.
-			// did we get a response?
-			cli.MutDebug.Lock()
-			reply, ok := cli.AllReply[req.HDR.CallID]
-			cli.MutDebug.Unlock()
-			if ok {
-				vv("client got a reply after %v, but it was not matched. reply = '%v'", reply.HDR.LocalRecvTm.Sub(t0), reply.HDR.String())
-			} else {
-				vv("client has not seen a reply with req.HDR.CallID = '%v'", req.HDR.CallID)
-			}
-
-			diag := rpc25519.NewMessage()
-			diag.HDR.Typ = rpc25519.CallDebugWasSeen
-			diag.HDR.Subject = req.HDR.CallID
-			panicOn(cli.OneWaySend(diag, nil))
-			//time.Sleep(5 * time.Minute)
-			break
 
 			var sum time.Duration
 			for i, e := range elaps {
