@@ -367,11 +367,10 @@ func (c *Client) runReadLoop(conn net.Conn) {
 			case whoCh <- msg:
 				//vv("client %v: yay. sent on notifyOnce channel! for seqno=%v", c.name, seqno)
 			default:
-				vv("could not send to whoCh from notifyOnce; for seqno = %v", seqno)
-				panic("should never happen")
+				panic(fmt.Sprintf("Should never happen b/c the channels must be buffered!: could not send to whoCh from notifyOnce; for seqno = %v.", seqno))
 			}
 		} else {
-			vv("notifyOnce: nobody was waiting for seqno = %v", seqno)
+			//vv("notifyOnce: nobody was waiting for seqno = %v", seqno)
 
 			//vv("len c.notifyOnRead = %v", len(c.notifyOnRead))
 			// assume the round-trip "calls" should be consumed,
@@ -1195,7 +1194,7 @@ func (c *Client) SendAndGetReplyWithTimeout(timeout time.Duration, req *Message)
 	defer func() {
 		elap := time.Since(t0)
 		if elap > 5*time.Second {
-			vv("SendAndGetReplyWithTimeout(timeout='%v') is returning after %v", timeout, elap)
+			alwaysPrintf("SendAndGetReplyWithTimeout(timeout='%v') is returning after %v", timeout, elap)
 		}
 	}()
 
@@ -1311,10 +1310,6 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err erro
 	}
 
 	hdr := NewHDR(from, to, msg.HDR.Subject, CallOneWay)
-	if msg.HDR.Typ == CallDebugWasSeen {
-		// let the debug messages through!
-		hdr.Typ = CallDebugWasSeen
-	}
 	msg.HDR = *hdr
 	// allow msg.CallID to not be empty; in case we get a reply.
 	// isRPC=false so this is 1-way, but it might in turn still

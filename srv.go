@@ -17,7 +17,6 @@ import (
 	"net/http"
 	"os"
 	"reflect"
-	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -318,13 +317,12 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 			//vv("hostKeyVerifies returned error '%v' for remote addr '%v'", err, remoteAddr)
 			return
 		}
-		//for i := range good {
-		//	vv("accepted identity for client: '%v' (was new: %v)\n", good[i], wasNew)
-		//}
-	}
-
-	if s.cfg.HTTPConnectRequired {
-		// this might be too late to try and do CONNECT stuff here.
+		const showAcceptedIdentities = false
+		if showAcceptedIdentities {
+			for i := range good {
+				vv("accepted identity for client: '%v' (was new: %v)\n", good[i], wasNew)
+			}
+		}
 	}
 
 	// end of handleTLSConnection()
@@ -340,7 +338,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 
 	sendLoopGoroNum := GoroNumber()
 	_ = sendLoopGoroNum
-	vv("sendLoopGoroNum = [%v] for pairID = '%v'", sendLoopGoroNum, s.pairID)
+	//vv("sendLoopGoroNum = [%v] for pairID = '%v'", sendLoopGoroNum, s.pairID)
 
 	symkey := s.cfg.preSharedKey
 	if s.cfg.encryptPSK {
@@ -424,10 +422,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
 		conn.Close() // just the one, let other clients continue.
-		s.statsPairIDdone()
 	}()
-
-	readLoopGoroNum := GoroNumber()
 
 	symkey := s.cfg.preSharedKey
 	if s.cfg.encryptPSK {
@@ -441,7 +436,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		select {
 		case <-s.halt.ReqStop.Chan:
-			vv("s.halt.ReqStop.Chan requested!")
+			//vv("s.halt.ReqStop.Chan requested!")
 			return
 		default:
 		}
@@ -466,26 +461,8 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			// spin here at 500% cpu.
 			return
 		}
-		if req != nil && req.HDR.Typ == CallDebugWasSeen {
-			prev, ok := s.callIDseen[req.HDR.Subject]
-			if ok {
-				vv("333333333 CallDebugWasSeen request received prev we did see the subject. debug hdr = '%v'\n\n prev.HDR = '%v'", req.HDR.String(), prev.HDR.String()) // seen 10 seconds after client times out. So the server did indeed receive the request! It just failed to ever reply!
-				// was a reply sent? yes.
-				s.replyMut.Lock()
-				seen, ok := s.repliedCallID[req.HDR.Subject]
-				s.replyMut.Unlock()
-				if ok {
-					vv("reply was sent to CallID: it was: '%v'", seen.HDR.String())
-				} else {
-					vv("reply was never sent to req.CallID = '%v'", req.HDR.Subject) // not seen
-				}
-
-			} else {
-				vv("333333333 CallDebugWasSeen: have not seen this subject as a previous CallID. debug hdr = '%v'", req.HDR.String()) // never seen.
-			}
-		}
 		if err != nil {
-			vv("srv read loop err = '%v'", err)
+			//vv("srv read loop err = '%v'", err)
 			r := err.Error()
 			if strings.Contains(r, "remote error: tls: bad certificate") {
 				//vv("ignoring client connection with bad TLS cert.")
@@ -525,17 +502,6 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			continue
 		}
 
-		// save message for diagnostics. too slow to log.
-		s.callIDseen[req.HDR.CallID] = req
-		s.callIDseq = append(s.callIDseq, req)
-		//vv("8888888 got req (seqno=%v): CallID= %v", req.HDR.Seqno, req.HDR.CallID)
-		//vv("server received message with seqno=%v: %v", req.HDR.Seqno, req)
-
-		// show diagnostics for fairness/starvation
-		if s.cfg.ReportStats > 0 {
-			s.statsPairIDAddCountAndReportOnJobs(readLoopGoroNum)
-		}
-
 		// Idea: send the job to the central work queue, so
 		// we service jobs fairly in FIFO order.
 		// Update: turns out this didn't really matter.
@@ -547,108 +513,8 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		// just use this readLoop goroutine to process
 		// call sequentially; we cannot block here: this
 		// has to be in a new goroutine.
-		go s.Server.processWorkQ(job)
+		go s.Server.processWork(job)
 	}
-}
-
-func (s *rwPair) statsPairIDdone() {
-	if s.cfg.ReportStats > 0 {
-		s.Server.mut.Lock()
-		stats := s.Server.pair2jobs[s.pairID]
-		// negative count means pair (connection) is finished.
-		stats.count = -stats.count
-		s.Server.mut.Unlock()
-	}
-}
-
-type pairstat struct {
-	count   int
-	goronum int
-	pairID  int64
-	pair    *rwPair
-}
-
-func (s *rwPair) statsPairIDAddCountAndReportOnJobs(goronum int) {
-	if s.cfg.ReportStats > 0 {
-		s.Server.mut.Lock()
-		stats, ok := s.Server.pair2jobs[s.pairID]
-		if !ok {
-			stats = &pairstat{goronum: goronum, pairID: s.pairID, pair: s}
-			s.Server.pair2jobs[s.pairID] = stats
-		}
-		stats.count++
-		s.Server.jobcount++
-		if s.Server.jobcount%s.cfg.ReportStats == 1 {
-			s.Server.reportOnJobs()
-		}
-		s.Server.mut.Unlock()
-	}
-}
-
-type pairstatSlice []*pairstat
-
-func (p pairstatSlice) Len() int { return len(p) }
-func (p pairstatSlice) Less(i, j int) bool {
-	return p[i].count < p[j].count
-}
-func (p pairstatSlice) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
-
-// PRE: s.mut must be locked already
-func (s *Server) reportOnJobs() {
-	var stats pairstatSlice
-	for _, stat := range s.pair2jobs {
-		stats = append(stats, stat)
-	}
-	sort.Sort(stats)
-
-	fmt.Printf("(%v since start). count of jobs done by each client:\n a=c(", time.Since(s.tmStart))
-	for i, stat := range stats {
-		if i == 0 {
-			fmt.Printf("%v[%v]", stat.count, stat.goronum)
-		} else {
-			fmt.Printf(", %v[%v]", stat.count, stat.goronum)
-		}
-	}
-	fmt.Printf(")\n\n")
-
-	const dumpStacksWhenStuck = false // off for now
-	if dumpStacksWhenStuck {
-		// any stuck but still alive?
-		if len(s.prevStats) > 0 {
-			for _, stat := range stats {
-				if stat.count <= 0 {
-					continue // ignore dead goroutine, cannot dump their stacks.
-				}
-				// INVAR: stat is live, compare current count to prev count
-				prev, ok := s.prevPair2jobs[stat.pairID]
-				if !ok {
-					continue // ignore, probably just a new client.
-				}
-				if prev.count == stat.count {
-					alwaysPrintf("have same count %v as last time. goro = [%v]; pairID = %v ; last call goro = [%v]", prev.count, stat.goronum, stat.pairID, stat.pair.lastCallGoro)
-					// found stuck goroutine, still live, note the pairID
-					clone := *stat
-					s.stuckPair = &clone
-					vv("allstacks = \n\n%v\n\n", allstacks())
-					break
-				}
-			}
-		}
-
-		// copy so we can detect stuck goro.
-		s.prevPair2jobs = clonePair2jobs(s.pair2jobs)
-		s.prevStats = append([]*pairstat{}, stats...)
-	}
-}
-
-func clonePair2jobs(m map[int64]*pairstat) (r map[int64]*pairstat) {
-	r = make(map[int64]*pairstat)
-	for k, v := range m {
-		// have to copy previous state of paristat
-		cp := *v
-		r[k] = &cp
-	}
-	return
 }
 
 type job struct {
@@ -658,33 +524,18 @@ type job struct {
 	w    *blabber
 }
 
-func (s *Server) processWorkQ(job *job) {
+func (s *Server) processWork(job *job) {
 
 	var callme1 OneWayFunc
 	var callme2 TwoWayFunc
 	foundCallback1 := false
 	foundCallback2 := false
 
-	// qjob := job
-	// select {
-	// case qjob = <-s.workQ:
-	// case <-s.halt.ReqStop.Chan:
-	// 	return
-	// }
-	//if qjob != job {
-	//vv("processWorkQ was not fifo?") // seen alot
-	//	job = qjob // didn't help starvation on macOS.
-	//}
-
 	req := job.req
-	//vv("processWorkQ got job: req.HDR='%v'", req.HDR.String())
+	//vv("processWork got job: req.HDR='%v'", req.HDR.String())
 	conn := job.conn
 	pair := job.pair
 	w := job.w
-
-	pair.mut.Lock()
-	pair.lastCallGoro = GoroNumber() // to locate the stuck call goroutine.
-	pair.mut.Unlock()
 
 	req.HDR.Nc = conn
 
@@ -760,43 +611,28 @@ func (s *Server) processWorkQ(job *job) {
 		hdr.Seqno = replySeqno
 		reply.HDR = *hdr
 
-		// what if we just do the send ourself? why
-		// wait for a channel send on s.SendCh?
-		// We've added a mutex
-		// inside sendMessage so we for sure won't conflict
+		// We write ourselves rather than switch
+		// goroutines. We've added a mutex
+		// inside sendMessage so our writes won't conflict
 		// with keep-alive pings. Will we get less
 		// scheduling starvation and clients timing out
 		// if we just do the w.sendMessage() ourselves?
-		if false {
+		err = w.sendMessage(conn, reply, &s.cfg.WriteTimeout)
+		if err != nil {
+			// notify any short-time-waiting server push user.
+			// This is super useful to let goq retry jobs quickly.
+			reply.LocalErr = err
 			select {
-			case pair.SendCh <- reply:
-				//vv("reply went over pair.SendCh to the send goro write loop: '%v'", reply)
-			case <-s.halt.ReqStop.Chan:
-				return
+			case reply.DoneCh <- reply:
+			default:
 			}
+			alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, reply.HDR.Seqno)
+			// just let user try again?
 		} else {
-			err := w.sendMessage(conn, reply, &s.cfg.WriteTimeout)
-			if err != nil {
-				// notify any short-time-waiting server push user.
-				// This is super useful to let goq retry jobs quickly.
-				reply.LocalErr = err
-				select {
-				case reply.DoneCh <- reply:
-				default:
-				}
-				alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, reply.HDR.Seqno)
-				// just let user try again?
-			} else {
-				// tell caller there was no error.
-				select {
-				case reply.DoneCh <- reply:
-				default:
-				}
-
-				pair.replyMut.Lock()
-				pair.repliedCallID[reply.HDR.CallID] = reply
-				pair.replyMut.Unlock()
-
+			// tell caller there was no error.
+			select {
+			case reply.DoneCh <- reply:
+			default:
 			}
 		}
 	}
@@ -822,16 +658,7 @@ type Server struct {
 
 	lastPairID atomic.Int64
 
-	// pair2jobs is: pairID(i.e. client) -> number of jobs requested.
-	// update: use pairstat to track with goroutine is stalled to
-	// help analyze stack dump.
-	pair2jobs     map[int64]*pairstat
-	prevPair2jobs map[int64]*pairstat
-	prevStats     []*pairstat
-	stuckPair     *pairstat // if set, have stuck read loop => dump its stack.
-
 	jobcount int64
-	workQ    chan *job
 
 	name  string // which server, for debugging.
 	creds *selfcert.Creds
@@ -966,7 +793,6 @@ func (p *rwPair) callBridgeNetRpc(reqMsg *Message, job *job) error {
 		}
 		return err
 	}
-	//wg.Add(1)
 	//vv("about to callMethodByReflection")
 	service.callMethodByReflection(p, reqMsg, mtype, req, argv, replyv, p.greenCodec, wantsCtx, job)
 
@@ -1129,11 +955,6 @@ func (p *rwPair) readRequestHeader(codec ServerCodec) (svc *service, mtype *meth
 	// we can still recover and move on to the next request.
 	keepReading = true
 
-	//nextDecoderType, err := p.greenCodec.dec.NextType()
-	//if err == nil {
-	//vv("srv: readRequestHeader(): header was read successfully, req = '%#v', left in reader ='%v' of type '%v'", req, p.greenCodec.dec.Buffered(), nextDecoderType)
-	//}
-
 	dot := strings.LastIndex(req.ServiceMethod, ".")
 	if dot < 0 {
 		err = errors.New("rpc: service/method request ill-formed: " + req.ServiceMethod)
@@ -1289,8 +1110,6 @@ type rwPair struct {
 	// mut protects the following
 	mut sync.Mutex
 
-	lastCallGoro int // to locate the stuck call goroutine.
-
 	// the ephemeral keys from the ephemeral ECDH handshake
 	// to estblish randomSymmetricSessKeyFromPreSharedKey
 	randomSymmetricSessKeyFromPreSharedKey [32]byte
@@ -1299,28 +1118,17 @@ type rwPair struct {
 	// only one of these two will be filled here, depending on if we are client or server.
 	srvStaticPub ed25519.PublicKey
 	cliStaticPub ed25519.PublicKey
-
-	// debug seen callID
-	callIDseen map[string]*Message
-	callIDseq  []*Message
-
-	// debug the reply path, since we *are* seeing on the
-	// server the calls that the client never gets a reply to.
-	repliedCallID map[string]*Message
-	replyMut      sync.Mutex
 }
 
 func (s *Server) newRWPair(conn net.Conn) *rwPair {
 
 	p := &rwPair{
-		pairID:        s.lastPairID.Add(1),
-		cfg:           s.cfg.Clone(),
-		Server:        s,
-		Conn:          conn,
-		SendCh:        make(chan *Message),
-		halt:          idem.NewHalter(),
-		callIDseen:    make(map[string]*Message),
-		repliedCallID: make(map[string]*Message),
+		pairID: s.lastPairID.Add(1),
+		cfg:    s.cfg.Clone(),
+		Server: s,
+		Conn:   conn,
+		SendCh: make(chan *Message),
+		halt:   idem.NewHalter(),
 	}
 
 	p.encBufW = bufio.NewWriter(&p.encBuf)
@@ -1466,8 +1274,6 @@ func NewServer(name string, config *Config) *Server {
 		pair2remote:       make(map[*rwPair]string),
 		halt:              idem.NewHalter(),
 		RemoteConnectedCh: make(chan *ServerClient, 20),
-		pair2jobs:         make(map[int64]*pairstat),
-		workQ:             make(chan *job, 1000),
 	}
 }
 

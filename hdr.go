@@ -129,12 +129,11 @@ type HDR struct {
 type CallType int
 
 const (
-	CallNone         CallType = 0
-	CallRPC          CallType = 1
-	CallOneWay       CallType = 2
-	CallNetRPC       CallType = 3
-	CallKeepAlive    CallType = 4
-	CallDebugWasSeen CallType = 5
+	CallNone      CallType = 0
+	CallRPC       CallType = 1
+	CallOneWay    CallType = 2
+	CallNetRPC    CallType = 3
+	CallKeepAlive CallType = 4
 )
 
 // NewHDR creates a new HDR header.
