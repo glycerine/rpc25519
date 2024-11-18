@@ -272,7 +272,7 @@ func GoroNumber() int {
 }
 
 /*
-sample output (on go version go1.23.3 darwin/amd64)
+sample output 1 (on go version go1.23.3 darwin/amd64)
 
 -*- mode: compilation; default-directory: "~/trash/tmp/" -*-
 Compilation started at Sun Nov 17 22:34:34
@@ -357,9 +357,9 @@ so the faulty read has shifted the read from the underlying
 TCP buffer incorrrectly forward by 8 bytes (one word on amd64).
 
 I have also seen more than an 8 byte shift in a
-run that I didn't record. I'll try to reproduce below.
+run. See sample output 3 below for a 12 byte shift example.
 
-sample run 2: This show the same issue as above. We happen
+sample output 2: This show the same issue as above. We happen
 to get to see 4 client reads being incorrect before the
 panic took down the process. (also go version go1.23.3 darwin/amd64)
 
@@ -432,5 +432,75 @@ created by main.startClients in goroutine 1
 exit status 2
 
 Compilation exited abnormally with code 1 at Sun Nov 17 22:45:21
+
+------
+sample output 3: shows an off-by 12 bytes, rather than an off-by 8 bytes:
+
+-*- mode: compilation; default-directory: "~/go/src/github.com/glycerine/rpc25519/attic/" -*-
+Compilation started at Sun Nov 17 22:49:49
+
+go run darwin_word_shift.go
+buff = '00000000000000001a6f419ec627c76b'  (goroutine 20)
+buff = '0000000000000000a46add6a48d89474'  (goroutine 33)
+buff = '00000000000000004cf4929ef54f635d'  (goroutine 49)
+buff = '0000000000000000dcb8a99468ef7de3'  (goroutine 50)
+buff = '000000000000000043cea3e828a15c70'  (goroutine 51)
+buff = '0000000000000000e3eb28cb670f0e97'  (goroutine 53)
+buff = '0000000000000000d8d1001f787c1704'  (goroutine 52)
+buff = '000000000000000068b5c68785829264'  (goroutine 56)
+buff = '000000000000000055b970d3ecbf14bd'  (goroutine 57)
+buff = '0000000000000000d3e59bdef423e884'  (goroutine 58)
+buff = '0000000000000000b7dafc64deb68410'  (goroutine 59)
+buff = '0000000000000000aadc8f829e0ce35c'  (goroutine 60)
+buff = '0000000000000000a775a4810dd20a80'  (goroutine 54)
+buff = '0000000000000000df31b5282bbc3d9a'  (goroutine 55)
+buff = '000000000000000070aa5fa26ca01c38'  (goroutine 61) <<<<<< 6ca01c38 occurs here.
+buff = '0000000000000000ba340af96279bf01'  (goroutine 63)
+buff = '00000000000000000e427b01e9fa49a3'  (goroutine 99)
+buff = '0000000000000000a0fe81b34c7f8050'  (goroutine 64)
+buff = '000000000000000014bdb20f9675ae25'  (goroutine 98)
+buff = '000000000000000000d0e937a152a4fd'  (goroutine 97)
+buff = '000000000000000037491e5f0ae4ba1c'  (goroutine 62)
+buff = '00000000000000005fc087cb70df5b51'  (goroutine 106)
+buff = '0000000000000000429173d13425349a'  (goroutine 100)
+buff = '0000000000000000eeb74f5a77e95d3b'  (goroutine 101)
+buff = '000000000000000073acc6c3565825a0'  (goroutine 102)
+buff = '0000000000000000d72b59b8227d4506'  (goroutine 103)
+buff = '0000000000000000bf5ab58c8e61eb90'  (goroutine 104)
+buff = '0000000000000000dcf76aa0aa1a4dc4'  (goroutine 105)
+buff = '0000000000000000fb679aac0dc09769'  (goroutine 107)
+buff = '0000000000000000938a75b111a52d46'  (goroutine 108)
+buff = '0000000000000000bb25d77bb39f40c5'  (goroutine 109)
+buff = '00000000000000005382898c849e5abe'  (goroutine 110)
+buff = '00000000000000003e83149a5f2feb67'  (goroutine 111)
+buff = '00000000000000006d06240c1e08b578'  (goroutine 112)
+buff = '0000000000000000499af66bed112e78'  (goroutine 129)
+buff = '000000000000000009e2007b87270bb1'  (goroutine 130)
+buff = '000000000000000060eeddc708e2d75f'  (goroutine 131)
+buff = '00000000000000005332d537b95eef80'  (goroutine 132)
+buff = '000000000000000012f238a56d597369'  (goroutine 133)
+buff = '0000000000000000c2cd89d8a4799eef'  (goroutine 137)
+buff = '00000000000000000929d71336fdf5b0'  (goroutine 136)
+buff = '000000000000000064ec0f9968bbaa21'  (goroutine 134)
+buff = '0000000000000000f70e90b8f3003857'  (goroutine 135)
+buff = '0000000000000000bdc400b69b983b9e'  (goroutine 148)
+buff = '000000000000000015f7619aaa157a1f'  (goroutine 138)
+buff = '00000000000000009bc20ccbc82cea86'  (goroutine 139)
+buff = '00000000000000005c17c3998763199d'  (goroutine 149)
+buff = '0000000000000000fe568512a242b356'  (goroutine 151)
+buff = '00000000000000003976e4ef048cbe3d'  (goroutine 150)
+buff = '00000000000000004bf44cc939358b5e'  (goroutine 152)
+expected next number: 3345, but we got 7827287179213668352; buff = '6ca01c380000000000000d1270aa5fa2' (buff[8:16] decoded as uint64: '14372850786210')
+elapsed since starting: 503.292711ms
+panic: crashNext true: prev unexpected was: 7827287179213668352; on the one after we see j = 7827287179213668352, while i (after increment at top of loop) is now = 3346; errConn ='<nil>'; canWrite = true; buff='6ca01c380000000000000d1370aa5fa2'; last 8 bytes decoded as uint64: '14377145753506'
+
+goroutine 61 [running]:
+main.client(0xc000094038?)
+	/Users/jaten/go/src/github.com/glycerine/rpc25519/attic/darwin_word_shift.go:139 +0x599
+created by main.startClients in goroutine 1
+	/Users/jaten/go/src/github.com/glycerine/rpc25519/attic/darwin_word_shift.go:189 +0x3d
+exit status 2
+
+Compilation exited abnormally with code 1 at Sun Nov 17 22:49:50
 
 */
