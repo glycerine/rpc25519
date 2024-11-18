@@ -5,12 +5,10 @@ import (
 	//cryrand "crypto/rand"
 	"encoding/binary"
 	"fmt"
-	"io"
 	mathrand2 "math/rand/v2"
 	"net"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -22,7 +20,7 @@ func init() {
 var chacha8rand *mathrand2.ChaCha8
 
 // const buffSize = 364 // crasher size
-const buffSize = 24
+const buffSize = 16
 
 func service(conn net.Conn) {
 
@@ -133,9 +131,9 @@ func client(id int) {
 		j = fromBytes(buff[:8])
 
 		if crashNext {
-			errConn := connCheck(conn)
+			//errConn := connCheck(conn)
 			writable := canWrite(conn) // always seeing true.
-			panic(fmt.Sprintf("crashNext true: prev unexpected was: %v; on the one after we see j = %v, while i (after increment at top of loop) is now = %v; errConn ='%v'; canWrite = %v; buff='%x'; last 8 bytes decoded as uint64: '%v'", unexpected, j, i, errConn, writable, buff, fromBytes(buff[8:16])))
+			panic(fmt.Sprintf("crashNext true: prev unexpected was: %v; on the one after we see j = %v, while i (after increment at top of loop) is now = %v; canWrite = %v; buff='%x'; last 8 bytes decoded as uint64: '%v'", unexpected, j, i, writable, buff, fromBytes(buff[8:16])))
 		}
 
 		if i != j {
@@ -200,32 +198,6 @@ func main() {
 
 	startClients()
 	select {}
-}
-
-func connCheck(conn net.Conn) error {
-	var sysErr error
-	rc, err := conn.(syscall.Conn).SyscallConn()
-	if err != nil {
-		return err
-	}
-	err = rc.Read(func(fd uintptr) bool {
-		buf := make([]byte, 1)
-		n, _, err := syscall.Recvfrom(int(fd), buf, syscall.MSG_PEEK|syscall.MSG_DONTWAIT)
-		switch {
-		case n == 0 && err == nil:
-			sysErr = io.EOF
-		case err == syscall.EAGAIN || err == syscall.EWOULDBLOCK:
-			// no-op
-		default:
-			sysErr = err
-		}
-		return true
-	})
-	if err != nil {
-		return err
-	}
-
-	return sysErr
 }
 
 func canWrite(c net.Conn) bool {
@@ -489,5 +461,72 @@ created by main.startClients in goroutine 1
 exit status 2
 
 Compilation exited abnormally with code 1 at Sun Nov 17 22:49:50
+
+*/
+
+/* on windows, go version go1.23.2 windows/amd64
+
+jaten@DESKTOP-689SS63 ~/go/src/github.com/glycerine/rpc25519/attic (master) $ go run darwin_word_shift.go 
+buff = '00000000000000001a6f419ec627c76b'  (goroutine 21)
+buff = '0000000000000000a46add6a48d89474'  (goroutine 22)
+buff = '00000000000000004cf4929ef54f635d'  (goroutine 36)
+buff = '0000000000000000dcb8a99468ef7de3'  (goroutine 50)
+buff = '000000000000000043cea3e828a15c70'  (goroutine 38)
+buff = '0000000000000000e3eb28cb670f0e97'  (goroutine 83)
+buff = '0000000000000000d8d1001f787c1704'  (goroutine 51)
+buff = '000000000000000068b5c68785829264'  (goroutine 85)
+buff = '000000000000000055b970d3ecbf14bd'  (goroutine 84)
+buff = '0000000000000000b7dafc64deb68410'  (goroutine 23)
+buff = '0000000000000000d3e59bdef423e884'  (goroutine 39)
+buff = '0000000000000000aadc8f829e0ce35c'  (goroutine 114)
+buff = '0000000000000000a775a4810dd20a80'  (goroutine 25)
+buff = '0000000000000000df31b5282bbc3d9a'  (goroutine 26)
+buff = '000000000000000070aa5fa26ca01c38'  (goroutine 163)
+buff = '0000000000000000ba340af96279bf01'  (goroutine 27)
+buff = '00000000000000000e427b01e9fa49a3'  (goroutine 162)
+buff = '0000000000000000a0fe81b34c7f8050'  (goroutine 30)
+buff = '000000000000000014bdb20f9675ae25'  (goroutine 29)
+buff = '000000000000000000d0e937a152a4fd'  (goroutine 146)
+buff = '000000000000000037491e5f0ae4ba1c'  (goroutine 28)
+buff = '00000000000000005fc087cb70df5b51'  (goroutine 31)
+buff = '0000000000000000429173d13425349a'  (goroutine 33)
+buff = '0000000000000000eeb74f5a77e95d3b'  (goroutine 182)
+buff = '000000000000000073acc6c3565825a0'  (goroutine 183)
+buff = '0000000000000000d72b59b8227d4506'  (goroutine 179)
+buff = '0000000000000000bf5ab58c8e61eb90'  (goroutine 178)
+buff = '0000000000000000dcf76aa0aa1a4dc4'  (goroutine 181)
+buff = '0000000000000000fb679aac0dc09769'  (goroutine 185)
+buff = '0000000000000000938a75b111a52d46'  (goroutine 180)
+buff = '0000000000000000bb25d77bb39f40c5'  (goroutine 188)
+buff = '00000000000000005382898c849e5abe'  (goroutine 184)
+buff = '00000000000000003e83149a5f2feb67'  (goroutine 186)
+buff = '00000000000000006d06240c1e08b578'  (goroutine 194)
+buff = '0000000000000000499af66bed112e78'  (goroutine 187)
+buff = '000000000000000009e2007b87270bb1'  (goroutine 195) <<<<<<<<<<<
+buff = '000000000000000060eeddc708e2d75f'  (goroutine 189)
+buff = '00000000000000005332d537b95eef80'  (goroutine 196)
+buff = '000000000000000012f238a56d597369'  (goroutine 191)
+buff = '0000000000000000c2cd89d8a4799eef'  (goroutine 193)
+buff = '00000000000000000929d71336fdf5b0'  (goroutine 190)
+buff = '000000000000000064ec0f9968bbaa21'  (goroutine 192)
+buff = '0000000000000000f70e90b8f3003857'  (goroutine 199)
+buff = '0000000000000000bdc400b69b983b9e'  (goroutine 201)
+buff = '000000000000000015f7619aaa157a1f'  (goroutine 198)
+buff = '00000000000000009bc20ccbc82cea86'  (goroutine 197)
+buff = '00000000000000005c17c3998763199d'  (goroutine 200)
+buff = '0000000000000000fe568512a242b356'  (goroutine 202)
+buff = '00000000000000003976e4ef048cbe3d'  (goroutine 204)
+buff = '00000000000000004bf44cc939358b5e'  (goroutine 203)
+expected next number: 16309, but we got 13045206287355684619; buff = 'b509e2007b87270bb10000000000003f' (buff[8:16] decoded as uint64: '12754194144713244735')
+elapsed since starting: 3.3483095s
+panic: crashNext true: prev unexpected was: 13045206287355684619; on the one after we see j = 13117263881393612555, while i (after increment at top of loop) is now = 16310; canWrite = true; buff='b609e2007b87270bb10000000000003f'; last 8 bytes decoded as uint64: '12754194144713244735'
+
+goroutine 195 [running]:
+main.client(0x0?)
+	C:/Users/jaten/go/src/github.com/glycerine/rpc25519/attic/darwin_word_shift.go:136 +0x534
+created by main.startClients in goroutine 1
+	C:/Users/jaten/go/src/github.com/glycerine/rpc25519/attic/darwin_word_shift.go:186 +0x3d
+exit status 2
+jaten@DESKTOP-689SS63 ~/go/src/github.com/glycerine/rpc25519/attic (master) $
 
 */
