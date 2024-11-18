@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"strconv"
 	//cryrand "crypto/rand"
 	"encoding/binary"
@@ -122,7 +123,7 @@ func client(id int) {
 			if err != nil {
 				//fmt.Printf("err = '%v'; current i=%v; prev j=%v\n", err, i, j)
 				r := err.Error()
-				if strings.Contains(r, "i/o timeout") || strings.Contains(r, "deadline exceeded") {
+				if err == io.ErrUnexpectedEOF || strings.Contains(r, "i/o timeout") || strings.Contains(r, "deadline exceeded") {
 					continue // normal, expected, timeout
 				}
 				panic(err)
@@ -164,23 +165,30 @@ func readFull(conn net.Conn, buf []byte, timeout *time.Duration) (int, error) {
 		conn.SetReadDeadline(zeroTime)
 	}
 
-	need := len(buf)
-	total := 0
-	for total < len(buf) {
-		n, err := conn.Read(buf[total:])
-		total += n
-		if total == need {
-			// probably just EOF
-			if err != nil {
-				panic(err)
-			}
-			return total, nil
-		}
-		if err != nil {
-			return total, err
-		}
-	}
-	return total, nil
+	// returns io.ErrUnexpectedEOF on short read.
+	// returns io.EOF on zero bytes read.
+	return io.ReadFull(conn, buf)
+	/*
+	   need := len(buf)
+	   total := 0
+
+	   	for total < len(buf) {
+	   		n, err := conn.Read(buf[total:])
+	   		total += n
+	   		if total == need {
+	   			// probably just EOF
+	   			if err != nil {
+	   				panic(err)
+	   			}
+	   			return total, nil
+	   		}
+	   		if err != nil {
+	   			return total, err
+	   		}
+	   	}
+
+	   return total, nil
+	*/
 }
 
 func startClients() {
