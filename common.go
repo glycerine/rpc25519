@@ -149,9 +149,7 @@ func readFull(conn uConn, buf []byte, timeout *time.Duration) (numRead int, err 
 		numRead += n
 		if numRead == need {
 			// probably just EOF
-			if err != nil {
-				panic(err)
-			}
+			//panicOn(erf) goq will panic here.
 			return numRead, nil
 		}
 		if err != nil {
