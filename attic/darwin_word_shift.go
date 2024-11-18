@@ -22,7 +22,7 @@ func init() {
 var chacha8rand *mathrand2.ChaCha8
 
 // const buffSize = 364 // crasher size
-const buffSize = 16
+const buffSize = 24
 
 func service(conn net.Conn) {
 
@@ -134,7 +134,6 @@ func client(id int) {
 
 		if crashNext {
 			errConn := connCheck(conn)
-			//isCon := isConnected(conn) // always false, bah. ignore.
 			writable := canWrite(conn) // always seeing true.
 			panic(fmt.Sprintf("crashNext true: prev unexpected was: %v; on the one after we see j = %v, while i (after increment at top of loop) is now = %v; errConn ='%v'; canWrite = %v; buff='%x'; last 8 bytes decoded as uint64: '%v'", unexpected, j, i, errConn, writable, buff, fromBytes(buff[8:16])))
 		}
@@ -229,21 +228,9 @@ func connCheck(conn net.Conn) error {
 	return sysErr
 }
 
-func isConnected(conn net.Conn) bool {
-	f, err := conn.(*net.TCPConn).File()
-	if err != nil {
-		return false
-	}
-
-	b := []byte{0}
-	_, _, err = syscall.Recvfrom(int(f.Fd()), b, syscall.MSG_PEEK|syscall.MSG_DONTWAIT)
-	return err != nil
-}
-
 func canWrite(c net.Conn) bool {
 	_, err := c.Write([]byte("OK"))
 	if err != nil {
-		//c.Close() // close if problem
 		return false
 	}
 	return true
