@@ -73,9 +73,9 @@ func newWorkspace(name string, maxMsgSize int) *workspace {
 // receiveMessage reads a framed message from conn
 // nil or 0 timeout means no timeout.
 func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Message, err error) {
-
 	// Read the first 8 bytes for the Message length
-	if err := readFull(conn, w.readLenMessageBytes, timeout); err != nil {
+	_, err = readFull(conn, w.readLenMessageBytes, timeout)
+	if err != nil {
 		return nil, err
 	}
 	messageLen := binary.BigEndian.Uint64(w.readLenMessageBytes)
@@ -87,7 +87,8 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 	}
 
 	message := make([]byte, messageLen)
-	if err := readFull(conn, message, timeout); err != nil {
+	_, err = readFull(conn, message, timeout)
+	if err != nil {
 		return nil, err
 	}
 
@@ -124,8 +125,15 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 
 var zeroTime = time.Time{}
 
-// readFull reads exactly len(buf) bytes from conn
-func readFull(conn uConn, buf []byte, timeout *time.Duration) error {
+// readFull reads exactly len(buf) bytes from conn.
+// The returned numRead can be less than
+// len(buf) and and then err will be non-nil (on timeout for example).
+//
+// numRead must be returned, because it may be important
+// to account for the partial read
+// when numRead < len(buf), so as to discard a partially
+// read message and get to the start of the next message.
+func readFull(conn uConn, buf []byte, timeout *time.Duration) (numRead int, err error) {
 
 	if timeout != nil && *timeout > 0 {
 		conn.SetReadDeadline(time.Now().Add(*timeout))
@@ -135,20 +143,25 @@ func readFull(conn uConn, buf []byte, timeout *time.Duration) error {
 	}
 
 	need := len(buf)
-	total := 0
-	for total < len(buf) {
-		n, err := conn.Read(buf[total:])
-		total += n
-		if total == need {
+
+	for numRead < len(buf) {
+		n, err := conn.Read(buf[numRead:])
+		numRead += n
+		if numRead == need {
 			// probably just EOF
-			//panicOn(err)
-			return nil
+			if err != nil {
+				panic(err)
+			}
+			return numRead, nil
 		}
 		if err != nil {
-			return err
+			// can be a timeout, with partial read.
+			return numRead, err
 		}
 	}
-	return nil
+
+	return numRead, nil
+	//return io.ReadFull(conn, buf)
 }
 
 // writeFull writes all bytes in buf to conn

@@ -441,10 +441,13 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		default:
 		}
 
-		//req, err := w.readMessage(conn, &s.cfg.ReadTimeout)
-		// read deadlines cause lost data on receives on
-		// a TCP socket on darwin. (at least at go1.23.2).
-		// So do not use them. We always want nil for 2nd param here.
+		// Does not work to use a timeout: we will get
+		// partial reads which are then difficult to
+		// recover from, because we have not tracked
+		// how much of the rest of the incoming
+		// stream needs to be discarded!
+		// So: always read without a timeout (nil 2nd param)!
+		// Not: req, err := w.readMessage(conn, &s.cfg.ReadTimeout)
 		req, err := w.readMessage(conn, nil)
 		if err == io.EOF {
 			//vv("server sees io.EOF from receiveMessage")

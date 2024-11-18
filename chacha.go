@@ -323,7 +323,7 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	defer d.mut.Unlock()
 
 	// Read the first 8 bytes for the Message length
-	err = readFull(conn, d.work.readLenMessageBytes, timeout)
+	_, err = readFull(conn, d.work.readLenMessageBytes, timeout)
 	if err != nil {
 		//vv("err = '%v'", err) // Application error 0x0 (remote): server shutdown
 		return
@@ -340,7 +340,7 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 
 	// Read the encrypted data
 	encrypted := buf[:messageLen]
-	err = readFull(conn, encrypted, timeout)
+	_, err = readFull(conn, encrypted, timeout)
 	if err != nil {
 		return
 	}

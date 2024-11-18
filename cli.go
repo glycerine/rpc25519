@@ -288,10 +288,13 @@ func (c *Client) runReadLoop(conn net.Conn) {
 
 		// Receive a message
 
-		// Does not work to use a timeout: we will drop packets
+		// Does not work to use a timeout: we will get
+		// partial reads which are then difficult to
+		// recover from, because we have not tracked
+		// how much of the rest of the incoming
+		// stream needs to be discarded!
+		// So: always read without a timeout (nil 2nd param)!
 		//msg, err = w.readMessage(conn, &readTimeout)
-		// Always read without a timeout (nil 2nd param)!
-		// (especially for darwin with go1.23.2 or earlier).
 		msg, err = w.readMessage(conn, nil)
 		if err != nil {
 			if msg != nil {
