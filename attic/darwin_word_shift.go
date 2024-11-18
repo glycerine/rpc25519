@@ -25,7 +25,7 @@ const buffSize = 16
 func service(conn net.Conn) {
 
 	cliGoroNumBytes := make([]byte, 8)
-	err := readFull(conn, cliGoroNumBytes, nil)
+	_, err := readFull(conn, cliGoroNumBytes, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -115,8 +115,10 @@ func client(id int) {
 		// need to periodically check for other events, e.g. shutdown, pause, etc.
 		//
 		// When we do so, we observe data loss.
+		var offset int
 		for {
-			err := readFull(conn, buff, &timeout)
+			n, err := readFull(conn, buff[offset:], &timeout)
+			offset += n
 			if err != nil {
 				//fmt.Printf("err = '%v'; current i=%v; prev j=%v\n", err, i, j)
 				r := err.Error()
@@ -153,7 +155,7 @@ func client(id int) {
 var zeroTime = time.Time{}
 
 // readFull reads exactly len(buf) bytes from conn
-func readFull(conn net.Conn, buf []byte, timeout *time.Duration) error {
+func readFull(conn net.Conn, buf []byte, timeout *time.Duration) (int, error) {
 
 	if timeout != nil && *timeout > 0 {
 		conn.SetReadDeadline(time.Now().Add(*timeout))
@@ -172,13 +174,13 @@ func readFull(conn net.Conn, buf []byte, timeout *time.Duration) error {
 			if err != nil {
 				panic(err)
 			}
-			return nil
+			return total, nil
 		}
 		if err != nil {
-			return err
+			return total, err
 		}
 	}
-	return nil
+	return total, nil
 }
 
 func startClients() {
@@ -466,7 +468,7 @@ Compilation exited abnormally with code 1 at Sun Nov 17 22:49:50
 
 /* on windows, go version go1.23.2 windows/amd64
 
-jaten@DESKTOP-689SS63 ~/go/src/github.com/glycerine/rpc25519/attic (master) $ go run darwin_word_shift.go 
+jaten@DESKTOP-689SS63 ~/go/src/github.com/glycerine/rpc25519/attic (master) $ go run darwin_word_shift.go
 buff = '00000000000000001a6f419ec627c76b'  (goroutine 21)
 buff = '0000000000000000a46add6a48d89474'  (goroutine 22)
 buff = '00000000000000004cf4929ef54f635d'  (goroutine 36)
