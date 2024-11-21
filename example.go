@@ -162,7 +162,6 @@ type Hello struct {
 	Placeholder int `zid:"0"` // must have public field or greenpack will ignore it.
 }
 
-/*
 type BenchmarkMessage struct {
 	Field1   string   `zid:"0"`
 	Field9   string   `zid:"1"`
@@ -205,8 +204,9 @@ type BenchmarkMessage struct {
 	Field129 string   `zid:"38"`
 	Field131 int32    `zid:"39"`
 }
-*/
 
+/* this is what the protobuf serializes;
+   it takes advantage of default field values.
 type BenchmarkMessage struct {
 	Field1   string   `protobuf:"bytes,1,req,name=field1" json:"field1" zid:"0"`
 	Field9   string   `protobuf:"bytes,9,opt,name=field9" json:"field9" zid:"1"`
@@ -249,3 +249,4 @@ type BenchmarkMessage struct {
 	Field129 *string  `protobuf:"bytes,129,opt,name=field129,def=xxxxxxxxxxxxxxxxxxxxx" json:"field129,omitempty" zid:"38"`
 	Field131 *int32   `protobuf:"varint,131,opt,name=field131,def=0" json:"field131,omitempty" zid:"39"`
 }
+*/
