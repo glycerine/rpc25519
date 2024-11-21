@@ -228,13 +228,41 @@ func (z *BenchmarkMessage) DecodeMsg(dc *msgp.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	z.Field80, err = dc.ReadBool()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field80 == nil {
+			z.Field80 = new(bool)
+		}
+		dc.DedupIndexEachPtr(z.Field80)
+
+		*z.Field80, err = dc.ReadBool()
+		if err != nil {
+			return
+		}
 	}
-	z.Field81, err = dc.ReadBool()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field81 == nil {
+			z.Field81 = new(bool)
+		}
+		dc.DedupIndexEachPtr(z.Field81)
+
+		*z.Field81, err = dc.ReadBool()
+		if err != nil {
+			return
+		}
 	}
 	z.Field2, err = dc.ReadInt32()
 	if err != nil {
@@ -248,9 +276,23 @@ func (z *BenchmarkMessage) DecodeMsg(dc *msgp.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	z.Field6, err = dc.ReadInt32()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field6 == nil {
+			z.Field6 = new(int32)
+		}
+		dc.DedupIndexEachPtr(z.Field6)
+
+		*z.Field6, err = dc.ReadInt32()
+		if err != nil {
+			return
+		}
 	}
 	z.Field22, err = dc.ReadInt64()
 	if err != nil {
@@ -276,9 +318,23 @@ func (z *BenchmarkMessage) DecodeMsg(dc *msgp.Reader) (err error) {
 			return
 		}
 	}
-	z.Field59, err = dc.ReadBool()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field59 == nil {
+			z.Field59 = new(bool)
+		}
+		dc.DedupIndexEachPtr(z.Field59)
+
+		*z.Field59, err = dc.ReadBool()
+		if err != nil {
+			return
+		}
 	}
 	z.Field7, err = dc.ReadString()
 	if err != nil {
@@ -288,37 +344,149 @@ func (z *BenchmarkMessage) DecodeMsg(dc *msgp.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	z.Field130, err = dc.ReadInt32()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field130 == nil {
+			z.Field130 = new(int32)
+		}
+		dc.DedupIndexEachPtr(z.Field130)
+
+		*z.Field130, err = dc.ReadInt32()
+		if err != nil {
+			return
+		}
 	}
-	z.Field12, err = dc.ReadBool()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field12 == nil {
+			z.Field12 = new(bool)
+		}
+		dc.DedupIndexEachPtr(z.Field12)
+
+		*z.Field12, err = dc.ReadBool()
+		if err != nil {
+			return
+		}
 	}
-	z.Field17, err = dc.ReadBool()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field17 == nil {
+			z.Field17 = new(bool)
+		}
+		dc.DedupIndexEachPtr(z.Field17)
+
+		*z.Field17, err = dc.ReadBool()
+		if err != nil {
+			return
+		}
 	}
-	z.Field13, err = dc.ReadBool()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field13 == nil {
+			z.Field13 = new(bool)
+		}
+		dc.DedupIndexEachPtr(z.Field13)
+
+		*z.Field13, err = dc.ReadBool()
+		if err != nil {
+			return
+		}
 	}
-	z.Field14, err = dc.ReadBool()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field14 == nil {
+			z.Field14 = new(bool)
+		}
+		dc.DedupIndexEachPtr(z.Field14)
+
+		*z.Field14, err = dc.ReadBool()
+		if err != nil {
+			return
+		}
 	}
-	z.Field104, err = dc.ReadInt32()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field104 == nil {
+			z.Field104 = new(int32)
+		}
+		dc.DedupIndexEachPtr(z.Field104)
+
+		*z.Field104, err = dc.ReadInt32()
+		if err != nil {
+			return
+		}
 	}
-	z.Field100, err = dc.ReadInt32()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field100 == nil {
+			z.Field100 = new(int32)
+		}
+		dc.DedupIndexEachPtr(z.Field100)
+
+		*z.Field100, err = dc.ReadInt32()
+		if err != nil {
+			return
+		}
 	}
-	z.Field101, err = dc.ReadInt32()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field101 == nil {
+			z.Field101 = new(int32)
+		}
+		dc.DedupIndexEachPtr(z.Field101)
+
+		*z.Field101, err = dc.ReadInt32()
+		if err != nil {
+			return
+		}
 	}
 	z.Field102, err = dc.ReadString()
 	if err != nil {
@@ -328,65 +496,233 @@ func (z *BenchmarkMessage) DecodeMsg(dc *msgp.Reader) (err error) {
 	if err != nil {
 		return
 	}
-	z.Field29, err = dc.ReadInt32()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field29 == nil {
+			z.Field29 = new(int32)
+		}
+		dc.DedupIndexEachPtr(z.Field29)
+
+		*z.Field29, err = dc.ReadInt32()
+		if err != nil {
+			return
+		}
 	}
-	z.Field30, err = dc.ReadBool()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field30 == nil {
+			z.Field30 = new(bool)
+		}
+		dc.DedupIndexEachPtr(z.Field30)
+
+		*z.Field30, err = dc.ReadBool()
+		if err != nil {
+			return
+		}
 	}
-	z.Field60, err = dc.ReadInt32()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field60 == nil {
+			z.Field60 = new(int32)
+		}
+		dc.DedupIndexEachPtr(z.Field60)
+
+		*z.Field60, err = dc.ReadInt32()
+		if err != nil {
+			return
+		}
 	}
-	z.Field271, err = dc.ReadInt32()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field271 == nil {
+			z.Field271 = new(int32)
+		}
+		dc.DedupIndexEachPtr(z.Field271)
+
+		*z.Field271, err = dc.ReadInt32()
+		if err != nil {
+			return
+		}
 	}
-	z.Field272, err = dc.ReadInt32()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field272 == nil {
+			z.Field272 = new(int32)
+		}
+		dc.DedupIndexEachPtr(z.Field272)
+
+		*z.Field272, err = dc.ReadInt32()
+		if err != nil {
+			return
+		}
 	}
 	z.Field150, err = dc.ReadInt32()
 	if err != nil {
 		return
 	}
-	z.Field23, err = dc.ReadInt32()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field23 == nil {
+			z.Field23 = new(int32)
+		}
+		dc.DedupIndexEachPtr(z.Field23)
+
+		*z.Field23, err = dc.ReadInt32()
+		if err != nil {
+			return
+		}
 	}
-	z.Field24, err = dc.ReadBool()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field24 == nil {
+			z.Field24 = new(bool)
+		}
+		dc.DedupIndexEachPtr(z.Field24)
+
+		*z.Field24, err = dc.ReadBool()
+		if err != nil {
+			return
+		}
 	}
-	z.Field25, err = dc.ReadInt32()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field25 == nil {
+			z.Field25 = new(int32)
+		}
+		dc.DedupIndexEachPtr(z.Field25)
+
+		*z.Field25, err = dc.ReadInt32()
+		if err != nil {
+			return
+		}
 	}
 	z.Field78, err = dc.ReadBool()
 	if err != nil {
 		return
 	}
-	z.Field67, err = dc.ReadInt32()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field67 == nil {
+			z.Field67 = new(int32)
+		}
+		dc.DedupIndexEachPtr(z.Field67)
+
+		*z.Field67, err = dc.ReadInt32()
+		if err != nil {
+			return
+		}
 	}
 	z.Field68, err = dc.ReadInt32()
 	if err != nil {
 		return
 	}
-	z.Field128, err = dc.ReadInt32()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field128 == nil {
+			z.Field128 = new(int32)
+		}
+		dc.DedupIndexEachPtr(z.Field128)
+
+		*z.Field128, err = dc.ReadInt32()
+		if err != nil {
+			return
+		}
 	}
-	z.Field129, err = dc.ReadString()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field129 == nil {
+			z.Field129 = new(string)
+		}
+		dc.DedupIndexEachPtr(z.Field129)
+
+		*z.Field129, err = dc.ReadString()
+		if err != nil {
+			return
+		}
 	}
-	z.Field131, err = dc.ReadInt32()
-	if err != nil {
-		return
+	if dc.IsNil() {
+		err = dc.ReadNil()
+		if err != nil {
+			return
+		}
+
+	} else {
+
+		if z.Field131 == nil {
+			z.Field131 = new(int32)
+		}
+		dc.DedupIndexEachPtr(z.Field131)
+
+		*z.Field131, err = dc.ReadInt32()
+		if err != nil {
+			return
+		}
 	}
 	if p, ok := interface{}(z).(msgp.PostLoad); ok {
 		p.PostLoadHook()
@@ -418,13 +754,31 @@ func (z *BenchmarkMessage) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = en.WriteBool(z.Field80)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field80 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteBool(*z.Field80)
+		if err != nil {
+			return
+		}
 	}
-	err = en.WriteBool(z.Field81)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field81 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteBool(*z.Field81)
+		if err != nil {
+			return
+		}
 	}
 	err = en.WriteInt32(z.Field2)
 	if err != nil {
@@ -438,9 +792,18 @@ func (z *BenchmarkMessage) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = en.WriteInt32(z.Field6)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field6 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteInt32(*z.Field6)
+		if err != nil {
+			return
+		}
 	}
 	err = en.WriteInt64(z.Field22)
 	if err != nil {
@@ -460,9 +823,18 @@ func (z *BenchmarkMessage) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 	}
-	err = en.WriteBool(z.Field59)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field59 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteBool(*z.Field59)
+		if err != nil {
+			return
+		}
 	}
 	err = en.WriteString(z.Field7)
 	if err != nil {
@@ -472,37 +844,109 @@ func (z *BenchmarkMessage) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = en.WriteInt32(z.Field130)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field130 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteInt32(*z.Field130)
+		if err != nil {
+			return
+		}
 	}
-	err = en.WriteBool(z.Field12)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field12 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteBool(*z.Field12)
+		if err != nil {
+			return
+		}
 	}
-	err = en.WriteBool(z.Field17)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field17 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteBool(*z.Field17)
+		if err != nil {
+			return
+		}
 	}
-	err = en.WriteBool(z.Field13)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field13 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteBool(*z.Field13)
+		if err != nil {
+			return
+		}
 	}
-	err = en.WriteBool(z.Field14)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field14 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteBool(*z.Field14)
+		if err != nil {
+			return
+		}
 	}
-	err = en.WriteInt32(z.Field104)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field104 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteInt32(*z.Field104)
+		if err != nil {
+			return
+		}
 	}
-	err = en.WriteInt32(z.Field100)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field100 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteInt32(*z.Field100)
+		if err != nil {
+			return
+		}
 	}
-	err = en.WriteInt32(z.Field101)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field101 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteInt32(*z.Field101)
+		if err != nil {
+			return
+		}
 	}
 	err = en.WriteString(z.Field102)
 	if err != nil {
@@ -512,65 +956,173 @@ func (z *BenchmarkMessage) EncodeMsg(en *msgp.Writer) (err error) {
 	if err != nil {
 		return
 	}
-	err = en.WriteInt32(z.Field29)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field29 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteInt32(*z.Field29)
+		if err != nil {
+			return
+		}
 	}
-	err = en.WriteBool(z.Field30)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field30 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteBool(*z.Field30)
+		if err != nil {
+			return
+		}
 	}
-	err = en.WriteInt32(z.Field60)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field60 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteInt32(*z.Field60)
+		if err != nil {
+			return
+		}
 	}
-	err = en.WriteInt32(z.Field271)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field271 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteInt32(*z.Field271)
+		if err != nil {
+			return
+		}
 	}
-	err = en.WriteInt32(z.Field272)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field272 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteInt32(*z.Field272)
+		if err != nil {
+			return
+		}
 	}
 	err = en.WriteInt32(z.Field150)
 	if err != nil {
 		return
 	}
-	err = en.WriteInt32(z.Field23)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field23 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteInt32(*z.Field23)
+		if err != nil {
+			return
+		}
 	}
-	err = en.WriteBool(z.Field24)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field24 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteBool(*z.Field24)
+		if err != nil {
+			return
+		}
 	}
-	err = en.WriteInt32(z.Field25)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field25 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteInt32(*z.Field25)
+		if err != nil {
+			return
+		}
 	}
 	err = en.WriteBool(z.Field78)
 	if err != nil {
 		return
 	}
-	err = en.WriteInt32(z.Field67)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field67 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteInt32(*z.Field67)
+		if err != nil {
+			return
+		}
 	}
 	err = en.WriteInt32(z.Field68)
 	if err != nil {
 		return
 	}
-	err = en.WriteInt32(z.Field128)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field128 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteInt32(*z.Field128)
+		if err != nil {
+			return
+		}
 	}
-	err = en.WriteString(z.Field129)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field129 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteString(*z.Field129)
+		if err != nil {
+			return
+		}
 	}
-	err = en.WriteInt32(z.Field131)
-	if err != nil {
-		return
+	// gPtr.encodeGen():
+
+	if z.Field131 == nil {
+		err = en.WriteNil()
+		if err != nil {
+			return
+		}
+	} else {
+		err = en.WriteInt32(*z.Field131)
+		if err != nil {
+			return
+		}
 	}
 	return
 }
@@ -587,46 +1139,238 @@ func (z *BenchmarkMessage) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.AppendString(o, z.Field1)
 	o = msgp.AppendString(o, z.Field9)
 	o = msgp.AppendString(o, z.Field18)
-	o = msgp.AppendBool(o, z.Field80)
-	o = msgp.AppendBool(o, z.Field81)
+	// marshalGen.gPtr()
+
+	if z.Field80 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendBool(o, *z.Field80)
+	}
+	// marshalGen.gPtr()
+
+	if z.Field81 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendBool(o, *z.Field81)
+	}
 	o = msgp.AppendInt32(o, z.Field2)
 	o = msgp.AppendInt32(o, z.Field3)
 	o = msgp.AppendInt32(o, z.Field280)
-	o = msgp.AppendInt32(o, z.Field6)
+	// marshalGen.gPtr()
+
+	if z.Field6 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendInt32(o, *z.Field6)
+	}
 	o = msgp.AppendInt64(o, z.Field22)
 	o = msgp.AppendString(o, z.Field4)
 	o = msgp.AppendArrayHeader(o, uint32(len(z.Field5)))
 	for zgensym_7ba73e3e9c15c593_4 := range z.Field5 {
 		o = msgp.AppendUint64(o, z.Field5[zgensym_7ba73e3e9c15c593_4])
 	}
-	o = msgp.AppendBool(o, z.Field59)
+	// marshalGen.gPtr()
+
+	if z.Field59 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendBool(o, *z.Field59)
+	}
 	o = msgp.AppendString(o, z.Field7)
 	o = msgp.AppendInt32(o, z.Field16)
-	o = msgp.AppendInt32(o, z.Field130)
-	o = msgp.AppendBool(o, z.Field12)
-	o = msgp.AppendBool(o, z.Field17)
-	o = msgp.AppendBool(o, z.Field13)
-	o = msgp.AppendBool(o, z.Field14)
-	o = msgp.AppendInt32(o, z.Field104)
-	o = msgp.AppendInt32(o, z.Field100)
-	o = msgp.AppendInt32(o, z.Field101)
+	// marshalGen.gPtr()
+
+	if z.Field130 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendInt32(o, *z.Field130)
+	}
+	// marshalGen.gPtr()
+
+	if z.Field12 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendBool(o, *z.Field12)
+	}
+	// marshalGen.gPtr()
+
+	if z.Field17 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendBool(o, *z.Field17)
+	}
+	// marshalGen.gPtr()
+
+	if z.Field13 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendBool(o, *z.Field13)
+	}
+	// marshalGen.gPtr()
+
+	if z.Field14 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendBool(o, *z.Field14)
+	}
+	// marshalGen.gPtr()
+
+	if z.Field104 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendInt32(o, *z.Field104)
+	}
+	// marshalGen.gPtr()
+
+	if z.Field100 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendInt32(o, *z.Field100)
+	}
+	// marshalGen.gPtr()
+
+	if z.Field101 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendInt32(o, *z.Field101)
+	}
 	o = msgp.AppendString(o, z.Field102)
 	o = msgp.AppendString(o, z.Field103)
-	o = msgp.AppendInt32(o, z.Field29)
-	o = msgp.AppendBool(o, z.Field30)
-	o = msgp.AppendInt32(o, z.Field60)
-	o = msgp.AppendInt32(o, z.Field271)
-	o = msgp.AppendInt32(o, z.Field272)
+	// marshalGen.gPtr()
+
+	if z.Field29 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendInt32(o, *z.Field29)
+	}
+	// marshalGen.gPtr()
+
+	if z.Field30 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendBool(o, *z.Field30)
+	}
+	// marshalGen.gPtr()
+
+	if z.Field60 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendInt32(o, *z.Field60)
+	}
+	// marshalGen.gPtr()
+
+	if z.Field271 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendInt32(o, *z.Field271)
+	}
+	// marshalGen.gPtr()
+
+	if z.Field272 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendInt32(o, *z.Field272)
+	}
 	o = msgp.AppendInt32(o, z.Field150)
-	o = msgp.AppendInt32(o, z.Field23)
-	o = msgp.AppendBool(o, z.Field24)
-	o = msgp.AppendInt32(o, z.Field25)
+	// marshalGen.gPtr()
+
+	if z.Field23 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendInt32(o, *z.Field23)
+	}
+	// marshalGen.gPtr()
+
+	if z.Field24 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendBool(o, *z.Field24)
+	}
+	// marshalGen.gPtr()
+
+	if z.Field25 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendInt32(o, *z.Field25)
+	}
 	o = msgp.AppendBool(o, z.Field78)
-	o = msgp.AppendInt32(o, z.Field67)
+	// marshalGen.gPtr()
+
+	if z.Field67 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendInt32(o, *z.Field67)
+	}
 	o = msgp.AppendInt32(o, z.Field68)
-	o = msgp.AppendInt32(o, z.Field128)
-	o = msgp.AppendString(o, z.Field129)
-	o = msgp.AppendInt32(o, z.Field131)
+	// marshalGen.gPtr()
+
+	if z.Field128 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendInt32(o, *z.Field128)
+	}
+	// marshalGen.gPtr()
+
+	if z.Field129 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendString(o, *z.Field129)
+	}
+	// marshalGen.gPtr()
+
+	if z.Field131 == nil {
+		o = msgp.AppendNil(o)
+	} else {
+		// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+		o = msgp.AppendInt32(o, *z.Field131)
+	}
 	return
 }
 
@@ -668,15 +1412,49 @@ func (z *BenchmarkMessage) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConf
 	if err != nil {
 		return
 	}
-	z.Field80, bts, err = nbs.ReadBoolBytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field80", alias:"bool", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x12, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field80 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field80 == nil {
+			z.Field80 = new(bool)
+		}
+
+		*z.Field80, bts, err = nbs.ReadBoolBytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
-	z.Field81, bts, err = nbs.ReadBoolBytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field81", alias:"bool", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x12, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field81 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field81 == nil {
+			z.Field81 = new(bool)
+		}
+
+		*z.Field81, bts, err = nbs.ReadBoolBytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
 	z.Field2, bts, err = nbs.ReadInt32Bytes(bts)
 
@@ -693,10 +1471,27 @@ func (z *BenchmarkMessage) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConf
 	if err != nil {
 		return
 	}
-	z.Field6, bts, err = nbs.ReadInt32Bytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field6", alias:"int32", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x10, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field6 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field6 == nil {
+			z.Field6 = new(int32)
+		}
+
+		*z.Field6, bts, err = nbs.ReadInt32Bytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
 	z.Field22, bts, err = nbs.ReadInt64Bytes(bts)
 
@@ -730,10 +1525,27 @@ func (z *BenchmarkMessage) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConf
 			}
 		}
 	}
-	z.Field59, bts, err = nbs.ReadBoolBytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field59", alias:"bool", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x12, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field59 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field59 == nil {
+			z.Field59 = new(bool)
+		}
+
+		*z.Field59, bts, err = nbs.ReadBoolBytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
 	z.Field7, bts, err = nbs.ReadStringBytes(bts)
 
@@ -745,45 +1557,181 @@ func (z *BenchmarkMessage) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConf
 	if err != nil {
 		return
 	}
-	z.Field130, bts, err = nbs.ReadInt32Bytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field130", alias:"int32", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x10, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field130 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field130 == nil {
+			z.Field130 = new(int32)
+		}
+
+		*z.Field130, bts, err = nbs.ReadInt32Bytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
-	z.Field12, bts, err = nbs.ReadBoolBytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field12", alias:"bool", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x12, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field12 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field12 == nil {
+			z.Field12 = new(bool)
+		}
+
+		*z.Field12, bts, err = nbs.ReadBoolBytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
-	z.Field17, bts, err = nbs.ReadBoolBytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field17", alias:"bool", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x12, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field17 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field17 == nil {
+			z.Field17 = new(bool)
+		}
+
+		*z.Field17, bts, err = nbs.ReadBoolBytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
-	z.Field13, bts, err = nbs.ReadBoolBytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field13", alias:"bool", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x12, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field13 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field13 == nil {
+			z.Field13 = new(bool)
+		}
+
+		*z.Field13, bts, err = nbs.ReadBoolBytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
-	z.Field14, bts, err = nbs.ReadBoolBytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field14", alias:"bool", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x12, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field14 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field14 == nil {
+			z.Field14 = new(bool)
+		}
+
+		*z.Field14, bts, err = nbs.ReadBoolBytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
-	z.Field104, bts, err = nbs.ReadInt32Bytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field104", alias:"int32", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x10, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field104 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field104 == nil {
+			z.Field104 = new(int32)
+		}
+
+		*z.Field104, bts, err = nbs.ReadInt32Bytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
-	z.Field100, bts, err = nbs.ReadInt32Bytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field100", alias:"int32", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x10, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field100 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field100 == nil {
+			z.Field100 = new(int32)
+		}
+
+		*z.Field100, bts, err = nbs.ReadInt32Bytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
-	z.Field101, bts, err = nbs.ReadInt32Bytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field101", alias:"int32", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x10, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field101 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field101 == nil {
+			z.Field101 = new(int32)
+		}
+
+		*z.Field101, bts, err = nbs.ReadInt32Bytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
 	z.Field102, bts, err = nbs.ReadStringBytes(bts)
 
@@ -795,80 +1743,284 @@ func (z *BenchmarkMessage) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConf
 	if err != nil {
 		return
 	}
-	z.Field29, bts, err = nbs.ReadInt32Bytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field29", alias:"int32", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x10, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field29 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field29 == nil {
+			z.Field29 = new(int32)
+		}
+
+		*z.Field29, bts, err = nbs.ReadInt32Bytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
-	z.Field30, bts, err = nbs.ReadBoolBytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field30", alias:"bool", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x12, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field30 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field30 == nil {
+			z.Field30 = new(bool)
+		}
+
+		*z.Field30, bts, err = nbs.ReadBoolBytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
-	z.Field60, bts, err = nbs.ReadInt32Bytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field60", alias:"int32", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x10, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field60 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field60 == nil {
+			z.Field60 = new(int32)
+		}
+
+		*z.Field60, bts, err = nbs.ReadInt32Bytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
-	z.Field271, bts, err = nbs.ReadInt32Bytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field271", alias:"int32", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x10, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field271 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field271 == nil {
+			z.Field271 = new(int32)
+		}
+
+		*z.Field271, bts, err = nbs.ReadInt32Bytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
-	z.Field272, bts, err = nbs.ReadInt32Bytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field272", alias:"int32", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x10, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field272 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field272 == nil {
+			z.Field272 = new(int32)
+		}
+
+		*z.Field272, bts, err = nbs.ReadInt32Bytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
 	z.Field150, bts, err = nbs.ReadInt32Bytes(bts)
 
 	if err != nil {
 		return
 	}
-	z.Field23, bts, err = nbs.ReadInt32Bytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field23", alias:"int32", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x10, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field23 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field23 == nil {
+			z.Field23 = new(int32)
+		}
+
+		*z.Field23, bts, err = nbs.ReadInt32Bytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
-	z.Field24, bts, err = nbs.ReadBoolBytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field24", alias:"bool", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x12, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field24 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field24 == nil {
+			z.Field24 = new(bool)
+		}
+
+		*z.Field24, bts, err = nbs.ReadBoolBytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
-	z.Field25, bts, err = nbs.ReadInt32Bytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field25", alias:"int32", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x10, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field25 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field25 == nil {
+			z.Field25 = new(int32)
+		}
+
+		*z.Field25, bts, err = nbs.ReadInt32Bytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
 	z.Field78, bts, err = nbs.ReadBoolBytes(bts)
 
 	if err != nil {
 		return
 	}
-	z.Field67, bts, err = nbs.ReadInt32Bytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field67", alias:"int32", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x10, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field67 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field67 == nil {
+			z.Field67 = new(int32)
+		}
+
+		*z.Field67, bts, err = nbs.ReadInt32Bytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
 	z.Field68, bts, err = nbs.ReadInt32Bytes(bts)
 
 	if err != nil {
 		return
 	}
-	z.Field128, bts, err = nbs.ReadInt32Bytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field128", alias:"int32", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x10, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field128 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field128 == nil {
+			z.Field128 = new(int32)
+		}
+
+		*z.Field128, bts, err = nbs.ReadInt32Bytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
-	z.Field129, bts, err = nbs.ReadStringBytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field129", alias:"string", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x2, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field129 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field129 == nil {
+			z.Field129 = new(string)
+		}
+
+		*z.Field129, bts, err = nbs.ReadStringBytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
-	z.Field131, bts, err = nbs.ReadInt32Bytes(bts)
+	// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"*z.Field131", alias:"int32", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x10, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
-	if err != nil {
-		return
+	// default gPtr logic.
+	if nbs.PeekNil(bts) && z.Field131 == nil {
+		// consume the nil
+		bts, err = nbs.ReadNilBytes(bts)
+		if err != nil {
+			return
+		}
+	} else {
+		// read as-if the wire has bytes, letting nbs take care of nils.
+
+		if z.Field131 == nil {
+			z.Field131 = new(int32)
+		}
+
+		*z.Field131, bts, err = nbs.ReadInt32Bytes(bts)
+
+		if err != nil {
+			return
+		}
 	}
 	if sawTopNil {
 		bts = nbs.PopAlwaysNil()
@@ -883,7 +2035,134 @@ func (z *BenchmarkMessage) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConf
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *BenchmarkMessage) Msgsize() (s int) {
-	s = 3 + msgp.StringPrefixSize + len(z.Field1) + msgp.StringPrefixSize + len(z.Field9) + msgp.StringPrefixSize + len(z.Field18) + msgp.BoolSize + msgp.BoolSize + msgp.Int32Size + msgp.Int32Size + msgp.Int32Size + msgp.Int32Size + msgp.Int64Size + msgp.StringPrefixSize + len(z.Field4) + msgp.ArrayHeaderSize + (len(z.Field5) * (msgp.Uint64Size)) + msgp.BoolSize + msgp.StringPrefixSize + len(z.Field7) + msgp.Int32Size + msgp.Int32Size + msgp.BoolSize + msgp.BoolSize + msgp.BoolSize + msgp.BoolSize + msgp.Int32Size + msgp.Int32Size + msgp.Int32Size + msgp.StringPrefixSize + len(z.Field102) + msgp.StringPrefixSize + len(z.Field103) + msgp.Int32Size + msgp.BoolSize + msgp.Int32Size + msgp.Int32Size + msgp.Int32Size + msgp.Int32Size + msgp.Int32Size + msgp.BoolSize + msgp.Int32Size + msgp.BoolSize + msgp.Int32Size + msgp.Int32Size + msgp.Int32Size + msgp.StringPrefixSize + len(z.Field129) + msgp.Int32Size
+	s = 3 + msgp.StringPrefixSize + len(z.Field1) + msgp.StringPrefixSize + len(z.Field9) + msgp.StringPrefixSize + len(z.Field18)
+	if z.Field80 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.BoolSize
+	}
+	if z.Field81 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.BoolSize
+	}
+	s += msgp.Int32Size + msgp.Int32Size + msgp.Int32Size
+	if z.Field6 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.Int32Size
+	}
+	s += msgp.Int64Size + msgp.StringPrefixSize + len(z.Field4) + msgp.ArrayHeaderSize + (len(z.Field5) * (msgp.Uint64Size))
+	if z.Field59 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.BoolSize
+	}
+	s += msgp.StringPrefixSize + len(z.Field7) + msgp.Int32Size
+	if z.Field130 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.Int32Size
+	}
+	if z.Field12 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.BoolSize
+	}
+	if z.Field17 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.BoolSize
+	}
+	if z.Field13 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.BoolSize
+	}
+	if z.Field14 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.BoolSize
+	}
+	if z.Field104 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.Int32Size
+	}
+	if z.Field100 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.Int32Size
+	}
+	if z.Field101 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.Int32Size
+	}
+	s += msgp.StringPrefixSize + len(z.Field102) + msgp.StringPrefixSize + len(z.Field103)
+	if z.Field29 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.Int32Size
+	}
+	if z.Field30 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.BoolSize
+	}
+	if z.Field60 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.Int32Size
+	}
+	if z.Field271 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.Int32Size
+	}
+	if z.Field272 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.Int32Size
+	}
+	s += msgp.Int32Size
+	if z.Field23 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.Int32Size
+	}
+	if z.Field24 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.BoolSize
+	}
+	if z.Field25 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.Int32Size
+	}
+	s += msgp.BoolSize
+	if z.Field67 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.Int32Size
+	}
+	s += msgp.Int32Size
+	if z.Field128 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.Int32Size
+	}
+	if z.Field129 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.StringPrefixSize + len(*z.Field129)
+	}
+	if z.Field131 == nil {
+		s += msgp.NilSize
+	} else {
+		s += msgp.Int32Size
+	}
 	return
 }
 

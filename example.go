@@ -162,6 +162,7 @@ type Hello struct {
 	Placeholder int `zid:"0"` // must have public field or greenpack will ignore it.
 }
 
+/*
 type BenchmarkMessage struct {
 	Field1   string   `zid:"0"`
 	Field9   string   `zid:"1"`
@@ -203,4 +204,48 @@ type BenchmarkMessage struct {
 	Field128 int32    `zid:"37"`
 	Field129 string   `zid:"38"`
 	Field131 int32    `zid:"39"`
+}
+*/
+
+type BenchmarkMessage struct {
+	Field1   string   `protobuf:"bytes,1,req,name=field1" json:"field1" zid:"0"`
+	Field9   string   `protobuf:"bytes,9,opt,name=field9" json:"field9" zid:"1"`
+	Field18  string   `protobuf:"bytes,18,opt,name=field18" json:"field18" zid:"2"`
+	Field80  *bool    `protobuf:"varint,80,opt,name=field80,def=0" json:"field80,omitempty" zid:"3"`
+	Field81  *bool    `protobuf:"varint,81,opt,name=field81,def=1" json:"field81,omitempty" zid:"4"`
+	Field2   int32    `protobuf:"varint,2,req,name=field2" json:"field2" zid:"5"`
+	Field3   int32    `protobuf:"varint,3,req,name=field3" json:"field3" zid:"6"`
+	Field280 int32    `protobuf:"varint,280,opt,name=field280" json:"field280" zid:"7"`
+	Field6   *int32   `protobuf:"varint,6,opt,name=field6,def=0" json:"field6,omitempty" zid:"8"`
+	Field22  int64    `protobuf:"varint,22,opt,name=field22" json:"field22" zid:"9"`
+	Field4   string   `protobuf:"bytes,4,opt,name=field4" json:"field4" zid:"10"`
+	Field5   []uint64 `protobuf:"fixed64,5,rep,name=field5" json:"field5,omitempty" zid:"11"`
+	Field59  *bool    `protobuf:"varint,59,opt,name=field59,def=0" json:"field59,omitempty" zid:"12"`
+	Field7   string   `protobuf:"bytes,7,opt,name=field7" json:"field7" zid:"13"`
+	Field16  int32    `protobuf:"varint,16,opt,name=field16" json:"field16" zid:"14"`
+	Field130 *int32   `protobuf:"varint,130,opt,name=field130,def=0" json:"field130,omitempty" zid:"15"`
+	Field12  *bool    `protobuf:"varint,12,opt,name=field12,def=1" json:"field12,omitempty" zid:"16"`
+	Field17  *bool    `protobuf:"varint,17,opt,name=field17,def=1" json:"field17,omitempty" zid:"17"`
+	Field13  *bool    `protobuf:"varint,13,opt,name=field13,def=1" json:"field13,omitempty" zid:"18"`
+	Field14  *bool    `protobuf:"varint,14,opt,name=field14,def=1" json:"field14,omitempty" zid:"19"`
+	Field104 *int32   `protobuf:"varint,104,opt,name=field104,def=0" json:"field104,omitempty" zid:"20"`
+	Field100 *int32   `protobuf:"varint,100,opt,name=field100,def=0" json:"field100,omitempty" zid:"21"`
+	Field101 *int32   `protobuf:"varint,101,opt,name=field101,def=0" json:"field101,omitempty" zid:"22"`
+	Field102 string   `protobuf:"bytes,102,opt,name=field102" json:"field102" zid:"23"`
+	Field103 string   `protobuf:"bytes,103,opt,name=field103" json:"field103" zid:"24"`
+	Field29  *int32   `protobuf:"varint,29,opt,name=field29,def=0" json:"field29,omitempty" zid:"25"`
+	Field30  *bool    `protobuf:"varint,30,opt,name=field30,def=0" json:"field30,omitempty" zid:"26"`
+	Field60  *int32   `protobuf:"varint,60,opt,name=field60,def=-1" json:"field60,omitempty" zid:"27"`
+	Field271 *int32   `protobuf:"varint,271,opt,name=field271,def=-1" json:"field271,omitempty" zid:"28"`
+	Field272 *int32   `protobuf:"varint,272,opt,name=field272,def=-1" json:"field272,omitempty" zid:"29"`
+	Field150 int32    `protobuf:"varint,150,opt,name=field150" json:"field150" zid:"30"`
+	Field23  *int32   `protobuf:"varint,23,opt,name=field23,def=0" json:"field23,omitempty" zid:"31"`
+	Field24  *bool    `protobuf:"varint,24,opt,name=field24,def=0" json:"field24,omitempty" zid:"32"`
+	Field25  *int32   `protobuf:"varint,25,opt,name=field25,def=0" json:"field25,omitempty" zid:"33"`
+	Field78  bool     `protobuf:"varint,78,opt,name=field78" json:"field78" zid:"34"`
+	Field67  *int32   `protobuf:"varint,67,opt,name=field67,def=0" json:"field67,omitempty" zid:"35"`
+	Field68  int32    `protobuf:"varint,68,opt,name=field68" json:"field68" zid:"36"`
+	Field128 *int32   `protobuf:"varint,128,opt,name=field128,def=0" json:"field128,omitempty" zid:"37"`
+	Field129 *string  `protobuf:"bytes,129,opt,name=field129,def=xxxxxxxxxxxxxxxxxxxxx" json:"field129,omitempty" zid:"38"`
+	Field131 *int32   `protobuf:"varint,131,opt,name=field131,def=0" json:"field131,omitempty" zid:"39"`
 }
