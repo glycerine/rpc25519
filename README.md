@@ -25,12 +25,7 @@ TCP/TLS however can acheive 4-5x greater throughput,
 in my measurements. If client connections come and go frequently, QUIC
 may be much better. If you have long lived connections
 doing alot of work each, TCP/TLS may get more done
-in less time. There are also platform considerations.
-On Go 1.23.3 and MacOS Sonoma 14.0, the combination
-of the Go scheduler and the MacOS operating 
-system will happily starve your TCP clients for
-scheduling time. quic-go does not suffer the same fate.
-I do not see the same starvation on linux.
+in less time.
 
 The [rpc25519 package docs are here](https://pkg.go.dev/github.com/glycerine/rpc25519). 
 
