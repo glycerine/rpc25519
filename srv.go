@@ -680,6 +680,12 @@ type Server struct {
 	freeReq    *Request
 	respLock   sync.Mutex // protects freeResp
 	freeResp   *Response
+
+	// try to avoid expensive sync.Map.Load call
+	// for the common case of just one service.
+	svcCount int
+	svc0     *service
+	svc0name string
 }
 
 type ServerClient struct {
@@ -948,12 +954,26 @@ func (p *rwPair) readRequestHeader(codec ServerCodec) (svc *service, mtype *meth
 	methodName := req.ServiceMethod[dot+1:]
 
 	// Look up the request.
-	svci, ok := p.Server.serviceMap.Load(serviceName)
-	if !ok {
-		err = errors.New("rpc: can't find service " + req.ServiceMethod)
-		return
+	var svci any
+	var ok bool
+
+	// sync.Map serviceMap.Load() is costly, try to
+	// optimize it away when we only have one service.
+	if p.Server.svcCount == 1 {
+		if serviceName != p.Server.svc0name {
+			err = errors.New("rpc: can't find service " + req.ServiceMethod)
+			return
+		} else {
+			svc = p.Server.svc0
+		}
+	} else {
+		svci, ok = p.Server.serviceMap.Load(serviceName)
+		if !ok {
+			err = errors.New("rpc: can't find service " + req.ServiceMethod)
+			return
+		}
+		svc = svci.(*service)
 	}
-	svc = svci.(*service)
 	mtype = svc.method[methodName]
 	if mtype == nil {
 		mtype = svc.ctxMethod[methodName]
@@ -1057,6 +1077,12 @@ func (s *Server) register(rcvr msgp.Encodable, name string, useName bool) error 
 	if _, dup := s.serviceMap.LoadOrStore(sname, svc); dup {
 		return errors.New("rpc: service already defined: " + sname)
 	}
+
+	if s.svcCount == 0 {
+		s.svc0 = svc
+		s.svc0name = sname
+	}
+	s.svcCount++
 
 	return nil
 }
