@@ -851,7 +851,7 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 	subject := reqMsg.HDR.Subject
 	reqCallID := reqMsg.HDR.CallID
 
-	mid := NewHDR(p.from, p.to, subject, CallNetRPC)
+	mid := newHDRwithoutCallID(p.from, p.to, subject, CallNetRPC)
 
 	// We are able to match call and response rigourously on the CallID alone.
 	mid.CallID = reqCallID
