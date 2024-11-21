@@ -107,7 +107,14 @@ var keepAliveMsg = &Message{
 // into a Message and returns it.
 // The [greenpack format](https://github.com/glycerine/greenpack) is expected.
 func MessageFromGreenpack(by []byte) (*Message, error) {
-	msg := NewMessage()
+	// client and server readers do not need a DoneCh,
+	// and it is slow to allocate. Really only senders
+	// need a DoneCh to track if the Message went or not.
+	// Otherwise we are comming from a remote and we
+	// handle and send back on errors on the one responding
+	// goroutine, without needing a channel to report on.
+	//msg := NewMessage()
+	msg := &Message{}
 	_, err := msg.UnmarshalMsg(by)
 	return msg, err
 }

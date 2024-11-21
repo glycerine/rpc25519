@@ -580,9 +580,10 @@ func (s *Server) processWork(job *job) {
 		//vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
 		//vv("conn   local = '%v', remote = '%v'", local(conn), remote(conn))
 
-		if cap(req.DoneCh) < 1 || len(req.DoneCh) >= cap(req.DoneCh) {
-			panic("req.DoneCh too small; fails the sanity check to be received on.")
-		}
+		// really only sender needs a DoneCh.
+		//if cap(req.DoneCh) < 1 || len(req.DoneCh) >= cap(req.DoneCh) {
+		//	panic("req.DoneCh too small; fails the sanity check to be received on.")
+		//}
 
 		reply := newServerMessage()
 
