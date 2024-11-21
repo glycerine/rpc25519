@@ -585,12 +585,15 @@ func (s *Server) processWork(job *job) {
 		//	panic("req.DoneCh too small; fails the sanity check to be received on.")
 		//}
 
-		reply := newServerMessage()
+		//reply := newServerMessage()
+		reply := s.getMessage()
 
-		replySeqno := req.HDR.Seqno // just echo back same.
+		// enforce these are the same.
+		replySeqno := req.HDR.Seqno
+		reqCallID := req.HDR.CallID
+
 		// allow user to change Subject
 		reply.HDR.Subject = req.HDR.Subject
-		reqCallID := req.HDR.CallID
 
 		err := callme2(req, reply)
 		if err != nil {
@@ -598,12 +601,20 @@ func (s *Server) processWork(job *job) {
 		}
 		// don't read from req now, just in case callme2 messed with it.
 
-		hdr := newHDRwithoutCallID(pair.from, pair.to, reply.HDR.Subject, CallRPC)
+		reply.HDR.Created = time.Now()
+		reply.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
+		reply.HDR.From = pair.from
+		reply.HDR.To = pair.to
 
-		// We are able to match call and response rigourously on the CallID, or Seqno, alone.
-		hdr.CallID = reqCallID
-		hdr.Seqno = replySeqno
-		reply.HDR = *hdr
+		// We are able to match call and response rigorously on the CallID, or Seqno, alone.
+		reply.HDR.CallID = reqCallID
+		reply.HDR.Seqno = replySeqno
+		reply.HDR.Typ = CallRPC
+
+		//hdr := newHDRwithoutCallID(pair.from, pair.to, reply.HDR.Subject, CallRPC)
+		//hdr.CallID = reqCallID
+		//hdr.Seqno = replySeqno
+		//reply.HDR = *hdr
 
 		// We write ourselves rather than switch
 		// goroutines. We've added a mutex
@@ -631,6 +642,7 @@ func (s *Server) processWork(job *job) {
 			// default:
 			// }
 		}
+		s.freeMessage(reply)
 	}
 }
 
@@ -680,6 +692,9 @@ type Server struct {
 	freeReq    *Request
 	respLock   sync.Mutex // protects freeResp
 	freeResp   *Response
+
+	msgLock sync.Mutex // protects freeMsg
+	freeMsg *Message
 
 	// try to avoid expensive sync.Map.Load call
 	// for the common case of just one service.
@@ -765,6 +780,26 @@ func (server *Server) freeResponse(resp *Response) {
 	resp.next = server.freeResp
 	server.freeResp = resp
 	server.respLock.Unlock()
+}
+
+func (server *Server) getMessage() *Message {
+	server.msgLock.Lock()
+	msg := server.freeMsg
+	if msg == nil {
+		msg = new(Message)
+	} else {
+		server.freeMsg = msg.next
+		*msg = Message{}
+	}
+	server.msgLock.Unlock()
+	return msg
+}
+
+func (server *Server) freeMessage(msg *Message) {
+	server.msgLock.Lock()
+	msg.next = server.freeMsg
+	server.freeMsg = msg
+	server.msgLock.Unlock()
 }
 
 // like net_server.go NetServer.ServeCodec
@@ -853,17 +888,16 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 	//p.sending.Unlock()
 	p.Server.freeResponse(resp)
 
-	msg := newServerMessage()
-	replySeqno := reqMsg.HDR.Seqno // just echo back same.
-	subject := reqMsg.HDR.Subject
-	reqCallID := reqMsg.HDR.CallID
-
-	mid := newHDRwithoutCallID(p.from, p.to, subject, CallNetRPC)
-
+	msg := p.Server.getMessage()
+	msg.HDR.Created = time.Now()
+	msg.HDR.From = job.pair.from
+	msg.HDR.To = job.pair.to
+	msg.HDR.Subject = reqMsg.HDR.Subject // echo back
+	msg.HDR.Typ = CallNetRPC
+	msg.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
+	msg.HDR.Seqno = reqMsg.HDR.Seqno   // echo back
+	msg.HDR.CallID = reqMsg.HDR.CallID // echo back
 	// We are able to match call and response rigourously on the CallID alone.
-	mid.CallID = reqCallID
-	mid.Seqno = replySeqno
-	msg.HDR = *mid
 
 	by := p.encBuf.Bytes()
 	msg.JobSerz = make([]byte, len(by))
@@ -874,6 +908,7 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 		alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
 		// just let user try again?
 	}
+	p.Server.freeMessage(msg)
 }
 
 // from net/rpc Server.readRequest

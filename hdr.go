@@ -66,6 +66,8 @@ type Message struct {
 	// NewMessage() automatically allocates DoneCh correctly and
 	// should be used when creating a new Message.
 	DoneCh chan *Message `msg:"-"`
+
+	next *Message // free list on server
 }
 
 // interface for goq
