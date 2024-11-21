@@ -34,6 +34,8 @@ I do not see the same starvation on linux.
 
 The [rpc25519 package docs are here](https://pkg.go.dev/github.com/glycerine/rpc25519). 
 
+Benchmarks versus other rpc systems are here: https://github.com/glycerine/rpcx-benchmark
+
 ~~~
 # to install/get started: 
 #   *warning: ~/go/bin/{srv,cli,selfy,greenpack} are written
