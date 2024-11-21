@@ -611,11 +611,6 @@ func (s *Server) processWork(job *job) {
 		reply.HDR.Seqno = replySeqno
 		reply.HDR.Typ = CallRPC
 
-		//hdr := newHDRwithoutCallID(pair.from, pair.to, reply.HDR.Subject, CallRPC)
-		//hdr.CallID = reqCallID
-		//hdr.Seqno = replySeqno
-		//reply.HDR = *hdr
-
 		// We write ourselves rather than switch
 		// goroutines. We've added a mutex
 		// inside sendMessage so our writes won't conflict
@@ -890,11 +885,11 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 
 	msg := p.Server.getMessage()
 	msg.HDR.Created = time.Now()
+	msg.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
 	msg.HDR.From = job.pair.from
 	msg.HDR.To = job.pair.to
 	msg.HDR.Subject = reqMsg.HDR.Subject // echo back
 	msg.HDR.Typ = CallNetRPC
-	msg.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
 	msg.HDR.Seqno = reqMsg.HDR.Seqno   // echo back
 	msg.HDR.CallID = reqMsg.HDR.CallID // echo back
 	// We are able to match call and response rigourously on the CallID alone.
