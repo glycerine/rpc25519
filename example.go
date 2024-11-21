@@ -10,7 +10,9 @@ import (
 var _ = fmt.Printf
 var _ = time.Now
 
-//go:generate greenpack
+// we are 2298 bytes without the flags; try to get comparable
+// to the 581 protoc size for BenchmarkMessage.
+//go:generate greenpack -fast-strings -alltuple
 
 // These example test structs and types were
 // moved here (example.go) from cli_test.go so
