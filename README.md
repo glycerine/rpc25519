@@ -71,13 +71,15 @@ wired it into/on top of our native []byte slice `Message` transport infrastructu
 (The LICENSE file reflects this code re-use.) Instead
 of taking `any` struct, arguments and responses must now have greenpack
 generated methods. Typically this means adding
-`go:generate greenpack` to the files that define the
+`//go:generate greenpack` to the files that define the
 structs that will go over the wire, and running `go generate`.
 
 Note that since we are oriented around distributed job management 
-and use TLS/QUIC directly, under no circumstances does our
-binary protocol pretend to be, or emulate, an http client or server. 
-This is another difference from the original `net/rpc` package.
+and use TLS/QUIC directly. Like `net/rpc`, there is limited
+support for http CONNECT based hijacking; see
+cfg.HTTPConnectRequired. Nonetheless, this protocol remains
+distinct from http. Note that the connection hijacking does
+not work with (https/http2/http3) encrypted protocols.
 
 The generic byte-slice API is designed to work smoothly 
 with our [greenpack serialization format](https://github.com/glycerine/greenpack)
