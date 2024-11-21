@@ -683,7 +683,7 @@ type Server struct {
 
 	// try to avoid expensive sync.Map.Load call
 	// for the common case of just one service.
-	svcCount int
+	svcCount atomic.Int64
 	svc0     *service
 	svc0name string
 }
@@ -959,7 +959,7 @@ func (p *rwPair) readRequestHeader(codec ServerCodec) (svc *service, mtype *meth
 
 	// sync.Map serviceMap.Load() is costly, try to
 	// optimize it away when we only have one service.
-	if p.Server.svcCount == 1 {
+	if p.Server.svcCount.Load() == 1 {
 		if serviceName != p.Server.svc0name {
 			err = errors.New("rpc: can't find service " + req.ServiceMethod)
 			return
@@ -1078,11 +1078,11 @@ func (s *Server) register(rcvr msgp.Encodable, name string, useName bool) error 
 		return errors.New("rpc: service already defined: " + sname)
 	}
 
-	if s.svcCount == 0 {
+	count := s.svcCount.Add(1)
+	if count == 1 {
 		s.svc0 = svc
 		s.svc0name = sname
 	}
-	s.svcCount++
 
 	return nil
 }
