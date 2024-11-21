@@ -506,28 +506,6 @@ func (c *Client) runSendLoop(conn net.Conn) {
 
 // interface for goq
 
-// NewMessage allocates a new Message with a DoneCh properly created (buffered 1).
-func NewMessage() *Message {
-	return &Message{
-		// NOTE: buffer size must be at least 1, so our Client.runSendLoop never blocks.
-		// Thus we simplify the logic there, not requiring a ton of extra selects to
-		// handle shutdown/timeout/etc.
-		DoneCh: make(chan *Message, 1),
-	}
-}
-
-// String returns a string representation of msg.
-func (msg *Message) String() string {
-	return fmt.Sprintf("&Message{HDR:%v, LocalErr:'%v'}", msg.HDR.String(), msg.LocalErr)
-}
-
-// NewMessageFromBytes calls NewMessage() and sets by as the JobSerz field.
-func NewMessageFromBytes(by []byte) (msg *Message) {
-	msg = NewMessage()
-	msg.JobSerz = by
-	return
-}
-
 // TwoWayFunc is the user's own function that they
 // register with the server for remote procedure calls.
 //

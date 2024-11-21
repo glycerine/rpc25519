@@ -17,6 +17,8 @@ import (
 	mathrand2 "math/rand/v2"
 )
 
+var _ = cristalbase64.URLEncoding
+
 //go:generate greenpack
 
 const rfc3339NanoNumericTZ0pad = "2006-01-02T15:04:05.000000000-07:00"
@@ -26,13 +28,13 @@ var lastSerial int64
 var myPID = int64(os.Getpid())
 
 var chacha8randMut sync.Mutex
-var chacha8rand *mathrand2.ChaCha8
+var chacha8rand *mathrand2.ChaCha8 = newCryrandSeededChaCha8()
 
-func init() {
+func newCryrandSeededChaCha8() *mathrand2.ChaCha8 {
 	var seed [32]byte
 	_, err := cryrand.Read(seed[:])
 	panicOn(err)
-	chacha8rand = mathrand2.NewChaCha8(seed)
+	return mathrand2.NewChaCha8(seed)
 }
 
 // Message transports JobSerz []byte slices for
@@ -64,6 +66,36 @@ type Message struct {
 	// NewMessage() automatically allocates DoneCh correctly and
 	// should be used when creating a new Message.
 	DoneCh chan *Message `msg:"-"`
+}
+
+// interface for goq
+
+// NewMessage allocates a new Message with a DoneCh properly created (buffered 1).
+func NewMessage() *Message {
+	return &Message{
+		// NOTE: buffer size must be at least 1, so our Client.runSendLoop never blocks.
+		// Thus we simplify the logic there, not requiring a ton of extra selects to
+		// handle shutdown/timeout/etc.
+		DoneCh: make(chan *Message, 1),
+	}
+}
+
+// String returns a string representation of msg.
+func (msg *Message) String() string {
+	return fmt.Sprintf("&Message{HDR:%v, LocalErr:'%v'}", msg.HDR.String(), msg.LocalErr)
+}
+
+// NewMessageFromBytes calls NewMessage() and sets by as the JobSerz field.
+func NewMessageFromBytes(by []byte) (msg *Message) {
+	msg = NewMessage()
+	msg.JobSerz = by
+	return
+}
+
+// newServerMessage returns a Message without allocating a channel,
+// since the server does not need it.
+func newServerMessage() *Message {
+	return &Message{}
 }
 
 // allocate this just once
@@ -142,7 +174,6 @@ func NewHDR(from, to, subject string, typ CallType) (m *HDR) {
 	serial := atomic.AddInt64(&lastSerial, 1)
 
 	//rness := cristalbase64.URLEncoding.EncodeToString(cryptoRandBytes(32))
-
 	var pseudo [20]byte // not cryptographically random.
 	chacha8randMut.Lock()
 	chacha8rand.Read(pseudo[:])
@@ -157,6 +188,25 @@ func NewHDR(from, to, subject string, typ CallType) (m *HDR) {
 		Typ:     typ,
 		CallID:  rness,
 		Serial:  serial,
+	}
+
+	return
+}
+
+// for when the server is just going to replace the CallID with
+// the request CallID anyway.
+func newHDRwithoutCallID(from, to, subject string, typ CallType) (m *HDR) {
+	t0 := time.Now()
+	serial := atomic.AddInt64(&lastSerial, 1)
+
+	m = &HDR{
+		Created: t0,
+		From:    from,
+		To:      to,
+		Subject: subject,
+		Typ:     typ,
+		//CallID:  rness,
+		Serial: serial,
 	}
 
 	return

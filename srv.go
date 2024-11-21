@@ -584,7 +584,7 @@ func (s *Server) processWork(job *job) {
 			panic("req.DoneCh too small; fails the sanity check to be received on.")
 		}
 
-		reply := NewMessage()
+		reply := newServerMessage()
 
 		replySeqno := req.HDR.Seqno // just echo back same.
 		// allow user to change Subject
@@ -597,11 +597,9 @@ func (s *Server) processWork(job *job) {
 		}
 		// don't read from req now, just in case callme2 messed with it.
 
-		from := local(conn)
-		to := remote(conn)
-		hdr := NewHDR(from, to, reply.HDR.Subject, CallRPC)
+		hdr := newHDRwithoutCallID(pair.from, pair.to, reply.HDR.Subject, CallRPC)
 
-		// We are able to match call and response rigourously on the CallID alone.
+		// We are able to match call and response rigourously on the CallID, or Seqno, alone.
 		hdr.CallID = reqCallID
 		hdr.Seqno = replySeqno
 		reply.HDR = *hdr
@@ -612,21 +610,25 @@ func (s *Server) processWork(job *job) {
 		// with keep-alive pings.
 		err = w.sendMessage(conn, reply, &s.cfg.WriteTimeout)
 		if err != nil {
+			// server side reply.DoneCh is not used, comment this out:
+			//
 			// notify any short-time-waiting server push user.
 			// This is super useful to let goq retry jobs quickly.
-			reply.LocalErr = err
-			select {
-			case reply.DoneCh <- reply:
-			default:
-			}
+			// reply.LocalErr = err
+			// select {
+			// case reply.DoneCh <- reply:
+			// default:
+			// }
 			alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, reply.HDR.Seqno)
 			// just let user try again?
 		} else {
+			// server side reply.DoneCh is not used, comment this out:
+			//
 			// tell caller there was no error.
-			select {
-			case reply.DoneCh <- reply:
-			default:
-			}
+			// select {
+			// case reply.DoneCh <- reply:
+			// default:
+			// }
 		}
 	}
 }
@@ -844,14 +846,12 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 	//p.sending.Unlock()
 	p.Server.freeResponse(resp)
 
-	msg := NewMessage()
+	msg := newServerMessage()
 	replySeqno := reqMsg.HDR.Seqno // just echo back same.
 	subject := reqMsg.HDR.Subject
 	reqCallID := reqMsg.HDR.CallID
 
-	from := local(p.Conn)
-	to := remote(p.Conn)
-	mid := NewHDR(from, to, subject, CallNetRPC)
+	mid := NewHDR(p.from, p.to, subject, CallNetRPC)
 
 	// We are able to match call and response rigourously on the CallID alone.
 	mid.CallID = reqCallID
@@ -1101,6 +1101,10 @@ type rwPair struct {
 	// only one of these two will be filled here, depending on if we are client or server.
 	srvStaticPub ed25519.PublicKey
 	cliStaticPub ed25519.PublicKey
+
+	// cache instead of compute on every call
+	from string
+	to   string
 }
 
 func (s *Server) newRWPair(conn net.Conn) *rwPair {
@@ -1112,6 +1116,8 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 		Conn:   conn,
 		SendCh: make(chan *Message),
 		halt:   idem.NewHalter(),
+		from:   local(conn),
+		to:     remote(conn),
 	}
 
 	p.encBufW = bufio.NewWriter(&p.encBuf)
