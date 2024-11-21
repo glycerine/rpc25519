@@ -74,11 +74,13 @@ generated methods. Typically this means adding
 `//go:generate greenpack` to the files that define the
 structs that will go over the wire, and running `go generate`.
 
-Note that since we are oriented around distributed job management 
-and use TLS/QUIC directly. Like `net/rpc`, there is limited
-support for http CONNECT based hijacking; see
-cfg.HTTPConnectRequired. Nonetheless, this protocol remains
-distinct from http. Note that the connection hijacking does
+`rpc25519` was built originally for the distributed job management 
+use-case, and so uses TLS/QUIC directly. It does not use http,
+except perhaps in the very first contact:
+like `net/rpc`, there is limited support for 
+http CONNECT based hijacking; see the
+cfg.HTTPConnectRequired flag. Nonetheless, this protocol remains
+distinct from http. In particular, note that the connection hijacking does
 not work with (https/http2/http3) encrypted protocols.
 
 The generic byte-slice API is designed to work smoothly 
