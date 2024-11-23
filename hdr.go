@@ -13,6 +13,7 @@ import (
 
 	cryrand "crypto/rand"
 	cristalbase64 "github.com/cristalhq/base64"
+	"github.com/glycerine/greenpack/msgp"
 	gjson "github.com/goccy/go-json"
 	mathrand2 "math/rand/v2"
 )
@@ -126,6 +127,21 @@ func MessageFromGreenpack(by []byte) (*Message, error) {
 // The [greenpack format](https://github.com/glycerine/greenpack) is used.
 func (m *Message) AsGreenpack(scratch []byte) (o []byte, err error) {
 	return m.MarshalMsg(scratch[:0])
+}
+
+// AsJSON returns JSON bytes via msgp.CopyToJSON() or msgp.UnmarshalAsJSON()
+func (m *Message) AsJSON(scratch []byte) (o []byte, err error) {
+	o, err = m.MarshalMsg(scratch[:0])
+	if err != nil {
+		return
+	}
+	var jsonBuf bytes.Buffer
+	o, err = msgp.UnmarshalAsJSON(&jsonBuf, o)
+	if err != nil {
+		return
+	}
+	o = jsonBuf.Bytes()
+	return
 }
 
 // HDR provides header information and details

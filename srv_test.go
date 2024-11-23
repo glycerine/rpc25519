@@ -1,6 +1,7 @@
 package rpc25519
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -725,5 +726,70 @@ func Test016_WithPreSharedKey_inner_handshake_must_be_properly_signed(t *testing
 
 			//vv("server sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
 		}
+	})
+}
+
+func Test030_RoundTrip_SendAndGetReply_then_JSON(t *testing.T) {
+
+	cv.Convey("convert to JSON after basic TCP, see what we have.", t, func() {
+
+		cfg := NewConfig()
+		cfg.TCPonly_no_TLS = true
+
+		cfg.ServerAddr = "127.0.0.1:0"
+		srv := NewServer("srv_test001", cfg)
+
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
+
+		vv("server Start() returned serverAddr = '%v'", serverAddr)
+
+		srv.Register2Func(customEcho)
+
+		cfg.ClientDialToHostPort = serverAddr.String()
+		cli, err := NewClient("test001", cfg)
+		panicOn(err)
+		err = cli.Start()
+		panicOn(err)
+
+		defer cli.Close()
+
+		req := NewMessage()
+		req.JobSerz = []byte("Hello from client!")
+
+		reply, err := cli.SendAndGetReply(req, nil)
+		panicOn(err)
+
+		j, err := reply.AsJSON(nil)
+		panicOn(err)
+
+		vv("server sees reply '%v' ==> json:\n%v\n", reply, string(j))
+		/*
+			srv_test.go:767 2024-11-23 06:17:28.084 -0600 CST server sees reply '&Message{HDR:{
+			    "Nc": null,
+			    "Created": "2024-11-23T12:17:28.084799268Z",
+			    "From": "tcp://127.0.0.1:41791",
+			    "To": "tcp://127.0.0.1:56892",
+			    "Subject": "",
+			    "Seqno": 2,
+			    "Typ": 1,
+			    "CallID": "bmcmr1iak8Jb6ZGiFD1Ctm7u3CU=",
+			    "Serial": 2,
+			    "LocalRecvTm": "2024-11-23T12:17:28.084885833Z"
+			}, LocalErr:'<nil>'}' ==> json:
+			{"HDR_zid00_rct":{"Created_zid00_tim":"2024-11-23T12:17:28.084799268Z","From_zid01_str":"tcp://127.0.0.1:41791","To_zid02_str":"tcp://127.0.0.1:56892","Seqno_zid04_u64":2,"Typ_zid05_rct":1,"CallID_zid06_str":"bmcmr1iak8Jb6ZGiFD1Ctm7u3CU=","Serial_zid07_i64":2,"LocalRecvTm_zid08_tim":"2024-11-23T12:17:28.084885833Z"},"JobSerz_zid01_bin":"SGVsbG8gZnJvbSBjbGllbnQhCiB3aXRoIHRpbWUgY3VzdG9tRWNobyBzZWVzIHRoaXM6ICcyMDI0LTExLTIzIDEyOjE3OjI4LjA4NDY1NzcyICswMDAwIFVUQyBtPSswLjAwNzMyNTI5Myc="}
+		*/
+		// manually extracting the JobSerz_zid01_bin field from the example above:
+		jobSerz := "SGVsbG8gZnJvbSBjbGllbnQhCiB3aXRoIHRpbWUgY3VzdG9tRWNobyBzZWVzIHRoaXM6ICcyMDI0LTExLTIzIDEyOjE3OjI4LjA4NDY1NzcyICswMDAwIFVUQyBtPSswLjAwNzMyNTI5Myc="
+		// converting it to a string by base64 decoding.
+		dst := make([]byte, base64.StdEncoding.DecodedLen(len(jobSerz)))
+		n, err := base64.StdEncoding.Decode(dst, []byte(jobSerz))
+		panicOn(err)
+		dst = dst[:n]
+		vv("jobSerz -> dst = '%v'", string(dst))
+		// jobSerz -> dst = 'Hello from client!
+		// with time customEcho sees this: '2024-11-23 12:12:21.045869908 +0000 UTC m=+0.007191979''
+
 	})
 }
