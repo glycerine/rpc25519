@@ -1021,7 +1021,7 @@ func encryptWithPair(
 //
 // 1) our private key, known only to us;
 // 2) an ephemeral public key, (a nonce, effectively) transmitted to us;
-// 3) a ciphertext encrypted with our public key, aslo transmitted to us.
+// 3) a ciphertext encrypted with our public key, also transmitted to us.
 //
 // Then we return the plaintext decryption of ciphertext.
 func decryptWithPrivKey(
