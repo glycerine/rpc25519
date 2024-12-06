@@ -16,16 +16,24 @@ though it is always encrypted. This is due to its 0-RTT design
 and the mature [quic-go](https://github.com/quic-go/quic-go) 
 implementation of the protocol. QUIC allows a local
 client and server in the same process to share a UDP port.
-This feature can be super useful for conserving ports
+This feature can be useful for conserving ports
 and connecting across networks.
 
-The UDP/QUIC versus TCP/TLS decision is one of latency
-versus throughput. QUIC can have much lower latency.
-TCP/TLS however can acheive 4-5x greater throughput,
-in my measurements. If client connections come and go frequently, QUIC
-may be much better. If you have long lived connections
-doing alot of work each, TCP/TLS may get more done
-in less time.
+After tuning and hardening, the UDP/QUIC versus TCP/TLS 
+decision is not really difficult if the client
+is new every time. In our measurements, TLS (over TCP) has
+both better connection latency and better throughput
+than QUIC (over UDP). QUIC does not get to take advantage of
+its optimization for 0-RTT re-connection under
+these circumstances (when the client is new). 
+If you have clients that frequently re-connect after 
+loosing network connectivity,
+then measure QUIC versus TLS/TCP in your application. 
+Otherwise, for performance, prefer TLS over TCP. The
+latency of TLS is better and, moreover, the
+throughput of TLS can be much better (4-5x greater).
+If client port re-use and conservation is a needed, then
+QUIC may be your only choice.
 
 The [rpc25519 package docs are here](https://pkg.go.dev/github.com/glycerine/rpc25519). 
 
