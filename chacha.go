@@ -3,6 +3,7 @@ package rpc25519
 import (
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	cryrand "crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
@@ -83,7 +84,7 @@ type encoder struct {
 	initialNonce   []byte
 	writeNonce     []byte
 	noncesize      int
-	overhead       int
+	overhead       int // also know as tag size
 	lastNonceSeqno uint64
 
 	mut  sync.Mutex
@@ -261,6 +262,16 @@ func xorNonceWithNextNonceSeqno(input []byte, seqno uint64, output []byte) {
 	//vv("output ending: '%x'", output)
 }
 
+// Commit to the encryption key? This will
+// re-write our authentication tag in order
+// to only allow the key we used when encrypting.
+// This is desirable.
+// See https://eprint.iacr.org/2024/1382.pdf
+// "Universal Context Commitment without Ciphertext Expansion"
+// and
+// https://github.com/samuel-lucas6/pact-go/
+const commitWithPACT = true
+
 // Write encrypts data and writes it to the underlying stream.
 // This is what a client actively does when they write to net.Conn.
 // Write(plaintext []byte) (n int, err error)
@@ -305,6 +316,21 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	// encrypt. notice we get to re-use the plain text buf for the encrypted output.
 	// So ideally, no allocation necessary.
 	sealOut := e.aead.Seal(buf[8+e.noncesize:8+e.noncesize], buf[8:8+e.noncesize], buf[8+e.noncesize:8+e.noncesize+len(bytesMsg)], assocData)
+
+	if commitWithPACT {
+		//vv("commitWithPact applying PACT")
+		// this just re-writes the authentication tag,
+		// but commits to this key and associated data.
+		mac := hmac.New(sha256.New, e.key)
+		mac.Write(e.writeNonce)
+		mac.Write(assocData)
+		subkey := mac.Sum(nil)
+
+		aes256, err := aes.NewCipher(subkey)
+		panicOn(err)
+		tag := sealOut[len(sealOut)-e.overhead:]
+		aes256.Encrypt(tag, tag)
+	}
 
 	// Update the nonce: ONLY AFTER using it above in Seal!
 	e.moveToNextNonce()
@@ -353,6 +379,18 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 
 	assocData := d.work.readLenMessageBytes // length of message should be authentic too.
 	nonce := encrypted[:d.noncesize]
+
+	if commitWithPACT {
+		//vv("commitWithPact decoding with PACT")
+		mac := hmac.New(sha256.New, d.key)
+		mac.Write(nonce)
+		mac.Write(assocData)
+		subkey := mac.Sum(nil)
+
+		tag := encrypted[len(encrypted)-d.overhead:]
+		aes256, _ := aes.NewCipher(subkey)
+		aes256.Decrypt(tag, tag)
+	}
 
 	message, err := d.aead.Open(nil, nonce, encrypted[d.noncesize:], assocData)
 	if err != nil {

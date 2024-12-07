@@ -5,6 +5,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ed25519"
+	"crypto/hmac"
 	cryrand "crypto/rand"
 	"crypto/sha256"
 	"crypto/x509"
@@ -865,6 +866,22 @@ func sendCrypticCaboose(conn uConn, cab *caboose, symkey []byte, timeout *time.D
 	if len(sealOut)+8+noncesize != len(buf) {
 		panic("internal miscalc; sealOut len != len(buf)")
 	}
+
+	if commitWithPACT {
+		//vv("commitWithPact applying PACT")
+		// this just re-writes the authentication tag,
+		// but commits to this key and associated data.
+		mac := hmac.New(sha256.New, symkey)
+		mac.Write(nonce)
+		mac.Write(assocData)
+		subkey := mac.Sum(nil)
+
+		aes256, err := aes.NewCipher(subkey)
+		panicOn(err)
+		tag := sealOut[len(sealOut)-overhead:]
+		aes256.Encrypt(tag, tag)
+	}
+
 	return writeFull(conn, buf, timeout)
 }
 
@@ -894,7 +911,7 @@ func readCrypticCaboose(conn uConn, cab *caboose, symkey []byte, timeout *time.D
 	panicOn(err)
 
 	noncesize := aeadDec.NonceSize()
-	//overhead := aeadDec.Overhead()
+	overhead := aeadDec.Overhead()
 
 	// Read the encrypted data
 	encrypted := make([]byte, n)
@@ -906,6 +923,18 @@ func readCrypticCaboose(conn uConn, cab *caboose, symkey []byte, timeout *time.D
 	// Decrypt the data
 	assocData := lenby[:] // length of message should be authentic too.
 	nonce := encrypted[:noncesize]
+
+	if commitWithPACT {
+		//vv("commitWithPact decoding with PACT")
+		mac := hmac.New(sha256.New, symkey)
+		mac.Write(nonce)
+		mac.Write(assocData)
+		subkey := mac.Sum(nil)
+
+		tag := encrypted[len(encrypted)-overhead:]
+		aes256, _ := aes.NewCipher(subkey)
+		aes256.Decrypt(tag, tag)
+	}
 
 	message, err := aeadDec.Open(nil, nonce, encrypted[noncesize:], assocData)
 	if err != nil {
