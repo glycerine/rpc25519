@@ -318,7 +318,7 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 
 	if commitWithPACT {
 		tag := sealOut[len(sealOut)-e.overhead:]
-		PactEncrypt(e.key, assocData, e.writeNonce, tag)
+		pactEncryptTag(e.key, assocData, e.writeNonce, tag)
 	}
 
 	// Update the nonce: ONLY AFTER using it above in Seal!
@@ -371,7 +371,7 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 
 	if commitWithPACT {
 		tag := encrypted[len(encrypted)-d.overhead:]
-		PactDecrypt(d.key, assocData, nonce, tag)
+		pactDecryptTag(d.key, assocData, nonce, tag)
 	}
 
 	message, err := d.aead.Open(nil, nonce, encrypted[d.noncesize:], assocData)

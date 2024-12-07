@@ -869,7 +869,7 @@ func sendCrypticCaboose(conn uConn, cab *caboose, symkey []byte, timeout *time.D
 
 	if commitWithPACT {
 		tag := sealOut[len(sealOut)-overhead:]
-		PactEncrypt(symkey, assocData, nonce, tag)
+		pactEncryptTag(symkey, assocData, nonce, tag)
 	}
 
 	return writeFull(conn, buf, timeout)
@@ -916,7 +916,7 @@ func readCrypticCaboose(conn uConn, cab *caboose, symkey []byte, timeout *time.D
 
 	if commitWithPACT {
 		tag := encrypted[len(encrypted)-overhead:]
-		PactDecrypt(symkey, assocData, nonce, tag)
+		pactDecryptTag(symkey, assocData, nonce, tag)
 	}
 
 	message, err := aeadDec.Open(nil, nonce, encrypted[noncesize:], assocData)
@@ -1027,7 +1027,7 @@ func encryptWithPair(
 
 	if commitWithPACT {
 		tag := ciphertext[len(ciphertext)-aead.Overhead():]
-		PactEncrypt(symmetricKey, nil, nonce, tag)
+		pactEncryptTag(symmetricKey, nil, nonce, tag)
 	}
 
 	return
@@ -1070,7 +1070,7 @@ func decryptWithPrivKey(
 
 	if commitWithPACT {
 		tag := ct[len(ct)-aead.Overhead():]
-		PactDecrypt(symmetricKey, nil, nonce, tag)
+		pactDecryptTag(symmetricKey, nil, nonce, tag)
 	}
 
 	return aead.Open(nil, nonce, ct, nil)
@@ -1136,7 +1136,7 @@ func simpleSymmetricServerHandshake(
 
 // this just re-writes the authentication tag,
 // but commits to this key and associated data.
-func PactEncrypt(symkey, assocData, nonce, tag []byte) {
+func pactEncryptTag(symkey, assocData, nonce, tag []byte) {
 	mac := hmac.New(sha256.New, symkey)
 	mac.Write(assocData)
 	mac.Write(nonce)
@@ -1147,7 +1147,7 @@ func PactEncrypt(symkey, assocData, nonce, tag []byte) {
 	aes256.Encrypt(tag, tag)
 }
 
-func PactDecrypt(symkey, assocData, nonce, tag []byte) {
+func pactDecryptTag(symkey, assocData, nonce, tag []byte) {
 	mac := hmac.New(sha256.New, symkey)
 	mac.Write(assocData)
 	mac.Write(nonce)
