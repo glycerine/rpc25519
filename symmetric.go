@@ -872,8 +872,8 @@ func sendCrypticCaboose(conn uConn, cab *caboose, symkey []byte, timeout *time.D
 		// this just re-writes the authentication tag,
 		// but commits to this key and associated data.
 		mac := hmac.New(sha256.New, symkey)
-		mac.Write(nonce)
 		mac.Write(assocData)
+		mac.Write(nonce)
 		subkey := mac.Sum(nil)
 
 		aes256, err := aes.NewCipher(subkey)
@@ -927,8 +927,8 @@ func readCrypticCaboose(conn uConn, cab *caboose, symkey []byte, timeout *time.D
 	if commitWithPACT {
 		//vv("commitWithPact decoding with PACT")
 		mac := hmac.New(sha256.New, symkey)
-		mac.Write(nonce)
 		mac.Write(assocData)
+		mac.Write(nonce)
 		subkey := mac.Sum(nil)
 
 		tag := encrypted[len(encrypted)-overhead:]

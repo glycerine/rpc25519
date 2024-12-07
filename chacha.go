@@ -322,8 +322,8 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 		// this just re-writes the authentication tag,
 		// but commits to this key and associated data.
 		mac := hmac.New(sha256.New, e.key)
-		mac.Write(e.writeNonce)
 		mac.Write(assocData)
+		mac.Write(e.writeNonce)
 		subkey := mac.Sum(nil)
 
 		aes256, err := aes.NewCipher(subkey)
@@ -383,8 +383,8 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	if commitWithPACT {
 		//vv("commitWithPact decoding with PACT")
 		mac := hmac.New(sha256.New, d.key)
-		mac.Write(nonce)
 		mac.Write(assocData)
+		mac.Write(nonce)
 		subkey := mac.Sum(nil)
 
 		tag := encrypted[len(encrypted)-d.overhead:]
