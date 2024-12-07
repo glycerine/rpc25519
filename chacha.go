@@ -3,7 +3,6 @@ package rpc25519
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/hmac"
 	cryrand "crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
@@ -318,18 +317,8 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	sealOut := e.aead.Seal(buf[8+e.noncesize:8+e.noncesize], buf[8:8+e.noncesize], buf[8+e.noncesize:8+e.noncesize+len(bytesMsg)], assocData)
 
 	if commitWithPACT {
-		//vv("commitWithPact applying PACT")
-		// this just re-writes the authentication tag,
-		// but commits to this key and associated data.
-		mac := hmac.New(sha256.New, e.key)
-		mac.Write(assocData)
-		mac.Write(e.writeNonce)
-		subkey := mac.Sum(nil)
-
-		aes256, err := aes.NewCipher(subkey)
-		panicOn(err)
 		tag := sealOut[len(sealOut)-e.overhead:]
-		aes256.Encrypt(tag, tag)
+		PactEncrypt(e.key, assocData, e.writeNonce, tag)
 	}
 
 	// Update the nonce: ONLY AFTER using it above in Seal!
@@ -381,15 +370,8 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	nonce := encrypted[:d.noncesize]
 
 	if commitWithPACT {
-		//vv("commitWithPact decoding with PACT")
-		mac := hmac.New(sha256.New, d.key)
-		mac.Write(assocData)
-		mac.Write(nonce)
-		subkey := mac.Sum(nil)
-
 		tag := encrypted[len(encrypted)-d.overhead:]
-		aes256, _ := aes.NewCipher(subkey)
-		aes256.Decrypt(tag, tag)
+		PactDecrypt(d.key, assocData, nonce, tag)
 	}
 
 	message, err := d.aead.Open(nil, nonce, encrypted[d.noncesize:], assocData)

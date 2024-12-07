@@ -868,18 +868,8 @@ func sendCrypticCaboose(conn uConn, cab *caboose, symkey []byte, timeout *time.D
 	}
 
 	if commitWithPACT {
-		//vv("commitWithPact applying PACT")
-		// this just re-writes the authentication tag,
-		// but commits to this key and associated data.
-		mac := hmac.New(sha256.New, symkey)
-		mac.Write(assocData)
-		mac.Write(nonce)
-		subkey := mac.Sum(nil)
-
-		aes256, err := aes.NewCipher(subkey)
-		panicOn(err)
 		tag := sealOut[len(sealOut)-overhead:]
-		aes256.Encrypt(tag, tag)
+		PactEncrypt(symkey, assocData, nonce, tag)
 	}
 
 	return writeFull(conn, buf, timeout)
@@ -925,15 +915,8 @@ func readCrypticCaboose(conn uConn, cab *caboose, symkey []byte, timeout *time.D
 	nonce := encrypted[:noncesize]
 
 	if commitWithPACT {
-		//vv("commitWithPact decoding with PACT")
-		mac := hmac.New(sha256.New, symkey)
-		mac.Write(assocData)
-		mac.Write(nonce)
-		subkey := mac.Sum(nil)
-
 		tag := encrypted[len(encrypted)-overhead:]
-		aes256, _ := aes.NewCipher(subkey)
-		aes256.Decrypt(tag, tag)
+		PactDecrypt(symkey, assocData, nonce, tag)
 	}
 
 	message, err := aeadDec.Open(nil, nonce, encrypted[noncesize:], assocData)
@@ -1041,6 +1024,12 @@ func encryptWithPair(
 	panicOn(err)
 
 	ciphertext = aead.Seal(nonce, nonce, plaintext, nil)
+
+	if commitWithPACT {
+		tag := ciphertext[len(ciphertext)-aead.Overhead():]
+		PactEncrypt(symmetricKey, nil, nonce, tag)
+	}
+
 	return
 }
 
@@ -1078,6 +1067,12 @@ func decryptWithPrivKey(
 		return
 	}
 	nonce, ct := ciphertext[:aead.NonceSize()], ciphertext[aead.NonceSize():]
+
+	if commitWithPACT {
+		tag := ct[len(ct)-aead.Overhead():]
+		PactDecrypt(symmetricKey, nil, nonce, tag)
+	}
+
 	return aead.Open(nil, nonce, ct, nil)
 }
 
@@ -1137,4 +1132,27 @@ func simpleSymmetricServerHandshake(
 
 	//fmt.Printf("salted server derived symmetric key: %x\n", symkey[:])
 	return
+}
+
+// this just re-writes the authentication tag,
+// but commits to this key and associated data.
+func PactEncrypt(symkey, assocData, nonce, tag []byte) {
+	mac := hmac.New(sha256.New, symkey)
+	mac.Write(assocData)
+	mac.Write(nonce)
+	subkey := mac.Sum(nil)
+
+	aes256, err := aes.NewCipher(subkey)
+	panicOn(err)
+	aes256.Encrypt(tag, tag)
+}
+
+func PactDecrypt(symkey, assocData, nonce, tag []byte) {
+	mac := hmac.New(sha256.New, symkey)
+	mac.Write(assocData)
+	mac.Write(nonce)
+	subkey := mac.Sum(nil)
+
+	aes256, _ := aes.NewCipher(subkey)
+	aes256.Decrypt(tag, tag)
 }
