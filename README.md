@@ -234,7 +234,7 @@ during a TLS handshake. The later part of the handshake
 verifies that the key was signed by our CA. 
 This suffices. We may also want to
 reject based on IP address to block off clearly 
-irrelevant traffic; both to for DDos mitigration 
+irrelevant traffic; both to for DDos mitigation 
 and to keep our CPU cycles low, but these
 are second order optimizations. The crytographic
 proof is the central identifying factor.
