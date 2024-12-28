@@ -871,6 +871,8 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 		defer pair.Server.noLongerInFlight(reqMsg.HDR.CallID)
 
 		ctx := context.WithValue(ctx0, "HDR", &reqMsg.HDR)
+		reqMsg.HDR.Ctx = ctx
+
 		rctx := reflect.ValueOf(ctx)
 		returnValues = function.Call([]reflect.Value{s.rcvr, rctx, argv, replyv})
 

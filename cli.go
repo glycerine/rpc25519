@@ -846,7 +846,7 @@ func (c *Client) send(call *Call, octx context.Context) {
 	if c.shutdown || c.closing {
 		c.mutex.Unlock()
 		call.Error = ErrNetRpcShutdown
-		call.done()
+		call.done() // do call.Done <- call
 		return
 	}
 
@@ -898,7 +898,7 @@ func (c *Client) send(call *Call, octx context.Context) {
 		c.mutex.Unlock()
 		if call != nil {
 			call.Error = err
-			call.done()
+			call.done() // do call.Done <- call
 		}
 	}
 }
@@ -1147,7 +1147,6 @@ func (c *Client) Close() error {
 
 var ErrShutdown = fmt.Errorf("shutting down")
 var ErrDone = fmt.Errorf("done channel closed")
-var ErrDone2 = fmt.Errorf("done channel closed 2")
 var ErrTimeout = fmt.Errorf("time-out waiting for call to complete")
 var ErrCancelReqSent = fmt.Errorf("cancellation request sent")
 
@@ -1259,8 +1258,8 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		cancelReq.HDR = *hdr
 		cancelReq.HDR.Typ = CallCancelPrevious
 		c.OneWaySend(cancelReq, nil)
+		return nil, ErrCancelReqSent
 
-		return nil, ErrDone2
 	case <-defaultTimeout:
 		// definitely a timeout
 		//vv("ErrTimeout being returned from SendAndGetReply(), 2nd part")

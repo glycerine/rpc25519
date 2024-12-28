@@ -1,6 +1,45 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
+* Recent News (2024 December 28): request cancellation support with context.Context
+
+Recently implemented: context.Context based cancellation. 
+
+details:
+
+If the client closes the cancelJobCh that 
+was supplied to a previous SendAndGetReply()
+call, a cancellation request will be sent to the server. 
+
+On the server, the HDR.Ctx will be set, having be created
+by context.WithCancel; so the HDR.Ctx.Done() channel can
+be honored.
+
+Similarly, for traditional net/rpc calls, the Client.Go()
+and Client.Call() methods will respect the optional octx
+context and transmit a cancellation request to the 
+server. On the server, the net/rpc methods registered must
+(naturally) be using the first-parameter ctx form of registration in
+order to be cancellation aware.
+
+Any client-side blocked calls will return on cancellation.
+The msg.LocalErr for the []byte oriented Message API
+will be set. For net/rpc API users, the Client.Go()
+returned call will have the call.Error set. 
+Users of Client.Call() will see the returned error set.
+
+In all cases, the error will be ErrCancelReqSent if the call was
+in flight on the server, but will be ErrDone if 
+the original call had not been transmitted yet.
+
+Note that context-based cancellation requires the cooperation
+of the registered server side call implementations.
+Go does not support goroutine cancelation, so the
+remote methods must implement and honor context awareness in order
+for the remote cancellation message to have effect.
+
+* overview
+
 Motivation: I needed a small, simple, and compact RPC system
 with modern, strong cryptography 
 for [goq](https://github.com/glycerine/goq). 
@@ -179,12 +218,6 @@ if hdr := ctx.Value("HDR"); hdr != nil {
    return nil
 }
 ~~~
-
-TODO/deferred: The client does not transmit context to server at the moment.
-Although the context package clearly describes this is an intended
-use, I don't have a use case myself for it, and so I'm not sure how 
-the implementation should work. How are cancellation requests
-coordinated across a network? Do they initiate their own messages?
 
 The net/rpc API is implemented as a layer on top of the rpc25519.Message
 based API. Both can be used concurrently if desired.
