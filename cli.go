@@ -482,13 +482,14 @@ func (c *Client) runSendLoop(conn net.Conn) {
 			}
 			if msg.HDR.Typ == CallCancelPrevious {
 				if msg.LocalErr == nil {
-					msg.LocalErr = fmt.Errorf("cancellation request sent")
+					msg.LocalErr = ErrCancelReqSent
 				}
 			}
-			select {
-			case msg.DoneCh <- msg: // convey the error or lack thereof.
-			default:
-			}
+			// this should never block, because we
+			// have space 2 in each DoneCh now, so we should handle
+			// any instance when both the cancel and a good reply
+			// received.
+			msg.DoneCh <- msg // convey the error or lack thereof.
 
 		case msg := <-c.roundTripCh:
 
@@ -1148,6 +1149,7 @@ var ErrShutdown = fmt.Errorf("shutting down")
 var ErrDone = fmt.Errorf("done channel closed")
 var ErrDone2 = fmt.Errorf("done channel closed 2")
 var ErrTimeout = fmt.Errorf("time-out waiting for call to complete")
+var ErrCancelReqSent = fmt.Errorf("cancellation request sent")
 
 // SendAndGetReplyWithTimeout expires the call after
 // timeout.
@@ -1248,7 +1250,8 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 
 		// tell remote to cancel the job.
 		// We re-use same req message channel,
-		// so our client caller gets a reponse on it.
+		// so our client caller gets a reponse on it,
+		// and can unblock themselves.
 		// Since this can race with the original reply,
 		// we've enlarged the DoneCh channel buffer
 		// to be size 2 now, in the NewMessage() implementation.
