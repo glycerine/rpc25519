@@ -480,6 +480,11 @@ func (c *Client) runSendLoop(conn net.Conn) {
 				//vv("cli %v has sent a 1-way message: %v'", c.name, msg)
 				lastPing = time.Now() // no need for ping
 			}
+			if msg.HDR.Typ == CallCancelPrevious {
+				if msg.LocalErr == nil {
+					msg.LocalErr = fmt.Errorf("cancellation request sent")
+				}
+			}
 			select {
 			case msg.DoneCh <- msg: // convey the error or lack thereof.
 			default:

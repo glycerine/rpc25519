@@ -1463,7 +1463,7 @@ func (s *Server) getCancelFuncForCallID(callID string) (cancelFunc context.Cance
 		return nil
 	}
 	// in case we upgrade to map having a struct value,
-	// be sure caller gets nil either way if call is not in flight.
+	// be sure caller gets nil either way; if call is not in flight.
 	var ok bool
 	cancelFunc, ok = s.inflight.activeCalls[callID]
 	if !ok {
