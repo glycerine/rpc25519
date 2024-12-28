@@ -604,6 +604,14 @@ func (s *Server) processWork(job *job) {
 		// allow user to change Subject
 		reply.HDR.Subject = req.HDR.Subject
 
+		// allow cancellation of inflight calls.
+		ctx0, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+		s.registerInFlightCallToCancel(reqCallID, cancelFunc)
+		defer s.noLongerInFlight(reqCallID)
+		ctx := context.WithValue(ctx0, "HDR", &req.HDR)
+		req.HDR.Ctx = ctx
+
 		err := callme2(req, reply)
 		if err != nil {
 			reply.JobErrs = err.Error()
@@ -706,6 +714,11 @@ type Server struct {
 	svc0     *service
 	svc0name string
 
+	// We put cancellation support on the
+	// server rather than the rwPair in case
+	// the pair gets torn down during a
+	// reconnect. We still want to support
+	// cancellation after a reconnect.
 	inflight inflight
 }
 
@@ -855,12 +868,12 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 		ctx0, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		pair.Server.registerInFlightCallToCancel(reqMsg.HDR.CallID, cancelFunc)
+		defer pair.Server.noLongerInFlight(reqMsg.HDR.CallID)
 
 		ctx := context.WithValue(ctx0, "HDR", &reqMsg.HDR)
 		rctx := reflect.ValueOf(ctx)
 		returnValues = function.Call([]reflect.Value{s.rcvr, rctx, argv, replyv})
 
-		pair.Server.noLongerInFlight(reqMsg.HDR.CallID)
 	} else {
 		returnValues = function.Call([]reflect.Value{s.rcvr, argv, replyv})
 	}

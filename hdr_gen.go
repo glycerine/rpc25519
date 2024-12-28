@@ -116,7 +116,7 @@ func (z *HDR) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields2zgensym_28874796354aa7f3_3 = 10
+	const maxFields2zgensym_28874796354aa7f3_3 = 11
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields2zgensym_28874796354aa7f3_3 uint32
@@ -246,9 +246,9 @@ doneWithStruct2zgensym_28874796354aa7f3_3:
 }
 
 // fields of HDR
-var decodeMsgFieldOrder2zgensym_28874796354aa7f3_3 = []string{"Created_zid00_tim", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "Seqno_zid04_u64", "Typ_zid05_rct", "CallID_zid06_str", "Serial_zid07_i64", "LocalRecvTm_zid08_tim", ""}
+var decodeMsgFieldOrder2zgensym_28874796354aa7f3_3 = []string{"Created_zid00_tim", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "Seqno_zid04_u64", "Typ_zid05_rct", "CallID_zid06_str", "Serial_zid07_i64", "LocalRecvTm_zid08_tim", "", ""}
 
-var decodeMsgFieldSkip2zgensym_28874796354aa7f3_3 = []bool{false, false, false, false, false, false, false, false, false, true}
+var decodeMsgFieldSkip2zgensym_28874796354aa7f3_3 = []bool{false, false, false, false, false, false, false, false, false, true, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *HDR) fieldsNotEmpty(isempty []bool) uint32 {
@@ -303,7 +303,7 @@ func (z *HDR) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_28874796354aa7f3_5 [10]bool
+	var empty_zgensym_28874796354aa7f3_5 [11]bool
 	fieldsInUse_zgensym_28874796354aa7f3_6 := z.fieldsNotEmpty(empty_zgensym_28874796354aa7f3_5[:])
 
 	// map header
@@ -442,7 +442,7 @@ func (z *HDR) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [10]bool
+	var empty [11]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -518,7 +518,7 @@ func (z *HDR) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte
 
 	var field []byte
 	_ = field
-	const maxFields7zgensym_28874796354aa7f3_8 = 10
+	const maxFields7zgensym_28874796354aa7f3_8 = 11
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields7zgensym_28874796354aa7f3_8 uint32
@@ -658,9 +658,9 @@ doneWithStruct7zgensym_28874796354aa7f3_8:
 }
 
 // fields of HDR
-var unmarshalMsgFieldOrder7zgensym_28874796354aa7f3_8 = []string{"Created_zid00_tim", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "Seqno_zid04_u64", "Typ_zid05_rct", "CallID_zid06_str", "Serial_zid07_i64", "LocalRecvTm_zid08_tim", ""}
+var unmarshalMsgFieldOrder7zgensym_28874796354aa7f3_8 = []string{"Created_zid00_tim", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "Seqno_zid04_u64", "Typ_zid05_rct", "CallID_zid06_str", "Serial_zid07_i64", "LocalRecvTm_zid08_tim", "", ""}
 
-var unmarshalMsgFieldSkip7zgensym_28874796354aa7f3_8 = []bool{false, false, false, false, false, false, false, false, false, true}
+var unmarshalMsgFieldSkip7zgensym_28874796354aa7f3_8 = []bool{false, false, false, false, false, false, false, false, false, true, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *HDR) Msgsize() (s int) {

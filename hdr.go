@@ -3,6 +3,7 @@ package rpc25519
 import (
 	"bytes"
 	//"encoding/hex"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -184,6 +185,9 @@ type HDR struct {
 	Serial  int64     `zid:"7"` // system serial number
 
 	LocalRecvTm time.Time `zid:"8"`
+
+	// allow standard []byte oriented message to cancel too.
+	Ctx context.Context `msg:"-"`
 }
 
 type CallType int
