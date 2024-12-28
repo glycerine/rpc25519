@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	// for the nice base58 (version-checked) encoding of public keys
-	"github.com/btcsuite/btcd/btcutil/base58"
+	"github.com/glycerine/base58"
 )
 
 var errPubKeyMismath = fmt.Errorf("remote host pubkey does not match that on file!")

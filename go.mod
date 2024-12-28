@@ -1,13 +1,13 @@
 module github.com/glycerine/rpc25519
 
-go 1.23.2
+go 1.23.3
 
 require (
 	4d63.com/tz v1.2.0
-	github.com/btcsuite/btcd/btcutil v1.1.6
 	github.com/caio/go-tdigest v3.1.0+incompatible
 	github.com/cloudflare/circl v1.5.0
 	github.com/cristalhq/base64 v0.1.2
+	github.com/glycerine/base58 v0.24.2
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31
 	github.com/glycerine/greenpack v0.517.0
 	github.com/glycerine/idem v0.0.0-20240925232718-fc20a7f9bca6
