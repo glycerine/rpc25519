@@ -528,6 +528,15 @@ func (s *Server) processWork(job *job) {
 
 	req := job.req
 	//vv("processWork got job: req.HDR='%v'", req.HDR.String())
+
+	if req.HDR.Typ == CallCancelPrevious {
+		cancelFunc := s.getCancelFuncForCallID(req.HDR.CallID)
+		if cancelFunc != nil {
+			cancelFunc()
+		}
+		return
+	}
+
 	conn := job.conn
 	pair := job.pair
 	w := job.w
@@ -696,6 +705,8 @@ type Server struct {
 	svcCount atomic.Int64
 	svc0     *service
 	svc0name string
+
+	inflight inflight
 }
 
 type ServerClient struct {
@@ -841,9 +852,15 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 	// Invoke the method, providing a new value for the reply.
 	var returnValues []reflect.Value
 	if wantsCtx {
-		ctx := context.WithValue(context.Background(), "HDR", &reqMsg.HDR)
+		ctx0, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+		pair.Server.registerInFlightCallToCancel(reqMsg.HDR.CallID, cancelFunc)
+
+		ctx := context.WithValue(ctx0, "HDR", &reqMsg.HDR)
 		rctx := reflect.ValueOf(ctx)
 		returnValues = function.Call([]reflect.Value{s.rcvr, rctx, argv, replyv})
+
+		pair.Server.noLongerInFlight(reqMsg.HDR.CallID)
 	} else {
 		returnValues = function.Call([]reflect.Value{s.rcvr, argv, replyv})
 	}
@@ -1415,4 +1432,42 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	io.WriteString(conn, "HTTP/1.0 "+connectedToGoRPC+"\n\n")
 	server.serveConn(conn)
+}
+
+type inflight struct {
+	mut         sync.Mutex
+	activeCalls map[string]context.CancelFunc
+}
+
+func (s *Server) registerInFlightCallToCancel(callID string, cancelFunc context.CancelFunc) {
+	s.inflight.mut.Lock()
+	defer s.inflight.mut.Unlock()
+
+	if s.inflight.activeCalls == nil {
+		s.inflight.activeCalls = make(map[string]context.CancelFunc)
+	}
+	s.inflight.activeCalls[callID] = cancelFunc
+}
+
+func (s *Server) noLongerInFlight(callID string) {
+	s.inflight.mut.Lock()
+	defer s.inflight.mut.Unlock()
+	delete(s.inflight.activeCalls, callID)
+}
+
+func (s *Server) getCancelFuncForCallID(callID string) (cancelFunc context.CancelFunc) {
+	s.inflight.mut.Lock()
+	defer s.inflight.mut.Unlock()
+	if s.inflight.activeCalls == nil {
+		s.inflight.activeCalls = make(map[string]context.CancelFunc)
+		return nil
+	}
+	// in case we upgrade to map having a struct value,
+	// be sure caller gets nil either way if call is not in flight.
+	var ok bool
+	cancelFunc, ok = s.inflight.activeCalls[callID]
+	if !ok {
+		return nil
+	}
+	return cancelFunc
 }

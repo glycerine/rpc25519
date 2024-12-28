@@ -79,7 +79,10 @@ func NewMessage() *Message {
 		// NOTE: buffer size must be at least 1, so our Client.runSendLoop never blocks.
 		// Thus we simplify the logic there, not requiring a ton of extra selects to
 		// handle shutdown/timeout/etc.
-		DoneCh: make(chan *Message, 1),
+		// Update: we make it capacity 2 here to avoid the race after a context cancelation
+		// where both the cancel message and the original response come back,
+		// which would cause us to hang in the send loop.
+		DoneCh: make(chan *Message, 2),
 	}
 }
 
@@ -186,11 +189,12 @@ type HDR struct {
 type CallType int
 
 const (
-	CallNone      CallType = 0
-	CallRPC       CallType = 1
-	CallOneWay    CallType = 2
-	CallNetRPC    CallType = 3
-	CallKeepAlive CallType = 4
+	CallNone           CallType = 0
+	CallRPC            CallType = 1
+	CallOneWay         CallType = 2
+	CallNetRPC         CallType = 3
+	CallKeepAlive      CallType = 4
+	CallCancelPrevious CallType = 5
 )
 
 // NewHDR creates a new HDR header.

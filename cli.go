@@ -480,7 +480,10 @@ func (c *Client) runSendLoop(conn net.Conn) {
 				//vv("cli %v has sent a 1-way message: %v'", c.name, msg)
 				lastPing = time.Now() // no need for ping
 			}
-			msg.DoneCh <- msg // convey the error or lack thereof.
+			select {
+			case msg.DoneCh <- msg: // convey the error or lack thereof.
+			default:
+			}
 
 		case msg := <-c.roundTripCh:
 
@@ -1178,8 +1181,8 @@ func (c *Client) SendAndGetReplyWithTimeout(timeout time.Duration, req *Message)
 // cancel the job if it has not finished after 10 seconds.
 func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (reply *Message, err error) {
 
-	if len(req.DoneCh) > cap(req.DoneCh) || cap(req.DoneCh) < 1 {
-		panic(fmt.Sprintf("req.DoneCh did not have capacity; cap = %v, len=%v", cap(req.DoneCh), len(req.DoneCh)))
+	if len(req.DoneCh) > cap(req.DoneCh) || cap(req.DoneCh) < 2 {
+		panic(fmt.Sprintf("req.DoneCh did not have capacity; cap = %v, len=%v; must have at least 2 free spaces in channel.", cap(req.DoneCh), len(req.DoneCh)))
 	}
 
 	var defaultTimeout <-chan time.Time
@@ -1237,6 +1240,18 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		return
 	case <-cancelJobCh:
 		// usually a timeout
+
+		// tell remote to cancel the job.
+		// We re-use same req message channel,
+		// so our client caller gets a reponse on it.
+		// Since this can race with the original reply,
+		// we've enlarged the DoneCh channel buffer
+		// to be size 2 now, in the NewMessage() implementation.
+		cancelReq := &Message{DoneCh: req.DoneCh}
+		cancelReq.HDR = *hdr
+		cancelReq.HDR.Typ = CallCancelPrevious
+		c.OneWaySend(cancelReq, nil)
+
 		return nil, ErrDone2
 	case <-defaultTimeout:
 		// definitely a timeout
