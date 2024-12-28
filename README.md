@@ -38,7 +38,7 @@ Go does not support goroutine cancelation, so the
 remote methods must implement and honor context awareness in order
 for the remote cancellation message to have effect.
 
-* overview
+# overview
 
 Motivation: I needed a small, simple, and compact RPC system
 with modern, strong cryptography 
