@@ -881,6 +881,7 @@ func (c *Client) send(call *Call, octx context.Context) {
 	var requestStopCh <-chan struct{}
 	if octx != nil && !IsNil(octx) {
 		requestStopCh = octx.Done()
+		//vv("requestStopCh was set from octx")
 	} // else leave it nil.
 
 	reply, err := c.SendAndGetReply(req, requestStopCh)
@@ -899,6 +900,7 @@ func (c *Client) send(call *Call, octx context.Context) {
 		if call != nil {
 			call.Error = err
 			call.done() // do call.Done <- call
+			//vv("client called call.done()")
 		}
 	}
 }
@@ -1257,7 +1259,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		cancelReq := &Message{DoneCh: req.DoneCh}
 		cancelReq.HDR = *hdr
 		cancelReq.HDR.Typ = CallCancelPrevious
-		c.OneWaySend(cancelReq, nil)
+		c.oneWaySendHelper(cancelReq, nil)
 		return nil, ErrCancelReqSent
 
 	case <-defaultTimeout:
@@ -1287,6 +1289,13 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err erro
 
 	hdr := NewHDR(from, to, msg.HDR.Subject, CallOneWay)
 	msg.HDR = *hdr
+
+	return c.oneWaySendHelper(msg, cancelJobCh)
+}
+
+// cancel uses this too, so we don't change the CallID.
+func (c *Client) oneWaySendHelper(msg *Message, cancelJobCh <-chan struct{}) (err error) {
+
 	// allow msg.CallID to not be empty; in case we get a reply.
 	// isRPC=false so this is 1-way, but it might in turn still
 	// generate a response.

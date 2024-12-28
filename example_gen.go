@@ -1297,7 +1297,7 @@ func (z InvalidRequest) Msgsize() (s int) {
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
-func (z *Reply) DecodeMsg(dc *msgp.Reader) (err error) {
+func (z *MustBeCancelled) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var zgensym_7ba73e3e9c15c593_19 uint32
 	zgensym_7ba73e3e9c15c593_19, err = dc.ReadArrayHeader()
@@ -1306,6 +1306,106 @@ func (z *Reply) DecodeMsg(dc *msgp.Reader) (err error) {
 	}
 	if zgensym_7ba73e3e9c15c593_19 != 1 {
 		err = msgp.ArrayError{Wanted: 1, Got: zgensym_7ba73e3e9c15c593_19}
+		return
+	}
+	z.Placeholder, err = dc.ReadInt()
+	if err != nil {
+		return
+	}
+	if p, ok := interface{}(z).(msgp.PostLoad); ok {
+		p.PostLoadHook()
+	}
+
+	return
+}
+
+// EncodeMsg implements msgp.Encodable
+func (z MustBeCancelled) EncodeMsg(en *msgp.Writer) (err error) {
+	if p, ok := interface{}(z).(msgp.PreSave); ok {
+		p.PreSaveHook()
+	}
+
+	// array header, size 1
+	err = en.Append(0x91)
+	if err != nil {
+		return err
+	}
+	err = en.WriteInt(z.Placeholder)
+	if err != nil {
+		return
+	}
+	return
+}
+
+// MarshalMsg implements msgp.Marshaler
+func (z MustBeCancelled) MarshalMsg(b []byte) (o []byte, err error) {
+	if p, ok := interface{}(z).(msgp.PreSave); ok {
+		p.PreSaveHook()
+	}
+
+	o = msgp.Require(b, z.Msgsize())
+	// array header, size 1
+	o = append(o, 0x91)
+	o = msgp.AppendInt(o, z.Placeholder)
+	return
+}
+
+// UnmarshalMsg implements msgp.Unmarshaler
+func (z *MustBeCancelled) UnmarshalMsg(bts []byte) (o []byte, err error) {
+	cfg := &msgp.RuntimeConfig{UnsafeZeroCopy: true}
+	return z.UnmarshalMsgWithCfg(bts, cfg)
+}
+func (z *MustBeCancelled) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte, err error) {
+	var nbs msgp.NilBitsStack
+	nbs.Init(cfg)
+	var sawTopNil bool
+	if msgp.IsNil(bts) {
+		sawTopNil = true
+		bts = nbs.PushAlwaysNil(bts[1:])
+	}
+
+	var zgensym_7ba73e3e9c15c593_20 uint32
+	zgensym_7ba73e3e9c15c593_20, bts, err = nbs.ReadArrayHeaderBytes(bts)
+	if err != nil {
+		return
+	}
+	if zgensym_7ba73e3e9c15c593_20 != 1 {
+		err = msgp.ArrayError{Wanted: 1, Got: zgensym_7ba73e3e9c15c593_20}
+		return
+	}
+	z.Placeholder, bts, err = nbs.ReadIntBytes(bts)
+
+	if err != nil {
+		return
+	}
+	if sawTopNil {
+		bts = nbs.PopAlwaysNil()
+	}
+	o = bts
+	if p, ok := interface{}(z).(msgp.PostLoad); ok {
+		p.PostLoadHook()
+	}
+
+	return
+}
+
+// Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
+func (z MustBeCancelled) Msgsize() (s int) {
+	s = 1 + msgp.IntSize
+	return
+}
+
+// DecodeMsg implements msgp.Decodable
+// We treat empty fields as if we read a Nil from the wire.
+func (z *Reply) DecodeMsg(dc *msgp.Reader) (err error) {
+
+	var zgensym_7ba73e3e9c15c593_21 uint32
+	zgensym_7ba73e3e9c15c593_21, err = dc.ReadArrayHeader()
+	if err != nil {
+		return
+	}
+	if zgensym_7ba73e3e9c15c593_21 != 1 {
+		err = msgp.ArrayError{Wanted: 1, Got: zgensym_7ba73e3e9c15c593_21}
 		return
 	}
 	z.C, err = dc.ReadInt()
@@ -1364,13 +1464,13 @@ func (z *Reply) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []by
 		bts = nbs.PushAlwaysNil(bts[1:])
 	}
 
-	var zgensym_7ba73e3e9c15c593_20 uint32
-	zgensym_7ba73e3e9c15c593_20, bts, err = nbs.ReadArrayHeaderBytes(bts)
+	var zgensym_7ba73e3e9c15c593_22 uint32
+	zgensym_7ba73e3e9c15c593_22, bts, err = nbs.ReadArrayHeaderBytes(bts)
 	if err != nil {
 		return
 	}
-	if zgensym_7ba73e3e9c15c593_20 != 1 {
-		err = msgp.ArrayError{Wanted: 1, Got: zgensym_7ba73e3e9c15c593_20}
+	if zgensym_7ba73e3e9c15c593_22 != 1 {
+		err = msgp.ArrayError{Wanted: 1, Got: zgensym_7ba73e3e9c15c593_22}
 		return
 	}
 	z.C, bts, err = nbs.ReadIntBytes(bts)
@@ -1399,13 +1499,13 @@ func (z Reply) Msgsize() (s int) {
 // We treat empty fields as if we read a Nil from the wire.
 func (z *Request) DecodeMsg(dc *msgp.Reader) (err error) {
 
-	var zgensym_7ba73e3e9c15c593_21 uint32
-	zgensym_7ba73e3e9c15c593_21, err = dc.ReadArrayHeader()
+	var zgensym_7ba73e3e9c15c593_23 uint32
+	zgensym_7ba73e3e9c15c593_23, err = dc.ReadArrayHeader()
 	if err != nil {
 		return
 	}
-	if zgensym_7ba73e3e9c15c593_21 != 2 {
-		err = msgp.ArrayError{Wanted: 2, Got: zgensym_7ba73e3e9c15c593_21}
+	if zgensym_7ba73e3e9c15c593_23 != 2 {
+		err = msgp.ArrayError{Wanted: 2, Got: zgensym_7ba73e3e9c15c593_23}
 		return
 	}
 	z.ServiceMethod, err = dc.ReadString()
@@ -1473,13 +1573,13 @@ func (z *Request) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []
 		bts = nbs.PushAlwaysNil(bts[1:])
 	}
 
-	var zgensym_7ba73e3e9c15c593_22 uint32
-	zgensym_7ba73e3e9c15c593_22, bts, err = nbs.ReadArrayHeaderBytes(bts)
+	var zgensym_7ba73e3e9c15c593_24 uint32
+	zgensym_7ba73e3e9c15c593_24, bts, err = nbs.ReadArrayHeaderBytes(bts)
 	if err != nil {
 		return
 	}
-	if zgensym_7ba73e3e9c15c593_22 != 2 {
-		err = msgp.ArrayError{Wanted: 2, Got: zgensym_7ba73e3e9c15c593_22}
+	if zgensym_7ba73e3e9c15c593_24 != 2 {
+		err = msgp.ArrayError{Wanted: 2, Got: zgensym_7ba73e3e9c15c593_24}
 		return
 	}
 	z.ServiceMethod, bts, err = nbs.ReadStringBytes(bts)
@@ -1513,13 +1613,13 @@ func (z Request) Msgsize() (s int) {
 // We treat empty fields as if we read a Nil from the wire.
 func (z *Response) DecodeMsg(dc *msgp.Reader) (err error) {
 
-	var zgensym_7ba73e3e9c15c593_23 uint32
-	zgensym_7ba73e3e9c15c593_23, err = dc.ReadArrayHeader()
+	var zgensym_7ba73e3e9c15c593_25 uint32
+	zgensym_7ba73e3e9c15c593_25, err = dc.ReadArrayHeader()
 	if err != nil {
 		return
 	}
-	if zgensym_7ba73e3e9c15c593_23 != 3 {
-		err = msgp.ArrayError{Wanted: 3, Got: zgensym_7ba73e3e9c15c593_23}
+	if zgensym_7ba73e3e9c15c593_25 != 3 {
+		err = msgp.ArrayError{Wanted: 3, Got: zgensym_7ba73e3e9c15c593_25}
 		return
 	}
 	z.ServiceMethod, err = dc.ReadString()
@@ -1596,13 +1696,13 @@ func (z *Response) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o [
 		bts = nbs.PushAlwaysNil(bts[1:])
 	}
 
-	var zgensym_7ba73e3e9c15c593_24 uint32
-	zgensym_7ba73e3e9c15c593_24, bts, err = nbs.ReadArrayHeaderBytes(bts)
+	var zgensym_7ba73e3e9c15c593_26 uint32
+	zgensym_7ba73e3e9c15c593_26, bts, err = nbs.ReadArrayHeaderBytes(bts)
 	if err != nil {
 		return
 	}
-	if zgensym_7ba73e3e9c15c593_24 != 3 {
-		err = msgp.ArrayError{Wanted: 3, Got: zgensym_7ba73e3e9c15c593_24}
+	if zgensym_7ba73e3e9c15c593_26 != 3 {
+		err = msgp.ArrayError{Wanted: 3, Got: zgensym_7ba73e3e9c15c593_26}
 		return
 	}
 	z.ServiceMethod, bts, err = nbs.ReadStringBytes(bts)
@@ -1642,9 +1742,9 @@ func (z Response) Msgsize() (s int) {
 func (z *Simple) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	{
-		var zgensym_7ba73e3e9c15c593_25 int
-		zgensym_7ba73e3e9c15c593_25, err = dc.ReadInt()
-		(*z) = Simple(zgensym_7ba73e3e9c15c593_25)
+		var zgensym_7ba73e3e9c15c593_27 int
+		zgensym_7ba73e3e9c15c593_27, err = dc.ReadInt()
+		(*z) = Simple(zgensym_7ba73e3e9c15c593_27)
 	}
 	if err != nil {
 		return
@@ -1695,13 +1795,13 @@ func (z *Simple) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []b
 	}
 
 	{
-		var zgensym_7ba73e3e9c15c593_26 int
-		zgensym_7ba73e3e9c15c593_26, bts, err = nbs.ReadIntBytes(bts)
+		var zgensym_7ba73e3e9c15c593_28 int
+		zgensym_7ba73e3e9c15c593_28, bts, err = nbs.ReadIntBytes(bts)
 
 		if err != nil {
 			return
 		}
-		(*z) = Simple(zgensym_7ba73e3e9c15c593_26)
+		(*z) = Simple(zgensym_7ba73e3e9c15c593_28)
 	}
 	if sawTopNil {
 		bts = nbs.PopAlwaysNil()

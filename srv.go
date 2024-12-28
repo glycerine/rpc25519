@@ -531,8 +531,10 @@ func (s *Server) processWork(job *job) {
 
 	if req.HDR.Typ == CallCancelPrevious {
 		cancelFunc := s.getCancelFuncForCallID(req.HDR.CallID)
+		//vv("server sees CallCancelPrevious for req.HDR.CallID='%v' -> cancelFunc = %p", req.HDR.CallID, cancelFunc)
 		if cancelFunc != nil {
 			cancelFunc()
+			//vv("server called cancelFunc!")
 		}
 		return
 	}
@@ -865,6 +867,7 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 	// Invoke the method, providing a new value for the reply.
 	var returnValues []reflect.Value
 	if wantsCtx {
+		//vv("wantsCtx so setting up to cancel...")
 		ctx0, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		pair.Server.registerInFlightCallToCancel(reqMsg.HDR.CallID, cancelFunc)

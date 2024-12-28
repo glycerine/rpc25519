@@ -250,3 +250,29 @@ type BenchmarkMessage struct {
 	Field131 *int32   `protobuf:"varint,131,opt,name=field131,def=0" json:"field131,omitempty" zid:"39"`
 }
 */
+
+// for testing context cancellation
+
+type MustBeCancelled struct {
+	// as greenpack efficiently does nothing without any member elements.
+	Placeholder int `zid:"0"`
+}
+
+func NewMustBeCancelled() *MustBeCancelled {
+	return &MustBeCancelled{}
+}
+
+var test040callStarted = make(chan bool)
+var test040callFinished = make(chan string, 1)
+
+func (s *MustBeCancelled) WillHangUntilCancel(ctx context.Context, args *Args, reply *Reply) error {
+	close(test040callStarted)
+	fmt.Printf("example.go: server-side: WillHangUntilCancel() is running\n")
+	select {
+	case <-ctx.Done():
+		msg := "example.go: MustBeCancelled.WillHangUntilCancel(): ctx.Done() was closed!"
+		fmt.Printf("%v\n", msg)
+		test040callFinished <- msg
+	}
+	return nil
+}
