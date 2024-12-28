@@ -838,7 +838,7 @@ func BenchmarkHelloRpcxMessage(b *testing.B) {
 	}
 }
 
-func Test040_remote_cancel_by_context_NetRPC_API(t *testing.T) {
+func Test040_remote_cancel_by_context(t *testing.T) {
 
 	cv.Convey("remote cancellation", t, func() {
 

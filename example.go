@@ -20,32 +20,38 @@ var _ = time.Now
 // This is to enable using/testing greenpack
 // rather than the old serialization system by default.
 
+// Args in example.go is part of the tests.
 type Args struct {
 	A int `zid:"0"`
 	B int `zid:"1"`
 }
 
+// Reply in example.go is part of the tests.
 type Reply struct {
 	C int `zid:"0"`
 }
 
+// Arith in example.go is part of the tests.
 type Arith int
 
 // net/rpc comment:
 // Some of Arith's methods have value args, some have pointer args. That's deliberate.
 
+// Arith.Add in example.go is part of the tests.
 func (t *Arith) Add(args Args, reply *Reply) error {
 	reply.C = args.A + args.B
 	//vv("Arith.Add(%v + %v) called.", args.A, args.B)
 	return nil
 }
 
+// Arith.Mul in example.go is part of the tests.
 func (t *Arith) Mul(args *Args, reply *Reply) error {
 	reply.C = args.A * args.B
 	//vv("Arith.Mul(%v * %v) called.", args.A, args.B)
 	return nil
 }
 
+// Arith.Div in example.go is part of the tests.
 func (t *Arith) Div(args Args, reply *Reply) error {
 	if args.B == 0 {
 		return errors.New("divide by zero")
@@ -55,58 +61,70 @@ func (t *Arith) Div(args Args, reply *Reply) error {
 	return nil
 }
 
+// Arith.String in example.go is part of the tests.
 func (t *Arith) String(args *Args, reply *string) error {
 	*reply = fmt.Sprintf("%d+%d=%d", args.A, args.B, args.A+args.B)
 	//vv("Arith.Strings(%v, %v -> '%v') called.", args.A, args.B, *reply)
 	return nil
 }
 
+// Arith.Scan in example.go is part of the tests.
 func (t *Arith) Scan(args string, reply *Reply) (err error) {
 	_, err = fmt.Sscan(args, &reply.C)
 	return
 }
 
+// Arith.Error in example.go is part of the tests.
 func (t *Arith) Error(args *Args, reply *Reply) error {
 	panic("ERROR")
 }
 
+// Arith.SleepMilli in example.go is part of the tests.
 func (t *Arith) SleepMilli(args *Args, reply *Reply) error {
 	time.Sleep(time.Duration(args.A) * time.Millisecond)
 	return nil
 }
 
+// Simple in example.go is part of the tests.
 type Simple int
 
+// Simple.Exported in example.go is part of the tests.
 func (t *Simple) Exported(args Args, reply *Reply) error {
 	reply.C = args.A + args.B
 	return nil
 }
 
+// Embed in example.go is part of the tests.
 type Embed struct {
 	Simple `zid:"0"`
 }
 
+// BuiltinTypes in example.go is part of the tests.
 type BuiltinTypes struct {
 	Placeholder int `zid:"0"` // greenpack refuses to serialize an empty struct.
 }
 
+// BuiltinTypes.Map in example.go is part of the tests.
 func (BuiltinTypes) Map(args *Args, reply *map[int]int) error {
 	(*reply)[args.A] = args.B
 	return nil
 }
 
+// BuiltinTypes.Slice in example.go is part of the tests.
 func (BuiltinTypes) Slice(args *Args, reply *[]int) error {
 	*reply = append(*reply, args.A, args.B)
 	return nil
 }
 
+// BuiltinTypes.Array in example.go is part of the tests.
 func (BuiltinTypes) Array(args *Args, reply *[2]int) error {
 	(*reply)[0] = args.A
 	(*reply)[1] = args.B
 	return nil
 }
 
-// mimic Array's reply
+// BuiltinTypes.WantsContext in example.go is part of the tests.
+// Here, mimic Array's reply.
 func (BuiltinTypes) WantsContext(ctx context.Context, args *Args, reply *[2]int) error {
 	if hdr := ctx.Value("HDR"); hdr != nil {
 		h, ok := hdr.(*HDR)
@@ -158,10 +176,13 @@ type Response struct {
 // translation:
 // https://github-com.translate.goog/rpcx-ecosystem/rpcx-benchmark?_x_tr_sl=auto&_x_tr_tl=en&_x_tr_hl=en-US&_x_tr_pto=wapp
 
+// Hello in example.go is part of the tests.
 type Hello struct {
 	Placeholder int `zid:"0"` // must have public field or greenpack will ignore it.
 }
 
+// BenchmarkMessage in example.go is part of the tests
+// and benchmarks.
 type BenchmarkMessage struct {
 	Field1   string   `zid:"0"`
 	Field9   string   `zid:"1"`
