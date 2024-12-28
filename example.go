@@ -262,17 +262,32 @@ func NewMustBeCancelled() *MustBeCancelled {
 	return &MustBeCancelled{}
 }
 
-var test040callStarted = make(chan bool)
+var test040callStarted = make(chan bool, 1)
 var test040callFinished = make(chan string, 1)
 
 func (s *MustBeCancelled) WillHangUntilCancel(ctx context.Context, args *Args, reply *Reply) error {
-	close(test040callStarted)
+	test040callStarted <- true
 	fmt.Printf("example.go: server-side: WillHangUntilCancel() is running\n")
 	select {
 	case <-ctx.Done():
 		msg := "example.go: MustBeCancelled.WillHangUntilCancel(): ctx.Done() was closed!"
 		fmt.Printf("%v\n", msg)
 		test040callFinished <- msg
+	}
+	return nil
+}
+
+var test041callStarted = make(chan bool, 1)
+var test041callFinished = make(chan string, 1)
+
+func (s *MustBeCancelled) MessageAPI_HangUntilCancel(req, reply *Message) error {
+	test041callStarted <- true
+	fmt.Printf("example.go: server-side: MessageAPI_HangUntilCancel() is running\n")
+	select {
+	case <-req.HDR.Ctx.Done():
+		msg := "example.go: MustBeCancelled.MessageAPI_HangUntilCancel(): ctx.Done() was closed!"
+		fmt.Printf("%v\n", msg)
+		test041callFinished <- msg
 	}
 	return nil
 }

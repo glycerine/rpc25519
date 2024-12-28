@@ -840,7 +840,7 @@ func BenchmarkHelloRpcxMessage(b *testing.B) {
 
 func Test040_remote_cancel_by_context_NetRPC_API(t *testing.T) {
 
-	cv.Convey("remote cancellation using the net/rpc API", t, func() {
+	cv.Convey("remote cancellation", t, func() {
 
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = false
@@ -858,6 +858,9 @@ func Test040_remote_cancel_by_context_NetRPC_API(t *testing.T) {
 		mustCancelMe := NewMustBeCancelled()
 		srv.Register(mustCancelMe)
 
+		// and register early for 041 below
+		srv.Register2Func(mustCancelMe.MessageAPI_HangUntilCancel)
+
 		cfg.ClientDialToHostPort = serverAddr.String()
 		client, err := NewClient("test040", cfg)
 		panicOn(err)
@@ -866,17 +869,17 @@ func Test040_remote_cancel_by_context_NetRPC_API(t *testing.T) {
 
 		defer client.Close()
 
-		// Synchronous calls
+		// using the net/rpc API
 		args := &Args{7, 8}
 		reply := new(Reply)
 
-		var cliErr error
-		cliErrIsSet := make(chan bool)
-		ctx, cancelFunc := context.WithCancel(context.Background())
+		var cliErr40 error
+		cliErrIsSet40 := make(chan bool)
+		ctx40, cancelFunc40 := context.WithCancel(context.Background())
 		go func() {
-			cliErr = client.Call("MustBeCancelled.WillHangUntilCancel", args, reply, ctx)
+			cliErr40 = client.Call("MustBeCancelled.WillHangUntilCancel", args, reply, ctx40)
 			//vv("client.Call() returned with cliErr = '%v'", cliErr)
-			close(cliErrIsSet)
+			close(cliErrIsSet40)
 		}()
 
 		// let the call get blocked.
@@ -884,19 +887,58 @@ func Test040_remote_cancel_by_context_NetRPC_API(t *testing.T) {
 		//vv("cli_test 040: we got past test040callStarted")
 
 		// cancel it: transmit cancel request to server.
-		cancelFunc()
+		cancelFunc40()
 		//vv("past cancelFunc()")
 
-		<-cliErrIsSet
+		<-cliErrIsSet40
 		//vv("past cliErrIsSet channel; cliErr = '%v'", cliErr)
 
-		if cliErr != ErrCancelReqSent {
-			t.Errorf("Test040: expected ErrCancelReqSent but got %v", cliErr)
+		if cliErr40 != ErrCancelReqSent {
+			t.Errorf("Test040: expected ErrCancelReqSent but got %v", cliErr40)
 		}
 
 		// confirm that server side function is unblocked too
 		//vv("about to verify that server side context was cancelled.")
 		<-test040callFinished
 		//vv("server side saw the cancellation request: confirmed.")
+
+		// use Message []byte oriented API
+
+		var cliErr41 error
+		cliErrIsSet41 := make(chan bool)
+		ctx41, cancelFunc41 := context.WithCancel(context.Background())
+		req := NewMessage()
+		req.HDR.Typ = CallRPC
+		var reply41 *Message
+
+		go func() {
+			reply41, cliErr41 = client.SendAndGetReply(req, ctx41.Done())
+			//vv("client.Call() returned with cliErr = '%v'", cliErr)
+			close(cliErrIsSet41)
+		}()
+
+		// let the call get blocked on the server (only works under test, of course).
+		<-test041callStarted
+		//vv("cli_test 041: we got past test041callStarted")
+
+		// cancel it: transmit cancel request to server.
+		cancelFunc41()
+		//vv("past cancelFunc()")
+
+		<-cliErrIsSet41
+		//vv("past cliErrIsSet channel; cliErr = '%v'", cliErr)
+
+		if cliErr41 != ErrCancelReqSent {
+			t.Errorf("Test041: expected ErrCancelReqSent but got %v", cliErr41)
+		}
+
+		if reply41 != nil {
+			t.Errorf("Test041: expected reply41 to be nil, but got %v", reply41)
+		}
+
+		// confirm that server side function is unblocked too
+		//vv("about to verify that server side context was cancelled.")
+		<-test041callFinished
+
 	})
 }
