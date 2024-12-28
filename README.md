@@ -1,11 +1,12 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
-* Recent News (2024 December 28): request cancellation support with context.Context
+* Recent News (2024 December 28): remote cancellation support with context.Context
 
-Recently implemented: context.Context based cancellation. 
+We recently implemented (in v1.2.0) remote call cancellation 
+based on the standard library's context.Context.
 
-details:
+The details:
 
 If the client closes the cancelJobCh that 
 was supplied to a previous SendAndGetReply()
