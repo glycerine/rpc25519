@@ -1290,19 +1290,19 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err erro
 	hdr := NewHDR(from, to, msg.HDR.Subject, CallOneWay)
 	msg.HDR = *hdr
 
+	// allow msg.CallID to not be empty; in case we get a reply.
+	// isRPC=false so this is 1-way, but it might in turn still
+	// generate a response.
+
 	return c.oneWaySendHelper(msg, cancelJobCh)
 }
 
 // cancel uses this too, so we don't change the CallID.
 func (c *Client) oneWaySendHelper(msg *Message, cancelJobCh <-chan struct{}) (err error) {
 
-	// allow msg.CallID to not be empty; in case we get a reply.
-	// isRPC=false so this is 1-way, but it might in turn still
-	// generate a response.
-
 	select {
 	case c.oneWayCh <- msg:
-		return nil // not worth waiting?
+		return nil // not worth waiting for anything more.
 	case <-cancelJobCh:
 		return ErrDone
 
