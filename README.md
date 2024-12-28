@@ -33,7 +33,7 @@ in flight on the server, but will be ErrDone if
 the original call had not been transmitted yet.
 
 Note that context-based cancellation requires the cooperation
-of the registered server side call implementations.
+of the registered server-side call implementations.
 Go does not support goroutine cancelation, so the
 remote methods must implement and honor context awareness in order
 for the remote cancellation message to have effect.
