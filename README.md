@@ -12,8 +12,8 @@ If the client closes the cancelJobCh that
 was supplied to a previous SendAndGetReply()
 call, a cancellation request will be sent to the server. 
 
-On the server, the HDR.Ctx will be set, having be created
-by context.WithCancel; so the HDR.Ctx.Done() channel can
+On the server, the request.HDR.Ctx will be set, having be created
+by context.WithCancel; so the request.HDR.Ctx.Done() channel can
 be honored.
 
 Similarly, for traditional net/rpc calls, the Client.Go()
