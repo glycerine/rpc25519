@@ -253,11 +253,15 @@ type BenchmarkMessage struct {
 
 // for testing context cancellation
 
+// The MustBeCancelled struct in example.go is part of the tests.
+// See cli_test.go Test040 for details.
 type MustBeCancelled struct {
 	// as greenpack efficiently does nothing without any member elements.
 	Placeholder int `zid:"0"`
 }
 
+// NewMustBeCancelled in example.go is part of the tests.
+// See cli_test.go Test040 for details.
 func NewMustBeCancelled() *MustBeCancelled {
 	return &MustBeCancelled{}
 }
@@ -265,6 +269,8 @@ func NewMustBeCancelled() *MustBeCancelled {
 var test040callStarted = make(chan bool, 1)
 var test040callFinished = make(chan string, 1)
 
+// WillHangUntilCancel in example.go is part of the tests.
+// See cli_test.go Test040 for details.
 func (s *MustBeCancelled) WillHangUntilCancel(ctx context.Context, args *Args, reply *Reply) error {
 	test040callStarted <- true
 	fmt.Printf("example.go: server-side: WillHangUntilCancel() is running\n")
@@ -280,6 +286,8 @@ func (s *MustBeCancelled) WillHangUntilCancel(ctx context.Context, args *Args, r
 var test041callStarted = make(chan bool, 1)
 var test041callFinished = make(chan string, 1)
 
+// MessageAPI_HangUntilCancel in example.go is part of the tests.
+// See cli_test.go Test040 for details.
 func (s *MustBeCancelled) MessageAPI_HangUntilCancel(req, reply *Message) error {
 	test041callStarted <- true
 	fmt.Printf("example.go: server-side: MessageAPI_HangUntilCancel() is running\n")
