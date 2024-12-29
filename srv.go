@@ -607,7 +607,13 @@ func (s *Server) processWork(job *job) {
 		reply.HDR.Subject = req.HDR.Subject
 
 		// allow cancellation of inflight calls.
-		ctx0, cancelFunc := context.WithCancel(context.Background())
+		ctx0 := context.Background()
+		var cancelFunc context.CancelFunc
+		if !req.HDR.Deadline.IsZero() {
+			ctx0, cancelFunc = context.WithDeadline(ctx0, req.HDR.Deadline)
+		} else {
+			ctx0, cancelFunc = context.WithCancel(ctx0)
+		}
 		defer cancelFunc()
 		s.registerInFlightCallToCancel(reqCallID, cancelFunc)
 		defer s.noLongerInFlight(reqCallID)
@@ -868,7 +874,13 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 	var returnValues []reflect.Value
 	if wantsCtx {
 		//vv("wantsCtx so setting up to cancel...")
-		ctx0, cancelFunc := context.WithCancel(context.Background())
+		ctx0 := context.Background()
+		var cancelFunc context.CancelFunc
+		if !reqMsg.HDR.Deadline.IsZero() {
+			ctx0, cancelFunc = context.WithDeadline(ctx0, reqMsg.HDR.Deadline)
+		} else {
+			ctx0, cancelFunc = context.WithCancel(ctx0)
+		}
 		defer cancelFunc()
 		pair.Server.registerInFlightCallToCancel(reqMsg.HDR.CallID, cancelFunc)
 		defer pair.Server.noLongerInFlight(reqMsg.HDR.CallID)

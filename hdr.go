@@ -188,6 +188,10 @@ type HDR struct {
 
 	// allow standard []byte oriented message to cancel too.
 	Ctx context.Context `msg:"-"`
+
+	// Deadline is optional, but if it is set on the client,
+	// the server side context.Context will honor it.
+	Deadline time.Time `zid:"9"` // if non-zero, set this deadline in the remote Ctx
 }
 
 type CallType int

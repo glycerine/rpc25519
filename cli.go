@@ -881,6 +881,10 @@ func (c *Client) send(call *Call, octx context.Context) {
 	var requestStopCh <-chan struct{}
 	if octx != nil && !IsNil(octx) {
 		requestStopCh = octx.Done()
+		deadline, ok := octx.Deadline()
+		if ok {
+			req.HDR.Deadline = deadline
+		}
 		//vv("requestStopCh was set from octx")
 	} // else leave it nil.
 
@@ -1156,6 +1160,7 @@ var ErrCancelReqSent = fmt.Errorf("cancellation request sent")
 // timeout.
 func (c *Client) SendAndGetReplyWithTimeout(timeout time.Duration, req *Message) (reply *Message, err error) {
 	t0 := time.Now()
+	req.HDR.Deadline = t0.Add(timeout)
 	defer func() {
 		elap := time.Since(t0)
 		if elap > 5*time.Second {
@@ -1166,6 +1171,35 @@ func (c *Client) SendAndGetReplyWithTimeout(timeout time.Duration, req *Message)
 	ctx, cancelFunc := context.WithTimeout(context.Background(), timeout)
 	defer cancelFunc()
 
+	return c.SendAndGetReply(req, ctx.Done())
+}
+
+// SendAndGetReplyWithCtx is like SendAndGetReply(), with
+// the additional feature that it will send a remote cancellation request
+// when the ctx is cancelled or if the ctx.Deadline() time
+// (if set) is surpassed. Note that none of the Values inside
+// ctx, if set, will be transmitted to the remote call, because the
+// context.Context API provides no method to enumerate them.
+// Such values are likely not serializable in any case.
+//
+// A similar deadline effect can be acheived just by
+// setting the req.HDR.Deadline field in a SendAndGetReply()
+// call. This may also be more efficient on the client,
+// because the client need not wait for the remote
+// cancellation response to be sent and received.
+// However this is a little racey: the server could
+// suceed and be in the process of replying when
+// the client hits the deadline. In this case the
+// client might retry a call that actually did
+// finish, and end up doing the call twice. This
+// is also always a hazard with servers crashing
+// before they can finish responding. Ideally
+// server APIs are idempotent to guard against this.
+func (c *Client) SendAndGetReplyWithCtx(ctx context.Context, req *Message) (reply *Message, err error) {
+	deadline, ok := ctx.Deadline()
+	if ok {
+		req.HDR.Deadline = deadline
+	}
 	return c.SendAndGetReply(req, ctx.Done())
 }
 
@@ -1209,6 +1243,13 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		to = remote(c.conn)
 	}
 
+	var hdrCtx context.Context
+	var hdrCtxDone <-chan struct{}
+	if req.HDR.Ctx != nil && !IsNil(req.HDR.Ctx) {
+		hdrCtx = req.HDR.Ctx
+		hdrCtxDone = hdrCtx.Done()
+	}
+
 	hdr := NewHDR(from, to, req.HDR.Subject, req.HDR.Typ)
 
 	// don't override a CallNetRPC
@@ -1216,6 +1257,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		hdr.Typ = CallRPC
 	}
 	req.HDR = *hdr
+	req.HDR.Ctx = hdrCtx
 
 	//vv("Client '%v' SendAndGetReply(req='%v') (ignore req.Seqno:0 not yet assigned)", c.name, req)
 	select {
@@ -1224,6 +1266,10 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		//vv("Client '%v' SendAndGetReply(req='%v') delivered on roundTripCh", c.name, req)
 	case <-cancelJobCh:
 		//vv("Client '%v' SendAndGetReply(req='%v'): cancelJobCh files before roundTripCh", c.name, req)
+		return nil, ErrDone
+
+	case <-hdrCtxDone:
+		// support passing in a req with req.HDR.Ctx set.
 		return nil, ErrDone
 
 	case <-defaultTimeout:
