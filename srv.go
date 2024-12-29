@@ -609,8 +609,10 @@ func (s *Server) processWork(job *job) {
 		// allow cancellation of inflight calls.
 		ctx0 := context.Background()
 		var cancelFunc context.CancelFunc
+		var deadline time.Time
 		if !req.HDR.Deadline.IsZero() {
-			ctx0, cancelFunc = context.WithDeadline(ctx0, req.HDR.Deadline)
+			deadline = req.HDR.Deadline
+			ctx0, cancelFunc = context.WithDeadline(ctx0, deadline)
 		} else {
 			ctx0, cancelFunc = context.WithCancel(ctx0)
 		}
@@ -635,6 +637,7 @@ func (s *Server) processWork(job *job) {
 		reply.HDR.CallID = reqCallID
 		reply.HDR.Seqno = replySeqno
 		reply.HDR.Typ = CallRPC
+		reply.HDR.Deadline = deadline
 
 		// We write ourselves rather than switch
 		// goroutines. We've added a mutex
@@ -937,8 +940,9 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 	msg.HDR.To = job.pair.to
 	msg.HDR.Subject = reqMsg.HDR.Subject // echo back
 	msg.HDR.Typ = CallNetRPC
-	msg.HDR.Seqno = reqMsg.HDR.Seqno   // echo back
-	msg.HDR.CallID = reqMsg.HDR.CallID // echo back
+	msg.HDR.Seqno = reqMsg.HDR.Seqno       // echo back
+	msg.HDR.CallID = reqMsg.HDR.CallID     // echo back
+	msg.HDR.Deadline = reqMsg.HDR.Deadline // echo back
 	// We are able to match call and response rigourously on the CallID alone.
 
 	by := p.encBuf.Bytes()
