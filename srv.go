@@ -618,6 +618,8 @@ func (s *Server) processWork(job *job) {
 		}
 		defer cancelFunc()
 		ctx := context.WithValue(ctx0, "HDR", &req.HDR)
+		// Also saved under private key to avoid collisions, per context docs.
+		ctx = ContextWithHDR(ctx, &req.HDR)
 		s.registerInFlightCallToCancel(reqCallID, req.HDR.Subject, cancelFunc, ctx)
 		defer s.noLongerInFlight(reqCallID)
 		req.HDR.Ctx = ctx
@@ -886,6 +888,9 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 		}
 		defer cancelFunc()
 		ctx := context.WithValue(ctx0, "HDR", &reqMsg.HDR)
+		// Also saved under private key to avoid collisions, per context docs.
+		ctx = ContextWithHDR(ctx, &reqMsg.HDR)
+
 		pair.Server.registerInFlightCallToCancel(reqMsg.HDR.CallID, reqMsg.HDR.Subject, cancelFunc, ctx)
 		defer pair.Server.noLongerInFlight(reqMsg.HDR.CallID)
 
@@ -1086,22 +1091,21 @@ func (p *rwPair) readRequestHeader(codec ServerCodec) (svc *service, mtype *meth
 // Callback methods in the `net/rpc` style traditionally look like this first
 // `NoContext` example below. We now allow a context.Context as an additional first
 // parameter. The ctx will have an "HDR" value set on it giving a pointer to
-// the `rpc25519.HDR` header from the incoming Message.
+// the `rpc25519.HDR` header from the incoming Message. See also HDRFromContext()
+// for avoidance of collisions with other context using
+// packages (per the recommendation of the context docs).
 //
 //	func (s *Service) NoContext(args *Args, reply *Reply) error
 //
 // * new:
 //
 //	func (s *Service) GetsContext(ctx context.Context, args *Args, reply *Reply) error {
-//	   if hdr := ctx.Value("HDR"); hdr != nil {
-//	      h, ok := hdr.(*rpc25519.HDR)
-//	      if ok {
+//	  if hdr, ok := rpc25519.HDRFromContext(ctx); ok {
 //	        fmt.Printf("GetsContext called with HDR = '%v'; "+
-//	           "HDR.Nc.RemoteAddr() gives '%v'; HDR.Nc.LocalAddr() gives '%v'\n",
-//	           h.String(), h.Nc.RemoteAddr(), h.Nc.LocalAddr())
-//	      }
+//	             "HDR.Nc.RemoteAddr() gives '%v'; HDR.Nc.LocalAddr() gives '%v'\n",
+//	             h.String(), h.Nc.RemoteAddr(), h.Nc.LocalAddr())
 //	   } else {
-//	      fmt.Println("HDR not found")
+//	        fmt.Println("HDR not found")
 //	   }
 //	}
 func (s *Server) Register(rcvr msgp.Encodable) error {
@@ -1330,7 +1334,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 	case pair.SendCh <- msg:
 		//vv("sent to pair.SendCh, msg='%v'", msg.HDR.String())
 
-		//	case <-time.After(time.Second):
+		//    case <-time.After(time.Second):
 		//vv("warning: time out trying to send on pair.SendCh")
 	case <-s.halt.ReqStop.Chan:
 		// shutting down

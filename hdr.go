@@ -354,3 +354,25 @@ func (hdr *HDR) AsGreenpack(scratch []byte) (o []byte, err error) {
 	// For memory tuning,
 	return hdr.MarshalMsg(scratch[:0])
 }
+
+// hdrKeyType is an unexported type for keys defined in this package.
+// This prevents collisions with keys defined in other packages.
+// This is the recommended method in the context.Context docs.
+// See the public access func below for setting and getting.
+type hdrKeyType int
+
+// hdrKey is the key for *rpc25519.HDR values in Contexts. It is
+// unexported; clients use user.NewContext and user.FromContext
+// instead of using this key directly.
+var hdrKey hdrKeyType = 43
+
+// ContextWithHDR returns a new Context that carries value hdr.
+func ContextWithHDR(ctx context.Context, hdr *HDR) context.Context {
+	return context.WithValue(ctx, hdrKey, hdr)
+}
+
+// HDRFromContext returns the User value stored in ctx, if any.
+func HDRFromContext(ctx context.Context) (*HDR, bool) {
+	hdr, ok := ctx.Value(hdrKey).(*HDR)
+	return hdr, ok
+}

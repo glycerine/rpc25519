@@ -295,6 +295,13 @@ var test040callFinished = make(chan string, 1)
 func (s *MustBeCancelled) WillHangUntilCancel(ctx context.Context, args *Args, reply *Reply) error {
 	test040callStarted <- true
 	fmt.Printf("example.go: server-side: WillHangUntilCancel() is running\n")
+
+	// demonstrate getting at the net.Conn in use.
+	if hdr, ok := HDRFromContext(ctx); ok {
+		fmt.Printf("example.go: net.rpc API: our net.Conn has local = '%v'; remote = '%v'\n",
+			hdr.Nc.LocalAddr(), hdr.Nc.RemoteAddr())
+	}
+
 	select {
 	case <-ctx.Done():
 		msg := "example.go: MustBeCancelled.WillHangUntilCancel(): ctx.Done() was closed!"
@@ -312,6 +319,9 @@ var test041callFinished = make(chan string, 1)
 func (s *MustBeCancelled) MessageAPI_HangUntilCancel(req, reply *Message) error {
 	test041callStarted <- true
 	fmt.Printf("example.go: server-side: MessageAPI_HangUntilCancel() is running\n")
+	// demonstrate net.Conn access:
+	fmt.Printf("example.go: Message API: our net.Conn has local = '%v'; remote = '%v'\n",
+		req.HDR.Nc.LocalAddr(), req.HDR.Nc.RemoteAddr())
 	select {
 	case <-req.HDR.Ctx.Done():
 		msg := "example.go: MustBeCancelled.MessageAPI_HangUntilCancel(): ctx.Done() was closed!"

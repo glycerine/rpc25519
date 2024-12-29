@@ -106,10 +106,9 @@ func (BuiltinTypes) Array(args *Args, reply *[2]int) error {
 
 // mimic Array's reply
 func (BuiltinTypes) WantsContext(ctx context.Context, args *Args, reply *[2]int) error {
-	if hdr := ctx.Value("HDR"); hdr != nil {
-		h, ok := hdr.(*HDR)
+    if hdr, ok := rpc25519.HDRFromContext(ctx); ok {
 		if ok {
-			fmt.Printf("WantsContext called with HDR = '%v'; HDR.Nc.RemoteAddr() gives '%v'; HDR.Nc.LocalAddr() gives '%v'\n", h.String(), h.Nc.RemoteAddr(), h.Nc.LocalAddr())
+			fmt.Printf("WantsContext called with HDR = '%v'; HDR.Nc.RemoteAddr() gives '%v'; HDR.Nc.LocalAddr() gives '%v'\n", hdr.String(), hdr.Nc.RemoteAddr(), hdr.Nc.LocalAddr())
 
 			(*reply)[0] = args.A
 			(*reply)[1] = args.B
