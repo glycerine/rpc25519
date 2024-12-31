@@ -205,13 +205,10 @@ the `rpc25519.HDR` header from the incoming Message.
 
 ~~~
 func (s *Service) GetsContext(ctx context.Context, args *Args, reply *Reply) error {
-if hdr := ctx.Value("HDR"); hdr != nil {
-     h, ok := hdr.(*rpc25519.HDR)
-     if ok {
+   if hdr, ok := rpc25519.HDRFromContext(ctx); ok {
         fmt.Printf("GetsContext called with HDR = '%v'; "+
            "HDR.Nc.RemoteAddr() gives '%v'; HDR.Nc.LocalAddr() gives '%v'\n", 
-           h.String(), h.Nc.RemoteAddr(), h.Nc.LocalAddr())
-      }
+           hdr.String(), hdr.Nc.RemoteAddr(), hdr.Nc.LocalAddr())
    } else {
       fmt.Println("HDR not found")
    }
@@ -237,9 +234,6 @@ TLS-v1.3 over TCP
 
 Three transports are available: TLS-v1.3 over TCP, 
 plain TCP, and QUIC which uses TLS-v1.3 over UDP.
-
-QUIC is so much faster than even plain TCP, it
-should probably be your default choice.
 
 How to KYC or Know Your Clients
 ------------------------
