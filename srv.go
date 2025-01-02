@@ -519,6 +519,25 @@ type job struct {
 	w    *blabber
 }
 
+// PRE: abs(req.StreamPart) > 0
+func (s *Server) handleStreamMessage(req *Message) {
+	s.inflight.mut.Lock()
+	defer s.inflight.mut.Unlock()
+
+	cc, ok := s.inflight.activeCalls[req.HDR.CallID]
+	if !ok {
+		vv("Warning: dropping a StreamPart because no handler "+
+			"registered/inflight. This is highly un-expected. hdr='%v'", req.HDR.String())
+		return
+	}
+	select {
+	// we are already in a per-packet goroutine,
+	// nothing more to do but just wait.
+	case cc.streamCh <- req:
+	case <-s.halt.ReqStop.Chan:
+	}
+}
+
 func (s *Server) processWork(job *job) {
 
 	var callme1 OneWayFunc
@@ -537,6 +556,18 @@ func (s *Server) processWork(job *job) {
 			//vv("server called cancelFunc!")
 		}
 		return
+	}
+
+	if req.HDR.StreamPart != 0 {
+		if req.HDR.StreamPart == 1 {
+			// just let it go through and get registered
+			// as inflight
+		} else {
+			// send the message to the existing goro on the channel
+			// instead of a fresh call.
+			s.handleStreamMessage(req)
+			return
+		}
 	}
 
 	conn := job.conn
@@ -620,7 +651,7 @@ func (s *Server) processWork(job *job) {
 		ctx := context.WithValue(ctx0, "HDR", &req.HDR)
 		// Also saved under private key to avoid collisions, per context docs.
 		ctx = ContextWithHDR(ctx, &req.HDR)
-		s.registerInFlightCallToCancel(reqCallID, req.HDR.Subject, cancelFunc, ctx)
+		s.registerInFlightCallToCancel(&req.HDR, cancelFunc, ctx)
 		defer s.noLongerInFlight(reqCallID)
 		req.HDR.Ctx = ctx
 
@@ -891,7 +922,7 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 		// Also saved under private key to avoid collisions, per context docs.
 		ctx = ContextWithHDR(ctx, &reqMsg.HDR)
 
-		pair.Server.registerInFlightCallToCancel(reqMsg.HDR.CallID, reqMsg.HDR.Subject, cancelFunc, ctx)
+		pair.Server.registerInFlightCallToCancel(&reqMsg.HDR, cancelFunc, ctx)
 		defer pair.Server.noLongerInFlight(reqMsg.HDR.CallID)
 
 		reqMsg.HDR.Ctx = ctx
@@ -1472,6 +1503,8 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	server.serveConn(conn)
 }
 
+// for cancelling via context; now
+// also for streaming from cli to server.
 type inflight struct {
 	mut         sync.Mutex
 	activeCalls map[string]*callctx
@@ -1483,9 +1516,13 @@ type callctx struct {
 	cancelFunc context.CancelFunc
 	deadline   time.Time
 	ctx        context.Context
+
+	lastStreamPart int64
+	streamCh       chan *Message
 }
 
-func (s *Server) registerInFlightCallToCancel(callID, subject string, cancelFunc context.CancelFunc, ctx context.Context) {
+func (s *Server) registerInFlightCallToCancel(hdr *HDR, cancelFunc context.CancelFunc, ctx context.Context) {
+
 	s.inflight.mut.Lock()
 	defer s.inflight.mut.Unlock()
 
@@ -1497,13 +1534,19 @@ func (s *Server) registerInFlightCallToCancel(callID, subject string, cancelFunc
 	if ok {
 		deadline = dl
 	}
-	s.inflight.activeCalls[callID] = &callctx{
-		added:      time.Now(),
-		callSubj:   subject,
-		cancelFunc: cancelFunc,
-		deadline:   deadline,
-		ctx:        ctx,
+	cc := &callctx{
+		added:          time.Now(),
+		callSubj:       hdr.Subject,
+		cancelFunc:     cancelFunc,
+		deadline:       deadline,
+		ctx:            ctx,
+		lastStreamPart: hdr.StreamPart,
 	}
+	if hdr.StreamPart == 1 {
+		cc.streamCh = make(chan *Message, 200)
+	}
+
+	s.inflight.activeCalls[hdr.CallID] = cc
 }
 
 func (s *Server) noLongerInFlight(callID string) {

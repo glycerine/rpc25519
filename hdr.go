@@ -192,6 +192,18 @@ type HDR struct {
 	// Deadline is optional, but if it is set on the client,
 	// the server side context.Context will honor it.
 	Deadline time.Time `zid:"9"` // if non-zero, set this deadline in the remote Ctx
+
+	// if > 0, then we are streaming, and StreamPart is the
+	// sequence number. -X (last number) to end. So a sequence would go: 1,2,-3 for a
+	// stream of 3 packets. The negative tells the receiver to close the streamCh
+	// so the callback can also finish. The CallID must be identical on
+	// all parts, so we can match to the right callback.
+	StreamPart int64 `zid:"10"`
+
+	// streamCh will get sent all messages with StreamPart >= 2, rather than a callback.
+	// The srv/cli logic will allocate this and pass it to the StreamPart == 1 callback.
+	// The srv/cli logic will close it when StreamPart == -1 (EOF) is
+	streamCh chan *Message `msg:"-"`
 }
 
 type CallType int
