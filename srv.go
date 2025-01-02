@@ -530,11 +530,20 @@ func (s *Server) handleStreamMessage(req *Message) {
 			"registered/inflight. This is highly un-expected. hdr='%v'", req.HDR.String())
 		return
 	}
+
+	// track progress
+	part := req.HDR.StreamPart
+	cc.lastStreamPart = part
+
 	select {
-	// we are already in a per-packet goroutine,
+	// we are already in a per-packet/message goroutine,
 	// nothing more to do but just wait.
 	case cc.streamCh <- req:
 	case <-s.halt.ReqStop.Chan:
+	}
+	if part < 0 {
+		// tell func it can finish up.
+		close(cc.streamCh)
 	}
 }
 
@@ -561,7 +570,8 @@ func (s *Server) processWork(job *job) {
 	if req.HDR.StreamPart != 0 {
 		if req.HDR.StreamPart == 1 {
 			// just let it go through and get registered
-			// as inflight
+			// as inflight, have a streamCh allocated and
+			// passed in on its HDR.streamCh.
 		} else {
 			// send the message to the existing goro on the channel
 			// instead of a fresh call.
@@ -651,9 +661,10 @@ func (s *Server) processWork(job *job) {
 		ctx := context.WithValue(ctx0, "HDR", &req.HDR)
 		// Also saved under private key to avoid collisions, per context docs.
 		ctx = ContextWithHDR(ctx, &req.HDR)
-		s.registerInFlightCallToCancel(&req.HDR, cancelFunc, ctx)
+		streamChan := s.registerInFlightCallToCancel(&req.HDR, cancelFunc, ctx)
 		defer s.noLongerInFlight(reqCallID)
 		req.HDR.Ctx = ctx
+		req.HDR.streamCh = streamChan
 
 		err := callme2(req, reply)
 		if err != nil {
@@ -922,10 +933,11 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 		// Also saved under private key to avoid collisions, per context docs.
 		ctx = ContextWithHDR(ctx, &reqMsg.HDR)
 
-		pair.Server.registerInFlightCallToCancel(&reqMsg.HDR, cancelFunc, ctx)
+		streamChan := pair.Server.registerInFlightCallToCancel(&reqMsg.HDR, cancelFunc, ctx)
 		defer pair.Server.noLongerInFlight(reqMsg.HDR.CallID)
 
 		reqMsg.HDR.Ctx = ctx
+		reqMsg.HDR.streamCh = streamChan
 
 		rctx := reflect.ValueOf(ctx)
 		returnValues = function.Call([]reflect.Value{s.rcvr, rctx, argv, replyv})
@@ -1521,7 +1533,7 @@ type callctx struct {
 	streamCh       chan *Message
 }
 
-func (s *Server) registerInFlightCallToCancel(hdr *HDR, cancelFunc context.CancelFunc, ctx context.Context) {
+func (s *Server) registerInFlightCallToCancel(hdr *HDR, cancelFunc context.CancelFunc, ctx context.Context) (streamChan chan *Message) {
 
 	s.inflight.mut.Lock()
 	defer s.inflight.mut.Unlock()
@@ -1543,15 +1555,26 @@ func (s *Server) registerInFlightCallToCancel(hdr *HDR, cancelFunc context.Cance
 		lastStreamPart: hdr.StreamPart,
 	}
 	if hdr.StreamPart == 1 {
-		cc.streamCh = make(chan *Message, 200)
+		streamChan = make(chan *Message, 200)
+		cc.streamCh = streamChan
 	}
 
 	s.inflight.activeCalls[hdr.CallID] = cc
+
+	return
 }
 
 func (s *Server) noLongerInFlight(callID string) {
 	s.inflight.mut.Lock()
 	defer s.inflight.mut.Unlock()
+	// we leave the streaming functions alive,
+	// so they can receive the rest of their messages
+	cc, ok := s.inflight.activeCalls[callID]
+	if ok && cc.lastStreamPart > 0 {
+		// do not delete in-progress streaming call.
+		// only delete if lastStreamPart is 0 or negative.
+		return
+	}
 	delete(s.inflight.activeCalls, callID)
 }
 

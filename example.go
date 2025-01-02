@@ -330,3 +330,25 @@ func (s *MustBeCancelled) MessageAPI_HangUntilCancel(req, reply *Message) error 
 	}
 	return nil
 }
+
+type ServerSideStreamingFunc struct {
+}
+
+func (s *ServerSideStreamingFunc) ReceiveFile(ctx context.Context, args *Args, reply *Reply) error {
+	test040callStarted <- true
+	fmt.Printf("example.go: server-side: WillHangUntilCancel() is running\n")
+
+	// demonstrate getting at the net.Conn in use.
+	if hdr, ok := HDRFromContext(ctx); ok {
+		fmt.Printf("example.go: net.rpc API: our net.Conn has local = '%v'; remote = '%v'\n",
+			hdr.Nc.LocalAddr(), hdr.Nc.RemoteAddr())
+	}
+
+	select {
+	case <-ctx.Done():
+		msg := "example.go: MustBeCancelled.WillHangUntilCancel(): ctx.Done() was closed!"
+		fmt.Printf("%v\n", msg)
+		test040callFinished <- msg
+	}
+	return nil
+}
