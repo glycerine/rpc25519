@@ -1,9 +1,13 @@
 package rpc25519
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -334,7 +338,124 @@ func (s *MustBeCancelled) MessageAPI_HangUntilCancel(req, reply *Message) error 
 type ServerSideStreamingFunc struct {
 }
 
-func (s *ServerSideStreamingFunc) ReceiveFile(ctx context.Context, args *Args, reply *Reply) error {
+func (s *ServerSideStreamingFunc) MessageAPI_ReceiveFile(req *Message, reply *Message) error {
+
+	t0 := time.Now()
+	hdr1 := req.HDR
+	vv("server MessageAPI_ReceiveFile called, Subject='%v'; StreamPart=%v", hdr1.Subject, hdr1.StreamPart)
+
+	if hdr1.StreamPart != 1 {
+		vv("MessageAPI_ReceiveFile: stream out of sync, should start with StreamPart=1.")
+		return fmt.Errorf("MessageAPI_ReceiveFile: stream out of sync, should "+
+			"start with StreamPart=1; but we see %v", hdr1.StreamPart)
+	}
+
+	if !strings.HasPrefix(hdr1.Subject, "receiveFile:") {
+		return nil
+	}
+	prefix := "receiveFile:"
+	fname := hdr1.Subject[len(prefix):]
+	if fname == "" {
+		return nil
+	}
+	fd, err := os.Create(fname)
+	if err != nil {
+		panic(err)
+	}
+
+	// So as to read from the network as fast as possible,
+	// we write to disk in the background.
+	writeQ := make(chan *Message, 10_000)
+	go func() {
+		for {
+			select {
+			case <-hdr1.Ctx.Done():
+				return
+			case req, isChOpen := <-writeQ:
+				if !isChOpen {
+					return
+				}
+				n := len(req.JobSerz)
+
+				nw, err := io.Copy(fd, bytes.NewBuffer(req.JobSerz))
+				req.JobSerz = nil // free up memory
+				if err != nil {
+					report := fmt.Errorf("MessageAPI_ReceiveFile: on "+
+						"writing StreamPart 1 to path '%v', we got error: "+
+						"'%v', after writing %v of %v", fname, err, nw, n)
+					vv("problem: %v", report.Error())
+				}
+			}
+		}
+	}()
+	select {
+	case writeQ <- req:
+	case <-hdr1.Ctx.Done():
+		// only hdr1.Ctx will ever be set.
+		// hdrN never gets to that part of the server dispatch.
+		return nil
+	}
+	vv("saved part 1 of stream data to file='%v'", fname)
+	req.JobSerz = nil // free up the memory now that it is on disk
+
+	expect := int64(2)
+	var msgN *Message
+	var lastRecvTm time.Time
+	_ = lastRecvTm
+
+	for {
+		// get streaming messages from the processWork() goroutine,
+		// when it calls handleStreamMessage().
+		select {
+		case msgN = <-hdr1.streamCh:
+			lastRecvTm = time.Now()
+		case <-hdr1.Ctx.Done():
+			return nil
+		}
+
+		hdrN := msgN.HDR
+		absPart := abs64Value(hdrN.StreamPart)
+
+		if absPart != expect {
+			return fmt.Errorf("MessageAPI_ReceiveFile: stream out of sync, expected next StreamPart to be %v; but we see %v.", expect, hdrN.StreamPart)
+		}
+		// INVAR: we only get matching CallID messages here. Assert this.
+		if hdrN.CallID != hdr1.CallID {
+			panic(fmt.Errorf("hdr1.CallID = '%v', but hdrN.CallID = '%v', at part %v", hdr1.CallID, hdrN.CallID, expect))
+		}
+		expect++
+
+		// write in background
+		select {
+		case writeQ <- msgN:
+			lastRecvTm = time.Now()
+		case <-hdr1.Ctx.Done():
+			return nil
+		}
+		if hdrN.StreamPart < 0 {
+			vv("last message seen! hdrN.StreamPart = %v", hdrN.StreamPart)
+			break // last message
+		}
+	}
+	elap := time.Since(hdr1.Created)
+	mb := float64(len(req.JobSerz)) / float64(1<<20)
+	rate := mb / (float64(elap) / float64(time.Second))
+
+	// finally reply to the original caller.
+	reply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v (while mb=%v) => %v MB/sec", t0, elap, mb, rate))
+
+	return nil
+
+}
+
+func abs64Value(a int64) int64 {
+	if a >= 0 {
+		return a
+	}
+	return -a
+}
+
+func (s *ServerSideStreamingFunc) NetRPC_ReceiveFile(ctx context.Context, args *Args, reply *Reply) error {
 	test040callStarted <- true
 	fmt.Printf("example.go: server-side: WillHangUntilCancel() is running\n")
 

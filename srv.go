@@ -541,10 +541,6 @@ func (s *Server) handleStreamMessage(req *Message) {
 	case cc.streamCh <- req:
 	case <-s.halt.ReqStop.Chan:
 	}
-	if part < 0 {
-		// tell func it can finish up.
-		close(cc.streamCh)
-	}
 }
 
 func (s *Server) processWork(job *job) {
