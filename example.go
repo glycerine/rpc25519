@@ -342,6 +342,7 @@ func (s *ServerSideStreamingFunc) MessageAPI_ReceiveFile(req *Message, reply *Me
 
 	t0 := time.Now()
 	hdr1 := req.HDR
+	ctx := hdr1.Ctx
 	vv("server MessageAPI_ReceiveFile called, Subject='%v'; StreamPart=%v", hdr1.Subject, hdr1.StreamPart)
 
 	if hdr1.StreamPart != 1 {
@@ -366,10 +367,11 @@ func (s *ServerSideStreamingFunc) MessageAPI_ReceiveFile(req *Message, reply *Me
 	// So as to read from the network as fast as possible,
 	// we write to disk in the background.
 	writeQ := make(chan *Message, 10_000)
+	bytesWrit := int64(0)
 	go func() {
 		for {
 			select {
-			case <-hdr1.Ctx.Done():
+			case <-ctx.Done():
 				return
 			case req, isChOpen := <-writeQ:
 				if !isChOpen {
@@ -377,31 +379,40 @@ func (s *ServerSideStreamingFunc) MessageAPI_ReceiveFile(req *Message, reply *Me
 				}
 				n := len(req.JobSerz)
 
+				part := req.HDR.StreamPart
 				nw, err := io.Copy(fd, bytes.NewBuffer(req.JobSerz))
-				req.JobSerz = nil // free up memory
+				bytesWrit += nw
 				if err != nil {
 					report := fmt.Errorf("MessageAPI_ReceiveFile: on "+
 						"writing StreamPart 1 to path '%v', we got error: "+
 						"'%v', after writing %v of %v", fname, err, nw, n)
 					vv("problem: %v", report.Error())
+				} else {
+					vv("succesfully wrote part %v to the file '%v': '%v'", part, fname, string(req.JobSerz))
+				}
+				req.JobSerz = nil // free up memory
+				if part < 0 {
+					// end of stream, no more comming.
+					return
 				}
 			}
 		}
 	}()
+
+	// write the first payload (in the background)
 	select {
 	case writeQ <- req:
-	case <-hdr1.Ctx.Done():
+	case <-ctx.Done():
 		// only hdr1.Ctx will ever be set.
 		// hdrN never gets to that part of the server dispatch.
 		return nil
 	}
-	vv("saved part 1 of stream data to file='%v'", fname)
-	req.JobSerz = nil // free up the memory now that it is on disk
 
 	expect := int64(2)
 	var msgN *Message
 	var lastRecvTm time.Time
 	_ = lastRecvTm
+	bytesRecv := 0
 
 	for {
 		// get streaming messages from the processWork() goroutine,
@@ -409,9 +420,11 @@ func (s *ServerSideStreamingFunc) MessageAPI_ReceiveFile(req *Message, reply *Me
 		select {
 		case msgN = <-hdr1.streamCh:
 			lastRecvTm = time.Now()
-		case <-hdr1.Ctx.Done():
+		case <-ctx.Done():
+			// allow call cancellation.
 			return nil
 		}
+		bytesRecv += len(msgN.JobSerz)
 
 		hdrN := msgN.HDR
 		absPart := abs64Value(hdrN.StreamPart)
@@ -429,7 +442,8 @@ func (s *ServerSideStreamingFunc) MessageAPI_ReceiveFile(req *Message, reply *Me
 		select {
 		case writeQ <- msgN:
 			lastRecvTm = time.Now()
-		case <-hdr1.Ctx.Done():
+		case <-ctx.Done():
+			// allow call cancellation.
 			return nil
 		}
 		if hdrN.StreamPart < 0 {
@@ -438,14 +452,12 @@ func (s *ServerSideStreamingFunc) MessageAPI_ReceiveFile(req *Message, reply *Me
 		}
 	}
 	elap := time.Since(hdr1.Created)
-	mb := float64(len(req.JobSerz)) / float64(1<<20)
+	mb := float64(bytesWrit) / float64(1<<20)
 	rate := mb / (float64(elap) / float64(time.Second))
 
 	// finally reply to the original caller.
-	reply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v (while mb=%v) => %v MB/sec", t0, elap, mb, rate))
-
+	reply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v (while mb=%v) => %v MB/sec. ; bytesRecv=%v; bytesWrit=%v;", t0, elap, mb, rate, bytesRecv, bytesWrit))
 	return nil
-
 }
 
 func abs64Value(a int64) int64 {

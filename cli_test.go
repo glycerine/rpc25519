@@ -958,11 +958,8 @@ func Test045_streaming_client_to_server(t *testing.T) {
 
 		//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
-		// net/rpc API on server
-		mustCancelMe := NewMustBeCancelled()
-		srv.Register(mustCancelMe)
-
-		srv.Register2Func(mustCancelMe.MessageAPI_HangUntilCancel)
+		streamer := NewServerSideStreamingFunc()
+		srv.Register2Func(streamer.MessageAPI_ReceiveFile)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		client, err := NewClient("test045", cfg)
