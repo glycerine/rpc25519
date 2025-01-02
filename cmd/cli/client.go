@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	filepath "path/filepath"
 	"time"
 
 	tdigest "github.com/caio/go-tdigest"
@@ -31,6 +32,8 @@ func main() {
 	var quiet = flag.Bool("quiet", false, "operate quietly")
 
 	var wait = flag.Duration("wait", 10*time.Second, "time to wait for call to complete")
+
+	var sendfile = flag.String("sendfile", "", "path to file to send")
 
 	flag.Parse()
 
@@ -67,6 +70,31 @@ func main() {
 	}
 	defer cli.Close()
 	vv("client connected from local addr='%v'", cli.LocalAddr())
+
+	if *sendfile != "" {
+		t0 := time.Now()
+
+		path := *sendfile
+		if !fileExists(path) {
+			panic(fmt.Sprintf("drat! cli -sendfile path '%v' not found", path))
+		}
+		by, err := os.ReadFile(path)
+		if err != nil {
+			panic(fmt.Sprintf("error reading path '%v': '%v'", path, err))
+		}
+		req := rpc25519.NewMessage()
+		req.JobSerz = by
+		req.HDR.Subject = "receiveFile" // client looks for this
+		req.HDR.To = filepath.Base(path)
+
+		reply, err := cli.SendAndGetReply(req, nil)
+		if err != nil {
+			panic(fmt.Sprintf("error during OneWaySend of path '%v': '%v'", path, err))
+		}
+		fmt.Printf("reply.HDR = '%v' -> body = '%v'\n", reply.HDR, string(reply.JobSerz))
+		fmt.Printf("round trip time for client to send body and get ack was '%v'\n", time.Since(t0))
+		return
+	}
 
 	if *n > 1 {
 		alwaysPrintf("about to do n = %v calls.\n", *n)

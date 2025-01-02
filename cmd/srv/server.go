@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -61,6 +63,8 @@ func main() {
 
 	var readto = flag.Duration("read", 0, "timeout on reads")
 
+	var recvfile = flag.Bool("recvfile", false, "listen for files to write to disk; client should run -sendfile")
+
 	flag.Parse()
 
 	if *max > 0 {
@@ -88,7 +92,11 @@ func main() {
 	srv := rpc25519.NewServer("srv", cfg)
 	defer srv.Close()
 
-	srv.Register2Func(customEcho)
+	if *recvfile {
+		srv.Register2Func(receiveFiles)
+	} else {
+		srv.Register2Func(customEcho)
+	}
 
 	serverAddr, err := srv.Start()
 	if err != nil {
@@ -118,5 +126,32 @@ func customEcho(req, reply *rpc25519.Message) error {
 	atomic.AddInt64(&calls, 1)
 	//vv("callback to echo: with msg='%#v'", in)
 	reply.JobSerz = append(req.JobSerz, []byte(fmt.Sprintf("\n with time customEcho sees this: '%v'", time.Now()))...)
+	return nil
+}
+
+func receiveFiles(req, reply *rpc25519.Message) error {
+	t0 := time.Now()
+	log.Printf("server receiveFile called, Subject='%v'; To='%v'", req.HDR.Subject, req.HDR.To)
+	if req.HDR.Subject != "receiveFile" {
+		return nil
+	}
+	fname := req.HDR.To
+	if fname == "" {
+		return nil
+	}
+	w, err := os.Create(fname)
+	if err != nil {
+		panic(err)
+	}
+	_, err = io.Copy(w, bytes.NewBuffer(req.JobSerz))
+	if err != nil {
+		panic(err)
+	}
+	log.Printf("saved data to file='%v'", fname)
+	elap := req.HDR.Created.Sub(t0)
+	mb := float64(len(req.JobSerz)) / float64(1<<20)
+	rate := mb / float64(elap) / float64(time.Second)
+	reply.JobSerz = append(req.JobSerz, []byte(fmt.Sprintf("\n got upcall at '%v' => elap = %v => %0.6f MB/sec", t0, elap, rate))...)
+
 	return nil
 }
