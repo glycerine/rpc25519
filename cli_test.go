@@ -969,76 +969,45 @@ func Test045_streaming_client_to_server(t *testing.T) {
 
 		defer client.Close()
 
-		// using the net/rpc API
-		args := &Args{7, 8}
-		reply := new(Reply)
+		var cliErr45 error
+		firstCallDone45 := make(chan bool)
+		ctx45, cancelFunc45 := context.WithCancel(context.Background())
+		defer cancelFunc45()
 
-		var cliErr40 error
-		cliErrIsSet40 := make(chan bool)
-		ctx40, cancelFunc40 := context.WithCancel(context.Background())
-		go func() {
-			cliErr40 = client.Call("MustBeCancelled.WillHangUntilCancel", args, reply, ctx40)
-			//vv("client.Call() returned with cliErr = '%v'", cliErr)
-			close(cliErrIsSet40)
-		}()
-
-		// let the call get blocked.
-		<-test040callStarted
-		//vv("cli_test 040: we got past test040callStarted")
-
-		// cancel it: transmit cancel request to server.
-		cancelFunc40()
-		//vv("past cancelFunc()")
-
-		<-cliErrIsSet40
-		//vv("past cliErrIsSet channel; cliErr = '%v'", cliErr)
-
-		if cliErr40 != ErrCancelReqSent {
-			t.Errorf("Test040: expected ErrCancelReqSent but got %v", cliErr40)
-		}
-
-		// confirm that server side function is unblocked too
-		//vv("about to verify that server side context was cancelled.")
-		<-test040callFinished
-		//vv("server side saw the cancellation request: confirmed.")
-
-		// use Message []byte oriented API
-
-		var cliErr41 error
-		cliErrIsSet41 := make(chan bool)
-		ctx41, cancelFunc41 := context.WithCancel(context.Background())
+		var reply *Message
 		req := NewMessage()
 		req.HDR.Typ = CallRPC
-		var reply41 *Message
+		req.HDR.StreamPart = 1
+		req.JobSerz = []byte("part1;")
 
+		// start the call
 		go func() {
-			reply41, cliErr41 = client.SendAndGetReply(req, ctx41.Done())
-			//vv("client.Call() returned with cliErr = '%v'", cliErr)
-			close(cliErrIsSet41)
+			reply, cliErr45 = client.SendAndGetReplyWithCtx(ctx45, req)
+			// we will hang until cancellation or the last part (negative StreamPart) is sent and we get a reply.
+			vv("back from SendAndGetReplyWithCtx(): reply.HDR = '%v'",
+				reply.HDR.String())
+			close(firstCallDone45)
 		}()
 
-		// let the call get blocked on the server (only works under test, of course).
-		<-test041callStarted
-		//vv("cli_test 041: we got past test041callStarted")
+		select {}
 
-		// cancel it: transmit cancel request to server.
-		cancelFunc41()
-		//vv("past cancelFunc()")
-
-		<-cliErrIsSet41
-		//vv("past cliErrIsSet channel; cliErr = '%v'", cliErr)
-
-		if cliErr41 != ErrCancelReqSent {
-			t.Errorf("Test041: expected ErrCancelReqSent but got %v", cliErr41)
+		// send two more parts
+		nPart := int64(3)
+		for i := int64(2); i <= nPart; i++ {
+			if i < nPart {
+				req.HDR.StreamPart = i
+				req.JobSerz = []byte(fmt.Sprintf("part%v;", i))
+				vv("sent part %v", i)
+			} else {
+				req.HDR.StreamPart = -i
+				req.JobSerz = []byte(fmt.Sprintf("part%v;", -i))
+				vv("sent part %v", -i)
+			}
+			client.OneWaySend(req, ctx45.Done())
 		}
-
-		if reply41 != nil {
-			t.Errorf("Test041: expected reply41 to be nil, but got %v", reply41)
-		}
-
-		// confirm that server side function is unblocked too
-		//vv("about to verify that server side context was cancelled.")
-		<-test041callFinished
-
+		vv("all 3 parts sent")
+		<-firstCallDone45
+		vv("cliErr45 = '%v'", cliErr45)
+		vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
 	})
 }

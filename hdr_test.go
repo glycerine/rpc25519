@@ -16,7 +16,7 @@ func Test010_HDR_generation(t *testing.T) {
 		//isLeg2 := false
 
 		// call:
-		hdr := NewHDR(from, to, subject, CallRPC)
+		hdr := NewHDR(from, to, subject, CallRPC, 0)
 
 		shdr := hdr.String()
 		jhdr := hdr.JSON()
@@ -25,7 +25,7 @@ func Test010_HDR_generation(t *testing.T) {
 		vv("jhdr = '%v'", string(jhdr))
 
 		// response:
-		hdr2 := NewHDR(to, from, subject, CallRPC)
+		hdr2 := NewHDR(to, from, subject, CallRPC, 0)
 		shdr2 := hdr2.String()
 		jhdr2 := hdr2.JSON()
 

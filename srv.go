@@ -563,11 +563,13 @@ func (s *Server) processWork(job *job) {
 		return
 	}
 
+	vv("processWork() sees req.HDR.StreamPart = %v", req.HDR.StreamPart)
 	if req.HDR.StreamPart != 0 {
 		if req.HDR.StreamPart == 1 {
 			// just let it go through and get registered
 			// as inflight, have a streamCh allocated and
 			// passed in on its HDR.streamCh.
+			vv("srv sees streaming request start: StreamPart = 1; hdr='%v'", req.HDR.String())
 		} else {
 			// send the message to the existing goro on the channel
 			// instead of a fresh call.
@@ -1340,8 +1342,10 @@ var ErrNetConnectionNotFound = fmt.Errorf("error: net.Conn not found")
 // allowing enough time to get an error back from quic-go
 // if we are going to discover "Application error 0x0 (remote)"
 // right away, and not wanting to stall the caller too much.
-func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqno uint64,
-	errWriteDur *time.Duration) error {
+func (s *Server) SendMessage(callID, subject, destAddr string, data []byte,
+	seqno uint64,
+	errWriteDur *time.Duration,
+	streamPart int64) error {
 
 	s.mut.Lock()
 	pair, ok := s.remote2pair[destAddr]
@@ -1361,7 +1365,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 	to := remote(pair.Conn)
 	subject = fmt.Sprintf("srv.SendMessage('%v')", subject)
 
-	mid := NewHDR(from, to, subject, CallOneWay)
+	mid := NewHDR(from, to, subject, CallOneWay, streamPart)
 	if callID != "" {
 		mid.CallID = callID
 	}

@@ -1250,12 +1250,13 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		hdrCtxDone = hdrCtx.Done()
 	}
 
-	hdr := NewHDR(from, to, req.HDR.Subject, req.HDR.Typ)
-
 	// don't override a CallNetRPC
-	if hdr.Typ == CallNone {
-		hdr.Typ = CallRPC
+	if req.HDR.Typ == CallNone {
+		req.HDR.Typ = CallRPC
 	}
+
+	hdr := NewHDR(from, to, req.HDR.Subject, req.HDR.Typ, req.HDR.StreamPart)
+
 	req.HDR = *hdr
 	req.HDR.Ctx = hdrCtx
 
@@ -1333,7 +1334,7 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err erro
 		to = remote(c.conn)
 	}
 
-	hdr := NewHDR(from, to, msg.HDR.Subject, CallOneWay)
+	hdr := NewHDR(from, to, msg.HDR.Subject, CallOneWay, msg.HDR.StreamPart)
 	msg.HDR = *hdr
 
 	// allow msg.CallID to not be empty; in case we get a reply.

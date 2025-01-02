@@ -335,7 +335,10 @@ func (s *MustBeCancelled) MessageAPI_HangUntilCancel(req, reply *Message) error 
 	return nil
 }
 
-type ServerSideStreamingFunc struct {
+type ServerSideStreamingFunc struct{}
+
+func NewServerSideStreamingFunc() *ServerSideStreamingFunc {
+	return &ServerSideStreamingFunc{}
 }
 
 func (s *ServerSideStreamingFunc) MessageAPI_ReceiveFile(req *Message, reply *Message) error {

@@ -23,6 +23,17 @@ var _ = cristalbase64.URLEncoding
 
 //go:generate greenpack
 
+type CallType int
+
+const (
+	CallNone           CallType = 0
+	CallRPC            CallType = 1
+	CallOneWay         CallType = 2
+	CallNetRPC         CallType = 3
+	CallKeepAlive      CallType = 4
+	CallCancelPrevious CallType = 5
+)
+
 const rfc3339NanoNumericTZ0pad = "2006-01-02T15:04:05.000000000-07:00"
 
 var lastSerial int64
@@ -206,19 +217,8 @@ type HDR struct {
 	streamCh chan *Message `msg:"-"`
 }
 
-type CallType int
-
-const (
-	CallNone           CallType = 0
-	CallRPC            CallType = 1
-	CallOneWay         CallType = 2
-	CallNetRPC         CallType = 3
-	CallKeepAlive      CallType = 4
-	CallCancelPrevious CallType = 5
-)
-
 // NewHDR creates a new HDR header.
-func NewHDR(from, to, subject string, typ CallType) (m *HDR) {
+func NewHDR(from, to, subject string, typ CallType, streamPart int64) (m *HDR) {
 	t0 := time.Now()
 	serial := atomic.AddInt64(&lastSerial, 1)
 
@@ -230,13 +230,14 @@ func NewHDR(from, to, subject string, typ CallType) (m *HDR) {
 	rness := cristalbase64.URLEncoding.EncodeToString(pseudo[:])
 
 	m = &HDR{
-		Created: t0,
-		From:    from,
-		To:      to,
-		Subject: subject,
-		Typ:     typ,
-		CallID:  rness,
-		Serial:  serial,
+		Created:    t0,
+		From:       from,
+		To:         to,
+		Subject:    subject,
+		Typ:        typ,
+		CallID:     rness,
+		Serial:     serial,
+		StreamPart: streamPart,
 	}
 
 	return
