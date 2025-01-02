@@ -84,14 +84,13 @@ func main() {
 		}
 		req := rpc25519.NewMessage()
 		req.JobSerz = by
-		req.HDR.Subject = "receiveFile" // client looks for this
-		req.HDR.To = filepath.Base(path)
+		req.HDR.Subject = "receiveFile:" + filepath.Base(path) // client looks for this
 
 		reply, err := cli.SendAndGetReply(req, nil)
 		if err != nil {
 			panic(fmt.Sprintf("error during OneWaySend of path '%v': '%v'", path, err))
 		}
-		fmt.Printf("reply.HDR = '%v' -> body = '%v'\n", reply.HDR, string(reply.JobSerz))
+		fmt.Printf("reply.HDR = '%v' -> body = '%v'\n", reply.HDR.String(), string(reply.JobSerz))
 		fmt.Printf("round trip time for client to send body and get ack was '%v'\n", time.Since(t0))
 		return
 	}

@@ -13,7 +13,7 @@ const (
 	maxMessage = 2*1024*1024 - 64 // 2MB max message size, prevents TLS clients from talking to TCP servers.
 )
 
-var ErrTooLong = fmt.Errorf("message message too long:  over 2GB; encrypted client vs an un-encrypted server?")
+var ErrTooLong = fmt.Errorf("message message too long:  over 2MB; encrypted client vs an un-encrypted server?")
 
 var _ = io.EOF
 

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -132,10 +133,11 @@ func customEcho(req, reply *rpc25519.Message) error {
 func receiveFiles(req, reply *rpc25519.Message) error {
 	t0 := time.Now()
 	log.Printf("server receiveFile called, Subject='%v'; To='%v'", req.HDR.Subject, req.HDR.To)
-	if req.HDR.Subject != "receiveFile" {
+	if !strings.HasPrefix(req.HDR.Subject, "receiveFile:") {
 		return nil
 	}
-	fname := req.HDR.To
+	prefix := "receiveFile:"
+	fname := req.HDR.Subject[len(prefix):]
 	if fname == "" {
 		return nil
 	}
@@ -148,10 +150,10 @@ func receiveFiles(req, reply *rpc25519.Message) error {
 		panic(err)
 	}
 	log.Printf("saved data to file='%v'", fname)
-	elap := req.HDR.Created.Sub(t0)
+	elap := t0.Sub(req.HDR.Created)
 	mb := float64(len(req.JobSerz)) / float64(1<<20)
-	rate := mb / float64(elap) / float64(time.Second)
-	reply.JobSerz = append(req.JobSerz, []byte(fmt.Sprintf("\n got upcall at '%v' => elap = %v => %0.6f MB/sec", t0, elap, rate))...)
+	rate := mb / (float64(elap) / float64(time.Second))
+	reply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v (while mb=%v) => %v MB/sec", t0, elap, mb, rate))
 
 	return nil
 }
