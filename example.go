@@ -521,11 +521,14 @@ func (s *ClientSideStreamingFunc) ReceiveFileInParts(req *Message, lastReply *Me
 
 // ServerSendsStream is used by Test055_streaming_server_to_client.
 // It demonstrates how to stream to the client.
+// ServerSendStream is of type ServerSendsStreamFunc, and gets
+// registered on the server with srv.RegisterServerSendsStreamFunc().
 func ServerSendsStream(srv *Server, ctx context.Context, req *Message, sendStreamPart func(by []byte, last bool), lastReply *Message) (err error) {
 
 	for i := range 20 {
 		sendStreamPart([]byte(fmt.Sprintf("part %v;", i)), i == 19)
 	}
 
+	lastReply.HDR.Subject = "This is end. My only friend, the end. - Jim Morrison, The Doors."
 	return
 }

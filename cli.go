@@ -548,7 +548,13 @@ type OneWayFunc func(req *Message)
 // ServerSendsStreamFunc is used to send a stream to the
 // client on the streamToClientChan.
 // Use Server.RegisterServerSendsStreamFunc() to register it.
-type ServerSendsStreamFunc func(srv *Server, ctx context.Context, req *Message, sendPart func(by []byte, last bool), lastReply *Message) (err error)
+type ServerSendsStreamFunc func(
+	srv *Server,
+	ctx context.Context,
+	req *Message,
+	sendPart func(by []byte, last bool),
+	lastReply *Message,
+) (err error)
 
 // A StreamRecvFunc receives messages from a Client's Stream.
 //
@@ -1682,6 +1688,7 @@ func (c *Client) setupPSK(conn uConn) error {
 // It is returned by RequestStreamBack().
 type StreamBack struct {
 	CallID string
+	Seqno  uint64
 	ReadCh chan *Message
 }
 
@@ -1711,9 +1718,18 @@ func (c *Client) RequestStreamBack(ctx context.Context, streamerName string) (st
 	if err != nil {
 		return
 	}
+
 	strmBack = &StreamBack{
 		CallID: hdr.CallID,
 		ReadCh: c.GetReadIncomingCh(),
+	}
+
+	// get our Seqno back, so test can assert it is preserved.
+	// This also waits for the req to actually be sent.
+	select {
+	case <-req.DoneCh:
+		strmBack.Seqno = req.HDR.Seqno
+	case <-ctx.Done():
 	}
 	return
 }

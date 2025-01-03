@@ -1076,9 +1076,9 @@ func Test055_streaming_server_to_client(t *testing.T) {
 			select {
 			case m := <-strmBack.ReadCh:
 				//report := string(m.JobSerz)
-				//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+				//vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
 
-				if m.HDR.Deadline.IsZero() || !m.HDR.Deadline.Equal(deadline) {
+				if !m.HDR.Deadline.Equal(deadline) {
 					t.Fatalf("deadline not preserved")
 				}
 
@@ -1095,9 +1095,38 @@ func Test055_streaming_server_to_client(t *testing.T) {
 					cv.So(m.HDR.Typ == CallStreamBackMore, cv.ShouldBeTrue)
 				}
 
+				if m.HDR.Seqno != strmBack.Seqno {
+					t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
+						"strmBack.Seqno = %v", m.HDR.Seqno, strmBack.Seqno)
+				}
+
 			case <-time.After(time.Second * 10):
 				t.Fatalf("should have gotten a reply from the server finishing the stream.")
 			}
+		} // end for i
+
+		// do we get the lastReply too then?
+
+		select {
+		case m := <-strmBack.ReadCh:
+			//report := string(m.JobSerz)
+			//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+
+			if m.HDR.Subject != "This is end. My only friend, the end. - Jim Morrison, The Doors." {
+				t.Fatalf("where did The Doors quote disappear to?")
+			}
+
+			if !m.HDR.Deadline.Equal(deadline) {
+				t.Fatalf("deadline not preserved")
+			}
+
+			if m.HDR.Seqno != strmBack.Seqno {
+				t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
+					"strmBack.Seqno = %v", m.HDR.Seqno, strmBack.Seqno)
+			}
+
+		case <-time.After(time.Second * 10):
+			t.Fatalf("should have gotten a lastReply from the server finishing the call.")
 		}
 	})
 }

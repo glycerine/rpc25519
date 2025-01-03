@@ -10,7 +10,7 @@ import (
 
 const (
 	// bigger is possible, but slows down goq tests.
-	maxMessage = 2*1024*1024 - 64 // 2MB max message size, prevents TLS clients from talking to TCP servers.
+	maxMessage = 20*1024*1024 - 64 // 20 MB max message size, prevents TLS clients from talking to TCP servers.
 )
 
 var ErrTooLong = fmt.Errorf("message message too long:  over 2MB; encrypted client vs an un-encrypted server?")
