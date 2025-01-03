@@ -1068,23 +1068,33 @@ func Test055_streaming_server_to_client(t *testing.T) {
 		strmBack, err := client.RequestStreamBack(ctx55, streamerName)
 		panicOn(err)
 
-		vv("strmBack requested, with CallID = '%v'", strmBack.CallID)
+		//vv("strmBack requested, with CallID = '%v'", strmBack.CallID)
 		// then send N more parts
 
-		for done := false; !done; {
+		done := false
+		for i := 0; !done; i++ {
 			select {
 			case m := <-strmBack.ReadCh:
-				report := string(m.JobSerz)
-				vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+				//report := string(m.JobSerz)
+				//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
 
-				if m.HDR.Deadline.IsZero() {
+				if m.HDR.Deadline.IsZero() || !m.HDR.Deadline.Equal(deadline) {
 					t.Fatalf("deadline not preserved")
 				}
 
 				if m.HDR.Typ == CallStreamBackEnd {
-					vv("good: we see CallStreamBackEnd from server.")
+					//vv("good: we see CallStreamBackEnd from server.")
 					done = true
 				}
+
+				if i == 0 {
+					cv.So(m.HDR.Typ == CallStreamBackBegin, cv.ShouldBeTrue)
+				} else if i == 19 {
+					cv.So(m.HDR.Typ == CallStreamBackEnd, cv.ShouldBeTrue)
+				} else {
+					cv.So(m.HDR.Typ == CallStreamBackMore, cv.ShouldBeTrue)
+				}
+
 			case <-time.After(time.Second * 10):
 				t.Fatalf("should have gotten a reply from the server finishing the stream.")
 			}

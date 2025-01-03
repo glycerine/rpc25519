@@ -674,11 +674,11 @@ func (s *Server) processWork(job *job) {
 		var cancelFunc context.CancelFunc
 		var deadline time.Time
 		if !req.HDR.Deadline.IsZero() {
-			vv("server side sees deadline set on request HDR: '%v'", req.HDR.Deadline)
+			//vv("server side sees deadline set on request HDR: '%v'", req.HDR.Deadline)
 			deadline = req.HDR.Deadline
 			ctx0, cancelFunc = context.WithDeadline(ctx0, deadline)
 		} else {
-			vv("server side sees NO deadline")
+			//vv("server side sees NO deadline")
 			ctx0, cancelFunc = context.WithCancel(ctx0)
 		}
 		defer cancelFunc()
@@ -1786,7 +1786,7 @@ func (s *Server) newServerSendStreamHelper(ctx context.Context, job *job) *serve
 }
 
 func (s *serverSendStreamHelper) sendStreamPart(by []byte, last bool) {
-	vv("sendStreamPart called! last = %v", last)
+	//vv("sendStreamPart called! last = %v", last)
 
 	// return early if we are cancelled, rather
 	// than wasting time/network bandwidth.

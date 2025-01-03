@@ -1702,7 +1702,7 @@ func (c *Client) RequestStreamBack(ctx context.Context, streamerName string) (st
 	hdr.Ctx = ctx
 	deadline, ok := ctx.Deadline()
 	if ok {
-		vv("client sees deadline '%v'", deadline)
+		//vv("client sees deadline '%v'", deadline)
 		hdr.Deadline = deadline
 	}
 	req.HDR = *hdr
