@@ -1291,12 +1291,13 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 	}
 
 	var hdr *HDR
-	if req.HDR.Typ == CallStreamToServer ||
-		req.HDR.Typ == CallStreamToClient {
+	switch req.HDR.Typ {
+
+	case CallStreamMore, CallStreamEnd:
 		// must preserve the CallID on streaming calls.
 		hdr = newHDRwithoutCallID(from, to, req.HDR.Subject, req.HDR.Typ, req.HDR.StreamPart)
 		hdr.CallID = req.HDR.CallID
-	} else {
+	default:
 		hdr = NewHDR(from, to, req.HDR.Subject, req.HDR.Typ, req.HDR.StreamPart)
 	}
 
@@ -1364,12 +1365,9 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 	}
 }
 
-var ErrStreamMustStartWithPartOne = fmt.Errorf("error in BeginStream(): must have StreamPart == 1")
-
-var ErrStreamMoreBadPart = fmt.Errof("error in StreamMore(): StreamPart cannot be 0 or 1")
-
-// Stream is organizes making a series of non-blocking
-// calls to a TwoWayFunc that expects to get streaming.
+// Stream allows the client to make a series of non-blocking
+// (one-way) calls to a remote StreamRecvFunc registered
+// on the server.
 type Stream struct {
 	cli    *Client
 	next   int64
@@ -1420,17 +1418,17 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err erro
 		to = remote(c.conn)
 	}
 
-	// preserve streaming call types.
-	if msg.HDR.Typ == CallNone {
-		msg.HDR.Typ = CallOneWay
-	}
 	var hdr *HDR
-	if msg.HDR.Typ == CallStreamToServer ||
-		msg.HDR.Typ == CallStreamToClient {
+	switch msg.HDR.Typ {
+	// preserve streaming call types.
+	case CallNone:
+		msg.HDR.Typ = CallOneWay
+	case CallStreamMore, CallStreamEnd:
 		// must preserve the CallID on streaming calls.
-		hdr = newHDRwithoutCallID(from, to, msg.HDR.Subject, msg.HDR.Typ, msg.HDR.StreamPart)
+		hdr = newHDRwithoutCallID(from, to,
+			msg.HDR.Subject, msg.HDR.Typ, msg.HDR.StreamPart)
 		hdr.CallID = msg.HDR.CallID
-	} else {
+	default:
 		hdr = NewHDR(from, to, msg.HDR.Subject, msg.HDR.Typ, msg.HDR.StreamPart)
 	}
 	msg.HDR = *hdr

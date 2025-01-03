@@ -969,29 +969,31 @@ func Test045_streaming_client_to_server(t *testing.T) {
 
 		defer client.Close()
 
-		var cliErr45 error
 		ctx45, cancelFunc45 := context.WithCancel(context.Background())
 		defer cancelFunc45()
 
 		var reply *Message
 		req := NewMessage()
-		msg.HDR.StreamPart = 1
 		req.HDR.Subject = "receiveFile:streams.all.together.txt"
 		req.JobSerz = []byte("part1;")
 
 		// start the call
-		strm, err := client.BeginStream(req, ctx45.Done())
+		strm, err := client.StreamBegin(req, ctx45.Done())
 		panicOn(err)
 
 		// then send two more parts
 
-		for i := int64(2); i <= nPart; i++ {
+		var last bool
+		for i := 1; i < 3; i++ {
 			streamMsg := NewMessage()
 			streamMsg.HDR.Subject = "streaming part 2 or more"
-			streamMsg.JobSerz = []byte(fmt.Sprintf("part%v;", part))
-			err = strm.SendMore(streamMsg, ctx45.Done(), i == nPart)
+			streamMsg.JobSerz = []byte(fmt.Sprintf("part%v;", i))
+			if i == 2 {
+				last = true
+			}
+			err = strm.SendMore(streamMsg, ctx45.Done(), last)
 			panicOn(err)
-			vv("sent part %v", part)
+			vv("sent part %v", i)
 		}
 		vv("all 3 parts sent")
 

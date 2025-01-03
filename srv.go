@@ -549,6 +549,7 @@ func (s *Server) processWork(job *job) {
 	var callme2 TwoWayFunc
 	foundCallback1 := false
 	foundCallback2 := false
+	//foundCallbackStream := false
 
 	req := job.req
 	//vv("processWork got job: req.HDR='%v'", req.HDR.String())
@@ -564,20 +565,6 @@ func (s *Server) processWork(job *job) {
 	}
 
 	vv("processWork() sees req.HDR = %v", req.HDR)
-	if req.HDR.StreamPart != 0 {
-		if req.HDR.StreamPart == 1 {
-			// just let it go through and get registered
-			// as inflight, so we have a streamCh allocated and
-			// passed in on its HDR.streamCh.
-			vv("srv sees streaming request start: StreamPart = 1; hdr='%v'", req.HDR.String())
-		} else {
-			// send the message to the existing goro on the channel
-			// instead of a fresh call.
-			s.handleStreamMessage(req)
-			return
-		}
-	}
-	vv("should never see this except for streaming part 0 or 1; part = %v", req.HDR.StreamPart)
 
 	conn := job.conn
 	pair := job.pair
@@ -594,22 +581,28 @@ func (s *Server) processWork(job *job) {
 		return // continue
 	}
 
-	foundCallback1 = false
-	foundCallback2 = false
-	callme1 = nil
-	callme2 = nil
-
 	s.mut.Lock()
-	if req.HDR.Typ == CallRPC || req.HDR.Typ == CallStreamToServer {
-		if s.callme2 != nil {
-			callme2 = s.callme2
-			foundCallback2 = true
+	switch req.HDR.Typ {
+	case CallRPC:
+		callme2 = s.callme2
+		foundCallback2 = true
+	case CallStreamBegin:
+		if s.callmeS == nil {
+			// nothing to do
+			vv("warning! possible problem: stream begin received but no registered stream handler available on the server. hdr='%v'", req.HDR.String())
+			return
 		}
-	} else {
-		if s.callme1 != nil {
-			callme1 = s.callme1
-			foundCallback1 = true
-		}
+		// use our internal callme2; see end of this file
+		// for Server.beginRecvStream.
+		callme2 = s.beginRecvStream
+		foundCallback2 = true
+	case CallStreamMore, CallStreamEnd:
+		s.mut.Unlock()
+		s.handleStreamMessage(req)
+		return
+	case CallOneWay:
+		callme1 = s.callme1
+		foundCallback1 = true
 	}
 	s.mut.Unlock()
 
@@ -732,6 +725,7 @@ type Server struct {
 
 	callme2 TwoWayFunc
 	callme1 OneWayFunc
+	callmeS StreamRecvFunc
 
 	lsn  io.Closer // net.Listener
 	halt *idem.Halter
@@ -1433,6 +1427,15 @@ func (s *Server) Register1Func(callme1 OneWayFunc) {
 	s.callme1 = callme1
 }
 
+// RegisterStreamRecvFunc tells the server about a func or method
+// that will have a returned Message value. See the
+// [TwoWayFunc] definition.
+func (s *Server) RegisterStreamRecvFunc(callmeStream StreamRecvFunc) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	s.callmeS = callmeStream
+}
+
 // Start has the Server begin receiving and processing RPC calls.
 // The Config.ServerAddr tells us what host:port to bind and listen on.
 func (s *Server) Start() (serverAddr net.Addr, err error) {
@@ -1584,4 +1587,60 @@ func (s *Server) getCancelFuncForCallID(callID string) (cancelFunc context.Cance
 		return nil
 	}
 	return callctx0.cancelFunc
+}
+
+func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
+
+	lastRecvTm := time.Now()
+	_ = lastRecvTm
+
+	var last *Message
+	switch req.HDR.Typ {
+	case CallStreamEnd:
+		last = reply
+	} // else leave last nil
+
+	var expect int64
+	hdr1 := req.HDR
+	ctx := hdr1.Ctx
+	vv("server beginRecvStream() called, Subject='%v'; StreamPart=%v", hdr1.Subject, hdr1.StreamPart)
+
+	if hdr1.StreamPart != 0 {
+		panic("MessageAPI_ReceiveFile: stream out of sync, should start with StreamPart=0.")
+		return fmt.Errorf("MessageAPI_ReceiveFile: stream out of sync, should "+
+			"start with StreamPart=0; but we see %v", hdr1.StreamPart)
+	}
+
+	var msgN *Message
+	bytesRecv := 0
+
+	for {
+		// get streaming messages from the processWork() goroutine,
+		// when it calls handleStreamMessage().
+		select {
+		case msgN = <-hdr1.streamCh:
+			lastRecvTm = time.Now()
+		case <-ctx.Done():
+			// allow call cancellation.
+			return nil
+		}
+		bytesRecv += len(msgN.JobSerz)
+
+		hdrN := msgN.HDR
+
+		if hdrN.StreamPart != expect {
+			panic(fmt.Errorf("MessageAPI_ReceiveFile: stream out of sync, expected next StreamPart to be %v; but we see %v.", expect, hdrN.StreamPart))
+		}
+		// INVAR: we only get matching CallID messages here. Assert this.
+		if hdrN.CallID != hdr1.CallID {
+			panic(fmt.Errorf("hdr1.CallID = '%v', but hdrN.CallID = '%v', at part %v", hdr1.CallID, hdrN.CallID, expect))
+		}
+		expect++
+
+		err = s.callmeS(msgN, last)
+		if err != nil {
+			return
+		}
+	}
+	return nil
 }

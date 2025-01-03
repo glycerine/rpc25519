@@ -421,7 +421,7 @@ func (s *ServerSideStreamingFunc) MessageAPI_ReceiveFile(req *Message, reply *Me
 		// get streaming messages from the processWork() goroutine,
 		// when it calls handleStreamMessage().
 		select {
-		case msgN = <-hdr1.StreamCh:
+		case msgN = <-hdr1.streamCh:
 			lastRecvTm = time.Now()
 		case <-ctx.Done():
 			// allow call cancellation.
