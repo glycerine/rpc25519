@@ -352,24 +352,24 @@ func (c *Client) runReadLoop(conn net.Conn) {
 		msg.HDR.LocalRecvTm = time.Now()
 
 		seqno := msg.HDR.Seqno
-		//vv("client %v received message with seqno=%v, msg.HDR='%v'", c.name, seqno, msg.HDR.String())
+		vv("client %v received message with seqno=%v, msg.HDR='%v'", c.name, seqno, msg.HDR.String())
 
 		c.mut.Lock()
 		whoCh, waiting := c.notifyOnce[seqno]
-		//vv("notifyOnce waiting = %v", waiting)
+		vv("notifyOnce waiting = %v for seqno %v", waiting, seqno)
 		if waiting {
 			delete(c.notifyOnce, seqno)
 
 			select {
 			case whoCh <- msg:
-				//vv("client %v: yay. sent on notifyOnce channel! for seqno=%v", c.name, seqno)
+				vv("client %v: yay. sent on notifyOnce channel! for seqno=%v", c.name, seqno)
 			default:
 				panic(fmt.Sprintf("Should never happen b/c the channels must be buffered!: could not send to whoCh from notifyOnce; for seqno = %v.", seqno))
 			}
 		} else {
-			//vv("notifyOnce: nobody was waiting for seqno = %v", seqno)
+			vv("notifyOnce: nobody was waiting for seqno = %v", seqno)
 
-			//vv("len c.notifyOnRead = %v", len(c.notifyOnRead))
+			vv("len c.notifyOnRead = %v", len(c.notifyOnRead))
 			// assume the round-trip "calls" should be consumed,
 			// and not repeated here to client listeners who want events???
 			// trying to match what other RPC systems do.
@@ -461,7 +461,7 @@ func (c *Client) runSendLoop(conn net.Conn) {
 			return
 		case msg := <-c.oneWayCh:
 
-			//vv("cli %v has had a one-way requested: '%v'", c.name, msg)
+			vv("cli %v has had a one-way requested: '%v'", c.name, msg)
 
 			// one-way always use seqno 0,
 			// so we know that no follow up is expected.
@@ -496,7 +496,7 @@ func (c *Client) runSendLoop(conn net.Conn) {
 			seqno := c.nextSeqno()
 			msg.HDR.Seqno = seqno
 
-			//vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v: '%v'", c.name, seqno, msg)
+			vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v: '%v'; part '%v'", c.name, seqno, msg, msg.HDR.StreamPart)
 			c.GetOneRead(seqno, msg.DoneCh)
 
 			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
@@ -544,6 +544,33 @@ type TwoWayFunc func(req *Message, reply *Message) error
 //
 // As above req.JobSerz [] byte contains the job payload.
 type OneWayFunc func(req *Message)
+
+// A StreamRecvFunc receives messages from a Client's Stream.
+// It is like a OneWayFunc, but it
+// generally should be a method or closure to capture
+// the state it needs, as it will receive multiple req *Message
+// up-calls from the same client Stream. It should return a
+// non-nil error to tell the client to stop sending.
+// A nil return means we are fine and want to continue
+// to receive more Messages from the same Stream.
+// The req.HDR.CallID can be used to identify distinct Streams,
+// and the req.HDR.StreamPart will convey their order
+// which will start at 0 and count up.
+//
+// The lastReply argument will be nil until
+// the Client calls Stream.More() with
+// the last argument set to true. The user/client is
+// telling the StreamRecvFunc not to expect any further
+// messages. The StreamRecvFunc can then fill in the
+// lastReply message with any finishing detail, and
+// it will be sent back to the client.
+//
+// Note that even when lastReply is not nil,
+// req may still have the tail content of
+// the stream, and so generally req should be processed
+// before considering if this is the last message and a final
+// lastReply should also be filled out.
+type StreamRecvFunc func(req *Message, lastReply *Message) error
 
 // Config is the same struct type for both NewClient
 // and NewServer setup.
@@ -643,6 +670,14 @@ type Config struct {
 
 	// These are timeouts for connection and transport tuning.
 	// The defaults of 0 mean wait forever.
+	//
+	// Generally we want our send loops to wait forever because
+	// if the cut off a send mid-message, it is hard to recover;
+	// we don't pass back up the stack how much of the broken
+	// message was sent, so the only thing we can do then is tear
+	// down the connection pair and re-connect. It is much
+	// better to just dedicate the sendLoops to writing for as
+	// long as it takes than to set a WriteTimeout.
 	ConnectTimeout time.Duration
 	ReadTimeout    time.Duration
 	WriteTimeout   time.Duration
@@ -1250,17 +1285,25 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		hdrCtxDone = hdrCtx.Done()
 	}
 
-	// don't override a CallNetRPC
+	// don't override a CallNetRPC, or a streaming type.
 	if req.HDR.Typ == CallNone {
 		req.HDR.Typ = CallRPC
 	}
 
-	hdr := NewHDR(from, to, req.HDR.Subject, req.HDR.Typ, req.HDR.StreamPart)
+	var hdr *HDR
+	if req.HDR.Typ == CallStreamToServer ||
+		req.HDR.Typ == CallStreamToClient {
+		// must preserve the CallID on streaming calls.
+		hdr = newHDRwithoutCallID(from, to, req.HDR.Subject, req.HDR.Typ, req.HDR.StreamPart)
+		hdr.CallID = req.HDR.CallID
+	} else {
+		hdr = NewHDR(from, to, req.HDR.Subject, req.HDR.Typ, req.HDR.StreamPart)
+	}
 
 	req.HDR = *hdr
 	req.HDR.Ctx = hdrCtx
 
-	//vv("Client '%v' SendAndGetReply(req='%v') (ignore req.Seqno:0 not yet assigned)", c.name, req)
+	vv("Client '%v' SendAndGetReply(req='%v') (ignore req.Seqno:0 not yet assigned)", c.name, req)
 	select {
 	case c.roundTripCh <- req:
 		// proceed
@@ -1284,14 +1327,14 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		return nil, ErrShutdown
 	}
 
-	//vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req)
+	vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req)
 
-	select { // shutdown test stuck here, even with calls in own goro. goq.go has exited.
+	select {
 	case reply = <-req.DoneCh:
 		if reply != nil {
 			err = reply.LocalErr
 		}
-		//vv("client.SendAndGetReply() got on reply.Err = '%v'", err)
+		vv("client.SendAndGetReply() got on reply.Err = '%v'", err)
 		return
 	case <-cancelJobCh:
 		// usually a timeout
@@ -1321,6 +1364,49 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 	}
 }
 
+var ErrStreamMustStartWithPartOne = fmt.Errorf("error in BeginStream(): must have StreamPart == 1")
+
+var ErrStreamMoreBadPart = fmt.Errof("error in StreamMore(): StreamPart cannot be 0 or 1")
+
+// Stream is organizes making a series of non-blocking
+// calls to a TwoWayFunc that expects to get streaming.
+type Stream struct {
+	cli    *Client
+	next   int64
+	callID string
+	done   bool
+}
+
+func (c *Client) StreamBegin(
+	msg *Message,
+	cancelJobCh <-chan struct{},
+
+) (strm *Stream, err error) {
+
+	msg.HDR.Typ = CallStreamBegin
+	msg.HDR.StreamPart = 0
+	err = c.OneWaySend(msg, cancelJobCh)
+	if err != nil {
+		return nil, err
+	}
+	return &Stream{
+		cli:  c,
+		next: 1,
+	}, nil
+}
+
+func (s *Stream) SendMore(msg *Message, cancelJobCh <-chan struct{}, last bool) (err error) {
+	if last {
+		msg.HDR.Typ = CallStreamEnd
+		s.done = true
+	} else {
+		msg.HDR.Typ = CallStreamMore
+	}
+	msg.HDR.StreamPart = s.next
+	s.next++
+	return s.cli.OneWaySend(msg, cancelJobCh)
+}
+
 // OneWaySend sends a message without expecting or waiting for a response.
 // The cancelJobCh is optional, and can be nil.
 func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err error) {
@@ -1334,7 +1420,19 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err erro
 		to = remote(c.conn)
 	}
 
-	hdr := NewHDR(from, to, msg.HDR.Subject, CallOneWay, msg.HDR.StreamPart)
+	// preserve streaming call types.
+	if msg.HDR.Typ == CallNone {
+		msg.HDR.Typ = CallOneWay
+	}
+	var hdr *HDR
+	if msg.HDR.Typ == CallStreamToServer ||
+		msg.HDR.Typ == CallStreamToClient {
+		// must preserve the CallID on streaming calls.
+		hdr = newHDRwithoutCallID(from, to, msg.HDR.Subject, msg.HDR.Typ, msg.HDR.StreamPart)
+		hdr.CallID = msg.HDR.CallID
+	} else {
+		hdr = NewHDR(from, to, msg.HDR.Subject, msg.HDR.Typ, msg.HDR.StreamPart)
+	}
 	msg.HDR = *hdr
 
 	// allow msg.CallID to not be empty; in case we get a reply.

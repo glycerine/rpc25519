@@ -389,7 +389,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 			continue
 
 		case msg := <-s.SendCh:
-			//vv("srv got from s.SendCh, sending msg.HDR = '%v'", msg.HDR)
+			vv("srv got from s.SendCh, sending msg.HDR = '%v'", msg.HDR)
 			err := w.sendMessage(conn, msg, &s.cfg.WriteTimeout)
 			if err != nil {
 				// notify any short-time-waiting server push user.
@@ -563,11 +563,11 @@ func (s *Server) processWork(job *job) {
 		return
 	}
 
-	vv("processWork() sees req.HDR.StreamPart = %v", req.HDR.StreamPart)
+	vv("processWork() sees req.HDR = %v", req.HDR)
 	if req.HDR.StreamPart != 0 {
 		if req.HDR.StreamPart == 1 {
 			// just let it go through and get registered
-			// as inflight, have a streamCh allocated and
+			// as inflight, so we have a streamCh allocated and
 			// passed in on its HDR.streamCh.
 			vv("srv sees streaming request start: StreamPart = 1; hdr='%v'", req.HDR.String())
 		} else {
@@ -577,6 +577,7 @@ func (s *Server) processWork(job *job) {
 			return
 		}
 	}
+	vv("should never see this except for streaming part 0 or 1; part = %v", req.HDR.StreamPart)
 
 	conn := job.conn
 	pair := job.pair
@@ -599,7 +600,7 @@ func (s *Server) processWork(job *job) {
 	callme2 = nil
 
 	s.mut.Lock()
-	if req.HDR.Typ == CallRPC {
+	if req.HDR.Typ == CallRPC || req.HDR.Typ == CallStreamToServer {
 		if s.callme2 != nil {
 			callme2 = s.callme2
 			foundCallback2 = true
@@ -614,28 +615,21 @@ func (s *Server) processWork(job *job) {
 
 	if !foundCallback1 && !foundCallback2 {
 		//vv("warning! no callbacks found for req = '%v'", req)
+		return
 	}
 
 	if foundCallback1 {
-		// run the callback in a goro, so we can keep doing reads.
-		//go callme1(req)
 		callme1(req)
 		return
 	}
 
 	if foundCallback2 {
-		//vv("foundCallback2 true, req.HDR = '%v'", req.HDR) // not seen
+		//vv("foundCallback2 true, req.HDR = '%v'", req.HDR)
 
 		//vv("req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
 		//vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
 		//vv("conn   local = '%v', remote = '%v'", local(conn), remote(conn))
 
-		// really only sender needs a DoneCh.
-		//if cap(req.DoneCh) < 1 || len(req.DoneCh) >= cap(req.DoneCh) {
-		//	panic("req.DoneCh too small; fails the sanity check to be received on.")
-		//}
-
-		//reply := newServerMessage()
 		reply := s.getMessage()
 
 		// enforce these are the same.
@@ -708,7 +702,7 @@ func (s *Server) processWork(job *job) {
 			// }
 		}
 		s.freeMessage(reply)
-	}
+	} // end if foundCallback2
 }
 
 // Servers read and respond to requests. Two APIs are available.

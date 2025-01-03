@@ -32,7 +32,33 @@ const (
 	CallNetRPC         CallType = 3
 	CallKeepAlive      CallType = 4
 	CallCancelPrevious CallType = 5
+	CallStreamBegin    CallType = 6
+	CallStreamMore     CallType = 6
+	CallStreamEnd      CallType = 6
 )
+
+func (ct CallType) String() string {
+	switch ct {
+	case CallNone:
+		return "CallNone"
+	case CallRPC:
+		return "CallRPC "
+	case CallOneWay:
+		return "CallOneWay"
+	case CallNetRPC:
+		return "CallNetRPC"
+	case CallKeepAlive:
+		return "CallKeepAlive"
+	case CallCancelPrevious:
+		return "CallCancelPrevious"
+	case CallStreamToServer:
+		return "CallStreamToServer"
+	case CallStreamToClient:
+		return "CallStreamToClient"
+	default:
+		panic(fmt.Sprintf("need to update String() for CallType %v", int(ct)))
+	}
+}
 
 const rfc3339NanoNumericTZ0pad = "2006-01-02T15:04:05.000000000-07:00"
 
@@ -211,10 +237,10 @@ type HDR struct {
 	// all parts, so we can match to the right callback.
 	StreamPart int64 `zid:"10"`
 
-	// streamCh will get sent all messages with StreamPart >= 2, rather than a callback.
+	// StreamCh will get sent all messages with StreamPart >= 2, rather than a callback.
 	// The srv/cli logic will allocate this and pass it to the StreamPart == 1 callback.
 	// The srv/cli logic will close it when StreamPart == -1 (EOF) is
-	streamCh chan *Message `msg:"-"`
+	StreamCh chan *Message `msg:"-"`
 }
 
 // NewHDR creates a new HDR header.
@@ -245,7 +271,7 @@ func NewHDR(from, to, subject string, typ CallType, streamPart int64) (m *HDR) {
 
 // for when the server is just going to replace the CallID with
 // the request CallID anyway.
-func newHDRwithoutCallID(from, to, subject string, typ CallType) (m *HDR) {
+func newHDRwithoutCallID(from, to, subject string, typ CallType, streamPart int64) (m *HDR) {
 	t0 := time.Now()
 	serial := atomic.AddInt64(&lastSerial, 1)
 
@@ -256,7 +282,8 @@ func newHDRwithoutCallID(from, to, subject string, typ CallType) (m *HDR) {
 		Subject: subject,
 		Typ:     typ,
 		//CallID:  rness,
-		Serial: serial,
+		Serial:     serial,
+		StreamPart: streamPart,
 	}
 
 	return
@@ -279,7 +306,8 @@ func (a *HDR) Equal(b *HDR) bool {
 		a.Subject == b.Subject &&
 		a.Typ == b.Typ &&
 		a.CallID == b.CallID &&
-		a.Seqno == b.Seqno
+		a.Seqno == b.Seqno &&
+		a.StreamPart == b.StreamPart
 }
 
 func (m *HDR) String() string {

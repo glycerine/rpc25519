@@ -355,12 +355,12 @@ func (s *ServerSideStreamingFunc) MessageAPI_ReceiveFile(req *Message, reply *Me
 	}
 
 	if !strings.HasPrefix(hdr1.Subject, "receiveFile:") {
-		return nil
+		panic("subject must contain receiveFile: and the file name !")
 	}
 	prefix := "receiveFile:"
 	fname := hdr1.Subject[len(prefix):]
 	if fname == "" {
-		return nil
+		panic("subject must contain receiveFile: and the file name, which was missing !")
 	}
 	fd, err := os.Create(fname)
 	if err != nil {
@@ -421,7 +421,7 @@ func (s *ServerSideStreamingFunc) MessageAPI_ReceiveFile(req *Message, reply *Me
 		// get streaming messages from the processWork() goroutine,
 		// when it calls handleStreamMessage().
 		select {
-		case msgN = <-hdr1.streamCh:
+		case msgN = <-hdr1.StreamCh:
 			lastRecvTm = time.Now()
 		case <-ctx.Done():
 			// allow call cancellation.

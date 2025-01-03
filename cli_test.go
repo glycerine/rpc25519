@@ -959,7 +959,7 @@ func Test045_streaming_client_to_server(t *testing.T) {
 		//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
 		streamer := NewServerSideStreamingFunc()
-		srv.Register2Func(streamer.MessageAPI_ReceiveFile)
+		srv.RegisterStreamRecvFunc(streamer.MessageAPI_ReceiveFile)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		client, err := NewClient("test045", cfg)
@@ -970,44 +970,32 @@ func Test045_streaming_client_to_server(t *testing.T) {
 		defer client.Close()
 
 		var cliErr45 error
-		firstCallDone45 := make(chan bool)
 		ctx45, cancelFunc45 := context.WithCancel(context.Background())
 		defer cancelFunc45()
 
 		var reply *Message
 		req := NewMessage()
-		req.HDR.Typ = CallRPC
-		req.HDR.StreamPart = 1
+		msg.HDR.StreamPart = 1
+		req.HDR.Subject = "receiveFile:streams.all.together.txt"
 		req.JobSerz = []byte("part1;")
 
 		// start the call
-		go func() {
-			reply, cliErr45 = client.SendAndGetReplyWithCtx(ctx45, req)
-			// we will hang until cancellation or the last part (negative StreamPart) is sent and we get a reply.
-			vv("back from SendAndGetReplyWithCtx(): reply.HDR = '%v'",
-				reply.HDR.String())
-			close(firstCallDone45)
-		}()
+		strm, err := client.BeginStream(req, ctx45.Done())
+		panicOn(err)
 
-		select {}
+		// then send two more parts
 
-		// send two more parts
-		nPart := int64(3)
 		for i := int64(2); i <= nPart; i++ {
-			if i < nPart {
-				req.HDR.StreamPart = i
-				req.JobSerz = []byte(fmt.Sprintf("part%v;", i))
-				vv("sent part %v", i)
-			} else {
-				req.HDR.StreamPart = -i
-				req.JobSerz = []byte(fmt.Sprintf("part%v;", -i))
-				vv("sent part %v", -i)
-			}
-			client.OneWaySend(req, ctx45.Done())
+			streamMsg := NewMessage()
+			streamMsg.HDR.Subject = "streaming part 2 or more"
+			streamMsg.JobSerz = []byte(fmt.Sprintf("part%v;", part))
+			err = strm.SendMore(streamMsg, ctx45.Done(), i == nPart)
+			panicOn(err)
+			vv("sent part %v", part)
 		}
 		vv("all 3 parts sent")
-		<-firstCallDone45
-		vv("cliErr45 = '%v'", cliErr45)
+
 		vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
+		select {}
 	})
 }
