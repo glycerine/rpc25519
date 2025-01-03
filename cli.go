@@ -1671,9 +1671,27 @@ type StreamBack struct {
 func (c *Client) RequestStreamBack(ctx context.Context, streamerName string) (strmBack *StreamBack, err error) {
 
 	req := NewMessage()
-	hdr := NewHDR()
-	hdr.Typ = CallRequestStreamBack
-	hdr.Subject = streamerName
 
+	var from, to string
+	if c.isQUIC {
+		from = local(c.quicConn)
+		to = remote(c.quicConn)
+	} else {
+		from = local(c.conn)
+		to = remote(c.conn)
+	}
+
+	hdr := NewHDR(from, to, streamerName, CallRequestStreamBack, 0)
+	hdr.Ctx = ctx
+	req.HDR = *hdr
+
+	err = c.OneWaySend(req, ctx.Done())
+	if err != nil {
+		return
+	}
+	strmBack = &StreamBack{
+		CallID: hdr.CallID,
+		ReadCh: c.GetReadIncomingCh(),
+	}
 	return
 }
