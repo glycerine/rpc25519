@@ -1043,10 +1043,8 @@ func Test055_streaming_server_to_client(t *testing.T) {
 		panicOn(err)
 		defer srv.Close()
 
-		//vv("server Start() returned serverAddr = '%v'", serverAddr)
-
-		//		streamer := NewServerSideStreamingFunc()
-		//		srv.RegisterStreamRecvFunc(streamer.ReceiveFileInParts)
+		streamerName := "streamerName"
+		srv.RegisterServerToClientStreamFunc(streamerName, RepliesToClientWithStream)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		client, err := NewClient("test055", cfg)
@@ -1056,17 +1054,14 @@ func Test055_streaming_server_to_client(t *testing.T) {
 
 		defer client.Close()
 
-		// read the final reply from the server.
-		//readCh := client.GetReadIncomingCh()
+		// The client has to start the request (because in QUIC, otherwise
+		// server never knows about a client stream), and this
+		// make sense for the client too: it should only be receiving
+		// streams it is prepared to handle.
 
 		ctx55, cancelFunc55 := context.WithCancel(context.Background())
 		defer cancelFunc55()
 
-		callbackStreamCallID := NewCallID()
-		cliStrmRecv, err := client.RequestStreamFromServer(callbackStreamCallID)
-		panicOn(err)
-
-		//var reply *Message
 		req := NewMessage()
 		filename := "server.sent.streams.all.together.txt"
 		req.HDR.Subject = "receiveFile:" + filename

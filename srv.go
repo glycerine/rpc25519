@@ -611,7 +611,7 @@ func (s *Server) processWork(job *job) {
 			foundCallback2 = true
 		}
 	case CallStreamBegin:
-		if s.callmeS == nil {
+		if s.callmeStreamRecv == nil {
 			// nothing to do
 			alwaysPrintf("warning! possible problem: stream begin received but no registered stream handler available on the server. hdr='%v'", req.HDR.String())
 			s.mut.Unlock()
@@ -693,7 +693,7 @@ func (s *Server) processWork(job *job) {
 		// We are able to match call and response rigorously on the CallID, or Seqno, alone.
 		reply.HDR.CallID = reqCallID
 		reply.HDR.Seqno = replySeqno
-		reply.HDR.Typ = CallRPC
+		reply.HDR.Typ = CallRPCReply
 		reply.HDR.Deadline = deadline
 
 		//vv("2way about to send its reply: '%#v'", reply)
@@ -755,7 +755,10 @@ type Server struct {
 
 	callme2 TwoWayFunc
 	callme1 OneWayFunc
-	callmeS StreamRecvFunc
+
+	callmeStreamRecv StreamRecvFunc // client -> server streams
+
+	callmeServerToClientStream map[string]ServerToClientStreamFunc // server -> client streams
 
 	lsn  io.Closer // net.Listener
 	halt *idem.Halter
@@ -975,6 +978,7 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 	pair.Server.freeRequest(req)
 }
 
+// called by callMethodByReflection
 func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec ServerCodec, errmsg string, job *job) {
 
 	//vv("pair sendResponse() top, reply: '%#v'", reply)
@@ -1002,7 +1006,7 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 	msg.HDR.From = job.pair.from
 	msg.HDR.To = job.pair.to
 	msg.HDR.Subject = reqMsg.HDR.Subject // echo back
-	msg.HDR.Typ = CallNetRPC
+	msg.HDR.Typ = CallRPCReply
 	msg.HDR.Seqno = reqMsg.HDR.Seqno       // echo back
 	msg.HDR.CallID = reqMsg.HDR.CallID     // echo back
 	msg.HDR.Deadline = reqMsg.HDR.Deadline // echo back
@@ -1332,17 +1336,19 @@ func (s *Server) deletePair(p *rwPair) {
 	//vv("Server.deletePair() has closed allDone for pair '%v'", p)
 }
 
-var ErrNetConnectionNotFound = fmt.Errorf("error: net.Conn not found")
+var ErrNetConnectionNotFound = fmt.Errorf("error in SendMessage: net.Conn not found")
+var ErrWrongCallTypeForSendMessage = fmt.Errorf("error in SendMessage: msg.HDR.Typ must be CallOneWay or CallStreamBegin")
 
 // SendMessage can be used on the server to push data to
-// one of the connected clients; that found at destAdddr.
+// one of the connected clients.
 //
-// A NewMessage() Message will be created and JobSerz will contain the data.
-// The HDR fields Subject, CallID, and Seqno will also be set from the arguments.
-// If callID argument is the empty string, we will use a crypto/rand
-// randomly generated one.
+// The Message msg should have msg.JobSerz set, as well as
+// the HDR fields Subject, CallID, and Seqno.
+// The NewCallID() can be used to generate a random (without
+// conflicts with prior CallID if needed/not matching
+// a previous call.
 //
-// If the destAddr is not already connected to the server, the
+// If the HDR.To destination address is not already connected to the server, the
 // ErrNetConnectionNotFound error will be returned.
 //
 // errWriteDur is how long we pause waiting for the
@@ -1359,35 +1365,46 @@ var ErrNetConnectionNotFound = fmt.Errorf("error: net.Conn not found")
 // allowing enough time to get an error back from quic-go
 // if we are going to discover "Application error 0x0 (remote)"
 // right away, and not wanting to stall the caller too much.
-func (s *Server) SendMessage(callID, subject, destAddr string, data []byte,
-	seqno uint64,
-	errWriteDur *time.Duration) error {
+//
+// msg.HDR.Typ must be CallOneWay or CallStreamBegin.
+func (s *Server) SendMessage(msg *Message, errWriteDur *time.Duration) error {
 
+	destAddr := msg.HDR.To
 	s.mut.Lock()
 	pair, ok := s.remote2pair[destAddr]
-	// if we hold this too long then our pair cannot shutdown asap.
+	// if we hold this mutex too long then our pair cannot shutdown asap.
 	s.mut.Unlock()
 
 	if !ok {
 		//vv("could not find destAddr='%v' in our map: '%#v'", destAddr, s.remote2pair)
 		return ErrNetConnectionNotFound
 	}
-	//vv("found remote2pair for destAddr = '%v': '%#v'", destAddr, pair)
-
-	msg := NewMessage()
-	msg.JobSerz = data
 
 	from := local(pair.Conn)
-	to := remote(pair.Conn)
-	subject = fmt.Sprintf("srv.SendMessage('%v')", subject)
-
-	mid := NewHDR(from, to, subject, CallOneWay, 0)
-	if callID != "" {
-		mid.CallID = callID
+	msg.HDR.From = from
+	switch msg.HDR.Typ {
+	case CallOneWay, CallStreamBegin:
+		// okay
+	default:
+		return ErrWrongCallTypeForSendMessage
 	}
-	mid.Seqno = seqno
-	msg.HDR = *mid
 
+	//vv("found remote2pair for destAddr = '%v': '%#v'", destAddr, pair)
+	/*
+		msg := NewMessage()
+		msg.JobSerz = data
+
+		//to := remote(pair.Conn)
+		to := destAddr
+		subject = fmt.Sprintf("srv.SendMessage('%v')", subject)
+
+		mid := NewHDR(from, to, subject, CallOneWay, 0)
+		if callID != "" {
+			mid.CallID = callID
+		}
+		mid.Seqno = seqno
+		msg.HDR = *mid
+	*/
 	//vv("send message attempting to send %v bytes to '%v'", len(data), destAddr)
 	select {
 	case pair.SendCh <- msg:
@@ -1428,13 +1445,20 @@ func NewServer(name string, config *Config) *Server {
 		cfg = &clone
 	}
 	return &Server{
-		name:              name,
-		cfg:               cfg,
-		remote2pair:       make(map[string]*rwPair),
-		pair2remote:       make(map[*rwPair]string),
-		halt:              idem.NewHalter(),
-		RemoteConnectedCh: make(chan *ServerClient, 20),
+		name:                       name,
+		cfg:                        cfg,
+		remote2pair:                make(map[string]*rwPair),
+		pair2remote:                make(map[*rwPair]string),
+		halt:                       idem.NewHalter(),
+		RemoteConnectedCh:          make(chan *ServerClient, 20),
+		callmeServerToClientStream: make(map[string]ServerToClientStreamFunc),
 	}
+}
+
+func (s *Server) RegisterServerToClientStreamFunc(name string, callme ServerToClientStreamFunc) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	s.callmeServerToClientStream[name] = callme
 }
 
 // Register2Func tells the server about a func or method
@@ -1458,10 +1482,10 @@ func (s *Server) Register1Func(callme1 OneWayFunc) {
 // RegisterStreamRecvFunc tells the server about a func or method
 // that will have a returned Message value. See the
 // [TwoWayFunc] definition.
-func (s *Server) RegisterStreamRecvFunc(callmeStream StreamRecvFunc) {
+func (s *Server) RegisterStreamRecvFunc(callmeStreamRecv StreamRecvFunc) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	s.callmeS = callmeStream
+	s.callmeStreamRecv = callmeStreamRecv
 }
 
 // Start has the Server begin receiving and processing RPC calls.
@@ -1652,7 +1676,7 @@ func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
 
 	// Now the StreamBegain call itself is in the queue,
 	// to ensure FIFO order of the stream messages.
-	// So we don't need a separate call to s.callmeS before
+	// So we don't need a separate call to s.callmeStreamRecv before
 	// the loop; everything can be handled uniformly.
 
 	hdr0 := &req.HDR
@@ -1696,7 +1720,7 @@ func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
 			last = reply
 		} // else leave last nil
 
-		err = s.callmeS(msgN, last)
+		err = s.callmeStreamRecv(msgN, last)
 		if err != nil {
 			return
 		}

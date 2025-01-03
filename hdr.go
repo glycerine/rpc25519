@@ -28,13 +28,14 @@ type CallType int
 const (
 	CallNone           CallType = 0
 	CallRPC            CallType = 1
-	CallOneWay         CallType = 2
-	CallNetRPC         CallType = 3
-	CallKeepAlive      CallType = 4
-	CallCancelPrevious CallType = 5
-	CallStreamBegin    CallType = 6
-	CallStreamMore     CallType = 7
-	CallStreamEnd      CallType = 8
+	CallRPCReply       CallType = 2
+	CallOneWay         CallType = 3
+	CallNetRPC         CallType = 4
+	CallKeepAlive      CallType = 5
+	CallCancelPrevious CallType = 6
+	CallStreamBegin    CallType = 7
+	CallStreamMore     CallType = 8
+	CallStreamEnd      CallType = 9
 )
 
 func (ct CallType) String() string {

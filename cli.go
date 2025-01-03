@@ -539,6 +539,11 @@ func (c *Client) runSendLoop(conn net.Conn) {
 // receives the reply.
 type TwoWayFunc func(req *Message, reply *Message) error
 
+// ServerToClientStreamFunc is used to send a stream to the
+// client on the streamToClientChan.
+// Use Server.RegisterServerToClientStreamFunc() to register it.
+type ServerToClientStreamFunc func(srv *Server, ctx context.Context, req *Message, streamToClientChan chan<- *Message) (finReply *Message, err error)
+
 // OneWayFunc is the simpler sibling to the above.
 // A OneWayFunc will not return anything to the sender.
 //

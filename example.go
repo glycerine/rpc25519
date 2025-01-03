@@ -523,3 +523,41 @@ func (s *ClientSideStreamingFunc) ReceiveFileInParts(req *Message, lastReply *Me
 	}
 	return
 }
+
+// RepliesToClientWithStream is used by Test055_streaming_server_to_client.
+// It demonstrates how to stream to the client
+func RepliesToClientWithStream(srv *Server, ctx context.Context, req *Message, streamReply chan<- *Message) (finReply *Message, err error) {
+
+	destAddr := req.HDR.From
+	seqno := req.HDR.Seqno
+	callID := req.HDR.CallID
+	subject := req.HDR.Subject
+
+	N := int64(20)
+	for i := range N {
+
+		pushMsg := NewMessage()
+		pushMsg.JobSerz = []byte(fmt.Sprintf("part %v;", i))
+		switch {
+		case i == 0:
+			pushMsg.HDR.Typ = CallStreamBegin
+		case i == N-1:
+			pushMsg.HDR.Typ = CallStreamEnd
+		default:
+			pushMsg.HDR.Typ = CallStreamMore
+		}
+		pushMsg.HDR.Subject = subject
+		pushMsg.HDR.To = destAddr
+		pushMsg.HDR.Seqno = seqno
+		pushMsg.HDR.CallID = callID
+		pushMsg.HDR.StreamPart = i
+
+		select {
+		case streamReply <- pushMsg:
+		case <-ctx.Done():
+			return nil, fmt.Errorf("context cancelled job")
+		}
+	}
+
+	return
+}

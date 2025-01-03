@@ -238,7 +238,16 @@ func Test004_server_push(t *testing.T) {
 
 		callID := "callID_here"
 		subject := "subject_here"
-		err = srv.SendMessage(callID, subject, destAddr, req.JobSerz, seqno, nil)
+
+		pushMsg := NewMessage()
+		pushMsg.JobSerz = req.JobSerz
+		pushMsg.HDR.Typ = CallOneWay // or CallStreamBegin if starting a stream.
+		pushMsg.HDR.Subject = subject
+		pushMsg.HDR.To = destAddr
+		pushMsg.HDR.Seqno = seqno
+		pushMsg.HDR.CallID = callID
+
+		err = srv.SendMessage(pushMsg, nil)
 		panicOn(err) // net.Conn not found
 
 		// does the client get it?
@@ -491,7 +500,16 @@ func Test014_server_push_quic(t *testing.T) {
 
 		callID := "callID_here"
 		subject := "subject_here"
-		err = srv.SendMessage(callID, subject, destAddr, req.JobSerz, seqno, nil)
+
+		pushMsg := NewMessage()
+		pushMsg.JobSerz = req.JobSerz
+		pushMsg.HDR.Typ = CallOneWay // or CallStreamBegin if starting a stream.
+		pushMsg.HDR.Subject = subject
+		pushMsg.HDR.To = destAddr
+		pushMsg.HDR.Seqno = seqno
+		pushMsg.HDR.CallID = callID
+
+		err = srv.SendMessage(pushMsg, nil)
 		panicOn(err) // net.Conn not found
 
 		// does the client get it?
@@ -604,7 +622,16 @@ func Test015_server_push_quic_notice_disco_quickly(t *testing.T) {
 
 		callID := "server_push_callID_here"
 		subject := "server push"
-		err = srv.SendMessage(callID, subject, destAddr, req.JobSerz, seqno, nil)
+
+		pushMsg := NewMessage()
+		pushMsg.JobSerz = req.JobSerz
+		pushMsg.HDR.Typ = CallOneWay // or CallStreamBegin if starting a stream.
+		pushMsg.HDR.Subject = subject
+		pushMsg.HDR.To = destAddr
+		pushMsg.HDR.Seqno = seqno
+		pushMsg.HDR.CallID = callID
+
+		err = srv.SendMessage(pushMsg, nil)
 
 		// do we get an error since client is not there?
 		if err == nil {
