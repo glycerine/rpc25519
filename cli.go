@@ -1244,7 +1244,10 @@ func (c *Client) SendAndGetReplyWithTimeout(timeout time.Duration, req *Message)
 func (c *Client) SendAndGetReplyWithCtx(ctx context.Context, req *Message) (reply *Message, err error) {
 	deadline, ok := ctx.Deadline()
 	if ok {
-		req.HDR.Deadline = deadline
+		// don't lengthen deadline if it is already shorter.
+		if req.HDR.Deadline.IsZero() || (!deadline.IsZero() && req.HDR.Deadline.After(deadline)) {
+			req.HDR.Deadline = deadline
+		}
 	}
 	return c.SendAndGetReply(req, ctx.Done())
 }
@@ -1291,9 +1294,14 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 
 	var hdrCtx context.Context
 	var hdrCtxDone <-chan struct{}
+	var deadline time.Time
 	if req.HDR.Ctx != nil && !IsNil(req.HDR.Ctx) {
 		hdrCtx = req.HDR.Ctx
 		hdrCtxDone = hdrCtx.Done()
+		dl, ok := hdrCtx.Deadline()
+		if ok {
+			deadline = dl
+		}
 	}
 
 	// don't override a CallNetRPC, or a streaming type.
@@ -1310,6 +1318,14 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		hdr.CallID = req.HDR.CallID
 	default:
 		hdr = NewHDR(from, to, req.HDR.Subject, req.HDR.Typ, req.HDR.StreamPart)
+	}
+
+	// preserve the deadline, but
+	// don't lengthen deadline if it
+	// is already shorter.
+	hdr.Deadline = req.HDR.Deadline
+	if hdr.Deadline.IsZero() || (!deadline.IsZero() && hdr.Deadline.After(deadline)) {
+		hdr.Deadline = deadline
 	}
 
 	req.HDR = *hdr
@@ -1497,6 +1513,7 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err erro
 	if hdr == nil {
 		hdr = NewHDR(from, to, msg.HDR.Subject, msg.HDR.Typ, msg.HDR.StreamPart)
 	}
+	hdr.Deadline = msg.HDR.Deadline
 	msg.HDR = *hdr
 
 	// allow msg.CallID to not be empty; in case we get a reply.
@@ -1683,6 +1700,11 @@ func (c *Client) RequestStreamBack(ctx context.Context, streamerName string) (st
 
 	hdr := NewHDR(from, to, streamerName, CallRequestStreamBack, 0)
 	hdr.Ctx = ctx
+	deadline, ok := ctx.Deadline()
+	if ok {
+		vv("client sees deadline '%v'", deadline)
+		hdr.Deadline = deadline
+	}
 	req.HDR = *hdr
 
 	err = c.OneWaySend(req, ctx.Done())

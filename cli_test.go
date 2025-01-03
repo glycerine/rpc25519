@@ -1068,7 +1068,7 @@ func Test055_streaming_server_to_client(t *testing.T) {
 		strmBack, err := client.RequestStreamBack(ctx55, streamerName)
 		panicOn(err)
 
-		vv("strmBack request4d, with CallID = '%v'", strmBack.CallID)
+		vv("strmBack requested, with CallID = '%v'", strmBack.CallID)
 		// then send N more parts
 
 		for done := false; !done; {

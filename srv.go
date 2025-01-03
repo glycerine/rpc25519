@@ -674,9 +674,11 @@ func (s *Server) processWork(job *job) {
 		var cancelFunc context.CancelFunc
 		var deadline time.Time
 		if !req.HDR.Deadline.IsZero() {
+			vv("server side sees deadline set on request HDR: '%v'", req.HDR.Deadline)
 			deadline = req.HDR.Deadline
 			ctx0, cancelFunc = context.WithDeadline(ctx0, deadline)
 		} else {
+			vv("server side sees NO deadline")
 			ctx0, cancelFunc = context.WithCancel(ctx0)
 		}
 		defer cancelFunc()
@@ -1769,6 +1771,11 @@ func (s *Server) newServerSendStreamHelper(ctx context.Context, job *job) *serve
 	m.HDR.Seqno = req.HDR.Seqno
 	m.HDR.CallID = req.HDR.CallID
 
+	dl, ok := ctx.Deadline()
+	if ok {
+		m.HDR.Deadline = dl
+	}
+
 	return &serverSendStreamHelper{
 		ctx:    ctx,
 		job:    job,
@@ -1809,11 +1816,6 @@ func (s *serverSendStreamHelper) sendStreamPart(by []byte, last bool) {
 	tmp.HDR.StreamPart = i
 	tmp.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
 	tmp.HDR.Created = time.Now()
-
-	dl, ok := s.ctx.Deadline()
-	if ok {
-		tmp.HDR.Deadline = dl
-	}
 
 	err := s.job.w.sendMessage(s.job.conn, tmp, &s.srv.cfg.WriteTimeout)
 	if err != nil {
