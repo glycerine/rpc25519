@@ -1352,7 +1352,7 @@ func (s *Server) deletePair(p *rwPair) {
 }
 
 var ErrNetConnectionNotFound = fmt.Errorf("error in SendMessage: net.Conn not found")
-var ErrWrongCallTypeForSendMessage = fmt.Errorf("error in SendMessage: msg.HDR.Typ must be CallOneWay or CallStreamBegin")
+var ErrWrongCallTypeForSendMessage = fmt.Errorf("error in SendMessage: msg.HDR.Typ must be CallOneWay or CallStreamBegin; or greater in number")
 
 // SendMessage can be used on the server to push data to
 // one of the connected clients.
@@ -1380,9 +1380,68 @@ var ErrWrongCallTypeForSendMessage = fmt.Errorf("error in SendMessage: msg.HDR.T
 // allowing enough time to get an error back from quic-go
 // if we are going to discover "Application error 0x0 (remote)"
 // right away, and not wanting to stall the caller too much.
-//
-// msg.HDR.Typ must be CallOneWay or CallStreamBegin.
-func (s *Server) SendMessage(msg *Message, errWriteDur *time.Duration) error {
+func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqno uint64,
+	errWriteDur *time.Duration) error {
+
+	s.mut.Lock()
+	pair, ok := s.remote2pair[destAddr]
+	// if we hold this too long then our pair cannot shutdown asap.
+	s.mut.Unlock()
+
+	if !ok {
+		//vv("could not find destAddr='%v' in our map: '%#v'", destAddr, s.remote2pair)
+		return ErrNetConnectionNotFound
+	}
+	//vv("found remote2pair for destAddr = '%v': '%#v'", destAddr, pair)
+
+	msg := NewMessage()
+	msg.JobSerz = data
+
+	from := local(pair.Conn)
+	to := remote(pair.Conn)
+	subject = fmt.Sprintf("srv.SendMessage('%v')", subject)
+
+	mid := NewHDR(from, to, subject, CallOneWay, 0)
+	if callID != "" {
+		mid.CallID = callID
+	}
+	mid.Seqno = seqno
+	msg.HDR = *mid
+
+	//vv("send message attempting to send %v bytes to '%v'", len(data), destAddr)
+	select {
+	case pair.SendCh <- msg:
+		//vv("sent to pair.SendCh, msg='%v'", msg.HDR.String())
+
+		//    case <-time.After(time.Second):
+		//vv("warning: time out trying to send on pair.SendCh")
+	case <-s.halt.ReqStop.Chan:
+		// shutting down
+		return ErrShutdown
+	}
+
+	dur := 30 * time.Millisecond
+	if errWriteDur != nil {
+		dur = *errWriteDur
+	}
+	if dur > 0 {
+		//vv("srv SendMessage about to wait %v to check on connection.", dur)
+		select {
+		case <-msg.DoneCh:
+			//vv("srv SendMessage got back msg.LocalErr = '%v'", msg.LocalErr)
+			return msg.LocalErr
+		case <-time.After(dur):
+			//vv("srv SendMessage timeout after waiting %v", dur)
+		}
+	}
+	return nil
+}
+
+// SendOneWayMessage is the same as SendMessage above except that it
+// takes a fully prepared msg to avoid API churn when new HDR fields are
+// added/needed. msg.HDR.Type must be >= CallOneWay (10), to try and
+// catch mis-use of this when the user actually wants a round-trip call.
+func (s *Server) SendOneWayMessage(msg *Message, errWriteDur *time.Duration) error {
 
 	destAddr := msg.HDR.To
 	s.mut.Lock()
@@ -1397,10 +1456,7 @@ func (s *Server) SendMessage(msg *Message, errWriteDur *time.Duration) error {
 
 	from := local(pair.Conn)
 	msg.HDR.From = from
-	switch msg.HDR.Typ {
-	case CallOneWay, CallStreamBegin:
-		// okay
-	default:
+	if msg.HDR.Typ < 10 {
 		return ErrWrongCallTypeForSendMessage
 	}
 

@@ -28,29 +28,35 @@ type CallType int
 const (
 	CallNone CallType = 0
 
-	CallRPC      CallType = 1
-	CallRPCReply CallType = 2
+	CallRPC    CallType = 1
+	CallNetRPC CallType = 2
 
-	CallOneWay CallType = 3
-	CallNetRPC CallType = 4
+	// CallType numbers 3-9 are reserved for future two-way
+	// callling convention needs. All types
+	// with number < 10 should be call+response
+	// two way methods.
 
-	CallKeepAlive      CallType = 5
-	CallCancelPrevious CallType = 6
+	// All type numbers >= 10 are one-way calls.
+	CallOneWay   CallType = 10
+	CallRPCReply CallType = 11
+
+	CallKeepAlive      CallType = 12
+	CallCancelPrevious CallType = 13
 
 	// client sends a stream to the server.
-	CallStreamBegin CallType = 7
-	CallStreamMore  CallType = 8
-	CallStreamEnd   CallType = 9
+	CallStreamBegin CallType = 14
+	CallStreamMore  CallType = 15
+	CallStreamEnd   CallType = 16
 
 	// the opposite: when client wants to get a stream
 	// from the server.
-	CallRequestStreamBack CallType = 10
+	CallRequestStreamBack CallType = 17
 
 	// The server responds to CallRequestStreamBack with
 	// a stream of these.
-	CallStreamBackBegin CallType = 11
-	CallStreamBackMore  CallType = 12
-	CallStreamBackEnd   CallType = 13
+	CallStreamBackBegin CallType = 18
+	CallStreamBackMore  CallType = 19
+	CallStreamBackEnd   CallType = 20
 )
 
 func (ct CallType) String() string {
