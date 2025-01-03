@@ -1810,6 +1810,11 @@ func (s *serverSendStreamHelper) sendStreamPart(by []byte, last bool) {
 	tmp.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
 	tmp.HDR.Created = time.Now()
 
+	dl, ok := s.ctx.Deadline()
+	if ok {
+		tmp.HDR.Deadline = dl
+	}
+
 	err := s.job.w.sendMessage(s.job.conn, tmp, &s.srv.cfg.WriteTimeout)
 	if err != nil {
 		alwaysPrintf("serverSendStreamHelper.sendStreamPart error(): sendMessage got err = '%v'", err)

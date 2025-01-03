@@ -1057,9 +1057,12 @@ func Test055_streaming_server_to_client(t *testing.T) {
 		defer client.Close()
 
 		// ask server to send us the stream
-		ctx55, cancelFunc55 := context.WithCancel(context.Background())
+
+		// use deadline so we can confirm it is transmitted back from server to client
+		// in the stream.
+		deadline := time.Now().Add(time.Hour)
+		ctx55, cancelFunc55 := context.WithDeadline(context.Background(), deadline)
 		defer cancelFunc55()
-		_ = ctx55
 
 		// start the call
 		strmBack, err := client.RequestStreamBack(ctx55, streamerName)
@@ -1073,6 +1076,10 @@ func Test055_streaming_server_to_client(t *testing.T) {
 			case m := <-strmBack.ReadCh:
 				report := string(m.JobSerz)
 				vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+
+				if m.HDR.Deadline.IsZero() {
+					t.Fatalf("deadline not preserved")
+				}
 
 				if m.HDR.Typ == CallStreamBackEnd {
 					vv("good: we see CallStreamBackEnd from server.")
