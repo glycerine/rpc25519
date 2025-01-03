@@ -1310,7 +1310,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 	req.HDR = *hdr
 	req.HDR.Ctx = hdrCtx
 
-	vv("Client '%v' SendAndGetReply(req='%v') (ignore req.Seqno:0 not yet assigned)", c.name, req)
+	//vv("Client '%v' SendAndGetReply(req='%v') (ignore req.Seqno:0 not yet assigned)", c.name, req)
 	select {
 	case c.roundTripCh <- req:
 		// proceed
@@ -1334,7 +1334,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		return nil, ErrShutdown
 	}
 
-	vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req)
+	//vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req)
 
 	select {
 	case reply = <-req.DoneCh:

@@ -1389,7 +1389,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte,
 	mid.Seqno = seqno
 	msg.HDR = *mid
 
-	vv("send message attempting to send %v bytes to '%v'", len(data), destAddr)
+	//vv("send message attempting to send %v bytes to '%v'", len(data), destAddr)
 	select {
 	case pair.SendCh <- msg:
 		//vv("sent to pair.SendCh, msg='%v'", msg.HDR.String())
@@ -1406,7 +1406,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte,
 		dur = *errWriteDur
 	}
 	if dur > 0 {
-		vv("srv SendMessage about to wait %v to check on connection.", dur)
+		//vv("srv SendMessage about to wait %v to check on connection.", dur)
 		select {
 		case <-msg.DoneCh:
 			//vv("srv SendMessage got back msg.LocalErr = '%v'", msg.LocalErr)
