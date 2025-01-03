@@ -1388,8 +1388,9 @@ func (c *Client) StreamBegin(
 		return nil, err
 	}
 	return &Stream{
-		cli:  c,
-		next: 1,
+		cli:    c,
+		next:   1,
+		callID: msg.HDR.CallID,
 	}, nil
 }
 
@@ -1401,6 +1402,7 @@ func (s *Stream) SendMore(msg *Message, cancelJobCh <-chan struct{}, last bool) 
 		msg.HDR.Typ = CallStreamMore
 	}
 	msg.HDR.StreamPart = s.next
+	msg.HDR.CallID = s.callID
 	s.next++
 	return s.cli.OneWaySend(msg, cancelJobCh)
 }

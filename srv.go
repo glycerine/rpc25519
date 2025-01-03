@@ -521,10 +521,14 @@ type job struct {
 
 // PRE: abs(req.StreamPart) > 0
 func (s *Server) handleStreamMessage(req *Message) {
-	s.inflight.mut.Lock()
-	defer s.inflight.mut.Unlock()
 
+	vv("about to lock inflight: handleStreamMessage")
+	s.inflight.mut.Lock()
+	vv("got the inflight lock")
 	cc, ok := s.inflight.activeCalls[req.HDR.CallID]
+	s.inflight.mut.Unlock()
+	vv("released the inflight lock")
+
 	if !ok {
 		vv("Warning: dropping a StreamPart because no handler "+
 			"registered/inflight. This is highly un-expected. hdr='%v'", req.HDR.String())
@@ -539,6 +543,7 @@ func (s *Server) handleStreamMessage(req *Message) {
 	// we are already in a per-packet/message goroutine,
 	// nothing more to do but just wait.
 	case cc.streamCh <- req:
+		vv("handleStreamMessages: cc.StreamCh: sent req")
 	case <-s.halt.ReqStop.Chan:
 	}
 }
@@ -590,6 +595,7 @@ func (s *Server) processWork(job *job) {
 		if s.callmeS == nil {
 			// nothing to do
 			vv("warning! possible problem: stream begin received but no registered stream handler available on the server. hdr='%v'", req.HDR.String())
+			s.mut.Unlock()
 			return
 		}
 		// use our internal callme2; see end of this file
@@ -1532,6 +1538,7 @@ type callctx struct {
 
 func (s *Server) registerInFlightCallToCancel(hdr *HDR, cancelFunc context.CancelFunc, ctx context.Context) (streamChan chan *Message) {
 
+	vv("about to lock inflight: registerInFlight")
 	s.inflight.mut.Lock()
 	defer s.inflight.mut.Unlock()
 
@@ -1551,7 +1558,7 @@ func (s *Server) registerInFlightCallToCancel(hdr *HDR, cancelFunc context.Cance
 		ctx:            ctx,
 		lastStreamPart: hdr.StreamPart,
 	}
-	if hdr.StreamPart == 1 {
+	if hdr.Typ == CallStreamBegin {
 		streamChan = make(chan *Message, 200)
 		cc.streamCh = streamChan
 	}
@@ -1562,6 +1569,8 @@ func (s *Server) registerInFlightCallToCancel(hdr *HDR, cancelFunc context.Cance
 }
 
 func (s *Server) noLongerInFlight(callID string) {
+
+	vv("about to lock inflight: noLongerInFlight")
 	s.inflight.mut.Lock()
 	defer s.inflight.mut.Unlock()
 	// we leave the streaming functions alive,
@@ -1576,8 +1585,11 @@ func (s *Server) noLongerInFlight(callID string) {
 }
 
 func (s *Server) getCancelFuncForCallID(callID string) (cancelFunc context.CancelFunc) {
+
+	vv("about to lock inflight: getCancel")
 	s.inflight.mut.Lock()
 	defer s.inflight.mut.Unlock()
+
 	if s.inflight.activeCalls == nil {
 		s.inflight.activeCalls = make(map[string]*callctx)
 		return nil
@@ -1591,6 +1603,8 @@ func (s *Server) getCancelFuncForCallID(callID string) (cancelFunc context.Cance
 
 func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
 
+	vv("beginRecvStream internal TwoFunc top.")
+
 	lastRecvTm := time.Now()
 	_ = lastRecvTm
 
@@ -1600,7 +1614,6 @@ func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
 		last = reply
 	} // else leave last nil
 
-	var expect int64
 	hdr1 := req.HDR
 	ctx := hdr1.Ctx
 	vv("server beginRecvStream() called, Subject='%v'; StreamPart=%v", hdr1.Subject, hdr1.StreamPart)
@@ -1613,10 +1626,12 @@ func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
 
 	var msgN *Message
 	bytesRecv := 0
+	var expect int64 = 1
 
 	for {
 		// get streaming messages from the processWork() goroutine,
 		// when it calls handleStreamMessage().
+		vv("beginRecvStream: about to wait on channel %p", hdr1.streamCh)
 		select {
 		case msgN = <-hdr1.streamCh:
 			lastRecvTm = time.Now()

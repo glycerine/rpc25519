@@ -972,7 +972,7 @@ func Test045_streaming_client_to_server(t *testing.T) {
 		ctx45, cancelFunc45 := context.WithCancel(context.Background())
 		defer cancelFunc45()
 
-		var reply *Message
+		//var reply *Message
 		req := NewMessage()
 		req.HDR.Subject = "receiveFile:streams.all.together.txt"
 		req.JobSerz = []byte("part1;")
@@ -986,8 +986,8 @@ func Test045_streaming_client_to_server(t *testing.T) {
 		var last bool
 		for i := 1; i < 3; i++ {
 			streamMsg := NewMessage()
-			streamMsg.HDR.Subject = "streaming part 2 or more"
-			streamMsg.JobSerz = []byte(fmt.Sprintf("part%v;", i))
+			streamMsg.HDR.Subject = fmt.Sprintf("streaming part %v is here.", i)
+			streamMsg.JobSerz = []byte(fmt.Sprintf(":part%v;", i))
 			if i == 2 {
 				last = true
 			}
@@ -997,7 +997,7 @@ func Test045_streaming_client_to_server(t *testing.T) {
 		}
 		vv("all 3 parts sent")
 
-		vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
+		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
 		select {}
 	})
 }
