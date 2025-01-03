@@ -433,7 +433,6 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 	w := newBlabber("server read loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true)
 
 	for {
-
 		select {
 		case <-s.halt.ReqStop.Chan:
 			//vv("s.halt.ReqStop.Chan requested!")
@@ -492,8 +491,25 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			return
 		}
 		//vv("srv read loop sees req = '%v'", req.HDR.String())
-		if req.HDR.Typ == CallKeepAlive {
+
+		switch req.HDR.Typ {
+
+		case CallKeepAlive:
 			//vv("srv read loop got an rpc25519 keep alive.")
+			continue
+
+		// We destroy the FIFO of a stream if we don't
+		// queue up the stream messages here, exactly in
+		// the order we received them.
+		case CallStreamBegin:
+			// early but sequential setup, we'll revist
+			// this again for CallStreamBegin to add ctx and
+			// cancel func. The important thing is that
+			// we queue up req in the stream channel now.
+			s.Server.registerInFlightCallToCancel(req, nil, nil)
+
+		case CallStreamMore, CallStreamEnd:
+			s.Server.handleStreamMessage(req)
 			continue
 		}
 
@@ -519,15 +535,16 @@ type job struct {
 	w    *blabber
 }
 
-// PRE: abs(req.StreamPart) > 0
+// PRE: req.StreamPart > 0; i.e. only StreamMore
+// and StreamEnd should be called here.
 func (s *Server) handleStreamMessage(req *Message) {
 
-	vv("about to lock inflight: handleStreamMessage")
+	//vv("about to lock inflight: handleStreamMessage")
 	s.inflight.mut.Lock()
-	vv("got the inflight lock")
+	//vv("got the inflight lock")
 	cc, ok := s.inflight.activeCalls[req.HDR.CallID]
 	s.inflight.mut.Unlock()
-	vv("released the inflight lock")
+	//vv("released the inflight lock")
 
 	if !ok {
 		vv("Warning: dropping a StreamPart because no handler "+
@@ -603,9 +620,10 @@ func (s *Server) processWork(job *job) {
 		callme2 = s.beginRecvStream
 		foundCallback2 = true
 	case CallStreamMore, CallStreamEnd:
-		s.mut.Unlock()
-		s.handleStreamMessage(req)
-		return
+		panic("cannot see these here, must for FIFO of the stream be called from the readloop")
+		//s.mut.Unlock()
+		//s.handleStreamMessage(req)
+		//return
 	case CallOneWay:
 		callme1 = s.callme1
 		foundCallback1 = true
@@ -652,10 +670,10 @@ func (s *Server) processWork(job *job) {
 		ctx := context.WithValue(ctx0, "HDR", &req.HDR)
 		// Also saved under private key to avoid collisions, per context docs.
 		ctx = ContextWithHDR(ctx, &req.HDR)
-		streamChan := s.registerInFlightCallToCancel(&req.HDR, cancelFunc, ctx)
+		s.registerInFlightCallToCancel(req, cancelFunc, ctx)
+
 		defer s.noLongerInFlight(reqCallID)
 		req.HDR.Ctx = ctx
-		req.HDR.streamCh = streamChan
 
 		err := callme2(req, reply)
 		if err != nil {
@@ -925,11 +943,10 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 		// Also saved under private key to avoid collisions, per context docs.
 		ctx = ContextWithHDR(ctx, &reqMsg.HDR)
 
-		streamChan := pair.Server.registerInFlightCallToCancel(&reqMsg.HDR, cancelFunc, ctx)
+		pair.Server.registerInFlightCallToCancel(reqMsg, cancelFunc, ctx)
 		defer pair.Server.noLongerInFlight(reqMsg.HDR.CallID)
 
 		reqMsg.HDR.Ctx = ctx
-		reqMsg.HDR.streamCh = streamChan
 
 		rctx := reflect.ValueOf(ctx)
 		returnValues = function.Call([]reflect.Value{s.rcvr, rctx, argv, replyv})
@@ -1521,11 +1538,14 @@ func (server *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 // for cancelling via context; now
 // also for streaming from cli to server.
 type inflight struct {
-	mut         sync.Mutex
+	mut sync.Mutex
+
+	// map callID to *callctx
 	activeCalls map[string]*callctx
 }
 
 type callctx struct {
+	callID     string
 	added      time.Time
 	callSubj   string
 	cancelFunc context.CancelFunc
@@ -1536,7 +1556,7 @@ type callctx struct {
 	streamCh       chan *Message
 }
 
-func (s *Server) registerInFlightCallToCancel(hdr *HDR, cancelFunc context.CancelFunc, ctx context.Context) (streamChan chan *Message) {
+func (s *Server) registerInFlightCallToCancel(msg *Message, cancelFunc context.CancelFunc, ctx context.Context) {
 
 	vv("about to lock inflight: registerInFlight")
 	s.inflight.mut.Lock()
@@ -1545,26 +1565,45 @@ func (s *Server) registerInFlightCallToCancel(hdr *HDR, cancelFunc context.Cance
 	if s.inflight.activeCalls == nil {
 		s.inflight.activeCalls = make(map[string]*callctx)
 	}
-	var deadline time.Time
-	dl, ok := ctx.Deadline()
-	if ok {
-		deadline = dl
-	}
-	cc := &callctx{
-		added:          time.Now(),
-		callSubj:       hdr.Subject,
-		cancelFunc:     cancelFunc,
-		deadline:       deadline,
-		ctx:            ctx,
-		lastStreamPart: hdr.StreamPart,
-	}
-	if hdr.Typ == CallStreamBegin {
-		streamChan = make(chan *Message, 200)
-		cc.streamCh = streamChan
+
+	// this might be the 2nd time here for the CallStreamBegin,
+	// now that we have the cancelFunc made.
+	cc, ok := s.inflight.activeCalls[msg.HDR.CallID]
+
+	if !ok {
+		// first time here: cancelFunc and ctx will be nil.
+		cc = &callctx{
+			callID:         msg.HDR.CallID,
+			added:          time.Now(),
+			callSubj:       msg.HDR.Subject,
+			lastStreamPart: msg.HDR.StreamPart,
+		}
+
+		if msg.HDR.Typ == CallStreamBegin {
+			// give it lots of room because to keep FIFO
+			// we need the read loop to post here directly,
+			// without starting goroutines to service the stream.
+			streamChan := make(chan *Message, 10_000)
+			// must queue ourselves to be sure we are
+			// process first.
+			streamChan <- msg
+			cc.streamCh = streamChan
+			msg.HDR.streamCh = streamChan
+		}
+
+	} else {
+		// second time here, now we have ctx and cancelFunc
+		if ctx != nil {
+			dl, ok := ctx.Deadline()
+			if ok {
+				cc.deadline = dl
+			}
+			cc.ctx = ctx
+		}
+		cc.cancelFunc = cancelFunc
 	}
 
-	s.inflight.activeCalls[hdr.CallID] = cc
-
+	s.inflight.activeCalls[msg.HDR.CallID] = cc
 	return
 }
 
@@ -1605,52 +1644,49 @@ func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
 
 	vv("beginRecvStream internal TwoFunc top.")
 
-	lastRecvTm := time.Now()
-	_ = lastRecvTm
+	// Now the StreamBegain call itself is in the queue,
+	// to ensure FIFO order of the stream messages.
+	//err = s.callmeS(req, nil)
+	//if err != nil {
+	//return
+	//}
 
-	var last *Message
-	switch req.HDR.Typ {
-	case CallStreamEnd:
-		last = reply
-	} // else leave last nil
-
-	hdr1 := req.HDR
-	ctx := hdr1.Ctx
-	vv("server beginRecvStream() called, Subject='%v'; StreamPart=%v", hdr1.Subject, hdr1.StreamPart)
-
-	if hdr1.StreamPart != 0 {
-		panic("MessageAPI_ReceiveFile: stream out of sync, should start with StreamPart=0.")
-		return fmt.Errorf("MessageAPI_ReceiveFile: stream out of sync, should "+
-			"start with StreamPart=0; but we see %v", hdr1.StreamPart)
-	}
-
+	var hdr0 *HDR
+	var ctx context.Context
 	var msgN *Message
 	bytesRecv := 0
-	var expect int64 = 1
 
-	for {
+	for i := int64(0); ; i++ {
+
 		// get streaming messages from the processWork() goroutine,
 		// when it calls handleStreamMessage().
-		vv("beginRecvStream: about to wait on channel %p", hdr1.streamCh)
 		select {
-		case msgN = <-hdr1.streamCh:
-			lastRecvTm = time.Now()
+		case msgN = <-hdr0.streamCh:
+			if i == 0 {
+				ctx = msgN.HDR.Ctx
+				hdr0 = &msgN.HDR
+			}
 		case <-ctx.Done():
 			// allow call cancellation.
 			return nil
 		}
 		bytesRecv += len(msgN.JobSerz)
 
-		hdrN := msgN.HDR
+		hdrN := &msgN.HDR
 
-		if hdrN.StreamPart != expect {
-			panic(fmt.Errorf("MessageAPI_ReceiveFile: stream out of sync, expected next StreamPart to be %v; but we see %v.", expect, hdrN.StreamPart))
+		if hdrN.StreamPart != i {
+			panic(fmt.Errorf("MessageAPI_ReceiveFile: stream out of sync, expected next StreamPart to be %v; but we see %v.", i, hdrN.StreamPart))
 		}
 		// INVAR: we only get matching CallID messages here. Assert this.
-		if hdrN.CallID != hdr1.CallID {
-			panic(fmt.Errorf("hdr1.CallID = '%v', but hdrN.CallID = '%v', at part %v", hdr1.CallID, hdrN.CallID, expect))
+		if i > 0 && hdrN.CallID != hdr0.CallID {
+			panic(fmt.Errorf("hdr0.CallID = '%v', but hdrN.CallID = '%v', at part %v", hdr0.CallID, hdrN.CallID, i))
 		}
-		expect++
+
+		var last *Message
+		switch hdrN.Typ {
+		case CallStreamEnd:
+			last = reply
+		} // else leave last nil
 
 		err = s.callmeS(msgN, last)
 		if err != nil {
