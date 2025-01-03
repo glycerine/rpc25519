@@ -1361,8 +1361,7 @@ var ErrNetConnectionNotFound = fmt.Errorf("error: net.Conn not found")
 // right away, and not wanting to stall the caller too much.
 func (s *Server) SendMessage(callID, subject, destAddr string, data []byte,
 	seqno uint64,
-	errWriteDur *time.Duration,
-	streamPart int64) error {
+	errWriteDur *time.Duration) error {
 
 	s.mut.Lock()
 	pair, ok := s.remote2pair[destAddr]
@@ -1382,7 +1381,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte,
 	to := remote(pair.Conn)
 	subject = fmt.Sprintf("srv.SendMessage('%v')", subject)
 
-	mid := NewHDR(from, to, subject, CallOneWay, streamPart)
+	mid := NewHDR(from, to, subject, CallOneWay, 0)
 	if callID != "" {
 		mid.CallID = callID
 	}
