@@ -335,132 +335,70 @@ func (s *MustBeCancelled) MessageAPI_HangUntilCancel(req, reply *Message) error 
 	return nil
 }
 
-type ServerSideStreamingFunc struct{}
+type ServerSideStreamingFunc struct {
+	fname     string
+	fd        *os.File
+	bytesWrit int64
+}
 
 func NewServerSideStreamingFunc() *ServerSideStreamingFunc {
 	return &ServerSideStreamingFunc{}
 }
 
-func (s *ServerSideStreamingFunc) MessageAPI_ReceiveFile(req *Message, reply *Message) error {
+func (s *ServerSideStreamingFunc) MessageAPI_ReceiveFile(req *Message, lastReply *Message) (err error) {
 
 	t0 := time.Now()
 	hdr1 := req.HDR
 	ctx := hdr1.Ctx
 	vv("server MessageAPI_ReceiveFile called, Subject='%v'; StreamPart=%v", hdr1.Subject, hdr1.StreamPart)
 
-	if hdr1.StreamPart != 1 {
-		vv("MessageAPI_ReceiveFile: stream out of sync, should start with StreamPart=1.")
-		return fmt.Errorf("MessageAPI_ReceiveFile: stream out of sync, should "+
-			"start with StreamPart=1; but we see %v", hdr1.StreamPart)
-	}
-
-	if !strings.HasPrefix(hdr1.Subject, "receiveFile:") {
-		panic("subject must contain receiveFile: and the file name !")
-	}
-	prefix := "receiveFile:"
-	fname := hdr1.Subject[len(prefix):]
-	if fname == "" {
-		panic("subject must contain receiveFile: and the file name, which was missing !")
-	}
-	fd, err := os.Create(fname)
-	if err != nil {
-		panic(err)
-	}
-
-	// So as to read from the network as fast as possible,
-	// we write to disk in the background.
-	writeQ := make(chan *Message, 10_000)
-	bytesWrit := int64(0)
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case req, isChOpen := <-writeQ:
-				if !isChOpen {
-					return
-				}
-				n := len(req.JobSerz)
-
-				part := req.HDR.StreamPart
-				nw, err := io.Copy(fd, bytes.NewBuffer(req.JobSerz))
-				bytesWrit += nw
-				if err != nil {
-					report := fmt.Errorf("MessageAPI_ReceiveFile: on "+
-						"writing StreamPart 1 to path '%v', we got error: "+
-						"'%v', after writing %v of %v", fname, err, nw, n)
-					vv("problem: %v", report.Error())
-				} else {
-					vv("succesfully wrote part %v to the file '%v': '%v'", part, fname, string(req.JobSerz))
-				}
-				req.JobSerz = nil // free up memory
-				if part < 0 {
-					// end of stream, no more comming.
-					return
-				}
-			}
-		}
-	}()
-
-	// write the first payload (in the background)
 	select {
-	case writeQ <- req:
 	case <-ctx.Done():
-		// only hdr1.Ctx will ever be set.
-		// hdrN never gets to that part of the server dispatch.
-		return nil
+		return fmt.Errorf("context cancelled")
+	default:
 	}
 
-	expect := int64(2)
-	var msgN *Message
-	var lastRecvTm time.Time
-	_ = lastRecvTm
-	bytesRecv := 0
-
-	for {
-		// get streaming messages from the processWork() goroutine,
-		// when it calls handleStreamMessage().
-		select {
-		case msgN = <-hdr1.streamCh:
-			lastRecvTm = time.Now()
-		case <-ctx.Done():
-			// allow call cancellation.
-			return nil
+	if hdr1.StreamPart == 0 {
+		if !strings.HasPrefix(hdr1.Subject, "receiveFile:") {
+			panic("subject must contain receiveFile: and the file name !")
 		}
-		bytesRecv += len(msgN.JobSerz)
-
-		hdrN := msgN.HDR
-		absPart := abs64Value(hdrN.StreamPart)
-
-		if absPart != expect {
-			return fmt.Errorf("MessageAPI_ReceiveFile: stream out of sync, expected next StreamPart to be %v; but we see %v.", expect, hdrN.StreamPart)
+		prefix := "receiveFile:"
+		s.fname = hdr1.Subject[len(prefix):]
+		if s.fname == "" {
+			panic("subject must contain receiveFile: and the file name, which was missing !")
 		}
-		// INVAR: we only get matching CallID messages here. Assert this.
-		if hdrN.CallID != hdr1.CallID {
-			panic(fmt.Errorf("hdr1.CallID = '%v', but hdrN.CallID = '%v', at part %v", hdr1.CallID, hdrN.CallID, expect))
-		}
-		expect++
-
-		// write in background
-		select {
-		case writeQ <- msgN:
-			lastRecvTm = time.Now()
-		case <-ctx.Done():
-			// allow call cancellation.
-			return nil
-		}
-		if hdrN.StreamPart < 0 {
-			vv("last message seen! hdrN.StreamPart = %v", hdrN.StreamPart)
-			break // last message
+		// save the file handle for the next callback too.
+		s.fd, err = os.Create(s.fname)
+		if err != nil {
+			return fmt.Errorf("error: server could not path '%v': '%v'", s.fname, err)
 		}
 	}
-	elap := time.Since(hdr1.Created)
-	mb := float64(bytesWrit) / float64(1<<20)
-	rate := mb / (float64(elap) / float64(time.Second))
 
-	// finally reply to the original caller.
-	reply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v (while mb=%v) => %v MB/sec. ; bytesRecv=%v; bytesWrit=%v;", t0, elap, mb, rate, bytesRecv, bytesWrit))
-	return nil
+	n := len(req.JobSerz)
+	part := req.HDR.StreamPart
+	nw, err := io.Copy(s.fd, bytes.NewBuffer(req.JobSerz))
+	s.bytesWrit += nw
+	if err != nil {
+		err = fmt.Errorf("MessageAPI_ReceiveFile: on "+
+			"writing StreamPart 1 to path '%v', we got error: "+
+			"'%v', after writing %v of %v", s.fname, err, nw, n)
+		vv("problem: %v", err.Error())
+		return
+	} else {
+		vv("succesfully wrote part %v to the file '%v': '%v'", part, s.fname, string(req.JobSerz))
+	}
+
+	if lastReply != nil {
+		s.fd.Close()
+
+		elap := time.Since(hdr1.Created)
+		mb := float64(s.bytesWrit) / float64(1<<20)
+		rate := mb / (float64(elap) / float64(time.Second))
+
+		// finally reply to the original caller.
+		lastReply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v (while mb=%v) => %v MB/sec. ; bytesWrit=%v;", t0, elap, mb, rate, s.bytesWrit))
+	}
+	return
 }
 
 func abs64Value(a int64) int64 {
