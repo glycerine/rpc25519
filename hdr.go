@@ -59,6 +59,8 @@ func (ct CallType) String() string {
 		return "CallNone"
 	case CallRPC:
 		return "CallRPC "
+	case CallRPCReply:
+		return "CallRPCReply"
 	case CallOneWay:
 		return "CallOneWay"
 	case CallNetRPC:
@@ -73,6 +75,15 @@ func (ct CallType) String() string {
 		return "CallStreamMore"
 	case CallStreamEnd:
 		return "CallStreamEnd"
+
+	case CallRequestStreamBack:
+		return "CallRequestStreamBack"
+	case CallStreamBackBegin:
+		return "CallStreamBackBegin"
+	case CallStreamBackMore:
+		return "CallStreamBackMore"
+	case CallStreamBackEnd:
+		return "CallStreamBackEnd"
 
 	default:
 		panic(fmt.Sprintf("need to update String() for CallType %v", int(ct)))
@@ -334,7 +345,36 @@ func (a *HDR) Equal(b *HDR) bool {
 }
 
 func (m *HDR) String() string {
-	return m.Pretty()
+	//return m.Pretty()
+	return fmt.Sprintf(`{
+    "Nc": %v,
+    "Created": %q,
+    "From": %q,
+    "To": %q,
+    "Subject": %q,
+    "Seqno": %v,
+    "Typ": %s,
+    "CallID": %q,
+    "Serial": %v,
+    "LocalRecvTm": "%s",
+    "Ctx": %v,
+    "Deadline": "%s",
+    "StreamPart": %v
+}`,
+		m.Nc,
+		m.Created,
+		m.From,
+		m.To,
+		m.Subject,
+		m.Seqno,
+		m.Typ,
+		m.CallID,
+		m.Serial,
+		m.LocalRecvTm,
+		m.Ctx,
+		m.Deadline,
+		m.StreamPart,
+	)
 }
 
 // Compact is all on one line.

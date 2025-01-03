@@ -569,9 +569,10 @@ func (s *Server) processWork(job *job) {
 
 	var callme1 OneWayFunc
 	var callme2 TwoWayFunc
+	var callmeServerSendsStreamFunc ServerSendsStreamFunc
 	foundCallback1 := false
 	foundCallback2 := false
-	//foundCallbackStream := false
+	foundServerSendsStream := false
 
 	req := job.req
 	//vv("processWork got job: req.HDR='%v'", req.HDR.String())
@@ -610,6 +611,14 @@ func (s *Server) processWork(job *job) {
 			callme2 = s.callme2
 			foundCallback2 = true
 		}
+	case CallRequestStreamBack:
+		back, ok := s.callmeServerSendsStreamMap[req.HDR.Subject]
+		if !ok {
+			// TODO: log this rather than panic. maybe respond to client?
+			panic(fmt.Sprintf("client asked for ServerSendsStreamFunc req.HDR.Subject='%v' but this is not registered!", req.HDR.Subject))
+		}
+		callmeServerSendsStreamFunc = back
+		foundServerSendsStream = true
 	case CallStreamBegin:
 		if s.callmeStreamRecv == nil {
 			// nothing to do
@@ -634,7 +643,7 @@ func (s *Server) processWork(job *job) {
 	}
 	s.mut.Unlock()
 
-	if !foundCallback1 && !foundCallback2 {
+	if !foundCallback1 && !foundCallback2 && !foundServerSendsStream {
 		//vv("warning! no callbacks found for req = '%v'", req)
 		return
 	}
@@ -644,7 +653,7 @@ func (s *Server) processWork(job *job) {
 		return
 	}
 
-	if foundCallback2 {
+	if foundCallback2 || foundServerSendsStream {
 		//vv("foundCallback2 true, req.HDR = '%v'", req.HDR)
 
 		//vv("req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
@@ -679,7 +688,14 @@ func (s *Server) processWork(job *job) {
 		defer s.noLongerInFlight(reqCallID)
 		req.HDR.Ctx = ctx
 
-		err := callme2(req, reply)
+		var err error
+		switch {
+		case foundCallback2:
+			err = callme2(req, reply)
+		case foundServerSendsStream:
+			help := s.newServerSendStreamHelper(req)
+			err = callmeServerSendsStreamFunc(s, ctx, req, help.sendStreamPart, reply)
+		}
 		if err != nil {
 			reply.JobErrs = err.Error()
 		}
@@ -756,9 +772,11 @@ type Server struct {
 	callme2 TwoWayFunc
 	callme1 OneWayFunc
 
-	callmeStreamRecv StreamRecvFunc // client -> server streams
+	// client -> server streams
+	callmeStreamRecv StreamRecvFunc
 
-	callmeServerToClientStream map[string]ServerToClientStreamFunc // server -> client streams
+	// server -> client streams
+	callmeServerSendsStreamMap map[string]ServerSendsStreamFunc
 
 	lsn  io.Closer // net.Listener
 	halt *idem.Halter
@@ -1451,14 +1469,14 @@ func NewServer(name string, config *Config) *Server {
 		pair2remote:                make(map[*rwPair]string),
 		halt:                       idem.NewHalter(),
 		RemoteConnectedCh:          make(chan *ServerClient, 20),
-		callmeServerToClientStream: make(map[string]ServerToClientStreamFunc),
+		callmeServerSendsStreamMap: make(map[string]ServerSendsStreamFunc),
 	}
 }
 
-func (s *Server) RegisterServerToClientStreamFunc(name string, callme ServerToClientStreamFunc) {
+func (s *Server) RegisterServerSendsStreamFunc(name string, callme ServerSendsStreamFunc) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	s.callmeServerToClientStream[name] = callme
+	s.callmeServerSendsStreamMap[name] = callme
 }
 
 // Register2Func tells the server about a func or method
@@ -1730,4 +1748,60 @@ func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
 		}
 	}
 	return nil
+}
+
+type serverSendStreamHelper struct {
+	srv *Server
+	req *Message
+
+	tmpMsg   *Message
+	mut      sync.Mutex
+	nextPart int64
+}
+
+func (s *Server) newServerSendStreamHelper(req *Message) *serverSendStreamHelper {
+
+	m := &Message{}
+	// no DoneCh, we send ourselves.
+
+	m.HDR.Subject = req.HDR.Subject
+	m.HDR.To = req.HDR.From
+	m.HDR.Seqno = req.HDR.Seqno
+	m.HDR.CallID = req.HDR.CallID
+
+	return &serverSendStreamHelper{
+		srv:    s,
+		req:    req,
+		tmpMsg: m,
+	}
+}
+
+func (s *serverSendStreamHelper) sendStreamPart(by []byte, last bool) {
+
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
+	tmp := s.tmpMsg
+	tmp.JobSerz = by
+
+	i := s.nextPart
+	s.nextPart++
+
+	switch {
+	case i == 0:
+		tmp.HDR.Typ = CallStreamBackBegin
+	case last:
+		tmp.HDR.Typ = CallStreamBackEnd
+	default:
+		tmp.HDR.Typ = CallStreamBackMore
+	}
+	tmp.HDR.StreamPart = i
+	/*
+	   select {
+	   case streamReply <- tmp:
+	   case <-ctx.Done():
+
+	   		return nil, fmt.Errorf("context cancelled job")
+	   	}
+	*/
 }

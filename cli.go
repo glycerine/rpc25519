@@ -545,10 +545,10 @@ type TwoWayFunc func(req *Message, reply *Message) error
 // As above req.JobSerz [] byte contains the job payload.
 type OneWayFunc func(req *Message)
 
-// ServerToClientStreamFunc is used to send a stream to the
+// ServerSendsStreamFunc is used to send a stream to the
 // client on the streamToClientChan.
-// Use Server.RegisterServerToClientStreamFunc() to register it.
-type ServerToClientStreamFunc func(srv *Server, ctx context.Context, req *Message, streamToClientChan chan<- *Message, last bool) (finReply *Message, err error)
+// Use Server.RegisterServerSendsStreamFunc() to register it.
+type ServerSendsStreamFunc func(srv *Server, ctx context.Context, req *Message, sendPart func(by []byte, last bool), lastReply *Message) (err error)
 
 // A StreamRecvFunc receives messages from a Client's Stream.
 //

@@ -1046,7 +1046,7 @@ func Test055_streaming_server_to_client(t *testing.T) {
 
 		// register streamer func with server
 		streamerName := "streamerName"
-		srv.RegisterServerToClientStreamFunc(streamerName, RepliesToClientWithStream)
+		srv.RegisterServerSendsStreamFunc(streamerName, ServerSendsStream)
 
 		// start client
 		cfg.ClientDialToHostPort = serverAddr.String()
