@@ -680,9 +680,7 @@ func (s *Server) processWork(job *job) {
 			ctx0, cancelFunc = context.WithCancel(ctx0)
 		}
 		defer cancelFunc()
-		ctx := context.WithValue(ctx0, "HDR", &req.HDR)
-		// Also saved under private key to avoid collisions, per context docs.
-		ctx = ContextWithHDR(ctx, &req.HDR)
+		ctx := ContextWithHDR(ctx0, &req.HDR)
 		s.registerInFlightCallToCancel(req, cancelFunc, ctx)
 
 		defer s.noLongerInFlight(reqCallID)
@@ -966,9 +964,7 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 			ctx0, cancelFunc = context.WithCancel(ctx0)
 		}
 		defer cancelFunc()
-		ctx := context.WithValue(ctx0, "HDR", &reqMsg.HDR)
-		// Also saved under private key to avoid collisions, per context docs.
-		ctx = ContextWithHDR(ctx, &reqMsg.HDR)
+		ctx := ContextWithHDR(ctx0, &reqMsg.HDR)
 
 		pair.Server.registerInFlightCallToCancel(reqMsg, cancelFunc, ctx)
 		defer pair.Server.noLongerInFlight(reqMsg.HDR.CallID)
@@ -1170,10 +1166,9 @@ func (p *rwPair) readRequestHeader(codec ServerCodec) (svc *service, mtype *meth
 //
 // Callback methods in the `net/rpc` style traditionally look like this first
 // `NoContext` example below. We now allow a context.Context as an additional first
-// parameter. The ctx will have an "HDR" value set on it giving a pointer to
-// the `rpc25519.HDR` header from the incoming Message. See also HDRFromContext()
-// for avoidance of collisions with other context using
-// packages (per the recommendation of the context docs).
+// parameter. The ctx will a pointer to the `rpc25519.HDR` header from the
+// incoming Message set on it. Call rpc25519.HDRFromContext()
+// to retreive it.
 //
 //	func (s *Service) NoContext(args *Args, reply *Reply) error
 //
@@ -1762,7 +1757,7 @@ type serverSendStreamHelper struct {
 func (s *Server) newServerSendStreamHelper(req *Message) *serverSendStreamHelper {
 
 	m := &Message{}
-	// no DoneCh, we send ourselves.
+	// no DoneCh, as we send ourselves.
 
 	m.HDR.Subject = req.HDR.Subject
 	m.HDR.To = req.HDR.From
@@ -1777,7 +1772,7 @@ func (s *Server) newServerSendStreamHelper(req *Message) *serverSendStreamHelper
 }
 
 func (s *serverSendStreamHelper) sendStreamPart(by []byte, last bool) {
-
+	vv("sendStreamPart called! last = %v", last)
 	s.mut.Lock()
 	defer s.mut.Unlock()
 

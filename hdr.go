@@ -220,20 +220,15 @@ func (m *Message) AsJSON(scratch []byte) (o []byte, err error) {
 // It is public so that clients can understand the
 // context of their calls. Traditional `net/rpc` API users
 // can use the `ctx context.Context` first argument
-// form of callback methods and get an *HDR with ctx.Value("HDR")
+// form of callback methods and get an *HDR with HDRFromContext()
 // as in the README.md introduction. Reproduced here:
 //
 //	func (s *Service) GetsContext(ctx context.Context, args *Args, reply *Reply) error {
-//	  if hdr := ctx.Value("HDR"); hdr != nil {
-//	     h, ok := hdr.(*rpc25519.HDR)
-//	     if ok {
+//	    if hdr, ok := HDRFromContext(ctx); ok {
 //	       fmt.Printf("GetsContext called with HDR = '%v'; "+
 //	          "HDR.Nc.RemoteAddr() gives '%v'; HDR.Nc.LocalAddr() gives '%v'\n",
-//	          h.String(), h.Nc.RemoteAddr(), h.Nc.LocalAddr())
-//	     }
-//	  } else {
-//	     fmt.Println("HDR not found")
-//	  }
+//	          hdr.String(), hdr.Nc.RemoteAddr(), hdr.Nc.LocalAddr())
+//	    }
 //	}
 type HDR struct {
 

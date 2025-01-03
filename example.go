@@ -130,16 +130,11 @@ func (BuiltinTypes) Array(args *Args, reply *[2]int) error {
 // BuiltinTypes.WantsContext in example.go is part of the tests.
 // Here, mimic Array's reply.
 func (BuiltinTypes) WantsContext(ctx context.Context, args *Args, reply *[2]int) error {
-	if hdr := ctx.Value("HDR"); hdr != nil {
-		h, ok := hdr.(*HDR)
-		if ok {
-			fmt.Printf("WantsContext called with HDR = '%v'; HDR.Nc.RemoteAddr() gives '%v'; HDR.Nc.LocalAddr() gives '%v'\n", h.String(), h.Nc.RemoteAddr(), h.Nc.LocalAddr())
+	if h, ok := HDRFromContext(ctx); ok {
+		fmt.Printf("WantsContext called with HDR = '%v'; HDR.Nc.RemoteAddr() gives '%v'; HDR.Nc.LocalAddr() gives '%v'\n", h.String(), h.Nc.RemoteAddr(), h.Nc.LocalAddr())
 
-			(*reply)[0] = args.A
-			(*reply)[1] = args.B
-		}
-	} else {
-		fmt.Println("HDR not found")
+		(*reply)[0] = args.A
+		(*reply)[1] = args.B
 	}
 	return nil
 }
