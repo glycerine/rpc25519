@@ -1028,3 +1028,94 @@ func Test045_streaming_client_to_server(t *testing.T) {
 
 	})
 }
+
+func Test055_streaming_server_to_client(t *testing.T) {
+
+	cv.Convey("stream a large message in parts from server to client, the opposite direction of the previous test, 045.", t, func() {
+
+		cfg := NewConfig()
+		cfg.TCPonly_no_TLS = false
+
+		cfg.ServerAddr = "127.0.0.1:0"
+		srv := NewServer("srv_test055", cfg)
+
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
+
+		//vv("server Start() returned serverAddr = '%v'", serverAddr)
+
+		//		streamer := NewServerSideStreamingFunc()
+		//		srv.RegisterStreamRecvFunc(streamer.ReceiveFileInParts)
+
+		cfg.ClientDialToHostPort = serverAddr.String()
+		client, err := NewClient("test055", cfg)
+		panicOn(err)
+		err = client.Start()
+		panicOn(err)
+
+		defer client.Close()
+
+		// read the final reply from the server.
+		//readCh := client.GetReadIncomingCh()
+
+		ctx55, cancelFunc55 := context.WithCancel(context.Background())
+		defer cancelFunc55()
+
+		callbackStreamCallID := NewCallID()
+		cliStrmRecv, err := client.RequestStreamFromServer(callbackStreamCallID)
+		panicOn(err)
+
+		//var reply *Message
+		req := NewMessage()
+		filename := "server.sent.streams.all.together.txt"
+		req.HDR.Subject = "receiveFile:" + filename
+		req.JobSerz = []byte("a=c(0")
+
+		// start the call
+		strm, err := client.StreamBegin(req, ctx55.Done())
+		panicOn(err)
+
+		originalStreamCallID := strm.CallID()
+		vv("strm started, with CallID = '%v'", originalStreamCallID)
+		// then send N more parts
+
+		var last bool
+		N := 20
+		for i := 1; i <= N; i++ {
+			streamMsg := NewMessage()
+			streamMsg.HDR.Subject = fmt.Sprintf("streaming part %v is here.", i)
+			streamMsg.JobSerz = []byte(fmt.Sprintf(",%v", i))
+			if i == N {
+				last = true
+				streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
+			}
+			err = strm.SendMore(streamMsg, ctx55.Done(), last)
+			panicOn(err)
+			//vv("sent part %v", i)
+		}
+		//vv("all N=%v parts sent", N)
+
+		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
+
+		/*
+			select {
+			case m := <-readCh:
+				report := string(m.JobSerz)
+				vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+				cv.So(strings.Contains(report, "bytesWrit"), cv.ShouldBeTrue)
+				cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
+				cv.So(fileExists(filename), cv.ShouldBeTrue)
+
+			case <-time.After(time.Minute):
+				t.Fatalf("should have gotten a reply from the server finishing the stream.")
+			}
+			if fileExists(filename) && N == 20 {
+				// verify the contents of the assembled file
+				fileBytes, err := os.ReadFile(filename)
+				panicOn(err)
+				cv.So(string(fileBytes), cv.ShouldEqual, "a=c(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)")
+			}
+		*/
+	})
+}

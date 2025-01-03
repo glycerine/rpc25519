@@ -248,7 +248,6 @@ func NewHDR(from, to, subject string, typ CallType, streamPart int64) (m *HDR) {
 	t0 := time.Now()
 	serial := atomic.AddInt64(&lastSerial, 1)
 
-	//rness := cristalbase64.URLEncoding.EncodeToString(cryptoRandBytes(32))
 	var pseudo [20]byte // not cryptographically random.
 	chacha8randMut.Lock()
 	chacha8rand.Read(pseudo[:])
@@ -267,6 +266,14 @@ func NewHDR(from, to, subject string, typ CallType, streamPart int64) (m *HDR) {
 	}
 
 	return
+}
+
+func NewCallID() string {
+	var pseudo [20]byte // not cryptographically random.
+	chacha8randMut.Lock()
+	chacha8rand.Read(pseudo[:])
+	chacha8randMut.Unlock()
+	return cristalbase64.URLEncoding.EncodeToString(pseudo[:])
 }
 
 // for when the server is just going to replace the CallID with

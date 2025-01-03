@@ -335,22 +335,34 @@ func (s *MustBeCancelled) MessageAPI_HangUntilCancel(req, reply *Message) error 
 	return nil
 }
 
+// ServerSideStreamingFunc is used by
+// Test045_streaming_client_to_server in cli_test.go
+// to demonstrate streaming a large (or
+// infinite) file in small parts,
+// from client to server, all while keeping FIFO
+// message order.
 type ServerSideStreamingFunc struct {
 	fname     string
 	fd        *os.File
 	bytesWrit int64
 }
 
+// NewServerSideStreamingFunc returns a new
+// ServerSideStreamingFunc. This is part of
+// the cli_test.go Test045 mechanics.
 func NewServerSideStreamingFunc() *ServerSideStreamingFunc {
 	return &ServerSideStreamingFunc{}
 }
 
+// ReceiveFileInParts is used by
+// Test045_streaming_client_to_server in cli_test.go
+// to demonstrate streaming from client to server.
 func (s *ServerSideStreamingFunc) ReceiveFileInParts(req *Message, lastReply *Message) (err error) {
 
 	t0 := time.Now()
 	hdr1 := req.HDR
 	ctx := hdr1.Ctx
-	//vv("server MessageAPI_ReceiveFile called, Subject='%v'; StreamPart=%v", hdr1.Subject, hdr1.StreamPart)
+	//vv("server ReceiveFileInParts called, Subject='%v'; StreamPart=%v", hdr1.Subject, hdr1.StreamPart)
 
 	select {
 	case <-ctx.Done():
@@ -380,7 +392,7 @@ func (s *ServerSideStreamingFunc) ReceiveFileInParts(req *Message, lastReply *Me
 	nw, err := io.Copy(s.fd, bytes.NewBuffer(req.JobSerz))
 	s.bytesWrit += nw
 	if err != nil {
-		err = fmt.Errorf("MessageAPI_ReceiveFile: on "+
+		err = fmt.Errorf("ReceiveFileInParts: on "+
 			"writing StreamPart 1 to path '%v', we got error: "+
 			"'%v', after writing %v of %v", s.fname, err, nw, n)
 		vv("problem: %v", err.Error())
@@ -392,11 +404,12 @@ func (s *ServerSideStreamingFunc) ReceiveFileInParts(req *Message, lastReply *Me
 	if lastReply != nil {
 		s.fd.Close()
 
-		//vv("MessageAPI_ReceiveFile sees last set!")
+		//vv("ReceiveFileInParts sees last set!")
 
 		elap := time.Since(hdr1.Created)
 		mb := float64(s.bytesWrit) / float64(1<<20)
-		rate := mb / (float64(elap) / float64(time.Second))
+		seconds := (float64(elap) / float64(time.Second))
+		rate := mb / seconds
 
 		// finally reply to the original caller.
 		lastReply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v (while mb=%v) => %v MB/sec. ; bytesWrit=%v;", t0, elap, mb, rate, s.bytesWrit))
@@ -406,13 +419,7 @@ func (s *ServerSideStreamingFunc) ReceiveFileInParts(req *Message, lastReply *Me
 	return
 }
 
-func abs64Value(a int64) int64 {
-	if a >= 0 {
-		return a
-	}
-	return -a
-}
-
+/* unfinished example
 func (s *ServerSideStreamingFunc) NetRPC_ReceiveFile(ctx context.Context, args *Args, reply *Reply) error {
 	test040callStarted <- true
 	fmt.Printf("example.go: server-side: WillHangUntilCancel() is running\n")
@@ -430,4 +437,89 @@ func (s *ServerSideStreamingFunc) NetRPC_ReceiveFile(ctx context.Context, args *
 		test040callFinished <- msg
 	}
 	return nil
+}
+*/
+
+// ClientSideStreamingFunc is used by
+// Test055_streaming_server_to_client in cli_test.go
+// to demonstrate streaming a large (or
+// infinite) file in small parts,
+// from server to client, all while keeping FIFO
+// message order.
+type ClientSideStreamingFunc struct {
+	fname     string
+	fd        *os.File
+	bytesWrit int64
+}
+
+// NewClientSideStreamingFunc returns a new
+// ClientSideStreamingFunc. This is part of
+// the cli_test.go Test055 mechanics.
+func NewClientSideStreamingFunc() *ClientSideStreamingFunc {
+	return &ClientSideStreamingFunc{}
+}
+
+// ReceiveFileInParts is used by
+// Test055_streaming_server_to_client in cli_test.go
+// to demonstrate streaming from client to server.
+func (s *ClientSideStreamingFunc) ReceiveFileInParts(req *Message, lastReply *Message) (err error) {
+
+	t0 := time.Now()
+	hdr1 := req.HDR
+	ctx := hdr1.Ctx
+	//vv("server ReceiveFileInParts called, Subject='%v'; StreamPart=%v", hdr1.Subject, hdr1.StreamPart)
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("context cancelled")
+	default:
+	}
+
+	if hdr1.StreamPart == 0 {
+		if !strings.HasPrefix(hdr1.Subject, "receiveFile:") {
+			panic("subject must contain receiveFile: and the file name !")
+		}
+		prefix := "receiveFile:"
+		s.fname = hdr1.Subject[len(prefix):]
+		if s.fname == "" {
+			panic("subject must contain receiveFile: and the file name, which was missing !")
+		}
+		// save the file handle for the next callback too.
+		s.fd, err = os.Create(s.fname)
+		if err != nil {
+			return fmt.Errorf("error: server could not path '%v': '%v'", s.fname, err)
+		}
+	}
+
+	n := len(req.JobSerz)
+	part := req.HDR.StreamPart
+	_ = part
+	nw, err := io.Copy(s.fd, bytes.NewBuffer(req.JobSerz))
+	s.bytesWrit += nw
+	if err != nil {
+		err = fmt.Errorf("ReceiveFileInParts: on "+
+			"writing StreamPart 1 to path '%v', we got error: "+
+			"'%v', after writing %v of %v", s.fname, err, nw, n)
+		vv("problem: %v", err.Error())
+		return
+	} else {
+		//vv("succesfully wrote part %v to the file '%v': '%v'", part, s.fname, string(req.JobSerz))
+	}
+
+	if lastReply != nil {
+		s.fd.Close()
+
+		//vv("ReceiveFileInParts sees last set!")
+
+		elap := time.Since(hdr1.Created)
+		mb := float64(s.bytesWrit) / float64(1<<20)
+		seconds := (float64(elap) / float64(time.Second))
+		rate := mb / seconds
+
+		// finally reply to the original caller.
+		lastReply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v (while mb=%v) => %v MB/sec. ; bytesWrit=%v;", t0, elap, mb, rate, s.bytesWrit))
+
+		//vv("returning with lastReply = '%v'", string(lastReply.JobSerz))
+	}
+	return
 }
