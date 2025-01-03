@@ -1692,7 +1692,12 @@ func (s *Server) registerInFlightCallToCancel(msg *Message, cancelFunc context.C
 			cc.streamCh = streamChan
 			msg.HDR.streamCh = streamChan
 		}
-
+		if ctx != nil {
+			dl, ok := ctx.Deadline()
+			if ok {
+				cc.deadline = dl
+			}
+		}
 	} else {
 		// second time here, this is a CallStreamBegin,
 		// and now we have ctx and cancelFunc
