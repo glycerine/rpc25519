@@ -391,12 +391,16 @@ func (s *ServerSideStreamingFunc) MessageAPI_ReceiveFile(req *Message, lastReply
 	if lastReply != nil {
 		s.fd.Close()
 
+		vv("MessageAPI_ReceiveFile sees last set!")
+
 		elap := time.Since(hdr1.Created)
 		mb := float64(s.bytesWrit) / float64(1<<20)
 		rate := mb / (float64(elap) / float64(time.Second))
 
 		// finally reply to the original caller.
 		lastReply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v (while mb=%v) => %v MB/sec. ; bytesWrit=%v;", t0, elap, mb, rate, s.bytesWrit))
+
+		vv("returning with lastReply = '%v'", string(lastReply.JobSerz))
 	}
 	return
 }

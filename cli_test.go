@@ -969,13 +969,16 @@ func Test045_streaming_client_to_server(t *testing.T) {
 
 		defer client.Close()
 
+		// read the final reply from the server.
+		readCh := client.GetReadIncomingCh()
+
 		ctx45, cancelFunc45 := context.WithCancel(context.Background())
 		defer cancelFunc45()
 
 		//var reply *Message
 		req := NewMessage()
 		req.HDR.Subject = "receiveFile:streams.all.together.txt"
-		req.JobSerz = []byte("part1;")
+		req.JobSerz = []byte("part0;")
 
 		// start the call
 		strm, err := client.StreamBegin(req, ctx45.Done())
@@ -998,6 +1001,12 @@ func Test045_streaming_client_to_server(t *testing.T) {
 		vv("all 3 parts sent")
 
 		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
-		select {}
+
+		select {
+		case m := <-readCh:
+			vv("got from readCh: '%v'", string(m.JobSerz))
+		case <-time.After(time.Minute):
+		}
+
 	})
 }

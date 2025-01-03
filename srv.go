@@ -692,6 +692,8 @@ func (s *Server) processWork(job *job) {
 		reply.HDR.Typ = CallRPC
 		reply.HDR.Deadline = deadline
 
+		vv("2way about to send its reply: '%#v'", reply)
+
 		// We write ourselves rather than switch
 		// goroutines. We've added a mutex
 		// inside sendMessage so our writes won't conflict
@@ -1651,12 +1653,13 @@ func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
 	//return
 	//}
 
-	var hdr0 *HDR
-	var ctx context.Context
+	hdr0 := &req.HDR
+	ctx := req.HDR.Ctx
 	var msgN *Message
 	bytesRecv := 0
+	var last *Message
 
-	for i := int64(0); ; i++ {
+	for i := int64(0); last == nil; i++ {
 
 		// get streaming messages from the processWork() goroutine,
 		// when it calls handleStreamMessage().
@@ -1664,7 +1667,11 @@ func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
 		case msgN = <-hdr0.streamCh:
 			if i == 0 {
 				ctx = msgN.HDR.Ctx
-				hdr0 = &msgN.HDR
+				if msgN != req {
+					panic("req should be first in the queue!")
+				}
+			} else {
+				msgN.HDR.Ctx = ctx
 			}
 		case <-ctx.Done():
 			// allow call cancellation.
@@ -1682,7 +1689,6 @@ func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
 			panic(fmt.Errorf("hdr0.CallID = '%v', but hdrN.CallID = '%v', at part %v", hdr0.CallID, hdrN.CallID, i))
 		}
 
-		var last *Message
 		switch hdrN.Typ {
 		case CallStreamEnd:
 			last = reply
@@ -1690,6 +1696,10 @@ func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
 
 		err = s.callmeS(msgN, last)
 		if err != nil {
+			return
+		}
+		if last != nil {
+			vv("on last, client set replyLast = '%#v'", reply)
 			return
 		}
 	}
