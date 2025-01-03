@@ -539,16 +539,16 @@ func (c *Client) runSendLoop(conn net.Conn) {
 // receives the reply.
 type TwoWayFunc func(req *Message, reply *Message) error
 
-// ServerToClientStreamFunc is used to send a stream to the
-// client on the streamToClientChan.
-// Use Server.RegisterServerToClientStreamFunc() to register it.
-type ServerToClientStreamFunc func(srv *Server, ctx context.Context, req *Message, streamToClientChan chan<- *Message) (finReply *Message, err error)
-
 // OneWayFunc is the simpler sibling to the above.
 // A OneWayFunc will not return anything to the sender.
 //
 // As above req.JobSerz [] byte contains the job payload.
 type OneWayFunc func(req *Message)
+
+// ServerToClientStreamFunc is used to send a stream to the
+// client on the streamToClientChan.
+// Use Server.RegisterServerToClientStreamFunc() to register it.
+type ServerToClientStreamFunc func(srv *Server, ctx context.Context, req *Message, streamToClientChan chan<- *Message, last bool) (finReply *Message, err error)
 
 // A StreamRecvFunc receives messages from a Client's Stream.
 //
