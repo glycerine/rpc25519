@@ -352,24 +352,24 @@ func (c *Client) runReadLoop(conn net.Conn) {
 		msg.HDR.LocalRecvTm = time.Now()
 
 		seqno := msg.HDR.Seqno
-		vv("client %v received message with seqno=%v, msg.HDR='%v'", c.name, seqno, msg.HDR.String())
+		//vv("client %v received message with seqno=%v, msg.HDR='%v'", c.name, seqno, msg.HDR.String())
 
 		c.mut.Lock()
 		whoCh, waiting := c.notifyOnce[seqno]
-		vv("notifyOnce waiting = %v for seqno %v", waiting, seqno)
+		//vv("notifyOnce waiting = %v for seqno %v", waiting, seqno)
 		if waiting {
 			delete(c.notifyOnce, seqno)
 
 			select {
 			case whoCh <- msg:
-				vv("client %v: yay. sent on notifyOnce channel! for seqno=%v", c.name, seqno)
+				//vv("client %v: yay. sent on notifyOnce channel! for seqno=%v", c.name, seqno)
 			default:
 				panic(fmt.Sprintf("Should never happen b/c the channels must be buffered!: could not send to whoCh from notifyOnce; for seqno = %v.", seqno))
 			}
 		} else {
-			vv("notifyOnce: nobody was waiting for seqno = %v", seqno)
+			//vv("notifyOnce: nobody was waiting for seqno = %v", seqno)
 
-			vv("len c.notifyOnRead = %v", len(c.notifyOnRead))
+			//vv("len c.notifyOnRead = %v", len(c.notifyOnRead))
 			// assume the round-trip "calls" should be consumed,
 			// and not repeated here to client listeners who want events???
 			// trying to match what other RPC systems do.
@@ -461,7 +461,7 @@ func (c *Client) runSendLoop(conn net.Conn) {
 			return
 		case msg := <-c.oneWayCh:
 
-			vv("cli %v has had a one-way requested: '%v'", c.name, msg)
+			//vv("cli %v has had a one-way requested: '%v'", c.name, msg)
 
 			// one-way always use seqno 0,
 			// so we know that no follow up is expected.
@@ -496,11 +496,11 @@ func (c *Client) runSendLoop(conn net.Conn) {
 			seqno := c.nextSeqno()
 			msg.HDR.Seqno = seqno
 
-			vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v: '%v'; part '%v'", c.name, seqno, msg, msg.HDR.StreamPart)
+			//vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v: '%v'; part '%v'", c.name, seqno, msg, msg.HDR.StreamPart)
 			c.GetOneRead(seqno, msg.DoneCh)
 
 			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
-				vv("Failed to send message: %v", err)
+				//vv("Failed to send message: %v", err)
 				msg.LocalErr = err
 				msg.DoneCh <- msg
 				continue
@@ -546,8 +546,14 @@ type TwoWayFunc func(req *Message, reply *Message) error
 type OneWayFunc func(req *Message)
 
 // A StreamRecvFunc receives messages from a Client's Stream.
-// It is like a OneWayFunc, but it
-// generally should be a method or closure to capture
+//
+// For a quick example, see the ReceiveFileInParts()
+// implementation in the example.go file. It is a method on the
+// ServerSideStreamingFunc struct that holds state
+// between the callbacks to ReceiveFileInParts().
+//
+// A StreamRecvFunc is like a OneWayFunc, but it
+// generally should also be a method or closure to capture
 // the state it needs, as it will receive multiple req *Message
 // up-calls from the same client Stream. It should return a
 // non-nil error to tell the client to stop sending.
@@ -1369,12 +1375,55 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 // (one-way) calls to a remote StreamRecvFunc registered
 // on the server.
 type Stream struct {
+	mut    sync.Mutex
 	cli    *Client
 	next   int64
 	callID string
 	done   bool
 }
 
+func (s *Stream) CallID() string {
+	return s.callID
+}
+
+// StreamBegin sends the msg to the server
+// to execute with the func that has registed
+// with RegisterStreamRecvFunc() -- at the
+// moment there can only be one such func
+// registered at a time. StreamBegin() will
+// contact it, and Stream.SendMore() will,
+// as it suggests, send another Message.
+//
+// We maintain FIFO arrival of Messages
+// at the server as follows (despite having
+// each server side func callback executing in a
+// goroutine).
+//
+// 1. Since the client side uses the same
+// channel into the send loop for both
+// StreamBegin and SendMore, these
+// calls will be properly ordered into
+// the send loop on the client/sending side.
+//
+// 2. The TCP/QUIC stream maintains
+// FIFO order of its messages as it
+// delivers them to the server.
+//
+// 3. On the server, in the TCP/QUIC
+// read loop, we queue messages in
+// FIFO order into a large buffered
+// channel before we spin up a goroutine
+// once at StreamBegin time to handle
+// all the subsequent messages in the
+// order they were queued.
+//
+// This also yeilds an efficient design.
+// While normal OneWayFunc and TwoWayFunc
+// messages each start their own new goroutine
+// to avoid long-running functions starving
+// the server's read loop, a StreamRecvFunc
+// only utilizes a single new goroutine to
+// process all messages sent in a stream.
 func (c *Client) StreamBegin(
 	msg *Message,
 	cancelJobCh <-chan struct{},
@@ -1394,7 +1443,16 @@ func (c *Client) StreamBegin(
 	}, nil
 }
 
+var ErrAlreadyDone = fmt.Errorf("Stream has already been marked done. No more sending is allowed.")
+
 func (s *Stream) SendMore(msg *Message, cancelJobCh <-chan struct{}, last bool) (err error) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
+	if s.done {
+		return ErrAlreadyDone
+	}
+
 	if last {
 		msg.HDR.Typ = CallStreamEnd
 		s.done = true

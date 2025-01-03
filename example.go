@@ -345,12 +345,12 @@ func NewServerSideStreamingFunc() *ServerSideStreamingFunc {
 	return &ServerSideStreamingFunc{}
 }
 
-func (s *ServerSideStreamingFunc) MessageAPI_ReceiveFile(req *Message, lastReply *Message) (err error) {
+func (s *ServerSideStreamingFunc) ReceiveFileInParts(req *Message, lastReply *Message) (err error) {
 
 	t0 := time.Now()
 	hdr1 := req.HDR
 	ctx := hdr1.Ctx
-	vv("server MessageAPI_ReceiveFile called, Subject='%v'; StreamPart=%v", hdr1.Subject, hdr1.StreamPart)
+	//vv("server MessageAPI_ReceiveFile called, Subject='%v'; StreamPart=%v", hdr1.Subject, hdr1.StreamPart)
 
 	select {
 	case <-ctx.Done():
@@ -376,6 +376,7 @@ func (s *ServerSideStreamingFunc) MessageAPI_ReceiveFile(req *Message, lastReply
 
 	n := len(req.JobSerz)
 	part := req.HDR.StreamPart
+	_ = part
 	nw, err := io.Copy(s.fd, bytes.NewBuffer(req.JobSerz))
 	s.bytesWrit += nw
 	if err != nil {
@@ -385,13 +386,13 @@ func (s *ServerSideStreamingFunc) MessageAPI_ReceiveFile(req *Message, lastReply
 		vv("problem: %v", err.Error())
 		return
 	} else {
-		vv("succesfully wrote part %v to the file '%v': '%v'", part, s.fname, string(req.JobSerz))
+		//vv("succesfully wrote part %v to the file '%v': '%v'", part, s.fname, string(req.JobSerz))
 	}
 
 	if lastReply != nil {
 		s.fd.Close()
 
-		vv("MessageAPI_ReceiveFile sees last set!")
+		//vv("MessageAPI_ReceiveFile sees last set!")
 
 		elap := time.Since(hdr1.Created)
 		mb := float64(s.bytesWrit) / float64(1<<20)
@@ -400,7 +401,7 @@ func (s *ServerSideStreamingFunc) MessageAPI_ReceiveFile(req *Message, lastReply
 		// finally reply to the original caller.
 		lastReply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v (while mb=%v) => %v MB/sec. ; bytesWrit=%v;", t0, elap, mb, rate, s.bytesWrit))
 
-		vv("returning with lastReply = '%v'", string(lastReply.JobSerz))
+		//vv("returning with lastReply = '%v'", string(lastReply.JobSerz))
 	}
 	return
 }

@@ -539,16 +539,16 @@ type job struct {
 // and StreamEnd should be called here.
 func (s *Server) handleStreamMessage(req *Message) {
 
-	//vv("about to lock inflight: handleStreamMessage")
 	s.inflight.mut.Lock()
-	//vv("got the inflight lock")
 	cc, ok := s.inflight.activeCalls[req.HDR.CallID]
 	s.inflight.mut.Unlock()
-	//vv("released the inflight lock")
 
 	if !ok {
 		vv("Warning: dropping a StreamPart because no handler "+
-			"registered/inflight. This is highly un-expected. hdr='%v'", req.HDR.String())
+			"registered/inflight. This is highly un-expected. "+
+			"However, it might mean the server func exited with "+
+			"an error but the client has not caught up with "+
+			"that yet. hdr='%v'", req.HDR.String())
 		return
 	}
 
@@ -560,7 +560,7 @@ func (s *Server) handleStreamMessage(req *Message) {
 	// we are already in a per-packet/message goroutine,
 	// nothing more to do but just wait.
 	case cc.streamCh <- req:
-		vv("handleStreamMessages: cc.StreamCh: sent req")
+		//vv("handleStreamMessages: cc.StreamCh: sent req")
 	case <-s.halt.ReqStop.Chan:
 	}
 }
@@ -586,7 +586,7 @@ func (s *Server) processWork(job *job) {
 		return
 	}
 
-	vv("processWork() sees req.HDR = %v", req.HDR)
+	//vv("processWork() sees req.HDR = %v", req.HDR)
 
 	conn := job.conn
 	pair := job.pair
@@ -611,7 +611,7 @@ func (s *Server) processWork(job *job) {
 	case CallStreamBegin:
 		if s.callmeS == nil {
 			// nothing to do
-			vv("warning! possible problem: stream begin received but no registered stream handler available on the server. hdr='%v'", req.HDR.String())
+			panic(fmt.Sprintf("warning! possible problem: stream begin received but no registered stream handler available on the server. hdr='%v'", req.HDR.String()))
 			s.mut.Unlock()
 			return
 		}
@@ -692,7 +692,7 @@ func (s *Server) processWork(job *job) {
 		reply.HDR.Typ = CallRPC
 		reply.HDR.Deadline = deadline
 
-		vv("2way about to send its reply: '%#v'", reply)
+		//vv("2way about to send its reply: '%#v'", reply)
 
 		// We write ourselves rather than switch
 		// goroutines. We've added a mutex
@@ -1560,7 +1560,6 @@ type callctx struct {
 
 func (s *Server) registerInFlightCallToCancel(msg *Message, cancelFunc context.CancelFunc, ctx context.Context) {
 
-	vv("about to lock inflight: registerInFlight")
 	s.inflight.mut.Lock()
 	defer s.inflight.mut.Unlock()
 
@@ -1611,7 +1610,6 @@ func (s *Server) registerInFlightCallToCancel(msg *Message, cancelFunc context.C
 
 func (s *Server) noLongerInFlight(callID string) {
 
-	vv("about to lock inflight: noLongerInFlight")
 	s.inflight.mut.Lock()
 	defer s.inflight.mut.Unlock()
 	// we leave the streaming functions alive,
@@ -1627,7 +1625,6 @@ func (s *Server) noLongerInFlight(callID string) {
 
 func (s *Server) getCancelFuncForCallID(callID string) (cancelFunc context.CancelFunc) {
 
-	vv("about to lock inflight: getCancel")
 	s.inflight.mut.Lock()
 	defer s.inflight.mut.Unlock()
 
@@ -1644,14 +1641,12 @@ func (s *Server) getCancelFuncForCallID(callID string) (cancelFunc context.Cance
 
 func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
 
-	vv("beginRecvStream internal TwoFunc top.")
+	//vv("beginRecvStream internal TwoFunc top.")
 
 	// Now the StreamBegain call itself is in the queue,
 	// to ensure FIFO order of the stream messages.
-	//err = s.callmeS(req, nil)
-	//if err != nil {
-	//return
-	//}
+	// So we don't need a separate call to s.callmeS before
+	// the loop; everything can be handled uniformly.
 
 	hdr0 := &req.HDR
 	ctx := req.HDR.Ctx
@@ -1699,7 +1694,7 @@ func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
 			return
 		}
 		if last != nil {
-			vv("on last, client set replyLast = '%#v'", reply)
+			//vv("on last, client set replyLast = '%#v'", reply)
 			return
 		}
 	}

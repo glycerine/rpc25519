@@ -3,6 +3,7 @@ package rpc25519
 import (
 	"context"
 	"fmt"
+	"os"
 	//"reflect"
 	"strings"
 	"testing"
@@ -959,7 +960,7 @@ func Test045_streaming_client_to_server(t *testing.T) {
 		//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
 		streamer := NewServerSideStreamingFunc()
-		srv.RegisterStreamRecvFunc(streamer.MessageAPI_ReceiveFile)
+		srv.RegisterStreamRecvFunc(streamer.ReceiveFileInParts)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		client, err := NewClient("test045", cfg)
@@ -977,35 +978,52 @@ func Test045_streaming_client_to_server(t *testing.T) {
 
 		//var reply *Message
 		req := NewMessage()
-		req.HDR.Subject = "receiveFile:streams.all.together.txt"
-		req.JobSerz = []byte("part0;")
+		filename := "streams.all.together.txt"
+		req.HDR.Subject = "receiveFile:" + filename
+		req.JobSerz = []byte("a=c(0")
 
 		// start the call
 		strm, err := client.StreamBegin(req, ctx45.Done())
 		panicOn(err)
 
-		// then send two more parts
+		originalStreamCallID := strm.CallID()
+		vv("strm started, with CallID = '%v'", originalStreamCallID)
+		// then send N more parts
 
 		var last bool
-		for i := 1; i < 3; i++ {
+		N := 20
+		for i := 1; i <= N; i++ {
 			streamMsg := NewMessage()
 			streamMsg.HDR.Subject = fmt.Sprintf("streaming part %v is here.", i)
-			streamMsg.JobSerz = []byte(fmt.Sprintf(":part%v;", i))
-			if i == 2 {
+			streamMsg.JobSerz = []byte(fmt.Sprintf(",%v", i))
+			if i == N {
 				last = true
+				streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
 			}
 			err = strm.SendMore(streamMsg, ctx45.Done(), last)
 			panicOn(err)
-			vv("sent part %v", i)
+			//vv("sent part %v", i)
 		}
-		vv("all 3 parts sent")
+		//vv("all N=%v parts sent", N)
 
 		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
 
 		select {
 		case m := <-readCh:
-			vv("got from readCh: '%v'", string(m.JobSerz))
+			report := string(m.JobSerz)
+			vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+			cv.So(strings.Contains(report, "bytesWrit"), cv.ShouldBeTrue)
+			cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
+			cv.So(fileExists(filename), cv.ShouldBeTrue)
+
 		case <-time.After(time.Minute):
+			t.Fatalf("should have gotten a reply from the server finishing the stream.")
+		}
+		if fileExists(filename) && N == 20 {
+			// verify the contents of the assembled file
+			fileBytes, err := os.ReadFile(filename)
+			panicOn(err)
+			cv.So(string(fileBytes), cv.ShouldEqual, "a=c(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)")
 		}
 
 	})
