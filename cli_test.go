@@ -1068,14 +1068,19 @@ func Test055_streaming_server_to_client(t *testing.T) {
 		vv("strmBack request4d, with CallID = '%v'", strmBack.CallID)
 		// then send N more parts
 
-		select {
-		case m := <-strmBack.ReadCh:
-			report := string(m.JobSerz)
-			vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+		for done := false; !done; {
+			select {
+			case m := <-strmBack.ReadCh:
+				report := string(m.JobSerz)
+				vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
 
-		case <-time.After(time.Second):
-			t.Fatalf("should have gotten a reply from the server finishing the stream.")
+				if m.HDR.Typ == CallStreamBackEnd {
+					vv("good: we see CallStreamBackEnd from server.")
+					done = true
+				}
+			case <-time.After(time.Second * 10):
+				t.Fatalf("should have gotten a reply from the server finishing the stream.")
+			}
 		}
-
 	})
 }

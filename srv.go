@@ -691,7 +691,7 @@ func (s *Server) processWork(job *job) {
 		case foundCallback2:
 			err = callme2(req, reply)
 		case foundServerSendsStream:
-			help := s.newServerSendStreamHelper(req)
+			help := s.newServerSendStreamHelper(ctx, job)
 			err = callmeServerSendsStreamFunc(s, ctx, req, help.sendStreamPart, reply)
 		}
 		if err != nil {
@@ -1747,24 +1747,31 @@ func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
 
 type serverSendStreamHelper struct {
 	srv *Server
+	job *job
 	req *Message
+	ctx context.Context
 
 	tmpMsg   *Message
 	mut      sync.Mutex
 	nextPart int64
 }
 
-func (s *Server) newServerSendStreamHelper(req *Message) *serverSendStreamHelper {
+func (s *Server) newServerSendStreamHelper(ctx context.Context, job *job) *serverSendStreamHelper {
 
 	m := &Message{}
 	// no DoneCh, as we send ourselves.
 
+	req := job.req
+
 	m.HDR.Subject = req.HDR.Subject
 	m.HDR.To = req.HDR.From
+	m.HDR.From = req.HDR.To
 	m.HDR.Seqno = req.HDR.Seqno
 	m.HDR.CallID = req.HDR.CallID
 
 	return &serverSendStreamHelper{
+		ctx:    ctx,
+		job:    job,
 		srv:    s,
 		req:    req,
 		tmpMsg: m,
@@ -1773,6 +1780,15 @@ func (s *Server) newServerSendStreamHelper(req *Message) *serverSendStreamHelper
 
 func (s *serverSendStreamHelper) sendStreamPart(by []byte, last bool) {
 	vv("sendStreamPart called! last = %v", last)
+
+	// return early if we are cancelled, rather
+	// than wasting time/network bandwidth.
+	select {
+	case <-s.ctx.Done():
+		return
+	default:
+	}
+
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
@@ -1791,12 +1807,11 @@ func (s *serverSendStreamHelper) sendStreamPart(by []byte, last bool) {
 		tmp.HDR.Typ = CallStreamBackMore
 	}
 	tmp.HDR.StreamPart = i
-	/*
-	   select {
-	   case streamReply <- tmp:
-	   case <-ctx.Done():
+	tmp.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
+	tmp.HDR.Created = time.Now()
 
-	   		return nil, fmt.Errorf("context cancelled job")
-	   	}
-	*/
+	err := s.job.w.sendMessage(s.job.conn, tmp, &s.srv.cfg.WriteTimeout)
+	if err != nil {
+		alwaysPrintf("serverSendStreamHelper.sendStreamPart error(): sendMessage got err = '%v'", err)
+	}
 }
