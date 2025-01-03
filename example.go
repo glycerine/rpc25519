@@ -525,7 +525,7 @@ func (s *ClientSideStreamingFunc) ReceiveFileInParts(req *Message, lastReply *Me
 }
 
 // RepliesToClientWithStream is used by Test055_streaming_server_to_client.
-// It demonstrates how to stream to the client
+// It demonstrates how to stream to the client.
 func RepliesToClientWithStream(srv *Server, ctx context.Context, req *Message, streamReply chan<- *Message, last bool) (finReply *Message, err error) {
 
 	destAddr := req.HDR.From

@@ -1660,3 +1660,20 @@ func (c *Client) setupPSK(conn uConn) error {
 	}
 	return nil
 }
+
+// StreamBack is used when the client receives stream from server.
+// It is returned by RequestStreamBack().
+type StreamBack struct {
+	CallID string
+	ReadCh chan *Message
+}
+
+func (c *Client) RequestStreamBack(ctx context.Context, streamerName string) (strmBack *StreamBack, err error) {
+
+	req := NewMessage()
+	hdr := NewHDR()
+	hdr.Typ = CallRequestStreamBack
+	hdr.Subject = streamerName
+
+	return
+}

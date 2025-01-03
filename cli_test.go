@@ -1036,6 +1036,7 @@ func Test055_streaming_server_to_client(t *testing.T) {
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = false
 
+		// start server
 		cfg.ServerAddr = "127.0.0.1:0"
 		srv := NewServer("srv_test055", cfg)
 
@@ -1043,74 +1044,38 @@ func Test055_streaming_server_to_client(t *testing.T) {
 		panicOn(err)
 		defer srv.Close()
 
+		// register streamer func with server
 		streamerName := "streamerName"
 		srv.RegisterServerToClientStreamFunc(streamerName, RepliesToClientWithStream)
 
+		// start client
 		cfg.ClientDialToHostPort = serverAddr.String()
 		client, err := NewClient("test055", cfg)
 		panicOn(err)
 		err = client.Start()
 		panicOn(err)
-
 		defer client.Close()
 
-		// The client has to start the request (because in QUIC, otherwise
-		// server never knows about a client stream), and this
-		// make sense for the client too: it should only be receiving
-		// streams it is prepared to handle.
-
+		// ask server to send us the stream
 		ctx55, cancelFunc55 := context.WithCancel(context.Background())
 		defer cancelFunc55()
-
-		req := NewMessage()
-		filename := "server.sent.streams.all.together.txt"
-		req.HDR.Subject = "receiveFile:" + filename
-		req.JobSerz = []byte("a=c(0")
+		_ = ctx55
 
 		// start the call
-		strm, err := client.StreamBegin(req, ctx55.Done())
+		strmBack, err := client.RequestStreamBack(ctx55, streamerName)
 		panicOn(err)
 
-		originalStreamCallID := strm.CallID()
-		vv("strm started, with CallID = '%v'", originalStreamCallID)
+		vv("strmBack request4d, with CallID = '%v'", strmBack.CallID)
 		// then send N more parts
 
-		var last bool
-		N := 20
-		for i := 1; i <= N; i++ {
-			streamMsg := NewMessage()
-			streamMsg.HDR.Subject = fmt.Sprintf("streaming part %v is here.", i)
-			streamMsg.JobSerz = []byte(fmt.Sprintf(",%v", i))
-			if i == N {
-				last = true
-				streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
-			}
-			err = strm.SendMore(streamMsg, ctx55.Done(), last)
-			panicOn(err)
-			//vv("sent part %v", i)
+		select {
+		case m := <-strmBack.ReadCh:
+			report := string(m.JobSerz)
+			vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+
+		case <-time.After(time.Second):
+			t.Fatalf("should have gotten a reply from the server finishing the stream.")
 		}
-		//vv("all N=%v parts sent", N)
 
-		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
-
-		/*
-			select {
-			case m := <-readCh:
-				report := string(m.JobSerz)
-				vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
-				cv.So(strings.Contains(report, "bytesWrit"), cv.ShouldBeTrue)
-				cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
-				cv.So(fileExists(filename), cv.ShouldBeTrue)
-
-			case <-time.After(time.Minute):
-				t.Fatalf("should have gotten a reply from the server finishing the stream.")
-			}
-			if fileExists(filename) && N == 20 {
-				// verify the contents of the assembled file
-				fileBytes, err := os.ReadFile(filename)
-				panicOn(err)
-				cv.So(string(fileBytes), cv.ShouldEqual, "a=c(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)")
-			}
-		*/
 	})
 }

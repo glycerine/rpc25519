@@ -26,16 +26,31 @@ var _ = cristalbase64.URLEncoding
 type CallType int
 
 const (
-	CallNone           CallType = 0
-	CallRPC            CallType = 1
-	CallRPCReply       CallType = 2
-	CallOneWay         CallType = 3
-	CallNetRPC         CallType = 4
+	CallNone CallType = 0
+
+	CallRPC      CallType = 1
+	CallRPCReply CallType = 2
+
+	CallOneWay CallType = 3
+	CallNetRPC CallType = 4
+
 	CallKeepAlive      CallType = 5
 	CallCancelPrevious CallType = 6
-	CallStreamBegin    CallType = 7
-	CallStreamMore     CallType = 8
-	CallStreamEnd      CallType = 9
+
+	// client sends a stream to the server.
+	CallStreamBegin CallType = 7
+	CallStreamMore  CallType = 8
+	CallStreamEnd   CallType = 9
+
+	// the opposite: when client wants to get a stream
+	// from the server.
+	CallRequestStreamBack CallType = 10
+
+	// The server responds to CallRequestStreamBack with
+	// a stream of these.
+	CallStreamBackBegin CallType = 11
+	CallStreamBackMore  CallType = 12
+	CallStreamBackEnd   CallType = 13
 )
 
 func (ct CallType) String() string {
