@@ -389,7 +389,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 			continue
 
 		case msg := <-s.SendCh:
-			vv("srv got from s.SendCh, sending msg.HDR = '%v'", msg.HDR)
+			//vv("srv got from s.SendCh, sending msg.HDR = '%v'", msg.HDR)
 			err := w.sendMessage(conn, msg, &s.cfg.WriteTimeout)
 			if err != nil {
 				// notify any short-time-waiting server push user.
@@ -606,12 +606,14 @@ func (s *Server) processWork(job *job) {
 	s.mut.Lock()
 	switch req.HDR.Typ {
 	case CallRPC:
-		callme2 = s.callme2
-		foundCallback2 = true
+		if s.callme2 != nil {
+			callme2 = s.callme2
+			foundCallback2 = true
+		}
 	case CallStreamBegin:
 		if s.callmeS == nil {
 			// nothing to do
-			panic(fmt.Sprintf("warning! possible problem: stream begin received but no registered stream handler available on the server. hdr='%v'", req.HDR.String()))
+			alwaysPrintf("warning! possible problem: stream begin received but no registered stream handler available on the server. hdr='%v'", req.HDR.String())
 			s.mut.Unlock()
 			return
 		}
@@ -625,8 +627,10 @@ func (s *Server) processWork(job *job) {
 		//s.handleStreamMessage(req)
 		//return
 	case CallOneWay:
-		callme1 = s.callme1
-		foundCallback1 = true
+		if s.callme1 != nil {
+			callme1 = s.callme1
+			foundCallback1 = true
+		}
 	}
 	s.mut.Unlock()
 
@@ -1385,7 +1389,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte,
 	mid.Seqno = seqno
 	msg.HDR = *mid
 
-	//vv("send message attempting to send %v bytes to '%v'", len(data), destAddr)
+	vv("send message attempting to send %v bytes to '%v'", len(data), destAddr)
 	select {
 	case pair.SendCh <- msg:
 		//vv("sent to pair.SendCh, msg='%v'", msg.HDR.String())
@@ -1402,7 +1406,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte,
 		dur = *errWriteDur
 	}
 	if dur > 0 {
-		//vv("srv SendMessage about to wait %v to check on connection.", dur)
+		vv("srv SendMessage about to wait %v to check on connection.", dur)
 		select {
 		case <-msg.DoneCh:
 			//vv("srv SendMessage got back msg.LocalErr = '%v'", msg.LocalErr)
@@ -1572,11 +1576,14 @@ func (s *Server) registerInFlightCallToCancel(msg *Message, cancelFunc context.C
 	cc, ok := s.inflight.activeCalls[msg.HDR.CallID]
 
 	if !ok {
-		// first time here: cancelFunc and ctx will be nil.
+		// first time here: cancelFunc and ctx will be nil
+		// for CallStreamBegin, but not for others.
 		cc = &callctx{
 			callID:         msg.HDR.CallID,
 			added:          time.Now(),
 			callSubj:       msg.HDR.Subject,
+			ctx:            ctx,
+			cancelFunc:     cancelFunc,
 			lastStreamPart: msg.HDR.StreamPart,
 		}
 
@@ -1593,7 +1600,8 @@ func (s *Server) registerInFlightCallToCancel(msg *Message, cancelFunc context.C
 		}
 
 	} else {
-		// second time here, now we have ctx and cancelFunc
+		// second time here, this is a CallStreamBegin,
+		// and now we have ctx and cancelFunc
 		if ctx != nil {
 			dl, ok := ctx.Deadline()
 			if ok {

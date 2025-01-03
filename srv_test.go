@@ -474,8 +474,8 @@ func Test014_server_push_quic(t *testing.T) {
 		vv("cli.Conn local key = '%v'", local(cli.quicConn))
 		destAddr := local(cli.quicConn)
 
-		// client has to initiate to get a stream, otherwise
-		// server will never know about them.
+		// In QUIC, client has to initiate to get a stream, otherwise
+		// server will never know about them/the stream.
 		clireq := NewMessage()
 		clireq.HDR.Subject = "one way hello"
 		clireq.JobSerz = []byte("one way Hello from client!")

@@ -1341,7 +1341,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		if reply != nil {
 			err = reply.LocalErr
 		}
-		vv("client.SendAndGetReply() got on reply.Err = '%v'", err)
+		//vv("client.SendAndGetReply() got on reply.Err = '%v'", err)
 		return
 	case <-cancelJobCh:
 		// usually a timeout
@@ -1488,7 +1488,8 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err erro
 		hdr = newHDRwithoutCallID(from, to,
 			msg.HDR.Subject, msg.HDR.Typ, msg.HDR.StreamPart)
 		hdr.CallID = msg.HDR.CallID
-	default:
+	}
+	if hdr == nil {
 		hdr = NewHDR(from, to, msg.HDR.Subject, msg.HDR.Typ, msg.HDR.StreamPart)
 	}
 	msg.HDR = *hdr
