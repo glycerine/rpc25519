@@ -539,12 +539,14 @@ type job struct {
 // and StreamEnd should be called here.
 func (s *Server) handleStreamMessage(req *Message) {
 
+	callID := req.HDR.CallID
+
 	s.inflight.mut.Lock()
-	cc, ok := s.inflight.activeCalls[req.HDR.CallID]
+	cc, ok := s.inflight.activeCalls[callID]
 	s.inflight.mut.Unlock()
 
 	if !ok {
-		vv("Warning: dropping a StreamPart because no handler "+
+		alwaysPrintf("Warning: dropping a StreamPart because no handler "+
 			"registered/inflight. This is highly un-expected. "+
 			"However, it might mean the server func exited with "+
 			"an error but the client has not caught up with "+
@@ -556,12 +558,24 @@ func (s *Server) handleStreamMessage(req *Message) {
 	part := req.HDR.StreamPart
 	cc.lastStreamPart = part
 
+	// be aware that we are on the read-loop goroutine stack here.
+	// If we are stalled, we will stall all reads on the server.
+	// If we hang, the server becomes unresponsive.
+	//
+	// BUT! This is probably good, because we *want* back-pressure
+	// when under load. If the streamer cannot take any more
+	// messages, then we don't want to read any more off the wire either.
+	// Just wait until a slot opens up.
+
 	select {
-	// we are already in a per-packet/message goroutine,
-	// nothing more to do but just wait.
 	case cc.streamCh <- req:
 		//vv("handleStreamMessages: cc.StreamCh: sent req")
 	case <-s.halt.ReqStop.Chan:
+		return
+
+		// don't time out here! allow for back-pressure on
+		// the network read, which can be transmitted across
+		// TCP to slow the sending side down.
 	}
 }
 
@@ -578,12 +592,7 @@ func (s *Server) processWork(job *job) {
 	//vv("processWork got job: req.HDR='%v'", req.HDR.String())
 
 	if req.HDR.Typ == CallCancelPrevious {
-		cancelFunc := s.getCancelFuncForCallID(req.HDR.CallID)
-		//vv("server sees CallCancelPrevious for req.HDR.CallID='%v' -> cancelFunc = %p", req.HDR.CallID, cancelFunc)
-		if cancelFunc != nil {
-			cancelFunc()
-			//vv("server called cancelFunc!")
-		}
+		s.cancelCallID(req.HDR.CallID)
 		return
 	}
 
@@ -632,9 +641,7 @@ func (s *Server) processWork(job *job) {
 		foundCallback2 = true
 	case CallStreamMore, CallStreamEnd:
 		panic("cannot see these here, must for FIFO of the stream be called from the readloop")
-		//s.mut.Unlock()
-		//s.handleStreamMessage(req)
-		//return
+
 	case CallOneWay:
 		if s.callme1 != nil {
 			callme1 = s.callme1
@@ -1730,20 +1737,25 @@ func (s *Server) noLongerInFlight(callID string) {
 	delete(s.inflight.activeCalls, callID)
 }
 
-func (s *Server) getCancelFuncForCallID(callID string) (cancelFunc context.CancelFunc) {
+// while holding the inflight mut so it is atomic.
+func (s *Server) cancelCallID(callID string) {
 
 	s.inflight.mut.Lock()
 	defer s.inflight.mut.Unlock()
 
 	if s.inflight.activeCalls == nil {
 		s.inflight.activeCalls = make(map[string]*callctx)
-		return nil
+		return
 	}
-	callctx0, ok := s.inflight.activeCalls[callID]
+
+	cc, ok := s.inflight.activeCalls[callID]
 	if !ok {
-		return nil
+		return
 	}
-	return callctx0.cancelFunc
+	if cc.cancelFunc != nil {
+		cc.cancelFunc()
+	}
+	delete(s.inflight.activeCalls, callID)
 }
 
 func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
@@ -1777,7 +1789,7 @@ func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
 			}
 		case <-ctx.Done():
 			// allow call cancellation.
-			return nil
+			return fmt.Errorf("context cancelled")
 		}
 		bytesRecv += len(msgN.JobSerz)
 
@@ -1850,7 +1862,7 @@ func (s *serverSendStreamHelper) sendStreamPart(by []byte, last bool) {
 	//vv("sendStreamPart called! last = %v", last)
 
 	// return early if we are cancelled, rather
-	// than wasting time/network bandwidth.
+	// than wasting time or bandwidth.
 	select {
 	case <-s.ctx.Done():
 		return
