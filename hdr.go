@@ -45,20 +45,20 @@ const (
 	CallKeepAlive      CallType = 12
 	CallCancelPrevious CallType = 13
 
-	// client sends a stream to the server, in an upload, or Upstream.
-	CallUpstreamBegin CallType = 14
-	CallUpstreamMore  CallType = 15
-	CallUpstreamEnd   CallType = 16
+	// client sends a stream to the server, in an upload, or Upload.
+	CallUploadBegin CallType = 14
+	CallUploadMore  CallType = 15
+	CallUploadEnd   CallType = 16
 
 	// the opposite: when client wants to get a stream
 	// from the server.
-	CallRequestDownstream CallType = 17
+	CallRequestDownload CallType = 17
 
-	// The server responds to CallRequestDownstream with
+	// The server responds to CallRequestDownload with
 	// a stream of these.
-	CallDownstreamBegin CallType = 18
-	CallDownstreamMore  CallType = 19
-	CallDownstreamEnd   CallType = 20
+	CallDownloadBegin CallType = 18
+	CallDownloadMore  CallType = 19
+	CallDownloadEnd   CallType = 20
 )
 
 func (ct CallType) String() string {
@@ -79,21 +79,21 @@ func (ct CallType) String() string {
 		return "CallKeepAlive"
 	case CallCancelPrevious:
 		return "CallCancelPrevious"
-	case CallUpstreamBegin:
-		return "CallUpstreamBegin"
-	case CallUpstreamMore:
-		return "CallUpstreamMore"
-	case CallUpstreamEnd:
-		return "CallUpstreamEnd"
+	case CallUploadBegin:
+		return "CallUploadBegin"
+	case CallUploadMore:
+		return "CallUploadMore"
+	case CallUploadEnd:
+		return "CallUploadEnd"
 
-	case CallRequestDownstream:
-		return "CallRequestDownstream"
-	case CallDownstreamBegin:
-		return "CallDownstreamBegin"
-	case CallDownstreamMore:
-		return "CallDownstreamMore"
-	case CallDownstreamEnd:
-		return "CallDownstreamEnd"
+	case CallRequestDownload:
+		return "CallRequestDownload"
+	case CallDownloadBegin:
+		return "CallDownloadBegin"
+	case CallDownloadMore:
+		return "CallDownloadMore"
+	case CallDownloadEnd:
+		return "CallDownloadEnd"
 
 	default:
 		panic(fmt.Sprintf("need to update String() for CallType %v", int(ct)))
@@ -269,7 +269,7 @@ type HDR struct {
 	// all parts of the same stream.
 	StreamPart int64 `zid:"10"`
 
-	// streamCh is internal; used for client -> server streaming on CallUpstreamBegin
+	// streamCh is internal; used for client -> server streaming on CallUploadBegin
 	streamCh chan *Message `msg:"-"`
 }
 

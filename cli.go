@@ -1326,7 +1326,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 	var hdr *HDR
 	switch req.HDR.Typ {
 
-	case CallUpstreamMore, CallUpstreamEnd:
+	case CallUploadMore, CallUploadEnd:
 		// must preserve the CallID on streaming calls.
 		hdr = newHDRwithoutCallID(from, to, req.HDR.Subject, req.HDR.Typ, req.HDR.StreamPart)
 		hdr.CallID = req.HDR.CallID
@@ -1465,7 +1465,7 @@ func (c *Client) StreamBegin(
 
 ) (strm *Stream, err error) {
 
-	msg.HDR.Typ = CallUpstreamBegin
+	msg.HDR.Typ = CallUploadBegin
 	msg.HDR.StreamPart = 0
 	err = c.OneWaySend(msg, cancelJobCh)
 	if err != nil {
@@ -1489,10 +1489,10 @@ func (s *Stream) SendMore(msg *Message, cancelJobCh <-chan struct{}, last bool) 
 	}
 
 	if last {
-		msg.HDR.Typ = CallUpstreamEnd
+		msg.HDR.Typ = CallUploadEnd
 		s.done = true
 	} else {
-		msg.HDR.Typ = CallUpstreamMore
+		msg.HDR.Typ = CallUploadMore
 	}
 	msg.HDR.StreamPart = s.next
 	msg.HDR.CallID = s.callID
@@ -1518,7 +1518,7 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err erro
 	// preserve streaming call types.
 	case CallNone:
 		msg.HDR.Typ = CallOneWay
-	case CallUpstreamMore, CallUpstreamEnd, CallRequestBistreaming:
+	case CallUploadMore, CallUploadEnd, CallRequestBistreaming:
 		// must preserve the CallID on streaming calls.
 		hdr = newHDRwithoutCallID(from, to,
 			msg.HDR.Subject, msg.HDR.Typ, msg.HDR.StreamPart)
@@ -1692,16 +1692,16 @@ func (c *Client) setupPSK(conn uConn) error {
 	return nil
 }
 
-// Downstream is used when the client receives stream from server.
-// It is returned by RequestDownstream().
-type Downstream struct {
+// Download is used when the client receives stream from server.
+// It is returned by RequestDownload().
+type Download struct {
 	CallID string
 	Seqno  uint64
 	ReadCh chan *Message
 	Name   string
 }
 
-func (c *Client) RequestDownstream(ctx context.Context, streamerName string) (strmBack *Downstream, err error) {
+func (c *Client) RequestDownload(ctx context.Context, streamerName string) (strmBack *Download, err error) {
 
 	req := NewMessage()
 
@@ -1714,7 +1714,7 @@ func (c *Client) RequestDownstream(ctx context.Context, streamerName string) (st
 		to = remote(c.conn)
 	}
 
-	hdr := NewHDR(from, to, streamerName, CallRequestDownstream, 0)
+	hdr := NewHDR(from, to, streamerName, CallRequestDownload, 0)
 	hdr.Ctx = ctx
 	deadline, ok := ctx.Deadline()
 	if ok {
@@ -1728,7 +1728,7 @@ func (c *Client) RequestDownstream(ctx context.Context, streamerName string) (st
 		return
 	}
 
-	strmBack = &Downstream{
+	strmBack = &Download{
 		CallID: hdr.CallID,
 		ReadCh: c.GetReadIncomingCh(),
 		Name:   streamerName,
@@ -1775,10 +1775,10 @@ func (s *Bistreamer) SendMore(msg *Message, cancelJobCh <-chan struct{}, last bo
 	}
 
 	if last {
-		msg.HDR.Typ = CallUpstreamEnd
+		msg.HDR.Typ = CallUploadEnd
 		s.done = true
 	} else {
-		msg.HDR.Typ = CallUpstreamMore
+		msg.HDR.Typ = CallUploadMore
 	}
 	msg.HDR.StreamPart = s.next
 	msg.HDR.CallID = s.callID

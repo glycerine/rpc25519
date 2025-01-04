@@ -1067,7 +1067,7 @@ func Test055_streaming_server_to_client(t *testing.T) {
 		defer cancelFunc55()
 
 		// start the call
-		strmBack, err := client.RequestDownstream(ctx55, streamerName)
+		strmBack, err := client.RequestDownload(ctx55, streamerName)
 		panicOn(err)
 
 		//vv("strmBack requested, with CallID = '%v'", strmBack.CallID)
@@ -1084,17 +1084,17 @@ func Test055_streaming_server_to_client(t *testing.T) {
 					t.Fatalf("deadline not preserved")
 				}
 
-				if m.HDR.Typ == CallDownstreamEnd {
-					//vv("good: we see CallDownstreamEnd from server.")
+				if m.HDR.Typ == CallDownloadEnd {
+					//vv("good: we see CallDownloadEnd from server.")
 					done = true
 				}
 
 				if i == 0 {
-					cv.So(m.HDR.Typ == CallDownstreamBegin, cv.ShouldBeTrue)
+					cv.So(m.HDR.Typ == CallDownloadBegin, cv.ShouldBeTrue)
 				} else if i == 19 {
-					cv.So(m.HDR.Typ == CallDownstreamEnd, cv.ShouldBeTrue)
+					cv.So(m.HDR.Typ == CallDownloadEnd, cv.ShouldBeTrue)
 				} else {
-					cv.So(m.HDR.Typ == CallDownstreamMore, cv.ShouldBeTrue)
+					cv.So(m.HDR.Typ == CallDownloadMore, cv.ShouldBeTrue)
 				}
 
 				if m.HDR.Seqno != strmBack.Seqno {
@@ -1193,17 +1193,17 @@ func Test065_bidirectional_streaming_from_server_func_perspective(t *testing.T) 
 					t.Fatalf("deadline not preserved")
 				}
 
-				if m.HDR.Typ == CallDownstreamEnd {
-					vv("good: we see CallDownstreamEnd from server.")
+				if m.HDR.Typ == CallDownloadEnd {
+					vv("good: we see CallDownloadEnd from server.")
 					done = true
 				}
 
 				if i == 0 {
-					cv.So(m.HDR.Typ == CallDownstreamBegin, cv.ShouldBeTrue)
+					cv.So(m.HDR.Typ == CallDownloadBegin, cv.ShouldBeTrue)
 				} else if i == 19 {
-					cv.So(m.HDR.Typ == CallDownstreamEnd, cv.ShouldBeTrue)
+					cv.So(m.HDR.Typ == CallDownloadEnd, cv.ShouldBeTrue)
 				} else {
-					cv.So(m.HDR.Typ == CallDownstreamMore, cv.ShouldBeTrue)
+					cv.So(m.HDR.Typ == CallDownloadMore, cv.ShouldBeTrue)
 				}
 
 				if m.HDR.Seqno != bistream.Seqno {
