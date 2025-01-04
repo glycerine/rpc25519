@@ -82,7 +82,11 @@ type workspace struct {
 	// want two goroutines interleaving
 	// these. readMessage() certainly
 	// does multiple Read()s as well.
-	rmut sync.Mutex
+	//
+	// Update: technically we do not need this because
+	// our use readMessage() is isolated to the
+	// readLoop() functions.
+	//rmut sync.Mutex
 }
 
 // currently only used for headers; but bodies may
@@ -117,8 +121,14 @@ func newWorkspace(name string, maxMsgSize int) *workspace {
 // receiveMessage reads a framed message from conn
 // nil or 0 timeout means no timeout.
 func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Message, err error) {
-	w.rmut.Lock()
-	defer w.rmut.Unlock()
+
+	// our use of w.readMessage is isolated to the readLoop
+	// on the server and in the client. They are the only
+	// users within their processes. Hence this locking is
+	// not needed. If that changes/if ever there are multiple goroutines
+	// calling us, we would want to turn on read locking.
+	//w.rmut.Lock()
+	//defer w.rmut.Unlock()
 
 	// Read the first 8 bytes for the magic check.
 	_, err = readFull(conn, w.magicCheck, timeout)
