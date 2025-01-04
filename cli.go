@@ -1469,7 +1469,7 @@ func (s *Uploader) CallID() string {
 // with RegisterUploaderReadererFunc() -- at the
 // moment there can only be one such func
 // registered at a time. UploadBegin() will
-// contact it, and Uploader.SendMore() will,
+// contact it, and Uploader.UploadMore() will,
 // as it suggests, send another Message.
 //
 // We maintain FIFO arrival of Messages
@@ -1479,7 +1479,7 @@ func (s *Uploader) CallID() string {
 //
 // 1. Since the client side uses the same
 // channel into the send loop for both
-// UploadBegin and SendMore, these
+// UploadBegin and UploadMore, these
 // calls will be properly ordered into
 // the send loop on the client/sending side.
 //
@@ -1830,7 +1830,7 @@ func (s *Bistreamer) CallID() string {
 	return s.callID
 }
 
-func (s *Bistreamer) SendMore(msg *Message, cancelJobCh <-chan struct{}, last bool) (err error) {
+func (s *Bistreamer) UploadMore(msg *Message, cancelJobCh <-chan struct{}, last bool) (err error) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 

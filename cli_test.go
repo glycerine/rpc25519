@@ -1249,7 +1249,7 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 				last = true
 				streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
 			}
-			err = bistream.SendMore(streamMsg, ctx65.Done(), last)
+			err = bistream.UploadMore(streamMsg, ctx65.Done(), last)
 			panicOn(err)
 			//vv("uploaded part %v", i)
 		}
