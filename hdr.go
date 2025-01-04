@@ -202,10 +202,17 @@ func MessageFromGreenpack(by []byte) (*Message, error) {
 	return msg, err
 }
 
+var ErrTooLarge = fmt.Errorf("error: length of payload JobSerz is over maxMessage - 1024(for header) = %v bytes, which is the limit.", maxMessage-1024)
+
 // AsGreenpack marshalls m into o.
 // The scratch workspace can be nil or reused to avoid allocation.
 // The [greenpack format](https://github.com/glycerine/greenpack) is used.
+// The m.JobSerz payload must be <= maxMessage-1024, or we
+// will return ErrTooLarge without trying to serialize it.
 func (m *Message) AsGreenpack(scratch []byte) (o []byte, err error) {
+	if len(m.JobSerz) > maxMessage-1024 {
+		return nil, ErrTooLarge
+	}
 	return m.MarshalMsg(scratch[:0])
 }
 

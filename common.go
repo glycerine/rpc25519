@@ -1,6 +1,7 @@
 package rpc25519
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -9,12 +10,23 @@ import (
 )
 
 const (
-	maxMessage = 20*1024*1024 - 64 // 20 MB max message size, prevents TLS clients from talking to TCP servers, as the random TLS data looks like very big message size.
+	maxMessage = 64*1024*1024 - 80 // 64 MB max message size, prevents TLS clients from talking to TCP servers, as the random TLS data looks like very big message size.
 )
 
-var ErrTooLong = fmt.Errorf("message message too long:  over 2MB; encrypted client vs an un-encrypted server?")
+var ErrTooLong = fmt.Errorf("message message too long: over 64MB; encrypted client vs an un-encrypted server?")
 
 var _ = io.EOF
+
+// magic is always the first 8 bytes of an
+// unencrypted message on the wire. Thus
+// magic lets us detect when message boundaries
+// have been corrupted (also encrypted vs not mismatches).
+// It was chosen randomly and should remain
+// constant, or else clients and servers will not
+// be able to talk to each other.
+var magic = [8]byte{0xb3, 0x5d, 0x18, 0x39, 0xac, 0x8e, 0x1d, 0x80}
+
+var ErrMagicWrong = fmt.Errorf("error: magic bytes not found at start of message")
 
 // uConn hopefully works for both quic.Stream and net.Conn, universally.
 type uConn interface {
@@ -28,6 +40,10 @@ type uConn interface {
 // =========================
 //
 // message structure
+//
+// 0. magic: 8 bytes always the first thing. Simple, but
+//           statistically has a high probability of detecting
+//           partial message cutoff and resumption.
 //
 // 1. lenBody: next  8 bytes: *body_length*, big endian uint64.
 //                The *body_length* says how many bytes are in the body.
@@ -48,6 +64,7 @@ type workspace struct {
 
 	readLenMessageBytes  []byte
 	writeLenMessageBytes []byte
+	magicCheck           []byte
 
 	name string
 
@@ -58,21 +75,44 @@ type workspace struct {
 // currently only used for headers; but bodies may
 // well benefit as well. In which case, bump up
 // to maxMessage+1024 or so, rather than this 64KB.
+//
+// Update: no longer true!
+// newWorkspace is used by the chacha.go encoder.sendMessage
+// for example, as it uses buf for encoding and encrypting
+// the full messages. Hence maxMsgSize *must* be
+// at least maxMessage + magic(8 bytes) + msglen(8 bytes) +
+// noncesize(24 bytes at most) + authTag(16 bytes) overhead
+// or larger now. XChaCha has a 24 byte nonce.
+// Poly1305 has authTag overhead of 16 bytes.
+// Hence at least 56 more bytes beyond maxMessage
+// are needed. We currently allocate 80 more bytes.
+// This pre-allocation avoids all reallocation
+// and memory churn during regular operation.
 func newWorkspace(name string, maxMsgSize int) *workspace {
 	return &workspace{
 		name:       name,
 		maxMsgSize: maxMsgSize,
-		// need at least len(msg) + 44; 44 because == msglen(8) + nonceX(24) + overhead(16)
-		buf:                  make([]byte, maxMsgSize+64),
+		// need at least len(msg) + 56; 56 because ==
+		// magic(8) + msglen(8) + nonceX(24) + overhead(16)
+		buf:                  make([]byte, maxMsgSize+80),
 		readLenMessageBytes:  make([]byte, 8),
 		writeLenMessageBytes: make([]byte, 8),
+		magicCheck:           make([]byte, 8),
 	}
 }
 
 // receiveMessage reads a framed message from conn
 // nil or 0 timeout means no timeout.
 func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Message, err error) {
-	// Read the first 8 bytes for the Message length
+	// Read the first 8 bytes for the magic check.
+	_, err = readFull(conn, w.magicCheck, timeout)
+	if err != nil {
+		return nil, err
+	}
+	if !bytes.Equal(w.magicCheck, magic[:]) {
+		return nil, ErrMagicWrong
+	}
+	// Read the next 8 bytes for the Message length.
 	_, err = readFull(conn, w.readLenMessageBytes, timeout)
 	if err != nil {
 		return nil, err
@@ -113,6 +153,11 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 
 	binary.BigEndian.PutUint64(w.writeLenMessageBytes, uint64(nbytesMsg))
 
+	// Write magic
+	if err := writeFull(conn, magic[:], timeout); err != nil {
+		return err
+	}
+
 	// Write Message length
 	if err := writeFull(conn, w.writeLenMessageBytes, timeout); err != nil {
 		return err
@@ -148,7 +193,6 @@ func readFull(conn uConn, buf []byte, timeout *time.Duration) (numRead int, err 
 		numRead += n
 		if numRead == need {
 			// probably just EOF
-			//panicOn(erf) goq will panic here.
 			return numRead, nil
 		}
 		if err != nil {
