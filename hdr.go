@@ -346,7 +346,7 @@ func (a *HDR) Equal(b *HDR) bool {
 		a.StreamPart == b.StreamPart
 }
 
-func (m *HDR) String() string { // has data race
+func (m *HDR) String() string {
 	//return m.Pretty()
 	return fmt.Sprintf(`&rpc25519.HDR{
     "Nc": %v,
