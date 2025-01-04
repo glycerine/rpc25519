@@ -556,6 +556,8 @@ type ServerSendsStreamFunc func(
 	lastReply *Message,
 ) (err error)
 
+type BiFunc = ServerSendsStreamFunc
+
 // A StreamReaderFunc receives messages from a Client's Stream.
 //
 // For a quick example, see the ReceiveFileInParts()

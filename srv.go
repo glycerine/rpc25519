@@ -621,13 +621,22 @@ func (s *Server) processWork(job *job) {
 			foundCallback2 = true
 		}
 	case CallRequestStreamBack:
-		back, ok := s.callmeServerSendsStreamMap[req.HDR.Subject]
-		if !ok {
-			// TODO: log this rather than panic. maybe respond to client?
-			panic(fmt.Sprintf("client asked for ServerSendsStreamFunc req.HDR.Subject='%v' but this is not registered!", req.HDR.Subject))
+		// check the bimap first, too
+		back, ok := s.callmeBiMap[req.HDR.Subject]
+		if ok {
+			callmeServerSendsStreamFunc = back
+			foundServerSendsStream = true
+		} else {
+			back, ok = s.callmeServerSendsStreamMap[req.HDR.Subject]
+			if ok {
+				callmeServerSendsStreamFunc = back
+				foundServerSendsStream = true
+			}
+			if !ok {
+				// TODO: log this rather than panic. maybe respond to client?
+				panic(fmt.Sprintf("client asked for ServerSendsStreamFunc req.HDR.Subject='%v' but this is not registered!", req.HDR.Subject))
+			}
 		}
-		callmeServerSendsStreamFunc = back
-		foundServerSendsStream = true
 	case CallStreamBegin:
 		if s.callmeStreamReader == nil {
 			// nothing to do
@@ -784,6 +793,7 @@ type Server struct {
 
 	// server -> client streams
 	callmeServerSendsStreamMap map[string]ServerSendsStreamFunc
+	callmeBiMap                map[string]BiFunc
 
 	lsn  io.Closer // net.Listener
 	halt *idem.Halter
@@ -1530,6 +1540,7 @@ func NewServer(name string, config *Config) *Server {
 		halt:                       idem.NewHalter(),
 		RemoteConnectedCh:          make(chan *ServerClient, 20),
 		callmeServerSendsStreamMap: make(map[string]ServerSendsStreamFunc),
+		callmeBiMap:                make(map[string]BiFunc),
 	}
 }
 
@@ -1537,6 +1548,12 @@ func (s *Server) RegisterServerSendsStreamFunc(name string, callme ServerSendsSt
 	s.mut.Lock()
 	defer s.mut.Unlock()
 	s.callmeServerSendsStreamMap[name] = callme
+}
+
+func (s *Server) RegisterBiFunc(name string, callme BiFunc) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	s.callmeBiMap[name] = callme
 }
 
 // Register2Func tells the server about a func or method

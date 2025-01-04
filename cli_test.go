@@ -1131,3 +1131,106 @@ func Test055_streaming_server_to_client(t *testing.T) {
 		}
 	})
 }
+
+func Test065_bidirectional_streaming_from_server_func_perspective(t *testing.T) {
+
+	cv.Convey("we should be able to register a server (upcall/callback) func that does bidirectional streaming: both sending a stream to a client, and receiving a stream from a client.", t, func() {
+
+		cfg := NewConfig()
+		cfg.TCPonly_no_TLS = false
+
+		// start server
+		cfg.ServerAddr = "127.0.0.1:0"
+		srv := NewServer("srv_test065", cfg)
+
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
+
+		// register streamer func with server
+		streamerName := "biName"
+		bi := &BiServerState{}
+		srv.RegisterBiFunc(streamerName, bi.ServerSendsStream)
+
+		// start client
+		cfg.ClientDialToHostPort = serverAddr.String()
+		client, err := NewClient("test065", cfg)
+		panicOn(err)
+		err = client.Start()
+		panicOn(err)
+		defer client.Close()
+
+		// ask server to send us the stream
+
+		// use deadline so we can confirm it is transmitted back from server to client
+		// in the stream.
+		deadline := time.Now().Add(time.Hour)
+		ctx55, cancelFunc55 := context.WithDeadline(context.Background(), deadline)
+		defer cancelFunc55()
+
+		// start the call
+		strmBack, err := client.RequestStreamBack(ctx55, streamerName)
+		panicOn(err)
+
+		vv("strmBack requested, with CallID = '%v'", strmBack.CallID)
+		// then send N more parts
+
+		done := false
+		for i := 0; !done; i++ {
+			select {
+			case m := <-strmBack.ReadCh:
+				//report := string(m.JobSerz)
+				//vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
+
+				if !m.HDR.Deadline.Equal(deadline) {
+					t.Fatalf("deadline not preserved")
+				}
+
+				if m.HDR.Typ == CallStreamBackEnd {
+					//vv("good: we see CallStreamBackEnd from server.")
+					done = true
+				}
+
+				if i == 0 {
+					cv.So(m.HDR.Typ == CallStreamBackBegin, cv.ShouldBeTrue)
+				} else if i == 19 {
+					cv.So(m.HDR.Typ == CallStreamBackEnd, cv.ShouldBeTrue)
+				} else {
+					cv.So(m.HDR.Typ == CallStreamBackMore, cv.ShouldBeTrue)
+				}
+
+				if m.HDR.Seqno != strmBack.Seqno {
+					t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
+						"strmBack.Seqno = %v", m.HDR.Seqno, strmBack.Seqno)
+				}
+
+			case <-time.After(time.Second * 10):
+				t.Fatalf("should have gotten a reply from the server finishing the stream.")
+			}
+		} // end for i
+
+		// do we get the lastReply too then?
+
+		select {
+		case m := <-strmBack.ReadCh:
+			//report := string(m.JobSerz)
+			//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+
+			if m.HDR.Subject != "This is end. My only friend, the end. - Jim Morrison, The Doors." {
+				t.Fatalf("where did The Doors quote disappear to?")
+			}
+
+			if !m.HDR.Deadline.Equal(deadline) {
+				t.Fatalf("deadline not preserved")
+			}
+
+			if m.HDR.Seqno != strmBack.Seqno {
+				t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
+					"strmBack.Seqno = %v", m.HDR.Seqno, strmBack.Seqno)
+			}
+
+		case <-time.After(time.Second * 10):
+			t.Fatalf("should have gotten a lastReply from the server finishing the call.")
+		}
+	})
+}

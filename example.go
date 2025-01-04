@@ -417,6 +417,8 @@ func (s *ServerSideStreamingFunc) ReceiveFileInParts(req *Message, lastReply *Me
 	return
 }
 
+type ServerSendsStreamState struct{}
+
 // ServerSendsStream is used by Test055_streaming_server_to_client.
 // It demonstrates how a registered server func can stream to the client.
 // ServerSendStream has type ServerSendsStreamFunc, and gets
@@ -437,4 +439,21 @@ func (ssss *ServerSendsStreamState) ServerSendsStream(srv *Server, ctx context.C
 	return
 }
 
-type ServerSendsStreamState struct{}
+type BiServerState struct{}
+
+// ServerSendsStream is used by Test065_bidirectional_streaming test.
+func (bi *BiServerState) ServerSendsStream(srv *Server, ctx context.Context, req *Message, sendStreamPart func(by []byte, last bool), lastReply *Message) (err error) {
+	done := ctx.Done()
+	for i := range 20 {
+		sendStreamPart([]byte(fmt.Sprintf("part %v;", i)), i == 19)
+		select {
+		case <-done:
+			vv("exiting early! we see done requested at i = %v", i)
+			break
+		default:
+		}
+	}
+
+	lastReply.HDR.Subject = "This is end. My only friend, the end. - Jim Morrison, The Doors."
+	return
+}
