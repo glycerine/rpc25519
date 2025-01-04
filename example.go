@@ -330,23 +330,23 @@ func (s *MustBeCancelled) MessageAPI_HangUntilCancel(req, reply *Message) error 
 	return nil
 }
 
-// ServerSideStreamingFunc is used by
-// Test045_streaming_client_to_server in cli_test.go
+// ServerSideUploadFunc is used by
+// Test045_streaming_client_to_server (upload) in cli_test.go
 // to demonstrate streaming a large (or infinite)
 // file in small parts,
 // from client to server, all while keeping FIFO
 // message order.
-type ServerSideStreamingFunc struct {
+type ServerSideUploadFunc struct {
 	fname     string
 	fd        *os.File
 	bytesWrit int64
 }
 
-// NewServerSideStreamingFunc returns a new
-// ServerSideStreamingFunc. This is part of
+// NewServerSideUploadFunc returns a new
+// ServerSideUploadFunc. This is part of
 // the cli_test.go Test045 mechanics.
-func NewServerSideStreamingFunc() *ServerSideStreamingFunc {
-	return &ServerSideStreamingFunc{}
+func NewServerSideUploadFunc() *ServerSideUploadFunc {
+	return &ServerSideUploadFunc{}
 }
 
 // ReceiveFileInParts is used by
@@ -355,7 +355,7 @@ func NewServerSideStreamingFunc() *ServerSideStreamingFunc {
 //
 // This func is registered on the Server with
 // the srv.RegisterStreamReadFunc() call.
-func (s *ServerSideStreamingFunc) ReceiveFileInParts(req *Message, lastReply *Message) (err error) {
+func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Message) (err error) {
 
 	t0 := time.Now()
 	hdr1 := req.HDR
@@ -472,9 +472,32 @@ func (bi *BiServerState) ServerBistream(srv *Server,
 	vv("ServerBistream: done sending 20 messages")
 	lastReply.HDR.Subject = "This is end. My only friend, the end. - Jim Morrison, The Doors."
 
-	vv("top of ServerBistream(). going to select{} still... reading uploads next :)")
+	// upload handling
 	for {
-		select {}
+		select {
+		case <-ctx.Done():
+			// allow call cancellation.
+			return fmt.Errorf("context cancelled")
+		case msg := <-streamFromClientCh:
+			vv("ServerBistream sees upload part: '%v'", msg.HDR.String())
+			/*
+				//bytesRead += len(msg.JobSerz)
+
+				switch msg.HDR.Typ {
+				case CallUploadEnd:
+					last = reply
+				} // else leave last nil
+
+				err = s.callmeStreamReader(msg, last)
+				if err != nil {
+					return
+				}
+				if last != nil {
+					vv("on last, client set replyLast = '%#v'", reply)
+				}
+			*/
+		}
 	}
+
 	return
 }

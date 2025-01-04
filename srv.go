@@ -644,7 +644,7 @@ func (s *Server) processWork(job *job) {
 			panic(fmt.Sprintf("client asked for ServerSendsDownloadFunc req.HDR.Subject='%v' but this is not registered!", req.HDR.Subject))
 		}
 	case CallUploadBegin:
-		if s.callmeStreamReader == nil {
+		if s.callmeUploadReader == nil {
 			// nothing to do
 			alwaysPrintf("warning! possible problem: stream begin received but no registered stream handler available on the server. hdr='%v'", req.HDR.String())
 			s.mut.Unlock()
@@ -719,10 +719,12 @@ func (s *Server) processWork(job *job) {
 		case foundCallback2:
 			err = callme2(req, reply)
 		case foundServerSendsDownload:
-			help := s.newServerSendStreamHelper(ctx, job)
+			help := s.newServerSendDownloadHelper(ctx, job)
 			err = callmeServerSendsDownloadFunc(s, ctx, req, help.sendDownloadPart, reply)
 		case foundBistream:
-			help := s.newBistreamHelper(ctx, job)
+			// suspect we can just reuse the server version, but save in comments atm.
+			//help := s.newBistreamDownloadHelper(ctx, job)
+			help := s.newServerSendDownloadHelper(ctx, job)
 			err = callmeBi(s, ctx, req, help.sendDownloadPart, reply)
 
 		}
@@ -803,7 +805,7 @@ type Server struct {
 	callme1 OneWayFunc
 
 	// client -> server streams
-	callmeStreamReader StreamReaderFunc
+	callmeUploadReader UploadReaderFunc
 
 	// server -> client streams
 	callmeServerSendsDownloadMap map[string]ServerSendsDownloadFunc
@@ -1588,13 +1590,13 @@ func (s *Server) Register1Func(callme1 OneWayFunc) {
 	s.callme1 = callme1
 }
 
-// RegisterStreamReaderFunc tells the server about a func or method
-// that will have a returned Message value. See the
-// [TwoWayFunc] definition.
-func (s *Server) RegisterStreamReaderFunc(callmeStreamReader StreamReaderFunc) {
+// RegisterUploadReaderFunc tells the server about a func or method
+// to handle uploads. See the
+// [UploadReaderFunc] definition.
+func (s *Server) RegisterUploadReaderFunc(callmeUploadReader UploadReaderFunc) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	s.callmeStreamReader = callmeStreamReader
+	s.callmeUploadReader = callmeUploadReader
 }
 
 // Start has the Server begin receiving and processing RPC calls.
@@ -1791,7 +1793,7 @@ func (s *Server) beginReadStream(req *Message, reply *Message) (err error) {
 
 	// Now the StreamBegain call itself is in the queue,
 	// to ensure FIFO order of the stream messages.
-	// So we don't need a separate call to s.callmeStreamReader before
+	// So we don't need a separate call to s.callmeUploadReader before
 	// the loop; everything can be handled uniformly.
 
 	hdr0 := &req.HDR
@@ -1835,7 +1837,7 @@ func (s *Server) beginReadStream(req *Message, reply *Message) (err error) {
 			last = reply
 		} // else leave last nil
 
-		err = s.callmeStreamReader(msgN, last)
+		err = s.callmeUploadReader(msgN, last)
 		if err != nil {
 			return
 		}
@@ -1847,7 +1849,7 @@ func (s *Server) beginReadStream(req *Message, reply *Message) (err error) {
 	return nil
 }
 
-type serverSendStreamHelper struct {
+type serverSendDownloadHelper struct {
 	srv *Server
 	job *job
 	req *Message
@@ -1858,7 +1860,7 @@ type serverSendStreamHelper struct {
 	nextPart int64
 }
 
-func (s *Server) newServerSendStreamHelper(ctx context.Context, job *job) *serverSendStreamHelper {
+func (s *Server) newServerSendDownloadHelper(ctx context.Context, job *job) *serverSendDownloadHelper {
 
 	m := &Message{}
 	// no DoneCh, as we send ourselves.
@@ -1876,7 +1878,7 @@ func (s *Server) newServerSendStreamHelper(ctx context.Context, job *job) *serve
 		m.HDR.Deadline = dl
 	}
 
-	return &serverSendStreamHelper{
+	return &serverSendDownloadHelper{
 		ctx:    ctx,
 		job:    job,
 		srv:    s,
@@ -1885,7 +1887,7 @@ func (s *Server) newServerSendStreamHelper(ctx context.Context, job *job) *serve
 	}
 }
 
-func (s *serverSendStreamHelper) sendDownloadPart(by []byte, last bool) {
+func (s *serverSendDownloadHelper) sendDownloadPart(by []byte, last bool) {
 	//vv("sendDownloadPart called! last = %v", last)
 
 	// return early if we are cancelled, rather
@@ -1919,75 +1921,12 @@ func (s *serverSendStreamHelper) sendDownloadPart(by []byte, last bool) {
 
 	err := s.job.w.sendMessage(s.job.conn, tmp, &s.srv.cfg.WriteTimeout)
 	if err != nil {
-		alwaysPrintf("serverSendStreamHelper.sendDownloadPart error(): sendMessage got err = '%v'", err)
+		alwaysPrintf("serverSendDownloadHelper.sendDownloadPart error(): sendMessage got err = '%v'", err)
 	}
 }
 
-/* think we can use the example registered instead of this?
-func (s *Server) beginReadStreamBi(req *Message, reply *Message) (err error) {
-
-	vv("beginReadStreamBi internal TwoFunc top.")
-
-	// Now the StreamBegain call itself is in the queue,
-	// to ensure FIFO order of the stream messages.
-	// So we don't need a separate call to s.callmeStreamReader before
-	// the loop; everything can be handled uniformly.
-
-	hdr0 := &req.HDR
-	ctx := req.HDR.Ctx
-	var msgN *Message
-	bytesRead := 0
-	var last *Message
-
-	for i := int64(0); last == nil; i++ {
-
-		// get streaming messages from the processWork() goroutine,
-		// when it calls handleUploadParts().
-		select {
-		case msgN = <-hdr0.streamCh:
-			if i == 0 {
-				ctx = msgN.HDR.Ctx
-				if msgN != req {
-					panic("req should be first in the queue!")
-				}
-			} else {
-				msgN.HDR.Ctx = ctx
-			}
-		case <-ctx.Done():
-			// allow call cancellation.
-			return fmt.Errorf("context cancelled")
-		}
-		bytesRead += len(msgN.JobSerz)
-
-		hdrN := &msgN.HDR
-
-		if hdrN.StreamPart != i {
-			panic(fmt.Errorf("MessageAPI_ReceiveFile: stream out of sync, expected next StreamPart to be %v; but we see %v.", i, hdrN.StreamPart))
-		}
-		// INVAR: we only get matching CallID messages here. Assert this.
-		if i > 0 && hdrN.CallID != hdr0.CallID {
-			panic(fmt.Errorf("hdr0.CallID = '%v', but hdrN.CallID = '%v', at part %v", hdr0.CallID, hdrN.CallID, i))
-		}
-
-		switch hdrN.Typ {
-		case CallUploadEnd:
-			last = reply
-		} // else leave last nil
-
-		err = s.callmeStreamReader(msgN, last)
-		if err != nil {
-			return
-		}
-		if last != nil {
-			//vv("on last, client set replyLast = '%#v'", reply)
-			return
-		}
-	}
-	return nil
-}
-*/
-
-type bistreamHelper struct {
+/* redundant with serverDownloadHelper
+type bistreamDownloadHelper struct {
 	srv *Server
 	job *job
 	req *Message
@@ -1998,8 +1937,8 @@ type bistreamHelper struct {
 	nextPart int64
 }
 
-// called first.
-func (s *Server) newBistreamHelper(ctx context.Context, job *job) *bistreamHelper {
+// called first, before the registered bistream callback.
+func (s *Server) newBistreamDownloadHelper(ctx context.Context, job *job) *bistreamDownloadHelper {
 
 	m := &Message{}
 	// no DoneCh, as we send ourselves.
@@ -2017,7 +1956,7 @@ func (s *Server) newBistreamHelper(ctx context.Context, job *job) *bistreamHelpe
 		m.HDR.Deadline = dl
 	}
 
-	return &bistreamHelper{
+	return &bistreamDownloadHelper{
 		ctx:    ctx,
 		job:    job,
 		srv:    s,
@@ -2026,7 +1965,7 @@ func (s *Server) newBistreamHelper(ctx context.Context, job *job) *bistreamHelpe
 	}
 }
 
-func (s *bistreamHelper) sendDownloadPart(by []byte, last bool) {
+func (s *bistreamDownloadHelper) sendDownloadPart(by []byte, last bool) {
 	vv("bi.sendDownloadPart called! last = %v", last)
 
 	// return early if we are cancelled, rather
@@ -2060,6 +1999,7 @@ func (s *bistreamHelper) sendDownloadPart(by []byte, last bool) {
 
 	err := s.job.w.sendMessage(s.job.conn, tmp, &s.srv.cfg.WriteTimeout)
 	if err != nil {
-		alwaysPrintf("bistreamHelper.sendDownloadPart error(): sendMessage got err = '%v'", err)
+		alwaysPrintf("bistreamDownloadHelper.sendDownloadPart error(): sendMessage got err = '%v'", err)
 	}
 }
+*/

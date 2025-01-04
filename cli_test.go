@@ -943,9 +943,9 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 	})
 }
 
-func Test045_streaming_client_to_server(t *testing.T) {
+func Test045_upload(t *testing.T) {
 
-	cv.Convey("stream a large message in parts from client to server", t, func() {
+	cv.Convey("upload a large file in parts from client to server", t, func() {
 
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = false
@@ -959,8 +959,8 @@ func Test045_streaming_client_to_server(t *testing.T) {
 
 		//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
-		streamer := NewServerSideStreamingFunc()
-		srv.RegisterStreamReaderFunc(streamer.ReceiveFileInParts)
+		streamer := NewServerSideUploadFunc()
+		srv.RegisterUploadReaderFunc(streamer.ReceiveFileInParts)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		client, err := NewClient("test045", cfg)
@@ -984,7 +984,7 @@ func Test045_streaming_client_to_server(t *testing.T) {
 		req.JobSerz = []byte("a=c(0")
 
 		// start the call
-		strm, err := client.StreamBegin(req, ctx45.Done())
+		strm, err := client.UploadBegin(req, ctx45.Done())
 		panicOn(err)
 
 		originalStreamCallID := strm.CallID()
@@ -1030,9 +1030,9 @@ func Test045_streaming_client_to_server(t *testing.T) {
 	})
 }
 
-func Test055_streaming_server_to_client(t *testing.T) {
+func Test055_download(t *testing.T) {
 
-	cv.Convey("stream a large message in parts from server to client, the opposite direction of the previous test, 045.", t, func() {
+	cv.Convey("download a large file in parts from server to client, the opposite direction of the previous test, 045.", t, func() {
 
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = false
@@ -1046,9 +1046,9 @@ func Test055_streaming_server_to_client(t *testing.T) {
 		defer srv.Close()
 
 		// register streamer func with server
-		streamerName := "streamerName"
+		downloaderName := "downloaderName"
 		ssss := &ServerSendsDownloadState{}
-		srv.RegisterServerSendsDownloadFunc(streamerName, ssss.ServerSendsDownload)
+		srv.RegisterServerSendsDownloadFunc(downloaderName, ssss.ServerSendsDownload)
 
 		// start client
 		cfg.ClientDialToHostPort = serverAddr.String()
@@ -1067,7 +1067,7 @@ func Test055_streaming_server_to_client(t *testing.T) {
 		defer cancelFunc55()
 
 		// start the call
-		strmBack, err := client.RequestDownload(ctx55, streamerName)
+		strmBack, err := client.RequestDownload(ctx55, downloaderName)
 		panicOn(err)
 
 		//vv("strmBack requested, with CallID = '%v'", strmBack.CallID)
@@ -1133,9 +1133,9 @@ func Test055_streaming_server_to_client(t *testing.T) {
 	})
 }
 
-func Test065_bidirectional_streaming_from_server_func_perspective(t *testing.T) {
+func Test065_bidirectional_download_and_upload(t *testing.T) {
 
-	cv.Convey("we should be able to register a server (upcall/callback) func that does bidirectional streaming: both sending a stream to a client, and receiving a stream from a client.", t, func() {
+	cv.Convey("we should be able to register a server func that does uploads and downloads sequentially or simultaneously.", t, func() {
 
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = false

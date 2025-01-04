@@ -564,14 +564,14 @@ type BistreamFunc func(
 	lastReply *Message,
 ) (err error)
 
-// A StreamReaderFunc receives messages from a Client's Stream.
+// A UploadReaderFunc receives messages from a Client's upload.
 //
 // For a quick example, see the ReceiveFileInParts()
 // implementation in the example.go file. It is a method on the
-// ServerSideStreamingFunc struct that holds state
+// ServerSideUploadFunc struct that holds state
 // between the callbacks to ReceiveFileInParts().
 //
-// A StreamReaderFunc is like a OneWayFunc, but it
+// A UploadReaderFunc is like a OneWayFunc, but it
 // generally should also be a method or closure to capture
 // the state it needs, as it will receive multiple req *Message
 // up-calls from the same client Stream. It should return a
@@ -585,8 +585,8 @@ type BistreamFunc func(
 // The lastReply argument will be nil until
 // the Client calls Stream.More() with
 // the last argument set to true. The user/client is
-// telling the StreamReaderFunc not to expect any further
-// messages. The StreamReaderFunc can then fill in the
+// telling the UploadReaderFunc not to expect any further
+// messages. The UploadReaderFunc can then fill in the
 // lastReply message with any finishing detail, and
 // it will be sent back to the client.
 //
@@ -595,7 +595,7 @@ type BistreamFunc func(
 // the stream, and so generally req should be processed
 // before considering if this is the last message and a final
 // lastReply should also be filled out.
-type StreamReaderFunc func(req *Message, lastReply *Message) error
+type UploadReaderFunc func(req *Message, lastReply *Message) error
 
 // Config is the same struct type for both NewClient
 // and NewServer setup.
@@ -1406,10 +1406,10 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 	}
 }
 
-// Stream helps the client to make a series of non-blocking
-// (one-way) calls to a remote server's StreamReaderFunc
+// Uploader helps the client to make a series of non-blocking
+// (one-way) calls to a remote server's UploadReaderFunc
 // which must have been already registered on the server.
-type Stream struct {
+type Uploader struct {
 	mut    sync.Mutex
 	cli    *Client
 	next   int64
@@ -1417,16 +1417,16 @@ type Stream struct {
 	done   bool
 }
 
-func (s *Stream) CallID() string {
+func (s *Uploader) CallID() string {
 	return s.callID
 }
 
-// StreamBegin sends the msg to the server
+// UploadBegin sends the msg to the server
 // to execute with the func that has registed
-// with RegisterStreamReadererFunc() -- at the
+// with RegisterUploaderReadererFunc() -- at the
 // moment there can only be one such func
-// registered at a time. StreamBegin() will
-// contact it, and Stream.SendMore() will,
+// registered at a time. UploadBegin() will
+// contact it, and Uploader.SendMore() will,
 // as it suggests, send another Message.
 //
 // We maintain FIFO arrival of Messages
@@ -1436,7 +1436,7 @@ func (s *Stream) CallID() string {
 //
 // 1. Since the client side uses the same
 // channel into the send loop for both
-// StreamBegin and SendMore, these
+// UploadBegin and SendMore, these
 // calls will be properly ordered into
 // the send loop on the client/sending side.
 //
@@ -1448,7 +1448,7 @@ func (s *Stream) CallID() string {
 // read loop, we queue messages in
 // FIFO order into a large buffered
 // channel before we spin up a goroutine
-// once at StreamBegin time to handle
+// once at UploadBegin time to handle
 // all the subsequent messages in the
 // order they were queued.
 //
@@ -1456,14 +1456,14 @@ func (s *Stream) CallID() string {
 // While normal OneWayFunc and TwoWayFunc
 // messages each start their own new goroutine
 // to avoid long-running functions starving
-// the server's read loop, a StreamRecvFunc
+// the server's read loop, a UploadReadFunc
 // only utilizes a single new goroutine to
 // process all messages sent in a stream.
-func (c *Client) StreamBegin(
+func (c *Client) UploadBegin(
 	msg *Message,
 	cancelJobCh <-chan struct{},
 
-) (strm *Stream, err error) {
+) (strm *Uploader, err error) {
 
 	msg.HDR.Typ = CallUploadBegin
 	msg.HDR.StreamPart = 0
@@ -1471,16 +1471,16 @@ func (c *Client) StreamBegin(
 	if err != nil {
 		return nil, err
 	}
-	return &Stream{
+	return &Uploader{
 		cli:    c,
 		next:   1,
 		callID: msg.HDR.CallID,
 	}, nil
 }
 
-var ErrAlreadyDone = fmt.Errorf("Stream has already been marked done. No more sending is allowed.")
+var ErrAlreadyDone = fmt.Errorf("Uploader has already been marked done. No more sending is allowed.")
 
-func (s *Stream) SendMore(msg *Message, cancelJobCh <-chan struct{}, last bool) (err error) {
+func (s *Uploader) SendMore(msg *Message, cancelJobCh <-chan struct{}, last bool) (err error) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
