@@ -352,7 +352,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 		msg.HDR.LocalRecvTm = time.Now()
 
 		seqno := msg.HDR.Seqno
-		//vv("client %v received message with seqno=%v, msg.HDR='%v'", c.name, seqno, msg.HDR.String())
+		vv("client %v received message with seqno=%v, msg.HDR='%v'; c.notifyOnReadCallIDMap='%#v'", c.name, seqno, msg.HDR.String(), c.notifyOnReadCallIDMap)
 
 		c.mut.Lock()
 
@@ -1553,6 +1553,7 @@ func (s *Uploader) UploadMore(msg *Message, cancelJobCh <-chan struct{}, last bo
 
 // OneWaySend sends a message without expecting or waiting for a response.
 // The cancelJobCh is optional, and can be nil.
+// If msg.HDR.CallID is set, we will preserve it.
 func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err error) {
 
 	var from, to string
@@ -1569,7 +1570,12 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err erro
 	// preserve streaming call types.
 	case CallNone:
 		msg.HDR.Typ = CallOneWay
-	case CallUploadMore, CallUploadEnd, CallRequestBistreaming:
+	}
+	if msg.HDR.CallID != "" {
+		//case CallUploadMore, CallUploadEnd, CallRequestBistreaming,
+		// CallRequestDownload:
+		//
+		// Basically, always want to preserve it if allocated!
 		// must preserve the CallID on streaming calls.
 		hdr = newHDRwithoutCallID(from, to,
 			msg.HDR.Subject, msg.HDR.Typ, msg.HDR.StreamPart)
@@ -1782,7 +1788,8 @@ func (c *Client) RequestDownload(ctx context.Context, streamerName string) (down
 	downloader = &Download{
 		CallID: hdr.CallID,
 		ReadCh: c.GetReadIncomingChForCallID(hdr.CallID),
-		Name:   streamerName,
+		//ReadCh: c.GetReadIncomingCh(),
+		Name: streamerName,
 	}
 
 	// get our Seqno back, so test can assert it is preserved.

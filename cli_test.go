@@ -1067,16 +1067,16 @@ func Test055_download(t *testing.T) {
 		defer cancelFunc55()
 
 		// start the call
-		strmBack, err := client.RequestDownload(ctx55, downloaderName)
+		downloader, err := client.RequestDownload(ctx55, downloaderName)
 		panicOn(err)
 
-		//vv("strmBack requested, with CallID = '%v'", strmBack.CallID)
+		//vv("downloader requested, with CallID = '%v'", downloader.CallID)
 		// then send N more parts
 
 		done := false
 		for i := 0; !done; i++ {
 			select {
-			case m := <-strmBack.ReadCh:
+			case m := <-downloader.ReadCh:
 				//report := string(m.JobSerz)
 				//vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
 
@@ -1097,9 +1097,9 @@ func Test055_download(t *testing.T) {
 					cv.So(m.HDR.Typ == CallDownloadMore, cv.ShouldBeTrue)
 				}
 
-				if m.HDR.Seqno != strmBack.Seqno {
+				if m.HDR.Seqno != downloader.Seqno {
 					t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
-						"strmBack.Seqno = %v", m.HDR.Seqno, strmBack.Seqno)
+						"downloader.Seqno = %v", m.HDR.Seqno, downloader.Seqno)
 				}
 
 			case <-time.After(time.Second * 10):
@@ -1110,7 +1110,7 @@ func Test055_download(t *testing.T) {
 		// do we get the lastReply too then?
 
 		select {
-		case m := <-strmBack.ReadCh:
+		case m := <-downloader.ReadCh:
 			//report := string(m.JobSerz)
 			//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
 
@@ -1122,9 +1122,9 @@ func Test055_download(t *testing.T) {
 				t.Fatalf("deadline not preserved")
 			}
 
-			if m.HDR.Seqno != strmBack.Seqno {
+			if m.HDR.Seqno != downloader.Seqno {
 				t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
-					"strmBack.Seqno = %v", m.HDR.Seqno, strmBack.Seqno)
+					"downloader.Seqno = %v", m.HDR.Seqno, downloader.Seqno)
 			}
 
 		case <-time.After(time.Second * 10):
