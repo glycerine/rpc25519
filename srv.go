@@ -1552,7 +1552,7 @@ func (s *Server) RegisterServerSendsDownloadFunc(name string, callme ServerSends
 	s.callmeServerSendsDownloadMap[name] = callme
 }
 
-func (s *Server) RegisterBiFunc(name string, callme BistreamFunc) {
+func (s *Server) RegisterBistreamFunc(name string, callme BistreamFunc) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 	s.callmeBistreamMap[name] = callme
