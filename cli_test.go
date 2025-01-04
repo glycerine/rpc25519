@@ -960,7 +960,7 @@ func Test045_streaming_client_to_server(t *testing.T) {
 		//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
 		streamer := NewServerSideStreamingFunc()
-		srv.RegisterStreamRecvFunc(streamer.ReceiveFileInParts)
+		srv.RegisterStreamReaderFunc(streamer.ReceiveFileInParts)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		client, err := NewClient("test045", cfg)
@@ -1048,10 +1048,6 @@ func Test055_streaming_server_to_client(t *testing.T) {
 		streamerName := "streamerName"
 		ssss := &ServerSendsStreamState{}
 		srv.RegisterServerSendsStreamFunc(streamerName, ssss.ServerSendsStream)
-
-		// can we also get streams from the client... so that
-		// we are streaming in both directions?
-		srv.RegisterStreamRecvFunc(ssss.ReceiveFileInParts)
 
 		// start client
 		cfg.ClientDialToHostPort = serverAddr.String()

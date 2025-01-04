@@ -629,15 +629,15 @@ func (s *Server) processWork(job *job) {
 		callmeServerSendsStreamFunc = back
 		foundServerSendsStream = true
 	case CallStreamBegin:
-		if s.callmeStreamRecv == nil {
+		if s.callmeStreamReader == nil {
 			// nothing to do
 			alwaysPrintf("warning! possible problem: stream begin received but no registered stream handler available on the server. hdr='%v'", req.HDR.String())
 			s.mut.Unlock()
 			return
 		}
 		// use our internal callme2; see end of this file
-		// for Server.beginRecvStream.
-		callme2 = s.beginRecvStream
+		// for Server.beginReadStream.
+		callme2 = s.beginReadStream
 		foundCallback2 = true
 	case CallStreamMore, CallStreamEnd:
 		panic("cannot see these here, must for FIFO of the stream be called from the readloop")
@@ -780,7 +780,7 @@ type Server struct {
 	callme1 OneWayFunc
 
 	// client -> server streams
-	callmeStreamRecv StreamRecvFunc
+	callmeStreamReader StreamReaderFunc
 
 	// server -> client streams
 	callmeServerSendsStreamMap map[string]ServerSendsStreamFunc
@@ -1557,13 +1557,13 @@ func (s *Server) Register1Func(callme1 OneWayFunc) {
 	s.callme1 = callme1
 }
 
-// RegisterStreamRecvFunc tells the server about a func or method
+// RegisterStreamReaderFunc tells the server about a func or method
 // that will have a returned Message value. See the
 // [TwoWayFunc] definition.
-func (s *Server) RegisterStreamRecvFunc(callmeStreamRecv StreamRecvFunc) {
+func (s *Server) RegisterStreamReaderFunc(callmeStreamReader StreamReaderFunc) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	s.callmeStreamRecv = callmeStreamRecv
+	s.callmeStreamReader = callmeStreamReader
 }
 
 // Start has the Server begin receiving and processing RPC calls.
@@ -1723,21 +1723,14 @@ func (s *Server) registerInFlightCallToCancel(msg *Message, cancelFunc context.C
 }
 
 func (s *Server) noLongerInFlight(callID string) {
-
-	s.inflight.mut.Lock()
-	defer s.inflight.mut.Unlock()
-	// we leave the streaming functions alive,
-	// so they can receive the rest of their messages
-	cc, ok := s.inflight.activeCalls[callID]
-	if ok && cc.lastStreamPart > 0 {
-		// do not delete in-progress streaming call.
-		// only delete if lastStreamPart is 0 or negative.
-		return
-	}
-	delete(s.inflight.activeCalls, callID)
+	s.cancelCallID(callID)
 }
 
-// while holding the inflight mut so it is atomic.
+// PRE: s.inflight.mut is NOT held. Inside this func, we update
+// inflight after cancelling the call, all while holding
+// the inflight mut so this is atomic. Even if callID has
+// no cancelFunc it will be delete from the inflight.activeCalls
+// map.
 func (s *Server) cancelCallID(callID string) {
 
 	s.inflight.mut.Lock()
@@ -1758,19 +1751,19 @@ func (s *Server) cancelCallID(callID string) {
 	delete(s.inflight.activeCalls, callID)
 }
 
-func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
+func (s *Server) beginReadStream(req *Message, reply *Message) (err error) {
 
-	//vv("beginRecvStream internal TwoFunc top.")
+	//vv("beginReadStream internal TwoFunc top.")
 
 	// Now the StreamBegain call itself is in the queue,
 	// to ensure FIFO order of the stream messages.
-	// So we don't need a separate call to s.callmeStreamRecv before
+	// So we don't need a separate call to s.callmeStreamReader before
 	// the loop; everything can be handled uniformly.
 
 	hdr0 := &req.HDR
 	ctx := req.HDR.Ctx
 	var msgN *Message
-	bytesRecv := 0
+	bytesRead := 0
 	var last *Message
 
 	for i := int64(0); last == nil; i++ {
@@ -1791,7 +1784,7 @@ func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
 			// allow call cancellation.
 			return fmt.Errorf("context cancelled")
 		}
-		bytesRecv += len(msgN.JobSerz)
+		bytesRead += len(msgN.JobSerz)
 
 		hdrN := &msgN.HDR
 
@@ -1808,7 +1801,7 @@ func (s *Server) beginRecvStream(req *Message, reply *Message) (err error) {
 			last = reply
 		} // else leave last nil
 
-		err = s.callmeStreamRecv(msgN, last)
+		err = s.callmeStreamReader(msgN, last)
 		if err != nil {
 			return
 		}

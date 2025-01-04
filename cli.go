@@ -556,14 +556,14 @@ type ServerSendsStreamFunc func(
 	lastReply *Message,
 ) (err error)
 
-// A StreamRecvFunc receives messages from a Client's Stream.
+// A StreamReaderFunc receives messages from a Client's Stream.
 //
 // For a quick example, see the ReceiveFileInParts()
 // implementation in the example.go file. It is a method on the
 // ServerSideStreamingFunc struct that holds state
 // between the callbacks to ReceiveFileInParts().
 //
-// A StreamRecvFunc is like a OneWayFunc, but it
+// A StreamReaderFunc is like a OneWayFunc, but it
 // generally should also be a method or closure to capture
 // the state it needs, as it will receive multiple req *Message
 // up-calls from the same client Stream. It should return a
@@ -577,8 +577,8 @@ type ServerSendsStreamFunc func(
 // The lastReply argument will be nil until
 // the Client calls Stream.More() with
 // the last argument set to true. The user/client is
-// telling the StreamRecvFunc not to expect any further
-// messages. The StreamRecvFunc can then fill in the
+// telling the StreamReaderFunc not to expect any further
+// messages. The StreamReaderFunc can then fill in the
 // lastReply message with any finishing detail, and
 // it will be sent back to the client.
 //
@@ -587,7 +587,7 @@ type ServerSendsStreamFunc func(
 // the stream, and so generally req should be processed
 // before considering if this is the last message and a final
 // lastReply should also be filled out.
-type StreamRecvFunc func(req *Message, lastReply *Message) error
+type StreamReaderFunc func(req *Message, lastReply *Message) error
 
 // Config is the same struct type for both NewClient
 // and NewServer setup.
@@ -1398,9 +1398,9 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 	}
 }
 
-// Stream allows the client to make a series of non-blocking
-// (one-way) calls to a remote StreamRecvFunc registered
-// on the server.
+// Stream helps the client to make a series of non-blocking
+// (one-way) calls to a remote server's StreamReaderFunc
+// which must have been already registered on the server.
 type Stream struct {
 	mut    sync.Mutex
 	cli    *Client
@@ -1415,7 +1415,7 @@ func (s *Stream) CallID() string {
 
 // StreamBegin sends the msg to the server
 // to execute with the func that has registed
-// with RegisterStreamRecvFunc() -- at the
+// with RegisterStreamReadererFunc() -- at the
 // moment there can only be one such func
 // registered at a time. StreamBegin() will
 // contact it, and Stream.SendMore() will,

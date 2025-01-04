@@ -352,6 +352,9 @@ func NewServerSideStreamingFunc() *ServerSideStreamingFunc {
 // ReceiveFileInParts is used by
 // Test045_streaming_client_to_server in cli_test.go
 // to demonstrate streaming from client to server.
+//
+// This func is registered on the Server with
+// the srv.RegisterStreamReadFunc() call.
 func (s *ServerSideStreamingFunc) ReceiveFileInParts(req *Message, lastReply *Message) (err error) {
 
 	t0 := time.Now()
@@ -414,116 +417,9 @@ func (s *ServerSideStreamingFunc) ReceiveFileInParts(req *Message, lastReply *Me
 	return
 }
 
-/* unfinished example
-func (s *ServerSideStreamingFunc) NetRPC_ReceiveFile(ctx context.Context, args *Args, reply *Reply) error {
-	test040callStarted <- true
-	fmt.Printf("example.go: server-side: WillHangUntilCancel() is running\n")
-
-	// demonstrate getting at the net.Conn in use.
-	if hdr, ok := HDRFromContext(ctx); ok {
-		fmt.Printf("example.go: net.rpc API: our net.Conn has local = '%v'; remote = '%v'\n",
-			hdr.Nc.LocalAddr(), hdr.Nc.RemoteAddr())
-	}
-
-	select {
-	case <-ctx.Done():
-		msg := "example.go: MustBeCancelled.WillHangUntilCancel(): ctx.Done() was closed!"
-		fmt.Printf("%v\n", msg)
-		test040callFinished <- msg
-	}
-	return nil
-}
-*/
-
-// ClientSideStreamingFunc is used by
-// Test055_streaming_server_to_client in cli_test.go
-// to demonstrate streaming a large (or
-// infinite) file in small parts,
-// from server to client, all while keeping FIFO
-// message order.
-type ClientSideStreamingFunc struct {
-	fname     string
-	fd        *os.File
-	bytesWrit int64
-}
-
-// NewClientSideStreamingFunc returns a new
-// ClientSideStreamingFunc. This is part of
-// the cli_test.go Test055 mechanics.
-func NewClientSideStreamingFunc() *ClientSideStreamingFunc {
-	return &ClientSideStreamingFunc{}
-}
-
-// ReceiveFileInParts is used by
-// Test055_streaming_server_to_client in cli_test.go
-// to demonstrate streaming from client to server.
-// We get a callback with every new req Message that is
-// part of the client-sent stream.
-func (s *ClientSideStreamingFunc) ReceiveFileInParts(req *Message, lastReply *Message) (err error) {
-
-	t0 := time.Now()
-	hdr1 := req.HDR
-	ctx := hdr1.Ctx
-	//vv("server ReceiveFileInParts called, Subject='%v'; StreamPart=%v", hdr1.Subject, hdr1.StreamPart)
-
-	select {
-	case <-ctx.Done():
-		return fmt.Errorf("context cancelled")
-	default:
-	}
-
-	if hdr1.StreamPart == 0 {
-		if !strings.HasPrefix(hdr1.Subject, "receiveFile:") {
-			panic("subject must contain receiveFile: and the file name !")
-		}
-		prefix := "receiveFile:"
-		s.fname = hdr1.Subject[len(prefix):]
-		if s.fname == "" {
-			panic("subject must contain receiveFile: and the file name, which was missing !")
-		}
-		// save the file handle for the next callback too.
-		s.fd, err = os.Create(s.fname)
-		if err != nil {
-			return fmt.Errorf("error: server could not path '%v': '%v'", s.fname, err)
-		}
-	}
-
-	n := len(req.JobSerz)
-	part := req.HDR.StreamPart
-	_ = part
-	nw, err := io.Copy(s.fd, bytes.NewBuffer(req.JobSerz))
-	s.bytesWrit += nw
-	if err != nil {
-		err = fmt.Errorf("ReceiveFileInParts: on "+
-			"writing StreamPart 1 to path '%v', we got error: "+
-			"'%v', after writing %v of %v", s.fname, err, nw, n)
-		vv("problem: %v", err.Error())
-		return
-	} else {
-		//vv("succesfully wrote part %v to the file '%v': '%v'", part, s.fname, string(req.JobSerz))
-	}
-
-	if lastReply != nil {
-		s.fd.Close()
-
-		//vv("ReceiveFileInParts sees last set!")
-
-		elap := time.Since(hdr1.Created)
-		mb := float64(s.bytesWrit) / float64(1<<20)
-		seconds := (float64(elap) / float64(time.Second))
-		rate := mb / seconds
-
-		// finally reply to the original caller.
-		lastReply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v (while mb=%v) => %v MB/sec. ; bytesWrit=%v;", t0, elap, mb, rate, s.bytesWrit))
-
-		//vv("returning with lastReply = '%v'", string(lastReply.JobSerz))
-	}
-	return
-}
-
 // ServerSendsStream is used by Test055_streaming_server_to_client.
-// It demonstrates how to stream to the client.
-// ServerSendStream is of type ServerSendsStreamFunc, and gets
+// It demonstrates how a registered server func can stream to the client.
+// ServerSendStream has type ServerSendsStreamFunc, and gets
 // registered on the server with srv.RegisterServerSendsStreamFunc().
 func (ssss *ServerSendsStreamState) ServerSendsStream(srv *Server, ctx context.Context, req *Message, sendStreamPart func(by []byte, last bool), lastReply *Message) (err error) {
 
@@ -535,10 +431,4 @@ func (ssss *ServerSendsStreamState) ServerSendsStream(srv *Server, ctx context.C
 	return
 }
 
-type ServerSendsStreamState struct {
-	// we export ClientSideStreamingFunc.ReceiveFileInParts
-	// to see if we can support both
-	// a) receiving a stream from the client (ReceiveFileInParts); and
-	// b) sending a stream to the client (ServerSendsStream)
-	ClientSideStreamingFunc
-}
+type ServerSendsStreamState struct{}
