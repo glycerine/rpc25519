@@ -1182,6 +1182,8 @@ func Test065_bidirectional_streaming_from_server_func_perspective(t *testing.T) 
 		vv("bistream requested, with CallID = '%v'", bistream.CallID())
 		// then send N more parts
 
+		vv("begin download part")
+
 		done := false
 		for i := 0; !done; i++ {
 			select {
@@ -1240,7 +1242,7 @@ func Test065_bidirectional_streaming_from_server_func_perspective(t *testing.T) 
 			t.Fatalf("should have gotten a lastReply from the server finishing the call.")
 		}
 
-		select {}
+		vv("down with download. begin upload part")
 
 		// ============================================
 		// ============================================

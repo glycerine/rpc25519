@@ -1819,6 +1819,7 @@ func (c *Client) RequestBistreaming(ctx context.Context, bistreamerName string, 
 	}
 
 	b = &Bistreamer{
+		cli:    c,
 		callID: hdr.CallID,
 		ReadCh: c.GetReadIncomingCh(),
 		Name:   bistreamerName,

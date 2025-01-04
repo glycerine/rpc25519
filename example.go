@@ -458,6 +458,7 @@ func (bi *BiServerState) ServerBistream(srv *Server,
 
 	done := ctx.Done()
 	for i := range 20 {
+		vv("on i = %v", i)
 		sendStreamToClientPart([]byte(fmt.Sprintf("part %v;", i)), i == 19)
 		select {
 		case <-done:
@@ -468,7 +469,7 @@ func (bi *BiServerState) ServerBistream(srv *Server,
 		default:
 		}
 	}
-
+	vv("ServerBistream: done sending 20 messages")
 	lastReply.HDR.Subject = "This is end. My only friend, the end. - Jim Morrison, The Doors."
 	return
 }
