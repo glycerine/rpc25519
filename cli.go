@@ -569,6 +569,16 @@ type ServerSendsDownloadFunc func(
 	lastReply *Message,
 ) (err error)
 
+// BistreamFunc aims to allow the user to implement server
+// operations with full generality; it provies for
+// uploads and downloads to the originating client,
+// and for communication with other clients.
+// Use Server.RegisterBiFunc() to register your BistreamFunc
+// under a name.
+//
+// See the extensive discussion on the example.go
+// documentation of BiServerState.ServerBistream()
+// for details and an example its use.
 type BistreamFunc func(
 	srv *Server,
 	ctx context.Context,

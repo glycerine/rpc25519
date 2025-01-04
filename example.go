@@ -445,14 +445,37 @@ type BiServerState struct{}
 // ServerBistream is an example of a BistreamFunc,
 // a server side registered function for bi-streaming
 // (doing both upload and download simultaneously).
+// The following documentation is also on BistreamFunc for
+// findability.
 //
+// BistreamFunc aims to allow the user to implement server
+// operations with full generality; it provies for
+// uploads and downloads to the originating client,
+// and for communication with other clients.
 // Use Server.RegisterBiFunc() to register your BistreamFunc
 // under a name.
 //
-// Full generality of interleaving upload and download
+// The full generality of interleaving upload and download
 // handling is available. The initial Message in req
 // will so be the first Message in the req.HDR.streamCh
 // which receives all upload messages from the client.
+//
+// It may be more convenient for the user
+// to use an UploadReaderFunc or
+// ServerSendsDownloadFunc if the full generality
+// of the BistreamFunc is not needed. For simplicity, the
+// Server.RegisterServerSendsDownloadFunc() is used
+// to register your ServerSendsDownloadFunc.
+// Server.RegisterUploadReaderFunc() is used to
+// register you UploadReaderFunc. Note in particular
+// that the UploadReaderFunc is not persistent
+// but rather receives a callback per Message
+// received from the Client.Uploader. This may
+// simplify the implementation of your server-side
+// function. Note that persistent state between messages
+// is still available by registering a method on
+// your struct; see the ServerSideUploadFunc struct in
+// example.go for example.
 //
 // BiFunc are not a callback-per-message, but rather
 // persist and would typically only exit if ctx.Done()
