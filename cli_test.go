@@ -1179,7 +1179,7 @@ func Test065_bidirectional_streaming_from_server_func_perspective(t *testing.T) 
 		bistream, err := client.RequestBistreaming(ctx65, streamerName, req)
 		panicOn(err)
 
-		vv("strmBack requested, with CallID = '%v'", bistream.CallID())
+		vv("bistream requested, with CallID = '%v'", bistream.CallID())
 		// then send N more parts
 
 		done := false
@@ -1220,8 +1220,8 @@ func Test065_bidirectional_streaming_from_server_func_perspective(t *testing.T) 
 
 		select {
 		case m := <-bistream.ReadCh:
-			//report := string(m.JobSerz)
-			//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+			report := string(m.JobSerz)
+			vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
 
 			if m.HDR.Subject != "This is end. My only friend, the end. - Jim Morrison, The Doors." {
 				t.Fatalf("where did The Doors quote disappear to?")
@@ -1239,6 +1239,8 @@ func Test065_bidirectional_streaming_from_server_func_perspective(t *testing.T) 
 		case <-time.After(time.Second * 10):
 			t.Fatalf("should have gotten a lastReply from the server finishing the call.")
 		}
+
+		select {}
 
 		// ============================================
 		// ============================================

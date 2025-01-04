@@ -1518,7 +1518,7 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err erro
 	// preserve streaming call types.
 	case CallNone:
 		msg.HDR.Typ = CallOneWay
-	case CallStreamMore, CallStreamEnd:
+	case CallStreamMore, CallStreamEnd, CallRequestBistreaming:
 		// must preserve the CallID on streaming calls.
 		hdr = newHDRwithoutCallID(from, to,
 			msg.HDR.Subject, msg.HDR.Typ, msg.HDR.StreamPart)
@@ -1803,6 +1803,9 @@ func (c *Client) RequestBistreaming(ctx context.Context, bistreamerName string, 
 
 	hdr := NewHDR(from, to, bistreamerName, CallRequestBistreaming, 0)
 	hdr.Ctx = ctx
+
+	vv("RequestBistreaming, req.HDR = '%v'", hdr.String())
+
 	deadline, ok := ctx.Deadline()
 	if ok {
 		//vv("client sees deadline '%v'", deadline)
