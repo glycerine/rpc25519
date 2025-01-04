@@ -359,7 +359,6 @@ func (m *HDR) String() string { // has data race
     "CallID": %q,
     "Serial": %v,
     "LocalRecvTm": "%s",
-    "Ctx": (omitted to avoid inf loop),
     "Deadline": "%s",
     "StreamPart": %v
 }`,

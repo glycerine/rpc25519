@@ -1594,7 +1594,7 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err erro
 	// isRPC=false so this is 1-way, but it might in turn still
 	// generate a response.
 
-	vv("one way send '%v'", msg.HDR.String())
+	//vv("one way send '%v'", msg.HDR.String())
 	return c.oneWaySendHelper(msg, cancelJobCh)
 }
 

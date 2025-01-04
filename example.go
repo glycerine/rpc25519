@@ -510,7 +510,7 @@ func (bi *BiServerState) ServerBistream(srv *Server,
 			// allow call cancellation.
 			return fmt.Errorf("context cancelled")
 		case msg := <-streamFromClientCh:
-			vv("ServerBistream sees upload part: '%v'", msg.HDR.String())
+			//vv("ServerBistream sees upload part: '%v'", msg.HDR.String())
 			if msg.HDR.StreamPart != totalParts {
 				panic(fmt.Sprintf("%v = msg.HDR.StreamPart != totalParts = %v",
 					msg.HDR.StreamPart, totalParts))
