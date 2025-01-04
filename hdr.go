@@ -265,9 +265,7 @@ type HDR struct {
 	// all parts of the same stream.
 	StreamPart int64 `zid:"10"`
 
-	// streamCh will get sent all messages with StreamPart >= 2, rather than a callback.
-	// The srv/cli logic will allocate this and pass it to the StreamPart == 1 callback.
-	// The srv/cli logic will close it when StreamPart == -1 (EOF) is
+	// streamCh is internal; used for client -> server streaming on CallStreamBegin
 	streamCh chan *Message `msg:"-"`
 }
 

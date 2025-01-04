@@ -1046,7 +1046,12 @@ func Test055_streaming_server_to_client(t *testing.T) {
 
 		// register streamer func with server
 		streamerName := "streamerName"
-		srv.RegisterServerSendsStreamFunc(streamerName, ServerSendsStream)
+		ssss := &ServerSendsStreamState{}
+		srv.RegisterServerSendsStreamFunc(streamerName, ssss.ServerSendsStream)
+
+		// can we also get streams from the client... so that
+		// we are streaming in both directions?
+		srv.RegisterStreamRecvFunc(ssss.ReceiveFileInParts)
 
 		// start client
 		cfg.ClientDialToHostPort = serverAddr.String()

@@ -457,6 +457,8 @@ func NewClientSideStreamingFunc() *ClientSideStreamingFunc {
 // ReceiveFileInParts is used by
 // Test055_streaming_server_to_client in cli_test.go
 // to demonstrate streaming from client to server.
+// We get a callback with every new req Message that is
+// part of the client-sent stream.
 func (s *ClientSideStreamingFunc) ReceiveFileInParts(req *Message, lastReply *Message) (err error) {
 
 	t0 := time.Now()
@@ -523,7 +525,7 @@ func (s *ClientSideStreamingFunc) ReceiveFileInParts(req *Message, lastReply *Me
 // It demonstrates how to stream to the client.
 // ServerSendStream is of type ServerSendsStreamFunc, and gets
 // registered on the server with srv.RegisterServerSendsStreamFunc().
-func ServerSendsStream(srv *Server, ctx context.Context, req *Message, sendStreamPart func(by []byte, last bool), lastReply *Message) (err error) {
+func (ssss *ServerSendsStreamState) ServerSendsStream(srv *Server, ctx context.Context, req *Message, sendStreamPart func(by []byte, last bool), lastReply *Message) (err error) {
 
 	for i := range 20 {
 		sendStreamPart([]byte(fmt.Sprintf("part %v;", i)), i == 19)
@@ -531,4 +533,12 @@ func ServerSendsStream(srv *Server, ctx context.Context, req *Message, sendStrea
 
 	lastReply.HDR.Subject = "This is end. My only friend, the end. - Jim Morrison, The Doors."
 	return
+}
+
+type ServerSendsStreamState struct {
+	// we export ClientSideStreamingFunc.ReceiveFileInParts
+	// to see if we can support both
+	// a) receiving a stream from the client (ReceiveFileInParts); and
+	// b) sending a stream to the client (ServerSendsStream)
+	ClientSideStreamingFunc
 }
