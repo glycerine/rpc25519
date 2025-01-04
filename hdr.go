@@ -45,20 +45,19 @@ const (
 	CallKeepAlive      CallType = 12
 	CallCancelPrevious CallType = 13
 
-	// client sends a stream to the server, in an upload, or Upload.
-	CallUploadBegin CallType = 14
-	CallUploadMore  CallType = 15
-	CallUploadEnd   CallType = 16
+	// client sends a stream to the server, in an Upload:
+	CallUploadBegin CallType = 14 // one of these; and
+	CallUploadMore  CallType = 15 // possibly many of these; and
+	CallUploadEnd   CallType = 16 // just one of these to finish.
 
 	// the opposite: when client wants to get a stream
 	// from the server.
 	CallRequestDownload CallType = 17
 
 	// The server responds to CallRequestDownload with
-	// a stream of these.
-	CallDownloadBegin CallType = 18
-	CallDownloadMore  CallType = 19
-	CallDownloadEnd   CallType = 20
+	CallDownloadBegin CallType = 18 // one of these to start;
+	CallDownloadMore  CallType = 19 // possibly many of these;
+	CallDownloadEnd   CallType = 20 // and one of these to finish.
 )
 
 func (ct CallType) String() string {
