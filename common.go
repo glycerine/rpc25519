@@ -70,6 +70,19 @@ type workspace struct {
 
 	// one writer at a time.
 	wmut sync.Mutex
+
+	// Enforce one readMessage() on conn at a time,
+	// at least within our workspace.
+	// We do this because only
+	// the single Read() operation
+	// is considered atomic, but
+	// a readFull() may do mulitple
+	// Read() operations before
+	// finishing, and we don't
+	// want two goroutines interleaving
+	// these. readMessage() certainly
+	// does multiple Read()s as well.
+	rmut sync.Mutex
 }
 
 // currently only used for headers; but bodies may
@@ -104,6 +117,9 @@ func newWorkspace(name string, maxMsgSize int) *workspace {
 // receiveMessage reads a framed message from conn
 // nil or 0 timeout means no timeout.
 func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Message, err error) {
+	w.rmut.Lock()
+	defer w.rmut.Unlock()
+
 	// Read the first 8 bytes for the magic check.
 	_, err = readFull(conn, w.magicCheck, timeout)
 	if err != nil {
@@ -202,7 +218,6 @@ func readFull(conn uConn, buf []byte, timeout *time.Duration) (numRead int, err 
 	}
 
 	return numRead, nil
-	//return io.ReadFull(conn, buf)
 }
 
 // writeFull writes all bytes in buf to conn
