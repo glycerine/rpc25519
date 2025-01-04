@@ -574,14 +574,23 @@ type ServerSendsDownloadFunc func(
 // uploads and downloads to the originating client,
 // and for communication with other clients.
 // Use Server.RegisterBistreamFunc() to register your BistreamFunc
-// under a name.
+// under a name. The BistreamFunc and its siblings
+// the ServerSendsDownloadFunc and the UploadReaderFunc
+// are only available for the Message based API; not in
+// the net/rpc API.
 //
-// The full generality of interleaving upload and download
+// On the client side, the Client.RequestBistreaming() call
+// is used to create a Bistreamer that will call the
+// BistreamFunc by its registered name (the name
+// that Server.RegisterBistreamFunc() was called with).
+//
+// In a BistreamFunc on the server, the full
+// generality of interleaving upload and download
 // handling is available. The initial Message in req
 // will also be the first Message in the req.HDR.streamCh
 // which receives all upload messages from the client.
 //
-// It may be more convenient for the user
+// To note, it may be more convenient for the user
 // to use an UploadReaderFunc or
 // ServerSendsDownloadFunc if the full generality
 // of the BistreamFunc is not needed. For simplicity, the
@@ -593,12 +602,12 @@ type ServerSendsDownloadFunc func(
 // but rather receives a callback per Message
 // received from the Client.Uploader. This may
 // simplify the implementation of your server-side
-// function. Note that persistent state between messages
+// upload function. Note that persistent state between messages
 // is still available by registering a method on
 // your struct; see the ServerSideUploadFunc struct in
 // example.go for example.
 //
-// BistreamFunc are not a callback-per-message, but rather
+// BistreamFunc, in contrast, are not a callback-per-message, but rather
 // persist and would typically only exit if ctx.Done()
 // is received, or if it wishes to finish the operation (say on an
 // error, or by noting that a CallUploadEnd type Message has
@@ -611,8 +620,19 @@ type ServerSendsDownloadFunc func(
 // download messages sent will have this same CallID
 // on them (for the client to match).
 //
-// When the BistreamFunc finishes (returns), a final message will
-// be sent back to the client.
+// When the BistreamFunc finishes (returns), a
+// final message will of type CallRPCReply will be
+// sent back to the client. This is the lastReply
+// *Message provided in the BistreamFunc. The
+// BistreamFunc should fill in this lastReply
+// with any final JobSerz payload it wishes to
+// send; this is optional. On the client side, the
+// Client.RequestBistreaming() is used to start
+// bi-streaming. It returns a Bistreamer. This Bistreamer
+// has a ReadCh that will receive this final message
+// (as well as all other download messages). See the
+// cli_test.go Test065_bidirectional_download_and_upload
+// for example use.
 //
 // A BistreamFunc is run on its own goroutine. It can
 // start new goroutines, if it wishes, but
@@ -620,30 +640,31 @@ type ServerSendsDownloadFunc func(
 // may be useful to reduce the latency of message
 // handling while simultaneously reading from
 // req.HDR.streamCh for uploads and writing to
-// downloads with sendStreamToClientPart(),
+// downloads with sendDownloadPartToClient(),
 // as both of these are blocking, synchronous, operations.
 // If you do so, be sure to handle goroutine cancellation and
 // cleanup if the ctx provided is cancelled.
 //
-// The sendStreamToClientPart()
+// The sendDownloadPartToClient()
 // helper function is used to write download
 // Messages. It properly assigns the HDR.StreamPart
 // sequence numbers and HDR.Typ as one of
 // CallDownloadBegin, CallDownloadMore, and
 // CallDownloadEnd). The BistreamFunc should
-// call sendStreamToClientPart() with last=true
+// call sendDownloadPartToClient() with last=true
 // to signal the end of the download, in
 // which case HDR.Typ CallDownloadEnd will
 // be set on the sent Message.
 //
 // To provide back-pressure by default,
-// the sendStreamToClientPart() call is
+// the sendDownloadPartToClient() call is
 // synchronous and will return only when
 // the message is sent. If you wish to continue
 // to process uploads while sending a download
-// part, your BistreamFunc can call sendStreamToClientPart()
+// part, your BistreamFunc can call the
+// provided sendDownloadPartToClient()
 // in a goroutine that you start for this
-// purpose. The sendStreamToClientPart() call
+// purpose. The sendDownloadPartToClient() call
 // is goroutine safe, as it uses its own internal
 // sync.Mutex to ensure only one send is in
 // progress at a time.
@@ -662,11 +683,13 @@ type BistreamFunc func(
 	srv *Server,
 	ctx context.Context,
 	req *Message,
-	sendPart func(by []byte, last bool),
+	sendDownloadPartToClient func(by []byte, last bool),
 	lastReply *Message,
 ) (err error)
 
 // A UploadReaderFunc receives messages from a Client's upload.
+// It corresponds to the client-side Uploader, created
+// by Client.UploadBegin().
 //
 // For a quick example, see the ReceiveFileInParts()
 // implementation in the example.go file. It is a method on the

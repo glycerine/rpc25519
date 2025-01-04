@@ -451,7 +451,7 @@ func (bi *BiServerState) ServerBistream(
 	srv *Server,
 	ctx context.Context,
 	req *Message,
-	sendStreamToClientPart func(by []byte, last bool),
+	sendDownloadPartToClient func(by []byte, last bool),
 	lastReply *Message,
 ) (err error) {
 
@@ -493,7 +493,7 @@ func (bi *BiServerState) ServerBistream(
 	done := ctx.Done()
 	for i := range 20 {
 		//vv("on i = %v", i)
-		sendStreamToClientPart([]byte(fmt.Sprintf("part %v;", i)), i == 19)
+		sendDownloadPartToClient([]byte(fmt.Sprintf("part %v;", i)), i == 19)
 		select {
 		case <-done:
 			vv("exiting early! we see done requested at i = %v", i)

@@ -1260,7 +1260,7 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 		select {
 		case m := <-bistream.ReadCh:
 			report := string(m.JobSerz)
-			//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+			vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
 			cv.So(strings.Contains(report, "bytesWrit"), cv.ShouldBeTrue)
 			cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
 			cv.So(fileExists(filename), cv.ShouldBeTrue)
