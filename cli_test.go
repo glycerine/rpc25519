@@ -984,7 +984,7 @@ func Test045_upload(t *testing.T) {
 		req.JobSerz = []byte("a=c(0")
 
 		// start the call
-		strm, err := client.UploadBegin(req, ctx45.Done())
+		strm, err := client.UploadBegin(ctx45, req)
 		panicOn(err)
 
 		originalStreamCallID := strm.CallID()
@@ -1001,7 +1001,7 @@ func Test045_upload(t *testing.T) {
 				last = true
 				streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
 			}
-			err = strm.SendMore(streamMsg, ctx45.Done(), last)
+			err = strm.UploadMore(streamMsg, ctx45.Done(), last)
 			panicOn(err)
 			//vv("sent part %v", i)
 		}

@@ -450,7 +450,7 @@ func (bi *BiServerState) ServerBistream(srv *Server,
 ) (err error) {
 
 	t0 := time.Now()
-	vv("top of ServerBistream().")
+	vv("top of ServerBistream(). req.HDR = '%v'", req.HDR.String())
 
 	streamFromClientCh := req.HDR.streamCh
 	if streamFromClientCh == nil {

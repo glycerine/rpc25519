@@ -1410,11 +1410,13 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 // (one-way) calls to a remote server's UploadReaderFunc
 // which must have been already registered on the server.
 type Uploader struct {
-	mut    sync.Mutex
-	cli    *Client
-	next   int64
-	callID string
-	done   bool
+	mut      sync.Mutex
+	cli      *Client
+	next     int64
+	callID   string
+	done     bool
+	ctx      context.Context
+	deadline time.Time
 }
 
 func (s *Uploader) CallID() string {
@@ -1460,27 +1462,31 @@ func (s *Uploader) CallID() string {
 // only utilizes a single new goroutine to
 // process all messages sent in a stream.
 func (c *Client) UploadBegin(
+	ctx context.Context,
 	msg *Message,
-	cancelJobCh <-chan struct{},
 
 ) (strm *Uploader, err error) {
 
 	msg.HDR.Typ = CallUploadBegin
 	msg.HDR.StreamPart = 0
+	cancelJobCh := ctx.Done()
 	err = c.OneWaySend(msg, cancelJobCh)
 	if err != nil {
 		return nil, err
 	}
+	deadline, _ := ctx.Deadline()
 	return &Uploader{
-		cli:    c,
-		next:   1,
-		callID: msg.HDR.CallID,
+		cli:      c,
+		next:     1,
+		callID:   msg.HDR.CallID,
+		ctx:      ctx,
+		deadline: deadline,
 	}, nil
 }
 
 var ErrAlreadyDone = fmt.Errorf("Uploader has already been marked done. No more sending is allowed.")
 
-func (s *Uploader) SendMore(msg *Message, cancelJobCh <-chan struct{}, last bool) (err error) {
+func (s *Uploader) UploadMore(msg *Message, cancelJobCh <-chan struct{}, last bool) (err error) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
@@ -1496,6 +1502,10 @@ func (s *Uploader) SendMore(msg *Message, cancelJobCh <-chan struct{}, last bool
 	}
 	msg.HDR.StreamPart = s.next
 	msg.HDR.CallID = s.callID
+	// set deadline too!
+	msg.HDR.Ctx = s.ctx
+	msg.HDR.Deadline = s.deadline
+
 	s.next++
 	return s.cli.OneWaySend(msg, cancelJobCh)
 }
@@ -1755,11 +1765,13 @@ type Bistreamer struct {
 	WriteCh chan<- *Message
 	Name    string
 
-	mut    sync.Mutex
-	cli    *Client
-	next   int64
-	callID string
-	done   bool
+	mut      sync.Mutex
+	cli      *Client
+	next     int64
+	callID   string
+	done     bool
+	deadline time.Time
+	ctx      context.Context
 }
 
 func (s *Bistreamer) CallID() string {
@@ -1782,6 +1794,9 @@ func (s *Bistreamer) SendMore(msg *Message, cancelJobCh <-chan struct{}, last bo
 	}
 	msg.HDR.StreamPart = s.next
 	msg.HDR.CallID = s.callID
+	msg.HDR.Ctx = s.ctx
+	msg.HDR.Deadline = s.deadline
+
 	s.next++
 	return s.cli.OneWaySend(msg, cancelJobCh)
 }
@@ -1808,7 +1823,7 @@ func (c *Client) RequestBistreaming(ctx context.Context, bistreamerName string, 
 
 	deadline, ok := ctx.Deadline()
 	if ok {
-		//vv("client sees deadline '%v'", deadline)
+		vv("RequestBistreaming sees deadline '%v'", deadline)
 		hdr.Deadline = deadline
 	}
 	req.HDR = *hdr
@@ -1819,10 +1834,12 @@ func (c *Client) RequestBistreaming(ctx context.Context, bistreamerName string, 
 	}
 
 	b = &Bistreamer{
-		cli:    c,
-		callID: hdr.CallID,
-		ReadCh: c.GetReadIncomingCh(),
-		Name:   bistreamerName,
+		cli:      c,
+		callID:   hdr.CallID,
+		ReadCh:   c.GetReadIncomingCh(),
+		Name:     bistreamerName,
+		deadline: deadline,
+		ctx:      ctx,
 	}
 
 	// get our Seqno back, so test can assert it is preserved.
