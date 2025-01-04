@@ -1174,7 +1174,7 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 		req := NewMessage()
 		filename := "bi.all.srv.read.streams.txt"
 		os.Remove(filename)
-		req.JobSerz = []byte("receiveFile:" + filename)
+		req.JobSerz = []byte("receiveFile:" + filename + "\na=c(0")
 
 		bistream, err := client.RequestBistreaming(ctx65, streamerName, req)
 		panicOn(err)

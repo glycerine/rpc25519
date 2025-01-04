@@ -449,11 +449,36 @@ func (bi *BiServerState) ServerBistream(srv *Server,
 	lastReply *Message,
 ) (err error) {
 
+	t0 := time.Now()
 	vv("top of ServerBistream().")
 
 	streamFromClientCh := req.HDR.streamCh
 	if streamFromClientCh == nil {
 		panic("streamCh should be set!")
+	}
+
+	// handle the first message body
+	prefix := "receiveFile:"
+	var filename string
+	var initial string
+	if bytes.HasPrefix(req.JobSerz, []byte(prefix)) {
+		pay := string(req.JobSerz[len(prefix):])
+		splt := strings.Split(pay, "\n")
+		filename = splt[0]
+		initial = splt[1]
+		vv("will save to filename: '%v'", filename)
+	}
+	var writeFD *os.File
+	if filename != "" {
+		writeFD, err = os.Create(filename)
+		if err != nil {
+			// terminate both upload and download
+			return err
+		}
+		_, err = writeFD.WriteString(initial)
+		if err != nil {
+			return err
+		}
 	}
 
 	done := ctx.Done()
@@ -470,9 +495,9 @@ func (bi *BiServerState) ServerBistream(srv *Server,
 		}
 	}
 	vv("ServerBistream: done sending 20 messages")
-	lastReply.HDR.Subject = "This is end. My only friend, the end. - Jim Morrison, The Doors."
 
 	// upload handling
+	bytesWrit := int64(0)
 	for {
 		select {
 		case <-ctx.Done():
@@ -480,22 +505,42 @@ func (bi *BiServerState) ServerBistream(srv *Server,
 			return fmt.Errorf("context cancelled")
 		case msg := <-streamFromClientCh:
 			vv("ServerBistream sees upload part: '%v'", msg.HDR.String())
-			/*
-				//bytesRead += len(msg.JobSerz)
-
-				switch msg.HDR.Typ {
-				case CallUploadEnd:
-					last = reply
-				} // else leave last nil
-
-				err = s.callmeStreamReader(msg, last)
+			switch msg.HDR.Typ {
+			case CallUploadMore, CallUploadEnd:
+				n := len(msg.JobSerz)
+				nw, err := io.Copy(writeFD, bytes.NewBuffer(msg.JobSerz))
+				bytesWrit += nw
 				if err != nil {
-					return
+					err = fmt.Errorf("ReceiveFileInParts: on "+
+						"writing StreamPart %v to path '%v', we got error: "+
+						"'%v', after writing %v of %v. So far total "+
+						"from all messages was: %v",
+						msg.HDR.StreamPart, filename, err, nw, n, bytesWrit)
+					vv("problem: %v", err.Error())
+					return err
+				} else {
+					//vv("succesfully wrote part %v to the file '%v': '%v'", part, s.fname, string(req.JobSerz))
 				}
-				if last != nil {
-					vv("on last, client set replyLast = '%#v'", reply)
+				if msg.HDR.Typ == CallUploadEnd {
+					writeFD.Close()
+
+					elap := time.Since(req.HDR.Created)
+					mb := float64(bytesWrit) / float64(1<<20)
+					seconds := (float64(elap) / float64(time.Second))
+					rate := mb / seconds
+
+					// finally reply to the original caller.
+					lastReply.JobSerz = []byte(fmt.Sprintf(
+						"got upcall at '%v' => elap = %v "+
+							"(while mb=%v) => %v MB/sec. ; "+
+							"bytesWrit=%v;", t0, elap, mb, rate, bytesWrit))
+
+					lastReply.HDR.Subject = "This is end. My only friend," +
+						" the end. - Jim Morrison, The Doors."
+
+					return nil
 				}
-			*/
+			}
 		}
 	}
 
