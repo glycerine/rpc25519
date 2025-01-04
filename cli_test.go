@@ -1067,7 +1067,7 @@ func Test055_streaming_server_to_client(t *testing.T) {
 		defer cancelFunc55()
 
 		// start the call
-		strmBack, err := client.RequestStreamBack(ctx55, streamerName)
+		strmBack, err := client.RequestDownstream(ctx55, streamerName)
 		panicOn(err)
 
 		//vv("strmBack requested, with CallID = '%v'", strmBack.CallID)
@@ -1084,17 +1084,17 @@ func Test055_streaming_server_to_client(t *testing.T) {
 					t.Fatalf("deadline not preserved")
 				}
 
-				if m.HDR.Typ == CallStreamBackEnd {
-					//vv("good: we see CallStreamBackEnd from server.")
+				if m.HDR.Typ == CallDownstreamEnd {
+					//vv("good: we see CallDownstreamEnd from server.")
 					done = true
 				}
 
 				if i == 0 {
-					cv.So(m.HDR.Typ == CallStreamBackBegin, cv.ShouldBeTrue)
+					cv.So(m.HDR.Typ == CallDownstreamBegin, cv.ShouldBeTrue)
 				} else if i == 19 {
-					cv.So(m.HDR.Typ == CallStreamBackEnd, cv.ShouldBeTrue)
+					cv.So(m.HDR.Typ == CallDownstreamEnd, cv.ShouldBeTrue)
 				} else {
-					cv.So(m.HDR.Typ == CallStreamBackMore, cv.ShouldBeTrue)
+					cv.So(m.HDR.Typ == CallDownstreamMore, cv.ShouldBeTrue)
 				}
 
 				if m.HDR.Seqno != strmBack.Seqno {
@@ -1186,24 +1186,24 @@ func Test065_bidirectional_streaming_from_server_func_perspective(t *testing.T) 
 		for i := 0; !done; i++ {
 			select {
 			case m := <-bistream.ReadCh:
-				//report := string(m.JobSerz)
-				//vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
+				report := string(m.JobSerz)
+				vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
 
 				if !m.HDR.Deadline.Equal(deadline) {
 					t.Fatalf("deadline not preserved")
 				}
 
-				if m.HDR.Typ == CallStreamBackEnd {
-					//vv("good: we see CallStreamBackEnd from server.")
+				if m.HDR.Typ == CallDownstreamEnd {
+					vv("good: we see CallDownstreamEnd from server.")
 					done = true
 				}
 
 				if i == 0 {
-					cv.So(m.HDR.Typ == CallStreamBackBegin, cv.ShouldBeTrue)
+					cv.So(m.HDR.Typ == CallDownstreamBegin, cv.ShouldBeTrue)
 				} else if i == 19 {
-					cv.So(m.HDR.Typ == CallStreamBackEnd, cv.ShouldBeTrue)
+					cv.So(m.HDR.Typ == CallDownstreamEnd, cv.ShouldBeTrue)
 				} else {
-					cv.So(m.HDR.Typ == CallStreamBackMore, cv.ShouldBeTrue)
+					cv.So(m.HDR.Typ == CallDownstreamMore, cv.ShouldBeTrue)
 				}
 
 				if m.HDR.Seqno != bistream.Seqno {

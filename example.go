@@ -449,6 +449,8 @@ func (bi *BiServerState) ServerBistream(srv *Server,
 	lastReply *Message,
 ) (err error) {
 
+	vv("top of ServerBistream().")
+
 	streamFromClientCh := req.HDR.streamCh
 	if streamFromClientCh == nil {
 		panic("streamCh should be set!")

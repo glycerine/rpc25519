@@ -501,14 +501,14 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		// We destroy the FIFO of a stream if we don't
 		// queue up the stream messages here, exactly in
 		// the order we received them.
-		case CallStreamBegin, CallRequestBistreaming:
+		case CallUpstreamBegin, CallRequestBistreaming:
 			// early but sequential setup, we'll revist
-			// this again for CallStreamBegin to add ctx and
+			// this again for CallUpstreamBegin to add ctx and
 			// cancel func. The important thing is that
 			// we queue up req in the stream channel now.
 			s.Server.registerInFlightCallToCancel(req, nil, nil)
 
-		case CallStreamMore, CallStreamEnd:
+		case CallUpstreamMore, CallUpstreamEnd:
 			s.Server.handleStreamMessage(req)
 			continue
 		}
@@ -628,8 +628,9 @@ func (s *Server) processWork(job *job) {
 		if ok {
 			callmeBi = back
 			foundBistream = true
+			vv("foundBistream true!")
 		}
-	case CallRequestStreamBack:
+	case CallRequestDownstream:
 		back, ok := s.callmeServerSendsStreamMap[req.HDR.Subject]
 		if ok {
 			callmeServerSendsStreamFunc = back
@@ -639,7 +640,7 @@ func (s *Server) processWork(job *job) {
 			// TODO: log this rather than panic. maybe respond to client?
 			panic(fmt.Sprintf("client asked for ServerSendsStreamFunc req.HDR.Subject='%v' but this is not registered!", req.HDR.Subject))
 		}
-	case CallStreamBegin:
+	case CallUpstreamBegin:
 		if s.callmeStreamReader == nil {
 			// nothing to do
 			alwaysPrintf("warning! possible problem: stream begin received but no registered stream handler available on the server. hdr='%v'", req.HDR.String())
@@ -651,7 +652,7 @@ func (s *Server) processWork(job *job) {
 		callme2 = s.beginReadStream
 		foundCallback2 = true
 
-	case CallStreamMore, CallStreamEnd:
+	case CallUpstreamMore, CallUpstreamEnd:
 		panic("cannot see these here, must for FIFO of the stream be called from the readloop")
 
 	case CallOneWay:
@@ -1379,7 +1380,7 @@ func (s *Server) deletePair(p *rwPair) {
 }
 
 var ErrNetConnectionNotFound = fmt.Errorf("error in SendMessage: net.Conn not found")
-var ErrWrongCallTypeForSendMessage = fmt.Errorf("error in SendMessage: msg.HDR.Typ must be CallOneWay or CallStreamBegin; or greater in number")
+var ErrWrongCallTypeForSendMessage = fmt.Errorf("error in SendMessage: msg.HDR.Typ must be CallOneWay or CallUpstreamBegin; or greater in number")
 
 // SendMessage can be used on the server to push data to
 // one of the connected clients.
@@ -1692,7 +1693,7 @@ type callctx struct {
 
 func (s *Server) registerInFlightCallToCancel(msg *Message, cancelFunc context.CancelFunc, ctx context.Context) {
 
-	vv("top registerInFlightCallToCancel(msg='%v')", msg.HDR.String())
+	//vv("top registerInFlightCallToCancel(msg='%v')", msg.HDR.String())
 
 	s.inflight.mut.Lock()
 	defer s.inflight.mut.Unlock()
@@ -1701,13 +1702,13 @@ func (s *Server) registerInFlightCallToCancel(msg *Message, cancelFunc context.C
 		s.inflight.activeCalls = make(map[string]*callctx)
 	}
 
-	// this might be the 2nd time here for the CallStreamBegin,
+	// this might be the 2nd time here for the CallUpstreamBegin,
 	// now that we have the cancelFunc made.
 	cc, ok := s.inflight.activeCalls[msg.HDR.CallID]
 
 	if !ok {
 		// first time here: cancelFunc and ctx will be nil
-		// for CallStreamBegin, but not for others.
+		// for CallUpstreamBegin, but not for others.
 		cc = &callctx{
 			callID:         msg.HDR.CallID,
 			added:          time.Now(),
@@ -1718,7 +1719,7 @@ func (s *Server) registerInFlightCallToCancel(msg *Message, cancelFunc context.C
 		}
 
 		switch msg.HDR.Typ {
-		case CallStreamBegin, CallRequestBistreaming:
+		case CallUpstreamBegin, CallRequestBistreaming:
 			// give it lots of room because to keep FIFO
 			// we need the read loop to post here directly,
 			// without starting goroutines to service the stream.
@@ -1736,7 +1737,7 @@ func (s *Server) registerInFlightCallToCancel(msg *Message, cancelFunc context.C
 			}
 		}
 	} else {
-		// second time here, this is a CallStreamBegin,
+		// second time here, this is a CallUpstreamBegin,
 		// and now we have ctx and cancelFunc
 		if ctx != nil {
 			dl, ok := ctx.Deadline()
@@ -1827,7 +1828,7 @@ func (s *Server) beginReadStream(req *Message, reply *Message) (err error) {
 		}
 
 		switch hdrN.Typ {
-		case CallStreamEnd:
+		case CallUpstreamEnd:
 			last = reply
 		} // else leave last nil
 
@@ -1903,11 +1904,11 @@ func (s *serverSendStreamHelper) sendStreamPart(by []byte, last bool) {
 
 	switch {
 	case i == 0:
-		tmp.HDR.Typ = CallStreamBackBegin
+		tmp.HDR.Typ = CallDownstreamBegin
 	case last:
-		tmp.HDR.Typ = CallStreamBackEnd
+		tmp.HDR.Typ = CallDownstreamEnd
 	default:
-		tmp.HDR.Typ = CallStreamBackMore
+		tmp.HDR.Typ = CallDownstreamMore
 	}
 	tmp.HDR.StreamPart = i
 	tmp.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
@@ -1966,7 +1967,7 @@ func (s *Server) beginReadStreamBi(req *Message, reply *Message) (err error) {
 		}
 
 		switch hdrN.Typ {
-		case CallStreamEnd:
+		case CallUpstreamEnd:
 			last = reply
 		} // else leave last nil
 
@@ -2044,11 +2045,11 @@ func (s *bistreamHelper) sendStreamPart(by []byte, last bool) {
 
 	switch {
 	case i == 0:
-		tmp.HDR.Typ = CallStreamBackBegin
+		tmp.HDR.Typ = CallDownstreamBegin
 	case last:
-		tmp.HDR.Typ = CallStreamBackEnd
+		tmp.HDR.Typ = CallDownstreamEnd
 	default:
-		tmp.HDR.Typ = CallStreamBackMore
+		tmp.HDR.Typ = CallDownstreamMore
 	}
 	tmp.HDR.StreamPart = i
 	tmp.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
