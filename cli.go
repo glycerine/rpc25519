@@ -352,7 +352,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 		msg.HDR.LocalRecvTm = time.Now()
 
 		seqno := msg.HDR.Seqno
-		vv("client %v received message with seqno=%v, msg.HDR='%v'; c.notifyOnReadCallIDMap='%#v'", c.name, seqno, msg.HDR.String(), c.notifyOnReadCallIDMap)
+		//vv("client %v received message with seqno=%v, msg.HDR='%v'; c.notifyOnReadCallIDMap='%#v'", c.name, seqno, msg.HDR.String(), c.notifyOnReadCallIDMap)
 
 		c.mut.Lock()
 
@@ -1565,6 +1565,9 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err erro
 		to = remote(c.conn)
 	}
 
+	msg.HDR.To = to
+	msg.HDR.From = from
+
 	var hdr *HDR
 	switch msg.HDR.Typ {
 	// preserve streaming call types.
@@ -1591,6 +1594,7 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err erro
 	// isRPC=false so this is 1-way, but it might in turn still
 	// generate a response.
 
+	vv("one way send '%v'", msg.HDR.String())
 	return c.oneWaySendHelper(msg, cancelJobCh)
 }
 
@@ -1882,6 +1886,7 @@ func (c *Client) RequestBistreaming(ctx context.Context, bistreamerName string, 
 	}
 
 	b = &Bistreamer{
+		next:     1,
 		cli:      c,
 		callID:   hdr.CallID,
 		ReadCh:   c.GetReadIncomingChForCallID(hdr.CallID),

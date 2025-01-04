@@ -572,7 +572,7 @@ func (s *Server) handleUploadParts(req *Message) {
 
 	select {
 	case cc.streamCh <- req:
-		vv("handleUploadParts: cc.StreamCh: sent req with part %v", part)
+		//vv("handleUploadParts: cc.StreamCh: sent req with part %v", part)
 	case <-s.halt.ReqStop.Chan:
 		return
 
@@ -631,7 +631,7 @@ func (s *Server) processWork(job *job) {
 		if ok {
 			callmeBi = back
 			foundBistream = true
-			vv("foundBistream true!")
+			//vv("foundBistream true!")
 		}
 	case CallRequestDownload:
 		back, ok := s.callmeServerSendsDownloadMap[req.HDR.Subject]

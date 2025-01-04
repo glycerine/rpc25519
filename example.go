@@ -450,11 +450,14 @@ func (bi *BiServerState) ServerBistream(srv *Server,
 ) (err error) {
 
 	t0 := time.Now()
-	vv("top of ServerBistream(). req.HDR = '%v'", req.HDR.String())
+	//vv("top of ServerBistream(). req.HDR = '%v'", req.HDR.String())
 
 	streamFromClientCh := req.HDR.streamCh
 	if streamFromClientCh == nil {
 		panic("streamCh should be set!")
+	}
+	if req.HDR.StreamPart != 0 {
+		panic(fmt.Sprintf("req.StreamPart = %v but we expected 0", req.HDR.StreamPart))
 	}
 
 	// handle the first message body
@@ -466,7 +469,7 @@ func (bi *BiServerState) ServerBistream(srv *Server,
 		splt := strings.Split(pay, "\n")
 		filename = splt[0]
 		initial = splt[1]
-		vv("will save to filename: '%v'", filename)
+		//vv("will save to filename: '%v'", filename)
 	}
 	var writeFD *os.File
 	if filename != "" {
@@ -483,21 +486,24 @@ func (bi *BiServerState) ServerBistream(srv *Server,
 
 	done := ctx.Done()
 	for i := range 20 {
-		vv("on i = %v", i)
+		//vv("on i = %v", i)
 		sendStreamToClientPart([]byte(fmt.Sprintf("part %v;", i)), i == 19)
 		select {
 		case <-done:
 			vv("exiting early! we see done requested at i = %v", i)
 			break
-		case msg := <-streamFromClientCh:
-			vv("we got stream part from client: '%v'", msg.HDR.String())
+		//case msg := <-streamFromClientCh:
+		//	_ = msg
+		//	//vv("we got stream part from client: '%v'", msg.HDR.String())
 		default:
 		}
 	}
-	vv("ServerBistream: done sending 20 messages")
+	//vv("ServerBistream: done sending 20 messages")
 
 	// upload handling
 	bytesWrit := int64(0)
+	// already saw 0 in first message, but it is repeated in the channel.
+	totalParts := int64(0)
 	for {
 		select {
 		case <-ctx.Done():
@@ -505,6 +511,11 @@ func (bi *BiServerState) ServerBistream(srv *Server,
 			return fmt.Errorf("context cancelled")
 		case msg := <-streamFromClientCh:
 			vv("ServerBistream sees upload part: '%v'", msg.HDR.String())
+			if msg.HDR.StreamPart != totalParts {
+				panic(fmt.Sprintf("%v = msg.HDR.StreamPart != totalParts = %v",
+					msg.HDR.StreamPart, totalParts))
+			}
+			totalParts++
 			switch msg.HDR.Typ {
 			case CallUploadMore, CallUploadEnd:
 				n := len(msg.JobSerz)
@@ -531,9 +542,9 @@ func (bi *BiServerState) ServerBistream(srv *Server,
 
 					// finally reply to the original caller.
 					lastReply.JobSerz = []byte(fmt.Sprintf(
-						"got upcall at '%v' => elap = %v "+
+						"totalParts:%v: got upcall at '%v' => elap = %v "+
 							"(while mb=%v) => %v MB/sec. ; "+
-							"bytesWrit=%v;", t0, elap, mb, rate, bytesWrit))
+							"bytesWrit=%v;", totalParts, t0, elap, mb, rate, bytesWrit))
 
 					lastReply.HDR.Subject = "This is end. My only friend," +
 						" the end. - Jim Morrison, The Doors."

@@ -1218,31 +1218,7 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 			}
 		} // end for i
 
-		// do we get the lastReply too then? we won't with bistream, it stays alive
-		/*
-			select {
-			case m := <-bistream.ReadCh:
-				report := string(m.JobSerz)
-				vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
-
-				if m.HDR.Subject != "This is end. My only friend, the end. - Jim Morrison, The Doors." {
-					t.Fatalf("where did The Doors quote disappear to?")
-				}
-
-				if !m.HDR.Deadline.Equal(deadline) {
-					t.Fatalf("deadline not preserved")
-				}
-
-				if m.HDR.Seqno != bistream.Seqno {
-					t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
-						"bistream.Seqno = %v", m.HDR.Seqno, bistream.Seqno)
-				}
-
-			case <-time.After(time.Second * 10):
-				t.Fatalf("should have gotten a lastReply from the server finishing the call.")
-			}
-		*/
-		vv("done with download. begin upload part")
+		//vv("done with download. begin upload part")
 
 		// ============================================
 		// ============================================
@@ -1284,7 +1260,7 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 		select {
 		case m := <-bistream.ReadCh:
 			report := string(m.JobSerz)
-			vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+			//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
 			cv.So(strings.Contains(report, "bytesWrit"), cv.ShouldBeTrue)
 			cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
 			cv.So(fileExists(filename), cv.ShouldBeTrue)
