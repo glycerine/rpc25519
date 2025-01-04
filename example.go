@@ -445,87 +445,8 @@ type BiServerState struct{}
 // ServerBistream is an example of a BistreamFunc,
 // a server side registered function for bi-streaming
 // (doing both upload and download simultaneously).
-// The following documentation is also on BistreamFunc for
-// findability.
-//
-// BistreamFunc aims to allow the user to implement server
-// operations with full generality; it provies for
-// uploads and downloads to the originating client,
-// and for communication with other clients.
-// Use Server.RegisterBiFunc() to register your BistreamFunc
-// under a name.
-//
-// The full generality of interleaving upload and download
-// handling is available. The initial Message in req
-// will so be the first Message in the req.HDR.streamCh
-// which receives all upload messages from the client.
-//
-// It may be more convenient for the user
-// to use an UploadReaderFunc or
-// ServerSendsDownloadFunc if the full generality
-// of the BistreamFunc is not needed. For simplicity, the
-// Server.RegisterServerSendsDownloadFunc() is used
-// to register your ServerSendsDownloadFunc.
-// Server.RegisterUploadReaderFunc() is used to
-// register you UploadReaderFunc. Note in particular
-// that the UploadReaderFunc is not persistent
-// but rather receives a callback per Message
-// received from the Client.Uploader. This may
-// simplify the implementation of your server-side
-// function. Note that persistent state between messages
-// is still available by registering a method on
-// your struct; see the ServerSideUploadFunc struct in
-// example.go for example.
-//
-// BiFunc are not a callback-per-message, but rather
-// persist and would typically only exit if ctx.Done()
-// is received, or if it wishes to finish the operation (say on an
-// error, or by noting that a CallUploadEnd type Message has
-// been received) so as to save goroutine resources
-// on the server. The BiFunc is started on the server
-// when the CallRequestBistreaming Message.HDR.Typ
-// is received with the Subject matching the registered
-// name. The live instance of the BiFunc is identified
-// by the req.HDR.CallID set by the client. All
-// download messages sent will have this same CallID
-// on them (for the client to match).
-//
-// When the BiFunc finishes (returns), a final message will
-// be sent back to the client.
-//
-// A BiFunc can start new goroutines, if it wishes,
-// and in particular this may be useful to reduce
-// latency of message handling for reading from
-// req.HDR.streamCh for uploads and writing to
-// downloads by calling the sendStreamToClientPart()
-// helper function provided for this purpose
-// (it properly assigns the HDR.StreamPart
-// sequence numbers and HDR.Typ as one of
-// CallDownloadBegin, CallDownloadMore, and
-// CallDownloadEnd). The BiFunc should
-// call sendStreamToClientPart() with last=true
-// to signal the end of the download, in
-// which case HDR.Typ CallDownloadEnd will
-// be set.
-//
-// To provide back-pressure by default,
-// The sendStreamToClientPart() call is
-// synchronous and will return only when
-// the message is sent. If you wish to continue
-// to process uploads while sending a download
-// part, your BiFunc can call sendStreamToClientPart()
-// in a goroutine that you start for this
-// purpose. The sendStreamToClientPart() call
-// is goroutine safe, as it uses its own internal
-// sync.Mutex to ensure only one send is in
-// progress at a time.
-//
-// A BiFunc by default communicates download
-// messages to its originating client. However
-// other clients can also be sent messages.
-// The Server.SendOneWayMessage() and
-// Server.SendMessage() operations on the
-// Server can be used for this purpose.
+// See cli_test.go Test065_bidirectional_download_and_upload
+// for a test that uses this method.
 func (bi *BiServerState) ServerBistream(
 	srv *Server,
 	ctx context.Context,
