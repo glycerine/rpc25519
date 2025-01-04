@@ -722,8 +722,6 @@ func (s *Server) processWork(job *job) {
 			help := s.newServerSendDownloadHelper(ctx, job)
 			err = callmeServerSendsDownloadFunc(s, ctx, req, help.sendDownloadPart, reply)
 		case foundBistream:
-			// suspect we can just reuse the server version, but save in comments atm.
-			//help := s.newBistreamDownloadHelper(ctx, job)
 			help := s.newServerSendDownloadHelper(ctx, job)
 			err = callmeBi(s, ctx, req, help.sendDownloadPart, reply)
 
@@ -1493,22 +1491,6 @@ func (s *Server) SendOneWayMessage(msg *Message, errWriteDur *time.Duration) err
 		return ErrWrongCallTypeForSendMessage
 	}
 
-	//vv("found remote2pair for destAddr = '%v': '%#v'", destAddr, pair)
-	/*
-		msg := NewMessage()
-		msg.JobSerz = data
-
-		//to := remote(pair.Conn)
-		to := destAddr
-		subject = fmt.Sprintf("srv.SendMessage('%v')", subject)
-
-		mid := NewHDR(from, to, subject, CallOneWay, 0)
-		if callID != "" {
-			mid.CallID = callID
-		}
-		mid.Seqno = seqno
-		msg.HDR = *mid
-	*/
 	//vv("send message attempting to send %v bytes to '%v'", len(data), destAddr)
 	select {
 	case pair.SendCh <- msg:
@@ -1924,82 +1906,3 @@ func (s *serverSendDownloadHelper) sendDownloadPart(by []byte, last bool) {
 		alwaysPrintf("serverSendDownloadHelper.sendDownloadPart error(): sendMessage got err = '%v'", err)
 	}
 }
-
-/* redundant with serverDownloadHelper
-type bistreamDownloadHelper struct {
-	srv *Server
-	job *job
-	req *Message
-	ctx context.Context
-
-	tmpMsg   *Message
-	mut      sync.Mutex
-	nextPart int64
-}
-
-// called first, before the registered bistream callback.
-func (s *Server) newBistreamDownloadHelper(ctx context.Context, job *job) *bistreamDownloadHelper {
-
-	m := &Message{}
-	// no DoneCh, as we send ourselves.
-
-	req := job.req
-
-	m.HDR.Subject = req.HDR.Subject
-	m.HDR.To = req.HDR.From
-	m.HDR.From = req.HDR.To
-	m.HDR.Seqno = req.HDR.Seqno
-	m.HDR.CallID = req.HDR.CallID
-
-	dl, ok := ctx.Deadline()
-	if ok {
-		m.HDR.Deadline = dl
-	}
-
-	return &bistreamDownloadHelper{
-		ctx:    ctx,
-		job:    job,
-		srv:    s,
-		req:    req,
-		tmpMsg: m,
-	}
-}
-
-func (s *bistreamDownloadHelper) sendDownloadPart(by []byte, last bool) {
-	vv("bi.sendDownloadPart called! last = %v", last)
-
-	// return early if we are cancelled, rather
-	// than wasting time or bandwidth.
-	select {
-	case <-s.ctx.Done():
-		return
-	default:
-	}
-
-	s.mut.Lock()
-	defer s.mut.Unlock()
-
-	tmp := s.tmpMsg
-	tmp.JobSerz = by
-
-	i := s.nextPart
-	s.nextPart++
-
-	switch {
-	case i == 0:
-		tmp.HDR.Typ = CallDownloadBegin
-	case last:
-		tmp.HDR.Typ = CallDownloadEnd
-	default:
-		tmp.HDR.Typ = CallDownloadMore
-	}
-	tmp.HDR.StreamPart = i
-	tmp.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
-	tmp.HDR.Created = time.Now()
-
-	err := s.job.w.sendMessage(s.job.conn, tmp, &s.srv.cfg.WriteTimeout)
-	if err != nil {
-		alwaysPrintf("bistreamDownloadHelper.sendDownloadPart error(): sendMessage got err = '%v'", err)
-	}
-}
-*/
