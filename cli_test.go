@@ -1179,24 +1179,24 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 		bistream, err := client.RequestBistreaming(ctx65, streamerName, req)
 		panicOn(err)
 
-		vv("bistream requested, with CallID = '%v'", bistream.CallID())
+		//vv("bistream requested, with CallID = '%v'", bistream.CallID())
 		// then send N more parts
 
-		vv("begin download part")
+		//vv("begin download part")
 
 		done := false
 		for i := 0; !done; i++ {
 			select {
 			case m := <-bistream.ReadCh:
-				report := string(m.JobSerz)
-				vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
+				//report := string(m.JobSerz)
+				//vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
 
 				if !m.HDR.Deadline.Equal(deadline) {
 					t.Fatalf("deadline not preserved")
 				}
 
 				if m.HDR.Typ == CallDownloadEnd {
-					vv("good: we see CallDownloadEnd from server.")
+					//vv("good: we see CallDownloadEnd from server.")
 					done = true
 				}
 
@@ -1258,10 +1258,9 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 		// start upload to the server.
 
 		// read the final reply from the server.
-		readCh := client.GetReadIncomingCh()
 
 		originalStreamCallID := bistream.CallID()
-		vv("065 upload starting, with CallID = '%v'", originalStreamCallID)
+		//vv("065 upload starting, with CallID = '%v'", originalStreamCallID)
 		// then send N more parts
 
 		var last bool
@@ -1276,14 +1275,14 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 			}
 			err = bistream.SendMore(streamMsg, ctx65.Done(), last)
 			panicOn(err)
-			vv("uploaded part %v", i)
+			//vv("uploaded part %v", i)
 		}
-		vv("all N=%v parts uploaded", N)
+		//vv("all N=%v parts uploaded", N)
 
 		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
 
 		select {
-		case m := <-readCh:
+		case m := <-bistream.ReadCh:
 			report := string(m.JobSerz)
 			vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
 			cv.So(strings.Contains(report, "bytesWrit"), cv.ShouldBeTrue)

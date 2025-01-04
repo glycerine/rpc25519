@@ -355,6 +355,19 @@ func (c *Client) runReadLoop(conn net.Conn) {
 		//vv("client %v received message with seqno=%v, msg.HDR='%v'", c.name, seqno, msg.HDR.String())
 
 		c.mut.Lock()
+
+		wantsCallID, ok := c.notifyOnReadCallIDMap[msg.HDR.CallID]
+		if ok {
+			select {
+			case wantsCallID <- msg:
+			default:
+				panic(fmt.Sprintf("Should never happen b/c the "+
+					"channels must be buffered!: could not send to "+
+					"whoCh from notifyOnReadCallIDMap; for CallID = %v.",
+					msg.HDR.CallID))
+			}
+		}
+
 		whoCh, waiting := c.notifyOnce[seqno]
 		//vv("notifyOnce waiting = %v for seqno %v", waiting, seqno)
 		if waiting {
@@ -789,8 +802,9 @@ type Client struct {
 	name  string
 	creds *selfcert.Creds
 
-	notifyOnRead []chan *Message
-	notifyOnce   map[uint64]chan *Message
+	notifyOnRead          []chan *Message
+	notifyOnce            map[uint64]chan *Message
+	notifyOnReadCallIDMap map[string]chan *Message
 
 	conn       uConnLR
 	quicConn   quic.Connection
@@ -1088,6 +1102,32 @@ func (c *Client) GetReadIncomingCh() (ch chan *Message) {
 	return
 }
 
+// GetReadIncomingChForCallID creates and returns
+// a buffered channel that reads incoming
+// messages that are server-pushed (not associated
+// with a round-trip rpc call request/response pair).
+// It filters for those with callID.
+func (c *Client) GetReadIncomingChForCallID(callID string) (ch chan *Message) {
+	ch = make(chan *Message, 100)
+	//vv("GetReadIncommingCh is %p on client '%v'", ch, c.name)
+	c.GetReadsForCallID(ch, callID)
+	return
+}
+
+// GetReads registers to get any received messages on ch.
+// It is similar to GetReadIncomingCh but for when ch
+// already exists and you do not want a new one.
+// It filters for CallID
+func (c *Client) GetReadsForCallID(ch chan *Message, callID string) {
+	//vv("GetReads called! stack='\n\n%v\n'", stack())
+	if cap(ch) == 0 {
+		panic("ch must be bufferred")
+	}
+	c.mut.Lock()
+	defer c.mut.Unlock()
+	c.notifyOnReadCallIDMap[callID] = ch
+}
+
 // GetReads registers to get any received messages on ch.
 // It is similar to GetReadIncomingCh but for when ch
 // already exists and you do not want a new one.
@@ -1150,6 +1190,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		lastSeqno:   1,
 		notifyOnce:  make(map[uint64]chan *Message),
 
+		notifyOnReadCallIDMap: make(map[string]chan *Message),
 		// net/rpc
 		pending: make(map[uint64]*Call),
 	}
@@ -1711,7 +1752,7 @@ type Download struct {
 	Name   string
 }
 
-func (c *Client) RequestDownload(ctx context.Context, streamerName string) (strmBack *Download, err error) {
+func (c *Client) RequestDownload(ctx context.Context, streamerName string) (downloader *Download, err error) {
 
 	req := NewMessage()
 
@@ -1738,9 +1779,9 @@ func (c *Client) RequestDownload(ctx context.Context, streamerName string) (strm
 		return
 	}
 
-	strmBack = &Download{
+	downloader = &Download{
 		CallID: hdr.CallID,
-		ReadCh: c.GetReadIncomingCh(),
+		ReadCh: c.GetReadIncomingChForCallID(hdr.CallID),
 		Name:   streamerName,
 	}
 
@@ -1748,7 +1789,7 @@ func (c *Client) RequestDownload(ctx context.Context, streamerName string) (strm
 	// This also waits for the req to actually be sent.
 	select {
 	case <-req.DoneCh:
-		strmBack.Seqno = req.HDR.Seqno
+		downloader.Seqno = req.HDR.Seqno
 	case <-ctx.Done():
 	}
 	return
@@ -1823,7 +1864,7 @@ func (c *Client) RequestBistreaming(ctx context.Context, bistreamerName string, 
 
 	deadline, ok := ctx.Deadline()
 	if ok {
-		vv("RequestBistreaming sees deadline '%v'", deadline)
+		//vv("RequestBistreaming sees deadline '%v'", deadline)
 		hdr.Deadline = deadline
 	}
 	req.HDR = *hdr
@@ -1836,7 +1877,7 @@ func (c *Client) RequestBistreaming(ctx context.Context, bistreamerName string, 
 	b = &Bistreamer{
 		cli:      c,
 		callID:   hdr.CallID,
-		ReadCh:   c.GetReadIncomingCh(),
+		ReadCh:   c.GetReadIncomingChForCallID(hdr.CallID),
 		Name:     bistreamerName,
 		deadline: deadline,
 		ctx:      ctx,
