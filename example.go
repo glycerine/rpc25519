@@ -332,8 +332,8 @@ func (s *MustBeCancelled) MessageAPI_HangUntilCancel(req, reply *Message) error 
 
 // ServerSideStreamingFunc is used by
 // Test045_streaming_client_to_server in cli_test.go
-// to demonstrate streaming a large (or
-// infinite) file in small parts,
+// to demonstrate streaming a large (or infinite)
+// file in small parts,
 // from client to server, all while keeping FIFO
 // message order.
 type ServerSideStreamingFunc struct {
@@ -441,15 +441,28 @@ func (ssss *ServerSendsStreamState) ServerSendsStream(srv *Server, ctx context.C
 
 type BiServerState struct{}
 
-// ServerSendsStream is used by Test065_bidirectional_streaming test.
-func (bi *BiServerState) ServerSendsStream(srv *Server, ctx context.Context, req *Message, sendStreamPart func(by []byte, last bool), lastReply *Message) (err error) {
+// ServerBistream is used by Test065_bidirectional_streaming test.
+func (bi *BiServerState) ServerBistream(srv *Server,
+	ctx context.Context,
+	req *Message,
+	sendStreamToClientPart func(by []byte, last bool),
+	lastReply *Message,
+) (err error) {
+
+	streamFromClientCh := req.HDR.streamCh
+	if streamFromClientCh == nil {
+		panic("streamCh should be set!")
+	}
+
 	done := ctx.Done()
 	for i := range 20 {
-		sendStreamPart([]byte(fmt.Sprintf("part %v;", i)), i == 19)
+		sendStreamToClientPart([]byte(fmt.Sprintf("part %v;", i)), i == 19)
 		select {
 		case <-done:
 			vv("exiting early! we see done requested at i = %v", i)
 			break
+		case msg := <-streamFromClientCh:
+			vv("we got stream part from client: '%v'", msg.HDR.String())
 		default:
 		}
 	}

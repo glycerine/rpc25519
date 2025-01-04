@@ -501,7 +501,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		// We destroy the FIFO of a stream if we don't
 		// queue up the stream messages here, exactly in
 		// the order we received them.
-		case CallStreamBegin:
+		case CallStreamBegin, CallRequestBistreaming:
 			// early but sequential setup, we'll revist
 			// this again for CallStreamBegin to add ctx and
 			// cancel func. The important thing is that
@@ -584,9 +584,12 @@ func (s *Server) processWork(job *job) {
 	var callme1 OneWayFunc
 	var callme2 TwoWayFunc
 	var callmeServerSendsStreamFunc ServerSendsStreamFunc
+	var callmeBi BistreamFunc
+
 	foundCallback1 := false
 	foundCallback2 := false
 	foundServerSendsStream := false
+	foundBistream := false
 
 	req := job.req
 	//vv("processWork got job: req.HDR='%v'", req.HDR.String())
@@ -620,22 +623,21 @@ func (s *Server) processWork(job *job) {
 			callme2 = s.callme2
 			foundCallback2 = true
 		}
+	case CallRequestBistreaming:
+		back, ok := s.callmeBistreamMap[req.HDR.Subject]
+		if ok {
+			callmeBi = back
+			foundBistream = true
+		}
 	case CallRequestStreamBack:
-		// check the bimap first, too
-		back, ok := s.callmeBiMap[req.HDR.Subject]
+		back, ok := s.callmeServerSendsStreamMap[req.HDR.Subject]
 		if ok {
 			callmeServerSendsStreamFunc = back
 			foundServerSendsStream = true
-		} else {
-			back, ok = s.callmeServerSendsStreamMap[req.HDR.Subject]
-			if ok {
-				callmeServerSendsStreamFunc = back
-				foundServerSendsStream = true
-			}
-			if !ok {
-				// TODO: log this rather than panic. maybe respond to client?
-				panic(fmt.Sprintf("client asked for ServerSendsStreamFunc req.HDR.Subject='%v' but this is not registered!", req.HDR.Subject))
-			}
+		}
+		if !ok {
+			// TODO: log this rather than panic. maybe respond to client?
+			panic(fmt.Sprintf("client asked for ServerSendsStreamFunc req.HDR.Subject='%v' but this is not registered!", req.HDR.Subject))
 		}
 	case CallStreamBegin:
 		if s.callmeStreamReader == nil {
@@ -648,6 +650,7 @@ func (s *Server) processWork(job *job) {
 		// for Server.beginReadStream.
 		callme2 = s.beginReadStream
 		foundCallback2 = true
+
 	case CallStreamMore, CallStreamEnd:
 		panic("cannot see these here, must for FIFO of the stream be called from the readloop")
 
@@ -659,7 +662,10 @@ func (s *Server) processWork(job *job) {
 	}
 	s.mut.Unlock()
 
-	if !foundCallback1 && !foundCallback2 && !foundServerSendsStream {
+	if !foundCallback1 &&
+		!foundCallback2 &&
+		!foundServerSendsStream &&
+		!foundBistream {
 		//vv("warning! no callbacks found for req = '%v'", req)
 		return
 	}
@@ -669,7 +675,7 @@ func (s *Server) processWork(job *job) {
 		return
 	}
 
-	if foundCallback2 || foundServerSendsStream {
+	if foundCallback2 || foundServerSendsStream || foundBistream {
 		//vv("foundCallback2 true, req.HDR = '%v'", req.HDR)
 
 		//vv("req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
@@ -711,6 +717,10 @@ func (s *Server) processWork(job *job) {
 		case foundServerSendsStream:
 			help := s.newServerSendStreamHelper(ctx, job)
 			err = callmeServerSendsStreamFunc(s, ctx, req, help.sendStreamPart, reply)
+		case foundBistream:
+			help := s.newBistreamHelper(ctx, job)
+			err = callmeBi(s, ctx, req, help.sendStreamPart, reply)
+
 		}
 		if err != nil {
 			reply.JobErrs = err.Error()
@@ -793,7 +803,7 @@ type Server struct {
 
 	// server -> client streams
 	callmeServerSendsStreamMap map[string]ServerSendsStreamFunc
-	callmeBiMap                map[string]BiFunc
+	callmeBistreamMap          map[string]BistreamFunc
 
 	lsn  io.Closer // net.Listener
 	halt *idem.Halter
@@ -1540,7 +1550,7 @@ func NewServer(name string, config *Config) *Server {
 		halt:                       idem.NewHalter(),
 		RemoteConnectedCh:          make(chan *ServerClient, 20),
 		callmeServerSendsStreamMap: make(map[string]ServerSendsStreamFunc),
-		callmeBiMap:                make(map[string]BiFunc),
+		callmeBistreamMap:          make(map[string]BistreamFunc),
 	}
 }
 
@@ -1550,10 +1560,10 @@ func (s *Server) RegisterServerSendsStreamFunc(name string, callme ServerSendsSt
 	s.callmeServerSendsStreamMap[name] = callme
 }
 
-func (s *Server) RegisterBiFunc(name string, callme BiFunc) {
+func (s *Server) RegisterBiFunc(name string, callme BistreamFunc) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	s.callmeBiMap[name] = callme
+	s.callmeBistreamMap[name] = callme
 }
 
 // Register2Func tells the server about a func or method
@@ -1682,6 +1692,8 @@ type callctx struct {
 
 func (s *Server) registerInFlightCallToCancel(msg *Message, cancelFunc context.CancelFunc, ctx context.Context) {
 
+	vv("top registerInFlightCallToCancel(msg='%v')", msg.HDR.String())
+
 	s.inflight.mut.Lock()
 	defer s.inflight.mut.Unlock()
 
@@ -1705,7 +1717,8 @@ func (s *Server) registerInFlightCallToCancel(msg *Message, cancelFunc context.C
 			lastStreamPart: msg.HDR.StreamPart,
 		}
 
-		if msg.HDR.Typ == CallStreamBegin {
+		switch msg.HDR.Typ {
+		case CallStreamBegin, CallRequestBistreaming:
 			// give it lots of room because to keep FIFO
 			// we need the read loop to post here directly,
 			// without starting goroutines to service the stream.
@@ -1903,5 +1916,146 @@ func (s *serverSendStreamHelper) sendStreamPart(by []byte, last bool) {
 	err := s.job.w.sendMessage(s.job.conn, tmp, &s.srv.cfg.WriteTimeout)
 	if err != nil {
 		alwaysPrintf("serverSendStreamHelper.sendStreamPart error(): sendMessage got err = '%v'", err)
+	}
+}
+
+/* think we can use the example registered instead of this?
+func (s *Server) beginReadStreamBi(req *Message, reply *Message) (err error) {
+
+	vv("beginReadStreamBi internal TwoFunc top.")
+
+	// Now the StreamBegain call itself is in the queue,
+	// to ensure FIFO order of the stream messages.
+	// So we don't need a separate call to s.callmeStreamReader before
+	// the loop; everything can be handled uniformly.
+
+	hdr0 := &req.HDR
+	ctx := req.HDR.Ctx
+	var msgN *Message
+	bytesRead := 0
+	var last *Message
+
+	for i := int64(0); last == nil; i++ {
+
+		// get streaming messages from the processWork() goroutine,
+		// when it calls handleStreamMessage().
+		select {
+		case msgN = <-hdr0.streamCh:
+			if i == 0 {
+				ctx = msgN.HDR.Ctx
+				if msgN != req {
+					panic("req should be first in the queue!")
+				}
+			} else {
+				msgN.HDR.Ctx = ctx
+			}
+		case <-ctx.Done():
+			// allow call cancellation.
+			return fmt.Errorf("context cancelled")
+		}
+		bytesRead += len(msgN.JobSerz)
+
+		hdrN := &msgN.HDR
+
+		if hdrN.StreamPart != i {
+			panic(fmt.Errorf("MessageAPI_ReceiveFile: stream out of sync, expected next StreamPart to be %v; but we see %v.", i, hdrN.StreamPart))
+		}
+		// INVAR: we only get matching CallID messages here. Assert this.
+		if i > 0 && hdrN.CallID != hdr0.CallID {
+			panic(fmt.Errorf("hdr0.CallID = '%v', but hdrN.CallID = '%v', at part %v", hdr0.CallID, hdrN.CallID, i))
+		}
+
+		switch hdrN.Typ {
+		case CallStreamEnd:
+			last = reply
+		} // else leave last nil
+
+		err = s.callmeStreamReader(msgN, last)
+		if err != nil {
+			return
+		}
+		if last != nil {
+			//vv("on last, client set replyLast = '%#v'", reply)
+			return
+		}
+	}
+	return nil
+}
+*/
+
+type bistreamHelper struct {
+	srv *Server
+	job *job
+	req *Message
+	ctx context.Context
+
+	tmpMsg   *Message
+	mut      sync.Mutex
+	nextPart int64
+}
+
+// called first.
+func (s *Server) newBistreamHelper(ctx context.Context, job *job) *bistreamHelper {
+
+	m := &Message{}
+	// no DoneCh, as we send ourselves.
+
+	req := job.req
+
+	m.HDR.Subject = req.HDR.Subject
+	m.HDR.To = req.HDR.From
+	m.HDR.From = req.HDR.To
+	m.HDR.Seqno = req.HDR.Seqno
+	m.HDR.CallID = req.HDR.CallID
+
+	dl, ok := ctx.Deadline()
+	if ok {
+		m.HDR.Deadline = dl
+	}
+
+	return &bistreamHelper{
+		ctx:    ctx,
+		job:    job,
+		srv:    s,
+		req:    req,
+		tmpMsg: m,
+	}
+}
+
+func (s *bistreamHelper) sendStreamPart(by []byte, last bool) {
+	vv("bi.sendStreamPart called! last = %v", last)
+
+	// return early if we are cancelled, rather
+	// than wasting time or bandwidth.
+	select {
+	case <-s.ctx.Done():
+		return
+	default:
+	}
+
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
+	tmp := s.tmpMsg
+	tmp.JobSerz = by
+
+	i := s.nextPart
+	s.nextPart++
+
+	switch {
+	case i == 0:
+		tmp.HDR.Typ = CallStreamBackBegin
+	case last:
+		tmp.HDR.Typ = CallStreamBackEnd
+	default:
+		tmp.HDR.Typ = CallStreamBackMore
+	}
+	tmp.HDR.StreamPart = i
+	tmp.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
+	tmp.HDR.Created = time.Now()
+
+	err := s.job.w.sendMessage(s.job.conn, tmp, &s.srv.cfg.WriteTimeout)
+	if err != nil {
+		alwaysPrintf("bistreamHelper.sendStreamPart error(): sendMessage got err = '%v'", err)
 	}
 }

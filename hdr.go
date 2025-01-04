@@ -31,6 +31,8 @@ const (
 	CallRPC    CallType = 1
 	CallNetRPC CallType = 2
 
+	CallRequestBistreaming CallType = 3
+
 	// CallType numbers 3-9 are reserved for future two-way
 	// callling convention needs. All types
 	// with number < 10 should be call+response
@@ -71,6 +73,8 @@ func (ct CallType) String() string {
 		return "CallOneWay"
 	case CallNetRPC:
 		return "CallNetRPC"
+	case CallRequestBistreaming:
+		return "CallRequestBistreaming"
 	case CallKeepAlive:
 		return "CallKeepAlive"
 	case CallCancelPrevious:
@@ -343,7 +347,7 @@ func (a *HDR) Equal(b *HDR) bool {
 		a.StreamPart == b.StreamPart
 }
 
-func (m *HDR) String() string {
+func (m *HDR) String() string { // has data race
 	//return m.Pretty()
 	return fmt.Sprintf(`&rpc25519.HDR{
     "Nc": %v,

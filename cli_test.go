@@ -979,6 +979,7 @@ func Test045_streaming_client_to_server(t *testing.T) {
 		//var reply *Message
 		req := NewMessage()
 		filename := "streams.all.together.txt"
+		os.Remove(filename)
 		req.HDR.Subject = "receiveFile:" + filename
 		req.JobSerz = []byte("a=c(0")
 
@@ -1148,9 +1149,9 @@ func Test065_bidirectional_streaming_from_server_func_perspective(t *testing.T) 
 		defer srv.Close()
 
 		// register streamer func with server
-		streamerName := "biName"
+		streamerName := "bi-streamer Name"
 		bi := &BiServerState{}
-		srv.RegisterBiFunc(streamerName, bi.ServerSendsStream)
+		srv.RegisterBiFunc(streamerName, bi.ServerBistream)
 
 		// start client
 		cfg.ClientDialToHostPort = serverAddr.String()
@@ -1160,25 +1161,31 @@ func Test065_bidirectional_streaming_from_server_func_perspective(t *testing.T) 
 		panicOn(err)
 		defer client.Close()
 
-		// ask server to send us the stream
+		// ask server to send us the bistream
 
 		// use deadline so we can confirm it is transmitted back from server to client
 		// in the stream.
 		deadline := time.Now().Add(time.Hour)
-		ctx55, cancelFunc55 := context.WithDeadline(context.Background(), deadline)
-		defer cancelFunc55()
+		ctx65, cancelFunc65 := context.WithDeadline(context.Background(), deadline)
+		defer cancelFunc65()
 
-		// start the call
-		strmBack, err := client.RequestStreamBack(ctx55, streamerName)
+		// start the bistream
+
+		req := NewMessage()
+		filename := "bi.all.srv.read.streams.txt"
+		os.Remove(filename)
+		req.JobSerz = []byte("receiveFile:" + filename)
+
+		bistream, err := client.RequestBistreaming(ctx65, streamerName, req)
 		panicOn(err)
 
-		vv("strmBack requested, with CallID = '%v'", strmBack.CallID)
+		vv("strmBack requested, with CallID = '%v'", bistream.CallID())
 		// then send N more parts
 
 		done := false
 		for i := 0; !done; i++ {
 			select {
-			case m := <-strmBack.ReadCh:
+			case m := <-bistream.ReadCh:
 				//report := string(m.JobSerz)
 				//vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
 
@@ -1199,9 +1206,9 @@ func Test065_bidirectional_streaming_from_server_func_perspective(t *testing.T) 
 					cv.So(m.HDR.Typ == CallStreamBackMore, cv.ShouldBeTrue)
 				}
 
-				if m.HDR.Seqno != strmBack.Seqno {
+				if m.HDR.Seqno != bistream.Seqno {
 					t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
-						"strmBack.Seqno = %v", m.HDR.Seqno, strmBack.Seqno)
+						"bistream.Seqno = %v", m.HDR.Seqno, bistream.Seqno)
 				}
 
 			case <-time.After(time.Second * 10):
@@ -1212,7 +1219,7 @@ func Test065_bidirectional_streaming_from_server_func_perspective(t *testing.T) 
 		// do we get the lastReply too then?
 
 		select {
-		case m := <-strmBack.ReadCh:
+		case m := <-bistream.ReadCh:
 			//report := string(m.JobSerz)
 			//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
 
@@ -1224,13 +1231,70 @@ func Test065_bidirectional_streaming_from_server_func_perspective(t *testing.T) 
 				t.Fatalf("deadline not preserved")
 			}
 
-			if m.HDR.Seqno != strmBack.Seqno {
+			if m.HDR.Seqno != bistream.Seqno {
 				t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
-					"strmBack.Seqno = %v", m.HDR.Seqno, strmBack.Seqno)
+					"bistream.Seqno = %v", m.HDR.Seqno, bistream.Seqno)
 			}
 
 		case <-time.After(time.Second * 10):
 			t.Fatalf("should have gotten a lastReply from the server finishing the call.")
 		}
+
+		// ============================================
+		// ============================================
+		//
+		// next: test that the same server func can receive a stream.
+		//
+		// We now check that the client can send a stream to the server.
+		// While typically these are interleaved in real world usage,
+		// here we start with simple and sequential use.
+		// ============================================
+		// ============================================
+
+		// start sending a stream to the server.
+
+		// read the final reply from the server.
+		readCh := client.GetReadIncomingCh()
+
+		originalStreamCallID := bistream.CallID()
+		vv("065 client-to-server started, with CallID = '%v'", originalStreamCallID)
+		// then send N more parts
+
+		var last bool
+		N := 20
+		for i := 1; i <= N; i++ {
+			streamMsg := NewMessage()
+			streamMsg.HDR.Subject = fmt.Sprintf("streaming part %v is here.", i)
+			streamMsg.JobSerz = []byte(fmt.Sprintf(",%v", i))
+			if i == N {
+				last = true
+				streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
+			}
+			err = bistream.SendMore(streamMsg, ctx65.Done(), last)
+			panicOn(err)
+			//vv("sent part %v", i)
+		}
+		//vv("all N=%v parts sent", N)
+
+		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
+
+		select {
+		case m := <-readCh:
+			report := string(m.JobSerz)
+			vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+			cv.So(strings.Contains(report, "bytesWrit"), cv.ShouldBeTrue)
+			cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
+			cv.So(fileExists(filename), cv.ShouldBeTrue)
+
+		case <-time.After(time.Minute):
+			t.Fatalf("should have gotten a reply from the server finishing the stream.")
+		}
+		if fileExists(filename) && N == 20 {
+			// verify the contents of the assembled file
+			fileBytes, err := os.ReadFile(filename)
+			panicOn(err)
+			cv.So(string(fileBytes), cv.ShouldEqual, "a=c(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)")
+		}
+
 	})
 }

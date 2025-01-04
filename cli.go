@@ -556,7 +556,13 @@ type ServerSendsStreamFunc func(
 	lastReply *Message,
 ) (err error)
 
-type BiFunc = ServerSendsStreamFunc
+type BistreamFunc func(
+	srv *Server,
+	ctx context.Context,
+	req *Message,
+	sendPart func(by []byte, last bool),
+	lastReply *Message,
+) (err error)
 
 // A StreamReaderFunc receives messages from a Client's Stream.
 //
@@ -1692,6 +1698,7 @@ type StreamBack struct {
 	CallID string
 	Seqno  uint64
 	ReadCh chan *Message
+	Name   string
 }
 
 func (c *Client) RequestStreamBack(ctx context.Context, streamerName string) (strmBack *StreamBack, err error) {
@@ -1724,6 +1731,7 @@ func (c *Client) RequestStreamBack(ctx context.Context, streamerName string) (st
 	strmBack = &StreamBack{
 		CallID: hdr.CallID,
 		ReadCh: c.GetReadIncomingCh(),
+		Name:   streamerName,
 	}
 
 	// get our Seqno back, so test can assert it is preserved.
@@ -1731,6 +1739,94 @@ func (c *Client) RequestStreamBack(ctx context.Context, streamerName string) (st
 	select {
 	case <-req.DoneCh:
 		strmBack.Seqno = req.HDR.Seqno
+	case <-ctx.Done():
+	}
+	return
+}
+
+// Bistreamer is the client side handle to talking
+// with a server func that does bistreaming: the
+// client can stream to the server func, and the
+// server func can, symmetrically, stream to the client.
+// The basics of TCP are finally available to users.
+type Bistreamer struct {
+	Seqno   uint64
+	ReadCh  <-chan *Message
+	WriteCh chan<- *Message
+	Name    string
+
+	mut    sync.Mutex
+	cli    *Client
+	next   int64
+	callID string
+	done   bool
+}
+
+func (s *Bistreamer) CallID() string {
+	return s.callID
+}
+
+func (s *Bistreamer) SendMore(msg *Message, cancelJobCh <-chan struct{}, last bool) (err error) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
+	if s.done {
+		return ErrAlreadyDone
+	}
+
+	if last {
+		msg.HDR.Typ = CallStreamEnd
+		s.done = true
+	} else {
+		msg.HDR.Typ = CallStreamMore
+	}
+	msg.HDR.StreamPart = s.next
+	msg.HDR.CallID = s.callID
+	s.next++
+	return s.cli.OneWaySend(msg, cancelJobCh)
+}
+
+func (c *Client) RequestBistreaming(ctx context.Context, bistreamerName string, req *Message) (b *Bistreamer, err error) {
+
+	if req == nil {
+		req = NewMessage()
+	}
+
+	var from, to string
+	if c.isQUIC {
+		from = local(c.quicConn)
+		to = remote(c.quicConn)
+	} else {
+		from = local(c.conn)
+		to = remote(c.conn)
+	}
+
+	hdr := NewHDR(from, to, bistreamerName, CallRequestBistreaming, 0)
+	hdr.Ctx = ctx
+	deadline, ok := ctx.Deadline()
+	if ok {
+		//vv("client sees deadline '%v'", deadline)
+		hdr.Deadline = deadline
+	}
+	req.HDR = *hdr
+
+	err = c.OneWaySend(req, ctx.Done())
+	if err != nil {
+		return
+	}
+
+	b = &Bistreamer{
+		callID: hdr.CallID,
+		ReadCh: c.GetReadIncomingCh(),
+		Name:   bistreamerName,
+	}
+
+	// get our Seqno back, so test can assert it is preserved.
+	// This also waits for the req to actually be sent.
+	// It should only block for few microseconds.
+	select {
+	case <-req.DoneCh:
+		b.Seqno = req.HDR.Seqno
 	case <-ctx.Done():
 	}
 	return
