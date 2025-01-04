@@ -35,6 +35,8 @@ var _ = fmt.Printf
 
 //var serverAddress = "192.168.254.151:8443"
 
+var ErrContextCancelled = fmt.Errorf("context cancelled")
+
 // boundCh should be buffered, at least 1, if it is not nil. If not nil, we
 // will send the bound net.Addr back on it after we have started listening.
 func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath string, boundCh chan net.Addr) {
@@ -1472,7 +1474,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 // takes a fully prepared msg to avoid API churn when new HDR fields are
 // added/needed. msg.HDR.Type must be >= CallOneWay (10), to try and
 // catch mis-use of this when the user actually wants a round-trip call.
-func (s *Server) SendOneWayMessage(msg *Message, errWriteDur *time.Duration) error {
+func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur *time.Duration) error {
 
 	destAddr := msg.HDR.To
 	s.mut.Lock()
@@ -1501,6 +1503,8 @@ func (s *Server) SendOneWayMessage(msg *Message, errWriteDur *time.Duration) err
 	case <-s.halt.ReqStop.Chan:
 		// shutting down
 		return ErrShutdown
+	case <-ctx.Done():
+		return ErrContextCancelled
 	}
 
 	dur := 30 * time.Millisecond
