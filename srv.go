@@ -1873,13 +1873,13 @@ func (s *Server) newServerSendDownloadHelper(ctx context.Context, job *job) *ser
 	}
 }
 
-func (s *serverSendDownloadHelper) sendDownloadPart(by []byte, last bool) {
+func (s *serverSendDownloadHelper) sendDownloadPart(ctx context.Context, by []byte, last bool) {
 	//vv("sendDownloadPart called! last = %v", last)
 
 	// return early if we are cancelled, rather
 	// than wasting time or bandwidth.
 	select {
-	case <-s.ctx.Done():
+	case <-ctx.Done():
 		return
 	default:
 	}
@@ -1887,6 +1887,12 @@ func (s *serverSendDownloadHelper) sendDownloadPart(by []byte, last bool) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
+	// we deliberately re-use the same message
+	// every time with its header all set up.
+	// The only things that need to change
+	// are updated below. This is to say,
+	// do not clear out s.tmpMsg! We need its
+	// initialized values.
 	tmp := s.tmpMsg
 	tmp.JobSerz = by
 
@@ -1904,6 +1910,7 @@ func (s *serverSendDownloadHelper) sendDownloadPart(by []byte, last bool) {
 	tmp.HDR.StreamPart = i
 	tmp.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
 	tmp.HDR.Created = time.Now()
+	tmp.HDR.Deadline, _ = ctx.Deadline()
 
 	err := s.job.w.sendMessage(s.job.conn, tmp, &s.srv.cfg.WriteTimeout)
 	if err != nil {

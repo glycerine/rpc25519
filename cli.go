@@ -565,7 +565,7 @@ type ServerSendsDownloadFunc func(
 	srv *Server,
 	ctx context.Context,
 	req *Message,
-	sendPart func(by []byte, last bool),
+	sendDownloadPartToClient func(ctx context.Context, by []byte, last bool),
 	lastReply *Message,
 ) (err error)
 
@@ -683,7 +683,7 @@ type BistreamFunc func(
 	srv *Server,
 	ctx context.Context,
 	req *Message,
-	sendDownloadPartToClient func(by []byte, last bool),
+	sendDownloadPartToClient func(ctx context.Context, by []byte, last bool),
 	lastReply *Message,
 ) (err error)
 

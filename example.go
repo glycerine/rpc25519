@@ -423,10 +423,10 @@ type ServerSendsDownloadState struct{}
 // It demonstrates how a registered server func can stream to the client.
 // ServerSendStream has type ServerSendsDownloadFunc, and gets
 // registered on the server with srv.RegisterServerSendsDownloadFunc().
-func (ssss *ServerSendsDownloadState) ServerSendsDownload(srv *Server, ctx context.Context, req *Message, sendStreamPart func(by []byte, last bool), lastReply *Message) (err error) {
+func (ssss *ServerSendsDownloadState) ServerSendsDownload(srv *Server, ctx context.Context, req *Message, sendStreamPart func(ctx context.Context, by []byte, last bool), lastReply *Message) (err error) {
 	done := ctx.Done()
 	for i := range 20 {
-		sendStreamPart([]byte(fmt.Sprintf("part %v;", i)), i == 19)
+		sendStreamPart(ctx, []byte(fmt.Sprintf("part %v;", i)), i == 19)
 		select {
 		case <-done:
 			vv("exiting early! we see done requested at i = %v", i)
@@ -451,7 +451,7 @@ func (bi *BiServerState) ServerBistream(
 	srv *Server,
 	ctx context.Context,
 	req *Message,
-	sendDownloadPartToClient func(by []byte, last bool),
+	sendDownloadPartToClient func(ctx context.Context, by []byte, last bool),
 	lastReply *Message,
 ) (err error) {
 
@@ -493,7 +493,7 @@ func (bi *BiServerState) ServerBistream(
 	done := ctx.Done()
 	for i := range 20 {
 		//vv("on i = %v", i)
-		sendDownloadPartToClient([]byte(fmt.Sprintf("part %v;", i)), i == 19)
+		sendDownloadPartToClient(ctx, []byte(fmt.Sprintf("part %v;", i)), i == 19)
 		select {
 		case <-done:
 			vv("exiting early! we see done requested at i = %v", i)
