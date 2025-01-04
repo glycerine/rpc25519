@@ -417,13 +417,13 @@ func (s *ServerSideStreamingFunc) ReceiveFileInParts(req *Message, lastReply *Me
 	return
 }
 
-type ServerSendsStreamState struct{}
+type ServerSendsDownloadState struct{}
 
-// ServerSendsStream is used by Test055_streaming_server_to_client.
+// ServerSendsDownload is used by Test055_streaming_server_to_client.
 // It demonstrates how a registered server func can stream to the client.
-// ServerSendStream has type ServerSendsStreamFunc, and gets
-// registered on the server with srv.RegisterServerSendsStreamFunc().
-func (ssss *ServerSendsStreamState) ServerSendsStream(srv *Server, ctx context.Context, req *Message, sendStreamPart func(by []byte, last bool), lastReply *Message) (err error) {
+// ServerSendStream has type ServerSendsDownloadFunc, and gets
+// registered on the server with srv.RegisterServerSendsDownloadFunc().
+func (ssss *ServerSendsDownloadState) ServerSendsDownload(srv *Server, ctx context.Context, req *Message, sendStreamPart func(by []byte, last bool), lastReply *Message) (err error) {
 	done := ctx.Done()
 	for i := range 20 {
 		sendStreamPart([]byte(fmt.Sprintf("part %v;", i)), i == 19)
@@ -471,5 +471,10 @@ func (bi *BiServerState) ServerBistream(srv *Server,
 	}
 	vv("ServerBistream: done sending 20 messages")
 	lastReply.HDR.Subject = "This is end. My only friend, the end. - Jim Morrison, The Doors."
+
+	vv("top of ServerBistream(). going to select{} still... reading uploads next :)")
+	for {
+		select {}
+	}
 	return
 }

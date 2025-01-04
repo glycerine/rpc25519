@@ -535,28 +535,29 @@ type job struct {
 	w    *blabber
 }
 
-// PRE: req.StreamPart > 0; i.e. only StreamMore
-// and StreamEnd should be called here.
+// PRE: only req.HDR.Typ in {CallUploadMore, CallUploadEnd}
+// should be calling here.
 func (s *Server) handleStreamMessage(req *Message) {
 
 	callID := req.HDR.CallID
 
 	s.inflight.mut.Lock()
 	cc, ok := s.inflight.activeCalls[callID]
+
+	if ok {
+		// track progress
+		cc.lastStreamPart = req.HDR.StreamPart
+	}
 	s.inflight.mut.Unlock()
 
 	if !ok {
-		alwaysPrintf("Warning: dropping a StreamPart because no handler "+
+		alwaysPrintf("Warning: dropping a StreamPart: '%s' because no handler "+
 			"registered/inflight. This is highly un-expected. "+
 			"However, it might mean the server func exited with "+
 			"an error but the client has not caught up with "+
-			"that yet. hdr='%v'", req.HDR.String())
+			"that yet. hdr='%v'", req.HDR.Typ, req.HDR.String())
 		return
 	}
-
-	// track progress
-	part := req.HDR.StreamPart
-	cc.lastStreamPart = part
 
 	// be aware that we are on the read-loop goroutine stack here.
 	// If we are stalled, we will stall all reads on the server.
@@ -583,12 +584,12 @@ func (s *Server) processWork(job *job) {
 
 	var callme1 OneWayFunc
 	var callme2 TwoWayFunc
-	var callmeServerSendsStreamFunc ServerSendsStreamFunc
+	var callmeServerSendsDownloadFunc ServerSendsDownloadFunc
 	var callmeBi BistreamFunc
 
 	foundCallback1 := false
 	foundCallback2 := false
-	foundServerSendsStream := false
+	foundServerSendsDownload := false
 	foundBistream := false
 
 	req := job.req
@@ -631,14 +632,14 @@ func (s *Server) processWork(job *job) {
 			vv("foundBistream true!")
 		}
 	case CallRequestDownload:
-		back, ok := s.callmeServerSendsStreamMap[req.HDR.Subject]
+		back, ok := s.callmeServerSendsDownloadMap[req.HDR.Subject]
 		if ok {
-			callmeServerSendsStreamFunc = back
-			foundServerSendsStream = true
+			callmeServerSendsDownloadFunc = back
+			foundServerSendsDownload = true
 		}
 		if !ok {
 			// TODO: log this rather than panic. maybe respond to client?
-			panic(fmt.Sprintf("client asked for ServerSendsStreamFunc req.HDR.Subject='%v' but this is not registered!", req.HDR.Subject))
+			panic(fmt.Sprintf("client asked for ServerSendsDownloadFunc req.HDR.Subject='%v' but this is not registered!", req.HDR.Subject))
 		}
 	case CallUploadBegin:
 		if s.callmeStreamReader == nil {
@@ -665,7 +666,7 @@ func (s *Server) processWork(job *job) {
 
 	if !foundCallback1 &&
 		!foundCallback2 &&
-		!foundServerSendsStream &&
+		!foundServerSendsDownload &&
 		!foundBistream {
 		//vv("warning! no callbacks found for req = '%v'", req)
 		return
@@ -676,7 +677,7 @@ func (s *Server) processWork(job *job) {
 		return
 	}
 
-	if foundCallback2 || foundServerSendsStream || foundBistream {
+	if foundCallback2 || foundServerSendsDownload || foundBistream {
 		//vv("foundCallback2 true, req.HDR = '%v'", req.HDR)
 
 		//vv("req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
@@ -715,9 +716,9 @@ func (s *Server) processWork(job *job) {
 		switch {
 		case foundCallback2:
 			err = callme2(req, reply)
-		case foundServerSendsStream:
+		case foundServerSendsDownload:
 			help := s.newServerSendStreamHelper(ctx, job)
-			err = callmeServerSendsStreamFunc(s, ctx, req, help.sendStreamPart, reply)
+			err = callmeServerSendsDownloadFunc(s, ctx, req, help.sendStreamPart, reply)
 		case foundBistream:
 			help := s.newBistreamHelper(ctx, job)
 			err = callmeBi(s, ctx, req, help.sendStreamPart, reply)
@@ -803,8 +804,8 @@ type Server struct {
 	callmeStreamReader StreamReaderFunc
 
 	// server -> client streams
-	callmeServerSendsStreamMap map[string]ServerSendsStreamFunc
-	callmeBistreamMap          map[string]BistreamFunc
+	callmeServerSendsDownloadMap map[string]ServerSendsDownloadFunc
+	callmeBistreamMap            map[string]BistreamFunc
 
 	lsn  io.Closer // net.Listener
 	halt *idem.Halter
@@ -1544,21 +1545,21 @@ func NewServer(name string, config *Config) *Server {
 		cfg = &clone
 	}
 	return &Server{
-		name:                       name,
-		cfg:                        cfg,
-		remote2pair:                make(map[string]*rwPair),
-		pair2remote:                make(map[*rwPair]string),
-		halt:                       idem.NewHalter(),
-		RemoteConnectedCh:          make(chan *ServerClient, 20),
-		callmeServerSendsStreamMap: make(map[string]ServerSendsStreamFunc),
-		callmeBistreamMap:          make(map[string]BistreamFunc),
+		name:                         name,
+		cfg:                          cfg,
+		remote2pair:                  make(map[string]*rwPair),
+		pair2remote:                  make(map[*rwPair]string),
+		halt:                         idem.NewHalter(),
+		RemoteConnectedCh:            make(chan *ServerClient, 20),
+		callmeServerSendsDownloadMap: make(map[string]ServerSendsDownloadFunc),
+		callmeBistreamMap:            make(map[string]BistreamFunc),
 	}
 }
 
-func (s *Server) RegisterServerSendsStreamFunc(name string, callme ServerSendsStreamFunc) {
+func (s *Server) RegisterServerSendsDownloadFunc(name string, callme ServerSendsDownloadFunc) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	s.callmeServerSendsStreamMap[name] = callme
+	s.callmeServerSendsDownloadMap[name] = callme
 }
 
 func (s *Server) RegisterBiFunc(name string, callme BistreamFunc) {

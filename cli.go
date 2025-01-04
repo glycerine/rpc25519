@@ -545,10 +545,10 @@ type TwoWayFunc func(req *Message, reply *Message) error
 // As above req.JobSerz [] byte contains the job payload.
 type OneWayFunc func(req *Message)
 
-// ServerSendsStreamFunc is used to send a stream to the
+// ServerSendsDownloadFunc is used to send a stream to the
 // client on the streamToClientChan.
-// Use Server.RegisterServerSendsStreamFunc() to register it.
-type ServerSendsStreamFunc func(
+// Use Server.RegisterServerSendsDownloadFunc() to register it.
+type ServerSendsDownloadFunc func(
 	srv *Server,
 	ctx context.Context,
 	req *Message,
