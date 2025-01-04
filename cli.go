@@ -614,13 +614,20 @@ type ServerSendsDownloadFunc func(
 // When the BistreamFunc finishes (returns), a final message will
 // be sent back to the client.
 //
-// A BistreamFunc can start new goroutines, if it wishes,
-// and in particular this may be useful to reduce
-// latency of message handling for reading from
+// A BistreamFunc is run on its own goroutine. It can
+// start new goroutines, if it wishes, but
+// this is not required. An additional (new) goroutine
+// may be useful to reduce the latency of message
+// handling while simultaneously reading from
 // req.HDR.streamCh for uploads and writing to
-// downloads by calling the sendStreamToClientPart()
-// helper function provided for this purpose
-// (it properly assigns the HDR.StreamPart
+// downloads with sendStreamToClientPart(),
+// as both of these are blocking, synchronous, operations.
+// If you do so, be sure to handle goroutine cancellation and
+// cleanup if the ctx provided is cancelled.
+//
+// The sendStreamToClientPart()
+// helper function is used to write download
+// Messages. It properly assigns the HDR.StreamPart
 // sequence numbers and HDR.Typ as one of
 // CallDownloadBegin, CallDownloadMore, and
 // CallDownloadEnd). The BistreamFunc should
@@ -630,7 +637,7 @@ type ServerSendsDownloadFunc func(
 // be set on the sent Message.
 //
 // To provide back-pressure by default,
-// The sendStreamToClientPart() call is
+// the sendStreamToClientPart() call is
 // synchronous and will return only when
 // the message is sent. If you wish to continue
 // to process uploads while sending a download
