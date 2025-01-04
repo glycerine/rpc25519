@@ -718,10 +718,10 @@ func (s *Server) processWork(job *job) {
 			err = callme2(req, reply)
 		case foundServerSendsDownload:
 			help := s.newServerSendStreamHelper(ctx, job)
-			err = callmeServerSendsDownloadFunc(s, ctx, req, help.sendStreamPart, reply)
+			err = callmeServerSendsDownloadFunc(s, ctx, req, help.sendDownloadPart, reply)
 		case foundBistream:
 			help := s.newBistreamHelper(ctx, job)
-			err = callmeBi(s, ctx, req, help.sendStreamPart, reply)
+			err = callmeBi(s, ctx, req, help.sendDownloadPart, reply)
 
 		}
 		if err != nil {
@@ -1883,8 +1883,8 @@ func (s *Server) newServerSendStreamHelper(ctx context.Context, job *job) *serve
 	}
 }
 
-func (s *serverSendStreamHelper) sendStreamPart(by []byte, last bool) {
-	//vv("sendStreamPart called! last = %v", last)
+func (s *serverSendStreamHelper) sendDownloadPart(by []byte, last bool) {
+	//vv("sendDownloadPart called! last = %v", last)
 
 	// return early if we are cancelled, rather
 	// than wasting time or bandwidth.
@@ -1917,7 +1917,7 @@ func (s *serverSendStreamHelper) sendStreamPart(by []byte, last bool) {
 
 	err := s.job.w.sendMessage(s.job.conn, tmp, &s.srv.cfg.WriteTimeout)
 	if err != nil {
-		alwaysPrintf("serverSendStreamHelper.sendStreamPart error(): sendMessage got err = '%v'", err)
+		alwaysPrintf("serverSendStreamHelper.sendDownloadPart error(): sendMessage got err = '%v'", err)
 	}
 }
 
@@ -2024,8 +2024,8 @@ func (s *Server) newBistreamHelper(ctx context.Context, job *job) *bistreamHelpe
 	}
 }
 
-func (s *bistreamHelper) sendStreamPart(by []byte, last bool) {
-	vv("bi.sendStreamPart called! last = %v", last)
+func (s *bistreamHelper) sendDownloadPart(by []byte, last bool) {
+	vv("bi.sendDownloadPart called! last = %v", last)
 
 	// return early if we are cancelled, rather
 	// than wasting time or bandwidth.
@@ -2058,6 +2058,6 @@ func (s *bistreamHelper) sendStreamPart(by []byte, last bool) {
 
 	err := s.job.w.sendMessage(s.job.conn, tmp, &s.srv.cfg.WriteTimeout)
 	if err != nil {
-		alwaysPrintf("bistreamHelper.sendStreamPart error(): sendMessage got err = '%v'", err)
+		alwaysPrintf("bistreamHelper.sendDownloadPart error(): sendMessage got err = '%v'", err)
 	}
 }
