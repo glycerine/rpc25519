@@ -1451,13 +1451,11 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 // (one-way) calls to a remote server's UploadReaderFunc
 // which must have been already registered on the server.
 type Uploader struct {
-	mut      sync.Mutex
-	cli      *Client
-	next     int64
-	callID   string
-	done     bool
-	ctx      context.Context
-	deadline time.Time
+	mut    sync.Mutex
+	cli    *Client
+	next   int64
+	callID string
+	done   bool
 }
 
 func (s *Uploader) CallID() string {
@@ -1515,19 +1513,16 @@ func (c *Client) UploadBegin(
 	if err != nil {
 		return nil, err
 	}
-	deadline, _ := ctx.Deadline()
 	return &Uploader{
-		cli:      c,
-		next:     1,
-		callID:   msg.HDR.CallID,
-		ctx:      ctx,
-		deadline: deadline,
+		cli:    c,
+		next:   1,
+		callID: msg.HDR.CallID,
 	}, nil
 }
 
 var ErrAlreadyDone = fmt.Errorf("Uploader has already been marked done. No more sending is allowed.")
 
-func (s *Uploader) UploadMore(msg *Message, cancelJobCh <-chan struct{}, last bool) (err error) {
+func (s *Uploader) UploadMore(ctx context.Context, msg *Message, last bool) (err error) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
@@ -1544,11 +1539,12 @@ func (s *Uploader) UploadMore(msg *Message, cancelJobCh <-chan struct{}, last bo
 	msg.HDR.StreamPart = s.next
 	msg.HDR.CallID = s.callID
 	// set deadline too!
-	msg.HDR.Ctx = s.ctx
-	msg.HDR.Deadline = s.deadline
+	msg.HDR.Ctx = ctx
+	deadline, _ := ctx.Deadline()
+	msg.HDR.Deadline = deadline
 
 	s.next++
-	return s.cli.OneWaySend(msg, cancelJobCh)
+	return s.cli.OneWaySend(msg, ctx.Done())
 }
 
 // OneWaySend sends a message without expecting or waiting for a response.
@@ -1753,16 +1749,16 @@ func (c *Client) setupPSK(conn uConn) error {
 	return nil
 }
 
-// Download is used when the client receives stream from server.
+// Downloader is used when the client receives stream from server.
 // It is returned by RequestDownload().
-type Download struct {
+type Downloader struct {
 	CallID string
 	Seqno  uint64
 	ReadCh chan *Message
 	Name   string
 }
 
-func (c *Client) RequestDownload(ctx context.Context, streamerName string) (downloader *Download, err error) {
+func (c *Client) RequestDownload(ctx context.Context, streamerName string) (downloader *Downloader, err error) {
 
 	req := NewMessage()
 
@@ -1789,11 +1785,10 @@ func (c *Client) RequestDownload(ctx context.Context, streamerName string) (down
 		return
 	}
 
-	downloader = &Download{
+	downloader = &Downloader{
 		CallID: hdr.CallID,
 		ReadCh: c.GetReadIncomingChForCallID(hdr.CallID),
-		//ReadCh: c.GetReadIncomingCh(),
-		Name: streamerName,
+		Name:   streamerName,
 	}
 
 	// get our Seqno back, so test can assert it is preserved.
@@ -1817,20 +1812,18 @@ type Bistreamer struct {
 	WriteCh chan<- *Message
 	Name    string
 
-	mut      sync.Mutex
-	cli      *Client
-	next     int64
-	callID   string
-	done     bool
-	deadline time.Time
-	ctx      context.Context
+	mut    sync.Mutex
+	cli    *Client
+	next   int64
+	callID string
+	done   bool
 }
 
 func (s *Bistreamer) CallID() string {
 	return s.callID
 }
 
-func (s *Bistreamer) UploadMore(msg *Message, cancelJobCh <-chan struct{}, last bool) (err error) {
+func (s *Bistreamer) UploadMore(ctx context.Context, msg *Message, last bool) (err error) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
@@ -1846,11 +1839,12 @@ func (s *Bistreamer) UploadMore(msg *Message, cancelJobCh <-chan struct{}, last 
 	}
 	msg.HDR.StreamPart = s.next
 	msg.HDR.CallID = s.callID
-	msg.HDR.Ctx = s.ctx
-	msg.HDR.Deadline = s.deadline
+	msg.HDR.Ctx = ctx
+	deadline, _ := ctx.Deadline()
+	msg.HDR.Deadline = deadline
 
 	s.next++
-	return s.cli.OneWaySend(msg, cancelJobCh)
+	return s.cli.OneWaySend(msg, ctx.Done())
 }
 
 func (c *Client) RequestBistreaming(ctx context.Context, bistreamerName string, req *Message) (b *Bistreamer, err error) {
@@ -1886,13 +1880,11 @@ func (c *Client) RequestBistreaming(ctx context.Context, bistreamerName string, 
 	}
 
 	b = &Bistreamer{
-		next:     1,
-		cli:      c,
-		callID:   hdr.CallID,
-		ReadCh:   c.GetReadIncomingChForCallID(hdr.CallID),
-		Name:     bistreamerName,
-		deadline: deadline,
-		ctx:      ctx,
+		next:   1,
+		cli:    c,
+		callID: hdr.CallID,
+		ReadCh: c.GetReadIncomingChForCallID(hdr.CallID),
+		Name:   bistreamerName,
 	}
 
 	// get our Seqno back, so test can assert it is preserved.

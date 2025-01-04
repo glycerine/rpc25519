@@ -1,6 +1,17 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
+* Recent News (2025 January 04): (Happy New Year!)
+
+For bulk uploads and downloads, v1.3.0 has streaming support.
+A stream can have any number of Messages in its sequence,
+and they can be handled by a single server function.
+
+See example.go and the cli_test.go tests 045, 055, and 065.
+
+The structs Downloader, Uploader, and Bistreamer (both up and downloads)
+provide support.
+
 * Recent News (2024 December 28): remote cancellation support with context.Context
 
 We recently implemented (in v1.2.0) remote call cancellation 

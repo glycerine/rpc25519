@@ -1001,7 +1001,7 @@ func Test045_upload(t *testing.T) {
 				last = true
 				streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
 			}
-			err = strm.UploadMore(streamMsg, ctx45.Done(), last)
+			err = strm.UploadMore(ctx45, streamMsg, last)
 			panicOn(err)
 			//vv("sent part %v", i)
 		}
@@ -1249,7 +1249,7 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 				last = true
 				streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
 			}
-			err = bistream.UploadMore(streamMsg, ctx65.Done(), last)
+			err = bistream.UploadMore(ctx65, streamMsg, last)
 			panicOn(err)
 			//vv("uploaded part %v", i)
 		}
