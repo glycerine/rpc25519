@@ -509,7 +509,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			s.Server.registerInFlightCallToCancel(req, nil, nil)
 
 		case CallUploadMore, CallUploadEnd:
-			s.Server.handleStreamMessage(req)
+			s.Server.handleUploadParts(req)
 			continue
 		}
 
@@ -537,16 +537,18 @@ type job struct {
 
 // PRE: only req.HDR.Typ in {CallUploadMore, CallUploadEnd}
 // should be calling here.
-func (s *Server) handleStreamMessage(req *Message) {
+func (s *Server) handleUploadParts(req *Message) {
 
 	callID := req.HDR.CallID
 
 	s.inflight.mut.Lock()
 	cc, ok := s.inflight.activeCalls[callID]
-
+	var part int64
+	_ = part
 	if ok {
 		// track progress
-		cc.lastStreamPart = req.HDR.StreamPart
+		part = req.HDR.StreamPart
+		cc.lastStreamPart = part
 	}
 	s.inflight.mut.Unlock()
 
@@ -570,7 +572,7 @@ func (s *Server) handleStreamMessage(req *Message) {
 
 	select {
 	case cc.streamCh <- req:
-		//vv("handleStreamMessages: cc.StreamCh: sent req")
+		vv("handleUploadParts: cc.StreamCh: sent req with part %v", part)
 	case <-s.halt.ReqStop.Chan:
 		return
 
@@ -1801,7 +1803,7 @@ func (s *Server) beginReadStream(req *Message, reply *Message) (err error) {
 	for i := int64(0); last == nil; i++ {
 
 		// get streaming messages from the processWork() goroutine,
-		// when it calls handleStreamMessage().
+		// when it calls handleUploadParts().
 		select {
 		case msgN = <-hdr0.streamCh:
 			if i == 0 {
@@ -1940,7 +1942,7 @@ func (s *Server) beginReadStreamBi(req *Message, reply *Message) (err error) {
 	for i := int64(0); last == nil; i++ {
 
 		// get streaming messages from the processWork() goroutine,
-		// when it calls handleStreamMessage().
+		// when it calls handleUploadParts().
 		select {
 		case msgN = <-hdr0.streamCh:
 			if i == 0 {
