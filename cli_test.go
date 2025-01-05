@@ -996,17 +996,17 @@ func Test045_upload(t *testing.T) {
 		N := 20
 		for i := 1; i <= N; i++ {
 			streamMsg := NewMessage()
-			streamMsg.HDR.Subject = fmt.Sprintf("streaming part %v is here.", i)
 			streamMsg.JobSerz = []byte(fmt.Sprintf(",%v", i))
 			if i == N {
 				last = true
 				streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
 			}
+			streamMsg.HDR.Subject = blake3OfBytesString(streamMsg.JobSerz)
 			err = strm.UploadMore(ctx45, streamMsg, last)
 			panicOn(err)
-			//vv("sent part %v", i)
+			vv("client sent part %v, len %v : '%v'", i, len(streamMsg.JobSerz), string(streamMsg.JobSerz))
 		}
-		//vv("all N=%v parts sent", N)
+		vv("all N=%v parts sent", N)
 
 		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
 
@@ -1033,7 +1033,7 @@ func Test045_upload(t *testing.T) {
 
 func Test055_download(t *testing.T) {
 
-	cv.Convey("download a large file in parts from server to client, the opposite direction of the previous test, 045.", t, func() {
+	cv.Convey("download a large file in parts from server to client, the opposite direction of the previous test.", t, func() {
 
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = false
@@ -1244,8 +1244,8 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 		N := 20
 		for i := 1; i <= N; i++ {
 			streamMsg := NewMessage()
-			streamMsg.HDR.Subject = fmt.Sprintf("streaming part %v is here.", i)
 			streamMsg.JobSerz = []byte(fmt.Sprintf(",%v", i))
+			streamMsg.HDR.Subject = blake3OfBytesString(streamMsg.JobSerz)
 			if i == N {
 				last = true
 				streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)

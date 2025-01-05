@@ -95,7 +95,8 @@ func main() {
 		blake3hash := blake3.New(64, nil)
 
 		//maxMessage := rpc25519.UserMaxPayload
-		maxMessage := 1024
+		//maxMessage := 1024 * 1024
+		maxMessage := 100
 		buf := make([]byte, maxMessage)
 		var tot int
 	upload:
@@ -103,10 +104,10 @@ func main() {
 
 			nr, err1 := r.Read(buf)
 			vv("on read i=%v, got nr=%v, err='%v'", i, nr, err1)
-			send := buf[:nr]
+
+			send := buf[:nr] // can be empty
 			tot += nr
-			sum := Blake3OfBytes(send)
-			sumstring := cristalbase64.URLEncoding.EncodeToString(sum)
+			sumstring := Blake3OfBytesString(send)
 			vv("i=%v, sumstring = '%v'", i, sumstring)
 			blake3hash.Write(send)
 
@@ -126,6 +127,7 @@ func main() {
 
 			streamMsg := rpc25519.NewMessage()
 			streamMsg.JobSerz = send
+			streamMsg.HDR.Subject = sumstring
 			err = strm.UploadMore(ctx, streamMsg, err1 == io.EOF)
 			panicOn(err)
 
@@ -136,7 +138,8 @@ func main() {
 
 		} // end for i
 
-		vv("we read tot = %v bytes", tot)
+		totSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(blake3hash.Sum(nil))
+		vv("we read tot = %v bytes, with total checksum = '%v'", tot, totSum)
 
 		select {
 		case reply := <-strm.ReadCh:
@@ -221,5 +224,5 @@ func Blake3OfBytes(by []byte) []byte {
 
 func Blake3OfBytesString(by []byte) string {
 	sum := Blake3OfBytes(by)
-	return cristalbase64.URLEncoding.EncodeToString(sum)
+	return "blake3-" + cristalbase64.URLEncoding.EncodeToString(sum)
 }

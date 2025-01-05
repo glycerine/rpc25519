@@ -344,6 +344,11 @@ type ServerSideUploadFunc struct {
 	fname     string
 	fd        *os.File
 	bytesWrit int64
+
+	blake3hash *blake3.Hasher
+
+	partsSeen map[int64]bool
+	seenCount int
 }
 
 // NewServerSideUploadFunc returns a new
@@ -358,13 +363,13 @@ func NewServerSideUploadFunc() *ServerSideUploadFunc {
 // to demonstrate streaming from client to server.
 //
 // This func is registered on the Server with
-// the srv.RegisterStreamReadFunc() call.
+// the srv.RegisterUploadReaderFunc() call.
 func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Message) (err error) {
 
 	t0 := time.Now()
 	hdr1 := req.HDR
 	ctx := hdr1.Ctx
-	vv("server ReceiveFileInParts called, Subject='%v'; StreamPart=%v", hdr1.Subject, hdr1.StreamPart)
+	//vv("server ReceiveFileInParts StreamPart = %v, Subject='%v' len(JobSerz) = %v", hdr1.StreamPart, hdr1.Subject, len(req.JobSerz))
 
 	select {
 	case <-ctx.Done():
@@ -373,13 +378,25 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 	default:
 	}
 
+	if hdr1.StreamPart != int64(s.seenCount) {
+		panic(fmt.Sprintf("%v = hdr1.StreamPart != s.seenCount = %v", hdr1.StreamPart, s.seenCount))
+	}
+
+	s.seenCount++
 	if hdr1.StreamPart == 0 {
+		if s.seenCount != 1 {
+			panic("we saw a part before 0!")
+		}
+		s.partsSeen = make(map[int64]bool)
+		s.blake3hash = blake3.New(64, nil)
+		s.blake3hash.Write(req.JobSerz)
+
 		if !strings.HasPrefix(hdr1.Subject, "receiveFile:") {
 			panic("subject must contain receiveFile: and the file name !")
 		}
 		prefix := "receiveFile:"
 		splt := strings.Split(hdr1.Subject[len(prefix):], ":")
-		s.fname = splt[0] //hdr1.Subject[len(prefix):]
+		s.fname = splt[0] + ".servergot" //hdr1.Subject[len(prefix):]
 
 		sum := blake3OfBytesString(req.JobSerz)
 		blake3checksumBase64 := ""
@@ -392,7 +409,7 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 		if s.fname == "" {
 			panic("subject must contain receiveFile: and the file name, which was missing !")
 		}
-		vv("server, part i=0; blake3checksumBase64 = '%v'", blake3checksumBase64)
+		//vv("server, part i=0; blake3checksumBase64 = '%v'", blake3checksumBase64)
 		// save the file handle for the next callback too.
 		s.fd, err = os.Create(s.fname)
 		if err != nil {
@@ -400,26 +417,38 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 		}
 	}
 
-	vv("server sees part %v with blake3sum '%v'", req.HDR.StreamPart, blake3OfBytesString(req.JobSerz))
-	n := len(req.JobSerz)
 	part := req.HDR.StreamPart
-	_ = part
-	nw, err := io.Copy(s.fd, bytes.NewBuffer(req.JobSerz))
-	s.bytesWrit += nw
-	if err != nil {
-		err = fmt.Errorf("ReceiveFileInParts: on "+
-			"writing StreamPart 1 to path '%v', we got error: "+
-			"'%v', after writing %v of %v", s.fname, err, nw, n)
-		vv("problem: %v", err.Error())
-		return
-	} else {
-		vv("succesfully wrote part %v to the file '%v': '%v'", part, s.fname, (req.JobSerz))
+	seen := s.partsSeen[part]
+	if seen {
+		panic(fmt.Sprintf("part %v was already seen.", part))
+	}
+	s.partsSeen[part] = true
+
+	sum := blake3OfBytesString(req.JobSerz)
+	vv("server part %v, len %v, sum='%v' and \nsubject='%v'\n", req.HDR.StreamPart, len(req.JobSerz), sum, req.HDR.Subject)
+	if part > 0 && sum != req.HDR.Subject {
+		panic(fmt.Sprintf("checksum disagree on part %v; see above. server sees len %v req.JobSerz='%v'", part, len(req.JobSerz), string(req.JobSerz)))
+	}
+	n := len(req.JobSerz)
+	if n > 0 {
+		nw, err := io.Copy(s.fd, bytes.NewBuffer(req.JobSerz))
+		s.bytesWrit += nw
+		if err != nil {
+			err = fmt.Errorf("ReceiveFileInParts: on "+
+				"writing StreamPart 1 to path '%v', we got error: "+
+				"'%v', after writing %v of %v", s.fname, err, nw, n)
+			vv("problem: %v", err.Error())
+			return err
+		} else {
+			//vv("succesfully wrote part %v to the file '%v': '%v'", part, s.fname, blake3OfBytesString(req.JobSerz))
+		}
 	}
 
 	if lastReply != nil {
 		s.fd.Close()
 
-		//vv("ReceiveFileInParts sees last set!")
+		totSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(s.blake3hash.Sum(nil))
+		vv("ReceiveFileInParts sees last set! bytesWrit=%v; totSum='%v'", s.bytesWrit, totSum)
 
 		elap := time.Since(hdr1.Created)
 		mb := float64(s.bytesWrit) / float64(1<<20)
@@ -641,5 +670,5 @@ func blake3OfBytes(by []byte) []byte {
 
 func blake3OfBytesString(by []byte) string {
 	sum := blake3OfBytes(by)
-	return cristalbase64.URLEncoding.EncodeToString(sum)
+	return "blake3-" + cristalbase64.URLEncoding.EncodeToString(sum)
 }
