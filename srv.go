@@ -696,6 +696,7 @@ func (s *Server) processWork(job *job) {
 		// enforce these are the same.
 		replySeqno := req.HDR.Seqno
 		reqCallID := req.HDR.CallID
+		serviceName := req.HDR.ServiceName
 
 		// allow user to change Subject
 		reply.HDR.Subject = req.HDR.Subject
@@ -747,6 +748,7 @@ func (s *Server) processWork(job *job) {
 		reply.HDR.Seqno = replySeqno
 		reply.HDR.Typ = CallRPCReply
 		reply.HDR.Deadline = deadline
+		reply.HDR.ServiceName = serviceName
 
 		//vv("2way about to send its reply: '%#v'", reply)
 
