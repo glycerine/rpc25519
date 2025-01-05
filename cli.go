@@ -1458,8 +1458,15 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		to = remote(c.conn)
 	}
 
+	req.HDR.To = to
+	req.HDR.From = from
+
+	// preserve the deadline, but
+	// don't lengthen deadline if it
+	// is already shorter.
 	var hdrCtx context.Context
 	var hdrCtxDone <-chan struct{}
+
 	var deadline time.Time
 	if req.HDR.Ctx != nil && !IsNil(req.HDR.Ctx) {
 		hdrCtx = req.HDR.Ctx
@@ -1467,35 +1474,27 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		dl, ok := hdrCtx.Deadline()
 		if ok {
 			deadline = dl
+			if req.HDR.Deadline.IsZero() ||
+				(!deadline.IsZero() && req.HDR.Deadline.After(deadline)) {
+
+				req.HDR.Deadline = deadline
+			}
 		}
 	}
+
+	// preserve created at time.
+	if req.HDR.Created.IsZero() {
+		req.HDR.Created = time.Now()
+	}
+	req.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
 
 	// don't override a CallNetRPC, or a streaming type.
 	if req.HDR.Typ == CallNone {
 		req.HDR.Typ = CallRPC
 	}
-
-	var hdr *HDR
-	switch req.HDR.Typ {
-
-	case CallUploadMore, CallUploadEnd:
-		// must preserve the CallID on streaming calls.
-		hdr = newHDRwithoutCallID(from, to, req.HDR.ServiceName, req.HDR.Typ, req.HDR.StreamPart)
-		hdr.CallID = req.HDR.CallID
-	default:
-		hdr = NewHDR(from, to, req.HDR.ServiceName, req.HDR.Typ, req.HDR.StreamPart)
+	if req.HDR.CallID == "" {
+		req.HDR.CallID = NewCallID()
 	}
-
-	// preserve the deadline, but
-	// don't lengthen deadline if it
-	// is already shorter.
-	hdr.Deadline = req.HDR.Deadline
-	if hdr.Deadline.IsZero() || (!deadline.IsZero() && hdr.Deadline.After(deadline)) {
-		hdr.Deadline = deadline
-	}
-
-	req.HDR = *hdr
-	req.HDR.Ctx = hdrCtx
 
 	//vv("Client '%v' SendAndGetReply(req='%v') (ignore req.Seqno:0 not yet assigned)", c.name, req)
 	select {
@@ -1541,7 +1540,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		// we've enlarged the DoneCh channel buffer
 		// to be size 2 now, in the NewMessage() implementation.
 		cancelReq := &Message{DoneCh: req.DoneCh}
-		cancelReq.HDR = *hdr
+		cancelReq.HDR = req.HDR
 		cancelReq.HDR.Typ = CallCancelPrevious
 		c.oneWaySendHelper(cancelReq, nil)
 		return nil, ErrCancelReqSent
