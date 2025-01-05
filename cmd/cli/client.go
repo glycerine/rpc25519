@@ -56,7 +56,7 @@ func main() {
 		_ = port
 		if err != nil && strings.Contains(err.Error(), "missing port in address") {
 			*dest += ":8443"
-			vv("defaulting to port 8443, as in: %v", *dest)
+			vv("using default dest port: %v", *dest)
 		} else {
 			if port == "0" {
 				*dest += host + ":8443"
