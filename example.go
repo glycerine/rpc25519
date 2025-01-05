@@ -403,6 +403,7 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 		if len(splt) > 1 {
 			blake3checksumBase64 = splt[1]
 			if blake3checksumBase64 != sum {
+				vv("server req.JobSerz = '%x'", string(req.JobSerz))
 				panic(fmt.Sprintf("checksum on first %v bytes disagree: client sent blake3sum='%v'; we computed = '%v'", len(req.JobSerz), blake3checksumBase64, sum))
 			}
 		}

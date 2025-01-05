@@ -113,8 +113,10 @@ func main() {
 
 			if i == 0 {
 				req := rpc25519.NewMessage()
-				req.JobSerz = send
+				// must copy!
+				req.JobSerz = append([]byte{}, send...)
 				req.HDR.Subject = "receiveFile:" + filepath.Base(path) + ":" + sumstring // client looks for this
+				vv("client req.JobSerz = '%x'", string(req.JobSerz))
 
 				strm, err = cli.UploadBegin(ctx, req)
 				panicOn(err)
@@ -126,7 +128,8 @@ func main() {
 			}
 
 			streamMsg := rpc25519.NewMessage()
-			streamMsg.JobSerz = send
+			// must copy!
+			streamMsg.JobSerz = append([]byte{}, send...)
 			streamMsg.HDR.Subject = sumstring
 			err = strm.UploadMore(ctx, streamMsg, err1 == io.EOF)
 			panicOn(err)
