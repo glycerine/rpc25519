@@ -96,7 +96,7 @@ func main() {
 
 		//maxMessage := rpc25519.UserMaxPayload
 		//maxMessage := 1024 * 1024
-		maxMessage := 100
+		maxMessage := 1024
 		buf := make([]byte, maxMessage)
 		var tot int
 	upload:
