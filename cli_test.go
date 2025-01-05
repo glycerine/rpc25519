@@ -977,7 +977,11 @@ func Test045_upload(t *testing.T) {
 		ctx45, cancelFunc45 := context.WithCancel(context.Background())
 		defer cancelFunc45()
 
-		//var reply *Message
+		// be care not to re-use memory! the client
+		// will not make a copy of the message
+		// while waiting to send it, so you
+		// must allocate new memory to send the next message
+		// (and _not_ overwrite the first!)
 		req := NewMessage()
 		filename := "streams.all.together.txt"
 		os.Remove(filename + ".servergot")
@@ -995,6 +999,7 @@ func Test045_upload(t *testing.T) {
 		var last bool
 		N := 20
 		for i := 1; i <= N; i++ {
+			// good, allocating memory for new messages.
 			streamMsg := NewMessage()
 			streamMsg.JobSerz = []byte(fmt.Sprintf(",%v", i))
 			if i == N {
