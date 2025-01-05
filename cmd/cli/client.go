@@ -120,8 +120,8 @@ func main() {
 
 		blake3hash := blake3.New(64, nil)
 
-		maxMessage := rpc25519.UserMaxPayload
-		//maxMessage := 1024 * 1024
+		//maxMessage := rpc25519.UserMaxPayload
+		maxMessage := 1024 * 1024
 		//maxMessage := 1024
 		buf := make([]byte, maxMessage)
 		var tot int
