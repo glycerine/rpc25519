@@ -451,6 +451,7 @@ func (bi *BiServerState) ServeBistream(
 	srv *Server,
 	ctx context.Context,
 	req *Message,
+	uploadsFromClientCh <-chan *Message,
 	sendDownloadPartToClient func(ctx context.Context, by []byte, last bool),
 	lastReply *Message,
 ) (err error) {
@@ -458,10 +459,6 @@ func (bi *BiServerState) ServeBistream(
 	t0 := time.Now()
 	//vv("top of ServeBistream(). req.HDR = '%v'", req.HDR.String())
 
-	streamFromClientCh := req.HDR.UploadsCh
-	if streamFromClientCh == nil {
-		panic("UploadsCh should be set!")
-	}
 	if req.HDR.StreamPart != 0 {
 		panic(fmt.Sprintf("req.StreamPart = %v but we expected 0", req.HDR.StreamPart))
 	}
@@ -498,7 +495,7 @@ func (bi *BiServerState) ServeBistream(
 		case <-done:
 			vv("exiting early! we see done requested at i = %v", i)
 			break
-		//case msg := <-streamFromClientCh:
+		//case msg := <-uploadsFromClientCh:
 		//	_ = msg
 		//	//vv("we got stream part from client: '%v'", msg.HDR.String())
 		default:
@@ -515,7 +512,7 @@ func (bi *BiServerState) ServeBistream(
 		case <-ctx.Done():
 			// allow call cancellation.
 			return fmt.Errorf("context cancelled")
-		case msg := <-streamFromClientCh:
+		case msg := <-uploadsFromClientCh:
 			//vv("ServeBistream sees upload part: '%v'", msg.HDR.String())
 			if msg.HDR.StreamPart != totalParts {
 				panic(fmt.Sprintf("%v = msg.HDR.StreamPart != totalParts = %v",
@@ -570,26 +567,26 @@ func (bi *BiServerState) ServeBistream(
 // needed to implement a BistreamFunc, so
 // the user can glimpse its conceptual elegance.
 //
-// It provides a template for writing your own.
+// It provides a starter template for writing your own.
 //
 // Typically you might want to make it a
 // method on a struct that provides it with
 // other application dependent state and helper methods.
+// But that's not minimal.
 func MinimalBistreamFunc(
 	srv *Server,
 	ctx context.Context,
 	req *Message,
+	uploadsFromClientCh <-chan *Message,
 	sendDownloadPartToClient func(ctx context.Context, by []byte, last bool),
 	lastReply *Message,
 ) (err error) {
 
-	// upload parts arrive here
-	fromClientCh := req.HDR.UploadsCh
-
 	done := ctx.Done()
 	for {
 		select {
-		case msg := <-fromClientCh:
+		// upload stream parts arrive here
+		case msg := <-uploadsFromClientCh:
 
 			// ... process this uploaded part ...
 
@@ -598,7 +595,7 @@ func MinimalBistreamFunc(
 			// *and* in the fromClientCh: it will
 			// be the first msg *Message seen here.
 			// Be sure to only process it once!
-			// It's req.HDR.StreamPart will be 0.
+			// The req.HDR.StreamPart will be 0.
 
 			// ...and, when we have a part for the download stream,
 			// send it on to the client like this
@@ -608,7 +605,9 @@ func MinimalBistreamFunc(
 			// ... more processing of msg if need be ...
 
 		case <-done:
-			// ...do any cleanup, then ship this lastReply to the client...
+			// ...do any cleanup,
+			// ...and decide what to do if len(fromClientCh) > 0 ...
+			// ...then ship this lastReply to the client...
 			lastReply.JobSerz = []byte("that's all folks!")
 			return
 		}

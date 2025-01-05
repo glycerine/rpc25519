@@ -725,7 +725,7 @@ func (s *Server) processWork(job *job) {
 			err = callmeServerSendsDownloadFunc(s, ctx, req, help.sendDownloadPart, reply)
 		case foundBistream:
 			help := s.newServerSendDownloadHelper(ctx, job)
-			err = callmeBi(s, ctx, req, help.sendDownloadPart, reply)
+			err = callmeBi(s, ctx, req, req.HDR.streamCh, help.sendDownloadPart, reply)
 
 		}
 		if err != nil {
@@ -1719,7 +1719,7 @@ func (s *Server) registerInFlightCallToCancel(msg *Message, cancelFunc context.C
 			// process first.
 			streamChan <- msg
 			cc.streamCh = streamChan
-			msg.HDR.UploadsCh = streamChan
+			msg.HDR.streamCh = streamChan
 		}
 		if ctx != nil {
 			dl, ok := ctx.Deadline()
@@ -1793,7 +1793,7 @@ func (s *Server) beginReadStream(req *Message, reply *Message) (err error) {
 		// get streaming messages from the processWork() goroutine,
 		// when it calls handleUploadParts().
 		select {
-		case msgN = <-hdr0.UploadsCh:
+		case msgN = <-hdr0.streamCh:
 			if i == 0 {
 				ctx = msgN.HDR.Ctx
 				if msgN != req {

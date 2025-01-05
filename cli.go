@@ -683,6 +683,7 @@ type BistreamFunc func(
 	srv *Server,
 	ctx context.Context,
 	req *Message,
+	uploadsFromClientCh <-chan *Message,
 	sendDownloadPartToClient func(ctx context.Context, by []byte, last bool),
 	lastReply *Message,
 ) (err error)
