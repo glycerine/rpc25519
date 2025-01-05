@@ -107,7 +107,7 @@ func main() {
 		for i := 0; true; i++ {
 
 			nr, err1 := r.Read(buf)
-			//vv("on read i=%v, got nr=%v, err='%v'", i, nr, err1)
+			vv("on read i=%v, got nr=%v, (maxMessage=%v), err='%v'", i, nr, maxMessage, err1)
 
 			send := buf[:nr] // can be empty
 			tot += nr

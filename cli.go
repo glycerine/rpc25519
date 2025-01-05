@@ -675,7 +675,7 @@ type ServerSendsDownloadFunc func(
 // Server can be used for this purpose.
 //
 // Visit the example.go implementation of
-// BiServerState.ServeBistream() to see
+// ServeBistreamState.ServeBistream() to see
 // it in action.
 type BistreamFunc func(
 	srv *Server,

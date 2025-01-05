@@ -334,13 +334,13 @@ func (s *MustBeCancelled) MessageAPI_HangUntilCancel(req, reply *Message) error 
 	return nil
 }
 
-// ServerSideUploadFunc is used by
+// ServerSideUploadState is used by
 // Test045_streaming_client_to_server (upload) in cli_test.go
-// to demonstrate streaming a large (or infinite)
-// file in small parts,
+// and cmd/srv/server.go to demonstrate
+// streaming a large (or infinite) file in small parts,
 // from client to server, all while keeping FIFO
 // message order.
-type ServerSideUploadFunc struct {
+type ServerSideUploadState struct {
 	t0 time.Time
 
 	fname     string
@@ -353,20 +353,26 @@ type ServerSideUploadFunc struct {
 	seenCount int
 }
 
-// NewServerSideUploadFunc returns a new
-// ServerSideUploadFunc. This is part of
+// NewServerSideUploadState returns a new
+// ServerSideUploadState. This is part of
 // the cli_test.go Test045 mechanics.
-func NewServerSideUploadFunc() *ServerSideUploadFunc {
-	return &ServerSideUploadFunc{}
+func NewServerSideUploadState() *ServerSideUploadState {
+	return &ServerSideUploadState{}
 }
 
 // ReceiveFileInParts is used by
 // Test045_streaming_client_to_server in cli_test.go
 // to demonstrate streaming from client to server.
 //
-// This func is registered on the Server with
-// the srv.RegisterUploadReaderFunc() call.
-func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Message) (err error) {
+// See the cmd/cli/client.go and cmd/srv/server.go
+// and their (cli -sendfile) and (srv -recvfile) flags
+// for a full implementation of an scp-like utility
+// that uses this method.
+//
+// ReceiveFileInParts is an UploadReaderFunc and is
+// registered on the Server with
+// the Server.RegisterUploadReaderFunc() call.
+func (s *ServerSideUploadState) ReceiveFileInParts(req *Message, lastReply *Message) (err error) {
 
 	if s.t0.IsZero() {
 		s.t0 = req.HDR.Created
@@ -398,7 +404,7 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 		}
 		prefix := "receiveFile:"
 		splt := strings.Split(hdr1.Subject[len(prefix):], ":")
-		s.fname = splt[0] + ".servergot" //hdr1.Subject[len(prefix):]
+		s.fname = splt[0] + ".servergot" // avoid clobbering origin file if same dir
 
 		sum := blake3OfBytesString(req.JobSerz)
 		blake3checksumBase64 := ""
@@ -417,6 +423,7 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 		if err != nil {
 			return fmt.Errorf("error: server could not path '%v': '%v'", s.fname, err)
 		}
+		go s.fd.Sync() // get the file showing on disk asap
 	}
 
 	part := req.HDR.StreamPart
@@ -491,15 +498,15 @@ func (ssss *ServerSendsDownloadState) ServerSendsDownload(srv *Server, ctx conte
 	return
 }
 
-// BiServerState is used by Test065_bidirectional_streaming test.
-type BiServerState struct{}
+// ServeBistreamState is used by Test065_bidirectional_streaming test.
+type ServeBistreamState struct{}
 
 // ServeBistream is an example of a BistreamFunc,
 // a server side registered function for bi-streaming
 // (doing both upload and download simultaneously).
 // See cli_test.go Test065_bidirectional_download_and_upload
 // for a test that uses this method.
-func (bi *BiServerState) ServeBistream(
+func (bi *ServeBistreamState) ServeBistream(
 	srv *Server,
 	ctx context.Context,
 	req *Message,

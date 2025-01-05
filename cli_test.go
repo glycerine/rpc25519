@@ -959,7 +959,7 @@ func Test045_upload(t *testing.T) {
 
 		//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
-		streamer := NewServerSideUploadFunc()
+		streamer := NewServerSideUploadState()
 		srv.RegisterUploadReaderFunc(streamer.ReceiveFileInParts)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
@@ -1156,7 +1156,7 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 
 		// register streamer func with server
 		streamerName := "bi-streamer Name"
-		bi := &BiServerState{}
+		bi := &ServeBistreamState{}
 		srv.RegisterBistreamFunc(streamerName, bi.ServeBistream)
 
 		// start client
