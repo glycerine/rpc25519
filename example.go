@@ -368,7 +368,7 @@ func NewServerSideUploadState() *ServerSideUploadState {
 // to demonstrate streaming from client to server.
 //
 // See the cmd/cli/client.go and cmd/srv/server.go
-// and their (cli -sendfile) and (srv -recvfile) flags
+// and their (cli -sendfile) and (srv -readfile) flags
 // for a full implementation of an scp-like utility
 // that uses this method.
 //

@@ -64,7 +64,7 @@ func main() {
 
 	var readto = flag.Duration("read", 0, "timeout on reads")
 
-	var recvfile = flag.Bool("recvfile", false, "listen for files to write to disk; client should run -sendfile")
+	var readfile = flag.Bool("readfile", false, "listen for files to write to disk; client should run -sendfile")
 
 	flag.Parse()
 
@@ -93,7 +93,7 @@ func main() {
 	srv := rpc25519.NewServer("srv", cfg)
 	defer srv.Close()
 
-	if *recvfile {
+	if *readfile {
 		streamer := rpc25519.NewServerSideUploadState()
 		// use the example.go example.
 		srv.RegisterUploadReaderFunc(streamer.ReceiveFileInParts)
