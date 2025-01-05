@@ -459,6 +459,9 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 		lastReply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v (while mb=%v) => %v MB/sec. ; bytesWrit=%v;", t0, elap, mb, rate, s.bytesWrit))
 
 		//vv("returning with lastReply = '%v'", string(lastReply.JobSerz))
+
+		// allow a 2nd upload
+		s.seenCount = 0
 	}
 	return
 }
