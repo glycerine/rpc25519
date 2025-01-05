@@ -587,7 +587,7 @@ type ServerSendsDownloadFunc func(
 // In a BistreamFunc on the server, the full
 // generality of interleaving upload and download
 // handling is available. The initial Message in req
-// will also be the first Message in the req.HDR.streamCh
+// will also be the first Message in the req.HDR.UploadsCh
 // which receives all upload messages from the client.
 //
 // To note, it may be more convenient for the user
@@ -639,7 +639,7 @@ type ServerSendsDownloadFunc func(
 // this is not required. An additional (new) goroutine
 // may be useful to reduce the latency of message
 // handling while simultaneously reading from
-// req.HDR.streamCh for uploads and writing to
+// req.HDR.UploadsCh for uploads and writing to
 // downloads with sendDownloadPartToClient(),
 // as both of these are blocking, synchronous, operations.
 // If you do so, be sure to handle goroutine cancellation and

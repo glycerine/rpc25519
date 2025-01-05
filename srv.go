@@ -1719,7 +1719,7 @@ func (s *Server) registerInFlightCallToCancel(msg *Message, cancelFunc context.C
 			// process first.
 			streamChan <- msg
 			cc.streamCh = streamChan
-			msg.HDR.streamCh = streamChan
+			msg.HDR.UploadsCh = streamChan
 		}
 		if ctx != nil {
 			dl, ok := ctx.Deadline()
@@ -1793,7 +1793,7 @@ func (s *Server) beginReadStream(req *Message, reply *Message) (err error) {
 		// get streaming messages from the processWork() goroutine,
 		// when it calls handleUploadParts().
 		select {
-		case msgN = <-hdr0.streamCh:
+		case msgN = <-hdr0.UploadsCh:
 			if i == 0 {
 				ctx = msgN.HDR.Ctx
 				if msgN != req {

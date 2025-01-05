@@ -458,9 +458,9 @@ func (bi *BiServerState) ServeBistream(
 	t0 := time.Now()
 	//vv("top of ServeBistream(). req.HDR = '%v'", req.HDR.String())
 
-	streamFromClientCh := req.HDR.streamCh
+	streamFromClientCh := req.HDR.UploadsCh
 	if streamFromClientCh == nil {
-		panic("streamCh should be set!")
+		panic("UploadsCh should be set!")
 	}
 	if req.HDR.StreamPart != 0 {
 		panic(fmt.Sprintf("req.StreamPart = %v but we expected 0", req.HDR.StreamPart))
@@ -564,15 +564,17 @@ func (bi *BiServerState) ServeBistream(
 	return
 }
 
-// these are part of the demo below.
-func someFuncThatComputesStuffForTheClient(ch chan *Message) { /* stubbed */ }
-func processTheUploadFromtheClient(msg *Message)             { /* stubbed */ }
-
 // MinimalBistreamFunc stands in contract
 // to the fleshed on ServeBistream example above.
 // It attempts to illustrate only the bare minimal
 // needed to implement a BistreamFunc, so
 // the user can glimpse its conceptual elegance.
+//
+// It provides a template for writing your own.
+//
+// Typically you might want to make it a
+// method on a struct that provides it with
+// other application dependent state and helper methods.
 func MinimalBistreamFunc(
 	srv *Server,
 	ctx context.Context,
@@ -581,35 +583,32 @@ func MinimalBistreamFunc(
 	lastReply *Message,
 ) (err error) {
 
-	// upload parts arrive on streamCh.
-	fromClientCh := req.HDR.streamCh
-
-	// Suppose we provide sending services
-	// to the hard-working someFuncThatComputesStuffForTheClient()
-	// function that runs in the background,
-	// and imagine that it send us
-	// their messages on toClientCh for us to
-	// send as part of a download stream to the client.
-	toClientCh := make(chan *Message)
-
-	go someFuncThatComputesStuffForTheClient(toClientCh)
-
-	// handle the first message body in req.JobSerz...
-	// (not shown; see full example above in BiServerState.ServeBistream)
+	// upload parts arrive here
+	fromClientCh := req.HDR.UploadsCh
 
 	done := ctx.Done()
 	for {
-
 		select {
-		case msg, alive := <-toClientCh:
-			// We got a part for the download stream, send it to the client.
-			sendDownloadPartToClient(ctx, msg.JobSerz, !alive)
-
 		case msg := <-fromClientCh:
+
 			// ... process this uploaded part ...
-			processTheUploadFromtheClient(msg)
+
+			// Note! the req pointer is supplied both by
+			// the actual argument req in our call arguments,
+			// *and* in the fromClientCh: it will
+			// be the first msg *Message seen here.
+			// Be sure to only process it once!
+			// It's req.HDR.StreamPart will be 0.
+
+			// ...and, when we have a part for the download stream,
+			// send it on to the client like this
+			last := false // set to true if no more downloads to follow.
+			sendDownloadPartToClient(ctx, msg.JobSerz, last)
+
+			// ... more processing of msg if need be ...
 
 		case <-done:
+			// ...do any cleanup, then ship this lastReply to the client...
 			lastReply.JobSerz = []byte("that's all folks!")
 			return
 		}

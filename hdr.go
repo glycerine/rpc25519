@@ -275,8 +275,8 @@ type HDR struct {
 	// all parts of the same stream.
 	StreamPart int64 `zid:"10"`
 
-	// streamCh is internal; used for client -> server streaming on CallUploadBegin
-	streamCh chan *Message `msg:"-"`
+	// UploadsCh is used for client -> server uploads; e.g. streaming on CallUploadBegin
+	UploadsCh chan *Message `msg:"-" json:"-"`
 }
 
 // NewHDR creates a new HDR header.
