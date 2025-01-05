@@ -403,7 +403,7 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 		if len(splt) > 1 {
 			blake3checksumBase64 = splt[1]
 			if blake3checksumBase64 != sum {
-				vv("server req.JobSerz = '%x'", string(req.JobSerz))
+				//vv("server req.JobSerz = '%x'", string(req.JobSerz))
 				panic(fmt.Sprintf("checksum on first %v bytes disagree: client sent blake3sum='%v'; we computed = '%v'", len(req.JobSerz), blake3checksumBase64, sum))
 			}
 		}
@@ -426,7 +426,7 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 	s.partsSeen[part] = true
 
 	sum := blake3OfBytesString(req.JobSerz)
-	vv("server part %v, len %v, sum='%v' and \nsubject='%v'\n", req.HDR.StreamPart, len(req.JobSerz), sum, req.HDR.Subject)
+	vv("\nserver part %v, len %v, server-sum='%v' \n        while Subject blake3    client-sum='%v'\n", req.HDR.StreamPart, len(req.JobSerz), sum, req.HDR.Subject)
 	if part > 0 && sum != req.HDR.Subject {
 		panic(fmt.Sprintf("checksum disagree on part %v; see above. server sees len %v req.JobSerz='%v'", part, len(req.JobSerz), string(req.JobSerz)))
 	}

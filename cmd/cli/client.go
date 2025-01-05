@@ -94,9 +94,9 @@ func main() {
 
 		blake3hash := blake3.New(64, nil)
 
-		//maxMessage := rpc25519.UserMaxPayload
+		maxMessage := rpc25519.UserMaxPayload
 		//maxMessage := 1024 * 1024
-		maxMessage := 1024
+		//maxMessage := 1024
 		buf := make([]byte, maxMessage)
 		var tot int
 	upload:
@@ -108,7 +108,7 @@ func main() {
 			send := buf[:nr] // can be empty
 			tot += nr
 			sumstring := Blake3OfBytesString(send)
-			vv("i=%v, sumstring = '%v'", i, sumstring)
+			vv("i=%v, len=%v, sumstring = '%v'", i, nr, sumstring)
 			blake3hash.Write(send)
 
 			if i == 0 {
@@ -116,7 +116,7 @@ func main() {
 				// must copy!
 				req.JobSerz = append([]byte{}, send...)
 				req.HDR.Subject = "receiveFile:" + filepath.Base(path) + ":" + sumstring // client looks for this
-				vv("client req.JobSerz = '%x'", string(req.JobSerz))
+				//vv("client req.JobSerz = '%x'", string(req.JobSerz))
 
 				strm, err = cli.UploadBegin(ctx, req)
 				panicOn(err)
