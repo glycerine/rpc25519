@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -143,14 +144,21 @@ func main() {
 
 		} // end for i
 
-		totSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(blake3hash.Sum(nil))
-		vv("we read tot = %v bytes, with \nclient tot-sum='%v'", tot, totSum)
+		clientTotSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(blake3hash.Sum(nil))
+		vv("we read tot = %v bytes, with \nclient tot-sum='%v'", tot, clientTotSum)
 
 		select {
 		case reply := <-strm.ReadCh:
 			report := string(reply.JobSerz)
-			vv("reply.HDR: '%v' with JobSerz: '%v'", reply.HDR.String(), report)
+			vv("reply.HDR: '%v'", reply.HDR.String())
+			vv("with JobSerz: '%v'", report)
 			fmt.Printf("round trip time for upload: '%v'\n", time.Since(t0))
+			serverTotSum := extractServerTotSum(reply.JobSerz)
+			if clientTotSum == serverTotSum {
+				vv("GOOD! server and client blake3 checksums are the same!\n serverTotSum='%v'\n clientTotsum='%v'", serverTotSum, clientTotSum)
+			} else {
+				vv("PROBLEM! server and client blake3 checksums do not match!\n serverTotSum='%v'\n clientTotsum='%v'", serverTotSum, clientTotSum)
+			}
 		case <-time.After(time.Minute):
 			panic("should have gotten a reply from the server finishing the stream.")
 		}
@@ -230,4 +238,12 @@ func Blake3OfBytes(by []byte) []byte {
 func Blake3OfBytesString(by []byte) string {
 	sum := Blake3OfBytes(by)
 	return "blake3-" + cristalbase64.URLEncoding.EncodeToString(sum)
+}
+
+// server-totSum=blake3-xxx -> blake3-xxx
+func extractServerTotSum(by []byte) string {
+	splt := bytes.Split(by, []byte("\n"))
+	last := splt[len(splt)-1]
+	splt2 := bytes.SplitN(last, []byte("="), 2) // avoid splitting off the trailing ==
+	return string(splt2[1])
 }

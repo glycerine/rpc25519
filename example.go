@@ -459,7 +459,7 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 		rate := mb / seconds
 
 		// finally reply to the original caller.
-		lastReply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v (while mb=%v) => %v MB/sec. ; bytesWrit=%v;", s.t0, elap, mb, rate, s.bytesWrit))
+		lastReply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v\n (while mb=%v) => %v MB/sec. ; \n bytesWrit=%v;\nserver-tot-sum=%v", s.t0, elap, mb, rate, s.bytesWrit, totSum))
 
 		//vv("returning with lastReply = '%v'", string(lastReply.JobSerz))
 
