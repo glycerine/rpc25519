@@ -341,6 +341,8 @@ func (s *MustBeCancelled) MessageAPI_HangUntilCancel(req, reply *Message) error 
 // from client to server, all while keeping FIFO
 // message order.
 type ServerSideUploadFunc struct {
+	t0 time.Time
+
 	fname     string
 	fd        *os.File
 	bytesWrit int64
@@ -366,7 +368,9 @@ func NewServerSideUploadFunc() *ServerSideUploadFunc {
 // the srv.RegisterUploadReaderFunc() call.
 func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Message) (err error) {
 
-	t0 := time.Now()
+	if s.t0.IsZero() {
+		s.t0 = req.HDR.Created
+	}
 	hdr1 := req.HDR
 	ctx := hdr1.Ctx
 	//vv("server ReceiveFileInParts StreamPart = %v, Subject='%v' len(JobSerz) = %v", hdr1.StreamPart, hdr1.Subject, len(req.JobSerz))
@@ -389,7 +393,6 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 		}
 		s.partsSeen = make(map[int64]bool)
 		s.blake3hash = blake3.New(64, nil)
-		s.blake3hash.Write(req.JobSerz)
 
 		if !strings.HasPrefix(hdr1.Subject, "receiveFile:") {
 			panic("subject must contain receiveFile: and the file name !")
@@ -425,6 +428,7 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 	}
 	s.partsSeen[part] = true
 
+	s.blake3hash.Write(req.JobSerz)
 	sum := blake3OfBytesString(req.JobSerz)
 	vv("\nserver part %v, len %v, server-sum='%v' \n        while Subject blake3    client-sum='%v'\n", req.HDR.StreamPart, len(req.JobSerz), sum, req.HDR.Subject)
 	if part > 0 && sum != req.HDR.Subject {
@@ -449,15 +453,15 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 		s.fd.Close()
 
 		totSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(s.blake3hash.Sum(nil))
-		vv("ReceiveFileInParts sees last set! bytesWrit=%v; totSum='%v'", s.bytesWrit, totSum)
+		vv("ReceiveFileInParts sees last set! bytesWrit=%v; \nserver totSum='%v'", s.bytesWrit, totSum)
 
-		elap := time.Since(hdr1.Created)
+		elap := time.Since(s.t0)
 		mb := float64(s.bytesWrit) / float64(1<<20)
 		seconds := (float64(elap) / float64(time.Second))
 		rate := mb / seconds
 
 		// finally reply to the original caller.
-		lastReply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v (while mb=%v) => %v MB/sec. ; bytesWrit=%v;", t0, elap, mb, rate, s.bytesWrit))
+		lastReply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v (while mb=%v) => %v MB/sec. ; bytesWrit=%v;", s.t0, elap, mb, rate, s.bytesWrit))
 
 		//vv("returning with lastReply = '%v'", string(lastReply.JobSerz))
 

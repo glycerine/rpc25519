@@ -99,6 +99,9 @@ func main() {
 		//maxMessage := 1024
 		buf := make([]byte, maxMessage)
 		var tot int
+
+		req := rpc25519.NewMessage()
+		req.HDR.Created = time.Now()
 	upload:
 		for i := 0; true; i++ {
 
@@ -112,7 +115,6 @@ func main() {
 			blake3hash.Write(send)
 
 			if i == 0 {
-				req := rpc25519.NewMessage()
 				// must copy!
 				req.JobSerz = append([]byte{}, send...)
 				req.HDR.Subject = "receiveFile:" + filepath.Base(path) + ":" + sumstring // client looks for this
@@ -142,7 +144,7 @@ func main() {
 		} // end for i
 
 		totSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(blake3hash.Sum(nil))
-		vv("we read tot = %v bytes, with total checksum = '%v'", tot, totSum)
+		vv("we read tot = %v bytes, with \nclient tot-sum='%v'", tot, totSum)
 
 		select {
 		case reply := <-strm.ReadCh:

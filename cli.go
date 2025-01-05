@@ -1677,27 +1677,26 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err erro
 	msg.HDR.To = to
 	msg.HDR.From = from
 
-	var hdr *HDR
+	// preserve created at too.
+	if msg.HDR.Created.IsZero() {
+		msg.HDR.Created = time.Now()
+	}
+	msg.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
+
+	//case CallUploadMore, CallUploadEnd, CallRequestBistreaming,
+	// CallRequestDownload:
+	//
+	// Basically, always want to preserve it if allocated!
+	// must preserve the CallID on streaming calls.
+
 	switch msg.HDR.Typ {
 	// preserve streaming call types.
 	case CallNone:
 		msg.HDR.Typ = CallOneWay
 	}
-	if msg.HDR.CallID != "" {
-		//case CallUploadMore, CallUploadEnd, CallRequestBistreaming,
-		// CallRequestDownload:
-		//
-		// Basically, always want to preserve it if allocated!
-		// must preserve the CallID on streaming calls.
-		hdr = newHDRwithoutCallID(from, to,
-			msg.HDR.Subject, msg.HDR.Typ, msg.HDR.StreamPart)
-		hdr.CallID = msg.HDR.CallID
+	if msg.HDR.CallID == "" {
+		msg.HDR.CallID = NewCallID()
 	}
-	if hdr == nil {
-		hdr = NewHDR(from, to, msg.HDR.Subject, msg.HDR.Typ, msg.HDR.StreamPart)
-	}
-	hdr.Deadline = msg.HDR.Deadline
-	msg.HDR = *hdr
 
 	// allow msg.CallID to not be empty; in case we get a reply.
 	// isRPC=false so this is 1-way, but it might in turn still
