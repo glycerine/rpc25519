@@ -980,7 +980,7 @@ func Test045_upload(t *testing.T) {
 		//var reply *Message
 		req := NewMessage()
 		filename := "streams.all.together.txt"
-		os.Remove(filename)
+		os.Remove(filename + ".servergot")
 		req.HDR.Subject = "receiveFile:" + filename
 		req.JobSerz = []byte("a=c(0")
 
@@ -1016,7 +1016,7 @@ func Test045_upload(t *testing.T) {
 			vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
 			cv.So(strings.Contains(report, "bytesWrit"), cv.ShouldBeTrue)
 			cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
-			cv.So(fileExists(filename), cv.ShouldBeTrue)
+			cv.So(fileExists(filename+".servergot"), cv.ShouldBeTrue)
 
 		case <-time.After(time.Minute):
 			t.Fatalf("should have gotten a reply from the server finishing the stream.")
