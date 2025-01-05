@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -145,8 +144,8 @@ func main() {
 			if i == 0 {
 				// must copy!
 				req.JobSerz = append([]byte{}, send...)
-				req.HDR.Subject = "receiveFile:" + filepath.Base(path) + ":" + sumstring // client looks for this
-				//vv("client req.JobSerz = '%x'", string(req.JobSerz))
+				filename := filepath.Base(path)
+				req.HDR.Args = map[string]string{"readFile": filename, "blake3": sumstring}
 
 				strm, err = cli.UploadBegin(ctx, req)
 				panicOn(err)
@@ -160,7 +159,7 @@ func main() {
 			streamMsg := rpc25519.NewMessage()
 			// must copy!
 			streamMsg.JobSerz = append([]byte{}, send...)
-			streamMsg.HDR.Subject = sumstring
+			streamMsg.HDR.Args = map[string]string{"blake3": sumstring}
 			err = strm.UploadMore(ctx, streamMsg, err1 == io.EOF)
 			panicOn(err)
 
@@ -188,7 +187,9 @@ func main() {
 				vv("with JobSerz: '%v'", report)
 			}
 			fmt.Printf("total time for upload: '%v'\n", time.Since(t0))
-			serverTotSum := extractServerTotSum(reply.JobSerz)
+
+			serverTotSum := reply.HDR.Args["serverTotalBlake3sum"]
+
 			if clientTotSum == serverTotSum {
 				vv("GOOD! server and client blake3 checksums are the same!\n serverTotSum='%v'\n clientTotsum='%v'", serverTotSum, clientTotSum)
 			} else {
@@ -273,12 +274,4 @@ func Blake3OfBytes(by []byte) []byte {
 func Blake3OfBytesString(by []byte) string {
 	sum := Blake3OfBytes(by)
 	return "blake3-" + cristalbase64.URLEncoding.EncodeToString(sum)
-}
-
-// server-totSum=blake3-xxx -> blake3-xxx
-func extractServerTotSum(by []byte) string {
-	splt := bytes.Split(by, []byte("\n"))
-	last := splt[len(splt)-1]
-	splt2 := bytes.SplitN(last, []byte("="), 2) // avoid splitting off the trailing ==
-	return string(splt2[1])
 }

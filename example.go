@@ -399,7 +399,7 @@ func (s *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Mes
 		if s.seenCount != 1 {
 			panic("we saw a part before 0!")
 		}
-		vv("ServerSideUploadState.ReceiveFileInParts sees part 0: hdr1='%v'", hdr1.String())
+		//vv("ServerSideUploadState.ReceiveFileInParts sees part 0: hdr1='%v'", hdr1.String())
 		s.partsSeen = make(map[int64]bool)
 		s.blake3hash = blake3.New(64, nil)
 
@@ -439,9 +439,13 @@ func (s *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Mes
 	s.blake3hash.Write(req.JobSerz)
 	serverSum := blake3OfBytesString(req.JobSerz)
 	clientSum := req.HDR.Args["blake3"]
-	vv("\nserver part %v, len %v, server-sum='%v' \n        while Subject blake3    client-sum='%v'\n", req.HDR.StreamPart, len(req.JobSerz), serverSum, clientSum)
+
+	//vv("server part %v, len %v, server-sum='%v' \n        while Subject blake3    client-sum='%v'\n", req.HDR.StreamPart, len(req.JobSerz), serverSum, clientSum)
+
 	if part > 0 && serverSum != clientSum {
-		panic(fmt.Sprintf("checksum disagree on part %v; see above. server sees len %v req.JobSerz='%v'", part, len(req.JobSerz), string(req.JobSerz)))
+		panic(fmt.Sprintf("checksum disagree on part %v; see above."+
+			" server sees len %v req.JobSerz='%v'", part, len(req.JobSerz),
+			string(req.JobSerz)))
 	}
 	n := len(req.JobSerz)
 	if n > 0 {
@@ -453,8 +457,6 @@ func (s *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Mes
 				"'%v', after writing %v of %v", s.fnameTmp, err, nw, n)
 			vv("problem: %v", err.Error())
 			return err
-		} else {
-			//vv("succesfully wrote part %v to the file '%v': '%v'", part, s.fnameTmp, blake3OfBytesString(req.JobSerz))
 		}
 	}
 
@@ -472,8 +474,10 @@ func (s *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Mes
 		seconds := (float64(elap) / float64(time.Second))
 		rate := mb / seconds
 
+		lastReply.HDR.Args["serverTotalBlake3sum"] = totSum
+
 		// finally reply to the original caller.
-		lastReply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v\n (while mb=%v) => %v MB/sec. ; \n bytesWrit=%v;\nserver-tot-sum=%v", s.t0, elap, mb, rate, s.bytesWrit, totSum))
+		lastReply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v\n (while mb=%v) => %v MB/sec. ; \n bytesWrit=%v;", s.t0, elap, mb, rate, s.bytesWrit))
 
 		//vv("returning with lastReply = '%v'", string(lastReply.JobSerz))
 

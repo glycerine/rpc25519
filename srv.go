@@ -1829,6 +1829,7 @@ func (s *Server) beginReadStream(ctx context.Context, callmeUploadReaderFunc Upl
 		switch hdrN.Typ {
 		case CallUploadEnd:
 			last = reply
+			last.HDR.Args = map[string]string{} // since s.getMessage() does not allocate the Args map.
 		} // else leave last nil
 
 		err = callmeUploadReaderFunc(ctx, msgN, last)

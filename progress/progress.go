@@ -107,7 +107,7 @@ func (s *TransferStats) PrintProgressWithSpeed(current int64) {
 	}
 
 	speed := formatBytes(s.emaSpeed, false)
-	if changed == 0 {
+	if current != s.fileSize && changed == 0 {
 		speed = "-stalled-"
 	}
 	// Build progress bar

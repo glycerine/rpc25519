@@ -383,7 +383,6 @@ func (a *HDR) Equal(b *HDR) bool {
 func (m *HDR) String() string {
 	//return m.Pretty()
 	return fmt.Sprintf(`&rpc25519.HDR{
-    "Nc": %v,
     "Created": %q,
     "From": %q,
     "To": %q,
@@ -398,7 +397,6 @@ func (m *HDR) String() string {
     "Deadline": "%s",
     "StreamPart": %v
 }`,
-		m.Nc,
 		m.Created,
 		m.From,
 		m.To,
