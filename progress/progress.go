@@ -29,13 +29,6 @@ func isTerminal() bool {
 	return term.IsTerminal(int(os.Stdout.Fd()))
 }
 
-func printProgress(current, total int64, filename string) {
-	if !isTerminal() {
-		return // or handle non-terminal output differently
-	}
-	// ... rest of progress printing code ...
-}
-
 type TransferStats struct {
 	isTerm         bool
 	filename       string
@@ -45,17 +38,24 @@ type TransferStats struct {
 	lastBytes      int64
 	emaSpeed       float64 // bytes per second
 	alpha          float64 // EMA smoothing factor (between 0 and 1)
+
+	lastDisplay        time.Time
+	minRefreshInterval time.Duration
+	startTime          time.Time
 }
 
 func NewTransferStats(fileSize int64, filename string) *TransferStats {
+	now := time.Now()
 	return &TransferStats{
-		isTerm:         isTerminal(),
-		fileSize:       fileSize,
-		fileSizeString: formatBytes(float64(fileSize), true),
-		filename:       filename,
-		lastUpdate:     time.Now(),
-		alpha:          0.1, // Adjust this value to change smoothing (higher = more reactive)
-	}
+		isTerm:             isTerminal(),
+		fileSize:           fileSize,
+		fileSizeString:     formatBytesTotal(float64(fileSize)),
+		filename:           filename,
+		lastUpdate:         now,
+		alpha:              0.1, // Adjust this value to change smoothing (higher = more reactive)
+		lastDisplay:        now,
+		minRefreshInterval: 50 * time.Millisecond,
+		startTime:          now}
 }
 
 func (ts *TransferStats) updateSpeed(currentBytes int64) (change int64) {
@@ -81,7 +81,7 @@ func (ts *TransferStats) updateSpeed(currentBytes int64) (change int64) {
 
 func ExampleTransferWithSpeed() {
 	filename := "example.txt"
-	fileSize := int64(1000000)
+	fileSize := int64(10000000)
 	stats := NewTransferStats(fileSize, filename)
 
 	// Simulate varying transfer speeds
@@ -95,7 +95,14 @@ func ExampleTransferWithSpeed() {
 
 // silent if not stdout is not a terminal.
 func (s *TransferStats) PrintProgressWithSpeed(current int64) {
-	width := 40 // Progress bar width
+
+	now := time.Now()
+	if now.Sub(s.lastDisplay) < s.minRefreshInterval {
+		return
+	}
+	s.lastDisplay = now
+
+	width := 30 // Progress bar width
 	percentage := float64(current) / float64(s.fileSize)
 	completed := int(percentage * float64(width))
 
@@ -106,7 +113,14 @@ func (s *TransferStats) PrintProgressWithSpeed(current int64) {
 		return
 	}
 
-	speed := formatBytes(s.emaSpeed, false)
+	// Calculate ETA
+	var eta time.Duration
+	if s.emaSpeed > 0 {
+		remainingBytes := s.fileSize - current
+		eta = time.Duration(float64(remainingBytes)/s.emaSpeed) * time.Second
+	}
+
+	speed := formatSpeed(s.emaSpeed)
 	if current != s.fileSize && changed == 0 {
 		speed = "-stalled-"
 	}
@@ -124,14 +138,15 @@ func (s *TransferStats) PrintProgressWithSpeed(current int64) {
 	}
 	bar.WriteString("]")
 
-	// Create the full status line with fixed width
-	status := fmt.Sprintf("\r%-20s %s %6.2f%% %10s total: %s",
+	// Format the status line
+	//
+	status := fmt.Sprintf("\r%s %s %3.0f%%  %6s  %7s  %s ETA",
 		truncateString(s.filename, 20),
 		bar.String(),
 		percentage*100,
+		formatBytesTotal(float64(current)),
 		speed,
-		s.fileSizeString,
-	)
+		formatDuration(eta))
 
 	// Write the entire line at once
 	fmt.Print(status)
@@ -146,11 +161,9 @@ func truncateString(s string, width int) string {
 }
 
 // Update formatBytes to always return same-width strings
-func formatBytes(bytes float64, isTotal bool) string {
+func formatSpeed(bytes float64) string {
 	units := []string{"B/s  ", "KB/s ", "MB/s ", "GB/s "}
-	if isTotal {
-		units = []string{"B", "KB", "MB", "GB"}
-	}
+
 	unitIndex := 0
 	value := bytes
 
@@ -158,10 +171,36 @@ func formatBytes(bytes float64, isTotal bool) string {
 		value /= 1024
 		unitIndex++
 	}
-	if isTotal {
-		return fmt.Sprintf("%0.2f %s", value, units[unitIndex])
+	return fmt.Sprintf("%7.1f %s", value, units[unitIndex]) // Fixed width of 7 for number
+}
+
+// Update formatBytes to match scp style
+func formatBytesTotal(value float64) string {
+	units := []string{"B", "KB", "MB", "GB", "TB"}
+	unitIndex := 0
+
+	for value >= 1024 && unitIndex < len(units)-1 {
+		value /= 1024
+		unitIndex++
 	}
-	return fmt.Sprintf("%7.2f %s", value, units[unitIndex]) // Fixed width of 7 for number
+	return fmt.Sprintf("%5.1f %s", value, units[unitIndex])
+}
+
+func formatDuration(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	// Format as mm:ss for durations less than 1 hour
+	if d.Hours() < 1 {
+		return fmt.Sprintf("%02d:%02d",
+			int(d.Minutes()),
+			int(d.Seconds())%60)
+	}
+	// Format as hh:mm:ss for longer durations
+	return fmt.Sprintf("%02d:%02d:%02d",
+		int(d.Hours()),
+		int(d.Minutes())%60,
+		int(d.Seconds())%60)
 }
 
 //func main() {
