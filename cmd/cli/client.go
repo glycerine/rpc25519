@@ -106,12 +106,12 @@ func main() {
 		for i := 0; true; i++ {
 
 			nr, err1 := r.Read(buf)
-			vv("on read i=%v, got nr=%v, err='%v'", i, nr, err1)
+			//vv("on read i=%v, got nr=%v, err='%v'", i, nr, err1)
 
 			send := buf[:nr] // can be empty
 			tot += nr
 			sumstring := Blake3OfBytesString(send)
-			vv("i=%v, len=%v, sumstring = '%v'", i, nr, sumstring)
+			//vv("i=%v, len=%v, sumstring = '%v'", i, nr, sumstring)
 			blake3hash.Write(send)
 
 			if i == 0 {

@@ -373,7 +373,6 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 	}
 	hdr1 := req.HDR
 	ctx := hdr1.Ctx
-	//vv("server ReceiveFileInParts StreamPart = %v, Subject='%v' len(JobSerz) = %v", hdr1.StreamPart, hdr1.Subject, len(req.JobSerz))
 
 	select {
 	case <-ctx.Done():
@@ -406,14 +405,13 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 		if len(splt) > 1 {
 			blake3checksumBase64 = splt[1]
 			if blake3checksumBase64 != sum {
-				//vv("server req.JobSerz = '%x'", string(req.JobSerz))
 				panic(fmt.Sprintf("checksum on first %v bytes disagree: client sent blake3sum='%v'; we computed = '%v'", len(req.JobSerz), blake3checksumBase64, sum))
 			}
 		}
 		if s.fname == "" {
 			panic("subject must contain receiveFile: and the file name, which was missing !")
 		}
-		//vv("server, part i=0; blake3checksumBase64 = '%v'", blake3checksumBase64)
+
 		// save the file handle for the next callback too.
 		s.fd, err = os.Create(s.fname)
 		if err != nil {
@@ -430,7 +428,7 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 
 	s.blake3hash.Write(req.JobSerz)
 	sum := blake3OfBytesString(req.JobSerz)
-	vv("\nserver part %v, len %v, server-sum='%v' \n        while Subject blake3    client-sum='%v'\n", req.HDR.StreamPart, len(req.JobSerz), sum, req.HDR.Subject)
+	//vv("\nserver part %v, len %v, server-sum='%v' \n        while Subject blake3    client-sum='%v'\n", req.HDR.StreamPart, len(req.JobSerz), sum, req.HDR.Subject)
 	if part > 0 && sum != req.HDR.Subject {
 		panic(fmt.Sprintf("checksum disagree on part %v; see above. server sees len %v req.JobSerz='%v'", part, len(req.JobSerz), string(req.JobSerz)))
 	}
