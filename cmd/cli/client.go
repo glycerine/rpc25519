@@ -93,6 +93,7 @@ func main() {
 	}
 	defer cli.Close()
 	vv("client connected from local addr='%v'", cli.LocalAddr())
+	fmt.Println()
 
 	if *sendfile != "" {
 		t0 := time.Now()
@@ -177,7 +178,10 @@ func main() {
 
 		meter.PrintProgressWithSpeed(int64(tot))
 		clientTotSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(blake3hash.Sum(nil))
-		vv("we read tot = %v bytes, with \nclient tot-sum='%v'", tot, clientTotSum)
+
+		fmt.Println()
+		vv("we read tot = %v bytes", tot)
+		//vv("client tot-sum='%v'", clientTotSum)
 
 		select {
 		case reply := <-strm.ReadCh:
@@ -191,7 +195,7 @@ func main() {
 			serverTotSum := reply.HDR.Args["serverTotalBlake3sum"]
 
 			if clientTotSum == serverTotSum {
-				vv("GOOD! server and client blake3 checksums are the same!\n serverTotSum='%v'\n clientTotsum='%v'", serverTotSum, clientTotSum)
+				//vv("GOOD! server and client blake3 checksums are the same!\n serverTotSum='%v'\n clientTotsum='%v'", serverTotSum, clientTotSum)
 			} else {
 				vv("PROBLEM! server and client blake3 checksums do not match!\n serverTotSum='%v'\n clientTotsum='%v'", serverTotSum, clientTotSum)
 			}
