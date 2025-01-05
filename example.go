@@ -341,7 +341,13 @@ func (s *MustBeCancelled) MessageAPI_HangUntilCancel(req, reply *Message) error 
 // from client to server, all while keeping FIFO
 // message order.
 type ServerSideUploadState struct {
-	t0 time.Time
+	// key is CallID
+	m map[string]*PerCallIDUploadState
+}
+
+type PerCallIDUploadState struct {
+	callID string
+	t0     time.Time
 
 	fnameTmp   string
 	fnameFinal string
@@ -360,7 +366,9 @@ type ServerSideUploadState struct {
 // ServerSideUploadState. This is part of
 // the cli_test.go Test045 mechanics.
 func NewServerSideUploadState() *ServerSideUploadState {
-	return &ServerSideUploadState{}
+	return &ServerSideUploadState{
+		m: make(map[string]*PerCallIDUploadState),
+	}
 }
 
 // ReceiveFileInParts is used by
@@ -375,7 +383,23 @@ func NewServerSideUploadState() *ServerSideUploadState {
 // ReceiveFileInParts is an UploadReaderFunc and is
 // registered on the Server with
 // the Server.RegisterUploadReaderFunc() call.
-func (s *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Message, lastReply *Message) (err error) {
+//
+// Notice that since we get a callback-per-message,
+// and these messages can be from different clients,
+// we must track the state of each of them in their
+// own PerCallIDUploadState. This is a counterpoint
+// in the design space: compare the Bistream and Download
+// versions that are invoked once per call initiation.
+// We have to manage the state of all clients, whereas
+// they have to handle channels.
+func (st *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Message, lastReply *Message) (err error) {
+
+	callID := req.HDR.CallID
+	s, ok := st.m[callID]
+	if !ok {
+		s = &PerCallIDUploadState{callID: callID}
+		st.m[callID] = s
+	}
 
 	if s.t0.IsZero() {
 		s.t0 = req.HDR.Created
@@ -385,6 +409,7 @@ func (s *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Mes
 
 	select {
 	case <-ctx.Done():
+		delete(st.m, callID)
 		panic("cancelling?!?! what??")
 		return ErrContextCancelled
 	default:
@@ -462,7 +487,6 @@ func (s *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Mes
 
 	if lastReply != nil {
 		s.fd.Close()
-
 		err = os.Rename(s.fnameTmp, s.fnameFinal)
 		panicOn(err)
 
@@ -481,8 +505,8 @@ func (s *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Mes
 
 		//vv("returning with lastReply = '%v'", string(lastReply.JobSerz))
 
-		// allow a 2nd upload
-		s.seenCount = 0
+		// cleanup
+		delete(st.m, callID)
 	}
 	return
 }
