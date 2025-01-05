@@ -563,7 +563,7 @@ type ServerSendsDownloadFunc func(
 	srv *Server,
 	ctx context.Context,
 	req *Message,
-	sendDownloadPartToClient func(ctx context.Context, by []byte, last bool),
+	sendDownloadPartToClient func(ctx context.Context, by []byte, last bool) error,
 	lastReply *Message,
 ) (err error)
 
@@ -682,7 +682,7 @@ type BistreamFunc func(
 	ctx context.Context,
 	req *Message,
 	uploadsFromClientCh <-chan *Message,
-	sendDownloadPartToClient func(ctx context.Context, by []byte, last bool),
+	sendDownloadPartToClient func(ctx context.Context, by []byte, last bool) error,
 	lastReply *Message,
 ) (err error)
 
@@ -719,7 +719,13 @@ type BistreamFunc func(
 // the stream, and so generally req should be processed
 // before considering if this is the last message and a final
 // lastReply should also be filled out.
-type UploadReaderFunc func(ctx context.Context, req *Message, lastReply *Message) error
+//
+// For cleanup/avoiding memory leaks:
+// If deadCallID is not the empty string, then the
+// connection for this CallID has died and we should
+// cleanup its resources. ctx, req, and lastReply
+// will all be nil in this case.
+type UploadReaderFunc func(ctx context.Context, req *Message, lastReply *Message, deadCallID string) error
 
 // Config is the same struct type for both NewClient
 // and NewServer setup.

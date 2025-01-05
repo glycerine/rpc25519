@@ -392,7 +392,20 @@ func NewServerSideUploadState() *ServerSideUploadState {
 // versions that are invoked once per call initiation.
 // We have to manage the state of all clients, whereas
 // they have to handle channels.
-func (st *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Message, lastReply *Message) (err error) {
+//
+// What happens if the client connection goes down?
+// We still have state here. We'd like it to get
+// cleaned up if the connection is lost. We use the
+// deadCallID for that. It it is set, then clean up
+// after that CallID and return. ctx, req, and lastReply
+// will be nil, so no other work is possible.
+func (st *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Message, lastReply *Message, deadCallID string) (err error) {
+
+	if deadCallID != "" {
+		//vv("cleaning up after dead callID '%v'", deadCallID)
+		delete(st.m, deadCallID)
+		return nil
+	}
 
 	callID := req.HDR.CallID
 	s, ok := st.m[callID]
@@ -405,12 +418,10 @@ func (st *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Me
 		s.t0 = req.HDR.Created
 	}
 	hdr1 := req.HDR
-	//ctx := hdr1.Ctx
 
 	select {
 	case <-ctx.Done():
 		delete(st.m, callID)
-		panic("cancelling?!?! what??")
 		return ErrContextCancelled
 	default:
 	}
@@ -491,7 +502,8 @@ func (st *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Me
 		panicOn(err)
 
 		totSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(s.blake3hash.Sum(nil))
-		//vv("ReceiveFileInParts sees last set! bytesWrit=%v; \nserver totSum='%v'", s.bytesWrit, totSum)
+		//vv("ReceiveFileInParts sees last set!")
+		//vv("bytesWrit=%v; \nserver totSum='%v'", s.bytesWrit, totSum)
 
 		elap := time.Since(s.t0)
 		mb := float64(s.bytesWrit) / float64(1<<20)
@@ -501,7 +513,9 @@ func (st *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Me
 		lastReply.HDR.Args["serverTotalBlake3sum"] = totSum
 
 		// finally reply to the original caller.
-		lastReply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v\n (while mb=%v) => %v MB/sec. ; \n bytesWrit=%v;", s.t0, elap, mb, rate, s.bytesWrit))
+		lastReply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => "+
+			"elap = %v\n (while mb=%v) => %v MB/sec. ; \n bytesWrit=%v;",
+			s.t0, elap, mb, rate, s.bytesWrit))
 
 		//vv("returning with lastReply = '%v'", string(lastReply.JobSerz))
 
@@ -517,7 +531,7 @@ type ServerSendsDownloadState struct{}
 // It demonstrates how a registered server func can stream to the client.
 // ServerSendStream has type ServerSendsDownloadFunc, and gets
 // registered on the server with srv.RegisterServerSendsDownloadFunc().
-func (ssss *ServerSendsDownloadState) ServerSendsDownload(srv *Server, ctx context.Context, req *Message, sendStreamPart func(ctx context.Context, by []byte, last bool), lastReply *Message) (err error) {
+func (ssss *ServerSendsDownloadState) ServerSendsDownload(srv *Server, ctx context.Context, req *Message, sendStreamPart func(ctx context.Context, by []byte, last bool) error, lastReply *Message) (err error) {
 	done := ctx.Done()
 	for i := range 20 {
 		sendStreamPart(ctx, []byte(fmt.Sprintf("part %v;", i)), i == 19)
@@ -546,7 +560,7 @@ func (bi *ServeBistreamState) ServeBistream(
 	ctx context.Context,
 	req *Message,
 	uploadsFromClientCh <-chan *Message,
-	sendDownloadPartToClient func(ctx context.Context, by []byte, last bool),
+	sendDownloadPartToClient func(ctx context.Context, by []byte, last bool) error,
 	lastReply *Message,
 ) (err error) {
 
@@ -584,7 +598,10 @@ func (bi *ServeBistreamState) ServeBistream(
 	done := ctx.Done()
 	for i := range 20 {
 		//vv("on i = %v", i)
-		sendDownloadPartToClient(ctx, []byte(fmt.Sprintf("part %v;", i)), i == 19)
+		err = sendDownloadPartToClient(ctx, []byte(fmt.Sprintf("part %v;", i)), i == 19)
+		if err != nil {
+			return fmt.Errorf("error back from sendDownloadPartToClient: '%v'", err)
+		}
 		select {
 		case <-done:
 			vv("exiting early! we see done requested at i = %v", i)
@@ -672,7 +689,7 @@ func MinimalBistreamFunc(
 	ctx context.Context,
 	req *Message,
 	uploadsFromClientCh <-chan *Message,
-	sendDownloadPartToClient func(ctx context.Context, by []byte, last bool),
+	sendDownloadPartToClient func(ctx context.Context, by []byte, last bool) error,
 	lastReply *Message,
 ) (err error) {
 
@@ -694,7 +711,11 @@ func MinimalBistreamFunc(
 			// ...and, when we have a part for the download stream,
 			// send it on to the client like this
 			last := false // set to true if no more downloads to follow.
-			sendDownloadPartToClient(ctx, msg.JobSerz, last)
+			err = sendDownloadPartToClient(ctx, msg.JobSerz, last)
+			if err != nil {
+				// connection to client may have been lost...
+				return err
+			}
 
 			// ... more processing of msg if need be ...
 

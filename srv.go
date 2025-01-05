@@ -684,102 +684,93 @@ func (s *Server) processWork(job *job) {
 		return
 	}
 
-	if foundCallback2 || foundServerSendsDownload || foundBistream || foundUploader {
-		//vv("foundCallback2 true, req.HDR = '%v'", req.HDR)
+	// handle:
+	//
+	// foundCallback2
+	// foundServerSendsDownload
+	// foundBistream
+	// foundUploader
 
-		//vv("req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
-		//vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
-		//vv("conn   local = '%v', remote = '%v'", local(conn), remote(conn))
+	//vv("foundCallback2 true, req.HDR = '%v'", req.HDR)
 
-		reply := s.getMessage()
+	//vv("req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
+	//vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
+	//vv("conn   local = '%v', remote = '%v'", local(conn), remote(conn))
 
-		// enforce these are the same.
-		replySeqno := req.HDR.Seqno
-		reqCallID := req.HDR.CallID
-		serviceName := req.HDR.ServiceName
+	reply := s.getMessage()
 
-		// allow user to change Subject
-		reply.HDR.Subject = req.HDR.Subject
+	// enforce these are the same.
+	replySeqno := req.HDR.Seqno
+	reqCallID := req.HDR.CallID
+	serviceName := req.HDR.ServiceName
 
-		// allow cancellation of inflight calls.
-		ctx0 := context.Background()
-		var cancelFunc context.CancelFunc
-		var deadline time.Time
-		if !req.HDR.Deadline.IsZero() {
-			//vv("server side sees deadline set on request HDR: '%v'", req.HDR.Deadline)
-			deadline = req.HDR.Deadline
-			ctx0, cancelFunc = context.WithDeadline(ctx0, deadline)
-		} else {
-			//vv("server side sees NO deadline")
-			ctx0, cancelFunc = context.WithCancel(ctx0)
-		}
-		defer cancelFunc()
-		ctx := ContextWithHDR(ctx0, &req.HDR)
-		s.registerInFlightCallToCancel(req, cancelFunc, ctx)
+	// allow user to change Subject
+	reply.HDR.Subject = req.HDR.Subject
 
-		defer s.noLongerInFlight(reqCallID)
-		req.HDR.Ctx = ctx
+	// allow cancellation of inflight calls.
+	ctx0 := context.Background()
+	var cancelFunc context.CancelFunc
+	var deadline time.Time
+	if !req.HDR.Deadline.IsZero() {
+		//vv("server side sees deadline set on request HDR: '%v'", req.HDR.Deadline)
+		deadline = req.HDR.Deadline
+		ctx0, cancelFunc = context.WithDeadline(ctx0, deadline)
+	} else {
+		//vv("server side sees NO deadline")
+		ctx0, cancelFunc = context.WithCancel(ctx0)
+	}
+	defer cancelFunc()
+	ctx := ContextWithHDR(ctx0, &req.HDR)
+	s.registerInFlightCallToCancel(req, cancelFunc, ctx)
 
-		var err error
-		switch {
-		case foundCallback2:
-			err = callme2(req, reply)
-		case foundServerSendsDownload:
-			help := s.newServerSendDownloadHelper(ctx, job)
-			err = callmeServerSendsDownloadFunc(s, ctx, req, help.sendDownloadPart, reply)
-		case foundBistream:
-			help := s.newServerSendDownloadHelper(ctx, job)
-			err = callmeBi(s, ctx, req, req.HDR.streamCh, help.sendDownloadPart, reply)
-		case foundUploader:
-			s.beginReadStream(ctx, callmeUploadReaderFunc, req, reply)
-		}
-		if err != nil {
-			reply.JobErrs = err.Error()
-		}
-		// don't read from req now, just in case callme2 messed with it.
+	defer s.noLongerInFlight(reqCallID)
+	req.HDR.Ctx = ctx
 
-		reply.HDR.Created = time.Now()
-		reply.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
-		reply.HDR.From = pair.from
-		reply.HDR.To = pair.to
+	var err error
+	switch {
+	case foundCallback2:
+		err = callme2(req, reply)
+	case foundServerSendsDownload:
+		help := s.newServerSendDownloadHelper(ctx, job)
+		err = callmeServerSendsDownloadFunc(s, ctx, req, help.sendDownloadPart, reply)
+	case foundBistream:
+		help := s.newServerSendDownloadHelper(ctx, job)
+		err = callmeBi(s, ctx, req, req.HDR.streamCh, help.sendDownloadPart, reply)
+	case foundUploader:
+		err = pair.beginReadStream(ctx, callmeUploadReaderFunc, req, reply)
+	}
+	if err != nil {
+		reply.JobErrs = err.Error()
+	}
+	// don't read from req now, just in case callme2 messed with it.
 
-		// We are able to match call and response rigorously on the CallID, or Seqno, alone.
-		reply.HDR.CallID = reqCallID
-		reply.HDR.Seqno = replySeqno
-		reply.HDR.Typ = CallRPCReply
-		reply.HDR.Deadline = deadline
-		reply.HDR.ServiceName = serviceName
+	reply.HDR.Created = time.Now()
+	reply.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
+	reply.HDR.From = pair.from
+	reply.HDR.To = pair.to
 
-		//vv("2way about to send its reply: '%#v'", reply)
+	// We are able to match call and response rigorously on the CallID, or Seqno, alone.
+	reply.HDR.CallID = reqCallID
+	reply.HDR.Seqno = replySeqno
+	reply.HDR.Typ = CallRPCReply
+	reply.HDR.Deadline = deadline
+	reply.HDR.ServiceName = serviceName
 
-		// We write ourselves rather than switch
-		// goroutines. We've added a mutex
-		// inside sendMessage so our writes won't conflict
-		// with keep-alive pings.
-		err = w.sendMessage(conn, reply, &s.cfg.WriteTimeout)
-		if err != nil {
-			// server side reply.DoneCh is not used, comment this out:
-			//
-			// notify any short-time-waiting server push user.
-			// This is super useful to let goq retry jobs quickly.
-			// reply.LocalErr = err
-			// select {
-			// case reply.DoneCh <- reply:
-			// default:
-			// }
-			alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, reply.HDR.Seqno)
-			// just let user try again?
-		} else {
-			// server side reply.DoneCh is not used, comment this out:
-			//
-			// tell caller there was no error.
-			// select {
-			// case reply.DoneCh <- reply:
-			// default:
-			// }
-		}
-		s.freeMessage(reply)
-	} // end if foundCallback2
+	//vv("2way about to send its reply: '%#v'", reply)
+
+	// We write ourselves rather than switch
+	// goroutines. We've added a mutex
+	// inside sendMessage so our writes won't conflict
+	// with keep-alive pings.
+	err = w.sendMessage(conn, reply, &s.cfg.WriteTimeout)
+	if err != nil {
+		alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, reply.HDR.Seqno)
+
+		// should we be tearing down the pair?
+	}
+
+	// NB: server side reply.DoneCh is not used.
+	s.freeMessage(reply)
 }
 
 // Servers read and respond to requests. Two APIs are available.
@@ -1782,7 +1773,7 @@ func (s *Server) cancelCallID(callID string) {
 	delete(s.inflight.activeCalls, callID)
 }
 
-func (s *Server) beginReadStream(ctx context.Context, callmeUploadReaderFunc UploadReaderFunc, req *Message, reply *Message) (err error) {
+func (s *rwPair) beginReadStream(ctx context.Context, callmeUploadReaderFunc UploadReaderFunc, req *Message, reply *Message) (err error) {
 
 	//vv("beginReadStream internal TwoFunc top.")
 
@@ -1796,7 +1787,10 @@ func (s *Server) beginReadStream(ctx context.Context, callmeUploadReaderFunc Upl
 	var msgN *Message
 	bytesRead := 0
 	var last *Message
-	//callID := req.HDR.CallID
+	callID := req.HDR.CallID
+
+	// when we exit, tell the user func to cleanup after this callID
+	defer callmeUploadReaderFunc(nil, nil, nil, callID)
 
 	for i := int64(0); last == nil; i++ {
 
@@ -1831,10 +1825,11 @@ func (s *Server) beginReadStream(ctx context.Context, callmeUploadReaderFunc Upl
 		switch hdrN.Typ {
 		case CallUploadEnd:
 			last = reply
-			last.HDR.Args = map[string]string{} // since s.getMessage() does not allocate the Args map.
+			// since s.getMessage() does not allocate the Args map.
+			last.HDR.Args = map[string]string{}
 		} // else leave last nil
 
-		err = callmeUploadReaderFunc(ctx, msgN, last)
+		err = callmeUploadReaderFunc(ctx, msgN, last, "")
 		if err != nil {
 			return
 		}
@@ -1885,14 +1880,14 @@ func (s *Server) newServerSendDownloadHelper(ctx context.Context, job *job) *ser
 	}
 }
 
-func (s *serverSendDownloadHelper) sendDownloadPart(ctx context.Context, by []byte, last bool) {
+func (s *serverSendDownloadHelper) sendDownloadPart(ctx context.Context, by []byte, last bool) error {
 	//vv("sendDownloadPart called! last = %v", last)
 
 	// return early if we are cancelled, rather
 	// than wasting time or bandwidth.
 	select {
 	case <-ctx.Done():
-		return
+		return ErrContextCancelled
 	default:
 	}
 
@@ -1928,4 +1923,5 @@ func (s *serverSendDownloadHelper) sendDownloadPart(ctx context.Context, by []by
 	if err != nil {
 		alwaysPrintf("serverSendDownloadHelper.sendDownloadPart error(): sendMessage got err = '%v'", err)
 	}
+	return err
 }
