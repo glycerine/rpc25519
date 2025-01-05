@@ -16,7 +16,6 @@ import (
 	"golang.org/x/crypto/hkdf"
 	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -52,7 +51,6 @@ var sep = string(os.PathSeparator)
 // eg. serverAddr = "localhost:8443"
 // serverAddr = "192.168.254.151:8443"
 func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string) {
-	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
 	defer func() {
 		c.halt.ReqStop.Close()
@@ -175,7 +173,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	// only signal ready once SetLocalAddr() is done, else submitter can crash.
 	c.connected <- nil
 
-	//log.Printf("connected to server %s", serverAddr)
+	//alwaysPrintf("connected to server %s", serverAddr)
 
 	// possible to check host keys for TOFU like SSH does,
 	// but be aware that if they have the contents of
@@ -220,7 +218,7 @@ func (c *Client) runClientTCP(serverAddr string) {
 	if err != nil {
 		c.err = err
 		c.connected <- err
-		log.Printf("Failed to connect to server: %v", err)
+		alwaysPrintf("Failed to connect to server: %v", err)
 		return
 	}
 
@@ -232,7 +230,7 @@ func (c *Client) runClientTCP(serverAddr string) {
 
 	c.connected <- nil
 	defer conn.Close() // in runClientTCP() here.
-	//log.Printf("connected to server %s", serverAddr)
+	//alwaysPrintf("connected to server %s", serverAddr)
 
 	if c.cfg.HTTPConnectRequired {
 		io.WriteString(conn, "CONNECT "+DefaultRPCPath+" HTTP/1.0\n\n")
@@ -487,7 +485,7 @@ func (c *Client) runSendLoop(conn net.Conn) {
 			}
 			// Send the message
 			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
-				log.Printf("Failed to send message: %v", err)
+				alwaysPrintf("Failed to send message: %v", err)
 				msg.LocalErr = err
 			} else {
 				//vv("cli %v has sent a 1-way message: %v'", c.name, msg)
@@ -993,7 +991,7 @@ func (c *Client) Go(serviceMethod string, args Green, reply Green, done chan *Ca
 		// RPCs that will be using that channel. If the channel
 		// is totally unbuffered, it's best not to run at all.
 		if cap(done) == 0 {
-			log.Panic("rpc: done channel is unbuffered")
+			panic("rpc: done channel is unbuffered")
 		}
 	}
 	call.Done = done
@@ -1178,7 +1176,7 @@ func (c *Client) netRpcShutdownCleanup(err error) {
 	c.mutex.Unlock()
 	c.reqMutex.Unlock()
 	if debugLog && err != io.EOF && !closing {
-		log.Println("rpc: client protocol error:", err)
+		alwaysPrintf("rpc: client protocol error: '%v'", err)
 	}
 }
 

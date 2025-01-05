@@ -11,7 +11,10 @@ import (
 	"time"
 
 	tdigest "github.com/caio/go-tdigest"
+	cristalbase64 "github.com/cristalhq/base64"
 	"github.com/glycerine/rpc25519"
+
+	"lukechampine.com/blake3"
 )
 
 var td *tdigest.TDigest
@@ -89,19 +92,28 @@ func main() {
 		defer cancelFunc()
 		var strm *rpc25519.Uploader
 
-		maxMessage := 64*1024*1024 - 80
-		buf := make([]byte, maxMessage)
+		blake3hash := blake3.New(64, nil)
 
+		//maxMessage := rpc25519.UserMaxPayload
+		maxMessage := 1024
+		buf := make([]byte, maxMessage)
+		var tot int
 	upload:
 		for i := 0; true; i++ {
 
 			nr, err1 := r.Read(buf)
+			vv("on read i=%v, got nr=%v, err='%v'", i, nr, err1)
 			send := buf[:nr]
+			tot += nr
+			sum := Blake3OfBytes(send)
+			sumstring := cristalbase64.URLEncoding.EncodeToString(sum)
+			vv("i=%v, sumstring = '%v'", i, sumstring)
+			blake3hash.Write(send)
 
 			if i == 0 {
 				req := rpc25519.NewMessage()
 				req.JobSerz = send
-				req.HDR.Subject = "receiveFile:" + filepath.Base(path) // client looks for this
+				req.HDR.Subject = "receiveFile:" + filepath.Base(path) + ":" + sumstring // client looks for this
 
 				strm, err = cli.UploadBegin(ctx, req)
 				panicOn(err)
@@ -123,6 +135,8 @@ func main() {
 			panicOn(err1)
 
 		} // end for i
+
+		vv("we read tot = %v bytes", tot)
 
 		select {
 		case reply := <-strm.ReadCh:
@@ -197,4 +211,15 @@ func main() {
 			}
 		}
 	}
+}
+
+func Blake3OfBytes(by []byte) []byte {
+	h := blake3.New(64, nil)
+	h.Write(by)
+	return h.Sum(nil)
+}
+
+func Blake3OfBytesString(by []byte) string {
+	sum := Blake3OfBytes(by)
+	return cristalbase64.URLEncoding.EncodeToString(sum)
 }

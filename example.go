@@ -9,6 +9,10 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	// check-summing utilities.
+	cristalbase64 "github.com/cristalhq/base64"
+	"lukechampine.com/blake3"
 )
 
 var _ = fmt.Printf
@@ -360,10 +364,11 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 	t0 := time.Now()
 	hdr1 := req.HDR
 	ctx := hdr1.Ctx
-	//vv("server ReceiveFileInParts called, Subject='%v'; StreamPart=%v", hdr1.Subject, hdr1.StreamPart)
+	vv("server ReceiveFileInParts called, Subject='%v'; StreamPart=%v", hdr1.Subject, hdr1.StreamPart)
 
 	select {
 	case <-ctx.Done():
+		panic("cancelling?!?! what??")
 		return fmt.Errorf("context cancelled")
 	default:
 	}
@@ -373,10 +378,21 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 			panic("subject must contain receiveFile: and the file name !")
 		}
 		prefix := "receiveFile:"
-		s.fname = hdr1.Subject[len(prefix):]
+		splt := strings.Split(hdr1.Subject[len(prefix):], ":")
+		s.fname = splt[0] //hdr1.Subject[len(prefix):]
+
+		sum := blake3OfBytesString(req.JobSerz)
+		blake3checksumBase64 := ""
+		if len(splt) > 1 {
+			blake3checksumBase64 = splt[1]
+			if blake3checksumBase64 != sum {
+				panic(fmt.Sprintf("checksum on first %v bytes disagree: client sent blake3sum='%v'; we computed = '%v'", len(req.JobSerz), blake3checksumBase64, sum))
+			}
+		}
 		if s.fname == "" {
 			panic("subject must contain receiveFile: and the file name, which was missing !")
 		}
+		vv("server, part i=0; blake3checksumBase64 = '%v'", blake3checksumBase64)
 		// save the file handle for the next callback too.
 		s.fd, err = os.Create(s.fname)
 		if err != nil {
@@ -384,6 +400,7 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 		}
 	}
 
+	vv("server sees part %v with blake3sum '%v'", req.HDR.StreamPart, blake3OfBytesString(req.JobSerz))
 	n := len(req.JobSerz)
 	part := req.HDR.StreamPart
 	_ = part
@@ -396,7 +413,7 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 		vv("problem: %v", err.Error())
 		return
 	} else {
-		//vv("succesfully wrote part %v to the file '%v': '%v'", part, s.fname, string(req.JobSerz))
+		vv("succesfully wrote part %v to the file '%v': '%v'", part, s.fname, (req.JobSerz))
 	}
 
 	if lastReply != nil {
@@ -614,4 +631,15 @@ func MinimalBistreamFunc(
 	}
 
 	return
+}
+
+func blake3OfBytes(by []byte) []byte {
+	h := blake3.New(64, nil)
+	h.Write(by)
+	return h.Sum(nil)
+}
+
+func blake3OfBytesString(by []byte) string {
+	sum := blake3OfBytes(by)
+	return cristalbase64.URLEncoding.EncodeToString(sum)
 }

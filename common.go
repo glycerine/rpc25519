@@ -10,6 +10,10 @@ import (
 )
 
 const (
+	UserMaxPayload = 67106000 // users should chunk to this size, to be safe.
+)
+
+const (
 	maxMessage = 64*1024*1024 - 80 // 64 MB max message size, prevents TLS clients from talking to TCP servers, as the random TLS data looks like very big message size.
 )
 
