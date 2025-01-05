@@ -16,6 +16,7 @@ import (
 	tdigest "github.com/caio/go-tdigest"
 	cristalbase64 "github.com/cristalhq/base64"
 	"github.com/glycerine/rpc25519"
+	"github.com/glycerine/rpc25519/progress"
 
 	"lukechampine.com/blake3"
 )
@@ -101,6 +102,10 @@ func main() {
 		if !fileExists(path) {
 			panic(fmt.Sprintf("drat! cli -sendfile path '%v' not found", path))
 		}
+		fi, err := os.Stat(path)
+		panicOn(err)
+		meter := progress.NewTransferStats(fi.Size(), filepath.Base(path))
+
 		r, err := os.Open(path)
 		if err != nil {
 			panic(fmt.Sprintf("error reading path '%v': '%v'", path, err))
@@ -123,11 +128,13 @@ func main() {
 
 		req := rpc25519.NewMessage()
 		req.HDR.Created = time.Now()
+		var lastUpdate time.Time
+
 	upload:
 		for i := 0; true; i++ {
 
 			nr, err1 := r.Read(buf)
-			vv("on read i=%v, got nr=%v, (maxMessage=%v), err='%v'", i, nr, maxMessage, err1)
+			//vv("on read i=%v, got nr=%v, (maxMessage=%v), err='%v'", i, nr, maxMessage, err1)
 
 			send := buf[:nr] // can be empty
 			tot += nr
@@ -157,6 +164,11 @@ func main() {
 			err = strm.UploadMore(ctx, streamMsg, err1 == io.EOF)
 			panicOn(err)
 
+			if time.Since(lastUpdate) > time.Second {
+				meter.PrintProgressWithSpeed(int64(tot))
+				lastUpdate = time.Now()
+			}
+
 			if err1 == io.EOF {
 				break upload
 			}
@@ -164,15 +176,18 @@ func main() {
 
 		} // end for i
 
+		meter.PrintProgressWithSpeed(int64(tot))
 		clientTotSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(blake3hash.Sum(nil))
 		vv("we read tot = %v bytes, with \nclient tot-sum='%v'", tot, clientTotSum)
 
 		select {
 		case reply := <-strm.ReadCh:
-			report := string(reply.JobSerz)
-			vv("reply.HDR: '%v'", reply.HDR.String())
-			vv("with JobSerz: '%v'", report)
-			fmt.Printf("round trip time for upload: '%v'\n", time.Since(t0))
+			if false {
+				report := string(reply.JobSerz)
+				vv("reply.HDR: '%v'", reply.HDR.String())
+				vv("with JobSerz: '%v'", report)
+			}
+			fmt.Printf("total time for upload: '%v'\n", time.Since(t0))
 			serverTotSum := extractServerTotSum(reply.JobSerz)
 			if clientTotSum == serverTotSum {
 				vv("GOOD! server and client blake3 checksums are the same!\n serverTotSum='%v'\n clientTotsum='%v'", serverTotSum, clientTotSum)

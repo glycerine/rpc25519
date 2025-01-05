@@ -37,22 +37,24 @@ func printProgress(current, total int64, filename string) {
 }
 
 type TransferStats struct {
-	isTerm     bool
-	filename   string
-	fileSize   int64
-	lastUpdate time.Time
-	lastBytes  int64
-	emaSpeed   float64 // bytes per second
-	alpha      float64 // EMA smoothing factor (between 0 and 1)
+	isTerm         bool
+	filename       string
+	fileSize       int64
+	fileSizeString string
+	lastUpdate     time.Time
+	lastBytes      int64
+	emaSpeed       float64 // bytes per second
+	alpha          float64 // EMA smoothing factor (between 0 and 1)
 }
 
 func NewTransferStats(fileSize int64, filename string) *TransferStats {
 	return &TransferStats{
-		isTerm:     isTerminal(),
-		fileSize:   fileSize,
-		filename:   filename,
-		lastUpdate: time.Now(),
-		alpha:      0.1, // Adjust this value to change smoothing (higher = more reactive)
+		isTerm:         isTerminal(),
+		fileSize:       fileSize,
+		fileSizeString: formatBytes(float64(fileSize), true),
+		filename:       filename,
+		lastUpdate:     time.Now(),
+		alpha:          0.1, // Adjust this value to change smoothing (higher = more reactive)
 	}
 }
 
@@ -102,7 +104,7 @@ func (s *TransferStats) PrintProgressWithSpeed(current int64) {
 		return
 	}
 
-	speed := formatBytes(s.emaSpeed)
+	speed := formatBytes(s.emaSpeed, false)
 
 	// Build progress bar
 	var bar strings.Builder
@@ -119,11 +121,13 @@ func (s *TransferStats) PrintProgressWithSpeed(current int64) {
 	bar.WriteString("]")
 
 	// Create the full status line with fixed width
-	status := fmt.Sprintf("\r%-20s %s %6.2f%% %10s",
+	status := fmt.Sprintf("\r%-20s %s %6.2f%% %10s total: %s",
 		truncateString(s.filename, 20),
 		bar.String(),
 		percentage*100,
-		speed)
+		speed,
+		s.fileSizeString,
+	)
 
 	// Write the entire line at once
 	fmt.Print(status)
@@ -138,14 +142,20 @@ func truncateString(s string, width int) string {
 }
 
 // Update formatBytes to always return same-width strings
-func formatBytes(bytes float64) string {
+func formatBytes(bytes float64, isTotal bool) string {
 	units := []string{"B/s  ", "KB/s ", "MB/s ", "GB/s "}
+	if isTotal {
+		units = []string{"B", "KB", "MB", "GB"}
+	}
 	unitIndex := 0
 	value := bytes
 
 	for value >= 1024 && unitIndex < len(units)-1 {
 		value /= 1024
 		unitIndex++
+	}
+	if isTotal {
+		return fmt.Sprintf("%0.2f %s", value, units[unitIndex])
 	}
 	return fmt.Sprintf("%7.2f %s", value, units[unitIndex]) // Fixed width of 7 for number
 }
