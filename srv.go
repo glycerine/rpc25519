@@ -492,7 +492,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			alwaysPrintf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
 			return
 		}
-		//vv("srv read loop sees req = '%v'", req.HDR.String())
+		//vv("srv read loop sees req = '%v'", req.String())
 
 		switch req.HDR.Typ {
 
@@ -652,7 +652,7 @@ func (s *Server) processWork(job *job) {
 		uploader, ok := s.callmeUploadReaderMap[req.HDR.ServiceName]
 		if !ok {
 			// nothing to do
-			alwaysPrintf("warning! possible problem: stream begin received but no registered stream upload handler available on the server. hdr='%v'", req.HDR.String())
+			alwaysPrintf("warning! possible problem: CallUploadBegin stream begin received but no registered stream upload reader available on the server. hdr='%v'", req.HDR.String())
 			s.mut.Unlock()
 			return
 		}
@@ -1847,41 +1847,36 @@ type serverSendDownloadHelper struct {
 	req *Message
 	ctx context.Context
 
-	tmpMsg   *Message
+	template *Message
 	mut      sync.Mutex
 	nextPart int64
 }
 
 func (s *Server) newServerSendDownloadHelper(ctx context.Context, job *job) *serverSendDownloadHelper {
-
-	m := &Message{}
+	msg := &Message{}
 	// no DoneCh, as we send ourselves.
 
 	req := job.req
 
-	m.HDR.Subject = req.HDR.Subject
-	m.HDR.ServiceName = req.HDR.ServiceName
-	m.HDR.To = req.HDR.From
-	m.HDR.From = req.HDR.To
-	m.HDR.Seqno = req.HDR.Seqno
-	m.HDR.CallID = req.HDR.CallID
-
-	dl, ok := ctx.Deadline()
-	if ok {
-		m.HDR.Deadline = dl
-	}
+	msg.HDR.Subject = req.HDR.Subject
+	msg.HDR.ServiceName = req.HDR.ServiceName
+	msg.HDR.To = req.HDR.From
+	msg.HDR.From = req.HDR.To
+	msg.HDR.Seqno = req.HDR.Seqno
+	msg.HDR.CallID = req.HDR.CallID
+	msg.HDR.Deadline, _ = ctx.Deadline()
 
 	return &serverSendDownloadHelper{
-		ctx:    ctx,
-		job:    job,
-		srv:    s,
-		req:    req,
-		tmpMsg: m,
+		ctx:      ctx,
+		job:      job,
+		srv:      s,
+		req:      req,
+		template: msg,
 	}
 }
 
-func (s *serverSendDownloadHelper) sendDownloadPart(ctx context.Context, by []byte, last bool) error {
-	//vv("sendDownloadPart called! last = %v", last)
+func (s *serverSendDownloadHelper) sendDownloadPart(ctx context.Context, msg *Message, last bool) error {
+	//vv("serverSendDownloadHelper.sendDownloadPart called! last = %v", last)
 
 	// return early if we are cancelled, rather
 	// than wasting time or bandwidth.
@@ -1894,34 +1889,38 @@ func (s *serverSendDownloadHelper) sendDownloadPart(ctx context.Context, by []by
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
-	// we deliberately re-use the same message
-	// every time with its header all set up.
-	// The only things that need to change
-	// are updated below. This is to say,
-	// do not clear out s.tmpMsg! We need its
-	// initialized values.
-	tmp := s.tmpMsg
-	tmp.JobSerz = by
-
 	i := s.nextPart
 	s.nextPart++
 
+	// need to preserve Args and JobSerz, to allow Echo Bistreamer test to work, for example.
+
+	msg.HDR.Created = time.Now()
+	msg.HDR.From = s.template.HDR.To
+	msg.HDR.To = s.template.HDR.From
+	msg.HDR.ServiceName = s.template.HDR.ServiceName
+	// Args kept
+	msg.HDR.Subject = s.template.HDR.Subject
+	msg.HDR.Seqno = s.template.HDR.Seqno
+
 	switch {
 	case i == 0:
-		tmp.HDR.Typ = CallDownloadBegin
+		msg.HDR.Typ = CallDownloadBegin
 	case last:
-		tmp.HDR.Typ = CallDownloadEnd
+		msg.HDR.Typ = CallDownloadEnd
 	default:
-		tmp.HDR.Typ = CallDownloadMore
+		msg.HDR.Typ = CallDownloadMore
 	}
-	tmp.HDR.StreamPart = i
-	tmp.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
-	tmp.HDR.Created = time.Now()
-	tmp.HDR.Deadline, _ = ctx.Deadline()
+	msg.HDR.CallID = s.template.HDR.CallID
+	msg.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
 
-	err := s.job.w.sendMessage(s.job.conn, tmp, &s.srv.cfg.WriteTimeout)
+	msg.HDR.Deadline, _ = ctx.Deadline()
+	msg.HDR.StreamPart = i
+
+	err := s.job.w.sendMessage(s.job.conn, msg, &s.srv.cfg.WriteTimeout)
 	if err != nil {
 		alwaysPrintf("serverSendDownloadHelper.sendDownloadPart error(): sendMessage got err = '%v'", err)
+	} else {
+		//vv("serverSendDownloadHelper.sendDownloadPart end: sendMessage went OK! no error.")
 	}
 	return err
 }

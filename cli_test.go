@@ -144,7 +144,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		panicOn(err)
 		defer srv.Close()
 
-		vv("server Start() returned serverAddr = '%v'", serverAddr)
+		//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
 		// net/rpc API on server
 		srv.Register(new(Arith))
@@ -174,7 +174,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		if reply.C != args.A+args.B {
 			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
 		}
-		vv("good 006, got back reply '%#v'", reply)
+		//vv("good 006, got back reply '%#v'", reply)
 
 		// Methods exported from unexported embedded structs
 		args = &Args{7, 0}
@@ -197,7 +197,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		} else if !strings.HasPrefix(err.Error(), "rpc: can't find method ") {
 			t.Errorf("BadOperation: expected can't find method error; got %q", err)
 		}
-		vv("good 006: past nonexistent method")
+		//vv("good 006: past nonexistent method")
 
 		// Unknown service
 		args = &Args{7, 8}
@@ -208,7 +208,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		} else if !strings.Contains(err.Error(), "method") {
 			t.Error("expected error about method; got", err)
 		}
-		vv("good 006: past unknown service")
+		//vv("good 006: past unknown service")
 
 		// Out of order.
 		args = &Args{7, 8}
@@ -232,7 +232,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		if mulReply.C != args.A*args.B {
 			t.Errorf("Mul: expected %d got %d", mulReply.C, args.A*args.B)
 		}
-		vv("good 006: past out of order")
+		//vv("good 006: past out of order")
 
 		// Error test
 		args = &Args{7, 0}
@@ -244,7 +244,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		} else if err.Error() != "divide by zero" {
 			t.Error("Div: expected divide by zero error; got", err)
 		}
-		vv("good 006: past error test")
+		//vv("good 006: past error test")
 
 		args = &Args{7, 8}
 		reply = new(Reply)
@@ -255,7 +255,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		if reply.C != args.A*args.B {
 			t.Errorf("Mul: expected %d got %d", reply.C, args.A*args.B)
 		}
-		vv("good 006: past Arith.Mul test")
+		//vv("good 006: past Arith.Mul test")
 
 		// ServiceName contain "." character
 		args = &Args{7, 8}
@@ -267,7 +267,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		if reply.C != args.A+args.B {
 			t.Errorf("Add: expected %d got %d", reply.C, args.A+args.B)
 		}
-		vv("good 006: past ServiceName with dot . test")
+		//vv("good 006: past ServiceName with dot . test")
 
 		/*
 			// actually we read what we can into it. Since greenpack is
@@ -279,12 +279,12 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 			reply = new(Reply)
 			err = client.Call("Arith.Add", reply, reply) // args, reply would be the correct thing to use
 			if err == nil {
-				vv("err was nil but should not have been!")
+				//vv("err was nil but should not have been!")
 				t.Error("expected error calling Arith.Add with wrong arg type")
 			} else if !strings.Contains(err.Error(), "type") {
 				t.Error("expected error about type; got", err)
 			}
-			vv("good 006: past bad type")
+			//vv("good 006: past bad type")
 
 			// Non-struct argument: won't work with greenpack
 
@@ -367,7 +367,7 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 		panicOn(err)
 		defer srv.Close()
 
-		vv("server Start() returned serverAddr = '%v'", serverAddr)
+		//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
 		// net/rpc API on server
 		srv.Register(new(Arith))
@@ -572,7 +572,7 @@ func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 		panicOn(err)
 		defer srv.Close()
 
-		vv("server Start() returned serverAddr = '%v'", serverAddr)
+		//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
 		// net/rpc API on server
 		srv.Register(new(Arith))
@@ -802,7 +802,7 @@ func BenchmarkHelloRpcxMessage(b *testing.B) {
 	panicOn(err)
 	defer srv.Close()
 
-	vv("server Start() returned serverAddr = '%v'", serverAddr)
+	//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
 	// net/rpc API on server
 	srv.Register(new(Hello))
@@ -992,11 +992,11 @@ func Test045_upload(t *testing.T) {
 		req.JobSerz = []byte("a=c(0")
 
 		// start the call
-		strm, err := client.UploadBegin(ctx45, req)
+		strm, err := client.UploadBegin(ctx45, uploaderName, req)
 		panicOn(err)
 
 		originalStreamCallID := strm.CallID()
-		vv("strm started, with CallID = '%v'", originalStreamCallID)
+		//vv("strm started, with CallID = '%v'", originalStreamCallID)
 		// then send N more parts
 
 		var last bool
@@ -1012,16 +1012,16 @@ func Test045_upload(t *testing.T) {
 			streamMsg.HDR.Args["blake3"] = blake3OfBytesString(streamMsg.JobSerz)
 			err = strm.UploadMore(ctx45, streamMsg, last)
 			panicOn(err)
-			vv("client sent part %v, len %v : '%v'", i, len(streamMsg.JobSerz), string(streamMsg.JobSerz))
+			//vv("client sent part %v, len %v : '%v'", i, len(streamMsg.JobSerz), string(streamMsg.JobSerz))
 		}
-		vv("all N=%v parts sent", N)
+		//vv("all N=%v parts sent", N)
 
 		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
 
 		select {
 		case m := <-strm.ReadCh:
 			report := string(m.JobSerz)
-			vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+			//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
 			cv.So(strings.Contains(report, "bytesWrit"), cv.ShouldBeTrue)
 			cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
 			cv.So(fileExists(filename+".servergot"), cv.ShouldBeTrue)
@@ -1196,7 +1196,7 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 		done := false
 		for i := 0; !done; i++ {
 			select {
-			case m := <-bistream.ReadCh:
+			case m := <-bistream.ReadDownloadsCh:
 				//report := string(m.JobSerz)
 				//vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
 
@@ -1217,9 +1217,9 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 					cv.So(m.HDR.Typ == CallDownloadMore, cv.ShouldBeTrue)
 				}
 
-				if m.HDR.Seqno != bistream.Seqno {
+				if m.HDR.Seqno != bistream.Seqno() {
 					t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
-						"bistream.Seqno = %v", m.HDR.Seqno, bistream.Seqno)
+						"bistream.Seqno = %v", m.HDR.Seqno, bistream.Seqno())
 				}
 
 			case <-time.After(time.Second * 10):
@@ -1267,9 +1267,9 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
 
 		select {
-		case m := <-bistream.ReadCh:
+		case m := <-bistream.ReadDownloadsCh:
 			report := string(m.JobSerz)
-			vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+			//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
 			cv.So(strings.Contains(report, "bytesWrit"), cv.ShouldBeTrue)
 			cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
 			cv.So(fileExists(filename), cv.ShouldBeTrue)

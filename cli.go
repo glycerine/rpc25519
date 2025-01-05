@@ -472,12 +472,13 @@ func (c *Client) runSendLoop(conn net.Conn) {
 			return
 		case msg := <-c.oneWayCh:
 
-			//vv("cli %v has had a one-way requested: '%v'", c.name, msg)
+			// one-way now use seqno too, but may already be set.
+			if msg.HDR.Seqno == 0 {
+				seqno := c.nextSeqno()
+				msg.HDR.Seqno = seqno
+			}
 
-			// one-way always use seqno 0,
-			// so we know that no follow up is expected.
-			seqno := c.nextSeqno()
-			msg.HDR.Seqno = seqno
+			//vv("cli name:'%v' has had a one-way requested: '%v'", c.name, msg)
 
 			if msg.HDR.Nc == nil {
 				// use default conn
@@ -563,7 +564,7 @@ type ServerSendsDownloadFunc func(
 	srv *Server,
 	ctx context.Context,
 	req *Message,
-	sendDownloadPartToClient func(ctx context.Context, by []byte, last bool) error,
+	sendDownloadPartToClient func(ctx context.Context, msg *Message, last bool) error,
 	lastReply *Message,
 ) (err error)
 
@@ -682,7 +683,7 @@ type BistreamFunc func(
 	ctx context.Context,
 	req *Message,
 	uploadsFromClientCh <-chan *Message,
-	sendDownloadPartToClient func(ctx context.Context, by []byte, last bool) error,
+	sendDownloadPartToClient func(ctx context.Context, msg *Message, last bool) error,
 	lastReply *Message,
 ) (err error)
 
@@ -1499,6 +1500,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 	}
 	if req.HDR.CallID == "" {
 		req.HDR.CallID = NewCallID()
+		// let loop assign Seqno.
 	}
 
 	//vv("Client '%v' SendAndGetReply(req='%v') (ignore req.Seqno:0 not yet assigned)", c.name, req)
@@ -1571,6 +1573,8 @@ type Uploader struct {
 	next   int64
 	callID string
 	done   bool
+	name   string
+	seqno  uint64
 	ReadCh <-chan *Message
 }
 
@@ -1618,14 +1622,18 @@ func (s *Uploader) CallID() string {
 // process all messages sent in a stream.
 func (c *Client) UploadBegin(
 	ctx context.Context,
+	serviceName string,
 	msg *Message,
 
 ) (strm *Uploader, err error) {
 
 	msg.HDR.Typ = CallUploadBegin
-	msg.HDR.ServiceName = "__fileUploader"
+	msg.HDR.ServiceName = serviceName
 	msg.HDR.StreamPart = 0
 	cancelJobCh := ctx.Done()
+	seqno := c.nextSeqno()
+	msg.HDR.Seqno = seqno
+
 	err = c.OneWaySend(msg, cancelJobCh)
 	if err != nil {
 		return nil, err
@@ -1635,6 +1643,8 @@ func (c *Client) UploadBegin(
 		next:   1,
 		callID: msg.HDR.CallID,
 		ReadCh: c.GetReadIncomingChForCallID(msg.HDR.CallID),
+		name:   serviceName,
+		seqno:  seqno,
 	}, nil
 }
 
@@ -1654,8 +1664,10 @@ func (s *Uploader) UploadMore(ctx context.Context, msg *Message, last bool) (err
 	} else {
 		msg.HDR.Typ = CallUploadMore
 	}
+	msg.HDR.ServiceName = s.name
 	msg.HDR.StreamPart = s.next
 	msg.HDR.CallID = s.callID
+	msg.HDR.Seqno = s.seqno
 	// set deadline too!
 	msg.HDR.Ctx = ctx
 	deadline, _ := ctx.Deadline()
@@ -1751,7 +1763,8 @@ func local(nc localRemoteAddr) string {
 }
 
 func (c *Client) nextSeqno() (n uint64) {
-	return atomic.AddUint64(&c.lastSeqno, 1)
+	n = atomic.AddUint64(&c.lastSeqno, 1)
+	return
 }
 
 // SelfyNewKey is only for testing, not production.
@@ -1870,9 +1883,10 @@ func (c *Client) setupPSK(conn uConn) error {
 // It is returned by RequestDownload().
 type Downloader struct {
 	CallID string
-	Seqno  uint64
 	ReadCh <-chan *Message
 	Name   string
+
+	Seqno uint64
 }
 
 func (c *Client) RequestDownload(ctx context.Context, streamerName string) (downloader *Downloader, err error) {
@@ -1896,23 +1910,30 @@ func (c *Client) RequestDownload(ctx context.Context, streamerName string) (down
 		hdr.Deadline = deadline
 	}
 	req.HDR = *hdr
+	seqno := c.nextSeqno()
+	req.HDR.Seqno = seqno
 
+	// NOTE THE SEND IS HERE! ALL BE READY BY NOW!
 	err = c.OneWaySend(req, ctx.Done())
 	if err != nil {
 		return
 	}
 
+	//vv("downloader to use seqno %v", seqno)
 	downloader = &Downloader{
 		CallID: hdr.CallID,
 		ReadCh: c.GetReadIncomingChForCallID(hdr.CallID),
 		Name:   streamerName,
+		Seqno:  seqno,
 	}
 
 	// get our Seqno back, so test can assert it is preserved.
 	// This also waits for the req to actually be sent.
 	select {
 	case <-req.DoneCh:
-		downloader.Seqno = req.HDR.Seqno
+		if req.HDR.Seqno != seqno {
+			panic(fmt.Sprintf("seqno should have been preserved! was seqno=%v; now req.HDR.Seqno=%v", seqno, req.HDR.Seqno))
+		}
 	case <-ctx.Done():
 	}
 	return
@@ -1924,12 +1945,14 @@ func (c *Client) RequestDownload(ctx context.Context, streamerName string) (down
 // server func can, symmetrically, stream to the client.
 // The basics of TCP are finally available to users.
 type Bistreamer struct {
-	Seqno   uint64
-	ReadCh  <-chan *Message
-	WriteCh chan<- *Message
-	Name    string
+	mut sync.Mutex
 
-	mut    sync.Mutex
+	seqno uint64
+
+	ReadDownloadsCh <-chan *Message
+	WriteCh         chan<- *Message
+	name            string
+
 	cli    *Client
 	next   int64
 	callID string
@@ -1938,6 +1961,12 @@ type Bistreamer struct {
 
 func (s *Bistreamer) CallID() string {
 	return s.callID
+}
+func (s *Bistreamer) Name() string {
+	return s.name
+}
+func (s *Bistreamer) Seqno() uint64 {
+	return s.seqno
 }
 
 func (s *Bistreamer) UploadMore(ctx context.Context, msg *Message, last bool) (err error) {
@@ -1954,8 +1983,10 @@ func (s *Bistreamer) UploadMore(ctx context.Context, msg *Message, last bool) (e
 	} else {
 		msg.HDR.Typ = CallUploadMore
 	}
+	msg.HDR.ServiceName = s.name
 	msg.HDR.StreamPart = s.next
 	msg.HDR.CallID = s.callID
+	msg.HDR.Seqno = s.seqno
 	msg.HDR.Ctx = ctx
 	deadline, _ := ctx.Deadline()
 	msg.HDR.Deadline = deadline
@@ -1964,53 +1995,80 @@ func (s *Bistreamer) UploadMore(ctx context.Context, msg *Message, last bool) (e
 	return s.cli.OneWaySend(msg, ctx.Done())
 }
 
+// NewBistream creates a new Bistreamer but does no communication yet. Just for
+// setting up reader/writer goroutines before everything starts.
+func (c *Client) NewBistreamer(bistreamerName string) (b *Bistreamer, err error) {
+	callID := NewCallID()
+	b = &Bistreamer{
+		next:            1,
+		cli:             c,
+		callID:          callID,
+		ReadDownloadsCh: c.GetReadIncomingChForCallID(callID),
+		name:            bistreamerName,
+		seqno:           c.nextSeqno(),
+	}
+	return b, nil
+}
+
 func (c *Client) RequestBistreaming(ctx context.Context, bistreamerName string, req *Message) (b *Bistreamer, err error) {
+
+	b, err = c.NewBistreamer(bistreamerName)
+	if err != nil {
+		return nil, err
+	}
+	return b, b.Begin(ctx, req)
+}
+
+func (b *Bistreamer) Close() {
+	//vv("Bistreamer.Close() called.")
+	req := NewMessage()
+	req.HDR.ServiceName = b.name
+	req.HDR.Typ = CallCancelPrevious
+	req.HDR.CallID = b.callID
+	req.HDR.Seqno = b.seqno
+	b.cli.OneWaySend(req, nil) // best effort
+}
+
+func (b *Bistreamer) Begin(ctx context.Context, req *Message) (err error) {
 
 	if req == nil {
 		req = NewMessage()
 	}
 
 	var from, to string
-	if c.isQUIC {
-		from = local(c.quicConn)
-		to = remote(c.quicConn)
+	if b.cli.isQUIC {
+		from = local(b.cli.quicConn)
+		to = remote(b.cli.quicConn)
 	} else {
-		from = local(c.conn)
-		to = remote(c.conn)
+		from = local(b.cli.conn)
+		to = remote(b.cli.conn)
 	}
 
-	hdr := NewHDR(from, to, bistreamerName, CallRequestBistreaming, 0)
-	hdr.Ctx = ctx
+	req.HDR.To = to
+	req.HDR.From = from
+	req.HDR.ServiceName = b.name
+	req.HDR.StreamPart = 0
+	req.HDR.Typ = CallRequestBistreaming
+	req.HDR.Seqno = b.seqno
 
-	//vv("RequestBistreaming, req.HDR = '%v'", hdr.String())
-
-	deadline, ok := ctx.Deadline()
-	if ok {
-		//vv("RequestBistreaming sees deadline '%v'", deadline)
-		hdr.Deadline = deadline
+	// preserve created at too.
+	if req.HDR.Created.IsZero() {
+		req.HDR.Created = time.Now()
 	}
-	req.HDR = *hdr
+	req.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
+	req.HDR.CallID = b.callID
 
-	err = c.OneWaySend(req, ctx.Done())
+	//vv("RequestBistreaming, req.HDR = '%v'", req.HDR.String())
+
+	if req.HDR.Deadline.IsZero() {
+		req.HDR.Deadline, _ = ctx.Deadline()
+	}
+
+	//vv("Bistreamer.Begin(): sending req = '%v'", req.String())
+	err = b.cli.OneWaySend(req, ctx.Done())
 	if err != nil {
 		return
 	}
 
-	b = &Bistreamer{
-		next:   1,
-		cli:    c,
-		callID: hdr.CallID,
-		ReadCh: c.GetReadIncomingChForCallID(hdr.CallID),
-		Name:   bistreamerName,
-	}
-
-	// get our Seqno back, so test can assert it is preserved.
-	// This also waits for the req to actually be sent.
-	// It should only block for few microseconds.
-	select {
-	case <-req.DoneCh:
-		b.Seqno = req.HDR.Seqno
-	case <-ctx.Done():
-	}
 	return
 }

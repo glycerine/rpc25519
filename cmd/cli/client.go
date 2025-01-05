@@ -10,6 +10,7 @@ import (
 	"os"
 	filepath "path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	tdigest "github.com/caio/go-tdigest"
@@ -42,6 +43,8 @@ func main() {
 	var wait = flag.Duration("wait", 10*time.Second, "time to wait for call to complete")
 
 	var sendfile = flag.String("sendfile", "", "path to file to send")
+
+	var echofile = flag.String("echofile", "", "path to file to send to bistreaming server, which will echo it back to us")
 
 	flag.Parse()
 
@@ -95,6 +98,73 @@ func main() {
 	vv("client connected from local addr='%v'", cli.LocalAddr())
 	fmt.Println()
 
+	doBistream := false
+	var bistream *rpc25519.Bistreamer
+	var wg sync.WaitGroup
+	bistreamerName := "echoBistreamFunc"
+
+	if *echofile != "" {
+		doBistream = true
+
+		// Approach:
+		// have the echofile implementation do the upload for us,
+		// while we do the download in a separate goroutine.
+
+		vv("cli echofile requested for file '%v'", *echofile)
+
+		*sendfile = *echofile
+
+		downloadFile := *echofile + ".echoed"
+
+		bistream, err = cli.NewBistreamer(bistreamerName)
+		panicOn(err)
+		defer bistream.Close()
+
+		s := rpc25519.NewPerCallID_FileToDiskState(bistream.CallID())
+		s.OverrideFilename = downloadFile
+		//vv("bistream.CallID() = '%v'", bistream.CallID())
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			for {
+				select {
+				case req := <-bistream.ReadDownloadsCh:
+					//vv("cli bistream downloadsCh sees %v", req.String())
+
+					if req.HDR.Typ == rpc25519.CallRPCReply {
+						//vv("cli bistream downloadsCh sees CallRPCReply, exiting goro")
+						return
+					}
+					last := (req.HDR.Typ == rpc25519.CallDownloadEnd)
+					err = s.WriteOneMsgToFile(req, "echoclientgot", last)
+
+					if err != nil {
+						panic(err)
+						return
+					}
+					if last {
+						//totSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(s.Blake3hash.Sum(nil))
+						////vv("ReceiveFileInParts sees last set!")
+						//vv("bytesWrit=%v; \nserver totSum='%v'", s.BytesWrit, totSum)
+
+						elap := time.Since(s.T0)
+						mb := float64(s.BytesWrit) / float64(1<<20)
+						seconds := (float64(elap) / float64(time.Second))
+						rate := mb / seconds
+
+						fmt.Printf("got upcall at '%v' => "+
+							"elap = %v\n (while mb=%v) => %v MB/sec. ; \n bytesWrit=%v;",
+							s.T0, elap, mb, rate, s.BytesWrit)
+
+					} // end if last
+				} //end select
+			} // end for seenCount
+		}()
+
+	} // end if echofile
+
 	if *sendfile != "" {
 		t0 := time.Now()
 
@@ -120,8 +190,9 @@ func main() {
 
 		blake3hash := blake3.New(64, nil)
 
-		//maxMessage := rpc25519.UserMaxPayload
+		// much smoother progress display waiting for 1MB rather than 64MB
 		maxMessage := 1024 * 1024
+		//maxMessage := rpc25519.UserMaxPayload
 		//maxMessage := 1024
 		buf := make([]byte, maxMessage)
 		var tot int
@@ -148,7 +219,12 @@ func main() {
 				filename := filepath.Base(path)
 				req.HDR.Args = map[string]string{"readFile": filename, "blake3": sumstring}
 
-				strm, err = cli.UploadBegin(ctx, req)
+				if doBistream {
+					//vv("client about to do bistream.Begin(); req = '%v'", req.String())
+					err = bistream.Begin(ctx, req)
+				} else {
+					strm, err = cli.UploadBegin(ctx, "__fileUploader", req)
+				}
 				panicOn(err)
 				if err1 == io.EOF {
 					break upload
@@ -161,7 +237,11 @@ func main() {
 			// must copy!
 			streamMsg.JobSerz = append([]byte{}, send...)
 			streamMsg.HDR.Args = map[string]string{"blake3": sumstring}
-			err = strm.UploadMore(ctx, streamMsg, err1 == io.EOF)
+			if doBistream {
+				err = bistream.UploadMore(ctx, streamMsg, err1 == io.EOF)
+			} else {
+				err = strm.UploadMore(ctx, streamMsg, err1 == io.EOF)
+			}
 			panicOn(err)
 
 			if time.Since(lastUpdate) > time.Second {
@@ -180,29 +260,38 @@ func main() {
 		clientTotSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(blake3hash.Sum(nil))
 
 		fmt.Println()
-		vv("we read tot = %v bytes", tot)
-		//vv("client tot-sum='%v'", clientTotSum)
+		//vv("we uploaded tot = %v bytes", tot)
+		if doBistream {
+			//vv("bistream about to wait")
+			wg.Wait()
+			//vv("past Wait, client upload tot-sum='%v'", clientTotSum)
+			// the goro consumed the CallRPCReply to know when to
+			// exit, and we get here because when the goro exists, the
+			// wait is done. so there won't be any more bistream messages coming.
+			return // all done, return from main().
 
-		select {
-		case reply := <-strm.ReadCh:
-			if false {
-				report := string(reply.JobSerz)
-				vv("reply.HDR: '%v'", reply.HDR.String())
-				vv("with JobSerz: '%v'", report)
+		} else {
+			select {
+			case reply := <-strm.ReadCh:
+				if false {
+					report := string(reply.JobSerz)
+					vv("reply.HDR: '%v'", reply.HDR.String())
+					vv("with JobSerz: '%v'", report)
+				}
+				fmt.Printf("total time for upload: '%v'\n", time.Since(t0))
+
+				serverTotSum := reply.HDR.Args["serverTotalBlake3sum"]
+
+				if clientTotSum == serverTotSum {
+					//vv("GOOD! server and client blake3 checksums are the same!\n serverTotSum='%v'\n clientTotsum='%v'", serverTotSum, clientTotSum)
+				} else {
+					vv("PROBLEM! server and client blake3 checksums do not match!\n serverTotSum='%v'\n clientTotsum='%v'", serverTotSum, clientTotSum)
+				}
+			case <-time.After(time.Minute):
+				panic("should have gotten a reply from the server finishing the stream.")
 			}
-			fmt.Printf("total time for upload: '%v'\n", time.Since(t0))
-
-			serverTotSum := reply.HDR.Args["serverTotalBlake3sum"]
-
-			if clientTotSum == serverTotSum {
-				//vv("GOOD! server and client blake3 checksums are the same!\n serverTotSum='%v'\n clientTotsum='%v'", serverTotSum, clientTotSum)
-			} else {
-				vv("PROBLEM! server and client blake3 checksums do not match!\n serverTotSum='%v'\n clientTotsum='%v'", serverTotSum, clientTotSum)
-			}
-		case <-time.After(time.Minute):
-			panic("should have gotten a reply from the server finishing the stream.")
+			return
 		}
-		return
 	} // if sendfile
 
 	if *n > 1 {

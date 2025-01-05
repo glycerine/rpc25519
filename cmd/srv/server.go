@@ -66,6 +66,8 @@ func main() {
 
 	var readfile = flag.Bool("readfile", false, "listen for files to write to disk; client should run -sendfile")
 
+	var echo = flag.Bool("echo", false, "bistream echo everything")
+
 	flag.Parse()
 
 	if *max > 0 {
@@ -92,6 +94,11 @@ func main() {
 
 	srv := rpc25519.NewServer("srv", cfg)
 	defer srv.Close()
+
+	if *echo {
+		streamerName := "echoBistreamFunc"
+		srv.RegisterBistreamFunc(streamerName, rpc25519.EchoBistreamFunc)
+	}
 
 	if *readfile {
 		streamer := rpc25519.NewServerSideUploadState()
@@ -131,33 +138,3 @@ func customEcho(req, reply *rpc25519.Message) error {
 	reply.JobSerz = append(req.JobSerz, []byte(fmt.Sprintf("\n with time customEcho sees this: '%v'", time.Now()))...)
 	return nil
 }
-
-/* old
-func receiveFiles(req, reply *rpc25519.Message) error {
-	t0 := time.Now()
-	log.Printf("server receiveFile called, Subject='%v'; To='%v'", req.HDR.Subject, req.HDR.To)
-	if !strings.HasPrefix(req.HDR.Subject, "receiveFile:") {
-		return nil
-	}
-	prefix := "receiveFile:"
-	fname := req.HDR.Subject[len(prefix):]
-	if fname == "" {
-		return nil
-	}
-	w, err := os.Create(fname)
-	if err != nil {
-		panic(err)
-	}
-	_, err = io.Copy(w, bytes.NewBuffer(req.JobSerz))
-	if err != nil {
-		panic(err)
-	}
-	log.Printf("saved data to file='%v'", fname)
-	elap := t0.Sub(req.HDR.Created)
-	mb := float64(len(req.JobSerz)) / float64(1<<20)
-	rate := mb / (float64(elap) / float64(time.Second))
-	reply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => elap = %v (while mb=%v) => %v MB/sec", t0, elap, mb, rate))
-
-	return nil
-}
-*/

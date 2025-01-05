@@ -790,9 +790,10 @@ func Test030_RoundTrip_SendAndGetReply_then_JSON(t *testing.T) {
 		panicOn(err)
 
 		j, err := reply.AsJSON(nil)
+		_ = j
 		panicOn(err)
 
-		vv("server sees reply '%v' ==> json:\n%v\n", reply, string(j))
+		//vv("server sees reply '%v' ==> json:\n%v\n", reply, string(j))
 		/*
 			srv_test.go:767 2024-11-23 06:17:28.084 -0600 CST server sees reply '&Message{HDR:{
 			    "Nc": null,

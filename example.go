@@ -342,24 +342,26 @@ func (s *MustBeCancelled) MessageAPI_HangUntilCancel(req, reply *Message) error 
 // message order.
 type ServerSideUploadState struct {
 	// key is CallID
-	m map[string]*PerCallIDUploadState
+	m map[string]*PerCallID_FileToDiskState
 }
 
-type PerCallIDUploadState struct {
-	callID string
-	t0     time.Time
+//msgp:ignore PerCallID_FileToDiskState
+type PerCallID_FileToDiskState struct {
+	CallID string
+	T0     time.Time
 
-	fnameTmp   string
-	fnameFinal string
-	randomness string
+	OverrideFilename string // if set, use instead of "readFile" in Args.
+	FnameTmp         string
+	FnameFinal       string
+	Randomness       string
 
-	fd        *os.File
-	bytesWrit int64
+	Fd        *os.File
+	BytesWrit int64
 
-	blake3hash *blake3.Hasher
+	Blake3hash *blake3.Hasher
 
-	partsSeen map[int64]bool
-	seenCount int
+	PartsSeen map[int64]bool
+	SeenCount int
 }
 
 // NewServerSideUploadState returns a new
@@ -367,7 +369,16 @@ type PerCallIDUploadState struct {
 // the cli_test.go Test045 mechanics.
 func NewServerSideUploadState() *ServerSideUploadState {
 	return &ServerSideUploadState{
-		m: make(map[string]*PerCallIDUploadState),
+		m: make(map[string]*PerCallID_FileToDiskState),
+	}
+}
+
+func NewPerCallID_FileToDiskState(callID string) *PerCallID_FileToDiskState {
+	return &PerCallID_FileToDiskState{
+		CallID:     callID,
+		PartsSeen:  make(map[int64]bool),
+		Blake3hash: blake3.New(64, nil),
+		T0:         time.Now(),
 	}
 }
 
@@ -410,12 +421,12 @@ func (st *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Me
 	callID := req.HDR.CallID
 	s, ok := st.m[callID]
 	if !ok {
-		s = &PerCallIDUploadState{callID: callID}
+		s = NewPerCallID_FileToDiskState(callID)
 		st.m[callID] = s
 	}
 
-	if s.t0.IsZero() {
-		s.t0 = req.HDR.Created
+	if s.T0.IsZero() {
+		s.T0 = req.HDR.Created
 	}
 	hdr1 := req.HDR
 
@@ -426,28 +437,67 @@ func (st *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Me
 	default:
 	}
 
-	if hdr1.StreamPart != int64(s.seenCount) {
-		panic(fmt.Sprintf("%v = hdr1.StreamPart != s.seenCount = %v", hdr1.StreamPart, s.seenCount))
+	if hdr1.StreamPart != int64(s.SeenCount) {
+		panic(fmt.Sprintf("%v = hdr1.StreamPart != s.seenCount = %v", hdr1.StreamPart, s.SeenCount))
 	}
 
-	s.seenCount++
+	err = s.WriteOneMsgToFile(req, "servergot", lastReply != nil)
+	if err != nil {
+		return
+	}
+	if lastReply != nil {
+
+		totSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(s.Blake3hash.Sum(nil))
+		//vv("ReceiveFileInParts sees last set!")
+		//vv("bytesWrit=%v; \nserver totSum='%v'", s.bytesWrit, totSum)
+
+		elap := time.Since(s.T0)
+		mb := float64(s.BytesWrit) / float64(1<<20)
+		seconds := (float64(elap) / float64(time.Second))
+		rate := mb / seconds
+
+		lastReply.HDR.Args["serverTotalBlake3sum"] = totSum
+
+		// finally reply to the original caller.
+		lastReply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => "+
+			"elap = %v\n (while mb=%v) => %v MB/sec. ; \n bytesWrit=%v;",
+			s.T0, elap, mb, rate, s.BytesWrit))
+
+		//vv("returning with lastReply = '%v'", string(lastReply.JobSerz))
+
+		// cleanup
+		delete(st.m, callID)
+	}
+	return
+}
+
+func (s *PerCallID_FileToDiskState) WriteOneMsgToFile(req *Message, suffix string, last bool) (err error) {
+
+	s.SeenCount++
+	hdr1 := &req.HDR
 	if hdr1.StreamPart == 0 {
-		if s.seenCount != 1 {
+		if s.SeenCount != 1 {
 			panic("we saw a part before 0!")
 		}
 		//vv("ServerSideUploadState.ReceiveFileInParts sees part 0: hdr1='%v'", hdr1.String())
-		s.partsSeen = make(map[int64]bool)
-		s.blake3hash = blake3.New(64, nil)
+		s.PartsSeen = make(map[int64]bool)
+		s.Blake3hash = blake3.New(64, nil)
 
-		filename, ok := hdr1.Args["readFile"]
-		if !ok {
-			panic("Args must contain readFile -> the file name !")
+		filename := ""
+		ok := false
+		if s.OverrideFilename != "" {
+			filename = s.OverrideFilename
+		} else {
+			filename, ok = hdr1.Args["readFile"]
+			if !ok {
+				panic("Args must contain readFile -> the file name !")
+			}
 		}
 
 		// do an atomic rename from temp file to final name at the end
-		s.fnameFinal = filename + ".servergot" // avoid clobbering origin file if same dir
-		s.randomness = cryRandBytesBase64(16)
-		s.fnameTmp = s.fnameFinal + ".tmp_" + s.randomness
+		s.FnameFinal = filename + "." + suffix // avoid clobbering origin file if same dir
+		s.Randomness = cryRandBytesBase64(16)
+		s.FnameTmp = s.FnameFinal + ".tmp_" + s.Randomness
 
 		sum := blake3OfBytesString(req.JobSerz)
 		blake3checksumBase64, ok := hdr1.Args["blake3"]
@@ -458,21 +508,21 @@ func (st *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Me
 		}
 
 		// save the file handle for the next callback too.
-		s.fd, err = os.Create(s.fnameTmp)
+		s.Fd, err = os.Create(s.FnameTmp)
 		if err != nil {
-			return fmt.Errorf("error: server could not path '%v': '%v'", s.fnameTmp, err)
+			return fmt.Errorf("error: server could not path '%v': '%v'", s.FnameTmp, err)
 		}
-		go s.fd.Sync() // get the file showing on disk asap
+		go s.Fd.Sync() // get the file showing on disk asap
 	}
 
 	part := req.HDR.StreamPart
-	seen := s.partsSeen[part]
+	seen := s.PartsSeen[part]
 	if seen {
 		panic(fmt.Sprintf("part %v was already seen.", part))
 	}
-	s.partsSeen[part] = true
+	s.PartsSeen[part] = true
 
-	s.blake3hash.Write(req.JobSerz)
+	s.Blake3hash.Write(req.JobSerz)
 	serverSum := blake3OfBytesString(req.JobSerz)
 	clientSum := req.HDR.Args["blake3"]
 
@@ -480,47 +530,27 @@ func (st *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Me
 
 	if part > 0 && serverSum != clientSum {
 		panic(fmt.Sprintf("checksum disagree on part %v; see above."+
-			" server sees len %v req.JobSerz='%v'", part, len(req.JobSerz),
-			string(req.JobSerz)))
+			" server sees len %v req.JobSerz='%v'; serverSum='%v'; clientSum='%v'",
+			part, len(req.JobSerz),
+			string(req.JobSerz), serverSum, clientSum))
 	}
 	n := len(req.JobSerz)
 	if n > 0 {
-		nw, err := io.Copy(s.fd, bytes.NewBuffer(req.JobSerz))
-		s.bytesWrit += nw
+		nw, err := io.Copy(s.Fd, bytes.NewBuffer(req.JobSerz))
+		s.BytesWrit += nw
 		if err != nil {
 			err = fmt.Errorf("ReceiveFileInParts: on "+
 				"writing StreamPart 1 to path '%v', we got error: "+
-				"'%v', after writing %v of %v", s.fnameTmp, err, nw, n)
+				"'%v', after writing %v of %v", s.FnameTmp, err, nw, n)
 			vv("problem: %v", err.Error())
 			return err
 		}
 	}
-
-	if lastReply != nil {
-		s.fd.Close()
-		err = os.Rename(s.fnameTmp, s.fnameFinal)
+	if last {
+		//vv("WriteOneMsgToFile sees last, renaming '%v' -> '%v'", s.FnameTmp, s.FnameFinal)
+		s.Fd.Close()
+		err = os.Rename(s.FnameTmp, s.FnameFinal)
 		panicOn(err)
-
-		totSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(s.blake3hash.Sum(nil))
-		//vv("ReceiveFileInParts sees last set!")
-		//vv("bytesWrit=%v; \nserver totSum='%v'", s.bytesWrit, totSum)
-
-		elap := time.Since(s.t0)
-		mb := float64(s.bytesWrit) / float64(1<<20)
-		seconds := (float64(elap) / float64(time.Second))
-		rate := mb / seconds
-
-		lastReply.HDR.Args["serverTotalBlake3sum"] = totSum
-
-		// finally reply to the original caller.
-		lastReply.JobSerz = []byte(fmt.Sprintf("got upcall at '%v' => "+
-			"elap = %v\n (while mb=%v) => %v MB/sec. ; \n bytesWrit=%v;",
-			s.t0, elap, mb, rate, s.bytesWrit))
-
-		//vv("returning with lastReply = '%v'", string(lastReply.JobSerz))
-
-		// cleanup
-		delete(st.m, callID)
 	}
 	return
 }
@@ -531,10 +561,12 @@ type ServerSendsDownloadState struct{}
 // It demonstrates how a registered server func can stream to the client.
 // ServerSendStream has type ServerSendsDownloadFunc, and gets
 // registered on the server with srv.RegisterServerSendsDownloadFunc().
-func (ssss *ServerSendsDownloadState) ServerSendsDownload(srv *Server, ctx context.Context, req *Message, sendStreamPart func(ctx context.Context, by []byte, last bool) error, lastReply *Message) (err error) {
+func (ssss *ServerSendsDownloadState) ServerSendsDownload(srv *Server, ctx context.Context, req *Message, sendStreamPart func(ctx context.Context, msg *Message, last bool) error, lastReply *Message) (err error) {
 	done := ctx.Done()
 	for i := range 20 {
-		sendStreamPart(ctx, []byte(fmt.Sprintf("part %v;", i)), i == 19)
+		msg := NewMessage()
+		msg.JobSerz = []byte(fmt.Sprintf("part %v;", i))
+		sendStreamPart(ctx, msg, i == 19)
 		select {
 		case <-done:
 			vv("exiting early! we see done requested at i = %v", i)
@@ -560,7 +592,7 @@ func (bi *ServeBistreamState) ServeBistream(
 	ctx context.Context,
 	req *Message,
 	uploadsFromClientCh <-chan *Message,
-	sendDownloadPartToClient func(ctx context.Context, by []byte, last bool) error,
+	sendDownloadPartToClient func(ctx context.Context, msg *Message, last bool) error,
 	lastReply *Message,
 ) (err error) {
 
@@ -598,7 +630,9 @@ func (bi *ServeBistreamState) ServeBistream(
 	done := ctx.Done()
 	for i := range 20 {
 		//vv("on i = %v", i)
-		err = sendDownloadPartToClient(ctx, []byte(fmt.Sprintf("part %v;", i)), i == 19)
+		msg := NewMessage()
+		msg.JobSerz = []byte(fmt.Sprintf("part %v;", i))
+		err = sendDownloadPartToClient(ctx, msg, i == 19)
 		if err != nil {
 			return fmt.Errorf("error back from sendDownloadPartToClient: '%v'", err)
 		}
@@ -740,4 +774,55 @@ func blake3OfBytes(by []byte) []byte {
 func blake3OfBytesString(by []byte) string {
 	sum := blake3OfBytes(by)
 	return "blake3-" + cristalbase64.URLEncoding.EncodeToString(sum)
+}
+
+// Echo anything we get from the client back. srv uses to test bistreaming.
+func EchoBistreamFunc(
+	srv *Server,
+	ctx context.Context,
+	req *Message,
+	uploadsFromClientCh <-chan *Message,
+	sendDownloadPartToClient func(ctx context.Context, msg *Message, last bool) error,
+	lastReply *Message,
+) (err error) {
+
+	done := ctx.Done()
+	//vv("top of EchoBistreamFunc; done = %p", done)
+	for {
+		//vv("EchoBistreamFunc; about to select (get upload from client or done)")
+		select {
+		// upload stream parts arrive here
+		case msg := <-uploadsFromClientCh:
+			//vv("got msg in EchoBistreamFunc: '%v'", msg.HDR.String())
+
+			// simplest thing, echo back what we got.
+			// but convert it down download
+			last := false
+			switch msg.HDR.Typ {
+			case CallUploadBegin:
+				msg.HDR.Typ = CallDownloadBegin
+			case CallUploadMore:
+				msg.HDR.Typ = CallDownloadMore
+			case CallUploadEnd:
+				msg.HDR.Typ = CallDownloadEnd
+				last = true
+			}
+			err = sendDownloadPartToClient(ctx, msg, last)
+			if err != nil {
+				// connection to client may have been lost...
+				return err
+			}
+			if last {
+				//vv("EchoBistreamFunc saw CallUploadEnd, finishing.")
+				return nil
+			}
+		case <-done:
+			//vv("EchoBistreamFunc has been cancelled, sending CallDownloadEnd and that's all folks.")
+			sendDownloadPartToClient(ctx, nil, true)
+			lastReply.JobSerz = []byte("that's all folks!")
+			return
+		}
+	}
+
+	return
 }
