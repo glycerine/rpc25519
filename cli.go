@@ -1407,11 +1407,17 @@ func (c *Client) SendAndGetReplyWithTimeout(timeout time.Duration, req *Message)
 // is also always a hazard with servers crashing
 // before they can finish responding. Ideally
 // server APIs are idempotent to guard against this.
+//
+// If the req.HDR.Deadline is already set (not zero),
+// then we do not touch it. If it is zero and
+// ctx has a deadline, we set it as the req.HDR.Deadline.
+// We leave it to the user to coordinate/update these two
+// ways of setting a dealine, knowing that the
+// req.HDR.Deadline will win, if set.
 func (c *Client) SendAndGetReplyWithCtx(ctx context.Context, req *Message) (reply *Message, err error) {
-	deadline, ok := ctx.Deadline()
-	if ok {
-		// don't lengthen deadline if it is already shorter.
-		if req.HDR.Deadline.IsZero() || (!deadline.IsZero() && req.HDR.Deadline.After(deadline)) {
+	if req.HDR.Deadline.IsZero() {
+		deadline, ok := ctx.Deadline()
+		if ok {
 			req.HDR.Deadline = deadline
 		}
 	}
@@ -1464,21 +1470,14 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 	// preserve the deadline, but
 	// don't lengthen deadline if it
 	// is already shorter.
-	var hdrCtx context.Context
 	var hdrCtxDone <-chan struct{}
 
-	var deadline time.Time
+	// Allow user to adjust deadline however they like.
+	// But if not set, set it if context has one.
 	if req.HDR.Ctx != nil && !IsNil(req.HDR.Ctx) {
-		hdrCtx = req.HDR.Ctx
-		hdrCtxDone = hdrCtx.Done()
-		dl, ok := hdrCtx.Deadline()
-		if ok {
-			deadline = dl
-			if req.HDR.Deadline.IsZero() ||
-				(!deadline.IsZero() && req.HDR.Deadline.After(deadline)) {
-
-				req.HDR.Deadline = deadline
-			}
+		hdrCtxDone = req.HDR.Ctx.Done()
+		if req.HDR.Deadline.IsZero() {
+			req.HDR.Deadline, _ = req.HDR.Ctx.Deadline()
 		}
 	}
 
