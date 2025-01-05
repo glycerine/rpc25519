@@ -343,7 +343,10 @@ func (s *MustBeCancelled) MessageAPI_HangUntilCancel(req, reply *Message) error 
 type ServerSideUploadState struct {
 	t0 time.Time
 
-	fname     string
+	fnameTmp   string
+	fnameFinal string
+	randomness string
+
 	fd        *os.File
 	bytesWrit int64
 
@@ -383,7 +386,7 @@ func (s *ServerSideUploadState) ReceiveFileInParts(req *Message, lastReply *Mess
 	select {
 	case <-ctx.Done():
 		panic("cancelling?!?! what??")
-		return fmt.Errorf("context cancelled")
+		return ErrContextCancelled
 	default:
 	}
 
@@ -404,7 +407,15 @@ func (s *ServerSideUploadState) ReceiveFileInParts(req *Message, lastReply *Mess
 		}
 		prefix := "receiveFile:"
 		splt := strings.Split(hdr1.Subject[len(prefix):], ":")
-		s.fname = splt[0] + ".servergot" // avoid clobbering origin file if same dir
+
+		if splt[0] == "" {
+			panic("subject must contain receiveFile: and the file name, which was missing !")
+		}
+
+		// do an atomic rename from temp file to final name at the end
+		s.fnameFinal = splt[0] + ".servergot" // avoid clobbering origin file if same dir
+		s.randomness = cryRandBytesBase64(16)
+		s.fnameTmp = s.fnameFinal + ".tmp_" + s.randomness
 
 		sum := blake3OfBytesString(req.JobSerz)
 		blake3checksumBase64 := ""
@@ -414,14 +425,11 @@ func (s *ServerSideUploadState) ReceiveFileInParts(req *Message, lastReply *Mess
 				panic(fmt.Sprintf("checksum on first %v bytes disagree: client sent blake3sum='%v'; we computed = '%v'", len(req.JobSerz), blake3checksumBase64, sum))
 			}
 		}
-		if s.fname == "" {
-			panic("subject must contain receiveFile: and the file name, which was missing !")
-		}
 
 		// save the file handle for the next callback too.
-		s.fd, err = os.Create(s.fname)
+		s.fd, err = os.Create(s.fnameTmp)
 		if err != nil {
-			return fmt.Errorf("error: server could not path '%v': '%v'", s.fname, err)
+			return fmt.Errorf("error: server could not path '%v': '%v'", s.fnameTmp, err)
 		}
 		go s.fd.Sync() // get the file showing on disk asap
 	}
@@ -446,16 +454,19 @@ func (s *ServerSideUploadState) ReceiveFileInParts(req *Message, lastReply *Mess
 		if err != nil {
 			err = fmt.Errorf("ReceiveFileInParts: on "+
 				"writing StreamPart 1 to path '%v', we got error: "+
-				"'%v', after writing %v of %v", s.fname, err, nw, n)
+				"'%v', after writing %v of %v", s.fnameTmp, err, nw, n)
 			vv("problem: %v", err.Error())
 			return err
 		} else {
-			//vv("succesfully wrote part %v to the file '%v': '%v'", part, s.fname, blake3OfBytesString(req.JobSerz))
+			//vv("succesfully wrote part %v to the file '%v': '%v'", part, s.fnameTmp, blake3OfBytesString(req.JobSerz))
 		}
 	}
 
 	if lastReply != nil {
 		s.fd.Close()
+
+		err = os.Rename(s.fnameTmp, s.fnameFinal)
+		panicOn(err)
 
 		totSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(s.blake3hash.Sum(nil))
 		//vv("ReceiveFileInParts sees last set! bytesWrit=%v; \nserver totSum='%v'", s.bytesWrit, totSum)

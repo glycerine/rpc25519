@@ -115,6 +115,13 @@ func newCryrandSeededChaCha8() *mathrand2.ChaCha8 {
 	return mathrand2.NewChaCha8(seed)
 }
 
+func cryRandBytesBase64(numBytes int) string {
+	by := make([]byte, numBytes)
+	_, err := cryrand.Read(by)
+	panicOn(err)
+	return cristalbase64.URLEncoding.EncodeToString(by)
+}
+
 // Message transports JobSerz []byte slices for
 // the user, who can de-serialize them they wish.
 // The HDR header field provides transport details.

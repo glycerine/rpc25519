@@ -91,6 +91,9 @@ func main() {
 
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
+
+		// wait to initialize the Uploader until we
+		// actually have data to send.
 		var strm *rpc25519.Uploader
 
 		blake3hash := blake3.New(64, nil)
