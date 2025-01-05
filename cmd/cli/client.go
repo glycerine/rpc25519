@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
 	filepath "path/filepath"
+	"strings"
 	"time"
 
 	tdigest "github.com/caio/go-tdigest"
@@ -45,6 +47,21 @@ func main() {
 
 	if *remoteDefault {
 		*dest = "192.168.254.151:8443"
+	}
+
+	if *dest != "" {
+		// provide a default port if not given, of :8443
+		host, port, err := net.SplitHostPort(*dest)
+		_ = port
+		if err != nil && strings.Contains(err.Error(), "missing port in address") {
+			*dest += ":8443"
+			vv("defaulting to port 8443, as in: %v", *dest)
+		} else {
+			if port == "0" {
+				*dest += host + ":8443"
+				vv("defaulting to port 8443, as in: %v", *dest)
+			}
+		}
 	}
 
 	// A tdigest compress setting of 100 gives 1000x compression,
