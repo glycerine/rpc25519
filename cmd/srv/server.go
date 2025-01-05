@@ -1,16 +1,16 @@
 package main
 
 import (
-	"bytes"
+	//"bytes"
 	"flag"
 	"fmt"
-	"io"
+	//"io"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"runtime"
-	"strings"
+	//"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -94,7 +94,8 @@ func main() {
 	defer srv.Close()
 
 	if *recvfile {
-		srv.Register2Func(receiveFiles)
+		streamer := rpc25519.NewServerSideUploadFunc()
+		srv.RegisterUploadReaderFunc(streamer.ReceiveFileInParts)
 	} else {
 		srv.Register2Func(customEcho)
 	}
@@ -130,6 +131,7 @@ func customEcho(req, reply *rpc25519.Message) error {
 	return nil
 }
 
+/* old
 func receiveFiles(req, reply *rpc25519.Message) error {
 	t0 := time.Now()
 	log.Printf("server receiveFile called, Subject='%v'; To='%v'", req.HDR.Subject, req.HDR.To)
@@ -157,3 +159,4 @@ func receiveFiles(req, reply *rpc25519.Message) error {
 
 	return nil
 }
+*/

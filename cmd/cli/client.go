@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -82,18 +83,47 @@ func main() {
 		if err != nil {
 			panic(fmt.Sprintf("error reading path '%v': '%v'", path, err))
 		}
-		req := rpc25519.NewMessage()
-		req.JobSerz = by
-		req.HDR.Subject = "receiveFile:" + filepath.Base(path) // client looks for this
 
-		reply, err := cli.SendAndGetReply(req, nil)
-		if err != nil {
-			panic(fmt.Sprintf("error during OneWaySend of path '%v': '%v'", path, err))
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+		var strm *rpc25519.Uploader
+
+		maxMessage := 64*1024*1024 - 80
+		for i := 0; len(by) > 0; i++ {
+
+			var part []byte
+			if len(by) < maxMessage {
+				part = by
+				by = nil
+			} else {
+				part = by[:maxMessage]
+				by = by[maxMessage:]
+			}
+			if i == 0 {
+				req := rpc25519.NewMessage()
+				req.JobSerz = part
+				req.HDR.Subject = "receiveFile:" + filepath.Base(path) // client looks for this
+
+				strm, err = cli.UploadBegin(ctx, req)
+				panicOn(err)
+				continue
+			}
+			streamMsg := rpc25519.NewMessage()
+			streamMsg.JobSerz = part
+			err = strm.UploadMore(ctx, streamMsg, len(by) == 0)
+			panicOn(err)
 		}
-		fmt.Printf("reply.HDR = '%v' -> body = '%v'\n", reply.HDR.String(), string(reply.JobSerz))
-		fmt.Printf("round trip time for client to send body and get ack was '%v'\n", time.Since(t0))
+
+		select {
+		case reply := <-strm.ReadCh:
+			report := string(reply.JobSerz)
+			vv("reply.HDR: '%v' with JobSerz: '%v'", reply.HDR.String(), report)
+			fmt.Printf("round trip time for upload: '%v'\n", time.Since(t0))
+		case <-time.After(time.Minute):
+			panic("should have gotten a reply from the server finishing the stream.")
+		}
 		return
-	}
+	} // if sendfile
 
 	if *n > 1 {
 		alwaysPrintf("about to do n = %v calls.\n", *n)

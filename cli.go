@@ -1569,6 +1569,7 @@ type Uploader struct {
 	next   int64
 	callID string
 	done   bool
+	ReadCh <-chan *Message
 }
 
 func (s *Uploader) CallID() string {
@@ -1630,6 +1631,7 @@ func (c *Client) UploadBegin(
 		cli:    c,
 		next:   1,
 		callID: msg.HDR.CallID,
+		ReadCh: c.GetReadIncomingChForCallID(msg.HDR.CallID),
 	}, nil
 }
 
@@ -1867,7 +1869,7 @@ func (c *Client) setupPSK(conn uConn) error {
 type Downloader struct {
 	CallID string
 	Seqno  uint64
-	ReadCh chan *Message
+	ReadCh <-chan *Message
 	Name   string
 }
 

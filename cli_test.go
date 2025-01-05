@@ -970,8 +970,9 @@ func Test045_upload(t *testing.T) {
 
 		defer client.Close()
 
-		// read the final reply from the server.
-		readCh := client.GetReadIncomingCh()
+		// to read the final reply from the server,
+		// use strm.ReadCh rather than client.GetReadIncomingCh(),
+		// since strm.ReadCh is filtered for our CallID.
 
 		ctx45, cancelFunc45 := context.WithCancel(context.Background())
 		defer cancelFunc45()
@@ -1010,7 +1011,7 @@ func Test045_upload(t *testing.T) {
 		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
 
 		select {
-		case m := <-readCh:
+		case m := <-strm.ReadCh:
 			report := string(m.JobSerz)
 			vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
 			cv.So(strings.Contains(report, "bytesWrit"), cv.ShouldBeTrue)
