@@ -541,8 +541,8 @@ func (c *Client) runSendLoop(conn net.Conn) {
 // Any errors can be returned on reply.JobErrs; this is optional.
 // Note that JobErrs is a string value rather than an error.
 //
-// The system will overwrite the reply.HDR field when sending the
-// reply, so the user should not bother trying to alter it.
+// The system will overwrite the reply.HDR.{To,From} fields when sending the
+// reply, so the user should not bother setting those.
 // The one exception to this rule is the reply.HDR.Subject string, which
 // can be set by the user to return user-defined information.
 // The reply will still be matched to the request on the HDR.Seqno, so
@@ -612,7 +612,7 @@ type ServerSendsDownloadFunc func(
 // been received) so as to save goroutine resources
 // on the server. The BistreamFunc is started on the server
 // when the CallRequestBistreaming Message.HDR.Typ
-// is received with the Subject matching the registered
+// is received with the ServiceName matching the registered
 // name. Each live instance of the BistreamFunc is identified
 // by the req.HDR.CallID set by the originating client. All
 // download messages sent will have this same CallID
@@ -719,7 +719,7 @@ type BistreamFunc func(
 // the stream, and so generally req should be processed
 // before considering if this is the last message and a final
 // lastReply should also be filled out.
-type UploadReaderFunc func(req *Message, lastReply *Message) error
+type UploadReaderFunc func(ctx context.Context, req *Message, lastReply *Message) error
 
 // Config is the same struct type for both NewClient
 // and NewServer setup.
@@ -1056,7 +1056,7 @@ func (c *Client) send(call *Call, octx context.Context) {
 	//vv("cli c.request.Seq = %v; request='%#v'", c.request.Seq, c.request)
 
 	req := NewMessage()
-	req.HDR.Subject = call.ServiceMethod
+	req.HDR.ServiceName = call.ServiceMethod
 	req.HDR.Typ = CallNetRPC
 
 	by := c.encBuf.Bytes()
@@ -1480,10 +1480,10 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 
 	case CallUploadMore, CallUploadEnd:
 		// must preserve the CallID on streaming calls.
-		hdr = newHDRwithoutCallID(from, to, req.HDR.Subject, req.HDR.Typ, req.HDR.StreamPart)
+		hdr = newHDRwithoutCallID(from, to, req.HDR.ServiceName, req.HDR.Typ, req.HDR.StreamPart)
 		hdr.CallID = req.HDR.CallID
 	default:
-		hdr = NewHDR(from, to, req.HDR.Subject, req.HDR.Typ, req.HDR.StreamPart)
+		hdr = NewHDR(from, to, req.HDR.ServiceName, req.HDR.Typ, req.HDR.StreamPart)
 	}
 
 	// preserve the deadline, but
@@ -1619,6 +1619,7 @@ func (c *Client) UploadBegin(
 ) (strm *Uploader, err error) {
 
 	msg.HDR.Typ = CallUploadBegin
+	msg.HDR.ServiceName = "__fileUploader"
 	msg.HDR.StreamPart = 0
 	cancelJobCh := ctx.Done()
 	err = c.OneWaySend(msg, cancelJobCh)

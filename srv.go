@@ -589,12 +589,15 @@ func (s *Server) processWork(job *job) {
 	var callme1 OneWayFunc
 	var callme2 TwoWayFunc
 	var callmeServerSendsDownloadFunc ServerSendsDownloadFunc
+	var callmeUploadReaderFunc UploadReaderFunc
+
 	var callmeBi BistreamFunc
 
 	foundCallback1 := false
 	foundCallback2 := false
 	foundServerSendsDownload := false
 	foundBistream := false
+	foundUploader := false
 
 	req := job.req
 	//vv("processWork got job: req.HDR='%v'", req.HDR.String())
@@ -613,7 +616,7 @@ func (s *Server) processWork(job *job) {
 	req.HDR.Nc = conn
 
 	if req.HDR.Typ == CallNetRPC {
-		//vv("have IsNetRPC call: '%v'", req.HDR.Subject)
+		//vv("have IsNetRPC call: '%v'", req.HDR.ServiceName)
 		err := pair.callBridgeNetRpc(req, job)
 		if err != nil {
 			alwaysPrintf("callBridgeNetRpc errored out: '%v'", err)
@@ -629,33 +632,32 @@ func (s *Server) processWork(job *job) {
 			foundCallback2 = true
 		}
 	case CallRequestBistreaming:
-		back, ok := s.callmeBistreamMap[req.HDR.Subject]
+		back, ok := s.callmeBistreamMap[req.HDR.ServiceName]
 		if ok {
 			callmeBi = back
 			foundBistream = true
 			//vv("foundBistream true!")
 		}
 	case CallRequestDownload:
-		back, ok := s.callmeServerSendsDownloadMap[req.HDR.Subject]
+		back, ok := s.callmeServerSendsDownloadMap[req.HDR.ServiceName]
 		if ok {
 			callmeServerSendsDownloadFunc = back
 			foundServerSendsDownload = true
 		}
 		if !ok {
 			// TODO: log this rather than panic. maybe respond to client?
-			panic(fmt.Sprintf("client asked for ServerSendsDownloadFunc req.HDR.Subject='%v' but this is not registered!", req.HDR.Subject))
+			panic(fmt.Sprintf("client asked for ServerSendsDownloadFunc req.HDR.ServiceName='%v' but this is not registered!", req.HDR.ServiceName))
 		}
 	case CallUploadBegin:
-		if s.callmeUploadReader == nil {
+		uploader, ok := s.callmeUploadReaderMap[req.HDR.ServiceName]
+		if !ok {
 			// nothing to do
-			alwaysPrintf("warning! possible problem: stream begin received but no registered stream handler available on the server. hdr='%v'", req.HDR.String())
+			alwaysPrintf("warning! possible problem: stream begin received but no registered stream upload handler available on the server. hdr='%v'", req.HDR.String())
 			s.mut.Unlock()
 			return
 		}
-		// use our internal callme2; see end of this file
-		// for Server.beginReadStream.
-		callme2 = s.beginReadStream
-		foundCallback2 = true
+		foundUploader = true
+		callmeUploadReaderFunc = uploader
 
 	case CallUploadMore, CallUploadEnd:
 		panic("cannot see these here, must for FIFO of the stream be called from the readloop")
@@ -671,7 +673,8 @@ func (s *Server) processWork(job *job) {
 	if !foundCallback1 &&
 		!foundCallback2 &&
 		!foundServerSendsDownload &&
-		!foundBistream {
+		!foundBistream &&
+		!foundUploader {
 		//vv("warning! no callbacks found for req = '%v'", req)
 		return
 	}
@@ -681,7 +684,7 @@ func (s *Server) processWork(job *job) {
 		return
 	}
 
-	if foundCallback2 || foundServerSendsDownload || foundBistream {
+	if foundCallback2 || foundServerSendsDownload || foundBistream || foundUploader {
 		//vv("foundCallback2 true, req.HDR = '%v'", req.HDR)
 
 		//vv("req.Nc local = '%v', remote = '%v'", local(req.Nc), remote(req.Nc))
@@ -726,7 +729,8 @@ func (s *Server) processWork(job *job) {
 		case foundBistream:
 			help := s.newServerSendDownloadHelper(ctx, job)
 			err = callmeBi(s, ctx, req, req.HDR.streamCh, help.sendDownloadPart, reply)
-
+		case foundUploader:
+			s.beginReadStream(ctx, callmeUploadReaderFunc, req, reply)
 		}
 		if err != nil {
 			reply.JobErrs = err.Error()
@@ -805,7 +809,7 @@ type Server struct {
 	callme1 OneWayFunc
 
 	// client -> server streams
-	callmeUploadReader UploadReaderFunc
+	callmeUploadReaderMap map[string]UploadReaderFunc
 
 	// server -> client streams
 	callmeServerSendsDownloadMap map[string]ServerSendsDownloadFunc
@@ -948,7 +952,7 @@ func (server *Server) freeMessage(msg *Message) {
 
 // like net_server.go NetServer.ServeCodec
 func (p *rwPair) callBridgeNetRpc(reqMsg *Message, job *job) error {
-	//vv("bridge called! subject: '%v'", reqMsg.HDR.Subject)
+	//vv("bridge called! subject: '%v'", reqMsg.HDR.ServiceName)
 
 	p.encBuf.Reset()
 	p.encBufW.Reset(&p.encBuf)
@@ -1054,7 +1058,8 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 	msg.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
 	msg.HDR.From = job.pair.from
 	msg.HDR.To = job.pair.to
-	msg.HDR.Subject = reqMsg.HDR.Subject // echo back
+	msg.HDR.ServiceName = reqMsg.HDR.ServiceName // echo back
+	msg.HDR.Subject = reqMsg.HDR.Subject         // echo back
 	msg.HDR.Typ = CallRPCReply
 	msg.HDR.Seqno = reqMsg.HDR.Seqno       // echo back
 	msg.HDR.CallID = reqMsg.HDR.CallID     // echo back
@@ -1535,13 +1540,15 @@ func NewServer(name string, config *Config) *Server {
 		cfg = &clone
 	}
 	return &Server{
-		name:                         name,
-		cfg:                          cfg,
-		remote2pair:                  make(map[string]*rwPair),
-		pair2remote:                  make(map[*rwPair]string),
-		halt:                         idem.NewHalter(),
-		RemoteConnectedCh:            make(chan *ServerClient, 20),
+		name:              name,
+		cfg:               cfg,
+		remote2pair:       make(map[string]*rwPair),
+		pair2remote:       make(map[*rwPair]string),
+		halt:              idem.NewHalter(),
+		RemoteConnectedCh: make(chan *ServerClient, 20),
+
 		callmeServerSendsDownloadMap: make(map[string]ServerSendsDownloadFunc),
+		callmeUploadReaderMap:        make(map[string]UploadReaderFunc),
 		callmeBistreamMap:            make(map[string]BistreamFunc),
 	}
 }
@@ -1579,10 +1586,10 @@ func (s *Server) Register1Func(callme1 OneWayFunc) {
 // RegisterUploadReaderFunc tells the server about a func or method
 // to handle uploads. See the
 // [UploadReaderFunc] definition.
-func (s *Server) RegisterUploadReaderFunc(callmeUploadReader UploadReaderFunc) {
+func (s *Server) RegisterUploadReaderFunc(name string, callmeUploadReader UploadReaderFunc) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	s.callmeUploadReader = callmeUploadReader
+	s.callmeUploadReaderMap[name] = callmeUploadReader
 }
 
 // Start has the Server begin receiving and processing RPC calls.
@@ -1773,7 +1780,7 @@ func (s *Server) cancelCallID(callID string) {
 	delete(s.inflight.activeCalls, callID)
 }
 
-func (s *Server) beginReadStream(req *Message, reply *Message) (err error) {
+func (s *Server) beginReadStream(ctx context.Context, callmeUploadReaderFunc UploadReaderFunc, req *Message, reply *Message) (err error) {
 
 	//vv("beginReadStream internal TwoFunc top.")
 
@@ -1783,10 +1790,11 @@ func (s *Server) beginReadStream(req *Message, reply *Message) (err error) {
 	// the loop; everything can be handled uniformly.
 
 	hdr0 := &req.HDR
-	ctx := req.HDR.Ctx
+	//ctx := req.HDR.Ctx
 	var msgN *Message
 	bytesRead := 0
 	var last *Message
+	//callID := req.HDR.CallID
 
 	for i := int64(0); last == nil; i++ {
 
@@ -1823,7 +1831,7 @@ func (s *Server) beginReadStream(req *Message, reply *Message) (err error) {
 			last = reply
 		} // else leave last nil
 
-		err = s.callmeUploadReader(msgN, last)
+		err = callmeUploadReaderFunc(ctx, msgN, last)
 		if err != nil {
 			return
 		}
@@ -1854,6 +1862,7 @@ func (s *Server) newServerSendDownloadHelper(ctx context.Context, job *job) *ser
 	req := job.req
 
 	m.HDR.Subject = req.HDR.Subject
+	m.HDR.ServiceName = req.HDR.ServiceName
 	m.HDR.To = req.HDR.From
 	m.HDR.From = req.HDR.To
 	m.HDR.Seqno = req.HDR.Seqno

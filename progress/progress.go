@@ -58,9 +58,10 @@ func NewTransferStats(fileSize int64, filename string) *TransferStats {
 	}
 }
 
-func (ts *TransferStats) updateSpeed(currentBytes int64) {
+func (ts *TransferStats) updateSpeed(currentBytes int64) (change int64) {
 	now := time.Now()
 	duration := now.Sub(ts.lastUpdate).Seconds()
+	change = currentBytes - ts.lastBytes
 	if duration > 0 {
 		// Calculate current speed
 		bytesTransferred := currentBytes - ts.lastBytes
@@ -75,6 +76,7 @@ func (ts *TransferStats) updateSpeed(currentBytes int64) {
 	}
 	ts.lastUpdate = now
 	ts.lastBytes = currentBytes
+	return
 }
 
 func ExampleTransferWithSpeed() {
@@ -98,14 +100,16 @@ func (s *TransferStats) PrintProgressWithSpeed(current int64) {
 	completed := int(percentage * float64(width))
 
 	// Update speed calculation
-	s.updateSpeed(current)
+	changed := s.updateSpeed(current)
 
 	if !s.isTerm {
 		return
 	}
 
 	speed := formatBytes(s.emaSpeed, false)
-
+	if changed == 0 {
+		speed = "-stalled-"
+	}
 	// Build progress bar
 	var bar strings.Builder
 	bar.WriteString("[")

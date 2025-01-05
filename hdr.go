@@ -159,7 +159,7 @@ type Message struct {
 
 // NewMessage allocates a new Message with a DoneCh properly created (buffered 1).
 func NewMessage() *Message {
-	return &Message{
+	m := &Message{
 		// NOTE: buffer size must be at least 1, so our Client.runSendLoop never blocks.
 		// Thus we simplify the logic there, not requiring a ton of extra selects to
 		// handle shutdown/timeout/etc.
@@ -168,6 +168,8 @@ func NewMessage() *Message {
 		// which would cause us to hang in the send loop.
 		DoneCh: make(chan *Message, 2),
 	}
+	m.HDR.Args = make(map[string]string)
+	return m
 }
 
 // String returns a string representation of msg.
@@ -263,11 +265,18 @@ type HDR struct {
 	Created time.Time `zid:"0"` // HDR creation time stamp.
 	From    string    `zid:"1"` // originator host:port address.
 	To      string    `zid:"2"` // destination host:port address.
-	Subject string    `zid:"3"` // in net/rpc, the "Service.Method" ServiceName
-	Seqno   uint64    `zid:"4"` // user (client) set sequence number for each call (same on response).
-	Typ     CallType  `zid:"5"` // see constants below.
-	CallID  string    `zid:"6"` // 20 bytes pseudo random base-64 coded string (same on response).
-	Serial  int64     `zid:"7"` // system serial number
+
+	ServiceName string `zid:"11"` // registered name to call.
+
+	// arguments/parameters for the call. should be short to keep the HDR small.
+	// big stuff should be serialized in JobSerz.
+	Args map[string]string `zid:"12"`
+
+	Subject string   `zid:"3"` // in net/rpc, the "Service.Method" ServiceName
+	Seqno   uint64   `zid:"4"` // user (client) set sequence number for each call (same on response).
+	Typ     CallType `zid:"5"` // see constants below.
+	CallID  string   `zid:"6"` // 20 bytes pseudo random base-64 coded string (same on response).
+	Serial  int64    `zid:"7"` // system serial number
 
 	LocalRecvTm time.Time `zid:"8"`
 
@@ -287,7 +296,7 @@ type HDR struct {
 }
 
 // NewHDR creates a new HDR header.
-func NewHDR(from, to, subject string, typ CallType, streamPart int64) (m *HDR) {
+func NewHDR(from, to, serviceName string, typ CallType, streamPart int64) (m *HDR) {
 	t0 := time.Now()
 	serial := atomic.AddInt64(&lastSerial, 1)
 
@@ -298,14 +307,14 @@ func NewHDR(from, to, subject string, typ CallType, streamPart int64) (m *HDR) {
 	rness := cristalbase64.URLEncoding.EncodeToString(pseudo[:])
 
 	m = &HDR{
-		Created:    t0,
-		From:       from,
-		To:         to,
-		Subject:    subject,
-		Typ:        typ,
-		CallID:     rness,
-		Serial:     serial,
-		StreamPart: streamPart,
+		Created:     t0,
+		From:        from,
+		To:          to,
+		ServiceName: serviceName,
+		Typ:         typ,
+		CallID:      rness,
+		Serial:      serial,
+		StreamPart:  streamPart,
 	}
 
 	return
@@ -321,16 +330,17 @@ func NewCallID() string {
 
 // for when the server is just going to replace the CallID with
 // the request CallID anyway.
-func newHDRwithoutCallID(from, to, subject string, typ CallType, streamPart int64) (m *HDR) {
+func newHDRwithoutCallID(from, to, serviceName string, typ CallType, streamPart int64) (m *HDR) {
 	t0 := time.Now()
 	serial := atomic.AddInt64(&lastSerial, 1)
 
 	m = &HDR{
-		Created: t0,
-		From:    from,
-		To:      to,
-		Subject: subject,
-		Typ:     typ,
+		Created:     t0,
+		From:        from,
+		To:          to,
+		ServiceName: serviceName,
+		//Subject: subject,
+		Typ: typ,
 		//CallID:  rness,
 		Serial:     serial,
 		StreamPart: streamPart,
@@ -349,10 +359,20 @@ func (a *HDR) Equal(b *HDR) bool {
 		return false
 	}
 
+	if len(a.Args) != len(b.Args) {
+		return false
+	}
+	for k, v := range a.Args {
+		if b.Args[k] != v {
+			return false
+		}
+	}
+
 	return a.Created.Equal(b.Created) &&
 		a.From == b.From &&
 		a.To == b.To &&
 		a.Serial == b.Serial &&
+		a.ServiceName == b.ServiceName &&
 		a.Subject == b.Subject &&
 		a.Typ == b.Typ &&
 		a.CallID == b.CallID &&
@@ -367,6 +387,8 @@ func (m *HDR) String() string {
     "Created": %q,
     "From": %q,
     "To": %q,
+    "ServiceName": %q,
+    "Args": %#v,
     "Subject": %q,
     "Seqno": %v,
     "Typ": %s,
@@ -380,6 +402,8 @@ func (m *HDR) String() string {
 		m.Created,
 		m.From,
 		m.To,
+		m.ServiceName,
+		m.Args,
 		m.Subject,
 		m.Seqno,
 		m.Typ,

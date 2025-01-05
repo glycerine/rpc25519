@@ -96,7 +96,7 @@ func main() {
 	if *readfile {
 		streamer := rpc25519.NewServerSideUploadState()
 		// use the example.go example.
-		srv.RegisterUploadReaderFunc(streamer.ReceiveFileInParts)
+		srv.RegisterUploadReaderFunc("__fileUploader", streamer.ReceiveFileInParts)
 	} else {
 		srv.Register2Func(customEcho)
 	}

@@ -375,13 +375,13 @@ func NewServerSideUploadState() *ServerSideUploadState {
 // ReceiveFileInParts is an UploadReaderFunc and is
 // registered on the Server with
 // the Server.RegisterUploadReaderFunc() call.
-func (s *ServerSideUploadState) ReceiveFileInParts(req *Message, lastReply *Message) (err error) {
+func (s *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Message, lastReply *Message) (err error) {
 
 	if s.t0.IsZero() {
 		s.t0 = req.HDR.Created
 	}
 	hdr1 := req.HDR
-	ctx := hdr1.Ctx
+	//ctx := hdr1.Ctx
 
 	select {
 	case <-ctx.Done():
@@ -399,28 +399,23 @@ func (s *ServerSideUploadState) ReceiveFileInParts(req *Message, lastReply *Mess
 		if s.seenCount != 1 {
 			panic("we saw a part before 0!")
 		}
+		vv("ServerSideUploadState.ReceiveFileInParts sees part 0: hdr1='%v'", hdr1.String())
 		s.partsSeen = make(map[int64]bool)
 		s.blake3hash = blake3.New(64, nil)
 
-		if !strings.HasPrefix(hdr1.Subject, "receiveFile:") {
-			panic("subject must contain receiveFile: and the file name !")
-		}
-		prefix := "receiveFile:"
-		splt := strings.Split(hdr1.Subject[len(prefix):], ":")
-
-		if splt[0] == "" {
-			panic("subject must contain receiveFile: and the file name, which was missing !")
+		filename, ok := hdr1.Args["readFile"]
+		if !ok {
+			panic("Args must contain readFile -> the file name !")
 		}
 
 		// do an atomic rename from temp file to final name at the end
-		s.fnameFinal = splt[0] + ".servergot" // avoid clobbering origin file if same dir
+		s.fnameFinal = filename + ".servergot" // avoid clobbering origin file if same dir
 		s.randomness = cryRandBytesBase64(16)
 		s.fnameTmp = s.fnameFinal + ".tmp_" + s.randomness
 
 		sum := blake3OfBytesString(req.JobSerz)
-		blake3checksumBase64 := ""
-		if len(splt) > 1 {
-			blake3checksumBase64 = splt[1]
+		blake3checksumBase64, ok := hdr1.Args["blake3"]
+		if ok {
 			if blake3checksumBase64 != sum {
 				panic(fmt.Sprintf("checksum on first %v bytes disagree: client sent blake3sum='%v'; we computed = '%v'", len(req.JobSerz), blake3checksumBase64, sum))
 			}
@@ -442,9 +437,10 @@ func (s *ServerSideUploadState) ReceiveFileInParts(req *Message, lastReply *Mess
 	s.partsSeen[part] = true
 
 	s.blake3hash.Write(req.JobSerz)
-	sum := blake3OfBytesString(req.JobSerz)
-	//vv("\nserver part %v, len %v, server-sum='%v' \n        while Subject blake3    client-sum='%v'\n", req.HDR.StreamPart, len(req.JobSerz), sum, req.HDR.Subject)
-	if part > 0 && sum != req.HDR.Subject {
+	serverSum := blake3OfBytesString(req.JobSerz)
+	clientSum := req.HDR.Args["blake3"]
+	vv("\nserver part %v, len %v, server-sum='%v' \n        while Subject blake3    client-sum='%v'\n", req.HDR.StreamPart, len(req.JobSerz), serverSum, clientSum)
+	if part > 0 && serverSum != clientSum {
 		panic(fmt.Sprintf("checksum disagree on part %v; see above. server sees len %v req.JobSerz='%v'", part, len(req.JobSerz), string(req.JobSerz)))
 	}
 	n := len(req.JobSerz)

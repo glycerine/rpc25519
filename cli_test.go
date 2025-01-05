@@ -959,8 +959,10 @@ func Test045_upload(t *testing.T) {
 
 		//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
+		// name must be "__fileUploader" for cli.go Uploader to work.
+		uploaderName := "__fileUploader"
 		streamer := NewServerSideUploadState()
-		srv.RegisterUploadReaderFunc(streamer.ReceiveFileInParts)
+		srv.RegisterUploadReaderFunc(uploaderName, streamer.ReceiveFileInParts)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		client, err := NewClient("test045", cfg)
@@ -985,7 +987,8 @@ func Test045_upload(t *testing.T) {
 		req := NewMessage()
 		filename := "streams.all.together.txt"
 		os.Remove(filename + ".servergot")
-		req.HDR.Subject = "receiveFile:" + filename
+		req.HDR.ServiceName = uploaderName
+		req.HDR.Args = map[string]string{"readFile": filename}
 		req.JobSerz = []byte("a=c(0")
 
 		// start the call
@@ -1006,7 +1009,7 @@ func Test045_upload(t *testing.T) {
 				last = true
 				streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
 			}
-			streamMsg.HDR.Subject = blake3OfBytesString(streamMsg.JobSerz)
+			streamMsg.HDR.Args["blake3"] = blake3OfBytesString(streamMsg.JobSerz)
 			err = strm.UploadMore(ctx45, streamMsg, last)
 			panicOn(err)
 			vv("client sent part %v, len %v : '%v'", i, len(streamMsg.JobSerz), string(streamMsg.JobSerz))
