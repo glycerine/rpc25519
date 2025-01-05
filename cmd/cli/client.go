@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	filepath "path/filepath"
@@ -79,7 +80,7 @@ func main() {
 		if !fileExists(path) {
 			panic(fmt.Sprintf("drat! cli -sendfile path '%v' not found", path))
 		}
-		by, err := os.ReadFile(path)
+		r, err := os.Open(path)
 		if err != nil {
 			panic(fmt.Sprintf("error reading path '%v': '%v'", path, err))
 		}
@@ -89,30 +90,39 @@ func main() {
 		var strm *rpc25519.Uploader
 
 		maxMessage := 64*1024*1024 - 80
-		for i := 0; len(by) > 0; i++ {
+		buf := make([]byte, maxMessage)
 
-			var part []byte
-			if len(by) < maxMessage {
-				part = by
-				by = nil
-			} else {
-				part = by[:maxMessage]
-				by = by[maxMessage:]
-			}
+	upload:
+		for i := 0; true; i++ {
+
+			nr, err1 := r.Read(buf)
+			send := buf[:nr]
+
 			if i == 0 {
 				req := rpc25519.NewMessage()
-				req.JobSerz = part
+				req.JobSerz = send
 				req.HDR.Subject = "receiveFile:" + filepath.Base(path) // client looks for this
 
 				strm, err = cli.UploadBegin(ctx, req)
 				panicOn(err)
+				if err1 == io.EOF {
+					break upload
+				}
+				panicOn(err1)
 				continue
 			}
+
 			streamMsg := rpc25519.NewMessage()
-			streamMsg.JobSerz = part
-			err = strm.UploadMore(ctx, streamMsg, len(by) == 0)
+			streamMsg.JobSerz = send
+			err = strm.UploadMore(ctx, streamMsg, err1 == io.EOF)
 			panicOn(err)
-		}
+
+			if err1 == io.EOF {
+				break upload
+			}
+			panicOn(err1)
+
+		} // end for i
 
 		select {
 		case reply := <-strm.ReadCh:
