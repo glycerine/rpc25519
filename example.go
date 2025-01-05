@@ -451,7 +451,7 @@ func (s *ServerSideUploadFunc) ReceiveFileInParts(req *Message, lastReply *Messa
 		s.fd.Close()
 
 		totSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(s.blake3hash.Sum(nil))
-		vv("ReceiveFileInParts sees last set! bytesWrit=%v; \nserver totSum='%v'", s.bytesWrit, totSum)
+		//vv("ReceiveFileInParts sees last set! bytesWrit=%v; \nserver totSum='%v'", s.bytesWrit, totSum)
 
 		elap := time.Since(s.t0)
 		mb := float64(s.bytesWrit) / float64(1<<20)
