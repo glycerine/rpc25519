@@ -1151,7 +1151,7 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 		// register streamer func with server
 		streamerName := "bi-streamer Name"
 		bi := &BiServerState{}
-		srv.RegisterBistreamFunc(streamerName, bi.ServerBistream)
+		srv.RegisterBistreamFunc(streamerName, bi.ServeBistream)
 
 		// start client
 		cfg.ClientDialToHostPort = serverAddr.String()

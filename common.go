@@ -85,7 +85,9 @@ type workspace struct {
 	//
 	// Update: technically we do not need this because
 	// our use readMessage() is isolated to the
-	// readLoop() functions.
+	// readLoop() function. Both the client and
+	// server use only a single goroutine to read
+	// a given uConn, so we are safe.
 	//rmut sync.Mutex
 }
 

@@ -442,12 +442,12 @@ func (ssss *ServerSendsDownloadState) ServerSendsDownload(srv *Server, ctx conte
 // BiServerState is used by Test065_bidirectional_streaming test.
 type BiServerState struct{}
 
-// ServerBistream is an example of a BistreamFunc,
+// ServeBistream is an example of a BistreamFunc,
 // a server side registered function for bi-streaming
 // (doing both upload and download simultaneously).
 // See cli_test.go Test065_bidirectional_download_and_upload
 // for a test that uses this method.
-func (bi *BiServerState) ServerBistream(
+func (bi *BiServerState) ServeBistream(
 	srv *Server,
 	ctx context.Context,
 	req *Message,
@@ -456,7 +456,7 @@ func (bi *BiServerState) ServerBistream(
 ) (err error) {
 
 	t0 := time.Now()
-	//vv("top of ServerBistream(). req.HDR = '%v'", req.HDR.String())
+	//vv("top of ServeBistream(). req.HDR = '%v'", req.HDR.String())
 
 	streamFromClientCh := req.HDR.streamCh
 	if streamFromClientCh == nil {
@@ -504,7 +504,7 @@ func (bi *BiServerState) ServerBistream(
 		default:
 		}
 	}
-	//vv("ServerBistream: done sending 20 messages")
+	//vv("ServeBistream: done sending 20 messages")
 
 	// upload handling
 	bytesWrit := int64(0)
@@ -516,7 +516,7 @@ func (bi *BiServerState) ServerBistream(
 			// allow call cancellation.
 			return fmt.Errorf("context cancelled")
 		case msg := <-streamFromClientCh:
-			//vv("ServerBistream sees upload part: '%v'", msg.HDR.String())
+			//vv("ServeBistream sees upload part: '%v'", msg.HDR.String())
 			if msg.HDR.StreamPart != totalParts {
 				panic(fmt.Sprintf("%v = msg.HDR.StreamPart != totalParts = %v",
 					msg.HDR.StreamPart, totalParts))
@@ -558,6 +558,60 @@ func (bi *BiServerState) ServerBistream(
 					return nil
 				}
 			}
+		}
+	}
+
+	return
+}
+
+// these are part of the demo below.
+func someFuncThatComputesStuffForTheClient(ch chan *Message) { /* stubbed */ }
+func processTheUploadFromtheClient(msg *Message)             { /* stubbed */ }
+
+// MinimalBistreamFunc stands in contract
+// to the fleshed on ServeBistream example above.
+// It attempts to illustrate only the bare minimal
+// needed to implement a BistreamFunc, so
+// the user can glimpse its conceptual elegance.
+func MinimalBistreamFunc(
+	srv *Server,
+	ctx context.Context,
+	req *Message,
+	sendDownloadPartToClient func(ctx context.Context, by []byte, last bool),
+	lastReply *Message,
+) (err error) {
+
+	// upload parts arrive on streamCh.
+	fromClientCh := req.HDR.streamCh
+
+	// Suppose we provide sending services
+	// to the hard-working someFuncThatComputesStuffForTheClient()
+	// function that runs in the background,
+	// and imagine that it send us
+	// their messages on toClientCh for us to
+	// send as part of a download stream to the client.
+	toClientCh := make(chan *Message)
+
+	go someFuncThatComputesStuffForTheClient(toClientCh)
+
+	// handle the first message body in req.JobSerz...
+	// (not shown; see full example above in BiServerState.ServeBistream)
+
+	done := ctx.Done()
+	for {
+
+		select {
+		case msg, alive := <-toClientCh:
+			// We got a part for the download stream, send it to the client.
+			sendDownloadPartToClient(ctx, msg.JobSerz, !alive)
+
+		case msg := <-fromClientCh:
+			// ... process this uploaded part ...
+			processTheUploadFromtheClient(msg)
+
+		case <-done:
+			lastReply.JobSerz = []byte("that's all folks!")
+			return
 		}
 	}
 
