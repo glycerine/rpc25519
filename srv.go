@@ -1934,4 +1934,7 @@ func (s *Server) respondToReqWithError(req *Message, job *job, description strin
 	err := job.w.sendMessage(job.conn, req, &s.cfg.WriteTimeout)
 	_ = err
 	alwaysPrintf("CallError being sent back: '%v'", req.HDR.String())
+
+	// sendfile will just keep coming, so kill the connection.
+	job.pair.halt.ReqStop.Close()
 }
