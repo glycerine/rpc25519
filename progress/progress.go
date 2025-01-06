@@ -94,16 +94,16 @@ func ExampleTransferWithSpeed() {
 }
 
 func (s *TransferStats) SilentProgressWithSpeed(current int64) {
-	s.DoProgressWithSpeed(current, true)
+	s.DoProgressWithSpeed(current, true, 0)
 }
 
 // silent if not stdout is not a terminal.
 func (s *TransferStats) PrintProgressWithSpeed(current int64) {
-	s.DoProgressWithSpeed(current, false)
+	s.DoProgressWithSpeed(current, false, 0)
 }
 
 // Allow user choice of silent or not.
-func (s *TransferStats) DoProgressWithSpeed(current int64, silent bool) {
+func (s *TransferStats) DoProgressWithSpeed(current int64, silent bool, part int64) {
 
 	now := time.Now()
 	if now.Sub(s.lastDisplay) < s.minRefreshInterval {
@@ -147,10 +147,15 @@ func (s *TransferStats) DoProgressWithSpeed(current int64, silent bool) {
 	}
 	bar.WriteString("]")
 
+	fn := truncateString(s.filename, 30)
+	if part > 0 {
+		fn = truncateString(s.filename+fmt.Sprintf("(%03d)", part), 30)
+	}
+
 	// Format the status line
 	//
 	status := fmt.Sprintf("\r%s %s %3.0f%%  %6s  %7s  %s ETA",
-		truncateString(s.filename, 20),
+		fn,
 		bar.String(),
 		percentage*100,
 		formatBytesTotal(float64(current)),

@@ -152,7 +152,7 @@ func main() {
 						return
 					}
 					if time.Since(lastUpdate) > time.Second {
-						meterDown.DoProgressWithSpeed(int64(netread), meterDownQuiet)
+						meterDown.DoProgressWithSpeed(int64(netread), meterDownQuiet, req.HDR.StreamPart)
 						lastUpdate = time.Now()
 					}
 
@@ -174,6 +174,7 @@ func main() {
 						rate := mb / seconds
 						_ = rate
 
+						fmt.Println()
 						fmt.Printf("total time for echo: '%v'\n", time.Since(s.T0))
 						fmt.Printf("file size: %v bytes.\n", formatUnder(int(s.BytesWrit)))
 
@@ -324,7 +325,7 @@ func main() {
 			seconds := (float64(elap) / float64(time.Second))
 			rate := mb / seconds
 
-			alwaysPrintf("upload part of echo done elapsed: %v; we "+
+			alwaysPrintf("upload part of echo done elapsed: %v \n we "+
 				"uploaded tot = %v bytes (=> %0.6f MB/sec)", elap, tot, rate)
 		}
 		if doBistream {
