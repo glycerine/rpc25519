@@ -296,10 +296,32 @@ func main() {
 		clientTotSum := blake3hash.SumString()
 
 		fmt.Println()
-		//vv("we uploaded tot = %v bytes", tot)
+
+		reportUploadTime := true
+		if reportUploadTime {
+			elap := time.Since(t0)
+			mb := float64(tot) / float64(1<<20)
+			seconds := (float64(elap) / float64(time.Second))
+			rate := mb / seconds
+
+			alwaysPrintf("upload part of echo done elapsed: %v; we "+
+				"uploaded tot = %v bytes (=> %0.6f MB/sec)", elap, tot, rate)
+		}
 		if doBistream {
 			//vv("bistream about to wait")
 			wg.Wait()
+
+			reportRoundTripTime := true
+			if reportRoundTripTime {
+				elap := time.Since(t0)
+				mb := float64(2*tot) / float64(1<<20)
+				seconds := (float64(elap) / float64(time.Second))
+				rate := mb / seconds
+
+				alwaysPrintf("round-trip echo done elapsed: %v; we "+
+					"transferred 2*tot = %v bytes (=> %0.6f MB/sec)", elap, 2*tot, rate)
+			}
+
 			//vv("past Wait, client upload tot-sum='%v'", clientTotSum)
 			// the goro consumed the CallRPCReply to know when to
 			// exit, and we get here because when the goro exists, the
