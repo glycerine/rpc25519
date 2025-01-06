@@ -95,6 +95,8 @@ func (ct CallType) String() string {
 		return "CallDownloadMore"
 	case CallDownloadEnd:
 		return "CallDownloadEnd"
+	case CallError:
+		return "CallError"
 
 	default:
 		panic(fmt.Sprintf("need to update String() for CallType %v", int(ct)))
