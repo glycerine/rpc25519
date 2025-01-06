@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	filepath "path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -279,7 +280,7 @@ func main() {
 					vv("with JobSerz: '%v'", report)
 				}
 				fmt.Printf("total time for upload: '%v'\n", time.Since(t0))
-				fmt.Printf("file size: %_d bytes.\n", tot) // , clientTotSum)
+				fmt.Printf("file size: %v bytes.\n", formatUnder(tot)) // , clientTotSum)
 				serverTotSum := reply.HDR.Args["serverTotalBlake3sum"]
 
 				if clientTotSum == serverTotSum {
@@ -367,4 +368,25 @@ func Blake3OfBytes(by []byte) []byte {
 func Blake3OfBytesString(by []byte) string {
 	sum := Blake3OfBytes(by)
 	return "blake3-" + cristalbase64.URLEncoding.EncodeToString(sum)
+}
+
+func formatUnder(n int) string {
+	// Convert to string first
+	str := strconv.FormatInt(int64(n), 10)
+
+	// Handle numbers less than 1000
+	if len(str) <= 3 {
+		return str
+	}
+
+	// Work from right to left, adding underscores
+	var result []byte
+	for i := len(str) - 1; i >= 0; i-- {
+		if (len(str)-1-i)%3 == 0 && i != len(str)-1 {
+			result = append([]byte{'_'}, result...)
+		}
+		result = append([]byte{str[i]}, result...)
+	}
+
+	return string(result)
 }
