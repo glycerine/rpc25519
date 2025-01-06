@@ -103,7 +103,7 @@ func main() {
 	var bistream *rpc25519.Bistreamer
 	var wg sync.WaitGroup
 	bistreamerName := "echoBistreamFunc"
-	var bisErrorCh chan error
+	var bisErrorCh <-chan *rpc25519.Message
 
 	if *echofile != "" {
 		doBistream = true
