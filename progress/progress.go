@@ -93,8 +93,17 @@ func ExampleTransferWithSpeed() {
 	fmt.Println() // Final newline
 }
 
+func (s *TransferStats) SilentProgressWithSpeed(current int64) {
+	s.DoProgressWithSpeed(current, true)
+}
+
 // silent if not stdout is not a terminal.
 func (s *TransferStats) PrintProgressWithSpeed(current int64) {
+	s.DoProgressWithSpeed(current, false)
+}
+
+// Allow user choice of silent or not.
+func (s *TransferStats) DoProgressWithSpeed(current int64, silent bool) {
 
 	now := time.Now()
 	if now.Sub(s.lastDisplay) < s.minRefreshInterval {
@@ -109,7 +118,7 @@ func (s *TransferStats) PrintProgressWithSpeed(current int64) {
 	// Update speed calculation
 	changed := s.updateSpeed(current)
 
-	if !s.isTerm {
+	if !s.isTerm || silent {
 		return
 	}
 

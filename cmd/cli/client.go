@@ -102,8 +102,17 @@ func main() {
 	var wg sync.WaitGroup
 	bistreamerName := "echoBistreamFunc"
 
+	// down/upload can be 9x different, measure both.
+	meterDownQuietCh := make(chan bool, 2)
+	meterDownQuietCh <- true
+
 	if *echofile != "" {
 		doBistream = true
+
+		path := *echofile
+		fi, err := os.Stat(path)
+		panicOn(err)
+		meterDown := progress.NewTransferStats(fi.Size(), "[down]"+filepath.Base(path))
 
 		// Approach:
 		// have the echofile implementation do the upload for us,
@@ -127,15 +136,26 @@ func main() {
 		go func() {
 			defer wg.Done()
 
+			meterDownQuiet := true
+			lastUpdate := time.Now()
+			netread := 0 // net count of bytes read off the network.
 			for {
 				select {
+				case meterDownQuiet = <-meterDownQuietCh:
 				case req := <-bistream.ReadDownloadsCh:
 					//vv("cli bistream downloadsCh sees %v", req.String())
+
+					netread += len(req.JobSerz)
 
 					if req.HDR.Typ == rpc25519.CallRPCReply {
 						//vv("cli bistream downloadsCh sees CallRPCReply, exiting goro")
 						return
 					}
+					if time.Since(lastUpdate) > time.Second {
+						meterDown.DoProgressWithSpeed(int64(netread), meterDownQuiet)
+						lastUpdate = time.Now()
+					}
+
 					last := (req.HDR.Typ == rpc25519.CallDownloadEnd)
 					err = s.WriteOneMsgToFile(req, "echoclientgot", last)
 
@@ -173,7 +193,7 @@ func main() {
 		}
 		fi, err := os.Stat(path)
 		panicOn(err)
-		meter := progress.NewTransferStats(fi.Size(), filepath.Base(path))
+		meterUp := progress.NewTransferStats(fi.Size(), "[up]"+filepath.Base(path))
 
 		r, err := os.Open(path)
 		if err != nil {
@@ -281,7 +301,7 @@ func main() {
 			}
 
 			if time.Since(lastUpdate) > time.Second {
-				meter.PrintProgressWithSpeed(int64(tot))
+				meterUp.PrintProgressWithSpeed(int64(tot))
 				lastUpdate = time.Now()
 			}
 
@@ -292,7 +312,7 @@ func main() {
 
 		} // end for i
 
-		meter.PrintProgressWithSpeed(int64(tot))
+		meterUp.PrintProgressWithSpeed(int64(tot))
 		clientTotSum := blake3hash.SumString()
 
 		fmt.Println()
@@ -308,6 +328,9 @@ func main() {
 				"uploaded tot = %v bytes (=> %0.6f MB/sec)", elap, tot, rate)
 		}
 		if doBistream {
+			fmt.Println()
+			meterDownQuietCh <- false // show the download progress
+
 			//vv("bistream about to wait")
 			wg.Wait()
 
