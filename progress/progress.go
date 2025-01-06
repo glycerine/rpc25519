@@ -42,6 +42,8 @@ type TransferStats struct {
 	lastDisplay        time.Time
 	minRefreshInterval time.Duration
 	startTime          time.Time
+
+	largestPart int64
 }
 
 func NewTransferStats(fileSize int64, filename string) *TransferStats {
@@ -105,6 +107,10 @@ func (s *TransferStats) PrintProgressWithSpeed(current int64) {
 // Allow user choice of silent or not.
 func (s *TransferStats) DoProgressWithSpeed(current int64, silent bool, part int64) {
 
+	if part > s.largestPart {
+		s.largestPart = part
+	}
+
 	now := time.Now()
 	if now.Sub(s.lastDisplay) < s.minRefreshInterval {
 		return
@@ -147,10 +153,8 @@ func (s *TransferStats) DoProgressWithSpeed(current int64, silent bool, part int
 	}
 	bar.WriteString("]")
 
-	fn := truncateString(s.filename, 30)
-	if part > 0 {
-		fn = truncateString(s.filename+fmt.Sprintf("(%03d)", part), 30)
-	}
+	//fn := truncateString(s.filename, 30)
+	fn := truncateString(s.filename+fmt.Sprintf("(part %03d)", s.largestPart), 30)
 
 	// Format the status line
 	//
