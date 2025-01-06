@@ -154,10 +154,10 @@ func main() {
 						mb := float64(s.BytesWrit) / float64(1<<20)
 						seconds := (float64(elap) / float64(time.Second))
 						rate := mb / seconds
+						_ = rate
 
-						fmt.Printf("got upcall at '%v' => "+
-							"elap = %v\n (while mb=%v) => %v MB/sec. ; \n bytesWrit=%v;",
-							s.T0, elap, mb, rate, s.BytesWrit)
+						fmt.Printf("total time for echo: '%v'\n", time.Since(s.T0))
+						fmt.Printf("file size: %v bytes.\n", formatUnder(int(s.BytesWrit)))
 
 					} // end if last
 				} //end select
