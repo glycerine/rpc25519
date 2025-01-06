@@ -103,7 +103,6 @@ func main() {
 	var bistream *rpc25519.Bistreamer
 	var wg sync.WaitGroup
 	bistreamerName := "echoBistreamFunc"
-	var bisErrorCh <-chan *rpc25519.Message
 
 	if *echofile != "" {
 		doBistream = true
@@ -121,7 +120,6 @@ func main() {
 		bistream, err = cli.NewBistreamer(bistreamerName)
 		panicOn(err)
 		defer bistream.Close()
-		bisErrorCh = bistream.ErrorCh
 
 		s := rpc25519.NewPerCallID_FileToDiskState(bistream.CallID())
 		s.OverrideFilename = downloadFile
@@ -204,18 +202,33 @@ func main() {
 		req.HDR.Created = time.Now()
 		var lastUpdate time.Time
 
+		// check for errors
+		var checkForErrors = func() *rpc25519.Message {
+			if strm != nil {
+				select {
+				case errMsg := <-strm.ErrorCh:
+					vv("error for sendfile: '%v'", err)
+					return errMsg
+				default:
+				}
+			}
+			if bistream != nil {
+				select {
+				case errMsg := <-bistream.ErrorCh:
+					vv("error from echofile: '%v'", err)
+					return errMsg
+				default:
+				}
+			}
+			return nil
+		}
+
 	upload:
 		for i := 0; true; i++ {
 
-			// check for errors
-			select {
-			case err := <-strm.ErrorCh:
-				vv("error for sendfile: '%v'", err)
+			if err := checkForErrors(); err != nil {
+				alwaysPrintf("error: '%v'", err.String())
 				return
-			case err := <-bisErrorCh:
-				vv("error from echofile: '%v'", err)
-				return
-			default:
 			}
 
 			nr, err1 := r.Read(buf)
@@ -256,7 +269,14 @@ func main() {
 			} else {
 				err = strm.UploadMore(ctx, streamMsg, err1 == io.EOF)
 			}
-			panicOn(err)
+			// likely just "shutting down", so ask for details.
+			if err != nil {
+				err2msg := checkForErrors()
+				if err2msg != nil {
+					alwaysPrintf("err: '%v'", err)
+					alwaysPrintf("err2: '%v'", err2msg.String())
+				}
+			}
 
 			if time.Since(lastUpdate) > time.Second {
 				meter.PrintProgressWithSpeed(int64(tot))
