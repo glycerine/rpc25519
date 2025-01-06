@@ -536,6 +536,7 @@ func (c *Client) runSendLoop(conn net.Conn) {
 			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
 				//vv("Failed to send message: %v", err)
 				msg.LocalErr = err
+				c.UngetOneRead(seqno, msg.DoneCh)
 				msg.DoneCh <- msg
 				continue
 			} else {
@@ -1311,6 +1312,18 @@ func (c *Client) GetOneRead(seqno uint64, ch chan *Message) {
 	c.notifyOnce[seqno] = ch
 }
 
+func (c *Client) UngetOneRead(seqno uint64, ch chan *Message) {
+	if cap(ch) == 0 {
+		panic("ch must be bufferred")
+	}
+	c.mut.Lock()
+	defer c.mut.Unlock()
+	prev, ok := c.notifyOnce[seqno]
+	if ok && prev == ch {
+		delete(c.notifyOnce, seqno)
+	}
+}
+
 // UngetReads reverses what GetReads does:
 // un-register and have ch be deaf from now on.
 // Idempotent: if ch is already gone, no foul is reported.
@@ -1341,8 +1354,8 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 	c = &Client{
 		cfg:         cfg,
 		name:        name,
-		oneWayCh:    make(chan *Message),
-		roundTripCh: make(chan *Message),
+		oneWayCh:    make(chan *Message), // not buffered! synchronous so we get back-pressure.
+		roundTripCh: make(chan *Message), // not buffered! synchronous so we get back-pressure.
 		halt:        idem.NewHalter(),
 		connected:   make(chan error, 1),
 		lastSeqno:   1,
