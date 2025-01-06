@@ -1306,5 +1306,20 @@ func Test100_BlakeHashesAgree(t *testing.T) {
 		if c != b {
 			panic("c != b, hashes are different!")
 		}
+
+		h.Reset()
+		h.Write(data)
+		d := h.SumString()
+		if d != b {
+			panic("d != b, hashes are different!")
+		}
+
+		h.Reset()
+		h.Write(data[:3])
+		h.Write(data[3:])
+		e := h.SumString()
+		if e != b {
+			panic("e != b, hashes are different!")
+		}
 	})
 }

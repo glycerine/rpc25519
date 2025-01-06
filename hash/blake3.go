@@ -20,6 +20,25 @@ func NewBlake3() *Blake3 {
 	}
 }
 
+func (b *Blake3) Write(by []byte) {
+	b.mut.Lock()
+	b.hasher.Write(by)
+	b.mut.Unlock()
+}
+
+func (b *Blake3) Reset() {
+	b.mut.Lock()
+	b.hasher.Reset()
+	b.mut.Unlock()
+}
+
+func (b *Blake3) SumString() string {
+	b.mut.Lock()
+	sum := b.hasher.Sum(nil)
+	b.mut.Unlock()
+	return "blake3.32B-" + cristalbase64.URLEncoding.EncodeToString(sum[:32])
+}
+
 // UnlockedDigest512 is not goroutine safe; use
 // the Locked version if this is needed.
 // The output digest is 64 bytes (512 bits), and can

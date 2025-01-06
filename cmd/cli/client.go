@@ -16,7 +16,7 @@ import (
 
 	tdigest "github.com/caio/go-tdigest"
 	"github.com/glycerine/rpc25519"
-	"github.com/glycerine/rpc25519/blake3"
+	myblake3 "github.com/glycerine/rpc25519/hash"
 	"github.com/glycerine/rpc25519/progress"
 )
 
@@ -187,7 +187,7 @@ func main() {
 		// actually have data to send.
 		var strm *rpc25519.Uploader
 
-		blake3hash := blake3.New(64, nil)
+		blake3hash := myblake3.NewBlake3()
 
 		// much smoother progress display waiting for 1MB rather than 64MB
 		maxMessage := 1024 * 1024
@@ -236,7 +236,7 @@ func main() {
 
 			send := buf[:nr] // can be empty
 			tot += nr
-			sumstring := Blake3OfBytesString(send)
+			sumstring := myblake3.Blake3OfBytesString(send)
 			//vv("i=%v, len=%v, sumstring = '%v'", i, nr, sumstring)
 			blake3hash.Write(send)
 
@@ -293,7 +293,7 @@ func main() {
 		} // end for i
 
 		meter.PrintProgressWithSpeed(int64(tot))
-		clientTotSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(blake3hash.Sum(nil))
+		clientTotSum := blake3hash.SumString()
 
 		fmt.Println()
 		//vv("we uploaded tot = %v bytes", tot)
