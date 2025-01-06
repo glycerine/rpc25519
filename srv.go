@@ -655,7 +655,6 @@ func (s *Server) processWork(job *job) {
 			s.mut.Unlock()
 			// send back a CallError
 			s.respondToReqWithError(req, job, fmt.Sprintf("warning! possible problem: CallUploadBegin stream begin received but no registered stream upload reader available on the server. hdr='%v'", req.HDR.String()))
-
 			return
 		}
 		foundUploader = true
@@ -1934,4 +1933,5 @@ func (s *Server) respondToReqWithError(req *Message, job *job, description strin
 	req.HDR.Subject = description
 	err := job.w.sendMessage(job.conn, req, &s.cfg.WriteTimeout)
 	_ = err
+	alwaysPrintf("CallError being sent back: '%v'", req.HDR.String())
 }
