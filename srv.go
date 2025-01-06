@@ -654,7 +654,7 @@ func (s *Server) processWork(job *job) {
 			// nothing to do
 			s.mut.Unlock()
 			// send back a CallError
-			s.respondToReqWithError(req, job, fmt.Sprintf("warning! possible problem: CallUploadBegin stream begin received but no registered stream upload reader available on the server. hdr='%v'", req.HDR.String()))
+			s.respondToReqWithError(req, job, fmt.Sprintf("warning! possible problem: CallUploadBegin stream begin received but no registered stream upload reader available on the server. req.HDR.ServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ServiceName, req.HDR.CallID))
 			return
 		}
 		foundUploader = true
@@ -1937,6 +1937,6 @@ func (s *Server) respondToReqWithError(req *Message, job *job, description strin
 
 	// sendfile will just keep coming, so kill the connection.
 	// after a short pause to try and let the CallError through.
-	time.Sleep(time.Second)
+	time.Sleep(time.Second * 3)
 	job.pair.halt.ReqStop.Close()
 }

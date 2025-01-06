@@ -355,6 +355,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 		c.mut.Lock()
 
 		if msg.HDR.Typ == CallError {
+			vv("CallError seen! '%v'", msg.String())
 			wantsErr, ok := c.notifyOnReadCallIDMap[msg.HDR.CallID]
 			if ok {
 				select {
