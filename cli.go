@@ -356,11 +356,12 @@ func (c *Client) runReadLoop(conn net.Conn) {
 
 		if msg.HDR.Typ == CallError {
 			alwaysPrintf("CallError seen! '%v'", msg.String())
-			panic("stopping client on the above error")
-			wantsErr, ok := c.notifyOnReadCallIDMap[msg.HDR.CallID]
+			//panic("stopping client on the above error")
+			wantsErr, ok := c.notifyOnErrorCallIDMap[msg.HDR.CallID]
 			if ok {
 				select {
 				case wantsErr <- msg:
+					//vv("notified a channel! %p for CallID '%v'", wantsErr, msg.HDR.CallID)
 				default:
 					panic(fmt.Sprintf("Should never happen b/c the "+
 						"channels must be buffered!: could not send to "+

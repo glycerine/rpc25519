@@ -205,6 +205,7 @@ func main() {
 		// check for errors
 		var checkForErrors = func() *rpc25519.Message {
 			if strm != nil {
+				//vv("checking strm (sendfile) chan for error: %p; callID='%v'", strm.ErrorCh, strm.CallID())
 				select {
 				case errMsg := <-strm.ErrorCh:
 					vv("error for sendfile: '%v'", err)
@@ -213,6 +214,7 @@ func main() {
 				}
 			}
 			if bistream != nil {
+				//vv("checking bistream (echofile) chan for error: %p; callID='%v'", bistream.ErrorCh, bistream.CallID())
 				select {
 				case errMsg := <-bistream.ErrorCh:
 					vv("error from echofile: '%v'", err)
