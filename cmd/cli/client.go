@@ -278,6 +278,8 @@ func main() {
 					alwaysPrintf("err: '%v'", err)
 					alwaysPrintf("err2: '%v'", err2msg.String())
 				}
+				panicOn(err)
+				return
 			}
 
 			if time.Since(lastUpdate) > time.Second {
@@ -308,6 +310,9 @@ func main() {
 
 		} else {
 			select {
+			case errMsg := <-strm.ErrorCh:
+				alwaysPrintf("errMsg: '%v'", errMsg.String())
+				return
 			case reply := <-strm.ReadCh:
 				if false {
 					report := string(reply.JobSerz)
