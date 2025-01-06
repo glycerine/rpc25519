@@ -103,6 +103,7 @@ func main() {
 	var bistream *rpc25519.Bistreamer
 	var wg sync.WaitGroup
 	bistreamerName := "echoBistreamFunc"
+	var bisErrorCh chan error
 
 	if *echofile != "" {
 		doBistream = true
@@ -120,6 +121,7 @@ func main() {
 		bistream, err = cli.NewBistreamer(bistreamerName)
 		panicOn(err)
 		defer bistream.Close()
+		bisErrorCh = bistream.ErrorCh
 
 		s := rpc25519.NewPerCallID_FileToDiskState(bistream.CallID())
 		s.OverrideFilename = downloadFile
@@ -204,6 +206,17 @@ func main() {
 
 	upload:
 		for i := 0; true; i++ {
+
+			// check for errors
+			select {
+			case err := <-strm.ErrorCh:
+				vv("error for sendfile: '%v'", err)
+				return
+			case err := <-bisErrorCh:
+				vv("error from echofile: '%v'", err)
+				return
+			default:
+			}
 
 			nr, err1 := r.Read(buf)
 			//vv("on read i=%v, got nr=%v, (maxMessage=%v), err='%v'", i, nr, maxMessage, err1)

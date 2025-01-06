@@ -354,6 +354,21 @@ func (c *Client) runReadLoop(conn net.Conn) {
 
 		c.mut.Lock()
 
+		if msg.HDR.Typ == CallError {
+			wantsErr, ok := c.notifyOnReadCallIDMap[msg.HDR.CallID]
+			if ok {
+				select {
+				case wantsErr <- msg:
+				default:
+					panic(fmt.Sprintf("Should never happen b/c the "+
+						"channels must be buffered!: could not send to "+
+						"whoCh from notifyOnErrorCallIDMap; for CallID = %v.",
+						msg.HDR.CallID))
+				}
+			}
+			continue
+		}
+
 		wantsCallID, ok := c.notifyOnReadCallIDMap[msg.HDR.CallID]
 		if ok {
 			select {
@@ -920,9 +935,10 @@ type Client struct {
 	name  string
 	creds *selfcert.Creds
 
-	notifyOnRead          []chan *Message
-	notifyOnce            map[uint64]chan *Message
-	notifyOnReadCallIDMap map[string]chan *Message
+	notifyOnRead           []chan *Message
+	notifyOnce             map[uint64]chan *Message
+	notifyOnReadCallIDMap  map[string]chan *Message
+	notifyOnErrorCallIDMap map[string]chan *Message
 
 	conn       uConnLR
 	quicConn   quic.Connection
@@ -1232,6 +1248,13 @@ func (c *Client) GetReadIncomingChForCallID(callID string) (ch chan *Message) {
 	return
 }
 
+func (c *Client) GetErrorChForCallID(callID string) (ch chan *Message) {
+	ch = make(chan *Message, 100)
+	//vv("GetReadIncommingCh is %p on client '%v'", ch, c.name)
+	c.GetErrorsForCallID(ch, callID)
+	return
+}
+
 // GetReads registers to get any received messages on ch.
 // It is similar to GetReadIncomingCh but for when ch
 // already exists and you do not want a new one.
@@ -1244,6 +1267,16 @@ func (c *Client) GetReadsForCallID(ch chan *Message, callID string) {
 	c.mut.Lock()
 	defer c.mut.Unlock()
 	c.notifyOnReadCallIDMap[callID] = ch
+}
+
+func (c *Client) GetErrorsForCallID(ch chan *Message, callID string) {
+	//vv("GetReads called! stack='\n\n%v\n'", stack())
+	if cap(ch) == 0 {
+		panic("ch must be bufferred")
+	}
+	c.mut.Lock()
+	defer c.mut.Unlock()
+	c.notifyOnErrorCallIDMap[callID] = ch
 }
 
 // GetReads registers to get any received messages on ch.
@@ -1308,7 +1341,8 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		lastSeqno:   1,
 		notifyOnce:  make(map[uint64]chan *Message),
 
-		notifyOnReadCallIDMap: make(map[string]chan *Message),
+		notifyOnReadCallIDMap:  make(map[string]chan *Message),
+		notifyOnErrorCallIDMap: make(map[string]chan *Message),
 		// net/rpc
 		pending: make(map[uint64]*Call),
 	}
@@ -1576,6 +1610,8 @@ type Uploader struct {
 	name   string
 	seqno  uint64
 	ReadCh <-chan *Message
+
+	ErrorCh <-chan *Message
 }
 
 func (s *Uploader) CallID() string {
@@ -1639,12 +1675,13 @@ func (c *Client) UploadBegin(
 		return nil, err
 	}
 	return &Uploader{
-		cli:    c,
-		next:   1,
-		callID: msg.HDR.CallID,
-		ReadCh: c.GetReadIncomingChForCallID(msg.HDR.CallID),
-		name:   serviceName,
-		seqno:  seqno,
+		cli:     c,
+		next:    1,
+		callID:  msg.HDR.CallID,
+		ReadCh:  c.GetReadIncomingChForCallID(msg.HDR.CallID),
+		ErrorCh: c.GetErrorChForCallID(msg.HDR.CallID),
+		name:    serviceName,
+		seqno:   seqno,
 	}, nil
 }
 
@@ -1951,7 +1988,9 @@ type Bistreamer struct {
 
 	ReadDownloadsCh <-chan *Message
 	WriteCh         chan<- *Message
-	name            string
+	ErrorCh         <-chan *Message
+
+	name string
 
 	cli    *Client
 	next   int64
@@ -2004,6 +2043,7 @@ func (c *Client) NewBistreamer(bistreamerName string) (b *Bistreamer, err error)
 		cli:             c,
 		callID:          callID,
 		ReadDownloadsCh: c.GetReadIncomingChForCallID(callID),
+		ErrorCh:         c.GetErrorChForCallID(callID),
 		name:            bistreamerName,
 		seqno:           c.nextSeqno(),
 	}
