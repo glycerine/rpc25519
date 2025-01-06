@@ -1936,5 +1936,7 @@ func (s *Server) respondToReqWithError(req *Message, job *job, description strin
 	alwaysPrintf("CallError being sent back: '%v'", req.HDR.String())
 
 	// sendfile will just keep coming, so kill the connection.
+	// after a short pause to try and let the CallError through.
+	time.Sleep(time.Second)
 	job.pair.halt.ReqStop.Close()
 }
