@@ -1,5 +1,7 @@
 package hash
 
+// See benchmark runs at the end of this file.
+
 /* The BenchmarkSum256() test and cpu*go files are from github.com/lukechampine/blake3
    which is imported as "lukechampine.com/blake3".
    The other benchmarks are derived from this.
@@ -52,11 +54,17 @@ func TestBlake3(t *testing.T) {
 	lk512 := lk512tmp[:32]
 	lk256 := b3.LockedDigest256(data)
 
+	standalone512 := Blake3OfBytes(data)
+
 	fmt.Printf("un512[:32] = '%x'\n", un512)
 	fmt.Printf("lk512[:32] = '%x'\n", lk512)
-	fmt.Printf("un256[:32] = '%x'\n", un256) // different
+	fmt.Printf("un256[:32] = '%x'\n", un256)
 	fmt.Printf("lk256[:32] = '%x'\n", lk256)
+	fmt.Printf("alone[:32] = '%x'\n", standalone512[:32])
 
+	if !bytes.Equal(un512, standalone512[:32]) {
+		panic("disagree!")
+	}
 	if !bytes.Equal(un512, un256) {
 		panic("disagree!")
 	}
@@ -254,9 +262,67 @@ func BenchmarkHash32(b *testing.B) {
 	})
 }
 
+func Benchmark_Blake3OfBytesString(b *testing.B) {
+	if runAllSizes {
+		b.Run("64", func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(64)
+			buf := make([]byte, 64)
+			for i := 0; i < b.N; i++ {
+				Blake3OfBytesString(buf)
+			}
+		})
+		b.Run("1024", func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(1024)
+			buf := make([]byte, 1024)
+			for i := 0; i < b.N; i++ {
+				Blake3OfBytesString(buf)
+			}
+		})
+	}
+	b.Run("65536", func(b *testing.B) {
+		b.ReportAllocs()
+		b.SetBytes(65536)
+		buf := make([]byte, 65536)
+		for i := 0; i < b.N; i++ {
+			Blake3OfBytesString(buf)
+		}
+	})
+}
+
+func Benchmark_Blake3OfBytes(b *testing.B) {
+	if runAllSizes {
+		b.Run("64", func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(64)
+			buf := make([]byte, 64)
+			for i := 0; i < b.N; i++ {
+				Blake3OfBytes(buf)
+			}
+		})
+		b.Run("1024", func(b *testing.B) {
+			b.ReportAllocs()
+			b.SetBytes(1024)
+			buf := make([]byte, 1024)
+			for i := 0; i < b.N; i++ {
+				Blake3OfBytes(buf)
+			}
+		})
+	}
+	b.Run("65536", func(b *testing.B) {
+		b.ReportAllocs()
+		b.SetBytes(65536)
+		buf := make([]byte, 65536)
+		for i := 0; i < b.N; i++ {
+			Blake3OfBytes(buf)
+		}
+	})
+}
+
 /* with only AVX2 and not AVX512: just the 64K input:
 
-Compilation started at Mon Jan  6 12:54:07
+Compilation started at Mon Jan  6 13:08:14
 
 go test -v -bench=.
 === RUN   TestBlake3
@@ -269,6 +335,7 @@ un512[:32] = '3aa61c409fd7717c9d9c639202af2fae470c0ef669be7ba2caea5779cb534e9d'
 lk512[:32] = '3aa61c409fd7717c9d9c639202af2fae470c0ef669be7ba2caea5779cb534e9d'
 un256[:32] = '3aa61c409fd7717c9d9c639202af2fae470c0ef669be7ba2caea5779cb534e9d'
 lk256[:32] = '3aa61c409fd7717c9d9c639202af2fae470c0ef669be7ba2caea5779cb534e9d'
+alone[:32] = '3aa61c409fd7717c9d9c639202af2fae470c0ef669be7ba2caea5779cb534e9d'
 --- PASS: TestBlake3 (0.00s)
 goos: linux
 goarch: amd64
@@ -276,25 +343,31 @@ pkg: github.com/glycerine/rpc25519/hash
 cpu: AMD Ryzen Threadripper 3960X 24-Core Processor
 BenchmarkUnlockedDigest512
 BenchmarkUnlockedDigest512/65536
-BenchmarkUnlockedDigest512/65536-48         	   47185	     24889 ns/op	2633.13 MB/s	      64 B/op	       1 allocs/op
+BenchmarkUnlockedDigest512/65536-48 	   47662	     24739 ns/op	2649.09 MB/s	      64 B/op	       1 allocs/op
 BenchmarkUnlockedDigest256
 BenchmarkUnlockedDigest256/65536
-BenchmarkUnlockedDigest256/65536-48         	   47289	     24915 ns/op	2630.34 MB/s	      64 B/op	       1 allocs/op
+BenchmarkUnlockedDigest256/65536-48 	   48900	     24882 ns/op	2633.84 MB/s	      64 B/op	       1 allocs/op
 BenchmarkLockedDigest256
 BenchmarkLockedDigest256/65536
-BenchmarkLockedDigest256/65536-48           	   47973	     24957 ns/op	2625.99 MB/s	      64 B/op	       1 allocs/op
+BenchmarkLockedDigest256/65536-48   	   47431	     24990 ns/op	2622.48 MB/s	      64 B/op	       1 allocs/op
 BenchmarkLockedDigest512
 BenchmarkLockedDigest512/65536
-BenchmarkLockedDigest512/65536-48           	   43474	     27016 ns/op	2425.86 MB/s	      64 B/op	       1 allocs/op
+BenchmarkLockedDigest512/65536-48   	   45727	     26109 ns/op	2510.05 MB/s	      64 B/op	       1 allocs/op
 BenchmarkSum256
 BenchmarkSum256/65536
-BenchmarkSum256/65536-48                    	   47004	     24915 ns/op	2630.37 MB/s	       0 B/op	       0 allocs/op
+BenchmarkSum256/65536-48            	   47292	     24859 ns/op	2636.33 MB/s	       0 B/op	       0 allocs/op
 BenchmarkHash32
 BenchmarkHash32/65536
-BenchmarkHash32/65536-48                    	   46956	     25286 ns/op	2591.78 MB/s	     176 B/op	       3 allocs/op
+BenchmarkHash32/65536-48            	   46792	     25175 ns/op	2603.20 MB/s	     176 B/op	       3 allocs/op
+Benchmark_Blake3OfBytesString
+Benchmark_Blake3OfBytesString/65536
+Benchmark_Blake3OfBytesString/65536-48         	   45538	     25912 ns/op	2529.15 MB/s	     176 B/op	       3 allocs/op
+Benchmark_Blake3OfBytes
+Benchmark_Blake3OfBytes/65536
+Benchmark_Blake3OfBytes/65536-48               	   46977	     25183 ns/op	2602.34 MB/s	      64 B/op	       1 allocs/op
 PASS
-ok  	github.com/glycerine/rpc25519/hash	8.678s
+ok  	github.com/glycerine/rpc25519/hash	11.597s
 
-Compilation finished at Mon Jan  6 12:54:16, duration 8.92 s
+Compilation finished at Mon Jan  6 13:08:26, duration 11.8 s
 
 */

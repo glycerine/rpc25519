@@ -10,6 +10,7 @@ import (
 	"time"
 
 	cv "github.com/glycerine/goconvey/convey"
+	myblake3 "github.com/glycerine/rpc25519/hash"
 )
 
 var _ = fmt.Printf
@@ -1284,5 +1285,26 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 			cv.So(string(fileBytes), cv.ShouldEqual, "a=c(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)")
 		}
 
+	})
+}
+
+func Test100_BlakeHashesAgree(t *testing.T) {
+
+	cv.Convey("blake3 hash strings should be consistent across all utility func", t, func() {
+
+		h := myblake3.NewBlake3()
+		data := []byte("hello world!")
+
+		a := blake3OfBytesString(data)
+		b := h.Hash32(data)
+		c := myblake3.Blake3OfBytesString(data)
+		vv(`blake3OfBytesString("hello world!") = '%v'`, a)
+		vv(`myblake3.Hash32("hello world!")     = '%v'`, b)
+		if a != b {
+			panic("a != b, hashes are different!")
+		}
+		if c != b {
+			panic("c != b, hashes are different!")
+		}
 	})
 }
