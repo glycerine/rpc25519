@@ -1937,6 +1937,9 @@ func (s *Server) respondToReqWithError(req *Message, job *job, description strin
 
 	// sendfile will just keep coming, so kill the connection.
 	// after a short pause to try and let the CallError through.
+	// Hopefully client will get it first and do the disconnect
+	// themselves; since then they will have TIME_WAIT and not
+	// the server.
 	time.Sleep(time.Second * 3)
 	job.pair.halt.ReqStop.Close()
 }

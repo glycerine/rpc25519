@@ -15,11 +15,9 @@ import (
 	"time"
 
 	tdigest "github.com/caio/go-tdigest"
-	cristalbase64 "github.com/cristalhq/base64"
 	"github.com/glycerine/rpc25519"
+	"github.com/glycerine/rpc25519/blake3"
 	"github.com/glycerine/rpc25519/progress"
-
-	"lukechampine.com/blake3"
 )
 
 var td *tdigest.TDigest
@@ -397,17 +395,6 @@ func main() {
 			}
 		}
 	}
-}
-
-func Blake3OfBytes(by []byte) []byte {
-	h := blake3.New(64, nil)
-	h.Write(by)
-	return h.Sum(nil)
-}
-
-func Blake3OfBytesString(by []byte) string {
-	sum := Blake3OfBytes(by)
-	return "blake3-" + cristalbase64.URLEncoding.EncodeToString(sum)
 }
 
 func formatUnder(n int) string {
