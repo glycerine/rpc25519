@@ -371,3 +371,50 @@ ok  	github.com/glycerine/rpc25519/hash	11.597s
 Compilation finished at Mon Jan  6 13:08:26, duration 11.8 s
 
 */
+
+/* WITH AVX512, about 30% faster: (here on macOS/darwin):
+
+=== RUN   TestBlake3
+haveAVX2 = true
+haveAVX512 = true
+
+UnlockedDigest512 is 64 bytes (512 bits)
+
+un512[:32] = '3aa61c409fd7717c9d9c639202af2fae470c0ef669be7ba2caea5779cb534e9d'
+lk512[:32] = '3aa61c409fd7717c9d9c639202af2fae470c0ef669be7ba2caea5779cb534e9d'
+un256[:32] = '3aa61c409fd7717c9d9c639202af2fae470c0ef669be7ba2caea5779cb534e9d'
+lk256[:32] = '3aa61c409fd7717c9d9c639202af2fae470c0ef669be7ba2caea5779cb534e9d'
+alone[:32] = '3aa61c409fd7717c9d9c639202af2fae470c0ef669be7ba2caea5779cb534e9d'
+--- PASS: TestBlake3 (0.00s)
+goos: darwin
+goarch: amd64
+pkg: github.com/glycerine/rpc25519/hash
+cpu: Intel(R) Core(TM) i7-1068NG7 CPU @ 2.30GHz
+BenchmarkUnlockedDigest512
+BenchmarkUnlockedDigest512/65536
+BenchmarkUnlockedDigest512/65536-8         	   64432	     18322 ns/op	3576.98 MB/s	      64 B/op	       1 allocs/op
+BenchmarkUnlockedDigest256
+BenchmarkUnlockedDigest256/65536
+BenchmarkUnlockedDigest256/65536-8         	   62337	     18150 ns/op	3610.83 MB/s	      64 B/op	       1 allocs/op
+BenchmarkLockedDigest256
+BenchmarkLockedDigest256/65536
+BenchmarkLockedDigest256/65536-8           	   63712	     18016 ns/op	3637.64 MB/s	      64 B/op	       1 allocs/op
+BenchmarkLockedDigest512
+BenchmarkLockedDigest512/65536
+BenchmarkLockedDigest512/65536-8           	   63423	     18376 ns/op	3566.34 MB/s	      64 B/op	       1 allocs/op
+BenchmarkSum256
+BenchmarkSum256/65536
+BenchmarkSum256/65536-8                    	   62223	     18152 ns/op	3610.47 MB/s	       0 B/op	       0 allocs/op
+BenchmarkHash32
+BenchmarkHash32/65536
+BenchmarkHash32/65536-8                    	   62054	     18307 ns/op	3579.83 MB/s	     176 B/op	       3 allocs/op
+Benchmark_Blake3OfBytesString
+Benchmark_Blake3OfBytesString/65536
+Benchmark_Blake3OfBytesString/65536-8      	   55426	     20535 ns/op	3191.43 MB/s	     176 B/op	       3 allocs/op
+Benchmark_Blake3OfBytes
+Benchmark_Blake3OfBytes/65536
+Benchmark_Blake3OfBytes/65536-8            	   62908	     18083 ns/op	3624.10 MB/s	      64 B/op	       1 allocs/op
+PASS
+ok  	github.com/glycerine/rpc25519/hash	10.866s
+
+*/
