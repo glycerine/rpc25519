@@ -652,8 +652,10 @@ func (s *Server) processWork(job *job) {
 		uploader, ok := s.callmeUploadReaderMap[req.HDR.ServiceName]
 		if !ok {
 			// nothing to do
-			alwaysPrintf("warning! possible problem: CallUploadBegin stream begin received but no registered stream upload reader available on the server. hdr='%v'", req.HDR.String())
 			s.mut.Unlock()
+			// send back a CallError
+			s.respondToReqWithError(req, job, fmt.Sprintf("warning! possible problem: CallUploadBegin stream begin received but no registered stream upload reader available on the server. hdr='%v'", req.HDR.String()))
+
 			return
 		}
 		foundUploader = true
@@ -1923,4 +1925,13 @@ func (s *serverSendDownloadHelper) sendDownloadPart(ctx context.Context, msg *Me
 		//vv("serverSendDownloadHelper.sendDownloadPart end: sendMessage went OK! no error.")
 	}
 	return err
+}
+
+func (s *Server) respondToReqWithError(req *Message, job *job, description string) {
+	req.HDR.From, req.HDR.To = req.HDR.To, req.HDR.From
+	req.JobSerz = nil
+	req.HDR.Typ = CallError
+	req.HDR.Subject = description
+	err := job.w.sendMessage(job.conn, req, &s.cfg.WriteTimeout)
+	_ = err
 }

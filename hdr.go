@@ -58,6 +58,8 @@ const (
 	CallDownloadBegin CallType = 18 // one of these to start;
 	CallDownloadMore  CallType = 19 // possibly many of these;
 	CallDownloadEnd   CallType = 20 // and one of these to finish.
+
+	CallError CallType = 21 // we could not complete a request
 )
 
 func (ct CallType) String() string {
