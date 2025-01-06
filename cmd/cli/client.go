@@ -279,7 +279,7 @@ func main() {
 					vv("with JobSerz: '%v'", report)
 				}
 				fmt.Printf("total time for upload: '%v'\n", time.Since(t0))
-
+				fmt.Printf("file size: %_d bytes.\n", tot) // , clientTotSum)
 				serverTotSum := reply.HDR.Args["serverTotalBlake3sum"]
 
 				if clientTotSum == serverTotSum {
