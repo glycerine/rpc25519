@@ -654,7 +654,7 @@ func (s *Server) processWork(job *job) {
 			// nothing to do
 			s.mut.Unlock()
 			// send back a CallError
-			s.respondToReqWithError(req, job, fmt.Sprintf("warning! possible problem: CallUploadBegin stream begin received but no registered stream upload reader available on the server. req.HDR.ServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ServiceName, req.HDR.CallID))
+			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallUploadBegin stream begin received but no registered stream upload reader available on the server. req.HDR.ServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ServiceName, req.HDR.CallID))
 			return
 		}
 		foundUploader = true
