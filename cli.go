@@ -504,6 +504,10 @@ func (c *Client) runSendLoop(conn net.Conn) {
 			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
 				alwaysPrintf("Failed to send message: %v", err)
 				msg.LocalErr = err
+				if strings.Contains(err.Error(),
+					"use of closed network connection") {
+					return
+				}
 			} else {
 				//vv("cli %v has sent a 1-way message: %v'", c.name, msg)
 				lastPing = time.Now() // no need for ping
