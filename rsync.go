@@ -12,6 +12,10 @@ import (
 
 //go:generate greenpack
 
+// RsyncHashes stores CDC (Content Dependent Chunking)
+// chunks for a given Path on a given Host, using
+// a specified chunking algorithm (e.g. "ultracdc"), its parameters,
+// and a specified hash function (e.g. "blake3.32B"
 type RsyncHashes struct {
 	Host string `zid:"0"`
 	Path string `zid:"1"`
@@ -19,11 +23,13 @@ type RsyncHashes struct {
 	// HashName is e.g. "blake3.32B"
 	HashName string `zid:"2"`
 
-	FullFileHashSum string                `zid:"3"`
-	ChunkerName     string                `zid:"4"`
-	ChunkerOpts     *ultracdc.ChunkerOpts `zid:"5"`
+	FullFileHashSum string `zid:"3"`
 
-	// NumChunks gives len(Chunks)
+	// ChunkerName is e.g. "ultracdc"
+	ChunkerName string                `zid:"4"`
+	ChunkerOpts *ultracdc.ChunkerOpts `zid:"5"`
+
+	// NumChunks gives len(Chunks) for convenience.
 	NumChunks int           `zid:"6"`
 	Chunks    []*RsyncChunk `zid:"7"`
 }
