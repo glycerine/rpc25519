@@ -13,15 +13,19 @@ import (
 //go:generate greenpack
 
 type RsyncHashes struct {
-	Path            string                `zid:"0"`
-	FullFileHashSum string                `zid:"1"`
-	ChunkerName     string                `zid:"2"`
-	ChunkerOpts     *ultracdc.ChunkerOpts `zid:"3"`
-	Chunks          []*RsyncChunk         `zid:"4"`
-	NumChunks       int                   `zid:"5"`
+	Host string `zid:"0"`
+	Path string `zid:"1"`
 
-	// e.g. "blake3.32B"
-	HashName string `zid:"6"`
+	// HashName is e.g. "blake3.32B"
+	HashName string `zid:"2"`
+
+	FullFileHashSum string                `zid:"3"`
+	ChunkerName     string                `zid:"4"`
+	ChunkerOpts     *ultracdc.ChunkerOpts `zid:"5"`
+
+	// NumChunks gives len(Chunks)
+	NumChunks int           `zid:"6"`
+	Chunks    []*RsyncChunk `zid:"7"`
 }
 
 type RsyncChunk struct {
@@ -43,7 +47,7 @@ func (h *RsyncHashes) String() string {
 	return pretty.String()
 }
 
-func SummarizeFileInCDCHashes(path string) (hashes *RsyncHashes, err error) {
+func SummarizeFileInCDCHashes(host, path string) (hashes *RsyncHashes, err error) {
 
 	var data []byte
 	data, err = os.ReadFile(path)
@@ -51,10 +55,10 @@ func SummarizeFileInCDCHashes(path string) (hashes *RsyncHashes, err error) {
 		return nil, fmt.Errorf("rsync.go error reading path '%v': '%v'", path, err)
 	}
 
-	return SummarizeBytesInCDCHashes(path, data)
+	return SummarizeBytesInCDCHashes(host, path, data)
 }
 
-func SummarizeBytesInCDCHashes(path string, data []byte) (hashes *RsyncHashes, err error) {
+func SummarizeBytesInCDCHashes(host, path string, data []byte) (hashes *RsyncHashes, err error) {
 
 	u := ultracdc.NewUltraCDC()
 
@@ -66,6 +70,7 @@ func SummarizeBytesInCDCHashes(path string, data []byte) (hashes *RsyncHashes, e
 	u.Opts = opts
 
 	hashes = &RsyncHashes{
+		Host:            host,
 		Path:            path,
 		FullFileHashSum: hash.Blake3OfBytesString(data),
 		ChunkerName:     "ultracdc",
@@ -93,11 +98,13 @@ func SummarizeBytesInCDCHashes(path string, data []byte) (hashes *RsyncHashes, e
 }
 
 type RsyncDiffs struct {
-	PathA string           `zid:"0"`
-	PathB string           `zid:"1"`
-	Both  []*MatchHashPair `zid:"2"`
-	OnlyA []*RsyncChunk    `zid:"3"`
-	OnlyB []*RsyncChunk    `zid:"4"`
+	HostA string           `zid:"0"`
+	PathA string           `zid:"1"`
+	HostB string           `zid:"2"`
+	PathB string           `zid:"3"`
+	Both  []*MatchHashPair `zid:"4"`
+	OnlyA []*RsyncChunk    `zid:"5"`
+	OnlyB []*RsyncChunk    `zid:"6"`
 }
 
 func (d *RsyncDiffs) String() string {
@@ -118,7 +125,9 @@ type MatchHashPair struct {
 
 func (a *RsyncHashes) Diff(b *RsyncHashes) (d *RsyncDiffs) {
 	d = &RsyncDiffs{
+		HostA: a.Host,
 		PathA: a.Path,
+		HostB: b.Host,
 		PathB: b.Path,
 	}
 
