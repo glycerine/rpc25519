@@ -70,19 +70,19 @@ doneWithStruct0zgensym_459840587cde88d_1:
 		switch curField0zgensym_459840587cde88d_1 {
 		// -- templateDecodeMsg ends here --
 
-		case "MinSize__int":
+		case "MinSize_zid00_int":
 			found0zgensym_459840587cde88d_1[0] = true
 			z.MinSize, err = dc.ReadInt()
 			if err != nil {
 				return
 			}
-		case "MaxSize__int":
+		case "MaxSize_zid01_int":
 			found0zgensym_459840587cde88d_1[1] = true
 			z.MaxSize, err = dc.ReadInt()
 			if err != nil {
 				return
 			}
-		case "NormalSize__int":
+		case "NormalSize_zid02_int":
 			found0zgensym_459840587cde88d_1[2] = true
 			z.NormalSize, err = dc.ReadInt()
 			if err != nil {
@@ -111,7 +111,7 @@ doneWithStruct0zgensym_459840587cde88d_1:
 }
 
 // fields of ChunkerOpts
-var decodeMsgFieldOrder0zgensym_459840587cde88d_1 = []string{"MinSize__int", "MaxSize__int", "NormalSize__int"}
+var decodeMsgFieldOrder0zgensym_459840587cde88d_1 = []string{"MinSize_zid00_int", "MaxSize_zid01_int", "NormalSize_zid02_int"}
 
 var decodeMsgFieldSkip0zgensym_459840587cde88d_1 = []bool{false, false, false}
 
@@ -164,8 +164,8 @@ func (z ChunkerOpts) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_459840587cde88d_2[0] {
-		// write "MinSize__int"
-		err = en.Append(0xac, 0x4d, 0x69, 0x6e, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x5f, 0x69, 0x6e, 0x74)
+		// write "MinSize_zid00_int"
+		err = en.Append(0xb1, 0x4d, 0x69, 0x6e, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x69, 0x6e, 0x74)
 		if err != nil {
 			return err
 		}
@@ -176,8 +176,8 @@ func (z ChunkerOpts) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_459840587cde88d_2[1] {
-		// write "MaxSize__int"
-		err = en.Append(0xac, 0x4d, 0x61, 0x78, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x5f, 0x69, 0x6e, 0x74)
+		// write "MaxSize_zid01_int"
+		err = en.Append(0xb1, 0x4d, 0x61, 0x78, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x69, 0x6e, 0x74)
 		if err != nil {
 			return err
 		}
@@ -188,8 +188,8 @@ func (z ChunkerOpts) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_459840587cde88d_2[2] {
-		// write "NormalSize__int"
-		err = en.Append(0xaf, 0x4e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x5f, 0x69, 0x6e, 0x74)
+		// write "NormalSize_zid02_int"
+		err = en.Append(0xb4, 0x4e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x6e, 0x74)
 		if err != nil {
 			return err
 		}
@@ -216,20 +216,20 @@ func (z ChunkerOpts) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
 	if !empty[0] {
-		// string "MinSize__int"
-		o = append(o, 0xac, 0x4d, 0x69, 0x6e, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x5f, 0x69, 0x6e, 0x74)
+		// string "MinSize_zid00_int"
+		o = append(o, 0xb1, 0x4d, 0x69, 0x6e, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x69, 0x6e, 0x74)
 		o = msgp.AppendInt(o, z.MinSize)
 	}
 
 	if !empty[1] {
-		// string "MaxSize__int"
-		o = append(o, 0xac, 0x4d, 0x61, 0x78, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x5f, 0x69, 0x6e, 0x74)
+		// string "MaxSize_zid01_int"
+		o = append(o, 0xb1, 0x4d, 0x61, 0x78, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x69, 0x6e, 0x74)
 		o = msgp.AppendInt(o, z.MaxSize)
 	}
 
 	if !empty[2] {
-		// string "NormalSize__int"
-		o = append(o, 0xaf, 0x4e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x5f, 0x69, 0x6e, 0x74)
+		// string "NormalSize_zid02_int"
+		o = append(o, 0xb4, 0x4e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x6e, 0x74)
 		o = msgp.AppendInt(o, z.NormalSize)
 	}
 
@@ -301,21 +301,21 @@ doneWithStruct4zgensym_459840587cde88d_5:
 		switch curField4zgensym_459840587cde88d_5 {
 		// -- templateUnmarshalMsg ends here --
 
-		case "MinSize__int":
+		case "MinSize_zid00_int":
 			found4zgensym_459840587cde88d_5[0] = true
 			z.MinSize, bts, err = nbs.ReadIntBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "MaxSize__int":
+		case "MaxSize_zid01_int":
 			found4zgensym_459840587cde88d_5[1] = true
 			z.MaxSize, bts, err = nbs.ReadIntBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "NormalSize__int":
+		case "NormalSize_zid02_int":
 			found4zgensym_459840587cde88d_5[2] = true
 			z.NormalSize, bts, err = nbs.ReadIntBytes(bts)
 
@@ -345,12 +345,12 @@ doneWithStruct4zgensym_459840587cde88d_5:
 }
 
 // fields of ChunkerOpts
-var unmarshalMsgFieldOrder4zgensym_459840587cde88d_5 = []string{"MinSize__int", "MaxSize__int", "NormalSize__int"}
+var unmarshalMsgFieldOrder4zgensym_459840587cde88d_5 = []string{"MinSize_zid00_int", "MaxSize_zid01_int", "NormalSize_zid02_int"}
 
 var unmarshalMsgFieldSkip4zgensym_459840587cde88d_5 = []bool{false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z ChunkerOpts) Msgsize() (s int) {
-	s = 1 + 13 + msgp.IntSize + 13 + msgp.IntSize + 16 + msgp.IntSize
+	s = 1 + 18 + msgp.IntSize + 18 + msgp.IntSize + 21 + msgp.IntSize
 	return
 }

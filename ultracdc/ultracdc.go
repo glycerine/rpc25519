@@ -37,14 +37,14 @@ var ErrMinSize = errors.New("MinSize is required and must be 64B <= MinSize <= 1
 var ErrMaxSize = errors.New("MaxSize is required and must be 64B <= MaxSize <= 1GB && MaxSize > NormalSize")
 
 type ChunkerOpts struct {
-	MinSize    int
-	MaxSize    int
-	NormalSize int
+	MinSize    int `zid:"0"`
+	MaxSize    int `zid:"1"`
+	NormalSize int `zid:"2"`
 }
 
 //msgp:ignore UltraCDC
 type UltraCDC struct {
-	Opts *ChunkerOpts
+	Opts *ChunkerOpts `zid:"0"`
 }
 
 // NewUltraCDC is for non-Plakar standalone clients. Plakar
