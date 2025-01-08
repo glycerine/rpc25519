@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	filepath "path/filepath"
 	"strconv"
@@ -19,12 +20,15 @@ import (
 	"github.com/glycerine/rpc25519"
 	myblake3 "github.com/glycerine/rpc25519/hash"
 	"github.com/glycerine/rpc25519/progress"
+	_ "net/http/pprof" // for web based profiling while running
 )
 
 var td *tdigest.TDigest
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
+
+	var profile = flag.String("prof", "", "host:port to start web profiler on. host can be empty for all localhost interfaces")
 
 	var dest = flag.String("s", "127.0.0.1:8443", "server address to send echo request to.")
 	var remoteDefault = flag.Bool("r", false, "ping the default test remote at 192.168.254.151")
@@ -50,6 +54,13 @@ func main() {
 
 	if *remoteDefault {
 		*dest = "192.168.254.151:8443"
+	}
+
+	if *profile != "" {
+		fmt.Printf("webprofile starting at '%v'...\n", *profile)
+		go func() {
+			http.ListenAndServe(*profile, nil)
+		}()
 	}
 
 	if *dest != "" {
@@ -107,6 +118,7 @@ func main() {
 	meterDownQuietCh := make(chan bool, 2)
 	meterDownQuietCh <- true
 	uploadDone := loquet.NewChan[bool](nil)
+	t0 := time.Now()
 
 	if *echofile != "" {
 		doBistream = true
@@ -150,8 +162,11 @@ func main() {
 				case meterDownQuiet = <-meterDownQuietCh:
 				case req := <-bistream.ReadDownloadsCh:
 					//vv("cli bistream downloadsCh sees %v", req.String())
-
-					netread += len(req.JobSerz)
+					sz := len(req.JobSerz)
+					if netread == 0 {
+						vv("downloaded %v bytes after %v", sz, time.Since(t0))
+					}
+					netread += sz
 
 					if req.HDR.Typ == rpc25519.CallRPCReply {
 						//vv("cli bistream downloadsCh sees CallRPCReply, exiting goro")
@@ -192,7 +207,6 @@ func main() {
 	} // end if echofile
 
 	if *sendfile != "" {
-		t0 := time.Now()
 
 		path := *sendfile
 		if !fileExists(path) {
