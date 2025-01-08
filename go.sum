@@ -38,6 +38,8 @@ github.com/glycerine/loquet v0.0.11 h1:0f2MkS2fa78QiE8HrB7RdLzq1fpgDpLFO7Ro4J/6m
 github.com/glycerine/loquet v0.0.11/go.mod h1:QSNF+sgXotyH0xItyfJ3xDKfnFl8kDbOL1YclmplBgg=
 github.com/glycerine/loquet v0.0.12 h1:j3ipET4wLb/ItIAFVleVYmlkVDXdvvJNl0NR6ek3vXQ=
 github.com/glycerine/loquet v0.0.12/go.mod h1:QSNF+sgXotyH0xItyfJ3xDKfnFl8kDbOL1YclmplBgg=
+github.com/glycerine/loquet v0.0.14 h1:4yZn1H61RZjSGtibVIm4XLsbz/7Zy9TQUHuVpnd+bAQ=
+github.com/glycerine/loquet v0.0.14/go.mod h1:QSNF+sgXotyH0xItyfJ3xDKfnFl8kDbOL1YclmplBgg=
 github.com/go-logr/logr v1.2.4 h1:g01GSCwiDw2xSZfjJ2/T9M+S6pFdcNtFYsp+Y43HYDQ=
 github.com/go-logr/logr v1.2.4/go.mod h1:jdQByPbusPIv2/zmleS9BjJVeZ6kBagPoEUsqbVz/1A=
 github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 h1:tfuBGBXKqDEevZMzYi5KSi8KkcZtzBcTgAUUtapy0OI=
