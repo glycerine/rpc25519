@@ -141,11 +141,12 @@ func main() {
 			meterDownQuiet := true
 			lastUpdate := time.Now()
 			netread := 0 // net count of bytes read off the network.
+			whenUploadDone := uploadDone.WhenClosed()
 			for {
 				select {
-				case <-uploadDone.WhenClosed():
+				case <-whenUploadDone:
 					vv("upload done, down has read: %v bytes", netread)
-					uploadDone.Open() // stop sending :)
+					whenUploadDone = nil
 				case meterDownQuiet = <-meterDownQuietCh:
 				case req := <-bistream.ReadDownloadsCh:
 					//vv("cli bistream downloadsCh sees %v", req.String())

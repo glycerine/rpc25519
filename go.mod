@@ -12,7 +12,7 @@ require (
 	github.com/glycerine/greenpack v0.517.0
 	github.com/glycerine/idem v0.0.0-20240925232718-fc20a7f9bca6
 	github.com/glycerine/ipaddr v0.2.4
-	github.com/glycerine/loquet v0.0.18
+	github.com/glycerine/loquet v0.0.19
 	github.com/goccy/go-json v0.10.3
 	github.com/klauspost/cpuid/v2 v2.0.9
 	github.com/quic-go/quic-go v0.48.2
