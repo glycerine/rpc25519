@@ -13,13 +13,15 @@ import (
 //go:generate greenpack
 
 type RsyncHashes struct {
-	Path              string                `zid:"0"`
-	Blake3FullFileSum string                `zid:"1"`
-	ChunkerName       string                `zid:"2"`
-	ChunkerOpts       *ultracdc.ChunkerOpts `zid:"3"`
-	Chunks            []*RsyncChunk         `zid:"4"`
-	NumChunks         int                   `zid:"5"`
-	HashName          string
+	Path            string                `zid:"0"`
+	FullFileHashSum string                `zid:"1"`
+	ChunkerName     string                `zid:"2"`
+	ChunkerOpts     *ultracdc.ChunkerOpts `zid:"3"`
+	Chunks          []*RsyncChunk         `zid:"4"`
+	NumChunks       int                   `zid:"5"`
+
+	// e.g. "blake3.32B"
+	HashName string `zid:"6"`
 }
 
 type RsyncChunk struct {
@@ -64,11 +66,11 @@ func SummarizeBytesInCDCHashes(path string, data []byte) (hashes *RsyncHashes, e
 	u.Opts = opts
 
 	hashes = &RsyncHashes{
-		Path:              path,
-		Blake3FullFileSum: hash.Blake3OfBytesString(data),
-		ChunkerName:       "ultracdc",
-		ChunkerOpts:       u.Opts,
-		HashName:          "blake3.32B",
+		Path:            path,
+		FullFileHashSum: hash.Blake3OfBytesString(data),
+		ChunkerName:     "ultracdc",
+		ChunkerOpts:     u.Opts,
+		HashName:        "blake3.32B",
 	}
 
 	cuts := u.Cutpoints(data, 0)
