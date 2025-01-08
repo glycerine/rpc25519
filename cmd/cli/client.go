@@ -170,6 +170,7 @@ func main() {
 
 		err = downloader.BeginDownload(ctx, path)
 		panicOn(err)
+		maxPayloadSeen := 0
 
 		for part := int64(0); true; part++ {
 			select {
@@ -183,6 +184,9 @@ func main() {
 					vv("downloaded %v bytes after %v", sz, time.Since(t0))
 				}
 				netread += sz
+				if sz > maxPayloadSeen {
+					maxPayloadSeen = sz
+				}
 
 				if req.HDR.Typ == rpc25519.CallRPCReply {
 					vv("cli downloader downloadsCh sees CallRPCReply, exiting")
@@ -212,6 +216,8 @@ func main() {
 				}
 
 				last := (req.HDR.Typ == rpc25519.CallDownloadEnd)
+
+				// this writes our req.JobSerz to disk.
 				err = s.WriteOneMsgToFile(req, "download_client_got", last)
 
 				if err != nil {
@@ -219,6 +225,9 @@ func main() {
 					return
 				}
 				if last {
+					if int(s.BytesWrit) != netread {
+						panic(fmt.Sprintf("%v = s.BytesWrit != netread = %v", s.BytesWrit, netread))
+					}
 					//totSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(s.Blake3hash.Sum(nil))
 					////vv("ReceiveFileInParts sees last set!")
 					//vv("bytesWrit=%v; \nserver totSum='%v'", s.BytesWrit, totSum)
@@ -232,6 +241,7 @@ func main() {
 					fmt.Println()
 					fmt.Printf("total time for download: '%v'\n", time.Since(s.T0))
 					fmt.Printf("file size: %v bytes.\n", formatUnder(int(s.BytesWrit)))
+					fmt.Printf("rate:  %0.6f MB/sec. Used %v parts of max size %v bytes\n", rate, part+1, maxPayloadSeen)
 
 				} // end if last
 			} //end select
