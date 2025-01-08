@@ -840,8 +840,14 @@ func NewServerSendsDownloadState() *ServerSendsDownloadState {
 	return &ServerSendsDownloadState{}
 }
 
-// ServerSendsDownload is used by cmd/srv/server.go -serve to serve
-// downloads.
+// ServerSendsDownload is used by cmd/srv/server.go; so when
+//
+// srv -serve
+//
+//	serves downloads to
+//
+// cli -download path
+//
 // ServerSendsDownload has type ServerSendsDownloadFunc, and gets
 // registered on the server with srv.RegisterServerSendsDownloadFunc().
 func (ssss *ServerSendsDownloadState) ServerSendsDownload(
@@ -852,7 +858,7 @@ func (ssss *ServerSendsDownloadState) ServerSendsDownload(
 	lastReply *Message,
 ) (err error) {
 
-	vv("top ServerSendsDownloadState.ServerSendsDownload.")
+	//vv("top ServerSendsDownloadState.ServerSendsDownload.")
 
 	done := ctx.Done()
 	select {
