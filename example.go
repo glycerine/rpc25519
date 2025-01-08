@@ -870,7 +870,7 @@ func (ssss *ServerSendsDownloadState) ServerSendsDownload(
 		panic("downloadRequestedPath not found in Args--what do we send???")
 	}
 	if !fileExists(path) {
-		return fmt.Errorf("download error: no such path '%v': '%v'", path)
+		return fmt.Errorf("download error: no such path '%v'", path)
 	}
 	fi, err := os.Stat(path)
 	if err != nil {

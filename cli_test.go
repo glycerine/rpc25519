@@ -1077,7 +1077,7 @@ func Test055_download(t *testing.T) {
 		defer cancelFunc55()
 
 		// start the call
-		downloader, err := client.RequestDownload(ctx55, downloaderName)
+		downloader, err := client.RequestDownload(ctx55, downloaderName, "test055_not_real_download")
 		panicOn(err)
 
 		//vv("downloader requested, with CallID = '%v'", downloader.CallID)

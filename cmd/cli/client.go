@@ -149,9 +149,6 @@ func main() {
 		vv("cli readfile requested for file '%v'", path)
 	}
 
-	if doBistream {
-	}
-
 	if doDownload {
 
 		downloadFile := path + ".downloaded"
@@ -187,7 +184,13 @@ func main() {
 				}
 				netread += sz
 
+				if req.HDR.Typ == rpc25519.CallRPCReply {
+					vv("cli downloader downloadsCh sees CallRPCReply, exiting")
+					return
+				}
+
 				if req.HDR.StreamPart != part {
+					// panic: 0 = req.HDR.StreamPart != part = 4
 					panic(fmt.Sprintf("%v = req.HDR.StreamPart != part = %v",
 						req.HDR.StreamPart, part))
 				}
@@ -203,10 +206,6 @@ func main() {
 						pathsize, "[dn]"+filepath.Base(path))
 				}
 
-				if req.HDR.Typ == rpc25519.CallRPCReply {
-					//vv("cli downloader downloadsCh sees CallRPCReply, exiting goro")
-					return
-				}
 				if time.Since(lastUpdate) > time.Second {
 					meterDown.DoProgressWithSpeed(int64(netread), meterDownQuiet, req.HDR.StreamPart)
 					lastUpdate = time.Now()
