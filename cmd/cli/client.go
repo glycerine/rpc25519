@@ -244,8 +244,9 @@ func main() {
 			return nil
 		}
 
+		i := 0
 	upload:
-		for i := 0; true; i++ {
+		for i = 0; true; i++ {
 
 			if err := checkForErrors(); err != nil {
 				alwaysPrintf("error: '%v'", err.String())
@@ -302,7 +303,7 @@ func main() {
 			}
 
 			if time.Since(lastUpdate) > time.Second {
-				meterUp.PrintProgressWithSpeed(int64(tot))
+				meterUp.DoProgressWithSpeed(int64(tot), false, int64(i))
 				lastUpdate = time.Now()
 			}
 
@@ -313,7 +314,7 @@ func main() {
 
 		} // end for i
 
-		meterUp.PrintProgressWithSpeed(int64(tot))
+		meterUp.DoProgressWithSpeed(int64(tot), false, int64(i))
 		clientTotSum := blake3hash.SumString()
 
 		fmt.Println()
