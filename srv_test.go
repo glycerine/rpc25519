@@ -45,6 +45,7 @@ func Test001_RoundTrip_SendAndGetReply_TCP(t *testing.T) {
 		reply, err := cli.SendAndGetReply(req, nil)
 		panicOn(err)
 
+		vv("reply = %p", reply)
 		vv("server sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
 
 	})

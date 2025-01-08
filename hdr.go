@@ -15,6 +15,7 @@ import (
 	cryrand "crypto/rand"
 	cristalbase64 "github.com/cristalhq/base64"
 	"github.com/glycerine/greenpack/msgp"
+	"github.com/glycerine/loquet"
 	gjson "github.com/goccy/go-json"
 	mathrand2 "math/rand/v2"
 )
@@ -150,28 +151,21 @@ type Message struct {
 	// or in-band within JobSerz.
 	LocalErr error `msg:"-"`
 
-	// DoneCh will receive this Message itself when the call completes.
-	// It must be buffered, with at least capacity 1.
+	// DoneCh.WhenClosed will be closed on the client when the one-way is
+	// sent or the round-trip call completes.
 	// NewMessage() automatically allocates DoneCh correctly and
 	// should be used when creating a new Message.
-	DoneCh chan *Message `msg:"-"`
+	DoneCh *loquet.Chan[Message] `msg:"-"`
 
-	next *Message // free list on server
+	nextOrReply *Message // free list on server, replies to round-trips in the client.
 }
 
 // interface for goq
 
 // NewMessage allocates a new Message with a DoneCh properly created (buffered 1).
 func NewMessage() *Message {
-	m := &Message{
-		// NOTE: buffer size must be at least 1, so our Client.runSendLoop never blocks.
-		// Thus we simplify the logic there, not requiring a ton of extra selects to
-		// handle shutdown/timeout/etc.
-		// Update: we make it capacity 2 here to avoid the race after a context cancelation
-		// where both the cancel message and the original response come back,
-		// which would cause us to hang in the send loop.
-		DoneCh: make(chan *Message, 2),
-	}
+	m := &Message{}
+	m.DoneCh = loquet.NewChan(m)
 	m.HDR.Args = make(map[string]string)
 	return m
 }

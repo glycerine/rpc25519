@@ -28,6 +28,7 @@ import (
 	"github.com/glycerine/greenpack/msgp"
 	"github.com/glycerine/idem"
 	"github.com/glycerine/ipaddr"
+	"github.com/glycerine/loquet"
 	"github.com/glycerine/rpc25519/selfcert"
 	"github.com/quic-go/quic-go"
 )
@@ -388,13 +389,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 		//vv("notifyOnce waiting = %v for seqno %v", waiting, seqno)
 		if waiting {
 			delete(c.notifyOnce, seqno)
-
-			select {
-			case whoCh <- msg:
-				//vv("client %v: yay. sent on notifyOnce channel! for seqno=%v", c.name, seqno)
-			default:
-				panic(fmt.Sprintf("Should never happen b/c the channels must be buffered!: could not send to whoCh from notifyOnce; for seqno = %v.", seqno))
-			}
+			whoCh.Close(msg)
 		} else {
 			//vv("notifyOnce: nobody was waiting for seqno = %v", seqno)
 
@@ -519,11 +514,8 @@ func (c *Client) runSendLoop(conn net.Conn) {
 					msg.LocalErr = ErrCancelReqSent
 				}
 			}
-			// this should never block, because we
-			// have space 2 in each DoneCh now, so we should handle
-			// any instance when both the cancel and a good reply
-			// received.
-			msg.DoneCh <- msg // convey the error or lack thereof.
+			// convey the error or lack thereof.
+			msg.DoneCh.Close(nil)
 
 		case msg := <-c.roundTripCh:
 
@@ -537,7 +529,7 @@ func (c *Client) runSendLoop(conn net.Conn) {
 				//vv("Failed to send message: %v", err)
 				msg.LocalErr = err
 				c.UngetOneRead(seqno, msg.DoneCh)
-				msg.DoneCh <- msg
+				msg.DoneCh.Close(nil)
 				continue
 			} else {
 				//vv("7777777 (client %v) Sent message: (seqno=%v): CallID= %v", c.name, msg.HDR.Seqno, msg.HDR.CallID)
@@ -944,7 +936,7 @@ type Client struct {
 	creds *selfcert.Creds
 
 	notifyOnRead           []chan *Message
-	notifyOnce             map[uint64]chan *Message
+	notifyOnce             map[uint64]*loquet.Chan[Message]
 	notifyOnReadCallIDMap  map[string]chan *Message
 	notifyOnErrorCallIDMap map[string]chan *Message
 
@@ -1303,19 +1295,13 @@ func (c *Client) GetReads(ch chan *Message) {
 // GetOneRead responds on ch with the first incoming message
 // whose Seqno matches seqno, then auto unregisters itself
 // after that single send on ch.
-func (c *Client) GetOneRead(seqno uint64, ch chan *Message) {
-	if cap(ch) == 0 {
-		panic("ch must be bufferred")
-	}
+func (c *Client) GetOneRead(seqno uint64, ch *loquet.Chan[Message]) {
 	c.mut.Lock()
 	defer c.mut.Unlock()
 	c.notifyOnce[seqno] = ch
 }
 
-func (c *Client) UngetOneRead(seqno uint64, ch chan *Message) {
-	if cap(ch) == 0 {
-		panic("ch must be bufferred")
-	}
+func (c *Client) UngetOneRead(seqno uint64, ch *loquet.Chan[Message]) {
 	c.mut.Lock()
 	defer c.mut.Unlock()
 	prev, ok := c.notifyOnce[seqno]
@@ -1359,7 +1345,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		halt:        idem.NewHalter(),
 		connected:   make(chan error, 1),
 		lastSeqno:   1,
-		notifyOnce:  make(map[uint64]chan *Message),
+		notifyOnce:  make(map[uint64]*loquet.Chan[Message]),
 
 		notifyOnReadCallIDMap:  make(map[string]chan *Message),
 		notifyOnErrorCallIDMap: make(map[string]chan *Message),
@@ -1505,10 +1491,6 @@ func (c *Client) SendAndGetReplyWithCtx(ctx context.Context, req *Message) (repl
 // cancel the job if it has not finished after 10 seconds.
 func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (reply *Message, err error) {
 
-	if len(req.DoneCh) > cap(req.DoneCh) || cap(req.DoneCh) < 2 {
-		panic(fmt.Sprintf("req.DoneCh did not have capacity; cap = %v, len=%v; must have at least 2 free spaces in channel.", cap(req.DoneCh), len(req.DoneCh)))
-	}
-
 	var defaultTimeout <-chan time.Time
 	// leave deafultTimeout nil if user supplied a cancelJobCh.
 	if cancelJobCh == nil {
@@ -1584,7 +1566,9 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 	//vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req)
 
 	select {
-	case reply = <-req.DoneCh:
+	case <-req.DoneCh.WhenClosed():
+		//reply = req.nextOrReply // not set anywhere yet
+		reply, _ = req.DoneCh.Read()
 		if reply != nil {
 			err = reply.LocalErr
 		}
@@ -1785,7 +1769,20 @@ func (c *Client) oneWaySendHelper(msg *Message, cancelJobCh <-chan struct{}) (er
 
 	select {
 	case c.oneWayCh <- msg:
-		return nil // not worth waiting for anything more.
+
+		// Experiement: for backpressure/fast error: comment this out:
+		// return nil // not worth waiting for anything more?
+		// and wait for the sendMessage() in the sendLoop to complete:
+
+		select {
+		case <-msg.DoneCh.WhenClosed():
+			return msg.LocalErr
+
+		case <-c.halt.ReqStop.Chan:
+			c.halt.Done.Close()
+			return ErrShutdown
+		}
+
 	case <-cancelJobCh:
 		return ErrDone
 
@@ -1987,7 +1984,7 @@ func (c *Client) RequestDownload(ctx context.Context, streamerName string) (down
 	// get our Seqno back, so test can assert it is preserved.
 	// This also waits for the req to actually be sent.
 	select {
-	case <-req.DoneCh:
+	case <-req.DoneCh.WhenClosed():
 		if req.HDR.Seqno != seqno {
 			panic(fmt.Sprintf("seqno should have been preserved! was seqno=%v; now req.HDR.Seqno=%v", seqno, req.HDR.Seqno))
 		}

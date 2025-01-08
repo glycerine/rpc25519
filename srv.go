@@ -397,18 +397,12 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 				// notify any short-time-waiting server push user.
 				// This is super useful to let goq retry jobs quickly.
 				msg.LocalErr = err
-				select {
-				case msg.DoneCh <- msg:
-				default:
-				}
+				msg.DoneCh.Close(nil)
 				alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
 				// just let user try again?
 			} else {
 				// tell caller there was no error.
-				select {
-				case msg.DoneCh <- msg:
-				default:
-				}
+				msg.DoneCh.Close(nil)
 				lastPing = time.Now() // no need for ping
 			}
 		case <-s.halt.ReqStop.Chan:
@@ -930,7 +924,7 @@ func (server *Server) getMessage() *Message {
 	if msg == nil {
 		msg = new(Message)
 	} else {
-		server.freeMsg = msg.next
+		server.freeMsg = msg.nextOrReply
 		*msg = Message{}
 	}
 	server.msgLock.Unlock()
@@ -939,7 +933,7 @@ func (server *Server) getMessage() *Message {
 
 func (server *Server) freeMessage(msg *Message) {
 	server.msgLock.Lock()
-	msg.next = server.freeMsg
+	msg.nextOrReply = server.freeMsg
 	server.freeMsg = msg
 	server.msgLock.Unlock()
 }
@@ -1459,7 +1453,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 	if dur > 0 {
 		//vv("srv SendMessage about to wait %v to check on connection.", dur)
 		select {
-		case <-msg.DoneCh:
+		case <-msg.DoneCh.WhenClosed():
 			//vv("srv SendMessage got back msg.LocalErr = '%v'", msg.LocalErr)
 			return msg.LocalErr
 		case <-time.After(dur):
@@ -1513,7 +1507,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 	if dur > 0 {
 		//vv("srv SendMessage about to wait %v to check on connection.", dur)
 		select {
-		case <-msg.DoneCh:
+		case <-msg.DoneCh.WhenClosed():
 			//vv("srv SendMessage got back msg.LocalErr = '%v'", msg.LocalErr)
 			return msg.LocalErr
 		case <-time.After(dur):
