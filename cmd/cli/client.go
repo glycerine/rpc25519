@@ -203,9 +203,7 @@ func main() {
 					pathsize := int64(szi)
 					panicOn(err)
 
-					if netread == 0 {
-						vv("got 1st download part: %v bytes after %v; can meter for total %v bytes:", sz0, time.Since(t0), pathsize)
-					}
+					vv("got 1st download part: %v bytes after %v; can meter total %v bytes:", sz0, time.Since(t0), formatUnder(int(pathsize)))
 
 					meterDown = progress.NewTransferStats(
 						pathsize, "[dn]"+filepath.Base(path))
