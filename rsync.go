@@ -17,16 +17,17 @@ type RsyncHashes struct {
 	Blake3FullFileSum string                `zid:"1"`
 	ChunkerName       string                `zid:"2"`
 	ChunkerOpts       *ultracdc.ChunkerOpts `zid:"3"`
-	Chunks            []RsyncChunk          `zid:"4"`
+	Chunks            []*RsyncChunk         `zid:"4"`
 	NumChunks         int                   `zid:"5"`
 	HashName          string
 }
 
 type RsyncChunk struct {
-	Beg        int    `zid:"0"`
-	Endx       int    `zid:"1"`
-	Blake3Hash string `zid:"2"`
-	Len        int    `zid:"3"`
+	ChunkNumber int    `zid:"0"` // zero based index into Chunks slice.
+	Beg         int    `zid:"1"`
+	Endx        int    `zid:"2"`
+	Hash        string `zid:"3"`
+	Len         int    `zid:"4"`
 }
 
 func (h *RsyncHashes) String() string {
@@ -75,15 +76,61 @@ func SummarizeBytesInCDCHashes(path string, data []byte) (hashes *RsyncHashes, e
 	prev := 0
 	for i, c := range cuts {
 		hsh := hash.Blake3OfBytesString(data[prev:cuts[i]])
-		chunk := RsyncChunk{
-			Beg:        prev,
-			Endx:       cuts[i],
-			Blake3Hash: hsh,
-			Len:        cuts[i] - prev,
+		chunk := &RsyncChunk{
+			ChunkNumber: i,
+			Beg:         prev,
+			Endx:        cuts[i],
+			Hash:        hsh,
+			Len:         cuts[i] - prev,
 		}
 		hashes.Chunks = append(hashes.Chunks, chunk)
 		prev = c
 	}
 	hashes.NumChunks = len(hashes.Chunks)
+	return
+}
+
+type RsyncDiffs struct {
+	PathA string
+	PathB string
+	Both  []*MatchHashPair
+	OnlyA []*RsyncChunk
+	OnlyB []*RsyncChunk
+}
+
+type MatchHashPair struct {
+	A *RsyncChunk
+	B *RsyncChunk
+}
+
+func (a *RsyncHashes) Diff(b *RsyncHashes) (d *RsyncDiffs) {
+	d = &RsyncDiffs{
+		PathA: a.Path,
+		PathB: b.Path,
+	}
+
+	ma := make(map[string]*RsyncChunk)
+	for _, chunkA := range a.Chunks {
+		ma[chunkA.Hash] = chunkA
+	}
+	for _, chunkB := range b.Chunks {
+		chunkA, inBoth := ma[chunkB.Hash]
+		if inBoth {
+			pair := &MatchHashPair{
+				A: chunkA,
+				B: chunkB,
+			}
+			d.Both = append(d.Both, pair)
+			delete(ma, chunkB.Hash)
+		} else {
+			d.OnlyB = append(d.OnlyB, chunkB)
+		}
+	}
+	for _, chunkA := range a.Chunks {
+		_, onlyA := ma[chunkA.Hash]
+		if onlyA {
+			d.OnlyA = append(d.OnlyA, chunkA)
+		}
+	}
 	return
 }
