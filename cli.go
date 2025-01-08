@@ -389,7 +389,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 		//vv("notifyOnce waiting = %v for seqno %v", waiting, seqno)
 		if waiting {
 			delete(c.notifyOnce, seqno)
-			whoCh.Close(msg)
+			whoCh.CloseWith(msg)
 		} else {
 			//vv("notifyOnce: nobody was waiting for seqno = %v", seqno)
 
@@ -515,7 +515,7 @@ func (c *Client) runSendLoop(conn net.Conn) {
 				}
 			}
 			// convey the error or lack thereof.
-			msg.DoneCh.Close(nil)
+			msg.DoneCh.Close()
 
 		case msg := <-c.roundTripCh:
 
@@ -529,7 +529,7 @@ func (c *Client) runSendLoop(conn net.Conn) {
 				//vv("Failed to send message: %v", err)
 				msg.LocalErr = err
 				c.UngetOneRead(seqno, msg.DoneCh)
-				msg.DoneCh.Close(nil)
+				msg.DoneCh.Close()
 				continue
 			} else {
 				//vv("7777777 (client %v) Sent message: (seqno=%v): CallID= %v", c.name, msg.HDR.Seqno, msg.HDR.CallID)

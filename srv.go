@@ -397,12 +397,12 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 				// notify any short-time-waiting server push user.
 				// This is super useful to let goq retry jobs quickly.
 				msg.LocalErr = err
-				msg.DoneCh.Close(nil)
+				msg.DoneCh.Close()
 				alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
 				// just let user try again?
 			} else {
 				// tell caller there was no error.
-				msg.DoneCh.Close(nil)
+				msg.DoneCh.Close()
 				lastPing = time.Now() // no need for ping
 			}
 		case <-s.halt.ReqStop.Chan:

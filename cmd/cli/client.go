@@ -15,6 +15,7 @@ import (
 	"time"
 
 	tdigest "github.com/caio/go-tdigest"
+	"github.com/glycerine/loquet"
 	"github.com/glycerine/rpc25519"
 	myblake3 "github.com/glycerine/rpc25519/hash"
 	"github.com/glycerine/rpc25519/progress"
@@ -105,6 +106,7 @@ func main() {
 	// down/upload can be 9x different, measure both.
 	meterDownQuietCh := make(chan bool, 2)
 	meterDownQuietCh <- true
+	uploadDone := loquet.NewChan[bool](nil)
 
 	if *echofile != "" {
 		doBistream = true
@@ -141,6 +143,9 @@ func main() {
 			netread := 0 // net count of bytes read off the network.
 			for {
 				select {
+				case <-uploadDone.WhenClosed():
+					vv("upload done, down has read: %v bytes", netread)
+					uploadDone.Open() // stop sending :)
 				case meterDownQuiet = <-meterDownQuietCh:
 				case req := <-bistream.ReadDownloadsCh:
 					//vv("cli bistream downloadsCh sees %v", req.String())
@@ -276,6 +281,7 @@ func main() {
 				}
 				panicOn(err)
 				if err1 == io.EOF {
+					uploadDone.Close()
 					break upload
 				}
 				panicOn(err1)
@@ -308,6 +314,7 @@ func main() {
 			}
 
 			if err1 == io.EOF {
+				uploadDone.Close()
 				break upload
 			}
 			panicOn(err1)

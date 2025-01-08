@@ -165,7 +165,7 @@ type Message struct {
 // NewMessage allocates a new Message with a DoneCh properly created.
 func NewMessage() *Message {
 	m := &Message{}
-	m.DoneCh = loquet.NewChan(m, 0)
+	m.DoneCh = loquet.NewChan(m)
 	m.HDR.Args = make(map[string]string)
 	return m
 }
