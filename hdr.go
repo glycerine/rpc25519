@@ -154,7 +154,7 @@ type Message struct {
 	// DoneCh.WhenClosed will be closed on the client when the one-way is
 	// sent or the round-trip call completes.
 	// NewMessage() automatically allocates DoneCh correctly and
-	// should be used when creating a new Message.
+	// should be used when creating a new Message (on the client to send).
 	DoneCh *loquet.Chan[Message] `msg:"-"`
 
 	nextOrReply *Message // free list on server, replies to round-trips in the client.
@@ -162,10 +162,10 @@ type Message struct {
 
 // interface for goq
 
-// NewMessage allocates a new Message with a DoneCh properly created (buffered 1).
+// NewMessage allocates a new Message with a DoneCh properly created.
 func NewMessage() *Message {
 	m := &Message{}
-	m.DoneCh = loquet.NewChan(m)
+	m.DoneCh = loquet.NewChan(m, 0)
 	m.HDR.Args = make(map[string]string)
 	return m
 }
