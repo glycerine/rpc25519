@@ -1057,8 +1057,8 @@ func Test055_download(t *testing.T) {
 
 		// register streamer func with server
 		downloaderName := "downloaderName"
-		ssss := &ServerSendsDownloadState{}
-		srv.RegisterServerSendsDownloadFunc(downloaderName, ssss.ServerSendsDownload)
+		ssss := &ServerSendsDownloadStateTest{}
+		srv.RegisterServerSendsDownloadFunc(downloaderName, ssss.ServerSendsDownloadTest)
 
 		// start client
 		cfg.ClientDialToHostPort = serverAddr.String()

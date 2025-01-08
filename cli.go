@@ -1980,16 +1980,16 @@ func (c *Client) NewDownloader(ctx context.Context, streamerName string) (downlo
 	return
 }
 
-func (c *Client) RequestDownload(ctx context.Context, streamerName string) (downloader *Downloader, err error) {
+func (c *Client) RequestDownload(ctx context.Context, streamerName, path string) (downloader *Downloader, err error) {
 
 	downloader, err = c.NewDownloader(ctx, streamerName)
 	if err != nil {
 		return
 	}
-	return downloader, downloader.BeginDownload(ctx)
+	return downloader, downloader.BeginDownload(ctx, path)
 }
 
-func (b *Downloader) BeginDownload(ctx context.Context) (err error) {
+func (b *Downloader) BeginDownload(ctx context.Context, path string) (err error) {
 
 	cli := b.cli
 	//seqno := b.seqno
@@ -2018,6 +2018,8 @@ func (b *Downloader) BeginDownload(ctx context.Context) (err error) {
 	req.HDR.CallID = b.callID
 	req.HDR.Ctx = ctx
 	req.HDR.Deadline, _ = ctx.Deadline()
+
+	req.HDR.Args = map[string]string{"downloadRequestedPath": path}
 
 	//vv("Downloader.Begin(): sending req = '%v'", req.String())
 

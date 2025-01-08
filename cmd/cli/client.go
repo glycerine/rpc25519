@@ -149,15 +149,13 @@ func main() {
 		vv("cli readfile requested for file '%v'", path)
 	}
 
-	if doDownload || doBistream {
-		fi, err := os.Stat(path)
-		panicOn(err)
-		meterDown = progress.NewTransferStats(fi.Size(), "[dn]"+filepath.Base(path))
+	if doBistream {
 	}
 
 	if doDownload {
 
 		downloadFile := path + ".downloaded"
+		os.Remove(downloadFile)
 
 		downloaderName := "__downloaderName" // must match server.go:107
 		ctx := context.Background()
@@ -173,11 +171,14 @@ func main() {
 		lastUpdate := time.Now()
 		netread := 0 // net count of bytes read off the network.
 
-		err = downloader.BeginDownload(ctx)
+		err = downloader.BeginDownload(ctx, path)
 		panicOn(err)
 
-		for {
+		for part := int64(0); true; part++ {
 			select {
+			case <-ctx.Done():
+				vv("download aborting: context cancelled")
+				return
 			case req := <-downloader.ReadDownloadsCh:
 				//vv("cli downloader downloadsCh sees %v", req.String())
 				sz := len(req.JobSerz)
@@ -185,6 +186,22 @@ func main() {
 					vv("downloaded %v bytes after %v", sz, time.Since(t0))
 				}
 				netread += sz
+
+				if req.HDR.StreamPart != part {
+					panic(fmt.Sprintf("%v = req.HDR.StreamPart != part = %v",
+						req.HDR.StreamPart, part))
+				}
+				if part == 0 {
+					sz, ok := req.HDR.Args["pathsize"]
+					if !ok {
+						panic("server did not send of the pathsize in the first part!")
+					}
+					szi, err := strconv.Atoi(sz)
+					pathsize := int64(szi)
+					panicOn(err)
+					meterDown = progress.NewTransferStats(
+						pathsize, "[dn]"+filepath.Base(path))
+				}
 
 				if req.HDR.Typ == rpc25519.CallRPCReply {
 					//vv("cli downloader downloadsCh sees CallRPCReply, exiting goro")
@@ -223,6 +240,10 @@ func main() {
 	} // end if doDownload
 
 	if doBistream {
+
+		fi, err := os.Stat(path)
+		panicOn(err)
+		meterDown = progress.NewTransferStats(fi.Size(), "[dn]"+filepath.Base(path))
 
 		// Approach:
 		// have the echofile implementation do the upload for us,
@@ -298,6 +319,7 @@ func main() {
 
 	} // end if echofile
 
+	// upload
 	if *sendfile != "" {
 
 		path := *sendfile
@@ -306,7 +328,8 @@ func main() {
 		}
 		fi, err := os.Stat(path)
 		panicOn(err)
-		meterUp := progress.NewTransferStats(fi.Size(), "[up]"+filepath.Base(path))
+		pathsize := fi.Size()
+		meterUp := progress.NewTransferStats(pathsize, "[up]"+filepath.Base(path))
 
 		r, err := os.Open(path)
 		if err != nil {
@@ -331,6 +354,7 @@ func main() {
 
 		req := rpc25519.NewMessage()
 		req.HDR.Created = time.Now()
+		req.HDR.Args["pathsize"] = fmt.Sprintf("%v", pathsize)
 		var lastUpdate time.Time
 
 		// check for errors

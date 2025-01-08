@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	filepath "path/filepath"
 	"strings"
 	"time"
 
@@ -557,17 +558,17 @@ func (s *PerCallID_FileToDiskState) WriteOneMsgToFile(req *Message, suffix strin
 	return
 }
 
-type ServerSendsDownloadState struct{}
+type ServerSendsDownloadStateTest struct{}
 
-func NewServerSendsDownloadState() *ServerSendsDownloadState {
-	return &ServerSendsDownloadState{}
+func NewServerSendsDownloadStateTest() *ServerSendsDownloadStateTest {
+	return &ServerSendsDownloadStateTest{}
 }
 
 // ServerSendsDownload is used by Test055_streaming_server_to_client.
 // It demonstrates how a registered server func can stream to the client.
-// ServerSendStream has type ServerSendsDownloadFunc, and gets
+// ServerSendsDownload has type ServerSendsDownloadFunc, and gets
 // registered on the server with srv.RegisterServerSendsDownloadFunc().
-func (ssss *ServerSendsDownloadState) ServerSendsDownload(srv *Server, ctx context.Context, req *Message, sendStreamPart func(ctx context.Context, msg *Message, last bool) error, lastReply *Message) (err error) {
+func (ssss *ServerSendsDownloadStateTest) ServerSendsDownloadTest(srv *Server, ctx context.Context, req *Message, sendStreamPart func(ctx context.Context, msg *Message, last bool) error, lastReply *Message) (err error) {
 	done := ctx.Done()
 	for i := range 20 {
 		msg := NewMessage()
@@ -831,4 +832,110 @@ func EchoBistreamFunc(
 	}
 
 	return
+}
+
+type ServerSendsDownloadState struct{}
+
+func NewServerSendsDownloadState() *ServerSendsDownloadState {
+	return &ServerSendsDownloadState{}
+}
+
+// ServerSendsDownload is used by cmd/srv/server.go -serve to serve
+// downloads.
+// ServerSendsDownload has type ServerSendsDownloadFunc, and gets
+// registered on the server with srv.RegisterServerSendsDownloadFunc().
+func (ssss *ServerSendsDownloadState) ServerSendsDownload(
+	srv *Server,
+	ctx context.Context,
+	req *Message,
+	sendDownloadPartToClient func(ctx context.Context, msg *Message, last bool) error,
+	lastReply *Message,
+) (err error) {
+
+	vv("top ServerSendsDownloadState.ServerSendsDownload.")
+
+	done := ctx.Done()
+	select {
+	case <-done:
+		vv("ServerSendsDownloadState.ServerSendsDownload: context cancelled")
+		return ErrContextCancelled
+	default:
+	}
+
+	if req.HDR.Typ != CallRequestDownload {
+		panic(fmt.Sprintf("expected initial req to be CallRequestDownload, but was '%v' in hdr='%v'", req.HDR.Typ.String(), req.HDR.String()))
+	}
+	path, ok := req.HDR.Args["downloadRequestedPath"]
+	if !ok {
+		panic("downloadRequestedPath not found in Args--what do we send???")
+	}
+	if !fileExists(path) {
+		return fmt.Errorf("download error: no such path '%v': '%v'", path)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("download error: could not stat requested path '%v': '%v'", path, err)
+	}
+	pathsize := fi.Size()
+	last := false
+
+	//meterDownOnServer := progress.NewTransferStats(pathsize, "[up]"+filepath.Base(path))
+
+	r, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("download error: could not Open path '%v': '%v'", path, err)
+	}
+
+	blake3hash := myblake3.NewBlake3()
+
+	maxMessage := 1024 * 1024
+	//maxMessage := rpc25519.UserMaxPayload
+	//maxMessage := 1024
+	buf := make([]byte, maxMessage)
+	var tot int
+
+	//var lastUpdate time.Time
+	filename := filepath.Base(path)
+
+	for i := 0; true; i++ {
+
+		nr, err1 := r.Read(buf)
+		//vv("on read i=%v, got nr=%v, (maxMessage=%v), err='%v'", i, nr, maxMessage, err1)
+
+		if err1 != nil && err1 != io.EOF {
+			panic(err1)
+			return fmt.Errorf("server download: error reading from path '%v': '%v'", path, err1)
+		}
+
+		send := buf[:nr] // can be empty
+		tot += nr
+		sumstring := myblake3.Blake3OfBytesString(send)
+		//vv("i=%v, len=%v, sumstring = '%v'", i, nr, sumstring)
+		blake3hash.Write(send)
+
+		msg := NewMessage()
+		msg.HDR.Created = time.Now()
+		msg.HDR.Args["pathsize"] = fmt.Sprintf("%v", pathsize)
+		msg.HDR.Args["path"] = path
+		msg.HDR.Args["filename"] = filename
+		msg.HDR.Args["blake3"] = sumstring
+		msg.HDR.StreamPart = int64(i)
+
+		if err1 == io.EOF {
+			last = true
+		}
+		// must copy! buf will be re-used on next i
+		msg.JobSerz = append([]byte{}, send...)
+
+		err = sendDownloadPartToClient(ctx, msg, last)
+		if err != nil {
+			// connection to client may have been lost...
+			return err
+		}
+		if last {
+			//vv("EchoBistreamFunc saw CallUploadEnd, finishing.")
+			return nil
+		}
+	}
+	return nil
 }
