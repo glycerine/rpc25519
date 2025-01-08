@@ -28,6 +28,8 @@ import (
 	"math/bits"
 )
 
+//go:generate greenpack
+
 var _ = fmt.Printf
 
 var ErrNormalSize = errors.New("NormalSize is required and must be 64B <= NormalSize <= 1GB")
@@ -40,6 +42,7 @@ type ChunkerOpts struct {
 	NormalSize int
 }
 
+//msgp:ignore UltraCDC
 type UltraCDC struct {
 	Opts *ChunkerOpts
 }
