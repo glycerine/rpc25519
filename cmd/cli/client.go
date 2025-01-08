@@ -141,12 +141,12 @@ func main() {
 		doBistream = true
 		path = *echofile
 		*sendfile = *echofile
-		vv("cli echofile requested for file '%v'", path)
+		vv("cli -echofile requested for file '%v'", path)
 	}
 	if *downloadPath != "" {
 		doDownload = true
 		path = *downloadPath
-		vv("cli readfile requested for file '%v'", path)
+		vv("cli -download requested for file '%v'", path)
 	}
 
 	if doDownload {
@@ -162,7 +162,7 @@ func main() {
 
 		s := rpc25519.NewPerCallID_FileToDiskState(downloader.CallID())
 		s.OverrideFilename = downloadFile
-		//vv("bistream.CallID() = '%v'", bistream.CallID())
+		//vv("downloader.CallID() = '%v'", downloader.CallID())
 
 		meterDownQuiet := false
 		lastUpdate := time.Now()
