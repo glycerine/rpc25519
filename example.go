@@ -12,6 +12,7 @@ import (
 
 	// check-summing utilities.
 	cristalbase64 "github.com/cristalhq/base64"
+	myblake3 "github.com/glycerine/rpc25519/hash"
 	"lukechampine.com/blake3"
 )
 
@@ -358,7 +359,7 @@ type PerCallID_FileToDiskState struct {
 	Fd        *os.File
 	BytesWrit int64
 
-	Blake3hash *blake3.Hasher
+	Blake3hash *myblake3.Blake3
 
 	PartsSeen map[int64]bool
 	SeenCount int
@@ -377,7 +378,7 @@ func NewPerCallID_FileToDiskState(callID string) *PerCallID_FileToDiskState {
 	return &PerCallID_FileToDiskState{
 		CallID:     callID,
 		PartsSeen:  make(map[int64]bool),
-		Blake3hash: blake3.New(64, nil),
+		Blake3hash: myblake3.NewBlake3(),
 		T0:         time.Now(),
 	}
 }
@@ -447,7 +448,8 @@ func (st *ServerSideUploadState) ReceiveFileInParts(ctx context.Context, req *Me
 	}
 	if lastReply != nil {
 
-		totSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(s.Blake3hash.Sum(nil))
+		totSum := s.Blake3hash.SumString()
+
 		//vv("ReceiveFileInParts sees last set!")
 		//vv("bytesWrit=%v; \nserver totSum='%v'", s.bytesWrit, totSum)
 
@@ -481,7 +483,7 @@ func (s *PerCallID_FileToDiskState) WriteOneMsgToFile(req *Message, suffix strin
 		}
 		//vv("ServerSideUploadState.ReceiveFileInParts sees part 0: hdr1='%v'", hdr1.String())
 		s.PartsSeen = make(map[int64]bool)
-		s.Blake3hash = blake3.New(64, nil)
+		s.Blake3hash.Reset()
 
 		filename := ""
 		ok := false

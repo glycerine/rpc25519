@@ -12,16 +12,17 @@ require (
 	github.com/glycerine/greenpack v0.517.0
 	github.com/glycerine/idem v0.0.0-20240925232718-fc20a7f9bca6
 	github.com/glycerine/ipaddr v0.2.4
+	github.com/glycerine/loquet v0.0.11
 	github.com/goccy/go-json v0.10.3
 	github.com/quic-go/quic-go v0.48.2
 	golang.org/x/crypto v0.31.0
 	golang.org/x/term v0.27.0
+	lukechampine.com/blake3 v1.3.0
 )
 
 require (
 	4d63.com/embedfiles v0.0.0-20190311033909-995e0740726f // indirect
 	github.com/glycerine/fwd v1.1.4-beta.jea // indirect
-	github.com/glycerine/loquet v0.0.9 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
@@ -37,5 +38,4 @@ require (
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/tools v0.26.0 // indirect
 	gonum.org/v1/gonum v0.15.1 // indirect
-	lukechampine.com/blake3 v1.3.0 // indirect
 )
