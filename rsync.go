@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"syscall"
+	"time"
 
 	"github.com/glycerine/rpc25519/hash"
 	"github.com/glycerine/rpc25519/ultracdc"
@@ -20,18 +22,25 @@ type RsyncHashes struct {
 	Host string `zid:"0"`
 	Path string `zid:"1"`
 
-	// HashName is e.g. "blake3.32B"
-	HashName string `zid:"2"`
+	ModTime   time.Time `zid:"2"`
+	FileSize  int64     `zid:"3"`
+	FileMode  uint32    `zid:"4"`
+	FileOwner uint32    `zid:"5"`
+	FileGroup uint32    `zid:"6"`
+	FileMeta  string    `zid:"7"`
 
-	FullFileHashSum string `zid:"3"`
+	// HashName is e.g. "blake3.32B"
+	HashName string `zid:"8"`
+
+	FullFileHashSum string `zid:"9"`
 
 	// ChunkerName is e.g. "ultracdc"
-	ChunkerName string                `zid:"4"`
-	ChunkerOpts *ultracdc.ChunkerOpts `zid:"5"`
+	ChunkerName string                `zid:"10"`
+	ChunkerOpts *ultracdc.ChunkerOpts `zid:"11"`
 
 	// NumChunks gives len(Chunks) for convenience.
-	NumChunks int           `zid:"6"`
-	Chunks    []*RsyncChunk `zid:"7"`
+	NumChunks int           `zid:"12"`
+	Chunks    []*RsyncChunk `zid:"13"`
 }
 
 type RsyncChunk struct {
@@ -60,11 +69,22 @@ func SummarizeFileInCDCHashes(host, path string) (hashes *RsyncHashes, err error
 	if err != nil {
 		return nil, fmt.Errorf("rsync.go error reading path '%v': '%v'", path, err)
 	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("rsync.go error on os.Stat() of '%v': '%v'", path, err)
+	}
 
-	return SummarizeBytesInCDCHashes(host, path, data)
+	hashes, err = SummarizeBytesInCDCHashes(host, path, data, fi.ModTime())
+	hashes.FileMode = uint32(fi.Mode())
+
+	if stat_t, ok := fi.Sys().(*syscall.Stat_t); ok {
+		hashes.FileOwner = stat_t.Uid
+		hashes.FileGroup = stat_t.Gid
+	}
+	return
 }
 
-func SummarizeBytesInCDCHashes(host, path string, data []byte) (hashes *RsyncHashes, err error) {
+func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time) (hashes *RsyncHashes, err error) {
 
 	u := ultracdc.NewUltraCDC()
 
@@ -78,6 +98,8 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte) (hashes *RsyncHas
 	hashes = &RsyncHashes{
 		Host:            host,
 		Path:            path,
+		FileSize:        int64(len(data)),
+		ModTime:         modTime,
 		FullFileHashSum: hash.Blake3OfBytesString(data),
 		ChunkerName:     "ultracdc",
 		ChunkerOpts:     u.Opts,
