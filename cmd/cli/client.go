@@ -50,7 +50,21 @@ func main() {
 
 	var echofile = flag.String("echofile", "", "path to file to send to bistreaming server, which will echo it back to us")
 
+	var downloadPath = flag.String("download", "", "path to file to download from the remote side")
+
 	flag.Parse()
+
+	if *downloadPath != "" {
+		if *sendfile != "" {
+			panic("can only do one of {-readfile, -sendfile, -echofile}")
+		} else if *echofile != "" {
+			panic("can only do one of {-readfile, -sendfile, -echofile}")
+		}
+	} else if *echofile != "" {
+		if *sendfile != "" {
+			panic("can only do one of {-readfile, -sendfile, -echofile}")
+		}
+	}
 
 	if *remoteDefault {
 		*dest = "192.168.254.151:8443"
@@ -110,6 +124,7 @@ func main() {
 	fmt.Println()
 
 	doBistream := false
+	doDownload := false
 	var bistream *rpc25519.Bistreamer
 	var wg sync.WaitGroup
 	bistreamerName := "echoBistreamFunc"
@@ -119,24 +134,101 @@ func main() {
 	meterDownQuietCh <- true
 	uploadDone := loquet.NewChan[bool](nil)
 	t0 := time.Now()
+	path := ""
+	var meterDown *progress.TransferStats
 
 	if *echofile != "" {
 		doBistream = true
+		path = *echofile
+		*sendfile = *echofile
+		vv("cli echofile requested for file '%v'", path)
+	}
+	if *downloadPath != "" {
+		doDownload = true
+		path = *downloadPath
+		vv("cli readfile requested for file '%v'", path)
+	}
 
-		path := *echofile
+	if doDownload || doBistream {
 		fi, err := os.Stat(path)
 		panicOn(err)
-		meterDown := progress.NewTransferStats(fi.Size(), "[down]"+filepath.Base(path))
+		meterDown = progress.NewTransferStats(fi.Size(), "[dn]"+filepath.Base(path))
+	}
+
+	if doDownload {
+
+		downloadFile := path + ".downloaded"
+
+		downloaderName := "__downloaderName" // must match server.go:107
+		ctx := context.Background()
+		downloader, err := cli.NewDownloader(ctx, downloaderName)
+		panicOn(err)
+		defer downloader.Close()
+
+		s := rpc25519.NewPerCallID_FileToDiskState(downloader.CallID())
+		s.OverrideFilename = downloadFile
+		//vv("bistream.CallID() = '%v'", bistream.CallID())
+
+		meterDownQuiet := false
+		lastUpdate := time.Now()
+		netread := 0 // net count of bytes read off the network.
+
+		err = downloader.BeginDownload(ctx)
+		panicOn(err)
+
+		for {
+			select {
+			case req := <-downloader.ReadDownloadsCh:
+				//vv("cli downloader downloadsCh sees %v", req.String())
+				sz := len(req.JobSerz)
+				if netread == 0 {
+					vv("downloaded %v bytes after %v", sz, time.Since(t0))
+				}
+				netread += sz
+
+				if req.HDR.Typ == rpc25519.CallRPCReply {
+					//vv("cli downloader downloadsCh sees CallRPCReply, exiting goro")
+					return
+				}
+				if time.Since(lastUpdate) > time.Second {
+					meterDown.DoProgressWithSpeed(int64(netread), meterDownQuiet, req.HDR.StreamPart)
+					lastUpdate = time.Now()
+				}
+
+				last := (req.HDR.Typ == rpc25519.CallDownloadEnd)
+				err = s.WriteOneMsgToFile(req, "download_client_got", last)
+
+				if err != nil {
+					panic(err)
+					return
+				}
+				if last {
+					//totSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(s.Blake3hash.Sum(nil))
+					////vv("ReceiveFileInParts sees last set!")
+					//vv("bytesWrit=%v; \nserver totSum='%v'", s.BytesWrit, totSum)
+
+					elap := time.Since(s.T0)
+					mb := float64(s.BytesWrit) / float64(1<<20)
+					seconds := (float64(elap) / float64(time.Second))
+					rate := mb / seconds
+					_ = rate
+
+					fmt.Println()
+					fmt.Printf("total time for download: '%v'\n", time.Since(s.T0))
+					fmt.Printf("file size: %v bytes.\n", formatUnder(int(s.BytesWrit)))
+
+				} // end if last
+			} //end select
+		} // end for seenCount
+	} // end if doDownload
+
+	if doBistream {
 
 		// Approach:
 		// have the echofile implementation do the upload for us,
 		// while we do the download in a separate goroutine.
 
-		vv("cli echofile requested for file '%v'", *echofile)
-
-		*sendfile = *echofile
-
-		downloadFile := *echofile + ".echoed"
+		downloadFile := path + ".echoed"
 
 		bistream, err = cli.NewBistreamer(bistreamerName)
 		panicOn(err)

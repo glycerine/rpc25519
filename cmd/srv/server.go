@@ -66,6 +66,8 @@ func main() {
 
 	var readfile = flag.Bool("readfile", false, "listen for files to write to disk; client should run -sendfile")
 
+	var servefile = flag.Bool("serve", false, "serve downloads; client should run -download")
+
 	var echo = flag.Bool("echo", false, "bistream echo everything")
 
 	flag.Parse()
@@ -98,6 +100,14 @@ func main() {
 	if *echo {
 		streamerName := "echoBistreamFunc"
 		srv.RegisterBistreamFunc(streamerName, rpc25519.EchoBistreamFunc)
+	}
+
+	if *servefile {
+		// serve downloads
+		downloaderName := "__downloaderName" // must match client.go:163
+		ssss := rpc25519.NewServerSendsDownloadState()
+		srv.RegisterServerSendsDownloadFunc(downloaderName, ssss.ServerSendsDownload)
+
 	}
 
 	if *readfile {

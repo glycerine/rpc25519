@@ -559,6 +559,10 @@ func (s *PerCallID_FileToDiskState) WriteOneMsgToFile(req *Message, suffix strin
 
 type ServerSendsDownloadState struct{}
 
+func NewServerSendsDownloadState() *ServerSendsDownloadState {
+	return &ServerSendsDownloadState{}
+}
+
 // ServerSendsDownload is used by Test055_streaming_server_to_client.
 // It demonstrates how a registered server func can stream to the client.
 // ServerSendStream has type ServerSendsDownloadFunc, and gets

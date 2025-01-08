@@ -1086,7 +1086,7 @@ func Test055_download(t *testing.T) {
 		done := false
 		for i := 0; !done; i++ {
 			select {
-			case m := <-downloader.ReadCh:
+			case m := <-downloader.ReadDownloadsCh:
 				//report := string(m.JobSerz)
 				//vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
 
@@ -1107,9 +1107,9 @@ func Test055_download(t *testing.T) {
 					cv.So(m.HDR.Typ == CallDownloadMore, cv.ShouldBeTrue)
 				}
 
-				if m.HDR.Seqno != downloader.Seqno {
+				if m.HDR.Seqno != downloader.Seqno() {
 					t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
-						"downloader.Seqno = %v", m.HDR.Seqno, downloader.Seqno)
+						"downloader.Seqno = %v", m.HDR.Seqno, downloader.Seqno())
 				}
 
 			case <-time.After(time.Second * 10):
@@ -1120,7 +1120,7 @@ func Test055_download(t *testing.T) {
 		// do we get the lastReply too then?
 
 		select {
-		case m := <-downloader.ReadCh:
+		case m := <-downloader.ReadDownloadsCh:
 			//report := string(m.JobSerz)
 			//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
 
@@ -1132,9 +1132,9 @@ func Test055_download(t *testing.T) {
 				t.Fatalf("deadline not preserved")
 			}
 
-			if m.HDR.Seqno != downloader.Seqno {
+			if m.HDR.Seqno != downloader.Seqno() {
 				t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
-					"downloader.Seqno = %v", m.HDR.Seqno, downloader.Seqno)
+					"downloader.Seqno = %v", m.HDR.Seqno, downloader.Seqno())
 			}
 
 		case <-time.After(time.Second * 10):

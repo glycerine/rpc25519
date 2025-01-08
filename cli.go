@@ -1934,61 +1934,108 @@ func (c *Client) setupPSK(conn uConn) error {
 }
 
 // Downloader is used when the client receives stream from server.
-// It is returned by RequestDownload().
+// It is returned by RequestDownload() or NewDownloader().
 type Downloader struct {
-	CallID string
-	ReadCh <-chan *Message
-	Name   string
+	mut   sync.Mutex
+	seqno uint64
 
-	Seqno uint64
+	ReadDownloadsCh <-chan *Message
+	ErrorCh         <-chan *Message
+
+	name   string
+	cli    *Client
+	callID string
+}
+
+func (s *Downloader) CallID() string {
+	return s.callID
+}
+func (s *Downloader) Name() string {
+	return s.name
+}
+func (s *Downloader) Seqno() uint64 {
+	return s.seqno
+}
+
+// cancel any outstanding call
+func (s *Downloader) Close() {
+	req := NewMessage()
+	req.HDR.ServiceName = s.name
+	req.HDR.Typ = CallCancelPrevious
+	req.HDR.CallID = s.callID
+	req.HDR.Seqno = s.seqno
+	s.cli.OneWaySend(req, nil) // best effort
+}
+
+func (c *Client) NewDownloader(ctx context.Context, streamerName string) (downloader *Downloader, err error) {
+	callID := NewCallID()
+	downloader = &Downloader{
+		cli:             c,
+		callID:          callID,
+		ReadDownloadsCh: c.GetReadIncomingChForCallID(callID),
+		ErrorCh:         c.GetErrorChForCallID(callID),
+		name:            streamerName,
+		seqno:           c.nextSeqno(),
+	}
+	return
 }
 
 func (c *Client) RequestDownload(ctx context.Context, streamerName string) (downloader *Downloader, err error) {
 
-	req := NewMessage()
+	downloader, err = c.NewDownloader(ctx, streamerName)
+	if err != nil {
+		return
+	}
+	return downloader, downloader.BeginDownload(ctx)
+}
+
+func (b *Downloader) BeginDownload(ctx context.Context) (err error) {
+
+	cli := b.cli
+	//seqno := b.seqno
+	//vv("downloader to use seqno %v", seqno)
 
 	var from, to string
-	if c.isQUIC {
-		from = local(c.quicConn)
-		to = remote(c.quicConn)
+	if cli.isQUIC {
+		from = local(cli.quicConn)
+		to = remote(cli.quicConn)
 	} else {
-		from = local(c.conn)
-		to = remote(c.conn)
+		from = local(cli.conn)
+		to = remote(cli.conn)
 	}
+	// from bistream
 
-	hdr := NewHDR(from, to, streamerName, CallRequestDownload, 0)
-	hdr.Ctx = ctx
-	deadline, ok := ctx.Deadline()
-	if ok {
-		//vv("client sees deadline '%v'", deadline)
-		hdr.Deadline = deadline
-	}
-	req.HDR = *hdr
-	seqno := c.nextSeqno()
-	req.HDR.Seqno = seqno
+	req := NewMessage()
+	req.HDR.Created = time.Now()
+	req.HDR.To = to
+	req.HDR.From = from
+	req.HDR.ServiceName = b.name
+	req.HDR.StreamPart = 0
+	req.HDR.Typ = CallRequestDownload
+	req.HDR.Seqno = b.seqno
+
+	req.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
+	req.HDR.CallID = b.callID
+	req.HDR.Ctx = ctx
+	req.HDR.Deadline, _ = ctx.Deadline()
+
+	//vv("Downloader.Begin(): sending req = '%v'", req.String())
 
 	// NOTE THE SEND IS HERE! ALL BE READY BY NOW!
-	err = c.OneWaySend(req, ctx.Done())
+	err = cli.OneWaySend(req, ctx.Done())
 	if err != nil {
 		return
 	}
 
-	//vv("downloader to use seqno %v", seqno)
-	downloader = &Downloader{
-		CallID: hdr.CallID,
-		ReadCh: c.GetReadIncomingChForCallID(hdr.CallID),
-		Name:   streamerName,
-		Seqno:  seqno,
-	}
-
-	// get our Seqno back, so test can assert it is preserved.
-	// This also waits for the req to actually be sent.
+	// This waits for the req to actually be sent on the wire.
+	// It does not wait for any replies though.
 	select {
 	case <-req.DoneCh.WhenClosed():
-		if req.HDR.Seqno != seqno {
-			panic(fmt.Sprintf("seqno should have been preserved! was seqno=%v; now req.HDR.Seqno=%v", seqno, req.HDR.Seqno))
-		}
+		return req.LocalErr
+	case <-cli.halt.ReqStop.Chan:
+		return ErrShutdown
 	case <-ctx.Done():
+		return ErrContextCancelled
 	}
 	return
 }
@@ -1999,8 +2046,7 @@ func (c *Client) RequestDownload(ctx context.Context, streamerName string) (down
 // server func can, symmetrically, stream to the client.
 // The basics of TCP are finally available to users.
 type Bistreamer struct {
-	mut sync.Mutex
-
+	mut   sync.Mutex
 	seqno uint64
 
 	ReadDownloadsCh <-chan *Message
@@ -2076,6 +2122,7 @@ func (c *Client) RequestBistreaming(ctx context.Context, bistreamerName string, 
 	return b, b.Begin(ctx, req)
 }
 
+// cancel any outstanding call
 func (b *Bistreamer) Close() {
 	//vv("Bistreamer.Close() called.")
 	req := NewMessage()
