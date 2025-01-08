@@ -179,13 +179,10 @@ func main() {
 				return
 			case req := <-downloader.ReadDownloadsCh:
 				//vv("cli downloader downloadsCh sees %v", req.String())
-				sz := len(req.JobSerz)
-				if netread == 0 {
-					vv("downloaded %v bytes after %v", sz, time.Since(t0))
-				}
-				netread += sz
-				if sz > maxPayloadSeen {
-					maxPayloadSeen = sz
+				sz0 := len(req.JobSerz)
+				netread += sz0
+				if sz0 > maxPayloadSeen {
+					maxPayloadSeen = sz0
 				}
 
 				if req.HDR.Typ == rpc25519.CallRPCReply {
@@ -194,7 +191,6 @@ func main() {
 				}
 
 				if req.HDR.StreamPart != part {
-					// panic: 0 = req.HDR.StreamPart != part = 4
 					panic(fmt.Sprintf("%v = req.HDR.StreamPart != part = %v",
 						req.HDR.StreamPart, part))
 				}
@@ -206,6 +202,11 @@ func main() {
 					szi, err := strconv.Atoi(sz)
 					pathsize := int64(szi)
 					panicOn(err)
+
+					if netread == 0 {
+						vv("got 1st download part: %v bytes after %v; can meter for total %v bytes:", sz0, time.Since(t0), pathsize)
+					}
+
 					meterDown = progress.NewTransferStats(
 						pathsize, "[dn]"+filepath.Base(path))
 				}
