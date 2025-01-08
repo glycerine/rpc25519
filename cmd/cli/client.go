@@ -313,6 +313,7 @@ func main() {
 			panicOn(err1)
 
 		} // end for i
+		nparts := i
 
 		meterUp.DoProgressWithSpeed(int64(tot), false, int64(i))
 		clientTotSum := blake3hash.SumString()
@@ -327,7 +328,8 @@ func main() {
 			rate := mb / seconds
 
 			alwaysPrintf("upload part of echo done elapsed: %v \n we "+
-				"uploaded tot = %v bytes (=> %0.6f MB/sec)", elap, tot, rate)
+				"uploaded tot = %v bytes (=> %0.6f MB/sec) in %v parts",
+				elap, tot, rate, nparts)
 		}
 		if doBistream {
 			fmt.Println()

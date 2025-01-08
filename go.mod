@@ -12,8 +12,9 @@ require (
 	github.com/glycerine/greenpack v0.517.0
 	github.com/glycerine/idem v0.0.0-20240925232718-fc20a7f9bca6
 	github.com/glycerine/ipaddr v0.2.4
-	github.com/glycerine/loquet v0.0.11
+	github.com/glycerine/loquet v0.0.12
 	github.com/goccy/go-json v0.10.3
+	github.com/klauspost/cpuid/v2 v2.0.9
 	github.com/quic-go/quic-go v0.48.2
 	golang.org/x/crypto v0.31.0
 	golang.org/x/term v0.27.0
@@ -27,7 +28,6 @@ require (
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
-	github.com/klauspost/cpuid/v2 v2.0.9 // indirect
 	github.com/leesper/go_rng v0.0.0-20190531154944-a612b043e353 // indirect
 	github.com/onsi/ginkgo/v2 v2.9.5 // indirect
 	go.uber.org/mock v0.4.0 // indirect
