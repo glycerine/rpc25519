@@ -27,6 +27,6 @@ func Test201_rsync_style_hash_generation(t *testing.T) {
 		panicOn(err)
 
 		diffs := h2.Diff(h)
-		vv("diffs = '%#v'", diffs)
+		vv("diffs = '%s'", diffs)
 	})
 }

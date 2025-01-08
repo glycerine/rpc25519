@@ -93,16 +93,27 @@ func SummarizeBytesInCDCHashes(path string, data []byte) (hashes *RsyncHashes, e
 }
 
 type RsyncDiffs struct {
-	PathA string
-	PathB string
-	Both  []*MatchHashPair
-	OnlyA []*RsyncChunk
-	OnlyB []*RsyncChunk
+	PathA string           `zid:"0"`
+	PathB string           `zid:"1"`
+	Both  []*MatchHashPair `zid:"2"`
+	OnlyA []*RsyncChunk    `zid:"3"`
+	OnlyB []*RsyncChunk    `zid:"4"`
+}
+
+func (d *RsyncDiffs) String() string {
+
+	jsonData, err := json.Marshal(d)
+	panicOn(err)
+
+	var pretty bytes.Buffer
+	err = json.Indent(&pretty, jsonData, "", "    ")
+	panicOn(err)
+	return pretty.String()
 }
 
 type MatchHashPair struct {
-	A *RsyncChunk
-	B *RsyncChunk
+	A *RsyncChunk `zid:"0"`
+	B *RsyncChunk `zid:"1"`
 }
 
 func (a *RsyncHashes) Diff(b *RsyncHashes) (d *RsyncDiffs) {
