@@ -21,9 +21,33 @@ import (
 // Sender sends RsyncStep0SenderOverview to reader.
 // This starts the first of two RPCs from sender
 // to reader. But can we have an RPC from a
-// server to a client? We will need to add
-// that, to have func registered on the client
-// and available to respond.
+// server to a client? We can have the client
+// do up calls like the server does? or
+// run a server too, if they want to be
+// a reader. The main read-loop on the client
+// can hand off server traffic to the
+// server read-loop? For now keep it simple
+// and always have the client be the initiator
+// and sender, making two RPC round trips.
+// Or we could structure it not as two RPC
+// but just as four one-way sends? The
+// last of which is not really even needed,
+// it just confirms that the transaction
+// completed. I think that would be fine;
+// we would just need to add specific
+// message types to support that, like
+// a SymmetricFlow type, so the client
+// or server getting that knows to do--the
+// client still needs to know who to
+// upcall when they get such a message; b/c
+// the client may not have any code running
+// at all if the server initiates a push
+// and wants to be a sender to the client's
+// reader. So it makes sense to have the
+// client side just be able to register
+// handler func for RPCs too; and for the
+// server to be able to act like a client
+// (sender) as well, symmetrically.
 type RsyncStep0SenderOverview struct {
 	SenderHost     string    `zid:"0"`
 	SenderPath     string    `zid:"1"`
