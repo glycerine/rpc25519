@@ -18,10 +18,14 @@ func Test201_rsync_style_hash_generation(t *testing.T) {
 		panicOn(err)
 
 		var modTime time.Time
-		h, err := SummarizeBytesInCDCHashes(host, path, data, modTime)
-		panicOn(err)
+		// SummarizeFile... rather than SummarizeBytes...
+		// so we can manually confirm owner name is present. Yes.
+		h, err := SummarizeFileInCDCHashes(host, path)
+		//h, err := SummarizeBytesInCDCHashes(host, path, data, modTime)
+
+		cv.So(h.FileOwner != "", cv.ShouldBeTrue)
 		_ = h
-		//vv("scan of file gave: hashes '%v'", h.String())
+		vv("scan of file gave: hashes '%v'", h.String())
 		//cv.So(h.NumChunks, cv.ShouldEqual, 16) // blob977k
 
 		// now alter the data by prepending 2 bytes

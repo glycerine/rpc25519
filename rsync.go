@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/user"
 	"syscall"
 	"time"
 
@@ -22,25 +23,27 @@ type RsyncHashes struct {
 	Host string `zid:"0"`
 	Path string `zid:"1"`
 
-	ModTime   time.Time `zid:"2"`
-	FileSize  int64     `zid:"3"`
-	FileMode  uint32    `zid:"4"`
-	FileOwner uint32    `zid:"5"`
-	FileGroup uint32    `zid:"6"`
-	FileMeta  string    `zid:"7"`
+	ModTime     time.Time `zid:"2"`
+	FileSize    int64     `zid:"3"`
+	FileMode    uint32    `zid:"4"`
+	FileOwner   string    `zid:"5"`
+	FileOwnerID uint32    `zid:"6"`
+	FileGroup   string    `zid:"7"`
+	FileGroupID uint32    `zid:"8"`
+	FileMeta    string    `zid:"9"`
 
 	// HashName is e.g. "blake3.32B"
-	HashName string `zid:"8"`
+	HashName string `zid:"10"`
 
-	FullFileHashSum string `zid:"9"`
+	FullFileHashSum string `zid:"11"`
 
 	// ChunkerName is e.g. "ultracdc"
-	ChunkerName string               `zid:"10"`
-	CDC_Config  *ultracdc.CDC_Config `zid:"11"`
+	ChunkerName string               `zid:"12"`
+	CDC_Config  *ultracdc.CDC_Config `zid:"13"`
 
 	// NumChunks gives len(Chunks) for convenience.
-	NumChunks int           `zid:"12"`
-	Chunks    []*RsyncChunk `zid:"13"`
+	NumChunks int           `zid:"14"`
+	Chunks    []*RsyncChunk `zid:"15"`
 }
 
 type RsyncChunk struct {
@@ -78,8 +81,19 @@ func SummarizeFileInCDCHashes(host, path string) (hashes *RsyncHashes, err error
 	hashes.FileMode = uint32(fi.Mode())
 
 	if stat_t, ok := fi.Sys().(*syscall.Stat_t); ok {
-		hashes.FileOwner = stat_t.Uid
-		hashes.FileGroup = stat_t.Gid
+		uid := stat_t.Uid
+		hashes.FileOwnerID = uid
+		gid := stat_t.Gid
+		hashes.FileGroupID = gid
+
+		owner, err := user.LookupId(fmt.Sprint(uid))
+		if err == nil && owner != nil {
+			hashes.FileOwner = owner.Username
+		}
+		group, err := user.LookupGroupId(fmt.Sprint(gid))
+		if err == nil && group != nil {
+			hashes.FileGroup = group.Name
+		}
 	}
 	return
 }
@@ -131,7 +145,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 
 	cuts := cdc.Cutpoints(data, 0)
 
-	vv("cuts = '%#v'", cuts)
+	//vv("cuts = '%#v'", cuts)
 
 	prev := 0
 	for i, c := range cuts {

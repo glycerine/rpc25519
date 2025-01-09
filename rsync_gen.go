@@ -1772,7 +1772,7 @@ func (z *RsyncHashes) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields28zgensym_9db0ba711f6a3e5a_29 = 14
+	const maxFields28zgensym_9db0ba711f6a3e5a_29 = 16
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields28zgensym_9db0ba711f6a3e5a_29 uint32
@@ -1851,44 +1851,56 @@ doneWithStruct28zgensym_9db0ba711f6a3e5a_29:
 			if err != nil {
 				return
 			}
-		case "FileOwner_zid05_u32":
+		case "FileOwner_zid05_str":
 			found28zgensym_9db0ba711f6a3e5a_29[5] = true
-			z.FileOwner, err = dc.ReadUint32()
+			z.FileOwner, err = dc.ReadString()
 			if err != nil {
 				return
 			}
-		case "FileGroup_zid06_u32":
+		case "FileOwnerID_zid06_u32":
 			found28zgensym_9db0ba711f6a3e5a_29[6] = true
-			z.FileGroup, err = dc.ReadUint32()
+			z.FileOwnerID, err = dc.ReadUint32()
 			if err != nil {
 				return
 			}
-		case "FileMeta_zid07_str":
+		case "FileGroup_zid07_str":
 			found28zgensym_9db0ba711f6a3e5a_29[7] = true
+			z.FileGroup, err = dc.ReadString()
+			if err != nil {
+				return
+			}
+		case "FileGroupID_zid08_u32":
+			found28zgensym_9db0ba711f6a3e5a_29[8] = true
+			z.FileGroupID, err = dc.ReadUint32()
+			if err != nil {
+				return
+			}
+		case "FileMeta_zid09_str":
+			found28zgensym_9db0ba711f6a3e5a_29[9] = true
 			z.FileMeta, err = dc.ReadString()
 			if err != nil {
 				return
 			}
-		case "HashName_zid08_str":
-			found28zgensym_9db0ba711f6a3e5a_29[8] = true
+		case "HashName_zid10_str":
+			found28zgensym_9db0ba711f6a3e5a_29[10] = true
 			z.HashName, err = dc.ReadString()
 			if err != nil {
 				return
 			}
-		case "FullFileHashSum_zid09_str":
-			found28zgensym_9db0ba711f6a3e5a_29[9] = true
+		case "FullFileHashSum_zid11_str":
+			found28zgensym_9db0ba711f6a3e5a_29[11] = true
 			z.FullFileHashSum, err = dc.ReadString()
 			if err != nil {
 				return
 			}
-		case "ChunkerName_zid10_str":
-			found28zgensym_9db0ba711f6a3e5a_29[10] = true
+		case "ChunkerName_zid12_str":
+			found28zgensym_9db0ba711f6a3e5a_29[12] = true
 			z.ChunkerName, err = dc.ReadString()
 			if err != nil {
 				return
 			}
-		case "CDC_Config_zid11_ptr":
-			found28zgensym_9db0ba711f6a3e5a_29[11] = true
+		case "CDC_Config_zid13_ptr":
+			found28zgensym_9db0ba711f6a3e5a_29[13] = true
 			if dc.IsNil() {
 				err = dc.ReadNil()
 				if err != nil {
@@ -1916,14 +1928,14 @@ doneWithStruct28zgensym_9db0ba711f6a3e5a_29:
 					return
 				}
 			}
-		case "NumChunks_zid12_int":
-			found28zgensym_9db0ba711f6a3e5a_29[12] = true
+		case "NumChunks_zid14_int":
+			found28zgensym_9db0ba711f6a3e5a_29[14] = true
 			z.NumChunks, err = dc.ReadInt()
 			if err != nil {
 				return
 			}
-		case "Chunks_zid13_slc":
-			found28zgensym_9db0ba711f6a3e5a_29[13] = true
+		case "Chunks_zid15_slc":
+			found28zgensym_9db0ba711f6a3e5a_29[15] = true
 			var zgensym_9db0ba711f6a3e5a_30 uint32
 			zgensym_9db0ba711f6a3e5a_30, err = dc.ReadArrayHeader()
 			if err != nil {
@@ -1986,16 +1998,16 @@ doneWithStruct28zgensym_9db0ba711f6a3e5a_29:
 }
 
 // fields of RsyncHashes
-var decodeMsgFieldOrder28zgensym_9db0ba711f6a3e5a_29 = []string{"Host_zid00_str", "Path_zid01_str", "ModTime_zid02_tim", "FileSize_zid03_i64", "FileMode_zid04_u32", "FileOwner_zid05_u32", "FileGroup_zid06_u32", "FileMeta_zid07_str", "HashName_zid08_str", "FullFileHashSum_zid09_str", "ChunkerName_zid10_str", "CDC_Config_zid11_ptr", "NumChunks_zid12_int", "Chunks_zid13_slc"}
+var decodeMsgFieldOrder28zgensym_9db0ba711f6a3e5a_29 = []string{"Host_zid00_str", "Path_zid01_str", "ModTime_zid02_tim", "FileSize_zid03_i64", "FileMode_zid04_u32", "FileOwner_zid05_str", "FileOwnerID_zid06_u32", "FileGroup_zid07_str", "FileGroupID_zid08_u32", "FileMeta_zid09_str", "HashName_zid10_str", "FullFileHashSum_zid11_str", "ChunkerName_zid12_str", "CDC_Config_zid13_ptr", "NumChunks_zid14_int", "Chunks_zid15_slc"}
 
-var decodeMsgFieldSkip28zgensym_9db0ba711f6a3e5a_29 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false}
+var decodeMsgFieldSkip28zgensym_9db0ba711f6a3e5a_29 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *RsyncHashes) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 14
+		return 16
 	}
-	var fieldsInUse uint32 = 14
+	var fieldsInUse uint32 = 16
 	isempty[0] = (len(z.Host) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -2016,40 +2028,48 @@ func (z *RsyncHashes) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[4] {
 		fieldsInUse--
 	}
-	isempty[5] = (z.FileOwner == 0) // number, omitempty
+	isempty[5] = (len(z.FileOwner) == 0) // string, omitempty
 	if isempty[5] {
 		fieldsInUse--
 	}
-	isempty[6] = (z.FileGroup == 0) // number, omitempty
+	isempty[6] = (z.FileOwnerID == 0) // number, omitempty
 	if isempty[6] {
 		fieldsInUse--
 	}
-	isempty[7] = (len(z.FileMeta) == 0) // string, omitempty
+	isempty[7] = (len(z.FileGroup) == 0) // string, omitempty
 	if isempty[7] {
 		fieldsInUse--
 	}
-	isempty[8] = (len(z.HashName) == 0) // string, omitempty
+	isempty[8] = (z.FileGroupID == 0) // number, omitempty
 	if isempty[8] {
 		fieldsInUse--
 	}
-	isempty[9] = (len(z.FullFileHashSum) == 0) // string, omitempty
+	isempty[9] = (len(z.FileMeta) == 0) // string, omitempty
 	if isempty[9] {
 		fieldsInUse--
 	}
-	isempty[10] = (len(z.ChunkerName) == 0) // string, omitempty
+	isempty[10] = (len(z.HashName) == 0) // string, omitempty
 	if isempty[10] {
 		fieldsInUse--
 	}
-	isempty[11] = (z.CDC_Config == nil) // pointer, omitempty
+	isempty[11] = (len(z.FullFileHashSum) == 0) // string, omitempty
 	if isempty[11] {
 		fieldsInUse--
 	}
-	isempty[12] = (z.NumChunks == 0) // number, omitempty
+	isempty[12] = (len(z.ChunkerName) == 0) // string, omitempty
 	if isempty[12] {
 		fieldsInUse--
 	}
-	isempty[13] = (len(z.Chunks) == 0) // string, omitempty
+	isempty[13] = (z.CDC_Config == nil) // pointer, omitempty
 	if isempty[13] {
+		fieldsInUse--
+	}
+	isempty[14] = (z.NumChunks == 0) // number, omitempty
+	if isempty[14] {
+		fieldsInUse--
+	}
+	isempty[15] = (len(z.Chunks) == 0) // string, omitempty
+	if isempty[15] {
 		fieldsInUse--
 	}
 
@@ -2063,7 +2083,7 @@ func (z *RsyncHashes) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_9db0ba711f6a3e5a_31 [14]bool
+	var empty_zgensym_9db0ba711f6a3e5a_31 [16]bool
 	fieldsInUse_zgensym_9db0ba711f6a3e5a_32 := z.fieldsNotEmpty(empty_zgensym_9db0ba711f6a3e5a_31[:])
 
 	// map header
@@ -2143,32 +2163,56 @@ func (z *RsyncHashes) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_9db0ba711f6a3e5a_31[5] {
-		// write "FileOwner_zid05_u32"
-		err = en.Append(0xb3, 0x46, 0x69, 0x6c, 0x65, 0x4f, 0x77, 0x6e, 0x65, 0x72, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x75, 0x33, 0x32)
+		// write "FileOwner_zid05_str"
+		err = en.Append(0xb3, 0x46, 0x69, 0x6c, 0x65, 0x4f, 0x77, 0x6e, 0x65, 0x72, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
-		err = en.WriteUint32(z.FileOwner)
+		err = en.WriteString(z.FileOwner)
 		if err != nil {
 			return
 		}
 	}
 
 	if !empty_zgensym_9db0ba711f6a3e5a_31[6] {
-		// write "FileGroup_zid06_u32"
-		err = en.Append(0xb3, 0x46, 0x69, 0x6c, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x75, 0x33, 0x32)
+		// write "FileOwnerID_zid06_u32"
+		err = en.Append(0xb5, 0x46, 0x69, 0x6c, 0x65, 0x4f, 0x77, 0x6e, 0x65, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x75, 0x33, 0x32)
 		if err != nil {
 			return err
 		}
-		err = en.WriteUint32(z.FileGroup)
+		err = en.WriteUint32(z.FileOwnerID)
 		if err != nil {
 			return
 		}
 	}
 
 	if !empty_zgensym_9db0ba711f6a3e5a_31[7] {
-		// write "FileMeta_zid07_str"
-		err = en.Append(0xb2, 0x46, 0x69, 0x6c, 0x65, 0x4d, 0x65, 0x74, 0x61, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x73, 0x74, 0x72)
+		// write "FileGroup_zid07_str"
+		err = en.Append(0xb3, 0x46, 0x69, 0x6c, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x73, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		err = en.WriteString(z.FileGroup)
+		if err != nil {
+			return
+		}
+	}
+
+	if !empty_zgensym_9db0ba711f6a3e5a_31[8] {
+		// write "FileGroupID_zid08_u32"
+		err = en.Append(0xb5, 0x46, 0x69, 0x6c, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x75, 0x33, 0x32)
+		if err != nil {
+			return err
+		}
+		err = en.WriteUint32(z.FileGroupID)
+		if err != nil {
+			return
+		}
+	}
+
+	if !empty_zgensym_9db0ba711f6a3e5a_31[9] {
+		// write "FileMeta_zid09_str"
+		err = en.Append(0xb2, 0x46, 0x69, 0x6c, 0x65, 0x4d, 0x65, 0x74, 0x61, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x39, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
@@ -2178,9 +2222,9 @@ func (z *RsyncHashes) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_9db0ba711f6a3e5a_31[8] {
-		// write "HashName_zid08_str"
-		err = en.Append(0xb2, 0x48, 0x61, 0x73, 0x68, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x73, 0x74, 0x72)
+	if !empty_zgensym_9db0ba711f6a3e5a_31[10] {
+		// write "HashName_zid10_str"
+		err = en.Append(0xb2, 0x48, 0x61, 0x73, 0x68, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x30, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
@@ -2190,9 +2234,9 @@ func (z *RsyncHashes) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_9db0ba711f6a3e5a_31[9] {
-		// write "FullFileHashSum_zid09_str"
-		err = en.Append(0xb9, 0x46, 0x75, 0x6c, 0x6c, 0x46, 0x69, 0x6c, 0x65, 0x48, 0x61, 0x73, 0x68, 0x53, 0x75, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x39, 0x5f, 0x73, 0x74, 0x72)
+	if !empty_zgensym_9db0ba711f6a3e5a_31[11] {
+		// write "FullFileHashSum_zid11_str"
+		err = en.Append(0xb9, 0x46, 0x75, 0x6c, 0x6c, 0x46, 0x69, 0x6c, 0x65, 0x48, 0x61, 0x73, 0x68, 0x53, 0x75, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x31, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
@@ -2202,9 +2246,9 @@ func (z *RsyncHashes) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_9db0ba711f6a3e5a_31[10] {
-		// write "ChunkerName_zid10_str"
-		err = en.Append(0xb5, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x65, 0x72, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x30, 0x5f, 0x73, 0x74, 0x72)
+	if !empty_zgensym_9db0ba711f6a3e5a_31[12] {
+		// write "ChunkerName_zid12_str"
+		err = en.Append(0xb5, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x65, 0x72, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x32, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
@@ -2214,9 +2258,9 @@ func (z *RsyncHashes) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_9db0ba711f6a3e5a_31[11] {
-		// write "CDC_Config_zid11_ptr"
-		err = en.Append(0xb4, 0x43, 0x44, 0x43, 0x5f, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x31, 0x5f, 0x70, 0x74, 0x72)
+	if !empty_zgensym_9db0ba711f6a3e5a_31[13] {
+		// write "CDC_Config_zid13_ptr"
+		err = en.Append(0xb4, 0x43, 0x44, 0x43, 0x5f, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x33, 0x5f, 0x70, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
@@ -2245,9 +2289,9 @@ func (z *RsyncHashes) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_9db0ba711f6a3e5a_31[12] {
-		// write "NumChunks_zid12_int"
-		err = en.Append(0xb3, 0x4e, 0x75, 0x6d, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x32, 0x5f, 0x69, 0x6e, 0x74)
+	if !empty_zgensym_9db0ba711f6a3e5a_31[14] {
+		// write "NumChunks_zid14_int"
+		err = en.Append(0xb3, 0x4e, 0x75, 0x6d, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x34, 0x5f, 0x69, 0x6e, 0x74)
 		if err != nil {
 			return err
 		}
@@ -2257,9 +2301,9 @@ func (z *RsyncHashes) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_9db0ba711f6a3e5a_31[13] {
-		// write "Chunks_zid13_slc"
-		err = en.Append(0xb0, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x33, 0x5f, 0x73, 0x6c, 0x63)
+	if !empty_zgensym_9db0ba711f6a3e5a_31[15] {
+		// write "Chunks_zid15_slc"
+		err = en.Append(0xb0, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x35, 0x5f, 0x73, 0x6c, 0x63)
 		if err != nil {
 			return err
 		}
@@ -2306,7 +2350,7 @@ func (z *RsyncHashes) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [14]bool
+	var empty [16]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -2341,44 +2385,56 @@ func (z *RsyncHashes) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[5] {
-		// string "FileOwner_zid05_u32"
-		o = append(o, 0xb3, 0x46, 0x69, 0x6c, 0x65, 0x4f, 0x77, 0x6e, 0x65, 0x72, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x75, 0x33, 0x32)
-		o = msgp.AppendUint32(o, z.FileOwner)
+		// string "FileOwner_zid05_str"
+		o = append(o, 0xb3, 0x46, 0x69, 0x6c, 0x65, 0x4f, 0x77, 0x6e, 0x65, 0x72, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.FileOwner)
 	}
 
 	if !empty[6] {
-		// string "FileGroup_zid06_u32"
-		o = append(o, 0xb3, 0x46, 0x69, 0x6c, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x75, 0x33, 0x32)
-		o = msgp.AppendUint32(o, z.FileGroup)
+		// string "FileOwnerID_zid06_u32"
+		o = append(o, 0xb5, 0x46, 0x69, 0x6c, 0x65, 0x4f, 0x77, 0x6e, 0x65, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x75, 0x33, 0x32)
+		o = msgp.AppendUint32(o, z.FileOwnerID)
 	}
 
 	if !empty[7] {
-		// string "FileMeta_zid07_str"
-		o = append(o, 0xb2, 0x46, 0x69, 0x6c, 0x65, 0x4d, 0x65, 0x74, 0x61, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x73, 0x74, 0x72)
-		o = msgp.AppendString(o, z.FileMeta)
+		// string "FileGroup_zid07_str"
+		o = append(o, 0xb3, 0x46, 0x69, 0x6c, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.FileGroup)
 	}
 
 	if !empty[8] {
-		// string "HashName_zid08_str"
-		o = append(o, 0xb2, 0x48, 0x61, 0x73, 0x68, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x73, 0x74, 0x72)
-		o = msgp.AppendString(o, z.HashName)
+		// string "FileGroupID_zid08_u32"
+		o = append(o, 0xb5, 0x46, 0x69, 0x6c, 0x65, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x75, 0x33, 0x32)
+		o = msgp.AppendUint32(o, z.FileGroupID)
 	}
 
 	if !empty[9] {
-		// string "FullFileHashSum_zid09_str"
-		o = append(o, 0xb9, 0x46, 0x75, 0x6c, 0x6c, 0x46, 0x69, 0x6c, 0x65, 0x48, 0x61, 0x73, 0x68, 0x53, 0x75, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x39, 0x5f, 0x73, 0x74, 0x72)
-		o = msgp.AppendString(o, z.FullFileHashSum)
+		// string "FileMeta_zid09_str"
+		o = append(o, 0xb2, 0x46, 0x69, 0x6c, 0x65, 0x4d, 0x65, 0x74, 0x61, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x39, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.FileMeta)
 	}
 
 	if !empty[10] {
-		// string "ChunkerName_zid10_str"
-		o = append(o, 0xb5, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x65, 0x72, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x30, 0x5f, 0x73, 0x74, 0x72)
-		o = msgp.AppendString(o, z.ChunkerName)
+		// string "HashName_zid10_str"
+		o = append(o, 0xb2, 0x48, 0x61, 0x73, 0x68, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x30, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.HashName)
 	}
 
 	if !empty[11] {
-		// string "CDC_Config_zid11_ptr"
-		o = append(o, 0xb4, 0x43, 0x44, 0x43, 0x5f, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x31, 0x5f, 0x70, 0x74, 0x72)
+		// string "FullFileHashSum_zid11_str"
+		o = append(o, 0xb9, 0x46, 0x75, 0x6c, 0x6c, 0x46, 0x69, 0x6c, 0x65, 0x48, 0x61, 0x73, 0x68, 0x53, 0x75, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x31, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.FullFileHashSum)
+	}
+
+	if !empty[12] {
+		// string "ChunkerName_zid12_str"
+		o = append(o, 0xb5, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x65, 0x72, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x32, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.ChunkerName)
+	}
+
+	if !empty[13] {
+		// string "CDC_Config_zid13_ptr"
+		o = append(o, 0xb4, 0x43, 0x44, 0x43, 0x5f, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x33, 0x5f, 0x70, 0x74, 0x72)
 		// marshalGen.gPtr()
 
 		if z.CDC_Config == nil {
@@ -2393,15 +2449,15 @@ func (z *RsyncHashes) MarshalMsg(b []byte) (o []byte, err error) {
 		}
 	}
 
-	if !empty[12] {
-		// string "NumChunks_zid12_int"
-		o = append(o, 0xb3, 0x4e, 0x75, 0x6d, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x32, 0x5f, 0x69, 0x6e, 0x74)
+	if !empty[14] {
+		// string "NumChunks_zid14_int"
+		o = append(o, 0xb3, 0x4e, 0x75, 0x6d, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x34, 0x5f, 0x69, 0x6e, 0x74)
 		o = msgp.AppendInt(o, z.NumChunks)
 	}
 
-	if !empty[13] {
-		// string "Chunks_zid13_slc"
-		o = append(o, 0xb0, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x33, 0x5f, 0x73, 0x6c, 0x63)
+	if !empty[15] {
+		// string "Chunks_zid15_slc"
+		o = append(o, 0xb0, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x35, 0x5f, 0x73, 0x6c, 0x63)
 		o = msgp.AppendArrayHeader(o, uint32(len(z.Chunks)))
 		for zgensym_9db0ba711f6a3e5a_27 := range z.Chunks {
 			// marshalGen.gPtr()
@@ -2437,7 +2493,7 @@ func (z *RsyncHashes) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (
 
 	var field []byte
 	_ = field
-	const maxFields33zgensym_9db0ba711f6a3e5a_34 = 14
+	const maxFields33zgensym_9db0ba711f6a3e5a_34 = 16
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields33zgensym_9db0ba711f6a3e5a_34 uint32
@@ -2522,50 +2578,64 @@ doneWithStruct33zgensym_9db0ba711f6a3e5a_34:
 			if err != nil {
 				return
 			}
-		case "FileOwner_zid05_u32":
+		case "FileOwner_zid05_str":
 			found33zgensym_9db0ba711f6a3e5a_34[5] = true
-			z.FileOwner, bts, err = nbs.ReadUint32Bytes(bts)
+			z.FileOwner, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "FileGroup_zid06_u32":
+		case "FileOwnerID_zid06_u32":
 			found33zgensym_9db0ba711f6a3e5a_34[6] = true
-			z.FileGroup, bts, err = nbs.ReadUint32Bytes(bts)
+			z.FileOwnerID, bts, err = nbs.ReadUint32Bytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "FileMeta_zid07_str":
+		case "FileGroup_zid07_str":
 			found33zgensym_9db0ba711f6a3e5a_34[7] = true
+			z.FileGroup, bts, err = nbs.ReadStringBytes(bts)
+
+			if err != nil {
+				return
+			}
+		case "FileGroupID_zid08_u32":
+			found33zgensym_9db0ba711f6a3e5a_34[8] = true
+			z.FileGroupID, bts, err = nbs.ReadUint32Bytes(bts)
+
+			if err != nil {
+				return
+			}
+		case "FileMeta_zid09_str":
+			found33zgensym_9db0ba711f6a3e5a_34[9] = true
 			z.FileMeta, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "HashName_zid08_str":
-			found33zgensym_9db0ba711f6a3e5a_34[8] = true
+		case "HashName_zid10_str":
+			found33zgensym_9db0ba711f6a3e5a_34[10] = true
 			z.HashName, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "FullFileHashSum_zid09_str":
-			found33zgensym_9db0ba711f6a3e5a_34[9] = true
+		case "FullFileHashSum_zid11_str":
+			found33zgensym_9db0ba711f6a3e5a_34[11] = true
 			z.FullFileHashSum, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "ChunkerName_zid10_str":
-			found33zgensym_9db0ba711f6a3e5a_34[10] = true
+		case "ChunkerName_zid12_str":
+			found33zgensym_9db0ba711f6a3e5a_34[12] = true
 			z.ChunkerName, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "CDC_Config_zid11_ptr":
-			found33zgensym_9db0ba711f6a3e5a_34[11] = true
+		case "CDC_Config_zid13_ptr":
+			found33zgensym_9db0ba711f6a3e5a_34[13] = true
 			// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"z.CDC_Config", alias:"ultracdc.CDC_Config", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x16, Convert:false, mustinline:true, needsref:false, isIface:false, isInIfaceSlice:false}
 
 			// unmarshalGen.gPtr(): we have an IDENT:
@@ -2594,15 +2664,15 @@ doneWithStruct33zgensym_9db0ba711f6a3e5a_34:
 					}
 				}
 			}
-		case "NumChunks_zid12_int":
-			found33zgensym_9db0ba711f6a3e5a_34[12] = true
+		case "NumChunks_zid14_int":
+			found33zgensym_9db0ba711f6a3e5a_34[14] = true
 			z.NumChunks, bts, err = nbs.ReadIntBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "Chunks_zid13_slc":
-			found33zgensym_9db0ba711f6a3e5a_34[13] = true
+		case "Chunks_zid15_slc":
+			found33zgensym_9db0ba711f6a3e5a_34[15] = true
 			if nbs.AlwaysNil {
 				(z.Chunks) = (z.Chunks)[:0]
 			} else {
@@ -2671,13 +2741,13 @@ doneWithStruct33zgensym_9db0ba711f6a3e5a_34:
 }
 
 // fields of RsyncHashes
-var unmarshalMsgFieldOrder33zgensym_9db0ba711f6a3e5a_34 = []string{"Host_zid00_str", "Path_zid01_str", "ModTime_zid02_tim", "FileSize_zid03_i64", "FileMode_zid04_u32", "FileOwner_zid05_u32", "FileGroup_zid06_u32", "FileMeta_zid07_str", "HashName_zid08_str", "FullFileHashSum_zid09_str", "ChunkerName_zid10_str", "CDC_Config_zid11_ptr", "NumChunks_zid12_int", "Chunks_zid13_slc"}
+var unmarshalMsgFieldOrder33zgensym_9db0ba711f6a3e5a_34 = []string{"Host_zid00_str", "Path_zid01_str", "ModTime_zid02_tim", "FileSize_zid03_i64", "FileMode_zid04_u32", "FileOwner_zid05_str", "FileOwnerID_zid06_u32", "FileGroup_zid07_str", "FileGroupID_zid08_u32", "FileMeta_zid09_str", "HashName_zid10_str", "FullFileHashSum_zid11_str", "ChunkerName_zid12_str", "CDC_Config_zid13_ptr", "NumChunks_zid14_int", "Chunks_zid15_slc"}
 
-var unmarshalMsgFieldSkip33zgensym_9db0ba711f6a3e5a_34 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false}
+var unmarshalMsgFieldSkip33zgensym_9db0ba711f6a3e5a_34 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *RsyncHashes) Msgsize() (s int) {
-	s = 1 + 15 + msgp.StringPrefixSize + len(z.Host) + 15 + msgp.StringPrefixSize + len(z.Path) + 18 + msgp.TimeSize + 19 + msgp.Int64Size + 19 + msgp.Uint32Size + 20 + msgp.Uint32Size + 20 + msgp.Uint32Size + 19 + msgp.StringPrefixSize + len(z.FileMeta) + 19 + msgp.StringPrefixSize + len(z.HashName) + 26 + msgp.StringPrefixSize + len(z.FullFileHashSum) + 22 + msgp.StringPrefixSize + len(z.ChunkerName) + 21
+	s = 3 + 15 + msgp.StringPrefixSize + len(z.Host) + 15 + msgp.StringPrefixSize + len(z.Path) + 18 + msgp.TimeSize + 19 + msgp.Int64Size + 19 + msgp.Uint32Size + 20 + msgp.StringPrefixSize + len(z.FileOwner) + 22 + msgp.Uint32Size + 20 + msgp.StringPrefixSize + len(z.FileGroup) + 22 + msgp.Uint32Size + 19 + msgp.StringPrefixSize + len(z.FileMeta) + 19 + msgp.StringPrefixSize + len(z.HashName) + 26 + msgp.StringPrefixSize + len(z.FullFileHashSum) + 22 + msgp.StringPrefixSize + len(z.ChunkerName) + 21
 	if z.CDC_Config == nil {
 		s += msgp.NilSize
 	} else {
