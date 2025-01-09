@@ -25,7 +25,8 @@ func newZstdCompressor() (*zstdCompressor, error) {
 
 	// zstd.WithDecoderConcurrency(0) => use all GOMAXPROCS goro
 	// Otherwise, the default is 4 decompressor goro.
-	decomp, err := zstd.NewReader(nil, zstd.WithDecoderConcurrency(0))
+	//decomp, err := zstd.NewReader(nil, zstd.WithDecoderConcurrency(0))
+	decomp, err := zstd.NewReader(nil)
 	panicOn(err)
 	if err != nil {
 		return nil, err
