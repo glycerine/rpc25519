@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sync"
 	//"net/http"
 	"os"
 	filepath "path/filepath"
@@ -14,7 +15,7 @@ import (
 	"time"
 
 	//tdigest "github.com/caio/go-tdigest"
-	//"github.com/glycerine/loquet"
+	"github.com/glycerine/loquet"
 	myblake3 "github.com/glycerine/rpc25519/hash"
 
 	cv "github.com/glycerine/goconvey/convey"
@@ -372,9 +373,314 @@ func Test301_download_streaming_test(t *testing.T) {
 	})
 }
 
-func Test302_streaming_test_of_bistream(t *testing.T) {
+func Test302_bistreaming_test_simultaneous_upload_and_download(t *testing.T) {
 
-	cv.Convey("before we add compression, we want to take the cli -sendfile, cli -echofile, and cli -download commands and turn them into test(s) that verify quickly that they are all still working. The srv -readfile, srv -echo, and srv -serve are the corresponding server side operations. Test302 is for bistreaming (simultaneous upload and download of files bigger than max Message size)", t, func() {
+	cv.Convey("before we add compression, test bistreaming: cli -echofile vs srv -echo;. Test302 is for bistreaming (simultaneous upload and download of files bigger than max Message size)", t, func() {
+
+		// set up server and client.
+
+		// start with server
+		cfg := NewConfig()
+		cfg.ServerAddr = "127.0.0.1:0"
+
+		srv := NewServer("srv_test301", cfg)
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
+
+		// serve bistreams
+		streamerName := "echoBistreamFunc"
+
+		// EchoBistreamFunc in example.go has most of the implementation.
+		srv.RegisterBistreamFunc(streamerName, EchoBistreamFunc)
+
+		// client
+
+		cfg.ClientDialToHostPort = serverAddr.String()
+		cli, err := NewClient("cli_test301", cfg)
+		panicOn(err)
+		err = cli.Start()
+		panicOn(err)
+
+		defer cli.Close()
+
+		// end standard setup of server and client.
+
+		// download a blob from testdata/ directory.
+
+		path := "testdata/blob977k"
+
+		sendfile := "testdata/blob3m"
+		echoFile := path + ".echoed"
+
+		observedOutfile := path + ".echoed.echoclientgot"
+		os.Remove(echoFile)
+		os.Remove(observedOutfile)
+
+		t0 := time.Now()
+
+		var bistream *Bistreamer
+		var wg sync.WaitGroup
+		bistreamerName := "echoBistreamFunc"
+		meterDownQuietCh := make(chan bool, 2)
+		meterDownQuietCh <- true
+		uploadDone := loquet.NewChan[bool](nil)
+
+		var meterDown *progress.TransferStats
+
+		//if doBistream {
+
+		fi, err := os.Stat(path)
+		panicOn(err)
+		meterDown = progress.NewTransferStats(fi.Size(), "[dn]"+filepath.Base(path))
+
+		// Approach:
+		// have the echofile implementation do the upload for us,
+		// while we do the download in a separate goroutine.
+
+		downloadFile := path + ".echoed"
+
+		bistream, err = cli.NewBistreamer(bistreamerName)
+		panicOn(err)
+		defer bistream.Close()
+
+		s := NewPerCallID_FileToDiskState(bistream.CallID())
+		s.OverrideFilename = downloadFile
+		//vv("bistream.CallID() = '%v'", bistream.CallID())
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			meterDownQuiet := true
+			lastUpdate := time.Now()
+			netread := 0 // net count of bytes read off the network.
+			whenUploadDone := uploadDone.WhenClosed()
+			for {
+				select {
+				case <-whenUploadDone:
+					vv("upload done, down has read: %v bytes", netread)
+					whenUploadDone = nil
+				case meterDownQuiet = <-meterDownQuietCh:
+				case req := <-bistream.ReadDownloadsCh:
+					//vv("cli bistream downloadsCh sees %v", req.String())
+					sz := len(req.JobSerz)
+					if netread == 0 {
+						vv("downloaded %v bytes after %v", sz, time.Since(t0))
+					}
+					netread += sz
+
+					if req.HDR.Typ == CallRPCReply {
+						//vv("cli bistream downloadsCh sees CallRPCReply, exiting goro")
+						return
+					}
+					if time.Since(lastUpdate) > time.Second {
+						meterDown.DoProgressWithSpeed(int64(netread), meterDownQuiet, req.HDR.StreamPart)
+						lastUpdate = time.Now()
+					}
+
+					last := (req.HDR.Typ == CallDownloadEnd)
+					err = s.WriteOneMsgToFile(req, "echoclientgot", last)
+
+					if err != nil {
+						panic(err)
+						return
+					}
+					if last {
+						//totSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(s.Blake3hash.Sum(nil))
+						////vv("ReceiveFileInParts sees last set!")
+						//vv("bytesWrit=%v; \nserver totSum='%v'", s.BytesWrit, totSum)
+
+						elap := time.Since(s.T0)
+						mb := float64(s.BytesWrit) / float64(1<<20)
+						seconds := (float64(elap) / float64(time.Second))
+						rate := mb / seconds
+						_ = rate
+
+						fmt.Println()
+						fmt.Printf("total time for echo: '%v'\n", time.Since(s.T0))
+						fmt.Printf("file size: %v bytes.\n", formatUnder(int(s.BytesWrit)))
+
+					} // end if last
+				} //end select
+			} // end for seenCount
+		}()
+
+		//} // end if bistream
+
+		// sendfile part: upload simultaneously
+		//if sendfile != "" {
+
+		path = sendfile
+		if !fileExists(path) {
+			panic(fmt.Sprintf("drat! cli -sendfile path '%v' not found", path))
+		}
+		fi, err = os.Stat(path)
+		panicOn(err)
+		pathsize := fi.Size()
+		meterUp := progress.NewTransferStats(pathsize, "[up]"+filepath.Base(path))
+
+		r, err := os.Open(path)
+		if err != nil {
+			panic(fmt.Sprintf("error reading path '%v': '%v'", path, err))
+		}
+
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		// wait to initialize the Uploader until we
+		// actually have data to send.
+		var strm *Uploader
+
+		blake3hash := myblake3.NewBlake3()
+
+		// much smoother progress display waiting for 1MB rather than 64MB
+		maxMessage := 1024 * 1024
+		//maxMessage := UserMaxPayload
+		//maxMessage := 1024
+		buf := make([]byte, maxMessage)
+		var tot int
+
+		req := NewMessage()
+		req.HDR.Created = time.Now()
+		req.HDR.Args["pathsize"] = fmt.Sprintf("%v", pathsize)
+		var lastUpdate time.Time
+
+		// check for errors
+		var checkForErrors = func() *Message {
+			if strm != nil {
+				//vv("checking strm (sendfile) chan for error: %p; callID='%v'", strm.ErrorCh, strm.CallID())
+				select {
+				case errMsg := <-strm.ErrorCh:
+					vv("error for sendfile: '%v'", err)
+					return errMsg
+				default:
+				}
+			}
+			if bistream != nil {
+				//vv("checking bistream (echofile) chan for error: %p; callID='%v'", bistream.ErrorCh, bistream.CallID())
+				select {
+				case errMsg := <-bistream.ErrorCh:
+					vv("error from echofile: '%v'", err)
+					return errMsg
+				default:
+				}
+			}
+			return nil
+		}
+
+		i := 0
+	upload:
+		for i = 0; true; i++ {
+
+			if err := checkForErrors(); err != nil {
+				alwaysPrintf("error: '%v'", err.String())
+				return
+			}
+
+			nr, err1 := r.Read(buf)
+			//vv("on read i=%v, got nr=%v, (maxMessage=%v), err='%v'", i, nr, maxMessage, err1)
+
+			send := buf[:nr] // can be empty
+			tot += nr
+			sumstring := myblake3.Blake3OfBytesString(send)
+			//vv("i=%v, len=%v, sumstring = '%v'", i, nr, sumstring)
+			blake3hash.Write(send)
+
+			if i == 0 {
+				// must copy!
+				req.JobSerz = append([]byte{}, send...)
+				filename := filepath.Base(path)
+				req.HDR.Args = map[string]string{"readFile": filename, "blake3": sumstring}
+
+				//vv("client about to do bistream.Begin(); req = '%v'", req.String())
+				err = bistream.Begin(ctx, req)
+				panicOn(err)
+
+				if err1 == io.EOF {
+					uploadDone.Close()
+					break upload
+				}
+				panicOn(err1)
+				continue
+			}
+
+			streamMsg := NewMessage()
+			// must copy!
+			streamMsg.JobSerz = append([]byte{}, send...)
+			streamMsg.HDR.Args = map[string]string{"blake3": sumstring}
+
+			err = bistream.UploadMore(ctx, streamMsg, err1 == io.EOF)
+
+			// likely just "shutting down", so ask for details.
+			if err != nil {
+				err2msg := checkForErrors()
+				if err2msg != nil {
+					alwaysPrintf("err: '%v'", err)
+					alwaysPrintf("err2: '%v'", err2msg.String())
+				}
+				panicOn(err)
+				return
+			}
+
+			if time.Since(lastUpdate) > time.Second {
+				meterUp.DoProgressWithSpeed(int64(tot), false, int64(i))
+				lastUpdate = time.Now()
+			}
+
+			if err1 == io.EOF {
+				uploadDone.Close()
+				break upload
+			}
+			panicOn(err1)
+
+		} // end for i
+		nparts := i
+
+		meterUp.DoProgressWithSpeed(int64(tot), false, int64(i))
+		//clientTotSum := blake3hash.SumString()
+
+		fmt.Println()
+
+		reportUploadTime := true
+		if reportUploadTime {
+			elap := time.Since(t0)
+			mb := float64(tot) / float64(1<<20)
+			seconds := (float64(elap) / float64(time.Second))
+			rate := mb / seconds
+
+			alwaysPrintf("upload part of echo done elapsed: %v \n we "+
+				"uploaded tot = %v bytes (=> %0.6f MB/sec) in %v parts",
+				elap, tot, rate, nparts)
+		}
+
+		fmt.Println()
+		meterDownQuietCh <- false // show the download progress
+
+		//vv("bistream about to wait")
+		wg.Wait()
+
+		reportRoundTripTime := true
+		if reportRoundTripTime {
+			elap := time.Since(t0)
+			mb := float64(2*tot) / float64(1<<20)
+			seconds := (float64(elap) / float64(time.Second))
+			rate := mb / seconds
+
+			alwaysPrintf("round-trip echo done elapsed: %v; we "+
+				"transferred 2*tot = %v bytes (=> %0.6f MB/sec)", elap, 2*tot, rate)
+		}
+
+		//vv("past Wait, client upload tot-sum='%v'", clientTotSum)
+		// the goro consumed the CallRPCReply to know when to
+		// exit, and we get here because when the goro exists, the
+		// wait is done. so there won't be any more bistream messages coming.
+		//return // all done, return from main().
+
+		//} // if sendfile
+
+		diff := compareFilesDiffLen(path, observedOutfile)
+		cv.So(diff, cv.ShouldEqual, 0)
 
 	})
 }
