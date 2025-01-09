@@ -45,22 +45,26 @@ const (
 
 	CallKeepAlive      CallType = 12
 	CallCancelPrevious CallType = 13
+	// we could not complete a request
+	CallError CallType = 14
 
 	// client sends a stream to the server, in an Upload:
-	CallUploadBegin CallType = 14 // one of these; and
-	CallUploadMore  CallType = 15 // possibly many of these; and
-	CallUploadEnd   CallType = 16 // just one of these to finish.
+	CallUploadBegin CallType = 15 // one of these; and
+	CallUploadMore  CallType = 16 // possibly many of these; and
+	CallUploadEnd   CallType = 17 // just one of these to finish.
 
 	// the opposite: when client wants to get a stream
 	// from the server.
-	CallRequestDownload CallType = 17
+	CallRequestDownload CallType = 18
 
 	// The server responds to CallRequestDownload with
-	CallDownloadBegin CallType = 18 // one of these to start;
-	CallDownloadMore  CallType = 19 // possibly many of these;
-	CallDownloadEnd   CallType = 20 // and one of these to finish.
+	CallDownloadBegin CallType = 19 // one of these to start;
+	CallDownloadMore  CallType = 20 // possibly many of these;
+	CallDownloadEnd   CallType = 21 // and one of these to finish.
 
-	CallError CallType = 21 // we could not complete a request
+	// a specific type of error meaning
+	// no proxy is available.
+	CallProxyNotAvailable CallType = 22
 )
 
 func (ct CallType) String() string {
@@ -98,7 +102,8 @@ func (ct CallType) String() string {
 		return "CallDownloadEnd"
 	case CallError:
 		return "CallError"
-
+	case CallProxyNotAvailable:
+		return "CallProxyNotAvailable"
 	default:
 		panic(fmt.Sprintf("need to update String() for CallType %v", int(ct)))
 	}
@@ -288,6 +293,11 @@ type HDR struct {
 	// The CallID will be identical on
 	// all parts of the same stream.
 	StreamPart int64 `zid:"10"`
+
+	// 0 == no proxy, the default.
+	// 1 == proxy to embedded server on client.
+	// 2 == proxy to embedded client on server.
+	ProxyType int `zid:"13"`
 
 	// streamCh is internal; used for client -> server streaming on CallUploadBegin
 	streamCh chan *Message `msg:"-" json:"-"`

@@ -493,20 +493,6 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		case CallKeepAlive:
 			//vv("srv read loop got an rpc25519 keep alive.")
 			continue
-
-		// We destroy the FIFO of a stream if we don't
-		// queue up the stream messages here, exactly in
-		// the order we received them.
-		case CallUploadBegin, CallRequestBistreaming:
-			// early but sequential setup, we'll revist
-			// this again for CallUploadBegin to add ctx and
-			// cancel func. The important thing is that
-			// we queue up req in the stream channel now.
-			s.Server.registerInFlightCallToCancel(req, nil, nil)
-
-		case CallUploadMore, CallUploadEnd:
-			s.Server.handleUploadParts(req)
-			continue
 		}
 
 		// Idea: send the job to the central work queue, so
@@ -515,13 +501,41 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		// So we got rid of the work queue.
 		job := &job{req: req, conn: conn, pair: s, w: w}
 
-		// Workers requesting jobs can keep calls open for
-		// minutes or hours or days; so we cannot just have
-		// just use this readLoop goroutine to process
-		// call sequentially; we cannot block here: this
-		// has to be in a new goroutine.
-		go s.Server.processWork(job)
+		s.handleIncomingMessage(req, job)
 	}
+}
+
+func (pair *rwPair) handleIncomingMessage(req *Message, job *job) {
+
+	switch req.HDR.Typ {
+
+	// We destroy the FIFO of a stream if we don't
+	// queue up the stream messages here, exactly in
+	// the order we received them.
+	case CallUploadBegin, CallRequestBistreaming:
+		// early but sequential setup, we'll revist
+		// this again for CallUploadBegin to add ctx and
+		// cancel func. The important thing is that
+		// we queue up req in the stream channel now.
+		pair.Server.registerInFlightCallToCancel(req, nil, nil)
+
+		// fallthrough and processWork to handle the rest;
+		// we just needed to do this beforehand to make sure
+		// we got FIFO order of incoming Messages.
+		// Once we start a goroutine for processWork,
+		// FIFO order will be lost.
+
+	case CallUploadMore, CallUploadEnd:
+		pair.Server.handleUploadParts(req)
+		return
+	}
+
+	// Workers requesting jobs can keep calls open for
+	// minutes or hours or days; so we cannot just have
+	// just use this readLoop goroutine to process
+	// call sequentially; we cannot block here: this
+	// has to be in a new goroutine.
+	go pair.Server.processWork(job)
 }
 
 type job struct {

@@ -133,8 +133,19 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 	// users within their processes. Hence this locking is
 	// not needed. If that changes/if ever there are multiple goroutines
 	// calling us, we would want to turn on read locking.
-	//w.rmut.Lock()
-	//defer w.rmut.Unlock()
+	//
+	// Moreover we are wrapped in a blabber for encryption,
+	// even if the encryption is not turned on. That means
+	// that there is already a separate workspace for
+	// the readers and writers, and it is safe to read
+	// and send in parallel via a blabber (though not
+	// of course from a workspace directly; which is
+	// why the blabber keeps separate workspaces for
+	// encrypting and decrypting). The upshot is simply
+	// that we do not need locks here. We don't want
+	// them for performance either.
+	//w.wmut.Lock()
+	//defer w.rwut.Unlock()
 
 	// Read the first 8 bytes for the magic check.
 	_, err = readFull(conn, w.magicCheck, timeout)

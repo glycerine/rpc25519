@@ -195,6 +195,8 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 	}
 }
 
+// readMessage uses separate memory from sendMessage, so
+// it is safe to do both simultaneously.
 func (blab *blabber) readMessage(conn uConn, timeout *time.Duration) (msg *Message, err error) {
 	if !blab.encrypt {
 		return blab.dec.work.readMessage(conn, timeout)
@@ -202,6 +204,8 @@ func (blab *blabber) readMessage(conn uConn, timeout *time.Duration) (msg *Messa
 	return blab.dec.readMessage(conn, timeout)
 }
 
+// sendMessage uses separate memory from readMessage, so
+// it is safe to do both simultaneously.
 func (blab *blabber) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
 	if !blab.encrypt {
 		return blab.enc.work.sendMessage(conn, msg, timeout)
