@@ -15,7 +15,7 @@ type zstdCompressor struct {
 func newZstdCompressor() (*zstdCompressor, error) {
 
 	// encoder defaults to GOMAXPROCS
-	// nil means only do []byte compressions,
+	// The nil argument here means only do []byte compressions,
 	// unless you do a Reset(io.Writer)
 	compressor, err := zstd.NewWriter(nil)
 	panicOn(err)
@@ -48,10 +48,10 @@ func (c *zstdCompressor) Close() {
 
 // Decompress a buffer. If over 1MB, up the buffer sizes above.
 func (c *zstdCompressor) Decompress(src []byte) ([]byte, error) {
-	return c.decomp.DecodeAll(src, c.decompWorkingBuf)
+	return c.decomp.DecodeAll(src, c.decompWorkingBuf[:0])
 }
 
 // Compress a buffer. If over 1MB, raise the buffer sizes above.
 func (c *zstdCompressor) Compress(src []byte) []byte {
-	return c.compressor.EncodeAll(src, c.compressWorkingBuf)
+	return c.compressor.EncodeAll(src, c.compressWorkingBuf[:0])
 }
