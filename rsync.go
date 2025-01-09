@@ -86,14 +86,37 @@ func SummarizeFileInCDCHashes(host, path string) (hashes *RsyncHashes, err error
 
 func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time) (hashes *RsyncHashes, err error) {
 
-	u := ultracdc.NewUltraCDC()
+	// These two different chunking approaches,
+	// UltraCDC and FastCDC, need very different
+	// parameter min/max/average settings in
+	// order to give good chunking.
 
-	opts := &ultracdc.ChunkerOpts{
-		MinSize:    2 * 1024,
-		NormalSize: 10 * 1024,
-		MaxSize:    64 * 1024,
+	var opts *ultracdc.ChunkerOpts
+
+	const useFastCDC = true
+	var cdc ultracdc.Cutpointer
+	//var cdc *ultracdc.FastCDC
+	//var cdc *ultracdc.UltraCDC
+
+	if useFastCDC {
+
+		// Stadia improved version of FastCDC
+		opts = &ultracdc.ChunkerOpts{
+			MinSize:    4 * 1024,
+			NormalSize: 60 * 1024,
+			MaxSize:    80 * 1024,
+		}
+		cdc = ultracdc.NewFastCDC(opts)
+
+	} else {
+		//ultracdc
+		opts = &ultracdc.ChunkerOpts{
+			MinSize:    2 * 1024,
+			NormalSize: 10 * 1024,
+			MaxSize:    64 * 1024,
+		}
+		cdc = ultracdc.NewUltraCDC(opts)
 	}
-	u.Opts = opts
 
 	hashes = &RsyncHashes{
 		Host:            host,
@@ -101,12 +124,14 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 		FileSize:        int64(len(data)),
 		ModTime:         modTime,
 		FullFileHashSum: hash.Blake3OfBytesString(data),
-		ChunkerName:     "ultracdc",
-		ChunkerOpts:     u.Opts,
+		ChunkerName:     cdc.Name(),
+		ChunkerOpts:     cdc.Options(),
 		HashName:        "blake3.32B",
 	}
 
-	cuts := u.Cutpoints(data, 0)
+	cuts := cdc.Cutpoints(data, 0)
+
+	vv("cuts = '%#v'", cuts)
 
 	prev := 0
 	for i, c := range cuts {

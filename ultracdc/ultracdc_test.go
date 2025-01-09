@@ -42,11 +42,11 @@ func Test_Prepend_two_bytes(t *testing.T) {
 	data := make([]byte, 1<<20)
 	generator.Read(data)
 
-	u := NewUltraCDC()
-	opt := u.DefaultOptions()
+	opt := Default_UltraCDC_Options()
 	opt.MinSize = 1
 	opt.MaxSize = 8000
 	opt.NormalSize = 24
+	u := NewUltraCDC(opt)
 	cuts, hashmap := getCuts("orig", data, u, opt)
 
 	// how many segments change if we alter the data? just by prepending 2 bytes.
@@ -85,12 +85,12 @@ func Test_Middle_inject_two_bytes(t *testing.T) {
 		data := make([]byte, 10<<20)
 		generator.Read(data)
 
-		u := NewUltraCDC()
-		opt := u.DefaultOptions()
 		// use unchanged defaults now
 		//		opt.MinSize = 1
 		//		opt.MaxSize = 8000
 		//		opt.NormalSize = 24
+		opt := Default_UltraCDC_Options()
+		u := NewUltraCDC(opt)
 		cuts, hashmap := getCuts("orig", data, u, opt)
 
 		// how many segments change if we alter the data? by injecting 2 bytes in the middle.
@@ -141,14 +141,14 @@ func Test_Splits_Not_Changed(t *testing.T) {
 	data := make([]byte, N)
 	generator.Read(data)
 
-	u := NewUltraCDC()
-	opt := u.DefaultOptions()
+	opt := Default_UltraCDC_Options()
 
 	// in normal use MinSize = 0 is bad idea,
 	// and it should be like 64; but this simplifies debugging edge cases.
 	opt.MinSize = 1
 	opt.MaxSize = 8000
 	opt.NormalSize = 24
+	u := NewUltraCDC(opt)
 
 	const regenerate = false
 	if regenerate {

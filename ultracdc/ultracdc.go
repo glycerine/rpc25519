@@ -28,6 +28,12 @@ import (
 	"math/bits"
 )
 
+type Cutpointer interface {
+	Cutpoints(data []byte, maxPoints int) (cuts []int)
+	Name() string
+	Options() *ChunkerOpts
+}
+
 //go:generate greenpack
 
 var _ = fmt.Printf
@@ -50,18 +56,31 @@ type UltraCDC struct {
 // NewUltraCDC is for non-Plakar standalone clients. Plakar
 // clients will use newUltraCDC via the
 // chunkers.NewChunker("ultracdc", ...) factory.
-func NewUltraCDC() *UltraCDC {
+func NewUltraCDC(opts *ChunkerOpts) *UltraCDC {
 	u := &UltraCDC{}
-	u.Opts = u.DefaultOptions()
+	if opts == nil {
+		opts = Default_UltraCDC_Options()
+	}
+	u.Opts = opts
 	return u
 }
 
-func (c *UltraCDC) DefaultOptions() *ChunkerOpts {
+func (c *UltraCDC) Name() string {
+	return "ultracdc-glycerine-golang-implementation"
+}
+
+// users frequently modify what they get
+// back here, so give each caller their own copy.
+func Default_UltraCDC_Options() *ChunkerOpts {
 	return &ChunkerOpts{
 		MinSize:    2 * 1024,
 		NormalSize: 10 * 1024,
 		MaxSize:    64 * 1024,
 	}
+}
+
+func (c *UltraCDC) Options() *ChunkerOpts {
+	return c.Opts
 }
 
 func (c *UltraCDC) Validate(options *ChunkerOpts) error {
