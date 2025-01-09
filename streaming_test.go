@@ -22,6 +22,7 @@ import (
 	"github.com/glycerine/rpc25519/progress"
 )
 
+// go test -v -run streaming_test ## to run all 3 tests below.
 func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 
 	cv.Convey("before we add compression, we want to test the cli -sendfile (upload) against he srv -readfile, the corresponding server side operation. Test300 is for upload of a file (multiple parts bigger than our max Message size.", t, func() {
