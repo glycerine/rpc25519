@@ -356,18 +356,6 @@ func (c *Client) runReadLoop(conn net.Conn) {
 		seqno := msg.HDR.Seqno
 		//vv("client %v received message with seqno=%v, msg.HDR='%v'; c.notifyOnReadCallIDMap='%#v'", c.name, seqno, msg.HDR.String(), c.notifyOnReadCallIDMap)
 
-		if msg.HDR.ProxyType == 1 {
-			// proxy to embedded server on client.
-			msg.HDR.ProxyType = 0 // no infinite loops.
-			if c.embeddedServer == nil {
-				// reply no-can-do.
-				panic("TODO: reply no can do!")
-			}
-			// something like:
-			//job := &job{req: msg, conn: conn, pair: s, w: w}
-			//rwPair.handleIncomningMessage(req, job)
-		}
-
 		c.mut.Lock()
 
 		if msg.HDR.Typ == CallError {
@@ -995,9 +983,6 @@ type Client struct {
 	closing  bool // user has called Close
 	shutdown bool // server has told us to stop
 
-	// implements processWork, allows RPC
-	// from server to client for symmetry.
-	embeddedServer *Server
 }
 
 // Compute HMAC using SHA-256, so 32 bytes long.

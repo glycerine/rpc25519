@@ -62,9 +62,6 @@ const (
 	CallDownloadMore  CallType = 20 // possibly many of these;
 	CallDownloadEnd   CallType = 21 // and one of these to finish.
 
-	// a specific type of error meaning
-	// no proxy is available.
-	CallProxyNotAvailable CallType = 22
 )
 
 func (ct CallType) String() string {
@@ -102,8 +99,6 @@ func (ct CallType) String() string {
 		return "CallDownloadEnd"
 	case CallError:
 		return "CallError"
-	case CallProxyNotAvailable:
-		return "CallProxyNotAvailable"
 	default:
 		panic(fmt.Sprintf("need to update String() for CallType %v", int(ct)))
 	}
@@ -293,11 +288,6 @@ type HDR struct {
 	// The CallID will be identical on
 	// all parts of the same stream.
 	StreamPart int64 `zid:"10"`
-
-	// 0 == no proxy, the default.
-	// 1 == proxy to embedded server on client.
-	// 2 == proxy to embedded client on server.
-	ProxyType int `zid:"13"`
 
 	// streamCh is internal; used for client -> server streaming on CallUploadBegin
 	streamCh chan *Message `msg:"-" json:"-"`
