@@ -768,7 +768,7 @@ func (s *Server) processWork(job *job) {
 	switch {
 	case foundCallback2:
 		err = callme2(req, reply)
-		//err = callme2(ctx, req, reply) // TODO: add ctx
+		//err = callme2(ctx, req, reply) // TODO: add ctx?
 	case foundServerSendsDownload:
 		help := s.newServerSendDownloadHelper(ctx, job)
 		err = callmeServerSendsDownloadFunc(s, ctx, req, help.sendDownloadPart, reply)

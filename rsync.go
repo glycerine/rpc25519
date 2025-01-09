@@ -108,14 +108,58 @@ type RsyncStep2_AckOverview struct {
 // whole file checksum.
 // Sender sends RsyncStep3_SenderProvidesDeltas
 // to reader.
+//
+// This step rsync may well send a very large message,
+// much larger than our 1MB or so maxMessage size.
+// So rsync may need to use a Bistream that can handle lots of
+// separate messages and reassemble them.
+// For that matter, the RsyncHashes in step 2
+// can be large too. As a part of the rsync
+// protocol we want to be able to send
+// "large files" that are actually large, streamed
+// messages. We observe these may need to be backed by
+// disk rather than memory to keep memory
+// requirements sane.
+//
+// Thought/possibility: we could save them
+// to /tmp since that might be memory backed
+// or storage backed. Make that an option,
+// but if we use a streaming Bistream download
+// to disk then we'll handle the large
+// message of step 2/3 problem.
+//
+// The thing is, we would like to use
+// rsync underneath the bistream of a big
+// file transparently. Circular. Ideally
+// the rsync part can be used transparently
+// by any streaming large file need.
+// Lets start by layering rsync on top of
+// Bistreaming, but we can add a separate
+// header idea of a whole message worth
+// of meta data for the stream file that
+// can give the rsync step message
+// so we know what to do with the file.
+// TODO: Add compression to the built in
+// Download/upload protocols; use a
+// Args["compression"] setting to indicate
+// how to uncompress it before writing to
+// disk.
 type RsyncStep3_SenderProvidesDeltas struct {
-	SenderHashes *RsyncHashes `zid:"0"`
+	SenderHashes *RsyncHashes `zid:"0"` // needs to be streamed too.
 
 	ChunkDiff *RsyncDiff `zid:"1"`
 
 	DeltaHashesPreCompression []string `zid:"2"`
 	CompressionAlgo           string   `zid:"3"`
-	DeltaData                 [][]byte `zid:"4"`
+
+	// Bistream this separately as a file,
+	// because it can be so big; if we have
+	// no diff compression available it will
+	// be the whole file anyway(!)
+	// Hence we'll want to add compression to
+	// the bistream download/upload actions.
+	//DeltaData                 [][]byte `zid:"4"`
+	DeltaDataStreamedPath string `zid:"4"`
 }
 
 // 4) reader gets the diff, the changed chunks (DeltaData),
@@ -358,7 +402,7 @@ func (a *RsyncHashes) Diff(b *RsyncHashes) (d *RsyncDiff) {
 
 // RsyncServerSide implements the server side
 // of our rsync-like protocol. It is a BistreamFunc.
-func (s *Server) RsyncServerSide(
+func (Server *Server) RsyncServerSide(
 	srv *Server,
 	ctx context.Context,
 	req *Message,
