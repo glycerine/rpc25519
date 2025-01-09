@@ -10,6 +10,8 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
+// just sketches not really usable (yet).
+
 /*
 From the seekable README:
 
@@ -18,7 +20,7 @@ From the seekable README:
 This library provides a random access reader (using uncompressed file offsets) for ZSTD-compressed streams. This can be used for creating transparent compression layers. Coupled with Content Defined Chunking (CDC) it can also be used as a robust de-duplication layer.
 */
 
-func Compress(f *os.File) {
+func SeekableCompress(f *os.File) {
 	enc, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedFastest))
 	panicOn(err)
 	if err != nil {
@@ -49,7 +51,7 @@ func Compress(f *os.File) {
 
 }
 
-func Uncompress(f *os.File) {
+func SeekableUncompress(f *os.File) {
 	//Reading can either be done through `ReaderAt` interface:
 
 	dec, err := zstd.NewReader(nil)
