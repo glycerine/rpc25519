@@ -15,17 +15,18 @@ import (
 
 //go:generate greenpack
 
-// rsync operation for a single file. Steps and structs:
+// rsync operation for a single file. Steps
+// and the structs that go with each step:
 //
 // NB: the client always has to start a request;
 // the server cannot reach out to a client.
-// But the client can request a file, and thus
+// But the client can still request a file, and thus
 // request to be the reader.
 //
 // Optional step 0: client requests to be the reader.
 // The server should send the file requested.
 //
-// Or in step 0: client requests to send a file.
+// Or in step 1: client requests to send a file.
 // The client can begin immediately with step 1,
 // there really is no step 0 when the client is sending.
 // The client just sends the RsyncStep1_SenderOverview.
@@ -48,8 +49,12 @@ type RsyncStep0_ClientRequestsRead struct {
 // Note only 0 or 1 are are "RPC" like-calls in our lingo.
 // The other steps/Messages (2,3,4) are one-ways
 // with the same CallID.
-// The server will also send a final CallRPCReply
-// when the Call from 0 or 1 finishes.
+//
+// Note that the server will also send a final CallRPCReply
+// when the Call from 0 or 1 finishes; but it
+// should carry no content; the cli still
+// needs to process 4 even if it gets such a reply
+// during a client read. In detail:
 //
 // So our rsync-like protocol is either:
 //
@@ -65,6 +70,9 @@ type RsyncStep0_ClientRequestsRead struct {
 // to listen for and handle 1,2,3,4; while
 // the client has to listen for and handle 2,3,4.
 // The client is always the one sending 0 or 1.
+//
+// (We use the same code on both cli and srv
+// to processes these, to keep symmetrical correctness.)
 //
 // To do step 1 (client acts as sender, it sends:
 // .
