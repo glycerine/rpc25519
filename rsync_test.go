@@ -10,7 +10,7 @@ import (
 
 func Test201_rsync_style_hash_generation(t *testing.T) {
 
-	cv.Convey("rsync.go SummarizeFileInCDCHashes() should generate CDC UltraCDC hashes for a file", t, func() {
+	cv.Convey("rsync.go SummarizeFileInCDCHashes() should generate CDC FastCDC and/or UltraCDC hashes for a file", t, func() {
 		host := "localhost"
 		path := "testdata/blob977k"
 
@@ -25,7 +25,7 @@ func Test201_rsync_style_hash_generation(t *testing.T) {
 
 		cv.So(h.FileOwner != "", cv.ShouldBeTrue)
 		_ = h
-		vv("scan of file gave: hashes '%v'", h.String())
+		//vv("scan of file gave: hashes '%v'", h.String())
 		//cv.So(h.NumChunks, cv.ShouldEqual, 16) // blob977k
 
 		// now alter the data by prepending 2 bytes

@@ -30,7 +30,8 @@ type RsyncHashes struct {
 	FileOwnerID uint32    `zid:"6"`
 	FileGroup   string    `zid:"7"`
 	FileGroupID uint32    `zid:"8"`
-	FileMeta    string    `zid:"9"`
+	// other data, extension mechanism. Not used presently.
+	FileMeta []byte `zid:"9"`
 
 	// HashName is e.g. "blake3.32B"
 	HashName string `zid:"10"`
