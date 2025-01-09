@@ -424,7 +424,12 @@ func Test302_bistreaming_test_simultaneous_upload_and_download(t *testing.T) {
 
 		var meterDown *progress.TransferStats
 
-		//if doBistream {
+		// ============================================
+		//
+		// begin bistream part: download in parallel,
+		//   on a background goroutine.
+		//
+		// ============================================
 
 		fi, err := os.Stat(path)
 		panicOn(err)
@@ -502,10 +507,16 @@ func Test302_bistreaming_test_simultaneous_upload_and_download(t *testing.T) {
 			} // end for seenCount
 		}()
 
-		//} // end if bistream
+		// ===========================
+		// end bistream download part.
+		// ===========================
 
-		// sendfile part: upload simultaneously
-		//if sendfile != "" {
+		// ==========================================
+		//
+		// begin sendfile part: upload in parallel
+		//    with the above download.
+		//
+		// ==========================================
 
 		if !fileExists(path) {
 			panic(fmt.Sprintf("drat! cli -sendfile path '%v' not found", path))
@@ -670,9 +681,8 @@ func Test302_bistreaming_test_simultaneous_upload_and_download(t *testing.T) {
 		// the goro consumed the CallRPCReply to know when to
 		// exit, and we get here because when the goro exists, the
 		// wait is done. so there won't be any more bistream messages coming.
-		//return // all done, return from main().
 
-		//} // if sendfile
+		// end sendfile part.
 
 		diff := compareFilesDiffLen(path, observedOutfile)
 		cv.So(diff, cv.ShouldEqual, 0)
