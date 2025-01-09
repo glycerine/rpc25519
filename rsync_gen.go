@@ -1887,7 +1887,7 @@ doneWithStruct28zgensym_9db0ba711f6a3e5a_29:
 			if err != nil {
 				return
 			}
-		case "ChunkerOpts_zid11_ptr":
+		case "CDC_Config_zid11_ptr":
 			found28zgensym_9db0ba711f6a3e5a_29[11] = true
 			if dc.IsNil() {
 				err = dc.ReadNil()
@@ -1895,9 +1895,9 @@ doneWithStruct28zgensym_9db0ba711f6a3e5a_29:
 					return
 				}
 
-				if z.ChunkerOpts != nil {
+				if z.CDC_Config != nil {
 					dc.PushAlwaysNil()
-					err = z.ChunkerOpts.DecodeMsg(dc)
+					err = z.CDC_Config.DecodeMsg(dc)
 					if err != nil {
 						return
 					}
@@ -1906,12 +1906,12 @@ doneWithStruct28zgensym_9db0ba711f6a3e5a_29:
 			} else {
 				// not Nil, we have something to read
 
-				if z.ChunkerOpts == nil {
-					z.ChunkerOpts = new(ultracdc.ChunkerOpts)
+				if z.CDC_Config == nil {
+					z.CDC_Config = new(ultracdc.CDC_Config)
 				}
-				dc.DedupIndexEachPtr(z.ChunkerOpts)
+				dc.DedupIndexEachPtr(z.CDC_Config)
 
-				err = z.ChunkerOpts.DecodeMsg(dc)
+				err = z.CDC_Config.DecodeMsg(dc)
 				if err != nil {
 					return
 				}
@@ -1986,7 +1986,7 @@ doneWithStruct28zgensym_9db0ba711f6a3e5a_29:
 }
 
 // fields of RsyncHashes
-var decodeMsgFieldOrder28zgensym_9db0ba711f6a3e5a_29 = []string{"Host_zid00_str", "Path_zid01_str", "ModTime_zid02_tim", "FileSize_zid03_i64", "FileMode_zid04_u32", "FileOwner_zid05_u32", "FileGroup_zid06_u32", "FileMeta_zid07_str", "HashName_zid08_str", "FullFileHashSum_zid09_str", "ChunkerName_zid10_str", "ChunkerOpts_zid11_ptr", "NumChunks_zid12_int", "Chunks_zid13_slc"}
+var decodeMsgFieldOrder28zgensym_9db0ba711f6a3e5a_29 = []string{"Host_zid00_str", "Path_zid01_str", "ModTime_zid02_tim", "FileSize_zid03_i64", "FileMode_zid04_u32", "FileOwner_zid05_u32", "FileGroup_zid06_u32", "FileMeta_zid07_str", "HashName_zid08_str", "FullFileHashSum_zid09_str", "ChunkerName_zid10_str", "CDC_Config_zid11_ptr", "NumChunks_zid12_int", "Chunks_zid13_slc"}
 
 var decodeMsgFieldSkip28zgensym_9db0ba711f6a3e5a_29 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
@@ -2040,7 +2040,7 @@ func (z *RsyncHashes) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[10] {
 		fieldsInUse--
 	}
-	isempty[11] = (z.ChunkerOpts == nil) // pointer, omitempty
+	isempty[11] = (z.CDC_Config == nil) // pointer, omitempty
 	if isempty[11] {
 		fieldsInUse--
 	}
@@ -2215,14 +2215,14 @@ func (z *RsyncHashes) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_9db0ba711f6a3e5a_31[11] {
-		// write "ChunkerOpts_zid11_ptr"
-		err = en.Append(0xb5, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x65, 0x72, 0x4f, 0x70, 0x74, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x31, 0x5f, 0x70, 0x74, 0x72)
+		// write "CDC_Config_zid11_ptr"
+		err = en.Append(0xb4, 0x43, 0x44, 0x43, 0x5f, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x31, 0x5f, 0x70, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
 		// gPtr.encodeGen():
 
-		if z.ChunkerOpts == nil {
+		if z.CDC_Config == nil {
 			err = en.WriteNil()
 			if err != nil {
 				return
@@ -2232,12 +2232,12 @@ func (z *RsyncHashes) EncodeMsg(en *msgp.Writer) (err error) {
 
 			// record the interface for deduplication
 			var dup bool
-			dup, err = en.DedupWriteIsDup(z.ChunkerOpts)
+			dup, err = en.DedupWriteIsDup(z.CDC_Config)
 			if err != nil {
 				return
 			}
 			if !dup {
-				err = z.ChunkerOpts.EncodeMsg(en)
+				err = z.CDC_Config.EncodeMsg(en)
 				if err != nil {
 					return
 				}
@@ -2377,16 +2377,16 @@ func (z *RsyncHashes) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[11] {
-		// string "ChunkerOpts_zid11_ptr"
-		o = append(o, 0xb5, 0x43, 0x68, 0x75, 0x6e, 0x6b, 0x65, 0x72, 0x4f, 0x70, 0x74, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x31, 0x5f, 0x70, 0x74, 0x72)
+		// string "CDC_Config_zid11_ptr"
+		o = append(o, 0xb4, 0x43, 0x44, 0x43, 0x5f, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x31, 0x5f, 0x70, 0x74, 0x72)
 		// marshalGen.gPtr()
 
-		if z.ChunkerOpts == nil {
+		if z.CDC_Config == nil {
 			o = msgp.AppendNil(o)
 		} else {
 			// hmm.. no en, no place to check en.DedupWriteIsDup(z)
 
-			o, err = z.ChunkerOpts.MarshalMsg(o) // not is.iface, gen/marshal.go:243
+			o, err = z.CDC_Config.MarshalMsg(o) // not is.iface, gen/marshal.go:243
 			if err != nil {
 				return
 			}
@@ -2564,31 +2564,31 @@ doneWithStruct33zgensym_9db0ba711f6a3e5a_34:
 			if err != nil {
 				return
 			}
-		case "ChunkerOpts_zid11_ptr":
+		case "CDC_Config_zid11_ptr":
 			found33zgensym_9db0ba711f6a3e5a_34[11] = true
-			// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"z.ChunkerOpts", alias:"ultracdc.ChunkerOpts", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x16, Convert:false, mustinline:true, needsref:false, isIface:false, isInIfaceSlice:false}
+			// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"z.CDC_Config", alias:"ultracdc.CDC_Config", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x16, Convert:false, mustinline:true, needsref:false, isIface:false, isInIfaceSlice:false}
 
 			// unmarshalGen.gPtr(): we have an IDENT:
 
 			if nbs.AlwaysNil {
-				if z.ChunkerOpts != nil {
-					z.ChunkerOpts.UnmarshalMsg(msgp.OnlyNilSlice)
+				if z.CDC_Config != nil {
+					z.CDC_Config.UnmarshalMsg(msgp.OnlyNilSlice)
 				}
 			} else {
 				// not nbs.AlwaysNil
 				if msgp.IsNil(bts) {
 					bts = bts[1:]
-					if nil != z.ChunkerOpts {
-						z.ChunkerOpts.UnmarshalMsg(msgp.OnlyNilSlice)
+					if nil != z.CDC_Config {
+						z.CDC_Config.UnmarshalMsg(msgp.OnlyNilSlice)
 					}
 				} else {
 					// not nbs.AlwaysNil and not IsNil(bts): have something to read
 
-					if z.ChunkerOpts == nil {
-						z.ChunkerOpts = new(ultracdc.ChunkerOpts)
+					if z.CDC_Config == nil {
+						z.CDC_Config = new(ultracdc.CDC_Config)
 					}
 
-					bts, err = z.ChunkerOpts.UnmarshalMsg(bts)
+					bts, err = z.CDC_Config.UnmarshalMsg(bts)
 					if err != nil {
 						return
 					}
@@ -2671,17 +2671,17 @@ doneWithStruct33zgensym_9db0ba711f6a3e5a_34:
 }
 
 // fields of RsyncHashes
-var unmarshalMsgFieldOrder33zgensym_9db0ba711f6a3e5a_34 = []string{"Host_zid00_str", "Path_zid01_str", "ModTime_zid02_tim", "FileSize_zid03_i64", "FileMode_zid04_u32", "FileOwner_zid05_u32", "FileGroup_zid06_u32", "FileMeta_zid07_str", "HashName_zid08_str", "FullFileHashSum_zid09_str", "ChunkerName_zid10_str", "ChunkerOpts_zid11_ptr", "NumChunks_zid12_int", "Chunks_zid13_slc"}
+var unmarshalMsgFieldOrder33zgensym_9db0ba711f6a3e5a_34 = []string{"Host_zid00_str", "Path_zid01_str", "ModTime_zid02_tim", "FileSize_zid03_i64", "FileMode_zid04_u32", "FileOwner_zid05_u32", "FileGroup_zid06_u32", "FileMeta_zid07_str", "HashName_zid08_str", "FullFileHashSum_zid09_str", "ChunkerName_zid10_str", "CDC_Config_zid11_ptr", "NumChunks_zid12_int", "Chunks_zid13_slc"}
 
 var unmarshalMsgFieldSkip33zgensym_9db0ba711f6a3e5a_34 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *RsyncHashes) Msgsize() (s int) {
-	s = 1 + 15 + msgp.StringPrefixSize + len(z.Host) + 15 + msgp.StringPrefixSize + len(z.Path) + 18 + msgp.TimeSize + 19 + msgp.Int64Size + 19 + msgp.Uint32Size + 20 + msgp.Uint32Size + 20 + msgp.Uint32Size + 19 + msgp.StringPrefixSize + len(z.FileMeta) + 19 + msgp.StringPrefixSize + len(z.HashName) + 26 + msgp.StringPrefixSize + len(z.FullFileHashSum) + 22 + msgp.StringPrefixSize + len(z.ChunkerName) + 22
-	if z.ChunkerOpts == nil {
+	s = 1 + 15 + msgp.StringPrefixSize + len(z.Host) + 15 + msgp.StringPrefixSize + len(z.Path) + 18 + msgp.TimeSize + 19 + msgp.Int64Size + 19 + msgp.Uint32Size + 20 + msgp.Uint32Size + 20 + msgp.Uint32Size + 19 + msgp.StringPrefixSize + len(z.FileMeta) + 19 + msgp.StringPrefixSize + len(z.HashName) + 26 + msgp.StringPrefixSize + len(z.FullFileHashSum) + 22 + msgp.StringPrefixSize + len(z.ChunkerName) + 21
+	if z.CDC_Config == nil {
 		s += msgp.NilSize
 	} else {
-		s += z.ChunkerOpts.Msgsize()
+		s += z.CDC_Config.Msgsize()
 	}
 	s += 20 + msgp.IntSize + 17 + msgp.ArrayHeaderSize
 	for zgensym_9db0ba711f6a3e5a_27 := range z.Chunks {

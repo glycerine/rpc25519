@@ -9,8 +9,8 @@ import (
 	"github.com/glycerine/greenpack/msgp"
 )
 
-func TestMarshalUnmarshalChunkerOpts(t *testing.T) {
-	v := ChunkerOpts{}
+func TestMarshalUnmarshalCDC_Config(t *testing.T) {
+	v := CDC_Config{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -32,8 +32,8 @@ func TestMarshalUnmarshalChunkerOpts(t *testing.T) {
 	}
 }
 
-func BenchmarkMarshalMsgChunkerOpts(b *testing.B) {
-	v := ChunkerOpts{}
+func BenchmarkMarshalMsgCDC_Config(b *testing.B) {
+	v := CDC_Config{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -41,8 +41,8 @@ func BenchmarkMarshalMsgChunkerOpts(b *testing.B) {
 	}
 }
 
-func BenchmarkAppendMsgChunkerOpts(b *testing.B) {
-	v := ChunkerOpts{}
+func BenchmarkAppendMsgCDC_Config(b *testing.B) {
+	v := CDC_Config{}
 	bts := make([]byte, 0, v.Msgsize())
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -53,8 +53,8 @@ func BenchmarkAppendMsgChunkerOpts(b *testing.B) {
 	}
 }
 
-func BenchmarkUnmarshalChunkerOpts(b *testing.B) {
-	v := ChunkerOpts{}
+func BenchmarkUnmarshalCDC_Config(b *testing.B) {
+	v := CDC_Config{}
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
@@ -67,8 +67,8 @@ func BenchmarkUnmarshalChunkerOpts(b *testing.B) {
 	}
 }
 
-func TestEncodeDecodeChunkerOpts(t *testing.T) {
-	v := ChunkerOpts{}
+func TestEncodeDecodeCDC_Config(t *testing.T) {
+	v := CDC_Config{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
@@ -77,7 +77,7 @@ func TestEncodeDecodeChunkerOpts(t *testing.T) {
 		t.Logf("WARNING: Msgsize() for %v is inaccurate", v)
 	}
 
-	vn := ChunkerOpts{}
+	vn := CDC_Config{}
 	err := msgp.Decode(&buf, &vn)
 	if err != nil {
 		t.Error(err)
@@ -91,8 +91,8 @@ func TestEncodeDecodeChunkerOpts(t *testing.T) {
 	}
 }
 
-func BenchmarkEncodeChunkerOpts(b *testing.B) {
-	v := ChunkerOpts{}
+func BenchmarkEncodeCDC_Config(b *testing.B) {
+	v := CDC_Config{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -105,8 +105,8 @@ func BenchmarkEncodeChunkerOpts(b *testing.B) {
 	en.Flush()
 }
 
-func BenchmarkDecodeChunkerOpts(b *testing.B) {
-	v := ChunkerOpts{}
+func BenchmarkDecodeCDC_Config(b *testing.B) {
+	v := CDC_Config{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))

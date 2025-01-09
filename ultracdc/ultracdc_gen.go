@@ -8,7 +8,7 @@ import (
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
-func (z *ChunkerOpts) DecodeMsg(dc *msgp.Reader) (err error) {
+func (z *CDC_Config) DecodeMsg(dc *msgp.Reader) (err error) {
 	var sawTopNil bool
 	if dc.IsNil() {
 		sawTopNil = true
@@ -110,13 +110,13 @@ doneWithStruct0zgensym_459840587cde88d_1:
 	return
 }
 
-// fields of ChunkerOpts
+// fields of CDC_Config
 var decodeMsgFieldOrder0zgensym_459840587cde88d_1 = []string{"MinSize_zid00_int", "MaxSize_zid01_int", "NormalSize_zid02_int"}
 
 var decodeMsgFieldSkip0zgensym_459840587cde88d_1 = []bool{false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
-func (z ChunkerOpts) fieldsNotEmpty(isempty []bool) uint32 {
+func (z CDC_Config) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
 		return 3
 	}
@@ -138,7 +138,7 @@ func (z ChunkerOpts) fieldsNotEmpty(isempty []bool) uint32 {
 }
 
 // EncodeMsg implements msgp.Encodable
-func (z ChunkerOpts) EncodeMsg(en *msgp.Writer) (err error) {
+func (z CDC_Config) EncodeMsg(en *msgp.Writer) (err error) {
 	if p, ok := interface{}(z).(msgp.PreSave); ok {
 		p.PreSaveHook()
 	}
@@ -153,12 +153,12 @@ func (z ChunkerOpts) EncodeMsg(en *msgp.Writer) (err error) {
 		return err
 	}
 
-	// runtime struct type identification for 'ChunkerOpts'
+	// runtime struct type identification for 'CDC_Config'
 	err = en.Append(0xa1, 0x40)
 	if err != nil {
 		return err
 	}
-	err = en.WriteStringFromBytes([]byte{0x43, 0x68, 0x75, 0x6e, 0x6b, 0x65, 0x72, 0x4f, 0x70, 0x74, 0x73})
+	err = en.WriteStringFromBytes([]byte{0x43, 0x44, 0x43, 0x5f, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67})
 	if err != nil {
 		return err
 	}
@@ -203,7 +203,7 @@ func (z ChunkerOpts) EncodeMsg(en *msgp.Writer) (err error) {
 }
 
 // MarshalMsg implements msgp.Marshaler
-func (z ChunkerOpts) MarshalMsg(b []byte) (o []byte, err error) {
+func (z CDC_Config) MarshalMsg(b []byte) (o []byte, err error) {
 	if p, ok := interface{}(z).(msgp.PreSave); ok {
 		p.PreSaveHook()
 	}
@@ -237,10 +237,10 @@ func (z ChunkerOpts) MarshalMsg(b []byte) (o []byte, err error) {
 }
 
 // UnmarshalMsg implements msgp.Unmarshaler
-func (z *ChunkerOpts) UnmarshalMsg(bts []byte) (o []byte, err error) {
+func (z *CDC_Config) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	return z.UnmarshalMsgWithCfg(bts, nil)
 }
-func (z *ChunkerOpts) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte, err error) {
+func (z *CDC_Config) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte, err error) {
 	var nbs msgp.NilBitsStack
 	nbs.Init(cfg)
 	var sawTopNil bool
@@ -344,13 +344,13 @@ doneWithStruct4zgensym_459840587cde88d_5:
 	return
 }
 
-// fields of ChunkerOpts
+// fields of CDC_Config
 var unmarshalMsgFieldOrder4zgensym_459840587cde88d_5 = []string{"MinSize_zid00_int", "MaxSize_zid01_int", "NormalSize_zid02_int"}
 
 var unmarshalMsgFieldSkip4zgensym_459840587cde88d_5 = []bool{false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
-func (z ChunkerOpts) Msgsize() (s int) {
+func (z CDC_Config) Msgsize() (s int) {
 	s = 1 + 18 + msgp.IntSize + 18 + msgp.IntSize + 21 + msgp.IntSize
 	return
 }

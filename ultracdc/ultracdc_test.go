@@ -185,7 +185,7 @@ func getCuts(
 	title string,
 	data []byte,
 	u *UltraCDC,
-	opt *ChunkerOpts,
+	opt *CDC_Config,
 ) (cuts []int, hashmap map[string]bool) {
 
 	hashmap = make(map[string]bool)
@@ -206,7 +206,7 @@ func getCuts(
 	return
 }
 
-func regenExpected(u *UltraCDC, data []byte, opt *ChunkerOpts) {
+func regenExpected(u *UltraCDC, data []byte, opt *CDC_Config) {
 
 	cuts, _ := getCuts("regen", data, u, opt)
 	fmt.Printf("var expectedCuts = []int{\n")

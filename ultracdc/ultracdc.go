@@ -31,7 +31,7 @@ import (
 type Cutpointer interface {
 	Cutpoints(data []byte, maxPoints int) (cuts []int)
 	Name() string
-	Options() *ChunkerOpts
+	Config() *CDC_Config
 }
 
 //go:generate greenpack
@@ -42,7 +42,7 @@ var ErrNormalSize = errors.New("NormalSize is required and must be 64B <= Normal
 var ErrMinSize = errors.New("MinSize is required and must be 64B <= MinSize <= 1GB && MinSize < NormalSize")
 var ErrMaxSize = errors.New("MaxSize is required and must be 64B <= MaxSize <= 1GB && MaxSize > NormalSize")
 
-type ChunkerOpts struct {
+type CDC_Config struct {
 	MinSize    int `zid:"0"`
 	MaxSize    int `zid:"1"`
 	NormalSize int `zid:"2"`
@@ -50,13 +50,13 @@ type ChunkerOpts struct {
 
 //msgp:ignore UltraCDC
 type UltraCDC struct {
-	Opts *ChunkerOpts `zid:"0"`
+	Opts *CDC_Config `zid:"0"`
 }
 
 // NewUltraCDC is for non-Plakar standalone clients. Plakar
 // clients will use newUltraCDC via the
 // chunkers.NewChunker("ultracdc", ...) factory.
-func NewUltraCDC(opts *ChunkerOpts) *UltraCDC {
+func NewUltraCDC(opts *CDC_Config) *UltraCDC {
 	u := &UltraCDC{}
 	if opts == nil {
 		opts = Default_UltraCDC_Options()
@@ -71,19 +71,19 @@ func (c *UltraCDC) Name() string {
 
 // users frequently modify what they get
 // back here, so give each caller their own copy.
-func Default_UltraCDC_Options() *ChunkerOpts {
-	return &ChunkerOpts{
+func Default_UltraCDC_Options() *CDC_Config {
+	return &CDC_Config{
 		MinSize:    2 * 1024,
 		NormalSize: 10 * 1024,
 		MaxSize:    64 * 1024,
 	}
 }
 
-func (c *UltraCDC) Options() *ChunkerOpts {
+func (c *UltraCDC) Config() *CDC_Config {
 	return c.Opts
 }
 
-func (c *UltraCDC) Validate(options *ChunkerOpts) error {
+func (c *UltraCDC) Validate(options *CDC_Config) error {
 
 	if options.NormalSize == 0 || options.NormalSize < 64 ||
 		options.NormalSize > 1024*1024*1024 {
@@ -112,7 +112,7 @@ func (c *UltraCDC) Validate(options *ChunkerOpts) error {
 // It is always safe to pass n = len(data).
 //
 // POST INVARIANT: cutpoint <= n. We never return a cutpoint > n.
-func (c *UltraCDC) Algorithm(options *ChunkerOpts, data []byte, n int) (cutpoint int) {
+func (c *UltraCDC) Algorithm(options *CDC_Config, data []byte, n int) (cutpoint int) {
 
 	// A common case will be n == len(data), but n could certainly be less.
 	// Confirm that it is never more.

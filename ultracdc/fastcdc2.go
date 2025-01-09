@@ -1,28 +1,40 @@
 package ultracdc
 
+// Portions Copyright (c) 2024 Jason E. Aten, Ph.D. All rights reserved.
+// See also below for the Apache2 licensed comments in this file.
 /*
- * Copyright (c) 2024 Jason E. Aten, Ph.D.
- * Copyright (c) 2023 Gilles Chehade <gilles@poolp.org>
- *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- */
+    BSD 3-clause style license:
 
-// from
-//"github.com/PlakarKorp/go-cdc-chunkers"
-//"github.com/PlakarKorp/go-cdc-chunkers/chunkers/ultracdc"
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+  - Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+  - Redistributions in binary form must reproduce the above
+    copyright notice, this list of conditions and the following disclaimer
+    in the documentation and/or other materials provided with the
+    distribution.
+  - Neither the name of the author, nor Google Inc. nor the names of its
+    contributors may be used to endorse or promote products derived from
+    this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+*/
 
 /* Quotes below about the algorithm implemented here, and the
- * original C++ source which was ported to Go, are used
+ * original C++ source which was ported to Go, were used
  * under the following license:
  *
  * Copyright 2022 Google LLC
@@ -41,24 +53,18 @@ package ultracdc
  */
 
 import (
-	//"bytes"
-	//"errors"
 	"fmt"
 	"math"
-	//"math/bits"
 )
 
 var _ = fmt.Printf
 
 //msgp:ignore FastCDC
 type FastCDC struct {
-	Opts *ChunkerOpts `zid:"0"`
+	Opts *CDC_Config `zid:"0"`
 }
 
-// NewFastCDC is for non-Plakar standalone clients. Plakar
-// clients will use newFastCDC via the
-// chunkers.NewChunker("ultracdc", ...) factory.
-func NewFastCDC(opts *ChunkerOpts) *FastCDC {
+func NewFastCDC(opts *CDC_Config) *FastCDC {
 	u := &FastCDC{}
 	if opts == nil {
 		opts = Default_FastCDC_Options()
@@ -71,19 +77,19 @@ func (c *FastCDC) Name() string {
 	return "fastcdc-Stadia-Google-64bit-arbitrary-regression-jea"
 }
 
-func (c *FastCDC) Options() *ChunkerOpts {
+func (c *FastCDC) Config() *CDC_Config {
 	return c.Opts
 }
 
-func Default_FastCDC_Options() *ChunkerOpts {
-	return &ChunkerOpts{
+func Default_FastCDC_Options() *CDC_Config {
+	return &CDC_Config{
 		MinSize:    2 * 1024,
 		NormalSize: 10 * 1024,
 		MaxSize:    64 * 1024,
 	}
 }
 
-func (c *FastCDC) Validate(options *ChunkerOpts) error {
+func (c *FastCDC) Validate(options *CDC_Config) error {
 
 	if options.NormalSize == 0 || options.NormalSize < 64 ||
 		options.NormalSize > 1024*1024*1024 {
@@ -129,7 +135,7 @@ func (c *FastCDC) Validate(options *ChunkerOpts) error {
 // - T : The type used for the hash. Should be an unsigned integer type,
 // ideally uint32_t or uint64_t. The number of bits of this type determines
 // the "sliding window" size of the gear hash. A smaller type is likely to be
-// faster at the expense of reduced deduplication. (JEA note: we use uint64.)
+// faster at the expense of reduced deduplication. (JEA note: we only use uint64.)
 //
 // - gear: an array of random numbers that serves as a look-up table to
 // modify be added to the rolling hash in each round based on the input data.
@@ -141,7 +147,7 @@ func (c *FastCDC) Validate(options *ChunkerOpts) error {
 // [2] https://github.com/dbaarda/rollsum-chunking/blob/master/RESULTS.rst
 // [3] https://www.usenix.org/system/files/conference/atc12/atc12-final293.pdf
 //
-// My (JEA) generic notes:
+// My (JEA) notes:
 //
 // Algorithm's return value, cutpoint, might typically be used next in
 // segment := data[:cutpoint], so we expect to exclude the cutpoint
@@ -155,7 +161,7 @@ func (c *FastCDC) Validate(options *ChunkerOpts) error {
 // It is always safe to pass n = len(data).
 //
 // POST INVARIANT: cutpoint <= n. We never return a cutpoint > n.
-func (c *FastCDC) Algorithm(options *ChunkerOpts, data []byte, N int) (cutpoint int) {
+func (c *FastCDC) Algorithm(options *CDC_Config, data []byte, N int) (cutpoint int) {
 
 	// A common case will be n == len(data), but n could certainly be less.
 	// Confirm that it is never more.
