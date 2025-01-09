@@ -15,27 +15,54 @@ import (
 
 //go:generate greenpack
 
-// rsync operation:
+// rsync operation for a single file.
 //
 // 0) sender sends path, length, mod time of file.
 //
+
+type RsyncStep0SenderOverview struct {
+	Host     string
+	Path     string
+	LenBytes int64
+	ModTime  time.Time
+}
+
 // 1) receiver/reader end gets path to the file, its
 // length and modification time stamp. If length
 // and time stamp math, stop. Ack back all good.
 // Else ack back with RsyncHashes, "here are the chunks I have"
 // and the whole file checksum.
+
+type RsyncStep1SenderOverviewAck struct {
+	// if true, no further action needed.
+	// ReaderHashes can be nil then.
+	AllGood bool
+
+	ReaderHashes *RsyncHashes
+}
+
 //
 // 2) sender chunks the file, does the diff, and
 // then sends along just the changed chunks, along
 // with the chunk structure of the file on the
 // sender so reader can reassemble it; and the
 // whole file checksum.
+
+type RsyncStep2SenderProvidesDeltas struct {
+	SenderHashes *RsyncHashes
+
+	Diff *RsyncDiffs
+
+	DeltaHashes []string
+	DeltaData   [][]byte
+}
+
 //
 // 3) reader gets the diff, the changed chunks,
 // and it already has the current file structure;
 // write out a new file with the correct chunks
 // in the correct order. Verify the final blake3 checksum,
-// and match the
+// and set the new ModTime on the file.
 
 // RsyncHashes stores CDC (Content Dependent Chunking)
 // chunks for a given Path on a given Host, using
