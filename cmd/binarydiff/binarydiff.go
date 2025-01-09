@@ -19,7 +19,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	u := ultracdc.NewUltraCDC()
+
+	cfg := ultracdc.Default_UltraCDC_Options()
+	u := ultracdc.NewUltraCDC(cfg)
 
 	cuts := u.Cutpoints(data, 0)
 
