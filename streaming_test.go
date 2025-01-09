@@ -57,6 +57,12 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 		// upload a blob from testdata/ directory.
 
 		path := "testdata/blob977k"
+		pathOut := "blob977k.servergot"
+		os.Remove(pathOut)
+		defer func() {
+			diff := CompareFilesDiffLen(path, pathOut)
+			cv.So(diff, cv.ShouldEqual, 0)
+		}()
 		if !fileExists(path) {
 			panic(fmt.Sprintf("drat! cli -sendfile path '%v' not found", path))
 		}

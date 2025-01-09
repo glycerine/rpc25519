@@ -197,3 +197,35 @@ func GoroNumber() int {
 	panicOn(err)
 	return n
 }
+
+// abort the program with error code 1 after printing msg to Stderr.
+func stop(msg interface{}) {
+	switch e := msg.(type) {
+	case error:
+		fmt.Fprintf(os.Stderr, "%s: %s\n", fileLine(2), e.Error())
+		os.Exit(1)
+	default:
+		fmt.Fprintf(os.Stderr, "%s: %v\n", fileLine(2), msg)
+		os.Exit(1)
+	}
+}
+
+func stopOn(err error) {
+	if err == nil {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "%s: %v\n", fileLine(2), err.Error())
+	os.Exit(1)
+}
+
+/*func fileLine(depth int) string {
+	_, fileName, fileLine, ok := runtime.Caller(depth)
+	var s string
+	if ok {
+		s = fmt.Sprintf("%s:%d", path.Base(fileName), fileLine)
+	} else {
+		s = ""
+	}
+	return s
+}
+*/
