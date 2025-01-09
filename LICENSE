@@ -1,9 +1,7 @@
 BSD-style LICENSE (the same as the Go standard library):
 
 The combined whole is Copyright (c) 2024, Jason E. Aten, Ph.D. All rights reserved.
-All my portions are licensed under the BSD-style license just below.
-
-See below for specifc files that have other open source licenses.
+All my work here is licensed under the BSD-style license just below.
 
 Portions are derived from works that are
 Copyright (c) 2009, 2014 The Go Authors. All rights reserved.
@@ -41,8 +39,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Code in the the ultracdc/ sub-directory is licensed under the
 following licenes:
 
-1) ultracdc.go under the USC License:
-
 /*
  * Copyright (c) 2024 Jason E. Aten, Ph.D.
  * Copyright (c) 2023 Gilles Chehade <gilles@poolp.org>
@@ -60,20 +56,3 @@ following licenes:
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-2) fastcdc2.go under:
-
-/*
- * Copyright 2022 Google LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */

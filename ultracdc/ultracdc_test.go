@@ -19,11 +19,32 @@ package ultracdc
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	mathrand2 "math/rand/v2"
 	"testing"
+
+	cryrand "crypto/rand"
 )
+
+func TestGenGear(t *testing.T) {
+
+	return
+	fmt.Printf("var gear64 = []uint64{\n")
+
+	buf := make([]byte, 8*256)
+	cryrand.Read(buf)
+	for i := 0; i < 8*256; i += 8 {
+		x := binary.BigEndian.Uint64(buf[i : i+8])
+		if (i/8)%3 == 0 {
+			fmt.Println()
+		}
+		fmt.Printf("%#x, ", x)
+	}
+	fmt.Printf("}\n\n")
+
+}
 
 func hashOfBytes(by []byte) string {
 	h := sha256.New()

@@ -1,57 +1,5 @@
 package ultracdc
 
-// Portions Copyright (c) 2024 Jason E. Aten, Ph.D. All rights reserved.
-// See also below for the Apache2 licensed comments in this file.
-/*
-    BSD 3-clause style license:
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are
-met:
-
-  - Redistributions of source code must retain the above copyright
-    notice, this list of conditions and the following disclaimer.
-  - Redistributions in binary form must reproduce the above
-    copyright notice, this list of conditions and the following disclaimer
-    in the documentation and/or other materials provided with the
-    distribution.
-  - Neither the name of the author, nor Google Inc. nor the names of its
-    contributors may be used to endorse or promote products derived from
-    this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-*/
-
-/* Quotes below about the algorithm implemented here, and the
- * original C++ source which was ported to Go, were used
- * under the following license:
- *
- * Copyright 2022 Google LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import (
 	"fmt"
 	"math"
@@ -106,48 +54,17 @@ func (c *FastCDC) Validate(options *CDC_Config) error {
 	return nil
 }
 
-// from https://github.com/google/cdc-file-transfer/blob/main/fastcdc/fastcdc.h
-// description of this particular FastCDC implementation:
-//
-// Implements a very fast content-defined chunking algorithm.
-//
-// FastCDC [1] identifies chunk boundaries based on a simple yet efficient
-// "gear" rolling hash, a "normalized chunking" algorithm using a stepped
-// chunk probability with a pair spread-out bitmasks for the '!(hash&mask)'
-// "hash criteria".
-//
-// This library implements a modified version based on rollsum-chunking [2]
-// tests and analysis that showed simple "exponential chunking" gives better
-// deduplication, and a 'hash<=threshold' "hash criteria" works better for
-// the gear rollsum and can support arbitrary non-power-of-two sizes.
-//
-// For limiting block sizes it uses a modified version of "Regression
-// Chunking"[3] with an arbitrary number of regressions using power-of-2
-// target block lengths (not multiples of the target block length, which
-// doesn't have to be a power-of-2). This means we can use a bitmask for the
-// most significant bits for the regression hash criteria.
-//
-// The Config struct passed in during construction defines the minimum, average,
-// and maximum allowed chunk sizes. Those are runtime parameters.
-//
-// The template allows additional compile-time configuration:
-//
-// - T : The type used for the hash. Should be an unsigned integer type,
-// ideally uint32_t or uint64_t. The number of bits of this type determines
-// the "sliding window" size of the gear hash. A smaller type is likely to be
-// faster at the expense of reduced deduplication. (JEA note: we only use uint64.)
-//
-// - gear: an array of random numbers that serves as a look-up table to
-// modify be added to the rolling hash in each round based on the input data.
-// This library comes with two different tables, one of type uint32_t and one
-// of uint64_t. Both showed good results in our experiments, yet the 64-bit
-// version provided slightly better deduplication. (JEA note: only 64-bit here.)
-//
+// Modified FastCDC algorithm: not the same as the original paper!
+// We use a unint64 for the hash, so it is 64-bits wide.
+// The gear table is the 64-bit version that
+// provides slightly better dedup.
+// references:
+// [0] https://github.com/google/cdc-file-transfer/blob/main/fastcdc/fastcdc.h
 // [1] https://www.usenix.org/system/files/conference/atc16/atc16-paper-xia.pdf.
 // [2] https://github.com/dbaarda/rollsum-chunking/blob/master/RESULTS.rst
 // [3] https://www.usenix.org/system/files/conference/atc12/atc12-final293.pdf
 //
-// My (JEA) notes:
+// Notes on the API:
 //
 // Algorithm's return value, cutpoint, might typically be used next in
 // segment := data[:cutpoint], so we expect to exclude the cutpoint
@@ -173,19 +90,15 @@ func (c *FastCDC) Algorithm(options *CDC_Config, data []byte, N int) (cutpoint i
 	// formal argument to N and let little n be uint64 from now on.
 	n := uint64(N)
 
-	// NB: the very last chunk might be smaller than this.
+	// NB: the very last chunk might be smaller than this, of course.
 	minSize := uint64(options.MinSize)
 
 	// chunks are never bigger.
 	maxSize := uint64(options.MaxSize)
 
-	// "The average chunk size is the target size for chunks, not including the
-	// effects of max_size regression. Before regression, sizes will show an
-	// offset exponential distribution decaying after min_size with the desired
-	// average size. Regression will "reflect-back" the exponential
-	// distribution past max_size, which reduces the actual average size and
-	// gives a very flat distribution when max_size is small."
-	//  -- https://github.com/google/cdc-file-transfer/blob/main/fastcdc/fastcdc.h
+	// regression/reflection was introdcued
+	// in the microsoft paper; giving flatter distribution
+	// when maxSize is smaller.
 
 	normalSize := uint64(options.NormalSize)
 
@@ -198,19 +111,13 @@ func (c *FastCDC) Algorithm(options *CDC_Config, data []byte, N int) (cutpoint i
 		n = maxSize
 	}
 
-	// Initialize the regression length to len (the end) and the regression
-	// mask to an empty bitmask (match any hash).
 	regressionLen := n
-	var regressionMask uint64 // == 0
+	var regressionMask uint64 // == 0 => match anything
 
-	// Init hash to all 1's to avoid zero-length chunks with min_size=0.
+	// "Init hash to all 1's to avoid zero-length chunks with min_size=0."
 	var hash uint64 = math.MaxUint64
 
-	// Skip the first min_size bytes, but "warm up" the rolling hash for enough
-	// rounds to make sure the hash has gathered full "content history".
-
 	const kHashBits = 64
-
 	var i uint64
 	if minSize > kHashBits {
 		i = minSize - kHashBits
@@ -226,13 +133,9 @@ func (c *FastCDC) Algorithm(options *CDC_Config, data []byte, N int) (cutpoint i
 		if hash&regressionMask == 0 {
 
 			if hash <= thresh {
-				// This hash matches the target length
-				// hash criteria, return it.
 				return int(i)
 			}
 
-			// This is a better regression point. Set it as the new regressionLen and
-			// update regressionMask to check as many MSBits as this hash would pass.
 			regressionLen = i
 			regressionMask = math.MaxUint64
 
@@ -242,7 +145,7 @@ func (c *FastCDC) Algorithm(options *CDC_Config, data []byte, N int) (cutpoint i
 		}
 		hash = (hash << 1) + gear64[data[i]]
 	}
-	// Return best regression point we found or the end if it's better.
+	// "Return best regression point we found or the end if it's better."
 	if hash&regressionMask != 0 {
 		return int(regressionLen)
 	}
@@ -273,90 +176,89 @@ func (c *FastCDC) Cutpoints(data []byte, maxPoints int) (cuts []int) {
 
 // random [256] slice
 var gear64 = []uint64{
-
-	0x651748f5a15f8222, 0xd6eda276c877d8ea, 0x66896ef9591b326b,
-	0xcd97506b21370a12, 0x8c9c5c9acbeb2a05, 0xb8b9553ee17665ef,
-	0x1784a989315b1de6, 0x947666c9c50df4bd, 0xb3f660ea7ff2d6a4,
-	0xbcd6adb8d6d70eb5, 0xb0909464f9c63538, 0xe50e3e46a8e1b285,
-	0x21ed7b80c0163ce0, 0xf209acd115f7b43b, 0xb8c9cb07eaf16a58,
-	0xb60478aa97ba854c, 0x8fb213a0b5654c3d, 0x42e8e7bd9fb03710,
-	0x737e3de60a90b54f, 0x9172885f5aa79c8b, 0x787faae7be109c36,
-	0x86ad156f5274cb9f, 0x6ac0a8daa59ee1ab, 0x5e55bc229d5c618e,
-	0xa54fb69a5f181d41, 0xc433d4cf44d8e974, 0xd9efe85b722e48a3,
-	0x7a5e64f9ea3d9759, 0xba3771e13186015d, 0x5d468c5fad6ef629,
-	0x96b1af02152ebfde, 0x63706f4aa70e0111, 0xe7a9169252de4749,
-	0xf548d62570bc8329, 0xee639a9117e8c946, 0xd31b0f46f3ff6847,
-	0xfed7938495624fc5, 0x1ef2271c5a28122e, 0x7fd8e0e95eac73ef,
-	0x920558e0ee131d4c, 0xce2e67cb1034bcd1, 0x6f4b338d34b004ae,
-	0x92f5e7271cf95c9a, 0x12e1305a9c558342, 0x1e30d88013ad77ae,
-	0x09acc1a57bbb604e, 0xaf187082c6f56192, 0xd2e5d987f04ac6f0,
-	0x3b22fca40423da70, 0x7dfba8ce699a9a87, 0xe8b15f90ea96bd2a,
-	0xcda1a1089cc2cbe7, 0x72f70448459de898, 0x1ab992dbb61cd46e,
-	0x912ad04becbb29da, 0x98c6bb3aa3ce09ed, 0x6373bd2e7a041f3a,
-	0x1f98f28bd178c53a, 0xe6adbc82ba5d9f96, 0x7456da7d805cbe01,
-	0xd673662dcc135eeb, 0xb299e26eaadcb311, 0x2c2582172f8114af,
-	0xeded114d7f623da6, 0xb3462a0e623276e4, 0x3af752be3d34bfaa,
-	0x1311ccc0a1855a89, 0x0812bbcecc92b2e4, 0x9974b5747289f2f5,
-	0x3a030eff770f2026, 0x52462b2aa42a847a, 0x2beaa107d15a012b,
-	0x0c0035e0fe073398, 0x4f2f9de2ac206766, 0x5dd51a617c291deb,
-	0x1ac66905652cc03b, 0x11067b0947fc07a1, 0x02b5fcd96ad06d52,
-	0x74244ec1aa2821fd, 0xf6089e32060e9439, 0xd8f076a33bcbf1a7,
-	0x5162743c755d8d5e, 0x8d34fc683e4e3d06, 0x46efe9b21a0252a3,
-	0x4631e8d0109c6145, 0xfdf7a14bc0223957, 0x750934b3d0b8bb1e,
-	0x2ecd1b3efed5ddb9, 0x2bcbd89a83ccfbce, 0x3507c79e58dd5886,
-	0x5476a67ecd4a772f, 0xaa0be3856dd76405, 0x22289a358a4dd421,
-	0xf570433f14503ad1, 0x8a9f440251a722c3, 0x77dd711752b4398c,
-	0xbbd9edf9c6160a31, 0xb94b59220b23f079, 0xfdca3d75d2f33ccf,
-	0xb29452c460c9e977, 0xe89afe2dd4bf3b02, 0x47ec6f32c91bfee4,
-	0x1aab5ec3445706b8, 0x588bf4fa55334006, 0xe2290ca1e29acd96,
-	0x3c49e189f831c37c, 0x6448c973b5177498, 0x556a6e09ba158de7,
-	0x90b25013a8d9a067, 0xa4f2f7a50c58e1c4, 0x5e765e871008700e,
-	0x242f5ae7738327af, 0xc1e6a2819cc5a219, 0xcb48d801fd6a5449,
-	0xa208de2301931383, 0xde3c143fe44e39b0, 0x6bb74b09c73e4133,
-	0xb5b1ed1b63d54c11, 0x587567d454ce7716, 0xf47ddbc987cb0392,
-	0x87b19254448f03f1, 0x985fd00ec372fafa, 0x64b92ba521aa46e4,
-	0xce63f4013d587b0f, 0xa691ae698726030e, 0xeaefbf690264e9aa,
-	0x68edd400523eb152, 0x35d9353aa1957c60, 0x2e2c2d7a9cb68385,
-	0xfc7549edaf43bf9e, 0x48b2adb23026e2c7, 0x3777cb79a024bcf9,
-	0x644128f7c184102d, 0x70189d3ca4390de9, 0x085fea7986d4cd34,
-	0x6dbe7626c8457464, 0x9fa41cfa9c4265eb, 0xdaa163a641946463,
-	0x02f5c4bd9efa2074, 0x783201871822c3c9, 0xb0dfec499202bce0,
-	0x1f1c9c12d84dccab, 0x1596f8819f2ed68e, 0xb0352c3e9fc84468,
-	0x24a6673db9122956, 0x84f5b9e60b274739, 0x7216b28a0b54ac46,
-	0xc7789de20e9cdca4, 0x903db5d289dd6563, 0xce66a947f7033516,
-	0x3677dbc62307b2ca, 0x8d8e9d5530eb46ac, 0x79c4bad281bd93e2,
-	0x287d942042068c36, 0xde4b98e5464b6ad5, 0x612534b97d1d21bf,
-	0xdf98659772d822a1, 0x93053df791aa6264, 0x2254a8a2d54528ba,
-	0x2301164aeb69c43d, 0xf56863474ac2417f, 0x6136b73e1b75de42,
-	0xc7c3bd487e06b532, 0x7232fbed1eb9be85, 0x36d60f0bd7909e43,
-	0xe08cbf774a4ce1f2, 0xf75fbc0d97cb8384, 0xa5097e5af367637b,
-	0x7bce2dcfa856dbb2, 0xfbfb729dd808c894, 0x3dc8eba10ad7112e,
-	0xf2d1854eedce4928, 0xb705f5c1aebd2104, 0x78fa4d004417d956,
-	0x9e5162660729f858, 0xda0bcd5eb9f91f0e, 0x748d1be11e06b362,
-	0xf4c2be9a04547734, 0x6f2bcd7c88abdf9a, 0x50865dafdfd8a404,
-	0x9d820665691728f0, 0x59fe7a56aa07118e, 0x4df1d768c23660ec,
-	0xab6310b8edfb8c5e, 0x029b47623fc9ffe4, 0x50c2cca231374860,
-	0x0561505a8dbbdc69, 0x8d07fe136de385f3, 0xc7fb6bb1731b1c1c,
-	0x2496d1256f1fac7a, 0x79508cee90d84273, 0x09f51a2108676501,
-	0x2ef72d3dc6a50061, 0xe4ad98f5792dd6d6, 0x69fa05e609ae7d33,
-	0xf7f30a8b9ae54285, 0x04a2cb6a0744764b, 0xc4b0762f39679435,
-	0x60401bc93ef6047b, 0x76f6aa76e23dbe0c, 0x8a209197811e39da,
-	0x4489a9683fa03888, 0x2604ad5741a6f8d8, 0x7faa9e0c64a94532,
-	0x0dbfee8cdae8f54e, 0x0a7c5885f0b76d4a, 0x55dfb1ac12e83645,
-	0xedc967651c4938cc, 0x4e006ab71a48b85e, 0x193f621602de413c,
-	0xb56458b71d56944f, 0xf2b639509a2fa5da, 0xb4a76f284c365450,
-	0x4d3b65d2d2ae22f7, 0xbcc5f8303efca485, 0x8a044f312671aaea,
-	0x688d69e89af0f57a, 0x229957dc1facede8, 0x2ed75c321073da13,
-	0xf199e7ece5fcefef, 0x50c85b5c837a6c64, 0x71703c6e676bf698,
-	0xc1b4eb52b1e5a518, 0x0f46a5e6c9cb68ca, 0xebb933688d69d7f7,
-	0x5ab7404b8d1e3ef4, 0x261acc20c5a64a90, 0xb88788798adc718a,
-	0x3e44e9b6bad5bc15, 0xf6bb456f086346bc, 0xd66e17e5734cbde1,
-	0x392036dae96e389d, 0x4a62ceac9d4202de, 0x9d55f412f32e5f6e,
-	0x0e1d841509d9ee9d, 0xc3130bdc638ed9e2, 0x0cd0e82af24964d9,
-	0x3ec4c59463ba9b50, 0x055bc4d8685ab1bc, 0xb9e343c96a3a4253,
-	0x8eba190d8688f7f9, 0xd31df36c792c629b, 0xddf82f659b127104,
-	0x6f12dc8ba930fbb7, 0xa0aee6bb7e81a7f0, 0x8c6ba78747ae8777,
-	0x86f00167eda1f9bc, 0x3a6f8b8f8a3790c9, 0x7845bb4a1c3bfbbb,
-	0xc875ab077f66cf23, 0xa68b83d8d69b97ee, 0xb967199139f9a0a6,
-	0x8a3a1a4d3de036b7, 0xdf3c5c0c017232a4, 0x8e60e63156990620,
-	0xd31b4b03145f02fa}
+	0x8491247ace8fa4ed, 0xef6f83ef0eb0423a, 0x8e5c2be1f316d634,
+	0x1a6b3add4d7fe997, 0x9e4e9c1b8856240d, 0x7901cdcba45eb71a,
+	0x231e85f0faf483d8, 0x1b4ab739e20b8cb1, 0xdbda4432ca243f76,
+	0xb2d894d2426310cd, 0x839995f33aabd8f1, 0x9cccd0bbabbaaf9d,
+	0x3ef9fd960f823fb6, 0xd5d59780e1f38af3, 0x27facf53ac93364f,
+	0x8dbae7fb1a94b826, 0xbcfaf245c81d5b9f, 0x49336c70f611b64e,
+	0x3571e070f3a4cd59, 0x5dc06a5cf90a86f6, 0x99abb6ea0a4f156,
+	0xb9b92296e5eb1e22, 0xf9ad0cc35f4ee97, 0x62cb5f8f88a0406b,
+	0xc1a11da8e0e8cc2a, 0x8c239edaf6069a8c, 0x375e7af49e5244a2,
+	0xc581ef8a03970488, 0xaf77f46327cdf5d, 0x7ef4664d220edc6,
+	0x63f3a647be9f1614, 0xd2fc59c96d6b87ad, 0x88745637e11038c1,
+	0x9c719e92a544113d, 0x6c3ee1140777a315, 0x9fd49ddce628e564,
+	0x10bef8449642c051, 0x75ade0f3ad422274, 0x22ff8fbc4242b2c5,
+	0x6a6fcdf012903a4b, 0x5ed90ba6df6f0575, 0xf0e561e75268c2a2,
+	0x840d88d4bf9c0b74, 0x9ddb3916e5b076a, 0x49cee2f4c0320438,
+	0xbcfa7fa4be4291e5, 0x6467b95e9a8356fc, 0xe7038d6f716b766d,
+	0x9a69c0beec5adbec, 0x3f48ed09b0432b98, 0x60d541174db84de8,
+	0xbfa499091125bf7d, 0x389aa4da4a299e7b, 0x4c9e09d859f70144,
+	0x61a7986df7e97bce, 0x31e929cb879c6525, 0x924952ee09e2924f,
+	0x1a922510c6fb5ca7, 0xe36a67aa8317d9d6, 0xfc4b6fc00cd35d2e,
+	0xa1dfde3b89f7ecd9, 0x2d2738a1a871b031, 0x626dd9b2e1849709,
+	0xc2e5fc1b73153f19, 0xfbdf8057f90cc597, 0xd6b0b92291914061,
+	0x712691734a1327c8, 0xd326c9a24910b830, 0x3b5c57b7734b39fd,
+	0xff5091cdb73cec7, 0x14d9919830abce04, 0xef599887f6a5abb1,
+	0xe92b4a5d2512d9f, 0x8c1343905342c413, 0x557e6f4c5c58c3f6,
+	0xe82cec1b269bbbbd, 0x8978d511054b3ab0, 0xd2fce22bf9f4e348,
+	0x8bf144638a5f5796, 0x647efba66eaef57f, 0xa98d2d10a57e8a7d,
+	0xbd3127b0a5d10ce9, 0x371ab70261b6ca43, 0xf0b946207000fbeb,
+	0xd629ca24cdc4fd44, 0xef14b9e0844761a4, 0x3e59f32a56c1fffb,
+	0x4e08a128dcda76ab, 0x6317214ea7d99fae, 0xff484be613728267,
+	0x66a02126378c0480, 0x9d08f636207b4e5a, 0xb117fbf3f69eb6e9,
+	0xa3c18816f9459e25, 0x59e006979053d9f0, 0xf2df699b7baf4f9a,
+	0xcfbd687e95006ced, 0x7f506d200d86899e, 0x8762a217ec25d9c0,
+	0x7362c031992d892d, 0xcdce287de14a4adf, 0x9cea7e1e5d565c7c,
+	0x4a52376eb368942, 0xd0dc49a93e262bd2, 0xe17ede683f556d04,
+	0xec8a9bbd5de07e1, 0x31d6b2a4e3bd47bf, 0x41136d5b7a1b7d67,
+	0x64f41962fe98eb1f, 0x6788e4f777928ee7, 0x661405e078be20b,
+	0x1965662e202a521, 0x7b722c2aa4a198d9, 0x66b4a1d2d763b34c,
+	0x296dece82d0ccead, 0x5bc8bc380f8548a, 0xed5f0560f84b91f4,
+	0xb82c8c27dc0768f1, 0xf5ae73b72c3830d6, 0x6d330e412d58c450,
+	0xf0260bbf7eb6a5f6, 0x2eae75bd682d009c, 0xc50f47d01da153b4,
+	0x82fda4160237328d, 0x71bf180eb671c7c6, 0x3c211cae288a846b,
+	0xb83883a2ea404ed5, 0x301f89d274c8b96, 0x3028ffff46156359,
+	0x9623cff53bd22f69, 0x254c8716768a76bd, 0xf43428b02ac7e71,
+	0xef87f74136018cd7, 0xed70f6cc2e5a1b14, 0xcfce9591664decd0,
+	0x526da3ec58c0eb1e, 0xb022b0de25996366, 0xee456d90b08673a5,
+	0x6ee7b2a4afcaeded, 0xeedcadec61692821, 0xc890f956f371c6aa,
+	0xdbb1355802cc4a14, 0x2aa96a60229886fb, 0xc9438611ed6d39a,
+	0x48fdb9caa455e89f, 0xb7fb8a4a9e0431cd, 0xdb5d2a2c73183aab,
+	0xc0cad5ed82cea56e, 0x8cd515d28962804c, 0xea2ede16fe381a33,
+	0x80b05ffbb4831437, 0xcf784306c0e1da56, 0x25cfa51617691b76,
+	0x2ddd6c7c41a9b6a1, 0xc06d1038b17c2df5, 0x322cd3d4ca044b65,
+	0xa6fff882e0bffb20, 0xae836ccfae4a8daa, 0x688d1558d2a2889e,
+	0xad6f0b615dbad0bc, 0xb63532f10c0b60d, 0x951fc0fe5888c690,
+	0x313dfc918cb10a91, 0xbc6918a29ab8f646, 0xa623d7d58decf648,
+	0xc6aae06bdc5afa94, 0x786216ece87786cd, 0x89690cf7bf52ae2a,
+	0x183d1031e43ecc8, 0x9a4e252bfe5e7448, 0xc890305167fccf49,
+	0xd9bd458ea0056928, 0xde45a84a1d88f826, 0xd11b9347a55c9d50,
+	0x12517b203ba99caf, 0x7fbfdda8d0de88ca, 0xf781c2a0d2b990a8,
+	0x96ab7398ce099b8f, 0x5f94ac89fa3c40ef, 0xfa8f052c301a6974,
+	0x86792e4991df575f, 0x3c29997d479a7560, 0x1aa5808eef6ee029,
+	0x808a5210862e83a, 0xf0255f3aaddb1d99, 0x137c229a37be7ee6,
+	0xcccefc9fbdf1a5e3, 0xebbd33fb3af1d2f2, 0xb33a5454c9bdf708,
+	0x3baf4c066aeb99f0, 0xcf9e7c9e38c9cbde, 0x41bcc7608e4358a,
+	0x45e86bc18ebed4ed, 0x45151340bf7deaec, 0x2babdc7a53300776,
+	0x7a8c8e69f1df2e17, 0x840fccf20170375, 0x258e78c689d7f1cc,
+	0x513ad967f73a79f0, 0x572b72acc9fdc94e, 0x6716050e6d3c4bcd,
+	0x417cd4ea3e740ea6, 0xb06821ae68f8f53, 0x30c00b83b62d41b5,
+	0x6da4d1e65fb04b84, 0xb2259595a7bbc508, 0x5dde25e3d8cce8ab,
+	0x5612238a2eb7bd60, 0x1518af25cee8b39d, 0x86c4d5c83d4f739,
+	0xac6065d0956a8218, 0xed8a1d026cf49e4, 0x32f6ab67b23ca47,
+	0x3f8a2d37ec384725, 0x1258e6fdd59e87d9, 0xb8e26ec0772caed3,
+	0x14eab3cfca9095f5, 0x272a6400d862da91, 0xae9db7ecda64622c,
+	0xf2a6239fcde76ba8, 0x6387a298ae9f57e4, 0xc55a0e84950a8f9,
+	0xba71e19716954cfd, 0xd2e3cca8f3d0e7d3, 0xd9d0d222ec1a10d5,
+	0x8f2cf116e24b08ba, 0x757b0f05c10c6643, 0x399e29aa2535cc45,
+	0xc1c75686141dba8b, 0xe7cb6ae92546b537, 0xa2c78f99e81fc094,
+	0x9f44f935b6e331c3, 0xd4f5bd7a41c444e4, 0xe9039fdd669d1ff2,
+	0xe0529652c458f1e4, 0xc587376080a8635b, 0x8064da4ab9a978e5,
+	0x86189cb0545c0cea, 0x57e9eac3ff58f820, 0xdb426e8ac3c6111f,
+	0xfb4034c6b66a134d, 0xe6bf1b2f31ebb4f, 0xa4beabda26098f32,
+	0x2a679aa4d23b8859, 0x26e660c6e4f04ced, 0xb984b1386de0d796,
+	0x1db677b46e34d965, 0xb31e7767a947c68, 0x8f77a32a1e3be2d5,
+	0x813137a9410ca6c5, 0x6aa07239ba3cae35, 0x7584b6295f9b266d,
+	0xfed8b9effbed289b, 0x98ea5373bf61b09c, 0xc4b5e89cbb05c329,
+	0x611f22b45da87895}
