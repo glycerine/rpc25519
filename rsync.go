@@ -44,35 +44,30 @@ type RsyncStep0_ClientRequestsRead struct {
 
 // 1) sender sends path, length, mod time of file.
 // Sender sends RsyncStep1_SenderOverview to reader.
-// This starts the first of two RPCs from sender
-// to reader. But can we have an RPC from a
-// server to a client? We can have the client
-// do up calls like the server does? or
-// run a server too, if they want to be
-// a reader. The main read-loop on the client
-// can hand off server traffic to the
-// server read-loop? For now keep it simple
-// and always have the client be the initiator
-// and sender, making two RPC round trips.
-// Or we could structure it not as two RPC
-// but just as four one-way sends? The
-// last of which is not really even needed,
-// it just confirms that the transaction
-// completed. I think that would be fine;
-// we would just need to add specific
-// message types to support that, like
-// a SymmetricFlow type, so the client
-// or server getting that knows to do--the
-// client still needs to know who to
-// upcall when they get such a message; b/c
-// the client may not have any code running
-// at all if the server initiates a push
-// and wants to be a sender to the client's
-// reader. So it makes sense to have the
-// client side just be able to register
-// handler func for RPCs too; and for the
-// server to be able to act like a client
-// (sender) as well, symmetrically.
+// This starts the first of two round-trips.
+// Note only 0 or 1 are are "RPC" like-calls in our lingo.
+// The other steps/Messages (2,3,4) are one-ways
+// with the same CallID.
+// The server will also send a final CallRPCReply
+// when the Call from 0 or 1 finishes.
+//
+// So our rsync-like protocol is either:
+//
+// for client read:
+//
+// cli(0)->srv(1)->cli(2)->srv(3 + CallRPCReply to 0)->cli(4); or
+//
+// for client send:
+//
+// cli(1)->srv(2)->cli(3)->srv(4 + CallRPCReply to 1);
+//
+// This means that the server has to be ready
+// to listen for and handle 1,2,3,4; while
+// the client has to listen for and handle 2,3,4.
+// The client is always the one sending 0 or 1.
+//
+// To do step 1 (client acts as sender, it sends:
+// .
 type RsyncStep1_SenderOverview struct {
 	SenderHost     string    `zid:"0"`
 	SenderPath     string    `zid:"1"`
@@ -83,7 +78,7 @@ type RsyncStep1_SenderOverview struct {
 	SenderFullHash string `zid:"4"`
 }
 
-// 1) receiver/reader end gets path to the file, its
+// 2) receiver/reader end gets path to the file, its
 // length and modification time stamp. If length
 // and time stamp math, stop. Ack back all good.
 // Else ack back with RsyncHashes, "here are the chunks I have"
@@ -97,7 +92,7 @@ type RsyncStep2_AckOverview struct {
 	ReaderHashes *RsyncHashes `zid:"1"`
 }
 
-// 2) sender chunks the file, does the diff, and
+// 3) sender chunks the file, does the diff, and
 // then sends along just the changed chunks, along
 // with the chunk structure of the file on the
 // sender so reader can reassemble it; and the
@@ -114,7 +109,7 @@ type RsyncStep3_SenderProvidesDeltas struct {
 	DeltaData                 [][]byte `zid:"4"`
 }
 
-// 3) reader gets the diff, the changed chunks (DeltaData),
+// 4) reader gets the diff, the changed chunks (DeltaData),
 // and it already has the current file structure;
 // write out a new file with the correct chunks
 // in the correct order. (Decompressing chunks
