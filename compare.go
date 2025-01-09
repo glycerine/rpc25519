@@ -1,6 +1,7 @@
 package rpc25519
 
-// mostly for tests. compare files and directories
+// mostly for tests. utility func to
+// diff/compare files and directories
 // for expected structure.
 
 import (
@@ -13,63 +14,11 @@ import (
 	"strings"
 )
 
-func SliceEqual(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func SliceStringEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func SliceBoolEqual(a, b []bool) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
-func dup(a []string) []string {
-	b := make([]string, len(a))
-	for i := range a {
-		b[i] = a[i]
-	}
-	return b
-}
-
-func dupIntSlc(a []int) []int {
-	b := make([]int, len(a))
-	for i := range a {
-		b[i] = a[i]
-	}
-	return b
-}
-
 // err indicates filesystem operation error, not difference.
-func CompareDirs(expected string, observed string) (diff string, err error) {
-	obs, err := ListFilesUnderDir(observed, false, "")
+func compareDirs(expected string, observed string) (diff string, err error) {
+	obs, err := listFilesUnderDir(observed, false, "")
 	panicOn(err)
-	exp, err := ListFilesUnderDir(expected, false, "")
+	exp, err := listFilesUnderDir(expected, false, "")
 	panicOn(err)
 
 	//vv("observed:")
@@ -85,8 +34,8 @@ func CompareDirs(expected string, observed string) (diff string, err error) {
 		//fmt.Println(e)
 	}
 	// compare trees on the surface
-	if StringSlicesDiffer(exp, obs) {
-		return fmt.Sprintf("CompareDirs difference: expected='%v' (%v files); observed='%v' (%v files) had different surface tree structure. e-o='%v'; o-e='%v'", expected, len(exp), observed, len(obs), StringSliceSub(exp, obs, expected+sep), StringSliceSub(obs, exp, observed+sep)), nil
+	if stringSlicesDiffer(exp, obs) {
+		return fmt.Sprintf("compareDirs difference: expected='%v' (%v files); observed='%v' (%v files) had different surface tree structure. e-o='%v'; o-e='%v'", expected, len(exp), observed, len(obs), stringSliceSub(exp, obs, expected+sep), stringSliceSub(obs, exp, observed+sep)), nil
 	}
 
 	// check contents
@@ -95,9 +44,9 @@ func CompareDirs(expected string, observed string) (diff string, err error) {
 		o := observed + sep + obs[i]
 		//vv("e = '%v'", e)
 		//vv("o = '%v'", o)
-		n, diff, err := DiffDontStop(e, o)
+		n, diff, err := diffDontStop(e, o)
 		if err != nil || n > 0 {
-			return fmt.Sprintf("CompareDirs difference in content between expected file '%v' and observed file '%v': '%v' (/usr/bin/diff err='%v')", e, o, string(diff), err), nil
+			return fmt.Sprintf("compareDirs difference in content between expected file '%v' and observed file '%v': '%v' (/usr/bin/diff err='%v')", e, o, string(diff), err), nil
 		}
 	}
 	return
@@ -105,7 +54,7 @@ func CompareDirs(expected string, observed string) (diff string, err error) {
 
 // if includeRoot, return the full path, otherwise reltaive to root.
 // if requriedSuffix supplied, files must end in that.
-func ListFilesUnderDir(root string, includeRoot bool, requiredSuffix string) (files []string, err error) {
+func listFilesUnderDir(root string, includeRoot bool, requiredSuffix string) (files []string, err error) {
 	if !dirExists(root) {
 		return
 	}
@@ -133,13 +82,13 @@ func ListFilesUnderDir(root string, includeRoot bool, requiredSuffix string) (fi
 	return
 }
 
-func CompareFilesDiffLen(expected string, observed string) (diffLineCount int) {
-	diffLineCount, _ = CompareFiles(expected, observed)
+func compareFilesDiffLen(expected string, observed string) (diffLineCount int) {
+	diffLineCount, _ = compareFiles(expected, observed)
 	return
 }
 
 // returns length of diff
-func CompareFiles(expected string, observed string) (int, []byte) {
+func compareFiles(expected string, observed string) (int, []byte) {
 	cmd := exec.Command("diff", "-b", observed, expected)
 	var out bytes.Buffer
 	cmd.Stdout = &out
@@ -161,7 +110,7 @@ func CompareFiles(expected string, observed string) (int, []byte) {
 	return N, out.Bytes()
 }
 
-func CompareFilesFirstNLines(diffFirstNlines int, expected string, observed string) (int, []byte) {
+func compareFilesFirstNLines(diffFirstNlines int, expected string, observed string) (int, []byte) {
 	alwaysPrintf("doing:\ndiff %v %v\n", observed, expected)
 
 	x, err := ioutil.ReadFile(expected)
@@ -192,7 +141,7 @@ func CompareFilesFirstNLines(diffFirstNlines int, expected string, observed stri
 	return 0, nil
 }
 
-func StringSlicesDiffer(as, bs []string) bool {
+func stringSlicesDiffer(as, bs []string) bool {
 	if len(as) != len(bs) {
 		return true
 	}
@@ -204,7 +153,7 @@ func StringSlicesDiffer(as, bs []string) bool {
 	return false
 }
 
-func DiffDontStop(expected string, observed string) (int, []byte, error) {
+func diffDontStop(expected string, observed string) (int, []byte, error) {
 	cmd := exec.Command("diff", "-r", "-b", "-B", observed, expected)
 	var out bytes.Buffer
 	cmd.Stdout = &out
@@ -215,7 +164,7 @@ func DiffDontStop(expected string, observed string) (int, []byte, error) {
 
 // subtract bs from as and return the difference. Preserves
 // the order given by as. aprefix is pre-pended to as returned.
-func StringSliceSub(as, bs []string, aprefix string) (d []string) {
+func stringSliceSub(as, bs []string, aprefix string) (d []string) {
 	amap := make(map[string]bool)
 	for _, a := range as {
 		amap[a] = true

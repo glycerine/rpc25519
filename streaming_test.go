@@ -60,7 +60,7 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 		pathOut := "blob977k.servergot"
 		os.Remove(pathOut)
 		defer func() {
-			diff := CompareFilesDiffLen(path, pathOut)
+			diff := compareFilesDiffLen(path, pathOut)
 			cv.So(diff, cv.ShouldEqual, 0)
 		}()
 		if !fileExists(path) {
