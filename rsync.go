@@ -15,6 +15,28 @@ import (
 
 //go:generate greenpack
 
+// rsync operation:
+//
+// 0) sender sends path, length, mod time of file.
+//
+// 1) receiver/reader end gets path to the file, its
+// length and modification time stamp. If length
+// and time stamp math, stop. Ack back all good.
+// Else ack back with RsyncHashes, "here are the chunks I have"
+// and the whole file checksum.
+//
+// 2) sender chunks the file, does the diff, and
+// then sends along just the changed chunks, along
+// with the chunk structure of the file on the
+// sender so reader can reassemble it; and the
+// whole file checksum.
+//
+// 3) reader gets the diff, the changed chunks,
+// and it already has the current file structure;
+// write out a new file with the correct chunks
+// in the correct order. Verify the final blake3 checksum,
+// and match the
+
 // RsyncHashes stores CDC (Content Dependent Chunking)
 // chunks for a given Path on a given Host, using
 // a specified chunking algorithm (e.g. "ultracdc"), its parameters,
@@ -53,6 +75,36 @@ type RsyncChunk struct {
 	Endx        int    `zid:"2"`
 	Hash        string `zid:"3"`
 	Len         int    `zid:"4"`
+}
+
+type RsyncDiffs struct {
+	HostA   string       `zid:"0"`
+	PathA   string       `zid:"1"`
+	HashesA *RsyncHashes `zid:"2"`
+
+	HostB   string       `zid:"3"`
+	PathB   string       `zid:"4"`
+	HashesB *RsyncHashes `zid:"5"`
+
+	Both  []*MatchHashPair `zid:"6"`
+	OnlyA []*RsyncChunk    `zid:"7"`
+	OnlyB []*RsyncChunk    `zid:"8"`
+}
+
+type MatchHashPair struct {
+	A *RsyncChunk `zid:"0"`
+	B *RsyncChunk `zid:"1"`
+}
+
+func (d *RsyncDiffs) String() string {
+
+	jsonData, err := json.Marshal(d)
+	panicOn(err)
+
+	var pretty bytes.Buffer
+	err = json.Indent(&pretty, jsonData, "", "    ")
+	panicOn(err)
+	return pretty.String()
 }
 
 func (h *RsyncHashes) String() string {
@@ -110,8 +162,6 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 
 	const useFastCDC = true
 	var cdc ultracdc.Cutpointer
-	//var cdc *ultracdc.FastCDC
-	//var cdc *ultracdc.UltraCDC
 
 	if useFastCDC {
 
@@ -165,38 +215,15 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 	return
 }
 
-type RsyncDiffs struct {
-	HostA string           `zid:"0"`
-	PathA string           `zid:"1"`
-	HostB string           `zid:"2"`
-	PathB string           `zid:"3"`
-	Both  []*MatchHashPair `zid:"4"`
-	OnlyA []*RsyncChunk    `zid:"5"`
-	OnlyB []*RsyncChunk    `zid:"6"`
-}
-
-func (d *RsyncDiffs) String() string {
-
-	jsonData, err := json.Marshal(d)
-	panicOn(err)
-
-	var pretty bytes.Buffer
-	err = json.Indent(&pretty, jsonData, "", "    ")
-	panicOn(err)
-	return pretty.String()
-}
-
-type MatchHashPair struct {
-	A *RsyncChunk `zid:"0"`
-	B *RsyncChunk `zid:"1"`
-}
-
 func (a *RsyncHashes) Diff(b *RsyncHashes) (d *RsyncDiffs) {
 	d = &RsyncDiffs{
-		HostA: a.Host,
-		PathA: a.Path,
-		HostB: b.Host,
-		PathB: b.Path,
+		HostA:   a.Host,
+		PathA:   a.Path,
+		HashesA: a,
+
+		HostB:   b.Host,
+		PathB:   b.Path,
+		HashesB: b,
 	}
 
 	ma := make(map[string]*RsyncChunk)

@@ -918,7 +918,7 @@ func (z *RsyncDiffs) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields15zgensym_9db0ba711f6a3e5a_16 = 7
+	const maxFields15zgensym_9db0ba711f6a3e5a_16 = 9
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields15zgensym_9db0ba711f6a3e5a_16 uint32
@@ -979,20 +979,78 @@ doneWithStruct15zgensym_9db0ba711f6a3e5a_16:
 			if err != nil {
 				return
 			}
-		case "HostB_zid02_str":
+		case "HashesA_zid02_ptr":
 			found15zgensym_9db0ba711f6a3e5a_16[2] = true
+			if dc.IsNil() {
+				err = dc.ReadNil()
+				if err != nil {
+					return
+				}
+
+				if z.HashesA != nil {
+					dc.PushAlwaysNil()
+					err = z.HashesA.DecodeMsg(dc)
+					if err != nil {
+						return
+					}
+					dc.PopAlwaysNil()
+				}
+			} else {
+				// not Nil, we have something to read
+
+				if z.HashesA == nil {
+					z.HashesA = new(RsyncHashes)
+				}
+				dc.DedupIndexEachPtr(z.HashesA)
+
+				err = z.HashesA.DecodeMsg(dc)
+				if err != nil {
+					return
+				}
+			}
+		case "HostB_zid03_str":
+			found15zgensym_9db0ba711f6a3e5a_16[3] = true
 			z.HostB, err = dc.ReadString()
 			if err != nil {
 				return
 			}
-		case "PathB_zid03_str":
-			found15zgensym_9db0ba711f6a3e5a_16[3] = true
+		case "PathB_zid04_str":
+			found15zgensym_9db0ba711f6a3e5a_16[4] = true
 			z.PathB, err = dc.ReadString()
 			if err != nil {
 				return
 			}
-		case "Both_zid04_slc":
-			found15zgensym_9db0ba711f6a3e5a_16[4] = true
+		case "HashesB_zid05_ptr":
+			found15zgensym_9db0ba711f6a3e5a_16[5] = true
+			if dc.IsNil() {
+				err = dc.ReadNil()
+				if err != nil {
+					return
+				}
+
+				if z.HashesB != nil {
+					dc.PushAlwaysNil()
+					err = z.HashesB.DecodeMsg(dc)
+					if err != nil {
+						return
+					}
+					dc.PopAlwaysNil()
+				}
+			} else {
+				// not Nil, we have something to read
+
+				if z.HashesB == nil {
+					z.HashesB = new(RsyncHashes)
+				}
+				dc.DedupIndexEachPtr(z.HashesB)
+
+				err = z.HashesB.DecodeMsg(dc)
+				if err != nil {
+					return
+				}
+			}
+		case "Both_zid06_slc":
+			found15zgensym_9db0ba711f6a3e5a_16[6] = true
 			var zgensym_9db0ba711f6a3e5a_17 uint32
 			zgensym_9db0ba711f6a3e5a_17, err = dc.ReadArrayHeader()
 			if err != nil {
@@ -1032,8 +1090,8 @@ doneWithStruct15zgensym_9db0ba711f6a3e5a_16:
 					}
 				}
 			}
-		case "OnlyA_zid05_slc":
-			found15zgensym_9db0ba711f6a3e5a_16[5] = true
+		case "OnlyA_zid07_slc":
+			found15zgensym_9db0ba711f6a3e5a_16[7] = true
 			var zgensym_9db0ba711f6a3e5a_18 uint32
 			zgensym_9db0ba711f6a3e5a_18, err = dc.ReadArrayHeader()
 			if err != nil {
@@ -1073,8 +1131,8 @@ doneWithStruct15zgensym_9db0ba711f6a3e5a_16:
 					}
 				}
 			}
-		case "OnlyB_zid06_slc":
-			found15zgensym_9db0ba711f6a3e5a_16[6] = true
+		case "OnlyB_zid08_slc":
+			found15zgensym_9db0ba711f6a3e5a_16[8] = true
 			var zgensym_9db0ba711f6a3e5a_19 uint32
 			zgensym_9db0ba711f6a3e5a_19, err = dc.ReadArrayHeader()
 			if err != nil {
@@ -1137,16 +1195,16 @@ doneWithStruct15zgensym_9db0ba711f6a3e5a_16:
 }
 
 // fields of RsyncDiffs
-var decodeMsgFieldOrder15zgensym_9db0ba711f6a3e5a_16 = []string{"HostA_zid00_str", "PathA_zid01_str", "HostB_zid02_str", "PathB_zid03_str", "Both_zid04_slc", "OnlyA_zid05_slc", "OnlyB_zid06_slc"}
+var decodeMsgFieldOrder15zgensym_9db0ba711f6a3e5a_16 = []string{"HostA_zid00_str", "PathA_zid01_str", "HashesA_zid02_ptr", "HostB_zid03_str", "PathB_zid04_str", "HashesB_zid05_ptr", "Both_zid06_slc", "OnlyA_zid07_slc", "OnlyB_zid08_slc"}
 
-var decodeMsgFieldSkip15zgensym_9db0ba711f6a3e5a_16 = []bool{false, false, false, false, false, false, false}
+var decodeMsgFieldSkip15zgensym_9db0ba711f6a3e5a_16 = []bool{false, false, false, false, false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *RsyncDiffs) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 7
+		return 9
 	}
-	var fieldsInUse uint32 = 7
+	var fieldsInUse uint32 = 9
 	isempty[0] = (len(z.HostA) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -1155,24 +1213,32 @@ func (z *RsyncDiffs) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[1] {
 		fieldsInUse--
 	}
-	isempty[2] = (len(z.HostB) == 0) // string, omitempty
+	isempty[2] = (z.HashesA == nil) // pointer, omitempty
 	if isempty[2] {
 		fieldsInUse--
 	}
-	isempty[3] = (len(z.PathB) == 0) // string, omitempty
+	isempty[3] = (len(z.HostB) == 0) // string, omitempty
 	if isempty[3] {
 		fieldsInUse--
 	}
-	isempty[4] = (len(z.Both) == 0) // string, omitempty
+	isempty[4] = (len(z.PathB) == 0) // string, omitempty
 	if isempty[4] {
 		fieldsInUse--
 	}
-	isempty[5] = (len(z.OnlyA) == 0) // string, omitempty
+	isempty[5] = (z.HashesB == nil) // pointer, omitempty
 	if isempty[5] {
 		fieldsInUse--
 	}
-	isempty[6] = (len(z.OnlyB) == 0) // string, omitempty
+	isempty[6] = (len(z.Both) == 0) // string, omitempty
 	if isempty[6] {
+		fieldsInUse--
+	}
+	isempty[7] = (len(z.OnlyA) == 0) // string, omitempty
+	if isempty[7] {
+		fieldsInUse--
+	}
+	isempty[8] = (len(z.OnlyB) == 0) // string, omitempty
+	if isempty[8] {
 		fieldsInUse--
 	}
 
@@ -1186,7 +1252,7 @@ func (z *RsyncDiffs) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_9db0ba711f6a3e5a_20 [7]bool
+	var empty_zgensym_9db0ba711f6a3e5a_20 [9]bool
 	fieldsInUse_zgensym_9db0ba711f6a3e5a_21 := z.fieldsNotEmpty(empty_zgensym_9db0ba711f6a3e5a_20[:])
 
 	// map header
@@ -1230,8 +1296,39 @@ func (z *RsyncDiffs) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_9db0ba711f6a3e5a_20[2] {
-		// write "HostB_zid02_str"
-		err = en.Append(0xaf, 0x48, 0x6f, 0x73, 0x74, 0x42, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x73, 0x74, 0x72)
+		// write "HashesA_zid02_ptr"
+		err = en.Append(0xb1, 0x48, 0x61, 0x73, 0x68, 0x65, 0x73, 0x41, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x70, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		// gPtr.encodeGen():
+
+		if z.HashesA == nil {
+			err = en.WriteNil()
+			if err != nil {
+				return
+			}
+		} else {
+			// encodeGen.gBase IDENT
+
+			// record the interface for deduplication
+			var dup bool
+			dup, err = en.DedupWriteIsDup(z.HashesA)
+			if err != nil {
+				return
+			}
+			if !dup {
+				err = z.HashesA.EncodeMsg(en)
+				if err != nil {
+					return
+				}
+			}
+		}
+	}
+
+	if !empty_zgensym_9db0ba711f6a3e5a_20[3] {
+		// write "HostB_zid03_str"
+		err = en.Append(0xaf, 0x48, 0x6f, 0x73, 0x74, 0x42, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
@@ -1241,9 +1338,9 @@ func (z *RsyncDiffs) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_9db0ba711f6a3e5a_20[3] {
-		// write "PathB_zid03_str"
-		err = en.Append(0xaf, 0x50, 0x61, 0x74, 0x68, 0x42, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x73, 0x74, 0x72)
+	if !empty_zgensym_9db0ba711f6a3e5a_20[4] {
+		// write "PathB_zid04_str"
+		err = en.Append(0xaf, 0x50, 0x61, 0x74, 0x68, 0x42, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
@@ -1253,9 +1350,40 @@ func (z *RsyncDiffs) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_9db0ba711f6a3e5a_20[4] {
-		// write "Both_zid04_slc"
-		err = en.Append(0xae, 0x42, 0x6f, 0x74, 0x68, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x73, 0x6c, 0x63)
+	if !empty_zgensym_9db0ba711f6a3e5a_20[5] {
+		// write "HashesB_zid05_ptr"
+		err = en.Append(0xb1, 0x48, 0x61, 0x73, 0x68, 0x65, 0x73, 0x42, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x70, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		// gPtr.encodeGen():
+
+		if z.HashesB == nil {
+			err = en.WriteNil()
+			if err != nil {
+				return
+			}
+		} else {
+			// encodeGen.gBase IDENT
+
+			// record the interface for deduplication
+			var dup bool
+			dup, err = en.DedupWriteIsDup(z.HashesB)
+			if err != nil {
+				return
+			}
+			if !dup {
+				err = z.HashesB.EncodeMsg(en)
+				if err != nil {
+					return
+				}
+			}
+		}
+	}
+
+	if !empty_zgensym_9db0ba711f6a3e5a_20[6] {
+		// write "Both_zid06_slc"
+		err = en.Append(0xae, 0x42, 0x6f, 0x74, 0x68, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x73, 0x6c, 0x63)
 		if err != nil {
 			return err
 		}
@@ -1290,9 +1418,9 @@ func (z *RsyncDiffs) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_9db0ba711f6a3e5a_20[5] {
-		// write "OnlyA_zid05_slc"
-		err = en.Append(0xaf, 0x4f, 0x6e, 0x6c, 0x79, 0x41, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x73, 0x6c, 0x63)
+	if !empty_zgensym_9db0ba711f6a3e5a_20[7] {
+		// write "OnlyA_zid07_slc"
+		err = en.Append(0xaf, 0x4f, 0x6e, 0x6c, 0x79, 0x41, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x73, 0x6c, 0x63)
 		if err != nil {
 			return err
 		}
@@ -1327,9 +1455,9 @@ func (z *RsyncDiffs) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_9db0ba711f6a3e5a_20[6] {
-		// write "OnlyB_zid06_slc"
-		err = en.Append(0xaf, 0x4f, 0x6e, 0x6c, 0x79, 0x42, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x73, 0x6c, 0x63)
+	if !empty_zgensym_9db0ba711f6a3e5a_20[8] {
+		// write "OnlyB_zid08_slc"
+		err = en.Append(0xaf, 0x4f, 0x6e, 0x6c, 0x79, 0x42, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x73, 0x6c, 0x63)
 		if err != nil {
 			return err
 		}
@@ -1376,7 +1504,7 @@ func (z *RsyncDiffs) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [7]bool
+	var empty [9]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -1393,20 +1521,54 @@ func (z *RsyncDiffs) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[2] {
-		// string "HostB_zid02_str"
-		o = append(o, 0xaf, 0x48, 0x6f, 0x73, 0x74, 0x42, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x73, 0x74, 0x72)
-		o = msgp.AppendString(o, z.HostB)
+		// string "HashesA_zid02_ptr"
+		o = append(o, 0xb1, 0x48, 0x61, 0x73, 0x68, 0x65, 0x73, 0x41, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x70, 0x74, 0x72)
+		// marshalGen.gPtr()
+
+		if z.HashesA == nil {
+			o = msgp.AppendNil(o)
+		} else {
+			// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+			o, err = z.HashesA.MarshalMsg(o) // not is.iface, gen/marshal.go:243
+			if err != nil {
+				return
+			}
+		}
 	}
 
 	if !empty[3] {
-		// string "PathB_zid03_str"
-		o = append(o, 0xaf, 0x50, 0x61, 0x74, 0x68, 0x42, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x73, 0x74, 0x72)
-		o = msgp.AppendString(o, z.PathB)
+		// string "HostB_zid03_str"
+		o = append(o, 0xaf, 0x48, 0x6f, 0x73, 0x74, 0x42, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.HostB)
 	}
 
 	if !empty[4] {
-		// string "Both_zid04_slc"
-		o = append(o, 0xae, 0x42, 0x6f, 0x74, 0x68, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x73, 0x6c, 0x63)
+		// string "PathB_zid04_str"
+		o = append(o, 0xaf, 0x50, 0x61, 0x74, 0x68, 0x42, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.PathB)
+	}
+
+	if !empty[5] {
+		// string "HashesB_zid05_ptr"
+		o = append(o, 0xb1, 0x48, 0x61, 0x73, 0x68, 0x65, 0x73, 0x42, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x70, 0x74, 0x72)
+		// marshalGen.gPtr()
+
+		if z.HashesB == nil {
+			o = msgp.AppendNil(o)
+		} else {
+			// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+			o, err = z.HashesB.MarshalMsg(o) // not is.iface, gen/marshal.go:243
+			if err != nil {
+				return
+			}
+		}
+	}
+
+	if !empty[6] {
+		// string "Both_zid06_slc"
+		o = append(o, 0xae, 0x42, 0x6f, 0x74, 0x68, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x73, 0x6c, 0x63)
 		o = msgp.AppendArrayHeader(o, uint32(len(z.Both)))
 		for zgensym_9db0ba711f6a3e5a_12 := range z.Both {
 			// marshalGen.gPtr()
@@ -1424,9 +1586,9 @@ func (z *RsyncDiffs) MarshalMsg(b []byte) (o []byte, err error) {
 		}
 	}
 
-	if !empty[5] {
-		// string "OnlyA_zid05_slc"
-		o = append(o, 0xaf, 0x4f, 0x6e, 0x6c, 0x79, 0x41, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x73, 0x6c, 0x63)
+	if !empty[7] {
+		// string "OnlyA_zid07_slc"
+		o = append(o, 0xaf, 0x4f, 0x6e, 0x6c, 0x79, 0x41, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x73, 0x6c, 0x63)
 		o = msgp.AppendArrayHeader(o, uint32(len(z.OnlyA)))
 		for zgensym_9db0ba711f6a3e5a_13 := range z.OnlyA {
 			// marshalGen.gPtr()
@@ -1444,9 +1606,9 @@ func (z *RsyncDiffs) MarshalMsg(b []byte) (o []byte, err error) {
 		}
 	}
 
-	if !empty[6] {
-		// string "OnlyB_zid06_slc"
-		o = append(o, 0xaf, 0x4f, 0x6e, 0x6c, 0x79, 0x42, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x73, 0x6c, 0x63)
+	if !empty[8] {
+		// string "OnlyB_zid08_slc"
+		o = append(o, 0xaf, 0x4f, 0x6e, 0x6c, 0x79, 0x42, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x73, 0x6c, 0x63)
 		o = msgp.AppendArrayHeader(o, uint32(len(z.OnlyB)))
 		for zgensym_9db0ba711f6a3e5a_14 := range z.OnlyB {
 			// marshalGen.gPtr()
@@ -1482,7 +1644,7 @@ func (z *RsyncDiffs) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o
 
 	var field []byte
 	_ = field
-	const maxFields22zgensym_9db0ba711f6a3e5a_23 = 7
+	const maxFields22zgensym_9db0ba711f6a3e5a_23 = 9
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields22zgensym_9db0ba711f6a3e5a_23 uint32
@@ -1546,22 +1708,82 @@ doneWithStruct22zgensym_9db0ba711f6a3e5a_23:
 			if err != nil {
 				return
 			}
-		case "HostB_zid02_str":
+		case "HashesA_zid02_ptr":
 			found22zgensym_9db0ba711f6a3e5a_23[2] = true
+			// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"z.HashesA", alias:"RsyncHashes", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x16, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
+
+			// unmarshalGen.gPtr(): we have an IDENT:
+
+			if nbs.AlwaysNil {
+				if z.HashesA != nil {
+					z.HashesA.UnmarshalMsg(msgp.OnlyNilSlice)
+				}
+			} else {
+				// not nbs.AlwaysNil
+				if msgp.IsNil(bts) {
+					bts = bts[1:]
+					if nil != z.HashesA {
+						z.HashesA.UnmarshalMsg(msgp.OnlyNilSlice)
+					}
+				} else {
+					// not nbs.AlwaysNil and not IsNil(bts): have something to read
+
+					if z.HashesA == nil {
+						z.HashesA = new(RsyncHashes)
+					}
+
+					bts, err = z.HashesA.UnmarshalMsg(bts)
+					if err != nil {
+						return
+					}
+				}
+			}
+		case "HostB_zid03_str":
+			found22zgensym_9db0ba711f6a3e5a_23[3] = true
 			z.HostB, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "PathB_zid03_str":
-			found22zgensym_9db0ba711f6a3e5a_23[3] = true
+		case "PathB_zid04_str":
+			found22zgensym_9db0ba711f6a3e5a_23[4] = true
 			z.PathB, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "Both_zid04_slc":
-			found22zgensym_9db0ba711f6a3e5a_23[4] = true
+		case "HashesB_zid05_ptr":
+			found22zgensym_9db0ba711f6a3e5a_23[5] = true
+			// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"z.HashesB", alias:"RsyncHashes", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x16, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
+
+			// unmarshalGen.gPtr(): we have an IDENT:
+
+			if nbs.AlwaysNil {
+				if z.HashesB != nil {
+					z.HashesB.UnmarshalMsg(msgp.OnlyNilSlice)
+				}
+			} else {
+				// not nbs.AlwaysNil
+				if msgp.IsNil(bts) {
+					bts = bts[1:]
+					if nil != z.HashesB {
+						z.HashesB.UnmarshalMsg(msgp.OnlyNilSlice)
+					}
+				} else {
+					// not nbs.AlwaysNil and not IsNil(bts): have something to read
+
+					if z.HashesB == nil {
+						z.HashesB = new(RsyncHashes)
+					}
+
+					bts, err = z.HashesB.UnmarshalMsg(bts)
+					if err != nil {
+						return
+					}
+				}
+			}
+		case "Both_zid06_slc":
+			found22zgensym_9db0ba711f6a3e5a_23[6] = true
 			if nbs.AlwaysNil {
 				(z.Both) = (z.Both)[:0]
 			} else {
@@ -1607,8 +1829,8 @@ doneWithStruct22zgensym_9db0ba711f6a3e5a_23:
 					}
 				}
 			}
-		case "OnlyA_zid05_slc":
-			found22zgensym_9db0ba711f6a3e5a_23[5] = true
+		case "OnlyA_zid07_slc":
+			found22zgensym_9db0ba711f6a3e5a_23[7] = true
 			if nbs.AlwaysNil {
 				(z.OnlyA) = (z.OnlyA)[:0]
 			} else {
@@ -1654,8 +1876,8 @@ doneWithStruct22zgensym_9db0ba711f6a3e5a_23:
 					}
 				}
 			}
-		case "OnlyB_zid06_slc":
-			found22zgensym_9db0ba711f6a3e5a_23[6] = true
+		case "OnlyB_zid08_slc":
+			found22zgensym_9db0ba711f6a3e5a_23[8] = true
 			if nbs.AlwaysNil {
 				(z.OnlyB) = (z.OnlyB)[:0]
 			} else {
@@ -1724,13 +1946,25 @@ doneWithStruct22zgensym_9db0ba711f6a3e5a_23:
 }
 
 // fields of RsyncDiffs
-var unmarshalMsgFieldOrder22zgensym_9db0ba711f6a3e5a_23 = []string{"HostA_zid00_str", "PathA_zid01_str", "HostB_zid02_str", "PathB_zid03_str", "Both_zid04_slc", "OnlyA_zid05_slc", "OnlyB_zid06_slc"}
+var unmarshalMsgFieldOrder22zgensym_9db0ba711f6a3e5a_23 = []string{"HostA_zid00_str", "PathA_zid01_str", "HashesA_zid02_ptr", "HostB_zid03_str", "PathB_zid04_str", "HashesB_zid05_ptr", "Both_zid06_slc", "OnlyA_zid07_slc", "OnlyB_zid08_slc"}
 
-var unmarshalMsgFieldSkip22zgensym_9db0ba711f6a3e5a_23 = []bool{false, false, false, false, false, false, false}
+var unmarshalMsgFieldSkip22zgensym_9db0ba711f6a3e5a_23 = []bool{false, false, false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *RsyncDiffs) Msgsize() (s int) {
-	s = 1 + 16 + msgp.StringPrefixSize + len(z.HostA) + 16 + msgp.StringPrefixSize + len(z.PathA) + 16 + msgp.StringPrefixSize + len(z.HostB) + 16 + msgp.StringPrefixSize + len(z.PathB) + 15 + msgp.ArrayHeaderSize
+	s = 1 + 16 + msgp.StringPrefixSize + len(z.HostA) + 16 + msgp.StringPrefixSize + len(z.PathA) + 18
+	if z.HashesA == nil {
+		s += msgp.NilSize
+	} else {
+		s += z.HashesA.Msgsize()
+	}
+	s += 16 + msgp.StringPrefixSize + len(z.HostB) + 16 + msgp.StringPrefixSize + len(z.PathB) + 18
+	if z.HashesB == nil {
+		s += msgp.NilSize
+	} else {
+		s += z.HashesB.Msgsize()
+	}
+	s += 15 + msgp.ArrayHeaderSize
 	for zgensym_9db0ba711f6a3e5a_12 := range z.Both {
 		if z.Both[zgensym_9db0ba711f6a3e5a_12] == nil {
 			s += msgp.NilSize
