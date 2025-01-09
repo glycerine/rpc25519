@@ -225,6 +225,10 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 		// final result: did we get the file uploaded the same?
 		diff := compareFilesDiffLen(path, pathOut)
 		cv.So(diff, cv.ShouldEqual, 0)
+		if diff == 0 {
+			// cleanup
+			os.Remove(pathOut)
+		}
 	})
 }
 
@@ -369,7 +373,10 @@ func Test301_download_streaming_test(t *testing.T) {
 
 		diff := compareFilesDiffLen(path, observedOutfile)
 		cv.So(diff, cv.ShouldEqual, 0)
-
+		if diff == 0 {
+			// cleanup
+			os.Remove(observedOutfile)
+		}
 	})
 }
 
@@ -686,6 +693,9 @@ func Test302_bistreaming_test_simultaneous_upload_and_download(t *testing.T) {
 
 		diff := compareFilesDiffLen(path, observedOutfile)
 		cv.So(diff, cv.ShouldEqual, 0)
-
+		if diff == 0 {
+			// cleanup
+			os.Remove(observedOutfile)
+		}
 	})
 }
