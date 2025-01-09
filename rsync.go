@@ -118,7 +118,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 		// Stadia improved version of FastCDC
 		opts = &ultracdc.CDC_Config{
 			MinSize:    4 * 1024,
-			NormalSize: 60 * 1024,
+			TargetSize: 60 * 1024,
 			MaxSize:    80 * 1024,
 		}
 		cdc = ultracdc.NewFastCDC(opts)
@@ -127,7 +127,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 		//ultracdc
 		opts = &ultracdc.CDC_Config{
 			MinSize:    2 * 1024,
-			NormalSize: 10 * 1024,
+			TargetSize: 10 * 1024,
 			MaxSize:    64 * 1024,
 		}
 		cdc = ultracdc.NewUltraCDC(opts)

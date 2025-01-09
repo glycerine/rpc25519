@@ -32,23 +32,23 @@ func (c *FastCDC) Config() *CDC_Config {
 func Default_FastCDC_Options() *CDC_Config {
 	return &CDC_Config{
 		MinSize:    2 * 1024,
-		NormalSize: 10 * 1024,
+		TargetSize: 10 * 1024,
 		MaxSize:    64 * 1024,
 	}
 }
 
 func (c *FastCDC) Validate(options *CDC_Config) error {
 
-	if options.NormalSize == 0 || options.NormalSize < 64 ||
-		options.NormalSize > 1024*1024*1024 {
-		return ErrNormalSize
+	if options.TargetSize == 0 || options.TargetSize < 64 ||
+		options.TargetSize > 1024*1024*1024 {
+		return ErrTargetSize
 	}
 	if options.MinSize < 64 || options.MinSize > 1024*1024*1024 ||
-		options.MinSize >= options.NormalSize {
+		options.MinSize >= options.TargetSize {
 		return ErrMinSize
 	}
 	if options.MaxSize < 64 || options.MaxSize > 1024*1024*1024 ||
-		options.MaxSize <= options.NormalSize {
+		options.MaxSize <= options.TargetSize {
 		return ErrMaxSize
 	}
 	return nil
@@ -100,7 +100,7 @@ func (c *FastCDC) Algorithm(options *CDC_Config, data []byte, N int) (cutpoint i
 	// in the microsoft paper; giving flatter distribution
 	// when maxSize is smaller.
 
-	normalSize := uint64(options.NormalSize)
+	normalSize := uint64(options.TargetSize)
 
 	thresh := uint64(math.MaxUint64) / (normalSize - minSize + 1)
 

@@ -76,15 +76,15 @@ doneWithStruct0zgensym_459840587cde88d_1:
 			if err != nil {
 				return
 			}
-		case "MaxSize_zid01_int":
+		case "TargetSize_zid01_int":
 			found0zgensym_459840587cde88d_1[1] = true
-			z.MaxSize, err = dc.ReadInt()
+			z.TargetSize, err = dc.ReadInt()
 			if err != nil {
 				return
 			}
-		case "NormalSize_zid02_int":
+		case "MaxSize_zid02_int":
 			found0zgensym_459840587cde88d_1[2] = true
-			z.NormalSize, err = dc.ReadInt()
+			z.MaxSize, err = dc.ReadInt()
 			if err != nil {
 				return
 			}
@@ -111,7 +111,7 @@ doneWithStruct0zgensym_459840587cde88d_1:
 }
 
 // fields of CDC_Config
-var decodeMsgFieldOrder0zgensym_459840587cde88d_1 = []string{"MinSize_zid00_int", "MaxSize_zid01_int", "NormalSize_zid02_int"}
+var decodeMsgFieldOrder0zgensym_459840587cde88d_1 = []string{"MinSize_zid00_int", "TargetSize_zid01_int", "MaxSize_zid02_int"}
 
 var decodeMsgFieldSkip0zgensym_459840587cde88d_1 = []bool{false, false, false}
 
@@ -125,11 +125,11 @@ func (z CDC_Config) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[0] {
 		fieldsInUse--
 	}
-	isempty[1] = (z.MaxSize == 0) // number, omitempty
+	isempty[1] = (z.TargetSize == 0) // number, omitempty
 	if isempty[1] {
 		fieldsInUse--
 	}
-	isempty[2] = (z.NormalSize == 0) // number, omitempty
+	isempty[2] = (z.MaxSize == 0) // number, omitempty
 	if isempty[2] {
 		fieldsInUse--
 	}
@@ -176,24 +176,24 @@ func (z CDC_Config) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_459840587cde88d_2[1] {
-		// write "MaxSize_zid01_int"
-		err = en.Append(0xb1, 0x4d, 0x61, 0x78, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x69, 0x6e, 0x74)
+		// write "TargetSize_zid01_int"
+		err = en.Append(0xb4, 0x54, 0x61, 0x72, 0x67, 0x65, 0x74, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x69, 0x6e, 0x74)
 		if err != nil {
 			return err
 		}
-		err = en.WriteInt(z.MaxSize)
+		err = en.WriteInt(z.TargetSize)
 		if err != nil {
 			return
 		}
 	}
 
 	if !empty_zgensym_459840587cde88d_2[2] {
-		// write "NormalSize_zid02_int"
-		err = en.Append(0xb4, 0x4e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x6e, 0x74)
+		// write "MaxSize_zid02_int"
+		err = en.Append(0xb1, 0x4d, 0x61, 0x78, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x6e, 0x74)
 		if err != nil {
 			return err
 		}
-		err = en.WriteInt(z.NormalSize)
+		err = en.WriteInt(z.MaxSize)
 		if err != nil {
 			return
 		}
@@ -222,15 +222,15 @@ func (z CDC_Config) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[1] {
-		// string "MaxSize_zid01_int"
-		o = append(o, 0xb1, 0x4d, 0x61, 0x78, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x69, 0x6e, 0x74)
-		o = msgp.AppendInt(o, z.MaxSize)
+		// string "TargetSize_zid01_int"
+		o = append(o, 0xb4, 0x54, 0x61, 0x72, 0x67, 0x65, 0x74, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x69, 0x6e, 0x74)
+		o = msgp.AppendInt(o, z.TargetSize)
 	}
 
 	if !empty[2] {
-		// string "NormalSize_zid02_int"
-		o = append(o, 0xb4, 0x4e, 0x6f, 0x72, 0x6d, 0x61, 0x6c, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x6e, 0x74)
-		o = msgp.AppendInt(o, z.NormalSize)
+		// string "MaxSize_zid02_int"
+		o = append(o, 0xb1, 0x4d, 0x61, 0x78, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x6e, 0x74)
+		o = msgp.AppendInt(o, z.MaxSize)
 	}
 
 	return
@@ -308,16 +308,16 @@ doneWithStruct4zgensym_459840587cde88d_5:
 			if err != nil {
 				return
 			}
-		case "MaxSize_zid01_int":
+		case "TargetSize_zid01_int":
 			found4zgensym_459840587cde88d_5[1] = true
-			z.MaxSize, bts, err = nbs.ReadIntBytes(bts)
+			z.TargetSize, bts, err = nbs.ReadIntBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "NormalSize_zid02_int":
+		case "MaxSize_zid02_int":
 			found4zgensym_459840587cde88d_5[2] = true
-			z.NormalSize, bts, err = nbs.ReadIntBytes(bts)
+			z.MaxSize, bts, err = nbs.ReadIntBytes(bts)
 
 			if err != nil {
 				return
@@ -345,12 +345,12 @@ doneWithStruct4zgensym_459840587cde88d_5:
 }
 
 // fields of CDC_Config
-var unmarshalMsgFieldOrder4zgensym_459840587cde88d_5 = []string{"MinSize_zid00_int", "MaxSize_zid01_int", "NormalSize_zid02_int"}
+var unmarshalMsgFieldOrder4zgensym_459840587cde88d_5 = []string{"MinSize_zid00_int", "TargetSize_zid01_int", "MaxSize_zid02_int"}
 
 var unmarshalMsgFieldSkip4zgensym_459840587cde88d_5 = []bool{false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z CDC_Config) Msgsize() (s int) {
-	s = 1 + 18 + msgp.IntSize + 18 + msgp.IntSize + 21 + msgp.IntSize
+	s = 1 + 18 + msgp.IntSize + 21 + msgp.IntSize + 18 + msgp.IntSize
 	return
 }

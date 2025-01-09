@@ -66,7 +66,7 @@ func Test_Prepend_two_bytes(t *testing.T) {
 	opt := Default_UltraCDC_Options()
 	opt.MinSize = 1
 	opt.MaxSize = 8000
-	opt.NormalSize = 24
+	opt.TargetSize = 24
 	u := NewUltraCDC(opt)
 	cuts, hashmap := getCuts("orig", data, u, opt)
 
@@ -109,7 +109,7 @@ func Test_Middle_inject_two_bytes(t *testing.T) {
 		// use unchanged defaults now
 		//		opt.MinSize = 1
 		//		opt.MaxSize = 8000
-		//		opt.NormalSize = 24
+		//		opt.TargetSize = 24
 		opt := Default_UltraCDC_Options()
 		u := NewUltraCDC(opt)
 		cuts, hashmap := getCuts("orig", data, u, opt)
@@ -168,7 +168,7 @@ func Test_Splits_Not_Changed(t *testing.T) {
 	// and it should be like 64; but this simplifies debugging edge cases.
 	opt.MinSize = 1
 	opt.MaxSize = 8000
-	opt.NormalSize = 24
+	opt.TargetSize = 24
 	u := NewUltraCDC(opt)
 
 	const regenerate = false

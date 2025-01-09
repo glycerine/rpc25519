@@ -38,14 +38,14 @@ type Cutpointer interface {
 
 var _ = fmt.Printf
 
-var ErrNormalSize = errors.New("NormalSize is required and must be 64B <= NormalSize <= 1GB")
-var ErrMinSize = errors.New("MinSize is required and must be 64B <= MinSize <= 1GB && MinSize < NormalSize")
-var ErrMaxSize = errors.New("MaxSize is required and must be 64B <= MaxSize <= 1GB && MaxSize > NormalSize")
+var ErrTargetSize = errors.New("TargetSize is required and must be 64B <= TargetSize <= 1GB")
+var ErrMinSize = errors.New("MinSize is required and must be 64B <= MinSize <= 1GB && MinSize < TargetSize")
+var ErrMaxSize = errors.New("MaxSize is required and must be 64B <= MaxSize <= 1GB && MaxSize > TargetSize")
 
 type CDC_Config struct {
 	MinSize    int `zid:"0"`
-	MaxSize    int `zid:"1"`
-	NormalSize int `zid:"2"`
+	TargetSize int `zid:"1"`
+	MaxSize    int `zid:"2"`
 }
 
 //msgp:ignore UltraCDC
@@ -74,7 +74,7 @@ func (c *UltraCDC) Name() string {
 func Default_UltraCDC_Options() *CDC_Config {
 	return &CDC_Config{
 		MinSize:    2 * 1024,
-		NormalSize: 10 * 1024,
+		TargetSize: 10 * 1024,
 		MaxSize:    64 * 1024,
 	}
 }
@@ -85,16 +85,16 @@ func (c *UltraCDC) Config() *CDC_Config {
 
 func (c *UltraCDC) Validate(options *CDC_Config) error {
 
-	if options.NormalSize == 0 || options.NormalSize < 64 ||
-		options.NormalSize > 1024*1024*1024 {
-		return ErrNormalSize
+	if options.TargetSize == 0 || options.TargetSize < 64 ||
+		options.TargetSize > 1024*1024*1024 {
+		return ErrTargetSize
 	}
 	if options.MinSize < 64 || options.MinSize > 1024*1024*1024 ||
-		options.MinSize >= options.NormalSize {
+		options.MinSize >= options.TargetSize {
 		return ErrMinSize
 	}
 	if options.MaxSize < 64 || options.MaxSize > 1024*1024*1024 ||
-		options.MaxSize <= options.NormalSize {
+		options.MaxSize <= options.TargetSize {
 		return ErrMaxSize
 	}
 	return nil
@@ -132,7 +132,7 @@ func (c *UltraCDC) Algorithm(options *CDC_Config, data []byte, n int) (cutpoint 
 	)
 	minSize := options.MinSize
 	maxSize := options.MaxSize
-	normalSize := options.NormalSize
+	normalSize := options.TargetSize
 
 	var lowEntropyCount int
 
@@ -172,7 +172,7 @@ func (c *UltraCDC) Algorithm(options *CDC_Config, data []byte, n int) (cutpoint 
 			// than duplicating all the logic below for the two different
 			// masks and then having to be sure to keep
 			// the duplicates in sync. We saw multiple bugs in the past from
-			// MinSize and NormalSize not being 8 byte aligned,
+			// MinSize and TargetSize not being 8 byte aligned,
 			// and we'd also rather not impose that on users.
 			// The POST invariance analysis is also much simplified.
 			// The CPU has to do less branch prediction this way,
@@ -257,7 +257,7 @@ func (c *UltraCDC) Cutpoints(data []byte, maxPoints int) (cuts []int) {
 	)
 	minSize := c.Opts.MinSize
 	maxSize := c.Opts.MaxSize
-	normalSize := c.Opts.NormalSize
+	normalSize := c.Opts.TargetSize
 
 	if minSize <= 0 {
 		panic("MinSize must be positive")
@@ -331,7 +331,7 @@ begin:
 				// than duplicating all the logic below for the two different
 				// masks and then having to be sure to keep
 				// the duplicates in sync. We saw multiple bugs in the past from
-				// MinSize and NormalSize not being 8 byte aligned,
+				// MinSize and TargetSize not being 8 byte aligned,
 				// and we'd also rather not impose that on users.
 				// The POST invariance analysis is also much simplified.
 				// The CPU has to do less branch prediction this way,
