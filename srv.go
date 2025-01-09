@@ -655,9 +655,14 @@ func (s *Server) processWork(job *job) {
 	s.mut.Lock()
 	switch req.HDR.Typ {
 	case CallRPC:
-		if s.callme2 != nil {
-			callme2 = s.callme2
+		back, ok := s.callme2map[req.HDR.ServiceName]
+		if ok {
+			callme2 = back
 			foundCallback2 = true
+		} else {
+			s.mut.Unlock()
+			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallRPC begin received but no server side upcall registered for req.HDR.ServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ServiceName, req.HDR.CallID))
+			return
 		}
 	case CallRequestBistreaming:
 		back, ok := s.callmeBistreamMap[req.HDR.ServiceName]
@@ -665,16 +670,20 @@ func (s *Server) processWork(job *job) {
 			callmeBi = back
 			foundBistream = true
 			//vv("foundBistream true!")
+		} else {
+			s.mut.Unlock()
+			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallRequestBistreaming received but no server side upcall registered for req.HDR.ServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ServiceName, req.HDR.CallID))
+			return
 		}
 	case CallRequestDownload:
 		back, ok := s.callmeServerSendsDownloadMap[req.HDR.ServiceName]
 		if ok {
 			callmeServerSendsDownloadFunc = back
 			foundServerSendsDownload = true
-		}
-		if !ok {
-			// TODO: log this rather than panic. maybe respond to client?
-			panic(fmt.Sprintf("client asked for ServerSendsDownloadFunc req.HDR.ServiceName='%v' but this is not registered!", req.HDR.ServiceName))
+		} else {
+			s.mut.Unlock()
+			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallRequestDownload received but no server side upcall registered for req.HDR.ServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ServiceName, req.HDR.CallID))
+			return
 		}
 	case CallUploadBegin:
 		uploader, ok := s.callmeUploadReaderMap[req.HDR.ServiceName]
@@ -759,6 +768,7 @@ func (s *Server) processWork(job *job) {
 	switch {
 	case foundCallback2:
 		err = callme2(req, reply)
+		//err = callme2(ctx, req, reply) // TODO: add ctx
 	case foundServerSendsDownload:
 		help := s.newServerSendDownloadHelper(ctx, job)
 		err = callmeServerSendsDownloadFunc(s, ctx, req, help.sendDownloadPart, reply)
@@ -827,8 +837,8 @@ type Server struct {
 	name  string // which server, for debugging.
 	creds *selfcert.Creds
 
-	callme2 TwoWayFunc
-	callme1 OneWayFunc
+	callme2map map[string]TwoWayFunc
+	callme1    OneWayFunc
 
 	// client -> server streams
 	callmeUploadReaderMap map[string]UploadReaderFunc
@@ -1569,6 +1579,7 @@ func NewServer(name string, config *Config) *Server {
 		halt:              idem.NewHalter(),
 		RemoteConnectedCh: make(chan *ServerClient, 20),
 
+		callme2map:                   make(map[string]TwoWayFunc),
 		callmeServerSendsDownloadMap: make(map[string]ServerSendsDownloadFunc),
 		callmeUploadReaderMap:        make(map[string]UploadReaderFunc),
 		callmeBistreamMap:            make(map[string]BistreamFunc),
@@ -1590,10 +1601,10 @@ func (s *Server) RegisterBistreamFunc(name string, callme BistreamFunc) {
 // Register2Func tells the server about a func or method
 // that will have a returned Message value. See the
 // [TwoWayFunc] definition.
-func (s *Server) Register2Func(callme2 TwoWayFunc) {
+func (s *Server) Register2Func(serviceName string, callme2 TwoWayFunc) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	s.callme2 = callme2
+	s.callme2map[serviceName] = callme2
 }
 
 // Register1Func tells the server about a func or method

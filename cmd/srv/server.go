@@ -115,7 +115,8 @@ func main() {
 		// use the example.go example.
 		srv.RegisterUploadReaderFunc("__fileUploader", streamer.ReceiveFileInParts)
 	} else {
-		srv.Register2Func(customEcho)
+		serviceName := "customEcho"
+		srv.Register2Func(serviceName, customEcho)
 	}
 
 	serverAddr, err := srv.Start()

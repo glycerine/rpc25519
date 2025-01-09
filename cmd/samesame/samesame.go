@@ -49,7 +49,8 @@ func main() {
 	srv := rpc25519.NewServer(cfg.ServerKeyPairName, cfg)
 	defer srv.Close()
 
-	srv.Register2Func(customEcho)
+	serviceName := "customEcho"
+	srv.Register2Func(serviceName, customEcho)
 
 	serverAddr, err := srv.Start()
 	if err != nil {
@@ -70,6 +71,7 @@ func main() {
 		//defer cli.Close()
 
 		req := rpc25519.NewMessage()
+		req.HDR.ServiceName = serviceName
 		req.JobSerz = []byte("client says hello and requests this be echoed back with a timestamp!")
 
 		reply, err := cli.SendAndGetReply(req, nil)

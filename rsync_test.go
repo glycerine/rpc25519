@@ -59,3 +59,57 @@ func Test201_rsync_style_hash_generation(t *testing.T) {
 		//cv.So(diffs3.OnlyB[0].ChunkNumber, cv.ShouldEqual, 15)
 	})
 }
+
+func Test210_client_sends_file_over_rsync(t *testing.T) {
+
+	return
+	cv.Convey("using our rsync-like-protocol, the client should be able to send a file to the server and only end up sending the small parts that have changed.", t, func() {
+
+		// set up a server and a client.
+
+		cfg := NewConfig()
+		cfg.TCPonly_no_TLS = false
+
+		cfg.ServerAddr = "127.0.0.1:0"
+		srv := NewServer("srv_rsync_test210", cfg)
+
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
+
+		vv("server Start() returned serverAddr = '%v'", serverAddr)
+
+		srv.RegisterBistreamFunc("RsyncServerSide", srv.RsyncServerSide)
+
+		cfg.ClientDialToHostPort = serverAddr.String()
+		cli, err := NewClient("cli_rsync_test210", cfg)
+		panicOn(err)
+		err = cli.Start()
+		panicOn(err)
+
+		defer cli.Close()
+
+		req := NewMessage()
+		req.JobSerz = []byte("Hello from client!")
+
+		reply, err := cli.SendAndGetReply(req, nil)
+		panicOn(err)
+
+		vv("srv_test sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
+
+		/*
+			srv.Register1Func(oneWayStreet)
+			req = NewMessage()
+			req.JobSerz = []byte("One-way Hello from client!")
+
+			err = cli.OneWaySend(req, nil)
+			panicOn(err)
+			<-oneWayStreetChan
+			cv.So(true, cv.ShouldEqual, true)
+			vv("yay. we confirmed that oneWayStreen func has run")
+			// sleep a little to avoid shutting down before server can decide
+			// not to process/return a reply.
+			time.Sleep(time.Millisecond * 50)
+		*/
+	})
+}

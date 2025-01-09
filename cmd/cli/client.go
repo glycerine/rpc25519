@@ -546,6 +546,7 @@ func main() {
 
 	req := rpc25519.NewMessage()
 	req.JobSerz = []byte("client says hello and requests this be echoed back with a timestamp!")
+	req.HDR.ServiceName = "customEcho"
 
 	for i = 0; i < *n; i++ {
 		//reply, err = cli.SendAndGetReply(req, nil)

@@ -29,7 +29,8 @@ func Test001_RoundTrip_SendAndGetReply_TCP(t *testing.T) {
 
 		vv("server Start() returned serverAddr = '%v'", serverAddr)
 
-		srv.Register2Func(customEcho)
+		serviceName := "customEcho"
+		srv.Register2Func(serviceName, customEcho)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test001", cfg)
@@ -40,6 +41,7 @@ func Test001_RoundTrip_SendAndGetReply_TCP(t *testing.T) {
 		defer cli.Close()
 
 		req := NewMessage()
+		req.HDR.ServiceName = serviceName
 		req.JobSerz = []byte("Hello from client!")
 
 		reply, err := cli.SendAndGetReply(req, nil)
@@ -71,7 +73,8 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 		// requesting an action, initiating a command.
 		// The even numbered commands are the replies to those odds.
 		// Think of "start counting at 1".
-		srv.Register2Func(customEcho)
+		serviceName := "customEcho"
+		srv.Register2Func(serviceName, customEcho)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test002", cfg)
@@ -82,6 +85,7 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 		defer cli.Close()
 
 		req := NewMessage()
+		req.HDR.ServiceName = serviceName
 		req.JobSerz = []byte("Hello from client!")
 
 		reply, err := cli.SendAndGetReply(req, nil)
@@ -137,7 +141,8 @@ func Test003_client_notification_callbacks(t *testing.T) {
 
 		vv("server Start() returned serverAddr = '%v'", serverAddr)
 
-		srv.Register2Func(customEcho)
+		serviceName := "customEcho"
+		srv.Register2Func(serviceName, customEcho)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test003", cfg)
@@ -148,6 +153,7 @@ func Test003_client_notification_callbacks(t *testing.T) {
 		defer cli.Close()
 
 		req := NewMessage()
+		req.HDR.ServiceName = serviceName
 		req.JobSerz = []byte("Hello from client!")
 
 		incoming := cli.GetReadIncomingCh()
@@ -280,7 +286,8 @@ func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 		// requesting an action, initiating a command.
 		// The even numbered commands are the replies to those odds.
 		// Think of "start counting at 1".
-		srv.Register2Func(customEcho)
+		serviceName := "customEcho"
+		srv.Register2Func(serviceName, customEcho)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test002", cfg)
@@ -291,6 +298,7 @@ func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 		defer cli.Close()
 
 		req := NewMessage()
+		req.HDR.ServiceName = serviceName
 		req.JobSerz = []byte("Hello from client!")
 
 		reply, err := cli.SendAndGetReply(req, nil)
@@ -353,7 +361,8 @@ func Test011_PreSharedKey_over_TCP(t *testing.T) {
 
 		vv("server Start() returned serverAddr = '%v'", serverAddr)
 
-		srv.Register2Func(customEcho)
+		serviceName := "customEcho"
+		srv.Register2Func(serviceName, customEcho)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test011", cfg)
@@ -364,6 +373,7 @@ func Test011_PreSharedKey_over_TCP(t *testing.T) {
 		defer cli.Close()
 
 		req := NewMessage()
+		req.HDR.ServiceName = serviceName
 		req.JobSerz = []byte("Hello from client!")
 
 		reply, err := cli.SendAndGetReply(req, nil)
@@ -402,7 +412,8 @@ func Test012_PreSharedKey_must_agree(t *testing.T) {
 
 		vv("server Start() returned serverAddr = '%v'", serverAddr)
 
-		srv.Register2Func(customEcho)
+		serviceName := "customEcho"
+		srv.Register2Func(serviceName, customEcho)
 
 		ccfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test011", ccfg)
@@ -413,6 +424,7 @@ func Test012_PreSharedKey_must_agree(t *testing.T) {
 		defer cli.Close()
 
 		req := NewMessage()
+		req.HDR.ServiceName = serviceName
 		req.JobSerz = []byte("Hello from client!")
 
 		reply, err := cli.SendAndGetReply(req, nil)
@@ -727,7 +739,8 @@ func Test016_WithPreSharedKey_inner_handshake_must_be_properly_signed(t *testing
 
 			vv("server Start() returned serverAddr = '%v'", serverAddr)
 
-			srv.Register2Func(customEcho)
+			serviceName := "customEcho"
+			srv.Register2Func(serviceName, customEcho)
 
 			ccfg.ClientDialToHostPort = serverAddr.String()
 			cli, err := NewClient("test016", ccfg)
@@ -742,6 +755,7 @@ func Test016_WithPreSharedKey_inner_handshake_must_be_properly_signed(t *testing
 			// applied. We must create a new quic stream to test the inside crypto.
 
 			req := NewMessage()
+			req.HDR.ServiceName = serviceName
 			req.JobSerz = []byte("Hello from client!")
 
 			reply, err := cli.SendAndGetReply(req, nil)
@@ -774,7 +788,8 @@ func Test030_RoundTrip_SendAndGetReply_then_JSON(t *testing.T) {
 
 		vv("server Start() returned serverAddr = '%v'", serverAddr)
 
-		srv.Register2Func(customEcho)
+		serviceName := "customEcho"
+		srv.Register2Func(serviceName, customEcho)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		cli, err := NewClient("test001", cfg)
@@ -785,6 +800,7 @@ func Test030_RoundTrip_SendAndGetReply_then_JSON(t *testing.T) {
 		defer cli.Close()
 
 		req := NewMessage()
+		req.HDR.ServiceName = serviceName
 		req.JobSerz = []byte("Hello from client!")
 
 		reply, err := cli.SendAndGetReply(req, nil)

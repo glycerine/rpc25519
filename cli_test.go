@@ -839,6 +839,7 @@ func BenchmarkHelloRpcxMessage(b *testing.B) {
 	}
 }
 
+// this also has 041 in it.
 func Test040_remote_cancel_by_context(t *testing.T) {
 
 	cv.Convey("remote cancellation", t, func() {
@@ -860,7 +861,8 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 		srv.Register(mustCancelMe)
 
 		// and register early for 041 below
-		srv.Register2Func(mustCancelMe.MessageAPI_HangUntilCancel)
+		serviceName041 := "test041_hang_until_cancel"
+		srv.Register2Func(serviceName041, mustCancelMe.MessageAPI_HangUntilCancel)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		client, err := NewClient("test040", cfg)
@@ -903,13 +905,14 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 		<-test040callFinished
 		//vv("server side saw the cancellation request: confirmed.")
 
-		// use Message []byte oriented API
+		// use Message []byte oriented API: test 041
 
 		var cliErr41 error
 		cliErrIsSet41 := make(chan bool)
 		ctx41, cancelFunc41 := context.WithCancel(context.Background())
 		req := NewMessage()
 		req.HDR.Typ = CallRPC
+		req.HDR.ServiceName = serviceName041
 		var reply41 *Message
 
 		go func() {

@@ -2,6 +2,7 @@ package rpc25519
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -353,4 +354,23 @@ func (a *RsyncHashes) Diff(b *RsyncHashes) (d *RsyncDiff) {
 		}
 	}
 	return
+}
+
+// RsyncServerSide implements the server side
+// of our rsync-like protocol. It is a BistreamFunc.
+func (s *Server) RsyncServerSide(
+	srv *Server,
+	ctx context.Context,
+	req *Message,
+	uploadsFromClientCh <-chan *Message,
+	sendDownloadPartToClient func(ctx context.Context, msg *Message, last bool) error,
+	lastReply *Message,
+) (err error) {
+
+	panic("RsyncServerSide called!")
+	return
+}
+
+func (cli *Client) RsyncClientSide() {
+
 }
