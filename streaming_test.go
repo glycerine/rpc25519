@@ -7,7 +7,7 @@ import (
 	//"net/http"
 	"os"
 	filepath "path/filepath"
-	//"strconv"
+	"strconv"
 	//"strings"
 	//"sync"
 	"testing"
@@ -59,8 +59,7 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 		path := "testdata/blob977k"
 		pathOut := "blob977k.servergot"
 		os.Remove(pathOut)
-		defer func() {
-		}()
+
 		if !fileExists(path) {
 			panic(fmt.Sprintf("drat! cli -sendfile path '%v' not found", path))
 		}
@@ -89,7 +88,8 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 		//maxMessage := 1024 * 1024
 		//maxMessage := UserMaxPayload
 
-		// chunk smaller than we might, so our testdata/blob can be small,
+		// chunk smaller than we would for production,
+		// so our testdata/blob can be small,
 		// while we still test multiple chunk streaming.
 		maxMessage := 1024
 		buf := make([]byte, maxMessage)
@@ -120,7 +120,8 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 
 			if err := checkForErrors(); err != nil {
 				alwaysPrintf("error: '%v'", err.String())
-				return
+				panic(err)
+				break upload
 			}
 
 			nr, err1 := r.Read(buf)
@@ -142,7 +143,6 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 
 				panicOn(err)
 				if err1 == io.EOF {
-					//uploadDone.Close()
 					break upload
 				}
 				panicOn(err1)
@@ -164,7 +164,7 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 					alwaysPrintf("err2: '%v'", err2msg.String())
 				}
 				panicOn(err)
-				return
+				break upload
 			}
 
 			if time.Since(lastUpdate) > time.Second {
@@ -173,7 +173,6 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 			}
 
 			if err1 == io.EOF {
-				//uploadDone.Close()
 				break upload
 			}
 			panicOn(err1)
@@ -200,7 +199,7 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 		select {
 		case errMsg := <-strm.ErrorCh:
 			alwaysPrintf("errMsg: '%v'", errMsg.String())
-			return
+			panic(errMsg)
 		case reply := <-strm.ReadCh:
 			if false {
 				report := string(reply.JobSerz)
@@ -228,9 +227,148 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 	})
 }
 
-func Test301_streaming_test_of_download(t *testing.T) {
+func Test301_download_streaming_test(t *testing.T) {
 
-	cv.Convey("before we add compression, we want to take the cli -sendfile, cli -echofile, and cli -download commands and turn them into test(s) that verify quickly that they are all still working. The srv -readfile, srv -echo, and srv -serve are the corresponding server side operations. Test301 is for download of a file (multiple parts)", t, func() {
+	cv.Convey("before we add compression, test cli -download vs srv -serve are the corresponding server side operations. Test301 is for download of a file (multiple parts)", t, func() {
+
+		// set up server and client.
+
+		// start with server
+		cfg := NewConfig()
+		cfg.ServerAddr = "127.0.0.1:0"
+
+		srv := NewServer("srv_test301", cfg)
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
+
+		// serve downloads
+		downloaderName := "__downloaderName" // must match client.go:163
+		ssss := NewServerSendsDownloadState()
+		srv.RegisterServerSendsDownloadFunc(downloaderName, ssss.ServerSendsDownload)
+
+		// client
+
+		cfg.ClientDialToHostPort = serverAddr.String()
+		cli, err := NewClient("cli_test301", cfg)
+		panicOn(err)
+		err = cli.Start()
+		panicOn(err)
+
+		defer cli.Close()
+
+		// end standard setup of server and client.
+
+		// download a blob from testdata/ directory.
+
+		path := "testdata/blob977k"
+
+		downloadFile := path + ".downloaded"
+
+		observedOutfile := path + ".downloaded.download_client_got"
+		os.Remove(downloadFile)
+		os.Remove(observedOutfile)
+
+		t0 := time.Now()
+
+		var meterDown *progress.TransferStats
+
+		ctx := context.Background()
+		downloader, err := cli.NewDownloader(ctx, downloaderName)
+		panicOn(err)
+		defer downloader.Close()
+
+		s := NewPerCallID_FileToDiskState(downloader.CallID())
+		s.OverrideFilename = downloadFile
+		//vv("downloader.CallID() = '%v'", downloader.CallID())
+
+		meterDownQuiet := false
+		lastUpdate := time.Now()
+		netread := 0 // net count of bytes read off the network.
+
+		err = downloader.BeginDownload(ctx, path)
+		panicOn(err)
+		maxPayloadSeen := 0
+
+	partsloop:
+		for part := int64(0); true; part++ {
+			select {
+			case <-ctx.Done():
+				vv("download aborting: context cancelled")
+				break partsloop
+
+			case req := <-downloader.ReadDownloadsCh:
+				//vv("cli downloader downloadsCh sees %v", req.String())
+				sz0 := len(req.JobSerz)
+				netread += sz0
+				if sz0 > maxPayloadSeen {
+					maxPayloadSeen = sz0
+				}
+
+				if req.HDR.Typ == CallRPCReply {
+					vv("cli downloader downloadsCh sees CallRPCReply, exiting")
+					break partsloop
+				}
+
+				if req.HDR.StreamPart != part {
+					panic(fmt.Sprintf("%v = req.HDR.StreamPart != part = %v",
+						req.HDR.StreamPart, part))
+				}
+				if part == 0 {
+					sz, ok := req.HDR.Args["pathsize"]
+					if !ok {
+						panic("server did not send of the pathsize in the first part!")
+					}
+					szi, err := strconv.Atoi(sz)
+					pathsize := int64(szi)
+					panicOn(err)
+
+					vv("got 1st download part: %v bytes after %v; can meter total %v bytes:", sz0, time.Since(t0), formatUnder(int(pathsize)))
+
+					meterDown = progress.NewTransferStats(
+						pathsize, "[dn]"+filepath.Base(path))
+				}
+
+				if time.Since(lastUpdate) > time.Second {
+					meterDown.DoProgressWithSpeed(int64(netread), meterDownQuiet, req.HDR.StreamPart)
+					lastUpdate = time.Now()
+				}
+
+				last := (req.HDR.Typ == CallDownloadEnd)
+
+				// this writes our req.JobSerz to disk.
+				err = s.WriteOneMsgToFile(req, "download_client_got", last)
+
+				if err != nil {
+					panic(err)
+					break partsloop
+				}
+				if last {
+					if int(s.BytesWrit) != netread {
+						panic(fmt.Sprintf("%v = s.BytesWrit != netread = %v", s.BytesWrit, netread))
+					}
+					//totSum := "blake3-" + cristalbase64.URLEncoding.EncodeToString(s.Blake3hash.Sum(nil))
+					////vv("ReceiveFileInParts sees last set!")
+					//vv("bytesWrit=%v; \nserver totSum='%v'", s.BytesWrit, totSum)
+
+					elap := time.Since(s.T0)
+					mb := float64(s.BytesWrit) / float64(1<<20)
+					seconds := (float64(elap) / float64(time.Second))
+					rate := mb / seconds
+					_ = rate
+
+					fmt.Println()
+					fmt.Printf("total time for download: '%v'\n", time.Since(s.T0))
+					fmt.Printf("file size: %v bytes.\n", formatUnder(int(s.BytesWrit)))
+					fmt.Printf("rate:  %0.6f MB/sec. Used %v parts of max size %v bytes\n", rate, part+1, maxPayloadSeen)
+
+				} // end if last
+			} //end select
+		} // end for part loop
+
+		diff := compareFilesDiffLen(path, observedOutfile)
+		cv.So(diff, cv.ShouldEqual, 0)
+
 	})
 }
 
