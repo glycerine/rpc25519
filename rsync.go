@@ -19,6 +19,11 @@ import (
 //
 // 0) sender sends path, length, mod time of file.
 // Sender sends RsyncStep0SenderOverview to reader.
+// This starts the first of two RPCs from sender
+// to reader. But can we have an RPC from a
+// server to a client? We will need to add
+// that, to have func registered on the client
+// and available to respond.
 type RsyncStep0SenderOverview struct {
 	SenderHost     string    `zid:"0"`
 	SenderPath     string    `zid:"1"`
