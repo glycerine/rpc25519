@@ -408,13 +408,9 @@ func Test302_bistreaming_test_simultaneous_upload_and_download(t *testing.T) {
 
 		// download a blob from testdata/ directory.
 
-		path := "testdata/blob977k"
-
-		sendfile := "testdata/blob3m"
-		echoFile := path + ".echoed"
-
+		//path := "testdata/blob977k"
+		path := "testdata/blob3m"
 		observedOutfile := path + ".echoed.echoclientgot"
-		os.Remove(echoFile)
 		os.Remove(observedOutfile)
 
 		t0 := time.Now()
@@ -511,7 +507,6 @@ func Test302_bistreaming_test_simultaneous_upload_and_download(t *testing.T) {
 		// sendfile part: upload simultaneously
 		//if sendfile != "" {
 
-		path = sendfile
 		if !fileExists(path) {
 			panic(fmt.Sprintf("drat! cli -sendfile path '%v' not found", path))
 		}
