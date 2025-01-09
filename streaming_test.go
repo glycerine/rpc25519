@@ -60,8 +60,6 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 		pathOut := "blob977k.servergot"
 		os.Remove(pathOut)
 		defer func() {
-			diff := compareFilesDiffLen(path, pathOut)
-			cv.So(diff, cv.ShouldEqual, 0)
 		}()
 		if !fileExists(path) {
 			panic(fmt.Sprintf("drat! cli -sendfile path '%v' not found", path))
@@ -88,9 +86,12 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 		blake3hash := myblake3.NewBlake3()
 
 		// much smoother progress display waiting for 1MB rather than 64MB
-		maxMessage := 1024 * 1024
+		//maxMessage := 1024 * 1024
 		//maxMessage := UserMaxPayload
-		//maxMessage := 1024
+
+		// chunk smaller than we might, so our testdata/blob can be small,
+		// while we still test multiple chunk streaming.
+		maxMessage := 1024
 		buf := make([]byte, maxMessage)
 		var tot int
 
@@ -211,7 +212,7 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 			serverTotSum := reply.HDR.Args["serverTotalBlake3sum"]
 
 			if clientTotSum == serverTotSum {
-				//vv("GOOD! server and client blake3 checksums are the same!\n serverTotSum='%v'\n clientTotsum='%v'", serverTotSum, clientTotSum)
+				vv("GOOD! server and client blake3 checksums are the same!\n serverTotSum='%v'\n clientTotsum='%v'", serverTotSum, clientTotSum)
 				cv.So(true, cv.ShouldBeTrue)
 			} else {
 				vv("PROBLEM! server and client blake3 checksums do not match!\n serverTotSum='%v'\n clientTotsum='%v'", serverTotSum, clientTotSum)
@@ -220,7 +221,10 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 		case <-time.After(time.Minute):
 			panic("should have gotten a reply from the server finishing the stream.")
 		}
-		return
+
+		// final result: did we get the file uploaded the same?
+		diff := compareFilesDiffLen(path, pathOut)
+		cv.So(diff, cv.ShouldEqual, 0)
 	})
 }
 
