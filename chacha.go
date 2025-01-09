@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/cloudflare/circl/cipher/ascon"
+	"github.com/klauspost/compress/zstd"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
@@ -52,7 +53,18 @@ var _ = fmt.Printf
 // The name blabber? Well... what comes
 // out is just blah, blah, blah.
 type blabber struct {
-	encrypt    bool
+	encrypt bool
+
+	// should we compress/decompress
+	// with (at the moment) zstd?
+	// this does not change our
+	// max message size, as our buffers
+	// have to hold the uncompressed
+	// message too. The encoder
+	// and decoder in chacha.go read
+	// this variable.
+	compress bool
+
 	maxMsgSize int
 
 	conn uConn // can be net.Conn
@@ -88,6 +100,9 @@ type encoder struct {
 
 	mut  sync.Mutex
 	work *workspace
+
+	compress   bool
+	compressor *zstd.Encoder
 }
 
 // decoder organizes the decryption of messages
@@ -102,6 +117,9 @@ type decoder struct {
 
 	mut  sync.Mutex
 	work *workspace
+
+	compress     bool
+	decompressor *zstd.Decoder
 }
 
 // newBlabber: at the moment it gets setup to do both read
@@ -114,7 +132,7 @@ type decoder struct {
 //
 // Latest: use ASCON 128a inside, so inner tunnel can
 // differ from outer. Is about 2x faster than ChaChan20.
-func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize int, isServer bool) *blabber {
+func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize int, isServer, compress bool) *blabber {
 
 	var err error
 	var aeadEnc, aeadDec cipher.AEAD
@@ -169,6 +187,7 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 	copy(initialNonce, writeNonce)
 
 	enc := &encoder{
+		compress:     compress,
 		key:          key[:],
 		aead:         aeadEnc,
 		initialNonce: initialNonce,
@@ -178,6 +197,7 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 		work:         newWorkspace(name+"_enc", maxMsgSize),
 	}
 	dec := &decoder{
+		compress:  compress,
 		key:       key[:],
 		aead:      aeadDec,
 		noncesize: nsz,
@@ -186,6 +206,7 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 	}
 
 	return &blabber{
+		compress:   compress,
 		conn:       conn,
 		maxMsgSize: maxMsgSize,
 		encrypt:    encrypt,
@@ -302,6 +323,10 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 		// We don't want to go over because client will just drop it,
 		// thinking it an encrypted vs unencrypted mix up.
 		return ErrTooLong
+	}
+
+	if e.compress {
+
 	}
 
 	sz := len(bytesMsg) + e.noncesize + e.overhead
