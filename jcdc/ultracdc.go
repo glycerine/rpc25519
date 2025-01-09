@@ -1,4 +1,4 @@
-package ultracdc
+package jcdc
 
 /*
  * Copyright (c) 2024 Jason E. Aten, Ph.D.

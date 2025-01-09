@@ -10,21 +10,23 @@ import (
 	"time"
 
 	"github.com/glycerine/rpc25519/hash"
-	"github.com/glycerine/rpc25519/ultracdc"
+	"github.com/glycerine/rpc25519/jcdc"
 )
 
 //go:generate greenpack
 
-// rsync operation for a single file.
+// rsync operation for a single file. Steps and structs:
 //
 // 0) sender sends path, length, mod time of file.
-//
-
+// Sender sends RsyncStep0SenderOverview to reader.
 type RsyncStep0SenderOverview struct {
-	Host     string
-	Path     string
-	LenBytes int64
-	ModTime  time.Time
+	SenderHost     string    `zid:"0"`
+	SenderPath     string    `zid:"1"`
+	SenderLenBytes int64     `zid:"2"`
+	SenderModTime  time.Time `zid:"3"`
+
+	// if available/cheap, send
+	SenderFullHash string `zid:"4"`
 }
 
 // 1) receiver/reader end gets path to the file, its
@@ -32,43 +34,60 @@ type RsyncStep0SenderOverview struct {
 // and time stamp math, stop. Ack back all good.
 // Else ack back with RsyncHashes, "here are the chunks I have"
 // and the whole file checksum.
-
-type RsyncStep1SenderOverviewAck struct {
+// Reader replies to sender with RsyncStep1AckOverview.
+type RsyncStep1AckOverview struct {
 	// if true, no further action needed.
 	// ReaderHashes can be nil then.
-	AllGood bool
+	ReaderMatchesSenderAllGood bool `zid:"0"`
 
-	ReaderHashes *RsyncHashes
+	ReaderHashes *RsyncHashes `zid:"1"`
 }
 
-//
 // 2) sender chunks the file, does the diff, and
 // then sends along just the changed chunks, along
 // with the chunk structure of the file on the
 // sender so reader can reassemble it; and the
 // whole file checksum.
-
+// Sender sends RsyncStep2SenderProvidesDeltas
+// to reader.
 type RsyncStep2SenderProvidesDeltas struct {
-	SenderHashes *RsyncHashes
+	SenderHashes *RsyncHashes `zid:"0"`
 
-	Diff *RsyncDiffs
+	ChunkDiff *RsyncDiff `zid:"1"`
 
-	DeltaHashes []string
-	DeltaData   [][]byte
+	DeltaHashesPreCompression []string `zid:"2"`
+	CompressionAlgo           string   `zid:"3"`
+	DeltaData                 [][]byte `zid:"4"`
 }
 
-//
-// 3) reader gets the diff, the changed chunks,
+// 3) reader gets the diff, the changed chunks (DeltaData),
 // and it already has the current file structure;
 // write out a new file with the correct chunks
-// in the correct order. Verify the final blake3 checksum,
-// and set the new ModTime on the file.
+// in the correct order. (Decompressing chunks
+// before writing them). Reader verifies the final blake3 checksum,
+// and sets the new ModTime on the file.
+// Reader does a final ack of sending back
+// RsyncStep3ReaderAcksDeltasFin to the sender.
+// This completes the rsync operation, which
+// took two round-trips from sender to reader.
+type RsyncStep3ReaderAcksDeltasFin struct {
+	ReaderHost     string    `zid:"0"`
+	ReaderPath     string    `zid:"1"`
+	ReaderLenBytes int64     `zid:"2"`
+	ReaderModTime  time.Time `zid:"3"`
+	ReaderFullHash string    `zid:"4"`
+}
 
 // RsyncHashes stores CDC (Content Dependent Chunking)
 // chunks for a given Path on a given Host, using
-// a specified chunking algorithm (e.g. "ultracdc"), its parameters,
+// a specified chunking algorithm (e.g. "jcdc"), its parameters,
 // and a specified hash function (e.g. "blake3.32B"
 type RsyncHashes struct {
+	// uniquely idenitify this hash set.
+	Rsync0CallID string    `zid:"16"`
+	IsFromSender bool      `zid:"17"`
+	Created      time.Time `zid:"18"`
+
 	Host string `zid:"0"`
 	Path string `zid:"1"`
 
@@ -87,9 +106,9 @@ type RsyncHashes struct {
 
 	FullFileHashSum string `zid:"11"`
 
-	// ChunkerName is e.g. "ultracdc"
-	ChunkerName string               `zid:"12"`
-	CDC_Config  *ultracdc.CDC_Config `zid:"13"`
+	// ChunkerName is e.g. "fastcdc", or "ultracdc"
+	ChunkerName string           `zid:"12"`
+	CDC_Config  *jcdc.CDC_Config `zid:"13"`
 
 	// NumChunks gives len(Chunks) for convenience.
 	NumChunks int           `zid:"14"`
@@ -104,7 +123,7 @@ type RsyncChunk struct {
 	Len         int    `zid:"4"`
 }
 
-type RsyncDiffs struct {
+type RsyncDiff struct {
 	HostA   string       `zid:"0"`
 	PathA   string       `zid:"1"`
 	HashesA *RsyncHashes `zid:"2"`
@@ -123,7 +142,7 @@ type MatchHashPair struct {
 	B *RsyncChunk `zid:"1"`
 }
 
-func (d *RsyncDiffs) String() string {
+func (d *RsyncDiff) String() string {
 
 	jsonData, err := json.Marshal(d)
 	panicOn(err)
@@ -181,33 +200,33 @@ func SummarizeFileInCDCHashes(host, path string) (hashes *RsyncHashes, err error
 func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time) (hashes *RsyncHashes, err error) {
 
 	// These two different chunking approaches,
-	// UltraCDC and FastCDC, need very different
+	// Jcdc and FastCDC, need very different
 	// parameter min/max/average settings in
 	// order to give good chunking.
 
-	var opts *ultracdc.CDC_Config
+	var opts *jcdc.CDC_Config
 
 	const useFastCDC = true
-	var cdc ultracdc.Cutpointer
+	var cdc jcdc.Cutpointer
 
 	if useFastCDC {
 
 		// Stadia improved version of FastCDC
-		opts = &ultracdc.CDC_Config{
+		opts = &jcdc.CDC_Config{
 			MinSize:    4 * 1024,
 			TargetSize: 60 * 1024,
 			MaxSize:    80 * 1024,
 		}
-		cdc = ultracdc.NewFastCDC(opts)
+		cdc = jcdc.NewFastCDC(opts)
 
 	} else {
-		//ultracdc
-		opts = &ultracdc.CDC_Config{
+		//jcdc
+		opts = &jcdc.CDC_Config{
 			MinSize:    2 * 1024,
 			TargetSize: 10 * 1024,
 			MaxSize:    64 * 1024,
 		}
-		cdc = ultracdc.NewUltraCDC(opts)
+		cdc = jcdc.NewUltraCDC(opts)
 	}
 
 	hashes = &RsyncHashes{
@@ -242,8 +261,8 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 	return
 }
 
-func (a *RsyncHashes) Diff(b *RsyncHashes) (d *RsyncDiffs) {
-	d = &RsyncDiffs{
+func (a *RsyncHashes) Diff(b *RsyncHashes) (d *RsyncDiff) {
+	d = &RsyncDiff{
 		HostA:   a.Host,
 		PathA:   a.Path,
 		HashesA: a,

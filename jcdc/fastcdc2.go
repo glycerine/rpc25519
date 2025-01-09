@@ -1,4 +1,4 @@
-package ultracdc
+package jcdc
 
 import (
 	"fmt"

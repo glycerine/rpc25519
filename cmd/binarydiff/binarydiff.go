@@ -6,7 +6,7 @@ import (
 
 	// check-summing utilities.
 	cristalbase64 "github.com/cristalhq/base64"
-	"github.com/glycerine/rpc25519/ultracdc"
+	"github.com/glycerine/rpc25519/jcdc"
 	"lukechampine.com/blake3"
 )
 
@@ -20,8 +20,8 @@ func main() {
 		panic(err)
 	}
 
-	cfg := ultracdc.Default_UltraCDC_Options()
-	u := ultracdc.NewUltraCDC(cfg)
+	cfg := jcdc.Default_UltraCDC_Options()
+	u := jcdc.NewUltraCDC(cfg)
 
 	cuts := u.Cutpoints(data, 0)
 

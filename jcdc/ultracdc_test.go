@@ -15,7 +15,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-package ultracdc
+package jcdc
 
 import (
 	"crypto/sha256"

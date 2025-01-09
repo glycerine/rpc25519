@@ -1,4 +1,4 @@
-package ultracdc
+package jcdc
 
 // precomputed distance table using the following code:
 /*
