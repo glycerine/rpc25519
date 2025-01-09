@@ -34,10 +34,19 @@ const (
 
 	CallRequestBistreaming CallType = 3
 
-	// CallType numbers 3-9 are reserved for future two-way
+	// these are also RPCs from the client to the
+	// server to start an rsync operation.
+	CallRsyncStep0_ClientRequestsRead CallType = 4
+	CallRsyncStep1_SenderOverview     CallType = 5
+
+	// CallType numbers 6-9 are reserved for future two-way
 	// callling convention needs. All types
 	// with number < 10 should be call+response
 	// two way methods.
+
+	CallRsyncStep2_AckOverview          CallType = 22
+	CallRsyncStep3_SenderProvidesDeltas CallType = 23
+	CallRsyncStep4_ReaderAcksDeltasFin  CallType = 24
 
 	// All type numbers >= 10 are one-way calls.
 	CallOneWay   CallType = 10
@@ -99,6 +108,18 @@ func (ct CallType) String() string {
 		return "CallDownloadEnd"
 	case CallError:
 		return "CallError"
+
+	case CallRsyncStep0_ClientRequestsRead:
+		return "CallRsyncStep0_ClientRequestsRead"
+	case CallRsyncStep1_SenderOverview:
+		return "CallRsyncStep1_SenderOverview"
+	case CallRsyncStep2_AckOverview:
+		return "CallRsyncStep2_AckOverview"
+	case CallRsyncStep3_SenderProvidesDeltas:
+		return "CallRsyncStep3_SenderProvidesDeltas"
+	case CallRsyncStep4_ReaderAcksDeltasFin:
+		return "CallRsyncStep4_ReaderAcksDeltasFin"
+
 	default:
 		panic(fmt.Sprintf("need to update String() for CallType %v", int(ct)))
 	}

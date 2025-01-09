@@ -17,8 +17,33 @@ import (
 
 // rsync operation for a single file. Steps and structs:
 //
-// 0) sender sends path, length, mod time of file.
-// Sender sends RsyncStep0SenderOverview to reader.
+// NB: the client always has to start a request;
+// the server cannot reach out to a client.
+// But the client can request a file, and thus
+// request to be the reader.
+//
+// Optional step 0: client requests to be the reader.
+// The server should send the file requested.
+//
+// Or in step 0: client requests to send a file.
+// The client can begin immediately with step 1,
+// there really is no step 0 when the client is sending.
+// The client just sends the RsyncStep1_SenderOverview.
+//
+// So only if the client wants to read a file
+// from the server does the client need to send this:
+type RsyncStep0_ClientRequestsRead struct {
+	ReaderHost     string    `zid:"0"`
+	ReaderPath     string    `zid:"1"`
+	ReaderLenBytes int64     `zid:"2"`
+	ReaderModTime  time.Time `zid:"3"`
+
+	// if available/cheap, send
+	ReaderFullHash string `zid:"4"`
+}
+
+// 1) sender sends path, length, mod time of file.
+// Sender sends RsyncStep1_SenderOverview to reader.
 // This starts the first of two RPCs from sender
 // to reader. But can we have an RPC from a
 // server to a client? We can have the client
@@ -48,7 +73,7 @@ import (
 // handler func for RPCs too; and for the
 // server to be able to act like a client
 // (sender) as well, symmetrically.
-type RsyncStep0SenderOverview struct {
+type RsyncStep1_SenderOverview struct {
 	SenderHost     string    `zid:"0"`
 	SenderPath     string    `zid:"1"`
 	SenderLenBytes int64     `zid:"2"`
@@ -63,8 +88,8 @@ type RsyncStep0SenderOverview struct {
 // and time stamp math, stop. Ack back all good.
 // Else ack back with RsyncHashes, "here are the chunks I have"
 // and the whole file checksum.
-// Reader replies to sender with RsyncStep1AckOverview.
-type RsyncStep1AckOverview struct {
+// Reader replies to sender with RsyncStep2_AckOverview.
+type RsyncStep2_AckOverview struct {
 	// if true, no further action needed.
 	// ReaderHashes can be nil then.
 	ReaderMatchesSenderAllGood bool `zid:"0"`
@@ -77,9 +102,9 @@ type RsyncStep1AckOverview struct {
 // with the chunk structure of the file on the
 // sender so reader can reassemble it; and the
 // whole file checksum.
-// Sender sends RsyncStep2SenderProvidesDeltas
+// Sender sends RsyncStep3_SenderProvidesDeltas
 // to reader.
-type RsyncStep2SenderProvidesDeltas struct {
+type RsyncStep3_SenderProvidesDeltas struct {
 	SenderHashes *RsyncHashes `zid:"0"`
 
 	ChunkDiff *RsyncDiff `zid:"1"`
@@ -96,10 +121,10 @@ type RsyncStep2SenderProvidesDeltas struct {
 // before writing them). Reader verifies the final blake3 checksum,
 // and sets the new ModTime on the file.
 // Reader does a final ack of sending back
-// RsyncStep3ReaderAcksDeltasFin to the sender.
+// RsyncStep4_ReaderAcksDeltasFin to the sender.
 // This completes the rsync operation, which
 // took two round-trips from sender to reader.
-type RsyncStep3ReaderAcksDeltasFin struct {
+type RsyncStep4_ReaderAcksDeltasFin struct {
 	ReaderHost     string    `zid:"0"`
 	ReaderPath     string    `zid:"1"`
 	ReaderLenBytes int64     `zid:"2"`
