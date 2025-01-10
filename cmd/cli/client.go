@@ -52,6 +52,9 @@ func main() {
 
 	var downloadPath = flag.String("download", "", "path to file to download from the remote side")
 
+	var compressOff = flag.Bool("big", false, "turn off sending compression.")
+	var compressAlgo = flag.String("press", "s2", "select sending compression algorithm; one of: s2, lz4, zstd:01, zstd:03, zstd:07, zstd:11")
+
 	flag.Parse()
 
 	if *downloadPath != "" {
@@ -108,6 +111,8 @@ func main() {
 	cfg.CertPath = *certPath
 	cfg.PreSharedKeyPath = *psk
 	cfg.ClientHostPort = *clientHostPort
+	cfg.CompressionOff = *compressOff
+	cfg.CompressAlgo = *compressAlgo
 
 	cli, err := rpc25519.NewClient("cli", cfg)
 	if err != nil {
@@ -122,7 +127,7 @@ func main() {
 	defer cli.Close()
 	vv("client connected from local addr='%v'", cli.LocalAddr())
 	fmt.Printf("compression: %v; compressionAlgo: '%v'\n",
-		rpc25519.UseCompression, rpc25519.UseCompressionAlgo)
+		!*compressOff, *compressAlgo)
 	fmt.Println()
 
 	doBistream := false

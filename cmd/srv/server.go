@@ -70,6 +70,9 @@ func main() {
 
 	var echo = flag.Bool("echo", false, "bistream echo everything")
 
+	var compressOff = flag.Bool("big", false, "turn off sending compression.")
+	var compressAlgo = flag.String("press", "s2", "select sending compression algorithm; one of: s2, lz4, zstd:01, zstd:03, zstd:07, zstd:11")
+
 	flag.Parse()
 
 	if *max > 0 {
@@ -93,6 +96,8 @@ func main() {
 	//cfg.ServerSendKeepAlive = time.Second * 5
 	cfg.PreSharedKeyPath = *psk
 	cfg.ReadTimeout = *readto
+	cfg.CompressionOff = *compressOff
+	cfg.CompressAlgo = *compressAlgo
 
 	srv := rpc25519.NewServer("srv", cfg)
 	defer srv.Close()
@@ -126,7 +131,7 @@ func main() {
 
 	log.Printf("rpc25519.server Start() returned serverAddr = '%v'", serverAddr)
 	fmt.Printf("compression: %v; compressionAlgo: '%v'\n",
-		rpc25519.UseCompression, rpc25519.UseCompressionAlgo)
+		!*compressOff, *compressAlgo)
 
 	if *seconds > 0 {
 		t0 := time.Now()
