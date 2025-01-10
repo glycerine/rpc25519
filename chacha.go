@@ -25,7 +25,7 @@ var _ = lz4.NewWriter
 
 var _ = fmt.Printf
 
-const UseCompression = false
+const UseCompression = true
 const UseCompressionAlgo = "s2"
 
 // compressor is implemented by
