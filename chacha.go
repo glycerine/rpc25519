@@ -224,7 +224,8 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 
 		//enc.compressor = lz4.NewWriter(nil)
 		//enc.compressor = s2.NewWriter(nil)
-		enc.compressor, err = zstd.NewWriter(nil)
+		//enc.compressor, err = zstd.NewWriter(nil)
+		enc.compressor, err = zstd.NewWriter(io.Discard, zstd.WithEncoderLevel(zstd.SpeedFastest))
 		panicOn(err)
 
 		/*		options := []lz4.Option{
