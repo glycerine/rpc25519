@@ -57,7 +57,10 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
 
-		if c.seenNetRPCCalls {
+		c.mut.Lock()
+		doClean := c.seenNetRPCCalls
+		c.mut.Unlock()
+		if doClean {
 			c.netRpcShutdownCleanup(ErrShutdown)
 		}
 	}()
@@ -1036,7 +1039,7 @@ func (c *Client) Go(serviceMethod string, args Green, reply Green, done chan *Ca
 // It can be nil.
 func (c *Client) Call(serviceMethod string, args, reply Green, octx context.Context) error {
 	c.mut.Lock()
-	c.seenNetRPCCalls = true // race?
+	c.seenNetRPCCalls = true
 	c.mut.Unlock()
 
 	doneCh := make(chan *Call, 1)
