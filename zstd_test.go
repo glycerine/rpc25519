@@ -270,7 +270,7 @@ func Test403_lz4_experiments_continue(t *testing.T) {
 		compressor := lz4.NewWriter(out)
 
 		_, err := io.Copy(compressor, compBuf)
-		compressor.Close()
+		panicOn(compressor.Close())
 		panicOn(err)
 		m := len(out.Bytes())
 		vv("compression: %v bytes -> m=%v", uncompressedLen, m)
@@ -279,7 +279,7 @@ func Test403_lz4_experiments_continue(t *testing.T) {
 		compressedLen := m
 
 		// have magic?
-		vv("message = '%x' / '%v'", message, string(message))
+		//vv("message = '%x' / '%v'", message, string(message))
 
 		magicbuf := message[:4]
 		magic := binary.LittleEndian.Uint32(magicbuf)

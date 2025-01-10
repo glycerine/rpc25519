@@ -19,7 +19,7 @@ import (
 
 var _ = fmt.Printf
 
-const useCompression = false
+const useCompression = true
 
 // blabber holds stream encryption/decryption facilities.
 //
@@ -344,12 +344,15 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 		//enc.compSlice = make([]byte, maxMsgSize+80)
 		out := bytes.NewBuffer(e.compSlice[:0])
 		e.compressor.Reset(out)
+		//e.compressor = lz4.NewWriter(out)
 		_, err := io.Copy(e.compressor, e.compBuf)
-		e.compressor.Close()
+		//panicOn(e.compressor.Flush())
+		panicOn(e.compressor.Close())
 		panicOn(err)
 		compressedLen := len(out.Bytes())
 		vv("compression: %v bytes -> %v bytes", uncompressedLen, compressedLen)
 		bytesMsg = out.Bytes()
+		copy(e.work.buf[8+e.noncesize:cap(e.work.buf)], bytesMsg)
 	}
 
 	sz := len(bytesMsg) + e.noncesize + e.overhead
