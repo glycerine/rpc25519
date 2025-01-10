@@ -187,6 +187,10 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 	}
 
 	// reverse any compression
+	// if you see an error like
+	// `msgp: attempted to decode type "int" with method for "map"`
+	// It probably means we are not getting the decompression done.
+	vv("w.compress = %v ; w.decomp = %p", w.compress, w.decomp)
 	if w.compress && w.decomp != nil {
 		message, err = w.decomp.handleDecompress(magic7, message)
 		if err != nil {
