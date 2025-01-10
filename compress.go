@@ -148,6 +148,8 @@ func newPressor(maxMsgSize int) (p *pressor) {
 
 func (p *pressor) handleCompress(magic7 byte, bytesMsg []byte) ([]byte, error) {
 
+	vv("handleCompress(magic7=%v) is using '%v'", magic7, mustDecodeMagic7(magic7))
+
 	var c compressor
 	switch magic7 {
 	// magic[7] (the last byte 0x00 here) can vary,
@@ -177,7 +179,7 @@ func (p *pressor) handleCompress(magic7 byte, bytesMsg []byte) ([]byte, error) {
 		panic(fmt.Sprintf("unknown magic7 '%v'", magic7))
 	}
 
-	vv("handleCompress(magic7=%v) is using '%v'", magic7, mustDecodeMagic7(magic7))
+	//vv("handleCompress(magic7=%v) is using '%v'", magic7, mustDecodeMagic7(magic7))
 
 	uncompressedLen := len(bytesMsg)
 	_ = uncompressedLen
