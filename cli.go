@@ -528,7 +528,7 @@ func (c *Client) runSendLoop(conn net.Conn) {
 			//vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v: '%v'; part '%v'", c.name, seqno, msg, msg.HDR.StreamPart)
 			c.GetOneRead(seqno, msg.DoneCh)
 
-			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil { // race read vs prev write at cli.go:1514
+			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
 				//vv("Failed to send message: %v", err)
 				msg.LocalErr = err
 				c.UngetOneRead(seqno, msg.DoneCh)
