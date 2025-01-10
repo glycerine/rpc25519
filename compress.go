@@ -184,7 +184,13 @@ func (p *pressor) handleCompress(magic7 byte, bytesMsg []byte) ([]byte, error) {
 	compBuf := bytes.NewBuffer(bytesMsg)
 	// already done at init:
 	//enc.compSlice = make([]byte, maxMsgSize+80)
-	out := bytes.NewBuffer(p.compSlice[:0])
+
+	// debug: new slice every time, is memory sharing the issue?
+	big := make([]byte, maxMessage)
+
+	//out := bytes.NewBuffer(p.compSlice[:0])
+	out := bytes.NewBuffer(big[:0])
+
 	c.Reset(out)
 
 	_, err := io.Copy(c, compBuf)
@@ -197,6 +203,8 @@ func (p *pressor) handleCompress(magic7 byte, bytesMsg []byte) ([]byte, error) {
 }
 
 func (decomp *decomp) handleDecompress(magic7 byte, message []byte) ([]byte, error) {
+
+	vv("handle decompress using magic7 = %v", magic7)
 
 	var d decompressor
 	switch magic7 {
@@ -232,7 +240,14 @@ func (decomp *decomp) handleDecompress(magic7 byte, message []byte) ([]byte, err
 	d.Reset(decompBuf)
 	// already init done:
 	//d.decompSlice = make([]byte, maxMsgSize+80)
-	out := bytes.NewBuffer(decomp.decompSlice[:0])
+
+	// debug: new slice every time, is memory sharing the issue?
+	// nope! or at least, the Test011_PreSharedKey_over_TCP is red still.
+	big := make([]byte, maxMessage)
+
+	out := bytes.NewBuffer(big[:0])
+	//out := bytes.NewBuffer(decomp.decompSlice[:0])
+
 	n, err := io.Copy(out, d)
 	panicOn(err)
 	if n > int64(len(decomp.decompSlice)) {
