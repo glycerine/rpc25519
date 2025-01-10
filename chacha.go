@@ -134,6 +134,8 @@ type decoder struct {
 // differ from outer. Is about 2x faster than ChaChan20.
 func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize int, isServer bool) *blabber {
 
+	vv("'%v' newBlabber called with key '%x'", name, key[:])
+
 	var err error
 	var aeadEnc, aeadDec cipher.AEAD
 
@@ -388,7 +390,10 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	// Encrypt the data (prepends the nonce? nope need to do so ourselves)
 
 	// write the nonce
-	copy(buf[nonceBeg:nonceEndx], e.writeNonce)
+	n := copy(buf[nonceBeg:nonceEndx], e.writeNonce)
+	if n != len(e.writeNonce) {
+		panic("what?!?!")
+	}
 
 	// write the magic as the first 8 bytes
 	// of the plaintext, so it is encrypted too.
@@ -406,7 +411,12 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 
 	if commitWithPACT {
 		tag := sealOut[len(sealOut)-e.overhead:]
-		vv("encrypt sees plain  tag = '%x'", tag)
+		//vv("encrypt sees plain  tag = '%x'", tag)
+
+		vv("encrypt sees e.key = '%x'", e.key)
+		//vv("encrypt sees associated data = '%x'", assocData)
+		//vv("encrypt sees nonce = '%x'", e.writeNonce)
+
 		pactEncryptTag(e.key, assocData, e.writeNonce, tag)
 		vv("encrypt sees cipher tag = '%x'", tag)
 	}
@@ -463,6 +473,9 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	if commitWithPACT {
 		tag := encrypted[len(encrypted)-d.overhead:]
 		vv("decrypt sees cipher tag = '%x'", tag)
+		vv("decrypt sees d.key = '%x'", d.key)
+		//vv("decrypt sees associated data = '%x'", assocData)
+		//vv("decrypt sees nonce = '%x'", nonce)
 		pactDecryptTag(d.key, assocData, nonce, tag)
 		vv("decrypt sees plain  tag = '%x'", tag)
 	}

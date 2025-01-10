@@ -15,9 +15,6 @@ var _ = &zstd.Decoder{}
 var _ = s2.NewWriter
 var _ = lz4.NewWriter
 
-const UseCompression = false
-const UseCompressionAlgo = "s2"
-
 // compressor is implemented by
 // compressor *lz4.Writer
 // compressor *s2.Writer
@@ -62,7 +59,6 @@ type decomp struct {
 	de_s2      *s2.Reader
 	de_zstd    *wrapZstdDecoder // *zstd.Decoder
 
-	decompBuf   *bytes.Buffer
 	decompSlice []byte
 }
 
@@ -100,8 +96,6 @@ type pressor struct {
 	com_zstd07 *zstd.Encoder
 	com_zstd03 *zstd.Encoder
 	com_zstd01 *zstd.Encoder
-
-	compBuf *bytes.Buffer
 
 	// big buffer to write into
 	compSlice []byte
@@ -183,15 +177,17 @@ func (p *pressor) handleCompress(magic7 byte, bytesMsg []byte) ([]byte, error) {
 		panic(fmt.Sprintf("unknown magic7 '%v'", magic7))
 	}
 
+	vv("handleCompress(magic7=%v) is using '%v'", magic7, mustDecodeMagic7(magic7))
+
 	uncompressedLen := len(bytesMsg)
 	_ = uncompressedLen
-	p.compBuf = bytes.NewBuffer(bytesMsg)
+	compBuf := bytes.NewBuffer(bytesMsg)
 	// already done at init:
 	//enc.compSlice = make([]byte, maxMsgSize+80)
 	out := bytes.NewBuffer(p.compSlice[:0])
 	c.Reset(out)
 
-	_, err := io.Copy(c, p.compBuf)
+	_, err := io.Copy(c, compBuf)
 	panicOn(c.Close())
 	panicOn(err)
 	//compressedLen := len(out.Bytes())
@@ -225,13 +221,15 @@ func (decomp *decomp) handleDecompress(magic7 byte, message []byte) ([]byte, err
 		panic(fmt.Sprintf("unknown magic7 '%v'", magic7))
 	}
 
-	compressedLen := len(message)
-	if compressedLen < 4 {
-		return message, nil
-	}
+	vv("handleDecompress(magic7=%v) is using '%v'", magic7, mustDecodeMagic7(magic7))
 
-	decomp.decompBuf = bytes.NewBuffer(message)
-	d.Reset(decomp.decompBuf)
+	//	compressedLen := len(message)
+	//	if compressedLen < 4 {
+	//		return message, nil
+	//	}
+
+	decompBuf := bytes.NewBuffer(message)
+	d.Reset(decompBuf)
 	// already init done:
 	//d.decompSlice = make([]byte, maxMsgSize+80)
 	out := bytes.NewBuffer(decomp.decompSlice[:0])

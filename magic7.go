@@ -25,6 +25,13 @@ var magic = [8]byte{0xb3, 0x5d, 0x18, 0x39, 0xac, 0x8e, 0x1d, 0x00}
 var ErrMagicWrong = fmt.Errorf("error: magic bytes not found at start of message")
 
 // which compression is to be/was used.
+func mustDecodeMagic7(magic7 byte) (magicCompressAlgo string) {
+	var err error
+	magicCompressAlgo, err = decodeMagic7(magic7)
+	panicOn(err)
+	return
+}
+
 func decodeMagic7(magic7 byte) (magicCompressAlgo string, err error) {
 	switch magic7 {
 	// magic[7] (the last byte 0x00 here) can vary,
