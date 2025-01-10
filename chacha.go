@@ -349,8 +349,8 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 		//panicOn(e.compressor.Flush())
 		panicOn(e.compressor.Close())
 		panicOn(err)
-		compressedLen := len(out.Bytes())
-		vv("compression: %v bytes -> %v bytes", uncompressedLen, compressedLen)
+		//compressedLen := len(out.Bytes())
+		//vv("compression: %v bytes -> %v bytes", uncompressedLen, compressedLen)
 		bytesMsg = out.Bytes()
 		copy(e.work.buf[8+e.noncesize:cap(e.work.buf)], bytesMsg)
 	}
@@ -443,11 +443,8 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 			// if no magic, don't bother to decode
 			magicbuf := message[:4]
 			magic := binary.LittleEndian.Uint32(magicbuf)
-			if magic == 0x184D2204 {
+			if magic == 0x184D2204 { // lz4 frame magic first 4 bytes
 
-				//vv("message := %#v", message)
-				//vv("message := '%v'", string(message))
-				_ = compressedLen
 				d.decompBuf = bytes.NewBuffer(message)
 				d.decompressor.Reset(d.decompBuf)
 				// already init done:
@@ -458,7 +455,7 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 				if n > int64(len(d.decompSlice)) {
 					panic(fmt.Sprintf("we wrote more than our pre-allocated buffer, up its size! n(%v) > len(out) = %v", n, len(d.decompSlice)))
 				}
-				vv("decompression: %v bytes -> %v bytes; len(out.Bytes())=%v", compressedLen, n, len(out.Bytes()))
+				//vv("decompression: %v bytes -> %v bytes; len(out.Bytes())=%v", compressedLen, n, len(out.Bytes()))
 				message = out.Bytes()
 			}
 		}
