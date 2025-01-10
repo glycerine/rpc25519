@@ -125,6 +125,9 @@ func main() {
 	}
 
 	log.Printf("rpc25519.server Start() returned serverAddr = '%v'", serverAddr)
+	fmt.Printf("compression: %v; compressionAlgo: '%v'\n",
+		rpc25519.UseCompression, rpc25519.UseCompressionAlgo)
+
 	if *seconds > 0 {
 		t0 := time.Now()
 		<-time.After(time.Second * time.Duration(*seconds))

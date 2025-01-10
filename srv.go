@@ -349,7 +349,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		s.mut.Unlock()
 	}
 
-	w := newBlabber("server send loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true, useCompressionAlgo)
+	w := newBlabber("server send loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true, UseCompressionAlgo)
 
 	// implement ServerSendKeepAlive
 	var lastPing time.Time
@@ -426,7 +426,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		symkey = s.randomSymmetricSessKeyFromPreSharedKey
 		s.mut.Unlock()
 	}
-	w := newBlabber("server read loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true, useCompressionAlgo)
+	w := newBlabber("server read loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true, UseCompressionAlgo)
 
 	for {
 		select {

@@ -121,6 +121,8 @@ func main() {
 	}
 	defer cli.Close()
 	vv("client connected from local addr='%v'", cli.LocalAddr())
+	fmt.Printf("compression: %v; compressionAlgo: '%v'\n",
+		rpc25519.UseCompression, rpc25519.UseCompressionAlgo)
 	fmt.Println()
 
 	doBistream := false
