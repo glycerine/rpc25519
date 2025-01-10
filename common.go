@@ -160,10 +160,11 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 	}
 
 	// allow the magic[7] to indicate compression type.
-	magic7 := magic[7]
 	if !bytes.Equal(w.magicCheck[:7], magic[:7]) {
 		return nil, ErrMagicWrong
 	}
+	magic7 := w.magicCheck[7]
+	vv("common readMessage magic7 = %v", magic7)
 
 	// Read the next 8 bytes for the Message length.
 	_, err = readFull(conn, w.readLenMessageBytes, timeout)
@@ -218,7 +219,7 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 	}
 
 	if w.compress && w.pressor != nil {
-		vv("cmmon.go sendMessage calling handleCompress: w.defaultMagic7 = %v", w.defaultMagic7)
+		vv("common.go sendMessage calling handleCompress: w.defaultMagic7 = %v", w.defaultMagic7)
 		bytesMsg, err = w.pressor.handleCompress(w.defaultMagic7, bytesMsg)
 		if err != nil {
 			return err
