@@ -121,6 +121,8 @@ func newWorkspace(name string, maxMsgSize int, cfg *Config) *workspace {
 		magicCheck:           make([]byte, 8), // last byte is compression type.
 
 		compress:               !cfg.CompressionOff,
+		pressor:                newPressor(maxMsgSize + 80),
+		decomp:                 newDecomp(maxMsgSize + 80),
 		defaultCompressionAlgo: cfg.CompressAlgo,
 	}
 	// write according to our defaults.
@@ -212,10 +214,13 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 	}
 
 	if w.compress && w.pressor != nil {
+		vv("cmmon.go sendMessage calling handleCompress: w.defaultMagic7 = %v", w.defaultMagic7)
 		bytesMsg, err = w.pressor.handleCompress(w.defaultMagic7, bytesMsg)
 		if err != nil {
 			return err
 		}
+	} else {
+		vv("w.compress= %v; w.pressor = %p", w.compress, w.pressor)
 	}
 
 	nbytesMsg := len(bytesMsg)

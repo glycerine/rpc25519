@@ -206,7 +206,7 @@ func newBlabber(
 		work:         newWorkspace(name+"_enc", maxMsgSize, cfg),
 		compress:     !cfg.CompressionOff,
 		compressAlgo: cfg.CompressAlgo,
-		pressor:      newPressor(maxMsgSize),
+		pressor:      newPressor(maxMsgSize + 80),
 		magicCheck:   make([]byte, 8),
 	}
 	enc.magic7 = setMagicCheckWord(cfg.CompressAlgo, enc.magicCheck)
@@ -217,7 +217,7 @@ func newBlabber(
 		noncesize:  nsz,
 		overhead:   aeadEnc.Overhead(),
 		work:       newWorkspace(name+"_dec", maxMsgSize, cfg),
-		decomp:     newDecomp(maxMsgSize),
+		decomp:     newDecomp(maxMsgSize + 80),
 		magicCheck: make([]byte, 8), // last byte is compression type.
 	}
 
