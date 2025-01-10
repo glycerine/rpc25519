@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-// magic is always the first 8 bytes of an
+// magic is always the first 8 bytes of the plaintext
 // unencrypted message on the wire. Thus
 // magic lets us detect when message boundaries
 // have been corrupted (also encrypted vs not mismatches).
@@ -78,10 +78,8 @@ func setMagicCheckDefaults(magicCheck []byte) byte {
 		pressAlgo = ""
 	}
 	magic7, err := encodeMagic7(pressAlgo)
-	if err != nil {
-		return err
-	}
-	copy(w.magicCheck, magic[:])
-	w.magicCheck[7] = magic7 // set the compression used.
+	panicOn(err)
+	copy(magicCheck, magic[:])
+	magicCheck[7] = magic7 // set the compression used.
 	return magic7
 }

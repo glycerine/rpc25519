@@ -271,7 +271,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 		c.mut.Unlock()
 	}
 
-	w := newBlabber("client read loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false, UseCompressionAlgo)
+	w := newBlabber("client read loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false)
 
 	readTimeout := time.Millisecond * 100
 	_ = readTimeout
@@ -427,7 +427,7 @@ func (c *Client) runSendLoop(conn net.Conn) {
 		c.mut.Unlock()
 	}
 
-	w := newBlabber("client send loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false, UseCompressionAlgo)
+	w := newBlabber("client send loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false)
 
 	// PRE: Message.DoneCh must be buffered at least 1, so
 	// our logic below does not have to deal with ever blocking.
@@ -1036,7 +1036,7 @@ func (c *Client) Go(serviceMethod string, args Green, reply Green, done chan *Ca
 // It can be nil.
 func (c *Client) Call(serviceMethod string, args, reply Green, octx context.Context) error {
 	c.mut.Lock()
-	c.seenNetRPCCalls = true
+	c.seenNetRPCCalls = true // race?
 	c.mut.Unlock()
 
 	doneCh := make(chan *Call, 1)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	cryrand "crypto/rand"
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
@@ -16,8 +17,8 @@ func Test020_nonce_sequence_not_reused(t *testing.T) {
 		"so a nonce is never re-used, esp between client and server", t, func() {
 		var key [32]byte
 
-		bcli := newBlabber("test", key, nil, true, 1024, false, UseCompressionAlgo)
-		bsrv := newBlabber("test", key, nil, true, 1024, true, UseCompressionAlgo)
+		bcli := newBlabber("test", key, nil, true, 1024, false)
+		bsrv := newBlabber("test", key, nil, true, 1024, true)
 		n := 1100
 
 		const nonceSize = 16
@@ -154,5 +155,27 @@ func Test022_encryptWithPubKey(t *testing.T) {
 
 		cv.So(!bytes.Equal(ciphertext, plaintext), cv.ShouldBeTrue)
 		cv.So(bytes.Equal(plaintext, decryptedMessage), cv.ShouldBeTrue)
+	})
+}
+
+func Test023_chaha_blabber_encryp_can_be_decrypted(t *testing.T) {
+
+	cv.Convey("blabber sendMessage() and readMessages() are inverses of each other", t, func() {
+
+		r, w := net.Pipe() // r and w are both net.Conn
+
+		var symkey [32]byte
+		encrypt := false
+		isServer := true
+		blabSrv := newBlabber("test023", symkey, w, encrypt, maxMessage, isServer)
+
+		//blabCli := newBlabber("test023", symkey, w, encrypt, maxMessage, !isServer)
+
+		b, err := ioutil.ReadAll(r)
+		if err != nil {
+			log.Fatalf(err.Error())
+		}
+		fmt.Println(string(b))
+
 	})
 }

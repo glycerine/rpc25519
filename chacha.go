@@ -8,7 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
-	"io"
+	//"io"
 	"sync"
 	"time"
 
@@ -80,6 +80,7 @@ type blabber struct {
 // then the following *mlen* bytes are
 //
 //	12/24 bytes of nonce, if ChaCha20 or XChaCah20 is used.
+//	8 bytes of magicCheck
 //	xx bytes of 1:1 cyphertext (same length as plaintext) } these two are output
 //	16 bytes of poly1305 authentication tag.              } by the e.aead.Seal() call.
 //
@@ -131,17 +132,7 @@ type decoder struct {
 //
 // Latest: use ASCON 128a inside, so inner tunnel can
 // differ from outer. Is about 2x faster than ChaChan20.
-func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize int, isServer bool, compressionAlgo string) *blabber {
-
-	var compress bool
-	if compressionAlgo != "" {
-		switch compressionAlgo {
-		case "s2", "lz4", "zstd":
-		default:
-			panic(fmt.Sprintf("unknown compressionAlgo '%v'", compressionAlgo))
-		}
-		compress = true
-	}
+func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize int, isServer bool) *blabber {
 
 	var err error
 	var aeadEnc, aeadDec cipher.AEAD
@@ -203,7 +194,7 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 		noncesize:    nsz,
 		overhead:     aeadEnc.Overhead(),
 		work:         newWorkspace(name+"_enc", maxMsgSize),
-		compress:     compress,
+		compress:     UseCompression,
 		pressor:      newPressor(maxMsgSize),
 		magicCheck:   make([]byte, 8),
 	}
@@ -216,14 +207,14 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 		noncesize:  nsz,
 		overhead:   aeadEnc.Overhead(),
 		work:       newWorkspace(name+"_dec", maxMsgSize),
-		compress:   compress,
+		compress:   UseCompression,
 		decomp:     newDecomp(maxMsgSize),
 		magicCheck: make([]byte, 8), // last byte is compression type.
 	}
 
 	return &blabber{
-		compress:        compress,
-		compressionAlgo: compressionAlgo,
+		compress:        UseCompression,
+		compressionAlgo: UseCompressionAlgo,
 		conn:            conn,
 		maxMsgSize:      maxMsgSize,
 		encrypt:         encrypt,
@@ -330,10 +321,14 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	// 	}
 	// }()
 
-	// write magic first 8 bytes, was set during encoder{} creation,
-	// with the defaultMagic7
+	// verify magic is ready
 	const magic8sz = 8
-	copy(e.work.buf[:magic8sz], e.magicCheck)
+	if !bytes.Equal(e.magicCheck[:7], magic[:7]) {
+		panic("encoder.magicCheck[:7] should have been set in init!")
+	}
+	if e.defaultMagic7 != e.magicCheck[7] {
+		panic("encoder.defaultMagicCheck7 should have been set in init!")
+	}
 
 	// serialize message to bytes
 	bytesMsg, err := msg.AsGreenpack(e.work.buf[16+e.noncesize : cap(e.work.buf)])
@@ -348,27 +343,34 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	}
 
 	if e.compress && e.pressor != nil {
-		bytesMsg, err = e.pressor.handleCompress(e.defaultMagic7, bytesMsg, e.work.buf[8+e.noncesize:cap(e.work.buf)])
+		bytesMsg, err = e.pressor.handleCompress(e.defaultMagic7, bytesMsg, e.work.buf[16+e.noncesize:cap(e.work.buf)])
 		if err != nil {
 			return err
 		}
 	}
 
-	sz := magic8sz + len(bytesMsg) + e.noncesize + e.overhead
+	// message order is:
+	// 8 bytes len. nonce. magic8. compressed message. auth tag.
+	sz := e.noncesize + magic8sz + len(bytesMsg) + e.overhead
 
-	binary.BigEndian.PutUint64(e.work.buf[magic8sz:16], uint64(sz))
-	assocData := e.work.buf[magic8sz:16]
+	binary.BigEndian.PutUint64(e.work.buf[:8], uint64(sz))
+	assocData := e.work.buf[:8]
 
 	buf := e.work.buf
 
 	// Encrypt the data (prepends the nonce? nope need to do so ourselves)
 
 	// write the nonce
-	copy(buf[16:16+e.noncesize], e.writeNonce)
+	copy(buf[8:8+e.noncesize], e.writeNonce)
 
-	// encrypt. notice we get to re-use the plain text buf for the encrypted output.
+	// write the magic as the first 8 bytes
+	// of the plaintext, so it is encrypted too.
+	copy(buf[8+e.noncesize:16+e.noncesize], e.magicCheck)
+
+	// encrypt. notice we get to re-use the plain
+	// text buf for the encrypted output.
 	// So ideally, no allocation necessary.
-	sealOut := e.aead.Seal(buf[16+e.noncesize:16+e.noncesize], buf[16:16+e.noncesize], buf[16+e.noncesize:16+e.noncesize+len(bytesMsg)], assocData)
+	sealOut := e.aead.Seal(buf[8+e.noncesize:8+e.noncesize], buf[8:8+e.noncesize], buf[8+e.noncesize:16+e.noncesize+len(bytesMsg)], assocData)
 
 	if commitWithPACT {
 		tag := sealOut[len(sealOut)-e.overhead:]
@@ -379,8 +381,8 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	e.moveToNextNonce()
 	//e.xorNonceWithNextNonceSeqno(e.writeNonce, e.lastNonceSeqno)
 
-	// Write the magic + 8 bytes of msglen + the nonce + encrypted data with authentication tag.
-	return writeFull(conn, buf[:16+e.noncesize+len(sealOut)], timeout)
+	// Write the 8 bytes of msglen + the nonce + encrypted data with authentication tag.
+	return writeFull(conn, buf[:8+e.noncesize+len(sealOut)], timeout)
 }
 
 // Read decrypts data from the underlying stream.
@@ -435,13 +437,16 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 		alwaysPrintf("decryption failure on '%v' readMessage: '%v'", d.work.name, err)
 		return nil, err
 	}
+	// message is our plaintext.
 
-	// magic check and determine compression type.
-	copy(w.magicCheck, message)
+	// magic is the first 8 bytes: check and determine compression type.
+	copy(d.magicCheck, message)
 	magic7 := magic[7]
-	if !bytes.Equal(w.magicCheck[:7], magic[:7]) {
+	if !bytes.Equal(d.magicCheck[:7], magic[:7]) {
 		return nil, ErrMagicWrong
 	}
+	// trim off the magic 8 bytes
+	message = message[8:]
 
 	// reverse any compression after decoding.
 	if d.compress && d.decomp != nil {

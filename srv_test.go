@@ -314,7 +314,7 @@ func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 		panicOn(err)
 		<-oneWayStreetChan
 		cv.So(true, cv.ShouldEqual, true)
-		vv("yay. we confirmed that oneWayStreen func has run")
+		vv("yay. we confirmed that oneWayStreet func has run")
 		// sleep a little to avoid shutting down before server can decide
 		// not to process/return a reply.
 		time.Sleep(time.Millisecond * 50)

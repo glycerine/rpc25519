@@ -123,12 +123,14 @@ func newWorkspace(name string, maxMsgSize int) *workspace {
 		writeLenMessageBytes: make([]byte, 8),
 		magicCheck:           make([]byte, 8), // last byte is compression type.
 
-		compress:        UseCompression,
-		compressionAlgo: UseCompressionAlgo,
+		compress:               UseCompression,
+		defaultCompressionAlgo: UseCompressionAlgo,
 	}
 	// write according to our defaults.
 	magic7 := setMagicCheckDefaults(w.magicCheck)
 	w.defaultMagic7 = magic7
+
+	return w
 }
 
 // receiveMessage reads a framed message from conn

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
+	//"os"
 
 	"github.com/klauspost/compress/s2"
 	"github.com/klauspost/compress/zstd"
@@ -96,10 +96,10 @@ type pressor struct {
 	com_s2     *s2.Writer
 
 	// support any of these 4 Zstandard levels
-	com_ztd11 *zstd.Encoder
-	com_ztd07 *zstd.Encoder
-	com_ztd03 *zstd.Encoder
-	com_ztd01 *zstd.Encoder
+	com_zstd11 *zstd.Encoder
+	com_zstd07 *zstd.Encoder
+	com_zstd03 *zstd.Encoder
+	com_zstd01 *zstd.Encoder
 
 	compBuf *bytes.Buffer
 
@@ -130,22 +130,22 @@ func newPressor(maxMsgSize int) (p *pressor) {
 
 	var err error
 	// The "Best"    is roughly equivalent to zstd level 11.
-	p.com_ztd11, err = zstd.NewWriter(io.Discard,
+	p.com_zstd11, err = zstd.NewWriter(io.Discard,
 		zstd.WithEncoderLevel(zstd.SpeedBestCompression))
 	panicOn(err)
 
 	// The "Better"  is roughly equivalent to zstd level 7.
-	p.com_ztd07, err = zstd.NewWriter(io.Discard,
-		zstd.WithEncoderLevel(zstd.SpeedBetter))
+	p.com_zstd07, err = zstd.NewWriter(io.Discard,
+		zstd.WithEncoderLevel(zstd.SpeedBetterCompression))
 	panicOn(err)
 
 	// The "Default" is roughly equivalent to zstd level 3 (default).
-	p.com_ztd03, err = zstd.NewWriter(io.Discard,
+	p.com_zstd03, err = zstd.NewWriter(io.Discard,
 		zstd.WithEncoderLevel(zstd.SpeedDefault))
 	panicOn(err)
 
 	// The "Fastest" is roughly equivalent to zstd level 1.
-	p.com_ztd01, err = zstd.NewWriter(io.Discard,
+	p.com_zstd01, err = zstd.NewWriter(io.Discard,
 		zstd.WithEncoderLevel(zstd.SpeedFastest))
 	panicOn(err)
 
@@ -168,16 +168,16 @@ func (p *pressor) handleCompress(magic7 byte, bytesMsg, copyTo []byte) ([]byte, 
 		c = p.com_lz4
 		//return "lz4", nil
 	case 3:
-		c = p._zstd11
+		c = p.com_zstd11
 		//return "bzst:11", nil
 	case 4:
-		c = p._zstd07
+		c = p.com_zstd07
 		//return "bzst:07", nil
 	case 5:
-		c = p._zstd03
+		c = p.com_zstd03
 		//return "bzst:03", nil
 	case 6:
-		c = p._zstd01
+		c = p.com_zstd01
 		//return "bzst:01", nil
 	default:
 		panic(fmt.Sprintf("unknown magic7 '%v'", magic7))
@@ -200,7 +200,7 @@ func (p *pressor) handleCompress(magic7 byte, bytesMsg, copyTo []byte) ([]byte, 
 	if len(copyTo) > 0 {
 		copy(copyTo, bytesMsg)
 	}
-	return bytesMsg
+	return bytesMsg, nil
 }
 
 func (decomp *decomp) handleDecompress(magic7 byte, message []byte) ([]byte, error) {
@@ -230,7 +230,7 @@ func (decomp *decomp) handleDecompress(magic7 byte, message []byte) ([]byte, err
 
 	compressedLen := len(message)
 	if compressedLen < 4 {
-		return message
+		return message, nil
 	}
 
 	decomp.decompBuf = bytes.NewBuffer(message)
@@ -240,7 +240,7 @@ func (decomp *decomp) handleDecompress(magic7 byte, message []byte) ([]byte, err
 	out := bytes.NewBuffer(decomp.decompSlice[:0])
 	n, err := io.Copy(out, d)
 	panicOn(err)
-	if n > int64(len(d.decompSlice)) {
+	if n > int64(len(decomp.decompSlice)) {
 		panic(fmt.Sprintf("we wrote more than our "+
 			"pre-allocated buffer, up its size! "+
 			"n(%v) > len(out) = %v", n, len(decomp.decompSlice)))
@@ -248,5 +248,5 @@ func (decomp *decomp) handleDecompress(magic7 byte, message []byte) ([]byte, err
 	//vv("decompression: %v bytes -> %v bytes; "+
 	// "len(out.Bytes())=%v", compressedLen, n, len(out.Bytes()))
 	message = out.Bytes()
-	return message
+	return message, nil
 }
