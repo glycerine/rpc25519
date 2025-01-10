@@ -26,6 +26,19 @@ var _ = lz4.NewWriter
 var _ = fmt.Printf
 
 const useCompression = true
+const useCompressionAlgo = "lz4"
+
+type compressor interface {
+	Reset(io.Writer)
+	Write(data []byte) (n int, err error)
+	//WriteTo(w io.Writer) (n int64, err error)
+	Close() error
+}
+type decompressor interface {
+	Reset(io.Reader)
+	Read(p []byte) (n int, err error)
+	//ReadFrom(r io.Reader) (n int64, err error)
+}
 
 // blabber holds stream encryption/decryption facilities.
 //
@@ -67,6 +80,9 @@ type blabber struct {
 
 	// should we compress/decompress?
 	compress bool
+	// if so, which algo to use?
+	// choices: "s2", "lz4", "zstd" available atm.
+	compressionAlgo string
 
 	maxMsgSize int
 
@@ -107,7 +123,8 @@ type encoder struct {
 	compress bool
 	//compressor *lz4.Writer
 	//compressor *s2.Writer
-	compressor *zstd.Encoder
+	//compressor *zstd.Encoder
+	compressor compressor
 	compBuf    *bytes.Buffer
 	compSlice  []byte
 }
@@ -128,7 +145,8 @@ type decoder struct {
 	compress bool
 	//decompressor *lz4.Reader
 	//decompressor *s2.Reader
-	decompressor *zstd.Decoder
+	//decompressor *zstd.Decoder
+	decompressor decompressor
 	decompBuf    *bytes.Buffer
 	decompSlice  []byte
 }
@@ -143,7 +161,17 @@ type decoder struct {
 //
 // Latest: use ASCON 128a inside, so inner tunnel can
 // differ from outer. Is about 2x faster than ChaChan20.
-func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize int, isServer, compress bool) *blabber {
+func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize int, isServer bool, compressionAlgo string) *blabber {
+
+	var compress bool
+	if compressionAlgo != "" {
+		switch compressionAlgo {
+		case "s2", "lz4", "zstd":
+		default:
+			panic(fmt.Sprintf("unknown compressionAlgo '%v'", compressionAlgo))
+		}
+		compress = true
+	}
 
 	var err error
 	var aeadEnc, aeadDec cipher.AEAD
@@ -207,7 +235,56 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 		overhead:     aeadEnc.Overhead(),
 		work:         newWorkspace(name+"_enc", maxMsgSize),
 	}
+	dec := &decoder{
+		compress:  compress,
+		key:       key[:],
+		aead:      aeadDec,
+		noncesize: nsz,
+		overhead:  aeadEnc.Overhead(),
+		work:      newWorkspace(name+"_dec", maxMsgSize),
+	}
 	if compress {
+		setupCompression(enc, dec, compressionAlgo, maxMsgSize)
+	}
+
+	return &blabber{
+		compress:        compress,
+		compressionAlgo: compressionAlgo,
+		conn:            conn,
+		maxMsgSize:      maxMsgSize,
+		encrypt:         encrypt,
+
+		enc: enc,
+		dec: dec,
+	}
+}
+
+func setupCompression(enc *encoder, dec *decoder, algo string, maxMsgSize int) {
+
+	enc.compSlice = make([]byte, maxMsgSize+80)
+	dec.decompSlice = make([]byte, maxMsgSize+80)
+
+	switch algo {
+	case "s2":
+		enc.compressor = s2.NewWriter(nil)
+		dec.decompressor = s2.NewReader(nil)
+
+	case "lz4":
+		comp := lz4.NewWriter(nil)
+
+		options := []lz4.Option{
+			lz4.BlockChecksumOption(true),
+			lz4.CompressionLevelOption(lz4.Fast),
+			// setting the concurrency option seems to make it hang.
+			//lz4.ConcurrencyOption(concurrency),
+		}
+		if err := comp.Apply(options...); err != nil {
+			panic(fmt.Sprintf("error could not apply lz4 options: '%v'", err))
+		}
+		enc.compressor = comp
+		dec.decompressor = lz4.NewReader(nil)
+
+	case "zstd":
 		//enc.compBuf = bytes.NewBuffer(enc.compSlice)
 		const concurrency = -1 // all CPUs.
 
@@ -221,49 +298,11 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 		// BlockChecksumOption enables or disables
 		// block checksum (default=false).
 		// lz4.BlockChecksumOption(false),
-
-		//enc.compressor = lz4.NewWriter(nil)
-		//enc.compressor = s2.NewWriter(nil)
-		//enc.compressor, err = zstd.NewWriter(nil)
-		enc.compressor, err = zstd.NewWriter(io.Discard, zstd.WithEncoderLevel(zstd.SpeedFastest))
+		var err error
+		enc.compressor, err = zstd.NewWriter(io.Discard,
+			zstd.WithEncoderLevel(zstd.SpeedFastest))
 		panicOn(err)
 
-		/*		options := []lz4.Option{
-							lz4.BlockChecksumOption(true),
-							lz4.CompressionLevelOption(lz4.Fast),
-							// setting the concurrency option seems to make it hang.
-							//lz4.ConcurrencyOption(concurrency),
-						}
-				if err := enc.compressor.Apply(options...); err != nil {
-					panic(fmt.Sprintf("error could not apply lz4 options: '%v'", err))
-				}
-		*/
-		enc.compSlice = make([]byte, maxMsgSize+80)
-	}
-	dec := &decoder{
-		compress:  compress,
-		key:       key[:],
-		aead:      aeadDec,
-		noncesize: nsz,
-		overhead:  aeadEnc.Overhead(),
-		work:      newWorkspace(name+"_dec", maxMsgSize),
-	}
-	if compress {
-		//dec.decompressor = lz4.NewReader(nil)
-		//dec.decompressor = s2.NewReader(nil)
-		dec.decompressor, err = zstd.NewReader(nil)
-		panicOn(err)
-		dec.decompSlice = make([]byte, maxMsgSize+80)
-	}
-
-	return &blabber{
-		compress:   compress,
-		conn:       conn,
-		maxMsgSize: maxMsgSize,
-		encrypt:    encrypt,
-
-		enc: enc,
-		dec: dec,
 	}
 }
 
@@ -386,7 +425,6 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 		e.compressor.Reset(out)
 
 		_, err := io.Copy(e.compressor, e.compBuf)
-		//panicOn(e.compressor.Flush())
 		panicOn(e.compressor.Close())
 		panicOn(err)
 		//compressedLen := len(out.Bytes())

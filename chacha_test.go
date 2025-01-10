@@ -16,8 +16,8 @@ func Test020_nonce_sequence_not_reused(t *testing.T) {
 		"so a nonce is never re-used, esp between client and server", t, func() {
 		var key [32]byte
 
-		bcli := newBlabber("test", key, nil, true, 1024, false, useCompression)
-		bsrv := newBlabber("test", key, nil, true, 1024, true, useCompression)
+		bcli := newBlabber("test", key, nil, true, 1024, false, useCompressionAlgo)
+		bsrv := newBlabber("test", key, nil, true, 1024, true, useCompressionAlgo)
 		n := 1100
 
 		const nonceSize = 16

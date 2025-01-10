@@ -143,7 +143,9 @@ type RsyncStep2_AckOverview struct {
 // Download/upload protocols; use a
 // Args["compression"] setting to indicate
 // how to uncompress it before writing to
-// disk.
+// disk. That would mean leaving the
+// headers uncompressed! Right now they
+// are serialized inline with the message.
 type RsyncStep3_SenderProvidesDeltas struct {
 	SenderHashes *RsyncHashes `zid:"0"` // needs to be streamed too.
 
