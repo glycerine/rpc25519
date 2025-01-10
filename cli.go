@@ -1511,8 +1511,8 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		to = remote(c.conn)
 	}
 
-	req.HDR.To = to     // write race here vs cli send loop reading it.
-	req.HDR.From = from // write here race vs hdr serz code common.go:193 using w.buf
+	req.HDR.To = to
+	req.HDR.From = from
 
 	// preserve the deadline, but
 	// don't lengthen deadline if it

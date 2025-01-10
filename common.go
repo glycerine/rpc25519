@@ -190,8 +190,7 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 	defer w.wmut.Unlock()
 
 	// serialize message to bytes
-	//bytesMsg, err := msg.AsGreenpack(w.buf) // read here race vs write at cli.go:1515
-	bytesMsg, err := msg.AsGreenpack(nil) // force new allocation? does not help w race
+	bytesMsg, err := msg.AsGreenpack(w.buf)
 	if err != nil {
 		return err
 	}
