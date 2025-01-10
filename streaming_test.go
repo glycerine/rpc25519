@@ -381,7 +381,6 @@ func Test301_download_streaming_test(t *testing.T) {
 	})
 }
 
-// has race
 func Test302_bistreaming_test_simultaneous_upload_and_download(t *testing.T) {
 
 	cv.Convey("before we add compression, test bistreaming: cli -echofile vs srv -echo;. Test302 is for bistreaming (simultaneous upload and download of files bigger than max Message size)", t, func() {

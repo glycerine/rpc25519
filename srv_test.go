@@ -90,8 +90,8 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 
 		reply, err := cli.SendAndGetReply(req, nil)
 		panicOn(err)
-
-		vv("srv_test sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
+		_ = reply
+		//vv("srv_test sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
 
 		srv.Register1Func(oneWayStreet)
 		req = NewMessage()
