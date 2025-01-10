@@ -183,21 +183,21 @@ func (p *pressor) handleCompress(magic7 byte, bytesMsg []byte) ([]byte, error) {
 	_ = uncompressedLen
 	compBuf := bytes.NewBuffer(bytesMsg)
 	// already done at init:
-	//enc.compSlice = make([]byte, maxMsgSize+80)
+	//p.compSlice = make([]byte, maxMsgSize+80)
 
-	// debug: new slice every time, is memory sharing the issue?
-	big := make([]byte, maxMessage)
+	// debug: new slice every time, is memory sharing the issue? nope.
+	//big := make([]byte, maxMessage)
+	//out := bytes.NewBuffer(big[:0])
 
-	//out := bytes.NewBuffer(p.compSlice[:0])
-	out := bytes.NewBuffer(big[:0])
+	out := bytes.NewBuffer(p.compSlice[:0])
 
 	c.Reset(out)
 
 	_, err := io.Copy(c, compBuf)
 	panicOn(c.Close())
 	panicOn(err)
-	//compressedLen := len(out.Bytes())
-	//vv("compression: %v bytes -> %v bytes", uncompressedLen, compressedLen)
+	compressedLen := len(out.Bytes())
+	vv("compression: %v bytes -> %v bytes", uncompressedLen, compressedLen)
 	bytesMsg = out.Bytes()
 	return bytesMsg, nil
 }
@@ -231,17 +231,15 @@ func (decomp *decomp) handleDecompress(magic7 byte, message []byte) ([]byte, err
 
 	//vv("handleDecompress(magic7=%v) is using '%v'", magic7, mustDecodeMagic7(magic7))
 
+	compressedLen := len(message)
 	decompBuf := bytes.NewBuffer(message)
 	d.Reset(decompBuf)
 	// already init done:
 	//d.decompSlice = make([]byte, maxMsgSize+80)
 
-	// debug: new slice every time, is memory sharing the issue?
-	// nope! or at least, the Test011_PreSharedKey_over_TCP is red still.
-	big := make([]byte, maxMessage)
-
-	out := bytes.NewBuffer(big[:0])
-	//out := bytes.NewBuffer(decomp.decompSlice[:0])
+	//big := make([]byte, maxMessage)
+	//out := bytes.NewBuffer(big[:0])
+	out := bytes.NewBuffer(decomp.decompSlice[:0])
 
 	n, err := io.Copy(out, d)
 	panicOn(err)
@@ -250,8 +248,8 @@ func (decomp *decomp) handleDecompress(magic7 byte, message []byte) ([]byte, err
 			"pre-allocated buffer, up its size! "+
 			"n(%v) > len(out) = %v", n, len(decomp.decompSlice)))
 	}
-	//vv("decompression: %v bytes -> %v bytes; "+
-	// "len(out.Bytes())=%v", compressedLen, n, len(out.Bytes()))
+	vv("decompression: %v bytes -> %v bytes; "+
+		"len(out.Bytes())=%v", compressedLen, n, len(out.Bytes()))
 	message = out.Bytes()
 	return message, nil
 }
