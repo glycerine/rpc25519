@@ -1,5 +1,7 @@
 package rpc25519
 
+/* could never get the []byte oriented api to zstd to work;
+   only the stream one.
 import (
 	"github.com/klauspost/compress/zstd"
 )
@@ -55,3 +57,4 @@ func (c *zstdCompressor) Decompress(src []byte) ([]byte, error) {
 func (c *zstdCompressor) Compress(src []byte) []byte {
 	return c.compressor.EncodeAll(src, c.compressWorkingBuf[:0])
 }
+*/

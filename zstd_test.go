@@ -1,5 +1,6 @@
 package rpc25519
 
+/* just experiments, not really tests
 import (
 	"bytes"
 	cryrand "crypto/rand"
@@ -135,33 +136,31 @@ func Test401_zstd_expriment_with_streaming_for_smaller_buffers(t *testing.T) {
 		panicOn(header.Decode(compressed[:zstd.HeaderMaxSize]))
 		vv("header = '%#v'", header)
 
-		/*
-		   header = 'zstd.Header{
-		   SingleSegment:false,
-		   WindowSize:0x400,
-		   DictionaryID:0x0,
-		   HasFCS:false,
-		   FrameContentSize:0x0,
-		   Skippable:false,
-		   SkippableID:0,
-		   SkippableSize:0x0,
-		   HeaderSize:6,
-		   FirstBlock:struct {
-		     OK bool;
-		     Last bool;
-		     Compressed bool;
-		     DecompressedSize int;
-		     CompressedSize int
-		   }
-		   {
-		     OK:true,
-		     Last:true,
-		     Compressed:true,
-		     DecompressedSize:100,
-		     CompressedSize:1
-		   },
-		    HasCheckSum:true}'
-		*/
+		// header = 'zstd.Header{
+		// SingleSegment:false,
+		// WindowSize:0x400,
+		// DictionaryID:0x0,
+		// HasFCS:false,
+		// FrameContentSize:0x0,
+		// Skippable:false,
+		// SkippableID:0,
+		// SkippableSize:0x0,
+		// HeaderSize:6,
+		// FirstBlock:struct {
+		//   OK bool;
+		//   Last bool;
+		//   Compressed bool;
+		//   DecompressedSize int;
+		//   CompressedSize int
+		// }
+		// {
+		//   OK:true,
+		//   Last:true,
+		//   Compressed:true,
+		//   DecompressedSize:100,
+		//   CompressedSize:1
+		// },
+		//  HasCheckSum:true}'
 
 		if header.SingleSegment && header.HasFCS {
 			// implies that WindowSize is invalid and that FrameContentSize is valid.
@@ -183,14 +182,14 @@ func Test401_zstd_expriment_with_streaming_for_smaller_buffers(t *testing.T) {
 		vv("framesz = %v", framesz)
 
 		// frame header is 2-14 bytes
-		/*
-			decomp, err := z.decomp.DecodeAll(compressed, data[:0])
-			panicOn(err)
 
-			if !bytes.Equal(decomp, orig) {
-				panic("should be equal")
-			}
-		*/
+		// decomp, err := z.decomp.DecodeAll(compressed, data[:0])
+		// panicOn(err)
+
+		// if !bytes.Equal(decomp, orig) {
+		// 	panic("should be equal")
+		// }
+
 	})
 
 }
@@ -312,3 +311,4 @@ func Test403_lz4_experiments_continue(t *testing.T) {
 
 	})
 }
+*/
