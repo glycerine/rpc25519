@@ -13,55 +13,10 @@ import (
 	"time"
 
 	"github.com/cloudflare/circl/cipher/ascon"
-	"github.com/klauspost/compress/s2"
-	"github.com/klauspost/compress/zstd"
-	"github.com/pierrec/lz4/v4"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
-var _ = &zstd.Decoder{}
-var _ = s2.NewWriter
-var _ = lz4.NewWriter
-
 var _ = fmt.Printf
-
-const UseCompression = true
-const UseCompressionAlgo = "s2"
-
-// compressor is implemented by
-// compressor *lz4.Writer
-// compressor *s2.Writer
-// compressor *zstd.Encoder
-type compressor interface {
-	Reset(io.Writer)
-	Write(data []byte) (n int, err error)
-	Close() error
-}
-
-// decompressor is implemented by
-// decompressor *lz4.Reader
-// decompressor *s2.Reader
-// decompressor *zstd.Decoder
-type decompressor interface {
-	Reset(io.Reader) // s2, lz4
-	//Reset(io.Reader) error // zstd
-	Read(p []byte) (n int, err error)
-	//ReadFrom(r io.Reader) (n int64, err error) // s2, lz4 do not implement.
-}
-
-// wrapZstdDecoder wraps a zstd.Decoder because we have to
-// remove the returned error from the Reset method, going from
-// Reset(io.Reader) error // zstd
-// to
-// Reset(io.Reader) // s2, lz4 so the
-// so that the decompressor interface works for all three (s2,lz4,zstd).
-type wrapZstdDecoder struct {
-	zstd.Decoder
-}
-
-func (d *wrapZstdDecoder) Reset(r io.Reader) {
-	d.Decoder.Reset(r)
-}
 
 // blabber holds stream encryption/decryption facilities.
 //
@@ -143,10 +98,8 @@ type encoder struct {
 	mut  sync.Mutex
 	work *workspace
 
-	compress   bool
-	compressor compressor
-	compBuf    *bytes.Buffer
-	compSlice  []byte
+	compress bool
+	pressor  *pressor
 }
 
 // decoder organizes the decryption of messages
@@ -162,10 +115,8 @@ type decoder struct {
 	mut  sync.Mutex
 	work *workspace
 
-	compress     bool
-	decompressor decompressor
-	decompBuf    *bytes.Buffer
-	decompSlice  []byte
+	compress bool
+	decomp   *decomp
 }
 
 // newBlabber: at the moment it gets setup to do both read
@@ -325,17 +276,6 @@ func setupCompression(enc *encoder, dec *decoder, algo string, maxMsgSize int) {
 		// The "Better"  is roughly equivalent to zstd level 7.
 		// The "Best"    is roughly equivalent to zstd level 11.
 		panicOn(err)
-
-		var wrap wrapZstdDecoder
-		zread, err := zstd.NewReader(nil)
-		panicOn(err)
-		// Fortunately the constructor zstd.NewReader
-		// does not use the sync.WaitGroup contained in zstd.Decoder,
-		// so we can copy the struct into the wrapper safely
-		// before it is used.
-		wrap.Decoder = *zread
-
-		dec.decompressor = &wrap
 	}
 }
 
@@ -495,6 +435,10 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	return writeFull(conn, buf[:8+e.noncesize+len(sealOut)], timeout)
 }
 
+func (e *encoder) handleCompress() {
+
+}
+
 // Read decrypts data from the underlying stream.
 // When a client actively reads from a net.Conn they are doing this.
 // Read(plain []byte) (n int, err error) {
@@ -550,28 +494,34 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 
 	// reverse any compression after decoding.
 	if d.compress {
-		compressedLen := len(message)
-		if compressedLen > 4 {
-
-			d.decompBuf = bytes.NewBuffer(message)
-			d.decompressor.Reset(d.decompBuf) // segfault
-			// already init done:
-			//d.decompSlice = make([]byte, maxMsgSize+80)
-			out := bytes.NewBuffer(d.decompSlice[:0])
-			n, err := io.Copy(out, d.decompressor)
-			panicOn(err)
-			if n > int64(len(d.decompSlice)) {
-				panic(fmt.Sprintf("we wrote more than our "+
-					"pre-allocated buffer, up its size! "+
-					"n(%v) > len(out) = %v", n, len(d.decompSlice)))
-			}
-			//vv("decompression: %v bytes -> %v bytes; "+
-			// "len(out.Bytes())=%v", compressedLen, n, len(out.Bytes()))
-			message = out.Bytes()
-		}
+		message = d.handleDecompress(message)
 	}
 
 	return MessageFromGreenpack(message)
+}
+
+func (d *decoder) handleDecompress(message []byte) []byte {
+	compressedLen := len(message)
+	if compressedLen < 4 {
+		return message
+	}
+
+	d.decompBuf = bytes.NewBuffer(message)
+	d.decompressor.Reset(d.decompBuf)
+	// already init done:
+	//d.decompSlice = make([]byte, maxMsgSize+80)
+	out := bytes.NewBuffer(d.decompSlice[:0])
+	n, err := io.Copy(out, d.decompressor)
+	panicOn(err)
+	if n > int64(len(d.decompSlice)) {
+		panic(fmt.Sprintf("we wrote more than our "+
+			"pre-allocated buffer, up its size! "+
+			"n(%v) > len(out) = %v", n, len(d.decompSlice)))
+	}
+	//vv("decompression: %v bytes -> %v bytes; "+
+	// "len(out.Bytes())=%v", compressedLen, n, len(out.Bytes()))
+	message = out.Bytes()
+	return message
 }
 
 // utility for doing 100 hashes

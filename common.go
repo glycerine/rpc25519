@@ -22,17 +22,6 @@ var ErrTooLong = fmt.Errorf("message message too long: over 64MB; encrypted clie
 
 var _ = io.EOF
 
-// magic is always the first 8 bytes of an
-// unencrypted message on the wire. Thus
-// magic lets us detect when message boundaries
-// have been corrupted (also encrypted vs not mismatches).
-// It was chosen randomly and should remain
-// constant, or else clients and servers will not
-// be able to talk to each other.
-var magic = [8]byte{0xb3, 0x5d, 0x18, 0x39, 0xac, 0x8e, 0x1d, 0x80}
-
-var ErrMagicWrong = fmt.Errorf("error: magic bytes not found at start of message")
-
 // uConn hopefully works for both quic.Stream and net.Conn, universally.
 type uConn interface {
 	io.Writer
@@ -121,7 +110,7 @@ func newWorkspace(name string, maxMsgSize int) *workspace {
 		buf:                  make([]byte, maxMsgSize+80),
 		readLenMessageBytes:  make([]byte, 8),
 		writeLenMessageBytes: make([]byte, 8),
-		magicCheck:           make([]byte, 8),
+		magicCheck:           make([]byte, 8), // last byte is compression type.
 	}
 }
 
@@ -148,14 +137,20 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 	//w.wmut.Lock()
 	//defer w.rwut.Unlock()
 
-	// Read the first 8 bytes for the magic check.
+	// Read the first 8 bytes for the magic/compression type check.
 	_, err = readFull(conn, w.magicCheck, timeout)
 	if err != nil {
 		return nil, err
 	}
-	if !bytes.Equal(w.magicCheck, magic[:]) {
+	// allow the magic[7] to indicate compression type.
+	if !bytes.Equal(w.magicCheck[:7], magic[:7]) {
 		return nil, ErrMagicWrong
 	}
+	magicCompressAlgo, err := decodeMagicCompress(magic[7])
+	if err != nil {
+		return nil, err
+	}
+
 	// Read the next 8 bytes for the Message length.
 	_, err = readFull(conn, w.readLenMessageBytes, timeout)
 	if err != nil {
@@ -177,11 +172,40 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 		return nil, err
 	}
 
+	if magicCompressAlgo != "" {
+		message = w.handleDecompress(message)
+	}
+
 	msg, err = MessageFromGreenpack(message)
 	if err != nil {
 		return nil, err
 	}
 	return msg, nil
+}
+
+// keep consistent with the decoder version in chacha.go
+func (d *workspace) handleDecompress(message []byte) []byte {
+	compressedLen := len(message)
+	if compressedLen < 4 {
+		return message
+	}
+
+	d.decompBuf = bytes.NewBuffer(message)
+	d.decompressor.Reset(d.decompBuf)
+	// already init done:
+	//d.decompSlice = make([]byte, maxMsgSize+80)
+	out := bytes.NewBuffer(d.decompSlice[:0])
+	n, err := io.Copy(out, d.decompressor)
+	panicOn(err)
+	if n > int64(len(d.decompSlice)) {
+		panic(fmt.Sprintf("we wrote more than our "+
+			"pre-allocated buffer, up its size! "+
+			"n(%v) > len(out) = %v", n, len(d.decompSlice)))
+	}
+	//vv("decompression: %v bytes -> %v bytes; "+
+	// "len(out.Bytes())=%v", compressedLen, n, len(out.Bytes()))
+	message = out.Bytes()
+	return message
 }
 
 // sendMessage sends a framed message to conn
@@ -199,8 +223,10 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 
 	binary.BigEndian.PutUint64(w.writeLenMessageBytes, uint64(nbytesMsg))
 
+	setMagic7(w.magicCheck)
+
 	// Write magic
-	if err := writeFull(conn, magic[:], timeout); err != nil {
+	if err := writeFull(conn, w.magicCheck[:], timeout); err != nil {
 		return err
 	}
 
