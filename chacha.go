@@ -26,7 +26,7 @@ var _ = lz4.NewWriter
 var _ = fmt.Printf
 
 const UseCompression = true
-const UseCompressionAlgo = "s2"
+const UseCompressionAlgo = "zstd"
 
 // compressor is implemented by
 // compressor *lz4.Writer
@@ -43,9 +43,24 @@ type compressor interface {
 // decompressor *s2.Reader
 // decompressor *zstd.Decoder
 type decompressor interface {
-	Reset(io.Reader)
+	Reset(io.Reader) // s2, lz4
+	//Reset(io.Reader) error // zstd
 	Read(p []byte) (n int, err error)
 	//ReadFrom(r io.Reader) (n int64, err error) // s2, lz4 do not implement.
+}
+
+// wrapZstdDecoder wraps a zstd.Decoder because we have to
+// remove the returned error from the Reset method, going from
+// Reset(io.Reader) error // zstd
+// to
+// Reset(io.Reader) // s2, lz4 so the
+// so that the decompressor interface works for all three (s2,lz4,zstd).
+type wrapZstdDecoder struct {
+	zstd.Decoder
+}
+
+func (d *wrapZstdDecoder) Reset(r io.Reader) {
+	d.Decoder.Reset(r)
 }
 
 // blabber holds stream encryption/decryption facilities.
@@ -301,7 +316,8 @@ func setupCompression(enc *encoder, dec *decoder, algo string, maxMsgSize int) {
 		// block checksum (default=false).
 		// lz4.BlockChecksumOption(false),
 		var err error
-		enc.compressor, err = zstd.NewWriter(io.Discard)
+		enc.compressor, err = zstd.NewWriter(io.Discard,
+			zstd.WithEncoderLevel(zstd.SpeedBestCompression))
 		// ,zstd.WithEncoderLevel(zstd.SpeedFastest))
 		// ,zstd.WithEncoderLevel(zstd.SpeedBetter))
 		// The "Fastest" is roughly equivalent to zstd level 1.
@@ -310,6 +326,16 @@ func setupCompression(enc *encoder, dec *decoder, algo string, maxMsgSize int) {
 		// The "Best"    is roughly equivalent to zstd level 11.
 		panicOn(err)
 
+		var wrap wrapZstdDecoder
+		zread, err := zstd.NewReader(nil)
+		panicOn(err)
+		// Fortunately the constructor zstd.NewReader
+		// does not use the sync.WaitGroup contained in zstd.Decoder,
+		// so we can copy the struct into the wrapper safely
+		// before it is used.
+		wrap.Decoder = *zread
+
+		dec.decompressor = &wrap
 	}
 }
 
@@ -528,7 +554,7 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 		if compressedLen > 4 {
 
 			d.decompBuf = bytes.NewBuffer(message)
-			d.decompressor.Reset(d.decompBuf)
+			d.decompressor.Reset(d.decompBuf) // segfault
 			// already init done:
 			//d.decompSlice = make([]byte, maxMsgSize+80)
 			out := bytes.NewBuffer(d.decompSlice[:0])
