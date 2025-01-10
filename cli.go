@@ -35,6 +35,9 @@ import (
 
 var _ = cryrand.Read
 
+const DefaultUseCompression = true
+const DefaultUseCompressAlgo = "s2" // see magic7.go
+
 type localRemoteAddr interface {
 	RemoteAddr() net.Addr
 	LocalAddr() net.Addr
@@ -274,7 +277,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 		c.mut.Unlock()
 	}
 
-	w := newBlabber("client read loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false)
+	w := newBlabber("client read loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false, c.cfg)
 
 	readTimeout := time.Millisecond * 100
 	_ = readTimeout
@@ -430,7 +433,7 @@ func (c *Client) runSendLoop(conn net.Conn) {
 		c.mut.Unlock()
 	}
 
-	w := newBlabber("client send loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false)
+	w := newBlabber("client send loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false, c.cfg)
 
 	// PRE: Message.DoneCh must be buffered at least 1, so
 	// our logic below does not have to deal with ever blocking.
@@ -861,6 +864,22 @@ type Config struct {
 
 	ServerSendKeepAlive time.Duration
 	ClientSendKeepAlive time.Duration
+
+	// CompressAlgo choices are in magic7.go;
+	// The current choices are "" (default compression, "s2" at the moment),
+	// or: "s2" (Klaus Post's faster SnappyV2, good for incompressibles);
+	// "lz4", (a very fast compressor; see https://lz4.org/);
+	// "zstd:01" (fastest setting for Zstandard, very little compression);
+	// "zstd:03", (the Zstandard 'default' level; slower but more compression);
+	// "zstd:07", (even more compression, even slower);
+	// "zstd:11", (slowest version of Zstandard, the most compression).
+	//
+	// Note! empty string means we use DefaultUseCompressAlgo
+	// (at the top of cli.go), which is currently "s2".
+	// To turn off compression, you must use the
+	// CompressionOff setting.
+	CompressAlgo   string
+	CompressionOff bool
 
 	// Intially speak HTTP and only
 	// accept CONNECT requests that
@@ -1344,6 +1363,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 	} else {
 		return nil, fmt.Errorf("missing config.ServerAddr to connect to")
 	}
+	c.setDefaults(config)
 	c = &Client{
 		cfg:         cfg,
 		name:        name,
@@ -1368,6 +1388,14 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		encBuf: c.encBufW,
 	}
 	return c, nil
+}
+
+func (c *Client) setDefaults(cfg *Config) {
+	if !cfg.CompressionOff {
+		if cfg.CompressAlgo == "" {
+			cfg.CompressAlgo = DefaultUseCompressAlgo
+		}
+	}
 }
 
 // Start dials the server.

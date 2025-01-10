@@ -59,7 +59,7 @@ type blabber struct {
 	compress bool
 	// if so, which algo to use?
 	// choices: "s2", "lz4", "zstd" available atm.
-	compressionAlgo string
+	compressAlgo string
 
 	maxMsgSize int
 
@@ -98,10 +98,11 @@ type encoder struct {
 	mut  sync.Mutex
 	work *workspace
 
-	magicCheck    []byte
-	defaultMagic7 byte
-	compress      bool
-	pressor       *pressor
+	magicCheck   []byte
+	compress     bool
+	compressAlgo string
+	magic7       byte // corresponds to compressAlgo
+	pressor      *pressor
 }
 
 // decoder organizes the decryption of messages
@@ -118,7 +119,6 @@ type decoder struct {
 	work *workspace
 
 	magicCheck []byte
-	compress   bool
 	decomp     *decomp
 }
 
@@ -132,7 +132,15 @@ type decoder struct {
 //
 // Latest: use ASCON 128a inside, so inner tunnel can
 // differ from outer. Is about 2x faster than ChaChan20.
-func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize int, isServer bool) *blabber {
+func newBlabber(
+	name string,
+	key [32]byte,
+	conn uConn,
+	encrypt bool,
+	maxMsgSize int,
+	isServer bool,
+	cfg *Config,
+) *blabber {
 
 	//vv("'%v' newBlabber called with key '%x'", name, key[:])
 
@@ -195,31 +203,30 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 		writeNonce:   writeNonce,
 		noncesize:    nsz,
 		overhead:     aeadEnc.Overhead(),
-		work:         newWorkspace(name+"_enc", maxMsgSize),
-		compress:     UseCompression,
+		work:         newWorkspace(name+"_enc", maxMsgSize, cfg),
+		compress:     !cfg.CompressionOff,
+		compressAlgo: cfg.CompressAlgo,
 		pressor:      newPressor(maxMsgSize),
 		magicCheck:   make([]byte, 8),
 	}
-	magic7 := setMagicCheckDefaults(enc.magicCheck)
-	enc.defaultMagic7 = magic7
+	enc.magic7 = setMagicCheckWord(cfg.CompressAlgo, enc.magicCheck)
 
 	dec := &decoder{
 		key:        key[:],
 		aead:       aeadDec,
 		noncesize:  nsz,
 		overhead:   aeadEnc.Overhead(),
-		work:       newWorkspace(name+"_dec", maxMsgSize),
-		compress:   UseCompression,
+		work:       newWorkspace(name+"_dec", maxMsgSize, cfg),
 		decomp:     newDecomp(maxMsgSize),
 		magicCheck: make([]byte, 8), // last byte is compression type.
 	}
 
 	return &blabber{
-		compress:        UseCompression,
-		compressionAlgo: UseCompressionAlgo,
-		conn:            conn,
-		maxMsgSize:      maxMsgSize,
-		encrypt:         encrypt,
+		compress:     !cfg.CompressionOff,
+		compressAlgo: cfg.CompressAlgo,
+		conn:         conn,
+		maxMsgSize:   maxMsgSize,
+		encrypt:      encrypt,
 
 		enc: enc,
 		dec: dec,
@@ -328,7 +335,7 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	if !bytes.Equal(e.magicCheck[:7], magic[:7]) {
 		panic("encoder.magicCheck[:7] should have been set in init!")
 	}
-	if e.defaultMagic7 != e.magicCheck[7] {
+	if e.magic7 != e.magicCheck[7] {
 		panic("encoder.defaultMagicCheck7 should have been set in init!")
 	}
 
@@ -345,7 +352,7 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	}
 
 	if e.compress && e.pressor != nil {
-		bytesMsg, err = e.pressor.handleCompress(e.defaultMagic7, bytesMsg)
+		bytesMsg, err = e.pressor.handleCompress(e.magic7, bytesMsg)
 		if err != nil {
 			return err
 		}
@@ -486,13 +493,21 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	message = message[8:]
 
 	// reverse any compression after decoding.
-	if d.compress && d.decomp != nil {
-		//vv("calling handleDecompress!")
-		message, err = d.decomp.handleDecompress(magic7, message)
-		if err != nil {
-			return nil, err
-		}
+
+	// decoder just follows the magic7 to decompress
+	// whatever it says; "reader makes right" means
+	// that we can experiment with sending
+	// different compressions quickly to measure their impact.
+	// Hence there is no "compression off" setting
+	// for the decoder; if the content is compressed,
+	// we will decompress it.
+
+	//vv("calling handleDecompress!")
+	message, err = d.decomp.handleDecompress(magic7, message)
+	if err != nil {
+		return nil, err
 	}
+	//}
 
 	return MessageFromGreenpack(message)
 }

@@ -12,9 +12,6 @@ import (
 const (
 	UserMaxPayload = 67106000 // users should chunk to this size, to be safe.
 
-	UseCompression     = true
-	UseCompressionAlgo = "s2"
-
 	maxMessage = 64*1024*1024 - 80 // 64 MB max message size, prevents TLS clients from talking to TCP servers, as the random TLS data looks like very big message size.
 )
 
@@ -111,7 +108,7 @@ type workspace struct {
 // are needed. We currently allocate 80 more bytes.
 // This pre-allocation avoids all reallocation
 // and memory churn during regular operation.
-func newWorkspace(name string, maxMsgSize int) *workspace {
+func newWorkspace(name string, maxMsgSize int, cfg *Config) *workspace {
 
 	w := &workspace{
 		name:       name,
@@ -123,13 +120,11 @@ func newWorkspace(name string, maxMsgSize int) *workspace {
 		writeLenMessageBytes: make([]byte, 8),
 		magicCheck:           make([]byte, 8), // last byte is compression type.
 
-		compress:               UseCompression,
-		defaultCompressionAlgo: UseCompressionAlgo,
+		compress:               !cfg.CompressionOff,
+		defaultCompressionAlgo: cfg.CompressAlgo,
 	}
 	// write according to our defaults.
-	magic7 := setMagicCheckDefaults(w.magicCheck)
-	w.defaultMagic7 = magic7
-
+	w.defaultMagic7 = setMagicCheckWord(cfg.CompressAlgo, w.magicCheck)
 	return w
 }
 

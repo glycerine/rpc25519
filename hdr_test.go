@@ -50,7 +50,8 @@ func Test010_HDR_generation(t *testing.T) {
 		cv.So(un1.Equal(hdr), cv.ShouldBeTrue)
 
 		// greenpack serz
-		w := newWorkspace("hdr_test", 4096) // max possible message len, to pre-allocate memory.
+		cfg := &Config{}
+		w := newWorkspace("hdr_test", 4096, cfg) // max possible message len, to pre-allocate memory.
 		green, err := hdr.AsGreenpack(w.buf)
 		panicOn(err)
 		hdr3, err := HDRFromGreenpack(green)

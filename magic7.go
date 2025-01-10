@@ -77,13 +77,10 @@ func encodeMagic7(magicCompressAlgo string) (magic7 byte, err error) {
 		"compress algo string '%v'", magicCompressAlgo)
 }
 
-func setMagicCheckDefaults(magicCheck []byte) byte {
+func setMagicCheckWord(pressAlgo string, magicCheck []byte) byte {
 	// write the compression algo in use to the magic[7]
 	// of the first 8 magic message bytes.
-	pressAlgo := UseCompressionAlgo
-	if !UseCompression {
-		pressAlgo = ""
-	}
+
 	magic7, err := encodeMagic7(pressAlgo)
 	panicOn(err)
 	copy(magicCheck, magic[:])
