@@ -138,7 +138,7 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 	var aeadEnc, aeadDec cipher.AEAD
 
 	// options for inner cipher:
-	useAscon128a := true
+	useAscon128a := false
 	useAesGCM := false
 	if useAesGCM {
 		block, err := aes.NewCipher(key[:])
@@ -352,21 +352,32 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 
 	// message order is:
 	// 8 bytes len. nonce. magic8. compressed message. auth tag.
+	//                    |<------ plain text ------->|
+	// cipher text is 1:1 |<--- cipher text too ----->|
 	lenBegin := 0
 	lenEndx := lenBegin + 8
+
 	nonceBeg := lenEndx // 8
 	nonceEndx := nonceBeg + e.noncesize
+
 	magicBeg := nonceEndx
 	magicEndx := magicBeg + 8
+
 	plainBeg := magicBeg // magic is the first 8 bytes of plaintext
 	plainEndx := magicEndx + len(bytesMsg)
-	tagBegin := plainBeg
+
+	tagBegin := plainEndx
 	tagEndx := tagBegin + e.overhead
 
 	sz := e.noncesize + magic8sz + len(bytesMsg) + e.overhead
-	if tagEndx != sz {
-		panic("sanity check on tagEndx failed")
+
+	// the sz (legth/size) we write to the first 8 bytes does not include the
+	// first 8 size bytes themselves.
+	if tagEndx != sz+8 {
+		panic(fmt.Sprintf("sanity check on tagEndx failed. tagEndx = %v; sz = %v", tagEndx, sz))
 	}
+
+	vv("sendMessage sees messageLen = %v", sz)
 
 	// write len.
 	binary.BigEndian.PutUint64(e.work.buf[lenBegin:lenEndx], uint64(sz))
@@ -395,15 +406,16 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 
 	if commitWithPACT {
 		tag := sealOut[len(sealOut)-e.overhead:]
+		vv("encrypt sees plain  tag = '%x'", tag)
 		pactEncryptTag(e.key, assocData, e.writeNonce, tag)
+		vv("encrypt sees cipher tag = '%x'", tag)
 	}
 
 	// Update the nonce: ONLY AFTER using it above in Seal!
 	e.moveToNextNonce()
-	//e.xorNonceWithNextNonceSeqno(e.writeNonce, e.lastNonceSeqno)
 
-	// Write the 8 bytes of msglen + the nonce + encrypted data with authentication tag.
-	return writeFull(conn, buf[:8+e.noncesize+len(sealOut)], timeout)
+	// Write it all out.
+	return writeFull(conn, buf[:tagEndx], timeout)
 }
 
 // Read decrypts data from the underlying stream.
@@ -427,6 +439,7 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 		// probably an encrypted client against an unencrypted server
 		return nil, ErrTooLong
 	}
+	vv("readMessage sees messageLen = %v", messageLen)
 
 	buf := d.work.buf
 
@@ -449,7 +462,9 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 
 	if commitWithPACT {
 		tag := encrypted[len(encrypted)-d.overhead:]
+		vv("decrypt sees cipher tag = '%x'", tag)
 		pactDecryptTag(d.key, assocData, nonce, tag)
+		vv("decrypt sees plain  tag = '%x'", tag)
 	}
 
 	message, err := d.aead.Open(nil, nonce, encrypted[d.noncesize:], assocData)
@@ -464,6 +479,7 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	copy(d.magicCheck, message)
 	magic7 := magic[7]
 	if !bytes.Equal(d.magicCheck[:7], magic[:7]) {
+		panic("magic wrong")
 		return nil, ErrMagicWrong
 	}
 	// trim off the magic 8 bytes

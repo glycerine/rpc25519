@@ -15,7 +15,7 @@ var _ = &zstd.Decoder{}
 var _ = s2.NewWriter
 var _ = lz4.NewWriter
 
-const UseCompression = true
+const UseCompression = false
 const UseCompressionAlgo = "s2"
 
 // compressor is implemented by
