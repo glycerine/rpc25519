@@ -501,7 +501,8 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	// lenBy[3]++
 	// error: chacha20poly1305: message authentication failed
 
-	assocData := d.work.readLenMessageBytes // length of message should be authentic too.
+	// length of message should be authentic too.
+	assocData := d.work.readLenMessageBytes
 	nonce := encrypted[:d.noncesize]
 
 	if commitWithPACT {
@@ -529,9 +530,12 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 			n, err := io.Copy(out, d.decompressor)
 			panicOn(err)
 			if n > int64(len(d.decompSlice)) {
-				panic(fmt.Sprintf("we wrote more than our pre-allocated buffer, up its size! n(%v) > len(out) = %v", n, len(d.decompSlice)))
+				panic(fmt.Sprintf("we wrote more than our "+
+					"pre-allocated buffer, up its size! "+
+					"n(%v) > len(out) = %v", n, len(d.decompSlice)))
 			}
-			//vv("decompression: %v bytes -> %v bytes; len(out.Bytes())=%v", compressedLen, n, len(out.Bytes()))
+			//vv("decompression: %v bytes -> %v bytes; "+
+			// "len(out.Bytes())=%v", compressedLen, n, len(out.Bytes()))
 			message = out.Bytes()
 		}
 	}
