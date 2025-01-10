@@ -152,10 +152,6 @@ func Test003_client_notification_callbacks(t *testing.T) {
 
 		defer cli.Close()
 
-		req := NewMessage()
-		req.HDR.ServiceName = serviceName
-		req.JobSerz = []byte("Hello from client!")
-
 		incoming := cli.GetReadIncomingCh()
 		done := make(chan bool)
 		ackDone := make(chan bool)
@@ -172,6 +168,10 @@ func Test003_client_notification_callbacks(t *testing.T) {
 		}()
 
 		for i := 0; i < 3; i++ {
+			req := NewMessage()
+			req.HDR.ServiceName = serviceName
+			req.JobSerz = []byte("Hello from client!")
+
 			reply, err := cli.SendAndGetReply(req, nil)
 			panicOn(err)
 			vv("server sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
