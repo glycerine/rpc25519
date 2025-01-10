@@ -56,7 +56,6 @@ var _ = fmt.Printf
 type blabber struct {
 	encrypt bool
 
-	// should we compress/decompress?
 	compress bool
 	// if so, which algo to use?
 	// choices: "s2", "lz4", "zstd" available atm.
@@ -98,8 +97,10 @@ type encoder struct {
 	mut  sync.Mutex
 	work *workspace
 
-	compress bool
-	pressor  *pressor
+	magicCheck    []byte
+	defaultMagic7 byte
+	compress      bool
+	pressor       *pressor
 }
 
 // decoder organizes the decryption of messages
@@ -115,8 +116,9 @@ type decoder struct {
 	mut  sync.Mutex
 	work *workspace
 
-	compress bool
-	decomp   *decomp
+	magicCheck []byte
+	compress   bool
+	decomp     *decomp
 }
 
 // newBlabber: at the moment it gets setup to do both read
@@ -194,7 +196,6 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 	copy(initialNonce, writeNonce)
 
 	enc := &encoder{
-		compress:     compress,
 		key:          key[:],
 		aead:         aeadEnc,
 		initialNonce: initialNonce,
@@ -202,17 +203,22 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 		noncesize:    nsz,
 		overhead:     aeadEnc.Overhead(),
 		work:         newWorkspace(name+"_enc", maxMsgSize),
+		compress:     compress,
+		pressor:      newPressor(maxMsgSize),
+		magicCheck:   make([]byte, 8),
 	}
+	magic7 := setMagicCheckDefaults(enc.magicCheck)
+	enc.defaultMagic7 = magic7
+
 	dec := &decoder{
-		compress:  compress,
-		key:       key[:],
-		aead:      aeadDec,
-		noncesize: nsz,
-		overhead:  aeadEnc.Overhead(),
-		work:      newWorkspace(name+"_dec", maxMsgSize),
-	}
-	if compress {
-		setupCompression(enc, dec, compressionAlgo, maxMsgSize)
+		key:        key[:],
+		aead:       aeadDec,
+		noncesize:  nsz,
+		overhead:   aeadEnc.Overhead(),
+		work:       newWorkspace(name+"_dec", maxMsgSize),
+		compress:   compress,
+		decomp:     newDecomp(maxMsgSize),
+		magicCheck: make([]byte, 8), // last byte is compression type.
 	}
 
 	return &blabber{
@@ -224,58 +230,6 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 
 		enc: enc,
 		dec: dec,
-	}
-}
-
-func setupCompression(enc *encoder, dec *decoder, algo string, maxMsgSize int) {
-
-	enc.compSlice = make([]byte, maxMsgSize+80)
-	dec.decompSlice = make([]byte, maxMsgSize+80)
-
-	switch algo {
-	case "s2":
-		enc.compressor = s2.NewWriter(nil)
-		dec.decompressor = s2.NewReader(nil)
-
-	case "lz4":
-		comp := lz4.NewWriter(nil)
-
-		options := []lz4.Option{
-			lz4.BlockChecksumOption(true),
-			lz4.CompressionLevelOption(lz4.Fast),
-			// setting the concurrency option seems to make it hang.
-			//lz4.ConcurrencyOption(concurrency),
-		}
-		if err := comp.Apply(options...); err != nil {
-			panic(fmt.Sprintf("error could not apply lz4 options: '%v'", err))
-		}
-		enc.compressor = comp
-		dec.decompressor = lz4.NewReader(nil)
-
-	case "zstd":
-		//enc.compBuf = bytes.NewBuffer(enc.compSlice)
-		const concurrency = -1 // all CPUs.
-
-		// docs:
-		// https://github.com/pierrec/lz4/blob/v4/options.go
-
-		// BlockSizeOption defines the maximum size of
-		// compressed blocks (default=Block4Mb).
-		// lz4.BlockSizeOption(lz4.BlockSize(sz)),
-
-		// BlockChecksumOption enables or disables
-		// block checksum (default=false).
-		// lz4.BlockChecksumOption(false),
-		var err error
-		enc.compressor, err = zstd.NewWriter(io.Discard,
-			zstd.WithEncoderLevel(zstd.SpeedBestCompression))
-		// ,zstd.WithEncoderLevel(zstd.SpeedFastest))
-		// ,zstd.WithEncoderLevel(zstd.SpeedBetter))
-		// The "Fastest" is roughly equivalent to zstd level 1.
-		// The "Default" is roughly equivalent to zstd level 3 (default).
-		// The "Better"  is roughly equivalent to zstd level 7.
-		// The "Best"    is roughly equivalent to zstd level 11.
-		panicOn(err)
 	}
 }
 
@@ -376,8 +330,13 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	// 	}
 	// }()
 
+	// write magic first 8 bytes, was set during encoder{} creation,
+	// with the defaultMagic7
+	const magic8sz = 8
+	copy(e.work.buf[:magic8sz], e.magicCheck)
+
 	// serialize message to bytes
-	bytesMsg, err := msg.AsGreenpack(e.work.buf[8+e.noncesize : cap(e.work.buf)])
+	bytesMsg, err := msg.AsGreenpack(e.work.buf[16+e.noncesize : cap(e.work.buf)])
 	if err != nil {
 		return err
 	}
@@ -388,39 +347,28 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 		return ErrTooLong
 	}
 
-	if e.compress {
-		uncompressedLen := len(bytesMsg)
-		_ = uncompressedLen
-		e.compBuf = bytes.NewBuffer(bytesMsg)
-		// already done at init:
-		//enc.compSlice = make([]byte, maxMsgSize+80)
-		out := bytes.NewBuffer(e.compSlice[:0])
-		e.compressor.Reset(out)
-
-		_, err := io.Copy(e.compressor, e.compBuf)
-		panicOn(e.compressor.Close())
-		panicOn(err)
-		//compressedLen := len(out.Bytes())
-		//vv("compression: %v bytes -> %v bytes", uncompressedLen, compressedLen)
-		bytesMsg = out.Bytes()
-		copy(e.work.buf[8+e.noncesize:cap(e.work.buf)], bytesMsg)
+	if e.compress && e.pressor != nil {
+		bytesMsg, err = e.pressor.handleCompress(e.defaultMagic7, bytesMsg, e.work.buf[8+e.noncesize:cap(e.work.buf)])
+		if err != nil {
+			return err
+		}
 	}
 
-	sz := len(bytesMsg) + e.noncesize + e.overhead
+	sz := magic8sz + len(bytesMsg) + e.noncesize + e.overhead
 
-	binary.BigEndian.PutUint64(e.work.buf[:8], uint64(sz))
-	assocData := e.work.buf[:8]
+	binary.BigEndian.PutUint64(e.work.buf[magic8sz:16], uint64(sz))
+	assocData := e.work.buf[magic8sz:16]
 
 	buf := e.work.buf
 
 	// Encrypt the data (prepends the nonce? nope need to do so ourselves)
 
 	// write the nonce
-	copy(buf[8:8+e.noncesize], e.writeNonce)
+	copy(buf[16:16+e.noncesize], e.writeNonce)
 
 	// encrypt. notice we get to re-use the plain text buf for the encrypted output.
 	// So ideally, no allocation necessary.
-	sealOut := e.aead.Seal(buf[8+e.noncesize:8+e.noncesize], buf[8:8+e.noncesize], buf[8+e.noncesize:8+e.noncesize+len(bytesMsg)], assocData)
+	sealOut := e.aead.Seal(buf[16+e.noncesize:16+e.noncesize], buf[16:16+e.noncesize], buf[16+e.noncesize:16+e.noncesize+len(bytesMsg)], assocData)
 
 	if commitWithPACT {
 		tag := sealOut[len(sealOut)-e.overhead:]
@@ -431,12 +379,8 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	e.moveToNextNonce()
 	//e.xorNonceWithNextNonceSeqno(e.writeNonce, e.lastNonceSeqno)
 
-	// Write the 8 bytes of msglen + the nonce + encrypted data with authentication tag.
-	return writeFull(conn, buf[:8+e.noncesize+len(sealOut)], timeout)
-}
-
-func (e *encoder) handleCompress() {
-
+	// Write the magic + 8 bytes of msglen + the nonce + encrypted data with authentication tag.
+	return writeFull(conn, buf[:16+e.noncesize+len(sealOut)], timeout)
 }
 
 // Read decrypts data from the underlying stream.
@@ -492,36 +436,22 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 		return nil, err
 	}
 
+	// magic check and determine compression type.
+	copy(w.magicCheck, message)
+	magic7 := magic[7]
+	if !bytes.Equal(w.magicCheck[:7], magic[:7]) {
+		return nil, ErrMagicWrong
+	}
+
 	// reverse any compression after decoding.
-	if d.compress {
-		message = d.handleDecompress(message)
+	if d.compress && d.decomp != nil {
+		message, err = d.decomp.handleDecompress(magic7, message)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return MessageFromGreenpack(message)
-}
-
-func (d *decoder) handleDecompress(message []byte) []byte {
-	compressedLen := len(message)
-	if compressedLen < 4 {
-		return message
-	}
-
-	d.decompBuf = bytes.NewBuffer(message)
-	d.decompressor.Reset(d.decompBuf)
-	// already init done:
-	//d.decompSlice = make([]byte, maxMsgSize+80)
-	out := bytes.NewBuffer(d.decompSlice[:0])
-	n, err := io.Copy(out, d.decompressor)
-	panicOn(err)
-	if n > int64(len(d.decompSlice)) {
-		panic(fmt.Sprintf("we wrote more than our "+
-			"pre-allocated buffer, up its size! "+
-			"n(%v) > len(out) = %v", n, len(d.decompSlice)))
-	}
-	//vv("decompression: %v bytes -> %v bytes; "+
-	// "len(out.Bytes())=%v", compressedLen, n, len(out.Bytes()))
-	message = out.Bytes()
-	return message
 }
 
 // utility for doing 100 hashes

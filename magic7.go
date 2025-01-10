@@ -37,13 +37,13 @@ func decodeMagic7(magic7 byte) (magicCompressAlgo string, err error) {
 	case 2:
 		return "lz4", nil
 	case 3:
-		return "bzst:11", nil
+		return "zstd:11", nil
 	case 4:
-		return "bzst:07", nil
+		return "zstd:07", nil
 	case 5:
-		return "bzst:03", nil
+		return "zstd:03", nil
 	case 6:
-		return "bzst:01", nil
+		return "zstd:01", nil
 	}
 	return "", fmt.Errorf("unrecognized magic7: '%v'", magic7)
 }
@@ -57,20 +57,20 @@ func encodeMagic7(magicCompressAlgo string) (magic7 byte, err error) {
 		return 1, nil
 	case "lz4":
 		return 2, nil
-	case "bzst:11":
+	case "zstd:11":
 		return 3, nil
-	case "bzst:07":
+	case "zstd:07":
 		return 4, nil
-	case "bzst:03":
+	case "zstd:03":
 		return 5, nil
-	case "bzst:01":
+	case "zstd:01":
 		return 6, nil
 	}
 	return 0, fmt.Errorf("unrecognized magic7 "+
 		"compress algo string '%v'", magicCompressAlgo)
 }
 
-func setMagic7(magicCheck []byte) {
+func setMagicCheckDefaults(magicCheck []byte) byte {
 	// write the compression algo in use to the magic[7]
 	// of the first 8 magic message bytes.
 	pressAlgo := UseCompressionAlgo
@@ -83,4 +83,5 @@ func setMagic7(magicCheck []byte) {
 	}
 	copy(w.magicCheck, magic[:])
 	w.magicCheck[7] = magic7 // set the compression used.
+	return magic7
 }

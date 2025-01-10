@@ -38,6 +38,7 @@ type uConn interface {
 // 0. magic: 8 bytes always the first thing. Simple, but
 //           statistically has a high probability of detecting
 //           partial message cutoff and resumption.
+//           The magic[7] says what compression is used, if any.
 //
 // 1. lenBody: next  8 bytes: *body_length*, big endian uint64.
 //                The *body_length* says how many bytes are in the body.
@@ -61,6 +62,15 @@ type workspace struct {
 	magicCheck           []byte
 
 	name string
+
+	compress bool
+	// if so, which algo to use?
+	// choices: "s2", "lz4", "zstd" available atm.
+	defaultCompressionAlgo string
+	defaultMagic7          byte
+
+	decomp  *decomp
+	pressor *pressor
 
 	// one writer at a time.
 	wmut sync.Mutex
@@ -102,7 +112,8 @@ type workspace struct {
 // This pre-allocation avoids all reallocation
 // and memory churn during regular operation.
 func newWorkspace(name string, maxMsgSize int) *workspace {
-	return &workspace{
+
+	w := &workspace{
 		name:       name,
 		maxMsgSize: maxMsgSize,
 		// need at least len(msg) + 56; 56 because ==
@@ -111,7 +122,13 @@ func newWorkspace(name string, maxMsgSize int) *workspace {
 		readLenMessageBytes:  make([]byte, 8),
 		writeLenMessageBytes: make([]byte, 8),
 		magicCheck:           make([]byte, 8), // last byte is compression type.
+
+		compress:        UseCompression,
+		compressionAlgo: UseCompressionAlgo,
 	}
+	// write according to our defaults.
+	magic7 := setMagicCheckDefaults(w.magicCheck)
+	w.defaultMagic7 = magic7
 }
 
 // receiveMessage reads a framed message from conn
@@ -142,13 +159,11 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 	if err != nil {
 		return nil, err
 	}
+
 	// allow the magic[7] to indicate compression type.
+	magic7 := magic[7]
 	if !bytes.Equal(w.magicCheck[:7], magic[:7]) {
 		return nil, ErrMagicWrong
-	}
-	magicCompressAlgo, err := decodeMagicCompress(magic[7])
-	if err != nil {
-		return nil, err
 	}
 
 	// Read the next 8 bytes for the Message length.
@@ -172,8 +187,12 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 		return nil, err
 	}
 
-	if magicCompressAlgo != "" {
-		message = w.handleDecompress(message)
+	// reverse any compression
+	if w.compress && w.decomp != nil {
+		message, err = w.decomp.handleDecompress(magic7, message)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	msg, err = MessageFromGreenpack(message)
@@ -181,31 +200,6 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 		return nil, err
 	}
 	return msg, nil
-}
-
-// keep consistent with the decoder version in chacha.go
-func (d *workspace) handleDecompress(message []byte) []byte {
-	compressedLen := len(message)
-	if compressedLen < 4 {
-		return message
-	}
-
-	d.decompBuf = bytes.NewBuffer(message)
-	d.decompressor.Reset(d.decompBuf)
-	// already init done:
-	//d.decompSlice = make([]byte, maxMsgSize+80)
-	out := bytes.NewBuffer(d.decompSlice[:0])
-	n, err := io.Copy(out, d.decompressor)
-	panicOn(err)
-	if n > int64(len(d.decompSlice)) {
-		panic(fmt.Sprintf("we wrote more than our "+
-			"pre-allocated buffer, up its size! "+
-			"n(%v) > len(out) = %v", n, len(d.decompSlice)))
-	}
-	//vv("decompression: %v bytes -> %v bytes; "+
-	// "len(out.Bytes())=%v", compressedLen, n, len(out.Bytes()))
-	message = out.Bytes()
-	return message
 }
 
 // sendMessage sends a framed message to conn
@@ -219,11 +213,17 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 	if err != nil {
 		return err
 	}
+
+	if w.compress && w.pressor != nil {
+		bytesMsg, err = w.pressor.handleCompress(w.defaultMagic7, bytesMsg, nil)
+		if err != nil {
+			return err
+		}
+	}
+
 	nbytesMsg := len(bytesMsg)
 
 	binary.BigEndian.PutUint64(w.writeLenMessageBytes, uint64(nbytesMsg))
-
-	setMagic7(w.magicCheck)
 
 	// Write magic
 	if err := writeFull(conn, w.magicCheck[:], timeout); err != nil {

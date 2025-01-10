@@ -3,7 +3,7 @@ package rpc25519
 import (
 	"bytes"
 	"fmt"
-	//"io"
+	"io"
 	"os"
 
 	"github.com/klauspost/compress/s2"
@@ -53,6 +53,9 @@ func (d *wrapZstdDecoder) Reset(r io.Reader) {
 	d.Decoder.Reset(r)
 }
 
+// decomp centalizes decompression
+// so we can use it from common.go (unencrypted)
+// and chacha.go (encrypted) {send/read}Message.
 type decomp struct {
 	maxMsgSize int
 	de_lz4     *lz4.Reader
@@ -74,8 +77,6 @@ func newDecomp(maxMsgSize int) (d *decomp) {
 	// before it is used.
 	wrap.Decoder = *zread
 
-	//	dec.decompressor =
-
 	d = &decomp{
 		maxMsgSize:  maxMsgSize,
 		de_lz4:      lz4.NewReader(nil),
@@ -86,19 +87,23 @@ func newDecomp(maxMsgSize int) (d *decomp) {
 	return d
 }
 
-// decompressor
-
+// pressor handles all compression (not encryption;
+// compression happens before encryption, and
+// after decryption).
 type pressor struct {
 	maxMsgSize int
 	com_lz4    *lz4.Writer
 	com_s2     *s2.Writer
 
+	// support any of these 4 Zstandard levels
 	com_ztd11 *zstd.Encoder
 	com_ztd07 *zstd.Encoder
 	com_ztd03 *zstd.Encoder
 	com_ztd01 *zstd.Encoder
 
-	compBuf   *bytes.Buffer
+	compBuf *bytes.Buffer
+
+	// big buffer to write into
 	compSlice []byte
 }
 
@@ -145,4 +150,103 @@ func newPressor(maxMsgSize int) (p *pressor) {
 	panicOn(err)
 
 	return p
+}
+
+func (p *pressor) handleCompress(magic7 byte, bytesMsg, copyTo []byte) ([]byte, error) {
+
+	var c compressor
+	switch magic7 {
+	// magic[7] (the last byte 0x00 here) can vary,
+	// it indicates the compression in use:
+	case 0:
+		// no compression
+		return bytesMsg, nil
+	case 1:
+		c = p.com_s2
+		//return "s2", nil
+	case 2:
+		c = p.com_lz4
+		//return "lz4", nil
+	case 3:
+		c = p._zstd11
+		//return "bzst:11", nil
+	case 4:
+		c = p._zstd07
+		//return "bzst:07", nil
+	case 5:
+		c = p._zstd03
+		//return "bzst:03", nil
+	case 6:
+		c = p._zstd01
+		//return "bzst:01", nil
+	default:
+		panic(fmt.Sprintf("unknown magic7 '%v'", magic7))
+	}
+
+	uncompressedLen := len(bytesMsg)
+	_ = uncompressedLen
+	p.compBuf = bytes.NewBuffer(bytesMsg)
+	// already done at init:
+	//enc.compSlice = make([]byte, maxMsgSize+80)
+	out := bytes.NewBuffer(p.compSlice[:0])
+	c.Reset(out)
+
+	_, err := io.Copy(c, p.compBuf)
+	panicOn(c.Close())
+	panicOn(err)
+	//compressedLen := len(out.Bytes())
+	//vv("compression: %v bytes -> %v bytes", uncompressedLen, compressedLen)
+	bytesMsg = out.Bytes()
+	if len(copyTo) > 0 {
+		copy(copyTo, bytesMsg)
+	}
+	return bytesMsg
+}
+
+func (decomp *decomp) handleDecompress(magic7 byte, message []byte) ([]byte, error) {
+
+	var d decompressor
+	switch magic7 {
+	// magic[7] (the last byte 0x00 here) can vary,
+	// it indicates the compression in use:
+	case 0:
+		// no compression
+		return message, nil
+	case 1:
+		d = decomp.de_s2
+		//return "s2", nil
+	case 2:
+		d = decomp.de_lz4
+		//return "lz4", nil
+	case 3, 4, 5, 6:
+		d = decomp.de_zstd
+		//return "bzst:11", nil
+		//return "bzst:07", nil
+		//return "bzst:03", nil
+		//return "bzst:01", nil
+	default:
+		panic(fmt.Sprintf("unknown magic7 '%v'", magic7))
+	}
+
+	compressedLen := len(message)
+	if compressedLen < 4 {
+		return message
+	}
+
+	decomp.decompBuf = bytes.NewBuffer(message)
+	d.Reset(decomp.decompBuf)
+	// already init done:
+	//d.decompSlice = make([]byte, maxMsgSize+80)
+	out := bytes.NewBuffer(decomp.decompSlice[:0])
+	n, err := io.Copy(out, d)
+	panicOn(err)
+	if n > int64(len(d.decompSlice)) {
+		panic(fmt.Sprintf("we wrote more than our "+
+			"pre-allocated buffer, up its size! "+
+			"n(%v) > len(out) = %v", n, len(decomp.decompSlice)))
+	}
+	//vv("decompression: %v bytes -> %v bytes; "+
+	// "len(out.Bytes())=%v", compressedLen, n, len(out.Bytes()))
+	message = out.Bytes()
+	return message
 }
