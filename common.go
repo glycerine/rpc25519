@@ -164,7 +164,7 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 		return nil, ErrMagicWrong
 	}
 	magic7 := w.magicCheck[7]
-	vv("common readMessage magic7 = %v", magic7)
+	//vv("common readMessage magic7 = %v", magic7)
 
 	// Read the next 8 bytes for the Message length.
 	_, err = readFull(conn, w.readLenMessageBytes, timeout)
@@ -191,7 +191,7 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 	// if you see an error like
 	// `msgp: attempted to decode type "int" with method for "map"`
 	// It probably means we are not getting the decompression done.
-	vv("w.compress = %v ; w.decomp = %p", w.compress, w.decomp)
+	//vv("w.compress = %v ; w.decomp = %p", w.compress, w.decomp)
 	if w.compress && w.decomp != nil {
 		message, err = w.decomp.handleDecompress(magic7, message)
 		if err != nil {
@@ -219,13 +219,13 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 	}
 
 	if w.compress && w.pressor != nil {
-		vv("common.go sendMessage calling handleCompress: w.defaultMagic7 = %v", w.defaultMagic7)
+		//vv("common.go sendMessage calling handleCompress: w.defaultMagic7 = %v", w.defaultMagic7)
 		bytesMsg, err = w.pressor.handleCompress(w.defaultMagic7, bytesMsg)
 		if err != nil {
 			return err
 		}
 	} else {
-		vv("w.compress= %v; w.pressor = %p", w.compress, w.pressor)
+		//vv("w.compress= %v; w.pressor = %p", w.compress, w.pressor)
 	}
 
 	nbytesMsg := len(bytesMsg)

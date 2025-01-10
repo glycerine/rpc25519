@@ -148,7 +148,7 @@ func newPressor(maxMsgSize int) (p *pressor) {
 
 func (p *pressor) handleCompress(magic7 byte, bytesMsg []byte) ([]byte, error) {
 
-	vv("handleCompress(magic7=%v) is using '%v'", magic7, mustDecodeMagic7(magic7))
+	//vv("handleCompress(magic7=%v) is using '%v'", magic7, mustDecodeMagic7(magic7))
 
 	var c compressor
 	switch magic7 {
@@ -198,8 +198,7 @@ func (p *pressor) handleCompress(magic7 byte, bytesMsg []byte) ([]byte, error) {
 	_, err := io.Copy(c, compBuf)
 	panicOn(c.Close())
 	panicOn(err)
-	compressedLen := len(out.Bytes())
-	vv("compression: %v bytes -> %v bytes", uncompressedLen, compressedLen)
+	//vv("compression: %v bytes -> compressedLen: %v bytes", uncompressedLen, len(out.Bytes()))
 	bytesMsg = out.Bytes()
 	return bytesMsg, nil
 }
@@ -231,9 +230,10 @@ func (decomp *decomp) handleDecompress(magic7 byte, message []byte) ([]byte, err
 		panic(fmt.Sprintf("unknown magic7 '%v'", magic7))
 	}
 
-	vv("handleDecompress(magic7=%v) is using '%v'", magic7, mustDecodeMagic7(magic7))
+	//vv("handleDecompress(magic7=%v) is using '%v'", magic7, mustDecodeMagic7(magic7))
 
 	compressedLen := len(message)
+	_ = compressedLen
 	decompBuf := bytes.NewBuffer(message)
 	d.Reset(decompBuf)
 	// already init done:
@@ -250,8 +250,8 @@ func (decomp *decomp) handleDecompress(magic7 byte, message []byte) ([]byte, err
 			"pre-allocated buffer, up its size! "+
 			"n(%v) > len(out) = %v", n, len(decomp.decompSlice)))
 	}
-	vv("decompression: %v bytes -> %v bytes; "+
-		"len(out.Bytes())=%v", compressedLen, n, len(out.Bytes()))
+	//vv("decompression: %v bytes -> %v bytes; "+
+	//"len(out.Bytes())=%v", compressedLen, n, len(out.Bytes()))
 	message = out.Bytes()
 	return message, nil
 }
