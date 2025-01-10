@@ -217,7 +217,7 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 	}
 
 	if w.compress && w.pressor != nil {
-		bytesMsg, err = w.pressor.handleCompress(w.defaultMagic7, bytesMsg, nil)
+		bytesMsg, err = w.pressor.handleCompress(w.defaultMagic7, bytesMsg)
 		if err != nil {
 			return err
 		}

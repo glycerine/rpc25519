@@ -152,7 +152,7 @@ func newPressor(maxMsgSize int) (p *pressor) {
 	return p
 }
 
-func (p *pressor) handleCompress(magic7 byte, bytesMsg, copyTo []byte) ([]byte, error) {
+func (p *pressor) handleCompress(magic7 byte, bytesMsg []byte) ([]byte, error) {
 
 	var c compressor
 	switch magic7 {
@@ -197,9 +197,6 @@ func (p *pressor) handleCompress(magic7 byte, bytesMsg, copyTo []byte) ([]byte, 
 	//compressedLen := len(out.Bytes())
 	//vv("compression: %v bytes -> %v bytes", uncompressedLen, compressedLen)
 	bytesMsg = out.Bytes()
-	if len(copyTo) > 0 {
-		copy(copyTo, bytesMsg)
-	}
 	return bytesMsg, nil
 }
 

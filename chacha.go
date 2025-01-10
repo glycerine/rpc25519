@@ -343,17 +343,33 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	}
 
 	if e.compress && e.pressor != nil {
-		bytesMsg, err = e.pressor.handleCompress(e.defaultMagic7, bytesMsg, e.work.buf[16+e.noncesize:cap(e.work.buf)])
+		bytesMsg, err = e.pressor.handleCompress(e.defaultMagic7, bytesMsg)
 		if err != nil {
 			return err
 		}
+		copy(e.work.buf[16+e.noncesize:cap(e.work.buf)], bytesMsg)
 	}
 
 	// message order is:
 	// 8 bytes len. nonce. magic8. compressed message. auth tag.
-	sz := e.noncesize + magic8sz + len(bytesMsg) + e.overhead
+	lenBegin := 0
+	lenEndx := lenBegin + 8
+	nonceBeg := lenEndx // 8
+	nonceEndx := nonceBeg + e.noncesize
+	magicBeg := nonceEndx
+	magicEndx := magicBeg + 8
+	plainBeg := magicBeg // magic is the first 8 bytes of plaintext
+	plainEndx := magicEndx + len(bytesMsg)
+	tagBegin := plainBeg
+	tagEndx := tagBegin + e.overhead
 
-	binary.BigEndian.PutUint64(e.work.buf[:8], uint64(sz))
+	sz := e.noncesize + magic8sz + len(bytesMsg) + e.overhead
+	if tagEndx != sz {
+		panic("sanity check on tagEndx failed")
+	}
+
+	// write len.
+	binary.BigEndian.PutUint64(e.work.buf[lenBegin:lenEndx], uint64(sz))
 	assocData := e.work.buf[:8]
 
 	buf := e.work.buf
@@ -361,16 +377,21 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	// Encrypt the data (prepends the nonce? nope need to do so ourselves)
 
 	// write the nonce
-	copy(buf[8:8+e.noncesize], e.writeNonce)
+	copy(buf[nonceBeg:nonceEndx], e.writeNonce)
 
 	// write the magic as the first 8 bytes
 	// of the plaintext, so it is encrypted too.
-	copy(buf[8+e.noncesize:16+e.noncesize], e.magicCheck)
+	copy(buf[magicBeg:magicEndx], e.magicCheck)
 
 	// encrypt. notice we get to re-use the plain
 	// text buf for the encrypted output.
 	// So ideally, no allocation necessary.
-	sealOut := e.aead.Seal(buf[8+e.noncesize:8+e.noncesize], buf[8:8+e.noncesize], buf[8+e.noncesize:16+e.noncesize+len(bytesMsg)], assocData)
+	// Seal(dst, nonce, plaintext, additionalData []byte)
+	sealOut := e.aead.Seal(
+		buf[magicBeg:magicBeg],  // dst is len 0, but all capacity
+		buf[nonceBeg:nonceEndx], // nonce
+		buf[plainBeg:plainEndx], // plain text which includes magic 8.
+		assocData)
 
 	if commitWithPACT {
 		tag := sealOut[len(sealOut)-e.overhead:]

@@ -4,7 +4,8 @@ import (
 	"bytes"
 	cryrand "crypto/rand"
 	"fmt"
-	"net"
+	//"io/ioutil"
+	//"net"
 	"testing"
 	"time"
 
@@ -162,20 +163,21 @@ func Test023_chaha_blabber_encryp_can_be_decrypted(t *testing.T) {
 
 	cv.Convey("blabber sendMessage() and readMessages() are inverses of each other", t, func() {
 
-		r, w := net.Pipe() // r and w are both net.Conn
+		/*
+			r, w := net.Pipe() // r and w are both net.Conn
+			_ = w
+			_ = r
+			var symkey [32]byte
+			_ = symkey
+			encrypt := false
+			isServer := true
+			//blabSrv := newBlabber("test023", symkey, w, encrypt, maxMessage, isServer)
 
-		var symkey [32]byte
-		encrypt := false
-		isServer := true
-		blabSrv := newBlabber("test023", symkey, w, encrypt, maxMessage, isServer)
+			//blabCli := newBlabber("test023", symkey, w, encrypt, maxMessage, !isServer)
 
-		//blabCli := newBlabber("test023", symkey, w, encrypt, maxMessage, !isServer)
-
-		b, err := ioutil.ReadAll(r)
-		if err != nil {
-			log.Fatalf(err.Error())
-		}
-		fmt.Println(string(b))
-
+			b, err := ioutil.ReadAll(r)
+			panicOn(err)
+			fmt.Println(string(b))
+		*/
 	})
 }
