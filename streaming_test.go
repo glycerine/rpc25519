@@ -489,7 +489,7 @@ func Test302_bistreaming_test_simultaneous_upload_and_download(t *testing.T) {
 					}
 
 					last := (req.HDR.Typ == CallDownloadEnd)
-					err = s.WriteOneMsgToFile(req, "echoclientgot", last)
+					err = s.WriteOneMsgToFile(req, "echoclientgot", last) // race write/read vs write at line 627
 
 					if err != nil {
 						panic(err)
@@ -624,7 +624,7 @@ func Test302_bistreaming_test_simultaneous_upload_and_download(t *testing.T) {
 			streamMsg.JobSerz = append([]byte{}, send...)
 			streamMsg.HDR.Args = map[string]string{"blake3": sumstring}
 
-			err = bistream.UploadMore(ctx, streamMsg, err1 == io.EOF)
+			err = bistream.UploadMore(ctx, streamMsg, err1 == io.EOF) // race write vs line 492
 
 			// likely just "shutting down", so ask for details.
 			if err != nil {

@@ -19,7 +19,7 @@ import (
 
 var _ = fmt.Printf
 
-const useCompression = true
+const useCompression = false // true
 
 // blabber holds stream encryption/decryption facilities.
 //
@@ -199,7 +199,29 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 	}
 	if compress {
 		//enc.compBuf = bytes.NewBuffer(enc.compSlice)
+		const concurrency = -1 // all CPUs.
+
+		// docs:
+		// https://github.com/pierrec/lz4/blob/v4/options.go
+
+		// BlockSizeOption defines the maximum size of
+		// compressed blocks (default=Block4Mb).
+		// lz4.BlockSizeOption(lz4.BlockSize(sz)),
+
+		// BlockChecksumOption enables or disables
+		// block checksum (default=false).
+		// lz4.BlockChecksumOption(false),
+
 		enc.compressor = lz4.NewWriter(nil)
+		options := []lz4.Option{
+			lz4.BlockChecksumOption(true),
+			lz4.CompressionLevelOption(lz4.Fast),
+			// setting the concurrency option seems to make it hang.
+			//lz4.ConcurrencyOption(concurrency),
+		}
+		if err := enc.compressor.Apply(options...); err != nil {
+			panic(fmt.Sprintf("error could not apply lz4 options: '%v'", err))
+		}
 		enc.compSlice = make([]byte, maxMsgSize+80)
 	}
 	dec := &decoder{
