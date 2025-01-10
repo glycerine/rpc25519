@@ -490,10 +490,11 @@ func Test302_bistreaming_test_simultaneous_upload_and_download(t *testing.T) {
 					}
 
 					last := (req.HDR.Typ == CallDownloadEnd)
-					err = s.WriteOneMsgToFile(req, "echoclientgot", last) // race write/read vs write at line 627
+					// cannot use err here or race detector will fire! use err2.
+					err2 := s.WriteOneMsgToFile(req, "echoclientgot", last)
 
-					if err != nil {
-						panic(err)
+					if err2 != nil {
+						panic(err2)
 						return
 					}
 					if last {
@@ -556,6 +557,9 @@ func Test302_bistreaming_test_simultaneous_upload_and_download(t *testing.T) {
 		buf := make([]byte, maxMessage)
 		var tot int
 
+		req := NewMessage()
+		req.HDR.Created = time.Now()
+		req.HDR.Args["pathsize"] = fmt.Sprintf("%v", pathsize)
 		var lastUpdate time.Time
 
 		// check for errors
@@ -582,6 +586,7 @@ func Test302_bistreaming_test_simultaneous_upload_and_download(t *testing.T) {
 		}
 
 		i := 0
+
 	upload:
 		for i = 0; true; i++ {
 
@@ -600,10 +605,6 @@ func Test302_bistreaming_test_simultaneous_upload_and_download(t *testing.T) {
 			blake3hash.Write(send)
 
 			if i == 0 {
-
-				req := NewMessage()
-				req.HDR.Created = time.Now()
-				req.HDR.Args["pathsize"] = fmt.Sprintf("%v", pathsize)
 
 				// must copy!
 				req.JobSerz = append([]byte{}, send...)
@@ -626,8 +627,7 @@ func Test302_bistreaming_test_simultaneous_upload_and_download(t *testing.T) {
 			// must copy!
 			streamMsg.JobSerz = append([]byte{}, send...)
 			streamMsg.HDR.Args = map[string]string{"blake3": sumstring}
-
-			err = bistream.UploadMore(ctx, streamMsg, err1 == io.EOF) // race write vs line 492
+			err = bistream.UploadMore(ctx, streamMsg, err1 == io.EOF)
 
 			// likely just "shutting down", so ask for details.
 			if err != nil {
