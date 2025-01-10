@@ -177,7 +177,7 @@ func (p *pressor) handleCompress(magic7 byte, bytesMsg []byte) ([]byte, error) {
 		panic(fmt.Sprintf("unknown magic7 '%v'", magic7))
 	}
 
-	//vv("handleCompress(magic7=%v) is using '%v'", magic7, mustDecodeMagic7(magic7))
+	vv("handleCompress(magic7=%v) is using '%v'", magic7, mustDecodeMagic7(magic7))
 
 	uncompressedLen := len(bytesMsg)
 	_ = uncompressedLen
@@ -229,7 +229,7 @@ func (decomp *decomp) handleDecompress(magic7 byte, message []byte) ([]byte, err
 		panic(fmt.Sprintf("unknown magic7 '%v'", magic7))
 	}
 
-	//vv("handleDecompress(magic7=%v) is using '%v'", magic7, mustDecodeMagic7(magic7))
+	vv("handleDecompress(magic7=%v) is using '%v'", magic7, mustDecodeMagic7(magic7))
 
 	compressedLen := len(message)
 	decompBuf := bytes.NewBuffer(message)
