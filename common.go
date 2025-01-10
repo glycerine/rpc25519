@@ -168,6 +168,8 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 		return nil, ErrTooLong
 	}
 
+	// why not use the w.buf here? are we afraid of sharing memory/
+	// having messages over-write early messages?
 	message := make([]byte, messageLen)
 	_, err = readFull(conn, message, timeout)
 	if err != nil {

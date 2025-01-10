@@ -1,21 +1,25 @@
 package rpc25519
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	cryrand "crypto/rand"
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
 	"github.com/cloudflare/circl/cipher/ascon"
-	"github.com/klauspost/compress/zstd"
+	"github.com/pierrec/lz4/v4"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
 var _ = fmt.Printf
+
+const useCompression = false
 
 // blabber holds stream encryption/decryption facilities.
 //
@@ -55,14 +59,7 @@ var _ = fmt.Printf
 type blabber struct {
 	encrypt bool
 
-	// should we compress/decompress
-	// with (at the moment) zstd?
-	// this does not change our
-	// max message size, as our buffers
-	// have to hold the uncompressed
-	// message too. The encoder
-	// and decoder in chacha.go read
-	// this variable.
+	// should we compress/decompress?
 	compress bool
 
 	maxMsgSize int
@@ -102,7 +99,9 @@ type encoder struct {
 	work *workspace
 
 	compress   bool
-	compressor *zstd.Encoder
+	compressor *lz4.Writer
+	compBuf    *bytes.Buffer
+	compSlice  []byte
 }
 
 // decoder organizes the decryption of messages
@@ -119,7 +118,9 @@ type decoder struct {
 	work *workspace
 
 	compress     bool
-	decompressor *zstd.Decoder
+	decompressor *lz4.Reader
+	decompBuf    *bytes.Buffer
+	decompSlice  []byte
 }
 
 // newBlabber: at the moment it gets setup to do both read
@@ -196,6 +197,11 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 		overhead:     aeadEnc.Overhead(),
 		work:         newWorkspace(name+"_enc", maxMsgSize),
 	}
+	if compress {
+		//enc.compBuf = bytes.NewBuffer(enc.compSlice)
+		enc.compressor = lz4.NewWriter(nil)
+		enc.compSlice = make([]byte, maxMsgSize+80)
+	}
 	dec := &decoder{
 		compress:  compress,
 		key:       key[:],
@@ -203,6 +209,11 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 		noncesize: nsz,
 		overhead:  aeadEnc.Overhead(),
 		work:      newWorkspace(name+"_dec", maxMsgSize),
+	}
+	if compress {
+		//dec.decompBuf = bytes.NewBuffer(dec.decompSlice)
+		dec.decompressor = lz4.NewReader(nil)
+		dec.decompSlice = make([]byte, maxMsgSize+80)
 	}
 
 	return &blabber{
@@ -326,7 +337,19 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	}
 
 	if e.compress {
-
+		uncompressedLen := len(bytesMsg)
+		_ = uncompressedLen
+		e.compBuf = bytes.NewBuffer(bytesMsg)
+		// already done at init:
+		//enc.compSlice = make([]byte, maxMsgSize+80)
+		out := bytes.NewBuffer(e.compSlice[:0])
+		e.compressor.Reset(out)
+		_, err := io.Copy(e.compressor, e.compBuf)
+		e.compressor.Close()
+		panicOn(err)
+		compressedLen := len(out.Bytes())
+		vv("compression: %v bytes -> %v bytes", uncompressedLen, compressedLen)
+		bytesMsg = out.Bytes()
 	}
 
 	sz := len(bytesMsg) + e.noncesize + e.overhead
@@ -408,6 +431,34 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 		//panic(fmt.Sprintf("decrypt failed: '%v'", err))
 		alwaysPrintf("decryption failure on '%v' readMessage: '%v'", d.work.name, err)
 		return nil, err
+	}
+
+	// reverse any compression after decoding.
+	if d.compress {
+		compressedLen := len(message)
+		if compressedLen > 4 {
+			// if no magic, don't bother to decode
+			magicbuf := message[:4]
+			magic := binary.LittleEndian.Uint32(magicbuf)
+			if magic == 0x184D2204 {
+
+				//vv("message := %#v", message)
+				//vv("message := '%v'", string(message))
+				_ = compressedLen
+				d.decompBuf = bytes.NewBuffer(message)
+				d.decompressor.Reset(d.decompBuf)
+				// already init done:
+				//d.decompSlice = make([]byte, maxMsgSize+80)
+				out := bytes.NewBuffer(d.decompSlice[:0])
+				n, err := io.Copy(out, d.decompressor)
+				panicOn(err)
+				if n > int64(len(d.decompSlice)) {
+					panic(fmt.Sprintf("we wrote more than our pre-allocated buffer, up its size! n(%v) > len(out) = %v", n, len(d.decompSlice)))
+				}
+				vv("decompression: %v bytes -> %v bytes; len(out.Bytes())=%v", compressedLen, n, len(out.Bytes()))
+				message = out.Bytes()
+			}
+		}
 	}
 
 	return MessageFromGreenpack(message)
