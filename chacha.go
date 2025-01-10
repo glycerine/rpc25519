@@ -28,16 +28,24 @@ var _ = fmt.Printf
 const useCompression = true
 const useCompressionAlgo = "lz4"
 
+// compressor is implemented by
+// compressor *lz4.Writer
+// compressor *s2.Writer
+// compressor *zstd.Encoder
 type compressor interface {
 	Reset(io.Writer)
 	Write(data []byte) (n int, err error)
-	//WriteTo(w io.Writer) (n int64, err error)
 	Close() error
 }
+
+// decompressor is implemented by
+// decompressor *lz4.Reader
+// decompressor *s2.Reader
+// decompressor *zstd.Decoder
 type decompressor interface {
 	Reset(io.Reader)
 	Read(p []byte) (n int, err error)
-	//ReadFrom(r io.Reader) (n int64, err error)
+	//ReadFrom(r io.Reader) (n int64, err error) // s2, lz4 do not implement.
 }
 
 // blabber holds stream encryption/decryption facilities.
@@ -120,10 +128,7 @@ type encoder struct {
 	mut  sync.Mutex
 	work *workspace
 
-	compress bool
-	//compressor *lz4.Writer
-	//compressor *s2.Writer
-	//compressor *zstd.Encoder
+	compress   bool
 	compressor compressor
 	compBuf    *bytes.Buffer
 	compSlice  []byte
@@ -142,10 +147,7 @@ type decoder struct {
 	mut  sync.Mutex
 	work *workspace
 
-	compress bool
-	//decompressor *lz4.Reader
-	//decompressor *s2.Reader
-	//decompressor *zstd.Decoder
+	compress     bool
 	decompressor decompressor
 	decompBuf    *bytes.Buffer
 	decompSlice  []byte
@@ -518,25 +520,19 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	if d.compress {
 		compressedLen := len(message)
 		if compressedLen > 4 {
-			// if no magic, don't bother to decode
-			//magicbuf := message[:4]
-			//magic := binary.LittleEndian.Uint32(magicbuf)
-			if true {
-				//if magic == 0x184D2204 { // lz4 frame magic first 4 bytes
 
-				d.decompBuf = bytes.NewBuffer(message)
-				d.decompressor.Reset(d.decompBuf)
-				// already init done:
-				//d.decompSlice = make([]byte, maxMsgSize+80)
-				out := bytes.NewBuffer(d.decompSlice[:0])
-				n, err := io.Copy(out, d.decompressor)
-				panicOn(err)
-				if n > int64(len(d.decompSlice)) {
-					panic(fmt.Sprintf("we wrote more than our pre-allocated buffer, up its size! n(%v) > len(out) = %v", n, len(d.decompSlice)))
-				}
-				//vv("decompression: %v bytes -> %v bytes; len(out.Bytes())=%v", compressedLen, n, len(out.Bytes()))
-				message = out.Bytes()
+			d.decompBuf = bytes.NewBuffer(message)
+			d.decompressor.Reset(d.decompBuf)
+			// already init done:
+			//d.decompSlice = make([]byte, maxMsgSize+80)
+			out := bytes.NewBuffer(d.decompSlice[:0])
+			n, err := io.Copy(out, d.decompressor)
+			panicOn(err)
+			if n > int64(len(d.decompSlice)) {
+				panic(fmt.Sprintf("we wrote more than our pre-allocated buffer, up its size! n(%v) > len(out) = %v", n, len(d.decompSlice)))
 			}
+			//vv("decompression: %v bytes -> %v bytes; len(out.Bytes())=%v", compressedLen, n, len(out.Bytes()))
+			message = out.Bytes()
 		}
 	}
 
