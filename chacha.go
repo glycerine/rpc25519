@@ -26,7 +26,7 @@ var _ = lz4.NewWriter
 var _ = fmt.Printf
 
 const useCompression = true
-const useCompressionAlgo = "lz4"
+const useCompressionAlgo = "s2"
 
 // compressor is implemented by
 // compressor *lz4.Writer
@@ -301,8 +301,13 @@ func setupCompression(enc *encoder, dec *decoder, algo string, maxMsgSize int) {
 		// block checksum (default=false).
 		// lz4.BlockChecksumOption(false),
 		var err error
-		enc.compressor, err = zstd.NewWriter(io.Discard,
-			zstd.WithEncoderLevel(zstd.SpeedFastest))
+		enc.compressor, err = zstd.NewWriter(io.Discard)
+		// ,zstd.WithEncoderLevel(zstd.SpeedFastest))
+		// ,zstd.WithEncoderLevel(zstd.SpeedBetter))
+		// The "Fastest" is roughly equivalent to zstd level 1.
+		// The "Default" is roughly equivalent to zstd level 3 (default).
+		// The "Better"  is roughly equivalent to zstd level 7.
+		// The "Best"    is roughly equivalent to zstd level 11.
 		panicOn(err)
 
 	}
