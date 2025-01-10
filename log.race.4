@@ -1,0 +1,878 @@
+-*- mode: compilation; default-directory: "~/go/src/github.com/glycerine/rpc25519/" -*-
+Compilation started at Fri Jan 10 05:55:41
+
+go test -v -race
+=== RUN   Test020_nonce_sequence_not_reused
+
+chacha_test.go:57 2025-01-09 23:55:44.703 -0600 CST checked up to 1100-1 for collision in the first (cli+server) 2202 values.
+.
+1 assertion thus far
+
+--- PASS: Test020_nonce_sequence_not_reused (0.00s)
+=== RUN   Test021_caboose_encrypt_decrypt
+
+1 assertion thus far
+
+--- PASS: Test021_caboose_encrypt_decrypt (0.00s)
+=== RUN   Test022_encryptWithPubKey
+
+chacha_test.go:151 2025-01-09 23:55:44.707 -0600 CST plaintext = 'hello there'
+
+chacha_test.go:152 2025-01-09 23:55:44.707 -0600 CST ciphertext = '258d1de613f25ffc12d4de679560d0997353e679ab3345e8427db4b447cf26ab5facf6d35b5970'
+
+chacha_test.go:153 2025-01-09 23:55:44.707 -0600 CST decryptedMessage = 'hello there'
+..
+3 assertions thus far
+
+--- PASS: Test022_encryptWithPubKey (0.00s)
+=== RUN   Test006_RoundTrip_Using_NetRPC_API_TCP
+
+srv_test.go:338 2025-01-09 23:55:44.707 -0600 CST using existing psk file 'my-keep-private-dir/psk.binary'
+
+srv.go:630 2025-01-09 23:55:44.721 -0600 CST callBridgeNetRpc errored out: 'rpc: can't find method Arith.BadOperation'
+
+srv.go:630 2025-01-09 23:55:44.721 -0600 CST callBridgeNetRpc errored out: 'rpc: can't find method Arith.Unknown'
+.
+4 assertions thus far
+
+--- PASS: Test006_RoundTrip_Using_NetRPC_API_TCP (0.02s)
+=== RUN   Test007_RoundTrip_Using_NetRPC_API_TLS
+
+srv.go:630 2025-01-09 23:55:44.742 -0600 CST callBridgeNetRpc errored out: 'rpc: can't find method Arith.BadOperation'
+
+srv.go:630 2025-01-09 23:55:44.743 -0600 CST callBridgeNetRpc errored out: 'rpc: can't find method Arith.Unknown'
+
+4 assertions thus far
+
+--- PASS: Test007_RoundTrip_Using_NetRPC_API_TLS (0.02s)
+=== RUN   Test008_RoundTrip_Using_NetRPC_API_QUIC
+
+srv.go:630 2025-01-09 23:55:44.801 -0600 CST callBridgeNetRpc errored out: 'rpc: can't find method Arith.BadOperation'
+
+srv.go:630 2025-01-09 23:55:44.801 -0600 CST callBridgeNetRpc errored out: 'rpc: can't find method Arith.Unknown'
+
+4 assertions thus far
+
+--- PASS: Test008_RoundTrip_Using_NetRPC_API_QUIC (0.06s)
+=== RUN   Test040_remote_cancel_by_context
+example.go: server-side: WillHangUntilCancel() is running
+example.go: net.rpc API: our net.Conn has local = '127.0.0.1:54937'; remote = '127.0.0.1:54938'
+example.go: MustBeCancelled.WillHangUntilCancel(): ctx.Done() was closed!
+example.go: server-side: MessageAPI_HangUntilCancel() is running
+example.go: Message API: our net.Conn has local = '127.0.0.1:54937'; remote = '127.0.0.1:54938'
+example.go: MustBeCancelled.MessageAPI_HangUntilCancel(): ctx.Done() was closed!
+
+4 assertions thus far
+
+--- PASS: Test040_remote_cancel_by_context (0.01s)
+=== RUN   Test045_upload
+...
+7 assertions thus far
+
+--- PASS: Test045_upload (0.04s)
+=== RUN   Test055_download
+....................
+27 assertions thus far
+
+--- PASS: Test055_download (0.11s)
+=== RUN   Test065_bidirectional_download_and_upload
+........................
+51 assertions thus far
+
+--- PASS: Test065_bidirectional_download_and_upload (0.05s)
+=== RUN   Test100_BlakeHashesAgree
+
+cli_test.go:1304 2025-01-09 23:55:45.013 -0600 CST blake3OfBytesString("hello world!") = 'blake3.32B-OqYcQJ_XcXydnGOSAq8vrkcMDvZpvnuiyupXectTTp0='
+
+cli_test.go:1305 2025-01-09 23:55:45.013 -0600 CST myblake3.Hash32("hello world!")     = 'blake3.32B-OqYcQJ_XcXydnGOSAq8vrkcMDvZpvnuiyupXectTTp0='
+
+51 assertions thus far
+
+--- PASS: Test100_BlakeHashesAgree (0.00s)
+=== RUN   TestMarshalUnmarshalArgs
+--- PASS: TestMarshalUnmarshalArgs (0.00s)
+=== RUN   TestEncodeDecodeArgs
+--- PASS: TestEncodeDecodeArgs (0.00s)
+=== RUN   TestMarshalUnmarshalBenchmarkMessage
+--- PASS: TestMarshalUnmarshalBenchmarkMessage (0.00s)
+=== RUN   TestEncodeDecodeBenchmarkMessage
+--- PASS: TestEncodeDecodeBenchmarkMessage (0.00s)
+=== RUN   TestMarshalUnmarshalBuiltinTypes
+--- PASS: TestMarshalUnmarshalBuiltinTypes (0.00s)
+=== RUN   TestEncodeDecodeBuiltinTypes
+--- PASS: TestEncodeDecodeBuiltinTypes (0.00s)
+=== RUN   TestMarshalUnmarshalEmbed
+--- PASS: TestMarshalUnmarshalEmbed (0.00s)
+=== RUN   TestEncodeDecodeEmbed
+--- PASS: TestEncodeDecodeEmbed (0.00s)
+=== RUN   TestMarshalUnmarshalHello
+--- PASS: TestMarshalUnmarshalHello (0.00s)
+=== RUN   TestEncodeDecodeHello
+--- PASS: TestEncodeDecodeHello (0.00s)
+=== RUN   TestMarshalUnmarshalInvalidRequest
+--- PASS: TestMarshalUnmarshalInvalidRequest (0.00s)
+=== RUN   TestEncodeDecodeInvalidRequest
+--- PASS: TestEncodeDecodeInvalidRequest (0.00s)
+=== RUN   TestMarshalUnmarshalMustBeCancelled
+--- PASS: TestMarshalUnmarshalMustBeCancelled (0.00s)
+=== RUN   TestEncodeDecodeMustBeCancelled
+--- PASS: TestEncodeDecodeMustBeCancelled (0.00s)
+=== RUN   TestMarshalUnmarshalReply
+--- PASS: TestMarshalUnmarshalReply (0.00s)
+=== RUN   TestEncodeDecodeReply
+--- PASS: TestEncodeDecodeReply (0.00s)
+=== RUN   TestMarshalUnmarshalRequest
+--- PASS: TestMarshalUnmarshalRequest (0.00s)
+=== RUN   TestEncodeDecodeRequest
+--- PASS: TestEncodeDecodeRequest (0.00s)
+=== RUN   TestMarshalUnmarshalResponse
+--- PASS: TestMarshalUnmarshalResponse (0.00s)
+=== RUN   TestEncodeDecodeResponse
+--- PASS: TestEncodeDecodeResponse (0.00s)
+=== RUN   TestMarshalUnmarshalHDR
+--- PASS: TestMarshalUnmarshalHDR (0.00s)
+=== RUN   TestEncodeDecodeHDR
+--- PASS: TestEncodeDecodeHDR (0.00s)
+=== RUN   TestMarshalUnmarshalMessage
+--- PASS: TestMarshalUnmarshalMessage (0.00s)
+=== RUN   TestEncodeDecodeMessage
+--- PASS: TestEncodeDecodeMessage (0.00s)
+=== RUN   Test010_HDR_generation
+
+hdr_test.go:24 2025-01-09 23:55:45.08 -0600 CST shdr = '&rpc25519.HDR{
+    "Created": "2025-01-10 05:55:45.079681 +0000 UTC m=+0.385276593",
+    "From": "client",
+    "To": "server",
+    "ServiceName": "myRPC_call_name()",
+    "Args": map[string]string(nil),
+    "Subject": "",
+    "Seqno": 0,
+    "Typ": CallRPC ,
+    "CallID": "LxTFJN2Dg-Aje3KOrosgqlmZ_0k=",
+    "Serial": 147,
+    "LocalRecvTm": "0001-01-01 00:00:00 +0000 UTC",
+    "Deadline": "0001-01-01 00:00:00 +0000 UTC",
+    "StreamPart": 0
+}'
+
+hdr_test.go:25 2025-01-09 23:55:45.136 -0600 CST jhdr = '{"Nc":null,"Created":"2025-01-10T05:55:45.079681Z","From":"client","To":"server","ServiceName":"myRPC_call_name()","Args":null,"Subject":"","Seqno":0,"Typ":1,"CallID":"LxTFJN2Dg-Aje3KOrosgqlmZ_0k=","Serial":147,"LocalRecvTm":"0001-01-01T00:00:00Z","Ctx":null,"Deadline":"0001-01-01T00:00:00Z","StreamPart":0}'
+
+hdr_test.go:32 2025-01-09 23:55:45.136 -0600 CST shdr2 = '&rpc25519.HDR{
+    "Created": "2025-01-10 05:55:45.136244 +0000 UTC m=+0.441838800",
+    "From": "server",
+    "To": "client",
+    "ServiceName": "myRPC_call_name()",
+    "Args": map[string]string(nil),
+    "Subject": "",
+    "Seqno": 0,
+    "Typ": CallRPC ,
+    "CallID": "9Toc-eE-uXOyrc9VsgE9a4LMeyM=",
+    "Serial": 148,
+    "LocalRecvTm": "0001-01-01 00:00:00 +0000 UTC",
+    "Deadline": "0001-01-01 00:00:00 +0000 UTC",
+    "StreamPart": 0
+}'
+
+hdr_test.go:33 2025-01-09 23:55:45.136 -0600 CST jhdr2 = '{"Nc":null,"Created":"2025-01-10T05:55:45.136244Z","From":"server","To":"client","ServiceName":"myRPC_call_name()","Args":null,"Subject":"","Seqno":0,"Typ":1,"CallID":"9Toc-eE-uXOyrc9VsgE9a4LMeyM=","Serial":148,"LocalRecvTm":"0001-01-01T00:00:00Z","Ctx":null,"Deadline":"0001-01-01T00:00:00Z","StreamPart":0}'
+..
+53 assertions thus far
+
+--- PASS: Test010_HDR_generation (0.12s)
+=== RUN   Test024_RoundTrip_Using_NetRPC_API_TCP_and_http_CONNECT
+
+srv_test.go:338 2025-01-09 23:55:45.197 -0600 CST using existing psk file 'my-keep-private-dir/psk.binary'
+
+http_test.go:41 2025-01-09 23:55:45.202 -0600 CST server Start() returned serverAddr = '127.0.0.1:54945'
+
+http_test.go:71 2025-01-09 23:55:45.218 -0600 CST good 024, got back reply '&rpc25519.Reply{C:15}'
+
+srv.go:630 2025-01-09 23:55:45.219 -0600 CST callBridgeNetRpc errored out: 'rpc: can't find method Arith.BadOperation'
+
+http_test.go:94 2025-01-09 23:55:45.219 -0600 CST good 024: past nonexistent method
+
+srv.go:630 2025-01-09 23:55:45.219 -0600 CST callBridgeNetRpc errored out: 'rpc: can't find method Arith.Unknown'
+
+http_test.go:105 2025-01-09 23:55:45.253 -0600 CST good 024: past unknown service
+
+http_test.go:129 2025-01-09 23:55:45.256 -0600 CST good 024: past out of order
+
+http_test.go:141 2025-01-09 23:55:45.257 -0600 CST good 024: past error test
+
+http_test.go:152 2025-01-09 23:55:45.258 -0600 CST good 024: past Arith.Mul test
+
+http_test.go:164 2025-01-09 23:55:45.259 -0600 CST good 024: past ServiceName with dot . test
+.
+srv_test.go:338 2025-01-09 23:55:45.259 -0600 CST using existing psk file 'my-keep-private-dir/psk.binary'
+
+http_test.go:41 2025-01-09 23:55:45.263 -0600 CST server Start() returned serverAddr = '127.0.0.1:54947'
+
+http_test.go:71 2025-01-09 23:55:45.369 -0600 CST good 024, got back reply '&rpc25519.Reply{C:15}'
+
+srv.go:630 2025-01-09 23:55:45.37 -0600 CST callBridgeNetRpc errored out: 'rpc: can't find method Arith.BadOperation'
+
+http_test.go:94 2025-01-09 23:55:45.37 -0600 CST good 024: past nonexistent method
+
+srv.go:630 2025-01-09 23:55:45.37 -0600 CST callBridgeNetRpc errored out: 'rpc: can't find method Arith.Unknown'
+
+http_test.go:105 2025-01-09 23:55:45.37 -0600 CST good 024: past unknown service
+
+http_test.go:129 2025-01-09 23:55:45.371 -0600 CST good 024: past out of order
+
+http_test.go:141 2025-01-09 23:55:45.371 -0600 CST good 024: past error test
+
+http_test.go:152 2025-01-09 23:55:45.372 -0600 CST good 024: past Arith.Mul test
+
+http_test.go:164 2025-01-09 23:55:45.372 -0600 CST good 024: past ServiceName with dot . test
+.
+55 assertions thus far
+
+--- PASS: Test024_RoundTrip_Using_NetRPC_API_TCP_and_http_CONNECT (0.18s)
+=== RUN   TestMarshalUnmarshalMatchHashPair
+--- PASS: TestMarshalUnmarshalMatchHashPair (0.00s)
+=== RUN   TestEncodeDecodeMatchHashPair
+--- PASS: TestEncodeDecodeMatchHashPair (0.00s)
+=== RUN   TestMarshalUnmarshalRsyncChunk
+--- PASS: TestMarshalUnmarshalRsyncChunk (0.00s)
+=== RUN   TestEncodeDecodeRsyncChunk
+--- PASS: TestEncodeDecodeRsyncChunk (0.00s)
+=== RUN   TestMarshalUnmarshalRsyncDiff
+--- PASS: TestMarshalUnmarshalRsyncDiff (0.00s)
+=== RUN   TestEncodeDecodeRsyncDiff
+--- PASS: TestEncodeDecodeRsyncDiff (0.00s)
+=== RUN   TestMarshalUnmarshalRsyncHashes
+--- PASS: TestMarshalUnmarshalRsyncHashes (0.00s)
+=== RUN   TestEncodeDecodeRsyncHashes
+--- PASS: TestEncodeDecodeRsyncHashes (0.00s)
+=== RUN   TestMarshalUnmarshalRsyncStep0_ClientRequestsRead
+--- PASS: TestMarshalUnmarshalRsyncStep0_ClientRequestsRead (0.00s)
+=== RUN   TestEncodeDecodeRsyncStep0_ClientRequestsRead
+--- PASS: TestEncodeDecodeRsyncStep0_ClientRequestsRead (0.00s)
+=== RUN   TestMarshalUnmarshalRsyncStep1_SenderOverview
+--- PASS: TestMarshalUnmarshalRsyncStep1_SenderOverview (0.00s)
+=== RUN   TestEncodeDecodeRsyncStep1_SenderOverview
+--- PASS: TestEncodeDecodeRsyncStep1_SenderOverview (0.00s)
+=== RUN   TestMarshalUnmarshalRsyncStep2_AckOverview
+--- PASS: TestMarshalUnmarshalRsyncStep2_AckOverview (0.00s)
+=== RUN   TestEncodeDecodeRsyncStep2_AckOverview
+--- PASS: TestEncodeDecodeRsyncStep2_AckOverview (0.00s)
+=== RUN   TestMarshalUnmarshalRsyncStep3_SenderProvidesDeltas
+--- PASS: TestMarshalUnmarshalRsyncStep3_SenderProvidesDeltas (0.00s)
+=== RUN   TestEncodeDecodeRsyncStep3_SenderProvidesDeltas
+--- PASS: TestEncodeDecodeRsyncStep3_SenderProvidesDeltas (0.00s)
+=== RUN   TestMarshalUnmarshalRsyncStep4_ReaderAcksDeltasFin
+--- PASS: TestMarshalUnmarshalRsyncStep4_ReaderAcksDeltasFin (0.00s)
+=== RUN   TestEncodeDecodeRsyncStep4_ReaderAcksDeltasFin
+--- PASS: TestEncodeDecodeRsyncStep4_ReaderAcksDeltasFin (0.00s)
+=== RUN   Test201_rsync_style_hash_generation
+.......
+62 assertions thus far
+
+--- PASS: Test201_rsync_style_hash_generation (0.10s)
+=== RUN   Test210_client_sends_file_over_rsync
+--- PASS: Test210_client_sends_file_over_rsync (0.00s)
+=== RUN   Test001_RoundTrip_SendAndGetReply_TCP
+
+srv_test.go:30 2025-01-09 23:55:45.577 -0600 CST server Start() returned serverAddr = '127.0.0.1:54949'
+
+srv_test.go:113 2025-01-09 23:55:45.72 -0600 CST customEcho called, Seqno=2, msg='Hello from client!'
+
+srv_test.go:50 2025-01-09 23:55:45.72 -0600 CST reply = 0xc0000dd900
+
+srv_test.go:51 2025-01-09 23:55:45.72 -0600 CST server sees reply (Seqno=2) = 'Hello from client!
+ with time customEcho sees this: '2025-01-10 05:55:45.720204 +0000 UTC m=+1.025795271''
+
+62 assertions thus far
+
+--- PASS: Test001_RoundTrip_SendAndGetReply_TCP (0.14s)
+=== RUN   Test002_RoundTrip_SendAndGetReply_TLS
+
+srv_test.go:70 2025-01-09 23:55:45.722 -0600 CST server Start() returned serverAddr = '127.0.0.1:54951'
+
+srv_test.go:113 2025-01-09 23:55:45.731 -0600 CST customEcho called, Seqno=2, msg='Hello from client!'
+
+srv_test.go:94 2025-01-09 23:55:45.731 -0600 CST srv_test sees reply (Seqno=2) = 'Hello from client!
+ with time customEcho sees this: '2025-01-10 05:55:45.731313 +0000 UTC m=+1.036904690''
+
+srv_test.go:124 2025-01-09 23:55:45.731 -0600 CST oneWayStreet() called. sending on oneWayStreetChan and returning nil. seqno=3, msg='One-way Hello from client!'
+.
+srv_test.go:104 2025-01-09 23:55:45.749 -0600 CST yay. we confirmed that oneWayStreen func has run
+
+63 assertions thus far
+
+--- PASS: Test002_RoundTrip_SendAndGetReply_TLS (0.08s)
+=== RUN   Test003_client_notification_callbacks
+
+srv_test.go:142 2025-01-09 23:55:45.805 -0600 CST server Start() returned serverAddr = '127.0.0.1:54953'
+
+srv_test.go:113 2025-01-09 23:55:45.81 -0600 CST customEcho called, Seqno=2, msg='Hello from client!'
+
+srv_test.go:177 2025-01-09 23:55:45.81 -0600 CST server sees reply (Seqno=2) = 'Hello from client!
+ with time customEcho sees this: '2025-01-10 05:55:45.810651 +0000 UTC m=+1.116241938''
+
+srv_test.go:177 2025-01-09 23:55:45.811 -0600 CST server sees reply (Seqno=2) = 'Hello from client!
+ with time customEcho sees this: '2025-01-10 05:55:45.810651 +0000 UTC m=+1.116241938''
+==================
+WARNING: DATA RACE
+Read at 0x00c000529ce8 by goroutine 233:
+  github.com/glycerine/rpc25519.(*HDR).Msgsize()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/hdr_gen.go:875 +0x44
+  github.com/glycerine/rpc25519.(*Message).Msgsize()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/hdr_gen.go:1253 +0xd0
+  github.com/glycerine/rpc25519.(*Message).MarshalMsg()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/hdr_gen.go:1098 +0x146
+  github.com/glycerine/rpc25519.(*Message).AsGreenpack()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/hdr.go:244 +0xac
+  github.com/glycerine/rpc25519.(*workspace).sendMessage()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/common.go:193 +0x10b
+  github.com/glycerine/rpc25519.(*blabber).sendMessage()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/chacha.go:265 +0xe6
+  github.com/glycerine/rpc25519.(*Client).runSendLoop()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/cli.go:531 +0x99d
+  github.com/glycerine/rpc25519.(*Client).runClientTCP.gowrap2()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/cli.go:255 +0x4f
+
+Previous write at 0x00c000529ce8 by goroutine 230:
+  github.com/glycerine/rpc25519.(*Client).SendAndGetReply()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/cli.go:1515 +0x235
+  github.com/glycerine/rpc25519.Test003_client_notification_callbacks.func1()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/srv  github.com/glycerine/goconvey/convey.discover.parseAction.func1()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/discovery.go:80 +0x2e
+  github.com/glycerine/goconvey/convey.(*context).conveyInner()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/context.go:264 +0x2d2
+  github.com/glycerine/goconvey/convey.rootConvey.func1()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/context.go:113 +0x1bb
+  github.com/jtolds/gls.(*ContextManager).SetValues.func1()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/context.go:97 +0x669
+  github.com/jtolds/gls.EnsureGoroutineId.func1()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/gid.go:24 +0x38
+  github.com/jtolds/gls._m()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/stack_tags.go:108 +0x38
+  github.com/jtolds/gls.github_com_jtolds_g  github.com/jtolds/gls.addStackTag()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/stack_tags.go:49 +0x169
+  github.com/jtolds/gls.EnsureGoroutineId()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/gid.go:24 +0xd5
+  github.com/jtolds/gls.(*ContextManager).SetValues()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/context.go:63 +0x284
+  github.com/glycerine/goconvey/convey.rootConvey()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/context.go:108 +0x484
+  github.com/glycerine/goconvey/convey.Convey()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/doc.go:73 +0x9a
+  github.com/glycerine/rpc25519.Test003_client_notification_callbacks()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/srv_test.go:130 +0xb0
+  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:1690 +0x226
+  testing.(*T).Run.gowrap1()
+      /usr/l
+Goroutine 233 (running) created at:
+  github.com/glycerine/rpc25519.(*Client).runClientTCP()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/cli.go:255 +0x5e9
+  github.com/glycerine/rpc25519.(*Client).runClientMain()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/cli.go:94 +0x598
+  github.com/glycerine/rpc25519.(*Client).Start.gowrap1()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/cli.go:1375 +0x79
+
+Goroutine 230 (running) created at:
+  testing.(*T).Run()
+      /usr/local/go/src/testing/testing.go:1743 +0x825
+  testing.runTests.func1()
+      /usr/local/go/src/testing/testing.go:2168 +0x85
+  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:1690 +0x226
+  testing.runTests()
+      /usr/local/go/src/testing/testing.go:2166 +0x8be
+  testing.(*M).Run()
+      /usr/local/go/src/testing/testing.go:2034 +0xf17
+  main.main()
+      _testmain.go:433 +0x164
+==================
+==================
+WARNING: DATA RACE
+Read at 0x00c000529cf8 by goroutine 233:
+  github.com/glycerine/rpc2551  github.com/glycerine/rpc25519.(*Message).Msgsize()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/hdr_gen.go:1253 +0xd0
+  github.com/glycerine/rpc25519.(*Message).MarshalMsg()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/hdr_gen.go:1098 +0x146
+  github.com/glycerine/rpc25519.(*Message).AsGreenpack()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/hdr.go:244 +0xac
+  github.com/glycerine/rpc25519.(*workspace).sendMessage()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/common.go:193 +0x10b
+  github.com/glycerine/rpc25519.(*blabber).sendMessage()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/chacha.go:265 +0xe6
+  github.com/glycerine/rpc25519.(*Client).runSendLoop()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/cli.go:531 +0x99d
+  github.com/glycerine/rpc25519.(*Client).runClientTCP.gowrap2()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/cli.go:255 +0x4f
+
+Previous write at 0x00c000529cf8 by goroutine 230:
+  github.com/glycerine/rpc25519.(*Clien  github.com/glycerine/rpc25519.Test003_client_notification_callbacks.func1()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/srv_test.go:175 +0xf2e
+  github.com/glycerine/goconvey/convey.discover.parseAction.func1()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/discovery.go:80 +0x2e
+  github.com/glycerine/goconvey/convey.(*context).conveyInner()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/context.go:264 +0x2d2
+  github.com/glycerine/goconvey/convey.rootConvey.func1()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/context.go:113 +0x1bb
+  github.com/jtolds/gls.(*ContextManager).SetValues.func1()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/context.go:97 +0x669
+  github.com/jtolds/gls.EnsureGoroutineId.func1()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/gid.go:24 +0x38
+  github.com  github.com/jtolds/gls.github_com_jtolds_gls_markS()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/stack_tags.go:56 +0x33
+  github.com/jtolds/gls.addStackTag()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/stack_tags.go:49 +0x169
+  github.com/jtolds/gls.EnsureGoroutineId()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/gid.go:24 +0xd5
+  github.com/jtolds/gls.(*ContextManager).SetValues()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/context.go:63 +0x284
+  github.com/glycerine/goconvey/convey.rootConvey()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/context.go:108 +0x484
+  github.com/glycerine/goconvey/convey.Convey()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/doc.go:73 +0x9a
+  github.com/glycerine/rpc25519.Test003_client_notification_callbacks()
+      /Users/jaten/go/src/github.com/glyceri  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:1690 +0x226
+  testing.(*T).Run.gowrap1()
+      /usr/local/go/src/testing/testing.go:1743 +0x44
+
+Goroutine 233 (running) created at:
+  github.com/glycerine/rpc25519.(*Client).runClientTCP()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/cli.go:255 +0x5e9
+  github.com/glycerine/rpc25519.(*Client).runClientMain()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/cli.go:94 +0x598
+  github.com/glycerine/rpc25519.(*Client).Start.gowrap1()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/cli.go:1375 +0x79
+
+Goroutine 230 (running) created at:
+  testing.(*T).Run()
+      /usr/local/go/src/testing/testing.go:1743 +0x825
+  testing.runTests.func1()
+      /usr/local/go/src/testing/testing.go:2168 +0x85
+  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:1690 +0x226
+  testing.runTests()
+      /usr/local/go/src/testing/testing.go:2166 +0x8be
+  testing.(*M).Run()
+      /usr/local/go/src/testing/testing.go:2034 +0xf17
+  main.main()
+==================
+==================
+WARNING: DATA RACE
+Read at 0x00c000529d50 by goroutine 233:
+  github.com/glycerine/rpc25519.(*HDR).fieldsNotEmpty()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/hdr_gen.go:333 +0x552
+  github.com/glycerine/rpc25519.(*HDR).MarshalMsg()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/hdr_gen.go:566 +0x19c
+  github.com/glycerine/rpc25519.(*Message).MarshalMsg()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/hdr_gen.go:1108 +0x530
+  github.com/glycerine/rpc25519.(*Message).AsGreenpack()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/hdr.go:244 +0xac
+  github.com/glycerine/rpc25519.(*workspace).sendMessage()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/common.go:193 +0x10b
+  github.com/glycerine/rpc25519.(*blabber).sendMessage()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/chacha.go:265 +0xe6
+  github.com/glycerine/rpc25519.(*Client).runSendLoop()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/cli.go:531 +0x99d
+  github.com/glycerine/rpc25519.(*Client).runClientTCP.gowrap2()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/cli.go:255 +0x4f
+
+Previous write at 0x00c000529d50 by goroutine 230:
+  github.com/glycerine/rpc25519.(*Client).SendAndGetReply()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/cli.go:1535 +0x684
+  github.com/glycerine/rpc25519.Test003_client_notification_callbacks.func1()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/srv_test.go:175 +0xf2e
+  github.com/glycerine/goconvey/convey.discover.parseAction.func1()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/discovery.go:80 +0x2e
+  github.com/glycerine/goconvey/convey.(*context).conveyInner()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/context.go:264 +0x2d2
+  github.com/glycerine/goconvey/convey.rootConvey.func1()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/  github.com/jtolds/gls.(*ContextManager).SetValues.func1()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/context.go:97 +0x669
+  github.com/jtolds/gls.EnsureGoroutineId.func1()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/gid.go:24 +0x38
+  github.com/jtolds/gls._m()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/stack_tags.go:108 +0x38
+  github.com/jtolds/gls.github_com_jtolds_gls_markS()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/stack_tags.go:56 +0x33
+  github.com/jtolds/gls.addStackTag()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/stack_tags.go:49 +0x169
+  github.com/jtolds/gls.EnsureGoroutineId()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/gid.go:24 +0xd5
+  github.com/jtolds/gls.(*ContextManager).SetValues()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/context.go:63 +0x284
+  github.com/glycerine/goconvey/convey.  github.com/glycerine/goconvey/convey.Convey()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/doc.go:73 +0x9a
+  github.com/glycerine/rpc25519.Test003_client_notification_callbacks()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/srv_test.go:130 +0xb0
+  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:1690 +0x226
+  testing.(*T).Run.gowrap1()
+      /usr/local/go/src/testing/testing.go:1743 +0x44
+
+Goroutine 233 (running) created at:
+  github.com/glycerine/rpc25519.(*Client).runClientTCP()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/cli.go:255 +0x5e9
+  github.com/glycerine/rpc25519.(*Client).runClientMain()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/cli.go:94 +0x598
+  github.com/glycerine/rpc25519.(*Client).Start.gowrap1()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/cli.go:1375 +0x79
+
+Goroutine 230 (running) created at:
+  testing.(*T).Run()
+      /usr/local/go/src/testing/testing.go:1743 +0x825
+  test  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:1690 +0x226
+  testing.runTests()
+      /usr/local/go/src/testing/testing.go:2166 +0x8be
+  testing.(*M).Run()
+      /usr/local/go/src/testing/testing.go:2034 +0xf17
+  main.main()
+      _testmain.go:433 +0x164
+==================
+
+srv_test.go:177 2025-01-09 23:55:46.362 -0600 CST server sees reply (Seqno=2) = 'Hello from client!
+ with time customEcho sees this: '2025-01-10 05:55:45.810651 +0000 UTC m=+1.116241938''
+
+srv_test.go:113 2025-01-09 23:55:46.363 -0600 CST customEcho called, Seqno=4, msg='Hello from client!'
+
+63 assertions thus far
+
+
+srv_test.go:113 2025-01-09 23:55:46.363 -0600 CST customEcho called, Seqno=3, msg='Hello from client!'
+    testing.go:1399: race detected during execution of test
+--- FAIL: Test003_client_notification_callbacks (0.56s)
+=== RUN   Test004_server_push
+
+srv_test.go:200 2025-01-09 23:55:46.368 -0600 CST server Start() returned serverAddr = '127.0.0.1:54955'
+
+srv_test.go:237 2025-01-09 23:55:46.372 -0600 CST cli.Conn remote key = 'tcp://127.0.0.1:54955'
+
+srv_test.go:238 2025-01-09 23:55:46.423 -0600 CST cli.Conn local key = 'tcp://127.0.0.1:54956'
+
+srv_test.go:224 2025-01-09 23:55:46.423 -0600 CST got incoming msg = 'Hello from server push.'
+
+63 assertions thus far
+
+--- PASS: Test004_server_push (0.11s)
+=== RUN   Test005_RoundTrip_SendAndGetReply_QUIC
+
+srv_test.go:283 2025-01-09 23:55:46.479 -0600 CST server Start() returned serverAddr = '127.0.0.1:60856'
+
+srv_test.go:113 2025-01-09 23:55:46.516 -0600 CST customEcho called, Seqno=2, msg='Hello from client!'
+
+srv_test.go:307 2025-01-09 23:55:46.516 -0600 CST srv_test sees reply (Seqno=2) = 'Hello from client!
+ with time customEcho sees this: '2025-01-10 05:55:46.516131 +0000 UTC m=+1.821718274''
+
+srv_test.go:124 2025-01-09 23:55:46.534 -0600 CST oneWayStreet() called. sending on oneWayStreetChan and returning nil. seqno=3, msg='One-way Hello from client!'
+.
+srv_test.go:317 2025-01-09 23:55:46.534 -0600 CST yay. we confirmed that oneWayStreen func has run
+
+64 assertions thus far
+
+--- PASS: Test005_RoundTrip_SendAndGetReply_QUIC (0.11s)
+=== RUN   Test011_PreSharedKey_over_TCP
+
+srv_test.go:338 2025-01-09 23:55:46.586 -0600 CST using existing psk file 'my-keep-private-dir/psk.binary'
+
+srv_test.go:362 2025-01-09 23:55:46.588 -0600 CST server Start() returned serverAddr = '127.0.0.1:57636'
+
+srv_test.go:113 2025-01-09 23:55:46.681 -0600 CST customEcho called, Seqno=2, msg='Hello from client!'
+
+srv_test.go:382 2025-01-09 23:55:46.682 -0600 CST server sees reply (Seqno=2) = 'Hello from client!
+ with time customEcho sees this: '2025-01-10 05:55:46.681692 +0000 UTC m=+1.987277500''
+
+64 assertions thus far
+
+--- PASS: Test011_PreSharedKey_over_TCP (0.10s)
+=== RUN   Test012_PreSharedKey_must_agree
+
+srv_test.go:338 2025-01-09 23:55:46.682 -0600 CST using existing psk file 'my-keep-private-dir/client_psk.binary'
+
+srv_test.go:338 2025-01-09 23:55:46.683 -0600 CST using existing psk file 'my-keep-private-dir/server_psk2.binary'
+
+srv_test.go:413 2025-01-09 23:55:46.684 -0600 CST server Start() returned serverAddr = '127.0.0.1:51037'
+
+chacha.go:457 2025-01-09 23:55:46.77 -0600 CST decryption failure on 'server read loop_dec' readMessage: 'ascon: invalid ciphertext'
+
+srv.go:486 2025-01-09 23:55:46.77 -0600 CST ugh. error from remote 127.0.0.1:51019: ascon: invalid ciphertext
+
+srv_test.go:436 2025-01-09 23:55:46.77 -0600 CST good, got err = 'shutting down'
+
+64 assertions thus far
+
+--- PASS: Test012_PreSharedKey_must_agree (0.09s)
+=== RUN   Test014_server_push_quic
+
+srv_test.go:458 2025-01-09 23:55:46.772 -0600 CST server Start() returned serverAddr = '127.0.0.1:59711'
+
+srv_test.go:495 2025-01-09 23:55:46.781 -0600 CST cli.Conn remote key = 'udp://127.0.0.1:59711'
+
+srv_test.go:496 2025-01-09 23:55:46.781 -0600 CST cli.Conn local key = 'udp://127.0.0.1:59711'
+
+srv_test.go:513 2025-01-09 23:55:46.783 -0600 CST srv is connected to client
+
+srv_test.go:482 2025-01-09 23:55:46.784 -0600 CST got incoming msg = 'Hello from server push.'
+
+64 assertions thus far
+
+--- PASS: Test014_server_push_quic (0.07s)
+=== RUN   Test015_server_push_quic_notice_disco_quickly
+
+srv_test.go:552 2025-01-09 23:55:46.841 -0600 CST server Start() returned serverAddr = '127.0.0.1:49641'
+
+srv_test.go:604 2025-01-09 23:55:46.859 -0600 CST cli.Conn remote key = 'udp://127.0.0.1:49641'
+
+srv_test.go:605 2025-01-09 23:55:46.859 -0600 CST cli.Conn local key = 'udp://127.0.0.1:63129'
+
+srv_test.go:623 2025-01-09 23:55:46.863 -0600 CST srv is connected to client
+
+srv_test.go:625 2025-01-09 23:55:46.863 -0600 CST shutting down client before server can send to us
+
+srv_test.go:630 2025-01-09 23:55:46.864 -0600 CST server has seen that rem 'udp://127.0.0.1:63129' is gone
+
+srv_test.go:632 2025-01-09 23:55:46.864 -0600 CST now try having server push to disco client
+
+srv_test.go:655 2025-01-09 23:55:46.864 -0600 CST good: got error back on SendMessage to shutdown client, like we want: 'error in SendMessage: net.Conn not found'
+
+64 assertions thus far
+
+--- PASS: Test015_server_push_quic_notice_disco_quickly (0.03s)
+=== RUN   Test016_WithPreSharedKey_inner_handshake_must_be_properly_signed
+
+srv_test.go:740 2025-01-09 23:55:46.975 -0600 CST server Start() returned serverAddr = '127.0.0.1:56559'
+
+quic_client.go:201 2025-01-09 23:55:46.988 -0600 CST failed setupPSK/handshake with server: 'client could not verify servers static cert: 'x509: certificate signed by unknown authority (possibly because of "x509: Ed25519 verification failure" while trying to verify candidate authority certificate "localhost")''
+
+srv_test.go:767 2025-01-09 23:55:46.988 -0600 CST good, got err = 'shutting down'
+
+srv_test.go:740 2025-01-09 23:55:47.027 -0600 CST server Start() returned serverAddr = '127.0.0.1:51151'
+
+quic_server.go:251 2025-01-09 23:55:47.041 -0600 CST stream failed to athenticate: 'server cannot verify client cert: x509: certificate signed by unknown authority (possibly because of "x509: Ed25519 verification failure" while trying to verify candidate authority certificate "localhost")'
+
+quic_client.go:201 2025-01-09 23:55:47.041 -0600 CST failed setupPSK/handshake with server: 'at client, could not decode from server the server handshake: 'could not msgp.Decode() handshake: 'EOF'''
+
+srv_test.go:767 2025-01-09 23:55:47.041 -0600 CST good, got err = 'shutting down'
+
+64 assertions thus far
+
+--- PASS: Test016_WithPreSharedKey_inner_handshake_must_be_properly_signed (0.19s)
+=== RUN   Test030_RoundTrip_SendAndGetReply_then_JSON
+
+srv_test.go:789 2025-01-09 23:55:47.061 -0600 CST server Start() returned serverAddr = '127.0.0.1:54957'
+
+srv_test.go:113 2025-01-09 23:55:47.102 -0600 CST customEcho called, Seqno=2, msg='Hello from client!'
+
+srv_test.go:836 2025-01-09 23:55:47.102 -0600 CST jobSerz -> dst = 'Hello from client!
+ with time customEcho sees this: '2024-11-23 12:17:28.08465772 +0000 UTC m=+0.007325293''
+
+64 assertions thus far
+
+--- PASS: Test030_RoundTrip_SendAndGetReply_then_JSON (0.04s)
+=== RUN   Test300_upload_streaming_test_of_large_file
+[up]blob977k(977)              [==============================] 100%  976.6 KB      9.7 MB/s   00:00 ETA
+
+streaming_test.go:197 2025-01-09 23:55:47.211 -0600 CST upload part of echo done elapsed: 98.643601ms 
+ we uploaded tot = 1000000 bytes (=> 9.667878 MB/sec) in 977 parts
+total time for upload: '99.973056ms'
+file size: 1_000_000 bytes.
+
+streaming_test.go:216 2025-01-09 23:55:47.212 -0600 CST GOOD! server and client blake3 checksums are the same!
+ serverTotSum='blake3.32B-hdV5P8csRwEm8DA-TyHibKyhfh_ikJlhnjsIGFTmYjY='
+ clientTotsum='blake3.32B-hdV5P8csRwEm8DA-TyHibKyhfh_ikJlhnjsIGFTmYjY='
+..
+66 assertions thus far
+
+--- PASS: Test300_upload_streaming_test_of_large_file (0.13s)
+=== RUN   Test301_download_streaming_test
+
+streaming_test.go:332 2025-01-09 23:55:47.324 -0600 CST got 1st download part: 1000000 bytes after 80.414119ms; can meter total 1_000_000 bytes:
+
+total time for download: '106.244474ms'
+file size: 1_000_000 bytes.
+rate:  8.978316 MB/sec. Used 2 parts of max size 1000000 bytes
+
+streaming_test.go:315 2025-01-09 23:55:47.351 -0600 CST cli downloader downloadsCh sees CallRPCReply, exiting
+.
+67 assertions thus far
+
+--- PASS: Test301_download_streaming_test (0.13s)
+=== RUN   Test302_bistreaming_test_simultaneous_upload_and_download
+[up]blob3m(001)                [====================>         ]  67%    2.0 MB     23.6 MB/s   00:00 ETA
+streaming_test.go:478 2025-01-09 23:55:47.469 -0600 CST downloaded 1048576 bytes after 93.112362ms
+
+
+streaming_test.go:666 2025-01-09 23:55:47.471 -0600 CST upload part of echo done elapsed: 95.093678ms 
+ we uploaded tot = 3145728 bytes (=> 31.547839 MB/sec) in 3 parts
+
+==================
+WARNING: DATA RACE
+Write at 0x00c068c14090 by goroutine 491:
+  github.com/glycerine/rpc25519.Test302_bistreaming_test_simultaneous_upload_and_download.func1.1()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/streaming_test.go:492 +0x5c4
+
+Previous write at 0x00c068c14090 by goroutine 485:
+  github.com/glycerine/rpc25519.Test302_bistreaming_test_simultaneous_upload_and_download.func1()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/streaming_test.go:627 +0x22fb
+  github.com/glycerine/goconvey/convey.discover.parseAction.func1()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/discovery.go:80 +0x2e
+  github.com/glycerine/goconvey/convey.(*context).conveyInn  github.com/glycerine/goconvey/convey.rootConvey.func1()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/context.go:113 +0x1bb
+  github.com/jtolds/gls.(*ContextManager).SetValues.func1()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/context.go:97 +0x669
+  github.com/jtolds/gls.EnsureGoroutineId.func1()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/gid.go:24 +0x38
+  github.com/jtolds/gls._m()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/stack_tags.go:108 +0x38
+  github.com/jtolds/gls.github_com_jtolds_gls_markS()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/stack_tags.go:56 +0x33
+  github.com/jtolds/gls.addStackTag()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/stack_tags.go:49 +0x169
+  github.com/jtolds/gls.EnsureGoroutineId()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/gid.go:24 +0xd5
+  git  github.com/glycerine/goconvey/convey.rootConvey()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/context.go:108 +0x484
+  github.com/glycerine/goconvey/convey.Convey()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/doc.go:73 +0x9a
+  github.com/glycerine/rpc25519.Test302_bistreaming_test_simultaneous_upload_and_download()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/streaming_test.go:386 +0xb0
+  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:1690 +0x226
+  testing.(*T).Run.gowrap1()
+      /usr/local/go/src/testing/testing.go:1743 +0x44
+
+Goroutine 491 (running) created at:
+  github.com/glycerine/rpc25519.Test302_bistreaming_test_simultaneous_upload_and_download.func1()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/streaming_test.go:461 +0x126a
+  github.com/glycerine/goconvey/convey.discover.parseAction.func1()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey  github.com/glycerine/goconvey/convey.(*context).conveyInner()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/context.go:264 +0x2d2
+  github.com/glycerine/goconvey/convey.rootConvey.func1()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/context.go:113 +0x1bb
+  github.com/jtolds/gls.(*ContextManager).SetValues.func1()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/context.go:97 +0x669
+  github.com/jtolds/gls.EnsureGoroutineId.func1()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/gid.go:24 +0x38
+  github.com/jtolds/gls._m()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/stack_tags.go:108 +0x38
+  github.com/jtolds/gls.github_com_jtolds_gls_markS()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/stack_tags.go:56 +0x33
+  github.com/jtolds/gls.addStackTag()
+      /Users/jaten/go/pkg/mod/github.com/jtolds  github.com/jtolds/gls.EnsureGoroutineId()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/gid.go:24 +0xd5
+  github.com/jtolds/gls.(*ContextManager).SetValues()
+      /Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/context.go:63 +0x284
+  github.com/glycerine/goconvey/convey.rootConvey()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/context.go:108 +0x484
+  github.com/glycerine/goconvey/convey.Convey()
+      /Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/doc.go:73 +0x9a
+  github.com/glycerine/rpc25519.Test302_bistreaming_test_simultaneous_upload_and_download()
+      /Users/jaten/go/src/github.com/glycerine/rpc25519/streaming_test.go:386 +0xb0
+  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:1690 +0x226
+  testing.(*T).Run.gowrap1()
+      /usr/local/go/src/testing/testing.go:1743 +0x44
+
+Goroutine 485 (running) created at:
+  testing.(*T).Run()
+      /us  testing.runTests.func1()
+      /usr/local/go/src/testing/testing.go:2168 +0x85
+  testing.tRunner()
+      /usr/local/go/src/testing/testing.go:1690 +0x226
+  testing.runTests()
+      /usr/local/go/src/testing/testing.go:2166 +0x8be
+  testing.(*M).Run()
+      /usr/local/go/src/testing/testing.go:2034 +0xf17
+  main.main()
+      _testmain.go:433 +0x164
+==================
+
+streaming_test.go:471 2025-01-09 23:55:47.742 -0600 CST upload done, down has read: 2097152 bytes
+
+total time for echo: '369.091879ms'
+file size: 3_145_728 bytes.
+
+streaming_test.go:684 2025-01-09 23:55:47.745 -0600 CST round-trip echo done elapsed: 369.334641ms; we transferred 2*tot = 6291456 bytes (=> 16.245430 MB/sec)
+.
+68 assertions thus far
+
+    testing.go:1399: race detected during execution of test
+--- FAIL: Test302_bistreaming_test_simultaneous_upload_and_download (0.40s)
+=== RUN   TestMarshalUnmarshalcaboose
+--- PASS: TestMarshalUnmarshalcaboose (0.00s)
+=== RUN   TestEncodeDecodecaboose
+--- PASS: TestEncodeDecodecaboose (0.00s)
+=== RUN   TestMarshalUnmarshalverifiedHandshake
+--- PASS: TestMarshalUnmarshalverifiedHandshake (0.00s)
+=== RUN   TestEncodeDecodeverifiedHandshake
+--- PASS: TestEncodeDecodeverifiedHandshake (0.00s)
+=== RUN   Test400_zstd_compression
+
+zstd_test.go:30 2025-01-09 23:55:47.813 -0600 CST data len 20000, compressed len 15: '28b52ffd64204d03710200e0b47cb7'
+
+68 assertions thus far
+
+
+zstd_test.go:55 2025-01-09 23:55:47.834 -0600 CST data len 20000, compressed len 15: '28b52ffd64204d03710200e0b47cb7'; &compressed[0] = 0xc068c39000 =?= 0xc068c34000 == &data[0]
+
+68 assertions thus far
+
+--- PASS: Test400_zstd_compression (0.04s)
+=== RUN   Test401_zstd_expriment_with_streaming_for_smaller_buffers
+
+zstd_test.go:101 2025-01-09 23:55:48.216 -0600 CST frame i=0, starting len=16777216; compressed len=16777614
+
+zstd_test.go:109 2025-01-09 23:55:48.216 -0600 CST len(compressed) = 16777614 > n = 16777216
+
+zstd_test.go:101 2025-01-09 23:55:48.378 -0600 CST frame i=1, starting len=16777216; compressed len=16777614
+
+zstd_test.go:109 2025-01-09 23:55:48.379 -0600 CST len(compressed) = 16777614 > n = 16777216
+
+zstd_test.go:101 2025-01-09 23:55:48.542 -0600 CST frame i=2, starting len=16777216; compressed len=16777614
+
+zstd_test.go:109 2025-01-09 23:55:48.542 -0600 CST len(compressed) = 16777614 > n = 16777216
+
+zstd_test.go:101 2025-01-09 23:55:48.711 -0600 CST frame i=3, starting len=16777216; compressed len=16777614
+
+zstd_test.go:109 2025-01-09 23:55:48.711 -0600 CST len(compressed) = 16777614 > n = 16777216
+
+zstd_test.go:128 2025-01-09 23:55:48.734 -0600 CST data len 67108864, compressed len 67108864:; maxFrameSizeCompressed = 16777614
+
+zstd_test.go:136 2025-01-09 23:55:48.734 -0600 CST header = 'zstd.Header{SingleSegment:false, WindowSize:0x800000, DictionaryID:0x0, HasFCS:true, FrameContentSize:0x1000000, Skippable:false, SkippableID:0, SkippableSize:0x0, HeaderSize:10, FirstBlock:struct { OK bool; Last bool; Compressed bool; DecompressedSize int; CompressedSize int }{OK:true, Last:false, Compressed:false, DecompressedSize:131072, CompressedSize:131072}, HasCheckSum:true}'
+
+zstd_test.go:172 2025-01-09 23:55:48.734 -0600 CST WindowSize = 8388608
+
+zstd_test.go:183 2025-01-09 23:55:48.734 -0600 CST framesz = 0
+
+68 assertions thus far
+
+--- PASS: Test401_zstd_expriment_with_streaming_for_smaller_buffers (0.90s)
+=== RUN   Test402_stream_oriented
+
+zstd_test.go:220 2025-01-09 23:55:48.735 -0600 CST compressor = *lz4.Writer
+
+zstd_test.go:236 2025-01-09 23:55:49.834 -0600 CST out has 67108943 bytes in it now
+
+zstd_test.go:244 2025-01-09 23:55:50.934 -0600 CST nr = 67108864, len in = 67108864
+
+zstd_test.go:253 2025-01-09 23:55:51.001 -0600 CST good: we got back the original input, in
+
+68 assertions thus far
+
+--- PASS: Test402_stream_oriented (2.27s)
+=== RUN   Test403_lz4_experiments_continue
+
+zstd_test.go:276 2025-01-09 23:55:51.03 -0600 CST compression: 200 bytes -> m=42
+
+zstd_test.go:287 2025-01-09 23:55:51.03 -0600 CST magicbuf = 04224d18', magic = 407708164
+
+zstd_test.go:289 2025-01-09 23:55:51.03 -0600 CST good magic number
+
+zstd_test.go:306 2025-01-09 23:55:51.061 -0600 CST decompression: 42 bytes -> 200 bytes
+
+68 assertions thus far
+
+--- PASS: Test403_lz4_experiments_continue (0.06s)
+FAIL
+exit status 1
+FAIL	github.com/glycerine/rpc25519	6.987s
+
+Compilation exited abnormally with code 1 at Fri Jan 10 05:55:51
