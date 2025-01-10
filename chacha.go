@@ -344,17 +344,6 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 		return ErrTooLong
 	}
 
-	vv("pre-compression, sendMessage: len(bytesMsg) = %v", len(bytesMsg))
-	vv("pre-compression, sendMessage: blake3 of msg = %v", blake3OfBytesString(bytesMsg))
-	vv("pre-compression, sendMessage: msg = %v", string(bytesMsg))
-	for i := range bytesMsg {
-		if i%12 == 0 {
-			fmt.Println()
-		}
-		fmt.Printf("%#v, ", bytesMsg[i])
-	}
-	//vv("pre-compression, sendMessage: msg = %#v", bytesMsg)
-
 	if e.compress && e.pressor != nil {
 		bytesMsg, err = e.pressor.handleCompress(e.defaultMagic7, bytesMsg)
 		if err != nil {
@@ -390,8 +379,6 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 		panic(fmt.Sprintf("sanity check on tagEndx failed. tagEndx = %v; sz = %v", tagEndx, sz))
 	}
 
-	vv("sendMessage sees messageLen = %v", sz)
-
 	// write len.
 	binary.BigEndian.PutUint64(e.work.buf[lenBegin:lenEndx], uint64(sz))
 	assocData := e.work.buf[:8]
@@ -410,8 +397,6 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	// of the plaintext, so it is encrypted too.
 	copy(buf[magicBeg:magicEndx], e.magicCheck)
 
-	vv("sendMessages wrote magic7 = '%v'", buf[magicBeg+7])
-
 	// encrypt. notice we get to re-use the plain
 	// text buf for the encrypted output.
 	// So ideally, no allocation necessary.
@@ -424,14 +409,7 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 
 	if commitWithPACT {
 		tag := sealOut[len(sealOut)-e.overhead:]
-		//vv("encrypt sees plain  tag = '%x'", tag)
-
-		//vv("encrypt sees e.key = '%x'", e.key)
-		//vv("encrypt sees associated data = '%x'", assocData)
-		//vv("encrypt sees nonce = '%x'", e.writeNonce)
-
 		pactEncryptTag(e.key, assocData, e.writeNonce, tag)
-		//vv("encrypt sees cipher tag = '%x'", tag)
 	}
 
 	// Update the nonce: ONLY AFTER using it above in Seal!
@@ -462,7 +440,7 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 		// probably an encrypted client against an unencrypted server
 		return nil, ErrTooLong
 	}
-	vv("readMessage sees messageLen = %v", messageLen)
+	//vv("readMessage sees messageLen = %v", messageLen)
 
 	buf := d.work.buf
 
@@ -485,12 +463,7 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 
 	if commitWithPACT {
 		tag := encrypted[len(encrypted)-d.overhead:]
-		//vv("decrypt sees cipher tag = '%x'", tag)
-		//vv("decrypt sees d.key = '%x'", d.key)
-		//vv("decrypt sees associated data = '%x'", assocData)
-		//vv("decrypt sees nonce = '%x'", nonce)
 		pactDecryptTag(d.key, assocData, nonce, tag)
-		//vv("decrypt sees plain  tag = '%x'", tag)
 	}
 
 	message, err := d.aead.Open(nil, nonce, encrypted[d.noncesize:], assocData)
@@ -504,7 +477,7 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	// magic is the first 8 bytes: check and determine compression type.
 	copy(d.magicCheck, message)
 	magic7 := d.magicCheck[7]
-	vv("readMessages sees magic7 = '%v'", magic7)
+
 	if !bytes.Equal(d.magicCheck[:7], magic[:7]) {
 		panic("magic wrong")
 		return nil, ErrMagicWrong
@@ -514,16 +487,12 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 
 	// reverse any compression after decoding.
 	if d.compress && d.decomp != nil {
-		vv("calling handleDecompress!")
+		//vv("calling handleDecompress!")
 		message, err = d.decomp.handleDecompress(magic7, message)
 		if err != nil {
 			return nil, err
 		}
 	}
-
-	vv("post-compression, readMessage: len(message) = %v", len(message))
-	vv("post-compression, readMessage: blake3 of msg = %v", blake3OfBytesString(message))
-	vv("post-compression, readMessage: blake3 of msg = %v", string(message))
 
 	return MessageFromGreenpack(message)
 }
