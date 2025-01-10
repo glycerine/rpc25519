@@ -13,13 +13,19 @@ import (
 	"time"
 
 	"github.com/cloudflare/circl/cipher/ascon"
+	"github.com/klauspost/compress/s2"
+	"github.com/klauspost/compress/zstd"
 	"github.com/pierrec/lz4/v4"
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
+var _ = &zstd.Decoder{}
+var _ = s2.NewWriter
+var _ = lz4.NewWriter
+
 var _ = fmt.Printf
 
-const useCompression = false // true
+const useCompression = true
 
 // blabber holds stream encryption/decryption facilities.
 //
@@ -98,8 +104,10 @@ type encoder struct {
 	mut  sync.Mutex
 	work *workspace
 
-	compress   bool
-	compressor *lz4.Writer
+	compress bool
+	//compressor *lz4.Writer
+	//compressor *s2.Writer
+	compressor *zstd.Encoder
 	compBuf    *bytes.Buffer
 	compSlice  []byte
 }
@@ -117,8 +125,10 @@ type decoder struct {
 	mut  sync.Mutex
 	work *workspace
 
-	compress     bool
-	decompressor *lz4.Reader
+	compress bool
+	//decompressor *lz4.Reader
+	//decompressor *s2.Reader
+	decompressor *zstd.Decoder
 	decompBuf    *bytes.Buffer
 	decompSlice  []byte
 }
@@ -212,16 +222,21 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 		// block checksum (default=false).
 		// lz4.BlockChecksumOption(false),
 
-		enc.compressor = lz4.NewWriter(nil)
-		options := []lz4.Option{
-			lz4.BlockChecksumOption(true),
-			lz4.CompressionLevelOption(lz4.Fast),
-			// setting the concurrency option seems to make it hang.
-			//lz4.ConcurrencyOption(concurrency),
-		}
-		if err := enc.compressor.Apply(options...); err != nil {
-			panic(fmt.Sprintf("error could not apply lz4 options: '%v'", err))
-		}
+		//enc.compressor = lz4.NewWriter(nil)
+		//enc.compressor = s2.NewWriter(nil)
+		enc.compressor, err = zstd.NewWriter(nil)
+		panicOn(err)
+
+		/*		options := []lz4.Option{
+							lz4.BlockChecksumOption(true),
+							lz4.CompressionLevelOption(lz4.Fast),
+							// setting the concurrency option seems to make it hang.
+							//lz4.ConcurrencyOption(concurrency),
+						}
+				if err := enc.compressor.Apply(options...); err != nil {
+					panic(fmt.Sprintf("error could not apply lz4 options: '%v'", err))
+				}
+		*/
 		enc.compSlice = make([]byte, maxMsgSize+80)
 	}
 	dec := &decoder{
@@ -233,8 +248,10 @@ func newBlabber(name string, key [32]byte, conn uConn, encrypt bool, maxMsgSize 
 		work:      newWorkspace(name+"_dec", maxMsgSize),
 	}
 	if compress {
-		//dec.decompBuf = bytes.NewBuffer(dec.decompSlice)
-		dec.decompressor = lz4.NewReader(nil)
+		//dec.decompressor = lz4.NewReader(nil)
+		//dec.decompressor = s2.NewReader(nil)
+		dec.decompressor, err = zstd.NewReader(nil)
+		panicOn(err)
 		dec.decompSlice = make([]byte, maxMsgSize+80)
 	}
 
@@ -366,7 +383,7 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 		//enc.compSlice = make([]byte, maxMsgSize+80)
 		out := bytes.NewBuffer(e.compSlice[:0])
 		e.compressor.Reset(out)
-		//e.compressor = lz4.NewWriter(out)
+
 		_, err := io.Copy(e.compressor, e.compBuf)
 		//panicOn(e.compressor.Flush())
 		panicOn(e.compressor.Close())
@@ -463,9 +480,10 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 		compressedLen := len(message)
 		if compressedLen > 4 {
 			// if no magic, don't bother to decode
-			magicbuf := message[:4]
-			magic := binary.LittleEndian.Uint32(magicbuf)
-			if magic == 0x184D2204 { // lz4 frame magic first 4 bytes
+			//magicbuf := message[:4]
+			//magic := binary.LittleEndian.Uint32(magicbuf)
+			if true {
+				//if magic == 0x184D2204 { // lz4 frame magic first 4 bytes
 
 				d.decompBuf = bytes.NewBuffer(message)
 				d.decompressor.Reset(d.decompBuf)
