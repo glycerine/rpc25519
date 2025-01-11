@@ -154,7 +154,7 @@ func (s *TransferStats) DoProgressWithSpeed(current int64, silent bool, part int
 	bar.WriteString("]")
 
 	//fn := truncateString(s.filename, 30)
-	fn := truncateString(s.filename+fmt.Sprintf("(%03d)", s.largestPart), 30)
+	fn := truncateString(fmt.Sprintf("(%03d)", s.largestPart)+s.filename, 30)
 
 	// Format the status line
 	//
