@@ -159,6 +159,19 @@ The [rpc25519 package docs are here](https://pkg.go.dev/github.com/glycerine/rpc
 
 Benchmarks versus other rpc systems are here: https://github.com/glycerine/rpcx-benchmark
 
+* A note on the relaxed semantic versioning scheme in use:
+
+Our versioning scheme, due to various long reasons, is atypical.
+
+We offer only the following with respect to breakage:
+
+Within a minor version v1.X, we will not make breaking API changes.
+
+However, when we increment to v1.(X+1), then there may be
+breaking changes. Stay with v1.X.y where y is the largest
+number to avoid breaks. That said, we strive to keep them
+minimal.
+
 ~~~
 # to install/get started: 
 #   *warning: ~/go/bin/{srv,cli,selfy,greenpack} are written
