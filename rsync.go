@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
+	//"io"
 	"os"
 	"os/user"
 	"syscall"
@@ -181,8 +181,6 @@ type RsyncStep2_ReaderAcksOverview struct {
 
 // type InfiniteStreamFunc func(ctx context.Context, req *Message, r io.Reader, w io.Writer) error
 
-type RsyncNode struct{}
-
 /*
 func (s *RsyncNode) Step0_ClientRequestsRead(
 	ctx context.Context, req *Message, r io.Reader, w io.Writer) error {
@@ -206,12 +204,23 @@ func (s *RsyncNode) Step0_ClientRequestsRead(
 
 type Ctx = context.Context
 
-func (s *RsyncNode) Step1(ctx Ctx, req *Message, r io.Reader, w io.Writer) error { return nil }
-func (s *RsyncNode) Step2(ctx Ctx, req *Message, r io.Reader, w io.Writer) error { return nil }
-func (s *RsyncNode) Step3(ctx Ctx, req *Message, r io.Reader, w io.Writer) error { return nil }
-func (s *RsyncNode) Step4(ctx Ctx, req *Message, r io.Reader, w io.Writer) error { return nil }
-
 type Nil struct{}
+
+type RsyncNode struct{}
+
+func (s *RsyncNode) ClientSends() {}
+func (s *RsyncNode) ClientReads() {
+	req0 := &RsyncStep0_ClientRequestsRead{}
+	reply1 := &RsyncStep1_SenderOverview{}
+
+	var cli *Client
+	cli.Call("RsyncNode.Step1_SenderOverview", req0, reply1, nil)
+
+	req2 := &RsyncStep2_ReaderAcksOverview{}
+	reply3 := &RsyncStep3_SenderProvidesDeltas{}
+	cli.Call("RsyncNode.Step3_SenderProvidesDelta", req2, reply3, nil)
+
+}
 
 // or try with net/rpc api for stronger typing?
 // need to have registration of func on client too.
