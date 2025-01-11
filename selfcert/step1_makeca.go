@@ -20,7 +20,7 @@ Do you want your encrypted backups to suddenly be inaccessible
 because your keys have expired? No.
 
 Do you want your billions in digital currency saved safely
-in a digital vault or block-chainx to suddenly become worthless because
+in a digital vault or block-chain to suddenly become worthless because
 your key expired? Again, no.
 
 Having an expiration date on public keys is an awful,
