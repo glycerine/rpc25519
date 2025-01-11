@@ -172,6 +172,8 @@ breaking changes. Stay with v1.X.y where y is the largest
 number to avoid breaks. That said, we strive to keep them
 minimal.
 
+* getting started
+
 ~~~
 # to install/get started: 
 #   *warning: ~/go/bin/{srv,cli,selfy,greenpack} are written
@@ -191,7 +193,8 @@ minimal.
 
 For getting started, see the small example programs here: https://github.com/glycerine/rpc25519/tree/master/cmd . These illustrate client (`cli`), server (`srv`), and QUIC port sharing 
 by a client and a server (`samesame`). The tests in srv_test.go and 
-cli_test.go also make great starting points.
+cli_test.go also make great starting points. Use, e.g. `cli -h` or `srv -h`
+to see the flag guidance.
 
 overview
 --------
