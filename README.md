@@ -47,9 +47,11 @@ Total file size: 1_584_015_360 bytes.
 
 Network: an isolated local LAN transfer, to take
 the variability of WAN links out of the
-picture. The measured bandwith 
+picture. The bandwith 
 was computed from the elapsed time
-to do the one-way upload (higher is better).
+to do the one-way upload (lower elapsed
+time, which means higher bandwidth,
+is better).
 
 ~~~
 compressor   bandwidth       total elapsed time for one-way transfer
