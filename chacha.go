@@ -161,7 +161,7 @@ func newBlabber(
 	var aeadEnc, aeadDec cipher.AEAD
 
 	// options for inner cipher:
-	useAscon128a := false
+	useAscon128a := true
 	useAesGCM := false
 	if useAesGCM {
 		block, err := aes.NewCipher(key[:])

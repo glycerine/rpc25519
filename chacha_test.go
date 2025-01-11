@@ -18,9 +18,12 @@ func Test020_nonce_sequence_not_reused(t *testing.T) {
 		"so a nonce is never re-used, esp between client and server", t, func() {
 		var key [32]byte
 
+		// prevent segfaults
 		cfg := &Config{}
-		bcli := newBlabber("test", key, nil, true, 1024, false, cfg, nil, nil)
-		bsrv := newBlabber("test", key, nil, true, 1024, true, cfg, nil, nil)
+		cpair := &cliPairState{}
+		spair := &rwPair{}
+		bcli := newBlabber("test", key, nil, true, 1024, false, cfg, spair, cpair)
+		bsrv := newBlabber("test", key, nil, true, 1024, true, cfg, spair, cpair)
 		n := 1100
 
 		const nonceSize = 16
