@@ -107,6 +107,7 @@ type encoder struct {
 
 	isServer bool
 	cfg      *Config
+	spair    *rwPair
 }
 
 // decoder organizes the decryption of messages
@@ -127,6 +128,7 @@ type decoder struct {
 
 	isServer bool
 	cfg      *Config
+	spair    *rwPair
 }
 
 // newBlabber: at the moment it gets setup to do both read
@@ -147,6 +149,7 @@ func newBlabber(
 	maxMsgSize int,
 	isServer bool,
 	cfg *Config,
+	spair *rwPair, // nil on client
 ) *blabber {
 
 	//vv("'%v' newBlabber called with key '%x'", name, key[:])
@@ -210,27 +213,32 @@ func newBlabber(
 		writeNonce:   writeNonce,
 		noncesize:    nsz,
 		overhead:     aeadEnc.Overhead(),
-		work:         newWorkspace(name+"_enc", maxMsgSize, isServer, cfg),
+		work:         newWorkspace(name+"_enc", maxMsgSize, isServer, cfg, spair),
 		compress:     !cfg.CompressionOff,
 		compressAlgo: cfg.CompressAlgo,
 		pressor:      newPressor(maxMsgSize + 80),
 		magicCheck:   make([]byte, 8),
 		isServer:     isServer,
 		cfg:          cfg,
+		spair:        spair,
 	}
 	enc.magic7 = setMagicCheckWord(cfg.CompressAlgo, enc.magicCheck)
 	cfg.lastReadMagic7.Store(int64(enc.magic7)) // default
+	if spair != nil {
+		spair.lastReadMagic7.Store(int64(enc.magic7)) // default
+	}
 
 	dec := &decoder{
 		key:        key[:],
 		aead:       aeadDec,
 		noncesize:  nsz,
 		overhead:   aeadEnc.Overhead(),
-		work:       newWorkspace(name+"_dec", maxMsgSize, isServer, cfg),
+		work:       newWorkspace(name+"_dec", maxMsgSize, isServer, cfg, spair),
 		decomp:     newDecomp(maxMsgSize + 80),
 		magicCheck: make([]byte, 8), // last byte is compression type.
 		isServer:   isServer,
 		cfg:        cfg,
+		spair:      spair,
 	}
 
 	return &blabber{
@@ -367,7 +375,7 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 		var magic7 byte
 		if e.isServer {
 			// server tries to match what we last got from the client.
-			magic7 = byte(e.cfg.lastReadMagic7.Load())
+			magic7 = byte(e.spair.lastReadMagic7.Load())
 			if magic7 < 0 || magic7 > highestLegalMagic7value {
 				magic7 = e.magic7
 			}
@@ -513,7 +521,7 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 		return nil, ErrMagicWrong
 	}
 	if d.isServer {
-		d.cfg.lastReadMagic7.Store(int64(magic7))
+		d.spair.lastReadMagic7.Store(int64(magic7))
 	}
 
 	// trim off the magic 8 bytes

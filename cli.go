@@ -278,7 +278,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 	}
 
 	vv("about to make a newBlabber for client read loop; c.cfg = %p ", c.cfg)
-	w := newBlabber("client read loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false, c.cfg)
+	w := newBlabber("client read loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false, c.cfg, nil)
 
 	readTimeout := time.Millisecond * 100
 	_ = readTimeout
@@ -435,7 +435,7 @@ func (c *Client) runSendLoop(conn net.Conn) {
 	}
 
 	vv("about to make a newBlabber for client send loop; c.cfg = %p ", c.cfg)
-	w := newBlabber("client send loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false, c.cfg)
+	w := newBlabber("client send loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false, c.cfg, nil)
 
 	// PRE: Message.DoneCh must be buffered at least 1, so
 	// our logic below does not have to deal with ever blocking.

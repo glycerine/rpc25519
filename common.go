@@ -72,6 +72,7 @@ type workspace struct {
 
 	isServer bool
 	cfg      *Config
+	spair    *rwPair
 
 	// one writer at a time.
 	wmut sync.Mutex
@@ -112,7 +113,7 @@ type workspace struct {
 // are needed. We currently allocate 80 more bytes.
 // This pre-allocation avoids all reallocation
 // and memory churn during regular operation.
-func newWorkspace(name string, maxMsgSize int, isServer bool, cfg *Config) *workspace {
+func newWorkspace(name string, maxMsgSize int, isServer bool, cfg *Config, spair *rwPair) *workspace {
 
 	w := &workspace{
 		name:       name,
@@ -130,11 +131,16 @@ func newWorkspace(name string, maxMsgSize int, isServer bool, cfg *Config) *work
 		defaultCompressionAlgo: cfg.CompressAlgo,
 		isServer:               isServer,
 		cfg:                    cfg,
+		spair:                  spair,
 	}
 	// write according to our defaults.
 	w.defaultMagic7 = setMagicCheckWord(cfg.CompressAlgo, w.magicCheck)
 	vv("newWorkspace sets cfg.lastReadMagic7 = w.defaultMagic7 = %v from '%v'", w.defaultMagic7, cfg.CompressAlgo)
 	cfg.lastReadMagic7.Store(int64(w.defaultMagic7)) // default
+	if spair != nil {
+		// we are on server, not client.
+		spair.lastReadMagic7.Store(int64(w.defaultMagic7)) // default
+	}
 	return w
 }
 
@@ -174,8 +180,9 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 	magic7 := w.magicCheck[7]
 
 	if w.isServer {
-		vv("common readMessage magic7 = %v -> storing to w.lastReadMagic7", magic7)
-		w.cfg.lastReadMagic7.Store(int64(magic7))
+		vv("common readMessage magic7 = %v -> storing to w.spair.lastReadMagic7", magic7)
+		//w.cfg.lastReadMagic7.Store(int64(magic7))
+		w.spair.lastReadMagic7.Store(int64(magic7))
 	} else {
 		vv("client: common readMessage magic7 = %v was seen", magic7)
 	}
@@ -236,7 +243,7 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 		var magic7 byte
 		if w.isServer {
 			// server tries to match what we last got from the client.
-			magic7 = byte(w.cfg.lastReadMagic7.Load())
+			magic7 = byte(w.spair.lastReadMagic7.Load())
 			if magic7 < 0 || magic7 > highestLegalMagic7value {
 				magic7 = w.defaultMagic7
 			} else {

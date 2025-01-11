@@ -350,7 +350,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 	}
 
 	vv("about to make a newBlabber for server send loop; s.Server.cfg = %p", s.Server.cfg)
-	w := newBlabber("server send loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true, s.Server.cfg)
+	w := newBlabber("server send loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true, s.Server.cfg, s)
 
 	// implement ServerSendKeepAlive
 	var lastPing time.Time
@@ -429,7 +429,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 	}
 
 	vv("about to make a newBlabber for server read loop; s.Server.cfg = %p", s.Server.cfg)
-	w := newBlabber("server read loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true, s.Server.cfg)
+	w := newBlabber("server read loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true, s.Server.cfg, s)
 
 	for {
 		select {
@@ -1372,6 +1372,9 @@ type rwPair struct {
 	// cache instead of compute on every call
 	from string
 	to   string
+
+	// better here than on cfg, more likely to work.
+	lastReadMagic7 atomic.Int64
 }
 
 func (s *Server) newRWPair(conn net.Conn) *rwPair {
