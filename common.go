@@ -171,9 +171,13 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 		return nil, ErrMagicWrong
 	}
 	magic7 := w.magicCheck[7]
-	vv("common readMessage magic7 = %v -> storing to w.lastReadMagic7", magic7)
 
-	w.cfg.lastReadMagic7.Store(int64(magic7))
+	if w.isServer {
+		vv("common readMessage magic7 = %v -> storing to w.lastReadMagic7", magic7)
+		w.cfg.lastReadMagic7.Store(int64(magic7))
+	} else {
+		vv("client: common readMessage magic7 = %v was seen", magic7)
+	}
 
 	// Read the next 8 bytes for the Message length.
 	_, err = readFull(conn, w.readLenMessageBytes, timeout)

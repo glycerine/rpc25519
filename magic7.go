@@ -44,18 +44,18 @@ func decodeMagic7(magic7 byte) (magicCompressAlgo string, err error) {
 	case 2:
 		return "lz4", nil
 	case 3:
-		return "zstd:11", nil
-	case 4:
-		return "zstd:07", nil
-	case 5:
-		return "zstd:03", nil
-	case 6:
 		return "zstd:01", nil
+	case 4:
+		return "zstd:03", nil
+	case 5:
+		return "zstd:07", nil
+	case 6:
+		return "zstd:11", nil
 	}
 	return "", fmt.Errorf("unrecognized magic7: '%v' ; valid choices: s2, lz4, zstd:01, zstd:03, zstd:07, zstd:11", magic7)
 }
 
-// keep this up to date! if you add more legit values!
+// keep this up to date if you add more legit values!
 const highestLegalMagic7value = 6
 
 func encodeMagic7(magicCompressAlgo string) (magic7 byte, err error) {
@@ -67,13 +67,13 @@ func encodeMagic7(magicCompressAlgo string) (magic7 byte, err error) {
 		return 1, nil
 	case "lz4":
 		return 2, nil
-	case "zstd:11":
-		return 3, nil
-	case "zstd:07":
-		return 4, nil
-	case "zstd:03":
-		return 5, nil
 	case "zstd:01":
+		return 3, nil
+	case "zstd:03":
+		return 4, nil
+	case "zstd:07":
+		return 5, nil
+	case "zstd:11":
 		return 6, nil
 	}
 	return 0, fmt.Errorf("unrecognized magicCompressAlgo: '%v' ; "+

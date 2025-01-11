@@ -375,6 +375,7 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 			// client does as user requested.
 			magic7 = e.magic7
 		}
+		e.magicCheck[7] = magic7
 		bytesMsg, err = e.pressor.handleCompress(magic7, bytesMsg)
 		if err != nil {
 			return err
@@ -511,7 +512,9 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	if !bytes.Equal(d.magicCheck[:7], magic[:7]) {
 		return nil, ErrMagicWrong
 	}
-	d.cfg.lastReadMagic7.Store(int64(magic7))
+	if d.isServer {
+		d.cfg.lastReadMagic7.Store(int64(magic7))
+	}
 
 	// trim off the magic 8 bytes
 	message = message[8:]
