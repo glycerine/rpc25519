@@ -31,7 +31,7 @@ downloads, the server will have to be
 restarted with the -press flag setting different
 compression algorithms.
 
-# some quick compression venchmarks (2025 January 11)
+# some quick compression benchmarks (2025 January 11)
 
 To roughly compare the compression
 algorithms, I prepared a 1.5 GB tar
@@ -42,15 +42,15 @@ gzip or bzip2 after tarring it up. If given
 random data, all these compressors
 perform about the same. With a mix of
 compressible and incompressible, however,
-we can see some performance difference.
+we can see some performance differences.
 
 Total file size: 1_584_015_360 bytes.
 
 Network: an isolated local LAN transfer, to take
 the variability of WAN links out of the
-pricture. The measured bandwith (higher is
-better) was computed from the elapsed time
-to do the one-way upload.
+picture. The measured bandwith 
+was computed from the elapsed time
+to do the one-way upload (higher is better).
 
 ~~~
 compressor   bandwidth       total elapsed time for one-way transfer
