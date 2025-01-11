@@ -1518,37 +1518,59 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 	return nil
 }
 
+func (s *Server) remote2pairUniv(destAddr string) (sendCh chan *Message, haltCh chan struct{}, to, from string, ok bool) {
+	s.mut.Lock()
+	var pair *rwPair
+	pair, ok = s.remote2pair[destAddr]
+	// if we hold this mutex too long then our pair cannot shutdown asap.
+	s.mut.Unlock()
+	if !ok {
+		return nil, nil, "", "", false
+	}
+	// INVAR: ok is true
+	haltCh = s.halt.ReqStop.Chan
+	from = local(pair.Conn)
+	to = remote(pair.Conn)
+	sendCh = pair.SendCh
+	return
+}
+
+type oneWaySender interface {
+	remote2pairUniv(destAddr string) (sendCh chan *Message, haltCh chan struct{}, to, from string, ok bool)
+}
+
 // SendOneWayMessage is the same as SendMessage above except that it
 // takes a fully prepared msg to avoid API churn when new HDR fields are
 // added/needed. msg.HDR.Type must be >= CallOneWay (10), to try and
 // catch mis-use of this when the user actually wants a round-trip call.
 func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur *time.Duration) error {
+	return sendOneWayMessage(s, ctx, msg, errWriteDur)
+}
+
+func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWriteDur *time.Duration) error {
+
+	if msg.HDR.Typ < 10 {
+		return ErrWrongCallTypeForSendMessage
+	}
 
 	destAddr := msg.HDR.To
-	s.mut.Lock()
-	pair, ok := s.remote2pair[destAddr]
-	// if we hold this mutex too long then our pair cannot shutdown asap.
-	s.mut.Unlock()
-
+	// abstract this for Client/Server symmetry
+	sendCh, haltCh, _, from, ok := s.remote2pairUniv(destAddr)
 	if !ok {
 		//vv("could not find destAddr='%v' in our map: '%#v'", destAddr, s.remote2pair)
 		return ErrNetConnectionNotFound
 	}
 
-	from := local(pair.Conn)
 	msg.HDR.From = from
-	if msg.HDR.Typ < 10 {
-		return ErrWrongCallTypeForSendMessage
-	}
 
 	//vv("send message attempting to send %v bytes to '%v'", len(data), destAddr)
 	select {
-	case pair.SendCh <- msg:
+	case sendCh <- msg:
 		//vv("sent to pair.SendCh, msg='%v'", msg.HDR.String())
 
 		//    case <-time.After(time.Second):
 		//vv("warning: time out trying to send on pair.SendCh")
-	case <-s.halt.ReqStop.Chan:
+	case <-haltCh:
 		// shutting down
 		return ErrShutdown
 	case <-ctx.Done():

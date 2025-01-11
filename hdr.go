@@ -331,6 +331,12 @@ type HDR struct {
 	// For those purposes, it is ignored.
 	NoSystemCompression bool `zid:"13"`
 
+	// ObjID helps maintain stateful sub-calls
+	// allowing client/server symmetry when
+	// implementing stateful protocols like
+	// the rsync-like protocol herein.
+	ObjID string `zid:"14"`
+
 	// streamCh is internal; used for client -> server streaming on CallUploadBegin
 	streamCh chan *Message `msg:"-" json:"-"`
 }
