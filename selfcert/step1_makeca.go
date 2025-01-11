@@ -12,6 +12,52 @@ import (
 	"time"
 )
 
+/*
+Small rant: expiring certificates are the worst idea
+in the security theater of "current practices" today.
+
+Do you want your encrypted backups to suddenly be inaccessible
+because your keys have expired? No.
+
+Do you want your billions in digital currency saved safely
+in a digital vault or block-chainx to suddenly become worthless because
+your key expired? Again, no.
+
+Having an expiration date on public keys is an awful,
+terrible foot-gun. Just say no.
+
+Expiring certs are a game to keep the for-profit cert authorities
+in business, so they can keep renting you their "authority".
+
+We have no use for this charade.
+
+Expiration is actively a bad idea. Revoke keys
+when you must, but keep the good ones working as designed.
+
+See https://www.rfc-editor.org/rfc/rfc5280#section-4.1.2.5
+where this use case is discussed:
+
+"To indicate that a certificate has no well-defined
+expiration date, the notAfter SHOULD be assigned
+the GeneralizedTime value of 99991231235959Z."
+
+*/
+
+const (
+	// RFC 5280 max date: 99991231235959Z
+	MaxValidityTimeConst = "9999-12-31T23:59:59Z"
+)
+
+var maxValidityTime time.Time
+
+func init() {
+	var err error
+	maxValidityTime, err = time.Parse(time.RFC3339, MaxValidityTimeConst)
+	if err != nil {
+		panic(fmt.Errorf("failed to parse max validity time: %w", err))
+	}
+}
+
 const (
 	country      = "US"
 	state        = "State"
@@ -26,11 +72,18 @@ var sep = string(os.PathSeparator)
 // pathCA "my-keep-private-dir" is the default.
 // return the un-encrypted key to be used in subsequent signing steps without
 // having to request the passphrase again.
+// Use validFor == 0 to get the maximum validity defined by the spec;
+// no expiration.
 func Step1_MakeCertificateAuthority(pathCA string, verbose bool, encrypt bool, validFor time.Duration) (ed25519.PrivateKey, error) {
 	// Step 1: Generate the ED25519 private key
 	pubKey, privKey, err := ed25519.GenerateKey(nil)
 	if err != nil {
 		log.Fatalf("Failed to generate ED25519 key: %v", err)
+	}
+
+	notAfter := time.Now().Add(validFor)
+	if validFor == 0 {
+		notAfter = maxValidityTime
 	}
 
 	// Step 2: Create the certificate template
@@ -45,7 +98,7 @@ func Step1_MakeCertificateAuthority(pathCA string, verbose bool, encrypt bool, v
 			CommonName:         commonName,
 		},
 		NotBefore: time.Now(),
-		NotAfter:  time.Now().Add(validFor),
+		NotAfter:  notAfter,
 
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageAny},

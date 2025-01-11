@@ -107,7 +107,7 @@ func main() {
 	}
 
 	var caPrivKey ed25519.PrivateKey
-	caValidForDur := 36600 * 24 * time.Hour // 100 years.
+	var caValidForDur time.Duration // 0 => max validity
 	if c.CreateCA {
 		caPrivKey, err = selfcert.Step1_MakeCertificateAuthority(
 			c.OdirCA_privateKey, verbose, !c.SkipEncryptPrivateKeys, caValidForDur)
@@ -133,7 +133,7 @@ func main() {
 			log.Fatalf("selfy could not make private key '%v' in path '%v': '%v'", c.CreateKeyPairNamed, c.OdirCerts, err)
 		}
 		selfcert.Step3_MakeCertSigningRequest(privKey, c.CreateKeyPairNamed, c.Email, c.OdirCerts)
-		goodForDur := 36600 * 24 * time.Hour // 100 years validity
+		var goodForDur time.Duration // 0 => max validity
 		selfcert.Step4_MakeCertificate(caPrivKey, c.OdirCA_privateKey, c.CreateKeyPairNamed, c.OdirCerts, goodForDur, verbose)
 	}
 

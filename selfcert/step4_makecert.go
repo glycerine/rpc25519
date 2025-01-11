@@ -154,7 +154,9 @@ func loadCSR(csrPath string) (*x509.CertificateRequest, error) {
 	return csr, nil
 }
 
-// Sign the CSR using the CA certificate and private key, and write the signed certificate to a file
+// Sign the CSR using the CA certificate and private key, and
+// write the signed certificate to a file.
+// Use goodForDur of 0 to get the maximum validity.
 func signCertificate(
 	csr *x509.CertificateRequest,
 	caCert *x509.Certificate,
@@ -163,12 +165,17 @@ func signCertificate(
 	goodForDur time.Duration,
 ) error {
 
+	notAfter := time.Now().Add(goodForDur)
+	if goodForDur == 0 {
+		notAfter = maxValidityTime
+	}
+
 	// Create the certificate template
 	certTemplate := x509.Certificate{
 		SerialNumber: big.NewInt(2),
 		Subject:      csr.Subject,
 		NotBefore:    time.Now(),
-		NotAfter:     time.Now().Add(goodForDur),
+		NotAfter:     notAfter,
 
 		KeyUsage:    x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
