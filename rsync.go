@@ -143,13 +143,28 @@ type RsyncStep2_AckOverview struct {
 // so we know what to do with the file.
 
 // What does this API on top of bistreaming look
-// like? bistreaming gives us an io.Reader
+// like? bistreaming gives us files that are
+// written to disk already: since they may be
+// quite large and/or just need to be indexed
+// as is or moved into the right storage dir.
+// So we would get path names on disk for our
+// inputs??
+//
 // and io.Writer on both ends, that communicate
 // with each other. Then we just encode
 // our step struct here as greenpack msgpack
 // streams back and forth,
 // like usual. Something like InfiniteStreamFunc
 // that can be registed on client OR server.
+
+// Better to presume that we can fit the rsync
+// parts in memory? we can't really stream out
+// a partial response until we know them anyway,
+// so just make the Message payload big enough
+// to handle them; and increase the chunk size
+// if need be to get the chunk index to fit
+// within a single Message.JobSerz payload.
+
 type InfiniteStreamFunc func(ctx context.Context, req *Message, r io.Reader, w io.Writer) error
 
 type RsyncNode struct{}
