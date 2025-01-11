@@ -855,6 +855,13 @@ type Server struct {
 	callmeServerSendsDownloadMap map[string]ServerSendsDownloadFunc
 	callmeBistreamMap            map[string]BistreamFunc
 
+	// symmetry of protocol objects
+	notifyOnReadCallIDMap  map[string]chan *Message
+	notifyOnErrorCallIDMap map[string]chan *Message
+
+	notifyOnReadObjIDMap  map[string]chan *Message
+	notifyOnErrorObjIDMap map[string]chan *Message
+
 	lsn  io.Closer // net.Listener
 	halt *idem.Halter
 
@@ -1625,6 +1632,12 @@ func NewServer(name string, config *Config) *Server {
 		callmeServerSendsDownloadMap: make(map[string]ServerSendsDownloadFunc),
 		callmeUploadReaderMap:        make(map[string]UploadReaderFunc),
 		callmeBistreamMap:            make(map[string]BistreamFunc),
+
+		notifyOnReadCallIDMap:  make(map[string]chan *Message),
+		notifyOnErrorCallIDMap: make(map[string]chan *Message),
+
+		notifyOnReadObjIDMap:  make(map[string]chan *Message),
+		notifyOnErrorObjIDMap: make(map[string]chan *Message),
 	}
 }
 
@@ -2023,4 +2036,48 @@ func (s *Server) respondToReqWithError(req *Message, job *job, description strin
 	// the server.
 	time.Sleep(time.Second * 3)
 	job.pair.halt.ReqStop.Close()
+}
+
+// GetReads registers to get any received messages on ch.
+// It is similar to GetReadIncomingCh but for when ch
+// already exists and you do not want a new one.
+// It filters for CallID
+func (s *Server) GetReadsForCallID(ch chan *Message, callID string) {
+	//vv("GetReads called! stack='\n\n%v\n'", stack())
+	if cap(ch) == 0 {
+		panic("ch must be bufferred")
+	}
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	s.notifyOnReadCallIDMap[callID] = ch
+}
+
+func (s *Server) GetErrorsForCallID(ch chan *Message, callID string) {
+	//vv("GetReads called! stack='\n\n%v\n'", stack())
+	if cap(ch) == 0 {
+		panic("ch must be bufferred")
+	}
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	s.notifyOnErrorCallIDMap[callID] = ch
+}
+
+func (s *Server) GetReadsForObjID(ch chan *Message, objID string) {
+	//vv("GetReads called! stack='\n\n%v\n'", stack())
+	if cap(ch) == 0 {
+		panic("ch must be bufferred")
+	}
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	s.notifyOnReadObjIDMap[objID] = ch
+}
+
+func (s *Server) GetErrorsForObjID(ch chan *Message, objID string) {
+	//vv("GetReads called! stack='\n\n%v\n'", stack())
+	if cap(ch) == 0 {
+		panic("ch must be bufferred")
+	}
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	s.notifyOnErrorObjIDMap[objID] = ch
 }

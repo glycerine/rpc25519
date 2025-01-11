@@ -386,6 +386,21 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 						msg.HDR.CallID))
 				}
 			}
+
+			if msg.HDR.ObjID != "" {
+				wantsErrObj, ok := c.notifyOnErrorObjIDMap[msg.HDR.ObjID]
+				if ok {
+					select {
+					case wantsErrObj <- msg:
+						//vv("notified a channel! %p for CallID '%v'", wantsErr, msg.HDR.ObjID)
+					default:
+						panic(fmt.Sprintf("Should never happen b/c the "+
+							"channels must be buffered!: could not send to "+
+							"whoCh from notifyOnErrorObjIDMap; for ObjID = %v.",
+							msg.HDR.ObjID))
+					}
+				}
+			}
 			continue
 		}
 
@@ -398,6 +413,20 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 					"channels must be buffered!: could not send to "+
 					"whoCh from notifyOnReadCallIDMap; for CallID = %v.",
 					msg.HDR.CallID))
+			}
+		}
+
+		if msg.HDR.ObjID != "" {
+			wantsObjID, ok := c.notifyOnReadObjIDMap[msg.HDR.ObjID]
+			if ok {
+				select {
+				case wantsObjID <- msg:
+				default:
+					panic(fmt.Sprintf("Should never happen b/c the "+
+						"channels must be buffered!: could not send to "+
+						"whoCh from notifyOnReadObjIDMap; for ObjID = %v.",
+						msg.HDR.ObjID))
+				}
 			}
 		}
 
@@ -968,10 +997,14 @@ type Client struct {
 	name  string
 	creds *selfcert.Creds
 
-	notifyOnRead           []chan *Message
-	notifyOnce             map[uint64]*loquet.Chan[Message]
+	notifyOnRead []chan *Message
+	notifyOnce   map[uint64]*loquet.Chan[Message]
+
 	notifyOnReadCallIDMap  map[string]chan *Message
 	notifyOnErrorCallIDMap map[string]chan *Message
+
+	notifyOnReadObjIDMap  map[string]chan *Message
+	notifyOnErrorObjIDMap map[string]chan *Message
 
 	conn       uConnLR
 	quicConn   quic.Connection
@@ -1384,6 +1417,10 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 
 		notifyOnReadCallIDMap:  make(map[string]chan *Message),
 		notifyOnErrorCallIDMap: make(map[string]chan *Message),
+
+		notifyOnReadObjIDMap:  make(map[string]chan *Message),
+		notifyOnErrorObjIDMap: make(map[string]chan *Message),
+
 		// net/rpc
 		pending: make(map[uint64]*Call),
 	}
@@ -1766,6 +1803,13 @@ func (s *Uploader) UploadMore(ctx context.Context, msg *Message, last bool) (err
 // can be implemented to just use this interface.
 type UniversalCliSrv interface {
 	SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur *time.Duration) error
+
+	GetReadsForCallID(ch chan *Message, callID string)
+	GetErrorsForCallID(ch chan *Message, callID string)
+
+	// might want
+	// GetReadsForObjID(ch chan *Message, objID string)
+	// GetErrorsForObjID(ch chan *Message, objID string)
 }
 
 // maintain the requirement that Client and Server both
@@ -2259,4 +2303,24 @@ func (b *Bistreamer) Begin(ctx context.Context, req *Message) (err error) {
 	}
 
 	return
+}
+
+func (s *Client) GetReadsForObjID(ch chan *Message, objID string) {
+	//vv("GetReads called! stack='\n\n%v\n'", stack())
+	if cap(ch) == 0 {
+		panic("ch must be bufferred")
+	}
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	s.notifyOnReadObjIDMap[objID] = ch
+}
+
+func (s *Client) GetErrorsForObjID(ch chan *Message, objID string) {
+	//vv("GetReads called! stack='\n\n%v\n'", stack())
+	if cap(ch) == 0 {
+		panic("ch must be bufferred")
+	}
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	s.notifyOnErrorObjIDMap[objID] = ch
 }
