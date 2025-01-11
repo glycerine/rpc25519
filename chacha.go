@@ -10,7 +10,7 @@ import (
 	"fmt"
 	//"io"
 	"sync"
-	"sync/atomic"
+	//"sync/atomic"
 	"time"
 
 	"github.com/cloudflare/circl/cipher/ascon"
@@ -105,10 +105,8 @@ type encoder struct {
 	magic7       byte // corresponds to compressAlgo
 	pressor      *pressor
 
-	// allow server to match client compression.
-	// decoder will store here for us.
-	lastReadMagic7 atomic.Int64
-	isServer       bool
+	isServer bool
+	cfg      *Config
 }
 
 // decoder organizes the decryption of messages
@@ -127,11 +125,8 @@ type decoder struct {
 	magicCheck []byte
 	decomp     *decomp
 
-	// so we can tell it how to
-	// match client compression
-	// with lastReadMagic7
-	enc      *encoder
 	isServer bool
+	cfg      *Config
 }
 
 // newBlabber: at the moment it gets setup to do both read
@@ -221,9 +216,10 @@ func newBlabber(
 		pressor:      newPressor(maxMsgSize + 80),
 		magicCheck:   make([]byte, 8),
 		isServer:     isServer,
+		cfg:          cfg,
 	}
 	enc.magic7 = setMagicCheckWord(cfg.CompressAlgo, enc.magicCheck)
-	enc.lastReadMagic7.Store(int64(enc.magic7)) // default
+	cfg.lastReadMagic7.Store(int64(enc.magic7)) // default
 
 	dec := &decoder{
 		key:        key[:],
@@ -233,8 +229,8 @@ func newBlabber(
 		work:       newWorkspace(name+"_dec", maxMsgSize, isServer, cfg),
 		decomp:     newDecomp(maxMsgSize + 80),
 		magicCheck: make([]byte, 8), // last byte is compression type.
-		enc:        enc,
 		isServer:   isServer,
+		cfg:        cfg,
 	}
 
 	return &blabber{
@@ -371,8 +367,8 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 		var magic7 byte
 		if e.isServer {
 			// server tries to match what we last got from the client.
-			magic7 = byte(e.lastReadMagic7.Load())
-			if magic7 < 0 || magic7 > lastGoodMagic7 {
+			magic7 = byte(e.cfg.lastReadMagic7.Load())
+			if magic7 < 0 || magic7 > highestLegalMagic7value {
 				magic7 = e.magic7
 			}
 		} else {
@@ -515,7 +511,7 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	if !bytes.Equal(d.magicCheck[:7], magic[:7]) {
 		return nil, ErrMagicWrong
 	}
-	d.enc.lastReadMagic7.Store(int64(magic7))
+	d.cfg.lastReadMagic7.Store(int64(magic7))
 
 	// trim off the magic 8 bytes
 	message = message[8:]

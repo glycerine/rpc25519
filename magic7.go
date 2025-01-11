@@ -56,7 +56,7 @@ func decodeMagic7(magic7 byte) (magicCompressAlgo string, err error) {
 }
 
 // keep this up to date! if you add more legit values!
-const lastGoodMagic7 = 6
+const highestLegalMagic7value = 6
 
 func encodeMagic7(magicCompressAlgo string) (magic7 byte, err error) {
 	switch magicCompressAlgo {

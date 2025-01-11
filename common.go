@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
-	"sync/atomic"
+	//"sync/atomic"
 	"time"
 )
 
@@ -70,9 +70,8 @@ type workspace struct {
 	decomp  *decomp
 	pressor *pressor
 
-	// allow server to match client compression.
-	lastReadMagic7 atomic.Int64
-	isServer       bool
+	isServer bool
+	cfg      *Config
 
 	// one writer at a time.
 	wmut sync.Mutex
@@ -130,10 +129,11 @@ func newWorkspace(name string, maxMsgSize int, isServer bool, cfg *Config) *work
 		decomp:                 newDecomp(maxMsgSize + 80),
 		defaultCompressionAlgo: cfg.CompressAlgo,
 		isServer:               isServer,
+		cfg:                    cfg,
 	}
 	// write according to our defaults.
 	w.defaultMagic7 = setMagicCheckWord(cfg.CompressAlgo, w.magicCheck)
-	w.lastReadMagic7.Store(int64(w.defaultMagic7)) // default
+	cfg.lastReadMagic7.Store(int64(w.defaultMagic7)) // default
 	return w
 }
 
@@ -171,9 +171,9 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 		return nil, ErrMagicWrong
 	}
 	magic7 := w.magicCheck[7]
-	//vv("common readMessage magic7 = %v", magic7)
+	vv("common readMessage magic7 = %v -> storing to w.lastReadMagic7", magic7)
 
-	w.lastReadMagic7.Store(int64(magic7))
+	w.cfg.lastReadMagic7.Store(int64(magic7))
 
 	// Read the next 8 bytes for the Message length.
 	_, err = readFull(conn, w.readLenMessageBytes, timeout)
@@ -231,13 +231,16 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 		var magic7 byte
 		if w.isServer {
 			// server tries to match what we last got from the client.
-			magic7 = byte(w.lastReadMagic7.Load())
-			if magic7 < 0 || magic7 > lastGoodMagic7 {
+			magic7 = byte(w.cfg.lastReadMagic7.Load())
+			if magic7 < 0 || magic7 > highestLegalMagic7value {
 				magic7 = w.defaultMagic7
+			} else {
+				vv("server matches client, magic7=%v", magic7)
 			}
 		} else {
 			// client does as user requested.
 			magic7 = w.defaultMagic7
+			vv("client doing as set, magic7=%v", magic7)
 		}
 		//vv("common.go sendMessage calling handleCompress: w.defaultMagic7 = %v", w.defaultMagic7)
 		bytesMsg, err = w.pressor.handleCompress(magic7, bytesMsg)

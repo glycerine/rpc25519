@@ -1575,6 +1575,7 @@ func NewServer(name string, config *Config) *Server {
 	if config != nil {
 		clone := *config // cfg.shared is a pointer to enable this shallow copy.
 		cfg = &clone
+		cfg.isServer = true
 	}
 	return &Server{
 		name:              name,

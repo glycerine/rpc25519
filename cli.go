@@ -893,6 +893,10 @@ type Config struct {
 
 	// for port sharing between a server and 1 or more clients over QUIC
 	shared *sharedTransport
+
+	// allow server to match client compression.
+	lastReadMagic7 atomic.Int64
+	isServer       bool
 }
 
 // Clone returns a copy of cfg. This is a shallow copy to
