@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/user"
 	"syscall"
 	"time"
 
+	//"github.com/glycerine/greenpack/msgp"
 	"github.com/glycerine/rpc25519/hash"
 	"github.com/glycerine/rpc25519/jcdc"
 )
@@ -92,8 +94,8 @@ type RsyncStep1_SenderOverview struct {
 // and time stamp match, stop. Ack back all good.
 // Else ack back with RsyncHashes, "here are the chunks I have"
 // and the whole file checksum.
-// Reader replies to sender with RsyncStep2_AckOverview.
-type RsyncStep2_AckOverview struct {
+// Reader replies to sender with RsyncStep2_ReaderAcksOverview.
+type RsyncStep2_ReaderAcksOverview struct {
 	// if true, no further action needed.
 	// ReaderHashes can be nil then.
 	ReaderMatchesSenderAllGood bool `zid:"0"`
@@ -165,10 +167,23 @@ type RsyncStep2_AckOverview struct {
 // if need be to get the chunk index to fit
 // within a single Message.JobSerz payload.
 
-type InfiniteStreamFunc func(ctx context.Context, req *Message, r io.Reader, w io.Writer) error
+// as long as we don't fsync the data to disk,
+// we'll be reading from the file system buffer
+// cache anyway with the handle's approach...so
+// we could pass in the handle to the serialized
+// struct?
+
+// wouldn't our rsync node want access to a
+// bistreamer client/server? not if we want
+// to be able to ride underneath at some point.
+// but worry about that later. What's the simplest
+// thing?
+
+// type InfiniteStreamFunc func(ctx context.Context, req *Message, r io.Reader, w io.Writer) error
 
 type RsyncNode struct{}
 
+/*
 func (s *RsyncNode) Step0_ClientRequestsRead(
 	ctx context.Context, req *Message, r io.Reader, w io.Writer) error {
 
@@ -180,16 +195,59 @@ func (s *RsyncNode) Step0_ClientRequestsRead(
 		// if available/cheap, send
 		ReaderFullHash: "", // string
 	}
-	err := msgp.Encode(w, step)
+	err := msgp.Encode(w, step0)
 	panicOn(err)
 	if err != nil {
 		return err
 	}
+	return nil
 }
-func (s *RsyncNode) Step1(ctx context.Context, req *Message, r io.Reader, w io.Writer) error {}
-func (s *RsyncNode) Step2(ctx context.Context, req *Message, r io.Reader, w io.Writer) error {}
-func (s *RsyncNode) Step3(ctx context.Context, req *Message, r io.Reader, w io.Writer) error {}
-func (s *RsyncNode) Step4(ctx context.Context, req *Message, r io.Reader, w io.Writer) error {}
+*/
+
+type Ctx = context.Context
+
+func (s *RsyncNode) Step1(ctx Ctx, req *Message, r io.Reader, w io.Writer) error { return nil }
+func (s *RsyncNode) Step2(ctx Ctx, req *Message, r io.Reader, w io.Writer) error { return nil }
+func (s *RsyncNode) Step3(ctx Ctx, req *Message, r io.Reader, w io.Writer) error { return nil }
+func (s *RsyncNode) Step4(ctx Ctx, req *Message, r io.Reader, w io.Writer) error { return nil }
+
+type Nil struct{}
+
+// or try with net/rpc api for stronger typing?
+// need to have registration of func on client too.
+
+// step0: start of client read.
+func (s *RsyncNode) Step0_ClientRequestsRead(req *Nil, reply *RsyncStep0_ClientRequestsRead) error {
+	return nil
+}
+
+// step 1: start of client send; or server responding to step0 (server to download to client).
+// Note that req will be nil if client is initiating the send.
+func (s *RsyncNode) Step1_SenderOverview(ctx Ctx, req *RsyncStep0_ClientRequestsRead,
+	reply *RsyncStep1_SenderOverview) error {
+	return nil
+}
+
+func (s *RsyncNode) Step2_ReaderAcksOverview(ctx Ctx, req *RsyncStep1_SenderOverview,
+	reply *RsyncStep2_ReaderAcksOverview) error {
+	return nil
+}
+
+func (s *RsyncNode) Step3_SenderProvidesDelta(ctx Ctx, req *RsyncStep2_ReaderAcksOverview,
+	reply *RsyncStep3_SenderProvidesDeltas) error {
+	return nil
+}
+
+func (s *RsyncNode) Step4_ReaderAcksDeltasFin(ctx Ctx, req *RsyncStep3_SenderProvidesDeltas,
+	reply *RsyncStep4_ReaderAcksDeltasFin) error {
+	return nil
+}
+
+// for client read:
+// cli(0)->srv(1)->cli(2)->srv(3 + CallRPCReply to 0)->cli(4); or
+//
+// for client send:
+// cli(1)->srv(2)->cli(3)->srv(4 + CallRPCReply to 1);
 
 type RsyncStep3_SenderProvidesDeltas struct {
 	SenderHashes *RsyncHashes `zid:"0"` // needs to be streamed too.
@@ -255,7 +313,11 @@ type RsyncHashes struct {
 
 	FullFileHashSum string `zid:"11"`
 
-	// ChunkerName is e.g. "fastcdc", or "ultracdc"
+	// ChunkerName is e.g.
+	// "fastcdc-Stadia-Google-64bit-arbitrary-regression-jea"
+	//   or "ultracdc-glycerine-golang-implementation".
+	// It should encapsulate any settings and
+	// implementation version, to allow it to be reproduced.
 	ChunkerName string           `zid:"12"`
 	CDC_Config  *jcdc.CDC_Config `zid:"13"`
 

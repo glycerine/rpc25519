@@ -687,8 +687,8 @@ func BenchmarkDecodeRsyncStep1_SenderOverview(b *testing.B) {
 	}
 }
 
-func TestMarshalUnmarshalRsyncStep2_AckOverview(t *testing.T) {
-	v := RsyncStep2_AckOverview{}
+func TestMarshalUnmarshalRsyncStep2_ReaderAcksOverview(t *testing.T) {
+	v := RsyncStep2_ReaderAcksOverview{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -710,8 +710,8 @@ func TestMarshalUnmarshalRsyncStep2_AckOverview(t *testing.T) {
 	}
 }
 
-func BenchmarkMarshalMsgRsyncStep2_AckOverview(b *testing.B) {
-	v := RsyncStep2_AckOverview{}
+func BenchmarkMarshalMsgRsyncStep2_ReaderAcksOverview(b *testing.B) {
+	v := RsyncStep2_ReaderAcksOverview{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -719,8 +719,8 @@ func BenchmarkMarshalMsgRsyncStep2_AckOverview(b *testing.B) {
 	}
 }
 
-func BenchmarkAppendMsgRsyncStep2_AckOverview(b *testing.B) {
-	v := RsyncStep2_AckOverview{}
+func BenchmarkAppendMsgRsyncStep2_ReaderAcksOverview(b *testing.B) {
+	v := RsyncStep2_ReaderAcksOverview{}
 	bts := make([]byte, 0, v.Msgsize())
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -731,8 +731,8 @@ func BenchmarkAppendMsgRsyncStep2_AckOverview(b *testing.B) {
 	}
 }
 
-func BenchmarkUnmarshalRsyncStep2_AckOverview(b *testing.B) {
-	v := RsyncStep2_AckOverview{}
+func BenchmarkUnmarshalRsyncStep2_ReaderAcksOverview(b *testing.B) {
+	v := RsyncStep2_ReaderAcksOverview{}
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
@@ -745,8 +745,8 @@ func BenchmarkUnmarshalRsyncStep2_AckOverview(b *testing.B) {
 	}
 }
 
-func TestEncodeDecodeRsyncStep2_AckOverview(t *testing.T) {
-	v := RsyncStep2_AckOverview{}
+func TestEncodeDecodeRsyncStep2_ReaderAcksOverview(t *testing.T) {
+	v := RsyncStep2_ReaderAcksOverview{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
@@ -755,7 +755,7 @@ func TestEncodeDecodeRsyncStep2_AckOverview(t *testing.T) {
 		t.Logf("WARNING: Msgsize() for %v is inaccurate", v)
 	}
 
-	vn := RsyncStep2_AckOverview{}
+	vn := RsyncStep2_ReaderAcksOverview{}
 	err := msgp.Decode(&buf, &vn)
 	if err != nil {
 		t.Error(err)
@@ -769,8 +769,8 @@ func TestEncodeDecodeRsyncStep2_AckOverview(t *testing.T) {
 	}
 }
 
-func BenchmarkEncodeRsyncStep2_AckOverview(b *testing.B) {
-	v := RsyncStep2_AckOverview{}
+func BenchmarkEncodeRsyncStep2_ReaderAcksOverview(b *testing.B) {
+	v := RsyncStep2_ReaderAcksOverview{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -783,8 +783,8 @@ func BenchmarkEncodeRsyncStep2_AckOverview(b *testing.B) {
 	en.Flush()
 }
 
-func BenchmarkDecodeRsyncStep2_AckOverview(b *testing.B) {
-	v := RsyncStep2_AckOverview{}
+func BenchmarkDecodeRsyncStep2_ReaderAcksOverview(b *testing.B) {
+	v := RsyncStep2_ReaderAcksOverview{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))

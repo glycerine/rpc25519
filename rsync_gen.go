@@ -3954,7 +3954,7 @@ func (z *RsyncStep1_SenderOverview) Msgsize() (s int) {
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
-func (z *RsyncStep2_AckOverview) DecodeMsg(dc *msgp.Reader) (err error) {
+func (z *RsyncStep2_ReaderAcksOverview) DecodeMsg(dc *msgp.Reader) (err error) {
 	var sawTopNil bool
 	if dc.IsNil() {
 		sawTopNil = true
@@ -4073,13 +4073,13 @@ doneWithStruct48zgensym_9db0ba711f6a3e5a_49:
 	return
 }
 
-// fields of RsyncStep2_AckOverview
+// fields of RsyncStep2_ReaderAcksOverview
 var decodeMsgFieldOrder48zgensym_9db0ba711f6a3e5a_49 = []string{"ReaderMatchesSenderAllGood_zid00_boo", "ReaderHashes_zid01_ptr"}
 
 var decodeMsgFieldSkip48zgensym_9db0ba711f6a3e5a_49 = []bool{false, false}
 
 // fieldsNotEmpty supports omitempty tags
-func (z *RsyncStep2_AckOverview) fieldsNotEmpty(isempty []bool) uint32 {
+func (z *RsyncStep2_ReaderAcksOverview) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
 		return 2
 	}
@@ -4097,7 +4097,7 @@ func (z *RsyncStep2_AckOverview) fieldsNotEmpty(isempty []bool) uint32 {
 }
 
 // EncodeMsg implements msgp.Encodable
-func (z *RsyncStep2_AckOverview) EncodeMsg(en *msgp.Writer) (err error) {
+func (z *RsyncStep2_ReaderAcksOverview) EncodeMsg(en *msgp.Writer) (err error) {
 	if p, ok := interface{}(z).(msgp.PreSave); ok {
 		p.PreSaveHook()
 	}
@@ -4112,12 +4112,12 @@ func (z *RsyncStep2_AckOverview) EncodeMsg(en *msgp.Writer) (err error) {
 		return err
 	}
 
-	// runtime struct type identification for 'RsyncStep2_AckOverview'
+	// runtime struct type identification for 'RsyncStep2_ReaderAcksOverview'
 	err = en.Append(0xa1, 0x40)
 	if err != nil {
 		return err
 	}
-	err = en.WriteStringFromBytes([]byte{0x52, 0x73, 0x79, 0x6e, 0x63, 0x53, 0x74, 0x65, 0x70, 0x32, 0x5f, 0x41, 0x63, 0x6b, 0x4f, 0x76, 0x65, 0x72, 0x76, 0x69, 0x65, 0x77})
+	err = en.WriteStringFromBytes([]byte{0x52, 0x73, 0x79, 0x6e, 0x63, 0x53, 0x74, 0x65, 0x70, 0x32, 0x5f, 0x52, 0x65, 0x61, 0x64, 0x65, 0x72, 0x41, 0x63, 0x6b, 0x73, 0x4f, 0x76, 0x65, 0x72, 0x76, 0x69, 0x65, 0x77})
 	if err != nil {
 		return err
 	}
@@ -4169,7 +4169,7 @@ func (z *RsyncStep2_AckOverview) EncodeMsg(en *msgp.Writer) (err error) {
 }
 
 // MarshalMsg implements msgp.Marshaler
-func (z *RsyncStep2_AckOverview) MarshalMsg(b []byte) (o []byte, err error) {
+func (z *RsyncStep2_ReaderAcksOverview) MarshalMsg(b []byte) (o []byte, err error) {
 	if p, ok := interface{}(z).(msgp.PreSave); ok {
 		p.PreSaveHook()
 	}
@@ -4208,10 +4208,10 @@ func (z *RsyncStep2_AckOverview) MarshalMsg(b []byte) (o []byte, err error) {
 }
 
 // UnmarshalMsg implements msgp.Unmarshaler
-func (z *RsyncStep2_AckOverview) UnmarshalMsg(bts []byte) (o []byte, err error) {
+func (z *RsyncStep2_ReaderAcksOverview) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	return z.UnmarshalMsgWithCfg(bts, nil)
 }
-func (z *RsyncStep2_AckOverview) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte, err error) {
+func (z *RsyncStep2_ReaderAcksOverview) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte, err error) {
 	var nbs msgp.NilBitsStack
 	nbs.Init(cfg)
 	var sawTopNil bool
@@ -4331,13 +4331,13 @@ doneWithStruct52zgensym_9db0ba711f6a3e5a_53:
 	return
 }
 
-// fields of RsyncStep2_AckOverview
+// fields of RsyncStep2_ReaderAcksOverview
 var unmarshalMsgFieldOrder52zgensym_9db0ba711f6a3e5a_53 = []string{"ReaderMatchesSenderAllGood_zid00_boo", "ReaderHashes_zid01_ptr"}
 
 var unmarshalMsgFieldSkip52zgensym_9db0ba711f6a3e5a_53 = []bool{false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
-func (z *RsyncStep2_AckOverview) Msgsize() (s int) {
+func (z *RsyncStep2_ReaderAcksOverview) Msgsize() (s int) {
 	s = 1 + 38 + msgp.BoolSize + 23
 	if z.ReaderHashes == nil {
 		s += msgp.NilSize
