@@ -65,7 +65,9 @@ zstd:11     27.766271 MB/sec; total time for upload: 54.4 seconds
 ~~~
 
 The default compressor in rpc25519, at the moment, is S2.
-It is the fastest of the bunch.
+It is the fastest of the bunch. Use the -press flag in
+the cli / srv demo commands to set the compression in 
+your own benchmarks.
 
 
 * Recent News (2025 January 04): (Happy New Year!)
