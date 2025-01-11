@@ -222,11 +222,13 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 	// `msgp: attempted to decode type "int" with method for "map"`
 	// It probably means we are not getting the decompression done.
 	//vv("w.compress = %v ; w.decomp = %p", w.compress, w.decomp)
-	if w.compress && w.decomp != nil {
-		message, err = w.decomp.handleDecompress(magic7, message)
-		if err != nil {
-			return nil, err
-		}
+	//
+	// Note that we must ignore the w.compress setting here.
+	// While *we* may not be using compression to send, we
+	// may well receive messages that are compressed.
+	message, err = w.decomp.handleDecompress(magic7, message)
+	if err != nil {
+		return nil, err
 	}
 
 	msg, err = MessageFromGreenpack(message)
@@ -253,7 +255,7 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 		// user requested no compression on this Message.
 		w.magicCheck[7] = byte(magic7b_no_system_compression)
 
-	} else if w.compress && w.pressor != nil {
+	} else if w.compress {
 		var magic7 magic7b
 		if w.isServer {
 			// server tries to match what we last got from the client.
