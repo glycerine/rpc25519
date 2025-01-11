@@ -137,7 +137,7 @@ func newWorkspace(name string, maxMsgSize int, isServer bool, cfg *Config, spair
 	}
 	// write according to our defaults.
 	w.defaultMagic7 = setMagicCheckWord(cfg.CompressAlgo, w.magicCheck)
-	vv("newWorkspace sets cfg.lastReadMagic7 = w.defaultMagic7 = %v from '%v'", w.defaultMagic7, cfg.CompressAlgo)
+	//vv("newWorkspace sets cfg.lastReadMagic7 = w.defaultMagic7 = %v from '%v'", w.defaultMagic7, cfg.CompressAlgo)
 	if isServer {
 		spair.lastReadMagic7.Store(int64(w.defaultMagic7))
 	} else {
@@ -182,10 +182,10 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 	magic7 := w.magicCheck[7]
 
 	if w.isServer {
-		vv("common readMessage magic7 = %v -> storing to w.spair.lastReadMagic7", magic7)
+		//vv("common readMessage magic7 = %v -> storing to w.spair.lastReadMagic7", magic7)
 		w.spair.lastReadMagic7.Store(int64(magic7))
 	} else {
-		vv("client: common readMessage magic7 = %v was seen", magic7)
+		//vv("client: common readMessage magic7 = %v was seen", magic7)
 		w.cpair.lastReadMagic7.Store(int64(magic7))
 	}
 
@@ -249,15 +249,12 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 			if magic7 < 0 || magic7 > highestLegalMagic7value {
 				magic7 = w.defaultMagic7
 			} else {
-				vv("server matches client, magic7=%v", magic7)
-				if magic7 == 1 {
-					vv("magic7==1 hdr = '%v'", msg.HDR.String())
-				}
+				//vv("server matches client, magic7=%v", magic7)
 			}
 		} else {
 			// client does as user requested.
 			magic7 = w.defaultMagic7
-			vv("client doing as set, magic7=%v", magic7)
+			//vv("client doing as set, magic7=%v", magic7)
 		}
 		//vv("common.go sendMessage calling handleCompress: w.defaultMagic7 = %v", w.defaultMagic7)
 		w.magicCheck[7] = magic7
