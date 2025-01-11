@@ -1,6 +1,36 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
+* Recent News (2025 January 11): v1.6.0 adds compression.
+
+By default S2 compression is used. See the link
+below for details. 
+
+"S2 is designed to have high throughput 
+on content that cannot be compressed. 
+This is important, so you don't have to 
+worry about spending CPU cycles on 
+already compressed data. -- Klaus Post"
+
+https://pkg.go.dev/github.com/klauspost/compress/s2
+
+Also available are the LZ4 (lz4) and 
+the Zstandard (zstd) compression algorithms 
+by Yann Collet. Zstandard compression is available at 
+levels 01, 03, 07, and 11;
+these go from fastest (01) to most compressed(11)
+in trading off time for space.
+
+The sender decides on one of these supported
+compression algorithms, and the reader decodes
+what it gets, in a "reader-makes-right" pattern.
+This allows you to benchmark different compression
+approaches to uploading your data quickly, without
+restarting the server. If you are benchmarking
+downloads, the server will have to be
+restarted with the -press flag setting different
+compression algorithms.
+
 * Recent News (2025 January 04): (Happy New Year!)
 
 For bulk uploads and downloads, v1.3.0 has streaming support.
