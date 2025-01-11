@@ -350,7 +350,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 	}
 
 	vv("about to make a newBlabber for server send loop; s.Server.cfg = %p", s.Server.cfg)
-	w := newBlabber("server send loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true, s.Server.cfg, s)
+	w := newBlabber("server send loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true, s.Server.cfg, s, nil)
 
 	// implement ServerSendKeepAlive
 	var lastPing time.Time
@@ -429,7 +429,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 	}
 
 	vv("about to make a newBlabber for server read loop; s.Server.cfg = %p", s.Server.cfg)
-	w := newBlabber("server read loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true, s.Server.cfg, s)
+	w := newBlabber("server read loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true, s.Server.cfg, s, nil)
 
 	for {
 		select {
@@ -1581,7 +1581,6 @@ func NewServer(name string, config *Config) *Server {
 	if config != nil {
 		clone := *config // cfg.shared is a pointer to enable this shallow copy.
 		cfg = &clone
-		cfg.isServer = true
 	}
 	return &Server{
 		name:              name,

@@ -214,8 +214,9 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		return
 	}
 
-	go c.runSendLoop(conn)
-	c.runReadLoop(conn)
+	cpair := &cliPairState{}
+	go c.runSendLoop(conn, cpair)
+	c.runReadLoop(conn, cpair)
 }
 
 func (c *Client) runClientTCP(serverAddr string) {
@@ -258,11 +259,16 @@ func (c *Client) runClientTCP(serverAddr string) {
 		return
 	}
 
-	go c.runSendLoop(conn)
-	c.runReadLoop(conn)
+	cpair := &cliPairState{}
+	go c.runSendLoop(conn, cpair)
+	c.runReadLoop(conn, cpair)
 }
 
-func (c *Client) runReadLoop(conn net.Conn) {
+type cliPairState struct {
+	lastReadMagic7 atomic.Int64
+}
+
+func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 	var err error
 	defer func() {
 		//vv("client runReadLoop exiting, last err = '%v'", err)
@@ -278,7 +284,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 	}
 
 	vv("about to make a newBlabber for client read loop; c.cfg = %p ", c.cfg)
-	w := newBlabber("client read loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false, c.cfg, nil)
+	w := newBlabber("client read loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false, c.cfg, nil, cpair)
 
 	readTimeout := time.Millisecond * 100
 	_ = readTimeout
@@ -420,7 +426,7 @@ func (c *Client) runReadLoop(conn net.Conn) {
 	}
 }
 
-func (c *Client) runSendLoop(conn net.Conn) {
+func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 	defer func() {
 		//vv("client runSendLoop shutting down")
 		c.halt.ReqStop.Close()
@@ -435,7 +441,7 @@ func (c *Client) runSendLoop(conn net.Conn) {
 	}
 
 	vv("about to make a newBlabber for client send loop; c.cfg = %p ", c.cfg)
-	w := newBlabber("client send loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false, c.cfg, nil)
+	w := newBlabber("client send loop", symkey, conn, c.cfg.encryptPSK, maxMessage, false, c.cfg, nil, cpair)
 
 	// PRE: Message.DoneCh must be buffered at least 1, so
 	// our logic below does not have to deal with ever blocking.
@@ -895,10 +901,6 @@ type Config struct {
 
 	// for port sharing between a server and 1 or more clients over QUIC
 	shared *sharedTransport
-
-	// allow server to match client compression.
-	lastReadMagic7 atomic.Int64
-	isServer       bool
 }
 
 // Clone returns a copy of cfg. This is a shallow copy to

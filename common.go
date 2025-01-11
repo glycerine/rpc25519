@@ -73,6 +73,7 @@ type workspace struct {
 	isServer bool
 	cfg      *Config
 	spair    *rwPair
+	cpair    *cliPairState
 
 	// one writer at a time.
 	wmut sync.Mutex
@@ -113,7 +114,7 @@ type workspace struct {
 // are needed. We currently allocate 80 more bytes.
 // This pre-allocation avoids all reallocation
 // and memory churn during regular operation.
-func newWorkspace(name string, maxMsgSize int, isServer bool, cfg *Config, spair *rwPair) *workspace {
+func newWorkspace(name string, maxMsgSize int, isServer bool, cfg *Config, spair *rwPair, cpair *cliPairState) *workspace {
 
 	w := &workspace{
 		name:       name,
@@ -132,14 +133,15 @@ func newWorkspace(name string, maxMsgSize int, isServer bool, cfg *Config, spair
 		isServer:               isServer,
 		cfg:                    cfg,
 		spair:                  spair,
+		cpair:                  cpair,
 	}
 	// write according to our defaults.
 	w.defaultMagic7 = setMagicCheckWord(cfg.CompressAlgo, w.magicCheck)
 	vv("newWorkspace sets cfg.lastReadMagic7 = w.defaultMagic7 = %v from '%v'", w.defaultMagic7, cfg.CompressAlgo)
-	cfg.lastReadMagic7.Store(int64(w.defaultMagic7)) // default
-	if spair != nil {
-		// we are on server, not client.
-		spair.lastReadMagic7.Store(int64(w.defaultMagic7)) // default
+	if isServer {
+		spair.lastReadMagic7.Store(int64(w.defaultMagic7))
+	} else {
+		cpair.lastReadMagic7.Store(int64(w.defaultMagic7))
 	}
 	return w
 }
@@ -181,10 +183,10 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 
 	if w.isServer {
 		vv("common readMessage magic7 = %v -> storing to w.spair.lastReadMagic7", magic7)
-		//w.cfg.lastReadMagic7.Store(int64(magic7))
 		w.spair.lastReadMagic7.Store(int64(magic7))
 	} else {
 		vv("client: common readMessage magic7 = %v was seen", magic7)
+		w.cpair.lastReadMagic7.Store(int64(magic7))
 	}
 
 	// Read the next 8 bytes for the Message length.

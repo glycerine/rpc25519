@@ -19,8 +19,8 @@ func Test020_nonce_sequence_not_reused(t *testing.T) {
 		var key [32]byte
 
 		cfg := &Config{}
-		bcli := newBlabber("test", key, nil, true, 1024, false, cfg, nil)
-		bsrv := newBlabber("test", key, nil, true, 1024, true, cfg, nil)
+		bcli := newBlabber("test", key, nil, true, 1024, false, cfg, nil, nil)
+		bsrv := newBlabber("test", key, nil, true, 1024, true, cfg, nil, nil)
 		n := 1100
 
 		const nonceSize = 16

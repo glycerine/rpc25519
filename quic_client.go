@@ -202,8 +202,9 @@ func (c *Client) runQUIC(localHostPort, quicServerAddr string, tlsConfig *tls.Co
 		return
 	}
 
-	go c.runSendLoop(wrap)
-	c.runReadLoop(wrap)
+	cpair := &cliPairState{}
+	go c.runSendLoop(wrap, cpair)
+	c.runReadLoop(wrap, cpair)
 }
 
 // NetConnWrapper is exported so that clients

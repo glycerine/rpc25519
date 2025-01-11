@@ -108,6 +108,7 @@ type encoder struct {
 	isServer bool
 	cfg      *Config
 	spair    *rwPair
+	cpair    *cliPairState
 }
 
 // decoder organizes the decryption of messages
@@ -129,6 +130,7 @@ type decoder struct {
 	isServer bool
 	cfg      *Config
 	spair    *rwPair
+	cpair    *cliPairState
 }
 
 // newBlabber: at the moment it gets setup to do both read
@@ -150,6 +152,7 @@ func newBlabber(
 	isServer bool,
 	cfg *Config,
 	spair *rwPair, // nil on client
+	cpair *cliPairState, // nil on server
 ) *blabber {
 
 	//vv("'%v' newBlabber called with key '%x'", name, key[:])
@@ -213,7 +216,7 @@ func newBlabber(
 		writeNonce:   writeNonce,
 		noncesize:    nsz,
 		overhead:     aeadEnc.Overhead(),
-		work:         newWorkspace(name+"_enc", maxMsgSize, isServer, cfg, spair),
+		work:         newWorkspace(name+"_enc", maxMsgSize, isServer, cfg, spair, cpair),
 		compress:     !cfg.CompressionOff,
 		compressAlgo: cfg.CompressAlgo,
 		pressor:      newPressor(maxMsgSize + 80),
@@ -221,11 +224,14 @@ func newBlabber(
 		isServer:     isServer,
 		cfg:          cfg,
 		spair:        spair,
+		cpair:        cpair,
 	}
 	enc.magic7 = setMagicCheckWord(cfg.CompressAlgo, enc.magicCheck)
-	cfg.lastReadMagic7.Store(int64(enc.magic7)) // default
+	// set default
 	if spair != nil {
-		spair.lastReadMagic7.Store(int64(enc.magic7)) // default
+		spair.lastReadMagic7.Store(int64(enc.magic7))
+	} else {
+		cpair.lastReadMagic7.Store(int64(enc.magic7))
 	}
 
 	dec := &decoder{
@@ -233,12 +239,13 @@ func newBlabber(
 		aead:       aeadDec,
 		noncesize:  nsz,
 		overhead:   aeadEnc.Overhead(),
-		work:       newWorkspace(name+"_dec", maxMsgSize, isServer, cfg, spair),
+		work:       newWorkspace(name+"_dec", maxMsgSize, isServer, cfg, spair, cpair),
 		decomp:     newDecomp(maxMsgSize + 80),
 		magicCheck: make([]byte, 8), // last byte is compression type.
 		isServer:   isServer,
 		cfg:        cfg,
 		spair:      spair,
+		cpair:      cpair,
 	}
 
 	return &blabber{
@@ -522,6 +529,8 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	}
 	if d.isServer {
 		d.spair.lastReadMagic7.Store(int64(magic7))
+	} else {
+		d.cpair.lastReadMagic7.Store(int64(magic7))
 	}
 
 	// trim off the magic 8 bytes
