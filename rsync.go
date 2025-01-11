@@ -208,18 +208,41 @@ type Nil struct{}
 
 type RsyncNode struct{}
 
-func (s *RsyncNode) ClientSends() {}
-func (s *RsyncNode) ClientReads() {
+// for client send:
+// cli(1)->srv(2)->cli(3)->srv(4 + CallRPCReply to 1?);
+func (s *RsyncNode) ClientSends() (err error) {
+
+	var cli *Client
+
+	req1 := &RsyncStep1_SenderOverview{}
+	reply2 := &RsyncStep2_ReaderAcksOverview{}
+
+	err = cli.Call("RsyncNode.Step2_ReaderAcksOverview", req1, reply2, nil)
+
+	req3 := &RsyncStep3_SenderProvidesDeltas{}
+	reply4 := &RsyncStep4_ReaderAcksDeltasFin{}
+
+	err = cli.Call("RsyncNode.Step4_ReaderAcksDeltasFin", req3, reply4, nil)
+
+	return
+}
+
+// for client read:
+// cli(0)->srv(1)->cli(2)->srv(3 + CallRPCReply to 0?)->cli(4)
+func (s *RsyncNode) ClientReads() (err error) {
+
+	var cli *Client
+
 	req0 := &RsyncStep0_ClientRequestsRead{}
 	reply1 := &RsyncStep1_SenderOverview{}
 
-	var cli *Client
-	cli.Call("RsyncNode.Step1_SenderOverview", req0, reply1, nil)
+	err = cli.Call("RsyncNode.Step1_SenderOverview", req0, reply1, nil)
 
 	req2 := &RsyncStep2_ReaderAcksOverview{}
 	reply3 := &RsyncStep3_SenderProvidesDeltas{}
-	cli.Call("RsyncNode.Step3_SenderProvidesDelta", req2, reply3, nil)
+	err = cli.Call("RsyncNode.Step3_SenderProvidesDelta", req2, reply3, nil)
 
+	return
 }
 
 // or try with net/rpc api for stronger typing?
@@ -251,12 +274,6 @@ func (s *RsyncNode) Step4_ReaderAcksDeltasFin(ctx Ctx, req *RsyncStep3_SenderPro
 	reply *RsyncStep4_ReaderAcksDeltasFin) error {
 	return nil
 }
-
-// for client read:
-// cli(0)->srv(1)->cli(2)->srv(3 + CallRPCReply to 0)->cli(4); or
-//
-// for client send:
-// cli(1)->srv(2)->cli(3)->srv(4 + CallRPCReply to 1);
 
 type RsyncStep3_SenderProvidesDeltas struct {
 	SenderHashes *RsyncHashes `zid:"0"` // needs to be streamed too.
