@@ -133,6 +133,7 @@ func newWorkspace(name string, maxMsgSize int, isServer bool, cfg *Config) *work
 	}
 	// write according to our defaults.
 	w.defaultMagic7 = setMagicCheckWord(cfg.CompressAlgo, w.magicCheck)
+	vv("newWorkspace sets cfg.lastReadMagic7 = w.defaultMagic7 = %v from '%v'", w.defaultMagic7, cfg.CompressAlgo)
 	cfg.lastReadMagic7.Store(int64(w.defaultMagic7)) // default
 	return w
 }
@@ -240,6 +241,9 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 				magic7 = w.defaultMagic7
 			} else {
 				vv("server matches client, magic7=%v", magic7)
+				if magic7 == 1 {
+					vv("magic7==1 hdr = '%v'", msg.HDR.String())
+				}
 			}
 		} else {
 			// client does as user requested.
