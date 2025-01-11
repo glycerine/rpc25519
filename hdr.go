@@ -293,7 +293,7 @@ type HDR struct {
 
 	Subject string   `zid:"3"` // in net/rpc, the "Service.Method" ServiceName
 	Seqno   uint64   `zid:"4"` // user (client) set sequence number for each call (same on response).
-	Typ     CallType `zid:"5"` // see constants below.
+	Typ     CallType `zid:"5"` // see constants above.
 	CallID  string   `zid:"6"` // 20 bytes pseudo random base-64 coded string (same on response).
 	Serial  int64    `zid:"7"` // system serial number
 
@@ -309,6 +309,20 @@ type HDR struct {
 	// The CallID will be identical on
 	// all parts of the same stream.
 	StreamPart int64 `zid:"10"`
+
+	// NoSystemCompression turns off any usual
+	// compression that the rpc25519 system
+	// applies, for just this one Message.
+	//
+	// Not normally a needed (or a good idea),
+	// this flag is for efficiency when the
+	// user has implemented their own custom compression
+	// schemes for JobSerz. Thus the system
+	// can avoid wasting time attempting
+	// to compress a second time.
+	//
+	// Not matched in reply compression.
+	NoSystemCompression bool `zid:"13"`
 
 	// streamCh is internal; used for client -> server streaming on CallUploadBegin
 	streamCh chan *Message `msg:"-" json:"-"`

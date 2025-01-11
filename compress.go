@@ -146,7 +146,7 @@ func newPressor(maxMsgSize int) (p *pressor) {
 	return p
 }
 
-func (p *pressor) handleCompress(magic7 byte, bytesMsg []byte) ([]byte, error) {
+func (p *pressor) handleCompress(magic7 magic7b, bytesMsg []byte) ([]byte, error) {
 
 	//vv("handleCompress(magic7=%v) is using '%v'", magic7, mustDecodeMagic7(magic7))
 
@@ -203,7 +203,7 @@ func (p *pressor) handleCompress(magic7 byte, bytesMsg []byte) ([]byte, error) {
 	return bytesMsg, nil
 }
 
-func (decomp *decomp) handleDecompress(magic7 byte, message []byte) ([]byte, error) {
+func (decomp *decomp) handleDecompress(magic7 magic7b, message []byte) ([]byte, error) {
 
 	//vv("handle decompress using magic7 = %v", magic7)
 

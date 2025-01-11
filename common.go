@@ -65,7 +65,7 @@ type workspace struct {
 	// if so, which algo to use?
 	// choices: "s2", "lz4", "zstd" available atm.
 	defaultCompressionAlgo string
-	defaultMagic7          byte
+	defaultMagic7          magic7b
 
 	decomp  *decomp
 	pressor *pressor
@@ -179,14 +179,19 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 	if !bytes.Equal(w.magicCheck[:7], magic[:7]) {
 		return nil, ErrMagicWrong
 	}
-	magic7 := w.magicCheck[7]
+	magic7 := magic7b(w.magicCheck[7])
 
-	if w.isServer {
-		//vv("common readMessage magic7 = %v -> storing to w.spair.lastReadMagic7", magic7)
-		w.spair.lastReadMagic7.Store(int64(magic7))
-	} else {
-		//vv("client: common readMessage magic7 = %v was seen", magic7)
-		w.cpair.lastReadMagic7.Store(int64(magic7))
+	// we don't want to loose all compression
+	// just because a single message requested
+	// none.
+	if magic7 != magic7b_no_system_compression {
+		if w.isServer {
+			//vv("common readMessage magic7 = %v -> storing to w.spair.lastReadMagic7", magic7)
+			w.spair.lastReadMagic7.Store(int64(magic7))
+		} else {
+			//vv("client: common readMessage magic7 = %v was seen", magic7)
+			w.cpair.lastReadMagic7.Store(int64(magic7))
+		}
 	}
 
 	// Read the next 8 bytes for the Message length.
@@ -241,12 +246,16 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 		return err
 	}
 
-	if w.compress && w.pressor != nil {
-		var magic7 byte
+	if msg.HDR.NoSystemCompression {
+		// user requested no compression on this Message.
+		w.magicCheck[7] = byte(magic7b_no_system_compression)
+
+	} else if w.compress && w.pressor != nil {
+		var magic7 magic7b
 		if w.isServer {
 			// server tries to match what we last got from the client.
-			magic7 = byte(w.spair.lastReadMagic7.Load())
-			if magic7 < 0 || magic7 > highestLegalMagic7value {
+			magic7 = magic7b(w.spair.lastReadMagic7.Load())
+			if magic7 < 0 || magic7 >= magic7b_out_of_bounds {
 				magic7 = w.defaultMagic7
 			} else {
 				//vv("server matches client, magic7=%v", magic7)
@@ -257,7 +266,7 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 			//vv("client doing as set, magic7=%v", magic7)
 		}
 		//vv("common.go sendMessage calling handleCompress: w.defaultMagic7 = %v", w.defaultMagic7)
-		w.magicCheck[7] = magic7
+		w.magicCheck[7] = byte(magic7)
 		bytesMsg, err = w.pressor.handleCompress(magic7, bytesMsg)
 		if err != nil {
 			return err

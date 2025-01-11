@@ -116,7 +116,7 @@ func (z *HDR) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields4zgensym_28874796354aa7f3_5 = 15
+	const maxFields4zgensym_28874796354aa7f3_5 = 16
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields4zgensym_28874796354aa7f3_5 uint32
@@ -269,6 +269,12 @@ doneWithStruct4zgensym_28874796354aa7f3_5:
 				}
 				z.Args[zgensym_28874796354aa7f3_2] = zgensym_28874796354aa7f3_3
 			}
+		case "NoSystemCompression_zid13_boo":
+			found4zgensym_28874796354aa7f3_5[13] = true
+			z.NoSystemCompression, err = dc.ReadBool()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -292,16 +298,16 @@ doneWithStruct4zgensym_28874796354aa7f3_5:
 }
 
 // fields of HDR
-var decodeMsgFieldOrder4zgensym_28874796354aa7f3_5 = []string{"Created_zid00_tim", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "Seqno_zid04_u64", "Typ_zid05_rct", "CallID_zid06_str", "Serial_zid07_i64", "LocalRecvTm_zid08_tim", "Deadline_zid09_tim", "StreamPart_zid10_i64", "ServiceName_zid11_str", "Args_zid12_map", "", ""}
+var decodeMsgFieldOrder4zgensym_28874796354aa7f3_5 = []string{"Created_zid00_tim", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "Seqno_zid04_u64", "Typ_zid05_rct", "CallID_zid06_str", "Serial_zid07_i64", "LocalRecvTm_zid08_tim", "Deadline_zid09_tim", "StreamPart_zid10_i64", "ServiceName_zid11_str", "Args_zid12_map", "NoSystemCompression_zid13_boo", "", ""}
 
-var decodeMsgFieldSkip4zgensym_28874796354aa7f3_5 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
+var decodeMsgFieldSkip4zgensym_28874796354aa7f3_5 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *HDR) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 13
+		return 14
 	}
-	var fieldsInUse uint32 = 13
+	var fieldsInUse uint32 = 14
 	isempty[0] = (z.Created.IsZero()) // time.Time, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -354,6 +360,10 @@ func (z *HDR) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[12] {
 		fieldsInUse--
 	}
+	isempty[13] = (!z.NoSystemCompression) // bool, omitempty
+	if isempty[13] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -365,7 +375,7 @@ func (z *HDR) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_28874796354aa7f3_8 [15]bool
+	var empty_zgensym_28874796354aa7f3_8 [16]bool
 	fieldsInUse_zgensym_28874796354aa7f3_9 := z.fieldsNotEmpty(empty_zgensym_28874796354aa7f3_8[:])
 
 	// map header
@@ -550,6 +560,18 @@ func (z *HDR) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_28874796354aa7f3_8[13] {
+		// write "NoSystemCompression_zid13_boo"
+		err = en.Append(0xbd, 0x4e, 0x6f, 0x53, 0x79, 0x73, 0x74, 0x65, 0x6d, 0x43, 0x6f, 0x6d, 0x70, 0x72, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x33, 0x5f, 0x62, 0x6f, 0x6f)
+		if err != nil {
+			return err
+		}
+		err = en.WriteBool(z.NoSystemCompression)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -562,7 +584,7 @@ func (z *HDR) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [15]bool
+	var empty [16]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -648,6 +670,12 @@ func (z *HDR) MarshalMsg(b []byte) (o []byte, err error) {
 		}
 	}
 
+	if !empty[13] {
+		// string "NoSystemCompression_zid13_boo"
+		o = append(o, 0xbd, 0x4e, 0x6f, 0x53, 0x79, 0x73, 0x74, 0x65, 0x6d, 0x43, 0x6f, 0x6d, 0x70, 0x72, 0x65, 0x73, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x33, 0x5f, 0x62, 0x6f, 0x6f)
+		o = msgp.AppendBool(o, z.NoSystemCompression)
+	}
+
 	return
 }
 
@@ -666,7 +694,7 @@ func (z *HDR) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte
 
 	var field []byte
 	_ = field
-	const maxFields10zgensym_28874796354aa7f3_11 = 15
+	const maxFields10zgensym_28874796354aa7f3_11 = 16
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields10zgensym_28874796354aa7f3_11 uint32
@@ -843,6 +871,13 @@ doneWithStruct10zgensym_28874796354aa7f3_11:
 					z.Args[zgensym_28874796354aa7f3_2] = zgensym_28874796354aa7f3_3
 				}
 			}
+		case "NoSystemCompression_zid13_boo":
+			found10zgensym_28874796354aa7f3_11[13] = true
+			z.NoSystemCompression, bts, err = nbs.ReadBoolBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -866,9 +901,9 @@ doneWithStruct10zgensym_28874796354aa7f3_11:
 }
 
 // fields of HDR
-var unmarshalMsgFieldOrder10zgensym_28874796354aa7f3_11 = []string{"Created_zid00_tim", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "Seqno_zid04_u64", "Typ_zid05_rct", "CallID_zid06_str", "Serial_zid07_i64", "LocalRecvTm_zid08_tim", "Deadline_zid09_tim", "StreamPart_zid10_i64", "ServiceName_zid11_str", "Args_zid12_map", "", ""}
+var unmarshalMsgFieldOrder10zgensym_28874796354aa7f3_11 = []string{"Created_zid00_tim", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "Seqno_zid04_u64", "Typ_zid05_rct", "CallID_zid06_str", "Serial_zid07_i64", "LocalRecvTm_zid08_tim", "Deadline_zid09_tim", "StreamPart_zid10_i64", "ServiceName_zid11_str", "Args_zid12_map", "NoSystemCompression_zid13_boo", "", ""}
 
-var unmarshalMsgFieldSkip10zgensym_28874796354aa7f3_11 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
+var unmarshalMsgFieldSkip10zgensym_28874796354aa7f3_11 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *HDR) Msgsize() (s int) {
@@ -880,6 +915,7 @@ func (z *HDR) Msgsize() (s int) {
 			s += msgp.StringPrefixSize + len(zgensym_28874796354aa7f3_2) + msgp.StringPrefixSize + len(zgensym_28874796354aa7f3_3)
 		}
 	}
+	s += 30 + msgp.BoolSize
 	return
 }
 

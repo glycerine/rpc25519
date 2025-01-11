@@ -102,7 +102,7 @@ type encoder struct {
 	magicCheck   []byte
 	compress     bool
 	compressAlgo string
-	magic7       byte // corresponds to compressAlgo
+	magic7       magic7b // byte, corresponds to compressAlgo
 	pressor      *pressor
 
 	isServer bool
@@ -362,7 +362,7 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	if !bytes.Equal(e.magicCheck[:7], magic[:7]) {
 		panic("encoder.magicCheck[:7] should have been set in init!")
 	}
-	if e.magic7 != e.magicCheck[7] {
+	if e.magic7 != magic7b(e.magicCheck[7]) {
 		panic("encoder.defaultMagicCheck7 should have been set in init!")
 	}
 
@@ -378,19 +378,23 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 		return ErrTooLong
 	}
 
-	if e.compress && e.pressor != nil {
-		var magic7 byte
+	if msg.HDR.NoSystemCompression {
+		// user requested no compression on this Message.
+		e.magicCheck[7] = byte(magic7b_no_system_compression)
+
+	} else if e.compress && e.pressor != nil {
+		var magic7 magic7b
 		if e.isServer {
 			// server tries to match what we last got from the client.
-			magic7 = byte(e.spair.lastReadMagic7.Load())
-			if magic7 < 0 || magic7 > highestLegalMagic7value {
+			magic7 = magic7b(e.spair.lastReadMagic7.Load())
+			if magic7 < 0 || magic7 >= magic7b_out_of_bounds {
 				magic7 = e.magic7
 			}
 		} else {
 			// client does as user requested.
 			magic7 = e.magic7
 		}
-		e.magicCheck[7] = magic7
+		e.magicCheck[7] = byte(magic7)
 		bytesMsg, err = e.pressor.handleCompress(magic7, bytesMsg)
 		if err != nil {
 			return err
@@ -522,15 +526,21 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 
 	// magic is the first 8 bytes: check and determine compression type.
 	copy(d.magicCheck, message)
-	magic7 := d.magicCheck[7]
+	magic7 := magic7b(d.magicCheck[7])
 
 	if !bytes.Equal(d.magicCheck[:7], magic[:7]) {
 		return nil, ErrMagicWrong
 	}
-	if d.isServer {
-		d.spair.lastReadMagic7.Store(int64(magic7))
-	} else {
-		d.cpair.lastReadMagic7.Store(int64(magic7))
+
+	// we don't want to loose all compression
+	// just because a single message requested
+	// none.
+	if magic7 != magic7b_no_system_compression {
+		if d.isServer {
+			d.spair.lastReadMagic7.Store(int64(magic7))
+		} else {
+			d.cpair.lastReadMagic7.Store(int64(magic7))
+		}
 	}
 
 	// trim off the magic 8 bytes
