@@ -243,6 +243,7 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 			vv("client doing as set, magic7=%v", magic7)
 		}
 		//vv("common.go sendMessage calling handleCompress: w.defaultMagic7 = %v", w.defaultMagic7)
+		w.magicCheck[7] = magic7
 		bytesMsg, err = w.pressor.handleCompress(magic7, bytesMsg)
 		if err != nil {
 			return err
