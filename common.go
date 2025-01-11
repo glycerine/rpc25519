@@ -175,6 +175,8 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 		return nil, err
 	}
 
+	vv("readMessage sees magic7 = %s", w.magicCheck[7])
+
 	// allow the magic[7] to indicate compression type.
 	if !bytes.Equal(w.magicCheck[:7], magic[:7]) {
 		return nil, ErrMagicWrong
@@ -229,6 +231,7 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 
 	msg, err = MessageFromGreenpack(message)
 	if err != nil {
+		alwaysPrintf("error decoding greenpack messages: '%v'", err)
 		return nil, err
 	}
 	return msg, nil
@@ -274,6 +277,8 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 	} else {
 		w.magicCheck[7] = byte(magic7b_none)
 	}
+
+	vv("sendMessage using magic7 = %v", w.magicCheck[7])
 
 	nbytesMsg := len(bytesMsg)
 

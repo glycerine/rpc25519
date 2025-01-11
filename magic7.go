@@ -53,6 +53,11 @@ const (
 	magic7b_out_of_bounds magic7b = 8
 )
 
+func (m magic7b) String() (s string) {
+	s, _ = decodeMagic7(m)
+	return
+}
+
 func decodeMagic7(magic7 magic7b) (magicCompressAlgo string, err error) {
 	switch magic7 {
 	// magic[7] (the last byte 0x00 here) can vary,
