@@ -19,7 +19,7 @@ import (
 // 03 => zstd:11 (best compression)
 // 04 => zstd:07
 // 05 => zstd:03
-// 06 => zstd:01 (fastest)
+// 06 => zstd:01 (fastest time, least compression for zstd)
 var magic = [8]byte{0xb3, 0x5d, 0x18, 0x39, 0xac, 0x8e, 0x1d, 0x00}
 
 var ErrMagicWrong = fmt.Errorf("error: magic bytes not found at start of message")
@@ -54,6 +54,9 @@ func decodeMagic7(magic7 byte) (magicCompressAlgo string, err error) {
 	}
 	return "", fmt.Errorf("unrecognized magic7: '%v' ; valid choices: s2, lz4, zstd:01, zstd:03, zstd:07, zstd:11", magic7)
 }
+
+// keep this up to date! if you add more legit values!
+const lastGoodMagic7 = 6
 
 func encodeMagic7(magicCompressAlgo string) (magic7 byte, err error) {
 	switch magicCompressAlgo {

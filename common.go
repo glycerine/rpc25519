@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -69,6 +70,10 @@ type workspace struct {
 	decomp  *decomp
 	pressor *pressor
 
+	// allow server to match client compression.
+	lastReadMagic7 atomic.Int64
+	isServer       bool
+
 	// one writer at a time.
 	wmut sync.Mutex
 
@@ -108,7 +113,7 @@ type workspace struct {
 // are needed. We currently allocate 80 more bytes.
 // This pre-allocation avoids all reallocation
 // and memory churn during regular operation.
-func newWorkspace(name string, maxMsgSize int, cfg *Config) *workspace {
+func newWorkspace(name string, maxMsgSize int, isServer bool, cfg *Config) *workspace {
 
 	w := &workspace{
 		name:       name,
@@ -124,9 +129,11 @@ func newWorkspace(name string, maxMsgSize int, cfg *Config) *workspace {
 		pressor:                newPressor(maxMsgSize + 80),
 		decomp:                 newDecomp(maxMsgSize + 80),
 		defaultCompressionAlgo: cfg.CompressAlgo,
+		isServer:               isServer,
 	}
 	// write according to our defaults.
 	w.defaultMagic7 = setMagicCheckWord(cfg.CompressAlgo, w.magicCheck)
+	w.lastReadMagic7.Store(int64(w.defaultMagic7)) // default
 	return w
 }
 
@@ -165,6 +172,8 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 	}
 	magic7 := w.magicCheck[7]
 	//vv("common readMessage magic7 = %v", magic7)
+
+	w.lastReadMagic7.Store(int64(magic7))
 
 	// Read the next 8 bytes for the Message length.
 	_, err = readFull(conn, w.readLenMessageBytes, timeout)
@@ -219,8 +228,19 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 	}
 
 	if w.compress && w.pressor != nil {
+		var magic7 byte
+		if w.isServer {
+			// server tries to match what we last got from the client.
+			magic7 = byte(w.lastReadMagic7.Load())
+			if magic7 < 0 || magic7 > lastGoodMagic7 {
+				magic7 = w.defaultMagic7
+			}
+		} else {
+			// client does as user requested.
+			magic7 = w.defaultMagic7
+		}
 		//vv("common.go sendMessage calling handleCompress: w.defaultMagic7 = %v", w.defaultMagic7)
-		bytesMsg, err = w.pressor.handleCompress(w.defaultMagic7, bytesMsg)
+		bytesMsg, err = w.pressor.handleCompress(magic7, bytesMsg)
 		if err != nil {
 			return err
 		}

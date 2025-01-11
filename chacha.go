@@ -10,6 +10,7 @@ import (
 	"fmt"
 	//"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/cloudflare/circl/cipher/ascon"
@@ -103,6 +104,11 @@ type encoder struct {
 	compressAlgo string
 	magic7       byte // corresponds to compressAlgo
 	pressor      *pressor
+
+	// allow server to match client compression.
+	// decoder will store here for us.
+	lastReadMagic7 atomic.Int64
+	isServer       bool
 }
 
 // decoder organizes the decryption of messages
@@ -120,6 +126,12 @@ type decoder struct {
 
 	magicCheck []byte
 	decomp     *decomp
+
+	// so we can tell it how to
+	// match client compression
+	// with lastReadMagic7
+	enc      *encoder
+	isServer bool
 }
 
 // newBlabber: at the moment it gets setup to do both read
@@ -203,22 +215,26 @@ func newBlabber(
 		writeNonce:   writeNonce,
 		noncesize:    nsz,
 		overhead:     aeadEnc.Overhead(),
-		work:         newWorkspace(name+"_enc", maxMsgSize, cfg),
+		work:         newWorkspace(name+"_enc", maxMsgSize, isServer, cfg),
 		compress:     !cfg.CompressionOff,
 		compressAlgo: cfg.CompressAlgo,
 		pressor:      newPressor(maxMsgSize + 80),
 		magicCheck:   make([]byte, 8),
+		isServer:     isServer,
 	}
 	enc.magic7 = setMagicCheckWord(cfg.CompressAlgo, enc.magicCheck)
+	enc.lastReadMagic7.Store(int64(enc.magic7)) // default
 
 	dec := &decoder{
 		key:        key[:],
 		aead:       aeadDec,
 		noncesize:  nsz,
 		overhead:   aeadEnc.Overhead(),
-		work:       newWorkspace(name+"_dec", maxMsgSize, cfg),
+		work:       newWorkspace(name+"_dec", maxMsgSize, isServer, cfg),
 		decomp:     newDecomp(maxMsgSize + 80),
 		magicCheck: make([]byte, 8), // last byte is compression type.
+		enc:        enc,
+		isServer:   isServer,
 	}
 
 	return &blabber{
@@ -352,7 +368,18 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	}
 
 	if e.compress && e.pressor != nil {
-		bytesMsg, err = e.pressor.handleCompress(e.magic7, bytesMsg)
+		var magic7 byte
+		if e.isServer {
+			// server tries to match what we last got from the client.
+			magic7 = byte(e.lastReadMagic7.Load())
+			if magic7 < 0 || magic7 > lastGoodMagic7 {
+				magic7 = e.magic7
+			}
+		} else {
+			// client does as user requested.
+			magic7 = e.magic7
+		}
+		bytesMsg, err = e.pressor.handleCompress(magic7, bytesMsg)
 		if err != nil {
 			return err
 		}
@@ -486,9 +513,10 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	magic7 := d.magicCheck[7]
 
 	if !bytes.Equal(d.magicCheck[:7], magic[:7]) {
-		panic("magic wrong")
 		return nil, ErrMagicWrong
 	}
+	d.enc.lastReadMagic7.Store(int64(magic7))
+
 	// trim off the magic 8 bytes
 	message = message[8:]
 

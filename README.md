@@ -26,10 +26,9 @@ compression algorithms, and the reader decodes
 what it gets, in a "reader-makes-right" pattern.
 This allows you to benchmark different compression
 approaches to uploading your data quickly, without
-restarting the server. If you are benchmarking
-downloads, the server will have to be
-restarted with the -press flag setting different
-compression algorithms.
+restarting the server. The server will note
+which compressor the client last used, and
+will use that same compression in its responses.
 
 # some quick compression benchmarks (2025 January 11)
 
