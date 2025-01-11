@@ -31,7 +31,9 @@ func noticeControlC() {
 		for _ = range sigChan {
 			n := atomic.LoadInt64(&calls)
 			elap := time.Since(t0)
-			fmt.Printf("\n\nserver %v for calls seen: %v  => %v calls/second.\n", elap, n, float64(n)/float64(int64(elap)/1e9))
+			if n > 0 {
+				fmt.Printf("\n\nserver elapsed: %v for calls seen: %v  => %v calls/second.\n", elap, n, float64(n)/float64(int64(elap)/1e9))
+			}
 			os.Exit(0)
 		}
 	}()
@@ -136,12 +138,11 @@ func main() {
 	if *seconds > 0 {
 		t0 := time.Now()
 		<-time.After(time.Second * time.Duration(*seconds))
-		//fmt.Printf("\nAfter %v seconds, server calls seen: %v\n", *seconds, atomic.LoadInt64(&calls))
-
 		n := atomic.LoadInt64(&calls)
 		elap := time.Since(t0)
-		fmt.Printf("\n\nserver %v for calls seen: %v  => %v calls/second.\n", elap, n, float64(n)/float64(int64(elap)/1e9))
-
+		if n > 0 {
+			fmt.Printf("\n\nserver %v for calls seen: %v  => %v calls/second.\n", elap, n, float64(n)/float64(int64(elap)/1e9))
+		}
 	} else {
 		select {}
 	}
