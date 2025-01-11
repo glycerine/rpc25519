@@ -272,7 +272,7 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 			return err
 		}
 	} else {
-		//vv("w.compress= %v; w.pressor = %p", w.compress, w.pressor)
+		w.magicCheck[7] = byte(magic7b_none)
 	}
 
 	nbytesMsg := len(bytesMsg)

@@ -400,6 +400,8 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 			return err
 		}
 		copy(e.work.buf[16+e.noncesize:cap(e.work.buf)], bytesMsg)
+	} else {
+		e.magicCheck[7] = byte(magic7b_none)
 	}
 
 	// message order is:

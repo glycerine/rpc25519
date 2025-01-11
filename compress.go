@@ -175,6 +175,10 @@ func (p *pressor) handleCompress(magic7 magic7b, bytesMsg []byte) ([]byte, error
 	case 6:
 		c = p.com_zstd01
 		//return "bzst:01", nil
+	case magic7b_no_system_compression:
+		// no compression
+		return bytesMsg, nil
+
 	default:
 		panic(fmt.Sprintf("unknown magic7 '%v'", magic7))
 	}
@@ -226,6 +230,10 @@ func (decomp *decomp) handleDecompress(magic7 magic7b, message []byte) ([]byte, 
 		//return "bzst:07", nil
 		//return "bzst:03", nil
 		//return "bzst:01", nil
+	case magic7b_no_system_compression:
+		// no compression
+		return message, nil
+
 	default:
 		panic(fmt.Sprintf("unknown magic7 '%v'", magic7))
 	}
