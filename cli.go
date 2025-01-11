@@ -369,66 +369,12 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		seqno := msg.HDR.Seqno
 		//vv("client %v received message with seqno=%v, msg.HDR='%v'; c.notifyOnReadCallIDMap='%#v'", c.name, seqno, msg.HDR.String(), c.notifyOnReadCallIDMap)
 
-		c.mut.Lock()
-
-		if msg.HDR.Typ == CallError {
-			alwaysPrintf("CallError seen! '%v'", msg.String())
-			//panic("stopping client on the above error")
-			wantsErr, ok := c.notifyOnErrorCallIDMap[msg.HDR.CallID]
-			if ok {
-				select {
-				case wantsErr <- msg:
-					//vv("notified a channel! %p for CallID '%v'", wantsErr, msg.HDR.CallID)
-				default:
-					panic(fmt.Sprintf("Should never happen b/c the "+
-						"channels must be buffered!: could not send to "+
-						"whoCh from notifyOnErrorCallIDMap; for CallID = %v.",
-						msg.HDR.CallID))
-				}
-			}
-
-			if msg.HDR.ObjID != "" {
-				wantsErrObj, ok := c.notifyOnErrorObjIDMap[msg.HDR.ObjID]
-				if ok {
-					select {
-					case wantsErrObj <- msg:
-						//vv("notified a channel! %p for CallID '%v'", wantsErr, msg.HDR.ObjID)
-					default:
-						panic(fmt.Sprintf("Should never happen b/c the "+
-							"channels must be buffered!: could not send to "+
-							"whoCh from notifyOnErrorObjIDMap; for ObjID = %v.",
-							msg.HDR.ObjID))
-					}
-				}
-			}
+		if c.notifies.handleReply_to_CallID_ObjID(msg) {
 			continue
 		}
 
-		wantsCallID, ok := c.notifyOnReadCallIDMap[msg.HDR.CallID]
-		if ok {
-			select {
-			case wantsCallID <- msg:
-			default:
-				panic(fmt.Sprintf("Should never happen b/c the "+
-					"channels must be buffered!: could not send to "+
-					"whoCh from notifyOnReadCallIDMap; for CallID = %v.",
-					msg.HDR.CallID))
-			}
-		}
-
-		if msg.HDR.ObjID != "" {
-			wantsObjID, ok := c.notifyOnReadObjIDMap[msg.HDR.ObjID]
-			if ok {
-				select {
-				case wantsObjID <- msg:
-				default:
-					panic(fmt.Sprintf("Should never happen b/c the "+
-						"channels must be buffered!: could not send to "+
-						"whoCh from notifyOnReadObjIDMap; for ObjID = %v.",
-						msg.HDR.ObjID))
-				}
-			}
-		}
+		// protect map access. Be sure to Unlock if you "continue" below.
+		c.mut.Lock()
 
 		whoCh, waiting := c.notifyOnce[seqno]
 		//vv("notifyOnce waiting = %v for seqno %v", waiting, seqno)
@@ -1000,11 +946,7 @@ type Client struct {
 	notifyOnRead []chan *Message
 	notifyOnce   map[uint64]*loquet.Chan[Message]
 
-	notifyOnReadCallIDMap  map[string]chan *Message
-	notifyOnErrorCallIDMap map[string]chan *Message
-
-	notifyOnReadObjIDMap  map[string]chan *Message
-	notifyOnErrorObjIDMap map[string]chan *Message
+	notifies *notifies
 
 	conn       uConnLR
 	quicConn   quic.Connection
@@ -1331,9 +1273,9 @@ func (c *Client) GetReadsForCallID(ch chan *Message, callID string) {
 	if cap(ch) == 0 {
 		panic("ch must be bufferred")
 	}
-	c.mut.Lock()
-	defer c.mut.Unlock()
-	c.notifyOnReadCallIDMap[callID] = ch
+	c.notifies.mut.Lock()
+	defer c.notifies.mut.Unlock()
+	c.notifies.notifyOnReadCallIDMap[callID] = ch
 }
 
 func (c *Client) GetErrorsForCallID(ch chan *Message, callID string) {
@@ -1341,9 +1283,9 @@ func (c *Client) GetErrorsForCallID(ch chan *Message, callID string) {
 	if cap(ch) == 0 {
 		panic("ch must be bufferred")
 	}
-	c.mut.Lock()
-	defer c.mut.Unlock()
-	c.notifyOnErrorCallIDMap[callID] = ch
+	c.notifies.mut.Lock()
+	defer c.notifies.mut.Unlock()
+	c.notifies.notifyOnErrorCallIDMap[callID] = ch
 }
 
 // GetReads registers to get any received messages on ch.
@@ -1415,11 +1357,8 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		lastSeqno:   1,
 		notifyOnce:  make(map[uint64]*loquet.Chan[Message]),
 
-		notifyOnReadCallIDMap:  make(map[string]chan *Message),
-		notifyOnErrorCallIDMap: make(map[string]chan *Message),
-
-		notifyOnReadObjIDMap:  make(map[string]chan *Message),
-		notifyOnErrorObjIDMap: make(map[string]chan *Message),
+		// share code with server for CallID and ObjID callbacks.
+		notifies: newNotifies(),
 
 		// net/rpc
 		pending: make(map[uint64]*Call),
@@ -2310,9 +2249,9 @@ func (s *Client) GetReadsForObjID(ch chan *Message, objID string) {
 	if cap(ch) == 0 {
 		panic("ch must be bufferred")
 	}
-	s.mut.Lock()
-	defer s.mut.Unlock()
-	s.notifyOnReadObjIDMap[objID] = ch
+	s.notifies.mut.Lock()
+	defer s.notifies.mut.Unlock()
+	s.notifies.notifyOnReadObjIDMap[objID] = ch
 }
 
 func (s *Client) GetErrorsForObjID(ch chan *Message, objID string) {
@@ -2320,7 +2259,7 @@ func (s *Client) GetErrorsForObjID(ch chan *Message, objID string) {
 	if cap(ch) == 0 {
 		panic("ch must be bufferred")
 	}
-	s.mut.Lock()
-	defer s.mut.Unlock()
-	s.notifyOnErrorObjIDMap[objID] = ch
+	s.notifies.mut.Lock()
+	defer s.notifies.mut.Unlock()
+	s.notifies.notifyOnErrorObjIDMap[objID] = ch
 }
