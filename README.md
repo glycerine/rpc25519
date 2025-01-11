@@ -10,7 +10,7 @@ below for details.
 on content that cannot be compressed. 
 This is important, so you don't have to 
 worry about spending CPU cycles on 
-already compressed data. -- Klaus Post"
+already compressed data." -- Klaus Post
 
 https://pkg.go.dev/github.com/klauspost/compress/s2
 
