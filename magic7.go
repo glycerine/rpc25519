@@ -64,7 +64,7 @@ func decodeMagic7(magic7 magic7b) (magicCompressAlgo string, err error) {
 	// it indicates the compression in use:
 	case magic7b_none:
 		// no compression
-		return "", nil
+		return "compression-none", nil
 	case magic7b_s2:
 		return "s2", nil
 	case magic7b_lz4:
@@ -86,7 +86,7 @@ func decodeMagic7(magic7 magic7b) (magicCompressAlgo string, err error) {
 
 func encodeMagic7(magicCompressAlgo string) (magic7 magic7b, err error) {
 	switch magicCompressAlgo {
-	case "":
+	case "", "compression-none":
 		// no compression
 		return magic7b_none, nil
 	case "s2":

@@ -20,6 +20,8 @@ var ErrTooLong = fmt.Errorf("message message too long: over 64MB; encrypted clie
 
 var _ = io.EOF
 
+var DebugVerboseCompress bool
+
 // uConn hopefully works for both quic.Stream and net.Conn, universally.
 type uConn interface {
 	io.Writer
@@ -175,7 +177,9 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 		return nil, err
 	}
 
-	vv("readMessage sees magic7 = %v", magic7b(w.magicCheck[7]))
+	if DebugVerboseCompress {
+		alwaysPrintf("readMessage sees magic7 = %v", magic7b(w.magicCheck[7]))
+	}
 
 	// allow the magic[7] to indicate compression type.
 	if !bytes.Equal(w.magicCheck[:7], magic[:7]) {
@@ -218,10 +222,10 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 	}
 
 	// reverse any compression
-	// if you see an error like
+	//
+	// If you see an error like
 	// `msgp: attempted to decode type "int" with method for "map"`
 	// It probably means we are not getting the decompression done.
-	//vv("w.compress = %v ; w.decomp = %p", w.compress, w.decomp)
 	//
 	// Note that we must ignore the w.compress setting here.
 	// While *we* may not be using compression to send, we
@@ -280,7 +284,9 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 		w.magicCheck[7] = byte(magic7b_none)
 	}
 
-	vv("sendMessage using magic7 = %v", magic7b(w.magicCheck[7]))
+	if DebugVerboseCompress {
+		alwaysPrintf("sendMessage using magic7 = %v", magic7b(w.magicCheck[7]))
+	}
 
 	nbytesMsg := len(bytesMsg)
 

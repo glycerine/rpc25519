@@ -75,7 +75,13 @@ func main() {
 	var compressOff = flag.Bool("big", false, "turn off sending compression.")
 	var compressAlgo = flag.String("press", "s2", "select sending compression algorithm; one of: s2, lz4, zstd:01, zstd:03, zstd:07, zstd:11")
 
+	var verboseDebugCompress = flag.Bool("v", false, "verbose debugging compression settings per message")
+
 	flag.Parse()
+
+	if *verboseDebugCompress {
+		rpc25519.DebugVerboseCompress = true
+	}
 
 	if *max > 0 {
 		runtime.GOMAXPROCS(*max)
