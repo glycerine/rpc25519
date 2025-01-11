@@ -89,7 +89,7 @@ type RsyncStep1_SenderOverview struct {
 
 // 2) receiver/reader end gets path to the file, its
 // length and modification time stamp. If length
-// and time stamp math, stop. Ack back all good.
+// and time stamp match, stop. Ack back all good.
 // Else ack back with RsyncHashes, "here are the chunks I have"
 // and the whole file checksum.
 // Reader replies to sender with RsyncStep2_AckOverview.
@@ -111,6 +111,7 @@ type RsyncStep2_AckOverview struct {
 //
 // This step rsync may well send a very large message,
 // much larger than our 1MB or so maxMessage size.
+// Or even a 64MB max message.
 // So rsync may need to use a Bistream that can handle lots of
 // separate messages and reassemble them.
 // For that matter, the RsyncHashes in step 2
@@ -133,19 +134,48 @@ type RsyncStep2_AckOverview struct {
 // file transparently. Circular. Ideally
 // the rsync part can be used transparently
 // by any streaming large file need.
-// Lets start by layering rsync on top of
+//
+// Let's start by layering rsync on top of
 // Bistreaming, but we can add a separate
 // header idea of a whole message worth
 // of meta data for the stream file that
 // can give the rsync step message
 // so we know what to do with the file.
-// TODO: Add compression to the built in
-// Download/upload protocols; use a
-// Args["compression"] setting to indicate
-// how to uncompress it before writing to
-// disk. That would mean leaving the
-// headers uncompressed! Right now they
-// are serialized inline with the message.
+
+// What does this API on top of bistreaming look
+// like? bistreaming gives us an io.Reader
+// and io.Writer on both ends, that communicate
+// with each other. Then we just encode
+// our step struct here as greenpack msgpack
+// streams back and forth,
+// like usual. Something like InfiniteStreamFunc
+// that can be registed on client OR server.
+type InfiniteStreamFunc func(ctx context.Context, req *Message, r io.Reader, w io.Writer) error
+
+type RsyncNode struct{}
+
+func (s *RsyncNode) Step0_ClientRequestsRead(
+	ctx context.Context, req *Message, r io.Reader, w io.Writer) error {
+
+	step0 := &RsyncStep0_ClientRequestsRead{
+		ReaderHost:     "",          // string
+		ReaderPath:     "",          // string
+		ReaderLenBytes: 0,           // int64
+		ReaderModTime:  time.Time{}, //
+		// if available/cheap, send
+		ReaderFullHash: "", // string
+	}
+	err := msgp.Encode(w, step)
+	panicOn(err)
+	if err != nil {
+		return err
+	}
+}
+func (s *RsyncNode) Step1(ctx context.Context, req *Message, r io.Reader, w io.Writer) error {}
+func (s *RsyncNode) Step2(ctx context.Context, req *Message, r io.Reader, w io.Writer) error {}
+func (s *RsyncNode) Step3(ctx context.Context, req *Message, r io.Reader, w io.Writer) error {}
+func (s *RsyncNode) Step4(ctx context.Context, req *Message, r io.Reader, w io.Writer) error {}
+
 type RsyncStep3_SenderProvidesDeltas struct {
 	SenderHashes *RsyncHashes `zid:"0"` // needs to be streamed too.
 

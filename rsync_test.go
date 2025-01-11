@@ -62,7 +62,6 @@ func Test201_rsync_style_hash_generation(t *testing.T) {
 
 func Test210_client_sends_file_over_rsync(t *testing.T) {
 
-	return
 	cv.Convey("using our rsync-like-protocol, the client should be able to send a file to the server and only end up sending the small parts that have changed.", t, func() {
 
 		// set up a server and a client.
