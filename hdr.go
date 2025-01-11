@@ -312,16 +312,23 @@ type HDR struct {
 
 	// NoSystemCompression turns off any usual
 	// compression that the rpc25519 system
-	// applies, for just this one Message.
+	// applies, for just sending this one Message.
 	//
 	// Not normally a needed (or a good idea),
 	// this flag is for efficiency when the
 	// user has implemented their own custom compression
-	// schemes for JobSerz. Thus the system
-	// can avoid wasting time attempting
-	// to compress a second time.
+	// scheme for the JobSerz data payload.
 	//
-	// Not matched in reply compression.
+	// By checking this flag, the system can
+	// avoid wasting time attempting
+	// to compress a second time; since the
+	// user has, hereby, marked this Message
+	// as incompressible.
+	//
+	// Not matched in reply compression;
+	// this flag will not affect the usual
+	// compression-matching in responses.
+	// For those purposes, it is ignored.
 	NoSystemCompression bool `zid:"13"`
 
 	// streamCh is internal; used for client -> server streaming on CallUploadBegin
