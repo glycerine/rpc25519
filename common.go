@@ -175,7 +175,7 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 		return nil, err
 	}
 
-	vv("readMessage sees magic7 = %s", w.magicCheck[7])
+	vv("readMessage sees magic7 = %v", magic7b(w.magicCheck[7]))
 
 	// allow the magic[7] to indicate compression type.
 	if !bytes.Equal(w.magicCheck[:7], magic[:7]) {
@@ -278,7 +278,7 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 		w.magicCheck[7] = byte(magic7b_none)
 	}
 
-	vv("sendMessage using magic7 = %v", w.magicCheck[7])
+	vv("sendMessage using magic7 = %v", magic7b(w.magicCheck[7]))
 
 	nbytesMsg := len(bytesMsg)
 
