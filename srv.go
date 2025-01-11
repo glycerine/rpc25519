@@ -701,9 +701,14 @@ func (s *Server) processWork(job *job) {
 		panic("cannot see these here, must for FIFO of the stream be called from the readloop")
 
 	case CallOneWay:
-		if s.callme1 != nil {
-			callme1 = s.callme1
+		back, ok := s.callme1map[req.HDR.ServiceName]
+		if ok {
+			callme1 = back
 			foundCallback1 = true
+		} else {
+			s.mut.Unlock()
+			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallOneWay received but no server side upcall registered for req.HDR.ServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ServiceName, req.HDR.CallID))
+			return
 		}
 	}
 	s.mut.Unlock()
@@ -838,7 +843,7 @@ type Server struct {
 	creds *selfcert.Creds
 
 	callme2map map[string]TwoWayFunc
-	callme1    OneWayFunc
+	callme1map map[string]OneWayFunc
 
 	// client -> server streams
 	callmeUploadReaderMap map[string]UploadReaderFunc
@@ -1580,6 +1585,7 @@ func NewServer(name string, config *Config) *Server {
 		RemoteConnectedCh: make(chan *ServerClient, 20),
 
 		callme2map:                   make(map[string]TwoWayFunc),
+		callme1map:                   make(map[string]OneWayFunc),
 		callmeServerSendsDownloadMap: make(map[string]ServerSendsDownloadFunc),
 		callmeUploadReaderMap:        make(map[string]UploadReaderFunc),
 		callmeBistreamMap:            make(map[string]BistreamFunc),
@@ -1609,11 +1615,11 @@ func (s *Server) Register2Func(serviceName string, callme2 TwoWayFunc) {
 
 // Register1Func tells the server about a func or method
 // that will not reply. See the [OneWayFunc] definition.
-func (s *Server) Register1Func(callme1 OneWayFunc) {
+func (s *Server) Register1Func(serviceName string, callme1 OneWayFunc) {
 	//vv("Register1Func called with callme1 = %p", callme1)
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	s.callme1 = callme1
+	s.callme1map[serviceName] = callme1
 }
 
 // RegisterUploadReaderFunc tells the server about a func or method

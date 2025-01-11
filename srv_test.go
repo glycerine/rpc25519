@@ -93,8 +93,9 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 		_ = reply
 		//vv("srv_test sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
 
-		srv.Register1Func(oneWayStreet)
+		srv.Register1Func("oneWayStreet", oneWayStreet)
 		req = NewMessage()
+		req.HDR.ServiceName = "oneWayStreet"
 		req.JobSerz = []byte("One-way Hello from client!")
 
 		err = cli.OneWaySend(req, nil)
@@ -306,8 +307,10 @@ func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 
 		vv("srv_test sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
 
-		srv.Register1Func(oneWayStreet)
+		srv.Register1Func("oneWayStreet", oneWayStreet)
 		req = NewMessage()
+		req.HDR.ServiceName = "oneWayStreet"
+
 		req.JobSerz = []byte("One-way Hello from client!")
 
 		err = cli.OneWaySend(req, nil)
