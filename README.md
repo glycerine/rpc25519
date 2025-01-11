@@ -31,6 +31,42 @@ downloads, the server will have to be
 restarted with the -press flag setting different
 compression algorithms.
 
+# some quick compression venchmarks (2025 January 11)
+
+To roughly compare the compression
+algorithms, I prepared a 1.5 GB tar
+file of mixed source code
+text and binary assets. It was a raw tar of
+the filesystem, and not compressed with
+gzip or bzip2 after tarring it up. If given
+random data, all these compressors
+perform about the same. With a mix of
+compressible and incompressible, however,
+we can see some performance difference.
+
+Total file size: 1_584_015_360 bytes.
+
+Network: an isolated local LAN transfer, to take
+the variability of WAN links out of the
+pricture. The measured bandwith (higher is
+better) was computed from the elapsed time
+to do the one-way upload.
+
+~~~
+compressor   bandwidth       total elapsed time for one-way transfer
+----------   ------------    ---------------------------------------
+   s2      163.412400 MB/sec; total time for upload: 9.2 seconds
+  lz4      157.343690 MB/sec; total time for upload: 9.6 seconds
+zstd:01    142.088387 MB/sec; total time for upload: 10.6 seconds
+zstd:03    130.871089 MB/sec; total time for upload: 11.6 seconds
+zstd:07    121.209097 MB/sec; total time for upload: 12.5 seconds
+zstd:11     27.766271 MB/sec; total time for upload: 54.4 seconds
+~~~
+
+The default compressor in rpc25519, at the moment, is S2.
+It is the fastest of the bunch.
+
+
 * Recent News (2025 January 04): (Happy New Year!)
 
 For bulk uploads and downloads, v1.3.0 has streaming support.
