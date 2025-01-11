@@ -1518,7 +1518,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 	return nil
 }
 
-func (s *Server) remote2pairUniv(destAddr string) (sendCh chan *Message, haltCh chan struct{}, to, from string, ok bool) {
+func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh chan struct{}, to, from string, ok bool) {
 	s.mut.Lock()
 	var pair *rwPair
 	pair, ok = s.remote2pair[destAddr]
@@ -1536,7 +1536,7 @@ func (s *Server) remote2pairUniv(destAddr string) (sendCh chan *Message, haltCh 
 }
 
 type oneWaySender interface {
-	remote2pairUniv(destAddr string) (sendCh chan *Message, haltCh chan struct{}, to, from string, ok bool)
+	destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh chan struct{}, to, from string, ok bool)
 }
 
 // SendOneWayMessage is the same as SendMessage above except that it
@@ -1547,6 +1547,12 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 	return sendOneWayMessage(s, ctx, msg, errWriteDur)
 }
 
+// one difference from Client.oneWaySendHelper is that
+// is that the client side applies backpressure in that
+// it waits for the send loop to actually send.
+// In contrast, this has configurable back pressure in
+// that it will only wait at most
+// *errWriteDur, or 30 msec if that is nil.
 func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWriteDur *time.Duration) error {
 
 	if msg.HDR.Typ < 10 {
@@ -1555,7 +1561,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 
 	destAddr := msg.HDR.To
 	// abstract this for Client/Server symmetry
-	sendCh, haltCh, _, from, ok := s.remote2pairUniv(destAddr)
+	sendCh, haltCh, _, from, ok := s.destAddrToSendCh(destAddr)
 	if !ok {
 		//vv("could not find destAddr='%v' in our map: '%#v'", destAddr, s.remote2pair)
 		return ErrNetConnectionNotFound
@@ -1589,6 +1595,8 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 			return msg.LocalErr
 		case <-time.After(dur):
 			//vv("srv SendMessage timeout after waiting %v", dur)
+		case <-ctx.Done():
+			return ErrContextCancelled
 		}
 	}
 	return nil

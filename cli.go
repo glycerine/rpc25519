@@ -1761,11 +1761,25 @@ func (s *Uploader) UploadMore(ctx context.Context, msg *Message, last bool) (err
 	return s.cli.OneWaySend(msg, ctx.Done())
 }
 
-// use the same impl as the server for
-// same (e.g. rsync) objects on both sides.
+// UniversalCliSrv allows protocol objects to exist
+// and run on either Client or Server. They
+// can be implemented to just use this interface.
+type UniversalCliSrv interface {
+	SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur *time.Duration) error
+}
+
+// maintain the requirement that Client and Server both
+// implement UniversalCliSrv.
+var _ UniversalCliSrv = &Client{}
+var _ UniversalCliSrv = &Server{}
+
+// for symmetry
+func (cli *Client) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur *time.Duration) error {
+	return sendOneWayMessage(cli, ctx, msg, errWriteDur)
+}
 
 // implements the oneWaySender interface for symmetry with Server.
-func (cli *Client) remote2pairUniv(destAddr string) (sendCh chan *Message, haltCh chan struct{}, to, from string, ok bool) {
+func (cli *Client) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh chan struct{}, to, from string, ok bool) {
 	// future: allow client to contact multple servers.
 	// for now, only the original client->sever conn is supported.
 
