@@ -349,7 +349,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		s.mut.Unlock()
 	}
 
-	vv("about to make a newBlabber for server send loop; s.Server.cfg = %p", s.Server.cfg)
+	//vv("about to make a newBlabber for server send loop; s.Server.cfg = %p", s.Server.cfg)
 	w := newBlabber("server send loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true, s.Server.cfg, s, nil)
 
 	// implement ServerSendKeepAlive
@@ -428,7 +428,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		s.mut.Unlock()
 	}
 
-	vv("about to make a newBlabber for server read loop; s.Server.cfg = %p", s.Server.cfg)
+	//vv("about to make a newBlabber for server read loop; s.Server.cfg = %p", s.Server.cfg)
 	w := newBlabber("server read loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true, s.Server.cfg, s, nil)
 
 	for {
