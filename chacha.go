@@ -358,13 +358,13 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 	// }()
 
 	// verify magic is ready
-	const magic8sz = 8
-	if !bytes.Equal(e.magicCheck[:7], magic[:7]) {
-		panic("encoder.magicCheck[:7] should have been set in init!")
-	}
-	if e.magic7 != magic7b(e.magicCheck[7]) {
-		panic("encoder.defaultMagicCheck7 should have been set in init!")
-	}
+	// const magic8sz = 8
+	// if !bytes.Equal(e.magicCheck[:7], magic[:7]) {
+	// 	panic("encoder.magicCheck[:7] should have been set in init!")
+	// }
+	// if e.magic7 != magic7b(e.magicCheck[7]) {
+	// 	panic("encoder.defaultMagicCheck7 should have been set in init!")
+	// }
 
 	// serialize message to bytes
 	bytesMsg, err := msg.AsGreenpack(e.work.buf[16+e.noncesize : cap(e.work.buf)])
@@ -402,6 +402,19 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 		copy(e.work.buf[16+e.noncesize:cap(e.work.buf)], bytesMsg)
 	} else {
 		e.magicCheck[7] = byte(magic7b_none)
+	}
+
+	// verify magic is ready
+	const magic8sz = 8
+	if !bytes.Equal(e.magicCheck[:7], magic[:7]) {
+		panic("encoder.magicCheck[:7] should have been set in init!")
+	}
+	if e.magic7 != magic7b(e.magicCheck[7]) {
+		panic("encoder.defaultMagicCheck7 should have been set in init!")
+	}
+
+	if DebugVerboseCompress {
+		alwaysPrintf("sendMessage using magic7 = %v", magic7b(e.magicCheck[7]))
 	}
 
 	// message order is:
@@ -549,6 +562,10 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 	message = message[8:]
 
 	// reverse any compression after decoding.
+
+	if DebugVerboseCompress {
+		alwaysPrintf("readMessage sees magic7 = %v", magic7)
+	}
 
 	// decoder just follows the magic7 to decompress
 	// whatever it says; "reader makes right" means
