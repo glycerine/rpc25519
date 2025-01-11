@@ -52,7 +52,7 @@ func decodeMagic7(magic7 byte) (magicCompressAlgo string, err error) {
 	case 6:
 		return "zstd:01", nil
 	}
-	return "", fmt.Errorf("unrecognized magic7: '%v'", magic7)
+	return "", fmt.Errorf("unrecognized magic7: '%v' ; valid choices: s2, lz4, zstd:01, zstd:03, zstd:07, zstd:11", magic7)
 }
 
 func encodeMagic7(magicCompressAlgo string) (magic7 byte, err error) {
@@ -73,8 +73,9 @@ func encodeMagic7(magicCompressAlgo string) (magic7 byte, err error) {
 	case "zstd:01":
 		return 6, nil
 	}
-	return 0, fmt.Errorf("unrecognized magic7 "+
-		"compress algo string '%v'", magicCompressAlgo)
+	return 0, fmt.Errorf("unrecognized magicCompressAlgo: '%v' ; "+
+		"valid choices: s2, lz4, zstd:01, zstd:03, zstd:07, zstd:11",
+		magicCompressAlgo)
 }
 
 func setMagicCheckWord(pressAlgo string, magicCheck []byte) byte {
