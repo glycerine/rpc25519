@@ -180,6 +180,9 @@ breaking changes. Stay with v1.X.y where y is the largest
 number to avoid breaks. That said, we strive to keep them
 minimal.
 
+* Only use tagged releases, as the main master branch often
+has the latets work-in-progress development.
+
 * getting started
 
 ~~~
