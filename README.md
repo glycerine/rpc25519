@@ -69,6 +69,14 @@ It is the fastest of the bunch. Use the -press flag in
 the cli / srv demo commands to set the compression in 
 your own benchmarks.
 
+Users implementing application-specific compression
+strategies can opt out of compression, if desired.
+To disable all rpc25519 system-level compression 
+on a per-Message basis, simply set the HDR flag 
+NoSystemCompression to true. This may be
+useful if you already know your data is incompressible.
+The system will not apply any compression algorithm
+to such messages.
 
 * Recent News (2025 January 04): (Happy New Year!)
 
