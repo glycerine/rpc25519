@@ -8,15 +8,19 @@ package rpc25519
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"go/token"
 	"io"
 	"log"
+	"os"
 	"reflect"
 	"sync"
 
 	"github.com/glycerine/greenpack/msgp"
+	"github.com/hexops/valast"
 )
 
 // A value sent as a placeholder for the server's response value when the server
@@ -29,7 +33,7 @@ var invalidRequest = &InvalidRequest{}
 const logRegisterError = false
 
 // If set, print log statements for internal and I/O errors.
-var debugLog = false
+var debugLog = true
 
 // ServerError represents an error that has been returned from
 // the remote side of the RPC connection.
@@ -78,11 +82,12 @@ type ServerCodec interface {
 }
 
 type greenpackClientCodec struct {
-	cli    *Client
-	rwc    io.ReadWriteCloser
-	dec    *msgp.Reader
-	enc    *msgp.Writer
-	encBuf *bufio.Writer
+	cli          *Client
+	rwc          io.ReadWriteCloser
+	dec          *msgp.Reader
+	enc          *msgp.Writer
+	encBufWriter *bufio.Writer
+	debugEncBuf  *bytes.Buffer // target of encBufWriter for debugging.
 }
 
 func (c *greenpackClientCodec) WriteRequest(r *Request, body msgp.Encodable) (err error) {
@@ -92,11 +97,11 @@ func (c *greenpackClientCodec) WriteRequest(r *Request, body msgp.Encodable) (er
 	if err = body.EncodeMsg(c.enc); err != nil {
 		return
 	}
-	err = c.enc.Flush()
+	err = c.enc.Flush() // flush the greenpack msgp.Writer
 	if err != nil {
 		return err
 	}
-	return c.encBuf.Flush()
+	return c.encBufWriter.Flush() // flush the bufio.Writer
 }
 
 func (c *greenpackClientCodec) ReadResponseHeader(r *Response) error {
@@ -111,7 +116,8 @@ func (c *greenpackClientCodec) ReadResponseBody(body msgp.Decodable) (err error)
 	//vv("cli.decBuf has len %v: '%v'", len(c.cli.decBuf.Bytes()), string(c.cli.decBuf.Bytes()))
 	err = body.DecodeMsg(c.dec)
 	if err != nil {
-		vv("error back from body.DecodeMsg: '%v' ", err) // here! are we not skipping the magic?
+		// greencodec.go:114 2025-01-12 09:15:13.501 -0600 CST error back from body.DecodeMsg: 'msgp: attempted to decode type "ext" with method for "map"'
+		vv("error back from body.DecodeMsg: '%v' ", err) // here!
 	}
 	return
 }
@@ -189,9 +195,12 @@ func suitableMethods(typ reflect.Type, logErr bool) map[string]*methodType {
 		}
 		// Method needs three ins: receiver, *args, *reply.
 		if mtype.NumIn() != 3 {
-			if logErr {
-				log.Printf("rpc.Register: method %q has %d input parameters; needs exactly three\n", mname, mtype.NumIn())
-			}
+			// We want to just ignore methods that are not registerable!
+
+			//if logErr {
+			//	alwaysPrintf("rpc.Register: method %q has %d input parameters; needs exactly three", mname, mtype.NumIn())
+			//	panic("fix the above")
+			//}
 			continue
 		}
 		// First arg need not be a pointer.
@@ -304,12 +313,13 @@ func contextFirstSuitableMethods(typ reflect.Type, logErr bool) map[string]*meth
 }
 
 type greenpackServerCodec struct {
-	pair   *rwPair
-	rwc    io.ReadWriteCloser
-	dec    *msgp.Reader
-	enc    *msgp.Writer
-	encBuf *bufio.Writer
-	closed bool
+	pair         *rwPair
+	rwc          io.ReadWriteCloser
+	dec          *msgp.Reader
+	enc          *msgp.Writer
+	encBufWriter *bufio.Writer
+	debugEncBuf  *bytes.Buffer // target of encBufWriter for debugging.
+	closed       bool
 }
 
 func (c *greenpackServerCodec) ReadRequestHeader(r *Request) (err error) {
@@ -335,7 +345,7 @@ func (c *greenpackServerCodec) ReadRequestBody(body msgp.Decodable) (err error) 
 }
 
 func (c *greenpackServerCodec) WriteResponse(r *Response, body msgp.Encodable) (err error) {
-	vv("top of WriteResponse, about to encode header")
+	vv("top of WriteResponse, about to encode header; c.enc.Buffered() = %v", c.enc.Buffered())
 	if err = r.EncodeMsg(c.enc); err != nil {
 		vv("problem EncodeMsg on the header: '%v'", err)
 		if c.enc.Flush() == nil {
@@ -347,7 +357,13 @@ func (c *greenpackServerCodec) WriteResponse(r *Response, body msgp.Encodable) (
 		return
 	}
 
-	vv("WriteResponse: about the encode body: body = '%#v'", body)
+	vv("DEBUG! TODO undo check: was Response net/rpc header written?")
+	panicOn(c.enc.Flush())
+	panicOn(c.encBufWriter.Flush())
+	headerLen := len(c.debugEncBuf.Bytes())
+	vv("after writing net/rpc Response header, debugEncBuf len= %v", headerLen)
+
+	vv("WriteResponse: about to encode body: body = '%#v'", body)
 	if err = body.EncodeMsg(c.enc); err != nil {
 		vv("problem EncodeMsg on body: '%v'", err)
 		if c.enc.Flush() == nil {
@@ -363,7 +379,56 @@ func (c *greenpackServerCodec) WriteResponse(r *Response, body msgp.Encodable) (
 	if err != nil {
 		return err
 	}
-	return c.encBuf.Flush()
+	err = c.encBufWriter.Flush()
+	// DEBUG adds:
+	debugby := c.debugEncBuf.Bytes()
+	tot := len(debugby)
+	bodyLen := tot - headerLen
+	vv("server side: response header is len %v; blake3= '%v'", headerLen, blake3OfBytesString(debugby[:headerLen]))
+	vv("server side: response body   is len %v; blake3= '%v'", bodyLen, blake3OfBytesString(debugby[headerLen:]))
+	// verify encoding
+
+	vv("verify encoding for body: %T", body)
+	switch x := body.(type) {
+	case *RsyncStep3A_SenderProvidesDeltas:
+		vv("compare Marshal to Encode")
+		bts, err := x.MarshalMsg(nil)
+		panicOn(err)
+		if bytes.Equal(bts, debugby[headerLen:]) {
+			vv("good: marshal and ecode the same")
+		} else {
+			// marshal len 1972483; encode len 959266
+			vv("marshal len %v; ecode len %v", len(bts), bodyLen)
+			panic("marshal and encode differ")
+		}
+
+		vv("test decoding RsyncStep3A_SenderProvidesDeltas")
+		y := &RsyncStep3A_SenderProvidesDeltas{}
+		left, err3 := y.UnmarshalMsg(debugby[headerLen:])
+
+		// we have reproduced the error on the server side!
+		panicOn(err3) // panic: msgp: attempted to decode type "ext" with method for "map"
+		if len(left) > 0 {
+			// getting here, nothing being decoded???
+			panic(fmt.Sprintf("should have 0 left, but we have %v", len(left)))
+		}
+		if !reflect.DeepEqual(y, x) {
+			fdx, err := os.Create("debug.x.orig")
+			panicOn(err)
+			fmt.Fprintf(fdx, "%v\n", valast.String(x))
+			fdx.Close()
+
+			fdy, err := os.Create("debug.y.test_unmarshal")
+			panicOn(err)
+			fmt.Fprintf(fdy, "%v\n", valast.String(y))
+			fdy.Close()
+
+			panic("not deep equal!")
+		} else {
+			vv("test Unmarshal good.")
+		}
+	}
+	return
 }
 
 func (c *greenpackServerCodec) Close() error {

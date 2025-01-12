@@ -972,8 +972,8 @@ type Client struct {
 	// net/rpc api implementation
 	seenNetRPCCalls bool
 
-	encBuf  bytes.Buffer // target for codec writes: encode into here first
-	encBufW *bufio.Writer
+	encBuf       bytes.Buffer // target for codec writes: encode into here first
+	encBufWriter *bufio.Writer
 
 	decBuf bytes.Buffer // target for code reads.
 
@@ -1074,8 +1074,8 @@ func (c *Client) send(call *Call, octx context.Context) {
 	// Encode and send the request.
 
 	c.encBuf.Reset()
-	c.encBufW.Reset(&c.encBuf)
-	c.codec.enc.Reset(c.encBufW)
+	c.encBufWriter.Reset(&c.encBuf)
+	c.codec.enc.Reset(c.encBufWriter)
 
 	c.request.Seq = seq
 	c.request.ServiceMethod = call.ServiceMethod
@@ -1132,23 +1132,24 @@ func (c *Client) gotNetRpcInput(replyMsg *Message) (err error) {
 	var response Response
 
 	c.decBuf.Reset()
-	c.decBuf.Write(replyMsg.JobSerz)
-	c.codec.dec.Reset(&c.decBuf)
+	var nw int
+	nw, err = c.decBuf.Write(replyMsg.JobSerz)
+	if err != nil || nw != len(replyMsg.JobSerz) {
+		panic(fmt.Sprintf("short write! nw=%v but len(replyMsgJobSerz) = %v", nw, len(replyMsg.JobSerz)))
+	}
+	c.codec.dec.Reset(&c.decBuf) // means read from this.
 	vv("gotNetRpcInput replyMsg.JobSerz is len %v", len(replyMsg.JobSerz))
 
 	decBufBy := c.decBuf.Bytes()
 	blak3 := blake3OfBytesString(decBufBy)
 	vv("c.decBuf has %v; blake3sum='%v'", len(decBufBy), blak3)
-	magic0 := c.decBuf.Bytes()[:7]
-	if bytes.Equal(magic0, magic[:7]) {
-		panic("arg! magic left in!")
-	}
-	err = c.codec.ReadResponseHeader(&response)
+
+	err = c.codec.ReadResponseHeader(&response) // r.DecodeMsg(c.dec)
 	panicOn(err)
 	if err != nil {
 		return err
 	}
-	//vv("after reading header, c.decBuf has %v", len(c.decBuf.Bytes()))
+	vv("reading header got '%#v', c.decBuf has %v", response, len(c.decBuf.Bytes()))
 
 	seq := response.Seq
 	c.mutex.Lock()
@@ -1164,11 +1165,13 @@ func (c *Client) gotNetRpcInput(replyMsg *Message) (err error) {
 		// removed; response is a server telling us about an
 		// error reading request body. We should still attempt
 		// to read error body, but there's no one to give it to.
+		vv("call == nil cleanup: is this causing corruption??? should never be seen now")
 		err = c.codec.ReadResponseBody(nil)
 		if err != nil {
 			err = errors.New("reading error body: " + err.Error())
 		}
-		//vv("no one to give body to? pending = '%#v'", c.pending) // here we see
+		vv("no one to give body to? pending = '%#v'", c.pending) // here we see
+		panic("where?")                                          //debug
 	case response.Error != "":
 		// We've got an error response. Give this to the request;
 		// any subsequent requests will get the ReadResponseBody
@@ -1369,13 +1372,14 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		// net/rpc
 		pending: make(map[uint64]*Call),
 	}
-	c.encBufW = bufio.NewWriter(&c.encBuf)
+	c.encBufWriter = bufio.NewWriter(&c.encBuf)
 	c.codec = &greenpackClientCodec{
-		cli:    c,
-		rwc:    nil,
-		dec:    msgp.NewReader(&c.decBuf),
-		enc:    msgp.NewWriter(c.encBufW),
-		encBuf: c.encBufW,
+		cli:          c,
+		rwc:          nil,
+		dec:          msgp.NewReader(&c.decBuf),
+		enc:          msgp.NewWriter(c.encBufWriter),
+		encBufWriter: c.encBufWriter,
+		debugEncBuf:  &c.encBuf,
 	}
 	return c, nil
 }

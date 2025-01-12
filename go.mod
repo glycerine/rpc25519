@@ -30,8 +30,10 @@ require (
 	github.com/glycerine/fwd v1.1.4-beta.jea // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/google/btree v1.1.3 // indirect
+	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
+	github.com/hexops/valast v1.4.4 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
 	github.com/leesper/go_rng v0.0.0-20190531154944-a612b043e353 // indirect
 	github.com/onsi/ginkgo/v2 v2.9.5 // indirect
@@ -46,4 +48,5 @@ require (
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/tools v0.26.0 // indirect
 	gonum.org/v1/gonum v0.15.1 // indirect
+	mvdan.cc/gofumpt v0.4.0 // indirect
 )

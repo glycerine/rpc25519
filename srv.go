@@ -1097,8 +1097,8 @@ func (p *rwPair) callBridgeNetRpc(reqMsg *Message, job *job) error {
 	//vv("bridge called! subject: '%v'", reqMsg.HDR.ServiceName)
 
 	p.encBuf.Reset()
-	p.encBufW.Reset(&p.encBuf)
-	p.greenCodec.enc.Reset(p.encBufW)
+	p.encBufWriter.Reset(&p.encBuf)
+	p.greenCodec.enc.Reset(p.encBufWriter)
 
 	p.decBuf.Reset()
 	p.decBuf.Write(reqMsg.JobSerz)
@@ -1186,8 +1186,8 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 		reply = invalidRequest
 	}
 	resp.Seq = req.Seq
-	//vv("srv sendResonse() for req.Seq = %v", req.Seq)
-	//p.sending.Lock()
+	vv("srv sendResonse() for req.Seq = %v; resp='%#v'", req.Seq, resp)
+	p.sending.Lock()
 	err := codec.WriteResponse(resp, reply)
 	if err != nil {
 		vv("error writing resp was '%v'; resp='%#v'", err, resp)
@@ -1195,7 +1195,7 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 	if debugLog && err != nil {
 		log.Println("rpc: writing response:", err)
 	}
-	//p.sending.Unlock()
+	p.sending.Unlock()
 	p.Server.freeResponse(resp)
 
 	msg := p.Server.getMessage()
@@ -1456,11 +1456,11 @@ type rwPair struct {
 	allDone chan struct{}
 
 	// net/rpc api
-	greenCodec *greenpackServerCodec
-	//sending  sync.Mutex
-	encBuf  bytes.Buffer // target for codec writes: encode into here first
-	encBufW *bufio.Writer
-	decBuf  bytes.Buffer // target for code reads.
+	greenCodec   *greenpackServerCodec
+	sending      sync.Mutex
+	encBuf       bytes.Buffer // target for codec writes: encode into here first
+	encBufWriter *bufio.Writer
+	decBuf       bytes.Buffer // target for code reads.
 
 	// creds:
 
@@ -1497,13 +1497,14 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 		to:     remote(conn),
 	}
 
-	p.encBufW = bufio.NewWriter(&p.encBuf)
+	p.encBufWriter = bufio.NewWriter(&p.encBuf)
 	p.greenCodec = &greenpackServerCodec{
-		pair:   p,
-		rwc:    nil,
-		dec:    msgp.NewReader(&p.decBuf),
-		enc:    msgp.NewWriter(p.encBufW),
-		encBuf: p.encBufW,
+		pair:         p,
+		rwc:          nil,
+		dec:          msgp.NewReader(&p.decBuf),
+		enc:          msgp.NewWriter(p.encBufWriter),
+		encBufWriter: p.encBufWriter,
+		debugEncBuf:  &p.encBuf,
 	}
 
 	key := remote(conn)
