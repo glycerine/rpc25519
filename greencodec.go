@@ -399,7 +399,38 @@ func (c *greenpackServerCodec) WriteResponse(r *Response, body msgp.Encodable) (
 		} else {
 			// marshal len 1972483; encode len 959266
 			vv("marshal len %v; ecode len %v", len(bts), bodyLen)
-			panic("marshal and encode differ")
+
+			fdx, err := os.Create("marshal.x")
+			panicOn(err)
+			_, err = fdx.Write(bts)
+			panicOn(err)
+			fdx.Close()
+			//CopyToJSON
+
+			fdx, err = os.Create("marshal.x.json")
+			panicOn(err)
+			_, err = msgp.CopyToJSON(fdx, bytes.NewBuffer(bts))
+			panicOn(err)
+			fdx.Close()
+
+			fdx, err = os.Create("encode.x")
+			panicOn(err)
+			_, err = fdx.Write(debugby[headerLen:])
+			panicOn(err)
+			fdx.Close()
+
+			fdx, err = os.Create("encode.x.json")
+			panicOn(err)
+			_, err = msgp.CopyToJSON(fdx, bytes.NewBuffer(debugby[headerLen:]))
+			panicOn(err)
+			fdx.Close()
+
+			vv("can we DecodeMsg from the MarshalMsg output?")
+			crosscheck := &RsyncStep3A_SenderProvidesDeltas{}
+			msgp.Decode(bytes.NewBuffer(bts), crosscheck)
+			deepeq := reflect.DeepEqual(x, crosscheck)
+			vv("crosscheck deepeq = %v", deepeq) // true!
+			//panic("marshal and encode differ") // they are going to b/c encode will have @ type ID, and pointer dedup (which we just turned off b/c it seems maybe that is why the error msg?)
 		}
 
 		vv("test decoding RsyncStep3A_SenderProvidesDeltas")
@@ -407,7 +438,12 @@ func (c *greenpackServerCodec) WriteResponse(r *Response, body msgp.Encodable) (
 		left, err3 := y.UnmarshalMsg(debugby[headerLen:])
 
 		// we have reproduced the error on the server side!
-		panicOn(err3) // panic: msgp: attempted to decode type "ext" with method for "map"
+		// we found the issue: it has to do with the greenpack pointer dedup
+		// that the Encode/Decode do, versus the Marshal/Unmarshal never do b/c they cannot.
+		// When we set greenpack -no-dedup on the rsync.go file, the issue goes away.
+		// Still it would be great to have pointer dedup working, because it
+		// reduced the size of the diff file: cut it in half!
+		panicOn(err3) // panic: msgp: attempted to decode type "ext" with method for "map" <-
 		if len(left) > 0 {
 			// getting here, nothing being decoded???
 			panic(fmt.Sprintf("should have 0 left, but we have %v", len(left)))

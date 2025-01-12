@@ -16,7 +16,7 @@ import (
 	"github.com/glycerine/rpc25519/jcdc"
 )
 
-//go:generate greenpack
+//go:generate greenpack -no-dedup
 
 // rsync operation for a single file. Steps
 // and the structs that go with each step:

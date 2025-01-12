@@ -214,19 +214,9 @@ func (z *MatchHashPair) EncodeMsg(en *msgp.Writer) (err error) {
 				return
 			}
 		} else {
-			// encodeGen.gBase IDENT
-
-			// record the interface for deduplication
-			var dup bool
-			dup, err = en.DedupWriteIsDup(z.A)
+			err = z.A.EncodeMsg(en)
 			if err != nil {
 				return
-			}
-			if !dup {
-				err = z.A.EncodeMsg(en)
-				if err != nil {
-					return
-				}
 			}
 		}
 	}
@@ -245,19 +235,9 @@ func (z *MatchHashPair) EncodeMsg(en *msgp.Writer) (err error) {
 				return
 			}
 		} else {
-			// encodeGen.gBase IDENT
-
-			// record the interface for deduplication
-			var dup bool
-			dup, err = en.DedupWriteIsDup(z.B)
+			err = z.B.EncodeMsg(en)
 			if err != nil {
 				return
-			}
-			if !dup {
-				err = z.B.EncodeMsg(en)
-				if err != nil {
-					return
-				}
 			}
 		}
 	}
@@ -1588,19 +1568,9 @@ func (z *RsyncDiff) EncodeMsg(en *msgp.Writer) (err error) {
 				return
 			}
 		} else {
-			// encodeGen.gBase IDENT
-
-			// record the interface for deduplication
-			var dup bool
-			dup, err = en.DedupWriteIsDup(z.HashesA)
+			err = z.HashesA.EncodeMsg(en)
 			if err != nil {
 				return
-			}
-			if !dup {
-				err = z.HashesA.EncodeMsg(en)
-				if err != nil {
-					return
-				}
 			}
 		}
 	}
@@ -1643,19 +1613,9 @@ func (z *RsyncDiff) EncodeMsg(en *msgp.Writer) (err error) {
 				return
 			}
 		} else {
-			// encodeGen.gBase IDENT
-
-			// record the interface for deduplication
-			var dup bool
-			dup, err = en.DedupWriteIsDup(z.HashesB)
+			err = z.HashesB.EncodeMsg(en)
 			if err != nil {
 				return
-			}
-			if !dup {
-				err = z.HashesB.EncodeMsg(en)
-				if err != nil {
-					return
-				}
 			}
 		}
 	}
@@ -1679,19 +1639,9 @@ func (z *RsyncDiff) EncodeMsg(en *msgp.Writer) (err error) {
 					return
 				}
 			} else {
-				// encodeGen.gBase IDENT
-
-				// record the interface for deduplication
-				var dup bool
-				dup, err = en.DedupWriteIsDup(z.Both[zgensym_9db0ba711f6a3e5a_18])
+				err = z.Both[zgensym_9db0ba711f6a3e5a_18].EncodeMsg(en)
 				if err != nil {
 					return
-				}
-				if !dup {
-					err = z.Both[zgensym_9db0ba711f6a3e5a_18].EncodeMsg(en)
-					if err != nil {
-						return
-					}
 				}
 			}
 		}
@@ -1716,19 +1666,9 @@ func (z *RsyncDiff) EncodeMsg(en *msgp.Writer) (err error) {
 					return
 				}
 			} else {
-				// encodeGen.gBase IDENT
-
-				// record the interface for deduplication
-				var dup bool
-				dup, err = en.DedupWriteIsDup(z.OnlyA[zgensym_9db0ba711f6a3e5a_19])
+				err = z.OnlyA[zgensym_9db0ba711f6a3e5a_19].EncodeMsg(en)
 				if err != nil {
 					return
-				}
-				if !dup {
-					err = z.OnlyA[zgensym_9db0ba711f6a3e5a_19].EncodeMsg(en)
-					if err != nil {
-						return
-					}
 				}
 			}
 		}
@@ -1753,19 +1693,9 @@ func (z *RsyncDiff) EncodeMsg(en *msgp.Writer) (err error) {
 					return
 				}
 			} else {
-				// encodeGen.gBase IDENT
-
-				// record the interface for deduplication
-				var dup bool
-				dup, err = en.DedupWriteIsDup(z.OnlyB[zgensym_9db0ba711f6a3e5a_20])
+				err = z.OnlyB[zgensym_9db0ba711f6a3e5a_20].EncodeMsg(en)
 				if err != nil {
 					return
-				}
-				if !dup {
-					err = z.OnlyB[zgensym_9db0ba711f6a3e5a_20].EncodeMsg(en)
-					if err != nil {
-						return
-					}
 				}
 			}
 		}
@@ -2815,19 +2745,9 @@ func (z *RsyncHashes) EncodeMsg(en *msgp.Writer) (err error) {
 				return
 			}
 		} else {
-			// encodeGen.gBase IDENT
-
-			// record the interface for deduplication
-			var dup bool
-			dup, err = en.DedupWriteIsDup(z.CDC_Config)
+			err = z.CDC_Config.EncodeMsg(en)
 			if err != nil {
 				return
-			}
-			if !dup {
-				err = z.CDC_Config.EncodeMsg(en)
-				if err != nil {
-					return
-				}
 			}
 		}
 	}
@@ -2863,19 +2783,9 @@ func (z *RsyncHashes) EncodeMsg(en *msgp.Writer) (err error) {
 					return
 				}
 			} else {
-				// encodeGen.gBase IDENT
-
-				// record the interface for deduplication
-				var dup bool
-				dup, err = en.DedupWriteIsDup(z.Chunks[zgensym_9db0ba711f6a3e5a_33])
+				err = z.Chunks[zgensym_9db0ba711f6a3e5a_33].EncodeMsg(en)
 				if err != nil {
 					return
-				}
-				if !dup {
-					err = z.Chunks[zgensym_9db0ba711f6a3e5a_33].EncodeMsg(en)
-					if err != nil {
-						return
-					}
 				}
 			}
 		}
@@ -4798,19 +4708,9 @@ func (z *RsyncStep2_ReaderAcksOverview) EncodeMsg(en *msgp.Writer) (err error) {
 				return
 			}
 		} else {
-			// encodeGen.gBase IDENT
-
-			// record the interface for deduplication
-			var dup bool
-			dup, err = en.DedupWriteIsDup(z.ReaderHashes)
+			err = z.ReaderHashes.EncodeMsg(en)
 			if err != nil {
 				return
-			}
-			if !dup {
-				err = z.ReaderHashes.EncodeMsg(en)
-				if err != nil {
-					return
-				}
 			}
 		}
 	}
@@ -5239,19 +5139,9 @@ func (z *RsyncStep3A_SenderProvidesDeltas) EncodeMsg(en *msgp.Writer) (err error
 				return
 			}
 		} else {
-			// encodeGen.gBase IDENT
-
-			// record the interface for deduplication
-			var dup bool
-			dup, err = en.DedupWriteIsDup(z.SenderHashes)
+			err = z.SenderHashes.EncodeMsg(en)
 			if err != nil {
 				return
-			}
-			if !dup {
-				err = z.SenderHashes.EncodeMsg(en)
-				if err != nil {
-					return
-				}
 			}
 		}
 	}
@@ -5270,19 +5160,9 @@ func (z *RsyncStep3A_SenderProvidesDeltas) EncodeMsg(en *msgp.Writer) (err error
 				return
 			}
 		} else {
-			// encodeGen.gBase IDENT
-
-			// record the interface for deduplication
-			var dup bool
-			dup, err = en.DedupWriteIsDup(z.ChunkDiff)
+			err = z.ChunkDiff.EncodeMsg(en)
 			if err != nil {
 				return
-			}
-			if !dup {
-				err = z.ChunkDiff.EncodeMsg(en)
-				if err != nil {
-					return
-				}
 			}
 		}
 	}
@@ -5735,19 +5615,9 @@ func (z *RsyncStep3B_HashChunk) EncodeMsg(en *msgp.Writer) (err error) {
 					return
 				}
 			} else {
-				// encodeGen.gBase IDENT
-
-				// record the interface for deduplication
-				var dup bool
-				dup, err = en.DedupWriteIsDup(z.Chunk[zgensym_9db0ba711f6a3e5a_72])
+				err = z.Chunk[zgensym_9db0ba711f6a3e5a_72].EncodeMsg(en)
 				if err != nil {
 					return
-				}
-				if !dup {
-					err = z.Chunk[zgensym_9db0ba711f6a3e5a_72].EncodeMsg(en)
-					if err != nil {
-						return
-					}
 				}
 			}
 		}
