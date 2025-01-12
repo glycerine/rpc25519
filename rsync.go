@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"lukechampine.com/blake3"
 	//"io"
 	"os"
 	"os/user"
@@ -62,7 +63,7 @@ type Chunks struct {
 func (c *Chunks) Last() *Chunk {
 	n := len(c.Chunks)
 	if n == 0 {
-		return 0
+		return nil
 	}
 	return c.Chunks[n-1]
 }
@@ -78,14 +79,23 @@ func UpdateLocalWithRemoteDiffs(
 	// from the local version of the path; but
 	// they could be from a larger data store
 	// like a Git repo or database.
-	localMap map[string]*Chunks,
+	localMap map[string]*Chunk,
 
 	remote *Chunks,
 
 ) (err error) {
 
+	if remote.FileSize == 0 {
+		vv("remote.FileSize == 0 => truncate to zero localPathToWrite='%v'", localPathToWrite)
+		return truncateFileToZero(localPathToWrite)
+	}
+
+	if len(remote.Chunks) == 0 {
+		panic(fmt.Sprintf("missing chunks for non-size-zero file '%v'", localPathToWrite))
+	}
+
 	// make sure we have a full plan, not just a partial diff.
-	if remote.FileSize != remote.Chunks.Last().Endx {
+	if remote.FileSize != remote.Last().Endx {
 		panic("remote was not a full plan for every byte!")
 	}
 
@@ -98,6 +108,7 @@ func UpdateLocalWithRemoteDiffs(
 
 	// remote gives the plan of what to create
 	for i, chnk := range remote.Chunks {
+		_ = i
 
 		if len(chnk.Data) == 0 {
 			// the data is local
@@ -113,7 +124,7 @@ func UpdateLocalWithRemoteDiffs(
 			}
 			// sanity check the local chunk as a precaution.
 			if wb != lc.Endx-lc.Beg {
-				panic("lc.Endx = %v, lc.Beg = %v, but lc.Data len = %v", lc.Endx, lc.Beg, wb)
+				panic(fmt.Sprintf("lc.Endx = %v, lc.Beg = %v, but lc.Data len = %v", lc.Endx, lc.Beg, wb))
 			}
 			h.Write(lc.Data)
 		} else {
@@ -124,7 +135,7 @@ func UpdateLocalWithRemoteDiffs(
 			}
 			// sanity check the local chunk as a precaution.
 			if wb != chnk.Endx-chnk.Beg {
-				panic("lc.Endx = %v, lc.Beg = %v, but lc.Data len = %v", chnk.Endx, chnk.Beg, wb)
+				panic(fmt.Sprintf("lc.Endx = %v, lc.Beg = %v, but lc.Data len = %v", chnk.Endx, chnk.Beg, wb))
 			}
 			h.Write(chnk.Data)
 		}
@@ -210,13 +221,13 @@ func NewBlobStore() *BlobStore {
 // We expect the remote chunks have no Data pointers available,
 // and all the local to have them, or, as a fallback, for
 // them to be available in the BlobStore.
-// These pointers, from local or the s BlobStore, are
+// These pointers, from local or the BlobStore, are
 // copied ino the plan chunks we return.
-func (s *BlobStore) UpdateRemoteToMatchLocalPlan(local, remote *Chunks) (plan *Chunks) {
+func (s *BlobStore) GetPlanToUpdateRemoteToMatchLocal(local, remote *Chunks) (plan *Chunks) {
 
 	plan = &Chunks{
 		//Chunks []*Chunk
-		Path:     remote.path,
+		Path:     remote.Path,
 		FileSize: local.FileSize,
 	}
 
@@ -225,11 +236,11 @@ func (s *BlobStore) UpdateRemoteToMatchLocalPlan(local, remote *Chunks) (plan *C
 	for _, c := range remote.Chunks {
 		remotemap[c.Cry] = c
 	}
-	p := plan.Chunks.Chunks
+	p := plan.Chunks
 
 	// the local file layout is the template for the plan
 	for _, c := range local.Chunks {
-		rc, ok := remotemap[c.Cry]
+		_, ok := remotemap[c.Cry]
 
 		// make a copy of the local chunk, no matter what.
 		addme := *c
@@ -346,7 +357,7 @@ type RsyncStep2_ReaderAcksOverview struct {
 // with the chunk structure of the file on the
 // sender so reader can reassemble it; and the
 // whole file checksum.
-// Sender sends RsyncStep3_SenderProvidesDeltas
+// Sender sends RsyncStep3_SenderProvidesDatas
 // to reader.
 //
 // This step rsync may well send a very large message,
@@ -462,7 +473,7 @@ func (s *RsyncNode) ClientSends() (err error) {
 
 	err = cli.Call("RsyncNode.Step2_ReaderAcksOverview", req1, reply2, nil)
 
-	req3 := &RsyncStep3A_SenderProvidesDeltas{}
+	req3 := &RsyncStep3A_SenderProvidesData{}
 	reply4 := &RsyncStep4_ReaderAcksDeltasFin{}
 
 	err = cli.Call("RsyncNode.Step4_ReaderAcksDeltasFin", req3, reply4, nil)
@@ -482,8 +493,8 @@ func (s *RsyncNode) ClientReads() (err error) {
 	err = cli.Call("RsyncNode.Step1_SenderOverview", req0, reply1, nil)
 
 	req2 := &RsyncStep2_ReaderAcksOverview{}
-	reply3 := &RsyncStep3A_SenderProvidesDeltas{}
-	err = cli.Call("RsyncNode.Step3_SenderProvidesDelta", req2, reply3, nil)
+	reply3 := &RsyncStep3A_SenderProvidesData{}
+	err = cli.Call("RsyncNode.Step3_SenderProvidesData", req2, reply3, nil)
 
 	return
 }
@@ -553,60 +564,64 @@ func (s *RsyncNode) Step2_ReaderAcksOverview(
 	return nil
 }
 
-func (s *RsyncNode) Step3_SenderProvidesDelta(
+func (s *RsyncNode) Step3_SenderProvidesData(
 	ctx context.Context,
 	req *RsyncStep2_ReaderAcksOverview,
-	reply *RsyncStep3A_SenderProvidesDeltas) error {
+	reply *RsyncStep3A_SenderProvidesData) error {
 
-	vv("top of Step3_SenderProvidesDelta()")
+	vv("top of Step3_SenderProvidesData()")
 
 	if req.ReaderMatchesSenderAllGood {
 		return nil // nothing for us to do, they are fine.
 	}
 	// they need file (parts at least).
-	remoteHashes := req.ReaderHashes
-	localHashes, err := SummarizeFileInCDCHashes(s.Host, req.SenderPath)
+	remoteSummary := req.ReaderHashes
+	remote := remoteSummary.Chunks
+
+	localSummary, err := SummarizeFileInCDCHashes(s.Host, req.SenderPath)
 	if err != nil {
-		vv("mid Step3_SenderProvidesDelta(); err = '%v'", err)
+		vv("mid Step3_SenderProvidesData(); err = '%v'", err)
 	} else {
 		vv("localHashes ok") // long!: = '%v'", localHashes.String())
 	}
 	panicOn(err)
 
+	local := localSummary.Chunks
+	bs := NewBlobStore() // TODO make persistent state.
+
 	//a.Diff(b) (a is local, b is remote); need to send OnlyA
-	diff := localHashes.Diff(remoteHashes)
+	//plan := localHashes.Diff(remoteHashes)
+	plan := bs.GetPlanToUpdateRemoteToMatchLocal(local, remote)
 
-	diff.OnlyB = nil // unique content on remote, but about to be replaced.
-	diff.Both = nil  // common chunks can take up alot of space.
+	reply.Chunks = plan
+	vv("end of Step3_SenderProvidesData()")
 
-	reply.SenderPath = req.SenderPath
-	reply.SenderHashes = localHashes
-	reply.ChunkDiff = diff
-
-	vv("end of Step3_SenderProvidesDelta()")
+	//path := req.SenderPath // is this right? nope.
 
 	return nil
 }
 
+func getCryMap(cs *Chunks) (m map[string]*Chunk) {
+	m = make(map[string]*Chunk)
+	for _, c := range cs.Chunks {
+		m[c.Cry] = c
+	}
+	return
+}
+
 func (s *RsyncNode) Step4_ReaderAcksDeltasFin(
 	ctx context.Context,
-	req *RsyncStep3A_SenderProvidesDeltas,
+	req *RsyncStep3A_SenderProvidesData,
 	reply *RsyncStep4_ReaderAcksDeltasFin) error {
 
 	return nil
 }
 
-type RsyncStep3A_SenderProvidesDeltas struct {
+type RsyncStep3A_SenderProvidesData struct {
 	SenderPath   string        `zid:"0"`
 	SenderHashes *RsyncSummary `zid:"1"` // needs to be streamed too? could be very large?
 
-	ChunkDiff *RsyncDiff `zid:"2"`
-}
-
-// might be lots of these.
-type RsyncStep3B_HashChunk struct {
-	SenderPath string        `zid:"0"`
-	Chunk      []*RsyncChunk `zid:"1"`
+	Chunks *Chunks `zid:"2"`
 }
 
 // 4) reader gets the diff, the changed chunks (DeltaData),
@@ -625,17 +640,6 @@ type RsyncStep4_ReaderAcksDeltasFin struct {
 	ReaderLenBytes int64     `zid:"2"`
 	ReaderModTime  time.Time `zid:"3"`
 	ReaderFullHash string    `zid:"4"`
-}
-
-func (d *RsyncDiff) String() string {
-
-	jsonData, err := json.Marshal(d)
-	panicOn(err)
-
-	var pretty bytes.Buffer
-	err = json.Indent(&pretty, jsonData, "", "    ")
-	panicOn(err)
-	return pretty.String()
 }
 
 func (h *RsyncSummary) String() string {
@@ -732,17 +736,14 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 	prev := 0
 	for i, c := range cuts {
 		hsh := hash.Blake3OfBytesString(data[prev:cuts[i]])
-		chunk := &RsyncChunk{
-			ChunkNumber: i,
-			Beg:         prev,
-			Endx:        cuts[i],
-			Hash:        hsh,
-			Len:         cuts[i] - prev,
+		chunk := &Chunk{
+			Beg:  prev,
+			Endx: cuts[i],
+			Cry:  hsh,
 		}
-		hashes.Chunks = append(hashes.Chunks, chunk)
+		hashes.Chunks.Chunks = append(hashes.Chunks.Chunks, chunk)
 		prev = c
 	}
-	hashes.NumChunks = len(hashes.Chunks)
 	return
 }
 
@@ -776,4 +777,15 @@ func RsyncCliWantsToReadRemotePath(host, path string) (r *RsyncStep0_ClientReque
 		ReaderFullHash: "", // unknown
 	}
 	return r, nil
+}
+
+func (d *Chunks) String() string {
+
+	jsonData, err := json.Marshal(d)
+	panicOn(err)
+
+	var pretty bytes.Buffer
+	err = json.Indent(&pretty, jsonData, "", "    ")
+	panicOn(err)
+	return pretty.String()
 }

@@ -103,3 +103,15 @@ func getFileOwnerName(filepath string) string {
 
 	return owner.Username
 }
+
+func truncateFileToZero(path string) error {
+	var perm os.FileMode
+	f, err := os.OpenFile(path, os.O_TRUNC, perm)
+	if err != nil {
+		return fmt.Errorf("could not open file %q for truncation: %v", path, err)
+	}
+	if err = f.Close(); err != nil {
+		return fmt.Errorf("could not close file handler for %q after truncation: %v", path, err)
+	}
+	return nil
+}
