@@ -154,9 +154,9 @@ func UpdateLocalWithRemoteDiffs(
 // and a specified hash function (e.g. "blake3.32B"
 type RsyncSummary struct {
 	// uniquely idenitify this hash set.
-	Rsync0CallID string    `zid:"16"`
-	IsFromSender bool      `zid:"17"`
-	Created      time.Time `zid:"18"`
+	Rsync0CallID string    `zid:"15"`
+	IsFromSender bool      `zid:"16"`
+	Created      time.Time `zid:"17"`
 
 	Host string `zid:"0"`
 	Path string `zid:"1"`
