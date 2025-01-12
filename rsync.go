@@ -16,7 +16,12 @@ import (
 	"github.com/glycerine/rpc25519/jcdc"
 )
 
-//go:generate greenpack -no-dedup
+// pointer dedup was hitting some issues on Encode/Decode,
+// so turn it off for now. Pointer dedup was reducing
+// the diff messages in half, so hopefully we can
+// debug the greenpack issue and get it working later.
+
+//go:generate greenpack -no-dedup=true
 
 // rsync operation for a single file. Steps
 // and the structs that go with each step:

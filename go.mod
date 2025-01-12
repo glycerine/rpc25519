@@ -10,11 +10,12 @@ require (
 	github.com/cristalhq/base64 v0.1.2
 	github.com/glycerine/base58 v0.24.2
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31
-	github.com/glycerine/greenpack v0.517.0
+	github.com/glycerine/greenpack v0.529.0
 	github.com/glycerine/idem v0.0.0-20240925232718-fc20a7f9bca6
 	github.com/glycerine/ipaddr v0.2.4
 	github.com/glycerine/loquet v0.0.19
 	github.com/goccy/go-json v0.10.3
+	github.com/hexops/valast v1.4.4
 	github.com/klauspost/compress v1.17.11
 	github.com/klauspost/cpuid/v2 v2.0.9
 	github.com/pierrec/lz4/v4 v4.1.22
@@ -33,7 +34,6 @@ require (
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
-	github.com/hexops/valast v1.4.4 // indirect
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
 	github.com/leesper/go_rng v0.0.0-20190531154944-a612b043e353 // indirect
 	github.com/onsi/ginkgo/v2 v2.9.5 // indirect
