@@ -23,6 +23,10 @@ import (
 
 //go:generate greenpack -no-dedup=true
 
+// Chunk is a segment of bytes from some file,
+// the location of which is given by [Beg, Endx).
+// A Chunk is named by its Cry cryptographic hash. The actual
+// bytes may or may not be attached in the Data field.
 type Chunk struct {
 	Beg  int    `zid:"0"`
 	Endx int    `zid:"1"`
@@ -50,13 +54,24 @@ type Chunks struct {
 	// FileSize gives the total size of Path,
 	// since we may have only a subset of
 	// Path's data chunks (e.g. the updated ones).
-	FileSize int `zid:"2"`
+	FileSize int    `zid:"2"`
+	FileCry  string `zid:"3"` // the cryptographic hash of the whole file.
+}
+
+// Last gives the last Chunk in the Chunks.
+func (c *Chunks) Last() *Chunk {
+	n := len(c.Chunks)
+	if n == 0 {
+		return 0
+	}
+	return c.Chunks[n-1]
 }
 
 // UpdateLocalWithRemoteDiffs is the essence of the rsync
-// algorithm for efficient file transfer.
+// algorithm for efficient file transfer. The remote
+// chunks gives the update plan.
 func UpdateLocalWithRemoteDiffs(
-	writeToPath string,
+	localPathToWrite string,
 
 	// map Cry hash -> chunk.
 	// typically either these are the chunks
@@ -64,13 +79,22 @@ func UpdateLocalWithRemoteDiffs(
 	// they could be from a larger data store
 	// like a Git repo or database.
 	localMap map[string]*Chunks,
+
 	remote *Chunks,
 
 ) (err error) {
 
+	// make sure we have a full plan, not just a partial diff.
+	if remote.FileSize != remote.Chunks.Last().Endx {
+		panic("remote was not a full plan for every byte!")
+	}
+
 	// assemble in memory first, later stream to disk.
 	newvers := make([]byte, remote.FileSize)
 	j := 0 // index to new version, how much we have written.
+
+	// compute the full file hash/checksum as we go
+	h := blake3.New(64, nil)
 
 	// remote gives the plan of what to create
 	for i, chnk := range remote.Chunks {
@@ -91,6 +115,7 @@ func UpdateLocalWithRemoteDiffs(
 			if wb != lc.Endx-lc.Beg {
 				panic("lc.Endx = %v, lc.Beg = %v, but lc.Data len = %v", lc.Endx, lc.Beg, wb)
 			}
+			h.Write(lc.Data)
 		} else {
 			wb := copy(newvers[j:], chnk.Data)
 			j += wb
@@ -101,11 +126,18 @@ func UpdateLocalWithRemoteDiffs(
 			if wb != chnk.Endx-chnk.Beg {
 				panic("lc.Endx = %v, lc.Beg = %v, but lc.Data len = %v", chnk.Endx, chnk.Beg, wb)
 			}
+			h.Write(chnk.Data)
 		}
+	}
+	sum := hash.SumToString(h)
+	if sum != remote.FileCry {
+		err = fmt.Errorf("checksum mismatch error! reconstructed='%v'; expected='%v'; remote path = ''%v'", sum, remote.FileCry, remote.Path)
+		panic(err)
+		return err
 	}
 
 	var fd *os.File
-	fd, err = os.Create(writeToPath)
+	fd, err = os.Create(localPathToWrite)
 	if err != nil {
 		return err
 	}
@@ -116,32 +148,11 @@ func UpdateLocalWithRemoteDiffs(
 	return
 }
 
-// RsyncDiff compares the old and the new versions
-// of a file, and details how to update old to new.
-type RsyncDiff struct {
-	HostNew   string       `zid:"0"`
-	PathNew   string       `zid:"1"`
-	HashesNew *RsyncHashes `zid:"2"`
-
-	HostOld   string       `zid:"3"`
-	PathOld   string       `zid:"4"`
-	HashesOld *RsyncHashes `zid:"5"`
-
-	Both    []*MatchHashPair `zid:"6"`
-	OnlyNew []*RsyncChunk    `zid:"7"`
-	OnlyOld []*RsyncChunk    `zid:"8"`
-}
-
-type MatchHashPair struct {
-	New *RsyncChunk `zid:"0"`
-	Old *RsyncChunk `zid:"1"`
-}
-
-// RsyncHashes stores CDC (Content Dependent Chunking)
+// RsyncSummary stores CDC (Content Dependent Chunking)
 // chunks for a given Path on a given Host, using
 // a specified chunking algorithm (e.g. "jcdc"), its parameters,
 // and a specified hash function (e.g. "blake3.32B"
-type RsyncHashes struct {
+type RsyncSummary struct {
 	// uniquely idenitify this hash set.
 	Rsync0CallID string    `zid:"16"`
 	IsFromSender bool      `zid:"17"`
@@ -318,7 +329,7 @@ type RsyncStep1_SenderOverview struct {
 // 2) receiver/reader end gets path to the file, its
 // length and modification time stamp. If length
 // and time stamp match, stop.
-// Else: ack back with RsyncHashes, "here are the chunks I have"
+// Else: ack back with RsyncSummary, "here are the chunks I have"
 // and the whole file checksum.
 // Reader replies to sender with RsyncStep2_ReaderAcksOverview.
 type RsyncStep2_ReaderAcksOverview struct {
@@ -327,7 +338,7 @@ type RsyncStep2_ReaderAcksOverview struct {
 	ReaderMatchesSenderAllGood bool   `zid:"0"`
 	SenderPath                 string `zid:"1"`
 
-	ReaderHashes *RsyncHashes `zid:"2"`
+	ReaderHashes *RsyncSummary `zid:"2"`
 }
 
 // 3) sender chunks the file, does the diff, and
@@ -343,7 +354,7 @@ type RsyncStep2_ReaderAcksOverview struct {
 // Or even a 64MB max message.
 // So rsync may need to use a Bistream that can handle lots of
 // separate messages and reassemble them.
-// For that matter, the RsyncHashes in step 2
+// For that matter, the RsyncSummary in step 2
 // can be large too. As a part of the rsync
 // protocol we want to be able to send
 // "large files" that are actually large, streamed
@@ -586,8 +597,8 @@ func (s *RsyncNode) Step4_ReaderAcksDeltasFin(
 }
 
 type RsyncStep3A_SenderProvidesDeltas struct {
-	SenderPath   string       `zid:"0"`
-	SenderHashes *RsyncHashes `zid:"1"` // needs to be streamed too? could be very large?
+	SenderPath   string        `zid:"0"`
+	SenderHashes *RsyncSummary `zid:"1"` // needs to be streamed too? could be very large?
 
 	ChunkDiff *RsyncDiff `zid:"2"`
 }
@@ -627,7 +638,7 @@ func (d *RsyncDiff) String() string {
 	return pretty.String()
 }
 
-func (h *RsyncHashes) String() string {
+func (h *RsyncSummary) String() string {
 
 	jsonData, err := json.Marshal(h)
 	panicOn(err)
@@ -638,7 +649,7 @@ func (h *RsyncHashes) String() string {
 	return pretty.String()
 }
 
-func SummarizeFileInCDCHashes(host, path string) (hashes *RsyncHashes, err error) {
+func SummarizeFileInCDCHashes(host, path string) (hashes *RsyncSummary, err error) {
 
 	var data []byte
 	data, err = os.ReadFile(path)
@@ -671,7 +682,7 @@ func SummarizeFileInCDCHashes(host, path string) (hashes *RsyncHashes, err error
 	return
 }
 
-func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time) (hashes *RsyncHashes, err error) {
+func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time) (hashes *RsyncSummary, err error) {
 
 	// These two different chunking approaches,
 	// Jcdc and FastCDC, need very different
@@ -703,7 +714,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 		cdc = jcdc.NewUltraCDC(opts)
 	}
 
-	hashes = &RsyncHashes{
+	hashes = &RsyncSummary{
 		Host:            host,
 		Path:            path,
 		FileSize:        int64(len(data)),

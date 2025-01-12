@@ -116,3 +116,8 @@ func Blake3OfFileString(path string) (blake3sum string, err error) {
 	blake3sum = "blake3.32B-" + cristalbase64.URLEncoding.EncodeToString(by[:32])
 	return
 }
+
+func SumToString(h *blake3.Hasher) string {
+	by := h.Sum(nil)
+	return "blake3.32B-" + cristalbase64.URLEncoding.EncodeToString(by[:32])
+}
