@@ -4106,7 +4106,7 @@ func (z *RsyncStep1_SenderOverview) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields54zgensym_9db0ba711f6a3e5a_55 = 5
+	const maxFields54zgensym_9db0ba711f6a3e5a_55 = 6
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields54zgensym_9db0ba711f6a3e5a_55 uint32
@@ -4185,6 +4185,12 @@ doneWithStruct54zgensym_9db0ba711f6a3e5a_55:
 			if err != nil {
 				return
 			}
+		case "ErrString_zid05_str":
+			found54zgensym_9db0ba711f6a3e5a_55[5] = true
+			z.ErrString, err = dc.ReadString()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -4208,16 +4214,16 @@ doneWithStruct54zgensym_9db0ba711f6a3e5a_55:
 }
 
 // fields of RsyncStep1_SenderOverview
-var decodeMsgFieldOrder54zgensym_9db0ba711f6a3e5a_55 = []string{"SenderHost_zid00_str", "SenderPath_zid01_str", "SenderLenBytes_zid02_i64", "SenderModTime_zid03_tim", "SenderFullHash_zid04_str"}
+var decodeMsgFieldOrder54zgensym_9db0ba711f6a3e5a_55 = []string{"SenderHost_zid00_str", "SenderPath_zid01_str", "SenderLenBytes_zid02_i64", "SenderModTime_zid03_tim", "SenderFullHash_zid04_str", "ErrString_zid05_str"}
 
-var decodeMsgFieldSkip54zgensym_9db0ba711f6a3e5a_55 = []bool{false, false, false, false, false}
+var decodeMsgFieldSkip54zgensym_9db0ba711f6a3e5a_55 = []bool{false, false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *RsyncStep1_SenderOverview) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 5
+		return 6
 	}
-	var fieldsInUse uint32 = 5
+	var fieldsInUse uint32 = 6
 	isempty[0] = (len(z.SenderHost) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -4238,6 +4244,10 @@ func (z *RsyncStep1_SenderOverview) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[4] {
 		fieldsInUse--
 	}
+	isempty[5] = (len(z.ErrString) == 0) // string, omitempty
+	if isempty[5] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -4249,7 +4259,7 @@ func (z *RsyncStep1_SenderOverview) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_9db0ba711f6a3e5a_56 [5]bool
+	var empty_zgensym_9db0ba711f6a3e5a_56 [6]bool
 	fieldsInUse_zgensym_9db0ba711f6a3e5a_57 := z.fieldsNotEmpty(empty_zgensym_9db0ba711f6a3e5a_56[:])
 
 	// map header
@@ -4328,6 +4338,18 @@ func (z *RsyncStep1_SenderOverview) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_9db0ba711f6a3e5a_56[5] {
+		// write "ErrString_zid05_str"
+		err = en.Append(0xb3, 0x45, 0x72, 0x72, 0x53, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x73, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		err = en.WriteString(z.ErrString)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -4340,7 +4362,7 @@ func (z *RsyncStep1_SenderOverview) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [5]bool
+	var empty [6]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -4374,6 +4396,12 @@ func (z *RsyncStep1_SenderOverview) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendString(o, z.SenderFullHash)
 	}
 
+	if !empty[5] {
+		// string "ErrString_zid05_str"
+		o = append(o, 0xb3, 0x45, 0x72, 0x72, 0x53, 0x74, 0x72, 0x69, 0x6e, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.ErrString)
+	}
+
 	return
 }
 
@@ -4392,7 +4420,7 @@ func (z *RsyncStep1_SenderOverview) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.Ru
 
 	var field []byte
 	_ = field
-	const maxFields58zgensym_9db0ba711f6a3e5a_59 = 5
+	const maxFields58zgensym_9db0ba711f6a3e5a_59 = 6
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields58zgensym_9db0ba711f6a3e5a_59 uint32
@@ -4477,6 +4505,13 @@ doneWithStruct58zgensym_9db0ba711f6a3e5a_59:
 			if err != nil {
 				return
 			}
+		case "ErrString_zid05_str":
+			found58zgensym_9db0ba711f6a3e5a_59[5] = true
+			z.ErrString, bts, err = nbs.ReadStringBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -4500,13 +4535,13 @@ doneWithStruct58zgensym_9db0ba711f6a3e5a_59:
 }
 
 // fields of RsyncStep1_SenderOverview
-var unmarshalMsgFieldOrder58zgensym_9db0ba711f6a3e5a_59 = []string{"SenderHost_zid00_str", "SenderPath_zid01_str", "SenderLenBytes_zid02_i64", "SenderModTime_zid03_tim", "SenderFullHash_zid04_str"}
+var unmarshalMsgFieldOrder58zgensym_9db0ba711f6a3e5a_59 = []string{"SenderHost_zid00_str", "SenderPath_zid01_str", "SenderLenBytes_zid02_i64", "SenderModTime_zid03_tim", "SenderFullHash_zid04_str", "ErrString_zid05_str"}
 
-var unmarshalMsgFieldSkip58zgensym_9db0ba711f6a3e5a_59 = []bool{false, false, false, false, false}
+var unmarshalMsgFieldSkip58zgensym_9db0ba711f6a3e5a_59 = []bool{false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *RsyncStep1_SenderOverview) Msgsize() (s int) {
-	s = 1 + 21 + msgp.StringPrefixSize + len(z.SenderHost) + 21 + msgp.StringPrefixSize + len(z.SenderPath) + 25 + msgp.Int64Size + 24 + msgp.TimeSize + 25 + msgp.StringPrefixSize + len(z.SenderFullHash)
+	s = 1 + 21 + msgp.StringPrefixSize + len(z.SenderHost) + 21 + msgp.StringPrefixSize + len(z.SenderPath) + 25 + msgp.Int64Size + 24 + msgp.TimeSize + 25 + msgp.StringPrefixSize + len(z.SenderFullHash) + 20 + msgp.StringPrefixSize + len(z.ErrString)
 	return
 }
 

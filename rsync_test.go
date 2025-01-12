@@ -1,6 +1,7 @@
 package rpc25519
 
 import (
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -91,38 +92,37 @@ func Test210_client_sends_file_over_rsync(t *testing.T) {
 
 		defer cli.Close()
 
-		host := "localhost"
+		host := cli.LocalAddr()
 		path := "/Users/jaten/go/src/github.com/glycerine/rpc25519/cry100mb"
-		step0request, err := RsyncCliWantsToReadRemotePath(host, path)
+		step0request, err := RsyncCliWantsToReadRemotePath(host, path) // request, step 1
 		panicOn(err)
 
-		senderOV := &RsyncStep1_SenderOverview{}
-		serviceName := "RsyncNode.Step1_SenderOverview"
-		err = cli.Call(serviceName, step0request, senderOV, nil)
+		senderOV := &RsyncStep1_SenderOverview{} // response, step 1
+		err = cli.Call("RsyncNode.Step1_SenderOverview", step0request, senderOV, nil)
 
-		vv("senderOV = '%#v'", senderOV)
-		/*
-			req := NewMessage()
-			req.JobSerz = []byte("Hello from client!")
+		vv("got senderOV = '%#v'", senderOV)
 
-			reply, err := cli.SendAndGetReply(req, nil)
+		if senderOV.ErrString != "" {
+			panic(senderOV.ErrString)
+		}
+		if senderOV.SenderLenBytes == 0 {
+			panic(fmt.Sprintf("remote file is 0 bytes: '%v'", path))
+		}
+
+		var rsyncHashes *RsyncHashes
+		if fileExists(path) {
+			rsyncHashes, err = SummarizeFileInCDCHashes(host, path)
 			panicOn(err)
+		}
+		readerAckOV := &RsyncStep2_ReaderAcksOverview{
+			ReaderMatchesSenderAllGood: false,
+			ReaderHashes:               rsyncHashes,
+		} // request
+		senderDeltas := &RsyncStep3_SenderProvidesDeltas{} // response
 
-			vv("srv_test sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
+		err = cli.Call("RsyncNode.Step3_SenderProvidesDelta", readerAckOV, senderDeltas, nil)
+		panicOn(err)
 
-
-				srv.Register1Func(oneWayStreet)
-				req = NewMessage()
-				req.JobSerz = []byte("One-way Hello from client!")
-
-				err = cli.OneWaySend(req, nil)
-				panicOn(err)
-				<-oneWayStreetChan
-				cv.So(true, cv.ShouldEqual, true)
-				vv("yay. we confirmed that oneWayStreen func has run")
-				// sleep a little to avoid shutting down before server can decide
-				// not to process/return a reply.
-				time.Sleep(time.Millisecond * 50)
-		*/
+		vv("senderDeltas = '%#v'", senderDeltas)
 	})
 }

@@ -87,6 +87,8 @@ type RsyncStep1_SenderOverview struct {
 
 	// if available/cheap, send
 	SenderFullHash string `zid:"4"`
+
+	ErrString string `zid:"5"`
 }
 
 // 2) receiver/reader end gets path to the file, its
