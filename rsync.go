@@ -91,8 +91,8 @@ type RsyncStep1_SenderOverview struct {
 
 // 2) receiver/reader end gets path to the file, its
 // length and modification time stamp. If length
-// and time stamp match, stop. Ack back all good.
-// Else ack back with RsyncHashes, "here are the chunks I have"
+// and time stamp match, stop.
+// Else: ack back with RsyncHashes, "here are the chunks I have"
 // and the whole file checksum.
 // Reader replies to sender with RsyncStep2_ReaderAcksOverview.
 type RsyncStep2_ReaderAcksOverview struct {
@@ -202,11 +202,15 @@ func (s *RsyncNode) Step0_ClientRequestsRead(
 }
 */
 
-type Ctx = context.Context
+//type Ctx = context.Context
 
-type Nil struct{}
+type Nil struct {
+	Placeholder int
+}
 
-type RsyncNode struct{}
+type RsyncNode struct {
+	Placeholder int
+}
 
 // for client send:
 // cli(1)->srv(2)->cli(3)->srv(4 + CallRPCReply to 1?);
@@ -249,29 +253,46 @@ func (s *RsyncNode) ClientReads() (err error) {
 // need to have registration of func on client too.
 
 // step0: start of client read.
-func (s *RsyncNode) Step0_ClientRequestsRead(req *Nil, reply *RsyncStep0_ClientRequestsRead) error {
+func (s *RsyncNode) Step0_ClientRequestsRead(
+	ctx context.Context,
+	req *Nil,
+	reply *RsyncStep0_ClientRequestsRead) error {
+
 	return nil
 }
 
 // step 1: start of client send; or server responding to step0 (server to download to client).
 // Note that req will be nil if client is initiating the send.
-func (s *RsyncNode) Step1_SenderOverview(ctx Ctx, req *RsyncStep0_ClientRequestsRead,
+func (s *RsyncNode) Step1_SenderOverview(
+	ctx context.Context,
+	req *RsyncStep0_ClientRequestsRead,
 	reply *RsyncStep1_SenderOverview) error {
+
+	vv("RsyncNode.Step1_SenderOverview() called!")
 	return nil
 }
 
-func (s *RsyncNode) Step2_ReaderAcksOverview(ctx Ctx, req *RsyncStep1_SenderOverview,
+func (s *RsyncNode) Step2_ReaderAcksOverview(
+	ctx context.Context,
+	req *RsyncStep1_SenderOverview,
 	reply *RsyncStep2_ReaderAcksOverview) error {
+
 	return nil
 }
 
-func (s *RsyncNode) Step3_SenderProvidesDelta(ctx Ctx, req *RsyncStep2_ReaderAcksOverview,
+func (s *RsyncNode) Step3_SenderProvidesDelta(
+	ctx context.Context,
+	req *RsyncStep2_ReaderAcksOverview,
 	reply *RsyncStep3_SenderProvidesDeltas) error {
+
 	return nil
 }
 
-func (s *RsyncNode) Step4_ReaderAcksDeltasFin(ctx Ctx, req *RsyncStep3_SenderProvidesDeltas,
+func (s *RsyncNode) Step4_ReaderAcksDeltasFin(
+	ctx context.Context,
+	req *RsyncStep3_SenderProvidesDeltas,
 	reply *RsyncStep4_ReaderAcksDeltasFin) error {
+
 	return nil
 }
 
@@ -287,8 +308,6 @@ type RsyncStep3_SenderProvidesDeltas struct {
 	// because it can be so big; if we have
 	// no diff compression available it will
 	// be the whole file anyway(!)
-	// Hence we'll want to add compression to
-	// the bistream download/upload actions.
 	//DeltaData                 [][]byte `zid:"4"`
 	DeltaDataStreamedPath string `zid:"4"`
 }
@@ -457,7 +476,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 		cdc = jcdc.NewFastCDC(opts)
 
 	} else {
-		//jcdc
+		// UltraCDC that I implemented.
 		opts = &jcdc.CDC_Config{
 			MinSize:    2 * 1024,
 			TargetSize: 10 * 1024,
