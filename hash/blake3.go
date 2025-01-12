@@ -1,6 +1,8 @@
 package hash
 
 import (
+	"io"
+	"os"
 	"sync"
 
 	cristalbase64 "github.com/cristalhq/base64"
@@ -99,4 +101,18 @@ func Blake3OfBytes(by []byte) []byte {
 func Blake3OfBytesString(by []byte) string {
 	sum := Blake3OfBytes(by)
 	return "blake3.32B-" + cristalbase64.URLEncoding.EncodeToString(sum[:32])
+}
+
+func Blake3OfFileString(path string) (blake3sum string, err error) {
+	fd, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer fd.Close()
+	h := blake3.New(64, nil)
+	io.Copy(h, fd)
+	by := h.Sum(nil)
+
+	blake3sum = "blake3.32B-" + cristalbase64.URLEncoding.EncodeToString(by[:32])
+	return
 }

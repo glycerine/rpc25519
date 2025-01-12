@@ -91,10 +91,16 @@ func Test210_client_sends_file_over_rsync(t *testing.T) {
 
 		defer cli.Close()
 
-		args := &RsyncStep0_ClientRequestsRead{}
-		reply := &RsyncStep1_SenderOverview{}
+		host := "localhost"
+		path := "/Users/jaten/go/src/github.com/glycerine/rpc25519/cry100mb"
+		step0request, err := RsyncCliWantsToReadRemotePath(host, path)
+		panicOn(err)
+
+		senderOV := &RsyncStep1_SenderOverview{}
 		serviceName := "RsyncNode.Step1_SenderOverview"
-		err = cli.Call(serviceName, args, reply, nil)
+		err = cli.Call(serviceName, step0request, senderOV, nil)
+
+		vv("senderOV = '%#v'", senderOV)
 		/*
 			req := NewMessage()
 			req.JobSerz = []byte("Hello from client!")

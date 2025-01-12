@@ -268,7 +268,40 @@ func (s *RsyncNode) Step1_SenderOverview(
 	req *RsyncStep0_ClientRequestsRead,
 	reply *RsyncStep1_SenderOverview) error {
 
+	local := ""
+	if hdr, ok := HDRFromContext(ctx); ok {
+		local = hdr.Nc.LocalAddr().String()
+		fmt.Printf("Step1 has HDR = '%v'; "+
+			"HDR.Nc.RemoteAddr() gives '%v'; HDR.Nc.LocalAddr() gives '%v'\n",
+			hdr.String(), hdr.Nc.RemoteAddr(), hdr.Nc.LocalAddr())
+	}
+
+	path := req.ReaderPath
+	if !fileExists(path) {
+		return fmt.Errorf("error on host '%v': file not found: '%v'", local, req.ReaderPath)
+	}
+
 	vv("RsyncNode.Step1_SenderOverview() called!")
+
+	fi, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("error on host '%v': rsync.go error "+
+			"on os.Stat() of '%v': '%v'", local, path, err)
+	}
+
+	blake3sum, err := hash.Blake3OfFileString(path)
+	if err != nil {
+		return fmt.Errorf("error on host '%v': rsync.go error "+
+			"computing blake3sum of '%v': '%v'", local, path, err)
+	}
+	*reply = RsyncStep1_SenderOverview{
+		SenderHost:     local,
+		SenderPath:     path,
+		SenderLenBytes: fi.Size(),
+		SenderModTime:  fi.ModTime(),
+		SenderFullHash: blake3sum,
+	}
+
 	return nil
 }
 
@@ -571,4 +604,17 @@ func (Server *Server) RsyncServerSide(
 
 func (cli *Client) RsyncClientSide() {
 
+}
+
+func RsyncCliWantsToReadRemotePath(host, path string) (r *RsyncStep0_ClientRequestsRead, err error) {
+
+	r = &RsyncStep0_ClientRequestsRead{
+		ReaderHost:     host,
+		ReaderPath:     path,
+		ReaderLenBytes: -1,          // unknown
+		ReaderModTime:  time.Time{}, // unknown
+		// if available/cheap, send
+		ReaderFullHash: "", // unknown
+	}
+	return r, nil
 }
