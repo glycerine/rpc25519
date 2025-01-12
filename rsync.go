@@ -59,6 +59,10 @@ type Chunks struct {
 	FileCry  string `zid:"3"` // the cryptographic hash of the whole file.
 }
 
+func NewChunks() *Chunks {
+	return &Chunks{}
+}
+
 // Last gives the last Chunk in the Chunks.
 func (c *Chunks) Last() *Chunk {
 	n := len(c.Chunks)
@@ -727,6 +731,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 		ChunkerName:     cdc.Name(),
 		CDC_Config:      cdc.Config(),
 		HashName:        "blake3.32B",
+		Chunks:          NewChunks(),
 	}
 
 	cuts := cdc.Cutpoints(data, 0)
