@@ -59,8 +59,10 @@ type Chunks struct {
 	FileCry  string `zid:"3"` // the cryptographic hash of the whole file.
 }
 
-func NewChunks() *Chunks {
-	return &Chunks{}
+func NewChunks(path string) *Chunks {
+	return &Chunks{
+		Path: path,
+	}
 }
 
 // Last gives the last Chunk in the Chunks.
@@ -229,11 +231,8 @@ func NewBlobStore() *BlobStore {
 // copied ino the plan chunks we return.
 func (s *BlobStore) GetPlanToUpdateRemoteToMatchLocal(local, remote *Chunks) (plan *Chunks) {
 
-	plan = &Chunks{
-		//Chunks []*Chunk
-		Path:     remote.Path,
-		FileSize: local.FileSize,
-	}
+	plan = NewChunks(remote.Path)
+	plan.FileSize = local.FileSize
 
 	// index the remote
 	remotemap := make(map[string]*Chunk)
@@ -731,7 +730,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 		ChunkerName:     cdc.Name(),
 		CDC_Config:      cdc.Config(),
 		HashName:        "blake3.32B",
-		Chunks:          NewChunks(),
+		Chunks:          NewChunks(path),
 	}
 
 	cuts := cdc.Cutpoints(data, 0)

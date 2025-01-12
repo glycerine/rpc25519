@@ -131,7 +131,7 @@ func Test210_client_sends_file_over_rsync(t *testing.T) {
 
 		senderDeltas := &RsyncStep3A_SenderProvidesData{} // response
 
-		err = cli.Call("RsyncNode.RsyncStep3A_SenderProvidesData", readerAckOV, senderDeltas, nil)
+		err = cli.Call("RsyncNode.Step3_SenderProvidesData", readerAckOV, senderDeltas, nil)
 		panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
 
 		vv("senderDeltas = '%#v'", senderDeltas)
