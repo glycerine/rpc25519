@@ -20,7 +20,7 @@ var ErrTooLong = fmt.Errorf("message message too long: over 64MB; encrypted clie
 
 var _ = io.EOF
 
-var DebugVerboseCompress bool
+var DebugVerboseCompress bool = true
 
 // uConn hopefully works for both quic.Stream and net.Conn, universally.
 type uConn interface {

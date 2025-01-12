@@ -70,6 +70,8 @@ func Test210_client_sends_file_over_rsync(t *testing.T) {
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = false
 
+		cfg.CompressionOff = true
+
 		cfg.ServerAddr = "127.0.0.1:0"
 		srv := NewServer("srv_rsync_test210", cfg)
 
@@ -114,14 +116,18 @@ func Test210_client_sends_file_over_rsync(t *testing.T) {
 			rsyncHashes, err = SummarizeFileInCDCHashes(host, path)
 			panicOn(err)
 		}
+
+		// request:
 		readerAckOV := &RsyncStep2_ReaderAcksOverview{
 			ReaderMatchesSenderAllGood: false,
+			SenderPath:                 senderOV.SenderPath,
 			ReaderHashes:               rsyncHashes,
-		} // request
-		senderDeltas := &RsyncStep3_SenderProvidesDeltas{} // response
+		}
+
+		senderDeltas := &RsyncStep3A_SenderProvidesDeltas{} // response
 
 		err = cli.Call("RsyncNode.Step3_SenderProvidesDelta", readerAckOV, senderDeltas, nil)
-		panicOn(err)
+		panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
 
 		vv("senderDeltas = '%#v'", senderDeltas)
 	})

@@ -110,6 +110,9 @@ func (c *greenpackClientCodec) ReadResponseBody(body msgp.Decodable) (err error)
 	//vv("ReadResponseBody pre DecodeMsg: '%#v'", body)
 	//vv("cli.decBuf has len %v: '%v'", len(c.cli.decBuf.Bytes()), string(c.cli.decBuf.Bytes()))
 	err = body.DecodeMsg(c.dec)
+	if err != nil {
+		vv("error back from body.DecodeMsg: '%v' ", err) // here! are we not skipping the magic?
+	}
 	return
 }
 
@@ -332,8 +335,9 @@ func (c *greenpackServerCodec) ReadRequestBody(body msgp.Decodable) (err error) 
 }
 
 func (c *greenpackServerCodec) WriteResponse(r *Response, body msgp.Encodable) (err error) {
-
+	vv("top of WriteResponse, about to encode header")
 	if err = r.EncodeMsg(c.enc); err != nil {
+		vv("problem EncodeMsg on the header: '%v'", err)
 		if c.enc.Flush() == nil {
 			// couldn't encode the header. Should not happen, so if it does,
 			// shut down the connection to signal that the connection is broken.
@@ -343,7 +347,9 @@ func (c *greenpackServerCodec) WriteResponse(r *Response, body msgp.Encodable) (
 		return
 	}
 
+	vv("WriteResponse: about the encode body: body = '%#v'", body)
 	if err = body.EncodeMsg(c.enc); err != nil {
+		vv("problem EncodeMsg on body: '%v'", err)
 		if c.enc.Flush() == nil {
 			// Was a problem encoding the body but the header has been written.
 			// Shut down the connection to signal that the connection is broken.
@@ -352,6 +358,7 @@ func (c *greenpackServerCodec) WriteResponse(r *Response, body msgp.Encodable) (
 		}
 		return
 	}
+	vv("WriteResponse: got past encoding the body, about to Flush()")
 	err = c.enc.Flush()
 	if err != nil {
 		return err

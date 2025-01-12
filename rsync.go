@@ -100,9 +100,10 @@ type RsyncStep1_SenderOverview struct {
 type RsyncStep2_ReaderAcksOverview struct {
 	// if true, no further action needed.
 	// ReaderHashes can be nil then.
-	ReaderMatchesSenderAllGood bool `zid:"0"`
+	ReaderMatchesSenderAllGood bool   `zid:"0"`
+	SenderPath                 string `zid:"1"`
 
-	ReaderHashes *RsyncHashes `zid:"1"`
+	ReaderHashes *RsyncHashes `zid:"2"`
 }
 
 // 3) sender chunks the file, does the diff, and
@@ -211,6 +212,7 @@ type Nil struct {
 }
 
 type RsyncNode struct {
+	Host        string `zid:"0"`
 	Placeholder int
 }
 
@@ -225,7 +227,7 @@ func (s *RsyncNode) ClientSends() (err error) {
 
 	err = cli.Call("RsyncNode.Step2_ReaderAcksOverview", req1, reply2, nil)
 
-	req3 := &RsyncStep3_SenderProvidesDeltas{}
+	req3 := &RsyncStep3A_SenderProvidesDeltas{}
 	reply4 := &RsyncStep4_ReaderAcksDeltasFin{}
 
 	err = cli.Call("RsyncNode.Step4_ReaderAcksDeltasFin", req3, reply4, nil)
@@ -245,7 +247,7 @@ func (s *RsyncNode) ClientReads() (err error) {
 	err = cli.Call("RsyncNode.Step1_SenderOverview", req0, reply1, nil)
 
 	req2 := &RsyncStep2_ReaderAcksOverview{}
-	reply3 := &RsyncStep3_SenderProvidesDeltas{}
+	reply3 := &RsyncStep3A_SenderProvidesDeltas{}
 	err = cli.Call("RsyncNode.Step3_SenderProvidesDelta", req2, reply3, nil)
 
 	return
@@ -273,6 +275,7 @@ func (s *RsyncNode) Step1_SenderOverview(
 	local := ""
 	if hdr, ok := HDRFromContext(ctx); ok {
 		local = hdr.Nc.LocalAddr().String()
+		s.Host = local
 		fmt.Printf("Step1 has HDR = '%v'; "+
 			"HDR.Nc.RemoteAddr() gives '%v'; HDR.Nc.LocalAddr() gives '%v'\n",
 			hdr.String(), hdr.Nc.RemoteAddr(), hdr.Nc.LocalAddr())
@@ -318,33 +321,54 @@ func (s *RsyncNode) Step2_ReaderAcksOverview(
 func (s *RsyncNode) Step3_SenderProvidesDelta(
 	ctx context.Context,
 	req *RsyncStep2_ReaderAcksOverview,
-	reply *RsyncStep3_SenderProvidesDeltas) error {
+	reply *RsyncStep3A_SenderProvidesDeltas) error {
+
+	vv("top of Step3_SenderProvidesDelta()")
+
+	if req.ReaderMatchesSenderAllGood {
+		return nil // nothing for us to do, they are fine.
+	}
+	// they need file (parts at least).
+	remoteHashes := req.ReaderHashes
+	localHashes, err := SummarizeFileInCDCHashes(s.Host, req.SenderPath)
+	if err != nil {
+		vv("mid Step3_SenderProvidesDelta(); err = '%v'", err)
+	} else {
+		vv("localHashes ok") // long!: = '%v'", localHashes.String())
+	}
+	panicOn(err)
+
+	//a.Diff(b) (a is local, b is remote); need to send OnlyA
+	diff := localHashes.Diff(remoteHashes)
+
+	reply.SenderPath = req.SenderPath
+	reply.SenderHashes = localHashes
+	reply.ChunkDiff = diff
+
+	vv("end of Step3_SenderProvidesDelta()")
 
 	return nil
 }
 
 func (s *RsyncNode) Step4_ReaderAcksDeltasFin(
 	ctx context.Context,
-	req *RsyncStep3_SenderProvidesDeltas,
+	req *RsyncStep3A_SenderProvidesDeltas,
 	reply *RsyncStep4_ReaderAcksDeltasFin) error {
 
 	return nil
 }
 
-type RsyncStep3_SenderProvidesDeltas struct {
-	SenderHashes *RsyncHashes `zid:"0"` // needs to be streamed too.
+type RsyncStep3A_SenderProvidesDeltas struct {
+	SenderPath   string       `zid:"0"`
+	SenderHashes *RsyncHashes `zid:"1"` // needs to be streamed too? could be very large?
 
-	ChunkDiff *RsyncDiff `zid:"1"`
+	ChunkDiff *RsyncDiff `zid:"2"`
+}
 
-	DeltaHashesPreCompression []string `zid:"2"`
-	CompressionAlgo           string   `zid:"3"`
-
-	// Bistream this separately as a file,
-	// because it can be so big; if we have
-	// no diff compression available it will
-	// be the whole file anyway(!)
-	//DeltaData                 [][]byte `zid:"4"`
-	DeltaDataStreamedPath string `zid:"4"`
+// might be lots of these.
+type RsyncStep3B_HashChunk struct {
+	SenderPath string        `zid:"0"`
+	Chunk      []*RsyncChunk `zid:"1"`
 }
 
 // 4) reader gets the diff, the changed chunks (DeltaData),

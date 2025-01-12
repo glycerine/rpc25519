@@ -1026,8 +1026,8 @@ func BenchmarkDecodeRsyncStep2_ReaderAcksOverview(b *testing.B) {
 	}
 }
 
-func TestMarshalUnmarshalRsyncStep3_SenderProvidesDeltas(t *testing.T) {
-	v := RsyncStep3_SenderProvidesDeltas{}
+func TestMarshalUnmarshalRsyncStep3A_SenderProvidesDeltas(t *testing.T) {
+	v := RsyncStep3A_SenderProvidesDeltas{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -1049,8 +1049,8 @@ func TestMarshalUnmarshalRsyncStep3_SenderProvidesDeltas(t *testing.T) {
 	}
 }
 
-func BenchmarkMarshalMsgRsyncStep3_SenderProvidesDeltas(b *testing.B) {
-	v := RsyncStep3_SenderProvidesDeltas{}
+func BenchmarkMarshalMsgRsyncStep3A_SenderProvidesDeltas(b *testing.B) {
+	v := RsyncStep3A_SenderProvidesDeltas{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -1058,8 +1058,8 @@ func BenchmarkMarshalMsgRsyncStep3_SenderProvidesDeltas(b *testing.B) {
 	}
 }
 
-func BenchmarkAppendMsgRsyncStep3_SenderProvidesDeltas(b *testing.B) {
-	v := RsyncStep3_SenderProvidesDeltas{}
+func BenchmarkAppendMsgRsyncStep3A_SenderProvidesDeltas(b *testing.B) {
+	v := RsyncStep3A_SenderProvidesDeltas{}
 	bts := make([]byte, 0, v.Msgsize())
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -1070,8 +1070,8 @@ func BenchmarkAppendMsgRsyncStep3_SenderProvidesDeltas(b *testing.B) {
 	}
 }
 
-func BenchmarkUnmarshalRsyncStep3_SenderProvidesDeltas(b *testing.B) {
-	v := RsyncStep3_SenderProvidesDeltas{}
+func BenchmarkUnmarshalRsyncStep3A_SenderProvidesDeltas(b *testing.B) {
+	v := RsyncStep3A_SenderProvidesDeltas{}
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
@@ -1084,8 +1084,8 @@ func BenchmarkUnmarshalRsyncStep3_SenderProvidesDeltas(b *testing.B) {
 	}
 }
 
-func TestEncodeDecodeRsyncStep3_SenderProvidesDeltas(t *testing.T) {
-	v := RsyncStep3_SenderProvidesDeltas{}
+func TestEncodeDecodeRsyncStep3A_SenderProvidesDeltas(t *testing.T) {
+	v := RsyncStep3A_SenderProvidesDeltas{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
@@ -1094,7 +1094,7 @@ func TestEncodeDecodeRsyncStep3_SenderProvidesDeltas(t *testing.T) {
 		t.Logf("WARNING: Msgsize() for %v is inaccurate", v)
 	}
 
-	vn := RsyncStep3_SenderProvidesDeltas{}
+	vn := RsyncStep3A_SenderProvidesDeltas{}
 	err := msgp.Decode(&buf, &vn)
 	if err != nil {
 		t.Error(err)
@@ -1108,8 +1108,8 @@ func TestEncodeDecodeRsyncStep3_SenderProvidesDeltas(t *testing.T) {
 	}
 }
 
-func BenchmarkEncodeRsyncStep3_SenderProvidesDeltas(b *testing.B) {
-	v := RsyncStep3_SenderProvidesDeltas{}
+func BenchmarkEncodeRsyncStep3A_SenderProvidesDeltas(b *testing.B) {
+	v := RsyncStep3A_SenderProvidesDeltas{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -1122,8 +1122,121 @@ func BenchmarkEncodeRsyncStep3_SenderProvidesDeltas(b *testing.B) {
 	en.Flush()
 }
 
-func BenchmarkDecodeRsyncStep3_SenderProvidesDeltas(b *testing.B) {
-	v := RsyncStep3_SenderProvidesDeltas{}
+func BenchmarkDecodeRsyncStep3A_SenderProvidesDeltas(b *testing.B) {
+	v := RsyncStep3A_SenderProvidesDeltas{}
+	var buf bytes.Buffer
+	msgp.Encode(&buf, &v)
+	b.SetBytes(int64(buf.Len()))
+	rd := msgp.NewEndlessReader(buf.Bytes(), b)
+	dc := msgp.NewReader(rd)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err := v.DecodeMsg(dc)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func TestMarshalUnmarshalRsyncStep3B_HashChunk(t *testing.T) {
+	v := RsyncStep3B_HashChunk{}
+	bts, err := v.MarshalMsg(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	left, err := v.UnmarshalMsg(bts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(left) > 0 {
+		t.Errorf("%d bytes left over after UnmarshalMsg(): %q", len(left), left)
+	}
+
+	left, err = msgp.Skip(bts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(left) > 0 {
+		t.Errorf("%d bytes left over after Skip(): %q", len(left), left)
+	}
+}
+
+func BenchmarkMarshalMsgRsyncStep3B_HashChunk(b *testing.B) {
+	v := RsyncStep3B_HashChunk{}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		v.MarshalMsg(nil)
+	}
+}
+
+func BenchmarkAppendMsgRsyncStep3B_HashChunk(b *testing.B) {
+	v := RsyncStep3B_HashChunk{}
+	bts := make([]byte, 0, v.Msgsize())
+	bts, _ = v.MarshalMsg(bts[0:0])
+	b.SetBytes(int64(len(bts)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bts, _ = v.MarshalMsg(bts[0:0])
+	}
+}
+
+func BenchmarkUnmarshalRsyncStep3B_HashChunk(b *testing.B) {
+	v := RsyncStep3B_HashChunk{}
+	bts, _ := v.MarshalMsg(nil)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(bts)))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := v.UnmarshalMsg(bts)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func TestEncodeDecodeRsyncStep3B_HashChunk(t *testing.T) {
+	v := RsyncStep3B_HashChunk{}
+	var buf bytes.Buffer
+	msgp.Encode(&buf, &v)
+
+	m := v.Msgsize()
+	if buf.Len() > m {
+		t.Logf("WARNING: Msgsize() for %v is inaccurate", v)
+	}
+
+	vn := RsyncStep3B_HashChunk{}
+	err := msgp.Decode(&buf, &vn)
+	if err != nil {
+		t.Error(err)
+	}
+
+	buf.Reset()
+	msgp.Encode(&buf, &v)
+	err = msgp.NewReader(&buf).Skip()
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func BenchmarkEncodeRsyncStep3B_HashChunk(b *testing.B) {
+	v := RsyncStep3B_HashChunk{}
+	var buf bytes.Buffer
+	msgp.Encode(&buf, &v)
+	b.SetBytes(int64(buf.Len()))
+	en := msgp.NewWriter(msgp.Nowhere)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		v.EncodeMsg(en)
+	}
+	en.Flush()
+}
+
+func BenchmarkDecodeRsyncStep3B_HashChunk(b *testing.B) {
+	v := RsyncStep3B_HashChunk{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))

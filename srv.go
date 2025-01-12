@@ -1176,7 +1176,7 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 // called by callMethodByReflection
 func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec ServerCodec, errmsg string, job *job) {
 
-	//vv("pair sendResponse() top, reply: '%#v'", reply)
+	vv("pair sendResponse() top, reply: '%#v'", reply)
 
 	resp := p.Server.getResponse()
 	// Encode the response header
@@ -1189,6 +1189,9 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 	//vv("srv sendResonse() for req.Seq = %v", req.Seq)
 	//p.sending.Lock()
 	err := codec.WriteResponse(resp, reply)
+	if err != nil {
+		vv("error writing resp was '%v'; resp='%#v'", err, resp)
+	}
 	if debugLog && err != nil {
 		log.Println("rpc: writing response:", err)
 	}
@@ -1211,11 +1214,13 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 	by := p.encBuf.Bytes()
 	msg.JobSerz = make([]byte, len(by))
 	copy(msg.JobSerz, by)
-	//vv("response JobSerz is len %v", len(by))
+	vv("response JobSerz is len %v; blake3= '%v'", len(by), blake3OfBytesString(by))
 	err = job.w.sendMessage(p.Conn, msg, &p.cfg.WriteTimeout)
 	if err != nil {
 		alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
 		// just let user try again?
+	} else {
+		vv("srv sendMessage went ok")
 	}
 	p.Server.freeMessage(msg)
 }

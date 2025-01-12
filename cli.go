@@ -1134,9 +1134,15 @@ func (c *Client) gotNetRpcInput(replyMsg *Message) (err error) {
 	c.decBuf.Reset()
 	c.decBuf.Write(replyMsg.JobSerz)
 	c.codec.dec.Reset(&c.decBuf)
-	//vv("gotNetRpcInput replyMsg.JobSerz is len %v", len(replyMsg.JobSerz))
-	//vv("c.decBuf has %v", len(c.decBuf.Bytes()))
+	vv("gotNetRpcInput replyMsg.JobSerz is len %v", len(replyMsg.JobSerz))
 
+	decBufBy := c.decBuf.Bytes()
+	blak3 := blake3OfBytesString(decBufBy)
+	vv("c.decBuf has %v; blake3sum='%v'", len(decBufBy), blak3)
+	magic0 := c.decBuf.Bytes()[:7]
+	if bytes.Equal(magic0, magic[:7]) {
+		panic("arg! magic left in!")
+	}
 	err = c.codec.ReadResponseHeader(&response)
 	panicOn(err)
 	if err != nil {
@@ -1514,7 +1520,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 	// leave deafultTimeout nil if user supplied a cancelJobCh.
 	if cancelJobCh == nil {
 		// try hard not to get stuck when server goes away.
-		defaultTimeout = time.After(10 * time.Second)
+		defaultTimeout = time.After(20 * time.Second)
 	}
 
 	var from, to string
