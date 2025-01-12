@@ -104,6 +104,8 @@ func Test210_client_sends_file_over_rsync(t *testing.T) {
 
 		vv("got senderOV = '%#v'", senderOV)
 
+		// A regular client would report to user that the file is not avail;
+		// or the error from remote. We just panic in this test.
 		if senderOV.ErrString != "" {
 			panic(senderOV.ErrString)
 		}
@@ -111,17 +113,18 @@ func Test210_client_sends_file_over_rsync(t *testing.T) {
 			panic(fmt.Sprintf("remote file is 0 bytes: '%v'", path))
 		}
 
-		var rsyncHashes *RsyncHashes
+		// summarize our local file contents.
+		var localPathHashes *RsyncHashes
 		if fileExists(path) {
-			rsyncHashes, err = SummarizeFileInCDCHashes(host, path)
+			localPathHashes, err = SummarizeFileInCDCHashes(host, path)
 			panicOn(err)
 		}
 
-		// request:
+		// step2 request: get diffs from what we have.
 		readerAckOV := &RsyncStep2_ReaderAcksOverview{
 			ReaderMatchesSenderAllGood: false,
 			SenderPath:                 senderOV.SenderPath,
-			ReaderHashes:               rsyncHashes,
+			ReaderHashes:               localPathHashes,
 		}
 
 		senderDeltas := &RsyncStep3A_SenderProvidesDeltas{} // response
@@ -130,5 +133,8 @@ func Test210_client_sends_file_over_rsync(t *testing.T) {
 		panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
 
 		vv("senderDeltas = '%#v'", senderDeltas)
+		localIsHostB := true
+		err = AssembleDeltasToPath(path+".rsynced", localPathHashes, senderDeltas, localIsHostB)
+		panicOn(err)
 	})
 }

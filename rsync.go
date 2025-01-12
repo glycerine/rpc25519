@@ -23,6 +23,225 @@ import (
 
 //go:generate greenpack -no-dedup=true
 
+type Chunk struct {
+	Beg  int    `zid:"0"`
+	Endx int    `zid:"1"`
+	Cry  string `zid:"2"` // a cryptographic hash identifying the chunk
+
+	// Data might be nil for summary purposes,
+	// or provided if we are transmitting a set of diffs.
+	Data []byte `zid:"3"`
+}
+
+func (c *Chunk) Len() int { return c.Endx - c.Beg }
+
+// Chunks represents
+// It could be all of the data in Path.
+// Or it could just be a subset: the diffs that are needed to make Path.
+// But either way, the Beg are always in sorted, ascending order. Hence:
+//
+// INVAR: Chunks[i].Beg < Chunks[i+1].Beg
+//
+// Path is really just a reporting/sanity convenience.
+type Chunks struct {
+	Chunks []*Chunk `zid:"0"`
+	Path   string   `zid:"1"`
+
+	// FileSize gives the total size of Path,
+	// since we may have only a subset of
+	// Path's data chunks (e.g. the updated ones).
+	FileSize int `zid:"2"`
+}
+
+// UpdateLocalWithRemoteDiffs is the essence of the rsync
+// algorithm for efficient file transfer.
+func UpdateLocalWithRemoteDiffs(
+	writeToPath string,
+
+	// map Cry hash -> chunk.
+	// typically either these are the chunks
+	// from the local version of the path; but
+	// they could be from a larger data store
+	// like a Git repo or database.
+	localMap map[string]*Chunks,
+	remote *Chunks,
+
+) (err error) {
+
+	// assemble in memory first, later stream to disk.
+	newvers := make([]byte, remote.FileSize)
+	j := 0 // index to new version, how much we have written.
+
+	// remote gives the plan of what to create
+	for i, chnk := range remote.Chunks {
+
+		if len(chnk.Data) == 0 {
+			// the data is local
+			lc, ok := localMap[chnk.Cry]
+			if !ok {
+				panic(fmt.Sprintf("rsync algo failed, the needed data is not "+
+					"available locally: '%v'", chnk))
+			}
+			wb := copy(newvers[j:], lc.Data)
+			j += wb
+			if wb != len(lc.Data) {
+				panic("newvers did not have enough space")
+			}
+			// sanity check the local chunk as a precaution.
+			if wb != lc.Endx-lc.Beg {
+				panic("lc.Endx = %v, lc.Beg = %v, but lc.Data len = %v", lc.Endx, lc.Beg, wb)
+			}
+		} else {
+			wb := copy(newvers[j:], chnk.Data)
+			j += wb
+			if wb != len(chnk.Data) {
+				panic("newvers did not have enough space")
+			}
+			// sanity check the local chunk as a precaution.
+			if wb != chnk.Endx-chnk.Beg {
+				panic("lc.Endx = %v, lc.Beg = %v, but lc.Data len = %v", chnk.Endx, chnk.Beg, wb)
+			}
+		}
+	}
+
+	var fd *os.File
+	fd, err = os.Create(writeToPath)
+	if err != nil {
+		return err
+	}
+	defer fd.Close()
+	_, err = fd.Write(newvers)
+	panicOn(err)
+
+	return
+}
+
+// RsyncDiff compares the old and the new versions
+// of a file, and details how to update old to new.
+type RsyncDiff struct {
+	HostNew   string       `zid:"0"`
+	PathNew   string       `zid:"1"`
+	HashesNew *RsyncHashes `zid:"2"`
+
+	HostOld   string       `zid:"3"`
+	PathOld   string       `zid:"4"`
+	HashesOld *RsyncHashes `zid:"5"`
+
+	Both    []*MatchHashPair `zid:"6"`
+	OnlyNew []*RsyncChunk    `zid:"7"`
+	OnlyOld []*RsyncChunk    `zid:"8"`
+}
+
+type MatchHashPair struct {
+	New *RsyncChunk `zid:"0"`
+	Old *RsyncChunk `zid:"1"`
+}
+
+// RsyncHashes stores CDC (Content Dependent Chunking)
+// chunks for a given Path on a given Host, using
+// a specified chunking algorithm (e.g. "jcdc"), its parameters,
+// and a specified hash function (e.g. "blake3.32B"
+type RsyncHashes struct {
+	// uniquely idenitify this hash set.
+	Rsync0CallID string    `zid:"16"`
+	IsFromSender bool      `zid:"17"`
+	Created      time.Time `zid:"18"`
+
+	Host string `zid:"0"`
+	Path string `zid:"1"`
+
+	ModTime     time.Time `zid:"2"`
+	FileSize    int64     `zid:"3"`
+	FileMode    uint32    `zid:"4"`
+	FileOwner   string    `zid:"5"`
+	FileOwnerID uint32    `zid:"6"`
+	FileGroup   string    `zid:"7"`
+	FileGroupID uint32    `zid:"8"`
+	// other data, extension mechanism. Not used presently.
+	FileMeta []byte `zid:"9"`
+
+	// HashName is e.g. "blake3.32B"
+	HashName string `zid:"10"`
+
+	FullFileHashSum string `zid:"11"`
+
+	// ChunkerName is e.g.
+	// "fastcdc-Stadia-Google-64bit-arbitrary-regression-jea"
+	//   or "ultracdc-glycerine-golang-implementation".
+	// It should encapsulate any settings and
+	// implementation version, to allow it to be reproduced.
+	ChunkerName string           `zid:"12"`
+	CDC_Config  *jcdc.CDC_Config `zid:"13"`
+
+	Chunks *Chunks `zid:"14"`
+}
+
+// A BlobStore is CAS for blobs. It is Content Addressable
+// Storage for binary large objects, like a Git Repo
+// or database
+type BlobStore struct {
+	Map map[string]*Chunk
+}
+
+func NewBlobStore() *BlobStore {
+	return &BlobStore{
+		Map: make(map[string]*Chunk),
+	}
+}
+
+// UpdateRemoteToMatchLocalPlan produces an
+// update plan on how to update the
+// remote path to match that a local file. The plan will have
+// chunk.Data pointers set only for those chunks that are local only; that
+// the remote side currently lacks. This is the essential
+// rsync "diff" operation.
+//
+// We expect the remote chunks have no Data pointers available,
+// and all the local to have them, or, as a fallback, for
+// them to be available in the BlobStore.
+// These pointers, from local or the s BlobStore, are
+// copied ino the plan chunks we return.
+func (s *BlobStore) UpdateRemoteToMatchLocalPlan(local, remote *Chunks) (plan *Chunks) {
+
+	plan = &Chunks{
+		//Chunks []*Chunk
+		Path:     remote.path,
+		FileSize: local.FileSize,
+	}
+
+	// index the remote
+	remotemap := make(map[string]*Chunk)
+	for _, c := range remote.Chunks {
+		remotemap[c.Cry] = c
+	}
+	p := plan.Chunks.Chunks
+
+	// the local file layout is the template for the plan
+	for _, c := range local.Chunks {
+		rc, ok := remotemap[c.Cry]
+
+		// make a copy of the local chunk, no matter what.
+		addme := *c
+		if ok {
+			addme.Data = nil
+		} else {
+			// leave addme.Data intact, because remote needs it.
+
+			// sanity check that we do infact have the Data.
+			if len(c.Data) == 0 {
+				// can we get it from the blobstore?
+				bs, ok := s.Map[c.Cry]
+				if !ok || bs == nil || len(bs.Data) == 0 {
+					panic(fmt.Sprintf("local chunks missing Data!: '%v'", c))
+				}
+				addme.Data = bs.Data
+			}
+		}
+		p = append(p, &addme)
+	}
+	return
+}
+
 // rsync operation for a single file. Steps
 // and the structs that go with each step:
 //
@@ -346,6 +565,9 @@ func (s *RsyncNode) Step3_SenderProvidesDelta(
 	//a.Diff(b) (a is local, b is remote); need to send OnlyA
 	diff := localHashes.Diff(remoteHashes)
 
+	diff.OnlyB = nil // unique content on remote, but about to be replaced.
+	diff.Both = nil  // common chunks can take up alot of space.
+
 	reply.SenderPath = req.SenderPath
 	reply.SenderHashes = localHashes
 	reply.ChunkDiff = diff
@@ -392,74 +614,6 @@ type RsyncStep4_ReaderAcksDeltasFin struct {
 	ReaderLenBytes int64     `zid:"2"`
 	ReaderModTime  time.Time `zid:"3"`
 	ReaderFullHash string    `zid:"4"`
-}
-
-// RsyncHashes stores CDC (Content Dependent Chunking)
-// chunks for a given Path on a given Host, using
-// a specified chunking algorithm (e.g. "jcdc"), its parameters,
-// and a specified hash function (e.g. "blake3.32B"
-type RsyncHashes struct {
-	// uniquely idenitify this hash set.
-	Rsync0CallID string    `zid:"16"`
-	IsFromSender bool      `zid:"17"`
-	Created      time.Time `zid:"18"`
-
-	Host string `zid:"0"`
-	Path string `zid:"1"`
-
-	ModTime     time.Time `zid:"2"`
-	FileSize    int64     `zid:"3"`
-	FileMode    uint32    `zid:"4"`
-	FileOwner   string    `zid:"5"`
-	FileOwnerID uint32    `zid:"6"`
-	FileGroup   string    `zid:"7"`
-	FileGroupID uint32    `zid:"8"`
-	// other data, extension mechanism. Not used presently.
-	FileMeta []byte `zid:"9"`
-
-	// HashName is e.g. "blake3.32B"
-	HashName string `zid:"10"`
-
-	FullFileHashSum string `zid:"11"`
-
-	// ChunkerName is e.g.
-	// "fastcdc-Stadia-Google-64bit-arbitrary-regression-jea"
-	//   or "ultracdc-glycerine-golang-implementation".
-	// It should encapsulate any settings and
-	// implementation version, to allow it to be reproduced.
-	ChunkerName string           `zid:"12"`
-	CDC_Config  *jcdc.CDC_Config `zid:"13"`
-
-	// NumChunks gives len(Chunks) for convenience.
-	NumChunks int           `zid:"14"`
-	Chunks    []*RsyncChunk `zid:"15"`
-}
-
-type RsyncChunk struct {
-	ChunkNumber int    `zid:"0"` // zero based index into Chunks slice.
-	Beg         int    `zid:"1"`
-	Endx        int    `zid:"2"`
-	Hash        string `zid:"3"`
-	Len         int    `zid:"4"`
-}
-
-type RsyncDiff struct {
-	HostA   string       `zid:"0"`
-	PathA   string       `zid:"1"`
-	HashesA *RsyncHashes `zid:"2"`
-
-	HostB   string       `zid:"3"`
-	PathB   string       `zid:"4"`
-	HashesB *RsyncHashes `zid:"5"`
-
-	Both  []*MatchHashPair `zid:"6"`
-	OnlyA []*RsyncChunk    `zid:"7"`
-	OnlyB []*RsyncChunk    `zid:"8"`
-}
-
-type MatchHashPair struct {
-	A *RsyncChunk `zid:"0"`
-	B *RsyncChunk `zid:"1"`
 }
 
 func (d *RsyncDiff) String() string {
@@ -531,7 +685,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 
 	if useFastCDC {
 
-		// Stadia improved version of FastCDC
+		// my take on the Stadia improved version of FastCDC
 		opts = &jcdc.CDC_Config{
 			MinSize:    4 * 1024,
 			TargetSize: 60 * 1024,
@@ -578,43 +732,6 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 		prev = c
 	}
 	hashes.NumChunks = len(hashes.Chunks)
-	return
-}
-
-func (a *RsyncHashes) Diff(b *RsyncHashes) (d *RsyncDiff) {
-	d = &RsyncDiff{
-		HostA:   a.Host,
-		PathA:   a.Path,
-		HashesA: a,
-
-		HostB:   b.Host,
-		PathB:   b.Path,
-		HashesB: b,
-	}
-
-	ma := make(map[string]*RsyncChunk)
-	for _, chunkA := range a.Chunks {
-		ma[chunkA.Hash] = chunkA
-	}
-	for _, chunkB := range b.Chunks {
-		chunkA, inBoth := ma[chunkB.Hash]
-		if inBoth {
-			pair := &MatchHashPair{
-				A: chunkA,
-				B: chunkB,
-			}
-			d.Both = append(d.Both, pair)
-			delete(ma, chunkB.Hash)
-		} else {
-			d.OnlyB = append(d.OnlyB, chunkB)
-		}
-	}
-	for _, chunkA := range a.Chunks {
-		_, onlyA := ma[chunkA.Hash]
-		if onlyA {
-			d.OnlyA = append(d.OnlyA, chunkA)
-		}
-	}
 	return
 }
 
