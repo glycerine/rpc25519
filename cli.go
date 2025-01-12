@@ -1138,18 +1138,18 @@ func (c *Client) gotNetRpcInput(replyMsg *Message) (err error) {
 		panic(fmt.Sprintf("short write! nw=%v but len(replyMsgJobSerz) = %v", nw, len(replyMsg.JobSerz)))
 	}
 	c.codec.dec.Reset(&c.decBuf) // means read from this.
-	vv("gotNetRpcInput replyMsg.JobSerz is len %v", len(replyMsg.JobSerz))
+	//vv("gotNetRpcInput replyMsg.JobSerz is len %v", len(replyMsg.JobSerz))
 
-	decBufBy := c.decBuf.Bytes()
-	blak3 := blake3OfBytesString(decBufBy)
-	vv("c.decBuf has %v; blake3sum='%v'", len(decBufBy), blak3)
+	//decBufBy := c.decBuf.Bytes()
+	//blak3 := blake3OfBytesString(decBufBy)
+	//vv("c.decBuf has %v; blake3sum='%v'", len(decBufBy), blak3)
 
 	err = c.codec.ReadResponseHeader(&response) // r.DecodeMsg(c.dec)
 	panicOn(err)
 	if err != nil {
 		return err
 	}
-	vv("reading header got '%#v', c.decBuf has %v", response, len(c.decBuf.Bytes()))
+	//vv("reading header got '%#v', c.decBuf has %v", response, len(c.decBuf.Bytes()))
 
 	seq := response.Seq
 	c.mutex.Lock()
@@ -1165,13 +1165,11 @@ func (c *Client) gotNetRpcInput(replyMsg *Message) (err error) {
 		// removed; response is a server telling us about an
 		// error reading request body. We should still attempt
 		// to read error body, but there's no one to give it to.
-		vv("call == nil cleanup: is this causing corruption??? should never be seen now")
 		err = c.codec.ReadResponseBody(nil)
 		if err != nil {
 			err = errors.New("reading error body: " + err.Error())
 		}
-		vv("no one to give body to? pending = '%#v'", c.pending) // here we see
-		panic("where?")                                          //debug
+		//vv("no one to give body to? pending = '%#v'", c.pending)
 	case response.Error != "":
 		// We've got an error response. Give this to the request;
 		// any subsequent requests will get the ReadResponseBody
@@ -1379,7 +1377,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		dec:          msgp.NewReader(&c.decBuf),
 		enc:          msgp.NewWriter(c.encBufWriter),
 		encBufWriter: c.encBufWriter,
-		debugEncBuf:  &c.encBuf,
+		encBufItself: &c.encBuf,
 	}
 	return c, nil
 }
@@ -1785,7 +1783,8 @@ func (cli *Client) destAddrToSendCh(destAddr string) (sendCh chan *Message, halt
 	}
 	_ = from
 	if destAddr != to {
-		vv("ugh: cli wanted to send to destAddr='%v' but we only know to='%v'", destAddr, to)
+		alwaysPrintf("ugh: cli wanted to send to destAddr='%v' "+
+			"but we only know to='%v'", destAddr, to)
 		return nil, nil, "", "", false
 	}
 	haltCh = cli.halt.ReqStop.Chan

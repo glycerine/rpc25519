@@ -322,7 +322,7 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 		const showAcceptedIdentities = false
 		if showAcceptedIdentities {
 			for i := range good {
-				vv("accepted identity for client: '%v' (was new: %v)\n", good[i], wasNew)
+				alwaysPrintf("accepted identity for client: '%v' (was new: %v)\n", good[i], wasNew)
 			}
 		}
 	}
@@ -1176,7 +1176,7 @@ func (s *service) callMethodByReflection(pair *rwPair, reqMsg *Message, mtype *m
 // called by callMethodByReflection
 func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec ServerCodec, errmsg string, job *job) {
 
-	vv("pair sendResponse() top, reply: '%#v'", reply)
+	//vv("pair sendResponse() top, reply: '%#v'", reply)
 
 	resp := p.Server.getResponse()
 	// Encode the response header
@@ -1186,7 +1186,7 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 		reply = invalidRequest
 	}
 	resp.Seq = req.Seq
-	vv("srv sendResonse() for req.Seq = %v; resp='%#v'", req.Seq, resp)
+	//vv("srv sendResonse() for req.Seq = %v; resp='%#v'", req.Seq, resp)
 	p.sending.Lock()
 	err := codec.WriteResponse(resp, reply)
 	if err != nil {
@@ -1214,13 +1214,13 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 	by := p.encBuf.Bytes()
 	msg.JobSerz = make([]byte, len(by))
 	copy(msg.JobSerz, by)
-	vv("response JobSerz is len %v; blake3= '%v'", len(by), blake3OfBytesString(by))
+	//vv("response JobSerz is len %v; blake3= '%v'", len(by), blake3OfBytesString(by))
 	err = job.w.sendMessage(p.Conn, msg, &p.cfg.WriteTimeout)
 	if err != nil {
 		alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
 		// just let user try again?
 	} else {
-		vv("srv sendMessage went ok")
+		//vv("srv sendMessage went ok")
 	}
 	p.Server.freeMessage(msg)
 }
@@ -1504,7 +1504,7 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 		dec:          msgp.NewReader(&p.decBuf),
 		enc:          msgp.NewWriter(p.encBufWriter),
 		encBufWriter: p.encBufWriter,
-		debugEncBuf:  &p.encBuf,
+		encBufItself: &p.encBuf,
 	}
 
 	key := remote(conn)

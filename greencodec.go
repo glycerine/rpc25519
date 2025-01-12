@@ -11,16 +11,13 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"go/token"
 	"io"
 	"log"
-	"os"
 	"reflect"
 	"sync"
 
 	"github.com/glycerine/greenpack/msgp"
-	"github.com/hexops/valast"
 )
 
 // A value sent as a placeholder for the server's response value when the server
@@ -55,9 +52,9 @@ func (e ServerError) Error() string {
 // discarded.
 // See [NewClient]'s comment for information about concurrent access.
 type ClientCodec interface {
-	WriteRequest(*Request, msgp.Encodable) error
+	WriteRequest(*Request, Green) error
 	ReadResponseHeader(*Response) error
-	ReadResponseBody(msgp.Decodable) error
+	ReadResponseBody(Green) error
 
 	Close() error
 }
@@ -74,8 +71,8 @@ type ClientCodec interface {
 // See [NewClient]'s comment for information about concurrent access.
 type ServerCodec interface {
 	ReadRequestHeader(*Request) error
-	ReadRequestBody(msgp.Decodable) error
-	WriteResponse(*Response, msgp.Encodable) error
+	ReadRequestBody(Green) error
+	WriteResponse(*Response, Green) error
 
 	// Close can be called multiple times and must be idempotent.
 	Close() error
@@ -87,38 +84,43 @@ type greenpackClientCodec struct {
 	dec          *msgp.Reader
 	enc          *msgp.Writer
 	encBufWriter *bufio.Writer
-	debugEncBuf  *bytes.Buffer // target of encBufWriter for debugging.
+	encBufItself *bytes.Buffer // target of encBufWriter for debugging.
 }
 
-func (c *greenpackClientCodec) WriteRequest(r *Request, body msgp.Encodable) (err error) {
-	if err = r.EncodeMsg(c.enc); err != nil {
-		return
-	}
-	if err = body.EncodeMsg(c.enc); err != nil {
-		return
-	}
-	err = c.enc.Flush() // flush the greenpack msgp.Writer
-	if err != nil {
-		return err
-	}
-	return c.encBufWriter.Flush() // flush the bufio.Writer
+func (c *greenpackClientCodec) WriteRequest(r *Request, body msgp.Marshaler) (err error) {
+
+	// prefer Marshal/Unmarshal to avoid pointer dedup issues for now
+	/*	if err = r.EncodeMsg(c.enc); err != nil {
+			return
+		}
+		if err = body.EncodeMsg(c.enc); err != nil {
+			return
+		}
+		err = c.enc.Flush() // flush the greenpack msgp.Writer
+		if err != nil {
+			return err
+		}
+		return c.encBufWriter.Flush() // flush the bufio.Writer
+	*/
+	bts, err := r.MarshalMsg(nil)
+	panicOn(err)
+	_, err = c.encBufItself.Write(bts)
+	panicOn(err)
+	bts, err = body.MarshalMsg(nil)
+	panicOn(err)
+	_, err = c.encBufItself.Write(bts)
+	return err
 }
 
 func (c *greenpackClientCodec) ReadResponseHeader(r *Response) error {
 	return r.DecodeMsg(c.dec)
 }
 
-func (c *greenpackClientCodec) ReadResponseBody(body msgp.Decodable) (err error) {
+func (c *greenpackClientCodec) ReadResponseBody(body Green) (err error) {
 	if body == nil {
 		return nil
 	}
-	//vv("ReadResponseBody pre DecodeMsg: '%#v'", body)
-	//vv("cli.decBuf has len %v: '%v'", len(c.cli.decBuf.Bytes()), string(c.cli.decBuf.Bytes()))
 	err = body.DecodeMsg(c.dec)
-	if err != nil {
-		// greencodec.go:114 2025-01-12 09:15:13.501 -0600 CST error back from body.DecodeMsg: 'msgp: attempted to decode type "ext" with method for "map"'
-		vv("error back from body.DecodeMsg: '%v' ", err) // here!
-	}
 	return
 }
 
@@ -134,8 +136,15 @@ func (c *greenpackClientCodec) Close() error {
 var ErrNetRpcShutdown = errors.New("connection is shut down")
 
 type Green interface {
-	msgp.Encodable
+	// avoid EncodeMsg using until the
+	// pointer dedup greenpack issue can be fixed.
+	// Also it makes our greenpack use msgpack
+	// extensions that are far from universal;
+	// so we may just leave it out.
+	//msgp.Encodable
 	msgp.Decodable
+	msgp.Marshaler
+	msgp.Unmarshaler
 }
 
 // Call represents an active net/rpc RPC.
@@ -195,11 +204,10 @@ func suitableMethods(typ reflect.Type, logErr bool) map[string]*methodType {
 		}
 		// Method needs three ins: receiver, *args, *reply.
 		if mtype.NumIn() != 3 {
-			// We want to just ignore methods that are not registerable!
+			// We want to just ignore methods that are not registerable! There may be many.
 
 			//if logErr {
 			//	alwaysPrintf("rpc.Register: method %q has %d input parameters; needs exactly three", mname, mtype.NumIn())
-			//	panic("fix the above")
 			//}
 			continue
 		}
@@ -318,7 +326,7 @@ type greenpackServerCodec struct {
 	dec          *msgp.Reader
 	enc          *msgp.Writer
 	encBufWriter *bufio.Writer
-	debugEncBuf  *bytes.Buffer // target of encBufWriter for debugging.
+	encBufItself *bytes.Buffer // target of encBufWriter for debugging.
 	closed       bool
 }
 
@@ -330,7 +338,7 @@ func (c *greenpackServerCodec) ReadRequestHeader(r *Request) (err error) {
 	return
 }
 
-func (c *greenpackServerCodec) ReadRequestBody(body msgp.Decodable) (err error) {
+func (c *greenpackServerCodec) ReadRequestBody(body Green) (err error) {
 	if body == nil {
 		// srv.go:671 readRequest() trying to discard body.
 		// We should be able to no-op this because we'll
@@ -344,127 +352,17 @@ func (c *greenpackServerCodec) ReadRequestBody(body msgp.Decodable) (err error) 
 	return
 }
 
-func (c *greenpackServerCodec) WriteResponse(r *Response, body msgp.Encodable) (err error) {
-	vv("top of WriteResponse, about to encode header; c.enc.Buffered() = %v", c.enc.Buffered())
-	if err = r.EncodeMsg(c.enc); err != nil {
-		vv("problem EncodeMsg on the header: '%v'", err)
-		if c.enc.Flush() == nil {
-			// couldn't encode the header. Should not happen, so if it does,
-			// shut down the connection to signal that the connection is broken.
-			log.Println("rpc: greenpack error encoding response:", err)
-			c.Close()
-		}
-		return
-	}
+func (c *greenpackServerCodec) WriteResponse(r *Response, body Green) (err error) {
 
-	vv("DEBUG! TODO undo check: was Response net/rpc header written?")
-	panicOn(c.enc.Flush())
-	panicOn(c.encBufWriter.Flush())
-	headerLen := len(c.debugEncBuf.Bytes())
-	vv("after writing net/rpc Response header, debugEncBuf len= %v", headerLen)
-
-	vv("WriteResponse: about to encode body: body = '%#v'", body)
-	if err = body.EncodeMsg(c.enc); err != nil {
-		vv("problem EncodeMsg on body: '%v'", err)
-		if c.enc.Flush() == nil {
-			// Was a problem encoding the body but the header has been written.
-			// Shut down the connection to signal that the connection is broken.
-			log.Println("rpc: greenpack error encoding body:", err)
-			c.Close()
-		}
-		return
-	}
-	vv("WriteResponse: got past encoding the body, about to Flush()")
-	err = c.enc.Flush()
-	if err != nil {
-		return err
-	}
-	err = c.encBufWriter.Flush()
-	// DEBUG adds:
-	debugby := c.debugEncBuf.Bytes()
-	tot := len(debugby)
-	bodyLen := tot - headerLen
-	vv("server side: response header is len %v; blake3= '%v'", headerLen, blake3OfBytesString(debugby[:headerLen]))
-	vv("server side: response body   is len %v; blake3= '%v'", bodyLen, blake3OfBytesString(debugby[headerLen:]))
-	// verify encoding
-
-	vv("verify encoding for body: %T", body)
-	switch x := body.(type) {
-	case *RsyncStep3A_SenderProvidesDeltas:
-		vv("compare Marshal to Encode")
-		bts, err := x.MarshalMsg(nil)
-		panicOn(err)
-		if bytes.Equal(bts, debugby[headerLen:]) {
-			vv("good: marshal and ecode the same")
-		} else {
-			// marshal len 1972483; encode len 959266
-			vv("marshal len %v; ecode len %v", len(bts), bodyLen)
-
-			fdx, err := os.Create("marshal.x")
-			panicOn(err)
-			_, err = fdx.Write(bts)
-			panicOn(err)
-			fdx.Close()
-			//CopyToJSON
-
-			fdx, err = os.Create("marshal.x.json")
-			panicOn(err)
-			_, err = msgp.CopyToJSON(fdx, bytes.NewBuffer(bts))
-			panicOn(err)
-			fdx.Close()
-
-			fdx, err = os.Create("encode.x")
-			panicOn(err)
-			_, err = fdx.Write(debugby[headerLen:])
-			panicOn(err)
-			fdx.Close()
-
-			fdx, err = os.Create("encode.x.json")
-			panicOn(err)
-			_, err = msgp.CopyToJSON(fdx, bytes.NewBuffer(debugby[headerLen:]))
-			panicOn(err)
-			fdx.Close()
-
-			vv("can we DecodeMsg from the MarshalMsg output?")
-			crosscheck := &RsyncStep3A_SenderProvidesDeltas{}
-			msgp.Decode(bytes.NewBuffer(bts), crosscheck)
-			deepeq := reflect.DeepEqual(x, crosscheck)
-			vv("crosscheck deepeq = %v", deepeq) // true!
-			//panic("marshal and encode differ") // they are going to b/c encode will have @ type ID, and pointer dedup (which we just turned off b/c it seems maybe that is why the error msg?)
-		}
-
-		vv("test decoding RsyncStep3A_SenderProvidesDeltas")
-		y := &RsyncStep3A_SenderProvidesDeltas{}
-		left, err3 := y.UnmarshalMsg(debugby[headerLen:])
-
-		// we have reproduced the error on the server side!
-		// we found the issue: it has to do with the greenpack pointer dedup
-		// that the Encode/Decode do, versus the Marshal/Unmarshal never do b/c they cannot.
-		// When we set greenpack -no-dedup on the rsync.go file, the issue goes away.
-		// Still it would be great to have pointer dedup working, because it
-		// reduced the size of the diff file: cut it in half!
-		panicOn(err3) // panic: msgp: attempted to decode type "ext" with method for "map" <-
-		if len(left) > 0 {
-			// getting here, nothing being decoded???
-			panic(fmt.Sprintf("should have 0 left, but we have %v", len(left)))
-		}
-		if !reflect.DeepEqual(y, x) {
-			fdx, err := os.Create("debug.x.orig")
-			panicOn(err)
-			fmt.Fprintf(fdx, "%v\n", valast.String(x))
-			fdx.Close()
-
-			fdy, err := os.Create("debug.y.test_unmarshal")
-			panicOn(err)
-			fmt.Fprintf(fdy, "%v\n", valast.String(y))
-			fdy.Close()
-
-			panic("not deep equal!")
-		} else {
-			vv("test Unmarshal good.")
-		}
-	}
-	return
+	// preferring Marshal over Encode to avoid the pointer dedup issue.
+	bts, err := r.MarshalMsg(nil)
+	panicOn(err)
+	_, err = c.encBufItself.Write(bts)
+	panicOn(err)
+	bts, err = body.MarshalMsg(nil)
+	panicOn(err)
+	_, err = c.encBufItself.Write(bts)
+	return err
 }
 
 func (c *greenpackServerCodec) Close() error {
