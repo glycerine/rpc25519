@@ -938,6 +938,7 @@ type Server struct {
 	callmeBistreamMap            map[string]BistreamFunc
 
 	notifies *notifies
+	PeerAPI  *peerAPI // must be Exported to users!
 
 	lsn  io.Closer // net.Listener
 	halt *idem.Halter
@@ -1702,7 +1703,7 @@ func NewServer(name string, config *Config) *Server {
 		clone := *config // cfg.shared is a pointer to enable this shallow copy.
 		cfg = &clone
 	}
-	return &Server{
+	s := &Server{
 		name:              name,
 		cfg:               cfg,
 		remote2pair:       make(map[string]*rwPair),
@@ -1718,6 +1719,8 @@ func NewServer(name string, config *Config) *Server {
 
 		notifies: newNotifies(),
 	}
+	s.PeerAPI = newPeerAPI(s)
+	return s
 }
 
 func (s *Server) RegisterServerSendsDownloadFunc(name string, callme ServerSendsDownloadFunc) {

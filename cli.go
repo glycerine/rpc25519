@@ -950,6 +950,7 @@ type Client struct {
 	notifyOnce   map[uint64]*loquet.Chan[Message]
 
 	notifies *notifies
+	PeerAPI  *peerAPI // must be Exported to users!
 
 	conn       uConnLR
 	quicConn   quic.Connection
@@ -991,7 +992,6 @@ type Client struct {
 	closing  bool // user has called Close
 	shutdown bool // server has told us to stop
 
-	PeerAPI *peerAPI
 }
 
 // Compute HMAC using SHA-256, so 32 bytes long.

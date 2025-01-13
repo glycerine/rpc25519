@@ -34,9 +34,12 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		panicOn(err)
 		defer cli.Close()
 
-		// Fragment/Circuit Peer API on server
-		peer := &PeerImpl{}
-		cli.PeerAPI.RegisterPeerStreamFunc("my peer", peer.PeerStream)
+		// Fragment/Circuit Peer API on Client/Server
+		peer0 := &PeerImpl{}
+		cli.PeerAPI.RegisterPeerStreamFunc("peer0", peer0.PeerStream)
+
+		peer1 := &PeerImpl{}
+		srv.PeerAPI.RegisterPeerStreamFunc("peer1", peer1.PeerStream)
 
 	})
 }
