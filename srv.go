@@ -2174,13 +2174,13 @@ func (s *Server) UnregisterChannel(ID string, whichmap int) {
 	defer s.notifies.mut.Unlock()
 
 	switch whichmap {
-	case CallReadMap:
+	case CallIDReadMap:
 		delete(s.notifies.notifyOnReadCallIDMap, ID)
-	case CallErrorMap:
+	case CallIDErrorMap:
 		delete(s.notifies.notifyOnErrorCallIDMap, ID)
-	case ObjReadMap:
+	case ObjIDReadMap:
 		delete(s.notifies.notifyOnReadObjIDMap, ID)
-	case ObjErrorMap:
+	case ObjIDErrorMap:
 		delete(s.notifies.notifyOnErrorObjIDMap, ID)
 	}
 }

@@ -332,7 +332,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 	ch := make(chan *Message, 1)
 	p.u.GetReadsForCallID(ch, callID)
 	// be sure to cleanup.
-	defer p.u.UnregisterChannel(callID, CallReadMap)
+	defer p.u.UnregisterChannel(callID, CallIDReadMap)
 
 	err = p.u.SendOneWayMessage(ctx, msg, nil)
 	if err != nil {

@@ -2287,10 +2287,10 @@ func (s *Client) GetErrorsForObjID(ch chan *Message, objID string) {
 
 // whichmap meanings for UnregisterChannel
 const (
-	CallReadMap  = 0
-	CallErrorMap = 1
-	ObjReadMap   = 2
-	ObjErrorMap  = 3
+	CallIDReadMap  = 0
+	CallIDErrorMap = 1
+	ObjIDReadMap   = 2
+	ObjIDErrorMap  = 3
 )
 
 func (s *Client) UnregisterChannel(ID string, whichmap int) {
@@ -2298,13 +2298,13 @@ func (s *Client) UnregisterChannel(ID string, whichmap int) {
 	defer s.notifies.mut.Unlock()
 
 	switch whichmap {
-	case CallReadMap:
+	case CallIDReadMap:
 		delete(s.notifies.notifyOnReadCallIDMap, ID)
-	case CallErrorMap:
+	case CallIDErrorMap:
 		delete(s.notifies.notifyOnErrorCallIDMap, ID)
-	case ObjReadMap:
+	case ObjIDReadMap:
 		delete(s.notifies.notifyOnReadObjIDMap, ID)
-	case ObjErrorMap:
+	case ObjIDErrorMap:
 		delete(s.notifies.notifyOnErrorObjIDMap, ID)
 	}
 }
