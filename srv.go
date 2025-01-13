@@ -76,10 +76,12 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 	var err error
 	var config *tls.Config
 
-	// handle pass-phrase protected certs/node.key
-	config, s.creds, err = selfcert.LoadNodeTLSConfigProtected(true, sslCA, sslCert, sslCertKey)
-	if err != nil {
-		panic(fmt.Sprintf("error on LoadServerTLSConfig(): '%v'", err))
+	if !tcp_only {
+		// handle pass-phrase protected certs/node.key
+		config, s.creds, err = selfcert.LoadNodeTLSConfigProtected(true, sslCA, sslCert, sslCertKey)
+		if err != nil {
+			panic(fmt.Sprintf("error on LoadServerTLSConfig(): '%v'", err))
+		}
 	}
 
 	// Not needed now that we have proper CA cert from gen.sh; or
@@ -237,7 +239,7 @@ func (s *Server) serveConn(conn net.Conn) {
 	var srvEphemPub []byte
 	var cliStaticPub ed25519.PublicKey
 
-	if s.cfg.encryptPSK {
+	if !s.cfg.TCPonly_no_TLS && s.cfg.encryptPSK {
 		var err error
 		switch {
 		case useVerifiedHandshake:

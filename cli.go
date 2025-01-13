@@ -86,22 +86,25 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		sslCertKey = fixSlash(fmt.Sprintf("%v/%v.key", certPath, keyName)) // path to server key
 	}
 
-	// handle pass-phrase protected certs/client.key
-	config, creds, err2 := selfcert.LoadNodeTLSConfigProtected(false, sslCA, sslCert, sslCertKey)
-	//config, err2 := loadClientTLSConfig(embedded, sslCA, sslCert, sslCertKey)
-	if err2 != nil {
-		c.err = fmt.Errorf("error on LoadClientTLSConfig()'%v'", err2)
-		panic(c.err)
+	var config *tls.Config
+	var creds *selfcert.Creds
+	if !tcp_only {
+		// handle pass-phrase protected certs/client.key
+		var err2 error
+		config, creds, err2 = selfcert.LoadNodeTLSConfigProtected(false, sslCA, sslCert, sslCertKey)
+		//config, err2 := loadClientTLSConfig(embedded, sslCA, sslCert, sslCertKey)
+		if err2 != nil {
+			c.err = fmt.Errorf("error on LoadClientTLSConfig()'%v'", err2)
+			panic(c.err)
+		}
+		c.creds = creds
 	}
-	c.creds = creds
 
 	// since TCP may verify creds now too, only run TCP client *after* loading creds.
 	if tcp_only {
 		c.runClientTCP(serverAddr)
 		return
 	}
-
-	_ = err2 // skip panic: x509: certificate signed by unknown authority (possibly because of "crypto/rsa: verification error" while trying to verify candidate authority certificate "Cockroach CA")
 
 	// without this ServerName assignment, we used to get (before gen.sh put in SANs using openssl-san.cnf)
 	// 2019/01/04 09:36:18 failed to call: x509: cannot validate certificate for 127.0.0.1 because it doesn't contain any IP SANs
@@ -1967,7 +1970,7 @@ func fixSlash(s string) string {
 }
 
 func (c *Client) setupPSK(conn uConn) error {
-	if !c.cfg.encryptPSK {
+	if c.cfg.TCPonly_no_TLS || !c.cfg.encryptPSK {
 		return nil
 	}
 	if useVerifiedHandshake {

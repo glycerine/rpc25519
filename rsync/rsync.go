@@ -1,4 +1,4 @@
-package rpc25519
+package rsync
 
 import (
 	"bytes"
@@ -13,6 +13,7 @@ import (
 	"time"
 
 	//"github.com/glycerine/greenpack/msgp"
+	rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/hash"
 	"github.com/glycerine/rpc25519/jcdc"
 )
@@ -206,7 +207,7 @@ type RsyncSummary struct {
 
 // A BlobStore is CAS for blobs. It is Content Addressable
 // Storage for binary large objects, like a Git Repo
-// or database
+// or key/value database.
 type BlobStore struct {
 	Map map[string]*Chunk
 }
@@ -438,29 +439,6 @@ type RsyncStep2_ReaderAcksOverview struct {
 
 // type InfiniteStreamFunc func(ctx context.Context, req *Message, r io.Reader, w io.Writer) error
 
-/*
-func (s *RsyncNode) Step0_ClientRequestsRead(
-	ctx context.Context, req *Message, r io.Reader, w io.Writer) error {
-
-	step0 := &RsyncStep0_ClientRequestsRead{
-		ReaderHost:     "",          // string
-		ReaderPath:     "",          // string
-		ReaderLenBytes: 0,           // int64
-		ReaderModTime:  time.Time{}, //
-		// if available/cheap, send
-		ReaderFullHash: "", // string
-	}
-	err := msgp.Encode(w, step0)
-	panicOn(err)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-*/
-
-//type Ctx = context.Context
-
 type Nil struct {
 	Placeholder int
 }
@@ -474,7 +452,7 @@ type RsyncNode struct {
 // cli(1)->srv(2)->cli(3)->srv(4 + CallRPCReply to 1?);
 func (s *RsyncNode) ClientSends() (err error) {
 
-	var cli *Client
+	var cli *rpc.Client
 
 	req1 := &RsyncStep1_SenderOverview{}
 	reply2 := &RsyncStep2_ReaderAcksOverview{}
@@ -493,7 +471,7 @@ func (s *RsyncNode) ClientSends() (err error) {
 // cli(0)->srv(1)->cli(2)->srv(3 + CallRPCReply to 0?)->cli(4)
 func (s *RsyncNode) ClientReads() (err error) {
 
-	var cli *Client
+	var cli *rpc.Client
 
 	req0 := &RsyncStep0_ClientRequestsRead{}
 	reply1 := &RsyncStep1_SenderOverview{}
@@ -527,7 +505,7 @@ func (s *RsyncNode) Step1_SenderOverview(
 	reply *RsyncStep1_SenderOverview) error {
 
 	local := ""
-	if hdr, ok := HDRFromContext(ctx); ok {
+	if hdr, ok := rpc.HDRFromContext(ctx); ok {
 		local = hdr.Nc.LocalAddr().String()
 		s.Host = local
 		fmt.Printf("Step1 has HDR = '%v'; "+
@@ -774,25 +752,6 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 		prev = c
 	}
 	return
-}
-
-// RsyncServerSide implements the server side
-// of our rsync-like protocol. It is a BistreamFunc.
-func (Server *Server) RsyncServerSide(
-	srv *Server,
-	ctx context.Context,
-	req *Message,
-	uploadsFromClientCh <-chan *Message,
-	sendDownloadPartToClient func(ctx context.Context, msg *Message, last bool) error,
-	lastReply *Message,
-) (err error) {
-
-	panic("RsyncServerSide called!")
-	return
-}
-
-func (cli *Client) RsyncClientSide() {
-
 }
 
 func RsyncCliWantsToReadRemotePath(host, path string) (r *RsyncStep0_ClientRequestsRead, err error) {

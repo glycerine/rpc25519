@@ -1,4 +1,4 @@
-package rpc25519
+package rsync
 
 import (
 	"fmt"
@@ -7,13 +7,14 @@ import (
 	"time"
 
 	cv "github.com/glycerine/goconvey/convey"
+	rpc "github.com/glycerine/rpc25519"
 )
 
 func Test201_rsync_style_hash_generation(t *testing.T) {
 
 	cv.Convey("rsync.go SummarizeFileInCDCHashes() should generate CDC FastCDC and/or UltraCDC hashes for a file", t, func() {
 		host := "localhost"
-		path := "testdata/blob977k"
+		path := "../testdata/blob977k"
 
 		data, err := os.ReadFile(path)
 		panicOn(err)
@@ -87,13 +88,13 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 
 		// set up a server and a client.
 
-		cfg := NewConfig()
-		cfg.TCPonly_no_TLS = false
+		cfg := rpc.NewConfig()
+		cfg.TCPonly_no_TLS = true
 
 		cfg.CompressionOff = true
 
 		cfg.ServerAddr = "127.0.0.1:0"
-		srv := NewServer("srv_rsync_test210", cfg)
+		srv := rpc.NewServer("srv_rsync_test210", cfg)
 
 		serverAddr, err := srv.Start()
 		panicOn(err)
@@ -107,7 +108,7 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		panicOn(srv.Register(srvRsyncNode))
 
 		cfg.ClientDialToHostPort = serverAddr.String()
-		cli, err := NewClient("cli_rsync_test210", cfg)
+		cli, err := rpc.NewClient("cli_rsync_test210", cfg)
 		panicOn(err)
 		err = cli.Start()
 		panicOn(err)
