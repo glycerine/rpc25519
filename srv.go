@@ -737,26 +737,6 @@ func (s *Server) processWork(job *job) {
 		return // continue
 	}
 
-	// rsync?
-	switch req.HDR.Typ {
-	case CallRsyncStep0_ClientRequestsRead:
-		// cli -> srv, requesting file (to read)
-		// cli is reader
-		// srv is sender
-
-	case CallRsyncStep1_SenderOverview:
-		// cli -> srv, sending file
-		// cli is sender
-		// srv is reader
-
-	case CallRsyncStep2_AckOverview:
-
-	case CallRsyncStep3_SenderProvidesDeltas:
-
-	case CallRsyncStep4_ReaderAcksDeltasFin:
-
-	}
-
 	s.mut.Lock()
 	switch req.HDR.Typ {
 	case CallRPC:

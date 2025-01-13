@@ -69,7 +69,11 @@ func (fp *fragPair) NewCircuit(circuitName string) *Circuit {
 	return h
 }
 func (h *Circuit) CallID() string { return h.callID }
-func (h *Circuit) Close()         { /* unregister the channels */ }
+
+func (h *Circuit) Close() {
+	// unregister the *Frag channels?
+	//h.fp.u.UnregisterChannel(ID string, whichmap int)
+}
 
 type Peer interface {
 
@@ -207,4 +211,29 @@ type Fragment struct {
 	Payload []byte `zid:"6"`
 
 	Err string `zid:"7"` // distinguished field for error messages.
+}
+
+// ideally both Client and Server can use the same.
+type peerAPI struct {
+	u   UniversalCliSrv
+	mut sync.Mutex
+
+	serviceNameMap map[string]PeerStreamFunc
+}
+
+func newPeerAPI(u UniversalCliSrv) *peerAPI {
+	return &peerAPI{
+		u:              u,
+		serviceNameMap: make(map[string]PeerStreamFunc),
+	}
+}
+
+func (p *peerAPI) RegisterPeerStreamFunc(peerServiceName string, peer PeerStreamFunc) {
+
+	if peerServiceName == "" || peer == nil {
+		panic("peerServiceName cannot be empty, peer cannot be nil")
+	}
+	p.mut.Lock()
+	defer p.mut.Unlock()
+	p.serviceNameMap[peerServiceName] = peer
 }

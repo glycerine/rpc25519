@@ -991,6 +991,7 @@ type Client struct {
 	closing  bool // user has called Close
 	shutdown bool // server has told us to stop
 
+	PeerAPI *peerAPI
 }
 
 // Compute HMAC using SHA-256, so 32 bytes long.
@@ -1369,10 +1370,10 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 
 		// share code with server for CallID and ObjID callbacks.
 		notifies: newNotifies(),
-
 		// net/rpc
 		pending: make(map[uint64]*Call),
 	}
+	c.PeerAPI = newPeerAPI(c)
 	c.encBufWriter = bufio.NewWriter(&c.encBuf)
 	c.codec = &greenpackClientCodec{
 		cli:          c,

@@ -34,42 +34,33 @@ const (
 
 	CallRequestBistreaming CallType = 3
 
-	// these are also RPCs from the client to the
-	// server to start an rsync operation.
-	CallRsyncStep0_ClientRequestsRead CallType = 4
-	CallRsyncStep1_SenderOverview     CallType = 5
+	CallStartPeerCircuit CallType = 4
 
-	// CallType numbers 6-9 are reserved for future two-way
+	// CallType numbers < 100 are reserved for future two-way
 	// callling convention needs. All types
-	// with number < 10 should be call+response
-	// two way methods.
+	// with number < 100 should be call+response
+	// two way methods. number >= 100 are for one-way sends.
 
-	CallRsyncStep2_AckOverview          CallType = 22
-	CallRsyncStep3_SenderProvidesDeltas CallType = 23
-	CallRsyncStep4_ReaderAcksDeltasFin  CallType = 24
-
-	// All type numbers >= 10 are one-way calls.
-	CallOneWay   CallType = 10
-	CallRPCReply CallType = 11
-
-	CallKeepAlive      CallType = 12
-	CallCancelPrevious CallType = 13
-	// we could not complete a request
-	CallError CallType = 14
+	// All type numbers >= 100 are one-way calls.
+	CallOneWay         CallType = 100
+	CallRPCReply       CallType = 101
+	CallKeepAlive      CallType = 102
+	CallCancelPrevious CallType = 103
+	CallError          CallType = 104 // we could not complete a request
 
 	// client sends a stream to the server, in an Upload:
-	CallUploadBegin CallType = 15 // one of these; and
-	CallUploadMore  CallType = 16 // possibly many of these; and
-	CallUploadEnd   CallType = 17 // just one of these to finish.
+	CallUploadBegin CallType = 105 // one of these; and
+	CallUploadMore  CallType = 106 // possibly many of these; and
+	CallUploadEnd   CallType = 107 // just one of these to finish.
 
 	// the opposite: when client wants to get a stream
 	// from the server.
-	CallRequestDownload CallType = 18
+	CallRequestDownload CallType = 108
 
 	// The server responds to CallRequestDownload with
-	CallDownloadBegin CallType = 19 // one of these to start;
-	CallDownloadMore  CallType = 20 // possibly many of these;
-	CallDownloadEnd   CallType = 21 // and one of these to finish.
+	CallDownloadBegin CallType = 109 // one of these to start;
+	CallDownloadMore  CallType = 110 // possibly many of these;
+	CallDownloadEnd   CallType = 111 // and one of these to finish.
 
 )
 
@@ -87,6 +78,10 @@ func (ct CallType) String() string {
 		return "CallNetRPC"
 	case CallRequestBistreaming:
 		return "CallRequestBistreaming"
+
+	case CallStartPeerCircuit:
+		return "CallStartPeerCircuit"
+
 	case CallKeepAlive:
 		return "CallKeepAlive"
 	case CallCancelPrevious:
@@ -108,17 +103,6 @@ func (ct CallType) String() string {
 		return "CallDownloadEnd"
 	case CallError:
 		return "CallError"
-
-	case CallRsyncStep0_ClientRequestsRead:
-		return "CallRsyncStep0_ClientRequestsRead"
-	case CallRsyncStep1_SenderOverview:
-		return "CallRsyncStep1_SenderOverview"
-	case CallRsyncStep2_AckOverview:
-		return "CallRsyncStep2_AckOverview"
-	case CallRsyncStep3_SenderProvidesDeltas:
-		return "CallRsyncStep3_SenderProvidesDeltas"
-	case CallRsyncStep4_ReaderAcksDeltasFin:
-		return "CallRsyncStep4_ReaderAcksDeltasFin"
 
 	default:
 		panic(fmt.Sprintf("need to update String() for CallType %v", int(ct)))
