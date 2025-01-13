@@ -1522,9 +1522,9 @@ doneWithStruct25zgensym_9db0ba711f6a3e5a_26:
 					return
 				}
 			}
-		case "Rsync0CallID_zid15_str":
+		case "CallID_zid15_str":
 			found25zgensym_9db0ba711f6a3e5a_26[15] = true
-			z.Rsync0CallID, err = dc.ReadString()
+			z.CallID, err = dc.ReadString()
 			if err != nil {
 				return
 			}
@@ -1563,7 +1563,7 @@ doneWithStruct25zgensym_9db0ba711f6a3e5a_26:
 }
 
 // fields of FilePrecis
-var decodeMsgFieldOrder25zgensym_9db0ba711f6a3e5a_26 = []string{"Host_zid00_str", "Path_zid01_str", "ModTime_zid02_tim", "FileSize_zid03_int", "FileMode_zid04_u32", "FileOwner_zid05_str", "FileOwnerID_zid06_u32", "FileGroup_zid07_str", "FileGroupID_zid08_u32", "FileMeta_zid09_bin", "HashName_zid10_str", "FullFileHashSum_zid11_str", "ChunkerName_zid12_str", "CDC_Config_zid13_ptr", "Chunks_zid14_ptr", "Rsync0CallID_zid15_str", "IsFromSender_zid16_boo", "Created_zid17_tim"}
+var decodeMsgFieldOrder25zgensym_9db0ba711f6a3e5a_26 = []string{"Host_zid00_str", "Path_zid01_str", "ModTime_zid02_tim", "FileSize_zid03_int", "FileMode_zid04_u32", "FileOwner_zid05_str", "FileOwnerID_zid06_u32", "FileGroup_zid07_str", "FileGroupID_zid08_u32", "FileMeta_zid09_bin", "HashName_zid10_str", "FullFileHashSum_zid11_str", "ChunkerName_zid12_str", "CDC_Config_zid13_ptr", "Chunks_zid14_ptr", "CallID_zid15_str", "IsFromSender_zid16_boo", "Created_zid17_tim"}
 
 var decodeMsgFieldSkip25zgensym_9db0ba711f6a3e5a_26 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
@@ -1633,7 +1633,7 @@ func (z *FilePrecis) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[14] {
 		fieldsInUse--
 	}
-	isempty[15] = (len(z.Rsync0CallID) == 0) // string, omitempty
+	isempty[15] = (len(z.CallID) == 0) // string, omitempty
 	if isempty[15] {
 		fieldsInUse--
 	}
@@ -1874,12 +1874,12 @@ func (z *FilePrecis) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_9db0ba711f6a3e5a_27[15] {
-		// write "Rsync0CallID_zid15_str"
-		err = en.Append(0xb6, 0x52, 0x73, 0x79, 0x6e, 0x63, 0x30, 0x43, 0x61, 0x6c, 0x6c, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x35, 0x5f, 0x73, 0x74, 0x72)
+		// write "CallID_zid15_str"
+		err = en.Append(0xb0, 0x43, 0x61, 0x6c, 0x6c, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x35, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
-		err = en.WriteString(z.Rsync0CallID)
+		err = en.WriteString(z.CallID)
 		if err != nil {
 			return
 		}
@@ -2038,9 +2038,9 @@ func (z *FilePrecis) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[15] {
-		// string "Rsync0CallID_zid15_str"
-		o = append(o, 0xb6, 0x52, 0x73, 0x79, 0x6e, 0x63, 0x30, 0x43, 0x61, 0x6c, 0x6c, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x35, 0x5f, 0x73, 0x74, 0x72)
-		o = msgp.AppendString(o, z.Rsync0CallID)
+		// string "CallID_zid15_str"
+		o = append(o, 0xb0, 0x43, 0x61, 0x6c, 0x6c, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x35, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.CallID)
 	}
 
 	if !empty[16] {
@@ -2284,9 +2284,9 @@ doneWithStruct29zgensym_9db0ba711f6a3e5a_30:
 					}
 				}
 			}
-		case "Rsync0CallID_zid15_str":
+		case "CallID_zid15_str":
 			found29zgensym_9db0ba711f6a3e5a_30[15] = true
-			z.Rsync0CallID, bts, err = nbs.ReadStringBytes(bts)
+			z.CallID, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
@@ -2328,7 +2328,7 @@ doneWithStruct29zgensym_9db0ba711f6a3e5a_30:
 }
 
 // fields of FilePrecis
-var unmarshalMsgFieldOrder29zgensym_9db0ba711f6a3e5a_30 = []string{"Host_zid00_str", "Path_zid01_str", "ModTime_zid02_tim", "FileSize_zid03_int", "FileMode_zid04_u32", "FileOwner_zid05_str", "FileOwnerID_zid06_u32", "FileGroup_zid07_str", "FileGroupID_zid08_u32", "FileMeta_zid09_bin", "HashName_zid10_str", "FullFileHashSum_zid11_str", "ChunkerName_zid12_str", "CDC_Config_zid13_ptr", "Chunks_zid14_ptr", "Rsync0CallID_zid15_str", "IsFromSender_zid16_boo", "Created_zid17_tim"}
+var unmarshalMsgFieldOrder29zgensym_9db0ba711f6a3e5a_30 = []string{"Host_zid00_str", "Path_zid01_str", "ModTime_zid02_tim", "FileSize_zid03_int", "FileMode_zid04_u32", "FileOwner_zid05_str", "FileOwnerID_zid06_u32", "FileGroup_zid07_str", "FileGroupID_zid08_u32", "FileMeta_zid09_bin", "HashName_zid10_str", "FullFileHashSum_zid11_str", "ChunkerName_zid12_str", "CDC_Config_zid13_ptr", "Chunks_zid14_ptr", "CallID_zid15_str", "IsFromSender_zid16_boo", "Created_zid17_tim"}
 
 var unmarshalMsgFieldSkip29zgensym_9db0ba711f6a3e5a_30 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
@@ -2346,7 +2346,7 @@ func (z *FilePrecis) Msgsize() (s int) {
 	} else {
 		s += z.Chunks.Msgsize()
 	}
-	s += 23 + msgp.StringPrefixSize + len(z.Rsync0CallID) + 23 + msgp.BoolSize + 18 + msgp.TimeSize
+	s += 17 + msgp.StringPrefixSize + len(z.CallID) + 23 + msgp.BoolSize + 18 + msgp.TimeSize
 	return
 }
 

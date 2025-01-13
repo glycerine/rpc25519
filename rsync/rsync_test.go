@@ -156,6 +156,10 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		local := localState.Chunks   // our origin or starting point.
 		localMap := getCryMap(local) // pre-index them for the update.
 
+		// had to do a full file transfer for missing file.
+		cv.So(plan.DataPresent(), cv.ShouldEqual, 1048576)
+		cv.So(plan.FileSize, cv.ShouldEqual, 1048576)
+
 		err = UpdateLocalWithRemoteDiffs(local.Path, localMap, plan)
 		panicOn(err)
 
@@ -194,6 +198,6 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		vv("senderDeltas = '%v'", senderDeltas)
 
 		plan = senderDeltas.Chunks // the plan follow remote template, our target.
-		cv.So(len(plan.Chunks), cv.ShouldEqual, 0)
+		cv.So(plan.DataPresent(), cv.ShouldEqual, 0)
 	})
 }

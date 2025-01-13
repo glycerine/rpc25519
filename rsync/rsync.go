@@ -66,6 +66,19 @@ func NewChunks(path string) *Chunks {
 	}
 }
 
+// DataPresent returns the byte count of
+// actual Data segments in the set of Chunks,
+// reflecting how much actually is to be
+// transferred. If two files are the same,
+// DataPresent will return 0 for the plan
+// to update one to the other.
+func (cs *Chunks) DataPresent() (tot int) {
+	for _, c := range cs.Chunks {
+		tot += len(c.Data)
+	}
+	return
+}
+
 // Last gives the last Chunk in the Chunks.
 func (c *Chunks) Last() *Chunk {
 	n := len(c.Chunks)
@@ -77,12 +90,15 @@ func (c *Chunks) Last() *Chunk {
 
 // UpdateLocalWithRemoteDiffs is the essence of the rsync
 // algorithm for efficient file transfer. The remote
-// chunks gives the update plan.
+// chunks gives the update plan, which is applied herein.
+// The new version the file is constructed from
+// existing data (in localMap) and the updated
+// new chunk data we've received (in remote).
 func UpdateLocalWithRemoteDiffs(
 	localPathToWrite string,
 
-	// map Cry hash -> chunk.
-	// typically either these are the chunks
+	// localMap: Cry -> chunk.
+	// Typically either these are the chunks
 	// from the local version of the path; but
 	// they could be from a larger data store
 	// like a Git repo or database.
@@ -171,8 +187,10 @@ func UpdateLocalWithRemoteDiffs(
 // a specified chunking algorithm (e.g. "jcdc"), its parameters,
 // and a specified hash function (e.g. "blake3.32B"
 type FilePrecis struct {
-	// uniquely idenitify this hash set.
-	Rsync0CallID string    `zid:"15"`
+
+	// uniquely idenitify this FilePrecis.
+	CallID string `zid:"15"`
+
 	IsFromSender bool      `zid:"16"`
 	Created      time.Time `zid:"17"`
 
@@ -186,10 +204,16 @@ type FilePrecis struct {
 	FileOwnerID uint32    `zid:"6"`
 	FileGroup   string    `zid:"7"`
 	FileGroupID uint32    `zid:"8"`
-	// other data, extension mechanism. Not used presently.
+
+	// other data, extension mechanism. Not used presently; for future use.
 	FileMeta []byte `zid:"9"`
 
-	// HashName is e.g. "blake3.32B"
+	// HashName is e.g. "blake3.32B". This should match the
+	// hash string prefix without any trailing "-" dash.
+	//
+	// For example, if your hash strings look like
+	// "blake3.32B-89J1Jfa1AzfjiOcVOCLJXDsX3AANHWiSERgJwtaUSj8="
+	// then your HashName is "blake3.32B".
 	HashName string `zid:"10"`
 
 	FullFileHashSum string `zid:"11"`
@@ -198,7 +222,8 @@ type FilePrecis struct {
 	// "fastcdc-Stadia-Google-64bit-arbitrary-regression-jea"
 	//   or "ultracdc-glycerine-golang-implementation".
 	// It should encapsulate any settings and
-	// implementation version, to allow it to be reproduced.
+	// implementation version needed to allow it to be
+	// reproduced exactly.
 	ChunkerName string           `zid:"12"`
 	CDC_Config  *jcdc.CDC_Config `zid:"13"`
 
@@ -247,7 +272,7 @@ func (s *BlobStore) GetPlanToUpdateRemoteToMatchLocal(local, remote *Chunks) (pl
 	for i, c := range local.Chunks {
 		_, ok := remotemap[c.Cry]
 
-		// make a copy of the local chunk, no matter what.
+		// make a copy of the goal template chunk
 		addme := *c
 		if ok {
 			vv("i=%v, remote already has it, do not send.", i)
@@ -568,7 +593,7 @@ func (s *RsyncNode) Step3_SenderProvidesData(
 	if err != nil {
 		vv("mid Step3_SenderProvidesData(); err = '%v'", err)
 	} else {
-		vv("localHashes ok") // long!: = '%v'", localHashes.String())
+		vv("step3: localHashes ok")
 	}
 	panicOn(err)
 
@@ -577,10 +602,14 @@ func (s *RsyncNode) Step3_SenderProvidesData(
 	vv("Step3_SenderProvidesData(): server has local='%v'", local)
 	vv("Step3_SenderProvidesData(): server sees remote='%v'", remote)
 
+	// debug only TODO comment out:
+	onlyL, onlyR, both := Diff(local, remote)
+	vv("len onlyL = %v", len(onlyL))
+	vv("len onlyR = %v", len(onlyR))
+	vv("len both  = %v", len(both))
+
 	bs := NewBlobStore() // TODO make persistent state.
 
-	//a.Diff(b) (a is local, b is remote); need to send OnlyA
-	//plan := localHashes.Diff(remoteHashes)
 	plan := bs.GetPlanToUpdateRemoteToMatchLocal(local, remote)
 
 	vv("plan = '%v'", plan)
