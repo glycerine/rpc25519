@@ -2180,3 +2180,19 @@ func (s *Server) GetErrorsForObjID(ch chan *Message, objID string) {
 	defer s.notifies.mut.Unlock()
 	s.notifies.notifyOnErrorObjIDMap[objID] = ch
 }
+
+func (s *Server) UnregisterChannel(ID string, whichmap int) {
+	s.notifies.mut.Lock()
+	defer s.notifies.mut.Unlock()
+
+	switch whichmap {
+	case CallReadMap:
+		delete(s.notifies.notifyOnReadCallIDMap, ID)
+	case CallErrorMap:
+		delete(s.notifies.notifyOnErrorCallIDMap, ID)
+	case ObjReadMap:
+		delete(s.notifies.notifyOnReadObjIDMap, ID)
+	case ObjErrorMap:
+		delete(s.notifies.notifyOnErrorObjIDMap, ID)
+	}
+}

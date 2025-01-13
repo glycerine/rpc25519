@@ -1760,6 +1760,8 @@ type UniversalCliSrv interface {
 	// for Peer/Object systems.
 	GetReadsForObjID(ch chan *Message, objID string)
 	GetErrorsForObjID(ch chan *Message, objID string)
+
+	UnregisterChannel(ID string, whichmap int)
 }
 
 // maintain the requirement that Client and Server both
@@ -2274,4 +2276,28 @@ func (s *Client) GetErrorsForObjID(ch chan *Message, objID string) {
 	s.notifies.mut.Lock()
 	defer s.notifies.mut.Unlock()
 	s.notifies.notifyOnErrorObjIDMap[objID] = ch
+}
+
+// whichmap meanings for UnregisterChannel
+const (
+	CallReadMap  = 0
+	CallErrorMap = 1
+	ObjReadMap   = 2
+	ObjErrorMap  = 3
+)
+
+func (s *Client) UnregisterChannel(ID string, whichmap int) {
+	s.notifies.mut.Lock()
+	defer s.notifies.mut.Unlock()
+
+	switch whichmap {
+	case CallReadMap:
+		delete(s.notifies.notifyOnReadCallIDMap, ID)
+	case CallErrorMap:
+		delete(s.notifies.notifyOnErrorCallIDMap, ID)
+	case ObjReadMap:
+		delete(s.notifies.notifyOnReadObjIDMap, ID)
+	case ObjErrorMap:
+		delete(s.notifies.notifyOnErrorObjIDMap, ID)
+	}
 }

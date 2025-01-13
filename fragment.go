@@ -8,11 +8,15 @@ import (
 
 //go:generate greenpack
 
-//msgp:ignore Handle
-type Handle struct {
+// Circuit is a handle to the two-way,
+// asynchronous, communication channel
+// between two Peers.
+
+//msgp:ignore Circuit
+type Circuit struct {
 	fp *fragPair
 
-	serviceName string
+	circuitName string
 	peerID      string
 	callID      string
 	ctx         context.Context
@@ -21,7 +25,7 @@ type Handle struct {
 	Errors <-chan *Fragment
 }
 
-func (h *Handle) NewFragment() *Fragment {
+func (h *Circuit) NewFragment() *Fragment {
 	return &Fragment{}
 }
 
@@ -50,11 +54,11 @@ func newFragPair(u UniversalCliSrv) (fp *fragPair) {
 
 // RegisterPeer(peerServiceName string, peerStreamFunc PeerStreamFunc)
 
-func (fp *fragPair) NewHandle(serviceName string) *Handle {
+func (fp *fragPair) NewCircuit(circuitName string) *Circuit {
 
-	h := &Handle{
+	h := &Circuit{
 		fp:          fp,
-		serviceName: serviceName,
+		circuitName: circuitName,
 		peerID:      fp.myPeerID,
 		callID:      NewCallID(),
 		Reads:       make(chan *Fragment),
@@ -64,8 +68,8 @@ func (fp *fragPair) NewHandle(serviceName string) *Handle {
 	//fp.u.GetErrorsForCallID(h.Errors, h.callID)
 	return h
 }
-func (h *Handle) CallID() string { return h.callID }
-func (h *Handle) Close()         { /* unregister the channels */ }
+func (h *Circuit) CallID() string { return h.callID }
+func (h *Circuit) Close()         { /* unregister the channels */ }
 
 type Peer interface {
 
@@ -82,9 +86,9 @@ type Peer interface {
 	//
 	// When selecting h.Reads and h.Errors, always also
 	// select on ctx.Done().
-	NewHandle(serviceName string) (hdl *Handle, ctx context.Context, err error)
+	NewCircuit(circuitName string) (hdl *Circuit, ctx context.Context, err error)
 
-	SendOneWayMessage(hdl *Handle, frag *Fragment, errWriteDur *time.Duration) error
+	SendOneWayMessage(hdl *Circuit, frag *Fragment, errWriteDur *time.Duration) error
 
 	ID2() (localPeerID, remotePeerID string)
 }
@@ -147,7 +151,7 @@ func (me *PeerImpl) PeerStream(
 			go func(peer Peer) {
 				defer wg.Done()
 
-				hdl, ctx, err := peer.NewHandle("serviceName")
+				hdl, ctx, err := peer.NewCircuit("circuitName")
 				panicOn(err)
 				done := ctx.Done()
 
@@ -181,12 +185,21 @@ func (me *PeerImpl) PeerStream(
 }
 
 type Fragment struct {
+
+	// These first three are set by the
+	// sending machinery; any user settings will
+	// be overridden.
+	//
+	// FromPeerID tells the receiver who sent us this Fragment.
 	FromPeerID string `zid:"0"`
-	CallID     string `zid:"1"`
 
-	ServiceName string `zid:"2"` // set by Handle, established by NewHandle(serviceName)
+	// CallID was assigned in the NewCircuit() call.
+	CallID string `zid:"1"`
 
-	FragType string `zid:"3"` // can be a message type, service name, other useful context.
+	// CircuitName is what was established by NewCircuit(circuitName)
+	CircuitName string `zid:"2"`
+
+	FragType string `zid:"3"` // can be a message type, sub-service name, other useful context.
 	FragPart int    `zid:"4"` // built in multi-part handling for the same CallID and FragType.
 
 	Args map[string]string `zid:"5"` // nil/unallocated to save space. User should alloc if the need it.
