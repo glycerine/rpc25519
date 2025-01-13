@@ -329,7 +329,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 	callID := NewCallID()
 	msg.HDR.CallID = callID
 
-	ch := make(chan *Message)
+	ch := make(chan *Message, 1)
 	p.u.GetReadsForCallID(ch, callID)
 	// be sure to cleanup.
 	defer p.u.UnregisterChannel(callID, CallReadMap)
