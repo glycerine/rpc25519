@@ -249,8 +249,14 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		bs := NewBlobStore()
 
 		plan.ClearData()
-		dropData := true
-		plan2 := bs.GetPlanToUpdateRemoteToMatchLocal(local2, plan, dropData)
+		cv.So(plan.DataPresent(), cv.ShouldEqual, 0)
+
+		dropPlanData := true
+		plan2 := bs.GetPlanToUpdateFirstToSecond(local2, plan, dropPlanData)
+
+		// verify minimal changes being sent
+		cv.So(plan2.DataChunkCount(), cv.ShouldEqual, 2)
+		cv.So(plan2.DataPresent(), cv.ShouldEqual, 147458)
 
 		pushMe := &PlannedUpdate{
 			SenderPath:   remotePath,
@@ -264,5 +270,8 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		panicOn(err)
 
 		// confirm it happened.
+		difflen = compareFilesDiffLen(pre2path, remotePath)
+		cv.So(difflen, cv.ShouldEqual, 0)
+
 	})
 }

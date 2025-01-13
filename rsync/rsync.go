@@ -79,6 +79,15 @@ func (cs *Chunks) DataPresent() (tot int) {
 	return
 }
 
+func (cs *Chunks) DataChunkCount() (count int) {
+	for _, c := range cs.Chunks {
+		if len(c.Data) > 0 {
+			count++
+		}
+	}
+	return
+}
+
 // Last gives the last Chunk in the Chunks.
 func (c *Chunks) Last() *Chunk {
 	n := len(c.Chunks)
@@ -276,7 +285,7 @@ func NewBlobStore() *BlobStore {
 // copied ino the plan chunks we return.
 // If dropLocalData, we also delete what remote does
 // not need; we nil out the local chunk's .Data.
-func (s *BlobStore) GetPlanToUpdateRemoteToMatchLocal(local, remote *Chunks, dropLocalData bool) (plan *Chunks) {
+func (s *BlobStore) GetPlanToUpdateFirstToSecond(local, remote *Chunks, dropLocalData bool) (plan *Chunks) {
 
 	plan = NewChunks(remote.Path)
 	plan.FileSize = local.FileSize
@@ -635,8 +644,8 @@ func (s *RsyncNode) Step3_SenderProvidesData(
 
 	bs := NewBlobStore() // TODO make persistent state.
 
-	dropRemoteData := true
-	plan := bs.GetPlanToUpdateRemoteToMatchLocal(local, remote, dropRemoteData)
+	drop2ndData := true // remote is in 2nd position here, drop unneeded data.
+	plan := bs.GetPlanToUpdateFirstToSecond(local, remote, drop2ndData)
 
 	vv("plan = '%v'", plan)
 	reply.SenderPlan = plan
