@@ -262,9 +262,10 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 
 		plan.ClearData()
 		cv.So(plan.DataPresent(), cv.ShouldEqual, 0)
+		remoteWantsUpdate := plan
 
 		dropPlanData := true
-		plan2 := bs.GetPlanToUpdateFirstToSecond(local2, plan, dropPlanData)
+		plan2 := bs.GetPlanToUpdateFromGoal(remoteWantsUpdate, local2, dropPlanData)
 
 		// verify minimal changes being sent
 		if allZeros {

@@ -281,54 +281,57 @@ func NewBlobStore() *BlobStore {
 	}
 }
 
-// UpdateRemoteToMatchLocalPlan produces an
-// update plan on how to update the
-// remote path to match that a local file. The plan will have
-// chunk.Data pointers set only for those chunks that are local only; that
-// the remote side currently lacks. This is the essential
-// rsync "diff" operation.
+// GetPlanToUpdateFromGoal creates a plan. The
+// plan describes how to update the 'updateme'
+// file to match the 'goal' file. The plan will have
+// chunk.Data pointers set only for those
+// chunks that are goal only; that
+// the (remote) updateme side currently lacks.
+// This is the essential rsync "diff" operation.
 //
-// We expect the remote chunks have no Data pointers available,
+// We expect the updateme chunks have no Data pointers available,
 // and all the local to have them, or, as a fallback, for
 // them to be available in the BlobStore.
-// These pointers, from local or the BlobStore, are
-// copied ino the plan chunks we return.
-// If dropLocalData, we also delete what remote does
-// not need; we nil out the local chunk's .Data.
-func (s *BlobStore) GetPlanToUpdateFirstToSecond(local, remote *Chunks, dropLocalData bool) (plan *Chunks) {
+// These pointers, from goal or the BlobStore, are
+// copied ino the plan Chunk(s) we return.
+//
+// If dropGoalData, we also nil out the Data pointers
+// in goal Chunks that the (remote) updateme file
+// does not need, conserving memory.
+func (s *BlobStore) GetPlanToUpdateFromGoal(updateme, goal *Chunks, dropGoalData bool) (plan *Chunks) {
 
-	plan = NewChunks(remote.Path)
-	plan.FileSize = local.FileSize
-	plan.FileCry = local.FileCry
+	plan = NewChunks(updateme.Path)
+	plan.FileSize = goal.FileSize
+	plan.FileCry = goal.FileCry
 
-	// index the remote
-	remotemap := make(map[string]*Chunk)
-	for _, c := range remote.Chunks {
-		remotemap[c.Cry] = c
+	// index the updateme
+	updatememap := make(map[string]*Chunk)
+	for _, c := range updateme.Chunks {
+		updatememap[c.Cry] = c
 	}
 	var p []*Chunk
 
-	// the local file layout is the template for the plan
-	for _, c := range local.Chunks {
-		_, ok := remotemap[c.Cry]
+	// the goal file layout is the template for the plan
+	for _, c := range goal.Chunks {
+		_, ok := updatememap[c.Cry]
 
 		// make a copy of the goal template chunk
 		addme := *c
 		if ok {
-			//vv("i=%v, remote already has it, do not send.", i)
+			//vv("i=%v, updateme already has it, do not send.", i)
 			addme.Data = nil
-			if dropLocalData {
-				c.Data = nil // drop it locally too.
+			if dropGoalData {
+				c.Data = nil // drop it goally too.
 			}
 		} else {
-			//vv("i=%v, leave addme.Data intact, because remote needs it.", i)
+			//vv("i=%v, leave addme.Data intact, because updateme needs it.", i)
 
 			// sanity check that we do infact have the Data.
 			if len(c.Data) == 0 {
 				// can we get it from the blobstore?
 				bs, ok := s.Map[c.Cry]
 				if !ok || bs == nil || len(bs.Data) == 0 {
-					panic(fmt.Sprintf("local chunks missing Data!: '%v'", c))
+					panic(fmt.Sprintf("goal chunks missing Data!: '%v'", c))
 				}
 				addme.Data = bs.Data
 			}
@@ -359,6 +362,7 @@ func (s *BlobStore) GetPlanToUpdateFirstToSecond(local, remote *Chunks, dropLoca
 //
 // So only if the client wants to read a file
 // from the server does the client need to send this:
+
 type RsyncStep0_ClientRequestsRead struct {
 	ReaderHost     string    `zid:"0"`
 	ReaderPath     string    `zid:"1"`
@@ -402,6 +406,7 @@ type RsyncStep0_ClientRequestsRead struct {
 //
 // To do step 1 (client acts as sender, it sends:
 // .
+
 type RsyncStep1_SenderOverview struct {
 	SenderHost     string    `zid:"0"`
 	SenderPath     string    `zid:"1"`
@@ -506,8 +511,6 @@ type RsyncStep2_ReaderAcksOverview struct {
 // but worry about that later. What's the simplest
 // thing?
 
-// type InfiniteStreamFunc func(ctx context.Context, req *Message, r io.Reader, w io.Writer) error
-
 type Nil struct {
 	Placeholder int
 }
@@ -519,52 +522,9 @@ type RsyncNode struct {
 
 // for client send:
 // cli(1)->srv(2)->cli(3)->srv(4 + CallRPCReply to 1?);
-func (s *RsyncNode) ClientSends() (err error) {
-
-	var cli *rpc.Client
-
-	req1 := &RsyncStep1_SenderOverview{}
-	reply2 := &RsyncStep2_ReaderAcksOverview{}
-
-	err = cli.Call("RsyncNode.Step2_ReaderAcksOverview", req1, reply2, nil)
-
-	req3 := &PlannedUpdate{}
-	reply4 := &RsyncStep4_ReaderAcksDeltasFin{}
-
-	err = cli.Call("RsyncNode.Step4_ReaderAcksDeltasFin", req3, reply4, nil)
-
-	return
-}
 
 // for client read:
 // cli(0)->srv(1)->cli(2)->srv(3 + CallRPCReply to 0?)->cli(4)
-func (s *RsyncNode) ClientReads() (err error) {
-
-	var cli *rpc.Client
-
-	req0 := &RsyncStep0_ClientRequestsRead{}
-	reply1 := &RsyncStep1_SenderOverview{}
-
-	err = cli.Call("RsyncNode.Step1_SenderOverview", req0, reply1, nil)
-
-	req2 := &RsyncStep2_ReaderAcksOverview{}
-	reply3 := &PlannedUpdate{}
-	err = cli.Call("RsyncNode.Step3_SenderProvidesData", req2, reply3, nil)
-
-	return
-}
-
-// or try with net/rpc api for stronger typing?
-// need to have registration of func on client too.
-
-// step0: start of client read.
-func (s *RsyncNode) Step0_ClientRequestsRead(
-	ctx context.Context,
-	req *Nil,
-	reply *RsyncStep0_ClientRequestsRead) error {
-
-	return nil
-}
 
 // step 1: start of client send; or server responding to step0 (server to download to client).
 // Note that req will be nil if client is initiating the send.
@@ -595,7 +555,7 @@ func (s *RsyncNode) Step1_SenderOverview(
 			"on os.Stat() of '%v': '%v'", local, path, err)
 	}
 
-	blake3sum, err := hash.Blake3OfFileString(path)
+	blake3sum, err := hash.Blake3OfFile(path)
 	if err != nil {
 		return fmt.Errorf("error on host '%v': rsync.go error "+
 			"computing blake3sum of '%v': '%v'", local, path, err)
@@ -654,8 +614,8 @@ func (s *RsyncNode) Step3_SenderProvidesData(
 
 	bs := NewBlobStore() // TODO make persistent state.
 
-	drop2ndData := true // remote is in 2nd position here, drop unneeded data.
-	plan := bs.GetPlanToUpdateFirstToSecond(local, remote, drop2ndData)
+	drop2ndData := true // local is in 2nd position here, drop unneeded data.
+	plan := bs.GetPlanToUpdateFromGoal(remote, local, drop2ndData)
 
 	//vv("plan = '%v'", plan)
 	reply.SenderPlan = plan
