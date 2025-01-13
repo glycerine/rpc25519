@@ -130,15 +130,15 @@ func UpdateLocalWithRemoteDiffs(
 	h := blake3.New(64, nil)
 
 	// remote gives the plan of what to create
-	for i, chnk := range remote.Chunks {
+	for i, chunk := range remote.Chunks {
 		_ = i
 
-		if len(chnk.Data) == 0 {
+		if len(chunk.Data) == 0 {
 			// the data is local
-			lc, ok := localMap[chnk.Cry]
+			lc, ok := localMap[chunk.Cry]
 			if !ok {
 				panic(fmt.Sprintf("rsync algo failed, the needed data is not "+
-					"available locally: '%v'", chnk))
+					"available locally: '%v'", chunk))
 			}
 			wb := copy(newvers[j:], lc.Data)
 			j += wb
@@ -151,16 +151,16 @@ func UpdateLocalWithRemoteDiffs(
 			}
 			h.Write(lc.Data)
 		} else {
-			wb := copy(newvers[j:], chnk.Data)
+			wb := copy(newvers[j:], chunk.Data)
 			j += wb
-			if wb != len(chnk.Data) {
+			if wb != len(chunk.Data) {
 				panic("newvers did not have enough space")
 			}
 			// sanity check the local chunk as a precaution.
-			if wb != chnk.Endx-chnk.Beg {
-				panic(fmt.Sprintf("lc.Endx = %v, lc.Beg = %v, but lc.Data len = %v", chnk.Endx, chnk.Beg, wb))
+			if wb != chunk.Endx-chunk.Beg {
+				panic(fmt.Sprintf("lc.Endx = %v, lc.Beg = %v, but lc.Data len = %v", chunk.Endx, chunk.Beg, wb))
 			}
-			h.Write(chnk.Data)
+			h.Write(chunk.Data)
 		}
 	}
 	sum := hash.SumToString(h)
@@ -269,16 +269,16 @@ func (s *BlobStore) GetPlanToUpdateRemoteToMatchLocal(local, remote *Chunks) (pl
 	var p []*Chunk
 
 	// the local file layout is the template for the plan
-	for i, c := range local.Chunks {
+	for _, c := range local.Chunks {
 		_, ok := remotemap[c.Cry]
 
 		// make a copy of the goal template chunk
 		addme := *c
 		if ok {
-			vv("i=%v, remote already has it, do not send.", i)
+			//vv("i=%v, remote already has it, do not send.", i)
 			addme.Data = nil
 		} else {
-			vv("i=%v, leave addme.Data intact, because remote needs it.", i)
+			//vv("i=%v, leave addme.Data intact, because remote needs it.", i)
 
 			// sanity check that we do infact have the Data.
 			if len(c.Data) == 0 {
@@ -797,15 +797,24 @@ func RsyncCliWantsToReadRemotePath(host, path string) (r *RsyncStep0_ClientReque
 }
 
 // String pretty prints the Chunks.
-func (d *Chunks) String() string {
+func (d *Chunks) String() (s string) {
+	s = fmt.Sprintf("Chunks set of %v\n", len(d.Chunks))
+	for i, chunk := range d.Chunks {
+		s += fmt.Sprintf("[%03d]", i) + chunk.String()
+	}
+	return
+}
 
-	jsonData, err := json.Marshal(d)
-	panicOn(err)
+func (d *Chunk) String() string {
 
-	var pretty bytes.Buffer
-	err = json.Indent(&pretty, jsonData, "", "    ")
-	panicOn(err)
-	return pretty.String()
+	return fmt.Sprintf(
+		`Chunk{
+    Beg : %v,
+    Endx: %v,
+    Cry : "%v"
+    Data: length %v,
+},
+`, d.Beg, d.Endx, d.Cry, len(d.Data))
 }
 
 // Pair is returned by Diff inside the both map.
@@ -820,16 +829,16 @@ func Diff(a, b *Chunks) (onlyA, onlyB map[string]*Chunk, both map[string]*Pair) 
 	onlyB = make(map[string]*Chunk)
 	both = make(map[string]*Pair)
 
-	for _, chnk := range a.Chunks {
-		onlyA[chnk.Cry] = chnk
+	for _, chunk := range a.Chunks {
+		onlyA[chunk.Cry] = chunk
 	}
-	for _, chnkB := range b.Chunks {
-		chnkA, inBoth := onlyA[chnkB.Cry]
+	for _, chunkB := range b.Chunks {
+		chunkA, inBoth := onlyA[chunkB.Cry]
 		if inBoth {
-			both[chnkB.Cry] = &Pair{A: chnkA, B: chnkB}
-			delete(onlyA, chnkB.Cry)
+			both[chunkB.Cry] = &Pair{A: chunkA, B: chunkB}
+			delete(onlyA, chunkB.Cry)
 		} else {
-			onlyB[chnkB.Cry] = chnkB
+			onlyB[chunkB.Cry] = chunkB
 		}
 	}
 	return

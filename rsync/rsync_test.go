@@ -173,11 +173,14 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		// ==============================
 		// ==============================
 		//
-		// now repeat a second time, and we should get no transfer.
+		// now repeat a second time, and we should get
+		// Data segments transfered.
 		//
 		// ==============================
 		// ==============================
 		// ==============================
+
+		vv("========>  second time! now no data expected")
 
 		// update the localState, as if we didn't know it already.
 		localState, err = SummarizeFileInCDCHashes(host, localPath)
@@ -195,7 +198,7 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		err = cli.Call("RsyncNode.Step3_SenderProvidesData", readerAckOV, senderDeltas, nil)
 		panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
 
-		vv("senderDeltas = '%v'", senderDeltas)
+		//vv("senderDeltas = '%v'", senderDeltas)
 
 		plan = senderDeltas.Chunks // the plan follow remote template, our target.
 		cv.So(plan.DataPresent(), cv.ShouldEqual, 0)
