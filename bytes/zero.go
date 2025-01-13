@@ -10,9 +10,20 @@ var (
 )
 
 // AllZero reports whether b consists entirely of zero bytes.
+func AllZero(b []byte) bool {
+	for i := range b {
+		if b[i] != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// AllZeroSIMD reports whether b consists entirely of zero bytes.
+// It uses assembly, which may or may not be faster.
 //
 //go:noescape
-func AllZero(b []byte) bool
+func AllZeroSIMD(b []byte) bool
 
 // Internal implementations for different CPU features
 //
@@ -28,7 +39,7 @@ func allZeroAVX512(b []byte) bool
 // LongestZeroSpan returns the start index and length of the longest continuous
 // span of zero bytes in the given slice. If no zeros are found, returns (0, 0).
 // If multiple spans of the same longest length exist, returns the first one.
-func LongestZeroSpan(b []byte) (start, length int) {
+func SIMDLongestZeroSpan(b []byte) (start, length int) {
 	if len(b) == 0 {
 		return 0, 0
 	}
@@ -66,7 +77,7 @@ func LongestZeroSpan(b []byte) (start, length int) {
 				}
 
 				chunk := remainingSlice[j : j+chunkSize]
-				if !AllZero(chunk) {
+				if !AllZeroSIMD(chunk) {
 					// Found a non-zero byte, need to find exactly where
 					for k := 0; k < chunkSize; k++ {
 						if chunk[k] != 0 {
@@ -108,10 +119,9 @@ func LongestZeroSpan(b []byte) (start, length int) {
 	return maxStart, maxLen
 }
 
-// Add this to the existing zero.go file
-
-// naiveLongestZeroSpan is a simple byte-by-byte implementation for benchmarking
-func naiveLongestZeroSpan(b []byte) (start, length int) {
+// LongestZeroSpan is a simple byte-by-byte implementation for benchmarking.
+// This naive version out-performs the SIMD version above.
+func LongestZeroSpan(b []byte) (start, length int) {
 	if len(b) == 0 {
 		return 0, 0
 	}

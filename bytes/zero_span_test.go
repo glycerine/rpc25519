@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestLongestZeroSpan(t *testing.T) {
+func TestSIMDLongestZeroSpan_and_LongestZeroSpan(t *testing.T) {
 	tests := []struct {
 		name       string
 		input      []byte
@@ -75,11 +75,20 @@ func TestLongestZeroSpan(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			gotStart, gotLength := SIMDLongestZeroSpan(tt.input)
+			if gotStart != tt.wantStart || gotLength != tt.wantLength {
+				t.Errorf("SIMDLongestZeroSpan() = (%v, %v), want (%v, %v)",
+					gotStart, gotLength, tt.wantStart, tt.wantLength)
+			}
+		})
+
+		t.Run(tt.name, func(t *testing.T) {
 			gotStart, gotLength := LongestZeroSpan(tt.input)
 			if gotStart != tt.wantStart || gotLength != tt.wantLength {
 				t.Errorf("LongestZeroSpan() = (%v, %v), want (%v, %v)",
 					gotStart, gotLength, tt.wantStart, tt.wantLength)
 			}
 		})
+
 	}
 }

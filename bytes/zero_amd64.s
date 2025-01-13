@@ -138,8 +138,8 @@ sse2_false:
     MOVB $0, ret+24(FP)
     RET
 
-// func AllZero(b []byte) bool
-TEXT ·AllZero(SB), NOSPLIT, $0-32
+// func AllZeroSIMD(b []byte) bool
+TEXT ·AllZeroSIMD(SB), NOSPLIT, $0-32
     // Check CPU features and jump to appropriate implementation
     MOVB ·x86HasAVX512(SB), AX
     TESTB AX, AX

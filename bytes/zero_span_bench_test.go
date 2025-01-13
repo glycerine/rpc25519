@@ -5,6 +5,8 @@ import (
 	"testing"
 )
 
+// run with go test -bench=. -benchmem
+
 func generateTestData(size int, zeroSpanStart, zeroSpanLen int) []byte {
 	data := make([]byte, size)
 	// Fill with random non-zero bytes
@@ -18,7 +20,7 @@ func generateTestData(size int, zeroSpanStart, zeroSpanLen int) []byte {
 	return data
 }
 
-func BenchmarkLongestZeroSpan(b *testing.B) {
+func BenchmarkSIMDLongestZeroSpan(b *testing.B) {
 	cases := []struct {
 		name        string
 		size        int
@@ -45,14 +47,14 @@ func BenchmarkLongestZeroSpan(b *testing.B) {
 		b.Run("SIMD_"+tc.name, func(b *testing.B) {
 			b.SetBytes(int64(tc.size))
 			for i := 0; i < b.N; i++ {
-				LongestZeroSpan(data)
+				SIMDLongestZeroSpan(data)
 			}
 		})
 
 		b.Run("Naive_"+tc.name, func(b *testing.B) {
 			b.SetBytes(int64(tc.size))
 			for i := 0; i < b.N; i++ {
-				naiveLongestZeroSpan(data)
+				SIMDLongestZeroSpan(data)
 			}
 		})
 	}
@@ -81,8 +83,8 @@ func TestLongestZeroSpanMatchesNaive(t *testing.T) {
 	for i, tc := range cases {
 		data := generateTestData(tc.size, tc.spanStart, tc.spanLen)
 
-		simdStart, simdLen := LongestZeroSpan(data)
-		naiveStart, naiveLen := naiveLongestZeroSpan(data)
+		simdStart, simdLen := SIMDLongestZeroSpan(data)
+		naiveStart, naiveLen := LongestZeroSpan(data)
 
 		if simdStart != naiveStart || simdLen != naiveLen {
 			t.Errorf("Case %d: SIMD(%d,%d) != Naive(%d,%d)",
@@ -98,8 +100,8 @@ func TestLongestZeroSpanMatchesNaive(t *testing.T) {
 
 		data := generateTestData(size, spanStart, spanLen)
 
-		simdStart, simdLen := LongestZeroSpan(data)
-		naiveStart, naiveLen := naiveLongestZeroSpan(data)
+		simdStart, simdLen := SIMDLongestZeroSpan(data)
+		naiveStart, naiveLen := LongestZeroSpan(data)
 
 		if simdStart != naiveStart || simdLen != naiveLen {
 			t.Errorf("Random case %d: SIMD(%d,%d) != Naive(%d,%d)",
