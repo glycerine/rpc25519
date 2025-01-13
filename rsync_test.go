@@ -63,9 +63,9 @@ func Test201_rsync_style_hash_generation(t *testing.T) {
 	})
 }
 
-func Test210_client_sends_file_over_rsync(t *testing.T) {
+func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 
-	cv.Convey("using our rsync-like-protocol, the client should be able to send a file to the server and only end up sending the small parts that have changed.", t, func() {
+	cv.Convey("using our rsync-like-protocol, the client, lacking a file, should be able to fetch it from the server. The second time fetching the same should be very fast because of chunking and hash comparisons in the rsync-like protocol", t, func() {
 
 		// create a test file
 		N := 1
@@ -127,6 +127,10 @@ func Test210_client_sends_file_over_rsync(t *testing.T) {
 		// or the error from remote. We just panic in this test.
 		if senderOV.ErrString != "" {
 			panic(senderOV.ErrString)
+		}
+		if senderOV.SenderPath != remotePath {
+			panic(fmt.Sprintf("'%v' = SenderPath != remotePath = '%v'",
+				senderOV.SenderPath, remotePath))
 		}
 		if senderOV.SenderLenBytes == 0 {
 			panic(fmt.Sprintf("remote file is 0 bytes: '%v'", remotePath))

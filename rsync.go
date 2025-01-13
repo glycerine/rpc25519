@@ -240,18 +240,19 @@ func (s *BlobStore) GetPlanToUpdateRemoteToMatchLocal(local, remote *Chunks) (pl
 	for _, c := range remote.Chunks {
 		remotemap[c.Cry] = c
 	}
-	p := plan.Chunks
+	var p []*Chunk
 
 	// the local file layout is the template for the plan
-	for _, c := range local.Chunks {
+	for i, c := range local.Chunks {
 		_, ok := remotemap[c.Cry]
 
 		// make a copy of the local chunk, no matter what.
 		addme := *c
 		if ok {
+			vv("i=%v, remote already has it, do not send.", i)
 			addme.Data = nil
 		} else {
-			// leave addme.Data intact, because remote needs it.
+			vv("i=%v, leave addme.Data intact, because remote needs it.", i)
 
 			// sanity check that we do infact have the Data.
 			if len(c.Data) == 0 {
@@ -265,6 +266,9 @@ func (s *BlobStore) GetPlanToUpdateRemoteToMatchLocal(local, remote *Chunks) (pl
 		}
 		p = append(p, &addme)
 	}
+
+	plan.Chunks = p
+
 	return
 }
 
@@ -601,6 +605,7 @@ func (s *RsyncNode) Step3_SenderProvidesData(
 	//plan := localHashes.Diff(remoteHashes)
 	plan := bs.GetPlanToUpdateRemoteToMatchLocal(local, remote)
 
+	vv("plan = '%v'", plan)
 	reply.Chunks = plan
 	vv("end of Step3_SenderProvidesData()")
 
