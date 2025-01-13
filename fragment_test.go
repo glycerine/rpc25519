@@ -47,13 +47,16 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		// Both ways are supported; this could have equally
 		// have been cli.PeerAPI.StartRemotePeer("peer1_on_server")
 		// followed by cli.PeerAPI.StartLocalPeer("peer0_on_client").
+		//
 		peerID0, err := srv.PeerAPI.StartRemotePeer("peer0_on_client")
 		panicOn(err)
+		vv("started remote with PeerID = '%v'", peerID0)
 
 		// any number of known peers can be supplied, or none.
-		err = srv.PeerAPI.StartLocalPeer("peer1_on_server", peerID0)
+		localPeerID, err := srv.PeerAPI.StartLocalPeer("peer1_on_server", peerID0)
 		panicOn(err)
 
+		vv("started localPeerID = '%v'", localPeerID)
 		select {}
 	})
 }

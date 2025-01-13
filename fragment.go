@@ -143,6 +143,9 @@ type PeerServiceFunc func(
 	// how we were registered/invoked.
 	peerServiceName string,
 
+	// our PeerID
+	ourPeerID string,
+
 	// ctx0 supplies the overall context of the
 	// Client/Server host. If our hosts starts
 	// shutdown, this will cancel, and
@@ -167,6 +170,9 @@ func (me *PeerImpl) Start(
 
 	// how we were registered/invoked.
 	peerServiceName string,
+
+	// our own PeerID
+	ourPeerID string,
 
 	// overall context of Client/Server host, if
 	// it starts shutdown, this will cancel, and
@@ -252,6 +258,7 @@ type knownRemotePeer struct {
 
 type knownLocalPeer struct {
 	peerServiceFunc PeerServiceFunc
+	peerID          string
 	canc            context.CancelFunc
 	newPeerCh       chan Peer
 }
@@ -273,12 +280,12 @@ func (p *peerAPI) RegisterPeerServiceFunc(peerServiceName string, peer PeerServi
 	return nil
 }
 
-func (p *peerAPI) StartLocalPeer(peerServiceName string, knownPeerIDs ...string) error {
+func (p *peerAPI) StartLocalPeer(peerServiceName string, knownPeerIDs ...string) (localPeerID string, err error) {
 	p.mut.Lock()
 	defer p.mut.Unlock()
 	local, ok := p.localServiceNameMap[peerServiceName]
 	if !ok {
-		return fmt.Errorf("no local peerServiceName '%v' available", peerServiceName)
+		return "", fmt.Errorf("no local peerServiceName '%v' available", peerServiceName)
 	}
 
 	for _, knownID := range knownPeerIDs {
@@ -292,14 +299,16 @@ func (p *peerAPI) StartLocalPeer(peerServiceName string, knownPeerIDs ...string)
 	newPeerCh := make(chan Peer)
 	ctx, canc := context.WithCancel(context.Background())
 	local.canc = canc
+	localPeerID = NewCallID()
 	local.newPeerCh = newPeerCh
 
 	go local.peerServiceFunc(
 		peerServiceName,
+		localPeerID,
 		ctx,
 		newPeerCh)
 
-	return nil
+	return
 }
 
 func (p *peerAPI) StartRemotePeer(peerServiceName string) (remotePeerID string, err error) {
