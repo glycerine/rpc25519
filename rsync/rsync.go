@@ -769,7 +769,8 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 
 	var opts *jcdc.CDC_Config
 
-	const useFastCDC = true
+	//const useFastCDC = true
+	const useFastCDC = false
 	var cdc jcdc.Cutpointer
 
 	if useFastCDC {
@@ -812,7 +813,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 
 	cuts := cdc.Cutpoints(data, 0)
 
-	//vv("cuts = '%#v'", cuts)
+	vv("cuts = '%#v'", cuts)
 
 	prev := 0
 	for i, c := range cuts {
