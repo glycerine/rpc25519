@@ -174,7 +174,7 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		// ==============================
 		//
 		// now repeat a second time, and we should get
-		// Data segments transfered.
+		// no Data segments transfered.
 		//
 		// ==============================
 		// ==============================
