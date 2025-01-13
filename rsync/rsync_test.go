@@ -11,9 +11,10 @@ import (
 	rpc "github.com/glycerine/rpc25519"
 )
 
-func Test201_rsync_style_hash_generation(t *testing.T) {
+func Test201_rsync_style_chunking_and_hash_generation(t *testing.T) {
 
-	cv.Convey("rsync.go SummarizeFileInCDCHashes() should generate CDC FastCDC and/or UltraCDC hashes for a file", t, func() {
+	cv.Convey("SummarizeFileInCDCHashes() should generate CDC FastCDC and/or UltraCDC hashes for a file. This exercises the CDC chunkers and does a basic sanity check that they are actually working, but not much more.", t, func() {
+
 		host := "localhost"
 		path := "../testdata/blob977k"
 
@@ -21,47 +22,38 @@ func Test201_rsync_style_hash_generation(t *testing.T) {
 		panicOn(err)
 
 		var modTime time.Time
+
 		// SummarizeFile... rather than SummarizeBytes...
 		// so we can manually confirm owner name is present. Yes.
-		h, err := SummarizeFileInCDCHashes(host, path)
-		//h, err := SummarizeBytesInCDCHashes(host, path, data, modTime)
+		a, err := SummarizeFileInCDCHashes(host, path)
 
-		cv.So(h.FileOwner != "", cv.ShouldBeTrue)
-		_ = h
-		//vv("scan of file gave: hashes '%v'", h.String())
-		//cv.So(h.NumChunks, cv.ShouldEqual, 16) // blob977k
+		cv.So(a.FileOwner != "", cv.ShouldBeTrue)
+
+		vv("scan of file gave chunks: '%v'", a.Chunks)
+		cv.So(len(a.Chunks.Chunks), cv.ShouldEqual, 24) // blob977k
 
 		// now alter the data by prepending 2 bytes
 		data2 := append([]byte{0x24, 0xff}, data...)
-		h2, err := SummarizeBytesInCDCHashes(host, path+".prepend2bytes", data2, modTime)
+		b, err := SummarizeBytesInCDCHashes(host, path+".prepend2bytes", data2, modTime)
 		panicOn(err)
-		_ = h2
-		/*
-			diffs2 := h2.Diff(h)
-			//vv("diffs2 = '%s'", diffs2)
-			//cv.So(h2.NumChunks, cv.ShouldEqual, 16)
-			//cv.So(len(h2.Chunks), cv.ShouldEqual, 16)
-			cv.So(len(diffs2.OnlyA), cv.ShouldEqual, 1)
-			cv.So(len(diffs2.OnlyB), cv.ShouldEqual, 1)
-			//cv.So(len(diffs2.Both), cv.ShouldEqual, 15)
-			cv.So(diffs2.OnlyA[0].ChunkNumber, cv.ShouldEqual, 0)
-			cv.So(diffs2.OnlyB[0].ChunkNumber, cv.ShouldEqual, 0)
 
-			// lets try putting 2 bytes at the end instead:
-			data3 := append(data, []byte{0xf3, 0xee}...)
-			h3, err := SummarizeBytesInCDCHashes(host, path+".postpend2bytes", data3, modTime)
-			panicOn(err)
+		onlyA, onlyB, both := Diff(a.Chunks, b.Chunks)
 
-			diffs3 := h3.Diff(h)
-			//vv("diffs3 = '%s'", diffs3)
-			//cv.So(h3.NumChunks, cv.ShouldEqual, 16)
-			//cv.So(len(h3.Chunks), cv.ShouldEqual, 16)
-			cv.So(len(diffs3.OnlyA), cv.ShouldEqual, 1)
-			cv.So(len(diffs3.OnlyB), cv.ShouldEqual, 1)
-			//cv.So(len(diffs3.Both), cv.ShouldEqual, 15)
-			//cv.So(diffs3.OnlyA[0].ChunkNumber, cv.ShouldEqual, 15)
-			//cv.So(diffs3.OnlyB[0].ChunkNumber, cv.ShouldEqual, 15)
-		*/
+		cv.So(len(onlyA), cv.ShouldEqual, 1)
+		cv.So(len(onlyB), cv.ShouldEqual, 1)
+		cv.So(len(both), cv.ShouldEqual, 23)
+
+		// lets try putting 2 bytes at the end instead:
+		data3 := append(data, []byte{0xf3, 0xee}...)
+		b, err = SummarizeBytesInCDCHashes(host, path+".postpend2bytes", data3, modTime)
+		panicOn(err)
+
+		onlyA, onlyB, both = Diff(a.Chunks, b.Chunks)
+
+		cv.So(len(onlyA), cv.ShouldEqual, 1)
+		cv.So(len(onlyB), cv.ShouldEqual, 1)
+		cv.So(len(both), cv.ShouldEqual, 23)
+
 	})
 }
 
@@ -173,5 +165,35 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		difflen := compareFilesDiffLen(local.Path, remotePath)
 		cv.So(difflen, cv.ShouldEqual, 0)
 
+		// ==============================
+		// ==============================
+		// ==============================
+		//
+		// now repeat a second time, and we should get no transfer.
+		//
+		// ==============================
+		// ==============================
+		// ==============================
+
+		// update the localState, as if we didn't know it already.
+		localState, err = SummarizeFileInCDCHashes(host, localPath)
+		panicOn(err)
+
+		// step2 request: get diffs from what we have.
+		readerAckOV = &RsyncStep2_ReaderAcksOverview{
+			ReaderMatchesSenderAllGood: false,
+			SenderPath:                 remotePath,
+			ReaderHashes:               localState,
+		}
+
+		senderDeltas = &RsyncStep3A_SenderProvidesData{} // response
+
+		err = cli.Call("RsyncNode.Step3_SenderProvidesData", readerAckOV, senderDeltas, nil)
+		panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
+
+		vv("senderDeltas = '%v'", senderDeltas)
+
+		plan = senderDeltas.Chunks // the plan follow remote template, our target.
+		cv.So(len(plan.Chunks), cv.ShouldEqual, 0)
 	})
 }

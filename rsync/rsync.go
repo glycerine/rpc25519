@@ -767,6 +767,7 @@ func RsyncCliWantsToReadRemotePath(host, path string) (r *RsyncStep0_ClientReque
 	return r, nil
 }
 
+// String pretty prints the Chunks.
 func (d *Chunks) String() string {
 
 	jsonData, err := json.Marshal(d)
@@ -776,4 +777,31 @@ func (d *Chunks) String() string {
 	err = json.Indent(&pretty, jsonData, "", "    ")
 	panicOn(err)
 	return pretty.String()
+}
+
+// Pair is returned by Diff inside the both map.
+type Pair struct {
+	A, B *Chunk
+}
+
+// Diff compares two sets of Chunks.
+func Diff(a, b *Chunks) (onlyA, onlyB map[string]*Chunk, both map[string]*Pair) {
+
+	onlyA = make(map[string]*Chunk)
+	onlyB = make(map[string]*Chunk)
+	both = make(map[string]*Pair)
+
+	for _, chnk := range a.Chunks {
+		onlyA[chnk.Cry] = chnk
+	}
+	for _, chnkB := range b.Chunks {
+		chnkA, inBoth := onlyA[chnkB.Cry]
+		if inBoth {
+			both[chnkB.Cry] = &Pair{A: chnkA, B: chnkB}
+			delete(onlyA, chnkB.Cry)
+		} else {
+			onlyB[chnkB.Cry] = chnkB
+		}
+	}
+	return
 }
