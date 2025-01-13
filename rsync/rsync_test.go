@@ -86,6 +86,9 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		localPath := remotePath + ".local_rsync_out"
 		vv("localPath = '%v'", localPath)
 
+		// delete any old leftover test file from before.
+		os.Remove(localPath)
+
 		// set up a server and a client.
 
 		cfg := rpc.NewConfig()
@@ -231,13 +234,26 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		// new pre2path file is ready, summarize
 		// it and push it to the remotePath.
 
+		// the data is attached to the local2 Chunks .Data element.
+		// We had to read it in, so might as well keep it until we
+		// know we want to discard it, which the GetPlan() below will do
+		// if we tell it too.
 		localPrecis2, local2, err := SummarizeFileInCDCHashes(host, pre2path)
 		panicOn(err)
+
+		// generate a plan to update the remote server, based on
+		// the diff that we just made.
+
+		bs := NewBlobStore()
+
+		plan.ClearData()
+		dropData := true
+		plan2 := bs.GetPlanToUpdateRemoteToMatchLocal(local2, plan, dropData)
 
 		pushMe := &RsyncStep3A_SenderProvidesData{
 			SenderPath:   remotePath,
 			SenderPrecis: localPrecis2,
-			SenderChunks: local2,
+			SenderChunks: plan2,
 		}
 		_ = pushMe
 	})

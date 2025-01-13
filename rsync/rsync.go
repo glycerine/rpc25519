@@ -257,7 +257,9 @@ func NewBlobStore() *BlobStore {
 // them to be available in the BlobStore.
 // These pointers, from local or the BlobStore, are
 // copied ino the plan chunks we return.
-func (s *BlobStore) GetPlanToUpdateRemoteToMatchLocal(local, remote *Chunks) (plan *Chunks) {
+// If dropLocalData, we also delete what remote does
+// not need; we nil out the local chunk's .Data.
+func (s *BlobStore) GetPlanToUpdateRemoteToMatchLocal(local, remote *Chunks, dropLocalData bool) (plan *Chunks) {
 
 	plan = NewChunks(remote.Path)
 	plan.FileSize = local.FileSize
@@ -279,6 +281,9 @@ func (s *BlobStore) GetPlanToUpdateRemoteToMatchLocal(local, remote *Chunks) (pl
 		if ok {
 			//vv("i=%v, remote already has it, do not send.", i)
 			addme.Data = nil
+			if dropLocalData {
+				c.Data = nil // drop it locally too.
+			}
 		} else {
 			//vv("i=%v, leave addme.Data intact, because remote needs it.", i)
 
@@ -613,7 +618,8 @@ func (s *RsyncNode) Step3_SenderProvidesData(
 
 	bs := NewBlobStore() // TODO make persistent state.
 
-	plan := bs.GetPlanToUpdateRemoteToMatchLocal(local, remote)
+	dropRemoteData := true
+	plan := bs.GetPlanToUpdateRemoteToMatchLocal(local, remote, dropRemoteData)
 
 	vv("plan = '%v'", plan)
 	reply.SenderChunks = plan
@@ -848,4 +854,10 @@ func Diff(a, b *Chunks) (onlyA, onlyB map[string]*Chunk, both map[string]*Pair) 
 		}
 	}
 	return
+}
+
+func (c *Chunks) ClearData() {
+	for _, chunk := range c.Chunks {
+		chunk.Data = nil
+	}
 }
