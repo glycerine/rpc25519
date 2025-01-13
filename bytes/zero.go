@@ -24,3 +24,125 @@ func allZeroAVX2(b []byte) bool
 
 //go:noescape
 func allZeroAVX512(b []byte) bool
+
+// LongestZeroSpan returns the start index and length of the longest continuous
+// span of zero bytes in the given slice. If no zeros are found, returns (0, 0).
+// If multiple spans of the same longest length exist, returns the first one.
+func LongestZeroSpan(b []byte) (start, length int) {
+	if len(b) == 0 {
+		return 0, 0
+	}
+
+	var (
+		currentStart = 0
+		currentLen   = 0
+		maxStart     = 0
+		maxLen       = 0
+	)
+
+	// Process the slice looking for spans of zeros
+	for i := 0; i < len(b); {
+		// If we find a zero byte, try to extend the span using SIMD
+		if b[i] == 0 {
+			if currentLen == 0 {
+				currentStart = i
+			}
+
+			// Try to find the end of this zero span using SIMD
+			remainingSlice := b[i:]
+			j := 0
+			for j < len(remainingSlice) {
+				// Try chunks of increasing size
+				var chunkSize int
+				switch {
+				case len(remainingSlice[j:]) >= 64 && x86HasAVX512:
+					chunkSize = 64
+				case len(remainingSlice[j:]) >= 32 && x86HasAVX2:
+					chunkSize = 32
+				case len(remainingSlice[j:]) >= 16:
+					chunkSize = 16
+				default:
+					chunkSize = 1
+				}
+
+				chunk := remainingSlice[j : j+chunkSize]
+				if !AllZero(chunk) {
+					// Found a non-zero byte, need to find exactly where
+					for k := 0; k < chunkSize; k++ {
+						if chunk[k] != 0 {
+							j += k
+							break
+						}
+					}
+					break
+				}
+				j += chunkSize
+			}
+
+			// Update current span length
+			currentLen = j
+			i += j
+
+			// If we hit the end of the slice or a non-zero byte
+			if currentLen > maxLen {
+				maxLen = currentLen
+				maxStart = currentStart
+			}
+			currentLen = 0
+		} else {
+			i++
+			if currentLen > maxLen {
+				maxLen = currentLen
+				maxStart = currentStart
+			}
+			currentLen = 0
+		}
+	}
+
+	// Handle case where the longest span ends at slice end
+	if currentLen > maxLen {
+		maxLen = currentLen
+		maxStart = currentStart
+	}
+
+	return maxStart, maxLen
+}
+
+// Add this to the existing zero.go file
+
+// naiveLongestZeroSpan is a simple byte-by-byte implementation for benchmarking
+func naiveLongestZeroSpan(b []byte) (start, length int) {
+	if len(b) == 0 {
+		return 0, 0
+	}
+
+	var (
+		currentStart = 0
+		currentLen   = 0
+		maxStart     = 0
+		maxLen       = 0
+	)
+
+	for i := 0; i < len(b); i++ {
+		if b[i] == 0 {
+			if currentLen == 0 {
+				currentStart = i
+			}
+			currentLen++
+		} else {
+			if currentLen > maxLen {
+				maxLen = currentLen
+				maxStart = currentStart
+			}
+			currentLen = 0
+		}
+	}
+
+	// Handle case where the longest span ends at slice end
+	if currentLen > maxLen {
+		maxLen = currentLen
+		maxStart = currentStart
+	}
+
+	return maxStart, maxLen
+}
