@@ -152,14 +152,14 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 			ReaderChunks:               local,
 		}
 
-		senderDeltas := &RsyncStep3A_SenderProvidesData{} // response
+		senderDeltas := &PlannedUpdate{} // response
 
 		err = cli.Call("RsyncNode.Step3_SenderProvidesData", readerAckOV, senderDeltas, nil)
 		panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
 
 		vv("senderDeltas = '%v'", senderDeltas)
 
-		plan := senderDeltas.SenderChunks // the plan follow remote template, our target.
+		plan := senderDeltas.SenderPlan // the plan follow remote template, our target.
 		vv("plan = '%v'", plan)
 		//local is our origin or starting point.
 		localMap := getCryMap(local) // pre-index them for the update.
@@ -200,14 +200,14 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 			ReaderChunks:               local,
 		}
 
-		senderDeltas = &RsyncStep3A_SenderProvidesData{} // response
+		senderDeltas = &PlannedUpdate{} // response
 
 		err = cli.Call("RsyncNode.Step3_SenderProvidesData", readerAckOV, senderDeltas, nil)
 		panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
 
 		//vv("senderDeltas = '%v'", senderDeltas)
 
-		plan = senderDeltas.SenderChunks // the plan follow remote template, our target.
+		plan = senderDeltas.SenderPlan // the plan follow remote template, our target.
 		cv.So(plan.DataPresent(), cv.ShouldEqual, 0)
 
 		// ==============================
@@ -250,10 +250,10 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		dropData := true
 		plan2 := bs.GetPlanToUpdateRemoteToMatchLocal(local2, plan, dropData)
 
-		pushMe := &RsyncStep3A_SenderProvidesData{
+		pushMe := &PlannedUpdate{
 			SenderPath:   remotePath,
 			SenderPrecis: localPrecis2,
-			SenderChunks: plan2,
+			SenderPlan:   plan2,
 		}
 		_ = pushMe
 	})

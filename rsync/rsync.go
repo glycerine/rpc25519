@@ -492,7 +492,7 @@ func (s *RsyncNode) ClientSends() (err error) {
 
 	err = cli.Call("RsyncNode.Step2_ReaderAcksOverview", req1, reply2, nil)
 
-	req3 := &RsyncStep3A_SenderProvidesData{}
+	req3 := &PlannedUpdate{}
 	reply4 := &RsyncStep4_ReaderAcksDeltasFin{}
 
 	err = cli.Call("RsyncNode.Step4_ReaderAcksDeltasFin", req3, reply4, nil)
@@ -512,7 +512,7 @@ func (s *RsyncNode) ClientReads() (err error) {
 	err = cli.Call("RsyncNode.Step1_SenderOverview", req0, reply1, nil)
 
 	req2 := &RsyncStep2_ReaderAcksOverview{}
-	reply3 := &RsyncStep3A_SenderProvidesData{}
+	reply3 := &PlannedUpdate{}
 	err = cli.Call("RsyncNode.Step3_SenderProvidesData", req2, reply3, nil)
 
 	return
@@ -586,7 +586,7 @@ func (s *RsyncNode) Step2_ReaderAcksOverview(
 func (s *RsyncNode) Step3_SenderProvidesData(
 	ctx context.Context,
 	req *RsyncStep2_ReaderAcksOverview,
-	reply *RsyncStep3A_SenderProvidesData) error {
+	reply *PlannedUpdate) error {
 
 	vv("top of Step3_SenderProvidesData(); req.SenderPath='%v'", req.SenderPath)
 
@@ -622,7 +622,7 @@ func (s *RsyncNode) Step3_SenderProvidesData(
 	plan := bs.GetPlanToUpdateRemoteToMatchLocal(local, remote, dropRemoteData)
 
 	vv("plan = '%v'", plan)
-	reply.SenderChunks = plan
+	reply.SenderPlan = plan
 	vv("end of Step3_SenderProvidesData()")
 
 	//path := req.SenderPath // is this right? nope.
@@ -640,16 +640,16 @@ func getCryMap(cs *Chunks) (m map[string]*Chunk) {
 
 func (s *RsyncNode) Step4_ReaderAcksDeltasFin(
 	ctx context.Context,
-	req *RsyncStep3A_SenderProvidesData,
+	req *PlannedUpdate,
 	reply *RsyncStep4_ReaderAcksDeltasFin) error {
 
 	return nil
 }
 
-type RsyncStep3A_SenderProvidesData struct {
+type PlannedUpdate struct {
 	SenderPath   string      `zid:"0"`
 	SenderPrecis *FilePrecis `zid:"1"` // needs to be streamed too? could be very large?
-	SenderChunks *Chunks     `zid:"2"`
+	SenderPlan   *Chunks     `zid:"2"`
 }
 
 // 4) reader gets the diff, the changed chunks (DeltaData),
