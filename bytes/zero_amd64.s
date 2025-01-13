@@ -141,19 +141,19 @@ sse2_false:
 // func AllZero(b []byte) bool
 TEXT ·AllZero(SB), NOSPLIT, $0-32
     // Check CPU features and jump to appropriate implementation
-    MOVB x86HasAVX512(SB), AX
+    MOVB ·x86HasAVX512(SB), AX
     TESTB AX, AX
     JZ noAVX512                  // Jump if Zero (ZF=1)
-    JMP allZeroAVX512(SB)
+    JMP ·allZeroAVX512(SB)
 
 noAVX512:
-    MOVB x86HasAVX2(SB), AX
+    MOVB ·x86HasAVX2(SB), AX
     TESTB AX, AX
     JZ noAVX2                    // Jump if Zero (ZF=1)
-    JMP allZeroAVX2(SB)
+    JMP ·allZeroAVX2(SB)
 
 noAVX2:
     // SSE2 is baseline for amd64
-    JMP allZeroSSE2(SB)
+    JMP ·allZeroSSE2(SB)
     RET
 

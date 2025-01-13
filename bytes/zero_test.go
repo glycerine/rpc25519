@@ -2,6 +2,7 @@ package bytes
 
 import (
 	"math/rand"
+	"strconv"
 	"testing"
 )
 
@@ -74,7 +75,7 @@ func TestAllZero(t *testing.T) {
 			data []byte
 			want bool
 		}{
-			name: "non-zero at start of " + string(size),
+			name: "non-zero at start of " + strconv.Itoa(size),
 			data: data,
 			want: false,
 		})
@@ -87,7 +88,7 @@ func TestAllZero(t *testing.T) {
 			data []byte
 			want bool
 		}{
-			name: "non-zero at end of " + string(size),
+			name: "non-zero at end of " + strconv.Itoa(size),
 			data: data,
 			want: false,
 		})
@@ -100,7 +101,7 @@ func TestAllZero(t *testing.T) {
 			data []byte
 			want bool
 		}{
-			name: "non-zero in middle of " + string(size),
+			name: "non-zero in middle of " + strconv.Itoa(size),
 			data: data,
 			want: false,
 		})
@@ -120,7 +121,7 @@ func BenchmarkAllZero(b *testing.B) {
 	sizes := []int{16, 32, 64, 128, 256, 512, 1024, 4096}
 
 	for _, size := range sizes {
-		b.Run("size_"+string(size), func(b *testing.B) {
+		b.Run("size_"+strconv.Itoa(size), func(b *testing.B) {
 			data := make([]byte, size)
 			b.SetBytes(int64(size))
 			b.ResetTimer()
@@ -130,7 +131,7 @@ func BenchmarkAllZero(b *testing.B) {
 		})
 
 		// Also benchmark worst case (early exit on first non-zero byte)
-		b.Run("size_"+string(size)+"_early_exit", func(b *testing.B) {
+		b.Run("size_"+strconv.Itoa(size)+"_early_exit", func(b *testing.B) {
 			data := make([]byte, size)
 			data[0] = 1
 			b.SetBytes(int64(size))
