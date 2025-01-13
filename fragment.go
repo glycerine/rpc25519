@@ -138,6 +138,13 @@ type Peer interface {
 	ID2() (localPeerID, remotePeerID string)
 }
 
+// aka: for ease of copying,
+// type PeerServiceFunc func(peerServiceName string, ourPeerID string, ctx0 context.Context, newPeerCh <-chan Peer) error
+
+// PeerServiceFunc is implemented by user's peer services,
+// and registered on a Client or a Server under a
+// specific peerServiceName by using the
+// PeerAPI.RegisterPeerServiceFunc() call.
 type PeerServiceFunc func(
 
 	// how we were registered/invoked.
