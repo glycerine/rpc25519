@@ -1757,9 +1757,9 @@ type UniversalCliSrv interface {
 	GetReadsForCallID(ch chan *Message, callID string)
 	GetErrorsForCallID(ch chan *Message, callID string)
 
-	// might want
-	// GetReadsForObjID(ch chan *Message, objID string)
-	// GetErrorsForObjID(ch chan *Message, objID string)
+	// for Peer/Object systems.
+	GetReadsForObjID(ch chan *Message, objID string)
+	GetErrorsForObjID(ch chan *Message, objID string)
 }
 
 // maintain the requirement that Client and Server both
