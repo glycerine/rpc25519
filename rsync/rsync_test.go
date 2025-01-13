@@ -158,10 +158,9 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 
 		// step2 request: get diffs from what we have.
 		readerAckOV := &RsyncStep2_ReaderAcksOverview{
-			ReaderMatchesSenderAllGood: false,
-			SenderPath:                 remotePath,
-			ReaderPrecis:               localPrecis,
-			ReaderChunks:               local,
+			SenderPath:   remotePath,
+			ReaderPrecis: localPrecis,
+			ReaderChunks: local,
 		}
 
 		senderDeltas := &PlannedUpdate{} // response
@@ -208,10 +207,9 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 
 		// step2 request: get diffs from what we have.
 		readerAckOV = &RsyncStep2_ReaderAcksOverview{
-			ReaderMatchesSenderAllGood: false,
-			SenderPath:                 remotePath,
-			ReaderPrecis:               localPrecis,
-			ReaderChunks:               clearLocal,
+			SenderPath:   remotePath,
+			ReaderPrecis: localPrecis,
+			ReaderChunks: clearLocal,
 		}
 
 		senderDeltas = &PlannedUpdate{} // response
