@@ -258,6 +258,8 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		cv.So(plan2.DataChunkCount(), cv.ShouldEqual, 2)
 		cv.So(plan2.DataPresent(), cv.ShouldEqual, 147458)
 
+		vv("out of %v chunks, in a %v byte long file, these were updated: '%v'", len(plan2.Chunks), plan2.FileSize, plan2.DataFilter())
+
 		pushMe := &PlannedUpdate{
 			SenderPath:   remotePath,
 			SenderPrecis: localPrecis2,

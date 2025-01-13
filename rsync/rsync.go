@@ -916,3 +916,13 @@ func (cs *Chunks) CloneWithClearData() (r *Chunks) {
 	}
 	return
 }
+
+// DataFilter returns only those chunks with .Data
+func (cs *Chunks) DataFilter() (r []*Chunk) {
+	for _, chunk := range cs.Chunks {
+		if len(chunk.Data) > 0 {
+			r = append(r, chunk)
+		}
+	}
+	return
+}
