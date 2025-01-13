@@ -166,11 +166,11 @@ func UpdateLocalWithRemoteDiffs(
 	return
 }
 
-// RsyncSummary stores CDC (Content Dependent Chunking)
+// FilePrecis stores CDC (Content Dependent Chunking)
 // chunks for a given Path on a given Host, using
 // a specified chunking algorithm (e.g. "jcdc"), its parameters,
 // and a specified hash function (e.g. "blake3.32B"
-type RsyncSummary struct {
+type FilePrecis struct {
 	// uniquely idenitify this hash set.
 	Rsync0CallID string    `zid:"15"`
 	IsFromSender bool      `zid:"16"`
@@ -349,7 +349,7 @@ type RsyncStep1_SenderOverview struct {
 // 2) receiver/reader end gets path to the file, its
 // length and modification time stamp. If length
 // and time stamp match, stop.
-// Else: ack back with RsyncSummary, "here are the chunks I have"
+// Else: ack back with FilePrecis, "here are the chunks I have"
 // and the whole file checksum.
 // Reader replies to sender with RsyncStep2_ReaderAcksOverview.
 type RsyncStep2_ReaderAcksOverview struct {
@@ -358,7 +358,7 @@ type RsyncStep2_ReaderAcksOverview struct {
 	ReaderMatchesSenderAllGood bool   `zid:"0"`
 	SenderPath                 string `zid:"1"`
 
-	ReaderHashes *RsyncSummary `zid:"2"`
+	ReaderHashes *FilePrecis `zid:"2"`
 }
 
 // 3) sender chunks the file, does the diff, and
@@ -374,7 +374,7 @@ type RsyncStep2_ReaderAcksOverview struct {
 // Or even a 64MB max message.
 // So rsync may need to use a Bistream that can handle lots of
 // separate messages and reassemble them.
-// For that matter, the RsyncSummary in step 2
+// For that matter, the FilePrecis in step 2
 // can be large too. As a part of the rsync
 // protocol we want to be able to send
 // "large files" that are actually large, streamed
@@ -609,8 +609,8 @@ func (s *RsyncNode) Step4_ReaderAcksDeltasFin(
 }
 
 type RsyncStep3A_SenderProvidesData struct {
-	SenderPath   string        `zid:"0"`
-	SenderHashes *RsyncSummary `zid:"1"` // needs to be streamed too? could be very large?
+	SenderPath   string      `zid:"0"`
+	SenderPrecis *FilePrecis `zid:"1"` // needs to be streamed too? could be very large?
 
 	Chunks *Chunks `zid:"2"`
 }
@@ -633,7 +633,7 @@ type RsyncStep4_ReaderAcksDeltasFin struct {
 	ReaderFullHash string    `zid:"4"`
 }
 
-func (h *RsyncSummary) String() string {
+func (h *FilePrecis) String() string {
 
 	jsonData, err := json.Marshal(h)
 	panicOn(err)
@@ -644,7 +644,7 @@ func (h *RsyncSummary) String() string {
 	return pretty.String()
 }
 
-func SummarizeFileInCDCHashes(host, path string) (hashes *RsyncSummary, err error) {
+func SummarizeFileInCDCHashes(host, path string) (precis *FilePrecis, err error) {
 
 	if !fileExists(path) {
 		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{})
@@ -661,28 +661,28 @@ func SummarizeFileInCDCHashes(host, path string) (hashes *RsyncSummary, err erro
 		return nil, fmt.Errorf("rsync.go error on os.Stat() of '%v': '%v'", path, err)
 	}
 
-	hashes, err = SummarizeBytesInCDCHashes(host, path, data, fi.ModTime())
-	hashes.FileMode = uint32(fi.Mode())
+	precis, err = SummarizeBytesInCDCHashes(host, path, data, fi.ModTime())
+	precis.FileMode = uint32(fi.Mode())
 
 	if stat_t, ok := fi.Sys().(*syscall.Stat_t); ok {
 		uid := stat_t.Uid
-		hashes.FileOwnerID = uid
+		precis.FileOwnerID = uid
 		gid := stat_t.Gid
-		hashes.FileGroupID = gid
+		precis.FileGroupID = gid
 
 		owner, err := user.LookupId(fmt.Sprint(uid))
 		if err == nil && owner != nil {
-			hashes.FileOwner = owner.Username
+			precis.FileOwner = owner.Username
 		}
 		group, err := user.LookupGroupId(fmt.Sprint(gid))
 		if err == nil && group != nil {
-			hashes.FileGroup = group.Name
+			precis.FileGroup = group.Name
 		}
 	}
 	return
 }
 
-func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time) (hashes *RsyncSummary, err error) {
+func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time) (precis *FilePrecis, err error) {
 
 	// These two different chunking approaches,
 	// Jcdc and FastCDC, need very different
@@ -714,7 +714,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 		cdc = jcdc.NewUltraCDC(opts)
 	}
 
-	hashes = &RsyncSummary{
+	precis = &FilePrecis{
 		Host:            host,
 		Path:            path,
 		FileSize:        len(data),
@@ -725,8 +725,8 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 		HashName:        "blake3.32B",
 		Chunks:          NewChunks(path),
 	}
-	hashes.Chunks.FileSize = hashes.FileSize
-	hashes.Chunks.FileCry = hashes.FullFileHashSum
+	precis.Chunks.FileSize = precis.FileSize
+	precis.Chunks.FileCry = precis.FullFileHashSum
 
 	if len(data) == 0 {
 		return
@@ -748,7 +748,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 			Cry:  hsh,
 			Data: slc,
 		}
-		hashes.Chunks.Chunks = append(hashes.Chunks.Chunks, chunk)
+		precis.Chunks.Chunks = append(precis.Chunks.Chunks, chunk)
 		prev = c
 	}
 	return
