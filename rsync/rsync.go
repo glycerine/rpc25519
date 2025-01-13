@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"lukechampine.com/blake3"
 	//"io"
 	"os"
@@ -115,6 +116,7 @@ func UpdateLocalWithRemoteDiffs(
 
 	remote *Chunks,
 
+	goalPrecis *FilePrecis, // set mode, modtime from.
 ) (err error) {
 
 	if remote.FileSize == 0 {
@@ -195,6 +197,14 @@ func UpdateLocalWithRemoteDiffs(
 	fd.Close()
 	err = os.Rename(tmp, localPathToWrite)
 	panicOn(err)
+
+	// restore mode, modtime
+	err = os.Chmod(localPathToWrite, fs.FileMode(goalPrecis.FileMode))
+	panicOn(err)
+
+	err = os.Chtimes(localPathToWrite, time.Time{}, goalPrecis.ModTime)
+	panicOn(err)
+
 	return
 }
 
@@ -623,7 +633,7 @@ func (s *RsyncNode) Step3_SenderProvidesData(
 	remote := req.ReaderChunks
 
 	localPrecis, local, err := SummarizeFileInCDCHashes(s.Host, req.SenderPath)
-	_ = localPrecis
+
 	if err != nil {
 		vv("mid Step3_SenderProvidesData(); err = '%v'", err)
 	} else {
@@ -649,6 +659,7 @@ func (s *RsyncNode) Step3_SenderProvidesData(
 
 	//vv("plan = '%v'", plan)
 	reply.SenderPlan = plan
+	reply.SenderPrecis = localPrecis
 	vv("end of Step3_SenderProvidesData()")
 
 	//path := req.SenderPath // is this right? nope.
@@ -673,13 +684,14 @@ func (s *RsyncNode) AcceptPlannedUpdate(
 	reply *PlannedUpdate) error {
 
 	plan := req.SenderPlan
+	senderPrecis := req.SenderPrecis
 
 	localPrecis, local, err := SummarizeFileInCDCHashes(s.Host, req.SenderPath)
 	_ = localPrecis
 
 	localMap := getCryMap(local) // pre-index them for the update.
 
-	err = UpdateLocalWithRemoteDiffs(local.Path, localMap, plan)
+	err = UpdateLocalWithRemoteDiffs(local.Path, localMap, plan, senderPrecis)
 	panicOn(err)
 
 	return err

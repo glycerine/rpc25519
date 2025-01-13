@@ -180,7 +180,7 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		cv.So(plan.DataPresent(), cv.ShouldEqual, 1048576)
 		cv.So(plan.FileSize, cv.ShouldEqual, 1048576)
 
-		err = UpdateLocalWithRemoteDiffs(local.Path, localMap, plan)
+		err = UpdateLocalWithRemoteDiffs(local.Path, localMap, plan, senderDeltas.SenderPrecis)
 		panicOn(err)
 
 		if !fileExists(local.Path) {
