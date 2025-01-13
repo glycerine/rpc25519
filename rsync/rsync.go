@@ -364,7 +364,18 @@ type RsyncStep1_SenderOverview struct {
 	ErrString string `zid:"5"`
 }
 
-type RsyncStep2_ReaderAcksOverview struct {
+// Light request asks for the
+// remote Sender's path, and
+// advertises the chunks for the
+// readers's version that are
+// already available. The
+// responder will send back
+// an HeavyPlan that includes
+// the minimal necessary data and
+// instructions on how to
+// assemble the desired file from
+// chunks.
+type LightRequest struct {
 	SenderPath string `zid:"0"`
 
 	ReaderPrecis *FilePrecis `zid:"1"`
@@ -425,12 +436,12 @@ func (s *RsyncNode) Step1_SenderOverview(
 	return nil
 }
 
-func (s *RsyncNode) Step3_SenderProvidesData(
+func (s *RsyncNode) RequestLatest(
 	ctx context.Context,
-	req *RsyncStep2_ReaderAcksOverview,
-	reply *PlannedUpdate) error {
+	req *LightRequest,
+	reply *HeavyPlan) error {
 
-	vv("top of Step3_SenderProvidesData(); req.SenderPath='%v'", req.SenderPath)
+	vv("top of RequestLatest(); req.SenderPath='%v'", req.SenderPath)
 
 	// they need file (parts at least).
 	remote := req.ReaderChunks
@@ -438,7 +449,7 @@ func (s *RsyncNode) Step3_SenderProvidesData(
 	localPrecis, local, err := SummarizeFileInCDCHashes(s.Host, req.SenderPath)
 
 	if err != nil {
-		vv("mid Step3_SenderProvidesData(); err = '%v'", err)
+		vv("mid RequestLatest(); err = '%v'", err)
 	} else {
 		vv("step3: localHashes ok")
 	}
@@ -446,8 +457,8 @@ func (s *RsyncNode) Step3_SenderProvidesData(
 
 	//local := localSummary.Chunks
 
-	//vv("Step3_SenderProvidesData(): server has local='%v'", local)
-	//vv("Step3_SenderProvidesData(): server sees remote='%v'", remote)
+	//vv("RequestLatest(): server has local='%v'", local)
+	//vv("RequestLatest(): server sees remote='%v'", remote)
 
 	// debug only TODO comment out:
 	//onlyL, onlyR, both := Diff(local, remote)
@@ -463,7 +474,7 @@ func (s *RsyncNode) Step3_SenderProvidesData(
 	//vv("plan = '%v'", plan)
 	reply.SenderPlan = plan
 	reply.SenderPrecis = localPrecis
-	vv("end of Step3_SenderProvidesData()")
+	vv("end of RequestLatest()")
 
 	//path := req.SenderPath // is this right? nope.
 
@@ -481,10 +492,10 @@ func getCryMap(cs *Chunks) (m map[string]*Chunk) {
 // When the client wants to send a change to the
 // server, and it already has a plan.
 
-func (s *RsyncNode) AcceptPlannedUpdate(
+func (s *RsyncNode) AcceptHeavyPlan(
 	ctx context.Context,
-	req *PlannedUpdate,
-	reply *PlannedUpdate) error {
+	req *HeavyPlan,
+	reply *HeavyPlan) error {
 
 	plan := req.SenderPlan
 	senderPrecis := req.SenderPrecis
@@ -500,7 +511,7 @@ func (s *RsyncNode) AcceptPlannedUpdate(
 	return err
 }
 
-type PlannedUpdate struct {
+type HeavyPlan struct {
 	SenderPath   string      `zid:"0"`
 	SenderPrecis *FilePrecis `zid:"1"` // needs to be streamed too? could be very large?
 	SenderPlan   *Chunks     `zid:"2"`

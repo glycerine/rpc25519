@@ -157,15 +157,15 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		panicOn(err)
 
 		// step2 request: get diffs from what we have.
-		readerAckOV := &RsyncStep2_ReaderAcksOverview{
+		readerAckOV := &LightRequest{
 			SenderPath:   remotePath,
 			ReaderPrecis: localPrecis,
 			ReaderChunks: local,
 		}
 
-		senderDeltas := &PlannedUpdate{} // response
+		senderDeltas := &HeavyPlan{} // response
 
-		err = cli.Call("RsyncNode.Step3_SenderProvidesData", readerAckOV, senderDeltas, nil)
+		err = cli.Call("RsyncNode.RequestLatest", readerAckOV, senderDeltas, nil)
 		panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
 
 		//vv("senderDeltas = '%v'", senderDeltas)
@@ -206,15 +206,15 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		clearLocal := local.CloneWithClearData()
 
 		// step2 request: get diffs from what we have.
-		readerAckOV = &RsyncStep2_ReaderAcksOverview{
+		readerAckOV = &LightRequest{
 			SenderPath:   remotePath,
 			ReaderPrecis: localPrecis,
 			ReaderChunks: clearLocal,
 		}
 
-		senderDeltas = &PlannedUpdate{} // response
+		senderDeltas = &HeavyPlan{} // response
 
-		err = cli.Call("RsyncNode.Step3_SenderProvidesData", readerAckOV, senderDeltas, nil)
+		err = cli.Call("RsyncNode.RequestLatest", readerAckOV, senderDeltas, nil)
 		panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
 
 		//vv("senderDeltas = '%v'", senderDeltas)
@@ -284,15 +284,15 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 			//cv.So(plan2.DataPresent(), cv.ShouldEqual, 11796)
 		}
 
-		pushMe := &PlannedUpdate{
+		pushMe := &HeavyPlan{
 			SenderPath:   remotePath,
 			SenderPrecis: localPrecis2,
 			SenderPlan:   plan2,
 		}
 		_ = pushMe
 
-		gotBack := &PlannedUpdate{} // they might update us too... :) ignore for now.
-		err = cli.Call("RsyncNode.AcceptPlannedUpdate", pushMe, gotBack, nil)
+		gotBack := &HeavyPlan{} // they might update us too... :) ignore for now.
+		err = cli.Call("RsyncNode.AcceptHeavyPlan", pushMe, gotBack, nil)
 		panicOn(err)
 
 		// confirm it happened.
