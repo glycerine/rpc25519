@@ -192,12 +192,14 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		localPrecis, local, err = SummarizeFileInCDCHashes(host, localPath)
 		panicOn(err)
 
+		clearLocal := local.CloneWithClearData()
+
 		// step2 request: get diffs from what we have.
 		readerAckOV = &RsyncStep2_ReaderAcksOverview{
 			ReaderMatchesSenderAllGood: false,
 			SenderPath:                 remotePath,
 			ReaderPrecis:               localPrecis,
-			ReaderChunks:               local,
+			ReaderChunks:               clearLocal,
 		}
 
 		senderDeltas = &PlannedUpdate{} // response

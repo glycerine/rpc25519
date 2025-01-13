@@ -189,10 +189,20 @@ func UpdateLocalWithRemoteDiffs(
 	return
 }
 
-// FilePrecis stores CDC (Content Dependent Chunking)
-// chunks for a given Path on a given Host, using
+// FilePrecis stores file meta data like owner, group,
+// mode bits; as well as the details of how it
+// was chunked with CDC (Content Dependent Chunking)
+// chunking for a given Path on a given Host, using
 // a specified chunking algorithm (e.g. "jcdc"), its parameters,
-// and a specified hash function (e.g. "blake3.32B"
+// and a specified hash function (e.g. "blake3.32B")
+// for identifying the chunks.
+//
+// A FilePrecis is produced along side a set of Chunks
+// by SummarizeFileInCDCHashes() and friends. They
+// now return the Chunks themselves separately
+// to make it easier to reuse those chunks,
+// detaching and attaching Data as needed;
+// having a forgotten cache here in the precis.
 type FilePrecis struct {
 
 	// uniquely idenitify this FilePrecis.
@@ -877,8 +887,23 @@ func Diff(a, b *Chunks) (onlyA, onlyB map[string]*Chunk, both map[string]*Pair) 
 	return
 }
 
-func (c *Chunks) ClearData() {
-	for _, chunk := range c.Chunks {
+func (cs *Chunks) ClearData() {
+	for _, chunk := range cs.Chunks {
 		chunk.Data = nil
 	}
+}
+
+func (cs *Chunks) CloneWithClearData() (r *Chunks) {
+	r = NewChunks(cs.Path)
+	r.FileSize = cs.FileSize
+	r.FileCry = cs.FileCry
+	for _, c := range cs.Chunks {
+		r.Chunks = append(r.Chunks, &Chunk{
+			Beg:  c.Beg,
+			Endx: c.Endx,
+			Cry:  c.Cry,
+			// deliberately clearing .Data, of course.
+		})
+	}
+	return
 }
