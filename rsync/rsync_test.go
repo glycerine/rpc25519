@@ -1,6 +1,7 @@
 package rsync
 
 import (
+	cryrand "crypto/rand"
 	"fmt"
 	"os"
 	"testing"
@@ -74,6 +75,9 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		testfd, err := os.Create(remotePath)
 		panicOn(err)
 		slc := make([]byte, 1<<20) // 1 MB slice
+		if true {
+			cryrand.Read(slc)
+		}
 		for range N {
 			_, err = testfd.Write(slc)
 			panicOn(err)
@@ -161,7 +165,13 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		localMap := getCryMap(local) // pre-index them for the update.
 
 		err = UpdateLocalWithRemoteDiffs(local.Path, localMap, plan)
-
 		panicOn(err)
+
+		if !fileExists(local.Path) {
+			panic("file should have been written locally now!")
+		}
+		difflen := compareFilesDiffLen(local.Path, remotePath)
+		cv.So(difflen, cv.ShouldEqual, 0)
+
 	})
 }
