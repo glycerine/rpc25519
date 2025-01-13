@@ -189,24 +189,24 @@ func UpdateLocalWithRemoteDiffs(
 type FilePrecis struct {
 
 	// uniquely idenitify this FilePrecis.
-	CallID string `zid:"15"`
+	CallID string `zid:"0"`
 
-	IsFromSender bool      `zid:"16"`
-	Created      time.Time `zid:"17"`
+	IsFromSender bool      `zid:"1"`
+	Created      time.Time `zid:"2"`
 
-	Host string `zid:"0"`
-	Path string `zid:"1"`
+	Host string `zid:"3"`
+	Path string `zid:"4"`
 
-	ModTime     time.Time `zid:"2"`
-	FileSize    int       `zid:"3"`
-	FileMode    uint32    `zid:"4"`
-	FileOwner   string    `zid:"5"`
-	FileOwnerID uint32    `zid:"6"`
-	FileGroup   string    `zid:"7"`
-	FileGroupID uint32    `zid:"8"`
+	ModTime     time.Time `zid:"5"`
+	FileSize    int       `zid:"6"`
+	FileMode    uint32    `zid:"7"`
+	FileOwner   string    `zid:"8"`
+	FileOwnerID uint32    `zid:"9"`
+	FileGroup   string    `zid:"10"`
+	FileGroupID uint32    `zid:"11"`
 
 	// other data, extension mechanism. Not used presently; for future use.
-	FileMeta []byte `zid:"9"`
+	FileMeta []byte `zid:"12"`
 
 	// HashName is e.g. "blake3.32B". This should match the
 	// hash string prefix without any trailing "-" dash.
@@ -214,9 +214,9 @@ type FilePrecis struct {
 	// For example, if your hash strings look like
 	// "blake3.32B-89J1Jfa1AzfjiOcVOCLJXDsX3AANHWiSERgJwtaUSj8="
 	// then your HashName is "blake3.32B".
-	HashName string `zid:"10"`
+	HashName string `zid:"13"`
 
-	FullFileHashSum string `zid:"11"`
+	FileCry string `zid:"14"`
 
 	// ChunkerName is e.g.
 	// "fastcdc-Stadia-Google-64bit-arbitrary-regression-jea"
@@ -224,10 +224,12 @@ type FilePrecis struct {
 	// It should encapsulate any settings and
 	// implementation version needed to allow it to be
 	// reproduced exactly.
-	ChunkerName string           `zid:"12"`
-	CDC_Config  *jcdc.CDC_Config `zid:"13"`
+	ChunkerName string           `zid:"15"`
+	CDC_Config  *jcdc.CDC_Config `zid:"16"`
 
-	Chunks *Chunks `zid:"14"`
+	// keep these separate so we don't
+	// send all the data all the time.
+	//Chunks *Chunks
 }
 
 // A BlobStore is CAS for blobs. It is Content Addressable
@@ -379,11 +381,12 @@ type RsyncStep1_SenderOverview struct {
 // Reader replies to sender with RsyncStep2_ReaderAcksOverview.
 type RsyncStep2_ReaderAcksOverview struct {
 	// if true, no further action needed.
-	// ReaderHashes can be nil then.
+	// Reader{Precis,Chunks} can be nil then.
 	ReaderMatchesSenderAllGood bool   `zid:"0"`
 	SenderPath                 string `zid:"1"`
 
-	ReaderHashes *FilePrecis `zid:"2"`
+	ReaderPrecis *FilePrecis `zid:"2"`
+	ReaderChunks *Chunks     `zid:"3"`
 }
 
 // 3) sender chunks the file, does the diff, and
@@ -586,10 +589,10 @@ func (s *RsyncNode) Step3_SenderProvidesData(
 		return nil // nothing for us to do, they are fine.
 	}
 	// they need file (parts at least).
-	remoteSummary := req.ReaderHashes
-	remote := remoteSummary.Chunks
+	remote := req.ReaderChunks
 
-	localSummary, err := SummarizeFileInCDCHashes(s.Host, req.SenderPath)
+	localPrecis, local, err := SummarizeFileInCDCHashes(s.Host, req.SenderPath)
+	_ = localPrecis
 	if err != nil {
 		vv("mid Step3_SenderProvidesData(); err = '%v'", err)
 	} else {
@@ -597,7 +600,7 @@ func (s *RsyncNode) Step3_SenderProvidesData(
 	}
 	panicOn(err)
 
-	local := localSummary.Chunks
+	//local := localSummary.Chunks
 
 	vv("Step3_SenderProvidesData(): server has local='%v'", local)
 	vv("Step3_SenderProvidesData(): server sees remote='%v'", remote)
@@ -613,7 +616,7 @@ func (s *RsyncNode) Step3_SenderProvidesData(
 	plan := bs.GetPlanToUpdateRemoteToMatchLocal(local, remote)
 
 	vv("plan = '%v'", plan)
-	reply.Chunks = plan
+	reply.SenderChunks = plan
 	vv("end of Step3_SenderProvidesData()")
 
 	//path := req.SenderPath // is this right? nope.
@@ -640,8 +643,7 @@ func (s *RsyncNode) Step4_ReaderAcksDeltasFin(
 type RsyncStep3A_SenderProvidesData struct {
 	SenderPath   string      `zid:"0"`
 	SenderPrecis *FilePrecis `zid:"1"` // needs to be streamed too? could be very large?
-
-	Chunks *Chunks `zid:"2"`
+	SenderChunks *Chunks     `zid:"2"`
 }
 
 // 4) reader gets the diff, the changed chunks (DeltaData),
@@ -673,7 +675,7 @@ func (h *FilePrecis) String() string {
 	return pretty.String()
 }
 
-func SummarizeFileInCDCHashes(host, path string) (precis *FilePrecis, err error) {
+func SummarizeFileInCDCHashes(host, path string) (precis *FilePrecis, chunks *Chunks, err error) {
 
 	if !fileExists(path) {
 		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{})
@@ -683,14 +685,14 @@ func SummarizeFileInCDCHashes(host, path string) (precis *FilePrecis, err error)
 	var data []byte
 	data, err = os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("rsync.go error reading path '%v': '%v'", path, err)
+		return nil, nil, fmt.Errorf("rsync.go error reading path '%v': '%v'", path, err)
 	}
 	fi, err := os.Stat(path)
 	if err != nil {
-		return nil, fmt.Errorf("rsync.go error on os.Stat() of '%v': '%v'", path, err)
+		return nil, nil, fmt.Errorf("rsync.go error on os.Stat() of '%v': '%v'", path, err)
 	}
 
-	precis, err = SummarizeBytesInCDCHashes(host, path, data, fi.ModTime())
+	precis, chunks, err = SummarizeBytesInCDCHashes(host, path, data, fi.ModTime())
 	precis.FileMode = uint32(fi.Mode())
 
 	if stat_t, ok := fi.Sys().(*syscall.Stat_t); ok {
@@ -711,7 +713,8 @@ func SummarizeFileInCDCHashes(host, path string) (precis *FilePrecis, err error)
 	return
 }
 
-func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time) (precis *FilePrecis, err error) {
+func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time) (
+	precis *FilePrecis, chunks *Chunks, err error) {
 
 	// These two different chunking approaches,
 	// Jcdc and FastCDC, need very different
@@ -744,18 +747,18 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 	}
 
 	precis = &FilePrecis{
-		Host:            host,
-		Path:            path,
-		FileSize:        len(data),
-		ModTime:         modTime,
-		FullFileHashSum: hash.Blake3OfBytesString(data),
-		ChunkerName:     cdc.Name(),
-		CDC_Config:      cdc.Config(),
-		HashName:        "blake3.32B",
-		Chunks:          NewChunks(path),
+		Host:        host,
+		Path:        path,
+		FileSize:    len(data),
+		ModTime:     modTime,
+		FileCry:     hash.Blake3OfBytesString(data),
+		ChunkerName: cdc.Name(),
+		CDC_Config:  cdc.Config(),
+		HashName:    "blake3.32B",
 	}
-	precis.Chunks.FileSize = precis.FileSize
-	precis.Chunks.FileCry = precis.FullFileHashSum
+	chunks = NewChunks(path)
+	chunks.FileSize = precis.FileSize
+	chunks.FileCry = precis.FileCry
 
 	if len(data) == 0 {
 		return
@@ -777,7 +780,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 			Cry:  hsh,
 			Data: slc,
 		}
-		precis.Chunks.Chunks = append(precis.Chunks.Chunks, chunk)
+		chunks.Chunks = append(chunks.Chunks, chunk)
 		prev = c
 	}
 	return

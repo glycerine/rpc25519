@@ -1,8 +1,10 @@
 package rsync
 
 import (
+	"bytes"
 	cryrand "crypto/rand"
 	"fmt"
+	"io"
 	"os"
 	"testing"
 	"time"
@@ -25,19 +27,19 @@ func Test201_rsync_style_chunking_and_hash_generation(t *testing.T) {
 
 		// SummarizeFile... rather than SummarizeBytes...
 		// so we can manually confirm owner name is present. Yes.
-		a, err := SummarizeFileInCDCHashes(host, path)
+		a, achunks, err := SummarizeFileInCDCHashes(host, path)
 
 		cv.So(a.FileOwner != "", cv.ShouldBeTrue)
 
-		vv("scan of file gave chunks: '%v'", a.Chunks)
-		cv.So(len(a.Chunks.Chunks), cv.ShouldEqual, 24) // blob977k
+		vv("scan of file gave chunks: '%v'", achunks)
+		cv.So(len(achunks.Chunks), cv.ShouldEqual, 24) // blob977k
 
 		// now alter the data by prepending 2 bytes
 		data2 := append([]byte{0x24, 0xff}, data...)
-		b, err := SummarizeBytesInCDCHashes(host, path+".prepend2bytes", data2, modTime)
+		_, bchunks, err := SummarizeBytesInCDCHashes(host, path+".prepend2bytes", data2, modTime)
 		panicOn(err)
 
-		onlyA, onlyB, both := Diff(a.Chunks, b.Chunks)
+		onlyA, onlyB, both := Diff(achunks, bchunks)
 
 		cv.So(len(onlyA), cv.ShouldEqual, 1)
 		cv.So(len(onlyB), cv.ShouldEqual, 1)
@@ -45,10 +47,10 @@ func Test201_rsync_style_chunking_and_hash_generation(t *testing.T) {
 
 		// lets try putting 2 bytes at the end instead:
 		data3 := append(data, []byte{0xf3, 0xee}...)
-		b, err = SummarizeBytesInCDCHashes(host, path+".postpend2bytes", data3, modTime)
+		_, bchunks, err = SummarizeBytesInCDCHashes(host, path+".postpend2bytes", data3, modTime)
 		panicOn(err)
 
-		onlyA, onlyB, both = Diff(a.Chunks, b.Chunks)
+		onlyA, onlyB, both = Diff(achunks, bchunks)
 
 		cv.So(len(onlyA), cv.ShouldEqual, 1)
 		cv.So(len(onlyB), cv.ShouldEqual, 1)
@@ -67,7 +69,9 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		testfd, err := os.Create(remotePath)
 		panicOn(err)
 		slc := make([]byte, 1<<20) // 1 MB slice
-		if true {
+
+		// random or zeros?
+		if false {
 			cryrand.Read(slc)
 		}
 		for range N {
@@ -134,14 +138,15 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		}
 
 		// summarize our local file contents (even if empty)
-		localState, err := SummarizeFileInCDCHashes(host, localPath)
+		localPrecis, local, err := SummarizeFileInCDCHashes(host, localPath)
 		panicOn(err)
 
 		// step2 request: get diffs from what we have.
 		readerAckOV := &RsyncStep2_ReaderAcksOverview{
 			ReaderMatchesSenderAllGood: false,
 			SenderPath:                 remotePath,
-			ReaderHashes:               localState,
+			ReaderPrecis:               localPrecis,
+			ReaderChunks:               local,
 		}
 
 		senderDeltas := &RsyncStep3A_SenderProvidesData{} // response
@@ -151,9 +156,9 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 
 		vv("senderDeltas = '%v'", senderDeltas)
 
-		plan := senderDeltas.Chunks // the plan follow remote template, our target.
+		plan := senderDeltas.SenderChunks // the plan follow remote template, our target.
 		vv("plan = '%v'", plan)
-		local := localState.Chunks   // our origin or starting point.
+		//local is our origin or starting point.
 		localMap := getCryMap(local) // pre-index them for the update.
 
 		// had to do a full file transfer for missing file.
@@ -171,26 +176,25 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 
 		// ==============================
 		// ==============================
-		// ==============================
 		//
 		// now repeat a second time, and we should get
 		// no Data segments transfered.
 		//
 		// ==============================
 		// ==============================
-		// ==============================
 
 		vv("========>  second time! now no data expected")
 
 		// update the localState, as if we didn't know it already.
-		localState, err = SummarizeFileInCDCHashes(host, localPath)
+		localPrecis, local, err = SummarizeFileInCDCHashes(host, localPath)
 		panicOn(err)
 
 		// step2 request: get diffs from what we have.
 		readerAckOV = &RsyncStep2_ReaderAcksOverview{
 			ReaderMatchesSenderAllGood: false,
 			SenderPath:                 remotePath,
-			ReaderHashes:               localState,
+			ReaderPrecis:               localPrecis,
+			ReaderChunks:               local,
 		}
 
 		senderDeltas = &RsyncStep3A_SenderProvidesData{} // response
@@ -200,7 +204,41 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 
 		//vv("senderDeltas = '%v'", senderDeltas)
 
-		plan = senderDeltas.Chunks // the plan follow remote template, our target.
+		plan = senderDeltas.SenderChunks // the plan follow remote template, our target.
 		cv.So(plan.DataPresent(), cv.ShouldEqual, 0)
+
+		// ==============================
+		// ==============================
+		//
+		// third time: pre-pend 2 bytes, and
+		// tell server we want them to sync
+		// to us.
+		//
+		// ==============================
+		// ==============================
+		cur, err := os.ReadFile(localPath)
+		panicOn(err)
+
+		pre2path := remotePath + ".pre2"
+		pre2, err := os.Create(pre2path)
+		panicOn(err)
+
+		_, err = pre2.Write([]byte{0x77, 0x88})
+		panicOn(err)
+		_, err = io.Copy(pre2, bytes.NewBuffer(cur))
+		panicOn(err)
+
+		// new pre2path file is ready, summarize
+		// it and push it to the remotePath.
+
+		localPrecis2, local2, err := SummarizeFileInCDCHashes(host, pre2path)
+		panicOn(err)
+
+		pushMe := &RsyncStep3A_SenderProvidesData{
+			SenderPath:   remotePath,
+			SenderPrecis: localPrecis2,
+			SenderChunks: local2,
+		}
+		_ = pushMe
 	})
 }
