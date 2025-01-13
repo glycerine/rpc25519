@@ -633,21 +633,21 @@ func (s *RsyncNode) Step3_SenderProvidesData(
 
 	//local := localSummary.Chunks
 
-	vv("Step3_SenderProvidesData(): server has local='%v'", local)
-	vv("Step3_SenderProvidesData(): server sees remote='%v'", remote)
+	//vv("Step3_SenderProvidesData(): server has local='%v'", local)
+	//vv("Step3_SenderProvidesData(): server sees remote='%v'", remote)
 
 	// debug only TODO comment out:
-	onlyL, onlyR, both := Diff(local, remote)
-	vv("len onlyL = %v", len(onlyL))
-	vv("len onlyR = %v", len(onlyR))
-	vv("len both  = %v", len(both))
+	//onlyL, onlyR, both := Diff(local, remote)
+	//vv("len onlyL = %v", len(onlyL))
+	//vv("len onlyR = %v", len(onlyR))
+	//vv("len both  = %v", len(both))
 
 	bs := NewBlobStore() // TODO make persistent state.
 
 	drop2ndData := true // remote is in 2nd position here, drop unneeded data.
 	plan := bs.GetPlanToUpdateFirstToSecond(local, remote, drop2ndData)
 
-	vv("plan = '%v'", plan)
+	//vv("plan = '%v'", plan)
 	reply.SenderPlan = plan
 	vv("end of Step3_SenderProvidesData()")
 
@@ -813,7 +813,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 
 	cuts := cdc.Cutpoints(data, 0)
 
-	vv("cuts = '%#v'", cuts)
+	//vv("cuts = '%#v'", cuts)
 
 	prev := 0
 	for i, c := range cuts {

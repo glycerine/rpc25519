@@ -32,7 +32,7 @@ func Test201_rsync_style_chunking_and_hash_generation(t *testing.T) {
 
 		cv.So(a.FileOwner != "", cv.ShouldBeTrue)
 
-		vv("scan of file gave chunks: '%v'", achunks)
+		//vv("scan of file gave chunks: '%v'", achunks)
 		//cv.So(len(achunks.Chunks), cv.ShouldEqual, 24) // blob977k / FastCDC
 		//cv.So(len(achunks.Chunks), cv.ShouldEqual, 16) // blob977k / UltraCDC
 
@@ -169,10 +169,10 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		err = cli.Call("RsyncNode.Step3_SenderProvidesData", readerAckOV, senderDeltas, nil)
 		panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
 
-		vv("senderDeltas = '%v'", senderDeltas)
+		//vv("senderDeltas = '%v'", senderDeltas)
 
 		plan := senderDeltas.SenderPlan // the plan follow remote template, our target.
-		vv("plan = '%v'", plan)
+		//vv("plan = '%v'", plan)
 		//local is our origin or starting point.
 		localMap := getCryMap(local) // pre-index them for the update.
 
