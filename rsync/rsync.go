@@ -14,7 +14,7 @@ import (
 	"time"
 
 	//"github.com/glycerine/greenpack/msgp"
-	rpc "github.com/glycerine/rpc25519"
+	//rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/hash"
 	"github.com/glycerine/rpc25519/jcdc"
 )
@@ -343,27 +343,6 @@ func (s *BlobStore) GetPlanToUpdateFromGoal(updateme, goal *Chunks, dropGoalData
 	return
 }
 
-type RsyncStep0_ClientRequestsRead struct {
-	ReaderHost     string    `zid:"0"`
-	ReaderPath     string    `zid:"1"`
-	ReaderLenBytes int64     `zid:"2"`
-	ReaderModTime  time.Time `zid:"3"`
-
-	// if available/cheap, send
-	ReaderFullHash string `zid:"4"`
-}
-type RsyncStep1_SenderOverview struct {
-	SenderHost     string    `zid:"0"`
-	SenderPath     string    `zid:"1"`
-	SenderLenBytes int64     `zid:"2"`
-	SenderModTime  time.Time `zid:"3"`
-
-	// if available/cheap, send
-	SenderFullHash string `zid:"4"`
-
-	ErrString string `zid:"5"`
-}
-
 // Light request asks for the
 // remote Sender's path, and
 // advertises the chunks for the
@@ -389,51 +368,6 @@ type Nil struct {
 type RsyncNode struct {
 	Host        string `zid:"0"`
 	Placeholder int
-}
-
-// step 1: start of client send; or server responding to step0 (server to download to client).
-// Note that req will be nil if client is initiating the send.
-func (s *RsyncNode) Step1_SenderOverview(
-	ctx context.Context,
-	req *RsyncStep0_ClientRequestsRead,
-	reply *RsyncStep1_SenderOverview) error {
-
-	local := ""
-	if hdr, ok := rpc.HDRFromContext(ctx); ok {
-		local = hdr.Nc.LocalAddr().String()
-		s.Host = local
-		fmt.Printf("Step1 has HDR = '%v'; "+
-			"HDR.Nc.RemoteAddr() gives '%v'; HDR.Nc.LocalAddr() gives '%v'\n",
-			hdr.String(), hdr.Nc.RemoteAddr(), hdr.Nc.LocalAddr())
-	}
-
-	path := req.ReaderPath
-	if !fileExists(path) {
-		return fmt.Errorf("error on host '%v': file not found: '%v'", local, req.ReaderPath)
-	}
-
-	vv("RsyncNode.Step1_SenderOverview() called!")
-
-	fi, err := os.Stat(path)
-	if err != nil {
-		return fmt.Errorf("error on host '%v': rsync.go error "+
-			"on os.Stat() of '%v': '%v'", local, path, err)
-	}
-
-	blake3sum, err := hash.Blake3OfFile(path)
-	if err != nil {
-		return fmt.Errorf("error on host '%v': rsync.go error "+
-			"computing blake3sum of '%v': '%v'", local, path, err)
-	}
-	*reply = RsyncStep1_SenderOverview{
-		SenderHost:     local,
-		SenderPath:     path,
-		SenderLenBytes: fi.Size(),
-		SenderModTime:  fi.ModTime(),
-		SenderFullHash: blake3sum,
-	}
-
-	return nil
 }
 
 func (s *RsyncNode) RequestLatest(
@@ -492,7 +426,7 @@ func getCryMap(cs *Chunks) (m map[string]*Chunk) {
 // When the client wants to send a change to the
 // server, and it already has a plan.
 
-func (s *RsyncNode) AcceptHeavyPlan(
+func (s *RsyncNode) AcceptHeavy(
 	ctx context.Context,
 	req *HeavyPlan,
 	reply *HeavyPlan) error {
@@ -638,19 +572,6 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 		prev = c
 	}
 	return
-}
-
-func RsyncCliWantsToReadRemotePath(host, path string) (r *RsyncStep0_ClientRequestsRead, err error) {
-
-	r = &RsyncStep0_ClientRequestsRead{
-		ReaderHost:     host,
-		ReaderPath:     path,
-		ReaderLenBytes: -1,          // unknown
-		ReaderModTime:  time.Time{}, // unknown
-		// if available/cheap, send
-		ReaderFullHash: "", // unknown
-	}
-	return r, nil
 }
 
 // String pretty prints the Chunks.

@@ -130,34 +130,17 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 
 		defer cli.Close()
 
-		host := cli.LocalAddr()
-		step0request, err := RsyncCliWantsToReadRemotePath(host, remotePath) // request, step 1
-		panicOn(err)
-
-		senderOV := &RsyncStep1_SenderOverview{} // response, step 1
-		err = cli.Call("RsyncNode.Step1_SenderOverview", step0request, senderOV, nil)
-
-		vv("got senderOV = '%#v'", senderOV)
-
-		// A regular client would report to user that the file is not avail;
-		// or the error from remote. We just panic in this test.
-		if senderOV.ErrString != "" {
-			panic(senderOV.ErrString)
-		}
-		if senderOV.SenderPath != remotePath {
-			panic(fmt.Sprintf("'%v' = SenderPath != remotePath = '%v'",
-				senderOV.SenderPath, remotePath))
-		}
-		if senderOV.SenderLenBytes == 0 {
-			panic(fmt.Sprintf("remote file is 0 bytes: '%v'", remotePath))
-		}
-
-		// summarize our local file contents (even if empty)
+		// summarize our local file contents (empty here, but in general).
+		host := "localhost"
 		localPrecis, local, err := SummarizeFileInCDCHashes(host, localPath)
 		panicOn(err)
 
-		// step2 request: get diffs from what we have.
-		readerAckOV := &LightRequest{
+		// get diffs from what we have. We send a light
+		// request (one without Data attached, just hashes);
+		// but since we send to RequestLatest, we'll get back
+		// a Data heavy payload; possibly requiring
+		// a stream.
+		light := &LightRequest{
 			SenderPath:   remotePath,
 			ReaderPrecis: localPrecis,
 			ReaderChunks: local,
@@ -165,7 +148,7 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 
 		senderDeltas := &HeavyPlan{} // response
 
-		err = cli.Call("RsyncNode.RequestLatest", readerAckOV, senderDeltas, nil)
+		err = cli.Call("RsyncNode.RequestLatest", light, senderDeltas, nil)
 		panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
 
 		//vv("senderDeltas = '%v'", senderDeltas)
@@ -205,8 +188,8 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 
 		clearLocal := local.CloneWithClearData()
 
-		// step2 request: get diffs from what we have.
-		readerAckOV = &LightRequest{
+		//  get diffs from what we have.
+		light = &LightRequest{
 			SenderPath:   remotePath,
 			ReaderPrecis: localPrecis,
 			ReaderChunks: clearLocal,
@@ -214,7 +197,7 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 
 		senderDeltas = &HeavyPlan{} // response
 
-		err = cli.Call("RsyncNode.RequestLatest", readerAckOV, senderDeltas, nil)
+		err = cli.Call("RsyncNode.RequestLatest", light, senderDeltas, nil)
 		panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
 
 		//vv("senderDeltas = '%v'", senderDeltas)
@@ -292,7 +275,7 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		_ = pushMe
 
 		gotBack := &HeavyPlan{} // they might update us too... :) ignore for now.
-		err = cli.Call("RsyncNode.AcceptHeavyPlan", pushMe, gotBack, nil)
+		err = cli.Call("RsyncNode.AcceptHeavy", pushMe, gotBack, nil)
 		panicOn(err)
 
 		// confirm it happened.
