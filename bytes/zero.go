@@ -10,6 +10,8 @@ var (
 )
 
 // AllZero reports whether b consists entirely of zero bytes.
+// This simple version is on-par with the assembly, so
+// typically we prefer it for portability.
 func AllZero(b []byte) bool {
 	for i := range b {
 		if b[i] != 0 {
@@ -120,7 +122,7 @@ func SIMDLongestZeroSpan(b []byte) (start, length int) {
 }
 
 // LongestZeroSpan is a simple byte-by-byte implementation for benchmarking.
-// This naive version is on par, perhaps a little slower, than the SIMD version above.
+// This naive version is on par with the SIMD version above.
 // To see on your machine, run: go test -bench=. -benchmem
 func LongestZeroSpan(b []byte) (start, length int) {
 	if len(b) == 0 {
