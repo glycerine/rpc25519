@@ -120,7 +120,8 @@ func SIMDLongestZeroSpan(b []byte) (start, length int) {
 }
 
 // LongestZeroSpan is a simple byte-by-byte implementation for benchmarking.
-// This naive version out-performs the SIMD version above.
+// This naive version is on par, perhaps a little slower, than the SIMD version above.
+// To see on your machine, run: go test -bench=. -benchmem
 func LongestZeroSpan(b []byte) (start, length int) {
 	if len(b) == 0 {
 		return 0, 0
@@ -133,7 +134,7 @@ func LongestZeroSpan(b []byte) (start, length int) {
 		maxLen       = 0
 	)
 
-	for i := 0; i < len(b); i++ {
+	for i := range b {
 		if b[i] == 0 {
 			if currentLen == 0 {
 				currentStart = i
