@@ -37,6 +37,7 @@ require (
 	github.com/jtolds/gls v4.20.0+incompatible // indirect
 	github.com/leesper/go_rng v0.0.0-20190531154944-a612b043e353 // indirect
 	github.com/onsi/ginkgo/v2 v2.9.5 // indirect
+	github.com/templexxx/cpu v0.1.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/mock v0.4.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
