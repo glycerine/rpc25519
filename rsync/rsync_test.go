@@ -256,5 +256,11 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 			SenderPlan:   plan2,
 		}
 		_ = pushMe
+
+		gotBack := &PlannedUpdate{} // they might update us too... :) ignore for now.
+		err = cli.Call("RsyncNode.AcceptPlannedUpdate", pushMe, gotBack, nil)
+		panicOn(err)
+
+		// confirm it happened.
 	})
 }

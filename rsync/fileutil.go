@@ -7,6 +7,9 @@ import (
 	"os"
 	"os/user"
 	"syscall"
+
+	cryrand "crypto/rand"
+	cristalbase64 "github.com/cristalhq/base64"
 )
 
 func fileExists(name string) bool {
@@ -114,4 +117,11 @@ func truncateFileToZero(path string) error {
 		return fmt.Errorf("could not close file handler for %q after truncation: %v", path, err)
 	}
 	return nil
+}
+
+func cryRandBytesBase64(numBytes int) string {
+	by := make([]byte, numBytes)
+	_, err := cryrand.Read(by)
+	panicOn(err)
+	return cristalbase64.URLEncoding.EncodeToString(by)
 }

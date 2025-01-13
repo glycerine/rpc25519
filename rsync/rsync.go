@@ -171,14 +171,21 @@ func UpdateLocalWithRemoteDiffs(
 	}
 
 	var fd *os.File
-	fd, err = os.Create(localPathToWrite)
+	rnd := cryRandBytesBase64(16)
+	tmp := localPathToWrite + "_accept_plan_tmp_" + rnd
+	fd, err = os.Create(tmp)
 	if err != nil {
 		return err
 	}
+
+	// Close just returns an error if called 2x. That is fine.
 	defer fd.Close()
 	_, err = fd.Write(newvers)
 	panicOn(err)
 
+	fd.Close()
+	err = os.Rename(tmp, localPathToWrite)
+	panicOn(err)
 	return
 }
 
@@ -638,12 +645,25 @@ func getCryMap(cs *Chunks) (m map[string]*Chunk) {
 	return
 }
 
-func (s *RsyncNode) Step4_ReaderAcksDeltasFin(
+// When the client wants to send a change to the
+// server, and it already has a plan.
+
+func (s *RsyncNode) AcceptPlannedUpdate(
 	ctx context.Context,
 	req *PlannedUpdate,
-	reply *RsyncStep4_ReaderAcksDeltasFin) error {
+	reply *PlannedUpdate) error {
 
-	return nil
+	plan := req.SenderPlan
+
+	localPrecis, local, err := SummarizeFileInCDCHashes(s.Host, req.SenderPath)
+	_ = localPrecis
+
+	localMap := getCryMap(local) // pre-index them for the update.
+
+	err = UpdateLocalWithRemoteDiffs(local.Path, localMap, plan)
+	panicOn(err)
+
+	return err
 }
 
 type PlannedUpdate struct {
@@ -662,6 +682,7 @@ type PlannedUpdate struct {
 // RsyncStep4_ReaderAcksDeltasFin to the sender.
 // This completes the rsync operation, which
 // took two round-trips from sender to reader.
+
 type RsyncStep4_ReaderAcksDeltasFin struct {
 	ReaderHost     string    `zid:"0"`
 	ReaderPath     string    `zid:"1"`
