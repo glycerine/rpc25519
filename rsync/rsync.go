@@ -798,7 +798,8 @@ func RsyncCliWantsToReadRemotePath(host, path string) (r *RsyncStep0_ClientReque
 
 // String pretty prints the Chunks.
 func (d *Chunks) String() (s string) {
-	s = fmt.Sprintf("Chunks set of %v\n", len(d.Chunks))
+	s = fmt.Sprintf("Chunks set of %v \nFileSize: %v,\nFileCry: \"%v\",\n",
+		len(d.Chunks), d.FileSize, d.FileCry)
 	for i, chunk := range d.Chunks {
 		s += fmt.Sprintf("[%03d]", i) + chunk.String()
 	}
