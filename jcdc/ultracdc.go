@@ -296,7 +296,8 @@ begin:
 		if end <= minSize {
 			// clients should recognize that the very
 			// last cut may be "pre-mature".
-			cuts = append(cuts, end)
+			cutpoint += end
+			cuts = append(cuts, cutpoint)
 			//fmt.Printf("end %v <= minSize = %v, returning\n", end, minSize)
 			return
 		}
