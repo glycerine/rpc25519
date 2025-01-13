@@ -3,7 +3,7 @@ package selfcert
 // TODO: test and verify something like this might work. EXPERIMENTAL PROTOTYPE at the moment.
 // prototype attempts (one in comments) to use ssh-agent
 // during TLS handshake.
-
+/*
 import (
 	"context"
 	"crypto"
@@ -112,7 +112,7 @@ func example3() {
 		log.Fatalf("Failed to start QUIC server: %v", err)
 	}
 }
-
+*/
 /*
 package selfcert
 
