@@ -1,7 +1,7 @@
 package rpc25519
 
 import (
-	//"context"
+	"context"
 	//"fmt"
 	//"os"
 	//"strings"
@@ -48,7 +48,11 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		// have been cli.PeerAPI.StartRemotePeer("peer1_on_server")
 		// followed by cli.PeerAPI.StartLocalPeer("peer0_on_client").
 		//
-		peerID0, err := srv.PeerAPI.StartRemotePeer("peer0_on_client")
+
+		cliAddr := cli.LocalAddr()
+		ctx := context.Background()
+
+		peerID0, err := srv.PeerAPI.StartRemotePeer(ctx, "peer0_on_client", cliAddr)
 		panicOn(err)
 		vv("started remote with PeerID = '%v'", peerID0)
 

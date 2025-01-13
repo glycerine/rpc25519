@@ -1758,11 +1758,15 @@ type UniversalCliSrv interface {
 	GetReadsForCallID(ch chan *Message, callID string)
 	GetErrorsForCallID(ch chan *Message, callID string)
 
-	// for Peer/Object systems.
+	// for Peer/Object systems; ObjID get priority over CallID
+	// to allow such systems to implement custom message
+	// types. An example is the Fragment/Peer/Circuit system.
+	// (This priority is implemented in notifies.handleReply_to_CallID_ObjID).
 	GetReadsForObjID(ch chan *Message, objID string)
 	GetErrorsForObjID(ch chan *Message, objID string)
 
 	UnregisterChannel(ID string, whichmap int)
+	LocalAddr() string
 }
 
 // maintain the requirement that Client and Server both
@@ -1770,7 +1774,9 @@ type UniversalCliSrv interface {
 var _ UniversalCliSrv = &Client{}
 var _ UniversalCliSrv = &Server{}
 
-// for symmetry
+// for symmetry: see srv.go for details, under the same func name.
+//
+// SendOneWayMessage only sets msg.HDR.From to its correct value.
 func (cli *Client) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur *time.Duration) error {
 	return sendOneWayMessage(cli, ctx, msg, errWriteDur)
 }

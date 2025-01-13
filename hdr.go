@@ -34,8 +34,6 @@ const (
 
 	CallRequestBistreaming CallType = 3
 
-	CallStartPeerCircuit CallType = 4
-
 	// CallType numbers < 100 are reserved for future two-way
 	// callling convention needs. All types
 	// with number < 100 should be call+response
@@ -62,6 +60,7 @@ const (
 	CallDownloadMore  CallType = 110 // possibly many of these;
 	CallDownloadEnd   CallType = 111 // and one of these to finish.
 
+	CallStartPeerCircuit CallType = 112
 )
 
 func (ct CallType) String() string {

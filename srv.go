@@ -568,6 +568,9 @@ func newNotifies() *notifies {
 	}
 }
 
+// For Peer/Object systems, ObjID get priority over CallID
+// to allow such systems to implement custom message
+// types. An example is the Fragment/Peer/Circuit system.
 func (c *notifies) handleReply_to_CallID_ObjID(msg *Message) (done bool) {
 
 	// protect map access.
@@ -1632,8 +1635,10 @@ type oneWaySender interface {
 
 // SendOneWayMessage is the same as SendMessage above except that it
 // takes a fully prepared msg to avoid API churn when new HDR fields are
-// added/needed. msg.HDR.Type must be >= CallOneWay (10), to try and
+// added/needed. msg.HDR.Type must be >= CallOneWay (100), to try and
 // catch mis-use of this when the user actually wants a round-trip call.
+//
+// SendOneWayMessage only sets msg.HDR.From to its correct value.
 func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur *time.Duration) error {
 	return sendOneWayMessage(s, ctx, msg, errWriteDur)
 }
@@ -1646,7 +1651,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 // *errWriteDur, or 30 msec if that is nil.
 func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWriteDur *time.Duration) error {
 
-	if msg.HDR.Typ < 10 {
+	if msg.HDR.Typ < 100 {
 		return ErrWrongCallTypeForSendMessage
 	}
 
@@ -2178,4 +2183,12 @@ func (s *Server) UnregisterChannel(ID string, whichmap int) {
 	case ObjErrorMap:
 		delete(s.notifies.notifyOnErrorObjIDMap, ID)
 	}
+}
+
+// LocalAddr retreives the local host/port that the
+// Client is calling from.
+func (s *Server) LocalAddr() string {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	return s.cfg.ServerAddr
 }

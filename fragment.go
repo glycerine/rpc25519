@@ -318,11 +318,38 @@ func (p *peerAPI) StartLocalPeer(peerServiceName string, knownPeerIDs ...string)
 	return
 }
 
-func (p *peerAPI) StartRemotePeer(peerServiceName string) (remotePeerID string, err error) {
+func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string) (remotePeerID string, err error) {
 	msg := NewMessage()
+
 	msg.HDR.Typ = CallStartPeerCircuit
+	msg.HDR.ServiceName = peerServiceName
+	msg.HDR.To = remoteAddr
+	msg.HDR.From = p.u.LocalAddr()
 
-	// make RPC call to get the peerID
-	return "blah", nil
+	callID := NewCallID()
+	msg.HDR.CallID = callID
 
+	ch := make(chan *Message)
+	p.u.GetReadsForCallID(ch, callID)
+	// be sure to cleanup.
+	defer p.u.UnregisterChannel(callID, CallReadMap)
+
+	err = p.u.SendOneWayMessage(ctx, msg, nil)
+	if err != nil {
+		return
+	}
+
+	var reply *Message
+	select {
+	case reply = <-ch:
+	case <-ctx.Done():
+		return "", ErrContextCancelled
+	}
+	var ok bool
+	remotePeerID, ok = reply.HDR.Args["peerID"]
+	if !ok {
+		return "", fmt.Errorf("remote '%v', peerServiceName '%v' did "+
+			"not respond with peerID in Args", remoteAddr, peerServiceName)
+	}
+	return remotePeerID, nil
 }
