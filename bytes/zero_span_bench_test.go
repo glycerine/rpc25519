@@ -54,7 +54,7 @@ func BenchmarkSIMDLongestZeroSpan(b *testing.B) {
 		b.Run("Naive_"+tc.name, func(b *testing.B) {
 			b.SetBytes(int64(tc.size))
 			for i := 0; i < b.N; i++ {
-				SIMDLongestZeroSpan(data)
+				LongestZeroSpan(data)
 			}
 		})
 	}

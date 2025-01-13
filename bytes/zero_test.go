@@ -108,9 +108,14 @@ func TestAllZero(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run("Naive_"+tt.name, func(t *testing.T) {
 			if got := AllZero(tt.data); got != tt.want {
 				t.Errorf("AllZero() = %v, want %v", got, tt.want)
+			}
+		})
+		t.Run("SIMD_"+tt.name, func(t *testing.T) {
+			if got := AllZeroSIMD(tt.data); got != tt.want {
+				t.Errorf("AllZeroSIMD() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -121,7 +126,7 @@ func BenchmarkAllZero(b *testing.B) {
 	sizes := []int{16, 32, 64, 128, 256, 512, 1024, 4096}
 
 	for _, size := range sizes {
-		b.Run("size_"+strconv.Itoa(size), func(b *testing.B) {
+		b.Run("Naive_size_"+strconv.Itoa(size), func(b *testing.B) {
 			data := make([]byte, size)
 			b.SetBytes(int64(size))
 			b.ResetTimer()
@@ -131,7 +136,7 @@ func BenchmarkAllZero(b *testing.B) {
 		})
 
 		// Also benchmark worst case (early exit on first non-zero byte)
-		b.Run("size_"+strconv.Itoa(size)+"_early_exit", func(b *testing.B) {
+		b.Run("Naive_size_"+strconv.Itoa(size)+"_early_exit", func(b *testing.B) {
 			data := make([]byte, size)
 			data[0] = 1
 			b.SetBytes(int64(size))
@@ -140,11 +145,32 @@ func BenchmarkAllZero(b *testing.B) {
 				AllZero(data)
 			}
 		})
+
+		b.Run("SIMD_size_"+strconv.Itoa(size), func(b *testing.B) {
+			data := make([]byte, size)
+			b.SetBytes(int64(size))
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				AllZeroSIMD(data)
+			}
+		})
+
+		// Also benchmark worst case (early exit on first non-zero byte)
+		b.Run("SIMD_size_"+strconv.Itoa(size)+"_early_exit", func(b *testing.B) {
+			data := make([]byte, size)
+			data[0] = 1
+			b.SetBytes(int64(size))
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				AllZeroSIMD(data)
+			}
+		})
+
 	}
 }
 
 // Test random data to catch any edge cases
-func TestAllZeroRandom(t *testing.T) {
+func TestAllZeroRandomNaive(t *testing.T) {
 	rng := rand.New(rand.NewSource(42))
 
 	for i := 0; i < 1000; i++ {
@@ -160,6 +186,28 @@ func TestAllZeroRandom(t *testing.T) {
 		}
 
 		result := AllZero(data)
+		if result != allZeros {
+			t.Errorf("Random test failed: size=%d, expected=%v, got=%v", size, allZeros, result)
+		}
+	}
+}
+
+func TestAllZeroRandomSIMD(t *testing.T) {
+	rng := rand.New(rand.NewSource(42))
+
+	for i := 0; i < 1000; i++ {
+		size := rng.Intn(8192)
+		data := make([]byte, size)
+
+		// Randomly decide if this should be all zeros
+		allZeros := rng.Float32() < 0.5
+		if !allZeros {
+			// Put a non-zero byte at a random position
+			pos := rng.Intn(size)
+			data[pos] = byte(rng.Intn(255) + 1)
+		}
+
+		result := AllZeroSIMD(data)
 		if result != allZeros {
 			t.Errorf("Random test failed: size=%d, expected=%v, got=%v", size, allZeros, result)
 		}
