@@ -148,9 +148,10 @@ func Test210_client_sends_file_over_rsync(t *testing.T) {
 		err = cli.Call("RsyncNode.Step3_SenderProvidesData", readerAckOV, senderDeltas, nil)
 		panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
 
-		vv("senderDeltas = '%#v'", senderDeltas)
+		vv("senderDeltas = '%v'", senderDeltas)
 
-		plan := senderDeltas.Chunks  // the plan follow remote template, our target.
+		plan := senderDeltas.Chunks // the plan follow remote template, our target.
+		vv("plan = '%v'", plan)
 		local := localState.Chunks   // our origin or starting point.
 		localMap := getCryMap(local) // pre-index them for the update.
 

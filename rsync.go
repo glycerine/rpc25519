@@ -35,7 +35,7 @@ type Chunk struct {
 
 	// Data might be nil for summary purposes,
 	// or provided if we are transmitting a set of diffs.
-	Data []byte `zid:"3"`
+	Data []byte `zid:"3" json:"-"`
 }
 
 func (c *Chunk) Len() int { return c.Endx - c.Beg }
@@ -97,7 +97,7 @@ func UpdateLocalWithRemoteDiffs(
 	}
 
 	if len(remote.Chunks) == 0 {
-		panic(fmt.Sprintf("missing chunks for non-size-zero file '%v'", localPathToWrite))
+		panic(fmt.Sprintf("missing remote chunks for non-size-zero file '%v'", localPathToWrite))
 	}
 
 	// make sure we have a full plan, not just a partial diff.
@@ -755,11 +755,15 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 
 	prev := 0
 	for i, c := range cuts {
-		hsh := hash.Blake3OfBytesString(data[prev:cuts[i]])
+
+		slc := data[prev:cuts[i]]
+
+		hsh := hash.Blake3OfBytesString(slc)
 		chunk := &Chunk{
 			Beg:  prev,
 			Endx: cuts[i],
 			Cry:  hsh,
+			Data: slc,
 		}
 		hashes.Chunks.Chunks = append(hashes.Chunks.Chunks, chunk)
 		prev = c
