@@ -1,5 +1,6 @@
 all:
 	go generate
+	cd rsync && go generate
 	mkdir -p certs
 	go build -o cli ./cmd/cli
 	go build -o srv ./cmd/srv

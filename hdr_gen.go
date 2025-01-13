@@ -1117,19 +1117,9 @@ func (z *Message) EncodeMsg(en *msgp.Writer) (err error) {
 		if err != nil {
 			return err
 		}
-		// encodeGen.gBase IDENT
-
-		// record the interface for deduplication
-		var dup bool
-		dup, err = en.DedupWriteIsDup(z.HDR)
+		err = z.HDR.EncodeMsg(en)
 		if err != nil {
 			return
-		}
-		if !dup {
-			err = z.HDR.EncodeMsg(en)
-			if err != nil {
-				return
-			}
 		}
 	}
 
