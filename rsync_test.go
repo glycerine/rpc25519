@@ -67,6 +67,24 @@ func Test210_client_sends_file_over_rsync(t *testing.T) {
 
 	cv.Convey("using our rsync-like-protocol, the client should be able to send a file to the server and only end up sending the small parts that have changed.", t, func() {
 
+		// create a test file
+		N := 1
+		remotePath := fmt.Sprintf("cry%vmb", N)
+		testfd, err := os.Create(remotePath)
+		panicOn(err)
+		slc := make([]byte, 1<<20) // 1 MB slice
+		for range N {
+			_, err = testfd.Write(slc)
+			panicOn(err)
+		}
+		testfd.Close()
+		vv("created N = %v MB test file in remotePath='%v'.", N, remotePath)
+
+		// modify "local" target path so we don't overwrite our
+		// source file when testing in one directory
+		localPath := remotePath + ".local_rsync_out"
+		vv("localPath = '%v'", localPath)
+
 		// set up a server and a client.
 
 		cfg := NewConfig()
@@ -97,8 +115,7 @@ func Test210_client_sends_file_over_rsync(t *testing.T) {
 		defer cli.Close()
 
 		host := cli.LocalAddr()
-		path := "/Users/jaten/go/src/github.com/glycerine/rpc25519/cry100mb"
-		step0request, err := RsyncCliWantsToReadRemotePath(host, path) // request, step 1
+		step0request, err := RsyncCliWantsToReadRemotePath(host, remotePath) // request, step 1
 		panicOn(err)
 
 		senderOV := &RsyncStep1_SenderOverview{} // response, step 1
@@ -112,20 +129,17 @@ func Test210_client_sends_file_over_rsync(t *testing.T) {
 			panic(senderOV.ErrString)
 		}
 		if senderOV.SenderLenBytes == 0 {
-			panic(fmt.Sprintf("remote file is 0 bytes: '%v'", path))
+			panic(fmt.Sprintf("remote file is 0 bytes: '%v'", remotePath))
 		}
 
-		// summarize our local file contents.
-		var localState *RsyncSummary
-		if fileExists(path) {
-			localState, err = SummarizeFileInCDCHashes(host, path)
-			panicOn(err)
-		}
+		// summarize our local file contents (even if empty)
+		localState, err := SummarizeFileInCDCHashes(host, localPath)
+		panicOn(err)
 
 		// step2 request: get diffs from what we have.
 		readerAckOV := &RsyncStep2_ReaderAcksOverview{
 			ReaderMatchesSenderAllGood: false,
-			SenderPath:                 senderOV.SenderPath,
+			SenderPath:                 remotePath,
 			ReaderHashes:               localState,
 		}
 

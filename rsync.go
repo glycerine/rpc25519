@@ -179,7 +179,7 @@ type RsyncSummary struct {
 	Path string `zid:"1"`
 
 	ModTime     time.Time `zid:"2"`
-	FileSize    int64     `zid:"3"`
+	FileSize    int       `zid:"3"`
 	FileMode    uint32    `zid:"4"`
 	FileOwner   string    `zid:"5"`
 	FileOwnerID uint32    `zid:"6"`
@@ -233,6 +233,7 @@ func (s *BlobStore) GetPlanToUpdateRemoteToMatchLocal(local, remote *Chunks) (pl
 
 	plan = NewChunks(remote.Path)
 	plan.FileSize = local.FileSize
+	plan.FileCry = local.FileCry
 
 	// index the remote
 	remotemap := make(map[string]*Chunk)
@@ -572,7 +573,7 @@ func (s *RsyncNode) Step3_SenderProvidesData(
 	req *RsyncStep2_ReaderAcksOverview,
 	reply *RsyncStep3A_SenderProvidesData) error {
 
-	vv("top of Step3_SenderProvidesData()")
+	vv("top of Step3_SenderProvidesData(); req.SenderPath='%v'", req.SenderPath)
 
 	if req.ReaderMatchesSenderAllGood {
 		return nil // nothing for us to do, they are fine.
@@ -590,6 +591,10 @@ func (s *RsyncNode) Step3_SenderProvidesData(
 	panicOn(err)
 
 	local := localSummary.Chunks
+
+	vv("Step3_SenderProvidesData(): server has local='%v'", local)
+	vv("Step3_SenderProvidesData(): server sees remote='%v'", remote)
+
 	bs := NewBlobStore() // TODO make persistent state.
 
 	//a.Diff(b) (a is local, b is remote); need to send OnlyA
@@ -658,6 +663,11 @@ func (h *RsyncSummary) String() string {
 
 func SummarizeFileInCDCHashes(host, path string) (hashes *RsyncSummary, err error) {
 
+	if !fileExists(path) {
+		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{})
+	}
+
+	// file system details fill in:
 	var data []byte
 	data, err = os.ReadFile(path)
 	if err != nil {
@@ -724,13 +734,19 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 	hashes = &RsyncSummary{
 		Host:            host,
 		Path:            path,
-		FileSize:        int64(len(data)),
+		FileSize:        len(data),
 		ModTime:         modTime,
 		FullFileHashSum: hash.Blake3OfBytesString(data),
 		ChunkerName:     cdc.Name(),
 		CDC_Config:      cdc.Config(),
 		HashName:        "blake3.32B",
 		Chunks:          NewChunks(path),
+	}
+	hashes.Chunks.FileSize = hashes.FileSize
+	hashes.Chunks.FileCry = hashes.FullFileHashSum
+
+	if len(data) == 0 {
+		return
 	}
 
 	cuts := cdc.Cutpoints(data, 0)
