@@ -131,7 +131,8 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 		}
 	}
 
-	s.mut.Lock()     // avoid data race
+	s.mut.Lock() // avoid data race
+	s.boundAddressString = addr.Network() + "://" + addr.String()
 	s.lsn = listener // allow shutdown
 	s.mut.Unlock()
 
@@ -175,7 +176,12 @@ func (s *Server) runTCP(serverAddress string, boundCh chan net.Addr) {
 	defer listener.Close()
 
 	addr := listener.Addr()
-	//vv("Server listening on %v:%v", addr.Network(), addr.String())
+
+	s.mut.Lock()
+	s.boundAddressString = addr.Network() + "://" + addr.String()
+	s.mut.Unlock()
+
+	//vv("Server listening on %v://%v", addr.Network(), addr.String())
 	if boundCh != nil {
 		select {
 		case boundCh <- addr:
@@ -986,7 +992,10 @@ func (s *Server) processWork(job *job) {
 // The net/rpc API is implemented as a layer on top of the rpc25519.Message
 // based API. Both can be used concurrently if desired.
 type Server struct {
-	mut        sync.Mutex
+	mut sync.Mutex
+
+	boundAddressString string
+
 	cfg        *Config
 	quicConfig *quic.Config
 	tmStart    time.Time
@@ -2260,7 +2269,8 @@ func (s *Server) UnregisterChannel(ID string, whichmap int) {
 func (s *Server) LocalAddr() string {
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	return s.cfg.ServerAddr
+	//vv("Server.LocalAddr returning '%v'", s.boundAddressString)
+	return s.boundAddressString
 }
 
 // RemoteAddr returns "" on the Server, because

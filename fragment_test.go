@@ -152,6 +152,7 @@ func Test402_simpler_startup_peer_service_test(t *testing.T) {
 
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = true
+		cfg.UseQUIC = false // true
 
 		cfg.ServerAddr = "127.0.0.1:0"
 		srv := NewServer("srv_test001", cfg)
@@ -189,6 +190,10 @@ func Test402_simpler_startup_peer_service_test(t *testing.T) {
 		//peerURL_server, peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, peerURL_client)
 		panicOn(err)
 		vv("StartLocalPeer: on server peerURL_server = '%v'; peerID_server = '%v'", peerURL_server, peerID_server)
-		cv.So(peerURL_server, cv.ShouldStartWith, "tcp://")
+		if cfg.UseQUIC {
+			cv.So(peerURL_server, cv.ShouldStartWith, "udp://")
+		} else {
+			cv.So(peerURL_server, cv.ShouldStartWith, "tcp://")
+		}
 	})
 }
