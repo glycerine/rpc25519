@@ -100,7 +100,7 @@ type remotePeerback struct {
 	peerID string // the remote's PeerID
 }
 
-func (rpb *remotePeerback) IncomingCircuit() (circuitName string, ckt *Circuit, ctx context.Context) {
+func (rpb *remotePeerback) IncomingCircuit() (ckt *Circuit, ctx context.Context) {
 	panic("remotePeerback IncomingCircuit() requested! TODO!")
 }
 
@@ -222,7 +222,6 @@ func (s *localPeerback) SendOneWayMessage(ckt *Circuit, frag *Fragment, errWrite
 	frag.CircuitID = ckt.callID
 	frag.FromPeerID = ckt.localPeerID
 	frag.ToPeerID = ckt.remotePeerID
-	//frag.CircuitName = ckt.circuitName
 
 	msg := ckt.convertFragmentToMessage(frag)
 	return s.u.SendOneWayMessage(s.ctx, msg, errWriteDur)
@@ -730,10 +729,11 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 	}
 
 	hdr := NewHDR(p.u.LocalAddr(), remoteAddr, peerServiceName, CallStartPeerCircuit, 0)
-	hdr.ServiceName = peerServiceName
-	callID := NewCallID()
-	hdr.CallID = callID
+	//hdr.ServiceName = peerServiceName
+	//callID := NewCallID()
+	//hdr.CallID = callID
 	msg.HDR = *hdr
+	callID := msg.HDR.CallID
 
 	ch := make(chan *Message, 100)
 	p.u.GetReadsForCallID(ch, callID)
@@ -744,23 +744,23 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 
 	for i := 0; i < 50; i++ {
 		err = p.u.SendOneWayMessage(ctx, msg, nil)
-		if err != nil {
-			left := deadline.Sub(time.Now())
-			if left <= 0 || waitUpTo <= 0 {
-				return
-			} else {
-				dur := pollInterval
-				if left < dur {
-					// don't sleep past our deadline
-					dur = left
-				}
-				time.Sleep(dur)
-				continue
-			}
-		} else {
+		if err == nil {
 			//vv("SendOneWayMessage retried %v times before succeess; pollInterval: %v",
 			//	i, pollInterval)
 			break
+		}
+		// INVAR: err != nil
+		left := deadline.Sub(time.Now())
+		if left <= 0 || waitUpTo <= 0 {
+			return
+		} else {
+			dur := pollInterval
+			if left < dur {
+				// don't sleep past our deadline
+				dur = left
+			}
+			time.Sleep(dur)
+			continue
 		}
 	}
 
@@ -776,5 +776,6 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 		return "", fmt.Errorf("remote '%v', peerServiceName '%v' did "+
 			"not respond with peerID in Args", remoteAddr, peerServiceName)
 	}
+	vv("got remotePeerID from Args[peerID]: '%v'", remotePeerID)
 	return remotePeerID, nil
 }

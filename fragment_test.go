@@ -89,7 +89,7 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		peerURL_server2_from_remote_req, err := cli.PeerAPI.StartRemotePeer(
 			ctx, srvServiceName, with_network_saddr, 0)
 		panicOn(err)
-		vv("started second instance of speer1_on_server, this time remote with PeerID = '%v'; for service name = '%v'",
+		vv("started second instance of speer1_on_server, this time remote with PeerURL = '%v'; for service name = '%v'",
 			peerURL_server2_from_remote_req, srvServiceName)
 
 		// we should have seen the client peer start 1x, and the server 2x.
