@@ -10,6 +10,13 @@ import (
 
 //go:generate greenpack
 
+// URL format: tcp://x.x.x.x:port/peerServiceName/peerID/circuitID
+//   (circuitID is the CallID in the Message.HDR)
+// where peerID and circuitID are our CallID that are
+// base64 URL encoded. The IDs do not include the '/' character,
+// and thus are "URL safe". This can be verified here:
+// https://github.com/cristalhq/base64/blob/5cfa89a12c5dbd0e52b1da082a33dce278c52cdf/utils.go#L65
+
 // Circuit is a handle to the two-way,
 // asynchronous, communication channel
 // between two Peers.
@@ -352,9 +359,9 @@ type PeerServiceFunc func(
 //
 //msgp:ignore PeerImpl
 type PeerImpl struct {
-	KnownPeers         []string
-	StartCount         atomic.Int64 `msg:"-"`
-	DoEchoToThisPeerID chan string
+	KnownPeers          []string
+	StartCount          atomic.Int64 `msg:"-"`
+	DoEchoToThisPeerURL chan string
 }
 
 func (me *PeerImpl) Start(
@@ -390,7 +397,8 @@ func (me *PeerImpl) Start(
 
 	for {
 		select {
-		case sendEchoToPeerServiceNameURL := <-me.DoEchoToThisPeerServiceNameURL:
+		// URL format: tcp://x.x.x.x:port/peerServiceName/peerID/circuitID
+		case echoToURL := <-me.DoEchoToThisPeerURL:
 
 			go func(peer RemotePeer) {
 				ckt, ctx, err := peer.NewCircuit("echo circuit")
