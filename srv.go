@@ -1702,7 +1702,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 	// abstract this for Client/Server symmetry
 	sendCh, haltCh, _, from, ok := s.destAddrToSendCh(destAddr)
 	if !ok {
-		vv("could not find destAddr='%v' in from our s.destAddrToSendCh() call. stack=\n%v", destAddr, stack()) // , s.remote2pair)
+		//vv("could not find destAddr='%v' in from our s.destAddrToSendCh() call. stack=\n%v", destAddr, stack())
 		return ErrNetConnectionNotFound
 	}
 
