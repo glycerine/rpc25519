@@ -55,7 +55,7 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 
 		srvServiceName := "speer1_on_server"
 		speer1 := &PeerImpl{
-			DoEchoToThisPeerID: make(chan string),
+			DoEchoToThisPeerURL: make(chan string),
 		}
 		srv.PeerAPI.RegisterPeerServiceFunc(srvServiceName, speer1.Start)
 
@@ -73,9 +73,9 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		vv("started remote with peerURL_client = '%v'; cliServiceName = '%v'", peerURL_client, cliServiceName)
 
 		// any number of known peers can be supplied, or none, to bootstrap.
-		peerURL_server, peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, peerID_client)
+		peerURL_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, peerURL_client)
 		panicOn(err)
-
+		_ = peerURL_server
 		vv("started on server peerURL_server = '%v'", peerURL_server)
 
 		// lets ask the client to ask the server to start one, to
@@ -120,4 +120,25 @@ func preventRaceByDoingPriorClientToServerRoundTrip(cli *Client, srv *Server) {
 	_ = reply
 	//vv("reply = '%v'", reply)
 	//vv("good, response from Server means it definitely has client registered now.")
+}
+
+func Test401_PeerURL_parsing(t *testing.T) {
+
+	cv.Convey("parsePeerURL should extract network address, peerID, and optionally circuitID", t, func() {
+
+		peerURL := "tcp://x.x.x.x:5023/serviceName/peerID/circuitID"
+		netAddr, serviceName, peerID, circuitID, err := parsePeerURL(peerURL)
+		panicOn(err)
+
+		vv("%v -> netAddr = '%v'", peerURL, netAddr)
+		vv("%v -> serviceName = '%v'", peerURL, serviceName)
+		vv("%v -> peerID = '%v'", peerURL, peerID)
+		vv("%v -> circuitID = '%v'", peerURL, circuitID)
+
+		cv.So(netAddr, cv.ShouldEqual, "tcp://x.x.x.x:5023")
+		cv.So(serviceName, cv.ShouldEqual, "serviceName")
+		cv.So(peerID, cv.ShouldEqual, "peerID")
+		cv.So(circuitID, cv.ShouldEqual, "circuitID")
+	})
+
 }

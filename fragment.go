@@ -3,6 +3,8 @@ package rpc25519
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -128,6 +130,60 @@ type localPeerback struct {
 	remotes map[string]*remotePeerback
 }
 
+func (s *localPeerback) PeerServiceName() string {
+	return s.peerServiceName
+}
+func (s *localPeerback) PeerID() string {
+	return s.peerID
+}
+func (s *localPeerback) PeerURL() string {
+	return s.netAddr + "/" +
+		s.peerServiceName + "/" +
+		s.peerID
+}
+
+func (s *localPeerback) NewCircuitToPeerURL(
+	peerURL string,
+	frag *Fragment,
+	errWriteDur *time.Duration,
+) (ckt *Circuit, ctx context.Context, err error) {
+
+	//netAddr, serviceName, peerID := parsePeerURL(peerURL)
+	return
+}
+
+func parsePeerURL(peerURL string) (netAddr, serviceName, peerID, circuitID string, err error) {
+	var u *url.URL
+	u, err = url.Parse(peerURL)
+	if err != nil {
+		return
+	}
+	netAddr = u.Scheme + "://" + u.Host
+	splt := strings.Split(u.Path, "/")
+	for i, s := range splt {
+		switch i {
+		case 0:
+			// path starts with a /, so this is
+			// typically emptry string.
+			// e.g. Path:"/serviceName/peerID/circuitID"
+			if s != "" {
+				panic(fmt.Sprintf("URL Path did not start with '/'; "+
+					"How are we to parse path '%v' ???", u.Path))
+			}
+		case 1:
+			serviceName = s
+		case 2:
+			peerID = s
+		case 3:
+			circuitID = s
+		default:
+			break
+		}
+	}
+	//vv("u = '%#v'", u)
+	return
+}
+
 // SendOneWayMessage sends a Frament on the given Circuit.
 func (s *localPeerback) SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
 
@@ -142,9 +198,6 @@ func (s *localPeerback) SendOneWayMessage(ckt *Circuit, frag *Fragment, errWrite
 	msg := ckt.convertFragmentToMessage(frag)
 	return s.u.SendOneWayMessage(s.ctx, msg, errWriteDur)
 }
-
-// PeerID supplies the local and remote PeerIDs, whatever the peerback represents.
-func (s *localPeerback) PeerID() string { return s.peerID }
 
 func (peerAPI *peerAPI) newLocalPeerback(ctx context.Context, cancelFunc context.CancelFunc, u UniversalCliSrv, peerID string, newPeerCh chan RemotePeer, peerServiceName, netAddr string) (pb *localPeerback) {
 	pb = &localPeerback{
@@ -548,7 +601,7 @@ func (p *peerAPI) RegisterPeerServiceFunc(peerServiceName string, peer PeerServi
 	return nil
 }
 
-func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, knownPeerIDs ...string) (localPeerID string, err error) {
+func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, knownPeerIDs ...string) (localPeerURL string, err error) {
 	p.mut.Lock()
 	defer p.mut.Unlock()
 	knownLocalPeer, ok := p.localServiceNameMap[peerServiceName]
@@ -570,7 +623,7 @@ func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, kn
 
 	newPeerCh := make(chan RemotePeer, 1) // must be buffered >= 1, see below.
 	ctx1, canc1 := context.WithCancel(ctx)
-	localPeerID = NewCallID()
+	localPeerID := NewCallID()
 
 	lpb := p.newLocalPeerback(ctx1, canc1, p.u, localPeerID, newPeerCh, peerServiceName, p.u.LocalAddr())
 
@@ -586,11 +639,11 @@ func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, kn
 
 	go func() {
 
-		knownLocalPeer.peerServiceFunc(peerServiceName, localPeerID, ctx, newPeerCh)
+		knownLocalPeer.peerServiceFunc(lpb, ctx, newPeerCh)
 
 	}()
 
-	return
+	return lpb.PeerURL(), nil
 }
 
 // StartRemotePeer boots up a peer a remote node.
