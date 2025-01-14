@@ -26,7 +26,6 @@ type Circuit struct {
 	remotePeerID string
 
 	peerServiceName string
-	circuitName     string
 
 	callID string
 	ctx    context.Context
@@ -126,6 +125,7 @@ type localPeerback struct {
 	handleChansNewCircuit chan *Circuit
 	handleCircuitClose    chan *Circuit
 
+	mut sync.Mutex // protect remotes map
 	// key is the remote PeerID
 	remotes map[string]*remotePeerback
 }
@@ -161,7 +161,24 @@ func (s *localPeerback) NewCircuitToPeerURL(
 	frag.CircuitID = circuitID
 	frag.ServiceName = serviceName
 
-	return
+	rpb := &remotePeerback{
+		localPeerback: s,
+		peerID:        peerID,
+	}
+	s.mut.Lock()
+	s.remotes[peerID] = rpb
+	s.mut.Unlock()
+
+	ckt, ctx, err = s.newCircuit(rpb)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error in NewCircuitToPeerURL(): "+
+			"newCircuit returned error: '%v'", err)
+	}
+	msg := frag.ToMessage()
+	msg.HDR.To = netAddr
+	//msg.HDR.From will be overwritten by sender.
+
+	return ckt, ctx, s.u.SendOneWayMessage(ctx, msg, errWriteDur)
 }
 
 func parsePeerURL(peerURL string) (netAddr, serviceName, peerID, circuitID string, err error) {
@@ -287,38 +304,69 @@ func (pb *localPeerback) peerbackPump() {
 // incoming
 func (ckt *Circuit) convertMessageToFragment(msg *Message) (frag *Fragment) {
 	frag = &Fragment{
-		ToPeerID:    msg.HDR.ToPeerID,
-		FromPeerID:  msg.HDR.FromPeerID,
-		CircuitID:   msg.HDR.CallID,
-		CircuitName: ckt.circuitName,
+		ToPeerID:   msg.HDR.ToPeerID,
+		FromPeerID: msg.HDR.FromPeerID,
+		CircuitID:  msg.HDR.CallID,
 
-		FragType: msg.HDR.Subject,    // right?
-		FragPart: msg.HDR.StreamPart, // right?
+		FragType: msg.HDR.Subject,
+		FragPart: msg.HDR.StreamPart,
 
 		Args:    msg.HDR.Args,
 		Payload: msg.JobSerz,
-		//Err:         "",
+		Err:     msg.JobErrs,
 	}
 	return
 }
 
-// outgoing messages
-func (ckt *Circuit) convertFragmentToMessage(frag *Fragment) (msg *Message) {
+func (frag *Fragment) ToMessage() (msg *Message) {
 	msg = NewMessage()
 
-	var from, to string
-	hdr := NewHDR(from, to, ckt.peerServiceName, CallOneWay, 0)
-	hdr.Subject = ckt.circuitName
-	hdr.ToPeerID = ckt.remotePeerID
-	hdr.FromPeerID = ckt.localPeerID
-	hdr.CallID = ckt.callID
-	msg.HDR = *hdr
+	msg.HDR.Typ = CallOneWay
+	msg.HDR.Created = time.Now()
+	msg.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
+	msg.HDR.ServiceName = frag.ServiceName
+
+	msg.HDR.ToPeerID = frag.ToPeerID
+	msg.HDR.FromPeerID = frag.FromPeerID
+	msg.HDR.CallID = frag.CircuitID
+	msg.HDR.Subject = frag.FragType
+
+	if frag.Args != nil {
+		msg.HDR.Args = frag.Args
+	}
+
+	msg.HDR.StreamPart = frag.FragPart
+	msg.JobSerz = frag.Payload
+	msg.JobErrs = frag.Err
+
 	return
 }
 
-func (rpb *remotePeerback) NewCircuit(circuitName string) (ckt *Circuit, ctx2 context.Context, err error) {
+// outgoing messages:
+// If frag.ToPeerID,FromPeerID,CallD are not
+// set, they will be filled in from the ckt.
+func (ckt *Circuit) convertFragmentToMessage(frag *Fragment) (msg *Message) {
 
-	lpb := rpb.localPeerback
+	msg = frag.ToMessage()
+
+	if msg.HDR.ToPeerID == "" {
+		msg.HDR.ToPeerID = ckt.remotePeerID
+	}
+	if msg.HDR.FromPeerID == "" {
+		msg.HDR.FromPeerID = ckt.localPeerID
+	}
+	if msg.HDR.CallID == "" {
+		msg.HDR.CallID = ckt.callID
+	}
+
+	return
+}
+
+func (rpb *remotePeerback) NewCircuit() (ckt *Circuit, ctx2 context.Context, err error) {
+	return rpb.localPeerback.newCircuit(rpb)
+}
+
+func (lpb *localPeerback) newCircuit(rpb *remotePeerback) (ckt *Circuit, ctx2 context.Context, err error) {
 
 	var canc2 context.CancelFunc
 	ctx2, canc2 = context.WithCancel(lpb.ctx)
@@ -328,9 +376,8 @@ func (rpb *remotePeerback) NewCircuit(circuitName string) (ckt *Circuit, ctx2 co
 		peerServiceName: lpb.peerServiceName,
 		pbFrom:          lpb,
 		pbTo:            rpb,
-		circuitName:     circuitName,
 		localPeerID:     lpb.peerID,
-		remotePeerID:    rpb.peerID, // yes this is right.
+		remotePeerID:    rpb.peerID,
 		callID:          NewCallID(),
 		Reads:           reads,
 		Errors:          errors,
@@ -338,12 +385,6 @@ func (rpb *remotePeerback) NewCircuit(circuitName string) (ckt *Circuit, ctx2 co
 		canc:            canc2,
 	}
 	lpb.handleChansNewCircuit <- ckt
-	// don't do this, our local PeerID pump will
-	// multiplex/sort to the correct ckt.Reads and ckt.Errors
-	// so we only need one read goro for the local peer, not one
-	// per Circuit.
-	//fp.u.GetReadsForCallID(h.Reads, h.callID)
-	//fp.u.GetErrorsForCallID(h.Errors, h.callID)
 	return
 }
 
