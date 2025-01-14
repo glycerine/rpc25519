@@ -10,13 +10,6 @@ import (
 
 //go:generate greenpack
 
-// URL format: tcp://x.x.x.x:port/peerServiceName/peerID/circuitID
-//   (circuitID is the CallID in the Message.HDR)
-// where peerID and circuitID are our CallID that are
-// base64 URL encoded. The IDs do not include the '/' character,
-// and thus are "URL safe". This can be verified here:
-// https://github.com/cristalhq/base64/blob/5cfa89a12c5dbd0e52b1da082a33dce278c52cdf/utils.go#L65
-
 // Circuit is a handle to the two-way,
 // asynchronous, communication channel
 // between two Peers.
@@ -40,6 +33,20 @@ type Circuit struct {
 	Errors chan *Fragment // ditto.
 }
 
+// CircuitURL format: tcp://x.x.x.x:port/peerServiceName/peerID/circuitID
+// where peerID and circuitID are our CallID that are
+// base64 URL encoded. The IDs do not include the '/' character,
+// and thus are "URL safe". This can be verified here:
+// https://github.com/cristalhq/base64/blob/5cfa89a12c5dbd0e52b1da082a33dce278c52cdf/utils.go#L65
+//
+//	(circuitID is the CallID in the Message.HDR)
+func (ckt *Circuit) CircuitURL() string {
+	return ckt.pbFrom.netAddr + "/" +
+		ckt.peerServiceName + "/" +
+		ckt.localPeerID + "/" +
+		ckt.callID
+}
+
 // ID2 supplies the local and remote PeerIDs.
 func (ckt *Circuit) ID2() (localPeerID, remotePeerID string) {
 	return ckt.pbFrom.peerID, ckt.pbTo.peerID
@@ -47,7 +54,7 @@ func (ckt *Circuit) ID2() (localPeerID, remotePeerID string) {
 
 func (ckt *Circuit) NewFragment() *Fragment {
 	return &Fragment{
-		CallID:      ckt.callID,
+		CircuitID:   ckt.callID,
 		FromPeerID:  ckt.localPeerID,
 		ToPeerID:    ckt.remotePeerID,
 		CircuitName: ckt.circuitName,
@@ -67,8 +74,8 @@ type Fragment struct {
 	FromPeerID string `zid:"0"`
 	ToPeerID   string `zid:"1"`
 
-	// CallID was assigned in the NewCircuit() call.
-	CallID string `zid:"2"`
+	// CircuitID was assigned in the NewCircuit() call. Equivalent to Message.HDR.CallID.
+	CircuitID string `zid:"2"`
 
 	// CircuitName is what was established by NewCircuit(circuitName)
 	CircuitName string `zid:"3"`
@@ -105,6 +112,7 @@ func (rpb *remotePeerback) IncomingCircuit() (circuitName string, ckt *Circuit, 
 // and create new outgoing connections with
 type localPeerback struct {
 	// local peers do reads, "remote" peers are for sending to.
+	netAddr         string
 	peerServiceName string
 	peerAPI         *peerAPI
 	u               UniversalCliSrv
@@ -138,8 +146,9 @@ func (s *localPeerback) SendOneWayMessage(ckt *Circuit, frag *Fragment, errWrite
 // PeerID supplies the local and remote PeerIDs, whatever the peerback represents.
 func (s *localPeerback) PeerID() string { return s.peerID }
 
-func (peerAPI *peerAPI) newLocalPeerback(ctx context.Context, cancelFunc context.CancelFunc, u UniversalCliSrv, peerID string, newPeerCh chan RemotePeer, peerServiceName string) (pb *localPeerback) {
+func (peerAPI *peerAPI) newLocalPeerback(ctx context.Context, cancelFunc context.CancelFunc, u UniversalCliSrv, peerID string, newPeerCh chan RemotePeer, peerServiceName, netAddr string) (pb *localPeerback) {
 	pb = &localPeerback{
+		netAddr:         netAddr,
 		peerServiceName: peerServiceName,
 		peerAPI:         peerAPI,
 		ctx:             ctx,
@@ -215,7 +224,7 @@ func (ckt *Circuit) convertMessageToFragment(msg *Message) (frag *Fragment) {
 	frag = &Fragment{
 		ToPeerID:    msg.HDR.ToPeerID,
 		FromPeerID:  msg.HDR.FromPeerID,
-		CallID:      msg.HDR.CallID,
+		CircuitID:   msg.HDR.CallID,
 		CircuitName: ckt.circuitName,
 
 		FragType: msg.HDR.Subject,    // right?
@@ -237,6 +246,7 @@ func (ckt *Circuit) convertFragmentToMessage(frag *Fragment) (msg *Message) {
 	hdr.Subject = ckt.circuitName
 	hdr.ToPeerID = ckt.remotePeerID
 	hdr.FromPeerID = ckt.localPeerID
+	hdr.CallID = ckt.callID
 	msg.HDR = *hdr
 	return
 }
@@ -313,12 +323,23 @@ type RemotePeer interface {
 	//
 	// When selecting ckt.Reads and ckt.Errors, always also
 	// select on ctx.Done() in order to shutdown gracefully.
-	NewCircuit(circuitName string) (ckt *Circuit, ctx context.Context, err error)
+	NewCircuit() (ckt *Circuit, ctx context.Context, err error)
 
 	// SendOneWayMessage sends a Frament on the given Circuit.
 	SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error
+}
 
-	PeerID() string
+type LocalPeer interface {
+
+	// NewCircuitToPeerURL sets up a persistent communication path called a Circuit.
+	NewCircuitToPeerURL(
+		peerURL string,
+		frag *Fragment,
+		errWriteDur *time.Duration,
+	) (ckt *Circuit, ctx context.Context, err error)
+
+	LocalPeerID() string
+	LocalPeerURL() string
 }
 
 // aka: for ease of copying,
@@ -333,8 +354,8 @@ type PeerServiceFunc func(
 	// how we were registered/invoked.
 	peerServiceName string,
 
-	// our PeerID
-	ourPeerID string,
+	// our local Peer interface, can do SendToPeer() to send to URL.
+	myPeer LocalPeer,
 
 	// ctx0 supplies the overall context of the
 	// Client/Server host. If our hosts starts
@@ -400,17 +421,14 @@ func (me *PeerImpl) Start(
 		// URL format: tcp://x.x.x.x:port/peerServiceName/peerID/circuitID
 		case echoToURL := <-me.DoEchoToThisPeerURL:
 
-			go func(peer RemotePeer) {
-				ckt, ctx, err := peer.NewCircuit("echo circuit")
-				panicOn(err)
-				defer ckt.Close() // close when echo heard.
-				done := ctx.Done()
-
+			go func(echoToURL string) {
 				outFrag := ckt.NewFragment()
 				outFrag.Payload = []byte(fmt.Sprintf("echo request from peerID='%v' to peerID '%v' on 'echo circuit'", ourPeerID, sendEchoToPeerID))
 
-				err = peer.SendOneWayMessage(ckt, outFrag, nil)
+				ckt, ctx, err = myPeer.NewCircuitToPeerURL(echoToURL, frag, nil)
 				panicOn(err)
+				defer ckt.Close() // close when echo heard.
+				done := ctx.Done()
 
 				select {
 				case frag := <-ckt.Reads:
@@ -424,7 +442,7 @@ func (me *PeerImpl) Start(
 					return
 				}
 
-			}(peer)
+			}(echoToURL)
 		// new Circuit connection arrives
 		case peer := <-newPeerCh:
 			wg.Add(1)
