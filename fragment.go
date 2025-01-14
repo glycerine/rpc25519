@@ -18,14 +18,22 @@ import (
 type Circuit struct {
 	pb *peerback
 
-	circuitName string
-	peerID      string
-	callID      string
-	ctx         context.Context
-	canc        context.CancelFunc
+	peerServiceName string
+	circuitName     string
+	localPeerID     string
+	remotePeerID    string
+
+	callID string
+	ctx    context.Context
+	canc   context.CancelFunc
 
 	Reads  <-chan *Fragment
 	Errors <-chan *Fragment
+}
+
+// ID2 supplies the local and remote PeerIDs.
+func (ckt *Circuit) ID2() (localPeerID, remotePeerID string) {
+	return ckt.localPeerID, ckt.remotePeerID
 }
 
 type pairchanfrag struct {
@@ -37,7 +45,9 @@ type pairchanfrag struct {
 
 func (ckt *Circuit) NewFragment() *Fragment {
 	return &Fragment{
-		CallID: ckt.callID,
+		CallID:      ckt.callID,
+		FromPeerID:  ckt.localPeerID,
+		CircuitName: ckt.circuitName,
 	}
 }
 
@@ -73,13 +83,14 @@ type Fragment struct {
 // provided over the newPeerCh channel.
 // to a PeerServiceFunc.
 type peerback struct {
-	peerAPI *peerAPI
-	u       UniversalCliSrv
+	peerServiceName string
+	peerAPI         *peerAPI
+	u               UniversalCliSrv
 
-	peerID    string
-	ctx       context.Context
-	canc      context.CancelFunc
-	newPeerCh chan Peer
+	localPeerID string
+	ctx         context.Context
+	canc        context.CancelFunc
+	newPeerCh   chan Peer
 
 	readsIn  chan *Message
 	errorsIn chan *Message
@@ -91,22 +102,32 @@ type peerback struct {
 	//errorsOut chan *Fragment
 }
 
-func (peerAPI *peerAPI) newPeerback(ctx context.Context, cancelFunc context.CancelFunc, u UniversalCliSrv, peerID string, newPeerCh chan Peer) (pb *peerback) {
+// SendOneWayMessage sends a Frament on the given Circuit.
+func (s *peerback) SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
+	msg := ckt.convertFragmentToMessage(frag)
+	return s.u.SendOneWayMessage(s.ctx, msg, errWriteDur)
+}
+
+// ID2 supplies the local and remote PeerIDs.
+func (s *peerback) LocalPeerID() (localPeerID string) { return s.localPeerID }
+
+func (peerAPI *peerAPI) newPeerback(ctx context.Context, cancelFunc context.CancelFunc, u UniversalCliSrv, localPeerID string, newPeerCh chan Peer, peerServiceName string) (pb *peerback) {
 	pb = &peerback{
-		peerAPI:   peerAPI,
-		ctx:       ctx,
-		canc:      cancelFunc,
-		peerID:    peerID,
-		u:         u,
-		newPeerCh: newPeerCh,
+		peerServiceName: peerServiceName,
+		peerAPI:         peerAPI,
+		ctx:             ctx,
+		canc:            cancelFunc,
+		localPeerID:     localPeerID,
+		u:               u,
+		newPeerCh:       newPeerCh,
 		// has to sort the Message to each circuit and convert to Fragment.
 		readsIn:  make(chan *Message, 1),
 		errorsIn: make(chan *Message, 1),
 
 		handleChansNewCircuit: make(chan *pairchanfrag),
 	}
-	u.GetReadsForObjID(pb.readsIn, pb.peerID)
-	u.GetErrorsForObjID(pb.errorsIn, pb.peerID)
+	u.GetReadsForObjID(pb.readsIn, pb.localPeerID)
+	u.GetErrorsForObjID(pb.errorsIn, pb.localPeerID)
 	go pb.peerbackPump()
 
 	return pb
@@ -138,7 +159,18 @@ func (pb *peerback) peerbackPump() {
 				return
 			}
 		case msgerr := <-pb.errorsIn:
-			_ = msgerr
+			callID := msgerr.HDR.CallID
+			pcf, ok := m[callID]
+			if !ok {
+				vv("arg. no ckt avail for callID = '%v' on msgerr", callID)
+				continue
+			}
+			fragerr := pcf.ckt.convertMessageToFragment(msgerr)
+			select {
+			case pcf.errorsOut <- fragerr:
+			case <-done:
+				return
+			}
 		}
 	}
 }
@@ -159,6 +191,29 @@ func (ckt *Circuit) convertMessageToFragment(msg *Message) (frag *Fragment) {
 	return
 }
 
+func (ckt *Circuit) convertFragmentToMessage(frag *Fragment) (msg *Message) {
+	msg = NewMessage()
+
+	var from, to string
+	hdr := NewHDR(from, to, ckt.peerServiceName, CallOneWay, 0)
+	hdr.Subject = ckt.circuitName
+	msg.HDR = *hdr
+	/*	frag = &Fragment{
+			FromPeerID: msg.HDR.ObjID,
+			CallID:     msg.HDR.CallID,
+
+			// CircuitName is what was established by NewCircuit(circuitName)
+			CircuitName: ckt.circuitName,
+			FragType:    msg.HDR.Subject,    // right?
+			FragPart:    msg.HDR.StreamPart, // right?
+			Args:        msg.HDR.Args,
+			Payload:     msg.JobSerz,
+			//Err:         "",
+		}
+	*/
+	return
+}
+
 // RegisterPeer(peerServiceName string, peerStreamFunc PeerServiceFunc)
 
 func (pb *peerback) NewCircuit(circuitName string) (ckt *Circuit, ctx2 context.Context, err error) {
@@ -168,14 +223,15 @@ func (pb *peerback) NewCircuit(circuitName string) (ckt *Circuit, ctx2 context.C
 	reads := make(chan *Fragment)
 	errors := make(chan *Fragment)
 	ckt = &Circuit{
-		pb:          pb,
-		circuitName: circuitName,
-		peerID:      pb.peerID,
-		callID:      NewCallID(),
-		Reads:       reads,
-		Errors:      errors,
-		ctx:         ctx2,
-		canc:        canc2,
+		peerServiceName: pb.peerServiceName,
+		pb:              pb,
+		circuitName:     circuitName,
+		localPeerID:     pb.localPeerID,
+		callID:          NewCallID(),
+		Reads:           reads,
+		Errors:          errors,
+		ctx:             ctx2,
+		canc:            canc2,
 	}
 	pcf := &pairchanfrag{
 		ckt:       ckt,
@@ -232,8 +288,7 @@ type Peer interface {
 	// SendOneWayMessage sends a Frament on the given Circuit.
 	SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error
 
-	// ID2 supplies the local and remote PeerIDs.
-	ID2() (localPeerID, remotePeerID string)
+	LocalPeerID() string
 }
 
 // aka: for ease of copying,
@@ -380,6 +435,7 @@ type remotePeer struct {
 type knownLocalPeer struct {
 	mut             sync.Mutex
 	peerServiceFunc PeerServiceFunc
+	peerServiceName string
 
 	active map[string]*peerback
 }
@@ -397,7 +453,7 @@ func (p *peerAPI) RegisterPeerServiceFunc(peerServiceName string, peer PeerServi
 	}
 	p.mut.Lock()
 	defer p.mut.Unlock()
-	p.localServiceNameMap[peerServiceName] = &knownLocalPeer{peerServiceFunc: peer}
+	p.localServiceNameMap[peerServiceName] = &knownLocalPeer{peerServiceFunc: peer, peerServiceName: peerServiceName}
 	return nil
 }
 
@@ -421,16 +477,15 @@ func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, kn
 
 	newPeerCh := make(chan Peer, 1) // must be buffered >= 1, see below.
 	ctx1, canc1 := context.WithCancel(ctx)
-	peerID := NewCallID()
-	localPeerID = peerID
+	localPeerID = NewCallID()
 
-	backer := p.newPeerback(ctx1, canc1, p.u, peerID, newPeerCh)
+	backer := p.newPeerback(ctx1, canc1, p.u, localPeerID, newPeerCh, peerServiceName)
 
 	local.mut.Lock()
 	if local.active == nil {
 		local.active = make(map[string]*peerback)
 	}
-	local.active[peerID] = backer
+	local.active[localPeerID] = backer
 	local.mut.Unlock()
 
 	newPeerCh <- backer // newPeerCh is buffered above, so this cannot block.
@@ -523,12 +578,3 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 	}
 	return remotePeerID, nil
 }
-
-// SendOneWayMessage sends a Frament on the given Circuit.
-func (s *peerback) SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
-	return nil
-
-}
-
-// ID2 supplies the local and remote PeerIDs.
-func (s *peerback) ID2() (localPeerID, remotePeerID string) { return }

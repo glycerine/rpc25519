@@ -425,7 +425,8 @@ func (m *HDR) String() string {
     "Serial": %v,
     "LocalRecvTm": "%s",
     "Deadline": "%s",
-    "StreamPart": %v
+    "StreamPart": %v,
+    "ObjID": %v
 }`,
 		m.Created,
 		m.From,
@@ -440,6 +441,7 @@ func (m *HDR) String() string {
 		m.LocalRecvTm,
 		m.Deadline,
 		m.StreamPart,
+		m.ObjID,
 	)
 }
 

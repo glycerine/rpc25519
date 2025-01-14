@@ -1815,9 +1815,15 @@ func (cli *Client) destAddrToSendCh(destAddr string) (sendCh chan *Message, halt
 		to = remote(cli.conn)
 	}
 	_ = from
+	// fill default if empty, like fragment.go converting Fragment to Message does.
+	if destAddr == "" {
+		destAddr = to
+	}
 	if destAddr != to {
-		alwaysPrintf("ugh: cli wanted to send to destAddr='%v' "+
+		problem := fmt.Sprintf("ugh: cli wanted to send to destAddr='%v' "+
 			"but we only know to='%v'", destAddr, to)
+		panic(problem)
+		alwaysPrintf("%v\n", problem)
 		return nil, nil, "", "", false
 	}
 	//vv("cli okay with destAddr '%v' == to", destAddr)
