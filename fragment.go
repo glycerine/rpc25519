@@ -75,8 +75,8 @@ type Fragment struct {
 	// CircuitID was assigned in the NewCircuit() call. Equivalent to Message.HDR.CallID.
 	CircuitID string `zid:"2"`
 
-	// CircuitName is what was established by NewCircuit(circuitName)
-	CircuitName string `zid:"3"`
+	// ServiceName is the remote peer's PeerServiceName.
+	ServiceName string `zid:"3"`
 
 	FragType string `zid:"4"` // can be a message type, sub-service name, other useful context.
 	FragPart int64  `zid:"5"` // built in multi-part handling for the same CallID and FragType.
@@ -148,7 +148,19 @@ func (s *localPeerback) NewCircuitToPeerURL(
 	errWriteDur *time.Duration,
 ) (ckt *Circuit, ctx context.Context, err error) {
 
-	//netAddr, serviceName, peerID := parsePeerURL(peerURL)
+	netAddr, serviceName, peerID, circuitID, err := parsePeerURL(peerURL)
+	if err != nil {
+		return nil, nil, fmt.Errorf("NewCircuitToPeerURL could not "+
+			"parse peerURL: '%v': '%v'", peerURL, err)
+	}
+	if frag == nil {
+		frag = NewFragment()
+	}
+	frag.FromPeerID = s.peerID
+	frag.ToPeerID = peerID
+	frag.CircuitID = circuitID
+	frag.ServiceName = serviceName
+
 	return
 }
 
