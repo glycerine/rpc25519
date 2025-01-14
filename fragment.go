@@ -118,9 +118,9 @@ type localPeerback struct {
 }
 
 // user PeerServiceFunc implementation requests interface to known peer.
-func (lbp *localPeerback) lookupByPeerID(peerID string) (RemotePeer, error) {
-	return nil, nil
-}
+//func (lbp *localPeerback) lookupByPeerID(peerID string) (RemotePeer, error) {
+//	return nil, nil
+//}
 
 // SendOneWayMessage sends a Frament on the given Circuit.
 func (s *localPeerback) SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
@@ -342,7 +342,7 @@ type PeerServiceFunc func(
 
 	// necessary for bootstrapping: user requests
 	// to contact a remote peer by PeerID
-	lookupByPeerID func(peerID string) (RemotePeer, error),
+	//lookupByPeerID func(peerID string) (RemotePeer, error),
 
 ) error
 
@@ -375,7 +375,8 @@ func (me *PeerImpl) Start(
 	// if a remote wanted to start a circuit.
 	newPeerCh <-chan RemotePeer,
 
-	lookupByPeerID func(peerID string) (RemotePeer, error),
+	// user peerServiceName instead? then we need the conn netAddress.
+	//lookupByPeerID func(peerID string) (RemotePeer, error),
 
 ) error {
 
@@ -389,11 +390,7 @@ func (me *PeerImpl) Start(
 
 	for {
 		select {
-		case sendEchoToPeerID := <-me.DoEchoToThisPeerID:
-			// user requests we do an echo
-			// can also new circuit on that connection
-			peer, err := lookupByPeerID(sendEchoToPeerID)
-			panicOn(err)
+		case sendEchoToPeerServiceNameURL := <-me.DoEchoToThisPeerServiceNameURL:
 
 			go func(peer RemotePeer) {
 				ckt, ctx, err := peer.NewCircuit("echo circuit")
@@ -487,13 +484,17 @@ func newPeerAPI(u UniversalCliSrv) *peerAPI {
 }
 
 type knownRemotePeer struct {
-	peerID string
+	peerServiceName string
+	peerID          string
+	netAddress      string // tcp://ip:port, or udp://ip:port
 }
 
+/*
 type remotePeer struct {
 	peerServiceName string
 	peerID          string
 }
+*/
 
 type knownLocalPeer struct {
 	mut             sync.Mutex
@@ -532,6 +533,8 @@ func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, kn
 		known, ok := p.remoteKnownPeers[knownID]
 		if !ok {
 			known = &knownRemotePeer{
+				//peerServiceName string
+				//netAddress         string
 				peerID: knownID,
 			}
 			p.remoteKnownPeers[knownID] = known

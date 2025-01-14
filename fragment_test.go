@@ -67,16 +67,16 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		// Arg. This was racing with the server actually getting
 		// the rwPair spun up, crashing 6% of the time.
 		// Thus we added a prior round-trip cli->srv->cli above.
-		peerID_client, err := srv.PeerAPI.StartRemotePeer(
+		peerURL_client, err := srv.PeerAPI.StartRemotePeer(
 			ctx, cliServiceName, cliAddr, 50*time.Microsecond)
 		panicOn(err) // cliAddr not found?!?
-		vv("started remote with PeerID = '%v'; cliServiceName = '%v'", peerID_client, cliServiceName)
+		vv("started remote with peerURL_client = '%v'; cliServiceName = '%v'", peerURL_client, cliServiceName)
 
 		// any number of known peers can be supplied, or none, to bootstrap.
-		peerSrv, peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, peerID_client)
+		peerURL_server, peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, peerID_client)
 		panicOn(err)
 
-		vv("started on server peerID_server = '%v'", peerID_server)
+		vv("started on server peerURL_server = '%v'", peerURL_server)
 
 		// lets ask the client to ask the server to start one, to
 		// test the symmetry of the CallStartPeerCircuit handling.
@@ -86,18 +86,19 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		vv("with_network_saddr = '%v'", with_network_saddr)
 		_ = with_network_saddr
 
-		peerID_server2_from_remote_req, err := cli.PeerAPI.StartRemotePeer(
+		peerURL_server2_from_remote_req, err := cli.PeerAPI.StartRemotePeer(
 			ctx, srvServiceName, with_network_saddr, 0)
 		panicOn(err)
 		vv("started second instance of speer1_on_server, this time remote with PeerID = '%v'; for service name = '%v'",
-			peerID_server2_from_remote_req, srvServiceName)
+			peerURL_server2_from_remote_req, srvServiceName)
 
 		// we should have seen the client peer start 1x, and the server 2x.
 		cv.So(cpeer0.StartCount.Load(), cv.ShouldEqual, 1)
 		cv.So(speer1.StartCount.Load(), cv.ShouldEqual, 2)
 
 		// simple echo test from srv -> cli -> srv, over a circuit between peers.
-		speer1.DoEchoToThisPeerID <- peerID_client
+		//		url :=
+		speer1.DoEchoToThisPeerURL <- peerURL_client
 
 		vv("now have the peers talk to each other. what to do? keep a directory in sync between two nodes? want to handle files/data bigger than will fit in one Message in an rsync protocol.")
 
