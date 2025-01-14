@@ -47,20 +47,20 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		// to be ready. So when it returns we know
 		// the server knows about the client.
 		preventRaceByDoingPriorClientToServerRoundTrip(cli, srv)
+		ctx := context.Background()
+		srvServiceName := "speer1_on_server"
 
 		// Fragment/Circuit Peer API on Client/Server
 		cliServiceName := "cpeer0_on_client"
 		cpeer0 := &PeerImpl{}
 		cli.PeerAPI.RegisterPeerServiceFunc(cliServiceName, cpeer0.Start)
 
-		srvServiceName := "speer1_on_server"
 		speer1 := &PeerImpl{
 			DoEchoToThisPeerURL: make(chan string),
 		}
 		srv.PeerAPI.RegisterPeerServiceFunc(srvServiceName, speer1.Start)
 
 		cliAddr := cli.LocalAddr()
-		ctx := context.Background()
 
 		// This call starts the PeerImpl on the remote Client, from the server.
 
@@ -73,11 +73,12 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		vv("started remote with peerURL_client = '%v'; cliServiceName = '%v'; peerID_client = '%v'", peerURL_client, cliServiceName, peerID_client)
 
 		// any number of known peers can be supplied, or none, to bootstrap.
-		peerURL_server, peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, peerURL_client)
+		peerURL_server, peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName)
+		//peerURL_server, peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, peerURL_client)
 		panicOn(err)
 		_ = peerURL_server
 		_ = peerID_server
-		vv("started on server peerURL_server = '%v'; peerID_server = '%v'", peerURL_server, peerID_server)
+		vv("StartLocalPeer: on server peerURL_server = '%v'; peerID_server = '%v'", peerURL_server, peerID_server)
 
 		// lets ask the client to ask the server to start one, to
 		// test the symmetry of the CallStartPeerCircuit handling.
@@ -105,6 +106,7 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 
 		vv("start with something that won't take up tons of disk to test: create a chacha8 random stream, chunk it, send it one direction to the other with blake3 cumulative checksums so we know they were both getting everything... simple, but will stress the concurrency.")
 		// 3 way sync?
+
 	})
 }
 
@@ -142,4 +144,51 @@ func Test401_PeerURL_parsing(t *testing.T) {
 		cv.So(circuitID, cv.ShouldEqual, "circuitID")
 	})
 
+}
+
+func Test402_simpler_startup_peer_service_test(t *testing.T) {
+
+	cv.Convey("402: clone 400 and shrink it to focus just on not getting port 0 back", t, func() {
+
+		cfg := NewConfig()
+		cfg.TCPonly_no_TLS = true
+
+		cfg.ServerAddr = "127.0.0.1:0"
+		srv := NewServer("srv_test001", cfg)
+
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
+
+		cfg.ClientDialToHostPort = serverAddr.String()
+		cli, err := NewClient("test400", cfg)
+		panicOn(err)
+		err = cli.Start()
+		panicOn(err)
+		defer cli.Close()
+
+		preventRaceByDoingPriorClientToServerRoundTrip(cli, srv)
+		ctx := context.Background()
+		srvServiceName := "speer1_on_server"
+
+		// Fragment/Circuit Peer API on Client/Server
+		cliServiceName := "cpeer0_on_client"
+		cpeer0 := &PeerImpl{}
+		cli.PeerAPI.RegisterPeerServiceFunc(cliServiceName, cpeer0.Start)
+
+		speer1 := &PeerImpl{
+			DoEchoToThisPeerURL: make(chan string),
+		}
+		srv.PeerAPI.RegisterPeerServiceFunc(srvServiceName, speer1.Start)
+
+		cliAddr := cli.LocalAddr()
+		vv("cliAddr = '%v'", cliAddr)
+
+		// any number of known peers can be supplied, or none, to bootstrap.
+		peerURL_server, peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName)
+		//peerURL_server, peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, peerURL_client)
+		panicOn(err)
+		vv("StartLocalPeer: on server peerURL_server = '%v'; peerID_server = '%v'", peerURL_server, peerID_server)
+		cv.So(peerURL_server, cv.ShouldStartWith, "tcp://")
+	})
 }

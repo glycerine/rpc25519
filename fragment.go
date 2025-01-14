@@ -677,7 +677,9 @@ func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, kn
 	ctx1, canc1 := context.WithCancel(ctx)
 	localPeerID = NewCallID()
 
-	lpb := p.newLocalPeerback(ctx1, canc1, p.u, localPeerID, newPeerCh, peerServiceName, p.u.LocalAddr())
+	localAddr := p.u.LocalAddr()
+	vv("localAddr = '%v'", localAddr)
+	lpb := p.newLocalPeerback(ctx1, canc1, p.u, localPeerID, newPeerCh, peerServiceName, localAddr)
 
 	knownLocalPeer.mut.Lock()
 	if knownLocalPeer.active == nil {
@@ -695,7 +697,10 @@ func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, kn
 
 	}()
 
-	return lpb.PeerURL(), localPeerID, nil
+	localPeerURL = lpb.PeerURL()
+	vv("lpb.PeerURL() = '%v'", localPeerURL)
+
+	return localPeerURL, localPeerID, nil
 }
 
 // StartRemotePeer boots up a peer a remote node.
@@ -782,5 +787,6 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 		return "", "", fmt.Errorf("remote '%v', peerServiceName '%v' did "+
 			"not respond with peerURL in Args", remoteAddr, peerServiceName)
 	}
+	vv("got remotePeerURL from Args[peerURL]: '%v'", remotePeerURL)
 	return remotePeerURL, remotePeerID, nil
 }
