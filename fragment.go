@@ -89,6 +89,10 @@ type remotePeerback struct {
 	peerID string // the remote's PeerID
 }
 
+func (rpb *remotePeerback) IncomingCircuit() (circuitName string, ckt *Circuit, ctx context.Context) {
+	panic("remotePeerback IncomingCircuit() requested! TODO!")
+}
+
 // localPeerback in the backing behind each local instantiation of a PeerServiceFunc.
 // local peers do reads on ch, get notified of new connections on newPeerChan.
 // and create new outgoing connections with
@@ -111,6 +115,11 @@ type localPeerback struct {
 
 	// key is the remote PeerID
 	remotes map[string]*remotePeerback
+}
+
+// user PeerServiceFunc implementation requests interface to known peer.
+func (lbp *localPeerback) lookupByPeerID(peerID string) (RemotePeer, error) {
+	return nil, nil
 }
 
 // SendOneWayMessage sends a Frament on the given Circuit.
@@ -331,6 +340,10 @@ type PeerServiceFunc func(
 	// or server who invoked us.
 	newPeerCh <-chan RemotePeer,
 
+	// necessary for bootstrapping: user requests
+	// to contact a remote peer by PeerID
+	lookupByPeerID func(peerID string) (RemotePeer, error),
+
 ) error
 
 // Users write a PeerImpl and PeerServiceFunc, like this: TODO move to example.go?
@@ -339,8 +352,9 @@ type PeerServiceFunc func(
 //
 //msgp:ignore PeerImpl
 type PeerImpl struct {
-	KnownPeers []string
-	StartCount atomic.Int64
+	KnownPeers         []string
+	StartCount         atomic.Int64 `msg:"-"`
+	DoEchoToThisPeerID chan string
 }
 
 func (me *PeerImpl) Start(
@@ -357,8 +371,11 @@ func (me *PeerImpl) Start(
 	// child goroutines.
 	ctx0 context.Context,
 
-	// first on newPeerCh will be the client or server who invoked us.
+	// first on newPeerCh might be the client or server who invoked us,
+	// if a remote wanted to start a circuit.
 	newPeerCh <-chan RemotePeer,
+
+	lookupByPeerID func(peerID string) (RemotePeer, error),
 
 ) error {
 
@@ -372,7 +389,38 @@ func (me *PeerImpl) Start(
 
 	for {
 		select {
-		// new connection arrives, will be the remote that asked for us first.
+		case sendEchoToPeerID := <-me.DoEchoToThisPeerID:
+			// user requests we do an echo
+			// can also new circuit on that connection
+			peer, err := lookupByPeerID(sendEchoToPeerID)
+			panicOn(err)
+
+			go func(peer RemotePeer) {
+				ckt, ctx, err := peer.NewCircuit("echo circuit")
+				panicOn(err)
+				defer ckt.Close() // close when echo heard.
+				done := ctx.Done()
+
+				outFrag := ckt.NewFragment()
+				outFrag.Payload = []byte(fmt.Sprintf("echo request from peerID='%v' to peerID '%v' on 'echo circuit'", ourPeerID, sendEchoToPeerID))
+
+				err = peer.SendOneWayMessage(ckt, outFrag, nil)
+				panicOn(err)
+
+				select {
+				case frag := <-ckt.Reads:
+					vv("echo circuit got read frag back: '%#v'", frag)
+				case fragerr := <-ckt.Errors:
+					vv("echo circuit got error fragerr back: '%#v'", fragerr)
+
+				case <-done:
+					return
+				case <-done0:
+					return
+				}
+
+			}(peer)
+		// new Circuit connection arrives
 		case peer := <-newPeerCh:
 			wg.Add(1)
 
@@ -381,14 +429,6 @@ func (me *PeerImpl) Start(
 			// talk to this peer on a separate goro if you wish:
 			go func(peer RemotePeer) {
 				defer wg.Done()
-
-				/*
-					// new circuit on that connection
-					ckt, ctx, err := peer.NewCircuit("circuitName")
-					panicOn(err)
-					defer ckt.Close()
-					done := ctx.Done()
-				*/
 
 				circuitName, ckt, ctx := peer.IncomingCircuit()
 				vv("IncomingCircuit got circuitName = '%v'", circuitName)
@@ -483,7 +523,7 @@ func (p *peerAPI) RegisterPeerServiceFunc(peerServiceName string, peer PeerServi
 func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, knownPeerIDs ...string) (localPeerID string, err error) {
 	p.mut.Lock()
 	defer p.mut.Unlock()
-	local, ok := p.localServiceNameMap[peerServiceName]
+	knownLocalPeer, ok := p.localServiceNameMap[peerServiceName]
 	if !ok {
 		return "", fmt.Errorf("no local peerServiceName '%v' available", peerServiceName)
 	}
@@ -502,21 +542,21 @@ func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, kn
 	ctx1, canc1 := context.WithCancel(ctx)
 	localPeerID = NewCallID()
 
-	backer := p.newLocalPeerback(ctx1, canc1, p.u, localPeerID, newPeerCh, peerServiceName)
+	lpb := p.newLocalPeerback(ctx1, canc1, p.u, localPeerID, newPeerCh, peerServiceName)
 
-	local.mut.Lock()
-	if local.active == nil {
-		local.active = make(map[string]*localPeerback)
+	knownLocalPeer.mut.Lock()
+	if knownLocalPeer.active == nil {
+		knownLocalPeer.active = make(map[string]*localPeerback)
 	}
-	local.active[localPeerID] = backer
-	local.mut.Unlock()
+	knownLocalPeer.active[localPeerID] = lpb
+	knownLocalPeer.mut.Unlock()
 
 	// nope! don't send to ourselves! :)
 	// newPeerCh <- backer // newPeerCh is buffered above, so this cannot block.
 
 	go func() {
 
-		local.peerServiceFunc(peerServiceName, localPeerID, ctx, newPeerCh)
+		local.peerServiceFunc(peerServiceName, localPeerID, ctx, newPeerCh, lbp.lookupByPeerID)
 
 	}()
 

@@ -54,7 +54,9 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		cli.PeerAPI.RegisterPeerServiceFunc(cliServiceName, cpeer0.Start)
 
 		srvServiceName := "speer1_on_server"
-		speer1 := &PeerImpl{}
+		speer1 := &PeerImpl{
+			DoEchoToThisPeerID: make(chan string),
+		}
 		srv.PeerAPI.RegisterPeerServiceFunc(srvServiceName, speer1.Start)
 
 		cliAddr := cli.LocalAddr()
@@ -71,7 +73,7 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		vv("started remote with PeerID = '%v'; cliServiceName = '%v'", peerID_client, cliServiceName)
 
 		// any number of known peers can be supplied, or none, to bootstrap.
-		peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, peerID_client)
+		peerSrv, peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, peerID_client)
 		panicOn(err)
 
 		vv("started on server peerID_server = '%v'", peerID_server)
@@ -93,6 +95,9 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		// we should have seen the client peer start 1x, and the server 2x.
 		cv.So(cpeer0.StartCount.Load(), cv.ShouldEqual, 1)
 		cv.So(speer1.StartCount.Load(), cv.ShouldEqual, 2)
+
+		// simple echo test from srv -> cli -> srv, over a circuit between peers.
+		speer1.DoEchoToThisPeerID <- peerID_client
 
 		vv("now have the peers talk to each other. what to do? keep a directory in sync between two nodes? want to handle files/data bigger than will fit in one Message in an rsync protocol.")
 
