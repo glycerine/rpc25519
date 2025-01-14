@@ -14,7 +14,8 @@ import (
 // asynchronous, communication channel
 // between two Peers.
 //
-// It is returned when a Peer calls NewCircuit().
+// It is returned from RemotePeer.NewCircuit(), or
+// from LocalPeer.CircuitToPeerURL().
 type Circuit struct {
 	pbFrom *localPeerback
 	pbTo   *remotePeerback
@@ -307,7 +308,7 @@ type RemotePeer interface {
 
 	// IncomingCircuit is the first one that arrives with
 	// with an incoming remote peer connections.
-	IncomingCircuit() (circuitName string, ckt *Circuit, ctx context.Context)
+	IncomingCircuit() (ckt *Circuit, ctx context.Context)
 
 	// NewCircuit generates a Circuit between two Peers,
 	// and tells the SendOneWayMessage machinery
@@ -332,7 +333,8 @@ type RemotePeer interface {
 type LocalPeer interface {
 
 	// NewCircuitToPeerURL sets up a persistent communication path called a Circuit.
-	NewCircuitToPeerURL(
+	// The frag can be nil, or set for efficiency.
+	CircuitToPeerURL(
 		peerURL string,
 		frag *Fragment,
 		errWriteDur *time.Duration,
@@ -374,7 +376,7 @@ type PeerServiceFunc func(
 
 ) error
 
-// Users write a PeerImpl and PeerServiceFunc, like this: TODO move to example.go?
+// Users write a PeerImpl and PeerServiceFunc, like this: TODO move to example.go
 
 // PeerImpl demonstrates how a user can implement a Peer.
 //
@@ -390,8 +392,8 @@ func (me *PeerImpl) Start(
 	// how we were registered/invoked.
 	peerServiceName string,
 
-	// our own PeerID
-	ourPeerID string,
+	// our local Peer interface, can do SendToPeer() to send to URL.
+	myPeer LocalPeer,
 
 	// overall context of Client/Server host, if
 	// it starts shutdown, this will cancel, and
@@ -425,7 +427,7 @@ func (me *PeerImpl) Start(
 				outFrag := ckt.NewFragment()
 				outFrag.Payload = []byte(fmt.Sprintf("echo request from peerID='%v' to peerID '%v' on 'echo circuit'", ourPeerID, sendEchoToPeerID))
 
-				ckt, ctx, err = myPeer.NewCircuitToPeerURL(echoToURL, frag, nil)
+				ckt, ctx, err = myPeer.CircuitToPeerURL(echoToURL, frag, nil)
 				panicOn(err)
 				defer ckt.Close() // close when echo heard.
 				done := ctx.Done()
@@ -453,8 +455,8 @@ func (me *PeerImpl) Start(
 			go func(peer RemotePeer) {
 				defer wg.Done()
 
-				circuitName, ckt, ctx := peer.IncomingCircuit()
-				vv("IncomingCircuit got circuitName = '%v'", circuitName)
+				ckt, ctx := peer.IncomingCircuit()
+				vv("IncomingCircuit got circuitURL = '%v'", ckt.CircuitURL())
 				done := ctx.Done()
 
 				outFrag := ckt.NewFragment()
