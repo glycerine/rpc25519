@@ -420,9 +420,11 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 }
 
 func (s *rwPair) runReadLoop(conn net.Conn) {
+
+	ctx, canc := context.WithCancel(context.Background())
 	defer func() {
 		//vv("rpc25519.Server: runReadLoop shutting down for local conn = '%v'", conn.LocalAddr())
-
+		canc()
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
 		conn.Close() // just the one, let other clients continue.
@@ -505,7 +507,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			continue
 
 		case CallStartPeerCircuit:
-			err := s.Server.PeerAPI.bootstrapPeerService(req, s.halt, s.SendCh)
+			err := s.Server.PeerAPI.bootstrapPeerService(req, ctx, s.SendCh)
 			if err != nil {
 				// only error is on shutdown request received.
 				return
@@ -532,10 +534,13 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 //
 // Note: we should only return an error if the shutdown request was received,
 // which will kill the readLoop and connection.
-func (s *peerAPI) bootstrapPeerService(msg *Message, halt *idem.Halter, sendCh chan *Message) error {
+// func (s *peerAPI) bootstrapPeerService(msg *Message, halt *idem.Halter, sendCh chan *Message) error {
+func (s *peerAPI) bootstrapPeerService(msg *Message, ctx context.Context, sendCh chan *Message) error {
+
+	var knownPeerIDs []string
 
 	// starts its own goroutine or return with an error (both quickly).
-	localPeerID, err := s.StartLocalPeer(msg.HDR.ServiceName)
+	localPeerID, err := s.StartLocalPeer(ctx, msg.HDR.ServiceName, knownPeerIDs...)
 
 	// reply with the same msg; save an allocation.
 	msg.HDR.From, msg.HDR.To = msg.HDR.To, msg.HDR.From
@@ -555,7 +560,7 @@ func (s *peerAPI) bootstrapPeerService(msg *Message, halt *idem.Halter, sendCh c
 	}
 	select {
 	case sendCh <- msg:
-	case <-halt.ReqStop.Chan:
+	case <-ctx.Done():
 		return ErrShutdown
 	}
 	return nil

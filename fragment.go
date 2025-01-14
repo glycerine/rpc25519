@@ -16,7 +16,7 @@ import (
 //
 // It is returned when a Peer calls NewCircuit().
 type Circuit struct {
-	fp *fragPair
+	pb *peerback
 
 	circuitName string
 	peerID      string
@@ -28,8 +28,16 @@ type Circuit struct {
 	Errors <-chan *Fragment
 }
 
-func (h *Circuit) NewFragment() *Fragment {
-	return &Fragment{}
+type pairchanfrag struct {
+	callID    string
+	readsOut  chan *Fragment
+	errorsOut chan *Fragment
+}
+
+func (crkt *Circuit) NewFragment() *Fragment {
+	return &Fragment{
+		CallID: crkt.callID,
+	}
 }
 
 // Fragments are sent to, and read from,
@@ -60,48 +68,101 @@ type Fragment struct {
 	Err string `zid:"7"` // distinguished field for error messages.
 }
 
-// provides the Peer interface to PeerServiceFunc.
-type fragPair struct {
-	u UniversalCliSrv
+// peerback in the backing behind each Peer interface
+// provided over the newPeerCh channel.
+// to a PeerServiceFunc.
+type peerback struct {
+	peerAPI *peerAPI
+	u       UniversalCliSrv
 
-	myPeerID string
-	reads    chan *Message
-	errors   chan *Message
+	peerID    string
+	ctx       context.Context
+	canc      context.CancelFunc
+	newPeerCh chan Peer
+
+	readsIn  chan *Message
+	errorsIn chan *Message
+
+	handleChansNewCircuit chan *pairchanfrag
+
+	// has to be a pair per Circuit, not just a pair here!
+	//readsOut  chan *Fragment
+	//errorsOut chan *Fragment
 }
 
-func newFragPair(u UniversalCliSrv) (fp *fragPair) {
-	fp = &fragPair{
-		myPeerID: NewCallID(),
-		u:        u,
-		reads:    make(chan *Message),
-		errors:   make(chan *Message),
+func (peerAPI *peerAPI) newPeerback(ctx context.Context, cancelFunc context.CancelFunc, u UniversalCliSrv, peerID string, newPeerCh chan Peer) (pb *peerback) {
+	pb = &peerback{
+		peerAPI:   peerAPI,
+		ctx:       ctx,
+		canc:      cancelFunc,
+		peerID:    peerID,
+		u:         u,
+		newPeerCh: newPeerCh,
+		// has to sort to the
+		readsIn:  make(chan *Message),
+		errorsIn: make(chan *Message),
+
+		handleChansNewCircuit: make(chan *pairchanfrag),
 	}
+	u.GetReadsForObjID(pb.readsIn, pb.peerID)
+	u.GetErrorsForObjID(pb.errorsIn, pb.peerID)
+	go pb.peerbackPump()
 
-	u.GetReadsForObjID(fp.reads, fp.myPeerID)
-	u.GetErrorsForObjID(fp.errors, fp.myPeerID)
+	return pb
+}
 
-	return fp
+// background goro to read all PeerID *Messages and sort them
+// to all the circuits live in this peer.
+func (pb *peerback) peerbackPump() {
+
+	// key: CallID (circuit ID)
+	m := make(map[string]*pairchanfrag)
+	for {
+		select {
+		case pcf := <-pb.handleChansNewCircuit:
+			m[pcf.callID] = pcf
+		}
+	}
 }
 
 // RegisterPeer(peerServiceName string, peerStreamFunc PeerServiceFunc)
 
-func (fp *fragPair) NewCircuit(circuitName string) *Circuit {
+func (pb *peerback) NewCircuit(circuitName string) (crkt *Circuit, ctx2 context.Context, err error) {
 
-	h := &Circuit{
-		fp:          fp,
+	var canc2 context.CancelFunc
+	ctx2, canc2 = context.WithCancel(pb.ctx)
+	reads := make(chan *Fragment)
+	errors := make(chan *Fragment)
+	crkt = &Circuit{
+		pb:          pb,
 		circuitName: circuitName,
-		peerID:      fp.myPeerID,
+		peerID:      pb.peerID,
 		callID:      NewCallID(),
-		Reads:       make(chan *Fragment),
-		Errors:      make(chan *Fragment),
+		Reads:       reads,
+		Errors:      errors,
+		ctx:         ctx2,
+		canc:        canc2,
 	}
+	pcf := &pairchanfrag{
+		callID:    crkt.callID,
+		readsOut:  reads,
+		errorsOut: errors,
+	}
+	pb.handleChansNewCircuit <- pcf
 	//fp.u.GetReadsForCallID(h.Reads, h.callID)
 	//fp.u.GetErrorsForCallID(h.Errors, h.callID)
-	return h
+	return
 }
+
+// backgroun goroutine to translate *Message -> *Fragment
+func (h *Circuit) pump() {
+
+}
+
 func (h *Circuit) CallID() string { return h.callID }
 
 func (h *Circuit) Close() {
+	h.canc()
 	// unregister the *Frag channels?
 	//h.fp.u.UnregisterChannel(ID string, whichmap int)
 }
@@ -303,7 +364,7 @@ func (p *peerAPI) RegisterPeerServiceFunc(peerServiceName string, peer PeerServi
 	return nil
 }
 
-func (p *peerAPI) StartLocalPeer(peerServiceName string, knownPeerIDs ...string) (localPeerID string, err error) {
+func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, knownPeerIDs ...string) (localPeerID string, err error) {
 	p.mut.Lock()
 	defer p.mut.Unlock()
 	local, ok := p.localServiceNameMap[peerServiceName]
@@ -322,18 +383,12 @@ func (p *peerAPI) StartLocalPeer(peerServiceName string, knownPeerIDs ...string)
 	}
 
 	newPeerCh := make(chan Peer, 1) // must be buffered >= 1, see below.
-	ctx, canc := context.WithCancel(context.Background())
+	ctx1, canc1 := context.WithCancel(ctx)
 	peerID := NewCallID()
 	localPeerID = peerID
 
-	backer := &peerback{
-		u:         p.u,
-		ctx:       ctx,
-		peerAPI:   p,
-		peerID:    peerID,
-		canc:      canc,
-		newPeerCh: newPeerCh,
-	}
+	backer := p.newPeerback(ctx1, canc1, p.u, peerID, newPeerCh)
+
 	local.mut.Lock()
 	if local.active == nil {
 		local.active = make(map[string]*peerback)
@@ -430,36 +485,6 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 			"not respond with peerID in Args", remoteAddr, peerServiceName)
 	}
 	return remotePeerID, nil
-}
-
-// peerback in the backing behind each Peer interface
-// provided over the newPeerCh channel.
-type peerback struct {
-	peerAPI *peerAPI
-	u       UniversalCliSrv
-
-	ctx       context.Context
-	peerID    string
-	canc      context.CancelFunc
-	newPeerCh chan Peer
-
-	reads  chan *Message
-	errors chan *Message
-}
-
-func (s *peerback) NewCircuit(circuitName string) (crkt *Circuit, ctx context.Context, err error) {
-	var canc context.CancelFunc
-	ctx, canc = context.WithCancel(s.ctx)
-	crkt = &Circuit{
-		//	fp:
-		circuitName: circuitName,
-		peerID:      s.peerID,
-		callID:      NewCallID(),
-		ctx:         ctx,
-		canc:        canc,
-	}
-	// TODO actually filtering Message -> Fragment
-	return
 }
 
 // SendOneWayMessage sends a Frament on the given Circuit.

@@ -71,7 +71,7 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		vv("started remote with PeerID = '%v'; cliServiceName = '%v'", peerID_client, cliServiceName)
 
 		// any number of known peers can be supplied, or none, to bootstrap.
-		peerID_server, err := srv.PeerAPI.StartLocalPeer(srvServiceName, peerID_client)
+		peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, peerID_client)
 		panicOn(err)
 
 		vv("started on server peerID_server = '%v'", peerID_server)

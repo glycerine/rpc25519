@@ -271,7 +271,9 @@ type cliPairState struct {
 
 func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 	var err error
+	ctx, canc := context.WithCancel(context.Background())
 	defer func() {
+		canc()
 		//vv("client runReadLoop exiting, last err = '%v'", err)
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
@@ -376,7 +378,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			// on the client, and this is a pretty unique call
 			// anyway. This is like the Client acting like
 			// a server and starting up a peer service.
-			err := c.PeerAPI.bootstrapPeerService(msg, c.halt, c.oneWayCh)
+			err := c.PeerAPI.bootstrapPeerService(msg, ctx, c.oneWayCh)
 			if err != nil {
 				// only error is on shutdown request received.
 				return
