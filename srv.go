@@ -540,7 +540,7 @@ func (s *peerAPI) bootstrapPeerService(msg *Message, ctx context.Context, sendCh
 	var knownPeerIDs []string
 
 	// starts its own goroutine or return with an error (both quickly).
-	localPeerID, err := s.StartLocalPeer(ctx, msg.HDR.ServiceName, knownPeerIDs...)
+	localPeerURL, localPeerID, err := s.StartLocalPeer(ctx, msg.HDR.ServiceName, knownPeerIDs...)
 
 	// reply with the same msg; save an allocation.
 	msg.HDR.From, msg.HDR.To = msg.HDR.To, msg.HDR.From
@@ -556,7 +556,7 @@ func (s *peerAPI) bootstrapPeerService(msg *Message, ctx context.Context, sendCh
 	} else {
 		msg.HDR.Typ = CallOneWay
 		// tell them our peerID, this is the critical desired info.
-		msg.HDR.Args = map[string]string{"peerID": localPeerID}
+		msg.HDR.Args = map[string]string{"peerURL": localPeerURL, "peerID": localPeerID}
 	}
 	select {
 	case sendCh <- msg:

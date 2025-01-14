@@ -67,16 +67,17 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		// Arg. This was racing with the server actually getting
 		// the rwPair spun up, crashing 6% of the time.
 		// Thus we added a prior round-trip cli->srv->cli above.
-		peerURL_client, err := srv.PeerAPI.StartRemotePeer(
+		peerURL_client, peerID_client, err := srv.PeerAPI.StartRemotePeer(
 			ctx, cliServiceName, cliAddr, 50*time.Microsecond)
 		panicOn(err) // cliAddr not found?!?
-		vv("started remote with peerURL_client = '%v'; cliServiceName = '%v'", peerURL_client, cliServiceName)
+		vv("started remote with peerURL_client = '%v'; cliServiceName = '%v'; peerID_client = '%v'", peerURL_client, cliServiceName, peerID_client)
 
 		// any number of known peers can be supplied, or none, to bootstrap.
-		peerURL_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, peerURL_client)
+		peerURL_server, peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, peerURL_client)
 		panicOn(err)
 		_ = peerURL_server
-		vv("started on server peerURL_server = '%v'", peerURL_server)
+		_ = peerID_server
+		vv("started on server peerURL_server = '%v'; peerID_server = '%v'", peerURL_server, peerID_server)
 
 		// lets ask the client to ask the server to start one, to
 		// test the symmetry of the CallStartPeerCircuit handling.
@@ -86,11 +87,11 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		vv("with_network_saddr = '%v'", with_network_saddr)
 		_ = with_network_saddr
 
-		peerURL_server2_from_remote_req, err := cli.PeerAPI.StartRemotePeer(
+		peerURL_server2_from_remote_req, peerID_server2, err := cli.PeerAPI.StartRemotePeer(
 			ctx, srvServiceName, with_network_saddr, 0)
 		panicOn(err)
-		vv("started second instance of speer1_on_server, this time remote with PeerURL = '%v'; for service name = '%v'",
-			peerURL_server2_from_remote_req, srvServiceName)
+		vv("started second instance of speer1_on_server, this time remote with PeerURL = '%v'; for service name = '%v'; peerID_server2 = '%v'",
+			peerURL_server2_from_remote_req, srvServiceName, peerID_server2)
 
 		// we should have seen the client peer start 1x, and the server 2x.
 		cv.So(cpeer0.StartCount.Load(), cv.ShouldEqual, 1)

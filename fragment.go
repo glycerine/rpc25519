@@ -653,12 +653,12 @@ func (p *peerAPI) RegisterPeerServiceFunc(peerServiceName string, peer PeerServi
 	return nil
 }
 
-func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, knownPeerIDs ...string) (localPeerURL string, err error) {
+func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, knownPeerIDs ...string) (localPeerURL, localPeerID string, err error) {
 	p.mut.Lock()
 	defer p.mut.Unlock()
 	knownLocalPeer, ok := p.localServiceNameMap[peerServiceName]
 	if !ok {
-		return "", fmt.Errorf("no local peerServiceName '%v' available", peerServiceName)
+		return "", "", fmt.Errorf("no local peerServiceName '%v' available", peerServiceName)
 	}
 
 	for _, knownID := range knownPeerIDs {
@@ -675,7 +675,7 @@ func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, kn
 
 	newPeerCh := make(chan RemotePeer, 1) // must be buffered >= 1, see below.
 	ctx1, canc1 := context.WithCancel(ctx)
-	localPeerID := NewCallID()
+	localPeerID = NewCallID()
 
 	lpb := p.newLocalPeerback(ctx1, canc1, p.u, localPeerID, newPeerCh, peerServiceName, p.u.LocalAddr())
 
@@ -695,7 +695,7 @@ func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, kn
 
 	}()
 
-	return lpb.PeerURL(), nil
+	return lpb.PeerURL(), localPeerID, nil
 }
 
 // StartRemotePeer boots up a peer a remote node.
@@ -710,7 +710,7 @@ func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, kn
 // to 50 times, pausing waitUpTo/50 after each.
 // If SendAndGetReply succeeds, then we immediately
 // cease polling and return the remotePeerID.
-func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string, waitUpTo time.Duration) (remotePeerID string, err error) {
+func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string, waitUpTo time.Duration) (remotePeerURL, remotePeerID string, err error) {
 
 	// retry until deadline, if waitUpTo is > 0
 	deadline := time.Now().Add(waitUpTo)
@@ -724,7 +724,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 	if r != "" {
 		// we are on the client
 		if r != remoteAddr {
-			return "", fmt.Errorf("client peer error on StartRemotePeer: remoteAddr should be '%v' (that we are connected to), rather than the '%v' which was requested. Otherwise your request will fail.", r, remoteAddr)
+			return "", "", fmt.Errorf("client peer error on StartRemotePeer: remoteAddr should be '%v' (that we are connected to), rather than the '%v' which was requested. Otherwise your request will fail.", r, remoteAddr)
 		}
 	}
 
@@ -768,14 +768,19 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 	select {
 	case reply = <-ch:
 	case <-ctx.Done():
-		return "", ErrContextCancelled
+		return "", "", ErrContextCancelled
 	}
 	var ok bool
 	remotePeerID, ok = reply.HDR.Args["peerID"]
 	if !ok {
-		return "", fmt.Errorf("remote '%v', peerServiceName '%v' did "+
+		return "", "", fmt.Errorf("remote '%v', peerServiceName '%v' did "+
 			"not respond with peerID in Args", remoteAddr, peerServiceName)
 	}
 	vv("got remotePeerID from Args[peerID]: '%v'", remotePeerID)
-	return remotePeerID, nil
+	remotePeerURL, ok = reply.HDR.Args["peerURL"]
+	if !ok {
+		return "", "", fmt.Errorf("remote '%v', peerServiceName '%v' did "+
+			"not respond with peerURL in Args", remoteAddr, peerServiceName)
+	}
+	return remotePeerURL, remotePeerID, nil
 }
