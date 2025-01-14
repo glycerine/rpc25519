@@ -78,6 +78,6 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		vv("started second instance of peer1_on_server, this time remote with PeerID = '%v'; for service name = '%v'",
 			peerID_server2_from_remote_req, srvServiceName)
 
-		select {}
+		//select {}
 	})
 }
