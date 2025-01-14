@@ -391,6 +391,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 				msg.JobErrs = err.Error()
 			} else {
 				msg.HDR.Typ = CallOneWay
+				// tell them our peerID, this is the critical desired info.
 				msg.HDR.Args = map[string]string{"peerID": localPeerID}
 			}
 			select {

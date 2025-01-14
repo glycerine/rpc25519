@@ -24,6 +24,7 @@ import (
 
 	"github.com/glycerine/greenpack/msgp"
 	"github.com/glycerine/idem"
+	"github.com/glycerine/loquet"
 	"github.com/glycerine/rpc25519/selfcert"
 	"github.com/quic-go/quic-go"
 )
@@ -400,12 +401,16 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 				// notify any short-time-waiting server push user.
 				// This is super useful to let goq retry jobs quickly.
 				msg.LocalErr = err
-				msg.DoneCh.Close()
+				if msg.DoneCh != nil {
+					msg.DoneCh.Close()
+				}
 				alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
 				// just let user try again?
 			} else {
 				// tell caller there was no error.
-				msg.DoneCh.Close()
+				if msg.DoneCh != nil {
+					msg.DoneCh.Close()
+				}
 				lastPing = time.Now() // no need for ping
 			}
 		case <-s.halt.ReqStop.Chan:
@@ -498,6 +503,14 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		case CallKeepAlive:
 			//vv("srv read loop got an rpc25519 keep alive.")
 			continue
+
+		case CallStartPeerCircuit:
+			err := s.bootstrapPeerService(req)
+			if err != nil {
+				// only error is on shutdown request received.
+				return
+			}
+			continue
 		}
 
 		// Idea: send the job to the central work queue, so
@@ -508,6 +521,36 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		s.handleIncomingMessage(req, job)
 	}
+}
+
+// we should only return an error if the shutdown request was received.
+func (s *rwPair) bootstrapPeerService(msg *Message) error {
+
+	// starts its own goroutine or return with an error (both quickly).
+	localPeerID, err := s.Server.PeerAPI.StartLocalPeer(msg.HDR.ServiceName)
+
+	// reply with the same msg; save an allocation.
+	msg.HDR.From, msg.HDR.To = msg.HDR.To, msg.HDR.From
+
+	// allocate DoneCh for sendLoop to close;
+	// readMessage just deserializes from greenpack, which
+	// does not allocate it.
+	msg.DoneCh = loquet.NewChan(msg)
+
+	if err != nil {
+		msg.HDR.Typ = CallError
+		msg.JobErrs = err.Error()
+	} else {
+		msg.HDR.Typ = CallOneWay
+		// tell them our peerID, this is the critical desired info.
+		msg.HDR.Args = map[string]string{"peerID": localPeerID}
+	}
+	select {
+	case s.SendCh <- msg:
+	case <-s.halt.ReqStop.Chan:
+		return ErrShutdown
+	}
+	return nil
 }
 
 func (pair *rwPair) handleIncomingMessage(req *Message, job *job) {
