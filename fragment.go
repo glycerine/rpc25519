@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -171,6 +172,7 @@ type PeerServiceFunc func(
 // PeerImpl demonstrates how a user can implement a Peer.
 type PeerImpl struct {
 	KnownPeers []string
+	StartCount atomic.Int64
 }
 
 func (me *PeerImpl) Start(
@@ -192,7 +194,8 @@ func (me *PeerImpl) Start(
 
 ) error {
 
-	vv("PeerImpl.Start() top. ourPeerID = '%v'; peerServiceName='%v'", ourPeerID, peerServiceName)
+	nStart := me.StartCount.Add(1)
+	vv("PeerImpl.Start() top. ourPeerID = '%v'; peerServiceName='%v'; StartCount = %v", ourPeerID, peerServiceName, nStart)
 
 	var wg sync.WaitGroup
 	defer wg.Wait() // wait for everyone to shutdown/catch stragglers that don't by hanging.

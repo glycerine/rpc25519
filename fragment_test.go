@@ -35,13 +35,13 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		defer cli.Close()
 
 		// Fragment/Circuit Peer API on Client/Server
-		cliServiceName := "peer0_on_client"
-		peer0 := &PeerImpl{}
-		cli.PeerAPI.RegisterPeerServiceFunc(cliServiceName, peer0.Start)
+		cliServiceName := "cpeer0_on_client"
+		cpeer0 := &PeerImpl{}
+		cli.PeerAPI.RegisterPeerServiceFunc(cliServiceName, cpeer0.Start)
 
-		srvServiceName := "peer1_on_server"
-		peer1 := &PeerImpl{}
-		srv.PeerAPI.RegisterPeerServiceFunc(srvServiceName, peer1.Start)
+		srvServiceName := "speer1_on_server"
+		speer1 := &PeerImpl{}
+		srv.PeerAPI.RegisterPeerServiceFunc(srvServiceName, speer1.Start)
 
 		cliAddr := cli.LocalAddr()
 		ctx := context.Background()
@@ -56,7 +56,7 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		// Symmetrically, this should also work, but we are going to do
 		// test the server as our "local" for the moment, since it is
 		// backwards with respect to the usual RPC.
-		// cli.PeerAPI.StartRemotePeer("peer1_on_server", serverAddr.String())
+		// cli.PeerAPI.StartRemotePeer("speer1_on_server", serverAddr.String())
 
 		// any number of known peers can be supplied, or none, to bootstrap.
 		peerID_server, err := srv.PeerAPI.StartLocalPeer(srvServiceName, peerID_client)
@@ -75,9 +75,12 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		peerID_server2_from_remote_req, err := cli.PeerAPI.StartRemotePeer(
 			ctx, srvServiceName, with_network_saddr)
 		panicOn(err)
-		vv("started second instance of peer1_on_server, this time remote with PeerID = '%v'; for service name = '%v'",
+		vv("started second instance of speer1_on_server, this time remote with PeerID = '%v'; for service name = '%v'",
 			peerID_server2_from_remote_req, srvServiceName)
 
+		// we should have seen the client peer start 1x, and the server 2x.
+		cv.So(cpeer0.StartCount.Load(), cv.ShouldEqual, 1)
+		cv.So(speer1.StartCount.Load(), cv.ShouldEqual, 2)
 		//select {}
 	})
 }
