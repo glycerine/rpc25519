@@ -34,6 +34,8 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		panicOn(err)
 		defer cli.Close()
 
+		preventRaceByDoingPriorClientToServerRoundTrip(cli, srv)
+
 		// Fragment/Circuit Peer API on Client/Server
 		cliServiceName := "cpeer0_on_client"
 		cpeer0 := &PeerImpl{}
@@ -50,6 +52,9 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 
 		peerID_client, err := srv.PeerAPI.StartRemotePeer(
 			ctx, cliServiceName, cliAddr)
+		// this was racing with the server actually getting
+		// the rwPair spun up, crashing 6% of the time.
+		// Thus we added a prior round-trip cli->srv->cli above.
 		panicOn(err) // cliAddr not found?!? racy server didn't find them yet.. put sychronization above.
 		vv("started remote with PeerID = '%v'; cliServiceName = '%v'", peerID_client, cliServiceName)
 
@@ -78,4 +83,19 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		cv.So(speer1.StartCount.Load(), cv.ShouldEqual, 2)
 		//select {}
 	})
+}
+
+func preventRaceByDoingPriorClientToServerRoundTrip(cli *Client, srv *Server) {
+	serviceName := "customEcho"
+	srv.Register2Func(serviceName, customEcho)
+
+	req := NewMessage()
+	req.HDR.ServiceName = serviceName
+	req.JobSerz = []byte("Hello from client!")
+
+	reply, err := cli.SendAndGetReply(req, nil)
+	panicOn(err)
+	_ = reply
+	//vv("reply = '%v'", reply)
+	//vv("good, response from Server means it definitely has client registered now.")
 }

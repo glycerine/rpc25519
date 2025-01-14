@@ -1670,6 +1670,7 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 	// if we hold this mutex too long then our pair cannot shutdown asap.
 	s.mut.Unlock()
 	if !ok {
+		vv("Server did not find destAddr '%v' in remote2pair", destAddr)
 		return nil, nil, "", "", false
 	}
 	// INVAR: ok is true
