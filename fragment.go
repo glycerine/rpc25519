@@ -29,14 +29,15 @@ type Circuit struct {
 }
 
 type pairchanfrag struct {
+	ckt       *Circuit
 	callID    string
 	readsOut  chan *Fragment
 	errorsOut chan *Fragment
 }
 
-func (crkt *Circuit) NewFragment() *Fragment {
+func (ckt *Circuit) NewFragment() *Fragment {
 	return &Fragment{
-		CallID: crkt.callID,
+		CallID: ckt.callID,
 	}
 }
 
@@ -59,7 +60,7 @@ type Fragment struct {
 	CircuitName string `zid:"2"`
 
 	FragType string `zid:"3"` // can be a message type, sub-service name, other useful context.
-	FragPart int    `zid:"4"` // built in multi-part handling for the same CallID and FragType.
+	FragPart int64  `zid:"4"` // built in multi-part handling for the same CallID and FragType.
 
 	Args map[string]string `zid:"5"` // nil/unallocated to save space. User should alloc if the need it.
 
@@ -117,23 +118,56 @@ func (pb *peerback) peerbackPump() {
 
 	// key: CallID (circuit ID)
 	m := make(map[string]*pairchanfrag)
+	done := pb.ctx.Done()
 	for {
 		select {
 		case pcf := <-pb.handleChansNewCircuit:
 			m[pcf.callID] = pcf
+
+		case msg := <-pb.readsIn:
+			callID := msg.HDR.CallID
+			pcf, ok := m[callID]
+			if !ok {
+				vv("arg. no ckt avail for callID = '%v'", callID)
+				continue
+			}
+			frag := pcf.ckt.convertMessageToFragment(msg)
+			select {
+			case pcf.readsOut <- frag:
+			case <-done:
+				return
+			}
+		case msgerr := <-pb.errorsIn:
+			_ = msgerr
 		}
 	}
 }
 
+func (ckt *Circuit) convertMessageToFragment(msg *Message) (frag *Fragment) {
+	frag = &Fragment{
+		FromPeerID: msg.HDR.ObjID,
+		CallID:     msg.HDR.CallID,
+
+		// CircuitName is what was established by NewCircuit(circuitName)
+		CircuitName: ckt.circuitName,
+		FragType:    msg.HDR.Subject,    // right?
+		FragPart:    msg.HDR.StreamPart, // right?
+		Args:        msg.HDR.Args,
+		Payload:     msg.JobSerz,
+		//Err:         "",
+	}
+	return
+}
+
 // RegisterPeer(peerServiceName string, peerStreamFunc PeerServiceFunc)
 
-func (pb *peerback) NewCircuit(circuitName string) (crkt *Circuit, ctx2 context.Context, err error) {
+func (pb *peerback) NewCircuit(circuitName string) (ckt *Circuit, ctx2 context.Context, err error) {
 
 	var canc2 context.CancelFunc
 	ctx2, canc2 = context.WithCancel(pb.ctx)
 	reads := make(chan *Fragment)
 	errors := make(chan *Fragment)
-	crkt = &Circuit{
+	ckt = &Circuit{
 		pb:          pb,
 		circuitName: circuitName,
 		peerID:      pb.peerID,
@@ -144,7 +178,8 @@ func (pb *peerback) NewCircuit(circuitName string) (crkt *Circuit, ctx2 context.
 		canc:        canc2,
 	}
 	pcf := &pairchanfrag{
-		callID:    crkt.callID,
+		ckt:       ckt,
+		callID:    ckt.callID,
 		readsOut:  reads,
 		errorsOut: errors,
 	}
@@ -188,14 +223,14 @@ type Peer interface {
 	// cancelled in case of broken/shutdown connection
 	// or this application shutting down.
 	//
-	// You must call Close() on the crkt when you are done with it.
+	// You must call Close() on the ckt when you are done with it.
 	//
-	// When selecting crkt.Reads and crkt.Errors, always also
+	// When selecting ckt.Reads and ckt.Errors, always also
 	// select on ctx.Done() in order to shutdown gracefully.
-	NewCircuit(circuitName string) (crkt *Circuit, ctx context.Context, err error)
+	NewCircuit(circuitName string) (ckt *Circuit, ctx context.Context, err error)
 
 	// SendOneWayMessage sends a Frament on the given Circuit.
-	SendOneWayMessage(crkt *Circuit, frag *Fragment, errWriteDur *time.Duration) error
+	SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error
 
 	// ID2 supplies the local and remote PeerIDs.
 	ID2() (localPeerID, remotePeerID string)
@@ -232,6 +267,8 @@ type PeerServiceFunc func(
 // Users write a PeerImpl and PeerServiceFunc, like this: TODO move to example.go?
 
 // PeerImpl demonstrates how a user can implement a Peer.
+//
+//msgp:ignore PeerImpl
 type PeerImpl struct {
 	KnownPeers []string
 	StartCount atomic.Int64
@@ -275,22 +312,22 @@ func (me *PeerImpl) Start(
 			go func(peer Peer) {
 				defer wg.Done()
 
-				crkt, ctx, err := peer.NewCircuit("circuitName")
+				ckt, ctx, err := peer.NewCircuit("circuitName")
 				panicOn(err)
-				defer crkt.Close()
+				defer ckt.Close()
 				done := ctx.Done()
 
-				outFrag := crkt.NewFragment()
+				outFrag := ckt.NewFragment()
 				// set Payload, other details ... then:
 
-				err = peer.SendOneWayMessage(crkt, outFrag, nil)
+				err = peer.SendOneWayMessage(ckt, outFrag, nil)
 				panicOn(err)
 
 				for {
 					select {
-					case frag := <-crkt.Reads:
+					case frag := <-ckt.Reads:
 						_ = frag
-					case fragerr := <-crkt.Errors:
+					case fragerr := <-ckt.Errors:
 						_ = fragerr
 
 					case <-done:
@@ -488,7 +525,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 }
 
 // SendOneWayMessage sends a Frament on the given Circuit.
-func (s *peerback) SendOneWayMessage(crkt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
+func (s *peerback) SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
 	return nil
 
 }
