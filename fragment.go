@@ -326,6 +326,17 @@ func (p *peerAPI) StartLocalPeer(peerServiceName string, knownPeerIDs ...string)
 func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string) (remotePeerID string, err error) {
 	msg := NewMessage()
 
+	// server will return "" because many possible clients,
+	// but this can still help out the user on the client
+	// by getting the right address.
+	r := p.u.RemoteAddr()
+	if r != "" {
+		// we are on the client
+		if r != remoteAddr {
+			return "", fmt.Errorf("client peer error on StartRemotePeer: remoteAddr should be '%v' (that we are connected to), rather than the '%v' which was requested. Otherwise your request will fail.", r, remoteAddr)
+		}
+	}
+
 	hdr := NewHDR(p.u.LocalAddr(), remoteAddr, peerServiceName, CallStartPeerCircuit, 0)
 	hdr.ServiceName = peerServiceName
 	callID := NewCallID()

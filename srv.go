@@ -1710,6 +1710,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 	// abstract this for Client/Server symmetry
 	sendCh, haltCh, _, from, ok := s.destAddrToSendCh(destAddr)
 	if !ok {
+		// srv_test.go:651
 		//vv("could not find destAddr='%v' in from our s.destAddrToSendCh() call. stack=\n%v", destAddr, stack())
 		return ErrNetConnectionNotFound
 	}
@@ -2242,4 +2243,13 @@ func (s *Server) LocalAddr() string {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 	return s.cfg.ServerAddr
+}
+
+// RemoteAddr returns "" on the Server, because
+// it is not well defined (which client? there can
+// be many!) We still want to
+// satisfy the UniveralCliSrv interface and
+// let the Client help Peer users. Hence this stub.
+func (s *Server) RemoteAddr() string {
+	return "" // fragment.go StartRemotePeer() logic depends on this too.
 }

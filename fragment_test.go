@@ -50,13 +50,8 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 
 		peerID_client, err := srv.PeerAPI.StartRemotePeer(
 			ctx, cliServiceName, cliAddr)
-		panicOn(err)
+		panicOn(err) // cliAddr not found?!? racy server didn't find them yet.. put sychronization above.
 		vv("started remote with PeerID = '%v'; cliServiceName = '%v'", peerID_client, cliServiceName)
-
-		// Symmetrically, this should also work, but we are going to do
-		// test the server as our "local" for the moment, since it is
-		// backwards with respect to the usual RPC.
-		// cli.PeerAPI.StartRemotePeer("speer1_on_server", serverAddr.String())
 
 		// any number of known peers can be supplied, or none, to bootstrap.
 		peerID_server, err := srv.PeerAPI.StartLocalPeer(srvServiceName, peerID_client)
@@ -64,7 +59,7 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 
 		vv("started on server peerID_server = '%v'", peerID_server)
 
-		// lets ask the client to ask the server to start another one, to
+		// lets ask the client to ask the server to start one, to
 		// test the symmetry of the CallStartPeerCircuit handling.
 
 		// get the tcp:// or udp:// in front like the client expects.

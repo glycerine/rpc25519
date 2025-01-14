@@ -177,8 +177,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	conn := nconn.(*tls.Conn) // docs say this is for sure.
 	defer conn.Close()        // in runClientMain() here.
 
-	la := conn.LocalAddr()
-	c.setLocalAddr(la.Network() + "://" + la.String())
+	c.setLocalAddr(conn)
 
 	// only signal ready once SetLocalAddr() is done, else submitter can crash.
 	c.connected <- nil
@@ -233,8 +232,7 @@ func (c *Client) runClientTCP(serverAddr string) {
 		return
 	}
 
-	la := conn.LocalAddr()
-	c.setLocalAddr(la.Network() + "://" + la.String())
+	c.setLocalAddr(conn)
 
 	c.isTLS = false
 	c.conn = conn
@@ -1783,6 +1781,7 @@ type UniversalCliSrv interface {
 
 	UnregisterChannel(ID string, whichmap int)
 	LocalAddr() string
+	RemoteAddr() string // client provides, server gives ""
 }
 
 // maintain the requirement that Client and Server both
@@ -1900,10 +1899,11 @@ func (c *Client) oneWaySendHelper(msg *Message, cancelJobCh <-chan struct{}) (er
 	}
 }
 
-func (c *Client) setLocalAddr(local string) {
+func (c *Client) setLocalAddr(conn localRemoteAddr) {
 	c.mut.Lock()
 	defer c.mut.Unlock()
-	c.cfg.localAddress = local
+
+	c.cfg.localAddress = local(conn)
 }
 
 // LocalAddr retreives the local host/port that the
@@ -1912,6 +1912,19 @@ func (c *Client) LocalAddr() string {
 	c.mut.Lock()
 	defer c.mut.Unlock()
 	return c.cfg.localAddress
+}
+
+// RemoteAddr retreives the remote host/port for
+// the Server that the Client is connected to.
+func (c *Client) RemoteAddr() string {
+	c.mut.Lock()
+	defer c.mut.Unlock()
+
+	if c.isQUIC {
+		return remote(c.quicConn)
+	} else {
+		return remote(c.conn)
+	}
 }
 
 func remote(nc localRemoteAddr) string {
