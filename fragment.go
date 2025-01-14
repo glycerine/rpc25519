@@ -22,6 +22,7 @@ type Circuit struct {
 	peerID      string
 	callID      string
 	ctx         context.Context
+	canc        context.CancelFunc
 
 	Reads  <-chan *Fragment
 	Errors <-chan *Fragment
@@ -207,6 +208,8 @@ func (me *PeerImpl) Start(
 		case peer := <-newPeerCh:
 			wg.Add(1)
 
+			vv("got from newPeerCh! '%v' sees new peer: '%#v'", peerServiceName, peer)
+
 			// talk to this peer on a separate goro if you wish:
 			go func(peer Peer) {
 				defer wg.Done()
@@ -252,8 +255,11 @@ type peerAPI struct {
 	u   UniversalCliSrv
 	mut sync.Mutex
 
+	// peerServiceName key
 	localServiceNameMap map[string]*knownLocalPeer
-	remoteKnownPeers    map[string]*knownRemotePeer
+
+	// PeerID key
+	remoteKnownPeers map[string]*knownRemotePeer
 }
 
 func newPeerAPI(u UniversalCliSrv) *peerAPI {
@@ -268,11 +274,16 @@ type knownRemotePeer struct {
 	peerID string
 }
 
-type knownLocalPeer struct {
-	peerServiceFunc PeerServiceFunc
+type remotePeer struct {
+	peerServiceName string
 	peerID          string
-	canc            context.CancelFunc
-	newPeerCh       chan Peer
+}
+
+type knownLocalPeer struct {
+	mut             sync.Mutex
+	peerServiceFunc PeerServiceFunc
+
+	active map[string]*peerback
 }
 
 // RegisterPeerServiceFunc registers a user's
@@ -303,26 +314,48 @@ func (p *peerAPI) StartLocalPeer(peerServiceName string, knownPeerIDs ...string)
 	for _, knownID := range knownPeerIDs {
 		known, ok := p.remoteKnownPeers[knownID]
 		if !ok {
-			known = &knownRemotePeer{peerID: knownID}
+			known = &knownRemotePeer{
+				peerID: knownID,
+			}
 			p.remoteKnownPeers[knownID] = known
 		}
 	}
 
-	newPeerCh := make(chan Peer)
+	newPeerCh := make(chan Peer, 1) // must be buffered >= 1, see below.
 	ctx, canc := context.WithCancel(context.Background())
-	local.canc = canc
-	localPeerID = NewCallID()
-	local.newPeerCh = newPeerCh
+	peerID := NewCallID()
+	localPeerID = peerID
 
-	go local.peerServiceFunc(
-		peerServiceName,
-		localPeerID,
-		ctx,
-		newPeerCh)
+	backer := &peerback{
+		u:         p.u,
+		ctx:       ctx,
+		peerAPI:   p,
+		peerID:    peerID,
+		canc:      canc,
+		newPeerCh: newPeerCh,
+	}
+	local.mut.Lock()
+	if local.active == nil {
+		local.active = make(map[string]*peerback)
+	}
+	local.active[peerID] = backer
+	local.mut.Unlock()
+
+	newPeerCh <- backer // newPeerCh is buffered above, so this cannot block.
+
+	go func() {
+
+		local.peerServiceFunc(peerServiceName, localPeerID, ctx, newPeerCh)
+
+	}()
 
 	return
 }
 
+// StartRemotePeer boots up a peer a remote node.
+// It must already have been registered on the
+// client or server running there.
+//
 // If a waitUpTo duration is provided, we will poll in the
 // event of an error, since there can be races when
 // doing simultaneous client and server setup. We will
@@ -398,3 +431,42 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 	}
 	return remotePeerID, nil
 }
+
+// peerback in the backing behind each Peer interface
+// provided over the newPeerCh channel.
+type peerback struct {
+	peerAPI *peerAPI
+	u       UniversalCliSrv
+
+	ctx       context.Context
+	peerID    string
+	canc      context.CancelFunc
+	newPeerCh chan Peer
+
+	reads  chan *Message
+	errors chan *Message
+}
+
+func (s *peerback) NewCircuit(circuitName string) (crkt *Circuit, ctx context.Context, err error) {
+	var canc context.CancelFunc
+	ctx, canc = context.WithCancel(s.ctx)
+	crkt = &Circuit{
+		//	fp:
+		circuitName: circuitName,
+		peerID:      s.peerID,
+		callID:      NewCallID(),
+		ctx:         ctx,
+		canc:        canc,
+	}
+	// TODO actually filtering Message -> Fragment
+	return
+}
+
+// SendOneWayMessage sends a Frament on the given Circuit.
+func (s *peerback) SendOneWayMessage(crkt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
+	return nil
+
+}
+
+// ID2 supplies the local and remote PeerIDs.
+func (s *peerback) ID2() (localPeerID, remotePeerID string) { return }
