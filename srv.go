@@ -505,7 +505,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			continue
 
 		case CallStartPeerCircuit:
-			err := s.bootstrapPeerService(req)
+			err := s.Server.PeerAPI.bootstrapPeerService(req, s.halt, s.SendCh)
 			if err != nil {
 				// only error is on shutdown request received.
 				return
@@ -523,11 +523,19 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 	}
 }
 
-// we should only return an error if the shutdown request was received.
-func (s *rwPair) bootstrapPeerService(msg *Message) error {
+// handle HDR.Typ == CallStartPeerCircuit  messages
+// requesting to bootstrap a PeerServiceFunc.
+//
+// This needs special casing because the inital call API
+// is different. See fragment.go; PeerServiceFunc is
+// very different from TwoWayFunc or OneWayFunc.
+//
+// Note: we should only return an error if the shutdown request was received,
+// which will kill the readLoop and connection.
+func (s *peerAPI) bootstrapPeerService(msg *Message, halt *idem.Halter, sendCh chan *Message) error {
 
 	// starts its own goroutine or return with an error (both quickly).
-	localPeerID, err := s.Server.PeerAPI.StartLocalPeer(msg.HDR.ServiceName)
+	localPeerID, err := s.StartLocalPeer(msg.HDR.ServiceName)
 
 	// reply with the same msg; save an allocation.
 	msg.HDR.From, msg.HDR.To = msg.HDR.To, msg.HDR.From
@@ -546,8 +554,8 @@ func (s *rwPair) bootstrapPeerService(msg *Message) error {
 		msg.HDR.Args = map[string]string{"peerID": localPeerID}
 	}
 	select {
-	case s.SendCh <- msg:
-	case <-s.halt.ReqStop.Chan:
+	case sendCh <- msg:
+	case <-halt.ReqStop.Chan:
 		return ErrShutdown
 	}
 	return nil

@@ -373,30 +373,14 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		//vv("client %v received message with seqno=%v, msg.HDR='%v'; c.notifyOnReadCallIDMap='%#v'", c.name, seqno, msg.HDR.String(), c.notifyOnReadCallIDMap)
 
 		if msg.HDR.Typ == CallStartPeerCircuit {
-			// special case start a peer, since
-			// this is like the Client acting like
+			// special case to bootstrap up a peer by remote
+			// request, since no other way to register stuff
+			// on the client, and this is a pretty unique call
+			// anyway. This is like the Client acting like
 			// a server and starting up a peer service.
-			localPeerID, err := c.PeerAPI.StartLocalPeer(msg.HDR.ServiceName)
-
-			// reply with the same msg; save an allocation.
-			msg.HDR.From, msg.HDR.To = msg.HDR.To, msg.HDR.From
-
-			// must allocate DoneCh for sendLoop to close;
-			// readMessage just deserializes from greenpack, which
-			// does not allocate it.
-			msg.DoneCh = loquet.NewChan(msg)
-
+			err := c.PeerAPI.bootstrapPeerService(msg, c.halt, c.oneWayCh)
 			if err != nil {
-				msg.HDR.Typ = CallError
-				msg.JobErrs = err.Error()
-			} else {
-				msg.HDR.Typ = CallOneWay
-				// tell them our peerID, this is the critical desired info.
-				msg.HDR.Args = map[string]string{"peerID": localPeerID}
-			}
-			select {
-			case c.oneWayCh <- msg:
-			case <-c.halt.ReqStop.Chan:
+				// only error is on shutdown request received.
 				return
 			}
 			continue
