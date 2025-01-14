@@ -128,11 +128,6 @@ type localPeerback struct {
 	remotes map[string]*remotePeerback
 }
 
-// user PeerServiceFunc implementation requests interface to known peer.
-//func (lbp *localPeerback) lookupByPeerID(peerID string) (RemotePeer, error) {
-//	return nil, nil
-//}
-
 // SendOneWayMessage sends a Frament on the given Circuit.
 func (s *localPeerback) SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
 
@@ -381,10 +376,6 @@ type PeerServiceFunc func(
 	// or server who invoked us.
 	newPeerCh <-chan RemotePeer,
 
-	// necessary for bootstrapping: user requests
-	// to contact a remote peer by PeerID
-	//lookupByPeerID func(peerID string) (RemotePeer, error),
-
 ) error
 
 // Users write a PeerImpl and PeerServiceFunc, like this: TODO move to example.go
@@ -413,9 +404,6 @@ func (me *PeerImpl) Start(
 	// first on newPeerCh might be the client or server who invoked us,
 	// if a remote wanted to start a circuit.
 	newPeerCh <-chan RemotePeer,
-
-	// user peerServiceName instead? then we need the conn netAddress.
-	//lookupByPeerID func(peerID string) (RemotePeer, error),
 
 ) error {
 
@@ -472,7 +460,7 @@ func (me *PeerImpl) Start(
 
 				outFrag := NewFragment()
 				// set Payload, other details...
-				outFrag.Payload = []byte(fmt.Sprintf("hello from peerID='%v' on circuit '%v'", ourPeerID, circuitName))
+				outFrag.Payload = []byte(fmt.Sprintf("hello from '%v'", myPeer.PeerURL()))
 
 				err := peer.SendOneWayMessage(ckt, outFrag, nil)
 				panicOn(err)
@@ -584,7 +572,7 @@ func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, kn
 	ctx1, canc1 := context.WithCancel(ctx)
 	localPeerID = NewCallID()
 
-	lpb := p.newLocalPeerback(ctx1, canc1, p.u, localPeerID, newPeerCh, peerServiceName)
+	lpb := p.newLocalPeerback(ctx1, canc1, p.u, localPeerID, newPeerCh, peerServiceName, p.u.LocalAddr())
 
 	knownLocalPeer.mut.Lock()
 	if knownLocalPeer.active == nil {
@@ -598,7 +586,7 @@ func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, kn
 
 	go func() {
 
-		local.peerServiceFunc(peerServiceName, localPeerID, ctx, newPeerCh, lbp.lookupByPeerID)
+		knownLocalPeer.peerServiceFunc(peerServiceName, localPeerID, ctx, newPeerCh)
 
 	}()
 
