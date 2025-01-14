@@ -386,7 +386,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			continue
 		}
 
-		if c.notifies.handleReply_to_CallID_ObjID(msg) {
+		if c.notifies.handleReply_to_CallID_ObjID(ctx, msg) {
 			continue
 		}
 

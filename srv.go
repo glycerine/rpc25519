@@ -521,7 +521,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		// So we got rid of the work queue.
 		job := &job{req: req, conn: conn, pair: s, w: w}
 
-		s.handleIncomingMessage(req, job)
+		s.handleIncomingMessage(ctx, req, job)
 	}
 }
 
@@ -566,7 +566,7 @@ func (s *peerAPI) bootstrapPeerService(msg *Message, ctx context.Context, sendCh
 	return nil
 }
 
-func (pair *rwPair) handleIncomingMessage(req *Message, job *job) {
+func (pair *rwPair) handleIncomingMessage(ctx context.Context, req *Message, job *job) {
 
 	switch req.HDR.Typ {
 
@@ -591,7 +591,7 @@ func (pair *rwPair) handleIncomingMessage(req *Message, job *job) {
 		return
 	}
 
-	if pair.Server.notifies.handleReply_to_CallID_ObjID(req) {
+	if pair.Server.notifies.handleReply_to_CallID_ObjID(ctx, req) {
 		return
 	}
 
@@ -627,7 +627,7 @@ func newNotifies() *notifies {
 // For Peer/Object systems, ObjID get priority over CallID
 // to allow such systems to implement custom message
 // types. An example is the Fragment/Peer/Circuit system.
-func (c *notifies) handleReply_to_CallID_ObjID(msg *Message) (done bool) {
+func (c *notifies) handleReply_to_CallID_ObjID(ctx context.Context, msg *Message) (done bool) {
 
 	// protect map access.
 	c.mut.Lock()
@@ -645,11 +645,15 @@ func (c *notifies) handleReply_to_CallID_ObjID(msg *Message) (done bool) {
 				select {
 				case wantsErrObj <- msg:
 					//vv("notified a channel! %p for CallID '%v'", wantsErr, msg.HDR.ObjID)
-				default:
-					panic(fmt.Sprintf("Should never happen b/c the "+
-						"channels must be buffered!: could not send to "+
-						"whoCh from notifyOnErrorObjIDMap; for ObjID = %v.",
-						msg.HDR.ObjID))
+
+				case <-ctx.Done():
+					return
+					// think we want backpressure and to make sure the peer goro keep up.
+					//default:
+					//	panic(fmt.Sprintf("Should never happen b/c the "+
+					//		"channels must be buffered!: could not send to "+
+					//		"whoCh from notifyOnErrorObjIDMap; for ObjID = %v.",
+					//		msg.HDR.ObjID))
 				}
 				return true // only send to ObjID, not CallID too.
 			}
@@ -659,12 +663,14 @@ func (c *notifies) handleReply_to_CallID_ObjID(msg *Message) (done bool) {
 		if ok {
 			select {
 			case wantsErr <- msg:
-				//vv("notified a channel! %p for CallID '%v'", wantsErr, msg.HDR.CallID)
-			default:
-				panic(fmt.Sprintf("Should never happen b/c the "+
-					"channels must be buffered!: could not send to "+
-					"whoCh from notifyOnErrorCallIDMap; for CallID = %v.",
-					msg.HDR.CallID))
+			//vv("notified a channel! %p for CallID '%v'", wantsErr, msg.HDR.CallID)
+			case <-ctx.Done():
+				return
+				//default:
+				//	panic(fmt.Sprintf("Should never happen b/c the "+
+				//		"channels must be buffered!: could not send to "+
+				//		"whoCh from notifyOnErrorCallIDMap; for CallID = %v.",
+				//		msg.HDR.CallID))
 			}
 		}
 
@@ -677,11 +683,15 @@ func (c *notifies) handleReply_to_CallID_ObjID(msg *Message) (done bool) {
 		if ok {
 			select {
 			case wantsObjID <- msg:
-			default:
-				panic(fmt.Sprintf("Should never happen b/c the "+
-					"channels must be buffered!: could not send to "+
-					"whoCh from notifyOnReadObjIDMap; for ObjID = %v.",
-					msg.HDR.ObjID))
+			case <-ctx.Done():
+				return
+			case <-ctx.Done():
+				return
+				//default:
+				//	panic(fmt.Sprintf("Should never happen b/c the "+
+				//		"channels must be buffered!: could not send to "+
+				//		"whoCh from notifyOnReadObjIDMap; for ObjID = %v.",
+				//		msg.HDR.ObjID))
 			}
 			return true // only send to ObjID, priority over CallID.
 		}
@@ -691,11 +701,13 @@ func (c *notifies) handleReply_to_CallID_ObjID(msg *Message) (done bool) {
 	if ok {
 		select {
 		case wantsCallID <- msg:
-		default:
-			panic(fmt.Sprintf("Should never happen b/c the "+
-				"channels must be buffered!: could not send to "+
-				"whoCh from notifyOnReadCallIDMap; for CallID = %v.",
-				msg.HDR.CallID))
+		case <-ctx.Done():
+			return
+			//default:
+			//	panic(fmt.Sprintf("Should never happen b/c the "+
+			//		"channels must be buffered!: could not send to "+
+			//		"whoCh from notifyOnReadCallIDMap; for CallID = %v.",
+			//		msg.HDR.CallID))
 		}
 		return true
 	}

@@ -98,9 +98,9 @@ func (peerAPI *peerAPI) newPeerback(ctx context.Context, cancelFunc context.Canc
 		peerID:    peerID,
 		u:         u,
 		newPeerCh: newPeerCh,
-		// has to sort to the
-		readsIn:  make(chan *Message),
-		errorsIn: make(chan *Message),
+		// has to sort the Message to each circuit and convert to Fragment.
+		readsIn:  make(chan *Message, 1),
+		errorsIn: make(chan *Message, 1),
 
 		handleChansNewCircuit: make(chan *pairchanfrag),
 	}
