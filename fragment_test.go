@@ -34,6 +34,18 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		panicOn(err)
 		defer cli.Close()
 
+		// An unexpected race we have to prevent:
+		// the client TCP connection would get made,
+		// but the subsequent server side Go code that
+		// gets the listener accept and sets up the rwPair
+		// was racing with us coming from the other direction
+		// and telling the server to contact the client.
+		// We saw this race in 6% of 1000 runs, but
+		// by running this next round trip, we see the
+		// race 0% of 1000 runs. This call makes us
+		// wait on the client who waits on the server
+		// to be ready. So when it returns we know
+		// the server knows about the client.
 		preventRaceByDoingPriorClientToServerRoundTrip(cli, srv)
 
 		// Fragment/Circuit Peer API on Client/Server
@@ -50,12 +62,12 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 
 		// This call starts the PeerImpl on the remote Client, from the server.
 
-		peerID_client, err := srv.PeerAPI.StartRemotePeer(
-			ctx, cliServiceName, cliAddr)
-		// this was racing with the server actually getting
+		// Arg. This was racing with the server actually getting
 		// the rwPair spun up, crashing 6% of the time.
 		// Thus we added a prior round-trip cli->srv->cli above.
-		panicOn(err) // cliAddr not found?!? racy server didn't find them yet.. put sychronization above.
+		peerID_client, err := srv.PeerAPI.StartRemotePeer(
+			ctx, cliServiceName, cliAddr)
+		panicOn(err) // cliAddr not found?!?
 		vv("started remote with PeerID = '%v'; cliServiceName = '%v'", peerID_client, cliServiceName)
 
 		// any number of known peers can be supplied, or none, to bootstrap.
