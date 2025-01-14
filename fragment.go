@@ -333,6 +333,7 @@ func (p *peerAPI) StartLocalPeer(peerServiceName string, knownPeerIDs ...string)
 // cease polling and return the remotePeerID.
 func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string, waitUpTo time.Duration) (remotePeerID string, err error) {
 
+	// retry until deadline, if waitUpTo is > 0
 	deadline := time.Now().Add(waitUpTo)
 
 	msg := NewMessage()
@@ -365,7 +366,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 		err = p.u.SendOneWayMessage(ctx, msg, nil)
 		if err != nil {
 			left := deadline.Sub(time.Now())
-			if left <= 0 {
+			if left <= 0 || waitUpTo <= 0 {
 				return
 			} else {
 				dur := pollInterval
@@ -377,8 +378,8 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 				continue
 			}
 		} else {
-			vv("SendOneWayMessage retried %v times before succeess; pollInterval: %v",
-				i, pollInterval)
+			//vv("SendOneWayMessage retried %v times before succeess; pollInterval: %v",
+			//	i, pollInterval)
 			break
 		}
 	}
