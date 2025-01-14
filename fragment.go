@@ -107,6 +107,7 @@ type localPeerback struct {
 	errorsIn chan *Message
 
 	handleChansNewCircuit chan *Circuit
+	handleCircuitClose    chan *Circuit
 
 	// key is the remote PeerID
 	remotes map[string]*remotePeerback
@@ -136,9 +137,10 @@ func (peerAPI *peerAPI) newLocalPeerback(ctx context.Context, cancelFunc context
 
 		remotes:               make(map[string]*remotePeerback),
 		handleChansNewCircuit: make(chan *Circuit),
+		handleCircuitClose:    make(chan *Circuit),
 	}
 
-	// service reads for local. remote will only send.
+	// service reads for local.
 	u.GetReadsForToPeerID(pb.readsIn, peerID)
 	u.GetErrorsForToPeerID(pb.errorsIn, peerID)
 	go pb.peerbackPump()
@@ -157,6 +159,10 @@ func (pb *localPeerback) peerbackPump() {
 		select {
 		case ckt := <-pb.handleChansNewCircuit:
 			m[ckt.callID] = ckt
+
+		case ckt := <-pb.handleCircuitClose:
+			ckt.canc()
+			delete(m, ckt.callID)
 
 		case msg := <-pb.readsIn:
 			callID := msg.HDR.CallID
@@ -223,16 +229,18 @@ func (ckt *Circuit) convertFragmentToMessage(frag *Fragment) (msg *Message) {
 
 func (rpb *remotePeerback) NewCircuit(circuitName string) (ckt *Circuit, ctx2 context.Context, err error) {
 
+	lpb := rpb.localPeerback
+
 	var canc2 context.CancelFunc
-	ctx2, canc2 = context.WithCancel(rpb.localPeerback.ctx)
+	ctx2, canc2 = context.WithCancel(lpb.ctx)
 	reads := make(chan *Fragment)
 	errors := make(chan *Fragment)
 	ckt = &Circuit{
-		peerServiceName: rpb.localPeerback.peerServiceName,
-		pbFrom:          rpb.localPeerback,
+		peerServiceName: lpb.peerServiceName,
+		pbFrom:          lpb,
 		pbTo:            rpb,
 		circuitName:     circuitName,
-		localPeerID:     rpb.localPeerback.peerID,
+		localPeerID:     lpb.peerID,
 		remotePeerID:    rpb.peerID, // yes this is right.
 		callID:          NewCallID(),
 		Reads:           reads,
@@ -240,21 +248,18 @@ func (rpb *remotePeerback) NewCircuit(circuitName string) (ckt *Circuit, ctx2 co
 		ctx:             ctx2,
 		canc:            canc2,
 	}
-	rpb.localPeerback.handleChansNewCircuit <- ckt
+	lpb.handleChansNewCircuit <- ckt
+	// don't do this, our local PeerID pump will sort to the ckt.Reads and ckt.Errors
 	//fp.u.GetReadsForCallID(h.Reads, h.callID)
 	//fp.u.GetErrorsForCallID(h.Errors, h.callID)
 	return
 }
 
-// backgroun goroutine to translate *Message -> *Fragment
-func (h *Circuit) pump() {
-
-}
-
-func (h *Circuit) CallID() string { return h.callID }
+func (h *Circuit) CircuitID() string { return h.callID }
 
 func (h *Circuit) Close() {
-	h.canc()
+	h.pbFrom.handleCircuitClose <- h
+	// done in the pump: h.canc()
 	// unregister the *Frag channels?
 	//h.fp.u.UnregisterChannel(ID string, whichmap int)
 }
