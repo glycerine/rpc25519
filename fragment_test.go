@@ -35,20 +35,23 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		defer cli.Close()
 
 		// Fragment/Circuit Peer API on Client/Server
+		cliServiceName := "peer0_on_client"
 		peer0 := &PeerImpl{}
-		cli.PeerAPI.RegisterPeerServiceFunc("peer0_on_client", peer0.Start)
+		cli.PeerAPI.RegisterPeerServiceFunc(cliServiceName, peer0.Start)
 
+		srvServiceName := "peer1_on_server"
 		peer1 := &PeerImpl{}
-		srv.PeerAPI.RegisterPeerServiceFunc("peer1_on_server", peer1.Start)
+		srv.PeerAPI.RegisterPeerServiceFunc(srvServiceName, peer1.Start)
 
 		cliAddr := cli.LocalAddr()
 		ctx := context.Background()
 
 		// This call starts the PeerImpl on the remote Client, from the server.
 
-		peerID0, err := srv.PeerAPI.StartRemotePeer(ctx, "peer0_on_client", cliAddr)
+		peerID_client, err := srv.PeerAPI.StartRemotePeer(
+			ctx, cliServiceName, cliAddr)
 		panicOn(err)
-		vv("started remote with PeerID = '%v'", peerID0)
+		vv("started remote with PeerID = '%v'; cliServiceName = '%v'", peerID_client, cliServiceName)
 
 		// Symmetrically, this should also work, but we are going to do
 		// test the server as our "local" for the moment, since it is
@@ -56,10 +59,25 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		// cli.PeerAPI.StartRemotePeer("peer1_on_server", serverAddr.String())
 
 		// any number of known peers can be supplied, or none, to bootstrap.
-		localPeerID, err := srv.PeerAPI.StartLocalPeer("peer1_on_server", peerID0)
+		peerID_server, err := srv.PeerAPI.StartLocalPeer(srvServiceName, peerID_client)
 		panicOn(err)
 
-		vv("started localPeerID = '%v'", localPeerID)
+		vv("started on server peerID_server = '%v'", peerID_server)
+
+		// lets ask the client to ask the server to start another one, to
+		// test the symmetry of the CallStartPeerCircuit handling.
+
+		// get the tcp:// or udp:// in front like the client expects.
+		with_network_saddr := serverAddr.Network() + "://" + serverAddr.String()
+		vv("with_network_saddr = '%v'", with_network_saddr)
+		_ = with_network_saddr
+
+		peerID_server2_from_remote_req, err := cli.PeerAPI.StartRemotePeer(
+			ctx, srvServiceName, with_network_saddr)
+		panicOn(err)
+		vv("started second instance of peer1_on_server, this time remote with PeerID = '%v'; for service name = '%v'",
+			peerID_server2_from_remote_req, srvServiceName)
+
 		select {}
 	})
 }

@@ -1607,7 +1607,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 	s.mut.Unlock()
 
 	if !ok {
-		//vv("could not find destAddr='%v' in our map: '%#v'", destAddr, s.remote2pair)
+		vv("could not find destAddr='%v' in our map: '%#v'", destAddr, s.remote2pair)
 		return ErrNetConnectionNotFound
 	}
 	//vv("found remote2pair for destAddr = '%v': '%#v'", destAddr, pair)
@@ -1702,7 +1702,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 	// abstract this for Client/Server symmetry
 	sendCh, haltCh, _, from, ok := s.destAddrToSendCh(destAddr)
 	if !ok {
-		//vv("could not find destAddr='%v' in our map: '%#v'", destAddr, s.remote2pair)
+		vv("could not find destAddr='%v' in from our s.destAddrToSendCh() call. stack=\n%v", destAddr, stack()) // , s.remote2pair)
 		return ErrNetConnectionNotFound
 	}
 

@@ -1818,6 +1818,10 @@ func (cli *Client) destAddrToSendCh(destAddr string) (sendCh chan *Message, halt
 	// future: allow client to contact multple servers.
 	// for now, only the original client->sever conn is supported.
 
+	//defer func() {
+	//	vv("Client.destAddrToSendCh() returning ok = '%v'", ok)
+	//}()
+
 	if cli.isQUIC {
 		from = local(cli.quicConn)
 		to = remote(cli.quicConn)
@@ -1831,8 +1835,10 @@ func (cli *Client) destAddrToSendCh(destAddr string) (sendCh chan *Message, halt
 			"but we only know to='%v'", destAddr, to)
 		return nil, nil, "", "", false
 	}
+	//vv("cli okay with destAddr '%v' == to", destAddr)
 	haltCh = cli.halt.ReqStop.Chan
 	sendCh = cli.oneWayCh
+	ok = true
 	return
 }
 
