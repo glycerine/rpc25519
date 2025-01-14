@@ -37,6 +37,9 @@ func (ckt *Circuit) ID2() (localPeerID, remotePeerID string) {
 }
 
 type pairchanfrag struct {
+	// ckt has these:
+	//localPeerID  string
+	//remotePeerID string
 	ckt       *Circuit
 	callID    string
 	readsOut  chan *Fragment
@@ -47,6 +50,7 @@ func (ckt *Circuit) NewFragment() *Fragment {
 	return &Fragment{
 		CallID:      ckt.callID,
 		FromPeerID:  ckt.localPeerID,
+		ToPeerID:    ckt.remotePeerID,
 		CircuitName: ckt.circuitName,
 	}
 }
@@ -62,35 +66,40 @@ type Fragment struct {
 	//
 	// FromPeerID tells the receiver who sent us this Fragment.
 	FromPeerID string `zid:"0"`
+	ToPeerID   string `zid:"1"`
 
 	// CallID was assigned in the NewCircuit() call.
-	CallID string `zid:"1"`
+	CallID string `zid:"2"`
 
 	// CircuitName is what was established by NewCircuit(circuitName)
-	CircuitName string `zid:"2"`
+	CircuitName string `zid:"3"`
 
-	FragType string `zid:"3"` // can be a message type, sub-service name, other useful context.
-	FragPart int64  `zid:"4"` // built in multi-part handling for the same CallID and FragType.
+	FragType string `zid:"4"` // can be a message type, sub-service name, other useful context.
+	FragPart int64  `zid:"5"` // built in multi-part handling for the same CallID and FragType.
 
-	Args map[string]string `zid:"5"` // nil/unallocated to save space. User should alloc if the need it.
+	Args map[string]string `zid:"6"` // nil/unallocated to save space. User should alloc if the need it.
 
-	Payload []byte `zid:"6"`
+	Payload []byte `zid:"7"`
 
-	Err string `zid:"7"` // distinguished field for error messages.
+	Err string `zid:"8"` // distinguished field for error messages.
 }
 
 // peerback in the backing behind each Peer interface
 // provided over the newPeerCh channel.
-// to a PeerServiceFunc.
+// to a PeerServiceFunc. It ALSO represent the local
+// running instantiation of a registered PeerServiceFunc.
 type peerback struct {
+	// local peers do reads, "remote" peers are for sending to.
+	// The "remote" are just the local proxy to the actual remote Peer.
+	isLocal         bool
 	peerServiceName string
 	peerAPI         *peerAPI
 	u               UniversalCliSrv
 
-	localPeerID string
-	ctx         context.Context
-	canc        context.CancelFunc
-	newPeerCh   chan Peer
+	peerID    string // could be local or remote, only
+	ctx       context.Context
+	canc      context.CancelFunc
+	newPeerCh chan Peer
 
 	readsIn  chan *Message
 	errorsIn chan *Message
@@ -108,16 +117,17 @@ func (s *peerback) SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *
 	return s.u.SendOneWayMessage(s.ctx, msg, errWriteDur)
 }
 
-// ID2 supplies the local and remote PeerIDs.
-func (s *peerback) LocalPeerID() (localPeerID string) { return s.localPeerID }
+// PeerID supplies the local and remote PeerIDs, whatever the peerback represents.
+func (s *peerback) PeerID() string { return s.peerID }
 
-func (peerAPI *peerAPI) newPeerback(ctx context.Context, cancelFunc context.CancelFunc, u UniversalCliSrv, localPeerID string, newPeerCh chan Peer, peerServiceName string) (pb *peerback) {
+func (peerAPI *peerAPI) newPeerback(ctx context.Context, cancelFunc context.CancelFunc, u UniversalCliSrv, peerID string, isLocal bool, newPeerCh chan Peer, peerServiceName string) (pb *peerback) {
 	pb = &peerback{
+		isLocal:         isLocal,
 		peerServiceName: peerServiceName,
 		peerAPI:         peerAPI,
 		ctx:             ctx,
 		canc:            cancelFunc,
-		localPeerID:     localPeerID,
+		peerID:          peerID,
 		u:               u,
 		newPeerCh:       newPeerCh,
 		// has to sort the Message to each circuit and convert to Fragment.
@@ -126,9 +136,12 @@ func (peerAPI *peerAPI) newPeerback(ctx context.Context, cancelFunc context.Canc
 
 		handleChansNewCircuit: make(chan *pairchanfrag),
 	}
-	u.GetReadsForObjID(pb.readsIn, pb.localPeerID)
-	u.GetErrorsForObjID(pb.errorsIn, pb.localPeerID)
-	go pb.peerbackPump()
+	if isLocal {
+		// service reads for local. remote will only send.
+		u.GetReadsForToPeerID(pb.readsIn, peerID)
+		u.GetErrorsForToPeerID(pb.errorsIn, peerID)
+		go pb.peerbackPump()
+	}
 
 	return pb
 }
@@ -177,8 +190,8 @@ func (pb *peerback) peerbackPump() {
 
 func (ckt *Circuit) convertMessageToFragment(msg *Message) (frag *Fragment) {
 	frag = &Fragment{
-		FromPeerID: msg.HDR.ObjID,
-		CallID:     msg.HDR.CallID,
+		ToPeerID: msg.HDR.ToPeerID,
+		CallID:   msg.HDR.CallID,
 
 		// CircuitName is what was established by NewCircuit(circuitName)
 		CircuitName: ckt.circuitName,
@@ -191,15 +204,18 @@ func (ckt *Circuit) convertMessageToFragment(msg *Message) (frag *Fragment) {
 	return
 }
 
+// outgoing messages
 func (ckt *Circuit) convertFragmentToMessage(frag *Fragment) (msg *Message) {
 	msg = NewMessage()
 
 	var from, to string
 	hdr := NewHDR(from, to, ckt.peerServiceName, CallOneWay, 0)
 	hdr.Subject = ckt.circuitName
+	hdr.ToPeerID = ckt.remotePeerID
+	hdr.FromPeerID = ckt.localPeerID
 	msg.HDR = *hdr
 	/*	frag = &Fragment{
-			FromPeerID: msg.HDR.ObjID,
+			FromPeerID: msg.HDR.ToPeerID,
 			CallID:     msg.HDR.CallID,
 
 			// CircuitName is what was established by NewCircuit(circuitName)
@@ -216,7 +232,8 @@ func (ckt *Circuit) convertFragmentToMessage(frag *Fragment) (msg *Message) {
 
 // RegisterPeer(peerServiceName string, peerStreamFunc PeerServiceFunc)
 
-func (pb *peerback) NewCircuit(circuitName string) (ckt *Circuit, ctx2 context.Context, err error) {
+// always goes to pb.localPeerID
+func (pb *peerback) NewCircuit(fromPeerID, circuitName string) (ckt *Circuit, ctx2 context.Context, err error) {
 
 	var canc2 context.CancelFunc
 	ctx2, canc2 = context.WithCancel(pb.ctx)
@@ -226,7 +243,8 @@ func (pb *peerback) NewCircuit(circuitName string) (ckt *Circuit, ctx2 context.C
 		peerServiceName: pb.peerServiceName,
 		pb:              pb,
 		circuitName:     circuitName,
-		localPeerID:     pb.localPeerID,
+		localPeerID:     fromPeerID,
+		remotePeerID:    pb.peerID, // yes this is right.
 		callID:          NewCallID(),
 		Reads:           reads,
 		Errors:          errors,
@@ -283,12 +301,12 @@ type Peer interface {
 	//
 	// When selecting ckt.Reads and ckt.Errors, always also
 	// select on ctx.Done() in order to shutdown gracefully.
-	NewCircuit(circuitName string) (ckt *Circuit, ctx context.Context, err error)
+	NewCircuit(circuitName, remotePeerID string) (ckt *Circuit, ctx context.Context, err error)
 
 	// SendOneWayMessage sends a Frament on the given Circuit.
 	SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error
 
-	LocalPeerID() string
+	PeerID() string
 }
 
 // aka: for ease of copying,
@@ -335,7 +353,7 @@ func (me *PeerImpl) Start(
 	peerServiceName string,
 
 	// our own PeerID
-	ourPeerID string,
+	localPeerID string,
 
 	// overall context of Client/Server host, if
 	// it starts shutdown, this will cancel, and
@@ -349,7 +367,7 @@ func (me *PeerImpl) Start(
 ) error {
 
 	nStart := me.StartCount.Add(1)
-	vv("PeerImpl.Start() top. ourPeerID = '%v'; peerServiceName='%v'; StartCount = %v", ourPeerID, peerServiceName, nStart)
+	vv("PeerImpl.Start() top. ourPeerID = '%v'; peerServiceName='%v'; StartCount = %v", localPeerID, peerServiceName, nStart)
 
 	var wg sync.WaitGroup
 	defer wg.Wait() // wait for everyone to shutdown/catch stragglers that don't by hanging.
@@ -367,7 +385,7 @@ func (me *PeerImpl) Start(
 			go func(peer Peer) {
 				defer wg.Done()
 
-				ckt, ctx, err := peer.NewCircuit("circuitName")
+				ckt, ctx, err := peer.NewCircuit(localPeerID, "circuitName")
 				panicOn(err)
 				defer ckt.Close()
 				done := ctx.Done()
@@ -479,7 +497,8 @@ func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, kn
 	ctx1, canc1 := context.WithCancel(ctx)
 	localPeerID = NewCallID()
 
-	backer := p.newPeerback(ctx1, canc1, p.u, localPeerID, newPeerCh, peerServiceName)
+	const isLocal = true
+	backer := p.newPeerback(ctx1, canc1, p.u, localPeerID, isLocal, newPeerCh, peerServiceName)
 
 	local.mut.Lock()
 	if local.active == nil {

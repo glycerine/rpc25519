@@ -116,7 +116,7 @@ func (z *HDR) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields4zgensym_28874796354aa7f3_5 = 17
+	const maxFields4zgensym_28874796354aa7f3_5 = 18
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields4zgensym_28874796354aa7f3_5 uint32
@@ -275,9 +275,15 @@ doneWithStruct4zgensym_28874796354aa7f3_5:
 			if err != nil {
 				return
 			}
-		case "ObjID_zid14_str":
+		case "ToPeerID_zid14_str":
 			found4zgensym_28874796354aa7f3_5[14] = true
-			z.ObjID, err = dc.ReadString()
+			z.ToPeerID, err = dc.ReadString()
+			if err != nil {
+				return
+			}
+		case "FromPeerID_zid15_str":
+			found4zgensym_28874796354aa7f3_5[15] = true
+			z.FromPeerID, err = dc.ReadString()
 			if err != nil {
 				return
 			}
@@ -304,16 +310,16 @@ doneWithStruct4zgensym_28874796354aa7f3_5:
 }
 
 // fields of HDR
-var decodeMsgFieldOrder4zgensym_28874796354aa7f3_5 = []string{"Created_zid00_tim", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "Seqno_zid04_u64", "Typ_zid05_rct", "CallID_zid06_str", "Serial_zid07_i64", "LocalRecvTm_zid08_tim", "Deadline_zid09_tim", "StreamPart_zid10_i64", "ServiceName_zid11_str", "Args_zid12_map", "NoSystemCompression_zid13_boo", "ObjID_zid14_str", "", ""}
+var decodeMsgFieldOrder4zgensym_28874796354aa7f3_5 = []string{"Created_zid00_tim", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "Seqno_zid04_u64", "Typ_zid05_rct", "CallID_zid06_str", "Serial_zid07_i64", "LocalRecvTm_zid08_tim", "Deadline_zid09_tim", "StreamPart_zid10_i64", "ServiceName_zid11_str", "Args_zid12_map", "NoSystemCompression_zid13_boo", "ToPeerID_zid14_str", "FromPeerID_zid15_str", "", ""}
 
-var decodeMsgFieldSkip4zgensym_28874796354aa7f3_5 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
+var decodeMsgFieldSkip4zgensym_28874796354aa7f3_5 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *HDR) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 15
+		return 16
 	}
-	var fieldsInUse uint32 = 15
+	var fieldsInUse uint32 = 16
 	isempty[0] = (z.Created.IsZero()) // time.Time, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -370,8 +376,12 @@ func (z *HDR) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[13] {
 		fieldsInUse--
 	}
-	isempty[14] = (len(z.ObjID) == 0) // string, omitempty
+	isempty[14] = (len(z.ToPeerID) == 0) // string, omitempty
 	if isempty[14] {
+		fieldsInUse--
+	}
+	isempty[15] = (len(z.FromPeerID) == 0) // string, omitempty
+	if isempty[15] {
 		fieldsInUse--
 	}
 
@@ -385,7 +395,7 @@ func (z *HDR) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_28874796354aa7f3_8 [17]bool
+	var empty_zgensym_28874796354aa7f3_8 [18]bool
 	fieldsInUse_zgensym_28874796354aa7f3_9 := z.fieldsNotEmpty(empty_zgensym_28874796354aa7f3_8[:])
 
 	// map header
@@ -583,12 +593,24 @@ func (z *HDR) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_28874796354aa7f3_8[14] {
-		// write "ObjID_zid14_str"
-		err = en.Append(0xaf, 0x4f, 0x62, 0x6a, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x34, 0x5f, 0x73, 0x74, 0x72)
+		// write "ToPeerID_zid14_str"
+		err = en.Append(0xb2, 0x54, 0x6f, 0x50, 0x65, 0x65, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x34, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
-		err = en.WriteString(z.ObjID)
+		err = en.WriteString(z.ToPeerID)
+		if err != nil {
+			return
+		}
+	}
+
+	if !empty_zgensym_28874796354aa7f3_8[15] {
+		// write "FromPeerID_zid15_str"
+		err = en.Append(0xb4, 0x46, 0x72, 0x6f, 0x6d, 0x50, 0x65, 0x65, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x35, 0x5f, 0x73, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		err = en.WriteString(z.FromPeerID)
 		if err != nil {
 			return
 		}
@@ -606,7 +628,7 @@ func (z *HDR) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [17]bool
+	var empty [18]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -699,9 +721,15 @@ func (z *HDR) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[14] {
-		// string "ObjID_zid14_str"
-		o = append(o, 0xaf, 0x4f, 0x62, 0x6a, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x34, 0x5f, 0x73, 0x74, 0x72)
-		o = msgp.AppendString(o, z.ObjID)
+		// string "ToPeerID_zid14_str"
+		o = append(o, 0xb2, 0x54, 0x6f, 0x50, 0x65, 0x65, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x34, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.ToPeerID)
+	}
+
+	if !empty[15] {
+		// string "FromPeerID_zid15_str"
+		o = append(o, 0xb4, 0x46, 0x72, 0x6f, 0x6d, 0x50, 0x65, 0x65, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x35, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.FromPeerID)
 	}
 
 	return
@@ -722,7 +750,7 @@ func (z *HDR) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte
 
 	var field []byte
 	_ = field
-	const maxFields10zgensym_28874796354aa7f3_11 = 17
+	const maxFields10zgensym_28874796354aa7f3_11 = 18
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields10zgensym_28874796354aa7f3_11 uint32
@@ -906,9 +934,16 @@ doneWithStruct10zgensym_28874796354aa7f3_11:
 			if err != nil {
 				return
 			}
-		case "ObjID_zid14_str":
+		case "ToPeerID_zid14_str":
 			found10zgensym_28874796354aa7f3_11[14] = true
-			z.ObjID, bts, err = nbs.ReadStringBytes(bts)
+			z.ToPeerID, bts, err = nbs.ReadStringBytes(bts)
+
+			if err != nil {
+				return
+			}
+		case "FromPeerID_zid15_str":
+			found10zgensym_28874796354aa7f3_11[15] = true
+			z.FromPeerID, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
@@ -936,13 +971,13 @@ doneWithStruct10zgensym_28874796354aa7f3_11:
 }
 
 // fields of HDR
-var unmarshalMsgFieldOrder10zgensym_28874796354aa7f3_11 = []string{"Created_zid00_tim", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "Seqno_zid04_u64", "Typ_zid05_rct", "CallID_zid06_str", "Serial_zid07_i64", "LocalRecvTm_zid08_tim", "Deadline_zid09_tim", "StreamPart_zid10_i64", "ServiceName_zid11_str", "Args_zid12_map", "NoSystemCompression_zid13_boo", "ObjID_zid14_str", "", ""}
+var unmarshalMsgFieldOrder10zgensym_28874796354aa7f3_11 = []string{"Created_zid00_tim", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "Seqno_zid04_u64", "Typ_zid05_rct", "CallID_zid06_str", "Serial_zid07_i64", "LocalRecvTm_zid08_tim", "Deadline_zid09_tim", "StreamPart_zid10_i64", "ServiceName_zid11_str", "Args_zid12_map", "NoSystemCompression_zid13_boo", "ToPeerID_zid14_str", "FromPeerID_zid15_str", "", ""}
 
-var unmarshalMsgFieldSkip10zgensym_28874796354aa7f3_11 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
+var unmarshalMsgFieldSkip10zgensym_28874796354aa7f3_11 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *HDR) Msgsize() (s int) {
-	s = 1 + 18 + msgp.TimeSize + 15 + msgp.StringPrefixSize + len(z.From) + 13 + msgp.StringPrefixSize + len(z.To) + 18 + msgp.StringPrefixSize + len(z.Subject) + 16 + msgp.Uint64Size + 14 + msgp.IntSize + 17 + msgp.StringPrefixSize + len(z.CallID) + 17 + msgp.Int64Size + 22 + msgp.TimeSize + 19 + msgp.TimeSize + 21 + msgp.Int64Size + 22 + msgp.StringPrefixSize + len(z.ServiceName) + 15 + msgp.MapHeaderSize
+	s = 3 + 18 + msgp.TimeSize + 15 + msgp.StringPrefixSize + len(z.From) + 13 + msgp.StringPrefixSize + len(z.To) + 18 + msgp.StringPrefixSize + len(z.Subject) + 16 + msgp.Uint64Size + 14 + msgp.IntSize + 17 + msgp.StringPrefixSize + len(z.CallID) + 17 + msgp.Int64Size + 22 + msgp.TimeSize + 19 + msgp.TimeSize + 21 + msgp.Int64Size + 22 + msgp.StringPrefixSize + len(z.ServiceName) + 15 + msgp.MapHeaderSize
 	if z.Args != nil {
 		for zgensym_28874796354aa7f3_2, zgensym_28874796354aa7f3_3 := range z.Args {
 			_ = zgensym_28874796354aa7f3_3
@@ -950,7 +985,7 @@ func (z *HDR) Msgsize() (s int) {
 			s += msgp.StringPrefixSize + len(zgensym_28874796354aa7f3_2) + msgp.StringPrefixSize + len(zgensym_28874796354aa7f3_3)
 		}
 	}
-	s += 30 + msgp.BoolSize + 16 + msgp.StringPrefixSize + len(z.ObjID)
+	s += 30 + msgp.BoolSize + 19 + msgp.StringPrefixSize + len(z.ToPeerID) + 21 + msgp.StringPrefixSize + len(z.FromPeerID)
 	return
 }
 

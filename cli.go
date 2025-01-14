@@ -386,7 +386,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			continue
 		}
 
-		if c.notifies.handleReply_to_CallID_ObjID(ctx, msg) {
+		if c.notifies.handleReply_to_CallID_ToPeerID(ctx, msg) {
 			continue
 		}
 
@@ -1384,7 +1384,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		lastSeqno:   1,
 		notifyOnce:  make(map[uint64]*loquet.Chan[Message]),
 
-		// share code with server for CallID and ObjID callbacks.
+		// share code with server for CallID and ToPeerID callbacks.
 		notifies: newNotifies(),
 		// net/rpc
 		pending: make(map[uint64]*Call),
@@ -1774,12 +1774,12 @@ type UniversalCliSrv interface {
 	GetReadsForCallID(ch chan *Message, callID string)
 	GetErrorsForCallID(ch chan *Message, callID string)
 
-	// for Peer/Object systems; ObjID get priority over CallID
+	// for Peer/Object systems; ToPeerID get priority over CallID
 	// to allow such systems to implement custom message
 	// types. An example is the Fragment/Peer/Circuit system.
-	// (This priority is implemented in notifies.handleReply_to_CallID_ObjID).
-	GetReadsForObjID(ch chan *Message, objID string)
-	GetErrorsForObjID(ch chan *Message, objID string)
+	// (This priority is implemented in notifies.handleReply_to_CallID_ToPeerID).
+	GetReadsForToPeerID(ch chan *Message, objID string)
+	GetErrorsForToPeerID(ch chan *Message, objID string)
 
 	UnregisterChannel(ID string, whichmap int)
 	LocalAddr() string
@@ -2308,32 +2308,32 @@ func (b *Bistreamer) Begin(ctx context.Context, req *Message) (err error) {
 	return
 }
 
-func (s *Client) GetReadsForObjID(ch chan *Message, objID string) {
+func (s *Client) GetReadsForToPeerID(ch chan *Message, objID string) {
 	//vv("GetReads called! stack='\n\n%v\n'", stack())
 	if cap(ch) == 0 {
 		panic("ch must be bufferred")
 	}
 	s.notifies.mut.Lock()
 	defer s.notifies.mut.Unlock()
-	s.notifies.notifyOnReadObjIDMap[objID] = ch
+	s.notifies.notifyOnReadToPeerIDMap[objID] = ch
 }
 
-func (s *Client) GetErrorsForObjID(ch chan *Message, objID string) {
+func (s *Client) GetErrorsForToPeerID(ch chan *Message, objID string) {
 	//vv("GetReads called! stack='\n\n%v\n'", stack())
 	if cap(ch) == 0 {
 		panic("ch must be bufferred")
 	}
 	s.notifies.mut.Lock()
 	defer s.notifies.mut.Unlock()
-	s.notifies.notifyOnErrorObjIDMap[objID] = ch
+	s.notifies.notifyOnErrorToPeerIDMap[objID] = ch
 }
 
 // whichmap meanings for UnregisterChannel
 const (
-	CallIDReadMap  = 0
-	CallIDErrorMap = 1
-	ObjIDReadMap   = 2
-	ObjIDErrorMap  = 3
+	CallIDReadMap    = 0
+	CallIDErrorMap   = 1
+	ToPeerIDReadMap  = 2
+	ToPeerIDErrorMap = 3
 )
 
 func (s *Client) UnregisterChannel(ID string, whichmap int) {
@@ -2345,9 +2345,9 @@ func (s *Client) UnregisterChannel(ID string, whichmap int) {
 		delete(s.notifies.notifyOnReadCallIDMap, ID)
 	case CallIDErrorMap:
 		delete(s.notifies.notifyOnErrorCallIDMap, ID)
-	case ObjIDReadMap:
-		delete(s.notifies.notifyOnReadObjIDMap, ID)
-	case ObjIDErrorMap:
-		delete(s.notifies.notifyOnErrorObjIDMap, ID)
+	case ToPeerIDReadMap:
+		delete(s.notifies.notifyOnReadToPeerIDMap, ID)
+	case ToPeerIDErrorMap:
+		delete(s.notifies.notifyOnErrorToPeerIDMap, ID)
 	}
 }

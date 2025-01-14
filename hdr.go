@@ -314,12 +314,13 @@ type HDR struct {
 	// For those purposes, it is ignored.
 	NoSystemCompression bool `zid:"13"`
 
-	// ObjID helps maintain stateful sub-calls
+	// ToPeerID and FromPeerID help maintain stateful sub-calls
 	// allowing client/server symmetry when
 	// implementing stateful protocols like
 	// the rsync-like protocol herein.
 	// Also known as PeerID in the Fragment/Peer/Circuit API.
-	ObjID string `zid:"14"`
+	ToPeerID   string `zid:"14"`
+	FromPeerID string `zid:"15"`
 
 	// streamCh is internal; used for client -> server streaming on CallUploadBegin
 	streamCh chan *Message `msg:"-" json:"-"`
@@ -407,7 +408,9 @@ func (a *HDR) Equal(b *HDR) bool {
 		a.Typ == b.Typ &&
 		a.CallID == b.CallID &&
 		a.Seqno == b.Seqno &&
-		a.StreamPart == b.StreamPart
+		a.StreamPart == b.StreamPart &&
+		a.ToPeerID == b.ToPeerID &&
+		a.FromPeerID == b.FromPeerID
 }
 
 func (m *HDR) String() string {
@@ -425,8 +428,9 @@ func (m *HDR) String() string {
     "Serial": %v,
     "LocalRecvTm": "%s",
     "Deadline": "%s",
+    "FromPeerID": "%v",
+    "ToPeerID": "%v",
     "StreamPart": %v,
-    "ObjID": %v
 }`,
 		m.Created,
 		m.From,
@@ -440,8 +444,9 @@ func (m *HDR) String() string {
 		m.Serial,
 		m.LocalRecvTm,
 		m.Deadline,
+		m.FromPeerID,
+		m.ToPeerID,
 		m.StreamPart,
-		m.ObjID,
 	)
 }
 
