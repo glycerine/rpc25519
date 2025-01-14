@@ -225,8 +225,6 @@ func (ckt *Circuit) convertFragmentToMessage(frag *Fragment) (msg *Message) {
 	return
 }
 
-// RegisterPeer(peerServiceName string, peerStreamFunc PeerServiceFunc)
-
 func (rpb *remotePeerback) NewCircuit(circuitName string) (ckt *Circuit, ctx2 context.Context, err error) {
 
 	lpb := rpb.localPeerback
@@ -249,7 +247,10 @@ func (rpb *remotePeerback) NewCircuit(circuitName string) (ckt *Circuit, ctx2 co
 		canc:            canc2,
 	}
 	lpb.handleChansNewCircuit <- ckt
-	// don't do this, our local PeerID pump will sort to the ckt.Reads and ckt.Errors
+	// don't do this, our local PeerID pump will
+	// multiplex/sort to the correct ckt.Reads and ckt.Errors
+	// so we only need one read goro for the local peer, not one
+	// per Circuit.
 	//fp.u.GetReadsForCallID(h.Reads, h.callID)
 	//fp.u.GetErrorsForCallID(h.Errors, h.callID)
 	return
@@ -280,7 +281,7 @@ type RemotePeer interface {
 
 	// IncomingCircuit is the first one that arrives with
 	// with an incoming remote peer connections.
-	IncomingCircuit() (circuitName string, ckt *Circuit, ctx context.Context, err error)
+	IncomingCircuit() (circuitName string, ckt *Circuit, ctx context.Context)
 
 	// NewCircuit generates a Circuit between two Peers,
 	// and tells the SendOneWayMessage machinery
@@ -381,16 +382,23 @@ func (me *PeerImpl) Start(
 			go func(peer RemotePeer) {
 				defer wg.Done()
 
-				// new circuit on that connection
-				ckt, ctx, err := peer.NewCircuit("circuitName")
-				panicOn(err)
-				defer ckt.Close()
+				/*
+					// new circuit on that connection
+					ckt, ctx, err := peer.NewCircuit("circuitName")
+					panicOn(err)
+					defer ckt.Close()
+					done := ctx.Done()
+				*/
+
+				circuitName, ckt, ctx := peer.IncomingCircuit()
+				vv("IncomingCircuit got circuitName = '%v'", circuitName)
 				done := ctx.Done()
 
 				outFrag := ckt.NewFragment()
-				// set Payload, other details ... then:
+				// set Payload, other details...
+				outFrag.Payload = []byte(fmt.Sprintf("hello from peerID='%v' on circuit '%v'", ourPeerID, circuitName))
 
-				err = peer.SendOneWayMessage(ckt, outFrag, nil)
+				err := peer.SendOneWayMessage(ckt, outFrag, nil)
 				panicOn(err)
 
 				for {
