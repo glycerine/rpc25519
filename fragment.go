@@ -15,7 +15,7 @@ import (
 // between two Peers.
 //
 // It is returned from RemotePeer.NewCircuit(), or
-// from LocalPeer.CircuitToPeerURL().
+// from LocalPeer.NewCircuitToPeerURL().
 type Circuit struct {
 	pbFrom *localPeerback
 	pbTo   *remotePeerback
@@ -53,13 +53,8 @@ func (ckt *Circuit) ID2() (localPeerID, remotePeerID string) {
 	return ckt.pbFrom.peerID, ckt.pbTo.peerID
 }
 
-func (ckt *Circuit) NewFragment() *Fragment {
-	return &Fragment{
-		CircuitID:   ckt.callID,
-		FromPeerID:  ckt.localPeerID,
-		ToPeerID:    ckt.remotePeerID,
-		CircuitName: ckt.circuitName,
-	}
+func NewFragment() *Fragment {
+	return &Fragment{}
 }
 
 // Fragments are sent to, and read from,
@@ -140,6 +135,15 @@ type localPeerback struct {
 
 // SendOneWayMessage sends a Frament on the given Circuit.
 func (s *localPeerback) SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
+
+	if frag != nil {
+		frag = NewFragment()
+	}
+	frag.CircuitID = ckt.callID
+	frag.FromPeerID = ckt.localPeerID
+	frag.ToPeerID = ckt.remotePeerID
+	//frag.CircuitName = ckt.circuitName
+
 	msg := ckt.convertFragmentToMessage(frag)
 	return s.u.SendOneWayMessage(s.ctx, msg, errWriteDur)
 }
@@ -328,20 +332,30 @@ type RemotePeer interface {
 
 	// SendOneWayMessage sends a Frament on the given Circuit.
 	SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error
+
+	PeerServiceName() string
+	PeerID() string
+	PeerURL() string
 }
 
 type LocalPeer interface {
 
 	// NewCircuitToPeerURL sets up a persistent communication path called a Circuit.
 	// The frag can be nil, or set for efficiency.
-	CircuitToPeerURL(
+	NewCircuitToPeerURL(
 		peerURL string,
 		frag *Fragment,
 		errWriteDur *time.Duration,
 	) (ckt *Circuit, ctx context.Context, err error)
 
-	LocalPeerID() string
-	LocalPeerURL() string
+	// how we were registered/invoked.
+	PeerServiceName() string
+	PeerID() string
+
+	// PerlURL give the network address, the service name, and the PeerID
+	// in a URL safe string, suitable for contacting the peer.
+	// e.g. tcp://x.x.x.x:port/peerServiceName/peerID
+	PeerURL() string
 }
 
 // aka: for ease of copying,
@@ -352,9 +366,6 @@ type LocalPeer interface {
 // specific peerServiceName by using the
 // PeerAPI.RegisterPeerServiceFunc() call.
 type PeerServiceFunc func(
-
-	// how we were registered/invoked.
-	peerServiceName string,
 
 	// our local Peer interface, can do SendToPeer() to send to URL.
 	myPeer LocalPeer,
@@ -390,8 +401,6 @@ type PeerImpl struct {
 func (me *PeerImpl) Start(
 
 	// how we were registered/invoked.
-	peerServiceName string,
-
 	// our local Peer interface, can do SendToPeer() to send to URL.
 	myPeer LocalPeer,
 
@@ -411,7 +420,7 @@ func (me *PeerImpl) Start(
 ) error {
 
 	nStart := me.StartCount.Add(1)
-	vv("PeerImpl.Start() top. ourPeerID = '%v'; peerServiceName='%v'; StartCount = %v", ourPeerID, peerServiceName, nStart)
+	vv("PeerImpl.Start() top. ourPeerID = '%v'; peerServiceName='%v'; StartCount = %v", myPeer.PeerID(), myPeer.PeerServiceName(), nStart)
 
 	var wg sync.WaitGroup
 	defer wg.Wait() // wait for everyone to shutdown/catch stragglers that don't by hanging.
@@ -424,10 +433,11 @@ func (me *PeerImpl) Start(
 		case echoToURL := <-me.DoEchoToThisPeerURL:
 
 			go func(echoToURL string) {
-				outFrag := ckt.NewFragment()
-				outFrag.Payload = []byte(fmt.Sprintf("echo request from peerID='%v' to peerID '%v' on 'echo circuit'", ourPeerID, sendEchoToPeerID))
 
-				ckt, ctx, err = myPeer.CircuitToPeerURL(echoToURL, frag, nil)
+				outFrag := NewFragment()
+				outFrag.Payload = []byte(fmt.Sprintf("echo request from peerID='%v' to peerID '%v' on 'echo circuit'", myPeer.PeerID(), echoToURL))
+
+				ckt, ctx, err := myPeer.NewCircuitToPeerURL(echoToURL, outFrag, nil)
 				panicOn(err)
 				defer ckt.Close() // close when echo heard.
 				done := ctx.Done()
@@ -449,7 +459,8 @@ func (me *PeerImpl) Start(
 		case peer := <-newPeerCh:
 			wg.Add(1)
 
-			vv("got from newPeerCh! '%v' sees new peer: '%#v'", peerServiceName, peer)
+			vv("got from newPeerCh! '%v' sees new peerURL: '%v'",
+				peer.PeerServiceName(), peer.PeerURL())
 
 			// talk to this peer on a separate goro if you wish:
 			go func(peer RemotePeer) {
@@ -459,7 +470,7 @@ func (me *PeerImpl) Start(
 				vv("IncomingCircuit got circuitURL = '%v'", ckt.CircuitURL())
 				done := ctx.Done()
 
-				outFrag := ckt.NewFragment()
+				outFrag := NewFragment()
 				// set Payload, other details...
 				outFrag.Payload = []byte(fmt.Sprintf("hello from peerID='%v' on circuit '%v'", ourPeerID, circuitName))
 
