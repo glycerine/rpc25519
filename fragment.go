@@ -192,6 +192,8 @@ func (me *PeerImpl) Start(
 
 ) error {
 
+	vv("PeerImpl.Start() top. ourPeerID = '%v'; peerServiceName='%v'", ourPeerID, peerServiceName)
+
 	var wg sync.WaitGroup
 	defer wg.Wait() // wait for everyone to shutdown/catch stragglers that don't by hanging.
 
@@ -321,17 +323,15 @@ func (p *peerAPI) StartLocalPeer(peerServiceName string, knownPeerIDs ...string)
 func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string) (remotePeerID string, err error) {
 	msg := NewMessage()
 
-	msg.HDR.Typ = CallStartPeerCircuit
-	msg.HDR.ServiceName = peerServiceName
-	msg.HDR.To = remoteAddr
-	msg.HDR.From = p.u.LocalAddr()
-
+	hdr := NewHDR(p.u.LocalAddr(), remoteAddr, peerServiceName, CallStartPeerCircuit, 0)
+	hdr.ServiceName = peerServiceName
 	callID := NewCallID()
-	msg.HDR.CallID = callID
+	hdr.CallID = callID
+	msg.HDR = *hdr
 
 	ch := make(chan *Message, 1)
 	p.u.GetReadsForCallID(ch, callID)
-	// be sure to cleanup.
+	// be sure to cleanup. We won't need this channel again.
 	defer p.u.UnregisterChannel(callID, CallIDReadMap)
 
 	err = p.u.SendOneWayMessage(ctx, msg, nil)

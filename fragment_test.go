@@ -41,22 +41,21 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		peer1 := &PeerImpl{}
 		srv.PeerAPI.RegisterPeerServiceFunc("peer1_on_server", peer1.Start)
 
-		// This call starts the PeerImpl on the remote Client.
-		// Deliberately not the way an RPC usually works;
-		// we go server -> client instead of client -> server.
-		// Both ways are supported; this could have equally
-		// have been cli.PeerAPI.StartRemotePeer("peer1_on_server")
-		// followed by cli.PeerAPI.StartLocalPeer("peer0_on_client").
-		//
-
 		cliAddr := cli.LocalAddr()
 		ctx := context.Background()
+
+		// This call starts the PeerImpl on the remote Client, from the server.
 
 		peerID0, err := srv.PeerAPI.StartRemotePeer(ctx, "peer0_on_client", cliAddr)
 		panicOn(err)
 		vv("started remote with PeerID = '%v'", peerID0)
 
-		// any number of known peers can be supplied, or none.
+		// Symmetrically, this should also work, but we are going to do
+		// test the server as our "local" for the moment, since it is
+		// backwards with respect to the usual RPC.
+		// cli.PeerAPI.StartRemotePeer("peer1_on_server", serverAddr.String())
+
+		// any number of known peers can be supplied, or none, to bootstrap.
 		localPeerID, err := srv.PeerAPI.StartLocalPeer("peer1_on_server", peerID0)
 		panicOn(err)
 

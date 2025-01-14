@@ -318,6 +318,7 @@ type HDR struct {
 	// allowing client/server symmetry when
 	// implementing stateful protocols like
 	// the rsync-like protocol herein.
+	// Also known as PeerID in the Fragment/Peer/Circuit API.
 	ObjID string `zid:"14"`
 
 	// streamCh is internal; used for client -> server streaming on CallUploadBegin

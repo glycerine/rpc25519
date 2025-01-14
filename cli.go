@@ -262,7 +262,7 @@ func (c *Client) runClientTCP(serverAddr string) {
 		return
 	}
 
-	cpair := &cliPairState{}
+	cpair := &cliPairState{} // track the last compression used, so we can echo it.
 	go c.runSendLoop(conn, cpair)
 	c.runReadLoop(conn, cpair)
 }
@@ -371,6 +371,35 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 
 		seqno := msg.HDR.Seqno
 		//vv("client %v received message with seqno=%v, msg.HDR='%v'; c.notifyOnReadCallIDMap='%#v'", c.name, seqno, msg.HDR.String(), c.notifyOnReadCallIDMap)
+
+		if msg.HDR.Typ == CallStartPeerCircuit {
+			// special case start a peer, since
+			// this is like the Client acting like
+			// a server and starting up a peer service.
+			localPeerID, err := c.PeerAPI.StartLocalPeer(msg.HDR.ServiceName)
+
+			// reply with the same msg; save an allocation.
+			msg.HDR.From, msg.HDR.To = msg.HDR.To, msg.HDR.From
+
+			// must allocate DoneCh for sendLoop to close;
+			// readMessage just deserializes from greenpack, which
+			// does not allocate it.
+			msg.DoneCh = loquet.NewChan(msg)
+
+			if err != nil {
+				msg.HDR.Typ = CallError
+				msg.JobErrs = err.Error()
+			} else {
+				msg.HDR.Typ = CallOneWay
+				msg.HDR.Args = map[string]string{"peerID": localPeerID}
+			}
+			select {
+			case c.oneWayCh <- msg:
+			case <-c.halt.ReqStop.Chan:
+				return
+			}
+			continue
+		}
 
 		if c.notifies.handleReply_to_CallID_ObjID(msg) {
 			continue
@@ -510,7 +539,9 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 				}
 			}
 			// convey the error or lack thereof.
-			msg.DoneCh.Close()
+			if msg.DoneCh != nil {
+				msg.DoneCh.Close()
+			}
 
 		case msg := <-c.roundTripCh:
 
