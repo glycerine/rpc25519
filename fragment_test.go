@@ -6,7 +6,7 @@ import (
 	//"os"
 	//"strings"
 	"testing"
-	//"time"
+	"time"
 
 	cv "github.com/glycerine/goconvey/convey"
 )
@@ -66,7 +66,7 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		// the rwPair spun up, crashing 6% of the time.
 		// Thus we added a prior round-trip cli->srv->cli above.
 		peerID_client, err := srv.PeerAPI.StartRemotePeer(
-			ctx, cliServiceName, cliAddr)
+			ctx, cliServiceName, cliAddr, 50*time.Microsecond)
 		panicOn(err) // cliAddr not found?!?
 		vv("started remote with PeerID = '%v'; cliServiceName = '%v'", peerID_client, cliServiceName)
 
@@ -85,7 +85,7 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		_ = with_network_saddr
 
 		peerID_server2_from_remote_req, err := cli.PeerAPI.StartRemotePeer(
-			ctx, srvServiceName, with_network_saddr)
+			ctx, srvServiceName, with_network_saddr, 0)
 		panicOn(err)
 		vv("started second instance of speer1_on_server, this time remote with PeerID = '%v'; for service name = '%v'",
 			peerID_server2_from_remote_req, srvServiceName)
@@ -93,7 +93,11 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		// we should have seen the client peer start 1x, and the server 2x.
 		cv.So(cpeer0.StartCount.Load(), cv.ShouldEqual, 1)
 		cv.So(speer1.StartCount.Load(), cv.ShouldEqual, 2)
-		//select {}
+
+		vv("now have the peers talk to each other. what to do? keep a directory in sync between two nodes? want to handle files/data bigger than will fit in one Message in an rsync protocol.")
+
+		vv("start with something that won't take up tons of disk to test: create a chacha8 random stream, chunk it, send it one direction to the other with blake3 cumulative checksums so we know they were both getting everything... simple, but will stress the concurrency.")
+		// 3 way sync?
 	})
 }
 

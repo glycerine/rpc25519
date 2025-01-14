@@ -323,7 +323,18 @@ func (p *peerAPI) StartLocalPeer(peerServiceName string, knownPeerIDs ...string)
 	return
 }
 
-func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string) (remotePeerID string, err error) {
+// If a waitUpTo duration is provided, we will poll in the
+// event of an error, since there can be races when
+// doing simultaneous client and server setup. We will
+// only return an error after waitUpTo has passed. To
+// disable polling set waitUpTo to zero. We poll up
+// to 50 times, pausing waitUpTo/50 after each.
+// If SendAndGetReply succeeds, then we immediately
+// cease polling and return the remotePeerID.
+func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string, waitUpTo time.Duration) (remotePeerID string, err error) {
+
+	deadline := time.Now().Add(waitUpTo)
+
 	msg := NewMessage()
 
 	// server will return "" because many possible clients,
@@ -343,14 +354,33 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 	hdr.CallID = callID
 	msg.HDR = *hdr
 
-	ch := make(chan *Message, 1)
+	ch := make(chan *Message, 100)
 	p.u.GetReadsForCallID(ch, callID)
 	// be sure to cleanup. We won't need this channel again.
 	defer p.u.UnregisterChannel(callID, CallIDReadMap)
 
-	err = p.u.SendOneWayMessage(ctx, msg, nil)
-	if err != nil {
-		return
+	pollInterval := waitUpTo / 50
+
+	for i := 0; i < 50; i++ {
+		err = p.u.SendOneWayMessage(ctx, msg, nil)
+		if err != nil {
+			left := deadline.Sub(time.Now())
+			if left <= 0 {
+				return
+			} else {
+				dur := pollInterval
+				if left < dur {
+					// don't sleep past our deadline
+					dur = left
+				}
+				time.Sleep(dur)
+				continue
+			}
+		} else {
+			vv("SendOneWayMessage retried %v times before succeess; pollInterval: %v",
+				i, pollInterval)
+			break
+		}
 	}
 
 	var reply *Message
