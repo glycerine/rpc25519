@@ -984,6 +984,9 @@ func (s *peerAPI) replyHelper(isCli bool, msg *Message, ctx context.Context, sen
 
 	// but update the essentials
 	msg.HDR.Serial = issueSerial()
+	msg.HDR.Created = time.Now()
+	msg.HDR.LocalRecvTm = time.Time{}
+	msg.HDR.Deadline = time.Time{}
 
 	msg.DoneCh = nil // no need now, save allocation. loquet.NewChan(msg)
 
@@ -1019,6 +1022,9 @@ func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Con
 
 	// but update the essentials
 	msg.HDR.Serial = issueSerial()
+	msg.HDR.Created = time.Now()
+	msg.HDR.LocalRecvTm = time.Time{}
+	msg.HDR.Deadline = time.Time{}
 
 	msg.DoneCh = nil // no need now, save allocation: loquet.NewChan(msg)
 
