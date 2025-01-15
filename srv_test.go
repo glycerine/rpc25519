@@ -482,7 +482,12 @@ func Test014_server_push_quic(t *testing.T) {
 					close(ackDone)
 					return
 				case msg := <-incoming:
-					vv("got incoming msg = '%v'", string(msg.JobSerz))
+					// arg! racing with the error back message that no upcall1 found!
+					// so just ignore those errors.
+					if msg.HDR.Typ == CallError {
+						continue
+					}
+					vv("got incoming msg = '%v' with '%v'", string(msg.JobSerz), msg.String())
 					if msg.HDR.Seqno != seqno {
 						panic(fmt.Sprintf("expected seqno %v, but got %v", seqno, msg.HDR.Seqno))
 					}
