@@ -180,6 +180,9 @@ type localPeerback struct {
 	remotes map[string]*remotePeerback
 }
 
+func (s *localPeerback) Close() {
+	s.canc()
+}
 func (s *localPeerback) PeerServiceName() string {
 	return s.peerServiceName
 }
@@ -327,6 +330,33 @@ func (pb *localPeerback) peerbackPump() {
 
 	// key: CallID (circuit ID)
 	m := make(map[string]*Circuit)
+
+	cleanupCkt := func(ckt *Circuit) {
+
+		// Politely tell our peer we are going down,
+		// in case they are staying up.
+		frag := NewFragment()
+		frag.FragType = CallPeerEndCircuit
+		pb.SendOneWayMessage(ckt, frag, nil)
+
+		ckt.canc()
+		delete(m, ckt.callID)
+		pb.u.UnregisterChannel(ckt.callID, CallIDReadMap)
+		pb.u.UnregisterChannel(ckt.callID, CallIDErrorMap)
+	}
+	defer func() {
+		vv("peerbackPump exiting. closing all remaining circuits.")
+		var all []*Circuit
+		for _, ckt := range m {
+			all = append(all, ckt)
+		}
+		for _, ckt := range all {
+			cleanupCkt(ckt)
+		}
+		m = nil
+		vv("peerbackPump cleanup done.")
+	}()
+
 	done := pb.ctx.Done()
 	for {
 		select {
@@ -334,11 +364,7 @@ func (pb *localPeerback) peerbackPump() {
 			m[ckt.callID] = ckt
 
 		case ckt := <-pb.handleCircuitClose:
-			ckt.canc()
-			delete(m, ckt.callID)
-
-			pb.u.UnregisterChannel(ckt.callID, CallIDReadMap)
-			pb.u.UnregisterChannel(ckt.callID, CallIDErrorMap)
+			cleanupCkt(ckt)
 
 		case msg := <-pb.readsIn:
 			callID := msg.HDR.CallID
@@ -497,9 +523,6 @@ func (h *Circuit) CircuitID() string { return h.callID }
 
 func (h *Circuit) Close() {
 	h.pbFrom.handleCircuitClose <- h
-	// done in the pump: h.canc()
-	// unregister the *Frag channels?
-	//h.fp.u.UnregisterChannel(ID string, whichmap int)
 }
 
 // Peers exchange Fragments over Circuits, and
@@ -701,7 +724,8 @@ func (me *PeerImpl) Start(
 				vv("compare myPeer.PeerURL = '%v'", myurl)
 				done := ctx.Done()
 
-				// this is racing with our echo, so skip it for now
+				// this is racing (just in our test, not data race)
+				// with our echo?, so skip it for now. Simpler.
 				/*
 					outFrag := NewFragment()
 					// set Payload, other details...
@@ -820,6 +844,14 @@ func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, kn
 
 	go func() {
 		knownLocalPeer.peerServiceFunc(lpb, ctx, newPeerCh)
+
+		// do cleanup
+		lpb.Close()
+		knownLocalPeer.mut.Lock()
+		delete(knownLocalPeer.active, localPeerID)
+		knownLocalPeer.mut.Unlock()
+
+		canc1()
 	}()
 
 	localPeerURL = lpb.PeerURL()
