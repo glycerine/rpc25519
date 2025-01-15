@@ -150,6 +150,9 @@ func (s *localPeerback) NewCircuitToPeerURL(
 ) (ckt *Circuit, ctx context.Context, err error) {
 
 	netAddr, serviceName, peerID, circuitID, err := parsePeerURL(peerURL)
+	if circuitID != "" {
+		panic(fmt.Sprintf("peerURL should not have a circuitID in it, as we don't support that below (yet atm): '%v'", peerURL))
+	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("NewCircuitToPeerURL could not "+
 			"parse peerURL: '%v': '%v'", peerURL, err)
@@ -159,6 +162,9 @@ func (s *localPeerback) NewCircuitToPeerURL(
 	}
 	frag.FromPeerID = s.peerID
 	frag.ToPeerID = peerID
+	// circuitID will be empty, want to create a new CallID.
+	// allow joining a extant circuit? let's not for now. simpler to start.
+	circuitID = NewCallID()
 	frag.CircuitID = circuitID
 	frag.ServiceName = serviceName
 
@@ -620,13 +626,16 @@ type peerAPI struct {
 
 	// PeerID key
 	remoteKnownPeers map[string]*knownRemotePeer
+
+	isCli bool
 }
 
-func newPeerAPI(u UniversalCliSrv) *peerAPI {
+func newPeerAPI(u UniversalCliSrv, isCli bool) *peerAPI {
 	return &peerAPI{
 		u:                   u,
 		localServiceNameMap: make(map[string]*knownLocalPeer),
 		remoteKnownPeers:    make(map[string]*knownRemotePeer),
+		isCli:               isCli,
 	}
 }
 
@@ -789,6 +798,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 		}
 	}
 
+	vv("isCli=%v, StartRemotePeer about to wait for reply on ch to callID = '%v'", p.isCli, callID)
 	var reply *Message
 	select {
 	case reply = <-ch:

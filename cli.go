@@ -376,13 +376,22 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		seqno := msg.HDR.Seqno
 		vv("client %v (cliLocalAddr='%v') received message with seqno=%v, msg.HDR='%v'", c.name, cliLocalAddr, seqno, msg.HDR.String())
 
-		if msg.HDR.Typ == CallPeerStart {
-			// special case to bootstrap up a peer by remote
-			// request, since no other way to register stuff
-			// on the client, and this is a pretty unique call
-			// anyway. This is like the Client acting like
-			// a server and starting up a peer service.
-			err := c.PeerAPI.bootstrapPeerService(true, msg, ctx, c.oneWayCh)
+		// special case to bootstrap up a peer by remote
+		// request, since no other way to register stuff
+		// on the client, and this is a pretty unique call
+		// anyway. This is like the Client acting like
+		// a server and starting up a peer service.
+		switch msg.HDR.Typ {
+		case CallPeerStart:
+			err := c.PeerAPI.bootstrapPeerService(yesIsClient, msg, ctx, c.oneWayCh)
+			if err != nil {
+				// only error is on shutdown request received.
+				return
+			}
+			continue
+
+		case CallPeerStartCircuit:
+			err := c.PeerAPI.bootstrapCircuit(yesIsClient, msg, ctx, c.oneWayCh)
 			if err != nil {
 				// only error is on shutdown request received.
 				return
@@ -1400,11 +1409,11 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		notifyOnce:  make(map[uint64]*loquet.Chan[Message]),
 
 		// share code with server for CallID and ToPeerID callbacks.
-		notifies: newNotifies(),
+		notifies: newNotifies(yesIsClient),
 		// net/rpc
 		pending: make(map[uint64]*Call),
 	}
-	c.PeerAPI = newPeerAPI(c)
+	c.PeerAPI = newPeerAPI(c, yesIsClient)
 	c.encBufWriter = bufio.NewWriter(&c.encBuf)
 	c.codec = &greenpackClientCodec{
 		cli:          c,

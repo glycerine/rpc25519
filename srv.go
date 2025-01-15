@@ -32,6 +32,9 @@ import (
 var _ = os.MkdirAll
 var _ = fmt.Printf
 
+const notClient = false
+const yesIsClient = true
+
 //var serverAddress = "0.0.0.0:8443"
 
 //var serverAddress = "192.168.254.151:8443"
@@ -516,16 +519,23 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			//vv("srv read loop got an rpc25519 keep alive.")
 			continue
 
-		case CallPeerStartCircuit:
+		case CallPeerStart:
 			err := s.Server.PeerAPI.bootstrapPeerService(false, req, ctx, s.SendCh)
 			if err != nil {
 				// only error is on shutdown request received.
 				return
 			}
 			continue
-		}
 
-		if s.Server.notifies.handleReply_to_CallID_ToPeerID(false, ctx, req) {
+		case CallPeerStartCircuit:
+			err := s.Server.PeerAPI.bootstrapCircuit(notClient, req, ctx, s.SendCh)
+			if err != nil {
+				// only error is on shutdown request received.
+				return
+			}
+			continue
+		}
+		if s.Server.notifies.handleReply_to_CallID_ToPeerID(notClient, ctx, req) {
 			vv("server side (%v) notifies says we are done after "+
 				"req = '%v'", s.from, req.HDR.String())
 			continue
@@ -564,9 +574,9 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 // Note: we should only return an error if the shutdown request was received,
 // which will kill the readLoop and connection.
 // func (s *peerAPI) bootstrapPeerService(msg *Message, halt *idem.Halter, sendCh chan *Message) error {
-func (s *peerAPI) bootstrapPeerService(onCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
+func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
 
-	vv("top of bootstrapPeerService(): onCli=%v", onCli)
+	vv("top of bootstrapPeerService(): isCli=%v; msg.HDR='%v'", isCli, msg.HDR.String())
 
 	var knownPeerIDs []string
 
@@ -600,6 +610,12 @@ func (s *peerAPI) bootstrapPeerService(onCli bool, msg *Message, ctx context.Con
 		return ErrShutdown()
 	}
 	return nil
+}
+
+func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
+	vv("isCli=%v, bootstrapCircuit called with msg='%v'", isCli, msg.String())
+
+	return nil // error means shut down the client.
 }
 
 func (pair *rwPair) handleIncomingMessage(ctx context.Context, req *Message, job *job) {
@@ -637,7 +653,8 @@ func (pair *rwPair) handleIncomingMessage(ctx context.Context, req *Message, job
 
 // Client and Server both use, to keep code in sync.
 type notifies struct {
-	mut sync.Mutex
+	mut   sync.Mutex
+	isCli bool
 
 	notifyOnReadCallIDMap  map[string]chan *Message
 	notifyOnErrorCallIDMap map[string]chan *Message
@@ -646,13 +663,14 @@ type notifies struct {
 	notifyOnErrorToPeerIDMap map[string]chan *Message
 }
 
-func newNotifies() *notifies {
+func newNotifies(isCli bool) *notifies {
 	return &notifies{
 		notifyOnReadCallIDMap:  make(map[string]chan *Message),
 		notifyOnErrorCallIDMap: make(map[string]chan *Message),
 
 		notifyOnReadToPeerIDMap:  make(map[string]chan *Message),
 		notifyOnErrorToPeerIDMap: make(map[string]chan *Message),
+		isCli:                    isCli,
 	}
 }
 
@@ -728,6 +746,7 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 	}
 
 	wantsCallID, ok := c.notifyOnReadCallIDMap[msg.HDR.CallID]
+	vv("isCli=%v, c.notifyOnReadCallIDMap[callID='%v'] -> %p, ok=%v", c.isCli, msg.HDR.CallID, wantsCallID, ok)
 	if ok {
 		select {
 		case wantsCallID <- msg:
@@ -1825,9 +1844,9 @@ func NewServer(name string, config *Config) *Server {
 		callmeUploadReaderMap:        make(map[string]UploadReaderFunc),
 		callmeBistreamMap:            make(map[string]BistreamFunc),
 
-		notifies: newNotifies(),
+		notifies: newNotifies(notClient),
 	}
-	s.PeerAPI = newPeerAPI(s)
+	s.PeerAPI = newPeerAPI(s, notClient)
 	return s
 }
 
@@ -2240,6 +2259,7 @@ func (s *Server) GetReadsForCallID(ch chan *Message, callID string) {
 	s.notifies.mut.Lock()
 	defer s.notifies.mut.Unlock()
 	s.notifies.notifyOnReadCallIDMap[callID] = ch
+	vv("Server s.notifies.notifyOnReadCallIDMap[%v] = %p", callID, ch)
 }
 
 func (s *Server) GetErrorsForCallID(ch chan *Message, callID string) {
@@ -2279,6 +2299,7 @@ func (s *Server) UnregisterChannel(ID string, whichmap int) {
 	switch whichmap {
 	case CallIDReadMap:
 		delete(s.notifies.notifyOnReadCallIDMap, ID)
+		vv("Server Unregister s.notifies.notifyOnReadCallIDMap deleted %v", ID)
 	case CallIDErrorMap:
 		delete(s.notifies.notifyOnErrorCallIDMap, ID)
 	case ToPeerIDReadMap:
