@@ -619,6 +619,10 @@ func (me *PeerImpl) Start(
 				ckt, ctx := peer.IncomingCircuit()
 				vv("IncomingCircuit got RemoteCircuitURL = '%v'", ckt.RemoteCircuitURL())
 				vv("IncomingCircuit got LocalCircuitURL = '%v'", ckt.LocalCircuitURL())
+
+				// good: myPeer.PeerURL() matches the LocalCircuitURL,
+				// but of course without the Call/CircuitID.
+				vv("compare myPeer.PeerURL = '%v'", myPeer.PeerURL())
 				done := ctx.Done()
 
 				outFrag := NewFragment()
