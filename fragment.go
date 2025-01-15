@@ -308,6 +308,9 @@ func (pb *localPeerback) peerbackPump() {
 			ckt.canc()
 			delete(m, ckt.callID)
 
+			pb.u.UnregisterChannel(ckt.callID, CallIDReadMap)
+			pb.u.UnregisterChannel(ckt.callID, CallIDErrorMap)
+
 		case msg := <-pb.readsIn:
 			callID := msg.HDR.CallID
 			ckt, ok := m[callID]
@@ -467,7 +470,7 @@ func (h *Circuit) Close() {
 type RemotePeer interface {
 
 	// IncomingCircuit is the first one that arrives with
-	// with an incoming remote peer connections.
+	// with an incoming remote peer connection.
 	IncomingCircuit() (ckt *Circuit, ctx context.Context)
 
 	// NewCircuit generates a Circuit between two Peers,
