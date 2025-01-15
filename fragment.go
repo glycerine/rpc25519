@@ -635,6 +635,7 @@ func (me *PeerImpl) Start(
 
 				outFrag := NewFragment()
 				outFrag.Payload = []byte(fmt.Sprintf("echo request! myPeer.PeerID='%v' (myPeer.PeerURL='%v') requested to echo to peerURL '%v' on 'echo circuit'", myPeer.PeerID(), myPeer.PeerURL(), echoToURL))
+				outFrag.FragSubject = "echo request"
 
 				ckt, ctx, err := myPeer.NewCircuitToPeerURL(echoToURL, outFrag, nil)
 				panicOn(err)
@@ -987,8 +988,12 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	go func() {
 		select {
 		case lpb.newPeerCh <- rpb:
-			vv("user got remote interface, give them the message")
-			ckt.Reads <- ckt.convertMessageToFragment(msg)
+			asFrag := ckt.convertMessageToFragment(msg)
+			vv("user got remote interface, give them the message: msg='%v' -> asFrag = '%v'", msg.String(), asFrag.String())
+			select {
+			case ckt.Reads <- asFrag:
+			case <-ctx2.Done():
+			}
 		case <-ctx2.Done():
 			//return ErrShutdown()
 		case <-time.After(10 * time.Second):
