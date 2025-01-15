@@ -358,6 +358,9 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		s.mut.Unlock()
 	}
 
+	serverLocalAddr := s.Server.LocalAddr()
+	_ = serverLocalAddr
+
 	//vv("about to make a newBlabber for server send loop; s.Server.cfg = %p", s.Server.cfg)
 	w := newBlabber("server send loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true, s.Server.cfg, s, nil)
 
@@ -401,7 +404,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 			continue
 
 		case msg := <-s.SendCh:
-			//vv("srv got from s.SendCh, sending msg.HDR = '%v'", msg.HDR)
+			vv("srv %v (%v) sendLoop got from s.SendCh, sending msg.HDR = '%v'", s.Server.name, serverLocalAddr, msg.HDR.String())
 			err := w.sendMessage(conn, msg, &s.cfg.WriteTimeout)
 			if err != nil {
 				// notify any short-time-waiting server push user.
@@ -512,8 +515,8 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			//vv("srv read loop got an rpc25519 keep alive.")
 			continue
 
-		case CallStartPeerCircuit:
-			err := s.Server.PeerAPI.bootstrapPeerService(req, ctx, s.SendCh)
+		case CallPeerStartCircuit:
+			err := s.Server.PeerAPI.bootstrapPeerService(false, req, ctx, s.SendCh)
 			if err != nil {
 				// only error is on shutdown request received.
 				return
@@ -531,7 +534,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 	}
 }
 
-// handle HDR.Typ == CallStartPeerCircuit  messages
+// handle HDR.Typ == CallPeerStartCircuit  messages
 // requesting to bootstrap a PeerServiceFunc.
 //
 // This needs special casing because the inital call API
@@ -541,7 +544,9 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 // Note: we should only return an error if the shutdown request was received,
 // which will kill the readLoop and connection.
 // func (s *peerAPI) bootstrapPeerService(msg *Message, halt *idem.Halter, sendCh chan *Message) error {
-func (s *peerAPI) bootstrapPeerService(msg *Message, ctx context.Context, sendCh chan *Message) error {
+func (s *peerAPI) bootstrapPeerService(onCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
+
+	vv("top of bootstrapPeerService(): onCli=%v", onCli)
 
 	var knownPeerIDs []string
 
@@ -598,6 +603,7 @@ func (pair *rwPair) handleIncomingMessage(ctx context.Context, req *Message, job
 	}
 
 	if pair.Server.notifies.handleReply_to_CallID_ToPeerID(ctx, req) {
+		vv("server side notifies says we are done after req = '%v'", req.HDR.String())
 		return
 	}
 
@@ -653,7 +659,6 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(ctx context.Context, msg *Mess
 					//vv("notified a channel! %p for CallID '%v'", wantsErr, msg.HDR.ToPeerID)
 
 				case <-ctx.Done():
-					return
 					// think we want backpressure and to make sure the peer goro keep up.
 					//default:
 					//	panic(fmt.Sprintf("Should never happen b/c the "+
@@ -671,7 +676,6 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(ctx context.Context, msg *Mess
 			case wantsErr <- msg:
 			//vv("notified a channel! %p for CallID '%v'", wantsErr, msg.HDR.CallID)
 			case <-ctx.Done():
-				return
 				//default:
 				//	panic(fmt.Sprintf("Should never happen b/c the "+
 				//		"channels must be buffered!: could not send to "+
@@ -679,7 +683,6 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(ctx context.Context, msg *Mess
 				//		msg.HDR.CallID))
 			}
 		}
-
 		return true
 	} // end CallError
 
@@ -692,7 +695,6 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(ctx context.Context, msg *Mess
 			case <-ctx.Done():
 				return
 			case <-ctx.Done():
-				return
 				//default:
 				//	panic(fmt.Sprintf("Should never happen b/c the "+
 				//		"channels must be buffered!: could not send to "+
@@ -708,7 +710,6 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(ctx context.Context, msg *Mess
 		select {
 		case wantsCallID <- msg:
 		case <-ctx.Done():
-			return
 			//default:
 			//	panic(fmt.Sprintf("Should never happen b/c the "+
 			//		"channels must be buffered!: could not send to "+

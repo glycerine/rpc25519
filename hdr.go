@@ -60,7 +60,8 @@ const (
 	CallDownloadMore  CallType = 110 // possibly many of these;
 	CallDownloadEnd   CallType = 111 // and one of these to finish.
 
-	CallStartPeerCircuit CallType = 112
+	CallPeerStartCircuit CallType = 112
+	CallPeerOneWay       CallType = 113 // so we don't mix up with regular CallOneWay
 )
 
 func (ct CallType) String() string {
@@ -78,8 +79,10 @@ func (ct CallType) String() string {
 	case CallRequestBistreaming:
 		return "CallRequestBistreaming"
 
-	case CallStartPeerCircuit:
-		return "CallStartPeerCircuit"
+	case CallPeerStartCircuit:
+		return "CallPeerStartCircuit"
+	case CallPeerOneWay:
+		return "CallPeerOneWay"
 
 	case CallKeepAlive:
 		return "CallKeepAlive"

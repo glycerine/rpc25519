@@ -77,14 +77,15 @@ type Fragment struct {
 	// ServiceName is the remote peer's PeerServiceName.
 	ServiceName string `zid:"3"`
 
-	FragType string `zid:"4"` // can be a message type, sub-service name, other useful context.
-	FragPart int64  `zid:"5"` // built in multi-part handling for the same CallID and FragType.
+	FragSubject string   `zid:"4"`
+	FragType    CallType `zid:"5"` // can be a message type, sub-service name, other useful context.
+	FragPart    int64    `zid:"6"` // built in multi-part handling for the same CallID and FragType.
 
-	Args map[string]string `zid:"6"` // nil/unallocated to save space. User should alloc if the need it.
+	Args map[string]string `zid:"7"` // nil/unallocated to save space. User should alloc if the need it.
 
-	Payload []byte `zid:"7"`
+	Payload []byte `zid:"8"`
 
-	Err string `zid:"8"` // distinguished field for error messages.
+	Err string `zid:"9"` // distinguished field for error messages.
 }
 
 // remotePeerback is over the newPeerCh channel
@@ -176,8 +177,10 @@ func (s *localPeerback) NewCircuitToPeerURL(
 	}
 	msg := frag.ToMessage()
 	msg.HDR.To = netAddr
+	msg.HDR.Typ = CallPeerStartCircuit
 	//msg.HDR.From will be overwritten by sender.
 
+	vv("about to SendOneWayMessage = '%v'", msg)
 	return ckt, ctx, s.u.SendOneWayMessage(ctx, msg, errWriteDur)
 }
 
@@ -273,8 +276,15 @@ func (pb *localPeerback) peerbackPump() {
 		case msg := <-pb.readsIn:
 			callID := msg.HDR.CallID
 			ckt, ok := m[callID]
+			vv("peerbackPump sees readsIn msg: '%v' payload '%v'", msg, string(msg.JobSerz))
 			if !ok {
 				vv("arg. no ckt avail for callID = '%v'", callID)
+
+				if callID == "" {
+					// we have a legit PeerID but no CallID, which means that
+					// we have not yet instantiated a circuit. Do so? or have client just use CallPeerStartCircuit ?
+
+				}
 				continue
 			}
 			frag := ckt.convertMessageToFragment(msg)
@@ -307,8 +317,9 @@ func (ckt *Circuit) convertMessageToFragment(msg *Message) (frag *Fragment) {
 		FromPeerID: msg.HDR.FromPeerID,
 		CircuitID:  msg.HDR.CallID,
 
-		FragType: msg.HDR.Subject,
-		FragPart: msg.HDR.StreamPart,
+		FragType:    msg.HDR.Typ,
+		FragSubject: msg.HDR.Subject,
+		FragPart:    msg.HDR.StreamPart,
 
 		Args:    msg.HDR.Args,
 		Payload: msg.JobSerz,
@@ -320,7 +331,11 @@ func (ckt *Circuit) convertMessageToFragment(msg *Message) (frag *Fragment) {
 func (frag *Fragment) ToMessage() (msg *Message) {
 	msg = NewMessage()
 
-	msg.HDR.Typ = CallOneWay
+	if frag.FragType == 0 {
+		msg.HDR.Typ = CallPeerOneWay
+	} else {
+		msg.HDR.Typ = frag.FragType
+	}
 	msg.HDR.Created = time.Now()
 	msg.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
 	msg.HDR.ServiceName = frag.ServiceName
@@ -328,7 +343,7 @@ func (frag *Fragment) ToMessage() (msg *Message) {
 	msg.HDR.ToPeerID = frag.ToPeerID
 	msg.HDR.FromPeerID = frag.FromPeerID
 	msg.HDR.CallID = frag.CircuitID
-	msg.HDR.Subject = frag.FragType
+	msg.HDR.Subject = frag.FragSubject
 
 	if frag.Args != nil {
 		msg.HDR.Args = frag.Args
@@ -528,7 +543,7 @@ func (me *PeerImpl) Start(
 			go func(echoToURL string) {
 
 				outFrag := NewFragment()
-				outFrag.Payload = []byte(fmt.Sprintf("echo request from peerID='%v' to peerID '%v' on 'echo circuit'", myPeer.PeerID(), echoToURL))
+				outFrag.Payload = []byte(fmt.Sprintf("echo request! myPeer.PeerID='%v' (myPeer.PeerURL='%v') requested to echo to peerURL '%v' on 'echo circuit'", myPeer.PeerID(), myPeer.PeerURL(), echoToURL))
 
 				ckt, ctx, err := myPeer.NewCircuitToPeerURL(echoToURL, outFrag, nil)
 				panicOn(err)
@@ -678,7 +693,7 @@ func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, kn
 	localPeerID = NewCallID()
 
 	localAddr := p.u.LocalAddr()
-	vv("localAddr = '%v'", localAddr)
+	//vv("localAddr = '%v'", localAddr)
 	lpb := p.newLocalPeerback(ctx1, canc1, p.u, localPeerID, newPeerCh, peerServiceName, localAddr)
 
 	knownLocalPeer.mut.Lock()
@@ -698,7 +713,7 @@ func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, kn
 	}()
 
 	localPeerURL = lpb.PeerURL()
-	vv("lpb.PeerURL() = '%v'", localPeerURL)
+	//vv("lpb.PeerURL() = '%v'", localPeerURL)
 
 	return localPeerURL, localPeerID, nil
 }
@@ -733,7 +748,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 		}
 	}
 
-	hdr := NewHDR(p.u.LocalAddr(), remoteAddr, peerServiceName, CallStartPeerCircuit, 0)
+	hdr := NewHDR(p.u.LocalAddr(), remoteAddr, peerServiceName, CallPeerStartCircuit, 0)
 	//hdr.ServiceName = peerServiceName
 	//callID := NewCallID()
 	//hdr.CallID = callID
