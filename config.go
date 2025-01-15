@@ -14,7 +14,7 @@ import (
 // for certificates and key pairs,
 // including the a nodes private keys.
 // It also creates the directory if it
-// does not exist.
+// does not exist, and panics if it cannot.
 //
 // Use $HOME/.config/rpc25519/certs to store keys now,
 // so we can find them in one location.
@@ -24,19 +24,27 @@ import (
 //
 // If we cannot find either of those, we
 // use the current working directory.
+//
+// We will panic if we cannot make this
+// essential directory.
 func GetCertsDir() (path string) {
 	defer os.MkdirAll(path, 0700)
 	dir := os.Getenv("XDG_CONFIG_HOME")
 	home := os.Getenv("HOME")
 	base := "certs"
-	suffix := ".config" + sep + "rpc25519" + sep + base
-	if dir != "" {
-		return dir + suffix
+	suffix := sep + ".config" + sep + "rpc25519" + sep + base
+	switch {
+	case dir != "":
+		path = dir + suffix
+	case home != "":
+		path = home + suffix
+	default:
+		path = base
 	}
-	if home != "" {
-		return home + suffix
-	}
-	return base
+	err := os.MkdirAll(path, 0700)
+	panicOn(err)
+	//vv("no error back doing MkdirAll path = '%v'", path)
+	return path
 }
 
 // GetPrivateCertificateAuthDir says where
@@ -44,7 +52,7 @@ func GetCertsDir() (path string) {
 // which should typically not be
 // distributed with the working node key-pairs.
 // It also creates the directory if it
-// does not exist.
+// does not exist, and panics if it cannot.
 //
 // Use $HOME/.config/rpc25519/certs to store keys now,
 // so we can find them in one location.
@@ -54,17 +62,25 @@ func GetCertsDir() (path string) {
 //
 // If we cannot find either of those, we
 // use the current working directory.
+//
+// We will panic if we cannot make this
+// essential directory.
 func GetPrivateCertificateAuthDir() (path string) {
-	defer os.MkdirAll(path, 0700)
+
 	dir := os.Getenv("XDG_CONFIG_HOME")
 	home := os.Getenv("HOME")
 	base := "my-keep-private-dir"
-	suffix := ".config" + sep + "rpc25519" + sep + base
-	if dir != "" {
-		return dir + suffix
+	suffix := sep + ".config" + sep + "rpc25519" + sep + base
+	switch {
+	case dir != "":
+		path = dir + suffix
+	case home != "":
+		path = home + suffix
+	default:
+		path = base
 	}
-	if home != "" {
-		return home + suffix
-	}
-	return base
+	err := os.MkdirAll(path, 0700)
+	panicOn(err)
+	//vv("no error back doing MkdirAll path = '%v'", path)
+	return path
 }

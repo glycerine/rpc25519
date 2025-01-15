@@ -3,8 +3,10 @@ package rpc25519
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	//"reflect"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +14,51 @@ import (
 	cv "github.com/glycerine/goconvey/convey"
 	myblake3 "github.com/glycerine/rpc25519/hash"
 )
+
+func TestMain(m *testing.M) {
+
+	var exitVal int
+	func() {
+		// create a temp dir for certs/ca,
+		// and configure to uset it.
+		tmp, err := ioutil.TempDir("", "rpc25519-tests-temp-dir")
+		panicOn(err)
+		vv("running tests in tmp dir: %v", tmp)
+		vv("comment this next line to preserve the tmp dir for inspection.")
+		defer os.RemoveAll(tmp)
+
+		// write temp certs here
+		os.Setenv("XDG_CONFIG_HOME", tmp)
+		cwd, err := os.Getwd()
+		_ = cwd
+		panicOn(err)
+
+		// make the directories
+		dirCerts := GetCertsDir()
+		_ = dirCerts
+		dirCA := GetPrivateCertificateAuthDir()
+		_ = dirCA
+		//vv("dirCerts = '%v'", dirCerts)
+
+		ca1path := filepath.Dir(dirCA)
+
+		panicOn(SelfyNewKey("node", ca1path))
+		panicOn(SelfyNewKey("client", ca1path))
+
+		os.Chdir(tmp)
+		defer os.Chdir(cwd)
+
+		//vv("running in temp dir '%v'", tmp)
+
+		exitVal = m.Run()
+	}()
+
+	// Do stuff AFTER the tests
+
+	// clean up the temp dir.
+
+	os.Exit(exitVal)
+}
 
 var _ = fmt.Printf
 var _ = time.Now
@@ -132,7 +179,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = true
 
-		path := "my-keep-private-dir/psk.binary"
+		path := GetPrivateCertificateAuthDir() + sep + "psk.binary"
 		panicOn(setupPSK(path))
 		cfg.PreSharedKeyPath = path
 		cfg.ReadTimeout = 2 * time.Second

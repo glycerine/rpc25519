@@ -12,6 +12,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/selfcert"
 
 	// for the nice base58 (version-checked) encoding of public keys
@@ -41,9 +42,12 @@ var sep = string(os.PathSeparator)
 
 func (c *SelfCertConfig) DefineFlags(fs *flag.FlagSet) {
 
-	fs.StringVar(&c.OdirCA_privateKey, "p", "my-keep-private-dir", "directory to find the CA in. If doing -ca, we will save the newly created Certificate Authority (CA) private key to this directory. If doing -k to create a new key, we'll look for the CA here.")
+	certdir := rpc25519.GetCertsDir()
+	cadir := rpc25519.GetPrivateCertificateAuthDir()
 
-	fs.StringVar(&c.OdirCerts, "o", "certs", "directory to save newly created certs into.")
+	fs.StringVar(&c.OdirCA_privateKey, "p", cadir, "directory to find the CA in. If doing -ca, we will save the newly created Certificate Authority (CA) private key to this directory. If doing -k to create a new key, we'll look for the CA here.")
+
+	fs.StringVar(&c.OdirCerts, "o", certdir, "directory to save newly created certs into.")
 
 	fs.StringVar(&c.CreateKeyPairNamed, "k", "", "2nd of 2 steps: -k {key_name} ; create a new ed25519 key pair (key and cert) and save it to this name. The pair will be saved under the -o directory; we strongly suggest you also use the -e your_email@actually.org flag to describe the job and/or provide the owner's email to contact when needed. A CA will be auto-generated if none is found in the -p directory, which has a default name which warns the user to protect it.")
 

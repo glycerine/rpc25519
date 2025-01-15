@@ -351,7 +351,7 @@ func Test011_PreSharedKey_over_TCP(t *testing.T) {
 		cfg.UseQUIC = true
 		//cfg.TCPonly_no_TLS = true
 
-		path := "my-keep-private-dir/psk.binary"
+		path := GetPrivateCertificateAuthDir() + sep + "psk.binary"
 		panicOn(setupPSK(path))
 		cfg.PreSharedKeyPath = path
 
@@ -398,11 +398,11 @@ func Test012_PreSharedKey_must_agree(t *testing.T) {
 		scfg := NewConfig()
 		scfg.UseQUIC = true
 
-		path := "my-keep-private-dir/client_psk.binary"
+		path := GetPrivateCertificateAuthDir() + sep + "psk.binary"
 		panicOn(setupPSK(path))
 		ccfg.PreSharedKeyPath = path
 
-		path2 := "my-keep-private-dir/server_psk2.binary"
+		path2 := GetPrivateCertificateAuthDir() + sep + "server_psk2.binary"
 		panicOn(setupPSK(path2))
 		scfg.PreSharedKeyPath = path2
 

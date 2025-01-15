@@ -25,7 +25,7 @@ func Test024_RoundTrip_Using_NetRPC_API_TCP_and_http_CONNECT(t *testing.T) {
 				cfg.TCPonly_no_TLS = false
 			}
 
-			path := "my-keep-private-dir/psk.binary"
+			path := GetPrivateCertificateAuthDir() + sep + "psk.binary"
 			panicOn(setupPSK(path))
 			cfg.PreSharedKeyPath = path
 			cfg.ReadTimeout = 2 * time.Second

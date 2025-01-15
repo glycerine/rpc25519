@@ -53,7 +53,9 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 	s.cfg.checkPreSharedKey("server")
 	//vv("server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
 
-	sslCA := fixSlash("certs/ca.crt") // path to CA cert
+	dirCerts := GetCertsDir()
+
+	sslCA := fixSlash(dirCerts + "/ca.crt") // path to CA cert
 
 	keyName := "node"
 	if s.cfg.ServerKeyPairName != "" {
@@ -66,8 +68,8 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 	// path to CA cert to verify client certs, can be same as sslCA
 	// sslClientCA := sslCA
 
-	sslCert := fixSlash(fmt.Sprintf("certs/%v.crt", keyName))    // path to server cert
-	sslCertKey := fixSlash(fmt.Sprintf("certs/%v.key", keyName)) // path to server key
+	sslCert := fixSlash(fmt.Sprintf(dirCerts+"/%v.crt", keyName))    // path to server cert
+	sslCertKey := fixSlash(fmt.Sprintf(dirCerts+"/%v.key", keyName)) // path to server key
 
 	if certPath != "" {
 		sslCA = fixSlash(fmt.Sprintf("%v/ca.crt", certPath)) // path to CA cert

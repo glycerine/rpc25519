@@ -68,17 +68,19 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		}
 	}()
 
+	dirCerts := GetCertsDir()
+
 	c.cfg.checkPreSharedKey("client")
 
-	sslCA := fixSlash("certs/ca.crt") // path to CA cert
+	sslCA := fixSlash(dirCerts + "/ca.crt") // path to CA cert
 
 	keyName := "client"
 	if c.cfg.ClientKeyPairName != "" {
 		keyName = c.cfg.ClientKeyPairName
 	}
 
-	sslCert := fixSlash(fmt.Sprintf("certs/%v.crt", keyName))    // path to server cert
-	sslCertKey := fixSlash(fmt.Sprintf("certs/%v.key", keyName)) // path to server key
+	sslCert := fixSlash(fmt.Sprintf(dirCerts+"/%v.crt", keyName))    // path to server cert
+	sslCertKey := fixSlash(fmt.Sprintf(dirCerts+"/%v.key", keyName)) // path to server key
 
 	if certPath != "" {
 		sslCA = fixSlash(fmt.Sprintf("%v/ca.crt", certPath))               // path to CA cert
@@ -826,6 +828,7 @@ type Config struct {
 
 	// path to certs/ like certificate
 	// directory on the live filesystem.
+	// defaults to GetCertsDir(); see config.go.
 	CertPath string
 
 	// SkipVerifyKeys true allows any incoming
