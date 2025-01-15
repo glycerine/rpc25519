@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	UserMaxPayload = 67106000 // users should chunk to this size, to be safe.
+	UserMaxPayload = 1_200_000 // users should chunk to this size, to be safe.
 
-	maxMessage = 64*1024*1024 - 80 // 64 MB max message size, prevents TLS clients from talking to TCP servers, as the random TLS data looks like very big message size.
+	maxMessage = 1_310_720 - 80 // ~ 1 MB max message size, prevents TLS clients from talking to TCP servers, as the random TLS data looks like very big message size. Also lets us test on smaller virtual machines without out-of-memory issues.
 )
 
 var ErrTooLong = fmt.Errorf("message message too long: over 64MB; encrypted client vs an un-encrypted server?")
