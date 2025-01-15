@@ -278,17 +278,19 @@ func parsePeerURL(peerURL string) (netAddr, serviceName, peerID, circuitID strin
 func (s *remotePeerback) SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
 	// is this right? hmmm no.
 	//return s.localPeerback.SendOneWayMessage(ckt, frag, errWriteDur)
+
 	if frag == nil {
 		return fmt.Errorf("must have frag, not nil")
 	}
-	// flipp them... is this right?
+	// flipp them... is this right? flip back.
 	frag.CircuitID = ckt.callID
-	frag.FromPeerID = ckt.remotePeerID
-	frag.ToPeerID = ckt.localPeerID
+	frag.FromPeerID = ckt.localPeerID
+	frag.ToPeerID = ckt.remotePeerID
 
 	msg := ckt.convertFragmentToMessage(frag)
 	return s.localPeerback.u.SendOneWayMessage(s.localPeerback.ctx, msg, errWriteDur)
 	// return s.u.SendOneWayMessage(s.ctx, msg, errWriteDur)
+
 }
 
 // SendOneWayMessage sends a Frament on the given Circuit.
@@ -701,13 +703,15 @@ func (me *PeerImpl) Start(
 					vv("echo answerer shutting down.")
 				}()
 
+				myurl := myPeer.PeerURL()
+
 				ckt, ctx := peer.IncomingCircuit()
 				vv("IncomingCircuit got RemoteCircuitURL = '%v'", ckt.RemoteCircuitURL())
 				vv("IncomingCircuit got LocalCircuitURL = '%v'", ckt.LocalCircuitURL())
 
 				// good: myPeer.PeerURL() matches the LocalCircuitURL,
 				// but of course without the Call/CircuitID.
-				vv("compare myPeer.PeerURL = '%v'", myPeer.PeerURL())
+				vv("compare myPeer.PeerURL = '%v'", myurl)
 				done := ctx.Done()
 
 				// this is racing with our echo, so skip it for now
@@ -722,12 +726,13 @@ func (me *PeerImpl) Start(
 				for {
 					select {
 					case frag := <-ckt.Reads:
-						vv("ckt.Reads sees frag:'%s'", frag)
+						vv("ckt.Reads sees frag:'%s';  I am myurl= '%v'", frag, myurl)
 						if frag.FragSubject == "echo request" {
-							vv("ckt.Reads sees frag with echo request! sending reply")
 							outFrag := NewFragment()
 							outFrag.Payload = frag.Payload
 							outFrag.FragSubject = "echo reply"
+							outFrag.ServiceName = myPeer.PeerServiceName()
+							vv("ckt.Reads sees frag with echo request! sending reply='%v'", frag)
 							err := peer.SendOneWayMessage(ckt, outFrag, nil)
 							panicOn(err)
 						}
