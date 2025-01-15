@@ -134,7 +134,9 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 	s.mut.Lock()     // avoid data race
 	s.lsn = listener // allow shutdown
 	s.quicConfig = quicConfig
-	s.boundAddressString = addr.Network() + "://" + addr.String()
+	addrs := addr.Network() + "://" + addr.String()
+	s.boundAddressString = addrs
+	aliasRegister(addrs, addrs+" (quic_server)")
 	s.mut.Unlock()
 
 	ctx := context.Background()

@@ -1933,6 +1933,7 @@ func (c *Client) setLocalAddr(conn localRemoteAddr) {
 	defer c.mut.Unlock()
 
 	c.cfg.localAddress = local(conn)
+	aliasRegister(c.cfg.localAddress, c.cfg.localAddress+" (client: "+c.name+")")
 }
 
 // LocalAddr retreives the local host/port that the

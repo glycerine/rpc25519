@@ -132,7 +132,9 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 	}
 
 	s.mut.Lock() // avoid data race
-	s.boundAddressString = addr.Network() + "://" + addr.String()
+	addrs := addr.Network() + "://" + addr.String()
+	s.boundAddressString = addrs
+	aliasRegister(addrs, addrs+" (server: "+s.name+")")
 	s.lsn = listener // allow shutdown
 	s.mut.Unlock()
 
@@ -178,7 +180,9 @@ func (s *Server) runTCP(serverAddress string, boundCh chan net.Addr) {
 	addr := listener.Addr()
 
 	s.mut.Lock()
-	s.boundAddressString = addr.Network() + "://" + addr.String()
+	addrs := addr.Network() + "://" + addr.String()
+	s.boundAddressString = addrs
+	aliasRegister(addrs, addrs+" (tcp_server: "+s.name+")")
 	s.mut.Unlock()
 
 	//vv("Server listening on %v://%v", addr.Network(), addr.String())

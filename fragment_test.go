@@ -28,7 +28,7 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		defer srv.Close()
 
 		cfg.ClientDialToHostPort = serverAddr.String()
-		cli, err := NewClient("test400", cfg)
+		cli, err := NewClient("client_test400", cfg)
 		panicOn(err)
 		err = cli.Start()
 		panicOn(err)
@@ -164,7 +164,7 @@ func Test402_simpler_startup_peer_service_test(t *testing.T) {
 		defer srv.Close()
 
 		cfg.ClientDialToHostPort = serverAddr.String()
-		cli, err := NewClient("test400", cfg)
+		cli, err := NewClient("client_test400", cfg)
 		panicOn(err)
 		err = cli.Start()
 		panicOn(err)
@@ -217,7 +217,7 @@ func Test403_new_circuit_from_existing_peer(t *testing.T) {
 		defer srv.Close()
 
 		cfg.ClientDialToHostPort = serverAddr.String()
-		cli, err := NewClient("test403", cfg)
+		cli, err := NewClient("client_test403", cfg)
 		panicOn(err)
 		err = cli.Start()
 		panicOn(err)

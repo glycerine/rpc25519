@@ -452,8 +452,8 @@ func (m *HDR) String() string {
     "StreamPart": %v,
 }`,
 		m.Created,
-		m.From,
-		m.To,
+		aliasDecode(m.From),
+		aliasDecode(m.To),
 		m.ServiceName,
 		m.Args,
 		m.Subject,
@@ -571,4 +571,19 @@ func ContextWithHDR(ctx context.Context, hdr *HDR) context.Context {
 func HDRFromContext(ctx context.Context) (*HDR, bool) {
 	hdr, ok := ctx.Value(hdrKey).(*HDR)
 	return hdr, ok
+}
+
+// print user legible names along side the host:port number.
+var aliasMap sync.Map
+
+func aliasDecode(addr string) string {
+	v, ok := aliasMap.Load(addr)
+	if ok {
+		return v.(string)
+	}
+	return addr
+}
+
+func aliasRegister(addr, name string) {
+	aliasMap.Store(addr, name)
 }
