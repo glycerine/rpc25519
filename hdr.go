@@ -66,6 +66,8 @@ const (
 	CallPeerStartCircuit CallType = 113
 	CallPeerTraffic      CallType = 114
 	CallPeerError        CallType = 115
+	CallPeerEnd          CallType = 116
+	CallPeerEndCircuit   CallType = 117
 )
 
 func (ct CallType) String() string {
@@ -91,6 +93,10 @@ func (ct CallType) String() string {
 		return "CallPeerTraffic"
 	case CallPeerError:
 		return "CallPeerError"
+	case CallPeerEnd:
+		return "CallPeerEnd"
+	case CallPeerEndCircuit:
+		return "CallPeerEndCircuit"
 
 	case CallKeepAlive:
 		return "CallKeepAlive"
