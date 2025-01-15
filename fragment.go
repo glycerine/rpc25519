@@ -26,7 +26,8 @@ type Circuit struct {
 	localPeerID  string
 	remotePeerID string
 
-	peerServiceName string
+	localServiceName  string
+	remoteServiceName string
 
 	callID string
 	ctx    context.Context
@@ -45,14 +46,14 @@ type Circuit struct {
 //	(circuitID is the CallID in the Message.HDR)
 func (ckt *Circuit) LocalCircuitURL() string {
 	return ckt.pbFrom.netAddr + "/" +
-		ckt.peerServiceName + "/" +
+		ckt.localServiceName + "/" +
 		ckt.localPeerID + "/" +
 		ckt.callID
 }
 
 func (ckt *Circuit) RemoteCircuitURL() string {
 	return ckt.pbTo.netAddr + "/" +
-		ckt.peerServiceName + "/" +
+		ckt.remoteServiceName + "/" +
 		ckt.remotePeerID + "/" +
 		ckt.callID
 }
@@ -104,11 +105,12 @@ type Fragment struct {
 // either deliberately locally with NewCircuit or received on newPeerChan
 // from the remote who did NewCircuit.
 type remotePeerback struct {
-	localPeerback *localPeerback
-	netAddr       string // remote network://host:port (e.g. tcp://x.x.x.x:30238)
-	peerID        string // the remote's PeerID
-	incomingCkt   *Circuit
-	peerURL       string
+	localPeerback     *localPeerback
+	netAddr           string // remote network://host:port (e.g. tcp://x.x.x.x:30238)
+	peerID            string // the remote's PeerID
+	incomingCkt       *Circuit
+	peerURL           string
+	remoteServiceName string
 }
 
 func (rpb *remotePeerback) PeerID() string {
@@ -188,8 +190,10 @@ func (s *localPeerback) NewCircuitToPeerURL(
 	frag.ServiceName = serviceName
 
 	rpb := &remotePeerback{
-		localPeerback: s,
-		peerID:        peerID,
+		localPeerback:     s,
+		peerID:            peerID,
+		netAddr:           netAddr,
+		remoteServiceName: serviceName,
 	}
 	s.mut.Lock()
 	s.remotes[peerID] = rpb
@@ -199,6 +203,10 @@ func (s *localPeerback) NewCircuitToPeerURL(
 	msg := frag.ToMessage()
 	msg.HDR.To = netAddr
 	msg.HDR.Typ = CallPeerStartCircuit
+
+	// tell the remote which serviceName we are coming from;
+	// so the URL back can be correct.
+	msg.HDR.Args = map[string]string{"fromServiceName": s.peerServiceName}
 	//msg.HDR.From will be overwritten by sender.
 
 	vv("about to SendOneWayMessage = '%v'", msg)
@@ -415,16 +423,17 @@ func (lpb *localPeerback) newCircuit(rpb *remotePeerback, cID string) (ckt *Circ
 	reads := make(chan *Fragment)
 	errors := make(chan *Fragment)
 	ckt = &Circuit{
-		peerServiceName: lpb.peerServiceName,
-		pbFrom:          lpb,
-		pbTo:            rpb,
-		callID:          cID,
-		localPeerID:     lpb.peerID,
-		remotePeerID:    rpb.peerID,
-		Reads:           reads,
-		Errors:          errors,
-		ctx:             ctx2,
-		canc:            canc2,
+		localServiceName:  lpb.peerServiceName,
+		remoteServiceName: rpb.remoteServiceName,
+		pbFrom:            lpb,
+		pbTo:              rpb,
+		callID:            cID,
+		localPeerID:       lpb.peerID,
+		remotePeerID:      rpb.peerID,
+		Reads:             reads,
+		Errors:            errors,
+		ctx:               ctx2,
+		canc:              canc2,
 	}
 	if ckt.callID == "" {
 		ckt.callID = NewCallID()
@@ -934,7 +943,9 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		peerID:        msg.HDR.FromPeerID, // the remote's PeerID
 		netAddr:       msg.HDR.From,
 	}
-
+	if msg.HDR.Args != nil {
+		rpb.remoteServiceName = msg.HDR.Args["fromServiceName"]
+	}
 	// for tracing continuity, might as well use
 	// the CallID that initiated the circuit from the start.
 
@@ -1017,7 +1028,10 @@ func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Con
 	} else {
 		msg.HDR.Typ = CallPeerTraffic
 		// tell them our peerID, this is the critical desired info.
-		msg.HDR.Args = map[string]string{"peerURL": localPeerURL, "peerID": localPeerID}
+		msg.HDR.Args = map[string]string{
+			"peerURL":         localPeerURL,
+			"peerID":          localPeerID,
+			"fromServiceName": msg.HDR.ServiceName}
 	}
 	msg.HDR.FromPeerID = localPeerID
 

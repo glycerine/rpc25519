@@ -81,7 +81,7 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		vv("StartLocalPeer: on server peerURL_server = '%v'; peerID_server = '%v'", peerURL_server, peerID_server)
 
 		// lets ask the client to ask the server to start one, to
-		// test the symmetry of the CallStartPeerCircuit handling.
+		// test the symmetry of the CallPeerStartCircuit handling.
 
 		// get the tcp:// or udp:// in front like the client expects.
 		with_network_saddr := serverAddr.Network() + "://" + serverAddr.String()
