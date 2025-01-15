@@ -12,12 +12,14 @@ import (
 ~~~
 Peer/Circuit/Fragment API essentials (utility methods omitted for compactness)
 
-A) to establish circuits with new peers
+A) to establish circuits with new peers:
    1) NewCircuitToPeerURL() for initiating actively.
-   2) <-newPeerCh to recieve new initiations from others.
+   2) <-newPeerCh to recieve new initiations;
+      then use the IncomingCircuit() method to get the Circuit.
 
 B) to create additional circuits with an already connected peer:
    1) NewCircuit adds a new circuit with an existing RemotePeer
+   2) They get notified on <-newPeerCh too. (verify)
 
 C) To communicate over a Circuit:
    1) get regular messages (called Fragments) from <-Circuit.Reads
