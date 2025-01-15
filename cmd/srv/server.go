@@ -45,12 +45,15 @@ func main() {
 
 	noticeControlC()
 
+	certdir := rpc25519.GetCertsDir()
+	//cadir := rpc25519.GetPrivateCertificateAuthDir()
+
 	var addr = flag.String("s", "0.0.0.0:8443", "server address to bind and listen on")
 	var tcp = flag.Bool("tcp", false, "use TCP instead of the default TLS")
 	var skipVerify = flag.Bool("skip-verify", false, "do not require client certs be from our CA, nor remember client certs in a known_client_keys file for later lockdown")
 
 	var useName = flag.String("k", "node", "specifies name of keypairs to use (certs/name.crt and certs/name.key); instead of the default certs/node.crt and certs/node.key for the server.")
-	var certPath = flag.String("certs", "", "use this path for certs; instead of the local ./certs/ directory.")
+	var certPath = flag.String("certs", certdir, "use this path for certs; instead of the local ./certs/ directory.")
 
 	var quic = flag.Bool("q", false, "use QUIC instead of TCP/TLS")
 
