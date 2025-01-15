@@ -89,12 +89,38 @@ type Fragment struct {
 	FragSubject string   `zid:"4"`
 	FragType    CallType `zid:"5"` // can be a message type, sub-service name, other useful context.
 	FragPart    int64    `zid:"6"` // built in multi-part handling for the same CallID and FragType.
+	Serial      int64    `zid:"7"`
 
-	Args map[string]string `zid:"7"` // nil/unallocated to save space. User should alloc if the need it.
+	Args map[string]string `zid:"8"` // nil/unallocated to save space. User should alloc if the need it.
 
-	Payload []byte `zid:"8"`
+	Payload []byte `zid:"9"`
 
-	Err string `zid:"9"` // distinguished field for error messages.
+	Err string `zid:"10"` // distinguished field for error messages.
+}
+
+func (f *Fragment) String() string {
+	return fmt.Sprintf(`&rpc25519.Fragment{
+    "FromPeerID": %q,
+    "ToPeerID": %q,
+    "CircuitID": %q,
+    "ServiceName": %q,
+    "FragSubject": %q,
+    "FragType": %s,
+    "Serial": %v,
+    "Args": %#v,
+    "Payload": %v,
+}`,
+		f.FromPeerID,
+		f.ToPeerID,
+		f.CircuitID,
+		f.ServiceName,
+		f.FragSubject,
+		f.FragType,
+		f.Serial,
+		f.Args,
+		string(f.Payload),
+	)
+
 }
 
 // remotePeerback is over the newPeerCh channel
@@ -351,12 +377,14 @@ func (pb *localPeerback) peerbackPump() {
 // incoming
 func (ckt *Circuit) convertMessageToFragment(msg *Message) (frag *Fragment) {
 	frag = &Fragment{
-		ToPeerID:   msg.HDR.ToPeerID,
-		FromPeerID: msg.HDR.FromPeerID,
-		CircuitID:  msg.HDR.CallID,
+		FromPeerID:  msg.HDR.FromPeerID,
+		ToPeerID:    msg.HDR.ToPeerID,
+		CircuitID:   msg.HDR.CallID,
+		ServiceName: msg.HDR.ServiceName,
+		Serial:      msg.HDR.Serial,
 
-		FragType:    msg.HDR.Typ,
 		FragSubject: msg.HDR.Subject,
+		FragType:    msg.HDR.Typ,
 		FragPart:    msg.HDR.StreamPart,
 
 		Args:    msg.HDR.Args,
@@ -377,6 +405,7 @@ func (frag *Fragment) ToMessage() (msg *Message) {
 	msg.HDR.Created = time.Now()
 	msg.HDR.Serial = issueSerial()
 	msg.HDR.ServiceName = frag.ServiceName
+	msg.HDR.Serial = frag.Serial
 
 	msg.HDR.ToPeerID = frag.ToPeerID
 	msg.HDR.FromPeerID = frag.FromPeerID
@@ -563,9 +592,10 @@ type PeerServiceFunc func(
 //
 //msgp:ignore PeerImpl
 type PeerImpl struct {
-	KnownPeers          []string
-	StartCount          atomic.Int64 `msg:"-"`
-	DoEchoToThisPeerURL chan string
+	KnownPeers           []string
+	StartCount           atomic.Int64 `msg:"-"`
+	DoEchoToThisPeerURL  chan string
+	ReportEchoTestCanSee chan string
 }
 
 func (me *PeerImpl) Start(
@@ -611,7 +641,8 @@ func (me *PeerImpl) Start(
 
 				select {
 				case frag := <-ckt.Reads:
-					vv("echo circuit got read frag back: '%#v'", frag)
+					vv("echo circuit got read frag back: '%v'", frag.String())
+					me.ReportEchoTestCanSee <- string(frag.Payload)
 				case fragerr := <-ckt.Errors:
 					vv("echo circuit got error fragerr back: '%#v'", fragerr)
 
@@ -954,6 +985,8 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	go func() {
 		select {
 		case lpb.newPeerCh <- rpb:
+			vv("user got remote interface, give them the message")
+			ckt.Reads <- ckt.convertMessageToFragment(msg)
 		case <-ctx2.Done():
 			//return ErrShutdown()
 		case <-time.After(10 * time.Second):

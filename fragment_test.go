@@ -56,7 +56,8 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		cli.PeerAPI.RegisterPeerServiceFunc(cliServiceName, cpeer0.Start)
 
 		speer1 := &PeerImpl{
-			DoEchoToThisPeerURL: make(chan string),
+			DoEchoToThisPeerURL:  make(chan string),
+			ReportEchoTestCanSee: make(chan string),
 		}
 		srv.PeerAPI.RegisterPeerServiceFunc(srvServiceName, speer1.Start)
 
@@ -108,7 +109,12 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 
 		//vv("start with something that won't take up tons of disk to test: create a chacha8 random stream, chunk it, send it one direction to the other with blake3 cumulative checksums so we know they were both getting everything... simple, but will stress the concurrency.")
 		// 3 way sync?
-		select {}
+		for {
+			select {
+			case report := <-speer1.ReportEchoTestCanSee:
+				vv("speer1 echo got back: '%v'", report)
+			}
+		}
 	})
 }
 
