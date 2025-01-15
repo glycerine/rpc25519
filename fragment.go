@@ -38,7 +38,7 @@ type Circuit struct {
 }
 
 // CircuitURL format: tcp://x.x.x.x:port/peerServiceName/peerID/circuitID
-// where peerID and circuitID are our CallID that are
+// where peerID and circuitID (same as our CallID type), and are
 // base64 URL encoded. The IDs do not include the '/' character,
 // and thus are "URL safe". This can be verified here:
 // https://github.com/cristalhq/base64/blob/5cfa89a12c5dbd0e52b1da082a33dce278c52cdf/utils.go#L65

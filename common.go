@@ -16,7 +16,7 @@ const (
 	maxMessage = 1_310_720 - 80 // ~ 1 MB max message size, prevents TLS clients from talking to TCP servers, as the random TLS data looks like very big message size. Also lets us test on smaller virtual machines without out-of-memory issues.
 )
 
-var ErrTooLong = fmt.Errorf("message message too long: over 64MB; encrypted client vs an un-encrypted server?")
+var ErrTooLong = fmt.Errorf("message message too long: over 1MB; encrypted client vs an un-encrypted server?")
 
 var _ = io.EOF
 

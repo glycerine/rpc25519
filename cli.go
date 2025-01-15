@@ -871,7 +871,8 @@ type Config struct {
 	// key. It must be 32 bytes (or more). Ideally
 	// it should be generated from crypto/rand.
 	// The `selfy -gensym outpath` command will
-	// write 32 randomly bytes to output.
+	// do this, writing 32 cryptographically random
+	// bytes to output.
 	PreSharedKeyPath string
 
 	preSharedKey [32]byte
@@ -1551,7 +1552,7 @@ func (c *Client) SendAndGetReplyWithCtx(ctx context.Context, req *Message) (repl
 }
 
 // SendAndGetReply starts a round-trip RPC call.
-// We will wait for a response before retuning.
+// We will wait for a response before returning.
 // The requestStopCh is optional; it can be nil. A
 // context.Done() like channel can be supplied there to
 // cancel the job before a reply comes back.
