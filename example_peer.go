@@ -26,7 +26,8 @@ type PeerImpl struct {
 func (me *PeerImpl) Start(
 
 	// how we were registered/invoked.
-	// our local Peer interface, can do SendToPeer() to send to URL.
+	// our local Peer interface, can do
+	// NewCircuitToPeerURL() to send to URL.
 	myPeer LocalPeer,
 
 	// overall context of Client/Server host, if
@@ -43,7 +44,7 @@ func (me *PeerImpl) Start(
 
 	nStart := me.StartCount.Add(1)
 	_ = nStart
-	//vv("PeerImpl.Start() top. ourPeerID = '%v'; peerServiceName='%v'; StartCount = %v", myPeer.PeerID(), myPeer.PeerServiceName(), nStart)
+	//vv("PeerImpl.Start() top. ourID = '%v'; peerServiceName='%v'; StartCount = %v", myPeer.ID(), myPeer.ServiceName(), nStart)
 
 	var wg sync.WaitGroup
 	defer wg.Wait() // wait for everyone to shutdown/catch stragglers that don't by hanging.
@@ -63,16 +64,16 @@ func (me *PeerImpl) Start(
 
 				outFrag := NewFragment()
 				outFrag.Payload = []byte(fmt.Sprintf("echo request! "+
-					"myPeer.PeerID='%v' (myPeer.PeerURL='%v') requested"+
+					"myPeer.ID='%v' (myPeer.PeerURL='%v') requested"+
 					" to echo to peerURL '%v' on 'echo circuit'",
-					myPeer.PeerID(), myPeer.PeerURL(), echoToURL))
+					myPeer.ID(), myPeer.URL(), echoToURL))
 
 				outFrag.FragSubject = "echo request"
 
-				//vv("about to send echo from myPeer.PeerURL() = '%v'", myPeer.PeerURL())
+				//vv("about to send echo from myPeer.URL() = '%v'", myPeer.URL())
 				//vv("... and about to send echo to echoToURL  = '%v'", echoToURL)
 
-				aliasRegister(myPeer.PeerID(), myPeer.PeerID()+
+				aliasRegister(myPeer.ID(), myPeer.ID()+
 					" (echo originator on server)")
 				_, _, remotePeerID, _, err := parsePeerURL(echoToURL)
 				panicOn(err)
@@ -117,13 +118,13 @@ func (me *PeerImpl) Start(
 					vv("echo answerer shutting down.")
 				}()
 
-				myurl := myPeer.PeerURL()
+				myurl := myPeer.URL()
 
 				ckt, ctx := peer.IncomingCircuit()
 				vv("IncomingCircuit got RemoteCircuitURL = '%v'", ckt.RemoteCircuitURL())
 				vv("IncomingCircuit got LocalCircuitURL = '%v'", ckt.LocalCircuitURL())
 
-				// good: myPeer.PeerURL() matches the LocalCircuitURL,
+				// good: myPeer.URL() matches the LocalCircuitURL,
 				// but of course without the Call/CircuitID.
 				vv("compare myPeer.PeerURL = '%v'", myurl)
 				done := ctx.Done()
@@ -133,7 +134,7 @@ func (me *PeerImpl) Start(
 				/*
 					outFrag := NewFragment()
 					// set Payload, other details...
-					outFrag.Payload = []byte(fmt.Sprintf("hello from '%v'", myPeer.PeerURL()))
+					outFrag.Payload = []byte(fmt.Sprintf("hello from '%v'", myPeer.URL()))
 
 					err := peer.SendOneWayMessage(ckt, outFrag, nil)
 					panicOn(err)
@@ -146,7 +147,7 @@ func (me *PeerImpl) Start(
 							outFrag := NewFragment()
 							outFrag.Payload = frag.Payload
 							outFrag.FragSubject = "echo reply"
-							outFrag.ServiceName = myPeer.PeerServiceName()
+							outFrag.ServiceName = myPeer.ServiceName()
 							vv("ckt.Reads sees frag with echo request! sending reply='%v'", frag)
 							err := peer.SendOneWayMessage(ckt, outFrag, nil)
 							panicOn(err)

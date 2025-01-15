@@ -195,13 +195,13 @@ type localPeerback struct {
 func (s *localPeerback) Close() {
 	s.canc()
 }
-func (s *localPeerback) PeerServiceName() string {
+func (s *localPeerback) ServiceName() string {
 	return s.peerServiceName
 }
-func (s *localPeerback) PeerID() string {
+func (s *localPeerback) ID() string {
 	return s.peerID
 }
-func (s *localPeerback) PeerURL() string {
+func (s *localPeerback) URL() string {
 	return s.netAddr + "/" +
 		s.peerServiceName + "/" +
 		s.peerID
@@ -579,9 +579,9 @@ type RemotePeer interface {
 
 	// NewCircuit generates a Circuit between two Peers,
 	// and tells the SendOneWayMessage machinery
-	// how to reply to you. It makes a new CallID,
+	// how to reply to you. It makes a new CircuitID (CallID),
 	// and manages it for you. It gives you two
-	// channels to get normal/error replies on. Using this Circuit,
+	// channels to get normal and error replies on. Using this Circuit,
 	// you can make as many one way calls as you like
 	// to the remote Peer. The returned ctx will be
 	// cancelled in case of broken/shutdown connection
@@ -605,7 +605,7 @@ type RemotePeer interface {
 type LocalPeer interface {
 
 	// NewCircuitToPeerURL sets up a persistent communication path called a Circuit.
-	// The frag can be nil, or set for efficiency.
+	// The frag can be nil, or set to send it immediately.
 	NewCircuitToPeerURL(
 		peerURL string,
 		frag *Fragment,
@@ -613,13 +613,13 @@ type LocalPeer interface {
 	) (ckt *Circuit, ctx context.Context, err error)
 
 	// how we were registered/invoked.
-	PeerServiceName() string
-	PeerID() string
+	ServiceName() string
+	ID() string
 
-	// PerlURL give the network address, the service name, and the PeerID
+	// URL give the network address, the service name, and the PeerID
 	// in a URL safe string, suitable for contacting the peer.
 	// e.g. tcp://x.x.x.x:port/peerServiceName/peerID
-	PeerURL() string
+	URL() string
 }
 
 // one line version of the below, for ease of copying.
@@ -739,7 +739,7 @@ func (p *peerAPI) StartLocalPeer(
 		canc1()
 	}()
 
-	localPeerURL = lpb.PeerURL()
+	localPeerURL = lpb.URL()
 	//vv("lpb.PeerURL() = '%v'", localPeerURL)
 
 	return localPeerURL, localPeerID, nil
@@ -855,7 +855,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 //		   wg.Add(1)
 //
 //		   vv("got from newPeerCh! '%v' sees new peerURL: '%v'",
-//		       peer.PeerServiceName(), peer.PeerURL())
+//		       peer.PeerServiceName(), peer.URL())
 //
 //		   // talk to this peer on a separate goro if you wish:
 //		   go func(peer RemotePeer) {
