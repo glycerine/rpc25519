@@ -463,7 +463,7 @@ func (m *HDR) String() string {
 		m.ServiceName,
 		m.Args,
 		m.Subject,
-		m.Seqno,
+		m.Seqno, // race read vs cli.go:264
 		m.Typ,
 		m.CallID,
 		m.Serial,

@@ -1739,7 +1739,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 	//vv("send message attempting to send %v bytes to '%v'", len(data), destAddr)
 	select {
 	case sendCh <- msg:
-		vv("sent to pair.SendCh in sendOneWayMessage(), msg='%v'", msg.HDR.String())
+		//vv("sent to pair.SendCh in sendOneWayMessage(), msg='%v'", msg.HDR.String()) // racing inside, vs cli.go:264, just comment out, its a debug log anyway.
 
 		//    case <-time.After(time.Second):
 		//vv("warning: time out trying to send on pair.SendCh")

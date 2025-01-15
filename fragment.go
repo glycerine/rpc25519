@@ -276,28 +276,15 @@ func parsePeerURL(peerURL string) (netAddr, serviceName, peerID, circuitID strin
 
 // SendOneWayMessage sends a Frament on the given Circuit.
 func (s *remotePeerback) SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
-	// is this right? hmmm no.
-	//return s.localPeerback.SendOneWayMessage(ckt, frag, errWriteDur)
-
-	if frag == nil {
-		return fmt.Errorf("must have frag, not nil")
-	}
-	// flipp them... is this right? flip back.
-	frag.CircuitID = ckt.callID
-	frag.FromPeerID = ckt.localPeerID
-	frag.ToPeerID = ckt.remotePeerID
-
-	msg := ckt.convertFragmentToMessage(frag)
-	return s.localPeerback.u.SendOneWayMessage(s.localPeerback.ctx, msg, errWriteDur)
-	// return s.u.SendOneWayMessage(s.ctx, msg, errWriteDur)
-
+	// is this right? hmmm no. but this is identical, no??? hangs!
+	return s.localPeerback.SendOneWayMessage(ckt, frag, errWriteDur)
 }
 
 // SendOneWayMessage sends a Frament on the given Circuit.
 func (s *localPeerback) SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
-
-	if frag != nil {
-		frag = NewFragment()
+	if frag == nil {
+		return fmt.Errorf("frag cannot be nil")
+		//frag = NewFragment()
 	}
 	frag.CircuitID = ckt.callID
 	frag.FromPeerID = ckt.localPeerID
