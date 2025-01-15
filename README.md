@@ -157,7 +157,7 @@ these circumstances (when the client is new).
 If you have clients that frequently re-connect after 
 loosing network connectivity,
 then measure QUIC versus TLS/TCP in your application. 
-Otherwise, for performance, prefer TLS over TCP. The
+Otherwise, for performance, prefer TLS/TCP over QUIC. The
 latency of TLS is better and, moreover, the
 throughput of TLS can be much better (4-5x greater).
 If client port re-use and conservation is a needed, then
