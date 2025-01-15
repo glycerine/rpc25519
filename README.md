@@ -196,7 +196,8 @@ and partially implemented solutions.
  git clone https://github.com/glycerine/rpc25519
  cd rpc25519;  make
  
- # make test keys and CA: saved to certs/ and my-keep-private-dir/
+ # make test keys and CA: saved to ~/.config/rpc25519/certs
+ # and ~/.config/rpc25519/my-keep-private-dir
  ./selfy -k client -nopass; ./selfy -k node -nopass 
  ./selfy -gensym psk.binary ## saved to my-keep-private-dir/psk.binary
  make run && make runq  ## verify TLS over TCP and QUIC
