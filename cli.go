@@ -397,7 +397,8 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		}
 		if msg.HDR.Typ == CallPeerTraffic ||
 			msg.HDR.Typ == CallPeerStart ||
-			msg.HDR.Typ == CallPeerStartCircuit {
+			msg.HDR.Typ == CallPeerStartCircuit ||
+			msg.HDR.Typ == CallPeerError {
 			panic(fmt.Sprintf("cli readLoop: Peer traffic should never get here! msg.HDR='%v'", msg.HDR.String()))
 		}
 

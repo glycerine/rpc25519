@@ -60,9 +60,12 @@ const (
 	CallDownloadMore  CallType = 110 // possibly many of these;
 	CallDownloadEnd   CallType = 111 // and one of these to finish.
 
+	// try to keep all peer traffic isolated
+	// and only using these:
 	CallPeerStart        CallType = 112
 	CallPeerStartCircuit CallType = 113
-	CallPeerTraffic      CallType = 114 // so we don't mix up with regular CallOneWay
+	CallPeerTraffic      CallType = 114
+	CallPeerError        CallType = 115
 )
 
 func (ct CallType) String() string {
@@ -86,6 +89,8 @@ func (ct CallType) String() string {
 		return "CallPeerStartCircuit"
 	case CallPeerTraffic:
 		return "CallPeerTraffic"
+	case CallPeerError:
+		return "CallPeerError"
 
 	case CallKeepAlive:
 		return "CallKeepAlive"

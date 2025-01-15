@@ -532,7 +532,8 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		if req.HDR.Typ == CallPeerTraffic ||
 			req.HDR.Typ == CallPeerStart ||
-			req.HDR.Typ == CallPeerStartCircuit {
+			req.HDR.Typ == CallPeerStartCircuit ||
+			req.HDR.Typ == CallPeerError {
 			panic(fmt.Sprintf("srv readLoop: Peer traffic should never get here!"+
 				" req.HDR='%v'", req.HDR.String()))
 		}
@@ -569,16 +570,19 @@ func (s *peerAPI) bootstrapPeerService(onCli bool, msg *Message, ctx context.Con
 	// reply with the same msg; save an allocation.
 	msg.HDR.From, msg.HDR.To = msg.HDR.To, msg.HDR.From
 
+	// but update the essentials
+	msg.HDR.Serial = issueSerial()
+
 	// allocate DoneCh for sendLoop to close;
 	// readMessage just deserializes from greenpack, which
 	// does not allocate it.
 	msg.DoneCh = loquet.NewChan(msg)
 
 	if err != nil {
-		msg.HDR.Typ = CallError
+		msg.HDR.Typ = CallPeerError
 		msg.JobErrs = err.Error()
 	} else {
-		msg.HDR.Typ = CallOneWay
+		msg.HDR.Typ = CallPeerTraffic
 		// tell them our peerID, this is the critical desired info.
 		msg.HDR.Args = map[string]string{"peerURL": localPeerURL, "peerID": localPeerID}
 	}
