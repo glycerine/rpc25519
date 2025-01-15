@@ -605,6 +605,8 @@ func (pair *rwPair) handleIncomingMessage(ctx context.Context, req *Message, job
 	if pair.Server.notifies.handleReply_to_CallID_ToPeerID(ctx, req) {
 		vv("server side notifies says we are done after req = '%v'", req.HDR.String())
 		return
+	} else {
+		vv("server side notifies says we are NOT done after req = '%v'", req.HDR.String())
 	}
 
 	// Workers requesting jobs can keep calls open for
@@ -682,16 +684,18 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(ctx context.Context, msg *Mess
 				//		"whoCh from notifyOnErrorCallIDMap; for CallID = %v.",
 				//		msg.HDR.CallID))
 			}
+			return true
 		}
-		return true
 	} // end CallError
 
 	if msg.HDR.ToPeerID != "" {
 
 		wantsToPeerID, ok := c.notifyOnReadToPeerIDMap[msg.HDR.ToPeerID]
+		vv("have ToPeerID msg = '%v'; ok='%v'", msg.HDR.String(), ok)
 		if ok {
 			select {
 			case wantsToPeerID <- msg:
+				vv("sent msg to wantsToPeerID chan!")
 			case <-ctx.Done():
 				return
 			case <-ctx.Done():
@@ -798,7 +802,7 @@ func (s *Server) processWork(job *job) {
 		return
 	}
 
-	//vv("processWork() sees req.HDR = %v", req.HDR)
+	vv("processWork() sees req.HDR = %v", req.HDR.String())
 
 	conn := job.conn
 	pair := job.pair
@@ -870,7 +874,7 @@ func (s *Server) processWork(job *job) {
 			foundCallback1 = true
 		} else {
 			s.mut.Unlock()
-			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallOneWay received but no server side upcall registered for req.HDR.ServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ServiceName, req.HDR.CallID))
+			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallOneWay received but no server side callme1map upcall registered for ServiceName='%v'; from req.HDR='%v'", req.HDR.ServiceName, req.HDR.String()))
 			return
 		}
 	}
@@ -2194,7 +2198,7 @@ func (s *Server) respondToReqWithError(req *Message, job *job, description strin
 	req.HDR.Subject = description
 	err := job.w.sendMessage(job.conn, req, &s.cfg.WriteTimeout)
 	_ = err
-	alwaysPrintf("CallError being sent back: '%v'", req.HDR.String())
+	alwaysPrintf("CallError being sent back: '%v'; stack=\n'%v'", req.HDR.String(), stack())
 
 	// sendfile will just keep coming, so kill the connection.
 	// after a short pause to try and let the CallError through.
