@@ -131,9 +131,9 @@ var lastSerialPrivate int64
 
 func issueSerial() (cur int64) {
 	cur = atomic.AddInt64(&lastSerialPrivate, 1)
-	if cur == 10 {
-		vv("here is serial 10 stack \n'%v'", stack())
-	}
+	//if cur == 10 {
+	//	vv("here is serial 10 stack \n'%v'", stack())
+	//}
 	return
 }
 

@@ -369,14 +369,15 @@ func (pb *localPeerback) peerbackPump() {
 		case msg := <-pb.readsIn:
 			callID := msg.HDR.CallID
 			ckt, ok := m[callID]
-			vv("peerbackPump sees readsIn msg: '%v' payload '%v'", msg, string(msg.JobSerz))
+			//vv("peerbackPump sees readsIn msg: '%v' payload '%v'", msg, string(msg.JobSerz))
 			if !ok {
-				vv("arg. no ckt avail for callID = '%v'", callID)
+				alwaysPrintf("arg. no circuit avail for callID = '%v';"+
+					" pump dropping this msg.", callID)
 
 				if callID == "" {
 					// we have a legit PeerID but no CallID, which means that
-					// we have not yet instantiated a circuit. Do so? or have client just use CallPeerStartCircuit ?
-
+					// we have not yet instantiated a circuit. Do so? No.
+					// For now we have client do a CallPeerStartCircuit call.
 				}
 				continue
 			}
@@ -956,46 +957,34 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 	return remotePeerURL, remotePeerID, nil
 }
 
-// handle CallPeerStartCircuit
+// bootstrapCircuit: handle CallPeerStartCircuit.
+//
+// The goal of bootstrapCircuit is to enable the user
+// peer code to interact with circuits and remote peers.
+// We want this user PeerImpl.Start() code to work now:
+//
+//	(This is taken from the actual the PeerImpl.Start() code
+//	 here in fragment.go at the moment.)
+//
+//	select {
+//	    // new Circuit connection arrives
+//	    case peer := <-newPeerCh:  // this needs to be enabled.
+//		   wg.Add(1)
+//
+//		   vv("got from newPeerCh! '%v' sees new peerURL: '%v'",
+//		       peer.PeerServiceName(), peer.PeerURL())
+//
+//		   // talk to this peer on a separate goro if you wish:
+//		   go func(peer RemotePeer) {
+//			    defer wg.Done()
+//			    ckt, ctx := peer.IncomingCircuit()  // enable this.
+//
+// .
+// Okay. On with the show:
 func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
-	vv("isCli=%v, bootstrapCircuit called with msg='%v'; JobSerz='%v'", isCli, msg.String(), string(msg.JobSerz))
+	//vv("isCli=%v, bootstrapCircuit called with msg='%v'; JobSerz='%v'", isCli, msg.String(), string(msg.JobSerz))
 
-	/*
-			fragment.go:831 2025-01-14 21:05:36.669 -0600 CST isCli=true, bootstrapCircuit called with msg='&Message{HDR:&rpc25519.HDR{
-			    "Created": "2025-01-15 03:05:36.590273 +0000 UTC",
-			    "From": "tcp://127.0.0.1:50505 (tcp_server: srv_test403)",
-			    "To": "tcp://127.0.0.1:50506 (client: client_test403)",
-			    "ServiceName": "cpeer0_on_client",
-			    "Args": map[string]string(nil),
-			    "Subject": "",
-			    "Seqno": 0,
-			    "Typ": CallPeerStartCircuit,
-			    "CallID": "gkvDYNGyVD1TNL4aNe4m2qSW92E=",
-			    "Serial": 5,
-			    "LocalRecvTm": "2025-01-15 03:05:36.669207 +0000 UTC m=+0.326767957",
-			    "Deadline": "0001-01-01 00:00:00 +0000 UTC",
-			    "FromPeerID": "Nbgxgh-0OQbyZSeJG7eKsJfoba0=",
-			    "ToPeerID": "blJ3Extku-LzEAmw7Cql1mX5WWQ=",
-			    "StreamPart": 0,
-			}, LocalErr:'<nil>', len 262 JobSerz}'; JobSerz='echo request! myPeer.PeerID='Nbgxgh-0OQbyZSeJG7eKsJfoba0=' (myPeer.PeerURL='tcp://127.0.0.1:50505/speer1_on_server/Nbgxgh-0OQbyZSeJG7eKsJfoba0=') requested to echo to peerURL 'tcp://127.0.0.1:50506/cpeer0_on_client/blJ3Extku-LzEAmw7Cql1mX5WWQ=' on 'echo circuit''
-
-		we want this user PeerImpl.Start() code to work now:
-
-				// new Circuit connection arrives
-				case peer := <-newPeerCh:
-					wg.Add(1)
-
-					vv("got from newPeerCh! '%v' sees new peerURL: '%v'",
-						peer.PeerServiceName(), peer.PeerURL())
-
-					// talk to this peer on a separate goro if you wish:
-					go func(peer RemotePeer) {
-						defer wg.Done()
-
-						ckt, ctx := peer.IncomingCircuit()
-
-
-	*/
+	// So here we go:
 
 	// find the localPeerback corresponding to the ToPeerID
 	localPeerID := msg.HDR.ToPeerID
@@ -1071,8 +1060,10 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		}
 	}()
 
-	// do we need any other reply? likely not.
+	// do we need any other reply to the starting peer?
+	// naw; they will get contacted over the cirtcuit.
 	//return s.replyHelper(isCli, msg, ctx.Context, sendCh)
+
 	return nil
 }
 
