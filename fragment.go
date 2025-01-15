@@ -411,6 +411,20 @@ func (ckt *Circuit) convertFragmentToMessage(frag *Fragment) (msg *Message) {
 		msg.HDR.CallID = ckt.callID
 	}
 
+	if msg.HDR.To == "" {
+		msg.HDR.To = ckt.pbTo.netAddr
+	}
+	if msg.HDR.From == "" {
+		msg.HDR.From = ckt.pbFrom.netAddr
+	}
+	if msg.HDR.ServiceName == "" {
+		msg.HDR.ServiceName = ckt.remoteServiceName
+	}
+	if msg.HDR.Args == nil {
+		msg.HDR.Args = make(map[string]string)
+	}
+	msg.HDR.Args["fromServiceName"] = ckt.localServiceName
+
 	return
 }
 
