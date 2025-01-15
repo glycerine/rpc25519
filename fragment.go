@@ -665,9 +665,6 @@ type peerAPI struct {
 	// peerServiceName key
 	localServiceNameMap map[string]*knownLocalPeer
 
-	// PeerID key
-	//remoteKnownPeers map[string]*knownRemotePeer
-
 	isCli bool
 }
 
@@ -675,8 +672,7 @@ func newPeerAPI(u UniversalCliSrv, isCli bool) *peerAPI {
 	return &peerAPI{
 		u:                   u,
 		localServiceNameMap: make(map[string]*knownLocalPeer),
-		//remoteKnownPeers:    make(map[string]*knownRemotePeer),
-		isCli: isCli,
+		isCli:               isCli,
 	}
 }
 
@@ -685,13 +681,6 @@ type knownRemotePeer struct {
 	peerID          string
 	netAddress      string // tcp://ip:port, or udp://ip:port
 }
-
-/*
-type remotePeer struct {
-	peerServiceName string
-	peerID          string
-}
-*/
 
 type knownLocalPeer struct {
 	mut             sync.Mutex
@@ -726,20 +715,6 @@ func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, kn
 		return "", "", fmt.Errorf("no local peerServiceName '%v' available", peerServiceName)
 	}
 
-	/* discard the remoteKnownPeers, use URLs instead.
-	for _, knownID := range knownPeerIDs {
-		known, ok := p.remoteKnownPeers[knownID]
-		if !ok {
-			known = &knownRemotePeer{
-				//peerServiceName string
-				//netAddress         string
-				peerID: knownID,
-			}
-			p.remoteKnownPeers[knownID] = known
-		}
-	}
-	*/
-
 	newPeerCh := make(chan RemotePeer, 1) // must be buffered >= 1, see below.
 	ctx1, canc1 := context.WithCancel(ctx)
 	localPeerID = NewCallID()
@@ -755,13 +730,8 @@ func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, kn
 	knownLocalPeer.active[localPeerID] = lpb
 	knownLocalPeer.mut.Unlock()
 
-	// nope! don't send to ourselves! :)
-	// newPeerCh <- backer // newPeerCh is buffered above, so this cannot block.
-
 	go func() {
-
 		knownLocalPeer.peerServiceFunc(lpb, ctx, newPeerCh)
-
 	}()
 
 	localPeerURL = lpb.PeerURL()
