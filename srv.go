@@ -358,9 +358,6 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		s.mut.Unlock()
 	}
 
-	serverLocalAddr := s.Server.LocalAddr()
-	_ = serverLocalAddr
-
 	//vv("about to make a newBlabber for server send loop; s.Server.cfg = %p", s.Server.cfg)
 	w := newBlabber("server send loop", symkey, conn, s.Server.cfg.encryptPSK, maxMessage, true, s.Server.cfg, s, nil)
 
@@ -404,7 +401,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 			continue
 
 		case msg := <-s.SendCh:
-			vv("srv %v (%v) sendLoop got from s.SendCh, sending msg.HDR = '%v'", s.Server.name, serverLocalAddr, msg.HDR.String())
+			vv("srv %v (%v) sendLoop got from s.SendCh, sending msg.HDR = '%v'", s.Server.name, s.from, msg.HDR.String())
 			err := w.sendMessage(conn, msg, &s.cfg.WriteTimeout)
 			if err != nil {
 				// notify any short-time-waiting server push user.
@@ -524,6 +521,22 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			continue
 		}
 
+		if s.Server.notifies.handleReply_to_CallID_ToPeerID(ctx, req) {
+			vv("server side (%v) notifies says we are done after "+
+				"req = '%v'", s.from, req.HDR.String())
+			return
+		} else {
+			vv("server side (%v) notifies says we are NOT done after "+
+				"req = '%v'", s.from, req.HDR.String())
+		}
+
+		if req.HDR.Typ == CallPeerTraffic ||
+			req.HDR.Typ == CallPeerStart ||
+			req.HDR.Typ == CallPeerStartCircuit {
+			panic(fmt.Sprintf("srv readLoop: Peer traffic should never get here!"+
+				" req.HDR='%v'", req.HDR.String()))
+		}
+
 		// Idea: send the job to the central work queue, so
 		// we service jobs fairly in FIFO order.
 		// Update: turns out this didn't really matter.
@@ -600,13 +613,6 @@ func (pair *rwPair) handleIncomingMessage(ctx context.Context, req *Message, job
 	case CallUploadMore, CallUploadEnd:
 		pair.Server.handleUploadParts(req)
 		return
-	}
-
-	if pair.Server.notifies.handleReply_to_CallID_ToPeerID(ctx, req) {
-		vv("server side notifies says we are done after req = '%v'", req.HDR.String())
-		return
-	} else {
-		vv("server side notifies says we are NOT done after req = '%v'", req.HDR.String())
 	}
 
 	// Workers requesting jobs can keep calls open for
@@ -956,7 +962,7 @@ func (s *Server) processWork(job *job) {
 	// don't read from req now, just in case callme2 messed with it.
 
 	reply.HDR.Created = time.Now()
-	reply.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
+	reply.HDR.Serial = issueSerial()
 	reply.HDR.From = pair.from
 	reply.HDR.To = pair.to
 
@@ -1268,7 +1274,7 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 
 	msg := p.Server.getMessage()
 	msg.HDR.Created = time.Now()
-	msg.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
+	msg.HDR.Serial = issueSerial()
 	msg.HDR.From = job.pair.from
 	msg.HDR.To = job.pair.to
 	msg.HDR.ServiceName = reqMsg.HDR.ServiceName // echo back
@@ -1752,7 +1758,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 	//vv("send message attempting to send %v bytes to '%v'", len(data), destAddr)
 	select {
 	case sendCh <- msg:
-		//vv("sent to pair.SendCh, msg='%v'", msg.HDR.String())
+		vv("sent to pair.SendCh in sendOneWayMessage(), msg='%v'", msg.HDR.String())
 
 		//    case <-time.After(time.Second):
 		//vv("warning: time out trying to send on pair.SendCh")
@@ -2177,7 +2183,7 @@ func (s *serverSendDownloadHelper) sendDownloadPart(ctx context.Context, msg *Me
 		msg.HDR.Typ = CallDownloadMore
 	}
 	msg.HDR.CallID = s.template.HDR.CallID
-	msg.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
+	msg.HDR.Serial = issueSerial()
 
 	msg.HDR.Deadline, _ = ctx.Deadline()
 	msg.HDR.StreamPart = i

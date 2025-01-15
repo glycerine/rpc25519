@@ -375,7 +375,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		seqno := msg.HDR.Seqno
 		vv("client %v (cliLocalAddr='%v') received message with seqno=%v, msg.HDR='%v'", c.name, cliLocalAddr, seqno, msg.HDR.String())
 
-		if msg.HDR.Typ == CallPeerStartCircuit {
+		if msg.HDR.Typ == CallPeerStart {
 			// special case to bootstrap up a peer by remote
 			// request, since no other way to register stuff
 			// on the client, and this is a pretty unique call
@@ -390,7 +390,15 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		}
 
 		if c.notifies.handleReply_to_CallID_ToPeerID(ctx, msg) {
+			vv("client side (%v) notifies says we are done after msg = '%v'", cliLocalAddr, msg.HDR.String())
 			continue
+		} else {
+			vv("client side (%v) notifies says we are NOT done after msg = '%v'", cliLocalAddr, msg.HDR.String())
+		}
+		if msg.HDR.Typ == CallPeerTraffic ||
+			msg.HDR.Typ == CallPeerStart ||
+			msg.HDR.Typ == CallPeerStartCircuit {
+			panic(fmt.Sprintf("cli readLoop: Peer traffic should never get here! msg.HDR='%v'", msg.HDR.String()))
 		}
 
 		// protect map access. Be sure to Unlock if you "continue" below.
@@ -1578,7 +1586,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 	if req.HDR.Created.IsZero() {
 		req.HDR.Created = time.Now()
 	}
-	req.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
+	req.HDR.Serial = issueSerial()
 
 	// don't override a CallNetRPC, or a streaming type.
 	if req.HDR.Typ == CallNone {
@@ -1857,7 +1865,7 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err erro
 	if msg.HDR.Created.IsZero() {
 		msg.HDR.Created = time.Now()
 	}
-	msg.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
+	msg.HDR.Serial = issueSerial()
 
 	//case CallUploadMore, CallUploadEnd, CallRequestBistreaming,
 	// CallRequestDownload:
@@ -2146,7 +2154,7 @@ func (b *Downloader) BeginDownload(ctx context.Context, path string) (err error)
 	req.HDR.Typ = CallRequestDownload
 	req.HDR.Seqno = b.seqno
 
-	req.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
+	req.HDR.Serial = issueSerial()
 	req.HDR.CallID = b.callID
 	req.HDR.Ctx = ctx
 	req.HDR.Deadline, _ = ctx.Deadline()
@@ -2293,7 +2301,7 @@ func (b *Bistreamer) Begin(ctx context.Context, req *Message) (err error) {
 	if req.HDR.Created.IsZero() {
 		req.HDR.Created = time.Now()
 	}
-	req.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
+	req.HDR.Serial = issueSerial()
 	req.HDR.CallID = b.callID
 
 	//vv("RequestBistreaming, req.HDR = '%v'", req.HDR.String())

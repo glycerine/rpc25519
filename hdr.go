@@ -60,8 +60,9 @@ const (
 	CallDownloadMore  CallType = 110 // possibly many of these;
 	CallDownloadEnd   CallType = 111 // and one of these to finish.
 
-	CallPeerStartCircuit CallType = 112
-	CallPeerOneWay       CallType = 113 // so we don't mix up with regular CallOneWay
+	CallPeerStart        CallType = 112
+	CallPeerStartCircuit CallType = 113
+	CallPeerTraffic      CallType = 114 // so we don't mix up with regular CallOneWay
 )
 
 func (ct CallType) String() string {
@@ -79,10 +80,12 @@ func (ct CallType) String() string {
 	case CallRequestBistreaming:
 		return "CallRequestBistreaming"
 
+	case CallPeerStart:
+		return "CallPeerStart"
 	case CallPeerStartCircuit:
 		return "CallPeerStartCircuit"
-	case CallPeerOneWay:
-		return "CallPeerOneWay"
+	case CallPeerTraffic:
+		return "CallPeerTraffic"
 
 	case CallKeepAlive:
 		return "CallKeepAlive"
@@ -113,7 +116,15 @@ func (ct CallType) String() string {
 
 const rfc3339NanoNumericTZ0pad = "2006-01-02T15:04:05.000000000-07:00"
 
-var lastSerial int64
+var lastSerialPrivate int64
+
+func issueSerial() (cur int64) {
+	cur = atomic.AddInt64(&lastSerialPrivate, 1)
+	if cur == 3 {
+		vv("here is serial 3 stack \n'%v'", stack())
+	}
+	return
+}
 
 var myPID = int64(os.Getpid())
 
@@ -332,7 +343,7 @@ type HDR struct {
 // NewHDR creates a new HDR header.
 func NewHDR(from, to, serviceName string, typ CallType, streamPart int64) (m *HDR) {
 	t0 := time.Now()
-	serial := atomic.AddInt64(&lastSerial, 1)
+	serial := issueSerial()
 
 	var pseudo [20]byte // not cryptographically random.
 	chacha8randMut.Lock()
@@ -366,7 +377,7 @@ func NewCallID() string {
 // the request CallID anyway.
 func newHDRwithoutCallID(from, to, serviceName string, typ CallType, streamPart int64) (m *HDR) {
 	t0 := time.Now()
-	serial := atomic.AddInt64(&lastSerial, 1)
+	serial := issueSerial()
 
 	m = &HDR{
 		Created:     t0,

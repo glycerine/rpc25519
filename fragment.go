@@ -332,12 +332,12 @@ func (frag *Fragment) ToMessage() (msg *Message) {
 	msg = NewMessage()
 
 	if frag.FragType == 0 {
-		msg.HDR.Typ = CallPeerOneWay
+		msg.HDR.Typ = CallPeerTraffic
 	} else {
 		msg.HDR.Typ = frag.FragType
 	}
 	msg.HDR.Created = time.Now()
-	msg.HDR.Serial = atomic.AddInt64(&lastSerial, 1)
+	msg.HDR.Serial = issueSerial()
 	msg.HDR.ServiceName = frag.ServiceName
 
 	msg.HDR.ToPeerID = frag.ToPeerID
@@ -748,12 +748,14 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 		}
 	}
 
-	hdr := NewHDR(p.u.LocalAddr(), remoteAddr, peerServiceName, CallPeerStartCircuit, 0)
+	hdr := NewHDR(p.u.LocalAddr(), remoteAddr, peerServiceName, CallPeerStart, 0)
 	//hdr.ServiceName = peerServiceName
 	//callID := NewCallID()
 	//hdr.CallID = callID
 	msg.HDR = *hdr
 	callID := msg.HDR.CallID
+
+	vv("msg.HDR='%v'", msg.HDR.String()) // "Typ": CallPeerStart seen.
 
 	ch := make(chan *Message, 100)
 	p.u.GetReadsForCallID(ch, callID)
