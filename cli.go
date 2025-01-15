@@ -1484,7 +1484,6 @@ func (c *Client) Close() error {
 var ErrShutdown2 = fmt.Errorf("shutting down")
 
 func ErrShutdown() error {
-	panic("where?")
 	return ErrShutdown2
 }
 

@@ -24,7 +24,6 @@ import (
 
 	"github.com/glycerine/greenpack/msgp"
 	"github.com/glycerine/idem"
-	"github.com/glycerine/loquet"
 	"github.com/glycerine/rpc25519/selfcert"
 	"github.com/quic-go/quic-go"
 )
@@ -562,60 +561,6 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		s.handleIncomingMessage(ctx, req, job)
 	}
-}
-
-// handle HDR.Typ == CallPeerStartCircuit  messages
-// requesting to bootstrap a PeerServiceFunc.
-//
-// This needs special casing because the inital call API
-// is different. See fragment.go; PeerServiceFunc is
-// very different from TwoWayFunc or OneWayFunc.
-//
-// Note: we should only return an error if the shutdown request was received,
-// which will kill the readLoop and connection.
-// func (s *peerAPI) bootstrapPeerService(msg *Message, halt *idem.Halter, sendCh chan *Message) error {
-func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
-
-	vv("top of bootstrapPeerService(): isCli=%v; msg.HDR='%v'", isCli, msg.HDR.String())
-
-	var knownPeerIDs []string
-
-	// starts its own goroutine or return with an error (both quickly).
-	localPeerURL, localPeerID, err := s.StartLocalPeer(ctx, msg.HDR.ServiceName, knownPeerIDs...)
-
-	// reply with the same msg; save an allocation.
-	msg.HDR.From, msg.HDR.To = msg.HDR.To, msg.HDR.From
-
-	// but update the essentials
-	msg.HDR.Serial = issueSerial()
-
-	// allocate DoneCh for sendLoop to close;
-	// readMessage just deserializes from greenpack, which
-	// does not allocate it.
-	msg.DoneCh = loquet.NewChan(msg)
-
-	if err != nil {
-		msg.HDR.Typ = CallPeerError
-		msg.JobErrs = err.Error()
-	} else {
-		msg.HDR.Typ = CallPeerTraffic
-		// tell them our peerID, this is the critical desired info.
-		msg.HDR.Args = map[string]string{"peerURL": localPeerURL, "peerID": localPeerID}
-	}
-	msg.HDR.FromPeerID = localPeerID
-
-	select {
-	case sendCh <- msg:
-	case <-ctx.Done():
-		return ErrShutdown()
-	}
-	return nil
-}
-
-func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
-	vv("isCli=%v, bootstrapCircuit called with msg='%v'", isCli, msg.String())
-
-	return nil // error means shut down the client.
 }
 
 func (pair *rwPair) handleIncomingMessage(ctx context.Context, req *Message, job *job) {
