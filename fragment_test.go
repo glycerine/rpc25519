@@ -46,7 +46,9 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		// wait on the client who waits on the server
 		// to be ready. So when it returns we know
 		// the server knows about the client.
-		preventRaceByDoingPriorClientToServerRoundTrip(cli, srv)
+
+		// simplify echo test by leaving this out. the auto retry should suffice.
+		//preventRaceByDoingPriorClientToServerRoundTrip(cli, srv)
 		ctx := context.Background()
 		srvServiceName := "speer1_on_server"
 
@@ -89,6 +91,7 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		vv("with_network_saddr = '%v'", with_network_saddr)
 		_ = with_network_saddr
 
+		/* simplify the echo test by leaving out 2nd server for now
 		peerURL_server2_from_remote_req, peerID_server2, err := cli.PeerAPI.StartRemotePeer(
 			ctx, srvServiceName, with_network_saddr, 0)
 		panicOn(err)
@@ -98,6 +101,7 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		// we should have seen the client peer start 1x, and the server 2x.
 		cv.So(cpeer0.StartCount.Load(), cv.ShouldEqual, 1)
 		cv.So(speer1.StartCount.Load(), cv.ShouldEqual, 2)
+		*/
 
 		vv(" ============= about to begin speer1.DoEchoToThisPeerURL <- peerURL_client = '%v'", peerURL_client)
 

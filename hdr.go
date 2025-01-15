@@ -131,9 +131,9 @@ var lastSerialPrivate int64
 
 func issueSerial() (cur int64) {
 	cur = atomic.AddInt64(&lastSerialPrivate, 1)
-	//if cur == 3 {
-	//	vv("here is serial 3 stack \n'%v'", stack())
-	//}
+	if cur == 10 {
+		vv("here is serial 10 stack \n'%v'", stack())
+	}
 	return
 }
 
@@ -469,8 +469,8 @@ func (m *HDR) String() string {
 		m.Serial,
 		m.LocalRecvTm,
 		m.Deadline,
-		m.FromPeerID,
-		m.ToPeerID,
+		aliasDecode(m.FromPeerID),
+		aliasDecode(m.ToPeerID),
 		m.StreamPart,
 	)
 }

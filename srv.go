@@ -1718,7 +1718,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWriteDur *time.Duration) error {
 
 	if msg.HDR.Serial == 0 {
-		panic("Serial 0 not allowed!")
+		panic("Serial 0 not allowed! must issueSerial() numbers!")
 	}
 
 	if msg.HDR.Typ < 100 {

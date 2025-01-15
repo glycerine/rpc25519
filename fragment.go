@@ -112,8 +112,8 @@ func (f *Fragment) String() string {
     "Args": %#v,
     "Payload": %v,
 }`,
-		f.FromPeerID,
-		f.ToPeerID,
+		aliasDecode(f.FromPeerID),
+		aliasDecode(f.ToPeerID),
 		f.CircuitID,
 		f.ServiceName,
 		f.FragSubject,
@@ -276,8 +276,19 @@ func parsePeerURL(peerURL string) (netAddr, serviceName, peerID, circuitID strin
 
 // SendOneWayMessage sends a Frament on the given Circuit.
 func (s *remotePeerback) SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
-	// is this right?
-	return s.localPeerback.SendOneWayMessage(ckt, frag, errWriteDur)
+	// is this right? hmmm no.
+	//return s.localPeerback.SendOneWayMessage(ckt, frag, errWriteDur)
+	if frag == nil {
+		return fmt.Errorf("must have frag, not nil")
+	}
+	// flipp them... is this right?
+	frag.CircuitID = ckt.callID
+	frag.FromPeerID = ckt.remotePeerID
+	frag.ToPeerID = ckt.localPeerID
+
+	msg := ckt.convertFragmentToMessage(frag)
+	return s.localPeerback.u.SendOneWayMessage(s.localPeerback.ctx, msg, errWriteDur)
+	// return s.u.SendOneWayMessage(s.ctx, msg, errWriteDur)
 }
 
 // SendOneWayMessage sends a Frament on the given Circuit.
@@ -414,7 +425,6 @@ func (frag *Fragment) ToMessage() (msg *Message) {
 	msg.HDR.FromPeerID = frag.FromPeerID
 	msg.HDR.CallID = frag.CircuitID
 	msg.HDR.Subject = frag.FragSubject
-
 	if frag.Args != nil {
 		msg.HDR.Args = frag.Args
 	}
@@ -422,6 +432,8 @@ func (frag *Fragment) ToMessage() (msg *Message) {
 	msg.HDR.StreamPart = frag.FragPart
 	msg.JobSerz = frag.Payload
 	msg.JobErrs = frag.Err
+
+	vv("ToMessage did frag='%v' -> msg='%v'", frag, msg)
 
 	return
 }
@@ -634,6 +646,10 @@ func (me *PeerImpl) Start(
 
 			go func(echoToURL string) {
 
+				defer func() {
+					vv("echo starter shutting down.")
+				}()
+
 				outFrag := NewFragment()
 				outFrag.Payload = []byte(fmt.Sprintf("echo request! myPeer.PeerID='%v' (myPeer.PeerURL='%v') requested to echo to peerURL '%v' on 'echo circuit'", myPeer.PeerID(), myPeer.PeerURL(), echoToURL))
 				outFrag.FragSubject = "echo request"
@@ -641,22 +657,33 @@ func (me *PeerImpl) Start(
 				vv("about to send echo from myPeer.PeerURL() = '%v'", myPeer.PeerURL())
 				vv("... and about to send echo to echoToURL  = '%v'", echoToURL)
 
+				aliasRegister(myPeer.PeerID(), myPeer.PeerID()+" (echo originator on server)")
+				_, _, remotePeerID, _, err := parsePeerURL(echoToURL)
+				panicOn(err)
+				aliasRegister(remotePeerID, remotePeerID+" (echo replier on client)")
+
 				ckt, ctx, err := myPeer.NewCircuitToPeerURL(echoToURL, outFrag, nil)
 				panicOn(err)
 				defer ckt.Close() // close when echo heard.
 				done := ctx.Done()
 
-				select {
-				case frag := <-ckt.Reads:
-					vv("echo circuit got read frag back: '%v'", frag.String())
-					me.ReportEchoTestCanSee <- string(frag.Payload)
-				case fragerr := <-ckt.Errors:
-					vv("echo circuit got error fragerr back: '%#v'", fragerr)
+				for {
+					select {
+					case frag := <-ckt.Reads:
+						vv("echo circuit got read frag back: '%v'", frag.String())
+						if frag.FragSubject == "echo reply" {
+							vv("seen echo reply, ack and shutdown")
+							me.ReportEchoTestCanSee <- string(frag.Payload)
+							return
+						}
+					case fragerr := <-ckt.Errors:
+						vv("echo circuit got error fragerr back: '%#v'", fragerr)
 
-				case <-done:
-					return
-				case <-done0:
-					return
+					case <-done:
+						return
+					case <-done0:
+						return
+					}
 				}
 
 			}(echoToURL)
@@ -664,12 +691,15 @@ func (me *PeerImpl) Start(
 		case peer := <-newPeerCh:
 			wg.Add(1)
 
-			vv("got from newPeerCh! '%v' sees new peerURL: '%v'",
+			vv("got from newPeerCh! '%v' sees new peerURL: '%v' ...\n   we want to be the echo-answer!",
 				peer.PeerServiceName(), peer.PeerURL())
 
 			// talk to this peer on a separate goro if you wish:
 			go func(peer RemotePeer) {
 				defer wg.Done()
+				defer func() {
+					vv("echo answerer shutting down.")
+				}()
 
 				ckt, ctx := peer.IncomingCircuit()
 				vv("IncomingCircuit got RemoteCircuitURL = '%v'", ckt.RemoteCircuitURL())
@@ -680,19 +710,30 @@ func (me *PeerImpl) Start(
 				vv("compare myPeer.PeerURL = '%v'", myPeer.PeerURL())
 				done := ctx.Done()
 
-				outFrag := NewFragment()
-				// set Payload, other details...
-				outFrag.Payload = []byte(fmt.Sprintf("hello from '%v'", myPeer.PeerURL()))
+				// this is racing with our echo, so skip it for now
+				/*
+					outFrag := NewFragment()
+					// set Payload, other details...
+					outFrag.Payload = []byte(fmt.Sprintf("hello from '%v'", myPeer.PeerURL()))
 
-				err := peer.SendOneWayMessage(ckt, outFrag, nil)
-				panicOn(err)
-
+					err := peer.SendOneWayMessage(ckt, outFrag, nil)
+					panicOn(err)
+				*/
 				for {
 					select {
 					case frag := <-ckt.Reads:
-						_ = frag
+						vv("ckt.Reads sees frag:'%s'", frag)
+						if frag.FragSubject == "echo request" {
+							vv("ckt.Reads sees frag with echo request! sending reply")
+							outFrag := NewFragment()
+							outFrag.Payload = frag.Payload
+							outFrag.FragSubject = "echo reply"
+							err := peer.SendOneWayMessage(ckt, outFrag, nil)
+							panicOn(err)
+						}
+
 					case fragerr := <-ckt.Errors:
-						_ = fragerr
+						vv("fragerr = '%v'", fragerr)
 
 					case <-done:
 						return
