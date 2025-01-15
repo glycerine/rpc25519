@@ -273,7 +273,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 	var err error
 	ctx, canc := context.WithCancel(context.Background())
 	defer func() {
-		vv("client runReadLoop exiting, last err = '%v'", err)
+		//vv("client runReadLoop exiting, last err = '%v'", err)
 		canc()
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
@@ -353,7 +353,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 				return
 			}
 			if r == "EOF" && msg == nil {
-				vv("cli readLoop sees EOF, exiting.")
+				//vv("cli readLoop sees EOF, exiting.")
 				return
 			}
 			if err == io.EOF && msg == nil {
@@ -374,7 +374,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		msg.HDR.LocalRecvTm = time.Now()
 
 		seqno := msg.HDR.Seqno
-		vv("client %v (cliLocalAddr='%v') received message with seqno=%v, msg.HDR='%v'", c.name, cliLocalAddr, seqno, msg.HDR.String())
+		//vv("client %v (cliLocalAddr='%v') received message with seqno=%v, msg.HDR='%v'", c.name, cliLocalAddr, seqno, msg.HDR.String())
 
 		// special case to bootstrap up a peer by remote
 		// request, since no other way to register stuff
@@ -400,17 +400,17 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		}
 
 		if c.notifies.handleReply_to_CallID_ToPeerID(true, ctx, msg) {
-			vv("client side (%v) notifies says we are done after msg = '%v'", cliLocalAddr, msg.HDR.String())
+			//vv("client side (%v) notifies says we are done after msg = '%v'", cliLocalAddr, msg.HDR.String())
 			continue
 		} else {
-			vv("client side (%v) notifies says we are NOT done after msg = '%v'", cliLocalAddr, msg.HDR.String())
+			//vv("client side (%v) notifies says we are NOT done after msg = '%v'", cliLocalAddr, msg.HDR.String())
 		}
 		if msg.HDR.Typ == CallPeerTraffic ||
 			msg.HDR.Typ == CallPeerStart ||
 			msg.HDR.Typ == CallPeerStartCircuit ||
 			msg.HDR.Typ == CallPeerError {
 			bad := fmt.Sprintf("cli readLoop: Peer traffic should never get here! msg.HDR='%v'", msg.HDR.String())
-			vv(bad)
+			alwaysPrintf(bad)
 			panic(bad)
 		}
 

@@ -272,6 +272,6 @@ func Test403_new_circuit_from_existing_peer(t *testing.T) {
 		// 3 way sync?
 
 		vv("about to select{}")
-		select {}
+		//select {}
 	})
 }

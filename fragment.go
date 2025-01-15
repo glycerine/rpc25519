@@ -241,7 +241,7 @@ func (s *localPeerback) NewCircuitToPeerURL(
 	msg.HDR.Args = map[string]string{"fromServiceName": s.peerServiceName}
 	//msg.HDR.From will be overwritten by sender.
 
-	vv("about to SendOneWayMessage = '%v'", msg)
+	//vv("about to SendOneWayMessage = '%v'", msg)
 	return ckt, ctx, s.u.SendOneWayMessage(ctx, msg, errWriteDur)
 }
 
@@ -448,7 +448,7 @@ func (frag *Fragment) ToMessage() (msg *Message) {
 	msg.JobSerz = frag.Payload
 	msg.JobErrs = frag.Err
 
-	vv("ToMessage did frag='%v' -> msg='%v'", frag, msg)
+	//vv("ToMessage did frag='%v' -> msg='%v'", frag, msg)
 
 	return
 }
@@ -644,7 +644,8 @@ func (me *PeerImpl) Start(
 ) error {
 
 	nStart := me.StartCount.Add(1)
-	vv("PeerImpl.Start() top. ourPeerID = '%v'; peerServiceName='%v'; StartCount = %v", myPeer.PeerID(), myPeer.PeerServiceName(), nStart)
+	_ = nStart
+	//vv("PeerImpl.Start() top. ourPeerID = '%v'; peerServiceName='%v'; StartCount = %v", myPeer.PeerID(), myPeer.PeerServiceName(), nStart)
 
 	var wg sync.WaitGroup
 	defer wg.Wait() // wait for everyone to shutdown/catch stragglers that don't by hanging.
@@ -666,8 +667,8 @@ func (me *PeerImpl) Start(
 				outFrag.Payload = []byte(fmt.Sprintf("echo request! myPeer.PeerID='%v' (myPeer.PeerURL='%v') requested to echo to peerURL '%v' on 'echo circuit'", myPeer.PeerID(), myPeer.PeerURL(), echoToURL))
 				outFrag.FragSubject = "echo request"
 
-				vv("about to send echo from myPeer.PeerURL() = '%v'", myPeer.PeerURL())
-				vv("... and about to send echo to echoToURL  = '%v'", echoToURL)
+				//vv("about to send echo from myPeer.PeerURL() = '%v'", myPeer.PeerURL())
+				//vv("... and about to send echo to echoToURL  = '%v'", echoToURL)
 
 				aliasRegister(myPeer.PeerID(), myPeer.PeerID()+" (echo originator on server)")
 				_, _, remotePeerID, _, err := parsePeerURL(echoToURL)
