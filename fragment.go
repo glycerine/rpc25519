@@ -230,6 +230,7 @@ func (s *localPeerback) NewCircuitToPeerURL(
 	ckt, ctx = s.newCircuit(rpb, circuitID)
 	msg := frag.ToMessage()
 	msg.HDR.To = netAddr
+	msg.HDR.From = s.netAddr
 	msg.HDR.Typ = CallPeerStartCircuit
 
 	// tell the remote which serviceName we are coming from;
@@ -636,6 +637,9 @@ func (me *PeerImpl) Start(
 				outFrag := NewFragment()
 				outFrag.Payload = []byte(fmt.Sprintf("echo request! myPeer.PeerID='%v' (myPeer.PeerURL='%v') requested to echo to peerURL '%v' on 'echo circuit'", myPeer.PeerID(), myPeer.PeerURL(), echoToURL))
 				outFrag.FragSubject = "echo request"
+
+				vv("about to send echo from myPeer.PeerURL() = '%v'", myPeer.PeerURL())
+				vv("... and about to send echo to echoToURL  = '%v'", echoToURL)
 
 				ckt, ctx, err := myPeer.NewCircuitToPeerURL(echoToURL, outFrag, nil)
 				panicOn(err)
