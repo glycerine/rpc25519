@@ -429,7 +429,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 	ctx, canc := context.WithCancel(context.Background())
 	defer func() {
-		//vv("rpc25519.Server: runReadLoop shutting down for local conn = '%v'", conn.LocalAddr())
+		vv("rpc25519.Server: runReadLoop shutting down for local conn = '%v'", conn.LocalAddr())
 		canc()
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
@@ -521,10 +521,10 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			continue
 		}
 
-		if s.Server.notifies.handleReply_to_CallID_ToPeerID(ctx, req) {
+		if s.Server.notifies.handleReply_to_CallID_ToPeerID(false, ctx, req) {
 			vv("server side (%v) notifies says we are done after "+
 				"req = '%v'", s.from, req.HDR.String())
-			return
+			continue
 		} else {
 			vv("server side (%v) notifies says we are NOT done after "+
 				"req = '%v'", s.from, req.HDR.String())
@@ -534,8 +534,10 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			req.HDR.Typ == CallPeerStart ||
 			req.HDR.Typ == CallPeerStartCircuit ||
 			req.HDR.Typ == CallPeerError {
-			panic(fmt.Sprintf("srv readLoop: Peer traffic should never get here!"+
-				" req.HDR='%v'", req.HDR.String()))
+			bad := fmt.Sprintf("srv readLoop: Peer traffic should never get here!"+
+				" req.HDR='%v'", req.HDR.String())
+			vv(bad)
+			panic(bad)
 		}
 
 		// Idea: send the job to the central work queue, so
@@ -586,10 +588,12 @@ func (s *peerAPI) bootstrapPeerService(onCli bool, msg *Message, ctx context.Con
 		// tell them our peerID, this is the critical desired info.
 		msg.HDR.Args = map[string]string{"peerURL": localPeerURL, "peerID": localPeerID}
 	}
+	msg.HDR.FromPeerID = localPeerID
+
 	select {
 	case sendCh <- msg:
 	case <-ctx.Done():
-		return ErrShutdown
+		return ErrShutdown()
 	}
 	return nil
 }
@@ -651,14 +655,14 @@ func newNotifies() *notifies {
 // For Peer/Object systems, ToPeerID get priority over CallID
 // to allow such systems to implement custom message
 // types. An example is the Fragment/Peer/Circuit system.
-func (c *notifies) handleReply_to_CallID_ToPeerID(ctx context.Context, msg *Message) (done bool) {
+func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Context, msg *Message) (done bool) {
 
 	// protect map access.
 	c.mut.Lock()
 	defer c.mut.Unlock()
 
-	if msg.HDR.Typ == CallError {
-		alwaysPrintf("CallError seen! '%v'", msg.String())
+	if msg.HDR.Typ == CallError || msg.HDR.Typ == CallPeerError {
+		alwaysPrintf("error type seen!: '%v'", msg.HDR.Typ.String())
 		//panic("stopping client on the above error")
 
 		// give ToPeerID priority
@@ -723,6 +727,7 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(ctx context.Context, msg *Mess
 	if ok {
 		select {
 		case wantsCallID <- msg:
+			vv("isCli = %v; notifies.handleReply notified registered channel for callID = '%v'", isCli, msg.HDR.CallID)
 		case <-ctx.Done():
 			//default:
 			//	panic(fmt.Sprintf("Should never happen b/c the "+
@@ -1684,7 +1689,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 		//vv("warning: time out trying to send on pair.SendCh")
 	case <-s.halt.ReqStop.Chan:
 		// shutting down
-		return ErrShutdown
+		return ErrShutdown()
 	}
 
 	dur := 30 * time.Millisecond
@@ -1767,8 +1772,8 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		//    case <-time.After(time.Second):
 		//vv("warning: time out trying to send on pair.SendCh")
 	case <-haltCh:
-		// shutting down
-		return ErrShutdown
+		vv("shutting down on haltCh = %p", haltCh)
+		return ErrShutdown()
 	case <-ctx.Done():
 		return ErrContextCancelled
 	}

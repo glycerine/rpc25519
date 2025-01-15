@@ -64,7 +64,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		doClean := c.seenNetRPCCalls
 		c.mut.Unlock()
 		if doClean {
-			c.netRpcShutdownCleanup(ErrShutdown)
+			c.netRpcShutdownCleanup(ErrShutdown())
 		}
 	}()
 
@@ -273,8 +273,8 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 	var err error
 	ctx, canc := context.WithCancel(context.Background())
 	defer func() {
+		vv("client runReadLoop exiting, last err = '%v'", err)
 		canc()
-		//vv("client runReadLoop exiting, last err = '%v'", err)
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
 	}()
@@ -353,6 +353,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 				return
 			}
 			if r == "EOF" && msg == nil {
+				vv("cli readLoop sees EOF, exiting.")
 				return
 			}
 			if err == io.EOF && msg == nil {
@@ -389,7 +390,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			continue
 		}
 
-		if c.notifies.handleReply_to_CallID_ToPeerID(ctx, msg) {
+		if c.notifies.handleReply_to_CallID_ToPeerID(true, ctx, msg) {
 			vv("client side (%v) notifies says we are done after msg = '%v'", cliLocalAddr, msg.HDR.String())
 			continue
 		} else {
@@ -399,7 +400,9 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			msg.HDR.Typ == CallPeerStart ||
 			msg.HDR.Typ == CallPeerStartCircuit ||
 			msg.HDR.Typ == CallPeerError {
-			panic(fmt.Sprintf("cli readLoop: Peer traffic should never get here! msg.HDR='%v'", msg.HDR.String()))
+			bad := fmt.Sprintf("cli readLoop: Peer traffic should never get here! msg.HDR='%v'", msg.HDR.String())
+			vv(bad)
+			panic(bad)
 		}
 
 		// protect map access. Be sure to Unlock if you "continue" below.
@@ -1082,7 +1085,7 @@ func (c *Client) Call(serviceMethod string, args, reply Green, octx context.Cont
 	case call = <-doneCh:
 		return call.Error
 	case <-c.halt.ReqStop.Chan:
-		return ErrShutdown
+		return ErrShutdown()
 	}
 }
 
@@ -1469,7 +1472,13 @@ func (c *Client) Close() error {
 	return nil
 }
 
-var ErrShutdown = fmt.Errorf("shutting down")
+var ErrShutdown2 = fmt.Errorf("shutting down")
+
+func ErrShutdown() error {
+	panic("where?")
+	return ErrShutdown2
+}
+
 var ErrDone = fmt.Errorf("done channel closed")
 var ErrTimeout = fmt.Errorf("time-out waiting for call to complete")
 var ErrCancelReqSent = fmt.Errorf("cancellation request sent")
@@ -1619,7 +1628,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 	case <-c.halt.ReqStop.Chan:
 		//vv("Client '%v' SendAndGetReply(req='%v'): sees halt.ReqStop before roundTripCh <- req", c.name, req)
 		c.halt.Done.Close()
-		return nil, ErrShutdown
+		return nil, ErrShutdown()
 	}
 
 	//vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req)
@@ -1657,7 +1666,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		//vv("Client '%v' SendAndGetReply(req='%v'): sees halt.ReqStop", c.name, req) // here
 
 		c.halt.Done.Close()
-		return nil, ErrShutdown
+		return nil, ErrShutdown()
 	}
 }
 
@@ -1907,7 +1916,7 @@ func (c *Client) oneWaySendHelper(msg *Message, cancelJobCh <-chan struct{}) (er
 
 		case <-c.halt.ReqStop.Chan:
 			c.halt.Done.Close()
-			return ErrShutdown
+			return ErrShutdown()
 		}
 
 	case <-cancelJobCh:
@@ -1915,7 +1924,7 @@ func (c *Client) oneWaySendHelper(msg *Message, cancelJobCh <-chan struct{}) (er
 
 	case <-c.halt.ReqStop.Chan:
 		c.halt.Done.Close()
-		return ErrShutdown
+		return ErrShutdown()
 	}
 }
 
@@ -2176,7 +2185,7 @@ func (b *Downloader) BeginDownload(ctx context.Context, path string) (err error)
 	case <-req.DoneCh.WhenClosed():
 		return req.LocalErr
 	case <-cli.halt.ReqStop.Chan:
-		return ErrShutdown
+		return ErrShutdown()
 	case <-ctx.Done():
 		return ErrContextCancelled
 	}

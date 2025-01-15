@@ -758,6 +758,9 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 	vv("msg.HDR='%v'", msg.HDR.String()) // "Typ": CallPeerStart seen.
 
 	ch := make(chan *Message, 100)
+
+	// can't use the peerID/ObjID yet because we have no PeerID
+	// yet, we are bootstrapping.
 	p.u.GetReadsForCallID(ch, callID)
 	// be sure to cleanup. We won't need this channel again.
 	defer p.u.UnregisterChannel(callID, CallIDReadMap)
@@ -789,6 +792,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 	var reply *Message
 	select {
 	case reply = <-ch:
+		vv("got reply to CallPeerStart: '%v'", reply.String())
 	case <-ctx.Done():
 		return "", "", ErrContextCancelled
 	}
