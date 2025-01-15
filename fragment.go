@@ -294,15 +294,15 @@ func parsePeerURL(peerURL string) (netAddr, serviceName, peerID, circuitID strin
 	return
 }
 
-// SendOneWayMessage sends a Frament on the given Circuit.
-func (s *remotePeerback) SendOneWayMessage(
+// SendOneWay sends a Frament on the given Circuit.
+func (s *remotePeerback) SendOneWay(
 	ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
 
-	return s.localPeerback.SendOneWayMessage(ckt, frag, errWriteDur)
+	return s.localPeerback.SendOneWay(ckt, frag, errWriteDur)
 }
 
 // SendOneWayMessage sends a Frament on the given Circuit.
-func (s *localPeerback) SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
+func (s *localPeerback) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
 	if frag == nil {
 		return fmt.Errorf("frag cannot be nil")
 		//frag = NewFragment()
@@ -365,7 +365,7 @@ func (pb *localPeerback) peerbackPump() {
 		// in case they are staying up.
 		frag := NewFragment()
 		frag.FragType = CallPeerEndCircuit
-		pb.SendOneWayMessage(ckt, frag, nil)
+		pb.SendOneWay(ckt, frag, nil)
 
 		ckt.canc()
 		delete(m, ckt.callID)
@@ -578,7 +578,7 @@ type RemotePeer interface {
 	IncomingCircuit() (ckt *Circuit, ctx context.Context)
 
 	// NewCircuit generates a Circuit between two Peers,
-	// and tells the SendOneWayMessage machinery
+	// and tells the SendOneWay machinery
 	// how to reply to you. It makes a new CircuitID (CallID),
 	// and manages it for you. It gives you two
 	// channels to get normal and error replies on. Using this Circuit,
@@ -594,8 +594,8 @@ type RemotePeer interface {
 	//
 	NewCircuit() (ckt *Circuit, ctx context.Context)
 
-	// SendOneWayMessage sends a Frament on the given Circuit.
-	SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error
+	// SendOneWay sends a Frament on the given Circuit.
+	SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error
 
 	PeerServiceName() string
 	PeerID() string

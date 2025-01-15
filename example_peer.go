@@ -8,6 +8,41 @@ import (
 	//"github.com/glycerine/loquet"
 )
 
+/*
+~~~
+Peer/Circuit/Fragment API essentials (utility methods omitted for compactness)
+
+A) to establish circuits with new peers
+   1) NewCircuitToPeerURL() for initiating actively.
+   2) <-newPeerCh to recieve new initiations from others.
+
+B) to create additional circuits with an already connected peer:
+   1) NewCircuit adds a new circuit with an existing RemotePeer
+
+C) To communicate over a Circuit:
+   1) get regular messages (called Fragments) from <-Circuit.Reads
+   2) get error messages from <-Circuit.Errors
+   3) send messages with SendOneWay(). It never blocks.
+   4) Close() the circuit and the peer's ctx will be cancelled.
+
+type Circuit struct {
+	Reads  <-chan *Fragment
+	Errors <-chan *Fragment
+    Close() // when done
+}
+type LocalPeer interface {
+	NewCircuitToPeerURL(peerURL string, frag *Fragment,
+         errWriteDur *time.Duration) (ckt *Circuit, ctx context.Context, err error)
+}
+type RemotePeer interface {
+	IncomingCircuit() (ckt *Circuit, ctx context.Context)
+	NewCircuit()      (ckt *Circuit, ctx context.Context)
+	SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error
+}
+type PeerServiceFunc func(myPeer LocalPeer, ctx0 context.Context, newPeerCh <-chan RemotePeer) error
+~~~
+*/
+
 // PeerImpl is used in testing and also demonstrates
 // how a user can implement a Peer.
 // Users write a PeerServiceFunc,
@@ -23,6 +58,7 @@ type PeerImpl struct {
 	ReportEchoTestCanSee chan string
 }
 
+// Start is an example of PeerServiceFunc in action.
 func (me *PeerImpl) Start(
 
 	// how we were registered/invoked.
@@ -136,7 +172,7 @@ func (me *PeerImpl) Start(
 					// set Payload, other details...
 					outFrag.Payload = []byte(fmt.Sprintf("hello from '%v'", myPeer.URL()))
 
-					err := peer.SendOneWayMessage(ckt, outFrag, nil)
+					err := peer.SendOneWay(ckt, outFrag, nil)
 					panicOn(err)
 				*/
 				for {
@@ -149,7 +185,7 @@ func (me *PeerImpl) Start(
 							outFrag.FragSubject = "echo reply"
 							outFrag.ServiceName = myPeer.ServiceName()
 							vv("ckt.Reads sees frag with echo request! sending reply='%v'", frag)
-							err := peer.SendOneWayMessage(ckt, outFrag, nil)
+							err := peer.SendOneWay(ckt, outFrag, nil)
 							panicOn(err)
 						}
 
