@@ -545,7 +545,7 @@ func Test014_server_push_quic(t *testing.T) {
 
 func Test015_server_push_quic_notice_disco_quickly(t *testing.T) {
 
-	cv.Convey("server.SendCh should push messages to the client under QUIC, and notice quickly if client has already disconnected.", t, func() {
+	cv.Convey("the GetReadIncomingCh() channel for srv->cli push should work", t, func() {
 
 		cfg := NewConfig()
 		cfg.UseQUIC = true
@@ -599,9 +599,12 @@ func Test015_server_push_quic_notice_disco_quickly(t *testing.T) {
 					close(ackDone)
 					return
 				case msg := <-incoming:
-					vv("got incoming msg = '%v'", string(msg.JobSerz))
-					if msg.HDR.Seqno != seqno {
-						panic(fmt.Sprintf("expected seqno %v, but got %v", seqno, msg.HDR.Seqno))
+					// ignore responses to the connection setup! false red
+					if msg.HDR.Subject != "one way hello" {
+						vv("got incoming msg = '%v'", msg.String())
+						if msg.HDR.Seqno != seqno {
+							panic(fmt.Sprintf("expected seqno %v, but got %v", seqno, msg.HDR.Seqno))
+						}
 					}
 				}
 			}

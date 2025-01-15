@@ -71,29 +71,38 @@ func NewFragment() *Fragment {
 
 // Fragments are sent to, and read from,
 // a Circuit by implementers of
-// PeerServiceFunc
+// PeerServiceFunc. They are a simplified
+// version of the underlying Message infrastructure.
+//
+// Note the first three fields are set by the
+// sending machinery; any user settings will
+// be overridden for FromPeerID, ToPeerID,
+// and CircuitID.
 type Fragment struct {
 
-	// These first three are set by the
-	// sending machinery; any user settings will
-	// be overridden.
-	//
 	// FromPeerID tells the receiver who sent us this Fragment.
 	FromPeerID string `zid:"0"`
 	ToPeerID   string `zid:"1"`
 
-	// CircuitID was assigned in the NewCircuit() call. Equivalent to Message.HDR.CallID.
+	// CircuitID was assigned in the NewCircuit() call.
+	// Equivalent to Message.HDR.CallID.
 	CircuitID string `zid:"2"`
 
 	// ServiceName is the remote peer's PeerServiceName.
 	ServiceName string `zid:"3"`
 
-	FragSubject string   `zid:"4"`
-	FragType    CallType `zid:"5"` // can be a message type, sub-service name, other useful context.
-	FragPart    int64    `zid:"6"` // built in multi-part handling for the same CallID and FragType.
-	Serial      int64    `zid:"7"`
+	FragSubject string `zid:"4"`
 
-	Args map[string]string `zid:"8"` // nil/unallocated to save space. User should alloc if the need it.
+	// can be a message type, sub-service name, other useful context.
+	FragType CallType `zid:"5"`
+
+	// built in multi-part handling for the same CallID and FragType.
+	FragPart int64 `zid:"6"`
+	Serial   int64 `zid:"7"`
+
+	// Args starts nil/unallocated to save space.
+	// User should allocate if the need it.
+	Args map[string]string `zid:"8"`
 
 	Payload []byte `zid:"9"`
 
@@ -120,7 +129,8 @@ func (f *Fragment) String() string {
 		f.FragType,
 		f.Serial,
 		f.Args,
-		string(f.Payload),
+		fmt.Sprintf("(len %v bytes)", len(f.Payload)),
+		//string(f.Payload), // for debugging
 	)
 
 }
@@ -175,8 +185,10 @@ type localPeerback struct {
 	handleChansNewCircuit chan *Circuit
 	handleCircuitClose    chan *Circuit
 
-	mut sync.Mutex // protect remotes map
-	// key is the remote PeerID
+	// mut protect the remotes map below
+	mut sync.Mutex
+
+	// remotes key is the remote PeerID
 	remotes map[string]*remotePeerback
 }
 
@@ -203,7 +215,10 @@ func (s *localPeerback) NewCircuitToPeerURL(
 
 	netAddr, serviceName, peerID, circuitID, err := parsePeerURL(peerURL)
 	if circuitID != "" {
-		panic(fmt.Sprintf("peerURL should not have a circuitID in it, as we don't support that below (yet atm): '%v'", peerURL))
+		panic(fmt.Sprintf("NewCircuitToPeerURL() use error: peerURL "+
+			"should not have a circuitID "+
+			"in it, as we don't support that below (yet atm): '%v'",
+			peerURL))
 	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("NewCircuitToPeerURL could not "+
@@ -214,8 +229,10 @@ func (s *localPeerback) NewCircuitToPeerURL(
 	}
 	frag.FromPeerID = s.peerID
 	frag.ToPeerID = peerID
+
 	// circuitID will be empty, want to create a new CallID.
-	// allow joining a extant circuit? let's not for now. simpler to start.
+	// allow joining a extant circuit? let's not for now.
+	// Its just much simpler to start with.
 	circuitID = NewCallID()
 	frag.CircuitID = circuitID
 	frag.ServiceName = serviceName
@@ -278,8 +295,9 @@ func parsePeerURL(peerURL string) (netAddr, serviceName, peerID, circuitID strin
 }
 
 // SendOneWayMessage sends a Frament on the given Circuit.
-func (s *remotePeerback) SendOneWayMessage(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
-	// is this right? hmmm no. but this is identical, no??? hangs!
+func (s *remotePeerback) SendOneWayMessage(
+	ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
+
 	return s.localPeerback.SendOneWayMessage(ckt, frag, errWriteDur)
 }
 
@@ -297,7 +315,17 @@ func (s *localPeerback) SendOneWayMessage(ckt *Circuit, frag *Fragment, errWrite
 	return s.u.SendOneWayMessage(s.ctx, msg, errWriteDur)
 }
 
-func (peerAPI *peerAPI) newLocalPeerback(ctx context.Context, cancelFunc context.CancelFunc, u UniversalCliSrv, peerID string, newPeerCh chan RemotePeer, peerServiceName, netAddr string) (pb *localPeerback) {
+func (peerAPI *peerAPI) newLocalPeerback(
+	ctx context.Context,
+	cancelFunc context.CancelFunc,
+	u UniversalCliSrv,
+	peerID string,
+	newPeerCh chan RemotePeer,
+	peerServiceName,
+	netAddr string,
+
+) (pb *localPeerback) {
+
 	pb = &localPeerback{
 		netAddr:         netAddr,
 		peerServiceName: peerServiceName,
@@ -493,7 +521,10 @@ func (rpb *remotePeerback) NewCircuit() (ckt *Circuit, ctx2 context.Context) {
 	return rpb.localPeerback.newCircuit(rpb, "")
 }
 
-func (lpb *localPeerback) newCircuit(rpb *remotePeerback, cID string) (ckt *Circuit, ctx2 context.Context) {
+func (lpb *localPeerback) newCircuit(
+	rpb *remotePeerback,
+	cID string,
+) (ckt *Circuit, ctx2 context.Context) {
 
 	var canc2 context.CancelFunc
 	ctx2, canc2 = context.WithCancel(lpb.ctx)
@@ -526,7 +557,9 @@ func (h *Circuit) Close() {
 	h.pbFrom.handleCircuitClose <- h
 }
 
-// Peers exchange Fragments over Circuits, and
+// RemotePeer is the user facing interface to
+// communicating with Peers. Peers exchange
+// Fragments over Circuits, and
 // generally implement finite-state-machine
 // behavior more complex than can be
 // efficiently modeled with simple
@@ -534,7 +567,7 @@ func (h *Circuit) Close() {
 //
 // In particular, we support infinite streams of
 // Fragments in order to convey large
-// files and filesystem sync operations.
+// files and filesystem (r)sync operations.
 //
 // RemotePeer is a proxy. It is the local representation of
 // a remote peer.
@@ -589,8 +622,8 @@ type LocalPeer interface {
 	PeerURL() string
 }
 
-// aka: for ease of copying,
-// type PeerServiceFunc func(peerServiceName string, ourPeerID string, ctx0 context.Context, newPeerCh <-chan Peer) error
+// one line version of the below, for ease of copying.
+// type PeerServiceFunc func(myPeer LocalPeer, ctx0 context.Context, newPeerCh <-chan RemotePeer) error
 
 // PeerServiceFunc is implemented by user's peer services,
 // and registered on a Client or a Server under a
@@ -614,7 +647,9 @@ type PeerServiceFunc func(
 
 ) error
 
-// Users write a PeerImpl and PeerServiceFunc, like this: TODO move to example.go
+// Users write a PeerImpl and PeerServiceFunc,
+// like this example used in the fragment_test.go tests.
+// TODO move to example.go
 
 // PeerImpl demonstrates how a user can implement a Peer.
 //
@@ -665,13 +700,18 @@ func (me *PeerImpl) Start(
 				}()
 
 				outFrag := NewFragment()
-				outFrag.Payload = []byte(fmt.Sprintf("echo request! myPeer.PeerID='%v' (myPeer.PeerURL='%v') requested to echo to peerURL '%v' on 'echo circuit'", myPeer.PeerID(), myPeer.PeerURL(), echoToURL))
+				outFrag.Payload = []byte(fmt.Sprintf("echo request! "+
+					"myPeer.PeerID='%v' (myPeer.PeerURL='%v') requested"+
+					" to echo to peerURL '%v' on 'echo circuit'",
+					myPeer.PeerID(), myPeer.PeerURL(), echoToURL))
+
 				outFrag.FragSubject = "echo request"
 
 				//vv("about to send echo from myPeer.PeerURL() = '%v'", myPeer.PeerURL())
 				//vv("... and about to send echo to echoToURL  = '%v'", echoToURL)
 
-				aliasRegister(myPeer.PeerID(), myPeer.PeerID()+" (echo originator on server)")
+				aliasRegister(myPeer.PeerID(), myPeer.PeerID()+
+					" (echo originator on server)")
 				_, _, remotePeerID, _, err := parsePeerURL(echoToURL)
 				panicOn(err)
 				aliasRegister(remotePeerID, remotePeerID+" (echo replier on client)")
@@ -817,11 +857,16 @@ func (p *peerAPI) RegisterPeerServiceFunc(peerServiceName string, peer PeerServi
 	}
 	p.mut.Lock()
 	defer p.mut.Unlock()
-	p.localServiceNameMap[peerServiceName] = &knownLocalPeer{peerServiceFunc: peer, peerServiceName: peerServiceName}
+	p.localServiceNameMap[peerServiceName] = &knownLocalPeer{
+		peerServiceFunc: peer, peerServiceName: peerServiceName}
 	return nil
 }
 
-func (p *peerAPI) StartLocalPeer(ctx context.Context, peerServiceName string, knownPeerIDs ...string) (localPeerURL, localPeerID string, err error) {
+func (p *peerAPI) StartLocalPeer(
+	ctx context.Context,
+	peerServiceName string,
+
+) (localPeerURL, localPeerID string, err error) {
 	p.mut.Lock()
 	defer p.mut.Unlock()
 	knownLocalPeer, ok := p.localServiceNameMap[peerServiceName]
@@ -1104,10 +1149,8 @@ func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Con
 
 	vv("top of bootstrapPeerService(): isCli=%v; msg.HDR='%v'", isCli, msg.HDR.String())
 
-	var knownPeerIDs []string
-
 	// starts its own goroutine or return with an error (both quickly).
-	localPeerURL, localPeerID, err := s.StartLocalPeer(ctx, msg.HDR.ServiceName, knownPeerIDs...)
+	localPeerURL, localPeerID, err := s.StartLocalPeer(ctx, msg.HDR.ServiceName)
 
 	// reply with the same msg; save an allocation.
 	msg.HDR.From, msg.HDR.To = msg.HDR.To, msg.HDR.From
