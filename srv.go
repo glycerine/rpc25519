@@ -1717,6 +1717,10 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 // *errWriteDur, or 30 msec if that is nil.
 func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWriteDur *time.Duration) error {
 
+	if msg.HDR.Serial == 0 {
+		panic("Serial 0 not allowed!")
+	}
+
 	if msg.HDR.Typ < 100 {
 		return ErrWrongCallTypeForSendMessage
 	}

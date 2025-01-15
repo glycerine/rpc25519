@@ -64,7 +64,9 @@ func (ckt *Circuit) ID2() (localPeerID, remotePeerID string) {
 }
 
 func NewFragment() *Fragment {
-	return &Fragment{}
+	return &Fragment{
+		Serial: issueSerial(),
+	}
 }
 
 // Fragments are sent to, and read from,
