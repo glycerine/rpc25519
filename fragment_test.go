@@ -48,7 +48,8 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		// the server knows about the client.
 
 		// simplify echo test by leaving this out. the auto retry should suffice.
-		//preventRaceByDoingPriorClientToServerRoundTrip(cli, srv)
+		// Arg! Auto-retry does not always suffice! back in!
+		preventRaceByDoingPriorClientToServerRoundTrip(cli, srv)
 		ctx := context.Background()
 		srvServiceName := "speer1_on_server"
 
