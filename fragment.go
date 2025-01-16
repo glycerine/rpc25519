@@ -713,7 +713,7 @@ func (p *peerAPI) StartLocalPeer(
 	p.mut.Lock()
 	defer p.mut.Unlock()
 
-	return p.unlockedStartLocalPeer(ctx, peerServiceName, requestedCircuit, false)
+	return p.unlockedStartLocalPeer(ctx, peerServiceName, requestedCircuit, false, nil)
 }
 
 func (p *peerAPI) unlockedStartLocalPeer(
@@ -721,6 +721,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	peerServiceName string,
 	requestedCircuit *Message,
 	isUpdatedPeerID bool,
+	sendCh chan *Message,
 
 ) (lpb *localPeerback, err error) {
 
@@ -734,7 +735,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	localPeerID := NewCallID()
 
 	localAddr := p.u.LocalAddr()
-	//vv("localAddr = '%v'", localAddr)
+	vv("unlockedStartLocalPeer: localAddr = '%v'", localAddr)
 	lpb = p.newLocalPeerback(ctx1, canc1, p.u, localPeerID, newPeerCh, peerServiceName, localAddr)
 
 	knownLocalPeer.mut.Lock()
@@ -745,6 +746,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	knownLocalPeer.mut.Unlock()
 
 	go func() {
+		vv("launching new peerServiceFunc invocation for '%v'", peerServiceName)
 		knownLocalPeer.peerServiceFunc(lpb, ctx, newPeerCh)
 
 		// do cleanup
@@ -758,6 +760,10 @@ func (p *peerAPI) unlockedStartLocalPeer(
 
 	//localPeerURL := lpb.URL()
 	//vv("lpb.PeerURL() = '%v'", localPeerURL)
+
+	if requestedCircuit != nil {
+		return lpb, lpb.provideRemoteOnNewPeerCh(p.isCli, requestedCircuit, ctx, sendCh, isUpdatedPeerID)
+	}
 
 	return lpb, nil
 }
@@ -903,7 +909,6 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	}
 
 	knownLocalPeer.mut.Lock()
-
 	if knownLocalPeer.active == nil {
 		knownLocalPeer.active = make(map[string]*localPeerback)
 	}
@@ -936,17 +941,23 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 			needNew = true
 		}
 	}
+	knownLocalPeer.mut.Unlock()
+
 	if needNew {
 		// spin one up!
 		vv("spinning up a peer for peerServicename '%v'", peerServiceName)
 		//lpb2, localPeerURL, localPeerID, err := s.StartLocalPeer(ctx, peerServiceName, msg)
-		lpb2, err := s.unlockedStartLocalPeer(ctx, peerServiceName, msg, isUpdatedPeerID)
+		lpb2, err := s.unlockedStartLocalPeer(ctx, peerServiceName, msg, isUpdatedPeerID, sendCh)
 		panicOn(err)
 		lpb = lpb2
-		//_, _ = localPeerURL, localPeerID
+		vv("Q: should we go on to call lpb.provideRemoteOnNewPeerCh() or did unlockedStartLocalPeer do it for us? I *think* they need to do it any case, so assume that they will for now.")
+		return nil
 	}
 
-	knownLocalPeer.mut.Unlock()
+	return lpb.provideRemoteOnNewPeerCh(isCli, msg, ctx, sendCh, isUpdatedPeerID)
+}
+
+func (lpb *localPeerback) provideRemoteOnNewPeerCh(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message, isUpdatedPeerID bool) error {
 
 	// success:
 	msg.HDR.Typ = CallPeerTraffic
