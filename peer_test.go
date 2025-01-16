@@ -276,12 +276,21 @@ func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 		vv("good: past the serverCkt.IsClosed()")
 
 		// did the peer code recognize the closed ckt?
-		<-j.srvSync.gotIncomingCktReadClosedChan
-		<-j.srvSync.gotIncomingCktErrorsClosedChan
-		vv("good: server saw the ckt channels were closed.")
-		<-j.cliSync.gotIncomingCktReadClosedChan
-		<-j.cliSync.gotIncomingCktErrorsClosedChan
-		vv("good: client saw the ckt channels were closed.")
+
+		// non-deterministic which gets here first, have to do twice.
+		select {
+		case <-j.srvSync.gotCktHaltReq:
+			vv("good: server saw the ckt channels were closed.")
+		case <-j.cliSync.gotCktHaltReq:
+			vv("good: client saw the ckt channels were closed.")
+		}
+
+		select {
+		case <-j.srvSync.gotCktHaltReq:
+			vv("good: server saw the ckt channels were closed.")
+		case <-j.cliSync.gotCktHaltReq:
+			vv("good: client saw the ckt channels were closed.")
+		}
 
 		// sends and reads on the closed ckt should give errors / nil channel hangs
 
