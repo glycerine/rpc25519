@@ -601,14 +601,14 @@ func (pair *rwPair) handleIncomingMessage(ctx context.Context, req *Message, job
 
 // Client and Server both use, to keep code in sync.
 type notifies struct {
-	mut   sync.Mutex
+	//mut   sync.Mutex // use mapIDtoChan instead.
 	isCli bool
 
-	notifyOnReadCallIDMap  map[string]chan *Message
-	notifyOnErrorCallIDMap map[string]chan *Message
+	notifyOnReadCallIDMap  *mapIDtoChan
+	notifyOnErrorCallIDMap *mapIDtoChan
 
-	notifyOnReadToPeerIDMap  map[string]chan *Message
-	notifyOnErrorToPeerIDMap map[string]chan *Message
+	notifyOnReadToPeerIDMap  *mapIDtoChan
+	notifyOnErrorToPeerIDMap *mapIDtoChan
 }
 
 type mapIDtoChan struct {
@@ -621,18 +621,18 @@ func newMapIDtoChan() *mapIDtoChan {
 		m: make(map[string]chan *Message),
 	}
 }
-func (m *mapIDToChan) get(id string) (ch chan *Message, ok bool) {
+func (m *mapIDtoChan) get(id string) (ch chan *Message, ok bool) {
 	m.mut.Lock()
 	ch, ok = m.m[id]
 	m.mut.Unlock()
 	return
 }
-func (m *mapIDToChan) set(id string, ch chan *Message) {
+func (m *mapIDtoChan) set(id string, ch chan *Message) {
 	m.mut.Lock()
 	m.m[id] = ch
 	m.mut.Unlock()
 }
-func (m *mapIDToChan) del(id string) {
+func (m *mapIDtoChan) del(id string) {
 	m.mut.Lock()
 	delete(m.m, id)
 	m.mut.Unlock()
@@ -640,11 +640,11 @@ func (m *mapIDToChan) del(id string) {
 
 func newNotifies(isCli bool) *notifies {
 	return &notifies{
-		notifyOnReadCallIDMap:  make(map[string]chan *Message),
-		notifyOnErrorCallIDMap: make(map[string]chan *Message),
+		notifyOnReadCallIDMap:  newMapIDtoChan(),
+		notifyOnErrorCallIDMap: newMapIDtoChan(),
 
-		notifyOnReadToPeerIDMap:  make(map[string]chan *Message),
-		notifyOnErrorToPeerIDMap: make(map[string]chan *Message),
+		notifyOnReadToPeerIDMap:  newMapIDtoChan(),
+		notifyOnErrorToPeerIDMap: newMapIDtoChan(),
 		isCli:                    isCli,
 	}
 }
@@ -654,10 +654,6 @@ func newNotifies(isCli bool) *notifies {
 // types. An example is the Fragment/Peer/Circuit system.
 func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Context, msg *Message) (done bool) {
 
-	// protect map access. the notifies creates deadlock with peer pumps trying to unregister read ch. change to notifies using finer grain maps that unlock immediately.
-	c.mut.Lock()
-	defer c.mut.Unlock()
-
 	if msg.HDR.Typ == CallError || msg.HDR.Typ == CallPeerError {
 		alwaysPrintf("error type seen!: '%v'", msg.HDR.Typ.String())
 		//panic("stopping client on the above error")
@@ -665,7 +661,7 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 		// give ToPeerID priority
 		if msg.HDR.ToPeerID != "" {
 
-			wantsErrObj, ok := c.notifyOnErrorToPeerIDMap[msg.HDR.ToPeerID]
+			wantsErrObj, ok := c.notifyOnErrorToPeerIDMap.get(msg.HDR.ToPeerID)
 			if ok {
 				select {
 				case wantsErrObj <- msg:
@@ -683,7 +679,7 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 			}
 		}
 
-		wantsErr, ok := c.notifyOnErrorCallIDMap[msg.HDR.CallID]
+		wantsErr, ok := c.notifyOnErrorCallIDMap.get(msg.HDR.CallID)
 		if ok {
 			select {
 			case wantsErr <- msg:
@@ -701,7 +697,7 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 
 	if msg.HDR.ToPeerID != "" {
 
-		wantsToPeerID, ok := c.notifyOnReadToPeerIDMap[msg.HDR.ToPeerID]
+		wantsToPeerID, ok := c.notifyOnReadToPeerIDMap.get(msg.HDR.ToPeerID)
 		//vv("have ToPeerID msg = '%v'; ok='%v'", msg.HDR.String(), ok)
 		if ok {
 			// have to releaes the notifies lock if we want to send to the peer pump goro,
@@ -722,7 +718,7 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 		}
 	}
 
-	wantsCallID, ok := c.notifyOnReadCallIDMap[msg.HDR.CallID]
+	wantsCallID, ok := c.notifyOnReadCallIDMap.get(msg.HDR.CallID)
 	//vv("isCli=%v, c.notifyOnReadCallIDMap[callID='%v'] -> %p, ok=%v", c.isCli, msg.HDR.CallID, wantsCallID, ok)
 	if ok {
 		select {
@@ -2238,9 +2234,7 @@ func (s *Server) GetReadsForCallID(ch chan *Message, callID string) {
 	if cap(ch) == 0 {
 		panic("ch must be bufferred")
 	}
-	s.notifies.mut.Lock()
-	defer s.notifies.mut.Unlock()
-	s.notifies.notifyOnReadCallIDMap[callID] = ch
+	s.notifies.notifyOnReadCallIDMap.set(callID, ch)
 	//vv("Server s.notifies.notifyOnReadCallIDMap[%v] = %p", callID, ch)
 }
 
@@ -2249,9 +2243,7 @@ func (s *Server) GetErrorsForCallID(ch chan *Message, callID string) {
 	if cap(ch) == 0 {
 		panic("ch must be bufferred")
 	}
-	s.notifies.mut.Lock()
-	defer s.notifies.mut.Unlock()
-	s.notifies.notifyOnErrorCallIDMap[callID] = ch
+	s.notifies.notifyOnErrorCallIDMap.set(callID, ch)
 }
 
 func (s *Server) GetReadsForToPeerID(ch chan *Message, objID string) {
@@ -2259,9 +2251,7 @@ func (s *Server) GetReadsForToPeerID(ch chan *Message, objID string) {
 	if cap(ch) == 0 {
 		panic("ch must be bufferred")
 	}
-	s.notifies.mut.Lock()
-	defer s.notifies.mut.Unlock()
-	s.notifies.notifyOnReadToPeerIDMap[objID] = ch
+	s.notifies.notifyOnReadToPeerIDMap.set(objID, ch)
 }
 
 func (s *Server) GetErrorsForToPeerID(ch chan *Message, objID string) {
@@ -2269,25 +2259,21 @@ func (s *Server) GetErrorsForToPeerID(ch chan *Message, objID string) {
 	if cap(ch) == 0 {
 		panic("ch must be bufferred")
 	}
-	s.notifies.mut.Lock()
-	defer s.notifies.mut.Unlock()
-	s.notifies.notifyOnErrorToPeerIDMap[objID] = ch
+	s.notifies.notifyOnErrorToPeerIDMap.set(objID, ch)
 }
 
 func (s *Server) UnregisterChannel(ID string, whichmap int) {
-	s.notifies.mut.Lock()
-	defer s.notifies.mut.Unlock()
 
 	switch whichmap {
 	case CallIDReadMap:
-		delete(s.notifies.notifyOnReadCallIDMap, ID)
+		s.notifies.notifyOnReadCallIDMap.del(ID)
 		//vv("Server Unregister s.notifies.notifyOnReadCallIDMap deleted %v", ID)
 	case CallIDErrorMap:
-		delete(s.notifies.notifyOnErrorCallIDMap, ID)
+		s.notifies.notifyOnErrorCallIDMap.del(ID)
 	case ToPeerIDReadMap:
-		delete(s.notifies.notifyOnReadToPeerIDMap, ID)
+		s.notifies.notifyOnReadToPeerIDMap.del(ID)
 	case ToPeerIDErrorMap:
-		delete(s.notifies.notifyOnErrorToPeerIDMap, ID)
+		s.notifies.notifyOnErrorToPeerIDMap.del(ID)
 	}
 }
 

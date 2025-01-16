@@ -1328,9 +1328,7 @@ func (c *Client) GetReadsForCallID(ch chan *Message, callID string) {
 	if cap(ch) == 0 {
 		panic("ch must be bufferred")
 	}
-	c.notifies.mut.Lock()
-	defer c.notifies.mut.Unlock()
-	c.notifies.notifyOnReadCallIDMap[callID] = ch
+	c.notifies.notifyOnReadCallIDMap.set(callID, ch)
 }
 
 func (c *Client) GetErrorsForCallID(ch chan *Message, callID string) {
@@ -1338,9 +1336,7 @@ func (c *Client) GetErrorsForCallID(ch chan *Message, callID string) {
 	if cap(ch) == 0 {
 		panic("ch must be bufferred")
 	}
-	c.notifies.mut.Lock()
-	defer c.notifies.mut.Unlock()
-	c.notifies.notifyOnErrorCallIDMap[callID] = ch
+	c.notifies.notifyOnErrorCallIDMap.set(callID, ch)
 }
 
 // GetReads registers to get any received messages on ch.
@@ -2346,9 +2342,7 @@ func (s *Client) GetReadsForToPeerID(ch chan *Message, objID string) {
 	if cap(ch) == 0 {
 		panic("ch must be bufferred")
 	}
-	s.notifies.mut.Lock()
-	defer s.notifies.mut.Unlock()
-	s.notifies.notifyOnReadToPeerIDMap[objID] = ch
+	s.notifies.notifyOnReadToPeerIDMap.set(objID, ch)
 }
 
 func (s *Client) GetErrorsForToPeerID(ch chan *Message, objID string) {
@@ -2356,9 +2350,7 @@ func (s *Client) GetErrorsForToPeerID(ch chan *Message, objID string) {
 	if cap(ch) == 0 {
 		panic("ch must be bufferred")
 	}
-	s.notifies.mut.Lock()
-	defer s.notifies.mut.Unlock()
-	s.notifies.notifyOnErrorToPeerIDMap[objID] = ch
+	s.notifies.notifyOnErrorToPeerIDMap.set(objID, ch)
 }
 
 // whichmap meanings for UnregisterChannel
@@ -2370,17 +2362,15 @@ const (
 )
 
 func (s *Client) UnregisterChannel(ID string, whichmap int) {
-	s.notifies.mut.Lock() // deadlock here. from pump goroutine calling back vs the cli readLoop trying to notify the pump loop about its peerID channel. maybe sync.Map?
-	defer s.notifies.mut.Unlock()
 
 	switch whichmap {
 	case CallIDReadMap:
-		delete(s.notifies.notifyOnReadCallIDMap, ID)
+		s.notifies.notifyOnReadCallIDMap.del(ID)
 	case CallIDErrorMap:
-		delete(s.notifies.notifyOnErrorCallIDMap, ID)
+		s.notifies.notifyOnErrorCallIDMap.del(ID)
 	case ToPeerIDReadMap:
-		delete(s.notifies.notifyOnReadToPeerIDMap, ID)
+		s.notifies.notifyOnReadToPeerIDMap.del(ID)
 	case ToPeerIDErrorMap:
-		delete(s.notifies.notifyOnErrorToPeerIDMap, ID)
+		s.notifies.notifyOnErrorToPeerIDMap.del(ID)
 	}
 }
