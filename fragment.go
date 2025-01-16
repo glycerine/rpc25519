@@ -88,11 +88,12 @@ type Fragment struct {
 	FragType    CallType `zid:"5"` // one of the CallPeer CallTypes of hdr.go
 
 	// user supplied data
-	FragSubject string            `zid:"6"`
-	FragPart    int64             `zid:"7"`
-	Args        map[string]string `zid:"8"` // nil by default; make() it if you need it.
-	Payload     []byte            `zid:"9"`
-	Err         string            `zid:"10"` // distinguished field for error messages.
+	FragOp      int               `zid:"6"`
+	FragSubject string            `zid:"7"`
+	FragPart    int64             `zid:"8"`
+	Args        map[string]string `zid:"9"` // nil by default; make() it if you need it.
+	Payload     []byte            `zid:"10"`
+	Err         string            `zid:"11"` // distinguished field for error messages.
 }
 
 func (f *Fragment) String() string {

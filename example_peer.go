@@ -18,31 +18,54 @@ on the client as on the server.
 
 Syncing a filesystem needs efficient stream transmission.
 The total data far exceeds what will fit in any single
-message, and updates may be continuous. We don't want
-to wait for one "call" to finish its round trip. We
-just want to send data when we have it. Hence the
+message, and updates may be continuous or lumpy.
+We don't want to wait for one "call"
+to finish its round trip. We just want to
+send data when we have it. Hence the
 API is based on one-way messages and is asynchronous
-in that these calls do not wait for network
-round trips to complete. Once established, a
-circuit between peers is designed to persist
-until deliberately closed. A circuit can then receive
-any number of fragments of data during its lifetime.
+in that the methods and channels involved do
+not wait for network round trips to complete.
+
+Once established, a circuit between peers
+is designed to persist until deliberately closed.
+A circuit can then handle any number of Fragments
+of data during its lifetime.
+
+To organize communications, a peer can maintain
+multiple circuits, either with the same peer
+or with any number of other peers. We can then
+easily handle any arbitrary network topology.
+
+Even between just two peers, multiple persistent
+channels facilities code organization. One
+could use a channel per file being synced,
+for instance. Multiple large files being
+scanned and their diffs streamed at once,
+in parallel, becomes practical.
+
+By using lightweight goroutines and channels,
+circuit persistence is inexpensive and can be
+facilities data streams with markedly
+different lifetimes and update rates,
+over long periods.
 
 Symmetry of code deployment is also a natural
 requirement. This is the git model. When syncing
 two repositories, the operations needed are
 the same on both sides, no matter who
-initiated. Hence we want a way to register
+initiated or whether a push or pull was
+requested. Hence we want a way to register
 the same functionality on the client as on the server.
 
 Peer/Circuit/Fragment API essentials (utility methods omitted for compactness)
 
-A) to establish circuits with new peers:
+A) To establish circuits with new peers, use
+
    1) NewCircuitToPeerURL() for initiating a new circuit to a new peer.
    2) <-newPeerCh to recieve new initiations;
       then use the IncomingCircuit() method to get the Circuit.
 
-B) to create additional circuits with an already connected peer:
+B) To create additional circuits with an already connected peer:
    1) NewCircuit adds a new circuit with an existing RemotePeer, no URL needed.
    2) They get notified on <-newPeerCh too. (verify)
 
@@ -78,6 +101,7 @@ type Fragment struct {
 	    FragType CallType
 
            // user supplied data
+          FragOp int
 	 FragSubject string
 	    FragPart int64
 	        Args map[string]string
@@ -100,8 +124,9 @@ D) boostrapping: registering your Peer implemenation and starting
                    ctx context.Context,
           peerServiceName string) (localPeerURL, localPeerID string, err error)
 
-      Starting a remote peer must also supply the host:port of the remote client/server.
-      The RemoteAddr() and LocalAddr() on the Client/Server supply this.
+      Starting a remote peer must also specify the host:port remoteAddr
+      of the remote client/server. The user can call the RemoteAddr() and
+      LocalAddr() methods on the Client/Server to obtain these.
 
           PeerAPI.StartRemotePeer(
                        ctx context.Context,
