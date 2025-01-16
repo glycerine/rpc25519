@@ -154,8 +154,8 @@ func (rpb *remotePeerback) PeerServiceName() string {
 func (rpb *remotePeerback) PeerURL() string {
 	return rpb.peerURL
 }
-func (rpb *remotePeerback) IncomingCircuit() (ckt *Circuit, ctx context.Context) {
-	return rpb.incomingCkt, rpb.incomingCkt.ctx
+func (rpb *remotePeerback) IncomingCircuit() (ckt *Circuit, ctx context.Context, err error) {
+	return rpb.incomingCkt, rpb.incomingCkt.ctx, nil
 }
 
 // localPeerback in the backing behind each local instantiation of a PeerServiceFunc.
@@ -191,7 +191,7 @@ type localPeerback struct {
 func (s *localPeerback) Close() {
 	s.canc()
 	s.halt.ReqStop.Close()
-	<-s.halt.Done.Chan
+	<-s.halt.Done.Chan // will not block if already closed.
 }
 func (s *localPeerback) ServiceName() string {
 	return s.peerServiceName
@@ -211,6 +211,10 @@ func (s *localPeerback) NewCircuitToPeerURL(
 	frag *Fragment,
 	errWriteDur *time.Duration,
 ) (ckt *Circuit, ctx context.Context, err error) {
+
+	if s.halt.ReqStop.IsClosed() {
+		return nil, nil, ErrHaltRequested
+	}
 
 	netAddr, serviceName, peerID, circuitID, err := parsePeerURL(peerURL)
 	if circuitID != "" {
@@ -246,7 +250,10 @@ func (s *localPeerback) NewCircuitToPeerURL(
 	s.remotes[peerID] = rpb
 	s.mut.Unlock()
 
-	ckt, ctx = s.newCircuit(circuitName, rpb, circuitID)
+	ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID)
+	if err != nil {
+		return nil, nil, err
+	}
 	msg := frag.ToMessage()
 	msg.HDR.To = netAddr
 	msg.HDR.From = s.netAddr
@@ -303,6 +310,11 @@ func (s *remotePeerback) SendOneWay(
 
 // SendOneWayMessage sends a Frament on the given Circuit.
 func (s *localPeerback) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
+
+	if s.halt.ReqStop.IsClosed() {
+		return ErrHaltRequested
+	}
+
 	if frag == nil {
 		return fmt.Errorf("frag cannot be nil")
 		//frag = NewFragment()
@@ -540,7 +552,7 @@ func (ckt *Circuit) convertFragmentToMessage(frag *Fragment) (msg *Message) {
 }
 
 // allow cID to specify the Call/CircuitID if desired, or empty to get a new one.
-func (rpb *remotePeerback) NewCircuit(circuitName string) (ckt *Circuit, ctx2 context.Context) {
+func (rpb *remotePeerback) NewCircuit(circuitName string) (ckt *Circuit, ctx2 context.Context, err error) {
 	return rpb.localPeerback.newCircuit(circuitName, rpb, "")
 }
 
@@ -548,7 +560,11 @@ func (lpb *localPeerback) newCircuit(
 	circuitName string,
 	rpb *remotePeerback,
 	cID string,
-) (ckt *Circuit, ctx2 context.Context) {
+) (ckt *Circuit, ctx2 context.Context, err error) {
+
+	if lpb.halt.ReqStop.IsClosed() {
+		return nil, nil, ErrHaltRequested
+	}
 
 	var canc2 context.CancelFunc
 	ctx2, canc2 = context.WithCancel(lpb.ctx)
@@ -602,7 +618,7 @@ type RemotePeer interface {
 
 	// IncomingCircuit is the first one that arrives with
 	// with an incoming remote peer connection.
-	IncomingCircuit() (ckt *Circuit, ctx context.Context)
+	IncomingCircuit() (ckt *Circuit, ctx context.Context, err error)
 
 	// NewCircuit generates a Circuit between two Peers,
 	// and tells the SendOneWay machinery
@@ -619,7 +635,7 @@ type RemotePeer interface {
 	// When selecting ckt.Reads and ckt.Errors, always also
 	// select on ctx.Done() in order to shutdown gracefully.
 	//
-	NewCircuit(circuitName string) (ckt *Circuit, ctx context.Context)
+	NewCircuit(circuitName string) (ckt *Circuit, ctx context.Context, err error)
 
 	// SendOneWay sends a Frament on the given Circuit.
 	SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error
@@ -1001,7 +1017,10 @@ func (lpb *localPeerback) provideRemoteOnNewPeerCh(isCli bool, msg *Message, ctx
 	// for tracing continuity, might as well use
 	// the CallID that initiated the circuit from the start.
 
-	ckt, ctx2 := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID)
+	ckt, ctx2, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID)
+	if err != nil {
+		return err
+	}
 
 	// enable user code: ckt, ctx := peer.IncomingCircuit()
 	rpb.incomingCkt = ckt
@@ -1023,6 +1042,10 @@ func (lpb *localPeerback) provideRemoteOnNewPeerCh(isCli bool, msg *Message, ctx
 			}
 		case <-ctx2.Done():
 			//return ErrShutdown()
+			return
+		case <-lpb.halt.ReqStop.Chan:
+			//return ErrHaltRequested
+			return
 		case <-time.After(10 * time.Second):
 			alwaysPrintf("warning: peer did not accept the circuit after 10 seconds. remoteCircuitURL = '%v'\n localCktURL = '%v'", remoteCktURL, localCktURL)
 		}

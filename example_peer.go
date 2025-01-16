@@ -254,7 +254,11 @@ func (me *PeerImpl) Start(
 
 				myurl := myPeer.URL()
 
-				ckt, ctx := peer.IncomingCircuit()
+				ckt, ctx, err := peer.IncomingCircuit()
+				if err != nil {
+					vv("got err from peer.IncomingCircuit: '%v'", err)
+					return
+				}
 				vv("IncomingCircuit got RemoteCircuitURL = '%v'", ckt.RemoteCircuitURL())
 				vv("IncomingCircuit got LocalCircuitURL = '%v'", ckt.LocalCircuitURL())
 

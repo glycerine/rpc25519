@@ -179,7 +179,8 @@ func Test406_user_can_cancel_local_service_with_context(t *testing.T) {
 		ctx, canc := context.WithCancel(context.Background())
 		lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil)
 		panicOn(err)
-		_ = lpb
+		defer lpb.Close()
+
 		canc() // should be equivalent to lpb.Close()
 
 		<-j.cliSync.halt.Done.Chan
