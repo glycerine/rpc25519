@@ -264,7 +264,8 @@ func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 
 		// verify that the server side also closed the circuit.
 
-		// might be racing against the close ckt going to the server.
+		// IsClosed() wil race against the close ckt going to the server,
+		// so wait on serverCkt.Halt.Done.Chan first.
 		select {
 		case <-serverCkt.Halt.Done.Chan:
 		case <-time.After(2 * time.Second):
@@ -287,7 +288,53 @@ func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 
 		// sends and reads on the closed ckt should give errors / nil channel hangs
 
-		// seems like enough for one test.
+		// server side is responding well when this test proxies the client.
+
+		vv("   ========   now proxy the server and have ckt to client... separate test?")
+
+		// Let's try it the other way: proxy the server and set up
+		// a circuit with the client
+
+		// optional first frag
+		frag2 := NewFragment()
+		frag2.FragSubject = "initial setup frag2"
+
+		cktname2 := "proxy_the_server407"
+		ckt2, ctxCkt2, err := server_lpb.NewCircuitToPeerURL(cktname2, cli_lpb.URL(), frag2, nil)
+		panicOn(err)
+		_ = ctxCkt2
+		defer ckt2.Close()
+
+		cliCkt := <-j.cliSync.gotIncomingCkt
+		vv("client got circuit '%v'", cliCkt.Name)
+
+		if cliCkt.Name != "proxy_the_server407" {
+			t.Fatalf("error: cliCktName should be 'proxy_the_server407' but we got '%v'", cliCkt.Name)
+		}
+		vv("good: client got the named circuit we expected.")
+
+		fragCliInRead2 := <-j.cliSync.gotIncomingCktReadFrag
+		cv.So(fragCliInRead2.FragSubject, cv.ShouldEqual, "initial setup frag2")
+
+		// verify client gets Reads
+		frag3 := NewFragment()
+		frag3.FragSubject = "frag3 to the client"
+		server_lpb.SendOneWay(ckt2, frag3, nil)
+
+		fragCliInRead3 := <-j.cliSync.gotIncomingCktReadFrag
+		vv("good: past frag3 read in the client. fragCliInRead3 = '%v'", fragCliInRead3)
+
+		_ = fragCliInRead3
+		if fragCliInRead3.FragSubject != "frag3 to the client" {
+			t.Fatalf("error: not expected subject 'are we live?' but: '%v'", fragCliInRead3.FragSubject)
+		}
+
+		vv("good: past the client frag3 read check.")
+
+		// shut down the peer service on one side. does the other side
+		// stay up, but clean up all the circuits associated with that service?
+
+		//select {}
 	})
 
 }
