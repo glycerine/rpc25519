@@ -6,7 +6,7 @@ import (
 	//"os"
 	//"strings"
 	"testing"
-	//"time"
+	"time"
 
 	cv "github.com/glycerine/goconvey/convey"
 )
@@ -60,6 +60,10 @@ func Test404_verify_peer_operations(t *testing.T) {
 
 		//vv("past cliSync.PushToPeerURL <- srvURL")
 		//vv("test main about to select{}")
+		time.Sleep(5 * time.Second)
+
+		vv("slept 5 sec. now cancel ctx.")
+		canc()
 		select {}
 	})
 }

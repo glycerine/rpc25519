@@ -350,6 +350,9 @@ func (peerAPI *peerAPI) newLocalPeerback(
 // to all the circuits live in this peer.
 func (pb *localPeerback) peerbackPump() {
 
+	name := pb.peerServiceName
+	vv("%v: peerbackPump top.", name)
+
 	// key: CallID (circuit ID)
 	m := make(map[string]*Circuit)
 
@@ -367,7 +370,7 @@ func (pb *localPeerback) peerbackPump() {
 		pb.u.UnregisterChannel(ckt.callID, CallIDErrorMap)
 	}
 	defer func() {
-		vv("peerbackPump exiting. closing all remaining circuits.")
+		vv("%v: peerbackPump exiting. closing all remaining circuits.", name)
 		var all []*Circuit
 		for _, ckt := range m {
 			all = append(all, ckt)
@@ -376,16 +379,15 @@ func (pb *localPeerback) peerbackPump() {
 			cleanupCkt(ckt)
 		}
 		m = nil
-		vv("peerbackPump cleanup done.")
+		vv("%v: peerbackPump cleanup done.", name)
 	}()
 
 	done := pb.ctx.Done()
 	for {
+		vv("%v: pump loop top of select", name)
 		select {
 		case ckt := <-pb.handleChansNewCircuit:
 			m[ckt.callID] = ckt
-
-			// send message to remote to set up the circuit!
 
 		case ckt := <-pb.handleCircuitClose:
 			cleanupCkt(ckt)
@@ -395,8 +397,8 @@ func (pb *localPeerback) peerbackPump() {
 			ckt, ok := m[callID]
 			//vv("peerbackPump sees readsIn msg: '%v' payload '%v'", msg, string(msg.JobSerz))
 			if !ok {
-				alwaysPrintf("arg. no circuit avail for callID = '%v';"+
-					" pump dropping this msg.", callID)
+				alwaysPrintf("%v: arg. no circuit avail for callID = '%v';"+
+					" pump dropping this msg.", name, callID)
 
 				if callID == "" {
 					// we have a legit PeerID but no CallID, which means that
@@ -415,7 +417,7 @@ func (pb *localPeerback) peerbackPump() {
 			callID := msgerr.HDR.CallID
 			ckt, ok := m[callID]
 			if !ok {
-				vv("arg. no ckt avail for callID = '%v' on msgerr", callID)
+				vv("%v: arg. no ckt avail for callID = '%v' on msgerr", name, callID)
 				continue
 			}
 			fragerr := ckt.convertMessageToFragment(msgerr)
