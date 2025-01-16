@@ -33,6 +33,7 @@ type Circuit struct {
 	ctx    context.Context
 	canc   context.CancelFunc
 
+	Name   string
 	Reads  chan *Fragment // users should treat as read-only.
 	Errors chan *Fragment // ditto.
 }
@@ -199,6 +200,7 @@ func (s *localPeerback) URL() string {
 }
 
 func (s *localPeerback) NewCircuitToPeerURL(
+	circuitName string,
 	peerURL string,
 	frag *Fragment,
 	errWriteDur *time.Duration,
@@ -238,7 +240,7 @@ func (s *localPeerback) NewCircuitToPeerURL(
 	s.remotes[peerID] = rpb
 	s.mut.Unlock()
 
-	ckt, ctx = s.newCircuit(rpb, circuitID)
+	ckt, ctx = s.newCircuit(circuitName, rpb, circuitID)
 	msg := frag.ToMessage()
 	msg.HDR.To = netAddr
 	msg.HDR.From = s.netAddr
@@ -246,10 +248,11 @@ func (s *localPeerback) NewCircuitToPeerURL(
 
 	// tell the remote which serviceName we are coming from;
 	// so the URL back can be correct.
-	msg.HDR.Args = map[string]string{"fromServiceName": s.peerServiceName}
+	msg.HDR.Args = map[string]string{"fromServiceName": s.peerServiceName,
+		"circuitName": circuitName}
 	//msg.HDR.From will be overwritten by sender.
 
-	//vv("about to SendOneWayMessage = '%v'", msg)
+	vv("about to SendOneWayMessage = '%v'", msg)
 	return ckt, ctx, s.u.SendOneWayMessage(ctx, msg, errWriteDur)
 }
 
@@ -382,6 +385,8 @@ func (pb *localPeerback) peerbackPump() {
 		case ckt := <-pb.handleChansNewCircuit:
 			m[ckt.callID] = ckt
 
+			// send message to remote to set up the circuit!
+
 		case ckt := <-pb.handleCircuitClose:
 			cleanupCkt(ckt)
 
@@ -512,11 +517,12 @@ func (ckt *Circuit) convertFragmentToMessage(frag *Fragment) (msg *Message) {
 }
 
 // allow cID to specify the Call/CircuitID if desired, or empty to get a new one.
-func (rpb *remotePeerback) NewCircuit() (ckt *Circuit, ctx2 context.Context) {
-	return rpb.localPeerback.newCircuit(rpb, "")
+func (rpb *remotePeerback) NewCircuit(circuitName string) (ckt *Circuit, ctx2 context.Context) {
+	return rpb.localPeerback.newCircuit(circuitName, rpb, "")
 }
 
 func (lpb *localPeerback) newCircuit(
+	circuitName string,
 	rpb *remotePeerback,
 	cID string,
 ) (ckt *Circuit, ctx2 context.Context) {
@@ -526,6 +532,7 @@ func (lpb *localPeerback) newCircuit(
 	reads := make(chan *Fragment)
 	errors := make(chan *Fragment)
 	ckt = &Circuit{
+		Name:              circuitName,
 		localServiceName:  lpb.peerServiceName,
 		remoteServiceName: rpb.remoteServiceName,
 		pbFrom:            lpb,
@@ -587,7 +594,7 @@ type RemotePeer interface {
 	// When selecting ckt.Reads and ckt.Errors, always also
 	// select on ctx.Done() in order to shutdown gracefully.
 	//
-	NewCircuit() (ckt *Circuit, ctx context.Context)
+	NewCircuit(circuitName string) (ckt *Circuit, ctx context.Context)
 
 	// SendOneWay sends a Frament on the given Circuit.
 	SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error
@@ -602,6 +609,7 @@ type LocalPeer interface {
 	// NewCircuitToPeerURL sets up a persistent communication path called a Circuit.
 	// The frag can be nil, or set to send it immediately.
 	NewCircuitToPeerURL(
+		circuitName string,
 		peerURL string,
 		frag *Fragment,
 		errWriteDur *time.Duration,
@@ -888,11 +896,15 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	}
 
 	if !ok { // either none active or could not find PeerID.
-		// report error and return nil.
-		msg.HDR.Typ = CallPeerError
-		msg.JobErrs = fmt.Sprintf("have peerServiceName '%v', but none active OR nothing for requested peerID='%v'; perhaps it died?", peerServiceName, localPeerID)
-		msg.JobSerz = nil
-		return s.replyHelper(isCli, msg, ctx, sendCh)
+		// spin one up!
+		vv("TODO! spin up a peer for peerServicename '%v'", peerServiceName)
+		/*
+			// report error and return nil.
+			msg.HDR.Typ = CallPeerError
+			msg.JobErrs = fmt.Sprintf("have peerServiceName '%v', but none active OR nothing for requested peerID='%v'; perhaps it died?", peerServiceName, localPeerID)
+			msg.JobSerz = nil
+			return s.replyHelper(isCli, msg, ctx, sendCh)
+		*/
 	}
 	knownLocalPeer.mut.Unlock()
 
@@ -905,13 +917,15 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		peerID:        msg.HDR.FromPeerID, // the remote's PeerID
 		netAddr:       msg.HDR.From,
 	}
+	circuitName := ""
 	if msg.HDR.Args != nil {
 		rpb.remoteServiceName = msg.HDR.Args["fromServiceName"]
+		circuitName = msg.HDR.Args["circuitName"]
 	}
 	// for tracing continuity, might as well use
 	// the CallID that initiated the circuit from the start.
 
-	ckt, ctx2 := lpb.newCircuit(rpb, msg.HDR.CallID)
+	ckt, ctx2 := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID)
 
 	// enable user code: ckt, ctx := peer.IncomingCircuit()
 	rpb.incomingCkt = ckt

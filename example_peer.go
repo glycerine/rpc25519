@@ -212,7 +212,8 @@ func (me *PeerImpl) Start(
 				panicOn(err)
 				aliasRegister(remotePeerID, remotePeerID+" (echo replier on client)")
 
-				ckt, ctx, err := myPeer.NewCircuitToPeerURL(echoToURL, outFrag, nil)
+				circuitName := "echo-circuit"
+				ckt, ctx, err := myPeer.NewCircuitToPeerURL(circuitName, echoToURL, outFrag, nil)
 				panicOn(err)
 				defer ckt.Close() // close when echo heard.
 				done := ctx.Done()
