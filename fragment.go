@@ -84,8 +84,8 @@ type Fragment struct {
 	ToPeerID    string   `zid:"1"`
 	CircuitID   string   `zid:"2"` // maps to Message.HDR.CallID.
 	Serial      int64    `zid:"3"`
-	ServiceName string   `zid:"4"` // the registered PeerServiceName.
-	FragType    CallType `zid:"5"` // one of the CallPeer CallTypes of hdr.go
+	Typ         CallType `zid:"4"` // one of the CallPeer CallTypes of hdr.go
+	ServiceName string   `zid:"5"` // the registered PeerServiceName.
 
 	// user supplied data
 	FragOp      int               `zid:"6"`
@@ -103,8 +103,10 @@ func (f *Fragment) String() string {
     "CircuitID": %q,
     "Serial": %v,
     "ServiceName": %q,
-    "FragType": %s,
+    "Typ": %s,
+    "FragOp": %v,
     "FragSubject": %q,
+    "FragPart": %v,
     "Args": %#v,
     "Payload": %v,
 }`,
@@ -113,8 +115,10 @@ func (f *Fragment) String() string {
 		f.CircuitID,
 		f.Serial,
 		f.ServiceName,
-		f.FragType,
+		f.Typ,
+		f.FragOp,
 		f.FragSubject,
+		f.FragPart,
 		f.Args,
 		fmt.Sprintf("(len %v bytes)", len(f.Payload)),
 		//string(f.Payload), // for debugging
@@ -351,7 +355,7 @@ func (pb *localPeerback) peerbackPump() {
 		// Politely tell our peer we are going down,
 		// in case they are staying up.
 		frag := NewFragment()
-		frag.FragType = CallPeerEndCircuit
+		frag.Typ = CallPeerEndCircuit
 		pb.SendOneWay(ckt, frag, nil)
 
 		ckt.canc()
@@ -425,11 +429,12 @@ func (ckt *Circuit) convertMessageToFragment(msg *Message) (frag *Fragment) {
 		FromPeerID:  msg.HDR.FromPeerID,
 		ToPeerID:    msg.HDR.ToPeerID,
 		CircuitID:   msg.HDR.CallID,
-		ServiceName: msg.HDR.ServiceName,
 		Serial:      msg.HDR.Serial,
+		Typ:         msg.HDR.Typ,
+		ServiceName: msg.HDR.ServiceName,
 
+		FragOp:      msg.HDR.FragOp,
 		FragSubject: msg.HDR.Subject,
-		FragType:    msg.HDR.Typ,
 		FragPart:    msg.HDR.StreamPart,
 
 		Args:    msg.HDR.Args,
@@ -442,25 +447,28 @@ func (ckt *Circuit) convertMessageToFragment(msg *Message) (frag *Fragment) {
 func (frag *Fragment) ToMessage() (msg *Message) {
 	msg = NewMessage()
 
-	if frag.FragType == 0 {
-		msg.HDR.Typ = CallPeerTraffic
-	} else {
-		msg.HDR.Typ = frag.FragType
-	}
 	msg.HDR.Created = time.Now()
-	msg.HDR.Serial = issueSerial()
-	msg.HDR.ServiceName = frag.ServiceName
+
+	msg.HDR.FromPeerID = frag.FromPeerID
+	msg.HDR.ToPeerID = frag.ToPeerID
+	msg.HDR.CallID = frag.CircuitID
+	//msg.HDR.Serial = issueSerial()
 	msg.HDR.Serial = frag.Serial
 
-	msg.HDR.ToPeerID = frag.ToPeerID
-	msg.HDR.FromPeerID = frag.FromPeerID
-	msg.HDR.CallID = frag.CircuitID
+	if frag.Typ == 0 {
+		msg.HDR.Typ = CallPeerTraffic
+	} else {
+		msg.HDR.Typ = frag.Typ
+	}
+	msg.HDR.ServiceName = frag.ServiceName
+
+	msg.HDR.FragOp = frag.FragOp
 	msg.HDR.Subject = frag.FragSubject
+	msg.HDR.StreamPart = frag.FragPart
+
 	if frag.Args != nil {
 		msg.HDR.Args = frag.Args
 	}
-
-	msg.HDR.StreamPart = frag.FragPart
 	msg.JobSerz = frag.Payload
 	msg.JobErrs = frag.Err
 

@@ -346,6 +346,7 @@ type HDR struct {
 	// Also known as PeerID in the Fragment/Peer/Circuit API.
 	ToPeerID   string `zid:"14"`
 	FromPeerID string `zid:"15"`
+	FragOp     int    `zid:"16"`
 
 	// streamCh is internal; used for client -> server streaming on CallUploadBegin
 	streamCh chan *Message `msg:"-" json:"-"`

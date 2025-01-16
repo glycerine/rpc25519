@@ -97,8 +97,8 @@ type Fragment struct {
 	    ToPeerID string
 	   CircuitID string
 	      Serial int64
+	         Typ CallType
 	 ServiceName string
-	    FragType CallType
 
            // user supplied data
           FragOp int

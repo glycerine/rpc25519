@@ -338,15 +338,15 @@ doneWithStruct8zgensym_3b48d2686114c0ff_9:
 			if err != nil {
 				return
 			}
-		case "ServiceName_zid04_str":
+		case "Typ_zid04_rct":
 			found8zgensym_3b48d2686114c0ff_9[4] = true
-			z.ServiceName, err = dc.ReadString()
+			err = z.Typ.DecodeMsg(dc)
 			if err != nil {
 				return
 			}
-		case "FragType_zid05_rct":
+		case "ServiceName_zid05_str":
 			found8zgensym_3b48d2686114c0ff_9[5] = true
-			err = z.FragType.DecodeMsg(dc)
+			z.ServiceName, err = dc.ReadString()
 			if err != nil {
 				return
 			}
@@ -431,7 +431,7 @@ doneWithStruct8zgensym_3b48d2686114c0ff_9:
 }
 
 // fields of Fragment
-var decodeMsgFieldOrder8zgensym_3b48d2686114c0ff_9 = []string{"FromPeerID_zid00_str", "ToPeerID_zid01_str", "CircuitID_zid02_str", "Serial_zid03_i64", "ServiceName_zid04_str", "FragType_zid05_rct", "FragOp_zid06_int", "FragSubject_zid07_str", "FragPart_zid08_i64", "Args_zid09_map", "Payload_zid10_bin", "Err_zid11_str"}
+var decodeMsgFieldOrder8zgensym_3b48d2686114c0ff_9 = []string{"FromPeerID_zid00_str", "ToPeerID_zid01_str", "CircuitID_zid02_str", "Serial_zid03_i64", "Typ_zid04_rct", "ServiceName_zid05_str", "FragOp_zid06_int", "FragSubject_zid07_str", "FragPart_zid08_i64", "Args_zid09_map", "Payload_zid10_bin", "Err_zid11_str"}
 
 var decodeMsgFieldSkip8zgensym_3b48d2686114c0ff_9 = []bool{false, false, false, false, false, false, false, false, false, false, false, false}
 
@@ -457,11 +457,11 @@ func (z *Fragment) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[3] {
 		fieldsInUse--
 	}
-	isempty[4] = (len(z.ServiceName) == 0) // string, omitempty
+	isempty[4] = false
 	if isempty[4] {
 		fieldsInUse--
 	}
-	isempty[5] = false
+	isempty[5] = (len(z.ServiceName) == 0) // string, omitempty
 	if isempty[5] {
 		fieldsInUse--
 	}
@@ -568,24 +568,24 @@ func (z *Fragment) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_3b48d2686114c0ff_11[4] {
-		// write "ServiceName_zid04_str"
-		err = en.Append(0xb5, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x73, 0x74, 0x72)
+		// write "Typ_zid04_rct"
+		err = en.Append(0xad, 0x54, 0x79, 0x70, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x72, 0x63, 0x74)
 		if err != nil {
 			return err
 		}
-		err = en.WriteString(z.ServiceName)
+		err = z.Typ.EncodeMsg(en)
 		if err != nil {
 			return
 		}
 	}
 
 	if !empty_zgensym_3b48d2686114c0ff_11[5] {
-		// write "FragType_zid05_rct"
-		err = en.Append(0xb2, 0x46, 0x72, 0x61, 0x67, 0x54, 0x79, 0x70, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x72, 0x63, 0x74)
+		// write "ServiceName_zid05_str"
+		err = en.Append(0xb5, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
-		err = z.FragType.EncodeMsg(en)
+		err = en.WriteString(z.ServiceName)
 		if err != nil {
 			return
 		}
@@ -714,18 +714,18 @@ func (z *Fragment) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[4] {
-		// string "ServiceName_zid04_str"
-		o = append(o, 0xb5, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x73, 0x74, 0x72)
-		o = msgp.AppendString(o, z.ServiceName)
-	}
-
-	if !empty[5] {
-		// string "FragType_zid05_rct"
-		o = append(o, 0xb2, 0x46, 0x72, 0x61, 0x67, 0x54, 0x79, 0x70, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x72, 0x63, 0x74)
-		o, err = z.FragType.MarshalMsg(o) // not is.iface, gen/marshal.go:243
+		// string "Typ_zid04_rct"
+		o = append(o, 0xad, 0x54, 0x79, 0x70, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x72, 0x63, 0x74)
+		o, err = z.Typ.MarshalMsg(o) // not is.iface, gen/marshal.go:243
 		if err != nil {
 			return
 		}
+	}
+
+	if !empty[5] {
+		// string "ServiceName_zid05_str"
+		o = append(o, 0xb5, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.ServiceName)
 	}
 
 	if !empty[6] {
@@ -864,16 +864,16 @@ doneWithStruct13zgensym_3b48d2686114c0ff_14:
 			if err != nil {
 				return
 			}
-		case "ServiceName_zid04_str":
+		case "Typ_zid04_rct":
 			found13zgensym_3b48d2686114c0ff_14[4] = true
-			z.ServiceName, bts, err = nbs.ReadStringBytes(bts)
-
+			bts, err = z.Typ.UnmarshalMsg(bts)
 			if err != nil {
 				return
 			}
-		case "FragType_zid05_rct":
+		case "ServiceName_zid05_str":
 			found13zgensym_3b48d2686114c0ff_14[5] = true
-			bts, err = z.FragType.UnmarshalMsg(bts)
+			z.ServiceName, bts, err = nbs.ReadStringBytes(bts)
+
 			if err != nil {
 				return
 			}
@@ -984,13 +984,13 @@ doneWithStruct13zgensym_3b48d2686114c0ff_14:
 }
 
 // fields of Fragment
-var unmarshalMsgFieldOrder13zgensym_3b48d2686114c0ff_14 = []string{"FromPeerID_zid00_str", "ToPeerID_zid01_str", "CircuitID_zid02_str", "Serial_zid03_i64", "ServiceName_zid04_str", "FragType_zid05_rct", "FragOp_zid06_int", "FragSubject_zid07_str", "FragPart_zid08_i64", "Args_zid09_map", "Payload_zid10_bin", "Err_zid11_str"}
+var unmarshalMsgFieldOrder13zgensym_3b48d2686114c0ff_14 = []string{"FromPeerID_zid00_str", "ToPeerID_zid01_str", "CircuitID_zid02_str", "Serial_zid03_i64", "Typ_zid04_rct", "ServiceName_zid05_str", "FragOp_zid06_int", "FragSubject_zid07_str", "FragPart_zid08_i64", "Args_zid09_map", "Payload_zid10_bin", "Err_zid11_str"}
 
 var unmarshalMsgFieldSkip13zgensym_3b48d2686114c0ff_14 = []bool{false, false, false, false, false, false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Fragment) Msgsize() (s int) {
-	s = 1 + 21 + msgp.StringPrefixSize + len(z.FromPeerID) + 19 + msgp.StringPrefixSize + len(z.ToPeerID) + 20 + msgp.StringPrefixSize + len(z.CircuitID) + 17 + msgp.Int64Size + 22 + msgp.StringPrefixSize + len(z.ServiceName) + 19 + z.FragType.Msgsize() + 17 + msgp.IntSize + 22 + msgp.StringPrefixSize + len(z.FragSubject) + 19 + msgp.Int64Size + 15 + msgp.MapHeaderSize
+	s = 1 + 21 + msgp.StringPrefixSize + len(z.FromPeerID) + 19 + msgp.StringPrefixSize + len(z.ToPeerID) + 20 + msgp.StringPrefixSize + len(z.CircuitID) + 17 + msgp.Int64Size + 14 + z.Typ.Msgsize() + 22 + msgp.StringPrefixSize + len(z.ServiceName) + 17 + msgp.IntSize + 22 + msgp.StringPrefixSize + len(z.FragSubject) + 19 + msgp.Int64Size + 15 + msgp.MapHeaderSize
 	if z.Args != nil {
 		for zgensym_3b48d2686114c0ff_6, zgensym_3b48d2686114c0ff_7 := range z.Args {
 			_ = zgensym_3b48d2686114c0ff_7
