@@ -2,7 +2,7 @@ package rpc25519
 
 import (
 	"context"
-	//"fmt"
+	"fmt"
 	//"os"
 	//"strings"
 	"testing"
@@ -10,6 +10,8 @@ import (
 
 	cv "github.com/glycerine/goconvey/convey"
 )
+
+var _ = fmt.Sprintf
 
 type testJunk struct {
 	name string
@@ -192,13 +194,14 @@ func Test406_user_can_cancel_local_service_with_context(t *testing.T) {
 func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 
 	cv.Convey("a circuit can close down, telling the remote but not closing the peer", t, func() {
+
 		j := newTestJunk("circuit_close_test407")
 		defer j.cleanup()
 
 		ctx := context.Background()
-		lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil)
+		cli_lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil)
 		panicOn(err)
-		defer lpb.Close()
+		defer cli_lpb.Close()
 
 		// later test:
 		//_, _, err := j.cli.PeerAPI.StartRemotePeer(ctx, j.srvServiceName, cli.RemoteAddr(), 0)
@@ -215,25 +218,42 @@ func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 		frag0 := NewFragment()
 		frag0.FragSubject = "initial setup frag0"
 
-		ckt, ctxCkt, err := lpb.NewCircuitToPeerURL(cktname, server_lpb.URL(), frag0, nil)
+		ckt, ctxCkt, err := cli_lpb.NewCircuitToPeerURL(cktname, server_lpb.URL(), frag0, nil)
 		panicOn(err)
 		_ = ctxCkt
 		defer ckt.Close()
 
 		// verify it is up
-		/*
-			frag := NewFragment()
-			frag.FragSubject = "are we live?"
-			lpb.SendOneWay(ckt, frag, nil)
-			vv("lpb.SendOneWay() back.")
-		*/
+
 		serverCkt := <-j.srvSync.gotIncomingCkt
 		vv("server got circuit '%v'", serverCkt.Name)
+
+		fragSrvInRead0 := <-j.srvSync.gotIncomingCktReadFrag
+		cv.So(fragSrvInRead0.FragSubject, cv.ShouldEqual, "initial setup frag0")
+
+		// verify server gets Reads
+		frag := NewFragment()
+		frag.FragSubject = "are we live?"
+		cli_lpb.SendOneWay(ckt, frag, nil)
+		vv("cli_lpb.SendOneWay() are we live back.")
+
+		fragSrvInRead1 := <-j.srvSync.gotIncomingCktReadFrag
+		vv("good: past 2nd read from server. fragSrvInRead1 = '%v'", fragSrvInRead1)
+
+		_ = fragSrvInRead1
+		if fragSrvInRead1.FragSubject != "are we live?" {
+			t.Fatalf("not expected subject 'are we live?' but: '%v'", fragSrvInRead1.FragSubject)
+		}
+
+		vv("good: past the are we live check.")
+
+		// printing a random "x" ? but not here... async?
+		//cv.So(fragSrvInRead1.FragSubject, cv.ShouldEqual, "initial setup frag0")
 		//server_lpb
 		//Reads <- chan *Fragment
 		//Errors <- chan *Fragment
 
-		select {}
+		//select {}
 	})
 
 }

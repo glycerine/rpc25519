@@ -61,6 +61,10 @@ func (ckt *Circuit) RemoteCircuitURL() string {
 		ckt.callID
 }
 
+func (ckt *Circuit) IsClosed() bool {
+	return ckt.Halt.ReqStop.IsClosed()
+}
+
 // ID2 supplies the local and remote PeerIDs.
 func (ckt *Circuit) ID2() (localPeerID, remotePeerID string) {
 	return ckt.pbFrom.peerID, ckt.pbTo.peerID
@@ -310,6 +314,10 @@ func (s *remotePeerback) SendOneWay(
 
 // SendOneWayMessage sends a Frament on the given Circuit.
 func (s *localPeerback) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
+
+	//defer func() {
+	//	vv("done with localPeerback.SendOneWay()")
+	//}()
 
 	if s.halt.ReqStop.IsClosed() {
 		return ErrHaltRequested
@@ -597,7 +605,12 @@ func (lpb *localPeerback) newCircuit(
 func (h *Circuit) CircuitID() string { return h.callID }
 
 func (h *Circuit) Close() {
-	h.pbFrom.handleCircuitClose <- h
+	h.Halt.ReqStop.Close()
+	select {
+	// handleCircuitClose <- h can hang if goro already down, so heck Halt.Done too.
+	case h.pbFrom.handleCircuitClose <- h:
+	case <-h.Halt.Done.Chan:
+	}
 }
 
 // RemotePeer is the user facing interface to

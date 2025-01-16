@@ -15,10 +15,15 @@ import (
 	myblake3 "github.com/glycerine/rpc25519/hash"
 )
 
+var _ = ioutil.TempDir
+var _ = filepath.Dir
+
 func TestMain(m *testing.M) {
 
 	var exitVal int
 	func() {
+		vv("TestMain running.")
+
 		// create a temp dir for certs/ca,
 		// and configure to uset it.
 		tmp, err := ioutil.TempDir("", "rpc25519-tests-temp-dir")
