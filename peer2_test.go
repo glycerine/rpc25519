@@ -228,6 +228,24 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 			srv_ckts = append(srv_ckts, ckt9)
 		}
 
+		// launch indep goro to send/read on each of the 20 circuits from both sides.
+		punisher := func(k int, ckt *Circuit, role string) {
+
+		}
+		k := 0
+		var wg sync.WaitGroup
+		for i := range 10 {
+			ckt := cli_ckts[i]
+			srvCkt := what //? what here
+			punisher(k, ckt, "cli_read")
+			punisher(k, srvCkt, "cli_send")
+			k++
+		}
+		for i := range 10 {
+			ckt := srv_ckts[i]
+			k++
+		}
+
 		// close all but one from each
 		for i := range 9 {
 			cli_ckts[i].Close()
@@ -241,6 +259,17 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 		if srv_ckts[9].IsClosed() {
 			t.Fatalf("error: server circuit '%v' should NOT be closed.", srv_ckts[9].Name)
 		}
+		for i := range 9 {
+			if !cli_ckts[i].IsClosed() {
+				t.Fatalf("error: client circuit '%v' should be closed.", cli_ckts[i].Name)
+			}
+			if !srv_ckts[i].IsClosed() {
+				t.Fatalf("error: server circuit '%v' should be closed.", srv_ckts[i].Name)
+			}
+		}
+
+		cli_ckts[9].Close()
+		srv_ckts[9].Close()
 
 		//select {}
 	})
