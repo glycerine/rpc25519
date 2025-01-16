@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 	//"sync/atomic"
+	"github.com/glycerine/idem"
 	"time"
-	//"github.com/glycerine/loquet"
 )
 
 //go:generate greenpack
@@ -166,9 +166,11 @@ type localPeerback struct {
 	peerAPI         *peerAPI
 	u               UniversalCliSrv
 
-	peerID    string // could be local or remote, only
-	ctx       context.Context
-	canc      context.CancelFunc
+	peerID string // could be local or remote, only
+	ctx    context.Context
+	canc   context.CancelFunc
+	halt   *idem.Halter
+
 	newPeerCh chan RemotePeer
 
 	readsIn  chan *Message
@@ -186,6 +188,8 @@ type localPeerback struct {
 
 func (s *localPeerback) Close() {
 	s.canc()
+	s.halt.ReqStop.Close()
+	<-s.halt.Done.Chan
 }
 func (s *localPeerback) ServiceName() string {
 	return s.peerServiceName
@@ -321,6 +325,7 @@ func (peerAPI *peerAPI) newLocalPeerback(
 ) (pb *localPeerback) {
 
 	pb = &localPeerback{
+		halt:            idem.NewHalter(),
 		netAddr:         netAddr,
 		peerServiceName: peerServiceName,
 		peerAPI:         peerAPI,
@@ -380,12 +385,16 @@ func (pb *localPeerback) peerbackPump() {
 		}
 		m = nil
 		vv("%v: peerbackPump cleanup done.", name)
+		pb.halt.Done.Close()
 	}()
 
 	done := pb.ctx.Done()
 	for {
 		vv("%v: pump loop top of select", name)
 		select {
+		case <-pb.halt.ReqStop.Chan:
+			return
+
 		case ckt := <-pb.handleChansNewCircuit:
 			m[ckt.callID] = ckt
 

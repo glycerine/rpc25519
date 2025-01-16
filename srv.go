@@ -39,6 +39,7 @@ const yesIsClient = true
 //var serverAddress = "192.168.254.151:8443"
 
 var ErrContextCancelled = fmt.Errorf("context cancelled")
+var ErrHaltRequested = fmt.Errorf("halt requested")
 
 // boundCh should be buffered, at least 1, if it is not nil. If not nil, we
 // will send the bound net.Addr back on it after we have started listening.

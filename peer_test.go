@@ -19,6 +19,9 @@ type testJunk struct {
 
 	srvSync *syncer
 	cliSync *syncer
+
+	cliServiceName string
+	srvServiceName string
 }
 
 func (j *testJunk) cleanup() {
@@ -29,7 +32,9 @@ func (j *testJunk) cleanup() {
 func newTestJunk(name string) (j *testJunk) {
 
 	j = &testJunk{
-		name: name,
+		name:           name,
+		cliServiceName: "cliSync_" + name,
+		srvServiceName: "srvSync_" + name,
 	}
 
 	cfg := NewConfig()
@@ -49,13 +54,13 @@ func newTestJunk(name string) (j *testJunk) {
 	panicOn(err)
 	//defer cli.Close()
 
-	srvSync := newSyncer("srvSync_" + name)
+	srvSync := newSyncer(j.srvServiceName)
 
-	err = srv.PeerAPI.RegisterPeerServiceFunc("srvSync_"+name, srvSync.Start)
+	err = srv.PeerAPI.RegisterPeerServiceFunc(j.srvServiceName, srvSync.Start)
 	panicOn(err)
 
-	cliSync := newSyncer("cliSync_" + name)
-	err = cli.PeerAPI.RegisterPeerServiceFunc("cliSync_"+name, cliSync.Start)
+	cliSync := newSyncer(j.cliServiceName)
+	err = cli.PeerAPI.RegisterPeerServiceFunc(j.cliServiceName, cliSync.Start)
 	panicOn(err)
 
 	j.cli = cli
@@ -132,12 +137,40 @@ func Test404_verify_peer_operations(t *testing.T) {
 	})
 }
 
-func Test405_user_can_cancel_local_service_with_context(t *testing.T) {
+func Test405_user_can_close_Client_and_Server(t *testing.T) {
+
+	cv.Convey("user code calling Close on Client and Server should shut down. make sure j.cleanup works!", t, func() {
+		j := newTestJunk("close_cli_srv405")
+
+		j.cleanup()
+
+		<-j.cli.halt.Done.Chan
+		vv("cli has halted")
+		<-j.srv.halt.Done.Chan
+		vv("srv has halted")
+
+		// verify children
+		j = newTestJunk("close_cli_srv405")
+		j.cleanup()
+
+	})
+
+}
+
+func Test406_user_can_cancel_local_service_with_context(t *testing.T) {
 
 	cv.Convey("user code calling cancel on a running local peer service should stop it", t, func() {
-		j := newTestJunk("local_ctx_cancel_test405")
+		j := newTestJunk("local_ctx_cancel_test406")
 		defer j.cleanup()
 
+		ctx := context.Background()
+		lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil)
+		panicOn(err)
+
+		lpb.Close()
+
+		<-j.cliSync.halt.Done.Chan
+		vv("good: cliSync has halted")
 	})
 
 }
