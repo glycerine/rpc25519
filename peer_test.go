@@ -247,10 +247,19 @@ func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 
 		vv("good: past the are we live check.")
 
+		if ckt.IsClosed() {
+			t.Fatalf("circuit '%v' should NOT be closed.", ckt.Name)
+		}
+
 		vv("about to ckt.Close() from the client side ckt")
 		ckt.Close()
 
 		vv("good: past the ckt.Close()")
+		if !ckt.IsClosed() {
+			t.Fatalf("circuit '%v' should be closed.", ckt.Name)
+		}
+		vv("good: past the ckt.IsClosed()")
+		select {}
 
 		// printing a random "x" ? but not here... async?
 		//cv.So(fragSrvInRead1.FragSubject, cv.ShouldEqual, "initial setup frag0")
