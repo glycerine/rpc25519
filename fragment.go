@@ -435,6 +435,7 @@ func (pb *localPeerback) peerbackPump() {
 			ckt, ok := m[callID]
 			vv("pump %v: sees readsIn msg, ckt ok=%v", name, ok)
 			if !ok {
+				// we expect the ckt close ack-back to be dropped if we initiated it.
 				alwaysPrintf("%v: arg. no circuit avail for callID = '%v';"+
 					" pump dropping this msg.", name, callID)
 
