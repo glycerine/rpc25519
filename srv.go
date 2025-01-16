@@ -599,9 +599,14 @@ func (pair *rwPair) handleIncomingMessage(ctx context.Context, req *Message, job
 	go pair.Server.processWork(job)
 }
 
-// Client and Server both use, to keep code in sync.
+// Client and Server both use (their own copies) to keep code in sync.
 type notifies struct {
-	//mut   sync.Mutex // use mapIDtoChan instead.
+	// use mapIDtoChan instead of mutex in notifies, to avoid
+	// deadlocks with the cli readLoop and the peer pump both accessing,
+	// while the cli readLoop wants the pump to service the
+	// channel send it got from the notifies map in the first place;
+	// while the pump wants to unregister a shutdown peerID chan.
+
 	isCli bool
 
 	notifyOnReadCallIDMap  *mapIDtoChan
@@ -611,6 +616,7 @@ type notifies struct {
 	notifyOnErrorToPeerIDMap *mapIDtoChan
 }
 
+// for notifies to avoid long holds of a mutex, we use this instead.
 type mapIDtoChan struct {
 	mut sync.Mutex
 	m   map[string]chan *Message
