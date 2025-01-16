@@ -195,7 +195,7 @@ type localPeerback struct {
 func (s *localPeerback) Close() {
 	s.canc()
 	s.halt.ReqStop.Close()
-	<-s.halt.Done.Chan // will not block if already closed.
+	<-s.halt.Done.Chan // wait for shutdown; will not block if already closed.
 }
 func (s *localPeerback) ServiceName() string {
 	return s.peerServiceName
@@ -499,8 +499,19 @@ func (lpb *localPeerback) newCircuit(
 		ckt.callID = NewCallID()
 	}
 	aliasRegister(ckt.callID, ckt.callID+" ("+circuitName+")")
-	vv("lpb %p %v: newCircuit about to send ckt to pump loop lpb.handleChansNewCircuit = %p", lpb, lpb.peerServiceName, lpb.handleChansNewCircuit)
-	lpb.handleChansNewCircuit <- ckt // hung here! log.hang408next
+
+	vv("lpb %p %v: newCircuit about to send ckt to pump loop lpb.handleChansNewCircuit = %p ; to make circuitName='%v'", lpb, lpb.peerServiceName, lpb.handleChansNewCircuit, circuitName)
+
+	select {
+	case lpb.handleChansNewCircuit <- ckt: // hung here! log.hang408next
+
+	case <-lpb.halt.ReqStop.Chan:
+		return nil, nil, ErrHaltRequested
+
+	case <-time.After(time.Second * 10):
+		panic(fmt.Sprintf("problem: could not access pump loop to create newCircuit after 10 sec; trying to make '%v'", circuitName))
+	}
+
 	return
 }
 
@@ -707,13 +718,13 @@ func (p *peerAPI) unlockedStartLocalPeer(
 		vv("launching new peerServiceFunc invocation for '%v'", peerServiceName)
 		knownLocalPeer.peerServiceFunc(lpb, ctx1, newPeerCh)
 
-		// do cleanup
-		lpb.Close() // hung in here
+		vv("peerServiceFunc has returned: '%v'; clean up the lbp!", peerServiceName)
+		canc1()
+		lpb.Close()
 		knownLocalPeer.mut.Lock()
 		delete(knownLocalPeer.active, localPeerID)
 		knownLocalPeer.mut.Unlock()
 
-		canc1()
 	}()
 
 	//localPeerURL := lpb.URL()

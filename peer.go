@@ -125,7 +125,7 @@ func (s *syncer) Start(
 				vv("%v: (ckt '%v') got past <-ckt for incoming ckt", s.name, ckt.Name)
 
 				defer func() {
-					vv("%v: (ckt '%v') defer running! finishing RemotePeer goro.", s.name, ckt.Name) // seen on server
+					vv("%v: (ckt '%v') defer running! finishing RemotePeer goro. stack = '%v'", s.name, ckt.Name, stack()) // seen on server
 					ckt.Close()
 					s.gotCktHaltReq.Close()
 				}()
@@ -161,7 +161,7 @@ func (s *syncer) Start(
 
 					case <-done:
 						vv("%v: (ckt '%v') done!", s.name, ckt.Name)
-						return
+						return // server finishing on done!
 					case <-done0:
 						vv("%v: (ckt '%v') done0!", s.name, ckt.Name)
 						return

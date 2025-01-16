@@ -4,6 +4,10 @@ package rpc25519
 // to all the circuits live in this peer.
 func (pb *localPeerback) peerbackPump() {
 
+	defer func() {
+		vv("localPeerback.peerbackPump all-finished; pb= %p", pb)
+	}()
+
 	name := pb.peerServiceName
 	vv("%v: peerbackPump top.", name)
 

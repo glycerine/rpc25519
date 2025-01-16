@@ -160,6 +160,18 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 		}
 		vv("good: past the serverCkt.IsClosed()")
 
+		// are our lbp shutdown? they should be up! they should
+		// survive any of their circuits shutting down!!
+
+		if server_lpb.halt.ReqStop.IsClosed() {
+			vv("bad! server_lpb should be still open now!")
+			t.Fatalf("error: server local '%v' should be open.", server_lpb.peerServiceName)
+		}
+		if cli_lpb.halt.ReqStop.IsClosed() {
+			vv("bad! cli_lpb should be still open now!")
+			t.Fatalf("error: client local '%v' should be open.", cli_lpb.peerServiceName)
+		}
+
 		// did the server peer code recognize the closed ckt?
 
 		// we have been acting as the client through lbp, so the
@@ -176,45 +188,19 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 
 		vv("   ========   now proxy the server and have ckt to client... separate test?")
 
-		// Let's try it the other way: proxy the server and set up
-		// a circuit with the client
+		/*
+			if false {
+				server_lpb, err = j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil)
+				panicOn(err)
+				defer server_lpb.Close()
 
-		// optional first frag
-		frag2 := NewFragment()
-		frag2.FragSubject = "initial setup frag2"
+				cli_lpb, err = j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil)
+				panicOn(err)
+				defer cli_lpb.Close()
+			}
+		*/
 
-		cktname2 := "proxy_the_server408"
-		ckt2, ctxCkt2, err := server_lpb.NewCircuitToPeerURL(cktname2, cli_lpb.URL(), frag2, nil)
-		panicOn(err)
-		_ = ctxCkt2
-		defer ckt2.Close()
-
-		cliCkt := <-j.cliSync.gotIncomingCkt
-		vv("client got circuit '%v'", cliCkt.Name)
-
-		if cliCkt.Name != "proxy_the_server408" {
-			t.Fatalf("error: cliCktName should be 'proxy_the_server408' but we got '%v'", cliCkt.Name)
-		}
-		vv("good: client got the named circuit we expected.")
-
-		fragCliInRead2 := <-j.cliSync.gotIncomingCktReadFrag
-		cv.So(fragCliInRead2.FragSubject, cv.ShouldEqual, "initial setup frag2")
-
-		// verify client gets Reads
-		frag3 := NewFragment()
-		frag3.FragSubject = "frag3 to the client"
-		server_lpb.SendOneWay(ckt2, frag3, nil)
-
-		fragCliInRead3 := <-j.cliSync.gotIncomingCktReadFrag
-		vv("good: past frag3 read in the client. fragCliInRead3 = '%v'", fragCliInRead3)
-
-		_ = fragCliInRead3
-		if fragCliInRead3.FragSubject != "frag3 to the client" {
-			t.Fatalf("error: not expected subject 'are we live?' but: '%v'", fragCliInRead3.FragSubject)
-		}
-
-		vv("good: past the client frag3 read check.")
-
+		// future test idea, not below:
 		// shut down the peer service on one side. does the other side
 		// stay up, but clean up all the circuits associated with that service?
 
@@ -235,7 +221,7 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 			vv("server makes new ckt, i = %v", i)
 			cktname9 := fmt.Sprintf("srv_ckt9_%02d", i)
 			// leak the ctx, we don't care here(!)
-			ckt9, _, err := server_lpb.NewCircuitToPeerURL(cktname9, cli_lpb.URL(), nil, nil) // hung here on i = 0 ; deadlocked.
+			ckt9, _, err := server_lpb.NewCircuitToPeerURL(cktname9, cli_lpb.URL(), nil, nil) // hung here on i = 0 ; deadlocked. because this server_lpb is ALREADY CLOSED after the first circuit was shut down!
 			panicOn(err)
 			vv("server back from making new ckt, i = %v", i)
 			//defer ckt.Close()
