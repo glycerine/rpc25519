@@ -700,19 +700,12 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 		wantsToPeerID, ok := c.notifyOnReadToPeerIDMap.get(msg.HDR.ToPeerID)
 		//vv("have ToPeerID msg = '%v'; ok='%v'", msg.HDR.String(), ok)
 		if ok {
-			// have to releaes the notifies lock if we want to send to the peer pump goro,
-			// because it will be unregistered closed circuit chan with notifies too. or use a sync.Map for these.
 			select {
-			case wantsToPeerID <- msg: // deadlocked here. we hold the notifies lock, stopping the pump from running and getting this callback? maybe? very likely.
+			case wantsToPeerID <- msg:
 				//vv("sent msg to wantsToPeerID chan!")
 			case <-ctx.Done():
 				return
 			case <-ctx.Done():
-				//default:
-				//	panic(fmt.Sprintf("Should never happen b/c the "+
-				//		"channels must be buffered!: could not send to "+
-				//		"whoCh from notifyOnReadToPeerIDMap; for ToPeerID = %v.",
-				//		msg.HDR.ToPeerID))
 			}
 			return true // only send to ToPeerID, priority over CallID.
 		}
