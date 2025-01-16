@@ -22,6 +22,15 @@ func (m *mutmap[K, V]) get(key K) (val V, ok bool) {
 	return
 }
 
+func (m *mutmap[K, V]) getValSlice() (slc []V) {
+	m.mut.RLock()
+	for _, v := range m.m {
+		slc = append(slc, v)
+	}
+	m.mut.RUnlock()
+	return
+}
+
 func (m *mutmap[K, V]) set(key K, val V) {
 	m.mut.Lock()
 	m.m[key] = val

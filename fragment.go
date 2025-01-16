@@ -186,11 +186,8 @@ type localPeerback struct {
 	handleCircuitClose    chan *Circuit
 	queryCh               chan *queryLocalPeerPump
 
-	// mut protect the remotes map below
-	mut sync.Mutex
-
 	// remotes key is the remote PeerID
-	remotes map[string]*remotePeerback
+	remotes *mutmap[string, *remotePeerback]
 }
 
 func (s *localPeerback) Close() {
@@ -251,9 +248,7 @@ func (s *localPeerback) NewCircuitToPeerURL(
 		netAddr:           netAddr,
 		remoteServiceName: serviceName,
 	}
-	s.mut.Lock()
-	s.remotes[peerID] = rpb
-	s.mut.Unlock()
+	s.remotes.set(peerID, rpb)
 
 	ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID)
 	if err != nil {
@@ -361,7 +356,7 @@ func (peerAPI *peerAPI) newLocalPeerback(
 		readsIn:  make(chan *Message, 1),
 		errorsIn: make(chan *Message, 1),
 
-		remotes:               make(map[string]*remotePeerback),
+		remotes:               newMutmap[string, *remotePeerback](),
 		handleChansNewCircuit: make(chan *Circuit),
 		handleCircuitClose:    make(chan *Circuit),
 		queryCh:               make(chan *queryLocalPeerPump),

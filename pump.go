@@ -1,5 +1,10 @@
 package rpc25519
 
+import (
+	"context"
+	"time"
+)
+
 // background goro to read all PeerID *Messages and sort them
 // to all the circuits live in this peer.
 func (pb *localPeerback) peerbackPump() {
@@ -41,7 +46,28 @@ func (pb *localPeerback) peerbackPump() {
 			cleanupCkt(ckt)
 		}
 		m = nil
-		vv("%v: peerbackPump cleanup done.", name)
+		vv("%v: peerbackPump cleanup done... telling peers were are down", name)
+
+		// tell all remotes we are going down
+		remotesSlice := pb.remotes.getValSlice() // set(peerID, rpb)
+		shut := &Message{}
+		shut.HDR.Created = time.Now()
+		shut.HDR.From = pb.netAddr
+		shut.HDR.Typ = CallPeerEnd
+		shut.HDR.FromPeerID = pb.peerID
+		// avoid pb.ctx, as it may well already be cancelled.
+		ctxB := context.Background()
+
+		for _, rem := range remotesSlice {
+			msg := shallowCloneMessage(shut)
+			msg.HDR.To = rem.netAddr
+			msg.HDR.ToPeerID = rem.peerID
+			msg.HDR.Serial = issueSerial()
+			msg.HDR.ServiceName = rem.remoteServiceName
+
+			pb.u.SendOneWayMessage(ctxB, msg, nil)
+		}
+		vv("%v: peerbackPump done telling peers we are down.", name)
 		pb.halt.Done.Close()
 	}()
 
@@ -128,4 +154,10 @@ func (pb *localPeerback) peerbackPump() {
 			}
 		}
 	}
+}
+
+// only do this if msg has no DoneCh and no HDR.Args
+func shallowCloneMessage(msg *Message) *Message {
+	cp := *msg
+	return &cp
 }
