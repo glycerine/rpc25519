@@ -79,34 +79,20 @@ func NewFragment() *Fragment {
 // be overridden for FromPeerID, ToPeerID,
 // and CircuitID.
 type Fragment struct {
+	// system metadata
+	FromPeerID  string   `zid:"0"` // who sent us this Fragment.
+	ToPeerID    string   `zid:"1"`
+	CircuitID   string   `zid:"2"` // maps to Message.HDR.CallID.
+	Serial      int64    `zid:"3"`
+	ServiceName string   `zid:"4"` // the registered PeerServiceName.
+	FragType    CallType `zid:"5"` // one of the CallPeer CallTypes of hdr.go
 
-	// FromPeerID tells the receiver who sent us this Fragment.
-	FromPeerID string `zid:"0"`
-	ToPeerID   string `zid:"1"`
-
-	// CircuitID was assigned in the NewCircuit() call.
-	// Equivalent to Message.HDR.CallID.
-	CircuitID string `zid:"2"`
-
-	// ServiceName is the remote peer's PeerServiceName.
-	ServiceName string `zid:"3"`
-
-	FragSubject string `zid:"4"`
-
-	// can be a message type, sub-service name, other useful context.
-	FragType CallType `zid:"5"`
-
-	// built in multi-part handling for the same CallID and FragType.
-	FragPart int64 `zid:"6"`
-	Serial   int64 `zid:"7"`
-
-	// Args starts nil/unallocated to save space.
-	// User should allocate if the need it.
-	Args map[string]string `zid:"8"`
-
-	Payload []byte `zid:"9"`
-
-	Err string `zid:"10"` // distinguished field for error messages.
+	// user supplied data
+	FragSubject string            `zid:"6"`
+	FragPart    int64             `zid:"7"`
+	Args        map[string]string `zid:"8"` // nil by default; make() it if you need it.
+	Payload     []byte            `zid:"9"`
+	Err         string            `zid:"10"` // distinguished field for error messages.
 }
 
 func (f *Fragment) String() string {
@@ -114,20 +100,20 @@ func (f *Fragment) String() string {
     "FromPeerID": %q,
     "ToPeerID": %q,
     "CircuitID": %q,
-    "ServiceName": %q,
-    "FragSubject": %q,
-    "FragType": %s,
     "Serial": %v,
+    "ServiceName": %q,
+    "FragType": %s,
+    "FragSubject": %q,
     "Args": %#v,
     "Payload": %v,
 }`,
 		aliasDecode(f.FromPeerID),
 		aliasDecode(f.ToPeerID),
 		f.CircuitID,
-		f.ServiceName,
-		f.FragSubject,
-		f.FragType,
 		f.Serial,
+		f.ServiceName,
+		f.FragType,
+		f.FragSubject,
 		f.Args,
 		fmt.Sprintf("(len %v bytes)", len(f.Payload)),
 		//string(f.Payload), // for debugging

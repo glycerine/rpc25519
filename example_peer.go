@@ -5,27 +5,52 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
-	//"github.com/glycerine/loquet"
 )
 
 /*
 ~~~
+
+Peer/Circuit/Fragment Design overview
+
+Motivated by filesystem syncing, we envision a system that can
+both stream efficiently and utilize the same code
+on the client as on the server.
+
+Syncing a filesystem needs efficient stream transmission.
+The total data far exceeds what will fit in any single
+message, and updates may be continuous. We don't want
+to wait for one "call" to finish its round trip. We
+just want to send data when we have it. Hence the
+API is based on one-way messages and is asynchronous
+in that these calls do not wait for network
+round trips to complete. Once established, a
+circuit between peers is designed to persist
+until deliberately closed. A circuit can then receive
+any number of fragments of data during its lifetime.
+
+Symmetry of code deployment is also a natural
+requirement. This is the git model. When syncing
+two repositories, the operations needed are
+the same on both sides, no matter who
+initiated. Hence we want a way to register
+the same functionality on the client as on the server.
+
 Peer/Circuit/Fragment API essentials (utility methods omitted for compactness)
 
 A) to establish circuits with new peers:
-   1) NewCircuitToPeerURL() for initiating actively.
+   1) NewCircuitToPeerURL() for initiating a new circuit to a new peer.
    2) <-newPeerCh to recieve new initiations;
       then use the IncomingCircuit() method to get the Circuit.
 
 B) to create additional circuits with an already connected peer:
-   1) NewCircuit adds a new circuit with an existing RemotePeer
+   1) NewCircuit adds a new circuit with an existing RemotePeer, no URL needed.
    2) They get notified on <-newPeerCh too. (verify)
 
 C) To communicate over a Circuit:
    1) get regular messages (called Fragments) from <-Circuit.Reads
    2) get error messages from <-Circuit.Errors
    3) send messages with SendOneWay(). It never blocks.
-   4) Close() the circuit and the peer's ctx will be cancelled.
+   4) Close() the circuit and the peer's ctx will be cancelled. (verify)
 
 type Circuit struct {
 	Reads  <-chan *Fragment
@@ -37,11 +62,56 @@ type LocalPeer interface {
          errWriteDur *time.Duration) (ckt *Circuit, ctx context.Context, err error)
 }
 type RemotePeer interface {
-	IncomingCircuit() (ckt *Circuit, ctx context.Context)
-	NewCircuit()      (ckt *Circuit, ctx context.Context)
+	IncomingCircuit() (ckt *Circuit, ctx context.Context) // gets the first.
+	NewCircuit()      (ckt *Circuit, ctx context.Context) // make 2nd, 3rd...
 	SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error
 }
 type PeerServiceFunc func(myPeer LocalPeer, ctx0 context.Context, newPeerCh <-chan RemotePeer) error
+
+type Fragment struct {
+           // system metadata
+	  FromPeerID string
+	    ToPeerID string
+	   CircuitID string
+	      Serial int64
+	 ServiceName string
+	    FragType CallType
+
+           // user supplied data
+	 FragSubject string
+	    FragPart int64
+	        Args map[string]string
+	     Payload []byte
+	         Err string
+}
+
+D) boostrapping: registering your Peer implemenation and starting
+    them up (from outside the PeerServiceFunc callback). The PeerAPI
+    is available via Client.PeerAPI or Server.PeerAPI.
+    The same facilities are available to peers running on either.
+
+   1. register:
+
+      PeerAPI.RegisterPeerServiceFunc(peerServiceName string, peer PeerServiceFunc) error
+
+   2. start a previously registered PeerServiceFunc locally or remotely:
+
+          PeerAPI.StartLocalPeer(
+                   ctx context.Context,
+          peerServiceName string) (localPeerURL, localPeerID string, err error)
+
+      Starting a remote peer must also supply the host:port of the remote client/server.
+      The RemoteAddr() and LocalAddr() on the Client/Server supply this.
+
+          PeerAPI.StartRemotePeer(
+                       ctx context.Context,
+           peerServiceName string,
+                remoteAddr string, // host:port
+                  waitUpTo time.Duration,
+                              ) (remotePeerURL, remotePeerID string, err error)
+
+       The returned URLs can be used in myPeer.NewCircuitToPeerURL() calls
+       inside the PeerServiceFunc.
 ~~~
 */
 

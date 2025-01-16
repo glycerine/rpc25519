@@ -168,14 +168,14 @@ func Test402_simpler_startup_peer_service_test(t *testing.T) {
 		cfg.UseQUIC = false // true
 
 		cfg.ServerAddr = "127.0.0.1:0"
-		srv := NewServer("srv_test001", cfg)
+		srv := NewServer("srv_test402", cfg)
 
 		serverAddr, err := srv.Start()
 		panicOn(err)
 		defer srv.Close()
 
 		cfg.ClientDialToHostPort = serverAddr.String()
-		cli, err := NewClient("client_test400", cfg)
+		cli, err := NewClient("client_test402", cfg)
 		panicOn(err)
 		err = cli.Start()
 		panicOn(err)
@@ -198,9 +198,7 @@ func Test402_simpler_startup_peer_service_test(t *testing.T) {
 		cliAddr := cli.LocalAddr()
 		vv("cliAddr = '%v'", cliAddr)
 
-		// any number of known peers can be supplied, or none, to bootstrap.
 		peerURL_server, peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName)
-		//peerURL_server, peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, peerURL_client)
 		panicOn(err)
 		vv("StartLocalPeer: on server peerURL_server = '%v'; peerID_server = '%v'", peerURL_server, peerID_server)
 		if cfg.UseQUIC {
