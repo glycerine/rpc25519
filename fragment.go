@@ -416,7 +416,7 @@ func (pb *localPeerback) peerbackPump() {
 
 	done := pb.ctx.Done()
 	for {
-		vv("%v: pump loop top of select. pb.handleCircuitClose = %p", name, pb.handleCircuitClose)
+		vv("%v %p: pump loop top of select. pb.handleChansNewCircuit = %p", name, pb, pb.handleChansNewCircuit)
 		select {
 		case <-pb.halt.ReqStop.Chan:
 			return
@@ -624,8 +624,8 @@ func (lpb *localPeerback) newCircuit(
 		ckt.callID = NewCallID()
 	}
 	aliasRegister(ckt.callID, ckt.callID+" ("+circuitName+")")
-
-	lpb.handleChansNewCircuit <- ckt
+	vv("lpb %p %v: newCircuit about to send ckt to pump loop lpb.handleChansNewCircuit = %p", lpb, lpb.peerServiceName, lpb.handleChansNewCircuit)
+	lpb.handleChansNewCircuit <- ckt // hung here! log.hang408next
 	return
 }
 
@@ -1080,6 +1080,7 @@ func (lpb *localPeerback) provideRemoteOnNewPeerCh(isCli bool, msg *Message, ctx
 			vv("user got remote interface, give them the message: msg='%v' -> asFrag = '%v'", msg.String(), asFrag.String())
 			select {
 			case ckt.Reads <- asFrag:
+			case <-ckt.Halt.ReqStop.Chan:
 			case <-ctx2.Done():
 			}
 		case <-ctx2.Done():

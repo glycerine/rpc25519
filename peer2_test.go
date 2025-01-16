@@ -218,6 +218,30 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 		// shut down the peer service on one side. does the other side
 		// stay up, but clean up all the circuits associated with that service?
 
+		// make a bunch of circuits to check, initated by cli and server
+		var cli_ckts []*Circuit
+		var srv_ckts []*Circuit
+
+		for i := range 10 {
+			cktname9 := fmt.Sprintf("cli_ckt9_%02d", i)
+			// leak the ctx, we don't care here(!)
+			ckt9, _, err := cli_lpb.NewCircuitToPeerURL(cktname9, server_lpb.URL(), nil, nil)
+			panicOn(err)
+			//defer ckt.Close()
+			cli_ckts = append(cli_ckts, ckt9)
+		}
+
+		for i := range 10 {
+			cktname9 := fmt.Sprintf("srv_ckt9_%02d", i)
+			// leak the ctx, we don't care here(!)
+			ckt9, _, err := server_lpb.NewCircuitToPeerURL(cktname9, cli_lpb.URL(), nil, nil)
+			panicOn(err)
+			//defer ckt.Close()
+			srv_ckts = append(srv_ckts, ckt9)
+		}
+
+		//lpb.Close()
+
 		//select {}
 	})
 
