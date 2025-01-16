@@ -43,9 +43,6 @@ func Test404_verify_peer_operations(t *testing.T) {
 
 		cliSync := newSyncer("cliSync")
 
-		cliAddr := cli.LocalAddr()
-		_ = cliAddr
-
 		cli.PeerAPI.RegisterPeerServiceFunc("cliSync", cliSync.Start)
 
 		lpb, err := cli.PeerAPI.StartLocalPeer(ctx, "cliSync", nil)
@@ -65,5 +62,10 @@ func Test404_verify_peer_operations(t *testing.T) {
 		vv("slept 5 sec. now cancel ctx.")
 		canc()
 		select {}
+
+		// systematic cancel tests:
+		//does local peer cancel -> local service cancel
+		//local service -> all local ckt cancel
+		// start here [ ] local ckt -> remote ckt
 	})
 }

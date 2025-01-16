@@ -750,7 +750,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 
 	go func() {
 		vv("launching new peerServiceFunc invocation for '%v'", peerServiceName)
-		knownLocalPeer.peerServiceFunc(lpb, ctx, newPeerCh)
+		knownLocalPeer.peerServiceFunc(lpb, ctx1, newPeerCh)
 
 		// do cleanup
 		lpb.Close()
@@ -765,7 +765,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	//vv("lpb.PeerURL() = '%v'", localPeerURL)
 
 	if requestedCircuit != nil {
-		return lpb, lpb.provideRemoteOnNewPeerCh(p.isCli, requestedCircuit, ctx, sendCh, isUpdatedPeerID)
+		return lpb, lpb.provideRemoteOnNewPeerCh(p.isCli, requestedCircuit, ctx1, sendCh, isUpdatedPeerID)
 	}
 
 	return lpb, nil

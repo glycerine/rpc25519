@@ -2202,7 +2202,6 @@ func (b *Downloader) BeginDownload(ctx context.Context, path string) (err error)
 	case <-ctx.Done():
 		return ErrContextCancelled
 	}
-	return
 }
 
 // Bistreamer is the client side handle to talking
