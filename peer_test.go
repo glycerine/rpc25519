@@ -48,8 +48,10 @@ func Test404_verify_peer_operations(t *testing.T) {
 
 		cli.PeerAPI.RegisterPeerServiceFunc("cliSync", cliSync.Start)
 
-		peerURL_cli, peerID_cli, err := cli.PeerAPI.StartLocalPeer(ctx, "cliSync")
+		lpb, err := cli.PeerAPI.StartLocalPeer(ctx, "cliSync", nil)
 		panicOn(err)
+		peerURL_cli, peerID_cli := lpb.URL(), lpb.ID()
+
 		vv("cli.PeerAPI.StartLocalPeer() on client peerURL_client = '%v'; peerID_client = '%v'", peerURL_cli, peerID_cli)
 
 		srvURL := cli.RemoteAddr() + "/srvSync"

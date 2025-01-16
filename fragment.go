@@ -706,22 +706,36 @@ func (p *peerAPI) RegisterPeerServiceFunc(peerServiceName string, peer PeerServi
 func (p *peerAPI) StartLocalPeer(
 	ctx context.Context,
 	peerServiceName string,
+	requestedCircuit *Message,
 
-) (localPeerURL, localPeerID string, err error) {
+) (lpb *localPeerback, err error) {
+
 	p.mut.Lock()
 	defer p.mut.Unlock()
+
+	return p.unlockedStartLocalPeer(ctx, peerServiceName, requestedCircuit, false)
+}
+
+func (p *peerAPI) unlockedStartLocalPeer(
+	ctx context.Context,
+	peerServiceName string,
+	requestedCircuit *Message,
+	isUpdatedPeerID bool,
+
+) (lpb *localPeerback, err error) {
+
 	knownLocalPeer, ok := p.localServiceNameMap[peerServiceName]
 	if !ok {
-		return "", "", fmt.Errorf("no local peerServiceName '%v' available", peerServiceName)
+		return nil, fmt.Errorf("no local peerServiceName '%v' available", peerServiceName)
 	}
 
 	newPeerCh := make(chan RemotePeer, 1) // must be buffered >= 1, see below.
 	ctx1, canc1 := context.WithCancel(ctx)
-	localPeerID = NewCallID()
+	localPeerID := NewCallID()
 
 	localAddr := p.u.LocalAddr()
 	//vv("localAddr = '%v'", localAddr)
-	lpb := p.newLocalPeerback(ctx1, canc1, p.u, localPeerID, newPeerCh, peerServiceName, localAddr)
+	lpb = p.newLocalPeerback(ctx1, canc1, p.u, localPeerID, newPeerCh, peerServiceName, localAddr)
 
 	knownLocalPeer.mut.Lock()
 	if knownLocalPeer.active == nil {
@@ -742,10 +756,10 @@ func (p *peerAPI) StartLocalPeer(
 		canc1()
 	}()
 
-	localPeerURL = lpb.URL()
+	//localPeerURL := lpb.URL()
 	//vv("lpb.PeerURL() = '%v'", localPeerURL)
 
-	return localPeerURL, localPeerID, nil
+	return lpb, nil
 }
 
 // StartRemotePeer boots up a peer a remote node.
@@ -868,7 +882,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 // .
 // Okay. On with the show:
 func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
-	//vv("isCli=%v, bootstrapCircuit called with msg='%v'; JobSerz='%v'", isCli, msg.String(), string(msg.JobSerz))
+	vv("isCli=%v, bootstrapCircuit called with msg='%v'; JobSerz='%v'", isCli, msg.String(), string(msg.JobSerz))
 
 	// So here we go:
 
@@ -878,34 +892,60 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 
 	s.mut.Lock()
 	defer s.mut.Unlock()
+
 	knownLocalPeer, ok := s.localServiceNameMap[peerServiceName]
 	if !ok {
 		msg.HDR.Typ = CallPeerError
 		msg.JobErrs = fmt.Sprintf("no local peerServiceName '%v' available", peerServiceName)
 		msg.JobSerz = nil
+		vv("bootstrapCircuit returning early: '%v'", msg.JobErrs)
 		return s.replyHelper(isCli, msg, ctx, sendCh)
 	}
 
 	knownLocalPeer.mut.Lock()
 
+	if knownLocalPeer.active == nil {
+		knownLocalPeer.active = make(map[string]*localPeerback)
+	}
+
 	var lpb *localPeerback
-	ok = false
 
-	if knownLocalPeer.active != nil {
+	needNew := false
+	isUpdatedPeerID := false
+	if localPeerID == "" {
+		needNew = true
+	} else {
+		var ok bool
 		lpb, ok = knownLocalPeer.active[localPeerID]
+		if !ok {
+			// problem, peer no longer here. tell the requster.
+			// report error and return nil. they will probably
+			// need to reset state?
+			//
+			// Or we could just make a new
+			// one anyway and tell them about the change in PeerID.
+			// Let's do that.
+			/*
+				msg.HDR.Typ = CallPeerError
+				msg.JobErrs = fmt.Sprintf("have peerServiceName '%v', but none "+
+					"active for peerID='%v'; perhaps it died?", peerServiceName, localPeerID)
+				msg.JobSerz = nil
+				return s.replyHelper(isCli, msg, ctx, sendCh)
+			*/
+			isUpdatedPeerID = true
+			needNew = true
+		}
+	}
+	if needNew {
+		// spin one up!
+		vv("spinning up a peer for peerServicename '%v'", peerServiceName)
+		//lpb2, localPeerURL, localPeerID, err := s.StartLocalPeer(ctx, peerServiceName, msg)
+		lpb2, err := s.unlockedStartLocalPeer(ctx, peerServiceName, msg, isUpdatedPeerID)
+		panicOn(err)
+		lpb = lpb2
+		//_, _ = localPeerURL, localPeerID
 	}
 
-	if !ok { // either none active or could not find PeerID.
-		// spin one up!
-		vv("TODO! spin up a peer for peerServicename '%v'", peerServiceName)
-		/*
-			// report error and return nil.
-			msg.HDR.Typ = CallPeerError
-			msg.JobErrs = fmt.Sprintf("have peerServiceName '%v', but none active OR nothing for requested peerID='%v'; perhaps it died?", peerServiceName, localPeerID)
-			msg.JobSerz = nil
-			return s.replyHelper(isCli, msg, ctx, sendCh)
-		*/
-	}
 	knownLocalPeer.mut.Unlock()
 
 	// success:
@@ -997,7 +1037,9 @@ func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Con
 	vv("top of bootstrapPeerService(): isCli=%v; msg.HDR='%v'", isCli, msg.HDR.String())
 
 	// starts its own goroutine or return with an error (both quickly).
-	localPeerURL, localPeerID, err := s.StartLocalPeer(ctx, msg.HDR.ServiceName)
+	lpb, err := s.StartLocalPeer(ctx, msg.HDR.ServiceName, msg)
+	localPeerURL := lpb.URL()
+	localPeerID := lpb.ID()
 
 	// reply with the same msg; save an allocation.
 	msg.HDR.From, msg.HDR.To = msg.HDR.To, msg.HDR.From

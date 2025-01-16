@@ -77,9 +77,12 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		vv("started remote with peerURL_client = '%v'; cliServiceName = '%v'; peerID_client = '%v'", peerURL_client, cliServiceName, peerID_client)
 
 		// any number of known peers can be supplied, or none, to bootstrap.
-		peerURL_server, peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName)
+		lpb, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, nil)
 		//peerURL_server, peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, peerURL_client)
 		panicOn(err)
+
+		peerURL_server := lpb.URL()
+		peerID_server := lpb.ID()
 		_ = peerURL_server
 		_ = peerID_server
 		vv("StartLocalPeer: on server peerURL_server = '%v'; peerID_server = '%v'", peerURL_server, peerID_server)
@@ -198,8 +201,9 @@ func Test402_simpler_startup_peer_service_test(t *testing.T) {
 		cliAddr := cli.LocalAddr()
 		vv("cliAddr = '%v'", cliAddr)
 
-		peerURL_server, peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName)
+		lpb, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, nil)
 		panicOn(err)
+		peerURL_server, peerID_server := lpb.URL(), lpb.ID()
 		vv("StartLocalPeer: on server peerURL_server = '%v'; peerID_server = '%v'", peerURL_server, peerID_server)
 		if cfg.UseQUIC {
 			cv.So(peerURL_server, cv.ShouldStartWith, "udp://")
@@ -256,7 +260,8 @@ func Test403_new_circuit_from_existing_peer(t *testing.T) {
 		panicOn(err)
 		vv("started remote with peerURL_client = '%v'; cliServiceName = '%v'; peerID_client = '%v'", peerURL_client, cliServiceName, peerID_client)
 
-		peerURL_server, peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName)
+		lpb, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, nil)
+		peerURL_server, peerID_server := lpb.URL(), lpb.ID()
 		panicOn(err)
 		vv("srv.PeerAPI.StartLocalPeer() on server peerURL_server = '%v'; peerID_server = '%v'", peerURL_server, peerID_server)
 
