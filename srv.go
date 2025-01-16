@@ -617,8 +617,9 @@ type notifies struct {
 }
 
 // for notifies to avoid long holds of a mutex, we use this instead.
+// See also mutmap.go, a later generic version.
 type mapIDtoChan struct {
-	mut sync.Mutex
+	mut sync.RWMutex
 	m   map[string]chan *Message
 }
 
@@ -628,9 +629,9 @@ func newMapIDtoChan() *mapIDtoChan {
 	}
 }
 func (m *mapIDtoChan) get(id string) (ch chan *Message, ok bool) {
-	m.mut.Lock()
+	m.mut.RLock()
 	ch, ok = m.m[id]
-	m.mut.Unlock()
+	m.mut.RUnlock()
 	return
 }
 func (m *mapIDtoChan) set(id string, ch chan *Message) {
@@ -641,6 +642,11 @@ func (m *mapIDtoChan) set(id string, ch chan *Message) {
 func (m *mapIDtoChan) del(id string) {
 	m.mut.Lock()
 	delete(m.m, id)
+	m.mut.Unlock()
+}
+func (m *mapIDtoChan) clear() {
+	m.mut.Lock()
+	clear(m.m)
 	m.mut.Unlock()
 }
 

@@ -91,9 +91,9 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 		//_, _, err := j.cli.PeerAPI.StartRemotePeer(ctx, j.srvServiceName, cli.RemoteAddr(), 0)
 		//panicOn(err)
 
-		server_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil)
+		srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil)
 		panicOn(err)
-		defer server_lpb.Close()
+		defer srv_lpb.Close()
 
 		// establish a circuit, then close it
 		cktname := "408ckt_first_ckt"
@@ -102,7 +102,7 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 		frag0 := NewFragment()
 		frag0.FragSubject = "initial setup frag0"
 
-		ckt, ctxCkt, err := cli_lpb.NewCircuitToPeerURL(cktname, server_lpb.URL(), frag0, nil)
+		ckt, ctxCkt, err := cli_lpb.NewCircuitToPeerURL(cktname, srv_lpb.URL(), frag0, nil)
 		panicOn(err)
 		_ = ctxCkt
 		defer ckt.Close()
@@ -163,11 +163,11 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 		// are our lbp shutdown? they should be up! they should
 		// survive any of their circuits shutting down!!
 
-		if server_lpb.halt.ReqStop.IsClosed() {
-			vv("bad! server_lpb should be still open now!")
-			t.Fatalf("error: server local '%v' should be open.", server_lpb.peerServiceName)
+		if srv_lpb.IsClosed() {
+			vv("bad! srv_lpb should be still open now!")
+			t.Fatalf("error: server local '%v' should be open.", srv_lpb.peerServiceName)
 		}
-		if cli_lpb.halt.ReqStop.IsClosed() {
+		if cli_lpb.IsClosed() {
 			vv("bad! cli_lpb should be still open now!")
 			t.Fatalf("error: client local '%v' should be open.", cli_lpb.peerServiceName)
 		}
@@ -184,15 +184,24 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 
 		// sends and reads on the closed ckt should give errors / nil channel hangs
 
+		cliNumCkt := cli_lpb.OpenCircuitCount()
+		if cliNumCkt != 0 {
+			t.Fatalf("expected zero open circuits, got cliNumCkt: '%v'", cliNumCkt)
+		}
+		srvNumCkt := srv_lpb.OpenCircuitCount()
+		if srvNumCkt != 0 {
+			t.Fatalf("expected zero open circuits, got srvNumCkt: '%v'", srvNumCkt)
+		}
+
 		// server side is responding well when this test proxies the client.
 
 		vv("   ========   now proxy the server and have ckt to client... separate test?")
 
 		/*
 			if false {
-				server_lpb, err = j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil)
+				srv_lpb, err = j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil)
 				panicOn(err)
-				defer server_lpb.Close()
+				defer srv_lpb.Close()
 
 				cli_lpb, err = j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil)
 				panicOn(err)
@@ -211,7 +220,7 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 		for i := range 10 {
 			cktname9 := fmt.Sprintf("cli_ckt9_%02d", i)
 			// leak the ctx, we don't care here(!)
-			ckt9, _, err := cli_lpb.NewCircuitToPeerURL(cktname9, server_lpb.URL(), nil, nil)
+			ckt9, _, err := cli_lpb.NewCircuitToPeerURL(cktname9, srv_lpb.URL(), nil, nil)
 			panicOn(err)
 			//defer ckt.Close()
 			cli_ckts = append(cli_ckts, ckt9)
@@ -221,13 +230,18 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 			vv("server makes new ckt, i = %v", i)
 			cktname9 := fmt.Sprintf("srv_ckt9_%02d", i)
 			// leak the ctx, we don't care here(!)
-			ckt9, _, err := server_lpb.NewCircuitToPeerURL(cktname9, cli_lpb.URL(), nil, nil) // hung here on i = 0 ; deadlocked. because this server_lpb is ALREADY CLOSED after the first circuit was shut down!
+			ckt9, _, err := srv_lpb.NewCircuitToPeerURL(cktname9, cli_lpb.URL(), nil, nil)
 			panicOn(err)
 			vv("server back from making new ckt, i = %v", i)
 			//defer ckt.Close()
 			srv_ckts = append(srv_ckts, ckt9)
 		}
 
+		// cancellation from one side gets handled.
+
+		// simplest send and recieve
+
+		/* TODO:
 		// launch indep goro to send/read on each of the 20 circuits from both sides.
 		punisher := func(k int, ckt *Circuit, role string) {
 
@@ -245,6 +259,7 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 			ckt := srv_ckts[i]
 			k++
 		}
+		*/
 
 		// close all but one from each
 		for i := range 9 {

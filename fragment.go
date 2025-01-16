@@ -184,6 +184,7 @@ type localPeerback struct {
 
 	handleChansNewCircuit chan *Circuit
 	handleCircuitClose    chan *Circuit
+	queryCh               chan *queryLocalPeerPump
 
 	// mut protect the remotes map below
 	mut sync.Mutex
@@ -363,6 +364,7 @@ func (peerAPI *peerAPI) newLocalPeerback(
 		remotes:               make(map[string]*remotePeerback),
 		handleChansNewCircuit: make(chan *Circuit),
 		handleCircuitClose:    make(chan *Circuit),
+		queryCh:               make(chan *queryLocalPeerPump),
 	}
 
 	// service reads for local.
@@ -464,6 +466,41 @@ func (ckt *Circuit) convertFragmentToMessage(frag *Fragment) (msg *Message) {
 // allow cID to specify the Call/CircuitID if desired, or empty to get a new one.
 func (rpb *remotePeerback) NewCircuit(circuitName string) (ckt *Circuit, ctx2 context.Context, err error) {
 	return rpb.localPeerback.newCircuit(circuitName, rpb, "")
+}
+
+func (lpb *localPeerback) IsClosed() bool {
+	return lpb.halt.ReqStop.IsClosed()
+}
+
+type queryLocalPeerPump struct {
+	openCircuitCount int
+	ready            chan struct{}
+}
+
+func newQueryLocalPeerPump() *queryLocalPeerPump {
+	return &queryLocalPeerPump{
+		ready: make(chan struct{}),
+	}
+}
+
+// OpenCircuitCount returns the number of
+// open circuits or -1 if this was unavailable
+// because of shutdown. Inherently this count
+// is a point in time snapshot and may be stale by the
+// time it is actually returned.
+func (lpb *localPeerback) OpenCircuitCount() int {
+	query := newQueryLocalPeerPump()
+	select {
+	case lpb.queryCh <- query:
+	case <-lpb.halt.ReqStop.Chan:
+		return -1
+	}
+	select {
+	case <-query.ready:
+		return query.openCircuitCount
+	case <-lpb.halt.ReqStop.Chan:
+		return -1
+	}
 }
 
 func (lpb *localPeerback) newCircuit(
