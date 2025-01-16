@@ -85,8 +85,8 @@ type LocalPeer interface {
          errWriteDur *time.Duration) (ckt *Circuit, ctx context.Context, err error)
 }
 type RemotePeer interface {
-	IncomingCircuit() (ckt *Circuit, ctx context.Context) // gets the first.
-	NewCircuit()      (ckt *Circuit, ctx context.Context) // make 2nd, 3rd...
+	IncomingCircuit() (ckt *Circuit, ctx context.Context, err error) // gets the first.
+	NewCircuit()      (ckt *Circuit, ctx context.Context, err error) // make 2nd, 3rd...
 	SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error
 }
 type PeerServiceFunc func(myPeer LocalPeer, ctx0 context.Context, newPeerCh <-chan RemotePeer) error

@@ -188,3 +188,52 @@ func Test406_user_can_cancel_local_service_with_context(t *testing.T) {
 	})
 
 }
+
+func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
+
+	cv.Convey("a circuit can close down, telling the remote but not closing the peer", t, func() {
+		j := newTestJunk("circuit_close_test407")
+		defer j.cleanup()
+
+		ctx := context.Background()
+		lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil)
+		panicOn(err)
+		defer lpb.Close()
+
+		// later test:
+		//_, _, err := j.cli.PeerAPI.StartRemotePeer(ctx, j.srvServiceName, cli.RemoteAddr(), 0)
+		//panicOn(err)
+
+		server_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil)
+		panicOn(err)
+		defer server_lpb.Close()
+
+		// establish a circuit, then close it
+		cktname := "407ckt"
+
+		// optional first frag
+		frag0 := NewFragment()
+		frag0.FragSubject = "initial setup frag0"
+
+		ckt, ctxCkt, err := lpb.NewCircuitToPeerURL(cktname, server_lpb.URL(), frag0, nil)
+		panicOn(err)
+		_ = ctxCkt
+		defer ckt.Close()
+
+		// verify it is up
+		/*
+			frag := NewFragment()
+			frag.FragSubject = "are we live?"
+			lpb.SendOneWay(ckt, frag, nil)
+			vv("lpb.SendOneWay() back.")
+		*/
+		serverCkt := <-j.srvSync.gotIncomingCkt
+		vv("server got circuit '%v'", serverCkt.Name)
+		//server_lpb
+		//Reads <- chan *Fragment
+		//Errors <- chan *Fragment
+
+		select {}
+	})
+
+}
