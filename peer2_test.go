@@ -96,7 +96,7 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 		defer server_lpb.Close()
 
 		// establish a circuit, then close it
-		cktname := "408ckt"
+		cktname := "408ckt_first_ckt"
 
 		// optional first frag
 		frag0 := NewFragment()
@@ -232,10 +232,12 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 		}
 
 		for i := range 10 {
+			vv("server makes new ckt, i = %v", i)
 			cktname9 := fmt.Sprintf("srv_ckt9_%02d", i)
 			// leak the ctx, we don't care here(!)
-			ckt9, _, err := server_lpb.NewCircuitToPeerURL(cktname9, cli_lpb.URL(), nil, nil)
+			ckt9, _, err := server_lpb.NewCircuitToPeerURL(cktname9, cli_lpb.URL(), nil, nil) // hung here on i = 0 ; deadlocked.
 			panicOn(err)
+			vv("server back from making new ckt, i = %v", i)
 			//defer ckt.Close()
 			srv_ckts = append(srv_ckts, ckt9)
 		}
