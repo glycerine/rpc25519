@@ -43,7 +43,18 @@ type decompressor interface {
 // Reset(io.Reader) // s2, lz4 so the
 // so that the decompressor interface works for all three (s2,lz4,zstd).
 type wrapZstdDecoder struct {
-	zstd.Decoder
+
+	// Fortunately the constructor zstd.NewReader
+	// does not use the sync.WaitGroup contained in zstd.Decoder,
+	// so we (used to) copy the struct by value into the wrapper safely
+	// before it was used; they take the address of the
+	// value. This saved one level of pointer chasing.
+
+	// But go vet (in a false alarm) still complained,
+	// so we changed this to a pointer instead. More
+	// indirection, but less hassle.
+
+	*zstd.Decoder
 }
 
 func (d *wrapZstdDecoder) Reset(r io.Reader) {
@@ -67,11 +78,7 @@ func newDecomp(maxMsgSize int) (d *decomp) {
 	var wrap wrapZstdDecoder
 	zread, err := zstd.NewReader(nil)
 	panicOn(err)
-	// Fortunately the constructor zstd.NewReader
-	// does not use the sync.WaitGroup contained in zstd.Decoder,
-	// so we can copy the struct into the wrapper safely
-	// before it is used.
-	wrap.Decoder = *zread
+	wrap.Decoder = zread
 
 	d = &decomp{
 		maxMsgSize:  maxMsgSize,

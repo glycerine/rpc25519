@@ -21,7 +21,7 @@ func (z *Circuit) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields0zgensym_3b48d2686114c0ff_1 = 2
+	const maxFields0zgensym_3b48d2686114c0ff_1 = 3
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields0zgensym_3b48d2686114c0ff_1 uint32
@@ -70,6 +70,12 @@ doneWithStruct0zgensym_3b48d2686114c0ff_1:
 		switch curField0zgensym_3b48d2686114c0ff_1 {
 		// -- templateDecodeMsg ends here --
 
+		case "Name__str":
+			found0zgensym_3b48d2686114c0ff_1[0] = true
+			z.Name, err = dc.ReadString()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -93,16 +99,20 @@ doneWithStruct0zgensym_3b48d2686114c0ff_1:
 }
 
 // fields of Circuit
-var decodeMsgFieldOrder0zgensym_3b48d2686114c0ff_1 = []string{"", ""}
+var decodeMsgFieldOrder0zgensym_3b48d2686114c0ff_1 = []string{"Name__str", "", ""}
 
-var decodeMsgFieldSkip0zgensym_3b48d2686114c0ff_1 = []bool{true, true}
+var decodeMsgFieldSkip0zgensym_3b48d2686114c0ff_1 = []bool{false, true, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z Circuit) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 0
+		return 1
 	}
-	var fieldsInUse uint32 = 0
+	var fieldsInUse uint32 = 1
+	isempty[0] = (len(z.Name) == 0) // string, omitempty
+	if isempty[0] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -114,7 +124,7 @@ func (z Circuit) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_3b48d2686114c0ff_2 [2]bool
+	var empty_zgensym_3b48d2686114c0ff_2 [3]bool
 	fieldsInUse_zgensym_3b48d2686114c0ff_3 := z.fieldsNotEmpty(empty_zgensym_3b48d2686114c0ff_2[:])
 
 	// map header
@@ -133,6 +143,18 @@ func (z Circuit) EncodeMsg(en *msgp.Writer) (err error) {
 		return err
 	}
 
+	if !empty_zgensym_3b48d2686114c0ff_2[0] {
+		// write "Name__str"
+		err = en.Append(0xa9, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x5f, 0x73, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		err = en.WriteString(z.Name)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -145,9 +167,15 @@ func (z Circuit) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [2]bool
+	var empty [3]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
+
+	if !empty[0] {
+		// string "Name__str"
+		o = append(o, 0xa9, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.Name)
+	}
 
 	return
 }
@@ -167,7 +195,7 @@ func (z *Circuit) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []
 
 	var field []byte
 	_ = field
-	const maxFields4zgensym_3b48d2686114c0ff_5 = 2
+	const maxFields4zgensym_3b48d2686114c0ff_5 = 3
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields4zgensym_3b48d2686114c0ff_5 uint32
@@ -217,6 +245,13 @@ doneWithStruct4zgensym_3b48d2686114c0ff_5:
 		switch curField4zgensym_3b48d2686114c0ff_5 {
 		// -- templateUnmarshalMsg ends here --
 
+		case "Name__str":
+			found4zgensym_3b48d2686114c0ff_5[0] = true
+			z.Name, bts, err = nbs.ReadStringBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -240,13 +275,13 @@ doneWithStruct4zgensym_3b48d2686114c0ff_5:
 }
 
 // fields of Circuit
-var unmarshalMsgFieldOrder4zgensym_3b48d2686114c0ff_5 = []string{"", ""}
+var unmarshalMsgFieldOrder4zgensym_3b48d2686114c0ff_5 = []string{"Name__str", "", ""}
 
-var unmarshalMsgFieldSkip4zgensym_3b48d2686114c0ff_5 = []bool{true, true}
+var unmarshalMsgFieldSkip4zgensym_3b48d2686114c0ff_5 = []bool{false, true, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z Circuit) Msgsize() (s int) {
-	s = 1
+	s = 1 + 10 + msgp.StringPrefixSize + len(z.Name)
 	return
 }
 

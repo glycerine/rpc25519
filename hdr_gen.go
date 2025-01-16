@@ -116,7 +116,7 @@ func (z *HDR) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields4zgensym_28874796354aa7f3_5 = 18
+	const maxFields4zgensym_28874796354aa7f3_5 = 19
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields4zgensym_28874796354aa7f3_5 uint32
@@ -287,6 +287,12 @@ doneWithStruct4zgensym_28874796354aa7f3_5:
 			if err != nil {
 				return
 			}
+		case "FragOp_zid16_int":
+			found4zgensym_28874796354aa7f3_5[16] = true
+			z.FragOp, err = dc.ReadInt()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -310,16 +316,16 @@ doneWithStruct4zgensym_28874796354aa7f3_5:
 }
 
 // fields of HDR
-var decodeMsgFieldOrder4zgensym_28874796354aa7f3_5 = []string{"Created_zid00_tim", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "Seqno_zid04_u64", "Typ_zid05_rct", "CallID_zid06_str", "Serial_zid07_i64", "LocalRecvTm_zid08_tim", "Deadline_zid09_tim", "StreamPart_zid10_i64", "ServiceName_zid11_str", "Args_zid12_map", "NoSystemCompression_zid13_boo", "ToPeerID_zid14_str", "FromPeerID_zid15_str", "", ""}
+var decodeMsgFieldOrder4zgensym_28874796354aa7f3_5 = []string{"Created_zid00_tim", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "Seqno_zid04_u64", "Typ_zid05_rct", "CallID_zid06_str", "Serial_zid07_i64", "LocalRecvTm_zid08_tim", "Deadline_zid09_tim", "StreamPart_zid10_i64", "ServiceName_zid11_str", "Args_zid12_map", "NoSystemCompression_zid13_boo", "ToPeerID_zid14_str", "FromPeerID_zid15_str", "FragOp_zid16_int", "", ""}
 
-var decodeMsgFieldSkip4zgensym_28874796354aa7f3_5 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
+var decodeMsgFieldSkip4zgensym_28874796354aa7f3_5 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *HDR) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 16
+		return 17
 	}
-	var fieldsInUse uint32 = 16
+	var fieldsInUse uint32 = 17
 	isempty[0] = (z.Created.IsZero()) // time.Time, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -384,6 +390,10 @@ func (z *HDR) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[15] {
 		fieldsInUse--
 	}
+	isempty[16] = (z.FragOp == 0) // number, omitempty
+	if isempty[16] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -395,7 +405,7 @@ func (z *HDR) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_28874796354aa7f3_8 [18]bool
+	var empty_zgensym_28874796354aa7f3_8 [19]bool
 	fieldsInUse_zgensym_28874796354aa7f3_9 := z.fieldsNotEmpty(empty_zgensym_28874796354aa7f3_8[:])
 
 	// map header
@@ -616,6 +626,18 @@ func (z *HDR) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_28874796354aa7f3_8[16] {
+		// write "FragOp_zid16_int"
+		err = en.Append(0xb0, 0x46, 0x72, 0x61, 0x67, 0x4f, 0x70, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x36, 0x5f, 0x69, 0x6e, 0x74)
+		if err != nil {
+			return err
+		}
+		err = en.WriteInt(z.FragOp)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -628,7 +650,7 @@ func (z *HDR) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [18]bool
+	var empty [19]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -732,6 +754,12 @@ func (z *HDR) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendString(o, z.FromPeerID)
 	}
 
+	if !empty[16] {
+		// string "FragOp_zid16_int"
+		o = append(o, 0xb0, 0x46, 0x72, 0x61, 0x67, 0x4f, 0x70, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x36, 0x5f, 0x69, 0x6e, 0x74)
+		o = msgp.AppendInt(o, z.FragOp)
+	}
+
 	return
 }
 
@@ -750,7 +778,7 @@ func (z *HDR) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte
 
 	var field []byte
 	_ = field
-	const maxFields10zgensym_28874796354aa7f3_11 = 18
+	const maxFields10zgensym_28874796354aa7f3_11 = 19
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields10zgensym_28874796354aa7f3_11 uint32
@@ -948,6 +976,13 @@ doneWithStruct10zgensym_28874796354aa7f3_11:
 			if err != nil {
 				return
 			}
+		case "FragOp_zid16_int":
+			found10zgensym_28874796354aa7f3_11[16] = true
+			z.FragOp, bts, err = nbs.ReadIntBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -971,9 +1006,9 @@ doneWithStruct10zgensym_28874796354aa7f3_11:
 }
 
 // fields of HDR
-var unmarshalMsgFieldOrder10zgensym_28874796354aa7f3_11 = []string{"Created_zid00_tim", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "Seqno_zid04_u64", "Typ_zid05_rct", "CallID_zid06_str", "Serial_zid07_i64", "LocalRecvTm_zid08_tim", "Deadline_zid09_tim", "StreamPart_zid10_i64", "ServiceName_zid11_str", "Args_zid12_map", "NoSystemCompression_zid13_boo", "ToPeerID_zid14_str", "FromPeerID_zid15_str", "", ""}
+var unmarshalMsgFieldOrder10zgensym_28874796354aa7f3_11 = []string{"Created_zid00_tim", "From_zid01_str", "To_zid02_str", "Subject_zid03_str", "Seqno_zid04_u64", "Typ_zid05_rct", "CallID_zid06_str", "Serial_zid07_i64", "LocalRecvTm_zid08_tim", "Deadline_zid09_tim", "StreamPart_zid10_i64", "ServiceName_zid11_str", "Args_zid12_map", "NoSystemCompression_zid13_boo", "ToPeerID_zid14_str", "FromPeerID_zid15_str", "FragOp_zid16_int", "", ""}
 
-var unmarshalMsgFieldSkip10zgensym_28874796354aa7f3_11 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
+var unmarshalMsgFieldSkip10zgensym_28874796354aa7f3_11 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *HDR) Msgsize() (s int) {
@@ -985,7 +1020,7 @@ func (z *HDR) Msgsize() (s int) {
 			s += msgp.StringPrefixSize + len(zgensym_28874796354aa7f3_2) + msgp.StringPrefixSize + len(zgensym_28874796354aa7f3_3)
 		}
 	}
-	s += 30 + msgp.BoolSize + 19 + msgp.StringPrefixSize + len(z.ToPeerID) + 21 + msgp.StringPrefixSize + len(z.FromPeerID)
+	s += 30 + msgp.BoolSize + 19 + msgp.StringPrefixSize + len(z.ToPeerID) + 21 + msgp.StringPrefixSize + len(z.FromPeerID) + 17 + msgp.IntSize
 	return
 }
 
