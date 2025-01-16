@@ -19,14 +19,14 @@ func Test404_verify_peer_operations(t *testing.T) {
 		cfg.TCPonly_no_TLS = true
 
 		cfg.ServerAddr = "127.0.0.1:0"
-		srv := NewServer("srv_test403", cfg)
+		srv := NewServer("srv_test404", cfg)
 
 		serverAddr, err := srv.Start()
 		panicOn(err)
 		defer srv.Close()
 
 		cfg.ClientDialToHostPort = serverAddr.String()
-		cli, err := NewClient("client_test403", cfg)
+		cli, err := NewClient("client_test404", cfg)
 		panicOn(err)
 		err = cli.Start()
 		panicOn(err)

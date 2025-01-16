@@ -113,7 +113,7 @@ func (f *Fragment) String() string {
 }`,
 		aliasDecode(f.FromPeerID),
 		aliasDecode(f.ToPeerID),
-		f.CircuitID,
+		aliasDecode(f.CircuitID),
 		f.Serial,
 		f.ServiceName,
 		f.Typ,
@@ -548,6 +548,7 @@ func (lpb *localPeerback) newCircuit(
 	if ckt.callID == "" {
 		ckt.callID = NewCallID()
 	}
+	aliasRegister(ckt.callID, ckt.callID+" ("+circuitName+")")
 
 	lpb.handleChansNewCircuit <- ckt
 	return
@@ -950,7 +951,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		lpb2, err := s.unlockedStartLocalPeer(ctx, peerServiceName, msg, isUpdatedPeerID, sendCh)
 		panicOn(err)
 		lpb = lpb2
-		vv("Q: should we go on to call lpb.provideRemoteOnNewPeerCh() or did unlockedStartLocalPeer do it for us? I *think* they need to do it any case, so assume that they will for now.")
+		// unlockedStartLocalPeer already called provideRemoteOnNewPeerCh, so just return.
 		return nil
 	}
 

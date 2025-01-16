@@ -457,6 +457,7 @@ func (m *HDR) String() string {
     "FromPeerID": "%v",
     "ToPeerID": "%v",
     "StreamPart": %v,
+    "FragOp": %v,
 }`,
 		m.Created,
 		aliasDecode(m.From),
@@ -466,13 +467,14 @@ func (m *HDR) String() string {
 		m.Subject,
 		m.Seqno,
 		m.Typ,
-		m.CallID,
+		aliasDecode(m.CallID),
 		m.Serial,
 		m.LocalRecvTm,
 		m.Deadline,
 		aliasDecode(m.FromPeerID),
 		aliasDecode(m.ToPeerID),
 		m.StreamPart,
+		m.FragOp,
 	)
 }
 
