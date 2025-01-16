@@ -273,7 +273,7 @@ func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 		if !serverCkt.IsClosed() {
 			t.Fatalf("error: server circuit '%v' should be closed.", serverCkt.Name)
 		}
-		vv("good: past the ckt.IsClosed()")
+		vv("good: past the serverCkt.IsClosed()")
 		select {}
 
 		// printing a random "x" ? but not here... async?

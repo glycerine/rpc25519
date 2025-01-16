@@ -397,6 +397,7 @@ func (pb *localPeerback) peerbackPump() {
 		pb.u.UnregisterChannel(ckt.callID, CallIDErrorMap)
 
 		ckt.Halt.ReqStop.Close()
+		ckt.Halt.Done.Close()
 		pb.halt.ReqStop.RemoveChild(ckt.Halt.ReqStop)
 	}
 	defer func() {
@@ -429,9 +430,10 @@ func (pb *localPeerback) peerbackPump() {
 			cleanupCkt(ckt)
 
 		case msg := <-pb.readsIn:
+
 			callID := msg.HDR.CallID
 			ckt, ok := m[callID]
-			//vv("peerbackPump sees readsIn msg: '%v' payload '%v'", msg, string(msg.JobSerz))
+			vv("pump %v: sees readsIn msg, ckt ok=%v", name, ok)
 			if !ok {
 				alwaysPrintf("%v: arg. no circuit avail for callID = '%v';"+
 					" pump dropping this msg.", name, callID)
@@ -443,6 +445,14 @@ func (pb *localPeerback) peerbackPump() {
 				}
 				continue
 			}
+			vv("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
+
+			if msg.HDR.Typ == CallPeerEndCircuit {
+				vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msgerr: '%v'", name, ckt.Name, msg)
+				cleanupCkt(ckt)
+				continue
+			}
+
 			frag := ckt.convertMessageToFragment(msg)
 			select {
 			case ckt.Reads <- frag:
@@ -456,18 +466,22 @@ func (pb *localPeerback) peerbackPump() {
 				return
 			}
 		case msgerr := <-pb.errorsIn:
+
 			callID := msgerr.HDR.CallID
 			ckt, ok := m[callID]
+			vv("pump %v: ckt ok=%v on errorsIn", name, ok)
 			if !ok {
 				vv("%v: arg. no ckt avail for callID = '%v' on msgerr", name, callID)
 				continue
 			}
-			vv("%v: (ckt %v) sees msgerr='%v'", name, ckt.Name, msgerr)
+			vv("pump %v: (ckt %v) sees msgerr='%v'", name, ckt.Name, msgerr)
+
 			if msgerr.HDR.Typ == CallPeerEndCircuit {
-				vv("%v: (ckt %v) sees msgerr CallPeerEndCircuit in msgerr: '%v'", name, ckt.Name, msgerr)
+				vv("pump %v: (ckt %v) sees msgerr CallPeerEndCircuit in msgerr: '%v'", name, ckt.Name, msgerr)
 				cleanupCkt(ckt)
 				continue
 			}
+
 			fragerr := ckt.convertMessageToFragment(msgerr)
 			select {
 			case ckt.Errors <- fragerr:
