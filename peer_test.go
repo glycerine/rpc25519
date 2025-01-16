@@ -242,13 +242,16 @@ func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 
 		_ = fragSrvInRead1
 		if fragSrvInRead1.FragSubject != "are we live?" {
-			t.Fatalf("not expected subject 'are we live?' but: '%v'", fragSrvInRead1.FragSubject)
+			t.Fatalf("error: not expected subject 'are we live?' but: '%v'", fragSrvInRead1.FragSubject)
 		}
 
 		vv("good: past the are we live check.")
 
 		if ckt.IsClosed() {
-			t.Fatalf("circuit '%v' should NOT be closed.", ckt.Name)
+			t.Fatalf("error: client side circuit '%v' should NOT be closed.", ckt.Name)
+		}
+		if serverCkt.IsClosed() {
+			t.Fatalf("error: server circuit '%v' should NOT be closed.", serverCkt.Name)
 		}
 
 		vv("about to ckt.Close() from the client side ckt")
@@ -256,7 +259,19 @@ func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 
 		vv("good: past the ckt.Close()")
 		if !ckt.IsClosed() {
-			t.Fatalf("circuit '%v' should be closed.", ckt.Name)
+			t.Fatalf("error: circuit '%v' should be closed.", ckt.Name)
+		}
+
+		// verify that the server side also closed the circuit.
+
+		// might be racing against the close ckt going to the server.
+		select {
+		case <-serverCkt.Halt.Done.Chan:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("error: server circuit '%v' did not close after 2 sec", serverCkt.Name)
+		}
+		if !serverCkt.IsClosed() {
+			t.Fatalf("error: server circuit '%v' should be closed.", serverCkt.Name)
 		}
 		vv("good: past the ckt.IsClosed()")
 		select {}
