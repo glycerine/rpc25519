@@ -447,8 +447,11 @@ func (pb *localPeerback) peerbackPump() {
 			select {
 			case ckt.Reads <- frag:
 			case <-ckt.Halt.ReqStop.Chan:
+				cleanupCkt(ckt)
 				// otherwise hang if circuit is shutting down.
 				continue
+			case <-pb.halt.ReqStop.Chan:
+				return
 			case <-done:
 				return
 			}
@@ -468,6 +471,11 @@ func (pb *localPeerback) peerbackPump() {
 			fragerr := ckt.convertMessageToFragment(msgerr)
 			select {
 			case ckt.Errors <- fragerr:
+			case <-ckt.Halt.ReqStop.Chan:
+				cleanupCkt(ckt)
+				continue
+			case <-pb.halt.ReqStop.Chan:
+				return
 			case <-done:
 				return
 			}
@@ -613,12 +621,9 @@ func (h *Circuit) Close() {
 
 	h.Halt.ReqStop.Close()
 	select {
-	//case h.pbFrom.handleCircuitClose <- h: hanging.
 	case h.pbFrom.handleCircuitClose <- h:
 	case <-h.pbFrom.halt.ReqStop.Chan:
 		vv("h.pbFrom.halt.ReqStop.Chan already closed, lbp must be down already.")
-	case <-h.Halt.Done.Chan:
-		vv("%v: %v circuit shutdown done", h.localServiceName, h.Name)
 	}
 }
 
