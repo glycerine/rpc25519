@@ -274,6 +274,17 @@ func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 			t.Fatalf("error: server circuit '%v' should be closed.", serverCkt.Name)
 		}
 		vv("good: past the serverCkt.IsClosed()")
+
+		// did the peer code recognize the closed ckt?
+		<-j.srvSync.gotIncomingCktReadClosedChan
+		<-j.srvSync.gotIncomingCktErrorsClosedChan
+		vv("good: server saw the ckt channels were closed.")
+		<-j.cliSync.gotIncomingCktReadClosedChan
+		<-j.cliSync.gotIncomingCktErrorsClosedChan
+		vv("good: client saw the ckt channels were closed.")
+
+		// sends and reads on the closed ckt should give errors / nil channel hangs
+
 		select {}
 
 		// printing a random "x" ? but not here... async?
