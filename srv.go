@@ -611,6 +611,33 @@ type notifies struct {
 	notifyOnErrorToPeerIDMap map[string]chan *Message
 }
 
+type mapIDtoChan struct {
+	mut sync.Mutex
+	m   map[string]chan *Message
+}
+
+func newMapIDtoChan() *mapIDtoChan {
+	return &mapIDtoChan{
+		m: make(map[string]chan *Message),
+	}
+}
+func (m *mapIDToChan) get(id string) (ch chan *Message, ok bool) {
+	m.mut.Lock()
+	ch, ok = m.m[id]
+	m.mut.Unlock()
+	return
+}
+func (m *mapIDToChan) set(id string, ch chan *Message) {
+	m.mut.Lock()
+	m.m[id] = ch
+	m.mut.Unlock()
+}
+func (m *mapIDToChan) del(id string) {
+	m.mut.Lock()
+	delete(m.m, id)
+	m.mut.Unlock()
+}
+
 func newNotifies(isCli bool) *notifies {
 	return &notifies{
 		notifyOnReadCallIDMap:  make(map[string]chan *Message),
@@ -627,7 +654,7 @@ func newNotifies(isCli bool) *notifies {
 // types. An example is the Fragment/Peer/Circuit system.
 func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Context, msg *Message) (done bool) {
 
-	// protect map access.
+	// protect map access. the notifies creates deadlock with peer pumps trying to unregister read ch. change to notifies using finer grain maps that unlock immediately.
 	c.mut.Lock()
 	defer c.mut.Unlock()
 
@@ -677,8 +704,10 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 		wantsToPeerID, ok := c.notifyOnReadToPeerIDMap[msg.HDR.ToPeerID]
 		//vv("have ToPeerID msg = '%v'; ok='%v'", msg.HDR.String(), ok)
 		if ok {
+			// have to releaes the notifies lock if we want to send to the peer pump goro,
+			// because it will be unregistered closed circuit chan with notifies too. or use a sync.Map for these.
 			select {
-			case wantsToPeerID <- msg:
+			case wantsToPeerID <- msg: // deadlocked here. we hold the notifies lock, stopping the pump from running and getting this callback? maybe? very likely.
 				//vv("sent msg to wantsToPeerID chan!")
 			case <-ctx.Done():
 				return

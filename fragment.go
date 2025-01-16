@@ -393,7 +393,7 @@ func (pb *localPeerback) peerbackPump() {
 
 		ckt.canc()
 		delete(m, ckt.callID)
-		pb.u.UnregisterChannel(ckt.callID, CallIDReadMap)
+		pb.u.UnregisterChannel(ckt.callID, CallIDReadMap) // deadlock here b/c not servicing the cli readLoop channel ops. cli readLoop holds the notifies lock trying to send to us; and we are not receiving b/c we are trying to do this Unregister. can client release the notifies lock?
 		pb.u.UnregisterChannel(ckt.callID, CallIDErrorMap)
 
 		ckt.Halt.ReqStop.Close()
@@ -833,7 +833,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 		knownLocalPeer.peerServiceFunc(lpb, ctx1, newPeerCh)
 
 		// do cleanup
-		lpb.Close()
+		lpb.Close() // hung in here
 		knownLocalPeer.mut.Lock()
 		delete(knownLocalPeer.active, localPeerID)
 		knownLocalPeer.mut.Unlock()

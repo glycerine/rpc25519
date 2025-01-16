@@ -2370,7 +2370,7 @@ const (
 )
 
 func (s *Client) UnregisterChannel(ID string, whichmap int) {
-	s.notifies.mut.Lock()
+	s.notifies.mut.Lock() // deadlock here. from pump goroutine calling back vs the cli readLoop trying to notify the pump loop about its peerID channel. maybe sync.Map?
 	defer s.notifies.mut.Unlock()
 
 	switch whichmap {
