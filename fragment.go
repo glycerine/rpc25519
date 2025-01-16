@@ -37,7 +37,7 @@ type Circuit struct {
 	Reads  chan *Fragment // users should treat as read-only.
 	Errors chan *Fragment // ditto.
 
-	Halt *idem.Halter
+	Halt *idem.Halter `msg:"-"`
 }
 
 // CircuitURL format: tcp://x.x.x.x:port/peerServiceName/peerID/circuitID

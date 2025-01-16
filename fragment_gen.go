@@ -21,7 +21,7 @@ func (z *Circuit) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields0zgensym_3b48d2686114c0ff_1 = 3
+	const maxFields0zgensym_3b48d2686114c0ff_1 = 4
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields0zgensym_3b48d2686114c0ff_1 uint32
@@ -99,9 +99,9 @@ doneWithStruct0zgensym_3b48d2686114c0ff_1:
 }
 
 // fields of Circuit
-var decodeMsgFieldOrder0zgensym_3b48d2686114c0ff_1 = []string{"Name__str", "", ""}
+var decodeMsgFieldOrder0zgensym_3b48d2686114c0ff_1 = []string{"Name__str", "", "", ""}
 
-var decodeMsgFieldSkip0zgensym_3b48d2686114c0ff_1 = []bool{false, true, true}
+var decodeMsgFieldSkip0zgensym_3b48d2686114c0ff_1 = []bool{false, true, true, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z Circuit) fieldsNotEmpty(isempty []bool) uint32 {
@@ -124,7 +124,7 @@ func (z Circuit) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_3b48d2686114c0ff_2 [3]bool
+	var empty_zgensym_3b48d2686114c0ff_2 [4]bool
 	fieldsInUse_zgensym_3b48d2686114c0ff_3 := z.fieldsNotEmpty(empty_zgensym_3b48d2686114c0ff_2[:])
 
 	// map header
@@ -167,7 +167,7 @@ func (z Circuit) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [3]bool
+	var empty [4]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -195,7 +195,7 @@ func (z *Circuit) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []
 
 	var field []byte
 	_ = field
-	const maxFields4zgensym_3b48d2686114c0ff_5 = 3
+	const maxFields4zgensym_3b48d2686114c0ff_5 = 4
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields4zgensym_3b48d2686114c0ff_5 uint32
@@ -275,9 +275,9 @@ doneWithStruct4zgensym_3b48d2686114c0ff_5:
 }
 
 // fields of Circuit
-var unmarshalMsgFieldOrder4zgensym_3b48d2686114c0ff_5 = []string{"Name__str", "", ""}
+var unmarshalMsgFieldOrder4zgensym_3b48d2686114c0ff_5 = []string{"Name__str", "", "", ""}
 
-var unmarshalMsgFieldSkip4zgensym_3b48d2686114c0ff_5 = []bool{false, true, true}
+var unmarshalMsgFieldSkip4zgensym_3b48d2686114c0ff_5 = []bool{false, true, true, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z Circuit) Msgsize() (s int) {
