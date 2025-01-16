@@ -384,7 +384,7 @@ func (pb *localPeerback) peerbackPump() {
 	m := make(map[string]*Circuit)
 
 	cleanupCkt := func(ckt *Circuit) {
-
+		vv("%v: cleanupCkt running for ckt '%v'", name, ckt.Name)
 		// Politely tell our peer we are going down,
 		// in case they are staying up.
 		frag := NewFragment()
@@ -415,7 +415,7 @@ func (pb *localPeerback) peerbackPump() {
 
 	done := pb.ctx.Done()
 	for {
-		vv("%v: pump loop top of select", name)
+		vv("%v: pump loop top of select. pb.handleCircuitClose = %p", name, pb.handleCircuitClose)
 		select {
 		case <-pb.halt.ReqStop.Chan:
 			return
@@ -425,6 +425,7 @@ func (pb *localPeerback) peerbackPump() {
 			pb.halt.ReqStop.AddChild(ckt.Halt.ReqStop)
 
 		case ckt := <-pb.handleCircuitClose:
+			vv("%v pump: ckt := <-pb.handleCircuitClose: for ckt='%v'", name, ckt.Name)
 			cleanupCkt(ckt)
 
 		case msg := <-pb.readsIn:
@@ -445,6 +446,9 @@ func (pb *localPeerback) peerbackPump() {
 			frag := ckt.convertMessageToFragment(msg)
 			select {
 			case ckt.Reads <- frag:
+			case <-ckt.Halt.ReqStop.Chan:
+				// otherwise hang if circuit is shutting down.
+				continue
 			case <-done:
 				return
 			}
@@ -605,11 +609,16 @@ func (lpb *localPeerback) newCircuit(
 func (h *Circuit) CircuitID() string { return h.callID }
 
 func (h *Circuit) Close() {
+	vv("%v: Circuit '%v' Close() top: h.pbFrom.handleCircuitClose = %p", h.localServiceName, h.Name, h.pbFrom.handleCircuitClose)
+
 	h.Halt.ReqStop.Close()
 	select {
-	// handleCircuitClose <- h can hang if goro already down, so heck Halt.Done too.
+	//case h.pbFrom.handleCircuitClose <- h: hanging.
 	case h.pbFrom.handleCircuitClose <- h:
+	case <-h.pbFrom.halt.ReqStop.Chan:
+		vv("h.pbFrom.halt.ReqStop.Chan already closed, lbp must be down already.")
 	case <-h.Halt.Done.Chan:
+		vv("%v: %v circuit shutdown done", h.localServiceName, h.Name)
 	}
 }
 
