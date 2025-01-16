@@ -36,6 +36,8 @@ type Circuit struct {
 	Name   string
 	Reads  chan *Fragment // users should treat as read-only.
 	Errors chan *Fragment // ditto.
+
+	halt *idem.Halter
 }
 
 // CircuitURL format: tcp://x.x.x.x:port/peerServiceName/peerID/circuitID
@@ -373,9 +375,12 @@ func (pb *localPeerback) peerbackPump() {
 		delete(m, ckt.callID)
 		pb.u.UnregisterChannel(ckt.callID, CallIDReadMap)
 		pb.u.UnregisterChannel(ckt.callID, CallIDErrorMap)
+
+		ckt.halt.ReqStop.Close()
+		pb.halt.ReqStop.RemoveChild(ckt.halt.ReqStop)
 	}
 	defer func() {
-		vv("%v: peerbackPump exiting. closing all remaining circuits.", name)
+		vv("%v: peerbackPump exiting. closing all remaining circuits (%v).", name, len(m))
 		var all []*Circuit
 		for _, ckt := range m {
 			all = append(all, ckt)
@@ -397,6 +402,7 @@ func (pb *localPeerback) peerbackPump() {
 
 		case ckt := <-pb.handleChansNewCircuit:
 			m[ckt.callID] = ckt
+			pb.halt.ReqStop.AddChild(ckt.halt.ReqStop)
 
 		case ckt := <-pb.handleCircuitClose:
 			cleanupCkt(ckt)
@@ -427,6 +433,12 @@ func (pb *localPeerback) peerbackPump() {
 			ckt, ok := m[callID]
 			if !ok {
 				vv("%v: arg. no ckt avail for callID = '%v' on msgerr", name, callID)
+				continue
+			}
+			vv("%v: (ckt %v) sees msgerr='%v'", name, ckt.Name, msgerr)
+			if msgerr.HDR.Typ == CallPeerEndCircuit {
+				vv("%v: (ckt %v) sees msgerr CallPeerEndCircuit in msgerr: '%v'", name, ckt.Name, msgerr)
+				cleanupCkt(ckt)
 				continue
 			}
 			fragerr := ckt.convertMessageToFragment(msgerr)
@@ -543,6 +555,7 @@ func (lpb *localPeerback) newCircuit(
 	reads := make(chan *Fragment)
 	errors := make(chan *Fragment)
 	ckt = &Circuit{
+		halt:              idem.NewHalter(),
 		Name:              circuitName,
 		localServiceName:  lpb.peerServiceName,
 		remoteServiceName: rpb.remoteServiceName,

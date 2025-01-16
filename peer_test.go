@@ -159,15 +159,28 @@ func Test405_user_can_close_Client_and_Server(t *testing.T) {
 
 func Test406_user_can_cancel_local_service_with_context(t *testing.T) {
 
-	cv.Convey("user code calling cancel on a running local peer service should stop it", t, func() {
+	cv.Convey("user code calling halt on a running local peer service should stop it", t, func() {
 		j := newTestJunk("local_ctx_cancel_test406")
 		defer j.cleanup()
 
 		ctx := context.Background()
 		lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil)
 		panicOn(err)
-
 		lpb.Close()
+
+		<-j.cliSync.halt.Done.Chan
+		vv("good: cliSync has halted")
+	})
+
+	cv.Convey("user code calling cancel on a running local peer service should stop it", t, func() {
+		j := newTestJunk("local_ctx_cancel_test406")
+		defer j.cleanup()
+
+		ctx, canc := context.WithCancel(context.Background())
+		lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil)
+		panicOn(err)
+		_ = lpb
+		canc() // should be equivalent to lpb.Close()
 
 		<-j.cliSync.halt.Done.Chan
 		vv("good: cliSync has halted")
