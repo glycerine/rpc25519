@@ -275,34 +275,19 @@ func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 		}
 		vv("good: past the serverCkt.IsClosed()")
 
-		// did the peer code recognize the closed ckt?
+		// did the server peer code recognize the closed ckt?
 
-		// non-deterministic which gets here first, have to do twice.
-		select {
-		case <-j.srvSync.gotCktHaltReq:
-			vv("good: server saw the ckt channels were closed.")
-		case <-j.cliSync.gotCktHaltReq:
-			vv("good: client saw the ckt channels were closed.")
-		}
+		// we have been acting as the client through lbp, so the
+		// client peer code has not been active. And that's super
+		// useful to keep this test deterministic and not having
+		// two competing reads on response channels.
 
-		select {
-		case <-j.srvSync.gotCktHaltReq:
-			vv("good: server saw the ckt channels were closed.")
-		case <-j.cliSync.gotCktHaltReq:
-			vv("good: client saw the ckt channels were closed.")
-		}
+		<-j.srvSync.gotCktHaltReq.Chan
+		vv("good: server saw the ckt peer code stopped reading ckt.")
 
 		// sends and reads on the closed ckt should give errors / nil channel hangs
 
-		select {}
-
-		// printing a random "x" ? but not here... async?
-		//cv.So(fragSrvInRead1.FragSubject, cv.ShouldEqual, "initial setup frag0")
-		//server_lpb
-		//Reads <- chan *Fragment
-		//Errors <- chan *Fragment
-
-		//select {}
+		// seems like enough for one test.
 	})
 
 }
