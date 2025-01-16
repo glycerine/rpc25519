@@ -958,12 +958,13 @@ func (lpb *localPeerback) provideRemoteOnNewPeerCh(isCli bool, msg *Message, ctx
 	localCktURL := ckt.LocalCircuitURL()
 	rpb.peerURL = remoteCktURL // or is it localCktURL ?
 
+	asFrag := ckt.convertMessageToFragment(msg)
+	vv("converted message: msg='%v' -> asFrag = '%v'", msg.String(), asFrag.String())
+
 	// don't block the readLoop up the stack.
 	go func() {
 		select {
 		case lpb.newPeerCh <- rpb:
-			asFrag := ckt.convertMessageToFragment(msg) // data race of msg here. we are goro 174
-			vv("user got remote interface, give them the message: msg='%v' -> asFrag = '%v'", msg.String(), asFrag.String())
 			select {
 			case ckt.Reads <- asFrag:
 			case <-ckt.Halt.ReqStop.Chan:
