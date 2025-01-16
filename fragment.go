@@ -376,7 +376,7 @@ func (peerAPI *peerAPI) newLocalPeerback(
 // incoming
 func (ckt *Circuit) convertMessageToFragment(msg *Message) (frag *Fragment) {
 	frag = &Fragment{
-		FromPeerID:  msg.HDR.FromPeerID,
+		FromPeerID:  msg.HDR.FromPeerID, // data race here.read. vs write at fragment.go:1054 goro 174, created by unlockedStartLocalPeer fragment.go:962
 		ToPeerID:    msg.HDR.ToPeerID,
 		CircuitID:   msg.HDR.CallID,
 		Serial:      msg.HDR.Serial,
@@ -962,7 +962,7 @@ func (lpb *localPeerback) provideRemoteOnNewPeerCh(isCli bool, msg *Message, ctx
 	go func() {
 		select {
 		case lpb.newPeerCh <- rpb:
-			asFrag := ckt.convertMessageToFragment(msg)
+			asFrag := ckt.convertMessageToFragment(msg) // data race of msg here. we are goro 174
 			vv("user got remote interface, give them the message: msg='%v' -> asFrag = '%v'", msg.String(), asFrag.String())
 			select {
 			case ckt.Reads <- asFrag:
@@ -1051,7 +1051,7 @@ func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Con
 			"peerID":          localPeerID,
 			"fromServiceName": msg.HDR.ServiceName}
 	}
-	msg.HDR.FromPeerID = localPeerID
+	msg.HDR.FromPeerID = localPeerID // previous write vs read fragment.go:379, we are goro 167, created cli.go:1442
 
 	select {
 	case sendCh <- msg:

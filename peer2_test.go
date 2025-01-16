@@ -228,7 +228,19 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 			srv_ckts = append(srv_ckts, ckt9)
 		}
 
-		//lpb.Close()
+		// close all but one from each
+		for i := range 9 {
+			cli_ckts[i].Close()
+		}
+		for i := range 9 {
+			srv_ckts[i].Close()
+		}
+		if cli_ckts[9].IsClosed() {
+			t.Fatalf("error: client circuit '%v' should NOT be closed.", cli_ckts[9].Name)
+		}
+		if srv_ckts[9].IsClosed() {
+			t.Fatalf("error: server circuit '%v' should NOT be closed.", srv_ckts[9].Name)
+		}
 
 		//select {}
 	})

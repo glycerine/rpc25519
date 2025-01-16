@@ -125,12 +125,11 @@ func Test404_verify_peer_operations(t *testing.T) {
 		cliSync.PushToPeerURL <- srvURL
 
 		//vv("past cliSync.PushToPeerURL <- srvURL")
-		//vv("test main about to select{}")
+		//vv("test main about to sleep 5 sec.")
 		time.Sleep(5 * time.Second)
 
 		vv("slept 5 sec. now cancel ctx.")
 		canc()
-		select {}
 
 		// systematic cancel tests:
 		//does local peer cancel -> local service cancel
