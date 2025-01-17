@@ -1,7 +1,9 @@
 /*
-~~~
-
 Peer/Circuit/Fragment Design overview
+-------------------------------------
+
+This is an alternative API to the Message and net/rpc APIs
+provided by the rpc25519 package.
 
 Motivated by filesystem syncing, we envision a system that can
 both stream efficiently and utilize the same code
@@ -90,7 +92,11 @@ C) To communicate over a Circuit:
 		SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error
 	}
 
-type PeerServiceFunc func(myPeer LocalPeer, ctx0 context.Context, newPeerCh <-chan RemotePeer) error
+// Users write PeerServiceFunc callbacks to create peers.
+
+	type PeerServiceFunc func(myPeer LocalPeer, ctx0 context.Context, newPeerCh <-chan RemotePeer) error
+
+// Fragment is the data packet transmitted over Circuits between Peers.
 
 	type Fragment struct {
 	           // system metadata
@@ -139,7 +145,5 @@ D) boostrapping: registering your Peer implemenation and starting
 
 	    The returned URLs can be used in myPeer.NewCircuitToPeerURL() calls
 	    inside the PeerServiceFunc.
-
-~~~
 */
 package rpc25519
