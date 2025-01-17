@@ -84,8 +84,9 @@ func (pb *localPeerback) peerbackPump() {
 			vv("pump %v: sees readsIn msg, ckt ok=%v", name, ok)
 			if !ok {
 				// we expect the ckt close ack-back to be dropped if we initiated it.
-				alwaysPrintf("%v: arg. no circuit avail for callID = '%v';"+
-					" pump dropping this msg.", name, callID)
+				alwaysPrintf("%v: arg. no circuit avail for callID = '%v'/Typ:'%v';"+
+					" pump dropping this msg.", name, aliasDecode(callID),
+					msg.HDR.Typ.String())
 
 				if callID == "" {
 					// we have a legit PeerID but no CallID, which means that
