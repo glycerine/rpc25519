@@ -25,7 +25,7 @@ func (pb *localPeerback) peerbackPump() {
 		// in case they are staying up.
 		frag := NewFragment()
 		frag.Typ = CallPeerEndCircuit
-		pb.SendOneWay(ckt, frag, nil)
+		pb.SendOneWay(ckt, frag, 0)
 
 		ckt.canc()
 		delete(m, ckt.callID)
@@ -68,6 +68,11 @@ func (pb *localPeerback) peerbackPump() {
 		select {
 		case <-pb.halt.ReqStop.Chan:
 			return
+
+		case query := <-pb.queryCh:
+			// query is &queryLocalPeerPump{}
+			query.openCircuitCount = len(m)
+			close(query.ready)
 
 		case ckt := <-pb.handleChansNewCircuit:
 			m[ckt.callID] = ckt
@@ -185,5 +190,5 @@ func (pb *localPeerback) tellRemoteWeShutdown(rem *remotePeerback) {
 	shut.HDR.Serial = issueSerial()
 	shut.HDR.ServiceName = rem.remoteServiceName
 
-	pb.u.SendOneWayMessage(ctxB, shut, nil)
+	pb.u.SendOneWayMessage(ctxB, shut, 0)
 }

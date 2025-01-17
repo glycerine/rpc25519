@@ -213,7 +213,7 @@ func (me *PeerImpl) Start(
 				aliasRegister(remotePeerID, remotePeerID+" (echo replier on client)")
 
 				circuitName := "echo-circuit"
-				ckt, ctx, err := myPeer.NewCircuitToPeerURL(circuitName, echoToURL, outFrag, nil)
+				ckt, ctx, err := myPeer.NewCircuitToPeerURL(circuitName, echoToURL, outFrag, 0)
 				panicOn(err)
 				defer ckt.Close() // close when echo heard.
 				done := ctx.Done()
@@ -287,7 +287,7 @@ func (me *PeerImpl) Start(
 							outFrag.FragSubject = "echo reply"
 							outFrag.ServiceName = myPeer.ServiceName()
 							vv("ckt.Reads sees frag with echo request! sending reply='%v'", frag)
-							err := peer.SendOneWay(ckt, outFrag, nil)
+							err := peer.SendOneWay(ckt, outFrag, 0)
 							panicOn(err)
 						}
 

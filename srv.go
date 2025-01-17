@@ -1653,6 +1653,10 @@ var ErrWrongCallTypeForSendMessage = fmt.Errorf("error in SendMessage: msg.HDR.T
 // allowing enough time to get an error back from quic-go
 // if we are going to discover "Application error 0x0 (remote)"
 // right away, and not wanting to stall the caller too much.
+//
+// goq uses this srv.SendMessage(), cli.OneWaySend(),
+// cli.SendAndGetReply(), cli.GetReadIncomingCh(),
+// cli.LocalAddr(), and cli.Close().
 func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqno uint64,
 	errWriteDur *time.Duration) error {
 
@@ -1738,17 +1742,31 @@ type oneWaySender interface {
 // catch mis-use of this when the user actually wants a round-trip call.
 //
 // SendOneWayMessage only sets msg.HDR.From to its correct value.
-func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur *time.Duration) error {
+func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) error {
 	return sendOneWayMessage(s, ctx, msg, errWriteDur)
 }
 
 // one difference from Client.oneWaySendHelper is that
 // is that the client side applies backpressure in that
 // it waits for the send loop to actually send.
-// In contrast, this has configurable back pressure in
-// that it will only wait at most
-// *errWriteDur, or 30 msec if that is nil.
-func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWriteDur *time.Duration) error {
+//
+// Update: The old default for errWriteDur of 30 msec (if nil) no
+// longer applies. Server.SendMessage() retains it for
+// goq use, but for keeping our memory low, we want
+// back-pressure. Also to not have to allocate a DoneCh
+// when we don't need/want one, we avoid the
+// 30 msec default.
+//
+// So the new errWriteDur parameter is a value
+// of type Duration (which is int64) rather than a pointer *Duration.
+// An errWriteDur of 0 will mean block until sent. We will
+// allocate a local-only DoneCh to wait on if you don't have one.
+// A negative errWriteDur
+// will mean no waiting (to balance/avoid blocking other service
+// loops). A positive errWriteDur will wait for that long
+// before returning, and will supply the a DoneCh if it
+// is nil on msg.
+func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWriteDur time.Duration) error {
 
 	//if msg.HDR.Serial == 0 {
 	// want to do this, but test 004, 014, 015 crash then and need attention.
@@ -1784,21 +1802,34 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		return ErrContextCancelled
 	}
 
-	dur := 30 * time.Millisecond
-	if errWriteDur != nil {
-		dur = *errWriteDur
+	if errWriteDur < 0 {
+		return nil
 	}
-	if dur > 0 {
-		//vv("srv SendMessage about to wait %v to check on connection.", dur)
-		select {
-		case <-msg.DoneCh.WhenClosed():
-			//vv("srv SendMessage got back msg.LocalErr = '%v'", msg.LocalErr)
-			return msg.LocalErr
-		case <-time.After(dur):
-			//vv("srv SendMessage timeout after waiting %v", dur)
-		case <-ctx.Done():
-			return ErrContextCancelled
-		}
+
+	// so we need channel
+	var doneCh <-chan struct{}
+	var timeoutCh <-chan time.Time
+	if msg.DoneCh == nil {
+		// user does not want notifying
+		doneCh = make(<-chan struct{})
+	} else {
+		// use wants notifying use the chan they gave us.
+		doneCh = msg.DoneCh.WhenClosed()
+	}
+	if errWriteDur > 0 {
+		timeoutCh = time.After(errWriteDur)
+	}
+
+	//vv("srv SendMessage about to wait %v to check on connection.", errWriteDur)
+	select {
+	case <-doneCh:
+		//vv("srv SendMessage got back msg.LocalErr = '%v'", msg.LocalErr)
+		return msg.LocalErr
+	case <-timeoutCh:
+		//vv("srv SendMessage timeout after waiting %v", errWriteDur)
+	case <-ctx.Done():
+		return ErrContextCancelled
+
 	}
 	return nil
 }

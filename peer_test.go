@@ -217,7 +217,7 @@ func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 		frag0 := NewFragment()
 		frag0.FragSubject = "initial setup frag0"
 
-		ckt, ctxCkt, err := cli_lpb.NewCircuitToPeerURL(cktname, server_lpb.URL(), frag0, nil)
+		ckt, ctxCkt, err := cli_lpb.NewCircuitToPeerURL(cktname, server_lpb.URL(), frag0, 0)
 		panicOn(err)
 		_ = ctxCkt
 		defer ckt.Close()
@@ -233,7 +233,7 @@ func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 		// verify server gets Reads
 		frag := NewFragment()
 		frag.FragSubject = "are we live?"
-		cli_lpb.SendOneWay(ckt, frag, nil)
+		cli_lpb.SendOneWay(ckt, frag, 0)
 		vv("cli_lpb.SendOneWay() are we live back.")
 
 		fragSrvInRead1 := <-j.srvSync.gotIncomingCktReadFrag
@@ -299,7 +299,7 @@ func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 		frag2.FragSubject = "initial setup frag2"
 
 		cktname2 := "proxy_the_server407"
-		ckt2, ctxCkt2, err := server_lpb.NewCircuitToPeerURL(cktname2, cli_lpb.URL(), frag2, nil)
+		ckt2, ctxCkt2, err := server_lpb.NewCircuitToPeerURL(cktname2, cli_lpb.URL(), frag2, 0)
 		panicOn(err)
 		_ = ctxCkt2
 		defer ckt2.Close()
@@ -318,7 +318,7 @@ func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 		// verify client gets Reads
 		frag3 := NewFragment()
 		frag3.FragSubject = "frag3 to the client"
-		server_lpb.SendOneWay(ckt2, frag3, nil)
+		server_lpb.SendOneWay(ckt2, frag3, 0)
 
 		fragCliInRead3 := <-j.cliSync.gotIncomingCktReadFrag
 		vv("good: past frag3 read in the client. fragCliInRead3 = '%v'", fragCliInRead3)

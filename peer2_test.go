@@ -102,7 +102,7 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 		frag0 := NewFragment()
 		frag0.FragSubject = "initial setup frag0"
 
-		ckt, ctxCkt, err := cli_lpb.NewCircuitToPeerURL(cktname, srv_lpb.URL(), frag0, nil)
+		ckt, ctxCkt, err := cli_lpb.NewCircuitToPeerURL(cktname, srv_lpb.URL(), frag0, 0)
 		panicOn(err)
 		_ = ctxCkt
 		defer ckt.Close()
@@ -118,7 +118,7 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 		// verify server gets Reads
 		frag := NewFragment()
 		frag.FragSubject = "are we live?"
-		cli_lpb.SendOneWay(ckt, frag, nil)
+		cli_lpb.SendOneWay(ckt, frag, 0)
 		vv("cli_lpb.SendOneWay() are we live back.")
 
 		fragSrvInRead1 := <-j.srvSync.gotIncomingCktReadFrag
@@ -220,7 +220,7 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 		for i := range 10 {
 			cktname9 := fmt.Sprintf("cli_ckt9_%02d", i)
 			// leak the ctx, we don't care here(!)
-			ckt9, _, err := cli_lpb.NewCircuitToPeerURL(cktname9, srv_lpb.URL(), nil, nil)
+			ckt9, _, err := cli_lpb.NewCircuitToPeerURL(cktname9, srv_lpb.URL(), nil, 0)
 			panicOn(err)
 			//defer ckt.Close()
 			cli_ckts = append(cli_ckts, ckt9)
@@ -230,7 +230,7 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 			vv("server makes new ckt, i = %v", i)
 			cktname9 := fmt.Sprintf("srv_ckt9_%02d", i)
 			// leak the ctx, we don't care here(!)
-			ckt9, _, err := srv_lpb.NewCircuitToPeerURL(cktname9, cli_lpb.URL(), nil, nil)
+			ckt9, _, err := srv_lpb.NewCircuitToPeerURL(cktname9, cli_lpb.URL(), nil, 0)
 			panicOn(err)
 			vv("server back from making new ckt, i = %v", i)
 			//defer ckt.Close()

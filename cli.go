@@ -1798,7 +1798,7 @@ func (s *Uploader) UploadMore(ctx context.Context, msg *Message, last bool) (err
 // and run on either Client or Server. They
 // can be implemented to just use this interface.
 type UniversalCliSrv interface {
-	SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur *time.Duration) error
+	SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) error
 
 	GetReadsForCallID(ch chan *Message, callID string)
 	GetErrorsForCallID(ch chan *Message, callID string)
@@ -1823,7 +1823,7 @@ var _ UniversalCliSrv = &Server{}
 // for symmetry: see srv.go for details, under the same func name.
 //
 // SendOneWayMessage only sets msg.HDR.From to its correct value.
-func (cli *Client) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur *time.Duration) error {
+func (cli *Client) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) error {
 	return sendOneWayMessage(cli, ctx, msg, errWriteDur)
 }
 

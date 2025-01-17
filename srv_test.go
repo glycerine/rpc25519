@@ -256,7 +256,7 @@ func Test004_server_push(t *testing.T) {
 		pushMsg.HDR.Seqno = seqno
 		pushMsg.HDR.CallID = callID
 
-		err = sendOneWayMessage(srv, context.Background(), pushMsg, nil)
+		err = sendOneWayMessage(srv, context.Background(), pushMsg, 0)
 		panicOn(err) // net.Conn not found
 
 		// does the client get it?
@@ -531,7 +531,7 @@ func Test014_server_push_quic(t *testing.T) {
 		pushMsg.HDR.Seqno = seqno
 		pushMsg.HDR.CallID = callID
 
-		err = sendOneWayMessage(srv, context.Background(), pushMsg, nil)
+		err = sendOneWayMessage(srv, context.Background(), pushMsg, 0)
 		panicOn(err) // net.Conn not found
 
 		// does the client get it?
@@ -656,7 +656,7 @@ func Test015_server_push_quic_notice_disco_quickly(t *testing.T) {
 		pushMsg.HDR.Seqno = seqno
 		pushMsg.HDR.CallID = callID
 
-		err = sendOneWayMessage(srv, context.Background(), pushMsg, nil)
+		err = sendOneWayMessage(srv, context.Background(), pushMsg, 0)
 
 		// do we get an error since client is not there?
 		if err == nil {

@@ -66,7 +66,7 @@ func (s *syncer2) Start(
 			vv("%v: sees pushToURL '%v'", s.name, pushToURL)
 
 			vv("%v: about to new up the server. pushToURL='%v'", s.name, pushToURL)
-			ckt, ctx, err := myPeer.NewCircuitToPeerURL("push-cicuit", pushToURL, nil, nil)
+			ckt, ctx, err := myPeer.NewCircuitToPeerURL("push-cicuit", pushToURL, nil, 0)
 			vv("%v: back from myPeer.NewCircuitToPeerURL(pushToURL: '%v'): err='%v'", s.name, pushToURL, err)
 			panicOn(err)
 			vv("%v: got ckt = '%v' back from NewCircuitToPeerURL '%v'", s.name, ckt.Name, pushToURL)
@@ -148,7 +148,7 @@ func (s *syncer2) Start(
 						outFrag.FragSubject = "echo reply"
 						outFrag.ServiceName = myPeer.ServiceName()
 						vv("%v: (ckt '%v') sending 'echo reply'='%v'", s.name, ckt.Name, frag)
-						err := peer.SendOneWay(ckt, outFrag, nil)
+						err := peer.SendOneWay(ckt, outFrag, 0)
 						panicOn(err)
 
 					case fragerr := <-ckt.Errors:

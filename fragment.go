@@ -215,7 +215,7 @@ func (s *localPeerback) NewCircuitToPeerURL(
 	circuitName string,
 	peerURL string,
 	frag *Fragment,
-	errWriteDur *time.Duration,
+	errWriteDur time.Duration,
 ) (ckt *Circuit, ctx context.Context, err error) {
 
 	if s.halt.ReqStop.IsClosed() {
@@ -307,13 +307,13 @@ func parsePeerURL(peerURL string) (netAddr, serviceName, peerID, circuitID strin
 
 // SendOneWay sends a Frament on the given Circuit.
 func (s *remotePeerback) SendOneWay(
-	ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
+	ckt *Circuit, frag *Fragment, errWriteDur time.Duration) error {
 
 	return s.localPeerback.SendOneWay(ckt, frag, errWriteDur)
 }
 
 // SendOneWayMessage sends a Frament on the given Circuit.
-func (s *localPeerback) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error {
+func (s *localPeerback) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Duration) error {
 
 	//defer func() {
 	//	vv("done with localPeerback.SendOneWay()")
@@ -602,7 +602,7 @@ type RemotePeer interface {
 	NewCircuit(circuitName string) (ckt *Circuit, ctx context.Context, err error)
 
 	// SendOneWay sends a Frament on the given Circuit.
-	SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error
+	SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Duration) error
 
 	PeerServiceName() string
 	PeerID() string
@@ -617,7 +617,7 @@ type LocalPeer interface {
 		circuitName string,
 		peerURL string,
 		frag *Fragment,
-		errWriteDur *time.Duration,
+		errWriteDur time.Duration,
 	) (ckt *Circuit, ctx context.Context, err error)
 
 	// how we were registered/invoked.
@@ -823,7 +823,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 	pollInterval := waitUpTo / 50
 
 	for i := 0; i < 50; i++ {
-		err = p.u.SendOneWayMessage(ctx, msg, nil)
+		err = p.u.SendOneWayMessage(ctx, msg, 0)
 		if err == nil {
 			//vv("SendOneWayMessage retried %v times before succeess; pollInterval: %v",
 			//	i, pollInterval)
