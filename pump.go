@@ -7,15 +7,15 @@ import (
 
 // background goro to read all PeerID *Messages and sort them
 // to all the circuits live in this peer.
-func (pb *localPeerback) peerbackPump() {
+func (pb *LocalPeer) peerbackPump() {
 
 	//defer func() {
-	//zz("localPeerback.peerbackPump all-finished; pb= %p", pb)
+	//zz("LocalPeer.PeerbackPump all-finished; pb= %p", pb)
 	//}()
 
-	name := pb.peerServiceName
+	name := pb.PeerServiceName
 	_ = name
-	//zz("%v: peerbackPump top.", name)
+	//zz("%v: PeerbackPump top.", name)
 
 	// key: CallID (circuit ID)
 	m := make(map[string]*Circuit)
@@ -28,18 +28,18 @@ func (pb *localPeerback) peerbackPump() {
 		frag.Typ = CallPeerEndCircuit
 		pb.SendOneWay(ckt, frag, -1) // no blocking
 
-		ckt.canc()
-		delete(m, ckt.callID)
-		pb.u.UnregisterChannel(ckt.callID, CallIDReadMap)
-		pb.u.UnregisterChannel(ckt.callID, CallIDErrorMap)
+		ckt.Canc()
+		delete(m, ckt.CircuitID)
+		pb.U.UnregisterChannel(ckt.CircuitID, CallIDReadMap)
+		pb.U.UnregisterChannel(ckt.CircuitID, CallIDErrorMap)
 
 		ckt.Halt.ReqStop.Close()
 		ckt.Halt.Done.Close()
-		pb.halt.ReqStop.RemoveChild(ckt.Halt.ReqStop)
+		pb.Halt.ReqStop.RemoveChild(ckt.Halt.ReqStop)
 
-		if pb.autoShutdownWhenNoMoreCircuits && len(m) == 0 {
+		if pb.AutoShutdownWhenNoMoreCircuits && len(m) == 0 {
 			//zz("%v: peerbackPump exiting on autoShutdownWhenNoMoreCircuits", name)
-			pb.halt.ReqStop.Close()
+			pb.Halt.ReqStop.Close()
 		}
 	}
 	defer func() {
@@ -55,38 +55,38 @@ func (pb *localPeerback) peerbackPump() {
 		//zz("%v: peerbackPump cleanup done... telling peers were are down", name)
 
 		// tell all remotes we are going down
-		remotesSlice := pb.remotes.getValSlice()
+		remotesSlice := pb.Remotes.GetValSlice()
 		for _, rem := range remotesSlice {
-			pb.tellRemoteWeShutdown(rem)
+			pb.TellRemoteWeShutdown(rem)
 		}
 		//zz("%v: peerbackPump done telling peers we are down.", name)
-		pb.halt.Done.Close()
+		pb.Halt.Done.Close()
 	}()
 
-	done := pb.ctx.Done()
+	done := pb.Ctx.Done()
 	for {
 		//zz("%v %p: pump loop top of select. pb.handleChansNewCircuit = %p", name, pb, pb.handleChansNewCircuit)
 		select {
-		case <-pb.halt.ReqStop.Chan:
+		case <-pb.Halt.ReqStop.Chan:
 			return
 
-		case query := <-pb.queryCh:
+		case query := <-pb.QueryCh:
 			// query is &queryLocalPeerPump{}
-			query.openCircuitCount = len(m)
-			close(query.ready)
+			query.OpenCircuitCount = len(m)
+			close(query.Ready)
 
-		case ckt := <-pb.handleChansNewCircuit:
-			m[ckt.callID] = ckt
-			pb.halt.ReqStop.AddChild(ckt.Halt.ReqStop)
+		case ckt := <-pb.HandleChansNewCircuit:
+			m[ckt.CircuitID] = ckt
+			pb.Halt.ReqStop.AddChild(ckt.Halt.ReqStop)
 
-		case ckt := <-pb.handleCircuitClose:
+		case ckt := <-pb.HandleCircuitClose:
 			//zz("%v pump: ckt := <-pb.handleCircuitClose: for ckt='%v'", name, ckt.Name)
 			cleanupCkt(ckt)
 
-		case msg := <-pb.readsIn:
+		case msg := <-pb.ReadsIn:
 
-			if msg.HDR.Typ == CallPeerFromIsShutdown && msg.HDR.FromPeerID != pb.peerID {
-				rpb, n, ok := pb.remotes.getValNDel(msg.HDR.FromPeerID)
+			if msg.HDR.Typ == CallPeerFromIsShutdown && msg.HDR.FromPeerID != pb.PeerID {
+				rpb, n, ok := pb.Remotes.GetValNDel(msg.HDR.FromPeerID)
 				if ok {
 					//zz("%v: got notice of shutdown of peer '%v'", name, aliasDecode(msg.HDR.FromPeerID))
 					_ = rpb
@@ -94,7 +94,7 @@ func (pb *localPeerback) peerbackPump() {
 				}
 				if n == 0 {
 					//zz("no remote peers left ... we could shut ourselves down to save memory?")
-					if pb.autoShutdownWhenNoMorePeers {
+					if pb.AutoShutdownWhenNoMorePeers {
 						//zz("%v: lbp.autoShutdownWhenNoMorePeers true, closing up", name)
 						return
 					}
@@ -126,19 +126,19 @@ func (pb *localPeerback) peerbackPump() {
 				continue
 			}
 
-			frag := ckt.convertMessageToFragment(msg)
+			frag := ckt.ConvertMessageToFragment(msg)
 			select {
 			case ckt.Reads <- frag: // server should be hung here, if peer code not servicing
 			case <-ckt.Halt.ReqStop.Chan:
 				cleanupCkt(ckt)
 				// otherwise hang if circuit is shutting down.
 				continue
-			case <-pb.halt.ReqStop.Chan:
+			case <-pb.Halt.ReqStop.Chan:
 				return
 			case <-done:
 				return
 			}
-		case msgerr := <-pb.errorsIn:
+		case msgerr := <-pb.ErrorsIn:
 
 			callID := msgerr.HDR.CallID
 			ckt, ok := m[callID]
@@ -155,13 +155,13 @@ func (pb *localPeerback) peerbackPump() {
 				continue
 			}
 
-			fragerr := ckt.convertMessageToFragment(msgerr)
+			fragerr := ckt.ConvertMessageToFragment(msgerr)
 			select {
 			case ckt.Errors <- fragerr:
 			case <-ckt.Halt.ReqStop.Chan:
 				cleanupCkt(ckt)
 				continue
-			case <-pb.halt.ReqStop.Chan:
+			case <-pb.Halt.ReqStop.Chan:
 				return
 			case <-done:
 				return
@@ -176,21 +176,21 @@ func shallowCloneMessage(msg *Message) *Message {
 	return &cp
 }
 
-func (pb *localPeerback) tellRemoteWeShutdown(rem *remotePeerback) {
+func (pb *LocalPeer) TellRemoteWeShutdown(rem *RemotePeer) {
 
 	shut := &Message{}
 	shut.HDR.Created = time.Now()
-	shut.HDR.From = pb.netAddr
+	shut.HDR.From = pb.NetAddr
 	shut.HDR.Typ = CallPeerFromIsShutdown
-	shut.HDR.FromPeerID = pb.peerID
+	shut.HDR.FromPeerID = pb.PeerID
 
 	// pb.ctx is probably unusable by now as already cancelled.
 	ctxB := context.Background()
 
-	shut.HDR.To = rem.netAddr
-	shut.HDR.ToPeerID = rem.peerID
+	shut.HDR.To = rem.NetAddr
+	shut.HDR.ToPeerID = rem.PeerID
 	shut.HDR.Serial = issueSerial()
-	shut.HDR.ServiceName = rem.remoteServiceName
+	shut.HDR.ServiceName = rem.RemoteServiceName
 
-	pb.u.SendOneWayMessage(ctxB, shut, -1) // no blocking
+	pb.U.SendOneWayMessage(ctxB, shut, -1) // no blocking
 }

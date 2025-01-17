@@ -9,119 +9,6 @@ import (
 	"github.com/glycerine/greenpack/msgp"
 )
 
-func TestMarshalUnmarshalCircuit(t *testing.T) {
-	v := Circuit{}
-	bts, err := v.MarshalMsg(nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	left, err := v.UnmarshalMsg(bts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(left) > 0 {
-		t.Errorf("%d bytes left over after UnmarshalMsg(): %q", len(left), left)
-	}
-
-	left, err = msgp.Skip(bts)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(left) > 0 {
-		t.Errorf("%d bytes left over after Skip(): %q", len(left), left)
-	}
-}
-
-func BenchmarkMarshalMsgCircuit(b *testing.B) {
-	v := Circuit{}
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		v.MarshalMsg(nil)
-	}
-}
-
-func BenchmarkAppendMsgCircuit(b *testing.B) {
-	v := Circuit{}
-	bts := make([]byte, 0, v.Msgsize())
-	bts, _ = v.MarshalMsg(bts[0:0])
-	b.SetBytes(int64(len(bts)))
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		bts, _ = v.MarshalMsg(bts[0:0])
-	}
-}
-
-func BenchmarkUnmarshalCircuit(b *testing.B) {
-	v := Circuit{}
-	bts, _ := v.MarshalMsg(nil)
-	b.ReportAllocs()
-	b.SetBytes(int64(len(bts)))
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := v.UnmarshalMsg(bts)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func TestEncodeDecodeCircuit(t *testing.T) {
-	v := Circuit{}
-	var buf bytes.Buffer
-	msgp.Encode(&buf, &v)
-
-	m := v.Msgsize()
-	if buf.Len() > m {
-		t.Logf("WARNING: Msgsize() for %v is inaccurate", v)
-	}
-
-	vn := Circuit{}
-	err := msgp.Decode(&buf, &vn)
-	if err != nil {
-		t.Error(err)
-	}
-
-	buf.Reset()
-	msgp.Encode(&buf, &v)
-	err = msgp.NewReader(&buf).Skip()
-	if err != nil {
-		t.Error(err)
-	}
-}
-
-func BenchmarkEncodeCircuit(b *testing.B) {
-	v := Circuit{}
-	var buf bytes.Buffer
-	msgp.Encode(&buf, &v)
-	b.SetBytes(int64(buf.Len()))
-	en := msgp.NewWriter(msgp.Nowhere)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		v.EncodeMsg(en)
-	}
-	en.Flush()
-}
-
-func BenchmarkDecodeCircuit(b *testing.B) {
-	v := Circuit{}
-	var buf bytes.Buffer
-	msgp.Encode(&buf, &v)
-	b.SetBytes(int64(buf.Len()))
-	rd := msgp.NewEndlessReader(buf.Bytes(), b)
-	dc := msgp.NewReader(rd)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		err := v.DecodeMsg(dc)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
 func TestMarshalUnmarshalFragment(t *testing.T) {
 	v := Fragment{}
 	bts, err := v.MarshalMsg(nil)
@@ -220,6 +107,119 @@ func BenchmarkEncodeFragment(b *testing.B) {
 
 func BenchmarkDecodeFragment(b *testing.B) {
 	v := Fragment{}
+	var buf bytes.Buffer
+	msgp.Encode(&buf, &v)
+	b.SetBytes(int64(buf.Len()))
+	rd := msgp.NewEndlessReader(buf.Bytes(), b)
+	dc := msgp.NewReader(rd)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err := v.DecodeMsg(dc)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func TestMarshalUnmarshalQueryLocalPeerPump(t *testing.T) {
+	v := QueryLocalPeerPump{}
+	bts, err := v.MarshalMsg(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	left, err := v.UnmarshalMsg(bts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(left) > 0 {
+		t.Errorf("%d bytes left over after UnmarshalMsg(): %q", len(left), left)
+	}
+
+	left, err = msgp.Skip(bts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(left) > 0 {
+		t.Errorf("%d bytes left over after Skip(): %q", len(left), left)
+	}
+}
+
+func BenchmarkMarshalMsgQueryLocalPeerPump(b *testing.B) {
+	v := QueryLocalPeerPump{}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		v.MarshalMsg(nil)
+	}
+}
+
+func BenchmarkAppendMsgQueryLocalPeerPump(b *testing.B) {
+	v := QueryLocalPeerPump{}
+	bts := make([]byte, 0, v.Msgsize())
+	bts, _ = v.MarshalMsg(bts[0:0])
+	b.SetBytes(int64(len(bts)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bts, _ = v.MarshalMsg(bts[0:0])
+	}
+}
+
+func BenchmarkUnmarshalQueryLocalPeerPump(b *testing.B) {
+	v := QueryLocalPeerPump{}
+	bts, _ := v.MarshalMsg(nil)
+	b.ReportAllocs()
+	b.SetBytes(int64(len(bts)))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := v.UnmarshalMsg(bts)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func TestEncodeDecodeQueryLocalPeerPump(t *testing.T) {
+	v := QueryLocalPeerPump{}
+	var buf bytes.Buffer
+	msgp.Encode(&buf, &v)
+
+	m := v.Msgsize()
+	if buf.Len() > m {
+		t.Logf("WARNING: Msgsize() for %v is inaccurate", v)
+	}
+
+	vn := QueryLocalPeerPump{}
+	err := msgp.Decode(&buf, &vn)
+	if err != nil {
+		t.Error(err)
+	}
+
+	buf.Reset()
+	msgp.Encode(&buf, &v)
+	err = msgp.NewReader(&buf).Skip()
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func BenchmarkEncodeQueryLocalPeerPump(b *testing.B) {
+	v := QueryLocalPeerPump{}
+	var buf bytes.Buffer
+	msgp.Encode(&buf, &v)
+	b.SetBytes(int64(buf.Len()))
+	en := msgp.NewWriter(msgp.Nowhere)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		v.EncodeMsg(en)
+	}
+	en.Flush()
+}
+
+func BenchmarkDecodeQueryLocalPeerPump(b *testing.B) {
+	v := QueryLocalPeerPump{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))

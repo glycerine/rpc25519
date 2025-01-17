@@ -600,6 +600,9 @@ func Test015_server_push_quic_notice_disco_quickly(t *testing.T) {
 					return
 				case msg := <-incoming:
 					// ignore responses to the connection setup! false red
+					if msg.HDR.Typ == CallError {
+						continue
+					}
 					if msg.HDR.Subject != "one way hello" {
 						vv("got incoming msg = '%v'", msg.String())
 						if msg.HDR.Seqno != seqno {

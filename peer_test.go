@@ -125,7 +125,7 @@ func Test404_verify_peer_operations(t *testing.T) {
 		cliSync.PushToPeerURL <- srvURL
 
 		//vv("past cliSync.PushToPeerURL <- srvURL")
-		//vv("test main about to sleep 5 sec.")
+		vv("test 404 about to sleep 5 sec.")
 		time.Sleep(5 * time.Second)
 
 		vv("slept 5 sec. now cancel ctx.")

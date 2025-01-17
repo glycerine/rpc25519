@@ -121,8 +121,8 @@ D) boostrapping: registering your Peer implemenation and starting
    2. start a previously registered PeerServiceFunc locally or remotely:
 
           PeerAPI.StartLocalPeer(
-                   ctx context.Context,
-          peerServiceName string) (localPeerURL, localPeerID string, err error)
+                      ctx context.Context,
+          peerServiceName string) (lp *LocalPeer, err error)
 
       Starting a remote peer must also specify the host:port remoteAddr
       of the remote client/server. The user can call the RemoteAddr() and
@@ -161,7 +161,7 @@ func (me *PeerImpl) Start(
 	// how we were registered/invoked.
 	// our local Peer interface, can do
 	// NewCircuitToPeerURL() to send to URL.
-	myPeer LocalPeer,
+	myPeer *LocalPeer,
 
 	// overall context of Client/Server host, if
 	// it starts shutdown, this will cancel, and
@@ -171,7 +171,7 @@ func (me *PeerImpl) Start(
 
 	// first on newPeerCh might be the client or server who invoked us,
 	// if a remote wanted to start a circuit.
-	newPeerCh <-chan RemotePeer,
+	newPeerCh <-chan *RemotePeer,
 
 ) error {
 
@@ -208,7 +208,7 @@ func (me *PeerImpl) Start(
 
 				aliasRegister(myPeer.ID(), myPeer.ID()+
 					" (echo originator on server)")
-				_, _, remotePeerID, _, err := parsePeerURL(echoToURL)
+				_, _, remotePeerID, _, err := ParsePeerURL(echoToURL)
 				panicOn(err)
 				aliasRegister(remotePeerID, remotePeerID+" (echo replier on client)")
 
@@ -243,10 +243,10 @@ func (me *PeerImpl) Start(
 			wg.Add(1)
 
 			vv("got from newPeerCh! '%v' sees new peerURL: '%v' ...\n   we want to be the echo-answer!",
-				peer.PeerServiceName(), peer.PeerURL())
+				peer.RemoteServiceName, peer.PeerURL)
 
 			// talk to this peer on a separate goro if you wish:
-			go func(peer RemotePeer) {
+			go func(peer *RemotePeer) {
 				defer wg.Done()
 				defer func() {
 					vv("echo answerer shutting down.")

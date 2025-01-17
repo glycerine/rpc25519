@@ -4,25 +4,25 @@ import (
 	"sync"
 )
 
-type mutmap[K comparable, V any] struct {
+type Mutexmap[K comparable, V any] struct {
 	mut sync.RWMutex
 	m   map[K]V
 }
 
-func newMutmap[K comparable, V any]() *mutmap[K, V] {
-	return &mutmap[K, V]{
+func NewMutexmap[K comparable, V any]() *Mutexmap[K, V] {
+	return &Mutexmap[K, V]{
 		m: make(map[K]V),
 	}
 }
 
-func (m *mutmap[K, V]) get(key K) (val V, ok bool) {
+func (m *Mutexmap[K, V]) Get(key K) (val V, ok bool) {
 	m.mut.RLock()
 	val, ok = m.m[key]
 	m.mut.RUnlock()
 	return
 }
 
-func (m *mutmap[K, V]) getValSlice() (slc []V) {
+func (m *Mutexmap[K, V]) GetValSlice() (slc []V) {
 	m.mut.RLock()
 	for _, v := range m.m {
 		slc = append(slc, v)
@@ -31,20 +31,20 @@ func (m *mutmap[K, V]) getValSlice() (slc []V) {
 	return
 }
 
-func (m *mutmap[K, V]) set(key K, val V) {
+func (m *Mutexmap[K, V]) Set(key K, val V) {
 	m.mut.Lock()
 	m.m[key] = val
 	m.mut.Unlock()
 }
 
-func (m *mutmap[K, V]) del(key K) {
+func (m *Mutexmap[K, V]) Del(key K) {
 	m.mut.Lock()
 	delete(m.m, key)
 	m.mut.Unlock()
 }
 
 // n gives the count of items left in map after deleting key.
-func (m *mutmap[K, V]) getValNDel(key K) (val V, n int, ok bool) {
+func (m *Mutexmap[K, V]) GetValNDel(key K) (val V, n int, ok bool) {
 	m.mut.Lock()
 	val, ok = m.m[key]
 	if ok {
@@ -56,14 +56,14 @@ func (m *mutmap[K, V]) getValNDel(key K) (val V, n int, ok bool) {
 }
 
 // getN returns the number of keys in the map.
-func (m *mutmap[K, V]) getN() (n int) {
+func (m *Mutexmap[K, V]) GetN() (n int) {
 	m.mut.RLock()
 	n = len(m.m)
 	m.mut.RUnlock()
 	return
 }
 
-func (m *mutmap[K, V]) clear() {
+func (m *Mutexmap[K, V]) Clear() {
 	m.mut.Lock()
 	clear(m.m)
 	m.mut.Unlock()

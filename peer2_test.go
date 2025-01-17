@@ -165,11 +165,11 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 
 		if srv_lpb.IsClosed() {
 			vv("bad! srv_lpb should be still open now!")
-			t.Fatalf("error: server local '%v' should be open.", srv_lpb.peerServiceName)
+			t.Fatalf("error: server local '%v' should be open.", srv_lpb.PeerServiceName)
 		}
 		if cli_lpb.IsClosed() {
 			vv("bad! cli_lpb should be still open now!")
-			t.Fatalf("error: client local '%v' should be open.", cli_lpb.peerServiceName)
+			t.Fatalf("error: client local '%v' should be open.", cli_lpb.PeerServiceName)
 		}
 
 		// did the server peer code recognize the closed ckt?
@@ -217,6 +217,9 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 		var cli_ckts []*Circuit
 		var srv_ckts []*Circuit
 
+		var cli_send_frag []*Fragment
+		var srv_send_frag []*Fragment
+
 		for i := range 10 {
 			cktname9 := fmt.Sprintf("cli_ckt9_%02d", i)
 			// leak the ctx, we don't care here(!)
@@ -224,6 +227,11 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 			panicOn(err)
 			//defer ckt.Close()
 			cli_ckts = append(cli_ckts, ckt9)
+
+			frag := NewFragment()
+			frag.FragSubject = cktname9
+			cli_send_frag = append(cli_send_frag, frag)
+
 		}
 
 		for i := range 10 {
@@ -235,11 +243,17 @@ func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
 			////zz("server back from making new ckt, i = %v", i)
 			//defer ckt.Close()
 			srv_ckts = append(srv_ckts, ckt9)
+			frag := NewFragment()
+			frag.FragSubject = cktname9
+			srv_send_frag = append(srv_send_frag, frag)
 		}
 
 		// cancellation from one side gets handled.
 
 		// simplest send and recieve
+
+		// start FragPart at 0. increment part when you echo it.
+		// discard parts with numbers > 1.
 
 		/* TODO:
 		// launch indep goro to send/read on each of the 20 circuits from both sides.

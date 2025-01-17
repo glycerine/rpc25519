@@ -146,7 +146,7 @@ func Test401_PeerURL_parsing(t *testing.T) {
 	cv.Convey("parsePeerURL should extract network address, peerID, and optionally circuitID", t, func() {
 
 		peerURL := "tcp://x.x.x.x:5023/serviceName/peerID/circuitID"
-		netAddr, serviceName, peerID, circuitID, err := parsePeerURL(peerURL)
+		netAddr, serviceName, peerID, circuitID, err := ParsePeerURL(peerURL)
 		panicOn(err)
 
 		vv("%v -> netAddr = '%v'", peerURL, netAddr)

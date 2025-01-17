@@ -40,9 +40,9 @@ type syncer struct {
 
 // instrument for peer_test.go
 func (s *syncer) Start(
-	myPeer LocalPeer,
+	myPeer *LocalPeer,
 	ctx0 context.Context,
-	newPeerCh <-chan RemotePeer,
+	newPeerCh <-chan *RemotePeer,
 
 ) error {
 
@@ -114,7 +114,7 @@ func (s *syncer) Start(
 			//zz("%v: got from newPeerCh! service '%v' sees new peerURL: '%v'", s.name, peer.PeerServiceName(), peer.PeerURL())
 
 			// talk to this peer on a separate goro if you wish:
-			go func(peer RemotePeer) {
+			go func(peer *RemotePeer) {
 
 				ckt, ctx, err := peer.IncomingCircuit()
 				if err != nil {
