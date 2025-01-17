@@ -71,7 +71,7 @@ func (m *Mutexmap[K, V]) GetN() (n int) {
 	return
 }
 
-// Clear delets all keys from the map.
+// Clear deletes all keys from the map.
 func (m *Mutexmap[K, V]) Clear() {
 	m.mut.Lock()
 	clear(m.m)
