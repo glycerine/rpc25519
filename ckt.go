@@ -285,14 +285,14 @@ func (f *Fragment) String() string {
 // a remote peer.
 //
 // RemotePeer is passed over the newPeerCh channel
-// to a PeerServiceFunc, and described by the RemotePeer interface.
+// to a PeerServiceFunc.
 //
 // The adjective "remote" means we a handle/proxy to the actual remote Peer
 // living on a remote node.
 //
-// Locally, a RemotePeer is always a child of a LocalPeers, created
-// either deliberately locally with NewCircuit or received on newPeerChan
-// from the remote who did NewCircuit.
+// Locally, a RemotePeer is always a child of a LocalPeers.
+// A RemotePeer can be requested by calling NewCircuit, or received
+// on newPeerChan from a remote peer who called NewCircuitToPeerURL.
 //
 //msgp:ignore RemotePeer
 type RemotePeer struct {
