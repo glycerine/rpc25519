@@ -614,7 +614,7 @@ type peerAPI struct {
 	mut sync.Mutex
 
 	// peerServiceName key
-	LocalServiceNameMap *Mutexmap[string, *knownLocalPeer]
+	localServiceNameMap *Mutexmap[string, *knownLocalPeer]
 
 	isCli bool
 }
@@ -622,7 +622,7 @@ type peerAPI struct {
 func newPeerAPI(u UniversalCliSrv, isCli bool) *peerAPI {
 	return &peerAPI{
 		u:                   u,
-		LocalServiceNameMap: NewMutexmap[string, *knownLocalPeer](),
+		localServiceNameMap: NewMutexmap[string, *knownLocalPeer](),
 		isCli:               isCli,
 	}
 }
@@ -653,7 +653,7 @@ func (p *peerAPI) RegisterPeerServiceFunc(peerServiceName string, peer PeerServi
 		panic("peerServiceName cannot be empty, peer cannot be nil")
 	}
 
-	p.LocalServiceNameMap.Set(peerServiceName, &knownLocalPeer{
+	p.localServiceNameMap.Set(peerServiceName, &knownLocalPeer{
 		peerServiceFunc: peer, peerServiceName: peerServiceName})
 
 	return nil
@@ -681,7 +681,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 
 ) (lpb *LocalPeer, err error) {
 
-	knownLocalPeer, ok := p.LocalServiceNameMap.Get(peerServiceName)
+	knownLocalPeer, ok := p.localServiceNameMap.Get(peerServiceName)
 	if !ok {
 		return nil, fmt.Errorf("no local peerServiceName '%v' available", peerServiceName)
 	}
@@ -853,7 +853,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
-	knownLocalPeer, ok := s.LocalServiceNameMap.Get(peerServiceName)
+	knownLocalPeer, ok := s.localServiceNameMap.Get(peerServiceName)
 	if !ok {
 		msg.HDR.Typ = CallPeerError
 		msg.JobErrs = fmt.Sprintf("no local peerServiceName '%v' available", peerServiceName)
