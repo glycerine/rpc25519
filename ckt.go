@@ -172,7 +172,7 @@ type RemotePeer struct {
 }
 
 // IncomingCircuit is the first one that arrives with
-// with an incoming remote peer connection.
+// an incoming remote peer connection.
 func (rpb *RemotePeer) IncomingCircuit() (ckt *Circuit, ctx context.Context, err error) {
 	return rpb.IncomingCkt, rpb.IncomingCkt.Ctx, nil
 }
@@ -189,7 +189,7 @@ type LocalPeer struct {
 	PeerAPI         *peerAPI
 	Ctx             context.Context
 	Canc            context.CancelFunc
-	PeerID          string // renamed from PeerID to avoid conflict with method
+	PeerID          string
 	U               UniversalCliSrv
 	NewPeerCh       chan *RemotePeer
 	ReadsIn         chan *Message
