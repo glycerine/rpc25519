@@ -262,8 +262,8 @@ func (c *Client) runClientTCP(serverAddr string) {
 		return
 	}
 
-	cpair := &cliPairState{}      // track the last compression used, so we can echo it.
-	go c.runSendLoop(conn, cpair) // race write vs hdr.go:466
+	cpair := &cliPairState{} // track the last compression used, so we can echo it.
+	go c.runSendLoop(conn, cpair)
 	c.runReadLoop(conn, cpair)
 }
 

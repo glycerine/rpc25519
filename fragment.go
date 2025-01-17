@@ -281,8 +281,9 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 
 	// tell the remote which serviceName we are coming from;
 	// so the URL back can be correct.
-	msg.HDR.Args = map[string]string{"fromServiceName": s.PeerServiceName,
-		"circuitName": circuitName}
+	msg.HDR.Args = map[string]string{
+		"fromServiceName": s.PeerServiceName,
+		"circuitName":     circuitName}
 
 	return ckt, ctx, s.U.SendOneWayMessage(ctx, msg, errWriteDur)
 }
@@ -385,7 +386,7 @@ func (peerAPI *peerAPI) newLocalPeer(
 // incoming
 func (ckt *Circuit) ConvertMessageToFragment(msg *Message) (frag *Fragment) {
 	frag = &Fragment{
-		FromPeerID:  msg.HDR.FromPeerID, // data race here.read. vs write at fragment.go:1054 goro 174, created by unlockedStartLocalPeer fragment.go:962
+		FromPeerID:  msg.HDR.FromPeerID,
 		ToPeerID:    msg.HDR.ToPeerID,
 		CircuitID:   msg.HDR.CallID,
 		Serial:      msg.HDR.Serial,

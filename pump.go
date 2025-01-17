@@ -192,5 +192,5 @@ func (pb *LocalPeer) TellRemoteWeShutdown(rem *RemotePeer) {
 	shut.HDR.Serial = issueSerial()
 	shut.HDR.ServiceName = rem.RemoteServiceName
 
-	pb.U.SendOneWayMessage(ctxB, shut, -1) // no blocking
+	pb.U.SendOneWayMessage(ctxB, shut, -1) // -1 => no blocking
 }
