@@ -57,6 +57,8 @@ func pp(format string, a ...interface{}) {
 	}
 }
 
+func zz(format string, a ...interface{}) {}
+
 // useful during git bisect
 var forceQuiet = false
 

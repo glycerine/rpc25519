@@ -534,7 +534,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 			}
 			// Send the message
 			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
-				alwaysPrintf("Failed to send message: %v", err)
+				alwaysPrintf("Failed to send message: %v\n", err)
 				msg.LocalErr = err
 				if strings.Contains(err.Error(),
 					"use of closed network connection") {

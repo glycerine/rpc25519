@@ -200,7 +200,7 @@ func (s *localPeerback) Close() {
 	// This was a frequent source of hangs in testing;
 	// which was useful to find shutdown logic errors.
 	// We don't really want to pause in prod though, so comment out.
-	alwaysPrintf("TODO: comment out this wait-for-shutdown in prod.")
+	//alwaysPrintf("TODO: comment out this wait-for-shutdown in prod.")
 	<-s.halt.Done.Chan
 }
 func (s *localPeerback) ServiceName() string {

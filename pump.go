@@ -9,18 +9,19 @@ import (
 // to all the circuits live in this peer.
 func (pb *localPeerback) peerbackPump() {
 
-	defer func() {
-		vv("localPeerback.peerbackPump all-finished; pb= %p", pb)
-	}()
+	//defer func() {
+	//zz("localPeerback.peerbackPump all-finished; pb= %p", pb)
+	//}()
 
 	name := pb.peerServiceName
-	vv("%v: peerbackPump top.", name)
+	_ = name
+	//zz("%v: peerbackPump top.", name)
 
 	// key: CallID (circuit ID)
 	m := make(map[string]*Circuit)
 
 	cleanupCkt := func(ckt *Circuit) {
-		vv("%v: cleanupCkt running for ckt '%v'", name, ckt.Name)
+		//zz("%v: cleanupCkt running for ckt '%v'", name, ckt.Name)
 		// Politely tell our peer we are going down,
 		// in case they are staying up.
 		frag := NewFragment()
@@ -37,12 +38,12 @@ func (pb *localPeerback) peerbackPump() {
 		pb.halt.ReqStop.RemoveChild(ckt.Halt.ReqStop)
 
 		if pb.autoShutdownWhenNoMoreCircuits && len(m) == 0 {
-			vv("%v: peerbackPump exiting on autoShutdownWhenNoMoreCircuits", name)
+			//zz("%v: peerbackPump exiting on autoShutdownWhenNoMoreCircuits", name)
 			pb.halt.ReqStop.Close()
 		}
 	}
 	defer func() {
-		vv("%v: peerbackPump exiting. closing all remaining circuits (%v).", name, len(m))
+		//zz("%v: peerbackPump exiting. closing all remaining circuits (%v).", name, len(m))
 		var all []*Circuit
 		for _, ckt := range m {
 			all = append(all, ckt)
@@ -51,20 +52,20 @@ func (pb *localPeerback) peerbackPump() {
 			cleanupCkt(ckt)
 		}
 		m = nil
-		vv("%v: peerbackPump cleanup done... telling peers were are down", name)
+		//zz("%v: peerbackPump cleanup done... telling peers were are down", name)
 
 		// tell all remotes we are going down
 		remotesSlice := pb.remotes.getValSlice()
 		for _, rem := range remotesSlice {
 			pb.tellRemoteWeShutdown(rem)
 		}
-		vv("%v: peerbackPump done telling peers we are down.", name)
+		//zz("%v: peerbackPump done telling peers we are down.", name)
 		pb.halt.Done.Close()
 	}()
 
 	done := pb.ctx.Done()
 	for {
-		vv("%v %p: pump loop top of select. pb.handleChansNewCircuit = %p", name, pb, pb.handleChansNewCircuit)
+		//zz("%v %p: pump loop top of select. pb.handleChansNewCircuit = %p", name, pb, pb.handleChansNewCircuit)
 		select {
 		case <-pb.halt.ReqStop.Chan:
 			return
@@ -79,7 +80,7 @@ func (pb *localPeerback) peerbackPump() {
 			pb.halt.ReqStop.AddChild(ckt.Halt.ReqStop)
 
 		case ckt := <-pb.handleCircuitClose:
-			vv("%v pump: ckt := <-pb.handleCircuitClose: for ckt='%v'", name, ckt.Name)
+			//zz("%v pump: ckt := <-pb.handleCircuitClose: for ckt='%v'", name, ckt.Name)
 			cleanupCkt(ckt)
 
 		case msg := <-pb.readsIn:
@@ -87,14 +88,14 @@ func (pb *localPeerback) peerbackPump() {
 			if msg.HDR.Typ == CallPeerFromIsShutdown && msg.HDR.FromPeerID != pb.peerID {
 				rpb, n, ok := pb.remotes.getValNDel(msg.HDR.FromPeerID)
 				if ok {
-					vv("%v: got notice of shutdown of peer '%v'", name, aliasDecode(msg.HDR.FromPeerID))
+					//zz("%v: got notice of shutdown of peer '%v'", name, aliasDecode(msg.HDR.FromPeerID))
 					_ = rpb
-					vv("what more do we need to do with rpb on its shutdown?")
+					//zz("what more do we need to do with rpb on its shutdown?")
 				}
 				if n == 0 {
-					vv("no remote peers left ... we could shut ourselves down to save memory?")
+					//zz("no remote peers left ... we could shut ourselves down to save memory?")
 					if pb.autoShutdownWhenNoMorePeers {
-						vv("%v: lbp.autoShutdownWhenNoMorePeers true, closing up", name)
+						//zz("%v: lbp.autoShutdownWhenNoMorePeers true, closing up", name)
 						return
 					}
 				}
@@ -102,12 +103,12 @@ func (pb *localPeerback) peerbackPump() {
 
 			callID := msg.HDR.CallID
 			ckt, ok := m[callID]
-			//vv("pump %v: sees readsIn msg, ckt ok=%v", name, ok)
+			////zz("pump %v: sees readsIn msg, ckt ok=%v", name, ok)
 			if !ok {
 				// we expect the ckt close ack-back to be dropped if we initiated it.
-				alwaysPrintf("%v: arg. no circuit avail for callID = '%v'/Typ:'%v';"+
-					" pump dropping this msg.", name, aliasDecode(callID),
-					msg.HDR.Typ.String())
+				//alwaysPrintf("%v: arg. no circuit avail for callID = '%v'/Typ:'%v';"+
+				//	" pump dropping this msg.", name, aliasDecode(callID),
+				//	msg.HDR.Typ.String())
 
 				if callID == "" {
 					// we have a legit PeerID but no CallID, which means that
@@ -116,12 +117,12 @@ func (pb *localPeerback) peerbackPump() {
 				}
 				continue
 			}
-			//vv("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
+			////zz("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
 
 			if msg.HDR.Typ == CallPeerEndCircuit {
-				vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg) // seen in crosstalk test server hung log line 311
+				//zz("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg) // seen in crosstalk test server hung log line 311
 				cleanupCkt(ckt)
-				vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg. back from cleanupCkt, about to continue: '%v'", name, ckt.Name, msg)
+				//zz("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg. back from cleanupCkt, about to continue: '%v'", name, ckt.Name, msg)
 				continue
 			}
 
@@ -141,15 +142,15 @@ func (pb *localPeerback) peerbackPump() {
 
 			callID := msgerr.HDR.CallID
 			ckt, ok := m[callID]
-			//vv("pump %v: ckt ok=%v on errorsIn", name, ok)
+			////zz("pump %v: ckt ok=%v on errorsIn", name, ok)
 			if !ok {
-				//vv("%v: arg. no ckt avail for callID = '%v' on msgerr", name, callID)
+				////zz("%v: arg. no ckt avail for callID = '%v' on msgerr", name, callID)
 				continue
 			}
-			//vv("pump %v: (ckt %v) sees msgerr='%v'", name, ckt.Name, msgerr)
+			////zz("pump %v: (ckt %v) sees msgerr='%v'", name, ckt.Name, msgerr)
 
 			if msgerr.HDR.Typ == CallPeerEndCircuit {
-				//vv("pump %v: (ckt %v) sees msgerr CallPeerEndCircuit in msgerr: '%v'", name, ckt.Name, msgerr)
+				////zz("pump %v: (ckt %v) sees msgerr CallPeerEndCircuit in msgerr: '%v'", name, ckt.Name, msgerr)
 				cleanupCkt(ckt)
 				continue
 			}
