@@ -102,7 +102,7 @@ func (pb *localPeerback) peerbackPump() {
 
 			callID := msg.HDR.CallID
 			ckt, ok := m[callID]
-			vv("pump %v: sees readsIn msg, ckt ok=%v", name, ok)
+			//vv("pump %v: sees readsIn msg, ckt ok=%v", name, ok)
 			if !ok {
 				// we expect the ckt close ack-back to be dropped if we initiated it.
 				alwaysPrintf("%v: arg. no circuit avail for callID = '%v'/Typ:'%v';"+
@@ -116,7 +116,7 @@ func (pb *localPeerback) peerbackPump() {
 				}
 				continue
 			}
-			vv("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
+			//vv("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
 
 			if msg.HDR.Typ == CallPeerEndCircuit {
 				vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg) // seen in crosstalk test server hung log line 311
@@ -141,15 +141,15 @@ func (pb *localPeerback) peerbackPump() {
 
 			callID := msgerr.HDR.CallID
 			ckt, ok := m[callID]
-			vv("pump %v: ckt ok=%v on errorsIn", name, ok)
+			//vv("pump %v: ckt ok=%v on errorsIn", name, ok)
 			if !ok {
-				vv("%v: arg. no ckt avail for callID = '%v' on msgerr", name, callID)
+				//vv("%v: arg. no ckt avail for callID = '%v' on msgerr", name, callID)
 				continue
 			}
-			vv("pump %v: (ckt %v) sees msgerr='%v'", name, ckt.Name, msgerr)
+			//vv("pump %v: (ckt %v) sees msgerr='%v'", name, ckt.Name, msgerr)
 
 			if msgerr.HDR.Typ == CallPeerEndCircuit {
-				vv("pump %v: (ckt %v) sees msgerr CallPeerEndCircuit in msgerr: '%v'", name, ckt.Name, msgerr)
+				//vv("pump %v: (ckt %v) sees msgerr CallPeerEndCircuit in msgerr: '%v'", name, ckt.Name, msgerr)
 				cleanupCkt(ckt)
 				continue
 			}

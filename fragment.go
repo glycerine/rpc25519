@@ -200,7 +200,7 @@ func (s *localPeerback) Close() {
 	// This was a frequent source of hangs in testing;
 	// which was useful to find shutdown logic errors.
 	// We don't really want to pause in prod though, so comment out.
-	vv("TODO: comment out this wait-for-shutdown in prod.")
+	alwaysPrintf("TODO: comment out this wait-for-shutdown in prod.")
 	<-s.halt.Done.Chan
 }
 func (s *localPeerback) ServiceName() string {
@@ -273,7 +273,7 @@ func (s *localPeerback) NewCircuitToPeerURL(
 		"circuitName": circuitName}
 	//msg.HDR.From will be overwritten by sender.
 
-	vv("about to SendOneWayMessage = '%v'", msg)
+	//vv("about to SendOneWayMessage = '%v'", msg)
 	return ckt, ctx, s.u.SendOneWayMessage(ctx, msg, errWriteDur)
 }
 
@@ -540,7 +540,7 @@ func (lpb *localPeerback) newCircuit(
 	}
 	aliasRegister(ckt.callID, ckt.callID+" ("+circuitName+")")
 
-	vv("lpb %p %v: newCircuit about to send ckt to pump loop lpb.handleChansNewCircuit = %p ; to make circuitName='%v'", lpb, lpb.peerServiceName, lpb.handleChansNewCircuit, circuitName)
+	//vv("lpb %p %v: newCircuit about to send ckt to pump loop lpb.handleChansNewCircuit = %p ; to make circuitName='%v'", lpb, lpb.peerServiceName, lpb.handleChansNewCircuit, circuitName)
 
 	select {
 	case lpb.handleChansNewCircuit <- ckt: // hung here! log.hang408next
@@ -558,13 +558,13 @@ func (lpb *localPeerback) newCircuit(
 func (h *Circuit) CircuitID() string { return h.callID }
 
 func (h *Circuit) Close() {
-	vv("%v: Circuit '%v' Close() top: h.pbFrom.handleCircuitClose = %p", h.localServiceName, h.Name, h.pbFrom.handleCircuitClose)
+	//vv("%v: Circuit '%v' Close() top: h.pbFrom.handleCircuitClose = %p", h.localServiceName, h.Name, h.pbFrom.handleCircuitClose)
 
 	h.Halt.ReqStop.Close()
 	select {
 	case h.pbFrom.handleCircuitClose <- h:
 	case <-h.pbFrom.halt.ReqStop.Chan:
-		vv("h.pbFrom.halt.ReqStop.Chan already closed, lbp must be down already.")
+		//vv("h.pbFrom.halt.ReqStop.Chan already closed, lbp must be down already.")
 	}
 }
 
@@ -744,7 +744,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	localPeerID := NewCallID()
 
 	localAddr := p.u.LocalAddr()
-	vv("unlockedStartLocalPeer: localAddr = '%v'", localAddr)
+	//vv("unlockedStartLocalPeer: localAddr = '%v'", localAddr)
 	lpb = p.newLocalPeerback(ctx1, canc1, p.u, localPeerID, newPeerCh, peerServiceName, localAddr)
 
 	knownLocalPeer.mut.Lock()
@@ -755,10 +755,10 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	knownLocalPeer.mut.Unlock()
 
 	go func() {
-		vv("launching new peerServiceFunc invocation for '%v'", peerServiceName)
+		//vv("launching new peerServiceFunc invocation for '%v'", peerServiceName)
 		knownLocalPeer.peerServiceFunc(lpb, ctx1, newPeerCh)
 
-		vv("peerServiceFunc has returned: '%v'; clean up the lbp!", peerServiceName)
+		//vv("peerServiceFunc has returned: '%v'; clean up the lbp!", peerServiceName)
 		canc1()
 		lpb.Close()
 		knownLocalPeer.mut.Lock()
@@ -897,7 +897,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 // .
 // Okay. On with the show:
 func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
-	vv("isCli=%v, bootstrapCircuit called with msg='%v'; JobSerz='%v'", isCli, msg.String(), string(msg.JobSerz))
+	//vv("isCli=%v, bootstrapCircuit called with msg='%v'; JobSerz='%v'", isCli, msg.String(), string(msg.JobSerz))
 
 	// So here we go:
 
@@ -913,7 +913,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		msg.HDR.Typ = CallPeerError
 		msg.JobErrs = fmt.Sprintf("no local peerServiceName '%v' available", peerServiceName)
 		msg.JobSerz = nil
-		vv("bootstrapCircuit returning early: '%v'", msg.JobErrs)
+		//vv("bootstrapCircuit returning early: '%v'", msg.JobErrs)
 		return s.replyHelper(isCli, msg, ctx, sendCh)
 	}
 
@@ -954,7 +954,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 
 	if needNew {
 		// spin one up!
-		vv("spinning up a peer for peerServicename '%v'", peerServiceName)
+		//vv("spinning up a peer for peerServicename '%v'", peerServiceName)
 		//lpb2, localPeerURL, localPeerID, err := s.StartLocalPeer(ctx, peerServiceName, msg)
 		lpb2, err := s.unlockedStartLocalPeer(ctx, peerServiceName, msg, isUpdatedPeerID, sendCh)
 		panicOn(err)
@@ -999,7 +999,7 @@ func (lpb *localPeerback) provideRemoteOnNewPeerCh(isCli bool, msg *Message, ctx
 	rpb.peerURL = remoteCktURL // or is it localCktURL ?
 
 	asFrag := ckt.convertMessageToFragment(msg)
-	vv("converted message: msg='%v' -> asFrag = '%v'", msg.String(), asFrag.String())
+	//vv("converted message: msg='%v' -> asFrag = '%v'", msg.String(), asFrag.String())
 
 	// don't block the readLoop up the stack.
 	go func() {
@@ -1063,7 +1063,7 @@ func (s *peerAPI) replyHelper(isCli bool, msg *Message, ctx context.Context, sen
 // func (s *peerAPI) bootstrapPeerService(msg *Message, halt *idem.Halter, sendCh chan *Message) error {
 func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
 
-	vv("top of bootstrapPeerService(): isCli=%v; msg.HDR='%v'", isCli, msg.HDR.String())
+	//vv("top of bootstrapPeerService(): isCli=%v; msg.HDR='%v'", isCli, msg.HDR.String())
 
 	// starts its own goroutine or return with an error (both quickly).
 	lpb, err := s.StartLocalPeer(ctx, msg.HDR.ServiceName, msg)
