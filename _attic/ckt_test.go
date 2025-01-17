@@ -6,12 +6,13 @@ import (
 	//"os"
 	//"strings"
 	"testing"
-	//"time"
+	"time"
 
 	cv "github.com/glycerine/goconvey/convey"
 )
 
 var _ = fmt.Sprintf
+var _ = time.Sleep
 
 type testJunk3 struct {
 	name string
@@ -77,15 +78,20 @@ type counts struct {
 
 type countService struct {
 	// key is circuit name
-	stats *Mutexmap[string, *counts]
+	stats  *Mutexmap[string, *counts]
+	readch chan *Fragment
 }
 
 func newcountService() *countService {
 	return &countService{
-		stats: NewMutexmap[string, *counts](),
+		stats:  NewMutexmap[string, *counts](),
+		readch: make(chan *Fragment, 1000),
 	}
 }
 
+func (s *countService) reset() {
+	s.stats.Clear()
+}
 func (s *countService) getAllReads() (n int) {
 	countsSlice := s.stats.GetValSlice()
 	for _, count := range countsSlice {
@@ -150,7 +156,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 				for {
 					select {
 					case frag := <-ckt.Reads:
-						//zz("%v: (ckt %v) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
+						vv("%v: (ckt %v) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
 						_ = frag
 						s.stats.Update(func(stats map[string]*counts) {
 							c, ok := stats[ckt.Name]
@@ -160,6 +166,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 							}
 							c.reads++
 						})
+						s.readch <- frag
 
 					case fragerr := <-ckt.Errors:
 						//zz("%v: (ckt '%v') fragerr = '%v'", name, ckt.Name, fragerr)
@@ -211,21 +218,29 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		panicOn(err)
 		defer ckt.Close()
 
-		cliNumCkt := cli_lpb.OpenCircuitCount()
-		if cliNumCkt != 1 {
-			t.Fatalf("expected 1 open circuits, got cliNumCkt: '%v'", cliNumCkt)
+		if got, want := cli_lpb.OpenCircuitCount(), 1; got != want {
+			t.Fatalf("expected 1 open circuit on cli, got: '%v'", got)
 		}
-		srvNumCkt := srv_lpb.OpenCircuitCount()
-		if srvNumCkt != 0 {
-			t.Fatalf("expected 1 open circuits, got srvNumCkt: '%v'", srvNumCkt)
+		// we can race with the server getting the read, so wait for a read.
+		<-j.srvcountService.readch
+		if got, want := srv_lpb.OpenCircuitCount(), 1; got != want {
+			t.Fatalf("expected 1 open circuit on srv, got: '%v'", got)
 		}
 
 		// send and read.
-		if get, want := j.clicountService.getAllReads(), 0; get != want {
-			t.Fatalf("expected 0 reads to start")
+
+		// starting: client has read zero.
+		if got, want := j.clicountService.getAllReads(), 0; got != want {
+			t.Fatalf("expected 0 reads to start, client got: %v", got)
 		}
-		if get, want := j.srvcountService.getAllReads(), 0; get != want {
-			t.Fatalf("expected 0 reads to start")
+		// setting up the circuit means the server got a CallPeerStartCircuit frag.
+		// to start with
+		if got, want := j.srvcountService.getAllReads(), 1; got != want {
+			t.Fatalf("expected 1 reads to start, server got: %v", got)
+		}
+		j.srvcountService.reset() // set the server count to zero to start with.
+		if got, want := j.srvcountService.getAllReads(), 0; got != want {
+			t.Fatalf("expected 0 reads to start, server got: %v", got)
 		}
 
 	})
