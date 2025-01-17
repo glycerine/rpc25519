@@ -35,6 +35,11 @@ func (pb *localPeerback) peerbackPump() {
 		ckt.Halt.ReqStop.Close()
 		ckt.Halt.Done.Close()
 		pb.halt.ReqStop.RemoveChild(ckt.Halt.ReqStop)
+
+		if pb.autoShutdownWhenNoMoreCircuits && len(m) == 0 {
+			vv("%v: peerbackPump exiting on autoShutdownWhenNoMoreCircuits", name)
+			pb.halt.ReqStop.Close()
+		}
 	}
 	defer func() {
 		vv("%v: peerbackPump exiting. closing all remaining circuits (%v).", name, len(m))
@@ -49,23 +54,9 @@ func (pb *localPeerback) peerbackPump() {
 		vv("%v: peerbackPump cleanup done... telling peers were are down", name)
 
 		// tell all remotes we are going down
-		remotesSlice := pb.remotes.getValSlice() // set(peerID, rpb)
-		shut := &Message{}
-		shut.HDR.Created = time.Now()
-		shut.HDR.From = pb.netAddr
-		shut.HDR.Typ = CallPeerEnd
-		shut.HDR.FromPeerID = pb.peerID
-		// avoid pb.ctx, as it may well already be cancelled.
-		ctxB := context.Background()
-
+		remotesSlice := pb.remotes.getValSlice()
 		for _, rem := range remotesSlice {
-			msg := shallowCloneMessage(shut)
-			msg.HDR.To = rem.netAddr
-			msg.HDR.ToPeerID = rem.peerID
-			msg.HDR.Serial = issueSerial()
-			msg.HDR.ServiceName = rem.remoteServiceName
-
-			pb.u.SendOneWayMessage(ctxB, msg, nil)
+			pb.tellRemoteWeShutdown(rem)
 		}
 		vv("%v: peerbackPump done telling peers we are down.", name)
 		pb.halt.Done.Close()
@@ -110,6 +101,21 @@ func (pb *localPeerback) peerbackPump() {
 				cleanupCkt(ckt)
 				vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg. back from cleanupCkt, about to continue: '%v'", name, ckt.Name, msg)
 				continue
+			}
+			if msg.HDR.Typ == CallPeerFromIsShutdown {
+				rpb, n, ok := pb.remotes.getValNDel(msg.HDR.FromPeerID)
+				if ok {
+					vv("%v: got notice of shutdown of peer '%v'", name, aliasDecode(msg.HDR.FromPeerID))
+					_ = rpb
+					vv("what more do we need to do with rpb on its shutdown?")
+				}
+				if n == 0 {
+					vv("no remote peers left ... we could shut ourselves down to save memory?")
+					if pb.autoShutdownWhenNoMorePeers {
+						vv("%v: lbp.autoShutdownWhenNoMorePeers true, closing up", name)
+						return
+					}
+				}
 			}
 
 			frag := ckt.convertMessageToFragment(msg)
@@ -160,4 +166,23 @@ func (pb *localPeerback) peerbackPump() {
 func shallowCloneMessage(msg *Message) *Message {
 	cp := *msg
 	return &cp
+}
+
+func (pb *localPeerback) tellRemoteWeShutdown(rem *remotePeerback) {
+
+	shut := &Message{}
+	shut.HDR.Created = time.Now()
+	shut.HDR.From = pb.netAddr
+	shut.HDR.Typ = CallPeerFromIsShutdown
+	shut.HDR.FromPeerID = pb.peerID
+
+	// pb.ctx is probably unusable by now as already cancelled.
+	ctxB := context.Background()
+
+	shut.HDR.To = rem.netAddr
+	shut.HDR.ToPeerID = rem.peerID
+	shut.HDR.Serial = issueSerial()
+	shut.HDR.ServiceName = rem.remoteServiceName
+
+	pb.u.SendOneWayMessage(ctxB, shut, nil)
 }

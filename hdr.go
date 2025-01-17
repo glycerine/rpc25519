@@ -62,12 +62,12 @@ const (
 
 	// try to keep all peer traffic isolated
 	// and only using these:
-	CallPeerStart        CallType = 112
-	CallPeerStartCircuit CallType = 113
-	CallPeerTraffic      CallType = 114
-	CallPeerError        CallType = 115
-	CallPeerEnd          CallType = 116
-	CallPeerEndCircuit   CallType = 117
+	CallPeerStart          CallType = 112
+	CallPeerStartCircuit   CallType = 113
+	CallPeerTraffic        CallType = 114
+	CallPeerError          CallType = 115
+	CallPeerFromIsShutdown CallType = 116
+	CallPeerEndCircuit     CallType = 117
 )
 
 func (ct CallType) String() string {
@@ -93,8 +93,8 @@ func (ct CallType) String() string {
 		return "CallPeerTraffic"
 	case CallPeerError:
 		return "CallPeerError"
-	case CallPeerEnd:
-		return "CallPeerEnd"
+	case CallPeerFromIsShutdown:
+		return "CallPeerFromIsShutdown"
 	case CallPeerEndCircuit:
 		return "CallPeerEndCircuit"
 

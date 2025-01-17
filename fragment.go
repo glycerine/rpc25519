@@ -188,6 +188,10 @@ type localPeerback struct {
 
 	// remotes key is the remote PeerID
 	remotes *mutmap[string, *remotePeerback]
+
+	// should we shut ourselves down when no more peers?
+	autoShutdownWhenNoMorePeers    bool
+	autoShutdownWhenNoMoreCircuits bool
 }
 
 func (s *localPeerback) Close() {

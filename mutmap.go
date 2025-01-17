@@ -43,6 +43,26 @@ func (m *mutmap[K, V]) del(key K) {
 	m.mut.Unlock()
 }
 
+// n gives the count of items left in map after deleting key.
+func (m *mutmap[K, V]) getValNDel(key K) (val V, n int, ok bool) {
+	m.mut.Lock()
+	val, ok = m.m[key]
+	if ok {
+		delete(m.m, key)
+	}
+	n = len(m.m)
+	m.mut.Unlock()
+	return
+}
+
+// getN returns the number of keys in the map.
+func (m *mutmap[K, V]) getN() (n int) {
+	m.mut.RLock()
+	n = len(m.m)
+	m.mut.RUnlock()
+	return
+}
+
 func (m *mutmap[K, V]) clear() {
 	m.mut.Lock()
 	clear(m.m)
