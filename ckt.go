@@ -59,8 +59,8 @@ scanned and their diffs streamed at once,
 in parallel, becomes practical.
 
 By using lightweight goroutines and channels,
-circuit persistence is inexpensive and can be
-facilities data streams with markedly
+circuit persistence is inexpensive and
+supports any number of data streams with markedly
 different lifetimes and update rates,
 over long periods.
 
@@ -71,6 +71,7 @@ the same on both sides, no matter who
 initiated or whether a push or pull was
 requested. Hence we want a way to register
 the same functionality on the client as on the server.
+This is not available in a typical RPC package.
 
 Peer/Circuit/Fragment API essentials (utility methods omitted for compactness)
 
