@@ -218,6 +218,12 @@ We offer both a traditional [net/rpc](https://pkg.go.dev/net/rpc)
 style API, and a generic []byte oriented API for carrying
 user typed or self describing []byte payloads (in `Message.JobSerz`). 
 
+An additional, new and experimental Circuit API, is also layered 
+on top of the Message API. Circuits provide persistent, 
+asynchronous, peer-to-peer, infinite data streams. They 
+are discussed in the package comment of cktdoc.go.
+See there for overview, use, and a detailed discussion.
+
 As of v1.1.0, the `net/rpc` API has been updated to use 
 [greenpack encoding](https://pkg.go.dev/github.com/glycerine/greenpack2)
 rather than gob encoding, to provide a self-describing, 

@@ -1,6 +1,5 @@
 /*
 Peer/Circuit/Fragment Design overview
--------------------------------------
 
 This is an alternative API to the Message and net/rpc APIs
 provided by the rpc25519 package.
