@@ -54,7 +54,7 @@ func (s *syncer2) Start(
 	//zz("%v: syncer.Start() top.", s.name)
 	//zz("%v: ourID = '%v'; peerServiceName='%v';", s.name, myPeer.ID(), myPeer.ServiceName())
 
-	aliasRegister(myPeer.ID(), myPeer.ID()+" ("+myPeer.ServiceName()+")")
+	aliasRegister(myPeer.PeerID, myPeer.PeerID+" ("+myPeer.ServiceName()+")")
 
 	done0 := ctx0.Done()
 

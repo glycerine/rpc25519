@@ -116,7 +116,7 @@ func Test404_verify_peer_operations(t *testing.T) {
 
 		lpb, err := cli.PeerAPI.StartLocalPeer(ctx, "cliSync", nil)
 		panicOn(err)
-		peerURL_cli, peerID_cli := lpb.URL(), lpb.ID()
+		peerURL_cli, peerID_cli := lpb.URL(), lpb.PeerID
 
 		vv("cli.PeerAPI.StartLocalPeer() on client peerURL_client = '%v'; peerID_client = '%v'", peerURL_cli, peerID_cli)
 

@@ -66,14 +66,14 @@ func (me *PeerImpl) Start(
 				outFrag.Payload = []byte(fmt.Sprintf("echo request! "+
 					"myPeer.ID='%v' (myPeer.PeerURL='%v') requested"+
 					" to echo to peerURL '%v' on 'echo circuit'",
-					myPeer.ID(), myPeer.URL(), echoToURL))
+					myPeer.PeerID, myPeer.URL(), echoToURL))
 
 				outFrag.FragSubject = "echo request"
 
 				//vv("about to send echo from myPeer.URL() = '%v'", myPeer.URL())
 				//vv("... and about to send echo to echoToURL  = '%v'", echoToURL)
 
-				aliasRegister(myPeer.ID(), myPeer.ID()+
+				aliasRegister(myPeer.PeerID, myPeer.PeerID+
 					" (echo originator on server)")
 				_, _, remotePeerID, _, err := ParsePeerURL(echoToURL)
 				panicOn(err)

@@ -70,7 +70,7 @@ func (ckt *Circuit) IsClosed() bool {
 
 // ID2 supplies the local and remote PeerIDs.
 func (ckt *Circuit) ID2() (LocalPeerID, RemotePeerID string) {
-	return ckt.LpbFrom.GetPeerID(), ckt.RpbTo.GetPeerID()
+	return ckt.LpbFrom.PeerID, ckt.RpbTo.PeerID
 }
 
 func NewFragment() *Fragment {
@@ -1022,7 +1022,7 @@ func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Con
 	// starts its own goroutine or return with an error (both quickly).
 	lpb, err := s.StartLocalPeer(ctx, msg.HDR.ServiceName, msg)
 	localPeerURL := lpb.URL()
-	localPeerID := lpb.ID()
+	localPeerID := lpb.PeerID
 
 	// reply with the same msg; save an allocation.
 	msg.HDR.From, msg.HDR.To = msg.HDR.To, msg.HDR.From
@@ -1054,20 +1054,4 @@ func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Con
 		return ErrShutdown()
 	}
 	return nil
-}
-
-func (s *LocalPeer) ID() string {
-	return s.PeerID
-}
-
-func (s *LocalPeer) GetPeerID() string {
-	return s.PeerID
-}
-
-func (rpb *RemotePeer) ID() string {
-	return rpb.PeerID
-}
-
-func (rpb *RemotePeer) GetPeerID() string {
-	return rpb.PeerID
 }
