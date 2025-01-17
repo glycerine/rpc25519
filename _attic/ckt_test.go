@@ -23,8 +23,8 @@ type testJunk3 struct {
 	cliServiceName string
 	srvServiceName string
 
-	clicountService *countService
-	srvcountService *countService
+	clis *countService
+	srvs *countService
 }
 
 func (j *testJunk3) cleanup() {
@@ -55,13 +55,13 @@ func newTestJunk3(name string) (j *testJunk3) {
 	err = cli.Start()
 	panicOn(err)
 
-	j.clicountService = newcountService()
-	j.srvcountService = newcountService()
+	j.clis = newcountService()
+	j.srvs = newcountService()
 
-	err = cli.PeerAPI.RegisterPeerServiceFunc(j.cliServiceName, j.clicountService.start)
+	err = cli.PeerAPI.RegisterPeerServiceFunc(j.cliServiceName, j.clis.start)
 	panicOn(err)
 
-	err = srv.PeerAPI.RegisterPeerServiceFunc(j.srvServiceName, j.srvcountService.start)
+	err = srv.PeerAPI.RegisterPeerServiceFunc(j.srvServiceName, j.srvs.start)
 	panicOn(err)
 
 	j.cli = cli
@@ -131,7 +131,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 		case peer := <-newCircuitCh:
 			//vv("%v: got from newCircuitCh! service sees new peerURL: '%v'", name, peer.PeerURL)
 
-			// talk to this peer on a separate goro if you wish; or just sep func
+			// talk to this peer on a separate goro if you wish; or just a func
 			go func(peer *RemotePeer) {
 
 				ckt, ctx, err := peer.IncomingCircuit()
@@ -156,7 +156,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 				for {
 					select {
 					case frag := <-ckt.Reads:
-						vv("%v: (ckt %v) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
+						//vv("%v: (ckt %v) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
 						_ = frag
 						s.stats.Update(func(stats map[string]*counts) {
 							c, ok := stats[ckt.Name]
@@ -166,7 +166,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 							}
 							c.reads++
 						})
-						s.readch <- frag
+						s.readch <- frag // buffered 1000 so will not block til then.
 
 					case fragerr := <-ckt.Errors:
 						//zz("%v: (ckt '%v') fragerr = '%v'", name, ckt.Name, fragerr)
@@ -222,7 +222,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 			t.Fatalf("expected 1 open circuit on cli, got: '%v'", got)
 		}
 		// we can race with the server getting the read, so wait for a read.
-		<-j.srvcountService.readch
+		<-j.srvs.readch
 		if got, want := srv_lpb.OpenCircuitCount(), 1; got != want {
 			t.Fatalf("expected 1 open circuit on srv, got: '%v'", got)
 		}
@@ -230,19 +230,26 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		// send and read.
 
 		// starting: client has read zero.
-		if got, want := j.clicountService.getAllReads(), 0; got != want {
+		if got, want := j.clis.getAllReads(), 0; got != want {
 			t.Fatalf("expected 0 reads to start, client got: %v", got)
 		}
 		// setting up the circuit means the server got a CallPeerStartCircuit frag.
 		// to start with
-		if got, want := j.srvcountService.getAllReads(), 1; got != want {
+		if got, want := j.srvs.getAllReads(), 1; got != want {
 			t.Fatalf("expected 1 reads to start, server got: %v", got)
 		}
-		j.srvcountService.reset() // set the server count to zero to start with.
-		if got, want := j.srvcountService.getAllReads(), 0; got != want {
+		j.srvs.reset() // set the server count to zero to start with.
+		if got, want := j.srvs.getAllReads(), 0; got != want {
 			t.Fatalf("expected 0 reads to start, server got: %v", got)
 		}
 
+		// and we can simply count the size of the readch, since it is buffered 1000
+		if got, want := len(j.clis.readch), 0; got != want {
+			t.Fatalf("expected 0 in readch to start, clis got: %v", got)
+		}
+		if got, want := len(j.srvs.readch), 0; got != want {
+			t.Fatalf("expected 0 in readch to start, srvs got: %v", got)
+		}
 	})
 
 }
