@@ -22,14 +22,14 @@ func TestMain(m *testing.M) {
 
 	var exitVal int
 	func() {
-		vv("TestMain running.")
+		//vv("TestMain running.")
 
 		// create a temp dir for certs/ca,
 		// and configure to uset it.
 		tmp, err := ioutil.TempDir("", "rpc25519-tests-temp-dir")
 		panicOn(err)
-		vv("running tests in tmp dir: %v", tmp)
-		vv("comment this next line to preserve the tmp dir for inspection.")
+		//vv("running tests in tmp dir: %v", tmp)
+		//vv("comment this next line to preserve the tmp dir for inspection.")
 		defer os.RemoveAll(tmp)
 
 		// write temp certs here

@@ -814,7 +814,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 	msg.HDR = *hdr
 	callID := msg.HDR.CallID
 
-	vv("msg.HDR='%v'", msg.HDR.String()) // "Typ": CallPeerStart seen.
+	//vv("msg.HDR='%v'", msg.HDR.String()) // "Typ": CallPeerStart seen.
 
 	ch := make(chan *Message, 100)
 
@@ -848,11 +848,11 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 		}
 	}
 
-	vv("isCli=%v, StartRemotePeer about to wait for reply on ch to callID = '%v'", p.isCli, callID)
+	//vv("isCli=%v, StartRemotePeer about to wait for reply on ch to callID = '%v'", p.isCli, callID)
 	var reply *Message
 	select {
 	case reply = <-ch:
-		vv("got reply to CallPeerStart: '%v'", reply.String())
+		//vv("got reply to CallPeerStart: '%v'", reply.String())
 	case <-ctx.Done():
 		return "", "", ErrContextCancelled
 	}
@@ -862,13 +862,13 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 		return "", "", fmt.Errorf("remote '%v', peerServiceName '%v' did "+
 			"not respond with peerID in Args", remoteAddr, peerServiceName)
 	}
-	vv("got remotePeerID from Args[peerID]: '%v'", remotePeerID)
+	//vv("got remotePeerID from Args[peerID]: '%v'", remotePeerID)
 	remotePeerURL, ok = reply.HDR.Args["peerURL"]
 	if !ok {
 		return "", "", fmt.Errorf("remote '%v', peerServiceName '%v' did "+
 			"not respond with peerURL in Args", remoteAddr, peerServiceName)
 	}
-	vv("got remotePeerURL from Args[peerURL]: '%v'", remotePeerURL)
+	//vv("got remotePeerURL from Args[peerURL]: '%v'", remotePeerURL)
 	return remotePeerURL, remotePeerID, nil
 }
 
