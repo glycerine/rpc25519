@@ -590,7 +590,7 @@ func (h *Circuit) Close() {
 // PeerAPI.RegisterPeerServiceFunc() call.
 type PeerServiceFunc func(
 
-	// our local Peer interface, can do SendToPeer() to send to URL.
+	// our local Peer interface, can do NewCircuitToPeerURL() to send to URL.
 	myPeer *LocalPeer,
 
 	// ctx0 supplies the overall context of the
