@@ -197,7 +197,11 @@ type localPeerback struct {
 func (s *localPeerback) Close() {
 	s.canc()
 	s.halt.ReqStop.Close()
-	<-s.halt.Done.Chan // hung here!?! was: wait for shutdown; will not block if already closed
+	// This was a frequent source of hangs in testing;
+	// which was useful to find shutdown logic errors.
+	// We don't really want to pause in prod though, so comment out.
+	vv("TODO: comment out this wait-for-shutdown in prod.")
+	<-s.halt.Done.Chan
 }
 func (s *localPeerback) ServiceName() string {
 	return s.peerServiceName
