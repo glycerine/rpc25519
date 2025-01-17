@@ -197,7 +197,7 @@ type localPeerback struct {
 func (s *localPeerback) Close() {
 	s.canc()
 	s.halt.ReqStop.Close()
-	<-s.halt.Done.Chan // wait for shutdown; will not block if already closed.
+	<-s.halt.Done.Chan // hung here!?! was: wait for shutdown; will not block if already closed
 }
 func (s *localPeerback) ServiceName() string {
 	return s.peerServiceName

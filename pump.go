@@ -25,7 +25,7 @@ func (pb *localPeerback) peerbackPump() {
 		// in case they are staying up.
 		frag := NewFragment()
 		frag.Typ = CallPeerEndCircuit
-		pb.SendOneWay(ckt, frag, 0)
+		pb.SendOneWay(ckt, frag, -1) // no blocking
 
 		ckt.canc()
 		delete(m, ckt.callID)
@@ -84,6 +84,22 @@ func (pb *localPeerback) peerbackPump() {
 
 		case msg := <-pb.readsIn:
 
+			if msg.HDR.Typ == CallPeerFromIsShutdown && msg.HDR.FromPeerID != pb.peerID {
+				rpb, n, ok := pb.remotes.getValNDel(msg.HDR.FromPeerID)
+				if ok {
+					vv("%v: got notice of shutdown of peer '%v'", name, aliasDecode(msg.HDR.FromPeerID))
+					_ = rpb
+					vv("what more do we need to do with rpb on its shutdown?")
+				}
+				if n == 0 {
+					vv("no remote peers left ... we could shut ourselves down to save memory?")
+					if pb.autoShutdownWhenNoMorePeers {
+						vv("%v: lbp.autoShutdownWhenNoMorePeers true, closing up", name)
+						return
+					}
+				}
+			}
+
 			callID := msg.HDR.CallID
 			ckt, ok := m[callID]
 			vv("pump %v: sees readsIn msg, ckt ok=%v", name, ok)
@@ -107,21 +123,6 @@ func (pb *localPeerback) peerbackPump() {
 				cleanupCkt(ckt)
 				vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg. back from cleanupCkt, about to continue: '%v'", name, ckt.Name, msg)
 				continue
-			}
-			if msg.HDR.Typ == CallPeerFromIsShutdown {
-				rpb, n, ok := pb.remotes.getValNDel(msg.HDR.FromPeerID)
-				if ok {
-					vv("%v: got notice of shutdown of peer '%v'", name, aliasDecode(msg.HDR.FromPeerID))
-					_ = rpb
-					vv("what more do we need to do with rpb on its shutdown?")
-				}
-				if n == 0 {
-					vv("no remote peers left ... we could shut ourselves down to save memory?")
-					if pb.autoShutdownWhenNoMorePeers {
-						vv("%v: lbp.autoShutdownWhenNoMorePeers true, closing up", name)
-						return
-					}
-				}
 			}
 
 			frag := ckt.convertMessageToFragment(msg)
@@ -190,5 +191,5 @@ func (pb *localPeerback) tellRemoteWeShutdown(rem *remotePeerback) {
 	shut.HDR.Serial = issueSerial()
 	shut.HDR.ServiceName = rem.remoteServiceName
 
-	pb.u.SendOneWayMessage(ctxB, shut, 0)
+	pb.u.SendOneWayMessage(ctxB, shut, -1) // no blocking
 }
