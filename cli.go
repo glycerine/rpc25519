@@ -1803,7 +1803,7 @@ type UniversalCliSrv interface {
 	GetReadsForCallID(ch chan *Message, callID string)
 	GetErrorsForCallID(ch chan *Message, callID string)
 
-	// for Peer/Object systems; ToPeerID get priority over CallID
+	// for Peer/Object systems; ToPeerID gets priority over CallID
 	// to allow such systems to implement custom message
 	// types. An example is the Fragment/Peer/Circuit system.
 	// (This priority is implemented in notifies.handleReply_to_CallID_ToPeerID).

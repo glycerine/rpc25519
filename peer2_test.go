@@ -75,11 +75,11 @@ func newTestJunk2(name string) (j *testJunk2) {
 	return j
 }
 
-func Test408_multiple_circuits_stay_independent_syncer2(t *testing.T) {
+func Test408_multiple_circuits_open_and_close(t *testing.T) {
 
-	cv.Convey("testing peer2.go: no cross talk between many circuits open at once. Use syncer2", t, func() {
+	cv.Convey("testing peer2.go: open and close lots of circuits", t, func() {
 
-		j := newTestJunk2("no_crosstalk_test408")
+		j := newTestJunk2("lots_open_and_closed_test408")
 		defer j.cleanup()
 
 		ctx := context.Background()

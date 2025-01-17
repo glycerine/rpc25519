@@ -42,7 +42,7 @@ type syncer struct {
 func (s *syncer) Start(
 	myPeer *LocalPeer,
 	ctx0 context.Context,
-	newPeerCh <-chan *RemotePeer,
+	newCircuitCh <-chan *RemotePeer,
 
 ) error {
 
@@ -109,9 +109,9 @@ func (s *syncer) Start(
 
 			//}(pushToURL)
 		// new Circuit connection arrives
-		case peer := <-newPeerCh:
+		case peer := <-newCircuitCh:
 
-			//zz("%v: got from newPeerCh! service '%v' sees new peerURL: '%v'", s.name, peer.PeerServiceName(), peer.PeerURL())
+			//zz("%v: got from newCircuitCh! service '%v' sees new peerURL: '%v'", s.name, peer.PeerServiceName(), peer.PeerURL())
 
 			// talk to this peer on a separate goro if you wish:
 			go func(peer *RemotePeer) {

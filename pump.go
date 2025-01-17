@@ -2,6 +2,7 @@ package rpc25519
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -20,15 +21,30 @@ func (pb *LocalPeer) peerbackPump() {
 	// key: CallID (circuit ID)
 	m := make(map[string]*Circuit)
 
-	cleanupCkt := func(ckt *Circuit) {
-		//zz("%v: cleanupCkt running for ckt '%v'", name, ckt.Name)
-		// Politely tell our peer we are going down,
-		// in case they are staying up.
-		frag := NewFragment()
-		frag.Typ = CallPeerEndCircuit
-		pb.SendOneWay(ckt, frag, -1) // no blocking
+	cleanupCkt := func(ckt *Circuit, notifyPeer bool) {
 
-		ckt.Canc()
+		// Note: in normal operations, we may well be called *several times*
+		// for each circuit shutdown. Once when the user code
+		// defer ckt.Close() happens as it sees the shutdown,
+		// and other times if the test/user code cancels it;
+		// as well as if the remote side sends us a cancel.
+		// All of this is fine and expected and creates fault-
+		// tolerance if one part goes down. The upshot is: be
+		// sure the following is idempotent (and not generating errors)
+		// if the Circuit is cleaned-up multiple times.
+		// notifyPeer will be false if we got a cancel from a
+		// remote peer. In that case there is no need to tell
+		// them again about the shutdown.
+
+		vv("%v: cleanupCkt running for ckt '%v'. notifyPeer=%v", name, ckt.Name, notifyPeer)
+		if notifyPeer {
+			// Politely tell our peer we are going down,
+			// in case they are staying up.
+			frag := NewFragment()
+			frag.Typ = CallPeerEndCircuit
+			pb.SendOneWay(ckt, frag, -1) // no blocking
+		}
+		ckt.Canc(fmt.Errorf("pump cleanupCkt(notifyPeer=%v) cancelling ckt.Ctx.", notifyPeer))
 		delete(m, ckt.CircuitID)
 		pb.U.UnregisterChannel(ckt.CircuitID, CallIDReadMap)
 		pb.U.UnregisterChannel(ckt.CircuitID, CallIDErrorMap)
@@ -49,7 +65,7 @@ func (pb *LocalPeer) peerbackPump() {
 			all = append(all, ckt)
 		}
 		for _, ckt := range all {
-			cleanupCkt(ckt)
+			cleanupCkt(ckt, true)
 		}
 		m = nil
 		//zz("%v: peerbackPump cleanup done... telling peers were are down", name)
@@ -80,8 +96,8 @@ func (pb *LocalPeer) peerbackPump() {
 			pb.Halt.ReqStop.AddChild(ckt.Halt.ReqStop)
 
 		case ckt := <-pb.HandleCircuitClose:
-			//zz("%v pump: ckt := <-pb.handleCircuitClose: for ckt='%v'", name, ckt.Name)
-			cleanupCkt(ckt)
+			vv("%v pump: ckt := <-pb.HandleCircuitClose: for ckt='%v'", name, ckt.Name)
+			cleanupCkt(ckt, true)
 
 		case msg := <-pb.ReadsIn:
 
@@ -120,8 +136,8 @@ func (pb *LocalPeer) peerbackPump() {
 			////zz("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
 
 			if msg.HDR.Typ == CallPeerEndCircuit {
-				//zz("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg) // seen in crosstalk test server hung log line 311
-				cleanupCkt(ckt)
+				vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg) // seen in crosstalk test server hung log line 311
+				cleanupCkt(ckt, false)
 				//zz("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg. back from cleanupCkt, about to continue: '%v'", name, ckt.Name, msg)
 				continue
 			}
@@ -130,8 +146,7 @@ func (pb *LocalPeer) peerbackPump() {
 			select {
 			case ckt.Reads <- frag: // server should be hung here, if peer code not servicing
 			case <-ckt.Halt.ReqStop.Chan:
-				cleanupCkt(ckt)
-				// otherwise hang if circuit is shutting down.
+				cleanupCkt(ckt, true)
 				continue
 			case <-pb.Halt.ReqStop.Chan:
 				return
@@ -151,7 +166,7 @@ func (pb *LocalPeer) peerbackPump() {
 
 			if msgerr.HDR.Typ == CallPeerEndCircuit {
 				////zz("pump %v: (ckt %v) sees msgerr CallPeerEndCircuit in msgerr: '%v'", name, ckt.Name, msgerr)
-				cleanupCkt(ckt)
+				cleanupCkt(ckt, false)
 				continue
 			}
 
@@ -159,7 +174,7 @@ func (pb *LocalPeer) peerbackPump() {
 			select {
 			case ckt.Errors <- fragerr:
 			case <-ckt.Halt.ReqStop.Chan:
-				cleanupCkt(ckt)
+				cleanupCkt(ckt, true)
 				continue
 			case <-pb.Halt.ReqStop.Chan:
 				return

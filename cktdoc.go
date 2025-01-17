@@ -55,12 +55,12 @@ Peer/Circuit/Fragment API essentials (utility methods omitted for compactness)
 A) To establish circuits with new peers, use
 
  1. NewCircuitToPeerURL() for initiating a new circuit to a new peer.
- 2. <-newPeerCh to recieve new initiations;
+ 2. <-newCircuitCh to recieve new initiations;
     then use the IncomingCircuit() method to get the Circuit.
 
 B) To create additional circuits with an already connected peer:
  1. NewCircuit adds a new circuit with an existing RemotePeer, no URL needed.
- 2. They get notified on <-newPeerCh too.
+ 2. They get notified on <-newCircuitCh too.
 
 C) To communicate over a Circuit:
  1. get regular messages (called Fragments) from <-Circuit.Reads
@@ -93,7 +93,7 @@ C) To communicate over a Circuit:
 
 // Users write PeerServiceFunc callbacks to create peers.
 
-	type PeerServiceFunc func(myPeer *LocalPeer, ctx0 context.Context, newPeerCh <-chan *RemotePeer) error
+	type PeerServiceFunc func(myPeer *LocalPeer, ctx0 context.Context, newCircuitCh <-chan *RemotePeer) error
 
 // Fragment is the data packet transmitted over Circuits between Peers.
 

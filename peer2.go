@@ -42,7 +42,7 @@ type syncer2 struct {
 func (s *syncer2) Start(
 	myPeer *LocalPeer,
 	ctx0 context.Context,
-	newPeerCh <-chan *RemotePeer,
+	newCircuitCh <-chan *RemotePeer,
 
 ) error {
 
@@ -61,57 +61,10 @@ func (s *syncer2) Start(
 	for {
 		//zz("%v: top of select", s.name) // client only seen once, since peer_test acts as cli
 		select {
-		// URL format: tcp://x.x.x.x:port/peerServiceName
-		case pushToURL := <-s.PushToPeerURL:
-			//zz("%v: sees pushToURL '%v'", s.name, pushToURL)
-
-			//zz("%v: about to new up the server. pushToURL='%v'", s.name, pushToURL)
-			ckt, ctx, err := myPeer.NewCircuitToPeerURL("push-cicuit", pushToURL, nil, 0)
-			//zz("%v: back from myPeer.NewCircuitToPeerURL(pushToURL: '%v'): err='%v'", s.name, pushToURL, err)
-			panicOn(err)
-			//zz("%v: got ckt = '%v' back from NewCircuitToPeerURL '%v'", s.name, ckt.Name, pushToURL)
-			s.gotOutgoingCkt <- ckt
-			defer func() {
-				//zz("%v: (ckt '%v') defer running; closing ckt for pushToURL.", s.name, ckt.Name)
-				ckt.Close()
-				s.gotCktHaltReq.Close()
-			}()
-
-			done := ctx.Done()
-			_ = done
-
-			for {
-				//zz("%v: (ckt '%v'): top of select", s.name, ckt.Name)
-				select {
-				case frag := <-ckt.Reads:
-					//zz("%v: (ckt '%v') got from ckt.Reads ->  '%v'", s.name, ckt.Name, frag.String())
-					_ = frag
-
-				case fragerr := <-ckt.Errors:
-					//zz("%v: (ckt '%v') got error fragerr back: '%#v'", s.name, ckt.Name, fragerr)
-					_ = fragerr
-				case <-ckt.Halt.ReqStop.Chan:
-					//zz("%v: (ckt '%v') ckt halt requested.", s.name, ckt.Name)
-					s.gotCktHaltReq.Close()
-					return nil
-
-				case <-done:
-					//zz("%v: (ckt '%v') done seen", s.name, ckt.Name)
-					return nil
-				case <-done0:
-					//zz("%v: (ckt '%v') done0 seen", s.name, ckt.Name)
-					return nil
-				case <-s.halt.ReqStop.Chan:
-					//zz("%v: (ckt '%v') topp func halt.ReqStop seen", s.name, ckt.Name)
-					return nil
-				}
-			}
-
-			//}(pushToURL)
 		// new Circuit connection arrives
-		case peer := <-newPeerCh:
+		case peer := <-newCircuitCh:
 
-			//zz("%v: got from newPeerCh! service '%v' sees new peerURL: '%v'", s.name, peer.PeerServiceName(), peer.PeerURL())
+			//zz("%v: got from newCircuitCh! service '%v' sees new peerURL: '%v'", s.name, peer.PeerServiceName(), peer.PeerURL())
 
 			// talk to this peer on a separate goro if you wish:
 			go func(peer *RemotePeer) {

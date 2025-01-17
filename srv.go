@@ -1813,7 +1813,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		// user does not want notifying
 		doneCh = make(<-chan struct{})
 	} else {
-		// use wants notifying use the chan they gave us.
+		// use wants notifying: use the chan they gave us.
 		doneCh = msg.DoneCh.WhenClosed()
 	}
 	if errWriteDur > 0 {

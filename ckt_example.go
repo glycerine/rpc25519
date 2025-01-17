@@ -36,9 +36,9 @@ func (me *PeerImpl) Start(
 	// child goroutines.
 	ctx0 context.Context,
 
-	// first on newPeerCh might be the client or server who invoked us,
+	// first on newCircuitCh might be the client or server who invoked us,
 	// if a remote wanted to start a circuit.
-	newPeerCh <-chan *RemotePeer,
+	newCircuitCh <-chan *RemotePeer,
 
 ) error {
 
@@ -106,10 +106,10 @@ func (me *PeerImpl) Start(
 
 			}(echoToURL)
 		// new Circuit connection arrives
-		case peer := <-newPeerCh:
+		case peer := <-newCircuitCh:
 			wg.Add(1)
 
-			vv("got from newPeerCh! '%v' sees new peerURL: '%v' ...\n   we want to be the echo-answer!",
+			vv("got from newCircuitCh! '%v' sees new peerURL: '%v' ...\n   we want to be the echo-answer!",
 				peer.RemoteServiceName, peer.PeerURL)
 
 			// talk to this peer on a separate goro if you wish:
