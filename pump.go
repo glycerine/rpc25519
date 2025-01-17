@@ -36,7 +36,7 @@ func (pb *LocalPeer) peerbackPump() {
 		// remote peer. In that case there is no need to tell
 		// them again about the shutdown.
 
-		vv("%v: cleanupCkt running for ckt '%v'. notifyPeer=%v", name, ckt.Name, notifyPeer)
+		//vv("%v: cleanupCkt running for ckt '%v'. notifyPeer=%v", name, ckt.Name, notifyPeer)
 		if notifyPeer {
 			// Politely tell our peer we are going down,
 			// in case they are staying up.
@@ -96,7 +96,7 @@ func (pb *LocalPeer) peerbackPump() {
 			pb.Halt.ReqStop.AddChild(ckt.Halt.ReqStop)
 
 		case ckt := <-pb.HandleCircuitClose:
-			vv("%v pump: ckt := <-pb.HandleCircuitClose: for ckt='%v'", name, ckt.Name)
+			//vv("%v pump: ckt := <-pb.HandleCircuitClose: for ckt='%v'", name, ckt.Name)
 			cleanupCkt(ckt, true)
 
 		case msg := <-pb.ReadsIn:

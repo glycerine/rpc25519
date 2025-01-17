@@ -77,3 +77,11 @@ func (m *Mutexmap[K, V]) Clear() {
 	clear(m.m)
 	m.mut.Unlock()
 }
+
+// Update atomically runs updateFunc on the Mutexmap.
+func (m *Mutexmap[K, V]) Update(updateFunc func(m map[K]V)) {
+	m.mut.Lock()
+	updateFunc(m.m)
+	m.mut.Unlock()
+	return
+}
