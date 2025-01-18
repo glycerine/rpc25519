@@ -114,6 +114,10 @@ type countService struct {
 
 	activeSideSendCktError  chan string
 	passiveSideSendCktError chan string
+
+	activeSideShutdownCkt                chan *Fragment
+	activeSideShutdownCktAckReq          chan *Fragment
+	passive_side_ckt_saw_remote_shutdown chan *Fragment
 }
 
 func newcountService() *countService {
@@ -137,6 +141,10 @@ func newcountService() *countService {
 		activeSideSendN:            make(chan int),
 		activeSideSendCktError:     make(chan string),
 		passiveSideSendCktError:    make(chan string),
+
+		activeSideShutdownCkt:                make(chan *Fragment),
+		activeSideShutdownCktAckReq:          make(chan *Fragment, 1000),
+		passive_side_ckt_saw_remote_shutdown: make(chan *Fragment, 1000),
 	}
 }
 
@@ -262,7 +270,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 				defer func() {
 					//vv("%v: (ckt '%v') defer running! finishing new Circuit func.", name, ckt.Name) // seen on server
 					ckt.Close()
-					//s.gotCktHaltReq.Close()
+					s.passive_side_ckt_saw_remote_shutdown <- nil
 				}()
 
 				//zz("%v: (ckt '%v') <- got new incoming ckt", name, ckt.Name)
@@ -365,6 +373,9 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 				ctx := ckt.Context
 				for {
 					select {
+					case frag := <-s.activeSideShutdownCkt:
+						s.activeSideShutdownCktAckReq <- frag
+
 					case errReq := <-s.activeSideSendCktError:
 						frag := NewFragment()
 						frag.Err = errReq
@@ -684,7 +695,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 			t.Fatalf("expected %v open circuit on srv, got: '%v'", want, got)
 		}
 
-		// [ ] CallPeerError should get returned on the ckt.Errors not ctk.Reads.
+		// CallPeerError should get returned on the ckt.Errors not ctk.Reads.
 
 		vv("client to server, send one error")
 
@@ -717,6 +728,12 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		}
 
 		// [ ] ckt shutdown on one side should get propagated to the other side.
+
+		// we let whichever ckt goro gets it shut down
+		drain(j.srvs.passive_side_ckt_saw_remote_shutdown)
+		j.clis.activeSideShutdownCkt <- nil
+
+		<-j.srvs.passive_side_ckt_saw_remote_shutdown
 
 		//ckts := []*Circuit{}
 		//for useCkt := range 0; useCkt < 3; useCkt++
