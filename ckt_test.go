@@ -418,7 +418,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 			t.Fatalf("server did not get their dropcopy after 2 sec")
 		}
 
-		// assert state
+		// assert readch/sendch state
 		if got, want := len(j.clis.readch), 1; got != want {
 			t.Fatalf("expected cli readch to have %v, got: %v", want, got)
 		}
@@ -432,13 +432,41 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
 		}
 
-		// ask the client to start another circuit to the same remote.
+		vv("ask the client to start another circuit to the same remote.")
+		drain(j.srvs.dropcopy_reads)
+
 		frag = NewFragment()
 		ckt2name := "client-started-2nd-ckt-to-same"
 		frag.FragSubject = ckt2name
 		j.clis.startAnotherCkt <- frag
 
-		select {}
+		// prevent race with client starting circuit
+		<-j.srvs.dropcopy_reads
+		// we know the server has read another frag now.
+
+		// verify open circuit count
+		if got, want := cli_lpb.OpenCircuitCount(), 2; got != want {
+			t.Fatalf("expected %v open circuit on cli, got: '%v'", want, got)
+		}
+		if got, want := srv_lpb.OpenCircuitCount(), 2; got != want {
+			t.Fatalf("expected %v open circuit on srv, got: '%v'", want, got)
+		}
+
+		// assert readch state on sever has incremented.
+		if got, want := len(j.clis.readch), 1; got != want {
+			t.Fatalf("expected cli readch to have %v, got: %v", want, got)
+		}
+		if got, want := len(j.srvs.readch), 3; got != want {
+			t.Fatalf("expected srv readch to have %v, got: %v", want, got)
+		}
+		if got, want := len(j.clis.sendch), 2; got != want {
+			t.Fatalf("expected cli sendch to have %v, got: %v", want, got)
+		}
+		if got, want := len(j.srvs.sendch), 1; got != want {
+			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
+		}
+
+		//select {}
 		// ask the server to start another circuit to the same remote.
 
 	})
