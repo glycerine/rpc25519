@@ -1006,7 +1006,9 @@ type Client struct {
 	oneWayCh    chan *Message
 	roundTripCh chan *Message
 
-	halt *idem.Halter
+	halt       *idem.Halter
+	subHalters []*idem.Halter
+	haltMut    sync.Mutex // protects subHalters
 
 	// internal use: if connecting succeeds,
 	// a nil will be sent on this chan, otherwise
@@ -1455,6 +1457,11 @@ func (c *Client) Name() string {
 func (c *Client) Close() error {
 	//vv("Client.Close() called.") // not seen in shutdown.
 
+	// ask any sub components (peer pump loops) to stop.
+	c.haltMut.Lock()
+	tellSubcomponentsToShutDown(c.subHalters, 300*time.Millisecond)
+	c.haltMut.Unlock()
+
 	if c.cfg.UseQUIC {
 		if c.isQUIC && c.quicConn != nil {
 			// try to tell server we are gone before
@@ -1816,11 +1823,8 @@ type UniversalCliSrv interface {
 	RemoteAddr() string // client provides, server gives ""
 
 	// allow peers to find out that the host Client/Server is stopping.
-	GetHostsReqStopChan() *idem.IdemCloseChan
-}
-
-func (c *Client) GetHostsReqStopChan() *idem.IdemCloseChan {
-	return c.halt.ReqStop
+	GetHostHalter() *idem.Halter
+	RegisterSubHalter(sub *idem.Halter)
 }
 
 // maintain the requirement that Client and Server both

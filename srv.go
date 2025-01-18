@@ -1041,8 +1041,10 @@ type Server struct {
 	notifies *notifies
 	PeerAPI  *peerAPI // must be Exported to users!
 
-	lsn  io.Closer // net.Listener
-	halt *idem.Halter
+	lsn        io.Closer // net.Listener
+	halt       *idem.Halter
+	subHalters []*idem.Halter
+	haltMut    sync.Mutex // protects subHalters
 
 	remote2pair map[string]*rwPair
 	pair2remote map[*rwPair]string
@@ -1925,9 +1927,31 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 	return
 }
 
+func tellSubcomponentsToShutDown(subHalters []*idem.Halter, allowEach time.Duration) {
+	for _, sub := range subHalters {
+		sub.ReqStop.Close()
+	}
+	// give them a moment to do so: to
+	// gracefully tell peers they are going down.
+	for _, sub := range subHalters {
+		select {
+		case <-sub.Done.Chan:
+			continue
+		case <-time.After(allowEach):
+			// just proceed; don't want to wait too long.
+		}
+	}
+}
+
 // Close asks the Server to shut down.
 func (s *Server) Close() error {
 	//vv("Server.Close() '%v' called.", s.name)
+
+	// ask any sub components (peer pump loops) to stop.
+	s.haltMut.Lock()
+	tellSubcomponentsToShutDown(s.subHalters, 300*time.Millisecond)
+	s.haltMut.Unlock()
+
 	if s.cfg.UseQUIC {
 		s.cfg.shared.mut.Lock()
 		if !s.cfg.shared.isClosed { // since Server.Close() might be called more than once.
@@ -2331,6 +2355,19 @@ func (s *Server) RemoteAddr() string {
 	return "" // fragment.go StartRemotePeer() logic depends on this too.
 }
 
-func (s *Server) GetHostsReqStopChan() *idem.IdemCloseChan {
-	return s.halt.ReqStop
+func (s *Server) GetHostHalter() *idem.Halter {
+	return s.halt
+}
+func (s *Client) GetHostHalter() *idem.Halter {
+	return s.halt
+}
+func (s *Server) RegisterSubHalter(sub *idem.Halter) {
+	s.haltMut.Lock()
+	s.subHalters = append(s.subHalters, sub)
+	s.haltMut.Unlock()
+}
+func (s *Client) RegisterSubHalter(sub *idem.Halter) {
+	s.haltMut.Lock()
+	s.subHalters = append(s.subHalters, sub)
+	s.haltMut.Unlock()
 }
