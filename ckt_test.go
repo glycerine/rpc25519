@@ -74,6 +74,9 @@ func newTestJunk3(name string) (j *testJunk3) {
 type counts struct {
 	sends int
 	reads int
+
+	readErrors int
+	sendErrors int
 }
 
 type countService struct {
@@ -84,6 +87,12 @@ type countService struct {
 	readch chan *Fragment
 	// and copy all reads to here so test avoid races.
 	dropcopy_reads chan *Fragment
+
+	// same for errors
+	read_errorch         chan *Fragment
+	read_dropcopy_errors chan *Fragment
+	send_errorch         chan *Fragment
+	send_dropcopy_errors chan *Fragment
 
 	// ask the start() func to send to remote.
 	sendch chan *Fragment
@@ -106,9 +115,15 @@ type countService struct {
 
 func newcountService() *countService {
 	return &countService{
-		stats:                      NewMutexmap[string, *counts](),
-		readch:                     make(chan *Fragment, 1000),
-		sendch:                     make(chan *Fragment, 1000),
+		stats:  NewMutexmap[string, *counts](),
+		readch: make(chan *Fragment, 1000),
+		sendch: make(chan *Fragment, 1000),
+
+		read_errorch:         make(chan *Fragment, 1000),
+		read_dropcopy_errors: make(chan *Fragment, 1000),
+		send_errorch:         make(chan *Fragment, 1000),
+		send_dropcopy_errors: make(chan *Fragment, 1000),
+
 		requestToSend:              make(chan *Fragment),
 		dropcopy_sends:             make(chan *Fragment, 1000),
 		dropcopy_reads:             make(chan *Fragment, 1000),
@@ -135,6 +150,31 @@ func (s *countService) getAllSends() (n int) {
 	for _, count := range countsSlice {
 		n += count.sends
 	}
+	return
+}
+
+func (s *countService) incrementReadErrors(cktName string) (tot int) {
+	s.stats.Update(func(stats map[string]*counts) {
+		c, ok := stats[cktName]
+		if !ok {
+			c = &counts{}
+			stats[cktName] = c
+		}
+		c.sendErrors++
+		tot = c.sendErrors
+	})
+	return
+}
+func (s *countService) incrementSendErrors(cktName string) (tot int) {
+	s.stats.Update(func(stats map[string]*counts) {
+		c, ok := stats[cktName]
+		if !ok {
+			c = &counts{}
+			stats[cktName] = c
+		}
+		c.readErrors++
+		tot = c.readErrors
+	})
 	return
 }
 
@@ -255,6 +295,12 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						//zz("%v: (ckt '%v') fragerr = '%v'", name, ckt.Name, fragerr)
 						_ = fragerr
 
+						tot := s.incrementReadErrors(ckt.Name)
+						vv("%v: (ckt %v) (passive) ckt.Errors (total %v) sees fragerr:'%s'", name, ckt.Name, tot, fragerr)
+
+						s.read_errorch <- fragerr
+						s.read_dropcopy_errors <- fragerr
+
 					case <-ckt.Halt.ReqStop.Chan:
 						//vv("%v: (ckt '%v') ckt halt requested.", name, ckt.Name)
 						//s.gotCktHaltReq.Close()
@@ -319,8 +365,12 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						s.dropcopy_reads <- frag
 
 					case fragerr := <-ckt.Errors:
-						_ = fragerr
-						panic("not expecting errors yet!")
+
+						tot := s.incrementReadErrors(ckt.Name)
+						vv("%v: (ckt %v) (active) ckt.Errors (total %v) sees fragerr:'%s'", name, ckt.Name, tot, fragerr)
+						s.read_errorch <- fragerr
+						s.read_dropcopy_errors <- fragerr
+
 					case <-ckt.Halt.ReqStop.Chan:
 						vv("%v: (ckt '%v') (active) ckt halt requested.", name, ckt.Name)
 						return
@@ -595,6 +645,11 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		if got, want := srv_lpb.OpenCircuitCount(), 3; got != want {
 			t.Fatalf("expected %v open circuit on srv, got: '%v'", want, got)
 		}
+
+		// CallPeerCircuitError should get returned on the ckt.Errors channel
+		// instead of the ctk.Reads.
+
+		// ckt shutdown on one side should get propagated to the other side.
 
 		//ckts := []*Circuit{}
 		//for useCkt := range 0; useCkt < 3; useCkt++

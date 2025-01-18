@@ -666,7 +666,10 @@ func newNotifies(isCli bool) *notifies {
 // types. An example is the Fragment/Peer/Circuit system.
 func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Context, msg *Message) (done bool) {
 
-	if msg.HDR.Typ == CallError || msg.HDR.Typ == CallPeerError {
+	switch msg.HDR.Typ {
+	case CallError, CallPeerError, CallPeerCircuitError:
+		// not CallPeerFromIsShutdown per pump handling it on ReadsIn
+
 		alwaysPrintf("error type seen!: '%v'", msg.HDR.Typ.String())
 		//panic("stopping client on the above error")
 

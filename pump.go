@@ -155,21 +155,24 @@ func (pb *LocalPeer) peerbackPump() {
 				return
 			}
 		case msgerr := <-pb.ErrorsIn:
+			// per srv.go:670 handleReply_to_CallID_ToPeerID()
+			// CallError, CallPeerError, CallPeerCircuitError get here.
 
 			callID := msgerr.HDR.CallID
 			ckt, ok := m[callID]
-			////zz("pump %v: ckt ok=%v on errorsIn", name, ok)
+			vv("pump %v: ckt ok=%v on errorsIn", name, ok)
 			if !ok {
-				////zz("%v: arg. no ckt avail for callID = '%v' on msgerr", name, callID)
+				vv("%v: arg. no ckt avail for callID = '%v' on msgerr", name, callID)
 				continue
 			}
 			////zz("pump %v: (ckt %v) sees msgerr='%v'", name, ckt.Name, msgerr)
 
-			if msgerr.HDR.Typ == CallPeerEndCircuit {
-				////zz("pump %v: (ckt %v) sees msgerr CallPeerEndCircuit in msgerr: '%v'", name, ckt.Name, msgerr)
-				cleanupCkt(ckt, false)
-				continue
-			}
+			// these are on ReadsIn above, not ErrorsIn, per handleReply_to_CallID_ToPeerID.
+			// if msgerr.HDR.Typ == CallPeerEndCircuit {
+			// 	////zz("pump %v: (ckt %v) sees msgerr CallPeerEndCircuit in msgerr: '%v'", name, ckt.Name, msgerr)
+			// 	cleanupCkt(ckt, false)
+			// 	continue
+			// }
 
 			fragerr := ckt.ConvertMessageToFragment(msgerr)
 			select {
