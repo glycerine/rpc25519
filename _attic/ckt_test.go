@@ -88,8 +88,10 @@ type countService struct {
 	// ask the start() func to send to remote.
 	sendch chan *Fragment
 
+	requestToSend chan *Fragment
+
 	// have the start ack each send request here.
-	dropcopy_send_req chan *Fragment
+	dropcopy_sends chan *Fragment
 	//dropcopy_sent     chan *Fragment
 
 	startCircuitWith chan string // remote URL to contact.
@@ -98,11 +100,11 @@ type countService struct {
 
 func newcountService() *countService {
 	return &countService{
-		stats:             NewMutexmap[string, *counts](),
-		readch:            make(chan *Fragment, 1000),
-		sendch:            make(chan *Fragment),
-		dropcopy_send_req: make(chan *Fragment, 1000),
-		//dropcopy_sent:     make(chan *Fragment, 1000),
+		stats:            NewMutexmap[string, *counts](),
+		readch:           make(chan *Fragment, 1000),
+		sendch:           make(chan *Fragment, 1000),
+		requestToSend:    make(chan *Fragment),
+		dropcopy_sends:   make(chan *Fragment, 1000),
 		dropcopy_reads:   make(chan *Fragment, 1000),
 		startCircuitWith: make(chan string),
 	}
@@ -115,6 +117,13 @@ func (s *countService) getAllReads() (n int) {
 	countsSlice := s.stats.GetValSlice()
 	for _, count := range countsSlice {
 		n += count.reads
+	}
+	return
+}
+func (s *countService) getAllSends() (n int) {
+	countsSlice := s.stats.GetValSlice()
+	for _, count := range countsSlice {
+		n += count.sends
 	}
 	return
 }
@@ -200,14 +209,15 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 				// this is the passive side, as we <-newCircuitCh
 				for {
 					select {
-					case frag := <-s.sendch:
+					case frag := <-s.requestToSend:
 						// external test code requests that we send.
-						vv("%v: (ckt '%v') (passive) got on sendch, sending to '%v'; from '%v'", name, ckt.Name, ckt.RemoteCircuitURL(), ckt.LocalCircuitURL())
+						vv("%v: (ckt '%v') (passive) got requestToSend, sending to '%v'; from '%v'", name, ckt.Name, ckt.RemoteCircuitURL(), ckt.LocalCircuitURL())
 
 						err := rpeer.SendOneWay(ckt, frag, 0)
 						panicOn(err)
 						s.incrementSends(ckt.Name)
-						s.dropcopy_send_req <- frag
+						s.sendch <- frag
+						s.dropcopy_sends <- frag
 
 					case frag := <-ckt.Reads:
 						_ = frag
@@ -244,6 +254,10 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 			ckt, ctx, err := myPeer.NewCircuitToPeerURL(fmt.Sprintf("cicuit-init-by:%v:%v", name, s.nextCktNo), remoteURL, nil, 0)
 			s.nextCktNo++
 			panicOn(err)
+			s.incrementSends(ckt.Name)
+			s.sendch <- nil
+			s.dropcopy_sends <- nil
+
 			go func() {
 				// this is the active side, as we called NewCircuitToPeerURL()
 				for {
@@ -263,6 +277,17 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 					case <-ckt.Halt.ReqStop.Chan:
 						vv("%v: (ckt '%v') (active) ckt halt requested.", name, ckt.Name)
 						return
+
+					case frag := <-s.requestToSend:
+						// external test code requests that we send.
+						vv("%v: (ckt '%v') (active) got on requestToSend, sending to '%v'; from '%v'", name, ckt.Name, ckt.RemoteCircuitURL(), ckt.LocalCircuitURL())
+
+						err := myPeer.SendOneWay(ckt, frag, 0)
+						panicOn(err)
+						s.incrementSends(ckt.Name)
+						s.sendch <- frag
+						s.dropcopy_sends <- frag
+
 					}
 				}
 			}()
@@ -288,6 +313,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		defer srv_lpb.Close()
 
 		// establish a circuit
+		// since cli starts, they are the active initiator and server is passive.
 		j.clis.startCircuitWith <- srv_lpb.URL()
 
 		// prevent race with client starting circuit
@@ -319,6 +345,18 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 			t.Fatalf("expected %v reads after reset(), server got: %v", want, got)
 		}
 
+		// and the send side. verify at 1 then reset to zero
+		if got, want := j.clis.getAllSends(), 1; got != want {
+			t.Fatalf("expected %v sends to start, client got: %v", want, got)
+		}
+		j.clis.reset() // set the server count to zero to start with.
+		if got, want := j.clis.getAllSends(), 0; got != want {
+			t.Fatalf("expected %v sends after reset, cli got: %v", want, got)
+		}
+		if got, want := j.srvs.getAllSends(), 0; got != want {
+			t.Fatalf("expected %v sends to start, server got: %v", want, got)
+		}
+
 		// and we can simply count the size of the readch, since it is buffered 1000
 		if got, want := len(j.clis.readch), 0; got != want {
 			t.Fatalf("expected %v in readch to start, clis got: %v", want, got)
@@ -326,11 +364,17 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		if got, want := len(j.srvs.readch), 1; got != want {
 			t.Fatalf("expected %v in readch to start, srvs got: %v", want, got)
 		}
+		if got, want := len(j.clis.sendch), 1; got != want {
+			t.Fatalf("expected cli sendch to have %v, got: %v", want, got)
+		}
+		if got, want := len(j.srvs.sendch), 0; got != want {
+			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
+		}
 
 		// have server send 1 to client.
 		frag := NewFragment()
 		frag.FragPart = 0
-		j.srvs.sendch <- frag
+		j.srvs.requestToSend <- frag
 
 		// wait for it to get the client
 		select {
@@ -344,7 +388,51 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		if got, want := len(j.srvs.readch), 1; got != want {
 			t.Fatalf("expected srv readch to have %v, got: %v", want, got)
 		}
+		if got, want := len(j.clis.sendch), 1; got != want {
+			t.Fatalf("expected cli sendch to have %v, got: %v", want, got)
+		}
+		if got, want := len(j.srvs.sendch), 1; got != want {
+			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
+		}
+
+		vv("okay up to here.")
+
+		// have client send 1 to server.
+		frag = NewFragment()
+		frag.FragPart = 1
+		drain(j.srvs.dropcopy_reads)
+		j.clis.requestToSend <- frag
+
+		// wait for it to get the server
+		select {
+		case <-j.srvs.dropcopy_reads:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("server did not get their dropcopy after 2 sec")
+		}
+
+		// assert state
+		if got, want := len(j.clis.readch), 1; got != want {
+			t.Fatalf("expected cli readch to have %v, got: %v", want, got)
+		}
+		if got, want := len(j.srvs.readch), 2; got != want {
+			t.Fatalf("expected srv readch to have %v, got: %v", want, got)
+		}
+		if got, want := len(j.clis.sendch), 2; got != want {
+			t.Fatalf("expected cli sendch to have %v, got: %v", want, got)
+		}
+		if got, want := len(j.srvs.sendch), 1; got != want {
+			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
+		}
 
 	})
 
+}
+func drain(ch chan *Fragment) {
+	for {
+		select {
+		case <-ch:
+		default:
+			return
+		}
+	}
 }
