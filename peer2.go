@@ -42,7 +42,7 @@ type syncer2 struct {
 func (s *syncer2) Start(
 	myPeer *LocalPeer,
 	ctx0 context.Context,
-	newCircuitCh <-chan *RemotePeer,
+	newCircuitCh <-chan *Circuit,
 
 ) error {
 
@@ -62,18 +62,14 @@ func (s *syncer2) Start(
 		//zz("%v: top of select", s.name) // client only seen once, since peer_test acts as cli
 		select {
 		// new Circuit connection arrives
-		case peer := <-newCircuitCh:
+		case ckt := <-newCircuitCh:
 
 			//zz("%v: got from newCircuitCh! service '%v' sees new peerURL: '%v'", s.name, peer.PeerServiceName(), peer.PeerURL())
 
 			// talk to this peer on a separate goro if you wish:
-			go func(peer *RemotePeer) {
+			go func(ckt *Circuit) {
 
-				ckt, ctx, err := peer.IncomingCircuit()
-				if err != nil {
-					//zz("%v: RemotePeer err from IncomingCircuit: '%v'; stopping", s.name, err)
-					return
-				}
+				ctx := ckt.Context
 				//zz("%v: (ckt '%v') got incoming ckt", s.name, ckt.Name)
 				s.gotIncomingCkt <- ckt
 				//zz("%v: (ckt '%v') got past <-ckt for incoming ckt", s.name, ckt.Name)
@@ -102,7 +98,7 @@ func (s *syncer2) Start(
 						outFrag.FragSubject = "echo reply"
 						outFrag.ServiceName = myPeer.ServiceName()
 						//zz("%v: (ckt '%v') sending 'echo reply'='%v'", s.name, ckt.Name, frag)
-						err := peer.SendOneWay(ckt, outFrag, 0)
+						err := ckt.SendOneWay(outFrag, 0)
 						panicOn(err)
 
 					case fragerr := <-ckt.Errors:
@@ -126,7 +122,7 @@ func (s *syncer2) Start(
 					}
 				}
 
-			}(peer)
+			}(ckt)
 
 		case <-done0:
 			//zz("%v: done0!", s.name)

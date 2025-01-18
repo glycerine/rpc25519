@@ -36,9 +36,7 @@ func (me *PeerImpl) Start(
 	// child goroutines.
 	ctx0 context.Context,
 
-	// first on newCircuitCh might be the client or server who invoked us,
-	// if a remote wanted to start a circuit.
-	newCircuitCh <-chan *RemotePeer,
+	newCircuitCh <-chan *Circuit,
 
 ) error {
 
@@ -106,14 +104,14 @@ func (me *PeerImpl) Start(
 
 			}(echoToURL)
 		// new Circuit connection arrives
-		case peer := <-newCircuitCh:
+		case ckt := <-newCircuitCh:
 			wg.Add(1)
 
 			vv("got from newCircuitCh! '%v' sees new peerURL: '%v' ...\n   we want to be the echo-answer!",
-				peer.RemoteServiceName, peer.PeerURL)
+				ckt.RemoteServiceName, ckt.RemoteCircuitURL())
 
 			// talk to this peer on a separate goro if you wish:
-			go func(peer *RemotePeer) {
+			go func(ckt *Circuit) {
 				defer wg.Done()
 				defer func() {
 					vv("echo answerer shutting down.")
@@ -121,17 +119,13 @@ func (me *PeerImpl) Start(
 
 				myurl := myPeer.URL()
 
-				ckt, ctx, err := peer.IncomingCircuit()
-				if err != nil {
-					vv("got err from peer.IncomingCircuit: '%v'", err)
-					return
-				}
+				ctx := ckt.Context
 				vv("IncomingCircuit got RemoteCircuitURL = '%v'", ckt.RemoteCircuitURL())
 				vv("IncomingCircuit got LocalCircuitURL = '%v'", ckt.LocalCircuitURL())
 
 				// good: myPeer.URL() matches the LocalCircuitURL,
 				// but of course without the Call/CircuitID.
-				vv("compare myPeer.PeerURL = '%v'", myurl)
+				//vv("compare myPeer.PeerURL = '%v'", myurl)
 				done := ctx.Done()
 
 				// this is racing (just in our test, not data race)
@@ -154,7 +148,7 @@ func (me *PeerImpl) Start(
 							outFrag.FragSubject = "echo reply"
 							outFrag.ServiceName = myPeer.ServiceName()
 							vv("ckt.Reads sees frag with echo request! sending reply='%v'", frag)
-							err := peer.SendOneWay(ckt, outFrag, 0)
+							err := ckt.SendOneWay(outFrag, 0)
 							panicOn(err)
 						}
 
@@ -168,7 +162,7 @@ func (me *PeerImpl) Start(
 					}
 				}
 
-			}(peer)
+			}(ckt)
 
 		case <-done0:
 			return ErrContextCancelled

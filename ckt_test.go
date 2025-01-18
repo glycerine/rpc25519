@@ -153,7 +153,7 @@ func (s *countService) incrementSends(cktName string) (tot int) {
 	return
 }
 
-func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuitCh <-chan *RemotePeer) error {
+func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuitCh <-chan *Circuit) error {
 
 	name := myPeer.PeerServiceName
 	_ = name // used when logging is on.
@@ -181,17 +181,19 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 			//	return ErrHaltRequested
 
 		// new Circuit connection arrives
-		case rpeer := <-newCircuitCh:
-			vv("%v: got from newCircuitCh! service sees new peerURL: '%v'", name, rpeer.PeerURL)
+		case rckt := <-newCircuitCh:
+			vv("%v: got from newCircuitCh! service sees new peerURL: '%v'", name, rckt.RemoteCircuitURL())
 
 			// talk to this peer on a separate goro if you wish; or just a func
-			go func(rpeer *RemotePeer) {
+			go func(ckt *Circuit) {
 
-				ckt, ctx, err := rpeer.IncomingCircuit()
-				if err != nil {
-					//zz("%v: RemotePeer err from IncomingCircuit: '%v'; stopping", name, err)
-					return
-				}
+				//ctx := ctk.Context
+				//ckt, ctx, err := rpeer.IncomingCircuit()
+				//if err != nil {
+				//	//zz("%v: RemotePeer err from IncomingCircuit: '%v'; stopping", name, err)
+				//	return
+				//}
+
 				//vv("%v: (ckt '%v') got incoming ckt", name, ckt.Name)
 				//s.gotIncomingCkt <- ckt
 				//zz("%v: (ckt '%v') got past <-ckt for incoming ckt", name, ckt.Name)
@@ -213,7 +215,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						// external test code requests that we send.
 						vv("%v: (ckt '%v') (passive) got requestToSend, sending to '%v'; from '%v'", name, ckt.Name, ckt.RemoteCircuitURL(), ckt.LocalCircuitURL())
 
-						err := rpeer.SendOneWay(ckt, frag, 0)
+						err := ckt.SendOneWay(frag, 0)
 						panicOn(err)
 						s.incrementSends(ckt.Name)
 						s.sendch <- frag
@@ -235,7 +237,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						//s.gotCktHaltReq.Close()
 						return
 
-					case <-ctx.Done():
+					case <-ckt.Context.Done():
 						//vv("%v: (ckt '%v') done! cause: '%v'", name, ckt.Name, context.Cause(ctx))
 						return
 					case <-done0:
@@ -247,7 +249,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 					}
 				}
 
-			}(rpeer)
+			}(rckt)
 
 		case remoteURL := <-s.startCircuitWith:
 			vv("%v: requested startCircuitWith: '%v'", name, remoteURL)

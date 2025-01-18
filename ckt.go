@@ -34,7 +34,7 @@ type Circuit struct {
 	RemoteServiceName string
 
 	CircuitID string // aka Message.HDR.CallID
-	Ctx       context.Context
+	Context   context.Context
 	Canc      context.CancelCauseFunc
 
 	Name   string
@@ -174,7 +174,7 @@ type RemotePeer struct {
 // IncomingCircuit is the first one that arrives with
 // an incoming remote peer connection.
 func (rpb *RemotePeer) IncomingCircuit() (ckt *Circuit, ctx context.Context, err error) {
-	return rpb.IncomingCkt, rpb.IncomingCkt.Ctx, nil
+	return rpb.IncomingCkt, rpb.IncomingCkt.Context, nil
 }
 
 // LocalPeer in the backing behind each local instantiation of a PeerServiceFunc.
@@ -191,7 +191,7 @@ type LocalPeer struct {
 	Canc            context.CancelCauseFunc
 	PeerID          string
 	U               UniversalCliSrv
-	NewPeerCh       chan *RemotePeer
+	NewPeerCh       chan *Circuit
 	ReadsIn         chan *Message
 	ErrorsIn        chan *Message
 
@@ -320,6 +320,10 @@ func ParsePeerURL(peerURL string) (netAddr, serviceName, peerID, circuitID strin
 	return
 }
 
+func (ckt *Circuit) SendOneWay(frag *Fragment, errWriteDur time.Duration) error {
+	return ckt.LpbFrom.SendOneWay(ckt, frag, errWriteDur)
+}
+
 // SendOneWay sends a Frament on the given Circuit.
 func (s *RemotePeer) SendOneWay(
 	ckt *Circuit, frag *Fragment, errWriteDur time.Duration) error {
@@ -350,7 +354,7 @@ func (peerAPI *peerAPI) newLocalPeer(
 	cancelFunc context.CancelCauseFunc,
 	u UniversalCliSrv,
 	peerID string,
-	newCircuitCh chan *RemotePeer,
+	newCircuitCh chan *Circuit,
 	peerServiceName,
 	netAddr string,
 
@@ -498,8 +502,8 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 // select on ctx.Done() and in order to shutdown gracefully.
 //
 // Allow cID to specify the Call/CircuitID if desired, or empty to get a new one.
-func (rpb *RemotePeer) NewCircuit(circuitName string) (ckt *Circuit, ctx2 context.Context, err error) {
-	return rpb.LocalPeer.newCircuit(circuitName, rpb, "")
+func (origCkt *Circuit) NewCircuit(circuitName string) (ckt *Circuit, ctx2 context.Context, err error) {
+	return origCkt.RpbTo.LocalPeer.newCircuit(circuitName, origCkt.RpbTo, "")
 }
 
 func (lpb *LocalPeer) IsClosed() bool {
@@ -567,7 +571,7 @@ func (lpb *LocalPeer) newCircuit(
 		RemotePeerID:      rpb.PeerID,
 		Reads:             reads,
 		Errors:            errors,
-		Ctx:               ctx2,
+		Context:           ctx2,
 		Canc:              canc2,
 	}
 	if ckt.CircuitID == "" {
@@ -600,7 +604,7 @@ func (h *Circuit) Close() {
 }
 
 // one line version of the below, for ease of copying.
-// type PeerServiceFunc func(myPeer LocalPeer, ctx0 context.Context, newCircuitCh <-chan RemotePeer) error
+// type PeerServiceFunc func(myPeer LocalPeer, ctx0 context.Context, newCircuitCh <-chan *Circuit) error
 
 // PeerServiceFunc is implemented by user's peer services,
 // and registered on a Client or a Server under a
@@ -620,7 +624,7 @@ type PeerServiceFunc func(
 
 	// first on newCircuitCh will be the remote client
 	// or server who invoked us.
-	newCircuitCh <-chan *RemotePeer,
+	newCircuitCh <-chan *Circuit,
 
 ) error
 
@@ -704,7 +708,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 		return nil, fmt.Errorf("no local peerServiceName '%v' available", peerServiceName)
 	}
 
-	newCircuitCh := make(chan *RemotePeer, 1) // must be buffered >= 1, see below.
+	newCircuitCh := make(chan *Circuit, 1) // must be buffered >= 1, see below.
 	ctx1, canc1 := context.WithCancelCause(ctx)
 	localPeerID := NewCallID()
 
@@ -974,7 +978,7 @@ func (lpb *LocalPeer) provideRemoteOnNewPeerCh(isCli bool, msg *Message, ctx con
 	}
 
 	select {
-	case lpb.NewPeerCh <- rpb:
+	case lpb.NewPeerCh <- ckt:
 		select {
 		case ckt.Reads <- asFrag:
 		case <-ckt.Halt.ReqStop.Chan:
