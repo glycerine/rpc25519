@@ -68,7 +68,6 @@ const (
 	CallPeerError          CallType = 115
 	CallPeerFromIsShutdown CallType = 116
 	CallPeerEndCircuit     CallType = 117
-	CallPeerCircuitError   CallType = 118
 )
 
 func (ct CallType) String() string {

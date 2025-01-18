@@ -430,6 +430,10 @@ func (frag *Fragment) ToMessage() (msg *Message) {
 	msg.JobSerz = frag.Payload
 	msg.JobErrs = frag.Err
 
+	if frag.Err != "" {
+		msg.HDR.Typ = CallPeerError
+	}
+
 	//vv("ToMessage did frag='%v' -> msg='%v'", frag, msg)
 
 	return

@@ -667,7 +667,7 @@ func newNotifies(isCli bool) *notifies {
 func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Context, msg *Message) (done bool) {
 
 	switch msg.HDR.Typ {
-	case CallError, CallPeerError, CallPeerCircuitError:
+	case CallError, CallPeerError:
 		// not CallPeerFromIsShutdown per pump handling it on ReadsIn
 
 		alwaysPrintf("error type seen!: '%v'", msg.HDR.Typ.String())

@@ -156,7 +156,7 @@ func (pb *LocalPeer) peerbackPump() {
 			}
 		case msgerr := <-pb.ErrorsIn:
 			// per srv.go:670 handleReply_to_CallID_ToPeerID()
-			// CallError, CallPeerError, CallPeerCircuitError get here.
+			// CallError, CallPeerError get here.
 
 			callID := msgerr.HDR.CallID
 			ckt, ok := m[callID]
