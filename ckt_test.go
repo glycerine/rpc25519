@@ -94,7 +94,8 @@ type countService struct {
 	dropcopy_sends chan *Fragment
 	//dropcopy_sent     chan *Fragment
 
-	startAnotherCkt chan *Fragment
+	startAnotherCkt            chan *Fragment
+	passiveSideStartAnotherCkt chan *Fragment
 
 	startCircuitWith chan string // remote URL to contact.
 	nextCktNo        int
@@ -102,14 +103,15 @@ type countService struct {
 
 func newcountService() *countService {
 	return &countService{
-		stats:            NewMutexmap[string, *counts](),
-		readch:           make(chan *Fragment, 1000),
-		sendch:           make(chan *Fragment, 1000),
-		requestToSend:    make(chan *Fragment),
-		dropcopy_sends:   make(chan *Fragment, 1000),
-		dropcopy_reads:   make(chan *Fragment, 1000),
-		startCircuitWith: make(chan string),
-		startAnotherCkt:  make(chan *Fragment),
+		stats:                      NewMutexmap[string, *counts](),
+		readch:                     make(chan *Fragment, 1000),
+		sendch:                     make(chan *Fragment, 1000),
+		requestToSend:              make(chan *Fragment),
+		dropcopy_sends:             make(chan *Fragment, 1000),
+		dropcopy_reads:             make(chan *Fragment, 1000),
+		startCircuitWith:           make(chan string),
+		startAnotherCkt:            make(chan *Fragment),
+		passiveSideStartAnotherCkt: make(chan *Fragment),
 	}
 }
 
@@ -188,8 +190,8 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 			vv("%v: newCircuitCh got rckt! service sees new peerURL: '%v'", name, rckt.RemoteCircuitURL())
 
 			// talk to this peer on a separate goro if you wish; or just a func
-			go func(ckt *Circuit) {
-
+			var passiveSide func(ckt *Circuit)
+			passiveSide = func(ckt *Circuit) {
 				//vv("%v: (ckt '%v') got incoming ckt", name, ckt.Name)
 				//s.gotIncomingCkt <- ckt
 				//zz("%v: (ckt '%v') got past <-ckt for incoming ckt", name, ckt.Name)
@@ -207,6 +209,14 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 				// this is the passive side, as we <-newCircuitCh
 				for {
 					select {
+					case frag := <-s.passiveSideStartAnotherCkt:
+
+						vv("%v: (ckt '%v') (passive) passiveSideStartAnotherCkt requsted!: '%v'", name, ckt.Name, frag.FragSubject)
+						ckt2, _, err := ckt.NewCircuit(frag.FragSubject, frag)
+						panicOn(err)
+						vv("%v: (ckt '%v') (passive) created ckt2 to: '%v'", name, ckt.Name, ckt2.RemoteCircuitURL())
+						go passiveSide(ckt2)
+
 					case frag := <-s.requestToSend:
 						// external test code requests that we send.
 						vv("%v: (ckt '%v') (passive) got requestToSend, sending to '%v'; from '%v'", name, ckt.Name, ckt.RemoteCircuitURL(), ckt.LocalCircuitURL())
@@ -245,7 +255,8 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 					}
 				}
 
-			}(rckt)
+			}
+			go passiveSide(rckt)
 
 		case remoteURL := <-s.startCircuitWith:
 			vv("%v: requested startCircuitWith: '%v'", name, remoteURL)
@@ -466,8 +477,42 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
 		}
 
+		vv("ask the server to start (a third) circuit to the same remote.")
+
+		drain(j.clis.dropcopy_reads)
+
+		frag = NewFragment()
+		ckt3name := "server-started-3rd-ckt-to-same"
+		frag.FragSubject = ckt3name
+		j.srvs.passiveSideStartAnotherCkt <- frag // passive specific? needed?
+
+		// prevent race with client starting circuit
+		<-j.clis.dropcopy_reads
+		// we know the server has read another frag now.
+
+		// verify open circuit count
+		if got, want := cli_lpb.OpenCircuitCount(), 3; got != want {
+			t.Fatalf("expected %v open circuit on cli, got: '%v'", want, got)
+		}
+		if got, want := srv_lpb.OpenCircuitCount(), 3; got != want {
+			t.Fatalf("expected %v open circuit on srv, got: '%v'", want, got)
+		}
+
+		// assert readch state on client has incremented.
+		if got, want := len(j.clis.readch), 2; got != want {
+			t.Fatalf("expected cli readch to have %v, got: %v", want, got)
+		}
+		if got, want := len(j.srvs.readch), 3; got != want {
+			t.Fatalf("expected srv readch to have %v, got: %v", want, got)
+		}
+		if got, want := len(j.clis.sendch), 2; got != want {
+			t.Fatalf("expected cli sendch to have %v, got: %v", want, got)
+		}
+		if got, want := len(j.srvs.sendch), 1; got != want {
+			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
+		}
+
 		//select {}
-		// ask the server to start another circuit to the same remote.
 
 	})
 
