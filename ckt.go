@@ -728,6 +728,23 @@ func (p *peerAPI) RegisterPeerServiceFunc(peerServiceName string, peer PeerServi
 	return nil
 }
 
+// StartLocalPeer runs the registered peerServiceName's PeerServiceFunc
+// on its own goroutine, and starts a background "pump" goroutine to
+// support to the user's service function.
+//
+// Users must call lpb.Close() when done with the LocalPeer here obtained.
+//
+// That is, users should typically do a `defer lpb.Close()` immediately after
+// obtaining their lpb in a call such as `lpb, err := StartLocalPeer()`.
+//
+// If lpb.Close() is not called in a defer, the user must
+// otherwise ensure that the LocalPeer.Close() function is called
+// to shutdown the background goroutine, release resources, and notify
+// remote peer services of the local peer's shutdown.
+//
+// The requestedCircuit parameter can be nil. It is used by the system
+// when StartRemotePeer() sends a request to start the service
+// and establish a new Circuit.
 func (p *peerAPI) StartLocalPeer(
 	ctx context.Context,
 	peerServiceName string,
@@ -773,11 +790,6 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	go func() {
 		//vv("launching new peerServiceFunc invocation for '%v'", peerServiceName)
 		err := knownLocalPeer.peerServiceFunc(lpb, ctx1, newCircuitCh)
-
-		// TODO:
-		// 1) check for still live ckt and tell user to call defer ctk.Close()
-		// pump complains?
-		// 2) tell remote we have finished if not already: lpb.Close() below should do it.
 
 		//vv("peerServiceFunc has returned: '%v'; clean up the lbp!", peerServiceName)
 		canc1(fmt.Errorf("peerServiceFunc '%v' finished. returned err = '%v'", peerServiceName, err))

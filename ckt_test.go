@@ -365,7 +365,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						vv("%v: (ckt '%v') done! cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
 						return
 					case <-done0:
-						vv("%v: (ckt '%v') done0! reason: '%v'", name, ckt.Name, context.Cause(ctx0))
+						//vv("%v: (ckt '%v') done0! reason: '%v'", name, ckt.Name, context.Cause(ctx0))
 						return
 						//case <-s.halt.ReqStop.Chan:
 						//zz("%v: (ckt '%v') top func halt.ReqStop seen", name, ckt.Name)
@@ -803,6 +803,9 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 	})
 
 }
+
+// drain is a helper to prep for the next part of the test.
+// drain helps prevents races by emptying a channel's buffer.
 func drain(ch chan *Fragment) {
 	for {
 		select {
