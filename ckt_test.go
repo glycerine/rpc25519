@@ -372,15 +372,13 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 				// this is the active side, as we called NewCircuitToPeerURL()
 				defer func() {
 					vv("%v: active side ckt '%v' shutting down", name, ckt.Name)
-					ckt.Halt.ReqStop.Close() // did not work!
-					// try next: ckt.Canc() // also did not work yet!
-					// ckt.Canc(fmt.Errorf("ckt '%v' shutting down", ckt.Name))
+					ckt.Close()
+					s.activeSideShutdownCktAckReq <- nil
 				}()
 				ctx := ckt.Context
 				for {
 					select {
-					case frag := <-s.activeSideShutdownCkt:
-						s.activeSideShutdownCktAckReq <- frag
+					case <-s.activeSideShutdownCkt:
 						return
 
 					case errReq := <-s.activeSideSendCktError:
