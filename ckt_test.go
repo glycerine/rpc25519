@@ -145,10 +145,24 @@ func (s *countService) getAllReads() (n int) {
 	}
 	return
 }
+func (s *countService) getAllReadErrors() (n int) {
+	countsSlice := s.stats.GetValSlice()
+	for _, count := range countsSlice {
+		n += count.readErrors
+	}
+	return
+}
 func (s *countService) getAllSends() (n int) {
 	countsSlice := s.stats.GetValSlice()
 	for _, count := range countsSlice {
 		n += count.sends
+	}
+	return
+}
+func (s *countService) getAllSendErrors() (n int) {
+	countsSlice := s.stats.GetValSlice()
+	for _, count := range countsSlice {
+		n += count.sendErrors
 	}
 	return
 }
