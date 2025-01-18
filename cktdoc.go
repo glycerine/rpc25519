@@ -55,17 +55,16 @@ Peer/Circuit/Fragment API essentials (utility methods omitted for compactness)
 A) To establish circuits with new peers, use
 
  1. NewCircuitToPeerURL() for initiating a new circuit to a new peer.
- 2. <-newCircuitCh to recieve new initiations;
-    then use the IncomingCircuit() method to get the Circuit.
+ 2. <-newCircuitCh to receive new remote initiated Circuits.
 
 B) To create additional circuits with an already connected peer:
- 1. NewCircuit adds a new circuit with an existing RemotePeer, no URL needed.
+ 1. Circuit.NewCircuit adds a new circuit with an existing remote peer, no URL needed.
  2. They get notified on <-newCircuitCh too.
 
 C) To communicate over a Circuit:
  1. get regular messages (called Fragments) from <-Circuit.Reads
  2. get error messages from <-Circuit.Errors
- 3. send messages with SendOneWay(). It never blocks.
+ 3. send messages with Circuit.SendOneWay(). It never blocks.
  4. Close() the circuit and the peer's ctx will be cancelled.
 
 // Circuit has other fields, but this is the essential interface:
@@ -74,6 +73,8 @@ C) To communicate over a Circuit:
 		Reads  <-chan *Fragment
 		Errors <-chan *Fragment
 	    Close() // when done
+	    // If you want a new Circuit with the same remote peer:
+	    NewCircuit() (ckt *Circuit, ctx context.Context, err error) // make 2nd, 3rd.
 	}
 
 // LocalPeer is actually a struct, but you can think of it as this interface:
@@ -83,17 +84,9 @@ C) To communicate over a Circuit:
 	         errWriteDur *time.Duration) (ckt *Circuit, ctx context.Context, err error)
 	}
 
-// RemotePeer is actually a struct, but you can think of it as this interface:
-
-	type RemotePeer interface {
-		IncomingCircuit() (ckt *Circuit, ctx context.Context, err error) // gets the first.
-		NewCircuit()      (ckt *Circuit, ctx context.Context, err error) // make 2nd, 3rd...
-		SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur *time.Duration) error
-	}
-
 // Users write PeerServiceFunc callbacks to create peers.
 
-	type PeerServiceFunc func(myPeer *LocalPeer, ctx0 context.Context, newCircuitCh <-chan *RemotePeer) error
+	type PeerServiceFunc func(myPeer *LocalPeer, ctx0 context.Context, newCircuitCh <-chan *Circuit) error
 
 // Fragment is the data packet transmitted over Circuits between Peers.
 
@@ -115,11 +108,13 @@ C) To communicate over a Circuit:
 		         Err string
 	}
 
-D) boostrapping: registering your Peer implemenation and starting
+D)   boostrapping:
 
-	 them up (from outside the PeerServiceFunc callback). The PeerAPI
+	 Here is how to register your Peer implemenation and start
+	 it up (from outside the PeerServiceFunc callback). The PeerAPI
 	 is available via Client.PeerAPI or Server.PeerAPI.
-	 The same facilities are available to peers running on either.
+	 The same facilities are available on either. This symmetry
+	 was a major motivating design point.
 
 	1. register:
 

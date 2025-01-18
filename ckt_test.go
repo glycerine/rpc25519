@@ -187,13 +187,6 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 			// talk to this peer on a separate goro if you wish; or just a func
 			go func(ckt *Circuit) {
 
-				//ctx := ctk.Context
-				//ckt, ctx, err := rpeer.IncomingCircuit()
-				//if err != nil {
-				//	//zz("%v: RemotePeer err from IncomingCircuit: '%v'; stopping", name, err)
-				//	return
-				//}
-
 				//vv("%v: (ckt '%v') got incoming ckt", name, ckt.Name)
 				//s.gotIncomingCkt <- ckt
 				//zz("%v: (ckt '%v') got past <-ckt for incoming ckt", name, ckt.Name)
@@ -203,9 +196,9 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 					//s.gotCktHaltReq.Close()
 				}()
 
-				//zz("%v: (ckt '%v') <- got new IncomingCircuit", name, ckt.Name)
-				////zz("IncomingCircuit got RemoteCircuitURL = '%v'", ckt.RemoteCircuitURL())
-				////zz("IncomingCircuit got LocalCircuitURL = '%v'", ckt.LocalCircuitURL())
+				//zz("%v: (ckt '%v') <- got new incoming ckt", name, ckt.Name)
+				////zz("incoming ckt has RemoteCircuitURL = '%v'", ckt.RemoteCircuitURL())
+				////zz("incoming ckt has LocalCircuitURL = '%v'", ckt.LocalCircuitURL())
 				//done := ctx.Done()
 
 				// this is the passive side, as we <-newCircuitCh

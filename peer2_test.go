@@ -250,7 +250,7 @@ func Test408_multiple_circuits_open_and_close(t *testing.T) {
 
 		// cancellation from one side gets handled.
 
-		// simplest send and recieve
+		// simplest send and receive
 
 		// start FragPart at 0. increment part when you echo it.
 		// discard parts with numbers > 1.

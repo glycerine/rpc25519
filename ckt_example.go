@@ -120,8 +120,8 @@ func (me *PeerImpl) Start(
 				myurl := myPeer.URL()
 
 				ctx := ckt.Context
-				vv("IncomingCircuit got RemoteCircuitURL = '%v'", ckt.RemoteCircuitURL())
-				vv("IncomingCircuit got LocalCircuitURL = '%v'", ckt.LocalCircuitURL())
+				vv("incoming ckt has RemoteCircuitURL = '%v'", ckt.RemoteCircuitURL())
+				vv("incoming ckt has LocalCircuitURL = '%v'", ckt.LocalCircuitURL())
 
 				// good: myPeer.URL() matches the LocalCircuitURL,
 				// but of course without the Call/CircuitID.

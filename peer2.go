@@ -80,9 +80,9 @@ func (s *syncer2) Start(
 					s.gotCktHaltReq.Close()
 				}()
 
-				//zz("%v: (ckt '%v') <- got new IncomingCircuit", s.name, ckt.Name)
-				////zz("IncomingCircuit got RemoteCircuitURL = '%v'", ckt.RemoteCircuitURL())
-				////zz("IncomingCircuit got LocalCircuitURL = '%v'", ckt.LocalCircuitURL())
+				//zz("%v: (ckt '%v') <- got new incoming ckt", s.name, ckt.Name)
+				////zz("incoming ckt has RemoteCircuitURL = '%v'", ckt.RemoteCircuitURL())
+				////zz("incoming ckt has LocalCircuitURL = '%v'", ckt.LocalCircuitURL())
 				done := ctx.Done()
 
 				for {

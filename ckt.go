@@ -168,13 +168,7 @@ type RemotePeer struct {
 	NetAddr           string
 	RemoteServiceName string
 	PeerURL           string
-	IncomingCkt       *Circuit
-}
-
-// IncomingCircuit is the first one that arrives with
-// an incoming remote peer connection.
-func (rpb *RemotePeer) IncomingCircuit() (ckt *Circuit, ctx context.Context, err error) {
-	return rpb.IncomingCkt, rpb.IncomingCkt.Context, nil
+	IncomingCkt       *Circuit // first one to arrive
 }
 
 // LocalPeer in the backing behind each local instantiation of a PeerServiceFunc.
@@ -324,12 +318,14 @@ func (ckt *Circuit) SendOneWay(frag *Fragment, errWriteDur time.Duration) error 
 	return ckt.LpbFrom.SendOneWay(ckt, frag, errWriteDur)
 }
 
+/* can we get rid of this now?
 // SendOneWay sends a Frament on the given Circuit.
 func (s *RemotePeer) SendOneWay(
 	ckt *Circuit, frag *Fragment, errWriteDur time.Duration) error {
 
 	return s.LocalPeer.SendOneWay(ckt, frag, errWriteDur)
 }
+*/
 
 // SendOneWayMessage sends a Frament on the given Circuit.
 func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Duration) error {
@@ -483,11 +479,12 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 	return
 }
 
-// NewCircuit generates a Circuit between two Peers,
-// and tells the SendOneWay machinery
-// how to reply to you. It makes a new CircuitID (CallID),
-// and manages it for you. It gives you two
-// channels to get normal and error replies on. Using this Circuit,
+// NewCircuit generates a Circuit between the same two Peers
+// as the origCkt.
+//
+// General Circuit functionality:
+// A Circuit ckt gives you two channels, ckt.Reads and ckt.Errors,
+// to get normal and error replies on. Using this Circuit,
 // you can make as many one way calls as you like
 // to the remote Peer. The returned ctx will be
 // cancelled in case of broken/shutdown connection
@@ -500,12 +497,12 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 //
 // When select{}-ing on ckt.Reads and ckt.Errors, always also
 // select on ctx.Done() and in order to shutdown gracefully.
-//
-// Allow cID to specify the Call/CircuitID if desired, or empty to get a new one.
 func (origCkt *Circuit) NewCircuit(circuitName string) (ckt *Circuit, ctx2 context.Context, err error) {
 	return origCkt.RpbTo.LocalPeer.newCircuit(circuitName, origCkt.RpbTo, "")
 }
 
+// IsClosed returns true if the LocalPeer is shutting down
+// or has already been closed/shut down.
 func (lpb *LocalPeer) IsClosed() bool {
 	return lpb.Halt.ReqStop.IsClosed()
 }
@@ -846,21 +843,19 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 // peer code to interact with circuits and remote peers.
 // We want this user PeerImpl.Start() code to work now:
 //
-//	(This is taken from the actual the PeerImpl.Start() code
-//	 here in fragment.go at the moment.)
-//
 //	select {
 //	    // new Circuit connection arrives
-//	    case peer := <-newCircuitCh:  // this needs to be enabled.
+//	    case ckt := <-newCircuitCh:  // this needs to be enabled.
 //		   wg.Add(1)
 //
 //		   vv("got from newCircuitCh! '%v' sees new peerURL: '%v'",
-//		       peer.PeerServiceName(), peer.URL())
+//		       ckt.RemoteServiceName, ckt.RemoteCircuitURL())
 //
 //		   // talk to this peer on a separate goro if you wish:
-//		   go func(peer *RemotePeer) {
+//		   go func(ckt *Circuit) {
 //			    defer wg.Done()
-//			    ckt, ctx := peer.IncomingCircuit()  // enable this.
+//			    ctx := ckt.Context
+//			    ...
 //
 // .
 func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
@@ -977,6 +972,8 @@ func (lpb *LocalPeer) provideRemoteOnNewPeerCh(isCli bool, msg *Message, ctx con
 		asFrag.Args["newPeerURL"] = lpb.URL()
 	}
 
+	// now we go directly to the NewPeerCh, so user
+	// does not need a second step to call IncommingCircuit!
 	select {
 	case lpb.NewPeerCh <- ckt:
 		select {
