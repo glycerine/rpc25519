@@ -46,7 +46,7 @@ func (pb *LocalPeer) peerbackPump() {
 		// remote peer. In that case there is no need to tell
 		// them again about the shutdown.
 
-		vv("%v: cleanupCkt running for ckt '%v'. notifyPeer=%v; len(m)=%v before cleanup. CircuitID='%v';\n m = '%v'", name, ckt.Name, notifyPeer, len(m), ckt.CircuitID, prettyPrintCircuitMap(m))
+		vv("%v: cleanupCkt running for ckt '%v'. notifyPeer=%v; len(m)=%v before cleanup. CircuitID='%v';\n m = '%v'", name, ckt.LocalCircuitURL(), notifyPeer, len(m), ckt.CircuitID, prettyPrintCircuitMap(m))
 		if notifyPeer {
 			// Politely tell our peer we are going down,
 			// in case they are staying up.

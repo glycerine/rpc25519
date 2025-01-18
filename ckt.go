@@ -44,6 +44,30 @@ type Circuit struct {
 	Halt *idem.Halter
 }
 
+func (ckt *Circuit) String() string {
+	return fmt.Sprintf(`&Circuit{
+	Name: "%v",
+	CircuitID: "%v",
+
+	LocalPeerID: "%v",
+	RemotePeerID: "%v",
+
+	LocalServiceName: "%v",
+	RemoteServiceName: "%v",
+
+    // LocalCircuitURL: "%v",
+    // RemoteCircuitURL: "%v",
+}`, ckt.Name,
+		ckt.CircuitID,
+		ckt.LocalPeerID,
+		ckt.RemotePeerID,
+		ckt.LocalServiceName,
+		ckt.RemoteServiceName,
+		ckt.LocalCircuitURL(),
+		ckt.RemoteCircuitURL(),
+	)
+}
+
 // CircuitURL format: tcp://x.x.x.x:port/peerServiceName/peerID/circuitID
 // where peerID and circuitID (same as our CallID type), and are
 // base64 URL encoded. The IDs do not include the '/' character,
