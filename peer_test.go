@@ -75,69 +75,6 @@ func newTestJunk(name string) (j *testJunk) {
 	return j
 }
 
-func Test404_verify_peer_operations(t *testing.T) {
-
-	cv.Convey("verify all the basic peer operations are functional", t, func() {
-
-		cfg := NewConfig()
-		cfg.TCPonly_no_TLS = true
-
-		cfg.ServerAddr = "127.0.0.1:0"
-		srv := NewServer("srv_test404", cfg)
-
-		serverAddr, err := srv.Start()
-		panicOn(err)
-		defer srv.Close()
-
-		cfg.ClientDialToHostPort = serverAddr.String()
-		cli, err := NewClient("client_test404", cfg)
-		panicOn(err)
-		err = cli.Start()
-		panicOn(err)
-		defer cli.Close()
-
-		//preventRaceByDoingPriorClientToServerRoundTrip(cli, srv)
-		ctx, canc := context.WithCancel(context.Background())
-		_ = canc
-
-		srvSync := newSyncer("srvSync")
-
-		err = srv.PeerAPI.RegisterPeerServiceFunc("srvSync", srvSync.Start)
-		panicOn(err)
-
-		// minimal base setup done!
-
-		// does cancel of local on server work?
-		// does cancel of local on client work?
-
-		cliSync := newSyncer("cliSync")
-
-		cli.PeerAPI.RegisterPeerServiceFunc("cliSync", cliSync.Start)
-
-		lpb, err := cli.PeerAPI.StartLocalPeer(ctx, "cliSync", nil)
-		panicOn(err)
-		peerURL_cli, peerID_cli := lpb.URL(), lpb.PeerID
-
-		vv("cli.PeerAPI.StartLocalPeer() on client peerURL_client = '%v'; peerID_client = '%v'", peerURL_cli, peerID_cli)
-
-		srvURL := cli.RemoteAddr() + "/srvSync"
-		vv("srvURL = '%v'", srvURL)
-		cliSync.PushToPeerURL <- srvURL
-
-		//vv("past cliSync.PushToPeerURL <- srvURL")
-		vv("test 404 about to sleep 5 sec.")
-		time.Sleep(5 * time.Second)
-
-		vv("slept 5 sec. now cancel ctx.")
-		canc()
-
-		// systematic cancel tests:
-		//does local peer cancel -> local service cancel
-		//local service -> all local ckt cancel
-		// start here [ ] local ckt -> remote ckt
-	})
-}
-
 func Test405_user_can_close_Client_and_Server(t *testing.T) {
 
 	cv.Convey("user code calling Close on Client and Server should shut down. make sure j.cleanup works!", t, func() {

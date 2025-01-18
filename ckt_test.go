@@ -251,12 +251,13 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 	_ = name // used when logging is on.
 
 	defer func() {
-		vv("%v: end of start() inside defer, about the return/finish", name)
+		//vv("%v: end of start() inside defer, about the return/finish", name)
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
+		myPeer.Close()
 	}()
 
-	//vv("%v: start() top.", name)
+	////vv("%v: start() top.", name)
 	//zz("%v: ourID = '%v'; peerServiceName='%v';", name, myPeer.ID(), myPeer.ServiceName())
 
 	aliasRegister(myPeer.PeerID, myPeer.PeerID+" ("+myPeer.ServiceName()+")")
@@ -264,10 +265,10 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 	done0 := ctx0.Done()
 
 	for {
-		//vv("%v: top of select", name)
+		////vv("%v: top of select", name)
 		select {
 		case <-done0:
-			//vv("%v: done0! cause: '%v'", name, context.Cause(ctx0))
+			////vv("%v: done0! cause: '%v'", name, context.Cause(ctx0))
 			return ErrContextCancelled
 			//case <-s.halt.ReqStop.Chan:
 			//	//zz("%v: halt.ReqStop seen", name)
@@ -275,16 +276,16 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 
 			// new Circuit connection arrives => we are the passive side for it.
 		case rckt := <-newCircuitCh:
-			vv("%v: newCircuitCh got rckt! service sees new peerURL: '%v'", name, rckt.RemoteCircuitURL())
+			//vv("%v: newCircuitCh got rckt! service sees new peerURL: '%v'", name, rckt.RemoteCircuitURL())
 
 			// talk to this peer on a separate goro if you wish; or just a func
 			var passiveSide func(ckt *Circuit)
 			passiveSide = func(ckt *Circuit) {
-				//vv("%v: (ckt '%v') got incoming ckt", name, ckt.Name)
+				////vv("%v: (ckt '%v') got incoming ckt", name, ckt.Name)
 				//s.gotIncomingCkt <- ckt
 				//zz("%v: (ckt '%v') got past <-ckt for incoming ckt", name, ckt.Name)
 				defer func() {
-					//vv("%v: (ckt '%v') defer running! finishing new Circuit func. stack=\n'%v'", name, ckt.Name, stack()) // seen on server
+					////vv("%v: (ckt '%v') defer running! finishing new Circuit func. stack=\n'%v'", name, ckt.Name, stack()) // seen on server
 					ckt.Close()
 					s.passive_side_ckt_saw_remote_shutdown <- nil
 				}()
@@ -310,7 +311,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						s.dropcopy_sends <- frag
 
 					case n := <-s.passiveSideSendN:
-						vv("%v: (ckt '%v') (passive) passiveSideSendN = %v requsted!: '%v'", name, ckt.Name, n)
+						//vv("%v: (ckt '%v') (passive) passiveSideSendN = %v requsted!: '%v'", name, ckt.Name, n)
 						for i := range n {
 							frag := NewFragment()
 							frag.FragPart = int64(i)
@@ -323,15 +324,15 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 
 					case frag := <-s.passiveSideStartAnotherCkt:
 
-						vv("%v: (ckt '%v') (passive) passiveSideStartAnotherCkt requsted!: '%v'", name, ckt.Name, frag.FragSubject)
+						//vv("%v: (ckt '%v') (passive) passiveSideStartAnotherCkt requsted!: '%v'", name, ckt.Name, frag.FragSubject)
 						ckt2, _, err := ckt.NewCircuit(frag.FragSubject, frag)
 						panicOn(err)
-						vv("%v: (ckt '%v') (passive) created ckt2 to: '%v'", name, ckt.Name, ckt2.RemoteCircuitURL())
+						//vv("%v: (ckt '%v') (passive) created ckt2 to: '%v'", name, ckt.Name, ckt2.RemoteCircuitURL())
 						go passiveSide(ckt2)
 
 					case frag := <-s.requestToSend:
 						// external test code requests that we send.
-						vv("%v: (ckt '%v') (passive) got requestToSend, sending to '%v'; from '%v'", name, ckt.Name, ckt.RemoteCircuitURL(), ckt.LocalCircuitURL())
+						//vv("%v: (ckt '%v') (passive) got requestToSend, sending to '%v'; from '%v'", name, ckt.Name, ckt.RemoteCircuitURL(), ckt.LocalCircuitURL())
 
 						err := ckt.SendOneWay(frag, 0)
 						panicOn(err)
@@ -342,7 +343,8 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 					case frag := <-ckt.Reads:
 						_ = frag
 						tot := s.incrementReads(ckt.Name)
-						vv("%v: (ckt %v) (passive) ckt.Reads (total %v) sees frag:'%s'", name, ckt.Name, tot, frag)
+						_ = tot
+						//vv("%v: (ckt %v) (passive) ckt.Reads (total %v) sees frag:'%s'", name, ckt.Name, tot, frag)
 						s.readch <- frag // buffered 1000 so will not block til then.
 						s.dropcopy_reads <- frag
 
@@ -351,21 +353,22 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						_ = fragerr
 
 						tot := s.incrementReadErrors(ckt.Name)
-						vv("%v: (ckt %v) (passive) ckt.Errors (total %v) sees fragerr:'%s'", name, ckt.Name, tot, fragerr)
+						_ = tot
+						//vv("%v: (ckt %v) (passive) ckt.Errors (total %v) sees fragerr:'%s'", name, ckt.Name, tot, fragerr)
 
 						s.read_errorch <- fragerr
 						s.read_dropcopy_errors <- fragerr
 
 					case <-ckt.Halt.ReqStop.Chan:
-						//vv("%v: (ckt '%v') ckt halt requested.", name, ckt.Name)
+						////vv("%v: (ckt '%v') ckt halt requested.", name, ckt.Name)
 						//s.gotCktHaltReq.Close()
 						return
 
 					case <-ckt.Context.Done():
-						vv("%v: (ckt '%v') done! cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
+						//vv("%v: (ckt '%v') done! cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
 						return
 					case <-done0:
-						//vv("%v: (ckt '%v') done0! reason: '%v'", name, ckt.Name, context.Cause(ctx0))
+						////vv("%v: (ckt '%v') done0! reason: '%v'", name, ckt.Name, context.Cause(ctx0))
 						return
 						//case <-s.halt.ReqStop.Chan:
 						//zz("%v: (ckt '%v') top func halt.ReqStop seen", name, ckt.Name)
@@ -377,7 +380,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 			go passiveSide(rckt)
 
 		case remoteURL := <-s.startCircuitWith:
-			vv("%v: requested startCircuitWith: '%v'", name, remoteURL)
+			//vv("%v: requested startCircuitWith: '%v'", name, remoteURL)
 			ckt, _, err := myPeer.NewCircuitToPeerURL(fmt.Sprintf("cicuit-init-by:%v:%v", name, s.nextCktNo), remoteURL, nil, 0)
 			s.nextCktNo++
 			panicOn(err)
@@ -389,7 +392,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 			activeSide = func(ckt *Circuit) {
 				// this is the active side, as we called NewCircuitToPeerURL()
 				defer func() {
-					//vv("%v: active side ckt '%v' shutting down", name, ckt.Name)
+					////vv("%v: active side ckt '%v' shutting down", name, ckt.Name)
 					ckt.Close()
 					s.activeSideShutdownCktAckReq <- nil
 					s.active_side_ckt_saw_remote_shutdown <- nil
@@ -410,7 +413,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						s.dropcopy_sends <- frag
 
 					case n := <-s.activeSideSendN:
-						vv("%v: (ckt '%v') (active) activeSideSendN = %v requsted!: '%v'", name, ckt.Name, n)
+						//vv("%v: (ckt '%v') (active) activeSideSendN = %v requsted!: '%v'", name, ckt.Name, n)
 						for i := range n {
 							frag := NewFragment()
 							frag.FragPart = int64(i)
@@ -422,35 +425,37 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						}
 
 					case frag := <-s.activeSideStartAnotherCkt:
-						vv("%v: (ckt '%v') (active) activeSideStartAnotherCkt requsted!: '%v'", name, ckt.Name, frag.FragSubject)
+						//vv("%v: (ckt '%v') (active) activeSideStartAnotherCkt requsted!: '%v'", name, ckt.Name, frag.FragSubject)
 						ckt2, _, err := ckt.NewCircuit(frag.FragSubject, frag)
 						panicOn(err)
-						vv("%v: (ckt '%v') (active) created ckt2 to: '%v'", name, ckt.Name, ckt2.RemoteCircuitURL())
+						//vv("%v: (ckt '%v') (active) created ckt2 to: '%v'", name, ckt.Name, ckt2.RemoteCircuitURL())
 						go activeSide(ckt2)
 
 					case <-ctx.Done():
-						//vv("%v: (ckt '%v') (active) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx))
+						////vv("%v: (ckt '%v') (active) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx))
 						return
 					case frag := <-ckt.Reads:
 						seen := s.incrementReads(ckt.Name)
-						vv("%v: (ckt '%v') (active) saw read! total= %v", name, ckt.Name, seen)
+						_ = seen
+						//vv("%v: (ckt '%v') (active) saw read! total= %v", name, ckt.Name, seen)
 						s.readch <- frag
 						s.dropcopy_reads <- frag
 
 					case fragerr := <-ckt.Errors:
 
 						tot := s.incrementReadErrors(ckt.Name)
-						vv("%v: (ckt %v) (active) ckt.Errors (total %v) sees fragerr:'%s'", name, ckt.Name, tot, fragerr)
+						_ = tot
+						//vv("%v: (ckt %v) (active) ckt.Errors (total %v) sees fragerr:'%s'", name, ckt.Name, tot, fragerr)
 						s.read_errorch <- fragerr
 						s.read_dropcopy_errors <- fragerr
 
 					case <-ckt.Halt.ReqStop.Chan:
-						vv("%v: (ckt '%v') (active) ckt halt requested.", name, ckt.Name)
+						//vv("%v: (ckt '%v') (active) ckt halt requested.", name, ckt.Name)
 						return
 
 					case frag := <-s.requestToSend:
 						// external test code requests that we send.
-						vv("%v: (ckt '%v') (active) got on requestToSend, sending to '%v'; from '%v'", name, ckt.Name, ckt.RemoteCircuitURL(), ckt.LocalCircuitURL())
+						//vv("%v: (ckt '%v') (active) got on requestToSend, sending to '%v'; from '%v'", name, ckt.Name, ckt.RemoteCircuitURL(), ckt.LocalCircuitURL())
 
 						err := myPeer.SendOneWay(ckt, frag, 0)
 						panicOn(err)
@@ -497,7 +502,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		if got, want := srv_lpb.OpenCircuitCount(), 1; got != want {
 			t.Fatalf("error: expected 1 open circuit on srv, got: '%v'", got)
 		}
-		//vv("OK!")
+		////vv("OK!")
 		// send and read.
 
 		// establish the baseline.
@@ -566,7 +571,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 			t.Fatalf("error: expected srv sendch to have %v, got: %v", want, got)
 		}
 
-		vv("okay up to here.")
+		//vv("okay up to here.")
 
 		// have client send 1 to server.
 		frag = NewFragment()
@@ -595,7 +600,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 			t.Fatalf("error: expected srv sendch to have %v, got: %v", want, got)
 		}
 
-		vv("ask the client to start another circuit to the same remote.")
+		//vv("ask the client to start another circuit to the same remote.")
 		drain(j.srvs.dropcopy_reads)
 
 		frag = NewFragment()
@@ -629,7 +634,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 			t.Fatalf("error: expected srv sendch to have %v, got: %v", want, got)
 		}
 
-		vv("ask the server to start (a third) circuit to the same remote.")
+		//vv("ask the server to start (a third) circuit to the same remote.")
 
 		drain(j.clis.dropcopy_reads)
 
@@ -664,7 +669,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 			t.Fatalf("error: expected srv sendch to have %v, got: %v", want, got)
 		}
 
-		vv("we have 3 open circuits between the same two peers. do some sends on each")
+		//vv("we have 3 open circuits between the same two peers. do some sends on each")
 
 		// server to client, do N sends
 
@@ -721,7 +726,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 
 		// CallPeerError should get returned on the ckt.Errors not ctk.Reads.
 
-		vv("client to server, send one error")
+		//vv("client to server, send one error")
 
 		// we let whichever ckt goro gets it send it (for now).
 		drain(j.srvs.read_dropcopy_errors)
@@ -731,12 +736,12 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		<-j.srvs.read_dropcopy_errors
 
 		nSrvErr := len(j.srvs.read_errorch)
-		vv("got past server reading from ckt.Errors: nSrvErr = %v", nSrvErr)
+		//vv("got past server reading from ckt.Errors: nSrvErr = %v", nSrvErr)
 		if got, want := nSrvErr, 1; got != want {
 			t.Fatalf("error: expected nSrvErr: %v , got: '%v'", want, got)
 		}
 
-		vv("server to client, send one error")
+		//vv("server to client, send one error")
 
 		// we let whichever ckt goro gets it send it (for now).
 		drain(j.clis.read_dropcopy_errors)
@@ -746,12 +751,12 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		<-j.clis.read_dropcopy_errors
 
 		nCliErr := len(j.clis.read_errorch)
-		vv("got past server reading from ckt.Errors: nCliErr = %v", nCliErr)
+		//vv("got past server reading from ckt.Errors: nCliErr = %v", nCliErr)
 		if got, want := nCliErr, 1; got != want {
 			t.Fatalf("error: expected nCliErr: %v , got: '%v'", want, got)
 		}
 
-		vv("====  ckt shutdown on one side should get propagated to the other side.")
+		//vv("====  ckt shutdown on one side should get propagated to the other side.")
 
 		// verify we have 3 open channels now
 		if got, want := cli_lpb.OpenCircuitCount(), 3; got != want {
@@ -769,7 +774,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		<-j.srvs.passive_side_ckt_saw_remote_shutdown
 
 		// verify open circuit count only went down to 2, not 0.
-		vv(" cli_lpb.OpenCircuitCount() = %v ; srv_lpb.OpenCircuitCount() = %v", cli_lpb.OpenCircuitCount(), srv_lpb.OpenCircuitCount())
+		//vv(" cli_lpb.OpenCircuitCount() = %v ; srv_lpb.OpenCircuitCount() = %v", cli_lpb.OpenCircuitCount(), srv_lpb.OpenCircuitCount())
 
 		if got, want := cli_lpb.OpenCircuitCount(), 2; got != want {
 			t.Fatalf("error: expected %v open circuit on cli, got: '%v'", want, got)
@@ -799,7 +804,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 
 		//select {}
 
-		vv("#####   end of test. let the defer cleanups run now:")
+		//vv("#####   end of test. let the defer cleanups run now:")
 	})
 
 }

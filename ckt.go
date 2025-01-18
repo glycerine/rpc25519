@@ -240,7 +240,7 @@ func (s *LocalPeer) URL() string {
 func (s *LocalPeer) Close() {
 	s.Canc(fmt.Errorf("LocalPeer.Close() called. stack='%v'", stack()))
 	s.Halt.ReqStop.Close()
-	//<-s.Halt.Done.Chan // hung here, log.hung5; just seems a bad idea?
+	//<-s.Halt.Done.Chan // hung here so often. just seems a bad idea.
 }
 
 // NewCircuitToPeerURL sets up a persistent communication path called a Circuit.
@@ -332,15 +332,6 @@ func ParsePeerURL(peerURL string) (netAddr, serviceName, peerID, circuitID strin
 func (ckt *Circuit) SendOneWay(frag *Fragment, errWriteDur time.Duration) error {
 	return ckt.LpbFrom.SendOneWay(ckt, frag, errWriteDur)
 }
-
-/* can we get rid of this now?
-// SendOneWay sends a Frament on the given Circuit.
-func (s *RemotePeer) SendOneWay(
-	ckt *Circuit, frag *Fragment, errWriteDur time.Duration) error {
-
-	return s.LocalPeer.SendOneWay(ckt, frag, errWriteDur)
-}
-*/
 
 // SendOneWayMessage sends a Frament on the given Circuit.
 func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Duration) error {
@@ -738,9 +729,8 @@ func (p *peerAPI) RegisterPeerServiceFunc(peerServiceName string, peer PeerServi
 // obtaining their lpb in a call such as `lpb, err := StartLocalPeer()`.
 //
 // If lpb.Close() is not called in a defer, the user must
-// otherwise ensure that the LocalPeer.Close() function is called
-// to shutdown the background goroutine, release resources, and notify
-// remote peer services of the local peer's shutdown.
+// otherwise ensure that the LocalPeer.Close() function is
+// eventually called.
 //
 // The requestedCircuit parameter can be nil. It is used by the system
 // when StartRemotePeer() sends a request to start the service

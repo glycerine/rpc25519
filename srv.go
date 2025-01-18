@@ -670,8 +670,7 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 	case CallError, CallPeerError:
 		// not CallPeerFromIsShutdown per pump handling it on ReadsIn
 
-		alwaysPrintf("error type seen!: '%v'", msg.HDR.Typ.String())
-		//panic("stopping client on the above error")
+		//alwaysPrintf("error type seen!: '%v'", msg.HDR.Typ.String())
 
 		// give ToPeerID priority
 		if msg.HDR.ToPeerID != "" {
