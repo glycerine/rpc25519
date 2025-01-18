@@ -264,23 +264,31 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	}
 	s.Remotes.Set(peerID, rpb)
 
-	ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID, frag, false) // here 1
+	// can we replace with?
+
+	ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID, frag, true) // here 1
 	if err != nil {
 		return nil, nil, err
 	}
-	// should newCircuit be doing this too? not for now.
-	msg := frag.ToMessage()
-	msg.HDR.To = netAddr
-	msg.HDR.From = s.NetAddr
-	msg.HDR.Typ = CallPeerStartCircuit
+	return
+	/*
+		ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID, frag, false) // here 1
+		if err != nil {
+			return nil, nil, err
+		}
+		msg := frag.ToMessage()
+		msg.HDR.To = netAddr
+		msg.HDR.From = s.NetAddr
+		msg.HDR.Typ = CallPeerStartCircuit
 
-	// tell the remote which serviceName we are coming from;
-	// so the URL back can be correct.
-	msg.HDR.Args = map[string]string{
-		"fromServiceName": s.PeerServiceName,
-		"circuitName":     circuitName}
+		// tell the remote which serviceName we are coming from;
+		// so the URL back can be correct.
+		msg.HDR.Args = map[string]string{
+			"fromServiceName": s.PeerServiceName,
+			"circuitName":     circuitName}
 
-	return ckt, ctx, s.U.SendOneWayMessage(ctx, msg, errWriteDur)
+		return ckt, ctx, s.U.SendOneWayMessage(ctx, msg, errWriteDur)
+	*/
 }
 
 func ParsePeerURL(peerURL string) (netAddr, serviceName, peerID, circuitID string, err error) {
