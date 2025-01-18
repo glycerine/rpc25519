@@ -92,6 +92,7 @@ func (pb *LocalPeer) peerbackPump() {
 			close(query.Ready)
 
 		case ckt := <-pb.HandleChansNewCircuit:
+			vv("%v pump: ckt := <-pb.HandleChansNewCircuit: for ckt='%v'", name, ckt.Name)
 			m[ckt.CircuitID] = ckt
 			pb.Halt.AddChild(ckt.Halt)
 

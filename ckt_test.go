@@ -183,9 +183,9 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 			//	//zz("%v: halt.ReqStop seen", name)
 			//	return ErrHaltRequested
 
-		// new Circuit connection arrives
+			// new Circuit connection arrives => we are the passive side for it.
 		case rckt := <-newCircuitCh:
-			vv("%v: got from newCircuitCh! service sees new peerURL: '%v'", name, rckt.RemoteCircuitURL())
+			vv("%v: newCircuitCh got rckt! service sees new peerURL: '%v'", name, rckt.RemoteCircuitURL())
 
 			// talk to this peer on a separate goro if you wish; or just a func
 			go func(ckt *Circuit) {
@@ -263,9 +263,10 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 				for {
 					select {
 					case frag := <-s.startAnotherCkt:
-						vv("%v: (ckt '%v') (active) startAnotherCkt called!: '%v'", name, ckt.Name)
-						ckt2, _, err := ckt.NewCircuit(frag.FragSubject)
+						vv("%v: (ckt '%v') (active) startAnotherCkt requsted!: '%v'", name, ckt.Name, frag.FragSubject)
+						ckt2, _, err := ckt.NewCircuit(frag.FragSubject, frag)
 						panicOn(err)
+						vv("%v: (ckt '%v') (active) created ckt2 to: '%v'", name, ckt.Name, ckt2.RemoteCircuitURL())
 						go activeSide(ckt2)
 
 					case <-ctx.Done():
@@ -436,6 +437,8 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		ckt2name := "client-started-2nd-ckt-to-same"
 		frag.FragSubject = ckt2name
 		j.clis.startAnotherCkt <- frag
+
+		select {}
 		// ask the server to start another circuit to the same remote.
 
 	})

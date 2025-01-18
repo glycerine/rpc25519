@@ -513,7 +513,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			alwaysPrintf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
 			return
 		}
-		//vv("srv read loop sees req = '%v'", req.String())
+		vv("srv read loop sees req = '%v'", req.String())
 
 		switch req.HDR.Typ {
 
