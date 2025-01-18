@@ -2255,7 +2255,8 @@ func (s *Server) respondToReqWithError(req *Message, job *job, description strin
 	req.HDR.Subject = description
 	err := job.w.sendMessage(job.conn, req, &s.cfg.WriteTimeout)
 	_ = err
-	alwaysPrintf("CallError being sent back: '%v'; stack=\n'%v'", req.HDR.String(), stack())
+	// called by srv.go:893, for example.
+	alwaysPrintf("CallError being sent back: '%v'", req.HDR.String())
 
 	// sendfile will just keep coming, so kill the connection.
 	// after a short pause to try and let the CallError through.
