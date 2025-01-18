@@ -48,7 +48,7 @@ func (pb *LocalPeer) peerbackPump() {
 
 		_, inMap := m[ckt.CircuitID]
 
-		vv("%v: cleanupCkt running for ckt '%v'. notifyPeer=%v; len(m)=%v before cleanup. CircuitID='%v'; inMap = %v\n m = '%v'", name, ckt.LocalCircuitURL(), notifyPeer, len(m), ckt.CircuitID, inMap, prettyPrintCircuitMap(m))
+		//vv("%v: cleanupCkt running for ckt '%v'. notifyPeer=%v; len(m)=%v before cleanup. CircuitID='%v'; inMap = %v\n m = '%v'", name, ckt.LocalCircuitURL(), notifyPeer, len(m), ckt.CircuitID, inMap, prettyPrintCircuitMap(m))
 
 		if !inMap {
 			// only send to peer if it is still in our map, to avoid sending
@@ -113,7 +113,7 @@ func (pb *LocalPeer) peerbackPump() {
 			close(query.Ready)
 
 		case ckt := <-pb.HandleChansNewCircuit:
-			vv("%v pump: ckt := <-pb.HandleChansNewCircuit: for ckt='%v'", name, ckt.Name)
+			//vv("%v pump: ckt := <-pb.HandleChansNewCircuit: for ckt='%v'", name, ckt.Name)
 			m[ckt.CircuitID] = ckt
 			pb.Halt.AddChild(ckt.Halt)
 
@@ -158,7 +158,7 @@ func (pb *LocalPeer) peerbackPump() {
 			////zz("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
 
 			if msg.HDR.Typ == CallPeerEndCircuit {
-				vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg) // seen in crosstalk test server hung log line 311
+				//vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg) // seen in crosstalk test server hung log line 311
 				cleanupCkt(ckt, false)
 				//zz("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg. back from cleanupCkt, about to continue: '%v'", name, ckt.Name, msg)
 				continue
@@ -181,9 +181,9 @@ func (pb *LocalPeer) peerbackPump() {
 
 			callID := msgerr.HDR.CallID
 			ckt, ok := m[callID]
-			vv("pump %v: ckt ok=%v on errorsIn", name, ok)
+			//vv("pump %v: ckt ok=%v on errorsIn", name, ok)
 			if !ok {
-				vv("%v: arg. no ckt avail for callID = '%v' on msgerr", name, callID)
+				//vv("%v: arg. no ckt avail for callID = '%v' on msgerr", name, callID)
 				continue
 			}
 			////zz("pump %v: (ckt %v) sees msgerr='%v'", name, ckt.Name, msgerr)

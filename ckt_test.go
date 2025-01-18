@@ -284,7 +284,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 				//s.gotIncomingCkt <- ckt
 				//zz("%v: (ckt '%v') got past <-ckt for incoming ckt", name, ckt.Name)
 				defer func() {
-					vv("%v: (ckt '%v') defer running! finishing new Circuit func. stack=\n'%v'", name, ckt.Name, stack()) // seen on server
+					//vv("%v: (ckt '%v') defer running! finishing new Circuit func. stack=\n'%v'", name, ckt.Name, stack()) // seen on server
 					ckt.Close()
 					s.passive_side_ckt_saw_remote_shutdown <- nil
 				}()
@@ -389,7 +389,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 			activeSide = func(ckt *Circuit) {
 				// this is the active side, as we called NewCircuitToPeerURL()
 				defer func() {
-					vv("%v: active side ckt '%v' shutting down", name, ckt.Name)
+					//vv("%v: active side ckt '%v' shutting down", name, ckt.Name)
 					ckt.Close()
 					s.activeSideShutdownCktAckReq <- nil
 					s.active_side_ckt_saw_remote_shutdown <- nil
