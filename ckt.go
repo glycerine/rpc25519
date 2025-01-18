@@ -266,29 +266,11 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 
 	// can we replace with?
 
-	ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID, frag, true) // here 1
+	ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, true)
 	if err != nil {
 		return nil, nil, err
 	}
 	return
-	/*
-		ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID, frag, false) // here 1
-		if err != nil {
-			return nil, nil, err
-		}
-		msg := frag.ToMessage()
-		msg.HDR.To = netAddr
-		msg.HDR.From = s.NetAddr
-		msg.HDR.Typ = CallPeerStartCircuit
-
-		// tell the remote which serviceName we are coming from;
-		// so the URL back can be correct.
-		msg.HDR.Args = map[string]string{
-			"fromServiceName": s.PeerServiceName,
-			"circuitName":     circuitName}
-
-		return ckt, ctx, s.U.SendOneWayMessage(ctx, msg, errWriteDur)
-	*/
 }
 
 func ParsePeerURL(peerURL string) (netAddr, serviceName, peerID, circuitID string, err error) {
@@ -507,7 +489,7 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 // When select{}-ing on ckt.Reads and ckt.Errors, always also
 // select on ctx.Done() and in order to shutdown gracefully.
 func (origCkt *Circuit) NewCircuit(circuitName string, firstFrag *Fragment) (ckt *Circuit, ctx2 context.Context, err error) {
-	return origCkt.RpbTo.LocalPeer.newCircuit(circuitName, origCkt.RpbTo, "", firstFrag, true) //here 2
+	return origCkt.RpbTo.LocalPeer.newCircuit(circuitName, origCkt.RpbTo, "", firstFrag, -1, true)
 }
 
 // IsClosed returns true if the LocalPeer is shutting down
@@ -556,6 +538,7 @@ func (lpb *LocalPeer) newCircuit(
 	rpb *RemotePeer,
 	cID string,
 	firstFrag *Fragment,
+	errWriteDur time.Duration,
 	tellRemote bool, // send new circuit to remote?
 
 ) (ckt *Circuit, ctx2 context.Context, err error) {
@@ -587,6 +570,8 @@ func (lpb *LocalPeer) newCircuit(
 		ckt.CircuitID = NewCallID()
 	}
 	aliasRegister(ckt.CircuitID, ckt.CircuitID+" ("+circuitName+")")
+
+	//lpb.Halt.AddChild(ckt.Halt) // no worries: pump will do this.
 
 	select {
 	case lpb.HandleChansNewCircuit <- ckt:
@@ -620,7 +605,7 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args = map[string]string{
 			"fromServiceName": lpb.PeerServiceName,
 			"circuitName":     circuitName}
-		err = lpb.U.SendOneWayMessage(ctx2, msg, -1) // no blocking
+		err = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
 	}
 
 	return
@@ -986,7 +971,7 @@ func (lpb *LocalPeer) provideRemoteOnNewPeerCh(isCli bool, msg *Message, ctx con
 		circuitName = msg.HDR.Args["circuitName"]
 	}
 
-	ckt, ctx2, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, nil, false) // here 3
+	ckt, ctx2, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, nil, -1, false)
 	if err != nil {
 		return err
 	}
