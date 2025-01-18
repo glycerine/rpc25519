@@ -98,6 +98,7 @@ type countService struct {
 	passiveSideStartAnotherCkt chan *Fragment
 
 	passiveSideSendN chan int
+	activeSideSendN  chan int
 
 	startCircuitWith chan string // remote URL to contact.
 	nextCktNo        int
@@ -115,6 +116,7 @@ func newcountService() *countService {
 		startAnotherCkt:            make(chan *Fragment),
 		passiveSideStartAnotherCkt: make(chan *Fragment),
 		passiveSideSendN:           make(chan int),
+		activeSideSendN:            make(chan int),
 	}
 }
 
@@ -288,6 +290,18 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 				ctx := ckt.Context
 				for {
 					select {
+					case n := <-s.activeSideSendN:
+						vv("%v: (ckt '%v') (active) activeSideSendN = %v requsted!: '%v'", name, ckt.Name, n)
+						for i := range n {
+							frag := NewFragment()
+							frag.FragPart = int64(i)
+							err := ckt.SendOneWay(frag, 0)
+							panicOn(err)
+							s.incrementSends(ckt.Name)
+							s.sendch <- frag
+							s.dropcopy_sends <- frag
+						}
+
 					case frag := <-s.startAnotherCkt:
 						vv("%v: (ckt '%v') (active) startAnotherCkt requsted!: '%v'", name, ckt.Name, frag.FragSubject)
 						ckt2, _, err := ckt.NewCircuit(frag.FragSubject, frag)
@@ -537,8 +551,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		for range N {
 			<-j.clis.dropcopy_reads
 		}
-		// verify client stats/ readch incremented by N
-		// assert readch state on client has incremented.
+		// verify client readch incremented by N
 		if got, want := len(j.clis.readch), 2+N; got != want {
 			t.Fatalf("expected cli readch to have %v, got: %v", want, got)
 		}
@@ -550,6 +563,36 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		}
 		if got, want := len(j.srvs.sendch), 1+N; got != want {
 			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
+		}
+
+		// client to server, do N sends
+		drain(j.srvs.dropcopy_reads)
+		j.clis.activeSideSendN <- N
+
+		for range N {
+			<-j.srvs.dropcopy_reads
+		}
+
+		// verify server readch incremented by N
+		if got, want := len(j.clis.readch), 2+N; got != want {
+			t.Fatalf("expected cli readch to have %v, got: %v", want, got)
+		}
+		if got, want := len(j.srvs.readch), 3+N; got != want {
+			t.Fatalf("expected srv readch to have %v, got: %v", want, got)
+		}
+		if got, want := len(j.clis.sendch), 2+N; got != want {
+			t.Fatalf("expected cli sendch to have %v, got: %v", want, got)
+		}
+		if got, want := len(j.srvs.sendch), 1+N; got != want {
+			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
+		}
+
+		// verify open circuit count stayed at 3
+		if got, want := cli_lpb.OpenCircuitCount(), 3; got != want {
+			t.Fatalf("expected %v open circuit on cli, got: '%v'", want, got)
+		}
+		if got, want := srv_lpb.OpenCircuitCount(), 3; got != want {
+			t.Fatalf("expected %v open circuit on srv, got: '%v'", want, got)
 		}
 
 		//select {}
