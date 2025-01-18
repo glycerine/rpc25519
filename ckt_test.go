@@ -94,6 +94,8 @@ type countService struct {
 	dropcopy_sends chan *Fragment
 	//dropcopy_sent     chan *Fragment
 
+	startAnotherCkt chan *Fragment
+
 	startCircuitWith chan string // remote URL to contact.
 	nextCktNo        int
 }
@@ -107,6 +109,7 @@ func newcountService() *countService {
 		dropcopy_sends:   make(chan *Fragment, 1000),
 		dropcopy_reads:   make(chan *Fragment, 1000),
 		startCircuitWith: make(chan string),
+		startAnotherCkt:  make(chan *Fragment),
 	}
 }
 
@@ -246,17 +249,25 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 
 		case remoteURL := <-s.startCircuitWith:
 			vv("%v: requested startCircuitWith: '%v'", name, remoteURL)
-			ckt, ctx, err := myPeer.NewCircuitToPeerURL(fmt.Sprintf("cicuit-init-by:%v:%v", name, s.nextCktNo), remoteURL, nil, 0)
+			ckt, _, err := myPeer.NewCircuitToPeerURL(fmt.Sprintf("cicuit-init-by:%v:%v", name, s.nextCktNo), remoteURL, nil, 0)
 			s.nextCktNo++
 			panicOn(err)
 			s.incrementSends(ckt.Name)
 			s.sendch <- nil
 			s.dropcopy_sends <- nil
 
-			go func() {
+			var activeSide func(ckt *Circuit)
+			activeSide = func(ckt *Circuit) {
 				// this is the active side, as we called NewCircuitToPeerURL()
+				ctx := ckt.Context
 				for {
 					select {
+					case frag := <-s.startAnotherCkt:
+						vv("%v: (ckt '%v') (active) startAnotherCkt called!: '%v'", name, ckt.Name)
+						ckt2, _, err := ckt.NewCircuit(frag.FragSubject)
+						panicOn(err)
+						go activeSide(ckt2)
+
 					case <-ctx.Done():
 						//vv("%v: (ckt '%v') (active) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx))
 						return
@@ -285,7 +296,8 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 
 					}
 				}
-			}()
+			}
+			go activeSide(ckt)
 		}
 	}
 	return nil
@@ -418,6 +430,13 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		if got, want := len(j.srvs.sendch), 1; got != want {
 			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
 		}
+
+		// ask the client to start another circuit to the same remote.
+		frag = NewFragment()
+		ckt2name := "client-started-2nd-ckt-to-same"
+		frag.FragSubject = ckt2name
+		j.clis.startAnotherCkt <- frag
+		// ask the server to start another circuit to the same remote.
 
 	})
 
