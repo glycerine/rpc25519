@@ -81,6 +81,7 @@ func (me *PeerImpl) Start(
 				ckt, ctx, err := myPeer.NewCircuitToPeerURL(circuitName, echoToURL, outFrag, 0)
 				panicOn(err)
 				defer ckt.Close() // close when echo heard.
+
 				done := ctx.Done()
 
 				for {
@@ -114,7 +115,8 @@ func (me *PeerImpl) Start(
 			go func(ckt *Circuit) {
 				defer wg.Done()
 				defer func() {
-					vv("echo answerer shutting down.")
+					ckt.Close()
+					//vv("echo answerer shutting down.")
 				}()
 
 				myurl := myPeer.URL()
