@@ -112,7 +112,8 @@ type countService struct {
 	startCircuitWith chan string // remote URL to contact.
 	nextCktNo        int
 
-	activeSideSendCktError chan string
+	activeSideSendCktError  chan string
+	passiveSideSendCktError chan string
 }
 
 func newcountService() *countService {
@@ -135,6 +136,7 @@ func newcountService() *countService {
 		passiveSideSendN:           make(chan int),
 		activeSideSendN:            make(chan int),
 		activeSideSendCktError:     make(chan string),
+		passiveSideSendCktError:    make(chan string),
 	}
 }
 
@@ -271,6 +273,16 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 				// this is the passive side, as we <-newCircuitCh
 				for {
 					select {
+
+					case errReq := <-s.passiveSideSendCktError:
+						frag := NewFragment()
+						frag.Err = errReq
+						err := ckt.SendOneWay(frag, 0)
+						panicOn(err)
+						s.incrementSends(ckt.Name)
+						s.sendch <- frag
+						s.dropcopy_sends <- frag
+
 					case n := <-s.passiveSideSendN:
 						vv("%v: (ckt '%v') (passive) passiveSideSendN = %v requsted!: '%v'", name, ckt.Name, n)
 						for i := range n {
@@ -673,6 +685,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		}
 
 		// [ ] CallPeerError should get returned on the ckt.Errors not ctk.Reads.
+
 		vv("client to server, send one error")
 
 		// we let whichever ckt goro gets it send it (for now).
@@ -686,6 +699,21 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		vv("got past server reading from ckt.Errors: nSrvErr = %v", nSrvErr)
 		if got, want := nSrvErr, 1; got != want {
 			t.Fatalf("expected nSrvErr: %v , got: '%v'", want, got)
+		}
+
+		vv("server to client, send one error")
+
+		// we let whichever ckt goro gets it send it (for now).
+		drain(j.clis.read_dropcopy_errors)
+		errReqPassiveSend := "send this error from srv(passive) to cli(active)"
+		j.srvs.passiveSideSendCktError <- errReqPassiveSend
+
+		<-j.clis.read_dropcopy_errors
+
+		nCliErr := len(j.clis.read_errorch)
+		vv("got past server reading from ckt.Errors: nCliErr = %v", nCliErr)
+		if got, want := nCliErr, 1; got != want {
+			t.Fatalf("expected nCliErr: %v , got: '%v'", want, got)
 		}
 
 		// [ ] ckt shutdown on one side should get propagated to the other side.
