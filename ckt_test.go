@@ -673,7 +673,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		}
 
 		// [ ] CallPeerError should get returned on the ckt.Errors not ctk.Reads.
-		// client to server, send one error
+		vv("client to server, send one error")
 
 		// we let whichever ckt goro gets it send it (for now).
 		drain(j.srvs.read_dropcopy_errors)
@@ -684,6 +684,9 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 
 		nSrvErr := len(j.srvs.read_errorch)
 		vv("got past server reading from ckt.Errors: nSrvErr = %v", nSrvErr)
+		if got, want := nSrvErr, 1; got != want {
+			t.Fatalf("expected nSrvErr: %v , got: '%v'", want, got)
+		}
 
 		// [ ] ckt shutdown on one side should get propagated to the other side.
 
