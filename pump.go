@@ -7,7 +7,7 @@ import (
 )
 
 func prettyPrintCircuitMap(m map[string]*Circuit) (s string) {
-	s = fmt.Sprintf("circuit map holds %v circuilts:\n", len(m))
+	s = fmt.Sprintf("circuit map holds %v circuits:\n", len(m))
 	i := 0
 	for k, v := range m {
 		s += fmt.Sprintf("[%03d] CircuitID '%v' -> \n%v\n\n", i, k, v.String())
@@ -46,7 +46,18 @@ func (pb *LocalPeer) peerbackPump() {
 		// remote peer. In that case there is no need to tell
 		// them again about the shutdown.
 
-		vv("%v: cleanupCkt running for ckt '%v'. notifyPeer=%v; len(m)=%v before cleanup. CircuitID='%v';\n m = '%v'", name, ckt.LocalCircuitURL(), notifyPeer, len(m), ckt.CircuitID, prettyPrintCircuitMap(m))
+		_, inMap := m[ckt.CircuitID]
+
+		vv("%v: cleanupCkt running for ckt '%v'. notifyPeer=%v; len(m)=%v before cleanup. CircuitID='%v'; inMap = %v\n m = '%v'", name, ckt.LocalCircuitURL(), notifyPeer, len(m), ckt.CircuitID, inMap, prettyPrintCircuitMap(m))
+
+		if !inMap {
+			// only send to peer if it is still in our map, to avoid sending
+			// more than once if we can... may be futile (there is shutdown
+			// race to see who notifies us first, the notifyPeer or the !notifyPeer)
+			// but we can try.
+			return
+		}
+
 		if notifyPeer {
 			// Politely tell our peer we are going down,
 			// in case they are staying up.
@@ -54,8 +65,7 @@ func (pb *LocalPeer) peerbackPump() {
 			frag.Typ = CallPeerEndCircuit
 			pb.SendOneWay(ckt, frag, -1) // no blocking
 		}
-		ckt.Canc(fmt.Errorf("pump cleanupCkt(notifyPeer=%v) cancelling ckt.Ctx.", notifyPeer))
-		delete(m, ckt.CircuitID)
+		ckt.Canc(fmt.Errorf("pump cleanupCkt(notifyPeer=%v) cancelling ckt.Context.", notifyPeer))
 		pb.U.UnregisterChannel(ckt.CircuitID, CallIDReadMap)
 		pb.U.UnregisterChannel(ckt.CircuitID, CallIDErrorMap)
 
@@ -67,6 +77,7 @@ func (pb *LocalPeer) peerbackPump() {
 			//zz("%v: peerbackPump exiting on autoShutdownWhenNoMoreCircuits", name)
 			pb.Halt.ReqStop.Close()
 		}
+		delete(m, ckt.CircuitID)
 	}
 	defer func() {
 		zz("%v: peerbackPump exiting. closing all remaining circuits (%v).", name, len(m))

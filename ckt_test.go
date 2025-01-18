@@ -349,10 +349,10 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						return
 
 					case <-ckt.Context.Done():
-						//vv("%v: (ckt '%v') done! cause: '%v'", name, ckt.Name, context.Cause(ctx))
+						vv("%v: (ckt '%v') done! cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
 						return
 					case <-done0:
-						//vv("%v: (ckt '%v') done0! reason: '%v'", name, ckt.Name, context.Cause(ctx0))
+						vv("%v: (ckt '%v') done0! reason: '%v'", name, ckt.Name, context.Cause(ctx0))
 						return
 						//case <-s.halt.ReqStop.Chan:
 						//zz("%v: (ckt '%v') top func halt.ReqStop seen", name, ckt.Name)
@@ -753,8 +753,6 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 
 		<-j.srvs.passive_side_ckt_saw_remote_shutdown
 
-		time.Sleep(time.Second)
-
 		// verify open circuit count only went down to 2, not 0.
 		vv(" cli_lpb.OpenCircuitCount() = %v", cli_lpb.OpenCircuitCount())
 		vv(" srv_lpb.OpenCircuitCount() = %v", srv_lpb.OpenCircuitCount())
@@ -770,8 +768,9 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		// but which ckt is doing the sends? can we specify it from here?
 		// request it by name?
 
-		select {}
+		//select {}
 
+		vv("#####   end of test. let the defer cleanups run now:")
 	})
 
 }
