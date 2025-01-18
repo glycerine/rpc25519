@@ -1454,6 +1454,7 @@ func (c *Client) Name() string {
 // Close shuts down the Client.
 func (c *Client) Close() error {
 	//vv("Client.Close() called.") // not seen in shutdown.
+
 	if c.cfg.UseQUIC {
 		if c.isQUIC && c.quicConn != nil {
 			// try to tell server we are gone before
@@ -1813,6 +1814,13 @@ type UniversalCliSrv interface {
 	UnregisterChannel(ID string, whichmap int)
 	LocalAddr() string
 	RemoteAddr() string // client provides, server gives ""
+
+	// allow peers to find out that the host Client/Server is stopping.
+	GetHostsReqStopChan() *idem.IdemCloseChan
+}
+
+func (c *Client) GetHostsReqStopChan() *idem.IdemCloseChan {
+	return c.halt.ReqStop
 }
 
 // maintain the requirement that Client and Server both

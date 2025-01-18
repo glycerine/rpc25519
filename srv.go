@@ -38,8 +38,8 @@ const yesIsClient = true
 
 //var serverAddress = "192.168.254.151:8443"
 
-var ErrContextCancelled = fmt.Errorf("context cancelled")
-var ErrHaltRequested = fmt.Errorf("halt requested")
+var ErrContextCancelled = fmt.Errorf("rpc25519: context cancelled")
+var ErrHaltRequested = fmt.Errorf("rpc25519: halt requested")
 
 // boundCh should be buffered, at least 1, if it is not nil. If not nil, we
 // will send the bound net.Addr back on it after we have started listening.
@@ -2329,4 +2329,8 @@ func (s *Server) LocalAddr() string {
 // let the Client help Peer users. Hence this stub.
 func (s *Server) RemoteAddr() string {
 	return "" // fragment.go StartRemotePeer() logic depends on this too.
+}
+
+func (s *Server) GetHostsReqStopChan() *idem.IdemCloseChan {
+	return s.halt.ReqStop
 }

@@ -78,14 +78,33 @@ type counts struct {
 
 type countService struct {
 	// key is circuit name
-	stats  *Mutexmap[string, *counts]
+	stats *Mutexmap[string, *counts]
+
+	// keep a record of all reads, so test can assert on history at the end.
 	readch chan *Fragment
+	// and copy all reads to here so test avoid races.
+	dropcopy_reads chan *Fragment
+
+	// ask the start() func to send to remote.
+	sendch chan *Fragment
+
+	// have the start ack each send request here.
+	dropcopy_send_req chan *Fragment
+	//dropcopy_sent     chan *Fragment
+
+	startCircuitWith chan string // remote URL to contact.
+	nextCktNo        int
 }
 
 func newcountService() *countService {
 	return &countService{
-		stats:  NewMutexmap[string, *counts](),
-		readch: make(chan *Fragment, 1000),
+		stats:             NewMutexmap[string, *counts](),
+		readch:            make(chan *Fragment, 1000),
+		sendch:            make(chan *Fragment),
+		dropcopy_send_req: make(chan *Fragment, 1000),
+		//dropcopy_sent:     make(chan *Fragment, 1000),
+		dropcopy_reads:   make(chan *Fragment, 1000),
+		startCircuitWith: make(chan string),
 	}
 }
 
@@ -97,6 +116,31 @@ func (s *countService) getAllReads() (n int) {
 	for _, count := range countsSlice {
 		n += count.reads
 	}
+	return
+}
+
+func (s *countService) incrementReads(cktName string) (tot int) {
+	s.stats.Update(func(stats map[string]*counts) {
+		c, ok := stats[cktName]
+		if !ok {
+			c = &counts{}
+			stats[cktName] = c
+		}
+		c.reads++
+		tot = c.reads
+	})
+	return
+}
+func (s *countService) incrementSends(cktName string) (tot int) {
+	s.stats.Update(func(stats map[string]*counts) {
+		c, ok := stats[cktName]
+		if !ok {
+			c = &counts{}
+			stats[cktName] = c
+		}
+		c.sends++
+		tot = c.sends
+	})
 	return
 }
 
@@ -121,20 +165,20 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 		//vv("%v: top of select", name)
 		select {
 		case <-done0:
-			//zz("%v: done0! cause: '%v'", name, ctx0.Cause())
+			//vv("%v: done0! cause: '%v'", name, context.Cause(ctx0))
 			return ErrContextCancelled
 			//case <-s.halt.ReqStop.Chan:
 			//	//zz("%v: halt.ReqStop seen", name)
 			//	return ErrHaltRequested
 
 		// new Circuit connection arrives
-		case peer := <-newCircuitCh:
-			//vv("%v: got from newCircuitCh! service sees new peerURL: '%v'", name, peer.PeerURL)
+		case rpeer := <-newCircuitCh:
+			vv("%v: got from newCircuitCh! service sees new peerURL: '%v'", name, rpeer.PeerURL)
 
 			// talk to this peer on a separate goro if you wish; or just a func
-			go func(peer *RemotePeer) {
+			go func(rpeer *RemotePeer) {
 
-				ckt, ctx, err := peer.IncomingCircuit()
+				ckt, ctx, err := rpeer.IncomingCircuit()
 				if err != nil {
 					//zz("%v: RemotePeer err from IncomingCircuit: '%v'; stopping", name, err)
 					return
@@ -153,20 +197,24 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 				////zz("IncomingCircuit got LocalCircuitURL = '%v'", ckt.LocalCircuitURL())
 				//done := ctx.Done()
 
+				// this is the passive side, as we <-newCircuitCh
 				for {
 					select {
+					case frag := <-s.sendch:
+						// external test code requests that we send.
+						vv("%v: (ckt '%v') (passive) got on sendch, sending to '%v'; from '%v'", name, ckt.Name, ckt.RemoteCircuitURL(), ckt.LocalCircuitURL())
+
+						err := rpeer.SendOneWay(ckt, frag, 0)
+						panicOn(err)
+						s.incrementSends(ckt.Name)
+						s.dropcopy_send_req <- frag
+
 					case frag := <-ckt.Reads:
-						//vv("%v: (ckt %v) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
 						_ = frag
-						s.stats.Update(func(stats map[string]*counts) {
-							c, ok := stats[ckt.Name]
-							if !ok {
-								c = &counts{}
-								stats[ckt.Name] = c
-							}
-							c.reads++
-						})
+						tot := s.incrementReads(ckt.Name)
+						vv("%v: (ckt %v) (passive) ckt.Reads (total %v) sees frag:'%s'", name, ckt.Name, tot, frag)
 						s.readch <- frag // buffered 1000 so will not block til then.
+						s.dropcopy_reads <- frag
 
 					case fragerr := <-ckt.Errors:
 						//zz("%v: (ckt '%v') fragerr = '%v'", name, ckt.Name, fragerr)
@@ -189,7 +237,35 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 					}
 				}
 
-			}(peer)
+			}(rpeer)
+
+		case remoteURL := <-s.startCircuitWith:
+			vv("%v: requested startCircuitWith: '%v'", name, remoteURL)
+			ckt, ctx, err := myPeer.NewCircuitToPeerURL(fmt.Sprintf("cicuit-init-by:%v:%v", name, s.nextCktNo), remoteURL, nil, 0)
+			s.nextCktNo++
+			panicOn(err)
+			go func() {
+				// this is the active side, as we called NewCircuitToPeerURL()
+				for {
+					select {
+					case <-ctx.Done():
+						//vv("%v: (ckt '%v') (active) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx))
+						return
+					case frag := <-ckt.Reads:
+						seen := s.incrementReads(ckt.Name)
+						vv("%v: (ckt '%v') (active) saw read! total= %v", name, ckt.Name, seen)
+						s.readch <- frag
+						s.dropcopy_reads <- frag
+
+					case fragerr := <-ckt.Errors:
+						_ = fragerr
+						panic("not expecting errors yet!")
+					case <-ckt.Halt.ReqStop.Chan:
+						vv("%v: (ckt '%v') (active) ckt halt requested.", name, ckt.Name)
+						return
+					}
+				}
+			}()
 		}
 	}
 	return nil
@@ -212,44 +288,63 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		defer srv_lpb.Close()
 
 		// establish a circuit
-		cktname := "409ckt_first_ckt"
+		j.clis.startCircuitWith <- srv_lpb.URL()
 
-		ckt, _, err := cli_lpb.NewCircuitToPeerURL(cktname, srv_lpb.URL(), nil, 0)
-		panicOn(err)
-		defer ckt.Close()
+		// prevent race with client starting circuit
+		<-j.srvs.dropcopy_reads
+		// we know the server has read a frag now.
 
 		if got, want := cli_lpb.OpenCircuitCount(), 1; got != want {
 			t.Fatalf("expected 1 open circuit on cli, got: '%v'", got)
 		}
-		// we can race with the server getting the read, so wait for a read.
-		<-j.srvs.readch
 		if got, want := srv_lpb.OpenCircuitCount(), 1; got != want {
 			t.Fatalf("expected 1 open circuit on srv, got: '%v'", got)
 		}
-
+		//vv("OK!")
 		// send and read.
+
+		// establish the baseline.
 
 		// starting: client has read zero.
 		if got, want := j.clis.getAllReads(), 0; got != want {
-			t.Fatalf("expected 0 reads to start, client got: %v", got)
+			t.Fatalf("expected %v reads to start, client got: %v", want, got)
 		}
 		// setting up the circuit means the server got a CallPeerStartCircuit frag.
 		// to start with
 		if got, want := j.srvs.getAllReads(), 1; got != want {
-			t.Fatalf("expected 1 reads to start, server got: %v", got)
+			t.Fatalf("expected %v reads to start, server got: %v", want, got)
 		}
 		j.srvs.reset() // set the server count to zero to start with.
 		if got, want := j.srvs.getAllReads(), 0; got != want {
-			t.Fatalf("expected 0 reads to start, server got: %v", got)
+			t.Fatalf("expected %v reads after reset(), server got: %v", want, got)
 		}
 
 		// and we can simply count the size of the readch, since it is buffered 1000
 		if got, want := len(j.clis.readch), 0; got != want {
-			t.Fatalf("expected 0 in readch to start, clis got: %v", got)
+			t.Fatalf("expected %v in readch to start, clis got: %v", want, got)
 		}
-		if got, want := len(j.srvs.readch), 0; got != want {
-			t.Fatalf("expected 0 in readch to start, srvs got: %v", got)
+		if got, want := len(j.srvs.readch), 1; got != want {
+			t.Fatalf("expected %v in readch to start, srvs got: %v", want, got)
 		}
+
+		// have server send 1 to client.
+		frag := NewFragment()
+		frag.FragPart = 0
+		j.srvs.sendch <- frag
+
+		// wait for it to get the client
+		select {
+		case <-j.clis.dropcopy_reads:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("client did not get their dropcopy after 2 sec")
+		}
+		if got, want := len(j.clis.readch), 1; got != want {
+			t.Fatalf("expected cli readch to have %v, got: %v", want, got)
+		}
+		if got, want := len(j.srvs.readch), 1; got != want {
+			t.Fatalf("expected srv readch to have %v, got: %v", want, got)
+		}
+
 	})
 
 }

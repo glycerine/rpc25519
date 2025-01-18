@@ -375,6 +375,9 @@ func (peerAPI *peerAPI) newLocalPeer(
 		QueryCh:               make(chan *QueryLocalPeerPump),
 	}
 
+	// get a closed channel when Client/Server starts going down.
+	u.GetHostsReqStopChan().AddChild(pb.Halt.ReqStop)
+
 	// service reads for local.
 	u.GetReadsForToPeerID(pb.ReadsIn, peerID)
 	u.GetErrorsForToPeerID(pb.ErrorsIn, peerID)
