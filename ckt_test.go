@@ -541,9 +541,10 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
 		}
 
-		vv("we have 3 open circuits between the same two peers. do some sends.")
+		vv("we have 3 open circuits between the same two peers. do some sends on each")
 
 		// server to client, do N sends
+
 		N := 10
 		drain(j.clis.dropcopy_reads)
 		j.srvs.passiveSideSendN <- N
@@ -594,6 +595,11 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		if got, want := srv_lpb.OpenCircuitCount(), 3; got != want {
 			t.Fatalf("expected %v open circuit on srv, got: '%v'", want, got)
 		}
+
+		//ckts := []*Circuit{}
+		//for useCkt := range 0; useCkt < 3; useCkt++
+		// but which ckt is doing the sends? can we specify it from here?
+		// request it by name?
 
 		//select {}
 
