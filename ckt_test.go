@@ -97,6 +97,8 @@ type countService struct {
 	startAnotherCkt            chan *Fragment
 	passiveSideStartAnotherCkt chan *Fragment
 
+	passiveSideSendN chan int
+
 	startCircuitWith chan string // remote URL to contact.
 	nextCktNo        int
 }
@@ -112,6 +114,7 @@ func newcountService() *countService {
 		startCircuitWith:           make(chan string),
 		startAnotherCkt:            make(chan *Fragment),
 		passiveSideStartAnotherCkt: make(chan *Fragment),
+		passiveSideSendN:           make(chan int),
 	}
 }
 
@@ -209,6 +212,18 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 				// this is the passive side, as we <-newCircuitCh
 				for {
 					select {
+					case n := <-s.passiveSideSendN:
+						vv("%v: (ckt '%v') (passive) passiveSideSendN = %v requsted!: '%v'", name, ckt.Name, n)
+						for i := range n {
+							frag := NewFragment()
+							frag.FragPart = int64(i)
+							err := ckt.SendOneWay(frag, 0)
+							panicOn(err)
+							s.incrementSends(ckt.Name)
+							s.sendch <- frag
+							s.dropcopy_sends <- frag
+						}
+
 					case frag := <-s.passiveSideStartAnotherCkt:
 
 						vv("%v: (ckt '%v') (passive) passiveSideStartAnotherCkt requsted!: '%v'", name, ckt.Name, frag.FragSubject)
@@ -484,13 +499,13 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		frag = NewFragment()
 		ckt3name := "server-started-3rd-ckt-to-same"
 		frag.FragSubject = ckt3name
-		j.srvs.passiveSideStartAnotherCkt <- frag // passive specific? needed?
+		j.srvs.passiveSideStartAnotherCkt <- frag
 
 		// prevent race with client starting circuit
 		<-j.clis.dropcopy_reads
 		// we know the server has read another frag now.
 
-		// verify open circuit count
+		// verify open circuit count went to 3.
 		if got, want := cli_lpb.OpenCircuitCount(), 3; got != want {
 			t.Fatalf("expected %v open circuit on cli, got: '%v'", want, got)
 		}
@@ -509,6 +524,31 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 			t.Fatalf("expected cli sendch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.srvs.sendch), 1; got != want {
+			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
+		}
+
+		vv("we have 3 open circuits between the same two peers. do some sends.")
+
+		// server to client, do N sends
+		N := 10
+		drain(j.clis.dropcopy_reads)
+		j.srvs.passiveSideSendN <- N
+
+		for range N {
+			<-j.clis.dropcopy_reads
+		}
+		// verify client stats/ readch incremented by N
+		// assert readch state on client has incremented.
+		if got, want := len(j.clis.readch), 2+N; got != want {
+			t.Fatalf("expected cli readch to have %v, got: %v", want, got)
+		}
+		if got, want := len(j.srvs.readch), 3; got != want {
+			t.Fatalf("expected srv readch to have %v, got: %v", want, got)
+		}
+		if got, want := len(j.clis.sendch), 2; got != want {
+			t.Fatalf("expected cli sendch to have %v, got: %v", want, got)
+		}
+		if got, want := len(j.srvs.sendch), 1+N; got != want {
 			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
 		}
 
