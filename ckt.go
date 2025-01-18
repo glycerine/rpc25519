@@ -33,6 +33,8 @@ type Circuit struct {
 	LocalServiceName  string
 	RemoteServiceName string
 
+	RemoteNetAddr string
+
 	CircuitID string // aka Message.HDR.CallID
 	Ctx       context.Context
 	Canc      context.CancelCauseFunc
@@ -565,6 +567,7 @@ func (lpb *LocalPeer) newCircuit(
 		CircuitID:         cID,
 		LocalPeerID:       lpb.PeerID,
 		RemotePeerID:      rpb.PeerID,
+		RemoteNetAddr:     rpb.NetAddr,
 		Reads:             reads,
 		Errors:            errors,
 		Ctx:               ctx2,
