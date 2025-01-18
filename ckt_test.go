@@ -106,7 +106,7 @@ type countService struct {
 	dropcopy_sends chan *Fragment
 	//dropcopy_sent     chan *Fragment
 
-	startAnotherCkt            chan *Fragment
+	activeSideStartAnotherCkt  chan *Fragment
 	passiveSideStartAnotherCkt chan *Fragment
 
 	passiveSideSendN chan int
@@ -121,6 +121,10 @@ type countService struct {
 	activeSideShutdownCkt                chan *Fragment
 	activeSideShutdownCktAckReq          chan *Fragment
 	passive_side_ckt_saw_remote_shutdown chan *Fragment
+
+	passiveSideShutdownCkt              chan *Fragment
+	passiveSideShutdownCktAckReq        chan *Fragment
+	active_side_ckt_saw_remote_shutdown chan *Fragment
 }
 
 func newcountService() *countService {
@@ -135,20 +139,27 @@ func newcountService() *countService {
 		send_errorch:         make(chan *Fragment, 1000),
 		send_dropcopy_errors: make(chan *Fragment, 1000),
 
-		requestToSend:              make(chan *Fragment),
-		dropcopy_sends:             make(chan *Fragment, 1000),
-		dropcopy_reads:             make(chan *Fragment, 1000),
-		startCircuitWith:           make(chan string),
-		startAnotherCkt:            make(chan *Fragment),
+		requestToSend:    make(chan *Fragment),
+		dropcopy_sends:   make(chan *Fragment, 1000),
+		dropcopy_reads:   make(chan *Fragment, 1000),
+		startCircuitWith: make(chan string),
+
+		activeSideStartAnotherCkt:  make(chan *Fragment),
 		passiveSideStartAnotherCkt: make(chan *Fragment),
-		passiveSideSendN:           make(chan int),
-		activeSideSendN:            make(chan int),
-		activeSideSendCktError:     make(chan string),
-		passiveSideSendCktError:    make(chan string),
+
+		passiveSideSendN: make(chan int),
+		activeSideSendN:  make(chan int),
+
+		activeSideSendCktError:  make(chan string),
+		passiveSideSendCktError: make(chan string),
 
 		activeSideShutdownCkt:                make(chan *Fragment),
 		activeSideShutdownCktAckReq:          make(chan *Fragment, 1000),
 		passive_side_ckt_saw_remote_shutdown: make(chan *Fragment, 1000),
+
+		passiveSideShutdownCkt:              make(chan *Fragment),
+		passiveSideShutdownCktAckReq:        make(chan *Fragment, 1000),
+		active_side_ckt_saw_remote_shutdown: make(chan *Fragment, 1000),
 	}
 }
 
@@ -286,7 +297,9 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 				// this is the passive side, as we <-newCircuitCh
 				for {
 					select {
+					case <-s.passiveSideShutdownCkt:
 
+						return
 					case errReq := <-s.passiveSideSendCktError:
 						frag := NewFragment()
 						frag.Err = errReq
@@ -379,6 +392,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 					vv("%v: active side ckt '%v' shutting down", name, ckt.Name)
 					ckt.Close()
 					s.activeSideShutdownCktAckReq <- nil
+					s.active_side_ckt_saw_remote_shutdown <- nil
 				}()
 				ctx := ckt.Context
 				for {
@@ -407,8 +421,8 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 							s.dropcopy_sends <- frag
 						}
 
-					case frag := <-s.startAnotherCkt:
-						vv("%v: (ckt '%v') (active) startAnotherCkt requsted!: '%v'", name, ckt.Name, frag.FragSubject)
+					case frag := <-s.activeSideStartAnotherCkt:
+						vv("%v: (ckt '%v') (active) activeSideStartAnotherCkt requsted!: '%v'", name, ckt.Name, frag.FragSubject)
 						ckt2, _, err := ckt.NewCircuit(frag.FragSubject, frag)
 						panicOn(err)
 						vv("%v: (ckt '%v') (active) created ckt2 to: '%v'", name, ckt.Name, ckt2.RemoteCircuitURL())
@@ -478,10 +492,10 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		// we know the server has read a frag now.
 
 		if got, want := cli_lpb.OpenCircuitCount(), 1; got != want {
-			t.Fatalf("expected 1 open circuit on cli, got: '%v'", got)
+			t.Fatalf("error: expected 1 open circuit on cli, got: '%v'", got)
 		}
 		if got, want := srv_lpb.OpenCircuitCount(), 1; got != want {
-			t.Fatalf("expected 1 open circuit on srv, got: '%v'", got)
+			t.Fatalf("error: expected 1 open circuit on srv, got: '%v'", got)
 		}
 		//vv("OK!")
 		// send and read.
@@ -490,42 +504,42 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 
 		// starting: client has read zero.
 		if got, want := j.clis.getAllReads(), 0; got != want {
-			t.Fatalf("expected %v reads to start, client got: %v", want, got)
+			t.Fatalf("error: expected %v reads to start, client got: %v", want, got)
 		}
 		// setting up the circuit means the server got a CallPeerStartCircuit frag.
 		// to start with
 		if got, want := j.srvs.getAllReads(), 1; got != want {
-			t.Fatalf("expected %v reads to start, server got: %v", want, got)
+			t.Fatalf("error: expected %v reads to start, server got: %v", want, got)
 		}
 		j.srvs.reset() // set the server count to zero to start with.
 		if got, want := j.srvs.getAllReads(), 0; got != want {
-			t.Fatalf("expected %v reads after reset(), server got: %v", want, got)
+			t.Fatalf("error: expected %v reads after reset(), server got: %v", want, got)
 		}
 
 		// and the send side. verify at 1 then reset to zero
 		if got, want := j.clis.getAllSends(), 1; got != want {
-			t.Fatalf("expected %v sends to start, client got: %v", want, got)
+			t.Fatalf("error: expected %v sends to start, client got: %v", want, got)
 		}
 		j.clis.reset() // set the server count to zero to start with.
 		if got, want := j.clis.getAllSends(), 0; got != want {
-			t.Fatalf("expected %v sends after reset, cli got: %v", want, got)
+			t.Fatalf("error: expected %v sends after reset, cli got: %v", want, got)
 		}
 		if got, want := j.srvs.getAllSends(), 0; got != want {
-			t.Fatalf("expected %v sends to start, server got: %v", want, got)
+			t.Fatalf("error: expected %v sends to start, server got: %v", want, got)
 		}
 
 		// and we can simply count the size of the readch, since it is buffered 1000
 		if got, want := len(j.clis.readch), 0; got != want {
-			t.Fatalf("expected %v in readch to start, clis got: %v", want, got)
+			t.Fatalf("error: expected %v in readch to start, clis got: %v", want, got)
 		}
 		if got, want := len(j.srvs.readch), 1; got != want {
-			t.Fatalf("expected %v in readch to start, srvs got: %v", want, got)
+			t.Fatalf("error: expected %v in readch to start, srvs got: %v", want, got)
 		}
 		if got, want := len(j.clis.sendch), 1; got != want {
-			t.Fatalf("expected cli sendch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected cli sendch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.srvs.sendch), 0; got != want {
-			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected srv sendch to have %v, got: %v", want, got)
 		}
 
 		// have server send 1 to client.
@@ -540,16 +554,16 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 			t.Fatalf("client did not get their dropcopy after 2 sec")
 		}
 		if got, want := len(j.clis.readch), 1; got != want {
-			t.Fatalf("expected cli readch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected cli readch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.srvs.readch), 1; got != want {
-			t.Fatalf("expected srv readch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected srv readch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.clis.sendch), 1; got != want {
-			t.Fatalf("expected cli sendch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected cli sendch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.srvs.sendch), 1; got != want {
-			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected srv sendch to have %v, got: %v", want, got)
 		}
 
 		vv("okay up to here.")
@@ -569,16 +583,16 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 
 		// assert readch/sendch state
 		if got, want := len(j.clis.readch), 1; got != want {
-			t.Fatalf("expected cli readch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected cli readch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.srvs.readch), 2; got != want {
-			t.Fatalf("expected srv readch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected srv readch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.clis.sendch), 2; got != want {
-			t.Fatalf("expected cli sendch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected cli sendch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.srvs.sendch), 1; got != want {
-			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected srv sendch to have %v, got: %v", want, got)
 		}
 
 		vv("ask the client to start another circuit to the same remote.")
@@ -587,7 +601,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		frag = NewFragment()
 		ckt2name := "client-started-2nd-ckt-to-same"
 		frag.FragSubject = ckt2name
-		j.clis.startAnotherCkt <- frag
+		j.clis.activeSideStartAnotherCkt <- frag
 
 		// prevent race with client starting circuit
 		<-j.srvs.dropcopy_reads
@@ -595,24 +609,24 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 
 		// verify open circuit count
 		if got, want := cli_lpb.OpenCircuitCount(), 2; got != want {
-			t.Fatalf("expected %v open circuit on cli, got: '%v'", want, got)
+			t.Fatalf("error: expected %v open circuit on cli, got: '%v'", want, got)
 		}
 		if got, want := srv_lpb.OpenCircuitCount(), 2; got != want {
-			t.Fatalf("expected %v open circuit on srv, got: '%v'", want, got)
+			t.Fatalf("error: expected %v open circuit on srv, got: '%v'", want, got)
 		}
 
 		// assert readch state on sever has incremented.
 		if got, want := len(j.clis.readch), 1; got != want {
-			t.Fatalf("expected cli readch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected cli readch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.srvs.readch), 3; got != want {
-			t.Fatalf("expected srv readch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected srv readch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.clis.sendch), 2; got != want {
-			t.Fatalf("expected cli sendch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected cli sendch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.srvs.sendch), 1; got != want {
-			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected srv sendch to have %v, got: %v", want, got)
 		}
 
 		vv("ask the server to start (a third) circuit to the same remote.")
@@ -630,24 +644,24 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 
 		// verify open circuit count went to 3.
 		if got, want := cli_lpb.OpenCircuitCount(), 3; got != want {
-			t.Fatalf("expected %v open circuit on cli, got: '%v'", want, got)
+			t.Fatalf("error: expected %v open circuit on cli, got: '%v'", want, got)
 		}
 		if got, want := srv_lpb.OpenCircuitCount(), 3; got != want {
-			t.Fatalf("expected %v open circuit on srv, got: '%v'", want, got)
+			t.Fatalf("error: expected %v open circuit on srv, got: '%v'", want, got)
 		}
 
 		// assert readch state on client has incremented.
 		if got, want := len(j.clis.readch), 2; got != want {
-			t.Fatalf("expected cli readch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected cli readch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.srvs.readch), 3; got != want {
-			t.Fatalf("expected srv readch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected srv readch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.clis.sendch), 2; got != want {
-			t.Fatalf("expected cli sendch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected cli sendch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.srvs.sendch), 1; got != want {
-			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected srv sendch to have %v, got: %v", want, got)
 		}
 
 		vv("we have 3 open circuits between the same two peers. do some sends on each")
@@ -663,16 +677,16 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		}
 		// verify client readch incremented by N
 		if got, want := len(j.clis.readch), 2+N; got != want {
-			t.Fatalf("expected cli readch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected cli readch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.srvs.readch), 3; got != want {
-			t.Fatalf("expected srv readch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected srv readch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.clis.sendch), 2; got != want {
-			t.Fatalf("expected cli sendch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected cli sendch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.srvs.sendch), 1+N; got != want {
-			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected srv sendch to have %v, got: %v", want, got)
 		}
 
 		// client to server, do N sends
@@ -685,24 +699,24 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 
 		// verify server readch incremented by N
 		if got, want := len(j.clis.readch), 2+N; got != want {
-			t.Fatalf("expected cli readch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected cli readch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.srvs.readch), 3+N; got != want {
-			t.Fatalf("expected srv readch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected srv readch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.clis.sendch), 2+N; got != want {
-			t.Fatalf("expected cli sendch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected cli sendch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.srvs.sendch), 1+N; got != want {
-			t.Fatalf("expected srv sendch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected srv sendch to have %v, got: %v", want, got)
 		}
 
 		// verify open circuit count stayed at 3
 		if got, want := cli_lpb.OpenCircuitCount(), 3; got != want {
-			t.Fatalf("expected %v open circuit on cli, got: '%v'", want, got)
+			t.Fatalf("error: expected %v open circuit on cli, got: '%v'", want, got)
 		}
 		if got, want := srv_lpb.OpenCircuitCount(), 3; got != want {
-			t.Fatalf("expected %v open circuit on srv, got: '%v'", want, got)
+			t.Fatalf("error: expected %v open circuit on srv, got: '%v'", want, got)
 		}
 
 		// CallPeerError should get returned on the ckt.Errors not ctk.Reads.
@@ -719,7 +733,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		nSrvErr := len(j.srvs.read_errorch)
 		vv("got past server reading from ckt.Errors: nSrvErr = %v", nSrvErr)
 		if got, want := nSrvErr, 1; got != want {
-			t.Fatalf("expected nSrvErr: %v , got: '%v'", want, got)
+			t.Fatalf("error: expected nSrvErr: %v , got: '%v'", want, got)
 		}
 
 		vv("server to client, send one error")
@@ -734,19 +748,20 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		nCliErr := len(j.clis.read_errorch)
 		vv("got past server reading from ckt.Errors: nCliErr = %v", nCliErr)
 		if got, want := nCliErr, 1; got != want {
-			t.Fatalf("expected nCliErr: %v , got: '%v'", want, got)
+			t.Fatalf("error: expected nCliErr: %v , got: '%v'", want, got)
 		}
 
 		vv("====  ckt shutdown on one side should get propagated to the other side.")
 
 		// verify we have 3 open channels now
 		if got, want := cli_lpb.OpenCircuitCount(), 3; got != want {
-			t.Fatalf("expected %v open circuit on cli, got: '%v'", want, got)
+			t.Fatalf("error: expected %v open circuit on cli, got: '%v'", want, got)
 		}
 		if got, want := srv_lpb.OpenCircuitCount(), 3; got != want {
-			t.Fatalf("expected %v open circuit on srv, got: '%v'", want, got)
+			t.Fatalf("error: expected %v open circuit on srv, got: '%v'", want, got)
 		}
 
+		// (passive) server side shuts down first
 		// we let whichever ckt goro gets it shut down
 		drain(j.srvs.passive_side_ckt_saw_remote_shutdown)
 		j.clis.activeSideShutdownCkt <- nil
@@ -754,13 +769,27 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		<-j.srvs.passive_side_ckt_saw_remote_shutdown
 
 		// verify open circuit count only went down to 2, not 0.
-		vv(" cli_lpb.OpenCircuitCount() = %v", cli_lpb.OpenCircuitCount())
-		vv(" srv_lpb.OpenCircuitCount() = %v", srv_lpb.OpenCircuitCount())
+		vv(" cli_lpb.OpenCircuitCount() = %v ; srv_lpb.OpenCircuitCount() = %v", cli_lpb.OpenCircuitCount(), srv_lpb.OpenCircuitCount())
+
 		if got, want := cli_lpb.OpenCircuitCount(), 2; got != want {
-			t.Fatalf("expected %v open circuit on cli, got: '%v'", want, got)
+			t.Fatalf("error: expected %v open circuit on cli, got: '%v'", want, got)
 		}
 		if got, want := srv_lpb.OpenCircuitCount(), 2; got != want {
-			t.Fatalf("expected %v open circuit on srv, got: '%v'", want, got)
+			t.Fatalf("error: expected %v open circuit on srv, got: '%v'", want, got)
+		}
+
+		// (active) client side shuts down first for the next ckt.
+		// we let whichever ckt goro gets it shut down
+		drain(j.clis.active_side_ckt_saw_remote_shutdown)
+		j.srvs.passiveSideShutdownCkt <- nil
+
+		<-j.clis.active_side_ckt_saw_remote_shutdown
+
+		if got, want := cli_lpb.OpenCircuitCount(), 1; got != want {
+			t.Fatalf("error: expected %v open circuit on cli, got: '%v'", want, got)
+		}
+		if got, want := srv_lpb.OpenCircuitCount(), 1; got != want {
+			t.Fatalf("error: expected %v open circuit on srv, got: '%v'", want, got)
 		}
 
 		//ckts := []*Circuit{}
