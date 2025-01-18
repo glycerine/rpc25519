@@ -268,7 +268,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 				//s.gotIncomingCkt <- ckt
 				//zz("%v: (ckt '%v') got past <-ckt for incoming ckt", name, ckt.Name)
 				defer func() {
-					//vv("%v: (ckt '%v') defer running! finishing new Circuit func.", name, ckt.Name) // seen on server
+					vv("%v: (ckt '%v') defer running! finishing new Circuit func.", name, ckt.Name) // seen on server
 					ckt.Close()
 					s.passive_side_ckt_saw_remote_shutdown <- nil
 				}()
@@ -370,11 +370,18 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 			var activeSide func(ckt *Circuit)
 			activeSide = func(ckt *Circuit) {
 				// this is the active side, as we called NewCircuitToPeerURL()
+				defer func() {
+					vv("%v: active side ckt '%v' shutting down", name, ckt.Name)
+					ckt.Halt.ReqStop.Close() // did not work!
+					// try next: ckt.Canc() // also did not work yet!
+					// ckt.Canc(fmt.Errorf("ckt '%v' shutting down", ckt.Name))
+				}()
 				ctx := ckt.Context
 				for {
 					select {
 					case frag := <-s.activeSideShutdownCkt:
 						s.activeSideShutdownCktAckReq <- frag
+						return
 
 					case errReq := <-s.activeSideSendCktError:
 						frag := NewFragment()
@@ -727,7 +734,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 			t.Fatalf("expected nCliErr: %v , got: '%v'", want, got)
 		}
 
-		// [ ] ckt shutdown on one side should get propagated to the other side.
+		vv("====  ckt shutdown on one side should get propagated to the other side.")
 
 		// we let whichever ckt goro gets it shut down
 		drain(j.srvs.passive_side_ckt_saw_remote_shutdown)
