@@ -1041,10 +1041,8 @@ type Server struct {
 	notifies *notifies
 	PeerAPI  *peerAPI // must be Exported to users!
 
-	lsn        io.Closer // net.Listener
-	halt       *idem.Halter
-	subHalters []*idem.Halter
-	haltMut    sync.Mutex // protects subHalters
+	lsn  io.Closer // net.Listener
+	halt *idem.Halter
 
 	remote2pair map[string]*rwPair
 	pair2remote map[*rwPair]string
@@ -1927,30 +1925,13 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 	return
 }
 
-func tellSubcomponentsToShutDown(subHalters []*idem.Halter, allowEach time.Duration) {
-	for _, sub := range subHalters {
-		sub.ReqStop.Close()
-	}
-	// give them a moment to do so: to
-	// gracefully tell peers they are going down.
-	for _, sub := range subHalters {
-		select {
-		case <-sub.Done.Chan:
-			continue
-		case <-time.After(allowEach):
-			// just proceed; don't want to wait too long.
-		}
-	}
-}
-
 // Close asks the Server to shut down.
 func (s *Server) Close() error {
 	//vv("Server.Close() '%v' called.", s.name)
 
-	// ask any sub components (peer pump loops) to stop.
-	s.haltMut.Lock()
-	tellSubcomponentsToShutDown(s.subHalters, 300*time.Millisecond)
-	s.haltMut.Unlock()
+	// ask any sub components (peer pump loops) to stop;
+	// give them all up to 500 msec.
+	s.halt.StopTreeAndWaitTilDone(500 * time.Millisecond)
 
 	if s.cfg.UseQUIC {
 		s.cfg.shared.mut.Lock()
@@ -2360,14 +2341,4 @@ func (s *Server) GetHostHalter() *idem.Halter {
 }
 func (s *Client) GetHostHalter() *idem.Halter {
 	return s.halt
-}
-func (s *Server) RegisterSubHalter(sub *idem.Halter) {
-	s.haltMut.Lock()
-	s.subHalters = append(s.subHalters, sub)
-	s.haltMut.Unlock()
-}
-func (s *Client) RegisterSubHalter(sub *idem.Halter) {
-	s.haltMut.Lock()
-	s.subHalters = append(s.subHalters, sub)
-	s.haltMut.Unlock()
 }

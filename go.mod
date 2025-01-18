@@ -11,7 +11,7 @@ require (
 	github.com/glycerine/base58 v0.24.2
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31
 	github.com/glycerine/greenpack v0.529.0
-	github.com/glycerine/idem v0.0.4
+	github.com/glycerine/idem v0.0.5
 	github.com/glycerine/ipaddr v0.2.4
 	github.com/glycerine/loquet v0.0.19
 	github.com/goccy/go-json v0.10.3

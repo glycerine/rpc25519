@@ -375,10 +375,12 @@ func (peerAPI *peerAPI) newLocalPeer(
 		QueryCh:               make(chan *QueryLocalPeerPump),
 	}
 
-	// get a closed channel when Client/Server starts going down.
+	// on host shutdown, they will call
+	// hhalt.StopTreeAndWaitTilDone() so
+	// we will get a ReqStop and wait until Done (or 500 msec)
+	// by adding our halter as a child of theirs.
 	hhalt := u.GetHostHalter()
-	hhalt.ReqStop.AddChild(pb.Halt.ReqStop)
-	u.RegisterSubHalter(pb.Halt)
+	hhalt.AddChild(pb.Halt)
 
 	// service reads for local.
 	u.GetReadsForToPeerID(pb.ReadsIn, peerID)
