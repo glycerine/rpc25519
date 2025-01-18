@@ -750,9 +750,15 @@ func (p *peerAPI) unlockedStartLocalPeer(
 		//vv("launching new peerServiceFunc invocation for '%v'", peerServiceName)
 		err := knownLocalPeer.peerServiceFunc(lpb, ctx1, newCircuitCh)
 
+		// TODO:
+		// 1) check for still live ckt and tell user to call defer ctk.Close()
+		// pump complains?
+		// 2) tell remote we have finished if not already: lpb.Close() below should do it.
+
 		//vv("peerServiceFunc has returned: '%v'; clean up the lbp!", peerServiceName)
 		canc1(fmt.Errorf("peerServiceFunc '%v' finished. returned err = '%v'", peerServiceName, err))
 		lpb.Close()
+		// this handles locking on its own.
 		knownLocalPeer.active.Del(localPeerID)
 
 	}()

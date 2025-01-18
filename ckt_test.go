@@ -9,6 +9,7 @@ import (
 	"time"
 
 	cv "github.com/glycerine/goconvey/convey"
+	"github.com/glycerine/idem"
 )
 
 var _ = fmt.Sprintf
@@ -80,6 +81,8 @@ type counts struct {
 }
 
 type countService struct {
+	halt *idem.Halter
+
 	// key is circuit name
 	stats *Mutexmap[string, *counts]
 
@@ -122,6 +125,7 @@ type countService struct {
 
 func newcountService() *countService {
 	return &countService{
+		halt:   idem.NewHalter(),
 		stats:  NewMutexmap[string, *counts](),
 		readch: make(chan *Fragment, 1000),
 		sendch: make(chan *Fragment, 1000),
@@ -236,8 +240,9 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 	_ = name // used when logging is on.
 
 	defer func() {
-		//vv("%v: end of start() inside defer, about the return/finish", name)
-		//s.halt.Done.Close()
+		vv("%v: end of start() inside defer, about the return/finish", name)
+		s.halt.ReqStop.Close()
+		s.halt.Done.Close()
 	}()
 
 	//vv("%v: start() top.", name)
@@ -268,7 +273,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 				//s.gotIncomingCkt <- ckt
 				//zz("%v: (ckt '%v') got past <-ckt for incoming ckt", name, ckt.Name)
 				defer func() {
-					vv("%v: (ckt '%v') defer running! finishing new Circuit func.", name, ckt.Name) // seen on server
+					vv("%v: (ckt '%v') defer running! finishing new Circuit func. stack=\n'%v'", name, ckt.Name, stack()) // seen on server
 					ckt.Close()
 					s.passive_side_ckt_saw_remote_shutdown <- nil
 				}()
@@ -734,18 +739,38 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 
 		vv("====  ckt shutdown on one side should get propagated to the other side.")
 
+		// verify we have 3 open channels now
+		if got, want := cli_lpb.OpenCircuitCount(), 3; got != want {
+			t.Fatalf("expected %v open circuit on cli, got: '%v'", want, got)
+		}
+		if got, want := srv_lpb.OpenCircuitCount(), 3; got != want {
+			t.Fatalf("expected %v open circuit on srv, got: '%v'", want, got)
+		}
+
 		// we let whichever ckt goro gets it shut down
 		drain(j.srvs.passive_side_ckt_saw_remote_shutdown)
 		j.clis.activeSideShutdownCkt <- nil
 
 		<-j.srvs.passive_side_ckt_saw_remote_shutdown
 
+		time.Sleep(time.Second)
+
+		// verify open circuit count only went down to 2, not 0.
+		vv(" cli_lpb.OpenCircuitCount() = %v", cli_lpb.OpenCircuitCount())
+		vv(" srv_lpb.OpenCircuitCount() = %v", srv_lpb.OpenCircuitCount())
+		if got, want := cli_lpb.OpenCircuitCount(), 2; got != want {
+			t.Fatalf("expected %v open circuit on cli, got: '%v'", want, got)
+		}
+		if got, want := srv_lpb.OpenCircuitCount(), 2; got != want {
+			t.Fatalf("expected %v open circuit on srv, got: '%v'", want, got)
+		}
+
 		//ckts := []*Circuit{}
 		//for useCkt := range 0; useCkt < 3; useCkt++
 		// but which ckt is doing the sends? can we specify it from here?
 		// request it by name?
 
-		//select {}
+		select {}
 
 	})
 
