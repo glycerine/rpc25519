@@ -69,8 +69,6 @@ func main() {
 
 	quiet = flag.Bool("quiet", false, "for profiling, do not log answer")
 
-	var readto = flag.Duration("read", 0, "timeout on reads")
-
 	var readfile = flag.Bool("readfile", false, "listen for files to write to disk; client should run -sendfile")
 
 	var servefile = flag.Bool("serve", false, "serve downloads; client should run -download")
@@ -108,7 +106,6 @@ func main() {
 	cfg.CertPath = *certPath
 	//cfg.ServerSendKeepAlive = time.Second * 5
 	cfg.PreSharedKeyPath = *psk
-	cfg.ReadTimeout = *readto
 	cfg.CompressionOff = *compressOff
 	cfg.CompressAlgo = *compressAlgo
 
