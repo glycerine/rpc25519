@@ -29,7 +29,7 @@ func Test024_RoundTrip_Using_NetRPC_API_TCP_and_http_CONNECT(t *testing.T) {
 			panicOn(setupPSK(path))
 			cfg.PreSharedKeyPath = path
 			cfg.ReadTimeout = 2 * time.Second
-			cfg.WriteTimeout = 2 * time.Second
+			//cfg.WriteTimeout = 2 * time.Second
 
 			cfg.ServerAddr = "127.0.0.1:0"
 			srv := NewServer("srv_test024", cfg)

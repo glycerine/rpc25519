@@ -376,7 +376,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 	var doPing bool
 	var pingEvery time.Duration
 	var pingWakeCh <-chan time.Time
-	keepAliveWriteTimeout := s.cfg.WriteTimeout
+	var keepAliveWriteTimeout time.Duration // := s.cfg.WriteTimeout
 
 	if s.cfg.ServerSendKeepAlive > 0 {
 		doPing = true
@@ -412,7 +412,8 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 
 		case msg := <-s.SendCh:
 			//vv("srv %v (%v) sendLoop got from s.SendCh, sending msg.HDR = '%v'", s.Server.name, s.from, msg.HDR.String())
-			err := w.sendMessage(conn, msg, &s.cfg.WriteTimeout)
+			//err := w.sendMessage(conn, msg, &s.cfg.WriteTimeout)
+			err := w.sendMessage(conn, msg, nil)
 			if err != nil {
 				// notify any short-time-waiting server push user.
 				// This is super useful to let goq retry jobs quickly.
@@ -992,7 +993,8 @@ func (s *Server) processWork(job *job) {
 	// goroutines. We've added a mutex
 	// inside sendMessage so our writes won't conflict
 	// with keep-alive pings.
-	err = w.sendMessage(conn, reply, &s.cfg.WriteTimeout)
+	//err = w.sendMessage(conn, reply, &s.cfg.WriteTimeout)
+	err = w.sendMessage(conn, reply, nil)
 	if err != nil {
 		alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, reply.HDR.Seqno)
 
@@ -1302,7 +1304,8 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 	msg.JobSerz = make([]byte, len(by))
 	copy(msg.JobSerz, by)
 	//vv("response JobSerz is len %v; blake3= '%v'", len(by), blake3OfBytesString(by))
-	err = job.w.sendMessage(p.Conn, msg, &p.cfg.WriteTimeout)
+	//err = job.w.sendMessage(p.Conn, msg, &p.cfg.WriteTimeout)
+	err = job.w.sendMessage(p.Conn, msg, nil)
 	if err != nil {
 		alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
 		// just let user try again?
@@ -2248,7 +2251,8 @@ func (s *serverSendDownloadHelper) sendDownloadPart(ctx context.Context, msg *Me
 	msg.HDR.Deadline, _ = ctx.Deadline()
 	msg.HDR.StreamPart = i
 
-	err := s.job.w.sendMessage(s.job.conn, msg, &s.srv.cfg.WriteTimeout)
+	//err := s.job.w.sendMessage(s.job.conn, msg, &s.srv.cfg.WriteTimeout)
+	err := s.job.w.sendMessage(s.job.conn, msg, nil)
 	if err != nil {
 		alwaysPrintf("serverSendDownloadHelper.sendDownloadPart error(): sendMessage got err = '%v'", err)
 	} else {
@@ -2262,7 +2266,8 @@ func (s *Server) respondToReqWithError(req *Message, job *job, description strin
 	req.JobSerz = nil
 	req.HDR.Typ = CallError
 	req.HDR.Subject = description
-	err := job.w.sendMessage(job.conn, req, &s.cfg.WriteTimeout)
+	//err := job.w.sendMessage(job.conn, req, &s.cfg.WriteTimeout)
+	err := job.w.sendMessage(job.conn, req, nil)
 	_ = err
 	// called by srv.go:893, for example.
 	alwaysPrintf("CallError being sent back: '%v'", req.HDR.String())

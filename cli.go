@@ -469,7 +469,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 	var doPing bool
 	var pingEvery time.Duration
 	var pingWakeCh <-chan time.Time
-	keepAliveWriteTimeout := c.cfg.WriteTimeout
+	var keepAliveWriteTimeout time.Duration // := c.cfg.WriteTimeout
 
 	if c.cfg.ClientSendKeepAlive > 0 {
 		//vv("client side pings are on")
@@ -505,7 +505,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 				// the garbage collector can recover unreferenced,
 				// unstopped timers. There is no reason to prefer NewTimer
 				// when After will do.
-				// If using pre go1.23, see
+				// If using < go1.23, see
 				// https://medium.com/@oboturov/golang-time-after-is-not-garbage-collected-4cbc94740082
 				// for a memory leak story.
 				pingWakeCh = time.After(lastPing.Add(pingEvery).Sub(now))
@@ -533,7 +533,8 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 				msg.HDR.Nc = conn
 			}
 			// Send the message
-			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
+			//if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
+			if err := w.sendMessage(conn, msg, nil); err != nil {
 				alwaysPrintf("Failed to send message: %v\n", err)
 				msg.LocalErr = err
 				if strings.Contains(err.Error(),
@@ -562,7 +563,8 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 			//vv("cli %v has had a round trip requested: GetOneRead is registering for seqno=%v: '%v'; part '%v'", c.name, seqno, msg, msg.HDR.StreamPart)
 			c.GetOneRead(seqno, msg.DoneCh)
 
-			if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
+			//if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
+			if err := w.sendMessage(conn, msg, nil); err != nil {
 				//vv("Failed to send message: %v", err)
 				msg.LocalErr = err
 				c.UngetOneRead(seqno, msg.DoneCh)
@@ -890,7 +892,7 @@ type Config struct {
 	// long as it takes than to set a WriteTimeout.
 	ConnectTimeout time.Duration
 	ReadTimeout    time.Duration
-	WriteTimeout   time.Duration
+	//WriteTimeout   time.Duration
 
 	ServerSendKeepAlive time.Duration
 	ClientSendKeepAlive time.Duration
