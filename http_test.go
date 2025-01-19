@@ -2,7 +2,6 @@ package rpc25519
 
 import (
 	"strings"
-	"time"
 
 	cv "github.com/glycerine/goconvey/convey"
 	"testing"
@@ -28,7 +27,7 @@ func Test024_RoundTrip_Using_NetRPC_API_TCP_and_http_CONNECT(t *testing.T) {
 			path := GetPrivateCertificateAuthDir() + sep + "psk.binary"
 			panicOn(setupPSK(path))
 			cfg.PreSharedKeyPath = path
-			cfg.ReadTimeout = 2 * time.Second
+			//cfg.ReadTimeout = 2 * time.Second
 			//cfg.WriteTimeout = 2 * time.Second
 
 			cfg.ServerAddr = "127.0.0.1:0"

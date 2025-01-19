@@ -3,8 +3,11 @@ package rpc25519
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
+	"os"
+	"strings"
 	"sync"
 	//"sync/atomic"
 	"time"
@@ -148,9 +151,8 @@ func newWorkspace(name string, maxMsgSize int, isServer bool, cfg *Config, spair
 	return w
 }
 
-// receiveMessage reads a framed message from conn
-// nil or 0 timeout means no timeout.
-func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Message, err error) {
+// receiveMessage reads a framed message from conn.
+func (w *workspace) readMessage(conn uConn) (msg *Message, err error) {
 
 	// our use of w.readMessage is isolated to the readLoop
 	// on the server and in the client. They are the only
@@ -172,7 +174,7 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 	//defer w.rwut.Unlock()
 
 	// Read the first 8 bytes for the magic/compression type check.
-	_, err = readFull(conn, w.magicCheck, timeout)
+	_, err = readFull(conn, w.magicCheck)
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +203,7 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 	}
 
 	// Read the next 8 bytes for the Message length.
-	_, err = readFull(conn, w.readLenMessageBytes, timeout)
+	_, err = readFull(conn, w.readLenMessageBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +218,7 @@ func (w *workspace) readMessage(conn uConn, timeout *time.Duration) (msg *Messag
 	// why not use the w.buf here? are we afraid of sharing memory/
 	// having messages over-write early messages?
 	message := make([]byte, messageLen)
-	_, err = readFull(conn, message, timeout)
+	_, err = readFull(conn, message)
 	if err != nil {
 		return nil, err
 	}
@@ -316,14 +318,23 @@ var zeroTime = time.Time{}
 // to account for the partial read
 // when numRead < len(buf), so as to discard a partially
 // read message and get to the start of the next message.
-func readFull(conn uConn, buf []byte, timeout *time.Duration) (numRead int, err error) {
+//
+// Generally we want our read loop to wait forever because
+// if they cut off a read mid-message, it is hard to recover.
+// We now pass back numRead to allow recovery attempts;
+// but this is not much because it is not neede now, generally.
+// Instead we just dedicate a goroutine known as
+// a readLoop to only reading from a uConn. This is much simpler,
+// and more robust.
+// See https://github.com/golang/go/issues/70395
+// and https://groups.google.com/g/golang-nuts/c/t-zT81BYg2o/m/CJRBaN45CgAJ
+// for how I learned this lesson.
+func readFull(conn uConn, buf []byte) (numRead int, err error) {
 
-	if timeout != nil && *timeout > 0 {
-		conn.SetReadDeadline(time.Now().Add(*timeout))
-	} else {
-		// do not let previous deadlines contaminate this one.
-		conn.SetReadDeadline(zeroTime)
-	}
+	// We never want a deadline, as this can corrupt
+	// the wire, leaving a half-read message on it.
+	// So not let any previous deadlines contaminate this one.
+	conn.SetReadDeadline(zeroTime)
 
 	need := len(buf)
 
@@ -336,6 +347,7 @@ func readFull(conn uConn, buf []byte, timeout *time.Duration) (numRead int, err 
 		}
 		if err != nil {
 			// can be a timeout, with partial read.
+			// Update: no, it cannot, after we no longer use deadlines!
 			return numRead, err
 		}
 	}
@@ -346,10 +358,13 @@ func readFull(conn uConn, buf []byte, timeout *time.Duration) (numRead int, err 
 // writeFull writes all bytes in buf to conn
 func writeFull(conn uConn, buf []byte, timeout *time.Duration) error {
 
+	haveDeadline := false
+	deadlineHit := false
 	if timeout != nil && *timeout > 0 {
 		line := time.Now().Add(*timeout)
 		//vv("writeFull setting deadline to '%v'", line)
 		conn.SetWriteDeadline(line)
+		haveDeadline = true
 	} else {
 		//vv("writeFull has no deadline")
 		// do not let previous deadlines contaminate this one.
@@ -367,7 +382,46 @@ func writeFull(conn uConn, buf []byte, timeout *time.Duration) error {
 			return nil
 
 		}
+		// INVAR: total < need
 		if err != nil {
+			if haveDeadline && total > 0 && !deadlineHit {
+				// Usually we won't have a deadline.
+				//
+				// We've tried to eliminate write deadlines everywhere
+				// because they can corrupt the wire.
+				//
+				// But: Pings still use write timeouts.
+				//
+				// If we have started writing, try to make it atomic.
+				// That is: if we hit the deadline *but* we have already started
+				// to write, let it finish, if it can, with just one more
+				// call/attempt to conn.Write().
+				//
+				// In other words, we try hard here not to send a half message
+				// over the network, since that will result eventually in the whole
+				// socket being torn down and rebuilt, which is expensive/slow
+				// because it involves several network roundtrips.
+				//
+				// In contrast, maybe we just needed a few more microseconds to
+				// finish this small write of a ping message, which is fast
+				// and cheap. So we allow exactly one retry if we've
+				// already started to send. We give it 100 msec at most.
+				if errors.Is(err, os.ErrDeadlineExceeded) {
+					// so just once we retry
+					deadlineHit = true
+					conn.SetWriteDeadline(time.Now().Add(time.Millisecond * 100))
+					continue
+				}
+				// old school detection too, since our net.Conn may be QUIC/other.
+				// Warning: keep these two in sync!
+				r := err.Error()
+				if strings.Contains(r, "timeout") ||
+					strings.Contains(r, "deadline exceeded") {
+					deadlineHit = true
+					conn.SetWriteDeadline(time.Now().Add(time.Millisecond * 100))
+					continue
+				}
+			}
 			//vv("writeFull returning err '%v'", err)
 			return err
 		}

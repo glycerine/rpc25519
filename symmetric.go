@@ -306,7 +306,7 @@ func symmetricServerVerifiedHandshake(
 	var cshake verifiedHandshake
 
 	timeout := time.Second * 10
-	cshakeTag, err := readLenThenShakeTag(conn, &cshake, &timeout)
+	cshakeTag, err := readLenThenShakeTag(conn, &cshake)
 	if err != nil {
 		err0 = fmt.Errorf("at server could not decode from client the client handshake: '%v'", err)
 		return
@@ -590,7 +590,7 @@ func symmetricClientVerifiedHandshake(
 
 	var sshake verifiedHandshake
 	var sshakeTag []byte
-	sshakeTag, err = readLenThenShakeTag(conn, &sshake, &timeout)
+	sshakeTag, err = readLenThenShakeTag(conn, &sshake)
 	if err != nil {
 		err0 = fmt.Errorf("at client, could not decode from server the server handshake: '%v'", err)
 		return
@@ -743,9 +743,9 @@ func sendLenThenBytesTag(conn uConn, shakeBytes []byte, timeout *time.Duration) 
 
 // fills in shake as the major aim.
 // verifies the hmac tag, keeps length of handshake sane, under maxHandshakeBytes.
-func readLenThenShakeTag(conn uConn, shake *verifiedHandshake, timeout *time.Duration) (tag []byte, err error) {
+func readLenThenShakeTag(conn uConn, shake *verifiedHandshake) (tag []byte, err error) {
 	var shakeBytes []byte
-	shakeBytes, tag, err = readLenThenBytesTag(conn, timeout)
+	shakeBytes, tag, err = readLenThenBytesTag(conn)
 
 	// after authentication, then msgp decode.
 	err = msgp.Decode(bytes.NewBuffer(shakeBytes), shake)
@@ -755,10 +755,10 @@ func readLenThenShakeTag(conn uConn, shake *verifiedHandshake, timeout *time.Dur
 	return
 }
 
-func readLenThenBytesTag(conn uConn, timeout *time.Duration) (shakeBytes, tag []byte, err error) {
+func readLenThenBytesTag(conn uConn) (shakeBytes, tag []byte, err error) {
 	// Read the first 8 bytes for the Message length
 	var lenby [8]byte
-	if _, err := readFull(conn, lenby[:], timeout); err != nil {
+	if _, err := readFull(conn, lenby[:]); err != nil {
 		return nil, nil, err
 	}
 	n := binary.BigEndian.Uint64(lenby[:])
@@ -770,7 +770,7 @@ func readLenThenBytesTag(conn uConn, timeout *time.Duration) (shakeBytes, tag []
 	}
 
 	shakeAndTagBytes := make([]byte, n+authTagLen)
-	if _, err := readFull(conn, shakeAndTagBytes, timeout); err != nil {
+	if _, err := readFull(conn, shakeAndTagBytes); err != nil {
 		return nil, nil, fmt.Errorf("readLenThenBytesTag error reading from conn: '%v'", err)
 	}
 
@@ -884,7 +884,7 @@ func readCrypticCaboose(conn uConn, cab *caboose, symkey []byte, timeout *time.D
 
 	// Read the first 8 bytes for the Message length
 	var lenby [8]byte
-	if _, err := readFull(conn, lenby[:], timeout); err != nil {
+	if _, err := readFull(conn, lenby[:]); err != nil {
 		return err
 	}
 	n := binary.BigEndian.Uint64(lenby[:])
@@ -905,7 +905,7 @@ func readCrypticCaboose(conn uConn, cab *caboose, symkey []byte, timeout *time.D
 
 	// Read the encrypted data
 	encrypted := make([]byte, n)
-	_, err = readFull(conn, encrypted, timeout)
+	_, err = readFull(conn, encrypted)
 	if err != nil {
 		return err
 	}

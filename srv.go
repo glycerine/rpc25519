@@ -465,14 +465,16 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		default:
 		}
 
-		// Does not work to use a timeout: we will get
+		// It does not work to use a timeout with readMessage.
+		// Under load, we will get
 		// partial reads which are then difficult to
 		// recover from, because we have not tracked
 		// how much of the rest of the incoming
 		// stream needs to be discarded!
-		// So: always read without a timeout (nil 2nd param)!
-		// Not: req, err := w.readMessage(conn, &s.cfg.ReadTimeout)
-		req, err := w.readMessage(conn, nil)
+		// So: always read without a timeout. Update:
+		// we've eliminated the readTimeout parameter all together
+		// to disallow it.
+		req, err := w.readMessage(conn)
 		if err == io.EOF {
 			//vv("server sees io.EOF from receiveMessage")
 			// close of socket before read of full message.

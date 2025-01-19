@@ -262,11 +262,11 @@ func newBlabber(
 
 // readMessage uses separate memory from sendMessage, so
 // it is safe to do both simultaneously.
-func (blab *blabber) readMessage(conn uConn, timeout *time.Duration) (msg *Message, err error) {
+func (blab *blabber) readMessage(conn uConn) (msg *Message, err error) {
 	if !blab.encrypt {
-		return blab.dec.work.readMessage(conn, timeout)
+		return blab.dec.work.readMessage(conn)
 	}
-	return blab.dec.readMessage(conn, timeout)
+	return blab.dec.readMessage(conn)
 }
 
 // sendMessage uses separate memory from readMessage, so
@@ -487,13 +487,13 @@ func (e *encoder) sendMessage(conn uConn, msg *Message, timeout *time.Duration) 
 // Read decrypts data from the underlying stream.
 // When a client actively reads from a net.Conn they are doing this.
 // Read(plain []byte) (n int, err error) {
-func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message, err error) {
+func (d *decoder) readMessage(conn uConn) (msg *Message, err error) {
 
 	d.mut.Lock()
 	defer d.mut.Unlock()
 
 	// Read the first 8 bytes for the Message length
-	_, err = readFull(conn, d.work.readLenMessageBytes, timeout)
+	_, err = readFull(conn, d.work.readLenMessageBytes)
 	if err != nil {
 		//vv("err = '%v'", err) // Application error 0x0 (remote): server shutdown
 		return
@@ -511,7 +511,7 @@ func (d *decoder) readMessage(conn uConn, timeout *time.Duration) (msg *Message,
 
 	// Read the encrypted data
 	encrypted := buf[:messageLen]
-	_, err = readFull(conn, encrypted, timeout)
+	_, err = readFull(conn, encrypted)
 	if err != nil {
 		return
 	}

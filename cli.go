@@ -313,9 +313,9 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		// recover from, because we have not tracked
 		// how much of the rest of the incoming
 		// stream needs to be discarded!
-		// So: always read without a timeout (nil 2nd param)!
-		//msg, err = w.readMessage(conn, &readTimeout)
-		msg, err = w.readMessage(conn, nil)
+		// So: always read without a timeout. In fact
+		// we've eliminated the parameter.
+		msg, err = w.readMessage(conn)
 		if err != nil {
 			if msg != nil {
 				panic("should not have a message if error back!")
@@ -880,20 +880,11 @@ type Config struct {
 	preSharedKey [32]byte
 	encryptPSK   bool
 
-	// These are timeouts for connection and transport tuning.
-	// The defaults of 0 mean wait forever.
-	//
-	// Generally we want our send loops to wait forever because
-	// if the cut off a send mid-message, it is hard to recover;
-	// we don't pass back up the stack how much of the broken
-	// message was sent, so the only thing we can do then is tear
-	// down the connection pair and re-connect. It is much
-	// better to just dedicate the sendLoops to writing for as
-	// long as it takes than to set a WriteTimeout.
+	// This is a timeout for dialing the initial socket connection.
+	// The default of 0 mean wait forever.
 	ConnectTimeout time.Duration
-	ReadTimeout    time.Duration
-	//WriteTimeout   time.Duration
 
+	//
 	ServerSendKeepAlive time.Duration
 	ClientSendKeepAlive time.Duration
 
