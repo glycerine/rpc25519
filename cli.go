@@ -1153,7 +1153,7 @@ func (c *Client) send(call *Call, octx context.Context) {
 		//vv("requestStopCh was set from octx")
 	} // else leave it nil.
 
-	reply, err := c.SendAndGetReply(req, requestStopCh)
+	reply, err := c.SendAndGetReply(req, requestStopCh, 0)
 	_ = reply
 	//vv("cli got reply '%v'; err = '%v'", reply, err)
 
@@ -1491,7 +1491,7 @@ func ErrShutdown() error {
 	return ErrShutdown2
 }
 
-var ErrDone = fmt.Errorf("done channel closed")
+var ErrCancelChanClosed = fmt.Errorf("rpc25519 error: request cancelled/done channel closed")
 var ErrTimeout = fmt.Errorf("time-out waiting for call to complete")
 var ErrCancelReqSent = fmt.Errorf("cancellation request sent")
 
@@ -1510,7 +1510,7 @@ func (c *Client) SendAndGetReplyWithTimeout(timeout time.Duration, req *Message)
 	ctx, cancelFunc := context.WithTimeout(context.Background(), timeout)
 	defer cancelFunc()
 
-	return c.SendAndGetReply(req, ctx.Done())
+	return c.SendAndGetReply(req, ctx.Done(), timeout)
 }
 
 // SendAndGetReplyWithCtx is like SendAndGetReply(), with
@@ -1541,14 +1541,15 @@ func (c *Client) SendAndGetReplyWithTimeout(timeout time.Duration, req *Message)
 // We leave it to the user to coordinate/update these two
 // ways of setting a dealine, knowing that the
 // req.HDR.Deadline will win, if set.
-func (c *Client) SendAndGetReplyWithCtx(ctx context.Context, req *Message) (reply *Message, err error) {
+func (c *Client) SendAndGetReplyWithCtx(ctx context.Context, req *Message, errWriteDur time.Duration) (reply *Message, err error) {
+
 	if req.HDR.Deadline.IsZero() {
 		deadline, ok := ctx.Deadline()
 		if ok {
 			req.HDR.Deadline = deadline
 		}
 	}
-	return c.SendAndGetReply(req, ctx.Done())
+	return c.SendAndGetReply(req, ctx.Done(), errWriteDur)
 }
 
 // SendAndGetReply starts a round-trip RPC call.
@@ -1569,13 +1570,17 @@ func (c *Client) SendAndGetReplyWithCtx(ctx context.Context, req *Message) (repl
 // handle the common case when we expect very
 // fast replies, if cancelJobCh is nil, we will
 // cancel the job if it has not finished after 10 seconds.
-func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (reply *Message, err error) {
+func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errWriteDur time.Duration) (reply *Message, err error) {
 
 	var defaultTimeout <-chan time.Time
 	// leave deafultTimeout nil if user supplied a cancelJobCh.
 	if cancelJobCh == nil {
 		// try hard not to get stuck when server goes away.
 		defaultTimeout = time.After(20 * time.Second)
+	}
+	var writeDurTimeoutChan <-chan time.Time
+	if errWriteDur > 0 {
+		writeDurTimeoutChan = time.After(errWriteDur)
 	}
 
 	var from, to string
@@ -1626,15 +1631,18 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		//vv("Client '%v' SendAndGetReply(req='%v') delivered on roundTripCh", c.name, req)
 	case <-cancelJobCh:
 		//vv("Client '%v' SendAndGetReply(req='%v'): cancelJobCh files before roundTripCh", c.name, req)
-		return nil, ErrDone
+		return nil, ErrCancelChanClosed
 
 	case <-hdrCtxDone:
 		// support passing in a req with req.HDR.Ctx set.
-		return nil, ErrDone
+		return nil, ErrCancelChanClosed
 
 	case <-defaultTimeout:
 		// definitely a timeout
 		//vv("ErrTimeout being returned from SendAndGetReply()")
+		return nil, ErrTimeout
+
+	case <-writeDurTimeoutChan:
 		return nil, ErrTimeout
 
 	case <-c.halt.ReqStop.Chan:
@@ -1667,13 +1675,17 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}) (rep
 		cancelReq := &Message{DoneCh: req.DoneCh}
 		cancelReq.HDR = req.HDR
 		cancelReq.HDR.Typ = CallCancelPrevious
-		c.oneWaySendHelper(cancelReq, nil)
+		c.oneWaySendHelper(cancelReq, nil, errWriteDur)
 		return nil, ErrCancelReqSent
 
 	case <-defaultTimeout:
 		// definitely a timeout
 		//vv("ErrTimeout being returned from SendAndGetReply(), 2nd part")
 		return nil, ErrTimeout
+
+	case <-writeDurTimeoutChan:
+		return nil, ErrTimeout
+
 	case <-c.halt.ReqStop.Chan:
 		//vv("Client '%v' SendAndGetReply(req='%v'): sees halt.ReqStop", c.name, req) // here
 
@@ -1744,6 +1756,7 @@ func (c *Client) UploadBegin(
 	ctx context.Context,
 	serviceName string,
 	msg *Message,
+	errWriteDur time.Duration,
 
 ) (strm *Uploader, err error) {
 
@@ -1754,7 +1767,7 @@ func (c *Client) UploadBegin(
 	seqno := c.nextSeqno()
 	msg.HDR.Seqno = seqno
 
-	err = c.OneWaySend(msg, cancelJobCh)
+	err = c.OneWaySend(msg, cancelJobCh, errWriteDur)
 	if err != nil {
 		return nil, err
 	}
@@ -1771,7 +1784,7 @@ func (c *Client) UploadBegin(
 
 var ErrAlreadyDone = fmt.Errorf("Uploader has already been marked done. No more sending is allowed.")
 
-func (s *Uploader) UploadMore(ctx context.Context, msg *Message, last bool) (err error) {
+func (s *Uploader) UploadMore(ctx context.Context, msg *Message, last bool, errWriteDur time.Duration) (err error) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
@@ -1795,7 +1808,7 @@ func (s *Uploader) UploadMore(ctx context.Context, msg *Message, last bool) (err
 	msg.HDR.Deadline = deadline
 
 	s.next++
-	return s.cli.OneWaySend(msg, ctx.Done())
+	return s.cli.OneWaySend(msg, ctx.Done(), errWriteDur)
 }
 
 // UniversalCliSrv allows protocol objects to exist
@@ -1872,7 +1885,7 @@ func (cli *Client) destAddrToSendCh(destAddr string) (sendCh chan *Message, halt
 // OneWaySend sends a message without expecting or waiting for a response.
 // The cancelJobCh is optional, and can be nil.
 // If msg.HDR.CallID is set, we will preserve it.
-func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err error) {
+func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}, errWriteDur time.Duration) (err error) {
 
 	var from, to string
 	if c.isQUIC {
@@ -1912,11 +1925,11 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}) (err erro
 	// generate a response.
 
 	//vv("one way send '%v'", msg.HDR.String())
-	return c.oneWaySendHelper(msg, cancelJobCh)
+	return c.oneWaySendHelper(msg, cancelJobCh, errWriteDur)
 }
 
 // cancel uses this too, so we don't change the CallID.
-func (c *Client) oneWaySendHelper(msg *Message, cancelJobCh <-chan struct{}) (err error) {
+func (c *Client) oneWaySendHelper(msg *Message, cancelJobCh <-chan struct{}, errWriteDur time.Duration) (err error) {
 
 	select {
 	case c.oneWayCh <- msg:
@@ -1935,7 +1948,7 @@ func (c *Client) oneWaySendHelper(msg *Message, cancelJobCh <-chan struct{}) (er
 		}
 
 	case <-cancelJobCh:
-		return ErrDone
+		return ErrCancelChanClosed
 
 	case <-c.halt.ReqStop.Chan:
 		c.halt.Done.Close()
@@ -2130,7 +2143,7 @@ func (s *Downloader) Close() {
 	req.HDR.Typ = CallCancelPrevious
 	req.HDR.CallID = s.callID
 	req.HDR.Seqno = s.seqno
-	s.cli.OneWaySend(req, nil) // best effort
+	s.cli.OneWaySend(req, nil, -1) // best effort
 }
 
 func (c *Client) NewDownloader(ctx context.Context, streamerName string) (downloader *Downloader, err error) {
@@ -2190,7 +2203,7 @@ func (b *Downloader) BeginDownload(ctx context.Context, path string) (err error)
 	//vv("Downloader.Begin(): sending req = '%v'", req.String())
 
 	// NOTE THE SEND IS HERE! ALL BE READY BY NOW!
-	err = cli.OneWaySend(req, ctx.Done())
+	err = cli.OneWaySend(req, ctx.Done(), 0)
 	if err != nil {
 		return
 	}
@@ -2238,7 +2251,8 @@ func (s *Bistreamer) Seqno() uint64 {
 	return s.seqno
 }
 
-func (s *Bistreamer) UploadMore(ctx context.Context, msg *Message, last bool) (err error) {
+func (s *Bistreamer) UploadMore(ctx context.Context, msg *Message, last bool, errWriteDur time.Duration) (err error) {
+
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
@@ -2261,7 +2275,7 @@ func (s *Bistreamer) UploadMore(ctx context.Context, msg *Message, last bool) (e
 	msg.HDR.Deadline = deadline
 
 	s.next++
-	return s.cli.OneWaySend(msg, ctx.Done())
+	return s.cli.OneWaySend(msg, ctx.Done(), errWriteDur)
 }
 
 // NewBistream creates a new Bistreamer but does no communication yet. Just for
@@ -2297,7 +2311,7 @@ func (b *Bistreamer) Close() {
 	req.HDR.Typ = CallCancelPrevious
 	req.HDR.CallID = b.callID
 	req.HDR.Seqno = b.seqno
-	b.cli.OneWaySend(req, nil) // best effort
+	b.cli.OneWaySend(req, nil, -1) // best effort
 }
 
 func (b *Bistreamer) Begin(ctx context.Context, req *Message) (err error) {
@@ -2336,7 +2350,7 @@ func (b *Bistreamer) Begin(ctx context.Context, req *Message) (err error) {
 	}
 
 	//vv("Bistreamer.Begin(): sending req = '%v'", req.String())
-	err = b.cli.OneWaySend(req, ctx.Done())
+	err = b.cli.OneWaySend(req, ctx.Done(), 0)
 	if err != nil {
 		return
 	}

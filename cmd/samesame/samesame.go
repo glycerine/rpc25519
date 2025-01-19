@@ -74,7 +74,7 @@ func main() {
 		req.HDR.ServiceName = serviceName
 		req.JobSerz = []byte("client says hello and requests this be echoed back with a timestamp!")
 
-		reply, err := cli.SendAndGetReply(req, nil)
+		reply, err := cli.SendAndGetReply(req, nil, 0)
 		if err != nil {
 			panic(err)
 		}

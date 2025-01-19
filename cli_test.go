@@ -968,7 +968,7 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 		var reply41 *Message
 
 		go func() {
-			reply41, cliErr41 = client.SendAndGetReply(req, ctx41.Done())
+			reply41, cliErr41 = client.SendAndGetReply(req, ctx41.Done(), 0)
 			//vv("client.Call() returned with cliErr = '%v'", cliErr)
 			close(cliErrIsSet41)
 		}()
@@ -1048,7 +1048,7 @@ func Test045_upload(t *testing.T) {
 		req.JobSerz = []byte("a=c(0")
 
 		// start the call
-		strm, err := client.UploadBegin(ctx45, uploaderName, req)
+		strm, err := client.UploadBegin(ctx45, uploaderName, req, 0)
 		panicOn(err)
 
 		originalStreamCallID := strm.CallID()
@@ -1066,7 +1066,7 @@ func Test045_upload(t *testing.T) {
 				streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
 			}
 			streamMsg.HDR.Args["blake3"] = blake3OfBytesString(streamMsg.JobSerz)
-			err = strm.UploadMore(ctx45, streamMsg, last)
+			err = strm.UploadMore(ctx45, streamMsg, last, 0)
 			panicOn(err)
 			//vv("client sent part %v, len %v : '%v'", i, len(streamMsg.JobSerz), string(streamMsg.JobSerz))
 		}
@@ -1314,7 +1314,7 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 				last = true
 				streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
 			}
-			err = bistream.UploadMore(ctx65, streamMsg, last)
+			err = bistream.UploadMore(ctx65, streamMsg, last, 0)
 			panicOn(err)
 			//vv("uploaded part %v", i)
 		}

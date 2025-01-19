@@ -44,7 +44,7 @@ func Test001_RoundTrip_SendAndGetReply_TCP(t *testing.T) {
 		req.HDR.ServiceName = serviceName
 		req.JobSerz = []byte("Hello from client!")
 
-		reply, err := cli.SendAndGetReply(req, nil)
+		reply, err := cli.SendAndGetReply(req, nil, 0)
 		panicOn(err)
 
 		vv("reply = %p", reply)
@@ -88,7 +88,7 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 		req.HDR.ServiceName = serviceName
 		req.JobSerz = []byte("Hello from client!")
 
-		reply, err := cli.SendAndGetReply(req, nil)
+		reply, err := cli.SendAndGetReply(req, nil, 0)
 		panicOn(err)
 		_ = reply
 		//vv("srv_test sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
@@ -98,7 +98,7 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 		req.HDR.ServiceName = "oneWayStreet"
 		req.JobSerz = []byte("One-way Hello from client!")
 
-		err = cli.OneWaySend(req, nil)
+		err = cli.OneWaySend(req, nil, 0)
 		panicOn(err)
 		<-oneWayStreetChan
 		cv.So(true, cv.ShouldEqual, true)
@@ -173,7 +173,7 @@ func Test003_client_notification_callbacks(t *testing.T) {
 			req.HDR.ServiceName = serviceName
 			req.JobSerz = []byte("Hello from client!")
 
-			reply, err := cli.SendAndGetReply(req, nil)
+			reply, err := cli.SendAndGetReply(req, nil, 0)
 			panicOn(err)
 			vv("server sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
 		}
@@ -302,7 +302,7 @@ func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 		req.HDR.ServiceName = serviceName
 		req.JobSerz = []byte("Hello from client!")
 
-		reply, err := cli.SendAndGetReply(req, nil)
+		reply, err := cli.SendAndGetReply(req, nil, 0)
 		panicOn(err)
 
 		vv("srv_test sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
@@ -313,7 +313,7 @@ func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 
 		req.JobSerz = []byte("One-way Hello from client!")
 
-		err = cli.OneWaySend(req, nil)
+		err = cli.OneWaySend(req, nil, 0)
 		panicOn(err)
 		<-oneWayStreetChan
 		cv.So(true, cv.ShouldEqual, true)
@@ -379,7 +379,7 @@ func Test011_PreSharedKey_over_TCP(t *testing.T) {
 		req.HDR.ServiceName = serviceName
 		req.JobSerz = []byte("Hello from client!")
 
-		reply, err := cli.SendAndGetReply(req, nil)
+		reply, err := cli.SendAndGetReply(req, nil, 0)
 		panicOn(err)
 
 		vv("server sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
@@ -430,7 +430,7 @@ func Test012_PreSharedKey_must_agree(t *testing.T) {
 		req.HDR.ServiceName = serviceName
 		req.JobSerz = []byte("Hello from client!")
 
-		reply, err := cli.SendAndGetReply(req, nil)
+		reply, err := cli.SendAndGetReply(req, nil, 0)
 		_ = reply
 		// expect an error here
 		if err == nil {
@@ -509,7 +509,7 @@ func Test014_server_push_quic(t *testing.T) {
 		clireq := NewMessage()
 		clireq.HDR.Subject = "one way hello"
 		clireq.JobSerz = []byte("one way Hello from client!")
-		err = cli.OneWaySend(clireq, nil)
+		err = cli.OneWaySend(clireq, nil, 0)
 		panicOn(err)
 
 		for rem := range srv.RemoteConnectedCh {
@@ -624,7 +624,7 @@ func Test015_server_push_quic_notice_disco_quickly(t *testing.T) {
 		clireq := NewMessage()
 		clireq.HDR.Subject = "one way hello"
 		clireq.JobSerz = []byte("one way Hello from client!")
-		err = cli.OneWaySend(clireq, nil)
+		err = cli.OneWaySend(clireq, nil, 0)
 		panicOn(err)
 
 		var rem *ServerClient
@@ -772,7 +772,7 @@ func Test016_WithPreSharedKey_inner_handshake_must_be_properly_signed(t *testing
 			req.HDR.ServiceName = serviceName
 			req.JobSerz = []byte("Hello from client!")
 
-			reply, err := cli.SendAndGetReply(req, nil)
+			reply, err := cli.SendAndGetReply(req, nil, 0)
 			_ = reply
 			// expect an error here
 			if err == nil {
@@ -817,7 +817,7 @@ func Test030_RoundTrip_SendAndGetReply_then_JSON(t *testing.T) {
 		req.HDR.ServiceName = serviceName
 		req.JobSerz = []byte("Hello from client!")
 
-		reply, err := cli.SendAndGetReply(req, nil)
+		reply, err := cli.SendAndGetReply(req, nil, 0)
 		panicOn(err)
 
 		j, err := reply.AsJSON(nil)

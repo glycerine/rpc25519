@@ -159,7 +159,7 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 				filename := filepath.Base(path)
 				req.HDR.Args = map[string]string{"readFile": filename, "blake3": sumstring}
 
-				strm, err = cli.UploadBegin(ctx, fileUploaderServiceName, req)
+				strm, err = cli.UploadBegin(ctx, fileUploaderServiceName, req, 0)
 
 				panicOn(err)
 				if err1 == io.EOF {
@@ -174,7 +174,7 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 			streamMsg.JobSerz = append([]byte{}, send...)
 			streamMsg.HDR.Args = map[string]string{"blake3": sumstring}
 
-			err = strm.UploadMore(ctx, streamMsg, err1 == io.EOF)
+			err = strm.UploadMore(ctx, streamMsg, err1 == io.EOF, 0)
 
 			// likely just "shutting down", so ask for details.
 			if err != nil {
@@ -650,7 +650,7 @@ func Test302_bistreaming_test_simultaneous_upload_and_download(t *testing.T) {
 			// must copy!
 			streamMsg.JobSerz = append([]byte{}, send...)
 			streamMsg.HDR.Args = map[string]string{"blake3": sumstring}
-			err = bistream.UploadMore(ctx, streamMsg, err1 == io.EOF)
+			err = bistream.UploadMore(ctx, streamMsg, err1 == io.EOF, 0)
 
 			// likely just "shutting down", so ask for details.
 			if err != nil {

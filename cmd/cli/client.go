@@ -432,7 +432,7 @@ func main() {
 					//vv("client about to do bistream.Begin(); req = '%v'", req.String())
 					err = bistream.Begin(ctx, req)
 				} else {
-					strm, err = cli.UploadBegin(ctx, "__fileUploader", req)
+					strm, err = cli.UploadBegin(ctx, "__fileUploader", req, 0)
 				}
 				panicOn(err)
 				if err1 == io.EOF {
@@ -448,9 +448,9 @@ func main() {
 			streamMsg.JobSerz = append([]byte{}, send...)
 			streamMsg.HDR.Args = map[string]string{"blake3": sumstring}
 			if doBistream {
-				err = bistream.UploadMore(ctx, streamMsg, err1 == io.EOF)
+				err = bistream.UploadMore(ctx, streamMsg, err1 == io.EOF, 0)
 			} else {
-				err = strm.UploadMore(ctx, streamMsg, err1 == io.EOF)
+				err = strm.UploadMore(ctx, streamMsg, err1 == io.EOF, 0)
 			}
 			// likely just "shutting down", so ask for details.
 			if err != nil {

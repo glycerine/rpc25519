@@ -38,8 +38,9 @@ const yesIsClient = true
 
 //var serverAddress = "192.168.254.151:8443"
 
-var ErrContextCancelled = fmt.Errorf("rpc25519: context cancelled")
-var ErrHaltRequested = fmt.Errorf("rpc25519: halt requested")
+var ErrContextCancelled = fmt.Errorf("rpc25519 error: context cancelled")
+var ErrHaltRequested = fmt.Errorf("rpc25519 error: halt requested")
+var ErrSendTimeout = fmt.Errorf("rpc25519 eroror: send timeout")
 
 // boundCh should be buffered, at least 1, if it is not nil. If not nil, we
 // will send the bound net.Addr back on it after we have started listening.
@@ -1829,6 +1830,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		return msg.LocalErr
 	case <-timeoutCh:
 		//vv("srv SendMessage timeout after waiting %v", errWriteDur)
+		return ErrSendTimeout
 	case <-ctx.Done():
 		return ErrContextCancelled
 

@@ -134,7 +134,7 @@ func preventRaceByDoingPriorClientToServerRoundTrip(cli *Client, srv *Server) {
 	req.HDR.ServiceName = serviceName
 	req.JobSerz = []byte("Hello from client!")
 
-	reply, err := cli.SendAndGetReply(req, nil)
+	reply, err := cli.SendAndGetReply(req, nil, 0)
 	panicOn(err)
 	_ = reply
 	//vv("reply = '%v'", reply)
