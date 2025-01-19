@@ -1652,16 +1652,17 @@ var ErrWrongCallTypeForSendMessage = fmt.Errorf("error in SendMessage: msg.HDR.T
 // save the caller a minute of two of waiting to discover
 // the send is unlikely to suceed; or to time.Duration(0) if
 // they want no pause after writing Message to the connection.
-// The default is 30 msec. It is a guess and aims at balance:
+// The default if errWriteDur < 0 is 30 msec. It is a guess and aims at balance:
 // allowing enough time to get an error back from quic-go
 // if we are going to discover "Application error 0x0 (remote)"
 // right away, and not wanting to stall the caller too much.
 //
 // goq uses this srv.SendMessage(), cli.OneWaySend(),
 // cli.SendAndGetReply(), cli.GetReadIncomingCh(),
-// cli.LocalAddr(), and cli.Close().
+// cli.LocalAddr(), and cli.Close(). It calls here
+// with errWriteDur = 5 seconds.
 func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqno uint64,
-	errWriteDur *time.Duration) error {
+	errWriteDur time.Duration) error {
 
 	s.mut.Lock()
 	pair, ok := s.remote2pair[destAddr]
@@ -1700,10 +1701,13 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 		return ErrShutdown()
 	}
 
-	dur := 30 * time.Millisecond
-	if errWriteDur != nil {
-		dur = *errWriteDur
+	var dur time.Duration
+	if errWriteDur < 0 {
+		dur = 30 * time.Millisecond
+	} else if errWriteDur > 0 {
+		dur = errWriteDur
 	}
+
 	if dur > 0 {
 		//vv("srv SendMessage about to wait %v to check on connection.", dur)
 		select {
@@ -1712,6 +1716,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 			return msg.LocalErr
 		case <-time.After(dur):
 			//vv("srv SendMessage timeout after waiting %v", dur)
+			return ErrSendTimeout
 		}
 	}
 	return nil
