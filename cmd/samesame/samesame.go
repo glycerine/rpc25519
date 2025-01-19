@@ -10,6 +10,8 @@ import (
 
 func main() {
 
+	rpc25519.Exit1IfVersionReq()
+
 	var local = flag.String("c", "127.0.0.1:8445", "client address to send echo request from.")
 	var dest = flag.String("s", "127.0.0.1:8443", "server address to send echo request to.")
 	var reverse = flag.Bool("r", false, "swap the local and dest addresses to make a complementary client and server")

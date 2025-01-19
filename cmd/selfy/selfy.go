@@ -81,6 +81,9 @@ func (c *SelfCertConfig) ValidateConfig(fs *flag.FlagSet) (err error) {
 }
 
 func main() {
+
+	rpc25519.Exit1IfVersionReq()
+
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
 	myflags := flag.NewFlagSet("selfy", flag.ExitOnError)

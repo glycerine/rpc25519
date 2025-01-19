@@ -26,6 +26,7 @@ import (
 var td *tdigest.TDigest
 
 func main() {
+	rpc25519.Exit1IfVersionReq()
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
 	certdir := rpc25519.GetCertsDir()

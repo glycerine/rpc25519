@@ -6,6 +6,7 @@ import (
 
 	// check-summing utilities.
 	cristalbase64 "github.com/cristalhq/base64"
+	"github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/jcdc"
 	"lukechampine.com/blake3"
 )
@@ -14,6 +15,7 @@ import (
 // out in order, so we can do a sane diff on a
 // binary file.
 func main() {
+	rpc25519.Exit1IfVersionReq()
 	path := os.Args[1]
 	data, err := os.ReadFile(path)
 	if err != nil {
