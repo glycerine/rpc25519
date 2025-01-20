@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/user"
 	"syscall"
+	"time"
 )
 
 func fileExists(name string) bool {
@@ -114,4 +115,13 @@ func truncateFileToZero(path string) error {
 		return fmt.Errorf("could not close file handler for %q after truncation: %v", path, err)
 	}
 	return nil
+}
+
+func FileSizeModTime(name string) (sz int64, modTime time.Time, err error) {
+	var fi os.FileInfo
+	fi, err = os.Stat(name)
+	if err != nil {
+		return
+	}
+	return fi.Size(), fi.ModTime(), nil
 }

@@ -1,4 +1,4 @@
-package rsync
+package main
 
 import (
 	"fmt"
@@ -56,6 +56,8 @@ func pp(format string, a ...interface{}) {
 		tsPrintf(format, a...)
 	}
 }
+
+func zz(format string, a ...interface{}) {}
 
 // useful during git bisect
 var forceQuiet = false

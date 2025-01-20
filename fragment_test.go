@@ -50,6 +50,7 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		// simplify echo test by leaving this out. the auto retry should suffice.
 		// Arg! Auto-retry does not always suffice! back in!
 		preventRaceByDoingPriorClientToServerRoundTrip(cli, srv)
+		vv("back from preventRaceByDoingPriorClientToServerRoundTrip")
 		ctx := context.Background()
 		srvServiceName := "speer1_on_server"
 
@@ -63,7 +64,7 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 			ReportEchoTestCanSee: make(chan string),
 		}
 		srv.PeerAPI.RegisterPeerServiceFunc(srvServiceName, speer1.Start)
-
+		vv("srv registered speer1.Start") // seen
 		cliAddr := cli.LocalAddr()
 
 		// This call starts the PeerImpl on the remote Client, from the server.
@@ -73,13 +74,14 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		// Thus we added a prior round-trip cli->srv->cli above.
 		peerURL_client, peerID_client, err := srv.PeerAPI.StartRemotePeer(
 			ctx, cliServiceName, cliAddr, 50*time.Microsecond)
-		panicOn(err) // cliAddr not found?!?
+
+		panicOn(err)
 		vv("started remote with peerURL_client = '%v'; cliServiceName = '%v'; peerID_client = '%v'", peerURL_client, cliServiceName, peerID_client)
 
 		// any number of known peers can be supplied, or none, to bootstrap.
 		lpb, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, nil)
-		//peerURL_server, peerID_server, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, peerURL_client)
 		panicOn(err)
+		defer lpb.Close()
 
 		peerURL_server := lpb.URL()
 		peerID_server := lpb.PeerID
@@ -112,11 +114,6 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		// simple echo test from srv -> cli -> srv, over a circuit between peers.
 		//		url :=
 		speer1.DoEchoToThisPeerURL <- peerURL_client
-
-		//vv("now have the peers talk to each other. what to do? keep a directory in sync between two nodes? want to handle files/data bigger than will fit in one Message in an rsync protocol.")
-
-		//vv("start with something that won't take up tons of disk to test: create a chacha8 random stream, chunk it, send it one direction to the other with blake3 cumulative checksums so we know they were both getting everything... simple, but will stress the concurrency.")
-		// 3 way sync?
 
 		select {
 		case report := <-speer1.ReportEchoTestCanSee:
@@ -270,11 +267,6 @@ func Test403_new_circuit_from_existing_peer(t *testing.T) {
 		// simple echo test from srv -> cli -> srv, over a circuit between peers.
 		//		url :=
 		speer1.DoEchoToThisPeerURL <- peerURL_client
-
-		//vv("now have the peers talk to each other. what to do? keep a directory in sync between two nodes? want to handle files/data bigger than will fit in one Message in an rsync protocol.")
-
-		//vv("start with something that won't take up tons of disk to test: create a chacha8 random stream, chunk it, send it one direction to the other with blake3 cumulative checksums so we know they were both getting everything... simple, but will stress the concurrency.")
-		// 3 way sync?
 
 		select {
 		case report := <-speer1.ReportEchoTestCanSee:

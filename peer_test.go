@@ -157,7 +157,7 @@ func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 		ckt, ctxCkt, err := cli_lpb.NewCircuitToPeerURL(cktname, server_lpb.URL(), frag0, 0)
 		panicOn(err)
 		_ = ctxCkt
-		defer ckt.Close()
+		defer ckt.Close(nil)
 
 		// verify it is up
 
@@ -191,7 +191,7 @@ func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 		}
 
 		vv("about to ckt.Close() from the client side ckt")
-		ckt.Close()
+		ckt.Close(nil)
 
 		vv("good: past the ckt.Close()")
 		if !ckt.IsClosed() {
@@ -239,7 +239,7 @@ func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 		ckt2, ctxCkt2, err := server_lpb.NewCircuitToPeerURL(cktname2, cli_lpb.URL(), frag2, 0)
 		panicOn(err)
 		_ = ctxCkt2
-		defer ckt2.Close()
+		defer ckt2.Close(nil)
 
 		cliCkt := <-j.cliSync.gotIncomingCkt
 		vv("client got circuit '%v'", cliCkt.Name)

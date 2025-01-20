@@ -1,6 +1,6 @@
 all: githash
 	go generate
-	cd rsync && go generate
+	cd jsync && go generate
 	go build -o cli ./cmd/cli
 	go build -o srv ./cmd/srv
 	go build -o selfy ./cmd/selfy
@@ -28,3 +28,7 @@ runq:
 githash:
 	/bin/echo "package rpc25519" > gitcommit.go
 	/bin/echo "func init() { LAST_GIT_COMMIT_HASH = \"$(shell git rev-parse HEAD)\"; NEAREST_GIT_TAG= \"$(shell git describe --abbrev=0 --tags)\"; GIT_BRANCH=\"$(shell git rev-parse --abbrev-ref  HEAD)\"; GO_VERSION=\"$(shell go version)\";}" >> gitcommit.go
+
+test:
+	go test -v
+	cd jsync && go test -v

@@ -136,7 +136,7 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 	s.quicConfig = quicConfig
 	addrs := addr.Network() + "://" + addr.String()
 	s.boundAddressString = addrs
-	aliasRegister(addrs, addrs+" (quic_server)")
+	AliasRegister(addrs, addrs+" (quic_server)")
 	s.mut.Unlock()
 
 	ctx := context.Background()

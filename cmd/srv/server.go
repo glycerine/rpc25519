@@ -17,6 +17,7 @@ import (
 
 	_ "net/http/pprof" // for web based profiling while running
 
+	"github.com/glycerine/ipaddr"
 	"github.com/glycerine/rpc25519"
 )
 
@@ -43,6 +44,9 @@ func noticeControlC() {
 func main() {
 
 	rpc25519.Exit1IfVersionReq()
+
+	fmt.Printf("%v", rpc25519.GetCodeVersion("srv"))
+
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
 	noticeControlC()
@@ -50,6 +54,15 @@ func main() {
 	certdir := rpc25519.GetCertsDir()
 	//cadir := rpc25519.GetPrivateCertificateAuthDir()
 
+	hostIP := ipaddr.GetExternalIP() // e.g. 100.x.x.x
+	_ = hostIP
+	//vv("hostIP = '%v'", hostIP)
+
+	//scheme, ip, port, isUnspecified, isIPv6, err := ipaddr.ParseURLAddress(hostIP)
+	//panicOn(err)
+	//vv("server defaults to binding: scheme='%v', ip='%v', port=%v, isUnspecified='%v', isIPv6='%v'", scheme, ip, port, isUnspecified, isIPv6)
+
+	//var addr = flag.String("s", hostIP+":8443", "server address to bind and listen on")
 	var addr = flag.String("s", "0.0.0.0:8443", "server address to bind and listen on")
 	var tcp = flag.Bool("tcp", false, "use TCP instead of the default TLS")
 	var skipVerify = flag.Bool("skip-verify", false, "do not require client certs be from our CA, nor remember client certs in a known_client_keys file for later lockdown")
@@ -133,7 +146,7 @@ func main() {
 		serviceName := "customEcho"
 		srv.Register2Func(serviceName, customEcho)
 	}
-
+	//vv("cfg.ServerAddr='%v'", cfg.ServerAddr)
 	serverAddr, err := srv.Start()
 	if err != nil {
 		panic(fmt.Sprintf("could not start rpc25519.Server with config = '%#v'; err='%v'", cfg, err))

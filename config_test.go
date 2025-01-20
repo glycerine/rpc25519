@@ -29,4 +29,27 @@ func Test000_config_directories_from_env_var(t *testing.T) {
 	if !dirExists(tmp + "/.config/rpc25519/my-keep-private-dir") {
 		panic("CA dir not made!")
 	}
+
+}
+
+func Test999_config_dir(t *testing.T) {
+
+	return
+
+	tmp := "./tmp-001-test-dir"
+	defer os.RemoveAll(tmp)
+
+	os.Setenv("HOME", tmp)
+	configDir := GetConfigDir()
+	fmt.Printf("GetConfigDir() = '%v'\n", configDir)
+
+	if !dirExists(tmp + "/.config/rpc25519/") {
+		panic("config dir not made!")
+	}
+}
+
+func Test998_server_data_dir(t *testing.T) {
+	dir, err := GetServerDataDir()
+	panicOn(err)
+	vv("server's GetServerDataDir() = '%v'", dir)
 }

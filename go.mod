@@ -10,8 +10,8 @@ require (
 	github.com/glycerine/base58 v0.24.2
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31
 	github.com/glycerine/greenpack v0.529.0
-	github.com/glycerine/idem v0.0.8
-	github.com/glycerine/ipaddr v0.2.4
+	github.com/glycerine/idem v0.2.0
+	github.com/glycerine/ipaddr v0.2.7
 	github.com/glycerine/loquet v0.0.19
 	github.com/goccy/go-json v0.10.3
 	github.com/klauspost/compress v1.17.11
@@ -38,7 +38,7 @@ require (
 	golang.org/x/mod v0.21.0 // indirect
 	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/tools v0.26.0 // indirect
 	gonum.org/v1/gonum v0.15.1 // indirect
 )

@@ -3,8 +3,6 @@ package rpc25519
 import (
 	"context"
 	"fmt"
-	//"os"
-	//"strings"
 	"testing"
 	"time"
 
@@ -47,14 +45,14 @@ func newTestJunk2(name string) (j *testJunk2) {
 
 	serverAddr, err := srv.Start()
 	panicOn(err)
-	//defer srv.Close()
+	// NO! defer srv.Close()
 
 	cfg.ClientDialToHostPort = serverAddr.String()
 	cli, err := NewClient("cli_"+name, cfg)
 	panicOn(err)
 	err = cli.Start()
 	panicOn(err)
-	//defer cli.Close()
+	// NO! defer cli.Close()
 
 	srvSync := newSyncer2(j.srvServiceName)
 
@@ -87,10 +85,6 @@ func Test408_multiple_circuits_open_and_close(t *testing.T) {
 		panicOn(err)
 		defer cli_lpb.Close()
 
-		// later test:
-		//_, _, err := j.cli.PeerAPI.StartRemotePeer(ctx, j.srvServiceName, cli.RemoteAddr(), 0)
-		//panicOn(err)
-
 		srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil)
 		panicOn(err)
 		defer srv_lpb.Close()
@@ -105,7 +99,7 @@ func Test408_multiple_circuits_open_and_close(t *testing.T) {
 		ckt, ctxCkt, err := cli_lpb.NewCircuitToPeerURL(cktname, srv_lpb.URL(), frag0, 0)
 		panicOn(err)
 		_ = ctxCkt
-		defer ckt.Close()
+		defer ckt.Close(nil)
 
 		// verify it is up
 
@@ -139,7 +133,7 @@ func Test408_multiple_circuits_open_and_close(t *testing.T) {
 		}
 
 		//zz("about to ckt.Close() from the client side ckt")
-		ckt.Close()
+		ckt.Close(nil)
 
 		//zz("good: past the ckt.Close()")
 		if !ckt.IsClosed() {
@@ -197,18 +191,6 @@ func Test408_multiple_circuits_open_and_close(t *testing.T) {
 
 		//zz("   ========   now proxy the server and have ckt to client... separate test?")
 
-		/*
-			if false {
-				srv_lpb, err = j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil)
-				panicOn(err)
-				defer srv_lpb.Close()
-
-				cli_lpb, err = j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil)
-				panicOn(err)
-				defer cli_lpb.Close()
-			}
-		*/
-
 		// future test idea, not below:
 		// shut down the peer service on one side. does the other side
 		// stay up, but clean up all the circuits associated with that service?
@@ -252,35 +234,12 @@ func Test408_multiple_circuits_open_and_close(t *testing.T) {
 
 		// simplest send and receive
 
-		// start FragPart at 0. increment part when you echo it.
-		// discard parts with numbers > 1.
-
-		/* TODO:
-		// launch indep goro to send/read on each of the 20 circuits from both sides.
-		punisher := func(k int, ckt *Circuit, role string) {
-
-		}
-		k := 0
-		var wg sync.WaitGroup
-		for i := range 10 {
-			ckt := cli_ckts[i]
-			srvCkt := what //? what here
-			punisher(k, ckt, "cli_read")
-			punisher(k, srvCkt, "cli_send")
-			k++
-		}
-		for i := range 10 {
-			ckt := srv_ckts[i]
-			k++
-		}
-		*/
-
 		// close all but one from each
 		for i := range 9 {
-			cli_ckts[i].Close()
+			cli_ckts[i].Close(nil)
 		}
 		for i := range 9 {
-			srv_ckts[i].Close()
+			srv_ckts[i].Close(nil)
 		}
 		if cli_ckts[9].IsClosed() {
 			t.Fatalf("error: client circuit '%v' should NOT be closed.", cli_ckts[9].Name)
@@ -297,9 +256,11 @@ func Test408_multiple_circuits_open_and_close(t *testing.T) {
 			}
 		}
 
-		cli_ckts[9].Close()
-		srv_ckts[9].Close()
+		cli_ckts[9].Close(nil)
+		srv_ckts[9].Close(nil)
 
+		vv("at 408 end. do cleanup. this might stop some above ckt setup " +
+			"operations in progress and we want to verify they shutdown without panic.")
 		//select {}
 	})
 

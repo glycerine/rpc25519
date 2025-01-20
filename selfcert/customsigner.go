@@ -1,6 +1,6 @@
 package selfcert
 
-// TODO: test and verify something like this might work. EXPERIMENTAL PROTOTYPE at the moment.
+// plan? test and verify something like this might work. EXPERIMENTAL PROTOTYPE at the moment.
 // prototype attempts (one in comments) to use ssh-agent
 // during TLS handshake.
 /*

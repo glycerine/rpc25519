@@ -50,14 +50,14 @@ func (me *PeerImpl) Start(
 	done0 := ctx0.Done()
 
 	for {
-		select {
+		select { // 400 hung here
 		// URL format: tcp://x.x.x.x:port/peerServiceName/peerID/circuitID
 		case echoToURL := <-me.DoEchoToThisPeerURL:
 
-			go func(echoToURL string) {
+			go func(echoToURL string) (err0 error) {
 
 				defer func() {
-					vv("echo starter shutting down.")
+					vv("echo starter shutting down. err0 ='%v'", err0)
 				}()
 
 				outFrag := NewFragment()
@@ -71,23 +71,25 @@ func (me *PeerImpl) Start(
 				//vv("about to send echo from myPeer.URL() = '%v'", myPeer.URL())
 				//vv("... and about to send echo to echoToURL  = '%v'", echoToURL)
 
-				aliasRegister(myPeer.PeerID, myPeer.PeerID+
+				AliasRegister(myPeer.PeerID, myPeer.PeerID+
 					" (echo originator on server)")
 				_, _, remotePeerID, _, err := ParsePeerURL(echoToURL)
 				panicOn(err)
-				aliasRegister(remotePeerID, remotePeerID+" (echo replier on client)")
+				AliasRegister(remotePeerID, remotePeerID+" (echo replier on client)")
 
 				circuitName := "echo-circuit"
 				ckt, ctx, err := myPeer.NewCircuitToPeerURL(circuitName, echoToURL, outFrag, 0)
 				panicOn(err)
-				defer ckt.Close() // close when echo heard.
+				defer func() {
+					ckt.Close(err0) // close when echo heard.
+				}()
 
 				done := ctx.Done()
 
 				for {
 					select {
 					case frag := <-ckt.Reads:
-						vv("echo circuit got read frag back: '%v'", frag.String())
+						vv("%v: echo circuit got read frag back: '%v'", myPeer.PeerServiceName, frag.String())
 						if frag.FragSubject == "echo reply" {
 							vv("seen echo reply, ack and shutdown")
 							me.ReportEchoTestCanSee <- string(frag.Payload)
@@ -112,10 +114,10 @@ func (me *PeerImpl) Start(
 				ckt.RemoteServiceName, ckt.RemoteCircuitURL())
 
 			// talk to this peer on a separate goro if you wish:
-			go func(ckt *Circuit) {
+			go func(ckt *Circuit) (err0 error) {
 				defer wg.Done()
 				defer func() {
-					ckt.Close()
+					ckt.Close(err0)
 					//vv("echo answerer shutting down.")
 				}()
 
@@ -141,14 +143,14 @@ func (me *PeerImpl) Start(
 					panicOn(err)
 				*/
 				for {
-					select {
+					select { // 400 *was* hung here
 					case frag := <-ckt.Reads:
-						vv("ckt.Reads sees frag:'%s';  I am myurl= '%v'", frag, myurl)
+						vv("ckt.Reads sees frag:'%s';  I am myurl= '%v'; the ckt.LocalCircuitURL()='%v'", frag, myurl, ckt.LocalCircuitURL())
 						if frag.FragSubject == "echo request" {
 							outFrag := NewFragment()
 							outFrag.Payload = frag.Payload
 							outFrag.FragSubject = "echo reply"
-							outFrag.ServiceName = myPeer.ServiceName()
+							// set for us: outFrag.ServiceName = myPeer.ServiceName()
 							vv("ckt.Reads sees frag with echo request! sending reply='%v'", frag)
 							err := ckt.SendOneWay(outFrag, 0)
 							panicOn(err)
@@ -158,15 +160,16 @@ func (me *PeerImpl) Start(
 						vv("fragerr = '%v'", fragerr)
 
 					case <-done:
-						return
+						return ErrContextCancelled
 					case <-done0:
-						return
+						return ErrContextCancelled
 					}
 				}
 
 			}(ckt)
 
 		case <-done0:
+			//vv("ctx0 cancelled, cause: '%v'", context.Cause(ctx0))
 			return ErrContextCancelled
 		}
 	}

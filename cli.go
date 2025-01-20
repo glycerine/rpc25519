@@ -384,15 +384,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		// anyway. This is like the Client acting like
 		// a server and starting up a peer service.
 		switch msg.HDR.Typ {
-		case CallPeerStart:
-			err := c.PeerAPI.bootstrapPeerService(yesIsClient, msg, ctx, c.oneWayCh)
-			if err != nil {
-				// only error is on shutdown request received.
-				return
-			}
-			continue
-
-		case CallPeerStartCircuit:
+		case CallPeerStart, CallPeerStartCircuit, CallPeerStartCircuitTakeToID:
 			err := c.PeerAPI.bootstrapCircuit(yesIsClient, msg, ctx, c.oneWayCh)
 			if err != nil {
 				// only error is on shutdown request received.
@@ -408,8 +400,6 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			//vv("client side (%v) notifies says we are NOT done after msg = '%v'", cliLocalAddr, msg.HDR.String())
 		}
 		if msg.HDR.Typ == CallPeerTraffic ||
-			msg.HDR.Typ == CallPeerStart ||
-			msg.HDR.Typ == CallPeerStartCircuit ||
 			msg.HDR.Typ == CallPeerError {
 			bad := fmt.Sprintf("cli readLoop: Peer traffic should never get here! msg.HDR='%v'", msg.HDR.String())
 			alwaysPrintf(bad)
@@ -568,7 +558,9 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 				//vv("Failed to send message: %v", err)
 				msg.LocalErr = err
 				c.UngetOneRead(seqno, msg.DoneCh)
-				msg.DoneCh.Close()
+				if msg.DoneCh != nil {
+					msg.DoneCh.Close()
+				}
 				continue
 			} else {
 				//vv("7777777 (client %v) Sent message: (seqno=%v): CallID= %v", c.name, msg.HDR.Seqno, msg.HDR.CallID)
@@ -916,6 +908,32 @@ type Config struct {
 
 	// for port sharing between a server and 1 or more clients over QUIC
 	shared *sharedTransport
+
+	// these starting directories
+	// noted on {Client/Server}.Start and referenced
+	// thereafter; to allow tests
+	// to change starting directories.
+	// Since these are set before starting goroutines,
+	// and then immutable, they should not need mutex protection.
+	cliStartingDir string
+	srvStartingDir string
+
+	// where the server stores its data. Server.DataDir() to view.
+	srvDataDir string
+}
+
+// ClientStartingDir returns the directory the Client was started in.
+func (c *Client) ClientStartingDir() string {
+	return c.cfg.cliStartingDir
+}
+
+// ServerStartingDir returns the directory the Server was started in.
+func (s *Server) ServerStartingDir() string {
+	return s.cfg.srvStartingDir
+}
+
+func (s *Server) DataDir() string {
+	return s.cfg.srvDataDir
 }
 
 // Clone returns a copy of cfg. This is a shallow copy to
@@ -1430,12 +1448,17 @@ func (c *Client) setDefaults(cfg *Config) {
 // Start dials the server.
 // That is, Start attemps to connect to config.ClientDialToHostPort.
 // The err will come back with any problems encountered.
-func (c *Client) Start() error {
+func (c *Client) Start() (err error) {
+
+	c.cfg.cliStartingDir, err = os.Getwd()
+	if err != nil {
+		return fmt.Errorf("rpc25519.Client.Start() could not Getwd(): '%v'", err)
+	}
 
 	go c.runClientMain(c.cfg.ClientDialToHostPort, c.cfg.TCPonly_no_TLS, c.cfg.CertPath)
 
 	// wait for connection (or not).
-	err := <-c.connected
+	err = <-c.connected
 	return err
 }
 
@@ -1613,7 +1636,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 		req.HDR.Typ = CallRPC
 	}
 	if req.HDR.CallID == "" {
-		req.HDR.CallID = NewCallID()
+		req.HDR.CallID = NewCallID(req.HDR.ServiceName)
 		// let loop assign Seqno.
 	}
 
@@ -1808,6 +1831,15 @@ func (s *Uploader) UploadMore(ctx context.Context, msg *Message, last bool, errW
 // and run on either Client or Server. They
 // can be implemented to just use this interface.
 type UniversalCliSrv interface {
+	GetConfig() *Config
+	RegisterPeerServiceFunc(peerServiceName string, psf PeerServiceFunc) error
+
+	StartLocalPeer(ctx context.Context, peerServiceName string, requestedCircuit *Message) (lpb *LocalPeer, err error)
+
+	StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string, waitUpTo time.Duration) (remotePeerURL, RemotePeerID string, err error)
+
+	StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, remoteAddr string, waitUpTo time.Duration) (ckt *Circuit, err error)
+
 	SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) error
 
 	GetReadsForCallID(ch chan *Message, callID string)
@@ -1861,13 +1893,20 @@ func (cli *Client) destAddrToSendCh(destAddr string) (sendCh chan *Message, halt
 	if destAddr == "" {
 		destAddr = to
 	}
-	if destAddr != to {
-		problem := fmt.Sprintf("ugh: cli wanted to send to destAddr='%v' "+
-			"but we only know to='%v'", destAddr, to)
-		panic(problem)
-		alwaysPrintf("%v\n", problem)
-		return nil, nil, "", "", false
-	}
+
+	// commenting out this check and error was essential to having
+	// the client talk to a multi-interface bound server 0.0.0.0:8443.
+	//
+	// panic: ugh: cli wanted to send to destAddr='tcp://100.114.32.72:8443' but we only know to='tcp://127.0.0.1:8443' => b/c the server was bound to both... we should just let it go through.
+	/*	const allowAnyway = true
+		if destAddr != to && !allowAnyway {
+			problem := fmt.Sprintf("ugh: cli wanted to send to destAddr='%v' "+
+				"but we only know to='%v' / from ='%v'", destAddr, to, from)
+			panic(problem)
+			alwaysPrintf("%v\n", problem)
+			return nil, nil, "", "", false
+		}
+	*/
 	//vv("cli okay with destAddr '%v' == to", destAddr)
 	haltCh = cli.halt.ReqStop.Chan
 	sendCh = cli.oneWayCh
@@ -1910,7 +1949,7 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}, errWriteD
 		msg.HDR.Typ = CallOneWay
 	}
 	if msg.HDR.CallID == "" {
-		msg.HDR.CallID = NewCallID()
+		msg.HDR.CallID = NewCallID(msg.HDR.ServiceName)
 	}
 
 	// allow msg.CallID to not be empty; in case we get a reply.
@@ -1954,7 +1993,7 @@ func (c *Client) setLocalAddr(conn localRemoteAddr) {
 	defer c.mut.Unlock()
 
 	c.cfg.localAddress = local(conn)
-	aliasRegister(c.cfg.localAddress, c.cfg.localAddress+" (client: "+c.name+")")
+	AliasRegister(c.cfg.localAddress, c.cfg.localAddress+" (client: "+c.name+")")
 }
 
 // LocalAddr retreives the local host/port that the
@@ -2140,7 +2179,7 @@ func (s *Downloader) Close() {
 }
 
 func (c *Client) NewDownloader(ctx context.Context, streamerName string) (downloader *Downloader, err error) {
-	callID := NewCallID()
+	callID := NewCallID(streamerName)
 	downloader = &Downloader{
 		cli:             c,
 		callID:          callID,
@@ -2274,7 +2313,7 @@ func (s *Bistreamer) UploadMore(ctx context.Context, msg *Message, last bool, er
 // NewBistream creates a new Bistreamer but does no communication yet. Just for
 // setting up reader/writer goroutines before everything starts.
 func (c *Client) NewBistreamer(bistreamerName string) (b *Bistreamer, err error) {
-	callID := NewCallID()
+	callID := NewCallID(bistreamerName)
 	b = &Bistreamer{
 		next:            1,
 		cli:             c,

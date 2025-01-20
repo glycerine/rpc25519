@@ -62,12 +62,13 @@ const (
 
 	// try to keep all peer traffic isolated
 	// and only using these:
-	CallPeerStart          CallType = 112
-	CallPeerStartCircuit   CallType = 113
-	CallPeerTraffic        CallType = 114
-	CallPeerError          CallType = 115
-	CallPeerFromIsShutdown CallType = 116
-	CallPeerEndCircuit     CallType = 117
+	CallPeerStart                CallType = 112
+	CallPeerStartCircuit         CallType = 113
+	CallPeerStartCircuitTakeToID CallType = 114
+	CallPeerTraffic              CallType = 115
+	CallPeerError                CallType = 116
+	CallPeerFromIsShutdown       CallType = 117
+	CallPeerEndCircuit           CallType = 118
 )
 
 func (ct CallType) String() string {
@@ -97,6 +98,8 @@ func (ct CallType) String() string {
 		return "CallPeerFromIsShutdown"
 	case CallPeerEndCircuit:
 		return "CallPeerEndCircuit"
+	case CallPeerStartCircuitTakeToID:
+		return "CallPeerStartCircuitTakeToID"
 
 	case CallKeepAlive:
 		return "CallKeepAlive"
@@ -247,6 +250,7 @@ var ErrTooLarge = fmt.Errorf("error: length of payload JobSerz is over maxMessag
 // will return ErrTooLarge without trying to serialize it.
 func (m *Message) AsGreenpack(scratch []byte) (o []byte, err error) {
 	if len(m.JobSerz) > maxMessage-1024 {
+		vv("ErrTooLarge! len(m.JobSerz)= %v > %v = maxMessage-1024; \n m=\n%v\n", len(m.JobSerz), maxMessage-1024, m.HDR.String())
 		return nil, ErrTooLarge
 	}
 	return m.MarshalMsg(scratch[:0])
@@ -341,9 +345,7 @@ type HDR struct {
 
 	// ToPeerID and FromPeerID help maintain stateful sub-calls
 	// allowing client/server symmetry when
-	// implementing stateful protocols like
-	// the rsync-like protocol herein.
-	// Also known as PeerID in the Fragment/Peer/Circuit API.
+	// implementing complex stateful protocols.
 	ToPeerID   string `zid:"14"`
 	FromPeerID string `zid:"15"`
 	FragOp     int    `zid:"16"`
@@ -357,11 +359,7 @@ func NewHDR(from, to, serviceName string, typ CallType, streamPart int64) (m *HD
 	t0 := time.Now()
 	serial := issueSerial()
 
-	var pseudo [20]byte // not cryptographically random.
-	chacha8randMut.Lock()
-	chacha8rand.Read(pseudo[:])
-	chacha8randMut.Unlock()
-	rness := cristalbase64.URLEncoding.EncodeToString(pseudo[:])
+	callID := NewCallID(serviceName)
 
 	m = &HDR{
 		Created:     t0,
@@ -369,7 +367,7 @@ func NewHDR(from, to, serviceName string, typ CallType, streamPart int64) (m *HD
 		To:          to,
 		ServiceName: serviceName,
 		Typ:         typ,
-		CallID:      rness,
+		CallID:      callID,
 		Serial:      serial,
 		StreamPart:  streamPart,
 	}
@@ -377,12 +375,23 @@ func NewHDR(from, to, serviceName string, typ CallType, streamPart int64) (m *HD
 	return
 }
 
-func NewCallID() string {
+func NewCallID(name string) (cid string) {
 	var pseudo [20]byte // not cryptographically random.
 	chacha8randMut.Lock()
 	chacha8rand.Read(pseudo[:])
 	chacha8randMut.Unlock()
-	return cristalbase64.URLEncoding.EncodeToString(pseudo[:])
+	cid = cristalbase64.URLEncoding.EncodeToString(pseudo[:])
+	if name != "" { // trad CallID won't have.
+		AliasRegister(cid, cid+" ("+name+")")
+	}
+	return
+}
+
+func NewCryRandCallID() (cid string) {
+	var random [20]byte
+	cryrand.Read(random[:])
+	cid = cristalbase64.URLEncoding.EncodeToString(random[:])
+	return
 }
 
 // for when the server is just going to replace the CallID with
@@ -460,21 +469,21 @@ func (m *HDR) String() string {
     "FragOp": %v,
 }`,
 		m.Created,
-		aliasDecode(m.From),
-		aliasDecode(m.To),
+		AliasDecode(m.From),
+		AliasDecode(m.To),
 		m.ServiceName,
 		m.Args,
 		m.Subject,
 		m.Seqno,
 		m.Typ,
-		aliasDecode(m.CallID),
+		AliasDecode(m.CallID),
 		m.Serial,
 		m.LocalRecvTm,
 		m.Deadline,
-		aliasDecode(m.FromPeerID),
-		aliasDecode(m.ToPeerID),
+		AliasDecode(m.FromPeerID),
+		AliasDecode(m.ToPeerID),
 		m.StreamPart,
-		m.FragOp,
+		FragOpDecode(m.FragOp),
 	)
 }
 
@@ -583,16 +592,29 @@ func HDRFromContext(ctx context.Context) (*HDR, bool) {
 }
 
 // print user legible names along side the host:port number.
-var aliasMap sync.Map
+var AliasMap sync.Map
 
-func aliasDecode(addr string) string {
-	v, ok := aliasMap.Load(addr)
+func AliasDecode(addr string) string {
+	v, ok := AliasMap.Load(addr)
 	if ok {
 		return v.(string)
 	}
 	return addr
 }
 
-func aliasRegister(addr, name string) {
-	aliasMap.Store(addr, name)
+func AliasRegister(addr, name string) {
+	AliasMap.Store(addr, name)
+}
+
+var FragOpMap sync.Map
+
+func FragOpDecode(op int) (name string) {
+	v, ok := FragOpMap.Load(op)
+	if ok {
+		return v.(string)
+	}
+	return fmt.Sprintf("%v", op)
+}
+func FragOpRegister(op int, name string) {
+	FragOpMap.Store(op, fmt.Sprintf("%v (%v)", op, name))
 }

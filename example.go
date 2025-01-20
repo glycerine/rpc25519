@@ -498,7 +498,11 @@ func (s *PerCallID_FileToDiskState) WriteOneMsgToFile(req *Message, suffix strin
 		}
 
 		// do an atomic rename from temp file to final name at the end
-		s.FnameFinal = filename + "." + suffix // avoid clobbering origin file if same dir
+		if suffix == "" {
+			s.FnameFinal = filename
+		} else {
+			s.FnameFinal = filename + "." + suffix // avoid clobbering origin file if same dir
+		}
 		s.Randomness = cryRandBytesBase64(16)
 		s.FnameTmp = s.FnameFinal + ".tmp_" + s.Randomness
 

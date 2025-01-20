@@ -245,7 +245,7 @@ func (s *countService) incrementSends(cktName string) (tot int) {
 	return
 }
 
-func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuitCh <-chan *Circuit) error {
+func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuitCh <-chan *Circuit) (err0 error) {
 
 	name := myPeer.PeerServiceName
 	_ = name // used when logging is on.
@@ -260,7 +260,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 	////vv("%v: start() top.", name)
 	//zz("%v: ourID = '%v'; peerServiceName='%v';", name, myPeer.ID(), myPeer.ServiceName())
 
-	aliasRegister(myPeer.PeerID, myPeer.PeerID+" ("+myPeer.ServiceName()+")")
+	AliasRegister(myPeer.PeerID, myPeer.PeerID+" ("+myPeer.ServiceName()+")")
 
 	done0 := ctx0.Done()
 
@@ -279,14 +279,14 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 			//vv("%v: newCircuitCh got rckt! service sees new peerURL: '%v'", name, rckt.RemoteCircuitURL())
 
 			// talk to this peer on a separate goro if you wish; or just a func
-			var passiveSide func(ckt *Circuit)
-			passiveSide = func(ckt *Circuit) {
+			var passiveSide func(ckt *Circuit) error
+			passiveSide = func(ckt *Circuit) (err0 error) {
 				////vv("%v: (ckt '%v') got incoming ckt", name, ckt.Name)
 				//s.gotIncomingCkt <- ckt
 				//zz("%v: (ckt '%v') got past <-ckt for incoming ckt", name, ckt.Name)
 				defer func() {
 					////vv("%v: (ckt '%v') defer running! finishing new Circuit func. stack=\n'%v'", name, ckt.Name, stack()) // seen on server
-					ckt.Close()
+					ckt.Close(err0)
 					s.passive_side_ckt_saw_remote_shutdown <- nil
 				}()
 
@@ -388,12 +388,12 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 			s.sendch <- nil
 			s.dropcopy_sends <- nil
 
-			var activeSide func(ckt *Circuit)
-			activeSide = func(ckt *Circuit) {
+			var activeSide func(ckt *Circuit) error
+			activeSide = func(ckt *Circuit) (err0 error) {
 				// this is the active side, as we called NewCircuitToPeerURL()
 				defer func() {
 					////vv("%v: active side ckt '%v' shutting down", name, ckt.Name)
-					ckt.Close()
+					ckt.Close(err0)
 					s.activeSideShutdownCktAckReq <- nil
 					s.active_side_ckt_saw_remote_shutdown <- nil
 				}()
@@ -401,7 +401,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 				for {
 					select {
 					case <-s.activeSideShutdownCkt:
-						return
+						return nil
 
 					case errReq := <-s.activeSideSendCktError:
 						frag := NewFragment()

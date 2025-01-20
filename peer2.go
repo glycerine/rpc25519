@@ -54,7 +54,7 @@ func (s *syncer2) Start(
 	//zz("%v: syncer.Start() top.", s.name)
 	//zz("%v: ourID = '%v'; peerServiceName='%v';", s.name, myPeer.ID(), myPeer.ServiceName())
 
-	aliasRegister(myPeer.PeerID, myPeer.PeerID+" ("+myPeer.ServiceName()+")")
+	AliasRegister(myPeer.PeerID, myPeer.PeerID+" ("+myPeer.ServiceName()+")")
 
 	done0 := ctx0.Done()
 
@@ -67,7 +67,7 @@ func (s *syncer2) Start(
 			//zz("%v: got from newCircuitCh! service '%v' sees new peerURL: '%v'", s.name, peer.PeerServiceName(), peer.PeerURL())
 
 			// talk to this peer on a separate goro if you wish:
-			go func(ckt *Circuit) {
+			go func(ckt *Circuit) (err0 error) {
 
 				ctx := ckt.Context
 				//zz("%v: (ckt '%v') got incoming ckt", s.name, ckt.Name)
@@ -76,7 +76,7 @@ func (s *syncer2) Start(
 
 				defer func() {
 					//zz("%v: (ckt '%v') defer running! finishing RemotePeer goro.", s.name, ckt.Name) // seen on server
-					ckt.Close()
+					ckt.Close(err0)
 					s.gotCktHaltReq.Close()
 				}()
 

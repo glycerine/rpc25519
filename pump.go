@@ -26,7 +26,7 @@ func (pb *LocalPeer) peerbackPump() {
 
 	name := pb.PeerServiceName
 	_ = name
-	//zz("%v: PeerbackPump top.", name)
+	//vv("%v: PeerbackPump top.", name)
 
 	// key: CallID (circuit ID)
 	m := make(map[string]*Circuit)
@@ -63,6 +63,12 @@ func (pb *LocalPeer) peerbackPump() {
 			// in case they are staying up.
 			frag := NewFragment()
 			frag.Typ = CallPeerEndCircuit
+			// Transmit back reason for shutdown if we can.
+			// Q: will this mess up delivery (to Errors instead of Reads?)
+			// A: seems okay for now. Not extensively tested though.
+			if reason, ok := ckt.Halt.ReqStop.Reason(); ok && reason != nil {
+				frag.Err = reason.Error()
+			}
 			pb.SendOneWay(ckt, frag, -1) // no blocking
 		}
 		ckt.Canc(fmt.Errorf("pump cleanupCkt(notifyPeer=%v) cancelling ckt.Context.", notifyPeer))

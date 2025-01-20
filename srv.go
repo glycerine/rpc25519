@@ -24,6 +24,7 @@ import (
 
 	"github.com/glycerine/greenpack/msgp"
 	"github.com/glycerine/idem"
+	"github.com/glycerine/ipaddr"
 	"github.com/glycerine/rpc25519/selfcert"
 	"github.com/quic-go/quic-go"
 )
@@ -39,12 +40,15 @@ const yesIsClient = true
 //var serverAddress = "192.168.254.151:8443"
 
 var ErrContextCancelled = fmt.Errorf("rpc25519 error: context cancelled")
+
 var ErrHaltRequested = fmt.Errorf("rpc25519 error: halt requested")
 var ErrSendTimeout = fmt.Errorf("rpc25519 eroror: send timeout")
 
 // boundCh should be buffered, at least 1, if it is not nil. If not nil, we
 // will send the bound net.Addr back on it after we have started listening.
-func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath string, boundCh chan net.Addr) {
+func (s *Server) runServerMain(
+	serverAddress string, tcp_only bool, certPath string, boundCh chan net.Addr) {
+
 	defer func() {
 		s.halt.Done.Close()
 	}()
@@ -107,7 +111,8 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 	}
 
 	if s.cfg.SkipVerifyKeys {
-		//turn off client cert checking, allowing any random person on the internet to connect...
+		// turns off client cert checking, allowing any
+		// random person on the internet to connect... not a good idea!
 		config.ClientAuth = tls.NoClientCert
 	} else {
 		config.ClientAuth = tls.RequireAndVerifyClientCert
@@ -129,7 +134,26 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 	defer listener.Close()
 
 	addr := listener.Addr()
-	//vv("Server listening on %v:%v", addr.Network(), addr.String())
+	//vv("Server listening on %v://%v   ... addr='%#v'/%T", addr.Network(), addr.String(), addr, addr) // net.TCPAddr
+	vv("Server listening on %v://%v", addr.Network(), addr.String())
+
+	switch a := addr.(type) {
+	case *net.TCPAddr:
+		// a.IP is a net.IP
+		if a.IP.IsUnspecified() {
+			externalIP, extNetIP := ipaddr.GetExternalIP2() // e.g. 100.x.x.x
+			vv("have unspecified IP, trying to report a specific external: '%v'", externalIP)
+			a.IP = extNetIP
+		}
+	default:
+		panic(fmt.Sprintf("arg! handle this type: %T", addr))
+	}
+
+	// net.ParseIP() to go from string -> net.IP if need be.
+	//scheme, ip, port, isUnspecified, isIPv6, err := ipaddr.ParseURLAddress(hostIP)
+	//panicOn(err)
+	//vv("server defaults to binding: scheme='%v', ip='%v', port=%v, isUnspecified='%v', isIPv6='%v'", scheme, ip, port, isUnspecified, isIPv6)
+
 	if boundCh != nil {
 		select {
 		case boundCh <- addr:
@@ -140,7 +164,7 @@ func (s *Server) runServerMain(serverAddress string, tcp_only bool, certPath str
 	s.mut.Lock() // avoid data race
 	addrs := addr.Network() + "://" + addr.String()
 	s.boundAddressString = addrs
-	aliasRegister(addrs, addrs+" (server: "+s.name+")")
+	AliasRegister(addrs, addrs+" (server: "+s.name+")")
 	s.lsn = listener // allow shutdown
 	s.mut.Unlock()
 
@@ -188,7 +212,7 @@ func (s *Server) runTCP(serverAddress string, boundCh chan net.Addr) {
 	s.mut.Lock()
 	addrs := addr.Network() + "://" + addr.String()
 	s.boundAddressString = addrs
-	aliasRegister(addrs, addrs+" (tcp_server: "+s.name+")")
+	AliasRegister(addrs, addrs+" (tcp_server: "+s.name+")")
 	s.mut.Unlock()
 
 	//vv("Server listening on %v://%v", addr.Network(), addr.String())
@@ -359,7 +383,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 
 	sendLoopGoroNum := GoroNumber()
 	_ = sendLoopGoroNum
-	//vv("sendLoopGoroNum = [%v] for pairID = '%v'", sendLoopGoroNum, s.pairID)
+	//vv("srv.go rwPair.runSendLoop(cli '%v' -> '%v' srv) sendLoopGoroNum = [%v] for pairID = '%v'", remote(conn), local(conn), sendLoopGoroNum, s.pairID)
 
 	symkey := s.cfg.preSharedKey
 	if s.cfg.encryptPSK {
@@ -412,6 +436,13 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 
 		case msg := <-s.SendCh:
 			//vv("srv %v (%v) sendLoop got from s.SendCh, sending msg.HDR = '%v'", s.Server.name, s.from, msg.HDR.String())
+
+			real, ok := s.Server.unNAT.Get(msg.HDR.To)
+			if ok && real != msg.HDR.To {
+				vv("unNAT replacing msg.HDR.To '%v' -> '%v'", msg.HDR.To, real)
+				msg.HDR.To = real
+			}
+
 			//err := w.sendMessage(conn, msg, &s.cfg.WriteTimeout)
 			err := w.sendMessage(conn, msg, nil)
 			if err != nil {
@@ -446,6 +477,9 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		s.halt.Done.Close()
 		conn.Close() // just the one, let other clients continue.
 	}()
+
+	localAddr := local(conn)
+	remoteAddr := remote(conn)
 
 	symkey := s.cfg.preSharedKey
 	if s.cfg.encryptPSK {
@@ -519,21 +553,20 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		}
 		//vv("srv read loop sees req = '%v'", req.String())
 
+		if req.HDR.From != "" {
+			s.Server.unNAT.Set(req.HDR.From, remoteAddr)
+		}
+		if req.HDR.To != "" {
+			s.Server.unNAT.Set(req.HDR.To, localAddr)
+		}
+
 		switch req.HDR.Typ {
 
 		case CallKeepAlive:
 			//vv("srv read loop got an rpc25519 keep alive.")
 			continue
 
-		case CallPeerStart:
-			err := s.Server.PeerAPI.bootstrapPeerService(false, req, ctx, s.SendCh)
-			if err != nil {
-				// only error is on shutdown request received.
-				return
-			}
-			continue
-
-		case CallPeerStartCircuit:
+		case CallPeerStart, CallPeerStartCircuit, CallPeerStartCircuitTakeToID:
 			err := s.Server.PeerAPI.bootstrapCircuit(notClient, req, ctx, s.SendCh)
 			if err != nil {
 				// only error is on shutdown request received.
@@ -551,8 +584,6 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		}
 
 		if req.HDR.Typ == CallPeerTraffic ||
-			req.HDR.Typ == CallPeerStart ||
-			req.HDR.Typ == CallPeerStartCircuit ||
 			req.HDR.Typ == CallPeerError {
 			bad := fmt.Sprintf("srv readLoop: Peer traffic should never get here!"+
 				" req.HDR='%v'", req.HDR.String())
@@ -736,11 +767,6 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 		case wantsCallID <- msg:
 			//vv("isCli = %v; notifies.handleReply notified registered channel for callID = '%v'", isCli, msg.HDR.CallID)
 		case <-ctx.Done():
-			//default:
-			//	panic(fmt.Sprintf("Should never happen b/c the "+
-			//		"channels must be buffered!: could not send to "+
-			//		"whoCh from notifyOnReadCallIDMap; for CallID = %v.",
-			//		msg.HDR.CallID))
 		}
 		return true
 	}
@@ -841,44 +867,39 @@ func (s *Server) processWork(job *job) {
 		return // continue
 	}
 
-	s.mut.Lock()
 	switch req.HDR.Typ {
 	case CallRPC:
-		back, ok := s.callme2map[req.HDR.ServiceName]
+		back, ok := s.callme2map.Get(req.HDR.ServiceName)
 		if ok {
 			callme2 = back
 			foundCallback2 = true
 		} else {
-			s.mut.Unlock()
 			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallRPC begin received but no server side upcall registered for req.HDR.ServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ServiceName, req.HDR.CallID))
 			return
 		}
 	case CallRequestBistreaming:
-		back, ok := s.callmeBistreamMap[req.HDR.ServiceName]
+		back, ok := s.callmeBistreamMap.Get(req.HDR.ServiceName)
 		if ok {
 			callmeBi = back
 			foundBistream = true
 			//vv("foundBistream true!")
 		} else {
-			s.mut.Unlock()
 			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallRequestBistreaming received but no server side upcall registered for req.HDR.ServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ServiceName, req.HDR.CallID))
 			return
 		}
 	case CallRequestDownload:
-		back, ok := s.callmeServerSendsDownloadMap[req.HDR.ServiceName]
+		back, ok := s.callmeServerSendsDownloadMap.Get(req.HDR.ServiceName)
 		if ok {
 			callmeServerSendsDownloadFunc = back
 			foundServerSendsDownload = true
 		} else {
-			s.mut.Unlock()
 			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallRequestDownload received but no server side upcall registered for req.HDR.ServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ServiceName, req.HDR.CallID))
 			return
 		}
 	case CallUploadBegin:
-		uploader, ok := s.callmeUploadReaderMap[req.HDR.ServiceName]
+		uploader, ok := s.callmeUploadReaderMap.Get(req.HDR.ServiceName)
 		if !ok {
 			// nothing to do
-			s.mut.Unlock()
 			// send back a CallError
 			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallUploadBegin stream begin received but no registered stream upload reader available on the server. req.HDR.ServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ServiceName, req.HDR.CallID))
 			return
@@ -890,17 +911,15 @@ func (s *Server) processWork(job *job) {
 		panic("cannot see these here, must for FIFO of the stream be called from the readloop")
 
 	case CallOneWay:
-		back, ok := s.callme1map[req.HDR.ServiceName]
+		back, ok := s.callme1map.Get(req.HDR.ServiceName)
 		if ok {
 			callme1 = back
 			foundCallback1 = true
 		} else {
-			s.mut.Unlock()
 			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallOneWay received but no server side callme1map upcall registered for ServiceName='%v'; from req.HDR='%v'", req.HDR.ServiceName, req.HDR.String()))
 			return
 		}
 	}
-	s.mut.Unlock()
 
 	if !foundCallback1 &&
 		!foundCallback2 &&
@@ -962,7 +981,7 @@ func (s *Server) processWork(job *job) {
 	switch {
 	case foundCallback2:
 		err = callme2(req, reply)
-		//err = callme2(ctx, req, reply) // TODO: add ctx?
+		//err = callme2(ctx, req, reply) // add ctx?
 	case foundServerSendsDownload:
 		help := s.newServerSendDownloadHelper(ctx, job)
 		err = callmeServerSendsDownloadFunc(s, ctx, req, help.sendDownloadPart, reply)
@@ -1035,15 +1054,15 @@ type Server struct {
 	name  string // which server, for debugging.
 	creds *selfcert.Creds
 
-	callme2map map[string]TwoWayFunc
-	callme1map map[string]OneWayFunc
+	callme2map *Mutexmap[string, TwoWayFunc]
+	callme1map *Mutexmap[string, OneWayFunc]
 
 	// client -> server streams
-	callmeUploadReaderMap map[string]UploadReaderFunc
+	callmeUploadReaderMap *Mutexmap[string, UploadReaderFunc]
 
 	// server -> client streams
-	callmeServerSendsDownloadMap map[string]ServerSendsDownloadFunc
-	callmeBistreamMap            map[string]BistreamFunc
+	callmeServerSendsDownloadMap *Mutexmap[string, ServerSendsDownloadFunc]
+	callmeBistreamMap            *Mutexmap[string, BistreamFunc]
 
 	notifies *notifies
 	PeerAPI  *peerAPI // must be Exported to users!
@@ -1051,8 +1070,14 @@ type Server struct {
 	lsn  io.Closer // net.Listener
 	halt *idem.Halter
 
-	remote2pair map[string]*rwPair
-	pair2remote map[*rwPair]string
+	remote2pair *Mutexmap[string, *rwPair]
+	pair2remote *Mutexmap[*rwPair, string]
+
+	// also need to be able to un-nat things!
+	// to translate from the msg.HDR.From to what
+	// the net.Conn actually thinks--when not on
+	// a hole-punching network like Tailscale.
+	unNAT *Mutexmap[string, string]
 
 	// RemoteConnectedCh sends the remote host:port address
 	// when the server gets a new client,
@@ -1602,10 +1627,9 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 	key := remote(conn)
 
 	s.mut.Lock()
-	defer s.mut.Unlock()
-
-	s.remote2pair[key] = p
-	s.pair2remote[p] = key
+	s.remote2pair.Set(key, p)
+	s.pair2remote.Set(p, key)
+	s.mut.Unlock()
 
 	sc := newServerClient(key)
 	p.allDone = sc.GoneCh
@@ -1620,12 +1644,12 @@ func (s *Server) deletePair(p *rwPair) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
-	key, ok := s.pair2remote[p]
+	key, ok := s.pair2remote.Get(p)
 	if !ok {
 		return
 	}
-	delete(s.pair2remote, p)
-	delete(s.remote2pair, key)
+	s.pair2remote.Del(p)
+	s.remote2pair.Del(key)
 
 	// see srv_test 015 for example use.
 	close(p.allDone)
@@ -1669,10 +1693,7 @@ var ErrWrongCallTypeForSendMessage = fmt.Errorf("error in SendMessage: msg.HDR.T
 func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqno uint64,
 	errWriteDur time.Duration) error {
 
-	s.mut.Lock()
-	pair, ok := s.remote2pair[destAddr]
-	// if we hold this too long then our pair cannot shutdown asap.
-	s.mut.Unlock()
+	pair, ok := s.remote2pair.Get(destAddr)
 
 	if !ok {
 		alwaysPrintf("could not find destAddr='%v' in our map: '%#v'", destAddr, s.remote2pair)
@@ -1727,14 +1748,31 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 	return nil
 }
 
+// destAddrToSendCh needs to unNAT to make destAddr
+// when behind Network-Address-Translation boxes.
+// Callers should re-write the msg.HDR.To if the
+// returned to is different from destAddr, to avoid
+// having to have the sendLoop do it again.
 func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh chan struct{}, to, from string, ok bool) {
-	s.mut.Lock()
-	var pair *rwPair
-	pair, ok = s.remote2pair[destAddr]
-	// if we hold this mutex too long then our pair cannot shutdown asap.
-	s.mut.Unlock()
+
+	pair, ok := s.remote2pair.Get(destAddr)
 	if !ok {
-		vv("Server did not find destAddr '%v' in remote2pair", destAddr)
+		real, ok2 := s.unNAT.Get(destAddr)
+		if ok2 && real != destAddr {
+			vv("unNAT replacing destAddr '%v' -> '%v'", destAddr, real)
+			destAddr = real
+			// and try again
+			pair, ok = s.remote2pair.Get(destAddr)
+		} else {
+			//vv("tried to unNAT but !(ok2 == %v) || (real(%v) == destAddr(%v)",
+			//   ok2, real, destAddr)
+		}
+	} else {
+		//vv("no unNAT needed, found destAddr = '%v' in remote2pair", destAddr)
+	}
+
+	if !ok {
+		alwaysPrintf("yikes! Server did not find destAddr '%v' in remote2pair", destAddr)
 		return nil, nil, "", "", false
 	}
 	// INVAR: ok is true
@@ -1792,11 +1830,16 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 
 	destAddr := msg.HDR.To
 	// abstract this for Client/Server symmetry
-	sendCh, haltCh, _, from, ok := s.destAddrToSendCh(destAddr)
+	sendCh, haltCh, to, from, ok := s.destAddrToSendCh(destAddr)
 	if !ok {
 		// srv_test.go:651
 		//vv("could not find destAddr='%v' in from our s.destAddrToSendCh() call. stack=\n%v", destAddr, stack())
 		return ErrNetConnectionNotFound
+	}
+	if to != destAddr {
+		// re-write the unNAT-ed (or re-NAT-ed!) addresses
+		// so that sendLoop does not have to.
+		msg.HDR.To = to
 	}
 
 	msg.HDR.From = from
@@ -1861,60 +1904,51 @@ func NewServer(name string, config *Config) *Server {
 	s := &Server{
 		name:              name,
 		cfg:               cfg,
-		remote2pair:       make(map[string]*rwPair),
-		pair2remote:       make(map[*rwPair]string),
+		remote2pair:       NewMutexmap[string, *rwPair](),
+		pair2remote:       NewMutexmap[*rwPair, string](),
 		halt:              idem.NewHalter(),
 		RemoteConnectedCh: make(chan *ServerClient, 20),
 
-		callme2map:                   make(map[string]TwoWayFunc),
-		callme1map:                   make(map[string]OneWayFunc),
-		callmeServerSendsDownloadMap: make(map[string]ServerSendsDownloadFunc),
-		callmeUploadReaderMap:        make(map[string]UploadReaderFunc),
-		callmeBistreamMap:            make(map[string]BistreamFunc),
+		callme2map:                   NewMutexmap[string, TwoWayFunc](),
+		callme1map:                   NewMutexmap[string, OneWayFunc](),
+		callmeServerSendsDownloadMap: NewMutexmap[string, ServerSendsDownloadFunc](),
+		callmeUploadReaderMap:        NewMutexmap[string, UploadReaderFunc](),
+		callmeBistreamMap:            NewMutexmap[string, BistreamFunc](),
 
 		notifies: newNotifies(notClient),
+		unNAT:    NewMutexmap[string, string](),
 	}
 	s.PeerAPI = newPeerAPI(s, notClient)
 	return s
 }
 
 func (s *Server) RegisterServerSendsDownloadFunc(name string, callme ServerSendsDownloadFunc) {
-	s.mut.Lock()
-	defer s.mut.Unlock()
-	s.callmeServerSendsDownloadMap[name] = callme
+	s.callmeServerSendsDownloadMap.Set(name, callme)
 }
 
 func (s *Server) RegisterBistreamFunc(name string, callme BistreamFunc) {
-	s.mut.Lock()
-	defer s.mut.Unlock()
-	s.callmeBistreamMap[name] = callme
+	s.callmeBistreamMap.Set(name, callme)
 }
 
 // Register2Func tells the server about a func or method
 // that will have a returned Message value. See the
 // [TwoWayFunc] definition.
 func (s *Server) Register2Func(serviceName string, callme2 TwoWayFunc) {
-	s.mut.Lock()
-	defer s.mut.Unlock()
-	s.callme2map[serviceName] = callme2
+	s.callme2map.Set(serviceName, callme2)
 }
 
 // Register1Func tells the server about a func or method
 // that will not reply. See the [OneWayFunc] definition.
 func (s *Server) Register1Func(serviceName string, callme1 OneWayFunc) {
 	//vv("Register1Func called with callme1 = %p", callme1)
-	s.mut.Lock()
-	defer s.mut.Unlock()
-	s.callme1map[serviceName] = callme1
+	s.callme1map.Set(serviceName, callme1)
 }
 
 // RegisterUploadReaderFunc tells the server about a func or method
 // to handle uploads. See the
 // [UploadReaderFunc] definition.
 func (s *Server) RegisterUploadReaderFunc(name string, callmeUploadReader UploadReaderFunc) {
-	s.mut.Lock()
-	defer s.mut.Unlock()
-	s.callmeUploadReaderMap[name] = callmeUploadReader
+	s.callmeUploadReaderMap.Set(name, callmeUploadReader)
 }
 
 // Start has the Server begin receiving and processing RPC calls.
@@ -1924,6 +1958,25 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 	if s.cfg == nil {
 		s.cfg = NewConfig()
 	}
+	s.cfg.srvStartingDir, err = os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("rpc25519.Server.Start() could not Getwd(): '%v'", err)
+	}
+	dataDir, err := GetServerDataDir()
+	if err != nil {
+		return nil, fmt.Errorf("rpc25519.Server.Start() could "+
+			"not GetDataDir(): '%v'", err)
+	}
+	s.cfg.srvDataDir = dataDir
+	if !dirExists(s.cfg.srvDataDir) {
+		err = os.MkdirAll(s.cfg.srvDataDir, 0700)
+		if err != nil {
+			return nil, fmt.Errorf("rpc25519.Server.Start() could "+
+				"not make the server data directory '%v': '%v'",
+				s.cfg.srvDataDir, err)
+		}
+	}
+
 	if s.cfg.ServerAddr == "" {
 		panic(fmt.Errorf("no ServerAddr specified in Server.cfg"))
 	}
@@ -2088,7 +2141,7 @@ func (s *Server) noLongerInFlight(callID string) {
 // PRE: s.inflight.mut is NOT held. Inside this func, we update
 // inflight after cancelling the call, all while holding
 // the inflight mut so this is atomic. Even if callID has
-// no cancelFunc it will be delete from the inflight.activeCalls
+// no cancelFunc it will be deleted from the inflight.activeCalls
 // map.
 func (s *Server) cancelCallID(callID string) {
 
@@ -2110,7 +2163,12 @@ func (s *Server) cancelCallID(callID string) {
 	delete(s.inflight.activeCalls, callID)
 }
 
-func (s *rwPair) beginReadStream(ctx context.Context, callmeUploadReaderFunc UploadReaderFunc, req *Message, reply *Message) (err error) {
+func (s *rwPair) beginReadStream(
+	ctx context.Context,
+	callmeUploadReaderFunc UploadReaderFunc,
+	req *Message,
+	reply *Message,
+) (err error) {
 
 	//vv("beginReadStream internal TwoFunc top.")
 
@@ -2152,11 +2210,14 @@ func (s *rwPair) beginReadStream(ctx context.Context, callmeUploadReaderFunc Upl
 		hdrN := &msgN.HDR
 
 		if hdrN.StreamPart != i {
-			panic(fmt.Errorf("MessageAPI_ReceiveFile: stream out of sync, expected next StreamPart to be %v; but we see %v.", i, hdrN.StreamPart))
+			panic(fmt.Errorf("MessageAPI_ReceiveFile: stream "+
+				"out of sync, expected next StreamPart to be %v; "+
+				"but we see %v.", i, hdrN.StreamPart))
 		}
 		// INVAR: we only get matching CallID messages here. Assert this.
 		if i > 0 && hdrN.CallID != hdr0.CallID {
-			panic(fmt.Errorf("hdr0.CallID = '%v', but hdrN.CallID = '%v', at part %v", hdr0.CallID, hdrN.CallID, i))
+			panic(fmt.Errorf("hdr0.CallID = '%v', but "+
+				"hdrN.CallID = '%v', at part %v", hdr0.CallID, hdrN.CallID, i))
 		}
 
 		switch hdrN.Typ {
@@ -2229,7 +2290,8 @@ func (s *serverSendDownloadHelper) sendDownloadPart(ctx context.Context, msg *Me
 	i := s.nextPart
 	s.nextPart++
 
-	// need to preserve Args and JobSerz, to allow Echo Bistreamer test to work, for example.
+	// need to preserve Args and JobSerz, to allow
+	// Echo Bistreamer test to work, for example.
 
 	msg.HDR.Created = time.Now()
 	msg.HDR.From = s.template.HDR.To
@@ -2337,6 +2399,7 @@ func (s *Server) UnregisterChannel(ID string, whichmap int) {
 
 // LocalAddr retreives the local host/port that the
 // Client is calling from.
+// It is a part of the UniversalCliSrv interface.
 func (s *Server) LocalAddr() string {
 	s.mut.Lock()
 	defer s.mut.Unlock()
@@ -2349,13 +2412,160 @@ func (s *Server) LocalAddr() string {
 // be many!) We still want to
 // satisfy the UniveralCliSrv interface and
 // let the Client help Peer users. Hence this stub.
+// It is a part of the UniversalCliSrv interface.
 func (s *Server) RemoteAddr() string {
 	return "" // fragment.go StartRemotePeer() logic depends on this too.
 }
 
+// GetHostHalter returns the Servers's Halter
+// control mechanism.
+// It is a part of the UniversalCliSrv interface.
 func (s *Server) GetHostHalter() *idem.Halter {
 	return s.halt
 }
+
+// GetHostHalter returns the Client's Halter
+// control mechanism.
+// It is a part of the UniversalCliSrv interface.
 func (s *Client) GetHostHalter() *idem.Halter {
 	return s.halt
+}
+
+// RegisterPeerServiceFunc registers your
+// PeerServiceFunc under the given name.
+// Afterwards, it can be named in a call
+// to start a local or remote peer.
+// It is a part of the UniversalCliSrv interface.
+func (s *Client) RegisterPeerServiceFunc(
+	peerServiceName string,
+	psf PeerServiceFunc,
+) error {
+	return s.PeerAPI.RegisterPeerServiceFunc(peerServiceName, psf)
+}
+
+// RegisterPeerServiceFunc registers your
+// PeerServiceFunc under the given name.
+// Afterwards, it can be named in a call
+// to start a local or remote peer.
+// It is a part of the UniversalCliSrv interface.
+func (s *Server) RegisterPeerServiceFunc(
+	peerServiceName string,
+	psf PeerServiceFunc,
+) error {
+
+	return s.PeerAPI.RegisterPeerServiceFunc(peerServiceName, psf)
+}
+
+// StartLoalPeer creates and returns a local Peer,
+// optionally establishing the Circuit in accordance
+// with the requestedCircuit Message. Primarily
+// requestedCircuit is used internally by the
+// the system. It can be nil; no Circuit will be built.
+//
+// StartLoalPeer is a part of the Peer/Circuit/Fragment API.
+// It is a part of the UniversalCliSrv interface.
+func (s *Client) StartLocalPeer(
+	ctx context.Context,
+	peerServiceName string,
+	requestedCircuit *Message,
+) (lpb *LocalPeer, err error) {
+
+	return s.PeerAPI.StartLocalPeer(ctx, peerServiceName, requestedCircuit)
+}
+
+// StartLoalPeer creates and returns a local Peer,
+// optionally establishing the Circuit in accordance
+// with the requestedCircuit Message. Primarily
+// requestedCircuit is used internally by the
+// the system. It can be nil; no Circuit will be built.
+//
+// StartLoalPeer is a part of the Peer/Circuit/Fragment API.
+// It is a part of the UniversalCliSrv interface.
+func (s *Server) StartLocalPeer(
+	ctx context.Context,
+	peerServiceName string,
+	requestedCircuit *Message,
+) (lpb *LocalPeer, err error) {
+
+	return s.PeerAPI.StartLocalPeer(ctx, peerServiceName, requestedCircuit)
+}
+
+// StartRemotePeer bootstraps a remote Peer without
+// establishing a Circuit with it. You should prefer
+// StartRemotePeerAndGetCircuit to avoid a 2nd network
+// roundtrip, if you can.
+//
+// This creates a remote Peer in the Peer/Circuit/Fragment API.
+// It is a part of the UniversalCliSrv interface.
+func (s *Client) StartRemotePeer(
+	ctx context.Context,
+	peerServiceName,
+	remoteAddr string,
+	waitUpTo time.Duration,
+) (remotePeerURL, RemotePeerID string, err error) {
+
+	return s.PeerAPI.StartRemotePeer(ctx, peerServiceName, remoteAddr, waitUpTo)
+}
+
+// StartRemotePeer bootstraps a remote Peer without
+// establishing a Circuit with it. You should prefer
+// StartRemotePeerAndGetCircuit to avoid a 2nd network
+// roundtrip, if you can.
+//
+// This creates a remote Peer in the Peer/Circuit/Fragment API.
+// It is a part of the UniversalCliSrv interface.
+func (s *Server) StartRemotePeer(
+	ctx context.Context,
+	peerServiceName,
+	remoteAddr string,
+	waitUpTo time.Duration,
+) (remotePeerURL, RemotePeerID string, err error) {
+
+	return s.PeerAPI.StartRemotePeer(ctx, peerServiceName, remoteAddr, waitUpTo)
+}
+
+// StartRemotePeerAndGetCircuit is the main way to bootstrap
+// a remote Peer in the Peer/Circuit/Fragment API. It
+// returns a ready-to-use Circuit with circuitName as
+// its name. It is a part of the UniversalCliSrv interface.
+func (s *Client) StartRemotePeerAndGetCircuit(
+	lpb *LocalPeer,
+	circuitName string,
+	frag *Fragment,
+	peerServiceName,
+	remoteAddr string,
+	waitUpTo time.Duration,
+) (ckt *Circuit, err error) {
+
+	return s.PeerAPI.StartRemotePeerAndGetCircuit(
+		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo)
+}
+
+// StartRemotePeerAndGetCircuit is the main way to bootstrap
+// a remote Peer in the Peer/Circuit/Fragment API. It
+// returns a ready-to-use Circuit with circuitName as
+// its name. It is a part of the UniversalCliSrv interface.
+func (s *Server) StartRemotePeerAndGetCircuit(
+	lpb *LocalPeer,
+	circuitName string,
+	frag *Fragment,
+	peerServiceName,
+	remoteAddr string,
+	waitUpTo time.Duration,
+) (ckt *Circuit, err error) {
+
+	return s.PeerAPI.StartRemotePeerAndGetCircuit(
+		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo)
+}
+
+// GetConfig returns the Server's Config.
+// It is a part of the UniversalCliSrv interface.
+func (s *Server) GetConfig() *Config {
+	return s.cfg
+}
+
+// GetConfig returns the Clients's Config.
+// It is a part of the UniversalCliSrv interface.
+func (c *Client) GetConfig() *Config {
+	return c.cfg
 }

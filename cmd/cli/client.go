@@ -16,8 +16,10 @@ import (
 	"time"
 
 	tdigest "github.com/caio/go-tdigest"
+	"github.com/glycerine/idem"
+	"github.com/glycerine/ipaddr"
 	"github.com/glycerine/loquet"
-	"github.com/glycerine/rpc25519"
+	rpc "github.com/glycerine/rpc25519"
 	myblake3 "github.com/glycerine/rpc25519/hash"
 	"github.com/glycerine/rpc25519/progress"
 	_ "net/http/pprof" // for web based profiling while running
@@ -26,14 +28,22 @@ import (
 var td *tdigest.TDigest
 
 func main() {
-	rpc25519.Exit1IfVersionReq()
+	rpc.Exit1IfVersionReq()
+
+	fmt.Printf("%v", rpc.GetCodeVersion("cli"))
+
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
-	certdir := rpc25519.GetCertsDir()
-	//cadir := rpc25519.GetPrivateCertificateAuthDir()
+	certdir := rpc.GetCertsDir()
+	//cadir := rpc.GetPrivateCertificateAuthDir()
 
 	var profile = flag.String("prof", "", "host:port to start web profiler on. host can be empty for all localhost interfaces")
 
+	hostIP := ipaddr.GetExternalIP() // e.g. 100.x.x.x
+	_ = hostIP
+	//vv("hostIP = '%v'", hostIP)
+
+	//var dest = flag.String("s", hostIP+":8443", "server address to send echo request to.")
 	var dest = flag.String("s", "127.0.0.1:8443", "server address to send echo request to.")
 	var remoteDefault = flag.Bool("r", false, "ping the default test remote at 192.168.254.151")
 	var tcp = flag.Bool("tcp", false, "use TCP instead of the default TLS")
@@ -64,7 +74,7 @@ func main() {
 	flag.Parse()
 
 	if *verboseDebugCompress {
-		rpc25519.DebugVerboseCompress = true
+		rpc.DebugVerboseCompress = true
 	}
 
 	if *downloadPath != "" {
@@ -96,11 +106,11 @@ func main() {
 		_ = port
 		if err != nil && strings.Contains(err.Error(), "missing port in address") {
 			*dest += ":8443"
-			vv("using default dest port: %v", *dest)
+			//vv("using default dest port: %v", *dest)
 		} else {
 			if port == "0" {
 				*dest += host + ":8443"
-				vv("defaulting to port 8443, as in: %v", *dest)
+				//vv("defaulting to port 8443, as in: %v", *dest)
 			}
 		}
 	}
@@ -112,7 +122,7 @@ func main() {
 	td, err = tdigest.New(tdigest.Compression(100))
 	panicOn(err)
 
-	cfg := rpc25519.NewConfig()
+	cfg := rpc.NewConfig()
 	cfg.ClientDialToHostPort = *dest // "127.0.0.1:8443",
 	cfg.TCPonly_no_TLS = *tcp
 	cfg.UseQUIC = *quic
@@ -124,7 +134,7 @@ func main() {
 	cfg.CompressionOff = *compressOff
 	cfg.CompressAlgo = *compressAlgo
 
-	cli, err := rpc25519.NewClient("cli", cfg)
+	cli, err := rpc.NewClient("cli", cfg)
 	if err != nil {
 		log.Printf("bad client config: '%v'\n", err)
 		os.Exit(1)
@@ -135,14 +145,14 @@ func main() {
 		os.Exit(1)
 	}
 	defer cli.Close()
-	vv("client connected from local addr='%v'", cli.LocalAddr())
+	//vv("client connected from local addr='%v'", cli.LocalAddr())
 	fmt.Printf("compression: %v; compressionAlgo: '%v'\n",
 		!*compressOff, *compressAlgo)
 	fmt.Println()
 
 	doBistream := false
 	doDownload := false
-	var bistream *rpc25519.Bistreamer
+	var bistream *rpc.Bistreamer
 	var wg sync.WaitGroup
 	bistreamerName := "echoBistreamFunc"
 
@@ -177,7 +187,7 @@ func main() {
 		panicOn(err)
 		defer downloader.Close()
 
-		s := rpc25519.NewPerCallID_FileToDiskState(downloader.CallID())
+		s := rpc.NewPerCallID_FileToDiskState(downloader.CallID())
 		s.OverrideFilename = downloadFile
 		//vv("downloader.CallID() = '%v'", downloader.CallID())
 
@@ -202,7 +212,7 @@ func main() {
 					maxPayloadSeen = sz0
 				}
 
-				if req.HDR.Typ == rpc25519.CallRPCReply {
+				if req.HDR.Typ == rpc.CallRPCReply {
 					vv("cli downloader downloadsCh sees CallRPCReply, exiting")
 					return
 				}
@@ -231,7 +241,7 @@ func main() {
 					lastUpdate = time.Now()
 				}
 
-				last := (req.HDR.Typ == rpc25519.CallDownloadEnd)
+				last := (req.HDR.Typ == rpc.CallDownloadEnd)
 
 				// this writes our req.JobSerz to disk.
 				err = s.WriteOneMsgToFile(req, "download_client_got", last)
@@ -280,7 +290,7 @@ func main() {
 		panicOn(err)
 		defer bistream.Close()
 
-		s := rpc25519.NewPerCallID_FileToDiskState(bistream.CallID())
+		s := rpc.NewPerCallID_FileToDiskState(bistream.CallID())
 		s.OverrideFilename = downloadFile
 		//vv("bistream.CallID() = '%v'", bistream.CallID())
 
@@ -306,7 +316,7 @@ func main() {
 					}
 					netread += sz
 
-					if req.HDR.Typ == rpc25519.CallRPCReply {
+					if req.HDR.Typ == rpc.CallRPCReply {
 						//vv("cli bistream downloadsCh sees CallRPCReply, exiting goro")
 						return
 					}
@@ -315,7 +325,7 @@ func main() {
 						lastUpdate = time.Now()
 					}
 
-					last := (req.HDR.Typ == rpc25519.CallDownloadEnd)
+					last := (req.HDR.Typ == rpc.CallDownloadEnd)
 					err = s.WriteOneMsgToFile(req, "echoclientgot", last)
 
 					if err != nil {
@@ -366,24 +376,24 @@ func main() {
 
 		// wait to initialize the Uploader until we
 		// actually have data to send.
-		var strm *rpc25519.Uploader
+		var strm *rpc.Uploader
 
 		blake3hash := myblake3.NewBlake3()
 
 		// much smoother progress display waiting for 1MB rather than 64MB
 		maxMessage := 1024 * 1024
-		//maxMessage := rpc25519.UserMaxPayload
+		//maxMessage := rpc.UserMaxPayload
 		//maxMessage := 1024
 		buf := make([]byte, maxMessage)
 		var tot int
 
-		req := rpc25519.NewMessage()
+		req := rpc.NewMessage()
 		req.HDR.Created = time.Now()
 		req.HDR.Args["pathsize"] = fmt.Sprintf("%v", pathsize)
 		var lastUpdate time.Time
 
 		// check for errors
-		var checkForErrors = func() *rpc25519.Message {
+		var checkForErrors = func() *rpc.Message {
 			if strm != nil {
 				//vv("checking strm (sendfile) chan for error: %p; callID='%v'", strm.ErrorCh, strm.CallID())
 				select {
@@ -444,7 +454,7 @@ func main() {
 				continue
 			}
 
-			streamMsg := rpc25519.NewMessage()
+			streamMsg := rpc.NewMessage()
 			// must copy!
 			streamMsg.JobSerz = append([]byte{}, send...)
 			streamMsg.HDR.Args = map[string]string{"blake3": sumstring}
@@ -548,7 +558,7 @@ func main() {
 	if *n > 1 {
 		alwaysPrintf("about to do n = %v calls.\n", *n)
 	}
-	var reply *rpc25519.Message
+	var reply *rpc.Message
 	var i int
 	slowest := -1.0
 	nextSlowest := -1.0
@@ -561,7 +571,7 @@ func main() {
 
 	var elaps []time.Duration
 
-	req := rpc25519.NewMessage()
+	req := rpc.NewMessage()
 	req.JobSerz = []byte("client says hello and requests this be echoed back with a timestamp!")
 	req.HDR.ServiceName = "customEcho"
 
