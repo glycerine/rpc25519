@@ -1,0 +1,513 @@
+package jsync
+
+import (
+	"context"
+	"fmt"
+	//myblake3 "github.com/glycerine/rpc25519/hash"
+	//"github.com/glycerine/rpc25519/progress"
+	//"io"
+	//"os"
+	//"path/filepath"
+	//"strconv"
+	"sync"
+	"time"
+
+	"github.com/glycerine/idem"
+	rpc "github.com/glycerine/rpc25519"
+)
+
+//go:generate greenpack -no-dedup=true
+
+// SyncService implements a file syncing
+// service using an rsync-like protocol.
+// Users register it as a peer using the
+// Peer/Circuit/Fragment API.
+//
+//msgp:ignore SyncService
+type SyncService struct {
+	Halt *idem.Halter
+
+	SyncPathRequestCh chan *RequestToSyncPath
+
+	U rpc.UniversalCliSrv
+
+	ServiceName string
+}
+
+// This file is the top-level starting point for
+// the file syncing (rsync-like) protocol.
+// The SyncService.Start() method launches
+// Taker (taker.go) and Giver (giver.go).
+//
+// Taker and Giver implement finite-state-machines
+// (FSM) that communicate over the wire to sync
+// files. There are 16 FragOp fragment operations
+// (message types) sent and/or received to
+// implement both push and pull. The
+// rpc25519 Peer/Circuit/Fragment API was designed to
+// support this file synching protocol.
+//
+// Implementing both Push flows and Pull flows,
+// the Taker and the Giver see the following
+// flows (sequences of messages back and forth)
+// through their state machines while syncing.
+// During push, the local client is the Giver.
+// During pull, the local client is the Taker.
+// The rpc.Client and rpc.Server can act
+// in either role, as they both implement the
+// rpc.UniversalCliSrv interface.
+//
+// In the following flows, the "-> 1" means
+// that FragOp 1 was received on the opposite
+// side. For example, the push flow is initiated
+// by the "giver -> 1" meaning that the giver
+// sends OpRsync_RequestRemoteToTake and the
+// taker reads it off the wire. The full
+// table of FragOps follows the flows.
+//
+// push flows:
+//          1 (RequestRemoteToTake)
+// giver -> 1 -> err same file (giver returns)
+// giver -> 1 -> 7 FileSizeModTimeMatch -> FIN (taker returns)
+// giver -> 1 -> 8 LightRequestEnclosed(giver) giverSendsPlanAndData.. file checksums already match, yay. -> ToTakerMetaUpdateAtLeast (taker) -> FIN (giver returns)
+// giver -> 1 -> 8 LightRequestEnclosed(giver) giverSendsPlanAndData -> 11,10,9 (taker) -> FileAllReadAck -> FIN (taker returns)
+// giver -> 1 -> 2 NeedFullFile2(giver) giverSendsWholeFile -> 11 (file not found via SenderPlanEnclosed.FileIsDeleted) (taker deletes file) -> FIN (giver returns)
+// giver -> 1 -> 2 NeedFullFile2(giver) giverSendsWholeFile -> FullFileBegin3,FullFileMore4,FullFileEnd5 (taker) -> FileAllReadAck -> FIN (taker returns)
+//
+//
+// pull flows:
+//
+//          12 (RequestRemoteToGive)
+//
+// taker -> 12 (RequestRemoteToGive) giverSendsWholeFile -> as above... -> FIN giver returns
+// taker -> 12 remoteGiverAreDiffChunksNeeded -> 13 TellTakerToDelete (taker deletes file) -> FIN (giver returns)
+// taker -> 12 remoteGiverAreDiffChunksNeeded -> err same file(giver) -> FIN (taker returns)
+// taker -> 12 remoteGiverAreDiffChunksNeeded -> FileSizeModTimeMatch(taker) -> FIN (giver returns)
+// taker -> 12 remoteGiverAreDiffChunksNeeded giverSendsPlanAndData(giver) ... giverReportFileNotFound  -> (taker) SenderPlanEnclosed w/ SenderPlan.FileIsDeleted, taker deletes file -> FIN (giver returns)
+// taker -> 12 remoteGiverAreDiffChunksNeeded giverSendsPlanAndData(giver) ... -> (taker) SenderPlanEnclosed,HeavyDiffChunksEnclosed,HeavyDiffChunksLast .. size 0 file -> (giver) FileAllReadAckToGiver -> FIN (taker returns)
+// taker -> 12 remoteGiverAreDiffChunksNeeded giverSendsPlanAndData(giver) ... -> (taker) SenderPlanEnclosed,HeavyDiffChunksEnclosed,HeavyDiffChunksLast .. size >0 file .. taker saves plan,goalPreic -> (giver) FileAllReadAckToGiver -> FIN (taker returns)
+
+// lazy taker -> 19 (LazyTakerWantsToPull) on giver ->
+
+const (
+	OpRsync_RequestRemoteToTake            = 1  // to taker
+	OpRsync_ToGiverNeedFullFile2           = 2  // ... to Giver
+	OpRsync_HereIsFullFileBegin3           = 3  // to taker
+	OpRsync_HereIsFullFileMore4            = 4  // to taker
+	OpRsync_HereIsFullFileEnd5             = 5  // to taker
+	OpRsync_FileAllReadAckToGiver          = 6  // ... to Giver -> exit when recv.
+	OpRsync_FileSizeModTimeMatch           = 7  // to taker -> exit when recv.
+	OpRsync_LightRequestEnclosed           = 8  // ... to Giver (if needs more Chunk space, use 17/18 to follow up)
+	OpRsync_HeavyDiffChunksEnclosed        = 9  // to taker
+	OpRsync_HeavyDiffChunksLast            = 10 // to taker
+	OpRsync_SenderPlanEnclosed             = 11 // to taker needs to send extra Chunks
+	OpRsync_RequestRemoteToGive            = 12 // ... to Giver
+	OpRsync_TellTakerToDelete              = 13 // to taker -> ack back fin to giver.
+	OpRsync_ToTakerMetaUpdateAtLeast       = 14 // to taker (future feature, off atm.)
+	OpRsync_AckBackFIN_ToTaker             = 15 // to taker -> exit when recv.
+	OpRsync_AckBackFIN_ToGiver             = 16 // ... to Giver -> exit when recv.
+	OpRsync_RequestRemoteToGive_ChunksMore = 17 // ... to Giver (if 8/12 Chunks too big)
+	OpRsync_RequestRemoteToGive_ChunksLast = 18 // ... to Giver (end send 8/12 Chunks)
+	OpRsync_LazyTakerWantsToPull           = 19 // ... to Giver, quick size + modTime check
+	OpRsync_LazyTakerNoLuck_ChunksRequired = 20 // to taker (quick size/modTime failed)
+)
+
+var once sync.Once
+
+// AliasRsyncOps prints human readable names
+// on fragment print-outs to ease reading
+// and interpretation. As opposed to using
+// a Stringer which would require casts
+// everywhere, this makes the FragOp
+// assignments much more readable.
+func AliasRsyncOps() {
+	rpc.FragOpRegister(OpRsync_RequestRemoteToTake, "OpRsync_RequestRemoteToTake")
+	rpc.FragOpRegister(OpRsync_RequestRemoteToGive, "OpRsync_RequestRemoteToGive")
+	rpc.FragOpRegister(OpRsync_ToGiverNeedFullFile2, "OpRsync_ToGiverNeedFullFile2")
+	rpc.FragOpRegister(OpRsync_HereIsFullFileBegin3, "OpRsync_HereIsFullFileBegin3")
+	rpc.FragOpRegister(OpRsync_HereIsFullFileMore4, "OpRsync_HereIsFullFileMore4")
+	rpc.FragOpRegister(OpRsync_HereIsFullFileEnd5, "OpRsync_HereIsFullFileEnd5")
+	rpc.FragOpRegister(OpRsync_FileAllReadAckToGiver, "OpRsync_FileAllReadAckToGiver")
+	rpc.FragOpRegister(OpRsync_FileSizeModTimeMatch, "OpRsync_FileSizeModTimeMatch")
+	rpc.FragOpRegister(OpRsync_LightRequestEnclosed, "OpRsync_LightRequestEnclosed")
+	rpc.FragOpRegister(OpRsync_HeavyDiffChunksEnclosed, "OpRsync_HeavyDiffChunksEnclosed")
+	rpc.FragOpRegister(OpRsync_HeavyDiffChunksLast, "OpRsync_HeavyDiffChunksLast")
+	rpc.FragOpRegister(OpRsync_SenderPlanEnclosed, "OpRsync_SenderPlanEnclosed")
+	rpc.FragOpRegister(OpRsync_TellTakerToDelete, "OpRsync_TellTakerToDelete")
+	rpc.FragOpRegister(OpRsync_ToTakerMetaUpdateAtLeast, "OpRsync_ToTakerMetaUpdateAtLeast")
+	rpc.FragOpRegister(OpRsync_AckBackFIN_ToTaker, "OpRsync_AckBackFIN_ToTaker")
+	rpc.FragOpRegister(OpRsync_AckBackFIN_ToGiver, "OpRsync_AckBackFIN_ToGiver")
+
+	// the adds to OpRsync_RequestRemoteToGive (12) when Chunks
+	// won't fit in one Message.
+	rpc.FragOpRegister(OpRsync_RequestRemoteToGive_ChunksMore, "OpRsync_RequestRemoteToGive_ChunksMore")
+	rpc.FragOpRegister(OpRsync_RequestRemoteToGive_ChunksLast, "OpRsync_RequestRemoteToGive_ChunksLast")
+	rpc.FragOpRegister(OpRsync_LazyTakerWantsToPull, "OpRsync_LazyTakerWantsToPull")
+	rpc.FragOpRegister(OpRsync_LazyTakerNoLuck_ChunksRequired, "OpRsync_LazyTakerNoLuck_ChunksRequired")
+}
+
+// NewRequestToSyncPath creates an empty
+// RequestToSyncPath with a new Done channel set.
+func NewRequestToSyncPath() *RequestToSyncPath {
+	return &RequestToSyncPath{
+		Done: idem.NewIdemCloseChan(),
+	}
+}
+
+// RequestToSyncPath is the main bridge
+// between user code and the file syncing service
+// implementation. In essense, the user must:
+//
+// a) request := &RequestToSyncPath{} and set details/RemoteTakes to true/false
+// b) reqs := make(chan *RequestToSyncPath)
+// c) call RunRsyncService(..., reqs) to get a local peer.
+// d) does reqs <- request to start the sync between local and remote peers.
+//
+// See the rpc25519/cmd/cli/client.go or
+// the rpc25519/jsync/jsync.go or the tests
+// in this package for examples.
+//
+// The RequestToSyncPath struct is used
+// to initiate both push and pull.
+// They are distinguished in that a
+// pull must set RemoteTakes to true
+// and fill in the Precis and Chunks
+// in the RequestToSyncPath request;
+// using GetHashesOneByOne.
+//
+// In advance, the user must have registered the
+// SyncService.Start method on both
+// the rpc25519.Client and Server.
+//
+// To study the implementation, see
+// the SyncService.Start() method
+// where RequestToSyncPath injected
+// into the state machine either
+// through a Start() function call parameter
+// for local peers, or over the wire
+// for remote peers. Over the wire,
+// it arrives as the first fragment
+// in the incomming circut, having
+// been sent from the local peer with
+// the StartRemotePeerAndGetCircuit
+// call in Start().
+type RequestToSyncPath struct {
+	GiverPath string    `zid:"0"`
+	TakerPath string    `zid:"1"`
+	ModTime   time.Time `zid:"2"`
+	FileSize  int64     `zid:"3"`
+	FileMode  uint32    `zid:"4"`
+
+	Done *idem.IdemCloseChan `msg:"-"`
+
+	ToRemotePeerServiceName string `zid:"5"`
+	ToRemoteNetAddr         string `zid:"6"`
+	ToRemoteURL             string `zid:"7"`
+	ToRemotePeerID          string `zid:"8"`
+
+	SyncFromHostname string `zid:"9"`
+	SyncFromHostCID  string `zid:"10"`
+
+	FullFileInitSideBlake3    string `zid:"11"`
+	FullFileRespondSideBlake3 string `zid:"12"`
+
+	SizeModTimeMatch bool   `zid:"13"`
+	AbsDir           string `zid:"14"`
+
+	// Errs can be checked after Done.Chan is closed
+	// to see if the request encountered any problems.
+	Errs string `zid:"15"`
+
+	BytesSent              int64 `zid:"16"`
+	BytesRead              int64 `zid:"17"`
+	RemoteBytesTransferred int64 `zid:"18"`
+
+	WasEmptyStartingFile bool `zid:"19"`
+
+	// MoreChunksComming is for internal use.
+	// It has to be exported to be conveyed over the wire.
+	//
+	// The initial Chunks didn't all fit into one
+	// Message in the inital syncReq. So, the recipient should
+	// expect 	OpRsync_RequestRemoteToGiveChunksMore,
+	// and      OpRsync_RequestRemoteToGiveChunksEnd
+	// to be incomming with the rest, after getting this syncReq.
+	MoreChunksComming bool `zid:"20"`
+
+	// If RemoteTakes is false => remote giver, local taker.
+	RemoteTakes bool        `zid:"21"`
+	Precis      *FilePrecis `zid:"22"`
+	Chunks      *Chunks     `zid:"23"`
+}
+
+const assembleInMem = true
+
+func RunRsyncService(
+	cfg *rpc.Config,
+	u rpc.UniversalCliSrv,
+	serviceName string,
+	isCli bool,
+	reqs chan *RequestToSyncPath,
+
+) (lpb *rpc.LocalPeer, ctx context.Context, canc context.CancelFunc, err error) {
+
+	// get our nice print outs of fragments.
+	once.Do(AliasRsyncOps)
+
+	//vv("RunRsyncService for serviceName '%v'; isCli = %v", serviceName, isCli)
+
+	rsyncd := NewSyncService(reqs)
+	rsyncd.U = u
+	err = u.RegisterPeerServiceFunc(serviceName, rsyncd.Start)
+	panicOn(err)
+	rsyncd.ServiceName = serviceName
+
+	ctx, canc = context.WithCancel(context.Background())
+
+	lpb, err = u.StartLocalPeer(ctx, serviceName, nil)
+	panicOn(err)
+
+	//vv("RunRsyncService back from StartLocalPeer for serviceName '%v'; isCli = %v", serviceName, isCli)
+
+	return
+}
+
+func NewSyncService(reqs chan *RequestToSyncPath) *SyncService {
+	return &SyncService{
+		Halt:              idem.NewHalter(),
+		SyncPathRequestCh: reqs,
+	}
+}
+
+const rsyncRemoteTakesString = "rsync remote takes"
+const rsyncRemoteGivesString = "rsync remote gives"
+
+func (s *SyncService) Start(
+	myPeer *rpc.LocalPeer,
+	ctx0 context.Context,
+	newCircuitCh <-chan *rpc.Circuit,
+
+) error {
+
+	name := myPeer.PeerServiceName
+	_ = name // used when vv logging is on.
+
+	defer func() {
+		////vv("%v: end of start() inside defer, about the return/finish", name)
+		s.Halt.ReqStop.Close()
+		s.Halt.Done.Close()
+		myPeer.Close()
+
+		// suppress halted/context cancelled shutdowns, as
+		// this is normal during shutdown/end of Circuit.
+		if r := recover(); r != nil {
+			if r != rpc.ErrContextCancelled && r != rpc.ErrHaltRequested {
+				panic(r)
+			} else {
+				vv("SyncService.Start() suppressing ErrContextCancelled or ErrHaltRequested, this is normal shutdown.")
+			}
+		}
+	}()
+
+	//vv("%v: start() top.", name)
+	//vv("%v: ourID = '%v'; peerServiceName='%v';", name, myPeer.PeerID, myPeer.ServiceName())
+
+	rpc.AliasRegister(myPeer.PeerID, myPeer.PeerID+" ("+myPeer.ServiceName()+")")
+
+	done0 := ctx0.Done()
+
+	for {
+		//vv("%v: top of select", name)
+		select {
+		case <-done0:
+			//////vv("%v: done0! cause: '%v'", name, context.Cause(ctx0))
+			return rpc.ErrContextCancelled
+			//case <-s.halt.ReqStop.Chan:
+			//	//zz("%v: halt.ReqStop seen", name)
+			//	return ErrHaltRequested
+
+			// new Circuit connection arrives => we are the passive side for it.
+		case rckt := <-newCircuitCh:
+			// rckt is a remote circuit connection.
+			//vv("%v: newCircuitCh got rckt! service sees new peerURL: '%v'", name, rckt.RemoteCircuitURL())
+			// we are the "remote"
+
+			if rckt.Name == rsyncRemoteTakesString {
+				// (first implemented)
+				go s.Taker(ctx0, rckt, myPeer, nil)
+			} else {
+				// (second implemented)
+				go s.Giver(ctx0, rckt, myPeer, nil)
+			}
+
+		case syncReq := <-s.SyncPathRequestCh:
+			// we are the "local" taking this request from the cli client.go.
+
+			//vv("%v: sees requested on SyncPathRequestCh: '%#v'", name, syncReq)
+
+			// works! but takes an extra round-trip. So
+			// use StartRemotePeerAndGetCircuit() instead.
+			//remoteURL, remotePeerID, err := s.U.StartRemotePeer(ctx0, syncReq.ToRemotePeerServiceName, syncReq.ToRemoteNetAddr, 0)
+
+			// Use the circuitName to indicate remote taker or giver,
+			// so they don't need to accept a frag to know which to start.
+			// It would be awkward to re-submit that frag into the FSM.
+			var cktName string
+
+			frag := rpc.NewFragment()
+			frag.FromPeerID = myPeer.PeerID
+			frag.ServiceName = syncReq.ToRemotePeerServiceName
+
+			if syncReq.RemoteTakes {
+				// (first implemented)
+				frag.FragOp = OpRsync_RequestRemoteToTake
+				cktName = rsyncRemoteTakesString // "rsync remote takes"
+			} else {
+				// (second implemented)
+				frag.FragOp = OpRsync_RequestRemoteToGive
+				cktName = rsyncRemoteGivesString //"rsync remote gives"
+				if syncReq.Chunks == nil {
+					// client wants to pull without having to
+					// scan their (possibly huge) local file for checksums;
+					// Can we lazily/efficiently just use the file size + modTime?
+					frag.FragOp = OpRsync_LazyTakerWantsToPull
+				}
+
+				// maybe? ensure FileSize and mod time are set, else we
+				// might be fooled into thinking this is a delete request?
+				//if syncReq.FileSize == 0 {
+
+				//}
+
+			}
+
+			// 111.1 bytes is the average chunk size without any Data.
+			// Hence ~ 10_000 *should* be the most chunks we
+			// pack into the initial sync request to fit under
+			// UserMaxMessage, but we saw even 9_000 go over the
+			// limit, so we keep it to K = 5_000 now.
+			//
+			// The is only a problem in pulls. In pulls we
+			// send our local chunk hashes first. They can get big.
+			//
+			// Hence we now handle the general case and
+			// support needing to send the Chunks separately.
+
+			var origChunks []*Chunk
+			const K = 5000 // how many we keep in first message, 9K too large.
+			extraComing := false
+			if syncReq.Chunks != nil && len(syncReq.Chunks.Chunks) > K ||
+				syncReq.Msgsize() > rpc.UserMaxPayload-10_000 {
+
+				// must send chunks separately
+				extraComing = true
+				syncReq.MoreChunksComming = true
+				origChunks = syncReq.Chunks.Chunks
+
+				// truncate down the initial Message,
+				syncReq.Chunks.Chunks = syncReq.Chunks.Chunks[:K]
+
+				upperBound := syncReq.Msgsize()
+				if upperBound > rpc.UserMaxPayload-10_000 {
+					panic(fmt.Sprintf("upperBound = %v > %v = "+
+						"rpc.UserMaxPayload-10_000 even after splitting at K=%v",
+						upperBound, rpc.UserMaxPayload-10_000, K))
+				}
+			}
+			data, err := syncReq.MarshalMsg(nil)
+			panicOn(err)
+
+			// restore so locals get it!
+			if extraComing {
+				syncReq.Chunks.Chunks = origChunks
+			}
+
+			// should not be too big now, but verify.
+			if len(data) > rpc.UserMaxPayload-10_000 {
+
+				panic(fmt.Sprintf("problem! Start()"+
+					" sees synReq from host that is too big!  "+
+					"%v = len(data) > rpc.UserMaxPayload-10_000 = %v",
+					len(data), rpc.UserMaxPayload-10_000))
+			}
+			frag.Payload = data
+
+			ckt, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
+				frag, syncReq.ToRemotePeerServiceName, syncReq.ToRemoteNetAddr, 0)
+
+			panicOn(err)
+			if syncReq.RemoteTakes {
+				// local pushes to remote. (first implemented)
+				// Since we are "local", we start the Giver. The remote takes from us.
+				go s.Giver(ctx0, ckt, myPeer, syncReq)
+			} else {
+				// local pulls from remote. the remote gives us the update.
+				go s.Taker(ctx0, ckt, myPeer, syncReq)
+			}
+			if extraComing {
+
+				xtra := &Chunks{
+					Path:   syncReq.Chunks.Path,
+					Chunks: origChunks[K:],
+				}
+				bt := &byteTracker{}
+				err = s.packAndSendChunksLimitedSize(
+					xtra,
+					frag.FragSubject,
+					OpRsync_RequestRemoteToGive_ChunksLast,
+					OpRsync_RequestRemoteToGive_ChunksMore,
+					ckt,
+					bt,
+					syncReq.Chunks.Path,
+				)
+				if err != nil {
+					vv("error back from packAndSendChunksLimitedSize()"+
+						" during xtra sending: '%v'", err)
+					return err
+				}
+				/* example too large message, in case we need fields
+				hdr.go:253 2025-01-22 16:58:18.399 -0600 CST ErrTooLarge! len(m.JobSerz)= 1963155 > 1309616 = maxMessage-1024;
+				 m=
+				&rpc25519.HDR{
+				    "Created": "2025-01-22 22:58:18.399447057 +0000 UTC m=+1.598354190",
+				    "From": "tcp://192.168.254.152:55842 (client: cli)",
+				    "To": "tcp://192.168.254.151:8443",
+				    "ServiceName": "rsync_server",
+				    "Args": map[string]string{"#circuitName":"rsync remote gives", "#fromServiceName":"rsync_client", "#pleaseAssignNewPeerID":"0z6MyccTccimVfBqJoPvjJsdNAk="},
+				    "Subject": "",
+				    "Seqno": 2,
+				    "Typ": CallPeerStartCircuitTakeToID,
+				    "CallID": "PFjIpzLr_kAf5DxpTx_VjxWCEPM= (rsync remote gives)",
+				    "Serial": 1,
+				    "LocalRecvTm": "0001-01-01 00:00:00 +0000 UTC",
+				    "Deadline": "0001-01-01 00:00:00 +0000 UTC",
+				    "FromPeerID": "S75TLBC2esJ3J7TUfvM7F92YHUA= (rsync_client)",
+				    "ToPeerID": "0z6MyccTccimVfBqJoPvjJsdNAk= (rsync_server)",
+				    "StreamPart": 0,
+				    "FragOp": 12 (OpRsyncRequestRemoteToGive),
+				}
+				*/
+			}
+		}
+	}
+	return nil
+}
+
+func (s *SyncService) ackBackFINToTaker(ckt *rpc.Circuit, frag *rpc.Fragment) {
+	ack := rpc.NewFragment()
+	ack.FragSubject = frag.FragSubject
+	ack.FragOp = OpRsync_AckBackFIN_ToTaker
+	err := ckt.SendOneWay(ack, 0)
+	//panicOn(err) races with shutdown, skip.
+	_ = err // rpc25519 error: context cancelled. Normal shutdown, don't panic.
+}
+
+func (s *SyncService) ackBackFINToGiver(ckt *rpc.Circuit, frag *rpc.Fragment) {
+	ack := rpc.NewFragment()
+	ack.FragSubject = frag.FragSubject
+	ack.FragOp = OpRsync_FileSizeModTimeMatch
+	ack.FragOp = OpRsync_AckBackFIN_ToGiver
+	err := ckt.SendOneWay(ack, 0)
+	//panicOn(err) races with shutdown, skip.
+	_ = err // rpc25519 error: context cancelled. Normal shutdown. Don't panic.
+}

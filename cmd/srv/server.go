@@ -19,6 +19,7 @@ import (
 
 	"github.com/glycerine/ipaddr"
 	"github.com/glycerine/rpc25519"
+	rsync "github.com/glycerine/rpc25519/jsync"
 )
 
 var quiet *bool
@@ -85,6 +86,8 @@ func main() {
 	var readfile = flag.Bool("readfile", false, "listen for files to write to disk; client should run -sendfile")
 
 	var servefile = flag.Bool("serve", false, "serve downloads; client should run -download")
+
+	var doRsyncServer = flag.Bool("rsync", true, "act as an rsync reader/receiver of files; cli -rsync will send us the diffs of a file. We report what chunks we need to update a file beforehand.")
 
 	var echo = flag.Bool("echo", false, "bistream echo everything")
 
@@ -155,6 +158,20 @@ func main() {
 	log.Printf("rpc25519.server Start() returned serverAddr = '%v'", serverAddr)
 	fmt.Printf("compression: %v; compressionAlgo: '%v'\n",
 		!*compressOff, *compressAlgo)
+
+	if *doRsyncServer {
+		reqs := make(chan *rsync.RequestToSyncPath)
+		fmt.Printf("starting rsync_server\n")
+		lpb, ctx, canc, err := rsync.RunRsyncService(cfg, srv, "rsync_server", false, reqs)
+
+		panicOn(err)
+		defer lpb.Close()
+		defer canc()
+		_ = ctx
+
+		select {}
+		return
+	}
 
 	if *seconds > 0 {
 		t0 := time.Now()
