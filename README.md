@@ -1,6 +1,15 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
+* Recent New (2025 January 24): v1.20.0 the new Circuit/Fragment/Peer API
+
+The new Circuit/Fragment/Peer API is now generally 
+available and ready for use. It is layered on top 
+of the Message API. Circuits provide persistent, 
+asynchronous, peer-to-peer, infinite data streams
+of Messages. They are discussed in the package comment of cktdoc.go.
+See there for overview, use, and a detailed discussion.
+
 * Recent News (2025 January 11): v1.6.0 adds compression.
 
 By default S2 compression is used. See the link
@@ -217,12 +226,6 @@ overview
 We offer both a traditional [net/rpc](https://pkg.go.dev/net/rpc) 
 style API, and a generic []byte oriented API for carrying
 user typed or self describing []byte payloads (in `Message.JobSerz`). 
-
-An additional, new and experimental Circuit API, is also layered 
-on top of the Message API. Circuits provide persistent, 
-asynchronous, peer-to-peer, infinite data streams. They 
-are discussed in the package comment of cktdoc.go.
-See there for overview, use, and a detailed discussion.
 
 As of v1.1.0, the `net/rpc` API has been updated to use 
 [greenpack encoding](https://pkg.go.dev/github.com/glycerine/greenpack2)
