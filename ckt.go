@@ -1087,34 +1087,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		var ok bool
 		lpb, ok = knownLocalPeer.active.Get(localPeerID)
 		if !ok {
-			// problem, peer no longer here. tell the requster.
-			// report error and return nil. they will probably
-			// need to reset state.
-			//
-			// Or we could just make a new
-			// one anyway and tell them about the change in PeerID(!)
-			// Let's do that. That saves them a full network round trip. They
-			// can always just cancel the circuit if they no
-			// longer want it. But since they sent a message to it, they
-			// probably do! But that does bring up an issue, what if the
-			// new peer should not be handling an old peer's messages?
-
-			// We do want to cut out the extra round-trip, and allow
-			// the initiating side to both bring up a new peer and a new
-			// circuit in one round trip!
-
-			// can we delete this yet?
-			// if false {
-			// 	// option 1: return an error
-			// 	msg.HDR.Typ = CallPeerError
-			// 	msg.JobErrs = fmt.Sprintf("have peerServiceName '%v', but none "+
-			// 		"active for peerID='%v'; perhaps it died?", peerServiceName, localPeerID)
-			// 	msg.HDR.Args = map[string]string{"unknownPeerID": localPeerID}
-			// 	msg.JobSerz = nil
-			// 	return s.replyHelper(isCli, msg, ctx, sendCh)
-			// }
-
-			// option 2: start a new instance
+			// start a new instance
 			isUpdatedPeerID = true
 			needNew = true
 		}
@@ -1286,7 +1259,7 @@ func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Con
 			"#peerID":          localPeerID,
 			"#fromServiceName": msg.HDR.ServiceName}
 	}
-	msg.HDR.FromPeerID = localPeerID // previous write vs read fragment.go:379, we are goro 167, created cli.go:1442
+	msg.HDR.FromPeerID = localPeerID
 
 	select {
 	case sendCh <- msg:
