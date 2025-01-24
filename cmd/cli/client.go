@@ -16,7 +16,6 @@ import (
 	"time"
 
 	tdigest "github.com/caio/go-tdigest"
-	"github.com/glycerine/idem"
 	"github.com/glycerine/ipaddr"
 	"github.com/glycerine/loquet"
 	rpc "github.com/glycerine/rpc25519"
