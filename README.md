@@ -1,7 +1,7 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
-* Recent New (2025 January 24): v1.20.0 the new Circuit/Fragment/Peer API
+* Recent New (2025 January 24): v1.12.0 the new Circuit/Fragment/Peer API
 
 The new Circuit/Fragment/Peer API is now generally 
 available and ready for use. It is layered on top 
