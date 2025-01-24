@@ -29,7 +29,7 @@ import (
 // It will be nil when Giver is remote.
 func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncReq *RequestToSyncPath) (err0 error) {
 
-	//vv("SyncService.Giver top.")
+	////vv("SyncService.Giver top.")
 
 	name := myPeer.PeerServiceName
 	_ = name // used when logging is on.
@@ -38,7 +38,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 	// this is the active side, as we called NewCircuitToPeerURL()
 	defer func(syncReq *RequestToSyncPath) {
-		vv("%v: Giver() ckt '%v' defer running: shutting down. bt = '%#v'", name, ckt.Name, bt)
+		//vv("%v: Giver() ckt '%v' defer running: shutting down. bt = '%#v'", name, ckt.Name, bt)
 
 		if syncReq != nil {
 			syncReq.BytesRead = int64(bt.bread)
@@ -57,7 +57,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 			if r != rpc.ErrContextCancelled && r != rpc.ErrHaltRequested {
 				panic(r)
 			} else {
-				vv("Giver suppressing ErrContextCancelled or ErrHaltRequested, this is normal shutdown.")
+				//vv("Giver suppressing ErrContextCancelled or ErrHaltRequested, this is normal shutdown.")
 			}
 		}
 	}(syncReq) // capture original pointer or nil, so we are setting Errs for sure
@@ -80,13 +80,13 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		select {
 
 		case frag0 := <-ckt.Reads:
-			//vv("%v: (ckt '%v') (Giver) saw read!", name, ckt.Name)
+			////vv("%v: (ckt '%v') (Giver) saw read!", name, ckt.Name)
 
-			//vv("frag0 = '%v'", frag0)
+			////vv("frag0 = '%v'", frag0)
 			switch frag0.FragOp {
 
 			case OpRsync_LazyTakerWantsToPull: // FragOp 19
-				vv("%v: (ckt '%v') (Giver) sees OpRsync_LazyTakerWantsToPull", name, ckt.Name)
+				//vv("%v: (ckt '%v') (Giver) sees OpRsync_LazyTakerWantsToPull", name, ckt.Name)
 				syncReq = &RequestToSyncPath{}
 				_, err0 = syncReq.UnmarshalMsg(frag0.Payload)
 				panicOn(err0)
@@ -96,7 +96,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				panicOn(err)
 				sz, mod := fi.Size(), fi.ModTime()
 				if syncReq.FileSize == sz && syncReq.ModTime.Equal(mod) {
-					vv("giver: OpRsync_LazyTakerWantsToPull: size + modtime match. nothing to do, tell taker. syncReq.GiverPath = '%v'", syncReq.GiverPath)
+					//vv("giver: OpRsync_LazyTakerWantsToPull: size + modtime match. nothing to do, tell taker. syncReq.GiverPath = '%v'", syncReq.GiverPath)
 					// let the taker know they can stop with this file.
 					ack := rpc.NewFragment()
 					ack.FragSubject = frag0.FragSubject
@@ -106,7 +106,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					panicOn(err)
 				} else {
 					// tell them they must send the chunks... if they want it.
-					vv("giver responding to OpRsync_LazyTakerWantsToPull with OpRsync_LazyTakerNoLuck_ChunksRequired")
+					//vv("giver responding to OpRsync_LazyTakerWantsToPull with OpRsync_LazyTakerNoLuck_ChunksRequired")
 					ack := rpc.NewFragment()
 					ack.FragSubject = frag0.FragSubject
 					ack.FragOp = OpRsync_LazyTakerNoLuck_ChunksRequired
@@ -119,7 +119,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				continue // wait for FIN or chunks.
 
 			case OpRsync_AckBackFIN_ToGiver:
-				vv("%v: (ckt '%v') (Giver) sees OpRsync_AckBackFIN_ToGiver. returning.", name, ckt.Name)
+				//vv("%v: (ckt '%v') (Giver) sees OpRsync_AckBackFIN_ToGiver. returning.", name, ckt.Name)
 				return
 
 			case OpRsync_RequestRemoteToGive: // FragOp 12
@@ -175,23 +175,23 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				if syncReq.FileSize == 0 {
 					err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0)
 
-					vv("giver sent whole file. done (wait for FIN)")
+					//vv("giver sent whole file. done (wait for FIN)")
 					frag0 = nil // GC early.
 					continue    // wait for FIN ack back.
 				}
 
 				// 2. else: scan our "remote path". updated not needed? ack back FIN
 				if !s.remoteGiverAreDiffChunksNeeded(syncReq, ckt, bt, frag0) {
-					vv("giver sees no update needed. done (wait for FIN)")
+					//vv("giver sees no update needed. done (wait for FIN)")
 					s.ackBackFINToTaker(ckt, frag0)
 					frag0 = nil // GC early.
 					continue    // wait for other side to close
 				}
 
 				// 3. compute update plan, send plan, then diff chunks.
-				vv("OpRsync_RequestRemoteToGive calling giverSendsPlanAndDataUpdates")
+				//vv("OpRsync_RequestRemoteToGive calling giverSendsPlanAndDataUpdates")
 				s.giverSendsPlanAndDataUpdates(wireChunks, ckt, syncReq.GiverPath, bt, frag0)
-				vv("done with s.giverSendsPlanAndDataUpdates. done (wait for FIN/ckt shutdown)")
+				//vv("done with s.giverSendsPlanAndDataUpdates. done (wait for FIN/ckt shutdown)")
 				// wait for FIN or ckt shutdown, to let data get there.
 				frag0 = nil // GC early.
 				continue
@@ -220,14 +220,14 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					return
 				}
 
-				vv("OpRsync_LightRequestEnclosed calling giverSendsPlanAndDataUpdates")
+				//vv("OpRsync_LightRequestEnclosed calling giverSendsPlanAndDataUpdates")
 				s.giverSendsPlanAndDataUpdates(light.ReaderChunks, ckt, localPath, bt, frag0)
 				// middle of a sequence, certainly do not return.
 				frag0 = nil // GC early.
 				continue
 
 			case OpRsync_FileSizeModTimeMatch:
-				//vv("giver sees OpRsync_FileSizeModTimeMatch")
+				////vv("giver sees OpRsync_FileSizeModTimeMatch")
 				if syncReq != nil {
 					syncReq.SizeModTimeMatch = true
 				}
@@ -238,7 +238,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				continue
 
 			case OpRsync_FileAllReadAckToGiver:
-				vv("Giver sees OpRsync_FileAllReadAckToGiver, closing syncReq.Done")
+				//vv("Giver sees OpRsync_FileAllReadAckToGiver, closing syncReq.Done")
 
 				syncReq.FullFileInitSideBlake3, _ = frag0.GetUserArg("clientTotalBlake3sum")
 				syncReq.FullFileRespondSideBlake3, _ = frag0.GetUserArg("serverTotalBlake3sum")
@@ -261,7 +261,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 			} // end switch frag0.FragOp
 
 		case fragerr := <-ckt.Errors:
-			vv("%v: (ckt %v) (Giver) ckt.Errors sees fragerr:'%s'", name, ckt.Name, fragerr)
+			//vv("%v: (ckt %v) (Giver) ckt.Errors sees fragerr:'%s'", name, ckt.Name, fragerr)
 			_ = fragerr
 			// 	err := ckt.SendOneWay(frag, 0)
 			// 	panicOn(err)
@@ -270,13 +270,13 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 			}
 			return
 		case <-done:
-			//vv("%v: (ckt '%v') (Giver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
+			////vv("%v: (ckt '%v') (Giver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
 			return
 		case <-done0:
-			//vv("%v: (ckt '%v') (Giver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
+			////vv("%v: (ckt '%v') (Giver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
 			return
 		case <-ckt.Halt.ReqStop.Chan:
-			//vv("%v: (ckt '%v') (Giver) ckt halt requested.", name, ckt.Name)
+			////vv("%v: (ckt '%v') (Giver) ckt halt requested.", name, ckt.Name)
 			return
 		}
 	}
@@ -305,7 +305,7 @@ func (s *SyncService) giverReportFileNotFound(
 
 	report := fmt.Sprintf("giver was asked for non-existent file: '%v' not found", localPath)
 	pf.Err = report
-	vv(report)
+	//vv(report)
 
 	bts, err := splan.MarshalMsg(nil)
 	panicOn(err)
@@ -333,8 +333,8 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 		return s.giverReportFileNotFound(ckt, localPath, bt, frag0)
 	}
 
-	vv("giverSendsPlanAndDataUpdates top: localPath='%v'", localPath)
-	//vv("remoteWantsUpdate DataPresent = %v; should be 0", remoteWantsUpdate.DataPresent())
+	//vv("giverSendsPlanAndDataUpdates top: localPath='%v'", localPath)
+	////vv("remoteWantsUpdate DataPresent = %v; should be 0", remoteWantsUpdate.DataPresent())
 
 	// reply with these
 	//OpRsync_SenderPlanEnclosed
@@ -354,10 +354,10 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	// are the whole file checksums the same? we can
 	// avoid sending back a whole lotta chunks of nothing
 	// in this case. A file touch will do this/test this.
-	vv("remoteWantsUpdate = %p", remoteWantsUpdate) // can be nil now.
-	vv("goalPrecis = %p", goalPrecis)
+	//vv("remoteWantsUpdate = %p", remoteWantsUpdate) // can be nil now.
+	//vv("goalPrecis = %p", goalPrecis)
 	if remoteWantsUpdate.FileCry == goalPrecis.FileCry {
-		vv("we can save on sending chunks! remoteWantsUpdate.FileCry == goalPrecis.FileCry = '%v'. sending back OpRsync_ToTakerMetaUpdateAtLeast", remoteWantsUpdate.FileCry)
+		//vv("we can save on sending chunks! remoteWantsUpdate.FileCry == goalPrecis.FileCry = '%v'. sending back OpRsync_ToTakerMetaUpdateAtLeast", remoteWantsUpdate.FileCry)
 
 		updateMeta := rpc.NewFragment()
 		updateMeta.FragOp = OpRsync_ToTakerMetaUpdateAtLeast
@@ -390,7 +390,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 
 	chunksWithDataN := placeholderPlan.DataPresent()
 	_ = chunksWithDataN
-	vv("placeholderPlan.DataPresent() = '%v'", chunksWithDataN)
+	//vv("placeholderPlan.DataPresent() = '%v'", chunksWithDataN)
 
 	// can we just skip the lightPlan?
 	// Mostly! Turns out it did not need any Chunks!
@@ -445,7 +445,7 @@ func (s *SyncService) giverSendsWholeFile(giverPath, takerPath string, ckt *rpc.
 	}
 	fi, err := os.Stat(giverPath)
 
-	//vv("%v: (ckt '%v') (Giver) os.Stat(path) -> err = '%v'", name, ckt.Name, err)
+	////vv("%v: (ckt '%v') (Giver) os.Stat(path) -> err = '%v'", name, ckt.Name, err)
 
 	panicOn(err)
 	pathsize := fi.Size()
@@ -473,12 +473,12 @@ upload:
 	for i = 0; true; i++ {
 
 		nr, err1 := r.Read(buf)
-		////vv("on read i=%v, got nr=%v, (maxMessage=%v), err='%v'", i, nr, maxMessage, err1)
+		//////vv("on read i=%v, got nr=%v, (maxMessage=%v), err='%v'", i, nr, maxMessage, err1)
 
 		send := buf[:nr] // can be empty
 		tot += nr
 		sumstring := myblake3.Blake3OfBytesString(send)
-		////vv("i=%v, len=%v, sumstring = '%v'", i, nr, sumstring)
+		//////vv("i=%v, len=%v, sumstring = '%v'", i, nr, sumstring)
 		blake3hash.Write(send)
 
 		frag := rpc.NewFragment()
@@ -547,9 +547,9 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 
 ) bool {
 
-	vv("top of remoteGiverAreDiffChunksNeeded()")
+	//vv("top of remoteGiverAreDiffChunksNeeded()")
 	if !fileExists(syncReq.GiverPath) {
-		vv("path '%v' does not exist on Giver: tell Taker to delete their file.", syncReq.GiverPath)
+		//vv("path '%v' does not exist on Giver: tell Taker to delete their file.", syncReq.GiverPath)
 		rm := rpc.NewFragment()
 		rm.FragOp = OpRsync_TellTakerToDelete
 		err := ckt.SendOneWay(rm, 0)
@@ -570,7 +570,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 		skip.FragSubject = frag.FragSubject
 		skip.Typ = rpc.CallPeerError
 		skip.Err = fmt.Sprintf("same host and dir detected! cowardly refusing to overwrite path with itself: '%v' on '%v' / Hostname '%v'", syncReq.GiverPath, syncReq.ToRemoteNetAddr, rpc.Hostname)
-		//vv(skip.Err)
+		////vv(skip.Err)
 		err = ckt.SendOneWay(skip, 0)
 		panicOn(err)
 		return false // all done
@@ -580,7 +580,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 	panicOn(err)
 	sz, mod, mode := fi.Size(), fi.ModTime(), uint32(fi.Mode())
 	if syncReq.FileSize == sz && syncReq.ModTime.Equal(mod) {
-		vv("remoteGiverAreDiffChunksNeeded(): size + modtime match. nothing to do, tell taker. syncReq.GiverPath = '%v'", syncReq.GiverPath)
+		//vv("remoteGiverAreDiffChunksNeeded(): size + modtime match. nothing to do, tell taker. syncReq.GiverPath = '%v'", syncReq.GiverPath)
 
 		// but do match mode too... advanced! leave out for now.
 		//
@@ -614,7 +614,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 		panicOn(err)
 		return false // all done with this file.
 	} else {
-		vv("forced to update, syncReq.FileSize(%v) != sz(%v) || syncReq.ModTime(%v) != mod = %v", syncReq.FileSize, sz, syncReq.ModTime, mod)
+		//vv("forced to update, syncReq.FileSize(%v) != sz(%v) || syncReq.ModTime(%v) != mod = %v", syncReq.FileSize, sz, syncReq.ModTime, mod)
 	}
 
 	// we have some differences that need diff chunks
@@ -632,7 +632,7 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 ) (err error) {
 
 	// called by both taker and giver.
-	vv("top of packAndSendChunksLimitedSize")
+	//vv("top of packAndSendChunksLimitedSize")
 
 	// pack up to max bytes of Chunks into a message.
 	max := rpc.UserMaxPayload - 10_000
@@ -706,11 +706,11 @@ func (s *SyncService) packAndSendChunksJustInTime(
 	path string,
 ) (err error) {
 
-	//vv("top of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; len(oneByteMarkedPlan.Chunks) = %v", oneByteMarkedPlan.DataPresent(), len(oneByteMarkedPlan.Chunks))
+	////vv("top of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; len(oneByteMarkedPlan.Chunks) = %v", oneByteMarkedPlan.DataPresent(), len(oneByteMarkedPlan.Chunks))
 
 	bytesFromDisk := 0
 	//defer func() {
-	//vv("end of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; bytesFromDisk = %v", oneByteMarkedPlan.DataPresent(), bytesFromDisk)
+	////vv("end of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; bytesFromDisk = %v", oneByteMarkedPlan.DataPresent(), bytesFromDisk)
 	//}()
 
 	fd, err := os.Open(path)
@@ -818,7 +818,7 @@ moreLoop:
 
 			switch fragX.FragOp {
 			case opLast:
-				//vv("getMoreChunks sees opLast '%v'", rpc.FragOpDecode(opLast))
+				////vv("getMoreChunks sees opLast '%v'", rpc.FragOpDecode(opLast))
 				// a) match paths for sanity;
 				// b) append to localChunks;
 				// c) can continue with 1. below
@@ -851,7 +851,7 @@ moreLoop:
 				break moreLoop
 
 			case opMore:
-				//vv("getMoreChunks sees opMore '%v'", rpc.FragOpDecode(opMore))
+				////vv("getMoreChunks sees opMore '%v'", rpc.FragOpDecode(opMore))
 				// a) match paths for sanity;
 				// b) append to localChunks;
 				// c) still have to wait for opLast
@@ -881,20 +881,20 @@ moreLoop:
 
 			// and all the regular shutdown stuff.
 		case fragerr := <-ckt.Errors:
-			vv("%v: (ckt %v) (Giver) ckt.Errors sees fragerr:'%s'", s.ServiceName, ckt.Name, fragerr)
+			//vv("%v: (ckt %v) (Giver) ckt.Errors sees fragerr:'%s'", s.ServiceName, ckt.Name, fragerr)
 			_ = fragerr
 			if syncReq != nil {
 				syncReq.Errs = fragerr.Err
 			}
 			return
 		case <-done:
-			//vv("%v: (ckt '%v') (Giver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
+			////vv("%v: (ckt '%v') (Giver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
 			return
 		case <-done0:
-			//vv("%v: (ckt '%v') (Giver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
+			////vv("%v: (ckt '%v') (Giver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
 			return
 		case <-ckt.Halt.ReqStop.Chan:
-			//vv("%v: (ckt '%v') (Giver) ckt halt requested.", name, ckt.Name)
+			////vv("%v: (ckt '%v') (Giver) ckt halt requested.", name, ckt.Name)
 			return
 		}
 	}

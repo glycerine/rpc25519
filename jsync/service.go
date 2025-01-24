@@ -304,7 +304,7 @@ func (s *SyncService) Start(
 			if r != rpc.ErrContextCancelled && r != rpc.ErrHaltRequested {
 				panic(r)
 			} else {
-				vv("SyncService.Start() suppressing ErrContextCancelled or ErrHaltRequested, this is normal shutdown.")
+				//vv("SyncService.Start() suppressing ErrContextCancelled or ErrHaltRequested, this is normal shutdown.")
 			}
 		}
 	}()
@@ -461,7 +461,7 @@ func (s *SyncService) Start(
 					syncReq.Chunks.Path,
 				)
 				if err != nil {
-					vv("error back from packAndSendChunksLimitedSize()"+
+					alwaysPrintf("error back from packAndSendChunksLimitedSize()"+
 						" during xtra sending: '%v'", err)
 					return err
 				}

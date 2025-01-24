@@ -109,7 +109,7 @@ func (s *FileToDiskState) WriteOneMsgToFile(req *rpc.Message, last bool) (err er
 			err = fmt.Errorf("ReceiveFileInParts: on "+
 				"writing StreamPart 1 to path '%v', we got error: "+
 				"'%v', after writing %v of %v", s.WriteToPathTmp, err, nw, n)
-			vv("problem: %v", err.Error())
+			//vv("problem: %v", err.Error())
 			return err
 		}
 	}
