@@ -81,14 +81,14 @@ C) To communicate over a Circuit:
 		Errors <-chan *Fragment
 	    Close() // when done
 	    // If you want a new Circuit with the same remote peer:
-	    NewCircuit() (ckt *Circuit, ctx context.Context, err error) // make 2nd, 3rd.
+	    NewCircuit(circuitName string, firstFrag *Fragment) (ckt *Circuit, ctx context.Context, err error) // make 2nd, 3rd.
 	}
 
 // Your PeerServiceFunc gets a pointer to its *LocalPeer as its first argument.
 // LocalPeer is actually a struct, but you can think of it as this interface:
 
 	type LocalPeer interface {
-		NewCircuitToPeerURL(peerURL string, frag *Fragment,
+		NewCircuitToPeerURL(circuitName, peerURL string, frag *Fragment,
 	         errWriteDur time.Duration) (ckt *Circuit, ctx context.Context, err error)
 	}
 
