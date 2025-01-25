@@ -86,7 +86,7 @@ func (pb *LocalPeer) peerbackPump() {
 		delete(m, ckt.CircuitID)
 	}
 	defer func() {
-		//zz("%v: peerbackPump exiting. closing all remaining circuits (%v).", name, len(m))
+		vv("%v: peerbackPump exiting. closing all remaining circuits (%v).", name, len(m))
 		var all []*Circuit
 		for _, ckt := range m {
 			all = append(all, ckt)
