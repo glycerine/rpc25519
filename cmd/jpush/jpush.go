@@ -6,6 +6,7 @@ import (
 	"os"
 	filepath "path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/glycerine/idem"
@@ -16,6 +17,22 @@ import (
 )
 
 var _ = progress.TransferStats{}
+
+type JpushConfig struct {
+	Src    string `json:"src" zid:"0"`
+	Target string `json:"target" zid:"1"`
+}
+
+func (c *JpushConfig) SetFlags(fs *flag.FlagSet) {
+
+}
+
+func (c *JpushConfig) FinishConfig(fs *flag.FlagSet) (err error) {
+	return
+}
+func (c *JpushConfig) SetDefaults() {
+
+}
 
 func main() {
 	rpc.Exit1IfVersionReq()
@@ -28,10 +45,38 @@ func main() {
 	hostIP := ipaddr.GetExternalIP() // e.g. 100.x.x.x
 	_ = hostIP
 
-	flag.Parse()
+	jcfg := &JpushConfig{}
+
+	fs := flag.NewFlagSet("jpush", flag.ExitOnError)
+	jcfg.SetFlags(fs)
+	fs.Parse(os.Args[1:])
+	jcfg.SetDefaults()
+	err := jcfg.FinishConfig(fs)
+	panicOn(err)
+
+	args := fs.Args()
+	vv("args = '%#v'", args)
+	if len(args) < 2 {
+		fmt.Fprintf(os.Stderr, "jpush error: must supply source and target. ex: jpush copy-from-source-here host:to-target-there\n")
+		os.Exit(1)
+	}
+
+	giverPath := args[0]
+	takerPath := args[1]
+	splt := strings.Split(takerPath, ":")
+	if len(splt) < 2 {
+		fmt.Fprintf(os.Stderr, "jpush error: target did not have ':' in it. ex: jpush copy-from-source-here host:to-target-there\n")
+		os.Exit(1)
+	}
+	// use the last : to allow dest like "127.0.0.1:8443:path" or IPV6
+	n := len(splt)
+	takerPath = splt[n-1]
+	//dest := "tcp://" + strings.Join(splt[:n-1], ":")
+	dest := strings.Join(splt[:n-1], ":")
+	vv("dest = '%v'", dest)
 
 	cfg := rpc.NewConfig()
-	//cfg.ClientDialToHostPort = *dest // "127.0.0.1:8443",
+	cfg.ClientDialToHostPort = dest
 
 	cli, err := rpc.NewClient("jpush", cfg)
 	if err != nil {
@@ -49,27 +94,23 @@ func main() {
 
 	t0 := time.Now()
 	_ = t0
-	path := *rsyncPath
-
-	giverPath := path
-	takerPath := path
 
 	var req *rsync.RequestToSyncPath
 
-	if fileExists(path) {
-		fi, err := os.Stat(path)
+	if fileExists(giverPath) {
+		fi, err := os.Stat(giverPath)
 		if err != nil {
-			panic(fmt.Sprintf("cli error on -rsync: no such path '%v': '%v'", path, err))
+			panic(fmt.Sprintf("cli error on -rsync: no such path '%v': '%v'", giverPath, err))
 		}
 		if fi.IsDir() {
-			panic(fmt.Sprintf("rsync of directories not yet supported: '%v'", path))
+			panic(fmt.Sprintf("rsync of directories not yet supported: '%v'", giverPath))
 		}
-		fmt.Printf("rsync_client to send path: '%v'\n", path)
+		fmt.Printf("rsync_client to send path: '%v'\n", giverPath)
 
 		// lazily, we don't scan a file until we know
 		// we have a mod time or size diff.
 
-		absPath, err := filepath.Abs(path)
+		absPath, err := filepath.Abs(giverPath)
 		panicOn(err)
 		dir := filepath.Dir(absPath)
 
@@ -95,7 +136,7 @@ func main() {
 	} else {
 		// no such path at the moment
 
-		alwaysPrintf("cli error on -rsync: no such path '%v'. (did you want to -pull it from remote?)", path)
+		alwaysPrintf("cli error on -rsync: no such path '%v'. (did you want to -pull it from remote?)", giverPath)
 		os.Exit(1)
 
 		// no such path but go on...
@@ -140,15 +181,15 @@ func main() {
 	vv("all good. elapsed time: %v", time.Since(t0))
 	switch {
 	case req.SizeModTimeMatch:
-		vv("cli rsync done: good size and mod time match for '%v'", path)
+		vv("cli rsync done: good size and mod time match for '%v'", giverPath)
 	case req.FullFileInitSideBlake3 == req.FullFileRespondSideBlake3:
-		vv("cli rsync done. Checksums agree for path '%v': %v", path, req.FullFileInitSideBlake3)
+		vv("cli rsync done. Checksums agree for path '%v': %v", giverPath, req.FullFileInitSideBlake3)
 		tot := req.BytesRead + req.BytesSent
 		_ = tot
 		vv("total bytes (read or sent): %v", formatUnder(int(tot)))
 		vv("bytes read = %v ; bytes sent = %v (out of %v). (%0.1f%%) ratio: %0.1f speedup", formatUnder(int(req.BytesRead)), formatUnder(int(req.BytesSent)), formatUnder(int(req.FileSize)), float64(tot)/float64(req.FileSize)*100, float64(req.FileSize)/float64(tot))
 	default:
-		vv("ARG! cli rsync done but cli/srv Checksums disagree!! for path %v': req = '%#v'", path, req)
+		vv("ARG! cli rsync done but cli/srv Checksums disagree!! for path %v': req = '%#v'", giverPath, req)
 	}
 	return
 }
