@@ -176,6 +176,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 				// 0. We might need to wait for more chunks.
 				if syncReq.MoreChunksComming {
+					vv("syncReq.MoreChunksComming waiting for more...")
 					// get the extra fragments with more []*Chunk
 					err0 = s.getMoreChunks(ckt, bt, &wireChunks, done, done0, syncReq, OpRsync_RequestRemoteToGive_ChunksLast, OpRsync_RequestRemoteToGive_ChunksMore)
 					//err0 = s.getMoreChunks(ckt, bt, &localChunks, done, done0, syncReq, OpRsync_HeavyDiffChunksLast, OpRsync_HeavyDiffChunksEnclosed)
@@ -184,6 +185,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					}
 
 				} // end if syncReq.MoreChunksComming
+				vv("nore more chunks to wait for...")
 
 				// after moreLoop, we get here:
 
@@ -207,7 +209,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				// 3. compute update plan, send plan, then diff chunks.
 				//vv("OpRsync_RequestRemoteToGive calling giverSendsPlanAndDataUpdates")
 				s.giverSendsPlanAndDataUpdates(wireChunks, ckt, syncReq.GiverPath, bt, frag0)
-				//vv("done with s.giverSendsPlanAndDataUpdates. done (wait for FIN/ckt shutdown)")
+				vv("done with s.giverSendsPlanAndDataUpdates. done (wait for FIN/ckt shutdown)")
 				// wait for FIN or ckt shutdown, to let data get there.
 				frag0 = nil // GC early.
 				continue
