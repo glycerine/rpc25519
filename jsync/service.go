@@ -238,6 +238,12 @@ type RequestToSyncPath struct {
 	RemoteTakes bool        `zid:"21"`
 	Precis      *FilePrecis `zid:"22"`
 	Chunks      *Chunks     `zid:"23"`
+
+	// if taker wants to pull the file but does
+	// not have it currently, set this to true.
+	// This will avoid any OpRsync_LazyTakerWantsToPull
+	// extra round trip.
+	HaveExistingTakerPath bool `zid:"24"`
 }
 
 const assembleInMem = true
@@ -366,11 +372,13 @@ func (s *SyncService) Start(
 				// (second implemented)
 				frag.FragOp = OpRsync_RequestRemoteToGive
 				cktName = rsyncRemoteGivesString //"rsync remote gives"
-				if syncReq.Chunks == nil {
-					// client wants to pull without having to
-					// scan their (possibly huge) local file for checksums;
-					// Can we lazily/efficiently just use the file size + modTime?
-					frag.FragOp = OpRsync_LazyTakerWantsToPull
+				if syncReq.HaveExistingTakerPath {
+					if syncReq.Chunks == nil {
+						// client wants to pull without having to
+						// scan their (possibly huge) local file for checksums;
+						// Can we lazily/efficiently just use the file size + modTime?
+						frag.FragOp = OpRsync_LazyTakerWantsToPull
+					}
 				}
 
 				// maybe? ensure FileSize and mod time are set, else we

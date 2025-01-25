@@ -106,6 +106,12 @@ func main() {
 	dir, err := filepath.Abs(cwd)
 	panicOn(err)
 
+	haveTaker := true
+	fi, err := os.Stat(takerPath)
+	if err != nil {
+		haveTaker = false
+	}
+
 	// pull new file we don't have at the moment.
 	req = &rsync.RequestToSyncPath{
 		GiverPath:               giverPath,
@@ -116,10 +122,16 @@ func main() {
 		//NB cannot use cfg.ClientDialToHostPort b/c lacks {tcp,udp}://	protocol part
 		ToRemoteNetAddr: cli.RemoteAddr(),
 
-		SyncFromHostname: rpc.Hostname,
-		SyncFromHostCID:  rpc.HostCID,
-		AbsDir:           dir,
-		//RemoteTakes:      false, // !(*pullRsync),
+		SyncFromHostname:      rpc.Hostname,
+		SyncFromHostCID:       rpc.HostCID,
+		AbsDir:                dir,
+		RemoteTakes:           false,
+		HaveExistingTakerPath: haveTaker,
+	}
+	if haveTaker {
+		req.ModTime = fi.ModTime()
+		req.FileSize = fi.Size()
+		req.FileMode = uint32(fi.Mode())
 	}
 
 	reqs := make(chan *rsync.RequestToSyncPath)
