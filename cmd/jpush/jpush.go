@@ -1,44 +1,29 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
-	"io"
-	"log"
-	"net"
-	"net/http"
 	"os"
 	filepath "path/filepath"
 	"strconv"
-	"strings"
-	"sync"
 	"time"
 
-	tdigest "github.com/caio/go-tdigest"
 	"github.com/glycerine/idem"
 	"github.com/glycerine/ipaddr"
-	"github.com/glycerine/loquet"
 	rpc "github.com/glycerine/rpc25519"
-	myblake3 "github.com/glycerine/rpc25519/hash"
 	rsync "github.com/glycerine/rpc25519/jsync"
 	"github.com/glycerine/rpc25519/progress"
-	_ "net/http/pprof" // for web based profiling while running
 )
 
-var td *tdigest.TDigest
+var _ = progress.TransferStats{}
 
 func main() {
 	rpc.Exit1IfVersionReq()
 
 	fmt.Printf("%v", rpc.GetCodeVersion("jpush"))
 
-	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
-
-	certdir := rpc.GetCertsDir()
+	//certdir := rpc.GetCertsDir()
 	//cadir := rpc.GetPrivateCertificateAuthDir()
-
-	var profile = flag.String("prof", "", "host:port to start web profiler on. host can be empty for all localhost interfaces")
 
 	hostIP := ipaddr.GetExternalIP() // e.g. 100.x.x.x
 	_ = hostIP
@@ -50,12 +35,12 @@ func main() {
 
 	cli, err := rpc.NewClient("jpush", cfg)
 	if err != nil {
-		log.Printf("bad client config: '%v'\n", err)
+		fmt.Fprintf(os.Stderr, "jpush error: bad client config: '%v'\n", err)
 		os.Exit(1)
 	}
 	err = cli.Start()
 	if err != nil {
-		log.Printf("client could not connect: '%v'\n", err)
+		fmt.Fprintf(os.Stderr, "jpush error: client could not connect: '%v'\n", err)
 		os.Exit(1)
 	}
 	defer cli.Close()
@@ -70,7 +55,6 @@ func main() {
 	takerPath := path
 
 	var req *rsync.RequestToSyncPath
-	isPull := *pullRsync
 
 	if fileExists(path) {
 		fi, err := os.Stat(path)
@@ -82,16 +66,6 @@ func main() {
 		}
 		fmt.Printf("rsync_client to send path: '%v'\n", path)
 
-		var precis *rsync.FilePrecis
-		var chunks *rsync.Chunks
-		if false { // isPull
-			// ugh. this can be super expensive compared to
-			// just sending the size and timestamp at first!
-			// be lazier!
-			const keepData = false
-			const wantChunks = true
-			precis, chunks, err = rsync.GetHashesOneByOne(rpc.Hostname, path)
-		}
 		// lazily, we don't scan a file until we know
 		// we have a mod time or size diff.
 
@@ -115,21 +89,16 @@ func main() {
 			SyncFromHostCID:  rpc.HostCID,
 			AbsDir:           dir,
 
-			RemoteTakes: !isPull, // remote takes on push, not pull.
-
-			// (pull): for taking an update locally. Tell remote what we have now.
-			Precis: precis,
-			Chunks: chunks,
+			RemoteTakes: true, // !isPull, // remote takes on push, not pull.
 		}
 		//vv("req using ToRemoteNetAddr: '%v'. push (remote takes) = %v", req.ToRemoteNetAddr, req.RemoteTakes)
 	} else {
 		// no such path at the moment
 
-		if !*pullRsync {
-			alwaysPrintf("cli error on -rsync: no such path '%v'. (did you want to -pull it from remote?)", path)
-			os.Exit(1)
-		}
+		alwaysPrintf("cli error on -rsync: no such path '%v'. (did you want to -pull it from remote?)", path)
+		os.Exit(1)
 
+		// no such path but go on...
 		cwd, err := os.Getwd()
 		panicOn(err)
 		dir, err := filepath.Abs(cwd)
@@ -148,7 +117,7 @@ func main() {
 			SyncFromHostname: rpc.Hostname,
 			SyncFromHostCID:  rpc.HostCID,
 			AbsDir:           dir,
-			RemoteTakes:      !(*pullRsync),
+			RemoteTakes:      true, // !(*pullRsync),
 		}
 	}
 	reqs := make(chan *rsync.RequestToSyncPath)
