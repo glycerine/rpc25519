@@ -426,6 +426,7 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 	frag.FromPeerID = ckt.LocalPeerID
 	frag.ToPeerID = ckt.RemotePeerID
 
+	vv("sending frag='%v'", frag)
 	msg := ckt.ConvertFragmentToMessage(frag)
 
 	err = s.U.SendOneWayMessage(s.Ctx, msg, errWriteDur)
