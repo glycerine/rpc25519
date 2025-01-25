@@ -234,7 +234,7 @@ func main() {
 			req = &rsync.RequestToSyncPath{
 				GiverPath:               giverPath,
 				TakerPath:               takerPath,
-				WasEmptyStartingFile:    true,
+				TakerStartsEmpty:        true,
 				Done:                    idem.NewIdemCloseChan(),
 				ToRemotePeerServiceName: "rsync_server",
 				//NB cannot use cfg.ClientDialToHostPort b/c lacks {tcp,udp}://	protocol part

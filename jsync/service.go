@@ -192,11 +192,12 @@ func NewRequestToSyncPath() *RequestToSyncPath {
 // the StartRemotePeerAndGetCircuit
 // call in Start().
 type RequestToSyncPath struct {
-	GiverPath string    `zid:"0"`
-	TakerPath string    `zid:"1"`
-	ModTime   time.Time `zid:"2"`
-	FileSize  int64     `zid:"3"`
-	FileMode  uint32    `zid:"4"`
+	GiverPath string `zid:"0"`
+	TakerPath string `zid:"1"`
+
+	ModTime  time.Time `zid:"2"`
+	FileSize int64     `zid:"3"`
+	FileMode uint32    `zid:"4"`
 
 	Done *idem.IdemCloseChan `msg:"-"`
 
@@ -222,8 +223,6 @@ type RequestToSyncPath struct {
 	BytesRead              int64 `zid:"17"`
 	RemoteBytesTransferred int64 `zid:"18"`
 
-	WasEmptyStartingFile bool `zid:"19"`
-
 	// MoreChunksComming is for internal use.
 	// It has to be exported to be conveyed over the wire.
 	//
@@ -232,18 +231,24 @@ type RequestToSyncPath struct {
 	// expect 	OpRsync_RequestRemoteToGiveChunksMore,
 	// and      OpRsync_RequestRemoteToGiveChunksEnd
 	// to be incomming with the rest, after getting this syncReq.
-	MoreChunksComming bool `zid:"20"`
+	MoreChunksComming bool `zid:"19"`
 
 	// If RemoteTakes is false => remote giver, local taker.
-	RemoteTakes bool        `zid:"21"`
-	Precis      *FilePrecis `zid:"22"`
-	Chunks      *Chunks     `zid:"23"`
+	RemoteTakes bool        `zid:"20"`
+	Precis      *FilePrecis `zid:"21"`
+	Chunks      *Chunks     `zid:"22"`
 
 	// if taker wants to pull the file but does
 	// not have it currently, set this to true.
 	// This will avoid any OpRsync_LazyTakerWantsToPull
 	// extra round trip.
-	HaveExistingTakerPath bool `zid:"24"`
+
+	GiverIsDir       bool `zid:"23"`
+	TakerIsDir       bool `zid:"24"`
+	GiverExistsLocal bool `zid:"25"`
+	TakerExistsLocal bool `zid:"26"`
+	TakerStartsEmpty bool `zid:"27"`
+	GiverStartsEmpty bool `zid:"28"`
 }
 
 const assembleInMem = true
@@ -372,7 +377,7 @@ func (s *SyncService) Start(
 				// (second implemented)
 				frag.FragOp = OpRsync_RequestRemoteToGive
 				cktName = rsyncRemoteGivesString //"rsync remote gives"
-				if syncReq.HaveExistingTakerPath {
+				if syncReq.TakerExistsLocal {
 					if syncReq.Chunks == nil {
 						// client wants to pull without having to
 						// scan their (possibly huge) local file for checksums;

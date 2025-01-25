@@ -490,7 +490,7 @@ takerForSelectLoop:
 				//localPath, _ := frag.GetUserArg("readFile")
 				localPath := syncReq.TakerPath
 
-				if !syncReq.WasEmptyStartingFile {
+				if !syncReq.TakerStartsEmpty {
 					err = os.Chmod(localPath, fs.FileMode(syncReq.FileMode))
 					panicOn(err)
 

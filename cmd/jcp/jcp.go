@@ -78,6 +78,10 @@ func main() {
 
 	var dest string
 	isPush := false
+	giverIsDir := false
+	takerIsDir := false
+	takerExistsLocal := false
+	giverExistsLocal := false
 
 	// extract remote; the server to contact.
 	splt := strings.Split(giverPath, ":")
@@ -88,8 +92,14 @@ func main() {
 		// jcp giverPath rog:  => infer takerPath from Base(giverPath)
 
 		if !fileExists(giverPath) {
-			fmt.Fprintf(os.Stderr, "jcp error: source path not found: '%v'\n", giverPath)
-			os.Exit(1)
+			if dirExists(giverPath) {
+				giverIsDir = true
+			} else {
+				fmt.Fprintf(os.Stderr, "jcp error: source path not found: '%v'\n", giverPath)
+				os.Exit(1)
+			}
+		} else {
+			giverExistsLocal = true
 		}
 		if takerPath == "" {
 			fmt.Fprintf(os.Stderr, "jcp error: destination path not given\n")
@@ -106,6 +116,15 @@ func main() {
 		takerPath = splt2[n-1]
 		if takerPath == "" {
 			takerPath = filepath.Base(giverPath)
+		} else {
+			if dirExists(takerPath) {
+				takerExistsLocal = true
+				takerIsDir = true
+			} else if fileExists(takerPath) {
+				takerExistsLocal = true
+			} else {
+				takerExistsLocal = false
+			}
 		}
 	} else {
 		// jcp rog:giverPath      => pull from rog; infer takerPath from Base(giverPath)
@@ -120,10 +139,36 @@ func main() {
 			// (use the last : to allow dest with IPV6)
 		}
 	}
+	if dirExists(takerPath) {
+		takerExistsLocal = true
+		takerIsDir = true
+	} else if fileExists(takerPath) {
+		takerExistsLocal = true
+	} else {
+		takerExistsLocal = false
+	}
 
 	vv("dest = '%v'", dest)
-	vv("takerPath = '%v'", takerPath)
-	vv("giverPath = '%v'", giverPath)
+	vv("takerPath = '%v' exists=%v; isDir=%v", takerPath, takerExistsLocal, takerIsDir)
+	vv("giverPath = '%v' exists=%v; isDir=%v", giverPath, giverExistsLocal, giverIsDir)
+
+	var giverStartsEmpty bool
+	var takerStartsEmpty bool
+
+	if giverExistsLocal && !giverIsDir {
+		sz, err := fileSize(giverPath)
+		panicOn(err)
+		if sz == 0 {
+			giverStartsEmpty = true
+		}
+	}
+	if takerExistsLocal && !takerIsDir {
+		sz, err := fileSize(takerPath)
+		panicOn(err)
+		if sz == 0 {
+			takerStartsEmpty = true
+		}
+	}
 
 	cfg := rpc.NewConfig()
 	cfg.ClientDialToHostPort = dest
@@ -152,34 +197,48 @@ func main() {
 	dir, err := filepath.Abs(cwd)
 	panicOn(err)
 
-	haveTaker := true
-	var fi os.FileInfo
-	if takerPath == "" {
-		haveTaker = false
-	} else {
-		fi, err = os.Stat(takerPath)
-		if err != nil {
-			haveTaker = false
-		}
-	}
+	// haveTaker := true
+	// var fi os.FileInfo
+	// if takerPath == "" {
+	// 	haveTaker = false
+	// } else {
+	// 	fi, err = os.Stat(takerPath)
+	// 	if err != nil {
+	// 		haveTaker = false
+	// 	}
+	// }
 
 	// pull new file we don't have at the moment.
 	req = &rsync.RequestToSyncPath{
-		GiverPath:               giverPath,
-		TakerPath:               takerPath,
-		WasEmptyStartingFile:    !haveTaker,
+		GiverPath: giverPath,
+		TakerPath: takerPath,
+
+		GiverIsDir:       giverIsDir,
+		TakerIsDir:       takerIsDir,
+		TakerExistsLocal: takerExistsLocal,
+		GiverExistsLocal: giverExistsLocal,
+
+		GiverStartsEmpty: giverStartsEmpty,
+		TakerStartsEmpty: takerStartsEmpty,
+		//WasEmptyStartingFile:    !takerExistsLocal,
+		//HaveExistingTakerPath: takerExistsLocal,
+
 		Done:                    idem.NewIdemCloseChan(),
 		ToRemotePeerServiceName: "rsync_server",
 		//NB cannot use cfg.ClientDialToHostPort b/c lacks {tcp,udp}://	protocol part
 		ToRemoteNetAddr: cli.RemoteAddr(),
 
-		SyncFromHostname:      rpc.Hostname,
-		SyncFromHostCID:       rpc.HostCID,
-		AbsDir:                dir,
-		RemoteTakes:           isPush,
-		HaveExistingTakerPath: haveTaker,
+		SyncFromHostname: rpc.Hostname,
+		SyncFromHostCID:  rpc.HostCID,
+		AbsDir:           dir,
+		RemoteTakes:      isPush,
 	}
-	if haveTaker {
+	if takerExistsLocal {
+
+		var fi os.FileInfo
+		fi, err = os.Stat(takerPath)
+		panicOn(err)
+
 		req.ModTime = fi.ModTime()
 		req.FileSize = fi.Size()
 		req.FileMode = uint32(fi.Mode())

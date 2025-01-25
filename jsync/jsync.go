@@ -146,7 +146,7 @@ func (s *jsyncU) PullToFrom(toLocalPath, fromRemotePath string) (dataBytesMoved 
 		req = &RequestToSyncPath{
 			TakerPath:               toLocalPath,
 			GiverPath:               fromRemotePath,
-			WasEmptyStartingFile:    true,
+			TakerStartsEmpty:        true,
 			Done:                    idem.NewIdemCloseChan(),
 			ToRemotePeerServiceName: "jsync_server",
 			//NB cannot use cfg.ClientDialToHostPort b/c lacks {tcp,udp}://	protocol part
