@@ -93,7 +93,19 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				bt.bread += len(frag0.Payload)
 
 				fi, err := os.Stat(syncReq.GiverPath)
-				panicOn(err)
+				if err != nil {
+					// file does not exist
+					notfound := rpc.NewFragment()
+					notfound.FragSubject = frag0.FragSubject
+					notfound.Typ = rpc.CallPeerError
+					//notfound.FragOp =
+					notfound.Err = fmt.Sprintf("file access error "+
+						"for '%v': '%v' on host '%v'",
+						syncReq.GiverPath, err.Error(), rpc.Hostname)
+					err = ckt.SendOneWay(notfound, 0)
+					panicOn(err)
+					continue
+				}
 				sz, mod := fi.Size(), fi.ModTime()
 				if syncReq.FileSize == sz && syncReq.ModTime.Equal(mod) {
 					//vv("giver: OpRsync_LazyTakerWantsToPull: size + modtime match. nothing to do, tell taker. syncReq.GiverPath = '%v'", syncReq.GiverPath)
@@ -129,10 +141,6 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				// we, the giver, are the "remote" in this case.
 				// The other side, the taker, will be the "local".
 				//
-				// The name localChunks below is there for symmetry
-				// and a whole lotta code re-use, but it is mis-leading.
-				// It reflects the local store of chunks we have
-				// received over the wire.
 
 				// Update: our later addition, for massive efficiency, of
 				//

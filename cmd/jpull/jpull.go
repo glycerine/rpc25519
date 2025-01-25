@@ -129,9 +129,9 @@ func main() {
 	defer canc()
 	_ = ctx
 
-	//vv("jpull about to send on reqs chan")
+	vv("jpull about to send on reqs chan")
 	reqs <- req
-	//vv("jpull sent on reqs: requested to rsync path '%v'", path)
+	vv("jpull sent on reqs: requested to rsync to '%v' from %v:%v", takerPath, dest, giverPath)
 	<-req.Done.Chan
 
 	if req.Errs != "" {
