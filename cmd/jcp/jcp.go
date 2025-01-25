@@ -150,8 +150,8 @@ func main() {
 
 	if takerIsDir && takerIsLocal && !giverIsDir {
 		// jcp rog:binarydiff ~/trash/tmp/deeper/
-		vv("using giverPath '%v': changing taker '%v' -> '%v'", giverPath, takerPath, takerPath+sep+giverPath)
-		takerPath = takerPath + sep + giverPath
+		vv("using giverPath '%v': changing taker '%v' -> '%v'", giverPath, takerPath, takerPath+giverPath)
+		takerPath = takerPath + giverPath
 		takerIsDir = false
 		takerExistsLocal = fileExists(takerPath)
 	}

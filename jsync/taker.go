@@ -164,7 +164,7 @@ takerForSelectLoop:
 	for {
 		select {
 		case frag := <-ckt.Reads:
-			vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
+			//vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
 			_ = frag
 			switch frag.FragOp {
 			case OpRsync_AckBackFIN_ToTaker:
@@ -192,7 +192,7 @@ takerForSelectLoop:
 				}
 
 				if fileExists(syncReq2.TakerPath) {
-					vv("taker is setting syncReq2.MoreChunksComming = true")
+					//vv("taker is setting syncReq2.MoreChunksComming = true")
 					syncReq2.MoreChunksComming = true
 				}
 				// have to set an empty Chunks too.
