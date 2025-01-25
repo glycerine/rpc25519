@@ -19,12 +19,11 @@ import (
 var _ = progress.TransferStats{}
 
 type JpushConfig struct {
-	Src    string `json:"src" zid:"0"`
-	Target string `json:"target" zid:"1"`
+	Port int
 }
 
 func (c *JpushConfig) SetFlags(fs *flag.FlagSet) {
-
+	fs.IntVar(&c.Port, "p", 8443, "port on server to connect to")
 }
 
 func (c *JpushConfig) FinishConfig(fs *flag.FlagSet) (err error) {
@@ -37,7 +36,7 @@ func (c *JpushConfig) SetDefaults() {
 func main() {
 	rpc.Exit1IfVersionReq()
 
-	fmt.Printf("%v", rpc.GetCodeVersion("jpush"))
+	//fmt.Printf("%v", rpc.GetCodeVersion("jpush"))
 
 	//certdir := rpc.GetCertsDir()
 	//cadir := rpc.GetPrivateCertificateAuthDir()
@@ -55,7 +54,7 @@ func main() {
 	panicOn(err)
 
 	args := fs.Args()
-	vv("args = '%#v'", args)
+	//vv("args = '%#v'", args)
 	if len(args) < 2 {
 		fmt.Fprintf(os.Stderr, "jpush error: must supply source and target. ex: jpush copy-from-source-here host:to-target-there\n")
 		os.Exit(1)
@@ -63,17 +62,20 @@ func main() {
 
 	giverPath := args[0]
 	takerPath := args[1]
+
 	splt := strings.Split(takerPath, ":")
 	if len(splt) < 2 {
 		fmt.Fprintf(os.Stderr, "jpush error: target did not have ':' in it. ex: jpush copy-from-source-here host:to-target-there\n")
 		os.Exit(1)
 	}
-	// use the last : to allow dest like "127.0.0.1:8443:path" or IPV6
+	// use the last : to allow dest with IPV6
 	n := len(splt)
 	takerPath = splt[n-1]
 	//dest := "tcp://" + strings.Join(splt[:n-1], ":")
-	dest := strings.Join(splt[:n-1], ":")
+	dest := strings.Join(splt[:n-1], ":") + fmt.Sprintf(":%v", jcfg.Port)
 	vv("dest = '%v'", dest)
+	vv("takerPath = '%v'", takerPath)
+	vv("giverPath = '%v'", giverPath)
 
 	cfg := rpc.NewConfig()
 	cfg.ClientDialToHostPort = dest
