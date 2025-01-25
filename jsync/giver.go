@@ -39,7 +39,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 	// this is the active side, as we called NewCircuitToPeerURL()
 	defer func(syncReq *RequestToSyncPath) {
-		vv("%v: Giver() ckt '%v' defer running: shutting down. bt = '%#v'", name, ckt.Name, bt)
+		//vv("%v: Giver() ckt '%v' defer running: shutting down. bt = '%#v'", name, ckt.Name, bt)
 
 		if syncReq != nil {
 			syncReq.BytesRead = int64(bt.bread)
@@ -209,7 +209,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				// 3. compute update plan, send plan, then diff chunks.
 				//vv("OpRsync_RequestRemoteToGive calling giverSendsPlanAndDataUpdates")
 				s.giverSendsPlanAndDataUpdates(wireChunks, ckt, syncReq.GiverPath, bt, frag0)
-				vv("done with s.giverSendsPlanAndDataUpdates. done (wait for FIN/ckt shutdown)")
+				//vv("done with s.giverSendsPlanAndDataUpdates. done (wait for FIN/ckt shutdown)")
 				// wait for FIN or ckt shutdown, to let data get there.
 				frag0 = nil // GC early.
 				continue
