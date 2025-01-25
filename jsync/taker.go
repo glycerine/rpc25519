@@ -187,7 +187,11 @@ takerForSelectLoop:
 				} else {
 					////vv("lazy taker no luck: good. syncReq2.TakerPath = '%v'; GiverPath='%v'", syncReq2.TakerPath, syncReq2.GiverPath)
 				}
-				syncReq2.MoreChunksComming = true
+
+				if fileExists(syncReq2.TakerPath) {
+					vv("taker is setting syncReq2.MoreChunksComming = true")
+					syncReq2.MoreChunksComming = true
+				}
 				// have to set an empty Chunks too.
 				syncReq2.Chunks = &Chunks{
 					Path: syncReq2.TakerPath,
