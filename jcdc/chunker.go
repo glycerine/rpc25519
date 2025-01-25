@@ -41,7 +41,7 @@ type blockHash struct {
 }
 
 // New creates a new Chunker with specified target, minimum and maximum lengths
-func New(targetLen, minLen, maxLen int64) *Chunker {
+func NewChunker(targetLen, minLen, maxLen int64) *Chunker {
 	if minLen >= maxLen {
 		panic("minLen must be less than maxLen")
 	}
@@ -63,7 +63,7 @@ func New(targetLen, minLen, maxLen int64) *Chunker {
 // NewFromAvg creates a new Chunker using average length instead of target length
 func NewFromAvg(avgLen, minLen, maxLen int64) *Chunker {
 	targetLen := int64(math.Floor(getTargetLen(avgLen, minLen, maxLen) + 0.5))
-	return New(targetLen, minLen, maxLen)
+	return NewChunker(targetLen, minLen, maxLen)
 }
 
 func (c *Chunker) initBlock() {

@@ -159,7 +159,13 @@ func NewGearHash(windowSize int) *GearHash {
 	return &GearHash{
 		window: make([]byte, 0, windowSize),
 		size:   windowSize,
-		table:  generateGearTable(), // Generate random table like FastCDC
+
+		// Maybe obviously, we've got to keep a fixed table
+		// to be able to match chunks on client and server.
+		// It cannot be randomized every time.
+		//table:  generateGearTable(), // to generate a new random table
+
+		table: GearTable4[:],
 	}
 }
 
