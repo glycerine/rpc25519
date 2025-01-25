@@ -1,9 +1,27 @@
 package jcdc
 
-/* AI port of chunker.py, dubious.
+//  AI port of chunker.py, dubious :)
 import (
 	"math"
 )
+
+/*
+To use these with your exponential chunking implementation,
+you would replace the simple rolling hash in rolling.go
+with one of these implementations. For example:
+
+func (c *Chunker) NextCut(data []byte) int {
+    hash := NewBuzhash(64)  // Or whichever rolling hash you choose
+    for i, b := range data {
+        h := hash.Roll(b)
+        if c.IsBlock(uint32(h)) {
+            return i + 1
+        }
+    }
+    return len(data)
+}
+
+*/
 
 // Chunker represents a content-defined chunking processor that produces
 // chunks with exponentially distributed sizes between min and max length
@@ -95,4 +113,3 @@ func getTargetLen(avgLen, minLen, maxLen int64) float64 {
 	}
 	return x0
 }
-*/
