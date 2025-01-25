@@ -52,7 +52,7 @@ func Test301_fastcdc2_should_not_infinite_loop(t *testing.T) {
 			TargetSize: 60 * 1024,
 			MaxSize:    80 * 1024,
 		}
-		cdc := NewFastCDC(opts)
+		cdc := NewFastCDC_Stadia(opts)
 
 		fin := make(chan bool)
 		go func() {

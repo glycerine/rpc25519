@@ -31,6 +31,15 @@ type FastCDC_Plakar struct {
 	Opts *CDC_Config `zid:"0"`
 }
 
+func NewFastCDC_Plakar(opts *CDC_Config) *FastCDC_Plakar {
+	u := &FastCDC_Plakar{}
+	if opts == nil {
+		opts = Default_FastCDC_Plakar_Options()
+	}
+	u.Opts = opts
+	return u
+}
+
 func (c *FastCDC_Plakar) Config() *CDC_Config {
 	return c.Opts
 }

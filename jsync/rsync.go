@@ -675,7 +675,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 
 	// These two different chunking approaches,
 	// Jcdc and FastCDC, need very different
-	// parameter min/max/average settings in
+	// parameter min/max/target settings in
 	// order to give good chunking.
 
 	var opts *jcdc.CDC_Config
@@ -690,7 +690,8 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 			TargetSize: 60 * 1024,
 			MaxSize:    80 * 1024,
 		}
-		cdc = jcdc.NewFastCDC(opts)
+		cdc = jcdc.NewFastCDC_Stadia(opts)
+		//cdc = jcdc.NewFastCDC_Plakar(opts)
 
 	} else {
 		// UltraCDC that I implemented.
@@ -848,8 +849,8 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 	}
 
 	// These two different chunking approaches,
-	// Jcdc and FastCDC, need very different
-	// parameter min/max/average settings in
+	// Jcdc and FastCDC_Stadia, need very different
+	// parameter min/max/target settings in
 	// order to give good chunking.
 
 	var opts *jcdc.CDC_Config
@@ -864,7 +865,8 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 			TargetSize: 60 * 1024,
 			MaxSize:    80 * 1024,
 		}
-		cdc = jcdc.NewFastCDC(opts)
+		cdc = jcdc.NewFastCDC_Stadia(opts)
+		//cdc = jcdc.NewFastCDC_Plakar(opts)
 
 	} else {
 		// UltraCDC that I implemented.
@@ -1067,7 +1069,7 @@ func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 
 	// These two different chunking approaches,
 	// Jcdc and FastCDC, need very different
-	// parameter min/max/average settings in
+	// parameter min/max/target settings in
 	// order to give good chunking.
 
 	var opts *jcdc.CDC_Config
@@ -1078,11 +1080,14 @@ func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 
 		// my take on the Stadia improved version of FastCDC
 		opts = &jcdc.CDC_Config{
-			MinSize:    4 * 1024,
+			MinSize: 4 * 1024,
+			// average will be MinSize + Target.
+			// The Microsoft paper argues 64KB average is optimal.
 			TargetSize: 60 * 1024,
 			MaxSize:    80 * 1024,
 		}
-		cdc = jcdc.NewFastCDC(opts)
+		cdc = jcdc.NewFastCDC_Stadia(opts)
+		//cdc = jcdc.NewFastCDC_Plakar(opts)
 
 	} else {
 		// UltraCDC that I implemented.
