@@ -20,25 +20,25 @@ import (
 
 var _ = progress.TransferStats{}
 
-type JpullConfig struct {
+type JcopyConfig struct {
 	Port int
 }
 
-func (c *JpullConfig) SetFlags(fs *flag.FlagSet) {
+func (c *JcopyConfig) SetFlags(fs *flag.FlagSet) {
 	fs.IntVar(&c.Port, "p", 8443, "port on server to connect to")
 }
 
-func (c *JpullConfig) FinishConfig(fs *flag.FlagSet) (err error) {
+func (c *JcopyConfig) FinishConfig(fs *flag.FlagSet) (err error) {
 	return
 }
-func (c *JpullConfig) SetDefaults() {
+func (c *JcopyConfig) SetDefaults() {
 
 }
 
 func main() {
 	rpc.Exit1IfVersionReq()
 
-	//fmt.Printf("%v", rpc.GetCodeVersion("jpush"))
+	//fmt.Printf("%v", rpc.GetCodeVersion("jcp"))
 
 	//certdir := rpc.GetCertsDir()
 	//cadir := rpc.GetPrivateCertificateAuthDir()
@@ -46,9 +46,9 @@ func main() {
 	hostIP := ipaddr.GetExternalIP() // e.g. 100.x.x.x
 	_ = hostIP
 
-	jcfg := &JpullConfig{}
+	jcfg := &JcopyConfig{}
 
-	fs := flag.NewFlagSet("jpull", flag.ExitOnError)
+	fs := flag.NewFlagSet("jcp", flag.ExitOnError)
 	jcfg.SetFlags(fs)
 	fs.Parse(os.Args[1:])
 	jcfg.SetDefaults()
@@ -57,24 +57,52 @@ func main() {
 
 	args := fs.Args()
 	//vv("args = '%#v'", args)
-	if len(args) < 2 {
-		fmt.Fprintf(os.Stderr, "jpull error: must supply source and target. ex: jpull copy-from-source-here host:to-target-there\n")
+	if len(args) < 1 {
+		fmt.Fprintf(os.Stderr, "jcp error: must supply at least a source ex: jcp host:source-file-path {destination path optional}\n")
 		os.Exit(1)
 	}
 
-	takerPath := args[0]
-	giverPath := args[1]
+	// jcp rog:giverPath      => pull from rog; derive takerPath from Base(giverPath)
+	// jcp rog:giverPath takerPath  => pull from rog
+	// jcp giverPath rog:takerPath => push to rog
 
+	// so push/pull depends on where the ':' is in the command line.
+	// but giver is always first. takerPath is always second.
+	// These are cp semantics (also rsync, scp, ...)
+
+	giverPath := args[0]
+	takerPath := args[1]
+
+	var dest string
+	isPush := false
+
+	// extract remote; the server to contact.
 	splt := strings.Split(giverPath, ":")
-	if len(splt) < 2 {
-		fmt.Fprintf(os.Stderr, "jpull error: target did not have ':' in it. ex: jpull copy-from-source-here host:to-target-there\n")
-		os.Exit(1)
+	if len(splt) <= 1 {
+		isPush = false
+		// no ':' in giver, so this is the scenario
+		// jcp giverPath rog:takerPath => push to rog
+
+		splt2 := strings.Split(takerPath, ":")
+		if len(splt2) <= 1 {
+			fmt.Fprintf(os.Stderr, "jcp error: neither source nor destination had ':' in it. Which is the remote?\n")
+			os.Exit(1)
+		}
+		n := len(splt2)
+		dest = strings.Join(splt2[:n-1], ":") + fmt.Sprintf(":%v", jcfg.Port)
+		takerPath = splt2[n-1]
+	} else {
+		splt2 := strings.Split(takerPath, ":")
+		if len(splt2) <= 1 {
+			fmt.Fprintf(os.Stderr, "jcp error: neither source nor destination had ':' in it. Which is the remote?\n")
+			os.Exit(1)
+		}
+		n := len(splt)
+		dest = strings.Join(splt[:n-1], ":") + fmt.Sprintf(":%v", jcfg.Port)
+		giverPath = splt[n-1]
+		// (use the last : to allow dest with IPV6)
 	}
-	// use the last : to allow dest with IPV6
-	n := len(splt)
-	giverPath = splt[n-1]
-	//dest := "tcp://" + strings.Join(splt[:n-1], ":")
-	dest := strings.Join(splt[:n-1], ":") + fmt.Sprintf(":%v", jcfg.Port)
+
 	vv("dest = '%v'", dest)
 	vv("takerPath = '%v'", takerPath)
 	vv("giverPath = '%v'", giverPath)
@@ -82,7 +110,7 @@ func main() {
 	cfg := rpc.NewConfig()
 	cfg.ClientDialToHostPort = dest
 
-	cli, err := rpc.NewClient("jpull", cfg)
+	cli, err := rpc.NewClient("jcp", cfg)
 	if err != nil {
 		log.Printf("bad client config: '%v'\n", err)
 		os.Exit(1)
@@ -125,7 +153,7 @@ func main() {
 		SyncFromHostname:      rpc.Hostname,
 		SyncFromHostCID:       rpc.HostCID,
 		AbsDir:                dir,
-		RemoteTakes:           false,
+		RemoteTakes:           isPush,
 		HaveExistingTakerPath: haveTaker,
 	}
 	if haveTaker {
@@ -141,9 +169,9 @@ func main() {
 	defer canc()
 	_ = ctx
 
-	vv("jpull about to send on reqs chan")
+	vv("jcp about to send on reqs chan")
 	reqs <- req
-	vv("jpull sent on reqs: requested to rsync to '%v' from %v:%v", takerPath, dest, giverPath)
+	vv("jcp sent on reqs: requested to rsync to '%v' from %v:%v", takerPath, dest, giverPath)
 	<-req.Done.Chan
 
 	if req.Errs != "" {
@@ -154,15 +182,15 @@ func main() {
 	vv("all good. elapsed time: %v", time.Since(t0))
 	switch {
 	case req.SizeModTimeMatch:
-		vv("jpull rsync done: good size and mod time match for '%v'", takerPath)
+		vv("jcp rsync done: good size and mod time match for '%v'", takerPath)
 	case req.FullFileInitSideBlake3 == req.FullFileRespondSideBlake3:
-		vv("jpull rsync done. Checksums agree for path '%v': %v", takerPath, req.FullFileInitSideBlake3)
+		vv("jcp rsync done. Checksums agree for path '%v': %v", takerPath, req.FullFileInitSideBlake3)
 		tot := req.BytesRead + req.BytesSent
 		_ = tot
 		vv("total bytes (read or sent): %v", formatUnder(int(tot)))
 		vv("bytes read = %v ; bytes sent = %v (out of %v). (%0.1f%%) ratio: %0.1f speedup", formatUnder(int(req.BytesRead)), formatUnder(int(req.BytesSent)), formatUnder(int(req.FileSize)), float64(tot)/float64(req.FileSize)*100, float64(req.FileSize)/float64(tot))
 	default:
-		vv("ARG! jpull rsync done but jpull/jsrv Checksums disagree!! for path %v': req = '%#v'", takerPath, req)
+		vv("ARG! jcp rsync done but jcp Checksums disagree!! for path %v': req = '%#v'", takerPath, req)
 	}
 	return
 }
