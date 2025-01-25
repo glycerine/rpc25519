@@ -372,7 +372,12 @@ takerForSelectLoop:
 				//vv("synced to disk: localPathToWrite='%v' -> renamed to '%v'", tmp, localPathToWrite)
 
 				// restore mode, modtime
-				err = os.Chmod(localPathToWrite, fs.FileMode(goalPrecis.FileMode))
+				mode := goalPrecis.FileMode
+				if mode == 0 {
+					// unknown mode or new file, give sane default
+					mode = 0600
+				}
+				err = os.Chmod(localPathToWrite, fs.FileMode(mode))
 				panicOn(err)
 
 				err = os.Chtimes(localPathToWrite, time.Time{}, goalPrecis.ModTime)
