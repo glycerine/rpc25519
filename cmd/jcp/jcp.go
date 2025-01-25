@@ -85,6 +85,7 @@ func main() {
 		isPush = true
 		// no ':' in giver, so this is the scenario
 		// jcp giverPath rog:takerPath => push to rog
+		// jcp giverPath rog:  => infer takerPath from Base(giverPath)
 
 		if !fileExists(giverPath) {
 			fmt.Fprintf(os.Stderr, "jcp error: source path not found: '%v'\n", giverPath)
@@ -103,6 +104,9 @@ func main() {
 		n := len(splt2)
 		dest = strings.Join(splt2[:n-1], ":") + fmt.Sprintf(":%v", jcfg.Port)
 		takerPath = splt2[n-1]
+		if takerPath == "" {
+			takerPath = filepath.Base(giverPath)
+		}
 	} else {
 		// jcp rog:giverPath      => pull from rog; infer takerPath from Base(giverPath)
 		// jcp rog:giverPath takerPath  => pull from rog
