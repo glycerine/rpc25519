@@ -79,7 +79,7 @@ func main() {
 	}
 
 	var dest string
-	takerIsLocal := false
+	takerIsLocal := true
 	isPush := false
 	giverIsDir := false
 	takerIsDir := false
@@ -90,7 +90,7 @@ func main() {
 	splt := strings.Split(giverPath, ":")
 	if len(splt) <= 1 {
 		isPush = true
-		takerIsLocal = true
+		takerIsLocal = false
 		// no ':' in giver, so this is the scenario
 		// jcp giverPath rog:takerPath => push to rog
 		// jcp giverPath rog:  => infer takerPath from giverPath
@@ -154,6 +154,10 @@ func main() {
 		takerPath = takerPath + sep + giverPath
 		takerIsDir = false
 		takerExistsLocal = fileExists(takerPath)
+	}
+
+	if takerIsLocal && takerIsDir && takerExistsLocal {
+		panic(fmt.Sprintf("problem: takerPath cannot be an existing dir: '%v'", takerPath))
 	}
 
 	vv("dest = '%v'", dest)
