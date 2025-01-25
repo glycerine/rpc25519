@@ -7,29 +7,32 @@ import (
 
 var _ = fmt.Printf
 
-//msgp:ignore FastCDC
-type FastCDC struct {
+// stay consistent with
+var _ Cutpointer = &FastCDC_Stadia{}
+
+//msgp:ignore FastCDC_Stadia
+type FastCDC_Stadia struct {
 	Opts *CDC_Config `zid:"0"`
 }
 
-func NewFastCDC(opts *CDC_Config) *FastCDC {
-	u := &FastCDC{}
+func NewFastCDC_Stadia(opts *CDC_Config) *FastCDC_Stadia {
+	u := &FastCDC_Stadia{}
 	if opts == nil {
-		opts = Default_FastCDC_Options()
+		opts = Default_FastCDC_Stadia_Options()
 	}
 	u.Opts = opts
 	return u
 }
 
-func (c *FastCDC) Name() string {
+func (c *FastCDC_Stadia) Name() string {
 	return "fastcdc-Stadia-Google-64bit-arbitrary-regression-jea"
 }
 
-func (c *FastCDC) Config() *CDC_Config {
+func (c *FastCDC_Stadia) Config() *CDC_Config {
 	return c.Opts
 }
 
-func Default_FastCDC_Options() *CDC_Config {
+func Default_FastCDC_Stadia_Options() *CDC_Config {
 	return &CDC_Config{
 		MinSize:    2 * 1024,
 		TargetSize: 10 * 1024,
@@ -37,7 +40,7 @@ func Default_FastCDC_Options() *CDC_Config {
 	}
 }
 
-func (c *FastCDC) Validate(options *CDC_Config) error {
+func (c *FastCDC_Stadia) Validate(options *CDC_Config) error {
 
 	if options.TargetSize == 0 || options.TargetSize < 64 ||
 		options.TargetSize > 1024*1024*1024 {
@@ -54,7 +57,7 @@ func (c *FastCDC) Validate(options *CDC_Config) error {
 	return nil
 }
 
-// Modified FastCDC algorithm: not the same as the original paper!
+// Modified FastCDC_Stadia algorithm: not the same as the original paper!
 // We use a unint64 for the hash, so it is 64-bits wide.
 // The gear table is the 64-bit version that
 // provides slightly better dedup.
@@ -64,7 +67,7 @@ func (c *FastCDC) Validate(options *CDC_Config) error {
 // [2] https://github.com/dbaarda/rollsum-chunking/blob/master/RESULTS.rst
 // [3] https://www.usenix.org/system/files/conference/atc12/atc12-final293.pdf
 //
-// Notes on the API:
+// (jea) Notes on the API:
 //
 // Algorithms return value, cutpoint, might typically be used next in
 // segment := data[:cutpoint], so we expect to exclude the cutpoint
@@ -78,7 +81,7 @@ func (c *FastCDC) Validate(options *CDC_Config) error {
 // It is always safe to pass n = len(data).
 //
 // POST INVARIANT: cutpoint <= n. We never return a cutpoint > n.
-func (c *FastCDC) Algorithm(options *CDC_Config, data []byte, N int) (cutpoint int) {
+func (c *FastCDC_Stadia) Algorithm(options *CDC_Config, data []byte, N int) (cutpoint int) {
 
 	// A common case will be n == len(data), but n could certainly be less.
 	// Confirm that it is never more.
@@ -152,7 +155,7 @@ func (c *FastCDC) Algorithm(options *CDC_Config, data []byte, N int) (cutpoint i
 	return int(i)
 }
 
-func (c *FastCDC) NextCut(data []byte) (cutpoint int) {
+func (c *FastCDC_Stadia) NextCut(data []byte) (cutpoint int) {
 	return c.Algorithm(c.Opts, data, len(data))
 }
 
@@ -162,7 +165,7 @@ func (c *FastCDC) NextCut(data []byte) (cutpoint int) {
 // len(data) is returned in cuts if no sooner cutpoint is found.
 // If maxPoints <= 0 then the last cutpoint in cuts will
 // always be len(data).
-func (c *FastCDC) Cutpoints(data []byte, maxPoints int) (cuts []int) {
+func (c *FastCDC_Stadia) Cutpoints(data []byte, maxPoints int) (cuts []int) {
 
 	// TODO: not yet inlined! just calls Algorithm() above.
 
