@@ -662,9 +662,6 @@ func SummarizeFileInCDCHashes(host, path string, wantChunks, keepData bool) (pre
 	return
 }
 
-const useFastCDC = true // MAYBE JUST SLOW!
-//const useFastCDC = false
-
 // SummarizeBytesInCDCHashes summarizes path in the
 // returned precis. The host should be the local
 // host identifier, such as rpc25519.Hostname.
@@ -678,30 +675,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 	// parameter min/max/target settings in
 	// order to give good chunking.
 
-	var opts *jcdc.CDC_Config
-
-	var cdc jcdc.Cutpointer
-
-	if useFastCDC {
-
-		// my take on the Stadia improved version of FastCDC
-		opts = &jcdc.CDC_Config{
-			MinSize:    4 * 1024,
-			TargetSize: 60 * 1024,
-			MaxSize:    80 * 1024,
-		}
-		cdc = jcdc.NewFastCDC_Stadia(opts)
-		//cdc = jcdc.NewFastCDC_Plakar(opts)
-
-	} else {
-		// UltraCDC that I implemented.
-		opts = &jcdc.CDC_Config{
-			MinSize:    2 * 1024,
-			TargetSize: 10 * 1024,
-			MaxSize:    64 * 1024,
-		}
-		cdc = jcdc.NewUltraCDC(opts)
-	}
+	cdc, opts := getCutpointer()
 
 	precis = &FilePrecis{
 		Host:        host,
@@ -710,7 +684,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 		ModTime:     modTime,
 		FileCry:     hash.Blake3OfBytesString(data),
 		ChunkerName: cdc.Name(),
-		CDC_Config:  cdc.Config(),
+		CDC_Config:  opts,
 		HashName:    "blake3.32B",
 	}
 	chunks = NewChunks(path)
@@ -853,30 +827,7 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 	// parameter min/max/target settings in
 	// order to give good chunking.
 
-	var opts *jcdc.CDC_Config
-
-	var cdc jcdc.Cutpointer
-
-	if useFastCDC {
-
-		// my take on the Stadia improved version of FastCDC
-		opts = &jcdc.CDC_Config{
-			MinSize:    4 * 1024,
-			TargetSize: 60 * 1024,
-			MaxSize:    80 * 1024,
-		}
-		cdc = jcdc.NewFastCDC_Stadia(opts)
-		//cdc = jcdc.NewFastCDC_Plakar(opts)
-
-	} else {
-		// UltraCDC that I implemented.
-		opts = &jcdc.CDC_Config{
-			MinSize:    2 * 1024,
-			TargetSize: 10 * 1024,
-			MaxSize:    64 * 1024,
-		}
-		cdc = jcdc.NewUltraCDC(opts)
-	}
+	cdc, opts := getCutpointer()
 
 	sz64, modTime, err := FileSizeModTime(path)
 	if err != nil {
@@ -892,7 +843,7 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 		ModTime:  modTime,
 		//FileCry:     hash.Blake3OfBytesString(data),
 		ChunkerName: cdc.Name(),
-		CDC_Config:  cdc.Config(),
+		CDC_Config:  opts,
 		HashName:    "blake3.32B",
 	}
 	chunks = NewChunks(path)
@@ -1072,32 +1023,7 @@ func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 	// parameter min/max/target settings in
 	// order to give good chunking.
 
-	var opts *jcdc.CDC_Config
-
-	var cdc jcdc.Cutpointer
-
-	if useFastCDC {
-
-		// my take on the Stadia improved version of FastCDC
-		opts = &jcdc.CDC_Config{
-			MinSize: 4 * 1024,
-			// average will be MinSize + Target.
-			// The Microsoft paper argues 64KB average is optimal.
-			TargetSize: 60 * 1024,
-			MaxSize:    80 * 1024,
-		}
-		cdc = jcdc.NewFastCDC_Stadia(opts)
-		//cdc = jcdc.NewFastCDC_Plakar(opts)
-
-	} else {
-		// UltraCDC that I implemented.
-		opts = &jcdc.CDC_Config{
-			MinSize:    2 * 1024,
-			TargetSize: 10 * 1024,
-			MaxSize:    64 * 1024,
-		}
-		cdc = jcdc.NewUltraCDC(opts)
-	}
+	cdc, opts := getCutpointer()
 
 	sz64, modTime, err := FileSizeModTime(path)
 	if err != nil {
@@ -1113,7 +1039,7 @@ func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 		ModTime:  modTime,
 		//FileCry:     hash.Blake3OfBytesString(data),
 		ChunkerName: cdc.Name(),
-		CDC_Config:  cdc.Config(),
+		CDC_Config:  opts,
 		HashName:    "blake3.32B",
 	}
 
