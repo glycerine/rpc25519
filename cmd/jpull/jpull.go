@@ -7,6 +7,7 @@ import (
 	"os"
 	filepath "path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/glycerine/idem"
@@ -19,27 +20,69 @@ import (
 
 var _ = progress.TransferStats{}
 
+type JpullConfig struct {
+	Port int
+}
+
+func (c *JpullConfig) SetFlags(fs *flag.FlagSet) {
+	fs.IntVar(&c.Port, "p", 8443, "port on server to connect to")
+}
+
+func (c *JpullConfig) FinishConfig(fs *flag.FlagSet) (err error) {
+	return
+}
+func (c *JpullConfig) SetDefaults() {
+
+}
+
 func main() {
 	rpc.Exit1IfVersionReq()
 
-	fmt.Printf("%v", rpc.GetCodeVersion("jpull"))
-
-	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
+	//fmt.Printf("%v", rpc.GetCodeVersion("jpush"))
 
 	//certdir := rpc.GetCertsDir()
 	//cadir := rpc.GetPrivateCertificateAuthDir()
 
-	//var profile = flag.String("prof", "", "host:port to start web profiler on. host can be empty for all localhost interfaces")
-
 	hostIP := ipaddr.GetExternalIP() // e.g. 100.x.x.x
 	_ = hostIP
 
-	flag.Parse()
+	jcfg := &JpullConfig{}
+
+	fs := flag.NewFlagSet("jpull", flag.ExitOnError)
+	jcfg.SetFlags(fs)
+	fs.Parse(os.Args[1:])
+	jcfg.SetDefaults()
+	err := jcfg.FinishConfig(fs)
+	panicOn(err)
+
+	args := fs.Args()
+	//vv("args = '%#v'", args)
+	if len(args) < 2 {
+		fmt.Fprintf(os.Stderr, "jpull error: must supply source and target. ex: jpull copy-from-source-here host:to-target-there\n")
+		os.Exit(1)
+	}
+
+	takerPath := args[0]
+	giverPath := args[1]
+
+	splt := strings.Split(giverPath, ":")
+	if len(splt) < 2 {
+		fmt.Fprintf(os.Stderr, "jpull error: target did not have ':' in it. ex: jpull copy-from-source-here host:to-target-there\n")
+		os.Exit(1)
+	}
+	// use the last : to allow dest with IPV6
+	n := len(splt)
+	giverPath = splt[n-1]
+	//dest := "tcp://" + strings.Join(splt[:n-1], ":")
+	dest := strings.Join(splt[:n-1], ":") + fmt.Sprintf(":%v", jcfg.Port)
+	vv("dest = '%v'", dest)
+	vv("takerPath = '%v'", takerPath)
+	vv("giverPath = '%v'", giverPath)
 
 	cfg := rpc.NewConfig()
-	//cfg.ClientDialToHostPort = *dest // "127.0.0.1:8443",
+	cfg.ClientDialToHostPort = dest
 
-	cli, err := rpc.NewClient("jpush", cfg)
+	cli, err := rpc.NewClient("jpull", cfg)
 	if err != nil {
 		log.Printf("bad client config: '%v'\n", err)
 		os.Exit(1)
@@ -55,10 +98,6 @@ func main() {
 
 	t0 := time.Now()
 	_ = t0
-	path := *rsyncPath
-
-	giverPath := path
-	takerPath := path
 
 	var req *rsync.RequestToSyncPath
 
@@ -103,15 +142,15 @@ func main() {
 	vv("all good. elapsed time: %v", time.Since(t0))
 	switch {
 	case req.SizeModTimeMatch:
-		vv("jpull rsync done: good size and mod time match for '%v'", path)
+		vv("jpull rsync done: good size and mod time match for '%v'", takerPath)
 	case req.FullFileInitSideBlake3 == req.FullFileRespondSideBlake3:
-		vv("jpull rsync done. Checksums agree for path '%v': %v", path, req.FullFileInitSideBlake3)
+		vv("jpull rsync done. Checksums agree for path '%v': %v", takerPath, req.FullFileInitSideBlake3)
 		tot := req.BytesRead + req.BytesSent
 		_ = tot
 		vv("total bytes (read or sent): %v", formatUnder(int(tot)))
 		vv("bytes read = %v ; bytes sent = %v (out of %v). (%0.1f%%) ratio: %0.1f speedup", formatUnder(int(req.BytesRead)), formatUnder(int(req.BytesSent)), formatUnder(int(req.FileSize)), float64(tot)/float64(req.FileSize)*100, float64(req.FileSize)/float64(tot))
 	default:
-		vv("ARG! jpull rsync done but jpull/jsrv Checksums disagree!! for path %v': req = '%#v'", path, req)
+		vv("ARG! jpull rsync done but jpull/jsrv Checksums disagree!! for path %v': req = '%#v'", takerPath, req)
 	}
 	return
 }
