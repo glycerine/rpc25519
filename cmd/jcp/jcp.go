@@ -20,6 +20,8 @@ import (
 
 var _ = progress.TransferStats{}
 
+var sep = string(os.PathSeparator)
+
 type JcopyConfig struct {
 	Port int
 }
@@ -77,6 +79,7 @@ func main() {
 	}
 
 	var dest string
+	takerIsLocal := false
 	isPush := false
 	giverIsDir := false
 	takerIsDir := false
@@ -87,9 +90,10 @@ func main() {
 	splt := strings.Split(giverPath, ":")
 	if len(splt) <= 1 {
 		isPush = true
+		takerIsLocal = true
 		// no ':' in giver, so this is the scenario
 		// jcp giverPath rog:takerPath => push to rog
-		// jcp giverPath rog:  => infer takerPath from Base(giverPath)
+		// jcp giverPath rog:  => infer takerPath from giverPath
 
 		if !fileExists(giverPath) {
 			if dirExists(giverPath) {
@@ -115,16 +119,7 @@ func main() {
 		dest = strings.Join(splt2[:n-1], ":") + fmt.Sprintf(":%v", jcfg.Port)
 		takerPath = splt2[n-1]
 		if takerPath == "" {
-			takerPath = filepath.Base(giverPath)
-		} else {
-			if dirExists(takerPath) {
-				takerExistsLocal = true
-				takerIsDir = true
-			} else if fileExists(takerPath) {
-				takerExistsLocal = true
-			} else {
-				takerExistsLocal = false
-			}
+			takerPath = giverPath
 		}
 	} else {
 		// jcp rog:giverPath      => pull from rog; use giverPath for takerPath
@@ -146,6 +141,13 @@ func main() {
 		takerExistsLocal = true
 	} else {
 		takerExistsLocal = false
+	}
+
+	if takerIsDir && takerIsLocal && !giverIsDir {
+		// jcp rog:binarydiff ~/trash/tmp/deeper/
+		takerPath = takerPath + sep + giverPath
+		takerIsDir = false
+		takerExistsLocal = fileExists(takerPath)
 	}
 
 	vv("dest = '%v'", dest)
