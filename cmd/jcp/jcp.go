@@ -127,17 +127,18 @@ func main() {
 			}
 		}
 	} else {
-		// jcp rog:giverPath      => pull from rog; infer takerPath from Base(giverPath)
+		// jcp rog:giverPath      => pull from rog; use giverPath for takerPath
 		// jcp rog:giverPath takerPath  => pull from rog
 
 		if takerPath == "" {
-			takerPath = filepath.Base(giverPath)
-		} else {
-			n := len(splt)
-			dest = strings.Join(splt[:n-1], ":") + fmt.Sprintf(":%v", jcfg.Port)
-			giverPath = splt[n-1]
-			// (use the last : to allow dest with IPV6)
+			takerPath = giverPath
 		}
+
+		n := len(splt)
+		dest = strings.Join(splt[:n-1], ":") + fmt.Sprintf(":%v", jcfg.Port)
+		giverPath = splt[n-1]
+		// (use the last : to allow dest with IPV6)
+
 	}
 	if dirExists(takerPath) {
 		takerExistsLocal = true
