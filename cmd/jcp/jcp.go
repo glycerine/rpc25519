@@ -71,7 +71,10 @@ func main() {
 	// These are cp semantics (also rsync, scp, ...)
 
 	giverPath := args[0]
-	takerPath := args[1]
+	takerPath := ""
+	if len(args) > 1 {
+		takerPath = args[1]
+	}
 
 	var dest string
 	isPush := false
@@ -79,9 +82,18 @@ func main() {
 	// extract remote; the server to contact.
 	splt := strings.Split(giverPath, ":")
 	if len(splt) <= 1 {
-		isPush = false
+		isPush = true
 		// no ':' in giver, so this is the scenario
 		// jcp giverPath rog:takerPath => push to rog
+
+		if !fileExists(giverPath) {
+			fmt.Fprintf(os.Stderr, "jcp error: source path not found: '%v'\n", giverPath)
+			os.Exit(1)
+		}
+		if takerPath == "" {
+			fmt.Fprintf(os.Stderr, "jcp error: destination path not given\n")
+			os.Exit(1)
+		}
 
 		splt2 := strings.Split(takerPath, ":")
 		if len(splt2) <= 1 {
@@ -92,15 +104,17 @@ func main() {
 		dest = strings.Join(splt2[:n-1], ":") + fmt.Sprintf(":%v", jcfg.Port)
 		takerPath = splt2[n-1]
 	} else {
-		splt2 := strings.Split(takerPath, ":")
-		if len(splt2) <= 1 {
-			fmt.Fprintf(os.Stderr, "jcp error: neither source nor destination had ':' in it. Which is the remote?\n")
-			os.Exit(1)
+		// jcp rog:giverPath      => pull from rog; infer takerPath from Base(giverPath)
+		// jcp rog:giverPath takerPath  => pull from rog
+
+		if takerPath == "" {
+			takerPath = filepath.Base(giverPath)
+		} else {
+			n := len(splt)
+			dest = strings.Join(splt[:n-1], ":") + fmt.Sprintf(":%v", jcfg.Port)
+			giverPath = splt[n-1]
+			// (use the last : to allow dest with IPV6)
 		}
-		n := len(splt)
-		dest = strings.Join(splt[:n-1], ":") + fmt.Sprintf(":%v", jcfg.Port)
-		giverPath = splt[n-1]
-		// (use the last : to allow dest with IPV6)
 	}
 
 	vv("dest = '%v'", dest)
@@ -135,16 +149,21 @@ func main() {
 	panicOn(err)
 
 	haveTaker := true
-	fi, err := os.Stat(takerPath)
-	if err != nil {
+	var fi os.FileInfo
+	if takerPath == "" {
 		haveTaker = false
+	} else {
+		fi, err = os.Stat(takerPath)
+		if err != nil {
+			haveTaker = false
+		}
 	}
 
 	// pull new file we don't have at the moment.
 	req = &rsync.RequestToSyncPath{
 		GiverPath:               giverPath,
 		TakerPath:               takerPath,
-		WasEmptyStartingFile:    true,
+		WasEmptyStartingFile:    !haveTaker,
 		Done:                    idem.NewIdemCloseChan(),
 		ToRemotePeerServiceName: "rsync_server",
 		//NB cannot use cfg.ClientDialToHostPort b/c lacks {tcp,udp}://	protocol part
