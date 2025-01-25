@@ -225,6 +225,7 @@ func generateBuzTable() []uint32 {
 	return table
 }
 
+/*
 // ZPAQ (used in ZPAQ compression,
 // good for deduplication):
 // (used in Zstandard?)
@@ -247,7 +248,38 @@ func (z *ZPAQ) Roll(b byte) uint32 {
 	}
 	z.window = append(z.window, b)
 
-	// ZPAQ rolling hash
+	// ZPAQ rolling hash <- No. This is garbage. See below.
 	z.hash = ((z.hash * 1234567) + uint32(b)) ^ (z.hash >> 23)
 	return z.hash
+}
+*/
+
+/// hmm actual FNV-1a hash:
+
+//package rollinghash
+
+const (
+	fnvPrime       = 16777619
+	fnvOffsetBasis = 2166136261
+)
+
+type ZPAQRollingHash struct {
+	hash uint32
+}
+
+func NewZPAQRollingHash() *ZPAQRollingHash {
+	return &ZPAQRollingHash{hash: fnvOffsetBasis}
+}
+
+func (h *ZPAQRollingHash) Update(b byte) uint32 {
+	h.hash = (h.hash ^ uint32(b)) * fnvPrime
+	return h.hash
+}
+
+func (h *ZPAQRollingHash) Reset() {
+	h.hash = fnvOffsetBasis
+}
+
+func (h *ZPAQRollingHash) Current() uint32 {
+	return h.hash
 }
