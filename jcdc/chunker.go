@@ -60,8 +60,9 @@ func NewChunker(targetLen, minLen, maxLen int64) *Chunker {
 	return c
 }
 
-// NewFromAvg creates a new Chunker using average length instead of target length
-func NewFromAvg(avgLen, minLen, maxLen int64) *Chunker {
+// NewChunkerFromAvg creates a new Chunker using average
+// length instead of target length
+func NewChunkerFromAvg(avgLen, minLen, maxLen int64) *Chunker {
 	targetLen := int64(math.Floor(getTargetLen(avgLen, minLen, maxLen) + 0.5))
 	return NewChunker(targetLen, minLen, maxLen)
 }
