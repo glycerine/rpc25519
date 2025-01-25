@@ -240,7 +240,11 @@ takerForSelectLoop:
 				panicOn(err)
 
 				path := syncReq.TakerPath
-				err = os.Chmod(path, fs.FileMode(precis.FileMode))
+				mode := precis.FileMode
+				if mode == 0 {
+					mode = 0600
+				}
+				err = os.Chmod(path, fs.FileMode(mode))
 				panicOn(err)
 				if !precis.ModTime.IsZero() {
 					err = os.Chtimes(path, time.Time{}, precis.ModTime)
@@ -423,7 +427,11 @@ takerForSelectLoop:
 
 					// also need to set the time/mode
 					// restore mode, modtime
-					err = os.Chmod(localPathToWrite, fs.FileMode(goalPrecis.FileMode))
+					mode := goalPrecis.FileMode
+					if mode == 0 {
+						mode = 0600
+					}
+					err = os.Chmod(localPathToWrite, fs.FileMode(mode))
 					panicOn(err)
 
 					err = os.Chtimes(localPathToWrite, time.Time{}, goalPrecis.ModTime)
@@ -496,7 +504,11 @@ takerForSelectLoop:
 				localPath := syncReq.TakerPath
 
 				if !syncReq.TakerStartsEmpty {
-					err = os.Chmod(localPath, fs.FileMode(syncReq.FileMode))
+					mode := syncReq.FileMode
+					if mode == 0 {
+						mode = 0600
+					}
+					err = os.Chmod(localPath, fs.FileMode(mode))
 					panicOn(err)
 
 					err = os.Chtimes(localPath, time.Time{}, syncReq.ModTime)
@@ -582,7 +594,7 @@ takerForSelectLoop:
 					if syncReq.FileSize == sz && syncReq.ModTime.Equal(mod) {
 						//vv("size + modtime match. nothing to do, tell Giver.")
 						// but do match mode too
-						if syncReq.FileMode != mode {
+						if syncReq.FileMode != mode && syncReq.FileMode != 0 {
 							err = os.Chmod(syncReq.TakerPath, fs.FileMode(syncReq.FileMode))
 							panicOn(err)
 						}

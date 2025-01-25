@@ -221,7 +221,11 @@ func UpdateLocalWithRemoteDiffs(
 	panicOn(err)
 
 	// restore mode, modtime
-	err = os.Chmod(localPathToWrite, fs.FileMode(goalPrecis.FileMode))
+	mode := goalPrecis.FileMode
+	if mode == 0 {
+		mode = 0600
+	}
+	err = os.Chmod(localPathToWrite, fs.FileMode(mode))
 	panicOn(err)
 
 	err = os.Chtimes(localPathToWrite, time.Time{}, goalPrecis.ModTime)
