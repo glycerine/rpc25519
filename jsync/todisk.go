@@ -6,7 +6,7 @@ import (
 	"fmt"
 	//"io"
 	"os"
-	//filepath "path/filepath"
+	filepath "path/filepath"
 	//"strings"
 	"time"
 
@@ -58,6 +58,11 @@ func (s *FileToDiskState) WriteOneMsgToFile(req *rpc.Message, last bool) (err er
 		s.PartsSeen = make(map[int64]bool)
 		s.Blake3hash.Reset()
 
+		// make any needed dirs
+		dirs := filepath.Dir(s.WriteToPath)
+		err := os.MkdirAll(dirs, 0700)
+		panicOn(err)
+
 		s.Randomness = cryRandBytesBase64(16)
 		s.WriteToPathTmp = s.WriteToPath + ".tmp_" + s.Randomness
 
@@ -72,7 +77,7 @@ func (s *FileToDiskState) WriteOneMsgToFile(req *rpc.Message, last bool) (err er
 		// save the file handle for the next callback too.
 		s.Fd, err = os.Create(s.WriteToPathTmp)
 		if err != nil {
-			return fmt.Errorf("error: server could not path '%v': '%v'", s.WriteToPathTmp, err)
+			return fmt.Errorf("error: server could not create path '%v': '%v'", s.WriteToPathTmp, err)
 		}
 		s.Fd.Sync() // get the file showing on disk asap
 
