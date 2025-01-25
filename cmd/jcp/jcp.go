@@ -130,15 +130,14 @@ func main() {
 		// jcp rog:giverPath      => pull from rog; use giverPath for takerPath
 		// jcp rog:giverPath takerPath  => pull from rog
 
-		if takerPath == "" {
-			takerPath = giverPath
-		}
-
 		n := len(splt)
 		dest = strings.Join(splt[:n-1], ":") + fmt.Sprintf(":%v", jcfg.Port)
 		giverPath = splt[n-1]
 		// (use the last : to allow dest with IPV6)
 
+		if takerPath == "" {
+			takerPath = giverPath
+		}
 	}
 	if dirExists(takerPath) {
 		takerExistsLocal = true
