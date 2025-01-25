@@ -18,6 +18,7 @@ const (
 	UltraCDCAlgo       CDCAlgo = 0
 	FastCDC_StadiaAlgo CDCAlgo = 1
 	FastCDC_PlakarAlgo CDCAlgo = 2
+	FNVAlgo            CDCAlgo = 3
 )
 
 func getCutpointer() (cdc jcdc.Cutpointer, opts *jcdc.CDC_Config) {
@@ -49,6 +50,13 @@ func getCutpointer() (cdc jcdc.Cutpointer, opts *jcdc.CDC_Config) {
 			MaxSize:    64 * 1024,
 		}
 		cdc = jcdc.NewUltraCDC(opts)
+	case FNVAlgo:
+		opts = &jcdc.CDC_Config{
+			MinSize:    4 * 1024,
+			TargetSize: 60 * 1024,
+			MaxSize:    80 * 1024,
+		}
+		cdc = jcdc.NewFNVCDC(opts)
 	}
 	return
 }

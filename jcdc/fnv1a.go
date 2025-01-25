@@ -19,7 +19,7 @@ func NewFNVCDC(opts *CDC_Config) *FNVCDC {
 	}
 	f.Opts = opts
 
-	f.NumBitsZeroAtCut = OptimalChunkBits(opts.TargetSize)
+	f.NumBitsZeroAtCut = exponentialOptimalChunkBits(opts.TargetSize)
 	return f
 }
 
@@ -95,9 +95,8 @@ func (f *FNVCDC) Algorithm(options *CDC_Config, data []byte, n int) (cutpoint in
 	for i := 0; i < n; i++ {
 		hash = (hash ^ uint32(data[i])) * fnvPrime
 
-		if i >= minSize &&
-			((i >= normalSize && (hash&((1<<bits)-1)) == 0) ||
-				i == n-1) {
+		if i >= minSize && (hash&((1<<bits)-1)) == 0 {
+
 			return i + 1
 		}
 	}
@@ -128,7 +127,7 @@ P(zero bits) = 2^-k, where k is bit count
 Combining these requires numerical optimization to
 match TargetSize precisely.
 */
-func OptimalChunkBits(targetSize int) uint32 {
+func exponentialOptimalChunkBits(targetSize int) uint32 {
 	// Derive optimal bit count for exponential distribution
 	lambda := 1.0 / float64(targetSize)
 
