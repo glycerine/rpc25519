@@ -137,14 +137,20 @@ func main() {
 	if dirExists(takerPath) {
 		takerExistsLocal = true
 		takerIsDir = true
-	} else if fileExists(takerPath) {
-		takerExistsLocal = true
 	} else {
-		takerExistsLocal = false
+		takerExistsLocal = fileExists(takerPath)
+	}
+
+	if takerIsLocal && !takerExistsLocal {
+		if strings.HasSuffix(takerPath, sep) {
+			// jcp rog:binarydiff ~/trash/tmp/deeper/does_not_exists/
+			takerIsDir = true
+		}
 	}
 
 	if takerIsDir && takerIsLocal && !giverIsDir {
 		// jcp rog:binarydiff ~/trash/tmp/deeper/
+		vv("using giverPath '%v': changing taker '%v' -> '%v'", giverPath, takerPath, takerPath+sep+giverPath)
 		takerPath = takerPath + sep + giverPath
 		takerIsDir = false
 		takerExistsLocal = fileExists(takerPath)
