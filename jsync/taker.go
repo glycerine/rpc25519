@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	//"sync"
 	"time"
 
@@ -75,6 +76,13 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 		// suppress context cancelled shutdowns
 		if r := recover(); r != nil {
+			switch x := r.(type) {
+			case error:
+				if strings.Contains(x.Error(), "connection reset") {
+					// ok
+					return
+				}
+			}
 			if r != rpc.ErrContextCancelled && r != rpc.ErrHaltRequested {
 				panic(r)
 			} else {
