@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/glycerine/rpc25519/jcdc"
 	"github.com/glycerine/rpc25519/jsync"
@@ -55,28 +56,16 @@ func main() {
 			sdt.AddObs(float64(v.sz), float64(v.n))
 		}
 
-		fmt.Printf("algo = %v (%v) \n i=%v ... path = '%v';\n   min = %v;  target = %v;   max = %v   \n    ncut = %v; ndup = %v; savings = %v bytes of %v (%0.2f %%);\n      mean=%0.2f; sd=%0.2f\n", algo, cdc.Name(), i, path,
+		fmt.Printf(`
+algo = %v (%v)
+ i=%v ... path = '%v'
+   min = %v;  target = %v;   max = %v
+    ncut = %v; ndup = %v; savings = %v bytes of %v (%0.2f %%)
+      mean=%0.2f; sd=%0.2f
+`, algo, cdc.Name(), i, path,
 			cfg.MinSize, cfg.TargetSize, cfg.MaxSize,
-			len(cuts), ndup, savings, fi.Size(), float64(savings)/float64(fi.Size()), sdt.Mean(), sdt.SampleStdDev())
+			len(cuts), ndup, formatUnder(savings), formatUnder(int(fi.Size())), float64(savings)/float64(fi.Size()), sdt.Mean(), sdt.SampleStdDev())
 	}
-	//	fmt.Printf("cuts = '%#v'\n", cuts)
-	/*
-		// check that Cutpoints() gives the same.
-		//fmt.Printf("len(data) = %v, N = %v\n", len(data), N)
-		u.Opts = opt
-		cuts2 := u.Cutpoints(data, 0)
-		//fmt.Printf("len(cuts2) = %v\n", len(cuts2))
-		//fmt.Printf("cuts2[len(cuts2)-1] = '%v'\n", cuts2[len(cuts2)-1])
-		//fmt.Printf("len(expectedCuts) = %v\n", len(expectedCuts))
-		if len(cuts2) != len(expectedCuts) {
-			t.Fatalf(`Cutpoints(): expected len(cuts2)=%v to be %v`, len(cuts2), len(expectedCuts))
-		}
-		for j, cut := range cuts2 {
-			if expectedCuts[j] != cut {
-				t.Fatalf(`Cutpoints(): expected %v but got %v at j = %v`, expectedCuts[j], cut, j)
-			}
-		}
-	*/
 }
 
 type seg struct {
@@ -122,4 +111,25 @@ func hashOfBytes(by []byte) string {
 	h.Write(by)
 	enchex := hex.EncodeToString(h.Sum(nil))
 	return enchex
+}
+
+func formatUnder(n int) string {
+	// Convert to string first
+	str := strconv.FormatInt(int64(n), 10)
+
+	// Handle numbers less than 1000
+	if len(str) <= 3 {
+		return str
+	}
+
+	// Work from right to left, adding underscores
+	var result []byte
+	for i := len(str) - 1; i >= 0; i-- {
+		if (len(str)-1-i)%3 == 0 && i != len(str)-1 {
+			result = append([]byte{'_'}, result...)
+		}
+		result = append([]byte{str[i]}, result...)
+	}
+
+	return string(result)
 }
