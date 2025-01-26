@@ -5,33 +5,54 @@ import (
 	//"encoding/binary"
 	"encoding/hex"
 	"flag"
-	//"fmt"
+	"fmt"
 	"os"
 
 	"github.com/glycerine/rpc25519/jcdc"
+	"github.com/glycerine/rpc25519/jsync"
 )
+
+var algo int
 
 func setFlags(c *jcdc.CDC_Config, fs *flag.FlagSet) {
 	fs.IntVar(&c.MinSize, "min", 2048, "min size chunk")
 	fs.IntVar(&c.TargetSize, "t", 10*1024, "target size chunk")
 	fs.IntVar(&c.MaxSize, "max", 64*1024, "max size chunk")
+	fs.IntVar(&algo, "algo", 0, "algo: 0=>ultracdc, 1=>fastcdc_stadia; 2=>fastcdc_plakar; 4=>fnv1a")
 }
 
 func main() {
 	cfg := &jcdc.CDC_Config{}
 
-	fs := flag.NewFlagSet("samp", flag.ExitOnError)
-
+	fs := flag.NewFlagSet("chunk", flag.ExitOnError)
 	setFlags(cfg, fs)
 	fs.Parse(os.Args[1:])
 
 	paths := fs.Args()
 	vv("paths = '%#v'", paths)
 
-	u := jcdc.NewUltraCDC(cfg)
-	_ = u
-	//	cuts, _ := getCuts("orig", data, u, opt)
+	cdc, _ := jsync.GetCutpointer(jsync.CDCAlgo(algo))
+	cdc.SetConfig(cfg)
 
+	for i, path := range paths {
+		_ = i
+		data, err := os.ReadFile(path)
+		panicOn(err)
+
+		cuts, cmap := getCuts(cdc.Name(), data, cdc, cfg)
+		ndup := 0
+		savings := 0
+		sdt := StdDevTracker{}
+		for _, v := range cmap {
+			if v.n > 1 {
+				ndup++
+				savings += v.sz
+			}
+			sdt.AddObs(float64(v.sz), float64(v.n))
+		}
+
+		fmt.Printf("algo = %v; ncut = %v; ndup = %v; savings = %v; mean=%v; sd=%v\n", algo, len(cuts), ndup, savings, sdt.Mean(), sdt.SampleStdDev())
+	}
 	//	fmt.Printf("cuts = '%#v'\n", cuts)
 	/*
 		// check that Cutpoints() gives the same.
@@ -52,14 +73,19 @@ func main() {
 	*/
 }
 
+type seg struct {
+	n  int
+	sz int
+}
+
 func getCuts(
 	title string,
 	data []byte,
-	u *jcdc.UltraCDC,
+	u jcdc.Cutpointer,
 	opt *jcdc.CDC_Config,
-) (cuts []int, hashmap map[string]bool) {
+) (cuts []int, m map[string]*seg) {
 
-	hashmap = make(map[string]bool)
+	m = make(map[string]*seg)
 	last := 0
 	j := 0
 	for len(data) > opt.MinSize {
@@ -71,7 +97,13 @@ func getCuts(
 		cuts = append(cuts, cut)
 		last = cut
 		j++
-		hashmap[hashOfBytes(data[:cutpoint])] = true
+		v, ok := m[hashOfBytes(data[:cutpoint])]
+		if !ok {
+			v = &seg{
+				sz: cutpoint,
+			}
+		}
+		v.n++
 		data = data[cutpoint:]
 	}
 	return

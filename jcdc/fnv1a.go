@@ -23,6 +23,11 @@ func NewFNVCDC(opts *CDC_Config) *FNVCDC {
 	return f
 }
 
+func (f *FNVCDC) SetConfig(cfg *CDC_Config) {
+	f.Opts = cfg
+	f.NumBitsZeroAtCut = exponentialOptimalChunkBits(cfg.TargetSize)
+}
+
 func Default_FNVCDC_Options() *CDC_Config {
 	return &CDC_Config{
 		MinSize:    2 * 1024,

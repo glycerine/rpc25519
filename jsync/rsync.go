@@ -675,7 +675,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 	// parameter min/max/target settings in
 	// order to give good chunking.
 
-	cdc, opts := getCutpointer()
+	cdc, opts := GetCutpointer(UsingCDCAlgo)
 
 	precis = &FilePrecis{
 		Host:        host,
@@ -827,7 +827,7 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 	// parameter min/max/target settings in
 	// order to give good chunking.
 
-	cdc, opts := getCutpointer()
+	cdc, opts := GetCutpointer(UsingCDCAlgo)
 
 	sz64, modTime, err := FileSizeModTime(path)
 	if err != nil {
@@ -1023,7 +1023,7 @@ func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 	// parameter min/max/target settings in
 	// order to give good chunking.
 
-	cdc, opts := getCutpointer()
+	cdc, opts := GetCutpointer(UsingCDCAlgo)
 
 	sz64, modTime, err := FileSizeModTime(path)
 	if err != nil {

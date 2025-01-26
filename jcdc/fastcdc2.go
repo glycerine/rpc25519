@@ -24,6 +24,10 @@ func NewFastCDC_Stadia(opts *CDC_Config) *FastCDC_Stadia {
 	return u
 }
 
+func (c *FastCDC_Stadia) SetConfig(cfg *CDC_Config) {
+	c.Opts = cfg
+}
+
 func (c *FastCDC_Stadia) Name() string {
 	return "fastcdc-Stadia-Google-64bit-arbitrary-regression-jea"
 }

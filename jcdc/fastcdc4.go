@@ -40,6 +40,10 @@ func NewFastCDC_Plakar(opts *CDC_Config) *FastCDC_Plakar {
 	return u
 }
 
+func (c *FastCDC_Plakar) SetConfig(cfg *CDC_Config) {
+	c.Opts = cfg
+}
+
 func (c *FastCDC_Plakar) Config() *CDC_Config {
 	return c.Opts
 }

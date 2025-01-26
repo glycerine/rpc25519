@@ -21,7 +21,7 @@ const (
 	FNVAlgo            CDCAlgo = 3
 )
 
-func getCutpointer() (cdc jcdc.Cutpointer, opts *jcdc.CDC_Config) {
+func GetCutpointer(choice CDCAlgo) (cdc jcdc.Cutpointer, opts *jcdc.CDC_Config) {
 	switch UsingCDCAlgo {
 	case FastCDC_StadiaAlgo:
 		// my take on the Stadia improved version of FastCDC

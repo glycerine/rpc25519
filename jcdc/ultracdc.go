@@ -32,6 +32,8 @@ type Cutpointer interface {
 	Cutpoints(data []byte, maxPoints int) (cuts []int)
 	Name() string
 	Config() *CDC_Config
+	SetConfig(cfg *CDC_Config)
+	Algorithm(options *CDC_Config, data []byte, n int) (cutpoint int)
 
 	// instead of Cutpoints getting a batch, just
 	// get the single next cutpoints back
@@ -67,6 +69,10 @@ func NewUltraCDC(opts *CDC_Config) *UltraCDC {
 	}
 	u.Opts = opts
 	return u
+}
+
+func (c *UltraCDC) SetConfig(cfg *CDC_Config) {
+	c.Opts = cfg
 }
 
 func (c *UltraCDC) Name() string {
