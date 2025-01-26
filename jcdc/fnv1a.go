@@ -19,7 +19,7 @@ func NewFNVCDC(opts *CDC_Config) *FNVCDC {
 	}
 	f.Opts = opts
 
-	f.NumBitsZeroAtCut = exponentialOptimalChunkBits(opts.TargetSize, opts.MinSize)
+	f.NumBitsZeroAtCut = uint32(math.Log2(float64(opts.TargetSize - opts.MinSize)))
 
 	//fmt.Printf("NewFNVCDC: TargetSize = %v -> f.NumBitsZeroAtCut = %v\n", f.Opts.TargetSize, f.NumBitsZeroAtCut)
 
@@ -28,9 +28,7 @@ func NewFNVCDC(opts *CDC_Config) *FNVCDC {
 
 func (f *FNVCDC) SetConfig(cfg *CDC_Config) {
 	f.Opts = cfg
-	f.NumBitsZeroAtCut = exponentialOptimalChunkBits(cfg.TargetSize, cfg.MinSize)
-	//	f.NumBitsZeroAtCut = exponentialOptimalChunkBits(cfg.TargetSize)
-	//fmt.Printf("TargetSize = %v -> f.NumBitsZeroAtCut = %v\n", cfg.TargetSize, f.NumBitsZeroAtCut)
+	f.NumBitsZeroAtCut = uint32(math.Log2(float64(cfg.TargetSize - cfg.MinSize)))
 }
 
 func Default_FNVCDC_Options() *CDC_Config {
@@ -113,63 +111,3 @@ func (f *FNVCDC) Algorithm(options *CDC_Config, data []byte, n int) (cutpoint in
 
 	return n
 }
-
-var log2 = math.Log(2) // must be natural log.
-
-func exponentialOptimalChunkBits(targetSize, minSize int) uint32 {
-	return uint32(math.Log2(float64(targetSize - minSize)))
-	//return uint32((math.Log(float64(targetSize))) / log2)
-}
-
-/* wrong, I think, always returns 1 bit.
-Let's derive the chunk boundary probability
-distribution rigorously. Key goals:
-
-a) Expected chunk length = TargetSize
-
-b) Derive minimum bits to zero to achieve this expectation
-
-For exponential distribution P(x) = λe^(-λx), where x is chunk length:
-
-Expected chunk length = 1/λ
-1/λ = TargetSize
-λ = 1/TargetSize
-
-Probability of chunk boundary at position x:
-P(boundary) = λe^(-λx)
-
-Probability of zero bits in hash:
-P(zero bits) = 2^-k, where k is bit count
-
-Combining these requires numerical optimization to
-match TargetSize precisely.
-
-func exponentialOptimalChunkBits(targetSize int) uint32 {
-	// Derive optimal bit count for exponential distribution
-	lambda := 1.0 / float64(targetSize)
-
-	optimalBits := func(k int) float64 {
-		// Probability of chunk boundary
-		prob := math.Pow(2.0, -float64(k))
-		//vv("prob = %v", prob)
-		// Expected chunk size
-		expectedSize := 1.0 / (lambda * prob)
-		//vv("expected Size = %v", expectedSize)
-		// Squared error from target
-		return math.Abs(expectedSize - float64(targetSize))
-	}
-
-	// Search for best bit count
-	bestBits, minError := 0, math.Inf(1)
-	for k := 1; k <= 30; k++ {
-		error := optimalBits(k)
-		//vv("k=%v;  error = %v ; minError = %v; bestBits = %v", k, error, minError, bestBits)
-		if error < minError {
-			minError = error
-			bestBits = k
-		}
-	}
-
-	return uint32(bestBits)
-}
-*/

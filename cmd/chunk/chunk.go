@@ -76,7 +76,7 @@ func main() {
 
 			min, targ := cfg.MinSize, cfg.TargetSize
 			fmt.Printf(`min=%v; targ = %v; see_bits=%v => mean = %v   sd = %v
-`, min, targ, seeBits, formatUnder(int(sdt.Mean())), formatUnder(int(sdt.SampleStdDev())))
+`, formatUnder(min), formatUnder(targ), seeBits, formatUnder(int(sdt.Mean())), formatUnder(int(sdt.SampleStdDev())))
 
 			continue
 			fmt.Printf(`
