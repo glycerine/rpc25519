@@ -21,6 +21,7 @@ const (
 	FastCDC_StadiaAlgo CDCAlgo = 1
 	FastCDC_PlakarAlgo CDCAlgo = 2
 	FNVAlgo            CDCAlgo = 3
+	RabinKarpAlgo      CDCAlgo = 4
 )
 
 func GetCutpointer(choice CDCAlgo) (cdc jcdc.Cutpointer, opts *jcdc.CDC_Config) {
@@ -60,6 +61,14 @@ func GetCutpointer(choice CDCAlgo) (cdc jcdc.Cutpointer, opts *jcdc.CDC_Config) 
 			MaxSize:    80 * 1024,
 		}
 		cdc = jcdc.NewFNVCDC(opts)
+	case RabinKarpAlgo:
+		opts = &jcdc.CDC_Config{
+			MinSize:    4 * 1024,
+			TargetSize: 60 * 1024,
+			MaxSize:    80 * 1024,
+		}
+		cdc = jcdc.NewRabinKarpCDC(opts)
+
 	default:
 		panic(fmt.Sprintf("unknown CDCAlgo: %v", choice))
 	}

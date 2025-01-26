@@ -55,7 +55,7 @@ func NewChunker(targetLen, minLen, maxLen int64) *Chunker {
 
 	c.avgLen = c.getAvgLen(targetLen, minLen, maxLen)
 	c.prob = uint32(math.Floor(float64(1<<32) / float64(targetLen)))
-	c.initBlock()
+	c.blockLen = 0
 
 	return c
 }
@@ -67,17 +67,9 @@ func NewChunkerFromAvg(avgLen, minLen, maxLen int64) *Chunker {
 	return NewChunker(targetLen, minLen, maxLen)
 }
 
-func (c *Chunker) initBlock() {
-	c.blockLen = 0
-}
-
-func (c *Chunker) incBlock() {
-	c.blockLen++
-}
-
 // IsBlock checks if the given rolling hash value represents a chunk boundary
 func (c *Chunker) IsBlock(r uint32) bool {
-	c.incBlock()
+	c.blockLen++
 	return c.blockLen >= c.minLen && (r < c.prob || c.blockLen >= c.maxLen)
 }
 
@@ -88,7 +80,8 @@ func (c *Chunker) AddBlock(h uint32) {
 		len:  c.blockLen,
 	}
 	c.blocks[b]++
-	c.initBlock()
+	c.blockLen = 0
+
 }
 
 // Helper functions for calculating lengths

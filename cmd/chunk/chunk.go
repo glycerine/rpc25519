@@ -36,10 +36,11 @@ func main() {
 	//vv("cfg = '%#v'", cfg)
 	//vv("cdc = '%#v'", cdc)
 
-	for algo := 3; algo < 4; algo++ {
+	for algo := 4; algo < 5; algo++ {
 		cdc, _ := jsync.GetCutpointer(jsync.CDCAlgo(algo))
 		cdc.SetConfig(cfg)
 
+		seeWindow := 0
 		seeBits := 0
 		switch x := cdc.(type) {
 		case *jcdc.FNVCDC:
@@ -47,6 +48,8 @@ func main() {
 			//vv("set bits to %v", b)
 			//vv("x.NumBitsZeroAtCut = %v", x.NumBitsZeroAtCut)
 			seeBits = int(x.NumBitsZeroAtCut)
+		case *jcdc.RabinKarpCDC:
+			seeWindow len(x.Window)
 		}
 
 		/*			fmt.Printf(`
