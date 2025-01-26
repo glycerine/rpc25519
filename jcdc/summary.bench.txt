@@ -1,0 +1,11 @@
+$ for i in `ls -1 |grep bench`; do grep -H "bytes total in deltas" $i|grep plakar; done|sort -rnk 2
+bench.20k.128k.512k: 8_546_809 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+bench.16k.64k.80k: 7_031_049 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+bench.512.64k.128k: 6_659_256 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+bench.4k.64k.256k: 6_686_929 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+bench.4k.64k.128k: 6_686_929 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+bench.2k.64k.256k: 6_738_777 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+bench.1k.16k.80k: 2_972_100 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+bench.2k.10k.64k: 2_417_367 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+bench.1k.64k.256k: 2_417_367 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+bench.2k.8k.64k: 2_264_508 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
