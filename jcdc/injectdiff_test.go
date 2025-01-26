@@ -61,6 +61,7 @@ func TestDiffSize(t *testing.T) {
 	nAlgo := 5
 	totalByteDeltaOverAllScenario := make([]int, nAlgo)
 	var names []string
+	var cfg *CDC_Config
 
 	for nChange := 1; nChange < scenarios; nChange++ {
 
@@ -94,8 +95,12 @@ func TestDiffSize(t *testing.T) {
 		_ = maxByteDelta
 		testName := fmt.Sprintf("1 MB file, %v planted changes of up to %v bytes;\n %v bytes was the total delta in bytes.\n", formatUnder(nChange), formatUnder(maxChangeLen), formatUnder(bytesDiff))
 
-		cfg := &CDC_Config{}
-		cfg = nil // TODO vary! for now, defaults
+		cfg = &CDC_Config{
+			MinSize:    1 * 1024,
+			TargetSize: 64 * 1024,
+			MaxSize:    256 * 1024,
+		}
+		//cfg = nil // TODO vary! for now, defaults
 
 		for algo := 0; algo < nAlgo; algo++ {
 			cdc := GetCutpointer(CDCAlgo(algo), cfg)
@@ -155,7 +160,7 @@ func TestDiffSize(t *testing.T) {
 		}
 	} // end for nChange
 	fmt.Println()
-	fmt.Printf(" =================\n Over all scenarios:\n")
+	fmt.Printf(" =================\n Over all scenarios:  min=%v; target=%v; max=%v\n", formatUnder(cfg.MinSize), formatUnder(cfg.TargetSize), formatUnder(cfg.MaxSize))
 	fmt.Printf(" =================\n\n")
 	for algo := range nAlgo {
 		fmt.Printf("%10s bytes total in deltas  : %.40s\n", formatUnder(totalByteDeltaOverAllScenario[algo]), names[algo])
