@@ -19,7 +19,8 @@ func NewFNVCDC(opts *CDC_Config) *FNVCDC {
 	}
 	f.Opts = opts
 
-	f.NumBitsZeroAtCut = uint32(math.Log2(float64(opts.TargetSize - opts.MinSize)))
+	// compute our bits threshold, (roudning up is why the + 0.5)
+	f.NumBitsZeroAtCut = uint32(0.5 + math.Log2(float64(opts.TargetSize-opts.MinSize)))
 
 	//fmt.Printf("NewFNVCDC: TargetSize = %v -> f.NumBitsZeroAtCut = %v\n", f.Opts.TargetSize, f.NumBitsZeroAtCut)
 
@@ -28,7 +29,7 @@ func NewFNVCDC(opts *CDC_Config) *FNVCDC {
 
 func (f *FNVCDC) SetConfig(cfg *CDC_Config) {
 	f.Opts = cfg
-	f.NumBitsZeroAtCut = uint32(math.Log2(float64(cfg.TargetSize - cfg.MinSize)))
+	f.NumBitsZeroAtCut = uint32(0.5 + math.Log2(float64(cfg.TargetSize-cfg.MinSize)))
 }
 
 func Default_FNVCDC_Options() *CDC_Config {
