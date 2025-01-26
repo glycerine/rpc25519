@@ -152,10 +152,20 @@ const (
 	OpRsync_LazyTakerWantsToPull           = 19 // ... to Giver, quick size + modTime check
 	OpRsync_LazyTakerNoLuck_ChunksRequired = 20 // to taker (quick size/modTime failed)
 
-	OpRsync_GiverSendsDirListing     = 21 // to taker, here is my starting dir tree
-	OpRsync_GiverSendsDirListingMore = 22 // to taker, here is more of 21
-	OpRsync_GiverSendsDirListingEnd  = 23 // to taker, here is end of 21
-	OpRsync_TakerRequestsDirListing  = 24 // to giver, please send me 21/22/23
+	OpRsync_GiverSendsTopDirListing     = 21 // to taker, here is my starting dir tree
+	OpRsync_GiverSendsTopDirListingMore = 22 // to taker, here is more of 21
+	OpRsync_GiverSendsTopDirListingEnd  = 23 // to taker, here is end of 21
+
+	OpRsync_TakerRequestsDirSyncBegin = 24 // to giver, please send me 21/22/23
+
+	// to taker, please setup a tempdir and tell the
+	// giver the path so we can send new files into that path.
+	OpRsync_DirSyncBeginToTaker        = 25 // to taker, please setup a top tempdir
+	OpRsync_DirSyncBeginReplyFromTaker = 26 // to giver, here is my top tempdir
+
+	// taker can rename the temp top dir/replace any old top dir.
+	OpRsync_DirSyncEndToTaker = 27 // to taker, end of dir sync
+
 )
 
 var once sync.Once
@@ -192,11 +202,16 @@ func AliasRsyncOps() {
 	rpc.FragOpRegister(OpRsync_LazyTakerNoLuck_ChunksRequired, "OpRsync_LazyTakerNoLuck_ChunksRequired")
 
 	// directory listings transfer
-	rpc.FragOpRegister(OpRsync_GiverSendsDirListing, "OpRsync_GiverSendsDirListing")
-	rpc.FragOpRegister(OpRsync_GiverSendsDirListingMore, "OpRsync_GiverSendsDirListingMore")
-	rpc.FragOpRegister(OpRsync_GiverSendsDirListingEnd, "OpRsync_GiverSendsDirListingEnd")
 
-	rpc.FragOpRegister(OpRsync_TakerRequestsDirListing, "OpRsync_TakerRequestsDirListing")
+	rpc.FragOpRegister(OpRsync_DirSyncBeginToTaker, "OpRsync_DirSyncBeginToTaker")
+	rpc.FragOpRegister(OpRsync_DirSyncBeginReplyFromTaker, "OpRsync_DirSyncBeginReplyFromTaker")
+	rpc.FragOpRegister(OpRsync_DirSyncEndToTaker, "OpRsync_DirSyncEndToTaker")
+
+	rpc.FragOpRegister(OpRsync_GiverSendsTopDirListing, "OpRsync_GiverSendsTopDirListing")
+	rpc.FragOpRegister(OpRsync_GiverSendsTopDirListingMore, "OpRsync_GiverSendsTopDirListingMore")
+	rpc.FragOpRegister(OpRsync_GiverSendsTopDirListingEnd, "OpRsync_GiverSendsTopDirListingEnd")
+
+	rpc.FragOpRegister(OpRsync_TakerRequestsDirSyncBegin, "OpRsync_TakerRequestsDirSyncBegin")
 
 }
 
@@ -470,12 +485,21 @@ func (s *SyncService) Start(
 				// so the remote taker can tell what to delete/skip
 				// in the new vers dir.
 
+				// all subsequent sync requests should ask to write to
+				// the new version's temp top level dir. So we need
+				// to agree on what that path will be first and foremost.
+				// So we need to ask the remote taker to name that dir
+				// and tell us what it's path is. We need to send taker
+				// a DirSyncBegin and DirSyncEnd so the the taker getting
+				// a DirSyncEnd can know to do the atomic swap of dir.
+
 			} else {
 				// If RemoteTakes is false => remote giver, local taker (pull)
 
-				// If the local is pulling, read the dir listing
+				// If the local is pulling, request and read the dir listing
 				// from the giver, and locally delete in the new vers dir.
-				//FragOp
+
+				//reqDir.FragOp = OpRsync_TakerRequestsDirSyncBegin
 			}
 
 			// Use the circuitName to indicate remote taker or giver,

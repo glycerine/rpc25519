@@ -168,14 +168,14 @@ takerForSelectLoop:
 			_ = frag
 			switch frag.FragOp {
 
-			case OpRsync_GiverSendsDirListing: // FragOp 21
-				vv("%v: (ckt '%v') (Taker) sees OpRsync_GiverSendsDirListing.", name, ckt.Name)
+			case OpRsync_GiverSendsTopDirListing: // FragOp 21
+				vv("%v: (ckt '%v') (Taker) sees OpRsync_GiverSendsTopDirListing.", name, ckt.Name)
 				// to taker, here is my starting dir tree
-			case OpRsync_GiverSendsDirListingMore: // FragOp  22
-				vv("%v: (ckt '%v') (Taker) sees OpRsync_GiverSendsDirListingMore.", name, ckt.Name)
+			case OpRsync_GiverSendsTopDirListingMore: // FragOp  22
+				vv("%v: (ckt '%v') (Taker) sees OpRsync_GiverSendsTopDirListingMore.", name, ckt.Name)
 				// to taker, here is more of 21
-			case OpRsync_GiverSendsDirListingEnd: // FragOp 23
-				vv("%v: (ckt '%v') (Taker) sees OpRsync_GiverSendsDirListingEnd.", name, ckt.Name)
+			case OpRsync_GiverSendsTopDirListingEnd: // FragOp 23
+				vv("%v: (ckt '%v') (Taker) sees OpRsync_GiverSendsTopDirListingEnd.", name, ckt.Name)
 				// to taker, here is end of 21
 
 			case OpRsync_AckBackFIN_ToTaker:
