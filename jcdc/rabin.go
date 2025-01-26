@@ -48,12 +48,16 @@ func NewRabinKarpCDC(opts *CDC_Config) *RabinKarpCDC {
 	// A good rule of thumb is log2(targetSize)
 	// This gives us larger windows for larger chunks, which helps with
 	// content-based chunking at larger scales
+
 	targetSize := opts.TargetSize
 	windowSize := 1
+	vv("pre:  targetSize = %v; windowSize = %v", targetSize, windowSize)
 	for targetSize > 1 {
 		windowSize++
 		targetSize >>= 1
 	}
+
+	vv("post: targetSize = %v; windowSize = %v", targetSize, windowSize)
 
 	// But still maintain some reasonable bounds
 	if windowSize < 4 {
