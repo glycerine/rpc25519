@@ -8,12 +8,14 @@ type RabinKarpCDC struct {
 	Opts *CDC_Config `zid:"0"`
 
 	// Rabin-Karp specific fields matching Python implementation
-	mult   uint32 // The Rabin-Karp multiplier (0x08104225)
-	invm   uint32 // Modular multiplicative inverse of mult mod 2^32
-	sum    uint32 // Current rolling hash value
-	multn  uint32 // mult^count mod 2^32
-	Window []byte // Sliding window buffer
-	mask   uint32 // Mask for finding chunk boundaries
+	mult  uint32 // The Rabin-Karp multiplier (0x08104225)
+	invm  uint32 // Modular multiplicative inverse of mult mod 2^32
+	sum   uint32 // Current rolling hash value
+	multn uint32 // mult^count mod 2^32
+	//Window []byte // Sliding window buffer
+	mask uint32 // Mask for finding chunk boundaries
+
+	WindowSize int
 }
 
 // modinv calculates the modular multiplicative inverse of a mod m
@@ -42,9 +44,11 @@ func NewRabinKarpCDC(opts *CDC_Config) *RabinKarpCDC {
 	if opts == nil {
 		opts = Default_RabinKarpCDC_Options()
 	}
-	return initKarpRabinWithOpts(opts)
+	c := &RabinKarpCDC{}
+	c.initKarpRabinWithOpts(opts)
+	return c
 }
-func initKarpRabinWithOpts(opts *CDC_Config) *RabinKarpCDC {
+func (r *RabinKarpCDC) initKarpRabinWithOpts(opts *CDC_Config) {
 	// Window size calculation:
 	// We want the window size to scale with target size
 	// A good rule of thumb is log2(targetSize)
@@ -59,7 +63,7 @@ func initKarpRabinWithOpts(opts *CDC_Config) *RabinKarpCDC {
 		targetSize >>= 1
 	}
 
-	vv("post: targetSize = %v; windowSize = %v", targetSize, windowSize) // 1, 16
+	vv("post: targetSize = %v; windowSize = %v", targetSize, windowSize) // 1, 21
 
 	// But still maintain some reasonable bounds
 	if windowSize < 4 {
@@ -70,17 +74,17 @@ func initKarpRabinWithOpts(opts *CDC_Config) *RabinKarpCDC {
 	}
 	//windowSize = 8
 
-	vv("alter windowSize clamping to [4,128]: targetSize = %v; windowSize = %v", targetSize, windowSize) // windowSize = 16 here
+	vv("alter windowSize clamping to [4,128]: targetSize = %v; windowSize = %v", targetSize, windowSize) // windowSize = 21
 	// Use the same multiplier as the Python implementation
 	mult := uint32(0x08104225)
 
-	r := &RabinKarpCDC{
-		mult:   mult,
-		invm:   modinv(mult, 0xFFFFFFFF),
-		multn:  1,
-		Window: make([]byte, windowSize),
-	}
-	vv("make Window []byte windowSize=%v", windowSize) // 21 here!
+	r.mult = mult
+	r.invm = modinv(mult, 0xFFFFFFFF)
+	r.multn = 1
+	//Window= make([]byte, windowSize),
+	r.WindowSize = windowSize
+
+	vv("we set WindowSize=%v", windowSize) // 21 here!
 	r.Opts = opts
 
 	// Calculate mask for chunk boundaries
@@ -94,14 +98,18 @@ func initKarpRabinWithOpts(opts *CDC_Config) *RabinKarpCDC {
 	}
 	r.mask = (uint32(1) << bits) - 1
 
-	return r
 }
 
 func (c *RabinKarpCDC) SetConfig(cfg *CDC_Config) {
+	vv("top of SetConfig, c.WindowSize = %v; c  = %p", c.WindowSize, c)
+	defer func() {
+		vv("end of SetConfig, c.WindowSize = %v; c = %p", c.WindowSize, c)
+	}()
+
 	c.Opts = cfg
 
 	vv("SetConfig about to call initKarpRabinWithOpts()")
-	initKarpRabinWithOpts(cfg)
+	c.initKarpRabinWithOpts(cfg)
 }
 
 func (c *RabinKarpCDC) Name() string {
@@ -160,7 +168,9 @@ func (c *RabinKarpCDC) Algorithm(options *CDC_Config, data []byte, n int) (cutpo
 	// Initialize rolling hash state
 	c.sum = 0
 	c.multn = 1
-	windowSize := len(c.Window)
+	windowSize := c.WindowSize
+
+	//vv("run Algorithm() windowSize = %v", windowSize)
 
 	// Initialize the hash with the first window
 	for i := 0; i < windowSize && i < n; i++ {

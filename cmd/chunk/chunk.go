@@ -10,7 +10,7 @@ import (
 	"strconv"
 
 	"github.com/glycerine/rpc25519/jcdc"
-	"github.com/glycerine/rpc25519/jsync"
+	//"github.com/glycerine/rpc25519/jsync"
 )
 
 // var algo int
@@ -37,14 +37,15 @@ func main() {
 	//vv("cdc = '%#v'", cdc)
 
 	for algo := 4; algo < 5; algo++ {
-		cdc, _ := jsync.GetCutpointer(jsync.CDCAlgo(algo))
+		//cdc, _ := jsync.GetCutpointer(jsync.CDCAlgo(algo))
+		cdc := jcdc.NewRabinKarpCDC(cfg)
 
 		vv("before SetConfig with cfg = '%#v'", cfg)
-		cdc.SetConfig(cfg)
+		//cdc.SetConfig(cfg)
 		vv("after SetConfig with cfg = '%#v'", cfg)
 		seeWindow := 0
-		seeBits := 0
-		switch x := cdc.(type) {
+		//seeBits := 0
+		/*switch x := cdc.(type) {
 		case *jcdc.FNVCDC:
 			//x.NumBitsZeroAtCut = uint32(b)
 			//vv("set bits to %v", b)
@@ -52,9 +53,11 @@ func main() {
 			seeBits = int(x.NumBitsZeroAtCut)
 			_ = seeBits
 		case *jcdc.RabinKarpCDC:
-			seeWindow = len(x.Window)
+			seeWindow = x.WindowSize
+			vv("have RabinKarpCDC with seeWindows = '%v'", seeWindow) //16 now
 		}
-
+		*/
+		seeWindow = cdc.WindowSize
 		/*			fmt.Printf(`
 					algo = %v (%v)
 						`, algo, cdc.Name())
