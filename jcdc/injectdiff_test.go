@@ -57,16 +57,17 @@ func getPseudoRandData(gen *mathrand2.ChaCha8, sz int) []byte {
 // the first segment's hash.
 func TestDiffSize(t *testing.T) {
 
-	// deterministic pseudo-random numbers as data.
-	var seed [32]byte
-	gen := mathrand2.NewChaCha8(seed)
+	for nChange := 1; nChange < 20; nChange++ {
 
-	sz := 1 << 20
-	data := getPseudoRandData(gen, sz)
+		// deterministic pseudo-random numbers as data.
+		var seed [32]byte
+		gen := mathrand2.NewChaCha8(seed)
 
-	data2 := append([]byte{}, data...) // change this copy
+		sz := 1 << 20
+		data := getPseudoRandData(gen, sz)
 
-	for nChange := 1; nChange < 5; nChange++ {
+		data2 := append([]byte{}, data...) // change this copy
+
 		maxChangeLen := 1024
 		maxByteDelta := 0
 		for i := range nChange {
@@ -140,7 +141,7 @@ func TestDiffSize(t *testing.T) {
 			//vv("%v  orig    data sz = %v ;  nchunks = %v; meanChunkSz = %v; sd = %v", cdc.Name(), formatUnder(sz), formatUnder(len(cuts0)), formatUnder(int(sdt0.Mean())), formatUnder(int(sdt0.SampleStdDev())))
 			//vv("%v  vs  data2 sz = %v ;  nchunks = %v; meanChunkSz = %v; sd = %v", cdc.Name(), formatUnder(sz), formatUnder(len(cuts2)), formatUnder(int(sdt2.Mean())), formatUnder(int(sdt2.SampleStdDev())))
 			fmt.Printf("%v:\n", cdc.Name())
-			fmt.Printf("ndup chunk = %5v ; bytedup = %10v; nnew chunk = %5v; bytenew = %10v\n", formatUnder(ndup), formatUnder(bytedup), formatUnder(nnew), formatUnder(bytenew))
+			fmt.Printf("ndup chunk = %3v ; bytedup = %9v; nnew chunk = %5v; bytenew = %9v\n", formatUnder(ndup), formatUnder(bytedup), formatUnder(nnew), formatUnder(bytenew))
 		}
 	}
 }
