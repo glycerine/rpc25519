@@ -27,17 +27,21 @@ import (
 // implemented any reader-makes-right switching.
 var Default_CDC jcdc.CDCAlgo = jcdc.UltraCDC_Algo
 
-// https://minkirri.apana.org.au/wiki/RollsumChunking
+// [1] https://minkirri.apana.org.au/wiki/RollsumChunking
 // recommends MinSize being at (or my take, less) than
 // 25% of TargetSize, to allow faster re-alignement.
 //
 // The Microsoft Deduplication paper
 // https://www.usenix.org/system/files/conference/atc12/atc12-final293.pdf
 // recommends 64KB chunk sizes.
+//
+// Donovan Baarda in [1] points out that Microsoft
+// was probably missing 20% of the dedup opporunities
+// by have MaxSize too small and forcing truncations.
 var Default_CDC_Config = &jcdc.CDC_Config{
 	MinSize:    4 * 1024,
 	TargetSize: 64 * 1024,
-	MaxSize:    128 * 1024,
+	MaxSize:    256 * 1024,
 }
 
 // SyncService implements a file syncing
