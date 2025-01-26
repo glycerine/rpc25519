@@ -675,7 +675,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 	// parameter min/max/target settings in
 	// order to give good chunking.
 
-	cdc, opts := GetCutpointer(UsingCDCAlgo)
+	cdc := jcdc.GetCutpointer(Default_CDC, nil)
 
 	precis = &FilePrecis{
 		Host:        host,
@@ -684,7 +684,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 		ModTime:     modTime,
 		FileCry:     hash.Blake3OfBytesString(data),
 		ChunkerName: cdc.Name(),
-		CDC_Config:  opts,
+		CDC_Config:  cdc.Config(),
 		HashName:    "blake3.32B",
 	}
 	chunks = NewChunks(path)
@@ -827,7 +827,8 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 	// parameter min/max/target settings in
 	// order to give good chunking.
 
-	cdc, opts := GetCutpointer(UsingCDCAlgo)
+	cdc := jcdc.GetCutpointer(Default_CDC, nil)
+	cdcCfg := cdc.Config()
 
 	sz64, modTime, err := FileSizeModTime(path)
 	if err != nil {
@@ -843,7 +844,7 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 		ModTime:  modTime,
 		//FileCry:     hash.Blake3OfBytesString(data),
 		ChunkerName: cdc.Name(),
-		CDC_Config:  opts,
+		CDC_Config:  cdcCfg,
 		HashName:    "blake3.32B",
 	}
 	chunks = NewChunks(path)
@@ -946,13 +947,13 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 
 		cut := cdc.NextCut(data)
 
-		if len(data) >= opts.MaxSize {
+		if len(data) >= cdcCfg.MaxSize {
 			// legit cut
 			addChunk(data[:cut], dataoff)
 			//vv("j=%v  legit cut: '%v'", j, chunks.Chunks[len(chunks.Chunks)-1])
 			data = data[cut:]
 			dataoff += cut
-			if len(data) > opts.MaxSize {
+			if len(data) > cdcCfg.MaxSize {
 				continue
 			}
 		}
@@ -1023,7 +1024,7 @@ func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 	// parameter min/max/target settings in
 	// order to give good chunking.
 
-	cdc, opts := GetCutpointer(UsingCDCAlgo)
+	cdc := jcdc.GetCutpointer(Default_CDC, nil)
 
 	sz64, modTime, err := FileSizeModTime(path)
 	if err != nil {
@@ -1039,7 +1040,7 @@ func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 		ModTime:  modTime,
 		//FileCry:     hash.Blake3OfBytesString(data),
 		ChunkerName: cdc.Name(),
-		CDC_Config:  opts,
+		CDC_Config:  cdc.Config(),
 		HashName:    "blake3.32B",
 	}
 

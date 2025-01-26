@@ -14,9 +14,18 @@ import (
 
 	"github.com/glycerine/idem"
 	rpc "github.com/glycerine/rpc25519"
+	"github.com/glycerine/rpc25519/jcdc"
 )
 
 //go:generate greenpack -no-dedup=true
+
+// UsingCDCAlgo is a package global to allow
+// benchmarks comparing CDC chunkers and settings.
+//
+// At the moment, the choice must match on the Client and
+// Server pair actually in use, as we have not
+// implemented any reader-makes-right switching.
+var Default_CDC jcdc.CDCAlgo = jcdc.UltraCDC_Algo
 
 // SyncService implements a file syncing
 // service using an rsync-like protocol.
