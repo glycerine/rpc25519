@@ -7,7 +7,7 @@ import (
 	//"crypto/sha256"
 	//"encoding/binary"
 	//"encoding/hex"
-	//"fmt"
+	"fmt"
 	mathrand2 "math/rand/v2"
 	//"os"
 	//"strconv"
@@ -83,7 +83,7 @@ func TestDiffSize(t *testing.T) {
 	cfg := &CDC_Config{}
 	cfg = nil // TODO vary! for now, defaults
 
-	for algo := 4; algo < 5; algo++ {
+	for algo := 0; algo < 5; algo++ {
 		cdc := GetCutpointer(CDCAlgo(algo), cfg)
 
 		cfg = cdc.Config() // overwrite with actually in use.
@@ -91,13 +91,14 @@ func TestDiffSize(t *testing.T) {
 		sums2 := getCuts2(cdc.Name(), data2, cdc, cfg)
 
 		cuts0, cmap0 := sums0.cuts, sums0.cmap
-
+		_ = cuts0
 		ndup := 0
 		bytedup := 0
 		nnew := 0
 		bytenew := 0
 
 		cuts2, cmap2 := sums2.cuts, sums2.cmap
+		_ = cuts2
 
 		//vv("len cuts = %v; len cmap = %v", len(cuts), len(cmap))
 		sdt0 := StdDevTracker{}
@@ -121,9 +122,14 @@ func TestDiffSize(t *testing.T) {
 			sdt2.AddObs(float64(v.sz), float64(v.n))
 		}
 
-		vv("orig    data sz = %v ;  nchunks = %v; meanChunkSz = %v; sd = %v", formatUnder(sz), len(cuts0), formatUnder(int(sdt0.Mean())), formatUnder(int(sdt0.SampleStdDev())))
-		vv("changed data2 sz = %v ;  nchunks = %v; meanChunkSz = %v; sd = %v", formatUnder(sz), len(cuts2), formatUnder(int(sdt2.Mean())), formatUnder(int(sdt2.SampleStdDev())))
-		vv("ndup chunk = %v ; nnew chunk = %v; bytedup = %v; bytenew = %v", ndup, nnew, bytedup, bytenew)
+		if algo == 0 {
+			vv("nChange = %v; maxChangeLen =%v; maxByteDelta =%v; settings: cfg = '%#v'", formatUnder(nChange), formatUnder(maxChangeLen), formatUnder(maxByteDelta), cfg)
+			fmt.Println()
+		}
+
+		//vv("%v  orig    data sz = %v ;  nchunks = %v; meanChunkSz = %v; sd = %v", cdc.Name(), formatUnder(sz), formatUnder(len(cuts0)), formatUnder(int(sdt0.Mean())), formatUnder(int(sdt0.SampleStdDev())))
+		//vv("%v  vs  data2 sz = %v ;  nchunks = %v; meanChunkSz = %v; sd = %v", cdc.Name(), formatUnder(sz), formatUnder(len(cuts2)), formatUnder(int(sdt2.Mean())), formatUnder(int(sdt2.SampleStdDev())))
+		fmt.Printf("%v  ndup chunk = %v ; nnew chunk = %v; bytedup = %v; bytenew = %v \n", cdc.Name(), formatUnder(ndup), formatUnder(nnew), formatUnder(bytedup), formatUnder(bytenew))
 	}
 
 	/*
