@@ -66,97 +66,83 @@ func TestDiffSize(t *testing.T) {
 
 	data2 := append([]byte{}, data...) // change this copy
 
-	nChange := 1
-	maxChangeLen := 1024
-	maxByteDelta := 0
-	for i := range nChange {
-		_ = i
-		amt := int(gen.Uint64() % uint64(maxChangeLen))
-		loc := int(gen.Uint64() % uint64(len(data)-amt))
-		change := make([]byte, amt)
-		gen.Read(change)
-		k := copy(data2[loc:], change)
-		maxByteDelta += k
-	}
-	bytesDiff := 0
-	for i := range data {
-		if data[i] != data2[i] {
-			bytesDiff++
+	for nChange := 1; nChange < 5; nChange++ {
+		maxChangeLen := 1024
+		maxByteDelta := 0
+		for i := range nChange {
+			_ = i
+			amt := int(gen.Uint64() % uint64(maxChangeLen))
+			loc := int(gen.Uint64() % uint64(len(data)-amt))
+			change := make([]byte, amt)
+			gen.Read(change)
+			k := copy(data2[loc:], change)
+			maxByteDelta += k
 		}
-	}
-	_ = maxByteDelta
-	testName := fmt.Sprintf("1 MB file, %v planted changes of up to %v bytes; %v bytes was the total delta in bytes.", formatUnder(nChange), formatUnder(maxChangeLen), formatUnder(bytesDiff))
-
-	cfg := &CDC_Config{}
-	cfg = nil // TODO vary! for now, defaults
-
-	for algo := 0; algo < 5; algo++ {
-		cdc := GetCutpointer(CDCAlgo(algo), cfg)
-
-		cfg = cdc.Config() // overwrite with actually in use.
-		sums0 := getCuts2(cdc.Name(), data, cdc, cfg)
-		sums2 := getCuts2(cdc.Name(), data2, cdc, cfg)
-
-		cuts0, cmap0 := sums0.cuts, sums0.cmap
-		_ = cuts0
-		ndup := 0
-		bytedup := 0
-		nnew := 0
-		bytenew := 0
-
-		cuts2, cmap2 := sums2.cuts, sums2.cmap
-		_ = cuts2
-
-		//vv("len cuts = %v; len cmap = %v", len(cuts), len(cmap))
-		sdt0 := StdDevTracker{}
-		// stats for orig data
-		for _, v := range cmap0 {
-			sdt0.AddObs(float64(v.sz), float64(v.n))
-		}
-
-		sdt2 := StdDevTracker{}
-		for k, v := range cmap2 {
-			data, ok := cmap0[k]
-			if ok {
-				// data is in the orignal
-				ndup++
-				bytedup += data.sz
-			} else {
-				// data is not in the orig
-				nnew++
-				bytenew += v.sz
+		bytesDiff := 0
+		for i := range data {
+			if data[i] != data2[i] {
+				bytesDiff++
 			}
-			sdt2.AddObs(float64(v.sz), float64(v.n))
 		}
+		_ = maxByteDelta
+		testName := fmt.Sprintf("1 MB file, %v planted changes of up to %v bytes;\n %v bytes was the total delta in bytes.\n", formatUnder(nChange), formatUnder(maxChangeLen), formatUnder(bytesDiff))
 
-		if algo == 0 {
-			fmt.Printf("scenario: %v with cfg = '%#v'", testName, cfg)
-			fmt.Println()
+		cfg := &CDC_Config{}
+		cfg = nil // TODO vary! for now, defaults
+
+		for algo := 0; algo < 5; algo++ {
+			cdc := GetCutpointer(CDCAlgo(algo), cfg)
+
+			cfg = cdc.Config() // overwrite with actually in use.
+			sums0 := getCuts2(cdc.Name(), data, cdc, cfg)
+			sums2 := getCuts2(cdc.Name(), data2, cdc, cfg)
+
+			cuts0, cmap0 := sums0.cuts, sums0.cmap
+			_ = cuts0
+			ndup := 0
+			bytedup := 0
+			nnew := 0
+			bytenew := 0
+
+			cuts2, cmap2 := sums2.cuts, sums2.cmap
+			_ = cuts2
+
+			//vv("len cuts = %v; len cmap = %v", len(cuts), len(cmap))
+			sdt0 := StdDevTracker{}
+			// stats for orig data
+			for _, v := range cmap0 {
+				sdt0.AddObs(float64(v.sz), float64(v.n))
+			}
+
+			sdt2 := StdDevTracker{}
+			for k, v := range cmap2 {
+				data, ok := cmap0[k]
+				if ok {
+					// data is in the orignal
+					ndup++
+					bytedup += data.sz
+				} else {
+					// data is not in the orig
+					nnew++
+					bytenew += v.sz
+				}
+				sdt2.AddObs(float64(v.sz), float64(v.n))
+			}
+
+			if algo == 0 {
+				fmt.Println()
+				fmt.Printf("\n =======================\n scenario: %v"+
+					"\n with cfg = '%#v'", testName, cfg)
+				fmt.Printf("\n =======================\n")
+				fmt.Println()
+			}
+
+			//vv("%v  orig    data sz = %v ;  nchunks = %v; meanChunkSz = %v; sd = %v", cdc.Name(), formatUnder(sz), formatUnder(len(cuts0)), formatUnder(int(sdt0.Mean())), formatUnder(int(sdt0.SampleStdDev())))
+			//vv("%v  vs  data2 sz = %v ;  nchunks = %v; meanChunkSz = %v; sd = %v", cdc.Name(), formatUnder(sz), formatUnder(len(cuts2)), formatUnder(int(sdt2.Mean())), formatUnder(int(sdt2.SampleStdDev())))
+			fmt.Printf("%v:\n", cdc.Name())
+			fmt.Printf("ndup chunk = %5v ; bytedup = %10v; nnew chunk = %5v; bytenew = %10v\n", formatUnder(ndup), formatUnder(bytedup), formatUnder(nnew), formatUnder(bytenew))
 		}
-
-		//vv("%v  orig    data sz = %v ;  nchunks = %v; meanChunkSz = %v; sd = %v", cdc.Name(), formatUnder(sz), formatUnder(len(cuts0)), formatUnder(int(sdt0.Mean())), formatUnder(int(sdt0.SampleStdDev())))
-		//vv("%v  vs  data2 sz = %v ;  nchunks = %v; meanChunkSz = %v; sd = %v", cdc.Name(), formatUnder(sz), formatUnder(len(cuts2)), formatUnder(int(sdt2.Mean())), formatUnder(int(sdt2.SampleStdDev())))
-		fmt.Printf("%v:\n", cdc.Name())
-		fmt.Printf("ndup chunk = %5v ; bytedup = %10v; nnew chunk = %5v; bytenew = %10v\n", formatUnder(ndup), formatUnder(bytedup), formatUnder(nnew), formatUnder(bytenew))
 	}
-
-	/*
-	   			min, targ := cfg.MinSize, cfg.TargetSize
-	   			//	fmt.Printf(`min=%v; targ = %v; see_window=%v => mean = %v   sd = %v
-	   			//`, formatUnder(min), formatUnder(targ), seeWindow, formatUnder(int(sdt.Mean())), formatUnder(int(sdt.SampleStdDev())))
-	   			//	continue
-
-	   			fmt.Printf(`
-	    i=%v ... path = '%v'   vs  path[0]='%v'   algo='%v'
-	      min = %v;  target = %v;   max = %v
-	       ncut = %v; ndup = %v; savings = %v bytes of %v (%0.2f %%)
-	         diffbytes = %v
-	         mean = %v   sd = %v
-	   `, i, path, paths[0], cdc.Name(),
-	   				min, targ, cfg.MaxSize,
-	   				len(cuts), ndup, formatUnder(savings), formatUnder(int(fi.Size())), float64(100*savings)/float64(fi.Size()), formatUnder(int(fi.Size())-savings), formatUnder(int(sdt.Mean())), formatUnder(int(sdt.SampleStdDev())))
-	   		}
-	*/
 }
 
 type seg struct {
