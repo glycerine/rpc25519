@@ -277,19 +277,39 @@ type RequestToSyncPath struct {
 	// If RemoteTakes is false => remote giver, local taker.
 	RemoteTakes bool        `zid:"20"`
 	Precis      *FilePrecis `zid:"21"`
-	Chunks      *Chunks     `zid:"22"`
 
-	// if taker wants to pull the file but does
-	// not have it currently, set this to true.
-	// This will avoid any OpRsync_LazyTakerWantsToPull
-	// extra round trip.
+	Chunks *Chunks `zid:"22"`
 
 	GiverIsDir       bool `zid:"23"`
 	TakerIsDir       bool `zid:"24"`
 	GiverExistsLocal bool `zid:"25"`
+
+	// TakerExistsLocal: if taker wants to pull the file but does
+	// not have it currently, set this to false (the default).
+	// This will avoid any OpRsync_LazyTakerWantsToPull
+	// extra round trip.
 	TakerExistsLocal bool `zid:"26"`
 	TakerStartsEmpty bool `zid:"27"`
 	GiverStartsEmpty bool `zid:"28"`
+}
+
+// RequestToSyncDir is a separate
+// struct/message from RequestToSyncPath
+// to keep things organized as we add
+// in directory support. A directory
+// sync will recursively search for
+// giver files under GiverDir and send them.
+// It should also search for taker
+// files under TakerDir, and sync them
+// as well, so they are deleted if
+// no longer on the giver.
+type RequestToSyncDir struct {
+	GiverDir string `zid:"0"`
+	TakerDir string `zid:"1"`
+
+	// If RemoteTakes is false => remote giver, local taker.
+	// If RemoteTakes is true  => remote taker, local giver.
+	RemoteTakes bool `zid:"2"`
 }
 
 const assembleInMem = true
