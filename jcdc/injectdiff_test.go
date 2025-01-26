@@ -78,7 +78,14 @@ func TestDiffSize(t *testing.T) {
 		k := copy(data2[loc:], change)
 		maxByteDelta += k
 	}
+	bytesDiff := 0
+	for i := range data {
+		if data[i] != data2[i] {
+			bytesDiff++
+		}
+	}
 	_ = maxByteDelta
+	testName := fmt.Sprintf("1 MB file, %v planted changes of up to %v bytes; %v bytes was the total delta in bytes.", formatUnder(nChange), formatUnder(maxChangeLen), formatUnder(bytesDiff))
 
 	cfg := &CDC_Config{}
 	cfg = nil // TODO vary! for now, defaults
@@ -123,7 +130,7 @@ func TestDiffSize(t *testing.T) {
 		}
 
 		if algo == 0 {
-			vv("nChange = %v; maxChangeLen =%v; maxByteDelta =%v; settings: cfg = '%#v'", formatUnder(nChange), formatUnder(maxChangeLen), formatUnder(maxByteDelta), cfg)
+			fmt.Printf("scenario: %v with cfg = '%#v'", testName, cfg)
 			fmt.Println()
 		}
 
