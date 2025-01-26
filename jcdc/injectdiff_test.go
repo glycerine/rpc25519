@@ -57,10 +57,16 @@ func getPseudoRandData(gen *mathrand2.ChaCha8, sz int) []byte {
 // the first segment's hash.
 func TestDiffSize(t *testing.T) {
 
-	for nChange := 1; nChange < 20; nChange++ {
+	scenarios := 20
+	nAlgo := 5
+	totalByteDeltaOverAllScenario := make([]int, nAlgo)
+	var names []string
+
+	for nChange := 1; nChange < scenarios; nChange++ {
 
 		// deterministic pseudo-random numbers as data.
 		var seed [32]byte
+		seed[0] = byte(nChange)
 		gen := mathrand2.NewChaCha8(seed)
 
 		sz := 1 << 20
@@ -91,9 +97,12 @@ func TestDiffSize(t *testing.T) {
 		cfg := &CDC_Config{}
 		cfg = nil // TODO vary! for now, defaults
 
-		for algo := 0; algo < 5; algo++ {
+		for algo := 0; algo < nAlgo; algo++ {
 			cdc := GetCutpointer(CDCAlgo(algo), cfg)
 
+			if nChange == 1 {
+				names = append(names, cdc.Name())
+			}
 			cfg = cdc.Config() // overwrite with actually in use.
 			sums0 := getCuts2(cdc.Name(), data, cdc, cfg)
 			sums2 := getCuts2(cdc.Name(), data2, cdc, cfg)
@@ -142,8 +151,17 @@ func TestDiffSize(t *testing.T) {
 			//vv("%v  vs  data2 sz = %v ;  nchunks = %v; meanChunkSz = %v; sd = %v", cdc.Name(), formatUnder(sz), formatUnder(len(cuts2)), formatUnder(int(sdt2.Mean())), formatUnder(int(sdt2.SampleStdDev())))
 			fmt.Printf("%v:\n", cdc.Name())
 			fmt.Printf("ndup chunk = %3v ; bytedup = %9v; nnew chunk = %5v; bytenew = %9v\n", formatUnder(ndup), formatUnder(bytedup), formatUnder(nnew), formatUnder(bytenew))
+			totalByteDeltaOverAllScenario[algo] += bytenew
 		}
+	} // end for nChange
+	fmt.Println()
+	fmt.Printf(" =================\n Over all scenarios:\n")
+	fmt.Printf(" =================\n\n")
+	for algo := range nAlgo {
+		fmt.Printf("%10s bytes total in deltas  : %.40s\n", formatUnder(totalByteDeltaOverAllScenario[algo]), names[algo])
 	}
+	fmt.Println()
+
 }
 
 type seg struct {
