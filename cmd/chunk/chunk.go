@@ -13,13 +13,15 @@ import (
 	"github.com/glycerine/rpc25519/jsync"
 )
 
-var algo int
+// var algo int
+var bits int
 
 func setFlags(c *jcdc.CDC_Config, fs *flag.FlagSet) {
 	fs.IntVar(&c.MinSize, "min", 2048, "min size chunk")
 	fs.IntVar(&c.TargetSize, "t", 10*1024, "target size chunk")
 	fs.IntVar(&c.MaxSize, "max", 64*1024, "max size chunk")
-	fs.IntVar(&algo, "algo", 0, "algo: 0=>ultracdc, 1=>fastcdc_stadia; 2=>fastcdc_plakar; 4=>fnv1a")
+	// fs.IntVar(&algo, "algo", 0, "algo: 0=>ultracdc, 1=>fastcdc_stadia; 2=>fastcdc_plakar; 4=>fnv1a")
+	fs.IntVar(&bits, "bits", 12, "how many 0 at the low end to declar a chunk, in FNV1a")
 }
 
 func main() {
@@ -30,43 +32,62 @@ func main() {
 	fs.Parse(os.Args[1:])
 
 	paths := fs.Args()
-	vv("paths = '%#v'", paths)
+	//vv("paths = '%#v'", paths)
+	//vv("cfg = '%#v'", cfg)
+	//vv("cdc = '%#v'", cdc)
 
-	vv("cfg = '%#v'", cfg)
-	cdc, _ := jsync.GetCutpointer(jsync.CDCAlgo(algo))
-	cdc.SetConfig(cfg)
-	vv("cdc = '%#v'", cdc)
+	for algo := 3; algo < 4; algo++ {
+		cdc, _ := jsync.GetCutpointer(jsync.CDCAlgo(algo))
+		cdc.SetConfig(cfg)
 
-	for i, path := range paths {
-		_ = i
-		fi, err := os.Stat(path)
-		panicOn(err)
-
-		data, err := os.ReadFile(path)
-		panicOn(err)
-
-		cuts, cmap := getCuts(cdc.Name(), data, cdc, cfg)
-		ndup := 0
-		savings := 0
-		vv("len cuts = %v; len cmap = %v", len(cuts), len(cmap))
-		sdt := StdDevTracker{}
-		for _, v := range cmap {
-			if v.n > 1 {
-				ndup++
-				savings += v.sz
-			}
-			sdt.AddObs(float64(v.sz), float64(v.n))
+		seeBits := 0
+		switch x := cdc.(type) {
+		case *jcdc.FNVCDC:
+			//x.NumBitsZeroAtCut = uint32(b)
+			//vv("set bits to %v", b)
+			//vv("x.NumBitsZeroAtCut = %v", x.NumBitsZeroAtCut)
+			seeBits = int(x.NumBitsZeroAtCut)
 		}
 
-		fmt.Printf(`
-algo = %v (%v)
+		/*			fmt.Printf(`
+					algo = %v (%v)
+						`, algo, cdc.Name())
+		*/
+		for i, path := range paths {
+			_ = i
+			fi, err := os.Stat(path)
+			panicOn(err)
+
+			data, err := os.ReadFile(path)
+			panicOn(err)
+
+			cuts, cmap := getCuts(cdc.Name(), data, cdc, cfg)
+			ndup := 0
+			savings := 0
+			//vv("len cuts = %v; len cmap = %v", len(cuts), len(cmap))
+			sdt := StdDevTracker{}
+			for _, v := range cmap {
+				if v.n > 1 {
+					ndup++
+					savings += v.sz
+				}
+				sdt.AddObs(float64(v.sz), float64(v.n))
+			}
+
+			min, targ := cfg.MinSize, cfg.TargetSize
+			fmt.Printf(`min=%v; targ = %v; see_bits=%v => mean = %v   sd = %v
+`, min, targ, seeBits, formatUnder(int(sdt.Mean())), formatUnder(int(sdt.SampleStdDev())))
+
+			continue
+			fmt.Printf(`
  i=%v ... path = '%v'
    min = %v;  target = %v;   max = %v
     ncut = %v; ndup = %v; savings = %v bytes of %v (%0.2f %%)
-      mean=%0.2f; sd=%0.2f
-`, algo, cdc.Name(), i, path,
-			cfg.MinSize, cfg.TargetSize, cfg.MaxSize,
-			len(cuts), ndup, formatUnder(savings), formatUnder(int(fi.Size())), float64(savings)/float64(fi.Size()), sdt.Mean(), sdt.SampleStdDev())
+      mean = %v   sd = %v
+`, i, path,
+				cfg.MinSize, cfg.TargetSize, cfg.MaxSize,
+				len(cuts), ndup, formatUnder(savings), formatUnder(int(fi.Size())), float64(savings)/float64(fi.Size()), formatUnder(int(sdt.Mean())), formatUnder(int(sdt.SampleStdDev())))
+		}
 	}
 }
 
