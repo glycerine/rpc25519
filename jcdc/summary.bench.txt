@@ -1,11 +1,113 @@
+
+ =================
+ Over all scenarios:  min=16_384; target=65_536; max=81_920
+ =================
+
+ 7_518_565 bytes total in deltas  : ultracdc-glycerine-golang-implementation
+ 7_085_931 bytes total in deltas  : fastcdc-Stadia-Google-64bit-arbitrary-re
+ 7_031_049 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+17_107_012 bytes total in deltas  : fnv1a-rolling-cdc-golang
+15_538_869 bytes total in deltas  : rabin-karp-chunker
+
+ =================
+ Over all scenarios:  min=1_024; target=16_384; max=81_920
+ =================
+
+ 3_054_196 bytes total in deltas  : ultracdc-glycerine-golang-implementation
+ 4_480_206 bytes total in deltas  : fastcdc-Stadia-Google-64bit-arbitrary-re
+ 2_972_100 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+16_890_024 bytes total in deltas  : fnv1a-rolling-cdc-golang
+16_848_355 bytes total in deltas  : rabin-karp-chunker
+
+ =================
+ Over all scenarios:  min=2_048; target=10_240; max=65_536
+ =================
+
+ 2_593_762 bytes total in deltas  : ultracdc-glycerine-golang-implementation
+ 2_780_167 bytes total in deltas  : fastcdc-Stadia-Google-64bit-arbitrary-re
+ 2_417_367 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+16_736_417 bytes total in deltas  : fnv1a-rolling-cdc-golang
+16_830_760 bytes total in deltas  : rabin-karp-chunker
+
+ =================
+ Over all scenarios:  min=20_480; target=131_072; max=524_288
+ =================
+
+ 9_574_657 bytes total in deltas  : ultracdc-glycerine-golang-implementation
+13_038_472 bytes total in deltas  : fastcdc-Stadia-Google-64bit-arbitrary-re
+ 8_546_809 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+18_061_840 bytes total in deltas  : fnv1a-rolling-cdc-golang
+18_480_978 bytes total in deltas  : rabin-karp-chunker
+
+ 2_593_762 bytes total in deltas  : ultracdc-glycerine-golang-implementation
+ 2_780_167 bytes total in deltas  : fastcdc-Stadia-Google-64bit-arbitrary-re
+ 2_417_367 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+16_736_417 bytes total in deltas  : fnv1a-rolling-cdc-golang
+16_830_760 bytes total in deltas  : rabin-karp-chunker
+
+ok  	github.com/glycerine/rpc25519/jcdc	0.643s
+
+ =================
+ Over all scenarios:  min=2_048; target=65_536; max=262_144
+ =================
+
+ 7_123_244 bytes total in deltas  : ultracdc-glycerine-golang-implementation
+10_516_165 bytes total in deltas  : fastcdc-Stadia-Google-64bit-arbitrary-re
+ 6_738_777 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+17_445_693 bytes total in deltas  : fnv1a-rolling-cdc-golang
+17_724_636 bytes total in deltas  : rabin-karp-chunker
+
+ =================
+ Over all scenarios:  min=2_048; target=8_192; max=65_536
+ =================
+
+ 2_154_987 bytes total in deltas  : ultracdc-glycerine-golang-implementation
+ 2_330_690 bytes total in deltas  : fastcdc-Stadia-Google-64bit-arbitrary-re
+ 2_264_508 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+16_736_417 bytes total in deltas  : fnv1a-rolling-cdc-golang
+16_830_760 bytes total in deltas  : rabin-karp-chunker
+
+ =================
+ Over all scenarios:  min=4_096; target=65_536; max=131_072
+ =================
+
+ 7_115_149 bytes total in deltas  : ultracdc-glycerine-golang-implementation
+ 9_029_078 bytes total in deltas  : fastcdc-Stadia-Google-64bit-arbitrary-re
+ 6_686_929 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+17_101_339 bytes total in deltas  : fnv1a-rolling-cdc-golang
+16_894_425 bytes total in deltas  : rabin-karp-chunker
+
+ =================
+ Over all scenarios:  min=4_096; target=65_536; max=262_144
+ =================
+
+ 7_115_149 bytes total in deltas  : ultracdc-glycerine-golang-implementation
+10_311_088 bytes total in deltas  : fastcdc-Stadia-Google-64bit-arbitrary-re
+ 6_686_929 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+17_378_527 bytes total in deltas  : fnv1a-rolling-cdc-golang
+17_716_326 bytes total in deltas  : rabin-karp-chunker
+
+ =================
+ Over all scenarios:  min=512; target=65_536; max=131_072
+ =================
+
+ 7_120_474 bytes total in deltas  : ultracdc-glycerine-golang-implementation
+ 9_222_774 bytes total in deltas  : fastcdc-Stadia-Google-64bit-arbitrary-re
+ 6_659_256 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+17_074_100 bytes total in deltas  : fnv1a-rolling-cdc-golang
+17_061_798 bytes total in deltas  : rabin-karp-chunker
+
+Which are the optimal settings for fastcdc-plakar ?
+
 $ for i in `ls -1 |grep bench`; do grep -H "bytes total in deltas" $i|grep plakar; done|sort -rnk 2
 bench.20k.128k.512k: 8_546_809 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
 bench.16k.64k.80k: 7_031_049 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
-bench.512.64k.128k: 6_659_256 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+bench.2k.64k.256k: 6_738_777 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
 bench.4k.64k.256k: 6_686_929 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
 bench.4k.64k.128k: 6_686_929 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
-bench.2k.64k.256k: 6_738_777 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+bench.512.64k.128k: 6_659_256 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
 bench.1k.16k.80k: 2_972_100 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
 bench.2k.10k.64k: 2_417_367 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
 bench.1k.64k.256k: 2_417_367 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
 bench.2k.8k.64k: 2_264_508 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+
