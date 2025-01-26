@@ -187,7 +187,7 @@ takerForSelectLoop:
 				// reply with OpRsync_DirSyncEndAckFromTaker, wait for FIN.
 
 			case OpRsync_GiverSendsTopDirListing, OpRsync_GiverSendsTopDirListingMore, OpRsync_GiverSendsTopDirListingEnd:
-				vv("%v: (ckt '%v') (Taker) sees %v.", Decode(frag0.FragOp), name, ckt.Name)
+				vv("%v: (ckt '%v') (Taker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
 				// Getting this means here is the starting dir tree from giver.
 				// or, to me (taker), here is more dir listing
 				// or, to me (taker), here is end dir listing
