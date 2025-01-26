@@ -7,11 +7,34 @@ import (
 type RabinKarpCDC struct {
 	Opts *CDC_Config `zid:"0"`
 
-	// Rabin-Karp specific fields
-	polynomial uint64
-	Window     []byte
-	hash       uint64
-	mask       uint64
+	// Rabin-Karp specific fields matching Python implementation
+	mult   uint32 // The Rabin-Karp multiplier (0x08104225)
+	invm   uint32 // Modular multiplicative inverse of mult mod 2^32
+	sum    uint32 // Current rolling hash value
+	multn  uint32 // mult^count mod 2^32
+	Window []byte // Sliding window buffer
+	mask   uint32 // Mask for finding chunk boundaries
+}
+
+// modinv calculates the modular multiplicative inverse of a mod m
+// using the extended Euclidean algorithm
+func modinv(a, m uint32) uint32 {
+	t, newt := uint32(0), uint32(1)
+	r, newr := m, a
+
+	for newr != 0 {
+		quotient := r / newr
+		t, newt = newt, t-quotient*newt
+		r, newr = newr, r-quotient*newr
+	}
+
+	if r > 1 {
+		panic("a is not invertible")
+	}
+	if t < 0 {
+		t = t + m
+	}
+	return t
 }
 
 // NewRabinKarpCDC creates a new Rabin-Karp chunker with default or provided options
@@ -37,13 +60,18 @@ func NewRabinKarpCDC(opts *CDC_Config) *RabinKarpCDC {
 		windowSize = 64
 	}
 
+	// Use the same multiplier as the Python implementation
+	mult := uint32(0x08104225)
+
 	r := &RabinKarpCDC{
-		polynomial: 0x3DA3358B4DC173, // Random prime number
-		Window:     make([]byte, windowSize),
+		mult:   mult,
+		invm:   modinv(mult, 1<<32),
+		multn:  1,
+		Window: make([]byte, windowSize),
 	}
 	r.Opts = opts
 
-	// Calculate mask based on target size
+	// Calculate mask for chunk boundaries
 	// We want ~1/targetSize probability of a match
 	// So we use mask = (1 << bits) - 1 where bits = log2(targetSize)
 	bits := uint(1)
@@ -52,7 +80,7 @@ func NewRabinKarpCDC(opts *CDC_Config) *RabinKarpCDC {
 		bits++
 		size >>= 1
 	}
-	r.mask = (uint64(1) << bits) - 1
+	r.mask = (uint32(1) << bits) - 1
 
 	return r
 }
@@ -115,25 +143,28 @@ func (c *RabinKarpCDC) Algorithm(options *CDC_Config, data []byte, n int) (cutpo
 	}
 
 	// Initialize rolling hash state
-	c.hash = 0
+	c.sum = 0
+	c.multn = 1
 	windowSize := len(c.Window)
 
 	// Initialize the hash with the first window
 	for i := 0; i < windowSize && i < n; i++ {
-		c.hash = (c.hash * c.polynomial) + uint64(data[i])
+		c.sum = (c.sum*c.mult + uint32(data[i])) & 0xFFFFFFFF
+		c.multn = (c.multn * c.mult) & 0xFFFFFFFF
 	}
 
 	// Roll the hash over the data
 	for i := windowSize; i < n; i++ {
-		// Remove oldest byte
+		// Remove oldest byte using the Python implementation's method
 		oldest := data[i-windowSize]
-		c.hash = c.hash - (uint64(oldest) * powMod(c.polynomial, uint64(windowSize-1)))
+		c.sum = (c.sum - c.multn*uint32(oldest)) & 0xFFFFFFFF
 
 		// Add newest byte
-		c.hash = (c.hash * c.polynomial) + uint64(data[i])
+		c.sum = (c.sum*c.mult + uint32(data[i])) & 0xFFFFFFFF
+		c.multn = (c.multn * c.mult) & 0xFFFFFFFF
 
 		// Check if we've reached minSize and have a hash match
-		if i >= minSize && (c.hash&c.mask) == 0 {
+		if i >= minSize && (c.sum&c.mask) == 0 {
 			return i + 1
 		}
 	}
@@ -159,17 +190,4 @@ func (c *RabinKarpCDC) Cutpoints(data []byte, maxPoints int) (cuts []int) {
 	}
 
 	return cuts
-}
-
-// Helper function to calculate (base^exp) efficiently
-func powMod(base, exp uint64) uint64 {
-	result := uint64(1)
-	for exp > 0 {
-		if exp&1 == 1 {
-			result = result * base
-		}
-		base = base * base
-		exp >>= 1
-	}
-	return result
 }

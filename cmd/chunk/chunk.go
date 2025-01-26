@@ -48,8 +48,9 @@ func main() {
 			//vv("set bits to %v", b)
 			//vv("x.NumBitsZeroAtCut = %v", x.NumBitsZeroAtCut)
 			seeBits = int(x.NumBitsZeroAtCut)
+			_ = seeBits
 		case *jcdc.RabinKarpCDC:
-			seeWindow len(x.Window)
+			seeWindow = len(x.Window)
 		}
 
 		/*			fmt.Printf(`
@@ -78,8 +79,8 @@ func main() {
 			}
 
 			min, targ := cfg.MinSize, cfg.TargetSize
-			fmt.Printf(`min=%v; targ = %v; see_bits=%v => mean = %v   sd = %v
-`, formatUnder(min), formatUnder(targ), seeBits, formatUnder(int(sdt.Mean())), formatUnder(int(sdt.SampleStdDev())))
+			fmt.Printf(`min=%v; targ = %v; see_window=%v => mean = %v   sd = %v
+`, formatUnder(min), formatUnder(targ), seeWindow, formatUnder(int(sdt.Mean())), formatUnder(int(sdt.SampleStdDev())))
 
 			continue
 			fmt.Printf(`
