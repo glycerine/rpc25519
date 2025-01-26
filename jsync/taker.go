@@ -168,16 +168,34 @@ takerForSelectLoop:
 			_ = frag
 			switch frag.FragOp {
 
-			case OpRsync_GiverSendsTopDirListing:
-				vv("%v: (ckt '%v') (Taker) sees OpRsync_GiverSendsTopDirListing.", name, ckt.Name)
-				// to taker, here is my starting dir tree
-			case OpRsync_GiverSendsTopDirListingMore:
-				vv("%v: (ckt '%v') (Taker) sees OpRsync_GiverSendsTopDirListingMore.", name, ckt.Name)
-				// to taker, here is more dir listing
+			///////////////// begin dir sync stuff
 
-			case OpRsync_GiverSendsTopDirListingEnd:
-				vv("%v: (ckt '%v') (Taker) sees OpRsync_GiverSendsTopDirListingEnd.", name, ckt.Name)
-				// to taker, here is end dir listing
+			case OpRsync_DirSyncBeginToTaker:
+				vv("%v: (ckt '%v') (Taker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
+				// we should: setup a top tempdir and tell the
+				// giver the path so they can send new files into that path.
+
+				// reply with OpRsync_DirSyncBeginReplyFromTaker
+				// and the new top tempdir path, even if
+				// we initiated and they already know the path; just repeat it
+				// for simplicity/reusing the flow.
+
+			case OpRsync_DirSyncEndToTaker:
+				vv("%v: (ckt '%v') (Taker) sees OpRsync_DirSyncEndToTaker", name, ckt.Name)
+				// we (taker) can rename the temp top dir/replace any old top dir.
+
+				// reply with OpRsync_DirSyncEndAckFromTaker, wait for FIN.
+
+			case OpRsync_GiverSendsTopDirListing, OpRsync_GiverSendsTopDirListingMore, OpRsync_GiverSendsTopDirListingEnd:
+				vv("%v: (ckt '%v') (Taker) sees %v.", Decode(frag0.FragOp), name, ckt.Name)
+				// Getting this means here is the starting dir tree from giver.
+				// or, to me (taker), here is more dir listing
+				// or, to me (taker), here is end dir listing
+
+				// reply to OpRsync_GiverSendsTopDirListingEnd
+				// with OpRsync_TakerReadyForDirContents
+
+			///////////////// end dir sync stuff
 
 			case OpRsync_AckBackFIN_ToTaker:
 				////vv("%v: (ckt '%v') (Taker) sees OpRsync_AckBackFIN_ToTaker. returning.", name, ckt.Name)

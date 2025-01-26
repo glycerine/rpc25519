@@ -133,7 +133,7 @@ type SyncService struct {
 // directory sync flows:
 // (taker) -> 21 TakerRequestsDirSyncBegin -> (giver) 22 DirSyncBeginToTaker (enter flow below)
 //
-// (giver) -> 22 DirSyncBeginToTaker -> 23 DirSyncBeginReplyFromTaker -> 26/27/28 GiverSendsTopDirListing{|More|End} -> (giver) 29 TakerReadyForDirContents -> giver does individual file syncs (newly deleted files can be simply not transferred on the taker side to the new dir!)
+// (giver) -> 22 DirSyncBeginToTaker -> 23 DirSyncBeginReplyFromTaker -> 26/27/28 GiverSendsTopDirListing{|More|End} -> (giver) 29 TakerReadyForDirContents -> giver does individual file syncs (newly deleted files can be simply not transferred on the taker side to the new dir!) ... -> at end, giver -> DirSyncEndToTaker -> DirSyncEndAckFromTaker -> FIN.
 
 const (
 	OpRsync_RequestRemoteToTake            = 1  // to taker
@@ -177,7 +177,7 @@ const (
 	OpRsync_DirSyncEndToTaker = 24 // to taker, end of dir sync
 
 	// giver can shut down all dir sync stuff.
-	OpRsync_DirSyncEndAckFromGiver = 25 // to giver, ack end of dir sync
+	OpRsync_DirSyncEndAckFromTaker = 25 // to giver, ack end of dir sync
 
 	OpRsync_GiverSendsTopDirListing     = 26 // to taker, here is my starting dir tree
 	OpRsync_GiverSendsTopDirListingMore = 27 // to taker, here is more of 26
@@ -226,7 +226,7 @@ func AliasRsyncOps() {
 	rpc.FragOpRegister(OpRsync_DirSyncBeginToTaker, "OpRsync_DirSyncBeginToTaker")
 	rpc.FragOpRegister(OpRsync_DirSyncBeginReplyFromTaker, "OpRsync_DirSyncBeginReplyFromTaker")
 	rpc.FragOpRegister(OpRsync_DirSyncEndToTaker, "OpRsync_DirSyncEndToTaker")
-	rpc.FragOpRegister(OpRsync_DirSyncEndAckFromGiver, "OpRsync_DirSyncEndAckFromGiver")
+	rpc.FragOpRegister(OpRsync_DirSyncEndAckFromTaker, "OpRsync_DirSyncEndAckFromTaker")
 
 	rpc.FragOpRegister(OpRsync_GiverSendsTopDirListing, "OpRsync_GiverSendsTopDirListing")
 	rpc.FragOpRegister(OpRsync_GiverSendsTopDirListingMore, "OpRsync_GiverSendsTopDirListingMore")
