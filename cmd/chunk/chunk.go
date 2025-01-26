@@ -90,11 +90,11 @@ func main() {
 			//	continue
 
 			fmt.Printf(`
- i=%v ... path = '%v'
+ i=%v ... path = '%v'   algo='%v'
    min = %v;  target = %v;   max = %v
     ncut = %v; ndup = %v; savings = %v bytes of %v (%0.2f %%)
       mean = %v   sd = %v
-`, i, path,
+`, i, path, cdc.Name(),
 				min, targ, cfg.MaxSize,
 				len(cuts), ndup, formatUnder(savings), formatUnder(int(fi.Size())), float64(savings)/float64(fi.Size()), formatUnder(int(sdt.Mean())), formatUnder(int(sdt.SampleStdDev())))
 		}
