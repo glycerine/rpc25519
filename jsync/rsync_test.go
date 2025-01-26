@@ -42,8 +42,8 @@ func Test201_rsync_style_chunking_and_hash_generation(t *testing.T) {
 		panicOn(err)
 
 		onlyA, onlyB, both := Diff(achunks, bchunks)
-		cv.So(len(onlyA), cv.ShouldEqual, 1)
-		cv.So(len(onlyB), cv.ShouldEqual, 1)
+		cv.So(len(onlyA), cv.ShouldEqual, 2)
+		cv.So(len(onlyB), cv.ShouldEqual, 2)
 		_ = both
 		//cv.So(len(both), cv.ShouldEqual, 23) // FastCDC
 		//cv.So(len(both), cv.ShouldEqual, 15) // UltraCDC

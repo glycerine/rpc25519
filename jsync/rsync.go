@@ -675,7 +675,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 	// parameter min/max/target settings in
 	// order to give good chunking.
 
-	cdc := jcdc.GetCutpointer(Default_CDC, nil)
+	cdc := jcdc.GetCutpointer(Default_CDC, Default_CDC_Config)
 
 	precis = &FilePrecis{
 		Host:        host,
@@ -827,7 +827,7 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 	// parameter min/max/target settings in
 	// order to give good chunking.
 
-	cdc := jcdc.GetCutpointer(Default_CDC, nil)
+	cdc := jcdc.GetCutpointer(Default_CDC, Default_CDC_Config)
 	cdcCfg := cdc.Config()
 
 	sz64, modTime, err := FileSizeModTime(path)
@@ -1024,7 +1024,7 @@ func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 	// parameter min/max/target settings in
 	// order to give good chunking.
 
-	cdc := jcdc.GetCutpointer(Default_CDC, nil)
+	cdc := jcdc.GetCutpointer(Default_CDC, Default_CDC_Config)
 
 	sz64, modTime, err := FileSizeModTime(path)
 	if err != nil {

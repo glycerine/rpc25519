@@ -27,6 +27,19 @@ import (
 // implemented any reader-makes-right switching.
 var Default_CDC jcdc.CDCAlgo = jcdc.UltraCDC_Algo
 
+// https://minkirri.apana.org.au/wiki/RollsumChunking
+// recommends MinSize being at (or my take, less) than
+// 25% of TargetSize, to allow faster re-alignement.
+//
+// The Microsoft Deduplication paper
+// https://www.usenix.org/system/files/conference/atc12/atc12-final293.pdf
+// recommends 64KB chunk sizes.
+var Default_CDC_Config = &jcdc.CDC_Config{
+	MinSize:    4 * 1024,
+	TargetSize: 64 * 1024,
+	MaxSize:    128 * 1024,
+}
+
 // SyncService implements a file syncing
 // service using an rsync-like protocol.
 // Users register it as a peer using the
