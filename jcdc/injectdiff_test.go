@@ -96,9 +96,9 @@ func TestDiffSize(t *testing.T) {
 		testName := fmt.Sprintf("1 MB file, %v planted changes of up to %v bytes;\n %v bytes was the total delta in bytes.\n", formatUnder(nChange), formatUnder(maxChangeLen), formatUnder(bytesDiff))
 
 		cfg = &CDC_Config{
-			MinSize:    4 * 1024,
-			TargetSize: 64 * 1024,
-			MaxSize:    128 * 1024,
+			MinSize:    2 * 1024,
+			TargetSize: 8 * 1024,
+			MaxSize:    64 * 1024,
 		}
 		//cfg = nil // TODO vary! for now, defaults
 

@@ -1,0 +1,377 @@
+Compilation started at Sun Jan 26 17:48:30
+
+go test -v -run DiffSize
+=== RUN   TestDiffSize
+
+
+ =======================
+ scenario: 1 MB file, 1 planted changes of up to 1_024 bytes;
+ 505 bytes was the total delta in bytes.
+
+ with cfg = '&jcdc.CDC_Config{MinSize:20480, TargetSize:131072, MaxSize:524288}'
+ =======================
+
+ultracdc-glycerine-golang-implementation:
+ndup chunk =  15 ; bytedup =   964_553; nnew chunk =     1; bytenew =    84_023
+fastcdc-Stadia-Google-64bit-arbitrary-regression-jea:
+ndup chunk =   9 ; bytedup =   994_586; nnew chunk =     1; bytenew =    48_507
+fastcdc-plakar-go-cdc-chunkers:
+ndup chunk =  21 ; bytedup = 1_007_036; nnew chunk =     1; bytenew =    26_454
+fnv1a-rolling-cdc-golang:
+ndup chunk =   8 ; bytedup =   985_456; nnew chunk =     1; bytenew =    63_120
+rabin-karp-chunker:
+ndup chunk =   3 ; bytedup =   532_211; nnew chunk =     1; bytenew =   516_365
+
+
+ =======================
+ scenario: 1 MB file, 2 planted changes of up to 1_024 bytes;
+ 569 bytes was the total delta in bytes.
+
+ with cfg = '&jcdc.CDC_Config{MinSize:20480, TargetSize:131072, MaxSize:524288}'
+ =======================
+
+ultracdc-glycerine-golang-implementation:
+ndup chunk =  14 ; bytedup =   870_977; nnew chunk =     2; bytenew =   165_288
+fastcdc-Stadia-Google-64bit-arbitrary-regression-jea:
+ndup chunk =   8 ; bytedup =   749_613; nnew chunk =     2; bytenew =   297_570
+fastcdc-plakar-go-cdc-chunkers:
+ndup chunk =  15 ; bytedup =   992_707; nnew chunk =     2; bytenew =    55_869
+fnv1a-rolling-cdc-golang:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     6; bytenew = 1_048_576
+rabin-karp-chunker:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     4; bytenew = 1_048_576
+
+
+ =======================
+ scenario: 1 MB file, 3 planted changes of up to 1_024 bytes;
+ 1_018 bytes was the total delta in bytes.
+
+ with cfg = '&jcdc.CDC_Config{MinSize:20480, TargetSize:131072, MaxSize:524288}'
+ =======================
+
+ultracdc-glycerine-golang-implementation:
+ndup chunk =  14 ; bytedup =   792_642; nnew chunk =     3; bytenew =   246_898
+fastcdc-Stadia-Google-64bit-arbitrary-regression-jea:
+ndup chunk =   8 ; bytedup =   568_291; nnew chunk =     3; bytenew =   478_555
+fastcdc-plakar-go-cdc-chunkers:
+ndup chunk =  16 ; bytedup =   754_545; nnew chunk =     3; bytenew =   294_031
+fnv1a-rolling-cdc-golang:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     7; bytenew = 1_048_576
+rabin-karp-chunker:
+ndup chunk =   2 ; bytedup =   222_355; nnew chunk =     5; bytenew =   826_221
+
+
+ =======================
+ scenario: 1 MB file, 4 planted changes of up to 1_024 bytes;
+ 2_137 bytes was the total delta in bytes.
+
+ with cfg = '&jcdc.CDC_Config{MinSize:20480, TargetSize:131072, MaxSize:524288}'
+ =======================
+
+ultracdc-glycerine-golang-implementation:
+ndup chunk =  15 ; bytedup =   821_924; nnew chunk =     4; bytenew =   226_652
+fastcdc-Stadia-Google-64bit-arbitrary-regression-jea:
+ndup chunk =   9 ; bytedup =   600_913; nnew chunk =     3; bytenew =   444_563
+fastcdc-plakar-go-cdc-chunkers:
+ndup chunk =  18 ; bytedup =   774_840; nnew chunk =     3; bytenew =   270_707
+fnv1a-rolling-cdc-golang:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =    10; bytenew = 1_048_576
+rabin-karp-chunker:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     5; bytenew = 1_048_576
+
+
+ =======================
+ scenario: 1 MB file, 5 planted changes of up to 1_024 bytes;
+ 2_433 bytes was the total delta in bytes.
+
+ with cfg = '&jcdc.CDC_Config{MinSize:20480, TargetSize:131072, MaxSize:524288}'
+ =======================
+
+ultracdc-glycerine-golang-implementation:
+ndup chunk =   9 ; bytedup =   603_120; nnew chunk =     4; bytenew =   428_549
+fastcdc-Stadia-Google-64bit-arbitrary-regression-jea:
+ndup chunk =   8 ; bytedup =   555_412; nnew chunk =     3; bytenew =   488_458
+fastcdc-plakar-go-cdc-chunkers:
+ndup chunk =  16 ; bytedup =   687_188; nnew chunk =     5; bytenew =   361_388
+fnv1a-rolling-cdc-golang:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =    10; bytenew = 1_048_576
+rabin-karp-chunker:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     4; bytenew = 1_048_576
+
+
+ =======================
+ scenario: 1 MB file, 6 planted changes of up to 1_024 bytes;
+ 3_029 bytes was the total delta in bytes.
+
+ with cfg = '&jcdc.CDC_Config{MinSize:20480, TargetSize:131072, MaxSize:524288}'
+ =======================
+
+ultracdc-glycerine-golang-implementation:
+ndup chunk =  14 ; bytedup =   694_137; nnew chunk =     4; bytenew =   354_439
+fastcdc-Stadia-Google-64bit-arbitrary-regression-jea:
+ndup chunk =   4 ; bytedup =   207_256; nnew chunk =     2; bytenew =   833_673
+fastcdc-plakar-go-cdc-chunkers:
+ndup chunk =  19 ; bytedup =   781_500; nnew chunk =     5; bytenew =   265_856
+fnv1a-rolling-cdc-golang:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     7; bytenew = 1_048_576
+rabin-karp-chunker:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     4; bytenew = 1_048_576
+
+
+ =======================
+ scenario: 1 MB file, 7 planted changes of up to 1_024 bytes;
+ 3_224 bytes was the total delta in bytes.
+
+ with cfg = '&jcdc.CDC_Config{MinSize:20480, TargetSize:131072, MaxSize:524288}'
+ =======================
+
+ultracdc-glycerine-golang-implementation:
+ndup chunk =   9 ; bytedup =   611_619; nnew chunk =     6; bytenew =   429_344
+fastcdc-Stadia-Google-64bit-arbitrary-regression-jea:
+ndup chunk =   6 ; bytedup =   355_227; nnew chunk =     5; bytenew =   677_221
+fastcdc-plakar-go-cdc-chunkers:
+ndup chunk =  15 ; bytedup =   552_999; nnew chunk =     7; bytenew =   476_836
+fnv1a-rolling-cdc-golang:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =    10; bytenew = 1_048_576
+rabin-karp-chunker:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     3; bytenew = 1_028_473
+
+
+ =======================
+ scenario: 1 MB file, 8 planted changes of up to 1_024 bytes;
+ 3_754 bytes was the total delta in bytes.
+
+ with cfg = '&jcdc.CDC_Config{MinSize:20480, TargetSize:131072, MaxSize:524288}'
+ =======================
+
+ultracdc-glycerine-golang-implementation:
+ndup chunk =  13 ; bytedup =   632_068; nnew chunk =     6; bytenew =   416_508
+fastcdc-Stadia-Google-64bit-arbitrary-regression-jea:
+ndup chunk =   2 ; bytedup =   446_855; nnew chunk =     4; bytenew =   581_480
+fastcdc-plakar-go-cdc-chunkers:
+ndup chunk =  17 ; bytedup =   741_482; nnew chunk =     6; bytenew =   307_094
+fnv1a-rolling-cdc-golang:
+ndup chunk =   2 ; bytedup =   265_884; nnew chunk =     6; bytenew =   776_743
+rabin-karp-chunker:
+ndup chunk =   4 ; bytedup =   507_967; nnew chunk =     5; bytenew =   540_609
+
+
+ =======================
+ scenario: 1 MB file, 9 planted changes of up to 1_024 bytes;
+ 5_452 bytes was the total delta in bytes.
+
+ with cfg = '&jcdc.CDC_Config{MinSize:20480, TargetSize:131072, MaxSize:524288}'
+ =======================
+
+ultracdc-glycerine-golang-implementation:
+ndup chunk =  13 ; bytedup =   681_639; nnew chunk =     5; bytenew =   366_937
+fastcdc-Stadia-Google-64bit-arbitrary-regression-jea:
+ndup chunk =   6 ; bytedup =   661_961; nnew chunk =     4; bytenew =   367_889
+fastcdc-plakar-go-cdc-chunkers:
+ndup chunk =  17 ; bytedup =   758_549; nnew chunk =     6; bytenew =   290_027
+fnv1a-rolling-cdc-golang:
+ndup chunk =   3 ; bytedup =   327_455; nnew chunk =     5; bytenew =   721_121
+rabin-karp-chunker:
+ndup chunk =   1 ; bytedup =   139_000; nnew chunk =     5; bytenew =   907_521
+
+
+ =======================
+ scenario: 1 MB file, 10 planted changes of up to 1_024 bytes;
+ 3_440 bytes was the total delta in bytes.
+
+ with cfg = '&jcdc.CDC_Config{MinSize:20480, TargetSize:131072, MaxSize:524288}'
+ =======================
+
+ultracdc-glycerine-golang-implementation:
+ndup chunk =   7 ; bytedup =   297_133; nnew chunk =     9; bytenew =   751_443
+fastcdc-Stadia-Google-64bit-arbitrary-regression-jea:
+ndup chunk =   3 ; bytedup =   146_456; nnew chunk =     5; bytenew =   901_114
+fastcdc-plakar-go-cdc-chunkers:
+ndup chunk =  10 ; bytedup =   433_147; nnew chunk =     8; bytenew =   615_429
+fnv1a-rolling-cdc-golang:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     5; bytenew = 1_048_576
+rabin-karp-chunker:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     3; bytenew = 1_048_576
+
+
+ =======================
+ scenario: 1 MB file, 11 planted changes of up to 1_024 bytes;
+ 5_762 bytes was the total delta in bytes.
+
+ with cfg = '&jcdc.CDC_Config{MinSize:20480, TargetSize:131072, MaxSize:524288}'
+ =======================
+
+ultracdc-glycerine-golang-implementation:
+ndup chunk =  10 ; bytedup =   559_860; nnew chunk =     6; bytenew =   488_716
+fastcdc-Stadia-Google-64bit-arbitrary-regression-jea:
+ndup chunk =   2 ; bytedup =    91_972; nnew chunk =     6; bytenew =   953_603
+fastcdc-plakar-go-cdc-chunkers:
+ndup chunk =   8 ; bytedup =   549_150; nnew chunk =     9; bytenew =   499_426
+fnv1a-rolling-cdc-golang:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     8; bytenew = 1_044_353
+rabin-karp-chunker:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     5; bytenew = 1_048_576
+
+
+ =======================
+ scenario: 1 MB file, 12 planted changes of up to 1_024 bytes;
+ 6_110 bytes was the total delta in bytes.
+
+ with cfg = '&jcdc.CDC_Config{MinSize:20480, TargetSize:131072, MaxSize:524288}'
+ =======================
+
+ultracdc-glycerine-golang-implementation:
+ndup chunk =   7 ; bytedup =   388_467; nnew chunk =     8; bytenew =   660_109
+fastcdc-Stadia-Google-64bit-arbitrary-regression-jea:
+ndup chunk =   5 ; bytedup =   252_224; nnew chunk =     6; bytenew =   794_069
+fastcdc-plakar-go-cdc-chunkers:
+ndup chunk =   9 ; bytedup =   483_302; nnew chunk =     9; bytenew =   558_956
+fnv1a-rolling-cdc-golang:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     5; bytenew = 1_048_576
+rabin-karp-chunker:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     5; bytenew = 1_048_576
+
+
+ =======================
+ scenario: 1 MB file, 13 planted changes of up to 1_024 bytes;
+ 6_022 bytes was the total delta in bytes.
+
+ with cfg = '&jcdc.CDC_Config{MinSize:20480, TargetSize:131072, MaxSize:524288}'
+ =======================
+
+ultracdc-glycerine-golang-implementation:
+ndup chunk =   6 ; bytedup =   385_746; nnew chunk =     9; bytenew =   652_681
+fastcdc-Stadia-Google-64bit-arbitrary-regression-jea:
+ndup chunk =   3 ; bytedup =   214_334; nnew chunk =     7; bytenew =   826_703
+fastcdc-plakar-go-cdc-chunkers:
+ndup chunk =  10 ; bytedup =   471_112; nnew chunk =    11; bytenew =   577_464
+fnv1a-rolling-cdc-golang:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     6; bytenew = 1_048_576
+rabin-karp-chunker:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     6; bytenew = 1_048_576
+
+
+ =======================
+ scenario: 1 MB file, 14 planted changes of up to 1_024 bytes;
+ 6_906 bytes was the total delta in bytes.
+
+ with cfg = '&jcdc.CDC_Config{MinSize:20480, TargetSize:131072, MaxSize:524288}'
+ =======================
+
+ultracdc-glycerine-golang-implementation:
+ndup chunk =   9 ; bytedup =   427_036; nnew chunk =     7; bytenew =   621_540
+fastcdc-Stadia-Google-64bit-arbitrary-regression-jea:
+ndup chunk =   3 ; bytedup =   240_360; nnew chunk =     6; bytenew =   807_301
+fastcdc-plakar-go-cdc-chunkers:
+ndup chunk =  12 ; bytedup =   431_678; nnew chunk =     9; bytenew =   602_393
+fnv1a-rolling-cdc-golang:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     9; bytenew = 1_045_883
+rabin-karp-chunker:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     7; bytenew = 1_048_576
+
+
+ =======================
+ scenario: 1 MB file, 15 planted changes of up to 1_024 bytes;
+ 9_799 bytes was the total delta in bytes.
+
+ with cfg = '&jcdc.CDC_Config{MinSize:20480, TargetSize:131072, MaxSize:524288}'
+ =======================
+
+ultracdc-glycerine-golang-implementation:
+ndup chunk =   7 ; bytedup =   414_208; nnew chunk =     8; bytenew =   634_368
+fastcdc-Stadia-Google-64bit-arbitrary-regression-jea:
+ndup chunk =   5 ; bytedup =   317_985; nnew chunk =     6; bytenew =   730_147
+fastcdc-plakar-go-cdc-chunkers:
+ndup chunk =   9 ; bytedup =   515_259; nnew chunk =     8; bytenew =   523_624
+fnv1a-rolling-cdc-golang:
+ndup chunk =   3 ; bytedup =   269_444; nnew chunk =     6; bytenew =   779_132
+rabin-karp-chunker:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     4; bytenew = 1_048_576
+
+
+ =======================
+ scenario: 1 MB file, 16 planted changes of up to 1_024 bytes;
+ 9_351 bytes was the total delta in bytes.
+
+ with cfg = '&jcdc.CDC_Config{MinSize:20480, TargetSize:131072, MaxSize:524288}'
+ =======================
+
+ultracdc-glycerine-golang-implementation:
+ndup chunk =  12 ; bytedup =   485_865; nnew chunk =    10; bytenew =   562_711
+fastcdc-Stadia-Google-64bit-arbitrary-regression-jea:
+ndup chunk =   2 ; bytedup =   169_966; nnew chunk =     5; bytenew =   878_584
+fastcdc-plakar-go-cdc-chunkers:
+ndup chunk =  11 ; bytedup =   453_771; nnew chunk =    10; bytenew =   594_805
+fnv1a-rolling-cdc-golang:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =    10; bytenew = 1_048_576
+rabin-karp-chunker:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     8; bytenew = 1_048_576
+
+
+ =======================
+ scenario: 1 MB file, 17 planted changes of up to 1_024 bytes;
+ 8_436 bytes was the total delta in bytes.
+
+ with cfg = '&jcdc.CDC_Config{MinSize:20480, TargetSize:131072, MaxSize:524288}'
+ =======================
+
+ultracdc-glycerine-golang-implementation:
+ndup chunk =  11 ; bytedup =   457_934; nnew chunk =     9; bytenew =   590_642
+fastcdc-Stadia-Google-64bit-arbitrary-regression-jea:
+ndup chunk =   2 ; bytedup =   139_244; nnew chunk =     5; bytenew =   902_538
+fastcdc-plakar-go-cdc-chunkers:
+ndup chunk =   6 ; bytedup =   249_864; nnew chunk =    11; bytenew =   798_712
+fnv1a-rolling-cdc-golang:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     7; bytenew = 1_048_576
+rabin-karp-chunker:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     6; bytenew = 1_048_576
+
+
+ =======================
+ scenario: 1 MB file, 18 planted changes of up to 1_024 bytes;
+ 8_857 bytes was the total delta in bytes.
+
+ with cfg = '&jcdc.CDC_Config{MinSize:20480, TargetSize:131072, MaxSize:524288}'
+ =======================
+
+ultracdc-glycerine-golang-implementation:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =    15; bytenew = 1_029_964
+fastcdc-Stadia-Google-64bit-arbitrary-regression-jea:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     6; bytenew = 1_045_180
+fastcdc-plakar-go-cdc-chunkers:
+ndup chunk =   8 ; bytedup =   298_679; nnew chunk =    13; bytenew =   731_643
+fnv1a-rolling-cdc-golang:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     6; bytenew = 1_048_576
+rabin-karp-chunker:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     8; bytenew = 1_048_576
+
+
+ =======================
+ scenario: 1 MB file, 19 planted changes of up to 1_024 bytes;
+ 10_908 bytes was the total delta in bytes.
+
+ with cfg = '&jcdc.CDC_Config{MinSize:20480, TargetSize:131072, MaxSize:524288}'
+ =======================
+
+ultracdc-glycerine-golang-implementation:
+ndup chunk =   4 ; bytedup =   181_727; nnew chunk =    11; bytenew =   863_845
+fastcdc-Stadia-Google-64bit-arbitrary-regression-jea:
+ndup chunk =   2 ; bytedup =    66_295; nnew chunk =     6; bytenew =   981_317
+fastcdc-plakar-go-cdc-chunkers:
+ndup chunk =   7 ; bytedup =   336_697; nnew chunk =    10; bytenew =   696_095
+fnv1a-rolling-cdc-golang:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     5; bytenew = 1_048_576
+rabin-karp-chunker:
+ndup chunk =   0 ; bytedup =         0; nnew chunk =     2; bytenew = 1_030_301
+
+ =================
+ Over all scenarios:  min=20_480; target=131_072; max=524_288
+ =================
+
+ 9_574_657 bytes total in deltas  : ultracdc-glycerine-golang-implementation
+13_038_472 bytes total in deltas  : fastcdc-Stadia-Google-64bit-arbitrary-re
+ 8_546_809 bytes total in deltas  : fastcdc-plakar-go-cdc-chunkers
+18_061_840 bytes total in deltas  : fnv1a-rolling-cdc-golang
+18_480_978 bytes total in deltas  : rabin-karp-chunker
+
+--- PASS: TestDiffSize (0.66s)
