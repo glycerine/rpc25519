@@ -32,8 +32,10 @@ func main() {
 	paths := fs.Args()
 	vv("paths = '%#v'", paths)
 
+	vv("cfg = '%#v'", cfg)
 	cdc, _ := jsync.GetCutpointer(jsync.CDCAlgo(algo))
 	cdc.SetConfig(cfg)
+	vv("cdc = '%#v'", cdc)
 
 	for i, path := range paths {
 		_ = i

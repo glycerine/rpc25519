@@ -1,6 +1,8 @@
 package jsync
 
 import (
+	"fmt"
+
 	"github.com/glycerine/rpc25519/jcdc"
 )
 
@@ -22,7 +24,8 @@ const (
 )
 
 func GetCutpointer(choice CDCAlgo) (cdc jcdc.Cutpointer, opts *jcdc.CDC_Config) {
-	switch UsingCDCAlgo {
+	//vv("choice = %v", choice)
+	switch choice {
 	case FastCDC_StadiaAlgo:
 		// my take on the Stadia improved version of FastCDC
 		opts = &jcdc.CDC_Config{
@@ -57,6 +60,8 @@ func GetCutpointer(choice CDCAlgo) (cdc jcdc.Cutpointer, opts *jcdc.CDC_Config) 
 			MaxSize:    80 * 1024,
 		}
 		cdc = jcdc.NewFNVCDC(opts)
+	default:
+		panic(fmt.Sprintf("unknown CDCAlgo: %v", choice))
 	}
 	return
 }
