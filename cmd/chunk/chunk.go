@@ -62,6 +62,7 @@ func main() {
 					algo = %v (%v)
 						`, algo, cdc.Name())
 		*/
+		sums := make([]*sum, len(paths))
 		for i, path := range paths {
 			_ = i
 			fi, err := os.Stat(path)
@@ -70,34 +71,48 @@ func main() {
 			data, err := os.ReadFile(path)
 			panicOn(err)
 
-			cuts, cmap := getCuts(cdc.Name(), data, cdc, cfg)
+			sums[i] = getCuts(cdc.Name(), data, cdc, cfg)
+			cuts, cmap := sums[i].cuts, sums[i].cmap
 			ndup := 0
 			savings := 0
+
+			var cmap0 map[string]*seg
+			if i > 0 {
+				cmap0 = sums[0].cmap
+			}
 			//vv("len cuts = %v; len cmap = %v", len(cuts), len(cmap))
 			sdt := StdDevTracker{}
-			for _, v := range cmap {
-				if v.n > 1 {
-					ndup++
-					savings += v.sz
+			for k, v := range cmap {
+				if i > 0 {
+					data, ok := cmap0[k]
+					if ok {
+						ndup++
+						savings += data.sz
+					}
 				}
+				//if v.n > 1 {
+				//	ndup++
+				//	savings += v.sz
+				//}
 				sdt.AddObs(float64(v.sz), float64(v.n))
 			}
 
 			min, targ := cfg.MinSize, cfg.TargetSize
 			//	fmt.Printf(`min=%v; targ = %v; see_window=%v => mean = %v   sd = %v
 			//`, formatUnder(min), formatUnder(targ), seeWindow, formatUnder(int(sdt.Mean())), formatUnder(int(sdt.SampleStdDev())))
-
 			//	continue
 
 			fmt.Printf(`
  i=%v ... path = '%v'   algo='%v'
    min = %v;  target = %v;   max = %v
     ncut = %v; ndup = %v; savings = %v bytes of %v (%0.2f %%)
+      diffbytes = %v
       mean = %v   sd = %v
 `, i, path, cdc.Name(),
 				min, targ, cfg.MaxSize,
-				len(cuts), ndup, formatUnder(savings), formatUnder(int(fi.Size())), float64(savings)/float64(fi.Size()), formatUnder(int(sdt.Mean())), formatUnder(int(sdt.SampleStdDev())))
+				len(cuts), ndup, formatUnder(savings), formatUnder(int(fi.Size())), float64(100*savings)/float64(fi.Size()), formatUnder(int(fi.Size())-savings), formatUnder(int(sdt.Mean())), formatUnder(int(sdt.SampleStdDev())))
 		}
+
 	}
 }
 
@@ -106,14 +121,20 @@ type seg struct {
 	sz int
 }
 
+type sum struct {
+	cuts []int
+	cmap map[string]*seg
+}
+
 func getCuts(
 	title string,
 	data []byte,
 	u jcdc.Cutpointer,
 	opt *jcdc.CDC_Config,
-) (cuts []int, m map[string]*seg) {
+) *sum {
 
-	m = make(map[string]*seg)
+	var cuts []int
+	m := make(map[string]*seg)
 	last := 0
 	j := 0
 	for len(data) > opt.MinSize {
@@ -136,7 +157,8 @@ func getCuts(
 		m[ha] = v
 		data = data[cutpoint:]
 	}
-	return
+
+	return &sum{cuts: cuts, cmap: m}
 }
 
 func hashOfBytes(by []byte) string {
