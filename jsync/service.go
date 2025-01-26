@@ -25,8 +25,17 @@ import (
 // At the moment, the choice must match on the Client and
 // Server pair actually in use, as we have not
 // implemented any reader-makes-right switching.
-var Default_CDC jcdc.CDCAlgo = jcdc.UltraCDC_Algo
+//
+// In our benchmarks, FastCDC_PlakarAlgo results in
+// the fewest bytes need to be updated.
+var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_PlakarAlgo
 
+// Default_CDC_Config was optimized in the jcdc
+// benchmarks. The current 2KB min/8KB target/64KB max
+// was found to minimize the total bytes of diff chunks
+// transferred.
+//
+// Notes:
 // [1] https://minkirri.apana.org.au/wiki/RollsumChunking
 // recommends MinSize being at (or my take, less) than
 // 25% of TargetSize, to allow faster re-alignement.
@@ -38,10 +47,16 @@ var Default_CDC jcdc.CDCAlgo = jcdc.UltraCDC_Algo
 // Donovan Baarda in [1] points out that Microsoft
 // was probably missing 20% of the dedup opporunities
 // by have MaxSize too small and forcing truncations.
+//
+// But after actual benchmarking, the plakar defaults
+// where the best: min 2KB, target 8KB, max 64KB, with
+// the FastCDC_PlakarAlgo algo out performing all
+// the others in terms of minimizing the deltas
+// of total bytes changed.
 var Default_CDC_Config = &jcdc.CDC_Config{
-	MinSize:    4 * 1024,
-	TargetSize: 64 * 1024,
-	MaxSize:    256 * 1024,
+	MinSize:    2 * 1024,
+	TargetSize: 8 * 1024,
+	MaxSize:    64 * 1024,
 }
 
 // SyncService implements a file syncing
