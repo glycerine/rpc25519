@@ -151,6 +151,11 @@ const (
 	OpRsync_RequestRemoteToGive_ChunksLast = 18 // ... to Giver (end send 8/12 Chunks)
 	OpRsync_LazyTakerWantsToPull           = 19 // ... to Giver, quick size + modTime check
 	OpRsync_LazyTakerNoLuck_ChunksRequired = 20 // to taker (quick size/modTime failed)
+
+	OpRsync_GiverSendsDirListing     = 21 // to taker, here is my starting dir tree
+	OpRsync_GiverSendsDirListingMore = 22 // to taker, here is more of 21
+	OpRsync_GiverSendsDirListingEnd  = 23 // to taker, here is end of 21
+	OpRsync_TakerRequestsDirListing  = 24 // to giver, please send me 21/22/23
 )
 
 var once sync.Once
@@ -185,6 +190,14 @@ func AliasRsyncOps() {
 	rpc.FragOpRegister(OpRsync_RequestRemoteToGive_ChunksLast, "OpRsync_RequestRemoteToGive_ChunksLast")
 	rpc.FragOpRegister(OpRsync_LazyTakerWantsToPull, "OpRsync_LazyTakerWantsToPull")
 	rpc.FragOpRegister(OpRsync_LazyTakerNoLuck_ChunksRequired, "OpRsync_LazyTakerNoLuck_ChunksRequired")
+
+	// directory listings transfer
+	rpc.FragOpRegister(OpRsync_GiverSendsDirListing, "OpRsync_GiverSendsDirListing")
+	rpc.FragOpRegister(OpRsync_GiverSendsDirListingMore, "OpRsync_GiverSendsDirListingMore")
+	rpc.FragOpRegister(OpRsync_GiverSendsDirListingEnd, "OpRsync_GiverSendsDirListingEnd")
+
+	rpc.FragOpRegister(OpRsync_TakerRequestsDirListing, "OpRsync_TakerRequestsDirListing")
+
 }
 
 // NewRequestToSyncPath creates an empty
@@ -310,6 +323,8 @@ type RequestToSyncDir struct {
 	// If RemoteTakes is false => remote giver, local taker.
 	// If RemoteTakes is true  => remote taker, local giver.
 	RemoteTakes bool `zid:"2"`
+
+	SR *RequestToSyncPath `zid:"3"` // original local request
 }
 
 const assembleInMem = true
@@ -417,9 +432,51 @@ func (s *SyncService) Start(
 
 			//vv("%v: sees requested on SyncPathRequestCh: '%#v'", name, syncReq)
 
-			// works! but takes an extra round-trip. So
-			// use StartRemotePeerAndGetCircuit() instead.
-			//remoteURL, remotePeerID, err := s.U.StartRemotePeer(ctx0, syncReq.ToRemotePeerServiceName, syncReq.ToRemoteNetAddr, 0)
+			// is this a local giver dir -> remote taker dir syn request?
+			// fan out the request, one for each
+			// actual file on the local giver.
+			//
+			// The only tricky/unique thing for directories, is that
+			// we need to delete files on the taker that are not
+			// on the giver. The giver won't know about these,
+			// since they do not have them.
+			// Other than that, we should be able to just push
+			// each file on the giver to the taker.
+			//
+			// If the local is pulling, send the dir listing over,
+			// so the remote giver can tell what to delete.
+			//
+			// If the local pushing, send the dir listing over,
+			// so the remote taker can tell what to delete.
+			//
+			// So the switch over can be atomic, and not interfere
+			// with the parts trying to scan/update paths, we
+			// should create a new top-level versioned directory,
+			// and do all writes there. All reads of existing files
+			// come from the original still on disk. If no errors
+			// at the end, we can rename the new to old dir (possibly
+			// rename the old to old.backup to start and manually verify).
+			reqDir := &RequestToSyncDir{
+				GiverDir:    syncReq.GiverPath,
+				TakerDir:    syncReq.TakerPath,
+				RemoteTakes: syncReq.RemoteTakes,
+				SR:          syncReq,
+			}
+			_ = reqDir
+			if syncReq.RemoteTakes {
+				// If RemoteTakes is true  => remote taker, local giver (push)
+
+				// If the local pushing, send the dir listing over,
+				// so the remote taker can tell what to delete/skip
+				// in the new vers dir.
+
+			} else {
+				// If RemoteTakes is false => remote giver, local taker (pull)
+
+				// If the local is pulling, read the dir listing
+				// from the giver, and locally delete in the new vers dir.
+				//FragOp
+			}
 
 			// Use the circuitName to indicate remote taker or giver,
 			// so they don't need to accept a frag to know which to start.

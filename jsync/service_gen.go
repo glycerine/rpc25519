@@ -21,7 +21,7 @@ func (z *RequestToSyncDir) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields0zgensym_5b8048e47f8e3c5c_1 = 3
+	const maxFields0zgensym_5b8048e47f8e3c5c_1 = 4
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields0zgensym_5b8048e47f8e3c5c_1 uint32
@@ -88,6 +88,35 @@ doneWithStruct0zgensym_5b8048e47f8e3c5c_1:
 			if err != nil {
 				return
 			}
+		case "SR_zid03_ptr":
+			found0zgensym_5b8048e47f8e3c5c_1[3] = true
+			if dc.IsNil() {
+				err = dc.ReadNil()
+				if err != nil {
+					return
+				}
+
+				if z.SR != nil {
+					dc.PushAlwaysNil()
+					err = z.SR.DecodeMsg(dc)
+					if err != nil {
+						return
+					}
+					dc.PopAlwaysNil()
+				}
+			} else {
+				// not Nil, we have something to read
+
+				if z.SR == nil {
+					z.SR = new(RequestToSyncPath)
+				}
+				dc.DedupIndexEachPtr(z.SR)
+
+				err = z.SR.DecodeMsg(dc)
+				if err != nil {
+					return
+				}
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -111,16 +140,16 @@ doneWithStruct0zgensym_5b8048e47f8e3c5c_1:
 }
 
 // fields of RequestToSyncDir
-var decodeMsgFieldOrder0zgensym_5b8048e47f8e3c5c_1 = []string{"GiverDir_zid00_str", "TakerDir_zid01_str", "RemoteTakes_zid02_boo"}
+var decodeMsgFieldOrder0zgensym_5b8048e47f8e3c5c_1 = []string{"GiverDir_zid00_str", "TakerDir_zid01_str", "RemoteTakes_zid02_boo", "SR_zid03_ptr"}
 
-var decodeMsgFieldSkip0zgensym_5b8048e47f8e3c5c_1 = []bool{false, false, false}
+var decodeMsgFieldSkip0zgensym_5b8048e47f8e3c5c_1 = []bool{false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
-func (z RequestToSyncDir) fieldsNotEmpty(isempty []bool) uint32 {
+func (z *RequestToSyncDir) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 3
+		return 4
 	}
-	var fieldsInUse uint32 = 3
+	var fieldsInUse uint32 = 4
 	isempty[0] = (len(z.GiverDir) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -133,18 +162,22 @@ func (z RequestToSyncDir) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[2] {
 		fieldsInUse--
 	}
+	isempty[3] = (z.SR == nil) // pointer, omitempty
+	if isempty[3] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
 
 // EncodeMsg implements msgp.Encodable
-func (z RequestToSyncDir) EncodeMsg(en *msgp.Writer) (err error) {
+func (z *RequestToSyncDir) EncodeMsg(en *msgp.Writer) (err error) {
 	if p, ok := interface{}(z).(msgp.PreSave); ok {
 		p.PreSaveHook()
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_5b8048e47f8e3c5c_2 [3]bool
+	var empty_zgensym_5b8048e47f8e3c5c_2 [4]bool
 	fieldsInUse_zgensym_5b8048e47f8e3c5c_3 := z.fieldsNotEmpty(empty_zgensym_5b8048e47f8e3c5c_2[:])
 
 	// map header
@@ -199,11 +232,32 @@ func (z RequestToSyncDir) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_5b8048e47f8e3c5c_2[3] {
+		// write "SR_zid03_ptr"
+		err = en.Append(0xac, 0x53, 0x52, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x70, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		// gPtr.encodeGen():
+
+		if z.SR == nil {
+			err = en.WriteNil()
+			if err != nil {
+				return
+			}
+		} else {
+			err = z.SR.EncodeMsg(en)
+			if err != nil {
+				return
+			}
+		}
+	}
+
 	return
 }
 
 // MarshalMsg implements msgp.Marshaler
-func (z RequestToSyncDir) MarshalMsg(b []byte) (o []byte, err error) {
+func (z *RequestToSyncDir) MarshalMsg(b []byte) (o []byte, err error) {
 	if p, ok := interface{}(z).(msgp.PreSave); ok {
 		p.PreSaveHook()
 	}
@@ -211,7 +265,7 @@ func (z RequestToSyncDir) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [3]bool
+	var empty [4]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -233,6 +287,23 @@ func (z RequestToSyncDir) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendBool(o, z.RemoteTakes)
 	}
 
+	if !empty[3] {
+		// string "SR_zid03_ptr"
+		o = append(o, 0xac, 0x53, 0x52, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x70, 0x74, 0x72)
+		// marshalGen.gPtr()
+
+		if z.SR == nil {
+			o = msgp.AppendNil(o)
+		} else {
+			// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+			o, err = z.SR.MarshalMsg(o) // not is.iface, gen/marshal.go:243
+			if err != nil {
+				return
+			}
+		}
+	}
+
 	return
 }
 
@@ -251,7 +322,7 @@ func (z *RequestToSyncDir) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConf
 
 	var field []byte
 	_ = field
-	const maxFields4zgensym_5b8048e47f8e3c5c_5 = 3
+	const maxFields4zgensym_5b8048e47f8e3c5c_5 = 4
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields4zgensym_5b8048e47f8e3c5c_5 uint32
@@ -322,6 +393,36 @@ doneWithStruct4zgensym_5b8048e47f8e3c5c_5:
 			if err != nil {
 				return
 			}
+		case "SR_zid03_ptr":
+			found4zgensym_5b8048e47f8e3c5c_5[3] = true
+			// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"z.SR", alias:"RequestToSyncPath", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x16, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
+
+			// unmarshalGen.gPtr(): we have an IDENT:
+
+			if nbs.AlwaysNil {
+				if z.SR != nil {
+					z.SR.UnmarshalMsg(msgp.OnlyNilSlice)
+				}
+			} else {
+				// not nbs.AlwaysNil
+				if msgp.IsNil(bts) {
+					bts = bts[1:]
+					if nil != z.SR {
+						z.SR.UnmarshalMsg(msgp.OnlyNilSlice)
+					}
+				} else {
+					// not nbs.AlwaysNil and not IsNil(bts): have something to read
+
+					if z.SR == nil {
+						z.SR = new(RequestToSyncPath)
+					}
+
+					bts, err = z.SR.UnmarshalMsg(bts)
+					if err != nil {
+						return
+					}
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -345,13 +446,18 @@ doneWithStruct4zgensym_5b8048e47f8e3c5c_5:
 }
 
 // fields of RequestToSyncDir
-var unmarshalMsgFieldOrder4zgensym_5b8048e47f8e3c5c_5 = []string{"GiverDir_zid00_str", "TakerDir_zid01_str", "RemoteTakes_zid02_boo"}
+var unmarshalMsgFieldOrder4zgensym_5b8048e47f8e3c5c_5 = []string{"GiverDir_zid00_str", "TakerDir_zid01_str", "RemoteTakes_zid02_boo", "SR_zid03_ptr"}
 
-var unmarshalMsgFieldSkip4zgensym_5b8048e47f8e3c5c_5 = []bool{false, false, false}
+var unmarshalMsgFieldSkip4zgensym_5b8048e47f8e3c5c_5 = []bool{false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
-func (z RequestToSyncDir) Msgsize() (s int) {
-	s = 1 + 19 + msgp.StringPrefixSize + len(z.GiverDir) + 19 + msgp.StringPrefixSize + len(z.TakerDir) + 22 + msgp.BoolSize
+func (z *RequestToSyncDir) Msgsize() (s int) {
+	s = 1 + 19 + msgp.StringPrefixSize + len(z.GiverDir) + 19 + msgp.StringPrefixSize + len(z.TakerDir) + 22 + msgp.BoolSize + 13
+	if z.SR == nil {
+		s += msgp.NilSize
+	} else {
+		s += z.SR.Msgsize()
+	}
 	return
 }
 

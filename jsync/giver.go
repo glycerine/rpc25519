@@ -93,6 +93,9 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 			////vv("frag0 = '%v'", frag0)
 			switch frag0.FragOp {
 
+			case OpRsync_TakerRequestsDirListing: // FragOp 24
+				vv("%v: (ckt '%v') (Giver) sees OpRsync_TakerRequestsDirListing.", name, ckt.Name)
+
 			case OpRsync_LazyTakerWantsToPull: // FragOp 19
 				//vv("%v: (ckt '%v') (Giver) sees OpRsync_LazyTakerWantsToPull", name, ckt.Name)
 				syncReq = &RequestToSyncPath{}
