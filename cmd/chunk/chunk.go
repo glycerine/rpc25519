@@ -96,23 +96,24 @@ func main() {
 				//}
 				sdt.AddObs(float64(v.sz), float64(v.n))
 			}
+			if i > 0 {
 
-			min, targ := cfg.MinSize, cfg.TargetSize
-			//	fmt.Printf(`min=%v; targ = %v; see_window=%v => mean = %v   sd = %v
-			//`, formatUnder(min), formatUnder(targ), seeWindow, formatUnder(int(sdt.Mean())), formatUnder(int(sdt.SampleStdDev())))
-			//	continue
+				min, targ := cfg.MinSize, cfg.TargetSize
+				//	fmt.Printf(`min=%v; targ = %v; see_window=%v => mean = %v   sd = %v
+				//`, formatUnder(min), formatUnder(targ), seeWindow, formatUnder(int(sdt.Mean())), formatUnder(int(sdt.SampleStdDev())))
+				//	continue
 
-			fmt.Printf(`
- i=%v ... path = '%v'   algo='%v'
+				fmt.Printf(`
+ i=%v ... path = '%v'   vs  path[0]='%v'   algo='%v'
    min = %v;  target = %v;   max = %v
     ncut = %v; ndup = %v; savings = %v bytes of %v (%0.2f %%)
       diffbytes = %v
       mean = %v   sd = %v
-`, i, path, cdc.Name(),
-				min, targ, cfg.MaxSize,
-				len(cuts), ndup, formatUnder(savings), formatUnder(int(fi.Size())), float64(100*savings)/float64(fi.Size()), formatUnder(int(fi.Size())-savings), formatUnder(int(sdt.Mean())), formatUnder(int(sdt.SampleStdDev())))
+`, i, path, paths[0], cdc.Name(),
+					min, targ, cfg.MaxSize,
+					len(cuts), ndup, formatUnder(savings), formatUnder(int(fi.Size())), float64(100*savings)/float64(fi.Size()), formatUnder(int(fi.Size())-savings), formatUnder(int(sdt.Mean())), formatUnder(int(sdt.SampleStdDev())))
+			}
 		}
-
 	}
 }
 
