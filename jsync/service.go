@@ -157,15 +157,19 @@ const (
 	OpRsync_LazyTakerWantsToPull           = 19 // ... to Giver, quick size + modTime check
 	OpRsync_LazyTakerNoLuck_ChunksRequired = 20 // to taker (quick size/modTime failed)
 
-	// directory listings transfer
+	// top dir sync setup + directory listings transfer
 
-	// send my (takers) temp new top dir for paths to go into.
+	// (start) send my (takers) temp new top dir for paths to go into.
 	// be sure to setup the new temp dir as separately as possible,
 	// to avoid overlapping dir transfers having crosstalk.
 	OpRsync_TakerRequestsDirSyncBegin = 21 // to giver, please send me 22,26/27/28
 
-	// to taker, please setup a tempdir and tell the
+	// (start or reply to 21) to taker, please setup a tempdir and tell the
 	// giver the path so we can send new files into that path.
+	// If start, or reply: expect 23 back to establish write path; even
+	// if redudundant in case of reply (keep it simple at first).
+	// Later optimization: If reply to 21, they just gave us
+	// write path. go directly to sending 26/27/28.
 	OpRsync_DirSyncBeginToTaker        = 22 // to taker, please setup a top tempdir
 	OpRsync_DirSyncBeginReplyFromTaker = 23 // to giver, here is my top tempdir
 
@@ -215,7 +219,7 @@ func AliasRsyncOps() {
 	rpc.FragOpRegister(OpRsync_LazyTakerWantsToPull, "OpRsync_LazyTakerWantsToPull")
 	rpc.FragOpRegister(OpRsync_LazyTakerNoLuck_ChunksRequired, "OpRsync_LazyTakerNoLuck_ChunksRequired")
 
-	// directory listings transfer
+	// top dir sync setup + directory listings transfer
 
 	rpc.FragOpRegister(OpRsync_TakerRequestsDirSyncBegin, "OpRsync_TakerRequestsDirSyncBegin")
 
