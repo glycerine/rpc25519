@@ -71,9 +71,3 @@ func Test301_fastcdc2_should_not_infinite_loop(t *testing.T) {
 		close(fin)
 	})
 }
-
-func panicOn(err error) {
-	if err != nil {
-		panic(err)
-	}
-}

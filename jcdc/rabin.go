@@ -44,20 +44,23 @@ func NewRabinKarpCDC(opts *CDC_Config) *RabinKarpCDC {
 	}
 
 	// Window size calculation:
-	// We want the window to be large enough to provide good content-based chunking,
-	// but small enough to be efficient. A common approach is to use:
-	// - Either ~1/4 of the minimum chunk size
-	// - Or ~1/8 of the target size
-	// - But capped between 32-64 bytes to keep computation reasonable
-	windowSize := opts.MinSize / 4
-	if windowSize > opts.TargetSize/8 {
-		windowSize = opts.TargetSize / 8
+	// We want the window size to scale with target size
+	// A good rule of thumb is log2(targetSize)
+	// This gives us larger windows for larger chunks, which helps with
+	// content-based chunking at larger scales
+	targetSize := opts.TargetSize
+	windowSize := 1
+	for targetSize > 1 {
+		windowSize++
+		targetSize >>= 1
 	}
-	if windowSize < 32 {
-		windowSize = 32
+
+	// But still maintain some reasonable bounds
+	if windowSize < 4 {
+		windowSize = 4 // minimum reasonable window
 	}
-	if windowSize > 64 {
-		windowSize = 64
+	if windowSize > 128 {
+		windowSize = 128 // maximum reasonable window
 	}
 
 	// Use the same multiplier as the Python implementation
@@ -65,7 +68,7 @@ func NewRabinKarpCDC(opts *CDC_Config) *RabinKarpCDC {
 
 	r := &RabinKarpCDC{
 		mult:   mult,
-		invm:   modinv(mult, 1<<32),
+		invm:   modinv(mult, 0xFFFFFFFF),
 		multn:  1,
 		Window: make([]byte, windowSize),
 	}
