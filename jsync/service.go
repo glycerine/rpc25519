@@ -19,7 +19,7 @@ import (
 
 //go:generate greenpack -no-dedup=true
 
-// UsingCDCAlgo is a package global to allow
+// Default_CDC is a package global to allow
 // benchmarks comparing CDC chunkers and settings.
 //
 // At the moment, the choice must match on the Client and

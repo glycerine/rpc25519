@@ -21,7 +21,7 @@ func setFlags(c *jcdc.CDC_Config, fs *flag.FlagSet) {
 	fs.IntVar(&c.TargetSize, "t", 10*1024, "target size chunk")
 	fs.IntVar(&c.MaxSize, "max", 64*1024, "max size chunk")
 	// fs.IntVar(&algo, "algo", 0, "algo: 0=>ultracdc, 1=>fastcdc_stadia; 2=>fastcdc_plakar; 4=>fnv1a")
-	fs.IntVar(&bits, "bits", 12, "how many 0 at the low end to declar a chunk, in FNV1a")
+	fs.IntVar(&bits, "bits", 12, "how many 0 at the low end to declare a chunk, in FNV1a rollsumming")
 }
 
 func main() {
@@ -36,14 +36,14 @@ func main() {
 	vv("cfg = '%#v'", cfg)
 	//vv("cdc = '%#v'", cdc)
 
-	for algo := 4; algo < 5; algo++ {
-		//cdc, _ := jsync.GetCutpointer(jsync.CDCAlgo(algo))
-		cdc := jcdc.NewRabinKarpCDC(cfg)
+	for algo := 0; algo < 5; algo++ {
+		cdc := jcdc.GetCutpointer(jcdc.CDCAlgo(algo), cfg)
+		//cdc := jcdc.NewRabinKarpCDC(cfg)
 
-		vv("before SetConfig with cfg = '%#v'", cfg)
+		//vv("before SetConfig with cfg = '%#v'", cfg)
 		//cdc.SetConfig(cfg)
-		vv("after SetConfig with cfg = '%#v'", cfg)
-		seeWindow := 0
+		//vv("after SetConfig with cfg = '%#v'", cfg)
+		//seeWindow := 0
 		//seeBits := 0
 		/*switch x := cdc.(type) {
 		case *jcdc.FNVCDC:
@@ -57,7 +57,7 @@ func main() {
 			vv("have RabinKarpCDC with seeWindows = '%v'", seeWindow) //16 now
 		}
 		*/
-		seeWindow = cdc.WindowSize
+		//seeWindow = cdc.WindowSize
 		/*			fmt.Printf(`
 					algo = %v (%v)
 						`, algo, cdc.Name())
@@ -84,17 +84,18 @@ func main() {
 			}
 
 			min, targ := cfg.MinSize, cfg.TargetSize
-			fmt.Printf(`min=%v; targ = %v; see_window=%v => mean = %v   sd = %v
-`, formatUnder(min), formatUnder(targ), seeWindow, formatUnder(int(sdt.Mean())), formatUnder(int(sdt.SampleStdDev())))
+			//	fmt.Printf(`min=%v; targ = %v; see_window=%v => mean = %v   sd = %v
+			//`, formatUnder(min), formatUnder(targ), seeWindow, formatUnder(int(sdt.Mean())), formatUnder(int(sdt.SampleStdDev())))
 
-			continue
+			//	continue
+
 			fmt.Printf(`
  i=%v ... path = '%v'
    min = %v;  target = %v;   max = %v
     ncut = %v; ndup = %v; savings = %v bytes of %v (%0.2f %%)
       mean = %v   sd = %v
 `, i, path,
-				cfg.MinSize, cfg.TargetSize, cfg.MaxSize,
+				min, targ, cfg.MaxSize,
 				len(cuts), ndup, formatUnder(savings), formatUnder(int(fi.Size())), float64(savings)/float64(fi.Size()), formatUnder(int(sdt.Mean())), formatUnder(int(sdt.SampleStdDev())))
 		}
 	}
