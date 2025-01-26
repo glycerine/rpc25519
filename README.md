@@ -477,7 +477,7 @@ easily handle any arbitrary network topology.
 
 Even between just two peers, multiple persistent
 channels facilities code organization. One
-could use a channel per file being synced,
+could use a circuit per file being synced,
 for instance. Multiple large files being
 scanned and their diffs streamed at once,
 in parallel, becomes practical.
