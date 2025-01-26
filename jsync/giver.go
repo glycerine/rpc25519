@@ -121,10 +121,18 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 			case OpRsync_TakerReadyForDirContents:
 				vv("%v: (ckt '%v') (Giver) sees OpRsync_TakerReadyForDirContents", name, ckt.Name)
 
-				// we (giver) now  does individual file syncs (newly deleted files can be simply not transferred on the taker side to the new dir!) ... -> at end, giver -> DirSyncEndToTaker
+				// we (giver) now do individual file syncs (newly deleted files can be simply not transferred on the taker side to the new dir!) ... -> at end, giver -> DirSyncEndToTaker
 
 				// at end, send OpRsync_DirSyncEndToTaker,
-				// wait for FIN.
+				// wait for OpRsync_DirSyncEndAckFromTaker.
+
+			case OpRsync_DirSyncEndAckFromTaker:
+				vv("%v: (ckt '%v') (Giver) sees OpRsync_DirSyncEndAckFromTaker", name, ckt.Name)
+				// shut down all dir sync stuff, send FIN.
+
+				s.ackBackFINToTaker(ckt, frag0)
+				frag0 = nil // GC early.
+				continue    // wait for other side to close
 
 				///////////// end dir sync stuff
 

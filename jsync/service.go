@@ -134,6 +134,12 @@ type SyncService struct {
 // (taker) -> 21 TakerRequestsDirSyncBegin -> (giver) 22 DirSyncBeginToTaker (enter flow below)
 //
 // (giver) -> 22 DirSyncBeginToTaker -> 23 DirSyncBeginReplyFromTaker -> 26/27/28 GiverSendsTopDirListing{|More|End} -> (giver) 29 TakerReadyForDirContents -> giver does individual file syncs (newly deleted files can be simply not transferred on the taker side to the new dir!) ... -> at end, giver -> DirSyncEndToTaker -> DirSyncEndAckFromTaker -> FIN.
+//
+// Both 21 and 22 should put the circuit into "dir-sync" mode wherein
+// we ignore all the other FragOps unrelated to coordinating the top
+// level directory sync. i.e. they call into their own subroutine
+// FSMs. This partitions off the top-dir-sync circuit from any other
+// individual file sync that mistakenly use the top-level circuitID.
 
 const (
 	OpRsync_RequestRemoteToTake            = 1  // to taker

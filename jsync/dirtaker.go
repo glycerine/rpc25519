@@ -48,7 +48,7 @@ import (
 // Closed with this same err0, propagating the
 // error throught the Circuit.Halt.ReqStop
 // shutdown tree.
-func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncReq *RequestToSyncPath) (err0 error) {
+func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncReq *RequestToSyncPath) (err0 error) {
 
 	////vv("SyncService.Taker top")
 
