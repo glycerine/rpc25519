@@ -93,7 +93,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 			////vv("frag0 = '%v'", frag0)
 			switch frag0.FragOp {
 
-			case OpRsync_TakerRequestsDirSyncBegin: // FragOp 24
+			case OpRsync_TakerRequestsDirSyncBegin:
 				vv("%v: (ckt '%v') (Giver) sees OpRsync_TakerRequestsDirSyncBegin.", name, ckt.Name)
 
 			case OpRsync_LazyTakerWantsToPull: // FragOp 19

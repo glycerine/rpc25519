@@ -152,19 +152,27 @@ const (
 	OpRsync_LazyTakerWantsToPull           = 19 // ... to Giver, quick size + modTime check
 	OpRsync_LazyTakerNoLuck_ChunksRequired = 20 // to taker (quick size/modTime failed)
 
-	OpRsync_GiverSendsTopDirListing     = 21 // to taker, here is my starting dir tree
-	OpRsync_GiverSendsTopDirListingMore = 22 // to taker, here is more of 21
-	OpRsync_GiverSendsTopDirListingEnd  = 23 // to taker, here is end of 21
+	// directory listings transfer
 
-	OpRsync_TakerRequestsDirSyncBegin = 24 // to giver, please send me 21/22/23
+	// send my (takers) temp new top dir for paths to go into.
+	// be sure to setup the new temp dir as separately as possible,
+	// to avoid overlapping dir transfers having crosstalk.
+	OpRsync_TakerRequestsDirSyncBegin = 21 // to giver, please send me 26/27/28
 
 	// to taker, please setup a tempdir and tell the
 	// giver the path so we can send new files into that path.
-	OpRsync_DirSyncBeginToTaker        = 25 // to taker, please setup a top tempdir
-	OpRsync_DirSyncBeginReplyFromTaker = 26 // to giver, here is my top tempdir
+	OpRsync_DirSyncBeginToTaker        = 22 // to taker, please setup a top tempdir
+	OpRsync_DirSyncBeginReplyFromTaker = 23 // to giver, here is my top tempdir
 
 	// taker can rename the temp top dir/replace any old top dir.
-	OpRsync_DirSyncEndToTaker = 27 // to taker, end of dir sync
+	OpRsync_DirSyncEndToTaker = 24 // to taker, end of dir sync
+
+	// giver can shut down all dir sync stuff.
+	OpRsync_DirSyncEndAckFromGiver = 25 // to giver, ack end of dir sync
+
+	OpRsync_GiverSendsTopDirListing     = 26 // to taker, here is my starting dir tree
+	OpRsync_GiverSendsTopDirListingMore = 27 // to taker, here is more of 26
+	OpRsync_GiverSendsTopDirListingEnd  = 28 // to taker, here is end of 26
 
 )
 
@@ -203,15 +211,16 @@ func AliasRsyncOps() {
 
 	// directory listings transfer
 
+	rpc.FragOpRegister(OpRsync_TakerRequestsDirSyncBegin, "OpRsync_TakerRequestsDirSyncBegin")
+
 	rpc.FragOpRegister(OpRsync_DirSyncBeginToTaker, "OpRsync_DirSyncBeginToTaker")
 	rpc.FragOpRegister(OpRsync_DirSyncBeginReplyFromTaker, "OpRsync_DirSyncBeginReplyFromTaker")
 	rpc.FragOpRegister(OpRsync_DirSyncEndToTaker, "OpRsync_DirSyncEndToTaker")
+	rpc.FragOpRegister(OpRsync_DirSyncEndAckFromGiver, "OpRsync_DirSyncEndAckFromGiver")
 
 	rpc.FragOpRegister(OpRsync_GiverSendsTopDirListing, "OpRsync_GiverSendsTopDirListing")
 	rpc.FragOpRegister(OpRsync_GiverSendsTopDirListingMore, "OpRsync_GiverSendsTopDirListingMore")
 	rpc.FragOpRegister(OpRsync_GiverSendsTopDirListingEnd, "OpRsync_GiverSendsTopDirListingEnd")
-
-	rpc.FragOpRegister(OpRsync_TakerRequestsDirSyncBegin, "OpRsync_TakerRequestsDirSyncBegin")
 
 }
 
