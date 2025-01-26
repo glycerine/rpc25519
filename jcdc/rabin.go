@@ -42,7 +42,9 @@ func NewRabinKarpCDC(opts *CDC_Config) *RabinKarpCDC {
 	if opts == nil {
 		opts = Default_RabinKarpCDC_Options()
 	}
-
+	return initKarpRabinWithOpts(opts)
+}
+func initKarpRabinWithOpts(opts *CDC_Config) *RabinKarpCDC {
 	// Window size calculation:
 	// We want the window size to scale with target size
 	// A good rule of thumb is log2(targetSize)
@@ -51,13 +53,13 @@ func NewRabinKarpCDC(opts *CDC_Config) *RabinKarpCDC {
 
 	targetSize := opts.TargetSize
 	windowSize := 1
-	vv("pre:  targetSize = %v; windowSize = %v", targetSize, windowSize)
+	vv("pre:  targetSize = %v; windowSize = %v", targetSize, windowSize) // 40000, 1
 	for targetSize > 1 {
 		windowSize++
 		targetSize >>= 1
 	}
 
-	vv("post: targetSize = %v; windowSize = %v", targetSize, windowSize)
+	vv("post: targetSize = %v; windowSize = %v", targetSize, windowSize) // 1, 16
 
 	// But still maintain some reasonable bounds
 	if windowSize < 4 {
@@ -66,7 +68,9 @@ func NewRabinKarpCDC(opts *CDC_Config) *RabinKarpCDC {
 	if windowSize > 128 {
 		windowSize = 128 // maximum reasonable window
 	}
+	//windowSize = 8
 
+	vv("alter windowSize clamping to [4,128]: targetSize = %v; windowSize = %v", targetSize, windowSize) // windowSize = 16 here
 	// Use the same multiplier as the Python implementation
 	mult := uint32(0x08104225)
 
@@ -76,6 +80,7 @@ func NewRabinKarpCDC(opts *CDC_Config) *RabinKarpCDC {
 		multn:  1,
 		Window: make([]byte, windowSize),
 	}
+	vv("make Window []byte windowSize=%v", windowSize) // 21 here!
 	r.Opts = opts
 
 	// Calculate mask for chunk boundaries
@@ -94,6 +99,9 @@ func NewRabinKarpCDC(opts *CDC_Config) *RabinKarpCDC {
 
 func (c *RabinKarpCDC) SetConfig(cfg *CDC_Config) {
 	c.Opts = cfg
+
+	vv("SetConfig about to call initKarpRabinWithOpts()")
+	initKarpRabinWithOpts(cfg)
 }
 
 func (c *RabinKarpCDC) Name() string {

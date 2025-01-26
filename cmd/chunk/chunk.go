@@ -33,13 +33,15 @@ func main() {
 
 	paths := fs.Args()
 	//vv("paths = '%#v'", paths)
-	//vv("cfg = '%#v'", cfg)
+	vv("cfg = '%#v'", cfg)
 	//vv("cdc = '%#v'", cdc)
 
 	for algo := 4; algo < 5; algo++ {
 		cdc, _ := jsync.GetCutpointer(jsync.CDCAlgo(algo))
-		cdc.SetConfig(cfg)
 
+		vv("before SetConfig with cfg = '%#v'", cfg)
+		cdc.SetConfig(cfg)
+		vv("after SetConfig with cfg = '%#v'", cfg)
 		seeWindow := 0
 		seeBits := 0
 		switch x := cdc.(type) {
