@@ -129,7 +129,8 @@ func TestDiffSize(t *testing.T) {
 
 		//vv("%v  orig    data sz = %v ;  nchunks = %v; meanChunkSz = %v; sd = %v", cdc.Name(), formatUnder(sz), formatUnder(len(cuts0)), formatUnder(int(sdt0.Mean())), formatUnder(int(sdt0.SampleStdDev())))
 		//vv("%v  vs  data2 sz = %v ;  nchunks = %v; meanChunkSz = %v; sd = %v", cdc.Name(), formatUnder(sz), formatUnder(len(cuts2)), formatUnder(int(sdt2.Mean())), formatUnder(int(sdt2.SampleStdDev())))
-		fmt.Printf("ndup chunk = %5v ; bytedup = %10v; nnew chunk = %5v; bytenew = %10v :  %10v\n", formatUnder(ndup), formatUnder(bytedup), formatUnder(nnew), formatUnder(bytenew), cdc.Name())
+		fmt.Printf("%v:\n", cdc.Name())
+		fmt.Printf("ndup chunk = %5v ; bytedup = %10v; nnew chunk = %5v; bytenew = %10v\n", formatUnder(ndup), formatUnder(bytedup), formatUnder(nnew), formatUnder(bytenew))
 	}
 
 	/*
