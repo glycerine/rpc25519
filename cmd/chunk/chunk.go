@@ -36,12 +36,16 @@ func main() {
 
 	for i, path := range paths {
 		_ = i
+		fi, err := os.Stat(path)
+		panicOn(err)
+
 		data, err := os.ReadFile(path)
 		panicOn(err)
 
 		cuts, cmap := getCuts(cdc.Name(), data, cdc, cfg)
 		ndup := 0
 		savings := 0
+		vv("len cuts = %v; len cmap = %v", len(cuts), len(cmap))
 		sdt := StdDevTracker{}
 		for _, v := range cmap {
 			if v.n > 1 {
@@ -51,7 +55,9 @@ func main() {
 			sdt.AddObs(float64(v.sz), float64(v.n))
 		}
 
-		fmt.Printf("algo = %v; ncut = %v; ndup = %v; savings = %v; mean=%v; sd=%v\n", algo, len(cuts), ndup, savings, sdt.Mean(), sdt.SampleStdDev())
+		fmt.Printf("algo = %v (%v) \n i=%v ... path = '%v';\n   min = %v;  target = %v;   max = %v   \n    ncut = %v; ndup = %v; savings = %v bytes of %v (%0.2f %%);\n      mean=%0.2f; sd=%0.2f\n", algo, cdc.Name(), i, path,
+			cfg.MinSize, cfg.TargetSize, cfg.MaxSize,
+			len(cuts), ndup, savings, fi.Size(), float64(savings)/float64(fi.Size()), sdt.Mean(), sdt.SampleStdDev())
 	}
 	//	fmt.Printf("cuts = '%#v'\n", cuts)
 	/*
@@ -97,13 +103,15 @@ func getCuts(
 		cuts = append(cuts, cut)
 		last = cut
 		j++
-		v, ok := m[hashOfBytes(data[:cutpoint])]
+		ha := hashOfBytes(data[:cutpoint])
+		v, ok := m[ha]
 		if !ok {
 			v = &seg{
 				sz: cutpoint,
 			}
 		}
 		v.n++
+		m[ha] = v
 		data = data[cutpoint:]
 	}
 	return
