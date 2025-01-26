@@ -57,13 +57,13 @@ func (r *RabinKarpCDC) initKarpRabinWithOpts(opts *CDC_Config) {
 
 	targetSize := opts.TargetSize
 	windowSize := 1
-	vv("pre:  targetSize = %v; windowSize = %v", targetSize, windowSize) // 40000, 1
+	//vv("pre:  targetSize = %v; windowSize = %v", targetSize, windowSize) // 40000, 1
 	for targetSize > 1 {
 		windowSize++
 		targetSize >>= 1
 	}
 
-	vv("post: targetSize = %v; windowSize = %v", targetSize, windowSize) // 1, 21
+	//vv("post: targetSize = %v; windowSize = %v", targetSize, windowSize) // 1, 21
 
 	// But still maintain some reasonable bounds
 	if windowSize < 4 {
@@ -74,7 +74,7 @@ func (r *RabinKarpCDC) initKarpRabinWithOpts(opts *CDC_Config) {
 	}
 	//windowSize = 8
 
-	vv("alter windowSize clamping to [4,128]: targetSize = %v; windowSize = %v", targetSize, windowSize) // windowSize = 21
+	//vv("alter windowSize clamping to [4,128]: targetSize = %v; windowSize = %v", targetSize, windowSize) // windowSize = 21
 	// Use the same multiplier as the Python implementation
 	mult := uint32(0x08104225)
 
@@ -84,7 +84,7 @@ func (r *RabinKarpCDC) initKarpRabinWithOpts(opts *CDC_Config) {
 	//Window= make([]byte, windowSize),
 	r.WindowSize = windowSize
 
-	vv("we set WindowSize=%v", windowSize) // 21 here!
+	//vv("we set WindowSize=%v", windowSize) // 21 here!
 	r.Opts = opts
 
 	// Calculate mask for chunk boundaries

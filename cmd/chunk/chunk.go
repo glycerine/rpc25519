@@ -17,9 +17,9 @@ import (
 var bits int
 
 func setFlags(c *jcdc.CDC_Config, fs *flag.FlagSet) {
-	fs.IntVar(&c.MinSize, "min", 2048, "min size chunk")
-	fs.IntVar(&c.TargetSize, "t", 10*1024, "target size chunk")
-	fs.IntVar(&c.MaxSize, "max", 64*1024, "max size chunk")
+	fs.IntVar(&c.MinSize, "min", 4*1024, "min size chunk")
+	fs.IntVar(&c.TargetSize, "t", 64*1024, "target size chunk")
+	fs.IntVar(&c.MaxSize, "max", 256*1024, "max size chunk")
 	// fs.IntVar(&algo, "algo", 0, "algo: 0=>ultracdc, 1=>fastcdc_stadia; 2=>fastcdc_plakar; 4=>fnv1a")
 	fs.IntVar(&bits, "bits", 12, "how many 0 at the low end to declare a chunk, in FNV1a rollsumming")
 }
