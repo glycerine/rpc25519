@@ -128,7 +128,12 @@ type SyncService struct {
 // taker -> 12 remoteGiverAreDiffChunksNeeded giverSendsPlanAndData(giver) ... -> (taker) SenderPlanEnclosed,HeavyDiffChunksEnclosed,HeavyDiffChunksLast .. size 0 file -> (giver) FileAllReadAckToGiver -> FIN (taker returns)
 // taker -> 12 remoteGiverAreDiffChunksNeeded giverSendsPlanAndData(giver) ... -> (taker) SenderPlanEnclosed,HeavyDiffChunksEnclosed,HeavyDiffChunksLast .. size >0 file .. taker saves plan,goalPreic -> (giver) FileAllReadAckToGiver -> FIN (taker returns)
 
-// lazy taker -> 19 (LazyTakerWantsToPull) on giver ->
+// lazy taker -> 19 (LazyTakerWantsToPull) on giver.. not found|modTm match|no match -> (taker gets:) CallPeerError|OpRsync_FileSizeModTimeMatch|OpRsync_LazyTakerNoLuck_ChunksRequired, if no luck -> OpRsync_RequestRemoteToGive 12 (joins above flow)
+
+// directory sync flows:
+// (taker) -> 21 TakerRequestsDirSyncBegin -> (giver) 22 DirSyncBeginToTaker (enter flow below)
+//
+// (giver) -> 22 DirSyncBeginToTaker -> 23 DirSyncBeginReplyFromTaker -> 26/27/28 GiverSendsTopDirListing{|More|End} -> (giver) 29 TakerReadyForDirContents -> giver does individual file syncs (newly deleted files can be simply not transferred on the taker side to the new dir!)
 
 const (
 	OpRsync_RequestRemoteToTake            = 1  // to taker
@@ -157,7 +162,7 @@ const (
 	// send my (takers) temp new top dir for paths to go into.
 	// be sure to setup the new temp dir as separately as possible,
 	// to avoid overlapping dir transfers having crosstalk.
-	OpRsync_TakerRequestsDirSyncBegin = 21 // to giver, please send me 26/27/28
+	OpRsync_TakerRequestsDirSyncBegin = 21 // to giver, please send me 22,26/27/28
 
 	// to taker, please setup a tempdir and tell the
 	// giver the path so we can send new files into that path.
@@ -174,6 +179,7 @@ const (
 	OpRsync_GiverSendsTopDirListingMore = 27 // to taker, here is more of 26
 	OpRsync_GiverSendsTopDirListingEnd  = 28 // to taker, here is end of 26
 
+	OpRsync_TakerReadyForDirContents = 29 // to giver, ready for individual file syncs
 )
 
 var once sync.Once
@@ -221,7 +227,7 @@ func AliasRsyncOps() {
 	rpc.FragOpRegister(OpRsync_GiverSendsTopDirListing, "OpRsync_GiverSendsTopDirListing")
 	rpc.FragOpRegister(OpRsync_GiverSendsTopDirListingMore, "OpRsync_GiverSendsTopDirListingMore")
 	rpc.FragOpRegister(OpRsync_GiverSendsTopDirListingEnd, "OpRsync_GiverSendsTopDirListingEnd")
-
+	rpc.FragOpRegister(OpRsync_TakerReadyForDirContents, "OpRsync_TakerReadyForDirContents")
 }
 
 // NewRequestToSyncPath creates an empty
