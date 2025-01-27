@@ -3,9 +3,20 @@
 
 package main
 
+import (
+	"os"
+	"syscall"
+)
+
 /*
-#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
+
 extern int renamex_np(const char *old, const char *new, unsigned int flags);
+
+int _linkat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath, int flags) {
+    return linkat(olddirfd, oldpath, newdirfd, newpath, flags);
+}
 */
 import "C"
 import "fmt"
@@ -18,27 +29,16 @@ func atomicDirSwap(oldpath, newpath string) error {
 	return nil
 }
 
-/*
-import (
-	"fmt"
-	"syscall"
-)
+func makeHardlink(origFilePath, newFilePath string) {
+	origFilePathC := C.CString(origFilePath)
+	newFilePathC := C.CString(newFilePath)
 
-const (
-	_RENAME_SWAP = 0x2 // Value for Darwin's RENAME_SWAP flag
-)
-
-//go:noescape
-//go:nosplit
-func renamex_np(oldpath string, newpath string, flags uint) (err syscall.Errno)
-
-// Assembly implementation in rename_darwin_amd64.s or rename_darwin_arm64.s
-
-func atomicDirSwap(oldpath, newpath string) error {
-	if err := renamex_np(oldpath, newpath, _RENAME_SWAP); err != 0 {
-		return fmt.Errorf("renamex_np failed: %s", err)
+	result := C._linkat(C.AT_FDCWD, origFilePathC, C.AT_FDCWD, newFilePathC, 0)
+	fmt.Println(result)
+	if result < 0 {
+		fmt.Print("errno: ")
+		fmt.Println(syscall.Errno(-result))
+		fmt.Println("Error creating hardlink")
+		os.Exit(1)
 	}
-	return nil
 }
-
-*/
