@@ -993,7 +993,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 
 	//vv("isCli=%v, StartRemotePeer about to wait for reply on ch to callID = '%v'", p.isCli, callID)
 	var reply *Message
-	select { // Test400 hung here.
+	select {
 	case reply = <-ch:
 		//vv("got reply to CallPeerStart: '%v'", reply.String())
 	case <-ctx.Done():

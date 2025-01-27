@@ -374,14 +374,16 @@ type RequestToSyncPath struct {
 type RequestToSyncDir struct {
 	GiverDir string `zid:"0"`
 
-	TopTakerDirTemp  string `zid:"1"`
-	TopTakerDirFinal string `zid:"2"`
+	TopTakerDirTemp      string `zid:"1"`
+	TopTakerDirTempDirID string `zid:"2"`
+
+	TopTakerDirFinal string `zid:"3"`
 
 	// If RemoteTakes is false => remote giver, local taker.
 	// If RemoteTakes is true  => remote taker, local giver.
-	RemoteTakes bool `zid:"3"`
+	RemoteTakes bool `zid:"4"`
 
-	SR *RequestToSyncPath `zid:"4"` // original local request
+	SR *RequestToSyncPath `zid:"5"` // original local request
 }
 
 const assembleInMem = true
@@ -428,10 +430,16 @@ const rsyncRemoteGivesString = "rsync remote gives"
 const rsyncRemoteTakesDirString = "rsync remote takes dir"
 const rsyncRemoteGivesDirString = "rsync remote gives dir"
 
-func (s *SyncService) mkTempDir(finalDir string) (tempDir string, err error) {
-
-	tempDir, err = os.MkdirTemp(".", "tempdir-for-final-topdir-"+finalDir)
-
+func (s *SyncService) mkTempDir(finalDir string) (tmpDir, tmpDirID string, err error) {
+	tmpDirID = "tempDirID-" + rpc.NewCryRandCallID()
+	dataDir, err := rpc.GetServerDataDir()
+	panicOn(err)
+	hostCID := rpc.HostCID
+	stagingDir := dataDir + sep + hostCID + sep + "staging"
+	tmpDir = stagingDir + sep + tmpDirID
+	err = os.MkdirAll(tmpDir, 0700)
+	panicOn(err)
+	vv("mkTempDir made '%v' for finalDir '%vc'", tmpDir, finalDir)
 	return
 }
 
@@ -514,15 +522,16 @@ func (s *SyncService) Start(
 
 				// we generate a temp dir first, then send 21
 				// OpRsync_TakerRequestsDirSyncBegin = 21 // to giver, please send me 22,26/27/28
-				targetTakerTopTempDir, err := s.mkTempDir(syncReq.TakerPath)
+				targetTakerTopTempDir, tmpDirID, err := s.mkTempDir(syncReq.TakerPath)
 				panicOn(err)
 
 				reqDir := &RequestToSyncDir{
-					GiverDir:         syncReq.GiverPath,
-					TopTakerDirTemp:  targetTakerTopTempDir,
-					TopTakerDirFinal: syncReq.TakerPath,
-					RemoteTakes:      syncReq.RemoteTakes,
-					SR:               syncReq,
+					GiverDir:             syncReq.GiverPath,
+					TopTakerDirTemp:      targetTakerTopTempDir,
+					TopTakerDirFinal:     syncReq.TakerPath,
+					TopTakerDirTempDirID: tmpDirID,
+					RemoteTakes:          syncReq.RemoteTakes,
+					SR:                   syncReq,
 				}
 				bts, err := reqDir.MarshalMsg(nil)
 				panicOn(err)
@@ -532,6 +541,7 @@ func (s *SyncService) Start(
 				pulldir.FromPeerID = myPeer.PeerID
 				pulldir.ServiceName = syncReq.ToRemotePeerServiceName
 				pulldir.SetUserArg("targetTakerTopTempDir", targetTakerTopTempDir)
+				pulldir.SetUserArg("targetTakerTopTempDirID", tmpDirID)
 
 				cktName := rsyncRemoteGivesDirString //"rsync remote gives dir"
 

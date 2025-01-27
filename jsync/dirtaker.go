@@ -35,12 +35,14 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	bt := &byteTracker{}
 
 	var targetTakerTopTempDir string
+	var tmpDirID string
 
 	if reqDir != nil {
 		if reqDir.TopTakerDirTemp == "" {
 			panic("reqDir.TopTakerDirTemp should have been fille in!")
 		}
 		targetTakerTopTempDir = reqDir.TopTakerDirTemp
+		tmpDirID = reqDir.TopTakerDirTempDirID
 	}
 
 	defer func(reqDir *RequestToSyncDir) {
@@ -106,7 +108,10 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				}
 				// INVAR: reqDir is set.
 				if targetTakerTopTempDir == "" {
-					targetTakerTopTempDir, err = s.mkTempDir(reqDir.TopTakerDirFinal)
+
+					targetTakerTopTempDir, tmpDirID, err = s.mkTempDir(
+						reqDir.TopTakerDirFinal)
+
 					panicOn(err)
 				}
 				// INVAR: targetTakerTopTempDir is set.
@@ -114,6 +119,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				tmpReady := rpc.NewFragment()
 				tmpReady.FragOp = OpRsync_DirSyncBeginReplyFromTaker
 				tmpReady.SetUserArg("targetTakerTopTempDir", targetTakerTopTempDir)
+				tmpReady.SetUserArg("targetTakerTopTempDirID", tmpDirID)
 				err = ckt.SendOneWay(tmpReady, 0)
 				panicOn(err)
 
