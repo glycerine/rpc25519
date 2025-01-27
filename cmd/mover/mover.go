@@ -9,12 +9,12 @@ import (
 func main() {
 	args := os.Args
 	if len(args) != 3 {
-		fmt.Fprintf(os.Stderr, "mover must have 2 arguments: oldpath newpath. We see %v: '%#v'\n", len(args), args)
+		fmt.Fprintf(os.Stderr, "mover must have 2 arguments: newpath oldpath, in that order. After, only the oldpath top dir will exist, but its contents will be that of newpath. We see %v: '%#v'\n", len(args), args)
 		os.Exit(1)
 	}
 	oldpath := args[1]
 	newpath := args[2]
-	fmt.Printf("moving %v -> %v\n", oldpath, newpath)
+	fmt.Printf("moving %v -> %v\n", newpath, oldpath)
 	// Check if newpath exists and is a directory
 	info, err := os.Stat(oldpath)
 	if err == nil && !info.IsDir() {
