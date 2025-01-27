@@ -6,7 +6,7 @@ import (
 	//myblake3 "github.com/glycerine/rpc25519/hash"
 	//"github.com/glycerine/rpc25519/progress"
 	//"io"
-	//"os"
+	"os"
 	//"path/filepath"
 	//"strconv"
 	"sync"
@@ -358,13 +358,15 @@ type RequestToSyncPath struct {
 // no longer on the giver.
 type RequestToSyncDir struct {
 	GiverDir string `zid:"0"`
-	TakerDir string `zid:"1"`
+
+	TopTakerDirTemp  string `zid:"1"`
+	TopTakerDirFinal string `zid:"2"`
 
 	// If RemoteTakes is false => remote giver, local taker.
 	// If RemoteTakes is true  => remote taker, local giver.
-	RemoteTakes bool `zid:"2"`
+	RemoteTakes bool `zid:"3"`
 
-	SR *RequestToSyncPath `zid:"3"` // original local request
+	SR *RequestToSyncPath `zid:"4"` // original local request
 }
 
 const assembleInMem = true
@@ -408,6 +410,13 @@ func NewSyncService(reqs chan *RequestToSyncPath) *SyncService {
 
 const rsyncRemoteTakesString = "rsync remote takes"
 const rsyncRemoteGivesString = "rsync remote gives"
+
+func (s *SyncService) mkTempDir(finalDir string) (tempDir string, err error) {
+
+	tempDir, err = os.MkdirTemp(".", "tempdir-for-final-topdir-"+finalDir)
+
+	return
+}
 
 func (s *SyncService) Start(
 	myPeer *rpc.LocalPeer,
@@ -468,64 +477,127 @@ func (s *SyncService) Start(
 			}
 
 		case syncReq := <-s.SyncPathRequestCh:
-			// we are the "local" taking this request from the cli client.go.
+			// we are the "local" getting this request from the cli client.go.
 
-			//vv("%v: sees requested on SyncPathRequestCh: '%#v'", name, syncReq)
+			vv("%v: sees requested on SyncPathRequestCh: '%#v'", name, syncReq)
 
+			if !syncReq.RemoteTakes && syncReq.TakerIsDir {
+				vv("%v: we are the local taker of dir. sending 21 OpRsync_TakerRequestsDirSyncBegin", name)
+
+				// OpRsync_TakerRequestsDirSyncBegin = 21 // to giver, please send me 22,26/27/28
+				targetTakerTopTempDir, err := s.mkTempDir(syncReq.TakerPath)
+				panicOn(err)
+
+				reqDir := &RequestToSyncDir{
+					GiverDir:         syncReq.GiverPath,
+					TopTakerDirTemp:  targetTakerTopTempDir,
+					TopTakerDirFinal: syncReq.TakerPath,
+					RemoteTakes:      syncReq.RemoteTakes,
+					SR:               syncReq,
+				}
+				bts, err := reqDir.MarshalMsg(nil)
+				panicOn(err)
+				pulldir := rpc.NewFragment()
+				pulldir.FragOp = OpRsync_TakerRequestsDirSyncBegin
+				pulldir.Payload = bts
+				pulldir.FromPeerID = myPeer.PeerID
+				pulldir.ServiceName = syncReq.ToRemotePeerServiceName
+
+				cktName := rsyncRemoteGivesString //"rsync remote gives"
+
+				ckt, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
+					pulldir, syncReq.ToRemotePeerServiceName,
+					syncReq.ToRemoteNetAddr, 0)
+				panicOn(err)
+
+				// local pulls from remote. the remote gives us the update.
+				go s.DirTaker(ctx0, ckt, myPeer, reqDir, pulldir, nil)
+
+				continue
+			}
 			// is this a local giver dir -> remote taker dir syn request?
-			// fan out the request, one for each
-			// actual file on the local giver.
-			//
-			// The only tricky/unique thing for directories, is that
-			// we need to delete files on the taker that are not
-			// on the giver. The giver won't know about these,
-			// since they do not have them.
-			// Other than that, we should be able to just push
-			// each file on the giver to the taker.
-			//
-			// If the local is pulling, send the dir listing over,
-			// so the remote giver can tell what to delete.
-			//
-			// If the local pushing, send the dir listing over,
-			// so the remote taker can tell what to delete.
-			//
-			// So the switch over can be atomic, and not interfere
-			// with the parts trying to scan/update paths, we
-			// should create a new top-level versioned directory,
-			// and do all writes there. All reads of existing files
-			// come from the original still on disk. If no errors
-			// at the end, we can rename the new to old dir (possibly
-			// rename the old to old.backup to start and manually verify).
-			reqDir := &RequestToSyncDir{
-				GiverDir:    syncReq.GiverPath,
-				TakerDir:    syncReq.TakerPath,
-				RemoteTakes: syncReq.RemoteTakes,
-				SR:          syncReq,
-			}
-			_ = reqDir
-			if syncReq.RemoteTakes {
-				// If RemoteTakes is true  => remote taker, local giver (push)
+			if syncReq.RemoteTakes && syncReq.GiverIsDir {
 
+				vv("%v: we are the local giver of dir. sending 22 OpRsync_DirSyncBeginToTaker", name)
+
+				// fan out the request, one for each
+				// actual file on the local giver.
+				//
+				// The only tricky/unique thing for directories, is that
+				// we need to delete files on the taker that are not
+				// on the giver. The giver won't know about these,
+				// since they do not have them.
+				// Other than that, we should be able to just push
+				// each file on the giver to the taker.
+				//
+				// If the local is pulling, send the dir listing over,
+				// so the remote giver can tell what to delete.
+				//
 				// If the local pushing, send the dir listing over,
-				// so the remote taker can tell what to delete/skip
-				// in the new vers dir.
+				// so the remote taker can tell what to delete.
+				//
+				// So the switch over can be atomic, and not interfere
+				// with the parts trying to scan/update paths, we
+				// should create a new top-level versioned directory,
+				// and do all writes there. All reads of existing files
+				// come from the original still on disk. If no errors
+				// at the end, we can rename the new to old dir (possibly
+				// rename the old to old.backup to start and manually verify).
+				reqDir := &RequestToSyncDir{
+					GiverDir: syncReq.GiverPath,
 
-				// all subsequent sync requests should ask to write to
-				// the new version's temp top level dir. So we need
-				// to agree on what that path will be first and foremost.
-				// So we need to ask the remote taker to name that dir
-				// and tell us what it's path is. We need to send taker
-				// a DirSyncBegin and DirSyncEnd so the the taker getting
-				// a DirSyncEnd can know to do the atomic swap of dir.
+					// remote taker to provide their temp dir path
+					// in 23 DirSyncBeginReplyFromTaker message,
+					// so we leave blank.
+					//TopTakerDirTemp:
+					TopTakerDirFinal: syncReq.TakerPath,
+					RemoteTakes:      syncReq.RemoteTakes,
+					SR:               syncReq,
+				}
+				bts, err := reqDir.MarshalMsg(nil)
+				panicOn(err)
+				pushdir := rpc.NewFragment()
+				pushdir.FragOp = OpRsync_DirSyncBeginToTaker
+				pushdir.Payload = bts
+				cktName := rsyncRemoteTakesString // "rsync remote takes"
 
-			} else {
-				// If RemoteTakes is false => remote giver, local taker (pull)
+				ckt, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
+					pushdir, syncReq.ToRemotePeerServiceName,
+					syncReq.ToRemoteNetAddr, 0)
+				panicOn(err)
 
-				// If the local is pulling, request and read the dir listing
-				// from the giver, and locally delete in the new vers dir.
+				// local pushes to remote.
+				// Since we are "local", we start the Giver.
+				// The remote takes from us.
+				go s.DirGiver(ctx0, ckt, myPeer, reqDir, pushdir, nil)
 
-				//reqDir.FragOp = OpRsync_TakerRequestsDirSyncBegin
-			}
+				/*
+					if syncReq.RemoteTakes {
+						// If RemoteTakes is true  => remote taker, local giver (push)
+
+						// If the local pushing, send the dir listing over,
+						// so the remote taker can tell what to delete/skip
+						// in the new vers dir.
+
+						// all subsequent sync requests should ask to write to
+						// the new version's temp top level dir. So we need
+						// to agree on what that path will be first and foremost.
+						// So we need to ask the remote taker to name that dir
+						// and tell us what it's path is. We need to send taker
+						// a DirSyncBegin and DirSyncEnd so the the taker getting
+						// a DirSyncEnd can know to do the atomic swap of dir.
+
+					} else {
+						// If RemoteTakes is false => remote giver, local taker (pull)
+
+						// If the local is pulling, request and read the dir listing
+						// from the giver, and locally delete in the new vers dir.
+
+						//reqDir.FragOp = OpRsync_TakerRequestsDirSyncBegin
+					}
+				*/
+				continue
+			} // end if GiverIsDir
 
 			// Use the circuitName to indicate remote taker or giver,
 			// so they don't need to accept a frag to know which to start.
@@ -552,7 +624,6 @@ func (s *SyncService) Start(
 						frag.FragOp = OpRsync_LazyTakerWantsToPull
 					}
 				}
-
 				// maybe? ensure FileSize and mod time are set, else we
 				// might be fooled into thinking this is a delete request?
 				//if syncReq.FileSize == 0 {

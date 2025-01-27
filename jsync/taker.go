@@ -135,6 +135,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		}
 		localPathToWrite = syncReq.TakerPath
 		if dirExists(localPathToWrite) {
+			panic("where?")
 			return fmt.Errorf("error in Taker: syncReq.TakerPath cannot be an existing directory: '%v'", localPathToWrite)
 		}
 
@@ -536,6 +537,7 @@ takerForSelectLoop:
 				//localPath, _ := frag.GetUserArg("readFile")
 				localPath := syncReq.TakerPath
 				if dirExists(localPath) {
+					panic("where 2?")
 					return fmt.Errorf("error in HereIsFullFile op: syncReq.TakerPath cannot be an existing directory: '%v'", localPath)
 				}
 
@@ -598,6 +600,7 @@ takerForSelectLoop:
 
 				localPathToWrite = syncReq.TakerPath
 				if dirExists(localPathToWrite) {
+					panic("where 3?")
 					return fmt.Errorf("error in Taker OpRsync_RequestRemoteToTake: syncReq.TakerPath cannot be an existing directory: '%v'", localPathToWrite)
 				}
 

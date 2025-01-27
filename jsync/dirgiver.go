@@ -24,7 +24,7 @@ import (
 //
 // The syncReq pointer in this call will be set when Giver is local.
 // It will be nil when Giver is remote.
-func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncReq *RequestToSyncPath, frag0 *rpc.Fragment, bt *byteTracker) (err0 error) {
+func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncDirReq *RequestToSyncDir, frag0 *rpc.Fragment, bt *byteTracker) (err0 error) {
 
 	vv("SyncService.DirGiver top.")
 
@@ -97,8 +97,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			_ = fragerr
 			// 	err := ckt.SendOneWay(frag, 0)
 			// 	panicOn(err)
-			if syncReq != nil {
-				syncReq.Errs = fragerr.Err
+			if syncDirReq != nil {
+				syncDirReq.SR.Errs = fragerr.Err
 			}
 			return
 		case <-done:
