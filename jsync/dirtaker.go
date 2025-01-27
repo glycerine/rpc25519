@@ -34,15 +34,15 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	done := ckt.Context.Done()
 	bt := &byteTracker{}
 
-	var targetTakerTopTempDir string
-	var tmpDirID string
+	weAreRemoteTaker := (reqDir == nil)
 
 	if reqDir != nil {
 		if reqDir.TopTakerDirTemp == "" {
-			panic("reqDir.TopTakerDirTemp should have been fille in!")
+			panic("reqDir.TopTakerDirTemp should have been created/filled in!")
 		}
-		targetTakerTopTempDir = reqDir.TopTakerDirTemp
-		tmpDirID = reqDir.TopTakerDirTempDirID
+		if !dirExists(reqDir.TopTakerDirTemp) {
+			panic(fmt.Sprintf("why does not exist reqDir.TopTakerDirTemp = '%v' ???", reqDir.TopTakerDirTemp))
+		}
 	}
 
 	defer func(reqDir *RequestToSyncDir) {
@@ -89,37 +89,51 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 			///////////////// begin dir sync stuff
 
-			case OpRsync_DirSyncBeginToTaker:
+			case OpRsync_DirSyncBeginToTaker: // 22
 				vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
 				// we should: setup a top tempdir and tell the
 				// giver the path so they can send new files into that path.
 
-				// reply with OpRsync_DirSyncBeginReplyFromTaker
+				// reply with 23 OpRsync_DirSyncBeginReplyFromTaker
 				// and the new top tempdir path, even if
 				// we initiated and they already know the path; just repeat it
 				// for simplicity/reusing the flow.
 
 				var err error
+				reqDir2 := &RequestToSyncDir{}
+				_, err = reqDir2.UnmarshalMsg(frag.Payload)
+				panicOn(err)
+				bt.bread += len(frag.Payload)
 				if reqDir == nil {
-					reqDir = &RequestToSyncDir{}
-					_, err = reqDir.UnmarshalMsg(frag.Payload)
-					panicOn(err)
-					bt.bread += len(frag.Payload)
+					// already set above: weAreRemoteTaker = true
+					reqDir = reqDir2
+				} else {
+					if reqDir2.TopTakerDirTemp == "" {
+						panic("reqDir2.TopTakerDirTemp should be set!")
+					}
+					reqDir.TopTakerDirTemp = reqDir2.TopTakerDirTemp
+					reqDir.TopTakerDirTempDirID = reqDir2.TopTakerDirTempDirID
 				}
-				// INVAR: reqDir is set.
-				if targetTakerTopTempDir == "" {
 
-					targetTakerTopTempDir, tmpDirID, err = s.mkTempDir(
+				// INVAR: reqDir is set.
+				if weAreRemoteTaker {
+					targetTakerTopTempDir, tmpDirID, err := s.mkTempDir(
 						reqDir.TopTakerDirFinal)
 					panicOn(err)
 					vv("DirTaker (remote taker) made temp dir '%v' for finalDir '%v'", targetTakerTopTempDir, reqDir.TopTakerDirFinal)
+					reqDir.TopTakerDirTemp = targetTakerTopTempDir
+					reqDir.TopTakerDirTempDirID = tmpDirID
 				}
 				// INVAR: targetTakerTopTempDir is set.
 
 				tmpReady := rpc.NewFragment()
-				tmpReady.FragOp = OpRsync_DirSyncBeginReplyFromTaker
-				tmpReady.SetUserArg("targetTakerTopTempDir", targetTakerTopTempDir)
-				tmpReady.SetUserArg("targetTakerTopTempDirID", tmpDirID)
+				tmpReady.FragOp = OpRsync_DirSyncBeginReplyFromTaker // 23
+				tmpReady.SetUserArg("targetTakerTopTempDir", reqDir.TopTakerDirTemp)
+				tmpReady.SetUserArg("targetTakerTopTempDirID", reqDir.TopTakerDirTempDirID)
+				// do we need to send the reqDir?
+				//bts, err := reqDir.MarshalMsg(nil)
+				//panicOn(err)
+				//tmpReady.Payload = bts
 				err = ckt.SendOneWay(tmpReady, 0)
 				panicOn(err)
 

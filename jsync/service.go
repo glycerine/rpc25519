@@ -131,9 +131,9 @@ type SyncService struct {
 // lazy taker -> 19 (LazyTakerWantsToPull) on giver.. not found|modTm match|no match -> (taker gets:) CallPeerError|OpRsync_FileSizeModTimeMatch|OpRsync_LazyTakerNoLuck_ChunksRequired, if no luck -> OpRsync_RequestRemoteToGive 12 (joins above flow)
 
 // directory sync flows:
-// (taker) -> 21 TakerRequestsDirSyncBegin -> (giver) 22 DirSyncBeginToTaker (enter flow below)
+// (local taker creates tmp dir target) -> 21 TakerRequestsDirSyncBegin (remote giver notes tmp dir target) ->   (taker) 22 DirSyncBeginToTaker (enter flow below)
 //
-// (giver) -> 22 DirSyncBeginToTaker -> 23 DirSyncBeginReplyFromTaker -> 26/27/28 GiverSendsTopDirListing{|More|End} -> (giver) 29 TakerReadyForDirContents -> giver does individual file syncs (newly deleted files can be simply not transferred on the taker side to the new dir!) ... -> at end, giver -> DirSyncEndToTaker -> DirSyncEndAckFromTaker -> FIN.
+// (giver) -> 22 DirSyncBeginToTaker (remote taker creates tmp dir target) -> 23 DirSyncBeginReplyFromTaker -> 26/27/28 GiverSendsTopDirListing{|More|End} -> (giver) 29 TakerReadyForDirContents -> giver does individual file syncs (newly deleted files can be simply not transferred on the taker side to the new dir!) ... -> at end, giver -> DirSyncEndToTaker -> DirSyncEndAckFromTaker -> FIN.
 //
 // Both 21 and 22 should put the circuit into "dir-sync" mode wherein
 // we ignore all the other FragOps unrelated to coordinating the top
@@ -519,8 +519,8 @@ func (s *SyncService) Start(
 			if !syncReq.RemoteTakes && syncReq.TakerIsDir {
 				vv("%v: we are the local taker of dir. sending 21 OpRsync_TakerRequestsDirSyncBegin", name)
 
-				// we generate a temp dir first, then send 21
-				// OpRsync_TakerRequestsDirSyncBegin = 21 // to giver, please send me 22,26/27/28
+				// we (local taker) generate a temp dir first, then send 21
+				// OpRsync_TakerRequestsDirSyncBegin = 21 // to giver, please send me 22
 				targetTakerTopTempDir, tmpDirID, err := s.mkTempDir(syncReq.TakerPath)
 				panicOn(err)
 				vv("Start (local taker) made temp dir '%v' for finalDir '%v'", targetTakerTopTempDir, syncReq.TakerPath)
@@ -540,8 +540,8 @@ func (s *SyncService) Start(
 				pulldir.Payload = bts
 				pulldir.FromPeerID = myPeer.PeerID
 				pulldir.ServiceName = syncReq.ToRemotePeerServiceName
-				pulldir.SetUserArg("targetTakerTopTempDir", targetTakerTopTempDir)
-				pulldir.SetUserArg("targetTakerTopTempDirID", tmpDirID)
+				//pulldir.SetUserArg("targetTakerTopTempDir", targetTakerTopTempDir)
+				//pulldir.SetUserArg("targetTakerTopTempDirID", tmpDirID)
 
 				cktName := rsyncRemoteGivesDirString //"rsync remote gives dir"
 
@@ -597,7 +597,7 @@ func (s *SyncService) Start(
 				bts, err := reqDir.MarshalMsg(nil)
 				panicOn(err)
 				pushdir := rpc.NewFragment()
-				pushdir.FragOp = OpRsync_DirSyncBeginToTaker
+				pushdir.FragOp = OpRsync_DirSyncBeginToTaker // 22
 				pushdir.Payload = bts
 				cktName := rsyncRemoteTakesDirString // "rsync remote takes dir"
 

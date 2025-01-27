@@ -42,9 +42,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	done := ckt.Context.Done()
 	bt := &byteTracker{}
 
-	var targetTakerTopTempDir string
-	var tmpDirID string
-	_, _ = tmpDirID, targetTakerTopTempDir
+	weAreRemoteGiver := (reqDir == nil)
+	_ = weAreRemoteGiver
 
 	defer func(reqDir *RequestToSyncDir) {
 		vv("%v: (ckt '%v') defer running! finishing DirGiver; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
@@ -98,22 +97,51 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// reply with: 22 OpRsync_DirSyncBeginToTaker repeating the
 				// path they already sent us, so we can join/reuse the flow.
 
-				// (We will also send OpRsync_DirSyncBeginToTaker in
-				// service Start() if we are local giver
-				// and are starting a push to remote; at service.go:600).
+				// (A local giver will similarly send
+				// 22 OpRsync_DirSyncBeginToTaker in service Start()
+				// to start a push to remote; at service.go:600,
+				// but of course won't know the temp taker top dir.
+
+				reqDir2 := &RequestToSyncDir{}
+				_, err0 = reqDir2.UnmarshalMsg(frag0.Payload)
+				panicOn(err0)
+				bt.bread += len(frag0.Payload)
+				if reqDir == nil {
+					// weAreRemoteGiver true (set above)
+					reqDir = reqDir2
+				} else {
+					// we are local giver doing push.
+					// the echo we get back will have the
+					// target temp dir available for the first time.
+					// we need to copy it in.
+					reqDir.TopTakerDirTemp = reqDir2.TopTakerDirTemp
+					reqDir.TopTakerDirTempDirID = reqDir2.TopTakerDirTempDirID
+				}
+
+				begin := rpc.NewFragment()
+				begin.FragOp = OpRsync_DirSyncBeginToTaker // 22
+				bts, err := reqDir.MarshalMsg(nil)
+				panicOn(err)
+				begin.Payload = bts
+				err = ckt.SendOneWay(begin, 0)
+				panicOn(err)
 
 			case OpRsync_DirSyncBeginReplyFromTaker: // 23
 				vv("%v: (ckt '%v') (DirGiver) sees 23 OpRsync_DirSyncBeginReplyFromTaker", name, ckt.Name)
 
-				ok := false
-				targetTakerTopTempDir, ok = frag0.GetUserArg("targetTakerTopTempDir")
+				targetTakerTopTempDir, ok := frag0.GetUserArg("targetTakerTopTempDir")
 				if !ok {
 					panic(fmt.Sprintf("error in DirGiver: frag0 did not have user arg targetTakerTopTempDir avail: '%v'", frag0))
 				}
-				tmpDirID, ok = frag0.GetUserArg("targetTakerTopTempDirID")
+				reqDir.TopTakerDirTemp = targetTakerTopTempDir
+
+				tmpDirID, ok := frag0.GetUserArg("targetTakerTopTempDirID")
 				if !ok {
 					panic(fmt.Sprintf("error in DirGiver: frag0 did not have user arg targetTakerTopTempDirID avail: '%v'", frag0))
 				}
+				reqDir.TopTakerDirTempDirID = tmpDirID
+
+				vv("DirGiver will use write targets to targetTakerTopTempDir = '%v' for final: '%v'", targetTakerTopTempDir, reqDir.TopTakerDirFinal)
 
 				// after getting 23,
 				// send 26/27/28
