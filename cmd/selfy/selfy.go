@@ -73,9 +73,9 @@ func (c *SelfCertConfig) DefineFlags(fs *flag.FlagSet) {
 
 	fs.StringVar(&c.VerifySignatureOnCertPath, "verify", "", "verify this path is a certificate signed by the private key corresponding to the -p {my-keep-private-dir}/ca.crt public key")
 
-	fs.StringVar(&c.certValidForDurStr, "cert-validfor", "", "set this as the lifetime of the cert key-pair. Default empty means nevery expires, which is recommended. If you absolutely require a lifetime on your certs, this flag will set it on creation. Without a -k flag, this option is meaningless. Supports suffixes d and y for days and years. (note! the m suffix is for minutes!)")
+	fs.StringVar(&c.certValidForDurStr, "cert-validfor", "", "set this duration string as the lifetime of the cert key-pair. Default empty means never expires, which is recommended. If you absolutely require a lifetime on your certs, this flag will set it on creation. Without a -k flag, this option is meaningless. Supports suffixes d and y for days and years. (note! the m suffix is for minutes!)")
 
-	fs.StringVar(&c.authorityValidForDurStr, "ca-validfor", "", "set this as the lifetime of the Certificate Authority key pair. Default empty means nevery expires, which is recommended. If you absolutely require a lifetime on your CA key-pairs, this flag will set it on creation. Supports suffixes d and y for days and years. (note! the m suffix is for minutes!)")
+	fs.StringVar(&c.authorityValidForDurStr, "ca-validfor", "", "set this duration string as the lifetime of the Certificate Authority key pair. Default empty means never expires, which is recommended. If you absolutely require a lifetime on your CA key-pairs, this flag will set it on creation. Supports suffixes d and y for days and years. (note! the m suffix is for minutes!)")
 
 }
 
