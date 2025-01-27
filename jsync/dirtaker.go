@@ -148,13 +148,13 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				err = ckt.SendOneWay(tmpReady, 0)
 				panicOn(err)
 
-			case OpRsync_DirSyncEndToTaker:
+			case OpRsync_DirSyncEndToTaker: // 24, end of dir sync.
 				vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncEndToTaker", name, ckt.Name)
 				// we (taker) can rename the temp top dir/replace any old top dir.
 
 				// reply with OpRsync_DirSyncEndAckFromTaker, wait for FIN.
 
-			case OpRsync_GiverSendsTopDirListing, OpRsync_GiverSendsTopDirListingMore, OpRsync_GiverSendsTopDirListingEnd:
+			case OpRsync_GiverSendsTopDirListing, OpRsync_GiverSendsTopDirListingMore, OpRsync_GiverSendsTopDirListingEnd: // 26/27/28
 				vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
 				// Getting this means here is the starting dir tree from giver.
 				// or, to me (taker), here is more dir listing

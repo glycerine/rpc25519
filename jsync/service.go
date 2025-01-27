@@ -265,7 +265,8 @@ func NewRequestToSyncPath() *RequestToSyncPath {
 
 // RequestToSyncPath is the main bridge
 // between user code and the file syncing service
-// implementation. In essense, the user must:
+// implementation (for one file).
+// In essense, the user must:
 //
 // a) request := &RequestToSyncPath{} and set details/RemoteTakes to true/false
 // b) reqs := make(chan *RequestToSyncPath)
@@ -384,6 +385,9 @@ type RequestToSyncDir struct {
 	RemoteTakes bool `zid:"4"`
 
 	SR *RequestToSyncPath `zid:"5"` // original local request
+}
+
+type DirListing struct {
 }
 
 const assembleInMem = true
