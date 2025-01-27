@@ -27,18 +27,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	// update in oldpath
-	// oldvers in newpath
+	// Suppose:
+	// update in newpath
+	// oldvers in oldpath
 	err = atomicDirSwap(oldpath, newpath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to rename directory: %v\n", err)
 		os.Exit(1)
 	}
-	// after the atomic swap, now we can delete newpath
-	// (which has the oldvers in it now).
+	// after the atomic swap, now we can delete "newpath"
+	// which now has oldvers in it.
+
 	err = os.RemoveAll(newpath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to remove directory: %v\n", err)
 		os.Exit(1)
 	}
+
 }
