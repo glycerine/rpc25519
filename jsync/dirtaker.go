@@ -145,7 +145,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			_ = fragerr
 
 			if fragerr != nil {
-				// do we want to set reqDir.Err? No, the defer will do it.
+				// do we want to set reqDir.SR.Err? No, the defer will do it.
 				if fragerr.Err != "" {
 					return fmt.Errorf(fragerr.Err)
 				}
