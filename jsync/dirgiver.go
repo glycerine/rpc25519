@@ -24,9 +24,10 @@ import (
 //
 // The syncReq pointer in this call will be set when Giver is local.
 // It will be nil when Giver is remote.
-func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncDirReq *RequestToSyncDir, frag0 *rpc.Fragment, bt *byteTracker) (err0 error) {
+// func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncDirReq *RequestToSyncDir, frag0 *rpc.Fragment, bt *byteTracker) (err0 error) {
+func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncDirReq *RequestToSyncDir) (err0 error) {
 
-	vv("SyncService.DirGiver top.")
+	vv("SyncService.DirGiver top. We are local if syncDirReqp = %p != nil", syncDirReq)
 
 	name := myPeer.PeerServiceName
 	_ = name // used when logging is on.

@@ -22,9 +22,10 @@ import (
 
 // DirTaker is the directory top-level sync
 // coorinator from the Taker side.
-func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncDirReq *RequestToSyncDir, frag *rpc.Fragment, bt *byteTracker) (err0 error) {
+// func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncDirReq *RequestToSyncDir, frag *rpc.Fragment, bt *byteTracker) (err0 error) {
+func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncDirReq *RequestToSyncDir) (err0 error) {
 
-	vv("SyncService.DirTaker top")
+	vv("SyncService.DirTaker top; we are local if syncDirReq = %p != nil", syncDirReq)
 
 	name := myPeer.PeerServiceName
 	_ = name // used when logging is on.

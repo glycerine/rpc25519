@@ -410,6 +410,8 @@ func NewSyncService(reqs chan *RequestToSyncPath) *SyncService {
 
 const rsyncRemoteTakesString = "rsync remote takes"
 const rsyncRemoteGivesString = "rsync remote gives"
+const rsyncRemoteTakesDirString = "rsync remote takes dir"
+const rsyncRemoteGivesDirString = "rsync remote gives dir"
 
 func (s *SyncService) mkTempDir(finalDir string) (tempDir string, err error) {
 
@@ -468,12 +470,20 @@ func (s *SyncService) Start(
 			//vv("%v: newCircuitCh got rckt! service sees new peerURL: '%v'", name, rckt.RemoteCircuitURL())
 			// we are the "remote"
 
-			if rckt.Name == rsyncRemoteTakesString {
+			switch rckt.Name {
+
+			case rsyncRemoteTakesString:
 				// (first implemented)
 				go s.Taker(ctx0, rckt, myPeer, nil)
-			} else {
+			case rsyncRemoteGivesString:
 				// (second implemented)
 				go s.Giver(ctx0, rckt, myPeer, nil)
+			case rsyncRemoteTakesDirString:
+				go s.DirTaker(ctx0, rckt, myPeer, nil)
+			case rsyncRemoteGivesDirString:
+				go s.DirGiver(ctx0, rckt, myPeer, nil)
+			default:
+				panic(fmt.Sprintf("sync service does not recognize circuit name '%v'", rckt.Name))
 			}
 
 		case syncReq := <-s.SyncPathRequestCh:
@@ -503,7 +513,7 @@ func (s *SyncService) Start(
 				pulldir.FromPeerID = myPeer.PeerID
 				pulldir.ServiceName = syncReq.ToRemotePeerServiceName
 
-				cktName := rsyncRemoteGivesString //"rsync remote gives"
+				cktName := rsyncRemoteGivesDirString //"rsync remote gives"
 
 				ckt, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
 					pulldir, syncReq.ToRemotePeerServiceName,
@@ -511,7 +521,7 @@ func (s *SyncService) Start(
 				panicOn(err)
 
 				// local pulls from remote. the remote gives us the update.
-				go s.DirTaker(ctx0, ckt, myPeer, reqDir, pulldir, nil)
+				go s.DirTaker(ctx0, ckt, myPeer, reqDir)
 
 				continue
 			}
@@ -569,7 +579,7 @@ func (s *SyncService) Start(
 				// local pushes to remote.
 				// Since we are "local", we start the Giver.
 				// The remote takes from us.
-				go s.DirGiver(ctx0, ckt, myPeer, reqDir, pushdir, nil)
+				go s.DirGiver(ctx0, ckt, myPeer, reqDir)
 
 				/*
 					if syncReq.RemoteTakes {
