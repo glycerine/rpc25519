@@ -141,6 +141,21 @@ type SyncService struct {
 // FSMs. This partitions off the top-dir-sync circuit from any other
 // individual file sync that mistakenly use the top-level circuitID.
 
+// The only tricky/unique thing for directories, is that
+// we need to delete files on the taker that are not
+// on the giver. The giver won't know about these,
+// since they do not have them.
+// Other than that, we should be able to just push
+// each file on the giver to the taker.
+//
+// So the switch over can be atomic, and not interfere
+// with the parts trying to scan/update paths, the taker
+// should create a new top-level versioned directory,
+// and do all writes there. All reads of existing files
+// come from the original still on disk. If no errors
+// at the end, we can rename the new to old dir (possibly
+// rename the old to old.backup to manually verify everything).
+
 const (
 	OpRsync_RequestRemoteToTake            = 1  // to taker
 	OpRsync_ToGiverNeedFullFile2           = 2  // ... to Giver
@@ -491,9 +506,11 @@ func (s *SyncService) Start(
 
 			vv("%v: sees requested on SyncPathRequestCh: '%#v'", name, syncReq)
 
+			// begin dir sync bootstrap
 			if !syncReq.RemoteTakes && syncReq.TakerIsDir {
 				vv("%v: we are the local taker of dir. sending 21 OpRsync_TakerRequestsDirSyncBegin", name)
 
+				// we generate a temp dir first, then send 21
 				// OpRsync_TakerRequestsDirSyncBegin = 21 // to giver, please send me 22,26/27/28
 				targetTakerTopTempDir, err := s.mkTempDir(syncReq.TakerPath)
 				panicOn(err)
@@ -513,7 +530,7 @@ func (s *SyncService) Start(
 				pulldir.FromPeerID = myPeer.PeerID
 				pulldir.ServiceName = syncReq.ToRemotePeerServiceName
 
-				cktName := rsyncRemoteGivesDirString //"rsync remote gives"
+				cktName := rsyncRemoteGivesDirString //"rsync remote gives dir"
 
 				ckt, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
 					pulldir, syncReq.ToRemotePeerServiceName,
@@ -569,7 +586,7 @@ func (s *SyncService) Start(
 				pushdir := rpc.NewFragment()
 				pushdir.FragOp = OpRsync_DirSyncBeginToTaker
 				pushdir.Payload = bts
-				cktName := rsyncRemoteTakesString // "rsync remote takes"
+				cktName := rsyncRemoteTakesDirString // "rsync remote takes dir"
 
 				ckt, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
 					pushdir, syncReq.ToRemotePeerServiceName,
@@ -608,6 +625,7 @@ func (s *SyncService) Start(
 				*/
 				continue
 			} // end if GiverIsDir
+			// end directory sync bootstrap
 
 			// Use the circuitName to indicate remote taker or giver,
 			// so they don't need to accept a frag to know which to start.

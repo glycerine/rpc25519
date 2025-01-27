@@ -29,6 +29,12 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 	vv("SyncService.DirGiver top. We are local if syncDirReqp = %p != nil", syncDirReq)
 
+	// If the local giver (pushing), send the dir listing over,
+	// so the remote taker can tell what to delete.
+	// then
+	// fan out the request, one for each
+	// actual file on the local giver.
+
 	name := myPeer.PeerServiceName
 	_ = name // used when logging is on.
 
