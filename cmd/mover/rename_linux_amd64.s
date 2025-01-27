@@ -12,6 +12,10 @@ TEXT ·renameat2(SB),NOSPLIT,$0
     MOVQ    flags+64(FP), R8       // fifth argument: flags
     MOVQ    $316, AX               // syscall number for renameat2
     SYSCALL
-    NEGQ    AX                     // negate return for error
+    JCC     ok                     // jump if carry clear (no error)
+    NEGQ    AX                     // make error code positive
     MOVQ    AX, err+72(FP)         // store error code
+    RET
+ok:
+    MOVQ    $0, err+72(FP)         // return 0 (no error)
     RET
