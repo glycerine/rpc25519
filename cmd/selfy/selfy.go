@@ -33,6 +33,9 @@ type SelfCertConfig struct {
 	// verify that cert was signed by the private key
 	// corresponding to OdirCA_privateKey/ca.crt
 	VerifySignatureOnCertPath string
+
+	AuthorityValidForDur time.Duration
+	CertValidForDur      time.Duration
 }
 
 type EncryptedKeyFile struct {
@@ -63,6 +66,10 @@ func (c *SelfCertConfig) DefineFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.GenSymmetricKey32bytes, "gensym", "", "generate a new 32-byte symmetric encryption key with crypto/rand, and save it under this filename in the -p directory.")
 
 	fs.StringVar(&c.VerifySignatureOnCertPath, "verify", "", "verify this path is a certificate signed by the private key corresponding to the -p {my-keep-private-dir}/ca.crt public key")
+
+	fs.DurationVar(&c.CertValidForDur, "cert-validfor", 0, "set this as the lifetime of the cert key-pair. Default of 0 means nevery expires, which is recommended. If you absolutely require a lifetime on your certs, the -cert-validfor duration will set it on creation. Without a -k flag, this option is meaningless.")
+
+	fs.DurationVar(&c.AuthorityValidForDur, "ca-validfor", 0, "set this as the lifetime of the Certificate Authority key pair. Default of 0 means nevery expires, which is recommended. If you absolutely require a lifetime on your CA key-pairs, the --ca-validfor duration will set it on creation.")
 
 }
 
@@ -115,6 +122,7 @@ func main() {
 
 	var caPrivKey ed25519.PrivateKey
 	var caValidForDur time.Duration // 0 => max validity
+	caValidForDur = c.AuthorityValidForDur
 	if c.CreateCA {
 		caPrivKey, err = selfcert.Step1_MakeCertificateAuthority(
 			c.OdirCA_privateKey, verbose, !c.SkipEncryptPrivateKeys, caValidForDur)
@@ -141,6 +149,7 @@ func main() {
 		}
 		selfcert.Step3_MakeCertSigningRequest(privKey, c.CreateKeyPairNamed, c.Email, c.OdirCerts)
 		var goodForDur time.Duration // 0 => max validity
+		goodForDur = c.CertValidForDur
 		selfcert.Step4_MakeCertificate(caPrivKey, c.OdirCA_privateKey, c.CreateKeyPairNamed, c.OdirCerts, goodForDur, verbose)
 	}
 
