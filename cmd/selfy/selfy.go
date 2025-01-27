@@ -10,6 +10,8 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/glycerine/rpc25519"
@@ -36,6 +38,10 @@ type SelfCertConfig struct {
 
 	AuthorityValidForDur time.Duration
 	CertValidForDur      time.Duration
+
+	// initial flag values go here, so we can support d (day), and y (year)
+	certValidForDurStr      string
+	authorityValidForDurStr string
 }
 
 type EncryptedKeyFile struct {
@@ -67,9 +73,9 @@ func (c *SelfCertConfig) DefineFlags(fs *flag.FlagSet) {
 
 	fs.StringVar(&c.VerifySignatureOnCertPath, "verify", "", "verify this path is a certificate signed by the private key corresponding to the -p {my-keep-private-dir}/ca.crt public key")
 
-	fs.DurationVar(&c.CertValidForDur, "cert-validfor", 0, "set this as the lifetime of the cert key-pair. Default of 0 means nevery expires, which is recommended. If you absolutely require a lifetime on your certs, the -cert-validfor duration will set it on creation. Without a -k flag, this option is meaningless.")
+	fs.StringVar(&c.certValidForDurStr, "cert-validfor", "", "set this as the lifetime of the cert key-pair. Default empty means nevery expires, which is recommended. If you absolutely require a lifetime on your certs, this flag will set it on creation. Without a -k flag, this option is meaningless. Supports suffixes d and y for days and years. (note! the m suffix is for minutes!)")
 
-	fs.DurationVar(&c.AuthorityValidForDur, "ca-validfor", 0, "set this as the lifetime of the Certificate Authority key pair. Default of 0 means nevery expires, which is recommended. If you absolutely require a lifetime on your CA key-pairs, the --ca-validfor duration will set it on creation.")
+	fs.StringVar(&c.authorityValidForDurStr, "ca-validfor", "", "set this as the lifetime of the Certificate Authority key pair. Default empty means nevery expires, which is recommended. If you absolutely require a lifetime on your CA key-pairs, this flag will set it on creation. Supports suffixes d and y for days and years. (note! the m suffix is for minutes!)")
 
 }
 
@@ -84,6 +90,16 @@ func (c *SelfCertConfig) ValidateConfig(fs *flag.FlagSet) (err error) {
 	if c.VerifySignatureOnCertPath != "" && !FileExists(c.VerifySignatureOnCertPath) {
 		return fmt.Errorf("selfy -verify path not found: '%v'", c.VerifySignatureOnCertPath)
 	}
+
+	c.CertValidForDur, err = ParseDurationDaysYearsToo(c.certValidForDurStr)
+	if err != nil {
+		return err
+	}
+	c.AuthorityValidForDur, err = ParseDurationDaysYearsToo(c.authorityValidForDurStr)
+	if err != nil {
+		return err
+	}
+
 	return
 }
 
@@ -150,6 +166,19 @@ func main() {
 		selfcert.Step3_MakeCertSigningRequest(privKey, c.CreateKeyPairNamed, c.Email, c.OdirCerts)
 		var goodForDur time.Duration // 0 => max validity
 		goodForDur = c.CertValidForDur
+		if caValidForDur > 0 {
+			// keep cert lifetime inside CA lifetime.
+			// This makes it easier to gen on cmd line.
+			// You only have to specify one, either -ca-validfor or -cert-validfor
+			if goodForDur == 0 {
+				goodForDur = caValidForDur
+			} else {
+				// cert can be <= ca, but not more
+				if goodForDur > caValidForDur {
+					goodForDur = caValidForDur
+				}
+			}
+		}
 		selfcert.Step4_MakeCertificate(caPrivKey, c.OdirCA_privateKey, c.CreateKeyPairNamed, c.OdirCerts, goodForDur, verbose)
 	}
 
@@ -264,4 +293,33 @@ func panicOn(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func ParseDurationDaysYearsToo(s string) (dur time.Duration, err error) {
+
+	if s == "" {
+		return
+	}
+
+	// Handle year suffix
+	if strings.HasSuffix(s, "y") {
+		years, err := strconv.ParseFloat(s[:len(s)-1], 64)
+		if err != nil {
+			return 0, err
+		}
+		// Approximate a year as 365.25 days to account for leap years
+		return time.Duration(years * 365.25 * 24 * float64(time.Hour)), nil
+	}
+
+	// Handle day suffix
+	if strings.HasSuffix(s, "d") {
+		days, err := strconv.ParseFloat(s[:len(s)-1], 64)
+		if err != nil {
+			return 0, err
+		}
+		return time.Duration(days * 24 * float64(time.Hour)), nil
+	}
+
+	// Use standard time.ParseDuration for other suffixes
+	return time.ParseDuration(s)
 }
