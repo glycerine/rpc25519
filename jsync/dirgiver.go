@@ -42,6 +42,10 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	done := ckt.Context.Done()
 	bt := &byteTracker{}
 
+	var targetTakerTopTempDir string
+	var tmpDirID string
+	_, _ = tmpDirID, targetTakerTopTempDir
+
 	defer func(reqDir *RequestToSyncDir) {
 		vv("%v: (ckt '%v') defer running! finishing DirGiver; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
 		////vv("bt = '%#v'", bt)
@@ -112,6 +116,16 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 			case OpRsync_DirSyncBeginReplyFromTaker:
 				vv("%v: (ckt '%v') (DirGiver) sees 23 OpRsync_DirSyncBeginReplyFromTaker", name, ckt.Name)
+
+				ok := false
+				targetTakerTopTempDir, ok = frag0.GetUserArg("targetTakerTopTempDir")
+				if !ok {
+
+				}
+				tmpDirID, ok = frag0.GetUserArg("targetTakerTopTempDirID")
+				if !ok {
+
+				}
 
 			case OpRsync_TakerReadyForDirContents:
 				vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerReadyForDirContents", name, ckt.Name)
