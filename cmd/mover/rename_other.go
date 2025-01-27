@@ -5,6 +5,6 @@ package main
 
 import "fmt"
 
-func atomicDirReplace(oldpath, newpath string) error {
-	return fmt.Errorf("atomic directory replacement not supported on this platform.")
+func atomicDirSwap(oldpath, newpath string) error {
+	return fmt.Errorf("atomic directory swap not supported on this platform.")
 }

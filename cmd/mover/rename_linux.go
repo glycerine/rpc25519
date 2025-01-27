@@ -30,7 +30,7 @@ func atomicDirReplace(oldpath, newpath string) error {
 	}
 	defer syscall.Close(newFd)
 
-	// Perform the atomic rename
+	// Perform the atomic swap
 	err = syscall.Renameat2(oldFd, oldName, newFd, newName, _RENAME_EXCHANGE)
 	if err != nil {
 		return fmt.Errorf("renameat2 failed: %w", err)
