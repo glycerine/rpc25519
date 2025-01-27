@@ -11,27 +11,71 @@ import (
 	//"os"
 	//"path/filepath"
 	//"strconv"
-	//"strings"
+	"strings"
 	//"sync"
 	//"time"
 
-	//"github.com/glycerine/idem"
+	"github.com/glycerine/idem"
 	rpc "github.com/glycerine/rpc25519"
 	//"lukechampine.com/blake3"
 )
 
 // DirTaker is the directory top-level sync
-// coorinator from the Taker side.
+// coordinator from the Taker side.
 // func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncDirReq *RequestToSyncDir, frag *rpc.Fragment, bt *byteTracker) (err0 error) {
-func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncDirReq *RequestToSyncDir) (err0 error) {
+func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, reqDir *RequestToSyncDir) (err0 error) {
 
-	vv("SyncService.DirTaker top; we are local if syncDirReq = %p != nil", syncDirReq)
+	vv("SyncService.DirTaker top; we are local if reqDir = %p != nil", reqDir)
 
 	name := myPeer.PeerServiceName
 	_ = name // used when logging is on.
 
 	done0 := ctx0.Done()
 	done := ckt.Context.Done()
+	bt := &byteTracker{}
+
+	var targetTakerTopTempDir string
+
+	if reqDir != nil {
+		if reqDir.TopTakerDirTemp == "" {
+			panic("reqDir.TopTakerDirTemp should have been fille in!")
+		}
+		targetTakerTopTempDir = reqDir.TopTakerDirTemp
+	}
+
+	defer func(reqDir *RequestToSyncDir) {
+		vv("%v: (ckt '%v') defer running! finishing Taker; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
+		////vv("bt = '%#v'", bt)
+
+		// only close Done for local (client, typically) if we were started locally.
+		if reqDir != nil {
+			reqDir.SR.BytesRead = int64(bt.bread)
+			reqDir.SR.BytesSent = int64(bt.bsend)
+			//reqDir.RemoteBytesTransferred = ?
+			if err0 != nil {
+				//vv("setting (%p) reqDir.Errs = '%v'", reqDir, err0.Error())
+				reqDir.SR.Errs = err0.Error()
+			}
+			reqDir.SR.Done.Close() // only AFTER setting Errs, please!
+		}
+		ckt.Close(err0)
+
+		// suppress context cancelled shutdowns
+		if r := recover(); r != nil {
+			switch x := r.(type) {
+			case error:
+				if strings.Contains(x.Error(), "connection reset") {
+					// ok
+					return
+				}
+			}
+			if r != rpc.ErrContextCancelled && r != rpc.ErrHaltRequested {
+				panic(r)
+			} else {
+				//vv("DirTaker suppressing rpc.ErrContextCancelled or ErrHaltRequested, this is normal shutdown.")
+			}
+		}
+	}(reqDir)
 
 	// this is the DirTaker side
 	for {
@@ -52,6 +96,28 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// and the new top tempdir path, even if
 				// we initiated and they already know the path; just repeat it
 				// for simplicity/reusing the flow.
+
+				var err error
+				if reqDir == nil {
+					reqDir = &RequestToSyncDir{}
+					_, err = reqDir.UnmarshalMsg(frag.Payload)
+					panicOn(err)
+					bt.bread += len(frag.Payload)
+					// allow defer above to Done.Close() it even if remote no-op.
+					reqDir.SR.Done = idem.NewIdemCloseChan()
+				}
+				// INVAR: reqDir is set.
+				if targetTakerTopTempDir == "" {
+					targetTakerTopTempDir, err = s.mkTempDir(reqDir.TopTakerDirFinal)
+					panicOn(err)
+				}
+				// INVAR: targetTakerTopTempDir is set.
+
+				tmpReady := rpc.NewFragment()
+				tmpReady.FragOp = OpRsync_DirSyncBeginReplyFromTaker
+				tmpReady.SetUserArg("targetTakerTopTempDir", targetTakerTopTempDir)
+				err = ckt.SendOneWay(tmpReady, 0)
+				panicOn(err)
 
 			case OpRsync_DirSyncEndToTaker:
 				vv("%v: (ckt '%v') (Taker) sees OpRsync_DirSyncEndToTaker", name, ckt.Name)
@@ -81,7 +147,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			_ = fragerr
 
 			if fragerr != nil {
-				// do we want to set syncReq.Err? No, the defer will do it.
+				// do we want to set reqDir.Err? No, the defer will do it.
 				if fragerr.Err != "" {
 					return fmt.Errorf(fragerr.Err)
 				}
