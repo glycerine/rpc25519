@@ -24,7 +24,6 @@ import (
 //
 // The syncReq pointer in this call will be set when Giver is local.
 // It will be nil when Giver is remote.
-// func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncDirReq *RequestToSyncDir, frag0 *rpc.Fragment, bt *byteTracker) (err0 error) {
 func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, reqDir *RequestToSyncDir) (err0 error) {
 
 	vv("SyncService.DirGiver top. We are local if reqDirp = %p != nil", reqDir)

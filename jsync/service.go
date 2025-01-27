@@ -540,8 +540,8 @@ func (s *SyncService) Start(
 				pulldir.Payload = bts
 				pulldir.FromPeerID = myPeer.PeerID
 				pulldir.ServiceName = syncReq.ToRemotePeerServiceName
-				//pulldir.SetUserArg("targetTakerTopTempDir", targetTakerTopTempDir)
-				//pulldir.SetUserArg("targetTakerTopTempDirID", tmpDirID)
+				pulldir.SetUserArg("targetTakerTopTempDir", targetTakerTopTempDir)
+				pulldir.SetUserArg("targetTakerTopTempDirID", tmpDirID)
 
 				cktName := rsyncRemoteGivesDirString //"rsync remote gives dir"
 

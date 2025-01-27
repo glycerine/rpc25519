@@ -22,7 +22,6 @@ import (
 
 // DirTaker is the directory top-level sync
 // coordinator from the Taker side.
-// func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncDirReq *RequestToSyncDir, frag *rpc.Fragment, bt *byteTracker) (err0 error) {
 func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, reqDir *RequestToSyncDir) (err0 error) {
 
 	vv("SyncService.DirTaker top; we are local if reqDir = %p != nil", reqDir)
@@ -137,7 +136,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				tmpReady := rpc.NewFragment()
 				tmpReady.FragOp = OpRsync_DirSyncBeginReplyFromTaker // 23
 
-				// useful visibility, but use the struct field as definitive.
+				// useful visibility, but use the struct fields as definitive.
 				tmpReady.SetUserArg("targetTakerTopTempDir",
 					reqDir.TopTakerDirTemp)
 				tmpReady.SetUserArg("targetTakerTopTempDirID",
