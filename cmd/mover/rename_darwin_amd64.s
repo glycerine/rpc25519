@@ -16,7 +16,7 @@ TEXT ·renamex_np(SB),NOSPLIT,$0
     MOVQ    $-2, DX              // AT_FDCWD for new directory
     MOVQ    newpath+16(FP), R10  // new path string pointer
     MOVL    flags+32(FP), R8     // flags
-    MOVQ    $476, AX             // syscall #476 = renameatx_np
+    MOVQ    $488, AX             // syscall #488 = renameatx_np (from syscalls.master)
     SYSCALL
     JCC     ok                    // jump if carry clear (no error)
     NEGQ    AX                   // make error code positive
