@@ -71,7 +71,7 @@ func Test440_directory_sync(t *testing.T) {
 		// set up a server and a client.
 
 		vv("two dirs and two files local setup done")
-		select {}
+
 		cfg := rpc.NewConfig()
 		//cfg.TCPonly_no_TLS = true
 		//cfg.CompressionOff = true
@@ -80,9 +80,9 @@ func Test440_directory_sync(t *testing.T) {
 		srv := rpc.NewServer("srv_rsync_test440", cfg)
 
 		// ==== configure server's remote dir first, start server.
-		os.Setenv("RPC25519_SERVER_DATA_DIR", remoteDir)
+		//os.Setenv("RPC25519_SERVER_DATA_DIR", remoteDir)
 		// try not to impact other tests:
-		defer os.Unsetenv("RPC25519_SERVER_DATA_DIR")
+		//defer os.Unsetenv("RPC25519_SERVER_DATA_DIR")
 
 		// for this to work: the srv must note its home dir when
 		// starting, just once, and keep referencing that, and

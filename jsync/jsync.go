@@ -182,7 +182,11 @@ func (s *jsyncU) PushFromTo(fromLocalPath, toRemotePath string) (dataBytesMoved 
 
 	cli := s.rsyncd.U
 
-	if !fileExists(fromLocalPath) {
+	if dirExists(fromLocalPath) {
+		// dir sync
+		return -1, s.DirPushFromTo(fromLocalPath, toRemotePath, cli)
+
+	} else if !fileExists(fromLocalPath) {
 		// no such path at the moment
 		return 0, fmt.Errorf("error on PushFromTo: no such fromLocalPath '%v'",
 			fromLocalPath)
@@ -242,4 +246,58 @@ func (s *jsyncU) PushFromTo(fromLocalPath, toRemotePath string) (dataBytesMoved 
 		return 0, fmt.Errorf(req.Errs)
 	}
 	return int(req.BytesSent), nil
+}
+
+func (s *jsyncU) DirPushFromTo(fromLocalDir, toRemoteDir string, cli rpc.UniversalCliSrv) (err error) {
+
+	t0 := time.Now()
+
+	cwd, err := os.Getwd()
+	panicOn(err)
+
+	req := &RequestToSyncPath{
+		GiverPath: fromLocalDir,
+		TakerPath: toRemoteDir,
+
+		GiverIsDir: true,
+		TakerIsDir: true,
+
+		//FileSize:                fi.Size(),
+		//ModTime:                 fi.ModTime(),
+		//FileMode:                uint32(fi.Mode()),
+		Done:                    idem.NewIdemCloseChan(),
+		ToRemotePeerServiceName: "jsync_server",
+
+		//NB cannot use cfg.ClientDialToHostPort b/c lacks {tcp,udp}://	protocol part
+		ToRemoteNetAddr: cli.RemoteAddr(),
+
+		SyncFromHostname: rpc.Hostname,
+		SyncFromHostCID:  rpc.HostCID,
+		AbsDir:           cwd,
+
+		RemoteTakes: true,
+
+		// (pull): for taking an update locally. Tell remote what we have now.
+		//Precis: precis,
+		//Chunks: chunks,
+	}
+	vv("PushFromTo req using ToRemoteNetAddr: '%v'. push (remote takes) = %v", req.ToRemoteNetAddr, req.RemoteTakes)
+
+	//lpb, ctx, canc, err := RunRsyncReader(s.cfg, cli, "jsync_client", true, reqs)
+	//panicOn(err)
+	//defer lpb.Close()
+	//defer canc()
+	//_ = ctx
+
+	vv("DirPushFromTo about to send on reqs chan")
+	s.reqs <- req
+	<-req.Done.Chan
+
+	vv("DirPushFromTo push fromLocalDir '%v' -> '%v' in %v: err='%v'", fromLocalDir, toRemoteDir, time.Since(t0), req.Errs)
+
+	if req.Errs != "" {
+		return fmt.Errorf(req.Errs)
+	}
+	return nil
+
 }
