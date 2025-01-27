@@ -111,8 +111,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 					targetTakerTopTempDir, tmpDirID, err = s.mkTempDir(
 						reqDir.TopTakerDirFinal)
-
 					panicOn(err)
+					vv("DirTaker (remote taker) made temp dir '%v' for finalDir '%v'", targetTakerTopTempDir, reqDir.TopTakerDirFinal)
 				}
 				// INVAR: targetTakerTopTempDir is set.
 

@@ -2,7 +2,7 @@ package jsync
 
 import (
 	"context"
-	//"fmt"
+	"fmt"
 	//"os"
 	"strings"
 	//"sync"
@@ -90,42 +90,38 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			switch frag0.FragOp {
 
 			///////////// begin dir sync stuff
-			case OpRsync_TakerRequestsDirSyncBegin:
+			case OpRsync_TakerRequestsDirSyncBegin: // 21
 				vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerRequestsDirSyncBegin.", name, ckt.Name)
 
 				// taker gives us their top dir temp dir to write paths into.
-				// send my (takers) temp new top dir for paths to go into.
-				// be sure to setup the new temp dir as separately as possible,
-				// to avoid overlapping dir transfers having crosstalk.
-				// we tell giver, please send me 22,26/27/28
 
 				// reply with: 22 OpRsync_DirSyncBeginToTaker repeating the
 				// path they already sent us, so we can join/reuse the flow.
-				// We will also send OpRsync_DirSyncBeginToTaker in
+
+				// (We will also send OpRsync_DirSyncBeginToTaker in
 				// service Start() if we are local giver
-				// and are starting a push to remote.
+				// and are starting a push to remote; at service.go:600).
 
-				// after sending 22
-				// then
-				// send 26/27/28 immediately next
-				// OpRsync_GiverSendsTopDirListing
-				// OpRsync_GiverSendsTopDirListingMore
-				// OpRsync_GiverSendsTopDirListingEnd
-
-				// and wait for OpRsync_TakerReadyForDirContents
-
-			case OpRsync_DirSyncBeginReplyFromTaker:
+			case OpRsync_DirSyncBeginReplyFromTaker: // 23
 				vv("%v: (ckt '%v') (DirGiver) sees 23 OpRsync_DirSyncBeginReplyFromTaker", name, ckt.Name)
 
 				ok := false
 				targetTakerTopTempDir, ok = frag0.GetUserArg("targetTakerTopTempDir")
 				if !ok {
-
+					panic(fmt.Sprintf("error in DirGiver: frag0 did not have user arg targetTakerTopTempDir avail: '%v'", frag0))
 				}
 				tmpDirID, ok = frag0.GetUserArg("targetTakerTopTempDirID")
 				if !ok {
-
+					panic(fmt.Sprintf("error in DirGiver: frag0 did not have user arg targetTakerTopTempDirID avail: '%v'", frag0))
 				}
+
+				// after getting 23,
+				// send 26/27/28
+				// OpRsync_GiverSendsTopDirListing
+				// OpRsync_GiverSendsTopDirListingMore
+				// OpRsync_GiverSendsTopDirListingEnd
+
+				// and wait for OpRsync_TakerReadyForDirContents
 
 			case OpRsync_TakerReadyForDirContents:
 				vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerReadyForDirContents", name, ckt.Name)

@@ -439,7 +439,6 @@ func (s *SyncService) mkTempDir(finalDir string) (tmpDir, tmpDirID string, err e
 	tmpDir = stagingDir + sep + tmpDirID
 	err = os.MkdirAll(tmpDir, 0700)
 	panicOn(err)
-	vv("mkTempDir made '%v' for finalDir '%vc'", tmpDir, finalDir)
 	return
 }
 
@@ -524,6 +523,7 @@ func (s *SyncService) Start(
 				// OpRsync_TakerRequestsDirSyncBegin = 21 // to giver, please send me 22,26/27/28
 				targetTakerTopTempDir, tmpDirID, err := s.mkTempDir(syncReq.TakerPath)
 				panicOn(err)
+				vv("Start (local taker) made temp dir '%v' for finalDir '%v'", targetTakerTopTempDir, syncReq.TakerPath)
 
 				reqDir := &RequestToSyncDir{
 					GiverDir:             syncReq.GiverPath,
