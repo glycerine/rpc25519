@@ -15,7 +15,7 @@ import (
 	//"sync"
 	//"time"
 
-	"github.com/glycerine/idem"
+	//"github.com/glycerine/idem"
 	rpc "github.com/glycerine/rpc25519"
 	//"lukechampine.com/blake3"
 )
@@ -44,7 +44,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	}
 
 	defer func(reqDir *RequestToSyncDir) {
-		vv("%v: (ckt '%v') defer running! finishing Taker; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
+		vv("%v: (ckt '%v') defer running! finishing DirTaker; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
 		////vv("bt = '%#v'", bt)
 
 		// only close Done for local (client, typically) if we were started locally.
@@ -81,14 +81,14 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	for {
 		select {
 		case frag := <-ckt.Reads:
-			//vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
+			//vv("%v: (ckt %v) (DirTaker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
 			_ = frag
 			switch frag.FragOp {
 
 			///////////////// begin dir sync stuff
 
 			case OpRsync_DirSyncBeginToTaker:
-				vv("%v: (ckt '%v') (Taker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
+				vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
 				// we should: setup a top tempdir and tell the
 				// giver the path so they can send new files into that path.
 
@@ -103,8 +103,6 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					_, err = reqDir.UnmarshalMsg(frag.Payload)
 					panicOn(err)
 					bt.bread += len(frag.Payload)
-					// allow defer above to Done.Close() it even if remote no-op.
-					reqDir.SR.Done = idem.NewIdemCloseChan()
 				}
 				// INVAR: reqDir is set.
 				if targetTakerTopTempDir == "" {
@@ -120,13 +118,13 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				panicOn(err)
 
 			case OpRsync_DirSyncEndToTaker:
-				vv("%v: (ckt '%v') (Taker) sees OpRsync_DirSyncEndToTaker", name, ckt.Name)
+				vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncEndToTaker", name, ckt.Name)
 				// we (taker) can rename the temp top dir/replace any old top dir.
 
 				// reply with OpRsync_DirSyncEndAckFromTaker, wait for FIN.
 
 			case OpRsync_GiverSendsTopDirListing, OpRsync_GiverSendsTopDirListingMore, OpRsync_GiverSendsTopDirListingEnd:
-				vv("%v: (ckt '%v') (Taker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
+				vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
 				// Getting this means here is the starting dir tree from giver.
 				// or, to me (taker), here is more dir listing
 				// or, to me (taker), here is end dir listing
@@ -137,7 +135,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			///////////////// end dir sync stuff
 
 			case OpRsync_AckBackFIN_ToTaker:
-				////vv("%v: (ckt '%v') (Taker) sees OpRsync_AckBackFIN_ToTaker. returning.", name, ckt.Name)
+				////vv("%v: (ckt '%v') (DirTaker) sees OpRsync_AckBackFIN_ToTaker. returning.", name, ckt.Name)
 				return
 
 			} // end switch FragOp
@@ -167,7 +165,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			//zz("%v: (ckt '%v') top func halt.ReqStop seen", name, ckt.Name)
 			//	return
 		case <-ckt.Halt.ReqStop.Chan:
-			//////vv("%v: (ckt '%v') (Taker) ckt halt requested.", name, ckt.Name)
+			//////vv("%v: (ckt '%v') (DirTaker) ckt halt requested.", name, ckt.Name)
 			return
 		}
 	}

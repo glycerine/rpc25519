@@ -4,7 +4,7 @@ import (
 	"context"
 	//"fmt"
 	//"os"
-	//"strings"
+	"strings"
 	//"sync"
 	//"time"
 
@@ -25,9 +25,9 @@ import (
 // The syncReq pointer in this call will be set when Giver is local.
 // It will be nil when Giver is remote.
 // func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncDirReq *RequestToSyncDir, frag0 *rpc.Fragment, bt *byteTracker) (err0 error) {
-func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncDirReq *RequestToSyncDir) (err0 error) {
+func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, reqDir *RequestToSyncDir) (err0 error) {
 
-	vv("SyncService.DirGiver top. We are local if syncDirReqp = %p != nil", syncDirReq)
+	vv("SyncService.DirGiver top. We are local if reqDirp = %p != nil", reqDir)
 
 	// If the local giver (pushing), send the dir listing over,
 	// so the remote taker can tell what to delete.
@@ -40,6 +40,41 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 	done0 := ctx0.Done()
 	done := ckt.Context.Done()
+	bt := &byteTracker{}
+
+	defer func(reqDir *RequestToSyncDir) {
+		vv("%v: (ckt '%v') defer running! finishing DirGiver; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
+		////vv("bt = '%#v'", bt)
+
+		// only close Done for local (client, typically) if we were started locally.
+		if reqDir != nil {
+			reqDir.SR.BytesRead = int64(bt.bread)
+			reqDir.SR.BytesSent = int64(bt.bsend)
+			//reqDir.RemoteBytesTransferred = ?
+			if err0 != nil {
+				//vv("setting (%p) reqDir.Errs = '%v'", reqDir, err0.Error())
+				reqDir.SR.Errs = err0.Error()
+			}
+			reqDir.SR.Done.Close() // only AFTER setting Errs, please!
+		}
+		ckt.Close(err0)
+
+		// suppress context cancelled shutdowns
+		if r := recover(); r != nil {
+			switch x := r.(type) {
+			case error:
+				if strings.Contains(x.Error(), "connection reset") {
+					// ok
+					return
+				}
+			}
+			if r != rpc.ErrContextCancelled && r != rpc.ErrHaltRequested {
+				panic(r)
+			} else {
+				//vv("DirGiver suppressing rpc.ErrContextCancelled or ErrHaltRequested, this is normal shutdown.")
+			}
+		}
+	}(reqDir)
 
 	for {
 		select {
@@ -52,7 +87,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 			///////////// begin dir sync stuff
 			case OpRsync_TakerRequestsDirSyncBegin:
-				vv("%v: (ckt '%v') (Giver) sees OpRsync_TakerRequestsDirSyncBegin.", name, ckt.Name)
+				vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerRequestsDirSyncBegin.", name, ckt.Name)
 
 				// taker gives us their top dir temp dir to write paths into.
 				// send my (takers) temp new top dir for paths to go into.
@@ -75,8 +110,11 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 				// and wait for OpRsync_TakerReadyForDirContents
 
+			case OpRsync_DirSyncBeginReplyFromTaker:
+				vv("%v: (ckt '%v') (DirGiver) sees 23 OpRsync_DirSyncBeginReplyFromTaker", name, ckt.Name)
+
 			case OpRsync_TakerReadyForDirContents:
-				vv("%v: (ckt '%v') (Giver) sees OpRsync_TakerReadyForDirContents", name, ckt.Name)
+				vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerReadyForDirContents", name, ckt.Name)
 
 				// we (giver) now do individual file syncs (newly deleted files can be simply not transferred on the taker side to the new dir!) ... -> at end, giver -> DirSyncEndToTaker
 
@@ -84,7 +122,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// wait for OpRsync_DirSyncEndAckFromTaker.
 
 			case OpRsync_DirSyncEndAckFromTaker:
-				vv("%v: (ckt '%v') (Giver) sees OpRsync_DirSyncEndAckFromTaker", name, ckt.Name)
+				vv("%v: (ckt '%v') (DirGiver) sees OpRsync_DirSyncEndAckFromTaker", name, ckt.Name)
 				// shut down all dir sync stuff, send FIN.
 
 				s.ackBackFINToTaker(ckt, frag0)
@@ -94,28 +132,28 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				///////////// end dir sync stuff
 
 			case OpRsync_AckBackFIN_ToGiver:
-				//vv("%v: (ckt '%v') (Giver) sees OpRsync_AckBackFIN_ToGiver. returning.", name, ckt.Name)
+				//vv("%v: (ckt '%v') (DirGiver) sees OpRsync_AckBackFIN_ToGiver. returning.", name, ckt.Name)
 				return
 
 			} // end switch frag0.FragOp
 
 		case fragerr := <-ckt.Errors:
-			//vv("%v: (ckt %v) (Giver) ckt.Errors sees fragerr:'%s'", name, ckt.Name, fragerr)
+			//vv("%v: (ckt %v) (DirGiver) ckt.Errors sees fragerr:'%s'", name, ckt.Name, fragerr)
 			_ = fragerr
 			// 	err := ckt.SendOneWay(frag, 0)
 			// 	panicOn(err)
-			if syncDirReq != nil {
-				syncDirReq.SR.Errs = fragerr.Err
+			if reqDir != nil {
+				reqDir.SR.Errs = fragerr.Err
 			}
 			return
 		case <-done:
-			////vv("%v: (ckt '%v') (Giver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
+			////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
 			return
 		case <-done0:
-			////vv("%v: (ckt '%v') (Giver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
+			////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
 			return
 		case <-ckt.Halt.ReqStop.Chan:
-			////vv("%v: (ckt '%v') (Giver) ckt halt requested.", name, ckt.Name)
+			////vv("%v: (ckt '%v') (DirGiver) ckt halt requested.", name, ckt.Name)
 			return
 		}
 	}
