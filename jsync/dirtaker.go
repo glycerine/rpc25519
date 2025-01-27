@@ -108,11 +108,19 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					// already set above: weAreRemoteTaker = true
 					reqDir = reqDir2
 				} else {
+					// we are the local taker. We created the
+					// temp target dir in service Start(). The
+					// remote giver should be echo-ing back what
+					// we gave them.
 					if reqDir2.TopTakerDirTemp == "" {
-						panic("reqDir2.TopTakerDirTemp should be set!")
+						panic("reqDir2.TopTakerDirTemp should be set in reqDir2!")
 					}
-					reqDir.TopTakerDirTemp = reqDir2.TopTakerDirTemp
-					reqDir.TopTakerDirTempDirID = reqDir2.TopTakerDirTempDirID
+					if reqDir2.TopTakerDirTemp != reqDir.TopTakerDirTemp {
+						panic("huh? reqDir2.TopTakerDirTemp != reqDir.TopTakerDirTemp")
+					}
+					if reqDir2.TopTakerDirTempDirID != reqDir.TopTakerDirTempDirID {
+						panic("huh2? reqDir2.TopTakerDirTempDirID != reqDir.TopTakerDirTempDirID")
+					}
 				}
 
 				// INVAR: reqDir is set.
@@ -128,12 +136,16 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 				tmpReady := rpc.NewFragment()
 				tmpReady.FragOp = OpRsync_DirSyncBeginReplyFromTaker // 23
-				tmpReady.SetUserArg("targetTakerTopTempDir", reqDir.TopTakerDirTemp)
-				tmpReady.SetUserArg("targetTakerTopTempDirID", reqDir.TopTakerDirTempDirID)
-				// do we need to send the reqDir?
-				//bts, err := reqDir.MarshalMsg(nil)
-				//panicOn(err)
-				//tmpReady.Payload = bts
+
+				// useful visibility, but use the struct field as definitive.
+				tmpReady.SetUserArg("targetTakerTopTempDir",
+					reqDir.TopTakerDirTemp)
+				tmpReady.SetUserArg("targetTakerTopTempDirID",
+					reqDir.TopTakerDirTempDirID)
+
+				bts, err := reqDir.MarshalMsg(nil)
+				panicOn(err)
+				tmpReady.Payload = bts
 				err = ckt.SendOneWay(tmpReady, 0)
 				panicOn(err)
 
