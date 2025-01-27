@@ -3,21 +3,31 @@
 
 package main
 
+/*
+#define _GNU_SOURCE
+#include <fcntl.h>
+#include <stdio.h>
+#include <errno.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+
+int my_renameat2(const char *oldpath, const char *newpath, unsigned int flags) {
+    return syscall(SYS_renameat2, AT_FDCWD, oldpath, AT_FDCWD, newpath, flags);
+}
+*/
+import "C"
 import (
 	"fmt"
-	"syscall"
 )
 
 const (
 	_RENAME_EXCHANGE = 0x2
 )
 
-//go:noescape
-func renameat2(olddirfd int, oldpath string, newdirfd int, newpath string, flags uint) (err syscall.Errno)
-
 func atomicDirSwap(oldpath, newpath string) error {
-	if err := renameat2(-100, oldpath, -100, newpath, _RENAME_EXCHANGE); err != 0 {
-		return fmt.Errorf("renameat2 failed: %s", err)
+	ret, err := C.my_renameat2(C.CString(oldpath), C.CString(newpath), _RENAME_EXCHANGE)
+	if ret != 0 {
+		return fmt.Errorf("renameat2 failed: %v", err)
 	}
 	return nil
 }
