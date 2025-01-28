@@ -21,7 +21,11 @@ func TestWalkDirsDFSIter(t *testing.T) {
 
 	// walk_test.go:49 2025-01-27 20:28:23.161 -0600 CST total leaf dir = 4597
 	// So the linux source tree has 4597 leaf directories.
-	root := "/home/jaten/go/src/github.com/PlakarKorp/Korpus/github.com/torvalds/linux"
+	//root := "/home/jaten/go/src/github.com/PlakarKorp/Korpus/github.com/torvalds/linux"
+
+	// We don't have linux all checked out everywhere,
+	// and it takes 3 seconds.
+	root := ".."
 
 	limit := 100000
 
