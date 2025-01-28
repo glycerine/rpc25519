@@ -166,9 +166,14 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				bt.bread += len(frag.Payload)
 
 				for _, leafdir := range pol.Pack {
-					//vv("leafdir = '%v'", leafdir)
-					err = os.MkdirAll(filepath.Join(reqDir.TopTakerDirTemp, leafdir), 0700)
+					if strings.HasPrefix(leafdir, "..") {
+						panic(fmt.Sprintf("leafdir cannot start with '..' or we will overwrite other processes files in staging! bad leafdir: '%v'",
+							leafdir))
+					}
+					fullpath := filepath.Join(reqDir.TopTakerDirTemp, leafdir)
+					err = os.MkdirAll(fullpath, 0700)
 					panicOn(err)
+					vv("dirtaker made fullpath '%v'", fullpath)
 				}
 				// reply to OpRsync_GiverSendsTopDirListingEnd
 				// with OpRsync_TakerReadyForDirContents
