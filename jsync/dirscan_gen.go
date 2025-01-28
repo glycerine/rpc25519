@@ -454,28 +454,28 @@ doneWithStruct7zgensym_b52703b292455617_8:
 		switch curField7zgensym_b52703b292455617_8 {
 		// -- templateDecodeMsg ends here --
 
-		case "Dirs_zid00_slc":
+		case "Pack_zid00_slc":
 			found7zgensym_b52703b292455617_8[0] = true
 			var zgensym_b52703b292455617_9 uint32
 			zgensym_b52703b292455617_9, err = dc.ReadArrayHeader()
 			if err != nil {
 				return
 			}
-			if cap(z.Dirs) >= int(zgensym_b52703b292455617_9) {
-				z.Dirs = (z.Dirs)[:zgensym_b52703b292455617_9]
+			if cap(z.Pack) >= int(zgensym_b52703b292455617_9) {
+				z.Pack = (z.Pack)[:zgensym_b52703b292455617_9]
 			} else {
-				z.Dirs = make([]*File, zgensym_b52703b292455617_9)
+				z.Pack = make([]*File, zgensym_b52703b292455617_9)
 			}
-			for zgensym_b52703b292455617_6 := range z.Dirs {
+			for zgensym_b52703b292455617_6 := range z.Pack {
 				if dc.IsNil() {
 					err = dc.ReadNil()
 					if err != nil {
 						return
 					}
 
-					if z.Dirs[zgensym_b52703b292455617_6] != nil {
+					if z.Pack[zgensym_b52703b292455617_6] != nil {
 						dc.PushAlwaysNil()
-						err = z.Dirs[zgensym_b52703b292455617_6].DecodeMsg(dc)
+						err = z.Pack[zgensym_b52703b292455617_6].DecodeMsg(dc)
 						if err != nil {
 							return
 						}
@@ -484,12 +484,12 @@ doneWithStruct7zgensym_b52703b292455617_8:
 				} else {
 					// not Nil, we have something to read
 
-					if z.Dirs[zgensym_b52703b292455617_6] == nil {
-						z.Dirs[zgensym_b52703b292455617_6] = new(File)
+					if z.Pack[zgensym_b52703b292455617_6] == nil {
+						z.Pack[zgensym_b52703b292455617_6] = new(File)
 					}
-					dc.DedupIndexEachPtr(z.Dirs[zgensym_b52703b292455617_6])
+					dc.DedupIndexEachPtr(z.Pack[zgensym_b52703b292455617_6])
 
-					err = z.Dirs[zgensym_b52703b292455617_6].DecodeMsg(dc)
+					err = z.Pack[zgensym_b52703b292455617_6].DecodeMsg(dc)
 					if err != nil {
 						return
 					}
@@ -524,7 +524,7 @@ doneWithStruct7zgensym_b52703b292455617_8:
 }
 
 // fields of PackOfDirs
-var decodeMsgFieldOrder7zgensym_b52703b292455617_8 = []string{"Dirs_zid00_slc", "IsLast_zid01_boo"}
+var decodeMsgFieldOrder7zgensym_b52703b292455617_8 = []string{"Pack_zid00_slc", "IsLast_zid01_boo"}
 
 var decodeMsgFieldSkip7zgensym_b52703b292455617_8 = []bool{false, false}
 
@@ -534,7 +534,7 @@ func (z *PackOfDirs) fieldsNotEmpty(isempty []bool) uint32 {
 		return 2
 	}
 	var fieldsInUse uint32 = 2
-	isempty[0] = (len(z.Dirs) == 0) // string, omitempty
+	isempty[0] = (len(z.Pack) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
 	}
@@ -573,25 +573,25 @@ func (z *PackOfDirs) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_b52703b292455617_10[0] {
-		// write "Dirs_zid00_slc"
-		err = en.Append(0xae, 0x44, 0x69, 0x72, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x73, 0x6c, 0x63)
+		// write "Pack_zid00_slc"
+		err = en.Append(0xae, 0x50, 0x61, 0x63, 0x6b, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x73, 0x6c, 0x63)
 		if err != nil {
 			return err
 		}
-		err = en.WriteArrayHeader(uint32(len(z.Dirs)))
+		err = en.WriteArrayHeader(uint32(len(z.Pack)))
 		if err != nil {
 			return
 		}
-		for zgensym_b52703b292455617_6 := range z.Dirs {
+		for zgensym_b52703b292455617_6 := range z.Pack {
 			// gPtr.encodeGen():
 
-			if z.Dirs[zgensym_b52703b292455617_6] == nil {
+			if z.Pack[zgensym_b52703b292455617_6] == nil {
 				err = en.WriteNil()
 				if err != nil {
 					return
 				}
 			} else {
-				err = z.Dirs[zgensym_b52703b292455617_6].EncodeMsg(en)
+				err = z.Pack[zgensym_b52703b292455617_6].EncodeMsg(en)
 				if err != nil {
 					return
 				}
@@ -628,18 +628,18 @@ func (z *PackOfDirs) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
 	if !empty[0] {
-		// string "Dirs_zid00_slc"
-		o = append(o, 0xae, 0x44, 0x69, 0x72, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x73, 0x6c, 0x63)
-		o = msgp.AppendArrayHeader(o, uint32(len(z.Dirs)))
-		for zgensym_b52703b292455617_6 := range z.Dirs {
+		// string "Pack_zid00_slc"
+		o = append(o, 0xae, 0x50, 0x61, 0x63, 0x6b, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x73, 0x6c, 0x63)
+		o = msgp.AppendArrayHeader(o, uint32(len(z.Pack)))
+		for zgensym_b52703b292455617_6 := range z.Pack {
 			// marshalGen.gPtr()
 
-			if z.Dirs[zgensym_b52703b292455617_6] == nil {
+			if z.Pack[zgensym_b52703b292455617_6] == nil {
 				o = msgp.AppendNil(o)
 			} else {
 				// hmm.. no en, no place to check en.DedupWriteIsDup(z)
 
-				o, err = z.Dirs[zgensym_b52703b292455617_6].MarshalMsg(o) // not is.iface, gen/marshal.go:243
+				o, err = z.Pack[zgensym_b52703b292455617_6].MarshalMsg(o) // not is.iface, gen/marshal.go:243
 				if err != nil {
 					return
 				}
@@ -721,10 +721,10 @@ doneWithStruct12zgensym_b52703b292455617_13:
 		switch curField12zgensym_b52703b292455617_13 {
 		// -- templateUnmarshalMsg ends here --
 
-		case "Dirs_zid00_slc":
+		case "Pack_zid00_slc":
 			found12zgensym_b52703b292455617_13[0] = true
 			if nbs.AlwaysNil {
-				(z.Dirs) = (z.Dirs)[:0]
+				(z.Pack) = (z.Pack)[:0]
 			} else {
 
 				var zgensym_b52703b292455617_14 uint32
@@ -732,35 +732,35 @@ doneWithStruct12zgensym_b52703b292455617_13:
 				if err != nil {
 					return
 				}
-				if cap(z.Dirs) >= int(zgensym_b52703b292455617_14) {
-					z.Dirs = (z.Dirs)[:zgensym_b52703b292455617_14]
+				if cap(z.Pack) >= int(zgensym_b52703b292455617_14) {
+					z.Pack = (z.Pack)[:zgensym_b52703b292455617_14]
 				} else {
-					z.Dirs = make([]*File, zgensym_b52703b292455617_14)
+					z.Pack = make([]*File, zgensym_b52703b292455617_14)
 				}
-				for zgensym_b52703b292455617_6 := range z.Dirs {
-					// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"z.Dirs[zgensym_b52703b292455617_6]", alias:"File", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x16, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
+				for zgensym_b52703b292455617_6 := range z.Pack {
+					// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"z.Pack[zgensym_b52703b292455617_6]", alias:"File", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x16, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
 					// unmarshalGen.gPtr(): we have an IDENT:
 
 					if nbs.AlwaysNil {
-						if z.Dirs[zgensym_b52703b292455617_6] != nil {
-							z.Dirs[zgensym_b52703b292455617_6].UnmarshalMsg(msgp.OnlyNilSlice)
+						if z.Pack[zgensym_b52703b292455617_6] != nil {
+							z.Pack[zgensym_b52703b292455617_6].UnmarshalMsg(msgp.OnlyNilSlice)
 						}
 					} else {
 						// not nbs.AlwaysNil
 						if msgp.IsNil(bts) {
 							bts = bts[1:]
-							if nil != z.Dirs[zgensym_b52703b292455617_6] {
-								z.Dirs[zgensym_b52703b292455617_6].UnmarshalMsg(msgp.OnlyNilSlice)
+							if nil != z.Pack[zgensym_b52703b292455617_6] {
+								z.Pack[zgensym_b52703b292455617_6].UnmarshalMsg(msgp.OnlyNilSlice)
 							}
 						} else {
 							// not nbs.AlwaysNil and not IsNil(bts): have something to read
 
-							if z.Dirs[zgensym_b52703b292455617_6] == nil {
-								z.Dirs[zgensym_b52703b292455617_6] = new(File)
+							if z.Pack[zgensym_b52703b292455617_6] == nil {
+								z.Pack[zgensym_b52703b292455617_6] = new(File)
 							}
 
-							bts, err = z.Dirs[zgensym_b52703b292455617_6].UnmarshalMsg(bts)
+							bts, err = z.Pack[zgensym_b52703b292455617_6].UnmarshalMsg(bts)
 							if err != nil {
 								return
 							}
@@ -798,18 +798,18 @@ doneWithStruct12zgensym_b52703b292455617_13:
 }
 
 // fields of PackOfDirs
-var unmarshalMsgFieldOrder12zgensym_b52703b292455617_13 = []string{"Dirs_zid00_slc", "IsLast_zid01_boo"}
+var unmarshalMsgFieldOrder12zgensym_b52703b292455617_13 = []string{"Pack_zid00_slc", "IsLast_zid01_boo"}
 
 var unmarshalMsgFieldSkip12zgensym_b52703b292455617_13 = []bool{false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *PackOfDirs) Msgsize() (s int) {
 	s = 1 + 15 + msgp.ArrayHeaderSize
-	for zgensym_b52703b292455617_6 := range z.Dirs {
-		if z.Dirs[zgensym_b52703b292455617_6] == nil {
+	for zgensym_b52703b292455617_6 := range z.Pack {
+		if z.Pack[zgensym_b52703b292455617_6] == nil {
 			s += msgp.NilSize
 		} else {
-			s += z.Dirs[zgensym_b52703b292455617_6].Msgsize()
+			s += z.Pack[zgensym_b52703b292455617_6].Msgsize()
 		}
 	}
 	s += 17 + msgp.BoolSize
@@ -880,28 +880,28 @@ doneWithStruct16zgensym_b52703b292455617_17:
 		switch curField16zgensym_b52703b292455617_17 {
 		// -- templateDecodeMsg ends here --
 
-		case "Files_zid00_slc":
+		case "Pack_zid00_slc":
 			found16zgensym_b52703b292455617_17[0] = true
 			var zgensym_b52703b292455617_18 uint32
 			zgensym_b52703b292455617_18, err = dc.ReadArrayHeader()
 			if err != nil {
 				return
 			}
-			if cap(z.Files) >= int(zgensym_b52703b292455617_18) {
-				z.Files = (z.Files)[:zgensym_b52703b292455617_18]
+			if cap(z.Pack) >= int(zgensym_b52703b292455617_18) {
+				z.Pack = (z.Pack)[:zgensym_b52703b292455617_18]
 			} else {
-				z.Files = make([]*File, zgensym_b52703b292455617_18)
+				z.Pack = make([]*File, zgensym_b52703b292455617_18)
 			}
-			for zgensym_b52703b292455617_15 := range z.Files {
+			for zgensym_b52703b292455617_15 := range z.Pack {
 				if dc.IsNil() {
 					err = dc.ReadNil()
 					if err != nil {
 						return
 					}
 
-					if z.Files[zgensym_b52703b292455617_15] != nil {
+					if z.Pack[zgensym_b52703b292455617_15] != nil {
 						dc.PushAlwaysNil()
-						err = z.Files[zgensym_b52703b292455617_15].DecodeMsg(dc)
+						err = z.Pack[zgensym_b52703b292455617_15].DecodeMsg(dc)
 						if err != nil {
 							return
 						}
@@ -910,12 +910,12 @@ doneWithStruct16zgensym_b52703b292455617_17:
 				} else {
 					// not Nil, we have something to read
 
-					if z.Files[zgensym_b52703b292455617_15] == nil {
-						z.Files[zgensym_b52703b292455617_15] = new(File)
+					if z.Pack[zgensym_b52703b292455617_15] == nil {
+						z.Pack[zgensym_b52703b292455617_15] = new(File)
 					}
-					dc.DedupIndexEachPtr(z.Files[zgensym_b52703b292455617_15])
+					dc.DedupIndexEachPtr(z.Pack[zgensym_b52703b292455617_15])
 
-					err = z.Files[zgensym_b52703b292455617_15].DecodeMsg(dc)
+					err = z.Pack[zgensym_b52703b292455617_15].DecodeMsg(dc)
 					if err != nil {
 						return
 					}
@@ -950,7 +950,7 @@ doneWithStruct16zgensym_b52703b292455617_17:
 }
 
 // fields of PackOfFiles
-var decodeMsgFieldOrder16zgensym_b52703b292455617_17 = []string{"Files_zid00_slc", "IsLast_zid01_boo"}
+var decodeMsgFieldOrder16zgensym_b52703b292455617_17 = []string{"Pack_zid00_slc", "IsLast_zid01_boo"}
 
 var decodeMsgFieldSkip16zgensym_b52703b292455617_17 = []bool{false, false}
 
@@ -960,7 +960,7 @@ func (z *PackOfFiles) fieldsNotEmpty(isempty []bool) uint32 {
 		return 2
 	}
 	var fieldsInUse uint32 = 2
-	isempty[0] = (len(z.Files) == 0) // string, omitempty
+	isempty[0] = (len(z.Pack) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
 	}
@@ -999,25 +999,25 @@ func (z *PackOfFiles) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_b52703b292455617_19[0] {
-		// write "Files_zid00_slc"
-		err = en.Append(0xaf, 0x46, 0x69, 0x6c, 0x65, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x73, 0x6c, 0x63)
+		// write "Pack_zid00_slc"
+		err = en.Append(0xae, 0x50, 0x61, 0x63, 0x6b, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x73, 0x6c, 0x63)
 		if err != nil {
 			return err
 		}
-		err = en.WriteArrayHeader(uint32(len(z.Files)))
+		err = en.WriteArrayHeader(uint32(len(z.Pack)))
 		if err != nil {
 			return
 		}
-		for zgensym_b52703b292455617_15 := range z.Files {
+		for zgensym_b52703b292455617_15 := range z.Pack {
 			// gPtr.encodeGen():
 
-			if z.Files[zgensym_b52703b292455617_15] == nil {
+			if z.Pack[zgensym_b52703b292455617_15] == nil {
 				err = en.WriteNil()
 				if err != nil {
 					return
 				}
 			} else {
-				err = z.Files[zgensym_b52703b292455617_15].EncodeMsg(en)
+				err = z.Pack[zgensym_b52703b292455617_15].EncodeMsg(en)
 				if err != nil {
 					return
 				}
@@ -1054,18 +1054,18 @@ func (z *PackOfFiles) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
 	if !empty[0] {
-		// string "Files_zid00_slc"
-		o = append(o, 0xaf, 0x46, 0x69, 0x6c, 0x65, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x73, 0x6c, 0x63)
-		o = msgp.AppendArrayHeader(o, uint32(len(z.Files)))
-		for zgensym_b52703b292455617_15 := range z.Files {
+		// string "Pack_zid00_slc"
+		o = append(o, 0xae, 0x50, 0x61, 0x63, 0x6b, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x73, 0x6c, 0x63)
+		o = msgp.AppendArrayHeader(o, uint32(len(z.Pack)))
+		for zgensym_b52703b292455617_15 := range z.Pack {
 			// marshalGen.gPtr()
 
-			if z.Files[zgensym_b52703b292455617_15] == nil {
+			if z.Pack[zgensym_b52703b292455617_15] == nil {
 				o = msgp.AppendNil(o)
 			} else {
 				// hmm.. no en, no place to check en.DedupWriteIsDup(z)
 
-				o, err = z.Files[zgensym_b52703b292455617_15].MarshalMsg(o) // not is.iface, gen/marshal.go:243
+				o, err = z.Pack[zgensym_b52703b292455617_15].MarshalMsg(o) // not is.iface, gen/marshal.go:243
 				if err != nil {
 					return
 				}
@@ -1147,10 +1147,10 @@ doneWithStruct21zgensym_b52703b292455617_22:
 		switch curField21zgensym_b52703b292455617_22 {
 		// -- templateUnmarshalMsg ends here --
 
-		case "Files_zid00_slc":
+		case "Pack_zid00_slc":
 			found21zgensym_b52703b292455617_22[0] = true
 			if nbs.AlwaysNil {
-				(z.Files) = (z.Files)[:0]
+				(z.Pack) = (z.Pack)[:0]
 			} else {
 
 				var zgensym_b52703b292455617_23 uint32
@@ -1158,35 +1158,35 @@ doneWithStruct21zgensym_b52703b292455617_22:
 				if err != nil {
 					return
 				}
-				if cap(z.Files) >= int(zgensym_b52703b292455617_23) {
-					z.Files = (z.Files)[:zgensym_b52703b292455617_23]
+				if cap(z.Pack) >= int(zgensym_b52703b292455617_23) {
+					z.Pack = (z.Pack)[:zgensym_b52703b292455617_23]
 				} else {
-					z.Files = make([]*File, zgensym_b52703b292455617_23)
+					z.Pack = make([]*File, zgensym_b52703b292455617_23)
 				}
-				for zgensym_b52703b292455617_15 := range z.Files {
-					// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"z.Files[zgensym_b52703b292455617_15]", alias:"File", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x16, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
+				for zgensym_b52703b292455617_15 := range z.Pack {
+					// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"z.Pack[zgensym_b52703b292455617_15]", alias:"File", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x16, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
 					// unmarshalGen.gPtr(): we have an IDENT:
 
 					if nbs.AlwaysNil {
-						if z.Files[zgensym_b52703b292455617_15] != nil {
-							z.Files[zgensym_b52703b292455617_15].UnmarshalMsg(msgp.OnlyNilSlice)
+						if z.Pack[zgensym_b52703b292455617_15] != nil {
+							z.Pack[zgensym_b52703b292455617_15].UnmarshalMsg(msgp.OnlyNilSlice)
 						}
 					} else {
 						// not nbs.AlwaysNil
 						if msgp.IsNil(bts) {
 							bts = bts[1:]
-							if nil != z.Files[zgensym_b52703b292455617_15] {
-								z.Files[zgensym_b52703b292455617_15].UnmarshalMsg(msgp.OnlyNilSlice)
+							if nil != z.Pack[zgensym_b52703b292455617_15] {
+								z.Pack[zgensym_b52703b292455617_15].UnmarshalMsg(msgp.OnlyNilSlice)
 							}
 						} else {
 							// not nbs.AlwaysNil and not IsNil(bts): have something to read
 
-							if z.Files[zgensym_b52703b292455617_15] == nil {
-								z.Files[zgensym_b52703b292455617_15] = new(File)
+							if z.Pack[zgensym_b52703b292455617_15] == nil {
+								z.Pack[zgensym_b52703b292455617_15] = new(File)
 							}
 
-							bts, err = z.Files[zgensym_b52703b292455617_15].UnmarshalMsg(bts)
+							bts, err = z.Pack[zgensym_b52703b292455617_15].UnmarshalMsg(bts)
 							if err != nil {
 								return
 							}
@@ -1224,18 +1224,18 @@ doneWithStruct21zgensym_b52703b292455617_22:
 }
 
 // fields of PackOfFiles
-var unmarshalMsgFieldOrder21zgensym_b52703b292455617_22 = []string{"Files_zid00_slc", "IsLast_zid01_boo"}
+var unmarshalMsgFieldOrder21zgensym_b52703b292455617_22 = []string{"Pack_zid00_slc", "IsLast_zid01_boo"}
 
 var unmarshalMsgFieldSkip21zgensym_b52703b292455617_22 = []bool{false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *PackOfFiles) Msgsize() (s int) {
-	s = 1 + 16 + msgp.ArrayHeaderSize
-	for zgensym_b52703b292455617_15 := range z.Files {
-		if z.Files[zgensym_b52703b292455617_15] == nil {
+	s = 1 + 15 + msgp.ArrayHeaderSize
+	for zgensym_b52703b292455617_15 := range z.Pack {
+		if z.Pack[zgensym_b52703b292455617_15] == nil {
 			s += msgp.NilSize
 		} else {
-			s += z.Files[zgensym_b52703b292455617_15].Msgsize()
+			s += z.Pack[zgensym_b52703b292455617_15].Msgsize()
 		}
 	}
 	s += 17 + msgp.BoolSize

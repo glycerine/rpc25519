@@ -2,12 +2,15 @@ package jsync
 
 import (
 	"context"
-	//"fmt"
+	"fmt"
 	//"io"
+	"iter"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/glycerine/idem"
+	rpc "github.com/glycerine/rpc25519"
 )
 
 //go:generate greenpack -no-dedup=true
@@ -72,7 +75,7 @@ type File struct {
 // PackOfFiles is streamed 2nd.
 // All of these should be files.
 type PackOfFiles struct {
-	Files  []*File `zid:"0"`
+	Pack   []*File `zid:"0"`
 	IsLast bool    `zid:"1"`
 }
 
@@ -80,7 +83,7 @@ type PackOfFiles struct {
 // when we set the mode/modtimes.
 // All of these should be directories.
 type PackOfDirs struct {
-	Dirs   []*File `zid:"0"`
+	Pack   []*File `zid:"0"`
 	IsLast bool    `zid:"1"`
 }
 
@@ -104,18 +107,23 @@ func ScanDirTree(
 
 ) (halt *idem.Halter,
 	packOfLeavesCh chan *PackOfLeafPaths,
-	filesCh chan *PackOfFiles,
+	packOfFilesCh chan *PackOfFiles,
 	packOfDirCh chan *PackOfDirs,
 	err0 error,
 ) {
 	halt = idem.NewHalter()
 
 	if !dirExists(giverRoot) {
-		return nil, nil, nil, fmt.Errorf("ScanDirTree error: giverRoot not found: '%v'", giverRoot)
+		return nil, nil, nil, nil, fmt.Errorf("ScanDirTree error: giverRoot not found, or not a directory: '%v'", giverRoot)
+	}
+
+	// make sure it ends in "/" or sep.
+	if !strings.HasSuffix(giverRoot, sep) {
+		giverRoot += sep
 	}
 
 	packOfLeavesCh = make(chan *PackOfLeafPaths)
-	filesCh = make(chan *PackOfFiles)
+	packOfFilesCh = make(chan *PackOfFiles)
 	packOfDirCh = make(chan *PackOfDirs)
 
 	done := ctx.Done()
@@ -126,17 +134,90 @@ func ScanDirTree(
 			halt.Done.Close()
 		}()
 
+		// ====================
 		// phase one: sending the leaf-directory-only structure
+		// ====================
 
 		di := NewDirIter()
-		di.OmitRoot = true
-		k := 0
 		next, stop := iter.Pull2(di.DirsDepthFirstLeafOnly(giverRoot))
 		defer stop()
 
+		// pack up to max bytes of Chunks into a message.
+		max := rpc.UserMaxPayload - 10_000
+		pre := len(giverRoot) // how much to discard giverRoot, leave off sep.
+
+		var leafpack *PackOfLeafPaths
+		var have int
+
 		for {
+			if leafpack == nil {
+				// we've just sent off the last
+				leafpack = &PackOfLeafPaths{}
+				have = leafpack.Msgsize()
+			}
+
 			leafdir, ok, valid := next()
-			_ = dir
+			if !valid {
+				vv("not valid, breaking, ok = %v", ok)
+				break
+			}
+			if !ok {
+				break
+			}
+			// trim off giverRoot
+			leafdir = leafdir[pre:]
+
+			uses := len(leafdir)
+
+			if have+uses < max {
+				leafpack.Pack = append(leafpack.Pack, leafdir)
+				have = leafpack.Msgsize()
+			} else {
+				// send it off
+				select {
+				case packOfLeavesCh <- leafpack:
+					leafpack = nil
+				case <-halt.ReqStop.Chan:
+					return
+				case <-done:
+					return
+				}
+			}
+		} // for
+		stop()
+		// send the last one
+		if leafpack == nil {
+			leafpack = &PackOfLeafPaths{}
+		}
+		leafpack.IsLast = true
+		select {
+		case packOfLeavesCh <- leafpack:
+			leafpack = nil
+			close(packOfLeavesCh)
+		case <-halt.ReqStop.Chan:
+			return
+		case <-done:
+			return
+		}
+
+		// ====================
+		// phase two: sending the file paths + stat info
+		// ====================
+
+		have = 0
+		var pof *PackOfFiles
+
+		next, stop = iter.Pull2(di.FilesOnly(giverRoot))
+		defer stop()
+
+		for {
+			if pof == nil {
+				// we've just sent off the last
+				pof = &PackOfFiles{}
+				have = pof.Msgsize()
+			}
+
+			path, ok, valid := next()
 			if !valid {
 				vv("not valid, breaking, ok = %v", ok)
 				break
@@ -145,31 +226,123 @@ func ScanDirTree(
 				break
 			}
 
-			k++
+			fi, err := os.Stat(path)
+			panicOn(err)
 
+			// trim off giverRoot
+			path = path[pre:]
+
+			f := &File{
+				Path:     path,
+				Size:     fi.Size(),
+				FileMode: uint32(fi.Mode()),
+				ModTime:  fi.ModTime(),
+			}
+
+			uses := f.Msgsize()
+
+			if have+uses < max {
+				pof.Pack = append(pof.Pack, f)
+				have = pof.Msgsize()
+			} else {
+				// send it off
+				select {
+				case packOfFilesCh <- pof:
+					pof = nil
+				case <-halt.ReqStop.Chan:
+					return
+				case <-done:
+					return
+				}
+			}
+		} // for
+		stop()
+		// send the last one
+		if pof == nil {
+			pof = &PackOfFiles{}
+		}
+		pof.IsLast = true
+		select {
+		case packOfFilesCh <- pof:
+			pof = nil
+			close(packOfFilesCh)
+		case <-halt.ReqStop.Chan:
+			return
+		case <-done:
+			return
 		}
 
-		/*
-			// phase two: sending the file paths
-			for {
-				select {
-				case <-halt.ReqStop.Chan:
-					return
-				case <-done:
-					return
-				}
+		// =======================
+		// phase three: sending all the directories with their mod/modtimes.
+		// =======================
+
+		next, stop = iter.Pull2(di.AllDirsOnlyDirs(giverRoot))
+		defer stop()
+
+		have = 0
+		var pod *PackOfDirs
+
+		for {
+			if pod == nil {
+				// we've just sent off the last
+				pod = &PackOfDirs{}
+				have = pod.Msgsize()
 			}
 
-			// phase three: sending all the directories with their mod/modtimes.
-			for {
+			path, ok, valid := next()
+			if !valid {
+				vv("not valid, breaking, ok = %v", ok)
+				break
+			}
+			if !ok {
+				break
+			}
+
+			fi, err := os.Stat(path)
+			panicOn(err)
+
+			// trim off giverRoot
+			path = path[pre:]
+
+			f := &File{
+				Path:     path,
+				Size:     fi.Size(),
+				FileMode: uint32(fi.Mode()),
+				ModTime:  fi.ModTime(),
+			}
+
+			uses := f.Msgsize()
+
+			if have+uses < max {
+				pod.Pack = append(pod.Pack, f)
+				have = pod.Msgsize()
+			} else {
+				// send it off
 				select {
+				case packOfDirCh <- pod:
+					pod = nil
+					close(packOfDirCh)
 				case <-halt.ReqStop.Chan:
 					return
 				case <-done:
 					return
 				}
 			}
-		*/
+		} // for
+		stop()
+		// send the last one
+		if pod == nil {
+			pod = &PackOfDirs{}
+		}
+		pod.IsLast = true
+		select {
+		case packOfDirCh <- pod:
+			pod = nil
+		case <-halt.ReqStop.Chan:
+			return
+		case <-done:
+			return
+		}
 	}()
 
 	return
