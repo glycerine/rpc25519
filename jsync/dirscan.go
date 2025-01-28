@@ -38,14 +38,13 @@ type DirScanner struct {
 // Once the leaves are are made, we have the full
 // tree, and files can be synced. Only
 // after that do we want to
-// we send Packs of Dir for all
+// we send Packs of Dirs for all
 // the intermediate sub dir
-// to set their Mode properly.
+// to set their Mode (permissions) properly.
 
-// PackOfLeafPaths is streamed first.
-// We send in a Fragment some
-// but not necessarily all of the leaf
-// paths to recreate a directory structure.
+// PackOfLeafPaths is phase 1: it is streamed first.
+// We send in a Fragments (incrementally)
+// all of the leaf paths to recreate a directory structure.
 // Once we see IsLast true, we know
 // we've seen, and created, the whole tree.
 // Then we can proceed to streaming files
@@ -61,7 +60,7 @@ type PackOfLeafPaths struct {
 
 // A File is a directory or regular file,
 // and it should be sent in either PackOfFiles
-// or PackOfDir.
+// or PackOfDir, in phase 2.
 type File struct {
 	// Path should always be relative
 	// to the GiverRoot or the TakerRoot,
@@ -72,14 +71,15 @@ type File struct {
 	ModTime  time.Time `zid:"3"`
 }
 
-// PackOfFiles is streamed 2nd.
-// All of these should be files.
+// PackOfFiles is streamed ih phase 2.
+// All of these should be (only) files, not directories.
+// They can and will include symlinks, at the moment anyway.
 type PackOfFiles struct {
 	Pack   []*File `zid:"0"`
 	IsLast bool    `zid:"1"`
 }
 
-// PackOfDir is streamed last/3rd,
+// PackOfDir is streamed last/3rd; in phase 3,
 // when we set the mode/modtimes.
 // All of these should be directories.
 type PackOfDirs struct {
@@ -102,13 +102,12 @@ type PackOfDirs struct {
 func ScanDirTree(
 	ctx context.Context,
 	giverRoot string,
-	takerRoot string,
 	maxPackSz int,
 
 ) (halt *idem.Halter,
 	packOfLeavesCh chan *PackOfLeafPaths,
 	packOfFilesCh chan *PackOfFiles,
-	packOfDirCh chan *PackOfDirs,
+	packOfDirsCh chan *PackOfDirs,
 	err0 error,
 ) {
 	halt = idem.NewHalter()
@@ -124,7 +123,7 @@ func ScanDirTree(
 
 	packOfLeavesCh = make(chan *PackOfLeafPaths)
 	packOfFilesCh = make(chan *PackOfFiles)
-	packOfDirCh = make(chan *PackOfDirs)
+	packOfDirsCh = make(chan *PackOfDirs)
 
 	done := ctx.Done()
 	_ = done
@@ -304,24 +303,24 @@ func ScanDirTree(
 			// trim off giverRoot
 			path = path[pre:]
 
-			f := &File{
+			dir := &File{
 				Path:     path,
 				Size:     fi.Size(),
 				FileMode: uint32(fi.Mode()),
 				ModTime:  fi.ModTime(),
 			}
 
-			uses := f.Msgsize()
+			uses := dir.Msgsize()
 
 			if have+uses < max {
-				pod.Pack = append(pod.Pack, f)
+				pod.Pack = append(pod.Pack, dir)
 				have = pod.Msgsize()
 			} else {
 				// send it off
 				select {
-				case packOfDirCh <- pod:
+				case packOfDirsCh <- pod:
 					pod = nil
-					close(packOfDirCh)
+					close(packOfDirsCh)
 				case <-halt.ReqStop.Chan:
 					return
 				case <-done:
@@ -336,7 +335,7 @@ func ScanDirTree(
 		}
 		pod.IsLast = true
 		select {
-		case packOfDirCh <- pod:
+		case packOfDirsCh <- pod:
 			pod = nil
 		case <-halt.ReqStop.Chan:
 			return
