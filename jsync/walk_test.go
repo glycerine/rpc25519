@@ -38,6 +38,7 @@ func TestWalkDirsDFSIter(t *testing.T) {
 
 	for {
 		dir, ok, valid := next()
+		_ = dir
 		if !valid {
 			vv("not valid, breaking, ok = %v", ok)
 			break
@@ -47,7 +48,7 @@ func TestWalkDirsDFSIter(t *testing.T) {
 		}
 
 		k++
-		fmt.Println(dir)
+		//fmt.Println(dir)
 
 		if k > limit {
 			vv("break on limit")
@@ -93,7 +94,7 @@ func TestWalkDirsFilesOnly(t *testing.T) {
 
 		k++
 		//fmt.Fprintln(buf, dir)
-		fmt.Println(dir)
+		//fmt.Println(dir)
 
 		if k > limit {
 			vv("break on limit")
@@ -139,7 +140,7 @@ func TestWalkAllDirsOnlyDirs(t *testing.T) {
 
 		k++
 		//fmt.Fprintln(buf, dir)
-		fmt.Println(dir)
+		//fmt.Println(dir)
 
 		if k > limit {
 			vv("break on limit")
