@@ -17,7 +17,7 @@ func PrintAll[V any](seq iter.Seq[V]) {
 	}
 }
 
-func TestWalkIter(t *testing.T) {
+func TestWalkDirsDFSIter(t *testing.T) {
 	root := "/Users/jaten/cn/dfs"
 
 	limit := 100
@@ -59,6 +59,49 @@ func NewDirIter(root string) *DirIter {
 }
 
 func Dirs(root string) iter.Seq2[string, bool] {
+	return func(yield func(string, bool) bool) {
+		// Helper function for recursive traversal
+		var visit func(path string) bool
+		visit = func(path string) bool {
+			dir, err := os.Open(path)
+			if err != nil {
+				return yield(path, false)
+			}
+			defer dir.Close()
+
+			hasSubdirs := false
+			for {
+				entries, err := dir.ReadDir(100)
+				// Process entries in directory order
+				for _, entry := range entries {
+					if entry.IsDir() {
+						hasSubdirs = true
+						// Recurse immediately when we find a directory
+						if !visit(filepath.Join(path, entry.Name())) {
+							return false
+						}
+					}
+				}
+
+				if err != nil || len(entries) < 100 {
+					break
+				}
+			}
+
+			// If this is a leaf directory, yield it
+			if !hasSubdirs {
+				return yield(path, true)
+			}
+			return true
+		}
+
+		// Start the recursion
+		visit(root)
+	}
+}
+
+/* works, but not DFS order
+func Dirs(root string) iter.Seq2[string, bool] {
 	return func(yield func(s string, b bool) bool) {
 		vv("top of Dirs func.")
 
@@ -66,8 +109,10 @@ func Dirs(root string) iter.Seq2[string, bool] {
 		batchSize := 100
 
 		for len(stack) > 0 {
-			current := stack[len(stack)-1]
-			stack = stack[:len(stack)-1]
+			//current := stack[len(stack)-1]
+			//stack = stack[:len(stack)-1]
+			current := stack[0]
+			stack = stack[1:]
 
 			dir, err := os.Open(current)
 			if err != nil {
@@ -86,8 +131,10 @@ func Dirs(root string) iter.Seq2[string, bool] {
 				// Process entries even if err is io.EOF
 				for _, entry := range entries {
 					if entry.IsDir() {
+						path := filepath.Join(current, entry.Name())
+						//vv("entry is a dir! '%v'", path)
 						hasSubdirs = true
-						stack = append(stack, filepath.Join(current, entry.Name()))
+						stack = append(stack, path)
 					}
 				}
 
