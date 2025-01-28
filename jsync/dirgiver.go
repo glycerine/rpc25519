@@ -249,18 +249,23 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								defer func() {
 									r := recover()
 									if r != nil {
-										ckt2.Close(fmt.Errorf(
-											"panic recovered: '%v'", r))
+										err := fmt.Errorf(
+											"panic recovered: '%v'", r)
+										vv("error ckt2 close: '%v'", err)
+										ckt2.Close(err)
+									} else {
+										vv("normal ckt2 close")
+										ckt2.Close(nil)
 									}
-									ckt2.Close(nil)
 								}()
 								batchHalt.AddChild(ckt2.Halt)
-								s.Giver(ctx2, ckt2, myPeer, sr)
+								errg := s.Giver(ctx2, ckt2, myPeer, sr)
+								panicOn(errg)
 
 							}(file)
 						}
-						err := batchHalt.ReqStop.WaitTilDone(done)
-						vv("batchHalt.ReqStop.WaitTilDone gave err = '%v'", err)
+						//err := batchHalt.ReqStop.WaitTilDone(done)
+						//vv("batchHalt.ReqStop.WaitTilDone gave err = '%v'", err)
 
 						if pof.IsLast {
 							break sendFiles
