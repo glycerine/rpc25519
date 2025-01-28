@@ -20,7 +20,7 @@ var sep = string(os.PathSeparator)
 func compareDirs(expected string, observed string) (diff string, err error) {
 	obs, err := listFilesUnderDir(observed, false, "")
 	panicOn(err)
-	vv("obs = '%#v'", obs)
+	//vv("obs = '%#v'", obs)
 	exp, err := listFilesUnderDir(expected, false, "")
 	panicOn(err)
 
