@@ -223,9 +223,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					// get the extra fragments with more []*Chunk
 					err0 = s.getMoreChunks(ckt, bt, &wireChunks, done, done0, syncReq, OpRsync_RequestRemoteToGive_ChunksLast, OpRsync_RequestRemoteToGive_ChunksMore)
 					//err0 = s.getMoreChunks(ckt, bt, &localChunks, done, done0, syncReq, OpRsync_HeavyDiffChunksLast, OpRsync_HeavyDiffChunksEnclosed)
-					if err0 != nil {
-						return
-					}
+					panicOn(err0)
 
 				} // end if syncReq.MoreChunksComming
 				//vv("nore more chunks to wait for...")
@@ -276,10 +274,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					done, done0, syncReq,
 					OpRsync_RequestRemoteToGive_ChunksLast,
 					OpRsync_RequestRemoteToGive_ChunksMore)
-
-				if err0 != nil {
-					return
-				}
+				panicOn(err0)
 
 				//vv("OpRsync_LightRequestEnclosed calling giverSendsPlanAndDataUpdates")
 				s.giverSendsPlanAndDataUpdates(light.ReaderChunks, ckt, localPath, bt, frag0)
@@ -299,13 +294,12 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				continue
 
 			case OpRsync_FileAllReadAckToGiver:
-				//vv("Giver sees OpRsync_FileAllReadAckToGiver, closing syncReq.Done")
+				vv("Giver sees OpRsync_FileAllReadAckToGiver for '%v'", syncReq.GiverPath)
 
 				syncReq.FullFileInitSideBlake3, _ = frag0.GetUserArg("clientTotalBlake3sum")
 				syncReq.FullFileRespondSideBlake3, _ = frag0.GetUserArg("serverTotalBlake3sum")
 				syncReq.RemoteBytesTransferred = frag0.FragPart
 
-				// this is an Op specific ack back. just finish.
 				s.ackBackFINToTaker(ckt, frag0)
 				// wait for ckt to close on FIN, not: return
 				frag0 = nil // GC early.

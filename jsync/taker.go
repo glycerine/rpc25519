@@ -135,7 +135,6 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		}
 		localPathToWrite = syncReq.TakerPath
 		if dirExists(localPathToWrite) {
-			panic("where?")
 			return fmt.Errorf("error in Taker: syncReq.TakerPath cannot be an existing directory: '%v'", localPathToWrite)
 		}
 
@@ -399,7 +398,6 @@ takerForSelectLoop:
 				if sum != plan.FileCry {
 					err = fmt.Errorf("checksum mismatch error! reconstructed='%v'; expected='%v'; plan path = ''%v'", sum, plan.FileCry, plan.Path)
 					panic(err)
-					return err
 				}
 
 				newversBufio.Flush() // must be before newversFd.Close()
@@ -509,9 +507,7 @@ takerForSelectLoop:
 
 				////vv("%v: (ckt %v) (Taker) disk.WriteOneMsgToFile() -> err = '%v'", name, ckt.Name, err)
 				panicOn(err)
-				if err != nil {
-					return
-				}
+
 				if !isLast {
 					frag = nil // gc early.
 					req = nil  // gc early.
@@ -537,8 +533,7 @@ takerForSelectLoop:
 				//localPath, _ := frag.GetUserArg("readFile")
 				localPath := syncReq.TakerPath
 				if dirExists(localPath) {
-					panic("where 2?")
-					return fmt.Errorf("error in HereIsFullFile op: syncReq.TakerPath cannot be an existing directory: '%v'", localPath)
+					panic(fmt.Errorf("error in HereIsFullFile op: syncReq.TakerPath cannot be an existing directory: '%v'", localPath))
 				}
 
 				if !syncReq.TakerStartsEmpty {
@@ -600,8 +595,7 @@ takerForSelectLoop:
 
 				localPathToWrite = syncReq.TakerPath
 				if dirExists(localPathToWrite) {
-					panic("where 3?")
-					return fmt.Errorf("error in Taker OpRsync_RequestRemoteToTake: syncReq.TakerPath cannot be an existing directory: '%v'", localPathToWrite)
+					panic(fmt.Errorf("error in Taker OpRsync_RequestRemoteToTake: syncReq.TakerPath cannot be an existing directory: '%v'", localPathToWrite))
 				}
 
 				if fileExists(syncReq.TakerPath) {
@@ -624,7 +618,7 @@ takerForSelectLoop:
 						////vv(skip.Err)
 						err = ckt.SendOneWay(skip, 0)
 						panicOn(err)
-						// return // all done
+
 						frag = nil
 						skip = nil
 						continue // wait for giver to close on error
