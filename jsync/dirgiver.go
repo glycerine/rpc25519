@@ -2,7 +2,7 @@ package jsync
 
 import (
 	"context"
-	//"fmt"
+	"fmt"
 	//"os"
 	"strings"
 	//"sync"
@@ -219,13 +219,10 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						if !ok {
 							break sendFiles
 						}
-						//var wg sync.WaitGroup
-						//wg.Add(len(pof.Pack))
 						batchHalt := idem.NewHalter()
 
 						for _, file := range pof.Pack {
 							go func(file *File) {
-								//defer wg.Done()
 
 								frag1 := rpc.NewFragment()
 								sr := &RequestToSyncPath{
@@ -248,13 +245,21 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								cktName := rsyncRemoteTakesString
 								ckt2, ctx2, err := ckt.NewCircuit(cktName, frag1)
 								panicOn(err)
-								defer ckt2.Close(nil)
+								defer func() {
+									r := recover()
+									if r != nil {
+										ckt2.Close(fmt.Errorf(
+											"panic recovered: '%v'", r))
+									}
+									ckt2.Close(nil)
+								}()
 								batchHalt.AddChild(ckt2.Halt)
 								s.Giver(ctx2, ckt2, myPeer, sr)
 
 							}(file)
 						}
-						batchHalt.ReqStop.WaitTilDone(done)
+						err := batchHalt.ReqStop.WaitTilDone(done)
+						vv("batchHalt.ReqStop.WaitTilDone gave err = '%v'", err)
 
 						if pof.IsLast {
 							break sendFiles
