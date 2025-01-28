@@ -23,7 +23,7 @@ func TestWalkDirsDFSIter(t *testing.T) {
 	limit := 100
 	i := 0
 
-	next, stop := iter.Pull2(Dirs(root))
+	next, stop := iter.Pull2(DirsDepthFirstLeafOnly(root))
 	defer stop()
 
 	for {
@@ -58,7 +58,7 @@ func NewDirIter(root string) *DirIter {
 	}
 }
 
-func Dirs(root string) iter.Seq2[string, bool] {
+func DirsDepthFirstLeafOnly(root string) iter.Seq2[string, bool] {
 	return func(yield func(string, bool) bool) {
 		// Helper function for recursive traversal
 		var visit func(path string) bool
