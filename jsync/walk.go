@@ -1,44 +1,62 @@
 package jsync
 
 import (
-	"context"
-	"fmt"
-	"github.com/glycerine/idem"
-	"io"
+	"iter"
 	"os"
-	"time"
+	"path/filepath"
 )
 
-var _ = context.Background()
-var _ = time.Time{}
-var _ = idem.NewHalter
+type DirIter struct {
+	// how many directory entries we read at once,
+	// to keep memory use low.
+	batchSize int
+}
 
-func walkDirTree(root string, gotDir chan os.DirEntry) (err0 error) {
-
-	fd, err := os.Open(root)
-	if err != nil {
-		return err
+func NewDirIter() *DirIter {
+	return &DirIter{
+		batchSize: 100,
 	}
+}
 
-	n := 100 // only read n at a time.
+func (di *DirIter) DirsDepthFirstLeafOnly(root string) iter.Seq2[string, bool] {
+	return func(yield func(string, bool) bool) {
 
-	for {
-		dirents, derr := fd.ReadDir(n)
-		if derr == io.EOF {
-			// its fine, we have just read all
-			// of the records in this first batch.
-		} else if derr != nil {
-			return fmt.Errorf("ReadDir error on path '%v': '%v'", root, derr)
-		}
-
-		//mypre := root + sep + de.Name()
-
-		for _, de := range dirents {
-			if de.IsDir() {
-				//walkDirTree(root+sep+de.Name(), de, gotDir)
-				gotDir <- de // or yeild for iter, later.
+		// Helper function for recursive traversal
+		var visit func(path string) bool
+		visit = func(path string) bool {
+			dir, err := os.Open(path)
+			if err != nil {
+				return yield(path, false)
 			}
+			defer dir.Close()
+
+			hasSubdirs := false
+			for {
+				entries, err := dir.ReadDir(di.batchSize)
+				// Process entries in directory order
+				for _, entry := range entries {
+					if entry.IsDir() {
+						hasSubdirs = true
+						// Recurse immediately when we find a directory
+						if !visit(filepath.Join(path, entry.Name())) {
+							return false
+						}
+					}
+				}
+
+				if err != nil || len(entries) < di.batchSize {
+					break
+				}
+			}
+
+			// If this is a leaf directory, yield it
+			if !hasSubdirs {
+				return yield(path, true)
+			}
+			return true
 		}
+
+		// Start the recursion
+		visit(root)
 	}
-	return nil
 }
