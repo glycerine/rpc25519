@@ -9,12 +9,12 @@ import (
 type DirIter struct {
 	// how many directory entries we read at once,
 	// to keep memory use low.
-	batchSize int
+	BatchSize int
 }
 
 func NewDirIter() *DirIter {
 	return &DirIter{
-		batchSize: 100,
+		BatchSize: 100,
 	}
 }
 
@@ -32,7 +32,7 @@ func (di *DirIter) DirsDepthFirstLeafOnly(root string) iter.Seq2[string, bool] {
 
 			hasSubdirs := false
 			for {
-				entries, err := dir.ReadDir(di.batchSize)
+				entries, err := dir.ReadDir(di.BatchSize)
 				// Process entries in directory order
 				for _, entry := range entries {
 					if entry.IsDir() {
@@ -44,7 +44,7 @@ func (di *DirIter) DirsDepthFirstLeafOnly(root string) iter.Seq2[string, bool] {
 					}
 				}
 
-				if err != nil || len(entries) < di.batchSize {
+				if err != nil || len(entries) < di.BatchSize {
 					break
 				}
 			}
@@ -77,7 +77,7 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[string, bool] {
 
 			//hasSubdirs := false
 			for {
-				entries, err := dir.ReadDir(di.batchSize)
+				entries, err := dir.ReadDir(di.BatchSize)
 				// Process entries in directory order
 				for _, entry := range entries {
 					if entry.IsDir() {
@@ -93,7 +93,7 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[string, bool] {
 					}
 				}
 
-				if err != nil || len(entries) < di.batchSize {
+				if err != nil || len(entries) < di.BatchSize {
 					break
 				}
 			}
@@ -130,7 +130,7 @@ func (di *DirIter) AllDirsOnlyDirs(root string) iter.Seq2[string, bool] {
 			defer dir.Close()
 
 			for {
-				entries, err := dir.ReadDir(di.batchSize)
+				entries, err := dir.ReadDir(di.BatchSize)
 				// Process entries in directory order
 				for _, entry := range entries {
 					if entry.IsDir() {
@@ -141,7 +141,7 @@ func (di *DirIter) AllDirsOnlyDirs(root string) iter.Seq2[string, bool] {
 					}
 				}
 
-				if err != nil || len(entries) < di.batchSize {
+				if err != nil || len(entries) < di.BatchSize {
 					break
 				}
 			}

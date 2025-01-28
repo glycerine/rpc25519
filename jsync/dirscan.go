@@ -2,14 +2,17 @@ package jsync
 
 import (
 	"context"
-	"fmt"
-	"io"
+	//"fmt"
+	//"io"
 	"os"
 	"time"
 
 	"github.com/glycerine/idem"
 )
 
+//go:generate greenpack -no-dedup=true
+
+//msgp:ignore DirScanner
 type DirScanner struct {
 	RootPath string
 }
@@ -107,32 +110,13 @@ func ScanDirTree(
 ) {
 	halt = idem.NewHalter()
 
-	fd, err := os.Open(giverRoot)
-	if err != nil {
-		return nil, nil, nil, nil, err
+	if !dirExists(giverRoot) {
+		return nil, nil, nil, fmt.Errorf("ScanDirTree error: giverRoot not found: '%v'", giverRoot)
 	}
 
 	packOfLeavesCh = make(chan *PackOfLeafPaths)
 	filesCh = make(chan *PackOfFiles)
 	packOfDirCh = make(chan *PackOfDirs)
-
-	n := 100
-
-	// Important: we use fd.ReadDir so that
-	// we get "directory order" rather than
-	// sorted order. That way we can read large
-	// flat directories incrementally, a small
-	// bit at a time, without
-	// waiting to read, or fit, all of their
-	// entries into memory (or a Fragment) at once.
-	dirents, derr := fd.ReadDir(n)
-	_ = dirents
-	if derr == io.EOF {
-		// its fine, we have just read all
-		// of the records in this first batch.
-	} else if derr != nil {
-		return nil, nil, nil, nil, fmt.Errorf("ReadDir error on path '%v': '%v'", giverRoot, derr)
-	}
 
 	done := ctx.Done()
 	_ = done
@@ -142,45 +126,30 @@ func ScanDirTree(
 			halt.Done.Close()
 		}()
 
-		gotDir := make(chan os.DirEntry, 100)
-		_ = gotDir
+		// phase one: sending the leaf-directory-only structure
+
+		di := NewDirIter()
+		di.OmitRoot = true
+		k := 0
+		next, stop := iter.Pull2(di.DirsDepthFirstLeafOnly(giverRoot))
+		defer stop()
+
+		for {
+			leafdir, ok, valid := next()
+			_ = dir
+			if !valid {
+				vv("not valid, breaking, ok = %v", ok)
+				break
+			}
+			if !ok {
+				break
+			}
+
+			k++
+
+		}
+
 		/*
-			var dfs1helper func(de os.DirEntry)
-			dfs1helper = func(pre string, de os.DirEntry) {
-
-				mypre := pre + de.Name()
-				// start scan, finding all dir
-
-				if de.IsDir() {
-					dfs1helper(mypre, de)
-					select {
-					case gotDir <- de:
-					case <-halt.ReqStop.Chan:
-						return
-					case <-done:
-						return
-					}
-				}
-			}
-
-			// phase one: sending the leaf-directory-only structure
-			for derr != io.EOF {
-
-				// process the dirents we have
-				for _, d := range dirents {
-					if d.IsDir() {
-						dfs1helper(giverRoot, d)
-					}
-				}
-
-				select {
-				case <-halt.ReqStop.Chan:
-					return
-				case <-done:
-					return
-				}
-			}
-
 			// phase two: sending the file paths
 			for {
 				select {
