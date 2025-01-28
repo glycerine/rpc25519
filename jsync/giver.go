@@ -39,7 +39,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 	// this is the active side, as we called NewCircuitToPeerURL()
 	defer func(syncReq *RequestToSyncPath) {
-		//vv("%v: Giver() ckt '%v' defer running: shutting down. bt = '%#v'", name, ckt.Name, bt)
+		vv("%v: Giver() ckt '%v' defer running: shutting down. bt = '%#v'", name, ckt.Name, bt)
 
 		if syncReq != nil {
 			syncReq.BytesRead = int64(bt.bread)
@@ -596,7 +596,7 @@ upload:
 
 	alwaysPrintf("upload of rsync file done! elapsed: %v \n we "+
 		"uploaded tot = %v bytes (=> %0.6f MB/sec) in %v parts\n"+
-		"giverPath: '%v' -> takerPath: '%v'",
+		"giverPath: '%v'\n->\ntakerPath: '%v'",
 		elap, tot, rate, nparts, giverPath, takerPath)
 	return nil
 }
