@@ -535,7 +535,8 @@ func (s *SyncService) Start(
 				vv("Start (local taker) made temp dir '%v' for finalDir '%v'", targetTakerTopTempDir, syncReq.TakerPath)
 
 				reqDir := &RequestToSyncDir{
-					GiverDir:             syncReq.GiverPath,
+					GiverDir: syncReq.GiverPath,
+					//GiverDirModTime:   // we don't know this!
 					TopTakerDirTemp:      targetTakerTopTempDir,
 					TopTakerDirFinal:     syncReq.TakerPath,
 					TopTakerDirTempDirID: tmpDirID,
@@ -592,8 +593,14 @@ func (s *SyncService) Start(
 				// come from the original still on disk. If no errors
 				// at the end, we can rename the new to old dir (possibly
 				// rename the old to old.backup to start and manually verify).
+
+				fi, err := os.Stat(syncReq.GiverPath)
+				panicOn(err)
+				modtm := fi.ModTime()
+
 				reqDir := &RequestToSyncDir{
-					GiverDir: syncReq.GiverPath,
+					GiverDir:        syncReq.GiverPath,
+					GiverDirModTime: modtm,
 
 					// remote taker to provide their temp dir path
 					// in 23 DirSyncBeginReplyFromTaker message,
