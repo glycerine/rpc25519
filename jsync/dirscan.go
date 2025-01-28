@@ -119,7 +119,8 @@ func ScanDirTree(
 	// Important: we use fd.ReadDir so that
 	// we get "directory order" rather than
 	// sorted order. That way we can read large
-	// flat directories incrementally, without
+	// flat directories incrementally, a small
+	// bit at a time, without
 	// waiting to read, or fit, all of their
 	// entries into memory (or a Fragment) at once.
 	dirents, derr := fd.ReadDir(n)
@@ -137,14 +138,35 @@ func ScanDirTree(
 			halt.Done.Close()
 		}()
 
-		dfshelper := func() {
+		gotDir := make(chan os.DirEntry, 100)
 
+		var dfs1helper func(de os.DirEntry)
+		dfs1helper = func(pre string, de os.DirEntry) {
+
+			mypre := pre + de.Name()
+			// start scan, finding all dir
+
+			if de.IsDir() {
+				dfs1helper(mypre, de)
+				select {
+				case gotDir <- de:
+				case <-halt.ReqStop.Chan:
+					return
+				case <-done:
+					return
+				}
+			}
 		}
 
 		// phase one: sending the leaf-directory-only structure
 		for derr != io.EOF {
 
 			// process the dirents we have
+			for _, d := range dirents {
+				if d.IsDir() {
+					dfs1helper(giverRoot, d)
+				}
+			}
 
 			select {
 			case <-halt.ReqStop.Chan:
