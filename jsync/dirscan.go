@@ -162,9 +162,10 @@ func ScanDirTree(
 			if !ok {
 				break
 			}
+
 			// trim off giverRoot
 			leafdir = leafdir[pre:]
-
+			//vv("leafdir = '%v'", leafdir)
 			uses := len(leafdir)
 
 			if have+uses < max {

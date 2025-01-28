@@ -166,8 +166,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				bt.bread += len(frag.Payload)
 
 				for _, leafdir := range pol.Pack {
-					vv("leafdir = '%v'", leafdir)
-					err = os.MkdirAll(leafdir, 0700)
+					//vv("leafdir = '%v'", leafdir)
+					err = os.MkdirAll(reqDir.TopTakerDirTemp+sep+leafdir, 0700)
 					panicOn(err)
 				}
 				// reply to OpRsync_GiverSendsTopDirListingEnd
