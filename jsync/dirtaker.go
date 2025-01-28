@@ -217,6 +217,9 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					err = ckt.SendOneWay(readyForData, 0)
 					panicOn(err)
 				}
+				// dirgiver should reply to OpRsync_TakerReadyForDirContents
+				// with parallel individual file sends... then
+				//
 
 			case OpRsync_ToTakerAllTreeModes:
 				// phase 3: set the mode of all dirs in the tree.

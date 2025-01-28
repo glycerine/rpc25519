@@ -213,6 +213,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// transferred on the taker side to the new dir!) ...
 				// -> at end, giver -> DirSyncEndToTaker
 
+				allBatches := idem.NewHalter()
+
 			sendFiles:
 				for i := 0; ; i++ {
 					select {
@@ -221,6 +223,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							break sendFiles
 						}
 						batchHalt := idem.NewHalter()
+						allBatches.AddChild(batchHalt)
+						defer batchHalt.ReqStop.Close()
 
 						for _, file := range pof.Pack {
 							go func(file *File) {
@@ -266,6 +270,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						}
 						err := batchHalt.ReqStop.WaitTilChildrenDone(done)
 						vv("batchHalt.ReqStop.WaitTilChildrenDone gave err = '%v'", err)
+						batchHalt.ReqStop.Close()
 
 						if pof.IsLast {
 							break sendFiles
@@ -283,7 +288,17 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 				} // end for i sendfiles
 
-				vv("phase 3 dirgiver sends directory modes")
+				err := allBatches.ReqStop.WaitTilChildrenDone(done)
+				panicOn(err)
+
+				// wait to go on to sending OpRsync_ToTakerAllTreeModes
+				// until after all the files are there.
+				// So wait for OpRsync_ToGiverDirContentsDone
+
+				// send OpRsync_ToTakerDirContentsDone
+
+			case OpRsync_ToGiverDirContentsDoneAck:
+				vv("dirgiver sees OpRsync_ToGiverDirContentsDoneAck: on to phase 3, dirgiver sends directory modes")
 				// last (3rd phase): send each directory node,
 				// to set its permissions.
 
@@ -324,6 +339,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// wait for OpRsync_ToGiverAllTreeModesDone
 
 			case OpRsync_ToGiverAllTreeModesDone:
+				vv("dirgiver sees OpRsync_ToGiverAllTreeModesDone," +
+					" sending OpRsync_DirSyncEndToTaker")
 				dend := rpc.NewFragment()
 				dend.FragOp = OpRsync_DirSyncEndToTaker
 				err := ckt.SendOneWay(dend, 0)

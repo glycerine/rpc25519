@@ -204,9 +204,12 @@ const (
 	OpRsync_GiverSendsTopDirListingMore = 27 // to taker, here is more of 26
 	OpRsync_GiverSendsTopDirListingEnd  = 28 // to taker, here is end of 26
 
-	OpRsync_TakerReadyForDirContents = 29 // to giver, ready for individual file syncs
-	OpRsync_ToTakerAllTreeModes      = 30 // to taker, phase 3 all directory modes
-	OpRsync_ToGiverAllTreeModesDone  = 31 // to giver, phase 3 all directory modes all done
+	OpRsync_TakerReadyForDirContents  = 29 // to giver, ready for individual file syncs
+	OpRsync_ToTakerDirContentsDone    = 30 // to taker, I've sent them all.
+	OpRsync_ToGiverDirContentsDoneAck = 31 // to giver, dir-taker has got them all.
+
+	OpRsync_ToTakerAllTreeModes     = 32 // to taker, phase 3 all directory modes
+	OpRsync_ToGiverAllTreeModesDone = 33 // to giver, phase 3 all directory modes all done
 )
 
 var once sync.Once
@@ -257,6 +260,10 @@ func AliasRsyncOps() {
 	rpc.FragOpRegister(OpRsync_TakerReadyForDirContents, "OpRsync_TakerReadyForDirContents")
 
 	rpc.FragOpRegister(OpRsync_ToTakerAllTreeModes, "OpRsync_ToTakerAllTreeModes")
+
+	rpc.FragOpRegister(OpRsync_ToTakerDirContentsDone, "OpRsync_ToTakerDirContentsDone")
+	rpc.FragOpRegister(OpRsync_ToGiverDirContentsDoneAck, "OpRsync_ToGiverDirContentsDoneAck")
+
 }
 
 // NewRequestToSyncPath creates an empty
