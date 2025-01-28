@@ -127,9 +127,9 @@ func Test440_directory_sync(t *testing.T) {
 		panicOn(err)
 
 		// confirm it happened. localDir = expected, remoteDir = observed
-		difflen, err := compareDirs(localDir, remoteDir)
+		diff, err := compareDirs(localDir, remoteDir)
 		panicOn(err)
-		cv.So(difflen, cv.ShouldEqual, 0)
+		cv.So(diff, cv.ShouldEqual, "")
 
 		// check mod time being updated
 		lsz, lmod, err := FileSizeModTime(localDir)

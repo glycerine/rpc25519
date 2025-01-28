@@ -20,6 +20,7 @@ var sep = string(os.PathSeparator)
 func compareDirs(expected string, observed string) (diff string, err error) {
 	obs, err := listFilesUnderDir(observed, false, "")
 	panicOn(err)
+	vv("obs = '%#v'", obs)
 	exp, err := listFilesUnderDir(expected, false, "")
 	panicOn(err)
 
@@ -60,7 +61,8 @@ func listFilesUnderDir(root string, includeRoot bool, requiredSuffix string) (fi
 	if !dirExists(root) {
 		return
 	}
-	n := len(root) + 1
+	root = filepath.Clean(root) + sep // just 1 trailing slash
+	n := len(root)
 	if includeRoot {
 		n = 0
 	}

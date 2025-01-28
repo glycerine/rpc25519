@@ -158,7 +158,13 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				vv("dirtaker renaming completed dir into place!: %v -> %v", tmp,
 					final)
 				if dirExists(final) {
-					err := os.Rename(final, final+".oldvers")
+					old := final + ".oldvers"
+					vv("dirtaker backup up previous dir '%v' -> '%v'", final, old)
+					if dirExists(old) {
+						vv("dirtaker removing old '%v'", old)
+						os.RemoveAll(old)
+					}
+					err := os.Rename(final, old)
 					panicOn(err)
 				}
 				err := os.Rename(tmp, final)
