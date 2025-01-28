@@ -9,7 +9,7 @@ import (
 	//"time"
 
 	//"github.com/glycerine/rpc25519/progress"
-	//"github.com/glycerine/idem"
+	"github.com/glycerine/idem"
 	rpc "github.com/glycerine/rpc25519"
 )
 
@@ -43,6 +43,11 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 	weAreRemoteGiver := (reqDir == nil)
 	_ = weAreRemoteGiver
+
+	var haltDirScan *idem.Halter
+	var packOfLeavesCh chan *PackOfLeafPaths
+	var packOfFilesCh chan *PackOfFiles
+	var packOfDirsCh chan *PackOfDirs
 
 	defer func(reqDir *RequestToSyncDir) {
 		vv("%v: (ckt '%v') defer running! finishing DirGiver; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
@@ -151,9 +156,9 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// OpRsync_GiverSendsTopDirListing
 				// OpRsync_GiverSendsTopDirListingMore
 				// OpRsync_GiverSendsTopDirListingEnd
-
+				var err error
 				haltDirScan, packOfLeavesCh, packOfFilesCh, packOfDirsCh,
-					err := ScanDirTree(ctx0, reqDir.GiverDir)
+					err = ScanDirTree(ctx0, reqDir.GiverDir)
 				_ = packOfFilesCh
 				_ = packOfDirsCh
 				panicOn(err)
@@ -169,6 +174,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						bts, err := pol.MarshalMsg(nil)
 						panicOn(err)
 						leafy := rpc.NewFragment()
+						leafy.SetUserArg("structType", "PackOfLeafPaths")
 						leafy.Payload = bts
 						switch {
 						case pol.IsLast:
@@ -195,6 +201,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						return
 					}
 				}
+
 				// and wait for OpRsync_TakerReadyForDirContents
 
 			case OpRsync_TakerReadyForDirContents: // 29
@@ -204,6 +211,62 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// (newly deleted files can be simply not
 				// transferred on the taker side to the new dir!) ...
 				// -> at end, giver -> DirSyncEndToTaker
+
+			sendFiles:
+				for i := 0; ; i++ {
+					select {
+					case pof, ok := <-packOfFilesCh:
+						if !ok {
+							break sendFiles
+						}
+						//var wg sync.WaitGroup
+						//wg.Add(len(pof.Pack))
+						for _, file := range pof.Pack {
+							go func(file *File) {
+								//defer wg.Done()
+
+								frag1 := rpc.NewFragment()
+								sr := &RequestToSyncPath{
+									GiverPath:   reqDir.GiverDir + file.Path,
+									TakerPath:   reqDir.TopTakerDirTemp + file.Path,
+									FileSize:    file.Size,
+									ModTime:     file.ModTime,
+									FileMode:    file.FileMode,
+									RemoteTakes: true,
+									//Precis:      precis,
+									//Chunks:      chunks,
+								}
+								bts, err := sr.MarshalMsg(nil)
+								panicOn(err)
+								frag1.Payload = bts
+								// basic push flow. giver sends 1.
+								frag1.FragOp = OpRsync_RequestRemoteToTake
+								frag1.SetUserArg("structType", "RequestToSyncPath")
+								cktName := rsyncRemoteTakesString
+								ckt2, ctx2, err := ckt.NewCircuit(cktName, frag1)
+								panicOn(err)
+								defer ckt2.Close(nil)
+								s.Giver(ctx2, ckt2, myPeer, sr)
+
+							}(file)
+						}
+						//wg.Wait()
+
+						if pof.IsLast {
+							break sendFiles
+						}
+
+					case <-done:
+						////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
+						return
+					case <-done0:
+						////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
+						return
+					case <-ckt.Halt.ReqStop.Chan:
+						////vv("%v: (ckt '%v') (DirGiver) ckt halt requested.", name, ckt.Name)
+						return
+					}
+				}
 
 				// at end, send OpRsync_DirSyncEndToTaker,
 				// wait for OpRsync_DirSyncEndAckFromTaker.
