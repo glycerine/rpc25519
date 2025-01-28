@@ -221,6 +221,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						}
 						//var wg sync.WaitGroup
 						//wg.Add(len(pof.Pack))
+						batchHalt := idem.NewHalter()
+
 						for _, file := range pof.Pack {
 							go func(file *File) {
 								//defer wg.Done()
@@ -246,11 +248,12 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								ckt2, ctx2, err := ckt.NewCircuit(cktName, frag1)
 								panicOn(err)
 								defer ckt2.Close(nil)
+								batchHalt.AddChild(ckt2.Halt)
 								s.Giver(ctx2, ckt2, myPeer, sr)
 
 							}(file)
 						}
-						//wg.Wait()
+						batchHalt.ReqStop.WaitTilDone(done)
 
 						if pof.IsLast {
 							break sendFiles
