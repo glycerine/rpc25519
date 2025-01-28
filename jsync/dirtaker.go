@@ -9,7 +9,7 @@ import (
 	//"io"
 	//"io/fs"
 	"os"
-	//"path/filepath"
+	"path/filepath"
 	//"strconv"
 	"strings"
 	//"sync"
@@ -167,7 +167,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 				for _, leafdir := range pol.Pack {
 					//vv("leafdir = '%v'", leafdir)
-					err = os.MkdirAll(reqDir.TopTakerDirTemp+sep+leafdir, 0700)
+					err = os.MkdirAll(filepath.Join(reqDir.TopTakerDirTemp, leafdir), 0700)
 					panicOn(err)
 				}
 				// reply to OpRsync_GiverSendsTopDirListingEnd

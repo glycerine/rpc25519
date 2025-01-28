@@ -7,7 +7,7 @@ import (
 	//"github.com/glycerine/rpc25519/progress"
 	//"io"
 	"os"
-	//"path/filepath"
+	"path/filepath"
 	//"strconv"
 	"sync"
 	"time"
@@ -439,8 +439,8 @@ func (s *SyncService) mkTempDir(finalDir string) (tmpDir, tmpDirID string, err e
 	dataDir, err := rpc.GetServerDataDir()
 	panicOn(err)
 	hostCID := rpc.HostCID
-	stagingDir := dataDir + sep + hostCID + sep + "staging"
-	tmpDir = stagingDir + sep + tmpDirID
+	stagingDir := filepath.Join(dataDir, hostCID, "staging")
+	tmpDir = filepath.Join(stagingDir, tmpDirID)
 	err = os.MkdirAll(tmpDir, 0700)
 	panicOn(err)
 	return
