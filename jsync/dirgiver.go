@@ -338,7 +338,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 				s.ackBackFINToTaker(ckt, frag0)
 				frag0 = nil // GC early.
-				// wait for FIN?
+				// wait for FIN
 
 				///////////// end dir sync stuff
 

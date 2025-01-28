@@ -152,7 +152,18 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncEndToTaker", name, ckt.Name)
 				// we (taker) can rename the temp top dir/replace any old top dir.
 
+				vv("dirtaker renaming completed dir into place!: %v -> %v",
+					reqDir.TopTakerDirTemp,
+					reqDir.TopTakerDirFinal)
+				err := os.Rename(reqDir.TopTakerDirTemp, reqDir.TopTakerDirFinal)
+				panicOn(err)
+
 				// reply with OpRsync_DirSyncEndAckFromTaker, wait for FIN.
+
+				alldone := rpc.NewFragment()
+				alldone.FragOp = OpRsync_DirSyncEndAckFromTaker
+				err = ckt.SendOneWay(alldone, 0)
+				panicOn(err)
 
 			case OpRsync_GiverSendsTopDirListing, OpRsync_GiverSendsTopDirListingMore, OpRsync_GiverSendsTopDirListingEnd: // 26/27/28
 				vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
