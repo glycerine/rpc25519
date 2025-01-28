@@ -281,9 +281,55 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						////vv("%v: (ckt '%v') (DirGiver) ckt halt requested.", name, ckt.Name)
 						return
 					}
-				}
+				} // end for i sendfiles
 
-				// at end, send OpRsync_DirSyncEndToTaker,
+				// last (3rd phase): send each directory node,
+				// to set its permissions.
+
+			sendDirs:
+				for i := 0; ; i++ {
+					select {
+					case pod, ok := <-packOfDirsCh:
+						if !ok {
+							break sendDirs
+						}
+						for _, file := range pod.Pack {
+
+							frag1 := rpc.NewFragment()
+							bts, err := file.MarshalMsg(nil)
+							panicOn(err)
+							frag1.Payload = bts
+
+							frag1.FragOp = OpRsync_ToTakerAllTreeModes
+							frag1.SetUserArg("structType", "PackOfDirs")
+							err = ckt.SendOneWay(frag1, 0)
+							panicOn(err)
+						}
+						if pod.IsLast {
+							break sendDirs
+						}
+
+					case <-done:
+						////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
+						return
+					case <-done0:
+						////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
+						return
+					case <-ckt.Halt.ReqStop.Chan:
+						////vv("%v: (ckt '%v') (DirGiver) ckt halt requested.", name, ckt.Name)
+						return
+					}
+				} // end for i sendDirs
+
+				// all 3 phases of fileystem sync done: send OpRsync_DirSyncEndToTaker,
+				// wait for OpRsync_ToGiverAllTreeModesDone
+
+			case OpRsync_ToGiverAllTreeModesDone:
+				dend := rpc.NewFragment()
+				dend.FragOp = OpRsync_DirSyncEndToTaker
+				err := ckt.SendOneWay(dend, 0)
+				panicOn(err)
+
 				// wait for OpRsync_DirSyncEndAckFromTaker.
 
 			case OpRsync_DirSyncEndAckFromTaker: // 25

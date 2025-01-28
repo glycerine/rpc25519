@@ -7,7 +7,7 @@ import (
 	//myblake3 "github.com/glycerine/rpc25519/hash"
 	//"github.com/glycerine/rpc25519/progress"
 	//"io"
-	//"io/fs"
+	"io/fs"
 	"os"
 	"path/filepath"
 	//"strconv"
@@ -189,6 +189,33 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					panicOn(err)
 				}
 
+			case OpRsync_ToTakerAllTreeModes:
+				// phase 3: set the mode of all dirs in the tree.
+
+				vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
+				// Getting this means all the file content has been
+				// sent to me, and now we are setting the mode of dirs
+				// on the whole tree.
+
+				pod := &PackOfDirs{}
+				_, err := pod.UnmarshalMsg(frag.Payload)
+				panicOn(err)
+				bt.bread += len(frag.Payload)
+
+				for _, dir := range pod.Pack {
+					fullpath := filepath.Join(reqDir.TopTakerDirTemp, dir.Path)
+					err = os.Chmod(fullpath, fs.FileMode(dir.FileMode))
+					panicOn(err)
+					vv("dirtaker set mode on dir = '%v'", dir)
+				}
+				if pod.IsLast {
+					vv("dirtaker sees pod.IsLast, sending " +
+						"OpRsync_ToGiverAllTreeModesDone")
+					modesDone := rpc.NewFragment()
+					modesDone.FragOp = OpRsync_ToGiverAllTreeModesDone
+					err = ckt.SendOneWay(modesDone, 0)
+					panicOn(err)
+				}
 			///////////////// end dir sync stuff
 
 			case OpRsync_AckBackFIN_ToTaker:

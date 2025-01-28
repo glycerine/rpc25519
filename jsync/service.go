@@ -133,7 +133,7 @@ type SyncService struct {
 // directory sync flows:
 // (local taker creates tmp dir target) -> 21 TakerRequestsDirSyncBegin (remote giver notes tmp dir target) ->   (taker) 22 DirSyncBeginToTaker (enter flow below)
 //
-// (giver) -> 22 DirSyncBeginToTaker (remote taker creates tmp dir target) -> 23 DirSyncBeginReplyFromTaker -> 26/27/28 GiverSendsTopDirListing{|More|End} -> (giver) 29 TakerReadyForDirContents -> giver does individual file syncs (newly deleted files can be simply not transferred on the taker side to the new dir!) ... -> at end, giver -> DirSyncEndToTaker -> DirSyncEndAckFromTaker -> FIN.
+// (giver) -> 22 DirSyncBeginToTaker (remote taker creates tmp dir target) -> 23 DirSyncBeginReplyFromTaker -> 26/27/28 GiverSendsTopDirListing{|More|End} -> (giver) 29 TakerReadyForDirContents -> giver does individual file syncs (newly deleted files can be simply not transferred on the taker side to the new dir!) ... at end, giver does -> 30 ToTakerAllTreeDirectoryModes (taker) replies -> 31 ToGiverAllTreeModesDone ... lastly giver does DirSyncEndToTaker -> DirSyncEndAckFromTaker -> FIN.
 //
 // Both 21 and 22 should put the circuit into "dir-sync" mode wherein
 // we ignore all the other FragOps unrelated to coordinating the top
@@ -205,6 +205,8 @@ const (
 	OpRsync_GiverSendsTopDirListingEnd  = 28 // to taker, here is end of 26
 
 	OpRsync_TakerReadyForDirContents = 29 // to giver, ready for individual file syncs
+	OpRsync_ToTakerAllTreeModes      = 30 // to taker, phase 3 all directory modes
+	OpRsync_ToGiverAllTreeModesDone  = 31 // to giver, phase 3 all directory modes all done
 )
 
 var once sync.Once
@@ -253,6 +255,8 @@ func AliasRsyncOps() {
 	rpc.FragOpRegister(OpRsync_GiverSendsTopDirListingMore, "OpRsync_GiverSendsTopDirListingMore")
 	rpc.FragOpRegister(OpRsync_GiverSendsTopDirListingEnd, "OpRsync_GiverSendsTopDirListingEnd")
 	rpc.FragOpRegister(OpRsync_TakerReadyForDirContents, "OpRsync_TakerReadyForDirContents")
+
+	rpc.FragOpRegister(OpRsync_ToTakerAllTreeModes, "OpRsync_ToTakerAllTreeModes")
 }
 
 // NewRequestToSyncPath creates an empty
