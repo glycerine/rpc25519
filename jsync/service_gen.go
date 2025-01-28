@@ -21,7 +21,7 @@ func (z *RequestToSyncDir) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields0zgensym_5b8048e47f8e3c5c_1 = 6
+	const maxFields0zgensym_5b8048e47f8e3c5c_1 = 7
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields0zgensym_5b8048e47f8e3c5c_1 uint32
@@ -76,32 +76,38 @@ doneWithStruct0zgensym_5b8048e47f8e3c5c_1:
 			if err != nil {
 				return
 			}
-		case "TopTakerDirTemp_zid01_str":
+		case "GiverDirModTime_zid01_tim":
 			found0zgensym_5b8048e47f8e3c5c_1[1] = true
+			z.GiverDirModTime, err = dc.ReadTime()
+			if err != nil {
+				return
+			}
+		case "TopTakerDirTemp_zid02_str":
+			found0zgensym_5b8048e47f8e3c5c_1[2] = true
 			z.TopTakerDirTemp, err = dc.ReadString()
 			if err != nil {
 				return
 			}
-		case "TopTakerDirTempDirID_zid02_str":
-			found0zgensym_5b8048e47f8e3c5c_1[2] = true
+		case "TopTakerDirTempDirID_zid03_str":
+			found0zgensym_5b8048e47f8e3c5c_1[3] = true
 			z.TopTakerDirTempDirID, err = dc.ReadString()
 			if err != nil {
 				return
 			}
-		case "TopTakerDirFinal_zid03_str":
-			found0zgensym_5b8048e47f8e3c5c_1[3] = true
+		case "TopTakerDirFinal_zid04_str":
+			found0zgensym_5b8048e47f8e3c5c_1[4] = true
 			z.TopTakerDirFinal, err = dc.ReadString()
 			if err != nil {
 				return
 			}
-		case "RemoteTakes_zid04_boo":
-			found0zgensym_5b8048e47f8e3c5c_1[4] = true
+		case "RemoteTakes_zid05_boo":
+			found0zgensym_5b8048e47f8e3c5c_1[5] = true
 			z.RemoteTakes, err = dc.ReadBool()
 			if err != nil {
 				return
 			}
-		case "SR_zid05_ptr":
-			found0zgensym_5b8048e47f8e3c5c_1[5] = true
+		case "SR_zid06_ptr":
+			found0zgensym_5b8048e47f8e3c5c_1[6] = true
 			if dc.IsNil() {
 				err = dc.ReadNil()
 				if err != nil {
@@ -152,38 +158,42 @@ doneWithStruct0zgensym_5b8048e47f8e3c5c_1:
 }
 
 // fields of RequestToSyncDir
-var decodeMsgFieldOrder0zgensym_5b8048e47f8e3c5c_1 = []string{"GiverDir_zid00_str", "TopTakerDirTemp_zid01_str", "TopTakerDirTempDirID_zid02_str", "TopTakerDirFinal_zid03_str", "RemoteTakes_zid04_boo", "SR_zid05_ptr"}
+var decodeMsgFieldOrder0zgensym_5b8048e47f8e3c5c_1 = []string{"GiverDir_zid00_str", "GiverDirModTime_zid01_tim", "TopTakerDirTemp_zid02_str", "TopTakerDirTempDirID_zid03_str", "TopTakerDirFinal_zid04_str", "RemoteTakes_zid05_boo", "SR_zid06_ptr"}
 
-var decodeMsgFieldSkip0zgensym_5b8048e47f8e3c5c_1 = []bool{false, false, false, false, false, false}
+var decodeMsgFieldSkip0zgensym_5b8048e47f8e3c5c_1 = []bool{false, false, false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *RequestToSyncDir) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 6
+		return 7
 	}
-	var fieldsInUse uint32 = 6
+	var fieldsInUse uint32 = 7
 	isempty[0] = (len(z.GiverDir) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
 	}
-	isempty[1] = (len(z.TopTakerDirTemp) == 0) // string, omitempty
+	isempty[1] = (z.GiverDirModTime.IsZero()) // time.Time, omitempty
 	if isempty[1] {
 		fieldsInUse--
 	}
-	isempty[2] = (len(z.TopTakerDirTempDirID) == 0) // string, omitempty
+	isempty[2] = (len(z.TopTakerDirTemp) == 0) // string, omitempty
 	if isempty[2] {
 		fieldsInUse--
 	}
-	isempty[3] = (len(z.TopTakerDirFinal) == 0) // string, omitempty
+	isempty[3] = (len(z.TopTakerDirTempDirID) == 0) // string, omitempty
 	if isempty[3] {
 		fieldsInUse--
 	}
-	isempty[4] = (!z.RemoteTakes) // bool, omitempty
+	isempty[4] = (len(z.TopTakerDirFinal) == 0) // string, omitempty
 	if isempty[4] {
 		fieldsInUse--
 	}
-	isempty[5] = (z.SR == nil) // pointer, omitempty
+	isempty[5] = (!z.RemoteTakes) // bool, omitempty
 	if isempty[5] {
+		fieldsInUse--
+	}
+	isempty[6] = (z.SR == nil) // pointer, omitempty
+	if isempty[6] {
 		fieldsInUse--
 	}
 
@@ -197,7 +207,7 @@ func (z *RequestToSyncDir) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_5b8048e47f8e3c5c_2 [6]bool
+	var empty_zgensym_5b8048e47f8e3c5c_2 [7]bool
 	fieldsInUse_zgensym_5b8048e47f8e3c5c_3 := z.fieldsNotEmpty(empty_zgensym_5b8048e47f8e3c5c_2[:])
 
 	// map header
@@ -229,8 +239,20 @@ func (z *RequestToSyncDir) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_5b8048e47f8e3c5c_2[1] {
-		// write "TopTakerDirTemp_zid01_str"
-		err = en.Append(0xb9, 0x54, 0x6f, 0x70, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x44, 0x69, 0x72, 0x54, 0x65, 0x6d, 0x70, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x73, 0x74, 0x72)
+		// write "GiverDirModTime_zid01_tim"
+		err = en.Append(0xb9, 0x47, 0x69, 0x76, 0x65, 0x72, 0x44, 0x69, 0x72, 0x4d, 0x6f, 0x64, 0x54, 0x69, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x74, 0x69, 0x6d)
+		if err != nil {
+			return err
+		}
+		err = en.WriteTime(z.GiverDirModTime)
+		if err != nil {
+			return
+		}
+	}
+
+	if !empty_zgensym_5b8048e47f8e3c5c_2[2] {
+		// write "TopTakerDirTemp_zid02_str"
+		err = en.Append(0xb9, 0x54, 0x6f, 0x70, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x44, 0x69, 0x72, 0x54, 0x65, 0x6d, 0x70, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
@@ -240,9 +262,9 @@ func (z *RequestToSyncDir) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_5b8048e47f8e3c5c_2[2] {
-		// write "TopTakerDirTempDirID_zid02_str"
-		err = en.Append(0xbe, 0x54, 0x6f, 0x70, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x44, 0x69, 0x72, 0x54, 0x65, 0x6d, 0x70, 0x44, 0x69, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x73, 0x74, 0x72)
+	if !empty_zgensym_5b8048e47f8e3c5c_2[3] {
+		// write "TopTakerDirTempDirID_zid03_str"
+		err = en.Append(0xbe, 0x54, 0x6f, 0x70, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x44, 0x69, 0x72, 0x54, 0x65, 0x6d, 0x70, 0x44, 0x69, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
@@ -252,9 +274,9 @@ func (z *RequestToSyncDir) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_5b8048e47f8e3c5c_2[3] {
-		// write "TopTakerDirFinal_zid03_str"
-		err = en.Append(0xba, 0x54, 0x6f, 0x70, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x44, 0x69, 0x72, 0x46, 0x69, 0x6e, 0x61, 0x6c, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x73, 0x74, 0x72)
+	if !empty_zgensym_5b8048e47f8e3c5c_2[4] {
+		// write "TopTakerDirFinal_zid04_str"
+		err = en.Append(0xba, 0x54, 0x6f, 0x70, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x44, 0x69, 0x72, 0x46, 0x69, 0x6e, 0x61, 0x6c, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
@@ -264,9 +286,9 @@ func (z *RequestToSyncDir) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_5b8048e47f8e3c5c_2[4] {
-		// write "RemoteTakes_zid04_boo"
-		err = en.Append(0xb5, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x54, 0x61, 0x6b, 0x65, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x62, 0x6f, 0x6f)
+	if !empty_zgensym_5b8048e47f8e3c5c_2[5] {
+		// write "RemoteTakes_zid05_boo"
+		err = en.Append(0xb5, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x54, 0x61, 0x6b, 0x65, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x62, 0x6f, 0x6f)
 		if err != nil {
 			return err
 		}
@@ -276,9 +298,9 @@ func (z *RequestToSyncDir) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_5b8048e47f8e3c5c_2[5] {
-		// write "SR_zid05_ptr"
-		err = en.Append(0xac, 0x53, 0x52, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x70, 0x74, 0x72)
+	if !empty_zgensym_5b8048e47f8e3c5c_2[6] {
+		// write "SR_zid06_ptr"
+		err = en.Append(0xac, 0x53, 0x52, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x70, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
@@ -309,7 +331,7 @@ func (z *RequestToSyncDir) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [6]bool
+	var empty [7]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -320,32 +342,38 @@ func (z *RequestToSyncDir) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[1] {
-		// string "TopTakerDirTemp_zid01_str"
-		o = append(o, 0xb9, 0x54, 0x6f, 0x70, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x44, 0x69, 0x72, 0x54, 0x65, 0x6d, 0x70, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x73, 0x74, 0x72)
-		o = msgp.AppendString(o, z.TopTakerDirTemp)
+		// string "GiverDirModTime_zid01_tim"
+		o = append(o, 0xb9, 0x47, 0x69, 0x76, 0x65, 0x72, 0x44, 0x69, 0x72, 0x4d, 0x6f, 0x64, 0x54, 0x69, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x74, 0x69, 0x6d)
+		o = msgp.AppendTime(o, z.GiverDirModTime)
 	}
 
 	if !empty[2] {
-		// string "TopTakerDirTempDirID_zid02_str"
-		o = append(o, 0xbe, 0x54, 0x6f, 0x70, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x44, 0x69, 0x72, 0x54, 0x65, 0x6d, 0x70, 0x44, 0x69, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x73, 0x74, 0x72)
-		o = msgp.AppendString(o, z.TopTakerDirTempDirID)
+		// string "TopTakerDirTemp_zid02_str"
+		o = append(o, 0xb9, 0x54, 0x6f, 0x70, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x44, 0x69, 0x72, 0x54, 0x65, 0x6d, 0x70, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.TopTakerDirTemp)
 	}
 
 	if !empty[3] {
-		// string "TopTakerDirFinal_zid03_str"
-		o = append(o, 0xba, 0x54, 0x6f, 0x70, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x44, 0x69, 0x72, 0x46, 0x69, 0x6e, 0x61, 0x6c, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x73, 0x74, 0x72)
-		o = msgp.AppendString(o, z.TopTakerDirFinal)
+		// string "TopTakerDirTempDirID_zid03_str"
+		o = append(o, 0xbe, 0x54, 0x6f, 0x70, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x44, 0x69, 0x72, 0x54, 0x65, 0x6d, 0x70, 0x44, 0x69, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.TopTakerDirTempDirID)
 	}
 
 	if !empty[4] {
-		// string "RemoteTakes_zid04_boo"
-		o = append(o, 0xb5, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x54, 0x61, 0x6b, 0x65, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x62, 0x6f, 0x6f)
-		o = msgp.AppendBool(o, z.RemoteTakes)
+		// string "TopTakerDirFinal_zid04_str"
+		o = append(o, 0xba, 0x54, 0x6f, 0x70, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x44, 0x69, 0x72, 0x46, 0x69, 0x6e, 0x61, 0x6c, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.TopTakerDirFinal)
 	}
 
 	if !empty[5] {
-		// string "SR_zid05_ptr"
-		o = append(o, 0xac, 0x53, 0x52, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x70, 0x74, 0x72)
+		// string "RemoteTakes_zid05_boo"
+		o = append(o, 0xb5, 0x52, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x54, 0x61, 0x6b, 0x65, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x62, 0x6f, 0x6f)
+		o = msgp.AppendBool(o, z.RemoteTakes)
+	}
+
+	if !empty[6] {
+		// string "SR_zid06_ptr"
+		o = append(o, 0xac, 0x53, 0x52, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x70, 0x74, 0x72)
 		// marshalGen.gPtr()
 
 		if z.SR == nil {
@@ -378,7 +406,7 @@ func (z *RequestToSyncDir) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConf
 
 	var field []byte
 	_ = field
-	const maxFields4zgensym_5b8048e47f8e3c5c_5 = 6
+	const maxFields4zgensym_5b8048e47f8e3c5c_5 = 7
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields4zgensym_5b8048e47f8e3c5c_5 uint32
@@ -435,36 +463,43 @@ doneWithStruct4zgensym_5b8048e47f8e3c5c_5:
 			if err != nil {
 				return
 			}
-		case "TopTakerDirTemp_zid01_str":
+		case "GiverDirModTime_zid01_tim":
 			found4zgensym_5b8048e47f8e3c5c_5[1] = true
+			z.GiverDirModTime, bts, err = nbs.ReadTimeBytes(bts)
+
+			if err != nil {
+				return
+			}
+		case "TopTakerDirTemp_zid02_str":
+			found4zgensym_5b8048e47f8e3c5c_5[2] = true
 			z.TopTakerDirTemp, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "TopTakerDirTempDirID_zid02_str":
-			found4zgensym_5b8048e47f8e3c5c_5[2] = true
+		case "TopTakerDirTempDirID_zid03_str":
+			found4zgensym_5b8048e47f8e3c5c_5[3] = true
 			z.TopTakerDirTempDirID, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "TopTakerDirFinal_zid03_str":
-			found4zgensym_5b8048e47f8e3c5c_5[3] = true
+		case "TopTakerDirFinal_zid04_str":
+			found4zgensym_5b8048e47f8e3c5c_5[4] = true
 			z.TopTakerDirFinal, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "RemoteTakes_zid04_boo":
-			found4zgensym_5b8048e47f8e3c5c_5[4] = true
+		case "RemoteTakes_zid05_boo":
+			found4zgensym_5b8048e47f8e3c5c_5[5] = true
 			z.RemoteTakes, bts, err = nbs.ReadBoolBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "SR_zid05_ptr":
-			found4zgensym_5b8048e47f8e3c5c_5[5] = true
+		case "SR_zid06_ptr":
+			found4zgensym_5b8048e47f8e3c5c_5[6] = true
 			// unmarshalGen.gPtr(): we have a BaseElem: &gen.BaseElem{Common:gen.Common{vname:"z.SR", alias:"RequestToSyncPath", hmp:gen.HasMethodPrefix(nil), zid:0}, ShimToBase:"", ShimFromBase:"", Value:0x16, Convert:false, mustinline:false, needsref:false, isIface:false, isInIfaceSlice:false}
 
 			// unmarshalGen.gPtr(): we have an IDENT:
@@ -516,13 +551,13 @@ doneWithStruct4zgensym_5b8048e47f8e3c5c_5:
 }
 
 // fields of RequestToSyncDir
-var unmarshalMsgFieldOrder4zgensym_5b8048e47f8e3c5c_5 = []string{"GiverDir_zid00_str", "TopTakerDirTemp_zid01_str", "TopTakerDirTempDirID_zid02_str", "TopTakerDirFinal_zid03_str", "RemoteTakes_zid04_boo", "SR_zid05_ptr"}
+var unmarshalMsgFieldOrder4zgensym_5b8048e47f8e3c5c_5 = []string{"GiverDir_zid00_str", "GiverDirModTime_zid01_tim", "TopTakerDirTemp_zid02_str", "TopTakerDirTempDirID_zid03_str", "TopTakerDirFinal_zid04_str", "RemoteTakes_zid05_boo", "SR_zid06_ptr"}
 
-var unmarshalMsgFieldSkip4zgensym_5b8048e47f8e3c5c_5 = []bool{false, false, false, false, false, false}
+var unmarshalMsgFieldSkip4zgensym_5b8048e47f8e3c5c_5 = []bool{false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *RequestToSyncDir) Msgsize() (s int) {
-	s = 1 + 19 + msgp.StringPrefixSize + len(z.GiverDir) + 26 + msgp.StringPrefixSize + len(z.TopTakerDirTemp) + 31 + msgp.StringPrefixSize + len(z.TopTakerDirTempDirID) + 27 + msgp.StringPrefixSize + len(z.TopTakerDirFinal) + 22 + msgp.BoolSize + 13
+	s = 1 + 19 + msgp.StringPrefixSize + len(z.GiverDir) + 26 + msgp.TimeSize + 26 + msgp.StringPrefixSize + len(z.TopTakerDirTemp) + 31 + msgp.StringPrefixSize + len(z.TopTakerDirTempDirID) + 27 + msgp.StringPrefixSize + len(z.TopTakerDirFinal) + 22 + msgp.BoolSize + 13
 	if z.SR == nil {
 		s += msgp.NilSize
 	} else {

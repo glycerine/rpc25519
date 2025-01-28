@@ -13,7 +13,7 @@ import (
 	//"strconv"
 	"strings"
 	//"sync"
-	//"time"
+	"time"
 
 	//"github.com/glycerine/idem"
 	rpc "github.com/glycerine/rpc25519"
@@ -169,6 +169,12 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				}
 				err := os.Rename(tmp, final)
 				panicOn(err)
+				// and set the mod time
+				if !reqDir.GiverDirModTime.IsZero() {
+					vv("setting final dir mod time: '%v'", reqDir.GiverDirModTime)
+					err = os.Chtimes(final, time.Time{}, reqDir.GiverDirModTime)
+					panicOn(err)
+				}
 
 				// reply with OpRsync_DirSyncEndAckFromTaker, wait for FIN.
 

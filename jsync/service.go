@@ -377,18 +377,19 @@ type RequestToSyncPath struct {
 // as well, so they are deleted if
 // no longer on the giver.
 type RequestToSyncDir struct {
-	GiverDir string `zid:"0"`
+	GiverDir        string    `zid:"0"`
+	GiverDirModTime time.Time `zid:"1"`
 
-	TopTakerDirTemp      string `zid:"1"`
-	TopTakerDirTempDirID string `zid:"2"`
+	TopTakerDirTemp      string `zid:"2"`
+	TopTakerDirTempDirID string `zid:"3"`
 
-	TopTakerDirFinal string `zid:"3"`
+	TopTakerDirFinal string `zid:"4"`
 
 	// If RemoteTakes is false => remote giver, local taker.
 	// If RemoteTakes is true  => remote taker, local giver.
-	RemoteTakes bool `zid:"4"`
+	RemoteTakes bool `zid:"5"`
 
-	SR *RequestToSyncPath `zid:"5"` // original local request
+	SR *RequestToSyncPath `zid:"6"` // original local request
 }
 
 type DirListing struct {
