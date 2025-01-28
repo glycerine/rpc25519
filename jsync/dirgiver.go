@@ -264,8 +264,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 							}(file)
 						}
-						//err := batchHalt.ReqStop.WaitTilDone(done)
-						//vv("batchHalt.ReqStop.WaitTilDone gave err = '%v'", err)
+						err := batchHalt.ReqStop.WaitTilChildrenDone(done)
+						vv("batchHalt.ReqStop.WaitTilChildrenDone gave err = '%v'", err)
 
 						if pof.IsLast {
 							break sendFiles
