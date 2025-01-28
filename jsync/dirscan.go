@@ -156,7 +156,7 @@ func ScanDirTree(
 
 			leafdir, ok, valid := next()
 			if !valid {
-				vv("not valid, breaking, ok = %v", ok)
+				//vv("not valid, breaking, ok = %v", ok)
 				break
 			}
 			if !ok {
@@ -218,7 +218,7 @@ func ScanDirTree(
 
 			path, ok, valid := next()
 			if !valid {
-				vv("not valid, breaking, ok = %v", ok)
+				//vv("not valid, breaking, ok = %v", ok)
 				break
 			}
 			if !ok {
@@ -290,7 +290,7 @@ func ScanDirTree(
 
 			path, ok, valid := next()
 			if !valid {
-				vv("not valid, breaking, ok = %v", ok)
+				//vv("not valid, breaking, ok = %v", ok)
 				break
 			}
 			if !ok {
