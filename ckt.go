@@ -740,7 +740,8 @@ func (lpb *LocalPeer) newCircuit(
 // when you are done with it. use reason nil for normal
 // all-good shutdown of a circuit, or to report an error.
 func (h *Circuit) Close(reason error) {
-	// must be idemopotent. Often called many during normal Circuit shutdown.
+	// must be idemopotent. Often called many times
+	// during normal Circuit shutdown.
 
 	// set reason atomically.
 	h.Halt.ReqStop.CloseWithReason(reason)
