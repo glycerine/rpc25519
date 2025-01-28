@@ -8,7 +8,7 @@ import (
 	//"github.com/glycerine/rpc25519/progress"
 	//"io"
 	//"io/fs"
-	//"os"
+	"os"
 	//"path/filepath"
 	//"strconv"
 	"strings"
@@ -160,8 +160,29 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// or, to me (taker), here is more dir listing
 				// or, to me (taker), here is end dir listing
 
+				pol := &PackOfLeafPaths{}
+				_, err := pol.UnmarshalMsg(frag.Payload)
+				panicOn(err)
+				bt.bread += len(frag.Payload)
+
+				for _, leafdir := range pol.Pack {
+					vv("leafdir = '%v'", leafdir)
+					err = os.MkdirAll(leafdir, 0700)
+					panicOn(err)
+				}
 				// reply to OpRsync_GiverSendsTopDirListingEnd
 				// with OpRsync_TakerReadyForDirContents
+
+				// we have them wait to send content files
+				// until we have the "scaffolding" of all the
+				// directories in place, so that we can
+				// fill in the files in any order, and in parallel.
+				if frag.FragOp == OpRsync_GiverSendsTopDirListingEnd {
+					readyForData := rpc.NewFragment()
+					readyForData.FragOp = OpRsync_TakerReadyForDirContents
+					err = ckt.SendOneWay(readyForData, 0)
+					panicOn(err)
+				}
 
 			///////////////// end dir sync stuff
 
