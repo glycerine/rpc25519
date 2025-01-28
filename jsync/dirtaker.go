@@ -152,10 +152,16 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncEndToTaker", name, ckt.Name)
 				// we (taker) can rename the temp top dir/replace any old top dir.
 
-				vv("dirtaker renaming completed dir into place!: %v -> %v",
-					reqDir.TopTakerDirTemp,
-					reqDir.TopTakerDirFinal)
-				err := os.Rename(reqDir.TopTakerDirTemp, reqDir.TopTakerDirFinal)
+				tmp := reqDir.TopTakerDirTemp
+				// get rid of any trailing '/' slash, so we can tack on .oldvers
+				final := filepath.Clean(reqDir.TopTakerDirFinal)
+				vv("dirtaker renaming completed dir into place!: %v -> %v", tmp,
+					final)
+				if dirExists(final) {
+					err := os.Rename(final, final+".oldvers")
+					panicOn(err)
+				}
+				err := os.Rename(tmp, final)
 				panicOn(err)
 
 				// reply with OpRsync_DirSyncEndAckFromTaker, wait for FIN.

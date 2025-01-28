@@ -283,6 +283,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 				} // end for i sendfiles
 
+				vv("phase 3 dirgiver sends directory modes")
 				// last (3rd phase): send each directory node,
 				// to set its permissions.
 
@@ -293,18 +294,16 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						if !ok {
 							break sendDirs
 						}
-						for _, file := range pod.Pack {
+						podModes := rpc.NewFragment()
+						bts, err := pod.MarshalMsg(nil)
+						panicOn(err)
+						podModes.Payload = bts
 
-							frag1 := rpc.NewFragment()
-							bts, err := file.MarshalMsg(nil)
-							panicOn(err)
-							frag1.Payload = bts
-
-							frag1.FragOp = OpRsync_ToTakerAllTreeModes
-							frag1.SetUserArg("structType", "PackOfDirs")
-							err = ckt.SendOneWay(frag1, 0)
-							panicOn(err)
-						}
+						podModes.FragOp = OpRsync_ToTakerAllTreeModes
+						podModes.SetUserArg("structType", "PackOfDirs")
+						err = ckt.SendOneWay(podModes, 0)
+						panicOn(err)
+						vv("dirgiver sent pod (last? %v): '%#v'", pod.IsLast, pod)
 						if pod.IsLast {
 							break sendDirs
 						}
