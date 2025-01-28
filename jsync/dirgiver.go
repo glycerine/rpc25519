@@ -152,6 +152,49 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// OpRsync_GiverSendsTopDirListingMore
 				// OpRsync_GiverSendsTopDirListingEnd
 
+				haltDirScan, packOfLeavesCh, packOfFilesCh, packOfDirsCh,
+					err := ScanDirTree(ctx0, reqDir.GiverDir)
+				_ = packOfFilesCh
+				_ = packOfDirsCh
+				panicOn(err)
+				defer haltDirScan.ReqStop.Close()
+
+			sendLeafDir:
+				for i := 0; ; i++ {
+					select {
+					case pol, ok := <-packOfLeavesCh:
+						if !ok {
+							break sendLeafDir
+						}
+						bts, err := pol.MarshalMsg(nil)
+						panicOn(err)
+						leafy := rpc.NewFragment()
+						leafy.Payload = bts
+						switch {
+						case pol.IsLast:
+							leafy.FragOp = OpRsync_GiverSendsTopDirListingEnd
+						case i == 0:
+							leafy.FragOp = OpRsync_GiverSendsTopDirListing
+						default:
+							leafy.FragOp = OpRsync_GiverSendsTopDirListingMore
+						}
+						err = ckt.SendOneWay(leafy, 0)
+						panicOn(err)
+						if pol.IsLast {
+							break sendLeafDir
+						}
+
+					case <-done:
+						////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
+						return
+					case <-done0:
+						////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
+						return
+					case <-ckt.Halt.ReqStop.Chan:
+						////vv("%v: (ckt '%v') (DirGiver) ckt halt requested.", name, ckt.Name)
+						return
+					}
+				}
 				// and wait for OpRsync_TakerReadyForDirContents
 
 			case OpRsync_TakerReadyForDirContents: // 29

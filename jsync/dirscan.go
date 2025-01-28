@@ -102,7 +102,6 @@ type PackOfDirs struct {
 func ScanDirTree(
 	ctx context.Context,
 	giverRoot string,
-	maxPackSz int,
 
 ) (halt *idem.Halter,
 	packOfLeavesCh chan *PackOfLeafPaths,

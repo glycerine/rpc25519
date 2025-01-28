@@ -75,13 +75,12 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[string, bool] {
 			}
 			defer dir.Close()
 
-			//hasSubdirs := false
 			for {
 				entries, err := dir.ReadDir(di.BatchSize)
 				// Process entries in directory order
 				for _, entry := range entries {
 					if entry.IsDir() {
-						//hasSubdirs = true
+
 						// Recurse immediately when we find a directory
 						if !visit(filepath.Join(path, entry.Name())) {
 							return false
@@ -98,10 +97,6 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[string, bool] {
 				}
 			}
 
-			// If this is a leaf directory, yield it
-			//if !hasSubdirs {
-			//	return yield(path, true)
-			//}
 			return true
 		}
 
