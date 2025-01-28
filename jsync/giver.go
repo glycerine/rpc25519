@@ -595,8 +595,9 @@ upload:
 	rate := mb / seconds
 
 	alwaysPrintf("upload of rsync file done! elapsed: %v \n we "+
-		"uploaded tot = %v bytes (=> %0.6f MB/sec) in %v parts",
-		elap, tot, rate, nparts)
+		"uploaded tot = %v bytes (=> %0.6f MB/sec) in %v parts\n"+
+		"giverPath: '%v' -> takerPath: '%v'",
+		elap, tot, rate, nparts, giverPath, takerPath)
 	return nil
 }
 

@@ -229,12 +229,13 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 								frag1 := rpc.NewFragment()
 								sr := &RequestToSyncPath{
-									GiverPath:   reqDir.GiverDir + file.Path,
-									TakerPath:   reqDir.TopTakerDirTemp + file.Path,
+									GiverPath:   reqDir.GiverDir + sep + file.Path,
+									TakerPath:   reqDir.TopTakerDirTemp + sep + file.Path,
 									FileSize:    file.Size,
 									ModTime:     file.ModTime,
 									FileMode:    file.FileMode,
 									RemoteTakes: true,
+									Done:        idem.NewIdemCloseChan(),
 									//Precis:      precis,
 									//Chunks:      chunks,
 								}
