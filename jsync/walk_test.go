@@ -18,13 +18,16 @@ func PrintAll[V any](seq iter.Seq[V]) {
 }
 
 func TestWalkDirsDFSIter(t *testing.T) {
-	root := ".."
 
-	limit := 100
-	i := 0
+	// walk_test.go:49 2025-01-27 20:28:23.161 -0600 CST total leaf dir = 4597
+	// So the linux source tree has 4597 leaf directories.
+	root := "/home/jaten/go/src/github.com/PlakarKorp/Korpus/github.com/torvalds/linux"
+
+	limit := 100000
 
 	di := NewDirIter()
 
+	k := 0
 	next, stop := iter.Pull2(di.DirsDepthFirstLeafOnly(root))
 	defer stop()
 
@@ -34,15 +37,17 @@ func TestWalkDirsDFSIter(t *testing.T) {
 			vv("not valid, breaking, ok = %v", ok)
 			break
 		}
-		if ok {
-			fmt.Println(dir)
-		}
-
-		i++
-		if i > limit {
-			vv("break on 100 limit")
+		if !ok {
 			break
 		}
 
+		k++
+		fmt.Println(dir)
+
+		if k > limit {
+			vv("break on limit")
+			break
+		}
 	}
+	vv("total leaf dir = %v", k)
 }
