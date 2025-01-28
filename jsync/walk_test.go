@@ -3,9 +3,9 @@ package jsync
 import (
 	"fmt"
 	//"io"
-	"bufio"
+	//"bufio"
 	"iter"
-	"os"
+	//"os"
 	//"path/filepath"
 	"testing"
 )
@@ -61,16 +61,17 @@ func TestWalkDirsFilesOnly(t *testing.T) {
 
 	// total files only = 87822
 	// So the linux source tree has 4597 leaf directories.
-	root := "/home/jaten/go/src/github.com/PlakarKorp/Korpus/github.com/torvalds/linux"
+	//root := "/home/jaten/go/src/github.com/PlakarKorp/Korpus/github.com/torvalds/linux"
 
 	// We don't have linux all checked out everywhere,
 	// and it takes 3 seconds.
 	//root := ".."
-
-	ans, err := os.Create("found_files.txt")
-	panicOn(err)
-	buf := bufio.NewWriter(ans)
-
+	root := "."
+	/*
+		ans, err := os.Create("found_files.txt")
+		panicOn(err)
+		buf := bufio.NewWriter(ans)
+	*/
 	limit := 100000
 
 	di := NewDirIter()
@@ -91,14 +92,61 @@ func TestWalkDirsFilesOnly(t *testing.T) {
 		}
 
 		k++
-		fmt.Fprintln(buf, dir)
+		//fmt.Fprintln(buf, dir)
+		fmt.Println(dir)
 
 		if k > limit {
 			vv("break on limit")
 			break
 		}
 	}
-	buf.Flush()
-	ans.Close()
+	//buf.Flush()
+	//ans.Close()
 	vv("total files only = %v", k)
+}
+
+func TestWalkAllDirsOnlyDirs(t *testing.T) {
+
+	//root := "/home/jaten/go/src/github.com/PlakarKorp/Korpus/github.com/torvalds/linux"
+
+	// We don't have linux all checked out everywhere,
+	// and it takes 3 seconds.
+	root := ".."
+	//root := "."
+	/*
+		ans, err := os.Create("found_files.txt")
+		panicOn(err)
+		buf := bufio.NewWriter(ans)
+	*/
+	limit := 100000
+
+	di := NewDirIter()
+
+	k := 0
+	next, stop := iter.Pull2(di.AllDirsOnlyDirs(root))
+	defer stop()
+
+	for {
+		dir, ok, valid := next()
+		if !valid {
+			vv("not valid, breaking, ok = %v", ok)
+			break
+		}
+		_ = dir
+		if !ok {
+			break
+		}
+
+		k++
+		//fmt.Fprintln(buf, dir)
+		fmt.Println(dir)
+
+		if k > limit {
+			vv("break on limit")
+			break
+		}
+	}
+	//buf.Flush()
+	//ans.Close()
+	vv("total dirs, all dirs, only dirs = %v", k)
 }

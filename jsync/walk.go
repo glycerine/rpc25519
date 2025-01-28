@@ -62,7 +62,7 @@ func (di *DirIter) DirsDepthFirstLeafOnly(root string) iter.Seq2[string, bool] {
 }
 
 // FilesOnly version, no directories. This does
-// return symlinks too.
+// return symlinks too. It does not follow them.
 func (di *DirIter) FilesOnly(root string) iter.Seq2[string, bool] {
 	return func(yield func(string, bool) bool) {
 
@@ -104,6 +104,51 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[string, bool] {
 			//}
 			return true
 		}
+
+		// Start the recursion
+		visit(root)
+	}
+}
+
+func (di *DirIter) AllDirsOnlyDirs(root string) iter.Seq2[string, bool] {
+	return func(yield func(string, bool) bool) {
+
+		// Helper function for recursive traversal
+		var visit func(path string) bool
+		visit = func(path string) bool {
+			fi, err := os.Stat(path)
+			if err != nil {
+				return yield(path, false)
+			}
+			if !fi.IsDir() {
+				return false
+			}
+			dir, err := os.Open(path)
+			if err != nil {
+				return yield(path, false)
+			}
+			defer dir.Close()
+
+			for {
+				entries, err := dir.ReadDir(di.batchSize)
+				// Process entries in directory order
+				for _, entry := range entries {
+					if entry.IsDir() {
+						// Recurse immediately when we find a directory
+						if !visit(filepath.Join(path, entry.Name())) {
+							return false
+						}
+					}
+				}
+
+				if err != nil || len(entries) < di.batchSize {
+					break
+				}
+			}
+			// we are a directory, yield ourselves.
+			return yield(path, true)
+
+		} // end of visit
 
 		// Start the recursion
 		visit(root)
