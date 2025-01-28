@@ -2,11 +2,16 @@ package jsync
 
 import (
 	"context"
+	"fmt"
+	"github.com/glycerine/idem"
+	"io"
 	"os"
 	"time"
-
-	"github.com/glycerine/idem"
 )
+
+var _ = context.Background()
+var _ = time.Time{}
+var _ = idem.NewHalter
 
 func walkDirTree(root string, gotDir chan os.DirEntry) (err0 error) {
 
@@ -30,7 +35,7 @@ func walkDirTree(root string, gotDir chan os.DirEntry) (err0 error) {
 
 		for _, de := range dirents {
 			if de.IsDir() {
-				walkDirTree(root+sep+de.Name(), de, gotDir)
+				//walkDirTree(root+sep+de.Name(), de, gotDir)
 				gotDir <- de // or yeild for iter, later.
 			}
 		}
