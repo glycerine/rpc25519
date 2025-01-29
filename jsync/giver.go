@@ -93,49 +93,6 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 			////vv("frag0 = '%v'", frag0)
 			switch frag0.FragOp {
 
-			///////////// begin dir sync stuff
-			case OpRsync_TakerRequestsDirSyncBegin:
-				vv("%v: (ckt '%v') (Giver) sees OpRsync_TakerRequestsDirSyncBegin.", name, ckt.Name)
-
-				// taker gives us their top dir temp dir to write paths into.
-				// send my (takers) temp new top dir for paths to go into.
-				// be sure to setup the new temp dir as separately as possible,
-				// to avoid overlapping dir transfers having crosstalk.
-				// we tell giver, please send me 22,26/27/28
-
-				// reply with: 22 OpRsync_DirSyncBeginToTaker repeating the
-				// path they already sent us, so we can join/reuse the flow.
-				// We will also send OpRsync_DirSyncBeginToTaker in
-				// service Start() if we are local giver
-				// and are starting a push to remote.
-
-				// after sending 22
-				// then
-				// send 26/27/28 immediately next
-				// OpRsync_GiverSendsTopDirListing
-				// OpRsync_GiverSendsTopDirListingMore
-				// OpRsync_GiverSendsTopDirListingEnd
-
-				// and wait for OpRsync_TakerReadyForDirContents
-
-			case OpRsync_TakerReadyForDirContents:
-				vv("%v: (ckt '%v') (Giver) sees OpRsync_TakerReadyForDirContents", name, ckt.Name)
-
-				// we (giver) now do individual file syncs (newly deleted files can be simply not transferred on the taker side to the new dir!) ... -> at end, giver -> DirSyncEndToTaker
-
-				// at end, send OpRsync_DirSyncEndToTaker,
-				// wait for OpRsync_DirSyncEndAckFromTaker.
-
-			case OpRsync_DirSyncEndAckFromTaker:
-				vv("%v: (ckt '%v') (Giver) sees OpRsync_DirSyncEndAckFromTaker", name, ckt.Name)
-				// shut down all dir sync stuff, send FIN.
-
-				s.ackBackFINToTaker(ckt, frag0)
-				frag0 = nil // GC early.
-				continue    // wait for other side to close
-
-				///////////// end dir sync stuff
-
 			case OpRsync_LazyTakerWantsToPull: // FragOp 19
 				//vv("%v: (ckt '%v') (Giver) sees OpRsync_LazyTakerWantsToPull", name, ckt.Name)
 				syncReq = &RequestToSyncPath{}

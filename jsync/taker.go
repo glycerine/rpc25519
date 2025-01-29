@@ -183,43 +183,13 @@ takerForSelectLoop:
 			_ = frag
 			switch frag.FragOp {
 
-			///////////////// begin dir sync stuff
-
-			/* moved to dirtaker.go
-			case OpRsync_DirSyncBeginToTaker:
-				vv("%v: (ckt '%v') (Taker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
-				// we should: setup a top tempdir and tell the
-				// giver the path so they can send new files into that path.
-
-				// reply with OpRsync_DirSyncBeginReplyFromTaker
-				// and the new top tempdir path, even if
-				// we initiated and they already know the path; just repeat it
-				// for simplicity/reusing the flow.
-
-			case OpRsync_DirSyncEndToTaker:
-				vv("%v: (ckt '%v') (Taker) sees OpRsync_DirSyncEndToTaker", name, ckt.Name)
-				// we (taker) can rename the temp top dir/replace any old top dir.
-
-				// reply with OpRsync_DirSyncEndAckFromTaker, wait for FIN.
-
-			case OpRsync_GiverSendsTopDirListing, OpRsync_GiverSendsTopDirListingMore, OpRsync_GiverSendsTopDirListingEnd:
-				vv("%v: (ckt '%v') (Taker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
-				// Getting this means here is the starting dir tree from giver.
-				// or, to me (taker), here is more dir listing
-				// or, to me (taker), here is end dir listing
-
-				// reply to OpRsync_GiverSendsTopDirListingEnd
-				// with OpRsync_TakerReadyForDirContents
-
-			///////////////// end dir sync stuff
-			*/
 			case OpRsync_AckBackFIN_ToTaker:
 				vv("%v: (ckt '%v') (Taker) sees OpRsync_AckBackFIN_ToTaker. returning.", name, ckt.Name)
 				return
 
 			case OpRsync_LazyTakerNoLuck_ChunksRequired:
 				//vv("%v: (ckt '%v') (Taker) sees OpRsync_LazyTakerNoLuck_ChunksRequired.", name, ckt.Name)
-				// should we just be overwriting syncReq ?
+				// should we just be overwriting syncReq ? TODO!
 				syncReq2 := &RequestToSyncPath{
 					TakerTempDir:     syncReq.TakerTempDir,
 					TopTakerDirFinal: syncReq.TopTakerDirFinal,
@@ -346,11 +316,12 @@ takerForSelectLoop:
 					// where they ask us to, and skip the rename
 					// at the end.
 					if syncReq.TakerTempDir != "" {
-						vv("since syncReq.TakerTempDir is set, '%v'. we keep tmp == localPathToWrite: '%v'", syncReq.TakerTempDir, localPathToWrite)
+						vv("since syncReq.TakerTempDir is set, '%v'. we keep tmp == localPathToWrite: '%v'", syncReq.TakerTempDir, localPathToWrite) // not seen!
 						tmp = localPathToWrite
 					}
 					newversFd, err = os.Create(tmp)
 					panicOn(err)
+					vv("taker created file '%v'", tmp)
 					newversBufio = bufio.NewWriterSize(newversFd, rpc.UserMaxPayload)
 					// remember to Flush and Close!
 					defer newversBufio.Flush() // must be first
@@ -643,8 +614,9 @@ takerForSelectLoop:
 
 				if syncReq.TakerTempDir != "" {
 					localPathToWrite = filepath.Join(
-						syncReq.TopTakerDirFinal,
+						syncReq.TakerTempDir,
 						syncReq.TakerPath)
+					vv("see TakerTempDir='%v', setting localPathToWrite = '%v'", syncReq.TakerTempDir, localPathToWrite)
 				}
 				if syncReq.TopTakerDirFinal != "" {
 					localPathToRead = filepath.Join(
