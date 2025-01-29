@@ -254,7 +254,7 @@ takerForSelectLoop:
 				//vv("%v: (ckt '%v') (Taker) sees OpRsync_FileSizeModTimeMatch. sending ack back FIN", name, ckt.Name)
 
 				if localPathToWrite != localPathToRead {
-					vv("hard linking 2nd place '%v' <- '%v'",
+					vv("hard linking 2 '%v' <- '%v'",
 						localPathToRead, localPathToWrite)
 					panicOn(os.Link(localPathToRead, localPathToWrite))
 				}
@@ -323,7 +323,7 @@ takerForSelectLoop:
 					// where they ask us to, and skip the rename
 					// at the end.
 					if syncReq.TakerTempDir != "" {
-						vv("since syncReq.TakerTempDir is set, '%v'. we keep tmp == localPathToWrite: '%v'", syncReq.TakerTempDir, localPathToWrite) // not seen!
+						vv("since syncReq.TakerTempDir is set, '%v'. we keep tmp == localPathToWrite: '%v'", syncReq.TakerTempDir, localPathToWrite) // not seen! this is a problem!
 						tmp = localPathToWrite
 					}
 					newversFd, err = os.Create(tmp)
@@ -336,8 +336,11 @@ takerForSelectLoop:
 
 					// prep local file too, for seeking to chunks.
 					if origVersFd == nil {
-						if fileExists(syncReq.TakerPath) {
-							origVersFd, err = os.Open(syncReq.TakerPath)
+						if localPathToRead == "" {
+							panic("localPathToRead must have been set!")
+						}
+						if fileExists(localPathToRead) {
+							origVersFd, err = os.Open(localPathToRead)
 							panicOn(err)
 							defer origVersFd.Close()
 						}
@@ -433,6 +436,13 @@ takerForSelectLoop:
 					err = os.Rename(tmp, localPathToWrite)
 					panicOn(err)
 					//vv("synced to disk: localPathToWrite='%v' -> renamed to '%v'", tmp, localPathToWrite)
+				} else {
+					// need to hard link it.
+					if localPathToWrite != localPathToRead {
+						vv("hard linking 3 '%v' <- '%v'",
+							localPathToRead, localPathToWrite)
+						panicOn(os.Link(localPathToRead, localPathToWrite))
+					}
 				}
 
 				// restore mode, modtime
@@ -496,6 +506,12 @@ takerForSelectLoop:
 
 					err = os.Chtimes(localPathToWrite, time.Time{}, goalPrecis.ModTime)
 					panicOn(err)
+
+					if localPathToWrite != localPathToRead {
+						vv("hard linking 4 '%v' <- '%v'",
+							localPathToRead, localPathToWrite)
+						panicOn(os.Link(localPathToRead, localPathToWrite))
+					}
 
 					////vv("ack back all done: file was truncated to 0 bytes.")
 
@@ -586,6 +602,14 @@ takerForSelectLoop:
 					}
 				}
 
+				if localPathToWrite != localPathToRead {
+					if fileExists(localPathToRead) {
+						vv("hard linking 5 '%v' <- '%v'",
+							localPathToRead, localPathToWrite)
+						panicOn(os.Link(localPathToRead, localPathToWrite))
+					}
+				}
+
 				ackAll := rpc.NewFragment()
 				ackAll.FragSubject = frag.FragSubject
 				ackAll.FragOp = OpRsync_FileAllReadAckToGiver
@@ -673,7 +697,7 @@ takerForSelectLoop:
 						}
 
 						if localPathToWrite != localPathToRead {
-							vv("hard linking '%v' <- '%v'",
+							vv("hard linking 1 '%v' <- '%v'",
 								localPathToRead, localPathToWrite)
 							panicOn(os.Link(localPathToRead, localPathToWrite))
 						}
