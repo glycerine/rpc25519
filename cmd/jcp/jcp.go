@@ -85,6 +85,7 @@ func main() {
 	takerIsDir := false
 	takerExistsLocal := false
 	giverExistsLocal := false
+	cfg := rpc.NewConfig()
 
 	// extract remote; the server to contact.
 	splt := strings.Split(giverPath, ":")
@@ -112,14 +113,33 @@ func main() {
 
 		splt2 := strings.Split(takerPath, ":")
 		if len(splt2) <= 1 {
-			fmt.Fprintf(os.Stderr, "jcp error: neither source nor destination had ':' in it. Which is the remote?\n")
-			os.Exit(1)
-		}
-		n := len(splt2)
-		dest = strings.Join(splt2[:n-1], ":") + fmt.Sprintf(":%v", jcfg.Port)
-		takerPath = splt2[n-1]
-		if takerPath == "" {
-			takerPath = giverPath
+			//fmt.Fprintf(os.Stderr, "jcp error: neither source nor destination had ':' in it. Which is the remote?\n")
+			//os.Exit(1)
+			fmt.Printf("no ':' in src/target: starting local rsync server to receive files...\n")
+			cfg.ServerAddr = "127.0.0.1:0"
+			srv := rpc.NewServer("srv_rsync_jcp", cfg)
+			serverAddr, err := srv.Start()
+			panicOn(err)
+			defer srv.Close()
+
+			cfg.ClientDialToHostPort = serverAddr.String()
+			dest = cfg.ClientDialToHostPort
+
+			reqs := make(chan *rsync.RequestToSyncPath)
+			fmt.Printf("starting rsync_server\n")
+			lpb, ctx, canc, err := rsync.RunRsyncService(cfg, srv, "rsync_server", false, reqs)
+			panicOn(err)
+			defer lpb.Close()
+			defer canc()
+			_ = ctx
+
+		} else {
+			n := len(splt2)
+			dest = strings.Join(splt2[:n-1], ":") + fmt.Sprintf(":%v", jcfg.Port)
+			takerPath = splt2[n-1]
+			if takerPath == "" {
+				takerPath = giverPath
+			}
 		}
 	} else {
 		// jcp rog:giverPath      => pull from rog; use giverPath for takerPath
@@ -183,7 +203,6 @@ func main() {
 		}
 	}
 
-	cfg := rpc.NewConfig()
 	cfg.ClientDialToHostPort = dest
 
 	cli, err := rpc.NewClient("jcp", cfg)
