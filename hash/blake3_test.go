@@ -75,6 +75,7 @@ func TestBlake3(t *testing.T) {
 		panic("disagree!")
 	}
 
+	fmt.Printf("ex: %v\n", Blake3OfBytesString(nil))
 }
 
 const runAllSizes = false // false => just run the 64K size inputs.

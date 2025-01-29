@@ -239,7 +239,7 @@ func UpdateLocalWithRemoteDiffs(
 // was chunked with CDC (Content Dependent Chunking)
 // chunking for a given Path on a given Host, using
 // a specified chunking algorithm (e.g. "jcdc"), its parameters,
-// and a specified hash function (e.g. "blake3.32B")
+// and a specified hash function (e.g. "blake3.33B")
 // for identifying the chunks.
 //
 // A FilePrecis is produced along side a set of Chunks
@@ -271,12 +271,12 @@ type FilePrecis struct {
 	// other data, extension mechanism. Not used presently; for future use.
 	FileMeta []byte `zid:"12"`
 
-	// HashName is e.g. "blake3.32B". This should match the
+	// HashName is e.g. "blake3.33B". This should match the
 	// hash string prefix without any trailing "-" dash.
 	//
 	// For example, if your hash strings look like
-	// "blake3.32B-89J1Jfa1AzfjiOcVOCLJXDsX3AANHWiSERgJwtaUSj8="
-	// then your HashName is "blake3.32B".
+	// "blake3.33B-89J1Jfa1AzfjiOcVOCLJXDsX3AANHWiSERgJwtaUSj8e"
+	// then your HashName is "blake3.33B".
 	HashName string `zid:"13"`
 
 	FileCry string `zid:"14"`
@@ -685,7 +685,7 @@ func SummarizeBytesInCDCHashes(host, path string, data []byte, modTime time.Time
 		FileCry:     hash.Blake3OfBytesString(data),
 		ChunkerName: cdc.Name(),
 		CDC_Config:  cdc.Config(),
-		HashName:    "blake3.32B",
+		HashName:    "blake3.33B",
 	}
 	chunks = NewChunks(path)
 	chunks.FileSize = precis.FileSize
@@ -845,7 +845,7 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 		//FileCry:     hash.Blake3OfBytesString(data),
 		ChunkerName: cdc.Name(),
 		CDC_Config:  cdcCfg,
-		HashName:    "blake3.32B",
+		HashName:    "blake3.33B",
 	}
 	chunks = NewChunks(path)
 	chunks.FileSize = precis.FileSize
@@ -1041,7 +1041,7 @@ func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 		//FileCry:     hash.Blake3OfBytesString(data),
 		ChunkerName: cdc.Name(),
 		CDC_Config:  cdc.Config(),
-		HashName:    "blake3.32B",
+		HashName:    "blake3.33B",
 	}
 
 	var fi os.FileInfo

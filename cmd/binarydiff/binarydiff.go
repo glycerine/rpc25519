@@ -42,5 +42,5 @@ func blake3OfBytes(by []byte) []byte {
 
 func blake3OfBytesString(by []byte) string {
 	sum := blake3OfBytes(by)
-	return "blake3.32B-" + cristalbase64.URLEncoding.EncodeToString(sum[:32])
+	return "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:33])
 }

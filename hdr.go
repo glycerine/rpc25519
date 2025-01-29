@@ -376,7 +376,7 @@ func NewHDR(from, to, serviceName string, typ CallType, streamPart int64) (m *HD
 }
 
 func NewCallID(name string) (cid string) {
-	var pseudo [20]byte // not cryptographically random.
+	var pseudo [21]byte // not cryptographically random.
 	chacha8randMut.Lock()
 	chacha8rand.Read(pseudo[:])
 	chacha8randMut.Unlock()
@@ -388,18 +388,16 @@ func NewCallID(name string) (cid string) {
 }
 
 func NewCryRandCallID() (cid string) {
-	var random [20]byte
+	var random [21]byte
 	cryrand.Read(random[:])
 	cid = cristalbase64.URLEncoding.EncodeToString(random[:])
 	return
 }
 
-// without the "=" at the end.
 func NewCryRandSuffix() (cid string) {
-	var random [20]byte
+	var random [21]byte
 	cryrand.Read(random[:])
 	cid = cristalbase64.URLEncoding.EncodeToString(random[:])
-	cid = cid[:len(cid)-1]
 	return
 }
 

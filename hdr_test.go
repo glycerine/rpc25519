@@ -1,6 +1,7 @@
 package rpc25519
 
 import (
+	"fmt"
 	"testing"
 
 	cv "github.com/glycerine/goconvey/convey"
@@ -59,5 +60,12 @@ func Test010_HDR_generation(t *testing.T) {
 		panicOn(err)
 		cv.So(hdr3.Equal(hdr), cv.ShouldBeTrue)
 
+	})
+}
+
+func Test011_NewCallID(t *testing.T) {
+
+	cv.Convey("NewCallID should have nice output", t, func() {
+		fmt.Printf("NewCallID = '%v'\n", NewCallID(""))
 	})
 }
