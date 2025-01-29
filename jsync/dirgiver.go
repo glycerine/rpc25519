@@ -6,13 +6,15 @@ import (
 	//"os"
 	"strings"
 	//"sync"
-	//"time"
 	"path/filepath"
+	"time"
 
 	//"github.com/glycerine/rpc25519/progress"
 	"github.com/glycerine/idem"
 	rpc "github.com/glycerine/rpc25519"
 )
+
+var _ = time.Time{}
 
 // Giver wants to send a local file efficiently over
 // the wire to the Taker.
@@ -227,7 +229,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						defer batchHalt.ReqStop.Close()
 
 						for _, file := range pof.Pack {
-							go func(file *File) {
+							//go func(file *File) {
+							func(file *File) {
 
 								frag1 := rpc.NewFragment()
 								sr := &RequestToSyncPath{
@@ -288,9 +291,9 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 				} // end for i sendfiles
 
-				//err := allBatches.ReqStop.WaitTilChildrenDone(done)
-				//panicOn(err)
-				err := allBatches.Done.WaitTilChildrenDone(done)
+				err := allBatches.ReqStop.WaitTilChildrenDone(done)
+				panicOn(err)
+				err = allBatches.Done.WaitTilChildrenDone(done)
 				panicOn(err)
 
 				// wait to go on to sending OpRsync_ToTakerAllTreeModes
