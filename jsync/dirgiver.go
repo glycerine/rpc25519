@@ -277,9 +277,10 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 							}(file, goroHalt)
 						}
-						err := batchHalt.ReqStop.WaitTilChildrenDone(done)
-						vv("batchHalt.ReqStop.WaitTilChildrenDone gave err = '%v'", err)
-						panicOn(err)
+						_ = batchHalt.ReqStop.WaitTilChildrenDone(done)
+						vv("batchHalt.ReqStop.WaitTilChildrenDone back.")
+						// do not panic, we might have seen closed(done).
+
 						batchHalt.ReqStop.Close()
 
 						if pof.IsLast {
