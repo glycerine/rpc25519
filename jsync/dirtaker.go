@@ -160,19 +160,19 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				vv("dirtaker would rename completed dir into place!: %v -> %v",
 					tmp, final)
 				var err error
-				/* debug: skip this for a moment, to see what we have.
-						if dirExists(final) {
-							old := final + ".oldvers"
-							if dirExists(old) {
-								vv("dirtaker removing previous (exists!) old '%v'", old)
-								os.RemoveAll(old)
-							}
-							vv("dirtaker backup previous dir '%v' -> '%v'", final, old)
-							err := os.Rename(final, old)
-							panicOn(err)
-						}
-					err = os.Rename(tmp, final)
+
+				if dirExists(final) {
+					old := final + ".oldvers"
+					if dirExists(old) {
+						vv("dirtaker removing previous (exists!) old '%v'", old)
+						os.RemoveAll(old)
+					}
+					vv("dirtaker backup previous dir '%v' -> '%v'", final, old)
+					err := os.Rename(final, old)
 					panicOn(err)
+				}
+				err = os.Rename(tmp, final)
+				panicOn(err)
 
 				// and set the mod time
 				if !reqDir.GiverDirModTime.IsZero() {
@@ -180,7 +180,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					err = os.Chtimes(final, time.Time{}, reqDir.GiverDirModTime)
 					panicOn(err)
 				}
-				*/
+
 				// reply with OpRsync_DirSyncEndAckFromTaker, wait for FIN.
 
 				alldone := rpc.NewFragment()
