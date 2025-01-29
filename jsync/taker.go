@@ -186,7 +186,7 @@ takerForSelectLoop:
 			///////////////// end dir sync stuff
 
 			case OpRsync_AckBackFIN_ToTaker:
-				////vv("%v: (ckt '%v') (Taker) sees OpRsync_AckBackFIN_ToTaker. returning.", name, ckt.Name)
+				vv("%v: (ckt '%v') (Taker) sees OpRsync_AckBackFIN_ToTaker. returning.", name, ckt.Name)
 				return
 
 			case OpRsync_LazyTakerNoLuck_ChunksRequired:

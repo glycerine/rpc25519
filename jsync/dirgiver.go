@@ -271,7 +271,9 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 										ckt2.Close(nil)
 									}
 								}()
-								// coming back too early!: batchHalt.AddChild(ckt2.Halt)
+								// cancels us too early! avoid:
+								// batchHalt.AddChild(ckt2.Halt)
+
 								errg := s.Giver(ctx2, ckt2, myPeer, sr)
 								panicOn(errg)
 

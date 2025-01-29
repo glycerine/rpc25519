@@ -182,7 +182,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				continue // wait for FIN or chunks.
 
 			case OpRsync_AckBackFIN_ToGiver:
-				//vv("%v: (ckt '%v') (Giver) sees OpRsync_AckBackFIN_ToGiver. returning.", name, ckt.Name)
+				vv("%v: (ckt '%v') (Giver) sees OpRsync_AckBackFIN_ToGiver. returning.", name, ckt.Name)
 				return
 
 			case OpRsync_RequestRemoteToGive: // FragOp 12
