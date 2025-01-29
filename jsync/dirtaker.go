@@ -161,19 +161,23 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					tmp, final)
 				var err error
 
+				rndsuf := rpc.NewCryRandCallID()
+				old := ""
 				if dirExists(final) {
-					old := final + ".oldvers"
-					if dirExists(old) {
-						vv("dirtaker removing previous (exists!) old '%v'", old)
-						os.RemoveAll(old)
-					}
+					// move the old dir out of the way.
+					old = final + "." + rndsuf
 					vv("dirtaker backup previous dir '%v' -> '%v'", final, old)
 					err := os.Rename(final, old)
 					panicOn(err)
 				}
+				// put the new directory in its place.
 				err = os.Rename(tmp, final)
 				panicOn(err)
-
+				if old != "" {
+					// We have hard linked all the unchanged files into the new.
+					// No delete the old version (hard link count -> 1).
+					panicOn(os.RemoveAll(old))
+				}
 				// and set the mod time
 				if !reqDir.GiverDirModTime.IsZero() {
 					vv("setting final dir mod time: '%v'", reqDir.GiverDirModTime)
