@@ -125,7 +125,7 @@ func (s *jsyncU) PullToFrom(toLocalPath, fromRemotePath string) (dataBytesMoved 
 
 			SyncFromHostname: rpc.Hostname,
 			SyncFromHostCID:  rpc.HostCID,
-			AbsDir:           dir,
+			GiverDirAbs:      dir,
 
 			RemoteTakes: false,
 
@@ -154,7 +154,7 @@ func (s *jsyncU) PullToFrom(toLocalPath, fromRemotePath string) (dataBytesMoved 
 
 			SyncFromHostname: rpc.Hostname,
 			SyncFromHostCID:  rpc.HostCID,
-			AbsDir:           dir,
+			GiverDirAbs:      dir,
 			RemoteTakes:      false,
 		}
 	}
@@ -220,7 +220,7 @@ func (s *jsyncU) PushFromTo(fromLocalPath, toRemotePath string) (dataBytesMoved 
 
 		SyncFromHostname: rpc.Hostname,
 		SyncFromHostCID:  rpc.HostCID,
-		AbsDir:           cwd,
+		GiverDirAbs:      cwd,
 
 		RemoteTakes: true,
 
@@ -273,7 +273,7 @@ func (s *jsyncU) DirPushFromTo(fromLocalDir, toRemoteDir string, cli rpc.Univers
 
 		SyncFromHostname: rpc.Hostname,
 		SyncFromHostCID:  rpc.HostCID,
-		AbsDir:           cwd,
+		GiverDirAbs:      cwd,
 
 		RemoteTakes: true,
 

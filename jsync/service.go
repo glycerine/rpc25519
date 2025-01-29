@@ -334,7 +334,7 @@ type RequestToSyncPath struct {
 	FullFileRespondSideBlake3 string `zid:"12"`
 
 	SizeModTimeMatch bool   `zid:"13"`
-	AbsDir           string `zid:"14"`
+	GiverDirAbs      string `zid:"14"`
 
 	// Errs can be checked after Done.Chan is closed
 	// to see if the request encountered any problems.
@@ -371,6 +371,8 @@ type RequestToSyncPath struct {
 	TakerExistsLocal bool `zid:"26"`
 	TakerStartsEmpty bool `zid:"27"`
 	GiverStartsEmpty bool `zid:"28"`
+
+	TakerTempDir string `zid:"29"`
 }
 
 // RequestToSyncDir is a separate

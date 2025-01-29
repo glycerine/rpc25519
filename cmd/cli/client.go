@@ -208,7 +208,7 @@ func main() {
 
 				SyncFromHostname: rpc.Hostname,
 				SyncFromHostCID:  rpc.HostCID,
-				AbsDir:           dir,
+				GiverDirAbs:      dir,
 
 				RemoteTakes: !isPull, // remote takes on push, not pull.
 
@@ -242,7 +242,7 @@ func main() {
 
 				SyncFromHostname: rpc.Hostname,
 				SyncFromHostCID:  rpc.HostCID,
-				AbsDir:           dir,
+				GiverDirAbs:      dir,
 				RemoteTakes:      !(*pullRsync),
 			}
 		}

@@ -619,7 +619,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 	panicOn(err)
 
 	if syncReq.SyncFromHostCID == rpc.HostCID &&
-		syncReq.AbsDir == absCwd &&
+		syncReq.GiverDirAbs == absCwd &&
 		syncReq.GiverPath == syncReq.TakerPath {
 
 		skip := rpc.NewFragment()
