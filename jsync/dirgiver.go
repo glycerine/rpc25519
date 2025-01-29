@@ -229,8 +229,14 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						defer batchHalt.ReqStop.Close()
 
 						for _, file := range pof.Pack {
-							//go func(file *File) {
-							func(file *File) {
+							goroHalt := idem.NewHalter()
+							batchHalt.AddChild(goroHalt)
+
+							go func(file *File, goroHalt *idem.Halter) {
+								defer func() {
+									goroHalt.ReqStop.Close()
+									goroHalt.Done.Close()
+								}()
 
 								frag1 := rpc.NewFragment()
 								sr := &RequestToSyncPath{
@@ -265,11 +271,11 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 										ckt2.Close(nil)
 									}
 								}()
-								batchHalt.AddChild(ckt2.Halt)
+								// coming back too early!: batchHalt.AddChild(ckt2.Halt)
 								errg := s.Giver(ctx2, ckt2, myPeer, sr)
 								panicOn(errg)
 
-							}(file)
+							}(file, goroHalt)
 						}
 						err := batchHalt.ReqStop.WaitTilChildrenDone(done)
 						vv("batchHalt.ReqStop.WaitTilChildrenDone gave err = '%v'", err)
@@ -295,6 +301,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				panicOn(err)
 				err = allBatches.Done.WaitTilChildrenDone(done)
 				panicOn(err)
+
+				vv("dirgiver: all batches of indiv file sync are done.")
 
 				// wait to go on to sending OpRsync_ToTakerAllTreeModes
 				// until after all the files are there.
