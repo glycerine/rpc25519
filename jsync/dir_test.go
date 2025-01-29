@@ -36,6 +36,7 @@ func Test440_directory_sync(t *testing.T) {
 		// remove any old leftover test files first.
 		os.RemoveAll(localDir)
 		os.RemoveAll(remoteDir)
+		os.RemoveAll(remoteDir + ".oldvers")
 		os.MkdirAll(localDir, 0755)
 		os.MkdirAll(remoteDir, 0755)
 

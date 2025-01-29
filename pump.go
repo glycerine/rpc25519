@@ -161,7 +161,7 @@ func (pb *LocalPeer) peerbackPump() {
 				}
 				continue
 			}
-			vv("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
+			//vv("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
 
 			if msg.HDR.Typ == CallPeerEndCircuit {
 				//vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg) // seen in crosstalk test server hung log line 311
