@@ -148,18 +148,19 @@ func main() {
 		}
 	}
 
-	if takerIsDir && takerIsLocal && !giverIsDir {
-		// jcp rog:binarydiff ~/trash/tmp/deeper/
-		vv("using giverPath '%v': changing taker '%v' -> '%v'", giverPath, takerPath, takerPath+giverPath)
-		takerPath = takerPath + giverPath
-		takerIsDir = false
-		takerExistsLocal = fileExists(takerPath)
-	}
+	/*
+			if takerIsDir && takerIsLocal && !giverIsDir {
+				// jcp rog:binarydiff ~/trash/tmp/deeper/
+				vv("using giverPath '%v': changing taker '%v' -> '%v'", giverPath, takerPath, takerPath+giverPath)
+				takerPath = takerPath + giverPath
+				takerIsDir = false
+				takerExistsLocal = fileExists(takerPath)
+			}
 
-	if takerIsLocal && takerIsDir && takerExistsLocal {
-		panic(fmt.Sprintf("problem: takerPath cannot be an existing dir: '%v'", takerPath))
-	}
-
+		if takerIsLocal && takerIsDir && takerExistsLocal {
+			panic(fmt.Sprintf("problem: takerPath cannot be an existing dir: '%v'", takerPath))
+		}
+	*/
 	vv("dest = '%v'", dest)
 	vv("takerPath = '%v' exists=%v; isDir=%v", takerPath, takerExistsLocal, takerIsDir)
 	vv("giverPath = '%v' exists=%v; isDir=%v", giverPath, giverExistsLocal, giverIsDir)
