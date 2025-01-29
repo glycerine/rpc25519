@@ -274,14 +274,14 @@ takerForSelectLoop:
 				frag = nil
 				continue // wait for FIN
 
-			case OpRsync_ToTakerMetaUpdateAtLeast: // part of pull. not on yet.
-				//vv("%v: (ckt %v) (Taker) sees OpRsync_ToTakerMetaUpdateAtLeast. updating mode/modTime on '%v'", name, ckt.Name, syncReq.TakerPath)
+			case OpRsync_ToTakerMetaUpdateAtLeast:
+				vv("%v: (ckt %v) (Taker) sees OpRsync_ToTakerMetaUpdateAtLeast. updating mode/modTime on '%v'", name, ckt.Name, syncReq.TakerPath)
 				precis := &FilePrecis{}
 				_, err := precis.UnmarshalMsg(frag.Payload)
 				panicOn(err)
 
 				//path := syncReq.TakerPath
-				path := localPathToWrite
+				path := localPathToRead
 				mode := precis.FileMode
 				if mode == 0 {
 					mode = 0600
@@ -292,6 +292,13 @@ takerForSelectLoop:
 					err = os.Chtimes(path, time.Time{}, precis.ModTime)
 					panicOn(err)
 				}
+
+				if localPathToWrite != localPathToRead {
+					vv("hard linking 6 '%v' <- '%v'",
+						localPathToRead, localPathToWrite)
+					panicOn(os.Link(localPathToRead, localPathToWrite))
+				}
+
 				s.ackBackFINToGiver(ckt, frag)
 				frag = nil
 				continue // wait for FIN.
