@@ -289,7 +289,7 @@ func (s *jsyncU) DirPushFromTo(fromLocalDir, toRemoteDir string, cli rpc.Univers
 	//defer canc()
 	//_ = ctx
 
-	vv("DirPushFromTo about to send on reqs chan")
+	vv("DirPushFromTo about to send on reqs chan: '%#v'", req)
 	s.reqs <- req
 	<-req.Done.Chan
 

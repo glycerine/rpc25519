@@ -499,6 +499,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 
 func (s *SyncService) giverSendsWholeFile(giverPath, takerPath string, ckt *rpc.Circuit, bt *byteTracker, frag0 *rpc.Fragment) error {
 
+	vv("giverSendsWholeFile(giverPath='%v', takerPath='%v')", giverPath, takerPath)
 	t0 := time.Now()
 
 	if !fileExists(giverPath) {

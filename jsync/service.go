@@ -372,7 +372,8 @@ type RequestToSyncPath struct {
 	TakerStartsEmpty bool `zid:"27"`
 	GiverStartsEmpty bool `zid:"28"`
 
-	TakerTempDir string `zid:"29"`
+	TakerTempDir     string `zid:"29"`
+	TopTakerDirFinal string `zid:"30"`
 }
 
 // RequestToSyncDir is a separate

@@ -237,15 +237,16 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 								frag1 := rpc.NewFragment()
 								sr := &RequestToSyncPath{
-									GiverPath:    filepath.Join(reqDir.GiverDir, file.Path),
-									TakerPath:    file.Path,
-									TakerTempDir: reqDir.TopTakerDirTemp,
-									GiverDirAbs:  reqDir.GiverDir,
-									FileSize:     file.Size,
-									ModTime:      file.ModTime,
-									FileMode:     file.FileMode,
-									RemoteTakes:  true,
-									Done:         idem.NewIdemCloseChan(),
+									GiverPath:        filepath.Join(reqDir.GiverDir, file.Path),
+									TakerPath:        file.Path,
+									TakerTempDir:     reqDir.TopTakerDirTemp,
+									TopTakerDirFinal: reqDir.TopTakerDirFinal,
+									GiverDirAbs:      reqDir.GiverDir,
+									FileSize:         file.Size,
+									ModTime:          file.ModTime,
+									FileMode:         file.FileMode,
+									RemoteTakes:      true,
+									Done:             idem.NewIdemCloseChan(),
 								}
 								bts, err := sr.MarshalMsg(nil)
 								panicOn(err)

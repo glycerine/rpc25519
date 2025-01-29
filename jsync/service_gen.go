@@ -581,7 +581,7 @@ func (z *RequestToSyncPath) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields6zgensym_5b8048e47f8e3c5c_7 = 31
+	const maxFields6zgensym_5b8048e47f8e3c5c_7 = 32
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields6zgensym_5b8048e47f8e3c5c_7 uint32
@@ -856,6 +856,12 @@ doneWithStruct6zgensym_5b8048e47f8e3c5c_7:
 			if err != nil {
 				return
 			}
+		case "TopTakerDirFinal_zid30_str":
+			found6zgensym_5b8048e47f8e3c5c_7[30] = true
+			z.TopTakerDirFinal, err = dc.ReadString()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -879,16 +885,16 @@ doneWithStruct6zgensym_5b8048e47f8e3c5c_7:
 }
 
 // fields of RequestToSyncPath
-var decodeMsgFieldOrder6zgensym_5b8048e47f8e3c5c_7 = []string{"GiverPath_zid00_str", "TakerPath_zid01_str", "ModTime_zid02_tim", "FileSize_zid03_i64", "FileMode_zid04_u32", "ToRemotePeerServiceName_zid05_str", "ToRemoteNetAddr_zid06_str", "ToRemoteURL_zid07_str", "ToRemotePeerID_zid08_str", "SyncFromHostname_zid09_str", "SyncFromHostCID_zid10_str", "FullFileInitSideBlake3_zid11_str", "FullFileRespondSideBlake3_zid12_str", "SizeModTimeMatch_zid13_boo", "GiverDirAbs_zid14_str", "Errs_zid15_str", "BytesSent_zid16_i64", "BytesRead_zid17_i64", "RemoteBytesTransferred_zid18_i64", "MoreChunksComming_zid19_boo", "RemoteTakes_zid20_boo", "Precis_zid21_ptr", "Chunks_zid22_ptr", "GiverIsDir_zid23_boo", "TakerIsDir_zid24_boo", "GiverExistsLocal_zid25_boo", "TakerExistsLocal_zid26_boo", "TakerStartsEmpty_zid27_boo", "GiverStartsEmpty_zid28_boo", "TakerTempDir_zid29_str", ""}
+var decodeMsgFieldOrder6zgensym_5b8048e47f8e3c5c_7 = []string{"GiverPath_zid00_str", "TakerPath_zid01_str", "ModTime_zid02_tim", "FileSize_zid03_i64", "FileMode_zid04_u32", "ToRemotePeerServiceName_zid05_str", "ToRemoteNetAddr_zid06_str", "ToRemoteURL_zid07_str", "ToRemotePeerID_zid08_str", "SyncFromHostname_zid09_str", "SyncFromHostCID_zid10_str", "FullFileInitSideBlake3_zid11_str", "FullFileRespondSideBlake3_zid12_str", "SizeModTimeMatch_zid13_boo", "GiverDirAbs_zid14_str", "Errs_zid15_str", "BytesSent_zid16_i64", "BytesRead_zid17_i64", "RemoteBytesTransferred_zid18_i64", "MoreChunksComming_zid19_boo", "RemoteTakes_zid20_boo", "Precis_zid21_ptr", "Chunks_zid22_ptr", "GiverIsDir_zid23_boo", "TakerIsDir_zid24_boo", "GiverExistsLocal_zid25_boo", "TakerExistsLocal_zid26_boo", "TakerStartsEmpty_zid27_boo", "GiverStartsEmpty_zid28_boo", "TakerTempDir_zid29_str", "TopTakerDirFinal_zid30_str", ""}
 
-var decodeMsgFieldSkip6zgensym_5b8048e47f8e3c5c_7 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
+var decodeMsgFieldSkip6zgensym_5b8048e47f8e3c5c_7 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *RequestToSyncPath) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 30
+		return 31
 	}
-	var fieldsInUse uint32 = 30
+	var fieldsInUse uint32 = 31
 	isempty[0] = (len(z.GiverPath) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -1009,6 +1015,10 @@ func (z *RequestToSyncPath) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[29] {
 		fieldsInUse--
 	}
+	isempty[30] = (len(z.TopTakerDirFinal) == 0) // string, omitempty
+	if isempty[30] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -1020,7 +1030,7 @@ func (z *RequestToSyncPath) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_5b8048e47f8e3c5c_8 [31]bool
+	var empty_zgensym_5b8048e47f8e3c5c_8 [32]bool
 	fieldsInUse_zgensym_5b8048e47f8e3c5c_9 := z.fieldsNotEmpty(empty_zgensym_5b8048e47f8e3c5c_8[:])
 
 	// map header
@@ -1417,6 +1427,18 @@ func (z *RequestToSyncPath) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_5b8048e47f8e3c5c_8[30] {
+		// write "TopTakerDirFinal_zid30_str"
+		err = en.Append(0xba, 0x54, 0x6f, 0x70, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x44, 0x69, 0x72, 0x46, 0x69, 0x6e, 0x61, 0x6c, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x30, 0x5f, 0x73, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		err = en.WriteString(z.TopTakerDirFinal)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -1429,7 +1451,7 @@ func (z *RequestToSyncPath) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [31]bool
+	var empty [32]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -1635,6 +1657,12 @@ func (z *RequestToSyncPath) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendString(o, z.TakerTempDir)
 	}
 
+	if !empty[30] {
+		// string "TopTakerDirFinal_zid30_str"
+		o = append(o, 0xba, 0x54, 0x6f, 0x70, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x44, 0x69, 0x72, 0x46, 0x69, 0x6e, 0x61, 0x6c, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x30, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.TopTakerDirFinal)
+	}
+
 	return
 }
 
@@ -1653,7 +1681,7 @@ func (z *RequestToSyncPath) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeCon
 
 	var field []byte
 	_ = field
-	const maxFields10zgensym_5b8048e47f8e3c5c_11 = 31
+	const maxFields10zgensym_5b8048e47f8e3c5c_11 = 32
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields10zgensym_5b8048e47f8e3c5c_11 uint32
@@ -1959,6 +1987,13 @@ doneWithStruct10zgensym_5b8048e47f8e3c5c_11:
 			if err != nil {
 				return
 			}
+		case "TopTakerDirFinal_zid30_str":
+			found10zgensym_5b8048e47f8e3c5c_11[30] = true
+			z.TopTakerDirFinal, bts, err = nbs.ReadStringBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1982,9 +2017,9 @@ doneWithStruct10zgensym_5b8048e47f8e3c5c_11:
 }
 
 // fields of RequestToSyncPath
-var unmarshalMsgFieldOrder10zgensym_5b8048e47f8e3c5c_11 = []string{"GiverPath_zid00_str", "TakerPath_zid01_str", "ModTime_zid02_tim", "FileSize_zid03_i64", "FileMode_zid04_u32", "ToRemotePeerServiceName_zid05_str", "ToRemoteNetAddr_zid06_str", "ToRemoteURL_zid07_str", "ToRemotePeerID_zid08_str", "SyncFromHostname_zid09_str", "SyncFromHostCID_zid10_str", "FullFileInitSideBlake3_zid11_str", "FullFileRespondSideBlake3_zid12_str", "SizeModTimeMatch_zid13_boo", "GiverDirAbs_zid14_str", "Errs_zid15_str", "BytesSent_zid16_i64", "BytesRead_zid17_i64", "RemoteBytesTransferred_zid18_i64", "MoreChunksComming_zid19_boo", "RemoteTakes_zid20_boo", "Precis_zid21_ptr", "Chunks_zid22_ptr", "GiverIsDir_zid23_boo", "TakerIsDir_zid24_boo", "GiverExistsLocal_zid25_boo", "TakerExistsLocal_zid26_boo", "TakerStartsEmpty_zid27_boo", "GiverStartsEmpty_zid28_boo", "TakerTempDir_zid29_str", ""}
+var unmarshalMsgFieldOrder10zgensym_5b8048e47f8e3c5c_11 = []string{"GiverPath_zid00_str", "TakerPath_zid01_str", "ModTime_zid02_tim", "FileSize_zid03_i64", "FileMode_zid04_u32", "ToRemotePeerServiceName_zid05_str", "ToRemoteNetAddr_zid06_str", "ToRemoteURL_zid07_str", "ToRemotePeerID_zid08_str", "SyncFromHostname_zid09_str", "SyncFromHostCID_zid10_str", "FullFileInitSideBlake3_zid11_str", "FullFileRespondSideBlake3_zid12_str", "SizeModTimeMatch_zid13_boo", "GiverDirAbs_zid14_str", "Errs_zid15_str", "BytesSent_zid16_i64", "BytesRead_zid17_i64", "RemoteBytesTransferred_zid18_i64", "MoreChunksComming_zid19_boo", "RemoteTakes_zid20_boo", "Precis_zid21_ptr", "Chunks_zid22_ptr", "GiverIsDir_zid23_boo", "TakerIsDir_zid24_boo", "GiverExistsLocal_zid25_boo", "TakerExistsLocal_zid26_boo", "TakerStartsEmpty_zid27_boo", "GiverStartsEmpty_zid28_boo", "TakerTempDir_zid29_str", "TopTakerDirFinal_zid30_str", ""}
 
-var unmarshalMsgFieldSkip10zgensym_5b8048e47f8e3c5c_11 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
+var unmarshalMsgFieldSkip10zgensym_5b8048e47f8e3c5c_11 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *RequestToSyncPath) Msgsize() (s int) {
@@ -2000,6 +2035,6 @@ func (z *RequestToSyncPath) Msgsize() (s int) {
 	} else {
 		s += z.Chunks.Msgsize()
 	}
-	s += 21 + msgp.BoolSize + 21 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 23 + msgp.StringPrefixSize + len(z.TakerTempDir)
+	s += 21 + msgp.BoolSize + 21 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 23 + msgp.StringPrefixSize + len(z.TakerTempDir) + 27 + msgp.StringPrefixSize + len(z.TopTakerDirFinal)
 	return
 }

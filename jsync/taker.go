@@ -72,6 +72,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 			}
 			syncReq.Done.Close() // only AFTER setting Errs, please!
 		}
+		vv("taker defer ckt.Close(err0='%v')", err0)
 		ckt.Close(err0)
 
 		// suppress context cancelled shutdowns
@@ -103,7 +104,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	var localMap map[string]*Chunk
 
 	var localPathToWrite string
-	//var localPathToRead string
+	var localPathToRead string
 
 	var origVersFd *os.File
 
@@ -137,7 +138,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 			// b/c it is redundant with the send in service.go:373
 		}
 		localPathToWrite = syncReq.TakerPath
-		//localPathToRead = syncReq.TakerPath
+		localPathToRead = syncReq.TakerPath
 
 		// Dir sync requests will set TakerTempDir
 		// to have us write into a whole separate
@@ -146,18 +147,28 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		// where they ask us to, and skip the rename
 		// at the end.
 		if syncReq.TakerTempDir != "" {
-			localPathToWrite = filepath.Join(syncReq.TakerTempDir, localPathToWrite)
-		}
+			vv("TakerTempDir = '%v', so localPathToWrite '%v' => '%v'",
+				syncReq.TakerTempDir, localPathToWrite,
+				filepath.Join(syncReq.TakerTempDir, syncReq.TakerPath))
 
-		if dirExists(localPathToWrite) {
-			return fmt.Errorf("error in Taker: syncReq.TakerPath cannot be an existing directory: '%v'; use DirTaker functionality.", localPathToWrite)
+			localPathToWrite = filepath.Join(
+				syncReq.TakerTempDir, syncReq.TakerPath)
+		}
+		if syncReq.TopTakerDirFinal != "" {
+			localPathToRead = filepath.Join(
+				syncReq.TopTakerDirFinal, syncReq.TakerPath)
+		}
+		vv("localPathToRead = '%v'", localPathToRead)
+		vv("localPathToWrite = '%v'", localPathToWrite)
+
+		if dirExists(localPathToRead) {
+			return fmt.Errorf("error in Taker: localPathToRead cannot be an existing directory: '%v'; use DirTaker functionality.", localPathToRead)
 		}
 
 		// prep for reading data
 		var err error
-		if fileExists(syncReq.TakerPath) {
-			origVersFd, err = os.OpenFile(syncReq.TakerPath, os.O_RDONLY, 0)
-			//origVersFd, err = os.Open(syncReq.TakerPath)
+		if fileExists(localPathToRead) {
+			origVersFd, err = os.OpenFile(localPathToRead, os.O_RDONLY, 0)
 			panicOn(err)
 			defer origVersFd.Close()
 		}
@@ -174,6 +185,7 @@ takerForSelectLoop:
 
 			///////////////// begin dir sync stuff
 
+			/* moved to dirtaker.go
 			case OpRsync_DirSyncBeginToTaker:
 				vv("%v: (ckt '%v') (Taker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
 				// we should: setup a top tempdir and tell the
@@ -200,7 +212,7 @@ takerForSelectLoop:
 				// with OpRsync_TakerReadyForDirContents
 
 			///////////////// end dir sync stuff
-
+			*/
 			case OpRsync_AckBackFIN_ToTaker:
 				vv("%v: (ckt '%v') (Taker) sees OpRsync_AckBackFIN_ToTaker. returning.", name, ckt.Name)
 				return
@@ -208,7 +220,10 @@ takerForSelectLoop:
 			case OpRsync_LazyTakerNoLuck_ChunksRequired:
 				//vv("%v: (ckt '%v') (Taker) sees OpRsync_LazyTakerNoLuck_ChunksRequired.", name, ckt.Name)
 				// should we just be overwriting syncReq ?
-				syncReq2 := &RequestToSyncPath{}
+				syncReq2 := &RequestToSyncPath{
+					TakerTempDir:     syncReq.TakerTempDir,
+					TopTakerDirFinal: syncReq.TopTakerDirFinal,
+				}
 				_, err := syncReq2.UnmarshalMsg(frag.Payload)
 				panicOn(err)
 				bt.bread += len(frag.Payload)
@@ -222,7 +237,7 @@ takerForSelectLoop:
 						"(syncReq.TakerPath which is %v) or HostCID changed.",
 						syncReq2.TakerPath, syncReq.TakerPath))
 				} else {
-					////vv("lazy taker no luck: good. syncReq2.TakerPath = '%v'; GiverPath='%v'", syncReq2.TakerPath, syncReq2.GiverPath)
+					vv("lazy taker no luck: chunks required. syncReq2.TakerPath = '%v'; GiverPath='%v'", syncReq2.TakerPath, syncReq2.GiverPath)
 				}
 
 				if fileExists(syncReq2.TakerPath) {
@@ -288,7 +303,8 @@ takerForSelectLoop:
 				_, err := precis.UnmarshalMsg(frag.Payload)
 				panicOn(err)
 
-				path := syncReq.TakerPath
+				//path := syncReq.TakerPath
+				path := localPathToWrite
 				mode := precis.FileMode
 				if mode == 0 {
 					mode = 0600
@@ -330,6 +346,7 @@ takerForSelectLoop:
 					// where they ask us to, and skip the rename
 					// at the end.
 					if syncReq.TakerTempDir != "" {
+						vv("since syncReq.TakerTempDir is set, '%v'. we keep tmp == localPathToWrite: '%v'", syncReq.TakerTempDir, localPathToWrite)
 						tmp = localPathToWrite
 					}
 					newversFd, err = os.Create(tmp)
@@ -529,6 +546,7 @@ takerForSelectLoop:
 
 			case OpRsync_HereIsFullFileBegin3, OpRsync_HereIsFullFileMore4, OpRsync_HereIsFullFileEnd5:
 				if disk == nil {
+					vv("HereIsFullFile: creating disk file localPathToWrite = '%v'", localPathToWrite)
 					disk = NewFileToDiskState(localPathToWrite)
 					disk.T0 = time.Now()
 				}
@@ -624,15 +642,28 @@ takerForSelectLoop:
 				syncReq.Done = idem.NewIdemCloseChan()
 				bt.bread += len(frag.Payload)
 
-				////vv("server sees RequestToSyncPath: '%#v'", syncReq)
+				vv("OpRsync_RequestRemoteToTake sees: \nsyncReq.TakerPath=: '%v';\nTakerTempDir = '%v';\nGiverPath='%v'\nGiverDirAbs='%v';\nTopTakerDirFinal='%v'", syncReq.TakerPath, syncReq.TakerTempDir, syncReq.GiverPath, syncReq.GiverDirAbs, syncReq.TopTakerDirFinal)
 
 				localPathToWrite = syncReq.TakerPath
-				if dirExists(localPathToWrite) {
-					panic(fmt.Errorf("error in Taker OpRsync_RequestRemoteToTake: syncReq.TakerPath cannot be an existing directory: '%v'", localPathToWrite))
+				localPathToRead = syncReq.TakerPath
+
+				if syncReq.TakerTempDir != "" {
+					localPathToWrite = filepath.Join(
+						syncReq.TopTakerDirFinal,
+						syncReq.TakerPath)
+				}
+				if syncReq.TopTakerDirFinal != "" {
+					localPathToRead = filepath.Join(
+						syncReq.TopTakerDirFinal,
+						syncReq.TakerPath)
 				}
 
-				if fileExists(syncReq.TakerPath) {
-					////vv("path '%v' already exists! let's see if we need to rsync diffs or not at all!", syncReq.TakerPath)
+				if dirExists(localPathToRead) {
+					panic(fmt.Errorf("error in Taker OpRsync_RequestRemoteToTake: syncReq.TakerPath cannot be an existing directory: localPathToRead='%v'", localPathToRead))
+				}
+
+				if fileExists(localPathToRead) {
+					vv("path '%v' already exists! let's see if we need to rsync diffs or not at all!", syncReq.TakerPath)
 
 					// are we on the same host? avoid overwritting self with self!
 					cwd, err := os.Getwd()
@@ -657,14 +688,14 @@ takerForSelectLoop:
 						continue // wait for giver to close on error
 					}
 
-					fi, err := os.Stat(syncReq.TakerPath)
+					fi, err := os.Stat(localPathToRead)
 					panicOn(err)
 					sz, mod, mode := fi.Size(), fi.ModTime(), uint32(fi.Mode())
 					if syncReq.FileSize == sz && syncReq.ModTime.Equal(mod) {
-						//vv("size + modtime match. nothing to do, tell Giver.")
+						vv("size + modtime match. nothing to do, tell Giver.")
 						// but do match mode too
 						if syncReq.FileMode != mode && syncReq.FileMode != 0 {
-							err = os.Chmod(syncReq.TakerPath, fs.FileMode(syncReq.FileMode))
+							err = os.Chmod(localPathToWrite, fs.FileMode(syncReq.FileMode))
 							panicOn(err)
 						}
 						ack := rpc.NewFragment()
@@ -681,16 +712,14 @@ takerForSelectLoop:
 						ack = nil
 						continue
 					}
-					//vv("syncReq.FileSize(%v) vs sz(%v) && syncReq.ModTime(%v) vs mod(%v))", syncReq.FileSize, sz, syncReq.ModTime, mod)
+					vv("syncReq.FileSize(%v) vs sz(%v) && syncReq.ModTime(%v) vs mod(%v))", syncReq.FileSize, sz, syncReq.ModTime, mod)
 
 					// we have some differences
 
 					var precis *FilePrecis
 					const wantChunks = true
 					const keepData = false
-					precis, local, err = GetHashesOneByOne(rpc.Hostname, syncReq.TakerPath)
-					//precis, local, err = SummarizeFileInCDCHashes(rpc.Hostname, syncReq.TakerPath, wantChunks, keepData)
-
+					precis, local, err = GetHashesOneByOne(rpc.Hostname, localPathToRead)
 					panicOn(err)
 
 					light := LightRequest{
@@ -734,7 +763,9 @@ takerForSelectLoop:
 					frag = nil
 					continue // wait for next data fragment
 				} else {
-					// not present: must request the full file.
+					vv("not present: must request the "+
+						"full file for syncReq.TakerPath='%v'",
+						syncReq.TakerPath)
 
 					//path := syncReq.Path
 					fullReq := rpc.NewFragment()
