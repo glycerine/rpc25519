@@ -304,7 +304,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// UPDATE: that is what waiting for the last batch
 				// SHOULD be waiting for!
 
-				// So wait for OpRsync_ToGiverDirContentsDoneAck
+				// wait for OpRsync_ToGiverDirContentsDoneAck
 				// send OpRsync_ToTakerDirContentsDone
 				allFilesDone := rpc.NewFragment()
 				allFilesDone.FragOp = OpRsync_ToTakerDirContentsDone
