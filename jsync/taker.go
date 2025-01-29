@@ -581,35 +581,29 @@ takerForSelectLoop:
 				rate := mb / seconds
 
 				// match the mode/mod time of the source.
-				//localPath, _ := frag.GetUserArg("readFile")
-				localPath := syncReq.TakerPath
-				if dirExists(localPath) {
-					panic(fmt.Errorf("error in HereIsFullFile op: syncReq.TakerPath cannot be an existing directory: '%v'", localPath))
-				}
-
 				if !syncReq.TakerStartsEmpty {
 					mode := syncReq.FileMode
 					if mode == 0 {
 						mode = 0600
 					}
-					err = os.Chmod(localPath, fs.FileMode(mode))
+					err = os.Chmod(localPathToWrite, fs.FileMode(mode))
 					panicOn(err)
 
-					err = os.Chtimes(localPath, time.Time{}, syncReq.ModTime)
+					err = os.Chtimes(localPathToWrite, time.Time{}, syncReq.ModTime)
 					panicOn(err)
 				} else {
 					// try to use what the remote told us.
 					modeString, ok := frag.GetUserArg("mode")
 					if ok {
 						mode, err := strconv.ParseUint(modeString, 10, 32)
-						err = os.Chmod(localPath, fs.FileMode(mode))
+						err = os.Chmod(localPathToWrite, fs.FileMode(mode))
 						panicOn(err)
 					}
 					modTimeString, ok := frag.GetUserArg("modTime")
 					if ok {
 						modTime, err := time.Parse(time.RFC3339Nano, modTimeString)
 						panicOn(err)
-						err = os.Chtimes(localPath, time.Time{}, modTime)
+						err = os.Chtimes(localPathToWrite, time.Time{}, modTime)
 						panicOn(err)
 					}
 				}
