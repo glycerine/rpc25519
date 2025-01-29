@@ -219,7 +219,21 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				}
 				// dirgiver should reply to OpRsync_TakerReadyForDirContents
 				// with parallel individual file sends... then
-				//
+				// OpRsync_ToTakerDirContentsDone
+
+			case OpRsync_ToTakerDirContentsDone:
+
+				// wait for all our file syncs to finish.
+				// How? I think the giver has to manage this.
+				// They started them.
+
+				ackAllFilesDone := rpc.NewFragment()
+				ackAllFilesDone.FragOp = OpRsync_ToGiverDirContentsDoneAck
+				err := ckt.SendOneWay(ackAllFilesDone, 0)
+				panicOn(err)
+
+				// dirgiver should reply to OpRsync_ToGiverDirContentsDoneAck
+				// with OpRsync_ToTakerAllTreeModes
 
 			case OpRsync_ToTakerAllTreeModes:
 				// phase 3: set the mode of all dirs in the tree.

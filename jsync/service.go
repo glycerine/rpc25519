@@ -133,7 +133,7 @@ type SyncService struct {
 // directory sync flows:
 // (local taker creates tmp dir target) -> 21 TakerRequestsDirSyncBegin (remote giver notes tmp dir target) ->   (taker) 22 DirSyncBeginToTaker (enter flow below)
 //
-// (giver) -> 22 DirSyncBeginToTaker (remote taker creates tmp dir target) -> 23 DirSyncBeginReplyFromTaker -> 26/27/28 GiverSendsTopDirListing{|More|End} -> (giver) 29 TakerReadyForDirContents -> giver does individual file syncs (newly deleted files can be simply not transferred on the taker side to the new dir!) ... at end, giver does -> 30 ToTakerAllTreeDirectoryModes (taker) replies -> 31 ToGiverAllTreeModesDone ... lastly giver does DirSyncEndToTaker -> DirSyncEndAckFromTaker -> FIN.
+// (giver) -> 22 DirSyncBeginToTaker (remote taker creates tmp dir target) -> 23 DirSyncBeginReplyFromTaker -> 26/27/28 GiverSendsTopDirListing{|More|End} -> (giver) 29 TakerReadyForDirContents -> giver does individual file syncs (newly deleted files can be simply not transferred on the taker side to the new dir!) ... at end, giver does -> 30 (taker) ToTakerDirContentsDone -> 31 (giver) ToGiverDirContentsDoneAck -> 32 ToTakerAllTreeDirectoryModes (taker) replies -> 33 ToGiverAllTreeModesDone ... lastly giver does DirSyncEndToTaker -> DirSyncEndAckFromTaker -> FIN.
 //
 // Both 21 and 22 should put the circuit into "dir-sync" mode wherein
 // we ignore all the other FragOps unrelated to coordinating the top

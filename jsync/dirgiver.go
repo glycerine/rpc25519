@@ -288,16 +288,25 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 				} // end for i sendfiles
 
-				err := allBatches.ReqStop.WaitTilChildrenDone(done)
+				//err := allBatches.ReqStop.WaitTilChildrenDone(done)
+				//panicOn(err)
+				err := allBatches.Done.WaitTilChildrenDone(done)
 				panicOn(err)
 
 				// wait to go on to sending OpRsync_ToTakerAllTreeModes
 				// until after all the files are there.
-				// So wait for OpRsync_ToGiverDirContentsDone
+				// UPDATE: that is what the allBatches.Done above
+				// SHOULD be waiting for!
 
+				// So wait for OpRsync_ToGiverDirContentsDoneAck
 				// send OpRsync_ToTakerDirContentsDone
+				allFilesDone := rpc.NewFragment()
+				allFilesDone.FragOp = OpRsync_ToTakerDirContentsDone
+				err = ckt.SendOneWay(allFilesDone, 0)
+				panicOn(err)
 
 			case OpRsync_ToGiverDirContentsDoneAck:
+
 				vv("dirgiver sees OpRsync_ToGiverDirContentsDoneAck: on to phase 3, dirgiver sends directory modes")
 				// last (3rd phase): send each directory node,
 				// to set its permissions.
