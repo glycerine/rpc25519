@@ -143,7 +143,13 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				panicOn(err0)
 				bt.bread += len(frag0.Payload)
 
-				fi, err := os.Stat(syncReq.GiverPath)
+				// dir sync may specify a path relative to
+				// GiverDirAbs
+				path := syncReq.GiverPath
+				//if syncReq.GiverDirAbs != "" {
+				//	path = filepath.Join(syncReq.GiverDirAbs, path)
+				//}
+				fi, err := os.Stat(path)
 				if err != nil {
 					// file does not exist
 					notfound := rpc.NewFragment()

@@ -101,7 +101,10 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	var plan *Chunks
 	var senderPlan *SenderPlan
 	var localMap map[string]*Chunk
+
 	var localPathToWrite string
+	//var localPathToRead string
+
 	var origVersFd *os.File
 
 	// working buffer to read local file chunks into.
@@ -134,6 +137,18 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 			// b/c it is redundant with the send in service.go:373
 		}
 		localPathToWrite = syncReq.TakerPath
+		//localPathToRead = syncReq.TakerPath
+
+		// Dir sync requests will set TakerTempDir
+		// to have us write into a whole separate
+		// directory tree before a more or less atomic
+		// move of it all into place. We should write
+		// where they ask us to, and skip the rename
+		// at the end.
+		if syncReq.TakerTempDir != "" {
+			localPathToWrite = filepath.Join(syncReq.TakerTempDir, localPathToWrite)
+		}
+
 		if dirExists(localPathToWrite) {
 			return fmt.Errorf("error in Taker: syncReq.TakerPath cannot be an existing directory: '%v'; use DirTaker functionality.", localPathToWrite)
 		}
@@ -141,7 +156,8 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		// prep for reading data
 		var err error
 		if fileExists(syncReq.TakerPath) {
-			origVersFd, err = os.Open(syncReq.TakerPath)
+			origVersFd, err = os.OpenFile(syncReq.TakerPath, os.O_RDONLY, 0)
+			//origVersFd, err = os.Open(syncReq.TakerPath)
 			panicOn(err)
 			defer origVersFd.Close()
 		}
@@ -306,6 +322,16 @@ takerForSelectLoop:
 
 					rnd := cryRandBytesBase64(16)
 					tmp = localPathToWrite + "_accept_plan_tmp_" + rnd
+
+					// Dir sync requests will set TakerTempDir
+					// to have us write into a whole separate
+					// directory tree before a more or less atomic
+					// move of it all into place. We should write
+					// where they ask us to, and skip the rename
+					// at the end.
+					if syncReq.TakerTempDir != "" {
+						tmp = localPathToWrite
+					}
 					newversFd, err = os.Create(tmp)
 					panicOn(err)
 					newversBufio = bufio.NewWriterSize(newversFd, rpc.UserMaxPayload)
@@ -403,9 +429,16 @@ takerForSelectLoop:
 				newversBufio.Flush() // must be before newversFd.Close()
 				newversFd.Close()
 
-				err = os.Rename(tmp, localPathToWrite)
-				panicOn(err) // rename _accept_plan_tmp_BNu4UZ796shgiyp_yQLXmg== : no such file or directory
-				//vv("synced to disk: localPathToWrite='%v' -> renamed to '%v'", tmp, localPathToWrite)
+				// if TakerTempDir is set we are
+				// already writing into a full
+				// temp directory structure that
+				// will, as a whole, get renamed when
+				// all is ready.
+				if syncReq.TakerTempDir == "" {
+					err = os.Rename(tmp, localPathToWrite)
+					panicOn(err)
+					//vv("synced to disk: localPathToWrite='%v' -> renamed to '%v'", tmp, localPathToWrite)
+				}
 
 				// restore mode, modtime
 				mode := goalPrecis.FileMode
@@ -440,7 +473,7 @@ takerForSelectLoop:
 
 				if senderPlan.FileIsDeleted {
 					//vv("senderPlan.FileIsDeleted true, deleting path '%v'", localPathToWrite)
-					err = os.Remove(localPathToWrite)
+					_ = os.Remove(localPathToWrite)
 					s.ackBackFINToGiver(ckt, frag)
 					frag = nil
 					continue // wait for other side to close
@@ -452,7 +485,7 @@ takerForSelectLoop:
 				plan = senderPlan.SenderChunksNoSlice
 				goalPrecis = senderPlan.SenderPrecis
 
-				if plan.FileSize == 0 {
+				if plan.FileSize == 0 { // ? && syncReq.TakerTempDir == "" ??
 					////vv("plan.FileSize == 0 => truncate to zero localPathToWrite='%v'", localPathToWrite)
 					err = truncateFileToZero(localPathToWrite)
 					panicOn(err)

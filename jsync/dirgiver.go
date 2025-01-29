@@ -6,7 +6,7 @@ import (
 	//"os"
 	"strings"
 	//"sync"
-	//"path/filepath"
+	"path/filepath"
 	"time"
 
 	//"github.com/glycerine/rpc25519/progress"
@@ -237,7 +237,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 								frag1 := rpc.NewFragment()
 								sr := &RequestToSyncPath{
-									GiverPath:    file.Path,
+									GiverPath:    filepath.Join(reqDir.GiverDir, file.Path),
 									TakerPath:    file.Path,
 									TakerTempDir: reqDir.TopTakerDirTemp,
 									GiverDirAbs:  reqDir.GiverDir,
