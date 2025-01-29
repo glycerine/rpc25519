@@ -93,15 +93,27 @@ func (di *DirIter) DirsDepthFirstLeafOnly(root string) iter.Seq2[string, bool] {
 // return symlinks as files too, if di.FollowSymlinks is false.
 // If di.FollowSymlinks is true, and a symlink links to a
 // directory, the recursion will follow the symlink down
-// that directory tree. Note that this can result in
-// returning the same file multiple times if there
-// are multiple paths throught symlinks to the same file.
-// It is the user's responsibility to deduplicate the
-// returned paths if need be when using FollowSymlinks true.
+// that directory tree.
+//
+// While this can result in finding the same file
+// mmultiple times if there
+// are multiple paths throught symlinks to the same file,
+// we now use an internal map and dedup so duplicate
+// paths are not returned a second time. This only
+// happens when the FollowSymlinks option is true.
+//
 // Resolving a symlink through multiple other symlinks
-// will only count as one depth level for MaxDepth stopping.
+// only counts as one "depth level" for MaxDepth stopping.
 func (di *DirIter) FilesOnly(root string) iter.Seq2[string, bool] {
 	return func(yield func(string, bool) bool) {
+
+		var seen map[string]bool
+		if di.FollowSymlinks {
+			// symlinks can cause duplicated paths, so
+			// we de-duplicate the paths when following
+			// symlinks.
+			seen = make(map[string]bool)
+		}
 
 		// Helper function for recursive traversal
 		var visit func(path string, depth int) bool
@@ -111,7 +123,6 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[string, bool] {
 			if di.MaxDepth > 0 && depth >= di.MaxDepth {
 				return true // true lets cousins also get to max depth.
 			}
-
 			dir, err := os.Open(path)
 			if err != nil {
 				return yield(path, false)
@@ -137,18 +148,19 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[string, bool] {
 						if err != nil {
 							return false
 						}
-						//entry = fs.FileInfoToDirEntry(fi)
-						//vv("target entry = '%v'; entry.IsDir() = '%v'", fi.Name(), fi.IsDir())
-						// we cannot use the below, because path may
-						// no longer be the right prefix if the symlink
-						// went .. or elsewhere.
-
 						if fi.IsDir() {
 							// Recurse immediately when we find a directory
 							if !visit(target, depth+1) {
 								return false
 							}
 						} else {
+							if seen != nil {
+								if seen[target] {
+									continue
+								} else {
+									seen[target] = true
+								}
+							}
 							if !yield(target, true) {
 								return false
 							}
@@ -162,7 +174,15 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[string, bool] {
 							return false
 						}
 					} else {
-						if !yield(filepath.Join(path, entry.Name()), true) {
+						fullpath := filepath.Join(path, entry.Name())
+						if seen != nil {
+							if seen[fullpath] {
+								continue
+							} else {
+								seen[fullpath] = true
+							}
+						}
+						if !yield(fullpath, true) {
 							return false
 						}
 					}
