@@ -252,6 +252,13 @@ takerForSelectLoop:
 
 			case OpRsync_FileSizeModTimeMatch:
 				//vv("%v: (ckt '%v') (Taker) sees OpRsync_FileSizeModTimeMatch. sending ack back FIN", name, ckt.Name)
+
+				if localPathToWrite != localPathToRead {
+					vv("hard linking 2nd place '%v' <- '%v'",
+						localPathToRead, localPathToWrite)
+					panicOn(os.Link(localPathToRead, localPathToWrite))
+				}
+
 				s.ackBackFINToGiver(ckt, frag)
 				if syncReq != nil {
 					syncReq.SizeModTimeMatch = true
@@ -664,6 +671,13 @@ takerForSelectLoop:
 							err = os.Chmod(localPathToWrite, fs.FileMode(syncReq.FileMode))
 							panicOn(err)
 						}
+
+						if localPathToWrite != localPathToRead {
+							vv("hard linking '%v' <- '%v'",
+								localPathToRead, localPathToWrite)
+							panicOn(os.Link(localPathToRead, localPathToWrite))
+						}
+
 						ack := rpc.NewFragment()
 						ack.FragSubject = frag.FragSubject
 						ack.FragOp = OpRsync_FileSizeModTimeMatch
