@@ -161,7 +161,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					tmp, final)
 				var err error
 
-				rndsuf := rpc.NewCryRandCallID()
+				rndsuf := rpc.NewCryRandSuffix()
 				old := ""
 				if dirExists(final) {
 					// move the old dir out of the way.

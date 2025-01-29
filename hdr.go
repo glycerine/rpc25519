@@ -394,6 +394,15 @@ func NewCryRandCallID() (cid string) {
 	return
 }
 
+// without the "=" at the end.
+func NewCryRandSuffix() (cid string) {
+	var random [20]byte
+	cryrand.Read(random[:])
+	cid = cristalbase64.URLEncoding.EncodeToString(random[:])
+	cid = cid[:len(cid)-1]
+	return
+}
+
 // for when the server is just going to replace the CallID with
 // the request CallID anyway.
 func newHDRwithoutCallID(from, to, serviceName string, typ CallType, streamPart int64) (m *HDR) {

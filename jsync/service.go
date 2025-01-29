@@ -453,7 +453,7 @@ const rsyncRemoteGivesDirString = "rsync remote gives dir"
 // filesystem as the taker dir, we create the temp
 // dir as a sibling to the finalDir.
 func (s *SyncService) mkTempDir(finalDir string) (tmpDir, tmpDirID string, err error) {
-	tmpDirID = "tempDirID-" + rpc.NewCryRandCallID()
+	tmpDirID = "tempDirID-" + rpc.NewCryRandSuffix()
 	//dataDir, err := rpc.GetServerDataDir()
 	//panicOn(err)
 	//hostCID := rpc.HostCID
