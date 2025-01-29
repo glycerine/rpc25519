@@ -87,6 +87,9 @@ func main() {
 	giverExistsLocal := false
 	cfg := rpc.NewConfig()
 
+	serverOn := false
+	_ = serverOn
+
 	// extract remote; the server to contact.
 	splt := strings.Split(giverPath, ":")
 	if len(splt) <= 1 {
@@ -121,6 +124,7 @@ func main() {
 			serverAddr, err := srv.Start()
 			panicOn(err)
 			defer srv.Close()
+			serverOn = true
 
 			cfg.ClientDialToHostPort = serverAddr.String()
 			dest = cfg.ClientDialToHostPort
