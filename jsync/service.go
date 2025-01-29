@@ -449,13 +449,17 @@ const rsyncRemoteGivesString = "rsync remote gives"
 const rsyncRemoteTakesDirString = "rsync remote takes dir"
 const rsyncRemoteGivesDirString = "rsync remote gives dir"
 
+// to have a high probability we are on the same
+// filesystem as the taker dir, we create the temp
+// dir as a sibling to the finalDir.
 func (s *SyncService) mkTempDir(finalDir string) (tmpDir, tmpDirID string, err error) {
 	tmpDirID = "tempDirID-" + rpc.NewCryRandCallID()
-	dataDir, err := rpc.GetServerDataDir()
-	panicOn(err)
-	hostCID := rpc.HostCID
-	stagingDir := filepath.Join(dataDir, hostCID, "staging")
-	tmpDir = filepath.Join(stagingDir, tmpDirID)
+	//dataDir, err := rpc.GetServerDataDir()
+	//panicOn(err)
+	//hostCID := rpc.HostCID
+	//stagingDir := filepath.Join(dataDir, hostCID, "staging")
+	//tmpDir = filepath.Join(stagingDir, tmpDirID)
+	tmpDir = filepath.Clean(finalDir) + "." + tmpDirID
 	err = os.MkdirAll(tmpDir, 0700)
 	panicOn(err)
 	return
