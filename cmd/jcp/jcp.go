@@ -242,7 +242,7 @@ func main() {
 
 		SyncFromHostname: rpc.Hostname,
 		SyncFromHostCID:  rpc.HostCID,
-		AbsDir:           dir,
+		GiverDirAbs:      dir,
 		RemoteTakes:      isPush,
 	}
 	if takerExistsLocal {
