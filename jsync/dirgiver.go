@@ -215,8 +215,6 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// transferred on the taker side to the new dir!) ...
 				// -> at end, giver -> DirSyncEndToTaker
 
-				allBatches := idem.NewHalter()
-
 			sendFiles:
 				for i := 0; ; i++ {
 					select {
@@ -225,7 +223,6 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							break sendFiles
 						}
 						batchHalt := idem.NewHalter()
-						allBatches.AddChild(batchHalt)
 						defer batchHalt.ReqStop.Close()
 
 						for _, file := range pof.Pack {
@@ -253,7 +250,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								bts, err := sr.MarshalMsg(nil)
 								panicOn(err)
 								frag1.Payload = bts
-								// basic push flow. giver sends 1.
+								// basic single file transfer flow. giver sends 1.
 								frag1.FragOp = OpRsync_RequestRemoteToTake
 								frag1.SetUserArg("structType", "RequestToSyncPath")
 								cktName := rsyncRemoteTakesString
@@ -281,6 +278,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						}
 						err := batchHalt.ReqStop.WaitTilChildrenDone(done)
 						vv("batchHalt.ReqStop.WaitTilChildrenDone gave err = '%v'", err)
+						panicOn(err)
 						batchHalt.ReqStop.Close()
 
 						if pof.IsLast {
@@ -299,24 +297,19 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 				} // end for i sendfiles
 
-				err := allBatches.ReqStop.WaitTilChildrenDone(done)
-				panicOn(err)
-				err = allBatches.Done.WaitTilChildrenDone(done)
-				panicOn(err)
-
 				vv("dirgiver: all batches of indiv file sync are done.")
 
 				// wait to go on to sending OpRsync_ToTakerAllTreeModes
 				// until after all the files are there.
-				// UPDATE: that is what the allBatches.Done above
+				// UPDATE: that is what waiting for the last batch
 				// SHOULD be waiting for!
 
 				// So wait for OpRsync_ToGiverDirContentsDoneAck
 				// send OpRsync_ToTakerDirContentsDone
 				allFilesDone := rpc.NewFragment()
 				allFilesDone.FragOp = OpRsync_ToTakerDirContentsDone
-				err = ckt.SendOneWay(allFilesDone, 0)
-				panicOn(err)
+				err3 := ckt.SendOneWay(allFilesDone, 0)
+				panicOn(err3)
 
 			case OpRsync_ToGiverDirContentsDoneAck:
 
