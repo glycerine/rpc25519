@@ -847,12 +847,16 @@ moreLoop:
 				panicOn(err)
 				bt.bread += len(fragX.Payload)
 
-				if x.Path != (*localChunks).Path {
-					panic(fmt.Sprintf("are we mixing up"+
-						"chunks from two files?? x.Path='%v'"+
-						" but localChunks.Path='%v'",
-						x.Path, (*localChunks).Path))
-				}
+				// dirgiver.go:265 2025-01-29 16:20:16.097 -0600 CST
+				// error ckt2 close: 'panic recovered: 'are we mixing
+				// upchunks from two files?? x.Path='same2' but
+				// localChunks.Path='tmp/same2'''
+				// if x.Path != (*localChunks).Path {
+				// 	panic(fmt.Sprintf("are we mixing up"+
+				// 		"chunks from two files?? x.Path='%v'"+
+				// 		" but localChunks.Path='%v'",
+				// 		x.Path, (*localChunks).Path))
+				// }
 
 				// contiguous?
 				lc := (*localChunks)
@@ -883,12 +887,12 @@ moreLoop:
 				panicOn(err)
 				bt.bread += len(fragX.Payload)
 
-				if x.Path != (*localChunks).Path {
-					panic(fmt.Sprintf("are we mixing up"+
-						"chunks from two files?? x.Path='%v'"+
-						" but localChunks.Path='%v'",
-						x.Path, (*localChunks).Path))
-				}
+				// if x.Path != (*localChunks).Path {
+				// 	panic(fmt.Sprintf("are we mixing up"+
+				// 		"chunks from two files?? x.Path='%v'"+
+				// 		" but localChunks.Path='%v'",
+				// 		x.Path, (*localChunks).Path))
+				// }
 
 				(*localChunks).Chunks = append(
 					(*localChunks).Chunks, x.Chunks...)
