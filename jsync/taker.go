@@ -135,7 +135,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		}
 		localPathToWrite = syncReq.TakerPath
 		if dirExists(localPathToWrite) {
-			return fmt.Errorf("error in Taker: syncReq.TakerPath cannot be an existing directory: '%v'", localPathToWrite)
+			return fmt.Errorf("error in Taker: syncReq.TakerPath cannot be an existing directory: '%v'; use DirTaker functionality.", localPathToWrite)
 		}
 
 		// prep for reading data

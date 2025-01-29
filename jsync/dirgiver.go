@@ -246,8 +246,6 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 									FileMode:     file.FileMode,
 									RemoteTakes:  true,
 									Done:         idem.NewIdemCloseChan(),
-									//Precis:      precis,
-									//Chunks:      chunks,
 								}
 								bts, err := sr.MarshalMsg(nil)
 								panicOn(err)
