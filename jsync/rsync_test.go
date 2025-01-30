@@ -504,7 +504,7 @@ func TestBenchmarkChunkingVsTotalFileChecksum(t *testing.T) {
 	path := "../Ubuntu_24.04_VB_LinuxVMImages.COM.vdi"
 
 	t0 := time.Now()
-	hSlurp, err := SlurpBlake(path)
+	hSlurp, err := SlurpBlake(path, 1)
 	panicOn(err)
 	vv("blake3 slurp/mmap at once took '%v'", time.Since(t0))
 
