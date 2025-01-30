@@ -287,7 +287,7 @@ takerForSelectLoop:
 					mode = 0600
 				}
 				err = os.Chmod(path, fs.FileMode(mode))
-				panicOn(err) //  panic: chmod tmp.tempDirID-d34zViLDK6BJVS4sfhQSChDUVwM/samesame: no such file or directory
+				panicOn(err)
 				if !precis.ModTime.IsZero() {
 					err = os.Chtimes(path, time.Time{}, precis.ModTime)
 					panicOn(err)
@@ -446,9 +446,11 @@ takerForSelectLoop:
 				} else {
 					// need to hard link it.
 					if localPathToWrite != localPathToRead {
-						vv("hard linking 3 '%v' <- '%v'",
-							localPathToRead, localPathToWrite)
-						panicOn(os.Link(localPathToRead, localPathToWrite))
+						if !fileExists(localPathToWrite) {
+							vv("hard linking 3 '%v' <- '%v'",
+								localPathToRead, localPathToWrite)
+							panicOn(os.Link(localPathToRead, localPathToWrite))
+						}
 					}
 				}
 

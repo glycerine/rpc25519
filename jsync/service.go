@@ -459,7 +459,7 @@ func (s *SyncService) mkTempDir(finalDir string) (tmpDir, tmpDirID string, err e
 	//hostCID := rpc.HostCID
 	//stagingDir := filepath.Join(dataDir, hostCID, "staging")
 	//tmpDir = filepath.Join(stagingDir, tmpDirID)
-	tmpDir = filepath.Clean(finalDir) + "." + tmpDirID
+	tmpDir = filepath.Clean(finalDir) + "." + tmpDirID // arg. can make ..tempDirID
 	err = os.MkdirAll(tmpDir, 0700)
 	panicOn(err)
 	return
