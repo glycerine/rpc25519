@@ -502,7 +502,14 @@ func TestBenchmarkChunkingVsTotalFileChecksum(t *testing.T) {
 	// hash.Blake3OfFile()
 
 	path := "../Ubuntu_24.04_VB_LinuxVMImages.COM.vdi"
+
 	t0 := time.Now()
+	hSlurp, err := SlurpBlake(path)
+	panicOn(err)
+	vv("blake3 slurp/mmap at once took '%v'", time.Since(t0))
+
+	t0 = time.Now()
+
 	h, err := hash.Blake3OfFile(path)
 	panicOn(err)
 	vv("blake3 full file at once took '%v'", time.Since(t0))
@@ -517,12 +524,24 @@ func TestBenchmarkChunkingVsTotalFileChecksum(t *testing.T) {
 	if precis.FileCry != h {
 		vv("all at once got: h = '%v'", h)
 		vv("chunking got: precis.FileCry = '%v'", precis.FileCry)
+		vv("hSlurp = '%v'", hSlurp)
 		if h != precis.FileCry {
-			panic("should agree!")
+			panic("h and precis.FileCry should agree!")
+		}
+		if h != hSlurp {
+			panic("h and hSlurp should agree!")
 		}
 	}
 
 	// cold file system cache
+
+	//rsync_test.go:509 2025-01-30 07:15:44.94 -0600 CST blake3 slurp/mmap at once took '4.521841836s'
+
+	//rsync_test.go:515 2025-01-30 07:15:47.895 -0600 CST blake3 full file at once took '2.954883903s'
+
+	//rsync_test.go:522 2025-01-30 07:15:58.966 -0600 CST chunking + blake3 of all at end took '11.070971265s'
+
+	// cold
 	//rsync_test.go:508 2025-01-30 05:46:35.919 -0600 CST blake3 full file at once took '4.361695202s'
 	//
 	//rsync_test.go:515 2025-01-30 05:46:47.1 -0600 CST chunking + blake3 of all at end took '11.180472046s'
