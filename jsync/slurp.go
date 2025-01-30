@@ -31,14 +31,15 @@ type job struct {
 	endx int64
 }
 
-func SlurpBlake(path string, numWorkers int) (blake3sum string, err error) {
+func SlurpBlake(path string, numWorkers int) (blake3sum string, elap time.Duration, err0 error) {
 
 	t0 := time.Now()
 
 	// first argument is the path to the csv file to parse
 	fd, err := os.Open(path)
 	if err != nil {
-		return "", err
+		err0 = err
+		return
 	}
 	defer fd.Close()
 
@@ -53,7 +54,7 @@ func SlurpBlake(path string, numWorkers int) (blake3sum string, err error) {
 	// 1MB buf for each of up to 8 goro.
 
 	mb := int(math.Ceil(float64(sz) / float64(1<<20)))
-	n := 9
+	n := numWorkers
 
 	if mb < n {
 		n = mb // get smaller, but not larger.
@@ -80,7 +81,7 @@ func SlurpBlake(path string, numWorkers int) (blake3sum string, err error) {
 	for i := range n {
 		go func(i int) {
 			defer func() {
-				vv("goro i = %v is done.", i)
+				//vv("goro i = %v is done.", i)
 				wg.Done()
 			}()
 
@@ -128,10 +129,11 @@ func SlurpBlake(path string, numWorkers int) (blake3sum string, err error) {
 		work <- job
 		njob++
 	}
-	vv("sent off njob = %v to be hashed", njob)
+	//vv("sent off njob = %v to be hashed", njob)
 	close(work)
 	wg.Wait()
-	vv("done after %v", time.Since(t0))
+	elap = time.Since(t0)
+	vv("done after %v", elap)
 
 	///	h.Write(buf)
 	//	by := h.Sum(nil)
