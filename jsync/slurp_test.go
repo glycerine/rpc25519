@@ -30,7 +30,7 @@ func Test_Benchmark_parallel_blake3(t *testing.T) {
 		}
 	*/
 
-	for i := 20; i < 49; i++ {
+	for i := 1; i < 12; i++ {
 		sum, elap, err := SlurpBlake(path, i)
 		panicOn(err)
 
@@ -39,7 +39,7 @@ func Test_Benchmark_parallel_blake3(t *testing.T) {
 	}
 }
 
-/*
+/* on rog, linux 48 core box:
 with parallelism 1  elap = 3.36196772s
 with parallelism 2  elap = 1.820411611s
 with parallelism 3  elap = 1.295132893s
