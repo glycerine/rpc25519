@@ -1,6 +1,7 @@
 package hash
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -8,6 +9,8 @@ import (
 	cristalbase64 "github.com/cristalhq/base64"
 	"lukechampine.com/blake3"
 )
+
+const fRFC3339NanoNumericTZ0pad = "2006-01-02T15:04:05.000000000-07:00"
 
 // Blake3 provides Hash32 which is goroutine safe.
 type Blake3 struct {
@@ -101,6 +104,31 @@ func Blake3OfBytes(by []byte) []byte {
 func Blake3OfBytesString(by []byte) string {
 	sum := Blake3OfBytes(by)
 	return "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:33])
+}
+
+func Blake3OfFileWithModtime(path string, includeModTime bool) (blake3sum string, err error) {
+	fd, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer fd.Close()
+	h := blake3.New(64, nil)
+	io.Copy(h, fd)
+
+	if includeModTime {
+		fi, err := fd.Stat()
+		if err != nil {
+			return "", err
+		}
+		// put into a canonical format.
+		s := fmt.Sprintf("%v", fi.ModTime().UTC().Format(fRFC3339NanoNumericTZ0pad))
+		h.Write([]byte(s))
+	}
+
+	by := h.Sum(nil)
+
+	blake3sum = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(by[:33])
+	return
 }
 
 func Blake3OfFile(path string) (blake3sum string, err error) {
