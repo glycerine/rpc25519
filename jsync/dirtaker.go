@@ -165,7 +165,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				old := ""
 				if dirExists(final) {
 					// move the old dir out of the way.
-					old = final + "." + rndsuf
+					old = final + ".old." + rndsuf
 					vv("dirtaker backup previous dir '%v' -> '%v'", final, old)
 					err := os.Rename(final, old)
 					panicOn(err)
