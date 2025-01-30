@@ -51,8 +51,9 @@ func SlurpBlake(path string, numWorkers int) (blake3sum string, elap time.Durati
 	//	blake3sum = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(by)
 	//	return
 
-	// 1MB buf for each of up to n goro.
-	const segment = 1 << 20
+	// 512KB buf for each of up to n goro.
+	// This is faster on my mac than 1MB. See table below.
+	const segment = 1 << 19
 
 	mb := sz / segment
 	if sz*segment < mb {
@@ -181,6 +182,20 @@ with parallelism 8  elap = 655.35979ms
 with parallelism 9  elap = 631.725325ms <<<< min here, 1MB faster than 2MB
 with parallelism 10  elap = 659.761366ms
 with parallelism 11  elap = 655.26455ms
+
+even faster using 512KB instead of 1MB:
+
+with parallelism 1  elap = 3.142123283s
+with parallelism 2  elap = 1.607804187s
+with parallelism 3  elap = 1.09853213s
+with parallelism 4  elap = 868.66514ms
+with parallelism 5  elap = 761.105816ms
+with parallelism 6  elap = 689.614737ms
+with parallelism 7  elap = 639.682723ms
+with parallelism 8  elap = 619.470931ms
+with parallelism 9  elap = 617.620862ms
+with parallelism 10  elap = 612.781212ms <<<<< fastest
+with parallelism 11  elap = 632.990142ms
 
 */
 
