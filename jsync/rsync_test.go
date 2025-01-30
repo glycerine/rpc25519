@@ -12,6 +12,7 @@ import (
 
 	cv "github.com/glycerine/goconvey/convey"
 	rpc "github.com/glycerine/rpc25519"
+	"github.com/glycerine/rpc25519/hash"
 )
 
 func Test201_rsync_style_chunking_and_hash_generation(t *testing.T) {
@@ -491,4 +492,44 @@ func Test302_incremental_chunker_matches_batch_bigger(t *testing.T) {
 		vv("precis0 = '%#v'", precis0)
 		cv.So(precis0, cv.ShouldResemble, precis1)
 	})
+}
+
+func TestBenchmarkChunkingVsTotalFileChecksum(t *testing.T) {
+
+	// how slow is
+	//GetHashesOneByOne()
+	// vs
+	// hash.Blake3OfFile()
+
+	path := "../Ubuntu_24.04_VB_LinuxVMImages.COM.vdi"
+	t0 := time.Now()
+	h, err := hash.Blake3OfFile(path)
+	panicOn(err)
+	vv("blake3 full file at once took '%v'", time.Since(t0))
+
+	t1 := time.Now()
+	precis, chunks, err := GetHashesOneByOne("", path)
+	panicOn(err)
+	_ = chunks
+
+	vv("chunking + blake3 of all at end took '%v'", time.Since(t1))
+
+	if precis.FileCry != h {
+		vv("all at once got: h = '%v'", h)
+		vv("chunking got: precis.FileCry = '%v'", precis.FileCry)
+		if h != precis.FileCry {
+			panic("should agree!")
+		}
+	}
+
+	// cold file system cache
+	//rsync_test.go:508 2025-01-30 05:46:35.919 -0600 CST blake3 full file at once took '4.361695202s'
+	//
+	//rsync_test.go:515 2025-01-30 05:46:47.1 -0600 CST chunking + blake3 of all at end took '11.180472046s'
+
+	// hot file system cache
+	//rsync_test.go:508 2025-01-30 05:47:44.459 -0600 CST blake3 full file at once took '2.950513352s'
+	//
+	//rsync_test.go:515 2025-01-30 05:47:55.75 -0600 CST chunking + blake3 of all at end took '11.29126856s'
+
 }
