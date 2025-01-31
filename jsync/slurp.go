@@ -90,9 +90,11 @@ func SlurpBlake(path string, numWorkers int) (blake3sum string, elap time.Durati
 				wg.Done()
 			}()
 
-			f, err := os.Open(path)
+			f, err := os.OpenFile(path, os.O_RDONLY, 0)
 			panicOn(err)
 			defer f.Close()
+			// does this help?
+			// adviseKernelSequentialReadComing(f)
 
 			var job *job
 			var ok bool
