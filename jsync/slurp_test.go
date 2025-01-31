@@ -8,7 +8,7 @@ import (
 	//mathrand2 "math/rand/v2"
 	//"os"
 	"testing"
-	//"time"
+	"time"
 	//cv "github.com/glycerine/goconvey/convey"
 	//rpc "github.com/glycerine/rpc25519"
 	//"github.com/glycerine/rpc25519/hash"
@@ -30,14 +30,30 @@ func Test_Benchmark_parallel_blake3(t *testing.T) {
 		}
 	*/
 
-	for i := 1; i < 18; i++ {
+	fastesti := -1
+	var fastest time.Duration = 1e9
+	for i := 10; i < 60; i++ {
 		sum, elap, err := SlurpBlake(path, i)
 		panicOn(err)
-
+		if elap < fastest {
+			fastest = elap
+			fastesti = i
+		}
 		fmt.Printf("with parallelism %v  elap = %v\n", i, elap)
 		_ = sum
 	}
+	fmt.Printf("fastest with: parallelism %v  elap = %v  <<<\n", fastesti, fastest)
 }
+
+/*
+on rog, 1MB is slightly faster, but lets keep 512KB for mac.
+with 512KB segments from disk:
+fastest with: parallelism 39  elap = 172.520902ms  <<<
+with 1MB segments:
+fastest with: parallelism 45  elap = 161.937879ms  <<<
+with 2MB segments:
+fastest with: parallelism 34  elap = 170.310761ms  <<<
+*/
 
 /* on rog, linux 48 core box:
 with parallelism 1  elap = 3.36196772s
