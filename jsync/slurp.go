@@ -186,16 +186,42 @@ with parallelism 11  elap = 655.26455ms
 even faster using 512KB instead of 1MB:
 
 with parallelism 1  elap = 3.142123283s
-with parallelism 2  elap = 1.607804187s
-with parallelism 3  elap = 1.09853213s
-with parallelism 4  elap = 868.66514ms
-with parallelism 5  elap = 761.105816ms
-with parallelism 6  elap = 689.614737ms
-with parallelism 7  elap = 639.682723ms
-with parallelism 8  elap = 619.470931ms
-with parallelism 9  elap = 617.620862ms
-with parallelism 10  elap = 612.781212ms <<<<< fastest
-with parallelism 11  elap = 632.990142ms
+with parallelism 2  elap = 1.615733001s
+with parallelism 3  elap = 1.058210618s
+with parallelism 4  elap = 826.37669ms
+with parallelism 5  elap = 744.766069ms
+with parallelism 6  elap = 757.296903ms
+with parallelism 7  elap = 611.435048ms
+with parallelism 8  elap = 587.01971ms   <<< fastest
+with parallelism 9  elap = 616.862712ms
+with parallelism 10  elap = 589.29706ms
+with parallelism 11  elap = 600.144998ms
+with parallelism 12  elap = 598.401267ms
+with parallelism 13  elap = 618.962916ms
+with parallelism 14  elap = 598.44761ms
+with parallelism 15  elap = 617.756556ms
+with parallelism 16  elap = 619.874047ms
+with parallelism 17  elap = 601.039618ms
+
+
+Using 256KB :
+
+with parallelism 7  elap = 636.93916ms
+with parallelism 8  elap = 604.626093ms  <<
+with parallelism 9  elap = 605.196394ms  <<
+with parallelism 10  elap = 594.737384ms
+with parallelism 11  elap = 619.860294ms
+with parallelism 12  elap = 605.505837ms <<
+with parallelism 13  elap = 623.269235ms
+with parallelism 14  elap = 612.861583ms
+with parallelism 15  elap = 603.776636ms << fastest
+with parallelism 16  elap = 608.694734ms
+
+Using 128KB: all slower
+with parallelism 13  elap = 682.52478ms < best but slower
+
+Using 16KB chunks
+with parallelism 17  elap = 1.340901354s
 
 */
 

@@ -30,7 +30,7 @@ func Test_Benchmark_parallel_blake3(t *testing.T) {
 		}
 	*/
 
-	for i := 1; i < 12; i++ {
+	for i := 1; i < 18; i++ {
 		sum, elap, err := SlurpBlake(path, i)
 		panicOn(err)
 
