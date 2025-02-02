@@ -8,6 +8,8 @@ import (
 
 //var _ = unix.Fadvise
 
+// do we want MADV_SEQUENTIAL with madvise()?
+
 func adviseKernelSequentialReadComing(f *os.File) {
 	//Linux:
 	// Advise the kernel that we'll be reading this file sequentially
