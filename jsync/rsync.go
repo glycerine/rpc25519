@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"lukechampine.com/blake3"
 	"os"
 	"os/user"
 	"syscall"
 	"time"
 
+	"github.com/glycerine/blake3"
 	//"github.com/glycerine/greenpack/msgp"
 	//rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/hash"
@@ -1068,68 +1068,9 @@ func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 		}
 	}
 
-	precis.FileCry, err = Blake3OfFileIncremental(path)
+	precis.FileCry, err = hash.Blake3OfFile(path)
 	if err != nil {
 		return nil, err
-	}
-	return
-}
-
-// Blake3OfFileIncremental hashes a whole, arbitrarily large
-// file, using just a small 1MB read buffer.
-func Blake3OfFileIncremental(path string) (fileCry string, err error) {
-
-	var fi os.FileInfo
-	fi, err = os.Stat(path)
-	if err != nil {
-		return "", err
-	}
-	sz := fi.Size()
-	h := blake3.New(64, nil)
-
-	defer func() {
-		if err == nil {
-			fileCry = hash.SumToString(h)
-		}
-	}()
-
-	if sz == 0 {
-		// defer sets fileCry
-		return
-	}
-
-	// this was the fastest buffer size on my mac.
-	// It was better than any higher or lower power of 2.
-	bufsz := 1 << 20 // 1.901690203s fo N=1000;  N=2000 => 3.800150287s
-
-	fd, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer fd.Close()
-
-	//vv("using bufsz = %v in GetPrecis", bufsz)
-	buf := make([]byte, bufsz)
-
-	for {
-		var nr int
-		nr, err = io.ReadFull(fd, buf)
-		if err == io.EOF {
-			// no more bytes, exactly 0.
-			// "The error is EOF only if no bytes were read."
-			// -- https://pkg.go.dev/io#ReadFull
-			err = nil
-			return
-		}
-		if err == io.ErrUnexpectedEOF {
-			err = nil
-			// ignore short read error in next err != nil check.
-		}
-		if err != nil {
-			return "", err
-		}
-		data := buf[:nr]
-		h.Write(data)
 	}
 	return
 }

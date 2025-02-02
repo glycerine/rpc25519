@@ -2,12 +2,12 @@ package hash
 
 import (
 	"fmt"
-	"io"
+	//"io"
 	"os"
 	"sync"
 
 	cristalbase64 "github.com/cristalhq/base64"
-	"lukechampine.com/blake3"
+	"github.com/glycerine/blake3"
 )
 
 const fRFC3339NanoNumericTZ0pad = "2006-01-02T15:04:05.000000000-07:00"
@@ -107,41 +107,34 @@ func Blake3OfBytesString(by []byte) string {
 }
 
 func Blake3OfFileWithModtime(path string, includeModTime bool) (blake3sum string, err error) {
-	fd, err := os.Open(path)
+
+	sum, h, err := blake3.HashFile(path)
 	if err != nil {
 		return "", err
 	}
-	defer fd.Close()
-	h := blake3.New(64, nil)
-	io.Copy(h, fd)
-
 	if includeModTime {
-		fi, err := fd.Stat()
+		fi, err := os.Stat(path)
 		if err != nil {
 			return "", err
 		}
 		// put into a canonical format.
 		s := fmt.Sprintf("%v", fi.ModTime().UTC().Format(fRFC3339NanoNumericTZ0pad))
 		h.Write([]byte(s))
+		sum = h.Sum(nil)
 	}
 
-	by := h.Sum(nil)
-
-	blake3sum = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(by[:33])
+	blake3sum = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:33])
 	return
 }
 
 func Blake3OfFile(path string) (blake3sum string, err error) {
-	fd, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer fd.Close()
-	h := blake3.New(64, nil)
-	io.Copy(h, fd)
-	by := h.Sum(nil)
 
-	blake3sum = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(by[:33])
+	sum, _, err1 := blake3.HashFile(path)
+	if err1 != nil {
+		return "", err1
+	}
+
+	blake3sum = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:33])
 	return
 }
 

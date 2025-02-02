@@ -13,8 +13,8 @@ import (
 
 	// check-summing utilities.
 	cristalbase64 "github.com/cristalhq/base64"
+	"github.com/glycerine/blake3"
 	myblake3 "github.com/glycerine/rpc25519/hash"
-	"lukechampine.com/blake3"
 )
 
 var _ = fmt.Printf

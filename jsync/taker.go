@@ -15,9 +15,9 @@ import (
 	//"sync"
 	"time"
 
+	"github.com/glycerine/blake3"
 	"github.com/glycerine/idem"
 	rpc "github.com/glycerine/rpc25519"
-	"lukechampine.com/blake3"
 )
 
 // Taker handes receiving updated data ("taking it")
