@@ -18,6 +18,8 @@ github.com/glycerine/base58 v0.24.2 h1:y0BddQUzkngZgsO6MrlWB12dezWPHNJK/Qvv2mxd8
 github.com/glycerine/base58 v0.24.2/go.mod h1:NT5W5aZ4AENzJYQ6wp4OvKdOJ01f6BgK8KiG0Q8NTfg=
 github.com/glycerine/blake3 v1.5.1 h1:o7rEJCZwWtgIoAOQ6j8G+EzYFVKsI+/GU8+F9AIISkY=
 github.com/glycerine/blake3 v1.5.1/go.mod h1:c/clAKPeDtoJM2aRKbbXWCOtgra+AlmsTD9z6EH7iYo=
+github.com/glycerine/blake3 v1.5.2 h1:lE+WPREJhqdWt5/va+byQccckYQwN41Uu/K+u3KRxdE=
+github.com/glycerine/blake3 v1.5.2/go.mod h1:c/clAKPeDtoJM2aRKbbXWCOtgra+AlmsTD9z6EH7iYo=
 github.com/glycerine/fwd v1.1.4-beta.jea h1:penEwsXMBPCMCH+iUj/HKRIuRzfESzLIk99OcttgqTU=
 github.com/glycerine/fwd v1.1.4-beta.jea/go.mod h1:N5KPZnp8z9AaPcR/9r5u2BcdqnlfcTcEGbX1In/yyIE=
 github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31 h1:gclg6gY70GLy3PbkQ1AERPfmLMMagS60DKF78eWwLn8=
