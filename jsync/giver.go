@@ -107,6 +107,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				b3sumGiver := myblake3.RawSumBytesToString(sum)
 
 				syncReq.FullFileInitSideBlake3 = b3sumGiver
+				syncReq.FullFileRespondSideBlake3 = b3sumTaker
 
 				if b3sumGiver == b3sumTaker {
 					vv("early checksum finds no transfer needed. good: '%v'", localPath)
