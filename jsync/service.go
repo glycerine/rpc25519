@@ -675,6 +675,27 @@ func (s *SyncService) Start(
 						// scan their (possibly huge) local file for checksums;
 						// Can we lazily/efficiently just use the file size + modTime?
 						frag.FragOp = OpRsync_LazyTakerWantsToPull
+
+						// we should fill in Mode, ModTime, FileSize if not
+						// already, to guarantee they are there. The client
+						// should be doing this, but make sure.
+						if syncReq.FileSize == 0 ||
+							syncReq.ModTime.IsZero() ||
+							syncReq.FileMode == 0 {
+
+							var fi os.FileInfo
+							fi, err := os.Stat(syncReq.TakerPath)
+							if err == nil {
+								syncReq.ModTime = fi.ModTime()
+								syncReq.FileSize = fi.Size()
+								syncReq.FileMode = uint32(fi.Mode())
+							} else {
+								panic(fmt.Sprintf("syncReq.TakerExistsLocal"+
+									" true but error on accessing "+
+									"TakerPath '%v': '%v'",
+									syncReq.TakerPath, err))
+							}
+						}
 					}
 				}
 				// maybe? ensure FileSize and mod time are set, else we

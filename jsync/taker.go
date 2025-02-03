@@ -191,11 +191,40 @@ takerForSelectLoop:
 			case OpRsync_LazyTakerNoLuck_ChunksRequired:
 				//vv("%v: (ckt '%v') (Taker) sees OpRsync_LazyTakerNoLuck_ChunksRequired.", name, ckt.Name)
 				// should we just be overwriting syncReq ? TODO!
+
+				// can we avoid sending a file if it was just
+				// a mod time mismatch?
+				b3sumGiver, ok := frag.GetUserArg("giverFullFileBlake3sum")
+				if !ok {
+					panic("why no giverFullFileBlake3sum ?")
+				}
+				sumTaker, _, err := blake3.HashFile(localPathToRead)
+				panicOn(err)
+				b3sumTaker := myblake3.RawSumBytesToString(sumTaker)
+				if b3sumTaker == b3sumGiver {
+					// hard link it.
+					if localPathToWrite != localPathToRead {
+						vv("hard linking 7 '%v' <- '%v'",
+							localPathToRead, localPathToWrite)
+						panicOn(os.Link(localPathToRead, localPathToWrite))
+					}
+					// just adjust mod time and fin.
+					err = os.Chtimes(localPathToWrite, time.Time{}, syncReq.ModTime)
+					panicOn(err)
+					// update mode too? not sure if we have it avail
+					if syncReq.FileMode != 0 {
+						err = os.Chmod(localPathToWrite, fs.FileMode(syncReq.FileMode))
+						panicOn(err)
+					}
+					s.ackBackFINToGiver(ckt, frag)
+					continue
+				}
+
 				syncReq2 := &RequestToSyncPath{
 					TakerTempDir:     syncReq.TakerTempDir,
 					TopTakerDirFinal: syncReq.TopTakerDirFinal,
 				}
-				_, err := syncReq2.UnmarshalMsg(frag.Payload)
+				_, err = syncReq2.UnmarshalMsg(frag.Payload)
 				panicOn(err)
 				bt.bread += len(frag.Payload)
 				if syncReq2.TakerPath != syncReq.TakerPath ||
@@ -281,23 +310,24 @@ takerForSelectLoop:
 				_, err := precis.UnmarshalMsg(frag.Payload)
 				panicOn(err)
 
-				//path := syncReq.TakerPath
-				path := localPathToRead
-				mode := precis.FileMode
-				if mode == 0 {
-					mode = 0600
-				}
-				err = os.Chmod(path, fs.FileMode(mode))
-				panicOn(err)
-				if !precis.ModTime.IsZero() {
-					err = os.Chtimes(path, time.Time{}, precis.ModTime)
-					panicOn(err)
-				}
-
 				if localPathToWrite != localPathToRead {
 					vv("hard linking 6 '%v' <- '%v'",
 						localPathToRead, localPathToWrite)
 					panicOn(os.Link(localPathToRead, localPathToWrite))
+				}
+
+				//path := syncReq.TakerPath
+				//path := localPathToRead
+				mode := precis.FileMode
+				if mode == 0 {
+					mode = 0600
+				}
+				err = os.Chmod(localPathToWrite, fs.FileMode(mode))
+				panicOn(err)
+
+				if !precis.ModTime.IsZero() {
+					err = os.Chtimes(localPathToWrite, time.Time{}, precis.ModTime)
+					panicOn(err)
 				}
 
 				s.ackBackFINToGiver(ckt, frag)
@@ -556,7 +586,7 @@ takerForSelectLoop:
 					req = nil  // gc early.
 					continue takerForSelectLoop
 				}
-				// finish up.
+				// INVAR: on last, finish up.
 				totSum := disk.Blake3hash.SumString()
 
 				clientTotalBlake3sum, ok := frag.GetUserArg("clientTotalBlake3sum")
@@ -600,13 +630,18 @@ takerForSelectLoop:
 					}
 				}
 
-				if localPathToWrite != localPathToRead {
-					if fileExists(localPathToRead) {
-						vv("hard linking 5 '%v' <- '%v'",
-							localPathToRead, localPathToWrite)
-						panicOn(os.Link(localPathToRead, localPathToWrite))
-					}
-				}
+				// This can't be right, can it? we just
+				// modified the file above, then this
+				// would discard localPathToWrite and link to read path??
+				//
+				// if localPathToWrite != localPathToRead {
+				// 	if fileExists(localPathToRead) {
+				// 		vv("hard linking 5 '%v' <- '%v'",
+				// 			localPathToRead, localPathToWrite)
+				// 		// Link(old, new) creates new as a hard link to the old.
+				// 		panicOn(os.Link(localPathToRead, localPathToWrite))
+				// 	}
+				// }
 
 				ackAll := rpc.NewFragment()
 				ackAll.FragSubject = frag.FragSubject
@@ -639,6 +674,12 @@ takerForSelectLoop:
 						vv("contents same, just modtime needs update: '%v'",
 							localPathToWrite)
 
+						// hard link it
+						if localPathToWrite != localPathToRead {
+							vv("hard linking 8 '%v' <- '%v'",
+								localPathToRead, localPathToWrite)
+							panicOn(os.Link(localPathToRead, localPathToWrite))
+						}
 						err := os.Chtimes(localPathToWrite, time.Time{},
 							syncReq.ModTime)
 						panicOn(err)
@@ -758,12 +799,14 @@ takerForSelectLoop:
 						if definitelySameContent {
 							// we have the file contents!
 							// just update the mod time.
-							err = os.Chtimes(localPathToWrite, time.Time{},
-								syncReq.ModTime)
-							panicOn(err)
+
 							// link in file, tell giver we are cool.
 							s.contentsMatch(syncReq, ckt, frag, mode,
 								localPathToRead, localPathToWrite)
+							// do this after the hard link is made:
+							err = os.Chtimes(localPathToWrite, time.Time{},
+								syncReq.ModTime)
+							panicOn(err)
 							// all done with this file. still wait for FIN
 							// for consistency
 							s.ackBackFINToGiver(ckt, frag)

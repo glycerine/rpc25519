@@ -165,10 +165,18 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				} else {
 					// tell them they must send the chunks... if they want it.
 					//vv("giver responding to OpRsync_LazyTakerWantsToPull with OpRsync_LazyTakerNoLuck_ChunksRequired")
+
+					// but also send them the checksum in case we can
+					// avoid sending a big file just b/c of mod time update.
+					sum, _, err := blake3.HashFile(path)
+					panicOn(err)
+					b3sumGiver := myblake3.RawSumBytesToString(sum)
+
 					ack := rpc.NewFragment()
 					ack.FragSubject = frag0.FragSubject
 					ack.FragOp = OpRsync_LazyTakerNoLuck_ChunksRequired
 					ack.Payload = frag0.Payload // send the syncReq back
+					ack.SetUserArg("giverFullFileBlake3sum", b3sumGiver)
 					err = ckt.SendOneWay(ack, 0)
 					bt.bsend += len(frag0.Payload)
 					panicOn(err)
