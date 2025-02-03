@@ -164,7 +164,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					panicOn(err)
 				} else {
 					// tell them they must send the chunks... if they want it.
-					//vv("giver responding to OpRsync_LazyTakerWantsToPull with OpRsync_LazyTakerNoLuck_ChunksRequired")
+					vv("giver responding to OpRsync_LazyTakerWantsToPull with OpRsync_LazyTakerNoLuck_ChunksRequired; setting GiverModTime = '%v'", mod)
 
 					syncReq.GiverModTime = mod
 					syncReq.GiverFileSize = sz
@@ -175,6 +175,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					sum, _, err := blake3.HashFile(path)
 					panicOn(err)
 					b3sumGiver := myblake3.RawSumBytesToString(sum)
+					syncReq.GiverFullFileBlake3 = b3sumGiver
 
 					ack := rpc.NewFragment()
 					ack.FragSubject = frag0.FragSubject
