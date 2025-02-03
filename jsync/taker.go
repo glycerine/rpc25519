@@ -722,7 +722,7 @@ takerForSelectLoop:
 				// without mistaking them for directories.
 				fi, err := os.Lstat(localPathToRead)
 				existsFile := (err == nil) && !fi.IsDir()
-				if err != nil && fi.IsDir() {
+				if err == nil && fi.IsDir() {
 					//if dirExists(localPathToRead) {
 					panic(fmt.Errorf("error in Taker OpRsync_RequestRemoteToTake: syncReq.TakerPath cannot be an existing directory: localPathToRead='%v'", localPathToRead))
 				}
