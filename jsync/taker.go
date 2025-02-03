@@ -189,42 +189,14 @@ takerForSelectLoop:
 				return
 
 			case OpRsync_LazyTakerNoLuck_ChunksRequired:
-				//vv("%v: (ckt '%v') (Taker) sees OpRsync_LazyTakerNoLuck_ChunksRequired.", name, ckt.Name)
+				vv("%v: (ckt '%v') (Taker) sees OpRsync_LazyTakerNoLuck_ChunksRequired.", name, ckt.Name)
 				// should we just be overwriting syncReq ? TODO!
-
-				// can we avoid sending a file if it was just
-				// a mod time mismatch?
-				b3sumGiver, ok := frag.GetUserArg("giverFullFileBlake3sum")
-				if !ok {
-					panic("why no giverFullFileBlake3sum ?")
-				}
-				sumTaker, _, err := blake3.HashFile(localPathToRead)
-				panicOn(err)
-				b3sumTaker := myblake3.RawSumBytesToString(sumTaker)
-				if b3sumTaker == b3sumGiver {
-					// hard link it.
-					if localPathToWrite != localPathToRead {
-						vv("hard linking 7 '%v' <- '%v'",
-							localPathToRead, localPathToWrite)
-						panicOn(os.Link(localPathToRead, localPathToWrite))
-					}
-					// just adjust mod time and fin.
-					err = os.Chtimes(localPathToWrite, time.Time{}, syncReq.ModTime)
-					panicOn(err)
-					// update mode too? not sure if we have it avail
-					if syncReq.FileMode != 0 {
-						err = os.Chmod(localPathToWrite, fs.FileMode(syncReq.FileMode))
-						panicOn(err)
-					}
-					s.ackBackFINToGiver(ckt, frag)
-					continue
-				}
 
 				syncReq2 := &RequestToSyncPath{
 					TakerTempDir:     syncReq.TakerTempDir,
 					TopTakerDirFinal: syncReq.TopTakerDirFinal,
 				}
-				_, err = syncReq2.UnmarshalMsg(frag.Payload)
+				_, err := syncReq2.UnmarshalMsg(frag.Payload)
 				panicOn(err)
 				bt.bread += len(frag.Payload)
 				if syncReq2.TakerPath != syncReq.TakerPath ||
@@ -238,6 +210,35 @@ takerForSelectLoop:
 						syncReq2.TakerPath, syncReq.TakerPath))
 				} else {
 					vv("lazy taker no luck: chunks required. syncReq2.TakerPath = '%v'; GiverPath='%v'", syncReq2.TakerPath, syncReq2.GiverPath)
+				}
+
+				// can we avoid sending a file if it was just
+				// a mod time mismatch?
+				b3sumGiver, ok := frag.GetUserArg("giverFullFileBlake3sum")
+				if !ok {
+					panic("why no giverFullFileBlake3sum ?")
+				}
+				sumTaker, _, err := blake3.HashFile(localPathToRead)
+				panicOn(err)
+				b3sumTaker := myblake3.RawSumBytesToString(sumTaker)
+				if b3sumTaker == b3sumGiver {
+					vv("good: b3sumTaker == b3sumGiver: setting syncReq.ModTime = '%v'", syncReq.GiverModTime)
+					// hard link it.
+					if localPathToWrite != localPathToRead {
+						vv("hard linking 7 '%v' <- '%v'",
+							localPathToRead, localPathToWrite)
+						panicOn(os.Link(localPathToRead, localPathToWrite))
+					}
+					// just adjust mod time and fin.
+					err = os.Chtimes(localPathToWrite, time.Time{}, syncReq.GiverModTime)
+					panicOn(err)
+					// update mode too? not sure if we have it avail
+					if syncReq.GiverFileMode != 0 {
+						err = os.Chmod(localPathToWrite, fs.FileMode(syncReq.GiverFileMode))
+						panicOn(err)
+					}
+					s.ackBackFINToGiver(ckt, frag)
+					continue
 				}
 
 				if fileExists(syncReq2.TakerPath) {
@@ -604,14 +605,14 @@ takerForSelectLoop:
 
 				// match the mode/mod time of the source.
 				if !syncReq.TakerStartsEmpty {
-					mode := syncReq.FileMode
+					mode := syncReq.GiverFileMode
 					if mode == 0 {
 						mode = 0600
 					}
 					err = os.Chmod(localPathToWrite, fs.FileMode(mode))
 					panicOn(err)
 
-					err = os.Chtimes(localPathToWrite, time.Time{}, syncReq.ModTime)
+					err = os.Chtimes(localPathToWrite, time.Time{}, syncReq.GiverModTime)
 					panicOn(err)
 				} else {
 					// try to use what the remote told us.
@@ -681,7 +682,7 @@ takerForSelectLoop:
 							panicOn(os.Link(localPathToRead, localPathToWrite))
 						}
 						err := os.Chtimes(localPathToWrite, time.Time{},
-							syncReq.ModTime)
+							syncReq.GiverModTime)
 						panicOn(err)
 						s.ackBackFINToGiver(ckt, frag)
 						frag = nil
@@ -749,7 +750,7 @@ takerForSelectLoop:
 					fi, err := os.Stat(localPathToRead)
 					panicOn(err)
 					sz, mod, mode := fi.Size(), fi.ModTime(), uint32(fi.Mode())
-					if syncReq.FileSize == sz && syncReq.ModTime.Equal(mod) {
+					if syncReq.GiverFileSize == sz && syncReq.GiverModTime.Equal(mod) {
 						vv("size + modtime match. nothing to do, tell Giver.")
 
 						s.contentsMatch(syncReq, ckt, frag, mode,
@@ -760,11 +761,11 @@ takerForSelectLoop:
 						frag = nil
 						continue
 					}
-					vv("syncReq.FileSize(%v) vs sz(%v) && syncReq.ModTime(%v) vs mod(%v))", syncReq.FileSize, sz, syncReq.ModTime, mod)
+					vv("syncReq.GiverFileSize(%v) vs sz(%v) && syncReq.GiverModTime(%v) vs mod(%v))", syncReq.GiverFileSize, sz, syncReq.GiverModTime, mod)
 
 					// we have some differences--at least the modtime.
 
-					if syncReq.FileSize == sz && localPathToReadBlake3sum == "" {
+					if syncReq.GiverFileSize == sz && localPathToReadBlake3sum == "" {
 						// First time here, because otherwise
 						// when localPathToReadBlake3sum != "" we know
 						// we have a checksum mismatch even though the
@@ -805,7 +806,7 @@ takerForSelectLoop:
 								localPathToRead, localPathToWrite)
 							// do this after the hard link is made:
 							err = os.Chtimes(localPathToWrite, time.Time{},
-								syncReq.ModTime)
+								syncReq.GiverModTime)
 							panicOn(err)
 							// all done with this file. still wait for FIN
 							// for consistency
@@ -932,8 +933,8 @@ takerForSelectLoop:
 
 func (s *SyncService) contentsMatch(syncReq *RequestToSyncPath, ckt *rpc.Circuit, frag *rpc.Fragment, mode uint32, localPathToRead, localPathToWrite string) {
 	// but do match mode too
-	if mode != 0 && syncReq.FileMode != mode && syncReq.FileMode != 0 {
-		err := os.Chmod(localPathToWrite, fs.FileMode(syncReq.FileMode))
+	if mode != 0 && syncReq.GiverFileMode != mode && syncReq.GiverFileMode != 0 {
+		err := os.Chmod(localPathToWrite, fs.FileMode(syncReq.GiverFileMode))
 		panicOn(err)
 	}
 

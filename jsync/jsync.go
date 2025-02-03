@@ -114,9 +114,9 @@ func (s *jsyncU) PullToFrom(toLocalPath, fromRemotePath string) (dataBytesMoved 
 		req = &RequestToSyncPath{
 			GiverPath:               fromRemotePath,
 			TakerPath:               toLocalPath,
-			FileSize:                fi.Size(),
-			ModTime:                 fi.ModTime(),
-			FileMode:                uint32(fi.Mode()),
+			TakerFileSize:           fi.Size(),
+			TakerModTime:            fi.ModTime(),
+			TakerFileMode:           uint32(fi.Mode()),
 			Done:                    idem.NewIdemCloseChan(),
 			ToRemotePeerServiceName: "jsync_server",
 
@@ -209,9 +209,9 @@ func (s *jsyncU) PushFromTo(fromLocalPath, toRemotePath string) (dataBytesMoved 
 	req := &RequestToSyncPath{
 		GiverPath:               fromLocalPath,
 		TakerPath:               toRemotePath,
-		FileSize:                fi.Size(),
-		ModTime:                 fi.ModTime(),
-		FileMode:                uint32(fi.Mode()),
+		GiverFileSize:           fi.Size(),
+		GiverModTime:            fi.ModTime(),
+		GiverFileMode:           uint32(fi.Mode()),
 		Done:                    idem.NewIdemCloseChan(),
 		ToRemotePeerServiceName: "jsync_server",
 

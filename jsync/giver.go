@@ -153,7 +153,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					continue
 				}
 				sz, mod := fi.Size(), fi.ModTime()
-				if syncReq.FileSize == sz && syncReq.ModTime.Equal(mod) {
+				if syncReq.TakerFileSize == sz && syncReq.TakerModTime.Equal(mod) {
 					//vv("giver: OpRsync_LazyTakerWantsToPull: size + modtime match. nothing to do, tell taker. syncReq.GiverPath = '%v'", syncReq.GiverPath)
 					// let the taker know they can stop with this file.
 					ack := rpc.NewFragment()
@@ -234,7 +234,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				// after moreLoop, we get here:
 
 				// 1. if local has nothing, send full stream. stop.
-				if syncReq.FileSize == 0 {
+				if syncReq.TakerFileSize == 0 {
 					err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0)
 
 					//vv("giver sent whole file. done (wait for FIN)")
@@ -639,7 +639,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 	fi, err := os.Stat(syncReq.GiverPath)
 	panicOn(err)
 	sz, mod, mode := fi.Size(), fi.ModTime(), uint32(fi.Mode())
-	if syncReq.FileSize == sz && syncReq.ModTime.Equal(mod) {
+	if syncReq.TakerFileSize == sz && syncReq.TakerModTime.Equal(mod) {
 		//vv("remoteGiverAreDiffChunksNeeded(): size + modtime match. nothing to do, tell taker. syncReq.GiverPath = '%v'", syncReq.GiverPath)
 
 		// but do match mode too... advanced! leave out for now.
@@ -648,7 +648,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 		// scale just because the mode bits disagree.
 		//
 		if false { // too advanced for now. start simpler.
-			if syncReq.FileMode != mode {
+			if syncReq.TakerFileMode != mode {
 				updateMeta := rpc.NewFragment()
 				updateMeta.FragOp = OpRsync_ToTakerMetaUpdateAtLeast
 				updateMeta.FragSubject = frag.FragSubject

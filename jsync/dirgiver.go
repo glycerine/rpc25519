@@ -242,9 +242,9 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 									TakerTempDir:     reqDir.TopTakerDirTemp,
 									TopTakerDirFinal: reqDir.TopTakerDirFinal,
 									GiverDirAbs:      reqDir.GiverDir,
-									FileSize:         file.Size,
-									ModTime:          file.ModTime,
-									FileMode:         file.FileMode,
+									GiverFileSize:    file.Size,
+									GiverModTime:     file.ModTime,
+									GiverFileMode:    file.FileMode,
 									RemoteTakes:      true,
 									Done:             idem.NewIdemCloseChan(),
 								}

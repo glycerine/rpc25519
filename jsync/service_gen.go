@@ -581,7 +581,7 @@ func (z *RequestToSyncPath) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields6zgensym_5b8048e47f8e3c5c_7 = 32
+	const maxFields6zgensym_5b8048e47f8e3c5c_7 = 35
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields6zgensym_5b8048e47f8e3c5c_7 uint32
@@ -642,21 +642,21 @@ doneWithStruct6zgensym_5b8048e47f8e3c5c_7:
 			if err != nil {
 				return
 			}
-		case "ModTime_zid02_tim":
+		case "TakerModTime_zid02_tim":
 			found6zgensym_5b8048e47f8e3c5c_7[2] = true
-			z.ModTime, err = dc.ReadTime()
+			z.TakerModTime, err = dc.ReadTime()
 			if err != nil {
 				return
 			}
-		case "FileSize_zid03_i64":
+		case "TakerFileSize_zid03_i64":
 			found6zgensym_5b8048e47f8e3c5c_7[3] = true
-			z.FileSize, err = dc.ReadInt64()
+			z.TakerFileSize, err = dc.ReadInt64()
 			if err != nil {
 				return
 			}
-		case "FileMode_zid04_u32":
+		case "TakerFileMode_zid04_u32":
 			found6zgensym_5b8048e47f8e3c5c_7[4] = true
-			z.FileMode, err = dc.ReadUint32()
+			z.TakerFileMode, err = dc.ReadUint32()
 			if err != nil {
 				return
 			}
@@ -862,6 +862,24 @@ doneWithStruct6zgensym_5b8048e47f8e3c5c_7:
 			if err != nil {
 				return
 			}
+		case "GiverModTime_zid31_tim":
+			found6zgensym_5b8048e47f8e3c5c_7[31] = true
+			z.GiverModTime, err = dc.ReadTime()
+			if err != nil {
+				return
+			}
+		case "GiverFileSize_zid32_i64":
+			found6zgensym_5b8048e47f8e3c5c_7[32] = true
+			z.GiverFileSize, err = dc.ReadInt64()
+			if err != nil {
+				return
+			}
+		case "GiverFileMode_zid33_u32":
+			found6zgensym_5b8048e47f8e3c5c_7[33] = true
+			z.GiverFileMode, err = dc.ReadUint32()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -885,16 +903,16 @@ doneWithStruct6zgensym_5b8048e47f8e3c5c_7:
 }
 
 // fields of RequestToSyncPath
-var decodeMsgFieldOrder6zgensym_5b8048e47f8e3c5c_7 = []string{"GiverPath_zid00_str", "TakerPath_zid01_str", "ModTime_zid02_tim", "FileSize_zid03_i64", "FileMode_zid04_u32", "ToRemotePeerServiceName_zid05_str", "ToRemoteNetAddr_zid06_str", "ToRemoteURL_zid07_str", "ToRemotePeerID_zid08_str", "SyncFromHostname_zid09_str", "SyncFromHostCID_zid10_str", "FullFileInitSideBlake3_zid11_str", "FullFileRespondSideBlake3_zid12_str", "SizeModTimeMatch_zid13_boo", "GiverDirAbs_zid14_str", "Errs_zid15_str", "BytesSent_zid16_i64", "BytesRead_zid17_i64", "RemoteBytesTransferred_zid18_i64", "MoreChunksComming_zid19_boo", "RemoteTakes_zid20_boo", "Precis_zid21_ptr", "Chunks_zid22_ptr", "GiverIsDir_zid23_boo", "TakerIsDir_zid24_boo", "GiverExistsLocal_zid25_boo", "TakerExistsLocal_zid26_boo", "TakerStartsEmpty_zid27_boo", "GiverStartsEmpty_zid28_boo", "TakerTempDir_zid29_str", "TopTakerDirFinal_zid30_str", ""}
+var decodeMsgFieldOrder6zgensym_5b8048e47f8e3c5c_7 = []string{"GiverPath_zid00_str", "TakerPath_zid01_str", "TakerModTime_zid02_tim", "TakerFileSize_zid03_i64", "TakerFileMode_zid04_u32", "ToRemotePeerServiceName_zid05_str", "ToRemoteNetAddr_zid06_str", "ToRemoteURL_zid07_str", "ToRemotePeerID_zid08_str", "SyncFromHostname_zid09_str", "SyncFromHostCID_zid10_str", "FullFileInitSideBlake3_zid11_str", "FullFileRespondSideBlake3_zid12_str", "SizeModTimeMatch_zid13_boo", "GiverDirAbs_zid14_str", "Errs_zid15_str", "BytesSent_zid16_i64", "BytesRead_zid17_i64", "RemoteBytesTransferred_zid18_i64", "MoreChunksComming_zid19_boo", "RemoteTakes_zid20_boo", "Precis_zid21_ptr", "Chunks_zid22_ptr", "GiverIsDir_zid23_boo", "TakerIsDir_zid24_boo", "GiverExistsLocal_zid25_boo", "TakerExistsLocal_zid26_boo", "TakerStartsEmpty_zid27_boo", "GiverStartsEmpty_zid28_boo", "TakerTempDir_zid29_str", "TopTakerDirFinal_zid30_str", "GiverModTime_zid31_tim", "GiverFileSize_zid32_i64", "GiverFileMode_zid33_u32", ""}
 
-var decodeMsgFieldSkip6zgensym_5b8048e47f8e3c5c_7 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
+var decodeMsgFieldSkip6zgensym_5b8048e47f8e3c5c_7 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *RequestToSyncPath) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 31
+		return 34
 	}
-	var fieldsInUse uint32 = 31
+	var fieldsInUse uint32 = 34
 	isempty[0] = (len(z.GiverPath) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -903,15 +921,15 @@ func (z *RequestToSyncPath) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[1] {
 		fieldsInUse--
 	}
-	isempty[2] = (z.ModTime.IsZero()) // time.Time, omitempty
+	isempty[2] = (z.TakerModTime.IsZero()) // time.Time, omitempty
 	if isempty[2] {
 		fieldsInUse--
 	}
-	isempty[3] = (z.FileSize == 0) // number, omitempty
+	isempty[3] = (z.TakerFileSize == 0) // number, omitempty
 	if isempty[3] {
 		fieldsInUse--
 	}
-	isempty[4] = (z.FileMode == 0) // number, omitempty
+	isempty[4] = (z.TakerFileMode == 0) // number, omitempty
 	if isempty[4] {
 		fieldsInUse--
 	}
@@ -1019,6 +1037,18 @@ func (z *RequestToSyncPath) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[30] {
 		fieldsInUse--
 	}
+	isempty[31] = (z.GiverModTime.IsZero()) // time.Time, omitempty
+	if isempty[31] {
+		fieldsInUse--
+	}
+	isempty[32] = (z.GiverFileSize == 0) // number, omitempty
+	if isempty[32] {
+		fieldsInUse--
+	}
+	isempty[33] = (z.GiverFileMode == 0) // number, omitempty
+	if isempty[33] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -1030,7 +1060,7 @@ func (z *RequestToSyncPath) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_5b8048e47f8e3c5c_8 [32]bool
+	var empty_zgensym_5b8048e47f8e3c5c_8 [35]bool
 	fieldsInUse_zgensym_5b8048e47f8e3c5c_9 := z.fieldsNotEmpty(empty_zgensym_5b8048e47f8e3c5c_8[:])
 
 	// map header
@@ -1074,36 +1104,36 @@ func (z *RequestToSyncPath) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_5b8048e47f8e3c5c_8[2] {
-		// write "ModTime_zid02_tim"
-		err = en.Append(0xb1, 0x4d, 0x6f, 0x64, 0x54, 0x69, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x74, 0x69, 0x6d)
+		// write "TakerModTime_zid02_tim"
+		err = en.Append(0xb6, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x4d, 0x6f, 0x64, 0x54, 0x69, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x74, 0x69, 0x6d)
 		if err != nil {
 			return err
 		}
-		err = en.WriteTime(z.ModTime)
+		err = en.WriteTime(z.TakerModTime)
 		if err != nil {
 			return
 		}
 	}
 
 	if !empty_zgensym_5b8048e47f8e3c5c_8[3] {
-		// write "FileSize_zid03_i64"
-		err = en.Append(0xb2, 0x46, 0x69, 0x6c, 0x65, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x69, 0x36, 0x34)
+		// write "TakerFileSize_zid03_i64"
+		err = en.Append(0xb7, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x46, 0x69, 0x6c, 0x65, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
-		err = en.WriteInt64(z.FileSize)
+		err = en.WriteInt64(z.TakerFileSize)
 		if err != nil {
 			return
 		}
 	}
 
 	if !empty_zgensym_5b8048e47f8e3c5c_8[4] {
-		// write "FileMode_zid04_u32"
-		err = en.Append(0xb2, 0x46, 0x69, 0x6c, 0x65, 0x4d, 0x6f, 0x64, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x75, 0x33, 0x32)
+		// write "TakerFileMode_zid04_u32"
+		err = en.Append(0xb7, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x46, 0x69, 0x6c, 0x65, 0x4d, 0x6f, 0x64, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x75, 0x33, 0x32)
 		if err != nil {
 			return err
 		}
-		err = en.WriteUint32(z.FileMode)
+		err = en.WriteUint32(z.TakerFileMode)
 		if err != nil {
 			return
 		}
@@ -1439,6 +1469,42 @@ func (z *RequestToSyncPath) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_5b8048e47f8e3c5c_8[31] {
+		// write "GiverModTime_zid31_tim"
+		err = en.Append(0xb6, 0x47, 0x69, 0x76, 0x65, 0x72, 0x4d, 0x6f, 0x64, 0x54, 0x69, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x31, 0x5f, 0x74, 0x69, 0x6d)
+		if err != nil {
+			return err
+		}
+		err = en.WriteTime(z.GiverModTime)
+		if err != nil {
+			return
+		}
+	}
+
+	if !empty_zgensym_5b8048e47f8e3c5c_8[32] {
+		// write "GiverFileSize_zid32_i64"
+		err = en.Append(0xb7, 0x47, 0x69, 0x76, 0x65, 0x72, 0x46, 0x69, 0x6c, 0x65, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x32, 0x5f, 0x69, 0x36, 0x34)
+		if err != nil {
+			return err
+		}
+		err = en.WriteInt64(z.GiverFileSize)
+		if err != nil {
+			return
+		}
+	}
+
+	if !empty_zgensym_5b8048e47f8e3c5c_8[33] {
+		// write "GiverFileMode_zid33_u32"
+		err = en.Append(0xb7, 0x47, 0x69, 0x76, 0x65, 0x72, 0x46, 0x69, 0x6c, 0x65, 0x4d, 0x6f, 0x64, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x33, 0x5f, 0x75, 0x33, 0x32)
+		if err != nil {
+			return err
+		}
+		err = en.WriteUint32(z.GiverFileMode)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -1451,7 +1517,7 @@ func (z *RequestToSyncPath) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [32]bool
+	var empty [35]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -1468,21 +1534,21 @@ func (z *RequestToSyncPath) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[2] {
-		// string "ModTime_zid02_tim"
-		o = append(o, 0xb1, 0x4d, 0x6f, 0x64, 0x54, 0x69, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x74, 0x69, 0x6d)
-		o = msgp.AppendTime(o, z.ModTime)
+		// string "TakerModTime_zid02_tim"
+		o = append(o, 0xb6, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x4d, 0x6f, 0x64, 0x54, 0x69, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x74, 0x69, 0x6d)
+		o = msgp.AppendTime(o, z.TakerModTime)
 	}
 
 	if !empty[3] {
-		// string "FileSize_zid03_i64"
-		o = append(o, 0xb2, 0x46, 0x69, 0x6c, 0x65, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x69, 0x36, 0x34)
-		o = msgp.AppendInt64(o, z.FileSize)
+		// string "TakerFileSize_zid03_i64"
+		o = append(o, 0xb7, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x46, 0x69, 0x6c, 0x65, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x69, 0x36, 0x34)
+		o = msgp.AppendInt64(o, z.TakerFileSize)
 	}
 
 	if !empty[4] {
-		// string "FileMode_zid04_u32"
-		o = append(o, 0xb2, 0x46, 0x69, 0x6c, 0x65, 0x4d, 0x6f, 0x64, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x75, 0x33, 0x32)
-		o = msgp.AppendUint32(o, z.FileMode)
+		// string "TakerFileMode_zid04_u32"
+		o = append(o, 0xb7, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x46, 0x69, 0x6c, 0x65, 0x4d, 0x6f, 0x64, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x75, 0x33, 0x32)
+		o = msgp.AppendUint32(o, z.TakerFileMode)
 	}
 
 	if !empty[5] {
@@ -1663,6 +1729,24 @@ func (z *RequestToSyncPath) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendString(o, z.TopTakerDirFinal)
 	}
 
+	if !empty[31] {
+		// string "GiverModTime_zid31_tim"
+		o = append(o, 0xb6, 0x47, 0x69, 0x76, 0x65, 0x72, 0x4d, 0x6f, 0x64, 0x54, 0x69, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x31, 0x5f, 0x74, 0x69, 0x6d)
+		o = msgp.AppendTime(o, z.GiverModTime)
+	}
+
+	if !empty[32] {
+		// string "GiverFileSize_zid32_i64"
+		o = append(o, 0xb7, 0x47, 0x69, 0x76, 0x65, 0x72, 0x46, 0x69, 0x6c, 0x65, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x32, 0x5f, 0x69, 0x36, 0x34)
+		o = msgp.AppendInt64(o, z.GiverFileSize)
+	}
+
+	if !empty[33] {
+		// string "GiverFileMode_zid33_u32"
+		o = append(o, 0xb7, 0x47, 0x69, 0x76, 0x65, 0x72, 0x46, 0x69, 0x6c, 0x65, 0x4d, 0x6f, 0x64, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x33, 0x5f, 0x75, 0x33, 0x32)
+		o = msgp.AppendUint32(o, z.GiverFileMode)
+	}
+
 	return
 }
 
@@ -1681,7 +1765,7 @@ func (z *RequestToSyncPath) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeCon
 
 	var field []byte
 	_ = field
-	const maxFields10zgensym_5b8048e47f8e3c5c_11 = 32
+	const maxFields10zgensym_5b8048e47f8e3c5c_11 = 35
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields10zgensym_5b8048e47f8e3c5c_11 uint32
@@ -1745,23 +1829,23 @@ doneWithStruct10zgensym_5b8048e47f8e3c5c_11:
 			if err != nil {
 				return
 			}
-		case "ModTime_zid02_tim":
+		case "TakerModTime_zid02_tim":
 			found10zgensym_5b8048e47f8e3c5c_11[2] = true
-			z.ModTime, bts, err = nbs.ReadTimeBytes(bts)
+			z.TakerModTime, bts, err = nbs.ReadTimeBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "FileSize_zid03_i64":
+		case "TakerFileSize_zid03_i64":
 			found10zgensym_5b8048e47f8e3c5c_11[3] = true
-			z.FileSize, bts, err = nbs.ReadInt64Bytes(bts)
+			z.TakerFileSize, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "FileMode_zid04_u32":
+		case "TakerFileMode_zid04_u32":
 			found10zgensym_5b8048e47f8e3c5c_11[4] = true
-			z.FileMode, bts, err = nbs.ReadUint32Bytes(bts)
+			z.TakerFileMode, bts, err = nbs.ReadUint32Bytes(bts)
 
 			if err != nil {
 				return
@@ -1994,6 +2078,27 @@ doneWithStruct10zgensym_5b8048e47f8e3c5c_11:
 			if err != nil {
 				return
 			}
+		case "GiverModTime_zid31_tim":
+			found10zgensym_5b8048e47f8e3c5c_11[31] = true
+			z.GiverModTime, bts, err = nbs.ReadTimeBytes(bts)
+
+			if err != nil {
+				return
+			}
+		case "GiverFileSize_zid32_i64":
+			found10zgensym_5b8048e47f8e3c5c_11[32] = true
+			z.GiverFileSize, bts, err = nbs.ReadInt64Bytes(bts)
+
+			if err != nil {
+				return
+			}
+		case "GiverFileMode_zid33_u32":
+			found10zgensym_5b8048e47f8e3c5c_11[33] = true
+			z.GiverFileMode, bts, err = nbs.ReadUint32Bytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -2017,13 +2122,13 @@ doneWithStruct10zgensym_5b8048e47f8e3c5c_11:
 }
 
 // fields of RequestToSyncPath
-var unmarshalMsgFieldOrder10zgensym_5b8048e47f8e3c5c_11 = []string{"GiverPath_zid00_str", "TakerPath_zid01_str", "ModTime_zid02_tim", "FileSize_zid03_i64", "FileMode_zid04_u32", "ToRemotePeerServiceName_zid05_str", "ToRemoteNetAddr_zid06_str", "ToRemoteURL_zid07_str", "ToRemotePeerID_zid08_str", "SyncFromHostname_zid09_str", "SyncFromHostCID_zid10_str", "FullFileInitSideBlake3_zid11_str", "FullFileRespondSideBlake3_zid12_str", "SizeModTimeMatch_zid13_boo", "GiverDirAbs_zid14_str", "Errs_zid15_str", "BytesSent_zid16_i64", "BytesRead_zid17_i64", "RemoteBytesTransferred_zid18_i64", "MoreChunksComming_zid19_boo", "RemoteTakes_zid20_boo", "Precis_zid21_ptr", "Chunks_zid22_ptr", "GiverIsDir_zid23_boo", "TakerIsDir_zid24_boo", "GiverExistsLocal_zid25_boo", "TakerExistsLocal_zid26_boo", "TakerStartsEmpty_zid27_boo", "GiverStartsEmpty_zid28_boo", "TakerTempDir_zid29_str", "TopTakerDirFinal_zid30_str", ""}
+var unmarshalMsgFieldOrder10zgensym_5b8048e47f8e3c5c_11 = []string{"GiverPath_zid00_str", "TakerPath_zid01_str", "TakerModTime_zid02_tim", "TakerFileSize_zid03_i64", "TakerFileMode_zid04_u32", "ToRemotePeerServiceName_zid05_str", "ToRemoteNetAddr_zid06_str", "ToRemoteURL_zid07_str", "ToRemotePeerID_zid08_str", "SyncFromHostname_zid09_str", "SyncFromHostCID_zid10_str", "FullFileInitSideBlake3_zid11_str", "FullFileRespondSideBlake3_zid12_str", "SizeModTimeMatch_zid13_boo", "GiverDirAbs_zid14_str", "Errs_zid15_str", "BytesSent_zid16_i64", "BytesRead_zid17_i64", "RemoteBytesTransferred_zid18_i64", "MoreChunksComming_zid19_boo", "RemoteTakes_zid20_boo", "Precis_zid21_ptr", "Chunks_zid22_ptr", "GiverIsDir_zid23_boo", "TakerIsDir_zid24_boo", "GiverExistsLocal_zid25_boo", "TakerExistsLocal_zid26_boo", "TakerStartsEmpty_zid27_boo", "GiverStartsEmpty_zid28_boo", "TakerTempDir_zid29_str", "TopTakerDirFinal_zid30_str", "GiverModTime_zid31_tim", "GiverFileSize_zid32_i64", "GiverFileMode_zid33_u32", ""}
 
-var unmarshalMsgFieldSkip10zgensym_5b8048e47f8e3c5c_11 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
+var unmarshalMsgFieldSkip10zgensym_5b8048e47f8e3c5c_11 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *RequestToSyncPath) Msgsize() (s int) {
-	s = 3 + 20 + msgp.StringPrefixSize + len(z.GiverPath) + 20 + msgp.StringPrefixSize + len(z.TakerPath) + 18 + msgp.TimeSize + 19 + msgp.Int64Size + 19 + msgp.Uint32Size + 35 + msgp.StringPrefixSize + len(z.ToRemotePeerServiceName) + 26 + msgp.StringPrefixSize + len(z.ToRemoteNetAddr) + 22 + msgp.StringPrefixSize + len(z.ToRemoteURL) + 25 + msgp.StringPrefixSize + len(z.ToRemotePeerID) + 27 + msgp.StringPrefixSize + len(z.SyncFromHostname) + 26 + msgp.StringPrefixSize + len(z.SyncFromHostCID) + 34 + msgp.StringPrefixSize + len(z.FullFileInitSideBlake3) + 37 + msgp.StringPrefixSize + len(z.FullFileRespondSideBlake3) + 27 + msgp.BoolSize + 22 + msgp.StringPrefixSize + len(z.GiverDirAbs) + 15 + msgp.StringPrefixSize + len(z.Errs) + 20 + msgp.Int64Size + 20 + msgp.Int64Size + 34 + msgp.Int64Size + 28 + msgp.BoolSize + 22 + msgp.BoolSize + 17
+	s = 3 + 20 + msgp.StringPrefixSize + len(z.GiverPath) + 20 + msgp.StringPrefixSize + len(z.TakerPath) + 23 + msgp.TimeSize + 24 + msgp.Int64Size + 24 + msgp.Uint32Size + 35 + msgp.StringPrefixSize + len(z.ToRemotePeerServiceName) + 26 + msgp.StringPrefixSize + len(z.ToRemoteNetAddr) + 22 + msgp.StringPrefixSize + len(z.ToRemoteURL) + 25 + msgp.StringPrefixSize + len(z.ToRemotePeerID) + 27 + msgp.StringPrefixSize + len(z.SyncFromHostname) + 26 + msgp.StringPrefixSize + len(z.SyncFromHostCID) + 34 + msgp.StringPrefixSize + len(z.FullFileInitSideBlake3) + 37 + msgp.StringPrefixSize + len(z.FullFileRespondSideBlake3) + 27 + msgp.BoolSize + 22 + msgp.StringPrefixSize + len(z.GiverDirAbs) + 15 + msgp.StringPrefixSize + len(z.Errs) + 20 + msgp.Int64Size + 20 + msgp.Int64Size + 34 + msgp.Int64Size + 28 + msgp.BoolSize + 22 + msgp.BoolSize + 17
 	if z.Precis == nil {
 		s += msgp.NilSize
 	} else {
@@ -2035,6 +2140,6 @@ func (z *RequestToSyncPath) Msgsize() (s int) {
 	} else {
 		s += z.Chunks.Msgsize()
 	}
-	s += 21 + msgp.BoolSize + 21 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 23 + msgp.StringPrefixSize + len(z.TakerTempDir) + 27 + msgp.StringPrefixSize + len(z.TopTakerDirFinal)
+	s += 21 + msgp.BoolSize + 21 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 23 + msgp.StringPrefixSize + len(z.TakerTempDir) + 27 + msgp.StringPrefixSize + len(z.TopTakerDirFinal) + 23 + msgp.TimeSize + 24 + msgp.Int64Size + 24 + msgp.Uint32Size
 	return
 }

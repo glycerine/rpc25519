@@ -321,9 +321,14 @@ type RequestToSyncPath struct {
 	GiverPath string `zid:"0"`
 	TakerPath string `zid:"1"`
 
-	ModTime  time.Time `zid:"2"`
-	FileSize int64     `zid:"3"`
-	FileMode uint32    `zid:"4"`
+	TakerModTime  time.Time `zid:"2"`
+	TakerFileSize int64     `zid:"3"`
+	TakerFileMode uint32    `zid:"4"`
+
+	// new
+	GiverModTime  time.Time `zid:"31"`
+	GiverFileSize int64     `zid:"32"`
+	GiverFileMode uint32    `zid:"33"`
 
 	Done *idem.IdemCloseChan `msg:"-"`
 
@@ -679,16 +684,16 @@ func (s *SyncService) Start(
 						// we should fill in Mode, ModTime, FileSize if not
 						// already, to guarantee they are there. The client
 						// should be doing this, but make sure.
-						if syncReq.FileSize == 0 ||
-							syncReq.ModTime.IsZero() ||
-							syncReq.FileMode == 0 {
+						if syncReq.TakerFileSize == 0 ||
+							syncReq.TakerModTime.IsZero() ||
+							syncReq.TakerFileMode == 0 {
 
 							var fi os.FileInfo
 							fi, err := os.Stat(syncReq.TakerPath)
 							if err == nil {
-								syncReq.ModTime = fi.ModTime()
-								syncReq.FileSize = fi.Size()
-								syncReq.FileMode = uint32(fi.Mode())
+								syncReq.TakerModTime = fi.ModTime()
+								syncReq.TakerFileSize = fi.Size()
+								syncReq.TakerFileMode = uint32(fi.Mode())
 							} else {
 								panic(fmt.Sprintf("syncReq.TakerExistsLocal"+
 									" true but error on accessing "+

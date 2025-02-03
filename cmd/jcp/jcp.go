@@ -275,9 +275,9 @@ func main() {
 		fi, err = os.Stat(takerPath)
 		panicOn(err)
 
-		req.ModTime = fi.ModTime()
-		req.FileSize = fi.Size()
-		req.FileMode = uint32(fi.Mode())
+		req.TakerModTime = fi.ModTime()
+		req.TakerFileSize = fi.Size()
+		req.TakerFileMode = uint32(fi.Mode())
 	}
 
 	reqs := make(chan *rsync.RequestToSyncPath)
