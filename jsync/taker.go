@@ -690,6 +690,7 @@ takerForSelectLoop:
 					}
 					//vv("drat: modTime update will not suffice for localPathToWrite = '%v'; on OpRsync_ToGiverSizeMatchButCheckHashAck", localPathToWrite)
 				}
+
 				// then syncReq is already set, just pick up where
 				// we left off.
 				if syncReq == nil {
@@ -884,6 +885,21 @@ takerForSelectLoop:
 					frag = nil
 					continue // wait for next data fragment
 				} else {
+					// not present
+
+					// are we being sent a symlink?
+					if syncReq.IsSymLink {
+						// install it.
+						// Symlink(oldname, newname)
+						// Symlink creates newname as a symbolic link to oldname.
+						err := os.Symlink(localPathToWrite, syncReq.SymLinkTarget)
+						panicOn(err)
+						vv("installed symlink '%v' -> '%v'", localPathToWrite, syncReq.SymLinkTarget)
+						s.ackBackFINToGiver(ckt, frag)
+						frag = nil
+						continue
+					}
+
 					//vv("not present: must request the "+
 					//	"full file for syncReq.TakerPath='%v'",
 					//	syncReq.TakerPath)
