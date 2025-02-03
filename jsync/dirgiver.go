@@ -284,7 +284,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								panicOn(errg)
 
 								if reqDir.SR.UpdateProgress != nil {
-									report := giverPath + "    done."
+									report := fmt.Sprintf("%40s  done.", giverPath)
 									select {
 									case reqDir.SR.UpdateProgress <- report:
 									case <-done:
