@@ -90,10 +90,10 @@ func (di *DirIter) DirsDepthFirstLeafOnly(root string) iter.Seq2[string, bool] {
 }
 
 type RegularFile struct {
-	Path          string `zid:"0"`
-	IsSymLink     bool   `zid:"1"`
-	SymLinkTarget string `zid:"2"`
-	FollowSymlink bool   `zid:"3"`
+	Path            string `zid:"0"`
+	IsSymLink       bool   `zid:"1"`
+	SymLinkTarget   string `zid:"2"`
+	FollowedSymlink bool   `zid:"3"`
 }
 
 // FilesOnly returns only files, skipping directories. This does
@@ -173,10 +173,10 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*RegularFile, bool] {
 								}
 
 								rf := &RegularFile{
-									Path:          resolveMe,
-									IsSymLink:     true,
-									SymLinkTarget: target,
-									FollowSymlink: true,
+									Path:      target,
+									IsSymLink: false,
+									//SymLinkTarget: resolveMe,
+									FollowedSymlink: true,
 								}
 
 								if !yield(rf, true) {
@@ -187,10 +187,10 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*RegularFile, bool] {
 						} else {
 							// do not follow symlinks
 							rf := &RegularFile{
-								Path:          resolveMe,
-								IsSymLink:     true,
-								SymLinkTarget: target,
-								FollowSymlink: false,
+								Path:            resolveMe,
+								IsSymLink:       true,
+								SymLinkTarget:   target,
+								FollowedSymlink: false,
 							}
 							if !yield(rf, true) {
 								return false

@@ -928,9 +928,9 @@ doneWithStruct6zgensym_5b8048e47f8e3c5c_7:
 			if err != nil {
 				return
 			}
-		case "FollowSymlink_zid36_boo":
+		case "FollowedSymlink_zid36_boo":
 			found6zgensym_5b8048e47f8e3c5c_7[36] = true
-			z.FollowSymlink, err = dc.ReadBool()
+			z.FollowedSymlink, err = dc.ReadBool()
 			if err != nil {
 				return
 			}
@@ -957,7 +957,7 @@ doneWithStruct6zgensym_5b8048e47f8e3c5c_7:
 }
 
 // fields of RequestToSyncPath
-var decodeMsgFieldOrder6zgensym_5b8048e47f8e3c5c_7 = []string{"GiverPath_zid00_str", "TakerPath_zid01_str", "TakerModTime_zid02_tim", "TakerFileSize_zid03_i64", "TakerFileMode_zid04_u32", "ToRemotePeerServiceName_zid05_str", "ToRemoteNetAddr_zid06_str", "ToRemoteURL_zid07_str", "ToRemotePeerID_zid08_str", "SyncFromHostname_zid09_str", "SyncFromHostCID_zid10_str", "GiverFullFileBlake3_zid11_str", "TakerFullFileBlake3_zid12_str", "SizeModTimeMatch_zid13_boo", "GiverDirAbs_zid14_str", "Errs_zid15_str", "BytesSent_zid16_i64", "BytesRead_zid17_i64", "RemoteBytesTransferred_zid18_i64", "MoreChunksComming_zid19_boo", "RemoteTakes_zid20_boo", "Precis_zid21_ptr", "Chunks_zid22_ptr", "GiverIsDir_zid23_boo", "TakerIsDir_zid24_boo", "GiverExistsLocal_zid25_boo", "TakerExistsLocal_zid26_boo", "TakerStartsEmpty_zid27_boo", "GiverStartsEmpty_zid28_boo", "TakerTempDir_zid29_str", "TopTakerDirFinal_zid30_str", "GiverModTime_zid31_tim", "GiverFileSize_zid32_i64", "GiverFileMode_zid33_u32", "IsSymLink_zid34_boo", "SymLinkTarget_zid35_str", "FollowSymlink_zid36_boo", ""}
+var decodeMsgFieldOrder6zgensym_5b8048e47f8e3c5c_7 = []string{"GiverPath_zid00_str", "TakerPath_zid01_str", "TakerModTime_zid02_tim", "TakerFileSize_zid03_i64", "TakerFileMode_zid04_u32", "ToRemotePeerServiceName_zid05_str", "ToRemoteNetAddr_zid06_str", "ToRemoteURL_zid07_str", "ToRemotePeerID_zid08_str", "SyncFromHostname_zid09_str", "SyncFromHostCID_zid10_str", "GiverFullFileBlake3_zid11_str", "TakerFullFileBlake3_zid12_str", "SizeModTimeMatch_zid13_boo", "GiverDirAbs_zid14_str", "Errs_zid15_str", "BytesSent_zid16_i64", "BytesRead_zid17_i64", "RemoteBytesTransferred_zid18_i64", "MoreChunksComming_zid19_boo", "RemoteTakes_zid20_boo", "Precis_zid21_ptr", "Chunks_zid22_ptr", "GiverIsDir_zid23_boo", "TakerIsDir_zid24_boo", "GiverExistsLocal_zid25_boo", "TakerExistsLocal_zid26_boo", "TakerStartsEmpty_zid27_boo", "GiverStartsEmpty_zid28_boo", "TakerTempDir_zid29_str", "TopTakerDirFinal_zid30_str", "GiverModTime_zid31_tim", "GiverFileSize_zid32_i64", "GiverFileMode_zid33_u32", "IsSymLink_zid34_boo", "SymLinkTarget_zid35_str", "FollowedSymlink_zid36_boo", ""}
 
 var decodeMsgFieldSkip6zgensym_5b8048e47f8e3c5c_7 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
 
@@ -1111,7 +1111,7 @@ func (z *RequestToSyncPath) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[35] {
 		fieldsInUse--
 	}
-	isempty[36] = (!z.FollowSymlink) // bool, omitempty
+	isempty[36] = (!z.FollowedSymlink) // bool, omitempty
 	if isempty[36] {
 		fieldsInUse--
 	}
@@ -1596,12 +1596,12 @@ func (z *RequestToSyncPath) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_5b8048e47f8e3c5c_8[36] {
-		// write "FollowSymlink_zid36_boo"
-		err = en.Append(0xb7, 0x46, 0x6f, 0x6c, 0x6c, 0x6f, 0x77, 0x53, 0x79, 0x6d, 0x6c, 0x69, 0x6e, 0x6b, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x36, 0x5f, 0x62, 0x6f, 0x6f)
+		// write "FollowedSymlink_zid36_boo"
+		err = en.Append(0xb9, 0x46, 0x6f, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x64, 0x53, 0x79, 0x6d, 0x6c, 0x69, 0x6e, 0x6b, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x36, 0x5f, 0x62, 0x6f, 0x6f)
 		if err != nil {
 			return err
 		}
-		err = en.WriteBool(z.FollowSymlink)
+		err = en.WriteBool(z.FollowedSymlink)
 		if err != nil {
 			return
 		}
@@ -1862,9 +1862,9 @@ func (z *RequestToSyncPath) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[36] {
-		// string "FollowSymlink_zid36_boo"
-		o = append(o, 0xb7, 0x46, 0x6f, 0x6c, 0x6c, 0x6f, 0x77, 0x53, 0x79, 0x6d, 0x6c, 0x69, 0x6e, 0x6b, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x36, 0x5f, 0x62, 0x6f, 0x6f)
-		o = msgp.AppendBool(o, z.FollowSymlink)
+		// string "FollowedSymlink_zid36_boo"
+		o = append(o, 0xb9, 0x46, 0x6f, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x64, 0x53, 0x79, 0x6d, 0x6c, 0x69, 0x6e, 0x6b, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x36, 0x5f, 0x62, 0x6f, 0x6f)
+		o = msgp.AppendBool(o, z.FollowedSymlink)
 	}
 
 	return
@@ -2233,9 +2233,9 @@ doneWithStruct10zgensym_5b8048e47f8e3c5c_11:
 			if err != nil {
 				return
 			}
-		case "FollowSymlink_zid36_boo":
+		case "FollowedSymlink_zid36_boo":
 			found10zgensym_5b8048e47f8e3c5c_11[36] = true
-			z.FollowSymlink, bts, err = nbs.ReadBoolBytes(bts)
+			z.FollowedSymlink, bts, err = nbs.ReadBoolBytes(bts)
 
 			if err != nil {
 				return
@@ -2263,7 +2263,7 @@ doneWithStruct10zgensym_5b8048e47f8e3c5c_11:
 }
 
 // fields of RequestToSyncPath
-var unmarshalMsgFieldOrder10zgensym_5b8048e47f8e3c5c_11 = []string{"GiverPath_zid00_str", "TakerPath_zid01_str", "TakerModTime_zid02_tim", "TakerFileSize_zid03_i64", "TakerFileMode_zid04_u32", "ToRemotePeerServiceName_zid05_str", "ToRemoteNetAddr_zid06_str", "ToRemoteURL_zid07_str", "ToRemotePeerID_zid08_str", "SyncFromHostname_zid09_str", "SyncFromHostCID_zid10_str", "GiverFullFileBlake3_zid11_str", "TakerFullFileBlake3_zid12_str", "SizeModTimeMatch_zid13_boo", "GiverDirAbs_zid14_str", "Errs_zid15_str", "BytesSent_zid16_i64", "BytesRead_zid17_i64", "RemoteBytesTransferred_zid18_i64", "MoreChunksComming_zid19_boo", "RemoteTakes_zid20_boo", "Precis_zid21_ptr", "Chunks_zid22_ptr", "GiverIsDir_zid23_boo", "TakerIsDir_zid24_boo", "GiverExistsLocal_zid25_boo", "TakerExistsLocal_zid26_boo", "TakerStartsEmpty_zid27_boo", "GiverStartsEmpty_zid28_boo", "TakerTempDir_zid29_str", "TopTakerDirFinal_zid30_str", "GiverModTime_zid31_tim", "GiverFileSize_zid32_i64", "GiverFileMode_zid33_u32", "IsSymLink_zid34_boo", "SymLinkTarget_zid35_str", "FollowSymlink_zid36_boo", ""}
+var unmarshalMsgFieldOrder10zgensym_5b8048e47f8e3c5c_11 = []string{"GiverPath_zid00_str", "TakerPath_zid01_str", "TakerModTime_zid02_tim", "TakerFileSize_zid03_i64", "TakerFileMode_zid04_u32", "ToRemotePeerServiceName_zid05_str", "ToRemoteNetAddr_zid06_str", "ToRemoteURL_zid07_str", "ToRemotePeerID_zid08_str", "SyncFromHostname_zid09_str", "SyncFromHostCID_zid10_str", "GiverFullFileBlake3_zid11_str", "TakerFullFileBlake3_zid12_str", "SizeModTimeMatch_zid13_boo", "GiverDirAbs_zid14_str", "Errs_zid15_str", "BytesSent_zid16_i64", "BytesRead_zid17_i64", "RemoteBytesTransferred_zid18_i64", "MoreChunksComming_zid19_boo", "RemoteTakes_zid20_boo", "Precis_zid21_ptr", "Chunks_zid22_ptr", "GiverIsDir_zid23_boo", "TakerIsDir_zid24_boo", "GiverExistsLocal_zid25_boo", "TakerExistsLocal_zid26_boo", "TakerStartsEmpty_zid27_boo", "GiverStartsEmpty_zid28_boo", "TakerTempDir_zid29_str", "TopTakerDirFinal_zid30_str", "GiverModTime_zid31_tim", "GiverFileSize_zid32_i64", "GiverFileMode_zid33_u32", "IsSymLink_zid34_boo", "SymLinkTarget_zid35_str", "FollowedSymlink_zid36_boo", ""}
 
 var unmarshalMsgFieldSkip10zgensym_5b8048e47f8e3c5c_11 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
 
@@ -2281,6 +2281,6 @@ func (z *RequestToSyncPath) Msgsize() (s int) {
 	} else {
 		s += z.Chunks.Msgsize()
 	}
-	s += 21 + msgp.BoolSize + 21 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 23 + msgp.StringPrefixSize + len(z.TakerTempDir) + 27 + msgp.StringPrefixSize + len(z.TopTakerDirFinal) + 23 + msgp.TimeSize + 24 + msgp.Int64Size + 24 + msgp.Uint32Size + 20 + msgp.BoolSize + 24 + msgp.StringPrefixSize + len(z.SymLinkTarget) + 24 + msgp.BoolSize
+	s += 21 + msgp.BoolSize + 21 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 23 + msgp.StringPrefixSize + len(z.TakerTempDir) + 27 + msgp.StringPrefixSize + len(z.TopTakerDirFinal) + 23 + msgp.TimeSize + 24 + msgp.Int64Size + 24 + msgp.Uint32Size + 20 + msgp.BoolSize + 24 + msgp.StringPrefixSize + len(z.SymLinkTarget) + 26 + msgp.BoolSize
 	return
 }

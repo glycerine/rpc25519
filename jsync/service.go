@@ -385,9 +385,9 @@ type RequestToSyncPath struct {
 	TakerTempDir     string `zid:"29"`
 	TopTakerDirFinal string `zid:"30"`
 
-	IsSymLink     bool   `zid:"34"`
-	SymLinkTarget string `zid:"35"`
-	FollowSymlink bool   `zid:"36"`
+	IsSymLink       bool   `zid:"34"`
+	SymLinkTarget   string `zid:"35"`
+	FollowedSymlink bool   `zid:"36"`
 }
 
 // RequestToSyncDir is a separate

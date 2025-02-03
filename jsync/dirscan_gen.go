@@ -106,9 +106,9 @@ doneWithStruct0zgensym_b52703b292455617_1:
 			if err != nil {
 				return
 			}
-		case "FollowSymlink_zid06_boo":
+		case "FollowedSymlink_zid06_boo":
 			found0zgensym_b52703b292455617_1[6] = true
-			z.FollowSymlink, err = dc.ReadBool()
+			z.FollowedSymlink, err = dc.ReadBool()
 			if err != nil {
 				return
 			}
@@ -135,7 +135,7 @@ doneWithStruct0zgensym_b52703b292455617_1:
 }
 
 // fields of File
-var decodeMsgFieldOrder0zgensym_b52703b292455617_1 = []string{"Path_zid00_str", "Size_zid01_i64", "FileMode_zid02_u32", "ModTime_zid03_tim", "IsSymLink_zid04_boo", "SymLinkTarget_zid05_str", "FollowSymlink_zid06_boo"}
+var decodeMsgFieldOrder0zgensym_b52703b292455617_1 = []string{"Path_zid00_str", "Size_zid01_i64", "FileMode_zid02_u32", "ModTime_zid03_tim", "IsSymLink_zid04_boo", "SymLinkTarget_zid05_str", "FollowedSymlink_zid06_boo"}
 
 var decodeMsgFieldSkip0zgensym_b52703b292455617_1 = []bool{false, false, false, false, false, false, false}
 
@@ -169,7 +169,7 @@ func (z *File) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[5] {
 		fieldsInUse--
 	}
-	isempty[6] = (!z.FollowSymlink) // bool, omitempty
+	isempty[6] = (!z.FollowedSymlink) // bool, omitempty
 	if isempty[6] {
 		fieldsInUse--
 	}
@@ -276,12 +276,12 @@ func (z *File) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_b52703b292455617_2[6] {
-		// write "FollowSymlink_zid06_boo"
-		err = en.Append(0xb7, 0x46, 0x6f, 0x6c, 0x6c, 0x6f, 0x77, 0x53, 0x79, 0x6d, 0x6c, 0x69, 0x6e, 0x6b, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x62, 0x6f, 0x6f)
+		// write "FollowedSymlink_zid06_boo"
+		err = en.Append(0xb9, 0x46, 0x6f, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x64, 0x53, 0x79, 0x6d, 0x6c, 0x69, 0x6e, 0x6b, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x62, 0x6f, 0x6f)
 		if err != nil {
 			return err
 		}
-		err = en.WriteBool(z.FollowSymlink)
+		err = en.WriteBool(z.FollowedSymlink)
 		if err != nil {
 			return
 		}
@@ -340,9 +340,9 @@ func (z *File) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[6] {
-		// string "FollowSymlink_zid06_boo"
-		o = append(o, 0xb7, 0x46, 0x6f, 0x6c, 0x6c, 0x6f, 0x77, 0x53, 0x79, 0x6d, 0x6c, 0x69, 0x6e, 0x6b, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x62, 0x6f, 0x6f)
-		o = msgp.AppendBool(o, z.FollowSymlink)
+		// string "FollowedSymlink_zid06_boo"
+		o = append(o, 0xb9, 0x46, 0x6f, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x64, 0x53, 0x79, 0x6d, 0x6c, 0x69, 0x6e, 0x6b, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x62, 0x6f, 0x6f)
+		o = msgp.AppendBool(o, z.FollowedSymlink)
 	}
 
 	return
@@ -455,9 +455,9 @@ doneWithStruct4zgensym_b52703b292455617_5:
 			if err != nil {
 				return
 			}
-		case "FollowSymlink_zid06_boo":
+		case "FollowedSymlink_zid06_boo":
 			found4zgensym_b52703b292455617_5[6] = true
-			z.FollowSymlink, bts, err = nbs.ReadBoolBytes(bts)
+			z.FollowedSymlink, bts, err = nbs.ReadBoolBytes(bts)
 
 			if err != nil {
 				return
@@ -485,13 +485,13 @@ doneWithStruct4zgensym_b52703b292455617_5:
 }
 
 // fields of File
-var unmarshalMsgFieldOrder4zgensym_b52703b292455617_5 = []string{"Path_zid00_str", "Size_zid01_i64", "FileMode_zid02_u32", "ModTime_zid03_tim", "IsSymLink_zid04_boo", "SymLinkTarget_zid05_str", "FollowSymlink_zid06_boo"}
+var unmarshalMsgFieldOrder4zgensym_b52703b292455617_5 = []string{"Path_zid00_str", "Size_zid01_i64", "FileMode_zid02_u32", "ModTime_zid03_tim", "IsSymLink_zid04_boo", "SymLinkTarget_zid05_str", "FollowedSymlink_zid06_boo"}
 
 var unmarshalMsgFieldSkip4zgensym_b52703b292455617_5 = []bool{false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *File) Msgsize() (s int) {
-	s = 1 + 15 + msgp.StringPrefixSize + len(z.Path) + 15 + msgp.Int64Size + 19 + msgp.Uint32Size + 18 + msgp.TimeSize + 20 + msgp.BoolSize + 24 + msgp.StringPrefixSize + len(z.SymLinkTarget) + 24 + msgp.BoolSize
+	s = 1 + 15 + msgp.StringPrefixSize + len(z.Path) + 15 + msgp.Int64Size + 19 + msgp.Uint32Size + 18 + msgp.TimeSize + 20 + msgp.BoolSize + 24 + msgp.StringPrefixSize + len(z.SymLinkTarget) + 26 + msgp.BoolSize
 	return
 }
 

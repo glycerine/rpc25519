@@ -251,9 +251,9 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 									RemoteTakes:      true,
 									Done:             idem.NewIdemCloseChan(),
 
-									IsSymLink:     file.IsSymLink,
-									SymLinkTarget: file.SymLinkTarget,
-									FollowSymlink: file.FollowSymlink,
+									IsSymLink:       file.IsSymLink,
+									SymLinkTarget:   file.SymLinkTarget,
+									FollowedSymlink: file.FollowedSymlink,
 								}
 								bts, err := sr.MarshalMsg(nil)
 								panicOn(err)

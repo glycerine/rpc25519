@@ -71,9 +71,9 @@ type File struct {
 	ModTime  time.Time `zid:"3"`
 
 	// symlink support
-	IsSymLink     bool   `zid:"4"`
-	SymLinkTarget string `zid:"5"`
-	FollowSymlink bool   `zid:"6"`
+	IsSymLink       bool   `zid:"4"`
+	SymLinkTarget   string `zid:"5"`
+	FollowedSymlink bool   `zid:"6"`
 }
 
 // PackOfFiles is streamed in phase 2.
@@ -244,9 +244,9 @@ func ScanDirTree(
 				FileMode: uint32(fi.Mode()),
 				ModTime:  fi.ModTime(),
 
-				IsSymLink:     regfile.IsSymLink,
-				FollowSymlink: regfile.FollowSymlink,
-				SymLinkTarget: regfile.SymLinkTarget,
+				IsSymLink:       regfile.IsSymLink,
+				FollowedSymlink: regfile.FollowedSymlink,
+				SymLinkTarget:   regfile.SymLinkTarget,
 			}
 
 			uses := f.Msgsize()
