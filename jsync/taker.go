@@ -181,7 +181,7 @@ takerForSelectLoop:
 	for {
 		select {
 		case frag := <-ckt.Reads:
-			//vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
+			vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
 			_ = frag
 			switch frag.FragOp {
 
@@ -974,6 +974,7 @@ func (s *SyncService) contentsMatch(syncReq *RequestToSyncPath, ckt *rpc.Circuit
 	if localPathToWrite != localPathToRead {
 		if targ, isSym := isSymlink(localPathToRead); isSym {
 			vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
+			vv("stack = '%v'", stack())
 			os.Remove(localPathToWrite)
 			err := os.Symlink(targ, localPathToWrite)
 			panicOn(err)
