@@ -6,6 +6,7 @@ import (
 	"fmt"
 	myblake3 "github.com/glycerine/rpc25519/hash"
 	//"github.com/glycerine/rpc25519/progress"
+	"golang.org/x/sys/unix"
 	"io"
 	"io/fs"
 	"os"
@@ -180,7 +181,7 @@ takerForSelectLoop:
 	for {
 		select {
 		case frag := <-ckt.Reads:
-			vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
+			//vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
 			_ = frag
 			switch frag.FragOp {
 
@@ -903,6 +904,14 @@ takerForSelectLoop:
 						err = os.Chtimes(localPathToWrite, time.Time{},
 							syncReq.GiverModTime)
 						panicOn(err)
+
+						// does this prevent whole file transfer then?
+						// ack := rpc.NewFragment()
+						// ack.FragSubject = frag.FragSubject
+						// ack.FragOp = OpRsync_FileSizeModTimeMatch
+						// err = ckt.SendOneWay(ack, 0)
+						// panicOn(err)
+
 						s.ackBackFINToGiver(ckt, frag)
 						frag = nil
 						continue // return?
@@ -968,9 +977,13 @@ func (s *SyncService) contentsMatch(syncReq *RequestToSyncPath, ckt *rpc.Circuit
 			os.Remove(localPathToWrite)
 			err := os.Symlink(targ, localPathToWrite)
 			panicOn(err)
-			err = os.Chtimes(localPathToWrite, time.Time{},
-				syncReq.GiverModTime)
-			panicOn(err)
+
+			// Lutimes sets the access and modification times tv on path. If path refers to a symlink, it is not dereferenced and the timestamps are set on the symlink. If tv is nil, the access and modification times are set to the current time. Otherwise tv must contain exactly 2 elements, with access time as the first element and modification time as the second element.
+			tv := unix.NsecToTimeval(syncReq.GiverModTime.UnixNano())
+			unix.Lutimes(localPathToWrite, []unix.Timeval{tv, tv})
+			//err = os.Chtimes(localPathToWrite, time.Time{},
+			//	syncReq.GiverModTime)
+			//panicOn(err)
 		} else {
 			//vv("hard linking 1 '%v' <- '%v'",
 			//	localPathToRead, localPathToWrite)

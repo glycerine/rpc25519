@@ -89,7 +89,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		select {
 
 		case frag0 := <-ckt.Reads:
-			vv("%v: (ckt '%v') (Giver) saw read frag0:'%v'", name, ckt.Name, frag0)
+			//vv("%v: (ckt '%v') (Giver) saw read frag0:'%v'", name, ckt.Name, frag0)
 
 			////vv("frag0 = '%v'", frag0)
 			switch frag0.FragOp {
@@ -245,7 +245,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				if syncReq.TakerFileSize == 0 {
 					err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0)
 
-					//vv("giver sent whole file. done (wait for FIN)")
+					vv("giver sent whole file. done (wait for FIN)")
 					frag0 = nil // GC early.
 					continue    // wait for FIN ack back.
 				}
@@ -318,6 +318,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 			case OpRsync_ToGiverNeedFullFile2:
 				// this is the upload streaming protocol. We send the data.
+				vv("giver sees OpRsync_ToGiverNeedFullFile2")
 
 				err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0)
 
