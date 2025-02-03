@@ -93,7 +93,7 @@ type RegularFile struct {
 	Path          string `zid:"0"`
 	IsSymLink     bool   `zid:"1"`
 	SymLinkTarget string `zid:"2"`
-	Follow        bool   `zid:"3"`
+	FollowSymlink bool   `zid:"3"`
 }
 
 // FilesOnly returns only files, skipping directories. This does
@@ -176,7 +176,7 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*RegularFile, bool] {
 									Path:          resolveMe,
 									IsSymLink:     true,
 									SymLinkTarget: target,
-									Follow:        true,
+									FollowSymlink: true,
 								}
 
 								if !yield(rf, true) {
@@ -190,7 +190,7 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*RegularFile, bool] {
 								Path:          resolveMe,
 								IsSymLink:     true,
 								SymLinkTarget: target,
-								Follow:        false,
+								FollowSymlink: false,
 							}
 							if !yield(rf, true) {
 								return false

@@ -73,7 +73,7 @@ type File struct {
 	// symlink support
 	IsSymLink     bool   `zid:"4"`
 	SymLinkTarget string `zid:"5"`
-	Follow        bool   `zid:"6"`
+	FollowSymlink bool   `zid:"6"`
 }
 
 // PackOfFiles is streamed in phase 2.
@@ -245,7 +245,7 @@ func ScanDirTree(
 				ModTime:  fi.ModTime(),
 
 				IsSymLink:     regfile.IsSymLink,
-				Follow:        regfile.Follow,
+				FollowSymlink: regfile.FollowSymlink,
 				SymLinkTarget: regfile.SymLinkTarget,
 			}
 
