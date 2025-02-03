@@ -194,7 +194,7 @@ func ScanDirTree(
 		select {
 		case packOfLeavesCh <- leafpack:
 			leafpack = nil
-			close(packOfLeavesCh)
+			//close(packOfLeavesCh)
 		case <-halt.ReqStop.Chan:
 			return
 		case <-done:
@@ -267,7 +267,7 @@ func ScanDirTree(
 		select {
 		case packOfFilesCh <- pof:
 			pof = nil
-			close(packOfFilesCh)
+			//close(packOfFilesCh)
 		case <-halt.ReqStop.Chan:
 			return
 		case <-done:
@@ -323,7 +323,7 @@ func ScanDirTree(
 				select {
 				case packOfDirsCh <- pod:
 					pod = nil
-					close(packOfDirsCh)
+					//close(packOfDirsCh)
 				case <-halt.ReqStop.Chan:
 					return
 				case <-done:
