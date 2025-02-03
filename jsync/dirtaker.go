@@ -26,7 +26,7 @@ var _ = time.Time{}
 // coordinator from the Taker side.
 func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, reqDir *RequestToSyncDir) (err0 error) {
 
-	vv("SyncService.DirTaker top; we are local if reqDir = %p != nil", reqDir)
+	//vv("SyncService.DirTaker top; we are local if reqDir = %p != nil", reqDir)
 
 	name := myPeer.PeerServiceName
 	_ = name // used when logging is on.
@@ -47,7 +47,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	}
 
 	defer func(reqDir *RequestToSyncDir) {
-		vv("%v: (ckt '%v') defer running! finishing DirTaker; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
+		//vv("%v: (ckt '%v') defer running! finishing DirTaker; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
 		////vv("bt = '%#v'", bt)
 
 		// only close Done for local (client, typically) if we were started locally.
@@ -91,7 +91,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			///////////////// begin dir sync stuff
 
 			case OpRsync_DirSyncBeginToTaker: // 22
-				vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
+				//vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
 				// we should: setup a top tempdir and tell the
 				// giver the path so they can send new files into that path.
 
@@ -129,7 +129,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					targetTakerTopTempDir, tmpDirID, err := s.mkTempDir(
 						reqDir.TopTakerDirFinal)
 					panicOn(err)
-					vv("DirTaker (remote taker) made temp dir '%v' for finalDir '%v'", targetTakerTopTempDir, reqDir.TopTakerDirFinal)
+					//vv("DirTaker (remote taker) made temp dir '%v' for finalDir '%v'", targetTakerTopTempDir, reqDir.TopTakerDirFinal)
 					reqDir.TopTakerDirTemp = targetTakerTopTempDir
 					reqDir.TopTakerDirTempDirID = tmpDirID
 				}
@@ -151,14 +151,13 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				panicOn(err)
 
 			case OpRsync_DirSyncEndToTaker: // 24, end of dir sync.
-				vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncEndToTaker", name, ckt.Name)
+				//vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncEndToTaker", name, ckt.Name)
 				// we (taker) can rename the temp top dir/replace any old top dir.
 
 				tmp := reqDir.TopTakerDirTemp
 				// get rid of any trailing '/' slash, so we can tack on .oldvers
 				final := filepath.Clean(reqDir.TopTakerDirFinal)
-				vv("dirtaker would rename completed dir into place!: %v -> %v",
-					tmp, final)
+				//vv("dirtaker would rename completed dir into place!: %v -> %v", tmp, final)
 				var err error
 
 				rndsuf := rpc.NewCryRandSuffix()
@@ -166,7 +165,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				if dirExists(final) {
 					// move the old dir out of the way.
 					old = final + ".old." + rndsuf
-					vv("dirtaker backup previous dir '%v' -> '%v'", final, old)
+					//vv("dirtaker backup previous dir '%v' -> '%v'", final, old)
 					err := os.Rename(final, old)
 					panicOn(err)
 				}
@@ -181,7 +180,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				}
 				// and set the mod time
 				if !reqDir.GiverDirModTime.IsZero() {
-					vv("setting final dir mod time: '%v'", reqDir.GiverDirModTime)
+					//vv("setting final dir mod time: '%v'", reqDir.GiverDirModTime)
 					err = os.Chtimes(final, time.Time{}, reqDir.GiverDirModTime)
 					panicOn(err)
 				}
@@ -194,7 +193,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				panicOn(err)
 
 			case OpRsync_GiverSendsTopDirListing, OpRsync_GiverSendsTopDirListingMore, OpRsync_GiverSendsTopDirListingEnd: // 26/27/28
-				vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
+				//vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
 				// Getting this means here is the starting dir tree from giver.
 				// or, to me (taker), here is more dir listing
 				// or, to me (taker), here is end dir listing
@@ -212,7 +211,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					fullpath := filepath.Join(reqDir.TopTakerDirTemp, leafdir)
 					err = os.MkdirAll(fullpath, 0700)
 					panicOn(err)
-					vv("dirtaker made fullpath '%v'", fullpath)
+					//vv("dirtaker made fullpath '%v'", fullpath)
 				}
 				// reply to OpRsync_GiverSendsTopDirListingEnd
 				// with OpRsync_TakerReadyForDirContents
@@ -243,8 +242,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					giverTotalFileBytes, err := strconv.Atoi(
 						giverTotalFileBytesStr)
 					panicOn(err)
-					vv("OpRsync_ToTakerDirContentsDone: "+
-						"giverTotalFileBytes = %v", giverTotalFileBytes)
+					//vv("OpRsync_ToTakerDirContentsDone: "+
+					//	"giverTotalFileBytes = %v", giverTotalFileBytes)
 					if reqDir != nil {
 						reqDir.GiverTotalFileBytes = int64(giverTotalFileBytes)
 						reqDir.SR.GiverFileSize = int64(giverTotalFileBytes)
@@ -262,7 +261,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			case OpRsync_ToTakerAllTreeModes:
 				// phase 3: set the mode of all dirs in the tree.
 
-				vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
+				//vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
 				// Getting this means all the file content has been
 				// sent to me, and now we are setting the mode of dirs
 				// on the whole tree.
@@ -276,11 +275,11 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					fullpath := filepath.Join(reqDir.TopTakerDirTemp, dir.Path)
 					err = os.Chmod(fullpath, fs.FileMode(dir.FileMode))
 					panicOn(err)
-					vv("dirtaker set mode on dir = '%v'", dir)
+					//vv("dirtaker set mode on dir = '%v'", dir)
 				}
 				if pod.IsLast {
-					vv("dirtaker sees pod.IsLast, sending " +
-						"OpRsync_ToGiverAllTreeModesDone")
+					//vv("dirtaker sees pod.IsLast, sending " +
+					//	"OpRsync_ToGiverAllTreeModesDone")
 					modesDone := rpc.NewFragment()
 					modesDone.FragOp = OpRsync_ToGiverAllTreeModesDone
 					err = ckt.SendOneWay(modesDone, 0)

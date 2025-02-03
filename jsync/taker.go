@@ -58,7 +58,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	bt := &byteTracker{}
 
 	defer func(syncReq *RequestToSyncPath) {
-		vv("%v: (ckt '%v') defer running! finishing Taker; syncReq=%p; err0='%v'", name, ckt.Name, syncReq, err0)
+		//vv("%v: (ckt '%v') defer running! finishing Taker; syncReq=%p; err0='%v'", name, ckt.Name, syncReq, err0)
 		////vv("bt = '%#v'", bt)
 
 		// only close Done for local (client, typically) if we were started locally.
@@ -72,7 +72,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 			}
 			syncReq.Done.Close() // only AFTER setting Errs, please!
 		}
-		vv("taker defer ckt.Close(err0='%v')", err0)
+		//vv("taker defer ckt.Close(err0='%v')", err0)
 		ckt.Close(err0)
 
 		// suppress context cancelled shutdowns
@@ -148,9 +148,9 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		// where they ask us to, and skip the rename
 		// at the end.
 		if syncReq.TakerTempDir != "" {
-			vv("TakerTempDir = '%v', so localPathToWrite '%v' => '%v'",
-				syncReq.TakerTempDir, localPathToWrite,
-				filepath.Join(syncReq.TakerTempDir, syncReq.TakerPath))
+			//vv("TakerTempDir = '%v', so localPathToWrite '%v' => '%v'",
+			//	syncReq.TakerTempDir, localPathToWrite,
+			//	filepath.Join(syncReq.TakerTempDir, syncReq.TakerPath))
 
 			localPathToWrite = filepath.Join(
 				syncReq.TakerTempDir, syncReq.TakerPath)
@@ -159,8 +159,8 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 			localPathToRead = filepath.Join(
 				syncReq.TopTakerDirFinal, syncReq.TakerPath)
 		}
-		vv("localPathToRead = '%v'", localPathToRead)
-		vv("localPathToWrite = '%v'", localPathToWrite)
+		//vv("localPathToRead = '%v'", localPathToRead)
+		//vv("localPathToWrite = '%v'", localPathToWrite)
 
 		if dirExists(localPathToRead) {
 			return fmt.Errorf("error in Taker: localPathToRead cannot be an existing directory: '%v'; use DirTaker functionality.", localPathToRead)
@@ -185,11 +185,11 @@ takerForSelectLoop:
 			switch frag.FragOp {
 
 			case OpRsync_AckBackFIN_ToTaker:
-				vv("%v: (ckt '%v') (Taker) sees OpRsync_AckBackFIN_ToTaker. returning.", name, ckt.Name)
+				//vv("%v: (ckt '%v') (Taker) sees OpRsync_AckBackFIN_ToTaker. returning.", name, ckt.Name)
 				return
 
 			case OpRsync_LazyTakerNoLuck_ChunksRequired:
-				vv("%v: (ckt '%v') (Taker) sees OpRsync_LazyTakerNoLuck_ChunksRequired.", name, ckt.Name)
+				//vv("%v: (ckt '%v') (Taker) sees OpRsync_LazyTakerNoLuck_ChunksRequired.", name, ckt.Name)
 				// should we just be overwriting syncReq ? TODO!
 
 				syncReq2 := &RequestToSyncPath{
@@ -209,7 +209,7 @@ takerForSelectLoop:
 						"(syncReq.TakerPath which is %v) or HostCID changed.",
 						syncReq2.TakerPath, syncReq.TakerPath))
 				} else {
-					vv("lazy taker no luck: chunks required. syncReq2.TakerPath = '%v'; GiverPath='%v'", syncReq2.TakerPath, syncReq2.GiverPath)
+					//vv("lazy taker no luck: chunks required. syncReq2.TakerPath = '%v'; GiverPath='%v'", syncReq2.TakerPath, syncReq2.GiverPath)
 				}
 
 				// can we avoid sending a file if it was just
@@ -222,7 +222,7 @@ takerForSelectLoop:
 				panicOn(err)
 				b3sumTaker := myblake3.RawSumBytesToString(sumTaker)
 				if b3sumTaker == b3sumGiver {
-					vv("good: b3sumTaker == b3sumGiver: setting syncReq.ModTime = '%v'", syncReq2.GiverModTime)
+					//vv("good: b3sumTaker == b3sumGiver: setting syncReq.ModTime = '%v'", syncReq2.GiverModTime)
 					// hard link it.
 					if localPathToWrite != localPathToRead {
 						vv("hard linking 7 '%v' <- '%v'",
@@ -306,7 +306,7 @@ takerForSelectLoop:
 				continue // wait for FIN
 
 			case OpRsync_ToTakerMetaUpdateAtLeast:
-				vv("%v: (ckt %v) (Taker) sees OpRsync_ToTakerMetaUpdateAtLeast. updating mode/modTime on '%v'", name, ckt.Name, syncReq.TakerPath)
+				//vv("%v: (ckt %v) (Taker) sees OpRsync_ToTakerMetaUpdateAtLeast. updating mode/modTime on '%v'", name, ckt.Name, syncReq.TakerPath)
 				precis := &FilePrecis{}
 				_, err := precis.UnmarshalMsg(frag.Payload)
 				panicOn(err)
@@ -362,12 +362,12 @@ takerForSelectLoop:
 					// where they ask us to, and skip the rename
 					// at the end.
 					if syncReq.TakerTempDir != "" {
-						vv("since syncReq.TakerTempDir is set, '%v'. we keep tmp == localPathToWrite: '%v'", syncReq.TakerTempDir, localPathToWrite) // not seen! this is a problem!
+						//vv("since syncReq.TakerTempDir is set, '%v'. we keep tmp == localPathToWrite: '%v'", syncReq.TakerTempDir, localPathToWrite)
 						tmp = localPathToWrite
 					}
 					newversFd, err = os.Create(tmp)
 					panicOn(err)
-					vv("taker created file '%v'", tmp)
+					//vv("taker created file '%v'", tmp)
 					newversBufio = bufio.NewWriterSize(newversFd, rpc.UserMaxPayload)
 					// remember to Flush and Close!
 					defer newversBufio.Flush() // must be first
@@ -569,7 +569,7 @@ takerForSelectLoop:
 
 			case OpRsync_HereIsFullFileBegin3, OpRsync_HereIsFullFileMore4, OpRsync_HereIsFullFileEnd5:
 				if disk == nil {
-					vv("HereIsFullFile: creating disk file localPathToWrite = '%v'", localPathToWrite)
+					//vv("HereIsFullFile: creating disk file localPathToWrite = '%v'", localPathToWrite)
 					disk = NewFileToDiskState(localPathToWrite)
 					disk.T0 = time.Now()
 				}
@@ -672,8 +672,8 @@ takerForSelectLoop:
 						panic("must have set takerFullFileBlake3sum user arg")
 					}
 					if b3sumTaker == b3sumGiver {
-						vv("contents same, just modtime needs update: '%v'",
-							localPathToWrite)
+						//vv("contents same, just modtime needs update: '%v'",
+						//	localPathToWrite)
 
 						// hard link it
 						if localPathToWrite != localPathToRead {
@@ -688,7 +688,7 @@ takerForSelectLoop:
 						frag = nil
 						continue
 					}
-					vv("drat: modTime update will not suffice for localPathToWrite = '%v'; on OpRsync_ToGiverSizeMatchButCheckHashAck", localPathToWrite)
+					//vv("drat: modTime update will not suffice for localPathToWrite = '%v'; on OpRsync_ToGiverSizeMatchButCheckHashAck", localPathToWrite)
 				}
 				// then syncReq is already set, just pick up where
 				// we left off.
@@ -699,7 +699,7 @@ takerForSelectLoop:
 					syncReq.Done = idem.NewIdemCloseChan()
 					bt.bread += len(frag.Payload)
 
-					vv("OpRsync_RequestRemoteToTake sees: \nsyncReq.TakerPath=: '%v';\nTakerTempDir = '%v';\nGiverPath='%v'\nGiverDirAbs='%v';\nTopTakerDirFinal='%v'", syncReq.TakerPath, syncReq.TakerTempDir, syncReq.GiverPath, syncReq.GiverDirAbs, syncReq.TopTakerDirFinal)
+					//vv("OpRsync_RequestRemoteToTake sees: \nsyncReq.TakerPath=: '%v';\nTakerTempDir = '%v';\nGiverPath='%v'\nGiverDirAbs='%v';\nTopTakerDirFinal='%v'", syncReq.TakerPath, syncReq.TakerTempDir, syncReq.GiverPath, syncReq.GiverDirAbs, syncReq.TopTakerDirFinal)
 
 					localPathToWrite = syncReq.TakerPath
 					localPathToRead = syncReq.TakerPath
@@ -709,7 +709,7 @@ takerForSelectLoop:
 					localPathToWrite = filepath.Join(
 						syncReq.TakerTempDir,
 						syncReq.TakerPath)
-					vv("see TakerTempDir='%v', setting localPathToWrite = '%v'", syncReq.TakerTempDir, localPathToWrite)
+					//vv("see TakerTempDir='%v', setting localPathToWrite = '%v'", syncReq.TakerTempDir, localPathToWrite)
 				}
 				if syncReq.TopTakerDirFinal != "" {
 					localPathToRead = filepath.Join(
@@ -722,7 +722,7 @@ takerForSelectLoop:
 				}
 
 				if fileExists(localPathToRead) {
-					vv("path '%v' already exists! let's see if we need to rsync diffs or not at all!", syncReq.TakerPath)
+					//vv("path '%v' already exists! let's see if we need to rsync diffs or not at all!", syncReq.TakerPath)
 
 					// are we on the same host? avoid overwritting self with self!
 					cwd, err := os.Getwd()
@@ -751,7 +751,7 @@ takerForSelectLoop:
 					panicOn(err)
 					sz, mod, mode := fi.Size(), fi.ModTime(), uint32(fi.Mode())
 					if syncReq.GiverFileSize == sz && syncReq.GiverModTime.Equal(mod) {
-						vv("size + modtime match. nothing to do, tell Giver.")
+						//vv("size + modtime match. nothing to do, tell Giver.")
 
 						s.contentsMatch(syncReq, ckt, frag, mode,
 							localPathToRead, localPathToWrite)
@@ -761,7 +761,7 @@ takerForSelectLoop:
 						frag = nil
 						continue
 					}
-					vv("syncReq.GiverFileSize(%v) vs sz(%v) && syncReq.GiverModTime(%v) vs mod(%v))", syncReq.GiverFileSize, sz, syncReq.GiverModTime, mod)
+					//vv("syncReq.GiverFileSize(%v) vs sz(%v) && syncReq.GiverModTime(%v) vs mod(%v))", syncReq.GiverFileSize, sz, syncReq.GiverModTime, mod)
 
 					// we have some differences--at least the modtime.
 
@@ -884,9 +884,9 @@ takerForSelectLoop:
 					frag = nil
 					continue // wait for next data fragment
 				} else {
-					vv("not present: must request the "+
-						"full file for syncReq.TakerPath='%v'",
-						syncReq.TakerPath)
+					//vv("not present: must request the "+
+					//	"full file for syncReq.TakerPath='%v'",
+					//	syncReq.TakerPath)
 
 					//path := syncReq.Path
 					fullReq := rpc.NewFragment()

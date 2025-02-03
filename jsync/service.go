@@ -548,17 +548,17 @@ func (s *SyncService) Start(
 		case syncReq := <-s.SyncPathRequestCh:
 			// we are the "local" getting this request from the cli client.go.
 
-			vv("%v: sees requested on SyncPathRequestCh: '%#v'", name, syncReq)
+			//vv("%v: sees requested on SyncPathRequestCh: '%#v'", name, syncReq)
 
 			// begin dir sync bootstrap
 			if !syncReq.RemoteTakes && syncReq.TakerIsDir {
-				vv("%v: we are the local taker of dir. sending 21 OpRsync_TakerRequestsDirSyncBegin", name)
+				//vv("%v: we are the local taker of dir. sending 21 OpRsync_TakerRequestsDirSyncBegin", name)
 
 				// we (local taker) generate a temp dir first, then send 21
 				// OpRsync_TakerRequestsDirSyncBegin = 21 // to giver, please send me 22
 				targetTakerTopTempDir, tmpDirID, err := s.mkTempDir(syncReq.TakerPath)
 				panicOn(err)
-				vv("Start (local taker) made temp dir '%v' for finalDir '%v'", targetTakerTopTempDir, syncReq.TakerPath)
+				//vv("Start (local taker) made temp dir '%v' for finalDir '%v'", targetTakerTopTempDir, syncReq.TakerPath)
 
 				reqDir := &RequestToSyncDir{
 					GiverDir: syncReq.GiverPath,
@@ -594,7 +594,7 @@ func (s *SyncService) Start(
 			// is this a local giver dir -> remote taker dir syn request?
 			if syncReq.RemoteTakes && syncReq.GiverIsDir {
 
-				vv("%v: we are the local giver of dir. sending 22 OpRsync_DirSyncBeginToTaker", name)
+				//vv("%v: we are the local giver of dir. sending 22 OpRsync_DirSyncBeginToTaker", name)
 
 				// fan out the request, one for each
 				// actual file on the local giver.
@@ -746,7 +746,7 @@ func (s *SyncService) Start(
 				// must send chunks separately
 				extraComing = true
 				syncReq.MoreChunksComming = true
-				vv("set syncReq.MoreChunksComming = true")
+				//vv("set syncReq.MoreChunksComming = true")
 				origChunks = syncReq.Chunks.Chunks
 
 				// truncate down the initial Message,

@@ -29,7 +29,7 @@ var _ = time.Time{}
 // It will be nil when Giver is remote.
 func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, reqDir *RequestToSyncDir) (err0 error) {
 
-	vv("SyncService.DirGiver top. We are local if reqDirp = %p != nil", reqDir)
+	//vv("SyncService.DirGiver top. We are local if reqDirp = %p != nil", reqDir)
 
 	// If the local giver (pushing), send the dir listing over,
 	// so the remote taker can tell what to delete.
@@ -53,7 +53,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	var packOfDirsCh chan *PackOfDirs
 
 	defer func(reqDir *RequestToSyncDir) {
-		vv("%v: (ckt '%v') defer running! finishing DirGiver; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
+		//vv("%v: (ckt '%v') defer running! finishing DirGiver; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
 		////vv("bt = '%#v'", bt)
 
 		// only close Done for local (client, typically) if we were started locally.
@@ -97,7 +97,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 			///////////// begin dir sync stuff
 			case OpRsync_TakerRequestsDirSyncBegin: // 21
-				vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerRequestsDirSyncBegin.", name, ckt.Name)
+				//vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerRequestsDirSyncBegin.", name, ckt.Name)
 
 				// taker gives us their top dir temp dir to write paths into.
 
@@ -134,7 +134,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				panicOn(err)
 
 			case OpRsync_DirSyncBeginReplyFromTaker: // 23
-				vv("%v: (ckt '%v') (DirGiver) sees 23 OpRsync_DirSyncBeginReplyFromTaker", name, ckt.Name)
+				//vv("%v: (ckt '%v') (DirGiver) sees 23 OpRsync_DirSyncBeginReplyFromTaker", name, ckt.Name)
 
 				reqDir2 := &RequestToSyncDir{}
 				_, err0 = reqDir2.UnmarshalMsg(frag0.Payload)
@@ -152,7 +152,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					reqDir.TopTakerDirTempDirID = reqDir2.TopTakerDirTempDirID
 				}
 
-				vv("DirGiver will use write targets to reqDir.TopTakerDirTemp = '%v' for final: '%v'", reqDir.TopTakerDirTemp, reqDir.TopTakerDirFinal)
+				//vv("DirGiver will use write targets to reqDir.TopTakerDirTemp = '%v' for final: '%v'", reqDir.TopTakerDirTemp, reqDir.TopTakerDirFinal)
 
 				// after getting 23,
 				// send 26/27/28
@@ -208,7 +208,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// and wait for OpRsync_TakerReadyForDirContents
 
 			case OpRsync_TakerReadyForDirContents: // 29
-				vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerReadyForDirContents", name, ckt.Name)
+				//vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerReadyForDirContents", name, ckt.Name)
 
 				// we (giver) now do individual file syncs
 				// (newly deleted files can be simply not
@@ -268,7 +268,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 										vv("error ckt2 close: '%v'", err)
 										ckt2.Close(err)
 									} else {
-										vv("normal ckt2 close")
+										//vv("normal ckt2 close")
 										ckt2.Close(nil)
 									}
 								}()
@@ -281,7 +281,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							}(file, goroHalt)
 						}
 						_ = batchHalt.ReqStop.WaitTilChildrenDone(done)
-						vv("batchHalt.ReqStop.WaitTilChildrenDone back.")
+						//vv("batchHalt.ReqStop.WaitTilChildrenDone back.")
 						// do not panic, we might have seen closed(done).
 
 						batchHalt.ReqStop.Close()
@@ -302,8 +302,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 				} // end for i sendfiles
 
-				vv("dirgiver: all batches of indiv file "+
-					"sync are done. totalFileBytes = %v", totalFileBytes)
+				//vv("dirgiver: all batches of indiv file "+
+				// "sync are done. totalFileBytes = %v", totalFileBytes)
 
 				// wait to go on to sending OpRsync_ToTakerAllTreeModes
 				// until after all the files are there.
@@ -321,7 +321,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 			case OpRsync_ToGiverDirContentsDoneAck:
 
-				vv("dirgiver sees OpRsync_ToGiverDirContentsDoneAck: on to phase 3, dirgiver sends directory modes")
+				//vv("dirgiver sees OpRsync_ToGiverDirContentsDoneAck: on to phase 3, dirgiver sends directory modes")
 				// last (3rd phase): send each directory node,
 				// to set its permissions.
 
@@ -341,7 +341,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						podModes.SetUserArg("structType", "PackOfDirs")
 						err = ckt.SendOneWay(podModes, 0)
 						panicOn(err)
-						vv("dirgiver sent pod (last? %v): '%#v'", pod.IsLast, pod)
+						//vv("dirgiver sent pod (last? %v): '%#v'", pod.IsLast, pod)
 						if pod.IsLast {
 							break sendDirs
 						}
@@ -362,8 +362,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// wait for OpRsync_ToGiverAllTreeModesDone
 
 			case OpRsync_ToGiverAllTreeModesDone:
-				vv("dirgiver sees OpRsync_ToGiverAllTreeModesDone," +
-					" sending OpRsync_DirSyncEndToTaker")
+				//vv("dirgiver sees OpRsync_ToGiverAllTreeModesDone," +
+				//	" sending OpRsync_DirSyncEndToTaker")
 				dend := rpc.NewFragment()
 				dend.FragOp = OpRsync_DirSyncEndToTaker
 				err := ckt.SendOneWay(dend, 0)
@@ -372,7 +372,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// wait for OpRsync_DirSyncEndAckFromTaker.
 
 			case OpRsync_DirSyncEndAckFromTaker: // 25
-				vv("%v: (ckt '%v') (DirGiver) sees OpRsync_DirSyncEndAckFromTaker", name, ckt.Name)
+				//vv("%v: (ckt '%v') (DirGiver) sees OpRsync_DirSyncEndAckFromTaker", name, ckt.Name)
 				// shut down all dir sync stuff, send FIN.
 
 				s.ackBackFINToTaker(ckt, frag0)
