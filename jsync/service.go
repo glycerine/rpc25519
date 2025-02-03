@@ -670,6 +670,24 @@ func (s *SyncService) Start(
 				// (first implemented)
 				frag.FragOp = OpRsync_RequestRemoteToTake
 				cktName = rsyncRemoteTakesString // "rsync remote takes"
+
+				// ensure FileSize and mod time are set, else we
+				// might be fooled into thinking this is a delete request.
+				// Or we don't have the file, when we do.
+
+				var fi os.FileInfo
+				fi, err := os.Stat(syncReq.GiverPath)
+				if err == nil {
+					syncReq.GiverModTime = fi.ModTime()
+					syncReq.GiverFileSize = fi.Size()
+					syncReq.GiverFileMode = uint32(fi.Mode())
+				} else {
+					panic(fmt.Sprintf("syncReq.RemoteTakes"+
+						" true but error on accessing "+
+						"GiverPath '%v': '%v'",
+						syncReq.GiverPath, err))
+				}
+
 			} else {
 				// (second implemented)
 				frag.FragOp = OpRsync_RequestRemoteToGive
@@ -703,12 +721,6 @@ func (s *SyncService) Start(
 						}
 					}
 				}
-				// maybe? ensure FileSize and mod time are set, else we
-				// might be fooled into thinking this is a delete request?
-				//if syncReq.FileSize == 0 {
-
-				//}
-
 			}
 
 			// 111.1 bytes is the average chunk size without any Data.
