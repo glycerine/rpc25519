@@ -1,13 +1,16 @@
 package hash
 
 import (
-	"io"
+	"fmt"
+	//"io"
 	"os"
 	"sync"
 
 	cristalbase64 "github.com/cristalhq/base64"
-	"lukechampine.com/blake3"
+	"github.com/glycerine/blake3"
 )
+
+const fRFC3339NanoNumericTZ0pad = "2006-01-02T15:04:05.000000000-07:00"
 
 // Blake3 provides Hash32 which is goroutine safe.
 type Blake3 struct {
@@ -38,7 +41,7 @@ func (b *Blake3) SumString() string {
 	b.mut.Lock()
 	sum := b.hasher.Sum(nil)
 	b.mut.Unlock()
-	return "blake3.32B-" + cristalbase64.URLEncoding.EncodeToString(sum[:32])
+	return "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:33])
 }
 
 // UnlockedDigest512 is not goroutine safe; use
@@ -51,20 +54,20 @@ func (b *Blake3) UnlockedDigest512(by []byte) (digest []byte) {
 	return b.hasher.Sum(nil)
 }
 
-func (b *Blake3) UnlockedDigest256(by []byte) (digest []byte) {
+func (b *Blake3) UnlockedDigest264(by []byte) (digest []byte) {
 	b.hasher.Reset()
 	b.hasher.Write(by)
 	digest = b.hasher.Sum(nil)
-	return digest[:32]
+	return digest[:33]
 }
 
-func (b *Blake3) LockedDigest256(by []byte) (digest []byte) {
+func (b *Blake3) LockedDigest264(by []byte) (digest []byte) {
 	b.mut.Lock()
 	b.hasher.Reset()
 	b.hasher.Write(by)
 	digest = b.hasher.Sum(nil)
 	b.mut.Unlock()
-	return digest[:32]
+	return digest[:33]
 }
 
 func (b *Blake3) LockedDigest512(by []byte) (digest []byte) {
@@ -77,8 +80,8 @@ func (b *Blake3) LockedDigest512(by []byte) (digest []byte) {
 }
 
 func (b *Blake3) Hash32(by []byte) string {
-	sum := b.LockedDigest256(by)
-	return "blake3.32B-" + cristalbase64.URLEncoding.EncodeToString(sum[:])
+	sum := b.LockedDigest264(by)
+	return "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:])
 }
 
 // Blake3OfBytes is goroutine safe and lock free, since
@@ -97,27 +100,45 @@ func Blake3OfBytes(by []byte) []byte {
 // (see blake3_test.go herein) suggest all these
 // methods are about the same speed.
 // The returned string starts with
-// the "blake3.32B-" prefix.
+// the "blake3.33B-" prefix.
 func Blake3OfBytesString(by []byte) string {
 	sum := Blake3OfBytes(by)
-	return "blake3.32B-" + cristalbase64.URLEncoding.EncodeToString(sum[:32])
+	return "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:33])
 }
 
-func Blake3OfFile(path string) (blake3sum string, err error) {
-	fd, err := os.Open(path)
+func Blake3OfFileWithModtime(path string, includeModTime bool) (blake3sum string, err error) {
+
+	sum, h, err := blake3.HashFile(path)
 	if err != nil {
 		return "", err
 	}
-	defer fd.Close()
-	h := blake3.New(64, nil)
-	io.Copy(h, fd)
-	by := h.Sum(nil)
+	if includeModTime {
+		fi, err := os.Stat(path)
+		if err != nil {
+			return "", err
+		}
+		// put into a canonical format.
+		s := fmt.Sprintf("%v", fi.ModTime().UTC().Format(fRFC3339NanoNumericTZ0pad))
+		h.Write([]byte(s))
+		sum = h.Sum(nil)
+	}
 
-	blake3sum = "blake3.32B-" + cristalbase64.URLEncoding.EncodeToString(by[:32])
+	blake3sum = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:33])
+	return
+}
+
+func Blake3OfFile(path string) (blake3sum string, err error) {
+
+	sum, _, err1 := blake3.HashFile(path)
+	if err1 != nil {
+		return "", err1
+	}
+
+	blake3sum = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:33])
 	return
 }
 
 func SumToString(h *blake3.Hasher) string {
 	by := h.Sum(nil)
-	return "blake3.32B-" + cristalbase64.URLEncoding.EncodeToString(by[:32])
+	return "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(by[:33])
 }

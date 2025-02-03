@@ -8,6 +8,7 @@ require (
 	github.com/cloudflare/circl v1.5.0
 	github.com/cristalhq/base64 v0.1.2
 	github.com/glycerine/base58 v0.24.2
+	github.com/glycerine/blake3 v1.5.2
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31
 	github.com/glycerine/greenpack v0.529.0
 	github.com/glycerine/idem v0.2.0
@@ -18,7 +19,6 @@ require (
 	github.com/klauspost/cpuid/v2 v2.0.9
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/quic-go/quic-go v0.48.2
-	github.com/templexxx/cpu v0.1.1
 	golang.org/x/crypto v0.31.0
 	golang.org/x/term v0.27.0
 	lukechampine.com/blake3 v1.3.0

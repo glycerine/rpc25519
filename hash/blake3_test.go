@@ -48,33 +48,34 @@ func TestBlake3(t *testing.T) {
 
 	// confirm choice of methods for a 32 byte (256 bit) hash,
 	// whether using truncation or not, will not matter:
-	un512 := dig[:32]
-	un256 := b3.UnlockedDigest256(data)
+	un512 := dig[:33]
+	un264 := b3.UnlockedDigest264(data)
 	lk512tmp := b3.LockedDigest512(data)
-	lk512 := lk512tmp[:32]
-	lk256 := b3.LockedDigest256(data)
+	lk512 := lk512tmp[:33]
+	lk264 := b3.LockedDigest264(data)
 
 	standalone512 := Blake3OfBytes(data)
 
 	fmt.Printf("un512[:32] = '%x'\n", un512)
 	fmt.Printf("lk512[:32] = '%x'\n", lk512)
-	fmt.Printf("un256[:32] = '%x'\n", un256)
-	fmt.Printf("lk256[:32] = '%x'\n", lk256)
-	fmt.Printf("alone[:32] = '%x'\n", standalone512[:32])
+	fmt.Printf("un264[:32] = '%x'\n", un264)
+	fmt.Printf("lk264[:32] = '%x'\n", lk264)
+	fmt.Printf("alone[:32] = '%x'\n", standalone512[:33])
 
-	if !bytes.Equal(un512, standalone512[:32]) {
+	if !bytes.Equal(un512, standalone512[:33]) {
 		panic("disagree!")
 	}
-	if !bytes.Equal(un512, un256) {
+	if !bytes.Equal(un512, un264) {
 		panic("disagree!")
 	}
-	if !bytes.Equal(un512, lk256[:]) {
+	if !bytes.Equal(un512, lk264[:]) {
 		panic("disagree!")
 	}
 	if !bytes.Equal(un512, lk512) {
 		panic("disagree!")
 	}
 
+	fmt.Printf("ex: %v\n", Blake3OfBytesString(nil))
 }
 
 const runAllSizes = false // false => just run the 64K size inputs.
@@ -109,7 +110,7 @@ func BenchmarkUnlockedDigest512(b *testing.B) {
 	})
 }
 
-func BenchmarkUnlockedDigest256(b *testing.B) {
+func BenchmarkUnlockedDigest264(b *testing.B) {
 	b3 := NewBlake3()
 	if runAllSizes {
 		b.Run("64", func(b *testing.B) {
@@ -117,7 +118,7 @@ func BenchmarkUnlockedDigest256(b *testing.B) {
 			b.SetBytes(64)
 			buf := make([]byte, 64)
 			for i := 0; i < b.N; i++ {
-				b3.UnlockedDigest256(buf)
+				b3.UnlockedDigest264(buf)
 			}
 		})
 		b.Run("1024", func(b *testing.B) {
@@ -125,7 +126,7 @@ func BenchmarkUnlockedDigest256(b *testing.B) {
 			b.SetBytes(1024)
 			buf := make([]byte, 1024)
 			for i := 0; i < b.N; i++ {
-				b3.UnlockedDigest256(buf)
+				b3.UnlockedDigest264(buf)
 			}
 		})
 	}
@@ -134,12 +135,12 @@ func BenchmarkUnlockedDigest256(b *testing.B) {
 		b.SetBytes(65536)
 		buf := make([]byte, 65536)
 		for i := 0; i < b.N; i++ {
-			b3.UnlockedDigest256(buf)
+			b3.UnlockedDigest264(buf)
 		}
 	})
 }
 
-func BenchmarkLockedDigest256(b *testing.B) {
+func BenchmarkLockedDigest264(b *testing.B) {
 	b3 := NewBlake3()
 	if runAllSizes {
 		b.Run("64", func(b *testing.B) {
@@ -147,7 +148,7 @@ func BenchmarkLockedDigest256(b *testing.B) {
 			b.SetBytes(64)
 			buf := make([]byte, 64)
 			for i := 0; i < b.N; i++ {
-				b3.LockedDigest256(buf)
+				b3.LockedDigest264(buf)
 			}
 		})
 		b.Run("1024", func(b *testing.B) {
@@ -155,7 +156,7 @@ func BenchmarkLockedDigest256(b *testing.B) {
 			b.SetBytes(1024)
 			buf := make([]byte, 1024)
 			for i := 0; i < b.N; i++ {
-				b3.LockedDigest256(buf)
+				b3.LockedDigest264(buf)
 			}
 		})
 	}
@@ -164,7 +165,7 @@ func BenchmarkLockedDigest256(b *testing.B) {
 		b.SetBytes(65536)
 		buf := make([]byte, 65536)
 		for i := 0; i < b.N; i++ {
-			b3.LockedDigest256(buf)
+			b3.LockedDigest264(buf)
 		}
 	})
 }

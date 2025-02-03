@@ -13,8 +13,8 @@ import (
 
 	// check-summing utilities.
 	cristalbase64 "github.com/cristalhq/base64"
+	"github.com/glycerine/blake3"
 	myblake3 "github.com/glycerine/rpc25519/hash"
-	"lukechampine.com/blake3"
 )
 
 var _ = fmt.Printf
@@ -784,7 +784,7 @@ func blake3OfBytes(by []byte) []byte {
 
 func blake3OfBytesString(by []byte) string {
 	sum := blake3OfBytes(by)
-	return "blake3.32B-" + cristalbase64.URLEncoding.EncodeToString(sum[:32])
+	return "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:33])
 }
 
 // Echo anything we get from the client back. srv uses to test bistreaming.
