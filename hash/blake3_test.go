@@ -34,7 +34,7 @@ import (
 	"fmt"
 	"testing"
 
-	"lukechampine.com/blake3"
+	"github.com/glycerine/blake3"
 )
 
 func TestBlake3(t *testing.T) {

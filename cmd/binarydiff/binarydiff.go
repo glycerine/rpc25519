@@ -6,9 +6,9 @@ import (
 
 	// check-summing utilities.
 	cristalbase64 "github.com/cristalhq/base64"
+	"github.com/glycerine/blake3"
 	"github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/jcdc"
-	"lukechampine.com/blake3"
 )
 
 // cut a file, hash all the segments, print them
