@@ -232,7 +232,9 @@ func ScanDirTree(
 				break
 			}
 
-			fi, err := os.Stat(regfile.Path)
+			// use Lstat so we get the mod time of the symlink
+			// and not the pointed to thing.
+			fi, err := os.Lstat(regfile.Path)
 			panicOn(err)
 
 			// trim off giverRoot
