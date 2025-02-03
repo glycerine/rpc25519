@@ -197,9 +197,6 @@ func main() {
 			req = &rsync.RequestToSyncPath{
 				GiverPath:               giverPath,
 				TakerPath:               takerPath,
-				FileSize:                fi.Size(),
-				ModTime:                 fi.ModTime(),
-				FileMode:                uint32(fi.Mode()),
 				Done:                    idem.NewIdemCloseChan(),
 				ToRemotePeerServiceName: "rsync_server",
 
@@ -216,6 +213,17 @@ func main() {
 				Precis: precis,
 				Chunks: chunks,
 			}
+
+			if isPull {
+				req.TakerFileSize = fi.Size()
+				req.TakerModTime = fi.ModTime()
+				req.TakerFileMode = uint32(fi.Mode())
+			} else {
+				req.GiverFileSize = fi.Size()
+				req.GiverModTime = fi.ModTime()
+				req.GiverFileMode = uint32(fi.Mode())
+			}
+
 			//vv("req using ToRemoteNetAddr: '%v'. push (remote takes) = %v", req.ToRemoteNetAddr, req.RemoteTakes)
 		} else {
 			// no such path at the moment
@@ -272,7 +280,7 @@ func main() {
 			tot := req.BytesRead + req.BytesSent
 			_ = tot
 			vv("total bytes (read or sent): %v", formatUnder(int(tot)))
-			vv("bytes read = %v ; bytes sent = %v (out of %v). (%0.1f%%) ratio: %0.1f speedup", formatUnder(int(req.BytesRead)), formatUnder(int(req.BytesSent)), formatUnder(int(req.FileSize)), float64(tot)/float64(req.FileSize)*100, float64(req.FileSize)/float64(tot))
+			vv("bytes read = %v ; bytes sent = %v (out of %v). (%0.1f%%) ratio: %0.1f speedup", formatUnder(int(req.BytesRead)), formatUnder(int(req.BytesSent)), formatUnder(int(req.GiverFileSize)), float64(tot)/float64(req.GiverFileSize)*100, float64(req.GiverFileSize)/float64(tot))
 		default:
 			vv("ARG! cli rsync done but cli/srv Checksums disagree!! for path %v': req = '%#v'", path, req)
 		}
