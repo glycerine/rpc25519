@@ -142,3 +142,8 @@ func SumToString(h *blake3.Hasher) string {
 	by := h.Sum(nil)
 	return "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(by[:33])
 }
+
+// if you already have the Hasher.Sum() output:
+func RawSumBytesToString(by []byte) string {
+	return "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(by[:33])
+}

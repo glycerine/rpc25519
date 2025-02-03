@@ -535,18 +535,6 @@ takerForSelectLoop:
 
 				}
 
-				// actually we didn't use the plan for chunks anyway;
-				// heavy has it all.
-				/*if len(plan.Chunks) == 0 {
-					panic(fmt.Sprintf("missing plan chunks for non-size-zero file '%v'", localPathToWrite))
-				}
-
-				// make sure we have a full plan, not just a partial diff.
-				if plan.FileSize != plan.Last().Endx {
-					panic("plan was not a full plan for every byte!")
-				}
-				*/
-
 			case OpRsync_HereIsFullFileBegin3, OpRsync_HereIsFullFileMore4, OpRsync_HereIsFullFileEnd5:
 				if disk == nil {
 					vv("HereIsFullFile: creating disk file localPathToWrite = '%v'", localPathToWrite)
@@ -699,35 +687,71 @@ takerForSelectLoop:
 					sz, mod, mode := fi.Size(), fi.ModTime(), uint32(fi.Mode())
 					if syncReq.FileSize == sz && syncReq.ModTime.Equal(mod) {
 						vv("size + modtime match. nothing to do, tell Giver.")
-						// but do match mode too
-						if syncReq.FileMode != mode && syncReq.FileMode != 0 {
-							err = os.Chmod(localPathToWrite, fs.FileMode(syncReq.FileMode))
-							panicOn(err)
-						}
 
-						if localPathToWrite != localPathToRead {
-							vv("hard linking 1 '%v' <- '%v'",
-								localPathToRead, localPathToWrite)
-							panicOn(os.Link(localPathToRead, localPathToWrite))
-						}
-
-						ack := rpc.NewFragment()
-						ack.FragSubject = frag.FragSubject
-						ack.FragOp = OpRsync_FileSizeModTimeMatch
-
-						err = ckt.SendOneWay(ack, 0)
-						panicOn(err)
-
+						s.contentsMatch(syncReq, ckt, frag, mode,
+							localPathToRead, localPathToWrite)
 						// all done with this file. still wait for FIN
 						// for consistency
 						s.ackBackFINToGiver(ckt, frag)
 						frag = nil
-						ack = nil
 						continue
 					}
 					vv("syncReq.FileSize(%v) vs sz(%v) && syncReq.ModTime(%v) vs mod(%v))", syncReq.FileSize, sz, syncReq.ModTime, mod)
 
-					// we have some differences
+					// we have some differences--at least the modtime.
+
+					if syncReq.FileSize == sz {
+						// Oh nice: same *size* file. So
+						// start by just doing a fast blake3.FileHash
+						// of the whole file; maybe we can still not
+						// send data...
+						sum, _, err := blake3.HashFile(localPathToRead)
+						panicOn(err)
+						b3sum := myblake3.RawSumBytesToString(sum)
+
+						definitelySameContent := false
+						definitelyNotSameContent := false
+
+						if syncReq.FullFileInitSideBlake3 != "" {
+							if syncReq.FullFileInitSideBlake3 == b3sum {
+								definitelySameContent = true
+							} else {
+								definitelyNotSameContent = true
+							}
+						} else if syncReq.Precis != nil &&
+							syncReq.Precis.FileCry != "" {
+							if syncReq.Precis.FileCry == b3sum {
+								definitelySameContent = true
+							} else {
+								definitelyNotSameContent = true
+							}
+						}
+						if definitelySameContent {
+							// we have the file contents!
+							// just update the mod time.
+							err = os.Chtimes(localPathToWrite, time.Time{},
+								syncReq.ModTime)
+							panicOn(err)
+							// tell giver we are cool.
+							s.contentsMatch(syncReq, ckt, frag, mode,
+								localPathToRead, localPathToWrite)
+							// all done with this file. still wait for FIN
+							// for consistency
+							s.ackBackFINToGiver(ckt, frag)
+							frag = nil
+							continue
+
+						} else if !definitelyNotSameContent {
+							// Didn't have full file hash available.
+							// Request the file hash first.
+							// Since content chunking is slow, this
+							// might save us alot of work.
+
+						} else {
+							// different content, proceed below
+							// to GetHashesOneByOne
+						}
+					}
 
 					var precis *FilePrecis
 					const wantChunks = true
@@ -821,4 +845,25 @@ takerForSelectLoop:
 		}
 	}
 
+}
+
+func (s *SyncService) contentsMatch(syncReq *RequestToSyncPath, ckt *rpc.Circuit, frag *rpc.Fragment, mode uint32, localPathToRead, localPathToWrite string) {
+	// but do match mode too
+	if mode != 0 && syncReq.FileMode != mode && syncReq.FileMode != 0 {
+		err := os.Chmod(localPathToWrite, fs.FileMode(syncReq.FileMode))
+		panicOn(err)
+	}
+
+	if localPathToWrite != localPathToRead {
+		vv("hard linking 1 '%v' <- '%v'",
+			localPathToRead, localPathToWrite)
+		panicOn(os.Link(localPathToRead, localPathToWrite))
+	}
+
+	ack := rpc.NewFragment()
+	ack.FragSubject = frag.FragSubject
+	ack.FragOp = OpRsync_FileSizeModTimeMatch
+
+	err := ckt.SendOneWay(ack, 0)
+	panicOn(err)
 }
