@@ -110,6 +110,7 @@ type SyncService struct {
 //          1 (RequestRemoteToTake)
 // giver -> 1 -> err same file (giver returns)
 // giver -> 1 -> 7 FileSizeModTimeMatch -> FIN (taker returns)
+// giver -> 1 -> 34 ToGiverSizeMatchButCheckHash -> FIN (taker returns)
 // giver -> 1 -> 8 LightRequestEnclosed(giver) giverSendsPlanAndData.. file checksums already match, yay. -> ToTakerMetaUpdateAtLeast (taker) -> FIN (giver returns)
 // giver -> 1 -> 8 LightRequestEnclosed(giver) giverSendsPlanAndData -> 11,10,9 (taker) -> FileAllReadAck -> FIN (taker returns)
 // giver -> 1 -> 2 NeedFullFile2(giver) giverSendsWholeFile -> 11 (file not found via SenderPlanEnclosed.FileIsDeleted) (taker deletes file) -> FIN (giver returns)
@@ -210,6 +211,9 @@ const (
 
 	OpRsync_ToTakerAllTreeModes     = 32 // to taker, phase 3 all directory modes
 	OpRsync_ToGiverAllTreeModesDone = 33 // to giver, phase 3 all directory modes all done
+
+	OpRsync_ToGiverSizeMatchButCheckHash    = 34 // to giver, here is full file hash, can we avoid chunking?
+	OpRsync_ToGiverSizeMatchButCheckHashAck = 35 // to taker, yea or nay on that.
 )
 
 var once sync.Once
@@ -263,7 +267,8 @@ func AliasRsyncOps() {
 
 	rpc.FragOpRegister(OpRsync_ToTakerDirContentsDone, "OpRsync_ToTakerDirContentsDone")
 	rpc.FragOpRegister(OpRsync_ToGiverDirContentsDoneAck, "OpRsync_ToGiverDirContentsDoneAck")
-
+	rpc.FragOpRegister(OpRsync_ToGiverSizeMatchButCheckHash, "OpRsync_ToGiverSizeMatchButCheckHash")
+	rpc.FragOpRegister(OpRsync_ToGiverSizeMatchButCheckHashAck, "OpRsync_ToGiverSizeMatchButCheckHashAck")
 }
 
 // NewRequestToSyncPath creates an empty

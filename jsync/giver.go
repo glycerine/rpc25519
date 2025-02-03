@@ -14,6 +14,7 @@ import (
 	"time"
 
 	//"github.com/glycerine/idem"
+	"github.com/glycerine/blake3"
 	rpc "github.com/glycerine/rpc25519"
 )
 
@@ -92,6 +93,36 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 			////vv("frag0 = '%v'", frag0)
 			switch frag0.FragOp {
+
+			case OpRsync_ToGiverSizeMatchButCheckHash:
+				b3sumTaker, ok := frag0.GetUserArg("takerFullFileBlake3sum")
+				if !ok {
+					panic("protocol violated: taker must set fullFileBlake3sum")
+				}
+				if localPath == "" {
+					panic("we need localPath here")
+				}
+				sum, _, err := blake3.HashFile(localPath)
+				panicOn(err)
+				b3sumGiver := myblake3.RawSumBytesToString(sum)
+
+				syncReq.FullFileInitSideBlake3 = b3sumGiver
+
+				if b3sumGiver == b3sumTaker {
+					vv("early checksum finds no transfer needed. good: '%v'", localPath)
+					// we are all good. but we cannot FIN out yet
+					// because their mod-time needs updating.
+
+					// giver will send OpRsync_ToGiverSizeMatchButCheckHashAck
+					// SetUserArg("giverFullFileBlake3sum", b3sumGiver)
+				}
+				ack := rpc.NewFragment()
+				ack.FragOp = OpRsync_ToGiverSizeMatchButCheckHashAck
+				ack.SetUserArg("giverFullFileBlake3sum", b3sumGiver)
+				ack.SetUserArg("takerFullFileBlake3sum", b3sumTaker)
+				err = ckt.SendOneWay(ack, 0)
+				panicOn(err)
+				continue
 
 			case OpRsync_LazyTakerWantsToPull: // FragOp 19
 				//vv("%v: (ckt '%v') (Giver) sees OpRsync_LazyTakerWantsToPull", name, ckt.Name)

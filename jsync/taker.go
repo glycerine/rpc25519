@@ -105,6 +105,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 	var localPathToWrite string
 	var localPathToRead string
+	var localPathToReadBlake3sum string
 
 	var origVersFd *os.File
 
@@ -624,21 +625,43 @@ takerForSelectLoop:
 				ackAll = nil
 				continue // wait for fin ack back.
 
-			case OpRsync_RequestRemoteToTake:
+			case OpRsync_RequestRemoteToTake, OpRsync_ToGiverSizeMatchButCheckHashAck:
+				if frag.FragOp == OpRsync_ToGiverSizeMatchButCheckHashAck {
+					b3sumGiver, ok := frag.GetUserArg("giverFullFileBlake3sum")
+					if !ok {
+						panic("must have set giverFullFileBlake3sum user arg")
+					}
+					b3sumTaker, ok := frag.GetUserArg("takerFullFileBlake3sum")
+					if !ok {
+						panic("must have set takerFullFileBlake3sum user arg")
+					}
+					if b3sumTaker == b3sumGiver {
+						vv("contents same, just modtime needs update: '%v'",
+							localPathToWrite)
 
-				if syncReq != nil {
-					panic("duplicate OpRsync_RequestRemoteToTake ! already started on file")
+						err := os.Chtimes(localPathToWrite, time.Time{},
+							syncReq.ModTime)
+						panicOn(err)
+						s.ackBackFINToGiver(ckt, frag)
+						frag = nil
+						continue
+					}
+					vv("drat: modTime update will not suffice for localPathToWrite = '%v'; on OpRsync_ToGiverSizeMatchButCheckHashAck", localPathToWrite)
 				}
-				syncReq = &RequestToSyncPath{}
-				_, err := syncReq.UnmarshalMsg(frag.Payload)
-				panicOn(err)
-				syncReq.Done = idem.NewIdemCloseChan()
-				bt.bread += len(frag.Payload)
+				// then syncReq is already set, just pick up where
+				// we left off.
+				if syncReq == nil {
+					syncReq = &RequestToSyncPath{}
+					_, err := syncReq.UnmarshalMsg(frag.Payload)
+					panicOn(err)
+					syncReq.Done = idem.NewIdemCloseChan()
+					bt.bread += len(frag.Payload)
 
-				vv("OpRsync_RequestRemoteToTake sees: \nsyncReq.TakerPath=: '%v';\nTakerTempDir = '%v';\nGiverPath='%v'\nGiverDirAbs='%v';\nTopTakerDirFinal='%v'", syncReq.TakerPath, syncReq.TakerTempDir, syncReq.GiverPath, syncReq.GiverDirAbs, syncReq.TopTakerDirFinal)
+					vv("OpRsync_RequestRemoteToTake sees: \nsyncReq.TakerPath=: '%v';\nTakerTempDir = '%v';\nGiverPath='%v'\nGiverDirAbs='%v';\nTopTakerDirFinal='%v'", syncReq.TakerPath, syncReq.TakerTempDir, syncReq.GiverPath, syncReq.GiverDirAbs, syncReq.TopTakerDirFinal)
 
-				localPathToWrite = syncReq.TakerPath
-				localPathToRead = syncReq.TakerPath
+					localPathToWrite = syncReq.TakerPath
+					localPathToRead = syncReq.TakerPath
+				}
 
 				if syncReq.TakerTempDir != "" {
 					localPathToWrite = filepath.Join(
@@ -700,14 +723,20 @@ takerForSelectLoop:
 
 					// we have some differences--at least the modtime.
 
-					if syncReq.FileSize == sz {
+					if syncReq.FileSize == sz && localPathToReadBlake3sum == "" {
+						// First time here, because otherwise
+						// when localPathToReadBlake3sum != "" we know
+						// we have a checksum mismatch even though the
+						// file size may be the same.
+
 						// Oh nice: same *size* file. So
-						// start by just doing a fast blake3.FileHash
+						// start by just doing a fast blake3.HashFile
 						// of the whole file; maybe we can still not
 						// send data...
 						sum, _, err := blake3.HashFile(localPathToRead)
 						panicOn(err)
 						b3sum := myblake3.RawSumBytesToString(sum)
+						localPathToReadBlake3sum = b3sum
 
 						definitelySameContent := false
 						definitelyNotSameContent := false
@@ -732,7 +761,7 @@ takerForSelectLoop:
 							err = os.Chtimes(localPathToWrite, time.Time{},
 								syncReq.ModTime)
 							panicOn(err)
-							// tell giver we are cool.
+							// link in file, tell giver we are cool.
 							s.contentsMatch(syncReq, ckt, frag, mode,
 								localPathToRead, localPathToWrite)
 							// all done with this file. still wait for FIN
@@ -746,6 +775,17 @@ takerForSelectLoop:
 							// Request the file hash first.
 							// Since content chunking is slow, this
 							// might save us alot of work.
+							check := rpc.NewFragment()
+							check.FragOp = OpRsync_ToGiverSizeMatchButCheckHash
+							check.SetUserArg("takerFullFileBlake3sum", b3sum)
+							check.FragSubject = frag.FragSubject
+							err = ckt.SendOneWay(check, 0)
+							panicOn(err)
+
+							// giver will send
+							// OpRsync_ToGiverSizeMatchButCheckHashAck with
+							// SetUserArg("giverFullFileBlake3sum", b3sumGiver)
+							continue
 
 						} else {
 							// different content, proceed below
