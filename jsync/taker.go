@@ -718,11 +718,16 @@ takerForSelectLoop:
 						syncReq.TakerPath)
 				}
 
-				if dirExists(localPathToRead) {
+				// use Lstat so we can over-write symlinks,
+				// without mistaking them for directories.
+				fi, err := os.Lstat(localPathToRead)
+				existsFile := (err == nil) && !fi.IsDir()
+				if err != nil && fi.IsDir() {
+					//if dirExists(localPathToRead) {
 					panic(fmt.Errorf("error in Taker OpRsync_RequestRemoteToTake: syncReq.TakerPath cannot be an existing directory: localPathToRead='%v'", localPathToRead))
 				}
 
-				if fileExists(localPathToRead) {
+				if existsFile { // fileExists(localPathToRead) {
 					//vv("path '%v' already exists! let's see if we need to rsync diffs or not at all!", syncReq.TakerPath)
 
 					// are we on the same host? avoid overwritting self with self!
