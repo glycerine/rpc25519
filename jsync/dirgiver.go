@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	//"os"
-	"strings"
-	//"sync"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"time"
 
 	//"github.com/glycerine/rpc25519/progress"
@@ -360,6 +360,21 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 				// all 3 phases of fileystem sync done: send OpRsync_DirSyncEndToTaker,
 				// wait for OpRsync_ToGiverAllTreeModesDone
+
+				// meanwhile, record transfer stats.
+				giverTotalFileBytesStr, ok := frag0.GetUserArg(
+					"giverTotalFileBytes")
+				if ok {
+					giverTotalFileBytes, err := strconv.Atoi(
+						giverTotalFileBytesStr)
+					panicOn(err)
+					//vv("OpRsync_ToGiverDirContentsDoneAck: "+
+					//	"giverTotalFileBytes = %v", giverTotalFileBytes)
+					if reqDir != nil {
+						reqDir.GiverTotalFileBytes = int64(giverTotalFileBytes)
+						reqDir.SR.GiverFileSize = int64(giverTotalFileBytes)
+					}
+				}
 
 			case OpRsync_ToGiverAllTreeModesDone:
 				//vv("dirgiver sees OpRsync_ToGiverAllTreeModesDone," +

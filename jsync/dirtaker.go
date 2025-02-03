@@ -252,6 +252,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 				ackAllFilesDone := rpc.NewFragment()
 				ackAllFilesDone.FragOp = OpRsync_ToGiverDirContentsDoneAck
+				ackAllFilesDone.SetUserArg("giverTotalFileBytes",
+					giverTotalFileBytesStr)
 				err := ckt.SendOneWay(ackAllFilesDone, 0)
 				panicOn(err)
 

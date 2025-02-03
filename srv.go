@@ -135,7 +135,7 @@ func (s *Server) runServerMain(
 
 	addr := listener.Addr()
 	//vv("Server listening on %v://%v   ... addr='%#v'/%T", addr.Network(), addr.String(), addr, addr) // net.TCPAddr
-	vv("Server listening on %v://%v", addr.Network(), addr.String())
+	//vv("Server listening on %v://%v", addr.Network(), addr.String())
 
 	switch a := addr.(type) {
 	case *net.TCPAddr:

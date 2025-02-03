@@ -130,7 +130,7 @@ func main() {
 			dest = cfg.ClientDialToHostPort
 
 			reqs := make(chan *rsync.RequestToSyncPath)
-			fmt.Printf("starting rsync_server\n")
+			//fmt.Printf("starting rsync_server\n")
 			lpb, ctx, canc, err := rsync.RunRsyncService(cfg, srv, "rsync_server", false, reqs)
 			panicOn(err)
 			defer lpb.Close()
@@ -310,9 +310,9 @@ func main() {
 	//vv("all good. elapsed time: %v", time.Since(t0))
 	switch {
 	case req.SizeModTimeMatch:
-		vv("jcp rsync done: good size and mod time match for '%v'", takerPath)
+		//vv("jcp rsync done: good size and mod time match for '%v'", takerPath)
 	case req.GiverFullFileBlake3 == req.TakerFullFileBlake3:
-		vv("jcp rsync done. Checksums agree for path '%v': %v", takerPath, req.GiverFullFileBlake3)
+		//vv("jcp rsync done. Checksums agree for path '%v': %v", takerPath, req.GiverFullFileBlake3)
 		tot := req.BytesRead + req.BytesSent
 		_ = tot
 		//vv("total bytes (read or sent): %v", formatUnder(int(tot)))
