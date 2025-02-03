@@ -895,9 +895,12 @@ takerForSelectLoop:
 						vv("installing symlink '%v' -> '%v'", localPathToWrite, syncReq.SymLinkTarget)
 						err := os.Symlink(syncReq.SymLinkTarget, localPathToWrite)
 						panicOn(err)
+						err = os.Chtimes(localPathToWrite, time.Time{},
+							syncReq.GiverModTime)
+						panicOn(err)
 						s.ackBackFINToGiver(ckt, frag)
 						frag = nil
-						continue
+						continue // return?
 					}
 
 					//vv("not present: must request the "+
