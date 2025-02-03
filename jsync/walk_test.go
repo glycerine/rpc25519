@@ -178,7 +178,7 @@ func TestWalkDirs_FollowSymlinks(t *testing.T) {
 	seen := 0
 	paths := make(map[string]int)
 	for {
-		path, ok, valid := next()
+		regfile, ok, valid := next()
 		if !valid {
 			//vv("not valid, breaking, ok = %v", ok)
 			break
@@ -186,6 +186,7 @@ func TestWalkDirs_FollowSymlinks(t *testing.T) {
 		if !ok {
 			break
 		}
+		path := regfile.Path
 		//vv("path = '%v'", path)
 		if fileExists(path) {
 			seen++
@@ -241,7 +242,7 @@ func TestWalkDirs_MaxDepth(t *testing.T) {
 	seen := 0
 	paths := make(map[string]bool)
 	for {
-		path, ok, valid := next()
+		regfile, ok, valid := next()
 		if !valid {
 			//vv("not valid, breaking, ok = %v", ok)
 			break
@@ -249,6 +250,7 @@ func TestWalkDirs_MaxDepth(t *testing.T) {
 		if !ok {
 			break
 		}
+		path := regfile.Path
 		//vv("path = '%v'", path)
 		if fileExists(path) {
 			seen++

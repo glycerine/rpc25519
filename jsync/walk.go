@@ -89,6 +89,13 @@ func (di *DirIter) DirsDepthFirstLeafOnly(root string) iter.Seq2[string, bool] {
 	}
 }
 
+type RegularFile struct {
+	Path          string `zid:"0"`
+	IsSymLink     bool   `zid:"1"`
+	SymLinkTarget string `zid:"2"`
+	Follow        bool   `zid:"3"`
+}
+
 // FilesOnly returns only files, skipping directories. This does
 // return symlinks as files too, if di.FollowSymlinks is false.
 // If di.FollowSymlinks is true, and a symlink links to a
@@ -104,8 +111,8 @@ func (di *DirIter) DirsDepthFirstLeafOnly(root string) iter.Seq2[string, bool] {
 //
 // Resolving a symlink through multiple other symlinks
 // only counts as one "depth level" for MaxDepth stopping.
-func (di *DirIter) FilesOnly(root string) iter.Seq2[string, bool] {
-	return func(yield func(string, bool) bool) {
+func (di *DirIter) FilesOnly(root string) iter.Seq2[*RegularFile, bool] {
+	return func(yield func(*RegularFile, bool) bool) {
 
 		var seen map[string]bool
 		if di.FollowSymlinks {
@@ -125,7 +132,7 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[string, bool] {
 			}
 			dir, err := os.Open(path)
 			if err != nil {
-				return yield(path, false)
+				return yield(nil, false)
 			}
 			defer dir.Close()
 
@@ -135,38 +142,61 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[string, bool] {
 				for _, entry := range entries {
 					//vv("entry = '%#v'; entry.Type()&fs.ModeSymlink = %v", entry, entry.Type()&fs.ModeSymlink)
 
-					if entry.Type()&fs.ModeSymlink != 0 && di.FollowSymlinks {
-						resolveMe := filepath.Join(path, entry.Name())
+					resolveMe := filepath.Join(path, entry.Name())
+
+					if entry.Type()&fs.ModeSymlink != 0 {
 						//vv("have symlink '%v'", resolveMe)
+
 						target, err := filepath.EvalSymlinks(resolveMe)
 						if err != nil {
 							return false
 						}
 
 						//vv("resolveMe:'%v' -> target:'%v'", resolveMe, target)
-						fi, err := os.Stat(target)
-						if err != nil {
-							return false
-						}
-						if fi.IsDir() {
-							// Recurse immediately when we find a directory
-							if !visit(target, depth+1) {
+						if di.FollowSymlinks {
+							fi, err := os.Stat(target)
+							if err != nil {
 								return false
 							}
-						} else {
-							if seen != nil {
-								if seen[target] {
-									continue
-								} else {
-									seen[target] = true
+							if fi.IsDir() {
+								// Recurse immediately when we find a directory
+								if !visit(target, depth+1) {
+									return false
+								}
+							} else {
+								if seen != nil {
+									if seen[target] {
+										continue
+									} else {
+										seen[target] = true
+									}
+								}
+
+								rf := &RegularFile{
+									Path:          resolveMe,
+									IsSymLink:     true,
+									SymLinkTarget: target,
+									Follow:        true,
+								}
+
+								if !yield(rf, true) {
+									return false
 								}
 							}
-							if !yield(target, true) {
+							continue
+						} else {
+							// do not follow symlinks
+							rf := &RegularFile{
+								Path:          resolveMe,
+								IsSymLink:     true,
+								SymLinkTarget: target,
+								Follow:        false,
+							}
+							if !yield(rf, true) {
 								return false
 							}
 						}
-						continue
-					}
+					} // if symlink
 
 					if entry.IsDir() {
 						// Recurse immediately when we find a directory
@@ -182,7 +212,10 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[string, bool] {
 								seen[fullpath] = true
 							}
 						}
-						if !yield(fullpath, true) {
+						rf := &RegularFile{
+							Path: fullpath,
+						}
+						if !yield(rf, true) {
 							return false
 						}
 					}

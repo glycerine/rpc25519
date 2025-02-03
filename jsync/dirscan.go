@@ -69,6 +69,11 @@ type File struct {
 	Size     int64     `zid:"1"`
 	FileMode uint32    `zid:"2"`
 	ModTime  time.Time `zid:"3"`
+
+	// symlink support
+	IsSymLink     bool   `zid:"4"`
+	SymLinkTarget string `zid:"5"`
+	Follow        bool   `zid:"6"`
 }
 
 // PackOfFiles is streamed in phase 2.
@@ -208,8 +213,8 @@ func ScanDirTree(
 		have = 0
 		var pof *PackOfFiles
 
-		next, stop = iter.Pull2(di.FilesOnly(giverRoot))
-		defer stop()
+		nextF, stopF := iter.Pull2(di.FilesOnly(giverRoot))
+		defer stopF()
 
 		for {
 			if pof == nil {
@@ -218,7 +223,7 @@ func ScanDirTree(
 				have = pof.Msgsize()
 			}
 
-			path, ok, valid := next()
+			regfile, ok, valid := nextF()
 			if !valid {
 				//vv("not valid, breaking, ok = %v", ok)
 				break
@@ -227,17 +232,21 @@ func ScanDirTree(
 				break
 			}
 
-			fi, err := os.Stat(path)
+			fi, err := os.Stat(regfile.Path)
 			panicOn(err)
 
 			// trim off giverRoot
-			path = path[pre:]
+			path := regfile.Path[pre:]
 
 			f := &File{
 				Path:     path,
 				Size:     fi.Size(),
 				FileMode: uint32(fi.Mode()),
 				ModTime:  fi.ModTime(),
+
+				IsSymLink:     regfile.IsSymLink,
+				Follow:        regfile.Follow,
+				SymLinkTarget: regfile.SymLinkTarget,
 			}
 
 			uses := f.Msgsize()
@@ -258,7 +267,7 @@ func ScanDirTree(
 				}
 			}
 		} // for
-		stop()
+		stopF()
 		// send the last one
 		if pof == nil {
 			pof = &PackOfFiles{}
@@ -278,8 +287,8 @@ func ScanDirTree(
 		// phase three: sending all the directories with their mod/modtimes.
 		// =======================
 
-		next, stop = iter.Pull2(di.AllDirsOnlyDirs(giverRoot))
-		defer stop()
+		nextD, stopD := iter.Pull2(di.AllDirsOnlyDirs(giverRoot))
+		defer stopD()
 
 		have = 0
 		var pod *PackOfDirs
@@ -291,7 +300,7 @@ func ScanDirTree(
 				have = pod.Msgsize()
 			}
 
-			path, ok, valid := next()
+			path, ok, valid := nextD()
 			if !valid {
 				//vv("not valid, breaking, ok = %v", ok)
 				break
@@ -331,7 +340,7 @@ func ScanDirTree(
 				}
 			}
 		} // for
-		stop()
+		stopD()
 		// send the last one
 		if pod == nil {
 			pod = &PackOfDirs{}
