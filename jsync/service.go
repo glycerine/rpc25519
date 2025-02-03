@@ -816,28 +816,6 @@ func (s *SyncService) Start(
 						" during xtra sending: '%v'", err)
 					return err
 				}
-				/* example too large message, in case we need fields
-				hdr.go:253 2025-01-22 16:58:18.399 -0600 CST ErrTooLarge! len(m.JobSerz)= 1963155 > 1309616 = maxMessage-1024;
-				 m=
-				&rpc25519.HDR{
-				    "Created": "2025-01-22 22:58:18.399447057 +0000 UTC m=+1.598354190",
-				    "From": "tcp://192.168.254.152:55842 (client: cli)",
-				    "To": "tcp://192.168.254.151:8443",
-				    "ServiceName": "rsync_server",
-				    "Args": map[string]string{"#circuitName":"rsync remote gives", "#fromServiceName":"rsync_client", "#pleaseAssignNewPeerID":"0z6MyccTccimVfBqJoPvjJsdNAk="},
-				    "Subject": "",
-				    "Seqno": 2,
-				    "Typ": CallPeerStartCircuitTakeToID,
-				    "CallID": "PFjIpzLr_kAf5DxpTx_VjxWCEPM= (rsync remote gives)",
-				    "Serial": 1,
-				    "LocalRecvTm": "0001-01-01 00:00:00 +0000 UTC",
-				    "Deadline": "0001-01-01 00:00:00 +0000 UTC",
-				    "FromPeerID": "S75TLBC2esJ3J7TUfvM7F92YHUA= (rsync_client)",
-				    "ToPeerID": "0z6MyccTccimVfBqJoPvjJsdNAk= (rsync_server)",
-				    "StreamPart": 0,
-				    "FragOp": 12 (OpRsyncRequestRemoteToGive),
-				}
-				*/
 			}
 		}
 	}

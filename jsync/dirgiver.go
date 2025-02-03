@@ -190,7 +190,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						err = ckt.SendOneWay(leafy, 0)
 						panicOn(err)
 						if pol.IsLast {
-							vv("pol IsLast true")
+							//vv("pol IsLast true")
 							break sendLeafDir
 						}
 
@@ -301,7 +301,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						batchHalt.ReqStop.Close()
 
 						if pof.IsLast {
-							vv("pof IsLast true")
+							//vv("pof IsLast true")
 							break sendFiles
 						}
 
@@ -356,7 +356,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						podModes.SetUserArg("structType", "PackOfDirs")
 						err = ckt.SendOneWay(podModes, 0)
 						panicOn(err)
-						vv("dirgiver sent pod (last? %v): '%#v'", pod.IsLast, pod)
+						//vv("dirgiver sent pod (last? %v): '%#v'", pod.IsLast, pod)
 						if pod.IsLast {
 							break sendDirs
 						}

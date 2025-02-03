@@ -302,12 +302,14 @@ func main() {
 	//vv("jcp about to send on reqs chan")
 	reqs <- req
 	//vv("jcp sent on reqs: requested to rsync to '%v' from %v:%v", takerPath, dest, giverPath)
+jobDone:
 	for {
 		select {
 		case prog := <-req.UpdateProgress:
 			fmt.Printf("progress: %v\n", prog)
 			continue
 		case <-req.Done.Chan:
+			break jobDone
 		}
 	}
 
