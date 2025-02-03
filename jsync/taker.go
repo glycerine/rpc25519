@@ -222,7 +222,7 @@ takerForSelectLoop:
 				panicOn(err)
 				b3sumTaker := myblake3.RawSumBytesToString(sumTaker)
 				if b3sumTaker == b3sumGiver {
-					vv("good: b3sumTaker == b3sumGiver: setting syncReq.ModTime = '%v'", syncReq.GiverModTime)
+					vv("good: b3sumTaker == b3sumGiver: setting syncReq.ModTime = '%v'", syncReq2.GiverModTime)
 					// hard link it.
 					if localPathToWrite != localPathToRead {
 						vv("hard linking 7 '%v' <- '%v'",
@@ -230,11 +230,11 @@ takerForSelectLoop:
 						panicOn(os.Link(localPathToRead, localPathToWrite))
 					}
 					// just adjust mod time and fin.
-					err = os.Chtimes(localPathToWrite, time.Time{}, syncReq.GiverModTime)
+					err = os.Chtimes(localPathToWrite, time.Time{}, syncReq2.GiverModTime)
 					panicOn(err)
 					// update mode too? not sure if we have it avail
-					if syncReq.GiverFileMode != 0 {
-						err = os.Chmod(localPathToWrite, fs.FileMode(syncReq.GiverFileMode))
+					if syncReq2.GiverFileMode != 0 {
+						err = os.Chmod(localPathToWrite, fs.FileMode(syncReq2.GiverFileMode))
 						panicOn(err)
 					}
 					s.ackBackFINToGiver(ckt, frag)
