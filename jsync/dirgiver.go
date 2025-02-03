@@ -262,6 +262,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								frag1.Payload = bts
 								// basic single file transfer flow. giver sends 1.
 								frag1.FragOp = OpRsync_RequestRemoteToTake
+								frag1.FragSubject = giverPath
 								frag1.SetUserArg("structType", "RequestToSyncPath")
 								cktName := rsyncRemoteTakesString
 								ckt2, ctx2, err := ckt.NewCircuit(cktName, frag1)
