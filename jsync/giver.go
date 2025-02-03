@@ -106,8 +106,8 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				panicOn(err)
 				b3sumGiver := myblake3.RawSumBytesToString(sum)
 
-				syncReq.FullFileInitSideBlake3 = b3sumGiver
-				syncReq.FullFileRespondSideBlake3 = b3sumTaker
+				syncReq.GiverFullFileBlake3 = b3sumGiver
+				syncReq.TakerFullFileBlake3 = b3sumTaker
 
 				if b3sumGiver == b3sumTaker {
 					vv("early checksum finds no transfer needed. good: '%v'", localPath)
@@ -166,6 +166,10 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					// tell them they must send the chunks... if they want it.
 					//vv("giver responding to OpRsync_LazyTakerWantsToPull with OpRsync_LazyTakerNoLuck_ChunksRequired")
 
+					syncReq.GiverModTime = mod
+					syncReq.GiverFileSize = sz
+					syncReq.GiverFileMode = uint32(fi.Mode())
+
 					// but also send them the checksum in case we can
 					// avoid sending a big file just b/c of mod time update.
 					sum, _, err := blake3.HashFile(path)
@@ -175,7 +179,10 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					ack := rpc.NewFragment()
 					ack.FragSubject = frag0.FragSubject
 					ack.FragOp = OpRsync_LazyTakerNoLuck_ChunksRequired
-					ack.Payload = frag0.Payload // send the syncReq back
+					bts, err := syncReq.MarshalMsg(nil)
+					panicOn(err)
+					ack.Payload = bts
+					//ack.Payload = frag0.Payload // send the syncReq back
 					ack.SetUserArg("giverFullFileBlake3sum", b3sumGiver)
 					err = ckt.SendOneWay(ack, 0)
 					bt.bsend += len(frag0.Payload)
@@ -299,8 +306,8 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 			case OpRsync_FileAllReadAckToGiver:
 				vv("Giver sees OpRsync_FileAllReadAckToGiver for '%v'", syncReq.GiverPath)
 
-				syncReq.FullFileInitSideBlake3, _ = frag0.GetUserArg("clientTotalBlake3sum")
-				syncReq.FullFileRespondSideBlake3, _ = frag0.GetUserArg("serverTotalBlake3sum")
+				syncReq.GiverFullFileBlake3, _ = frag0.GetUserArg("clientTotalBlake3sum")
+				syncReq.TakerFullFileBlake3, _ = frag0.GetUserArg("serverTotalBlake3sum")
 				syncReq.RemoteBytesTransferred = frag0.FragPart
 
 				s.ackBackFINToTaker(ckt, frag0)

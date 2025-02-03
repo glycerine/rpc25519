@@ -783,8 +783,8 @@ takerForSelectLoop:
 						definitelySameContent := false
 						definitelyNotSameContent := false
 
-						if syncReq.FullFileInitSideBlake3 != "" {
-							if syncReq.FullFileInitSideBlake3 == b3sum {
+						if syncReq.GiverFullFileBlake3 != "" {
+							if syncReq.GiverFullFileBlake3 == b3sum {
 								definitelySameContent = true
 							} else {
 								definitelyNotSameContent = true

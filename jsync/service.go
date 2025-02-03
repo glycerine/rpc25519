@@ -340,8 +340,8 @@ type RequestToSyncPath struct {
 	SyncFromHostname string `zid:"9"`
 	SyncFromHostCID  string `zid:"10"`
 
-	FullFileInitSideBlake3    string `zid:"11"`
-	FullFileRespondSideBlake3 string `zid:"12"`
+	GiverFullFileBlake3 string `zid:"11"`
+	TakerFullFileBlake3 string `zid:"12"`
 
 	SizeModTimeMatch bool   `zid:"13"`
 	GiverDirAbs      string `zid:"14"`

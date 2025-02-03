@@ -301,8 +301,8 @@ func main() {
 	switch {
 	case req.SizeModTimeMatch:
 		vv("jcp rsync done: good size and mod time match for '%v'", takerPath)
-	case req.FullFileInitSideBlake3 == req.FullFileRespondSideBlake3:
-		vv("jcp rsync done. Checksums agree for path '%v': %v", takerPath, req.FullFileInitSideBlake3)
+	case req.GiverFullFileBlake3 == req.TakerFullFileBlake3:
+		vv("jcp rsync done. Checksums agree for path '%v': %v", takerPath, req.GiverFullFileBlake3)
 		tot := req.BytesRead + req.BytesSent
 		_ = tot
 		vv("total bytes (read or sent): %v", formatUnder(int(tot)))
