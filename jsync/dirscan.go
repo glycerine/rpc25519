@@ -71,12 +71,14 @@ type File struct {
 	ModTime  time.Time `zid:"3"`
 }
 
-// PackOfFiles is streamed ih phase 2.
+// PackOfFiles is streamed in phase 2.
 // All of these should be (only) files, not directories.
 // They can and will include symlinks, at the moment anyway.
 type PackOfFiles struct {
 	Pack   []*File `zid:"0"`
 	IsLast bool    `zid:"1"`
+
+	TotalFileBytes int64 `zid:"2"`
 }
 
 // PackOfDir is streamed last/3rd; in phase 3,
@@ -170,7 +172,7 @@ func ScanDirTree(
 
 			if have+uses < max {
 				leafpack.Pack = append(leafpack.Pack, leafdir)
-				have = leafpack.Msgsize()
+				have += leafpack.Msgsize()
 			} else {
 				// send it off
 				select {
@@ -242,7 +244,8 @@ func ScanDirTree(
 
 			if have+uses < max {
 				pof.Pack = append(pof.Pack, f)
-				have = pof.Msgsize()
+				have += pof.Msgsize()
+				pof.TotalFileBytes += f.Size
 			} else {
 				// send it off
 				select {
@@ -314,7 +317,7 @@ func ScanDirTree(
 
 			if have+uses < max {
 				pod.Pack = append(pod.Pack, dir)
-				have = pod.Msgsize()
+				have += pod.Msgsize()
 			} else {
 				// send it off
 				select {

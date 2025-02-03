@@ -215,6 +215,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// transferred on the taker side to the new dir!) ...
 				// -> at end, giver -> DirSyncEndToTaker
 
+				var totalFileBytes int64
 			sendFiles:
 				for i := 0; ; i++ {
 					select {
@@ -222,6 +223,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						if !ok {
 							break sendFiles
 						}
+						totalFileBytes += pof.TotalFileBytes
 						batchHalt := idem.NewHalter()
 						defer batchHalt.ReqStop.Close()
 
@@ -237,7 +239,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 								frag1 := rpc.NewFragment()
 								sr := &RequestToSyncPath{
-									GiverPath:        filepath.Join(reqDir.GiverDir, file.Path),
+									GiverPath: filepath.Join(
+										reqDir.GiverDir, file.Path),
 									TakerPath:        file.Path,
 									TakerTempDir:     reqDir.TopTakerDirTemp,
 									TopTakerDirFinal: reqDir.TopTakerDirFinal,
@@ -299,7 +302,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 				} // end for i sendfiles
 
-				vv("dirgiver: all batches of indiv file sync are done.")
+				vv("dirgiver: all batches of indiv file "+
+					"sync are done. totalFileBytes = %v", totalFileBytes)
 
 				// wait to go on to sending OpRsync_ToTakerAllTreeModes
 				// until after all the files are there.
@@ -310,6 +314,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// send OpRsync_ToTakerDirContentsDone
 				allFilesDone := rpc.NewFragment()
 				allFilesDone.FragOp = OpRsync_ToTakerDirContentsDone
+				allFilesDone.SetUserArg("giverTotalFileBytes",
+					fmt.Sprintf("%v", totalFileBytes))
 				err3 := ckt.SendOneWay(allFilesDone, 0)
 				panicOn(err3)
 

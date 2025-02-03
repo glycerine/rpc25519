@@ -10,7 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	//"strconv"
+	"strconv"
 	"strings"
 	//"sync"
 	"time"
@@ -236,6 +236,20 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// wait for all our file syncs to finish.
 				// How? I think the giver has to manage this.
 				// They started them.
+
+				giverTotalFileBytesStr, ok := frag.GetUserArg(
+					"giverTotalFileBytes")
+				if ok {
+					giverTotalFileBytes, err := strconv.Atoi(
+						giverTotalFileBytesStr)
+					panicOn(err)
+					vv("OpRsync_ToTakerDirContentsDone: "+
+						"giverTotalFileBytes = %v", giverTotalFileBytes)
+					if reqDir != nil {
+						reqDir.GiverTotalFileBytes = int64(giverTotalFileBytes)
+						reqDir.SR.GiverFileSize = int64(giverTotalFileBytes)
+					}
+				}
 
 				ackAllFilesDone := rpc.NewFragment()
 				ackAllFilesDone.FragOp = OpRsync_ToGiverDirContentsDoneAck

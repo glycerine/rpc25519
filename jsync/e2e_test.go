@@ -151,12 +151,8 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 
 		dataBytesMoved1, err := jSyncCli.PullToFrom(localPath, remotePath)
 		panicOn(err)
-		//cv.So(dataBytesMoved1, cv.ShouldEqual, 4515)
-		//cv.So(dataBytesMoved1, cv.ShouldEqual, 4632)
-		//cv.So(dataBytesMoved1, cv.ShouldEqual, 11163) // ultracdc
-		//cv.So(dataBytesMoved1, cv.ShouldEqual, 11201) // ultracdc latest
-		//cv.So(dataBytesMoved1, cv.ShouldEqual, 4670) // fastcdc2 latest
-		// yeah. we efficiently don't send chunks when not needed.
+
+		// yay. we efficiently don't send chunks when not needed.
 		cv.So(dataBytesMoved1, cv.ShouldEqual, 0)
 
 		// check mod time being updated for pull

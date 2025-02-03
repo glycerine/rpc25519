@@ -410,6 +410,8 @@ type RequestToSyncDir struct {
 	RemoteTakes bool `zid:"5"`
 
 	SR *RequestToSyncPath `zid:"6"` // original local request
+
+	GiverTotalFileBytes int64 `zid:"7"`
 }
 
 type DirListing struct {

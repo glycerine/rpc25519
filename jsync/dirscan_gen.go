@@ -831,7 +831,7 @@ func (z *PackOfFiles) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields16zgensym_b52703b292455617_17 = 2
+	const maxFields16zgensym_b52703b292455617_17 = 3
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields16zgensym_b52703b292455617_17 uint32
@@ -927,6 +927,12 @@ doneWithStruct16zgensym_b52703b292455617_17:
 			if err != nil {
 				return
 			}
+		case "TotalFileBytes_zid02_i64":
+			found16zgensym_b52703b292455617_17[2] = true
+			z.TotalFileBytes, err = dc.ReadInt64()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -950,22 +956,26 @@ doneWithStruct16zgensym_b52703b292455617_17:
 }
 
 // fields of PackOfFiles
-var decodeMsgFieldOrder16zgensym_b52703b292455617_17 = []string{"Pack_zid00_slc", "IsLast_zid01_boo"}
+var decodeMsgFieldOrder16zgensym_b52703b292455617_17 = []string{"Pack_zid00_slc", "IsLast_zid01_boo", "TotalFileBytes_zid02_i64"}
 
-var decodeMsgFieldSkip16zgensym_b52703b292455617_17 = []bool{false, false}
+var decodeMsgFieldSkip16zgensym_b52703b292455617_17 = []bool{false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *PackOfFiles) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 2
+		return 3
 	}
-	var fieldsInUse uint32 = 2
+	var fieldsInUse uint32 = 3
 	isempty[0] = (len(z.Pack) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
 	}
 	isempty[1] = (!z.IsLast) // bool, omitempty
 	if isempty[1] {
+		fieldsInUse--
+	}
+	isempty[2] = (z.TotalFileBytes == 0) // number, omitempty
+	if isempty[2] {
 		fieldsInUse--
 	}
 
@@ -979,7 +989,7 @@ func (z *PackOfFiles) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_b52703b292455617_19 [2]bool
+	var empty_zgensym_b52703b292455617_19 [3]bool
 	fieldsInUse_zgensym_b52703b292455617_20 := z.fieldsNotEmpty(empty_zgensym_b52703b292455617_19[:])
 
 	// map header
@@ -1037,6 +1047,18 @@ func (z *PackOfFiles) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_b52703b292455617_19[2] {
+		// write "TotalFileBytes_zid02_i64"
+		err = en.Append(0xb8, 0x54, 0x6f, 0x74, 0x61, 0x6c, 0x46, 0x69, 0x6c, 0x65, 0x42, 0x79, 0x74, 0x65, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x36, 0x34)
+		if err != nil {
+			return err
+		}
+		err = en.WriteInt64(z.TotalFileBytes)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -1049,7 +1071,7 @@ func (z *PackOfFiles) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [2]bool
+	var empty [3]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -1079,6 +1101,12 @@ func (z *PackOfFiles) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendBool(o, z.IsLast)
 	}
 
+	if !empty[2] {
+		// string "TotalFileBytes_zid02_i64"
+		o = append(o, 0xb8, 0x54, 0x6f, 0x74, 0x61, 0x6c, 0x46, 0x69, 0x6c, 0x65, 0x42, 0x79, 0x74, 0x65, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x36, 0x34)
+		o = msgp.AppendInt64(o, z.TotalFileBytes)
+	}
+
 	return
 }
 
@@ -1097,7 +1125,7 @@ func (z *PackOfFiles) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (
 
 	var field []byte
 	_ = field
-	const maxFields21zgensym_b52703b292455617_22 = 2
+	const maxFields21zgensym_b52703b292455617_22 = 3
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields21zgensym_b52703b292455617_22 uint32
@@ -1201,6 +1229,13 @@ doneWithStruct21zgensym_b52703b292455617_22:
 			if err != nil {
 				return
 			}
+		case "TotalFileBytes_zid02_i64":
+			found21zgensym_b52703b292455617_22[2] = true
+			z.TotalFileBytes, bts, err = nbs.ReadInt64Bytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1224,9 +1259,9 @@ doneWithStruct21zgensym_b52703b292455617_22:
 }
 
 // fields of PackOfFiles
-var unmarshalMsgFieldOrder21zgensym_b52703b292455617_22 = []string{"Pack_zid00_slc", "IsLast_zid01_boo"}
+var unmarshalMsgFieldOrder21zgensym_b52703b292455617_22 = []string{"Pack_zid00_slc", "IsLast_zid01_boo", "TotalFileBytes_zid02_i64"}
 
-var unmarshalMsgFieldSkip21zgensym_b52703b292455617_22 = []bool{false, false}
+var unmarshalMsgFieldSkip21zgensym_b52703b292455617_22 = []bool{false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *PackOfFiles) Msgsize() (s int) {
@@ -1238,7 +1273,7 @@ func (z *PackOfFiles) Msgsize() (s int) {
 			s += z.Pack[zgensym_b52703b292455617_15].Msgsize()
 		}
 	}
-	s += 17 + msgp.BoolSize
+	s += 17 + msgp.BoolSize + 25 + msgp.Int64Size
 	return
 }
 
