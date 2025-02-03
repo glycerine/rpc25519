@@ -21,7 +21,7 @@ func (z *RequestToSyncDir) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields0zgensym_5b8048e47f8e3c5c_1 = 9
+	const maxFields0zgensym_5b8048e47f8e3c5c_1 = 8
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields0zgensym_5b8048e47f8e3c5c_1 uint32
@@ -164,9 +164,9 @@ doneWithStruct0zgensym_5b8048e47f8e3c5c_1:
 }
 
 // fields of RequestToSyncDir
-var decodeMsgFieldOrder0zgensym_5b8048e47f8e3c5c_1 = []string{"GiverDir_zid00_str", "GiverDirModTime_zid01_tim", "TopTakerDirTemp_zid02_str", "TopTakerDirTempDirID_zid03_str", "TopTakerDirFinal_zid04_str", "RemoteTakes_zid05_boo", "SR_zid06_ptr", "GiverTotalFileBytes_zid07_i64", ""}
+var decodeMsgFieldOrder0zgensym_5b8048e47f8e3c5c_1 = []string{"GiverDir_zid00_str", "GiverDirModTime_zid01_tim", "TopTakerDirTemp_zid02_str", "TopTakerDirTempDirID_zid03_str", "TopTakerDirFinal_zid04_str", "RemoteTakes_zid05_boo", "SR_zid06_ptr", "GiverTotalFileBytes_zid07_i64"}
 
-var decodeMsgFieldSkip0zgensym_5b8048e47f8e3c5c_1 = []bool{false, false, false, false, false, false, false, false, true}
+var decodeMsgFieldSkip0zgensym_5b8048e47f8e3c5c_1 = []bool{false, false, false, false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *RequestToSyncDir) fieldsNotEmpty(isempty []bool) uint32 {
@@ -217,7 +217,7 @@ func (z *RequestToSyncDir) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_5b8048e47f8e3c5c_2 [9]bool
+	var empty_zgensym_5b8048e47f8e3c5c_2 [8]bool
 	fieldsInUse_zgensym_5b8048e47f8e3c5c_3 := z.fieldsNotEmpty(empty_zgensym_5b8048e47f8e3c5c_2[:])
 
 	// map header
@@ -353,7 +353,7 @@ func (z *RequestToSyncDir) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [9]bool
+	var empty [8]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -434,7 +434,7 @@ func (z *RequestToSyncDir) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConf
 
 	var field []byte
 	_ = field
-	const maxFields4zgensym_5b8048e47f8e3c5c_5 = 9
+	const maxFields4zgensym_5b8048e47f8e3c5c_5 = 8
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields4zgensym_5b8048e47f8e3c5c_5 uint32
@@ -586,9 +586,9 @@ doneWithStruct4zgensym_5b8048e47f8e3c5c_5:
 }
 
 // fields of RequestToSyncDir
-var unmarshalMsgFieldOrder4zgensym_5b8048e47f8e3c5c_5 = []string{"GiverDir_zid00_str", "GiverDirModTime_zid01_tim", "TopTakerDirTemp_zid02_str", "TopTakerDirTempDirID_zid03_str", "TopTakerDirFinal_zid04_str", "RemoteTakes_zid05_boo", "SR_zid06_ptr", "GiverTotalFileBytes_zid07_i64", ""}
+var unmarshalMsgFieldOrder4zgensym_5b8048e47f8e3c5c_5 = []string{"GiverDir_zid00_str", "GiverDirModTime_zid01_tim", "TopTakerDirTemp_zid02_str", "TopTakerDirTempDirID_zid03_str", "TopTakerDirFinal_zid04_str", "RemoteTakes_zid05_boo", "SR_zid06_ptr", "GiverTotalFileBytes_zid07_i64"}
 
-var unmarshalMsgFieldSkip4zgensym_5b8048e47f8e3c5c_5 = []bool{false, false, false, false, false, false, false, false, true}
+var unmarshalMsgFieldSkip4zgensym_5b8048e47f8e3c5c_5 = []bool{false, false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *RequestToSyncDir) Msgsize() (s int) {
