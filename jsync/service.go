@@ -5,7 +5,7 @@ import (
 	"fmt"
 	//myblake3 "github.com/glycerine/rpc25519/hash"
 	//"github.com/glycerine/rpc25519/progress"
-	//"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	//"strconv"
@@ -684,11 +684,18 @@ func (s *SyncService) Start(
 				// Or we don't have the file, when we do.
 
 				var fi os.FileInfo
-				fi, err := os.Stat(syncReq.GiverPath)
+				fi, err := os.Lstat(syncReq.GiverPath)
+				isSymLink := fi.Mode()&fs.ModeSymlink != 0
 				if err == nil {
 					syncReq.GiverModTime = fi.ModTime()
 					syncReq.GiverFileSize = fi.Size()
 					syncReq.GiverFileMode = uint32(fi.Mode())
+					syncReq.IsSymLink = isSymLink
+					if isSymLink {
+						target, err := filepath.EvalSymlinks(syncReq.GiverPath)
+						panicOn(err)
+						syncReq.SymLinkTarget = target
+					}
 				} else {
 					panic(fmt.Sprintf("syncReq.RemoteTakes"+
 						" true but error on accessing "+
