@@ -939,8 +939,8 @@ func (s *SyncService) contentsMatch(syncReq *RequestToSyncPath, ckt *rpc.Circuit
 	}
 
 	if localPathToWrite != localPathToRead {
-		vv("hard linking 1 '%v' <- '%v'",
-			localPathToRead, localPathToWrite)
+		//vv("hard linking 1 '%v' <- '%v'",
+		//	localPathToRead, localPathToWrite)
 		panicOn(os.Link(localPathToRead, localPathToWrite))
 	}
 
