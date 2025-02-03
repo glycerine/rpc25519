@@ -238,9 +238,10 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								}()
 
 								frag1 := rpc.NewFragment()
+								giverPath := filepath.Join(reqDir.GiverDir,
+									file.Path)
 								sr := &RequestToSyncPath{
-									GiverPath: filepath.Join(
-										reqDir.GiverDir, file.Path),
+									GiverPath:        giverPath,
 									TakerPath:        file.Path,
 									TakerTempDir:     reqDir.TopTakerDirTemp,
 									TopTakerDirFinal: reqDir.TopTakerDirFinal,
@@ -282,6 +283,14 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								errg := s.Giver(ctx2, ckt2, myPeer, sr)
 								panicOn(errg)
 
+								if reqDir.SR.UpdateProgress != nil {
+									report := giverPath + "    done."
+									select {
+									case reqDir.SR.UpdateProgress <- report:
+									case <-done:
+										return
+									}
+								}
 							}(file, goroHalt)
 						}
 						_ = batchHalt.ReqStop.WaitTilChildrenDone(done)

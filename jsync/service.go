@@ -388,6 +388,8 @@ type RequestToSyncPath struct {
 	IsSymLink       bool   `zid:"34"`
 	SymLinkTarget   string `zid:"35"`
 	FollowedSymlink bool   `zid:"36"`
+
+	UpdateProgress chan string `msg:"-"`
 }
 
 // RequestToSyncDir is a separate

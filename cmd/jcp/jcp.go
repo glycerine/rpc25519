@@ -268,6 +268,8 @@ func main() {
 		SyncFromHostCID:  rpc.HostCID,
 		GiverDirAbs:      dir,
 		RemoteTakes:      isPush,
+
+		UpdateProgress: make(chan string, 100),
 	}
 	if takerExistsLocal {
 
@@ -300,7 +302,12 @@ func main() {
 	//vv("jcp about to send on reqs chan")
 	reqs <- req
 	//vv("jcp sent on reqs: requested to rsync to '%v' from %v:%v", takerPath, dest, giverPath)
-	<-req.Done.Chan
+	select {
+	case prog := <-req.UpdateProgress:
+		fmt.Printf("progress: %v\n", prog)
+		continue
+	case <-req.Done.Chan:
+	}
 
 	if req.Errs != "" {
 		alwaysPrintf("req.Err: '%v'", req.Errs)
