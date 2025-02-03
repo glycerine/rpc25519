@@ -40,7 +40,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 	// this is the active side, as we called NewCircuitToPeerURL()
 	defer func(syncReq *RequestToSyncPath) {
-		vv("%v: Giver() ckt '%v' defer running: shutting down. bt = '%#v'", name, ckt.Name, bt)
+		//vv("%v: Giver() ckt '%v' defer running: shutting down. bt = '%#v'", name, ckt.Name, bt)
 
 		if syncReq != nil {
 			syncReq.BytesRead = int64(bt.bread)
@@ -193,7 +193,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				continue // wait for FIN or chunks.
 
 			case OpRsync_AckBackFIN_ToGiver:
-				vv("%v: (ckt '%v') (Giver) sees OpRsync_AckBackFIN_ToGiver. returning.", name, ckt.Name)
+				//vv("%v: (ckt '%v') (Giver) sees OpRsync_AckBackFIN_ToGiver. returning.", name, ckt.Name)
 				return
 
 			case OpRsync_RequestRemoteToGive: // FragOp 12
