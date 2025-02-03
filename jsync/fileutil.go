@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"os/user"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -22,6 +23,18 @@ func fileExists(name string) bool {
 		return false
 	}
 	return true
+}
+
+func isSymlink(name string) (target string, isSymlink bool) {
+	fi, err := os.Lstat(name)
+	if err != nil {
+		return "", false
+	}
+	isSymlink = fi.Mode()&fs.ModeSymlink != 0
+	if isSymlink {
+		target, _ = filepath.EvalSymlinks(name)
+	}
+	return
 }
 
 func dirExists(name string) bool {

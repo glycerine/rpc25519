@@ -965,7 +965,17 @@ func (s *SyncService) contentsMatch(syncReq *RequestToSyncPath, ckt *rpc.Circuit
 	if localPathToWrite != localPathToRead {
 		//vv("hard linking 1 '%v' <- '%v'",
 		//	localPathToRead, localPathToWrite)
-		panicOn(os.Link(localPathToRead, localPathToWrite))
+		if targ, isSym := isSymlink(localPathToRead); isSym {
+			vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
+			os.Remove(localPathToWrite)
+			err := os.Symlink(targ, localPathToWrite)
+			panicOn(err)
+			err = os.Chtimes(localPathToWrite, time.Time{},
+				syncReq.GiverModTime)
+			panicOn(err)
+		} else {
+			panicOn(os.Link(localPathToRead, localPathToWrite))
+		}
 	}
 
 	ack := rpc.NewFragment()
