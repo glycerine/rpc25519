@@ -234,7 +234,8 @@ func ScanDirTree(
 
 			// use Lstat so we get the mod time of the symlink
 			// and not the pointed to thing.
-			fi, err := os.Lstat(regfile.Path)
+			//fi, err := os.Lstat(regfile.Path) // causes hangs?/giver not completing?
+			fi, err := os.Stat(regfile.Path)
 			panicOn(err)
 
 			// trim off giverRoot
