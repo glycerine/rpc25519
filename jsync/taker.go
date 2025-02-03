@@ -892,9 +892,9 @@ takerForSelectLoop:
 						// install it.
 						// Symlink(oldname, newname)
 						// Symlink creates newname as a symbolic link to oldname.
-						err := os.Symlink(localPathToWrite, syncReq.SymLinkTarget)
+						vv("installing symlink '%v' -> '%v'", localPathToWrite, syncReq.SymLinkTarget)
+						err := os.Symlink(syncReq.SymLinkTarget, localPathToWrite)
 						panicOn(err)
-						vv("installed symlink '%v' -> '%v'", localPathToWrite, syncReq.SymLinkTarget)
 						s.ackBackFINToGiver(ckt, frag)
 						frag = nil
 						continue
