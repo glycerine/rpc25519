@@ -175,9 +175,9 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				panicOn(err)
 				if old != "" {
 					// We have hard linked all the unchanged files into the new.
-					// No delete the old version (hard link count -> 1).
-					vv("TODO debug actually remove old dir: '%v'", old)
-					//panicOn(os.RemoveAll(old))
+					// Now delete the old version (hard link count -> 1).
+					//vv("TODO debug actually remove old dir: '%v'", old)
+					panicOn(os.RemoveAll(old))
 				}
 				// and set the mod time
 				if !reqDir.GiverDirModTime.IsZero() {
