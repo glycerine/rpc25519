@@ -594,7 +594,7 @@ upload:
 
 	meterUp.DoProgressWithSpeed(int64(tot), false, int64(i))
 
-	fmt.Println()
+	//fmt.Println() // lots of empty lines we don't need.
 
 	elap := time.Since(t0)
 	mb := float64(tot) / float64(1<<20)
