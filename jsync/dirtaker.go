@@ -193,7 +193,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				panicOn(err)
 
 			case OpRsync_GiverSendsTopDirListing: //, OpRsync_ToTakerAllTreeModes: // 26/36/ (and 32(eventually?))
-				vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
+				//vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
 				// Getting this means here is the starting dir tree from giver.
 				// or, to me (taker), here is more dir listing
 				// or, to me (taker), here is end dir listing
