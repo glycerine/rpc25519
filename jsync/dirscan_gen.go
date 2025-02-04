@@ -21,7 +21,7 @@ func (z *File) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields0zgensym_b52703b292455617_1 = 6
+	const maxFields0zgensym_b52703b292455617_1 = 7
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields0zgensym_b52703b292455617_1 uint32
@@ -106,6 +106,12 @@ doneWithStruct0zgensym_b52703b292455617_1:
 			if err != nil {
 				return
 			}
+		case "Serial_zid06_i64":
+			found0zgensym_b52703b292455617_1[6] = true
+			z.Serial, err = dc.ReadInt64()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -129,16 +135,16 @@ doneWithStruct0zgensym_b52703b292455617_1:
 }
 
 // fields of File
-var decodeMsgFieldOrder0zgensym_b52703b292455617_1 = []string{"Path_zid00_str", "Size_zid01_i64", "FileMode_zid02_u32", "ScanFlags_zid03_u32", "ModTime_zid04_tim", "SymLinkTarget_zid05_str"}
+var decodeMsgFieldOrder0zgensym_b52703b292455617_1 = []string{"Path_zid00_str", "Size_zid01_i64", "FileMode_zid02_u32", "ScanFlags_zid03_u32", "ModTime_zid04_tim", "SymLinkTarget_zid05_str", "Serial_zid06_i64"}
 
-var decodeMsgFieldSkip0zgensym_b52703b292455617_1 = []bool{false, false, false, false, false, false}
+var decodeMsgFieldSkip0zgensym_b52703b292455617_1 = []bool{false, false, false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *File) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 6
+		return 7
 	}
-	var fieldsInUse uint32 = 6
+	var fieldsInUse uint32 = 7
 	isempty[0] = (len(z.Path) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -163,6 +169,10 @@ func (z *File) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[5] {
 		fieldsInUse--
 	}
+	isempty[6] = (z.Serial == 0) // number, omitempty
+	if isempty[6] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -174,7 +184,7 @@ func (z *File) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_b52703b292455617_2 [6]bool
+	var empty_zgensym_b52703b292455617_2 [7]bool
 	fieldsInUse_zgensym_b52703b292455617_3 := z.fieldsNotEmpty(empty_zgensym_b52703b292455617_2[:])
 
 	// map header
@@ -265,6 +275,18 @@ func (z *File) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_b52703b292455617_2[6] {
+		// write "Serial_zid06_i64"
+		err = en.Append(0xb0, 0x53, 0x65, 0x72, 0x69, 0x61, 0x6c, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x69, 0x36, 0x34)
+		if err != nil {
+			return err
+		}
+		err = en.WriteInt64(z.Serial)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -277,7 +299,7 @@ func (z *File) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [6]bool
+	var empty [7]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -317,6 +339,12 @@ func (z *File) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendString(o, z.SymLinkTarget)
 	}
 
+	if !empty[6] {
+		// string "Serial_zid06_i64"
+		o = append(o, 0xb0, 0x53, 0x65, 0x72, 0x69, 0x61, 0x6c, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x69, 0x36, 0x34)
+		o = msgp.AppendInt64(o, z.Serial)
+	}
+
 	return
 }
 
@@ -335,7 +363,7 @@ func (z *File) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byt
 
 	var field []byte
 	_ = field
-	const maxFields4zgensym_b52703b292455617_5 = 6
+	const maxFields4zgensym_b52703b292455617_5 = 7
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields4zgensym_b52703b292455617_5 uint32
@@ -427,6 +455,13 @@ doneWithStruct4zgensym_b52703b292455617_5:
 			if err != nil {
 				return
 			}
+		case "Serial_zid06_i64":
+			found4zgensym_b52703b292455617_5[6] = true
+			z.Serial, bts, err = nbs.ReadInt64Bytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -450,13 +485,13 @@ doneWithStruct4zgensym_b52703b292455617_5:
 }
 
 // fields of File
-var unmarshalMsgFieldOrder4zgensym_b52703b292455617_5 = []string{"Path_zid00_str", "Size_zid01_i64", "FileMode_zid02_u32", "ScanFlags_zid03_u32", "ModTime_zid04_tim", "SymLinkTarget_zid05_str"}
+var unmarshalMsgFieldOrder4zgensym_b52703b292455617_5 = []string{"Path_zid00_str", "Size_zid01_i64", "FileMode_zid02_u32", "ScanFlags_zid03_u32", "ModTime_zid04_tim", "SymLinkTarget_zid05_str", "Serial_zid06_i64"}
 
-var unmarshalMsgFieldSkip4zgensym_b52703b292455617_5 = []bool{false, false, false, false, false, false}
+var unmarshalMsgFieldSkip4zgensym_b52703b292455617_5 = []bool{false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *File) Msgsize() (s int) {
-	s = 1 + 15 + msgp.StringPrefixSize + len(z.Path) + 15 + msgp.Int64Size + 19 + msgp.Uint32Size + 20 + msgp.Uint32Size + 18 + msgp.TimeSize + 24 + msgp.StringPrefixSize + len(z.SymLinkTarget)
+	s = 1 + 15 + msgp.StringPrefixSize + len(z.Path) + 15 + msgp.Int64Size + 19 + msgp.Uint32Size + 20 + msgp.Uint32Size + 18 + msgp.TimeSize + 24 + msgp.StringPrefixSize + len(z.SymLinkTarget) + 17 + msgp.Int64Size
 	return
 }
 

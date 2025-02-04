@@ -76,6 +76,11 @@ type File struct {
 
 	// symlink support
 	SymLinkTarget string `zid:"5"`
+
+	// Serially assigned number to allow
+	// parallelization on the taker end.
+	// Assigned in the order yielded.
+	Serial int64 `zid:"6"`
 }
 
 const (
@@ -451,6 +456,8 @@ func ScanDirTreeOnePass(
 		defer stop()
 		pre := len(giverRoot) // how much to discard giverRoot, leave off sep.
 
+		var nextSerial int64
+
 		// first just fill up pof with everything.
 		for {
 			f, ok, valid := next()
@@ -460,6 +467,9 @@ func ScanDirTreeOnePass(
 			}
 			f.Path = f.Path[pre:] // trim off giverRoot
 			//vv("leafdir = '%v'", leafdir)
+
+			f.Serial = nextSerial
+			nextSerial++
 
 			switch {
 			case f.ScanFlags&ScanFlagIsLeafDir != 0:

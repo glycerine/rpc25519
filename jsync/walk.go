@@ -315,6 +315,21 @@ func (di *DirIter) AllDirsOnlyDirs(root string) iter.Seq2[string, bool] {
 }
 
 // Avoid 3 walks and just do it all in one walk.
+// Use the File.ScanFlags to tell what kind
+// of data you have
+/*
+// switch {
+// case f.ScanFlags&ScanFlagIsLeafDir != 0:
+//    // leaf dirs are sent first
+// 	  sol = append(sol, f)
+// case f.ScanFlags&ScanFlagIsMidDir != 0:
+//    // middle dirs are sent last
+// 	  sod = append(sod, f)
+// default:
+//    // regular files are sent in the middle
+// 	  sof = append(sof, f)
+// }
+*/
 func (di *DirIter) OneWalkForAll(root string) iter.Seq2[*File, bool] {
 	return func(yield func(*File, bool) bool) {
 
