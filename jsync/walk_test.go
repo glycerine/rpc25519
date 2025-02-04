@@ -3,12 +3,14 @@ package jsync
 import (
 	"fmt"
 	//"io"
-	//"bufio"
+	"bufio"
 	"iter"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+var _ = bufio.NewWriter
 
 // test the walk iterator
 
@@ -20,13 +22,25 @@ func PrintAll[V any](seq iter.Seq[V]) {
 
 func TestWalkDirsDFSIter(t *testing.T) {
 
-	// walk_test.go:49 2025-01-27 20:28:23.161 -0600 CST total leaf dir = 4597
-	// So the linux source tree has 4597 leaf directories.
-	//root := "/home/jaten/go/src/github.com/PlakarKorp/Korpus/github.com/torvalds/linux"
+	// So the linux source tree has 4603 leaf directories.
+	// with .git/branchs, and
+	// checked out at 0de63bb7d91975e73338300a57c54b93d3cc151c
+	// Date:   Mon Feb 3 13:39:55 2025 -0800
+
+	// find . -type d -exec sh -c '[ $(find "{}" -maxdepth 1 -type d | wc -l) -eq 1 ]' \; -print | wc -l == 4603
+
+	expect := 4603
+	home := os.Getenv("HOME")
+
+	root := filepath.Join(home, "/go/src/github.com/torvalds/linux")
+
+	if !dirExists(root) {
+		vv("skipping walk test on non existant root directory '%v'", root)
+	}
 
 	// We don't have linux all checked out everywhere,
 	// and it takes 3 seconds.
-	root := ".."
+	//root := ".."
 
 	limit := 100000
 
@@ -56,27 +70,37 @@ func TestWalkDirsDFSIter(t *testing.T) {
 		}
 	}
 	vv("total leaf dir = %v", k)
+	if k != expect {
+		t.Fatalf("expected %v leaf dir but we see %v", expect, k)
+	}
 }
 
 func TestWalkDirsFilesOnly(t *testing.T) {
 
-	// total files only = 87822
-	// So the linux source tree has 4597 leaf directories.
-	//root := "/home/jaten/go/src/github.com/PlakarKorp/Korpus/github.com/torvalds/linux"
+	//expect := 87923
+	// find linux -type f |wc -l  == 87860 regular files
+	// find linux -type l |wc -l  == 63    symlinks
+	expect := 87860 + 63 // find regular files + symlinks == 87923
 
-	// We don't have linux all checked out everywhere,
-	// and it takes 3 seconds.
-	//root := ".."
-	root := "."
-	/*
-		ans, err := os.Create("found_files.txt")
-		panicOn(err)
-		buf := bufio.NewWriter(ans)
-	*/
+	home := os.Getenv("HOME")
+
+	root := filepath.Join(home, "/go/src/github.com/torvalds/linux")
+
+	if !dirExists(root) {
+		vv("skipping walk test on non existant root directory '%v'", root)
+	}
+
+	//root := "."
+
+	ans, err := os.Create("found_files.txt")
+	panicOn(err)
+	buf := bufio.NewWriter(ans)
+
 	limit := 100000
 
 	di := NewDirIter()
 
+	pre := len(root) - len("linux")
 	k := 0
 	next, stop := iter.Pull2(di.FilesOnly(root))
 	defer stop()
@@ -93,7 +117,7 @@ func TestWalkDirsFilesOnly(t *testing.T) {
 		}
 
 		k++
-		//fmt.Fprintln(buf, dir)
+		fmt.Fprintln(buf, dir.Path[pre:])
 		//fmt.Println(dir)
 
 		if k > limit {
@@ -101,31 +125,38 @@ func TestWalkDirsFilesOnly(t *testing.T) {
 			break
 		}
 	}
-	//buf.Flush()
-	//ans.Close()
+	buf.Flush()
+	ans.Close()
 	vv("total files only = %v", k)
-	if k != 87822 {
-		t.Fatalf("expected %v, got %v", 87822, k)
+	if k != expect {
+		t.Fatalf("expected %v total files only, got %v", expect, k)
 	}
 }
 
 func TestWalkAllDirsOnlyDirs(t *testing.T) {
 
-	//root := "/home/jaten/go/src/github.com/PlakarKorp/Korpus/github.com/torvalds/linux"
+	// find linux -type d|wc -l ==  5861
+	expect := 5861
 
-	// We don't have linux all checked out everywhere,
-	// and it takes 3 seconds.
-	root := ".."
+	home := os.Getenv("HOME")
+
+	root := filepath.Join(home, "/go/src/github.com/torvalds/linux")
+
+	if !dirExists(root) {
+		vv("skipping walk test on non existant root directory '%v'", root)
+	}
+
 	//root := "."
-	/*
-		ans, err := os.Create("found_files.txt")
-		panicOn(err)
-		buf := bufio.NewWriter(ans)
-	*/
+
+	ans, err := os.Create("found_all_dirs_only_dirs.txt")
+	panicOn(err)
+	buf := bufio.NewWriter(ans)
+
 	limit := 100000
 
 	di := NewDirIter()
 
+	pre := len(root) - len("linux")
 	k := 0
 	next, stop := iter.Pull2(di.AllDirsOnlyDirs(root))
 	defer stop()
@@ -142,7 +173,7 @@ func TestWalkAllDirsOnlyDirs(t *testing.T) {
 		}
 
 		k++
-		//fmt.Fprintln(buf, dir)
+		fmt.Fprintln(buf, dir[pre:])
 		//fmt.Println(dir)
 
 		if k > limit {
@@ -150,9 +181,12 @@ func TestWalkAllDirsOnlyDirs(t *testing.T) {
 			break
 		}
 	}
-	//buf.Flush()
-	//ans.Close()
+	buf.Flush()
+	ans.Close()
 	vv("total dirs, all dirs, only dirs = %v", k)
+	if k != expect {
+		t.Fatalf("expected %v all dirs/only dirs, got %v", expect, k)
+	}
 }
 
 func TestWalkDirs_FollowSymlinks(t *testing.T) {
@@ -275,6 +309,7 @@ func TestWalkDirs_MaxDepth(t *testing.T) {
 	}
 }
 
+/*
 func TestWalkDirsFilesOnly2(t *testing.T) {
 
 	root := "/Users/jaten/trash"
@@ -310,3 +345,4 @@ func TestWalkDirsFilesOnly2(t *testing.T) {
 	//ans.Close()
 	vv("total count, files only = %v", k)
 }
+*/
