@@ -232,44 +232,49 @@ func ScanDirTree(
 				break
 			}
 
-			// use Lstat so we get the mod time of the symlink
-			// and not the pointed to thing.
-			var fi os.FileInfo
-			var err error
-			if regfile.IsSymLink {
-				fi, err = os.Lstat(regfile.Path) // causes hangs?/giver not completing?
-			} else {
-				fi, err = os.Stat(regfile.Path)
-			}
-			panicOn(err)
+			/*
+				// use Lstat so we get the mod time of the symlink
+				// and not the pointed to thing.
+				var fi os.FileInfo
+				var err error
+				if regfile.IsSymLink {
+					fi, err = os.Lstat(regfile.Path) // causes hangs?/giver not completing?
+				} else {
+					fi, err = os.Stat(regfile.Path)
+				}
+				panicOn(err)
 
-			// can we just do
-			// regfile.Path = regfile.Path[pre:]
-			// and ship it?
-			if regfile.Size != fi.Size() {
-				panic("no, size would differ")
-			}
-			if !regfile.ModTime.Equal(fi.ModTime()) {
-				panic("no, mod time would differ")
-			}
-			if regfile.FileMode != uint32(fi.Mode()) {
-				panic("no, mode would differ")
-			}
 
-			// trim off giverRoot
-			path := regfile.Path[pre:]
+					// can we just do
+					// regfile.Path = regfile.Path[pre:]
+					// and ship it? yes, looks like!
 
-			f := &File{
-				Path:     path,
-				Size:     fi.Size(),
-				FileMode: uint32(fi.Mode()),
-				ModTime:  fi.ModTime(),
+					if regfile.Size != fi.Size() {
+						panic("no, size would differ")
+					}
+					if !regfile.ModTime.Equal(fi.ModTime()) {
+						panic("no, mod time would differ")
+					}
+					if regfile.FileMode != uint32(fi.Mode()) {
+						panic("no, mode would differ")
+					}
 
-				IsSymLink:       regfile.IsSymLink,
-				FollowedSymlink: regfile.FollowedSymlink,
-				SymLinkTarget:   regfile.SymLinkTarget,
-			}
+					// trim off giverRoot
+					path := regfile.Path[pre:]
 
+					f := &File{
+						Path:     path,
+						Size:     fi.Size(),
+						FileMode: uint32(fi.Mode()),
+						ModTime:  fi.ModTime(),
+
+						IsSymLink:       regfile.IsSymLink,
+						FollowedSymlink: regfile.FollowedSymlink,
+						SymLinkTarget:   regfile.SymLinkTarget,
+					}
+			*/
+			regfile.Path = regfile.Path[pre:]
+			f := regfile
 			vv("pof packing File f = '%#v'", f)
 
 			uses := f.Msgsize()
