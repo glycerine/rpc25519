@@ -275,7 +275,7 @@ func ScanDirTree(
 			*/
 			regfile.Path = regfile.Path[pre:]
 			f := regfile
-			vv("pof packing File f = '%#v'", f)
+			//vv("pof packing File f = '%#v'", f)
 
 			uses := f.Msgsize()
 
