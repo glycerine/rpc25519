@@ -89,12 +89,19 @@ func (di *DirIter) DirsDepthFirstLeafOnly(root string) iter.Seq2[string, bool] {
 	}
 }
 
-type RegularFile struct {
-	Path            string `zid:"0"`
-	IsSymLink       bool   `zid:"1"`
-	SymLinkTarget   string `zid:"2"`
-	FollowedSymlink bool   `zid:"3"`
+/* from dirscan for reference:
+type File struct {
+	Path     string    `zid:"0"`
+	Size     int64     `zid:"1"`
+	FileMode uint32    `zid:"2"`
+	ModTime  time.Time `zid:"3"`
+
+	// symlink support
+	IsSymLink       bool   `zid:"4"`
+	SymLinkTarget   string `zid:"5"`
+	FollowedSymlink bool   `zid:"6"`
 }
+*/
 
 // FilesOnly returns only files, skipping directories. This does
 // return symlinks as files too, if di.FollowSymlinks is false.
@@ -111,8 +118,8 @@ type RegularFile struct {
 //
 // Resolving a symlink through multiple other symlinks
 // only counts as one "depth level" for MaxDepth stopping.
-func (di *DirIter) FilesOnly(root string) iter.Seq2[*RegularFile, bool] {
-	return func(yield func(*RegularFile, bool) bool) {
+func (di *DirIter) FilesOnly(root string) iter.Seq2[*File, bool] {
+	return func(yield func(*File, bool) bool) {
 
 		var seen map[string]bool
 		if di.FollowSymlinks {
@@ -172,8 +179,11 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*RegularFile, bool] {
 									}
 								}
 
-								rf := &RegularFile{
+								rf := &File{
 									Path:      target,
+									Size:      fi.Size(),
+									FileMode:  uint32(fi.Mode()),
+									ModTime:   fi.ModTime(),
 									IsSymLink: false,
 									//SymLinkTarget: resolveMe,
 									FollowedSymlink: true,
@@ -186,9 +196,14 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*RegularFile, bool] {
 							continue
 						} else {
 							// do not follow symlinks
-							//vv("returning IsSymLink true RegularFile")
-							rf := &RegularFile{
+							//vv("returning IsSymLink true regular File")
+							fi, err := entry.Info()
+							panicOn(err)
+							rf := &File{
 								Path:            resolveMe,
+								Size:            fi.Size(),
+								FileMode:        uint32(fi.Mode()),
+								ModTime:         fi.ModTime(),
 								IsSymLink:       true,
 								SymLinkTarget:   target,
 								FollowedSymlink: false,
@@ -214,8 +229,13 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*RegularFile, bool] {
 								seen[fullpath] = true
 							}
 						}
-						rf := &RegularFile{
-							Path: fullpath,
+						fi, err := entry.Info()
+						panicOn(err)
+						rf := &File{
+							Path:     fullpath,
+							Size:     fi.Size(),
+							FileMode: uint32(fi.Mode()),
+							ModTime:  fi.ModTime(),
 						}
 						if !yield(rf, true) {
 							return false

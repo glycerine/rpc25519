@@ -243,6 +243,19 @@ func ScanDirTree(
 			}
 			panicOn(err)
 
+			// can we just do
+			// regfile.Path = regfile.Path[pre:]
+			// and ship it?
+			if regfile.Size != fi.Size() {
+				panic("no, size would differ")
+			}
+			if !regfile.ModTime.Equal(fi.ModTime()) {
+				panic("no, mod time would differ")
+			}
+			if regfile.FileMode != uint32(fi.Mode()) {
+				panic("no, mode would differ")
+			}
+
 			// trim off giverRoot
 			path := regfile.Path[pre:]
 
