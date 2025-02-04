@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"iter"
 	"log"
 	"os"
 	filepath "path/filepath"
@@ -25,11 +26,13 @@ var sep = string(os.PathSeparator)
 type JcopyConfig struct {
 	Port  int
 	Quiet bool
+	Walk  bool
 }
 
 func (c *JcopyConfig) SetFlags(fs *flag.FlagSet) {
 	fs.IntVar(&c.Port, "p", 8443, "port on server to connect to")
 	fs.BoolVar(&c.Quiet, "q", false, "quiet, no progress report")
+	fs.BoolVar(&c.Walk, "w", false, "walk dir, to test walk.go")
 }
 
 func (c *JcopyConfig) FinishConfig(fs *flag.FlagSet) (err error) {
@@ -64,6 +67,11 @@ func main() {
 	if len(args) < 1 {
 		fmt.Fprintf(os.Stderr, "jcp error: must supply at least a source ex: jcp host:source-file-path {destination path optional}\n")
 		os.Exit(1)
+	}
+
+	if jcfg.Walk {
+		walktest()
+		return
 	}
 
 	// jcp rog:giverPath      => pull from rog; derive takerPath from Base(giverPath)
@@ -358,4 +366,24 @@ func formatUnder(n int) string {
 	}
 
 	return string(result)
+}
+
+func walktest() {
+	di := rsync.NewDirIter()
+	root := "."
+	nextF, stopF := iter.Pull2(di.FilesOnly(root))
+	defer stopF()
+
+	for {
+		regfile, ok, valid := nextF()
+		if !valid {
+			//vv("not valid, breaking, ok = %v", ok)
+			break
+		}
+		if !ok {
+			break
+		}
+		fmt.Printf("%v\n", regfile.Path)
+	}
+	stopF()
 }
