@@ -35,6 +35,9 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	done := ckt.Context.Done()
 	bt := &byteTracker{}
 
+	var needUpdate []*File
+	totFiles := 0
+
 	weAreRemoteTaker := (reqDir == nil)
 
 	if reqDir != nil {
@@ -224,12 +227,36 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 					default:
 						// regular file.
-					}
+						totFiles++
 
+						localPathToWrite := filepath.Join(
+							reqDir.TopTakerDirTemp, f.Path)
+						_ = localPathToWrite
+
+						localPathToRead := filepath.Join(
+							reqDir.TopTakerDirFinal, f.Path)
+
+						fi, err := os.Stat(localPathToRead)
+						// might not exist, don't panic on err.
+						if err != nil {
+							needUpdate = append(needUpdate, f)
+						} else {
+							if !fi.ModTime().Equal(f.ModTime) ||
+								fi.Size() != f.Size {
+								needUpdate = append(needUpdate, f)
+							}
+						}
+					}
 				}
 				if pof.IsLast {
 					vv("dirtaker sees pof.IsLast, sending " +
 						"OpRsync_ToGiverAllTreeModesDone")
+
+					if len(needUpdate) == 0 {
+						vv("got pof.IsLast, no update needed on "+
+							"dirtaker side. checked %v files", totFiles)
+					}
+
 					modesDone := rpc.NewFragment()
 					modesDone.FragOp = OpRsync_ToGiverAllTreeModesDone
 					err = ckt.SendOneWay(modesDone, 0)

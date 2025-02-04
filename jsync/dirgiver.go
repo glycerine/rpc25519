@@ -163,11 +163,18 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				for i := 0; ; i++ {
 					select {
 					case pof := <-packOfFilesCh:
+						lastser := int64(0)
+						k := len(pof.Pack)
+						if k > 0 {
+							lastser = pof.Pack[k-1].Serial
+						}
+
 						fragPOF := rpc.NewFragment()
 						bts, err := pof.MarshalMsg(nil)
 						panicOn(err)
 						fragPOF.Payload = bts
 						fragPOF.FragOp = OpRsync_GiverSendsTopDirListing
+						fragPOF.FragPart = lastser
 						fragPOF.SetUserArg("structType", "PackOfFiles")
 						err = ckt.SendOneWay(fragPOF, 0)
 						panicOn(err)
