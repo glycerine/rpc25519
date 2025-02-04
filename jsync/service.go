@@ -692,7 +692,8 @@ func (s *SyncService) Start(
 					syncReq.GiverFileMode = uint32(fi.Mode())
 					syncReq.IsSymLink = isSymLink
 					if isSymLink {
-						target, err := filepath.EvalSymlinks(syncReq.GiverPath)
+						target, err := os.Readlink(syncReq.GiverPath)
+						//target, err := filepath.EvalSymlinks(syncReq.GiverPath)
 						panicOn(err)
 						syncReq.SymLinkTarget = target
 					}

@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"os/user"
-	"path/filepath"
+	//"path/filepath"
 	"syscall"
 	"time"
 
@@ -32,7 +32,8 @@ func isSymlink(name string) (target string, isSymlink bool) {
 	}
 	isSymlink = fi.Mode()&fs.ModeSymlink != 0
 	if isSymlink {
-		target, _ = filepath.EvalSymlinks(name)
+		//target, _ = filepath.EvalSymlinks(name)
+		target, _ = os.Readlink(name)
 	}
 	return
 }

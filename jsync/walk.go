@@ -154,15 +154,13 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*File, bool] {
 					if entry.Type()&fs.ModeSymlink != 0 {
 						//vv("have symlink '%v'", resolveMe)
 
-						target, err := filepath.EvalSymlinks(resolveMe)
-						if err != nil {
-							// allow dangling links to not stop the walk.
-							continue
-							//return false
-						}
-
 						//vv("resolveMe:'%v' -> target:'%v'", resolveMe, target)
 						if di.FollowSymlinks {
+							target, err := filepath.EvalSymlinks(resolveMe)
+							if err != nil {
+								// allow dangling links to not stop the walk.
+								continue
+							}
 							fi, err := os.Stat(target)
 							if err != nil {
 								return false
@@ -198,6 +196,13 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*File, bool] {
 							continue
 						} else {
 							// do not follow symlinks
+
+							target, err := os.Readlink(resolveMe)
+							if err != nil {
+								// allow dangling links to not stop the walk.
+								continue
+							}
+
 							//vv("returning IsSymLink true regular File")
 							fi, err := entry.Info()
 							panicOn(err)
