@@ -62,12 +62,12 @@ func TestWalkDirsFilesOnly(t *testing.T) {
 
 	// total files only = 87822
 	// So the linux source tree has 4597 leaf directories.
-	root := "/home/jaten/go/src/github.com/PlakarKorp/Korpus/github.com/torvalds/linux"
+	//root := "/home/jaten/go/src/github.com/PlakarKorp/Korpus/github.com/torvalds/linux"
 
 	// We don't have linux all checked out everywhere,
 	// and it takes 3 seconds.
 	//root := ".."
-	//root := "."
+	root := "."
 	/*
 		ans, err := os.Create("found_files.txt")
 		panicOn(err)
@@ -289,7 +289,7 @@ func TestWalkDirsFilesOnly2(t *testing.T) {
 	for {
 		dir, ok, valid := next()
 		if !valid {
-			vv("not valid, breaking, ok = %v", ok)
+			//vv("not valid, breaking, ok = %v", ok)
 			break
 		}
 		_ = dir
@@ -299,7 +299,7 @@ func TestWalkDirsFilesOnly2(t *testing.T) {
 
 		k++
 		//fmt.Fprintln(buf, dir)
-		fmt.Println(dir)
+		//fmt.Println(dir)
 
 		if k > limit {
 			vv("break on limit")
