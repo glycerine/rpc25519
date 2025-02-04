@@ -236,7 +236,10 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						localPathToRead := filepath.Join(
 							reqDir.TopTakerDirFinal, f.Path)
 
+						vv("dirTaker: localPathToRead = '%v'", localPathToRead)
+						vv("dirTaker: localPathToWrite = '%v'", localPathToWrite)
 						fi, err := os.Stat(localPathToRead)
+						panicOn(err)
 						// might not exist, don't panic on err.
 						if err != nil {
 							needUpdate = append(needUpdate, f)
