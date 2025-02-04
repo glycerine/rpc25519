@@ -707,10 +707,6 @@ takerForSelectLoop:
 					localPathToWrite = syncReq.TakerPath
 					localPathToRead = syncReq.TakerPath
 
-					if strings.HasSuffix(syncReq.TakerPath, "tools/bpf/runqslower/runqslower.c") {
-						vv("taker sees syncReq.TakerPath ending in tools/bpf/runqslower/runqslower.c : '%#v'", syncReq) // not seen! is walk producing it; is the giverdir finding it?
-					}
-
 				}
 
 				if syncReq.TakerTempDir != "" {

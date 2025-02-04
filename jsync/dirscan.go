@@ -236,10 +236,6 @@ func ScanDirTree(
 				break
 			}
 
-			if strings.HasSuffix(regfile.Path, "tools/bpf/runqslower/runqslower.c") {
-				vv("regfile.Path sees runqslower.c: '%v'", regfile.Path) // seen!
-			}
-
 			/*
 				// use Lstat so we get the mod time of the symlink
 				// and not the pointed to thing.
