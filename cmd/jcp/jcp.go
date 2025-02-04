@@ -62,16 +62,16 @@ func main() {
 	err := jcfg.FinishConfig(fs)
 	panicOn(err)
 
+	if jcfg.Walk {
+		walktest()
+		return
+	}
+
 	args := fs.Args()
 	//vv("args = '%#v'", args)
 	if len(args) < 1 {
 		fmt.Fprintf(os.Stderr, "jcp error: must supply at least a source ex: jcp host:source-file-path {destination path optional}\n")
 		os.Exit(1)
-	}
-
-	if jcfg.Walk {
-		walktest()
-		return
 	}
 
 	// jcp rog:giverPath      => pull from rog; derive takerPath from Base(giverPath)
