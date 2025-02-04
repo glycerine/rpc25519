@@ -59,7 +59,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	bt := &byteTracker{}
 
 	defer func(syncReq *RequestToSyncPath) {
-		vv("%v: (ckt '%v') defer running! finishing Taker; syncReq=%p; err0='%v'", name, ckt.Name, syncReq, err0)
+		//vv("%v: (ckt '%v') defer running! finishing Taker; syncReq=%p; err0='%v'", name, ckt.Name, syncReq, err0)
 		////vv("bt = '%#v'", bt)
 
 		// only close Done for local (client, typically) if we were started locally.
@@ -726,7 +726,7 @@ takerForSelectLoop:
 					frag = nil
 					continue
 				}
-				vv("syncReq is not for a symlink: '%#v'", syncReq)
+				//vv("syncReq is not for a symlink: '%#v'", syncReq)
 
 				// use Lstat so we can over-write symlinks,
 				// without mistaking them for directories.
