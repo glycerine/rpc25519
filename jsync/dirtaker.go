@@ -192,47 +192,57 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				err = ckt.SendOneWay(alldone, 0)
 				panicOn(err)
 
-			case OpRsync_GiverSendsTopDirListing: //, OpRsync_ToTakerAllTreeModes: // 26/36/ (and 32(eventually?))
+			case OpRsync_GiverSendsTopDirListing: // 26
 				//vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
 				// Getting this means here is the starting dir tree from giver.
-				// or, to me (taker), here is more dir listing
-				// or, to me (taker), here is end dir listing
+				// now all in one pass, as PackOfFiles
 
-				pol := &PackOfLeafPaths{}
-				_, err := pol.UnmarshalMsg(frag.Payload)
+				pof := &PackOfFiles{}
+				_, err := pof.UnmarshalMsg(frag.Payload)
 				panicOn(err)
 				bt.bread += len(frag.Payload)
 
-				for _, leafdir := range pol.Pack {
-					if strings.HasPrefix(leafdir, "..") {
-						panic(fmt.Sprintf("leafdir cannot start with '..' or we will overwrite other processes files in staging! bad leafdir: '%v'",
-							leafdir))
+				for _, f := range pof.Pack {
+					switch {
+					case f.ScanFlags&ScanFlagIsLeafDir != 0:
+						if strings.HasPrefix(f.Path, "..") {
+							panic(fmt.Sprintf("leafdir cannot start "+
+								"with '..' or we will overwrite other"+
+								" processes files in staging! bad leafdir: '%v'",
+								f.Path))
+						}
+						fullpath := filepath.Join(reqDir.TopTakerDirTemp, f.Path)
+						err = os.MkdirAll(fullpath, 0700)
+						panicOn(err)
+						//vv("dirtaker made fullpath '%v'", fullpath)
+					case f.ScanFlags&ScanFlagIsMidDir != 0:
+
+						fullpath := filepath.Join(reqDir.TopTakerDirTemp, f.Path)
+						err = os.Chmod(fullpath, fs.FileMode(f.FileMode))
+						panicOn(err)
+						//vv("dirtaker set mode on dir = '%v'", f.Path)
+
+					default:
+						// regular file.
 					}
-					fullpath := filepath.Join(reqDir.TopTakerDirTemp, leafdir)
-					err = os.MkdirAll(fullpath, 0700)
-					panicOn(err)
-					//vv("dirtaker made fullpath '%v'", fullpath)
+
 				}
+				if pof.IsLast {
+					vv("dirtaker sees pof.IsLast, sending " +
+						"OpRsync_ToGiverAllTreeModesDone")
+					modesDone := rpc.NewFragment()
+					modesDone.FragOp = OpRsync_ToGiverAllTreeModesDone
+					err = ckt.SendOneWay(modesDone, 0)
+					panicOn(err)
+				}
+
+				// old? we think old:
 				// reply to OpRsync_GiverSendsTopDirListingEnd
 				// with OpRsync_TakerReadyForDirContents
-
-				/* re-doing, I think we don't pause for this....
-				// we have them wait to send content files
-				// until we have the "scaffolding" of all the
-				// directories in place, so that we can
-				// fill in the files in any order, and in parallel.
-				if pol.IsLast { // frag.FragOp == OpRsync_GiverSendsTopDirListingEnd {
-					vv("dirtaker sees end of phase 1: pack of leaf paths." +
-						" Sending OpRsync_TakerReadyForDirContents")
-					readyForData := rpc.NewFragment()
-					readyForData.FragOp = OpRsync_TakerReadyForDirContents
-					err = ckt.SendOneWay(readyForData, 0)
-					panicOn(err)
-				}
+				// old? we think old:
 				// dirgiver should reply to OpRsync_TakerReadyForDirContents
 				// with parallel individual file sends... then
 				// OpRsync_ToTakerDirContentsDone
-				*/
 
 			case OpRsync_GiverSendsPackOfFiles: // 36
 

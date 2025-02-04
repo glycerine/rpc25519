@@ -133,7 +133,58 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				err = ckt.SendOneWay(begin, 0)
 				panicOn(err)
 
-			case OpRsync_DirSyncBeginReplyFromTaker: // 23
+			case OpRsync_DirSyncBeginReplyFromTaker: // new one-pass version 23
+
+				reqDir2 := &RequestToSyncDir{}
+				_, err0 = reqDir2.UnmarshalMsg(frag0.Payload)
+				panicOn(err0)
+				bt.bread += len(frag0.Payload)
+				if reqDir == nil {
+					// weAreRemoteGiver true (set above)
+					reqDir = reqDir2
+				} else {
+					// we are local giver doing push.
+					// the echo we get back will have the
+					// target temp dir available for the first time.
+					// we need to copy it in.
+					reqDir.TopTakerDirTemp = reqDir2.TopTakerDirTemp
+					reqDir.TopTakerDirTempDirID = reqDir2.TopTakerDirTempDirID
+				}
+
+				// after getting 23,
+				// send 26
+				// OpRsync_GiverSendsTopDirListing
+				haltDirScan, packOfFilesCh, err := ScanDirTreeOnePass(
+					ctx0, reqDir.GiverDir)
+				panicOn(err)
+				defer haltDirScan.ReqStop.Close()
+
+			sendOnePass:
+				for i := 0; ; i++ {
+					select {
+					case pof := <-packOfFilesCh:
+						fragPOF := rpc.NewFragment()
+						bts, err := pof.MarshalMsg(nil)
+						panicOn(err)
+						fragPOF.Payload = bts
+						fragPOF.FragOp = OpRsync_GiverSendsTopDirListing
+						fragPOF.SetUserArg("structType", "PackOfFiles")
+						err = ckt.SendOneWay(fragPOF, 0)
+						panicOn(err)
+						if pof.IsLast {
+							vv("dirgiver: pof IsLast true; end of all phases single pass")
+							break sendOnePass
+						}
+					case <-done:
+						return
+					case <-done0:
+						return
+					case <-ckt.Halt.ReqStop.Chan:
+						return
+					}
+				}
+
+			case 999999: // old! OpRsync_DirSyncBeginReplyFromTaker: // 23
 				//vv("%v: (ckt '%v') (DirGiver) sees 23 OpRsync_DirSyncBeginReplyFromTaker", name, ckt.Name)
 
 				reqDir2 := &RequestToSyncDir{}
