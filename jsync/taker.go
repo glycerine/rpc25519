@@ -59,7 +59,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	bt := &byteTracker{}
 
 	defer func(syncReq *RequestToSyncPath) {
-		//vv("%v: (ckt '%v') defer running! finishing Taker; syncReq=%p; err0='%v'", name, ckt.Name, syncReq, err0)
+		vv("%v: (ckt '%v') defer running! finishing Taker; syncReq=%p; err0='%v'", name, ckt.Name, syncReq, err0)
 		////vv("bt = '%#v'", bt)
 
 		// only close Done for local (client, typically) if we were started locally.
@@ -719,9 +719,24 @@ takerForSelectLoop:
 						syncReq.TakerPath)
 				}
 
+				if syncReq.IsSymLink {
+					vv("syncReq is for a symlink")
+					s.takeSymlink(syncReq, localPathToWrite)
+					s.ackBackFINToGiver(ckt, frag)
+					frag = nil
+					continue
+				}
+				vv("syncReq is not for a symlink: '%#v'", syncReq)
+
 				// use Lstat so we can over-write symlinks,
 				// without mistaking them for directories.
 				fi, err := os.Lstat(localPathToRead)
+				readPathIsSymlink := (err == nil) && fi.Mode()&fs.ModeSymlink != 0
+
+				if readPathIsSymlink {
+					panic(fmt.Sprintf("what to do if localPathToRead is a symlink? '%v'", localPathToRead))
+				}
+
 				existsFile := (err == nil) && !fi.IsDir()
 				if err == nil && fi.IsDir() {
 					//if dirExists(localPathToRead) {
@@ -893,30 +908,6 @@ takerForSelectLoop:
 				} else {
 					// not present
 
-					// are we being sent a symlink?
-					if syncReq.IsSymLink {
-						// install it.
-						// Symlink(oldname, newname)
-						// Symlink creates newname as a symbolic link to oldname.
-						vv("installing symlink '%v' -> '%v'", localPathToWrite, syncReq.SymLinkTarget)
-						err := os.Symlink(syncReq.SymLinkTarget, localPathToWrite)
-						panicOn(err)
-						err = os.Chtimes(localPathToWrite, time.Time{},
-							syncReq.GiverModTime)
-						panicOn(err)
-
-						// does this prevent whole file transfer then?
-						// ack := rpc.NewFragment()
-						// ack.FragSubject = frag.FragSubject
-						// ack.FragOp = OpRsync_FileSizeModTimeMatch
-						// err = ckt.SendOneWay(ack, 0)
-						// panicOn(err)
-
-						s.ackBackFINToGiver(ckt, frag)
-						frag = nil
-						continue // return?
-					}
-
 					//vv("not present: must request the "+
 					//	"full file for syncReq.TakerPath='%v'",
 					//	syncReq.TakerPath)
@@ -972,24 +963,9 @@ func (s *SyncService) contentsMatch(syncReq *RequestToSyncPath, ckt *rpc.Circuit
 	}
 
 	if localPathToWrite != localPathToRead {
-		if targ, isSym := isSymlink(localPathToRead); isSym {
-			vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
-			vv("stack = '%v'", stack())
-			os.Remove(localPathToWrite)
-			err := os.Symlink(targ, localPathToWrite)
-			panicOn(err)
-
-			// Lutimes sets the access and modification times tv on path. If path refers to a symlink, it is not dereferenced and the timestamps are set on the symlink. If tv is nil, the access and modification times are set to the current time. Otherwise tv must contain exactly 2 elements, with access time as the first element and modification time as the second element.
-			tv := unix.NsecToTimeval(syncReq.GiverModTime.UnixNano())
-			unix.Lutimes(localPathToWrite, []unix.Timeval{tv, tv})
-			//err = os.Chtimes(localPathToWrite, time.Time{},
-			//	syncReq.GiverModTime)
-			//panicOn(err)
-		} else {
-			//vv("hard linking 1 '%v' <- '%v'",
-			//	localPathToRead, localPathToWrite)
-			panicOn(os.Link(localPathToRead, localPathToWrite))
-		}
+		//vv("hard linking 1 '%v' <- '%v'",
+		//	localPathToRead, localPathToWrite)
+		panicOn(os.Link(localPathToRead, localPathToWrite))
 	}
 
 	ack := rpc.NewFragment()
@@ -998,4 +974,34 @@ func (s *SyncService) contentsMatch(syncReq *RequestToSyncPath, ckt *rpc.Circuit
 
 	err := ckt.SendOneWay(ack, 0)
 	panicOn(err)
+}
+
+func (s *SyncService) takeSymlink(syncReq *RequestToSyncPath, localPathToWrite string) {
+
+	targ := syncReq.SymLinkTarget
+	vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
+	//vv("stack = '%v'", stack())
+	os.Remove(localPathToWrite)
+	err := os.Symlink(targ, localPathToWrite)
+	panicOn(err)
+
+	//
+	// "Lutimes sets the access and modification times tv
+	//  on path. If path refers to a symlink, it is not
+	//  dereferenced and the timestamps are set on the
+	//  symlink. If tv is nil, the access and modification
+	//  times are set to the current time. Otherwise tv
+	//  must contain exactly 2 elements, with access time
+	//  as the first element and modification time as the
+	//  second element."
+	//
+	tv := unix.NsecToTimeval(syncReq.GiverModTime.UnixNano())
+	unix.Lutimes(localPathToWrite, []unix.Timeval{tv, tv})
+
+	// does this prevent whole file transfer then?
+	// ack := rpc.NewFragment()
+	// ack.FragSubject = frag.FragSubject
+	// ack.FragOp = OpRsync_FileSizeModTimeMatch
+	// err = ckt.SendOneWay(ack, 0)
+	// panicOn(err)
 }

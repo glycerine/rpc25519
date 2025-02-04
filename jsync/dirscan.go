@@ -257,6 +257,8 @@ func ScanDirTree(
 				SymLinkTarget:   regfile.SymLinkTarget,
 			}
 
+			vv("pof packing File f = '%#v'", f)
+
 			uses := f.Msgsize()
 
 			if have+uses < max {
