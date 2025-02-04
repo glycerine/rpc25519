@@ -249,8 +249,10 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 				}
 				if pof.IsLast {
-					vv("dirtaker sees pof.IsLast, sending " +
-						"OpRsync_ToGiverAllTreeModesDone")
+					vv("dirtaker sees pof.IsLast, sending "+
+						"OpRsync_ToGiverAllTreeModesDone. "+
+						"len(needUpdate) = %v; checked %v totFiles",
+						len(needUpdate), totFiles)
 
 					if len(needUpdate) == 0 {
 						vv("got pof.IsLast, no update needed on "+
