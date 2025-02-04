@@ -156,7 +156,9 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*File, bool] {
 
 						target, err := filepath.EvalSymlinks(resolveMe)
 						if err != nil {
-							return false
+							// allow dangling links to not stop the walk.
+							continue
+							//return false
 						}
 
 						//vv("resolveMe:'%v' -> target:'%v'", resolveMe, target)
