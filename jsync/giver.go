@@ -305,7 +305,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				continue
 
 			case OpRsync_FileAllReadAckToGiver:
-				vv("Giver sees OpRsync_FileAllReadAckToGiver for '%v'", syncReq.GiverPath)
+				//vv("Giver sees OpRsync_FileAllReadAckToGiver for '%v'", syncReq.GiverPath)
 
 				syncReq.GiverFullFileBlake3, _ = frag0.GetUserArg("clientTotalBlake3sum")
 				syncReq.TakerFullFileBlake3, _ = frag0.GetUserArg("serverTotalBlake3sum")
@@ -318,7 +318,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 			case OpRsync_ToGiverNeedFullFile2:
 				// this is the upload streaming protocol. We send the data.
-				vv("giver sees OpRsync_ToGiverNeedFullFile2")
+				//vv("giver sees OpRsync_ToGiverNeedFullFile2")
 
 				err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0)
 
@@ -505,7 +505,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 
 func (s *SyncService) giverSendsWholeFile(giverPath, takerPath string, ckt *rpc.Circuit, bt *byteTracker, frag0 *rpc.Fragment) error {
 
-	vv("giverSendsWholeFile(giverPath='%v', takerPath='%v')", giverPath, takerPath)
+	//vv("giverSendsWholeFile(giverPath='%v', takerPath='%v')", giverPath, takerPath)
 	t0 := time.Now()
 
 	if !fileExists(giverPath) {
@@ -600,11 +600,15 @@ upload:
 	mb := float64(tot) / float64(1<<20)
 	seconds := (float64(elap) / float64(time.Second))
 	rate := mb / seconds
+	_ = rate
+	_ = nparts
 
-	alwaysPrintf("upload of rsync file done! elapsed: %v \n we "+
-		"uploaded tot = %v bytes (=> %0.6f MB/sec) in %v parts\n"+
-		"giverPath: '%v'\n->\ntakerPath: '%v'",
-		elap, tot, rate, nparts, giverPath, takerPath)
+	/*
+		alwaysPrintf("upload of rsync file done! elapsed: %v \n we "+
+			"uploaded tot = %v bytes (=> %0.6f MB/sec) in %v parts\n"+
+			"giverPath: '%v'\n->\ntakerPath: '%v'",
+			elap, tot, rate, nparts, giverPath, takerPath)
+	*/
 	return nil
 }
 

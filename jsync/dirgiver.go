@@ -229,7 +229,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						defer batchHalt.ReqStop.Close()
 
 						for _, file := range pof.Pack {
-							vv("dirgiver: pof file = '%#v'", file)
+							//vv("dirgiver: pof file = '%#v'", file)
 							goroHalt := idem.NewHalter()
 							batchHalt.AddChild(goroHalt)
 
