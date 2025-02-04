@@ -95,8 +95,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 			case OpRsync_DirSyncBeginToTaker: // 22
 				vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
-				// we should: setup a top tempdir and tell the
-				// giver the path so they can send new files into that path.
+				// we should: setup a top tempdir and prep to
+				// pre-pend it to all paths we get from giver.
 
 				// reply with 23 OpRsync_DirSyncBeginReplyFromTaker
 				// and the new top tempdir path, even if
@@ -132,7 +132,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					targetTakerTopTempDir, tmpDirID, err := s.mkTempDir(
 						reqDir.TopTakerDirFinal)
 					panicOn(err)
-					//vv("DirTaker (remote taker) made temp dir '%v' for finalDir '%v'", targetTakerTopTempDir, reqDir.TopTakerDirFinal)
+					vv("DirTaker (remote taker) made temp dir '%v' for finalDir '%v'", targetTakerTopTempDir, reqDir.TopTakerDirFinal)
 					reqDir.TopTakerDirTemp = targetTakerTopTempDir
 					reqDir.TopTakerDirTempDirID = tmpDirID
 				}
@@ -195,7 +195,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				err = ckt.SendOneWay(alldone, 0)
 				panicOn(err)
 
-			case OpRsync_GiverSendsTopDirListing: // 26
+			case OpRsync_GiverSendsTopDirListing: // 26, all-one-pass version
 				//vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
 				// Getting this means here is the starting dir tree from giver.
 				// now all in one pass, as PackOfFiles
@@ -217,13 +217,13 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						fullpath := filepath.Join(reqDir.TopTakerDirTemp, f.Path)
 						err = os.MkdirAll(fullpath, 0700)
 						panicOn(err)
-						//vv("dirtaker made fullpath '%v'", fullpath)
+						vv("dirtaker made leafdir fullpath '%v'", fullpath)
 					case f.ScanFlags&ScanFlagIsMidDir != 0:
 
 						fullpath := filepath.Join(reqDir.TopTakerDirTemp, f.Path)
 						err = os.Chmod(fullpath, fs.FileMode(f.FileMode))
 						panicOn(err)
-						//vv("dirtaker set mode on dir = '%v'", f.Path)
+						vv("dirtaker set mode on dir = '%v'", f.Path)
 
 					default:
 						// regular file.
@@ -236,8 +236,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						localPathToRead := filepath.Join(
 							reqDir.TopTakerDirFinal, f.Path)
 
-						vv("dirTaker: localPathToRead = '%v'", localPathToRead)
-						vv("dirTaker: localPathToWrite = '%v'", localPathToWrite)
+						vv("dirTaker: f.Path = '%v' => localPathToRead = '%v'", f.Path, localPathToRead)
+						vv("dirTaker: f.Path = '%v' => localPathToWrite = '%v'", f.Path, localPathToWrite)
 						fi, err := os.Stat(localPathToRead)
 						panicOn(err)
 						// might not exist, don't panic on err.
