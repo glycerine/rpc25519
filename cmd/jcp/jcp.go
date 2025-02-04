@@ -24,15 +24,17 @@ var _ = progress.TransferStats{}
 var sep = string(os.PathSeparator)
 
 type JcopyConfig struct {
-	Port  int
-	Quiet bool
-	Walk  bool
+	Port    int
+	Quiet   bool
+	Walk    bool
+	Verbose bool
 }
 
 func (c *JcopyConfig) SetFlags(fs *flag.FlagSet) {
 	fs.IntVar(&c.Port, "p", 8443, "port on server to connect to")
 	fs.BoolVar(&c.Quiet, "q", false, "quiet, no progress report")
 	fs.BoolVar(&c.Walk, "w", false, "walk dir, to test walk.go")
+	fs.BoolVar(&c.Verbose, "v", false, "verbosely walk dir, showing paths")
 }
 
 func (c *JcopyConfig) FinishConfig(fs *flag.FlagSet) (err error) {
@@ -63,7 +65,10 @@ func main() {
 	panicOn(err)
 
 	if jcfg.Walk {
-		walktest()
+		t0 := time.Now()
+		nFile, modTime := jcfg.walktest()
+		elap := time.Since(t0)
+		vv("most recent modTime in %v files = '%v'; elap = '%v'", nFile, modTime, elap)
 		return
 	}
 
@@ -368,7 +373,11 @@ func formatUnder(n int) string {
 	return string(result)
 }
 
-func walktest() {
+func (jcfg *JcopyConfig) walktest() (
+	nFile int,
+	mostRecentFileModTime time.Time,
+
+) {
 	di := rsync.NewDirIter()
 	root := "."
 	nextF, stopF := iter.Pull2(di.FilesOnly(root))
@@ -383,7 +392,15 @@ func walktest() {
 		if !ok {
 			break
 		}
-		fmt.Printf("%v\n", regfile.Path)
+		nFile++
+		if jcfg.Verbose {
+			fmt.Printf("%v\n", regfile.Path)
+		}
+		if regfile.ModTime.After(mostRecentFileModTime) {
+			mostRecentFileModTime = regfile.ModTime
+		}
 	}
 	stopF()
+
+	return
 }
