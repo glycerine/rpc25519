@@ -217,13 +217,13 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						fullpath := filepath.Join(reqDir.TopTakerDirTemp, f.Path)
 						err = os.MkdirAll(fullpath, 0700)
 						panicOn(err)
-						vv("dirtaker made leafdir fullpath '%v'", fullpath)
+						//vv("dirtaker made leafdir fullpath '%v'", fullpath)
 					case f.ScanFlags&ScanFlagIsMidDir != 0:
 
 						fullpath := filepath.Join(reqDir.TopTakerDirTemp, f.Path)
 						err = os.Chmod(fullpath, fs.FileMode(f.FileMode))
 						panicOn(err)
-						vv("dirtaker set mode on dir = '%v'", f.Path)
+						//vv("dirtaker set mode on dir = '%v'", f.Path)
 
 					default:
 						// regular file.
