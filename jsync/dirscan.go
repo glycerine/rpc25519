@@ -82,7 +82,8 @@ const (
 	ScanFlagFollowedSymlink uint32 = 1
 	ScanFlagIsLeafDir       uint32 = 2
 	ScanFlagIsMidDir        uint32 = 4
-	ScanFlagIsSymLink       uint32 = uint32(fs.ModeSymlink) // 0x8000000
+	ScanFlagIsSymLink       uint32 = uint32(fs.ModeSymlink) // 0x08000000
+	ScanFlagIsDir           uint32 = uint32(fs.ModeDir)     // 0x80000000
 )
 
 // PackOfFiles is streamed in phase 2.
@@ -407,3 +408,161 @@ func ScanDirTree(
 
 	return
 }
+
+func ScanDirTreeOnePass(
+	ctx context.Context,
+	giverRoot string,
+
+) (halt *idem.Halter,
+	packOfFilesCh chan *PackOfFiles,
+	err0 error,
+) {
+	halt = idem.NewHalter()
+
+	if !dirExists(giverRoot) {
+		return nil, nil, fmt.Errorf("ScanDirTree error: giverRoot not found, or not a directory: '%v'", giverRoot)
+	}
+
+	// make sure it ends in "/" or sep.
+	if !strings.HasSuffix(giverRoot, sep) {
+		giverRoot += sep
+	}
+
+	packOfFilesCh = make(chan *PackOfFiles, 5000)
+
+	done := ctx.Done()
+	_ = done
+	go func() {
+		defer func() {
+			halt.ReqStop.Close()
+			halt.Done.Close()
+		}()
+
+		// ====================
+		// all phases from one walk
+		// ====================
+
+		var sol []*File // slice of leaves
+		var sof []*File // slice of files
+		var sod []*File // slice of dirs
+
+		di := NewDirIter()
+		next, stop := iter.Pull2(di.OneWalkForAll(giverRoot))
+		defer stop()
+		pre := len(giverRoot) // how much to discard giverRoot, leave off sep.
+
+		// first just fill up pof with everything.
+		for {
+			f, ok, valid := next()
+			if !valid || !ok {
+				//vv("not valid, breaking, ok = %v", ok)
+				break
+			}
+			f.Path = f.Path[pre:] // trim off giverRoot
+			//vv("leafdir = '%v'", leafdir)
+
+			switch {
+			case f.ScanFlags&ScanFlagIsLeafDir != 0:
+				sol = append(sol, f)
+			case f.ScanFlags&ScanFlagIsMidDir != 0:
+				sod = append(sod, f)
+			default:
+				sof = append(sof, f)
+			}
+		}
+		stop()
+
+		var all []*File
+		all = append(all, sol...)
+		all = append(all, sof...)
+		all = append(all, sod...)
+
+		// pack up to max bytes of Chunks into a message.
+		max := rpc.UserMaxPayload - 10_000
+
+		// ====================
+		// phase all: sending them all
+		// ====================
+
+		have := 0
+		var pof *PackOfFiles
+
+		for _, f := range all {
+			if pof == nil {
+				// we've just sent off the last
+				pof = &PackOfFiles{}
+				have = pof.Msgsize()
+			}
+
+			uses := f.Msgsize()
+
+			if have+uses < max {
+				pof.Pack = append(pof.Pack, f)
+				have += pof.Msgsize()
+				pof.TotalFileBytes += f.Size
+			} else {
+				// send it off
+				select {
+				case packOfFilesCh <- pof:
+					// don't drop f!
+					pof = &PackOfFiles{
+						Pack: []*File{f},
+					}
+					have = pof.Msgsize()
+				case <-halt.ReqStop.Chan:
+					return
+				case <-done:
+					return
+				}
+			}
+		} // for f := range all
+
+		// send the last one
+		if pof == nil {
+			pof = &PackOfFiles{}
+		}
+		pof.IsLast = true
+		select {
+		case packOfFilesCh <- pof:
+			pof = nil
+		case <-halt.ReqStop.Chan:
+			return
+		case <-done:
+			return
+		}
+	}()
+
+	return
+}
+
+/*
+
+package main
+
+import (
+	"fmt"
+	"io/fs"
+)
+
+func main() {
+	fmt.Printf("ModeSymlink = %x\n", uint32(fs.ModeSymlink))
+	fmt.Printf("%x\n", uint32(0x8000000))
+	//ModeSymlink = 8000000
+	//              8000000
+
+	fmt.Printf("ModeDir = %x\n", uint32(fs.ModeDir))             //        //FileMode = 1 << (32 - 1 - iota) // d: is a directory
+	fmt.Printf("ModeAppend = %x\n", uint32(fs.ModeAppend))       //                                     // a: append-only
+	fmt.Printf("ModeExclusive = %x\n", uint32(fs.ModeExclusive)) //                      // l: exclusive use
+	fmt.Printf("ModeTemporary = %x\n", uint32(fs.ModeTemporary)) //
+}
+
+go run f.go
+ModeSymlink = 8000000
+8000000
+ModeDir = 80000000
+ModeAppend = 40000000
+ModeExclusive = 20000000
+ModeTemporary = 10000000
+
+Compilation finished at Tue Feb  4 20:44:30
+*/

@@ -313,3 +313,173 @@ func (di *DirIter) AllDirsOnlyDirs(root string) iter.Seq2[string, bool] {
 		visit(root)
 	}
 }
+
+// Avoid 3 walks and just do it all in one walk.
+func (di *DirIter) OneWalkForAll(root string) iter.Seq2[*File, bool] {
+	return func(yield func(*File, bool) bool) {
+
+		var seen map[string]bool
+		if di.FollowSymlinks {
+			// symlinks can cause duplicated paths, so
+			// we de-duplicate the paths when following
+			// symlinks.
+			seen = make(map[string]bool)
+		}
+
+		// Helper function for recursive traversal
+		var visit func(path string, depth int) bool
+
+		visit = func(path string, depth int) bool {
+			//vv("top of visit, path = '%v'; depth = %v", path, depth)
+			if di.MaxDepth > 0 && depth >= di.MaxDepth {
+				return true // true lets cousins also get to max depth.
+			}
+			dir, err := os.Open(path)
+			if err != nil {
+				return yield(nil, false)
+			}
+			defer dir.Close()
+
+			hasSubdirs := false
+			for {
+				entries, err := dir.ReadDir(di.BatchSize)
+				// Process entries in directory order
+				for _, entry := range entries {
+					if entry.IsDir() {
+						hasSubdirs = true
+					}
+					//vv("entry = '%#v'; entry.Type()&fs.ModeSymlink = %v", entry, entry.Type()&fs.ModeSymlink)
+
+					resolveMe := filepath.Join(path, entry.Name())
+
+					if entry.Type()&fs.ModeSymlink != 0 {
+						//vv("have symlink '%v'", resolveMe)
+
+						//vv("resolveMe:'%v' -> target:'%v'", resolveMe, target)
+						if di.FollowSymlinks {
+							target, err := filepath.EvalSymlinks(resolveMe)
+							if err != nil {
+								// allow dangling links to not stop the walk.
+								continue
+							}
+							fi, err := os.Stat(target)
+							if err != nil {
+								return false
+							}
+							if fi.IsDir() {
+								// Recurse immediately when we find a directory
+								if !visit(target, depth+1) {
+									return false
+								}
+							} else {
+								if seen != nil {
+									if seen[target] {
+										continue
+									} else {
+										seen[target] = true
+									}
+								}
+
+								scanFlags := ScanFlagFollowedSymlink
+								rf := &File{
+									Path:      target,
+									Size:      fi.Size(),
+									FileMode:  uint32(fi.Mode()),
+									ModTime:   fi.ModTime(),
+									ScanFlags: scanFlags,
+									//IsSymLink: false,
+									//SymLinkTarget: resolveMe,
+									//FollowedSymlink: true,
+								}
+
+								if !yield(rf, true) {
+									return false
+								}
+							}
+							continue
+						} else {
+							// do not follow symlinks
+
+							target, err := os.Readlink(resolveMe)
+							if err != nil {
+								// allow dangling links to not stop the walk.
+								continue
+							}
+
+							//vv("returning IsSymLink true regular File")
+							fi, err := entry.Info()
+							panicOn(err)
+							scanFlags := ScanFlagIsSymLink
+							rf := &File{
+								Path:      resolveMe,
+								Size:      fi.Size(),
+								FileMode:  uint32(fi.Mode()),
+								ModTime:   fi.ModTime(),
+								ScanFlags: scanFlags,
+								//IsSymLink:       true,
+								SymLinkTarget: target,
+								//FollowedSymlink: false,
+							}
+							if !yield(rf, true) {
+								return false
+							}
+							continue
+						}
+					} // if symlink
+
+					if entry.IsDir() {
+						// Recurse immediately when we find a directory
+						if !visit(filepath.Join(path, entry.Name()), depth+1) {
+							return false
+						}
+					} else {
+						fullpath := filepath.Join(path, entry.Name())
+						if seen != nil {
+							if seen[fullpath] {
+								continue
+							} else {
+								seen[fullpath] = true
+							}
+						}
+						fi, err := entry.Info()
+						panicOn(err)
+						rf := &File{
+							Path:     fullpath,
+							Size:     fi.Size(),
+							FileMode: uint32(fi.Mode()),
+							ModTime:  fi.ModTime(),
+						}
+						if !yield(rf, true) {
+							return false
+						}
+					}
+				}
+
+				if err != nil || len(entries) < di.BatchSize {
+					break
+				}
+			} // end for
+
+			// we are a directory, yield ourselves.
+			fi, err := dir.Stat()
+			panicOn(err)
+			var scanFlags uint32
+			if hasSubdirs {
+				scanFlags = ScanFlagIsDir | ScanFlagIsMidDir
+			} else {
+				scanFlags = ScanFlagIsDir | ScanFlagIsLeafDir
+			}
+			rf := &File{
+				Path:      path,
+				Size:      fi.Size(),
+				FileMode:  uint32(fi.Mode()),
+				ModTime:   fi.ModTime(),
+				ScanFlags: scanFlags,
+			}
+			return yield(rf, true)
+		}
+
+		// Start the recursion
+		visit(root, 0)
+	}
+}
