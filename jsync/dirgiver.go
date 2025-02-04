@@ -209,7 +209,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// and wait for OpRsync_TakerReadyForDirContents
 
 			case OpRsync_TakerReadyForDirContents: // 29
-				//vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerReadyForDirContents", name, ckt.Name)
+				vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerReadyForDirContents", name, ckt.Name)
 
 				// we (giver) now do individual file syncs
 				// (newly deleted files can be simply not
@@ -229,7 +229,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						defer batchHalt.ReqStop.Close()
 
 						for _, file := range pof.Pack {
-							//vv("file = '%#v'", file)
+							vv("dirgiver: pof file = '%#v'", file)
 							goroHalt := idem.NewHalter()
 							batchHalt.AddChild(goroHalt)
 

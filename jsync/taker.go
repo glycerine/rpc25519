@@ -739,8 +739,17 @@ takerForSelectLoop:
 
 				existsFile := (err == nil) && !fi.IsDir()
 				if err == nil && fi.IsDir() {
-					//if dirExists(localPathToRead) {
-					panic(fmt.Errorf("error in Taker OpRsync_RequestRemoteToTake: syncReq.TakerPath cannot be an existing directory: localPathToRead='%v'", localPathToRead))
+
+					// this means we are replacing a directory
+					// with a file. That's okay (under dirtaker).
+					// Just ignore the existing directory and
+					// write the new file into the new tmp dir write image.
+
+					// if we are just a single file over writing a dir,
+					// then complain.
+					if localPathToWrite == localPathToRead {
+						panic(fmt.Errorf("error in Taker OpRsync_RequestRemoteToTake: syncReq.TakerPath cannot be an existing directory: localPathToRead='%v'\n\n syncReq = '%#v'", localPathToRead, syncReq))
+					}
 				}
 
 				if existsFile { // fileExists(localPathToRead) {

@@ -26,7 +26,7 @@ var _ = time.Time{}
 // coordinator from the Taker side.
 func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, reqDir *RequestToSyncDir) (err0 error) {
 
-	//vv("SyncService.DirTaker top; we are local if reqDir = %p != nil", reqDir)
+	vv("SyncService.DirTaker top; we are local if reqDir = %p != nil", reqDir)
 
 	name := myPeer.PeerServiceName
 	_ = name // used when logging is on.

@@ -600,7 +600,7 @@ func (s *SyncService) Start(
 			// is this a local giver dir -> remote taker dir syn request?
 			if syncReq.RemoteTakes && syncReq.GiverIsDir {
 
-				//vv("%v: we are the local giver of dir. sending 22 OpRsync_DirSyncBeginToTaker", name)
+				vv("%v: we are the local giver of dir. sending 22 OpRsync_DirSyncBeginToTaker", name)
 
 				// fan out the request, one for each
 				// actual file on the local giver.
