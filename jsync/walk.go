@@ -140,19 +140,19 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*RegularFile, bool] {
 				entries, err := dir.ReadDir(di.BatchSize)
 				// Process entries in directory order
 				for _, entry := range entries {
-					vv("entry = '%#v'; entry.Type()&fs.ModeSymlink = %v", entry, entry.Type()&fs.ModeSymlink)
+					//vv("entry = '%#v'; entry.Type()&fs.ModeSymlink = %v", entry, entry.Type()&fs.ModeSymlink)
 
 					resolveMe := filepath.Join(path, entry.Name())
 
 					if entry.Type()&fs.ModeSymlink != 0 {
-						vv("have symlink '%v'", resolveMe)
+						//vv("have symlink '%v'", resolveMe)
 
 						target, err := filepath.EvalSymlinks(resolveMe)
 						if err != nil {
 							return false
 						}
 
-						vv("resolveMe:'%v' -> target:'%v'", resolveMe, target)
+						//vv("resolveMe:'%v' -> target:'%v'", resolveMe, target)
 						if di.FollowSymlinks {
 							fi, err := os.Stat(target)
 							if err != nil {
@@ -186,7 +186,7 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*RegularFile, bool] {
 							continue
 						} else {
 							// do not follow symlinks
-							vv("returning IsSymLink true RegularFile")
+							//vv("returning IsSymLink true RegularFile")
 							rf := &RegularFile{
 								Path:            resolveMe,
 								IsSymLink:       true,

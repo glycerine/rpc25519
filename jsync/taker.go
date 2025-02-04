@@ -181,7 +181,7 @@ takerForSelectLoop:
 	for {
 		select {
 		case frag := <-ckt.Reads:
-			vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
+			//vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
 			_ = frag
 			switch frag.FragOp {
 
@@ -979,8 +979,7 @@ func (s *SyncService) contentsMatch(syncReq *RequestToSyncPath, ckt *rpc.Circuit
 func (s *SyncService) takeSymlink(syncReq *RequestToSyncPath, localPathToWrite string) {
 
 	targ := syncReq.SymLinkTarget
-	vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
-	//vv("stack = '%v'", stack())
+	//vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
 	os.Remove(localPathToWrite)
 	err := os.Symlink(targ, localPathToWrite)
 	panicOn(err)
@@ -997,11 +996,4 @@ func (s *SyncService) takeSymlink(syncReq *RequestToSyncPath, localPathToWrite s
 	//
 	tv := unix.NsecToTimeval(syncReq.GiverModTime.UnixNano())
 	unix.Lutimes(localPathToWrite, []unix.Timeval{tv, tv})
-
-	// does this prevent whole file transfer then?
-	// ack := rpc.NewFragment()
-	// ack.FragSubject = frag.FragSubject
-	// ack.FragOp = OpRsync_FileSizeModTimeMatch
-	// err = ckt.SendOneWay(ack, 0)
-	// panicOn(err)
 }

@@ -257,7 +257,7 @@ func ScanDirTree(
 				SymLinkTarget:   regfile.SymLinkTarget,
 			}
 
-			vv("pof packing File f = '%#v'", f)
+			//vv("pof packing File f = '%#v'", f)
 
 			uses := f.Msgsize()
 
