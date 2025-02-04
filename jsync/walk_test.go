@@ -77,7 +77,7 @@ func TestWalkDirsDFSIter(t *testing.T) {
 
 func TestWalkDirsFilesOnly(t *testing.T) {
 
-	//expect := 87923
+	//expect := 87923 because we return symlinks (no following, by default).
 	// find linux -type f |wc -l  == 87860 regular files
 	// find linux -type l |wc -l  == 63    symlinks
 	expect := 87860 + 63 // find regular files + symlinks == 87923
