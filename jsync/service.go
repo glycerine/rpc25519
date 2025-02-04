@@ -393,9 +393,8 @@ type RequestToSyncPath struct {
 	TakerTempDir     string `zid:"29"`
 	TopTakerDirFinal string `zid:"30"`
 
-	IsSymLink       bool   `zid:"34"`
-	SymLinkTarget   string `zid:"35"`
-	FollowedSymlink bool   `zid:"36"`
+	ScanFlags     uint32 `zid:"34"`
+	SymLinkTarget string `zid:"35"`
 
 	UpdateProgress chan string `msg:"-"`
 }
@@ -698,8 +697,9 @@ func (s *SyncService) Start(
 					syncReq.GiverModTime = fi.ModTime()
 					syncReq.GiverFileSize = fi.Size()
 					syncReq.GiverFileMode = uint32(fi.Mode())
-					syncReq.IsSymLink = isSymLink
+					//syncReq.ScanFlags |= IsSymLink = isSymLink // get from Mode
 					if isSymLink {
+						syncReq.ScanFlags |= ScanFlagIsSymLink
 						target, err := os.Readlink(syncReq.GiverPath)
 						//target, err := filepath.EvalSymlinks(syncReq.GiverPath)
 						panicOn(err)

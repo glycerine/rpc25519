@@ -21,7 +21,7 @@ func (z *File) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields0zgensym_b52703b292455617_1 = 9
+	const maxFields0zgensym_b52703b292455617_1 = 6
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields0zgensym_b52703b292455617_1 uint32
@@ -88,39 +88,21 @@ doneWithStruct0zgensym_b52703b292455617_1:
 			if err != nil {
 				return
 			}
-		case "ModTime_zid03_tim":
+		case "ScanFlags_zid03_u32":
 			found0zgensym_b52703b292455617_1[3] = true
-			z.ModTime, err = dc.ReadTime()
+			z.ScanFlags, err = dc.ReadUint32()
 			if err != nil {
 				return
 			}
-		case "IsSymLink_zid04_boo":
+		case "ModTime_zid04_tim":
 			found0zgensym_b52703b292455617_1[4] = true
-			z.IsSymLink, err = dc.ReadBool()
+			z.ModTime, err = dc.ReadTime()
 			if err != nil {
 				return
 			}
 		case "SymLinkTarget_zid05_str":
 			found0zgensym_b52703b292455617_1[5] = true
 			z.SymLinkTarget, err = dc.ReadString()
-			if err != nil {
-				return
-			}
-		case "FollowedSymlink_zid06_boo":
-			found0zgensym_b52703b292455617_1[6] = true
-			z.FollowedSymlink, err = dc.ReadBool()
-			if err != nil {
-				return
-			}
-		case "IsLeafDir_zid07_boo":
-			found0zgensym_b52703b292455617_1[7] = true
-			z.IsLeafDir, err = dc.ReadBool()
-			if err != nil {
-				return
-			}
-		case "IsMidDir_zid08_boo":
-			found0zgensym_b52703b292455617_1[8] = true
-			z.IsMidDir, err = dc.ReadBool()
 			if err != nil {
 				return
 			}
@@ -147,16 +129,16 @@ doneWithStruct0zgensym_b52703b292455617_1:
 }
 
 // fields of File
-var decodeMsgFieldOrder0zgensym_b52703b292455617_1 = []string{"Path_zid00_str", "Size_zid01_i64", "FileMode_zid02_u32", "ModTime_zid03_tim", "IsSymLink_zid04_boo", "SymLinkTarget_zid05_str", "FollowedSymlink_zid06_boo", "IsLeafDir_zid07_boo", "IsMidDir_zid08_boo"}
+var decodeMsgFieldOrder0zgensym_b52703b292455617_1 = []string{"Path_zid00_str", "Size_zid01_i64", "FileMode_zid02_u32", "ScanFlags_zid03_u32", "ModTime_zid04_tim", "SymLinkTarget_zid05_str"}
 
-var decodeMsgFieldSkip0zgensym_b52703b292455617_1 = []bool{false, false, false, false, false, false, false, false, false}
+var decodeMsgFieldSkip0zgensym_b52703b292455617_1 = []bool{false, false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *File) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 9
+		return 6
 	}
-	var fieldsInUse uint32 = 9
+	var fieldsInUse uint32 = 6
 	isempty[0] = (len(z.Path) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -169,28 +151,16 @@ func (z *File) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[2] {
 		fieldsInUse--
 	}
-	isempty[3] = (z.ModTime.IsZero()) // time.Time, omitempty
+	isempty[3] = (z.ScanFlags == 0) // number, omitempty
 	if isempty[3] {
 		fieldsInUse--
 	}
-	isempty[4] = (!z.IsSymLink) // bool, omitempty
+	isempty[4] = (z.ModTime.IsZero()) // time.Time, omitempty
 	if isempty[4] {
 		fieldsInUse--
 	}
 	isempty[5] = (len(z.SymLinkTarget) == 0) // string, omitempty
 	if isempty[5] {
-		fieldsInUse--
-	}
-	isempty[6] = (!z.FollowedSymlink) // bool, omitempty
-	if isempty[6] {
-		fieldsInUse--
-	}
-	isempty[7] = (!z.IsLeafDir) // bool, omitempty
-	if isempty[7] {
-		fieldsInUse--
-	}
-	isempty[8] = (!z.IsMidDir) // bool, omitempty
-	if isempty[8] {
 		fieldsInUse--
 	}
 
@@ -204,7 +174,7 @@ func (z *File) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_b52703b292455617_2 [9]bool
+	var empty_zgensym_b52703b292455617_2 [6]bool
 	fieldsInUse_zgensym_b52703b292455617_3 := z.fieldsNotEmpty(empty_zgensym_b52703b292455617_2[:])
 
 	// map header
@@ -260,24 +230,24 @@ func (z *File) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_b52703b292455617_2[3] {
-		// write "ModTime_zid03_tim"
-		err = en.Append(0xb1, 0x4d, 0x6f, 0x64, 0x54, 0x69, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x74, 0x69, 0x6d)
+		// write "ScanFlags_zid03_u32"
+		err = en.Append(0xb3, 0x53, 0x63, 0x61, 0x6e, 0x46, 0x6c, 0x61, 0x67, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x75, 0x33, 0x32)
 		if err != nil {
 			return err
 		}
-		err = en.WriteTime(z.ModTime)
+		err = en.WriteUint32(z.ScanFlags)
 		if err != nil {
 			return
 		}
 	}
 
 	if !empty_zgensym_b52703b292455617_2[4] {
-		// write "IsSymLink_zid04_boo"
-		err = en.Append(0xb3, 0x49, 0x73, 0x53, 0x79, 0x6d, 0x4c, 0x69, 0x6e, 0x6b, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x62, 0x6f, 0x6f)
+		// write "ModTime_zid04_tim"
+		err = en.Append(0xb1, 0x4d, 0x6f, 0x64, 0x54, 0x69, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x74, 0x69, 0x6d)
 		if err != nil {
 			return err
 		}
-		err = en.WriteBool(z.IsSymLink)
+		err = en.WriteTime(z.ModTime)
 		if err != nil {
 			return
 		}
@@ -295,42 +265,6 @@ func (z *File) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_b52703b292455617_2[6] {
-		// write "FollowedSymlink_zid06_boo"
-		err = en.Append(0xb9, 0x46, 0x6f, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x64, 0x53, 0x79, 0x6d, 0x6c, 0x69, 0x6e, 0x6b, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x62, 0x6f, 0x6f)
-		if err != nil {
-			return err
-		}
-		err = en.WriteBool(z.FollowedSymlink)
-		if err != nil {
-			return
-		}
-	}
-
-	if !empty_zgensym_b52703b292455617_2[7] {
-		// write "IsLeafDir_zid07_boo"
-		err = en.Append(0xb3, 0x49, 0x73, 0x4c, 0x65, 0x61, 0x66, 0x44, 0x69, 0x72, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x62, 0x6f, 0x6f)
-		if err != nil {
-			return err
-		}
-		err = en.WriteBool(z.IsLeafDir)
-		if err != nil {
-			return
-		}
-	}
-
-	if !empty_zgensym_b52703b292455617_2[8] {
-		// write "IsMidDir_zid08_boo"
-		err = en.Append(0xb2, 0x49, 0x73, 0x4d, 0x69, 0x64, 0x44, 0x69, 0x72, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x62, 0x6f, 0x6f)
-		if err != nil {
-			return err
-		}
-		err = en.WriteBool(z.IsMidDir)
-		if err != nil {
-			return
-		}
-	}
-
 	return
 }
 
@@ -343,7 +277,7 @@ func (z *File) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [9]bool
+	var empty [6]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -366,39 +300,21 @@ func (z *File) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[3] {
-		// string "ModTime_zid03_tim"
-		o = append(o, 0xb1, 0x4d, 0x6f, 0x64, 0x54, 0x69, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x74, 0x69, 0x6d)
-		o = msgp.AppendTime(o, z.ModTime)
+		// string "ScanFlags_zid03_u32"
+		o = append(o, 0xb3, 0x53, 0x63, 0x61, 0x6e, 0x46, 0x6c, 0x61, 0x67, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x75, 0x33, 0x32)
+		o = msgp.AppendUint32(o, z.ScanFlags)
 	}
 
 	if !empty[4] {
-		// string "IsSymLink_zid04_boo"
-		o = append(o, 0xb3, 0x49, 0x73, 0x53, 0x79, 0x6d, 0x4c, 0x69, 0x6e, 0x6b, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x62, 0x6f, 0x6f)
-		o = msgp.AppendBool(o, z.IsSymLink)
+		// string "ModTime_zid04_tim"
+		o = append(o, 0xb1, 0x4d, 0x6f, 0x64, 0x54, 0x69, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x74, 0x69, 0x6d)
+		o = msgp.AppendTime(o, z.ModTime)
 	}
 
 	if !empty[5] {
 		// string "SymLinkTarget_zid05_str"
 		o = append(o, 0xb7, 0x53, 0x79, 0x6d, 0x4c, 0x69, 0x6e, 0x6b, 0x54, 0x61, 0x72, 0x67, 0x65, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x73, 0x74, 0x72)
 		o = msgp.AppendString(o, z.SymLinkTarget)
-	}
-
-	if !empty[6] {
-		// string "FollowedSymlink_zid06_boo"
-		o = append(o, 0xb9, 0x46, 0x6f, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x64, 0x53, 0x79, 0x6d, 0x6c, 0x69, 0x6e, 0x6b, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x62, 0x6f, 0x6f)
-		o = msgp.AppendBool(o, z.FollowedSymlink)
-	}
-
-	if !empty[7] {
-		// string "IsLeafDir_zid07_boo"
-		o = append(o, 0xb3, 0x49, 0x73, 0x4c, 0x65, 0x61, 0x66, 0x44, 0x69, 0x72, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x62, 0x6f, 0x6f)
-		o = msgp.AppendBool(o, z.IsLeafDir)
-	}
-
-	if !empty[8] {
-		// string "IsMidDir_zid08_boo"
-		o = append(o, 0xb2, 0x49, 0x73, 0x4d, 0x69, 0x64, 0x44, 0x69, 0x72, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x62, 0x6f, 0x6f)
-		o = msgp.AppendBool(o, z.IsMidDir)
 	}
 
 	return
@@ -419,7 +335,7 @@ func (z *File) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byt
 
 	var field []byte
 	_ = field
-	const maxFields4zgensym_b52703b292455617_5 = 9
+	const maxFields4zgensym_b52703b292455617_5 = 6
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields4zgensym_b52703b292455617_5 uint32
@@ -490,16 +406,16 @@ doneWithStruct4zgensym_b52703b292455617_5:
 			if err != nil {
 				return
 			}
-		case "ModTime_zid03_tim":
+		case "ScanFlags_zid03_u32":
 			found4zgensym_b52703b292455617_5[3] = true
-			z.ModTime, bts, err = nbs.ReadTimeBytes(bts)
+			z.ScanFlags, bts, err = nbs.ReadUint32Bytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "IsSymLink_zid04_boo":
+		case "ModTime_zid04_tim":
 			found4zgensym_b52703b292455617_5[4] = true
-			z.IsSymLink, bts, err = nbs.ReadBoolBytes(bts)
+			z.ModTime, bts, err = nbs.ReadTimeBytes(bts)
 
 			if err != nil {
 				return
@@ -507,27 +423,6 @@ doneWithStruct4zgensym_b52703b292455617_5:
 		case "SymLinkTarget_zid05_str":
 			found4zgensym_b52703b292455617_5[5] = true
 			z.SymLinkTarget, bts, err = nbs.ReadStringBytes(bts)
-
-			if err != nil {
-				return
-			}
-		case "FollowedSymlink_zid06_boo":
-			found4zgensym_b52703b292455617_5[6] = true
-			z.FollowedSymlink, bts, err = nbs.ReadBoolBytes(bts)
-
-			if err != nil {
-				return
-			}
-		case "IsLeafDir_zid07_boo":
-			found4zgensym_b52703b292455617_5[7] = true
-			z.IsLeafDir, bts, err = nbs.ReadBoolBytes(bts)
-
-			if err != nil {
-				return
-			}
-		case "IsMidDir_zid08_boo":
-			found4zgensym_b52703b292455617_5[8] = true
-			z.IsMidDir, bts, err = nbs.ReadBoolBytes(bts)
 
 			if err != nil {
 				return
@@ -555,13 +450,13 @@ doneWithStruct4zgensym_b52703b292455617_5:
 }
 
 // fields of File
-var unmarshalMsgFieldOrder4zgensym_b52703b292455617_5 = []string{"Path_zid00_str", "Size_zid01_i64", "FileMode_zid02_u32", "ModTime_zid03_tim", "IsSymLink_zid04_boo", "SymLinkTarget_zid05_str", "FollowedSymlink_zid06_boo", "IsLeafDir_zid07_boo", "IsMidDir_zid08_boo"}
+var unmarshalMsgFieldOrder4zgensym_b52703b292455617_5 = []string{"Path_zid00_str", "Size_zid01_i64", "FileMode_zid02_u32", "ScanFlags_zid03_u32", "ModTime_zid04_tim", "SymLinkTarget_zid05_str"}
 
-var unmarshalMsgFieldSkip4zgensym_b52703b292455617_5 = []bool{false, false, false, false, false, false, false, false, false}
+var unmarshalMsgFieldSkip4zgensym_b52703b292455617_5 = []bool{false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *File) Msgsize() (s int) {
-	s = 1 + 15 + msgp.StringPrefixSize + len(z.Path) + 15 + msgp.Int64Size + 19 + msgp.Uint32Size + 18 + msgp.TimeSize + 20 + msgp.BoolSize + 24 + msgp.StringPrefixSize + len(z.SymLinkTarget) + 26 + msgp.BoolSize + 20 + msgp.BoolSize + 19 + msgp.BoolSize
+	s = 1 + 15 + msgp.StringPrefixSize + len(z.Path) + 15 + msgp.Int64Size + 19 + msgp.Uint32Size + 20 + msgp.Uint32Size + 18 + msgp.TimeSize + 24 + msgp.StringPrefixSize + len(z.SymLinkTarget)
 	return
 }
 

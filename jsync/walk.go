@@ -179,14 +179,16 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*File, bool] {
 									}
 								}
 
+								scanFlags := ScanFlagFollowedSymlink
 								rf := &File{
 									Path:      target,
 									Size:      fi.Size(),
 									FileMode:  uint32(fi.Mode()),
 									ModTime:   fi.ModTime(),
-									IsSymLink: false,
+									ScanFlags: scanFlags,
+									//IsSymLink: false,
 									//SymLinkTarget: resolveMe,
-									FollowedSymlink: true,
+									//FollowedSymlink: true,
 								}
 
 								if !yield(rf, true) {
@@ -206,14 +208,16 @@ func (di *DirIter) FilesOnly(root string) iter.Seq2[*File, bool] {
 							//vv("returning IsSymLink true regular File")
 							fi, err := entry.Info()
 							panicOn(err)
+							scanFlags := ScanFlagIsSymLink
 							rf := &File{
-								Path:            resolveMe,
-								Size:            fi.Size(),
-								FileMode:        uint32(fi.Mode()),
-								ModTime:         fi.ModTime(),
-								IsSymLink:       true,
-								SymLinkTarget:   target,
-								FollowedSymlink: false,
+								Path:      resolveMe,
+								Size:      fi.Size(),
+								FileMode:  uint32(fi.Mode()),
+								ModTime:   fi.ModTime(),
+								ScanFlags: scanFlags,
+								//IsSymLink:       true,
+								SymLinkTarget: target,
+								//FollowedSymlink: false,
 							}
 							if !yield(rf, true) {
 								return false

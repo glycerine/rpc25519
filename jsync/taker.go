@@ -721,7 +721,7 @@ takerForSelectLoop:
 						syncReq.TakerPath)
 				}
 
-				if syncReq.IsSymLink {
+				if syncReq.ScanFlags&ScanFlagIsSymLink != 0 {
 					vv("syncReq is for a symlink")
 					s.takeSymlink(syncReq, localPathToWrite)
 					s.ackBackFINToGiver(ckt, frag)

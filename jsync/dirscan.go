@@ -3,7 +3,7 @@ package jsync
 import (
 	"context"
 	"fmt"
-	//"io"
+	"io/fs"
 	"iter"
 	"os"
 	"strings"
@@ -65,20 +65,25 @@ type File struct {
 	// Path should always be relative
 	// to the GiverRoot or the TakerRoot,
 	// and be the same in either case.
-	Path     string    `zid:"0"`
-	Size     int64     `zid:"1"`
-	FileMode uint32    `zid:"2"`
-	ModTime  time.Time `zid:"3"`
+	Path     string `zid:"0"`
+	Size     int64  `zid:"1"`
+	FileMode uint32 `zid:"2"`
+
+	// See the ScanFlag const values below
+	ScanFlags uint32 `zid:"3"`
+
+	ModTime time.Time `zid:"4"`
 
 	// symlink support
-	IsSymLink       bool   `zid:"4"`
-	SymLinkTarget   string `zid:"5"`
-	FollowedSymlink bool   `zid:"6"`
-
-	// enable one filesystem scan instead of three.
-	IsLeafDir bool `zid:"7"`
-	IsMidDir  bool `zid:"8"`
+	SymLinkTarget string `zid:"5"`
 }
+
+const (
+	ScanFlagFollowedSymlink uint32 = 1
+	ScanFlagIsLeafDir       uint32 = 2
+	ScanFlagIsMidDir        uint32 = 4
+	ScanFlagIsSymLink       uint32 = uint32(fs.ModeSymlink) // 0x8000000
+)
 
 // PackOfFiles is streamed in phase 2.
 // All of these should be (only) files, not directories.
