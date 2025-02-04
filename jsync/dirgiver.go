@@ -230,6 +230,9 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 						for _, file := range pof.Pack {
 							//vv("dirgiver: pof file = '%#v'", file)
+							if strings.HasSuffix(file.Path, "tools/bpf/runqslower/runqslower.c") {
+								vv("pof.Pack sees runqslower.c")
+							}
 							goroHalt := idem.NewHalter()
 							batchHalt.AddChild(goroHalt)
 
