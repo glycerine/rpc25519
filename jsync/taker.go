@@ -663,6 +663,7 @@ takerForSelectLoop:
 				continue // wait for fin ack back.
 
 			case OpRsync_RequestRemoteToTake, OpRsync_ToGiverSizeMatchButCheckHashAck:
+
 				if frag.FragOp == OpRsync_ToGiverSizeMatchButCheckHashAck {
 					b3sumGiver, ok := frag.GetUserArg("giverFullFileBlake3sum")
 					if !ok {
@@ -705,6 +706,11 @@ takerForSelectLoop:
 
 					localPathToWrite = syncReq.TakerPath
 					localPathToRead = syncReq.TakerPath
+
+					if strings.HasSuffix(syncReq.TakerPath, "tools/bpf/runqslower/runqslower.c") {
+						vv("taker sees syncReq.TakerPath ending in tools/bpf/runqslower/runqslower.c : '%#v'", syncReq)
+					}
+
 				}
 
 				if syncReq.TakerTempDir != "" {
