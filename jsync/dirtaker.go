@@ -297,8 +297,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					//vv("dirtaker set mode on dir = '%v'", dir)
 				}
 				if pod.IsLast {
-					//vv("dirtaker sees pod.IsLast, sending " +
-					//	"OpRsync_ToGiverAllTreeModesDone")
+					vv("dirtaker sees pod.IsLast, sending " +
+						"OpRsync_ToGiverAllTreeModesDone")
 					modesDone := rpc.NewFragment()
 					modesDone.FragOp = OpRsync_ToGiverAllTreeModesDone
 					err = ckt.SendOneWay(modesDone, 0)
