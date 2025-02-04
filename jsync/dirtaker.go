@@ -91,7 +91,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			///////////////// begin dir sync stuff
 
 			case OpRsync_DirSyncBeginToTaker: // 22
-				//vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
+				vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
 				// we should: setup a top tempdir and tell the
 				// giver the path so they can send new files into that path.
 
@@ -193,7 +193,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				panicOn(err)
 
 			case OpRsync_GiverSendsTopDirListing, OpRsync_GiverSendsTopDirListingMore, OpRsync_GiverSendsTopDirListingEnd: // 26/27/28
-				//vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
+				vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
 				// Getting this means here is the starting dir tree from giver.
 				// or, to me (taker), here is more dir listing
 				// or, to me (taker), here is end dir listing
@@ -221,6 +221,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// directories in place, so that we can
 				// fill in the files in any order, and in parallel.
 				if frag.FragOp == OpRsync_GiverSendsTopDirListingEnd {
+					vv("dirtaker sees end of phase 1: pack of leaf paths." +
+						" Sending OpRsync_TakerReadyForDirContents")
 					readyForData := rpc.NewFragment()
 					readyForData.FragOp = OpRsync_TakerReadyForDirContents
 					err = ckt.SendOneWay(readyForData, 0)

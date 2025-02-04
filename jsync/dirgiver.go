@@ -190,7 +190,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						err = ckt.SendOneWay(leafy, 0)
 						panicOn(err)
 						if pol.IsLast {
-							//vv("pol IsLast true")
+							vv("dirgiver: pol IsLast true; break sendLeafDir")
 							break sendLeafDir
 						}
 
@@ -303,7 +303,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						batchHalt.ReqStop.Close()
 
 						if pof.IsLast {
-							//vv("pof IsLast true")
+							vv("dirgiver: pof IsLast true; break sendFiles")
 							break sendFiles
 						}
 
