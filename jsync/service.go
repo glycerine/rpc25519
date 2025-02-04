@@ -201,9 +201,11 @@ const (
 	// giver can shut down all dir sync stuff.
 	OpRsync_DirSyncEndAckFromTaker = 25 // to giver, ack end of dir sync
 
-	OpRsync_GiverSendsTopDirListing     = 26 // to taker, here is my starting dir tree
-	OpRsync_GiverSendsTopDirListingMore = 27 // to taker, here is more of 26
-	OpRsync_GiverSendsTopDirListingEnd  = 28 // to taker, here is end of 26
+	OpRsync_GiverSendsTopDirListing = 26 // to taker, here is my starting dir tree
+
+	// just use 26 and internal PackOfLeaf.IsDone, instead of:
+	//OpRsync_GiverSendsTopDirListingMore = 27 // to taker, here is more of 26
+	//OpRsync_GiverSendsTopDirListingEnd  = 28 // to taker, here is end of 26
 
 	OpRsync_TakerReadyForDirContents  = 29 // to giver, ready for individual file syncs
 	OpRsync_ToTakerDirContentsDone    = 30 // to taker, I've sent them all.
@@ -214,6 +216,11 @@ const (
 
 	OpRsync_ToGiverSizeMatchButCheckHash    = 34 // to giver, here is full file hash, can we avoid chunking?
 	OpRsync_ToGiverSizeMatchButCheckHashAck = 35 // to taker, yea or nay on that.
+
+	OpRsync_GiverSendsPackOfFiles = 36 // to taker, here are file summaries
+	//OpRsync_GiverSendsPackOfFilesMore = 37 // to taker, here is more of 36
+	//OpRsync_GiverSendsPackOfFilesEnd  = 38 // to taker, here is end of 36
+
 )
 
 var once sync.Once
@@ -259,8 +266,6 @@ func AliasRsyncOps() {
 	rpc.FragOpRegister(OpRsync_DirSyncEndAckFromTaker, "OpRsync_DirSyncEndAckFromTaker")
 
 	rpc.FragOpRegister(OpRsync_GiverSendsTopDirListing, "OpRsync_GiverSendsTopDirListing")
-	rpc.FragOpRegister(OpRsync_GiverSendsTopDirListingMore, "OpRsync_GiverSendsTopDirListingMore")
-	rpc.FragOpRegister(OpRsync_GiverSendsTopDirListingEnd, "OpRsync_GiverSendsTopDirListingEnd")
 	rpc.FragOpRegister(OpRsync_TakerReadyForDirContents, "OpRsync_TakerReadyForDirContents")
 
 	rpc.FragOpRegister(OpRsync_ToTakerAllTreeModes, "OpRsync_ToTakerAllTreeModes")
@@ -269,6 +274,9 @@ func AliasRsyncOps() {
 	rpc.FragOpRegister(OpRsync_ToGiverDirContentsDoneAck, "OpRsync_ToGiverDirContentsDoneAck")
 	rpc.FragOpRegister(OpRsync_ToGiverSizeMatchButCheckHash, "OpRsync_ToGiverSizeMatchButCheckHash")
 	rpc.FragOpRegister(OpRsync_ToGiverSizeMatchButCheckHashAck, "OpRsync_ToGiverSizeMatchButCheckHashAck")
+
+	rpc.FragOpRegister(OpRsync_GiverSendsPackOfFiles, "OpRsync_GiverSendsPackOfFiles")
+
 }
 
 // NewRequestToSyncPath creates an empty

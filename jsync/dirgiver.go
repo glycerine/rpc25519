@@ -162,36 +162,64 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				var err error
 				haltDirScan, packOfLeavesCh, packOfFilesCh, packOfDirsCh,
 					err = ScanDirTree(ctx0, reqDir.GiverDir)
-				_ = packOfFilesCh
-				_ = packOfDirsCh
+
+				// nil able copies to we can do phases strinctly 1 at a time.
+				polch := packOfLeavesCh     // start in phase 1.
+				var pofch chan *PackOfFiles // start nil, no receives.
+				var podch chan *PackOfDirs  // start nil, no receives.
+				//pofch = packOfFilesCh  // to start phase 2, below.
+				//podch = packOfDirsCh   // to start phase 3, below.
+
 				panicOn(err)
 				defer haltDirScan.ReqStop.Close()
 
-			sendLeafDir:
+			sendFor:
 				for i := 0; ; i++ {
 					select {
-					case pol, ok := <-packOfLeavesCh:
-						if !ok {
-							break sendLeafDir
-						}
+					case pol := <-polch: // packOfLeavesCh:
 						bts, err := pol.MarshalMsg(nil)
 						panicOn(err)
 						leafy := rpc.NewFragment()
 						leafy.SetUserArg("structType", "PackOfLeafPaths")
 						leafy.Payload = bts
-						switch {
-						case pol.IsLast:
-							leafy.FragOp = OpRsync_GiverSendsTopDirListingEnd
-						case i == 0:
-							leafy.FragOp = OpRsync_GiverSendsTopDirListing
-						default:
-							leafy.FragOp = OpRsync_GiverSendsTopDirListingMore
-						}
+						leafy.FragOp = OpRsync_GiverSendsTopDirListing
 						err = ckt.SendOneWay(leafy, 0)
 						panicOn(err)
 						if pol.IsLast {
-							vv("dirgiver: pol IsLast true; break sendLeafDir")
-							break sendLeafDir
+							vv("dirgiver: pol IsLast true; on to phase 2")
+							polch = nil           // end phase 1
+							pofch = packOfFilesCh // to start phase 2
+						}
+
+					case pof := <-pofch:
+
+						fragPOF := rpc.NewFragment()
+						bts, err := pof.MarshalMsg(nil)
+						panicOn(err)
+						fragPOF.Payload = bts
+						fragPOF.FragOp = OpRsync_GiverSendsPackOfFiles
+						fragPOF.SetUserArg("structType", "PackOfFiles")
+						err = ckt.SendOneWay(fragPOF, 0)
+						panicOn(err)
+						if pof.IsLast {
+							vv("dirgiver: pof IsLast true; on to phase 3")
+							pofch = nil          // end phase 2
+							podch = packOfDirsCh // to start phase 3
+						}
+
+					case pod := <-podch: // phase 3
+						podModes := rpc.NewFragment()
+						bts, err := pod.MarshalMsg(nil)
+						panicOn(err)
+						podModes.Payload = bts
+
+						podModes.FragOp = OpRsync_ToTakerAllTreeModes
+						podModes.SetUserArg("structType", "PackOfDirs")
+						err = ckt.SendOneWay(podModes, 0)
+						panicOn(err)
+						//vv("dirgiver sent pod (last? %v): '%#v'", pod.IsLast, pod)
+						if pod.IsLast {
+							break sendFor
 						}
 
 					case <-done:
@@ -205,6 +233,11 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						return
 					}
 				}
+
+				// whoa sending pof one per goro on a separate ckt
+				// can be super slow. let's just send along. the
+				// rest of the structure early, so we can find out
+				// if we need to sync or not.
 
 				// and wait for OpRsync_TakerReadyForDirContents
 
@@ -220,10 +253,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			sendFiles:
 				for i := 0; ; i++ {
 					select {
-					case pof, ok := <-packOfFilesCh:
-						if !ok {
-							break sendFiles
-						}
+					case pof := <-packOfFilesCh:
 						totalFileBytes += pof.TotalFileBytes
 						batchHalt := idem.NewHalter()
 						defer batchHalt.ReqStop.Close()

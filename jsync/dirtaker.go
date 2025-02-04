@@ -192,7 +192,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				err = ckt.SendOneWay(alldone, 0)
 				panicOn(err)
 
-			case OpRsync_GiverSendsTopDirListing, OpRsync_GiverSendsTopDirListingMore, OpRsync_GiverSendsTopDirListingEnd: // 26/27/28
+			case OpRsync_GiverSendsTopDirListing: //, OpRsync_ToTakerAllTreeModes: // 26/36/ (and 32(eventually?))
 				vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
 				// Getting this means here is the starting dir tree from giver.
 				// or, to me (taker), here is more dir listing
@@ -216,11 +216,12 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// reply to OpRsync_GiverSendsTopDirListingEnd
 				// with OpRsync_TakerReadyForDirContents
 
+				/* re-doing, I think we don't pause for this....
 				// we have them wait to send content files
 				// until we have the "scaffolding" of all the
 				// directories in place, so that we can
 				// fill in the files in any order, and in parallel.
-				if frag.FragOp == OpRsync_GiverSendsTopDirListingEnd {
+				if pol.IsLast { // frag.FragOp == OpRsync_GiverSendsTopDirListingEnd {
 					vv("dirtaker sees end of phase 1: pack of leaf paths." +
 						" Sending OpRsync_TakerReadyForDirContents")
 					readyForData := rpc.NewFragment()
@@ -231,6 +232,20 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// dirgiver should reply to OpRsync_TakerReadyForDirContents
 				// with parallel individual file sends... then
 				// OpRsync_ToTakerDirContentsDone
+				*/
+
+			case OpRsync_GiverSendsPackOfFiles: // 36
+
+				pof := &PackOfFiles{}
+				_, err := pof.UnmarshalMsg(frag.Payload)
+				panicOn(err)
+				bt.bread += len(frag.Payload)
+
+				if pof.IsLast {
+					vv("dirtaker sees last of pof PackOfFiles")
+				}
+				// TODO: compare with on disk, only get updates we need
+				// if size and modtime mismatch.
 
 			case OpRsync_ToTakerDirContentsDone:
 
