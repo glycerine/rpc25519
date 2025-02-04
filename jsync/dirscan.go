@@ -74,6 +74,10 @@ type File struct {
 	IsSymLink       bool   `zid:"4"`
 	SymLinkTarget   string `zid:"5"`
 	FollowedSymlink bool   `zid:"6"`
+
+	// enable one filesystem scan instead of three.
+	IsLeafDir bool `zid:"7"`
+	IsMidDir  bool `zid:"8"`
 }
 
 // PackOfFiles is streamed in phase 2.
