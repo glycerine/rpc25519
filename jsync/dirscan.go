@@ -182,7 +182,11 @@ func ScanDirTree(
 				// send it off
 				select {
 				case packOfLeavesCh <- leafpack:
-					leafpack = nil
+					// don't drop leafdir!
+					leafpack = &PackOfLeafPaths{
+						Pack: []string{leafdir},
+					}
+					have = leafpack.Msgsize()
 				case <-halt.ReqStop.Chan:
 					return
 				case <-done:
@@ -233,7 +237,7 @@ func ScanDirTree(
 			}
 
 			if strings.HasSuffix(regfile.Path, "tools/bpf/runqslower/runqslower.c") {
-				vv("regfile.Path sees runqslower.c: '%v'", regfile.Path)
+				vv("regfile.Path sees runqslower.c: '%v'", regfile.Path) // seen!
 			}
 
 			/*
@@ -291,7 +295,11 @@ func ScanDirTree(
 				// send it off
 				select {
 				case packOfFilesCh <- pof:
-					pof = nil
+					// don't drop f!
+					pof = &PackOfFiles{
+						Pack: []*File{f},
+					}
+					have = pof.Msgsize()
 				case <-halt.ReqStop.Chan:
 					return
 				case <-done:
@@ -363,8 +371,12 @@ func ScanDirTree(
 				// send it off
 				select {
 				case packOfDirsCh <- pod:
-					pod = nil
-					//close(packOfDirsCh)
+					// don't drop dir!
+					pod = &PackOfDirs{
+						Pack: []*File{dir},
+					}
+					have = pod.Msgsize()
+
 				case <-halt.ReqStop.Chan:
 					return
 				case <-done:
