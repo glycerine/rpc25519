@@ -127,9 +127,9 @@ func ScanDirTree(
 		giverRoot += sep
 	}
 
-	packOfLeavesCh = make(chan *PackOfLeafPaths)
-	packOfFilesCh = make(chan *PackOfFiles)
-	packOfDirsCh = make(chan *PackOfDirs)
+	packOfLeavesCh = make(chan *PackOfLeafPaths, 5000)
+	packOfFilesCh = make(chan *PackOfFiles, 5000)
+	packOfDirsCh = make(chan *PackOfDirs, 5000)
 
 	done := ctx.Done()
 	_ = done
