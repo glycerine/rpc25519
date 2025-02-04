@@ -23,11 +23,13 @@ var _ = progress.TransferStats{}
 var sep = string(os.PathSeparator)
 
 type JcopyConfig struct {
-	Port int
+	Port  int
+	Quiet bool
 }
 
 func (c *JcopyConfig) SetFlags(fs *flag.FlagSet) {
 	fs.IntVar(&c.Port, "p", 8443, "port on server to connect to")
+	fs.BoolVar(&c.Quiet, "q", false, "quiet, no progress report")
 }
 
 func (c *JcopyConfig) FinishConfig(fs *flag.FlagSet) (err error) {
@@ -306,7 +308,9 @@ jobDone:
 	for {
 		select {
 		case prog := <-req.UpdateProgress:
-			fmt.Printf("progress: %v\n", prog)
+			if !jcfg.Quiet {
+				fmt.Printf("progress: %v\n", prog)
+			}
 			continue
 		case <-req.Done.Chan:
 			break jobDone
