@@ -254,9 +254,10 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 									vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
 									err := os.Symlink(targ, localPathToWrite)
 									panicOn(err)
+									vv("updating Lutimes for '%v'", localPathToWrite)
+									tv := unix.NsecToTimeval(f.ModTime.UnixNano())
+									unix.Lutimes(localPathToWrite, []unix.Timeval{tv, tv})
 								}
-								tv := unix.NsecToTimeval(f.ModTime.UnixNano())
-								unix.Lutimes(localPathToWrite, []unix.Timeval{tv, tv})
 								continue // to next file
 							}
 
@@ -269,8 +270,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								//vv("good: no update needed for localPathToRead: '%v';   f.Path = '%v'", localPathToRead, f.Path)
 
 								if localPathToWrite != localPathToRead {
-									vv("hard linking 10 '%v' <- '%v'",
-										localPathToRead, localPathToWrite)
+									//vv("hard linking 10 '%v' <- '%v'",
+									//	localPathToRead, localPathToWrite)
 									panicOn(os.Link(localPathToRead, localPathToWrite))
 								}
 								// just adjust mod time and fin.
