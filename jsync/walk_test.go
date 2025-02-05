@@ -1,13 +1,15 @@
 package jsync
 
 import (
-	"fmt"
-	//"io"
 	"bufio"
+	"fmt"
 	"iter"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/glycerine/idem"
 )
 
 var _ = bufio.NewWriter
@@ -309,40 +311,28 @@ func TestWalkDirs_MaxDepth(t *testing.T) {
 	}
 }
 
-/*
-func TestWalkDirsFilesOnly2(t *testing.T) {
+func Test_ParallelOneWalkForAll(t *testing.T) {
 
-	root := "/Users/jaten/trash"
-	limit := 100000
+	home := os.Getenv("HOME")
+	root := filepath.Join(home, "/go/src/github.com/torvalds/linux")
 
 	di := NewDirIter()
 
+	halt := idem.NewHalter()
+	t0 := time.Now()
+	resCh := di.ParallelOneWalkForAll(halt, root)
 	k := 0
-	next, stop := iter.Pull2(di.FilesOnly(root))
-	defer stop()
 
+forloop:
 	for {
-		dir, ok, valid := next()
-		if !valid {
-			//vv("not valid, breaking, ok = %v", ok)
-			break
-		}
-		_ = dir
-		if !ok {
-			break
-		}
-
-		k++
-		//fmt.Fprintln(buf, dir)
-		//fmt.Println(dir)
-
-		if k > limit {
-			vv("break on limit")
-			break
+		select {
+		case f := <-resCh:
+			_ = f
+			k++
+		case <-halt.ReqStop.Chan:
+			break forloop
 		}
 	}
-	//buf.Flush()
-	//ans.Close()
-	vv("total count, files only = %v", k)
+	elap := time.Since(t0)
+	vv("total count, all in parallel = %v; elap = %v", k, elap)
 }
-*/

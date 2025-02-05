@@ -1,15 +1,17 @@
 package jsync
 
 import (
-	"context"
+	"fmt"
 	"io/fs"
 	"iter"
 	"os"
 	"path/filepath"
 
+	"github.com/glycerine/idem"
 	pwalk "github.com/glycerine/parallelwalk"
-	rpc "github.com/glycerine/rpc25519"
 )
+
+var ErrHaltRequested = fmt.Errorf("halt requested")
 
 // DirIter efficiently scans a filesystems directory
 // file tree. The BatchSize is used to limit how
@@ -504,9 +506,8 @@ func (di *DirIter) OneWalkForAll(root string) iter.Seq2[*File, bool] {
 }
 
 // same as above, but use pwalk for multiple goroutines
-func (di *DirIter) ParallelOneWalkForAll(ctx context.Context, root string) (resCh chan *File) {
+func (di *DirIter) ParallelOneWalkForAll(halt *idem.Halter, root string) (resCh chan *File) {
 
-	done := ctx.Done()
 	resCh = make(chan *File, 4096)
 	//var seen map[string]bool
 	//if di.FollowSymlinks { // not fully implimented yet?
@@ -516,76 +517,92 @@ func (di *DirIter) ParallelOneWalkForAll(ctx context.Context, root string) (resC
 	//	seen = make(map[string]bool)
 	//}
 
-	go pwalk.Walk(root, func(path string, fi os.FileInfo, err error) error {
+	go func() {
+		// we need to know when pwalk.Walk() returns: that is
+		// when we are done with the walk. Then these defer can run.
+		defer func() {
+			vv("pwalk.Walk must have finished. defers are running")
+			halt.ReqStop.Close()
+			halt.Done.Close()
+		}()
 
-		hasSubdirs := false
-		if fi.Mode()&fs.ModeSymlink != 0 {
-			//vv("have symlink '%v'", resolveMe)
-			// atm do not follow symlinks, but return them.
+		pwalk.Walk(root, func(path string, de fs.DirEntry, err error) error {
 
-			target, err := os.Readlink(path)
+			hasSubdirs := false
+			fi, err := de.Info()
 			if err != nil {
-				// allow dangling links to not stop the walk.?
-				//return nil
-				panicOn(err) // do we need to pass on target even if dangling?
+				return err
 			}
+			if fi.Mode()&fs.ModeSymlink != 0 {
+				//vv("have symlink '%v'", resolveMe)
+				// atm do not follow symlinks, but return them.
 
-			//vv("returning IsSymLink true regular File")
-			scanFlags := ScanFlagIsSymLink
-			rf := &File{
-				Path:      path,
-				Size:      fi.Size(),
-				FileMode:  uint32(fi.Mode()),
-				ModTime:   fi.ModTime(),
-				ScanFlags: scanFlags,
-				//IsSymLink:       true,
-				SymLinkTarget: target,
-				//FollowedSymlink: false,
-			}
-			select {
-			case resCh <- rf:
-			case <-done:
-				return rpc.ErrContextCancelled
-			}
-			// end if symlink
-		} else {
-			if fi.IsDir() {
-				// we are a directory, yield ourselves.
-				var scanFlags uint32
-				if hasSubdirs {
-					scanFlags = ScanFlagIsDir | ScanFlagIsMidDir
-				} else {
-					scanFlags = ScanFlagIsDir | ScanFlagIsLeafDir
+				target, err := os.Readlink(path)
+				if err != nil {
+					// allow dangling links to not stop the walk.?
+					//return nil
+					panicOn(err) // do we need to pass on target even if dangling?
 				}
+
+				//vv("returning IsSymLink true regular File")
+				scanFlags := ScanFlagIsSymLink
 				rf := &File{
 					Path:      path,
 					Size:      fi.Size(),
 					FileMode:  uint32(fi.Mode()),
 					ModTime:   fi.ModTime(),
 					ScanFlags: scanFlags,
+					//IsSymLink:       true,
+					SymLinkTarget: target,
+					//FollowedSymlink: false,
 				}
 				select {
 				case resCh <- rf:
-				case <-done:
-					return rpc.ErrContextCancelled
+				case <-halt.ReqStop.Chan:
+					return ErrHaltRequested
 				}
-
+				// end if symlink
 			} else {
-				// regular file
-				rf := &File{
-					Path:     path,
-					Size:     fi.Size(),
-					FileMode: uint32(fi.Mode()),
-					ModTime:  fi.ModTime(),
-				}
-				select {
-				case resCh <- rf:
-				case <-done:
-					return rpc.ErrContextCancelled
+				if fi.IsDir() {
+					// we are a directory, yield ourselves.
+					var scanFlags uint32
+					if hasSubdirs {
+						scanFlags = ScanFlagIsDir | ScanFlagIsMidDir
+					} else {
+						scanFlags = ScanFlagIsDir | ScanFlagIsLeafDir
+					}
+					rf := &File{
+						Path:      path,
+						Size:      fi.Size(),
+						FileMode:  uint32(fi.Mode()),
+						ModTime:   fi.ModTime(),
+						ScanFlags: scanFlags,
+					}
+					select {
+					case resCh <- rf:
+					case <-halt.ReqStop.Chan:
+						return ErrHaltRequested
+					}
+
+				} else {
+					// regular file
+					rf := &File{
+						Path:     path,
+						Size:     fi.Size(),
+						FileMode: uint32(fi.Mode()),
+						ModTime:  fi.ModTime(),
+					}
+					select {
+					case resCh <- rf:
+					case <-halt.ReqStop.Chan:
+						return ErrHaltRequested
+					}
 				}
 			}
-		}
-		return nil
-	})
+			return nil
+		})
+		vv("back from pwalk.Walk()")
+	}()
+
 	return
 }
