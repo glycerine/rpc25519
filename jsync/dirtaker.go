@@ -218,6 +218,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					// and will finish processing it before shutdown.
 					fileUpdateCh = make(chan *File)
 
+					// goro getting only 200 msec or so faster.
 					ngoro := runtime.NumCPU()
 					wgIndivFileCheck = &sync.WaitGroup{}
 					wgIndivFileCheck.Add(ngoro)
