@@ -242,7 +242,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						// might not exist, don't panic on err (really!)
 						if err != nil {
 							needUpdate = append(needUpdate, f)
-							//vv("Stat localPathToRead -> err '%v' so marking needUpdate", err)
+							vv("Stat localPathToRead '%v' -> err '%v' so marking needUpdate", localPathToRead, err)
 						} else {
 							if !fi.ModTime().Truncate(time.Second).Equal(f.ModTime.Truncate(time.Second)) ||
 								fi.Size() != f.Size {
