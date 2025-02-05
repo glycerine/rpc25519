@@ -237,8 +237,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						localPathToRead := filepath.Join(
 							reqDir.TopTakerDirFinal, f.Path)
 
-						//vv("dirTaker: f.Path = '%v' => localPathToRead = '%v'", f.Path, localPathToRead)
-						//vv("dirTaker: f.Path = '%v' => localPathToWrite = '%v'", f.Path, localPathToWrite)
+						vv("dirTaker: f.Path = '%v' => localPathToRead = '%v'", f.Path, localPathToRead)
+						vv("dirTaker: f.Path = '%v' => localPathToWrite = '%v'", f.Path, localPathToWrite)
 						var err error
 						var fi os.FileInfo
 						isSym := f.IsSymlink()
@@ -253,9 +253,19 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							vv("Stat localPathToRead '%v' -> err '%v' so marking needUpdate", localPathToRead, err)
 						} else {
 							if isSym {
-								curTarget, err := os.Readlink(localPathToRead)
-								panicOn(err)
-								if curTarget != f.SymLinkTarget {
+								vv("have sym link in f: '%#v'", f)
+								needWrite := false
+								if localPathToWrite != localPathToRead {
+									needWrite = true
+								} else {
+									curTarget, err := os.Readlink(localPathToRead)
+									panicOn(err)
+									if curTarget != f.SymLinkTarget {
+										needWrite = true
+									}
+								}
+								if needWrite {
+									// need to install to the new temp dir no matter.
 									targ := f.SymLinkTarget
 									os.Remove(localPathToWrite)
 									vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
@@ -274,14 +284,14 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								vv("fi.ModTime('%v') != f.ModTime '%v'; or", fi.ModTime(), f.ModTime)
 								vv("OR: fi.Size(%v) != f.Size(%v); => needUpdate for localPathToRead = '%v'", fi.Size(), f.Size, localPathToRead)
 							} else {
-								//vv("good: no update needed for localPathToRead: '%v';   f.Path = '%v'", localPathToRead, f.Path)
+								vv("good: no update needed for localPathToRead: '%v';   f.Path = '%v'", localPathToRead, f.Path)
 
 								if fi.Mode()&fs.ModeSymlink != 0 {
 									vv("skipping update to symlink for now: localPathToRead = '%v'", localPathToRead)
 								} else {
 									if localPathToWrite != localPathToRead {
-										//vv("hard linking 10 '%v' <- '%v'",
-										//	localPathToRead, localPathToWrite)
+										vv("hard linking 10 '%v' <- '%v'",
+											localPathToRead, localPathToWrite)
 										panicOn(os.Link(localPathToRead, localPathToWrite))
 									}
 
