@@ -535,7 +535,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 	updateMap := needUpdate.GetMapReset()
 	for path, file := range updateMap {
 		_ = path
-		vv("dirtaker: needUpdate path '%v'", path)
+		vv("dirtaker: needUpdate path '%v' -> file: '%#v'", path, file)
 		goroHalt := idem.NewHalter()
 		batchHalt.AddChild(goroHalt)
 
@@ -550,7 +550,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 
 			takerFinalPath := filepath.Join(reqDir.TopTakerDirFinal,
 				file.Path)
-
+			vv("takerFinalPath = '%v', is this right?", takerFinalPath)
 			const keepData = false
 			const wantChunks = true
 			precis, chunks, err := GetHashesOneByOne(rpc.Hostname, takerFinalPath)
@@ -562,7 +562,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 
 			syncReq := &RequestToSyncPath{
 				GiverPath:        giverPath,
-				TakerPath:        takerFinalPath,
+				TakerPath:        file.Path,
 				TakerTempDir:     reqDir.TopTakerDirTemp,
 				TopTakerDirFinal: reqDir.TopTakerDirFinal,
 				GiverDirAbs:      reqDir.GiverDir,
