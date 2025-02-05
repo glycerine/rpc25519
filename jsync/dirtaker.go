@@ -317,7 +317,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						vv("got pof.IsLast, no update needed on "+
 							"dirtaker side. checked %v files", totFiles)
 					} else {
-						s.dirTakerSendIndivFiles(myPeer, needUpdate, reqDir, ckt, done, done0)
+						err = s.dirTakerSendIndivFiles(myPeer, needUpdate, reqDir, ckt, done, done0, bt)
+						panicOn(err)
 					}
 
 					//modesDone := rpc.NewFragment()
@@ -520,7 +521,8 @@ func (s *SyncService) dirTakerSendIndivFiles(
 	reqDir *RequestToSyncDir,
 	ckt *rpc.Circuit,
 	done, done0 <-chan struct{},
-) {
+	bt *byteTracker,
+) error {
 	t0 := time.Now()
 	nn := needUpdate.GetN()
 	vv("top dirTakerSendIndivFiles() with %v files needing updates.", nn)
@@ -532,8 +534,8 @@ func (s *SyncService) dirTakerSendIndivFiles(
 
 	updateMap := needUpdate.GetMapReset()
 	for path, file := range updateMap {
-
-		vv("dirtaker: needUpdate file = '%#v'", file)
+		_ = path
+		vv("dirtaker: needUpdate path '%v'", path)
 		goroHalt := idem.NewHalter()
 		batchHalt.AddChild(goroHalt)
 
@@ -555,12 +557,12 @@ func (s *SyncService) dirTakerSendIndivFiles(
 			panicOn(err)
 
 			frag := rpc.NewFragment()
-			frag.FragOp = RequestRemoteToGive // 12
+			frag.FragOp = OpRsync_RequestRemoteToGive // 12
 			frag.FragSubject = giverPath
 
 			syncReq := &RequestToSyncPath{
 				GiverPath:        giverPath,
-				TakerPath:        takerFinalpath,
+				TakerPath:        takerFinalPath,
 				TakerTempDir:     reqDir.TopTakerDirTemp,
 				TopTakerDirFinal: reqDir.TopTakerDirFinal,
 				GiverDirAbs:      reqDir.GiverDir,
@@ -569,7 +571,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 				GiverModTime:  file.ModTime,
 				GiverFileMode: file.FileMode,
 
-				TakerFileSize: precis.FileSize,
+				TakerFileSize: int64(precis.FileSize),
 				TakerModTime:  precis.ModTime,
 				TakerFileMode: precis.FileMode,
 
@@ -642,7 +644,8 @@ func (s *SyncService) dirTakerSendIndivFiles(
 				if err != nil {
 					alwaysPrintf("error back from packAndSendChunksLimitedSize()"+
 						" during xtra sending: '%v'", err)
-					return err
+					//return err
+					panicOn(err)
 				}
 
 			}
@@ -685,4 +688,5 @@ func (s *SyncService) dirTakerSendIndivFiles(
 	batchHalt.ReqStop.Close()
 
 	vv("end dirTakerSendIndivFiles: elap = '%v'", time.Since(t0))
+	return nil
 }

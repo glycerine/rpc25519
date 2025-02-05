@@ -721,7 +721,7 @@ takerForSelectLoop:
 						syncReq.TakerPath)
 				}
 
-				if syncReq.ScanFlags&ScanFlagIsSymLink != 0 {
+				if syncReq.GiverScanFlags&ScanFlagIsSymLink != 0 {
 					vv("syncReq is for a symlink")
 					s.takeSymlink(syncReq, localPathToWrite)
 					s.ackBackFINToGiver(ckt, frag)
@@ -989,7 +989,7 @@ func (s *SyncService) contentsMatch(syncReq *RequestToSyncPath, ckt *rpc.Circuit
 
 func (s *SyncService) takeSymlink(syncReq *RequestToSyncPath, localPathToWrite string) {
 
-	targ := syncReq.SymLinkTarget
+	targ := syncReq.GiverSymLinkTarget
 	//vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
 	os.Remove(localPathToWrite)
 	err := os.Symlink(targ, localPathToWrite)

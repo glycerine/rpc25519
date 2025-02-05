@@ -916,15 +916,15 @@ doneWithStruct6zgensym_5b8048e47f8e3c5c_7:
 			if err != nil {
 				return
 			}
-		case "ScanFlags_zid34_u32":
+		case "GiverScanFlags_zid34_u32":
 			found6zgensym_5b8048e47f8e3c5c_7[34] = true
-			z.ScanFlags, err = dc.ReadUint32()
+			z.GiverScanFlags, err = dc.ReadUint32()
 			if err != nil {
 				return
 			}
-		case "SymLinkTarget_zid35_str":
+		case "GiverSymLinkTarget_zid35_str":
 			found6zgensym_5b8048e47f8e3c5c_7[35] = true
-			z.SymLinkTarget, err = dc.ReadString()
+			z.GiverSymLinkTarget, err = dc.ReadString()
 			if err != nil {
 				return
 			}
@@ -951,7 +951,7 @@ doneWithStruct6zgensym_5b8048e47f8e3c5c_7:
 }
 
 // fields of RequestToSyncPath
-var decodeMsgFieldOrder6zgensym_5b8048e47f8e3c5c_7 = []string{"GiverPath_zid00_str", "TakerPath_zid01_str", "TakerModTime_zid02_tim", "TakerFileSize_zid03_i64", "TakerFileMode_zid04_u32", "ToRemotePeerServiceName_zid05_str", "ToRemoteNetAddr_zid06_str", "ToRemoteURL_zid07_str", "ToRemotePeerID_zid08_str", "SyncFromHostname_zid09_str", "SyncFromHostCID_zid10_str", "GiverFullFileBlake3_zid11_str", "TakerFullFileBlake3_zid12_str", "SizeModTimeMatch_zid13_boo", "GiverDirAbs_zid14_str", "Errs_zid15_str", "BytesSent_zid16_i64", "BytesRead_zid17_i64", "RemoteBytesTransferred_zid18_i64", "MoreChunksComming_zid19_boo", "RemoteTakes_zid20_boo", "Precis_zid21_ptr", "Chunks_zid22_ptr", "GiverIsDir_zid23_boo", "TakerIsDir_zid24_boo", "GiverExistsLocal_zid25_boo", "TakerExistsLocal_zid26_boo", "TakerStartsEmpty_zid27_boo", "GiverStartsEmpty_zid28_boo", "TakerTempDir_zid29_str", "TopTakerDirFinal_zid30_str", "GiverModTime_zid31_tim", "GiverFileSize_zid32_i64", "GiverFileMode_zid33_u32", "ScanFlags_zid34_u32", "SymLinkTarget_zid35_str", "", ""}
+var decodeMsgFieldOrder6zgensym_5b8048e47f8e3c5c_7 = []string{"GiverPath_zid00_str", "TakerPath_zid01_str", "TakerModTime_zid02_tim", "TakerFileSize_zid03_i64", "TakerFileMode_zid04_u32", "ToRemotePeerServiceName_zid05_str", "ToRemoteNetAddr_zid06_str", "ToRemoteURL_zid07_str", "ToRemotePeerID_zid08_str", "SyncFromHostname_zid09_str", "SyncFromHostCID_zid10_str", "GiverFullFileBlake3_zid11_str", "TakerFullFileBlake3_zid12_str", "SizeModTimeMatch_zid13_boo", "GiverDirAbs_zid14_str", "Errs_zid15_str", "BytesSent_zid16_i64", "BytesRead_zid17_i64", "RemoteBytesTransferred_zid18_i64", "MoreChunksComming_zid19_boo", "RemoteTakes_zid20_boo", "Precis_zid21_ptr", "Chunks_zid22_ptr", "GiverIsDir_zid23_boo", "TakerIsDir_zid24_boo", "GiverExistsLocal_zid25_boo", "TakerExistsLocal_zid26_boo", "TakerStartsEmpty_zid27_boo", "GiverStartsEmpty_zid28_boo", "TakerTempDir_zid29_str", "TopTakerDirFinal_zid30_str", "GiverModTime_zid31_tim", "GiverFileSize_zid32_i64", "GiverFileMode_zid33_u32", "GiverScanFlags_zid34_u32", "GiverSymLinkTarget_zid35_str", "", ""}
 
 var decodeMsgFieldSkip6zgensym_5b8048e47f8e3c5c_7 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
 
@@ -1097,11 +1097,11 @@ func (z *RequestToSyncPath) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[33] {
 		fieldsInUse--
 	}
-	isempty[34] = (z.ScanFlags == 0) // number, omitempty
+	isempty[34] = (z.GiverScanFlags == 0) // number, omitempty
 	if isempty[34] {
 		fieldsInUse--
 	}
-	isempty[35] = (len(z.SymLinkTarget) == 0) // string, omitempty
+	isempty[35] = (len(z.GiverSymLinkTarget) == 0) // string, omitempty
 	if isempty[35] {
 		fieldsInUse--
 	}
@@ -1562,24 +1562,24 @@ func (z *RequestToSyncPath) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_5b8048e47f8e3c5c_8[34] {
-		// write "ScanFlags_zid34_u32"
-		err = en.Append(0xb3, 0x53, 0x63, 0x61, 0x6e, 0x46, 0x6c, 0x61, 0x67, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x34, 0x5f, 0x75, 0x33, 0x32)
+		// write "GiverScanFlags_zid34_u32"
+		err = en.Append(0xb8, 0x47, 0x69, 0x76, 0x65, 0x72, 0x53, 0x63, 0x61, 0x6e, 0x46, 0x6c, 0x61, 0x67, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x34, 0x5f, 0x75, 0x33, 0x32)
 		if err != nil {
 			return err
 		}
-		err = en.WriteUint32(z.ScanFlags)
+		err = en.WriteUint32(z.GiverScanFlags)
 		if err != nil {
 			return
 		}
 	}
 
 	if !empty_zgensym_5b8048e47f8e3c5c_8[35] {
-		// write "SymLinkTarget_zid35_str"
-		err = en.Append(0xb7, 0x53, 0x79, 0x6d, 0x4c, 0x69, 0x6e, 0x6b, 0x54, 0x61, 0x72, 0x67, 0x65, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x35, 0x5f, 0x73, 0x74, 0x72)
+		// write "GiverSymLinkTarget_zid35_str"
+		err = en.Append(0xbc, 0x47, 0x69, 0x76, 0x65, 0x72, 0x53, 0x79, 0x6d, 0x4c, 0x69, 0x6e, 0x6b, 0x54, 0x61, 0x72, 0x67, 0x65, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x35, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
-		err = en.WriteString(z.SymLinkTarget)
+		err = en.WriteString(z.GiverSymLinkTarget)
 		if err != nil {
 			return
 		}
@@ -1828,15 +1828,15 @@ func (z *RequestToSyncPath) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[34] {
-		// string "ScanFlags_zid34_u32"
-		o = append(o, 0xb3, 0x53, 0x63, 0x61, 0x6e, 0x46, 0x6c, 0x61, 0x67, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x34, 0x5f, 0x75, 0x33, 0x32)
-		o = msgp.AppendUint32(o, z.ScanFlags)
+		// string "GiverScanFlags_zid34_u32"
+		o = append(o, 0xb8, 0x47, 0x69, 0x76, 0x65, 0x72, 0x53, 0x63, 0x61, 0x6e, 0x46, 0x6c, 0x61, 0x67, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x34, 0x5f, 0x75, 0x33, 0x32)
+		o = msgp.AppendUint32(o, z.GiverScanFlags)
 	}
 
 	if !empty[35] {
-		// string "SymLinkTarget_zid35_str"
-		o = append(o, 0xb7, 0x53, 0x79, 0x6d, 0x4c, 0x69, 0x6e, 0x6b, 0x54, 0x61, 0x72, 0x67, 0x65, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x35, 0x5f, 0x73, 0x74, 0x72)
-		o = msgp.AppendString(o, z.SymLinkTarget)
+		// string "GiverSymLinkTarget_zid35_str"
+		o = append(o, 0xbc, 0x47, 0x69, 0x76, 0x65, 0x72, 0x53, 0x79, 0x6d, 0x4c, 0x69, 0x6e, 0x6b, 0x54, 0x61, 0x72, 0x67, 0x65, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x33, 0x35, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.GiverSymLinkTarget)
 	}
 
 	return
@@ -2191,16 +2191,16 @@ doneWithStruct10zgensym_5b8048e47f8e3c5c_11:
 			if err != nil {
 				return
 			}
-		case "ScanFlags_zid34_u32":
+		case "GiverScanFlags_zid34_u32":
 			found10zgensym_5b8048e47f8e3c5c_11[34] = true
-			z.ScanFlags, bts, err = nbs.ReadUint32Bytes(bts)
+			z.GiverScanFlags, bts, err = nbs.ReadUint32Bytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "SymLinkTarget_zid35_str":
+		case "GiverSymLinkTarget_zid35_str":
 			found10zgensym_5b8048e47f8e3c5c_11[35] = true
-			z.SymLinkTarget, bts, err = nbs.ReadStringBytes(bts)
+			z.GiverSymLinkTarget, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
@@ -2228,7 +2228,7 @@ doneWithStruct10zgensym_5b8048e47f8e3c5c_11:
 }
 
 // fields of RequestToSyncPath
-var unmarshalMsgFieldOrder10zgensym_5b8048e47f8e3c5c_11 = []string{"GiverPath_zid00_str", "TakerPath_zid01_str", "TakerModTime_zid02_tim", "TakerFileSize_zid03_i64", "TakerFileMode_zid04_u32", "ToRemotePeerServiceName_zid05_str", "ToRemoteNetAddr_zid06_str", "ToRemoteURL_zid07_str", "ToRemotePeerID_zid08_str", "SyncFromHostname_zid09_str", "SyncFromHostCID_zid10_str", "GiverFullFileBlake3_zid11_str", "TakerFullFileBlake3_zid12_str", "SizeModTimeMatch_zid13_boo", "GiverDirAbs_zid14_str", "Errs_zid15_str", "BytesSent_zid16_i64", "BytesRead_zid17_i64", "RemoteBytesTransferred_zid18_i64", "MoreChunksComming_zid19_boo", "RemoteTakes_zid20_boo", "Precis_zid21_ptr", "Chunks_zid22_ptr", "GiverIsDir_zid23_boo", "TakerIsDir_zid24_boo", "GiverExistsLocal_zid25_boo", "TakerExistsLocal_zid26_boo", "TakerStartsEmpty_zid27_boo", "GiverStartsEmpty_zid28_boo", "TakerTempDir_zid29_str", "TopTakerDirFinal_zid30_str", "GiverModTime_zid31_tim", "GiverFileSize_zid32_i64", "GiverFileMode_zid33_u32", "ScanFlags_zid34_u32", "SymLinkTarget_zid35_str", "", ""}
+var unmarshalMsgFieldOrder10zgensym_5b8048e47f8e3c5c_11 = []string{"GiverPath_zid00_str", "TakerPath_zid01_str", "TakerModTime_zid02_tim", "TakerFileSize_zid03_i64", "TakerFileMode_zid04_u32", "ToRemotePeerServiceName_zid05_str", "ToRemoteNetAddr_zid06_str", "ToRemoteURL_zid07_str", "ToRemotePeerID_zid08_str", "SyncFromHostname_zid09_str", "SyncFromHostCID_zid10_str", "GiverFullFileBlake3_zid11_str", "TakerFullFileBlake3_zid12_str", "SizeModTimeMatch_zid13_boo", "GiverDirAbs_zid14_str", "Errs_zid15_str", "BytesSent_zid16_i64", "BytesRead_zid17_i64", "RemoteBytesTransferred_zid18_i64", "MoreChunksComming_zid19_boo", "RemoteTakes_zid20_boo", "Precis_zid21_ptr", "Chunks_zid22_ptr", "GiverIsDir_zid23_boo", "TakerIsDir_zid24_boo", "GiverExistsLocal_zid25_boo", "TakerExistsLocal_zid26_boo", "TakerStartsEmpty_zid27_boo", "GiverStartsEmpty_zid28_boo", "TakerTempDir_zid29_str", "TopTakerDirFinal_zid30_str", "GiverModTime_zid31_tim", "GiverFileSize_zid32_i64", "GiverFileMode_zid33_u32", "GiverScanFlags_zid34_u32", "GiverSymLinkTarget_zid35_str", "", ""}
 
 var unmarshalMsgFieldSkip10zgensym_5b8048e47f8e3c5c_11 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
 
@@ -2246,6 +2246,6 @@ func (z *RequestToSyncPath) Msgsize() (s int) {
 	} else {
 		s += z.Chunks.Msgsize()
 	}
-	s += 21 + msgp.BoolSize + 21 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 23 + msgp.StringPrefixSize + len(z.TakerTempDir) + 27 + msgp.StringPrefixSize + len(z.TopTakerDirFinal) + 23 + msgp.TimeSize + 24 + msgp.Int64Size + 24 + msgp.Uint32Size + 20 + msgp.Uint32Size + 24 + msgp.StringPrefixSize + len(z.SymLinkTarget)
+	s += 21 + msgp.BoolSize + 21 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 27 + msgp.BoolSize + 23 + msgp.StringPrefixSize + len(z.TakerTempDir) + 27 + msgp.StringPrefixSize + len(z.TopTakerDirFinal) + 23 + msgp.TimeSize + 24 + msgp.Int64Size + 24 + msgp.Uint32Size + 25 + msgp.Uint32Size + 29 + msgp.StringPrefixSize + len(z.GiverSymLinkTarget)
 	return
 }
