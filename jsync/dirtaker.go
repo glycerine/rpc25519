@@ -284,21 +284,20 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								vv("fi.ModTime('%v') != f.ModTime '%v'; or", fi.ModTime(), f.ModTime)
 								vv("OR: fi.Size(%v) != f.Size(%v); => needUpdate for localPathToRead = '%v'", fi.Size(), f.Size, localPathToRead)
 							} else {
-								vv("good: no update needed for localPathToRead: '%v';   f.Path = '%v'", localPathToRead, f.Path)
+								//vv("good: no update needed for localPathToRead: '%v';   f.Path = '%v'", localPathToRead, f.Path)
 
-								if fi.Mode()&fs.ModeSymlink != 0 {
-									vv("skipping update to symlink for now: localPathToRead = '%v'", localPathToRead)
-								} else {
-									if localPathToWrite != localPathToRead {
-										//vv("hard linking 10 '%v' <- '%v'",
-										//	localPathToRead, localPathToWrite)
-										panicOn(os.Link(localPathToRead, localPathToWrite))
-									}
-
+								//if fi.Mode()&fs.ModeSymlink != 0 {
+								//	vv("skipping update to symlink for now: localPathToRead = '%v'", localPathToRead)
+								//} else {
+								if localPathToWrite != localPathToRead {
+									//vv("hard linking 10 '%v' <- '%v'",
+									//	localPathToRead, localPathToWrite)
+									panicOn(os.Link(localPathToRead, localPathToWrite))
 									// just adjust mod time and fin.
 									err = os.Chtimes(localPathToWrite, time.Time{}, f.ModTime)
 									panicOn(err)
 								}
+								//}
 							}
 						}
 					}
