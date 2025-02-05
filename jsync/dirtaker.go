@@ -47,6 +47,9 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	var haltIndivFileCheck *idem.Halter
 	needUpdate := rpc.NewMutexmap[string, *File]()
 
+	// just measure for now, no creating hard links etc.
+	const dowrite = false
+
 	weAreRemoteTaker := (reqDir == nil)
 
 	if reqDir != nil {
@@ -171,31 +174,33 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				final := filepath.Clean(reqDir.TopTakerDirFinal)
 				//vv("dirtaker would rename completed dir into place!: %v -> %v", tmp, final)
 				var err error
+				if dowrite {
+					rndsuf := rpc.NewCryRandSuffix()
+					old := ""
+					if dirExists(final) {
+						// move the old dir out of the way.
+						old = final + ".old." + rndsuf
+						//vv("dirtaker backup previous dir '%v' -> '%v'", final, old)
+						err := os.Rename(final, old)
+						panicOn(err)
+					}
+					// put the new directory in its place.
+					err = os.Rename(tmp, final)
+					panicOn(err)
+					if old != "" {
+						// We have hard linked all the unchanged files into the new.
+						// Now delete the old version (hard link count -> 1).
+						//vv("TODO debug actually remove old dir: '%v'", old)
+						panicOn(os.RemoveAll(old))
+					}
+					// and set the mod time
+					if !reqDir.GiverDirModTime.IsZero() {
+						//vv("setting final dir mod time: '%v'", reqDir.GiverDirModTime)
+						err = os.Chtimes(final, time.Time{}, reqDir.GiverDirModTime)
+						panicOn(err)
+					}
 
-				rndsuf := rpc.NewCryRandSuffix()
-				old := ""
-				if dirExists(final) {
-					// move the old dir out of the way.
-					old = final + ".old." + rndsuf
-					//vv("dirtaker backup previous dir '%v' -> '%v'", final, old)
-					err := os.Rename(final, old)
-					panicOn(err)
-				}
-				// put the new directory in its place.
-				err = os.Rename(tmp, final)
-				panicOn(err)
-				if old != "" {
-					// We have hard linked all the unchanged files into the new.
-					// Now delete the old version (hard link count -> 1).
-					//vv("TODO debug actually remove old dir: '%v'", old)
-					panicOn(os.RemoveAll(old))
-				}
-				// and set the mod time
-				if !reqDir.GiverDirModTime.IsZero() {
-					//vv("setting final dir mod time: '%v'", reqDir.GiverDirModTime)
-					err = os.Chtimes(final, time.Time{}, reqDir.GiverDirModTime)
-					panicOn(err)
-				}
+				} // end dowrite
 
 				// reply with OpRsync_DirSyncEndAckFromTaker, wait for FIN.
 
@@ -236,7 +241,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							for {
 								select {
 								case f := <-fileUpdateCh:
-									s.takeOneFile(f, reqDir, needUpdate)
+									s.takeOneFile(f, reqDir, needUpdate, dowrite)
 								case <-haltIndivFileCheck.ReqStop.Chan:
 									return
 								}
@@ -264,16 +269,19 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								f.Path))
 						}
 						fullpath := filepath.Join(reqDir.TopTakerDirTemp, f.Path)
-						err = os.MkdirAll(fullpath, 0700)
-						panicOn(err)
-						//vv("dirtaker made leafdir fullpath '%v'", fullpath)
+						if dowrite {
+							err = os.MkdirAll(fullpath, 0700)
+							panicOn(err)
+							//vv("dirtaker made leafdir fullpath '%v'", fullpath)
+						}
 					case f.ScanFlags&ScanFlagIsMidDir != 0:
 
 						fullpath := filepath.Join(reqDir.TopTakerDirTemp, f.Path)
-						err = os.Chmod(fullpath, fs.FileMode(f.FileMode))
-						panicOn(err)
-						//vv("dirtaker set mode on dir = '%v'", f.Path)
-
+						if dowrite {
+							err = os.Chmod(fullpath, fs.FileMode(f.FileMode))
+							panicOn(err)
+							//vv("dirtaker set mode on dir = '%v'", f.Path)
+						}
 					default:
 						// regular file.
 						totFiles++
@@ -430,7 +438,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 }
 
-func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate *rpc.Mutexmap[string, *File]) {
+// set allowWrite = false to just evaluate without making hard links
+func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate *rpc.Mutexmap[string, *File], allowWrite bool) {
 
 	localPathToWrite := filepath.Join(
 		reqDir.TopTakerDirTemp, f.Path)
@@ -466,7 +475,7 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate 
 					needWrite = true
 				}
 			}
-			if needWrite {
+			if needWrite && allowWrite {
 				// need to install to the new temp dir no matter.
 				targ := f.SymLinkTarget
 				os.Remove(localPathToWrite)
@@ -492,12 +501,15 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate 
 			//	vv("skipping update to symlink for now: localPathToRead = '%v'", localPathToRead)
 			//} else {
 			if localPathToWrite != localPathToRead {
-				//vv("hard linking 10 '%v' <- '%v'",
-				//	localPathToRead, localPathToWrite)
-				panicOn(os.Link(localPathToRead, localPathToWrite))
-				// just adjust mod time and fin.
-				err = os.Chtimes(localPathToWrite, time.Time{}, f.ModTime)
-				panicOn(err)
+
+				if allowWrite {
+					//vv("hard linking 10 '%v' <- '%v'",
+					//	localPathToRead, localPathToWrite)
+					panicOn(os.Link(localPathToRead, localPathToWrite))
+					// just adjust mod time and fin.
+					err = os.Chtimes(localPathToWrite, time.Time{}, f.ModTime)
+					panicOn(err)
+				}
 			}
 			//}
 		}
