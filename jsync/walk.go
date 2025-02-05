@@ -97,15 +97,20 @@ func (di *DirIter) DirsDepthFirstLeafOnly(root string) iter.Seq2[string, bool] {
 
 /* from dirscan for reference:
 type File struct {
-	Path     string    `zid:"0"`
-	Size     int64     `zid:"1"`
-	FileMode uint32    `zid:"2"`
-	ModTime  time.Time `zid:"3"`
+	Path      string   `zid:"0"`
+	Size      int64    `zid:"1"`
+	FileMode  uint32   `zid:"2"`
+	ScanFlags uint32   `zid:"3"`
+
+	ModTime  time.Time `zid:"4"`
 
 	// symlink support
-	IsSymLink       bool   `zid:"4"`
-	SymLinkTarget   string `zid:"5"`
-	FollowedSymlink bool   `zid:"6"`
+	SymLinkTarget string `zid:"5"`
+
+	// Serially assigned number to allow
+	// parallelization on the taker end.
+	// Assigned in the order yielded.
+	Serial int64 `zid:"6"`
 }
 */
 

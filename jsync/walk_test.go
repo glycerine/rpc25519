@@ -322,17 +322,36 @@ func Test_ParallelOneWalkForAll(t *testing.T) {
 	t0 := time.Now()
 	resCh := di.ParallelOneWalkForAll(halt, root)
 	k := 0
-
+	leafDir := 0
+	midDir := 0
 forloop:
 	for {
 		select {
 		case f := <-resCh:
-			_ = f
 			k++
+			if f.IsLeafDir() {
+				leafDir++
+			}
+			if f.IsMidDir() {
+				midDir++
+			}
 		case <-halt.ReqStop.Chan:
 			break forloop
 		}
 	}
 	elap := time.Since(t0)
 	vv("total count, all in parallel = %v; \nelap = %v", k, elap)
+
+	expectLeafDir := 4603
+	expectMidDir := 1258
+
+	// leafDir = 4603;  midDir = 1258
+	vv("leafDir = %v;  midDir = %v\n", leafDir, midDir)
+
+	if leafDir != expectLeafDir {
+		t.Fatalf("leafDir = %v; expectLeafDir = %v", leafDir, expectLeafDir)
+	}
+	if midDir != expectMidDir {
+		t.Fatalf("midDir = %v; expectMidDir = %v", midDir, expectMidDir)
+	}
 }
