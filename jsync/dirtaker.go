@@ -236,18 +236,21 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						localPathToRead := filepath.Join(
 							reqDir.TopTakerDirFinal, f.Path)
 
-						//vv("dirTaker: f.Path = '%v' => localPathToRead = '%v'", f.Path, localPathToRead)
-						//vv("dirTaker: f.Path = '%v' => localPathToWrite = '%v'", f.Path, localPathToWrite)
+						vv("dirTaker: f.Path = '%v' => localPathToRead = '%v'", f.Path, localPathToRead)
+						vv("dirTaker: f.Path = '%v' => localPathToWrite = '%v'", f.Path, localPathToWrite)
 						fi, err := os.Stat(localPathToRead)
 						// might not exist, don't panic on err (really!)
 						if err != nil {
 							needUpdate = append(needUpdate, f)
+							vv("Stat localPathToRead -> err '%v' so marking needUpdate", err)
 						} else {
 							if !fi.ModTime().Equal(f.ModTime) ||
 								fi.Size() != f.Size {
 								needUpdate = append(needUpdate, f)
+								vv("fi.ModTime('%v') != f.ModTime '%v'; or", fi.ModTime(), f.Modtime)
+								vv("OR: fi.Size(%v) != f.Size(%v); => needUpdate for localPathToRead = '%v'", fi.Size(), f.Size, localPathToRead)
 							} else {
-								vv("good: no update needed for localPathToRead: '%v'", localPathToRead)
+								vv("good: no update needed for localPathToRead: '%v';   f.Path = '%v'", localPathToRead, f.Path)
 
 								if localPathToWrite != localPathToRead {
 									vv("hard linking 10 '%v' <- '%v'",
