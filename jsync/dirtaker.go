@@ -213,8 +213,12 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 					haltIndivFileCheck = idem.NewHalter()
 					seenGiverSendsTopDirListing = true
-					fileUpdateCh = make(chan *File, 1024)
-					ngoro := runtime.NumCPU()
+
+					// unbuffered => sure somebody has it,
+					// and will finish processing it before shutdown.
+					fileUpdateCh = make(chan *File)
+
+					ngoro := runtime.NumCPU() * 20
 					wgIndivFileCheck = &sync.WaitGroup{}
 					wgIndivFileCheck.Add(ngoro)
 					for i := range ngoro {
