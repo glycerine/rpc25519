@@ -256,6 +256,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								}
 								tv := unix.NsecToTimeval(f.ModTime.UnixNano())
 								unix.Lutimes(localPathToWrite, []unix.Timeval{tv, tv})
+								continue // to next file
 							}
 
 							if !fi.ModTime().Truncate(time.Second).Equal(f.ModTime.Truncate(time.Second)) ||
