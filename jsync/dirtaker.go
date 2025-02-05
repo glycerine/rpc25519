@@ -290,8 +290,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 									vv("skipping update to symlink for now: localPathToRead = '%v'", localPathToRead)
 								} else {
 									if localPathToWrite != localPathToRead {
-										vv("hard linking 10 '%v' <- '%v'",
-											localPathToRead, localPathToWrite)
+										//vv("hard linking 10 '%v' <- '%v'",
+										//	localPathToRead, localPathToWrite)
 										panicOn(os.Link(localPathToRead, localPathToWrite))
 									}
 
