@@ -201,7 +201,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// Getting this means here is the starting dir tree from giver.
 				// now all in one pass, as PackOfFiles
 
-				vv("skipping 26 OpRsync_GiverSendsTopDirListing, are symlinks elsewhere mangled?")
+				//vv("skipping 26 OpRsync_GiverSendsTopDirListing, are symlinks elsewhere mangled?")
 				continue // debug todo remove
 
 				pof := &PackOfFiles{}
