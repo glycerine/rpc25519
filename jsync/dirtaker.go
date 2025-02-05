@@ -251,6 +251,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								if curTarget != f.SymLinkTarget {
 									targ := f.SymLinkTarget
 									os.Remove(localPathToWrite)
+									vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
 									err := os.Symlink(targ, localPathToWrite)
 									panicOn(err)
 								}
