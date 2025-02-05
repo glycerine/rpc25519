@@ -334,5 +334,5 @@ forloop:
 		}
 	}
 	elap := time.Since(t0)
-	vv("total count, all in parallel = %v; elap = %v", k, elap)
+	vv("total count, all in parallel = %v; \nelap = %v", k, elap)
 }
