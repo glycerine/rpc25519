@@ -8,15 +8,17 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
-	//"sync"
+
+	"sync"
 	"time"
 
 	"golang.org/x/sys/unix"
 	//myblake3 "github.com/glycerine/rpc25519/hash"
 	//"github.com/glycerine/rpc25519/progress"
-	//"github.com/glycerine/idem"
+	"github.com/glycerine/idem"
 	rpc "github.com/glycerine/rpc25519"
 	//"lukechampine.com/blake3"
 )
@@ -36,8 +38,14 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	done := ckt.Context.Done()
 	bt := &byteTracker{}
 
-	var needUpdate []*File
+	//var needUpdate []*File
+	var totalExpectedFileCount int64
 	totFiles := 0
+	var seenGiverSendsTopDirListing bool
+	var fileUpdateCh chan *File
+	var wgIndivFileCheck *sync.WaitGroup
+	var haltIndivFileCheck *idem.Halter
+	needUpdate := rpc.NewMutexmap[string, *File]()
 
 	weAreRemoteTaker := (reqDir == nil)
 
@@ -201,12 +209,47 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// Getting this means here is the starting dir tree from giver.
 				// now all in one pass, as PackOfFiles
 
+				if !seenGiverSendsTopDirListing {
+
+					haltIndivFileCheck = idem.NewHalter()
+					seenGiverSendsTopDirListing = true
+					fileUpdateCh = make(chan *File)
+					ngoro := runtime.NumCPU()
+					wgIndivFileCheck = &sync.WaitGroup{}
+					wgIndivFileCheck.Add(ngoro)
+					for i := range ngoro {
+						go func(i int, reqDir *RequestToSyncDir,
+							fileUpdateCh chan *File,
+							needUpdate *rpc.Mutexmap[string, *File]) {
+
+							defer func() {
+								wgIndivFileCheck.Done()
+								haltIndivFileCheck.ReqStop.Close()
+								haltIndivFileCheck.Done.Close()
+							}()
+
+							for {
+								select {
+								case f := <-fileUpdateCh:
+									s.takeOneFile(f, reqDir, needUpdate)
+								case <-haltIndivFileCheck.ReqStop.Chan:
+									return
+								}
+							}
+						}(i, reqDir, fileUpdateCh, needUpdate)
+					}
+				}
+
 				pof := &PackOfFiles{}
 				_, err := pof.UnmarshalMsg(frag.Payload)
 				panicOn(err)
 				bt.bread += len(frag.Payload)
 
 				for _, f := range pof.Pack {
+					if totalExpectedFileCount != 0 {
+						// very first frag will have total
+						totalExpectedFileCount = frag.FragPart
+					}
 					switch {
 					case f.ScanFlags&ScanFlagIsLeafDir != 0:
 						if strings.HasPrefix(f.Path, "..") {
@@ -229,86 +272,31 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					default:
 						// regular file.
 						totFiles++
+						select {
+						case fileUpdateCh <- f:
 
-						localPathToWrite := filepath.Join(
-							reqDir.TopTakerDirTemp, f.Path)
-						_ = localPathToWrite
-
-						localPathToRead := filepath.Join(
-							reqDir.TopTakerDirFinal, f.Path)
-
-						//vv("dirTaker: f.Path = '%v' => localPathToRead = '%v'", f.Path, localPathToRead)
-						//vv("dirTaker: f.Path = '%v' => localPathToWrite = '%v'", f.Path, localPathToWrite)
-						var err error
-						var fi os.FileInfo
-						isSym := f.IsSymlink()
-						if isSym {
-							fi, err = os.Lstat(localPathToRead)
-						} else {
-							fi, err = os.Stat(localPathToRead)
+						case <-done:
+							return
+						case <-done0:
+							return
+						case <-ckt.Halt.ReqStop.Chan:
+							return
 						}
-						// might not exist, don't panic on err (really!)
-						if err != nil {
-							needUpdate = append(needUpdate, f)
-							//vv("Stat localPathToRead '%v' -> err '%v' so marking needUpdate", localPathToRead, err)
-						} else {
-							if isSym {
-								//vv("have sym link in f: '%#v'", f)
-								needWrite := false
-								if localPathToWrite != localPathToRead {
-									needWrite = true
-								} else {
-									curTarget, err := os.Readlink(localPathToRead)
-									panicOn(err)
-									if curTarget != f.SymLinkTarget {
-										needWrite = true
-									}
-								}
-								if needWrite {
-									// need to install to the new temp dir no matter.
-									targ := f.SymLinkTarget
-									os.Remove(localPathToWrite)
-									//vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
-									err := os.Symlink(targ, localPathToWrite)
-									panicOn(err)
-									//vv("updating Lutimes for '%v'", localPathToWrite)
-									tv := unix.NsecToTimeval(f.ModTime.UnixNano())
-									unix.Lutimes(localPathToWrite, []unix.Timeval{tv, tv})
-								}
-								continue // to next file
-							}
-
-							if !fi.ModTime().Truncate(time.Second).Equal(f.ModTime.Truncate(time.Second)) ||
-								fi.Size() != f.Size {
-								needUpdate = append(needUpdate, f)
-								//vv("fi.ModTime('%v') != f.ModTime '%v'; or", fi.ModTime(), f.ModTime)
-								//vv("OR: fi.Size(%v) != f.Size(%v); => needUpdate for localPathToRead = '%v'", fi.Size(), f.Size, localPathToRead)
-							} else {
-								//vv("good: no update needed for localPathToRead: '%v';   f.Path = '%v'", localPathToRead, f.Path)
-
-								//if fi.Mode()&fs.ModeSymlink != 0 {
-								//	vv("skipping update to symlink for now: localPathToRead = '%v'", localPathToRead)
-								//} else {
-								if localPathToWrite != localPathToRead {
-									//vv("hard linking 10 '%v' <- '%v'",
-									//	localPathToRead, localPathToWrite)
-									panicOn(os.Link(localPathToRead, localPathToWrite))
-									// just adjust mod time and fin.
-									err = os.Chtimes(localPathToWrite, time.Time{}, f.ModTime)
-									panicOn(err)
-								}
-								//}
-							}
-						}
+						//s.takeOneFile(f, reqDir)
 					}
 				}
 				if pof.IsLast {
+
+					haltIndivFileCheck.ReqStop.Close()
+					wgIndivFileCheck.Wait()
+
+					nn := needUpdate.Len()
 					vv("dirtaker sees pof.IsLast, sending "+
 						"OpRsync_ToGiverAllTreeModesDone. "+
 						"len(needUpdate) = %v; checked %v totFiles",
-						len(needUpdate), totFiles)
+						nn, totFiles)
 
-					if len(needUpdate) == 0 {
+					if nn == 0 {
 						vv("got pof.IsLast, no update needed on "+
 							"dirtaker side. checked %v files", totFiles)
 					}
@@ -435,4 +423,78 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 		}
 	}
 
+}
+
+func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate *rpc.Mutexmap[string, *File]) {
+
+	localPathToWrite := filepath.Join(
+		reqDir.TopTakerDirTemp, f.Path)
+	_ = localPathToWrite
+
+	localPathToRead := filepath.Join(
+		reqDir.TopTakerDirFinal, f.Path)
+
+	//vv("dirTaker: f.Path = '%v' => localPathToRead = '%v'", f.Path, localPathToRead)
+	//vv("dirTaker: f.Path = '%v' => localPathToWrite = '%v'", f.Path, localPathToWrite)
+	var err error
+	var fi os.FileInfo
+	isSym := f.IsSymlink()
+	if isSym {
+		fi, err = os.Lstat(localPathToRead)
+	} else {
+		fi, err = os.Stat(localPathToRead)
+	}
+	// might not exist, don't panic on err (really!)
+	if err != nil {
+		needUpdate.Set(f.Path, f)
+		//vv("Stat localPathToRead '%v' -> err '%v' so marking needUpdate", localPathToRead, err)
+	} else {
+		if isSym {
+			//vv("have sym link in f: '%#v'", f)
+			needWrite := false
+			if localPathToWrite != localPathToRead {
+				needWrite = true
+			} else {
+				curTarget, err := os.Readlink(localPathToRead)
+				panicOn(err)
+				if curTarget != f.SymLinkTarget {
+					needWrite = true
+				}
+			}
+			if needWrite {
+				// need to install to the new temp dir no matter.
+				targ := f.SymLinkTarget
+				os.Remove(localPathToWrite)
+				//vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
+				err := os.Symlink(targ, localPathToWrite)
+				panicOn(err)
+				//vv("updating Lutimes for '%v'", localPathToWrite)
+				tv := unix.NsecToTimeval(f.ModTime.UnixNano())
+				unix.Lutimes(localPathToWrite, []unix.Timeval{tv, tv})
+			}
+			return
+		}
+
+		if !fi.ModTime().Truncate(time.Second).Equal(f.ModTime.Truncate(time.Second)) ||
+			fi.Size() != f.Size {
+			needUpdate.Set(f.Path, f)
+			//vv("fi.ModTime('%v') != f.ModTime '%v'; or", fi.ModTime(), f.ModTime)
+			//vv("OR: fi.Size(%v) != f.Size(%v); => needUpdate for localPathToRead = '%v'", fi.Size(), f.Size, localPathToRead)
+		} else {
+			//vv("good: no update needed for localPathToRead: '%v';   f.Path = '%v'", localPathToRead, f.Path)
+
+			//if fi.Mode()&fs.ModeSymlink != 0 {
+			//	vv("skipping update to symlink for now: localPathToRead = '%v'", localPathToRead)
+			//} else {
+			if localPathToWrite != localPathToRead {
+				//vv("hard linking 10 '%v' <- '%v'",
+				//	localPathToRead, localPathToWrite)
+				panicOn(os.Link(localPathToRead, localPathToWrite))
+				// just adjust mod time and fin.
+				err = os.Chtimes(localPathToWrite, time.Time{}, f.ModTime)
+				panicOn(err)
+			}
+			//}
+		}
+	}
 }

@@ -154,19 +154,25 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// after getting 23,
 				// send 26
 				// OpRsync_GiverSendsTopDirListing
-				haltDirScan, packOfFilesCh, err := ScanDirTreeOnePass(
+				haltDirScan, packOfFilesCh, totalFileCountCh, err := ScanDirTreeOnePass(
 					ctx0, reqDir.GiverDir)
 				panicOn(err)
 				defer haltDirScan.ReqStop.Close()
+				var nFiles int64
 
 			sendOnePass:
 				for i := 0; ; i++ {
 					select {
+					case nFiles = <-totalFileCountCh:
+						totalFileCountCh = nil
+
 					case pof := <-packOfFilesCh:
 						lastser := int64(0)
 						k := len(pof.Pack)
 						if k > 0 {
 							lastser = pof.Pack[k-1].Serial
+						} else {
+							lastser = nFiles // on first Frag, give total.
 						}
 
 						fragPOF := rpc.NewFragment()

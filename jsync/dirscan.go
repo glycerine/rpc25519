@@ -430,12 +430,13 @@ func ScanDirTreeOnePass(
 
 ) (halt *idem.Halter,
 	packOfFilesCh chan *PackOfFiles,
+	totalFileCount chan int64,
 	err0 error,
 ) {
 	halt = idem.NewHalter()
 
 	if !dirExists(giverRoot) {
-		return nil, nil, fmt.Errorf("ScanDirTree error: giverRoot not found, or not a directory: '%v'", giverRoot)
+		return nil, nil, nil, fmt.Errorf("ScanDirTree error: giverRoot not found, or not a directory: '%v'", giverRoot)
 	}
 
 	// make sure it ends in "/" or sep.
@@ -444,6 +445,8 @@ func ScanDirTreeOnePass(
 	}
 
 	packOfFilesCh = make(chan *PackOfFiles, 5000)
+
+	totalFileCount = make(chan int64, 1)
 
 	done := ctx.Done()
 	_ = done
@@ -496,6 +499,8 @@ func ScanDirTreeOnePass(
 		all = append(all, sol...)
 		all = append(all, sof...)
 		all = append(all, sod...)
+
+		totalFileCount <- int64(len(all))
 
 		// pack up to max bytes of Chunks into a message.
 		max := rpc.UserMaxPayload - 10_000

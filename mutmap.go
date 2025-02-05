@@ -26,6 +26,13 @@ func (m *Mutexmap[K, V]) Get(key K) (val V, ok bool) {
 	return
 }
 
+func (m *Mutexmap[K, V]) Len() (n int) {
+	m.mut.RLock()
+	n = len(m.m)
+	m.mut.RUnlock()
+	return
+}
+
 // GetValSlice returns all the values in the map in slc.
 func (m *Mutexmap[K, V]) GetValSlice() (slc []V) {
 	m.mut.RLock()
