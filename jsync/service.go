@@ -142,6 +142,12 @@ type SyncService struct {
 // FSMs. This partitions off the top-dir-sync circuit from any other
 // individual file sync that mistakenly use the top-level circuitID.
 
+// new updated flow for dir sync from (giver):
+// (giver) -> 22 DirSyncBeginToTaker (remote taker creates tmp dir target) -> 23 DirSyncBeginReplyFromTaker (dirgiver does one-pass-version) -> 26 GiverSendsTopDirListing (taker) starts indiv file sysncs for those that need it...
+
+// and we could probably leav out 22 and just have
+// (giver: dirgiver does one-pass-version of 23) -> 26 GiverSendsTopDirListing (taker) starts indiv file sysncs for those that need it...
+
 // The only tricky/unique thing for directories, is that
 // we need to delete files on the taker that are not
 // on the giver. The giver won't know about these,
@@ -393,8 +399,8 @@ type RequestToSyncPath struct {
 	TakerTempDir     string `zid:"29"`
 	TopTakerDirFinal string `zid:"30"`
 
-	ScanFlags     uint32 `zid:"34"`
-	SymLinkTarget string `zid:"35"`
+	GiverScanFlags     uint32 `zid:"34"`
+	GiverSymLinkTarget string `zid:"35"`
 
 	UpdateProgress chan string `msg:"-"`
 }
@@ -697,13 +703,12 @@ func (s *SyncService) Start(
 					syncReq.GiverModTime = fi.ModTime()
 					syncReq.GiverFileSize = fi.Size()
 					syncReq.GiverFileMode = uint32(fi.Mode())
-					//syncReq.ScanFlags |= IsSymLink = isSymLink // get from Mode
 					if isSymLink {
-						syncReq.ScanFlags |= ScanFlagIsSymLink
+						syncReq.GiverScanFlags |= ScanFlagIsSymLink
 						target, err := os.Readlink(syncReq.GiverPath)
 						//target, err := filepath.EvalSymlinks(syncReq.GiverPath)
 						panicOn(err)
-						syncReq.SymLinkTarget = target
+						syncReq.GiverSymLinkTarget = target
 					}
 				} else {
 					panic(fmt.Sprintf("syncReq.RemoteTakes"+
@@ -753,7 +758,7 @@ func (s *SyncService) Start(
 			// UserMaxMessage, but we saw even 9_000 go over the
 			// limit, so we keep it to K = 5_000 now.
 			//
-			// The is only a problem in pulls. In pulls we
+			// This is only a problem in pulls. In pulls we
 			// send our local chunk hashes first. They can get big.
 			//
 			// Hence we now handle the general case and

@@ -47,8 +47,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	weAreRemoteGiver := (reqDir == nil)
 	_ = weAreRemoteGiver
 
-	var haltDirScan *idem.Halter
-	var packOfLeavesCh chan *PackOfLeafPaths
+	//var haltDirScan *idem.Halter
+	//var packOfLeavesCh chan *PackOfLeafPaths
 	var packOfFilesCh chan *PackOfFiles
 	var packOfDirsCh chan *PackOfDirs
 
@@ -197,114 +197,115 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 				}
 
-			case 999999: // old! OpRsync_DirSyncBeginReplyFromTaker: // 23
-				//vv("%v: (ckt '%v') (DirGiver) sees 23 OpRsync_DirSyncBeginReplyFromTaker", name, ckt.Name)
+				/*
+					case 999999: // old! OpRsync_DirSyncBeginReplyFromTaker: // 23
+						//vv("%v: (ckt '%v') (DirGiver) sees 23 OpRsync_DirSyncBeginReplyFromTaker", name, ckt.Name)
 
-				reqDir2 := &RequestToSyncDir{}
-				_, err0 = reqDir2.UnmarshalMsg(frag0.Payload)
-				panicOn(err0)
-				bt.bread += len(frag0.Payload)
-				if reqDir == nil {
-					// weAreRemoteGiver true (set above)
-					reqDir = reqDir2
-				} else {
-					// we are local giver doing push.
-					// the echo we get back will have the
-					// target temp dir available for the first time.
-					// we need to copy it in.
-					reqDir.TopTakerDirTemp = reqDir2.TopTakerDirTemp
-					reqDir.TopTakerDirTempDirID = reqDir2.TopTakerDirTempDirID
-				}
-
-				//vv("DirGiver will use write targets to reqDir.TopTakerDirTemp = '%v' for final: '%v'", reqDir.TopTakerDirTemp, reqDir.TopTakerDirFinal)
-
-				// after getting 23,
-				// send 26/27/28
-				// OpRsync_GiverSendsTopDirListing
-				// OpRsync_GiverSendsTopDirListingMore
-				// OpRsync_GiverSendsTopDirListingEnd
-				var err error
-				haltDirScan, packOfLeavesCh, packOfFilesCh, packOfDirsCh,
-					err = ScanDirTree(ctx0, reqDir.GiverDir)
-
-				// nil able copies to we can do phases strinctly 1 at a time.
-				polch := packOfLeavesCh     // start in phase 1.
-				var pofch chan *PackOfFiles // start nil, no receives.
-				var podch chan *PackOfDirs  // start nil, no receives.
-				//pofch = packOfFilesCh  // to start phase 2, below.
-				//podch = packOfDirsCh   // to start phase 3, below.
-
-				panicOn(err)
-				defer haltDirScan.ReqStop.Close()
-
-			sendFor:
-				for i := 0; ; i++ {
-					select {
-					case pol := <-polch: // packOfLeavesCh:
-						bts, err := pol.MarshalMsg(nil)
-						panicOn(err)
-						leafy := rpc.NewFragment()
-						leafy.SetUserArg("structType", "PackOfLeafPaths")
-						leafy.Payload = bts
-						leafy.FragOp = OpRsync_GiverSendsTopDirListing
-						err = ckt.SendOneWay(leafy, 0)
-						panicOn(err)
-						if pol.IsLast {
-							vv("dirgiver: pol IsLast true; on to phase 2")
-							polch = nil           // end phase 1
-							pofch = packOfFilesCh // to start phase 2
+						reqDir2 := &RequestToSyncDir{}
+						_, err0 = reqDir2.UnmarshalMsg(frag0.Payload)
+						panicOn(err0)
+						bt.bread += len(frag0.Payload)
+						if reqDir == nil {
+							// weAreRemoteGiver true (set above)
+							reqDir = reqDir2
+						} else {
+							// we are local giver doing push.
+							// the echo we get back will have the
+							// target temp dir available for the first time.
+							// we need to copy it in.
+							reqDir.TopTakerDirTemp = reqDir2.TopTakerDirTemp
+							reqDir.TopTakerDirTempDirID = reqDir2.TopTakerDirTempDirID
 						}
 
-					case pof := <-pofch:
+						//vv("DirGiver will use write targets to reqDir.TopTakerDirTemp = '%v' for final: '%v'", reqDir.TopTakerDirTemp, reqDir.TopTakerDirFinal)
 
-						fragPOF := rpc.NewFragment()
-						bts, err := pof.MarshalMsg(nil)
+						// after getting 23,
+						// send 26/27/28
+						// OpRsync_GiverSendsTopDirListing
+						// OpRsync_GiverSendsTopDirListingMore
+						// OpRsync_GiverSendsTopDirListingEnd
+						var err error
+						haltDirScan, packOfLeavesCh, packOfFilesCh, packOfDirsCh,
+							err = ScanDirTree(ctx0, reqDir.GiverDir)
+
+						// nil able copies to we can do phases strinctly 1 at a time.
+						polch := packOfLeavesCh     // start in phase 1.
+						var pofch chan *PackOfFiles // start nil, no receives.
+						var podch chan *PackOfDirs  // start nil, no receives.
+						//pofch = packOfFilesCh  // to start phase 2, below.
+						//podch = packOfDirsCh   // to start phase 3, below.
+
 						panicOn(err)
-						fragPOF.Payload = bts
-						fragPOF.FragOp = OpRsync_GiverSendsPackOfFiles
-						fragPOF.SetUserArg("structType", "PackOfFiles")
-						err = ckt.SendOneWay(fragPOF, 0)
-						panicOn(err)
-						if pof.IsLast {
-							vv("dirgiver: pof IsLast true; on to phase 3")
-							pofch = nil          // end phase 2
-							podch = packOfDirsCh // to start phase 3
+						defer haltDirScan.ReqStop.Close()
+
+					sendFor:
+						for i := 0; ; i++ {
+							select {
+							case pol := <-polch: // packOfLeavesCh:
+								bts, err := pol.MarshalMsg(nil)
+								panicOn(err)
+								leafy := rpc.NewFragment()
+								leafy.SetUserArg("structType", "PackOfLeafPaths")
+								leafy.Payload = bts
+								leafy.FragOp = OpRsync_GiverSendsTopDirListing
+								err = ckt.SendOneWay(leafy, 0)
+								panicOn(err)
+								if pol.IsLast {
+									vv("dirgiver: pol IsLast true; on to phase 2")
+									polch = nil           // end phase 1
+									pofch = packOfFilesCh // to start phase 2
+								}
+
+							case pof := <-pofch:
+
+								fragPOF := rpc.NewFragment()
+								bts, err := pof.MarshalMsg(nil)
+								panicOn(err)
+								fragPOF.Payload = bts
+								fragPOF.FragOp = OpRsync_GiverSendsPackOfFiles
+								fragPOF.SetUserArg("structType", "PackOfFiles")
+								err = ckt.SendOneWay(fragPOF, 0)
+								panicOn(err)
+								if pof.IsLast {
+									vv("dirgiver: pof IsLast true; on to phase 3")
+									pofch = nil          // end phase 2
+									podch = packOfDirsCh // to start phase 3
+								}
+
+							case pod := <-podch: // phase 3
+								podModes := rpc.NewFragment()
+								bts, err := pod.MarshalMsg(nil)
+								panicOn(err)
+								podModes.Payload = bts
+
+								podModes.FragOp = OpRsync_ToTakerAllTreeModes
+								podModes.SetUserArg("structType", "PackOfDirs")
+								err = ckt.SendOneWay(podModes, 0)
+								panicOn(err)
+								//vv("dirgiver sent pod (last? %v): '%#v'", pod.IsLast, pod)
+								if pod.IsLast {
+									break sendFor
+								}
+
+							case <-done:
+								////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
+								return
+							case <-done0:
+								////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
+								return
+							case <-ckt.Halt.ReqStop.Chan:
+								////vv("%v: (ckt '%v') (DirGiver) ckt halt requested.", name, ckt.Name)
+								return
+							}
 						}
 
-					case pod := <-podch: // phase 3
-						podModes := rpc.NewFragment()
-						bts, err := pod.MarshalMsg(nil)
-						panicOn(err)
-						podModes.Payload = bts
+						// whoa sending pof one per goro on a separate ckt
+						// can be super slow. let's just send along. the
+						// rest of the structure early, so we can find out
+						// if we need to sync or not.
 
-						podModes.FragOp = OpRsync_ToTakerAllTreeModes
-						podModes.SetUserArg("structType", "PackOfDirs")
-						err = ckt.SendOneWay(podModes, 0)
-						panicOn(err)
-						//vv("dirgiver sent pod (last? %v): '%#v'", pod.IsLast, pod)
-						if pod.IsLast {
-							break sendFor
-						}
-
-					case <-done:
-						////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
-						return
-					case <-done0:
-						////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
-						return
-					case <-ckt.Halt.ReqStop.Chan:
-						////vv("%v: (ckt '%v') (DirGiver) ckt halt requested.", name, ckt.Name)
-						return
-					}
-				}
-
-				// whoa sending pof one per goro on a separate ckt
-				// can be super slow. let's just send along. the
-				// rest of the structure early, so we can find out
-				// if we need to sync or not.
-
-				// and wait for OpRsync_TakerReadyForDirContents
-
+						// and wait for OpRsync_TakerReadyForDirContents
+				*/
 			case OpRsync_TakerReadyForDirContents: // 29
 				vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerReadyForDirContents", name, ckt.Name)
 
@@ -348,8 +349,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 									RemoteTakes:      true,
 									Done:             idem.NewIdemCloseChan(),
 
-									ScanFlags:     file.ScanFlags,
-									SymLinkTarget: file.SymLinkTarget,
+									GiverScanFlags:     file.ScanFlags,
+									GiverSymLinkTarget: file.SymLinkTarget,
 								}
 								bts, err := sr.MarshalMsg(nil)
 								panicOn(err)
