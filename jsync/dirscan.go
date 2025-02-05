@@ -91,6 +91,16 @@ const (
 	ScanFlagIsDir           uint32 = uint32(fs.ModeDir)     // 0x80000000
 )
 
+func (f *File) IsSymlink() bool {
+	return f.ScanFlags&ScanFlagIsSymLink != 0
+}
+func (f *File) IsLeafDir() bool {
+	return f.ScanFlags&ScanFlagIsLeafDir != 0
+}
+func (f *File) IsMidDir() bool {
+	return f.ScanFlags&ScanFlagIsMidDir != 0
+}
+
 // PackOfFiles is streamed in phase 2.
 // All of these should be (only) files, not directories.
 // They can and will include symlinks, at the moment anyway.

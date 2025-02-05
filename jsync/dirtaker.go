@@ -4,8 +4,6 @@ import (
 	//"bufio"
 	"context"
 	"fmt"
-	//myblake3 "github.com/glycerine/rpc25519/hash"
-	//"github.com/glycerine/rpc25519/progress"
 	//"io"
 	"io/fs"
 	"os"
@@ -15,6 +13,9 @@ import (
 	//"sync"
 	"time"
 
+	"golang.org/x/sys/unix"
+	//myblake3 "github.com/glycerine/rpc25519/hash"
+	//"github.com/glycerine/rpc25519/progress"
 	//"github.com/glycerine/idem"
 	rpc "github.com/glycerine/rpc25519"
 	//"lukechampine.com/blake3"
@@ -238,12 +239,25 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 						//vv("dirTaker: f.Path = '%v' => localPathToRead = '%v'", f.Path, localPathToRead)
 						//vv("dirTaker: f.Path = '%v' => localPathToWrite = '%v'", f.Path, localPathToWrite)
-						fi, err := os.Stat(localPathToRead)
+						fi, err := os.Lstat(localPathToRead)
 						// might not exist, don't panic on err (really!)
 						if err != nil {
 							needUpdate = append(needUpdate, f)
 							vv("Stat localPathToRead '%v' -> err '%v' so marking needUpdate", localPathToRead, err)
 						} else {
+							if f.IsSymlink() {
+								curTarget, err := os.Readlink(localPathToRead)
+								panicOn(err)
+								if curTarget != f.SymLinkTarget {
+									targ := f.SymLinkTarget
+									os.Remove(localPathToWrite)
+									err := os.Symlink(targ, localPathToWrite)
+									panicOn(err)
+								}
+								tv := unix.NsecToTimeval(f.ModTime.UnixNano())
+								unix.Lutimes(localPathToWrite, []unix.Timeval{tv, tv})
+							}
+
 							if !fi.ModTime().Truncate(time.Second).Equal(f.ModTime.Truncate(time.Second)) ||
 								fi.Size() != f.Size {
 								needUpdate = append(needUpdate, f)
