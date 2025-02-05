@@ -178,8 +178,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				if old != "" {
 					// We have hard linked all the unchanged files into the new.
 					// Now delete the old version (hard link count -> 1).
-					//vv("TODO debug actually remove old dir: '%v'", old)
-					panicOn(os.RemoveAll(old))
+					vv("TODO debug actually remove old dir: '%v'", old)
+					//panicOn(os.RemoveAll(old))
 				}
 				// and set the mod time
 				if !reqDir.GiverDirModTime.IsZero() {
@@ -246,6 +246,18 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							if !fi.ModTime().Equal(f.ModTime) ||
 								fi.Size() != f.Size {
 								needUpdate = append(needUpdate, f)
+							} else {
+								vv("good: no update needed for localPathToRead: '%v'", localPathToRead)
+
+								if localPathToWrite != localPathToRead {
+									vv("hard linking 10 '%v' <- '%v'",
+										localPathToRead, localPathToWrite)
+									panicOn(os.Link(localPathToRead, localPathToWrite))
+								}
+								// just adjust mod time and fin.
+								err = os.Chtimes(localPathToWrite, time.Time{}, f.ModTime)
+								panicOn(err)
+
 							}
 						}
 					}
