@@ -276,17 +276,18 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					default:
 						// regular file.
 						totFiles++
-						select {
-						case fileUpdateCh <- f:
+						/*
+							select {
+							case fileUpdateCh <- f:
 
-						case <-done:
-							return
-						case <-done0:
-							return
-						case <-ckt.Halt.ReqStop.Chan:
-							return
-						}
-						//s.takeOneFile(f, reqDir)
+							case <-done:
+								return
+							case <-done0:
+								return
+							case <-ckt.Halt.ReqStop.Chan:
+								return
+							}*/
+						s.takeOneFile(f, reqDir, needUpdate)
 					}
 				}
 				if pof.IsLast {
