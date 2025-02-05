@@ -201,9 +201,6 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// Getting this means here is the starting dir tree from giver.
 				// now all in one pass, as PackOfFiles
 
-				//vv("skipping 26 OpRsync_GiverSendsTopDirListing, are symlinks elsewhere mangled?")
-				continue // debug todo remove
-
 				pof := &PackOfFiles{}
 				_, err := pof.UnmarshalMsg(frag.Payload)
 				panicOn(err)
@@ -242,13 +239,20 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 						//vv("dirTaker: f.Path = '%v' => localPathToRead = '%v'", f.Path, localPathToRead)
 						//vv("dirTaker: f.Path = '%v' => localPathToWrite = '%v'", f.Path, localPathToWrite)
-						fi, err := os.Lstat(localPathToRead)
+						var err error
+						var fi os.FileInfo
+						isSym := f.IsSymlink()
+						if isSym {
+							fi, err = os.Lstat(localPathToRead)
+						} else {
+							fi, err = os.Stat(localPathToRead)
+						}
 						// might not exist, don't panic on err (really!)
 						if err != nil {
 							needUpdate = append(needUpdate, f)
 							vv("Stat localPathToRead '%v' -> err '%v' so marking needUpdate", localPathToRead, err)
 						} else {
-							if f.IsSymlink() {
+							if isSym {
 								curTarget, err := os.Readlink(localPathToRead)
 								panicOn(err)
 								if curTarget != f.SymLinkTarget {
