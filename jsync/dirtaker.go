@@ -244,7 +244,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							needUpdate = append(needUpdate, f)
 							vv("Stat localPathToRead -> err '%v' so marking needUpdate", err)
 						} else {
-							if !fi.ModTime().Equal(f.ModTime) ||
+							if !fi.ModTime().Truncate(time.Second).Equal(f.ModTime.Truncate(time.Second)) ||
 								fi.Size() != f.Size {
 								needUpdate = append(needUpdate, f)
 								vv("fi.ModTime('%v') != f.ModTime '%v'; or", fi.ModTime(), f.ModTime)
