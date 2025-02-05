@@ -14,7 +14,7 @@ require (
 	github.com/glycerine/idem v0.5.2
 	github.com/glycerine/ipaddr v0.2.7
 	github.com/glycerine/loquet v0.0.19
-	github.com/glycerine/parallelwalk v0.3.0
+	github.com/glycerine/parallelwalk v0.3.1
 	github.com/goccy/go-json v0.10.3
 	github.com/klauspost/compress v1.17.11
 	github.com/klauspost/cpuid/v2 v2.0.9
