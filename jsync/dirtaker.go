@@ -269,8 +269,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								//vv("good: no update needed for localPathToRead: '%v';   f.Path = '%v'", localPathToRead, f.Path)
 
 								if localPathToWrite != localPathToRead {
-									//vv("hard linking 10 '%v' <- '%v'",
-									//	localPathToRead, localPathToWrite)
+									vv("hard linking 10 '%v' <- '%v'",
+										localPathToRead, localPathToWrite)
 									panicOn(os.Link(localPathToRead, localPathToWrite))
 								}
 								// just adjust mod time and fin.
