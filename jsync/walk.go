@@ -1,10 +1,14 @@
 package jsync
 
 import (
+	"context"
 	"io/fs"
 	"iter"
 	"os"
 	"path/filepath"
+
+	pwalk "github.com/glycerine/parallelwalk"
+	rpc "github.com/glycerine/rpc25519"
 )
 
 // DirIter efficiently scans a filesystems directory
@@ -497,4 +501,91 @@ func (di *DirIter) OneWalkForAll(root string) iter.Seq2[*File, bool] {
 		// Start the recursion
 		visit(root, 0)
 	}
+}
+
+// same as above, but use pwalk for multiple goroutines
+func (di *DirIter) ParallelOneWalkForAll(ctx context.Context, root string) (resCh chan *File) {
+
+	done := ctx.Done()
+	resCh = make(chan *File, 4096)
+	//var seen map[string]bool
+	//if di.FollowSymlinks { // not fully implimented yet?
+	// symlinks can cause duplicated paths, so
+	// we de-duplicate the paths when following
+	// symlinks.
+	//	seen = make(map[string]bool)
+	//}
+
+	go pwalk.Walk(root, func(path string, fi os.FileInfo, err error) error {
+
+		hasSubdirs := false
+		if fi.Mode()&fs.ModeSymlink != 0 {
+			//vv("have symlink '%v'", resolveMe)
+			// atm do not follow symlinks, but return them.
+
+			target, err := os.Readlink(path)
+			if err != nil {
+				// allow dangling links to not stop the walk.?
+				//return nil
+				panicOn(err) // do we need to pass on target even if dangling?
+			}
+
+			//vv("returning IsSymLink true regular File")
+			scanFlags := ScanFlagIsSymLink
+			rf := &File{
+				Path:      path,
+				Size:      fi.Size(),
+				FileMode:  uint32(fi.Mode()),
+				ModTime:   fi.ModTime(),
+				ScanFlags: scanFlags,
+				//IsSymLink:       true,
+				SymLinkTarget: target,
+				//FollowedSymlink: false,
+			}
+			select {
+			case resCh <- rf:
+			case <-done:
+				return rpc.ErrContextCancelled
+			}
+			// end if symlink
+		} else {
+			if fi.IsDir() {
+				// we are a directory, yield ourselves.
+				var scanFlags uint32
+				if hasSubdirs {
+					scanFlags = ScanFlagIsDir | ScanFlagIsMidDir
+				} else {
+					scanFlags = ScanFlagIsDir | ScanFlagIsLeafDir
+				}
+				rf := &File{
+					Path:      path,
+					Size:      fi.Size(),
+					FileMode:  uint32(fi.Mode()),
+					ModTime:   fi.ModTime(),
+					ScanFlags: scanFlags,
+				}
+				select {
+				case resCh <- rf:
+				case <-done:
+					return rpc.ErrContextCancelled
+				}
+
+			} else {
+				// regular file
+				rf := &File{
+					Path:     path,
+					Size:     fi.Size(),
+					FileMode: uint32(fi.Mode()),
+					ModTime:  fi.ModTime(),
+				}
+				select {
+				case resCh <- rf:
+				case <-done:
+					return rpc.ErrContextCancelled
+				}
+			}
+		}
+		return nil
+	})
+	return
 }
