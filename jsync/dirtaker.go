@@ -199,8 +199,12 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						err = os.Chtimes(final, time.Time{}, reqDir.GiverDirModTime)
 						panicOn(err)
 					}
-
-				} // end dowrite
+					// end dowrite
+				} else {
+					// dowrite = false.
+					// not writing to tmp dir. just clean it up.
+					os.Remove(tmp)
+				}
 
 				// reply with OpRsync_DirSyncEndAckFromTaker, wait for FIN.
 
