@@ -237,8 +237,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						localPathToRead := filepath.Join(
 							reqDir.TopTakerDirFinal, f.Path)
 
-						vv("dirTaker: f.Path = '%v' => localPathToRead = '%v'", f.Path, localPathToRead)
-						vv("dirTaker: f.Path = '%v' => localPathToWrite = '%v'", f.Path, localPathToWrite)
+						//vv("dirTaker: f.Path = '%v' => localPathToRead = '%v'", f.Path, localPathToRead)
+						//vv("dirTaker: f.Path = '%v' => localPathToWrite = '%v'", f.Path, localPathToWrite)
 						var err error
 						var fi os.FileInfo
 						isSym := f.IsSymlink()
