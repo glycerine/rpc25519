@@ -250,10 +250,10 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						// might not exist, don't panic on err (really!)
 						if err != nil {
 							needUpdate = append(needUpdate, f)
-							vv("Stat localPathToRead '%v' -> err '%v' so marking needUpdate", localPathToRead, err)
+							//vv("Stat localPathToRead '%v' -> err '%v' so marking needUpdate", localPathToRead, err)
 						} else {
 							if isSym {
-								vv("have sym link in f: '%#v'", f)
+								//vv("have sym link in f: '%#v'", f)
 								needWrite := false
 								if localPathToWrite != localPathToRead {
 									needWrite = true
@@ -268,10 +268,10 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 									// need to install to the new temp dir no matter.
 									targ := f.SymLinkTarget
 									os.Remove(localPathToWrite)
-									vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
+									//vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
 									err := os.Symlink(targ, localPathToWrite)
 									panicOn(err)
-									vv("updating Lutimes for '%v'", localPathToWrite)
+									//vv("updating Lutimes for '%v'", localPathToWrite)
 									tv := unix.NsecToTimeval(f.ModTime.UnixNano())
 									unix.Lutimes(localPathToWrite, []unix.Timeval{tv, tv})
 								}
@@ -281,8 +281,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							if !fi.ModTime().Truncate(time.Second).Equal(f.ModTime.Truncate(time.Second)) ||
 								fi.Size() != f.Size {
 								needUpdate = append(needUpdate, f)
-								vv("fi.ModTime('%v') != f.ModTime '%v'; or", fi.ModTime(), f.ModTime)
-								vv("OR: fi.Size(%v) != f.Size(%v); => needUpdate for localPathToRead = '%v'", fi.Size(), f.Size, localPathToRead)
+								//vv("fi.ModTime('%v') != f.ModTime '%v'; or", fi.ModTime(), f.ModTime)
+								//vv("OR: fi.Size(%v) != f.Size(%v); => needUpdate for localPathToRead = '%v'", fi.Size(), f.Size, localPathToRead)
 							} else {
 								//vv("good: no update needed for localPathToRead: '%v';   f.Path = '%v'", localPathToRead, f.Path)
 
