@@ -37,13 +37,20 @@ type FileToDiskState struct {
 	SeenCount int
 }
 
-func NewFileToDiskState(writeToPath string) *FileToDiskState {
-	return &FileToDiskState{
+func NewFileToDiskState(writeToPath string) (f *FileToDiskState) {
+	f = &FileToDiskState{
 		WriteToPath: writeToPath,
 		PartsSeen:   make(map[int64]bool),
 		Blake3hash:  myblake3.NewBlake3(),
 		T0:          time.Now(),
 	}
+	// do this check just once, not every time!
+	dirs := filepath.Dir(f.WriteToPath)
+	if !dirExists(dirs) {
+		err := os.MkdirAll(dirs, 0700)
+		panicOn(err)
+	}
+	return f
 }
 
 func (s *FileToDiskState) WriteOneMsgToFile(req *rpc.Message, last bool) (err error) {
@@ -57,14 +64,6 @@ func (s *FileToDiskState) WriteOneMsgToFile(req *rpc.Message, last bool) (err er
 		//vv("ServerSideUploadState.ReceiveFileInParts sees part 0: hdr1='%v'", hdr1.String())
 		s.PartsSeen = make(map[int64]bool)
 		//s.Blake3hash.Reset()
-
-		// this should not be needed now! costs a bunch of time.
-		// make any needed dirs
-		dirs := filepath.Dir(s.WriteToPath)
-		if !dirExists(dirs) {
-			err := os.MkdirAll(dirs, 0700)
-			panicOn(err)
-		}
 
 		s.Randomness = cryRandBytesBase64(16)
 		s.WriteToPathTmp = s.WriteToPath + ".tmp_" + s.Randomness
