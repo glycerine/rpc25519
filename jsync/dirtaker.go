@@ -224,6 +224,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 				if !seenGiverSendsTopDirListing {
 
+					takerCatalog.Reset()
 					di := NewDirIter()
 					localTree := di.ParallelWalk(reqDir.TopTakerDirFinal)
 					for _, file := range localTree {
