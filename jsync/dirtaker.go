@@ -48,16 +48,18 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	needUpdate := rpc.NewMutexmap[string, *File]()
 
 	// just measure for now, no creating hard links etc.
-	const dowrite = false
+	const useTempDir = false
 
 	weAreRemoteTaker := (reqDir == nil)
 
 	if reqDir != nil {
-		if reqDir.TopTakerDirTemp == "" {
-			panic("reqDir.TopTakerDirTemp should have been created/filled in!")
-		}
-		if !dirExists(reqDir.TopTakerDirTemp) {
-			panic(fmt.Sprintf("why does not exist reqDir.TopTakerDirTemp = '%v' ???", reqDir.TopTakerDirTemp))
+		if useTempDir {
+			if reqDir.TopTakerDirTemp == "" {
+				panic("reqDir.TopTakerDirTemp should have been created/filled in!")
+			}
+			if !dirExists(reqDir.TopTakerDirTemp) {
+				panic(fmt.Sprintf("why does not exist reqDir.TopTakerDirTemp = '%v' ???", reqDir.TopTakerDirTemp))
+			}
 		}
 	}
 
@@ -140,7 +142,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				}
 
 				// INVAR: reqDir is set.
-				if weAreRemoteTaker {
+				if weAreRemoteTaker && useTempDir {
+
 					targetTakerTopTempDir, tmpDirID, err := s.mkTempDir(
 						reqDir.TopTakerDirFinal)
 					panicOn(err)
@@ -174,7 +177,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				final := filepath.Clean(reqDir.TopTakerDirFinal)
 				//vv("dirtaker would rename completed dir into place!: %v -> %v", tmp, final)
 				var err error
-				if dowrite {
+				if useTempDir {
 					rndsuf := rpc.NewCryRandSuffix()
 					old := ""
 					if dirExists(final) {
@@ -199,10 +202,10 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						err = os.Chtimes(final, time.Time{}, reqDir.GiverDirModTime)
 						panicOn(err)
 					}
-					// end dowrite
+					// end useTempDir
 				} else {
-					// dowrite = false.
-					// not writing to tmp dir. just clean it up.
+					// useTempDir = false.
+					// not writing to tmp dir. just clean it up, if it got made.
 					os.Remove(tmp)
 				}
 
@@ -245,7 +248,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							for {
 								select {
 								case f := <-fileUpdateCh:
-									s.takeOneFile(f, reqDir, needUpdate, dowrite)
+									s.takeOneFile(f, reqDir, needUpdate, useTempDir)
 								case <-haltIndivFileCheck.ReqStop.Chan:
 									return
 								}
@@ -273,7 +276,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								f.Path))
 						}
 						fullpath := filepath.Join(reqDir.TopTakerDirTemp, f.Path)
-						if dowrite {
+						if useTempDir {
 							err = os.MkdirAll(fullpath, 0700)
 							panicOn(err)
 							//vv("dirtaker made leafdir fullpath '%v'", fullpath)
@@ -281,7 +284,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					case f.ScanFlags&ScanFlagIsMidDir != 0:
 
 						fullpath := filepath.Join(reqDir.TopTakerDirTemp, f.Path)
-						if dowrite {
+						if useTempDir {
 							err = os.Chmod(fullpath, fs.FileMode(f.FileMode))
 							panicOn(err)
 							//vv("dirtaker set mode on dir = '%v'", f.Path)
@@ -317,7 +320,9 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						vv("got pof.IsLast, no update needed on "+
 							"dirtaker side. checked %v files", totFiles)
 					} else {
-						err = s.dirTakerSendIndivFiles(myPeer, needUpdate, reqDir, ckt, done, done0, bt)
+						err = s.dirTakerSendIndivFiles(myPeer, needUpdate,
+							reqDir, ckt, done, done0, bt, useTempDir)
+
 						panicOn(err)
 					}
 
@@ -523,7 +528,10 @@ func (s *SyncService) dirTakerSendIndivFiles(
 	ckt *rpc.Circuit,
 	done, done0 <-chan struct{},
 	bt *byteTracker,
+	useTempDir bool,
+
 ) error {
+
 	t0 := time.Now()
 	nn := needUpdate.GetN()
 	vv("top dirTakerSendIndivFiles() with %v files needing updates.", nn)
@@ -562,10 +570,15 @@ func (s *SyncService) dirTakerSendIndivFiles(
 			frag.FragOp = OpRsync_RequestRemoteToGive // 12
 			frag.FragSubject = giverPath
 
+			tmp := reqDir.TopTakerDirTemp
+			if !useTempDir {
+				tmp = ""
+			}
+
 			syncReq := &RequestToSyncPath{
 				GiverPath:        giverPath,
 				TakerPath:        file.Path,
-				TakerTempDir:     reqDir.TopTakerDirTemp,
+				TakerTempDir:     tmp,
 				TopTakerDirFinal: reqDir.TopTakerDirFinal,
 				GiverDirAbs:      reqDir.GiverDir,
 
