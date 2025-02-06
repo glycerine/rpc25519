@@ -458,6 +458,7 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 	// subtract from taker starting set, so
 	// we can determine what to delete at the
 	// end on the taker side.
+	vv("takeOneFile sees f.Path = '%v'; allowWrite = %v", f.Path, allowWrite)
 	takerCatalog.Del(f.Path)
 
 	localPathToWrite := filepath.Join(
