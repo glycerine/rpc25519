@@ -258,6 +258,7 @@ func main() {
 	}
 
 	cfg.ClientDialToHostPort = dest
+	cfg.CompressionOff = true
 
 	cli, err := rpc.NewClient("jcp", cfg)
 	if err != nil {
