@@ -245,7 +245,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				if syncReq.TakerFileSize == 0 {
 					err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0)
 
-					vv("giver sent whole file. done (wait for FIN) -> '%v'", syncReq.TakerPath)
+					//vv("giver sent whole file. done (wait for FIN) -> '%v'", syncReq.TakerPath)
 					frag0 = nil // GC early.
 					continue    // wait for FIN ack back.
 				}
