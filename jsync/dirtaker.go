@@ -284,6 +284,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								" processes files in staging! bad leafdir: '%v'",
 								f.Path))
 						}
+						takerCatalog.Del(f.Path)
 						fullpath := filepath.Join(reqDir.TopTakerDirTemp, f.Path)
 						if useTempDir {
 							err = os.MkdirAll(fullpath, 0700)
@@ -292,6 +293,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						}
 					case f.ScanFlags&ScanFlagIsMidDir != 0:
 
+						takerCatalog.Del(f.Path)
 						fullpath := filepath.Join(reqDir.TopTakerDirTemp, f.Path)
 						if useTempDir {
 							err = os.Chmod(fullpath, fs.FileMode(f.FileMode))
