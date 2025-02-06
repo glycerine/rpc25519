@@ -272,6 +272,11 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				panicOn(err)
 				bt.bread += len(frag.Payload)
 
+				tdir := reqDir.TopTakerDirFinal
+				if useTempDir {
+					tdir = reqDir.TopTakerDirTemp
+				}
+
 				for _, f := range pof.Pack {
 					if totalExpectedFileCount != 0 {
 						// very first frag will have total
@@ -286,21 +291,17 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								f.Path))
 						}
 						takerCatalog.Del(f.Path)
-						fullpath := filepath.Join(reqDir.TopTakerDirTemp, f.Path)
-						if useTempDir {
-							err = os.MkdirAll(fullpath, 0700)
-							panicOn(err)
-							//vv("dirtaker made leafdir fullpath '%v'", fullpath)
-						}
+						fullpath := filepath.Join(tdir, f.Path)
+						err = os.MkdirAll(fullpath, 0700)
+						panicOn(err)
+						//vv("dirtaker made leafdir fullpath '%v'", fullpath)
 					case f.ScanFlags&ScanFlagIsMidDir != 0:
 
 						takerCatalog.Del(f.Path)
-						fullpath := filepath.Join(reqDir.TopTakerDirTemp, f.Path)
-						if useTempDir {
-							err = os.Chmod(fullpath, fs.FileMode(f.FileMode))
-							panicOn(err)
-							//vv("dirtaker set mode on dir = '%v'", f.Path)
-						}
+						fullpath := filepath.Join(tdir, f.Path)
+						err = os.Chmod(fullpath, fs.FileMode(f.FileMode))
+						panicOn(err)
+						//vv("dirtaker set mode on dir = '%v'", f.Path)
 					default:
 						// regular file.
 						totFiles++
@@ -556,8 +557,8 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 				// need to install to the new temp dir no matter.
 				targ := f.SymLinkTarget
 				os.Remove(localPathToWrite)
-				//vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
-				err := os.Symlink(targ, localPathToWrite)
+				vv("installing symlink '%v' -> '%v'", localPathToWrite, targ) // dirtaker.go:559 2025-02-06 09:23:33.654 -0600 CST installing symlink 'linux11/Documentation/Changes' -> 'process/changes.rst'
+				err := os.Symlink(targ, localPathToWrite)                     // panic: symlink process/changes.rst linux11/Documentation/Changes: no such file or directory
 				panicOn(err)
 				//vv("updating Lutimes for '%v'", localPathToWrite)
 				tv := unix.NsecToTimeval(f.ModTime.UnixNano())
