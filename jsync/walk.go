@@ -616,7 +616,7 @@ func (di *DirIter) ParallelWalk(root string) (files []*File) {
 	}
 	_ = fi
 
-	pre := len(root)
+	pre := len(root) + 1
 
 	resCh := make(chan *File, 4096)
 	//var seen map[string]bool
