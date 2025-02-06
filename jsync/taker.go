@@ -163,8 +163,8 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 			localPathToRead = filepath.Join(
 				syncReq.TopTakerDirFinal, syncReq.TakerPath)
 		}
-		vv("localPathToRead = '%v'", localPathToRead)
-		vv("localPathToWrite = '%v'", localPathToWrite)
+		//vv("localPathToRead = '%v'", localPathToRead)
+		//vv("localPathToWrite = '%v'", localPathToWrite)
 
 		if dirExists(localPathToRead) {
 			return fmt.Errorf("error in Taker: localPathToRead cannot be an existing directory: '%v'; use DirTaker functionality.", localPathToRead)
