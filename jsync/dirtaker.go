@@ -560,8 +560,8 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 				// need to install to the new temp dir no matter.
 				targ := f.SymLinkTarget
 				os.Remove(localPathToWrite)
-				vv("installing symlink '%v' -> '%v'", localPathToWrite, targ) // dirtaker.go:559 2025-02-06 09:23:33.654 -0600 CST installing symlink 'linux11/Documentation/Changes' -> 'process/changes.rst'
-				err := os.Symlink(targ, localPathToWrite)                     // panic: symlink process/changes.rst linux11/Documentation/Changes: no such file or directory
+				//vv("installing symlink '%v' -> '%v'", localPathToWrite, targ) // dirtaker.go:559 2025-02-06 09:23:33.654 -0600 CST installing symlink 'linux11/Documentation/Changes' -> 'process/changes.rst'
+				err := os.Symlink(targ, localPathToWrite) // panic: symlink process/changes.rst linux11/Documentation/Changes: no such file or directory
 				panicOn(err)
 				//vv("updating Lutimes for '%v'", localPathToWrite)
 				tv := unix.NsecToTimeval(f.ModTime.UnixNano())
@@ -617,13 +617,15 @@ func (s *SyncService) dirTakerSendIndivFiles(
 	updateMap := needUpdate.GetMapReset()
 	var bts []*byteTracker
 
-	k := -1
+	//k := -1
 	for path, file := range updateMap {
 		_ = path
-		k++
-		if k%100 == 0 {
-			fmt.Printf("updateMap progress:  %v  out of %v. elap %v\n", k, nn, time.Since(t0))
-		}
+
+		// can be slowing us down to print too much.
+		//k++
+		//if k%100 == 0 {
+		//fmt.Printf("updateMap progress:  %v  out of %v. elap %v\n", k, nn, time.Since(t0))
+		//}
 		//vv("dirtaker: needUpdate path '%v' -> file: '%#v'", path, file)
 		goroHalt := idem.NewHalter()
 		batchHalt.AddChild(goroHalt)
