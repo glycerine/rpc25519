@@ -516,6 +516,8 @@ func (s *SyncService) giverSendsWholeFile(giverPath, takerPath string, ckt *rpc.
 	////vv("%v: (ckt '%v') (Giver) os.Stat(path) -> err = '%v'", name, ckt.Name, err)
 
 	panicOn(err)
+
+	const quietProgress = true
 	pathsize := fi.Size()
 	meterUp := progress.NewTransferStats(pathsize, "[up]"+filepath.Base(giverPath))
 
@@ -586,13 +588,13 @@ upload:
 		}
 
 		if time.Since(lastUpdate) > time.Second {
-			meterUp.DoProgressWithSpeed(int64(tot), false, int64(i))
+			meterUp.DoProgressWithSpeed(int64(tot), quietProgress, int64(i))
 			lastUpdate = time.Now()
 		}
 	} // end for i
 	nparts := i
 
-	meterUp.DoProgressWithSpeed(int64(tot), false, int64(i))
+	meterUp.DoProgressWithSpeed(int64(tot), quietProgress, int64(i))
 
 	//fmt.Println() // lots of empty lines we don't need.
 
