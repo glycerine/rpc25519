@@ -321,10 +321,11 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						panicOn(err)
 					}
 
-					//modesDone := rpc.NewFragment()
-					//modesDone.FragOp = OpRsync_ToGiverAllTreeModesDone
-					//err = ckt.SendOneWay(modesDone, 0)
-					//panicOn(err)
+					vv("try experiment with dirtaker just returning when done. no ackBackFINToGiver and wait for them.")
+					return nil
+					//s.ackBackFINToGiver(ckt, frag)
+					//continue // wait for FIN?
+
 				}
 
 			case OpRsync_GiverSendsPackOfFiles: // 36
@@ -550,7 +551,8 @@ func (s *SyncService) dirTakerSendIndivFiles(
 
 			takerFinalPath := filepath.Join(reqDir.TopTakerDirFinal,
 				file.Path)
-			vv("takerFinalPath = '%v', is this right?", takerFinalPath)
+			// e.g. tmp3/samsame; looks okay.
+			//vv("takerFinalPath = '%v', is this right?", takerFinalPath)
 			const keepData = false
 			const wantChunks = true
 			precis, chunks, err := GetHashesOneByOne(rpc.Hostname, takerFinalPath)
