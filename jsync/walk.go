@@ -606,3 +606,118 @@ func (di *DirIter) ParallelOneWalkForAll(halt *idem.Halter, root string) (resCh 
 
 	return
 }
+
+func (di *DirIter) ParallelWalk(root string) (files []*File) {
+
+	// empty/non-existant root okay, just return empty slice.
+	fi, err := os.Stat(root)
+	if err != nil {
+		return
+	}
+	_ = fi
+
+	resCh := make(chan *File, 4096)
+	//var seen map[string]bool
+	//if di.FollowSymlinks { // not fully implimented yet?
+	// symlinks can cause duplicated paths, so
+	// we de-duplicate the paths when following
+	// symlinks.
+	//	seen = make(map[string]bool)
+	//}
+
+	halt := idem.NewHalter()
+
+	go func() {
+		// we need to know when pwalk.Walk() returns: that is
+		// when we are done with the walk. Then these defer can run.
+		defer func() {
+			vv("pwalk.Walk must have finished. defers are running")
+			halt.ReqStop.Close()
+			halt.Done.Close()
+		}()
+
+		pwalk.Walk(root, func(path string, fi os.FileInfo, hasSubdirs bool, err error) error {
+
+			if fi.Mode()&fs.ModeSymlink != 0 {
+				//vv("have symlink '%v'", resolveMe)
+				// atm do not follow symlinks, but return them.
+
+				target, err := os.Readlink(path)
+				if err != nil {
+					// allow dangling links to not stop the walk.?
+					//return nil
+					panicOn(err) // do we need to pass on target even if dangling?
+				}
+
+				//vv("returning IsSymLink true regular File")
+				scanFlags := ScanFlagIsSymLink
+				rf := &File{
+					Path:      path,
+					Size:      fi.Size(),
+					FileMode:  uint32(fi.Mode()),
+					ModTime:   fi.ModTime(),
+					ScanFlags: scanFlags,
+					//IsSymLink:       true,
+					SymLinkTarget: target,
+					//FollowedSymlink: false,
+				}
+				select {
+				case resCh <- rf:
+				case <-halt.ReqStop.Chan:
+					return ErrHaltRequested
+				}
+				// end if symlink
+			} else {
+				if fi.IsDir() {
+					// we are a directory, yield ourselves.
+					var scanFlags uint32
+					if hasSubdirs {
+						scanFlags = ScanFlagIsDir | ScanFlagIsMidDir
+					} else {
+						scanFlags = ScanFlagIsDir | ScanFlagIsLeafDir
+					}
+					rf := &File{
+						Path:      path,
+						Size:      fi.Size(),
+						FileMode:  uint32(fi.Mode()),
+						ModTime:   fi.ModTime(),
+						ScanFlags: scanFlags,
+					}
+					select {
+					case resCh <- rf:
+					case <-halt.ReqStop.Chan:
+						return ErrHaltRequested
+					}
+
+				} else {
+					// regular file
+					rf := &File{
+						Path:     path,
+						Size:     fi.Size(),
+						FileMode: uint32(fi.Mode()),
+						ModTime:  fi.ModTime(),
+					}
+					select {
+					case resCh <- rf:
+					case <-halt.ReqStop.Chan:
+						return ErrHaltRequested
+					}
+				}
+			}
+			return nil
+		})
+		vv("back from pwalk.Walk()")
+	}()
+
+myloop:
+	for {
+		select {
+		case f := <-resCh:
+			files = append(files, f)
+		case <-halt.Done.Chan:
+			break myloop
+		}
+	}
+
+	return
+}

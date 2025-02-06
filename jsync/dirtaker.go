@@ -46,6 +46,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	var wgIndivFileCheck *sync.WaitGroup
 	var haltIndivFileCheck *idem.Halter
 	needUpdate := rpc.NewMutexmap[string, *File]()
+	takerCatalog := rpc.NewMutexmap[string, *File]()
 
 	// just measure for now, no creating hard links etc.
 	const useTempDir = false
@@ -223,6 +224,12 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 				if !seenGiverSendsTopDirListing {
 
+					di := NewDirIter()
+					localTree := di.ParallelWalk(reqDir.TopTakerDirFinal)
+					for _, file := range localTree {
+						takerCatalog.Set(file.Path, file)
+					}
+
 					haltIndivFileCheck = idem.NewHalter()
 					seenGiverSendsTopDirListing = true
 
@@ -248,7 +255,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							for {
 								select {
 								case f := <-fileUpdateCh:
-									s.takeOneFile(f, reqDir, needUpdate, useTempDir)
+									s.takeOneFile(f, reqDir, needUpdate, takerCatalog, useTempDir)
 								case <-haltIndivFileCheck.ReqStop.Chan:
 									return
 								}
@@ -302,7 +309,6 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						case <-ckt.Halt.ReqStop.Chan:
 							return
 						}
-						//s.takeOneFile(f, reqDir, needUpdate)
 					}
 				}
 				if pof.IsLast {
@@ -325,6 +331,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 						panicOn(err)
 					}
+
+					vv("and end, takerCatalog = '%#v'", takerCatalog)
 
 					vv("try experiment with dirtaker just returning when done. no ackBackFINToGiver and wait for them.")
 					return nil
@@ -444,7 +452,12 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 }
 
 // set allowWrite = false to just evaluate without making hard links
-func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate *rpc.Mutexmap[string, *File], allowWrite bool) {
+func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate, takerCatalog *rpc.Mutexmap[string, *File], allowWrite bool) {
+
+	// subtract from taker starting set, so
+	// we can determine what to delete at the
+	// end on the taker side.
+	takerCatalog.Del(f.Path)
 
 	localPathToWrite := filepath.Join(
 		reqDir.TopTakerDirTemp, f.Path)

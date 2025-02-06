@@ -105,3 +105,10 @@ func (m *Mutexmap[K, V]) GetMapReset() (mm map[K]V) {
 	m.mut.Unlock()
 	return
 }
+
+// Reset discards map contents, allocating it anew.
+func (m *Mutexmap[K, V]) Reset() {
+	m.mut.Lock()
+	m.m = make(map[K]V)
+	m.mut.Unlock()
+}
