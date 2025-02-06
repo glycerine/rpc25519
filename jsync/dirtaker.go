@@ -572,7 +572,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 
 			tmp := reqDir.TopTakerDirTemp
 			if !useTempDir {
-				tmp = reqDir.TopTakerDirFinal
+				tmp = "" // reqDir.TopTakerDirFinal
 			}
 
 			syncReq := &RequestToSyncPath{
@@ -670,7 +670,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 				if r != nil {
 					err := fmt.Errorf(
 						"panic recovered: '%v'", r)
-					vv("error ckt2 close: '%v'", err)
+					vv("error ckt2 close: '%v'\nstack=\n%v", err, stack())
 					ckt2.Close(err)
 				} else {
 					//vv("normal ckt2 close")

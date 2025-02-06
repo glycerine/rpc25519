@@ -155,13 +155,16 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 			localPathToWrite = filepath.Join(
 				syncReq.TakerTempDir, syncReq.TakerPath)
+		} else {
+			localPathToWrite = filepath.Join(
+				syncReq.TopTakerDirFinal, syncReq.TakerPath)
 		}
 		if syncReq.TopTakerDirFinal != "" {
 			localPathToRead = filepath.Join(
 				syncReq.TopTakerDirFinal, syncReq.TakerPath)
 		}
-		//vv("localPathToRead = '%v'", localPathToRead)
-		//vv("localPathToWrite = '%v'", localPathToWrite)
+		vv("localPathToRead = '%v'", localPathToRead)
+		vv("localPathToWrite = '%v'", localPathToWrite)
 
 		if dirExists(localPathToRead) {
 			return fmt.Errorf("error in Taker: localPathToRead cannot be an existing directory: '%v'; use DirTaker functionality.", localPathToRead)
@@ -366,6 +369,9 @@ takerForSelectLoop:
 						//vv("since syncReq.TakerTempDir is set, '%v'. we keep tmp == localPathToWrite: '%v'", syncReq.TakerTempDir, localPathToWrite)
 						tmp = localPathToWrite
 					}
+					//else {
+					//	tmp = filepath.Join(syncReq.TopTakerDirFinal, tmp)
+					//}
 					newversFd, err = os.Create(tmp)
 					panicOn(err)
 					//vv("taker created file '%v'", tmp)
