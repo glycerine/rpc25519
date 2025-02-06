@@ -335,6 +335,19 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 
 					vv("and end, takerCatalog = '%#v'", takerCatalog.GetKeySlice())
+					for path, file := range takerCatalog.GetMapReset() {
+						if path == "" {
+							// ignore root of taker dir; although maybe
+							// we want to set mod-time/mode?
+							continue
+						}
+						vv("deleting taker only path '%v'", path)
+						if file.IsDir() {
+							os.RemoveAll(path)
+						} else {
+							os.Remove(path)
+						}
+					}
 
 					vv("try experiment with dirtaker just returning when done. no ackBackFINToGiver and wait for them.")
 					return nil

@@ -100,6 +100,9 @@ func (f *File) IsLeafDir() bool {
 func (f *File) IsMidDir() bool {
 	return f.ScanFlags&ScanFlagIsMidDir != 0
 }
+func (f *File) IsDir() bool {
+	return f.ScanFlags&ScanFlagIsDir != 0
+}
 
 // PackOfFiles is streamed in phase 2.
 // All of these should be (only) files, not directories.
