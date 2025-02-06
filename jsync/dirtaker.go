@@ -486,21 +486,21 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 }
 
-// set allowWrite = false to just evaluate without making hard links
-func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate, takerCatalog *rpc.Mutexmap[string, *File], allowWrite bool) {
+// set useTempDir = false to just evaluate without making hard links
+func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate, takerCatalog *rpc.Mutexmap[string, *File], useTempDir bool) {
 
 	// subtract from taker starting set, so
 	// we can determine what to delete at the
 	// end on the taker side.
-	//vv("takeOneFile sees f.Path = '%v'; allowWrite = %v", f.Path, allowWrite)
+	//vv("takeOneFile sees f.Path = '%v'; useTempDir = %v", f.Path, useTempDir)
 	takerCatalog.Del(f.Path)
 
 	tdir := reqDir.TopTakerDirTemp
 
 	// do we want?
-	//if !allowWrite {
-	//	tdir = reqDir.TopTakerDirFinal
-	//}
+	if !useTempDir {
+		tdir = reqDir.TopTakerDirFinal
+	}
 
 	localPathToWrite := filepath.Join(
 		tdir, f.Path)
@@ -515,19 +515,27 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 	var fi os.FileInfo
 	isSym := f.IsSymlink()
 	if isSym {
-		fi, err = os.Lstat(localPathToRead)
+		vv("yes, isSym is true: f.Path= '%v'", f.Path)
+		//fi, err = os.Lstat(localPathToRead)
 	} else {
-		fi, err = os.Stat(localPathToRead)
+		// this will get fooled if taker has a symlink but giver is not.
+		// So I think we need to always to Lstat.
+		//fi, err = os.Stat(localPathToRead)
 	}
+	fi, err = os.Lstat(localPathToRead)
+	fileExists := (err == nil)
+
 	// might not exist, don't panic on err (really!)
-	if err != nil {
+	if !fileExists && !isSym {
+		// but we can fix non-existant symlinks immediately
 		needUpdate.Set(f.Path, f)
-		//vv("Stat localPathToRead '%v' -> err '%v' so marking needUpdate", localPathToRead, err)
+		vv("Stat localPathToRead '%v' -> err '%v' so marking needUpdate", localPathToRead, err)
+		return
 	} else {
 		if isSym {
-			//vv("have sym link in f: '%#v'", f)
+			vv("have sym link in f: '%#v'", f)
 			needWrite := false
-			if localPathToWrite != localPathToRead {
+			if !fileExists || useTempDir {
 				needWrite = true
 			} else {
 				curTarget, err := os.Readlink(localPathToRead)
@@ -537,19 +545,18 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 				}
 			}
 			if needWrite {
-				if allowWrite {
-					// need to install to the new temp dir no matter.
-					targ := f.SymLinkTarget
-					os.Remove(localPathToWrite)
-					//vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
-					err := os.Symlink(targ, localPathToWrite)
-					panicOn(err)
-					//vv("updating Lutimes for '%v'", localPathToWrite)
-					tv := unix.NsecToTimeval(f.ModTime.UnixNano())
-					unix.Lutimes(localPathToWrite, []unix.Timeval{tv, tv})
-				}
+				vv("symlink needs write! useTempDir = %v", useTempDir)
+				// need to install to the new temp dir no matter.
+				targ := f.SymLinkTarget
+				os.Remove(localPathToWrite)
+				vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
+				err := os.Symlink(targ, localPathToWrite)
+				panicOn(err)
+				//vv("updating Lutimes for '%v'", localPathToWrite)
+				tv := unix.NsecToTimeval(f.ModTime.UnixNano())
+				unix.Lutimes(localPathToWrite, []unix.Timeval{tv, tv})
 			}
-			return
+			return // all symlinks done
 		}
 
 		if !fi.ModTime().Truncate(time.Second).Equal(f.ModTime.Truncate(time.Second)) ||
@@ -563,18 +570,14 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 			//if fi.Mode()&fs.ModeSymlink != 0 {
 			//	vv("skipping update to symlink for now: localPathToRead = '%v'", localPathToRead)
 			//} else {
-			if localPathToWrite != localPathToRead {
-
-				if allowWrite {
-					//vv("hard linking 10 '%v' <- '%v'",
-					//	localPathToRead, localPathToWrite)
-					panicOn(os.Link(localPathToRead, localPathToWrite))
-					// just adjust mod time and fin.
-					err = os.Chtimes(localPathToWrite, time.Time{}, f.ModTime)
-					panicOn(err)
-				}
+			if useTempDir {
+				//vv("hard linking 10 '%v' <- '%v'",
+				//	localPathToRead, localPathToWrite)
+				panicOn(os.Link(localPathToRead, localPathToWrite))
+				// just adjust mod time and fin.
+				err = os.Chtimes(localPathToWrite, time.Time{}, f.ModTime)
+				panicOn(err)
 			}
-			//}
 		}
 	}
 }
@@ -607,7 +610,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 	for path, file := range updateMap {
 		_ = path
 		k++
-		if k % 100 == 0 {
+		if k%100 == 0 {
 			fmt.Printf("updateMap progress:  %v  out of %v. elap %v\n", k, nn, time.Since(t0))
 		}
 		//vv("dirtaker: needUpdate path '%v' -> file: '%#v'", path, file)
@@ -616,7 +619,8 @@ func (s *SyncService) dirTakerSendIndivFiles(
 		bt := &byteTracker{}
 		bts = append(bts, bt)
 
-		go func(file *File, goroHalt *idem.Halter, bt *byteTracker) {
+		//go func(file *File, goroHalt *idem.Halter, bt *byteTracker) {
+		func(file *File, goroHalt *idem.Halter, bt *byteTracker) {
 			defer func() {
 				goroHalt.ReqStop.Close()
 				goroHalt.Done.Close()
