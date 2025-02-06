@@ -547,16 +547,18 @@ upload:
 
 		send := buf[:nr] // can be empty
 		tot += nr
-		sumstring := myblake3.Blake3OfBytesString(send)
+
+		// save an cpu by skipping the extra hashing now.
+		//sumstring := myblake3.Blake3OfBytesString(send)
 		//////vv("i=%v, len=%v, sumstring = '%v'", i, nr, sumstring)
-		blake3hash.Write(send)
+		//blake3hash.Write(send)
 
 		frag := rpc.NewFragment()
 		frag.FragSubject = frag0.FragSubject
 		frag.FragPart = i
 		frag.SetUserArg("readFile", giverPath)
 		frag.SetUserArg("writeFile", takerPath)
-		frag.SetUserArg("blake3", sumstring)
+		//frag.SetUserArg("blake3", sumstring)
 
 		mode := strconv.FormatUint(uint64(fi.Mode()), 10)
 		frag.SetUserArg("mode", mode)

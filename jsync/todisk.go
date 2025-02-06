@@ -56,7 +56,7 @@ func (s *FileToDiskState) WriteOneMsgToFile(req *rpc.Message, last bool) (err er
 		}
 		//vv("ServerSideUploadState.ReceiveFileInParts sees part 0: hdr1='%v'", hdr1.String())
 		s.PartsSeen = make(map[int64]bool)
-		s.Blake3hash.Reset()
+		//s.Blake3hash.Reset()
 
 		// make any needed dirs
 		dirs := filepath.Dir(s.WriteToPath)
@@ -66,13 +66,15 @@ func (s *FileToDiskState) WriteOneMsgToFile(req *rpc.Message, last bool) (err er
 		s.Randomness = cryRandBytesBase64(16)
 		s.WriteToPathTmp = s.WriteToPath + ".tmp_" + s.Randomness
 
-		sum := blake3OfBytesString(req.JobSerz)
-		blake3checksumBase64, ok := hdr1.Args["blake3"]
-		if ok {
-			if blake3checksumBase64 != sum {
-				panic(fmt.Sprintf("checksum on first %v bytes disagree: client sent blake3sum='%v'; we computed = '%v'", len(req.JobSerz), blake3checksumBase64, sum))
+		/*
+			sum := blake3OfBytesString(req.JobSerz)
+			blake3checksumBase64, ok := hdr1.Args["blake3"]
+			if ok {
+				if blake3checksumBase64 != sum {
+					panic(fmt.Sprintf("checksum on first %v bytes disagree: client sent blake3sum='%v'; we computed = '%v'", len(req.JobSerz), blake3checksumBase64, sum))
+				}
 			}
-		}
+		*/
 
 		// save the file handle for the next callback too.
 		s.Fd, err = os.Create(s.WriteToPathTmp)
@@ -92,18 +94,19 @@ func (s *FileToDiskState) WriteOneMsgToFile(req *rpc.Message, last bool) (err er
 	}
 	s.PartsSeen[part] = true
 
-	s.Blake3hash.Write(req.JobSerz)
-	serverSum := blake3OfBytesString(req.JobSerz)
-	clientSum := req.HDR.Args["blake3"]
+	// can be slow. we see its working, time to optimize/speed up.
+	//s.Blake3hash.Write(req.JobSerz)
+	//serverSum := blake3OfBytesString(req.JobSerz)
+	//clientSum := req.HDR.Args["blake3"]
 
 	//vv("server part %v, len %v, server-sum='%v' \n        while Subject blake3    client-sum='%v'\n", req.HDR.StreamPart, len(req.JobSerz), serverSum, clientSum)
 
-	if part > 0 && serverSum != clientSum {
-		panic(fmt.Sprintf("checksum disagree on part %v; see above."+
-			" server sees len %v req.JobSerz='%v'; serverSum='%v'; clientSum='%v'",
-			part, len(req.JobSerz),
-			string(req.JobSerz), serverSum, clientSum))
-	}
+	//if part > 0 && serverSum != clientSum {
+	//	panic(fmt.Sprintf("checksum disagree on part %v; see above."+
+	//		" server sees len %v req.JobSerz='%v'; serverSum='%v'; clientSum='%v'",
+	//		part, len(req.JobSerz),
+	//		string(req.JobSerz), serverSum, clientSum))
+	//}
 	n := len(req.JobSerz)
 	if n > 0 {
 		nw, err := s.FdBufioWriter.Write(req.JobSerz)
