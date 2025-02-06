@@ -361,7 +361,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						}
 					}
 					if !reqDir.GiverDirModTime.IsZero() {
-						vv("setting final dir mod time: '%v'", reqDir.GiverDirModTime)
+						//vv("setting final dir mod time: '%v'", reqDir.GiverDirModTime)
 						err = os.Chtimes(reqDir.TopTakerDirFinal,
 							time.Time{}, reqDir.GiverDirModTime)
 						panicOn(err)
