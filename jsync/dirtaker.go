@@ -579,7 +579,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 	gbt *byteTracker,
 	useTempDir bool,
 
-) error {
+) (err0 error) {
 
 	t0 := time.Now()
 	nn := needUpdate.GetN()
@@ -606,6 +606,13 @@ func (s *SyncService) dirTakerSendIndivFiles(
 			defer func() {
 				goroHalt.ReqStop.Close()
 				goroHalt.Done.Close()
+
+				// other side ctrl-c will give us a panic here
+				r := recover()
+				if r != nil {
+					alwaysPrintf("dirTakerSendIndivFiles() supressing panic: '%v'", r)
+					err0 = fmt.Errorf("dirTakerSendIndivFiles saw error: '%v'", r)
+				}
 			}()
 
 			giverPath := filepath.Join(reqDir.GiverDir,
