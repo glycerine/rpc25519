@@ -79,7 +79,7 @@ func (s *FileToDiskState) WriteOneMsgToFile(req *rpc.Message, last bool) (err er
 		if err != nil {
 			return fmt.Errorf("error: server could not create path '%v': '%v'", s.WriteToPathTmp, err)
 		}
-		s.Fd.Sync() // get the file showing on disk asap
+		//s.Fd.Sync() // get the file showing on disk asap
 
 		// add buffering to writes.
 		s.FdBufioWriter = bufio.NewWriterSize(s.Fd, rpc.UserMaxPayload+10_000)
