@@ -302,7 +302,7 @@ takerForSelectLoop:
 				continue // wait for FIN
 
 			case OpRsync_TellTakerToDelete: // part of pull
-				//vv("%v: (ckt %v) (Taker) sees OpRsync_TellTakerToDelete. deleting '%v'", name, ckt.Name, syncReq.TakerPath)
+				vv("%v: (ckt %v) (Taker) sees OpRsync_TellTakerToDelete. deleting '%v'", name, ckt.Name, syncReq.TakerPath)
 				err := os.Remove(syncReq.TakerPath)
 				panicOn(err)
 				s.ackBackFINToGiver(ckt, frag)
@@ -525,7 +525,7 @@ takerForSelectLoop:
 				bt.bread += len(frag.Payload)
 
 				if senderPlan.FileIsDeleted {
-					//vv("senderPlan.FileIsDeleted true, deleting path '%v'", localPathToWrite)
+					vv("senderPlan.FileIsDeleted true, deleting path '%v'", localPathToWrite)
 					_ = os.Remove(localPathToWrite)
 					s.ackBackFINToGiver(ckt, frag)
 					frag = nil
