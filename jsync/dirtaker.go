@@ -630,8 +630,8 @@ func (s *SyncService) dirTakerSendIndivFiles(
 		bt := &byteTracker{}
 		bts = append(bts, bt)
 
-		//go func(file *File, goroHalt *idem.Halter, bt *byteTracker) {
-		func(file *File, goroHalt *idem.Halter, bt *byteTracker) {
+		//func(file *File, goroHalt *idem.Halter, bt *byteTracker) {
+		go func(file *File, goroHalt *idem.Halter, bt *byteTracker) {
 			defer func() {
 				goroHalt.ReqStop.Close()
 				goroHalt.Done.Close()
