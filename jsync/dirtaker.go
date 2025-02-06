@@ -333,7 +333,9 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						err = s.dirTakerSendIndivFiles(myPeer, needUpdate,
 							reqDir, ckt, done, done0, bt, useTempDir)
 
-						panicOn(err)
+						if err != nil {
+							alwaysPrintf("dirTakerSendIndivFiles err = '%v'", err)
+						}
 					}
 
 					//vv("and end, takerCatalog = '%#v'", takerCatalog.GetKeySlice())

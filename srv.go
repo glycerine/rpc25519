@@ -452,7 +452,8 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 				if msg.DoneCh != nil {
 					msg.DoneCh.Close()
 				}
-				alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
+				// can become very noisy on shutdown, comment out.
+				//alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
 				// just let user try again?
 			} else {
 				// tell caller there was no error.
