@@ -572,7 +572,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 
 			tmp := reqDir.TopTakerDirTemp
 			if !useTempDir {
-				tmp = ""
+				tmp = reqDir.TopTakerDirFinal
 			}
 
 			syncReq := &RequestToSyncPath{
