@@ -527,13 +527,14 @@ func (s *SyncService) dirTakerSendIndivFiles(
 	reqDir *RequestToSyncDir,
 	ckt *rpc.Circuit,
 	done, done0 <-chan struct{},
-	bt *byteTracker,
+	gbt *byteTracker,
 	useTempDir bool,
 
 ) error {
 
 	t0 := time.Now()
 	nn := needUpdate.GetN()
+	_ = nn
 	vv("top dirTakerSendIndivFiles() with %v files needing updates.", nn)
 
 	batchHalt := idem.NewHalter()
@@ -542,13 +543,17 @@ func (s *SyncService) dirTakerSendIndivFiles(
 	//var totalFileBytes int64
 
 	updateMap := needUpdate.GetMapReset()
+	var bts []*byteTracker
+
 	for path, file := range updateMap {
 		_ = path
-		vv("dirtaker: needUpdate path '%v' -> file: '%#v'", path, file)
+		//vv("dirtaker: needUpdate path '%v' -> file: '%#v'", path, file)
 		goroHalt := idem.NewHalter()
 		batchHalt.AddChild(goroHalt)
+		bt := &byteTracker{}
+		bts = append(bts, bt)
 
-		go func(file *File, goroHalt *idem.Halter) {
+		go func(file *File, goroHalt *idem.Halter, bt *byteTracker) {
 			defer func() {
 				goroHalt.ReqStop.Close()
 				goroHalt.Done.Close()
@@ -559,8 +564,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 
 			takerFinalPath := filepath.Join(reqDir.TopTakerDirFinal,
 				file.Path)
-			// e.g. tmp3/samsame; looks okay.
-			//vv("takerFinalPath = '%v', is this right?", takerFinalPath)
+
 			const keepData = false
 			const wantChunks = true
 			precis, chunks, err := GetHashesOneByOne(rpc.Hostname, takerFinalPath)
@@ -572,7 +576,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 
 			tmp := reqDir.TopTakerDirTemp
 			if !useTempDir {
-				tmp = "" // reqDir.TopTakerDirFinal
+				tmp = ""
 			}
 
 			syncReq := &RequestToSyncPath{
@@ -626,6 +630,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 			}
 			data, err := syncReq.MarshalMsg(nil)
 			panicOn(err)
+			bt.bsend += len(data)
 
 			// restore so locals get it!
 			if extraComing {
@@ -683,17 +688,16 @@ func (s *SyncService) dirTakerSendIndivFiles(
 			errg := s.Taker(ctx2, ckt2, myPeer, syncReq)
 			panicOn(errg)
 
-			/*
-				if reqDir.SR.UpdateProgress != nil {
-					report := fmt.Sprintf("%40s  done.", giverPath)
-					select {
-					case reqDir.SR.UpdateProgress <- report:
-					case <-done:
-						return
-					}
+			if reqDir.SR.UpdateProgress != nil {
+				report := fmt.Sprintf("%40s  done.", giverPath)
+				select {
+				case reqDir.SR.UpdateProgress <- report:
+				case <-done:
+					return
 				}
-			*/
-		}(file, goroHalt)
+			}
+
+		}(file, goroHalt, bt)
 	} // end range needUpdate
 
 	_ = batchHalt.ReqStop.WaitTilChildrenDone(done)
@@ -702,6 +706,12 @@ func (s *SyncService) dirTakerSendIndivFiles(
 
 	batchHalt.ReqStop.Close()
 
-	vv("end dirTakerSendIndivFiles: elap = '%v'", time.Since(t0))
+	// add up all the bts
+	for i := range bts {
+		gbt.bsend += bts[i].bsend
+		gbt.bread += bts[i].bread
+	}
+
+	vv("end dirTakerSendIndivFiles: elap = '%v'; gbt='%#v'", time.Since(t0), gbt)
 	return nil
 }
