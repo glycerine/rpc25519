@@ -603,8 +603,13 @@ func (s *SyncService) dirTakerSendIndivFiles(
 	updateMap := needUpdate.GetMapReset()
 	var bts []*byteTracker
 
+	k := -1
 	for path, file := range updateMap {
 		_ = path
+		k++
+		if k % 100 == 0 {
+			fmt.Printf("updateMap progress:  %v  out of %v. elap %v\n", k, nn, time.Since(t0))
+		}
 		//vv("dirtaker: needUpdate path '%v' -> file: '%#v'", path, file)
 		goroHalt := idem.NewHalter()
 		batchHalt.AddChild(goroHalt)
