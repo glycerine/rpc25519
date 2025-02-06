@@ -616,6 +616,8 @@ func (di *DirIter) ParallelWalk(root string) (files []*File) {
 	}
 	_ = fi
 
+	pre := len(root)
+
 	resCh := make(chan *File, 4096)
 	//var seen map[string]bool
 	//if di.FollowSymlinks { // not fully implimented yet?
@@ -652,7 +654,7 @@ func (di *DirIter) ParallelWalk(root string) (files []*File) {
 				//vv("returning IsSymLink true regular File")
 				scanFlags := ScanFlagIsSymLink
 				rf := &File{
-					Path:      path,
+					Path:      path[pre:],
 					Size:      fi.Size(),
 					FileMode:  uint32(fi.Mode()),
 					ModTime:   fi.ModTime(),
@@ -677,7 +679,7 @@ func (di *DirIter) ParallelWalk(root string) (files []*File) {
 						scanFlags = ScanFlagIsDir | ScanFlagIsLeafDir
 					}
 					rf := &File{
-						Path:      path,
+						Path:      path[pre:],
 						Size:      fi.Size(),
 						FileMode:  uint32(fi.Mode()),
 						ModTime:   fi.ModTime(),
@@ -692,7 +694,7 @@ func (di *DirIter) ParallelWalk(root string) (files []*File) {
 				} else {
 					// regular file
 					rf := &File{
-						Path:     path,
+						Path:     path[pre:],
 						Size:     fi.Size(),
 						FileMode: uint32(fi.Mode()),
 						ModTime:  fi.ModTime(),
