@@ -653,8 +653,13 @@ func (di *DirIter) ParallelWalk(root string) (files []*File) {
 
 				//vv("returning IsSymLink true regular File")
 				scanFlags := ScanFlagIsSymLink
+				if len(path) >= pre {
+					path = path[pre:]
+				} else {
+					path = ""
+				}
 				rf := &File{
-					Path:      path[pre:],
+					Path:      path,
 					Size:      fi.Size(),
 					FileMode:  uint32(fi.Mode()),
 					ModTime:   fi.ModTime(),
@@ -678,8 +683,13 @@ func (di *DirIter) ParallelWalk(root string) (files []*File) {
 					} else {
 						scanFlags = ScanFlagIsDir | ScanFlagIsLeafDir
 					}
+					if len(path) >= pre {
+						path = path[pre:]
+					} else {
+						path = ""
+					}
 					rf := &File{
-						Path:      path[pre:],
+						Path:      path,
 						Size:      fi.Size(),
 						FileMode:  uint32(fi.Mode()),
 						ModTime:   fi.ModTime(),
@@ -693,8 +703,13 @@ func (di *DirIter) ParallelWalk(root string) (files []*File) {
 
 				} else {
 					// regular file
+					if len(path) >= pre {
+						path = path[pre:]
+					} else {
+						path = ""
+					}
 					rf := &File{
-						Path:     path[pre:],
+						Path:     path,
 						Size:     fi.Size(),
 						FileMode: uint32(fi.Mode()),
 						ModTime:  fi.ModTime(),
