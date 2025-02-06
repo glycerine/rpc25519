@@ -333,7 +333,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						panicOn(err)
 					}
 
-					vv("and end, takerCatalog = '%#v'", takerCatalog)
+					vv("and end, takerCatalog = '%#v'", takerCatalog.GetKeySlice())
 
 					vv("try experiment with dirtaker just returning when done. no ackBackFINToGiver and wait for them.")
 					return nil
