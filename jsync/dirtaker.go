@@ -610,7 +610,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 				// other side ctrl-c will give us a panic here
 				r := recover()
 				if r != nil {
-					alwaysPrintf("dirTakerSendIndivFiles() supressing panic: '%v'", r)
+					//vv("dirTakerSendIndivFiles() supressing panic: '%v'", r)
 					err0 = fmt.Errorf("dirTakerSendIndivFiles saw error: '%v'", r)
 				}
 			}()
