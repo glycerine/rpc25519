@@ -335,6 +335,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 
 					//vv("and end, takerCatalog = '%#v'", takerCatalog.GetKeySlice())
+					vv("and end, takerCatalog len = '%v'", takerCatalog.Len())
+
 					for path, file := range takerCatalog.GetMapReset() {
 						if path == "" {
 							// ignore root of taker dir; although maybe
@@ -344,7 +346,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						path = filepath.Join(reqDir.TopTakerDirFinal,
 							file.Path)
 
-						vv("deleting taker only path '%v'", path)
+						vv("would delete taker only path: '%v'", path)
 						if file.IsDir() {
 							os.RemoveAll(path)
 						} else {
