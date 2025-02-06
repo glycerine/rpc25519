@@ -630,6 +630,10 @@ func (s *SyncService) dirTakerSendIndivFiles(
 		bt := &byteTracker{}
 		bts = append(bts, bt)
 
+		// background goro gets us 3x better throughput.
+		// We are similar to rsync, within 2x the time
+		// rsync: 1.6s vs jcp 2.8s to restore linux/Documentation
+		// over LAN.
 		//func(file *File, goroHalt *idem.Halter, bt *byteTracker) {
 		go func(file *File, goroHalt *idem.Halter, bt *byteTracker) {
 			defer func() {
