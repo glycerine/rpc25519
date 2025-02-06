@@ -515,7 +515,7 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 	var fi os.FileInfo
 	isSym := f.IsSymlink()
 	if isSym {
-		vv("yes, isSym is true: f.Path= '%v'", f.Path)
+		//vv("yes, isSym is true: f.Path= '%v'", f.Path)
 		//fi, err = os.Lstat(localPathToRead)
 	} else {
 		// this will get fooled if taker has a symlink but giver is not.
@@ -529,11 +529,11 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 	if !fileExists && !isSym {
 		// but we can fix non-existant symlinks immediately
 		needUpdate.Set(f.Path, f)
-		vv("Stat localPathToRead '%v' -> err '%v' so marking needUpdate", localPathToRead, err)
+		//vv("Stat localPathToRead '%v' -> err '%v' so marking needUpdate", localPathToRead, err)
 		return
 	} else {
 		if isSym {
-			vv("have sym link in f: '%#v'", f)
+			//vv("have sym link in f: '%#v'", f)
 			needWrite := false
 			if !fileExists || useTempDir {
 				needWrite = true
@@ -552,11 +552,11 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 				}
 			}
 			if needWrite {
-				vv("symlink needs write! useTempDir = %v", useTempDir)
+				//vv("symlink needs write! useTempDir = %v", useTempDir)
 				// need to install to the new temp dir no matter.
 				targ := f.SymLinkTarget
 				os.Remove(localPathToWrite)
-				vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
+				//vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
 				err := os.Symlink(targ, localPathToWrite)
 				panicOn(err)
 				//vv("updating Lutimes for '%v'", localPathToWrite)
