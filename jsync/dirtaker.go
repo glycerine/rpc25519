@@ -341,6 +341,9 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							// we want to set mod-time/mode?
 							continue
 						}
+						path = filepath.Join(reqDir.TopTakerDirFinal,
+							file.Path)
+
 						vv("deleting taker only path '%v'", path)
 						if file.IsDir() {
 							os.RemoveAll(path)
