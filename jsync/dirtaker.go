@@ -538,9 +538,16 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 			if !fileExists || useTempDir {
 				needWrite = true
 			} else {
-				curTarget, err := os.Readlink(localPathToRead)
-				panicOn(err)
-				if curTarget != f.SymLinkTarget {
+				if fi.Mode()&fs.ModeSymlink != 0 {
+					// current is symlink
+					curTarget, err := os.Readlink(localPathToRead)
+					panicOn(err)
+					if curTarget != f.SymLinkTarget {
+						needWrite = true
+					}
+				} else {
+					// current is regular file, to be replaced
+					// by symlink
 					needWrite = true
 				}
 			}
