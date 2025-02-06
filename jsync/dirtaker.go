@@ -343,29 +343,32 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					//vv("and end, takerCatalog = '%#v'", takerCatalog.GetKeySlice())
 					vv("and end, takerCatalog len = '%v'", takerCatalog.Len())
 
-					for path, file := range takerCatalog.GetMapReset() {
-						if path == "" {
-							// ignore root of taker dir; although maybe
-							// we want to set mod-time/mode?
-							continue
-						}
-						path = filepath.Join(reqDir.TopTakerDirFinal,
-							file.Path)
+					// temp dir does not need to delete, it just
+					// won't write into the temp dir to begin with.
+					if !useTempDir {
 
-						vv("would delete taker only path: '%v'", path)
-						if false {
+						for path, file := range takerCatalog.GetMapReset() {
+							if path == "" {
+								// ignore root of taker dir; although maybe
+								// we want to set mod-time/mode?
+								continue
+							}
+							path = filepath.Join(reqDir.TopTakerDirFinal,
+								file.Path)
+
+							vv("deleting taker only path: '%v'", path)
 							if file.IsDir() {
 								os.RemoveAll(path)
 							} else {
 								os.Remove(path)
 							}
 						}
-					}
-					if !reqDir.GiverDirModTime.IsZero() {
-						//vv("setting final dir mod time: '%v'", reqDir.GiverDirModTime)
-						err = os.Chtimes(reqDir.TopTakerDirFinal,
-							time.Time{}, reqDir.GiverDirModTime)
-						panicOn(err)
+						if !reqDir.GiverDirModTime.IsZero() {
+							//vv("setting final dir mod time: '%v'", reqDir.GiverDirModTime)
+							err = os.Chtimes(reqDir.TopTakerDirFinal,
+								time.Time{}, reqDir.GiverDirModTime)
+							panicOn(err)
+						}
 					}
 
 					// works okay it seems.
