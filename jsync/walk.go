@@ -618,7 +618,7 @@ func (di *DirIter) ParallelWalk(root string) (files []*File) {
 
 	pre := len(root) + 1
 
-	resCh := make(chan *File, 4096)
+	resCh := make(chan *File)
 	//var seen map[string]bool
 	//if di.FollowSymlinks { // not fully implimented yet?
 	// symlinks can cause duplicated paths, so
