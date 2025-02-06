@@ -228,6 +228,10 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					di := NewDirIter()
 					localTree := di.ParallelWalk(reqDir.TopTakerDirFinal)
 					for _, file := range localTree {
+						// debug todo remove
+						if strings.Contains(file.Path, "tools/testing/selftests/devices/probe/boards/Dell") {
+							vv("file.Path with Dell: '%v'", file.Path)
+						}
 						takerCatalog.Set(file.Path, file)
 					}
 					//vv("at beginning, takerCatalog = '%#v'", takerCatalog.GetKeySlice())

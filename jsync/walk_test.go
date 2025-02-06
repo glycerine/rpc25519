@@ -313,6 +313,10 @@ func TestWalkDirs_MaxDepth(t *testing.T) {
 
 func Test_ParallelOneWalkForAll(t *testing.T) {
 
+	hardpath := "linux11/tools/testing/selftests/devices/probe/boards/Dell Inc.,XPS 13 9300.yaml"
+
+	vv("after Clean, hardpath = '%v'", filepath.Clean(hardpath))
+
 	home := os.Getenv("HOME")
 	root := filepath.Join(home, "/go/src/github.com/torvalds/linux")
 
