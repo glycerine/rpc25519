@@ -170,7 +170,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				panicOn(err)
 
 			case OpRsync_DirSyncEndToTaker: // 24, end of dir sync.
-				//vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncEndToTaker", name, ckt.Name)
+				//vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncEndToTaker", name, ckt.Name) // not seen
 				// we (taker) can rename the temp top dir/replace any old top dir.
 
 				tmp := reqDir.TopTakerDirTemp
@@ -197,17 +197,18 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						//vv("TODO debug actually remove old dir: '%v'", old)
 						panicOn(os.RemoveAll(old))
 					}
-					// and set the mod time
-					if !reqDir.GiverDirModTime.IsZero() {
-						//vv("setting final dir mod time: '%v'", reqDir.GiverDirModTime)
-						err = os.Chtimes(final, time.Time{}, reqDir.GiverDirModTime)
-						panicOn(err)
-					}
 					// end useTempDir
 				} else {
 					// useTempDir = false.
 					// not writing to tmp dir. just clean it up, if it got made.
 					os.Remove(tmp)
+				}
+
+				// and set the mod time
+				if !reqDir.GiverDirModTime.IsZero() {
+					//vv("setting final dir mod time: '%v'", reqDir.GiverDirModTime)
+					err = os.Chtimes(final, time.Time{}, reqDir.GiverDirModTime)
+					panicOn(err)
 				}
 
 				// reply with OpRsync_DirSyncEndAckFromTaker, wait for FIN.
@@ -358,6 +359,12 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								os.Remove(path)
 							}
 						}
+					}
+					if !reqDir.GiverDirModTime.IsZero() {
+						vv("setting final dir mod time: '%v'", reqDir.GiverDirModTime)
+						err = os.Chtimes(reqDir.TopTakerDirFinal,
+							time.Time{}, reqDir.GiverDirModTime)
+						panicOn(err)
 					}
 
 					// works okay it seems.
