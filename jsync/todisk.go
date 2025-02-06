@@ -58,10 +58,13 @@ func (s *FileToDiskState) WriteOneMsgToFile(req *rpc.Message, last bool) (err er
 		s.PartsSeen = make(map[int64]bool)
 		//s.Blake3hash.Reset()
 
+		// this should not be needed now! costs a bunch of time.
 		// make any needed dirs
 		dirs := filepath.Dir(s.WriteToPath)
-		err := os.MkdirAll(dirs, 0700)
-		panicOn(err)
+		if !dirExists(dirs) {
+			err := os.MkdirAll(dirs, 0700)
+			panicOn(err)
+		}
 
 		s.Randomness = cryRandBytesBase64(16)
 		s.WriteToPathTmp = s.WriteToPath + ".tmp_" + s.Randomness
