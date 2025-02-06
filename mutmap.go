@@ -26,11 +26,29 @@ func (m *Mutexmap[K, V]) Get(key K) (val V, ok bool) {
 	return
 }
 
+// see also GetN()
+func (m *Mutexmap[K, V]) Len() (n int) {
+	m.mut.RLock()
+	n = len(m.m)
+	m.mut.RUnlock()
+	return
+}
+
 // GetValSlice returns all the values in the map in slc.
 func (m *Mutexmap[K, V]) GetValSlice() (slc []V) {
 	m.mut.RLock()
 	for _, v := range m.m {
 		slc = append(slc, v)
+	}
+	m.mut.RUnlock()
+	return
+}
+
+// GetKeySlice returns all the keys in the map in slc.
+func (m *Mutexmap[K, V]) GetKeySlice() (slc []K) {
+	m.mut.RLock()
+	for k, _ := range m.m {
+		slc = append(slc, k)
 	}
 	m.mut.RUnlock()
 	return
@@ -84,4 +102,23 @@ func (m *Mutexmap[K, V]) Update(updateFunc func(m map[K]V)) {
 	updateFunc(m.m)
 	m.mut.Unlock()
 	return
+}
+
+// GetMapReset returns the underlying map and
+// resets the internal map by re-allocating it anew.
+// This is useful when you want to discard
+// synchronization going forward.
+func (m *Mutexmap[K, V]) GetMapReset() (mm map[K]V) {
+	m.mut.Lock()
+	mm = m.m
+	m.m = make(map[K]V)
+	m.mut.Unlock()
+	return
+}
+
+// Reset discards map contents, allocating it anew.
+func (m *Mutexmap[K, V]) Reset() {
+	m.mut.Lock()
+	m.m = make(map[K]V)
+	m.mut.Unlock()
 }
