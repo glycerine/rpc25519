@@ -169,8 +169,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				err = ckt.SendOneWay(tmpReady, 0)
 				panicOn(err)
 
-			case OpRsync_DirSyncEndToTaker: // 24, end of dir sync.
-				//vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncEndToTaker", name, ckt.Name) // not seen
+			case OpRsync_DirSyncEndToTaker: // 24, end of dir sync. (new fast flow does not use? not seen?)
+				//vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncEndToTaker", name, ckt.Name)
 				// we (taker) can rename the temp top dir/replace any old top dir.
 
 				tmp := reqDir.TopTakerDirTemp
