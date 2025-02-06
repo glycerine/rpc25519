@@ -347,10 +347,12 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							file.Path)
 
 						vv("would delete taker only path: '%v'", path)
-						if file.IsDir() {
-							os.RemoveAll(path)
-						} else {
-							os.Remove(path)
+						if false {
+							if file.IsDir() {
+								os.RemoveAll(path)
+							} else {
+								os.Remove(path)
+							}
 						}
 					}
 
