@@ -230,7 +230,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					for _, file := range localTree {
 						takerCatalog.Set(file.Path, file)
 					}
-					vv("at beginning, takerCatalog = '%#v'", takerCatalog.GetKeySlice())
+					//vv("at beginning, takerCatalog = '%#v'", takerCatalog.GetKeySlice())
 
 					haltIndivFileCheck = idem.NewHalter()
 					seenGiverSendsTopDirListing = true
@@ -334,7 +334,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						panicOn(err)
 					}
 
-					vv("and end, takerCatalog = '%#v'", takerCatalog.GetKeySlice())
+					//vv("and end, takerCatalog = '%#v'", takerCatalog.GetKeySlice())
 					for path, file := range takerCatalog.GetMapReset() {
 						if path == "" {
 							// ignore root of taker dir; although maybe
