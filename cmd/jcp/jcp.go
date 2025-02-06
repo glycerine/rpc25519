@@ -5,11 +5,14 @@ import (
 	"fmt"
 	"iter"
 	"log"
+	"net/http"
 	"os"
 	filepath "path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	_ "net/http/pprof" // for web based profiling while running
 
 	"github.com/glycerine/idem"
 	"github.com/glycerine/ipaddr"
@@ -28,6 +31,27 @@ type JcopyConfig struct {
 	Quiet   bool
 	Walk    bool
 	Verbose bool
+
+	WebProfile bool
+}
+
+// backup plan if :7070 was not available...
+func startOnlineWebProfiling() (port int) {
+
+	// To dump goroutine stack from a running program for debugging:
+	// Start an HTTP listener if you do not have one already:
+	// Then point a browser to http://127.0.0.1:9999/debug/pprof for a menu, or
+	// curl http://127.0.0.1:9999/debug/pprof/goroutine?debug=2
+	// for a full dump.
+	port = ipaddr.GetAvailPort()
+	go func() {
+		err := http.ListenAndServe(fmt.Sprintf("127.0.0.1:%v", port), nil)
+		if err != nil {
+			panic(err)
+		}
+	}()
+	fmt.Fprintf(os.Stderr, "\n for stack dump:\n\ncurl http://127.0.0.1:%v/debug/pprof/goroutine?debug=2\n\n for general debugging:\n\nhttp://127.0.0.1:%v/debug/pprof\n\n", port, port)
+	return
 }
 
 func (c *JcopyConfig) SetFlags(fs *flag.FlagSet) {
@@ -35,6 +59,8 @@ func (c *JcopyConfig) SetFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.Quiet, "q", false, "quiet, no progress report")
 	fs.BoolVar(&c.Walk, "w", false, "walk dir, to test walk.go")
 	fs.BoolVar(&c.Verbose, "v", false, "verbosely walk dir, showing paths")
+
+	fs.BoolVar(&c.WebProfile, "webprofile", false, "start web pprof profiling on localhost:7070")
 }
 
 func (c *JcopyConfig) FinishConfig(fs *flag.FlagSet) (err error) {
@@ -63,6 +89,15 @@ func main() {
 	jcfg.SetDefaults()
 	err := jcfg.FinishConfig(fs)
 	panicOn(err)
+
+	if jcfg.WebProfile {
+		fmt.Printf("jcp -webprofile given, about to try and bind 127.0.0.1:7070\n")
+		go func() {
+			http.ListenAndServe("127.0.0.1:7070", nil)
+			// hmm if we get here we couldn't bind 7070.
+			startOnlineWebProfiling()
+		}()
+	}
 
 	if jcfg.Walk {
 		t0 := time.Now()
