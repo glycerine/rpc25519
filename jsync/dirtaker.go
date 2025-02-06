@@ -486,8 +486,15 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 	//vv("takeOneFile sees f.Path = '%v'; allowWrite = %v", f.Path, allowWrite)
 	takerCatalog.Del(f.Path)
 
+	tdir := reqDir.TopTakerDirTemp
+
+	// do we want?
+	//if !allowWrite {
+	//	tdir = reqDir.TopTakerDirFinal
+	//}
+
 	localPathToWrite := filepath.Join(
-		reqDir.TopTakerDirTemp, f.Path)
+		tdir, f.Path)
 	_ = localPathToWrite
 
 	localPathToRead := filepath.Join(
@@ -520,16 +527,18 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 					needWrite = true
 				}
 			}
-			if needWrite && allowWrite {
-				// need to install to the new temp dir no matter.
-				targ := f.SymLinkTarget
-				os.Remove(localPathToWrite)
-				//vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
-				err := os.Symlink(targ, localPathToWrite)
-				panicOn(err)
-				//vv("updating Lutimes for '%v'", localPathToWrite)
-				tv := unix.NsecToTimeval(f.ModTime.UnixNano())
-				unix.Lutimes(localPathToWrite, []unix.Timeval{tv, tv})
+			if needWrite {
+				if allowWrite {
+					// need to install to the new temp dir no matter.
+					targ := f.SymLinkTarget
+					os.Remove(localPathToWrite)
+					//vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
+					err := os.Symlink(targ, localPathToWrite)
+					panicOn(err)
+					//vv("updating Lutimes for '%v'", localPathToWrite)
+					tv := unix.NsecToTimeval(f.ModTime.UnixNano())
+					unix.Lutimes(localPathToWrite, []unix.Timeval{tv, tv})
+				}
 			}
 			return
 		}
