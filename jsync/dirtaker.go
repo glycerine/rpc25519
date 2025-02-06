@@ -358,7 +358,9 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						}
 					}
 
-					vv("try experiment with dirtaker just returning when done. no ackBackFINToGiver and wait for them.")
+					// works okay it seems.
+					//vv("try experiment with dirtaker just returning when done. no ackBackFINToGiver and wait for them.")
+
 					return nil
 					//s.ackBackFINToGiver(ckt, frag)
 					//continue // wait for FIN?
