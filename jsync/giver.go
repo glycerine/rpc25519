@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	myblake3 "github.com/glycerine/rpc25519/hash"
-	"github.com/glycerine/rpc25519/progress"
+	//"github.com/glycerine/rpc25519/progress"
 	"io"
 	"os"
 	"path/filepath"
@@ -517,9 +517,9 @@ func (s *SyncService) giverSendsWholeFile(giverPath, takerPath string, ckt *rpc.
 
 	panicOn(err)
 
-	const quietProgress = true
-	pathsize := fi.Size()
-	meterUp := progress.NewTransferStats(pathsize, "[up]"+filepath.Base(giverPath))
+	//const quietProgress = true
+	//pathsize := fi.Size()
+	//meterUp := progress.NewTransferStats(pathsize, "[up]"+filepath.Base(giverPath))
 
 	r, err := os.Open(giverPath)
 	if err != nil {
@@ -536,7 +536,7 @@ func (s *SyncService) giverSendsWholeFile(giverPath, takerPath string, ckt *rpc.
 	buf := make([]byte, maxMessage)
 	var tot int
 
-	var lastUpdate time.Time
+	//var lastUpdate time.Time
 
 	var i int64
 upload:
@@ -589,14 +589,14 @@ upload:
 			break upload
 		}
 
-		if time.Since(lastUpdate) > time.Second {
-			meterUp.DoProgressWithSpeed(int64(tot), quietProgress, int64(i))
-			lastUpdate = time.Now()
-		}
+		//if time.Since(lastUpdate) > time.Second {
+		//meterUp.DoProgressWithSpeed(int64(tot), quietProgress, int64(i))
+		//lastUpdate = time.Now()
+		//}
 	} // end for i
 	nparts := i
 
-	meterUp.DoProgressWithSpeed(int64(tot), quietProgress, int64(i))
+	//meterUp.DoProgressWithSpeed(int64(tot), quietProgress, int64(i))
 
 	//fmt.Println() // lots of empty lines we don't need.
 
