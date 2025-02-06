@@ -135,7 +135,7 @@ func (s *Server) runServerMain(
 
 	addr := listener.Addr()
 	//vv("Server listening on %v://%v   ... addr='%#v'/%T", addr.Network(), addr.String(), addr, addr) // net.TCPAddr
-	vv("Server listening on %v://%v", addr.Network(), addr.String())
+	//vv("Server listening on %v://%v", addr.Network(), addr.String())
 
 	switch a := addr.(type) {
 	case *net.TCPAddr:
@@ -452,7 +452,8 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 				if msg.DoneCh != nil {
 					msg.DoneCh.Close()
 				}
-				alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
+				// can become very noisy on shutdown, comment out.
+				//alwaysPrintf("sendMessage got err = '%v'; on trying to send Seqno=%v", err, msg.HDR.Seqno)
 				// just let user try again?
 			} else {
 				// tell caller there was no error.
@@ -1847,10 +1848,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 	//vv("send message attempting to send %v bytes to '%v'", len(data), destAddr)
 	select {
 	case sendCh <- msg:
-		//vv("sent to pair.SendCh in sendOneWayMessage(), msg='%v'", msg.HDR.String()) // racing inside, vs cli.go:264, just comment out, its a debug log anyway.
 
-		//    case <-time.After(time.Second):
-		//vv("warning: time out trying to send on pair.SendCh")
 	case <-haltCh:
 		//vv("shutting down on haltCh = %p", haltCh)
 		return ErrShutdown()
