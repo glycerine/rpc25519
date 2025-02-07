@@ -493,3 +493,106 @@ func Test302_incremental_chunker_matches_batch_bigger(t *testing.T) {
 		cv.So(precis0, cv.ShouldResemble, precis1)
 	})
 }
+
+// efficient on big files with small deltas
+
+func Test777_big_files_with_small_changes(t *testing.T) {
+
+	cv.Convey("using our rsync-like-protocol, rectifying a small diff in a big file should be efficient. Let the local have a small difference, and sync it to the remote 'template'", t, func() {
+
+		// template, match to this:
+		remotePath := "Ubuntu_24.04_VB_LinuxVMImages.COM.vdi"
+		vv("template (goal) remotePath='%v'", remotePath)
+
+		localPath := remotePath + ".local"
+		vv("adjust local to be like remote: localPath = '%v'", localPath)
+
+		// delete any old leftover test file from before.
+		os.Remove(localPath)
+
+		in, err := os.Open(remotePath)
+		panicOn(err)
+
+		out, err := os.Create(localPath)
+		panicOn(err)
+		fmt.Fprintf(out, "hello world!")
+		_, err = io.Copy(out, in)
+		panicOn(err)
+		out.Close()
+		in.Close()
+
+		// set up a server and a client.
+
+		cfg := rpc.NewConfig()
+		cfg.TCPonly_no_TLS = true
+		cfg.CompressionOff = true
+
+		cfg.ServerAddr = "127.0.0.1:0"
+		srv := rpc.NewServer("srv_rsync_test777", cfg)
+
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
+
+		vv("copy done. server Start() returned serverAddr = '%v'", serverAddr)
+
+		//srv.RegisterBistreamFunc("RsyncServerSide", srv.RsyncServerSide)
+
+		srvRsyncNode := &RsyncNode{}
+		panicOn(srv.Register(srvRsyncNode))
+
+		cfg.ClientDialToHostPort = serverAddr.String()
+		cli, err := rpc.NewClient("cli_rsync_test777", cfg)
+		panicOn(err)
+		err = cli.Start()
+		panicOn(err)
+
+		defer cli.Close()
+
+		// summarize our local file contents (empty here, but in general).
+		host := "localhost"
+		//localPrecis, local, err := SummarizeFileInCDCHashes(host, localPath, true, true)
+		localPrecis, local, err := GetHashesOneByOne(host, localPath)
+		panicOn(err)
+
+		// get diffs from what we have. We send a light
+		// request (one without Data attached, just hashes);
+		// but since we send to RequestLatest, we'll get back
+		// a Data heavy payload; possibly requiring
+		// a stream.
+		light := &LightRequest{
+			SenderPath:   remotePath,
+			ReaderPrecis: localPrecis,
+			ReaderChunks: local,
+		}
+
+		senderDeltas := &HeavyPlan{} // response
+
+		err = cli.Call("RsyncNode.RequestLatest", light, senderDeltas, nil)
+		panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
+
+		//vv("senderDeltas = '%v'", senderDeltas)
+
+		plan := senderDeltas.SenderPlan // the plan follow remote template, our target.
+		//vv("plan = '%v'", plan)
+		//local is our origin or starting point.
+		localMap := getCryMap(local) // pre-index them for the update.
+
+		// had to do a full file transfer for missing file.
+		cv.So(plan.DataPresent(), cv.ShouldEqual, 1048576)
+		cv.So(plan.FileSize, cv.ShouldEqual, 1048576)
+
+		// see/eventually test the
+		// case OpRsync_HeavyDiffChunksEnclosed
+		// handling in taker.go
+
+		err = UpdateLocalWithRemoteDiffs(local.Path, localMap, plan, senderDeltas.SenderPrecis)
+		panicOn(err)
+
+		if !fileExists(local.Path) {
+			panic("file should have been written locally now!")
+		}
+		difflen := compareFilesDiffLen(local.Path, remotePath)
+		cv.So(difflen, cv.ShouldEqual, 0)
+	})
+}
