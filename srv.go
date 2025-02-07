@@ -439,7 +439,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 
 			real, ok := s.Server.unNAT.Get(msg.HDR.To)
 			if ok && real != msg.HDR.To {
-				vv("unNAT replacing msg.HDR.To '%v' -> '%v'", msg.HDR.To, real)
+				//vv("unNAT replacing msg.HDR.To '%v' -> '%v'", msg.HDR.To, real)
 				msg.HDR.To = real
 			}
 
@@ -1763,7 +1763,7 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 	if !ok {
 		real, ok2 := s.unNAT.Get(destAddr)
 		if ok2 && real != destAddr {
-			vv("unNAT replacing destAddr '%v' -> '%v'", destAddr, real)
+			//vv("unNAT replacing destAddr '%v' -> '%v'", destAddr, real)
 			destAddr = real
 			// and try again
 			pair, ok = s.remote2pair.Get(destAddr)
