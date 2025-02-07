@@ -271,6 +271,10 @@ func (w *workspace) readMessage(conn uConn) (msg *Message, err error) {
 			} else {
 				w.cpair.lastReadMagic7.Store(int64(w.defaultMagic7))
 			}
+			message, err = w.decomp.handleDecompress(magic7, message)
+			if err != nil {
+				return nil, err
+			}
 
 		}
 	} else {
