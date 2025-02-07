@@ -119,6 +119,7 @@ func (pb *LocalPeer) peerbackPump() {
 			pb.Halt.AddChild(ckt.Halt)
 		case <-pb.Halt.ReqStop.Chan:
 			return
+		default:
 		}
 
 		select {
