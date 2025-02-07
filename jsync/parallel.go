@@ -139,10 +139,12 @@ func ChunkFile2(
 	// marked as parents though) to be merged after
 	// all the parallel hashing is done.
 	nNodes := (sz + segment - 1) / segment
+	vv("nNodes = %v", nNodes)
 
 	wchunks := make([][]*Chunk, nNodes)
 
 	nW := int(nWorkers)
+	vv("nW = %v", nW)
 	for worker := 0; worker < nW; worker++ {
 
 		go func(worker int) {
@@ -210,6 +212,8 @@ func ChunkFile2(
 					data = data[cut:]
 					dataoff += cut
 				}
+
+				wchunks[job.nodeK] = chunks
 			}
 
 		}(int(worker))
@@ -242,5 +246,6 @@ func ChunkFile2(
 	for _, c := range wchunks {
 		chunks0.Chunks = append(chunks0.Chunks, c...)
 	}
+	vv("len chunks0.Chunks = %v", len(chunks0.Chunks))
 	return
 }

@@ -552,28 +552,38 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 
 		// summarize our local file contents (empty here, but in general).
 		host := "localhost"
+		_ = host
 		//localPrecis, local, err := SummarizeFileInCDCHashes(host, localPath, true, true)
 
 		t0 := time.Now()
 		// taker does
 		//localPrecis, wantsUpdate, err := GetHashesOneByOne(host, localPath)
 		//panicOn(err)
-		wantsChunks := true
-		keepData := true
-		localPrecis, wantsUpdate, err := SummarizeFileInCDCHashes(host, localPath, wantsChunks, keepData)
-		_ = localPrecis
+		//wantsChunks := true
+		//keepData := true
+		//localPrecis, wantsUpdate, err := SummarizeFileInCDCHashes(host, localPath, wantsChunks, keepData)
+		// 14.335789s
+
+		localPrecis, wantsUpdate, err := ChunkFile(localPath)
+		// 2.5 sec.
+
 		vv("elap first SummarizeFileInCDCHashes = '%v'", time.Since(t0))
+		_ = localPrecis
 
 		localMap := getCryMap(wantsUpdate) // pre-index them for the update.
 
 		t2 := time.Now()
 		//goalPrecis, templateChunks, err := GetHashesOneByOne(rpc.Hostname, remotePath) // no data, just chunks. read data directly from file below.
 
-		goalPrecis, templateChunks, err := SummarizeFileInCDCHashes(host, remotePath, wantsChunks, keepData)
-		_ = goalPrecis
+		// 2.4 sec.
+		goalPrecis, templateChunks, err := ChunkFile(remotePath)
 
+		//goalPrecis, templateChunks, err := SummarizeFileInCDCHashes(host, remotePath, wantsChunks, keepData)
 		// templateChunks done after 11.1s, or 13.34s, so long!
+
 		vv("templateChunks done after %v", time.Since(t2))
+
+		_ = goalPrecis
 
 		const dropPlanData = true // only send what they need.
 		const usePlaceHolders = false
