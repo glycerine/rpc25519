@@ -25,6 +25,9 @@ import (
 
 var _ = time.Time{}
 
+// just measure for now, no creating hard links etc.
+const useTempDir = false
+
 // DirTaker is the directory top-level sync
 // coordinator from the Taker side.
 func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, reqDir *RequestToSyncDir) (err0 error) {
@@ -47,9 +50,6 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	var haltIndivFileCheck *idem.Halter
 	needUpdate := rpc.NewMutexmap[string, *File]()
 	takerCatalog := rpc.NewMutexmap[string, *File]()
-
-	// just measure for now, no creating hard links etc.
-	const useTempDir = false
 
 	weAreRemoteTaker := (reqDir == nil)
 

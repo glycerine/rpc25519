@@ -575,9 +575,15 @@ func (s *SyncService) Start(
 
 				// we (local taker) generate a temp dir first, then send 21
 				// OpRsync_TakerRequestsDirSyncBegin = 21 // to giver, please send me 22
-				targetTakerTopTempDir, tmpDirID, err := s.mkTempDir(syncReq.TakerPath)
-				panicOn(err)
-				//vv("Start (local taker) made temp dir '%v' for finalDir '%v'", targetTakerTopTempDir, syncReq.TakerPath)
+				var targetTakerTopTempDir, tmpDirID string
+				if useTempDir {
+					var err error
+					targetTakerTopTempDir, tmpDirID, err = s.mkTempDir(syncReq.TakerPath)
+					panicOn(err)
+					//vv("Start (local taker) made temp dir '%v' for finalDir '%v'", targetTakerTopTempDir, syncReq.TakerPath)
+				} else {
+					targetTakerTopTempDir = syncReq.TakerPath
+				}
 
 				reqDir := &RequestToSyncDir{
 					GiverDir: syncReq.GiverPath,
