@@ -617,16 +617,14 @@ func (s *SyncService) dirTakerSendIndivFiles(
 	updateMap := needUpdate.GetMapReset()
 	var bts []*byteTracker
 
-	//k := -1
-	for path, file := range updateMap {
-		_ = path
+	wgjobs := &sync.WaitGroup{}
+	wgjobs.Add(len(updateMap))
 
-		// can be slowing us down to print too much.
-		//k++
-		//if k%100 == 0 {
-		//fmt.Printf("updateMap progress:  %v  out of %v. elap %v\n", k, nn, time.Since(t0))
-		//}
-		//vv("dirtaker: needUpdate path '%v' -> file: '%#v'", path, file)
+	fileCh := make(chan *File) // do not buffer, giving work.
+
+	const workPoolSize = 10
+	for range workPoolSize {
+
 		goroHalt := idem.NewHalter()
 		batchHalt.AddChild(goroHalt)
 		bt := &byteTracker{}
@@ -637,7 +635,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 		// rsync: 1.6s vs jcp 2.8s to restore linux/Documentation
 		// over LAN.
 		//func(file *File, goroHalt *idem.Halter, bt *byteTracker) {
-		go func(file *File, goroHalt *idem.Halter, bt *byteTracker) {
+		go func(fileCh chan *File, goroHalt *idem.Halter, bt *byteTracker, wgjobs *sync.WaitGroup) {
 			defer func() {
 				goroHalt.ReqStop.Close()
 				goroHalt.Done.Close()
@@ -650,148 +648,182 @@ func (s *SyncService) dirTakerSendIndivFiles(
 				}
 			}()
 
-			giverPath := filepath.Join(reqDir.GiverDir,
-				file.Path)
-
-			takerFinalPath := filepath.Join(reqDir.TopTakerDirFinal,
-				file.Path)
-
-			const keepData = false
-			const wantChunks = true
-			precis, chunks, err := GetHashesOneByOne(rpc.Hostname, takerFinalPath)
-			panicOn(err)
-
-			frag := s.U.NewFragment()
-			frag.FragOp = OpRsync_RequestRemoteToGive // 12
-			frag.FragSubject = giverPath
-
-			tmp := reqDir.TopTakerDirTemp
-			if !useTempDir {
-				tmp = ""
-			}
-
-			syncReq := &RequestToSyncPath{
-				GiverPath:        giverPath,
-				TakerPath:        file.Path,
-				TakerTempDir:     tmp,
-				TopTakerDirFinal: reqDir.TopTakerDirFinal,
-				GiverDirAbs:      reqDir.GiverDir,
-
-				GiverFileSize: file.Size,
-				GiverModTime:  file.ModTime,
-				GiverFileMode: file.FileMode,
-
-				TakerFileSize: int64(precis.FileSize),
-				TakerModTime:  precis.ModTime,
-				TakerFileMode: precis.FileMode,
-
-				RemoteTakes: false,
-				Done:        idem.NewIdemCloseChan(),
-
-				GiverScanFlags:     file.ScanFlags,
-				GiverSymLinkTarget: file.SymLinkTarget,
-				Precis:             precis,
-				Chunks:             chunks,
-			}
-			// chunks likely big and need to be
-			// grouped like in service.go
-
-			var origChunks []*Chunk
-			const K = 5000 // how many we keep in first message
-			extraComing := false
-
-			if len(syncReq.Chunks.Chunks) > K ||
-				syncReq.Msgsize() > rpc.UserMaxPayload-10_000 {
-
-				// must send chunks separately
-				extraComing = true
-				syncReq.MoreChunksComming = true
-				//vv("set syncReq.MoreChunksComming = true")
-				origChunks = syncReq.Chunks.Chunks
-
-				// truncate down the initial Message,
-				syncReq.Chunks.Chunks = syncReq.Chunks.Chunks[:K]
-
-				upperBound := syncReq.Msgsize()
-				if upperBound > rpc.UserMaxPayload-10_000 {
-					panic(fmt.Sprintf("upperBound = %v > %v = "+
-						"rpc.UserMaxPayload-10_000 even after splitting at K=%v",
-						upperBound, rpc.UserMaxPayload-10_000, K))
-				}
-			}
-			data, err := syncReq.MarshalMsg(nil)
-			panicOn(err)
-			bt.bsend += len(data)
-
-			// restore so locals get it!
-			if extraComing {
-				syncReq.Chunks.Chunks = origChunks
-			}
-
-			frag.Payload = data
-
-			// back to orig:
-			frag.Payload = data
-			frag.SetUserArg("structType", "RequestToSyncPath")
-			cktName := rsyncRemoteGivesString // rsyncRemoteTakesString
-			ckt2, ctx2, err := ckt.NewCircuit(cktName, frag)
-			panicOn(err)
-
-			if extraComing {
-
-				xtra := &Chunks{
-					Path:   syncReq.Chunks.Path,
-					Chunks: origChunks[K:],
-				}
-				err = s.packAndSendChunksLimitedSize(
-					xtra,
-					frag.FragSubject,
-					OpRsync_RequestRemoteToGive_ChunksLast,
-					OpRsync_RequestRemoteToGive_ChunksMore,
-					ckt,
-					bt,
-					syncReq.Chunks.Path,
-				)
-				if err != nil {
-					alwaysPrintf("error back from packAndSendChunksLimitedSize()"+
-						" during xtra sending: '%v'", err)
-					//return err
-					panicOn(err)
-				}
-
-			}
-
-			defer func() {
-				r := recover()
-				if r != nil {
-					err := fmt.Errorf(
-						"panic recovered: '%v'", r)
-					vv("error ckt2 close: '%v'\nstack=\n%v", err, stack())
-					ckt2.Close(err)
-				} else {
-					//vv("normal ckt2 close")
-					ckt2.Close(nil)
-				}
-			}()
-			// cancels us too early! avoid:
-			// batchHalt.AddChild(ckt2.Halt)
-
-			errg := s.Taker(ctx2, ckt2, myPeer, syncReq)
-			panicOn(errg)
-
-			if reqDir.SR.UpdateProgress != nil {
-				report := fmt.Sprintf("%40s  done.", giverPath)
+			var file *File
+			for {
 				select {
-				case reqDir.SR.UpdateProgress <- report:
-				case <-done:
+				case file = <-fileCh:
+				case <-goroHalt.ReqStop.Chan:
 					return
 				}
-			}
 
-		}(file, goroHalt, bt)
+				giverPath := filepath.Join(reqDir.GiverDir,
+					file.Path)
+
+				takerFinalPath := filepath.Join(reqDir.TopTakerDirFinal,
+					file.Path)
+
+				const keepData = false
+				const wantChunks = true
+				precis, chunks, err := GetHashesOneByOne(rpc.Hostname, takerFinalPath)
+				panicOn(err)
+
+				frag := s.U.NewFragment()
+				frag.FragOp = OpRsync_RequestRemoteToGive // 12
+				frag.FragSubject = giverPath
+
+				tmp := reqDir.TopTakerDirTemp
+				if !useTempDir {
+					tmp = ""
+				}
+
+				syncReq := &RequestToSyncPath{
+					GiverPath:        giverPath,
+					TakerPath:        file.Path,
+					TakerTempDir:     tmp,
+					TopTakerDirFinal: reqDir.TopTakerDirFinal,
+					GiverDirAbs:      reqDir.GiverDir,
+
+					GiverFileSize: file.Size,
+					GiverModTime:  file.ModTime,
+					GiverFileMode: file.FileMode,
+
+					TakerFileSize: int64(precis.FileSize),
+					TakerModTime:  precis.ModTime,
+					TakerFileMode: precis.FileMode,
+
+					RemoteTakes: false,
+					Done:        idem.NewIdemCloseChan(),
+
+					GiverScanFlags:     file.ScanFlags,
+					GiverSymLinkTarget: file.SymLinkTarget,
+					Precis:             precis,
+					Chunks:             chunks,
+				}
+				// chunks likely big and need to be
+				// grouped like in service.go
+
+				var origChunks []*Chunk
+				const K = 5000 // how many we keep in first message
+				extraComing := false
+
+				if len(syncReq.Chunks.Chunks) > K ||
+					syncReq.Msgsize() > rpc.UserMaxPayload-10_000 {
+
+					// must send chunks separately
+					extraComing = true
+					syncReq.MoreChunksComming = true
+					//vv("set syncReq.MoreChunksComming = true")
+					origChunks = syncReq.Chunks.Chunks
+
+					// truncate down the initial Message,
+					syncReq.Chunks.Chunks = syncReq.Chunks.Chunks[:K]
+
+					upperBound := syncReq.Msgsize()
+					if upperBound > rpc.UserMaxPayload-10_000 {
+						panic(fmt.Sprintf("upperBound = %v > %v = "+
+							"rpc.UserMaxPayload-10_000 even after splitting at K=%v",
+							upperBound, rpc.UserMaxPayload-10_000, K))
+					}
+				}
+				data, err := syncReq.MarshalMsg(nil)
+				panicOn(err)
+				bt.bsend += len(data)
+
+				// restore so locals get it!
+				if extraComing {
+					syncReq.Chunks.Chunks = origChunks
+				}
+
+				frag.Payload = data
+
+				// back to orig:
+				frag.Payload = data
+				frag.SetUserArg("structType", "RequestToSyncPath")
+				cktName := rsyncRemoteGivesString // rsyncRemoteTakesString
+				ckt2, ctx2, err := ckt.NewCircuit(cktName, frag)
+				panicOn(err)
+
+				if extraComing {
+
+					xtra := &Chunks{
+						Path:   syncReq.Chunks.Path,
+						Chunks: origChunks[K:],
+					}
+					err = s.packAndSendChunksLimitedSize(
+						xtra,
+						frag.FragSubject,
+						OpRsync_RequestRemoteToGive_ChunksLast,
+						OpRsync_RequestRemoteToGive_ChunksMore,
+						ckt,
+						bt,
+						syncReq.Chunks.Path,
+					)
+					if err != nil {
+						alwaysPrintf("error back from packAndSendChunksLimitedSize()"+
+							" during xtra sending: '%v'", err)
+						//return err
+						panicOn(err)
+					}
+
+				}
+
+				defer func() {
+					r := recover()
+					if r != nil {
+						err := fmt.Errorf(
+							"panic recovered: '%v'", r)
+						vv("error ckt2 close: '%v'\nstack=\n%v", err, stack())
+						ckt2.Close(err)
+					} else {
+						//vv("normal ckt2 close")
+						ckt2.Close(nil)
+					}
+				}()
+
+				errg := s.Taker(ctx2, ckt2, myPeer, syncReq)
+				panicOn(errg)
+				wgjobs.Done()
+
+				if reqDir.SR.UpdateProgress != nil {
+					report := fmt.Sprintf("%40s  done.", giverPath)
+					select {
+					case reqDir.SR.UpdateProgress <- report:
+					case <-goroHalt.ReqStop.Chan:
+						return
+					case <-done:
+						return
+					}
+				}
+			}
+		}(fileCh, goroHalt, bt, wgjobs)
+	} // end work pool starting
+
+	//k := -1
+	for path, file := range updateMap {
+		_ = path
+
+		// can be slowing us down to print too much.
+		//k++
+		//if k%100 == 0 {
+		//fmt.Printf("updateMap progress:  %v  out of %v. elap %v\n", k, nn, time.Since(t0))
+		//}
+		//vv("dirtaker: needUpdate path '%v' -> file: '%#v'", path, file)
+
+		select {
+		case fileCh <- file:
+			// and do another, until all updateMap files are done.
+		case <-done:
+			return
+		case <-done0:
+			return
+		}
 	} // end range needUpdate
 
-	_ = batchHalt.ReqStop.WaitTilChildrenDone(done)
+	// all have been given out.
+	// wait for all to complete.
+	wgjobs.Wait()
+
+	//_ = batchHalt.ReqStop.WaitTilChildrenDone(done)
 	//vv("batchHalt.ReqStop.WaitTilChildrenDone back.")
 	// do not panic, we might have seen closed(done).
 
