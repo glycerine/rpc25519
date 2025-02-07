@@ -592,14 +592,16 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		//local is our origin or starting point.
 		localMap := getCryMap(wantsUpdate) // pre-index them for the update.
 
+		t2 := time.Now()
 		goalPrecis, templateChunks, err := GetHashesOneByOne(rpc.Hostname, remotePath) // no data, just chunks. read data directly from file below.
 		_ = goalPrecis
+		vv("templateChunks done after %v", time.Since(t2))
 
 		//		bs := &BlobStore{
 		//			Map: getCryMap(templateChunks),
 		//		}
 
-		const dropPlanData = true // only send what they need.
+		const dropPlanData = false // true // only send what they need.
 		const usePlaceHolders = false
 
 		// new: placeholderPlan has a single data byte in Chunk.Data
