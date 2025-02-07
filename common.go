@@ -131,22 +131,35 @@ func newWorkspace(name string, maxMsgSize int, isServer bool, cfg *Config, spair
 		writeLenMessageBytes: make([]byte, 8),
 		magicCheck:           make([]byte, 8), // last byte is compression type.
 
-		compress:               !cfg.CompressionOff,
-		pressor:                newPressor(maxMsgSize + 80),
-		decomp:                 newDecomp(maxMsgSize + 80),
-		defaultCompressionAlgo: cfg.CompressAlgo,
-		isServer:               isServer,
-		cfg:                    cfg,
-		spair:                  spair,
-		cpair:                  cpair,
+		compress: !cfg.CompressionOff,
+		//pressor:                newPressor(maxMsgSize + 80),
+		//decomp:                 newDecomp(maxMsgSize + 80),
+		//defaultCompressionAlgo: cfg.CompressAlgo,
+		isServer: isServer,
+		cfg:      cfg,
+		spair:    spair,
+		cpair:    cpair,
 	}
-	// write according to our defaults.
-	w.defaultMagic7 = setMagicCheckWord(cfg.CompressAlgo, w.magicCheck)
-	//vv("newWorkspace sets cfg.lastReadMagic7 = w.defaultMagic7 = %v from '%v'", w.defaultMagic7, cfg.CompressAlgo)
-	if isServer {
-		spair.lastReadMagic7.Store(int64(w.defaultMagic7))
+	if w.compress {
+		// if compression is off, we don't even allocate
+		// the decompressor--to save memory. Therefore
+		// we must panic if we see compression on the wire.
+		// Therefore it must be off on all cli/server/peers too.
+		w.pressor = newPressor(maxMsgSize + 80)
+		w.decomp = newDecomp(maxMsgSize + 80)
+		w.defaultCompressionAlgo = cfg.CompressAlgo
+
+		// write according to our defaults.
+		w.defaultMagic7 = setMagicCheckWord(cfg.CompressAlgo, w.magicCheck)
+		//vv("newWorkspace sets cfg.lastReadMagic7 = w.defaultMagic7 = %v from '%v'", w.defaultMagic7, cfg.CompressAlgo)
+		if isServer {
+			spair.lastReadMagic7.Store(int64(w.defaultMagic7))
+		} else {
+			cpair.lastReadMagic7.Store(int64(w.defaultMagic7))
+		}
 	} else {
-		cpair.lastReadMagic7.Store(int64(w.defaultMagic7))
+		w.defaultCompressionAlgo = ""
+		w.defaultMagic7 = magic7b_none
 	}
 	return w
 }
@@ -232,9 +245,17 @@ func (w *workspace) readMessage(conn uConn) (msg *Message, err error) {
 	// Note that we must ignore the w.compress setting here.
 	// While *we* may not be using compression to send, we
 	// may well receive messages that are compressed.
-	message, err = w.decomp.handleDecompress(magic7, message)
-	if err != nil {
-		return nil, err
+	// Unless it is totally off, then we must panic if we
+	// see compression.
+	if w.decomp == nil {
+		if magic7 != magic7b_none {
+			panic(fmt.Sprintf("compression was turned off but we see compression on the wire: '%v'", magic7.String()))
+		}
+	} else {
+		message, err = w.decomp.handleDecompress(magic7, message)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	msg, err = MessageFromGreenpack(message)
@@ -257,32 +278,36 @@ func (w *workspace) sendMessage(conn uConn, msg *Message, timeout *time.Duration
 		return err
 	}
 
-	if msg.HDR.NoSystemCompression {
-		// user requested no compression on this Message.
-		w.magicCheck[7] = byte(magic7b_no_system_compression)
+	if w.compress {
+		if msg.HDR.NoSystemCompression {
+			// user requested no compression on this Message.
+			w.magicCheck[7] = byte(magic7b_no_system_compression)
 
-	} else if w.compress {
-		var magic7 magic7b
-		if w.isServer {
-			// server tries to match what we last got from the client.
-			magic7 = magic7b(w.spair.lastReadMagic7.Load())
-			if magic7 < 0 || magic7 >= magic7b_out_of_bounds {
-				magic7 = w.defaultMagic7
-			} else {
-				//vv("server matches client, magic7=%v", magic7)
-			}
 		} else {
-			// client does as user requested.
-			magic7 = w.defaultMagic7
-			//vv("client doing as set, magic7=%v", magic7)
-		}
-		//vv("common.go sendMessage calling handleCompress: w.defaultMagic7 = %v", w.defaultMagic7)
-		w.magicCheck[7] = byte(magic7)
-		bytesMsg, err = w.pressor.handleCompress(magic7, bytesMsg)
-		if err != nil {
-			return err
+
+			var magic7 magic7b
+			if w.isServer {
+				// server tries to match what we last got from the client.
+				magic7 = magic7b(w.spair.lastReadMagic7.Load())
+				if magic7 < 0 || magic7 >= magic7b_out_of_bounds {
+					magic7 = w.defaultMagic7
+				} else {
+					//vv("server matches client, magic7=%v", magic7)
+				}
+			} else {
+				// client does as user requested.
+				magic7 = w.defaultMagic7
+				//vv("client doing as set, magic7=%v", magic7)
+			}
+			//vv("common.go sendMessage calling handleCompress: w.defaultMagic7 = %v", w.defaultMagic7)
+			w.magicCheck[7] = byte(magic7)
+			bytesMsg, err = w.pressor.handleCompress(magic7, bytesMsg)
+			if err != nil {
+				return err
+			}
 		}
 	} else {
+		// w.compress is false, totally off.
 		w.magicCheck[7] = byte(magic7b_none)
 	}
 
