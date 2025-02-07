@@ -159,7 +159,10 @@ func newWorkspace(name string, maxMsgSize int, isServer bool, cfg *Config, spair
 		}
 	} else {
 		w.defaultCompressionAlgo = ""
-		w.defaultMagic7 = magic7b_none
+		w.defaultMagic7 = setMagicCheckWord("", w.magicCheck)
+		if w.defaultMagic7 != magic7b_none {
+			panic("internal error: w.defaultMagic7 must be magic7b_none here")
+		}
 	}
 	return w
 }
