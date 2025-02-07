@@ -4,11 +4,12 @@ import (
 	//"encoding/binary"
 	"fmt"
 	"io"
-	//"math/bits"
 	"os"
 	"runtime"
 	"sync"
+	"time"
 
+	rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/hash"
 	"github.com/glycerine/rpc25519/jcdc"
 )
@@ -30,8 +31,8 @@ type job struct {
 // ChunkFile uses multiple parallel goroutines to read and
 // chunk.
 // See ChunkFile2 to control the details.
-func ChunkFile(path string) (chunks *Chunks, err error) {
-	chunks, err = ChunkFile2(path, 0, 0)
+func ChunkFile(path string) (precis *FilePrecis, chunks *Chunks, err error) {
+	precis, chunks, err = ChunkFile2(rpc.Hostname, path, 0, 0)
 	return
 }
 
@@ -49,13 +50,13 @@ func ChunkFile(path string) (chunks *Chunks, err error) {
 // The simple call is ChunkFile2(path, nil, 0, 0) for
 // the defaults. See ChunkFile for an easy invocation.
 func ChunkFile2(
-	path string,
+	host, path string,
 	parallelBits int,
 	ngoro int,
 
-) (chunks *Chunks, err0 error) {
+) (precis *FilePrecis, chunks0 *Chunks, err0 error) {
 
-	chunks = &Chunks{
+	chunks0 = &Chunks{
 		Path: path,
 	}
 
@@ -73,7 +74,24 @@ func ChunkFile2(
 	}
 	sz := int(fi.Size())
 	if sz == 0 {
-		return
+		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false)
+	}
+
+	cdc := jcdc.GetCutpointer(Default_CDC, Default_CDC_Config)
+
+	// side effect: warm up the filesystem cache of path.
+	fcry, err := hash.Blake3OfFile(path)
+	panicOn(err)
+
+	precis = &FilePrecis{
+		Host:        host,
+		Path:        path,
+		FileSize:    sz,
+		ModTime:     fi.ModTime(),
+		FileCry:     fcry,
+		ChunkerName: cdc.Name(),
+		CDC_Config:  cdc.Config(),
+		HashName:    "blake3.33B",
 	}
 
 	// segment is the size in bytes that one goroutine
@@ -131,8 +149,6 @@ func ChunkFile2(
 			defer func() {
 				wg.Done()
 			}()
-
-			cdc := jcdc.GetCutpointer(Default_CDC, Default_CDC_Config)
 
 			var chunks []*Chunk
 			addChunk := func(slc []byte, beg int) {
@@ -221,5 +237,10 @@ func ChunkFile2(
 	// we have sent off njob = nNodes to be hashed
 	close(work)
 	wg.Wait()
+
+	// assemble all the []*Chunk in order.
+	for _, c := range wchunks {
+		chunks0.Chunks = append(chunks0.Chunks, c...)
+	}
 	return
 }
