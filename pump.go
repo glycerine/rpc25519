@@ -109,19 +109,6 @@ func (pb *LocalPeer) peerbackPump() {
 	done := pb.Ctx.Done()
 	for {
 		//zz("%v %p: pump loop top of select. pb.handleChansNewCircuit = %p", name, pb, pb.handleChansNewCircuit)
-
-		// give priority to HandleChansNewCircuit,
-		// as it seemed to be getting starved (> 10 seconds to receive).
-		select {
-		case ckt := <-pb.HandleChansNewCircuit:
-			//vv("%v pump: ckt := <-pb.HandleChansNewCircuit: for ckt='%v'", name, ckt.Name)
-			m[ckt.CircuitID] = ckt
-			pb.Halt.AddChild(ckt.Halt)
-		case <-pb.Halt.ReqStop.Chan:
-			return
-		default:
-		}
-
 		select {
 		case <-pb.Halt.ReqStop.Chan:
 			return
