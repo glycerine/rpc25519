@@ -402,8 +402,11 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	if !fileExists(localPath) {
 		return s.giverReportFileNotFound(ckt, localPath, bt, frag0)
 	}
-
-	//vv("giverSendsPlanAndDataUpdates top: localPath='%v'", localPath)
+	t0 := time.Now()
+	vv("giverSendsPlanAndDataUpdates top: localPath='%v'", localPath)
+	defer func() {
+		vv("end giverSendsPlanAndDataUpdates. elap = '%v'", time.Since(t0))
+	}()
 	////vv("remoteWantsUpdate DataPresent = %v; should be 0", remoteWantsUpdate.DataPresent())
 
 	// reply with these
@@ -418,8 +421,11 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	const keepData = false
 
 	//goalPrecis, local, err := SummarizeFileInCDCHashes(rpc.Hostname, localPath, wantChunks, keepData)
+	vv("begin GetHashesOneByOne")
+	t1 := time.Now()
 	goalPrecis, local, err := GetHashesOneByOne(rpc.Hostname, localPath) // no data, just chunks. read data directly from file below.
 	panicOn(err)
+	vv("end GetHashesOneByOne. elap = %v", time.Since(t1))
 
 	// are the whole file checksums the same? we can
 	// avoid sending back a whole lotta chunks of nothing
@@ -627,7 +633,11 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 
 ) bool {
 
-	//vv("top of remoteGiverAreDiffChunksNeeded()")
+	t0 := time.Now()
+	vv("top of remoteGiverAreDiffChunksNeeded()")
+	defer func() {
+		vv("end remoteGiverAreDiffChunksNeeded() elap = %v", time.Since(t0))
+	}()
 	if !fileExists(syncReq.GiverPath) {
 		//vv("path '%v' does not exist on Giver: tell Taker to delete their file.", syncReq.GiverPath)
 		rm := s.U.NewFragment()
