@@ -896,7 +896,7 @@ type Config struct {
 	CompressAlgo string
 
 	// CompressionOff must be universal among peers, if true;
-	// all clients and servers musthave compression off, or none.
+	// all clients and servers must have compression off, or none.
 	// If this does not hold, we will panic because, to save memory,
 	// if CompressionOff we do not allocate any
 	// compression handling machinery. Normally the reader-

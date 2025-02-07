@@ -252,7 +252,28 @@ func (w *workspace) readMessage(conn uConn) (msg *Message, err error) {
 	// see compression.
 	if w.decomp == nil {
 		if magic7 != magic7b_none {
-			panic(fmt.Sprintf("compression was turned off but we see compression on the wire: '%v'", magic7.String()))
+			//panic(fmt.Sprintf("compression was turned off but we see compression on the wire: '%v'", magic7.String()))
+
+			// meh, don't panic, just spin it up (lazy/on-demand).
+			w.decomp = newDecomp(w.maxMsgSize + 80)
+			w.pressor = newPressor(w.maxMsgSize + 80)
+			var err error
+			w.defaultCompressionAlgo, err = decodeMagic7(magic7)
+			panicOn(err)
+			w.magicCheck[7] = byte(magic7)
+			w.defaultMagic7 = magic7
+
+			//vv("lazily activate decompression; though it was off: '%v'.", magic7)
+			if w.isServer {
+				w.spair.lastReadMagic7.Store(int64(w.defaultMagic7))
+			} else {
+				w.cpair.lastReadMagic7.Store(int64(w.defaultMagic7))
+			}
+			message, err = w.decomp.handleDecompress(magic7, message)
+			if err != nil {
+				return nil, err
+			}
+
 		}
 	} else {
 		message, err = w.decomp.handleDecompress(magic7, message)
