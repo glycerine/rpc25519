@@ -65,7 +65,7 @@ func (s *FileToDiskState) WriteOneMsgToFile(req *rpc.Message, last bool) (err er
 		s.PartsSeen = make(map[int64]bool)
 		//s.Blake3hash.Reset()
 
-		s.Randomness = cryRandBytesBase64(16)
+		s.Randomness = cryRandBytesBase64(17)
 		s.WriteToPathTmp = s.WriteToPath + ".tmp_" + s.Randomness
 
 		/*
