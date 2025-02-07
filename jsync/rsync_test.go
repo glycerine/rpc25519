@@ -554,9 +554,13 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		//localPrecis, local, err := SummarizeFileInCDCHashes(host, localPath, true, true)
 
 		// taker does
-		localPrecis, wantsUpdate, err := GetHashesOneByOne(host, localPath)
-		panicOn(err)
+		//localPrecis, wantsUpdate, err := GetHashesOneByOne(host, localPath)
+		//panicOn(err)
+		wantsChunks := true
+		keepData := true
+		localPrecis, wantsUpdate, err := SummarizeFileInCDCHashes(host, localPath, wantsChunks, keepData)
 		_ = localPrecis
+
 		/*
 			// get diffs from what we have. We send a light
 			// request (one without Data attached, just hashes);
@@ -593,15 +597,19 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		localMap := getCryMap(wantsUpdate) // pre-index them for the update.
 
 		t2 := time.Now()
-		goalPrecis, templateChunks, err := GetHashesOneByOne(rpc.Hostname, remotePath) // no data, just chunks. read data directly from file below.
+		//goalPrecis, templateChunks, err := GetHashesOneByOne(rpc.Hostname, remotePath) // no data, just chunks. read data directly from file below.
+
+		goalPrecis, templateChunks, err := SummarizeFileInCDCHashes(host, remotePath, wantsChunks, keepData)
 		_ = goalPrecis
+
+		// templateChunks done after 11.115653896s so long!
 		vv("templateChunks done after %v", time.Since(t2))
 
 		//		bs := &BlobStore{
 		//			Map: getCryMap(templateChunks),
 		//		}
 
-		const dropPlanData = false // true // only send what they need.
+		const dropPlanData = true // only send what they need.
 		const usePlaceHolders = false
 
 		// new: placeholderPlan has a single data byte in Chunk.Data
