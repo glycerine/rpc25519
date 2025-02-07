@@ -42,6 +42,8 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	defer func(syncReq *RequestToSyncPath) {
 		//vv("%v: Giver() ckt '%v' defer running: shutting down. bt = '%#v'", name, ckt.Name, bt)
 
+		vv("giver defer: RecycleFragLen() = %v", s.U.RecycleFragLen())
+
 		if syncReq != nil {
 			syncReq.BytesRead = int64(bt.bread)
 			syncReq.BytesSent = int64(bt.bsend)
