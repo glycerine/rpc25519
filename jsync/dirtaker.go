@@ -622,7 +622,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 
 	fileCh := make(chan *File) // do not buffer, giving work.
 
-	const workPoolSize = 10
+	workPoolSize := runtime.NumCPU()
 	for range workPoolSize {
 
 		goroHalt := idem.NewHalter()
