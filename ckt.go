@@ -338,7 +338,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 			"parse peerURL: '%v': '%v'", peerURL, err)
 	}
 	if frag == nil {
-		frag = NewFragment()
+		frag = s.U.NewFragment()
 	}
 	frag.FromPeerID = s.PeerID
 	frag.ToPeerID = peerID
@@ -428,6 +428,7 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 
 	//vv("sending frag='%v'", frag)
 	msg := ckt.ConvertFragmentToMessage(frag)
+	s.U.FreeFragment(frag)
 
 	err = s.U.SendOneWayMessage(s.Ctx, msg, errWriteDur)
 	if err != nil {

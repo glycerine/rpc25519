@@ -61,7 +61,7 @@ func (pb *LocalPeer) peerbackPump() {
 		if notifyPeer {
 			// Politely tell our peer we are going down,
 			// in case they are staying up.
-			frag := NewFragment()
+			frag := pb.U.NewFragment()
 			frag.Typ = CallPeerEndCircuit
 			// Transmit back reason for shutdown if we can.
 			// Q: will this mess up delivery (to Errors instead of Reads?)
@@ -86,7 +86,7 @@ func (pb *LocalPeer) peerbackPump() {
 		delete(m, ckt.CircuitID)
 	}
 	defer func() {
-		//zz("%v: peerbackPump exiting. closing all remaining circuits (%v).", name, len(m))
+		//vv("%v: peerbackPump exiting. closing all remaining circuits (%v).", name, len(m))
 		var all []*Circuit
 		for _, ckt := range m {
 			all = append(all, ckt)
@@ -161,7 +161,7 @@ func (pb *LocalPeer) peerbackPump() {
 				}
 				continue
 			}
-			////zz("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
+			//vv("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
 
 			if msg.HDR.Typ == CallPeerEndCircuit {
 				//vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg) // seen in crosstalk test server hung log line 311

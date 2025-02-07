@@ -439,7 +439,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 
 			real, ok := s.Server.unNAT.Get(msg.HDR.To)
 			if ok && real != msg.HDR.To {
-				vv("unNAT replacing msg.HDR.To '%v' -> '%v'", msg.HDR.To, real)
+				//vv("unNAT replacing msg.HDR.To '%v' -> '%v'", msg.HDR.To, real)
 				msg.HDR.To = real
 			}
 
@@ -949,7 +949,7 @@ func (s *Server) processWork(job *job) {
 	//vv("stream local = '%v', remote = '%v'", local(stream), remote(stream))
 	//vv("conn   local = '%v', remote = '%v'", local(conn), remote(conn))
 
-	reply := s.getMessage()
+	reply := s.GetEmptyMessage()
 
 	// enforce these are the same.
 	replySeqno := req.HDR.Seqno
@@ -1024,7 +1024,7 @@ func (s *Server) processWork(job *job) {
 	}
 
 	// NB: server side reply.DoneCh is not used.
-	s.freeMessage(reply)
+	s.FreeMessage(reply)
 }
 
 // Servers read and respond to requests. Two APIs are available.
@@ -1108,6 +1108,9 @@ type Server struct {
 	// reconnect. We still want to support
 	// cancellation after a reconnect.
 	inflight inflight
+
+	fragLock     sync.Mutex
+	recycledFrag []*Fragment
 }
 
 type ServerClient struct {
@@ -1189,24 +1192,24 @@ func (server *Server) freeResponse(resp *Response) {
 	server.respLock.Unlock()
 }
 
-func (server *Server) getMessage() *Message {
-	server.msgLock.Lock()
-	msg := server.freeMsg
+func (s *Server) GetEmptyMessage() *Message {
+	s.msgLock.Lock()
+	msg := s.freeMsg
 	if msg == nil {
 		msg = new(Message)
 	} else {
-		server.freeMsg = msg.nextOrReply
+		s.freeMsg = msg.nextOrReply
 		*msg = Message{}
 	}
-	server.msgLock.Unlock()
+	s.msgLock.Unlock()
 	return msg
 }
 
-func (server *Server) freeMessage(msg *Message) {
-	server.msgLock.Lock()
-	msg.nextOrReply = server.freeMsg
-	server.freeMsg = msg
-	server.msgLock.Unlock()
+func (s *Server) FreeMessage(msg *Message) {
+	s.msgLock.Lock()
+	msg.nextOrReply = s.freeMsg
+	s.freeMsg = msg
+	s.msgLock.Unlock()
 }
 
 // like net_server.go NetServer.ServeCodec
@@ -1315,7 +1318,7 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 	p.sending.Unlock()
 	p.Server.freeResponse(resp)
 
-	msg := p.Server.getMessage()
+	msg := p.Server.GetEmptyMessage()
 	msg.HDR.Created = time.Now()
 	msg.HDR.Serial = issueSerial()
 	msg.HDR.From = job.pair.from
@@ -1340,7 +1343,7 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 	} else {
 		//vv("srv sendMessage went ok")
 	}
-	p.Server.freeMessage(msg)
+	p.Server.FreeMessage(msg)
 }
 
 // from net/rpc Server.readRequest
@@ -1760,7 +1763,7 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 	if !ok {
 		real, ok2 := s.unNAT.Get(destAddr)
 		if ok2 && real != destAddr {
-			vv("unNAT replacing destAddr '%v' -> '%v'", destAddr, real)
+			//vv("unNAT replacing destAddr '%v' -> '%v'", destAddr, real)
 			destAddr = real
 			// and try again
 			pair, ok = s.remote2pair.Get(destAddr)
@@ -2221,7 +2224,7 @@ func (s *rwPair) beginReadStream(
 		switch hdrN.Typ {
 		case CallUploadEnd:
 			last = reply
-			// since s.getMessage() does not allocate the Args map.
+			// since s.GetEmptyMessage() does not allocate the Args map.
 			last.HDR.Args = map[string]string{}
 		} // else leave last nil
 
@@ -2566,4 +2569,52 @@ func (s *Server) GetConfig() *Config {
 // It is a part of the UniversalCliSrv interface.
 func (c *Client) GetConfig() *Config {
 	return c.cfg
+}
+
+func (s *Server) NewFragment() (f *Fragment) {
+	s.fragLock.Lock()
+
+	if len(s.recycledFrag) == 0 {
+		s.fragLock.Unlock()
+		f = NewFragment()
+		return
+	} else {
+		f = s.recycledFrag[0]
+		s.recycledFrag = s.recycledFrag[1:]
+		s.fragLock.Unlock()
+		*f = Fragment{
+			Serial: issueSerial(),
+		}
+		return
+	}
+}
+
+func (s *Server) FreeFragment(frag *Fragment) {
+	s.fragLock.Lock()
+	s.recycledFrag = append(s.recycledFrag, frag)
+	s.fragLock.Unlock()
+}
+
+func (s *Client) NewFragment() (f *Fragment) {
+	s.fragLock.Lock()
+
+	if len(s.recycledFrag) == 0 {
+		s.fragLock.Unlock()
+		f = NewFragment()
+		return
+	} else {
+		f = s.recycledFrag[0]
+		s.recycledFrag = s.recycledFrag[1:]
+		s.fragLock.Unlock()
+		*f = Fragment{
+			Serial: issueSerial(),
+		}
+		return
+	}
+}
+
+func (s *Client) FreeFragment(frag *Fragment) {
+	s.fragLock.Lock()
+	s.recycledFrag = append(s.recycledFrag, frag)
+	s.fragLock.Unlock()
 }

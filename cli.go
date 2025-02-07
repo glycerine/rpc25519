@@ -1047,6 +1047,8 @@ type Client struct {
 	closing  bool // user has called Close
 	shutdown bool // server has told us to stop
 
+	fragLock     sync.Mutex
+	recycledFrag []*Fragment
 }
 
 // Compute HMAC using SHA-256, so 32 bytes long.
@@ -1858,6 +1860,10 @@ type UniversalCliSrv interface {
 
 	// allow peers to find out that the host Client/Server is stopping.
 	GetHostHalter() *idem.Halter
+
+	// fragment memory recycling, to avoid heap pressure.
+	NewFragment() *Fragment
+	FreeFragment(frag *Fragment)
 }
 
 // maintain the requirement that Client and Server both
