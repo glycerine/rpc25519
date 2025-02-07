@@ -585,8 +585,8 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		t3 := time.Now()
 		bs := NewBlobStore() // make persistent state, at some point.
 		plan := bs.GetPlanToUpdateFromGoal(wantsUpdate, templateChunks, dropPlanData, usePlaceHolders)
-		// 360ms
-		vv("elap to GetPlanToUpdateFromGoal = '%v'", time.Since(t3))
+		// 360ms. plan.DataChunkCount 2 out of 664047; DataPresent() = 75_740 bytes
+		vv("elap to GetPlanToUpdateFromGoal = '%v'; plan.DataChunkCount()= %v out of %v;  plan.DataPresent() = %v bytes", time.Since(t3), plan.DataChunkCount(), len(plan.Chunks), plan.DataPresent())
 
 		// see/eventually test the
 		// case OpRsync_HeavyDiffChunksEnclosed
