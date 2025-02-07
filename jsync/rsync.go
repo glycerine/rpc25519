@@ -408,7 +408,7 @@ var markToSendHeavyFromFile = []byte{'H'}
 // needs to be read in from the file. goal should
 // not have prior .Data attachments.
 func (s *BlobStore) GetPlanToUpdateFromGoal(updateme, goal *Chunks, dropGoalData, usePlaceHolders bool) (plan *Chunks) {
-	vv("top of GetPlan: usePlaceHolders=%v; goal.DataPreset()='%v'; stack=\n%v", usePlaceHolders, goal.DataPresent(), stack())
+	vv("top of GetPlan: usePlaceHolders=%v; goal.DataPreset()='%v'", usePlaceHolders, goal.DataPresent()) // , stack())
 
 	//vv("top of GetPlan: len(updateme.Chunks)=%v", len(updateme.Chunks))
 	//vv("top of GetPlan: len(goal.Chunks)=%v", len(goal.Chunks))

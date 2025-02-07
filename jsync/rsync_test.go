@@ -534,6 +534,7 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		panicOn(err)
 		defer srv.Close()
 
+		// about 4 seconds to copy.
 		vv("copy done. server Start() returned serverAddr = '%v'", serverAddr)
 
 		//srv.RegisterBistreamFunc("RsyncServerSide", srv.RsyncServerSide)
@@ -553,6 +554,7 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		host := "localhost"
 		//localPrecis, local, err := SummarizeFileInCDCHashes(host, localPath, true, true)
 
+		t0 := time.Now()
 		// taker does
 		//localPrecis, wantsUpdate, err := GetHashesOneByOne(host, localPath)
 		//panicOn(err)
@@ -560,40 +562,8 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		keepData := true
 		localPrecis, wantsUpdate, err := SummarizeFileInCDCHashes(host, localPath, wantsChunks, keepData)
 		_ = localPrecis
+		vv("elap first SummarizeFileInCDCHashes = '%v'", time.Since(t0))
 
-		/*
-			// get diffs from what we have. We send a light
-			// request (one without Data attached, just hashes);
-			// but since we send to RequestLatest, we'll get back
-			// a Data heavy payload; possibly requiring
-			// a stream.
-			light := &LightRequest{
-				SenderPath:   remotePath,
-				ReaderPrecis: localPrecis,
-				ReaderChunks: local,
-			}
-		*/
-		// giver response. e.g. in
-		// OpRsync_RequestRemoteToGive: // FragOp 12
-
-		//if !s.remoteGiverAreDiffChunksNeeded(syncReq, ckt, bt, frag0) {
-		// 3. compute update plan, send plan, then diff chunks.
-		//vv("OpRsync_RequestRemoteToGive calling giverSendsPlanAndDataUpdates")
-		//s.giverSendsPlanAndDataUpdates(wireChunks, ckt, syncReq.GiverPath, bt, frag0)
-
-		// s.giverSendsPlanAndDataUpdates(wireChunks, ckt, syncReq.GiverPath, bt, frag0)
-		//wireChunks := local
-
-		//senderDeltas := &HeavyPlan{}
-
-		//err = cli.Call("RsyncNode.RequestLatest", light, senderDeltas, nil)
-		//panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
-
-		//vv("senderDeltas = '%v'", senderDeltas)
-
-		//plan := senderDeltas.SenderPlan // the plan follow remote template, our target.
-		//vv("plan = '%v'", plan)
-		//local is our origin or starting point.
 		localMap := getCryMap(wantsUpdate) // pre-index them for the update.
 
 		t2 := time.Now()
@@ -602,12 +572,8 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		goalPrecis, templateChunks, err := SummarizeFileInCDCHashes(host, remotePath, wantsChunks, keepData)
 		_ = goalPrecis
 
-		// templateChunks done after 11.115653896s so long!
+		// templateChunks done after 11.1s, or 13.34s, so long!
 		vv("templateChunks done after %v", time.Since(t2))
-
-		//		bs := &BlobStore{
-		//			Map: getCryMap(templateChunks),
-		//		}
 
 		const dropPlanData = true // only send what they need.
 		const usePlaceHolders = false
@@ -616,15 +582,26 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		// to flag us to read the actual data from disk and then
 		// send it over the wire. This helps keep memory footprint low.
 
+		t3 := time.Now()
 		bs := NewBlobStore() // make persistent state, at some point.
 		plan := bs.GetPlanToUpdateFromGoal(wantsUpdate, templateChunks, dropPlanData, usePlaceHolders)
+		// 360ms
+		vv("elap to GetPlanToUpdateFromGoal = '%v'", time.Since(t3))
 
 		// see/eventually test the
 		// case OpRsync_HeavyDiffChunksEnclosed
 		// handling in taker.go
 
+		// todo: for more realize, read the local
+		// chunks that are the same from disk instead of from memory.
+		// likely not our initial bottleneck, so leave until the
+		// chunking is fast.
+
+		t4 := time.Now()
 		err = UpdateLocalWithRemoteDiffs(localPath, localMap, plan, goalPrecis)
 		panicOn(err)
+		// 7.94s
+		vv("elap to UpdateLocalWithRemoteDiffs = '%v'", time.Since(t4))
 
 		difflen := compareFilesDiffLen(localPath, remotePath)
 		cv.So(difflen, cv.ShouldEqual, 0)
