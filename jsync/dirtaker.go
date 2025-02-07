@@ -798,16 +798,16 @@ func (s *SyncService) dirTakerSendIndivFiles(
 		}(fileCh, goroHalt, bt, wgjobs)
 	} // end work pool starting
 
-	//k := -1
+	k := -1
 	for path, file := range updateMap {
 		_ = path
 
 		// can be slowing us down to print too much.
-		//k++
-		//if k%100 == 0 {
-		//fmt.Printf("updateMap progress:  %v  out of %v. elap %v\n", k, nn, time.Since(t0))
-		//}
-		//vv("dirtaker: needUpdate path '%v' -> file: '%#v'", path, file)
+		k++
+		if k%1000 == 0 {
+			fmt.Printf("updateMap progress:  %v  out of %v. elap %v\n", k, nn, time.Since(t0))
+			vv("dirtaker: needUpdate path '%v' -> file: '%#v'", path, file)
+		}
 
 		select {
 		case fileCh <- file:
