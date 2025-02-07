@@ -893,7 +893,16 @@ type Config struct {
 	// (at the top of cli.go), which is currently "s2".
 	// To turn off compression, you must use the
 	// CompressionOff setting.
-	CompressAlgo   string
+	CompressAlgo string
+
+	// CompressionOff must be universal among peers, if true;
+	// all clients and servers must have compression off, or none.
+	// If this does not hold, we will panic because, to save memory,
+	// if CompressionOff we do not allocate any
+	// compression handling machinery. Normally the reader-
+	// makes-right approach is safer -- allowing compression
+	// as an option -- but that means that everyone must allocate
+	// the decompressor to handle that eventuality.
 	CompressionOff bool
 
 	// Intially speak HTTP and only
