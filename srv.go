@@ -2618,3 +2618,15 @@ func (s *Client) FreeFragment(frag *Fragment) {
 	s.recycledFrag = append(s.recycledFrag, frag)
 	s.fragLock.Unlock()
 }
+
+func (s *Client) RecycleFragLen() int {
+	s.fragLock.Lock()
+	defer s.fragLock.Unlock()
+	return len(s.recycledFrag)
+}
+
+func (s *Server) RecycleFragLen() int {
+	s.fragLock.Lock()
+	defer s.fragLock.Unlock()
+	return len(s.recycledFrag)
+}

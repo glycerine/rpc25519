@@ -1864,6 +1864,7 @@ type UniversalCliSrv interface {
 	// fragment memory recycling, to avoid heap pressure.
 	NewFragment() *Fragment
 	FreeFragment(frag *Fragment)
+	RecycleFragLen() int
 }
 
 // maintain the requirement that Client and Server both

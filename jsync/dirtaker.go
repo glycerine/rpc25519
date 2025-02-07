@@ -805,8 +805,9 @@ func (s *SyncService) dirTakerSendIndivFiles(
 		// can be slowing us down to print too much.
 		k++
 		if k%1000 == 0 {
-			fmt.Printf("updateMap progress:  %v  out of %v. elap %v\n", k, nn, time.Since(t0))
-			vv("dirtaker: needUpdate path '%v' -> file: '%#v'", path, file)
+			fmt.Printf("\nupdateMap progress:  %v  out of %v. elap %v\n", k, nn, time.Since(t0))
+			vv("dirtaker: needUpdate path '%v' -> file: '%#v'\n RecycleFragLen() = %v", path, file, s.U.RecycleFragLen())
+
 		}
 
 		select {
