@@ -263,9 +263,7 @@ func (w *workspace) readMessage(conn uConn) (msg *Message, err error) {
 			w.magicCheck[7] = byte(magic7)
 			w.defaultMagic7 = magic7
 
-			vv("lazily activate decompression; though it was off: '%v'.", magic7)
-
-			//vv("newWorkspace sets cfg.lastReadMagic7 = w.defaultMagic7 = %v from '%v'", w.defaultMagic7, cfg.CompressAlgo)
+			//vv("lazily activate decompression; though it was off: '%v'.", magic7)
 			if w.isServer {
 				w.spair.lastReadMagic7.Store(int64(w.defaultMagic7))
 			} else {
