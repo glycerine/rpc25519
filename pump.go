@@ -61,7 +61,7 @@ func (pb *LocalPeer) peerbackPump() {
 		if notifyPeer {
 			// Politely tell our peer we are going down,
 			// in case they are staying up.
-			frag := NewFragment()
+			frag := pb.U.NewFragment()
 			frag.Typ = CallPeerEndCircuit
 			// Transmit back reason for shutdown if we can.
 			// Q: will this mess up delivery (to Errors instead of Reads?)

@@ -154,7 +154,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				}
 				// INVAR: targetTakerTopTempDir is set.
 
-				tmpReady := rpc.NewFragment()
+				tmpReady := s.U.NewFragment()
 				tmpReady.FragOp = OpRsync_DirSyncBeginReplyFromTaker // 23
 
 				// useful visibility, but use the struct fields as definitive.
@@ -213,7 +213,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 				// reply with OpRsync_DirSyncEndAckFromTaker, wait for FIN.
 
-				alldone := rpc.NewFragment()
+				alldone := s.U.NewFragment()
 				alldone.FragOp = OpRsync_DirSyncEndAckFromTaker
 				err = ckt.SendOneWay(alldone, 0)
 				panicOn(err)
@@ -413,7 +413,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 				}
 
-				ackAllFilesDone := rpc.NewFragment()
+				ackAllFilesDone := s.U.NewFragment()
 				ackAllFilesDone.FragOp = OpRsync_ToGiverDirContentsDoneAck
 				ackAllFilesDone.SetUserArg("giverTotalFileBytes",
 					giverTotalFileBytesStr)
@@ -445,7 +445,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				if pod.IsLast {
 					vv("dirtaker sees pod.IsLast, sending " +
 						"OpRsync_ToGiverAllTreeModesDone")
-					modesDone := rpc.NewFragment()
+					modesDone := s.U.NewFragment()
 					modesDone.FragOp = OpRsync_ToGiverAllTreeModesDone
 					err = ckt.SendOneWay(modesDone, 0)
 					panicOn(err)
@@ -661,7 +661,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 			precis, chunks, err := GetHashesOneByOne(rpc.Hostname, takerFinalPath)
 			panicOn(err)
 
-			frag := rpc.NewFragment()
+			frag := s.U.NewFragment()
 			frag.FragOp = OpRsync_RequestRemoteToGive // 12
 			frag.FragSubject = giverPath
 

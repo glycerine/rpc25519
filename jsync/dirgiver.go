@@ -125,7 +125,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					reqDir.TopTakerDirTempDirID = reqDir2.TopTakerDirTempDirID
 				}
 
-				begin := rpc.NewFragment()
+				begin := s.U.NewFragment()
 				begin.FragOp = OpRsync_DirSyncBeginToTaker // 22
 				bts, err := reqDir.MarshalMsg(nil)
 				panicOn(err)
@@ -175,7 +175,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							lastser = nFiles // on first Frag, give total.
 						}
 
-						fragPOF := rpc.NewFragment()
+						fragPOF := s.U.NewFragment()
 						bts, err := pof.MarshalMsg(nil)
 						panicOn(err)
 						fragPOF.Payload = bts
@@ -244,7 +244,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							case pol := <-polch: // packOfLeavesCh:
 								bts, err := pol.MarshalMsg(nil)
 								panicOn(err)
-								leafy := rpc.NewFragment()
+								leafy := s.U.NewFragment()
 								leafy.SetUserArg("structType", "PackOfLeafPaths")
 								leafy.Payload = bts
 								leafy.FragOp = OpRsync_GiverSendsTopDirListing
@@ -258,7 +258,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 							case pof := <-pofch:
 
-								fragPOF := rpc.NewFragment()
+								fragPOF := s.U.NewFragment()
 								bts, err := pof.MarshalMsg(nil)
 								panicOn(err)
 								fragPOF.Payload = bts
@@ -273,7 +273,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								}
 
 							case pod := <-podch: // phase 3
-								podModes := rpc.NewFragment()
+								podModes := s.U.NewFragment()
 								bts, err := pod.MarshalMsg(nil)
 								panicOn(err)
 								podModes.Payload = bts
@@ -334,7 +334,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 									goroHalt.Done.Close()
 								}()
 
-								frag1 := rpc.NewFragment()
+								frag1 := s.U.NewFragment()
 								giverPath := filepath.Join(reqDir.GiverDir,
 									file.Path)
 								sr := &RequestToSyncPath{
@@ -423,7 +423,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 				// wait for OpRsync_ToGiverDirContentsDoneAck
 				// send OpRsync_ToTakerDirContentsDone
-				allFilesDone := rpc.NewFragment()
+				allFilesDone := s.U.NewFragment()
 				allFilesDone.FragOp = OpRsync_ToTakerDirContentsDone
 				allFilesDone.SetUserArg("giverTotalFileBytes",
 					fmt.Sprintf("%v", totalFileBytes))
@@ -443,7 +443,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						if !ok {
 							break sendDirs
 						}
-						podModes := rpc.NewFragment()
+						podModes := s.U.NewFragment()
 						bts, err := pod.MarshalMsg(nil)
 						panicOn(err)
 						podModes.Payload = bts
@@ -490,7 +490,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			case OpRsync_ToGiverAllTreeModesDone:
 				//vv("dirgiver sees OpRsync_ToGiverAllTreeModesDone," +
 				//	" sending OpRsync_DirSyncEndToTaker")
-				dend := rpc.NewFragment()
+				dend := s.U.NewFragment()
 				dend.FragOp = OpRsync_DirSyncEndToTaker
 				err := ckt.SendOneWay(dend, 0)
 				panicOn(err)

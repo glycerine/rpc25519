@@ -590,7 +590,7 @@ func (s *SyncService) Start(
 				}
 				bts, err := reqDir.MarshalMsg(nil)
 				panicOn(err)
-				pulldir := rpc.NewFragment()
+				pulldir := s.U.NewFragment()
 				pulldir.FragOp = OpRsync_TakerRequestsDirSyncBegin // 21
 				pulldir.Payload = bts
 				pulldir.FromPeerID = myPeer.PeerID
@@ -657,7 +657,7 @@ func (s *SyncService) Start(
 				}
 				bts, err := reqDir.MarshalMsg(nil)
 				panicOn(err)
-				pushdir := rpc.NewFragment()
+				pushdir := s.U.NewFragment()
 				pushdir.FragOp = OpRsync_DirSyncBeginToTaker // 22
 				pushdir.Payload = bts
 				cktName := rsyncRemoteTakesDirString // "rsync remote takes dir"
@@ -683,7 +683,7 @@ func (s *SyncService) Start(
 			// It would be awkward to re-submit that frag into the FSM.
 			var cktName string
 
-			frag := rpc.NewFragment()
+			frag := s.U.NewFragment()
 			frag.FromPeerID = myPeer.PeerID
 			frag.ServiceName = syncReq.ToRemotePeerServiceName
 
@@ -844,7 +844,7 @@ func (s *SyncService) Start(
 }
 
 func (s *SyncService) ackBackFINToTaker(ckt *rpc.Circuit, frag *rpc.Fragment) {
-	ack := rpc.NewFragment()
+	ack := s.U.NewFragment()
 	ack.FragSubject = frag.FragSubject
 	ack.FragOp = OpRsync_AckBackFIN_ToTaker
 	err := ckt.SendOneWay(ack, 0)
@@ -853,7 +853,7 @@ func (s *SyncService) ackBackFINToTaker(ckt *rpc.Circuit, frag *rpc.Fragment) {
 }
 
 func (s *SyncService) ackBackFINToGiver(ckt *rpc.Circuit, frag *rpc.Fragment) {
-	ack := rpc.NewFragment()
+	ack := s.U.NewFragment()
 	ack.FragSubject = frag.FragSubject
 	ack.FragOp = OpRsync_FileSizeModTimeMatch
 	ack.FragOp = OpRsync_AckBackFIN_ToGiver
