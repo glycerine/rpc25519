@@ -240,7 +240,7 @@ func main() {
 	*/
 	//vv("dest = '%v'", dest)
 	//vv("takerPath = '%v' exists=%v; isDir=%v", takerPath, takerExistsLocal, takerIsDir)
-	//vv("giverPath = '%v' exists=%v; isDir=%v", giverPath, giverExistsLocal, giverIsDir)
+	vv("giverPath = '%v' exists=%v; isDir=%v", giverPath, giverExistsLocal, giverIsDir)
 
 	var giverStartsEmpty bool
 	var takerStartsEmpty bool
