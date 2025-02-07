@@ -13,6 +13,7 @@ import (
 	"time"
 
 	_ "net/http/pprof" // for web based profiling while running
+	"runtime/pprof"
 
 	"github.com/glycerine/idem"
 	"github.com/glycerine/ipaddr"
@@ -33,6 +34,7 @@ type JcopyConfig struct {
 	Verbose bool
 
 	WebProfile bool
+	Memprofile string
 }
 
 // backup plan if :7070 was not available...
@@ -61,6 +63,7 @@ func (c *JcopyConfig) SetFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.Verbose, "v", false, "verbosely walk dir, showing paths")
 
 	fs.BoolVar(&c.WebProfile, "webprofile", false, "start web pprof profiling on localhost:7070")
+	fs.StringVar(&c.Memprofile, "memprof", "", "file to write memory profile 30 sec worth to")
 }
 
 func (c *JcopyConfig) FinishConfig(fs *flag.FlagSet) (err error) {
@@ -259,6 +262,17 @@ func main() {
 
 	cfg.ClientDialToHostPort = dest
 	cfg.CompressionOff = true
+
+	if jcfg.Memprofile != "" {
+		f, err := os.Create(jcfg.Memprofile)
+		panicOn(err)
+		wait := time.Second * 30
+		go func() {
+			time.Sleep(wait)
+			pprof.WriteHeapProfile(f)
+			f.Close()
+		}()
+	}
 
 	cli, err := rpc.NewClient("jcp", cfg)
 	if err != nil {
