@@ -12,6 +12,7 @@ const (
 	FastCDC_PlakarAlgo CDCAlgo = 2
 	FNV_Algo           CDCAlgo = 3
 	RabinKarp_Algo     CDCAlgo = 4
+	ResticRabin_Algo   CDCAlgo = 8
 )
 
 // cfg = &CDC_Config{
@@ -38,6 +39,8 @@ func GetCutpointer(choice CDCAlgo, cfg *CDC_Config) (cdc Cutpointer) {
 	case RabinKarp_Algo:
 		// traditional exponential e.g. rsync
 		cdc = NewRabinKarpCDC(cfg)
+	case ResticRabin_Algo:
+		cdc = NewResticRabinCDC(cfg)
 	default:
 		panic(fmt.Sprintf("unknown CDCAlgo: %v", choice))
 	}

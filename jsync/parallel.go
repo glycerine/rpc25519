@@ -88,7 +88,7 @@ func ChunkFile2(
 		MaxSize:    64 * 1024,
 	}
 
-	chunker := jcdc.FastCDC_PlakarAlgo
+	chunker := jcdc.ResticRubin_Algo
 	//chunker := jcdc.FastCDC_StadiaAlgo
 	//chunker := jcdc.RabinKarp_Algo
 	//chunker := jcdc.UltraCDC_Algo
@@ -99,6 +99,7 @@ func ChunkFile2(
 	// FastCDC_PlakarAlgo CDCAlgo = 2
 	// FNV_Algo           CDCAlgo = 3
 	// RabinKarp_Algo     CDCAlgo = 4
+	// ResticRabin_Algo   CDCAlgo = 8
 
 	cdc := jcdc.GetCutpointer(chunker, cdcCfg)
 

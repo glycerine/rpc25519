@@ -23,7 +23,7 @@ func Test_Restic_Rabin(t *testing.T) {
 	}
 
 	// create a chunker
-	chnkr := chunker.New(bytes.NewReader(data), chunker.Pol(0x3DA3358B4DC173))
+	chnkr := chunker.New(bytes.NewReader(data), chunker.Pol(0x3DA3358B4DC173), chunker.WithAverageBits(16))
 
 	// reuse this buffer
 	buf := make([]byte, 8*1024*1024)
