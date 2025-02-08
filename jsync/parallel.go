@@ -316,8 +316,14 @@ func ChunkFile2(
 			// look for bridges
 			nlook++
 			// can we repair the inter-chunk?
+			pencut := 0
+			if k > 1 {
+				pencut = c[k-2].Beg
+			}
 			lastcut := c[k-1].Beg
 			firstcut := wchunks[i+1][0].Beg
+			secondcut := wchunks[i+1][0].Endx
+
 			bridge, ok := ob[lastcut]
 			if ok && bridge.Endx == firstcut {
 				vv("we have a bridge")
@@ -337,7 +343,7 @@ func ChunkFile2(
 					return oblin[j].Endx >= firstcut
 				})
 				vv(`no bridge
-[lastcut=%v, firstcut=%v)
+[lastcut=%v, %v, firstcut=%v, %v)
 
  closest2lastcut-1  = [_%v_:%v)
  closest2lastcut    = [_%v_:%v)
@@ -346,7 +352,7 @@ func ChunkFile2(
  closest2firstcut-1 = [%v:_%v_)
  closest2firstcut   = [%v:_%v_)
  closest2firstcut+1 = [%v:_%v_)
-`, lastcut, firstcut,
+`, pencut, lastcut, firstcut, secondcut,
 					oblin[closest2lastcut-1].Beg,
 					oblin[closest2lastcut-1].Endx,
 					oblin[closest2lastcut].Beg,
