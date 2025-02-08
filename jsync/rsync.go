@@ -1020,30 +1020,7 @@ func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 		return
 	}
 
-	// These two different chunking approaches,
-	// Jcdc and FastCDC, need very different
-	// parameter min/max/target settings in
-	// order to give good chunking.
-
-	cdcCfg := &jcdc.CDC_Config{
-		MinSize:    2 * 1024,
-		TargetSize: 8 * 1024,
-		MaxSize:    64 * 1024,
-	}
-
-	chunker := jcdc.FastCDC_PlakarAlgo
-	//chunker := jcdc.FastCDC_StadiaAlgo
-	//chunker := jcdc.RabinKarp_Algo
-	//chunker := jcdc.UltraCDC_Algo
-	//chunker := jcdc.FNV_Algo
-
-	// UltraCDC_Algo      CDCAlgo = 0
-	// FastCDC_StadiaAlgo CDCAlgo = 1
-	// FastCDC_PlakarAlgo CDCAlgo = 2
-	// FNV_Algo           CDCAlgo = 3
-	// RabinKarp_Algo     CDCAlgo = 4
-
-	cdc := jcdc.GetCutpointer(chunker, cdcCfg)
+	cdc := jcdc.GetCutpointer(Default_CDC, Default_CDC_Config)
 
 	sz64, modTime, err := FileSizeModTime(path)
 	if err != nil {

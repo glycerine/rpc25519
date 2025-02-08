@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"sort"
 	"sync"
 	"time"
 
@@ -25,7 +26,8 @@ type job struct {
 
 	nodeK int
 
-	isLast bool
+	isLast   bool
+	isPenult bool
 }
 
 // ChunkFile uses multiple parallel goroutines to read and
@@ -73,7 +75,32 @@ func ChunkFile2(
 		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false)
 	}
 
-	cdc := jcdc.GetCutpointer(Default_CDC, Default_CDC_Config)
+	//cdc := jcdc.GetCutpointer(Default_CDC, Default_CDC_Config)
+
+	// These two different chunking approaches,
+	// Jcdc and FastCDC, need very different
+	// parameter min/max/target settings in
+	// order to give good chunking.
+
+	cdcCfg := &jcdc.CDC_Config{
+		MinSize:    2 * 1024,
+		TargetSize: 8 * 1024,
+		MaxSize:    64 * 1024,
+	}
+
+	chunker := jcdc.FastCDC_PlakarAlgo
+	//chunker := jcdc.FastCDC_StadiaAlgo
+	//chunker := jcdc.RabinKarp_Algo
+	//chunker := jcdc.UltraCDC_Algo
+	//chunker := jcdc.FNV_Algo
+
+	// UltraCDC_Algo      CDCAlgo = 0
+	// FastCDC_StadiaAlgo CDCAlgo = 1
+	// FastCDC_PlakarAlgo CDCAlgo = 2
+	// FNV_Algo           CDCAlgo = 3
+	// RabinKarp_Algo     CDCAlgo = 4
+
+	cdc := jcdc.GetCutpointer(chunker, cdcCfg)
 
 	// side effect: warm up the filesystem cache of path.
 	fcry, err := hash.Blake3OfFile(path)
@@ -95,7 +122,7 @@ func ChunkFile2(
 
 	// segment is the size in bytes that one goroutine
 	// reads from disk and hashes.
-	segment := int(1 << 26) // 1<<19 => 512KB
+	segment := int(1 << 20) // 1<<19 => 512KB
 	if parallelBits != 0 {
 		segment = 1 << parallelBits
 	}
@@ -104,12 +131,12 @@ func ChunkFile2(
 		segment = minsz
 	}
 
-	jobN := sz / segment
-	if sz*segment < jobN {
-		jobN++ // round up. any fraction left at the end still gets processed.
+	segN := sz / segment
+	if sz*segment < segN {
+		segN++ // round up. any fraction left at the end still gets processed.
 	}
-	if jobN == 0 {
-		jobN = 1
+	if segN == 0 {
+		segN = 1
 	}
 
 	// how big a goroutine pool to use
@@ -120,8 +147,8 @@ func ChunkFile2(
 		nWorkers = ngoro
 	}
 
-	if jobN < nWorkers {
-		nWorkers = jobN // get smaller, but not larger.
+	if segN < nWorkers {
+		nWorkers = segN // get smaller, but not larger.
 	}
 
 	buf := make([][]byte, nWorkers)
@@ -140,7 +167,9 @@ func ChunkFile2(
 	nNodes := (sz + segment - 1) / segment
 	vv("nNodes = %v", nNodes)
 
+	// output
 	wchunks := make([][]*Chunk, nNodes)
+	overlaps := make([][]*Chunk, nNodes-2)
 
 	nW := int(nWorkers)
 	vv("nW = %v", nW)
@@ -196,23 +225,45 @@ func ChunkFile2(
 				// offset where data starts in the original file;
 				// to pass to addChunk
 				dataoff := job.beg
-
 				data := buf[worker][:lenseg]
+
 				chunks = wchunks[job.nodeK]
-
+				//now we take any sized cut
 				for j := 0; len(data) > 0; j++ {
-
 					cut := cdc.NextCut(data)
-
-					//now we take any sized cut
-
 					addChunk(data[:cut], dataoff)
-					//vv("j=%v  legit cut: '%v'", j, chunks.Chunks[len(chunks.Chunks)-1])
 					data = data[cut:]
 					dataoff += cut
 				}
-
 				wchunks[job.nodeK] = chunks
+
+				// do overlaps too, unless last/next-to-last.
+				if !job.isLast && !job.isPenult {
+
+					halfway := lenseg / 2
+					beg := job.beg + halfway
+					endx := job.endx + halfway
+
+					f.Seek(int64(beg), 0)
+					lenseg = endx - beg
+					_, err := io.ReadFull(f, buf[worker][:lenseg])
+					panicOn(err)
+					// offset where data starts in the original file;
+					// to pass to addChunk
+					dataoff = beg
+					data = buf[worker][:lenseg]
+
+					chunks = overlaps[job.nodeK]
+					//now we take any sized cut
+					for j := 0; len(data) > 0; j++ {
+						cut := cdc.NextCut(data)
+						addChunk(data[:cut], dataoff)
+						data = data[cut:]
+						dataoff += cut
+					}
+					overlaps[job.nodeK] = chunks
+
+				}
 			}
 
 		}(int(worker))
@@ -220,6 +271,7 @@ func ChunkFile2(
 
 	// send off all the jobs
 	last := len(wchunks) - 1
+	penult := len(wchunks) - 2
 	for i := range wchunks {
 		beg := i * int(segment)
 		endx := (i + 1) * int(segment)
@@ -230,10 +282,11 @@ func ChunkFile2(
 			panic("logic error: must have endx > beg. don't process empty segment")
 		}
 		job := &job{
-			beg:    beg,
-			endx:   endx,
-			nodeK:  i,
-			isLast: i == last,
+			beg:      beg,
+			endx:     endx,
+			nodeK:    i,
+			isLast:   i == last,
+			isPenult: i == penult,
 		}
 		work <- job
 	}
@@ -242,9 +295,55 @@ func ChunkFile2(
 	wg.Wait()
 
 	// assemble all the []*Chunk in order.
-	for _, c := range wchunks {
+	// INVAR: nNodes == len(wchunks).
+
+	// index overlap begins
+	ob := make(map[int]*Chunk)
+	var oblin []*Chunk
+	for _, cs := range overlaps {
+		for _, c := range cs {
+			ob[c.Beg] = c
+			oblin = append(oblin, c)
+		}
+	}
+	nlook := 0
+	nbridge := 0
+	for i := 0; i < nNodes; i++ {
+
+		c := wchunks[i]
+		k := len(c)
+		if k > 0 && i < penult {
+			// look for bridges
+			nlook++
+			// can we repair the inter-chunk?
+			lastcut := c[k-1].Beg
+			firstcut := wchunks[i+1][0].Beg
+			bridge, ok := ob[lastcut]
+			if ok && bridge.Endx == firstcut {
+				vv("we have a bridge")
+				nbridge++
+				// skip the last of whunks[i]
+				chunks0.Chunks = append(chunks0.Chunks, c[:k-1]...)
+				// put in the bridge Chunk.
+				chunks0.Chunks = append(chunks0.Chunks, bridge)
+				// and skip the first of wchunks[i+1]
+				wchunks[i+1] = wchunks[i+1][1:]
+				continue
+			} else {
+				closest2lastcut := sort.Search(len(oblin), func(j int) bool {
+					return oblin[j].Beg >= lastcut
+				})
+				closest2firstcut := sort.Search(len(oblin), func(j int) bool {
+					return oblin[j].Endx >= firstcut
+				})
+				vv("no bridge [lastcut=%v, firstcut=%v) closest2lastcut = '%v'; closest2firstcut = '%v'", lastcut, firstcut, closest2lastcut, closest2firstcut)
+			}
+		}
 		chunks0.Chunks = append(chunks0.Chunks, c...)
 	}
 	vv("len chunks0.Chunks = %v", len(chunks0.Chunks))
+	vv("nlook = %v, and nbridge = %v", nlook, nbridge)
+	// default min chunk 2K: nlook = 6811, and nbridge = 85
+	// min chunk 2 bytes:    nlook = 6812, and nbridge = 86
 	return
 }
