@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 	"runtime"
-	"sort"
+	//"sort"
 	"sync"
 	"time"
 
@@ -88,7 +88,7 @@ func ChunkFile2(
 		MaxSize:    64 * 1024,
 	}
 
-	chunker := jcdc.ResticRubin_Algo
+	chunker := jcdc.ResticRabin_Algo
 	//chunker := jcdc.FastCDC_StadiaAlgo
 	//chunker := jcdc.RabinKarp_Algo
 	//chunker := jcdc.UltraCDC_Algo
@@ -170,7 +170,7 @@ func ChunkFile2(
 
 	// output
 	wchunks := make([][]*Chunk, nNodes)
-	overlaps := make([][]*Chunk, nNodes-2)
+	//overlaps := make([][]*Chunk, nNodes-2)
 
 	nW := int(nWorkers)
 	vv("nW = %v", nW)
@@ -237,34 +237,35 @@ func ChunkFile2(
 					dataoff += cut
 				}
 				wchunks[job.nodeK] = chunks
+				/*
+					// do overlaps too, unless last/next-to-last.
+					if !job.isLast && !job.isPenult {
 
-				// do overlaps too, unless last/next-to-last.
-				if !job.isLast && !job.isPenult {
+						halfway := lenseg / 2
+						beg := job.beg + halfway
+						endx := job.endx + halfway
 
-					halfway := lenseg / 2
-					beg := job.beg + halfway
-					endx := job.endx + halfway
+						f.Seek(int64(beg), 0)
+						lenseg = endx - beg
+						_, err := io.ReadFull(f, buf[worker][:lenseg])
+						panicOn(err)
+						// offset where data starts in the original file;
+						// to pass to addChunk
+						dataoff = beg
+						data = buf[worker][:lenseg]
 
-					f.Seek(int64(beg), 0)
-					lenseg = endx - beg
-					_, err := io.ReadFull(f, buf[worker][:lenseg])
-					panicOn(err)
-					// offset where data starts in the original file;
-					// to pass to addChunk
-					dataoff = beg
-					data = buf[worker][:lenseg]
+						chunks = overlaps[job.nodeK]
+						//now we take any sized cut
+						for j := 0; len(data) > 0; j++ {
+							cut := cdc.NextCut(data)
+							addChunk(data[:cut], dataoff)
+							data = data[cut:]
+							dataoff += cut
+						}
+						overlaps[job.nodeK] = chunks
 
-					chunks = overlaps[job.nodeK]
-					//now we take any sized cut
-					for j := 0; len(data) > 0; j++ {
-						cut := cdc.NextCut(data)
-						addChunk(data[:cut], dataoff)
-						data = data[cut:]
-						dataoff += cut
 					}
-					overlaps[job.nodeK] = chunks
-
-				}
+				*/
 			}
 
 		}(int(worker))
@@ -298,83 +299,97 @@ func ChunkFile2(
 	// assemble all the []*Chunk in order.
 	// INVAR: nNodes == len(wchunks).
 
-	// index overlap begins
-	ob := make(map[int]*Chunk)
-	var oblin []*Chunk
-	for _, cs := range overlaps {
-		for _, c := range cs {
-			ob[c.Beg] = c
-			oblin = append(oblin, c)
-		}
-	}
-	nlook := 0
-	nbridge := 0
-	for i := 0; i < nNodes; i++ {
-
-		c := wchunks[i]
-		k := len(c)
-		if k > 0 && i < penult {
-			// look for bridges
-			nlook++
-			// can we repair the inter-chunk?
-			pencut := 0
-			if k > 1 {
-				pencut = c[k-2].Beg
+	/*
+			// index overlap begins
+			ob := make(map[int]*Chunk)
+			var oblin []*Chunk
+			for _, cs := range overlaps {
+				for _, c := range cs {
+					ob[c.Beg] = c
+					oblin = append(oblin, c)
+				}
 			}
-			lastcut := c[k-1].Beg
-			firstcut := wchunks[i+1][0].Beg
-			secondcut := wchunks[i+1][0].Endx
+			nlook := 0
+			nbridge := 0
+			for i := 0; i < nNodes; i++ {
 
-			bridge, ok := ob[lastcut]
-			if ok && bridge.Endx == firstcut {
-				vv("we have a bridge")
-				nbridge++
-				// skip the last of whunks[i]
-				chunks0.Chunks = append(chunks0.Chunks, c[:k-1]...)
-				// put in the bridge Chunk.
-				chunks0.Chunks = append(chunks0.Chunks, bridge)
-				// and skip the first of wchunks[i+1]
-				wchunks[i+1] = wchunks[i+1][1:]
-				continue
-			} else {
-				closest2lastcut := sort.Search(len(oblin), func(j int) bool {
-					return oblin[j].Beg >= lastcut
-				})
-				closest2firstcut := sort.Search(len(oblin), func(j int) bool {
-					return oblin[j].Endx >= firstcut
-				})
-				vv(`no bridge
-[lastcut=%v, %v, firstcut=%v, %v)
+				c := wchunks[i]
+				k := len(c)
+				if k > 0 && i < penult {
+					// look for bridges
+					nlook++
+					// can we repair the inter-chunk?
+					pencut := 0
+					if k > 1 {
+						pencut = c[k-2].Beg
+					}
+					lastcut := c[k-1].Beg
+					firstcut := wchunks[i+1][0].Beg
+					secondcut := wchunks[i+1][0].Endx
+					_ = pencut
+					_ = secondcut
+					bridge, ok := ob[lastcut]
+					if ok && bridge.Endx == firstcut {
+						vv("we have a bridge")
+						nbridge++
+						// skip the last of whunks[i]
+						chunks0.Chunks = append(chunks0.Chunks, c[:k-1]...)
+						// put in the bridge Chunk.
+						chunks0.Chunks = append(chunks0.Chunks, bridge)
+						// and skip the first of wchunks[i+1]
+						wchunks[i+1] = wchunks[i+1][1:]
+						continue
+					} else {
+						closest2lastcut := sort.Search(len(oblin), func(j int) bool {
+							return oblin[j].Beg >= lastcut
+						})
+						closest2firstcut := sort.Search(len(oblin), func(j int) bool {
+							return oblin[j].Endx >= firstcut
+						})
+						_ = closest2lastcut
+						_ = closest2firstcut
+						if false {
+							vv(`no bridge
+							[lastcut=%v, %v, firstcut=%v, %v)
 
- closest2lastcut-1  = [_%v_:%v)
- closest2lastcut    = [_%v_:%v)
- closest2lastcut+1  = [_%v_:%v)
+							 closest2lastcut-1  = [_%v_:%v)
+							 closest2lastcut    = [_%v_:%v)
+							 closest2lastcut+1  = [_%v_:%v)
 
- closest2firstcut-1 = [%v:_%v_)
- closest2firstcut   = [%v:_%v_)
- closest2firstcut+1 = [%v:_%v_)
-`, pencut, lastcut, firstcut, secondcut,
-					oblin[closest2lastcut-1].Beg,
-					oblin[closest2lastcut-1].Endx,
-					oblin[closest2lastcut].Beg,
-					oblin[closest2lastcut].Endx,
-					oblin[closest2lastcut+1].Beg,
-					oblin[closest2lastcut+1].Endx,
+							 closest2firstcut-1 = [%v:_%v_)
+							 closest2firstcut   = [%v:_%v_)
+							 closest2firstcut+1 = [%v:_%v_)
+							`, pencut, lastcut, firstcut, secondcut,
+								oblin[closest2lastcut-1].Beg,
+								oblin[closest2lastcut-1].Endx,
+								oblin[closest2lastcut].Beg,
+								oblin[closest2lastcut].Endx,
+								oblin[closest2lastcut+1].Beg,
+								oblin[closest2lastcut+1].Endx,
 
-					oblin[closest2firstcut-1].Beg,
-					oblin[closest2firstcut-1].Endx,
-					oblin[closest2firstcut].Beg,
-					oblin[closest2firstcut].Endx,
-					oblin[closest2firstcut+1].Beg,
-					oblin[closest2firstcut+1].Endx,
-				)
+								oblin[closest2firstcut-1].Beg,
+								oblin[closest2firstcut-1].Endx,
+								oblin[closest2firstcut].Beg,
+								oblin[closest2firstcut].Endx,
+								oblin[closest2firstcut+1].Beg,
+								oblin[closest2firstcut+1].Endx,
+							)
+						} //end if false
+					}
+				}
+				chunks0.Chunks = append(chunks0.Chunks, c...)
 			}
-		}
+
+		//vv("len chunks0.Chunks = %v", len(chunks0.Chunks))
+		//vv("nlook = %v, and nbridge = %v", nlook, nbridge)
+		// default min chunk 2K: nlook = 6811, and nbridge = 85
+		// min chunk 2 bytes:    nlook = 6812, and nbridge = 86
+	*/
+
+	// skip overlaps for now
+	for _, c := range wchunks {
 		chunks0.Chunks = append(chunks0.Chunks, c...)
 	}
-	vv("len chunks0.Chunks = %v", len(chunks0.Chunks))
-	vv("nlook = %v, and nbridge = %v", nlook, nbridge)
-	// default min chunk 2K: nlook = 6811, and nbridge = 85
-	// min chunk 2 bytes:    nlook = 6812, and nbridge = 86
+
 	return
 }

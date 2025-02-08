@@ -4,6 +4,7 @@ import (
 	//"bytes"
 	//"crypto/sha256"
 	"fmt"
+	"math"
 	//"io"
 	//"math/rand"
 
@@ -18,7 +19,7 @@ func evaluateDistribution() {
 type ResticRabinCDC struct {
 	Opts *CDC_Config `zid:"0"`
 
-	chnkr *chunker.Chunker
+	chnkr *chunker.BaseChunker
 }
 
 func Default_ResticRabinCDC_Options() *CDC_Config {
@@ -34,7 +35,7 @@ func NewResticRabinCDC(opts *CDC_Config) *ResticRabinCDC {
 		opts = Default_ResticRabinCDC_Options()
 	}
 	c := &ResticRabinCDC{}
-	//c.chnkr = chunker.New(bytes.NewReader(data), chunker.Pol(0x3DA3358B4DC173), chunker.WithAverageBits(16))
+	c.SetConfig(opts) // compute bits from Target
 	return c
 }
 
@@ -48,7 +49,24 @@ func (c *ResticRabinCDC) Algorithm(options *CDC_Config, data []byte, n int) (cut
 		panic(fmt.Sprintf("len(data) == %v and n == %v: n must be <= len(data)", len(data), n))
 	}
 
-	panic("finish!")
+	minSize := options.MinSize
+	maxSize := options.MaxSize
+
+	// Handle small inputs and bounds
+	switch {
+	case n <= minSize:
+		return n
+	case n >= maxSize:
+		n = maxSize
+	}
+
+	// -1, 0 if not found
+	// idx + i + 1, digest if found
+	cutpoint, _ = c.chnkr.NextSplitPoint(data)
+	if cutpoint < 0 {
+		cutpoint = len(data)
+	}
+
 	return
 }
 
@@ -90,4 +108,9 @@ func (c *ResticRabinCDC) SetConfig(cfg *CDC_Config) {
 
 	//vv("SetConfig about to call initKarpRabinWithOpts()")
 	//c.initKarpRabinWithOpts(cfg)
+
+	bits := int(math.Log2(float64(cfg.TargetSize)))
+	vv("for cfg.TargetSize = %v => using bits = %v", cfg.TargetSize, bits)
+	c.chnkr = chunker.NewBase(chunker.Pol(0x3DA3358B4DC173), chunker.WithBaseAverageBits(bits))
+
 }
