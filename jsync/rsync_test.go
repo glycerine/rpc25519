@@ -512,6 +512,7 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 
 		// delete any old leftover test file from before.
 		os.Remove(localPath)
+		os.Remove(localPathFinal)
 
 		in, err := os.Open(remotePath)
 		panicOn(err)
@@ -642,9 +643,9 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		err = UpdateLocalFileWithRemoteDiffs(localPathFinal, localPath, localMap, plan, goalPrecis)
 		panicOn(err)
 
-		//func UpdateLocalFileWithRemoteDiffs(
-		//	localPathToWrite string,
-		//	localPathToRead string,
+		// localPathFinal has the file made to match remotePath.
+		// normally we would now rename localPathFinal onto localPath,
+		// and be done.
 
 		// 7.94s
 		vv("elap to UpdateLocalWithRemoteDiffs = '%v'", time.Since(t5))
