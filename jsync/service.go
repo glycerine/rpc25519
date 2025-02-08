@@ -30,6 +30,8 @@ import (
 // the fewest bytes need to be updated.
 var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_PlakarAlgo
 
+//var Default_CDC jcdc.CDCAlgo = jcdc.ResticRabin_Algo
+
 // Default_CDC_Config was optimized in the jcdc
 // benchmarks. The current 2KB min/8KB target/64KB max
 // was found to minimize the total bytes of diff chunks

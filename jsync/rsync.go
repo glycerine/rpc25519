@@ -831,6 +831,8 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 	cdc := jcdc.GetCutpointer(Default_CDC, Default_CDC_Config)
 	cdcCfg := cdc.Config()
 
+	vv("GetHashesOneByOne() using cdc = '%v'", cdc.Name())
+
 	sz64, modTime, err := FileSizeModTime(path)
 	if err != nil {
 		return nil, nil, err
