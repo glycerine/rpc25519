@@ -541,8 +541,6 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		// about 4 seconds to copy.
 		vv("copy done. server Start() returned serverAddr = '%v'", serverAddr)
 
-		//srv.RegisterBistreamFunc("RsyncServerSide", srv.RsyncServerSide)
-
 		srvRsyncNode := &RsyncNode{}
 		panicOn(srv.Register(srvRsyncNode))
 
@@ -557,18 +555,28 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		// summarize our local file contents (empty here, but in general).
 		host := "localhost"
 		_ = host
-		//localPrecis, local, err := SummarizeFileInCDCHashes(host, localPath, true, true)
 
 		t0 := time.Now()
-		// taker does
-		//localPrecis, wantsUpdate, err := GetHashesOneByOne(host, localPath)
-		//panicOn(err)
-		//wantsChunks := true
-		//keepData := true
-		//localPrecis, wantsUpdate, err := SummarizeFileInCDCHashes(host, localPath, wantsChunks, keepData)
-		// 14.335789s
 
-		localPrecis, wantsUpdate, err := ChunkFile(localPath)
+		wantsChunks := true
+		keepData := false
+
+		parallel := false
+
+		var localPrecis *FilePrecis
+		var wantsUpdate *Chunks
+
+		// taker does
+		if parallel {
+			localPrecis, wantsUpdate, err = GetHashesOneByOne(host, localPath)
+			panicOn(err)
+		} else {
+			localPrecis, wantsUpdate, err = SummarizeFileInCDCHashes(host, localPath, wantsChunks, keepData)
+			panicOn(err)
+			// 14.335789s
+		}
+
+		//localPrecis, wantsUpdate, err := ChunkFile(localPath)
 		// 2.5 sec.
 
 		vv("elap first SummarizeFileInCDCHashes = '%v'", time.Since(t0))
@@ -577,13 +585,19 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		localMap := getCryMap(wantsUpdate) // pre-index them for the update.
 
 		t2 := time.Now()
+
 		//goalPrecis, templateChunks, err := GetHashesOneByOne(rpc.Hostname, remotePath) // no data, just chunks. read data directly from file below.
 
-		// 2.4 sec.
-		goalPrecis, templateChunks, err := ChunkFile(remotePath)
+		var goalPrecis *FilePrecis
+		var templateChunks *Chunks
 
-		//goalPrecis, templateChunks, err := SummarizeFileInCDCHashes(host, remotePath, wantsChunks, keepData)
-		// templateChunks done after 11.1s, or 13.34s, so long!
+		if parallel {
+			goalPrecis, templateChunks, err = ChunkFile(remotePath)
+			// 2.4 sec.
+		} else {
+			goalPrecis, templateChunks, err = SummarizeFileInCDCHashes(host, remotePath, wantsChunks, keepData)
+			// 11.1s, or 13.34s, so long!
+		}
 
 		vv("templateChunks done after %v", time.Since(t2))
 
@@ -630,7 +644,8 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 				bytesFromDisk += amt
 			}
 		}
-		vv("bytesFromDisk = %v bytes, used from original file. elap = %v", bytesFromDisk, time.Since(t4))
+		// 75_740 bytes with traditional single threaded chunking.
+		vv("bytesFromDisk = %v bytes, deltas from remote template file (want this to be as small as possible). elap = %v", bytesFromDisk, time.Since(t4))
 
 		plan := oneByteMarkedPlan
 		// see the
