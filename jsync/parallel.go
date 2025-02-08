@@ -350,6 +350,9 @@ func ChunkFile2(
 				}
 			}
 			if !foundOverlap {
+				//   Line 574: - overlap not found. this should be impossible b/c we go back 2 * max chunk size into the previous segment. i = 15; lasti = 6813
+				showEachSegment(i-1, wchunks[i-1])
+				showEachSegment(i, wchunks[i])
 				panic(fmt.Sprintf("overlap not found. this should be impossible b/c we go back 2 * max chunk size into the previous segment. i = %v; lasti = %v", i, lasti))
 			}
 			//chunks0.Chunks = append(chunks0.Chunks, c...)
