@@ -95,7 +95,7 @@ func ChunkFile2(
 
 	// segment is the size in bytes that one goroutine
 	// reads from disk and hashes.
-	segment := int(1 << 19) // 512KB by default.
+	segment := int(1 << 26) // 1<<19 => 512KB
 	if parallelBits != 0 {
 		segment = 1 << parallelBits
 	}

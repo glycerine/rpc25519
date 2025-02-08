@@ -614,6 +614,7 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		bs := NewBlobStore() // make persistent state, at some point.
 		oneByteMarkedPlan := bs.GetPlanToUpdateFromGoal(wantsUpdate, templateChunks, dropPlanData, usePlaceHolders)
 		// 360ms. plan.DataChunkCount 2 out of 664047; DataPresent() = 75_740 bytes
+		// paralle: 27486 count, arg.
 		vv("elap to GetPlanToUpdateFromGoal = '%v'; plan.DataChunkCount()= %v out of %v;  oneByteMarkedPlan.DataPresent() = %v bytes", time.Since(t3), oneByteMarkedPlan.DataChunkCount(), len(oneByteMarkedPlan.Chunks), oneByteMarkedPlan.DataPresent())
 
 		// get rid of the 1 byte place holders; fill in
@@ -646,6 +647,10 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		}
 		//      75_740 bytes with traditional single threaded chunking.
 		// 325_033_867 with parallel, initially. arg!
+		// 325_033_867 with min 1 byte chunk; no change. (4.7% of orig 6.7GB)
+		//  14_264_136 bytes with 1<<24 or 16MB segments (0.2% of orig)
+		//   3_964_395 bytes with 1<<26 or 64MB segments per goro. (0.04% of orig)
+		//  because each segment the first and last is messed up, of course.
 		vv("bytesFromDisk = %v bytes, deltas from remote template file (want this to be as small as possible). elap = %v", bytesFromDisk, time.Since(t4))
 
 		plan := oneByteMarkedPlan
