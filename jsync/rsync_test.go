@@ -558,26 +558,25 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 
 		t0 := time.Now()
 
-		wantsChunks := true
-		keepData := false
+		//wantsChunks := true
+		//keepData := false
 
-		parallel := false
+		parallel := true
 
 		var localPrecis *FilePrecis
 		var wantsUpdate *Chunks
 
 		// taker does
 		if parallel {
-			localPrecis, wantsUpdate, err = GetHashesOneByOne(host, localPath)
+			localPrecis, wantsUpdate, err = ChunkFile(localPath)
 			panicOn(err)
+			// 2.5 sec.
 		} else {
-			localPrecis, wantsUpdate, err = SummarizeFileInCDCHashes(host, localPath, wantsChunks, keepData)
+			localPrecis, wantsUpdate, err = GetHashesOneByOne(host, localPath)
+			//localPrecis, wantsUpdate, err = SummarizeFileInCDCHashes(host, localPath, wantsChunks, keepData)
 			panicOn(err)
 			// 14.335789s
 		}
-
-		//localPrecis, wantsUpdate, err := ChunkFile(localPath)
-		// 2.5 sec.
 
 		vv("elap first SummarizeFileInCDCHashes = '%v'", time.Since(t0))
 		_ = localPrecis
@@ -595,7 +594,8 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 			goalPrecis, templateChunks, err = ChunkFile(remotePath)
 			// 2.4 sec.
 		} else {
-			goalPrecis, templateChunks, err = SummarizeFileInCDCHashes(host, remotePath, wantsChunks, keepData)
+			goalPrecis, templateChunks, err = GetHashesOneByOne(host, remotePath)
+			//goalPrecis, templateChunks, err = SummarizeFileInCDCHashes(host, remotePath, wantsChunks, keepData)
 			// 11.1s, or 13.34s, so long!
 		}
 
@@ -644,7 +644,8 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 				bytesFromDisk += amt
 			}
 		}
-		// 75_740 bytes with traditional single threaded chunking.
+		//      75_740 bytes with traditional single threaded chunking.
+		// 325_033_867 with parallel, initially. arg!
 		vv("bytesFromDisk = %v bytes, deltas from remote template file (want this to be as small as possible). elap = %v", bytesFromDisk, time.Since(t4))
 
 		plan := oneByteMarkedPlan
