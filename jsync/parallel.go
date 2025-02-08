@@ -284,15 +284,21 @@ func ChunkFile2(
 					dataoff += cut
 				}
 				if pre == 0 {
-					// pre and seg are the same.
-					// do this?
-					job.segChunks = job.preChunks
-					job.idxSeg = job.idxPre
+					// no pre (as on first), so the
+					// above wrote into segChunks and idxSeg.
+					job.preChunks = job.segChunks
+					job.idxPre = job.idxSeg
 				} else {
 					// also do seg aligned as a backup plan.
 					// buf already has the data, just skip pre.
 					data = buf[worker][pre:lenseg]
 					dataoff = job.beg
+					if lenseg-pre != job.endx-job.beg {
+						vv("dataoff = %v; lenseg=%v; pre=%v; "+
+							"job.endx=%v; job.beg=%v",
+							dataoff, lenseg, pre, job.endx, job.beg)
+						panic("something is off")
+					}
 					for j := 0; len(data) > 0; j++ {
 						cut := cdc.NextCut(data)
 						addChunk(data[:cut], dataoff, false)
@@ -346,20 +352,21 @@ func ChunkFile2(
 	if len(wchunks) == 1 {
 		chunks0.Chunks = append(chunks0.Chunks, wchunks[0]...)
 	} else {
+		i := 0
 		var prevjob, curjob *job
 
 		lasti := len(wchunks) - 1
-		for i, cs := range wchunks {
+		for i, curjob = range jobs {
 			if i == 0 {
 				continue
 			}
 			// INVAR: i > 0
 			prevjob = jobs[i-1]
-			curjob = jobs[i]
+			//curjob = jobs[i]
 
 			// find the first overlap in curjob with prevjob
 			foundOverlap := false
-			for j, c := range cs {
+			for j, c := range curjob.preChunks {
 				w, ok := prevjob.idxPre[c.Cry]
 				if ok {
 					foundOverlap = true
@@ -380,8 +387,17 @@ func ChunkFile2(
 			}
 			if !foundOverlap {
 				//   Line 574: - overlap not found. this should be impossible b/c we go back 2 * max chunk size into the previous segment. i = 15; lasti = 6813
-				showEachSegment(i-1, wchunks[i-1])
-				showEachSegment(i, wchunks[i])
+
+				fmt.Printf("preChunks prevjob at %v:\n", i-1)
+				showEachSegment(i-1, prevjob.preChunks)
+				fmt.Printf("preChunks curjob at %v:\n", i)
+				showEachSegment(i, curjob.preChunks)
+
+				//fmt.Printf("segChunks prevjob:\n")
+				//showEachSegment(i-1, prevjob.segChunks)
+				//fmt.Printf("segChunks curjob:\n")
+				//showEachSegment(i, curjob.segChunks)
+
 				fmt.Printf("overlap not found. this should be impossible maybe?? b/c we go back 2 * max chunk size into the previous segment. i = %v; lasti = %v\n", i, lasti)
 				// so we just use the hard boundary of prev pre + cur seg
 
