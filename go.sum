@@ -40,6 +40,8 @@ github.com/glycerine/parallelwalk v0.3.0 h1:xZfWKYkoW/P9C5Mwtjmi1f1qblJzdHcw8W2r
 github.com/glycerine/parallelwalk v0.3.0/go.mod h1:FLWmYJpTF7DeatAfHWT0wu1idKfNd1sfPX9V+S7j0L4=
 github.com/glycerine/parallelwalk v0.3.1 h1:wZNqvQfii3oxe8GNkRAbi55LxRIn5rN4ybtnS9mHg5M=
 github.com/glycerine/parallelwalk v0.3.1/go.mod h1:FLWmYJpTF7DeatAfHWT0wu1idKfNd1sfPX9V+S7j0L4=
+github.com/glycerine/restic-chunker-mod v0.5.0 h1:6OA/O0rEHvENyTlzYJ2/E7UNQBu3+8NY3Du2hxVp5Gw=
+github.com/glycerine/restic-chunker-mod v0.5.0/go.mod h1:ME0iI4hyOXTHSzS1AunwmanKVWnAt8+JwBl7Zs0YdwU=
 github.com/go-logr/logr v1.2.4 h1:g01GSCwiDw2xSZfjJ2/T9M+S6pFdcNtFYsp+Y43HYDQ=
 github.com/go-logr/logr v1.2.4/go.mod h1:jdQByPbusPIv2/zmleS9BjJVeZ6kBagPoEUsqbVz/1A=
 github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 h1:tfuBGBXKqDEevZMzYi5KSi8KkcZtzBcTgAUUtapy0OI=
