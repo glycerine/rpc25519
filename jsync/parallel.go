@@ -31,6 +31,10 @@ type job struct {
 
 	// Chunk.Cry is key
 	idx map[string]*chunkPos
+
+	// how many did we trim off the beginning,
+	// so we index the end correctly.
+	trimmed int
 }
 
 type chunkPos struct {
@@ -318,7 +322,7 @@ func ChunkFile2(
 			}
 			// INVAR: i > 0
 			prevjob := jobs[i-1]
-			//curjob := jobs[i]
+			curjob := jobs[i]
 
 			// find the first overlap in curjob with prevjob
 			foundOverlap := false
@@ -329,12 +333,13 @@ func ChunkFile2(
 					// join here w.pos : j
 					// we have to lazily only add the prev set now
 					// slice bounds out of range [:22] with capacity 20
-					chunks0.Chunks = append(chunks0.Chunks, wchunks[i-1][:w.pos]...)
+					chunks0.Chunks = append(chunks0.Chunks, wchunks[i-1][:(w.pos-prevjob.trimmed)]...)
 					// and truncate the (cur) sets beginning, and
 					// wait to add it til next time, when we can
 					// again remove the overlap at its tail.
 					// (unless we are on the lasti, see below).
 					wchunks[i] = wchunks[i][j:]
+					curjob.trimmed = j
 					vv("had to look through j = %v to find the overlap", j)
 
 					if i == lasti {
