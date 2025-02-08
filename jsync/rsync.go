@@ -1,6 +1,7 @@
 package jsync
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -14,7 +15,7 @@ import (
 
 	"github.com/glycerine/blake3"
 	//"github.com/glycerine/greenpack/msgp"
-	//rpc "github.com/glycerine/rpc25519"
+	rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/hash"
 	"github.com/glycerine/rpc25519/jcdc"
 )
@@ -1072,5 +1073,163 @@ func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 	if err != nil {
 		return nil, err
 	}
+	return
+}
+
+func UpdateLocalFileWithRemoteDiffs(
+	localPathToWrite string,
+	localPathToRead string,
+
+	// localMap: Cry -> chunk.
+	// Typically either these are the chunks
+	// from the local version of the path; but
+	// they could be from a larger data store
+	// like a Git repo or database.
+	localMap map[string]*Chunk,
+
+	remote *Chunks,
+
+	goalPrecis *FilePrecis, // set mode, modtime from.
+
+) (err error) {
+
+	if remote.FileSize == 0 {
+		vv("remote.FileSize == 0 => truncate to zero localPathToWrite='%v'", localPathToWrite)
+		return truncateFileToZero(localPathToWrite)
+	}
+
+	if len(remote.Chunks) == 0 {
+		panic(fmt.Sprintf("missing remote chunks for non-size-zero file '%v'", localPathToWrite))
+	}
+
+	// make sure we have a full plan, not just a partial diff.
+	if remote.FileSize != remote.Last().Endx {
+		panic("remote was not a full plan for every byte!")
+	}
+
+	// working buffer to read local file chunks into.
+	buf := make([]byte, rpc.UserMaxPayload+10_000)
+
+	//newvers := make([]byte, remote.FileSize)
+	var newversBufio *bufio.Writer
+	var newversFd *os.File
+
+	rnd := cryRandBytesBase64(17)
+	tmp := localPathToWrite + "_accept_plan_tmp_" + rnd
+
+	newversFd, err = os.Create(tmp)
+	panicOn(err)
+
+	vv("UpdateLocalFileWithRemoteDiffs created file tmp = '%v'", tmp)
+	newversBufio = bufio.NewWriterSize(newversFd, rpc.UserMaxPayload)
+
+	// remember to Flush and Close!
+	defer newversBufio.Flush() // must be first
+	defer newversFd.Close()
+
+	// prep local file too, for seeking to chunks.
+	var origVersFd *os.File
+
+	if localPathToRead == "" {
+		panic("localPathToRead must have been set!")
+	}
+	if fileExists(localPathToRead) {
+		origVersFd, err = os.Open(localPathToRead)
+		panicOn(err)
+		defer origVersFd.Close()
+	}
+
+	j := 0 // index to new version, how much we have written.
+
+	// compute the full file hash/checksum as we go
+	h := blake3.New(64, nil)
+
+	// from taker.go:399
+
+	// remote gives the plan of what to create
+	for _, chunk := range remote.Chunks {
+
+		if len(chunk.Data) == 0 {
+			// the data is local
+			lc, ok := localMap[chunk.Cry]
+			if !ok {
+				panic(fmt.Sprintf("rsync algo failed, "+
+					"the needed data is not "+
+					"available locally: '%v'; len(localMap)=%v",
+					chunk, len(localMap)))
+			}
+			// data is typically nil!
+			// localMap should have only hashes.
+			// so this is just getting an empty slice.
+			// Is this always true?
+			data := lc.Data
+			if origVersFd != nil {
+				////vv("read from original on disk, for chunk '%v'", chunk)
+				beg := int64(lc.Beg)
+				newOffset, err := origVersFd.Seek(beg, 0)
+				panicOn(err)
+				if newOffset != beg {
+					panic(fmt.Sprintf("huh? could not seek to %v in file '%v'", lc.Beg, localPathToRead))
+				}
+				data = buf[:lc.Len()]
+				_, err = io.ReadFull(origVersFd, data)
+				panicOn(err)
+			}
+
+			wb, err := newversBufio.Write(data)
+			panicOn(err)
+
+			j += wb
+			if wb != len(data) {
+				panic("short write?!?!")
+			}
+			// sanity check the local chunk as a precaution.
+			if wb != lc.Endx-lc.Beg {
+				panic(fmt.Sprintf("lc.Endx = %v, lc.Beg = %v, but "+
+					"lc.Data len = %v", lc.Endx, lc.Beg, wb))
+			} // panic: lc.Endx = 2992124, lc.Beg = 2914998, but lc.Data len = 0
+			h.Write(data) // update checksum
+		} else {
+			// INVAR: len(chunk.Data) > 0
+			wb, err := newversBufio.Write(chunk.Data)
+			panicOn(err)
+
+			j += wb
+			if wb != len(chunk.Data) {
+				panic("short write!?!!")
+			}
+			// sanity check the local chunk as a precaution.
+			if wb != chunk.Endx-chunk.Beg {
+				panic(fmt.Sprintf("lc.Endx = %v, lc.Beg = %v, but "+
+					"lc.Data len = %v", chunk.Endx, chunk.Beg, wb))
+			}
+			h.Write(chunk.Data)
+		}
+	} // end for chunk over chunks.Chunks
+
+	newversBufio.Flush() // must be before newversFd.Close()
+	newversFd.Close()
+
+	sum := hash.SumToString(h)
+	if sum != remote.FileCry {
+		err = fmt.Errorf("checksum mismatch error! reconstructed='%v'; expected='%v'; remote path = ''%v'", sum, remote.FileCry, remote.Path)
+		panic(err)
+		return err
+	}
+
+	err = os.Rename(tmp, localPathToWrite)
+	panicOn(err)
+
+	// restore mode, modtime
+	mode := goalPrecis.FileMode
+	if mode == 0 {
+		mode = 0600
+	}
+	err = os.Chmod(localPathToWrite, fs.FileMode(mode))
+	panicOn(err)
+
+	err = os.Chtimes(localPathToWrite, time.Time{}, goalPrecis.ModTime)
+	panicOn(err)
+
 	return
 }

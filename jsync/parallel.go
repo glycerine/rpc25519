@@ -56,10 +56,6 @@ func ChunkFile2(
 
 ) (precis *FilePrecis, chunks0 *Chunks, err0 error) {
 
-	chunks0 = &Chunks{
-		Path: path,
-	}
-
 	fd, err := os.OpenFile(path, os.O_RDONLY, 0)
 	if err != nil {
 		err0 = err
@@ -93,6 +89,9 @@ func ChunkFile2(
 		CDC_Config:  cdc.Config(),
 		HashName:    "blake3.33B",
 	}
+	chunks0 = NewChunks(path)
+	chunks0.FileSize = precis.FileSize
+	chunks0.FileCry = precis.FileCry
 
 	// segment is the size in bytes that one goroutine
 	// reads from disk and hashes.

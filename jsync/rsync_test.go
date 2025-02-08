@@ -507,6 +507,9 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		localPath := remotePath + ".local"
 		vv("adjust local to be like remote: localPath = '%v'", localPath)
 
+		// after update, leave final local in:
+		localPathFinal := remotePath + ".final"
+
 		// delete any old leftover test file from before.
 		os.Remove(localPath)
 
@@ -585,8 +588,8 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 
 		_ = goalPrecis
 
-		const dropPlanData = true // only send what they need.
-		const usePlaceHolders = false
+		const dropPlanData = true // ignored when usePlaceHolders is true.
+		const usePlaceHolders = true
 
 		// new: placeholderPlan has a single data byte in Chunk.Data
 		// to flag us to read the actual data from disk and then
@@ -594,26 +597,59 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 
 		t3 := time.Now()
 		bs := NewBlobStore() // make persistent state, at some point.
-		plan := bs.GetPlanToUpdateFromGoal(wantsUpdate, templateChunks, dropPlanData, usePlaceHolders)
+		oneByteMarkedPlan := bs.GetPlanToUpdateFromGoal(wantsUpdate, templateChunks, dropPlanData, usePlaceHolders)
 		// 360ms. plan.DataChunkCount 2 out of 664047; DataPresent() = 75_740 bytes
-		vv("elap to GetPlanToUpdateFromGoal = '%v'; plan.DataChunkCount()= %v out of %v;  plan.DataPresent() = %v bytes", time.Since(t3), plan.DataChunkCount(), len(plan.Chunks), plan.DataPresent())
+		vv("elap to GetPlanToUpdateFromGoal = '%v'; plan.DataChunkCount()= %v out of %v;  oneByteMarkedPlan.DataPresent() = %v bytes", time.Since(t3), oneByteMarkedPlan.DataChunkCount(), len(oneByteMarkedPlan.Chunks), oneByteMarkedPlan.DataPresent())
 
-		// see/eventually test the
+		// get rid of the 1 byte place holders; fill in
+		// with live data
+
+		// from giver.go:801
+
+		bytesFromDisk := 0
+		t4 := time.Now()
+		fd, err := os.Open(remotePath)
+		panicOn(err)
+		n := len(oneByteMarkedPlan.Chunks)
+		for i := 0; i < n; i++ {
+			//if i%10000 == 0 {
+			//vv("on chunk %v of of %v", i, n)
+			//}
+			next := oneByteMarkedPlan.Chunks[i]
+			if len(next.Data) > 0 {
+				// we have our 1 byte flag.
+				// need to read it from file
+				_, err := fd.Seek(int64(next.Beg), 0)
+				panicOn(err)
+
+				amt := next.Endx - next.Beg
+				next.Data = make([]byte, amt)
+				_, err = io.ReadFull(fd, next.Data)
+				panicOn(err)
+				bytesFromDisk += amt
+			}
+		}
+		vv("bytesFromDisk = %v bytes, used from original file. elap = %v", bytesFromDisk, time.Since(t4))
+
+		plan := oneByteMarkedPlan
+		// see the
 		// case OpRsync_HeavyDiffChunksEnclosed
 		// handling in taker.go
 
-		// todo: for more realize, read the local
-		// chunks that are the same from disk instead of from memory.
-		// likely not our initial bottleneck, so leave until the
-		// chunking is fast.
+		t5 := time.Now()
+		//err = UpdateLocalWithRemoteDiffs(localPath, localMap, plan, goalPrecis)
 
-		t4 := time.Now()
-		err = UpdateLocalWithRemoteDiffs(localPath, localMap, plan, goalPrecis)
+		err = UpdateLocalFileWithRemoteDiffs(localPathFinal, localPath, localMap, plan, goalPrecis)
 		panicOn(err)
-		// 7.94s
-		vv("elap to UpdateLocalWithRemoteDiffs = '%v'", time.Since(t4))
 
-		difflen := compareFilesDiffLen(localPath, remotePath)
+		//func UpdateLocalFileWithRemoteDiffs(
+		//	localPathToWrite string,
+		//	localPathToRead string,
+
+		// 7.94s
+		vv("elap to UpdateLocalWithRemoteDiffs = '%v'", time.Since(t5))
+
+		difflen := compareFilesDiffLen(localPathFinal, remotePath)
 		cv.So(difflen, cv.ShouldEqual, 0)
 	})
 }
