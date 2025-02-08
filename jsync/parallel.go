@@ -30,11 +30,15 @@ type job struct {
 	isPenult bool
 
 	// Chunk.Cry is key
-	idx map[string]*chunkPos
+	idxPre map[string]*chunkPos
+	idxSeg map[string]*chunkPos
 
 	// how many did we trim off the beginning,
 	// so we index the end correctly.
 	trimmed int
+
+	preChunks []*Chunk
+	segChunks []*Chunk
 }
 
 type chunkPos struct {
@@ -143,7 +147,7 @@ func ChunkFile2(
 	// chunks, at the cost of re-doing the chunking
 	// on a smaller amount (2 * max size) overlapping
 	// portion.
-	preRead := 2 * int(Default_CDC_Config.MaxSize)
+	preRead := 3 * int(Default_CDC_Config.MaxSize)
 
 	if parallelBits != 0 {
 		segment = 1 << parallelBits
@@ -205,8 +209,8 @@ func ChunkFile2(
 			}()
 
 			var job *job
-			var chunks []*Chunk
-			addChunk := func(slc []byte, beg int) {
+			//var chunks []*Chunk
+			addChunk := func(slc []byte, beg int, isPre bool) {
 				hsh := hash.Blake3OfBytesString(slc)
 				//fmt.Printf("[%03d]GetHashes hsh = %v\n", k, hsh)
 				chunk := &Chunk{
@@ -214,11 +218,20 @@ func ChunkFile2(
 					Endx: beg + len(slc),
 					Cry:  hsh,
 				}
-				job.idx[hsh] = &chunkPos{
+				cp := &chunkPos{
 					chunk: chunk,
-					pos:   len(chunks),
+					//pos:   len(chunks),
 				}
-				chunks = append(chunks, chunk)
+				if isPre {
+					cp.pos = len(job.preChunks)
+					job.preChunks = append(job.preChunks, chunk)
+					job.idxPre[hsh] = cp
+				} else {
+					cp.pos = len(job.segChunks)
+					job.segChunks = append(job.segChunks, chunk)
+					job.idxSeg[hsh] = cp
+				}
+				//chunks = append(chunks, chunk)
 			}
 
 			f, err := os.OpenFile(path, os.O_RDONLY, 0)
@@ -234,7 +247,8 @@ func ChunkFile2(
 					}
 				}
 				// compute a quick lookup index for the segment too
-				job.idx = make(map[string]*chunkPos)
+				job.idxPre = make(map[string]*chunkPos)
+				job.idxSeg = make(map[string]*chunkPos)
 
 				pre := preRead
 				if job.beg >= preRead {
@@ -260,15 +274,33 @@ func ChunkFile2(
 				//vv("worker %v  has job.beg = %v, pre = %v, starting dataoff = job.beg - pre = %v", worker, job.beg, pre, job.beg-pre)
 				data := buf[worker][:lenseg]
 
-				chunks = wchunks[job.nodeK]
+				// use job.preChunks or job.segChunks now, instead of wchunks.
+				//chunks = wchunks[job.nodeK]
 				//now we take any sized cut
 				for j := 0; len(data) > 0; j++ {
 					cut := cdc.NextCut(data)
-					addChunk(data[:cut], dataoff)
+					addChunk(data[:cut], dataoff, pre != 0)
 					data = data[cut:]
 					dataoff += cut
 				}
-				wchunks[job.nodeK] = chunks
+				if pre == 0 {
+					// pre and seg are the same.
+					// do this?
+					job.segChunks = job.preChunks
+					job.idxSeg = job.idxPre
+				} else {
+					// also do seg aligned as a backup plan.
+					// buf already has the data, just skip pre.
+					data = buf[worker][pre:lenseg]
+					dataoff = job.beg
+					for j := 0; len(data) > 0; j++ {
+						cut := cdc.NextCut(data)
+						addChunk(data[:cut], dataoff, false)
+						data = data[cut:]
+						dataoff += cut
+					}
+				}
+				//wchunks[job.nodeK] = chunks
 				jobs[job.nodeK] = job
 			}
 
@@ -310,42 +342,39 @@ func ChunkFile2(
 		}
 	*/
 
+	// todo: use job.preChunks or job.segChunks now, instead of wchunks.
 	if len(wchunks) == 1 {
 		chunks0.Chunks = append(chunks0.Chunks, wchunks[0]...)
 	} else {
+		var prevjob, curjob *job
 
 		lasti := len(wchunks) - 1
-	alldone:
 		for i, cs := range wchunks {
 			if i == 0 {
 				continue
 			}
 			// INVAR: i > 0
-			prevjob := jobs[i-1]
-			curjob := jobs[i]
+			prevjob = jobs[i-1]
+			curjob = jobs[i]
 
 			// find the first overlap in curjob with prevjob
 			foundOverlap := false
 			for j, c := range cs {
-				w, ok := prevjob.idx[c.Cry]
+				w, ok := prevjob.idxPre[c.Cry]
 				if ok {
 					foundOverlap = true
 					// join here w.pos : j
 					// we have to lazily only add the prev set now
 					// slice bounds out of range [:22] with capacity 20
-					chunks0.Chunks = append(chunks0.Chunks, wchunks[i-1][:(w.pos-prevjob.trimmed)]...)
+					chunks0.Chunks = append(chunks0.Chunks, prevjob.preChunks[:(w.pos+1-prevjob.trimmed)]...)
 					// and truncate the (cur) sets beginning, and
 					// wait to add it til next time, when we can
 					// again remove the overlap at its tail.
 					// (unless we are on the lasti, see below).
-					wchunks[i] = wchunks[i][j:]
+					curjob.preChunks = curjob.preChunks[j:]
+					//wchunks[i] = wchunks[i][j:]
 					curjob.trimmed = j
 					vv("had to look through j = %v to find the overlap", j)
-
-					if i == lasti {
-						chunks0.Chunks = append(chunks0.Chunks, wchunks[i]...)
-						break alldone
-					}
 					break
 				}
 			}
@@ -353,10 +382,22 @@ func ChunkFile2(
 				//   Line 574: - overlap not found. this should be impossible b/c we go back 2 * max chunk size into the previous segment. i = 15; lasti = 6813
 				showEachSegment(i-1, wchunks[i-1])
 				showEachSegment(i, wchunks[i])
-				panic(fmt.Sprintf("overlap not found. this should be impossible b/c we go back 2 * max chunk size into the previous segment. i = %v; lasti = %v", i, lasti))
+				fmt.Printf("overlap not found. this should be impossible maybe?? b/c we go back 2 * max chunk size into the previous segment. i = %v; lasti = %v\n", i, lasti)
+				// so we just use the hard boundary of prev pre + cur seg
+
+				chunks0.Chunks = append(chunks0.Chunks, prevjob.preChunks...)
+				// replace the default pre with the hard-boundary seg chunked.
+				curjob.preChunks = curjob.segChunks
+				curjob.idxPre = curjob.idxSeg
 			}
+
+			//chunks0.Chunks = append(chunks0.Chunks, curjob.preChunks...)
+
 			//chunks0.Chunks = append(chunks0.Chunks, c...)
 		}
+		// since we are lazily appending, have to append the last too.
+		chunks0.Chunks = append(chunks0.Chunks, curjob.preChunks...)
+
 	}
 	return
 }
