@@ -253,7 +253,7 @@ func ChunkFile2(
 				// offset where data starts in the original file;
 				// to pass to addChunk
 				dataoff := job.beg - pre
-				vv("worker %v  has job.beg = %v, pre = %v, starting dataoff = job.beg - pre = %v", worker, job.beg, pre, job.beg-pre)
+				//vv("worker %v  has job.beg = %v, pre = %v, starting dataoff = job.beg - pre = %v", worker, job.beg, pre, job.beg-pre)
 				data := buf[worker][:lenseg]
 
 				chunks = wchunks[job.nodeK]
@@ -328,6 +328,7 @@ func ChunkFile2(
 					foundOverlap = true
 					// join here w.pos : j
 					// we have to lazily only add the prev set now
+					// slice bounds out of range [:22] with capacity 20
 					chunks0.Chunks = append(chunks0.Chunks, wchunks[i-1][:w.pos]...)
 					// and truncate the (cur) sets beginning, and
 					// wait to add it til next time, when we can
