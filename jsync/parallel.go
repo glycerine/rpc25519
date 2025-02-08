@@ -336,11 +336,30 @@ func ChunkFile2(
 				closest2firstcut := sort.Search(len(oblin), func(j int) bool {
 					return oblin[j].Endx >= firstcut
 				})
-				vv("no bridge \n[lastcut=%v, firstcut=%v) \n closest2lastcut = [_%v_:%v) \n closest2firstcut = [%v:_%v_)", lastcut, firstcut,
+				vv(`no bridge
+[lastcut=%v, firstcut=%v)
+
+ closest2lastcut-1  = [_%v_:%v)
+ closest2lastcut    = [_%v_:%v)
+ closest2lastcut+1  = [_%v_:%v)
+
+ closest2firstcut-1 = [%v:_%v_)
+ closest2firstcut   = [%v:_%v_)
+ closest2firstcut+1 = [%v:_%v_)
+`, lastcut, firstcut,
+					oblin[closest2lastcut-1].Beg,
+					oblin[closest2lastcut-1].Endx,
 					oblin[closest2lastcut].Beg,
 					oblin[closest2lastcut].Endx,
+					oblin[closest2lastcut+1].Beg,
+					oblin[closest2lastcut+1].Endx,
+
+					oblin[closest2firstcut-1].Beg,
+					oblin[closest2firstcut-1].Endx,
 					oblin[closest2firstcut].Beg,
 					oblin[closest2firstcut].Endx,
+					oblin[closest2firstcut+1].Beg,
+					oblin[closest2firstcut+1].Endx,
 				)
 			}
 		}
