@@ -66,6 +66,7 @@ func ChunkFile2(
 
 ) (precis *FilePrecis, chunks0 *Chunks, err0 error) {
 
+	t0 := time.Now()
 	fd, err := os.OpenFile(path, os.O_RDONLY, 0)
 	if err != nil {
 		err0 = err
@@ -433,6 +434,14 @@ func ChunkFile2(
 		if len(chunks0.Chunks) > 0 {
 			if len(job.chunks) > 0 {
 				if job.chunks[0].Beg != chunks0.Chunks[len(chunks0.Chunks)-1].Endx {
+					vv("elap = '%v'", time.Since(t0))
+
+					vv("chunks0.Chunks[last] = ")
+					showEachSegment(-1, chunks0.Chunks[len(chunks0.Chunks)-1:])
+
+					vv("job.chunks[:1] = ")
+					showEachSegment(-1, job.chunks[:1])
+
 					panic(fmt.Sprintf("j=%v; bad append! job.chunks[0].Beg = %v != chunks0.Chunks[len(chunks0.Chunks)-1].Endx = %v", j, job.chunks[0].Beg, chunks0.Chunks[len(chunks0.Chunks)-1].Endx))
 				}
 			}
