@@ -229,12 +229,6 @@ func ChunkFile2(
 				vv("on last job: job.beg = %v; job.endx = %v; span =%v",
 					job.beg, job.endx, job.endx-job.beg)
 			}
-			if lenseg > len(buf[worker]) {
-				// since we cross into the next segment on
-				// the hashing pass, we may need more memory.
-				buf[worker] = append(buf[worker], make([]byte, lenseg-len(buf[worker]))...)
-				vv("grew buf[worker]")
-			}
 
 			nr, err := io.ReadFull(f, buf[worker][:lenseg])
 			_ = nr
@@ -258,10 +252,13 @@ func ChunkFile2(
 
 			} else {
 				vv("gen hashes")
-				prev := 0
-				dataoff := job.beg
+				dataoff := job.cuts[0]
+				prev := dataoff - job.beg
 				for _, cut := range job.cuts {
 					d := cut - dataoff
+					if d == 0 {
+						continue // skip first truncated.
+					}
 					slc := data[prev : prev+d]
 					chunk := &Chunk{
 						Beg:  dataoff,
@@ -328,10 +325,12 @@ func ChunkFile2(
 				if prevjob != nil {
 					// tell prevjob where their last cut ends.
 					//prevjob.cuts = append(prevjob.cuts, cut)
+					vv("adjust segment endx: %v -> %v  (delta %v)", prevjob.endx, cut, cut-prevjob.endx)
 					prevjob.endx = cut
 					prevjob = nil
+				} else {
+					keep = append(keep, cut)
 				}
-				keep = append(keep, cut)
 				gkeep = append(gkeep, cut)
 				prev = cut
 			}
@@ -339,12 +338,25 @@ func ChunkFile2(
 		curjob.cuts = keep
 		prevjob = curjob
 	}
-	vv("gkeep = '%#v'", gkeep)
-	for i := range gkeep {
-		if i == 0 {
-			continue
+	//vv("gkeep = '%#v'", gkeep)
+	if false {
+		for i := range gkeep {
+			if i == 0 {
+				continue
+			}
+			fmt.Printf("d = %v\n", gkeep[i]-gkeep[i-1])
 		}
-		fmt.Printf("d = %v\n", gkeep[i]-gkeep[i-1])
+	}
+
+	if true {
+		// verify that all cuts are inside their segment data
+		for _, curjob := range jobs {
+			for _, cut := range curjob.cuts {
+				if cut > curjob.endx {
+					panic("cut > curjob.endx, this is a problem")
+				}
+			}
+		}
 	}
 
 	// re-open work, it was closed.
@@ -367,7 +379,15 @@ func ChunkFile2(
 	// INVAR: nNodes == len(wchunks).
 
 	for j, job := range jobs {
+		_ = j
 		showEachSegment(j, job.chunks)
+
+		if len(chunks0.Chunks) > 0 {
+			if job.chunks[0].Beg != chunks0.Chunks[len(chunks0.Chunks)-1].Endx {
+				panic(fmt.Sprintf("j=%v; bad append! job.chunks[0].Beg = %v != chunks0.Chunks[len(chunks0.Chunks)-1].Endx = %v", j, job.chunks[0].Beg, chunks0.Chunks[len(chunks0.Chunks)-1].Endx))
+			}
+		}
+
 		chunks0.Chunks = append(chunks0.Chunks, job.chunks...)
 	}
 	return
