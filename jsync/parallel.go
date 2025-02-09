@@ -379,15 +379,22 @@ func ChunkFile2(
 					//fmt.Printf("and here is curjob.preChunks: to be [%v:]\n", j+1)
 					//showEachSegment(-1, curjob.preChunks)
 
+					if w.pos-prevjob.trimmed < 0 {
+						vv("i = %v; at j = %v; appending: (len prevjob.preChunks = %v; w.pos=%v; prevjob.trimmed = %v); about to crash on prevjob = %p; trying to do prevjob.preChunks[:(w.pos-prevjob.trimmed=%v)]\n", i, j, len(prevjob.preChunks), w.pos, prevjob.trimmed, prevjob, w.pos-prevjob.trimmed)
+					}
 					chunks0.Chunks = append(chunks0.Chunks, prevjob.preChunks[:(w.pos-prevjob.trimmed)]...)
-					// and truncate the (cur) sets beginning, and
+					// and truncate the cur's beginning, and
 					// wait to add it til next time, when we can
 					// again remove the overlap at its tail.
 					// (unless we are on the lasti, see below).
+					delme := curjob.preChunks[:j]
 					curjob.preChunks = curjob.preChunks[j:]
 					//wchunks[i] = wchunks[i][j:]
 					curjob.trimmed = j
-					//vv("had to look through j = %v to find the overlap", j)
+					for _, del := range delme {
+						delete(curjob.idxPre, del.Cry)
+					}
+					vv("set curjob.trimmed = j = %v; at i = %v", j, i)
 
 					break
 				}
@@ -400,13 +407,14 @@ func ChunkFile2(
 				//fmt.Printf("preChunks curjob at %v:\n", i)
 				//showEachSegment(i, curjob.preChunks)
 
-				fmt.Printf("overlap not found. this should be impossible maybe?? b/c we go back 2 * max chunk size into the previous segment. i = %v; lasti = %v\n", i, lasti)
+				vv("overlap not found. this should be impossible maybe?? b/c we go back 2 * max chunk size into the previous segment. i = %v; lasti = %v\n", i, lasti)
 				// so we just use the hard boundary of prev pre + cur seg
 
 				chunks0.Chunks = append(chunks0.Chunks, prevjob.preChunks...)
-				vv("replace the default pre with the hard-boundary seg chunked.")
+				vv("replace the default pre with the hard-boundary seg chunked, on curjob = %p; i = %v", curjob, i)
 				curjob.preChunks = curjob.segChunks
 				curjob.idxPre = curjob.idxSeg
+				curjob.trimmed = 0
 			}
 		}
 		// since we are lazily appending, have to append the last too.
