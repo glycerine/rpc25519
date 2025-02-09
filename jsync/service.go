@@ -72,9 +72,9 @@ var Default_CDC_Config = &jcdc.CDC_Config{
 */
 
 var Default_CDC_Config = &jcdc.CDC_Config{
-	MinSize:    64,
-	TargetSize: 8 * 1024,
-	MaxSize:    1024 * 1024,
+	MinSize:    16 * 1024,
+	TargetSize: 64 * 1024,
+	MaxSize:    128 * 1024,
 }
 
 // min_size = 0.69*tgt_size
