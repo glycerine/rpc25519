@@ -29,13 +29,17 @@ type job struct {
 	isLast   bool
 	isPenult bool
 
-	// Chunk.Cry is key
-	idxPre map[string]*chunkPos
-	idxSeg map[string]*chunkPos
+	// Chunk.Cry is the key
+	//idxPre map[string]*chunkPos
+	//idxSeg map[string]*chunkPos
+
+	// file offset is the key
+	offPre map[int]*chunkPos
+	offSeg map[int]*chunkPos
 
 	// how many did we trim off the beginning,
 	// so we index the end correctly.
-	trimmed int
+	begTrimmed int
 
 	preChunks []*Chunk
 	segChunks []*Chunk
@@ -225,11 +229,13 @@ func ChunkFile2(
 				if isPre {
 					cp.pos = len(job.preChunks)
 					job.preChunks = append(job.preChunks, chunk)
-					job.idxPre[hsh] = cp
+					//job.idxPre[hsh] = cp
+					job.offPre[beg] = cp
 				} else {
 					cp.pos = len(job.segChunks)
 					job.segChunks = append(job.segChunks, chunk)
-					job.idxSeg[hsh] = cp
+					//job.idxSeg[hsh] = cp
+					job.offSeg[beg] = cp
 				}
 				//chunks = append(chunks, chunk)
 			}
@@ -247,8 +253,11 @@ func ChunkFile2(
 					}
 				}
 				// compute a quick lookup index for the segment too
-				job.idxPre = make(map[string]*chunkPos)
-				job.idxSeg = make(map[string]*chunkPos)
+				//job.idxPre = make(map[string]*chunkPos)
+				//job.idxSeg = make(map[string]*chunkPos)
+
+				job.offPre = make(map[int]*chunkPos)
+				job.offSeg = make(map[int]*chunkPos)
 
 				pre := preRead
 				if job.beg >= preRead {
@@ -287,7 +296,8 @@ func ChunkFile2(
 					// no pre (as on first), so the
 					// above wrote into segChunks and idxSeg.
 					job.preChunks = job.segChunks
-					job.idxPre = job.idxSeg
+					//job.idxPre = job.idxSeg
+					job.offPre = job.offSeg
 				} else {
 					// also do seg aligned as a backup plan.
 					// buf already has the data, just skip pre.
@@ -364,25 +374,43 @@ func ChunkFile2(
 			prevjob = jobs[i-1]
 			//curjob = jobs[i]
 
-			// find the first overlap in curjob with prevjob
+			// find the first overlap in curjob with prevjob.
+			// Note that the same content Cry from the tail can be found
+			// many times in the curjob... repeated 0s for instance.
 			foundOverlap := false
 			for j, c := range curjob.preChunks {
-				w, ok := prevjob.idxPre[c.Cry]
+				//w, ok := prevjob.idxPre[c.Cry]
+				w, ok := prevjob.offPre[c.Beg]
 				if ok {
 					foundOverlap = true
 					// join here w.pos+1 : j+1
 					// we have to lazily only add the prev set now
 
-					//fmt.Printf("at j = %v; appending: (len prevjob.preChunks = %v; w.pos=%v; prevjob.trimmed = %v) \n", j, len(prevjob.preChunks), w.pos, prevjob.trimmed)
-					//fmt.Printf("appending prevjob.preChunks[:(w.pos+1-prevjob.trimmed)]:\n")
-					//showEachSegment(-1, prevjob.preChunks[:(w.pos+1-prevjob.trimmed)])
+					//fmt.Printf("at j = %v; appending: (len prevjob.preChunks = %v; w.pos=%v; prevjob.begTrimmed = %v) \n", j, len(prevjob.preChunks), w.pos, prevjob.begTrimmed)
+					//fmt.Printf("appending prevjob.preChunks[:(w.pos+1-prevjob.begTrimmed)]:\n")
+					//showEachSegment(-1, prevjob.preChunks[:(w.pos+1-prevjob.begTrimmed)])
 					//fmt.Printf("and here is curjob.preChunks: to be [%v:]\n", j+1)
 					//showEachSegment(-1, curjob.preChunks)
 
-					if w.pos-prevjob.trimmed < 0 {
-						vv("i = %v; at j = %v; appending: (len prevjob.preChunks = %v; w.pos=%v; prevjob.trimmed = %v); about to crash on prevjob = %p; trying to do prevjob.preChunks[:(w.pos-prevjob.trimmed=%v)]\n", i, j, len(prevjob.preChunks), w.pos, prevjob.trimmed, prevjob, w.pos-prevjob.trimmed)
+					if w.pos-prevjob.begTrimmed < 0 {
+						vv("i = %v; at j = %v; appending: (len prevjob.preChunks = %v; w.pos=%v; prevjob.begTrimmed = %v); about to crash on prevjob = %p; trying to do prevjob.preChunks[:(w.pos-prevjob.begTrimmed=%v)]\n", i, j, len(prevjob.preChunks), w.pos, prevjob.begTrimmed, prevjob, w.pos-prevjob.begTrimmed)
 					}
-					chunks0.Chunks = append(chunks0.Chunks, prevjob.preChunks[:(w.pos-prevjob.trimmed)]...)
+
+					if len(chunks0.Chunks) > 0 {
+						if prevjob.preChunks[0].Beg != chunks0.Chunks[len(chunks0.Chunks)-1].Endx {
+
+							fmt.Printf("i=%v; chunks0.Chunks ends with:\n", i)
+							showEachSegment(-1, chunks0.Chunks[len(chunks0.Chunks)-1:])
+							fmt.Printf("i=%v; preChunks prevjob.preChunks[:10]:\n", i)
+							showEachSegment(-1, prevjob.preChunks[:10])
+
+							//   Line 575: - bad append early! prevjob.preChunks[0].Beg = 851968 != chunks0.Chunks[len(chunks0.Chunks)-1].Endx = 983040
+							panic(fmt.Sprintf("i = %v; bad append early! prevjob.preChunks[0].Beg = %v != chunks0.Chunks[len(chunks0.Chunks)-1].Endx = %v;  prevjob.begTrimmed = %v", i, prevjob.preChunks[0].Beg, chunks0.Chunks[len(chunks0.Chunks)-1].Endx, prevjob.begTrimmed))
+						}
+					}
+					appendme := prevjob.preChunks[:(w.pos - prevjob.begTrimmed)]
+					chunks0.Chunks = append(chunks0.Chunks, appendme...)
+					vv("on i = %v, appended a batch okay: [%v, %v)", i, appendme[0].Beg, appendme[len(appendme)-1].Endx)
 					// and truncate the cur's beginning, and
 					// wait to add it til next time, when we can
 					// again remove the overlap at its tail.
@@ -390,11 +418,12 @@ func ChunkFile2(
 					delme := curjob.preChunks[:j]
 					curjob.preChunks = curjob.preChunks[j:]
 					//wchunks[i] = wchunks[i][j:]
-					curjob.trimmed = j
+					curjob.begTrimmed = j
 					for _, del := range delme {
-						delete(curjob.idxPre, del.Cry)
+						//delete(curjob.idxPre, del.Cry)
+						delete(curjob.offPre, del.Beg)
 					}
-					vv("set curjob.trimmed = j = %v; at i = %v", j, i)
+					//vv("set curjob.begTrimmed = j = %v; at i = %v", j, i)
 
 					break
 				}
@@ -410,11 +439,18 @@ func ChunkFile2(
 				vv("overlap not found. this should be impossible maybe?? b/c we go back 2 * max chunk size into the previous segment. i = %v; lasti = %v\n", i, lasti)
 				// so we just use the hard boundary of prev pre + cur seg
 
+				if len(chunks0.Chunks) > 0 {
+					if prevjob.preChunks[0].Beg != chunks0.Chunks[len(chunks0.Chunks)-1].Endx {
+						panic(fmt.Sprintf("bad append! prevjob.preChunks[0].Beg = %v != chunks0.Chunks[len(chunks0.Chunks)-1].Endx = %v", prevjob.preChunks[0].Beg, chunks0.Chunks[len(chunks0.Chunks)-1].Endx))
+					}
+				}
+
 				chunks0.Chunks = append(chunks0.Chunks, prevjob.preChunks...)
 				vv("replace the default pre with the hard-boundary seg chunked, on curjob = %p; i = %v", curjob, i)
 				curjob.preChunks = curjob.segChunks
-				curjob.idxPre = curjob.idxSeg
-				curjob.trimmed = 0
+				//curjob.idxPre = curjob.idxSeg
+				curjob.offPre = curjob.offSeg
+				curjob.begTrimmed = 0
 			}
 		}
 		// since we are lazily appending, have to append the last too.
