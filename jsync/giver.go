@@ -421,8 +421,6 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	const keepData = false
 
 	//goalPrecis, local, err := SummarizeFileInCDCHashes(rpc.Hostname, localPath, wantChunks, keepData)
-	//vv("begin GetHashesOneByOne")
-	vv("begin ChunkFile (parallel)")
 	t1 := time.Now()
 
 	var err error
@@ -430,9 +428,11 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	var local *Chunks
 	if parallelChunking {
 		// parallel version
+		vv("begin ChunkFile (parallel)")
 		goalPrecis, local, err = ChunkFile(localPath)
 	} else {
 		// non-parallel version:
+		vv("begin GetHashesOneByOne")
 		goalPrecis, local, err = GetHashesOneByOne(rpc.Hostname, localPath)
 		// no data, just chunks. read data directly from file below.
 		//vv("end GetHashesOneByOne. elap = %v", time.Since(t1))
