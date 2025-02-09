@@ -79,10 +79,12 @@ var Default_CDC_Config = &jcdc.CDC_Config{
 // 	MaxSize:    128 * 1024,
 // }
 
+// with stadia this looks very fast, only 1.3MB diff, but crashes
+// on incomplete/not full plan.
 var Default_CDC_Config = &jcdc.CDC_Config{
 	MinSize:    4 * 1024,
-	TargetSize: 16 * 1024,
-	MaxSize:    128 * 1024,
+	TargetSize: 8 * 1024,
+	MaxSize:    16 * 1024,
 }
 
 // min_size = 0.69*tgt_size
