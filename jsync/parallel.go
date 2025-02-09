@@ -262,11 +262,17 @@ func ChunkFile2(
 					return
 				}
 				dataoff := job.cuts[0]
+				// job.beg is where data starts
 				prev := dataoff - job.beg
-				for _, cut := range job.cuts {
+
+				for i, cut := range job.cuts {
+					if i == 0 {
+						continue
+					}
 					d := cut - dataoff
 					if d == 0 {
-						continue // skip first truncated.
+						vv("job.cuts = '%#v'", job.cuts)
+						panic(fmt.Sprintf("shoud not have empty chunk! cut = %v; i=%v;  prev=%v; dataoff = %v; job.beg = %v; nodeK=%v", cut, i, prev, dataoff, job.beg, job.nodeK))
 					}
 					slc := data[prev : prev+d]
 					chunk := &Chunk{
@@ -327,8 +333,8 @@ func ChunkFile2(
 			// base case
 			curjob.cuts = []int{0}
 		}
-		if i == 1 {
-			vv("here is jobs[0].cuts = '%#v'", jobs[0].cuts)
+		if i == 16 {
+			vv("here is jobs[%v].cuts = '%#v'", i, jobs[i].cuts)
 		}
 		for _, cut := range curjob.cand {
 
@@ -347,7 +353,15 @@ func ChunkFile2(
 			gkeep = append(gkeep, cut)
 			prev = cut
 
-			jobs[i].cuts = append(jobs[i].cuts, cut)
+			n := len(jobs[i].cuts)
+			if n > 0 && jobs[i].cuts[n-1] == cut {
+				// do not add redundant cut!
+			} else {
+				jobs[i].cuts = append(jobs[i].cuts, cut)
+				if jobs[i].nodeK == 16 {
+					vv("jobs[i].cuts = '%#v'", jobs[i].cuts)
+				}
+			}
 
 			if cut >= curjob.endx {
 				if i != lastjob {
@@ -378,7 +392,12 @@ func ChunkFile2(
 		}
 	}
 	// concluding case.
-	jobs[lastjob].cuts = append(jobs[lastjob].cuts, sz)
+	n := len(jobs[lastjob].cuts)
+	if n > 0 && jobs[lastjob].cuts[n-1] == sz {
+		// do not add redundant cut!
+	} else {
+		jobs[lastjob].cuts = append(jobs[lastjob].cuts, sz)
+	}
 
 	//vv("gkeep = '%#v'", gkeep)
 	if false {
