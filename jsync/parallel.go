@@ -423,6 +423,7 @@ func ChunkFile2(
 		if len(jobs[lastjob].cuts) == 0 && lastjob > 0 {
 			jobs[lastjob-1].cuts = append(jobs[lastjob-1].cuts, sz)
 		} else {
+			// may not right, but where else to stash it?
 			jobs[lastjob].cuts = append(jobs[lastjob].cuts, sz)
 		}
 	}
@@ -438,33 +439,10 @@ func ChunkFile2(
 	}
 
 	vv("sz = %v", sz)
-	lastj := len(jobs) - 1 // debug
+
 	if false {
-		// print cuts for each segment.
-		prevcut := 0
-		for j, curjob := range jobs {
-			_ = j
-			if j < lastj-1 {
-				continue
-			}
-			//gotonext := false
-			for i, cut := range curjob.cuts {
-				_ = i
-				extra := ""
-				_ = extra
-				if cut > curjob.endx {
-					//panic("cut > curjob.endx, this is a problem")
-					extra = "***"
-					//curjob.cuts = curjob.cuts[:i+1]
-					//gotonext = true
-				}
-				fmt.Printf("job j=%v; [beg:%v , endx:%v)  cut i=%v: %v  (%v)  %v\n", j, curjob.beg, curjob.endx, i, cut, cut-prevcut, extra)
-				if cut-prevcut > maxcut {
-					//panic(fmt.Sprintf("should be impossible for %v = cut-prevcut > maxcut(%v) !", cut-prevcut, maxcut))
-				}
-				prevcut = cut
-			}
-		}
+		lastj := len(jobs) - 1 // debug
+		printCutsPerJob(lastj-1, jobs[lastj-1:])
 	}
 
 	//showEachSegment(lastj, jobs[lastj].chunks)
@@ -491,7 +469,7 @@ func ChunkFile2(
 	for j, job := range jobs {
 		_ = j
 		//if j == len(jobs)-1 {
-		//	showEachSegment(j, job.chunks)
+		//showEachSegment(j, job.chunks)
 		//}
 
 		if len(chunks0.Chunks) > 0 {
@@ -512,13 +490,50 @@ func ChunkFile2(
 
 		chunks0.Chunks = append(chunks0.Chunks, job.chunks...)
 	}
+	if true {
+		printCutsPerJob(0, jobs)
+	}
+
 	return
 }
 
+func printCutsPerJob(begJobNum int, jobs []*job) {
+	// print cuts for each segment.
+	prevcut := 0
+	k := begJobNum - 1
+	for _, curjob := range jobs {
+		k++
+		fmt.Printf("\n  job %03d ----- 'cut' view from phase 1:\n", k)
+		for i, cut := range curjob.cuts {
+			extra := ""
+			if cut > curjob.endx {
+				extra = "***"
+			}
+			fmt.Printf("job j=%03d: [beg:%v , endx:%v)  cut i=%v: %v  (%v)  %v\n", k, curjob.beg, curjob.endx, i, cut, cut-prevcut, extra)
+			prevcut = cut
+		}
+		if len(curjob.chunks) > 0 {
+			fmt.Printf("\n job %03d ----- 'chunk' view from phase 2:\n", k)
+			for _, c := range curjob.chunks {
+				extra := ""
+				if c.Endx > curjob.endx {
+					extra = "***"
+				}
+				fmt.Printf(" job %03d seg [%v, %v) chnk [ %6d : %6d) (len %6d) %v %v\n", k, curjob.beg, curjob.endx, c.Beg, c.Endx, (c.Endx - c.Beg), c.Cry[11:20], extra)
+			}
+			fmt.Println()
+		} else {
+			fmt.Printf("   ...(no chunks available)\n")
+		}
+	}
+
+	fmt.Printf("\n============\n")
+}
+
 func showEachSegment(i int, cs []*Chunk) {
-	fmt.Printf("segment i = %v\n", i)
+	fmt.Printf("job/segment i = %v\n", i)
 	for j, c := range cs {
-		fmt.Printf("  %03d  [ %v : %v ) (len %v) %v\n",
-			j, c.Beg, c.Endx, (c.Endx - c.Beg), c.Cry)
+		fmt.Printf("  %03d  Chunk:[Beg:%6d : Endx:%6d ) (len %6d) %v\n",
+			j, c.Beg, c.Endx, (c.Endx - c.Beg), c.Cry[11:20])
 	}
 }
