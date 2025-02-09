@@ -28,7 +28,7 @@ import (
 //
 // In our benchmarks, FastCDC_PlakarAlgo results in
 // the fewest bytes need to be updated.
-var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_PlakarAlgo
+//var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_PlakarAlgo
 
 //var Default_CDC jcdc.CDCAlgo = jcdc.UltraCDC_Algo
 
@@ -36,7 +36,7 @@ var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_PlakarAlgo
 
 //var Default_CDC jcdc.CDCAlgo = jcdc.RabinKarp_Algo
 
-//var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_StadiaAlgo
+var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_StadiaAlgo
 
 //var Default_CDC jcdc.CDCAlgo = jcdc.ResticRabin_Algo
 
@@ -72,6 +72,7 @@ var Default_CDC_Config = &jcdc.CDC_Config{
 */
 
 // pretty good! 13.7 sec, 18MB. with fastcdc plakar.
+//              13.9 sec,  8MB. with fastcdc stadia.
 // var Default_CDC_Config = &jcdc.CDC_Config{
 // 	MinSize:    4 * 1024,
 // 	TargetSize: 16 * 1024,
