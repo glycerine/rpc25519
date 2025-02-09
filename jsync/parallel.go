@@ -394,8 +394,10 @@ func ChunkFile2(
 		showEachSegment(j, job.chunks)
 
 		if len(chunks0.Chunks) > 0 {
-			if job.chunks[0].Beg != chunks0.Chunks[len(chunks0.Chunks)-1].Endx {
-				panic(fmt.Sprintf("j=%v; bad append! job.chunks[0].Beg = %v != chunks0.Chunks[len(chunks0.Chunks)-1].Endx = %v", j, job.chunks[0].Beg, chunks0.Chunks[len(chunks0.Chunks)-1].Endx))
+			if len(job.chunks) > 0 {
+				if job.chunks[0].Beg != chunks0.Chunks[len(chunks0.Chunks)-1].Endx {
+					panic(fmt.Sprintf("j=%v; bad append! job.chunks[0].Beg = %v != chunks0.Chunks[len(chunks0.Chunks)-1].Endx = %v", j, job.chunks[0].Beg, chunks0.Chunks[len(chunks0.Chunks)-1].Endx))
+				}
 			}
 		}
 
