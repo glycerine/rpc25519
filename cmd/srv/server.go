@@ -96,7 +96,11 @@ func main() {
 
 	var verboseDebugCompress = flag.Bool("v", false, "verbose debugging compression settings per message")
 
+	var serialNotParallel = flag.Bool("serial", false, "serial single threaded file chunking, rather than parallel. Mostly for benchmarking")
+
 	flag.Parse()
+
+	rsync.SetParallelChunking(!*serialNotParallel)
 
 	if *verboseDebugCompress {
 		rpc25519.DebugVerboseCompress = true
