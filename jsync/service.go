@@ -29,7 +29,7 @@ import (
 // In our benchmarks, FastCDC_PlakarAlgo results in
 // the fewest bytes need to be updated.
 
-// 8-14 sec on linux Ub lan sync.
+// 8-12 sec on linux Ub lan sync.
 var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_PlakarAlgo // 22.080s, mac. 27.6MB.
 
 // 13sec linux.
