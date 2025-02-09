@@ -244,7 +244,7 @@ func ChunkFile2(
 				jobs[job.nodeK] = job
 
 			} else {
-				// gen hashes
+				vv("gen hashes")
 				prev := 0
 				dataoff := job.beg
 				for _, cut := range job.cuts {
@@ -255,6 +255,8 @@ func ChunkFile2(
 						Endx: dataoff + d,
 						Cry:  hash.Blake3OfBytesString(slc),
 					}
+					prev = dataoff
+					//vv("chunk [%v, %v) = %v", chunk.Beg, chunk.Endx, chunk.Cry)
 					job.chunks = append(job.chunks, chunk)
 					dataoff += d
 				}
@@ -291,16 +293,6 @@ func ChunkFile2(
 	// we have sent off njob = nNodes to be hashed
 	close(work)
 	wg.Wait()
-
-	// assemble all the []*Chunk in order.
-	// INVAR: nNodes == len(wchunks).
-
-	/*
-		for i, c := range wchunks {
-			showEachSegment(i, c)
-			chunks0.Chunks = append(chunks0.Chunks, c...)
-		}
-	*/
 
 	//couldNotResync := 0
 
@@ -352,11 +344,12 @@ func ChunkFile2(
 	close(work)
 	wg.Wait()
 
-	// todo: use job.preChunks or job.segChunks now, instead of wchunks.
-	if nNodes == 1 {
-		//for
-		//		chunks0.Chunks = append(chunks0.Chunks, c)
-	} else {
+	// assemble all the []*Chunk in order.
+	// INVAR: nNodes == len(wchunks).
+
+	for j, job := range jobs {
+		showEachSegment(j, job.chunks)
+		chunks0.Chunks = append(chunks0.Chunks, job.chunks...)
 	}
 	return
 }
