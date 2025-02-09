@@ -71,9 +71,16 @@ var Default_CDC_Config = &jcdc.CDC_Config{
 }
 */
 
+// pretty good! 13.7 sec, 18MB. with fastcdc plakar.
+// var Default_CDC_Config = &jcdc.CDC_Config{
+// 	MinSize:    4 * 1024,
+// 	TargetSize: 16 * 1024,
+// 	MaxSize:    128 * 1024,
+// }
+
 var Default_CDC_Config = &jcdc.CDC_Config{
-	MinSize:    16 * 1024,
-	TargetSize: 64 * 1024,
+	MinSize:    4 * 1024,
+	TargetSize: 16 * 1024,
 	MaxSize:    128 * 1024,
 }
 
