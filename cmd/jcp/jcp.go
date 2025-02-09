@@ -35,6 +35,8 @@ type JcopyConfig struct {
 
 	WebProfile bool
 	Memprofile string
+
+	SerialNotParallel bool
 }
 
 // backup plan if :7070 was not available...
@@ -64,6 +66,7 @@ func (c *JcopyConfig) SetFlags(fs *flag.FlagSet) {
 
 	fs.BoolVar(&c.WebProfile, "webprofile", false, "start web pprof profiling on localhost:7070")
 	fs.StringVar(&c.Memprofile, "memprof", "", "file to write memory profile 30 sec worth to")
+	fs.BoolVar(&c.SerialNotParallel, "serial", false, "serial single threaded file chunking, rather than parallel. Mostly for benchmarking")
 }
 
 func (c *JcopyConfig) FinishConfig(fs *flag.FlagSet) (err error) {
@@ -273,6 +276,8 @@ func main() {
 			f.Close()
 		}()
 	}
+
+	rsync.SetParallelChunking(!jcfg.SerialNotParallel)
 
 	cli, err := rpc.NewClient("jcp", cfg)
 	if err != nil {

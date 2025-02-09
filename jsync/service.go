@@ -23,6 +23,12 @@ import (
 // and GetHashesOneByOne (rsync.go; serial).
 var parallelChunking = true
 
+func SetParallelChunking(set bool) (old bool) {
+	old = parallelChunking
+	parallelChunking = set
+	return
+}
+
 // Default_CDC is a package global to allow
 // benchmarks comparing CDC chunkers and settings.
 //
