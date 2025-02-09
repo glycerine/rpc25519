@@ -148,6 +148,7 @@ func ChunkFile2(
 	if segment < minSegSize {
 		segment = minSegSize
 	}
+	preRead := minSegSize
 	postRead := minSegSize
 
 	segN := sz / segment
@@ -212,8 +213,13 @@ func ChunkFile2(
 				}
 			}
 
+			pre := preRead
+			if job.beg < pre {
+				pre = job.beg
+			}
 			lastCut := 0
 			if !job.genCuts {
+				pre = 0
 				//vv("on hashing... job = '%#v'", job)
 				nc := len(job.cuts)
 				if nc == 0 {
@@ -223,20 +229,23 @@ func ChunkFile2(
 				if job.newEndx < lastCut {
 					// see lots of:
 					//vv("updating newEndx %v -> %v", job.newEndx, lastCut)
+					// essential to getting hashes to match!
 					job.newEndx = lastCut
 				}
 			}
 
-			f.Seek(int64(job.beg), 0)
+			seek0 := job.beg - pre
+			f.Seek(int64(seek0), 0)
 
-			lenseg := (job.newEndx - job.beg)
+			lenseg := (job.newEndx - seek0)
 			if lenseg == 0 {
 				panic("lenseg should not be 0")
 			}
+
 			if job.genCuts && !job.isLast {
 				lenseg += postRead
 				if job.endx+postRead > sz {
-					lenseg = sz - job.beg
+					lenseg = sz - seek0
 				}
 			} else {
 				//vv("on last job: job.beg = %v; job.endx = %v; span =%v", job.beg, job.endx, job.endx-job.beg)
@@ -252,7 +261,7 @@ func ChunkFile2(
 			if job.genCuts {
 
 				// offset where data starts in the original file;
-				dataoff := job.beg
+				dataoff := seek0
 
 				for j := 0; len(data) >= mincut; j++ {
 					relcut := cdc.NextCut(data)
@@ -372,14 +381,12 @@ func ChunkFile2(
 
 			if cut >= curjob.endx {
 				if i != lastjob {
-					// start the next at its beg
+					// start the next at its beg. try leaving out => bad append.
 					jobs[i+1].cuts = []int{cut}
-					if cut > jobs[i+1].newEndx {
-						// don't think should ever be needed, just in case:
-						//jobs[i+1].newEndx = cut
-					}
 				}
 				break // go to next job
+			} else {
+				//jobs[i].cuts = append(jobs[i].cuts, cut)
 			}
 
 			if false {
@@ -391,9 +398,6 @@ func ChunkFile2(
 				}
 				//vv("giving cut = %v to jobs[i+1] = '%#v'", cut, jobs[i+1])
 				jobs[i+1].cuts = append(jobs[i+1].cuts, cut)
-				if cut > jobs[i+1].newEndx {
-					//jobs[i+1].newEndx = cut
-				}
 				break
 			}
 		}
