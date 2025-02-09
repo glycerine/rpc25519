@@ -160,6 +160,9 @@ func ChunkFile2(
 	// 2 seg preRead              49 chunks different, 40MB on Ub. 33sec.
 	// 2 seg preRead with 16/64/128 264 diff, 30MB. 21sec mac, 12.6sec linux.
 	// 3 seg               4/16/128           18MB             13.7sec linux.
+	//
+	// Nice: rsync: 34 sec; vs ChunkFile 9.2 sec to update Ub across lan
+	// after appending a few bytes.
 	preRead := 2 * minSegSize
 	postRead := minSegSize
 	//preRead := 3 * minSegSize
