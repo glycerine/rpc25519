@@ -293,25 +293,6 @@ func ChunkFile2(
 				dataoff := job.cuts[0]
 				// job.beg is where data starts
 				prev := dataoff - job.beg
-
-				/*
-					if len(job.cuts) == 1 {
-						// end of file, up against sz.
-						vv("job.cuts is size 1: job = %#v; \n len(data) = %v", job, len(data))
-						slc := data
-						if job.beg+len(slc) != sz {
-							panic("miscalibrated at sz")
-						}
-						chunk := &Chunk{
-							Beg:  sz - len(slc),
-							Endx: sz,
-							Cry:  hash.Blake3OfBytesString(slc),
-						}
-						//vv("chunk [%v, %v) = %v", chunk.Beg, chunk.Endx, chunk.Cry)
-						job.chunks = append(job.chunks, chunk)
-						return
-					}
-				*/
 				for i, cut := range job.cuts {
 					if i == 0 {
 						continue
@@ -328,9 +309,9 @@ func ChunkFile2(
 						Cry:  hash.Blake3OfBytesString(slc),
 					}
 					prev += d
-					if job.nodeK >= 6812 {
-						vv("job.nodeK=%v; chunk [%v, %v) = %v", job.nodeK, chunk.Beg, chunk.Endx, chunk.Cry)
-					}
+					//if job.nodeK >= 6812 {
+					//	vv("job.nodeK=%v; chunk [%v, %v) = %v", job.nodeK, chunk.Beg, chunk.Endx, chunk.Cry)
+					//}
 					job.chunks = append(job.chunks, chunk)
 					dataoff += d
 				}
@@ -408,22 +389,14 @@ func ChunkFile2(
 				// do not add redundant cut!
 			} else {
 				jobs[i].cuts = append(jobs[i].cuts, cut)
-				if jobs[i].nodeK >= 6812 {
-					vv("jobs[i].cuts = '%#v'", jobs[i].cuts) //7143944216 on 6812
-				}
 			}
 
 			if cut >= curjob.endx {
 				if i != lastjob {
 					// start the next. try leaving out => bad append.
 					jobs[i+1].cuts = append(jobs[i+1].cuts, cut)
-					if i >= lastjob-1 {
-						vv("appended to last job cut = %v; jobs[i+1]='%#v'", cut, jobs[i+1]) // not seen.
-					}
 				}
 				break // go to next job
-			} else {
-				//jobs[i].cuts = append(jobs[i].cuts, cut)
 			}
 
 			if false {
@@ -463,8 +436,8 @@ func ChunkFile2(
 
 	vv("sz = %v", sz)
 	lastj := len(jobs) - 1 // debug
-	if true {
-		// verify that all cuts are inside their segment data
+	if false {
+		// print cuts for each segment.
 		prevcut := 0
 		for j, curjob := range jobs {
 			_ = j
@@ -491,7 +464,7 @@ func ChunkFile2(
 		}
 	}
 
-	showEachSegment(lastj, jobs[lastj].chunks) // debug
+	//showEachSegment(lastj, jobs[lastj].chunks)
 
 	// re-open work, it was closed.
 	work = make(chan *job, 1024)
