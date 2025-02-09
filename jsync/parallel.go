@@ -336,6 +336,7 @@ func ChunkFile2(
 			if d >= mincut {
 
 				if d >= maxcut {
+					vv("d over maxcut, will clamp")
 					cut = prev + maxcut
 					d = maxcut
 				}
@@ -368,7 +369,12 @@ func ChunkFile2(
 					if cut > jobs[i+1].endx {
 						panic("cut is way too big still, how??")
 					}
+					if cut < curjob.beg {
+						panic(fmt.Sprintf("cut should have been given to previous! cut = %v; curjob.beg = %v", cut, curjob.beg))
+					}
+					//vv("giving cut = %v to jobs[i+1] = '%#v'", cut, jobs[i+1])
 					jobs[i+1].cuts = []int{cut}
+					//}
 					break
 				}
 			}
@@ -378,6 +384,7 @@ func ChunkFile2(
 	// concluding case.
 	prevjob.cuts = append(prevjob.cuts, sz)
 
+	/* should not be needed now that cand and cuts are separate.
 	// truncate off the redundant cuts
 	for _, curjob := range jobs {
 		for i, cut := range curjob.cuts {
@@ -387,6 +394,7 @@ func ChunkFile2(
 			}
 		}
 	}
+	*/
 
 	//vv("gkeep = '%#v'", gkeep)
 	if false {
