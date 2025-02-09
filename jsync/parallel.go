@@ -149,8 +149,9 @@ func ChunkFile2(
 		segment = minSegSize
 	}
 
-	// preRead too gets us 68 chunks different, 53MB on Ub.
-	preRead := minSegSize
+	// Without preRead,          180 chunks different, 74MB on Ub.
+	// 1 seg preRead too gets us: 68 chunks different, 53MB on Ub.
+	preRead := 2 * minSegSize
 	postRead := minSegSize
 
 	segN := sz / segment
