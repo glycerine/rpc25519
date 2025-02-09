@@ -167,7 +167,7 @@ func ChunkFile2(
 
 	buf := make([][]byte, nWorkers)
 	for i := 0; i < nWorkers; i++ {
-		buf[i] = make([]byte, segment+postRead)
+		buf[i] = make([]byte, segment*2)
 	}
 
 	// buffered channel for less waiting on scheduling.
@@ -210,6 +210,10 @@ func ChunkFile2(
 				}
 			}
 
+			if !job.genCuts {
+				vv("on hashing... job = '%#v'", job)
+			}
+
 			f.Seek(int64(job.beg), 0)
 
 			lenseg := (job.endx - job.beg)
@@ -221,6 +225,15 @@ func ChunkFile2(
 				if job.endx+postRead > sz {
 					lenseg = sz - job.beg
 				}
+			} else {
+				vv("on last job: job.beg = %v; job.endx = %v; span =%v",
+					job.beg, job.endx, job.endx-job.beg)
+			}
+			if lenseg > len(buf[worker]) {
+				// since we cross into the next segment on
+				// the hashing pass, we may need more memory.
+				buf[worker] = append(buf[worker], make([]byte, lenseg-len(buf[worker]))...)
+				vv("grew buf[worker]")
 			}
 
 			nr, err := io.ReadFull(f, buf[worker][:lenseg])
@@ -255,7 +268,7 @@ func ChunkFile2(
 						Endx: dataoff + d,
 						Cry:  hash.Blake3OfBytesString(slc),
 					}
-					prev = dataoff
+					prev += d
 					//vv("chunk [%v, %v) = %v", chunk.Beg, chunk.Endx, chunk.Cry)
 					job.chunks = append(job.chunks, chunk)
 					dataoff += d
@@ -326,7 +339,13 @@ func ChunkFile2(
 		curjob.cuts = keep
 		prevjob = curjob
 	}
-	//vv("gkeep = '%#v'", gkeep)
+	vv("gkeep = '%#v'", gkeep)
+	for i := range gkeep {
+		if i == 0 {
+			continue
+		}
+		fmt.Printf("d = %v\n", gkeep[i]-gkeep[i-1])
+	}
 
 	// re-open work, it was closed.
 	work = make(chan *job, 1024)
