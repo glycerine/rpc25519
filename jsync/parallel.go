@@ -487,9 +487,9 @@ func ChunkFile2(
 
 	for j, job := range jobs {
 		_ = j
-		if j == len(jobs)-1 {
-			showEachSegment(j, job.chunks)
-		}
+		//if j == len(jobs)-1 {
+		//	showEachSegment(j, job.chunks)
+		//}
 
 		if len(chunks0.Chunks) > 0 {
 			if len(job.chunks) > 0 {
