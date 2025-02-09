@@ -192,6 +192,7 @@ func ChunkFile2(
 	//overlaps := make([][]*Chunk, nNodes-2)
 
 	mincut := int(Default_CDC_Config.MinSize)
+	maxcut := int(Default_CDC_Config.MaxSize)
 	nW := int(nWorkers)
 	vv("nW = %v", nW)
 
@@ -332,6 +333,12 @@ func ChunkFile2(
 			}
 			d := cut - prev
 			if d >= mincut {
+
+				if d > maxcut {
+					cut = prev + maxcut
+					d = maxcut
+				}
+
 				if prevjob != nil {
 					// tell prevjob where their last cut ends.
 					//prevjob.cuts = append(prevjob.cuts, cut)
@@ -366,12 +373,15 @@ func ChunkFile2(
 	// concluding case.
 	prevjob.cuts = append(prevjob.cuts, sz)
 
-	// truncate off the redundant cuts
-	for _, curjob := range jobs {
-		for i, cut := range curjob.cuts {
-			if cut > curjob.endx {
-				curjob.cuts = curjob.cuts[:i+1]
-				break
+	const printit = true
+	if !printit {
+		// truncate off the redundant cuts
+		for _, curjob := range jobs {
+			for i, cut := range curjob.cuts {
+				if cut > curjob.endx {
+					curjob.cuts = curjob.cuts[:i+1]
+					break
+				}
 			}
 		}
 	}
@@ -386,7 +396,7 @@ func ChunkFile2(
 		}
 	}
 
-	if false {
+	if printit {
 		// verify that all cuts are inside their segment data
 		prevcut := 0
 		for j, curjob := range jobs {
@@ -396,13 +406,13 @@ func ChunkFile2(
 				if cut > curjob.endx {
 					//panic("cut > curjob.endx, this is a problem")
 					extra = "***"
-					//curjob.cuts = curjob.cuts[:i+1]
+					curjob.cuts = curjob.cuts[:i+1]
 					gotonext = true
 				}
 				fmt.Printf("job j=%v; [beg:%v , endx:%v)  cut i=%v: %v  (%v)  %v\n", j, curjob.beg, curjob.endx, i, cut, cut-prevcut, extra)
 				prevcut = cut
 				if gotonext {
-					//break
+					break
 				}
 			}
 		}
@@ -429,7 +439,7 @@ func ChunkFile2(
 
 	for j, job := range jobs {
 		_ = j
-		//showEachSegment(j, job.chunks)
+		showEachSegment(j, job.chunks)
 
 		if len(chunks0.Chunks) > 0 {
 			if len(job.chunks) > 0 {
