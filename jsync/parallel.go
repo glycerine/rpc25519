@@ -353,6 +353,9 @@ func ChunkFile2(
 		}
 		prevjob = curjob
 	}
+	// concluding case.
+	prevjob.cuts = append(prevjob.cuts, sz)
+
 	//vv("gkeep = '%#v'", gkeep)
 	if false {
 		for i := range gkeep {
