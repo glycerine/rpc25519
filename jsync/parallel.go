@@ -152,6 +152,7 @@ func ChunkFile2(
 	// Without preRead,          180 chunks different, 74MB on Ub.
 	// 1 seg preRead too gets us: 68 chunks different, 53MB on Ub.
 	// 2 seg preRead              49 chunks different, 40MB on Ub. 33sec.
+	// 2 seg preRead with 16/64/128 264 diff, 30MB. 21sec mac, 12.6sec linux.
 	preRead := 2 * minSegSize
 	postRead := minSegSize
 
