@@ -212,8 +212,19 @@ func ChunkFile2(
 				}
 			}
 
+			lastCut := 0
 			if !job.genCuts {
 				//vv("on hashing... job = '%#v'", job)
+				nc := len(job.cuts)
+				if nc == 0 {
+					return
+				}
+				lastCut = job.cuts[nc-1]
+				if job.newEndx < lastCut {
+					// see lots of:
+					//vv("updating newEndx %v -> %v", job.newEndx, lastCut)
+					job.newEndx = lastCut
+				}
 			}
 
 			f.Seek(int64(job.beg), 0)
@@ -266,7 +277,7 @@ func ChunkFile2(
 					}
 					d := cut - dataoff
 					if d == 0 {
-						vv("job.cuts = '%#v'", job.cuts)
+						//vv("job.cuts = '%#v'", job.cuts)
 						panic(fmt.Sprintf("shoud not have empty chunk! cut = %v; i=%v;  prev=%v; dataoff = %v; job.beg = %v; nodeK=%v", cut, i, prev, dataoff, job.beg, job.nodeK))
 					}
 					slc := data[prev : prev+d]
@@ -365,7 +376,7 @@ func ChunkFile2(
 					jobs[i+1].cuts = []int{cut}
 					if cut > jobs[i+1].newEndx {
 						// don't think should ever be needed, just in case:
-						jobs[i+1].newEndx = cut
+						//jobs[i+1].newEndx = cut
 					}
 				}
 				break // go to next job
@@ -381,7 +392,7 @@ func ChunkFile2(
 				//vv("giving cut = %v to jobs[i+1] = '%#v'", cut, jobs[i+1])
 				jobs[i+1].cuts = append(jobs[i+1].cuts, cut)
 				if cut > jobs[i+1].newEndx {
-					jobs[i+1].newEndx = cut
+					//jobs[i+1].newEndx = cut
 				}
 				break
 			}
@@ -451,9 +462,9 @@ func ChunkFile2(
 
 	for j, job := range jobs {
 		_ = j
-		if j <= 1 {
-			showEachSegment(j, job.chunks)
-		}
+		//if j <= 1 {
+		//showEachSegment(j, job.chunks)
+		//}
 
 		if len(chunks0.Chunks) > 0 {
 			if len(job.chunks) > 0 {
