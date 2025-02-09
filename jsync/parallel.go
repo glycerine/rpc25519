@@ -194,7 +194,7 @@ func ChunkFile2(
 	mincut := int(Default_CDC_Config.MinSize)
 	maxcut := int(Default_CDC_Config.MaxSize)
 	nW := int(nWorkers)
-	vv("nW = %v", nW)
+	vv("nW = %v; mincut = %v; maxcut = %v", nW, mincut, maxcut)
 
 	workfunc := func(work chan *job, worker int) {
 		//func(worker int) {
@@ -321,6 +321,7 @@ func ChunkFile2(
 
 	prev := 0
 	var prevjob *job
+	//lastjob := len(jobs) - 1
 	for i, curjob := range jobs {
 		if i == 0 {
 			// base case
@@ -334,7 +335,7 @@ func ChunkFile2(
 			d := cut - prev
 			if d >= mincut {
 
-				if d > maxcut {
+				if d >= maxcut {
 					cut = prev + maxcut
 					d = maxcut
 				}
@@ -343,8 +344,8 @@ func ChunkFile2(
 					// tell prevjob where their last cut ends.
 					//prevjob.cuts = append(prevjob.cuts, cut)
 					//vv("set segment newEndx: endx:%v -> cut:%v  (delta %v)", prevjob.endx, cut, cut-prevjob.endx)
-					prevjob.cuts = append(prevjob.cuts, cut)
-					prevjob.newEndx = cut
+					jobs[i-1].cuts = append(jobs[i-1].cuts, cut)
+					jobs[i-1].newEndx = cut
 
 					need := cut - prevjob.beg
 					if need > segment*3 {
@@ -362,8 +363,12 @@ func ChunkFile2(
 				prev = cut
 
 				if cut >= curjob.beg && cut < curjob.endx {
-					curjob.cuts = append(curjob.cuts, cut)
+					jobs[i].cuts = append(jobs[i].cuts, cut)
 				} else {
+					if cut > jobs[i+1].endx {
+						panic("cut is way too big still, how??")
+					}
+					jobs[i+1].cuts = []int{cut}
 					break
 				}
 			}
@@ -373,15 +378,12 @@ func ChunkFile2(
 	// concluding case.
 	prevjob.cuts = append(prevjob.cuts, sz)
 
-	const printit = true
-	if !printit {
-		// truncate off the redundant cuts
-		for _, curjob := range jobs {
-			for i, cut := range curjob.cuts {
-				if cut > curjob.endx {
-					curjob.cuts = curjob.cuts[:i+1]
-					break
-				}
+	// truncate off the redundant cuts
+	for _, curjob := range jobs {
+		for i, cut := range curjob.cuts {
+			if cut > curjob.endx {
+				curjob.cuts = curjob.cuts[:i+1]
+				break
 			}
 		}
 	}
@@ -396,24 +398,27 @@ func ChunkFile2(
 		}
 	}
 
-	if printit {
+	if true {
 		// verify that all cuts are inside their segment data
 		prevcut := 0
 		for j, curjob := range jobs {
-			gotonext := false
+			//gotonext := false
 			for i, cut := range curjob.cuts {
 				extra := ""
 				if cut > curjob.endx {
 					//panic("cut > curjob.endx, this is a problem")
 					extra = "***"
-					curjob.cuts = curjob.cuts[:i+1]
-					gotonext = true
+					//curjob.cuts = curjob.cuts[:i+1]
+					//gotonext = true
 				}
 				fmt.Printf("job j=%v; [beg:%v , endx:%v)  cut i=%v: %v  (%v)  %v\n", j, curjob.beg, curjob.endx, i, cut, cut-prevcut, extra)
-				prevcut = cut
-				if gotonext {
-					break
+				if cut-prevcut > maxcut {
+					panic(fmt.Sprintf("should be impossible for %v = cut-prevcut > maxcut(%v) !", cut-prevcut, maxcut))
 				}
+				prevcut = cut
+				//if gotonext {
+				//	break
+				//}
 			}
 		}
 	}
