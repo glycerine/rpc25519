@@ -151,6 +151,7 @@ func ChunkFile2(
 
 	// Without preRead,          180 chunks different, 74MB on Ub.
 	// 1 seg preRead too gets us: 68 chunks different, 53MB on Ub.
+	// 2 seg preRead              49 chunks different, 40MB on Ub. 33sec.
 	preRead := 2 * minSegSize
 	postRead := minSegSize
 
@@ -176,7 +177,7 @@ func ChunkFile2(
 
 	buf := make([][]byte, nWorkers)
 	for i := 0; i < nWorkers; i++ {
-		buf[i] = make([]byte, segment*3)
+		buf[i] = make([]byte, segment*5)
 	}
 
 	// buffered channel for less waiting on scheduling.
