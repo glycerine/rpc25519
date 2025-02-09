@@ -319,8 +319,11 @@ func ChunkFile2(
 	minsz := int(Default_CDC_Config.MinSize)
 	prev := 0
 	var prevjob *job
-	for _, curjob := range jobs {
-
+	for i, curjob := range jobs {
+		if i == 0 {
+			// base case
+			curjob.cuts = []int{0}
+		}
 		for _, cut := range curjob.cand {
 
 			if cut <= prev {
