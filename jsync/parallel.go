@@ -442,7 +442,7 @@ func ChunkFile2(
 
 	if false {
 		lastj := len(jobs) - 1 // debug
-		printCutsPerJob(lastj-1, jobs[lastj-1:])
+		printCutsPerJob(lastj-1, jobs[lastj-1:], true)
 	}
 
 	//showEachSegment(lastj, jobs[lastj].chunks)
@@ -491,39 +491,42 @@ func ChunkFile2(
 		chunks0.Chunks = append(chunks0.Chunks, job.chunks...)
 	}
 	if true {
-		printCutsPerJob(0, jobs)
+		printCutsPerJob(0, jobs, true)
 	}
 
 	return
 }
 
-func printCutsPerJob(begJobNum int, jobs []*job) {
+func printCutsPerJob(begJobNum int, jobs []*job, showChunks bool) {
 	// print cuts for each segment.
 	prevcut := 0
 	k := begJobNum - 1
 	for _, curjob := range jobs {
 		k++
-		fmt.Printf("\n  job %03d ----- 'cut' view from phase 1:\n", k)
-		for i, cut := range curjob.cuts {
-			extra := ""
-			if cut > curjob.endx {
-				extra = "***"
-			}
-			fmt.Printf("job j=%03d: [beg:%v , endx:%v)  cut i=%v: %v  (%v)  %v\n", k, curjob.beg, curjob.endx, i, cut, cut-prevcut, extra)
-			prevcut = cut
-		}
-		if len(curjob.chunks) > 0 {
-			fmt.Printf("\n job %03d ----- 'chunk' view from phase 2:\n", k)
-			for _, c := range curjob.chunks {
+		if !showChunks {
+			fmt.Printf("\n  job %03d ----- 'cut' view from phase 1:\n", k)
+			for i, cut := range curjob.cuts {
 				extra := ""
-				if c.Endx > curjob.endx {
+				if cut > curjob.endx {
 					extra = "***"
 				}
-				fmt.Printf(" job %03d seg [%v, %v) chnk [ %6d : %6d) (len %6d) %v %v\n", k, curjob.beg, curjob.endx, c.Beg, c.Endx, (c.Endx - c.Beg), c.Cry[11:20], extra)
+				fmt.Printf("job j=%03d: [%v, %v)  cut i=%v: %v  (%v)  %v\n", k, curjob.beg, curjob.endx, i, cut, cut-prevcut, extra)
+				prevcut = cut
 			}
-			fmt.Println()
 		} else {
-			fmt.Printf("   ...(no chunks available)\n")
+			if len(curjob.chunks) > 0 {
+				fmt.Printf("\n job %03d ----- 'chunk' view from phase 2:\n", k)
+				for _, c := range curjob.chunks {
+					extra := ""
+					if c.Endx > curjob.endx {
+						extra = "*"
+					}
+					fmt.Printf(" job %03d seg [%v, %v) chnk [ %6d : %6d) (len %6d) %v %v\n", k, curjob.beg, curjob.endx, c.Beg, c.Endx, (c.Endx - c.Beg), c.Cry[11:20], extra)
+				}
+				fmt.Println()
+			} else {
+				fmt.Printf("   ...(no chunks available, for job %v)\n", k)
+			}
 		}
 	}
 
