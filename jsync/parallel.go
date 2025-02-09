@@ -31,6 +31,8 @@ type job struct {
 	genCuts bool // else get hashes
 	isLast  bool
 
+	cand []int
+
 	cuts []int
 
 	chunks []*Chunk
@@ -246,7 +248,7 @@ func ChunkFile2(
 
 				for j := 0; len(data) > 0; j++ {
 					cut := cdc.NextCut(data)
-					job.cuts = append(job.cuts, dataoff+cut)
+					job.cand = append(job.cand, dataoff+cut)
 					data = data[cut:]
 					dataoff += cut
 				}
@@ -319,8 +321,7 @@ func ChunkFile2(
 	var prevjob *job
 	for _, curjob := range jobs {
 
-		var keep []int
-		for _, cut := range curjob.cuts {
+		for _, cut := range curjob.cand {
 
 			if cut <= prev {
 				continue
@@ -330,17 +331,23 @@ func ChunkFile2(
 				if prevjob != nil {
 					// tell prevjob where their last cut ends.
 					//prevjob.cuts = append(prevjob.cuts, cut)
-					vv("adjust segment endx: %v -> %v  (delta %v)", prevjob.endx, cut, cut-prevjob.endx)
+					vv("set segment newEndx: endx:%v -> cut:%v  (delta %v)", prevjob.endx, cut, cut-prevjob.endx)
+					prevjob.cuts = append(prevjob.cuts, cut)
 					prevjob.newEndx = cut
 					prevjob = nil
 				} else {
-					keep = append(keep, cut)
+					//keep = append(keep, cut)
 				}
 				gkeep = append(gkeep, cut)
 				prev = cut
+
+				if cut >= curjob.beg && cut < curjob.endx {
+					curjob.cuts = append(curjob.cuts, cut)
+				} else {
+					break
+				}
 			}
 		}
-		curjob.cuts = keep
 		prevjob = curjob
 	}
 	//vv("gkeep = '%#v'", gkeep)
@@ -357,15 +364,21 @@ func ChunkFile2(
 		// verify that all cuts are inside their segment data
 		prevcut := 0
 		for j, curjob := range jobs {
+			gotonext := false
 			for i, cut := range curjob.cuts {
 				extra := ""
 				if cut > curjob.endx {
 					//panic("cut > curjob.endx, this is a problem")
 					extra = "***"
+					curjob.cuts = curjob.cuts[:i+1]
+					gotonext = true
 				}
 				fmt.Printf("job j=%v; [beg:%v , endx:%v)  cut i=%v: %v  (%v)  %v\n",
 					j, curjob.beg, curjob.endx, i, cut, cut-prevcut, extra)
 				prevcut = cut
+				if gotonext {
+					//break
+				}
 			}
 		}
 	}
