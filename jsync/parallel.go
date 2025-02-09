@@ -373,15 +373,23 @@ func ChunkFile2(
 					// join here w.pos : j
 					// we have to lazily only add the prev set now
 					// slice bounds out of range [:22] with capacity 20
+
+					fmt.Printf("at j = %v; appending: (len prevjob.preChunks = %v; w.pos=%v; prevjob.trimmed = %v) \n", j, len(prevjob.preChunks), w.pos, prevjob.trimmed)
+					fmt.Printf("appending prevjob.preChunks[:(w.pos+1-prevjob.trimmed)]:\n")
+					showEachSegment(-1, prevjob.preChunks[:(w.pos+1-prevjob.trimmed)])
+					fmt.Printf("and here is curjob.preChunks: to be [%v:]\n", j+1)
+					showEachSegment(-1, curjob.preChunks)
+
 					chunks0.Chunks = append(chunks0.Chunks, prevjob.preChunks[:(w.pos+1-prevjob.trimmed)]...)
 					// and truncate the (cur) sets beginning, and
 					// wait to add it til next time, when we can
 					// again remove the overlap at its tail.
 					// (unless we are on the lasti, see below).
-					curjob.preChunks = curjob.preChunks[j:]
+					curjob.preChunks = curjob.preChunks[j+1:]
 					//wchunks[i] = wchunks[i][j:]
-					curjob.trimmed = j
+					curjob.trimmed = j + 1
 					vv("had to look through j = %v to find the overlap", j)
+
 					break
 				}
 			}
@@ -402,7 +410,7 @@ func ChunkFile2(
 				// so we just use the hard boundary of prev pre + cur seg
 
 				chunks0.Chunks = append(chunks0.Chunks, prevjob.preChunks...)
-				// replace the default pre with the hard-boundary seg chunked.
+				vv("replace the default pre with the hard-boundary seg chunked.")
 				curjob.preChunks = curjob.segChunks
 				curjob.idxPre = curjob.idxSeg
 			}
@@ -412,8 +420,21 @@ func ChunkFile2(
 			//chunks0.Chunks = append(chunks0.Chunks, c...)
 		}
 		// since we are lazily appending, have to append the last too.
-		chunks0.Chunks = append(chunks0.Chunks, curjob.preChunks...)
 
+		fmt.Printf("appending: \n")
+		showEachSegment(len(chunks0.Chunks), curjob.preChunks)
+
+		chunks0.Chunks = append(chunks0.Chunks, curjob.preChunks...)
+		// verify we did this right
+		for i, chnk := range chunks0.Chunks {
+			if i > 0 {
+				if chunks0.Chunks[i-1].Endx != chnk.Beg {
+					panic(fmt.Sprintf("gap in chunks0! i-1=%#v; at i = %v have chnk = '%#v'", chunks0.Chunks[i-1], i, chnk))
+				}
+			}
+		}
+		//vv("final set of chunks =")
+		//showEachSegment(0, chunks0.Chunks)
 	}
 	return
 }
