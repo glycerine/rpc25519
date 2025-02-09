@@ -370,25 +370,24 @@ func ChunkFile2(
 				w, ok := prevjob.idxPre[c.Cry]
 				if ok {
 					foundOverlap = true
-					// join here w.pos : j
+					// join here w.pos+1 : j+1
 					// we have to lazily only add the prev set now
-					// slice bounds out of range [:22] with capacity 20
 
-					fmt.Printf("at j = %v; appending: (len prevjob.preChunks = %v; w.pos=%v; prevjob.trimmed = %v) \n", j, len(prevjob.preChunks), w.pos, prevjob.trimmed)
-					fmt.Printf("appending prevjob.preChunks[:(w.pos+1-prevjob.trimmed)]:\n")
-					showEachSegment(-1, prevjob.preChunks[:(w.pos+1-prevjob.trimmed)])
-					fmt.Printf("and here is curjob.preChunks: to be [%v:]\n", j+1)
-					showEachSegment(-1, curjob.preChunks)
+					//fmt.Printf("at j = %v; appending: (len prevjob.preChunks = %v; w.pos=%v; prevjob.trimmed = %v) \n", j, len(prevjob.preChunks), w.pos, prevjob.trimmed)
+					//fmt.Printf("appending prevjob.preChunks[:(w.pos+1-prevjob.trimmed)]:\n")
+					//showEachSegment(-1, prevjob.preChunks[:(w.pos+1-prevjob.trimmed)])
+					//fmt.Printf("and here is curjob.preChunks: to be [%v:]\n", j+1)
+					//showEachSegment(-1, curjob.preChunks)
 
-					chunks0.Chunks = append(chunks0.Chunks, prevjob.preChunks[:(w.pos+1-prevjob.trimmed)]...)
+					chunks0.Chunks = append(chunks0.Chunks, prevjob.preChunks[:(w.pos-prevjob.trimmed)]...)
 					// and truncate the (cur) sets beginning, and
 					// wait to add it til next time, when we can
 					// again remove the overlap at its tail.
 					// (unless we are on the lasti, see below).
-					curjob.preChunks = curjob.preChunks[j+1:]
+					curjob.preChunks = curjob.preChunks[j:]
 					//wchunks[i] = wchunks[i][j:]
-					curjob.trimmed = j + 1
-					vv("had to look through j = %v to find the overlap", j)
+					curjob.trimmed = j
+					//vv("had to look through j = %v to find the overlap", j)
 
 					break
 				}
@@ -396,15 +395,10 @@ func ChunkFile2(
 			if !foundOverlap {
 				//   Line 574: - overlap not found. this should be impossible b/c we go back 2 * max chunk size into the previous segment. i = 15; lasti = 6813
 
-				fmt.Printf("preChunks prevjob at %v:\n", i-1)
-				showEachSegment(i-1, prevjob.preChunks)
-				fmt.Printf("preChunks curjob at %v:\n", i)
-				showEachSegment(i, curjob.preChunks)
-
-				//fmt.Printf("segChunks prevjob:\n")
-				//showEachSegment(i-1, prevjob.segChunks)
-				//fmt.Printf("segChunks curjob:\n")
-				//showEachSegment(i, curjob.segChunks)
+				//fmt.Printf("preChunks prevjob at %v:\n", i-1)
+				//showEachSegment(i-1, prevjob.preChunks)
+				//fmt.Printf("preChunks curjob at %v:\n", i)
+				//showEachSegment(i, curjob.preChunks)
 
 				fmt.Printf("overlap not found. this should be impossible maybe?? b/c we go back 2 * max chunk size into the previous segment. i = %v; lasti = %v\n", i, lasti)
 				// so we just use the hard boundary of prev pre + cur seg
@@ -414,15 +408,11 @@ func ChunkFile2(
 				curjob.preChunks = curjob.segChunks
 				curjob.idxPre = curjob.idxSeg
 			}
-
-			//chunks0.Chunks = append(chunks0.Chunks, curjob.preChunks...)
-
-			//chunks0.Chunks = append(chunks0.Chunks, c...)
 		}
 		// since we are lazily appending, have to append the last too.
 
-		fmt.Printf("appending: \n")
-		showEachSegment(len(chunks0.Chunks), curjob.preChunks)
+		//fmt.Printf("appending: \n")
+		//showEachSegment(len(chunks0.Chunks), curjob.preChunks)
 
 		chunks0.Chunks = append(chunks0.Chunks, curjob.preChunks...)
 		// verify we did this right
