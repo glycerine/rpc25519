@@ -30,6 +30,8 @@ import (
 // the fewest bytes need to be updated.
 var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_PlakarAlgo
 
+//var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_StadiaAlgo
+
 //var Default_CDC jcdc.CDCAlgo = jcdc.ResticRabin_Algo
 
 // Default_CDC_Config was optimized in the jcdc

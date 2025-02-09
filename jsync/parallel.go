@@ -358,6 +358,8 @@ func ChunkFile2(
 		}
 	*/
 
+	couldNotResync := 0
+
 	// todo: use job.preChunks or job.segChunks now, instead of wchunks.
 	if len(wchunks) == 1 {
 		chunks0.Chunks = append(chunks0.Chunks, wchunks[0]...)
@@ -448,6 +450,7 @@ func ChunkFile2(
 
 				chunks0.Chunks = append(chunks0.Chunks, prevjob.preChunks...)
 				//vv("replace the default pre with the hard-boundary seg chunked, on curjob = %p; i = %v", curjob, i)
+				couldNotResync++
 				curjob.preChunks = curjob.segChunks
 				//curjob.idxPre = curjob.idxSeg
 				curjob.offPre = curjob.offSeg
@@ -468,6 +471,7 @@ func ChunkFile2(
 				}
 			}
 		}
+		vv("couldNotResync = %v; out of nNodes = %v", couldNotResync, nNodes)
 		//vv("final set of chunks =")
 		//showEachSegment(0, chunks0.Chunks)
 	}

@@ -565,7 +565,7 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		//wantsChunks := true
 		//keepData := false
 
-		parallel := true
+		parallel := false
 
 		var localPrecis *FilePrecis
 		var wantsUpdate *Chunks
@@ -618,7 +618,7 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		bs := NewBlobStore() // make persistent state, at some point.
 		oneByteMarkedPlan := bs.GetPlanToUpdateFromGoal(wantsUpdate, templateChunks, dropPlanData, usePlaceHolders)
 		// 360ms. plan.DataChunkCount 2 out of 664047; DataPresent() = 75_740 bytes
-		// paralle: 27486 count, arg.
+		// parallel: 27486 count, arg.
 		vv("elap to GetPlanToUpdateFromGoal = '%v'; plan.DataChunkCount()= %v out of %v;  oneByteMarkedPlan.DataPresent() = %v bytes", time.Since(t3), oneByteMarkedPlan.DataChunkCount(), len(oneByteMarkedPlan.Chunks), oneByteMarkedPlan.DataPresent())
 
 		// get rid of the 1 byte place holders; fill in
