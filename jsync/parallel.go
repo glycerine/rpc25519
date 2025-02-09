@@ -24,6 +24,8 @@ type job struct {
 	beg  int
 	endx int
 
+	newEndx int
+
 	nodeK int
 
 	genCuts bool // else get hashes
@@ -135,15 +137,15 @@ func ChunkFile2(
 	// chunks, at the cost of re-doing the chunking
 	// on a smaller amount (2 * max size) overlapping
 	// portion.
-	postRead := 256 // 3 * int(Default_CDC_Config.MaxSize)
 
 	if parallelBits != 0 {
 		segment = 1 << parallelBits
 	}
-	minSegSize := 3 * int(Default_CDC_Config.MaxSize) // min 64KB (1 << 16)
+	minSegSize := int(Default_CDC_Config.MaxSize) // 1 MB
 	if segment < minSegSize {
 		segment = minSegSize
 	}
+	postRead := minSegSize
 
 	segN := sz / segment
 	if sz*segment < segN {
@@ -251,7 +253,10 @@ func ChunkFile2(
 				jobs[job.nodeK] = job
 
 			} else {
-				vv("gen hashes")
+				vv("gen hashes job = '%#v'", job)
+				if len(job.cuts) == 0 {
+					return
+				}
 				dataoff := job.cuts[0]
 				prev := dataoff - job.beg
 				for _, cut := range job.cuts {
@@ -326,7 +331,7 @@ func ChunkFile2(
 					// tell prevjob where their last cut ends.
 					//prevjob.cuts = append(prevjob.cuts, cut)
 					vv("adjust segment endx: %v -> %v  (delta %v)", prevjob.endx, cut, cut-prevjob.endx)
-					prevjob.endx = cut
+					prevjob.newEndx = cut
 					prevjob = nil
 				} else {
 					keep = append(keep, cut)
@@ -350,11 +355,17 @@ func ChunkFile2(
 
 	if true {
 		// verify that all cuts are inside their segment data
-		for _, curjob := range jobs {
-			for _, cut := range curjob.cuts {
+		prevcut := 0
+		for j, curjob := range jobs {
+			for i, cut := range curjob.cuts {
+				extra := ""
 				if cut > curjob.endx {
-					panic("cut > curjob.endx, this is a problem")
+					//panic("cut > curjob.endx, this is a problem")
+					extra = "***"
 				}
+				fmt.Printf("job j=%v; [beg:%v , endx:%v)  cut i=%v: %v  (%v)  %v\n",
+					j, curjob.beg, curjob.endx, i, cut, cut-prevcut, extra)
+				prevcut = cut
 			}
 		}
 	}
