@@ -424,11 +424,19 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	//vv("begin GetHashesOneByOne")
 	vv("begin ChunkFile (parallel)")
 	t1 := time.Now()
-	// non-parallel version:
-	//goalPrecis, local, err := GetHashesOneByOne(rpc.Hostname, localPath) // no data, just chunks. read data directly from file below.
-	//vv("end GetHashesOneByOne. elap = %v", time.Since(t1))
-	// parallel version
-	goalPrecis, local, err := ChunkFile(localPath)
+
+	var err error
+	var goalPrecis *FilePrecis
+	var local *Chunks
+	if parallelChunking {
+		// parallel version
+		goalPrecis, local, err = ChunkFile(localPath)
+	} else {
+		// non-parallel version:
+		goalPrecis, local, err = GetHashesOneByOne(rpc.Hostname, localPath)
+		// no data, just chunks. read data directly from file below.
+		//vv("end GetHashesOneByOne. elap = %v", time.Since(t1))
+	}
 	panicOn(err)
 	vv("end ChunkFile. elap = %v", time.Since(t1))
 

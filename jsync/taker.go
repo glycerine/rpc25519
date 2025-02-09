@@ -264,8 +264,14 @@ takerForSelectLoop:
 				err = ckt.SendOneWay(beginAgain, 0)
 				panicOn(err)
 
-				//_, takerChunks, err := GetHashesOneByOne(rpc.Hostname, syncReq2.TakerPath)
-				_, takerChunks, err := ChunkFile(syncReq2.TakerPath)
+				var takerChunks *Chunks
+				if parallelChunking {
+					_, takerChunks, err = ChunkFile(syncReq2.TakerPath)
+
+				} else {
+					_, takerChunks, err = GetHashesOneByOne(rpc.Hostname,
+						syncReq2.TakerPath)
+				}
 				panicOn(err)
 
 				err = s.packAndSendChunksLimitedSize(
@@ -880,8 +886,13 @@ takerForSelectLoop:
 					var precis *FilePrecis
 					const wantChunks = true
 					const keepData = false
-					//precis, local, err = GetHashesOneByOne(rpc.Hostname, localPathToRead)
-					precis, local, err = ChunkFile(localPathToRead)
+
+					if parallelChunking {
+						precis, local, err = ChunkFile(localPathToRead)
+					} else {
+						precis, local, err = GetHashesOneByOne(rpc.Hostname,
+							localPathToRead)
+					}
 					panicOn(err)
 
 					light := LightRequest{

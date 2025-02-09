@@ -103,7 +103,15 @@ func (s *jsyncU) PullToFrom(toLocalPath, fromRemotePath string) (dataBytesMoved 
 
 		//const keepData = false
 		//const wantChunks = true
-		precis, chunks, err := GetHashesOneByOne(rpc.Hostname, toLocalPath)
+
+		var precis *FilePrecis
+		var chunks *Chunks
+
+		if parallelChunking {
+			precis, chunks, err = ChunkFile(toLocalPath)
+		} else {
+			precis, chunks, err = GetHashesOneByOne(rpc.Hostname, toLocalPath)
+		}
 		panicOn(err)
 
 		// joins with current working directory if relative.

@@ -664,7 +664,16 @@ func (s *SyncService) dirTakerSendIndivFiles(
 
 				const keepData = false
 				const wantChunks = true
-				precis, chunks, err := GetHashesOneByOne(rpc.Hostname, takerFinalPath)
+
+				var err error
+				var precis *FilePrecis
+				var chunks *Chunks
+				if parallelChunking {
+					precis, chunks, err = ChunkFile(takerFinalPath)
+				} else {
+					precis, chunks, err = GetHashesOneByOne(rpc.Hostname,
+						takerFinalPath)
+				}
 				panicOn(err)
 
 				frag := s.U.NewFragment()
