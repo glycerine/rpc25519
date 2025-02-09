@@ -171,7 +171,7 @@ func ChunkFile2(
 
 	buf := make([][]byte, nWorkers)
 	for i := 0; i < nWorkers; i++ {
-		buf[i] = make([]byte, segment*2)
+		buf[i] = make([]byte, segment*3)
 	}
 
 	// buffered channel for less waiting on scheduling.
@@ -190,6 +190,7 @@ func ChunkFile2(
 	jobs := make([]*job, nNodes) // store indexes too.
 	//overlaps := make([][]*Chunk, nNodes-2)
 
+	mincut := int(Default_CDC_Config.MinSize)
 	nW := int(nWorkers)
 	vv("nW = %v", nW)
 
@@ -215,23 +216,22 @@ func ChunkFile2(
 			}
 
 			if !job.genCuts {
-				vv("on hashing... job = '%#v'", job)
+				//vv("on hashing... job = '%#v'", job)
 			}
 
 			f.Seek(int64(job.beg), 0)
 
-			lenseg := (job.endx - job.beg)
+			lenseg := (job.newEndx - job.beg)
 			if lenseg == 0 {
 				panic("lenseg should not be 0")
 			}
-			if !job.isLast {
+			if job.genCuts && !job.isLast {
 				lenseg += postRead
 				if job.endx+postRead > sz {
 					lenseg = sz - job.beg
 				}
 			} else {
-				vv("on last job: job.beg = %v; job.endx = %v; span =%v",
-					job.beg, job.endx, job.endx-job.beg)
+				//vv("on last job: job.beg = %v; job.endx = %v; span =%v", job.beg, job.endx, job.endx-job.beg)
 			}
 
 			nr, err := io.ReadFull(f, buf[worker][:lenseg])
@@ -246,7 +246,7 @@ func ChunkFile2(
 				// offset where data starts in the original file;
 				dataoff := job.beg
 
-				for j := 0; len(data) > 0; j++ {
+				for j := 0; len(data) >= mincut; j++ {
 					cut := cdc.NextCut(data)
 					job.cand = append(job.cand, dataoff+cut)
 					data = data[cut:]
@@ -255,7 +255,7 @@ func ChunkFile2(
 				jobs[job.nodeK] = job
 
 			} else {
-				vv("gen hashes job = '%#v'", job)
+				//vv("gen hashes job = '%#v'", job)
 				if len(job.cuts) == 0 {
 					return
 				}
@@ -301,6 +301,7 @@ func ChunkFile2(
 		job := &job{
 			beg:     beg,
 			endx:    endx,
+			newEndx: endx,
 			nodeK:   i,
 			isLast:  i == last,
 			genCuts: true,
@@ -316,7 +317,6 @@ func ChunkFile2(
 	// compute keeper cutpoints
 	var gkeep []int
 
-	minsz := int(Default_CDC_Config.MinSize)
 	prev := 0
 	var prevjob *job
 	for i, curjob := range jobs {
@@ -330,13 +330,22 @@ func ChunkFile2(
 				continue
 			}
 			d := cut - prev
-			if d >= minsz {
+			if d >= mincut {
 				if prevjob != nil {
 					// tell prevjob where their last cut ends.
 					//prevjob.cuts = append(prevjob.cuts, cut)
-					vv("set segment newEndx: endx:%v -> cut:%v  (delta %v)", prevjob.endx, cut, cut-prevjob.endx)
+					//vv("set segment newEndx: endx:%v -> cut:%v  (delta %v)", prevjob.endx, cut, cut-prevjob.endx)
 					prevjob.cuts = append(prevjob.cuts, cut)
 					prevjob.newEndx = cut
+
+					need := cut - prevjob.beg
+					if need > segment*3 {
+						// ugh: need = 2150427 but buf are size 2097152
+						panic(fmt.Sprintf("ugh: need = %v but buf are size %v ; missing %v",
+							need, segment*3, need-segment*3))
+						//buf[i] = make([]byte, segment*2) // what?
+					}
+
 					prevjob = nil
 				} else {
 					//keep = append(keep, cut)
@@ -356,6 +365,16 @@ func ChunkFile2(
 	// concluding case.
 	prevjob.cuts = append(prevjob.cuts, sz)
 
+	// truncate off the redundant cuts
+	for _, curjob := range jobs {
+		for i, cut := range curjob.cuts {
+			if cut > curjob.endx {
+				curjob.cuts = curjob.cuts[:i+1]
+				break
+			}
+		}
+	}
+
 	//vv("gkeep = '%#v'", gkeep)
 	if false {
 		for i := range gkeep {
@@ -366,7 +385,7 @@ func ChunkFile2(
 		}
 	}
 
-	if true {
+	if false {
 		// verify that all cuts are inside their segment data
 		prevcut := 0
 		for j, curjob := range jobs {
@@ -376,11 +395,10 @@ func ChunkFile2(
 				if cut > curjob.endx {
 					//panic("cut > curjob.endx, this is a problem")
 					extra = "***"
-					curjob.cuts = curjob.cuts[:i+1]
+					//curjob.cuts = curjob.cuts[:i+1]
 					gotonext = true
 				}
-				fmt.Printf("job j=%v; [beg:%v , endx:%v)  cut i=%v: %v  (%v)  %v\n",
-					j, curjob.beg, curjob.endx, i, cut, cut-prevcut, extra)
+				fmt.Printf("job j=%v; [beg:%v , endx:%v)  cut i=%v: %v  (%v)  %v\n", j, curjob.beg, curjob.endx, i, cut, cut-prevcut, extra)
 				prevcut = cut
 				if gotonext {
 					//break
@@ -410,7 +428,7 @@ func ChunkFile2(
 
 	for j, job := range jobs {
 		_ = j
-		showEachSegment(j, job.chunks)
+		//showEachSegment(j, job.chunks)
 
 		if len(chunks0.Chunks) > 0 {
 			if len(job.chunks) > 0 {

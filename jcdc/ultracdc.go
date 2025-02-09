@@ -163,6 +163,8 @@ func (c *UltraCDC) Algorithm(options *CDC_Config, data []byte, n int) (cutpoint 
 		normalSize = n
 	}
 
+	// this is buggy
+	// panic: runtime error: slice bounds out of range [:72] with capacity 68
 	outBufWin := data[minSize : minSize+8]
 
 	// Initialize hamming distance on outBufWin

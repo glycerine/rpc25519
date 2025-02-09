@@ -501,11 +501,11 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 	cv.Convey("using our rsync-like-protocol, rectifying a small diff in a big file should be efficient. Let the local have a small difference, and sync it to the remote 'template'", t, func() {
 
 		// template, match to this:
-		//remotePath := "Ubuntu_24.04_VB_LinuxVMImages.COM.vdi"
+		remotePath := "Ubuntu_24.04_VB_LinuxVMImages.COM.vdi"
 
 		// smaller file while looking at hashes directly.
 		//remotePath := "cry2mb"
-		remotePath := "cry8mb"
+		//remotePath := "cry8mb"
 		vv("template (goal) remotePath='%v'", remotePath)
 
 		localPath := remotePath + ".local"

@@ -28,9 +28,9 @@ import (
 //
 // In our benchmarks, FastCDC_PlakarAlgo results in
 // the fewest bytes need to be updated.
-//var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_PlakarAlgo
+var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_PlakarAlgo
 
-var Default_CDC jcdc.CDCAlgo = jcdc.UltraCDC_Algo
+//var Default_CDC jcdc.CDCAlgo = jcdc.UltraCDC_Algo
 
 //var Default_CDC jcdc.CDCAlgo = jcdc.FNV_Algo
 
@@ -72,7 +72,7 @@ var Default_CDC_Config = &jcdc.CDC_Config{
 */
 
 var Default_CDC_Config = &jcdc.CDC_Config{
-	MinSize:    1,
+	MinSize:    64,
 	TargetSize: 8 * 1024,
 	MaxSize:    1024 * 1024,
 }
