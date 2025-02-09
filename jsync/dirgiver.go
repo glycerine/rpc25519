@@ -151,6 +151,12 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					reqDir.TopTakerDirTempDirID = reqDir2.TopTakerDirTempDirID
 				}
 
+				// was it a file that was guessed to be a dir?
+				if fileExists(reqDir.GiverDir) {
+					panic(fmt.Sprintf("arg: somehow we guessed wrong. Trying to sync a file as a directory?!? reqDir.GiverDir = '%v' is a file, not a direcotry.", reqDir.GiverDir))
+					// return s.Giver(ctx0, ckt, myPeer, syncReq)
+				}
+
 				// after getting 23,
 				// send 26
 				// OpRsync_GiverSendsTopDirListing
