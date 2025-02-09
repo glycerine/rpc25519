@@ -410,7 +410,7 @@ func ChunkFile2(
 					}
 					appendme := prevjob.preChunks[:(w.pos - prevjob.begTrimmed)]
 					chunks0.Chunks = append(chunks0.Chunks, appendme...)
-					vv("on i = %v, appended a batch okay: [%v, %v)", i, appendme[0].Beg, appendme[len(appendme)-1].Endx)
+					//vv("on i = %v, appended a batch okay: [%v, %v)", i, appendme[0].Beg, appendme[len(appendme)-1].Endx)
 					// and truncate the cur's beginning, and
 					// wait to add it til next time, when we can
 					// again remove the overlap at its tail.
