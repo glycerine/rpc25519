@@ -421,11 +421,16 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	const keepData = false
 
 	//goalPrecis, local, err := SummarizeFileInCDCHashes(rpc.Hostname, localPath, wantChunks, keepData)
-	vv("begin GetHashesOneByOne")
+	//vv("begin GetHashesOneByOne")
+	vv("begin ChunkFile (parallel)")
 	t1 := time.Now()
-	goalPrecis, local, err := GetHashesOneByOne(rpc.Hostname, localPath) // no data, just chunks. read data directly from file below.
+	// non-parallel version:
+	//goalPrecis, local, err := GetHashesOneByOne(rpc.Hostname, localPath) // no data, just chunks. read data directly from file below.
+	//vv("end GetHashesOneByOne. elap = %v", time.Since(t1))
+	// parallel version
+	goalPrecis, local, err := ChunkFile(localPath)
 	panicOn(err)
-	vv("end GetHashesOneByOne. elap = %v", time.Since(t1))
+	vv("end ChunkFile. elap = %v", time.Since(t1))
 
 	// are the whole file checksums the same? we can
 	// avoid sending back a whole lotta chunks of nothing
