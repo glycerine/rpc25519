@@ -1101,7 +1101,7 @@ func UpdateLocalFileWithRemoteDiffs(
 
 	// make sure we have a full plan, not just a partial diff.
 	if remote.FileSize != remote.Last().Endx {
-		panic("remote was not a full plan for every byte!")
+		panic(fmt.Sprintf("remote was not a full plan for every byte! remote.FileSize = %v; but remote.Last().Endx = %v", remote.FileSize, remote.Last().Endx))
 	}
 
 	// working buffer to read local file chunks into.
