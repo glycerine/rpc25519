@@ -327,56 +327,63 @@ func ChunkFile2(
 			// base case
 			curjob.cuts = []int{0}
 		}
+		if i == 1 {
+			vv("here is jobs[0].cuts = '%#v'", jobs[0].cuts)
+		}
 		for _, cut := range curjob.cand {
 
 			if cut <= prev {
 				continue
 			}
 			d := cut - prev
-			if d >= mincut {
+			if d < mincut {
+				continue
+			}
+			if d >= maxcut {
+				vv("d over maxcut, will clamp %v -> %v", cut, prev+maxcut)
+				cut = prev + maxcut
+				d = maxcut
+			}
 
-				if d >= maxcut {
-					vv("d over maxcut, will clamp")
-					cut = prev + maxcut
-					d = maxcut
+			if prevjob != nil {
+				// tell prevjob where their last cut ends.
+				//prevjob.cuts = append(prevjob.cuts, cut)
+				//vv("set segment newEndx: endx:%v -> cut:%v  (delta %v)", prevjob.endx, cut, cut-prevjob.endx)
+				//vv("appending to jobs[%v] cut = %v", i-1, cut)
+				prevjob.cuts = append(prevjob.cuts, cut)
+				prevjob.newEndx = cut
+
+				need := cut - prevjob.beg
+				if need > segment*3 {
+					// ugh: need = 2150427 but buf are size 2097152
+					panic(fmt.Sprintf("ugh: need = %v but buf are size %v ; missing %v",
+						need, segment*3, need-segment*3))
+					//buf[i] = make([]byte, segment*2) // what?
 				}
 
-				if prevjob != nil {
-					// tell prevjob where their last cut ends.
-					//prevjob.cuts = append(prevjob.cuts, cut)
-					//vv("set segment newEndx: endx:%v -> cut:%v  (delta %v)", prevjob.endx, cut, cut-prevjob.endx)
-					jobs[i-1].cuts = append(jobs[i-1].cuts, cut)
-					jobs[i-1].newEndx = cut
+				prevjob = nil
+			} else {
+				//keep = append(keep, cut)
+			}
+			gkeep = append(gkeep, cut)
+			prev = cut
 
-					need := cut - prevjob.beg
-					if need > segment*3 {
-						// ugh: need = 2150427 but buf are size 2097152
-						panic(fmt.Sprintf("ugh: need = %v but buf are size %v ; missing %v",
-							need, segment*3, need-segment*3))
-						//buf[i] = make([]byte, segment*2) // what?
-					}
-
-					prevjob = nil
-				} else {
-					//keep = append(keep, cut)
+			if cut >= curjob.beg && cut <= curjob.endx {
+				jobs[i].cuts = append(jobs[i].cuts, cut)
+			} else {
+				if cut > jobs[i+1].endx {
+					panic("cut is way too big still, how??")
 				}
-				gkeep = append(gkeep, cut)
-				prev = cut
-
-				if cut >= curjob.beg && cut < curjob.endx {
-					jobs[i].cuts = append(jobs[i].cuts, cut)
-				} else {
-					if cut > jobs[i+1].endx {
-						panic("cut is way too big still, how??")
-					}
-					if cut < curjob.beg {
-						panic(fmt.Sprintf("cut should have been given to previous! cut = %v; curjob.beg = %v", cut, curjob.beg))
-					}
-					//vv("giving cut = %v to jobs[i+1] = '%#v'", cut, jobs[i+1])
-					jobs[i+1].cuts = []int{cut}
-					//}
-					break
+				if cut < curjob.beg {
+					panic(fmt.Sprintf("cut should have been given to previous! cut = %v; curjob.beg = %v", cut, curjob.beg))
 				}
+				//vv("giving cut = %v to jobs[i+1] = '%#v'", cut, jobs[i+1])
+				jobs[i+1].cuts = []int{cut}
+				if cut > jobs[i+1].newEndx {
+					jobs[i+1].newEndx = cut
+				}
+				//}
+				break
 			}
 		}
 		prevjob = curjob
