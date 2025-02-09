@@ -28,17 +28,15 @@ import (
 //
 // In our benchmarks, FastCDC_PlakarAlgo results in
 // the fewest bytes need to be updated.
-//var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_PlakarAlgo
+//var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_PlakarAlgo // 22.080s, mac. 27.6MB.
 
+var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_StadiaAlgo // 28.3s, mac. 1.4MB.
+
+// UltaCDC: very bad dedup, 1GB instead of 1MB. slower.
 //var Default_CDC jcdc.CDCAlgo = jcdc.UltraCDC_Algo
-
-//var Default_CDC jcdc.CDCAlgo = jcdc.FNV_Algo
-
-//var Default_CDC jcdc.CDCAlgo = jcdc.RabinKarp_Algo
-
-var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_StadiaAlgo
-
 //var Default_CDC jcdc.CDCAlgo = jcdc.ResticRabin_Algo
+//var Default_CDC jcdc.CDCAlgo = jcdc.FNV_Algo
+//var Default_CDC jcdc.CDCAlgo = jcdc.RabinKarp_Algo
 
 // Default_CDC_Config was optimized in the jcdc
 // benchmarks. The current 2KB min/8KB target/64KB max

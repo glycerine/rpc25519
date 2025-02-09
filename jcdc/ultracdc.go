@@ -153,8 +153,12 @@ func (c *UltraCDC) Algorithm(options *CDC_Config, data []byte, n int) (cutpoint 
 	// initial mask for small cuts below the Normal point.
 	mask := maskS
 
+	if minSize < 8 {
+		minSize = 8
+	}
+
 	switch {
-	case n <= minSize:
+	case n <= minSize+8:
 		cutpoint = n
 		return
 	case n >= maxSize:
@@ -163,8 +167,11 @@ func (c *UltraCDC) Algorithm(options *CDC_Config, data []byte, n int) (cutpoint 
 		normalSize = n
 	}
 
-	// this is buggy
+	// without the minSize minimum of 8 and the return if
+	// n <= minSize+8, we can get a minsize of 1 request resulting in:
 	// panic: runtime error: slice bounds out of range [:72] with capacity 68
+	// vv("len data = %v, minSize=%v; n = %v", len(data), minSize, n)
+	// len data = 1048576, minSize=1; n = 8000
 	outBufWin := data[minSize : minSize+8]
 
 	// Initialize hamming distance on outBufWin
