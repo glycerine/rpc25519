@@ -366,6 +366,7 @@ func ChunkFile2(
 		var prevjob, curjob *job
 
 		lasti := len(wchunks) - 1
+		_ = lasti
 		for i, curjob = range jobs {
 			if i == 0 {
 				continue
@@ -436,7 +437,7 @@ func ChunkFile2(
 				//fmt.Printf("preChunks curjob at %v:\n", i)
 				//showEachSegment(i, curjob.preChunks)
 
-				vv("overlap not found. this should be impossible maybe?? b/c we go back 2 * max chunk size into the previous segment. i = %v; lasti = %v\n", i, lasti)
+				//vv("overlap not found. this should be impossible maybe?? b/c we go back 2 * max chunk size into the previous segment. i = %v; lasti = %v\n", i, lasti)
 				// so we just use the hard boundary of prev pre + cur seg
 
 				if len(chunks0.Chunks) > 0 {
@@ -446,7 +447,7 @@ func ChunkFile2(
 				}
 
 				chunks0.Chunks = append(chunks0.Chunks, prevjob.preChunks...)
-				vv("replace the default pre with the hard-boundary seg chunked, on curjob = %p; i = %v", curjob, i)
+				//vv("replace the default pre with the hard-boundary seg chunked, on curjob = %p; i = %v", curjob, i)
 				curjob.preChunks = curjob.segChunks
 				//curjob.idxPre = curjob.idxSeg
 				curjob.offPre = curjob.offSeg
