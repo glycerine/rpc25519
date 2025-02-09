@@ -180,16 +180,11 @@ func ChunkFile2(
 	var wg sync.WaitGroup
 	wg.Add(int(nWorkers))
 
-	// the number of sub-tree root-nodes (only
-	// marked as parents though) to be merged after
-	// all the parallel hashing is done.
-	nNodes := (sz + segment - 1) / segment
-	vv("nNodes = %v", nNodes)
+	nJobs := (sz + segment - 1) / segment
+	vv("nJobs = %v", nJobs)
 
 	// output
-	wchunks := make([][]*Chunk, nNodes)
-	jobs := make([]*job, nNodes) // store indexes too.
-	//overlaps := make([][]*Chunk, nNodes-2)
+	jobs := make([]*job, nJobs)
 
 	mincut := int(Default_CDC_Config.MinSize)
 	maxcut := int(Default_CDC_Config.MaxSize)
@@ -197,7 +192,7 @@ func ChunkFile2(
 	vv("nW = %v; mincut = %v; maxcut = %v", nW, mincut, maxcut)
 
 	workfunc := func(work chan *job, worker int) {
-		//func(worker int) {
+
 		defer func() {
 			wg.Done()
 		}()
@@ -249,10 +244,10 @@ func ChunkFile2(
 				dataoff := job.beg
 
 				for j := 0; len(data) >= mincut; j++ {
-					cut := cdc.NextCut(data)
-					job.cand = append(job.cand, dataoff+cut)
-					data = data[cut:]
-					dataoff += cut
+					relcut := cdc.NextCut(data)
+					job.cand = append(job.cand, dataoff+relcut)
+					data = data[relcut:]
+					dataoff += relcut
 				}
 				jobs[job.nodeK] = job
 
@@ -296,8 +291,9 @@ func ChunkFile2(
 
 	// send off all the jobs
 
-	last := len(wchunks) - 1
-	for i := range wchunks {
+	last := nJobs - 1
+	for i := range nJobs {
+
 		beg := i * int(segment)
 		endx := (i + 1) * int(segment)
 		if endx > sz {
@@ -316,7 +312,7 @@ func ChunkFile2(
 		}
 		work <- job
 	}
-	// we have sent off njob = nNodes to be hashed
+	// we have sent off njob = nJobs to be hashed
 	close(work)
 	wg.Wait()
 
@@ -326,7 +322,7 @@ func ChunkFile2(
 	var gkeep []int
 
 	prev := 0
-	//var prevjob *job
+
 	lastjob := len(jobs) - 1
 	for i, curjob := range jobs {
 		if i == 0 {
@@ -425,7 +421,7 @@ func ChunkFile2(
 					//curjob.cuts = curjob.cuts[:i+1]
 					//gotonext = true
 				}
-				fmt.Printf("job j=%v; [beg:%v , endx:%v)  cut i=%v: %v  (%v)  %v\n", j, curjob.beg, curjob.endx, i, cut, cut-prevcut, extra)
+				//fmt.Printf("job j=%v; [beg:%v , endx:%v)  cut i=%v: %v  (%v)  %v\n", j, curjob.beg, curjob.endx, i, cut, cut-prevcut, extra)
 				if cut-prevcut > maxcut {
 					panic(fmt.Sprintf("should be impossible for %v = cut-prevcut > maxcut(%v) !", cut-prevcut, maxcut))
 				}
@@ -443,7 +439,7 @@ func ChunkFile2(
 		go workfunc(work, int(worker))
 	}
 
-	for i := range wchunks {
+	for i := range nJobs {
 		jobs[i].genCuts = false
 		work <- jobs[i]
 	}
@@ -451,11 +447,13 @@ func ChunkFile2(
 	wg.Wait()
 
 	// assemble all the []*Chunk in order.
-	// INVAR: nNodes == len(wchunks).
+	// INVAR: nJobs == len(wchunks).
 
 	for j, job := range jobs {
 		_ = j
-		//showEachSegment(j, job.chunks)
+		if j <= 1 {
+			showEachSegment(j, job.chunks)
+		}
 
 		if len(chunks0.Chunks) > 0 {
 			if len(job.chunks) > 0 {
