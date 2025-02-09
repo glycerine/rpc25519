@@ -19,7 +19,7 @@ func NewFNVCDC(opts *CDC_Config) *FNVCDC {
 	}
 	f.Opts = opts
 
-	// compute our bits threshold, (roudning up is why the + 0.5)
+	// compute our bits threshold, (rounding up is why the + 0.5)
 	f.NumBitsZeroAtCut = uint32(0.5 + math.Log2(float64(opts.TargetSize-opts.MinSize)))
 
 	//fmt.Printf("NewFNVCDC: TargetSize = %v -> f.NumBitsZeroAtCut = %v\n", f.Opts.TargetSize, f.NumBitsZeroAtCut)

@@ -26,28 +26,12 @@ type job struct {
 
 	nodeK int
 
-	isLast   bool
-	isPenult bool
+	genCuts bool // else get hashes
+	isLast  bool
 
-	// Chunk.Cry is the key
-	//idxPre map[string]*chunkPos
-	//idxSeg map[string]*chunkPos
+	cuts []int
 
-	// file offset is the key
-	offPre map[int]*chunkPos
-	offSeg map[int]*chunkPos
-
-	// how many did we trim off the beginning,
-	// so we index the end correctly.
-	begTrimmed int
-
-	preChunks []*Chunk
-	segChunks []*Chunk
-}
-
-type chunkPos struct {
-	chunk *Chunk
-	pos   int
+	chunks []*Chunk
 }
 
 // ChunkFile uses multiple parallel goroutines to read and
@@ -151,7 +135,7 @@ func ChunkFile2(
 	// chunks, at the cost of re-doing the chunking
 	// on a smaller amount (2 * max size) overlapping
 	// portion.
-	preRead := 3 * int(Default_CDC_Config.MaxSize)
+	postRead := 256 // 3 * int(Default_CDC_Config.MaxSize)
 
 	if parallelBits != 0 {
 		segment = 1 << parallelBits
@@ -183,7 +167,7 @@ func ChunkFile2(
 
 	buf := make([][]byte, nWorkers)
 	for i := 0; i < nWorkers; i++ {
-		buf[i] = make([]byte, segment+preRead)
+		buf[i] = make([]byte, segment+postRead)
 	}
 
 	// buffered channel for less waiting on scheduling.
@@ -204,128 +188,88 @@ func ChunkFile2(
 
 	nW := int(nWorkers)
 	vv("nW = %v", nW)
-	for worker := 0; worker < nW; worker++ {
 
-		go func(worker int) {
-			//func(worker int) {
-			defer func() {
-				wg.Done()
-			}()
+	workfunc := func(work chan *job, worker int) {
+		//func(worker int) {
+		defer func() {
+			wg.Done()
+		}()
 
-			var job *job
-			//var chunks []*Chunk
-			addChunk := func(slc []byte, beg int, isPre bool) {
-				hsh := hash.Blake3OfBytesString(slc)
-				//fmt.Printf("[%03d]GetHashes hsh = %v\n", k, hsh)
-				chunk := &Chunk{
-					Beg:  beg,
-					Endx: beg + len(slc),
-					Cry:  hsh,
+		var job *job
+
+		f, err := os.OpenFile(path, os.O_RDONLY, 0)
+		panicOn(err)
+		defer f.Close()
+
+		var ok bool
+		for {
+			select {
+			case job, ok = <-work:
+				if !ok {
+					return
 				}
-				cp := &chunkPos{
-					chunk: chunk,
-					//pos:   len(chunks),
-				}
-				if isPre {
-					cp.pos = len(job.preChunks)
-					job.preChunks = append(job.preChunks, chunk)
-					//job.idxPre[hsh] = cp
-					job.offPre[beg] = cp
-				} else {
-					cp.pos = len(job.segChunks)
-					job.segChunks = append(job.segChunks, chunk)
-					//job.idxSeg[hsh] = cp
-					job.offSeg[beg] = cp
-				}
-				//chunks = append(chunks, chunk)
 			}
 
-			f, err := os.OpenFile(path, os.O_RDONLY, 0)
+			f.Seek(int64(job.beg), 0)
+
+			lenseg := (job.endx - job.beg)
+			if lenseg == 0 {
+				panic("lenseg should not be 0")
+			}
+			if !job.isLast {
+				lenseg += postRead
+				if job.endx+postRead > sz {
+					lenseg = sz - job.beg
+				}
+			}
+
+			nr, err := io.ReadFull(f, buf[worker][:lenseg])
+			_ = nr
+			// either io.EOF (0 bytes) or
+			// io.ErrUnexpectedEOF (nr<lenseg) are problems.
 			panicOn(err)
-			defer f.Close()
 
-			var ok bool
-			for {
-				select {
-				case job, ok = <-work:
-					if !ok {
-						return
-					}
-				}
-				// compute a quick lookup index for the segment too
-				//job.idxPre = make(map[string]*chunkPos)
-				//job.idxSeg = make(map[string]*chunkPos)
-
-				job.offPre = make(map[int]*chunkPos)
-				job.offSeg = make(map[int]*chunkPos)
-
-				pre := preRead
-				if job.beg >= preRead {
-					f.Seek(int64(job.beg-pre), 0)
-				} else {
-					pre = 0
-					f.Seek(int64(job.beg), 0)
-				}
-				lenseg := pre + (job.endx - job.beg)
-				if lenseg == 0 {
-					panic("lenseg should not be 0")
-				}
-
-				nr, err := io.ReadFull(f, buf[worker][:lenseg])
-				_ = nr
-				// either io.EOF (0 bytes) or
-				// io.ErrUnexpectedEOF (nr<lenseg) are problems.
-				panicOn(err)
+			data := buf[worker][:lenseg]
+			if job.genCuts {
 
 				// offset where data starts in the original file;
-				// to pass to addChunk
-				dataoff := job.beg - pre
-				//vv("worker %v  has job.beg = %v, pre = %v, starting dataoff = job.beg - pre = %v", worker, job.beg, pre, job.beg-pre)
-				data := buf[worker][:lenseg]
+				dataoff := job.beg
 
-				// use job.preChunks or job.segChunks now, instead of wchunks.
-				//chunks = wchunks[job.nodeK]
-				//now we take any sized cut
 				for j := 0; len(data) > 0; j++ {
 					cut := cdc.NextCut(data)
-					addChunk(data[:cut], dataoff, pre != 0)
+					job.cuts = append(job.cuts, dataoff+cut)
 					data = data[cut:]
 					dataoff += cut
 				}
-				if pre == 0 {
-					// no pre (as on first), so the
-					// above wrote into segChunks and idxSeg.
-					job.preChunks = job.segChunks
-					//job.idxPre = job.idxSeg
-					job.offPre = job.offSeg
-				} else {
-					// also do seg aligned as a backup plan.
-					// buf already has the data, just skip pre.
-					data = buf[worker][pre:lenseg]
-					dataoff = job.beg
-					if lenseg-pre != job.endx-job.beg {
-						vv("dataoff = %v; lenseg=%v; pre=%v; "+
-							"job.endx=%v; job.beg=%v",
-							dataoff, lenseg, pre, job.endx, job.beg)
-						panic("something is off")
-					}
-					for j := 0; len(data) > 0; j++ {
-						cut := cdc.NextCut(data)
-						addChunk(data[:cut], dataoff, false)
-						data = data[cut:]
-						dataoff += cut
-					}
-				}
-				//wchunks[job.nodeK] = chunks
 				jobs[job.nodeK] = job
-			}
 
-		}(int(worker))
+			} else {
+				// gen hashes
+				prev := 0
+				dataoff := job.beg
+				for _, cut := range job.cuts {
+					d := cut - dataoff
+					slc := data[prev : prev+d]
+					chunk := &Chunk{
+						Beg:  dataoff,
+						Endx: dataoff + d,
+						Cry:  hash.Blake3OfBytesString(slc),
+					}
+					job.chunks = append(job.chunks, chunk)
+					dataoff += d
+				}
+			}
+		}
+
+	}
+
+	for worker := 0; worker < nW; worker++ {
+		go workfunc(work, int(worker))
 	}
 
 	// send off all the jobs
+
 	last := len(wchunks) - 1
-	penult := len(wchunks) - 2
 	for i := range wchunks {
 		beg := i * int(segment)
 		endx := (i + 1) * int(segment)
@@ -336,11 +280,11 @@ func ChunkFile2(
 			panic("logic error: must have endx > beg. don't process empty segment")
 		}
 		job := &job{
-			beg:      beg,
-			endx:     endx,
-			nodeK:    i,
-			isLast:   i == last,
-			isPenult: i == penult,
+			beg:     beg,
+			endx:    endx,
+			nodeK:   i,
+			isLast:  i == last,
+			genCuts: true,
 		}
 		work <- job
 	}
@@ -358,122 +302,61 @@ func ChunkFile2(
 		}
 	*/
 
-	couldNotResync := 0
+	//couldNotResync := 0
 
-	// todo: use job.preChunks or job.segChunks now, instead of wchunks.
-	if len(wchunks) == 1 {
-		chunks0.Chunks = append(chunks0.Chunks, wchunks[0]...)
-	} else {
-		i := 0
-		var prevjob, curjob *job
+	// compute keeper cutpoints
+	var gkeep []int
 
-		lasti := len(wchunks) - 1
-		_ = lasti
-		for i, curjob = range jobs {
-			if i == 0 {
+	minsz := int(Default_CDC_Config.MinSize)
+	prev := 0
+	var prevjob *job
+	for _, curjob := range jobs {
+
+		var keep []int
+		for _, cut := range curjob.cuts {
+
+			if cut <= prev {
 				continue
 			}
-			// INVAR: i > 0
-			prevjob = jobs[i-1]
-			//curjob = jobs[i]
-
-			// find the first overlap in curjob with prevjob.
-			// Note that the same content Cry from the tail can be found
-			// many times in the curjob... repeated 0s for instance.
-			foundOverlap := false
-			for j, c := range curjob.preChunks {
-				//w, ok := prevjob.idxPre[c.Cry]
-				w, ok := prevjob.offPre[c.Beg]
-				if ok {
-					foundOverlap = true
-					// join here w.pos+1 : j+1
-					// we have to lazily only add the prev set now
-
-					//fmt.Printf("at j = %v; appending: (len prevjob.preChunks = %v; w.pos=%v; prevjob.begTrimmed = %v) \n", j, len(prevjob.preChunks), w.pos, prevjob.begTrimmed)
-					//fmt.Printf("appending prevjob.preChunks[:(w.pos+1-prevjob.begTrimmed)]:\n")
-					//showEachSegment(-1, prevjob.preChunks[:(w.pos+1-prevjob.begTrimmed)])
-					//fmt.Printf("and here is curjob.preChunks: to be [%v:]\n", j+1)
-					//showEachSegment(-1, curjob.preChunks)
-
-					if w.pos-prevjob.begTrimmed < 0 {
-						vv("i = %v; at j = %v; appending: (len prevjob.preChunks = %v; w.pos=%v; prevjob.begTrimmed = %v); about to crash on prevjob = %p; trying to do prevjob.preChunks[:(w.pos-prevjob.begTrimmed=%v)]\n", i, j, len(prevjob.preChunks), w.pos, prevjob.begTrimmed, prevjob, w.pos-prevjob.begTrimmed)
-					}
-
-					if len(chunks0.Chunks) > 0 {
-						if prevjob.preChunks[0].Beg != chunks0.Chunks[len(chunks0.Chunks)-1].Endx {
-
-							fmt.Printf("i=%v; chunks0.Chunks ends with:\n", i)
-							showEachSegment(-1, chunks0.Chunks[len(chunks0.Chunks)-1:])
-							fmt.Printf("i=%v; preChunks prevjob.preChunks[:10]:\n", i)
-							showEachSegment(-1, prevjob.preChunks[:10])
-
-							//   Line 575: - bad append early! prevjob.preChunks[0].Beg = 851968 != chunks0.Chunks[len(chunks0.Chunks)-1].Endx = 983040
-							panic(fmt.Sprintf("i = %v; bad append early! prevjob.preChunks[0].Beg = %v != chunks0.Chunks[len(chunks0.Chunks)-1].Endx = %v;  prevjob.begTrimmed = %v", i, prevjob.preChunks[0].Beg, chunks0.Chunks[len(chunks0.Chunks)-1].Endx, prevjob.begTrimmed))
-						}
-					}
-					appendme := prevjob.preChunks[:(w.pos - prevjob.begTrimmed)]
-					chunks0.Chunks = append(chunks0.Chunks, appendme...)
-					//vv("on i = %v, appended a batch okay: [%v, %v)", i, appendme[0].Beg, appendme[len(appendme)-1].Endx)
-					// and truncate the cur's beginning, and
-					// wait to add it til next time, when we can
-					// again remove the overlap at its tail.
-					// (unless we are on the lasti, see below).
-					delme := curjob.preChunks[:j]
-					curjob.preChunks = curjob.preChunks[j:]
-					//wchunks[i] = wchunks[i][j:]
-					curjob.begTrimmed = j
-					for _, del := range delme {
-						//delete(curjob.idxPre, del.Cry)
-						delete(curjob.offPre, del.Beg)
-					}
-					//vv("set curjob.begTrimmed = j = %v; at i = %v", j, i)
-
-					break
+			d := cut - prev
+			if d >= minsz {
+				if prevjob != nil {
+					// tell prevjob where their last cut ends.
+					//prevjob.cuts = append(prevjob.cuts, cut)
+					prevjob.endx = cut
+					prevjob = nil
 				}
-			}
-			if !foundOverlap {
-				//   Line 574: - overlap not found. this should be impossible b/c we go back 2 * max chunk size into the previous segment. i = 15; lasti = 6813
-
-				//fmt.Printf("preChunks prevjob at %v:\n", i-1)
-				//showEachSegment(i-1, prevjob.preChunks)
-				//fmt.Printf("preChunks curjob at %v:\n", i)
-				//showEachSegment(i, curjob.preChunks)
-
-				//vv("overlap not found. this should be impossible maybe?? b/c we go back 2 * max chunk size into the previous segment. i = %v; lasti = %v\n", i, lasti)
-				// so we just use the hard boundary of prev pre + cur seg
-
-				if len(chunks0.Chunks) > 0 {
-					if prevjob.preChunks[0].Beg != chunks0.Chunks[len(chunks0.Chunks)-1].Endx {
-						panic(fmt.Sprintf("bad append! prevjob.preChunks[0].Beg = %v != chunks0.Chunks[len(chunks0.Chunks)-1].Endx = %v", prevjob.preChunks[0].Beg, chunks0.Chunks[len(chunks0.Chunks)-1].Endx))
-					}
-				}
-
-				chunks0.Chunks = append(chunks0.Chunks, prevjob.preChunks...)
-				//vv("replace the default pre with the hard-boundary seg chunked, on curjob = %p; i = %v", curjob, i)
-				couldNotResync++
-				curjob.preChunks = curjob.segChunks
-				//curjob.idxPre = curjob.idxSeg
-				curjob.offPre = curjob.offSeg
-				curjob.begTrimmed = 0
+				keep = append(keep, cut)
+				gkeep = append(gkeep, cut)
+				prev = cut
 			}
 		}
-		// since we are lazily appending, have to append the last too.
+		curjob.cuts = keep
+		prevjob = curjob
+	}
+	//vv("gkeep = '%#v'", gkeep)
 
-		//fmt.Printf("appending: \n")
-		//showEachSegment(len(chunks0.Chunks), curjob.preChunks)
+	// re-open work, it was closed.
+	work = make(chan *job, 1024)
+	wg.Add(int(nWorkers))
 
-		chunks0.Chunks = append(chunks0.Chunks, curjob.preChunks...)
-		// verify we did this right
-		for i, chnk := range chunks0.Chunks {
-			if i > 0 {
-				if chunks0.Chunks[i-1].Endx != chnk.Beg {
-					panic(fmt.Sprintf("gap in chunks0! i-1=%#v; at i = %v have chnk = '%#v'", chunks0.Chunks[i-1], i, chnk))
-				}
-			}
-		}
-		vv("couldNotResync = %v; out of nNodes = %v", couldNotResync, nNodes)
-		//vv("final set of chunks =")
-		//showEachSegment(0, chunks0.Chunks)
+	// have the goroutines do the hashing now.
+	for worker := 0; worker < nW; worker++ {
+		go workfunc(work, int(worker))
+	}
+
+	for i := range wchunks {
+		jobs[i].genCuts = false
+		work <- jobs[i]
+	}
+	close(work)
+	wg.Wait()
+
+	// todo: use job.preChunks or job.segChunks now, instead of wchunks.
+	if nNodes == 1 {
+		//for
+		//		chunks0.Chunks = append(chunks0.Chunks, c)
+	} else {
 	}
 	return
 }

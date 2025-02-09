@@ -28,7 +28,13 @@ import (
 //
 // In our benchmarks, FastCDC_PlakarAlgo results in
 // the fewest bytes need to be updated.
-var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_PlakarAlgo
+//var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_PlakarAlgo
+
+var Default_CDC jcdc.CDCAlgo = jcdc.UltraCDC_Algo
+
+//var Default_CDC jcdc.CDCAlgo = jcdc.FNV_Algo
+
+//var Default_CDC jcdc.CDCAlgo = jcdc.RabinKarp_Algo
 
 //var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_StadiaAlgo
 
@@ -57,11 +63,21 @@ var Default_CDC jcdc.CDCAlgo = jcdc.FastCDC_PlakarAlgo
 // the FastCDC_PlakarAlgo algo out performing all
 // the others in terms of minimizing the deltas
 // of total bytes changed.
+/*
 var Default_CDC_Config = &jcdc.CDC_Config{
 	MinSize:    2 * 1024,
 	TargetSize: 8 * 1024,
 	MaxSize:    64 * 1024,
 }
+*/
+
+var Default_CDC_Config = &jcdc.CDC_Config{
+	MinSize:    1,
+	TargetSize: 8 * 1024,
+	MaxSize:    1024 * 1024,
+}
+
+// min_size = 0.69*tgt_size
 
 // SyncService implements a file syncing
 // service using an rsync-like protocol.
