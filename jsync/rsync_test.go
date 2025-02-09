@@ -505,10 +505,11 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 
 		// the first ~ 1MB of Ub
 		//remotePath := "repro.orig.1098290"
+		remotePath := "10mb.ub" // has 27 out of 646. why not just 2?
 		//remotePath := "cry.1098290" // compare/contrast
 
 		// smaller file while looking at hashes directly.
-		remotePath := "cry2mb"
+		//remotePath := "cry2mb"
 		//remotePath := "cry8mb"
 		//remotePath := "cry16mb"
 		vv("template (goal) remotePath='%v'", remotePath)
@@ -624,6 +625,11 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		t3 := time.Now()
 		bs := NewBlobStore() // make persistent state, at some point.
 		oneByteMarkedPlan := bs.GetPlanToUpdateFromGoal(wantsUpdate, templateChunks, dropPlanData, usePlaceHolders)
+
+		if oneByteMarkedPlan.DataChunkCount() != 2 {
+			t.Fatalf("oneByteMarkedPlan.DataChunkCount() = %v, why not 2 ??", oneByteMarkedPlan.DataChunkCount())
+		}
+
 		// 360ms. plan.DataChunkCount 2 out of 664047; DataPresent() = 75_740 bytes
 		// parallel: 27486 count, arg.
 		vv("elap to GetPlanToUpdateFromGoal = '%v'; plan.DataChunkCount()= %v out of %v;  oneByteMarkedPlan.DataPresent() = %v bytes", time.Since(t3), oneByteMarkedPlan.DataChunkCount(), len(oneByteMarkedPlan.Chunks), oneByteMarkedPlan.DataPresent())

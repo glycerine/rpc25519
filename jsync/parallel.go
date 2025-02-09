@@ -490,7 +490,7 @@ func ChunkFile2(
 
 		chunks0.Chunks = append(chunks0.Chunks, job.chunks...)
 	}
-	if true {
+	if false {
 		printCutsPerJob(0, jobs, true)
 	}
 
