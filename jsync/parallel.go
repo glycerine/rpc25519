@@ -321,7 +321,7 @@ func ChunkFile2(
 
 	prev := 0
 	var prevjob *job
-	//lastjob := len(jobs) - 1
+	lastjob := len(jobs) - 1
 	for i, curjob := range jobs {
 		if i == 0 {
 			// base case
@@ -340,7 +340,7 @@ func ChunkFile2(
 				continue
 			}
 			if d >= maxcut {
-				vv("d over maxcut, will clamp %v -> %v", cut, prev+maxcut)
+				//vv("d over maxcut, will clamp %v -> %v", cut, prev+maxcut)
 				cut = prev + maxcut
 				d = maxcut
 			}
@@ -370,9 +370,22 @@ func ChunkFile2(
 			gkeep = append(gkeep, cut)
 			prev = cut
 
-			if cut >= curjob.beg && cut <= curjob.endx {
-				jobs[i].cuts = append(jobs[i].cuts, cut)
-			} else {
+			//if cut >= curjob.beg { // && cut <= curjob.endx {
+			jobs[i].cuts = append(jobs[i].cuts, cut)
+
+			if cut >= curjob.endx {
+				if i != lastjob {
+					// start the next at its beg
+					jobs[i+1].cuts = []int{cut}
+					if cut > jobs[i+1].newEndx {
+						// don't think should ever be needed, just in case:
+						jobs[i+1].newEndx = cut
+					}
+				}
+				break // go to next job
+			}
+			//} else {
+			if false {
 				if cut < curjob.beg {
 					panic(fmt.Sprintf("cut should have been given to previous! cut = %v; curjob.beg = %v", cut, curjob.beg))
 				}
@@ -419,16 +432,19 @@ func ChunkFile2(
 		// verify that all cuts are inside their segment data
 		prevcut := 0
 		for j, curjob := range jobs {
+			_ = j
 			//gotonext := false
 			for i, cut := range curjob.cuts {
+				_ = i
 				extra := ""
+				_ = extra
 				if cut > curjob.endx {
 					//panic("cut > curjob.endx, this is a problem")
 					extra = "***"
 					//curjob.cuts = curjob.cuts[:i+1]
 					//gotonext = true
 				}
-				fmt.Printf("job j=%v; [beg:%v , endx:%v)  cut i=%v: %v  (%v)  %v\n", j, curjob.beg, curjob.endx, i, cut, cut-prevcut, extra)
+				//fmt.Printf("job j=%v; [beg:%v , endx:%v)  cut i=%v: %v  (%v)  %v\n", j, curjob.beg, curjob.endx, i, cut, cut-prevcut, extra)
 				if cut-prevcut > maxcut {
 					panic(fmt.Sprintf("should be impossible for %v = cut-prevcut > maxcut(%v) !", cut-prevcut, maxcut))
 				}
@@ -461,7 +477,7 @@ func ChunkFile2(
 
 	for j, job := range jobs {
 		_ = j
-		showEachSegment(j, job.chunks)
+		//showEachSegment(j, job.chunks)
 
 		if len(chunks0.Chunks) > 0 {
 			if len(job.chunks) > 0 {
