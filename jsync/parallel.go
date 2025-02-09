@@ -333,9 +333,9 @@ func ChunkFile2(
 			// base case
 			curjob.cuts = []int{0}
 		}
-		if i == 16 {
-			vv("here is jobs[%v].cuts = '%#v'", i, jobs[i].cuts)
-		}
+		//if i == 16 {
+		//	vv("here is jobs[%v].cuts = '%#v'", i, jobs[i].cuts)
+		//}
 		for _, cut := range curjob.cand {
 
 			if cut <= prev {
@@ -358,9 +358,9 @@ func ChunkFile2(
 				// do not add redundant cut!
 			} else {
 				jobs[i].cuts = append(jobs[i].cuts, cut)
-				if jobs[i].nodeK == 16 {
-					vv("jobs[i].cuts = '%#v'", jobs[i].cuts)
-				}
+				//if jobs[i].nodeK == 16 {
+				//vv("jobs[i].cuts = '%#v'", jobs[i].cuts)
+				//}
 			}
 
 			if cut >= curjob.endx {
@@ -425,7 +425,7 @@ func ChunkFile2(
 					//curjob.cuts = curjob.cuts[:i+1]
 					//gotonext = true
 				}
-				//fmt.Printf("job j=%v; [beg:%v , endx:%v)  cut i=%v: %v  (%v)  %v\n", j, curjob.beg, curjob.endx, i, cut, cut-prevcut, extra)
+				fmt.Printf("job j=%v; [beg:%v , endx:%v)  cut i=%v: %v  (%v)  %v\n", j, curjob.beg, curjob.endx, i, cut, cut-prevcut, extra)
 				if cut-prevcut > maxcut {
 					panic(fmt.Sprintf("should be impossible for %v = cut-prevcut > maxcut(%v) !", cut-prevcut, maxcut))
 				}
