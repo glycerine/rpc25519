@@ -525,7 +525,8 @@ func printCutsPerJob(begJobNum int, jobs []*job, showChunks bool) {
 				}
 				fmt.Println()
 			} else {
-				fmt.Printf("   ...(no chunks available, for job %v)\n", k)
+				fmt.Printf("   ...(no chunks avail for job %v [%v, %v))\n",
+					k, curjob.beg, curjob.endx)
 			}
 		}
 	}
