@@ -66,9 +66,15 @@ func ChunkFile2(
 
 ) (precis *FilePrecis, chunks0 *Chunks, err0 error) {
 
+	// must handle non-existant files without error.
+	if !fileExists(path) {
+		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false)
+	}
+
 	t0 := time.Now()
 	fd, err := os.OpenFile(path, os.O_RDONLY, 0)
 	if err != nil {
+		//vv("ChunkFile2: error on OpenFile(path='%v'): '%v'", path, err)
 		err0 = err
 		return
 	}
