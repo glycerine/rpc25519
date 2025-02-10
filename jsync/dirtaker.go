@@ -130,6 +130,18 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				sr := reqDir3.SR
 				sr.GiverIsDir = false
 				sr.Done = idem.NewIdemCloseChan()
+
+				// clear out (any) existing directory;
+				// maybe todo: make this optional?
+				vv("dirtaker: to convert dir to file, we wipe out dir: '%v'", sr.TakerPath)
+				if sr.TakerPath == "" {
+					panic("cannot have empty sr.TakerPath here.")
+				}
+				if dirExists(sr.TakerPath) {
+					err = os.RemoveAll(sr.TakerPath)
+					panicOn(err)
+				}
+
 				err = s.Taker(ctx0, ckt, myPeer, sr)
 				vv("Taker call in DirTaker got err = '%v'", err)
 				vv("Taker call in DirTaker got sr.Errs = '%v'", sr.Errs)
