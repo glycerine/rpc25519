@@ -69,6 +69,9 @@ func ChunkFile2(
 ) (precis *FilePrecis, chunks0 *Chunks, err0 error) {
 
 	vv("top of ChunkFile2")
+	defer func() {
+		vv("ChunkFile2 reeturning; err0 = '%v'; len chunks0.Chunks = %v", err0, len(chunks0.Chunks))
+	}()
 	// must handle non-existant files without error.
 	if !fileExists(path) {
 		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false)
@@ -85,11 +88,13 @@ func ChunkFile2(
 
 	fi, err := fd.Stat()
 	if err != nil {
+		vv("path did not stat: '%v': '%v'", path, err)
 		err0 = err
 		return
 	}
 	sz := int(fi.Size())
 	if sz == 0 {
+		vv("path is empty! '%v'", path)
 		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false)
 	}
 	vv("file is not empty")
