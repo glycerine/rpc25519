@@ -32,9 +32,13 @@ import (
 //
 //mspg:tuple Chunk
 type Chunk struct {
-	Beg  int    `zid:"0"`
-	Endx int    `zid:"1"`
-	Cry  string `zid:"2"` // a cryptographic hash identifying the chunk. Ex: blake3
+	Beg  int `zid:"0"`
+	Endx int `zid:"1"`
+
+	// Simple protocol for run-length-encoding (RLE) of zeros.
+	// Cry of "RLE0;" means repeat 0 from [Beg:Endx)
+
+	Cry string `zid:"2"` // a cryptographic hash identifying the chunk. Ex: blake3
 
 	// Data might be nil for summary purposes,
 	// or provided if we are transmitting a set of diffs.
@@ -113,6 +117,8 @@ func (c *Chunks) Last() *Chunk {
 	return c.Chunks[n-1]
 }
 
+var zeros4k = make([]byte, 4096)
+
 // UpdateLocalWithRemoteDiffs is the essence of the rsync
 // algorithm for efficient file transfer. The remote
 // chunks arguments gives us the update plan.
@@ -160,7 +166,26 @@ func UpdateLocalWithRemoteDiffs(
 	for i, chunk := range remote.Chunks {
 		_ = i
 
+		// handle "RLE0;" case, run-length-encoded zeros.
+		if chunk.Cry == "RLE0;" {
+			n := chunk.Endx - chunk.Beg
+			ns := n / len(zeros4k)
+			rem := n % len(zeros4k)
+			for range ns {
+				wb := copy(newvers[j:], zeros4k)
+				j += wb
+				h.Write(zeros4k)
+			}
+			if rem > 0 {
+				wb := copy(newvers[j:], zeros4k[:rem])
+				j += wb
+				h.Write(zeros4k[:rem])
+			}
+			continue
+		}
+
 		if len(chunk.Data) == 0 {
+
 			// the data is local
 			lc, ok := localMap[chunk.Cry]
 			if !ok {
@@ -1138,6 +1163,26 @@ func UpdateLocalFileWithRemoteDiffs(
 
 	// remote gives the plan of what to create
 	for _, chunk := range remote.Chunks {
+
+		// handle "RLE0;" case, run-length-encoded zeros.
+		if chunk.Cry == "RLE0;" {
+			n := chunk.Endx - chunk.Beg
+			ns := n / len(zeros4k)
+			rem := n % len(zeros4k)
+			for range ns {
+				wb, err := newversBufio.Write(zeros4k)
+				panicOn(err)
+				j += wb
+				h.Write(zeros4k)
+			}
+			if rem > 0 {
+				wb, err := newversBufio.Write(zeros4k[:rem])
+				panicOn(err)
+				j += wb
+				h.Write(zeros4k[:rem])
+			}
+			continue
+		}
 
 		if len(chunk.Data) == 0 {
 			// the data is local
