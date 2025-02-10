@@ -92,7 +92,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		select {
 
 		case frag0 := <-ckt.Reads:
-			//vv("%v: (ckt '%v') (Giver) saw read frag0:'%v'", name, ckt.Name, frag0)
+			vv("%v: (ckt '%v') (Giver) saw read frag0:'%v'", name, ckt.Name, frag0)
 
 			////vv("frag0 = '%v'", frag0)
 			switch frag0.FragOp {
@@ -233,14 +233,14 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 				// 0. We might need to wait for more chunks.
 				if syncReq.MoreChunksComming {
-					//vv("syncReq.MoreChunksComming waiting for more...")
+					vv("syncReq.MoreChunksComming waiting for more...")
 					// get the extra fragments with more []*Chunk
 					err0 = s.getMoreChunks(ckt, bt, &wireChunks, done, done0, syncReq, OpRsync_RequestRemoteToGive_ChunksLast, OpRsync_RequestRemoteToGive_ChunksMore)
 					//err0 = s.getMoreChunks(ckt, bt, &localChunks, done, done0, syncReq, OpRsync_HeavyDiffChunksLast, OpRsync_HeavyDiffChunksEnclosed)
 					panicOn(err0)
 
 				} // end if syncReq.MoreChunksComming
-				//vv("nore more chunks to wait for...")
+				vv("nore more chunks to wait for...")
 
 				// after moreLoop, we get here:
 
@@ -930,18 +930,6 @@ moreLoop:
 				panicOn(err)
 				bt.bread += len(fragX.Payload)
 
-				// dirgiver.go:265 2025-01-29 16:20:16.097 -0600 CST
-				// error ckt2 close: 'panic recovered: 'are we mixing
-				// upchunks from two files?? x.Path='same2' but
-				// localChunks.Path='tmp/same2'''
-				// if x.Path != (*localChunks).Path {
-				// 	panic(fmt.Sprintf("are we mixing up"+
-				// 		"chunks from two files?? x.Path='%v'"+
-				// 		" but localChunks.Path='%v'",
-				// 		x.Path, (*localChunks).Path))
-				// }
-
-				// contiguous?
 				lc := (*localChunks)
 				n := len(lc.Chunks)
 				if n > 0 {
