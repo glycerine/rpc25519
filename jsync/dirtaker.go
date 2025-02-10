@@ -129,9 +129,14 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				bt.bread += len(frag.Payload)
 				sr := reqDir3.SR
 				sr.GiverIsDir = false
+				sr.Done = idem.NewIdemCloseChan()
 				err = s.Taker(ctx0, ckt, myPeer, sr)
-				vv("Taker call in DirTaker got err = '%v'", err) // not seen.
+				vv("Taker call in DirTaker got err = '%v'", err)
+				vv("Taker call in DirTaker got sr.Errs = '%v'", sr.Errs)
 				panicOn(err)
+				if sr.Errs != "" {
+					panic(sr.Errs)
+				}
 
 				// we need to tell the remote giver to end too.
 
