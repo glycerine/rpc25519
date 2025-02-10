@@ -621,7 +621,16 @@ func (s *SyncService) Start(
 			// we don't know whether to ask for a file or directory.
 			// Try: asking for a directory, and see how it goes?
 
-			// problem: client may not have set TakerExistsLocal correctly
+			// good code: but critical to get right: if we
+			// tell the giver we don't have a file when we
+			// really do, they will send us the full file when
+			// a timestamp update might have done. So be
+			// sure to get this right (e2e_test 220 depends on it
+			// being right too, since that code does not set
+			// TakerExistsLocal which was added later).
+			//
+			// the problem begin solved:
+			// client may not have set TakerExistsLocal correctly
 			// like our jsync code which didn't notice we added that flag.
 			// We'll verify/fill that in correctly here, since otherwise
 			// we might delete a local taker directory that we don't want to.

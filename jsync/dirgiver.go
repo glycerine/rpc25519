@@ -119,6 +119,15 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 					if reqDir.TakerTargetUnknown {
 						vv("dirgiver sees TakerTargetUnknown on reqDir: '%#v'", reqDir)
+						// should we be running the full sync protocol here
+						// to allow not transferring data if it is already
+						// in place? i.e. allow TakerTargetUnknown to
+						// be true but not really? well then the taker
+						// has told us they don't have it when they do...
+						// so really, just fix that part. Because if
+						// they don't have it, we really do need to
+						// send it in full; like this:
+
 						if fileExists(reqDir.GiverDir) {
 							err := s.convertedDirToFile_giveFile(
 								ctx0, reqDir, ckt, frag0, bt)
