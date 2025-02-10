@@ -911,7 +911,7 @@ takerForSelectLoop:
 					panicOn(err)
 
 					if len(local.Chunks) == 0 {
-						panic(fmt.Sprintf("how can local have 0 Chunks??: '%v'", local.Chunks))
+						// empty or non-existant file
 					}
 
 					light := LightRequest{
@@ -937,18 +937,21 @@ takerForSelectLoop:
 					panicOn(err)
 					bt.bsend += len(frag.Payload)
 
-					// send local in Chunks, else we will get
-					// ErrTooLarg sending all of local/ReaderChunks
-					// ? should this be packAndSendChunksJustInTime ?
-					err0 = s.packAndSendChunksLimitedSize(
-						local,
-						frag.FragSubject,
-						OpRsync_RequestRemoteToGive_ChunksLast,
-						OpRsync_RequestRemoteToGive_ChunksMore,
-						ckt,
-						bt,
-						light.SenderPath,
-					)
+					if precis.FileSize > 0 {
+						// send local in Chunks, else we will get
+						// ErrTooLarg sending all of local/ReaderChunks
+						// ? should this be packAndSendChunksJustInTime ?
+						err0 = s.packAndSendChunksLimitedSize(
+							local,
+							frag.FragSubject,
+							OpRsync_RequestRemoteToGive_ChunksLast,
+							OpRsync_RequestRemoteToGive_ChunksMore,
+							ckt,
+							bt,
+							light.SenderPath,
+						)
+						panicOn(err0)
+					}
 
 					// while waiting for data...
 					localMap = getCryMap(local) // pre-index them for the update.

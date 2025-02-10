@@ -307,13 +307,17 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 				vv("giver sees OpRsync_LightRequestEnclosed; light.ReaderChunks = '%#v'", light)
 
-				// light.ReaderChunks were too big,
-				// get them in packs instead.
-				err0 = s.getMoreChunks(ckt, bt, &light.ReaderChunks,
-					done, done0, syncReq,
-					OpRsync_RequestRemoteToGive_ChunksLast,
-					OpRsync_RequestRemoteToGive_ChunksMore)
-				panicOn(err0)
+				if light.ReaderPrecis.FileSize > 0 {
+					// light.ReaderChunks were too big,
+					// get them in packs instead.
+					err0 = s.getMoreChunks(ckt, bt, &light.ReaderChunks,
+						done, done0, syncReq,
+						OpRsync_RequestRemoteToGive_ChunksLast,
+						OpRsync_RequestRemoteToGive_ChunksMore)
+					panicOn(err0)
+				}
+				// else nothing will be sent for size 0 file; as
+				// there is nothing (no chunks) to send.
 
 				vv("OpRsync_LightRequestEnclosed calling giverSendsPlanAndDataUpdates")
 				s.giverSendsPlanAndDataUpdates(light.ReaderChunks, ckt, localPath, bt, frag0)
