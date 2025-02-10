@@ -375,13 +375,9 @@ func ChunkFile2(
 				prev = cut
 			}
 		}
-		// the last one could be forced at the boundary,
-		// and so shorter than possible. try leaving it out.
-		lastcand := len(curjob.cand) - 1
-		for j, cut := range curjob.cand {
-			if j == lastcand {
-				continue
-			}
+
+		for _, cut := range curjob.cand {
+
 			if cut <= prev {
 				continue
 			}
