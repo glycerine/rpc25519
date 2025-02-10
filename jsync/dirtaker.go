@@ -617,8 +617,9 @@ func (s *SyncService) dirTakerSendIndivFiles(
 	updateMap := needUpdate.GetMapReset()
 	var bts []*byteTracker
 
-	wgjobs := &sync.WaitGroup{}
-	wgjobs.Add(len(updateMap))
+	//wgjobs := &sync.WaitGroup{}
+	//wgjobs.Add(len(updateMap))
+	batchHalt.ReqStop.TaskAdd(len(updateMap))
 
 	fileCh := make(chan *File) // do not buffer, giving work.
 
@@ -635,23 +636,29 @@ func (s *SyncService) dirTakerSendIndivFiles(
 		// rsync: 1.6s vs jcp 2.8s to restore linux/Documentation
 		// over LAN.
 		//func(file *File, goroHalt *idem.Halter, bt *byteTracker) {
-		go func(fileCh chan *File, goroHalt *idem.Halter, bt *byteTracker, wgjobs *sync.WaitGroup) {
+		go func(fileCh chan *File, goroHalt *idem.Halter, bt *byteTracker) {
 			defer func() {
-				goroHalt.ReqStop.Close()
-				goroHalt.Done.Close()
 
 				// other side ctrl-c will give us a panic here
 				r := recover()
 				if r != nil {
-					//vv("dirTakerSendIndivFiles() supressing panic: '%v'", r)
-					err0 = fmt.Errorf("dirTakerSendIndivFiles saw error: '%v'", r)
+					vv("dirTakerSendIndivFiles() supressing panic: '%v'", r)
+					err := fmt.Errorf("dirTakerSendIndivFiles saw error: '%v'", r)
+					goroHalt.ReqStop.CloseWithReason(err)
+					// also stop the whole batch.
+					batchHalt.ReqStop.CloseWithReason(err)
+				} else {
+					goroHalt.ReqStop.Close()
 				}
+				vv("dirTakerSendIndivFiles: dirtaker worker done.")
+				goroHalt.Done.Close()
 			}()
 
 			var file *File
 			for {
 				select {
 				case file = <-fileCh:
+					vv("dirtaker worker got file!")
 				case <-goroHalt.ReqStop.Chan:
 					return
 				}
@@ -721,7 +728,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 					// must send chunks separately
 					extraComing = true
 					syncReq.MoreChunksComming = true
-					//vv("set syncReq.MoreChunksComming = true")
+					vv("set syncReq.MoreChunksComming = true")
 					origChunks = syncReq.Chunks.Chunks
 
 					// truncate down the initial Message,
@@ -789,9 +796,10 @@ func (s *SyncService) dirTakerSendIndivFiles(
 					}
 				}()
 
+				vv("dirtaker worker: about to call s.Taker()") // not seen
 				errg := s.Taker(ctx2, ckt2, myPeer, syncReq)
 				panicOn(errg)
-				wgjobs.Done()
+				batchHalt.ReqStop.TaskDone()
 
 				if reqDir.SR.UpdateProgress != nil {
 					report := fmt.Sprintf("%40s  done.", giverPath)
@@ -804,7 +812,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 					}
 				}
 			}
-		}(fileCh, goroHalt, bt, wgjobs)
+		}(fileCh, goroHalt, bt)
 	} // end work pool starting
 
 	k := -1
@@ -813,11 +821,11 @@ func (s *SyncService) dirTakerSendIndivFiles(
 
 		// can be slowing us down to print too much.
 		k++
-		if k%1000 == 0 {
-			fmt.Printf("\nupdateMap progress:  %v  out of %v. elap %v\n", k, nn, time.Since(t0))
-			vv("dirtaker: needUpdate path '%v' -> file: '%#v'\n RecycleFragLen() = %v", path, file, s.U.RecycleFragLen())
+		//if k%1000 == 0 {
+		fmt.Printf("\nupdateMap progress:  %v  out of %v. elap %v\n", k, nn, time.Since(t0))
+		vv("dirtaker: needUpdate path '%v' -> file: '%#v'\n RecycleFragLen() = %v", path, file, s.U.RecycleFragLen())
 
-		}
+		//}
 
 		select {
 		case fileCh <- file:
@@ -829,15 +837,15 @@ func (s *SyncService) dirTakerSendIndivFiles(
 		}
 	} // end range needUpdate
 
-	// all have been given out.
-	// wait for all to complete.
-	wgjobs.Wait()
+	err0 = batchHalt.ReqStop.TaskWait(done)
+	vv("batchHalt.ReqStop.TaskWait returned.")
 
-	//_ = batchHalt.ReqStop.WaitTilChildrenDone(done)
+	batchHalt.StopTreeAndWaitTilDone(0, done, nil)
+	//err0 = batchHalt.ReqStop.WaitTilChildrenClosed(done) // hung here
 	//vv("batchHalt.ReqStop.WaitTilChildrenDone back.")
 	// do not panic, we might have seen closed(done).
 
-	batchHalt.ReqStop.Close()
+	//batchHalt.ReqStop.Close()
 
 	// add up all the bts
 	for i := range bts {
@@ -845,6 +853,6 @@ func (s *SyncService) dirTakerSendIndivFiles(
 		gbt.bread += bts[i].bread
 	}
 
-	vv("end dirTakerSendIndivFiles: elap = '%v'; gbt='%#v'", time.Since(t0), gbt)
-	return nil
+	vv("end dirTakerSendIndivFiles: elap = '%v'; gbt='%#v'; err0 = '%v'", time.Since(t0), gbt, err0)
+	return
 }

@@ -1999,7 +1999,7 @@ func (s *Server) Close() error {
 
 	// ask any sub components (peer pump loops) to stop;
 	// give them all up to 500 msec.
-	s.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil)
+	s.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
 
 	if s.cfg.UseQUIC {
 		s.cfg.shared.mut.Lock()

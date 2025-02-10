@@ -26,6 +26,8 @@ github.com/glycerine/greenpack v0.529.0 h1:u0eWU1m4mr/wK8nyMLuDq3n2wbnBcHMm6u05s
 github.com/glycerine/greenpack v0.529.0/go.mod h1:rDJGUPrlVMJ2UNwMzuCOD0CYjON7x+J8Kpp6Hwxx5Xc=
 github.com/glycerine/idem v0.5.2 h1:c1MyH7k464nEFMeepFQ6+U2IYftxYfIQfjuKsS9Qq24=
 github.com/glycerine/idem v0.5.2/go.mod h1:B72P/ZM99sNiCmaQJflpmMAF5LsDzStpLdWzn0+Vr2Y=
+github.com/glycerine/idem v0.7.0 h1:oDbomfqsvjAnXFHu+vN/gqt9NH4s/m8242IXE65NASY=
+github.com/glycerine/idem v0.7.0/go.mod h1:B72P/ZM99sNiCmaQJflpmMAF5LsDzStpLdWzn0+Vr2Y=
 github.com/glycerine/ipaddr v0.2.7 h1:WRbvTnHOzATK2w2F/NAwYnKulBBsvX7MSp37Mb8BjI0=
 github.com/glycerine/ipaddr v0.2.7/go.mod h1:ook7eYvTG8CSOOEn9oLXaxQwzFo1zcqJbDZT2rxtKVc=
 github.com/glycerine/loquet v0.0.19 h1:R4bKlaiT37ezaoQ9gHEULGYA+xmHiNsjVjinvWMkgEc=

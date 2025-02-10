@@ -396,7 +396,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								}
 							}(file, goroHalt)
 						}
-						_ = batchHalt.ReqStop.WaitTilChildrenDone(done)
+						_ = batchHalt.ReqStop.WaitTilChildrenClosed(done)
 						//vv("batchHalt.ReqStop.WaitTilChildrenDone back.")
 						// do not panic, we might have seen closed(done).
 

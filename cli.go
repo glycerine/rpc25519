@@ -1483,7 +1483,7 @@ func (c *Client) Close() error {
 	//vv("Client.Close() called.") // not seen in shutdown.
 
 	// ask any sub components (peer pump loops) to stop.
-	c.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil)
+	c.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
 
 	if c.cfg.UseQUIC {
 		if c.isQUIC && c.quicConn != nil {
