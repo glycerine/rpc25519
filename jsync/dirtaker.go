@@ -854,6 +854,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 
 				vv("dirtaker worker: about to call s.Taker()")
 				errg := s.Taker(ctx2, ckt2, myPeer, syncReq)
+				vv("dirtaker worker: got from Taker errg = '%v'", errg)
 				panicOn(errg)
 				left := batchHalt.ReqStop.TaskDone()
 				vv("dirtaker worker: back from s.Taker(), and TaskDone left=%v", left)

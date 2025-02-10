@@ -53,7 +53,7 @@ var ErrNeedDirTaker = fmt.Errorf("DirTaker needed: giver has directory where tak
 // shutdown tree.
 func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncReq *RequestToSyncPath) (err0 error) {
 
-	////vv("SyncService.Taker top")
+	vv("SyncService.Taker top")
 
 	name := myPeer.PeerServiceName
 	_ = name // used when logging is on.
@@ -181,6 +181,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		}
 	}
 
+	vv("taker about to start taker for loop.")
 	// this is the Taker side
 takerForSelectLoop:
 	for {
