@@ -11,6 +11,7 @@ import (
 	"time"
 
 	rpc "github.com/glycerine/rpc25519"
+	bytes0 "github.com/glycerine/rpc25519/bytes"
 	"github.com/glycerine/rpc25519/hash"
 	"github.com/glycerine/rpc25519/jcdc"
 )
@@ -32,6 +33,7 @@ type job struct {
 	isLast  bool
 
 	cand []int
+	rle0 []bool // is rle0 candidate?
 
 	cuts []int
 
@@ -286,9 +288,21 @@ func ChunkFile2(
 				// offset where data starts in the original file;
 				dataoff := seek0
 
+				// look for RLE0; encodable spans of zeros.
+				beg0, endx0 := bytes0.LongestZeroSpan(data)
+				// start simple. Just take leading spans that are big enough.
+				if beg0 == 0 && endx0 >= 64 {
+					vv("have a span of 0: [%v, %v) appending RLE0; cut: %v", beg0, endx0, dataoff+endx0)
+					job.cand = append(job.cand, dataoff+endx0)
+					job.rle0 = append(job.rle0, true)
+					data = data[endx0:]
+					dataoff += endx0
+				}
+
 				for j := 0; len(data) >= mincutCand; j++ {
 					relcut := cdc.NextCut(data)
 					job.cand = append(job.cand, dataoff+relcut)
+					job.rle0 = append(job.rle0, false)
 					data = data[relcut:]
 					dataoff += relcut
 				}
@@ -302,6 +316,8 @@ func ChunkFile2(
 				dataoff := job.cuts[0]
 				// job.beg is where data starts
 				prev := dataoff - job.beg
+				// prev = job.cuts[0](2146461) - job.beg(3145728) = -999267
+				vv("prev = job.cuts[0](%v) - job.beg(%v) = %v", job.cuts[0], job.beg, prev)
 				for i, cut := range job.cuts {
 					if i == 0 {
 						continue
@@ -311,11 +327,17 @@ func ChunkFile2(
 						//vv("job.cuts = '%#v'", job.cuts)
 						panic(fmt.Sprintf("shoud not have empty chunk! cut = %v; i=%v;  prev=%v; dataoff = %v; job.beg = %v; nodeK=%v", cut, i, prev, dataoff, job.beg, job.nodeK))
 					}
+					// prev = -999267; d = 16384
+					vv("prev = %v; d = %v", prev, d)
 					slc := data[prev : prev+d]
 					chunk := &Chunk{
 						Beg:  dataoff,
 						Endx: dataoff + d,
-						Cry:  hash.Blake3OfBytesString(slc),
+					}
+					if bytes0.AllZero(slc) {
+						chunk.Cry = "RLE0;"
+					} else {
+						chunk.Cry = hash.Blake3OfBytesString(slc)
 					}
 					prev += d
 					//if job.nodeK >= 6812 {
@@ -387,14 +409,20 @@ func ChunkFile2(
 			if cut <= prev {
 				continue
 			}
-			d := cut - prev
-			if d < mincut {
-				continue
-			}
-			if d >= maxcut {
-				//vv("d over maxcut, will clamp %v -> %v", cut, prev+maxcut)
-				cut = prev + maxcut
-				d = maxcut
+			if curjob.rle0[j] {
+				// give RLE; priority, just accept it, without clamping.
+
+			} else {
+
+				d := cut - prev
+				if d < mincut {
+					continue
+				}
+				if d >= maxcut {
+					//vv("d over maxcut, will clamp %v -> %v", cut, prev+maxcut)
+					cut = prev + maxcut
+					d = maxcut
+				}
 			}
 			gkeep = append(gkeep, cut)
 			prev = cut
