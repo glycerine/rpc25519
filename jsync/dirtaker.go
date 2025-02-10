@@ -654,7 +654,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				} else {
 					goroHalt.ReqStop.Close()
 				}
-				vv("dirTakerRequestIndivFiles: dirtaker worker done.")
+				//vv("dirTakerRequestIndivFiles: dirtaker worker done.")
 				goroHalt.Done.Close()
 			}()
 
