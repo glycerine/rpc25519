@@ -21,6 +21,8 @@ import (
 	rpc "github.com/glycerine/rpc25519"
 )
 
+var ErrNeedDirTaker = fmt.Errorf("DirTaker needed: giver has directory where taker has file")
+
 // Taker handes receiving updated data ("taking it")
 // from the wire and writing it, in turn, to disk.
 //
@@ -187,6 +189,12 @@ takerForSelectLoop:
 			vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
 			_ = frag
 			switch frag.FragOp {
+
+			case OpRsync_ToTakerDratGiverFileIsNowDir: // 40
+				// ugh. need to tell caller to run DirTaker
+				// after deleting their local TakerPath file to
+				// make room for the giver's directory.
+				return ErrNeedDirTaker
 
 			case OpRsync_AckBackFIN_ToTaker:
 				//vv("%v: (ckt '%v') (Taker) sees OpRsync_AckBackFIN_ToTaker. returning.", name, ckt.Name)

@@ -155,6 +155,23 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					panicOn(err)
 					continue
 				}
+				if fi.IsDir() {
+					// taker has a file, but giver has a directory
+					// of the same name. Tell taker to call back
+					// with dirtaker to dirgiver.
+
+					vv("drat: taker has file '%v' but on giver it is a dir."+
+						" Have to restart with DirTaker supervising.", path)
+
+					drat := s.U.NewFragment()
+					drat.FragOp = OpRsync_ToTakerDratGiverFileIsNowDir
+					drat.FragSubject = frag0.FragSubject
+					err = ckt.SendOneWay(drat, 0)
+					panicOn(err)
+					// wait for ack back fin so we don't shut them
+					// down before they can get dirtaker started.
+					continue
+				}
 				sz, mod := fi.Size(), fi.ModTime()
 				if syncReq.TakerFileSize == sz && syncReq.TakerModTime.Equal(mod) {
 					//vv("giver: OpRsync_LazyTakerWantsToPull: size + modtime match. nothing to do, tell taker. syncReq.GiverPath = '%v'", syncReq.GiverPath)

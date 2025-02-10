@@ -386,7 +386,11 @@ jobDone:
 	}
 
 	if req.Errs != "" {
-		alwaysPrintf("req.Err: '%v'", req.Errs)
+		if req.Errs == rsync.ErrNeedDirTaker.Error() {
+			alwaysPrintf("jcp error: local taker has file '%v', where giver has directory of the same name. We must delete the file first if we want to do this; '%v'", req.TakerPath, req.Errs)
+		} else {
+			alwaysPrintf("req.Err: '%v'", req.Errs)
+		}
 		os.Exit(1)
 	}
 	//vv("req (%p) had no req.Errs; empty string ('%v'): '%#v'", req, req.Errs, req)
