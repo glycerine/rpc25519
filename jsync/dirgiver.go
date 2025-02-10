@@ -138,7 +138,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							vv("Q: is this the right takerPath to pass to giverSendsWholefile? reqDir.TopTakerDirFinal = '%v'", reqDir.TopTakerDirFinal)
 							err = s.giverSendsWholeFile(path, reqDir.TopTakerDirFinal, ckt, bt, frag0)
 							panicOn(err)
-							// wait for FIN ack back.
+							// get the remote out of their sub-call to Taker.
+							s.ackBackFINToTaker(ckt, frag0)
 							frag0 = nil // GC early.
 							continue
 						}

@@ -130,8 +130,11 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				sr := reqDir3.SR
 				sr.GiverIsDir = false
 				err = s.Taker(ctx0, ckt, myPeer, sr)
-				vv("Taker call in DirTaker got err = '%v'", err)
+				vv("Taker call in DirTaker got err = '%v'", err) // not seen.
 				panicOn(err)
+
+				// we need to tell the remote giver to end too.
+
 				// return? continue?
 				// simplest to continue for the moment, though we might hang?
 				// we want to allow multiple conversions from
