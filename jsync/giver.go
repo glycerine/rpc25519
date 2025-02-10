@@ -758,8 +758,8 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 ) (err error) {
 
 	// called by both taker and giver.
-	vv("top of packAndSendChunksLimitedSize; \n stack='%v'", stack()) // caller is diretaker.go:825
-	defer vv("end of packAndSendChunksLimitedSize")
+	//vv("top of packAndSendChunksLimitedSize;") // caller is diretaker.go:825
+	//defer vv("end of packAndSendChunksLimitedSize")
 
 	// pack up to max bytes of Chunks into a message.
 	max := rpc.UserMaxPayload - 10_000
@@ -970,7 +970,7 @@ moreLoop:
 				break moreLoop
 
 			case opMore:
-				vv("getMoreChunks sees opMore '%v'", rpc.FragOpDecode(opMore))
+				//vv("getMoreChunks sees opMore '%v'", rpc.FragOpDecode(opMore))
 				// a) match paths for sanity;
 				// b) append to localChunks;
 				// c) still have to wait for opLast
