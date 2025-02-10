@@ -332,11 +332,11 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						vv("got pof.IsLast, no update needed on "+
 							"dirtaker side. checked %v files", totFiles)
 					} else {
-						err = s.dirTakerSendIndivFiles(myPeer, needUpdate,
+						err = s.dirTakerRequestIndivFiles(myPeer, needUpdate,
 							reqDir, ckt, done, done0, bt, useTempDir)
 
 						if err != nil {
-							alwaysPrintf("dirTakerSendIndivFiles err = '%v'", err)
+							alwaysPrintf("dirTakerRequestIndivFiles err = '%v'", err)
 						}
 					}
 
@@ -593,7 +593,7 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 	}
 }
 
-func (s *SyncService) dirTakerSendIndivFiles(
+func (s *SyncService) dirTakerRequestIndivFiles(
 	myPeer *rpc.LocalPeer,
 	needUpdate *rpc.Mutexmap[string, *File],
 	reqDir *RequestToSyncDir,
@@ -607,7 +607,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 	t0 := time.Now()
 	nn := needUpdate.GetN()
 	_ = nn
-	vv("top dirTakerSendIndivFiles() with %v files needing updates.", nn)
+	vv("top dirTakerRequestIndivFiles() with %v files needing updates.", nn)
 
 	batchHalt := idem.NewHalter()
 	// if we return early, this will shut down the
@@ -645,8 +645,8 @@ func (s *SyncService) dirTakerSendIndivFiles(
 				// other side ctrl-c will give us a panic here
 				r := recover()
 				if r != nil {
-					vv("dirTakerSendIndivFiles() supressing panic: '%v'", r)
-					err := fmt.Errorf("dirTakerSendIndivFiles saw error: '%v'", r)
+					vv("dirTakerRequestIndivFiles() supressing panic: '%v'", r)
+					err := fmt.Errorf("dirTakerRequestIndivFiles saw error: '%v'", r)
 					goroHalt.ReqStop.CloseWithReason(err)
 					// also stop the whole batch.
 					// At least for now, sane debugging.
@@ -654,7 +654,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 				} else {
 					goroHalt.ReqStop.Close()
 				}
-				vv("dirTakerSendIndivFiles: dirtaker worker done.")
+				vv("dirTakerRequestIndivFiles: dirtaker worker done.")
 				goroHalt.Done.Close()
 			}()
 
@@ -857,6 +857,6 @@ func (s *SyncService) dirTakerSendIndivFiles(
 		gbt.bread += bts[i].bread
 	}
 
-	vv("end dirTakerSendIndivFiles: elap = '%v'; gbt='%#v'; err0 = '%v'", time.Since(t0), gbt, err0)
+	vv("end dirTakerRequestIndivFiles: elap = '%v'; gbt='%#v'; err0 = '%v'", time.Since(t0), gbt, err0)
 	return
 }
