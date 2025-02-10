@@ -116,6 +116,10 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				if reqDir == nil {
 					// weAreRemoteGiver true (set above)
 					reqDir = reqDir2
+
+					if reqDir.TakerTargetUnknown {
+						vv("dirgiver sees TakerTargetUnknown on reqDir: '%#v'", reqDir)
+					}
 				} else {
 					// we are local giver doing push.
 					// the echo we get back will have the
