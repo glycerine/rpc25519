@@ -702,7 +702,7 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 
 func Test888_rle_zeros_encoded(t *testing.T) {
 
-	cv.Convey("using our rsync-like-protocol, all zero files should be efficiently run-length-encoded", t, func() {
+	cv.Convey("using our rsync-like-protocol, all zero files should be efficiently run-length-encoded. Can we get an all zero 10MB file down to one chunk?", t, func() {
 
 		remotePath := "10mb.zeros"
 		vv("template (goal) remotePath='%v'", remotePath)
@@ -799,6 +799,11 @@ func Test888_rle_zeros_encoded(t *testing.T) {
 
 		vv("parallel chunks: ")
 		showEachSegment(0, wantsUpdate.Chunks)
+
+		nchunk := len(wantsUpdate.Chunks)
+		if nchunk != 2 {
+			t.Fatalf("ideally we can compress all 10MB of zeros to 2 chunks... with coalescing; not %v", nchunk) // not 73
+		}
 
 		//}
 		vv("elap first SummarizeFileInCDCHashes = '%v'", time.Since(t0))

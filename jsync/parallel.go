@@ -527,6 +527,28 @@ func ChunkFile2(
 		printCutsPerJob(0, jobs, true)
 	}
 
+	// coalesce runs of zeros
+	var coal []*Chunk
+
+	var lastRLE *Chunk
+	for _, chnk := range chunks0.Chunks {
+		if chnk.Cry == "RLE0;" {
+			if lastRLE != nil {
+				// coalesce
+				lastRLE.Endx = chnk.Endx
+				// leave lastRLE same
+			} else {
+				coal = append(coal, chnk)
+				lastRLE = chnk
+			}
+			continue
+		}
+		// not RLE0;
+		coal = append(coal, chnk)
+		lastRLE = nil
+	}
+	chunks0.Chunks = coal
+
 	return
 }
 
