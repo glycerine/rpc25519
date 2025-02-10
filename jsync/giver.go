@@ -252,12 +252,12 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				if syncReq.MoreChunksComming {
 					vv("syncReq.MoreChunksComming waiting for more...")
 					// get the extra fragments with more []*Chunk
-					err0 = s.getMoreChunks(ckt, bt, &wireChunks, done, done0, syncReq, OpRsync_RequestRemoteToGive_ChunksLast, OpRsync_RequestRemoteToGive_ChunksMore)
+					err0 = s.getMoreChunks(ckt, bt, &wireChunks, done, done0, syncReq, OpRsync_RequestRemoteToGive_ChunksLast, OpRsync_RequestRemoteToGive_ChunksMore) // hung in here waiting
 					//err0 = s.getMoreChunks(ckt, bt, &localChunks, done, done0, syncReq, OpRsync_HeavyDiffChunksLast, OpRsync_HeavyDiffChunksEnclosed)
 					panicOn(err0)
 
 				} // end if syncReq.MoreChunksComming
-				vv("no more chunks to wait for...")
+				vv("no more chunks to wait for...") // not seen.
 
 				// after moreLoop, we get here:
 
@@ -758,7 +758,8 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 ) (err error) {
 
 	// called by both taker and giver.
-	//vv("top of packAndSendChunksLimitedSize")
+	vv("top of packAndSendChunksLimitedSize; \n stack='%v'", stack())
+	defer vv("end of packAndSendChunksLimitedSize")
 
 	// pack up to max bytes of Chunks into a message.
 	max := rpc.UserMaxPayload - 10_000
@@ -939,7 +940,7 @@ func (s *SyncService) getMoreChunks(
 
 moreLoop:
 	for {
-		select {
+		select { // hung waiting here
 		case fragX := <-ckt.Reads:
 
 			switch fragX.FragOp {
@@ -969,7 +970,7 @@ moreLoop:
 				break moreLoop
 
 			case opMore:
-				////vv("getMoreChunks sees opMore '%v'", rpc.FragOpDecode(opMore))
+				vv("getMoreChunks sees opMore '%v'", rpc.FragOpDecode(opMore))
 				// a) match paths for sanity;
 				// b) append to localChunks;
 				// c) still have to wait for opLast

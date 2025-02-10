@@ -742,6 +742,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				frag := s.U.NewFragment()
 				frag.FragOp = OpRsync_RequestRemoteToGive // 12
 				frag.FragSubject = giverPath
+				vv("dirtaker file worker sending 12")
 
 				tmp := reqDir.TopTakerDirTemp
 				if !useTempDir {

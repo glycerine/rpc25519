@@ -868,7 +868,7 @@ func (s *SyncService) Start(
 				// must send chunks separately
 				extraComing = true
 				syncReq.MoreChunksComming = true
-				//vv("set syncReq.MoreChunksComming = true")
+				vv("set syncReq.MoreChunksComming = true")
 				origChunks = syncReq.Chunks.Chunks
 
 				// truncate down the initial Message,
