@@ -283,6 +283,10 @@ takerForSelectLoop:
 				}
 				panicOn(err)
 
+				if len(takerChunks.Chunks) == 0 {
+					panic(fmt.Sprintf("how can takerChunks be len 0 here?: '%#v'", takerChunks))
+				}
+
 				err = s.packAndSendChunksLimitedSize(
 					takerChunks,
 					frag.FragSubject,

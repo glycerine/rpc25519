@@ -305,6 +305,8 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				panicOn(err0)
 				bt.bread += len(frag0.Payload)
 
+				vv("giver sees OpRsync_LightRequestEnclosed; light = '%#v'", light)
+
 				// light.ReaderChunks were too big,
 				// get them in packs instead.
 				err0 = s.getMoreChunks(ckt, bt, &light.ReaderChunks,
@@ -758,7 +760,7 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 ) (err error) {
 
 	// called by both taker and giver.
-	vv("top of packAndSendChunksLimitedSize; n = %v", len(heavyPlan.Chunks)) // caller is taker.go:933
+	vv("top of packAndSendChunksLimitedSize; n = %v", len(heavyPlan.Chunks)) // caller is taker.go:933; n == 0 on coalese is the problem!
 	defer vv("end of packAndSendChunksLimitedSize")
 
 	// pack up to max bytes of Chunks into a message.
