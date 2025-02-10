@@ -827,7 +827,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 						frag.FragSubject,
 						OpRsync_RequestRemoteToGive_ChunksLast,
 						OpRsync_RequestRemoteToGive_ChunksMore,
-						ckt,
+						ckt2,
 						bt,
 						syncReq.Chunks.Path,
 					)
