@@ -119,6 +119,12 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 					if reqDir.TakerTargetUnknown {
 						vv("dirgiver sees TakerTargetUnknown on reqDir: '%#v'", reqDir)
+						if fileExists(reqDir.GiverDir) {
+							// yeah, we have a file not a directory as the
+							// target to give.
+							// Re-direct to Giver?
+							panic("how to re-direct to giver?")
+						}
 					}
 				} else {
 					// we are local giver doing push.
