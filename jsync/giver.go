@@ -758,8 +758,8 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 ) (err error) {
 
 	// called by both taker and giver.
-	//vv("top of packAndSendChunksLimitedSize;") // caller is diretaker.go:825
-	//defer vv("end of packAndSendChunksLimitedSize")
+	vv("top of packAndSendChunksLimitedSize;") // caller is taker.go:933
+	defer vv("end of packAndSendChunksLimitedSize")
 
 	// pack up to max bytes of Chunks into a message.
 	max := rpc.UserMaxPayload - 10_000
@@ -812,6 +812,7 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 		f.Payload = bts
 		err = ckt.SendOneWay(f, 0)
 		panicOn(err)
+		vv("packAndSendChunksLimitedSize sent f = '%v'", f.String())
 		bt.bsend += len(bts)
 	}
 	return nil
