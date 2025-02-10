@@ -373,7 +373,7 @@ func (s *SyncService) giverReportFileNotFound(
 	pf.FragSubject = frag0.FragSubject
 	pf.FragOp = OpRsync_SenderPlanEnclosed
 
-	report := fmt.Sprintf("giver was asked for non-existent file: '%v' not found", localPath)
+	report := fmt.Sprintf("giver was asked for non-existent file: '%v' not found;\nstack='%v'", localPath, stack())
 	pf.Err = report
 	//vv(report)
 

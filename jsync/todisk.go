@@ -65,7 +65,7 @@ func (s *FileToDiskState) WriteOneMsgToFile(req *rpc.Message, last bool) (err er
 		s.PartsSeen = make(map[int64]bool)
 		//s.Blake3hash.Reset()
 
-		s.Randomness = cryRandBytesBase64(17)
+		s.Randomness = cryRandBytesBase64(18)
 		s.WriteToPathTmp = s.WriteToPath + ".tmp_" + s.Randomness
 
 		/*
@@ -83,6 +83,7 @@ func (s *FileToDiskState) WriteOneMsgToFile(req *rpc.Message, last bool) (err er
 		if err != nil {
 			return fmt.Errorf("error: server could not create path '%v': '%v'", s.WriteToPathTmp, err)
 		}
+		// arg no! slows things waaaay down!
 		//s.Fd.Sync() // get the file showing on disk asap
 
 		// add buffering to writes.

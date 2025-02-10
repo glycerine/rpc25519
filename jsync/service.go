@@ -796,6 +796,8 @@ func (s *SyncService) Start(
 							}
 						}
 					}
+				} else {
+					// TakerExistsLocal is false.
 				}
 			}
 

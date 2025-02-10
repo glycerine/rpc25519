@@ -363,7 +363,7 @@ takerForSelectLoop:
 				// stream through a bufio to disk, rather than holding all in memory.
 				if newversFd == nil {
 
-					rnd := cryRandBytesBase64(17)
+					rnd := cryRandBytesBase64(18)
 					tmp = localPathToWrite + "_accept_plan_tmp_" + rnd
 
 					// Dir sync requests will set TakerTempDir
