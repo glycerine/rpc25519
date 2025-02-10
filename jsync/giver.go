@@ -758,7 +758,7 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 ) (err error) {
 
 	// called by both taker and giver.
-	vv("top of packAndSendChunksLimitedSize;") // caller is taker.go:933
+	vv("top of packAndSendChunksLimitedSize; n = %v", len(heavyPlan.Chunks)) // caller is taker.go:933
 	defer vv("end of packAndSendChunksLimitedSize")
 
 	// pack up to max bytes of Chunks into a message.
@@ -812,6 +812,7 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 		f.Payload = bts
 		err = ckt.SendOneWay(f, 0)
 		panicOn(err)
+		// no send happening after coalescing!
 		vv("packAndSendChunksLimitedSize sent f = '%v'", f.String())
 		bt.bsend += len(bts)
 	}
