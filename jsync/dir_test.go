@@ -125,6 +125,7 @@ func Test440_directory_sync(t *testing.T) {
 
 		// 	dataBytesMoved0
 		_, err = jSyncCli.PushFromTo(localDir, remoteDir)
+		vv("PushFromTo gave err = '%v'", err)
 		panicOn(err)
 
 		// confirm it happened. localDir = expected, remoteDir = observed

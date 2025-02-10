@@ -190,8 +190,14 @@ func (s *jsyncU) PushFromTo(fromLocalPath, toRemotePath string) (dataBytesMoved 
 
 	cli := s.rsyncd.U
 
+	vv("jsyncU.PushFromTo(): fromLocalPath='%v', toRemotePath='%v'", fromLocalPath, toRemotePath)
+	vv(" dirExists(fromLocalPath) = '%v'", dirExists(fromLocalPath))
+	vv("fileExists(fromLocalPath) = '%v'", fileExists(fromLocalPath))
+	vv(" dirExists(toRemotePath)  = '%v'", dirExists(toRemotePath))
+	vv("fileExists(toRemotePath)  = '%v'", fileExists(toRemotePath))
+
 	if dirExists(fromLocalPath) {
-		// dir sync
+		// ok: we will dir sync
 		return -1, s.DirPushFromTo(fromLocalPath, toRemotePath, cli)
 
 	} else if !fileExists(fromLocalPath) {
@@ -199,12 +205,12 @@ func (s *jsyncU) PushFromTo(fromLocalPath, toRemotePath string) (dataBytesMoved 
 		return 0, fmt.Errorf("error on PushFromTo: no such fromLocalPath '%v'",
 			fromLocalPath)
 	}
+
+	// single file synce below, dir sync was above.
+
 	fi, err := os.Stat(fromLocalPath)
 	if err != nil {
 		return 0, fmt.Errorf("error on PushFromTo: could not os.Stat() fromLocalPath '%v': '%v'", fromLocalPath, err)
-	}
-	if fi.IsDir() {
-		panic(fmt.Sprintf("jsync of directories not yet supported: '%v'", fromLocalPath))
 	}
 	fmt.Printf("PushFromTo '%v' about to send fromLocalPath: '%v'\n", s.serviceName, fromLocalPath)
 
@@ -284,10 +290,6 @@ func (s *jsyncU) DirPushFromTo(fromLocalDir, toRemoteDir string, cli rpc.Univers
 		GiverDirAbs:      cwd,
 
 		RemoteTakes: true,
-
-		// (pull): for taking an update locally. Tell remote what we have now.
-		//Precis: precis,
-		//Chunks: chunks,
 	}
 	vv("PushFromTo req using ToRemoteNetAddr: '%v'. push (remote takes) = %v", req.ToRemoteNetAddr, req.RemoteTakes)
 
