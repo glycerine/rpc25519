@@ -181,11 +181,11 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		}
 	}
 
-	vv("taker about to start taker for loop.")
+	vv("taker about to start taker for loop.") // nothing after this on taker
 	// this is the Taker side
 takerForSelectLoop:
 	for {
-		select {
+		select { // hung here, waiting for heavy chunks
 		case frag := <-ckt.Reads:
 			vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
 			_ = frag

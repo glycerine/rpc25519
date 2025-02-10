@@ -53,7 +53,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	var packOfDirsCh chan *PackOfDirs
 
 	defer func(reqDir *RequestToSyncDir) {
-		//vv("%v: (ckt '%v') defer running! finishing DirGiver; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
+		vv("%v: (ckt '%v') defer running! finishing DirGiver; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
 		////vv("bt = '%#v'", bt)
 
 		// only close Done for local (client, typically) if we were started locally.

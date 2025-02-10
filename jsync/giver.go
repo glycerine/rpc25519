@@ -40,7 +40,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 	// this is the active side, as we called NewCircuitToPeerURL()
 	defer func(syncReq *RequestToSyncPath) {
-		//vv("%v: Giver() ckt '%v' defer running: shutting down. bt = '%#v'", name, ckt.Name, bt)
+		vv("%v: Giver() ckt '%v' defer running: shutting down. bt = '%#v'", name, ckt.Name, bt)
 
 		// always 1 or 2, good.
 		//vv("giver defer: RecycleFragLen() = %v", s.U.RecycleFragLen())
@@ -285,7 +285,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				}
 
 				// 3. compute update plan, send plan, then diff chunks.
-				//vv("OpRsync_RequestRemoteToGive calling giverSendsPlanAndDataUpdates")
+				vv("OpRsync_RequestRemoteToGive calling giverSendsPlanAndDataUpdates")
 				s.giverSendsPlanAndDataUpdates(wireChunks, ckt, syncReq.GiverPath, bt, frag0)
 				//vv("done with s.giverSendsPlanAndDataUpdates. done (wait for FIN/ckt shutdown)")
 				// wait for FIN or ckt shutdown, to let data get there.
@@ -313,7 +313,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					OpRsync_RequestRemoteToGive_ChunksMore)
 				panicOn(err0)
 
-				//vv("OpRsync_LightRequestEnclosed calling giverSendsPlanAndDataUpdates")
+				vv("OpRsync_LightRequestEnclosed calling giverSendsPlanAndDataUpdates")
 				s.giverSendsPlanAndDataUpdates(light.ReaderChunks, ckt, localPath, bt, frag0)
 				// middle of a sequence, certainly do not return.
 				frag0 = nil // GC early.
@@ -758,7 +758,7 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 ) (err error) {
 
 	// called by both taker and giver.
-	vv("top of packAndSendChunksLimitedSize; \n stack='%v'", stack())
+	vv("top of packAndSendChunksLimitedSize; \n stack='%v'", stack()) // caller is diretaker.go:825
 	defer vv("end of packAndSendChunksLimitedSize")
 
 	// pack up to max bytes of Chunks into a message.
