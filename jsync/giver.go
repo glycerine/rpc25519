@@ -240,7 +240,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					panicOn(err0)
 
 				} // end if syncReq.MoreChunksComming
-				vv("nore more chunks to wait for...")
+				vv("no more chunks to wait for...")
 
 				// after moreLoop, we get here:
 

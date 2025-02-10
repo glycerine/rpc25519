@@ -96,9 +96,6 @@ func (s *jsyncU) PullToFrom(toLocalPath, fromRemotePath string) (dataBytesMoved 
 	if fileExists(toLocalPath) {
 		fi, err := os.Stat(toLocalPath)
 		panicOn(err)
-		if fi.IsDir() {
-			panic(fmt.Sprintf("rsync of directories not yet supported: '%v'", toLocalPath))
-		}
 		fmt.Printf("PullToFrom to pull into toLocalPath: '%v' <- fromRemotePath: '%v'\n", toLocalPath, fromRemotePath)
 
 		//const keepData = false

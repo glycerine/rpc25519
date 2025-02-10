@@ -621,6 +621,26 @@ func (s *SyncService) Start(
 			// we don't know whether to ask for a file or directory.
 			// Try: asking for a directory, and see how it goes?
 
+			// problem: client may not have set TakerExistsLocal correctly
+			// like our jsync code which didn't notice we added that flag.
+			// We'll verify/fill that in correctly here, since otherwise
+			// we might delete a local taker directory that we don't want to.
+			if !syncReq.RemoteTakes {
+				var haveFile, haveDir bool
+				fi, err := os.Stat(syncReq.TakerPath)
+				if err == nil {
+					if fi.IsDir() {
+						haveDir = true
+					} else {
+						haveFile = true
+					}
+				}
+				if haveDir || haveFile {
+					syncReq.TakerExistsLocal = true
+					syncReq.TakerIsDir = haveDir
+				}
+			}
+
 			// begin dir sync bootstrap
 			if !syncReq.RemoteTakes && (syncReq.TakerIsDir || !syncReq.TakerExistsLocal) {
 				//vv("%v: we are the local taker of dir. sending 21 OpRsync_TakerRequestsDirSyncBegin", name)
@@ -637,6 +657,9 @@ func (s *SyncService) Start(
 					targetTakerTopTempDir = syncReq.TakerPath
 				}
 
+				unknown := !syncReq.RemoteTakes && !syncReq.TakerExistsLocal
+				vv("local dir taker: unknown TakerTarget? '%v'", unknown)
+
 				reqDir := &RequestToSyncDir{
 					GiverDir: syncReq.GiverPath,
 					//GiverDirModTime:   // we don't know this!
@@ -645,7 +668,7 @@ func (s *SyncService) Start(
 					TopTakerDirTempDirID: tmpDirID,
 					RemoteTakes:          syncReq.RemoteTakes,
 					SR:                   syncReq,
-					TakerTargetUnknown:   !syncReq.RemoteTakes && !syncReq.TakerExistsLocal,
+					TakerTargetUnknown:   unknown,
 				}
 				bts, err := reqDir.MarshalMsg(nil)
 				panicOn(err)

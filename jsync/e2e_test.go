@@ -142,6 +142,8 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 			t.Fatalf("error: lmod='%v' but lmod='%v'", lmod, rmod) // red.
 		}
 
+		vv("why is below getting into the convert dir to file path??")
+
 		// test that a change in remote modtime, followed by
 		// a pull from that remote, gets us the local having a matching mod time.
 
