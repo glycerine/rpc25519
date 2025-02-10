@@ -404,8 +404,8 @@ func ChunkFile2(
 			}
 		}
 
-		for _, cut := range curjob.cand {
-
+		for j, cut := range curjob.cand {
+			_ = j
 			if cut <= prev {
 				continue
 			}
