@@ -185,7 +185,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	// this is the Taker side
 takerForSelectLoop:
 	for {
-		select { // hung here, waiting for heavy chunks
+		select {
 		case frag := <-ckt.Reads:
 			//vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
 			_ = frag

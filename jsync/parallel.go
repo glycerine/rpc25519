@@ -348,8 +348,7 @@ func ChunkFile2(
 				}
 			}
 		}
-
-	}
+	} // end workfunc
 
 	for worker := 0; worker < nW; worker++ {
 		go workfunc(work, int(worker))
@@ -550,7 +549,8 @@ func ChunkFile2(
 	chunks0.Chunks = coal
 
 	return
-}
+
+} // end ChunkFile2
 
 func printCutsPerJob(begJobNum int, jobs []*job, showChunks bool) {
 	// print cuts for each segment.

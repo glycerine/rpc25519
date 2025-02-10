@@ -940,7 +940,7 @@ func (s *SyncService) getMoreChunks(
 
 moreLoop:
 	for {
-		select { // hung waiting here, called by giver.go:255
+		select { // hung waiting here, called by giver.go:310
 		case fragX := <-ckt.Reads:
 
 			switch fragX.FragOp {
