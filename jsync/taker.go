@@ -61,7 +61,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	bt := &byteTracker{}
 
 	defer func(syncReq *RequestToSyncPath) {
-		//vv("%v: (ckt '%v') defer running! finishing Taker; syncReq=%p; err0='%v'", name, ckt.Name, syncReq, err0)
+		vv("%v: (ckt '%v') defer running! finishing Taker; syncReq=%p; err0='%v'", name, ckt.Name, syncReq, err0)
 		////vv("bt = '%#v'", bt)
 
 		// only close Done for local (client, typically) if we were started locally.
@@ -358,7 +358,7 @@ takerForSelectLoop:
 				panic("OpRsync_ToGiverNeedFullFile2 not expected in Taker!")
 
 			case OpRsync_HeavyDiffChunksEnclosed, OpRsync_HeavyDiffChunksLast:
-				////vv("stream of heavy diffs arriving! : %v", frag.String())
+				vv("stream of heavy diffs arriving! : %v", frag.String())
 
 				chunks := &Chunks{}
 				_, err := chunks.UnmarshalMsg(frag.Payload)
