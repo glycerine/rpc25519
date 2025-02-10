@@ -852,10 +852,11 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 					}
 				}()
 
-				vv("dirtaker worker: about to call s.Taker()") // not seen
+				vv("dirtaker worker: about to call s.Taker()")
 				errg := s.Taker(ctx2, ckt2, myPeer, syncReq)
 				panicOn(errg)
-				batchHalt.ReqStop.TaskDone()
+				left := batchHalt.ReqStop.TaskDone()
+				vv("dirtaker worker: back from s.Taker(), and TaskDone left=%v", left)
 
 				if reqDir.SR.UpdateProgress != nil {
 					report := fmt.Sprintf("%40s  done.", giverPath)
