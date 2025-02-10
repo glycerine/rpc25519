@@ -68,15 +68,16 @@ func ChunkFile2(
 
 ) (precis *FilePrecis, chunks0 *Chunks, err0 error) {
 
+	vv("top of ChunkFile2")
 	// must handle non-existant files without error.
 	if !fileExists(path) {
 		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false)
 	}
-
+	vv("file exists")
 	t0 := time.Now()
 	fd, err := os.OpenFile(path, os.O_RDONLY, 0)
 	if err != nil {
-		//vv("ChunkFile2: error on OpenFile(path='%v'): '%v'", path, err)
+		vv("ChunkFile2: error on OpenFile(path='%v'): '%v'", path, err)
 		err0 = err
 		return
 	}
@@ -91,7 +92,7 @@ func ChunkFile2(
 	if sz == 0 {
 		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false)
 	}
-
+	vv("file is not empty")
 	cdcCfg := Default_CDC_Config
 	mincut := int(cdcCfg.MinSize) // filter for this mincut on 2nd pass.
 	mincutCand := mincut
@@ -377,7 +378,7 @@ func ChunkFile2(
 		}
 		work <- job
 	}
-	// we have sent off njob = nJobs to be hashed
+	vv("we have sent off njob = nJobs = %v to be hashed", nJobs)
 	close(work)
 	wg.Wait()
 

@@ -837,6 +837,7 @@ func (cs *Chunks) DataFilter() (r []*Chunk) {
 // disk I/O with computation.
 func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, err error) {
 
+	vv("GetHashesOneByOne top")
 	if !fileExists(path) {
 		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false)
 	}

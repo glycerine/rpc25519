@@ -901,8 +901,10 @@ takerForSelectLoop:
 					const keepData = false
 
 					if parallelChunking {
+						vv("calling ChunkFile")
 						precis, local, err = ChunkFile(localPathToRead)
 					} else {
+						vv("calling GetHashesOneByOne")
 						precis, local, err = GetHashesOneByOne(rpc.Hostname,
 							localPathToRead)
 					}
