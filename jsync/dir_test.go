@@ -37,8 +37,8 @@ func Test440_directory_sync(t *testing.T) {
 		os.RemoveAll(localDir)
 		os.RemoveAll(remoteDir)
 		os.RemoveAll(remoteDir + ".oldvers")
-		os.MkdirAll(localDir, 0755)
-		os.MkdirAll(remoteDir, 0755)
+		panicOn(os.MkdirAll(localDir, 0755))
+		panicOn(os.MkdirAll(remoteDir, 0755))
 
 		// create test files for local push
 		for nfiles := range 2 {

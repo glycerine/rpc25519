@@ -328,6 +328,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						totalFileBytes += pof.TotalFileBytes
 						batchHalt := idem.NewHalter()
 						defer batchHalt.ReqStop.Close()
+						batchHalt.ReqStop.TaskAdd(len(pof.Pack))
 
 						for _, file := range pof.Pack {
 							//vv("dirgiver: pof file = '%#v'", file)
@@ -336,7 +337,17 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 							go func(file *File, goroHalt *idem.Halter) {
 								defer func() {
-									goroHalt.ReqStop.Close()
+									r := recover()
+									if r != nil {
+										vv("DirGiver file worker (OpRsync_TakerReadyForDirContents) sees panic: '%v'", r)
+										err := fmt.Errorf("DirGiver file worker (OpRsync_TakerReadyForDirContents) saw panic: '%v'", r)
+										goroHalt.ReqStop.CloseWithReason(err)
+										// also stop the whole batch on single err.
+										// At least for now, sane debugging.
+										batchHalt.ReqStop.CloseWithReason(err)
+									} else {
+										goroHalt.ReqStop.Close()
+									}
 									goroHalt.Done.Close()
 								}()
 
@@ -366,6 +377,9 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								frag1.FragSubject = giverPath
 								frag1.SetUserArg("structType", "RequestToSyncPath")
 								cktName := rsyncRemoteTakesString
+								// TODO: this is old style, one ckt per file;
+								// change over to using one ckt for all files
+								// like the dirtaker does.
 								ckt2, ctx2, err := ckt.NewCircuit(cktName, frag1)
 								panicOn(err)
 								defer func() {
@@ -385,6 +399,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 								errg := s.Giver(ctx2, ckt2, myPeer, sr)
 								panicOn(errg)
+								batchHalt.ReqStop.TaskDone()
 
 								if reqDir.SR.UpdateProgress != nil {
 									report := fmt.Sprintf("%40s  done.", giverPath)
@@ -392,15 +407,25 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 									case reqDir.SR.UpdateProgress <- report:
 									case <-done:
 										return
+									case <-goroHalt.ReqStop.Chan:
+										return
 									}
 								}
 							}(file, goroHalt)
-						}
-						_ = batchHalt.ReqStop.WaitTilChildrenClosed(done)
+						} // end range over file in pof.Pack
+
+						// wait for all files to be given == batch to
+						// be closed (error or not); or done to fire.
+						err := batchHalt.ReqStop.TaskWait(done)
+						vv("batchHalt.ReqStop.TaskWait back, err = '%v'", err)
+
+						//_ = batchHalt.ReqStop.WaitTilChildrenClosed(done)
 						//vv("batchHalt.ReqStop.WaitTilChildrenDone back.")
 						// do not panic, we might have seen closed(done).
+						//batchHalt.ReqStop.Close()
 
-						batchHalt.ReqStop.Close()
+						// shutdown the worker pool (if/when we convert to a pool).
+						batchHalt.StopTreeAndWaitTilDone(0, done, nil)
 
 						if pof.IsLast {
 							vv("dirgiver: pof IsLast true; break sendFiles")

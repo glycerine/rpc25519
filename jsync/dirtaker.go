@@ -610,6 +610,9 @@ func (s *SyncService) dirTakerSendIndivFiles(
 	vv("top dirTakerSendIndivFiles() with %v files needing updates.", nn)
 
 	batchHalt := idem.NewHalter()
+	// if we return early, this will shut down the
+	// worker pool, since they have each have
+	// a goroHalt that is added as a child.
 	defer batchHalt.ReqStop.Close()
 
 	//var totalFileBytes int64
@@ -646,6 +649,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 					err := fmt.Errorf("dirTakerSendIndivFiles saw error: '%v'", r)
 					goroHalt.ReqStop.CloseWithReason(err)
 					// also stop the whole batch.
+					// At least for now, sane debugging.
 					batchHalt.ReqStop.CloseWithReason(err)
 				} else {
 					goroHalt.ReqStop.Close()
@@ -838,7 +842,7 @@ func (s *SyncService) dirTakerSendIndivFiles(
 	} // end range needUpdate
 
 	err0 = batchHalt.ReqStop.TaskWait(done)
-	vv("batchHalt.ReqStop.TaskWait returned.")
+	vv("batchHalt.ReqStop.TaskWait returned, err0 = '%v'", err0)
 
 	batchHalt.StopTreeAndWaitTilDone(0, done, nil)
 	//err0 = batchHalt.ReqStop.WaitTilChildrenClosed(done) // hung here
