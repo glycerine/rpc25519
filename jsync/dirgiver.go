@@ -120,10 +120,27 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					if reqDir.TakerTargetUnknown {
 						vv("dirgiver sees TakerTargetUnknown on reqDir: '%#v'", reqDir)
 						if fileExists(reqDir.GiverDir) {
+							path := reqDir.GiverDir
 							// yeah, we have a file not a directory as the
 							// target to give.
 							// Re-direct to Giver?
-							panic("how to re-direct to giver?")
+							// In order to handle renames of a directory
+							// to a file, communicate this specific
+							// scenario back, with its own Op.
+							tofile := s.U.NewFragment()
+							tofile.FragSubject = path
+							tofile.FragOp = OpRsync_ToDirTakerGiverDirIsNowFile
+							// send back the dirReq for detail matching.
+							tofile.Payload = frag0.Payload
+							tofile.SetUserArg("structType", "RequestToSyncDir")
+							err := ckt.SendOneWay(tofile, 0)
+							panicOn(err)
+							vv("Q: is this the right takerPath to pass to giverSendsWholefile? reqDir.TopTakerDirFinal = '%v'", reqDir.TopTakerDirFinal)
+							err = s.giverSendsWholeFile(path, reqDir.TopTakerDirFinal, ckt, bt, frag0)
+							panicOn(err)
+							// wait for FIN ack back.
+							frag0 = nil // GC early.
+							continue
 						}
 					}
 				} else {

@@ -268,6 +268,7 @@ const (
 	//OpRsync_GiverSendsPackOfFilesMore = 37 // to taker, here is more of 36
 	//OpRsync_GiverSendsPackOfFilesEnd  = 38 // to taker, here is end of 36
 
+	OpRsync_ToDirTakerGiverDirIsNowFile = 39 // to taker, requested dir is a file
 )
 
 var once sync.Once
@@ -323,7 +324,7 @@ func AliasRsyncOps() {
 	rpc.FragOpRegister(OpRsync_ToGiverSizeMatchButCheckHashAck, "OpRsync_ToGiverSizeMatchButCheckHashAck")
 
 	rpc.FragOpRegister(OpRsync_GiverSendsPackOfFiles, "OpRsync_GiverSendsPackOfFiles")
-
+	rpc.FragOpRegister(OpRsync_ToDirTakerGiverDirIsNowFile, "OpRsync_ToDirTakerGiverDirIsNowFile")
 }
 
 // NewRequestToSyncPath creates an empty

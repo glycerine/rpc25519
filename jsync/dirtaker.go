@@ -108,6 +108,38 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 			///////////////// begin dir sync stuff
 
+			case OpRsync_ToDirTakerGiverDirIsNowFile: // 39
+				// whoops. we guessed we were asking
+				// for a directory, but it turns out it
+				// is (now) a file. Could have also had
+				// a directory before that has now been
+				// converted to a just file, of course.
+				// Either way, dirgiver will now be
+				// calling giverSendsWholeFile to us.
+				// which means: OpRsync_HereIsFullFileBegin3,
+				// OpRsync_HereIsFullFileMore4, and
+				// OpRsync_HereIsFullFileEnd5. Let us
+				// try and have the Taker() handle this
+				// for us!
+				vv("DirTaker calling Taker on 39 OpRsync_ToDirTakerGiverDirIsNowFile")
+				// convert to dirReq to syncReq
+				reqDir3 := &RequestToSyncDir{}
+				_, err := reqDir3.UnmarshalMsg(frag.Payload)
+				panicOn(err)
+				bt.bread += len(frag.Payload)
+				sr := reqDir3.SR
+				sr.GiverIsDir = false
+				err = s.Taker(ctx0, ckt, myPeer, sr)
+				vv("Taker call in DirTaker got err = '%v'", err)
+				panicOn(err)
+				// return? continue?
+				// simplest to continue for the moment, though we might hang?
+				// we want to allow multiple conversions from
+				// dir to file if that happens... but lets start simpler,
+				// for now.
+				// continue
+				return
+
 			case OpRsync_DirSyncBeginToTaker: // 22
 				vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
 				// we should: setup a top tempdir and prep to
