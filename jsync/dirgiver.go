@@ -361,7 +361,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							//vv("dirgiver: pof file = '%#v'", file)
 							select {
 							case fileCh <- file:
-								// and do another, until all pof done
+								// and do the next
 							case <-batchHalt.ReqStop.Chan:
 								break sendFiles
 							case <-done:
