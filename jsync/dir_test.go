@@ -147,3 +147,8 @@ func Test440_directory_sync(t *testing.T) {
 
 	})
 }
+
+// test: local taker has a dir, but giver side has converted that
+//       path to a file, no longer a dir. local taker should
+//       either error out, or more likely: delete the dir and replace with the
+//       giver's file.

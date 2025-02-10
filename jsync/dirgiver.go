@@ -120,23 +120,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					if reqDir.TakerTargetUnknown {
 						vv("dirgiver sees TakerTargetUnknown on reqDir: '%#v'", reqDir)
 						if fileExists(reqDir.GiverDir) {
-							path := reqDir.GiverDir
-							// yeah, we have a file not a directory as the
-							// target to give.
-							// Re-direct to Giver?
-							// In order to handle renames of a directory
-							// to a file, communicate this specific
-							// scenario back, with its own Op.
-							tofile := s.U.NewFragment()
-							tofile.FragSubject = path
-							tofile.FragOp = OpRsync_ToDirTakerGiverDirIsNowFile
-							// send back the dirReq for detail matching.
-							tofile.Payload = frag0.Payload
-							tofile.SetUserArg("structType", "RequestToSyncDir")
-							err := ckt.SendOneWay(tofile, 0)
-							panicOn(err)
-							vv("Q: is this the right takerPath to pass to giverSendsWholefile? reqDir.TopTakerDirFinal = '%v'", reqDir.TopTakerDirFinal)
-							err = s.giverSendsWholeFile(path, reqDir.TopTakerDirFinal, ckt, bt, frag0)
+							err := s.convertedDirToFile_giveFile(
+								ctx0, reqDir, ckt, frag0, bt)
 							panicOn(err)
 							// get the remote out of their sub-call to Taker.
 							s.ackBackFINToTaker(ckt, frag0)
@@ -179,10 +164,16 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					reqDir.TopTakerDirTempDirID = reqDir2.TopTakerDirTempDirID
 				}
 
-				// was it a file that was guessed to be a dir?
+				// is it now a file that was guessed (or used to be) a dir?
 				if fileExists(reqDir.GiverDir) {
-					panic(fmt.Sprintf("arg: somehow we guessed wrong. Trying to sync a file as a directory?!? reqDir.GiverDir = '%v' is a file, not a direcotry.", reqDir.GiverDir))
-					// return s.Giver(ctx0, ckt, myPeer, syncReq)
+					//panic(fmt.Sprintf("arg: somehow we guessed wrong. Trying to sync a file as a directory?!? reqDir.GiverDir = '%v' is a file, not a direcotry.", reqDir.GiverDir))
+					err := s.convertedDirToFile_giveFile(
+						ctx0, reqDir, ckt, frag0, bt)
+					panicOn(err)
+					// get the remote out of their sub-call to Taker.
+					s.ackBackFINToTaker(ckt, frag0)
+					frag0 = nil // GC early.
+					continue
 				}
 
 				// after getting 23,
@@ -592,4 +583,39 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			return
 		}
 	}
+}
+
+// yeah, we have a file not a directory as the
+// target to give. It could have been changed
+// from dir to file, or is a directory on the
+// taker side that (maybe) should be
+// converted to a file, depending on what
+// the taker wants to do. We'll just send
+// on the file for now.
+//
+// In order to handle renames of a directory
+// to a file, communicate this specific
+// scenario back, with its own Op:
+// OpRsync_ToDirTakerGiverDirIsNowFile
+func (s *SyncService) convertedDirToFile_giveFile(
+	ctx0 context.Context,
+	reqDir *RequestToSyncDir,
+	ckt *rpc.Circuit,
+	frag0 *rpc.Fragment,
+	bt *byteTracker,
+) error {
+	path := reqDir.GiverDir
+
+	tofile := s.U.NewFragment()
+	tofile.FragSubject = path
+	tofile.FragOp = OpRsync_ToDirTakerGiverDirIsNowFile
+	// send back the dirReq for detail matching.
+	tofile.Payload = frag0.Payload
+	tofile.SetUserArg("structType", "RequestToSyncDir")
+	err := ckt.SendOneWay(tofile, 0)
+	panicOn(err)
+	vv("Q: is this the right takerPath to pass to giverSendsWholefile? reqDir.TopTakerDirFinal = '%v'", reqDir.TopTakerDirFinal)
+	err = s.giverSendsWholeFile(path, reqDir.TopTakerDirFinal, ckt, bt, frag0)
+	panicOn(err)
+	return err
 }
