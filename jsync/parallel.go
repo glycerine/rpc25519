@@ -367,11 +367,21 @@ func ChunkFile2(
 			// base case
 			curjob.cuts = []int{0}
 		}
-		//if i == 16 {
-		//	vv("here is jobs[%v].cuts = '%#v'", i, jobs[i].cuts)
-		//}
-		for _, cut := range curjob.cand {
-
+		if i == 1 {
+			vv("here are candidates: jobs[%v].cand = '%#v'", i, jobs[i].cand)
+			prev := 0
+			for _, cut := range jobs[i].cand {
+				fmt.Printf("%v (%v)\n", cut, cut-prev)
+				prev = cut
+			}
+		}
+		// the last one could be forced at the boundary,
+		// and so shorter than possible. try leaving it out.
+		lastcand := len(curjob.cand) - 1
+		for j, cut := range curjob.cand {
+			if j == lastcand {
+				continue
+			}
 			if cut <= prev {
 				continue
 			}
@@ -387,31 +397,23 @@ func ChunkFile2(
 			gkeep = append(gkeep, cut)
 			prev = cut
 
-			n := len(jobs[i].cuts)
-			if n > 0 && jobs[i].cuts[n-1] == cut {
-				// do not add redundant cut!
-			} else {
-				jobs[i].cuts = append(jobs[i].cuts, cut)
-			}
+			//n := len(jobs[i].cuts)
+			//if n > 0 && jobs[i].cuts[n-1] == cut {
+			//	// do not add redundant cut!
+			// can we remove the above check? yes
+			//	panic("we see redundant cut!")
+			//} else {
+			jobs[i].cuts = append(jobs[i].cuts, cut)
+			//}
 
 			if cut >= curjob.endx {
 				if i != lastjob {
-					// start the next. try leaving out => bad append.
+					// start the next. leaving out => bad append.
+					// This tells the next job that where
+					// they should start from.
 					jobs[i+1].cuts = append(jobs[i+1].cuts, cut)
 				}
 				break // go to next job
-			}
-
-			if false {
-				if cut < curjob.beg {
-					panic(fmt.Sprintf("cut should have been given to previous! cut = %v; curjob.beg = %v", cut, curjob.beg))
-				}
-				if cut > jobs[i+1].endx {
-					panic("cut is way too big still, how??")
-				}
-				//vv("giving cut = %v to jobs[i+1] = '%#v'", cut, jobs[i+1])
-				jobs[i+1].cuts = append(jobs[i+1].cuts, cut)
-				break
 			}
 		}
 	}
@@ -419,14 +421,17 @@ func ChunkFile2(
 	n := len(jobs[lastjob].cuts)
 	if n > 0 && jobs[lastjob].cuts[n-1] == sz {
 		// do not add redundant cut!
+		// This *is* reached.
 	} else {
 		if len(jobs[lastjob].cuts) == 0 && lastjob > 0 {
 			jobs[lastjob-1].cuts = append(jobs[lastjob-1].cuts, sz)
 		} else {
-			// may not right, but where else to stash it?
+			// may not be right, but where else to stash it?
 			jobs[lastjob].cuts = append(jobs[lastjob].cuts, sz)
 		}
 	}
+	//vv("debug/selected cuts:")
+	//printCutsPerJob(0, jobs, false)
 
 	//vv("gkeep = '%#v'", gkeep)
 	if false {
@@ -539,5 +544,13 @@ func showEachSegment(i int, cs []*Chunk) {
 	for j, c := range cs {
 		fmt.Printf("  %03d  Chunk:[Beg:%6d : Endx:%6d ) (len %6d) %v\n",
 			j, c.Beg, c.Endx, (c.Endx - c.Beg), c.Cry[11:20])
+	}
+}
+
+func showCuts(i int, cuts []int) {
+	prevcut := 0
+	for i, cut := range cuts {
+		fmt.Printf(" cut i=%v: %v  (%v)\n", i, cut, cut-prevcut)
+		prevcut = cut
 	}
 }

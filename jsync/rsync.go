@@ -32,20 +32,17 @@ import (
 //
 //mspg:tuple Chunk
 type Chunk struct {
-	Beg  int    `zid:"0"`
-	Endx int    `zid:"1"`
-	Cry  string `zid:"2"` // a cryptographic hash identifying the chunk. Ex: blake3
+	Beg  int `zid:"0"`
+	Endx int `zid:"1"`
+
+	// Simple protocol for run-length-encoding (RLE):
+	// Cry of "RLE_0x0" means repeat 0 from [Beg:Endx)
+
+	Cry string `zid:"2"` // a cryptographic hash identifying the chunk. Ex: blake3
 
 	// Data might be nil for summary purposes,
 	// or provided if we are transmitting a set of diffs.
 	Data []byte `zid:"3" json:"-"`
-
-	// does the taker have the chunk already, but just
-	// at a different original (TakePath) file location?
-	// In this case the giver can avoid sending
-	// Data, but still tell the taker where
-	// to get the data.
-	//UseLocalTakerCopy *Chunk `zid:"4"`
 }
 
 func (c *Chunk) CloneNoData() (r *Chunk) {

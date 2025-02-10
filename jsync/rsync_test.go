@@ -588,6 +588,12 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 			panicOn(err)
 			// 14.335789s
 		}
+		// debug
+		_, debugser, _ := GetHashesOneByOne(host, localPath) // debug todo remove
+		vv("for reference, here are the serial cuts: ")
+		showEachSegment(0, debugser.Chunks)
+		vv("why are the parallel chunks differenent?: ")
+		showEachSegment(0, wantsUpdate.Chunks)
 
 		vv("elap first SummarizeFileInCDCHashes = '%v'", time.Since(t0))
 		_ = localPrecis
