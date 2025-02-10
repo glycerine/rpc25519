@@ -5,6 +5,7 @@ import (
 	"fmt"
 	//"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -46,6 +47,9 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 	weAreRemoteGiver := (reqDir == nil)
 	_ = weAreRemoteGiver
+
+	var fileCh chan *File
+	var batchHalt *idem.Halter
 
 	//var haltDirScan *idem.Halter
 	//var packOfLeavesCh chan *PackOfLeafPaths
@@ -231,122 +235,119 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 				}
 
-				/*
-					case 999999: // old! OpRsync_DirSyncBeginReplyFromTaker: // 23
-						//vv("%v: (ckt '%v') (DirGiver) sees 23 OpRsync_DirSyncBeginReplyFromTaker", name, ckt.Name)
-
-						reqDir2 := &RequestToSyncDir{}
-						_, err0 = reqDir2.UnmarshalMsg(frag0.Payload)
-						panicOn(err0)
-						bt.bread += len(frag0.Payload)
-						if reqDir == nil {
-							// weAreRemoteGiver true (set above)
-							reqDir = reqDir2
-						} else {
-							// we are local giver doing push.
-							// the echo we get back will have the
-							// target temp dir available for the first time.
-							// we need to copy it in.
-							reqDir.TopTakerDirTemp = reqDir2.TopTakerDirTemp
-							reqDir.TopTakerDirTempDirID = reqDir2.TopTakerDirTempDirID
-						}
-
-						//vv("DirGiver will use write targets to reqDir.TopTakerDirTemp = '%v' for final: '%v'", reqDir.TopTakerDirTemp, reqDir.TopTakerDirFinal)
-
-						// after getting 23,
-						// send 26/27/28
-						// OpRsync_GiverSendsTopDirListing
-						// OpRsync_GiverSendsTopDirListingMore
-						// OpRsync_GiverSendsTopDirListingEnd
-						var err error
-						haltDirScan, packOfLeavesCh, packOfFilesCh, packOfDirsCh,
-							err = ScanDirTree(ctx0, reqDir.GiverDir)
-
-						// nil able copies to we can do phases strinctly 1 at a time.
-						polch := packOfLeavesCh     // start in phase 1.
-						var pofch chan *PackOfFiles // start nil, no receives.
-						var podch chan *PackOfDirs  // start nil, no receives.
-						//pofch = packOfFilesCh  // to start phase 2, below.
-						//podch = packOfDirsCh   // to start phase 3, below.
-
-						panicOn(err)
-						defer haltDirScan.ReqStop.Close()
-
-					sendFor:
-						for i := 0; ; i++ {
-							select {
-							case pol := <-polch: // packOfLeavesCh:
-								bts, err := pol.MarshalMsg(nil)
-								panicOn(err)
-								leafy := s.U.NewFragment()
-								leafy.SetUserArg("structType", "PackOfLeafPaths")
-								leafy.Payload = bts
-								leafy.FragOp = OpRsync_GiverSendsTopDirListing
-								err = ckt.SendOneWay(leafy, 0)
-								panicOn(err)
-								if pol.IsLast {
-									vv("dirgiver: pol IsLast true; on to phase 2")
-									polch = nil           // end phase 1
-									pofch = packOfFilesCh // to start phase 2
-								}
-
-							case pof := <-pofch:
-
-								fragPOF := s.U.NewFragment()
-								bts, err := pof.MarshalMsg(nil)
-								panicOn(err)
-								fragPOF.Payload = bts
-								fragPOF.FragOp = OpRsync_GiverSendsPackOfFiles
-								fragPOF.SetUserArg("structType", "PackOfFiles")
-								err = ckt.SendOneWay(fragPOF, 0)
-								panicOn(err)
-								if pof.IsLast {
-									vv("dirgiver: pof IsLast true; on to phase 3")
-									pofch = nil          // end phase 2
-									podch = packOfDirsCh // to start phase 3
-								}
-
-							case pod := <-podch: // phase 3
-								podModes := s.U.NewFragment()
-								bts, err := pod.MarshalMsg(nil)
-								panicOn(err)
-								podModes.Payload = bts
-
-								podModes.FragOp = OpRsync_ToTakerAllTreeModes
-								podModes.SetUserArg("structType", "PackOfDirs")
-								err = ckt.SendOneWay(podModes, 0)
-								panicOn(err)
-								//vv("dirgiver sent pod (last? %v): '%#v'", pod.IsLast, pod)
-								if pod.IsLast {
-									break sendFor
-								}
-
-							case <-done:
-								////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
-								return
-							case <-done0:
-								////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
-								return
-							case <-ckt.Halt.ReqStop.Chan:
-								////vv("%v: (ckt '%v') (DirGiver) ckt halt requested.", name, ckt.Name)
-								return
-							}
-						}
-
-						// whoa sending pof one per goro on a separate ckt
-						// can be super slow. let's just send along. the
-						// rest of the structure early, so we can find out
-						// if we need to sync or not.
-
-						// and wait for OpRsync_TakerReadyForDirContents
-				*/
 			case OpRsync_TakerReadyForDirContents: // 29
 				vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerReadyForDirContents", name, ckt.Name)
 
 				// we (giver) now do individual file syncs
 				// (newly deleted files can be simply not
 				// transferred on the taker side to the new dir!) ...
+				// or are detected at end by comparing existing
+				// to recieved.
 				// -> at end, giver -> DirSyncEndToTaker
+
+				// start a worker pool, like dirtaker, rather than
+				// goro per file.
+
+				if fileCh == nil {
+					// set up the worker pool
+					fileCh = make(chan *File) // do not buffer, giving work.
+
+					batchHalt = idem.NewHalter()
+					defer batchHalt.ReqStop.Close()
+
+					workPoolSize := runtime.NumCPU()
+					for range workPoolSize {
+						goroHalt := idem.NewHalter()
+						batchHalt.AddChild(goroHalt)
+
+						go func(goroHalt *idem.Halter) {
+							defer func() {
+								r := recover()
+								if r != nil {
+									vv("DirGiver file worker (OpRsync_TakerReadyForDirContents) sees panic: '%v'", r)
+									err := fmt.Errorf("DirGiver file worker (OpRsync_TakerReadyForDirContents) saw panic: '%v'", r)
+									goroHalt.ReqStop.CloseWithReason(err)
+									// also stop the whole batch on single err.
+									// At least for now, sane debugging.
+									batchHalt.ReqStop.CloseWithReason(err)
+								} else {
+									goroHalt.ReqStop.Close()
+								}
+								goroHalt.Done.Close()
+							}()
+
+							var file *File
+							select {
+							case file = <-fileCh:
+							case <-goroHalt.ReqStop.Chan:
+								return
+							case <-batchHalt.ReqStop.Chan:
+								return
+							case <-done:
+								return
+							case <-done0:
+								return
+							}
+
+							frag1 := s.U.NewFragment()
+							giverPath := filepath.Join(reqDir.GiverDir,
+								file.Path)
+							sr := &RequestToSyncPath{
+								GiverPath:        giverPath,
+								TakerPath:        file.Path,
+								TakerTempDir:     reqDir.TopTakerDirTemp,
+								TopTakerDirFinal: reqDir.TopTakerDirFinal,
+								GiverDirAbs:      reqDir.GiverDir,
+								GiverFileSize:    file.Size,
+								GiverModTime:     file.ModTime,
+								GiverFileMode:    file.FileMode,
+								RemoteTakes:      true,
+								Done:             idem.NewIdemCloseChan(),
+
+								GiverScanFlags:     file.ScanFlags,
+								GiverSymLinkTarget: file.SymLinkTarget,
+							}
+							bts, err := sr.MarshalMsg(nil)
+							panicOn(err)
+							frag1.Payload = bts
+							// basic single file transfer flow. giver sends 1.
+							frag1.FragOp = OpRsync_RequestRemoteToTake
+							frag1.FragSubject = giverPath
+							frag1.SetUserArg("structType", "RequestToSyncPath")
+							cktName := rsyncRemoteTakesString
+
+							ckt2, ctx2, err := ckt.NewCircuit(cktName, frag1)
+							panicOn(err)
+							defer func() {
+								r := recover()
+								if r != nil {
+									err := fmt.Errorf(
+										"panic recovered: '%v'", r)
+									vv("error ckt2 close: '%v'", err)
+									ckt2.Close(err)
+								} else {
+									//vv("normal ckt2 close")
+									ckt2.Close(nil)
+								}
+							}()
+
+							errg := s.Giver(ctx2, ckt2, myPeer, sr)
+							panicOn(errg)
+							batchHalt.ReqStop.TaskDone()
+
+							if reqDir.SR.UpdateProgress != nil {
+								report := fmt.Sprintf("%40s  done.", giverPath)
+								select {
+								case reqDir.SR.UpdateProgress <- report:
+								case <-done:
+									return
+								case <-goroHalt.ReqStop.Chan:
+									return
+								}
+							}
+						}(goroHalt)
+					}
+				} // end set up worker pool
 
 				var totalFileBytes int64
 			sendFiles:
@@ -354,109 +355,41 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					select {
 					case pof := <-packOfFilesCh:
 						totalFileBytes += pof.TotalFileBytes
-						batchHalt := idem.NewHalter()
-						defer batchHalt.ReqStop.Close()
 						batchHalt.ReqStop.TaskAdd(len(pof.Pack))
 
 						for _, file := range pof.Pack {
 							//vv("dirgiver: pof file = '%#v'", file)
-							goroHalt := idem.NewHalter()
-							batchHalt.AddChild(goroHalt)
-
-							go func(file *File, goroHalt *idem.Halter) {
-								defer func() {
-									r := recover()
-									if r != nil {
-										vv("DirGiver file worker (OpRsync_TakerReadyForDirContents) sees panic: '%v'", r)
-										err := fmt.Errorf("DirGiver file worker (OpRsync_TakerReadyForDirContents) saw panic: '%v'", r)
-										goroHalt.ReqStop.CloseWithReason(err)
-										// also stop the whole batch on single err.
-										// At least for now, sane debugging.
-										batchHalt.ReqStop.CloseWithReason(err)
-									} else {
-										goroHalt.ReqStop.Close()
-									}
-									goroHalt.Done.Close()
-								}()
-
-								frag1 := s.U.NewFragment()
-								giverPath := filepath.Join(reqDir.GiverDir,
-									file.Path)
-								sr := &RequestToSyncPath{
-									GiverPath:        giverPath,
-									TakerPath:        file.Path,
-									TakerTempDir:     reqDir.TopTakerDirTemp,
-									TopTakerDirFinal: reqDir.TopTakerDirFinal,
-									GiverDirAbs:      reqDir.GiverDir,
-									GiverFileSize:    file.Size,
-									GiverModTime:     file.ModTime,
-									GiverFileMode:    file.FileMode,
-									RemoteTakes:      true,
-									Done:             idem.NewIdemCloseChan(),
-
-									GiverScanFlags:     file.ScanFlags,
-									GiverSymLinkTarget: file.SymLinkTarget,
-								}
-								bts, err := sr.MarshalMsg(nil)
-								panicOn(err)
-								frag1.Payload = bts
-								// basic single file transfer flow. giver sends 1.
-								frag1.FragOp = OpRsync_RequestRemoteToTake
-								frag1.FragSubject = giverPath
-								frag1.SetUserArg("structType", "RequestToSyncPath")
-								cktName := rsyncRemoteTakesString
-								// TODO: this is old style, one ckt per file;
-								// change over to using one ckt for all files
-								// like the dirtaker does.
-								ckt2, ctx2, err := ckt.NewCircuit(cktName, frag1)
-								panicOn(err)
-								defer func() {
-									r := recover()
-									if r != nil {
-										err := fmt.Errorf(
-											"panic recovered: '%v'", r)
-										vv("error ckt2 close: '%v'", err)
-										ckt2.Close(err)
-									} else {
-										//vv("normal ckt2 close")
-										ckt2.Close(nil)
-									}
-								}()
-								// cancels us too early! avoid:
-								// batchHalt.AddChild(ckt2.Halt)
-
-								errg := s.Giver(ctx2, ckt2, myPeer, sr)
-								panicOn(errg)
-								batchHalt.ReqStop.TaskDone()
-
-								if reqDir.SR.UpdateProgress != nil {
-									report := fmt.Sprintf("%40s  done.", giverPath)
-									select {
-									case reqDir.SR.UpdateProgress <- report:
-									case <-done:
-										return
-									case <-goroHalt.ReqStop.Chan:
-										return
-									}
-								}
-							}(file, goroHalt)
+							select {
+							case fileCh <- file:
+								// and do another, until all pof done
+							case <-batchHalt.ReqStop.Chan:
+								break sendFiles
+							case <-done:
+								return
+							case <-done0:
+								return
+							case <-ckt.Halt.ReqStop.Chan:
+								return
+							}
 						} // end range over file in pof.Pack
-
-						// wait for all files to be given == batch to
-						// be closed (error or not); or done to fire.
-						err := batchHalt.ReqStop.TaskWait(done)
-						vv("batchHalt.ReqStop.TaskWait back, err = '%v'", err)
-
-						//_ = batchHalt.ReqStop.WaitTilChildrenClosed(done)
-						//vv("batchHalt.ReqStop.WaitTilChildrenDone back.")
-						// do not panic, we might have seen closed(done).
-						//batchHalt.ReqStop.Close()
-
-						// shutdown the worker pool (if/when we convert to a pool).
-						batchHalt.StopTreeAndWaitTilDone(0, done, nil)
 
 						if pof.IsLast {
 							vv("dirgiver: pof IsLast true; break sendFiles")
+
+							// wait for all files to be given == batch to
+							// be closed (error or not); or done to fire.
+							err := batchHalt.ReqStop.TaskWait(done)
+							vv("batchHalt.ReqStop.TaskWait back, err = '%v'", err)
+
+							//_ = batchHalt.ReqStop.WaitTilChildrenClosed(done)
+							//vv("batchHalt.ReqStop.WaitTilChildrenDone back.")
+							// do not panic, we might have seen closed(done).
+							//batchHalt.ReqStop.Close()
+
+							// shutdown the worker pool (if/when we convert to a pool).
+							batchHalt.StopTreeAndWaitTilDone(0, done, nil)
+							// not sure we would get another dir, but reset anyway
+							fileCh = nil
 							break sendFiles
 						}
 
