@@ -21,7 +21,7 @@ import (
 
 // parallelChunking switches between ChunkFile (parallel.go)
 // and GetHashesOneByOne (rsync.go; serial).
-var parallelChunking = false
+var parallelChunking = true
 
 func SetParallelChunking(set bool) (old bool) {
 	old = parallelChunking

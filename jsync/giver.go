@@ -305,7 +305,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				panicOn(err0)
 				bt.bread += len(frag0.Payload)
 
-				vv("giver sees OpRsync_LightRequestEnclosed; light = '%#v'", light)
+				vv("giver sees OpRsync_LightRequestEnclosed; light.ReaderChunks = '%#v'", light)
 
 				// light.ReaderChunks were too big,
 				// get them in packs instead.

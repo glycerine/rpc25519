@@ -908,6 +908,10 @@ takerForSelectLoop:
 					}
 					panicOn(err)
 
+					if len(local.Chunks) == 0 {
+						panic(fmt.Sprintf("how can local have 0 Chunks??: '%v'", local.Chunks))
+					}
+
 					light := LightRequest{
 						SenderPath:   syncReq.TakerPath,
 						ReaderPrecis: precis,

@@ -546,6 +546,10 @@ func ChunkFile2(
 		coal = append(coal, chnk)
 		lastRLE = nil
 	}
+	if len(coal) == 0 {
+		panic("len coal cannot be 0")
+	}
+	vv("len coal = '%v'", coal)
 	chunks0.Chunks = coal
 
 	return
