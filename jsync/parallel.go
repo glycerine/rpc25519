@@ -317,7 +317,7 @@ func ChunkFile2(
 				// job.beg is where data starts
 				prev := dataoff - job.beg
 				// prev = job.cuts[0](2146461) - job.beg(3145728) = -999267
-				vv("prev = job.cuts[0](%v) - job.beg(%v) = %v", job.cuts[0], job.beg, prev)
+				//vv("prev = job.cuts[0](%v) - job.beg(%v) = %v", job.cuts[0], job.beg, prev)
 				for i, cut := range job.cuts {
 					if i == 0 {
 						continue
@@ -328,7 +328,7 @@ func ChunkFile2(
 						panic(fmt.Sprintf("shoud not have empty chunk! cut = %v; i=%v;  prev=%v; dataoff = %v; job.beg = %v; nodeK=%v", cut, i, prev, dataoff, job.beg, job.nodeK))
 					}
 					// prev = -999267; d = 16384
-					vv("prev = %v; d = %v", prev, d)
+					//vv("prev = %v; d = %v", prev, d)
 					slc := data[prev : prev+d]
 					chunk := &Chunk{
 						Beg:  dataoff,
@@ -396,7 +396,7 @@ func ChunkFile2(
 			curjob.cuts = []int{0}
 		}
 		if false {
-			//vv("here are candidates: jobs[%v].cand = '%#v'", i, jobs[i].cand)
+			vv("here are candidates: jobs[%v].cand = '%#v'", i, jobs[i].cand)
 			prev := 0
 			for _, cut := range jobs[i].cand {
 				fmt.Printf("%v (%v)\n", cut, cut-prev)
@@ -570,8 +570,12 @@ func printCutsPerJob(begJobNum int, jobs []*job, showChunks bool) {
 func showEachSegment(i int, cs []*Chunk) {
 	fmt.Printf("job/segment i = %v\n", i)
 	for j, c := range cs {
+		cry := c.Cry
+		if cry != "RLE0;" {
+			cry = c.Cry[11:20]
+		}
 		fmt.Printf("  %03d  Chunk:[Beg:%6d : Endx:%6d ) (len %6d) %v\n",
-			j, c.Beg, c.Endx, (c.Endx - c.Beg), c.Cry[11:20])
+			j, c.Beg, c.Endx, (c.Endx - c.Beg), cry)
 	}
 }
 
