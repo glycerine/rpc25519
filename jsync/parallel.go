@@ -397,14 +397,12 @@ func ChunkFile2(
 			gkeep = append(gkeep, cut)
 			prev = cut
 
-			//n := len(jobs[i].cuts)
-			//if n > 0 && jobs[i].cuts[n-1] == cut {
-			//	// do not add redundant cut!
-			// can we remove the above check? yes
-			//	panic("we see redundant cut!")
-			//} else {
-			jobs[i].cuts = append(jobs[i].cuts, cut)
-			//}
+			n := len(jobs[i].cuts)
+			if n > 0 && jobs[i].cuts[n-1] == cut {
+				// do not add redundant cut!
+			} else {
+				jobs[i].cuts = append(jobs[i].cuts, cut)
+			}
 
 			if cut >= curjob.endx {
 				if i != lastjob {
