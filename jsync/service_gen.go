@@ -21,7 +21,7 @@ func (z *RequestToSyncDir) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields0zgensym_5b8048e47f8e3c5c_1 = 8
+	const maxFields0zgensym_5b8048e47f8e3c5c_1 = 9
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields0zgensym_5b8048e47f8e3c5c_1 uint32
@@ -141,6 +141,12 @@ doneWithStruct0zgensym_5b8048e47f8e3c5c_1:
 			if err != nil {
 				return
 			}
+		case "TakerTargetUnknown_zid08_boo":
+			found0zgensym_5b8048e47f8e3c5c_1[8] = true
+			z.TakerTargetUnknown, err = dc.ReadBool()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -164,16 +170,16 @@ doneWithStruct0zgensym_5b8048e47f8e3c5c_1:
 }
 
 // fields of RequestToSyncDir
-var decodeMsgFieldOrder0zgensym_5b8048e47f8e3c5c_1 = []string{"GiverDir_zid00_str", "GiverDirModTime_zid01_tim", "TopTakerDirTemp_zid02_str", "TopTakerDirTempDirID_zid03_str", "TopTakerDirFinal_zid04_str", "RemoteTakes_zid05_boo", "SR_zid06_ptr", "GiverTotalFileBytes_zid07_i64"}
+var decodeMsgFieldOrder0zgensym_5b8048e47f8e3c5c_1 = []string{"GiverDir_zid00_str", "GiverDirModTime_zid01_tim", "TopTakerDirTemp_zid02_str", "TopTakerDirTempDirID_zid03_str", "TopTakerDirFinal_zid04_str", "RemoteTakes_zid05_boo", "SR_zid06_ptr", "GiverTotalFileBytes_zid07_i64", "TakerTargetUnknown_zid08_boo"}
 
-var decodeMsgFieldSkip0zgensym_5b8048e47f8e3c5c_1 = []bool{false, false, false, false, false, false, false, false}
+var decodeMsgFieldSkip0zgensym_5b8048e47f8e3c5c_1 = []bool{false, false, false, false, false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *RequestToSyncDir) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 8
+		return 9
 	}
-	var fieldsInUse uint32 = 8
+	var fieldsInUse uint32 = 9
 	isempty[0] = (len(z.GiverDir) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -206,6 +212,10 @@ func (z *RequestToSyncDir) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[7] {
 		fieldsInUse--
 	}
+	isempty[8] = (!z.TakerTargetUnknown) // bool, omitempty
+	if isempty[8] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -217,7 +227,7 @@ func (z *RequestToSyncDir) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_5b8048e47f8e3c5c_2 [8]bool
+	var empty_zgensym_5b8048e47f8e3c5c_2 [9]bool
 	fieldsInUse_zgensym_5b8048e47f8e3c5c_3 := z.fieldsNotEmpty(empty_zgensym_5b8048e47f8e3c5c_2[:])
 
 	// map header
@@ -341,6 +351,18 @@ func (z *RequestToSyncDir) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_5b8048e47f8e3c5c_2[8] {
+		// write "TakerTargetUnknown_zid08_boo"
+		err = en.Append(0xbc, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x54, 0x61, 0x72, 0x67, 0x65, 0x74, 0x55, 0x6e, 0x6b, 0x6e, 0x6f, 0x77, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x62, 0x6f, 0x6f)
+		if err != nil {
+			return err
+		}
+		err = en.WriteBool(z.TakerTargetUnknown)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -353,7 +375,7 @@ func (z *RequestToSyncDir) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [8]bool
+	var empty [9]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -416,6 +438,12 @@ func (z *RequestToSyncDir) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendInt64(o, z.GiverTotalFileBytes)
 	}
 
+	if !empty[8] {
+		// string "TakerTargetUnknown_zid08_boo"
+		o = append(o, 0xbc, 0x54, 0x61, 0x6b, 0x65, 0x72, 0x54, 0x61, 0x72, 0x67, 0x65, 0x74, 0x55, 0x6e, 0x6b, 0x6e, 0x6f, 0x77, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x62, 0x6f, 0x6f)
+		o = msgp.AppendBool(o, z.TakerTargetUnknown)
+	}
+
 	return
 }
 
@@ -434,7 +462,7 @@ func (z *RequestToSyncDir) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConf
 
 	var field []byte
 	_ = field
-	const maxFields4zgensym_5b8048e47f8e3c5c_5 = 8
+	const maxFields4zgensym_5b8048e47f8e3c5c_5 = 9
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields4zgensym_5b8048e47f8e3c5c_5 uint32
@@ -563,6 +591,13 @@ doneWithStruct4zgensym_5b8048e47f8e3c5c_5:
 			if err != nil {
 				return
 			}
+		case "TakerTargetUnknown_zid08_boo":
+			found4zgensym_5b8048e47f8e3c5c_5[8] = true
+			z.TakerTargetUnknown, bts, err = nbs.ReadBoolBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -586,9 +621,9 @@ doneWithStruct4zgensym_5b8048e47f8e3c5c_5:
 }
 
 // fields of RequestToSyncDir
-var unmarshalMsgFieldOrder4zgensym_5b8048e47f8e3c5c_5 = []string{"GiverDir_zid00_str", "GiverDirModTime_zid01_tim", "TopTakerDirTemp_zid02_str", "TopTakerDirTempDirID_zid03_str", "TopTakerDirFinal_zid04_str", "RemoteTakes_zid05_boo", "SR_zid06_ptr", "GiverTotalFileBytes_zid07_i64"}
+var unmarshalMsgFieldOrder4zgensym_5b8048e47f8e3c5c_5 = []string{"GiverDir_zid00_str", "GiverDirModTime_zid01_tim", "TopTakerDirTemp_zid02_str", "TopTakerDirTempDirID_zid03_str", "TopTakerDirFinal_zid04_str", "RemoteTakes_zid05_boo", "SR_zid06_ptr", "GiverTotalFileBytes_zid07_i64", "TakerTargetUnknown_zid08_boo"}
 
-var unmarshalMsgFieldSkip4zgensym_5b8048e47f8e3c5c_5 = []bool{false, false, false, false, false, false, false, false}
+var unmarshalMsgFieldSkip4zgensym_5b8048e47f8e3c5c_5 = []bool{false, false, false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *RequestToSyncDir) Msgsize() (s int) {
@@ -598,7 +633,7 @@ func (z *RequestToSyncDir) Msgsize() (s int) {
 	} else {
 		s += z.SR.Msgsize()
 	}
-	s += 30 + msgp.Int64Size
+	s += 30 + msgp.Int64Size + 29 + msgp.BoolSize
 	return
 }
 

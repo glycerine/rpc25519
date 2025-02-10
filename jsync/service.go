@@ -472,6 +472,12 @@ type RequestToSyncDir struct {
 	SR *RequestToSyncPath `zid:"6"` // original local request
 
 	GiverTotalFileBytes int64 `zid:"7"`
+
+	// if !TakerExistsLocal and !RemoteTakes,
+	// then we the taker is asking for a dir, but
+	// doesn't know if the name might actually be
+	// just a file.
+	TakerTargetUnknown bool `zid:"8"`
 }
 
 type DirListing struct {
@@ -610,8 +616,12 @@ func (s *SyncService) Start(
 
 			//vv("%v: sees requested on SyncPathRequestCh: '%#v'", name, syncReq)
 
+			// if  !syncReq.TakerExistsLocal, and we are local taker,
+			// we don't know whether to ask for a file or directory.
+			// Try: asking for a directory, and see how it goes?
+
 			// begin dir sync bootstrap
-			if !syncReq.RemoteTakes && syncReq.TakerIsDir {
+			if !syncReq.RemoteTakes && (syncReq.TakerIsDir || !syncReq.TakerExistsLocal) {
 				//vv("%v: we are the local taker of dir. sending 21 OpRsync_TakerRequestsDirSyncBegin", name)
 
 				// we (local taker) generate a temp dir first, then send 21
@@ -634,6 +644,7 @@ func (s *SyncService) Start(
 					TopTakerDirTempDirID: tmpDirID,
 					RemoteTakes:          syncReq.RemoteTakes,
 					SR:                   syncReq,
+					TakerTargetUnknown:   !syncReq.RemoteTakes && !syncReq.TakerExistsLocal,
 				}
 				bts, err := reqDir.MarshalMsg(nil)
 				panicOn(err)

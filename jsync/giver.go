@@ -246,6 +246,12 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 				// 1. if local has nothing, send full stream. stop.
 				if syncReq.TakerFileSize == 0 {
+					// on rog, jcp aorus:dutchy
+					// i.e. trying to sync a dir that is not there yet locally,
+					// gives error: giver was asked for
+					// non-existent file: 'dutchy' not found
+					// from this call. Thing is, we should
+					// be in dir giving, not file giving!
 					err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0)
 
 					//vv("giver sent whole file. done (wait for FIN) -> '%v'", syncReq.TakerPath)
