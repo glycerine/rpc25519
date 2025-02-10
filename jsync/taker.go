@@ -187,7 +187,7 @@ takerForSelectLoop:
 	for {
 		select { // hung here, waiting for heavy chunks
 		case frag := <-ckt.Reads:
-			vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
+			//vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
 			_ = frag
 			switch frag.FragOp {
 
@@ -359,7 +359,7 @@ takerForSelectLoop:
 				panic("OpRsync_ToGiverNeedFullFile2 not expected in Taker!")
 
 			case OpRsync_HeavyDiffChunksEnclosed, OpRsync_HeavyDiffChunksLast:
-				vv("stream of heavy diffs arriving! : %v", frag.String())
+				//vv("stream of heavy diffs arriving! : %v", frag.String())
 
 				chunks := &Chunks{}
 				_, err := chunks.UnmarshalMsg(frag.Payload)

@@ -32,7 +32,7 @@ const useTempDir = false
 // coordinator from the Taker side.
 func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, reqDir *RequestToSyncDir) (err0 error) {
 
-	vv("SyncService.DirTaker top; we are local if reqDir = %p != nil", reqDir)
+	//vv("SyncService.DirTaker top; we are local if reqDir = %p != nil", reqDir)
 
 	name := myPeer.PeerServiceName
 	_ = name // used when logging is on.
@@ -102,7 +102,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	for {
 		select {
 		case frag := <-ckt.Reads:
-			vv("%v: (ckt %v) (DirTaker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
+			//vv("%v: (ckt %v) (DirTaker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
 			_ = frag
 			switch frag.FragOp {
 
@@ -161,7 +161,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				return
 
 			case OpRsync_DirSyncBeginToTaker: // 22
-				vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
+				//vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
 				// we should: setup a top tempdir and prep to
 				// pre-pend it to all paths we get from giver.
 
