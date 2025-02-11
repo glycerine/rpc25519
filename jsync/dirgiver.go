@@ -240,10 +240,12 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				//vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerReadyForDirContents", name, ckt.Name)
 
 				// we (giver) now do individual file syncs
+				//
 				// (newly deleted files can be simply not
-				// transferred on the taker side to the new dir!) ...
+				// transferred on the taker side to the new dir;
 				// or are detected at end by comparing existing
-				// to recieved.
+				// to recieved).
+
 				// -> at end, giver -> DirSyncEndToTaker
 
 				// start a worker pool, like dirtaker, rather than
@@ -547,7 +549,7 @@ func (s *SyncService) convertedDirToFile_giveFile(
 	tofile.SetUserArg("structType", "RequestToSyncDir")
 	err := ckt.SendOneWay(tofile, 0)
 	panicOn(err)
-	vv("Q: is this the right takerPath to pass to giverSendsWholefile? reqDir.TopTakerDirFinal = '%v'", reqDir.TopTakerDirFinal)
+	//vv("Q: is this the right takerPath to pass to giverSendsWholefile? reqDir.TopTakerDirFinal = '%v'", reqDir.TopTakerDirFinal)
 	err = s.giverSendsWholeFile(path, reqDir.TopTakerDirFinal, ckt, bt, frag0, reqDir.SR)
 	panicOn(err)
 	return err

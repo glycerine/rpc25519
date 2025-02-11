@@ -779,7 +779,10 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 	// pack up to max bytes of Chunks into a message.
 	max := rpc.UserMaxPayload - 10_000
 
+	t0 := time.Now()
 	n := len(heavyPlan.Chunks)
+	nBytesTot := heavyPlan.DataPresent()
+	accum := 0
 	last := false
 
 	//for i, chunk := range heavyPlan.Chunks
@@ -827,9 +830,13 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 		f.Payload = bts
 		err = ckt.SendOneWay(f, 0)
 		panicOn(err)
-		// no send happening after coalescing!
 		//vv("packAndSendChunksLimitedSize sent f = '%v'", f.String())
 		bt.bsend += len(bts)
+		accum += len(bts)
+
+		syncReq.ReportProgress(
+			path, int64(nBytesTot), int64(accum), t0)
+
 	}
 	return nil
 }
