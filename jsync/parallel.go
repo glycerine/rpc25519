@@ -557,7 +557,7 @@ func ChunkFile2(
 	if len(coal) == 0 {
 		panic("len coal cannot be 0")
 	}
-	vv("len coal = '%v' vs len orig %v", len(coal), len(chunks0.Chunks))
+	//vv("len coal = '%v' vs len orig %v", len(coal), len(chunks0.Chunks))
 	vv("RLE0 encoded %v bytes; path = '%v'; host='%v'", total0, path, host)
 	chunks0.Chunks = coal
 
