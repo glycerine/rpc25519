@@ -44,6 +44,8 @@ type TransferStats struct {
 	startTime          time.Time
 
 	largestPart int64
+
+	last string // cache
 }
 
 func NewTransferStats(fileSize int64, filename string) *TransferStats {
@@ -106,6 +108,16 @@ func (s *TransferStats) PrintProgressWithSpeed(current int64) {
 
 // Allow user choice of silent or not.
 func (s *TransferStats) DoProgressWithSpeed(current int64, silent bool, part int64) {
+	status := s.ProgressString(current, part)
+	if !s.isTerm || silent {
+		return
+	}
+	// Write the entire line at once
+	fmt.Print(status)
+}
+
+// get the string back, user can decide to print or not.
+func (s *TransferStats) ProgressString(current int64, part int64) string {
 
 	if part > s.largestPart {
 		s.largestPart = part
@@ -113,7 +125,7 @@ func (s *TransferStats) DoProgressWithSpeed(current int64, silent bool, part int
 
 	now := time.Now()
 	if now.Sub(s.lastDisplay) < s.minRefreshInterval {
-		return
+		return s.last
 	}
 	s.lastDisplay = now
 
@@ -123,10 +135,6 @@ func (s *TransferStats) DoProgressWithSpeed(current int64, silent bool, part int
 
 	// Update speed calculation
 	changed := s.updateSpeed(current)
-
-	if !s.isTerm || silent {
-		return
-	}
 
 	// Calculate ETA
 	var eta time.Duration
@@ -166,8 +174,8 @@ func (s *TransferStats) DoProgressWithSpeed(current int64, silent bool, part int
 		speed,
 		formatDuration(eta))
 
-	// Write the entire line at once
-	fmt.Print(status)
+	s.last = status // cached
+	return status
 }
 
 // Helper function to truncate or pad a string to exact width

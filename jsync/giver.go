@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	myblake3 "github.com/glycerine/rpc25519/hash"
-	//"github.com/glycerine/rpc25519/progress"
+	"github.com/glycerine/rpc25519/progress"
 	"io"
 	"os"
 	"path/filepath"
@@ -266,7 +266,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					// non-existent file: 'dutchy' not found
 					// from this call. Thing is, we should
 					// be in dir giving, not file giving!
-					err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0)
+					err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0, syncReq)
 
 					//vv("giver sent whole file. done (wait for FIN) -> '%v'", syncReq.TakerPath)
 					frag0 = nil // GC early.
@@ -349,7 +349,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				// this is the upload streaming protocol. We send the data.
 				//vv("giver sees OpRsync_ToGiverNeedFullFile2")
 
-				err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0)
+				err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0, syncReq)
 
 				// wait for FIN ack back.
 				frag0 = nil // GC early.
@@ -552,7 +552,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	)
 }
 
-func (s *SyncService) giverSendsWholeFile(giverPath, takerPath string, ckt *rpc.Circuit, bt *byteTracker, frag0 *rpc.Fragment) error {
+func (s *SyncService) giverSendsWholeFile(giverPath, takerPath string, ckt *rpc.Circuit, bt *byteTracker, frag0 *rpc.Fragment, syncReq *RequestToSyncPath) error {
 
 	//vv("giverSendsWholeFile(giverPath='%v', takerPath='%v')", giverPath, takerPath)
 	t0 := time.Now()
@@ -566,9 +566,12 @@ func (s *SyncService) giverSendsWholeFile(giverPath, takerPath string, ckt *rpc.
 
 	panicOn(err)
 
-	//const quietProgress = true
-	//pathsize := fi.Size()
-	//meterUp := progress.NewTransferStats(pathsize, "[up]"+filepath.Base(giverPath))
+	const quietProgress = false
+	var meterUp *progress.TransferStats
+	pathsize := fi.Size()
+	if !quietProgress && syncReq != nil && syncReq.UpdateProgress != nil {
+		meterUp = progress.NewTransferStats(pathsize, "[up]"+filepath.Base(giverPath))
+	}
 
 	r, err := os.Open(giverPath)
 	if err != nil {
@@ -585,7 +588,7 @@ func (s *SyncService) giverSendsWholeFile(giverPath, takerPath string, ckt *rpc.
 	buf := make([]byte, maxMessage)
 	var tot int
 
-	//var lastUpdate time.Time
+	var lastUpdate time.Time
 
 	var i int64
 upload:
@@ -638,16 +641,28 @@ upload:
 			break upload
 		}
 
-		//if time.Since(lastUpdate) > time.Second {
-		//meterUp.DoProgressWithSpeed(int64(tot), quietProgress, int64(i))
-		//lastUpdate = time.Now()
-		//}
+		if meterUp != nil {
+			if time.Since(lastUpdate) > time.Second {
+				pace := meterUp.ProgressString(int64(tot), int64(i))
+				lastUpdate = time.Now()
+				select {
+				case syncReq.UpdateProgress <- pace:
+				default:
+				}
+			}
+		}
 	} // end for i
 	nparts := i
 
-	//meterUp.DoProgressWithSpeed(int64(tot), quietProgress, int64(i))
-
-	//fmt.Println() // lots of empty lines we don't need.
+	if meterUp != nil {
+		pace := meterUp.ProgressString(int64(tot), int64(i))
+		if !quietProgress {
+			select {
+			case syncReq.UpdateProgress <- pace:
+			default:
+			}
+		}
+	}
 
 	elap := time.Since(t0)
 	mb := float64(tot) / float64(1<<20)
