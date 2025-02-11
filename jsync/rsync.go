@@ -427,7 +427,7 @@ var markToSendHeavyFromFile = []byte{'H'}
 // needs to be read in from the file. goal should
 // not have prior .Data attachments.
 func (s *BlobStore) GetPlanToUpdateFromGoal(updateme, goal *Chunks, dropGoalData, usePlaceHolders bool) (plan *Chunks) {
-	vv("top of GetPlan: usePlaceHolders=%v; goal.DataPreset()='%v'", usePlaceHolders, goal.DataPresent()) // , stack())
+	//vv("top of GetPlan: usePlaceHolders=%v; goal.DataPreset()='%v'", usePlaceHolders, goal.DataPresent()) // , stack())
 
 	//vv("top of GetPlan: len(updateme.Chunks)=%v", len(updateme.Chunks))
 	//vv("top of GetPlan: len(goal.Chunks)=%v", len(goal.Chunks))
@@ -555,11 +555,11 @@ func (s *RsyncNode) RequestLatest(
 
 	localPrecis, local, err := SummarizeFileInCDCHashes(s.Host, req.SenderPath, true, true)
 
-	if err != nil {
-		//vv("mid RequestLatest(); err = '%v'", err)
-	} else {
-		//vv("step3: localHashes ok")
-	}
+	//if err != nil {
+	//vv("mid RequestLatest(); err = '%v'", err)
+	//} else {
+	//vv("step3: localHashes ok")
+	//}
 	panicOn(err)
 
 	//local := localSummary.Chunks
@@ -846,7 +846,7 @@ func (cs *Chunks) DataFilter() (r []*Chunk) {
 // disk I/O with computation.
 func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, err error) {
 
-	vv("GetHashesOneByOne top")
+	//vv("GetHashesOneByOne top")
 	if !fileExists(path) {
 		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false)
 	}
@@ -859,7 +859,7 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 	cdc := jcdc.GetCutpointer(Default_CDC, Default_CDC_Config)
 	cdcCfg := cdc.Config()
 
-	vv("GetHashesOneByOne() using cdc = '%v'", cdc.Name())
+	//vv("GetHashesOneByOne() using cdc = '%v'", cdc.Name())
 
 	sz64, modTime, err := FileSizeModTime(path)
 	if err != nil {
@@ -1119,7 +1119,7 @@ func UpdateLocalFileWithRemoteDiffs(
 ) (err error) {
 
 	if remote.FileSize == 0 {
-		vv("remote.FileSize == 0 => truncate to zero localPathToWrite='%v'", localPathToWrite)
+		//vv("remote.FileSize == 0 => truncate to zero localPathToWrite='%v'", localPathToWrite)
 		return truncateFileToZero(localPathToWrite)
 	}
 
@@ -1145,7 +1145,7 @@ func UpdateLocalFileWithRemoteDiffs(
 	newversFd, err = os.Create(tmp)
 	panicOn(err)
 
-	vv("UpdateLocalFileWithRemoteDiffs created file tmp = '%v'", tmp)
+	//vv("UpdateLocalFileWithRemoteDiffs created file tmp = '%v'", tmp)
 	newversBufio = bufio.NewWriterSize(newversFd, rpc.UserMaxPayload)
 
 	// remember to Flush and Close!

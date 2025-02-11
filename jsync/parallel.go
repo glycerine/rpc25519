@@ -68,19 +68,20 @@ func ChunkFile2(
 
 ) (precis *FilePrecis, chunks0 *Chunks, err0 error) {
 
-	vv("top of ChunkFile2")
-	defer func() {
-		vv("ChunkFile2 returning; err0 = '%v'; len chunks0.Chunks = %v", err0, len(chunks0.Chunks))
-	}()
+	//vv("top of ChunkFile2")
+	//defer func() {
+	//vv("ChunkFile2 returning; err0 = '%v'; len chunks0.Chunks = %v", err0, len(chunks0.Chunks))
+	//}()
 	// must handle non-existant files without error.
 	if !fileExists(path) {
 		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false)
 	}
-	vv("file exists")
+	//vv("file exists")
 	t0 := time.Now()
+	_ = t0
 	fd, err := os.OpenFile(path, os.O_RDONLY, 0)
 	if err != nil {
-		vv("ChunkFile2: error on OpenFile(path='%v'): '%v'", path, err)
+		//vv("ChunkFile2: error on OpenFile(path='%v'): '%v'", path, err)
 		err0 = err
 		return
 	}
@@ -88,16 +89,16 @@ func ChunkFile2(
 
 	fi, err := fd.Stat()
 	if err != nil {
-		vv("path did not stat: '%v': '%v'", path, err)
+		//vv("path did not stat: '%v': '%v'", path, err)
 		err0 = err
 		return
 	}
 	sz := int(fi.Size())
 	if sz == 0 {
-		vv("path is empty! '%v'", path)
+		//vv("path is empty! '%v'", path)
 		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false)
 	}
-	vv("file is not empty")
+	//vv("file is not empty")
 	cdcCfg := Default_CDC_Config
 	mincut := int(cdcCfg.MinSize) // filter for this mincut on 2nd pass.
 	mincutCand := mincut
@@ -214,14 +215,14 @@ func ChunkFile2(
 	wg.Add(int(nWorkers))
 
 	nJobs := (sz + segment - 1) / segment
-	vv("nJobs = %v", nJobs)
+	//vv("nJobs = %v", nJobs)
 
 	// output
 	jobs := make([]*job, nJobs)
 
 	maxcut := int(Default_CDC_Config.MaxSize)
 	nW := int(nWorkers)
-	vv("nW = %v; mincut = %v; maxcut = %v", nW, mincut, maxcut)
+	//vv("nW = %v; mincut = %v; maxcut = %v", nW, mincut, maxcut)
 
 	workfunc := func(work chan *job, worker int) {
 
@@ -383,7 +384,7 @@ func ChunkFile2(
 		}
 		work <- job
 	}
-	vv("we have sent off njob = nJobs = %v to be hashed", nJobs)
+	//vv("we have sent off njob = nJobs = %v to be hashed", nJobs)
 	close(work)
 	wg.Wait()
 
@@ -476,7 +477,7 @@ func ChunkFile2(
 		}
 	}
 
-	vv("sz = %v", sz)
+	//vv("sz = %v", sz)
 
 	if false {
 		lastj := len(jobs) - 1 // debug
@@ -513,12 +514,12 @@ func ChunkFile2(
 		if len(chunks0.Chunks) > 0 {
 			if len(job.chunks) > 0 {
 				if job.chunks[0].Beg != chunks0.Chunks[len(chunks0.Chunks)-1].Endx {
-					vv("elap = '%v'", time.Since(t0))
+					//vv("elap = '%v'", time.Since(t0))
 
-					vv("chunks0.Chunks[last] = ")
+					//vv("chunks0.Chunks[last] = ")
 					showEachSegment(-1, chunks0.Chunks[len(chunks0.Chunks)-1:])
 
-					vv("job.chunks[:1] = ")
+					//vv("job.chunks[:1] = ")
 					showEachSegment(-1, job.chunks[:1])
 
 					panic(fmt.Sprintf("j=%v; bad append! job.chunks[0].Beg = %v != chunks0.Chunks[len(chunks0.Chunks)-1].Endx = %v", j, job.chunks[0].Beg, chunks0.Chunks[len(chunks0.Chunks)-1].Endx))
@@ -558,7 +559,7 @@ func ChunkFile2(
 		panic("len coal cannot be 0")
 	}
 	//vv("len coal = '%v' vs len orig %v", len(coal), len(chunks0.Chunks))
-	vv("RLE0 encoded %v bytes; path = '%v'; host='%v'", total0, path, host)
+	//vv("RLE0 encoded %v bytes; path = '%v'; host='%v'", total0, path, host)
 	chunks0.Chunks = coal
 
 	return
