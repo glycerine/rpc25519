@@ -880,6 +880,9 @@ func (s *SyncService) packAndSendChunksJustInTime(
 		// "just-in-time" data delivery, to
 		// lower the memory footprint.
 		if len(next.Data) > 0 { // do we have our 1 byte flag?
+			if next.Cry == "RLE0;" {
+				panic("RLE0 should never have Data!?!")
+			}
 			// need to read it from file
 			_, err := fd.Seek(int64(next.Beg), 0)
 			panicOn(err)
@@ -905,13 +908,17 @@ func (s *SyncService) packAndSendChunksJustInTime(
 			next = oneByteMarkedPlan.Chunks[i]
 			letgo = next.CloneNoData()
 			if len(next.Data) > 0 { // is our 1 marker byte there?
+				if next.Cry == "RLE0;" {
+					panic("RLE0 should never have Data!?!")
+				}
+
 				// fill in letgo.Data
 				_, err := fd.Seek(int64(next.Beg), 0)
 				panicOn(err)
 
 				amt := next.Endx - next.Beg
 				letgo.Data = make([]byte, amt)
-				_, err = io.ReadFull(fd, letgo.Data)
+				_, err = io.ReadFull(fd, letgo.Data) // inf loop?
 				panicOn(err)
 				bytesFromDisk += amt
 			}

@@ -420,44 +420,63 @@ takerForSelectLoop:
 
 					if len(chunk.Data) == 0 {
 						// the data is local
-						lc, ok := localMap[chunk.Cry]
-						if !ok {
-							panic(fmt.Sprintf("rsync algo failed, "+
-								"the needed data is not "+
-								"available locally: '%v'; len(localMap)=%v",
-								chunk, len(localMap)))
-						}
-						// data is typically nil!
-						// localMap should have only hashes.
-						// so this is just getting an empty slice.
-						// Is this always true?
-						data := lc.Data
-						if origVersFd != nil {
-							////vv("read from original on disk, for chunk '%v'", chunk)
-							beg := int64(lc.Beg)
-							newOffset, err := origVersFd.Seek(beg, 0)
-							panicOn(err)
-							if newOffset != beg {
-								panic(fmt.Sprintf("huh? could not seek to %v in file '%v'", lc.Beg, syncReq.TakerPath))
+
+						if chunk.Cry == "RLE0;" {
+							n := chunk.Endx - chunk.Beg
+							ns := n / len(zeros4k)
+							rem := n % len(zeros4k)
+							for range ns {
+								wb, err := newversBufio.Write(zeros4k)
+								panicOn(err)
+								j += wb
+								h.Write(zeros4k)
 							}
-							data = buf[:lc.Len()]
-							_, err = io.ReadFull(origVersFd, data)
+							if rem > 0 {
+								wb, err := newversBufio.Write(zeros4k[:rem])
+								panicOn(err)
+								j += wb
+								h.Write(zeros4k[:rem])
+							}
+						} else {
+							lc, ok := localMap[chunk.Cry]
+							if !ok {
+								panic(fmt.Sprintf("rsync algo failed, "+
+									"the needed data is not "+
+									"available locally: '%v'; len(localMap)=%v",
+									chunk, len(localMap)))
+							}
+							// data is typically nil!
+							// localMap should have only hashes.
+							// so this is just getting an empty slice.
+							// Is this always true?
+							data := lc.Data
+							if origVersFd != nil {
+								////vv("read from original on disk, for chunk '%v'", chunk)
+								beg := int64(lc.Beg)
+								newOffset, err := origVersFd.Seek(beg, 0)
+								panicOn(err)
+								if newOffset != beg {
+									panic(fmt.Sprintf("huh? could not seek to %v in file '%v'", lc.Beg, syncReq.TakerPath))
+								}
+								data = buf[:lc.Len()]
+								_, err = io.ReadFull(origVersFd, data)
+								panicOn(err)
+							}
+
+							wb, err := newversBufio.Write(data)
 							panicOn(err)
-						}
 
-						wb, err := newversBufio.Write(data)
-						panicOn(err)
-
-						j += wb
-						if wb != len(data) {
-							panic("short write?!?!")
-						}
-						// sanity check the local chunk as a precaution.
-						if wb != lc.Endx-lc.Beg {
-							panic(fmt.Sprintf("lc.Endx = %v, lc.Beg = %v, but "+
-								"lc.Data len = %v", lc.Endx, lc.Beg, wb))
-						} // panic: lc.Endx = 2992124, lc.Beg = 2914998, but lc.Data len = 0
-						h.Write(data) // update checksum
+							j += wb
+							if wb != len(data) {
+								panic("short write?!?!")
+							}
+							// sanity check the local chunk as a precaution.
+							if wb != lc.Endx-lc.Beg {
+								panic(fmt.Sprintf("lc.Endx = %v, lc.Beg = %v, but "+
+									"lc.Data len = %v", lc.Endx, lc.Beg, wb))
+							} // panic: lc.Endx = 2992124, lc.Beg = 2914998, but lc.Data len = 0
+							h.Write(data) // update checksum
+						} // end else not RLE0;
 					} else {
 						// INVAR: len(chunk.Data) > 0
 						wb, err := newversBufio.Write(chunk.Data)

@@ -437,7 +437,11 @@ func (s *BlobStore) GetPlanToUpdateFromGoal(updateme, goal *Chunks, dropGoalData
 	for i, c := range updateme.Chunks {
 		_ = i
 		//vv("i=%v, adding to updateme_map: '%v'", i, c)
-		updatememap[c.Cry] = c
+		if c.Cry == "RLE0;" {
+			// omit
+		} else {
+			updatememap[c.Cry] = c
+		}
 	}
 	//vv("len updatememap = %v", len(updatememap))
 
@@ -448,17 +452,22 @@ func (s *BlobStore) GetPlanToUpdateFromGoal(updateme, goal *Chunks, dropGoalData
 				panic("the goal passed to usePlaceHolders should have no .Data on it!")
 			}
 			//vv("checking for goal.Chunk c = '%v'", c)
-			_, ok := updatememap[c.Cry]
-			if !ok {
-				// other side needs this.
-				// assign this one-bye slice as sentinel to pull from file.
-				//vv("setting one byte mark!")
-				c.Data = markToSendHeavyFromFile
+			if c.Cry == "RLE0;" {
+				// other side never needs RLE0; its just all 0.
+			} else {
+				_, ok := updatememap[c.Cry]
+				if !ok {
+					// other side needs this.
+					// assign this one-bye slice as sentinel to pull from file.
+					//vv("setting one byte mark!")
+					c.Data = markToSendHeavyFromFile
+				}
 			}
 		}
 		//vv("on return, goal.DataPresent() = %v", goal.DataPresent())
 		return goal
 	}
+	panic("need to update below for RLE0; we thought it was not used anymore")
 
 	plan = NewChunks(updateme.Path)
 	plan.FileSize = goal.FileSize
