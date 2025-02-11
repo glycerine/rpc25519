@@ -339,7 +339,7 @@ func main() {
 		GiverDirAbs:      dir,
 		RemoteTakes:      isPush,
 
-		UpdateProgress: make(chan string, 100),
+		UpdateProgress: make(chan *rsync.ProgressUpdate, 100),
 	}
 	if takerExistsLocal {
 
@@ -376,8 +376,9 @@ jobDone:
 	for {
 		select {
 		case prog := <-req.UpdateProgress:
+
 			if !jcfg.Quiet {
-				fmt.Printf("progress: %v\n", prog)
+				fmt.Printf("progress: %30v %8v %8v\n", prog.Path, prog.Latest, prog.Total)
 			}
 			continue
 		case <-req.Done.Chan:

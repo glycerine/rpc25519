@@ -446,7 +446,13 @@ type RequestToSyncPath struct {
 	GiverScanFlags     uint32 `zid:"34"`
 	GiverSymLinkTarget string `zid:"35"`
 
-	UpdateProgress chan string `msg:"-"`
+	UpdateProgress chan *ProgressUpdate `msg:"-"`
+}
+
+type ProgressUpdate struct {
+	Path   string `zid:"0"`
+	Total  int64  `zid:"1"`
+	Latest int64  `zid:"2"`
 }
 
 // RequestToSyncDir is a separate

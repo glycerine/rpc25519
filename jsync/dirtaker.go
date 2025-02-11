@@ -863,9 +863,13 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				//vv("dirtaker worker: back from s.Taker(), and TaskDone left=%v", left)
 
 				if reqDir.SR.UpdateProgress != nil {
-					report := fmt.Sprintf("%40s  done.", giverPath)
+					//report := fmt.Sprintf("%40s  done.", giverPath)
 					select {
-					case reqDir.SR.UpdateProgress <- report:
+					case reqDir.SR.UpdateProgress <- &ProgressUpdate{
+						Path:   giverPath,
+						Total:  file.Size,
+						Latest: file.Size,
+					}:
 					case <-goroHalt.ReqStop.Chan:
 						return
 					case <-done:

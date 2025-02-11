@@ -649,10 +649,13 @@ upload:
 
 		if meterUp != nil {
 			if time.Since(lastUpdate) > time.Second {
-				pace := meterUp.ProgressString(int64(tot), int64(i))
 				lastUpdate = time.Now()
 				select {
-				case syncReq.UpdateProgress <- pace:
+				case syncReq.UpdateProgress <- &ProgressUpdate{
+					Path:   giverPath,
+					Total:  int64(tot),
+					Latest: int64(i),
+				}:
 				default:
 				}
 			}
@@ -661,10 +664,13 @@ upload:
 	nparts := i
 
 	if meterUp != nil {
-		pace := meterUp.ProgressString(int64(tot), int64(i))
 		if !quietProgress {
 			select {
-			case syncReq.UpdateProgress <- pace:
+			case syncReq.UpdateProgress <- &ProgressUpdate{
+				Path:   giverPath,
+				Total:  int64(tot),
+				Latest: int64(i),
+			}:
 			default:
 			}
 		}
