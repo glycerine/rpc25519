@@ -557,7 +557,7 @@ func (s *SyncService) Start(
 	_ = name // used when vv logging is on.
 
 	defer func() {
-		////vv("%v: end of start() inside defer, about the return/finish", name)
+		//vv("%v: end of start() inside defer, about the return/finish", name)
 		s.Halt.ReqStop.Close()
 		s.Halt.Done.Close()
 		myPeer.Close()
@@ -584,7 +584,7 @@ func (s *SyncService) Start(
 		//vv("%v: top of select", name)
 		select {
 		case <-done0:
-			//////vv("%v: done0! cause: '%v'", name, context.Cause(ctx0))
+			//vv("%v: done0! cause: '%v'", name, context.Cause(ctx0))
 			return rpc.ErrContextCancelled
 			//case <-s.halt.ReqStop.Chan:
 			//	//zz("%v: halt.ReqStop seen", name)
@@ -669,7 +669,7 @@ func (s *SyncService) Start(
 				}
 
 				unknown := !syncReq.RemoteTakes && !syncReq.TakerExistsLocal
-				vv("local dir taker: unknown TakerTarget? '%v'", unknown)
+				//vv("local dir taker: unknown TakerTarget? '%v'", unknown)
 
 				reqDir := &RequestToSyncDir{
 					GiverDir: syncReq.GiverPath,
@@ -706,7 +706,7 @@ func (s *SyncService) Start(
 			// is this a local giver dir -> remote taker dir syn request?
 			if syncReq.RemoteTakes && syncReq.GiverIsDir {
 
-				vv("%v: we are the local giver of dir. sending 22 OpRsync_DirSyncBeginToTaker", name)
+				//vv("%v: we are the local giver of dir. sending 22 OpRsync_DirSyncBeginToTaker", name)
 
 				// fan out the request, one for each
 				// actual file on the local giver.
@@ -868,7 +868,7 @@ func (s *SyncService) Start(
 				// must send chunks separately
 				extraComing = true
 				syncReq.MoreChunksComming = true
-				vv("set syncReq.MoreChunksComming = true")
+				//vv("set syncReq.MoreChunksComming = true")
 				origChunks = syncReq.Chunks.Chunks
 
 				// truncate down the initial Message,
