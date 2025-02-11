@@ -536,6 +536,7 @@ func ChunkFile2(
 	var coal []*Chunk
 
 	var lastRLE *Chunk
+	total0 := 0
 	for _, chnk := range chunks0.Chunks {
 		if chnk.Cry == "RLE0;" {
 			if lastRLE != nil {
@@ -546,6 +547,7 @@ func ChunkFile2(
 				coal = append(coal, chnk)
 				lastRLE = chnk
 			}
+			total0 += (chnk.Endx - chnk.Beg)
 			continue
 		}
 		// not RLE0;
@@ -556,6 +558,7 @@ func ChunkFile2(
 		panic("len coal cannot be 0")
 	}
 	vv("len coal = '%v' vs len orig %v", len(coal), len(chunks0.Chunks))
+	vv("RLE0 encoded %v bytes.", total0)
 	chunks0.Chunks = coal
 
 	return
