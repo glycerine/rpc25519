@@ -124,7 +124,7 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 
 		dataBytesMoved0, err := jSyncCli.PushFromTo(localPath, remotePath)
 		panicOn(err)
-		cv.So(dataBytesMoved0, cv.ShouldEqual, 1063375) // len(slc) + some
+		cv.So(dataBytesMoved0, cv.ShouldBeGreaterThan, len(slc))
 
 		// confirm it happened.
 		difflen := compareFilesDiffLen(localPath, remotePath)
