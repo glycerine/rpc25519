@@ -298,7 +298,7 @@ func ChunkFile2(
 				beg0, endx0 := bytes0.LongestZeroSpan(data)
 				// start simple. Just take leading spans that are big enough.
 				if beg0 == 0 && endx0 >= 64 {
-					vv("have a span of 0: [%v, %v) appending RLE0; cut: %v", beg0, endx0, dataoff+endx0)
+					//vv("have a span of 0: [%v, %v) appending RLE0; cut: %v", beg0, endx0, dataoff+endx0)
 					job.cand = append(job.cand, dataoff+endx0)
 					job.rle0 = append(job.rle0, true)
 					data = data[endx0:]
@@ -555,7 +555,7 @@ func ChunkFile2(
 	if len(coal) == 0 {
 		panic("len coal cannot be 0")
 	}
-	vv("len coal = '%v'", coal)
+	vv("len coal = '%v' vs len orig %v", len(coal), len(chunks0.Chunks))
 	chunks0.Chunks = coal
 
 	return
