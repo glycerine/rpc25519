@@ -179,7 +179,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 				// is it now a file that was guessed (or used to be) a dir?
 				if fileExists(reqDir.GiverDir) {
-					//panic(fmt.Sprintf("arg: somehow we guessed wrong. Trying to sync a file as a directory?!? reqDir.GiverDir = '%v' is a file, not a direcotry.", reqDir.GiverDir))
+					// reqDir.GiverDir is a file, not a directory as expected.
+
 					err := s.convertedDirToFile_giveFile(
 						ctx0, reqDir, ckt, frag0, bt)
 					panicOn(err)

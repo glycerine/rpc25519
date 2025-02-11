@@ -111,7 +111,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			case OpRsync_ToDirTakerGiverDirIsNowFile: // 39
 				// whoops. we guessed we were asking
 				// for a directory, but it turns out it
-				// is (now) a file. Could have also had
+				// is (at least now) a file. Could have also had
 				// a directory before that has now been
 				// converted to a just file, of course.
 				// Either way, dirgiver will now be
@@ -882,7 +882,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 		k++
 		//if k%1000 == 0 {
 		fmt.Printf("\nupdateMap progress:  %v  out of %v. elap %v\n", k, nn, time.Since(t0))
-		vv("dirtaker: needUpdate path '%v' -> file: '%#v'\n RecycleFragLen() = %v", path, file, s.U.RecycleFragLen())
+		vv("dirtaker: needUpdate path '%v' -> file: '%#v'", path, file)
 
 		//}
 
