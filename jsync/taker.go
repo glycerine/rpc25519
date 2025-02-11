@@ -914,69 +914,80 @@ takerForSelectLoop:
 							// to GetHashesOneByOne
 						}
 					}
+					// end if syncReq.GiverFileSize == sz &&
+					//    localPathToReadBlake3sum == ""
+				} // end if exists file
 
-					var precis *FilePrecis
-					const wantChunks = true
-					const keepData = false
+				// now we use this for even non-existant files,
+				// in order to get RLE0 chunking benefits.
 
-					if parallelChunking {
-						vv("calling ChunkFile")
-						precis, local, err = ChunkFile(localPathToRead)
-					} else {
-						vv("calling GetHashesOneByOne")
-						precis, local, err = GetHashesOneByOne(rpc.Hostname,
-							localPathToRead)
-					}
-					panicOn(err)
+				var precis *FilePrecis
+				const wantChunks = true
+				const keepData = false
 
-					if len(local.Chunks) == 0 {
-						// empty or non-existant file
-					}
-
-					light := LightRequest{
-						SenderPath:   syncReq.TakerPath,
-						ReaderPrecis: precis,
-						//ReaderChunks: local, // too large from a 3GB file. Send after.
-						ReaderChunks: &Chunks{
-							Path:     local.Path,
-							FileSize: local.FileSize,
-							FileCry:  local.FileCry,
-						},
-					}
-
-					////vv("precis = '%v'", precis)
-					bts, err := light.MarshalMsg(nil)
-					panicOn(err)
-
-					pre := s.U.NewFragment()
-					pre.FragSubject = frag.FragSubject
-					pre.FragOp = OpRsync_LightRequestEnclosed
-					pre.Payload = bts
-					err = ckt.SendOneWay(pre, 0)
-					panicOn(err)
-					bt.bsend += len(frag.Payload)
-
-					if precis.FileSize > 0 {
-						// send local in Chunks, else we will get
-						// ErrTooLarg sending all of local/ReaderChunks
-						// ? should this be packAndSendChunksJustInTime ?
-						err0 = s.packAndSendChunksLimitedSize(
-							local,
-							frag.FragSubject,
-							OpRsync_RequestRemoteToGive_ChunksLast,
-							OpRsync_RequestRemoteToGive_ChunksMore,
-							ckt,
-							bt,
-							light.SenderPath,
-						)
-						panicOn(err0)
-					}
-
-					// while waiting for data...
-					localMap = getCryMap(local) // pre-index them for the update.
-					frag = nil
-					continue // wait for next data fragment
+				if parallelChunking {
+					vv("calling ChunkFile")
+					precis, local, err = ChunkFile(localPathToRead)
 				} else {
+					vv("calling GetHashesOneByOne")
+					precis, local, err = GetHashesOneByOne(rpc.Hostname,
+						localPathToRead)
+				}
+				panicOn(err)
+
+				if len(local.Chunks) == 0 {
+					// empty or non-existant file
+				}
+
+				light := LightRequest{
+					SenderPath:   syncReq.TakerPath,
+					ReaderPrecis: precis,
+					//ReaderChunks: local, // too large from a 3GB file. Send after.
+					ReaderChunks: &Chunks{
+						Path:     local.Path,
+						FileSize: local.FileSize,
+						FileCry:  local.FileCry,
+					},
+				}
+
+				////vv("precis = '%v'", precis)
+				bts, err := light.MarshalMsg(nil)
+				panicOn(err)
+
+				pre := s.U.NewFragment()
+				pre.FragSubject = frag.FragSubject
+				pre.FragOp = OpRsync_LightRequestEnclosed
+				pre.Payload = bts
+				err = ckt.SendOneWay(pre, 0)
+				panicOn(err)
+				bt.bsend += len(frag.Payload)
+
+				if precis.FileSize > 0 {
+					// send local in Chunks, else we will get
+					// ErrTooLarg sending all of local/ReaderChunks
+					// ? should this be packAndSendChunksJustInTime ?
+					err0 = s.packAndSendChunksLimitedSize(
+						local,
+						frag.FragSubject,
+						OpRsync_RequestRemoteToGive_ChunksLast,
+						OpRsync_RequestRemoteToGive_ChunksMore,
+						ckt,
+						bt,
+						light.SenderPath,
+					)
+					panicOn(err0)
+				}
+
+				// while waiting for data...
+				localMap = getCryMap(local) // pre-index them for the update.
+				frag = nil
+				continue // wait for next data fragment
+
+				// We used to just send the whole file if taker
+				// did not have it; but now we
+				// still do the chunking to take advantage
+				// of RLE0 compresion, which can be substantial.
+				if false { // !existsFile {
 					// not present
 
 					//vv("not present: must request the "+
