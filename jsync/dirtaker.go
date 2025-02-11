@@ -388,7 +388,9 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							reqDir, ckt, done, done0, bt, useTempDir)
 
 						if err != nil {
-							alwaysPrintf("dirTakerRequestIndivFiles err = '%v'", err)
+							if err != idem.ErrTasksAllDone {
+								alwaysPrintf("dirTakerRequestIndivFiles err = '%v'", err)
+							}
 						}
 					}
 
@@ -657,6 +659,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 ) (err0 error) {
 
 	t0 := time.Now()
+	_ = t0
 	nn := needUpdate.GetN()
 	_ = nn
 	//vv("top dirTakerRequestIndivFiles() with %v files needing updates.", nn)
@@ -881,13 +884,14 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 	} // end work pool starting
 
 	k := -1
+	_ = k
 	for path, file := range updateMap {
 		_ = path
 
 		// can be slowing us down to print too much.
 		k++
 		//if k%1000 == 0 {
-		fmt.Printf("\nupdateMap progress:  %v  out of %v. elap %v\n", k, nn, time.Since(t0))
+		//fmt.Printf("\nupdateMap progress:  %v  out of %v. elap %v\n", k, nn, time.Since(t0))
 		//vv("dirtaker: needUpdate path '%v' -> file: '%#v'", path, file)
 
 		//}

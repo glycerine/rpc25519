@@ -89,7 +89,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		select {
 
 		case frag0 := <-ckt.Reads:
-			vv("%v: (ckt '%v') (Giver) saw read frag0:'%v'", name, ckt.Name, frag0)
+			//vv("%v: (ckt '%v') (Giver) saw read frag0:'%v'", name, ckt.Name, frag0)
 
 			//vv("frag0 = '%v'", frag0)
 			switch frag0.FragOp {
@@ -426,7 +426,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	}
 	t0 := time.Now()
 	_ = t0
-	vv("giverSendsPlanAndDataUpdates top: localPath='%v'", localPath)
+	//vv("giverSendsPlanAndDataUpdates top: localPath='%v'", localPath)
 	//defer func() {
 	//	vv("end giverSendsPlanAndDataUpdates. elap = '%v'", time.Since(t0))
 	//}()
@@ -558,7 +558,7 @@ func (s *SyncService) giverSendsWholeFile(
 
 ) error {
 
-	vv("giverSendsWholeFile(giverPath='%v', takerPath='%v')", giverPath, takerPath)
+	///vv("giverSendsWholeFile(giverPath='%v', takerPath='%v')", giverPath, takerPath)
 	t0 := time.Now()
 
 	if !fileExists(giverPath) {
