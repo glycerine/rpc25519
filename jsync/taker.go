@@ -181,7 +181,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		}
 	}
 
-	vv("taker about to start taker for loop.") // nothing after this on taker
+	//vv("taker about to start taker for loop.")
 	// this is the Taker side
 takerForSelectLoop:
 	for {
