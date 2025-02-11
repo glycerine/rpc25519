@@ -66,7 +66,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 	defer func(reqDir *RequestToSyncDir) {
 		//vv("%v: (ckt '%v') defer running! finishing DirTaker; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
-		////vv("bt = '%#v'", bt)
+		//vv("bt = '%#v'", bt)
 
 		// only close Done for local (client, typically) if we were started locally.
 		if reqDir != nil {
@@ -121,7 +121,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// OpRsync_HereIsFullFileEnd5. Let us
 				// try and have the Taker() handle this
 				// for us!
-				vv("DirTaker calling Taker on 39 OpRsync_ToDirTakerGiverDirIsNowFile")
+				//vv("DirTaker calling Taker on 39 OpRsync_ToDirTakerGiverDirIsNowFile")
 				// convert to dirReq to syncReq
 				reqDir3 := &RequestToSyncDir{}
 				_, err := reqDir3.UnmarshalMsg(frag.Payload)
@@ -133,7 +133,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 				// clear out (any) existing directory;
 				// maybe todo: make this optional?
-				vv("dirtaker: to convert dir to file, we wipe out dir: '%v'", sr.TakerPath)
+				//vv("dirtaker: to convert dir to file, we wipe out dir: '%v'", sr.TakerPath)
 				if sr.TakerPath == "" {
 					panic("cannot have empty sr.TakerPath here.")
 				}
@@ -143,8 +143,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				}
 
 				err = s.Taker(ctx0, ckt, myPeer, sr)
-				vv("Taker call in DirTaker got err = '%v'", err)
-				vv("Taker call in DirTaker got sr.Errs = '%v'", sr.Errs)
+				//vv("Taker call in DirTaker got err = '%v'", err)
+				//vv("Taker call in DirTaker got sr.Errs = '%v'", sr.Errs)
 				panicOn(err)
 				if sr.Errs != "" {
 					panic(sr.Errs)
@@ -200,7 +200,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					targetTakerTopTempDir, tmpDirID, err := s.mkTempDir(
 						reqDir.TopTakerDirFinal)
 					panicOn(err)
-					vv("DirTaker (remote taker) made temp dir '%v' for finalDir '%v'", targetTakerTopTempDir, reqDir.TopTakerDirFinal)
+					//vv("DirTaker (remote taker) made temp dir '%v' for finalDir '%v'", targetTakerTopTempDir, reqDir.TopTakerDirFinal)
 					reqDir.TopTakerDirTemp = targetTakerTopTempDir
 					reqDir.TopTakerDirTempDirID = tmpDirID
 				}
@@ -375,14 +375,14 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					wgIndivFileCheck.Wait()
 
 					nn := needUpdate.Len()
-					vv("dirtaker sees pof.IsLast, sending "+
-						"OpRsync_ToGiverAllTreeModesDone. "+
-						"len(needUpdate) = %v; checked %v totFiles",
-						nn, totFiles)
+					//vv("dirtaker sees pof.IsLast, sending "+
+					//	"OpRsync_ToGiverAllTreeModesDone. "+
+					//	"len(needUpdate) = %v; checked %v totFiles",
+					//	nn, totFiles)
 
 					if nn == 0 {
-						vv("got pof.IsLast, no update needed on "+
-							"dirtaker side. checked %v files", totFiles)
+						//vv("got pof.IsLast, no update needed on "+
+						//	"dirtaker side. checked %v files", totFiles)
 					} else {
 						err = s.dirTakerRequestIndivFiles(myPeer, needUpdate,
 							reqDir, ckt, done, done0, bt, useTempDir)
@@ -393,7 +393,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 
 					//vv("and end, takerCatalog = '%#v'", takerCatalog.GetKeySlice())
-					vv("and end, takerCatalog len = '%v'", takerCatalog.Len())
+					//vv("and end, takerCatalog len = '%v'", takerCatalog.Len())
 
 					// temp dir does not need to delete, it just
 					// won't write into the temp dir to begin with.
@@ -408,7 +408,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							path = filepath.Join(reqDir.TopTakerDirFinal,
 								file.Path)
 
-							vv("deleting taker only path: '%v'", path)
+							//vv("deleting taker only path: '%v'", path)
 							if file.IsDir() {
 								os.RemoveAll(path)
 							} else {
@@ -440,7 +440,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				bt.bread += len(frag.Payload)
 
 				if pof.IsLast {
-					vv("dirtaker sees last of pof PackOfFiles")
+					//vv("dirtaker sees last of pof PackOfFiles")
 				}
 				// TODO: compare with on disk, only get updates we need
 				// if size and modtime mismatch.
@@ -495,8 +495,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					//vv("dirtaker set mode on dir = '%v'", dir)
 				}
 				if pod.IsLast {
-					vv("dirtaker sees pod.IsLast, sending " +
-						"OpRsync_ToGiverAllTreeModesDone")
+					//vv("dirtaker sees pod.IsLast, sending " +
+					//	"OpRsync_ToGiverAllTreeModesDone")
 					modesDone := s.U.NewFragment()
 					modesDone.FragOp = OpRsync_ToGiverAllTreeModesDone
 					err = ckt.SendOneWay(modesDone, 0)
@@ -505,7 +505,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			///////////////// end dir sync stuff
 
 			case OpRsync_AckBackFIN_ToTaker:
-				////vv("%v: (ckt '%v') (DirTaker) sees OpRsync_AckBackFIN_ToTaker. returning.", name, ckt.Name)
+				//vv("%v: (ckt '%v') (DirTaker) sees OpRsync_AckBackFIN_ToTaker. returning.", name, ckt.Name)
 				return
 
 			} // end switch FragOp
@@ -526,16 +526,16 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				name, ckt.Name, fragerr))
 			return
 		case <-done:
-			//////vv("%v: (ckt '%v') done! cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
+			//vv("%v: (ckt '%v') done! cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
 			return
 		case <-done0:
-			////////vv("%v: (ckt '%v') done0! reason: '%v'", name, ckt.Name, context.Cause(ctx0))
+			//vv("%v: (ckt '%v') done0! reason: '%v'", name, ckt.Name, context.Cause(ctx0))
 			return
 			//case <-s.halt.ReqStop.Chan:
 			//zz("%v: (ckt '%v') top func halt.ReqStop seen", name, ckt.Name)
 			//	return
 		case <-ckt.Halt.ReqStop.Chan:
-			//////vv("%v: (ckt '%v') (DirTaker) ckt halt requested.", name, ckt.Name)
+			//vv("%v: (ckt '%v') (DirTaker) ckt halt requested.", name, ckt.Name)
 			return
 		}
 	}
@@ -631,7 +631,7 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 			//vv("good: no update needed for localPathToRead: '%v';   f.Path = '%v'", localPathToRead, f.Path)
 
 			//if fi.Mode()&fs.ModeSymlink != 0 {
-			//	vv("skipping update to symlink for now: localPathToRead = '%v'", localPathToRead)
+			//	//vv("skipping update to symlink for now: localPathToRead = '%v'", localPathToRead)
 			//} else {
 			if useTempDir {
 				//vv("hard linking 10 '%v' <- '%v'",
@@ -659,7 +659,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 	t0 := time.Now()
 	nn := needUpdate.GetN()
 	_ = nn
-	vv("top dirTakerRequestIndivFiles() with %v files needing updates.", nn)
+	//vv("top dirTakerRequestIndivFiles() with %v files needing updates.", nn)
 
 	batchHalt := idem.NewHalter()
 	// if we return early, this will shut down the
@@ -697,7 +697,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				// other side ctrl-c will give us a panic here
 				r := recover()
 				if r != nil {
-					vv("dirTakerRequestIndivFiles() supressing panic: '%v'", r)
+					//vv("dirTakerRequestIndivFiles() supressing panic: '%v'", r)
 					err := fmt.Errorf("dirTakerRequestIndivFiles saw error: '%v'", r)
 					goroHalt.ReqStop.CloseWithReason(err)
 					// also stop the whole batch.
@@ -714,7 +714,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 			for {
 				select {
 				case file = <-fileCh:
-					vv("dirtaker worker got file!")
+					//vv("dirtaker worker got file!")
 				case <-goroHalt.ReqStop.Chan:
 					return
 				}
@@ -742,7 +742,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				frag := s.U.NewFragment()
 				frag.FragOp = OpRsync_RequestRemoteToGive // 12
 				frag.FragSubject = giverPath
-				vv("dirtaker file worker sending 12")
+				//vv("dirtaker file worker sending 12")
 
 				tmp := reqDir.TopTakerDirTemp
 				if !useTempDir {
@@ -785,7 +785,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 					// must send chunks separately
 					extraComing = true
 					syncReq.MoreChunksComming = true
-					vv("set syncReq.MoreChunksComming = true")
+					//vv("set syncReq.MoreChunksComming = true")
 					origChunks = syncReq.Chunks.Chunks
 
 					// truncate down the initial Message,
@@ -845,7 +845,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 					if r != nil {
 						err := fmt.Errorf(
 							"panic recovered: '%v'", r)
-						vv("error ckt2 close: '%v'\nstack=\n%v", err, stack())
+						//vv("error ckt2 close: '%v'\nstack=\n%v", err, stack())
 						ckt2.Close(err)
 					} else {
 						//vv("normal ckt2 close")
@@ -853,12 +853,12 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 					}
 				}()
 
-				vv("dirtaker worker: about to call s.Taker()")
+				//vv("dirtaker worker: about to call s.Taker()")
 				errg := s.Taker(ctx2, ckt2, myPeer, syncReq)
-				vv("dirtaker worker: got from Taker errg = '%v'", errg)
+				//vv("dirtaker worker: got from Taker errg = '%v'", errg)
 				panicOn(errg)
 				left := batchHalt.ReqStop.TaskDone()
-				vv("dirtaker worker: back from s.Taker(), and TaskDone left=%v", left)
+				//vv("dirtaker worker: back from s.Taker(), and TaskDone left=%v", left)
 
 				if reqDir.SR.UpdateProgress != nil {
 					report := fmt.Sprintf("%40s  done.", giverPath)
@@ -882,7 +882,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 		k++
 		//if k%1000 == 0 {
 		fmt.Printf("\nupdateMap progress:  %v  out of %v. elap %v\n", k, nn, time.Since(t0))
-		vv("dirtaker: needUpdate path '%v' -> file: '%#v'", path, file)
+		//vv("dirtaker: needUpdate path '%v' -> file: '%#v'", path, file)
 
 		//}
 
@@ -897,7 +897,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 	} // end range needUpdate
 
 	err0 = batchHalt.ReqStop.TaskWait(done)
-	vv("batchHalt.ReqStop.TaskWait returned, err0 = '%v'", err0)
+	//vv("batchHalt.ReqStop.TaskWait returned, err0 = '%v'", err0)
 
 	batchHalt.StopTreeAndWaitTilDone(0, done, nil)
 	//err0 = batchHalt.ReqStop.WaitTilChildrenClosed(done) // hung here
@@ -912,6 +912,6 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 		gbt.bread += bts[i].bread
 	}
 
-	vv("end dirTakerRequestIndivFiles: elap = '%v'; gbt='%#v'; err0 = '%v'", time.Since(t0), gbt, err0)
+	//vv("end dirTakerRequestIndivFiles: elap = '%v'; gbt='%#v'; err0 = '%v'", time.Since(t0), gbt, err0)
 	return
 }

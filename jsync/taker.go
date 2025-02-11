@@ -53,7 +53,7 @@ var ErrNeedDirTaker = fmt.Errorf("DirTaker needed: giver has directory where tak
 // shutdown tree.
 func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncReq *RequestToSyncPath) (err0 error) {
 
-	vv("SyncService.Taker top")
+	//vv("SyncService.Taker top")
 
 	name := myPeer.PeerServiceName
 	_ = name // used when logging is on.
@@ -61,8 +61,8 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	bt := &byteTracker{}
 
 	defer func(syncReq *RequestToSyncPath) {
-		vv("%v: (ckt '%v') defer running! finishing Taker; syncReq=%p; err0='%v'", name, ckt.Name, syncReq, err0)
-		////vv("bt = '%#v'", bt)
+		//vv("%v: (ckt '%v') defer running! finishing Taker; syncReq=%p; err0='%v'", name, ckt.Name, syncReq, err0)
+		//vv("bt = '%#v'", bt)
 
 		// only close Done for local (client, typically) if we were started locally.
 		if syncReq != nil {
@@ -136,7 +136,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		local = syncReq.Chunks
 		if local != nil {
 			localMap = getCryMap(local) // pre-index them for the update.
-			////vv("local Chunks: have DataPresent()= '%v'", local.DataPresent())
+			//vv("local Chunks: have DataPresent()= '%v'", local.DataPresent())
 		} else {
 			// We don't send to giver OpRsync_LazyTakerWantsToPull here
 			// b/c it is redundant with the send in service.go:373
@@ -238,8 +238,7 @@ takerForSelectLoop:
 					//vv("good: b3sumTaker == b3sumGiver: setting syncReq.ModTime = '%v'", syncReq2.GiverModTime)
 					// hard link it.
 					if localPathToWrite != localPathToRead {
-						vv("hard linking 7 '%v' <- '%v'",
-							localPathToRead, localPathToWrite)
+						//vv("hard linking 7 '%v' <- '%v'",	localPathToRead, localPathToWrite)
 						panicOn(os.Link(localPathToRead, localPathToWrite))
 					}
 					// just adjust mod time and fin.
@@ -309,8 +308,7 @@ takerForSelectLoop:
 				//vv("%v: (ckt '%v') (Taker) sees OpRsync_FileSizeModTimeMatch. sending ack back FIN", name, ckt.Name)
 
 				if localPathToWrite != localPathToRead {
-					vv("hard linking 2 '%v' <- '%v'",
-						localPathToRead, localPathToWrite)
+					//vv("hard linking 2 '%v' <- '%v'", localPathToRead, localPathToWrite)
 					panicOn(os.Link(localPathToRead, localPathToWrite))
 				}
 
@@ -322,7 +320,7 @@ takerForSelectLoop:
 				continue // wait for FIN
 
 			case OpRsync_TellTakerToDelete: // part of pull
-				vv("%v: (ckt %v) (Taker) sees OpRsync_TellTakerToDelete. deleting '%v'", name, ckt.Name, syncReq.TakerPath)
+				//vv("%v: (ckt %v) (Taker) sees OpRsync_TellTakerToDelete. deleting '%v'", name, ckt.Name, syncReq.TakerPath)
 				err := os.Remove(syncReq.TakerPath)
 				panicOn(err)
 				s.ackBackFINToGiver(ckt, frag)
@@ -336,8 +334,7 @@ takerForSelectLoop:
 				panicOn(err)
 
 				if localPathToWrite != localPathToRead {
-					vv("hard linking 6 '%v' <- '%v'",
-						localPathToRead, localPathToWrite)
+					//vv("hard linking 6 '%v' <- '%v'",localPathToRead, localPathToWrite)
 					panicOn(os.Link(localPathToRead, localPathToWrite))
 				}
 
@@ -451,7 +448,7 @@ takerForSelectLoop:
 							// Is this always true?
 							data := lc.Data
 							if origVersFd != nil {
-								////vv("read from original on disk, for chunk '%v'", chunk)
+								//vv("read from original on disk, for chunk '%v'", chunk)
 								beg := int64(lc.Beg)
 								newOffset, err := origVersFd.Seek(beg, 0)
 								panicOn(err)
@@ -525,8 +522,7 @@ takerForSelectLoop:
 					// need to hard link it.
 					if localPathToWrite != localPathToRead {
 						if !fileExists(localPathToWrite) {
-							vv("hard linking 3 '%v' <- '%v'",
-								localPathToRead, localPathToWrite)
+							//vv("hard linking 3 '%v' <- '%v'", localPathToRead, localPathToWrite)
 							panicOn(os.Link(localPathToRead, localPathToWrite))
 						}
 					}
@@ -556,7 +552,7 @@ takerForSelectLoop:
 				// wait for ack back FIN
 
 			case OpRsync_SenderPlanEnclosed:
-				////vv("stream of heavy diffs arriving! : %v", frag.String())
+				//vv("stream of heavy diffs arriving! : %v", frag.String())
 
 				senderPlan = &SenderPlan{} // response
 				_, err := senderPlan.UnmarshalMsg(frag.Payload)
@@ -564,7 +560,7 @@ takerForSelectLoop:
 				bt.bread += len(frag.Payload)
 
 				if senderPlan.FileIsDeleted {
-					vv("senderPlan.FileIsDeleted true, deleting path '%v'", localPathToWrite)
+					//vv("senderPlan.FileIsDeleted true, deleting path '%v'", localPathToWrite)
 					_ = os.Remove(localPathToWrite)
 					s.ackBackFINToGiver(ckt, frag)
 					frag = nil
@@ -578,7 +574,7 @@ takerForSelectLoop:
 				goalPrecis = senderPlan.SenderPrecis
 
 				if plan.FileSize == 0 { // ? && syncReq.TakerTempDir == "" ??
-					////vv("plan.FileSize == 0 => truncate to zero localPathToWrite='%v'", localPathToWrite)
+					//vv("plan.FileSize == 0 => truncate to zero localPathToWrite='%v'", localPathToWrite)
 					err = truncateFileToZero(localPathToWrite)
 					panicOn(err)
 
@@ -595,12 +591,11 @@ takerForSelectLoop:
 					panicOn(err)
 
 					if localPathToWrite != localPathToRead {
-						vv("hard linking 4 '%v' <- '%v'",
-							localPathToRead, localPathToWrite)
+						//vv("hard linking 4 '%v' <- '%v'", localPathToRead, localPathToWrite)
 						panicOn(os.Link(localPathToRead, localPathToWrite))
 					}
 
-					////vv("ack back all done: file was truncated to 0 bytes.")
+					//vv("ack back all done: file was truncated to 0 bytes.")
 
 					ackAll := s.U.NewFragment()
 					ackAll.FragSubject = frag.FragSubject
@@ -620,12 +615,12 @@ takerForSelectLoop:
 					disk.T0 = time.Now()
 				}
 				isLast := (frag.FragOp == OpRsync_HereIsFullFileEnd5)
-				//////vv("isLast = %v; frag.FragPart = %v", isLast, frag.FragPart)
+				//vv("isLast = %v; frag.FragPart = %v", isLast, frag.FragPart)
 
 				req := ckt.ConvertFragmentToMessage(frag)
 				err := disk.WriteOneMsgToFile(req, isLast)
 
-				////vv("%v: (ckt %v) (Taker) disk.WriteOneMsgToFile() -> err = '%v'", name, ckt.Name, err)
+				//vv("%v: (ckt %v) (Taker) disk.WriteOneMsgToFile() -> err = '%v'", name, ckt.Name, err)
 				panicOn(err)
 
 				if !isLast {
@@ -637,9 +632,9 @@ takerForSelectLoop:
 				totSum := disk.Blake3hash.SumString()
 
 				clientTotalBlake3sum, ok := frag.GetUserArg("clientTotalBlake3sum")
-				//////vv("responder rsyncd ReceiveFileInParts sees last set!"+
+				//vv("responder rsyncd ReceiveFileInParts sees last set!"+
 				//	" clientTotalBlake3sum='%v'", clientTotalBlake3sum)
-				//////vv("bytesWrit=%v; \nserver totSum='%v'", disk.BytesWrit, totSum)
+				//vv("bytesWrit=%v; \nserver totSum='%v'", disk.BytesWrit, totSum)
 				if ok && clientTotalBlake3sum != totSum {
 					panic("blake3 checksums disagree!")
 				}
@@ -683,7 +678,7 @@ takerForSelectLoop:
 				//
 				// if localPathToWrite != localPathToRead {
 				// 	if fileExists(localPathToRead) {
-				// 		vv("hard linking 5 '%v' <- '%v'",
+				// 		//vv("hard linking 5 '%v' <- '%v'",
 				// 			localPathToRead, localPathToWrite)
 				// 		// Link(old, new) creates new as a hard link to the old.
 				// 		panicOn(os.Link(localPathToRead, localPathToWrite))
@@ -724,8 +719,7 @@ takerForSelectLoop:
 
 						// hard link it
 						if localPathToWrite != localPathToRead {
-							vv("hard linking 8 '%v' <- '%v'",
-								localPathToRead, localPathToWrite)
+							//vv("hard linking 8 '%v' <- '%v'", localPathToRead, localPathToWrite)
 							panicOn(os.Link(localPathToRead, localPathToWrite))
 						}
 						err := os.Chtimes(localPathToWrite, time.Time{},
@@ -767,7 +761,7 @@ takerForSelectLoop:
 				}
 
 				if syncReq.GiverScanFlags&ScanFlagIsSymLink != 0 {
-					vv("syncReq is for a symlink")
+					//vv("syncReq is for a symlink")
 					s.takeSymlink(syncReq, localPathToWrite)
 					s.ackBackFINToGiver(ckt, frag)
 					frag = nil
@@ -816,7 +810,7 @@ takerForSelectLoop:
 						skip.FragSubject = frag.FragSubject
 						skip.Typ = rpc.CallPeerError
 						skip.Err = fmt.Sprintf("same host and dir detected! cowardly refusing to overwrite path with itself: path='%v'; on '%v' / Hostname '%v'", syncReq.TakerPath, syncReq.ToRemoteNetAddr, rpc.Hostname)
-						////vv(skip.Err)
+						//vv(skip.Err)
 						err = ckt.SendOneWay(skip, 0)
 						panicOn(err)
 
@@ -926,10 +920,10 @@ takerForSelectLoop:
 				const keepData = false
 
 				if parallelChunking {
-					vv("calling ChunkFile")
+					//vv("calling ChunkFile")
 					precis, local, err = ChunkFile(localPathToRead)
 				} else {
-					vv("calling GetHashesOneByOne")
+					//vv("calling GetHashesOneByOne")
 					precis, local, err = GetHashesOneByOne(rpc.Hostname,
 						localPathToRead)
 				}
@@ -950,7 +944,7 @@ takerForSelectLoop:
 					},
 				}
 
-				////vv("precis = '%v'", precis)
+				//vv("precis = '%v'", precis)
 				bts, err := light.MarshalMsg(nil)
 				panicOn(err)
 
@@ -1021,16 +1015,16 @@ takerForSelectLoop:
 				name, ckt.Name, fragerr))
 			return
 		case <-done:
-			//////vv("%v: (ckt '%v') done! cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
+			//vv("%v: (ckt '%v') done! cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
 			return
 		case <-done0:
-			////////vv("%v: (ckt '%v') done0! reason: '%v'", name, ckt.Name, context.Cause(ctx0))
+			////vv("%v: (ckt '%v') done0! reason: '%v'", name, ckt.Name, context.Cause(ctx0))
 			return
 			//case <-s.halt.ReqStop.Chan:
 			//zz("%v: (ckt '%v') top func halt.ReqStop seen", name, ckt.Name)
 			//	return
 		case <-ckt.Halt.ReqStop.Chan:
-			//////vv("%v: (ckt '%v') (Taker) ckt halt requested.", name, ckt.Name)
+			//vv("%v: (ckt '%v') (Taker) ckt halt requested.", name, ckt.Name)
 			return
 		}
 	}

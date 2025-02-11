@@ -57,8 +57,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	var packOfDirsCh chan *PackOfDirs
 
 	defer func(reqDir *RequestToSyncDir) {
-		vv("%v: (ckt '%v') defer running! finishing DirGiver; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
-		////vv("bt = '%#v'", bt)
+		//vv("%v: (ckt '%v') defer running! finishing DirGiver; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
+		//vv("bt = '%#v'", bt)
 
 		// only close Done for local (client, typically) if we were started locally.
 		if reqDir != nil {
@@ -96,7 +96,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 		case frag0 := <-ckt.Reads:
 			//vv("%v: (ckt '%v') (DirGiver) saw read frag0:'%v'", name, ckt.Name, frag0)
 
-			////vv("frag0 = '%v'", frag0)
+			//vv("frag0 = '%v'", frag0)
 			switch frag0.FragOp {
 
 			///////////// begin dir sync stuff
@@ -122,7 +122,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					reqDir = reqDir2
 
 					if reqDir.TakerTargetUnknown {
-						vv("dirgiver sees TakerTargetUnknown on reqDir: '%#v'", reqDir)
+						//vv("dirgiver sees TakerTargetUnknown on reqDir: '%#v'", reqDir)
 						// should we be running the full sync protocol here
 						// to allow not transferring data if it is already
 						// in place? i.e. allow TakerTargetUnknown to
@@ -224,7 +224,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						err = ckt.SendOneWay(fragPOF, 0)
 						panicOn(err)
 						if pof.IsLast {
-							vv("dirgiver: pof IsLast true; end of all phases single pass")
+							//vv("dirgiver: pof IsLast true; end of all phases single pass")
 							break sendOnePass
 						}
 					case <-done:
@@ -237,7 +237,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				}
 
 			case OpRsync_TakerReadyForDirContents: // 29
-				vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerReadyForDirContents", name, ckt.Name)
+				//vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerReadyForDirContents", name, ckt.Name)
 
 				// we (giver) now do individual file syncs
 				// (newly deleted files can be simply not
@@ -265,7 +265,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							defer func() {
 								r := recover()
 								if r != nil {
-									vv("DirGiver file worker (OpRsync_TakerReadyForDirContents) sees panic: '%v'", r)
+									//vv("DirGiver file worker (OpRsync_TakerReadyForDirContents) sees panic: '%v'", r)
 									err := fmt.Errorf("DirGiver file worker (OpRsync_TakerReadyForDirContents) saw panic: '%v'", r)
 									goroHalt.ReqStop.CloseWithReason(err)
 									// also stop the whole batch on single err.
@@ -324,7 +324,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								if r != nil {
 									err := fmt.Errorf(
 										"panic recovered: '%v'", r)
-									vv("error ckt2 close: '%v'", err)
+									//vv("error ckt2 close: '%v'", err)
 									ckt2.Close(err)
 								} else {
 									//vv("normal ckt2 close")
@@ -375,12 +375,12 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						} // end range over file in pof.Pack
 
 						if pof.IsLast {
-							vv("dirgiver: pof IsLast true; break sendFiles")
+							//vv("dirgiver: pof IsLast true; break sendFiles")
 
 							// wait for all files to be given == batch to
 							// be closed (error or not); or done to fire.
 							err := batchHalt.ReqStop.TaskWait(done)
-							vv("batchHalt.ReqStop.TaskWait back, err = '%v'", err)
+							//vv("batchHalt.ReqStop.TaskWait back, err = '%v'", err)
 
 							//_ = batchHalt.ReqStop.WaitTilChildrenClosed(done)
 							//vv("batchHalt.ReqStop.WaitTilChildrenDone back.")
@@ -395,13 +395,13 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						}
 
 					case <-done:
-						////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
+						//vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
 						return
 					case <-done0:
-						////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
+						//vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
 						return
 					case <-ckt.Halt.ReqStop.Chan:
-						////vv("%v: (ckt '%v') (DirGiver) ckt halt requested.", name, ckt.Name)
+						//vv("%v: (ckt '%v') (DirGiver) ckt halt requested.", name, ckt.Name)
 						return
 					}
 				} // end for i sendfiles
@@ -451,13 +451,13 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						}
 
 					case <-done:
-						////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
+						//vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
 						return
 					case <-done0:
-						////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
+						//vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
 						return
 					case <-ckt.Halt.ReqStop.Chan:
-						////vv("%v: (ckt '%v') (DirGiver) ckt halt requested.", name, ckt.Name)
+						//vv("%v: (ckt '%v') (DirGiver) ckt halt requested.", name, ckt.Name)
 						return
 					}
 				} // end for i sendDirs
@@ -516,13 +516,13 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			}
 			return
 		case <-done:
-			////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
+			//vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
 			return
 		case <-done0:
-			////vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
+			//vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
 			return
 		case <-ckt.Halt.ReqStop.Chan:
-			////vv("%v: (ckt '%v') (DirGiver) ckt halt requested.", name, ckt.Name)
+			//vv("%v: (ckt '%v') (DirGiver) ckt halt requested.", name, ckt.Name)
 			return
 		}
 	}

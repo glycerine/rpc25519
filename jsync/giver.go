@@ -31,7 +31,7 @@ import (
 // It will be nil when Giver is remote.
 func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncReq *RequestToSyncPath) (err0 error) {
 
-	////vv("SyncService.Giver top.")
+	//vv("SyncService.Giver top.")
 
 	name := myPeer.PeerServiceName
 	_ = name // used when logging is on.
@@ -40,7 +40,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 	// this is the active side, as we called NewCircuitToPeerURL()
 	defer func(syncReq *RequestToSyncPath) {
-		vv("%v: Giver() ckt '%v' defer running: shutting down. bt = '%#v'", name, ckt.Name, bt)
+		//vv("%v: Giver() ckt '%v' defer running: shutting down. bt = '%#v'", name, ckt.Name, bt)
 
 		if syncReq != nil {
 			syncReq.BytesRead = int64(bt.bread)
@@ -91,7 +91,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		case frag0 := <-ckt.Reads:
 			//vv("%v: (ckt '%v') (Giver) saw read frag0:'%v'", name, ckt.Name, frag0)
 
-			////vv("frag0 = '%v'", frag0)
+			//vv("frag0 = '%v'", frag0)
 			switch frag0.FragOp {
 
 			case OpRsync_ToGiverSizeMatchButCheckHash:
@@ -110,7 +110,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				syncReq.TakerFullFileBlake3 = b3sumTaker
 
 				if b3sumGiver == b3sumTaker {
-					vv("early checksum finds no transfer needed. good: '%v'", localPath)
+					//vv("early checksum finds no transfer needed. good: '%v'", localPath)
 					// we are all good. but we cannot FIN out yet
 					// because their mod-time needs updating.
 
@@ -157,8 +157,8 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					// of the same name. Tell taker to call back
 					// with dirtaker to dirgiver.
 
-					vv("drat: taker has file '%v' but on giver it is a dir."+
-						" Have to restart with DirTaker supervising.", path)
+					//vv("drat: taker has file '%v' but on giver it is a dir."+
+					//	" Have to restart with DirTaker supervising.", path)
 
 					drat := s.U.NewFragment()
 					drat.FragOp = OpRsync_ToTakerDratGiverFileIsNowDir
@@ -181,7 +181,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					panicOn(err)
 				} else {
 					// tell them they must send the chunks... if they want it.
-					vv("giver responding to OpRsync_LazyTakerWantsToPull with OpRsync_LazyTakerNoLuck_ChunksRequired; setting GiverModTime = '%v'", mod)
+					//vv("giver responding to OpRsync_LazyTakerWantsToPull with OpRsync_LazyTakerNoLuck_ChunksRequired; setting GiverModTime = '%v'", mod)
 
 					syncReq.GiverModTime = mod
 					syncReq.GiverFileSize = sz
@@ -247,14 +247,14 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 				// 0. We might need to wait for more chunks.
 				if syncReq.MoreChunksComming {
-					vv("syncReq.MoreChunksComming waiting for more...")
+					//vv("syncReq.MoreChunksComming waiting for more...")
 					// get the extra fragments with more []*Chunk
 					err0 = s.getMoreChunks(ckt, bt, &wireChunks, done, done0, syncReq, OpRsync_RequestRemoteToGive_ChunksLast, OpRsync_RequestRemoteToGive_ChunksMore) // hung in here waiting
 					//err0 = s.getMoreChunks(ckt, bt, &localChunks, done, done0, syncReq, OpRsync_HeavyDiffChunksLast, OpRsync_HeavyDiffChunksEnclosed)
 					panicOn(err0)
 
 				} // end if syncReq.MoreChunksComming
-				vv("no more chunks to wait for...") // not seen.
+				//vv("no more chunks to wait for...") // not seen.
 
 				// after moreLoop, we get here:
 
@@ -282,7 +282,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				}
 
 				// 3. compute update plan, send plan, then diff chunks.
-				vv("OpRsync_RequestRemoteToGive calling giverSendsPlanAndDataUpdates")
+				//vv("OpRsync_RequestRemoteToGive calling giverSendsPlanAndDataUpdates")
 				s.giverSendsPlanAndDataUpdates(wireChunks, ckt, syncReq.GiverPath, bt, frag0)
 				//vv("done with s.giverSendsPlanAndDataUpdates. done (wait for FIN/ckt shutdown)")
 				// wait for FIN or ckt shutdown, to let data get there.
@@ -302,7 +302,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				panicOn(err0)
 				bt.bread += len(frag0.Payload)
 
-				vv("giver sees OpRsync_LightRequestEnclosed; light.ReaderChunks = '%#v'", light)
+				//vv("giver sees OpRsync_LightRequestEnclosed; light.ReaderChunks = '%#v'", light)
 
 				if light.ReaderPrecis.FileSize > 0 {
 					// light.ReaderChunks were too big,
@@ -316,14 +316,14 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				// else nothing will be sent for size 0 file; as
 				// there is nothing (no chunks) to send.
 
-				vv("OpRsync_LightRequestEnclosed calling giverSendsPlanAndDataUpdates")
+				//vv("OpRsync_LightRequestEnclosed calling giverSendsPlanAndDataUpdates")
 				s.giverSendsPlanAndDataUpdates(light.ReaderChunks, ckt, localPath, bt, frag0)
 				// middle of a sequence, certainly do not return.
 				frag0 = nil // GC early.
 				continue
 
 			case OpRsync_FileSizeModTimeMatch:
-				////vv("giver sees OpRsync_FileSizeModTimeMatch")
+				//vv("giver sees OpRsync_FileSizeModTimeMatch")
 				if syncReq != nil {
 					syncReq.SizeModTimeMatch = true
 				}
@@ -366,13 +366,13 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 			}
 			return
 		case <-done:
-			////vv("%v: (ckt '%v') (Giver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
+			//vv("%v: (ckt '%v') (Giver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
 			return
 		case <-done0:
-			////vv("%v: (ckt '%v') (Giver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
+			//vv("%v: (ckt '%v') (Giver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
 			return
 		case <-ckt.Halt.ReqStop.Chan:
-			////vv("%v: (ckt '%v') (Giver) ckt halt requested.", name, ckt.Name)
+			//vv("%v: (ckt '%v') (Giver) ckt halt requested.", name, ckt.Name)
 			return
 		}
 	}
@@ -429,11 +429,11 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 		return s.giverReportFileNotFound(ckt, localPath, bt, frag0)
 	}
 	t0 := time.Now()
-	vv("giverSendsPlanAndDataUpdates top: localPath='%v'", localPath)
-	defer func() {
-		vv("end giverSendsPlanAndDataUpdates. elap = '%v'", time.Since(t0))
-	}()
-	////vv("remoteWantsUpdate DataPresent = %v; should be 0", remoteWantsUpdate.DataPresent())
+	//vv("giverSendsPlanAndDataUpdates top: localPath='%v'", localPath)
+	//defer func() {
+	//	vv("end giverSendsPlanAndDataUpdates. elap = '%v'", time.Since(t0))
+	//}()
+	//vv("remoteWantsUpdate DataPresent = %v; should be 0", remoteWantsUpdate.DataPresent())
 
 	// reply with these
 	//OpRsync_SenderPlanEnclosed
@@ -454,17 +454,17 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	var local *Chunks
 	if parallelChunking {
 		// parallel version
-		vv("begin ChunkFile (parallel)")
+		//vv("begin ChunkFile (parallel)")
 		goalPrecis, local, err = ChunkFile(localPath)
 	} else {
 		// non-parallel version:
-		vv("begin GetHashesOneByOne")
+		//vv("begin GetHashesOneByOne")
 		goalPrecis, local, err = GetHashesOneByOne(rpc.Hostname, localPath)
 		// no data, just chunks. read data directly from file below.
 		//vv("end GetHashesOneByOne. elap = %v", time.Since(t1))
 	}
 	panicOn(err)
-	vv("end ChunkFile. elap = %v", time.Since(t1))
+	//vv("end ChunkFile. elap = %v", time.Since(t1))
 
 	// are the whole file checksums the same? we can
 	// avoid sending back a whole lotta chunks of nothing
@@ -561,7 +561,7 @@ func (s *SyncService) giverSendsWholeFile(giverPath, takerPath string, ckt *rpc.
 	}
 	fi, err := os.Stat(giverPath)
 
-	////vv("%v: (ckt '%v') (Giver) os.Stat(path) -> err = '%v'", name, ckt.Name, err)
+	//vv("%v: (ckt '%v') (Giver) os.Stat(path) -> err = '%v'", name, ckt.Name, err)
 
 	panicOn(err)
 
@@ -591,14 +591,14 @@ upload:
 	for i = 0; true; i++ {
 
 		nr, err1 := r.Read(buf)
-		//////vv("on read i=%v, got nr=%v, (maxMessage=%v), err='%v'", i, nr, maxMessage, err1)
+		//vv("on read i=%v, got nr=%v, (maxMessage=%v), err='%v'", i, nr, maxMessage, err1)
 
 		send := buf[:nr] // can be empty
 		tot += nr
 
 		// save an cpu by skipping the extra hashing now.
 		//sumstring := myblake3.Blake3OfBytesString(send)
-		//////vv("i=%v, len=%v, sumstring = '%v'", i, nr, sumstring)
+		//vv("i=%v, len=%v, sumstring = '%v'", i, nr, sumstring)
 		//blake3hash.Write(send)
 
 		frag := s.U.NewFragment()
@@ -673,10 +673,10 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 ) bool {
 
 	t0 := time.Now()
-	vv("top of remoteGiverAreDiffChunksNeeded()")
-	defer func() {
-		vv("end remoteGiverAreDiffChunksNeeded() elap = %v", time.Since(t0))
-	}()
+	//vv("top of remoteGiverAreDiffChunksNeeded()")
+	//defer func() {
+	//vv("end remoteGiverAreDiffChunksNeeded() elap = %v", time.Since(t0))
+	//}()
 	if !fileExists(syncReq.GiverPath) {
 		//vv("path '%v' does not exist on Giver: tell Taker to delete their file.", syncReq.GiverPath)
 		rm := s.U.NewFragment()
@@ -699,7 +699,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 		skip.FragSubject = frag.FragSubject
 		skip.Typ = rpc.CallPeerError
 		skip.Err = fmt.Sprintf("same host and dir detected! cowardly refusing to overwrite path with itself: '%v' on '%v' / Hostname '%v'", syncReq.GiverPath, syncReq.ToRemoteNetAddr, rpc.Hostname)
-		////vv(skip.Err)
+		//vv(skip.Err)
 		err = ckt.SendOneWay(skip, 0)
 		panicOn(err)
 		return false // all done
@@ -761,8 +761,8 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 ) (err error) {
 
 	// called by both taker and giver.
-	vv("top of packAndSendChunksLimitedSize; n = %v", len(heavyPlan.Chunks)) // caller is taker.go:933; n == 0 on coalese is the problem!
-	defer vv("end of packAndSendChunksLimitedSize")
+	//vv("top of packAndSendChunksLimitedSize; n = %v", len(heavyPlan.Chunks))
+	//defer vv("end of packAndSendChunksLimitedSize")
 
 	// pack up to max bytes of Chunks into a message.
 	max := rpc.UserMaxPayload - 10_000
@@ -816,7 +816,7 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 		err = ckt.SendOneWay(f, 0)
 		panicOn(err)
 		// no send happening after coalescing!
-		vv("packAndSendChunksLimitedSize sent f = '%v'", f.String())
+		//vv("packAndSendChunksLimitedSize sent f = '%v'", f.String())
 		bt.bsend += len(bts)
 	}
 	return nil
@@ -838,11 +838,11 @@ func (s *SyncService) packAndSendChunksJustInTime(
 	path string,
 ) (err error) {
 
-	////vv("top of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; len(oneByteMarkedPlan.Chunks) = %v", oneByteMarkedPlan.DataPresent(), len(oneByteMarkedPlan.Chunks))
+	//vv("top of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; len(oneByteMarkedPlan.Chunks) = %v", oneByteMarkedPlan.DataPresent(), len(oneByteMarkedPlan.Chunks))
 
 	bytesFromDisk := 0
 	//defer func() {
-	////vv("end of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; bytesFromDisk = %v", oneByteMarkedPlan.DataPresent(), bytesFromDisk)
+	//vv("end of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; bytesFromDisk = %v", oneByteMarkedPlan.DataPresent(), bytesFromDisk)
 	//}()
 
 	fd, err := os.Open(path)
@@ -957,7 +957,7 @@ moreLoop:
 
 			switch fragX.FragOp {
 			case opLast:
-				////vv("getMoreChunks sees opLast '%v'", rpc.FragOpDecode(opLast))
+				//vv("getMoreChunks sees opLast '%v'", rpc.FragOpDecode(opLast))
 				// a) match paths for sanity;
 				// b) append to localChunks;
 				// c) can continue with 1. below
@@ -1019,13 +1019,13 @@ moreLoop:
 			}
 			return
 		case <-done:
-			////vv("%v: (ckt '%v') (Giver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
+			//vv("%v: (ckt '%v') (Giver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
 			return
 		case <-done0:
-			////vv("%v: (ckt '%v') (Giver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
+			//vv("%v: (ckt '%v') (Giver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
 			return
 		case <-ckt.Halt.ReqStop.Chan:
-			////vv("%v: (ckt '%v') (Giver) ckt halt requested.", name, ckt.Name)
+			//vv("%v: (ckt '%v') (Giver) ckt halt requested.", name, ckt.Name)
 			return
 		}
 	}
