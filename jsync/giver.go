@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	myblake3 "github.com/glycerine/rpc25519/hash"
-	"github.com/glycerine/rpc25519/progress"
+	//"github.com/glycerine/rpc25519/progress"
 	"io"
 	"os"
 	"path/filepath"
@@ -571,12 +571,12 @@ func (s *SyncService) giverSendsWholeFile(
 
 	panicOn(err)
 
-	const quietProgress = false
-	var meterUp *progress.TransferStats
-	pathsize := fi.Size()
-	vv("syncReq = %p", syncReq)
-	if !quietProgress && syncReq != nil && syncReq.UpdateProgress != nil {
-		meterUp = progress.NewTransferStats(pathsize, "[up]"+filepath.Base(giverPath))
+	//pathsize := fi.Size()
+
+	quietProgress := false
+	if syncReq == nil || syncReq.UpdateProgress == nil {
+		// no ability to report progress, don't try.
+		quietProgress = true
 	}
 
 	r, err := os.Open(giverPath)
@@ -647,7 +647,7 @@ upload:
 			break upload
 		}
 
-		if meterUp != nil {
+		if !quietProgress {
 			if time.Since(lastUpdate) > time.Second {
 				lastUpdate = time.Now()
 				select {
@@ -663,16 +663,14 @@ upload:
 	} // end for i
 	nparts := i
 
-	if meterUp != nil {
-		if !quietProgress {
-			select {
-			case syncReq.UpdateProgress <- &ProgressUpdate{
-				Path:   giverPath,
-				Total:  int64(tot),
-				Latest: int64(i),
-			}:
-			default:
-			}
+	if !quietProgress {
+		select {
+		case syncReq.UpdateProgress <- &ProgressUpdate{
+			Path:   giverPath,
+			Total:  int64(tot),
+			Latest: int64(i),
+		}:
+		default:
 		}
 	}
 
