@@ -570,8 +570,7 @@ func (s *SyncService) giverSendsWholeFile(
 
 	panicOn(err)
 
-	//pathsize := fi.Size()
-
+	pathsize := fi.Size()
 	quietProgress := false
 	if syncReq == nil || syncReq.UpdateProgress == nil {
 		// no ability to report progress, don't try.
@@ -649,28 +648,14 @@ upload:
 		if !quietProgress {
 			if time.Since(lastUpdate) > time.Second {
 				lastUpdate = time.Now()
-				select {
-				case syncReq.UpdateProgress <- &ProgressUpdate{
-					Path:   giverPath,
-					Total:  int64(tot),
-					Latest: int64(i),
-				}:
-				default:
-				}
+				syncReq.ReportProgress(giverPath, int64(pathsize), int64(tot), t0)
 			}
 		}
 	} // end for i
 	nparts := i
 
 	if !quietProgress {
-		select {
-		case syncReq.UpdateProgress <- &ProgressUpdate{
-			Path:   giverPath,
-			Total:  int64(tot),
-			Latest: int64(i),
-		}:
-		default:
-		}
+		syncReq.ReportProgress(giverPath, int64(pathsize), int64(tot), t0)
 	}
 
 	elap := time.Since(t0)

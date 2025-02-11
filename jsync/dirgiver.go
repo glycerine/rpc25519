@@ -339,21 +339,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								panicOn(errg)
 								batchHalt.ReqStop.TaskDone()
 
-								if reqDir.SR.UpdateProgress != nil {
-									//report := fmt.Sprintf("%40s  done.", giverPath)
-									select {
-									case reqDir.SR.UpdateProgress <- &ProgressUpdate{
-										Path:   giverPath,
-										Total:  file.Size,
-										Latest: file.Size,
-										T0:     t0,
-									}:
-									case <-done:
-										return
-									case <-goroHalt.ReqStop.Chan:
-										return
-									}
-								}
+								reqDir.SR.ReportProgress(
+									giverPath, file.Size, file.Size, t0)
 							}
 						}(goroHalt)
 					}

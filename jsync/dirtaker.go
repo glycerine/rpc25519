@@ -714,10 +714,12 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 			}()
 
 			var file *File
+			var t1 time.Time
 			for {
 				select {
 				case file = <-fileCh:
 					//vv("dirtaker worker got file!")
+					t1 = time.Now()
 				case <-goroHalt.ReqStop.Chan:
 					return
 				}
@@ -864,22 +866,10 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				left := batchHalt.ReqStop.TaskDone()
 				_ = left
 				//vv("dirtaker worker: back from s.Taker(), and TaskDone left=%v", left)
+				reqDir.SR.ReportProgress(
+					giverPath, file.Size, file.Size, t1)
 
-				if reqDir.SR.UpdateProgress != nil {
-					//report := fmt.Sprintf("%40s  done.", giverPath)
-					select {
-					case reqDir.SR.UpdateProgress <- &ProgressUpdate{
-						Path:   giverPath,
-						Total:  file.Size,
-						Latest: file.Size,
-					}:
-					case <-goroHalt.ReqStop.Chan:
-						return
-					case <-done:
-						return
-					}
-				}
-			}
+			} // end for
 		}(fileCh, goroHalt, bt)
 	} // end work pool starting
 

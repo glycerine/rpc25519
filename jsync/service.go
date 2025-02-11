@@ -456,6 +456,21 @@ type ProgressUpdate struct {
 	T0     time.Time `zid:"3"`
 }
 
+func (sr *RequestToSyncPath) ReportProgress(path string, total, latest int64, t0 time.Time) {
+	if sr == nil || sr.UpdateProgress == nil {
+		return
+	}
+	up := &ProgressUpdate{
+		Path:   path,
+		Total:  total,
+		Latest: latest,
+	}
+	select {
+	case sr.UpdateProgress <- up:
+	default:
+	}
+}
+
 // RequestToSyncDir is a separate
 // struct/message from RequestToSyncPath
 // to keep things organized as we add
