@@ -450,9 +450,10 @@ type RequestToSyncPath struct {
 }
 
 type ProgressUpdate struct {
-	Path   string `zid:"0"`
-	Total  int64  `zid:"1"`
-	Latest int64  `zid:"2"`
+	Path   string    `zid:"0"`
+	Total  int64     `zid:"1"`
+	Latest int64     `zid:"2"`
+	T0     time.Time `zid:"3"`
 }
 
 // RequestToSyncDir is a separate

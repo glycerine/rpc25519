@@ -426,7 +426,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	}
 	t0 := time.Now()
 	_ = t0
-	//vv("giverSendsPlanAndDataUpdates top: localPath='%v'", localPath)
+	vv("giverSendsPlanAndDataUpdates top: localPath='%v'", localPath)
 	//defer func() {
 	//	vv("end giverSendsPlanAndDataUpdates. elap = '%v'", time.Since(t0))
 	//}()
@@ -443,7 +443,6 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	const wantChunks = true
 	const keepData = false
 
-	//goalPrecis, local, err := SummarizeFileInCDCHashes(rpc.Hostname, localPath, wantChunks, keepData)
 	t1 := time.Now()
 	_ = t1
 	var err error

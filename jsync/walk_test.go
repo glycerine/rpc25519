@@ -341,6 +341,21 @@ forloop:
 				midDir++
 			}
 		case <-halt.ReqStop.Chan:
+			// must finish draining the resCh! else can drop results
+			for {
+				select {
+				case f := <-resCh:
+					k++
+					if f.IsLeafDir() {
+						leafDir++
+					}
+					if f.IsMidDir() {
+						midDir++
+					}
+				default:
+					break forloop
+				}
+			}
 			break forloop
 		}
 	}
@@ -354,6 +369,7 @@ forloop:
 	vv("leafDir = %v;  midDir = %v\n", leafDir, midDir)
 
 	if leafDir != expectLeafDir {
+		//    walk_test.go:357: leafDir = 4353; expectLeafDir = 4603 ???
 		t.Fatalf("leafDir = %v; expectLeafDir = %v", leafDir, expectLeafDir)
 	}
 	if midDir != expectMidDir {

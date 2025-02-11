@@ -278,76 +278,81 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							}()
 
 							var file *File
-							select {
-							case file = <-fileCh:
-							case <-goroHalt.ReqStop.Chan:
-								return
-							case <-batchHalt.ReqStop.Chan:
-								return
-							case <-done:
-								return
-							case <-done0:
-								return
-							}
-
-							frag1 := s.U.NewFragment()
-							giverPath := filepath.Join(reqDir.GiverDir,
-								file.Path)
-							sr := &RequestToSyncPath{
-								GiverPath:        giverPath,
-								TakerPath:        file.Path,
-								TakerTempDir:     reqDir.TopTakerDirTemp,
-								TopTakerDirFinal: reqDir.TopTakerDirFinal,
-								GiverDirAbs:      reqDir.GiverDir,
-								GiverFileSize:    file.Size,
-								GiverModTime:     file.ModTime,
-								GiverFileMode:    file.FileMode,
-								RemoteTakes:      true,
-								Done:             idem.NewIdemCloseChan(),
-
-								GiverScanFlags:     file.ScanFlags,
-								GiverSymLinkTarget: file.SymLinkTarget,
-							}
-							bts, err := sr.MarshalMsg(nil)
-							panicOn(err)
-							frag1.Payload = bts
-							// basic single file transfer flow. giver sends 1.
-							frag1.FragOp = OpRsync_RequestRemoteToTake
-							frag1.FragSubject = giverPath
-							frag1.SetUserArg("structType", "RequestToSyncPath")
-							cktName := rsyncRemoteTakesString
-
-							ckt2, ctx2, err := ckt.NewCircuit(cktName, frag1)
-							panicOn(err)
-							defer func() {
-								r := recover()
-								if r != nil {
-									err := fmt.Errorf(
-										"panic recovered: '%v'", r)
-									//vv("error ckt2 close: '%v'", err)
-									ckt2.Close(err)
-								} else {
-									//vv("normal ckt2 close")
-									ckt2.Close(nil)
-								}
-							}()
-
-							errg := s.Giver(ctx2, ckt2, myPeer, sr)
-							panicOn(errg)
-							batchHalt.ReqStop.TaskDone()
-
-							if reqDir.SR.UpdateProgress != nil {
-								//report := fmt.Sprintf("%40s  done.", giverPath)
+							var t0 time.Time
+							for {
 								select {
-								case reqDir.SR.UpdateProgress <- &ProgressUpdate{
-									Path:   giverPath,
-									Total:  file.Size,
-									Latest: file.Size,
-								}:
-								case <-done:
-									return
+								case file = <-fileCh:
+									t0 = time.Now()
 								case <-goroHalt.ReqStop.Chan:
 									return
+								case <-batchHalt.ReqStop.Chan:
+									return
+								case <-done:
+									return
+								case <-done0:
+									return
+								}
+
+								frag1 := s.U.NewFragment()
+								giverPath := filepath.Join(reqDir.GiverDir,
+									file.Path)
+								sr := &RequestToSyncPath{
+									GiverPath:        giverPath,
+									TakerPath:        file.Path,
+									TakerTempDir:     reqDir.TopTakerDirTemp,
+									TopTakerDirFinal: reqDir.TopTakerDirFinal,
+									GiverDirAbs:      reqDir.GiverDir,
+									GiverFileSize:    file.Size,
+									GiverModTime:     file.ModTime,
+									GiverFileMode:    file.FileMode,
+									RemoteTakes:      true,
+									Done:             idem.NewIdemCloseChan(),
+
+									GiverScanFlags:     file.ScanFlags,
+									GiverSymLinkTarget: file.SymLinkTarget,
+								}
+								bts, err := sr.MarshalMsg(nil)
+								panicOn(err)
+								frag1.Payload = bts
+								// basic single file transfer flow. giver sends 1.
+								frag1.FragOp = OpRsync_RequestRemoteToTake
+								frag1.FragSubject = giverPath
+								frag1.SetUserArg("structType", "RequestToSyncPath")
+								cktName := rsyncRemoteTakesString
+
+								ckt2, ctx2, err := ckt.NewCircuit(cktName, frag1)
+								panicOn(err)
+								defer func() {
+									r := recover()
+									if r != nil {
+										err := fmt.Errorf(
+											"panic recovered: '%v'", r)
+										//vv("error ckt2 close: '%v'", err)
+										ckt2.Close(err)
+									} else {
+										//vv("normal ckt2 close")
+										ckt2.Close(nil)
+									}
+								}()
+
+								errg := s.Giver(ctx2, ckt2, myPeer, sr)
+								panicOn(errg)
+								batchHalt.ReqStop.TaskDone()
+
+								if reqDir.SR.UpdateProgress != nil {
+									//report := fmt.Sprintf("%40s  done.", giverPath)
+									select {
+									case reqDir.SR.UpdateProgress <- &ProgressUpdate{
+										Path:   giverPath,
+										Total:  file.Size,
+										Latest: file.Size,
+										T0:     t0,
+									}:
+									case <-done:
+										return
+									case <-goroHalt.ReqStop.Chan:
+										return
+									}
 								}
 							}
 						}(goroHalt)
@@ -413,13 +418,6 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				//vv("dirgiver: all batches of indiv file "+
 				// "sync are done. totalFileBytes = %v", totalFileBytes)
 
-				// wait to go on to sending OpRsync_ToTakerAllTreeModes
-				// until after all the files are there.
-				// UPDATE: that is what waiting for the last batch
-				// SHOULD be waiting for!
-
-				// wait for OpRsync_ToGiverDirContentsDoneAck
-				// send OpRsync_ToTakerDirContentsDone
 				allFilesDone := s.U.NewFragment()
 				allFilesDone.FragOp = OpRsync_ToTakerDirContentsDone
 				allFilesDone.SetUserArg("giverTotalFileBytes",
@@ -428,6 +426,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				panicOn(err3)
 
 			case OpRsync_ToGiverDirContentsDoneAck:
+				// unused now, right? not sure!
 
 				//vv("dirgiver sees OpRsync_ToGiverDirContentsDoneAck: on to phase 3, dirgiver sends directory modes")
 				// last (3rd phase): send each directory node,
