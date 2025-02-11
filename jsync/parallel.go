@@ -70,7 +70,7 @@ func ChunkFile2(
 
 	vv("top of ChunkFile2")
 	defer func() {
-		vv("ChunkFile2 reeturning; err0 = '%v'; len chunks0.Chunks = %v", err0, len(chunks0.Chunks))
+		vv("ChunkFile2 returning; err0 = '%v'; len chunks0.Chunks = %v", err0, len(chunks0.Chunks))
 	}()
 	// must handle non-existant files without error.
 	if !fileExists(path) {
@@ -558,7 +558,7 @@ func ChunkFile2(
 		panic("len coal cannot be 0")
 	}
 	vv("len coal = '%v' vs len orig %v", len(coal), len(chunks0.Chunks))
-	vv("RLE0 encoded %v bytes.", total0)
+	vv("RLE0 encoded %v bytes; path = '%v'; host='%v'", total0, path, host)
 	chunks0.Chunks = coal
 
 	return
