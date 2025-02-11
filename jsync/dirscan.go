@@ -429,6 +429,10 @@ func ScanDirTreeOnePass(
 		di := NewDirIter()
 		next, stop := iter.Pull2(di.OneWalkForAll(giverRoot))
 		defer stop()
+
+		// todo: could also measure/compare the parallel version:
+		// resCh := ParallelOneWalkForAll(halt, giverRoot)
+
 		pre := len(giverRoot) // how much to discard giverRoot, leave off sep.
 
 		var nextSerial int64

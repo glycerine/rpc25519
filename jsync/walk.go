@@ -510,6 +510,9 @@ func (di *DirIter) OneWalkForAll(root string) iter.Seq2[*File, bool] {
 	}
 }
 
+// Note: do not loose resCh results! If halt is called,
+// be sure to drain the resCh before returning, if you
+// don't want to lose directories.
 // same as above, but use pwalk for multiple goroutines
 func (di *DirIter) ParallelOneWalkForAll(halt *idem.Halter, root string) (resCh chan *File) {
 
