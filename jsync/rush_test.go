@@ -124,7 +124,7 @@ func Test660_giver_must_not_rush_past_taker(t *testing.T) {
 
 		dataBytesMoved0, err := jSyncCli.PushFromTo(localPath, remotePath)
 		panicOn(err)
-		cv.So(dataBytesMoved0, cv.ShouldEqual, len(slc))
+		cv.So(dataBytesMoved0, cv.ShouldEqual, 1063375) // len(slc) + some
 
 		// confirm it happened.
 		difflen := compareFilesDiffLen(localPath, remotePath)

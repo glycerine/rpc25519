@@ -467,7 +467,6 @@ func (s *BlobStore) GetPlanToUpdateFromGoal(updateme, goal *Chunks, dropGoalData
 		//vv("on return, goal.DataPresent() = %v", goal.DataPresent())
 		return goal
 	}
-	panic("need to update below for RLE0; we thought it was not used anymore")
 
 	plan = NewChunks(updateme.Path)
 	plan.FileSize = goal.FileSize
@@ -477,7 +476,12 @@ func (s *BlobStore) GetPlanToUpdateFromGoal(updateme, goal *Chunks, dropGoalData
 
 	// the goal file layout is the template for the plan
 	for _, c := range goal.Chunks {
-		_, ok := updatememap[c.Cry]
+		var ok bool
+		if c.Cry == "RLE0;" {
+			ok = true
+		} else {
+			_, ok = updatememap[c.Cry]
+		}
 
 		// make a copy of the goal template chunk
 		addme := *c
