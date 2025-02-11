@@ -294,6 +294,7 @@ takerForSelectLoop:
 					ckt,
 					bt,
 					syncReq2.TakerPath,
+					syncReq, // for the progress meter, send orig
 				)
 				panicOn(err)
 
@@ -968,6 +969,7 @@ takerForSelectLoop:
 						ckt,
 						bt,
 						light.SenderPath,
+						syncReq,
 					)
 					panicOn(err0)
 				}

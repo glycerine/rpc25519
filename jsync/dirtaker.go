@@ -830,6 +830,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 						ckt2,
 						bt,
 						syncReq.Chunks.Path,
+						syncReq,
 					)
 					if err != nil {
 						alwaysPrintf("error back from packAndSendChunksLimitedSize()"+

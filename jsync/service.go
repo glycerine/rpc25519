@@ -926,6 +926,7 @@ func (s *SyncService) Start(
 					ckt,
 					bt,
 					syncReq.Chunks.Path,
+					syncReq,
 				)
 				if err != nil {
 					alwaysPrintf("error back from packAndSendChunksLimitedSize()"+

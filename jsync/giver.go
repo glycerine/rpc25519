@@ -89,7 +89,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		select {
 
 		case frag0 := <-ckt.Reads:
-			//vv("%v: (ckt '%v') (Giver) saw read frag0:'%v'", name, ckt.Name, frag0)
+			vv("%v: (ckt '%v') (Giver) saw read frag0:'%v'", name, ckt.Name, frag0)
 
 			//vv("frag0 = '%v'", frag0)
 			switch frag0.FragOp {
@@ -260,12 +260,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 				// 1. if local has nothing, send full stream. stop.
 				if syncReq.TakerFileSize == 0 {
-					// on rog, jcp aorus:dutchy
-					// i.e. trying to sync a dir that is not there yet locally,
-					// gives error: giver was asked for
-					// non-existent file: 'dutchy' not found
-					// from this call. Thing is, we should
-					// be in dir giving, not file giving!
+
 					err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0, syncReq)
 
 					//vv("giver sent whole file. done (wait for FIN) -> '%v'", syncReq.TakerPath)
@@ -283,7 +278,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 				// 3. compute update plan, send plan, then diff chunks.
 				//vv("OpRsync_RequestRemoteToGive calling giverSendsPlanAndDataUpdates")
-				s.giverSendsPlanAndDataUpdates(wireChunks, ckt, syncReq.GiverPath, bt, frag0)
+				s.giverSendsPlanAndDataUpdates(wireChunks, ckt, syncReq.GiverPath, bt, frag0, syncReq)
 				//vv("done with s.giverSendsPlanAndDataUpdates. done (wait for FIN/ckt shutdown)")
 				// wait for FIN or ckt shutdown, to let data get there.
 				frag0 = nil // GC early.
@@ -317,7 +312,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				// there is nothing (no chunks) to send.
 
 				//vv("OpRsync_LightRequestEnclosed calling giverSendsPlanAndDataUpdates")
-				s.giverSendsPlanAndDataUpdates(light.ReaderChunks, ckt, localPath, bt, frag0)
+				s.giverSendsPlanAndDataUpdates(light.ReaderChunks, ckt, localPath, bt, frag0, syncReq)
 				// middle of a sequence, certainly do not return.
 				frag0 = nil // GC early.
 				continue
@@ -422,6 +417,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	localPath string,
 	bt *byteTracker,
 	frag0 *rpc.Fragment,
+	syncReq *RequestToSyncPath,
 ) error {
 
 	// handle the case when file is no longer here; or never was.
@@ -549,12 +545,21 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 		ckt,
 		bt,
 		placeholderPlan.Path,
+		syncReq,
 	)
 }
 
-func (s *SyncService) giverSendsWholeFile(giverPath, takerPath string, ckt *rpc.Circuit, bt *byteTracker, frag0 *rpc.Fragment, syncReq *RequestToSyncPath) error {
+func (s *SyncService) giverSendsWholeFile(
+	giverPath string,
+	takerPath string,
+	ckt *rpc.Circuit,
+	bt *byteTracker,
+	frag0 *rpc.Fragment,
+	syncReq *RequestToSyncPath,
 
-	//vv("giverSendsWholeFile(giverPath='%v', takerPath='%v')", giverPath, takerPath)
+) error {
+
+	vv("giverSendsWholeFile(giverPath='%v', takerPath='%v')", giverPath, takerPath)
 	t0 := time.Now()
 
 	if !fileExists(giverPath) {
@@ -569,6 +574,7 @@ func (s *SyncService) giverSendsWholeFile(giverPath, takerPath string, ckt *rpc.
 	const quietProgress = false
 	var meterUp *progress.TransferStats
 	pathsize := fi.Size()
+	vv("syncReq = %p", syncReq)
 	if !quietProgress && syncReq != nil && syncReq.UpdateProgress != nil {
 		meterUp = progress.NewTransferStats(pathsize, "[up]"+filepath.Base(giverPath))
 	}
@@ -775,6 +781,7 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 	ckt *rpc.Circuit,
 	bt *byteTracker,
 	path string,
+	syncReq *RequestToSyncPath,
 ) (err error) {
 
 	// called by both taker and giver.
@@ -853,6 +860,8 @@ func (s *SyncService) packAndSendChunksJustInTime(
 	ckt *rpc.Circuit,
 	bt *byteTracker,
 	path string,
+	syncReq *RequestToSyncPath,
+
 ) (err error) {
 
 	//vv("top of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; len(oneByteMarkedPlan.Chunks) = %v", oneByteMarkedPlan.DataPresent(), len(oneByteMarkedPlan.Chunks))
