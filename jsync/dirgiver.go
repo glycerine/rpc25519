@@ -379,7 +379,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 							// wait for all files to be given == batch to
 							// be closed (error or not); or done to fire.
-							err := batchHalt.ReqStop.TaskWait(done)
+							batchHalt.ReqStop.TaskWait(done)
 							//vv("batchHalt.ReqStop.TaskWait back, err = '%v'", err)
 
 							//_ = batchHalt.ReqStop.WaitTilChildrenClosed(done)

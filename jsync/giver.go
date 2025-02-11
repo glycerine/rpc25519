@@ -429,6 +429,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 		return s.giverReportFileNotFound(ckt, localPath, bt, frag0)
 	}
 	t0 := time.Now()
+	_ = t0
 	//vv("giverSendsPlanAndDataUpdates top: localPath='%v'", localPath)
 	//defer func() {
 	//	vv("end giverSendsPlanAndDataUpdates. elap = '%v'", time.Since(t0))
@@ -448,7 +449,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 
 	//goalPrecis, local, err := SummarizeFileInCDCHashes(rpc.Hostname, localPath, wantChunks, keepData)
 	t1 := time.Now()
-
+	_ = t1
 	var err error
 	var goalPrecis *FilePrecis
 	var local *Chunks
@@ -673,6 +674,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 ) bool {
 
 	t0 := time.Now()
+	_ = t0
 	//vv("top of remoteGiverAreDiffChunksNeeded()")
 	//defer func() {
 	//vv("end remoteGiverAreDiffChunksNeeded() elap = %v", time.Since(t0))
