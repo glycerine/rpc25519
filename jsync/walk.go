@@ -526,7 +526,7 @@ func (di *DirIter) ParallelOneWalkForAll(halt *idem.Halter, root string) (resCh 
 		// we need to know when pwalk.Walk() returns: that is
 		// when we are done with the walk. Then these defer can run.
 		defer func() {
-			vv("pwalk.Walk must have finished. defers are running")
+			//vv("pwalk.Walk must have finished. defers are running")
 			halt.ReqStop.Close()
 			halt.Done.Close()
 		}()
@@ -601,7 +601,7 @@ func (di *DirIter) ParallelOneWalkForAll(halt *idem.Halter, root string) (resCh 
 			}
 			return nil
 		})
-		vv("back from pwalk.Walk()")
+		//vv("back from pwalk.Walk()")
 	}()
 
 	return
@@ -633,7 +633,7 @@ func (di *DirIter) ParallelWalk(root string) (files []*File) {
 		// we need to know when pwalk.Walk() returns: that is
 		// when we are done with the walk. Then these defer can run.
 		defer func() {
-			vv("pwalk.Walk must have finished. defers are running")
+			//vv("pwalk.Walk must have finished. defers are running")
 			halt.ReqStop.Close()
 			halt.Done.Close()
 		}()
@@ -723,7 +723,7 @@ func (di *DirIter) ParallelWalk(root string) (files []*File) {
 			}
 			return nil
 		})
-		vv("back from pwalk.Walk()")
+		//vv("back from pwalk.Walk()")
 	}()
 
 myloop:
