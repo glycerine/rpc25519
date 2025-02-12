@@ -137,6 +137,8 @@ func (s *jsyncU) PullToFrom(toLocalPath, fromRemotePath string) (dataBytesMoved 
 			// (pull): for taking an update locally. Tell remote what we have now.
 			Precis: precis,
 			Chunks: chunks,
+
+			UpdateProgress: make(chan *ProgressUpdate, 100),
 		}
 		vv("PullToFrom using ToRemoteNetAddr: '%v'", req.ToRemoteNetAddr)
 	} else {
@@ -161,12 +163,24 @@ func (s *jsyncU) PullToFrom(toLocalPath, fromRemotePath string) (dataBytesMoved 
 			SyncFromHostCID:  rpc.HostCID,
 			GiverDirAbs:      dir,
 			RemoteTakes:      false,
+
+			UpdateProgress: make(chan *ProgressUpdate, 100),
 		}
 	}
 
 	vv("PullToFrom about to send on reqs chan")
 	s.reqs <- req
-	<-req.Done.Chan
+jobDone:
+	for {
+		select {
+		case prog := <-req.UpdateProgress:
+
+			fmt.Printf("progress: %30v %8v %8v\n", prog.Path, prog.Latest, prog.Total)
+			continue
+		case <-req.Done.Chan:
+			break jobDone
+		}
+	}
 
 	vv("PullToFrom pulled toLocalPath '%v' in '%v'", toLocalPath, time.Since(t0))
 
@@ -235,6 +249,8 @@ func (s *jsyncU) PushFromTo(fromLocalPath, toRemotePath string) (dataBytesMoved 
 
 		RemoteTakes: true,
 
+		UpdateProgress: make(chan *ProgressUpdate, 100),
+
 		// (pull): for taking an update locally. Tell remote what we have now.
 		//Precis: precis,
 		//Chunks: chunks,
@@ -249,7 +265,18 @@ func (s *jsyncU) PushFromTo(fromLocalPath, toRemotePath string) (dataBytesMoved 
 
 	vv("PushFromTo about to send on reqs chan")
 	s.reqs <- req
-	<-req.Done.Chan
+
+jobDone:
+	for {
+		select {
+		case prog := <-req.UpdateProgress:
+
+			fmt.Printf("progress: %30v %8v %8v\n", prog.Path, prog.Latest, prog.Total)
+			continue
+		case <-req.Done.Chan:
+			break jobDone
+		}
+	}
 
 	vv("PushFromTo push fromLocalPath '%v' -> '%v' in %v: err='%v'", fromLocalPath, toRemotePath, time.Since(t0), req.Errs)
 
@@ -287,6 +314,8 @@ func (s *jsyncU) DirPushFromTo(fromLocalDir, toRemoteDir string, cli rpc.Univers
 		GiverDirAbs:      cwd,
 
 		RemoteTakes: true,
+
+		UpdateProgress: make(chan *ProgressUpdate, 100),
 	}
 	vv("PushFromTo req using ToRemoteNetAddr: '%v'. push (remote takes) = %v", req.ToRemoteNetAddr, req.RemoteTakes)
 
@@ -298,7 +327,17 @@ func (s *jsyncU) DirPushFromTo(fromLocalDir, toRemoteDir string, cli rpc.Univers
 
 	vv("DirPushFromTo about to send on reqs chan: '%#v'", req)
 	s.reqs <- req
-	<-req.Done.Chan
+jobDone:
+	for {
+		select {
+		case prog := <-req.UpdateProgress:
+			fmt.Printf("progress: %30v %8v %8v\n", prog.Path, prog.Latest, prog.Total)
+			continue
+		case <-req.Done.Chan:
+			break jobDone
+		}
+	}
+	//<-req.Done.Chan
 
 	vv("DirPushFromTo push fromLocalDir '%v' -> '%v' in %v: err='%v'", fromLocalDir, toRemoteDir, time.Since(t0), req.Errs)
 
