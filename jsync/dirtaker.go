@@ -873,6 +873,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 							"panic recovered: '%v'", r)
 						//vv("error ckt2 close: '%v'\nstack=\n%v", err, stack())
 						ckt2.Close(err)
+						panic(r) // let above defer also report errors.
 					} else {
 						//vv("normal ckt2 close")
 						ckt2.Close(nil)

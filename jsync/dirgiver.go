@@ -331,6 +331,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 											"panic recovered: '%v'", r)
 										//vv("error ckt2 close: '%v'", err)
 										ckt2.Close(err)
+										panic(r) // let above defer see errors
 									} else {
 										//vv("normal ckt2 close")
 										ckt2.Close(nil)
