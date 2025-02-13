@@ -1,3 +1,5 @@
+//go:build unix
+
 package rpc25519
 
 import (
