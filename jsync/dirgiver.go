@@ -218,7 +218,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						bts, err := pof.MarshalMsg(nil)
 						panicOn(err)
 						fragPOF.Payload = bts
-						fragPOF.FragOp = OpRsync_GiverSendsTopDirListing
+						fragPOF.FragOp = OpRsync_GiverSendsTopDirListing // 26
 						fragPOF.FragPart = lastser
 						fragPOF.SetUserArg("structType", "PackOfFiles")
 						err = ckt.SendOneWay(fragPOF, 0)
@@ -543,7 +543,7 @@ func (s *SyncService) convertedDirToFile_giveFile(
 
 	tofile := s.U.NewFragment()
 	tofile.FragSubject = path
-	tofile.FragOp = OpRsync_ToDirTakerGiverDirIsNowFile
+	tofile.FragOp = OpRsync_ToDirTakerGiverDirIsNowFile // 39
 	// send back the dirReq for detail matching.
 	tofile.Payload = frag0.Payload
 	tofile.SetUserArg("structType", "RequestToSyncDir")

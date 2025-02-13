@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"sync"
+	//"sync"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -46,7 +46,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	totFiles := 0
 	var seenGiverSendsTopDirListing bool
 	var fileUpdateCh chan *File
-	var wgIndivFileCheck *sync.WaitGroup
+	//var wgIndivFileCheck *sync.WaitGroup
 	var haltIndivFileCheck *idem.Halter
 	needUpdate := rpc.NewMutexmap[string, *File]()
 	takerCatalog := rpc.NewMutexmap[string, *File]()
@@ -276,6 +276,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// now all in one pass, as PackOfFiles
 
 				if !seenGiverSendsTopDirListing {
+					seenGiverSendsTopDirListing = true
+					haltIndivFileCheck = idem.NewHalter()
 
 					takerCatalog.Reset()
 					di := NewDirIter()
@@ -285,39 +287,55 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 					//vv("at beginning, takerCatalog = '%#v'", takerCatalog.GetKeySlice())
 
-					haltIndivFileCheck = idem.NewHalter()
-					seenGiverSendsTopDirListing = true
-
 					// unbuffered => sure somebody has it,
 					// and will finish processing it before shutdown.
 					fileUpdateCh = make(chan *File)
 
 					// goro getting only 200 msec or so faster.
 					ngoro := runtime.NumCPU()
-					wgIndivFileCheck = &sync.WaitGroup{}
-					wgIndivFileCheck.Add(ngoro)
+					//wgIndivFileCheck = &sync.WaitGroup{}
+					//wgIndivFileCheck.Add(ngoro)
+
 					for i := range ngoro {
+						goroHalt := idem.NewHalter()
+						haltIndivFileCheck.AddChild(goroHalt)
+
 						go func(i int, reqDir *RequestToSyncDir,
 							fileUpdateCh chan *File,
 							needUpdate *rpc.Mutexmap[string, *File]) {
 
 							defer func() {
-								wgIndivFileCheck.Done()
-								haltIndivFileCheck.ReqStop.Close()
-								haltIndivFileCheck.Done.Close()
+								//wgIndivFileCheck.Done()
+								//haltIndivFileCheck.ReqStop.Close()
+								//haltIndivFileCheck.Done.Close()
+								r := recover()
+								if r != nil {
+									err := fmt.Errorf("DirTake worker for file indiv file check 26 (OpRsync_GiverSendsTopDirListing) saw panic: '%v'", r)
+									goroHalt.ReqStop.CloseWithReason(err)
+									// also stop the whole batch on single err.
+									// At least for now, sane debugging.
+									haltIndivFileCheck.ReqStop.CloseWithReason(err)
+								} else {
+									goroHalt.ReqStop.Close()
+								}
+								goroHalt.Done.Close()
 							}()
 
 							for {
 								select {
 								case f := <-fileUpdateCh:
 									s.takeOneFile(f, reqDir, needUpdate, takerCatalog, useTempDir)
+									haltIndivFileCheck.ReqStop.TaskDone()
+
+								case <-goroHalt.ReqStop.Chan:
+									return
 								case <-haltIndivFileCheck.ReqStop.Chan:
 									return
 								}
 							}
 						}(i, reqDir, fileUpdateCh, needUpdate)
 					}
-				}
+				} // end if !seenGiverSendsTopDirListing
 
 				pof := &PackOfFiles{}
 				_, err := pof.UnmarshalMsg(frag.Payload)
@@ -357,6 +375,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					default:
 						// regular file.
 						totFiles++
+						haltIndivFileCheck.ReqStop.TaskAdd(1)
+
 						select {
 						case fileUpdateCh <- f:
 
@@ -371,8 +391,15 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				}
 				if pof.IsLast {
 
-					haltIndivFileCheck.ReqStop.Close()
-					wgIndivFileCheck.Wait()
+					//haltIndivFileCheck.ReqStop.Close()
+					//wgIndivFileCheck.Wait()
+					haltIndivFileCheck.ReqStop.TaskWait(done)
+					haltIndivFileCheck.StopTreeAndWaitTilDone(0, done, nil)
+
+					err, _ := haltIndivFileCheck.ReqStop.Reason()
+					if err != idem.ErrTasksAllDone {
+						panicOn(err)
+					}
 
 					nn := needUpdate.Len()
 					//vv("dirtaker sees pof.IsLast, sending "+
@@ -424,14 +451,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							panicOn(err)
 						}
 					}
-
-					// works okay it seems.
-					//vv("try experiment with dirtaker just returning when done. no ackBackFINToGiver and wait for them.")
-
 					return nil
-					//s.ackBackFINToGiver(ckt, frag)
-					//continue // wait for FIN?
-
 				}
 
 			case OpRsync_GiverSendsPackOfFiles: // 36
@@ -817,7 +837,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				// back to orig:
 				frag.Payload = data
 				frag.SetUserArg("structType", "RequestToSyncPath")
-				cktName := rsyncRemoteGivesString // rsyncRemoteTakesString
+				cktName := rsyncRemoteGivesString // vs rsyncRemoteTakesString
 				ckt2, ctx2, err := ckt.NewCircuit(cktName, frag)
 				panicOn(err)
 
