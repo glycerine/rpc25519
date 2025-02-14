@@ -676,21 +676,14 @@ func SummarizeFileInCDCHashes(host, path string, wantChunks, keepData bool) (pre
 	precis.FileMode = uint32(fi.Mode())
 	precis.ModTime = modTime
 
-	if stat_t, ok := fi.Sys().(*syscall.Stat_t); ok {
-		uid := stat_t.Uid
-		precis.FileOwnerID = uid
-		gid := stat_t.Gid
-		precis.FileGroupID = gid
+	fileOwner, uid := getFileOwnerAndID(fi)
+	fileGroup, gid := getFileGroupAndID(fi)
 
-		owner, err := user.LookupId(fmt.Sprint(uid))
-		if err == nil && owner != nil {
-			precis.FileOwner = owner.Username
-		}
-		group, err := user.LookupGroupId(fmt.Sprint(gid))
-		if err == nil && group != nil {
-			precis.FileGroup = group.Name
-		}
-	}
+	precis.FileOwnerID = uid
+	precis.FileGroupID = gid
+	precis.FileOwner = fileOwner
+	precis.FileGroup = fileGroup
+
 	return
 }
 
