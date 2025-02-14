@@ -6,7 +6,7 @@ import (
 	"fmt"
 	myblake3 "github.com/glycerine/rpc25519/hash"
 	//"github.com/glycerine/rpc25519/progress"
-	"golang.org/x/sys/unix"
+	//"golang.org/x/sys/unix"
 	"io"
 	"io/fs"
 	"os"
@@ -1078,6 +1078,5 @@ func (s *SyncService) takeSymlink(syncReq *RequestToSyncPath, localPathToWrite s
 	//  as the first element and modification time as the
 	//  second element."
 	//
-	tv := unix.NsecToTimeval(syncReq.GiverModTime.UnixNano())
-	unix.Lutimes(localPathToWrite, []unix.Timeval{tv, tv})
+	updateLinkModTime(localPathToWrite, syncReq.GiverModTime)
 }

@@ -15,7 +15,7 @@ import (
 	//"sync"
 	"time"
 
-	"golang.org/x/sys/unix"
+	//"golang.org/x/sys/unix"
 	//myblake3 "github.com/glycerine/rpc25519/hash"
 	//"github.com/glycerine/rpc25519/progress"
 	"github.com/glycerine/idem"
@@ -638,8 +638,7 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 				err := os.Symlink(targ, localPathToWrite) // panic: symlink process/changes.rst linux11/Documentation/Changes: no such file or directory
 				panicOn(err)
 				//vv("updating Lutimes for '%v'", localPathToWrite)
-				tv := unix.NsecToTimeval(f.ModTime.UnixNano())
-				unix.Lutimes(localPathToWrite, []unix.Timeval{tv, tv})
+				updateLinkModTime(localPathToWrite, f.ModTime)
 			}
 			return // all symlinks done
 		}

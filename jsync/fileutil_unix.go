@@ -7,6 +7,9 @@ import (
 	"os"
 	"os/user"
 	"syscall"
+	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // returns empty string on error.
@@ -33,4 +36,9 @@ func getFileOwnerName(filepath string) string {
 	}
 
 	return owner.Username
+}
+
+func updateLinkModTime(path string, modtm time.Time) {
+	tv := unix.NsecToTimeval(modtm.UnixNano())
+	unix.Lutimes(path, []unix.Timeval{tv, tv})
 }
