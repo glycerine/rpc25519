@@ -254,17 +254,17 @@ const (
 
 	OpRsync_GiverSendsTopDirListing = 26 // to taker, here is my starting dir tree
 
-	OpRsync_TakerReadyForDirContents  = 29 // to giver, ready for individual file syncs
-	OpRsync_ToTakerDirContentsDone    = 30 // to taker, I've sent them all.
-	OpRsync_ToGiverDirContentsDoneAck = 31 // to giver, dir-taker has got them all.
+	//OpRsync_TakerReadyForDirContents = 29 // to giver, ready for individual file syncs
+	//OpRsync_ToTakerDirContentsDone    = 30 // to taker, I've sent them all.
+	//OpRsync_ToGiverDirContentsDoneAck = 31 // to giver, dir-taker has got them all.
 
-	OpRsync_ToTakerAllTreeModes     = 32 // to taker, phase 3 all directory modes
-	OpRsync_ToGiverAllTreeModesDone = 33 // to giver, phase 3 all directory modes all done
+	//OpRsync_ToTakerAllTreeModes     = 32 // to taker, phase 3 all directory modes
+	//OpRsync_ToGiverAllTreeModesDone = 33 // to giver, phase 3 all directory modes all done
 
 	OpRsync_ToGiverSizeMatchButCheckHash    = 34 // to giver, here is full file hash, can we avoid chunking?
 	OpRsync_ToGiverSizeMatchButCheckHashAck = 35 // to taker, yea or nay on that.
 
-	OpRsync_GiverSendsPackOfFiles = 36 // to taker, here are file summaries
+	//OpRsync_GiverSendsPackOfFiles = 36 // to taker, here are file summaries
 	//OpRsync_GiverSendsPackOfFilesMore = 37 // to taker, here is more of 36
 	//OpRsync_GiverSendsPackOfFilesEnd  = 38 // to taker, here is end of 36
 
@@ -315,16 +315,16 @@ func AliasRsyncOps() {
 	rpc.FragOpRegister(OpRsync_DirSyncEndAckFromTaker, "OpRsync_DirSyncEndAckFromTaker")
 
 	rpc.FragOpRegister(OpRsync_GiverSendsTopDirListing, "OpRsync_GiverSendsTopDirListing")
-	rpc.FragOpRegister(OpRsync_TakerReadyForDirContents, "OpRsync_TakerReadyForDirContents")
+	//rpc.FragOpRegister(OpRsync_TakerReadyForDirContents, "OpRsync_TakerReadyForDirContents")
 
-	rpc.FragOpRegister(OpRsync_ToTakerAllTreeModes, "OpRsync_ToTakerAllTreeModes")
+	//rpc.FragOpRegister(OpRsync_ToTakerAllTreeModes, "OpRsync_ToTakerAllTreeModes")
 
-	rpc.FragOpRegister(OpRsync_ToTakerDirContentsDone, "OpRsync_ToTakerDirContentsDone")
-	rpc.FragOpRegister(OpRsync_ToGiverDirContentsDoneAck, "OpRsync_ToGiverDirContentsDoneAck")
+	//rpc.FragOpRegister(OpRsync_ToTakerDirContentsDone, "OpRsync_ToTakerDirContentsDone")
+	//rpc.FragOpRegister(OpRsync_ToGiverDirContentsDoneAck, "OpRsync_ToGiverDirContentsDoneAck")
 	rpc.FragOpRegister(OpRsync_ToGiverSizeMatchButCheckHash, "OpRsync_ToGiverSizeMatchButCheckHash")
 	rpc.FragOpRegister(OpRsync_ToGiverSizeMatchButCheckHashAck, "OpRsync_ToGiverSizeMatchButCheckHashAck")
 
-	rpc.FragOpRegister(OpRsync_GiverSendsPackOfFiles, "OpRsync_GiverSendsPackOfFiles")
+	//rpc.FragOpRegister(OpRsync_GiverSendsPackOfFiles, "OpRsync_GiverSendsPackOfFiles")
 	rpc.FragOpRegister(OpRsync_ToDirTakerGiverDirIsNowFile, "OpRsync_ToDirTakerGiverDirIsNowFile")
 	rpc.FragOpRegister(OpRsync_ToTakerDratGiverFileIsNowDir, "OpRsync_ToTakerDratGiverFileIsNowDir")
 }
