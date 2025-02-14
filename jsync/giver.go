@@ -231,10 +231,8 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				// means that we can now get here when we have
 				// already been started for a remote lazy pull.
 				//
-				// Old/was: assert syncReq was nil as passed in to our Giver() call.
-				//if syncReq != nil {
-				//	panic(fmt.Sprintf("syncReq should have been nil! OpRsync_RequestRemoteToGive seen with already set syncReq! Is there an operation sequence already in motion?"))
-				//}
+				// Which means syncReq might not be nil here.
+				// We overwrite it anyway.
 
 				syncReq = &RequestToSyncPath{}
 				_, err0 = syncReq.UnmarshalMsg(frag0.Payload)
@@ -259,7 +257,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				// after moreLoop, we get here:
 
 				// 1. if local has nothing, send full stream. stop.
-				// BUT! we don't apply RLE0; in this case. So try
+				// BUT! we want to apply RLE0 even in this case. So try
 				// without this for our zero1g test file.
 				// Yes: using RLE0 saves a ton of time transporting zeros.
 				if !useRLE0 && syncReq.TakerFileSize == 0 {
@@ -289,10 +287,11 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 			case OpRsync_LightRequestEnclosed:
 
+				// For reference, here is what LightRequest is:
 				// type LightRequest struct {
-				// 	SenderPath string `zid:"0"`
-				// 	ReaderPrecis *FilePrecis `zid:"1"`
-				// 	ReaderChunks *Chunks     `zid:"2"` // coming next separately
+				// 	SenderPath string
+				// 	ReaderPrecis *FilePrecis
+				// 	ReaderChunks *Chunks    // coming next separately
 				// }
 
 				light = &LightRequest{}
@@ -304,7 +303,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 				if light.ReaderPrecis.FileSize > 0 {
 					// light.ReaderChunks were too big,
-					// get them in packs instead.
+					// so now we always get them in packs instead.
 					err0 = s.getMoreChunks(ckt, bt, &light.ReaderChunks,
 						done, done0, syncReq,
 						OpRsync_RequestRemoteToGive_ChunksLast,
@@ -346,6 +345,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 			case OpRsync_ToGiverNeedFullFile2:
 				// We no long use this (assuming useRLE0 = true).
 				// We chunk all files now to get the RLE0 benefits.
+
 				// Keep it around since it may be useful
 				// in the future.
 
