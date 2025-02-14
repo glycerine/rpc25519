@@ -259,7 +259,9 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				// after moreLoop, we get here:
 
 				// 1. if local has nothing, send full stream. stop.
-				if syncReq.TakerFileSize == 0 {
+				// BUT! we don't apply RLE0; in this case. So try
+				// without this for our zero1g test file.
+				if false { // syncReq.TakerFileSize == 0 {
 
 					err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0, syncReq)
 
