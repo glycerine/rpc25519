@@ -15,7 +15,11 @@ import (
 	rpc "github.com/glycerine/rpc25519"
 )
 
+var _ = fmt.Printf
+var _ = filepath.Join
+var _ = runtime.NumCPU
 var _ = time.Time{}
+var _ = strconv.Atoi
 
 // Giver wants to send a local file efficiently over
 // the wire to the Taker.
@@ -49,12 +53,16 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	_ = weAreRemoteGiver
 
 	var fileCh chan *File
+	_ = fileCh
 	var batchHalt *idem.Halter
+	_ = batchHalt
 
 	//var haltDirScan *idem.Halter
 	//var packOfLeavesCh chan *PackOfLeafPaths
 	var packOfFilesCh chan *PackOfFiles
+	_ = packOfFilesCh
 	var packOfDirsCh chan *PackOfDirs
+	_ = packOfDirsCh
 
 	defer func(reqDir *RequestToSyncDir) {
 		//vv("%v: (ckt '%v') defer running! finishing DirGiver; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
@@ -236,252 +244,261 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 				}
 
-			case OpRsync_TakerReadyForDirContents: // 29
-				//vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerReadyForDirContents", name, ckt.Name)
+				/*
+						// 29 does not appear to be in use any more!
+					case OpRsync_TakerReadyForDirContents: // 29
+						//vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerReadyForDirContents", name, ckt.Name)
 
-				// we (giver) now do individual file syncs
-				//
-				// (newly deleted files can be simply not
-				// transferred on the taker side to the new dir;
-				// or are detected at end by comparing existing
-				// to recieved).
+						// we (giver) now do individual file syncs
+						//
+						// (newly deleted files can be simply not
+						// transferred on the taker side to the new dir;
+						// or are detected at end by comparing existing
+						// to recieved).
 
-				// -> at end, giver -> DirSyncEndToTaker
+						// -> at end, giver -> DirSyncEndToTaker
 
-				// start a worker pool, like dirtaker, rather than
-				// goro per file.
+						// start a worker pool, like dirtaker, rather than
+						// goro per file.
 
-				if fileCh == nil {
-					// set up the worker pool
-					fileCh = make(chan *File) // do not buffer, giving work.
+						if fileCh == nil {
+							// set up the worker pool
+							fileCh = make(chan *File) // do not buffer, giving work.
 
-					batchHalt = idem.NewHalter()
-					defer batchHalt.ReqStop.Close()
+							batchHalt = idem.NewHalter()
+							defer batchHalt.ReqStop.Close()
 
-					workPoolSize := runtime.NumCPU()
-					for range workPoolSize {
-						goroHalt := idem.NewHalter()
-						batchHalt.AddChild(goroHalt)
+							workPoolSize := runtime.NumCPU()
+							for range workPoolSize {
+								goroHalt := idem.NewHalter()
+								batchHalt.AddChild(goroHalt)
 
-						go func(goroHalt *idem.Halter) {
-							defer func() {
-								r := recover()
-								if r != nil {
-									//vv("DirGiver file worker (OpRsync_TakerReadyForDirContents) sees panic: '%v'", r)
-									err := fmt.Errorf("DirGiver file worker (OpRsync_TakerReadyForDirContents) saw panic: '%v'", r)
-									goroHalt.ReqStop.CloseWithReason(err)
-									// also stop the whole batch on single err.
-									// At least for now, sane debugging.
-									batchHalt.ReqStop.CloseWithReason(err)
-								} else {
-									goroHalt.ReqStop.Close()
-								}
-								goroHalt.Done.Close()
-							}()
+								go func(goroHalt *idem.Halter) {
+									defer func() {
+										r := recover()
+										if r != nil {
+											//vv("DirGiver file worker (OpRsync_TakerReadyForDirContents) sees panic: '%v'", r)
+											err := fmt.Errorf("DirGiver file worker (OpRsync_TakerReadyForDirContents) saw panic: '%v'", r)
+											goroHalt.ReqStop.CloseWithReason(err)
+											// also stop the whole batch on single err.
+											// At least for now, sane debugging.
+											batchHalt.ReqStop.CloseWithReason(err)
+										} else {
+											goroHalt.ReqStop.Close()
+										}
+										goroHalt.Done.Close()
+									}()
 
-							var file *File
-							var t0 time.Time
-							for {
-								select {
-								case file = <-fileCh:
-									t0 = time.Now()
-								case <-goroHalt.ReqStop.Chan:
-									return
-								case <-batchHalt.ReqStop.Chan:
-									return
-								case <-done:
-									return
-								case <-done0:
-									return
-								}
+									var file *File
+									var t0 time.Time
+									for {
+										select {
+										case file = <-fileCh:
+											t0 = time.Now()
+										case <-goroHalt.ReqStop.Chan:
+											return
+										case <-batchHalt.ReqStop.Chan:
+											return
+										case <-done:
+											return
+										case <-done0:
+											return
+										}
 
-								frag1 := s.U.NewFragment()
-								giverPath := filepath.Join(reqDir.GiverDir,
-									file.Path)
-								sr := &RequestToSyncPath{
-									GiverPath:        giverPath,
-									TakerPath:        file.Path,
-									TakerTempDir:     reqDir.TopTakerDirTemp,
-									TopTakerDirFinal: reqDir.TopTakerDirFinal,
-									GiverDirAbs:      reqDir.GiverDir,
-									GiverFileSize:    file.Size,
-									GiverModTime:     file.ModTime,
-									GiverFileMode:    file.FileMode,
-									RemoteTakes:      true,
-									Done:             idem.NewIdemCloseChan(),
+										frag1 := s.U.NewFragment()
+										giverPath := filepath.Join(reqDir.GiverDir,
+											file.Path)
+										sr := &RequestToSyncPath{
+											GiverPath:        giverPath,
+											TakerPath:        file.Path,
+											TakerTempDir:     reqDir.TopTakerDirTemp,
+											TopTakerDirFinal: reqDir.TopTakerDirFinal,
+											GiverDirAbs:      reqDir.GiverDir,
+											GiverFileSize:    file.Size,
+											GiverModTime:     file.ModTime,
+											GiverFileMode:    file.FileMode,
+											RemoteTakes:      true,
+											Done:             idem.NewIdemCloseChan(),
 
-									GiverScanFlags:     file.ScanFlags,
-									GiverSymLinkTarget: file.SymLinkTarget,
-								}
-								bts, err := sr.MarshalMsg(nil)
-								panicOn(err)
-								frag1.Payload = bts
-								// basic single file transfer flow. giver sends 1.
-								frag1.FragOp = OpRsync_RequestRemoteToTake
-								frag1.FragSubject = giverPath
-								frag1.SetUserArg("structType", "RequestToSyncPath")
-								cktName := rsyncRemoteTakesString
+											GiverScanFlags:     file.ScanFlags,
+											GiverSymLinkTarget: file.SymLinkTarget,
+										}
+										bts, err := sr.MarshalMsg(nil)
+										panicOn(err)
+										frag1.Payload = bts
+										// basic single file transfer flow. giver sends 1.
+										frag1.FragOp = OpRsync_RequestRemoteToTake
+										frag1.FragSubject = giverPath
+										frag1.SetUserArg("structType", "RequestToSyncPath")
+										cktName := rsyncRemoteTakesString
 
-								ckt2, ctx2, err := ckt.NewCircuit(cktName, frag1)
-								panicOn(err)
-								defer func() {
-									r := recover()
-									if r != nil {
-										err := fmt.Errorf(
-											"panic recovered: '%v'", r)
-										//vv("error ckt2 close: '%v'", err)
-										ckt2.Close(err)
-										panic(r) // let above defer see errors
-									} else {
-										//vv("normal ckt2 close")
-										ckt2.Close(nil)
+										ckt2, ctx2, err := ckt.NewCircuit(cktName, frag1)
+										panicOn(err)
+										defer func() {
+											r := recover()
+											if r != nil {
+												err := fmt.Errorf(
+													"panic recovered: '%v'", r)
+												//vv("error ckt2 close: '%v'", err)
+												ckt2.Close(err)
+												panic(r) // let above defer see errors
+											} else {
+												//vv("normal ckt2 close")
+												ckt2.Close(nil)
+											}
+										}()
+
+										errg := s.Giver(ctx2, ckt2, myPeer, sr)
+										panicOn(errg)
+										batchHalt.ReqStop.TaskDone()
+
+										reqDir.SR.ReportProgress(
+											giverPath, file.Size, file.Size, t0)
 									}
-								}()
-
-								errg := s.Giver(ctx2, ckt2, myPeer, sr)
-								panicOn(errg)
-								batchHalt.ReqStop.TaskDone()
-
-								reqDir.SR.ReportProgress(
-									giverPath, file.Size, file.Size, t0)
+								}(goroHalt)
 							}
-						}(goroHalt)
-					}
-				} // end set up worker pool
+						} // end set up worker pool
 
-				var totalFileBytes int64
-			sendFiles:
-				for i := 0; ; i++ {
-					select {
-					case pof := <-packOfFilesCh:
-						totalFileBytes += pof.TotalFileBytes
-						batchHalt.ReqStop.TaskAdd(len(pof.Pack))
-
-						for _, file := range pof.Pack {
-							//vv("dirgiver: pof file = '%#v'", file)
+						var totalFileBytes int64
+					sendFiles:
+						for i := 0; ; i++ {
 							select {
-							case fileCh <- file:
-								// and do the next
-							case <-batchHalt.ReqStop.Chan:
-								break sendFiles
+							case pof := <-packOfFilesCh:
+								totalFileBytes += pof.TotalFileBytes
+								batchHalt.ReqStop.TaskAdd(len(pof.Pack))
+
+								for _, file := range pof.Pack {
+									//vv("dirgiver: pof file = '%#v'", file)
+									select {
+									case fileCh <- file:
+										// and do the next
+									case <-batchHalt.ReqStop.Chan:
+										break sendFiles
+									case <-done:
+										return
+									case <-done0:
+										return
+									case <-ckt.Halt.ReqStop.Chan:
+										return
+									}
+								} // end range over file in pof.Pack
+
+								if pof.IsLast {
+									//vv("dirgiver: pof IsLast true; break sendFiles")
+
+									// wait for all files to be given == batch to
+									// be closed (error or not); or done to fire.
+									batchHalt.ReqStop.TaskWait(done)
+									//vv("batchHalt.ReqStop.TaskWait back, err = '%v'", err)
+
+									//_ = batchHalt.ReqStop.WaitTilChildrenClosed(done)
+									//vv("batchHalt.ReqStop.WaitTilChildrenDone back.")
+									// do not panic, we might have seen closed(done).
+									//batchHalt.ReqStop.Close()
+
+									// shutdown the worker pool (if/when we convert to a pool).
+									batchHalt.StopTreeAndWaitTilDone(0, done, nil)
+									// not sure we would get another dir, but reset anyway
+									fileCh = nil
+									break sendFiles
+								}
+
 							case <-done:
+								//vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
 								return
 							case <-done0:
+								//vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
 								return
 							case <-ckt.Halt.ReqStop.Chan:
+								//vv("%v: (ckt '%v') (DirGiver) ckt halt requested.", name, ckt.Name)
 								return
 							}
-						} // end range over file in pof.Pack
+						} // end for i sendfiles
 
-						if pof.IsLast {
-							//vv("dirgiver: pof IsLast true; break sendFiles")
+						//vv("dirgiver: all batches of indiv file "+
+						// "sync are done. totalFileBytes = %v", totalFileBytes)
 
-							// wait for all files to be given == batch to
-							// be closed (error or not); or done to fire.
-							batchHalt.ReqStop.TaskWait(done)
-							//vv("batchHalt.ReqStop.TaskWait back, err = '%v'", err)
+						allFilesDone := s.U.NewFragment()
+						allFilesDone.FragOp = OpRsync_ToTakerDirContentsDone // 30
+						allFilesDone.SetUserArg("giverTotalFileBytes",
+							fmt.Sprintf("%v", totalFileBytes))
+						err3 := ckt.SendOneWay(allFilesDone, 0)
+						panicOn(err3)
+				*/
 
-							//_ = batchHalt.ReqStop.WaitTilChildrenClosed(done)
-							//vv("batchHalt.ReqStop.WaitTilChildrenDone back.")
-							// do not panic, we might have seen closed(done).
-							//batchHalt.ReqStop.Close()
+				/*
+						// 31 is not in use any more.
+					case OpRsync_ToGiverDirContentsDoneAck: // 31
+						// unused now, right? not sure!
 
-							// shutdown the worker pool (if/when we convert to a pool).
-							batchHalt.StopTreeAndWaitTilDone(0, done, nil)
-							// not sure we would get another dir, but reset anyway
-							fileCh = nil
-							break sendFiles
+						//vv("dirgiver sees OpRsync_ToGiverDirContentsDoneAck: on to phase 3, dirgiver sends directory modes")
+						// last (3rd phase): send each directory node,
+						// to set its permissions.
+
+					sendDirs:
+						for i := 0; ; i++ {
+							select {
+							case pod, ok := <-packOfDirsCh:
+								if !ok {
+									break sendDirs
+								}
+								podModes := s.U.NewFragment()
+								bts, err := pod.MarshalMsg(nil)
+								panicOn(err)
+								podModes.Payload = bts
+
+								podModes.FragOp = OpRsync_ToTakerAllTreeModes
+								podModes.SetUserArg("structType", "PackOfDirs")
+								err = ckt.SendOneWay(podModes, 0)
+								panicOn(err)
+								//vv("dirgiver sent pod (last? %v): '%#v'", pod.IsLast, pod)
+								if pod.IsLast {
+									break sendDirs
+								}
+
+							case <-done:
+								//vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
+								return
+							case <-done0:
+								//vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
+								return
+							case <-ckt.Halt.ReqStop.Chan:
+								//vv("%v: (ckt '%v') (DirGiver) ckt halt requested.", name, ckt.Name)
+								return
+							}
+						} // end for i sendDirs
+
+						// all 3 phases of fileystem sync done: send OpRsync_DirSyncEndToTaker,
+						// wait for OpRsync_ToGiverAllTreeModesDone
+
+						// meanwhile, record transfer stats.
+						giverTotalFileBytesStr, ok := frag0.GetUserArg(
+							"giverTotalFileBytes")
+						if ok {
+							giverTotalFileBytes, err := strconv.Atoi(
+								giverTotalFileBytesStr)
+							panicOn(err)
+							//vv("OpRsync_ToGiverDirContentsDoneAck: "+
+							//	"giverTotalFileBytes = %v", giverTotalFileBytes)
+							if reqDir != nil {
+								reqDir.GiverTotalFileBytes = int64(giverTotalFileBytes)
+								reqDir.SR.GiverFileSize = int64(giverTotalFileBytes)
+							}
 						}
+				*/
 
-					case <-done:
-						//vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
-						return
-					case <-done0:
-						//vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
-						return
-					case <-ckt.Halt.ReqStop.Chan:
-						//vv("%v: (ckt '%v') (DirGiver) ckt halt requested.", name, ckt.Name)
-						return
-					}
-				} // end for i sendfiles
-
-				//vv("dirgiver: all batches of indiv file "+
-				// "sync are done. totalFileBytes = %v", totalFileBytes)
-
-				allFilesDone := s.U.NewFragment()
-				allFilesDone.FragOp = OpRsync_ToTakerDirContentsDone
-				allFilesDone.SetUserArg("giverTotalFileBytes",
-					fmt.Sprintf("%v", totalFileBytes))
-				err3 := ckt.SendOneWay(allFilesDone, 0)
-				panicOn(err3)
-
-			case OpRsync_ToGiverDirContentsDoneAck:
-				// unused now, right? not sure!
-
-				//vv("dirgiver sees OpRsync_ToGiverDirContentsDoneAck: on to phase 3, dirgiver sends directory modes")
-				// last (3rd phase): send each directory node,
-				// to set its permissions.
-
-			sendDirs:
-				for i := 0; ; i++ {
-					select {
-					case pod, ok := <-packOfDirsCh:
-						if !ok {
-							break sendDirs
-						}
-						podModes := s.U.NewFragment()
-						bts, err := pod.MarshalMsg(nil)
+				/*
+						// is 33 still in use? nope.
+					case OpRsync_ToGiverAllTreeModesDone: // 33
+						//vv("dirgiver sees OpRsync_ToGiverAllTreeModesDone," +
+						//	" sending OpRsync_DirSyncEndToTaker")
+						dend := s.U.NewFragment()
+						dend.FragOp = OpRsync_DirSyncEndToTaker
+						err := ckt.SendOneWay(dend, 0)
 						panicOn(err)
-						podModes.Payload = bts
 
-						podModes.FragOp = OpRsync_ToTakerAllTreeModes
-						podModes.SetUserArg("structType", "PackOfDirs")
-						err = ckt.SendOneWay(podModes, 0)
-						panicOn(err)
-						//vv("dirgiver sent pod (last? %v): '%#v'", pod.IsLast, pod)
-						if pod.IsLast {
-							break sendDirs
-						}
-
-					case <-done:
-						//vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
-						return
-					case <-done0:
-						//vv("%v: (ckt '%v') (DirGiver) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx0))
-						return
-					case <-ckt.Halt.ReqStop.Chan:
-						//vv("%v: (ckt '%v') (DirGiver) ckt halt requested.", name, ckt.Name)
-						return
-					}
-				} // end for i sendDirs
-
-				// all 3 phases of fileystem sync done: send OpRsync_DirSyncEndToTaker,
-				// wait for OpRsync_ToGiverAllTreeModesDone
-
-				// meanwhile, record transfer stats.
-				giverTotalFileBytesStr, ok := frag0.GetUserArg(
-					"giverTotalFileBytes")
-				if ok {
-					giverTotalFileBytes, err := strconv.Atoi(
-						giverTotalFileBytesStr)
-					panicOn(err)
-					//vv("OpRsync_ToGiverDirContentsDoneAck: "+
-					//	"giverTotalFileBytes = %v", giverTotalFileBytes)
-					if reqDir != nil {
-						reqDir.GiverTotalFileBytes = int64(giverTotalFileBytes)
-						reqDir.SR.GiverFileSize = int64(giverTotalFileBytes)
-					}
-				}
-
-			case OpRsync_ToGiverAllTreeModesDone:
-				//vv("dirgiver sees OpRsync_ToGiverAllTreeModesDone," +
-				//	" sending OpRsync_DirSyncEndToTaker")
-				dend := s.U.NewFragment()
-				dend.FragOp = OpRsync_DirSyncEndToTaker
-				err := ckt.SendOneWay(dend, 0)
-				panicOn(err)
-
-				// wait for OpRsync_DirSyncEndAckFromTaker.
+						// wait for OpRsync_DirSyncEndAckFromTaker.
+				*/
 
 			case OpRsync_DirSyncEndAckFromTaker: // 25
 				//vv("%v: (ckt '%v') (DirGiver) sees OpRsync_DirSyncEndAckFromTaker", name, ckt.Name)

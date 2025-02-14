@@ -175,7 +175,11 @@ type SyncService struct {
 // directory sync flows:
 // (local taker creates tmp dir target) -> 21 TakerRequestsDirSyncBegin (remote giver notes tmp dir target) ->   (taker) 22 DirSyncBeginToTaker (enter flow below)
 //
-// (giver) -> 22 DirSyncBeginToTaker (remote taker creates tmp dir target) -> 23 DirSyncBeginReplyFromTaker -> 26/27/28 GiverSendsTopDirListing{|More|End} -> (giver) 29 TakerReadyForDirContents -> giver does individual file syncs (newly deleted files can be simply not transferred on the taker side to the new dir!) ... at end, giver does -> 30 (taker) ToTakerDirContentsDone -> 31 (giver) ToGiverDirContentsDoneAck -> 32 ToTakerAllTreeDirectoryModes (taker) replies -> 33 ToGiverAllTreeModesDone ... lastly giver does DirSyncEndToTaker -> DirSyncEndAckFromTaker -> FIN.
+// (giver) -> 22 DirSyncBeginToTaker (remote taker creates tmp dir target) -> 23 DirSyncBeginReplyFromTaker -> 26 GiverSendsTopDirListing -> (giver)
+
+//in use any of these?
+//29 TakerReadyForDirContents -> giver does individual file syncs (newly deleted files can be simply not transferred on the taker side to the new dir!) ... at end, giver does -> 30 (taker) ToTakerDirContentsDone -> 31 (giver) ToGiverDirContentsDoneAck -> 32 ToTakerAllTreeDirectoryModes (taker) replies -> 33 ToGiverAllTreeModesDone ... lastly giver does DirSyncEndToTaker -> DirSyncEndAckFromTaker -> FIN.
+
 //
 // Both 21 and 22 should put the circuit into "dir-sync" mode wherein
 // we ignore all the other FragOps unrelated to coordinating the top
@@ -238,7 +242,7 @@ const (
 	// If start, or reply: expect 23 back to establish write path; even
 	// if redudundant in case of reply (keep it simple at first).
 	// Later optimization: If reply to 21, they just gave us
-	// write path. go directly to sending 26/27/28.
+	// write path. go directly to sending 26.
 	OpRsync_DirSyncBeginToTaker        = 22 // to taker, please setup a top tempdir
 	OpRsync_DirSyncBeginReplyFromTaker = 23 // to giver, here is my top tempdir
 
@@ -249,10 +253,6 @@ const (
 	OpRsync_DirSyncEndAckFromTaker = 25 // to giver, ack end of dir sync
 
 	OpRsync_GiverSendsTopDirListing = 26 // to taker, here is my starting dir tree
-
-	// just use 26 and internal PackOfLeaf.IsDone, instead of:
-	//OpRsync_GiverSendsTopDirListingMore = 27 // to taker, here is more of 26
-	//OpRsync_GiverSendsTopDirListingEnd  = 28 // to taker, here is end of 26
 
 	OpRsync_TakerReadyForDirContents  = 29 // to giver, ready for individual file syncs
 	OpRsync_ToTakerDirContentsDone    = 30 // to taker, I've sent them all.

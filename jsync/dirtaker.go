@@ -24,6 +24,7 @@ import (
 )
 
 var _ = time.Time{}
+var _ = strconv.Atoi
 
 // just measure for now, no creating hard links etc.
 const useTempDir = false
@@ -454,77 +455,85 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					return nil
 				}
 
-			case OpRsync_GiverSendsPackOfFiles: // 36
+				/*
+						// 36 does not seem to be in use
+					case OpRsync_GiverSendsPackOfFiles: // 36
 
-				pof := &PackOfFiles{}
-				_, err := pof.UnmarshalMsg(frag.Payload)
-				panicOn(err)
-				bt.bread += len(frag.Payload)
+						pof := &PackOfFiles{}
+						_, err := pof.UnmarshalMsg(frag.Payload)
+						panicOn(err)
+						bt.bread += len(frag.Payload)
 
-				if pof.IsLast {
-					//vv("dirtaker sees last of pof PackOfFiles")
-				}
+						if pof.IsLast {
+							//vv("dirtaker sees last of pof PackOfFiles")
+						}
+				*/
 				// TODO: compare with on disk, only get updates we need
 				// if size and modtime mismatch.
+				/*
+						// 30 is not in use any more.
+					case OpRsync_ToTakerDirContentsDone: // 30
 
-			case OpRsync_ToTakerDirContentsDone:
+						// wait for all our file syncs to finish.
+						// How? I think the giver has to manage this.
+						// They started them.
 
-				// wait for all our file syncs to finish.
-				// How? I think the giver has to manage this.
-				// They started them.
+						giverTotalFileBytesStr, ok := frag.GetUserArg(
+							"giverTotalFileBytes")
+						if ok {
+							giverTotalFileBytes, err := strconv.Atoi(
+								giverTotalFileBytesStr)
+							panicOn(err)
+							//vv("OpRsync_ToTakerDirContentsDone: "+
+							//	"giverTotalFileBytes = %v", giverTotalFileBytes)
+							if reqDir != nil {
+								reqDir.GiverTotalFileBytes = int64(giverTotalFileBytes)
+								reqDir.SR.GiverFileSize = int64(giverTotalFileBytes)
+							}
+						}
 
-				giverTotalFileBytesStr, ok := frag.GetUserArg(
-					"giverTotalFileBytes")
-				if ok {
-					giverTotalFileBytes, err := strconv.Atoi(
-						giverTotalFileBytesStr)
-					panicOn(err)
-					//vv("OpRsync_ToTakerDirContentsDone: "+
-					//	"giverTotalFileBytes = %v", giverTotalFileBytes)
-					if reqDir != nil {
-						reqDir.GiverTotalFileBytes = int64(giverTotalFileBytes)
-						reqDir.SR.GiverFileSize = int64(giverTotalFileBytes)
-					}
-				}
+						ackAllFilesDone := s.U.NewFragment()
+						ackAllFilesDone.FragOp = OpRsync_ToGiverDirContentsDoneAck
+						ackAllFilesDone.SetUserArg("giverTotalFileBytes",
+							giverTotalFileBytesStr)
+						err := ckt.SendOneWay(ackAllFilesDone, 0)
+						panicOn(err)
 
-				ackAllFilesDone := s.U.NewFragment()
-				ackAllFilesDone.FragOp = OpRsync_ToGiverDirContentsDoneAck
-				ackAllFilesDone.SetUserArg("giverTotalFileBytes",
-					giverTotalFileBytesStr)
-				err := ckt.SendOneWay(ackAllFilesDone, 0)
-				panicOn(err)
+						// dirgiver should reply to OpRsync_ToGiverDirContentsDoneAck
+						// with OpRsync_ToTakerAllTreeModes
+				*/
 
-				// dirgiver should reply to OpRsync_ToGiverDirContentsDoneAck
-				// with OpRsync_ToTakerAllTreeModes
+				/*
+						// 32 not in use any more
+					case OpRsync_ToTakerAllTreeModes: // 32
+						// phase 3: set the mode of all dirs in the tree.
 
-			case OpRsync_ToTakerAllTreeModes:
-				// phase 3: set the mode of all dirs in the tree.
+						//vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
+						// Getting this means all the file content has been
+						// sent to me, and now we are setting the mode of dirs
+						// on the whole tree.
 
-				//vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
-				// Getting this means all the file content has been
-				// sent to me, and now we are setting the mode of dirs
-				// on the whole tree.
+						pod := &PackOfDirs{}
+						_, err := pod.UnmarshalMsg(frag.Payload)
+						panicOn(err)
+						bt.bread += len(frag.Payload)
 
-				pod := &PackOfDirs{}
-				_, err := pod.UnmarshalMsg(frag.Payload)
-				panicOn(err)
-				bt.bread += len(frag.Payload)
-
-				for _, dir := range pod.Pack {
-					fullpath := filepath.Join(reqDir.TopTakerDirTemp, dir.Path)
-					err = os.Chmod(fullpath, fs.FileMode(dir.FileMode))
-					panicOn(err)
-					//vv("dirtaker set mode on dir = '%v'", dir)
-				}
-				if pod.IsLast {
-					//vv("dirtaker sees pod.IsLast, sending " +
-					//	"OpRsync_ToGiverAllTreeModesDone")
-					modesDone := s.U.NewFragment()
-					modesDone.FragOp = OpRsync_ToGiverAllTreeModesDone
-					err = ckt.SendOneWay(modesDone, 0)
-					panicOn(err)
-				}
-			///////////////// end dir sync stuff
+						for _, dir := range pod.Pack {
+							fullpath := filepath.Join(reqDir.TopTakerDirTemp, dir.Path)
+							err = os.Chmod(fullpath, fs.FileMode(dir.FileMode))
+							panicOn(err)
+							//vv("dirtaker set mode on dir = '%v'", dir)
+						}
+						if pod.IsLast {
+							//vv("dirtaker sees pod.IsLast, sending " +
+							//	"OpRsync_ToGiverAllTreeModesDone")
+							modesDone := s.U.NewFragment()
+							modesDone.FragOp = OpRsync_ToGiverAllTreeModesDone
+							err = ckt.SendOneWay(modesDone, 0)
+							panicOn(err)
+						}
+					///////////////// end dir sync stuff
+				*/
 
 			case OpRsync_AckBackFIN_ToTaker:
 				//vv("%v: (ckt '%v') (DirTaker) sees OpRsync_AckBackFIN_ToTaker. returning.", name, ckt.Name)
