@@ -274,6 +274,7 @@ takerForSelectLoop:
 				beginAgain.Payload = bts
 				err = ckt.SendOneWay(beginAgain, 0)
 				panicOn(err)
+				bt.bsend += len(bts)
 
 				var takerChunks *Chunks
 				if parallelChunking {
@@ -336,6 +337,7 @@ takerForSelectLoop:
 				precis := &FilePrecis{}
 				_, err := precis.UnmarshalMsg(frag.Payload)
 				panicOn(err)
+				bt.bread += len(frag.Payload)
 
 				if localPathToWrite != localPathToRead {
 					//vv("hard linking 6 '%v' <- '%v'",localPathToRead, localPathToWrite)
@@ -555,6 +557,8 @@ takerForSelectLoop:
 				ackAll.FragSubject = frag.FragSubject
 				ackAll.FragOp = OpRsync_FileAllReadAckToGiver
 				ackAll.FragPart = int64(bt.bsend + bt.bread)
+				bt.bsend += ackAll.Msgsize()
+
 				err = ckt.SendOneWay(ackAll, 0)
 				panicOn(err)
 				frag = nil
@@ -610,8 +614,10 @@ takerForSelectLoop:
 					ackAll.FragSubject = frag.FragSubject
 					ackAll.FragOp = OpRsync_FileAllReadAckToGiver
 					ackAll.FragPart = int64(bt.bsend + bt.bread)
+					bt.bsend += ackAll.Msgsize()
 					err = ckt.SendOneWay(ackAll, 0)
 					panicOn(err)
+
 					frag = nil
 					continue // wait for FIN
 
@@ -681,19 +687,6 @@ takerForSelectLoop:
 					}
 				}
 
-				// This can't be right, can it? we just
-				// modified the file above, then this
-				// would discard localPathToWrite and link to read path??
-				//
-				// if localPathToWrite != localPathToRead {
-				// 	if fileExists(localPathToRead) {
-				// 		//vv("hard linking 5 '%v' <- '%v'",
-				// 			localPathToRead, localPathToWrite)
-				// 		// Link(old, new) creates new as a hard link to the old.
-				// 		panicOn(os.Link(localPathToRead, localPathToWrite))
-				// 	}
-				// }
-
 				ackAll := s.U.NewFragment()
 				ackAll.FragSubject = frag.FragSubject
 				ackAll.FragOp = OpRsync_FileAllReadAckToGiver
@@ -706,6 +699,7 @@ takerForSelectLoop:
 					"elap = %v\n (while mb=%v) => %v MB/sec. ; \n bytesWrit=%v;",
 					disk.T0, elap, mb, rate, disk.BytesWrit))
 
+				bt.bsend += ackAll.Msgsize()
 				err = ckt.SendOneWay(ackAll, 0)
 				frag = nil
 				ackAll = nil
@@ -820,6 +814,7 @@ takerForSelectLoop:
 						skip.Typ = rpc.CallPeerError
 						skip.Err = fmt.Sprintf("same host and dir detected! cowardly refusing to overwrite path with itself: path='%v'; on '%v' / Hostname '%v'", syncReq.TakerPath, syncReq.ToRemoteNetAddr, rpc.Hostname)
 						//vv(skip.Err)
+						bt.bsend += skip.Msgsize()
 						err = ckt.SendOneWay(skip, 0)
 						panicOn(err)
 
@@ -835,7 +830,7 @@ takerForSelectLoop:
 						//vv("size + modtime match. nothing to do, tell Giver.")
 
 						s.contentsMatch(syncReq, ckt, frag, mode,
-							localPathToRead, localPathToWrite)
+							localPathToRead, localPathToWrite, bt)
 						// all done with this file. still wait for FIN
 						// for consistency
 						s.ackBackFINToGiver(ckt, frag)
@@ -884,7 +879,7 @@ takerForSelectLoop:
 
 							// link in file, tell giver we are cool.
 							s.contentsMatch(syncReq, ckt, frag, mode,
-								localPathToRead, localPathToWrite)
+								localPathToRead, localPathToWrite, bt)
 							// do this after the hard link is made:
 							err = os.Chtimes(localPathToWrite, time.Time{},
 								syncReq.GiverModTime)
@@ -904,6 +899,8 @@ takerForSelectLoop:
 							check.FragOp = OpRsync_ToGiverSizeMatchButCheckHash
 							check.SetUserArg("takerFullFileBlake3sum", b3sum)
 							check.FragSubject = frag.FragSubject
+							bt.bsend += check.Msgsize()
+
 							err = ckt.SendOneWay(check, 0)
 							panicOn(err)
 
@@ -963,7 +960,7 @@ takerForSelectLoop:
 				pre.Payload = bts
 				err = ckt.SendOneWay(pre, 0)
 				panicOn(err)
-				bt.bsend += len(frag.Payload)
+				bt.bsend += len(bts)
 
 				if precis.FileSize > 0 {
 					// send local in Chunks, else we will get
@@ -1000,6 +997,8 @@ takerForSelectLoop:
 
 					fullReq := s.U.NewFragment()
 					fullReq.FragOp = OpRsync_ToGiverNeedFullFile2
+
+					bt.bsend += fullReq.Msgsize()
 					err := ckt.SendOneWay(fullReq, 0)
 					panicOn(err)
 					frag = nil
@@ -1040,7 +1039,7 @@ takerForSelectLoop:
 
 }
 
-func (s *SyncService) contentsMatch(syncReq *RequestToSyncPath, ckt *rpc.Circuit, frag *rpc.Fragment, mode uint32, localPathToRead, localPathToWrite string) {
+func (s *SyncService) contentsMatch(syncReq *RequestToSyncPath, ckt *rpc.Circuit, frag *rpc.Fragment, mode uint32, localPathToRead, localPathToWrite string, bt *byteTracker) {
 	// but do match mode too
 	if mode != 0 && syncReq.GiverFileMode != mode && syncReq.GiverFileMode != 0 {
 		err := os.Chmod(localPathToWrite, fs.FileMode(syncReq.GiverFileMode))
@@ -1057,6 +1056,7 @@ func (s *SyncService) contentsMatch(syncReq *RequestToSyncPath, ckt *rpc.Circuit
 	ack.FragSubject = frag.FragSubject
 	ack.FragOp = OpRsync_FileSizeModTimeMatch
 
+	bt.bsend += ack.Msgsize()
 	err := ckt.SendOneWay(ack, 0)
 	panicOn(err)
 }

@@ -220,6 +220,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				panicOn(err)
 				tmpReady.Payload = bts
 				err = ckt.SendOneWay(tmpReady, 0)
+				bt.bsend += len(bts)
 				panicOn(err)
 
 			case OpRsync_GiverSendsTopDirListing: // 26, all-one-pass version

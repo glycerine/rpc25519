@@ -117,6 +117,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				ack.FragOp = OpRsync_ToGiverSizeMatchButCheckHashAck
 				ack.SetUserArg("giverFullFileBlake3sum", b3sumGiver)
 				ack.SetUserArg("takerFullFileBlake3sum", b3sumTaker)
+				bt.bsend += ack.Msgsize()
 				err = ckt.SendOneWay(ack, 0)
 				panicOn(err)
 				continue
@@ -144,6 +145,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					notfound.Err = fmt.Sprintf("file access error "+
 						"for '%v': '%v' on host '%v'",
 						syncReq.GiverPath, err.Error(), rpc.Hostname)
+					bt.bsend += notfound.Msgsize()
 					err = ckt.SendOneWay(notfound, 0)
 					panicOn(err)
 					continue
@@ -159,6 +161,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					drat := s.U.NewFragment()
 					drat.FragOp = OpRsync_ToTakerDratGiverFileIsNowDir
 					drat.FragSubject = frag0.FragSubject
+					bt.bsend += drat.Msgsize()
 					err = ckt.SendOneWay(drat, 0)
 					panicOn(err)
 					// wait for ack back fin so we don't shut them
@@ -173,6 +176,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					ack.FragSubject = frag0.FragSubject
 					ack.FragOp = OpRsync_FileSizeModTimeMatch
 
+					bt.bsend += ack.Msgsize()
 					err = ckt.SendOneWay(ack, 0)
 					panicOn(err)
 				} else {
@@ -198,8 +202,8 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					ack.Payload = bts
 					//ack.Payload = frag0.Payload // send the syncReq back
 					ack.SetUserArg("giverFullFileBlake3sum", b3sumGiver)
+					bt.bsend += len(ack.Payload)
 					err = ckt.SendOneWay(ack, 0)
-					bt.bsend += len(frag0.Payload)
 					panicOn(err)
 				}
 				frag0 = nil
@@ -354,9 +358,6 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 		case fragerr := <-ckt.Errors:
 			//vv("%v: (ckt %v) (Giver) ckt.Errors sees fragerr:'%s'", name, ckt.Name, fragerr)
-			_ = fragerr
-			// 	err := ckt.SendOneWay(frag, 0)
-			// 	panicOn(err)
 			if syncReq != nil {
 				syncReq.Errs = fragerr.Err
 			}
@@ -480,6 +481,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 		updateMeta.Payload = bts
 		err = ckt.SendOneWay(updateMeta, 0)
 		panicOn(err)
+		bt.bsend += len(bts)
 		return nil
 	}
 
@@ -638,9 +640,9 @@ upload:
 		// must copy! b/c send will be overwritten on next i.
 		frag.Payload = append([]byte{}, send...)
 
+		bt.bsend += len(frag.Payload)
 		err := ckt.SendOneWay(frag, 0)
 		panicOn(err)
-		bt.bsend += len(frag.Payload)
 
 		if err1 == io.EOF {
 			break upload
@@ -693,6 +695,8 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 		//vv("path '%v' does not exist on Giver: tell Taker to delete their file.", syncReq.GiverPath)
 		rm := s.U.NewFragment()
 		rm.FragOp = OpRsync_TellTakerToDelete
+
+		bt.bsend += rm.Msgsize()
 		err := ckt.SendOneWay(rm, 0)
 		panicOn(err)
 		return false // all done
@@ -712,6 +716,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 		skip.Typ = rpc.CallPeerError
 		skip.Err = fmt.Sprintf("same host and dir detected! cowardly refusing to overwrite path with itself: '%v' on '%v' / Hostname '%v'", syncReq.GiverPath, syncReq.ToRemoteNetAddr, rpc.Hostname)
 		//vv(skip.Err)
+		bt.bsend += skip.Msgsize()
 		err = ckt.SendOneWay(skip, 0)
 		panicOn(err)
 		return false // all done
@@ -742,6 +747,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 				bts, err := precis.MarshalMsg(nil)
 				panicOn(err)
 				updateMeta.Payload = bts
+				bt.bsend += len(bts)
 				// returning false will ackBackFINToTaker
 				return false // nothing more needed
 			}
@@ -751,6 +757,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 		ack.FragSubject = frag.FragSubject
 		ack.FragOp = OpRsync_FileSizeModTimeMatch
 
+		bt.bsend += ack.Msgsize()
 		err = ckt.SendOneWay(ack, 0)
 		panicOn(err)
 		return false // all done with this file.

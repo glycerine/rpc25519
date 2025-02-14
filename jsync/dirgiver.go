@@ -166,6 +166,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				begin.Payload = bts
 				err = ckt.SendOneWay(begin, 0)
 				panicOn(err)
+				bt.bsend += len(bts)
 
 			case OpRsync_DirSyncBeginReplyFromTaker: // new one-pass version 23
 
@@ -231,6 +232,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						fragPOF.SetUserArg("structType", "PackOfFiles")
 						err = ckt.SendOneWay(fragPOF, 0)
 						panicOn(err)
+						bt.bsend += len(bts)
+
 						if pof.IsLast {
 							//vv("dirgiver: pof IsLast true; end of all phases single pass")
 							break sendOnePass
@@ -254,8 +257,6 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 		case fragerr := <-ckt.Errors:
 			//vv("%v: (ckt %v) (DirGiver) ckt.Errors sees fragerr:'%s'", name, ckt.Name, fragerr)
 			_ = fragerr
-			// 	err := ckt.SendOneWay(frag, 0)
-			// 	panicOn(err)
 			if reqDir != nil {
 				reqDir.SR.Errs = fragerr.Err
 			}
@@ -300,8 +301,10 @@ func (s *SyncService) convertedDirToFile_giveFile(
 	// send back the dirReq for detail matching.
 	tofile.Payload = frag0.Payload
 	tofile.SetUserArg("structType", "RequestToSyncDir")
+	bt.bsend += len(tofile.Payload)
 	err := ckt.SendOneWay(tofile, 0)
 	panicOn(err)
+
 	//vv("Q: is this the right takerPath to pass to giverSendsWholefile? reqDir.TopTakerDirFinal = '%v'", reqDir.TopTakerDirFinal)
 	err = s.giverSendsWholeFile(path, reqDir.TopTakerDirFinal, ckt, bt, frag0, reqDir.SR)
 	panicOn(err)
