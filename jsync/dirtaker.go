@@ -403,8 +403,16 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							panicOn(err)
 						}
 					}
+					// NOTICE: we actually return from DirTaker now(!)
+					// this is the end of
+					// OpRsync_GiverSendsTopDirListing: // 26,
+					// the all-one-pass version.
 					return nil
-				}
+				} // end if pof.IsLast
+
+				// INVAR: we have not seen pof.IsLast
+				// DirGiver will send us many pof, dirgiver.go:229.
+
 				///////////////// end dir sync stuff
 
 			case OpRsync_AckBackFIN_ToTaker:

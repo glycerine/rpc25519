@@ -558,7 +558,7 @@ func (s *SyncService) giverSendsWholeFile(
 
 ) error {
 
-	///vv("giverSendsWholeFile(giverPath='%v', takerPath='%v')", giverPath, takerPath)
+	vv("giverSendsWholeFile(giverPath='%v', takerPath='%v')", giverPath, takerPath)
 	t0 := time.Now()
 
 	if !fileExists(giverPath) {
