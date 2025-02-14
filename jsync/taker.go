@@ -21,6 +21,8 @@ import (
 	rpc "github.com/glycerine/rpc25519"
 )
 
+const useRLE0 = true
+
 var ErrNeedDirTaker = fmt.Errorf("DirTaker needed: giver has directory where taker has file")
 
 // Taker handes receiving updated data ("taking it")
@@ -989,14 +991,13 @@ takerForSelectLoop:
 				// did not have it; but now we
 				// still do the chunking to take advantage
 				// of RLE0 compresion, which can be substantial.
-				if false { // !existsFile {
+				if !existsFile && !useRLE0 {
 					// not present
 
 					//vv("not present: must request the "+
 					//	"full file for syncReq.TakerPath='%v'",
 					//	syncReq.TakerPath)
 
-					//path := syncReq.Path
 					fullReq := s.U.NewFragment()
 					fullReq.FragOp = OpRsync_ToGiverNeedFullFile2
 					err := ckt.SendOneWay(fullReq, 0)

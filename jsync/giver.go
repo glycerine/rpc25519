@@ -261,7 +261,8 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				// 1. if local has nothing, send full stream. stop.
 				// BUT! we don't apply RLE0; in this case. So try
 				// without this for our zero1g test file.
-				if false { // syncReq.TakerFileSize == 0 {
+				// Yes: using RLE0 saves a ton of time transporting zeros.
+				if !useRLE0 && syncReq.TakerFileSize == 0 {
 
 					err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0, syncReq)
 
@@ -343,6 +344,11 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				continue
 
 			case OpRsync_ToGiverNeedFullFile2:
+				// We no long use this (assuming useRLE0 = true).
+				// We chunk all files now to get the RLE0 benefits.
+				// Keep it around since it may be useful
+				// in the future.
+
 				// this is the upload streaming protocol. We send the data.
 				//vv("giver sees OpRsync_ToGiverNeedFullFile2")
 
