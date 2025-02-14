@@ -79,10 +79,6 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		localPath = syncReq.GiverPath
 	}
 
-	//var localChunks *Chunks
-
-	//var goalPrecis *FilePrecis
-	//var remoteWantsUpdate *Chunks
 	var light *LightRequest
 
 	for {
@@ -215,11 +211,8 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 			case OpRsync_RequestRemoteToGive: // FragOp 12
 				// This is the pull entry point.
-				// 2nd implemented: pull is newer.
-
-				// we, the giver, are the "remote" in this case.
+				// We, the giver, are the "remote" in this case.
 				// The other side, the taker, will be the "local".
-				//
 
 				// Update: our later addition, for massive efficiency, of
 				//
@@ -252,7 +245,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					panicOn(err0)
 
 				} // end if syncReq.MoreChunksComming
-				//vv("no more chunks to wait for...") // not seen.
+				//vv("no more chunks to wait for...")
 
 				// after moreLoop, we get here:
 
@@ -733,7 +726,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 		// but do match mode too... advanced! leave out for now.
 		//
 		// Rationale: I'm just not sure we want the expense of doing a full file
-		// scale just because the mode bits disagree.
+		// scan just because the mode bits disagree.
 		//
 		if false { // too advanced for now. start simpler.
 			if syncReq.TakerFileMode != mode {

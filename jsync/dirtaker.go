@@ -410,7 +410,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					return nil
 				} // end if pof.IsLast
 
-				// INVAR: we have not seen pof.IsLast
+				// INVAR: we have not encountered pof.IsLast
 				// DirGiver will send us many pof, dirgiver.go:229.
 
 				///////////////// end dir sync stuff
