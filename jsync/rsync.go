@@ -9,8 +9,8 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"os/user"
-	"syscall"
+	//"os/user"
+	//"syscall"
 	"time"
 
 	"github.com/glycerine/blake3"
@@ -886,21 +886,13 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 	precis.FileMode = uint32(fi.Mode())
 	precis.ModTime = modTime
 
-	if stat_t, ok := fi.Sys().(*syscall.Stat_t); ok {
-		uid := stat_t.Uid
-		precis.FileOwnerID = uid
-		gid := stat_t.Gid
-		precis.FileGroupID = gid
+	fileOwner, uid := getFileOwnerAndID(fi)
+	fileGroup, gid := getFileGroupAndID(fi)
 
-		owner, err := user.LookupId(fmt.Sprint(uid))
-		if err == nil && owner != nil {
-			precis.FileOwner = owner.Username
-		}
-		group, err := user.LookupGroupId(fmt.Sprint(gid))
-		if err == nil && group != nil {
-			precis.FileGroup = group.Name
-		}
-	}
+	precis.FileOwnerID = uid
+	precis.FileGroupID = gid
+	precis.FileOwner = fileOwner
+	precis.FileGroup = fileGroup
 
 	h := blake3.New(64, nil)
 
@@ -1075,21 +1067,13 @@ func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 	precis.FileMode = uint32(fi.Mode())
 	precis.ModTime = modTime
 
-	if stat_t, ok := fi.Sys().(*syscall.Stat_t); ok {
-		uid := stat_t.Uid
-		precis.FileOwnerID = uid
-		gid := stat_t.Gid
-		precis.FileGroupID = gid
+	fileOwner, uid := getFileOwnerAndID(fi)
+	fileGroup, gid := getFileGroupAndID(fi)
 
-		owner, err := user.LookupId(fmt.Sprint(uid))
-		if err == nil && owner != nil {
-			precis.FileOwner = owner.Username
-		}
-		group, err := user.LookupGroupId(fmt.Sprint(gid))
-		if err == nil && group != nil {
-			precis.FileGroup = group.Name
-		}
-	}
+	precis.FileOwnerID = uid
+	precis.FileGroupID = gid
+	precis.FileOwner = fileOwner
+	precis.FileGroup = fileGroup
 
 	precis.FileCry, err = hash.Blake3OfFile(path)
 	if err != nil {
