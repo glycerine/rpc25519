@@ -5,9 +5,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"os/user"
-	//"path/filepath"
-	"syscall"
 	"time"
 
 	cryrand "crypto/rand"
@@ -94,32 +91,6 @@ func copyFileDestSrc(topath, frompath string) (int64, error) {
 	defer dest.Close()
 
 	return io.Copy(dest, src)
-}
-
-// returns empty string on error.
-func getFileOwnerName(filepath string) string {
-	// Get file info
-	fileInfo, err := os.Stat(filepath)
-	if err != nil {
-		return "" //, err
-	}
-
-	// Get system-specific file info
-	stat := fileInfo.Sys()
-	if stat == nil {
-		return "" //, fmt.Errorf("no system-specific file info available")
-	}
-
-	// Get owner UID
-	uid := stat.(*syscall.Stat_t).Uid
-
-	// Look up user by UID
-	owner, err := user.LookupId(fmt.Sprint(uid))
-	if err != nil {
-		return "" //, err
-	}
-
-	return owner.Username
 }
 
 func truncateFileToZero(path string) error {
