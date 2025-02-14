@@ -1,6 +1,7 @@
 package jsync
 
 import (
+	"os"
 	"time"
 )
 
