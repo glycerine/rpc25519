@@ -500,14 +500,16 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						// wait for OpRsync_DirSyncEndAckFromTaker.
 				*/
 
-			case OpRsync_DirSyncEndAckFromTaker: // 25
-				//vv("%v: (ckt '%v') (DirGiver) sees OpRsync_DirSyncEndAckFromTaker", name, ckt.Name)
-				// shut down all dir sync stuff, send FIN.
+				/*
+						// 25 is not in use any more.
+					case OpRsync_DirSyncEndAckFromTaker: // 25
+						//vv("%v: (ckt '%v') (DirGiver) sees OpRsync_DirSyncEndAckFromTaker", name, ckt.Name)
+						// shut down all dir sync stuff, send FIN.
 
-				s.ackBackFINToTaker(ckt, frag0)
-				frag0 = nil // GC early.
-				// wait for FIN
-
+						s.ackBackFINToTaker(ckt, frag0)
+						frag0 = nil // GC early.
+						// wait for FIN
+				*/
 				///////////// end dir sync stuff
 
 			case OpRsync_AckBackFIN_ToGiver:

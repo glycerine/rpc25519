@@ -175,10 +175,7 @@ type SyncService struct {
 // directory sync flows:
 // (local taker creates tmp dir target) -> 21 TakerRequestsDirSyncBegin (remote giver notes tmp dir target) ->   (taker) 22 DirSyncBeginToTaker (enter flow below)
 //
-// (giver) -> 22 DirSyncBeginToTaker (remote taker creates tmp dir target) -> 23 DirSyncBeginReplyFromTaker -> 26 GiverSendsTopDirListing -> (giver)
-
-//in use any of these?
-//29 TakerReadyForDirContents -> giver does individual file syncs (newly deleted files can be simply not transferred on the taker side to the new dir!) ... at end, giver does -> 30 (taker) ToTakerDirContentsDone -> 31 (giver) ToGiverDirContentsDoneAck -> 32 ToTakerAllTreeDirectoryModes (taker) replies -> 33 ToGiverAllTreeModesDone ... lastly giver does DirSyncEndToTaker -> DirSyncEndAckFromTaker -> FIN.
+// (giver) -> 22 DirSyncBeginToTaker (remote taker creates tmp dir target) -> 23 DirSyncBeginReplyFromTaker -> 26 GiverSendsTopDirListing -> (giver) 12/17/18
 
 //
 // Both 21 and 22 should put the circuit into "dir-sync" mode wherein
@@ -190,7 +187,7 @@ type SyncService struct {
 // new updated flow for dir sync from (giver):
 // (giver) -> 22 DirSyncBeginToTaker (remote taker creates tmp dir target) -> 23 DirSyncBeginReplyFromTaker (dirgiver does one-pass-version) -> 26 GiverSendsTopDirListing (taker) starts indiv file sysncs for those that need it...
 
-// and we could probably leav out 22 and just have
+// and we could probably leave out 22 and just have
 // (giver: dirgiver does one-pass-version of 23) -> 26 GiverSendsTopDirListing (taker) starts indiv file sysncs for those that need it...
 
 // The only tricky/unique thing for directories, is that
@@ -250,7 +247,7 @@ const (
 	//OpRsync_DirSyncEndToTaker = 24 // to taker, end of dir sync
 
 	// giver can shut down all dir sync stuff.
-	OpRsync_DirSyncEndAckFromTaker = 25 // to giver, ack end of dir sync
+	//OpRsync_DirSyncEndAckFromTaker = 25 // to giver, ack end of dir sync
 
 	OpRsync_GiverSendsTopDirListing = 26 // to taker, here is my starting dir tree
 
@@ -312,7 +309,7 @@ func AliasRsyncOps() {
 	rpc.FragOpRegister(OpRsync_DirSyncBeginToTaker, "OpRsync_DirSyncBeginToTaker")
 	rpc.FragOpRegister(OpRsync_DirSyncBeginReplyFromTaker, "OpRsync_DirSyncBeginReplyFromTaker")
 	//rpc.FragOpRegister(OpRsync_DirSyncEndToTaker, "OpRsync_DirSyncEndToTaker")
-	rpc.FragOpRegister(OpRsync_DirSyncEndAckFromTaker, "OpRsync_DirSyncEndAckFromTaker")
+	//rpc.FragOpRegister(OpRsync_DirSyncEndAckFromTaker, "OpRsync_DirSyncEndAckFromTaker")
 
 	rpc.FragOpRegister(OpRsync_GiverSendsTopDirListing, "OpRsync_GiverSendsTopDirListing")
 	//rpc.FragOpRegister(OpRsync_TakerReadyForDirContents, "OpRsync_TakerReadyForDirContents")
