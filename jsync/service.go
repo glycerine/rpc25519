@@ -247,7 +247,7 @@ const (
 	OpRsync_DirSyncBeginReplyFromTaker = 23 // to giver, here is my top tempdir
 
 	// taker can rename the temp top dir/replace any old top dir.
-	OpRsync_DirSyncEndToTaker = 24 // to taker, end of dir sync
+	//OpRsync_DirSyncEndToTaker = 24 // to taker, end of dir sync
 
 	// giver can shut down all dir sync stuff.
 	OpRsync_DirSyncEndAckFromTaker = 25 // to giver, ack end of dir sync
@@ -311,7 +311,7 @@ func AliasRsyncOps() {
 
 	rpc.FragOpRegister(OpRsync_DirSyncBeginToTaker, "OpRsync_DirSyncBeginToTaker")
 	rpc.FragOpRegister(OpRsync_DirSyncBeginReplyFromTaker, "OpRsync_DirSyncBeginReplyFromTaker")
-	rpc.FragOpRegister(OpRsync_DirSyncEndToTaker, "OpRsync_DirSyncEndToTaker")
+	//rpc.FragOpRegister(OpRsync_DirSyncEndToTaker, "OpRsync_DirSyncEndToTaker")
 	rpc.FragOpRegister(OpRsync_DirSyncEndAckFromTaker, "OpRsync_DirSyncEndAckFromTaker")
 
 	rpc.FragOpRegister(OpRsync_GiverSendsTopDirListing, "OpRsync_GiverSendsTopDirListing")

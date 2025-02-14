@@ -222,54 +222,57 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				err = ckt.SendOneWay(tmpReady, 0)
 				panicOn(err)
 
-			case OpRsync_DirSyncEndToTaker: // 24, end of dir sync. (new fast flow does not use? not seen?)
-				//vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncEndToTaker", name, ckt.Name)
-				// we (taker) can rename the temp top dir/replace any old top dir.
+				/*
+						// 24 not in use any more.
+					case OpRsync_DirSyncEndToTaker: // 24, end of dir sync. (new fast flow does not use? not seen?)
+						//vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncEndToTaker", name, ckt.Name)
+						// we (taker) can rename the temp top dir/replace any old top dir.
 
-				tmp := reqDir.TopTakerDirTemp
-				// get rid of any trailing '/' slash, so we can tack on .oldvers
-				final := filepath.Clean(reqDir.TopTakerDirFinal)
-				//vv("dirtaker would rename completed dir into place!: %v -> %v", tmp, final)
-				var err error
-				if useTempDir {
-					rndsuf := rpc.NewCryRandSuffix()
-					old := ""
-					if dirExists(final) {
-						// move the old dir out of the way.
-						old = final + ".old." + rndsuf
-						//vv("dirtaker backup previous dir '%v' -> '%v'", final, old)
-						err := os.Rename(final, old)
+						tmp := reqDir.TopTakerDirTemp
+						// get rid of any trailing '/' slash, so we can tack on .oldvers
+						final := filepath.Clean(reqDir.TopTakerDirFinal)
+						//vv("dirtaker would rename completed dir into place!: %v -> %v", tmp, final)
+						var err error
+						if useTempDir {
+							rndsuf := rpc.NewCryRandSuffix()
+							old := ""
+							if dirExists(final) {
+								// move the old dir out of the way.
+								old = final + ".old." + rndsuf
+								//vv("dirtaker backup previous dir '%v' -> '%v'", final, old)
+								err := os.Rename(final, old)
+								panicOn(err)
+							}
+							// put the new directory in its place.
+							err = os.Rename(tmp, final)
+							panicOn(err)
+							if old != "" {
+								// We have hard linked all the unchanged files into the new.
+								// Now delete the old version (hard link count -> 1).
+								//vv("TODO debug actually remove old dir: '%v'", old)
+								panicOn(os.RemoveAll(old))
+							}
+							// end useTempDir
+						} else {
+							// useTempDir = false.
+							// not writing to tmp dir. just clean it up, if it got made.
+							os.Remove(tmp)
+						}
+
+						// and set the mod time
+						if !reqDir.GiverDirModTime.IsZero() {
+							//vv("setting final dir mod time: '%v'", reqDir.GiverDirModTime)
+							err = os.Chtimes(final, time.Time{}, reqDir.GiverDirModTime)
+							panicOn(err)
+						}
+
+						// reply with OpRsync_DirSyncEndAckFromTaker, wait for FIN.
+
+						alldone := s.U.NewFragment()
+						alldone.FragOp = OpRsync_DirSyncEndAckFromTaker
+						err = ckt.SendOneWay(alldone, 0)
 						panicOn(err)
-					}
-					// put the new directory in its place.
-					err = os.Rename(tmp, final)
-					panicOn(err)
-					if old != "" {
-						// We have hard linked all the unchanged files into the new.
-						// Now delete the old version (hard link count -> 1).
-						//vv("TODO debug actually remove old dir: '%v'", old)
-						panicOn(os.RemoveAll(old))
-					}
-					// end useTempDir
-				} else {
-					// useTempDir = false.
-					// not writing to tmp dir. just clean it up, if it got made.
-					os.Remove(tmp)
-				}
-
-				// and set the mod time
-				if !reqDir.GiverDirModTime.IsZero() {
-					//vv("setting final dir mod time: '%v'", reqDir.GiverDirModTime)
-					err = os.Chtimes(final, time.Time{}, reqDir.GiverDirModTime)
-					panicOn(err)
-				}
-
-				// reply with OpRsync_DirSyncEndAckFromTaker, wait for FIN.
-
-				alldone := s.U.NewFragment()
-				alldone.FragOp = OpRsync_DirSyncEndAckFromTaker
-				err = ckt.SendOneWay(alldone, 0)
-				panicOn(err)
+				*/
 
 			case OpRsync_GiverSendsTopDirListing: // 26, all-one-pass version
 				//vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
