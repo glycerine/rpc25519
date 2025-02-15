@@ -502,10 +502,10 @@ takerForSelectLoop:
 						h.Write(chunk.Data)
 					}
 
-					//if time.Since(lastUpdate) > time.Second {
-					//	lastUpdate = time.Now()
-					s.reportProgress(syncReq, syncReq.TakerPath, syncReq.GiverFileSize, int64(chunk.Endx), t0)
-					//}
+					if time.Since(lastUpdate) > time.Millisecond*100 {
+						lastUpdate = time.Now()
+						s.reportProgress(syncReq, syncReq.TakerPath, syncReq.GiverFileSize, int64(chunk.Endx), t0)
+					}
 				} // end for chunk over chunks.Chunks
 				// chunk goes out of scope, so chunk.Data should get GC-ed.
 				chunks = nil // GC early.
