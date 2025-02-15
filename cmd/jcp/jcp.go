@@ -376,6 +376,8 @@ func main() {
 	var curTransfer *progress.TransferStats
 	var part int64
 	hadReport := false
+	eraseAndCR := append([]byte{0x1b}, []byte("[0K\r")...) // "\033[0K\r"
+
 jobDone:
 	for {
 		select {
@@ -395,8 +397,8 @@ jobDone:
 				if str != "" {
 					//fmt.Println(str) // debug! why truncation?
 					//fmt.Printf("prog = '%#v'\n", prog)
-					fmt.Print(str) // avoid having % interpretted.
-					//os.Stdout.Write([]byte(str))
+					//fmt.Print(str) // avoid having % interpretted.
+					os.Stdout.Write(append([]byte(str), eraseAndCR...))
 					hadReport = true
 				}
 			}
