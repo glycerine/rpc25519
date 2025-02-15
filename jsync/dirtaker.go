@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	//"sync"
+	"sync/atomic"
 	"time"
 
 	//"golang.org/x/sys/unix"
@@ -281,7 +281,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 									s.takeOneFile(f, reqDir, needUpdate, takerCatalog, useTempDir)
 									haltIndivFileCheck.ReqStop.TaskDone()
 									if reqDir != nil && reqDir.SR != nil {
-										reqDir.SR.GiverFileSize += f.Size
+										atomic.AddInt64(&reqDir.SR.GiverFileSize,
+											f.Size)
 									}
 								case <-goroHalt.ReqStop.Chan:
 									return
