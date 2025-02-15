@@ -372,13 +372,25 @@ func main() {
 	//vv("jcp about to send on reqs chan")
 	reqs <- req
 	//vv("jcp sent on reqs: requested to rsync to '%v' from %v:%v", takerPath, dest, giverPath)
+	var curFile string
+	var curTransfer *progress.TransferStats
+	var part int64
 jobDone:
 	for {
 		select {
 		case prog := <-req.UpdateProgress:
 
 			if !jcfg.Quiet {
-				fmt.Printf("progress: %30v %8v %8v\n", prog.Path, prog.Latest, prog.Total)
+				if prog.Path != curFile {
+					fmt.Println()
+					curFile = prog.Path
+					part = 0
+					curTransfer = progress.NewTransferStats(prog.Total, prog.Path)
+				}
+				part++
+				//fmt.Printf("progress: %30v %8v %8v\n", prog.Path, prog.Latest, prog.Total)
+				str := curTransfer.ProgressString(prog.Latest, part)
+				fmt.Printf(str)
 			}
 			continue
 		case <-req.Done.Chan:
