@@ -124,7 +124,7 @@ func (s *TransferStats) ProgressString(current int64, part int64) string {
 	}
 
 	now := time.Now()
-	if now.Sub(s.lastDisplay) < s.minRefreshInterval {
+	if now.Sub(s.lastDisplay) < s.minRefreshInterval && len(s.last) > 0 {
 		return s.last
 	}
 	s.lastDisplay = now
