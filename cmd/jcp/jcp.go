@@ -416,7 +416,7 @@ jobDone:
 		_ = tot
 		//vv("total bytes (read or sent): %v", formatUnder(int(tot)))
 		vv("giver total file sizes: %v", formatUnder(int(req.GiverFileSize)))
-		vv("bytes read = %v ; bytes sent = %v (out of %v). (%0.1f%%) ratio: %0.1f speedup", formatUnder(int(req.BytesRead)), formatUnder(int(req.BytesSent)), formatUnder(int(req.GiverFileSize)), float64(tot)/float64(req.GiverFileSize)*100, float64(req.GiverFileSize)/float64(tot))
+		vv("bytes read = %v ; bytes sent = %v (out of %v). (%0.1f%%) ratio: %s speedup", formatUnder(int(req.BytesRead)), formatUnder(int(req.BytesSent)), formatUnder(int(req.GiverFileSize)), float64(tot)/float64(req.GiverFileSize)*100, formatUnderFloat64(float64(req.GiverFileSize)/float64(tot)))
 	default:
 		vv("ARG! jcp rsync done but jcp Checksums disagree!! for path %v': req = '%#v'", takerPath, req)
 	}
@@ -442,6 +442,19 @@ func formatUnder(n int) string {
 	}
 
 	return string(result)
+}
+
+func formatUnderFloat64(f float64) string {
+
+	n := int(f)
+	s := formatUnder(n)
+
+	var decimal string
+	dec := f - float64(n)
+	if dec > 0 {
+		decimal = fmt.Sprintf("%.1f", dec)
+	}
+	return s + decimal
 }
 
 func (jcfg *JcopyConfig) walktest() (
