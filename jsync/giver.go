@@ -783,8 +783,8 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 	syncReq *RequestToSyncPath,
 ) (err error) {
 
-	// called by both taker and giver.
-	vv("top of packAndSendChunksLimitedSize; n = %v", len(heavyPlan.Chunks))
+	// called by both taker and giver. But only seen on dir taker.
+	//vv("top of packAndSendChunksLimitedSize; n = %v", len(heavyPlan.Chunks))
 	//defer vv("end of packAndSendChunksLimitedSize")
 
 	// pack up to max bytes of Chunks into a message.
