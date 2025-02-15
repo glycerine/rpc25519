@@ -166,11 +166,14 @@ func (s *TransferStats) ProgressString(current int64, part int64) string {
 
 	// Format the status line
 	//
+	fbt := formatBytesTotal(float64(current))
+	fmt.Printf("\nfbt = '%v'\n", fbt)
+	fmt.Printf("\nbar.String() = '%v'\n", bar.String())
 	status := fmt.Sprintf("\r%s %s %3.0f%%  %6s  %7s  %s ETA",
 		fn,
 		bar.String(),
 		percentage*100,
-		formatBytesTotal(float64(current)),
+		fbt,
 		speed,
 		formatDuration(eta))
 
@@ -205,7 +208,7 @@ func formatBytesTotal(value float64) (s string) {
 	units := []string{"B", "KB", "MB", "GB", "TB"}
 	unitIndex := 0
 
-	fmt.Printf("formatBytesTotal debug: starting value = '%v'\n", value)
+	//fmt.Printf("formatBytesTotal debug: starting value = '%v'\n", value)
 
 	for value >= 1024 && unitIndex < len(units)-1 {
 		value /= 1024
@@ -213,7 +216,7 @@ func formatBytesTotal(value float64) (s string) {
 	}
 	s = fmt.Sprintf("%5.1f %s", value, units[unitIndex])
 
-	fmt.Printf("formatBytesTotal debug: ending value = '%v'; unitIndex = %v; s = '%v'\n", value, unitIndex, s)
+	//fmt.Printf("formatBytesTotal debug: ending value = '%v'; unitIndex = %v; s = '%v'\n", value, unitIndex, s)
 	return
 }
 
