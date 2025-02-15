@@ -167,16 +167,25 @@ func main() {
 		reqs := make(chan *rsync.RequestToSyncPath)
 		fmt.Printf("starting rsync_server loop...\n")
 		for {
-			lpb, ctx, canc, err := rsync.RunRsyncService(cfg, srv, "rsync_server", false, reqs)
+			func() {
+				defer func() {
+					r := recover()
+					if r != nil {
+						fmt.Printf("rsync_server loop ignoring panic: '%v'\n", r)
+					}
+				}()
 
-			panicOn(err)
-			select {
-			case <-lpb.Halt.Done.Chan:
-				lpb.Close()
-				canc()
-				_ = ctx
-				//vv("rsync.RunRsyncService peer shutdown. starting new instance...")
-			}
+				lpb, ctx, canc, err := rsync.RunRsyncService(cfg, srv, "rsync_server", false, reqs)
+
+				panicOn(err)
+				select {
+				case <-lpb.Halt.Done.Chan:
+					lpb.Close()
+					canc()
+					_ = ctx
+					//vv("rsync.RunRsyncService peer shutdown. starting new instance...")
+				}
+			}()
 		}
 		return
 	}
