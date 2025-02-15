@@ -394,7 +394,7 @@ jobDone:
 					hadReport = false
 					curFile = prog.Path
 					part = 0
-					curTransfer = progress.NewTransferStats(prog.Total, prog.Path)
+					curTransfer = progress.NewTransferStats(prog.Total, filepath.Base(prog.Path))
 				}
 				part++
 				str := curTransfer.ProgressString(prog.Latest, part)
