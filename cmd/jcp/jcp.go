@@ -391,6 +391,7 @@ jobDone:
 					if hadReport {
 						fmt.Println()
 					}
+					hadReport = false
 					curFile = prog.Path
 					part = 0
 					curTransfer = progress.NewTransferStats(prog.Total, prog.Path)
@@ -403,8 +404,6 @@ jobDone:
 					// seems happier inside emacs, not suddenly truncated:
 					os.Stdout.Write(append([]byte(str), eraseAndCR...))
 					hadReport = true
-				} else {
-					hadReport = false
 				}
 			}
 			continue
