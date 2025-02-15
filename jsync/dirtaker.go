@@ -790,6 +790,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 						bt,
 						syncReq.Chunks.Path,
 						syncReq,
+						//precis,
 					)
 					if err != nil {
 						alwaysPrintf("error back from packAndSendChunksLimitedSize()"+

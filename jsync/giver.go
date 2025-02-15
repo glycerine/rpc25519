@@ -785,6 +785,8 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 	bt *byteTracker,
 	path string,
 	syncReq *RequestToSyncPath,
+	//goalPrecis *FilePrecis,
+
 ) (err error) {
 
 	// called by both taker and giver. But only seen on dir taker.
@@ -796,8 +798,9 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 
 	t0 := time.Now()
 	n := len(heavyPlan.Chunks)
-	nBytesTot := heavyPlan.DataPresent()
-	accum := 0
+	//nBytesTot := heavyPlan.DataPresent()
+	nBytesTot := heavyPlan.Chunks[n-1].Endx
+	tot := 0
 	last := false
 
 	//for i, chunk := range heavyPlan.Chunks
@@ -819,7 +822,7 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 		// heavyPlan after this func returns.
 		next := heavyPlan.Chunks[i]
 		uses := next.Msgsize()
-		accum = next.Endx
+		tot = next.Endx
 
 		for have+uses < max {
 			pack = append(pack, next)
@@ -831,7 +834,7 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 			}
 			next = heavyPlan.Chunks[i]
 			uses = next.Msgsize()
-			accum = next.Endx
+			tot = next.Endx
 		}
 		if last {
 			f.FragOp = opLast // OpRsync_HeavyDiffChunksLast
@@ -850,9 +853,11 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 		//vv("packAndSendChunksLimitedSize sent f = '%v'", f.String())
 		bt.bsend += len(bts)
 
-		s.reportProgress(syncReq,
-			path, int64(nBytesTot), int64(accum), t0)
-
+		//if goalPrecis != nil {
+		//	s.reportProgress(syncReq, path, int64(goalPrecis.FileSize), int64(tot), t0)
+		//} else {
+		s.reportProgress(syncReq, path, int64(nBytesTot), int64(tot), t0)
+		//}
 	}
 	return nil
 }
