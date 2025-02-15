@@ -172,7 +172,7 @@ func main() {
 		defer lpb.Close()
 		defer canc()
 		_ = ctx
-		vv("RunRsyncService done.")
+		vv("after starting RunRsyncService, about to select {}")
 		select {}
 		return
 	}

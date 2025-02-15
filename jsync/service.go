@@ -581,10 +581,11 @@ func (s *SyncService) Start(
 		vv("%v: top of select", name)
 		select {
 		case <-done0:
-			//vv("%v: done0! cause: '%v'", name, context.Cause(ctx0)) // context cancelled
+			vv("%v: done0! cause: '%v'", name, context.Cause(ctx0)) // context cancelled
 			return rpc.ErrContextCancelled
 
 		case <-s.Halt.ReqStop.Chan:
+			// this is closing us after the first aborted transfer.
 			vv("%v: s.Halt.ReqStop seen", name)
 			return rpc.ErrHaltRequested
 
