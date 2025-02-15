@@ -583,9 +583,10 @@ func (s *SyncService) Start(
 		case <-done0:
 			//vv("%v: done0! cause: '%v'", name, context.Cause(ctx0))
 			return rpc.ErrContextCancelled
-			//case <-s.halt.ReqStop.Chan:
-			//	//zz("%v: halt.ReqStop seen", name)
-			//	return ErrHaltRequested
+
+		case <-s.Halt.ReqStop.Chan:
+			//zz("%v: s.Halt.ReqStop seen", name)
+			return rpc.ErrHaltRequested
 
 			// new Circuit connection arrives => we are the passive side for it.
 		case rckt := <-newCircuitCh:
@@ -723,11 +724,19 @@ func (s *SyncService) Start(
 				//
 				// So the switch over can be atomic, and not interfere
 				// with the parts trying to scan/update paths, we
-				// should create a new top-level versioned directory,
+				// could create a new top-level versioned directory,
 				// and do all writes there. All reads of existing files
 				// come from the original still on disk. If no errors
 				// at the end, we can rename the new to old dir (possibly
 				// rename the old to old.backup to start and manually verify).
+				//
+				// Update: So, that worked. It was fine on linux. But on
+				// MacOS, making 90K hardlinks for the Linux kernel
+				// repo turned out to be super slow (20 sec). So we
+				// mostly don't do the extra temp dir for
+				// the atomic switchover. Instead we just write each
+				// file to a temp file first. Then rename.
+				// That is much faster.
 
 				fi, err := os.Stat(syncReq.GiverPath)
 				panicOn(err)
