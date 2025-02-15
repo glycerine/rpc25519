@@ -201,15 +201,20 @@ func formatSpeed(bytes float64) string {
 }
 
 // Update formatBytes to match scp style
-func formatBytesTotal(value float64) string {
+func formatBytesTotal(value float64) (s string) {
 	units := []string{"B", "KB", "MB", "GB", "TB"}
 	unitIndex := 0
+
+	fmt.Printf("formatBytesTotal debug: starting value = '%v'\n", value)
 
 	for value >= 1024 && unitIndex < len(units)-1 {
 		value /= 1024
 		unitIndex++
 	}
-	return fmt.Sprintf("%5.1f %s", value, units[unitIndex])
+	s = fmt.Sprintf("%5.1f %s", value, units[unitIndex])
+
+	fmt.Printf("formatBytesTotal debug: ending value = '%v'; unitIndex = %v; s = '%v'\n", value, unitIndex, s)
+	return
 }
 
 func formatDuration(d time.Duration) string {
