@@ -376,6 +376,9 @@ func main() {
 	var curTransfer *progress.TransferStats
 	var part int64
 	hadReport := false
+	// This is a terminal escape code to
+	// erase the rest of the line, and then do a carriage return.
+	// ref: https://www.baeldung.com/linux/echo-printf-overwrite-terminal-line
 	eraseAndCR := append([]byte{0x1b}, []byte("[0K\r")...) // "\033[0K\r"
 
 jobDone:
@@ -395,9 +398,8 @@ jobDone:
 				part++
 				str := curTransfer.ProgressString(prog.Latest, part)
 				if str != "" {
-					//fmt.Println(str) // debug! why truncation?
-					//fmt.Printf("prog = '%#v'\n", prog)
 					//fmt.Print(str) // avoid having % interpretted.
+					// seems happier inside emacs, not suddenly truncated:
 					os.Stdout.Write(append([]byte(str), eraseAndCR...))
 					hadReport = true
 				}
