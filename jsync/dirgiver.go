@@ -93,7 +93,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				}
 			}
 			if r != rpc.ErrContextCancelled && r != rpc.ErrHaltRequested {
-				panic(r)
+				alwaysPrintf("dirgiver sees abnormal shutdown panic: '%v'", r)
+				//panic(r)
 			} else {
 				//vv("DirGiver suppressing rpc.ErrContextCancelled or ErrHaltRequested, this is normal shutdown.")
 			}
