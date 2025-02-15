@@ -393,7 +393,9 @@ jobDone:
 				part++
 				str := curTransfer.ProgressString(prog.Latest, part)
 				if str != "" {
-					fmt.Print(str) // avoid having % interpretted.
+					fmt.Println(str) // debug! why truncation?
+					fmt.Printf("prog = '%#v'\n", prog)
+					//fmt.Print(str) // avoid having % interpretted.
 					hadReport = true
 				}
 			}
