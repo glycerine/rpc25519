@@ -70,13 +70,13 @@ doneWithStruct0zgensym_b52703b292455617_1:
 		switch curField0zgensym_b52703b292455617_1 {
 		// -- templateDecodeMsg ends here --
 
-		case "NumFiles__i64":
+		case "NumFiles_zid00_i64":
 			found0zgensym_b52703b292455617_1[0] = true
 			z.NumFiles, err = dc.ReadInt64()
 			if err != nil {
 				return
 			}
-		case "NumBytes__i64":
+		case "NumBytes_zid01_i64":
 			found0zgensym_b52703b292455617_1[1] = true
 			z.NumBytes, err = dc.ReadInt64()
 			if err != nil {
@@ -105,7 +105,7 @@ doneWithStruct0zgensym_b52703b292455617_1:
 }
 
 // fields of DirSummary
-var decodeMsgFieldOrder0zgensym_b52703b292455617_1 = []string{"NumFiles__i64", "NumBytes__i64"}
+var decodeMsgFieldOrder0zgensym_b52703b292455617_1 = []string{"NumFiles_zid00_i64", "NumBytes_zid01_i64"}
 
 var decodeMsgFieldSkip0zgensym_b52703b292455617_1 = []bool{false, false}
 
@@ -154,8 +154,8 @@ func (z DirSummary) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_b52703b292455617_2[0] {
-		// write "NumFiles__i64"
-		err = en.Append(0xad, 0x4e, 0x75, 0x6d, 0x46, 0x69, 0x6c, 0x65, 0x73, 0x5f, 0x5f, 0x69, 0x36, 0x34)
+		// write "NumFiles_zid00_i64"
+		err = en.Append(0xb2, 0x4e, 0x75, 0x6d, 0x46, 0x69, 0x6c, 0x65, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
@@ -166,8 +166,8 @@ func (z DirSummary) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_b52703b292455617_2[1] {
-		// write "NumBytes__i64"
-		err = en.Append(0xad, 0x4e, 0x75, 0x6d, 0x42, 0x79, 0x74, 0x65, 0x73, 0x5f, 0x5f, 0x69, 0x36, 0x34)
+		// write "NumBytes_zid01_i64"
+		err = en.Append(0xb2, 0x4e, 0x75, 0x6d, 0x42, 0x79, 0x74, 0x65, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
@@ -194,14 +194,14 @@ func (z DirSummary) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
 	if !empty[0] {
-		// string "NumFiles__i64"
-		o = append(o, 0xad, 0x4e, 0x75, 0x6d, 0x46, 0x69, 0x6c, 0x65, 0x73, 0x5f, 0x5f, 0x69, 0x36, 0x34)
+		// string "NumFiles_zid00_i64"
+		o = append(o, 0xb2, 0x4e, 0x75, 0x6d, 0x46, 0x69, 0x6c, 0x65, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x69, 0x36, 0x34)
 		o = msgp.AppendInt64(o, z.NumFiles)
 	}
 
 	if !empty[1] {
-		// string "NumBytes__i64"
-		o = append(o, 0xad, 0x4e, 0x75, 0x6d, 0x42, 0x79, 0x74, 0x65, 0x73, 0x5f, 0x5f, 0x69, 0x36, 0x34)
+		// string "NumBytes_zid01_i64"
+		o = append(o, 0xb2, 0x4e, 0x75, 0x6d, 0x42, 0x79, 0x74, 0x65, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x69, 0x36, 0x34)
 		o = msgp.AppendInt64(o, z.NumBytes)
 	}
 
@@ -273,14 +273,14 @@ doneWithStruct4zgensym_b52703b292455617_5:
 		switch curField4zgensym_b52703b292455617_5 {
 		// -- templateUnmarshalMsg ends here --
 
-		case "NumFiles__i64":
+		case "NumFiles_zid00_i64":
 			found4zgensym_b52703b292455617_5[0] = true
 			z.NumFiles, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "NumBytes__i64":
+		case "NumBytes_zid01_i64":
 			found4zgensym_b52703b292455617_5[1] = true
 			z.NumBytes, bts, err = nbs.ReadInt64Bytes(bts)
 
@@ -310,13 +310,13 @@ doneWithStruct4zgensym_b52703b292455617_5:
 }
 
 // fields of DirSummary
-var unmarshalMsgFieldOrder4zgensym_b52703b292455617_5 = []string{"NumFiles__i64", "NumBytes__i64"}
+var unmarshalMsgFieldOrder4zgensym_b52703b292455617_5 = []string{"NumFiles_zid00_i64", "NumBytes_zid01_i64"}
 
 var unmarshalMsgFieldSkip4zgensym_b52703b292455617_5 = []bool{false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z DirSummary) Msgsize() (s int) {
-	s = 1 + 14 + msgp.Int64Size + 14 + msgp.Int64Size
+	s = 1 + 19 + msgp.Int64Size + 19 + msgp.Int64Size
 	return
 }
 
