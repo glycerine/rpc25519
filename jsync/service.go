@@ -554,7 +554,7 @@ func (s *SyncService) Start(
 	_ = name // used when vv logging is on.
 
 	defer func() {
-		//vv("%v: end of start() inside defer, about the return/finish", name)
+		vv("%v: end of start() inside defer, about the return/finish", name)
 		s.Halt.ReqStop.Close()
 		s.Halt.Done.Close()
 		myPeer.Close()
@@ -578,14 +578,14 @@ func (s *SyncService) Start(
 	done0 := ctx0.Done()
 
 	for {
-		//vv("%v: top of select", name)
+		vv("%v: top of select", name)
 		select {
 		case <-done0:
-			//vv("%v: done0! cause: '%v'", name, context.Cause(ctx0))
+			vv("%v: done0! cause: '%v'", name, context.Cause(ctx0))
 			return rpc.ErrContextCancelled
 
 		case <-s.Halt.ReqStop.Chan:
-			//zz("%v: s.Halt.ReqStop seen", name)
+			vv("%v: s.Halt.ReqStop seen", name)
 			return rpc.ErrHaltRequested
 
 			// new Circuit connection arrives => we are the passive side for it.
@@ -942,6 +942,7 @@ func (s *SyncService) Start(
 			}
 		}
 	}
+	vv("Start returning nil")
 	return nil
 }
 
