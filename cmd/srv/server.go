@@ -175,7 +175,7 @@ func main() {
 				lpb.Close()
 				canc()
 				_ = ctx
-				vv("rsync.RunRsyncService peer shutdown. starting new instance...")
+				//vv("rsync.RunRsyncService peer shutdown. starting new instance...")
 			}
 		}
 		return
