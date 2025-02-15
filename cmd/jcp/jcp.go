@@ -372,44 +372,31 @@ func main() {
 	//vv("jcp about to send on reqs chan")
 	reqs <- req
 	//vv("jcp sent on reqs: requested to rsync to '%v' from %v:%v", takerPath, dest, giverPath)
-	var curFile string
-	var curTransfer *progress.TransferStats
 	var part int64
-	hadReport := false
+
 	// This is a terminal escape code to
 	// erase the rest of the line, and then do a carriage return.
 	// ref: https://www.baeldung.com/linux/echo-printf-overwrite-terminal-line
 	eraseAndCR := append([]byte{0x1b}, []byte("[0K\r")...) // "\033[0K\r"
+	meters := make(map[string]*progress.TransferStats)
 
 jobDone:
 	for {
 		select {
 		case prog := <-req.UpdateProgress:
 			//vv("prog = '%#v'", prog)
-			if !jcfg.Quiet {
-				if prog.Path != curFile {
-					if hadReport {
-						// just overwrite, have many files updated at once.
-						//fmt.Println()
-					}
-					hadReport = false
-					curFile = prog.Path
-					part = 0
-					curTransfer = progress.NewTransferStats(prog.Total, filepath.Base(prog.Path))
-				}
-				part++
-				str := curTransfer.ProgressString(prog.Latest, part)
-				if len(str) > 1 {
-					//fmt.Printf("this is from the jcp: '%s'\n", str)
-					//fmt.Print(str) // avoid having % interpretted.
-					// seems happier inside emacs, not suddenly truncated:
-					os.Stdout.Write(append([]byte(str), eraseAndCR...))
-					hadReport = true
-				} else {
-					panic(fmt.Sprintf("why short report? '%v'", str))
-				}
+			if jcfg.Quiet {
+				continue
 			}
-			continue
+			meter, ok := meters[prog.Path]
+			if !ok {
+				meter = progress.NewTransferStats(prog.Total, filepath.Base(prog.Path))
+				meters[prog.Path] = meter
+			}
+			part++
+			str := meter.ProgressString(prog.Latest, part)
+			os.Stdout.Write(append([]byte(str), eraseAndCR...))
+
 		case <-req.Done.Chan:
 			break jobDone
 		}
