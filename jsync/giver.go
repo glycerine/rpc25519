@@ -785,7 +785,6 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 	bt *byteTracker,
 	path string,
 	syncReq *RequestToSyncPath,
-	//goalPrecis *FilePrecis,
 
 ) (err error) {
 
@@ -797,10 +796,13 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 	max := rpc.UserMaxPayload - 10_000
 
 	t0 := time.Now()
+	_ = t0
 	n := len(heavyPlan.Chunks)
 	//nBytesTot := heavyPlan.DataPresent()
 	nBytesTot := heavyPlan.Chunks[n-1].Endx
+	_ = nBytesTot
 	tot := 0
+	_ = tot
 	last := false
 
 	//for i, chunk := range heavyPlan.Chunks
@@ -853,12 +855,9 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 		//vv("packAndSendChunksLimitedSize sent f = '%v'", f.String())
 		bt.bsend += len(bts)
 
-		//if goalPrecis != nil {
-		//	s.reportProgress(syncReq, path, int64(goalPrecis.FileSize), int64(tot), t0)
-		//} else {
-		//vv("giving progress in packAndSendChunksLimitedSize... elap: '%v'", time.Since(t0))
-		s.reportProgress(syncReq, path, int64(nBytesTot), int64(tot), t0)
-		//}
+		// taker progress: this is just the plan, not
+		// worth confusing with the heavy chunks so comment out.
+		//s.reportProgress(syncReq, filepath.Base(path), int64(nBytesTot), int64(tot), t0)
 	}
 	return nil
 }
