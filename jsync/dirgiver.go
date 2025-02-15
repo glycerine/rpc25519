@@ -259,7 +259,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						}
 
 						if pof.IsLast {
-							//vv("dirgiver: pof IsLast true; end of all phases single pass")
+							vv("dirgiver: pof IsLast true; end of all phases single pass")
 							break sendOnePass
 						}
 					case <-done:
