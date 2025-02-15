@@ -167,8 +167,6 @@ func (s *TransferStats) ProgressString(current int64, part int64) string {
 	// Format the status line
 	//
 	fbt := formatBytesTotal(float64(current))
-	fmt.Printf("\nfbt = '%v'\n", fbt)
-	fmt.Printf("\nbar.String() = '%v'\n", bar.String())
 	status := fmt.Sprintf("\r%s %s %3.0f%%  %6s  %7s  %s ETA",
 		fn,
 		bar.String(),
