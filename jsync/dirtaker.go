@@ -110,6 +110,15 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 			///////////////// begin dir sync stuff
 
+			case OpRsync_ToDirTakerEndingTotals: // 43
+				reqDirFin := &RequestToSyncDir{}
+				_, err0 = reqDirFin.UnmarshalMsg(frag.Payload)
+				panicOn(err0)
+				bt.bread += len(frag.Payload)
+				vv("dirtaker 43 sees reqDirFin.SR.BytesRead = %v; sent = %v",
+					reqDirFin.SR.BytesRead, reqDirFin.SR.BytesSent)
+				return nil
+
 			case OpRsync_ToDirTakerGiverDirIsNowFile: // 39
 				// whoops. we guessed we were asking
 				// for a directory, but it turns out it
@@ -433,8 +442,19 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					// OpRsync_GiverSendsTopDirListing: // 26,
 					// the all-one-pass version.
 					// vv("dirtaker returning nil!")
-					// s.ackBackFINToGiver(ckt, frag) // do this instead?
-					return nil
+					//return nil
+
+					end := s.U.NewFragment()
+					end.FragOp = OpRsync_ToDirGiverEndingTotals // 42
+					reqDir.SR.BytesRead = int64(bt.bread)
+					reqDir.SR.BytesSent = int64(bt.bsend)
+					bts, err := reqDir.MarshalMsg(nil)
+					panicOn(err)
+					end.Payload = bts
+					err = ckt.SendOneWay(end, 0)
+					bt.bsend += len(bts)
+					panicOn(err)
+					// wait for them to reply with 43
 				} // end if pof.IsLast
 
 				// INVAR: we have not encountered pof.IsLast

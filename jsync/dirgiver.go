@@ -110,6 +110,21 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			switch frag0.FragOp {
 
 			///////////// begin dir sync stuff
+			case OpRsync_ToDirGiverEndingTotals: // 42
+				reqDirFin := &RequestToSyncDir{}
+				_, err0 = reqDirFin.UnmarshalMsg(frag0.Payload)
+				panicOn(err0)
+				bt.bread += len(frag0.Payload)
+				vv("dirgiver 42 sees reqDirFin.SR.BytesRead = %v; sent = %v",
+					reqDirFin.SR.BytesRead, reqDirFin.SR.BytesSent)
+
+				frag0.FragOp = OpRsync_ToDirTakerEndingTotals // 43
+				err := ckt.SendOneWay(frag0, 0)
+				panicOn(err)
+				bt.bsend += len(frag0.Payload)
+
+				continue
+
 			case OpRsync_TakerRequestsDirSyncBegin: // 21
 				//vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerRequestsDirSyncBegin.", name, ckt.Name)
 

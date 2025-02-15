@@ -387,8 +387,8 @@ func ScanDirTree(
 }
 
 type DirSummary struct {
-	NumFiles int64
-	NumBytes int64
+	NumFiles int64 `zid:"0"`
+	NumBytes int64 `zid:"1"`
 }
 
 func ScanDirTreeOnePass(
