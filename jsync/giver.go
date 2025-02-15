@@ -879,7 +879,8 @@ func (s *SyncService) packAndSendChunksJustInTime(
 
 	t0 := time.Now()
 	bytesFromDisk := 0
-	totSent := 0
+	tot := 0 // total accounted for; either sent or not needed to send.
+
 	//defer func() {
 	//vv("end of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; bytesFromDisk = %v", oneByteMarkedPlan.DataPresent(), bytesFromDisk)
 	//}()
@@ -912,6 +913,7 @@ func (s *SyncService) packAndSendChunksJustInTime(
 		// oneByteMarkedPlan after this func returns.
 		next := oneByteMarkedPlan.Chunks[i]
 		letgo := next.CloneNoData() // let go of memory after we return.
+		tot = next.Endx
 
 		// "just-in-time" data delivery, to
 		// lower the memory footprint.
@@ -943,6 +945,8 @@ func (s *SyncService) packAndSendChunksJustInTime(
 			}
 			next = oneByteMarkedPlan.Chunks[i]
 			letgo = next.CloneNoData()
+			tot = next.Endx
+
 			if len(next.Data) > 0 { // is our 1 marker byte there?
 				if next.Cry == "RLE0;" {
 					panic("RLE0 should never have Data!?!")
@@ -975,9 +979,8 @@ func (s *SyncService) packAndSendChunksJustInTime(
 		err = ckt.SendOneWay(f, 0)
 		panicOn(err)
 		bt.bsend += len(bts)
-		totSent += len(bts)
 
-		s.reportProgress(syncReq, path, int64(goalPrecis.FileSize), int64(totSent), t0)
+		s.reportProgress(syncReq, path, int64(goalPrecis.FileSize), int64(tot), t0)
 	}
 	return nil
 }
