@@ -666,6 +666,11 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				case file = <-fileCh:
 					//vv("dirtaker worker got file!")
 					t1 = time.Now()
+
+					// does its own SR == nil check.
+					reqDir.SR.ReportProgress(
+						"begin: "+filepath.Base(file.Path), file.Size, file.Size, t1)
+
 				case <-goroHalt.ReqStop.Chan:
 					return
 				}
@@ -815,7 +820,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				//vv("dirtaker worker: back from s.Taker(), and TaskDone left=%v; errg='%v'", left, errg)
 				// does its own SR == nil check.
 				reqDir.SR.ReportProgress(
-					giverPath, file.Size, file.Size, t1)
+					"done : "+filepath.Base(giverPath), file.Size, file.Size, t1)
 
 				bt.bsend += int(syncReq.BytesSent)
 				bt.bread += int(syncReq.BytesRead)
