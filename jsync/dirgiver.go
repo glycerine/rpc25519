@@ -35,7 +35,7 @@ var _ = strconv.Atoi
 // It will be nil when Giver is remote.
 func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, reqDir *RequestToSyncDir) (err0 error) {
 
-	vv("SyncService.DirGiver top. We are local if reqDirp = %p != nil", reqDir)
+	//vv("SyncService.DirGiver top. We are local if reqDirp = %p != nil", reqDir)
 
 	// If the local giver (pushing), send the dir listing over,
 	// so the remote taker can tell what to delete.
@@ -104,7 +104,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 		select {
 
 		case frag0 := <-ckt.Reads:
-			//vv("%v: (ckt '%v') (DirGiver) saw read frag0:'%v'", name, ckt.Name, frag0)
+			vv("%v: (ckt '%v') (DirGiver) saw read frag0:'%v'", name, ckt.Name, frag0)
 
 			//vv("frag0 = '%v'", frag0)
 			switch frag0.FragOp {
