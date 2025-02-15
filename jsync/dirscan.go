@@ -386,13 +386,18 @@ func ScanDirTree(
 	return
 }
 
+type DirSummary struct {
+	NumFiles int64
+	NumBytes int64
+}
+
 func ScanDirTreeOnePass(
 	ctx context.Context,
 	giverRoot string,
 
 ) (halt *idem.Halter,
 	packOfFilesCh chan *PackOfFiles,
-	totalFileCount chan int64,
+	totalFileCountCh chan *DirSummary,
 	err0 error,
 ) {
 	halt = idem.NewHalter()
@@ -408,7 +413,7 @@ func ScanDirTreeOnePass(
 
 	packOfFilesCh = make(chan *PackOfFiles, 5000)
 
-	totalFileCount = make(chan int64, 1)
+	totalFileCountCh = make(chan *DirSummary, 1)
 
 	done := ctx.Done()
 	_ = done
@@ -436,6 +441,7 @@ func ScanDirTreeOnePass(
 		pre := len(giverRoot) // how much to discard giverRoot, leave off sep.
 
 		var nextSerial int64
+		var totalDirBytes int64
 
 		// first just fill up pof with everything.
 		for {
@@ -457,6 +463,7 @@ func ScanDirTreeOnePass(
 				sod = append(sod, f)
 			default:
 				sof = append(sof, f)
+				totalDirBytes += f.Size
 			}
 		}
 		stop()
@@ -466,7 +473,10 @@ func ScanDirTreeOnePass(
 		all = append(all, sof...)
 		all = append(all, sod...)
 
-		totalFileCount <- int64(len(all))
+		totalFileCountCh <- &DirSummary{
+			NumFiles: int64(len(all)),
+			NumBytes: totalDirBytes,
+		}
 
 		// pack up to max bytes of Chunks into a message.
 		max := rpc.UserMaxPayload - 10_000

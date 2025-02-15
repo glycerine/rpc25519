@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	//"github.com/glycerine/rpc25519/progress"
@@ -207,12 +208,12 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					ctx0, reqDir.GiverDir)
 				panicOn(err)
 				defer haltDirScan.ReqStop.Close()
-				var nFiles int64
+				var dirsum *DirSummary
 
 			sendOnePass:
 				for i := 0; ; i++ {
 					select {
-					case nFiles = <-totalFileCountCh:
+					case dirsum = <-totalFileCountCh:
 						totalFileCountCh = nil
 
 					case pof := <-packOfFilesCh:
@@ -221,7 +222,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						if k > 0 {
 							lastser = pof.Pack[k-1].Serial
 						} else {
-							lastser = nFiles // on first Frag, give total.
+							lastser = dirsum.NumFiles // on first Frag, give total.
 						}
 
 						fragPOF := s.U.NewFragment()
@@ -234,6 +235,11 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						err = ckt.SendOneWay(fragPOF, 0)
 						panicOn(err)
 						bt.bsend += len(bts)
+
+						if reqDir != nil && reqDir.SR != nil {
+							atomic.AddInt64(&reqDir.SR.GiverFileSize,
+								pof.TotalFileBytes)
+						}
 
 						if pof.IsLast {
 							//vv("dirgiver: pof IsLast true; end of all phases single pass")
