@@ -584,12 +584,11 @@ func (s *SyncService) Start(
 			vv("%v: done0! cause: '%v'", name, context.Cause(ctx0)) // context cancelled
 			return rpc.ErrContextCancelled
 
-		//case <-s.Halt.ReqStop.Chan:
-		//	// this is closing us after the first aborted transfer?
-		//vv("%v: s.Halt.ReqStop seen", name)
-		//	return rpc.ErrHaltRequested
+		case <-s.Halt.ReqStop.Chan:
+			vv("%v: s.Halt.ReqStop seen", name)
+			return rpc.ErrHaltRequested
 
-		// new Circuit connection arrives => we are the passive side for it.
+			// new Circuit connection arrives => we are the passive side for it.
 		case rckt := <-newCircuitCh:
 			// rckt is a remote circuit connection.
 			//vv("%v: newCircuitCh got rckt! service sees new peerURL: '%v'", name, rckt.RemoteCircuitURL())
