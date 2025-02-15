@@ -375,6 +375,7 @@ func main() {
 	var curFile string
 	var curTransfer *progress.TransferStats
 	var part int64
+	hadReport := false
 jobDone:
 	for {
 		select {
@@ -382,14 +383,19 @@ jobDone:
 
 			if !jcfg.Quiet {
 				if prog.Path != curFile {
-					fmt.Println()
+					if hadReport {
+						fmt.Println()
+					}
 					curFile = prog.Path
 					part = 0
 					curTransfer = progress.NewTransferStats(prog.Total, prog.Path)
 				}
 				part++
 				str := curTransfer.ProgressString(prog.Latest, part)
-				fmt.Print(str) // avoid having % interpretted.
+				if str != "" {
+					fmt.Print(str) // avoid having % interpretted.
+					hadReport = true
+				}
 			}
 			continue
 		case <-req.Done.Chan:
