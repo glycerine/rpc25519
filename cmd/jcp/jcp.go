@@ -389,7 +389,8 @@ jobDone:
 			if !jcfg.Quiet {
 				if prog.Path != curFile {
 					if hadReport {
-						fmt.Println()
+						// just overwrite, have many files updated at once.
+						//fmt.Println()
 					}
 					hadReport = false
 					curFile = prog.Path
