@@ -510,7 +510,7 @@ func RunRsyncService(
 	lpb, err = u.StartLocalPeer(ctx, serviceName, nil)
 	panicOn(err)
 
-	vv("RunRsyncService back from StartLocalPeer for serviceName '%v'; isCli = %v", serviceName, isCli)
+	//vv("RunRsyncService back from StartLocalPeer for serviceName '%v'; isCli = %v", serviceName, isCli)
 
 	return
 }
@@ -578,7 +578,7 @@ func (s *SyncService) Start(
 	done0 := ctx0.Done()
 
 	for {
-		vv("%v: top of select", name)
+		//vv("%v: top of select", name)
 		select {
 		case <-done0:
 			vv("%v: done0! cause: '%v'", name, context.Cause(ctx0)) // context cancelled
