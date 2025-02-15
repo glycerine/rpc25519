@@ -385,7 +385,7 @@ jobDone:
 	for {
 		select {
 		case prog := <-req.UpdateProgress:
-			vv("prog = '%#v'", prog)
+			//vv("prog = '%#v'", prog)
 			if !jcfg.Quiet {
 				if prog.Path != curFile {
 					if hadReport {
@@ -404,6 +404,8 @@ jobDone:
 					// seems happier inside emacs, not suddenly truncated:
 					os.Stdout.Write(append([]byte(str), eraseAndCR...))
 					hadReport = true
+				} else {
+					panic(fmt.Sprintf("why short report? '%v'", str))
 				}
 			}
 			continue
