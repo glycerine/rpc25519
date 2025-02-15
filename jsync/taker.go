@@ -101,6 +101,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	done0 := ctx0.Done()
 	done := ckt.Context.Done()
 	var t0 time.Time
+	var lastUpdate time.Time
 
 	var disk *FileToDiskState
 
@@ -416,6 +417,7 @@ takerForSelectLoop:
 						}
 					}
 					t0 = time.Now()
+					lastUpdate = time.Now()
 				} // end if newversFD == nil
 
 				// compute the full file hash/checksum as we go
@@ -499,8 +501,10 @@ takerForSelectLoop:
 						h.Write(chunk.Data)
 					}
 
-					s.reportProgress(syncReq, syncReq.TakerPath, syncReq.GiverFileSize, int64(chunk.Endx), t0)
-
+					if time.Since(lastUpdate) > time.Second {
+						lastUpdate = time.Now()
+						s.reportProgress(syncReq, syncReq.TakerPath, syncReq.GiverFileSize, int64(chunk.Endx), t0)
+					}
 				} // end for chunk over chunks.Chunks
 				// chunk goes out of scope, so chunk.Data should get GC-ed.
 				chunks = nil // GC early.
