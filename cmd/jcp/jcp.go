@@ -385,7 +385,7 @@ jobDone:
 	for {
 		select {
 		case prog := <-req.UpdateProgress:
-
+			vv("prog = '%#v'", prog)
 			if !jcfg.Quiet {
 				if prog.Path != curFile {
 					if hadReport {
