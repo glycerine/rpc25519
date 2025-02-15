@@ -790,8 +790,8 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 ) (err error) {
 
 	// called by both taker and giver. But only seen on dir taker.
-	//vv("top of packAndSendChunksLimitedSize; n = %v", len(heavyPlan.Chunks))
-	//defer vv("end of packAndSendChunksLimitedSize")
+	vv("top of packAndSendChunksLimitedSize; n = %v", len(heavyPlan.Chunks))
+	defer vv("end of packAndSendChunksLimitedSize")
 
 	// pack up to max bytes of Chunks into a message.
 	max := rpc.UserMaxPayload - 10_000
@@ -856,6 +856,7 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 		//if goalPrecis != nil {
 		//	s.reportProgress(syncReq, path, int64(goalPrecis.FileSize), int64(tot), t0)
 		//} else {
+		vv("giving progress in packAndSendChunksLimitedSize... elap: '%v'", time.Since(t0))
 		s.reportProgress(syncReq, path, int64(nBytesTot), int64(tot), t0)
 		//}
 	}
