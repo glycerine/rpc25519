@@ -412,8 +412,12 @@ jobDone:
 		//vv("jcp rsync done: good size and mod time match for '%v'", takerPath)
 	case req.GiverFullFileBlake3 == req.TakerFullFileBlake3:
 		//vv("jcp rsync done. Checksums agree for path '%v': %v", takerPath, req.GiverFullFileBlake3)
-		tot := req.BytesRead + req.BytesSent
-		_ = tot
+
+		// put the biger of {read bytes,sent bytes} in tot.
+		tot := req.BytesRead
+		if req.BytesSent > tot {
+			tot = req.BytesSent
+		}
 		//vv("total bytes (read or sent): %v", formatUnder(int(tot)))
 		vv("giver total file sizes: %v", formatUnder(int(req.GiverFileSize)))
 		vv("bytes read = %v ; bytes sent = %v (out of %v). (%0.1f%%) ratio: %s speedup", formatUnder(int(req.BytesRead)), formatUnder(int(req.BytesSent)), formatUnder(int(req.GiverFileSize)), float64(tot)/float64(req.GiverFileSize)*100, formatUnderFloat64(float64(req.GiverFileSize)/float64(tot)))
