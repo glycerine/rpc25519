@@ -63,7 +63,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	bt := &byteTracker{}
 
 	defer func(syncReq *RequestToSyncPath) {
-		vv("%v: (ckt '%v') defer running! finishing Taker; syncReq=%p; err0='%v'", name, ckt.Name, syncReq, err0)
+		//vv("%v: (ckt '%v') defer running! finishing Taker; syncReq=%p; err0='%v'", name, ckt.Name, syncReq, err0)
 		//vv("bt = '%#v'", bt)
 
 		// only close Done for local (client, typically) if we were started locally.
@@ -82,7 +82,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 		// suppress context cancelled shutdowns
 		if r := recover(); r != nil {
-			vv("taker sees panic: '%v'", r)
+			//vv("taker sees panic: '%v'", r)
 			switch x := r.(type) {
 			case error:
 				if strings.Contains(x.Error(), "connection reset") {

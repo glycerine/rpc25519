@@ -66,7 +66,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	}
 
 	defer func(reqDir *RequestToSyncDir) {
-		vv("%v: (ckt '%v') defer running! finishing DirTaker; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
+		//vv("%v: (ckt '%v') defer running! finishing DirTaker; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
 		//vv("bt = '%#v'", bt)
 
 		// only close Done for local (client, typically) if we were started locally.
@@ -84,7 +84,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 		// suppress context cancelled shutdowns
 		if r := recover(); r != nil {
-			vv("dirtaker sees panic: '%v'", r)
+			//vv("dirtaker sees panic: '%v'", r)
 			switch x := r.(type) {
 			case error:
 				if strings.Contains(x.Error(), "connection reset") {
@@ -162,7 +162,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				return
 
 			case OpRsync_DirSyncBeginToTaker: // 22
-				vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name) // seen in 440 red
+				//vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
 				// we should: setup a top tempdir and prep to
 				// pre-pend it to all paths we get from giver.
 
@@ -224,7 +224,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				panicOn(err)
 
 			case OpRsync_GiverSendsTopDirListing: // 26, all-one-pass version
-				vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name) // seen in 440 red.
+				//vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
 				// Getting this means here is the starting dir tree from giver.
 				// now all in one pass, as PackOfFiles
 
@@ -238,7 +238,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					for _, file := range localTree {
 						takerCatalog.Set(file.Path, file)
 					}
-					vv("at beginning, takerCatalog = '%#v'", takerCatalog.GetKeySlice())
+					//vv("at beginning, takerCatalog = '%#v'", takerCatalog.GetKeySlice())
 
 					// unbuffered => sure somebody has it,
 					// and will finish processing it before shutdown.
@@ -345,9 +345,9 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						totFiles++
 						haltIndivFileCheck.ReqStop.TaskAdd(1)
 
-						select { // hung here 440
+						select {
 						case fileUpdateCh <- f:
-							vv("sent on fileUpdateCh") // seen once on 440 red. 2x when green!
+							//vv("sent on fileUpdateCh")
 						case <-done:
 							return
 						case <-done0:
@@ -355,9 +355,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						case <-ckt.Halt.ReqStop.Chan:
 							return
 						case <-haltIndivFileCheck.ReqStop.Chan:
-							// this is closing early, causing us to lose files.
-							reas, _ := haltIndivFileCheck.ReqStop.Reason()
-							vv("haltIndivFileCheck.ReqStop.Chan closed reason='%v'", reas) // tasks all done.
+							//reas, _ := haltIndivFileCheck.ReqStop.Reason()
+							//vv("haltIndivFileCheck.ReqStop.Chan closed reason='%v'", reas) // tasks all done.
 							return
 						}
 					}
@@ -371,7 +370,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					haltIndivFileCheck.ReqStop.TaskDone()
 					why := haltIndivFileCheck.ReqStop.TaskWait(done)
 					_ = why
-					vv("haltIndivFileCheck.ReqStop.TaskWait() why='%v'", why)
+					//vv("haltIndivFileCheck.ReqStop.TaskWait() why='%v'", why)
 					haltIndivFileCheck.StopTreeAndWaitTilDone(0, done, nil)
 
 					err, _ := haltIndivFileCheck.ReqStop.Reason()
@@ -433,7 +432,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					// this is the end of
 					// OpRsync_GiverSendsTopDirListing: // 26,
 					// the all-one-pass version.
-					vv("dirtaker returning nil!") // not seen in 440 red.
+					// vv("dirtaker returning nil!")
 					// s.ackBackFINToGiver(ckt, frag) // do this instead?
 					return nil
 				} // end if pof.IsLast
@@ -787,7 +786,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 					if r != nil {
 						err := fmt.Errorf(
 							"panic recovered: '%v'", r)
-						vv("error ckt2 close err: '%v'\nstack=\n%v", err, stack())
+						//vv("error ckt2 close err: '%v'\nstack=\n%v", err, stack())
 						ckt2.Close(err)
 						panic(r) // let above defer also report errors.
 					} else {
@@ -798,11 +797,11 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 
 				//vv("dirtaker worker: about to call s.Taker()")
 				errg := s.Taker(ctx2, ckt2, myPeer, syncReq)
-				vv("dirtaker worker: got from Taker errg = '%v'", errg) // not seen when 440 red.
+				//vv("dirtaker worker: got from Taker errg = '%v'", errg)
 				panicOn(errg)
 				left := batchHalt.ReqStop.TaskDone()
 				_ = left
-				vv("dirtaker worker: back from s.Taker(), and TaskDone left=%v; errg='%v'", left, errg) // not seen when 440 red.
+				//vv("dirtaker worker: back from s.Taker(), and TaskDone left=%v; errg='%v'", left, errg)
 				// does its own SR == nil check.
 				reqDir.SR.ReportProgress(
 					giverPath, file.Size, file.Size, t1)
