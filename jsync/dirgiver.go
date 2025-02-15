@@ -203,6 +203,12 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					// we need to copy it in.
 					reqDir.TopTakerDirTemp = reqDir2.TopTakerDirTemp
 					reqDir.TopTakerDirTempDirID = reqDir2.TopTakerDirTempDirID
+
+					// tell the indiv file givers where to log progress
+					// notice this is the top level dirgiver
+					// communicating with the paralle sub giver calls
+					// that are actually invoked by the remote dirtaker.
+					s.localGiverProgressCh = reqDir.SR.UpdateProgress
 				}
 
 				// is it now a file that was guessed (or used to be) a dir?
@@ -259,7 +265,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						}
 
 						if pof.IsLast {
-							vv("dirgiver: pof IsLast true; end of all phases single pass")
+							//vv("dirgiver: pof IsLast true; end of all phases single pass")
 							break sendOnePass
 						}
 					case <-done:

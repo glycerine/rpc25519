@@ -114,6 +114,8 @@ type SyncService struct {
 	U rpc.UniversalCliSrv
 
 	ServiceName string
+
+	localGiverProgressCh chan *ProgressUpdate
 }
 
 // This file is the top-level starting point for
@@ -442,6 +444,32 @@ func (sr *RequestToSyncPath) ReportProgress(path string, total, latest int64, t0
 	}
 	select {
 	case sr.UpdateProgress <- up:
+	default:
+	}
+}
+
+// called by indiv file giver. try to report
+// either on SyncService.localGiverProgressCh (first), or fallback
+// to syncReq.UpdateProgress.
+func (s *SyncService) reportProgress(syncReq *RequestToSyncPath, path string, total, latest int64, t0 time.Time) {
+	var ch chan *ProgressUpdate
+
+	if s != nil && s.localGiverProgressCh != nil {
+		ch = s.localGiverProgressCh
+	} else {
+		if syncReq != nil && syncReq.UpdateProgress != nil {
+			ch = syncReq.UpdateProgress
+		} else {
+			return
+		}
+	}
+	up := &ProgressUpdate{
+		Path:   path,
+		Total:  total,
+		Latest: latest,
+	}
+	select {
+	case ch <- up:
 	default:
 	}
 }

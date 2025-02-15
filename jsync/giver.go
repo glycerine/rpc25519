@@ -654,14 +654,14 @@ upload:
 		if !quietProgress {
 			if time.Since(lastUpdate) > time.Second {
 				lastUpdate = time.Now()
-				syncReq.ReportProgress(giverPath, int64(pathsize), int64(tot), t0)
+				s.reportProgress(syncReq, giverPath, int64(pathsize), int64(tot), t0)
 			}
 		}
 	} // end for i
 	nparts := i
 
 	if !quietProgress {
-		syncReq.ReportProgress(giverPath, int64(pathsize), int64(tot), t0)
+		s.reportProgress(syncReq, giverPath, int64(pathsize), int64(tot), t0)
 	}
 
 	elap := time.Since(t0)
@@ -845,7 +845,7 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 		bt.bsend += len(bts)
 		accum += len(bts)
 
-		syncReq.ReportProgress(
+		s.reportProgress(syncReq,
 			path, int64(nBytesTot), int64(accum), t0)
 
 	}
