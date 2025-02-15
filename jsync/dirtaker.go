@@ -232,6 +232,9 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					seenGiverSendsTopDirListing = true
 					haltIndivFileCheck = idem.NewHalter()
 
+					// show progress for dir taking on indiv takes.
+					s.localProgressCh = reqDir.SR.UpdateProgress
+
 					takerCatalog.Reset()
 					di := NewDirIter()
 					localTree := di.ParallelWalk(reqDir.TopTakerDirFinal)

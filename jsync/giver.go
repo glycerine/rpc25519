@@ -819,6 +819,7 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 		// heavyPlan after this func returns.
 		next := heavyPlan.Chunks[i]
 		uses := next.Msgsize()
+		accum = next.Endx
 
 		for have+uses < max {
 			pack = append(pack, next)
@@ -830,6 +831,7 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 			}
 			next = heavyPlan.Chunks[i]
 			uses = next.Msgsize()
+			accum = next.Endx
 		}
 		if last {
 			f.FragOp = opLast // OpRsync_HeavyDiffChunksLast
@@ -847,7 +849,6 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 		panicOn(err)
 		//vv("packAndSendChunksLimitedSize sent f = '%v'", f.String())
 		bt.bsend += len(bts)
-		accum += len(bts)
 
 		s.reportProgress(syncReq,
 			path, int64(nBytesTot), int64(accum), t0)

@@ -208,7 +208,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					// notice this is the top level dirgiver
 					// communicating with the paralle sub giver calls
 					// that are actually invoked by the remote dirtaker.
-					s.localGiverProgressCh = reqDir.SR.UpdateProgress
+					s.localProgressCh = reqDir.SR.UpdateProgress
 				}
 
 				// is it now a file that was guessed (or used to be) a dir?

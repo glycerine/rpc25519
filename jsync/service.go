@@ -115,7 +115,7 @@ type SyncService struct {
 
 	ServiceName string
 
-	localGiverProgressCh chan *ProgressUpdate
+	localProgressCh chan *ProgressUpdate
 }
 
 // This file is the top-level starting point for
@@ -449,13 +449,13 @@ func (sr *RequestToSyncPath) ReportProgress(path string, total, latest int64, t0
 }
 
 // called by indiv file giver. try to report
-// either on SyncService.localGiverProgressCh (first), or fallback
+// either on SyncService.localProgressCh (first), or fallback
 // to syncReq.UpdateProgress.
 func (s *SyncService) reportProgress(syncReq *RequestToSyncPath, path string, total, latest int64, t0 time.Time) {
 	var ch chan *ProgressUpdate
 
-	if s != nil && s.localGiverProgressCh != nil {
-		ch = s.localGiverProgressCh
+	if s != nil && s.localProgressCh != nil {
+		ch = s.localProgressCh
 	} else {
 		if syncReq != nil && syncReq.UpdateProgress != nil {
 			ch = syncReq.UpdateProgress
