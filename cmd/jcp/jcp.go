@@ -388,10 +388,8 @@ jobDone:
 					curTransfer = progress.NewTransferStats(prog.Total, prog.Path)
 				}
 				part++
-				//fmt.Printf("progress: %30v %8v %8v\n", prog.Path, prog.Latest, prog.Total)
 				str := curTransfer.ProgressString(prog.Latest, part)
 				fmt.Print(str) // avoid having % interpretted.
-				//os.Stdout.Write([]byte(str))
 			}
 			continue
 		case <-req.Done.Chan:
