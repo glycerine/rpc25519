@@ -118,6 +118,10 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				vv("dirgiver 42 sees reqDirFin.SR.BytesRead = %v; sent = %v",
 					reqDirFin.SR.BytesRead, reqDirFin.SR.BytesSent)
 
+				// swap these around, since they are from the remote taker.
+				bt.bread = int(reqDirFin.SR.BytesSent)
+				bt.bsend = int(reqDirFin.SR.BytesRead)
+
 				frag0.FragOp = OpRsync_ToDirTakerEndingTotals // 43
 				err := ckt.SendOneWay(frag0, 0)
 				panicOn(err)
