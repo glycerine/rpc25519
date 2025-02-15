@@ -229,7 +229,9 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				// already been started for a remote lazy pull.
 				//
 				// Which means syncReq might not be nil here.
-				// We overwrite it anyway.
+				// We overwrite it anyway. We are still the remote,
+				// so this should not impact byte tracking or
+				// progress reporting.
 
 				syncReq = &RequestToSyncPath{}
 				_, err0 = syncReq.UnmarshalMsg(frag0.Payload)

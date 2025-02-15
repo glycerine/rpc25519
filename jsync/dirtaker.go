@@ -779,6 +779,9 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				reqDir.SR.ReportProgress(
 					giverPath, file.Size, file.Size, t1)
 
+				bt.bsend += int(syncReq.BytesSent)
+				bt.bread += int(syncReq.BytesRead)
+
 			} // end for
 		}(fileCh, goroHalt, bt)
 	} // end work pool starting
