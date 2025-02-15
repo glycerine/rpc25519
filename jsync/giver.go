@@ -219,6 +219,9 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				// We, the giver, are the "remote" in this case.
 				// The other side, the taker, will be the "local".
 
+				// This is also where local dirgiver gets to
+				// for individual file sync.
+
 				// Update: our later addition, for massive efficiency, of
 				//
 				// OpRsync_LazyTakerWantsToPull and
@@ -551,6 +554,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 		bt,
 		placeholderPlan.Path,
 		syncReq,
+		goalPrecis,
 	)
 }
 
@@ -867,12 +871,15 @@ func (s *SyncService) packAndSendChunksJustInTime(
 	bt *byteTracker,
 	path string,
 	syncReq *RequestToSyncPath,
+	goalPrecis *FilePrecis,
 
 ) (err error) {
 
 	//vv("top of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; len(oneByteMarkedPlan.Chunks) = %v", oneByteMarkedPlan.DataPresent(), len(oneByteMarkedPlan.Chunks))
 
+	t0 := time.Now()
 	bytesFromDisk := 0
+	totSent := 0
 	//defer func() {
 	//vv("end of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; bytesFromDisk = %v", oneByteMarkedPlan.DataPresent(), bytesFromDisk)
 	//}()
@@ -968,6 +975,9 @@ func (s *SyncService) packAndSendChunksJustInTime(
 		err = ckt.SendOneWay(f, 0)
 		panicOn(err)
 		bt.bsend += len(bts)
+		totSent += len(bts)
+
+		s.reportProgress(syncReq, path, int64(goalPrecis.FileSize), int64(totSent), t0)
 	}
 	return nil
 }
