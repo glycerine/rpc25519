@@ -185,10 +185,10 @@ type SyncService struct {
 // individual file sync that mistakenly use the top-level circuitID.
 
 // new updated flow for dir sync from (giver):
-// (giver) -> 22 DirSyncBeginToTaker (remote taker creates tmp dir target) -> 23 DirSyncBeginReplyFromTaker (dirgiver does one-pass-version) -> 26 GiverSendsTopDirListing (taker) starts indiv file sysncs for those that need it... -> 42 -> 43.
+// (giver) -> 22 DirSyncBeginToTaker (remote taker creates tmp dir target) -> 23 DirSyncBeginReplyFromTaker (dirgiver does one-pass-version) -> 26 GiverSendsTopDirListing (taker) starts indiv file sysncs for those that need it... -> 42.
 
 // and we could probably leave out 22 and just have
-// (giver: dirgiver does one-pass-version of 23) -> 26 GiverSendsTopDirListing (taker) starts indiv file sysncs for those that need it... -> 42 -> 43.
+// (giver: dirgiver does one-pass-version of 23) -> 26 GiverSendsTopDirListing (taker) starts indiv file sysncs for those that need it... -> 42.
 
 // The only tricky/unique thing for directories, is that
 // we need to delete files on the taker that are not
@@ -252,7 +252,6 @@ const (
 	OpRsync_ToTakerDratGiverFileIsNowDir = 40 // to taker, requested file is a dir
 
 	OpRsync_ToDirGiverEndingTotals = 42 // to dirgiver, total bytes/files seen
-	OpRsync_ToDirTakerEndingTotals = 43 // to dirtaker, total bytes/files seen
 )
 
 var once sync.Once
@@ -302,7 +301,6 @@ func AliasRsyncOps() {
 	rpc.FragOpRegister(OpRsync_ToDirTakerGiverDirIsNowFile, "OpRsync_ToDirTakerGiverDirIsNowFile")
 	rpc.FragOpRegister(OpRsync_ToTakerDratGiverFileIsNowDir, "OpRsync_ToTakerDratGiverFileIsNowDir")
 	rpc.FragOpRegister(OpRsync_ToDirGiverEndingTotals, "OpRsync_ToDirGiverEndingTotals")
-	rpc.FragOpRegister(OpRsync_ToDirTakerEndingTotals, "OpRsync_ToDirTakerEndingTotals")
 
 }
 

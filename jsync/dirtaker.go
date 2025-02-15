@@ -110,15 +110,6 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 			///////////////// begin dir sync stuff
 
-			case OpRsync_ToDirTakerEndingTotals: // 43
-				reqDirFin := &RequestToSyncDir{}
-				_, err0 = reqDirFin.UnmarshalMsg(frag.Payload)
-				panicOn(err0)
-				bt.bread += len(frag.Payload)
-				//vv("dirtaker 43 sees reqDirFin.SR.BytesRead = %v; sent = %v",
-				//reqDirFin.SR.BytesRead, reqDirFin.SR.BytesSent)
-				return nil
-
 			case OpRsync_ToDirTakerGiverDirIsNowFile: // 39
 				// whoops. we guessed we were asking
 				// for a directory, but it turns out it

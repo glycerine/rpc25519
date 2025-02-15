@@ -122,11 +122,9 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				bt.bread = int(reqDirFin.SR.BytesSent)
 				bt.bsend = int(reqDirFin.SR.BytesRead)
 
-				frag0.FragOp = OpRsync_ToDirTakerEndingTotals // 43
-				err := ckt.SendOneWay(frag0, 0)
-				panicOn(err)
-				bt.bsend += len(frag0.Payload)
-
+				// tell dirtaker to shut down. dir sync is done.
+				s.ackBackFINToTaker(ckt, frag0)
+				frag0 = nil // GC early.
 				continue
 
 			case OpRsync_TakerRequestsDirSyncBegin: // 21
