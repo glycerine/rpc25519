@@ -855,7 +855,7 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 		//vv("packAndSendChunksLimitedSize sent f = '%v'", f.String())
 		bt.bsend += len(bts)
 
-		// taker progress: this is just the plan, not
+		// taker progress: this is just the plan, about 280 msec, not
 		// worth confusing with the heavy chunks so comment out.
 		//s.reportProgress(syncReq, filepath.Base(path), int64(nBytesTot), int64(tot), t0)
 	}
