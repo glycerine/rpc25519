@@ -100,8 +100,8 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 	done0 := ctx0.Done()
 	done := ckt.Context.Done()
-	var t0 time.Time
-	var lastUpdate time.Time
+	t0 := time.Now()
+	lastUpdate := t0
 	_ = lastUpdate
 
 	var disk *FileToDiskState
