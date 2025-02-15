@@ -288,14 +288,13 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 									return
 								case <-haltIndivFileCheck.ReqStop.Chan:
 									return
-									/* add?
-									case <-done:
-										return
-									case <-done0:
-										return
-									case <-ckt.Halt.ReqStop.Chan:
-										return
-									*/
+
+								case <-done:
+									return
+								case <-done0:
+									return
+								case <-ckt.Halt.ReqStop.Chan:
+									return
 								}
 							}
 						}(i, reqDir, fileUpdateCh, needUpdate)
