@@ -592,16 +592,16 @@ func (s *SyncService) Start(
 			switch rckt.Name {
 
 			case rsyncRemoteTakesString:
-				// we the remote take a file
+				// we, the remote, take a file
 				go s.Taker(ctx0, rckt, myPeer, nil)
 			case rsyncRemoteGivesString:
-				// we the remote give a file
+				// we, the remote, give a file
 				go s.Giver(ctx0, rckt, myPeer, nil)
 			case rsyncRemoteTakesDirString:
-				// we the remote take a directory
+				// we, the remote, take a directory
 				go s.DirTaker(ctx0, rckt, myPeer, nil)
 			case rsyncRemoteGivesDirString:
-				// we the remote give a directory
+				// we, the remote, give a directory
 				go s.DirGiver(ctx0, rckt, myPeer, nil)
 			default:
 				panic(fmt.Sprintf("sync service does not recognize circuit name '%v'", rckt.Name))

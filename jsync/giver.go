@@ -40,7 +40,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 	// this is the active side, as we called NewCircuitToPeerURL()
 	defer func(syncReq *RequestToSyncPath) {
-		//vv("%v: Giver() ckt '%v' defer running: shutting down. bt = '%#v'", name, ckt.Name, bt)
+		vv("%v: Giver() ckt '%v' defer running: shutting down. bt = '%#v'", name, ckt.Name, bt)
 
 		if syncReq != nil {
 			syncReq.BytesRead = int64(bt.bread)
@@ -56,6 +56,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 		// suppress context cancelled shutdowns, and network errors
 		if r := recover(); r != nil {
+			vv("giver sees panic: '%v'", r)
 			switch x := r.(type) {
 			case error:
 				if strings.Contains(x.Error(), "connection reset") {

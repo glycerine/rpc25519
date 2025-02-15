@@ -65,7 +65,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	_ = packOfDirsCh
 
 	defer func(reqDir *RequestToSyncDir) {
-		//vv("%v: (ckt '%v') defer running! finishing DirGiver; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
+		vv("%v: (ckt '%v') defer running! finishing DirGiver; reqDir=%p; err0='%v'", name, ckt.Name, reqDir, err0)
 		//vv("bt = '%#v'", bt)
 
 		// only close Done for local (client, typically) if we were started locally.
@@ -83,6 +83,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 		// suppress context cancelled shutdowns
 		if r := recover(); r != nil {
+			vv("dirgiver sees panic: '%v'", r)
 			switch x := r.(type) {
 			case error:
 				if strings.Contains(x.Error(), "connection reset") {
@@ -99,7 +100,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	}(reqDir)
 
 	for {
-		select {
+		select { // 440 hung here
 
 		case frag0 := <-ckt.Reads:
 			//vv("%v: (ckt '%v') (DirGiver) saw read frag0:'%v'", name, ckt.Name, frag0)

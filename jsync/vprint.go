@@ -141,6 +141,7 @@ func caller(upStack int) string {
 
 func panicOn(err error) {
 	if err != nil {
+		//vv("panicOn is firing! err= '%v'", string(err.Error()))
 		panic(err)
 	}
 }
