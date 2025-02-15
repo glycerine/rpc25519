@@ -398,6 +398,7 @@ jobDone:
 				part++
 				str := curTransfer.ProgressString(prog.Latest, part)
 				if str != "" {
+					fmt.Printf("this is from the jcp:\n")
 					//fmt.Print(str) // avoid having % interpretted.
 					// seems happier inside emacs, not suddenly truncated:
 					os.Stdout.Write(append([]byte(str), eraseAndCR...))
