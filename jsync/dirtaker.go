@@ -669,7 +669,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 
 					// does its own SR == nil check.
 					reqDir.SR.ReportProgress(
-						"begin: "+filepath.Base(file.Path), file.Size, file.Size, t1)
+						"begin: "+filepath.Base(file.Path), file.Size, 0, t1)
 
 				case <-goroHalt.ReqStop.Chan:
 					return
