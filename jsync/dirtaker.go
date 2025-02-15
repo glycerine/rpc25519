@@ -856,7 +856,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 	//vv("batchHalt.ReqStop.TaskWait returned, err0 = '%v'", err0)
 
 	batchHalt.StopTreeAndWaitTilDone(0, done, nil)
-	//err0 = batchHalt.ReqStop.WaitTilChildrenClosed(done) // hung here
+	//err0 = batchHalt.ReqStop.WaitTilChildrenClosed(done)
 	//vv("batchHalt.ReqStop.WaitTilChildrenDone back.")
 	// do not panic, we might have seen closed(done).
 

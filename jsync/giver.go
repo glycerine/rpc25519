@@ -247,7 +247,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				if syncReq.MoreChunksComming {
 					//vv("syncReq.MoreChunksComming waiting for more...")
 					// get the extra fragments with more []*Chunk
-					err0 = s.getMoreChunks(ckt, bt, &wireChunks, done, done0, syncReq, OpRsync_RequestRemoteToGive_ChunksLast, OpRsync_RequestRemoteToGive_ChunksMore) // hung in here waiting
+					err0 = s.getMoreChunks(ckt, bt, &wireChunks, done, done0, syncReq, OpRsync_RequestRemoteToGive_ChunksLast, OpRsync_RequestRemoteToGive_ChunksMore)
 					//err0 = s.getMoreChunks(ckt, bt, &localChunks, done, done0, syncReq, OpRsync_HeavyDiffChunksLast, OpRsync_HeavyDiffChunksEnclosed)
 					panicOn(err0)
 
@@ -564,7 +564,7 @@ func (s *SyncService) giverSendsWholeFile(
 
 ) error {
 
-	vv("giverSendsWholeFile(giverPath='%v', takerPath='%v')", giverPath, takerPath)
+	//vv("giverSendsWholeFile(giverPath='%v', takerPath='%v')", giverPath, takerPath)
 	t0 := time.Now()
 
 	if !fileExists(giverPath) {
@@ -784,7 +784,7 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 ) (err error) {
 
 	// called by both taker and giver.
-	//vv("top of packAndSendChunksLimitedSize; n = %v", len(heavyPlan.Chunks))
+	vv("top of packAndSendChunksLimitedSize; n = %v", len(heavyPlan.Chunks))
 	//defer vv("end of packAndSendChunksLimitedSize")
 
 	// pack up to max bytes of Chunks into a message.
@@ -984,7 +984,7 @@ func (s *SyncService) getMoreChunks(
 
 moreLoop:
 	for {
-		select { // hung waiting here, called by giver.go:310
+		select {
 		case fragX := <-ckt.Reads:
 
 			switch fragX.FragOp {
