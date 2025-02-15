@@ -453,6 +453,7 @@ func formatUnderFloat64(f float64) string {
 	dec := f - float64(n)
 	if dec > 0 {
 		decimal = fmt.Sprintf("%.1f", dec)
+		decimal = decimal[1:] // trim off the leading 0 in 0.1
 	}
 	return s + decimal
 }
