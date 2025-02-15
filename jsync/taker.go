@@ -499,8 +499,7 @@ takerForSelectLoop:
 						h.Write(chunk.Data)
 					}
 
-					syncReq.ReportProgress(
-						syncReq.TakerPath, syncReq.GiverFileSize, int64(chunk.Endx), t0)
+					s.reportProgress(syncReq, syncReq.TakerPath, syncReq.GiverFileSize, int64(chunk.Endx), t0)
 
 				} // end for chunk over chunks.Chunks
 				// chunk goes out of scope, so chunk.Data should get GC-ed.
