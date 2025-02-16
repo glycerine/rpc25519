@@ -350,7 +350,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 						select {
 						case fileUpdateCh <- f:
-							//vv("sent on fileUpdateCh")
+							vv("sent on fileUpdateCh: f.Path = '%v'", f.Path)
 						case <-done:
 							return
 						case <-done0:
