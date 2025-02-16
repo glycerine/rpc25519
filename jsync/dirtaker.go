@@ -232,6 +232,10 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					seenGiverSendsTopDirListing = true
 					haltIndivFileCheck = idem.NewHalter()
 
+					// add an extra task so we don't hit zero
+					// until we are ready to.
+					haltIndivFileCheck.ReqStop.TaskAdd(1)
+
 					// show progress for dir taking on indiv takes.
 					s.localProgressCh = reqDir.SR.UpdateProgress
 
@@ -314,10 +318,6 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					tdir = reqDir.TopTakerDirTemp
 				}
 
-				// add an extra task so we don't hit zero
-				// until we are ready to.
-				haltIndivFileCheck.ReqStop.TaskAdd(1)
-
 				for _, f := range pof.Pack {
 					if totalExpectedFileCount != 0 {
 						// very first frag will have total
@@ -372,7 +372,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					// task count to reach zero. Subtract our
 					// artifical 1 floor.
 					at := haltIndivFileCheck.ReqStop.TaskDone()
-					vv("taskDone returned %v", at)
+					vv("taskDone returned %v", at)                   // 18 left
 					why := haltIndivFileCheck.ReqStop.TaskWait(done) // hung here
 					_ = why
 					vv("haltIndivFileCheck.ReqStop.TaskWait() why='%v'", why)
