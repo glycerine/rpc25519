@@ -342,7 +342,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						fullpath := filepath.Join(tdir, f.Path)
 						err = os.Chmod(fullpath, fs.FileMode(f.FileMode))
 						panicOn(err)
-						vv("dirtaker set mode on dir = '%v'", f.Path)
+						//vv("dirtaker set mode on dir = '%v'", f.Path)
 					default:
 						// regular file.
 						totFiles++
