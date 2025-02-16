@@ -32,7 +32,7 @@ func isTerminal() bool {
 type TransferStats struct {
 	isTerm         bool
 	filename       string
-	fileSize       int64
+	FileSize       int64
 	fileSizeString string
 	lastUpdate     time.Time
 	lastBytes      int64
@@ -52,7 +52,7 @@ func NewTransferStats(fileSize int64, filename string) *TransferStats {
 	now := time.Now()
 	return &TransferStats{
 		isTerm:             isTerminal(),
-		fileSize:           fileSize,
+		FileSize:           fileSize,
 		fileSizeString:     formatBytesTotal(float64(fileSize)),
 		filename:           filename,
 		lastUpdate:         now,
@@ -130,7 +130,7 @@ func (s *TransferStats) ProgressString(current int64, part int64) string {
 	s.lastDisplay = now
 
 	width := 30 // Progress bar width
-	percentage := float64(current) / float64(s.fileSize)
+	percentage := float64(current) / float64(s.FileSize)
 	completed := int(percentage * float64(width))
 
 	// Update speed calculation
@@ -139,12 +139,12 @@ func (s *TransferStats) ProgressString(current int64, part int64) string {
 	// Calculate ETA
 	var eta time.Duration
 	if s.emaSpeed > 0 {
-		remainingBytes := s.fileSize - current
+		remainingBytes := s.FileSize - current
 		eta = time.Duration(float64(remainingBytes)/s.emaSpeed) * time.Second
 	}
 
 	speed := formatSpeed(s.emaSpeed)
-	if current != s.fileSize && changed == 0 {
+	if current != s.FileSize && changed == 0 {
 		speed = "-stalled-"
 	}
 	// Build progress bar

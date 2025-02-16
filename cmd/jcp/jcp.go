@@ -392,6 +392,11 @@ jobDone:
 				meter = progress.NewTransferStats(prog.Total, filepath.Base(prog.Path))
 				meters[prog.Path] = meter
 			}
+			// can we gc from map, on last report?
+			if prog.Latest == meter.FileSize {
+				delete(meters, prog.Path)
+			}
+
 			part++
 			str := meter.ProgressString(prog.Latest, part)
 			os.Stdout.Write(append([]byte(str), eraseAndCR...))
