@@ -342,17 +342,17 @@ takerForSelectLoop:
 				panicOn(err)
 				bt.bread += len(frag.Payload)
 
-				// an empty file might need to be created;
-				// its data hash will be the same as a non-existant file.
-				if !fileExists(localPathToWrite) {
-					fd, err := os.Create(localPathToWrite)
-					panicOn(err)
-					fd.Close()
-				}
-
 				if localPathToWrite != localPathToRead {
 					//vv("hard linking 6 '%v' <- '%v'",localPathToRead, localPathToWrite)
 					panicOn(os.Link(localPathToRead, localPathToWrite))
+				} else {
+					// an empty file might need to be created;
+					// its data hash will be the same as a non-existant file.
+					if !fileExists(localPathToWrite) {
+						fd, err := os.Create(localPathToWrite)
+						panicOn(err)
+						fd.Close()
+					}
 				}
 
 				//path := syncReq.TakerPath
