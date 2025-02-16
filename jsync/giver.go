@@ -583,7 +583,7 @@ func (s *SyncService) giverSendsWholeFile(
 	pathsize := fi.Size()
 	quietProgress := false
 	if syncReq == nil || syncReq.UpdateProgress == nil {
-		vv("no ability to report progress, don't try.")
+		//vv("no ability to report progress, don't try.")
 		quietProgress = true
 	}
 
