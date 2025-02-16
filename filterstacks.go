@@ -37,7 +37,7 @@ func init() {
 				}
 			}
 
-			os.Stderr.Write([]byte("filterstacks.go filtered stacks:\n\n"))
+			os.Stderr.Write([]byte("\nSIGQUIT: quit after filtering.\nfilterstacks.go filtered stacks:\n\n"))
 			os.Stderr.Write([]byte(strings.Join(filtered, "\n\n")))
 			os.Exit(1)
 		}
