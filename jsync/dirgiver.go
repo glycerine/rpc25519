@@ -87,7 +87,9 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			//vv("dirgiver sees panic: '%v'", r)
 			switch x := r.(type) {
 			case error:
-				if strings.Contains(x.Error(), "connection reset") {
+				xerr := x.Error()
+				if strings.Contains(xerr, "connection reset") ||
+					strings.Contains(xerr, "use of closed network connection") {
 					// ok
 					return
 				}
