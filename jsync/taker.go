@@ -336,11 +336,12 @@ takerForSelectLoop:
 				continue // wait for FIN
 
 			case OpRsync_ToTakerMetaUpdateAtLeast:
-				vv("%v: (ckt %v) (Taker) sees OpRsync_ToTakerMetaUpdateAtLeast. updating mode/modTime on '%v'", name, ckt.Name, syncReq.TakerPath)
 				precis := &FilePrecis{}
 				_, err := precis.UnmarshalMsg(frag.Payload)
 				panicOn(err)
 				bt.bread += len(frag.Payload)
+
+				vv("%v: (ckt %v) (Taker) sees OpRsync_ToTakerMetaUpdateAtLeast. updating mode/modTime on '%v' to '%v'", name, ckt.Name, syncReq.TakerPath, precis.ModTime)
 
 				if localPathToWrite != localPathToRead {
 					//vv("hard linking 6 '%v' <- '%v'",localPathToRead, localPathToWrite)
