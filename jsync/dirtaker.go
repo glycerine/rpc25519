@@ -660,10 +660,10 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				} else {
 					goroHalt.ReqStop.Close()
 				}
-				vv("dirTakerRequestIndivFiles: dirtaker worker w=%v done.", w)
+				//vv("dirTakerRequestIndivFiles: dirtaker worker w=%v done.", w)
 				goroHalt.Done.Close()
 			}()
-			vv("top of dirTakerRequestIndivFiles: dirtaker worker w=%v.", w)
+			//vv("top of dirTakerRequestIndivFiles: dirtaker worker w=%v.", w)
 
 			var file *File
 			var t1 time.Time
