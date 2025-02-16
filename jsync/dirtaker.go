@@ -365,14 +365,15 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 				}
 				if pof.IsLast {
-					vv("pof.IsLast seen")
+					vv("pof.IsLast seen") // seen
 
 					// okay, now that all regular files have bee
 					// sent on fileUpdateCh, we can allow the
 					// task count to reach zero. Subtract our
 					// artifical 1 floor.
-					haltIndivFileCheck.ReqStop.TaskDone()
-					why := haltIndivFileCheck.ReqStop.TaskWait(done)
+					at := haltIndivFileCheck.ReqStop.TaskDone()
+					vv("taskDone returned %v", at)
+					why := haltIndivFileCheck.ReqStop.TaskWait(done) // hung here
 					_ = why
 					vv("haltIndivFileCheck.ReqStop.TaskWait() why='%v'", why)
 					haltIndivFileCheck.StopTreeAndWaitTilDone(0, done, nil)
