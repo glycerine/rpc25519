@@ -96,7 +96,7 @@ func ChunkFile2(
 	sz := int(fi.Size())
 	if sz == 0 {
 		//vv("path is empty! '%v'", path)
-		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false)
+		return SummarizeBytesInCDCHashes(host, path, nil, fi.ModTime(), false)
 	}
 	//vv("file is not empty")
 	cdcCfg := Default_CDC_Config
