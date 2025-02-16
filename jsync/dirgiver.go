@@ -259,7 +259,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						if true {
 							// debug:
 							//for i := range pof.Pack {
-							vv("dirgiver sending 26 with pof[0] = '%#v'", len(pof.Pack), pof.Pack[0])
+							vv("dirgiver sending 26 with len(pof) = %v; pof[0] = '%#v'", len(pof.Pack), pof.Pack[0])
 							//}
 						}
 						err = ckt.SendOneWay(fragPOF, 0)
