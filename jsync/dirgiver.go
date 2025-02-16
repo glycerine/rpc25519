@@ -256,12 +256,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						fragPOF.FragOp = OpRsync_GiverSendsTopDirListing // 26
 						fragPOF.FragPart = lastser
 						fragPOF.SetUserArg("structType", "PackOfFiles")
-						if true {
-							// debug:
-							//for i := range pof.Pack {
-							vv("dirgiver sending 26 with len(pof) = %v; pof[0] = '%#v'", len(pof.Pack), pof.Pack[0])
-							//}
-						}
+						//vv("dirgiver sending 26 with len(pof) = %v; pof[0] = '%#v'", len(pof.Pack), pof.Pack[0])
 						err = ckt.SendOneWay(fragPOF, 0)
 						panicOn(err)
 						bt.bsend += len(bts)
