@@ -633,7 +633,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 	fileCh := make(chan *File) // do not buffer, giving work.
 
 	workPoolSize := runtime.NumCPU()
-	for range workPoolSize {
+	for worker := range workPoolSize {
 
 		goroHalt := idem.NewHalter()
 		batchHalt.AddChild(goroHalt)
@@ -645,7 +645,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 		// rsync: 1.6s vs jcp 2.8s to restore linux/Documentation
 		// over LAN.
 		//func(file *File, goroHalt *idem.Halter, bt *byteTracker) {
-		go func(fileCh chan *File, goroHalt *idem.Halter, bt *byteTracker) {
+		go func(fileCh chan *File, goroHalt *idem.Halter, bt *byteTracker, w int) {
 			defer func() {
 
 				// other side ctrl-c will give us a panic here
@@ -660,9 +660,10 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				} else {
 					goroHalt.ReqStop.Close()
 				}
-				//vv("dirTakerRequestIndivFiles: dirtaker worker done.")
+				vv("dirTakerRequestIndivFiles: dirtaker worker w=%v done.", w)
 				goroHalt.Done.Close()
 			}()
+			vv("top of dirTakerRequestIndivFiles: dirtaker worker w=%v.", w)
 
 			var file *File
 			var t1 time.Time
@@ -831,7 +832,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				bt.bread += int(syncReq.BytesRead)
 
 			} // end for
-		}(fileCh, goroHalt, bt)
+		}(fileCh, goroHalt, bt, worker)
 	} // end work pool starting
 
 	k := -1
@@ -847,7 +848,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 
 		//}
 
-		select {
+		select { // hung here
 		case fileCh <- file:
 			// and do another, until all updateMap files are done.
 		case <-done:
