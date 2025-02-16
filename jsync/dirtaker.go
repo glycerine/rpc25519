@@ -162,7 +162,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				return
 
 			case OpRsync_DirSyncBeginToTaker: // 22
-				vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
+				//vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
 				// we should: setup a top tempdir and prep to
 				// pre-pend it to all paths we get from giver.
 
