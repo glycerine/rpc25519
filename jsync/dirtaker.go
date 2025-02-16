@@ -855,6 +855,9 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 			return
 		case <-done0:
 			return
+		case <-batchHalt.ReqStop.Chan:
+			// if we abort early on error, this will be closed.
+			return
 		}
 	} // end range needUpdate
 
