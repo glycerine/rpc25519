@@ -258,9 +258,9 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						fragPOF.SetUserArg("structType", "PackOfFiles")
 						if true {
 							// debug:
-							for i := range pof.Pack {
-								vv("i=% of %v; dirgiver sending 26 with pof[%v] = '%#v'", i, len(pof.Pack), i, pof.Pack[i])
-							}
+							//for i := range pof.Pack {
+							vv("dirgiver sending 26 with pof[0] = '%#v'", len(pof.Pack), pof.Pack[0])
+							//}
 						}
 						err = ckt.SendOneWay(fragPOF, 0)
 						panicOn(err)
