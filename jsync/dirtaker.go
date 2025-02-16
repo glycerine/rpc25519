@@ -404,7 +404,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 
 					//vv("and end, takerCatalog = '%#v'", takerCatalog.GetKeySlice())
-					vv("and end, takerCatalog len = '%v'", takerCatalog.Len())
+					//vv("and end, takerCatalog len = '%v'", takerCatalog.Len())
 
 					// temp dir does not need to delete, it just
 					// won't write into the temp dir to begin with.
