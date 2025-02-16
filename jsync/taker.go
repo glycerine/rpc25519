@@ -336,7 +336,7 @@ takerForSelectLoop:
 				continue // wait for FIN
 
 			case OpRsync_ToTakerMetaUpdateAtLeast:
-				//vv("%v: (ckt %v) (Taker) sees OpRsync_ToTakerMetaUpdateAtLeast. updating mode/modTime on '%v'", name, ckt.Name, syncReq.TakerPath)
+				vv("%v: (ckt %v) (Taker) sees OpRsync_ToTakerMetaUpdateAtLeast. updating mode/modTime on '%v'", name, ckt.Name, syncReq.TakerPath)
 				precis := &FilePrecis{}
 				_, err := precis.UnmarshalMsg(frag.Payload)
 				panicOn(err)
