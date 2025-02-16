@@ -162,7 +162,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				return
 
 			case OpRsync_DirSyncBeginToTaker: // 22
-				//vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
+				vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
 				// we should: setup a top tempdir and prep to
 				// pre-pend it to all paths we get from giver.
 
@@ -224,7 +224,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				panicOn(err)
 
 			case OpRsync_GiverSendsTopDirListing: // 26, all-one-pass version
-				//vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
+				vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
 				// Getting this means here is the starting dir tree from giver.
 				// now all in one pass, as PackOfFiles
 
@@ -342,7 +342,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						fullpath := filepath.Join(tdir, f.Path)
 						err = os.Chmod(fullpath, fs.FileMode(f.FileMode))
 						panicOn(err)
-						//vv("dirtaker set mode on dir = '%v'", f.Path)
+						vv("dirtaker set mode on dir = '%v'", f.Path)
 					default:
 						// regular file.
 						totFiles++
@@ -373,7 +373,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					haltIndivFileCheck.ReqStop.TaskDone()
 					why := haltIndivFileCheck.ReqStop.TaskWait(done)
 					_ = why
-					//vv("haltIndivFileCheck.ReqStop.TaskWait() why='%v'", why)
+					vv("haltIndivFileCheck.ReqStop.TaskWait() why='%v'", why)
 					haltIndivFileCheck.StopTreeAndWaitTilDone(0, done, nil)
 
 					err, _ := haltIndivFileCheck.ReqStop.Reason()
@@ -402,7 +402,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 
 					//vv("and end, takerCatalog = '%#v'", takerCatalog.GetKeySlice())
-					//vv("and end, takerCatalog len = '%v'", takerCatalog.Len())
+					vv("and end, takerCatalog len = '%v'", takerCatalog.Len())
 
 					// temp dir does not need to delete, it just
 					// won't write into the temp dir to begin with.
