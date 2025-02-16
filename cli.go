@@ -1056,6 +1056,8 @@ type Client struct {
 	closing  bool // user has called Close
 	shutdown bool // server has told us to stop
 
+	fragLock     sync.Mutex
+	recycledFrag []*Fragment
 }
 
 // Compute HMAC using SHA-256, so 32 bytes long.
@@ -1481,7 +1483,7 @@ func (c *Client) Close() error {
 	//vv("Client.Close() called.") // not seen in shutdown.
 
 	// ask any sub components (peer pump loops) to stop.
-	c.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil)
+	c.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
 
 	if c.cfg.UseQUIC {
 		if c.isQUIC && c.quicConn != nil {
@@ -1867,6 +1869,11 @@ type UniversalCliSrv interface {
 
 	// allow peers to find out that the host Client/Server is stopping.
 	GetHostHalter() *idem.Halter
+
+	// fragment memory recycling, to avoid heap pressure.
+	NewFragment() *Fragment
+	FreeFragment(frag *Fragment)
+	RecycleFragLen() int
 }
 
 // maintain the requirement that Client and Server both
