@@ -365,6 +365,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 				}
 				if pof.IsLast {
+					vv("pof.IsLast seen")
 
 					// okay, now that all regular files have bee
 					// sent on fileUpdateCh, we can allow the
