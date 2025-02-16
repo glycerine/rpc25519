@@ -214,7 +214,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 				// is it now a file that was guessed (or used to be) a dir?
 				if fileExists(reqDir.GiverDir) {
-					// reqDir.GiverDir is a file, not a directory as expected.
+					vv("reqDir.GiverDir '%v' is a file, not a directory as expected.", reqDir.GiverDir)
 
 					err := s.convertedDirToFile_giveFile(
 						ctx0, reqDir, ckt, frag0, bt)
@@ -256,6 +256,12 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						fragPOF.FragOp = OpRsync_GiverSendsTopDirListing // 26
 						fragPOF.FragPart = lastser
 						fragPOF.SetUserArg("structType", "PackOfFiles")
+						if true {
+							// debug:
+							for i := range pof.Pack {
+								vv("i=% of %v; dirgiver sending 26 with pof[%v] = '%#v'", i, len(pof.Pack), i, pof.Pack[i])
+							}
+						}
 						err = ckt.SendOneWay(fragPOF, 0)
 						panicOn(err)
 						bt.bsend += len(bts)
