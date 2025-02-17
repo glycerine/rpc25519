@@ -40,6 +40,8 @@ type JcopyConfig struct {
 	Memprofile string
 
 	SerialNotParallel bool
+
+	CompressAlgo string
 }
 
 // backup plan if :7070 was not available...
@@ -70,6 +72,8 @@ func (c *JcopyConfig) SetFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.WebProfile, "webprofile", false, "start web pprof profiling on localhost:7070")
 	fs.StringVar(&c.Memprofile, "memprof", "", "file to write memory profile 30 sec worth to")
 	fs.BoolVar(&c.SerialNotParallel, "serial", false, "serial single threaded file chunking, rather than parallel. Mostly for benchmarking")
+	fs.StringVar(&c.CompressAlgo, "compress", "", "compression algo. default none/no compression. other choices: s2, lz4, zstd:01, zstd:03, zstd:07, zstd:11")
+
 }
 
 func (c *JcopyConfig) FinishConfig(fs *flag.FlagSet) (err error) {
@@ -268,6 +272,17 @@ func main() {
 
 	cfg.ClientDialToHostPort = dest
 	cfg.CompressionOff = true
+
+	if jcfg.CompressAlgo != "" {
+		if !compressionAlgoOK(jcfg.CompressAlgo) {
+			msg := fmt.Sprintf("unrecognized magicCompressAlgo: '%v' ; "+
+				"valid choices: (default/empty string for none); s2, lz4, zstd:01, zstd:03, zstd:07, zstd:11\n", jcfg.CompressAlgo)
+			fmt.Fprintf(os.Stderr, msg)
+			os.Exit(1)
+		}
+		cfg.CompressionOff = false
+		cfg.CompressAlgo = jcfg.CompressAlgo
+	}
 
 	if jcfg.Memprofile != "" {
 		f, err := os.Create(jcfg.Memprofile)
@@ -520,4 +535,25 @@ func (jcfg *JcopyConfig) walktest() (
 	stopF()
 
 	return
+}
+
+func compressionAlgoOK(compressAlgo string) bool {
+	switch compressAlgo {
+	case "", "compression-none":
+		// no compression
+		return true
+	case "s2":
+		return true
+	case "lz4":
+		return true
+	case "zstd:01":
+		return true
+	case "zstd:03":
+		return true
+	case "zstd:07":
+		return true
+	case "zstd:11":
+		return true
+	}
+	return false
 }
