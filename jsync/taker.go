@@ -87,13 +87,15 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 			case error:
 				xerr := x.Error()
 				if strings.Contains(xerr, "connection reset") ||
-					strings.Contains(xerr, "use of closed network connection") {
+					strings.Contains(xerr, "use of closed network connection") ||
+					strings.Contains(xerr, "broken pipe") {
 					// ok
 					return
 				}
 			}
 			if r != rpc.ErrContextCancelled && r != rpc.ErrHaltRequested {
-				panic(r)
+				alwaysPrintf("taker sees abnormal shutdown panic: '%v'", r)
+				//panic(r)
 			} else {
 				//vv("Taker suppressing rpc.ErrContextCancelled or ErrHaltRequested, this is normal shutdown.")
 			}

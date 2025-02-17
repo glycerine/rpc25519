@@ -576,7 +576,7 @@ func (s *SyncService) Start(
 	ctx0 context.Context,
 	newCircuitCh <-chan *rpc.Circuit,
 
-) error {
+) (err0 error) {
 
 	name := myPeer.PeerServiceName
 	_ = name // used when vv logging is on.
@@ -591,7 +591,8 @@ func (s *SyncService) Start(
 		// this is normal during shutdown/end of Circuit.
 		if r := recover(); r != nil {
 			if r != rpc.ErrContextCancelled && r != rpc.ErrHaltRequested {
-				panic(r)
+				alwaysPrintf("SyncService.Start() caught shutdown panic: '%v'", r)
+				//panic(r)
 			} else {
 				//vv("SyncService.Start() suppressing ErrContextCancelled or ErrHaltRequested, this is normal shutdown.")
 			}

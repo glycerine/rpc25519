@@ -89,7 +89,8 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			case error:
 				xerr := x.Error()
 				if strings.Contains(xerr, "connection reset") ||
-					strings.Contains(xerr, "use of closed network connection") {
+					strings.Contains(xerr, "use of closed network connection") ||
+					strings.Contains(xerr, "broken pipe") {
 					// ok
 					return
 				}
