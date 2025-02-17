@@ -448,7 +448,7 @@ jobDone:
 		//vv("total bytes (read or sent): %v", formatUnder(int(tot)))
 		vv("giver total file sizes: %v", formatUnder(int(req.GiverFileSize)))
 		vv("bytes read = %v ; bytes sent = %v (out of %v). (%0.1f%%) ratio: %s speedup", formatUnder(int(req.BytesRead)), formatUnder(int(req.BytesSent)), formatUnder(int(req.GiverFileSize)), float64(tot)/float64(req.GiverFileSize)*100, formatUnderFloat64(float64(req.GiverFileSize)/float64(tot)))
-		vv("underlying net bandwidth: %v bytes/sec", formatUnderFloat64(float64(tot)/(float64(time.Since(t0))/float64(1e9))))
+		vv("byte transfer bandwidth: %v bytes/sec", formatUnderFloat64(float64(tot)/(float64(time.Since(t0))/float64(1e9))))
 	default:
 		vv("ARG! jcp rsync done but jcp Checksums disagree!! for path %v': req = '%#v'", takerPath, req)
 	}
