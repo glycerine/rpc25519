@@ -383,6 +383,7 @@ func main() {
 	eraseAndCR := append([]byte{0x1b}, []byte("[0K\r")...) // "\033[0K\r"
 	meters := make(map[string]*progress.TransferStats)
 	goTermWriter := goterminal.New(os.Stdout)
+	lastUpdate := time.Now()
 
 jobDone:
 	for {
@@ -400,6 +401,11 @@ jobDone:
 			if prog.Latest == meter.FileSize {
 				delete(meters, prog.Path)
 			}
+
+			if time.Since(lastUpdate) < time.Millisecond*100 {
+				continue
+			}
+			lastUpdate = time.Now()
 
 			part++
 			str := meter.ProgressString(prog.Latest, part)
