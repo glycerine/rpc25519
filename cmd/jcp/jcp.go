@@ -407,7 +407,7 @@ jobDone:
 			const useGoTermLib = true
 			if useGoTermLib {
 				goTermWriter.Clear()
-				goTermWriter.Write([]byte(str))
+				goTermWriter.Write(append([]byte(str), eraseAndCR...))
 				goTermWriter.Print()
 			} else {
 				os.Stdout.Write(append([]byte(str), eraseAndCR...))
