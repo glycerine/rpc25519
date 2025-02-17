@@ -21,6 +21,9 @@ import (
 	//myblake3 "github.com/glycerine/rpc25519/hash"
 	rsync "github.com/glycerine/rpc25519/jsync"
 	"github.com/glycerine/rpc25519/progress"
+
+	// alternative progress reporting, might work outside emacs.
+	"github.com/apoorvam/goterminal"
 )
 
 var _ = progress.TransferStats{}
@@ -379,6 +382,7 @@ func main() {
 	// ref: https://www.baeldung.com/linux/echo-printf-overwrite-terminal-line
 	eraseAndCR := append([]byte{0x1b}, []byte("[0K\r")...) // "\033[0K\r"
 	meters := make(map[string]*progress.TransferStats)
+	goTermWriter := goterminal.New(os.Stdout)
 
 jobDone:
 	for {
@@ -399,7 +403,15 @@ jobDone:
 
 			part++
 			str := meter.ProgressString(prog.Latest, part)
-			os.Stdout.Write(append([]byte(str), eraseAndCR...))
+
+			const useGoTermLib = true
+			if useGoTermLib {
+				goTermWriter.Clear()
+				goTermWriter.Write([]byte(str))
+				goTermWriter.Print()
+			} else {
+				os.Stdout.Write(append([]byte(str), eraseAndCR...))
+			}
 
 		case <-req.Done.Chan:
 			break jobDone
