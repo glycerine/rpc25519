@@ -567,7 +567,7 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 
 		// also we can make size 0 files immediately
 		if f.Size == 0 {
-			vv("size 0 file does not exist at localPathToRead '%v', so make it?", localPathToRead)
+			vv("size 0 file does not exist at localPathToRead '%v', so make it at '%v'", localPathToRead, localPathToWrite)
 
 		}
 
