@@ -27,7 +27,7 @@ var _ = time.Time{}
 var _ = strconv.Atoi
 
 // just measure for now, no creating hard links etc.
-const useTempDir = false
+const useTempDir = true
 
 // DirTaker is the directory top-level sync
 // coordinator from the Taker side.
@@ -413,7 +413,27 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 					// temp dir does not need to delete, it just
 					// won't write into the temp dir to begin with.
-					if !useTempDir {
+					if useTempDir {
+						vv("useTempDir true: doing rename '%v' -> '%v'",
+							reqDir.TopTakerDirTemp, reqDir.TopTakerDirFinal)
+
+						haveOld := dirExists(reqDir.TopTakerDirFinal)
+						var tmp string
+						if haveOld {
+							// move the old version out of the way
+							rnd := cryRandBytesBase64(18)
+							tmp = filepath.Clean(reqDir.TopTakerDirFinal) + "." + rnd
+							vv("haveOld true, renaming before delete: '%v' -> '%v'", reqDir.TopTakerDirFinal, tmp)
+							os.Rename(reqDir.TopTakerDirFinal, tmp)
+						}
+						err = os.Rename(reqDir.TopTakerDirTemp,
+							reqDir.TopTakerDirFinal)
+						panicOn(err)
+						if haveOld {
+							// delete the old version
+							os.RemoveAll(tmp)
+						}
+					} else {
 
 						for path, file := range takerCatalog.GetMapReset() {
 							if path == "" {
@@ -431,13 +451,14 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 								os.Remove(path)
 							}
 						}
-						if !reqDir.GiverDirModTime.IsZero() {
-							//vv("setting final dir mod time: '%v'", reqDir.GiverDirModTime)
-							err = os.Chtimes(reqDir.TopTakerDirFinal,
-								time.Time{}, reqDir.GiverDirModTime)
-							panicOn(err)
-						}
 					}
+					if !reqDir.GiverDirModTime.IsZero() {
+						//vv("setting final dir mod time: '%v'", reqDir.GiverDirModTime)
+						err = os.Chtimes(reqDir.TopTakerDirFinal,
+							time.Time{}, reqDir.GiverDirModTime)
+						panicOn(err)
+					}
+
 					// NOTICE: we actually return from DirTaker now(!)
 					// this is the end of
 					// OpRsync_GiverSendsTopDirListing: // 26,
