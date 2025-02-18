@@ -72,7 +72,7 @@ func (c *JcopyConfig) SetFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.WebProfile, "webprofile", false, "start web pprof profiling on localhost:7070")
 	fs.StringVar(&c.Memprofile, "memprof", "", "file to write memory profile 30 sec worth to")
 	fs.BoolVar(&c.SerialNotParallel, "serial", false, "serial single threaded file chunking, rather than parallel. Mostly for benchmarking")
-	fs.StringVar(&c.CompressAlgo, "compress", "", "compression algo. default none/no compression. other choices: s2, lz4, zstd:01, zstd:03, zstd:07, zstd:11")
+	fs.StringVar(&c.CompressAlgo, "compress", "s2", "compression algo. other choices: none, s2, lz4, zstd:01, zstd:03, zstd:07, zstd:11")
 
 }
 
@@ -274,13 +274,16 @@ func main() {
 	cfg.CompressionOff = true
 
 	if jcfg.CompressAlgo != "" {
+		if jcfg.CompressAlgo == "none" {
+			jcfg.CompressAlgo = ""
+		}
 		if !compressionAlgoOK(jcfg.CompressAlgo) {
 			msg := fmt.Sprintf("unrecognized magicCompressAlgo: '%v' ; "+
 				"valid choices: (default/empty string for none); s2, lz4, zstd:01, zstd:03, zstd:07, zstd:11\n", jcfg.CompressAlgo)
 			fmt.Fprintf(os.Stderr, msg)
 			os.Exit(1)
 		}
-		cfg.CompressionOff = false
+		cfg.CompressionOff = (jcfg.CompressAlgo == "")
 		cfg.CompressAlgo = jcfg.CompressAlgo
 	}
 
