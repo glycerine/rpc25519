@@ -533,7 +533,6 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 
 	tdir := reqDir.TopTakerDirTemp
 
-	// do we want?
 	if !useTempDir {
 		tdir = reqDir.TopTakerDirFinal
 	}
@@ -565,15 +564,19 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 	if !fileExists && !isSym {
 		// but we can fix non-existant symlinks immediately
 
-		// also we can make size 0 files immediately
-		if f.Size == 0 {
-			vv("size 0 file does not exist at localPathToRead '%v', so make it at '%v'", localPathToRead, localPathToWrite)
+		// also we can make size 0 files immediately, repairing that.
+		if f.Size == 0 && useTempDir {
+			//vv("size 0 file does not exist at localPathToRead '%v', so make it at '%v'", localPathToRead, localPathToWrite)
+			fd, err := os.Create(localPathToWrite)
+			panicOn(err)
+			fd.Close()
+			err = os.Chtimes(localPathToWrite, time.Time{}, f.ModTime)
+			panicOn(err)
 
+		} else {
+			needUpdate.Set(f.Path, f)
+			//vv("Stat localPathToRead '%v' -> err '%v' so marking needUpdate", localPathToRead, err)
 		}
-
-		needUpdate.Set(f.Path, f)
-		//vv("Stat localPathToRead '%v' -> err '%v' so marking needUpdate", localPathToRead, err)
-
 		return
 	} else {
 		if isSym {
