@@ -414,24 +414,27 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					// temp dir does not need to delete, it just
 					// won't write into the temp dir to begin with.
 					if useTempDir {
-						vv("useTempDir true: doing rename '%v' -> '%v'",
-							reqDir.TopTakerDirTemp, reqDir.TopTakerDirFinal)
+						//vv("useTempDir true: doing rename '%v' -> '%v'", reqDir.TopTakerDirTemp, reqDir.TopTakerDirFinal)
 
 						haveOld := dirExists(reqDir.TopTakerDirFinal)
 						var tmp string
+						// Could do the atomic swap renameat2 (linux has) but
+						// then we use cgo and its less portable.
+						// Just do an extra step, rename old, then move
+						// new into its place.
 						if haveOld {
 							// move the old version out of the way
 							rnd := cryRandBytesBase64(18)
 							tmp = filepath.Clean(reqDir.TopTakerDirFinal) + ".old." + rnd
-							vv("haveOld true, renaming before delete: '%v' -> '%v'", reqDir.TopTakerDirFinal, tmp)
+							//vv("haveOld true, renaming before delete: '%v' -> '%v'", reqDir.TopTakerDirFinal, tmp)
 							os.Rename(reqDir.TopTakerDirFinal, tmp)
 						}
 						err = os.Rename(reqDir.TopTakerDirTemp,
 							reqDir.TopTakerDirFinal)
 						panicOn(err)
 						if haveOld {
-							vv("delete the old version: skip to debug delete of old version: '%v'", tmp) // debug TODO restore below:
-							//os.RemoveAll(tmp)
+							//vv("delete the old version: '%v'", tmp)
+							os.RemoveAll(tmp)
 						}
 					} else {
 
