@@ -166,7 +166,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				return
 
 			case OpRsync_DirSyncBeginToTaker: // 22
-				vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
+				//vv("%v: (ckt '%v') (DirTaker) sees OpRsync_DirSyncBeginToTaker.", name, ckt.Name)
 				// we should: setup a top tempdir and prep to
 				// pre-pend it to all paths we get from giver.
 
@@ -205,7 +205,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					targetTakerTopTempDir, tmpDirID, err := s.mkTempDir(
 						reqDir.TopTakerDirFinal)
 					panicOn(err)
-					vv("DirTaker (remote taker) made temp dir '%v' for finalDir '%v'", targetTakerTopTempDir, reqDir.TopTakerDirFinal)
+					//vv("DirTaker (remote taker) made temp dir '%v' for finalDir '%v'", targetTakerTopTempDir, reqDir.TopTakerDirFinal)
 					reqDir.TopTakerDirTemp = targetTakerTopTempDir
 					reqDir.TopTakerDirTempDirID = tmpDirID
 				}
@@ -228,7 +228,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				panicOn(err)
 
 			case OpRsync_GiverSendsTopDirListing: // 26, all-one-pass version
-				vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
+				//vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
 				// Getting this means here is the starting dir tree from giver.
 				// now all in one pass, as PackOfFiles
 

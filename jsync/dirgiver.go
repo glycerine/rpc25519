@@ -132,7 +132,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				continue
 
 			case OpRsync_TakerRequestsDirSyncBegin: // 21
-				vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerRequestsDirSyncBegin.", name, ckt.Name)
+				//vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerRequestsDirSyncBegin.", name, ckt.Name)
 
 				// taker gives us their top dir temp dir to write paths into.
 
@@ -217,7 +217,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 				// is it now a file that was guessed (or used to be) a dir?
 				if fileExists(reqDir.GiverDir) {
-					vv("reqDir.GiverDir '%v' is a file, not a directory as expected.", reqDir.GiverDir)
+					//vv("reqDir.GiverDir '%v' is a file, not a directory as expected.", reqDir.GiverDir)
 
 					err := s.convertedDirToFile_giveFile(
 						ctx0, reqDir, ckt, frag0, bt)
