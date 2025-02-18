@@ -422,7 +422,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						if haveOld {
 							// move the old version out of the way
 							rnd := cryRandBytesBase64(18)
-							tmp = filepath.Clean(reqDir.TopTakerDirFinal) + "." + rnd
+							tmp = filepath.Clean(reqDir.TopTakerDirFinal) + ".old." + rnd
 							vv("haveOld true, renaming before delete: '%v' -> '%v'", reqDir.TopTakerDirFinal, tmp)
 							os.Rename(reqDir.TopTakerDirFinal, tmp)
 						}
@@ -430,8 +430,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							reqDir.TopTakerDirFinal)
 						panicOn(err)
 						if haveOld {
-							// delete the old version
-							os.RemoveAll(tmp)
+							vv("delete the old version: skip to debug delete of old version: '%v'", tmp) // debug TODO restore below:
+							//os.RemoveAll(tmp)
 						}
 					} else {
 
