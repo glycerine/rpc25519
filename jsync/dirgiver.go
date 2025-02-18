@@ -132,7 +132,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				continue
 
 			case OpRsync_TakerRequestsDirSyncBegin: // 21
-				//vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerRequestsDirSyncBegin.", name, ckt.Name)
+				vv("%v: (ckt '%v') (DirGiver) sees OpRsync_TakerRequestsDirSyncBegin.", name, ckt.Name)
 
 				// taker gives us their top dir temp dir to write paths into.
 

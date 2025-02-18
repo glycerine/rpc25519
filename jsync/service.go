@@ -681,7 +681,7 @@ func (s *SyncService) Start(
 
 			// begin dir sync bootstrap
 			if !syncReq.RemoteTakes && (syncReq.TakerIsDir || !syncReq.TakerExistsLocal) {
-				//vv("%v: we are the local taker of dir. sending 21 OpRsync_TakerRequestsDirSyncBegin", name)
+				vv("%v: we are the local taker of dir. sending 21 OpRsync_TakerRequestsDirSyncBegin", name)
 
 				// we (local taker) generate a temp dir first, then send 21
 				// OpRsync_TakerRequestsDirSyncBegin = 21 // to giver, please send me 22
@@ -690,7 +690,7 @@ func (s *SyncService) Start(
 					var err error
 					targetTakerTopTempDir, tmpDirID, err = s.mkTempDir(syncReq.TakerPath)
 					panicOn(err)
-					//vv("Start (local taker) made temp dir '%v' for finalDir '%v'", targetTakerTopTempDir, syncReq.TakerPath)
+					vv("Start (local taker) made temp dir '%v' for finalDir '%v'", targetTakerTopTempDir, syncReq.TakerPath)
 				} else {
 					targetTakerTopTempDir = syncReq.TakerPath
 				}
