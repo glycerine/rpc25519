@@ -545,8 +545,8 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 	localPathToRead := filepath.Join(
 		reqDir.TopTakerDirFinal, f.Path)
 
-	//vv("dirTaker: f.Path = '%v' => localPathToRead = '%v'", f.Path, localPathToRead)
-	//vv("dirTaker: f.Path = '%v' => localPathToWrite = '%v'", f.Path, localPathToWrite)
+	vv("dirTaker: f.Path = '%v' => localPathToRead = '%v'", f.Path, localPathToRead)
+	vv("dirTaker: f.Path = '%v' => localPathToWrite = '%v'", f.Path, localPathToWrite)
 	var err error
 	var fi os.FileInfo
 	isSym := f.IsSymlink()
@@ -564,8 +564,16 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 	// might not exist, don't panic on err (really!)
 	if !fileExists && !isSym {
 		// but we can fix non-existant symlinks immediately
-		needUpdate.Set(f.Path, f)
-		//vv("Stat localPathToRead '%v' -> err '%v' so marking needUpdate", localPathToRead, err)
+
+		// also we can make size 0 files immediately
+		if f.Size == 0 {
+			vv("size 0 file does not exist at localPathToRead '%v', so making it ", localPathToRead)
+
+		} else {
+
+			needUpdate.Set(f.Path, f)
+			vv("Stat localPathToRead '%v' -> err '%v' so marking needUpdate", localPathToRead, err)
+		}
 		return
 	} else {
 		if isSym {
