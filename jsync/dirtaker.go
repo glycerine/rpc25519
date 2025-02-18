@@ -566,14 +566,14 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 		// but we can fix non-existant symlinks immediately
 
 		// also we can make size 0 files immediately
-		if false { // f.Size == 0 {
-			//vv("size 0 file does not exist at localPathToRead '%v', so making it ", localPathToRead)
+		if f.Size == 0 {
+			vv("size 0 file does not exist at localPathToRead '%v', so make it?", localPathToRead)
 
-		} else {
-
-			needUpdate.Set(f.Path, f)
-			//vv("Stat localPathToRead '%v' -> err '%v' so marking needUpdate", localPathToRead, err)
 		}
+
+		needUpdate.Set(f.Path, f)
+		//vv("Stat localPathToRead '%v' -> err '%v' so marking needUpdate", localPathToRead, err)
+
 		return
 	} else {
 		if isSym {
