@@ -164,7 +164,7 @@ func (s *Server) runServerMain(
 		}
 	}
 
-	s.mut.Lock() // avoid data race
+	s.mut.Lock() // avoid data races
 	addrs := addr.Network() + "://" + addr.String()
 	s.boundAddressString = addrs
 	AliasRegister(addrs, addrs+" (server: "+s.name+")")
@@ -216,6 +216,8 @@ func (s *Server) runTCP(serverAddress string, boundCh chan net.Addr) {
 	addrs := addr.Network() + "://" + addr.String()
 	s.boundAddressString = addrs
 	AliasRegister(addrs, addrs+" (tcp_server: "+s.name+")")
+	// set s.lsn under mut to prevent data race.
+	s.lsn = listener // allow shutdown
 	s.mut.Unlock()
 
 	//vv("Server listening on %v://%v", addr.Network(), addr.String())
@@ -225,8 +227,6 @@ func (s *Server) runTCP(serverAddress string, boundCh chan net.Addr) {
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
-
-	s.lsn = listener // allow shutdown
 
 	if s.cfg.HTTPConnectRequired {
 		mux := http.NewServeMux()
