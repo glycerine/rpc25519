@@ -267,7 +267,7 @@ func (pb *LocalPeer) TellRemoteWeShutdown(rem *RemotePeer) {
 }
 
 func closeCktInBackgroundToAvoidDeadlock(queueSendCh chan *Message, msg *Message, halt *idem.Halter) {
-	vv("ErrAntiDeadlockMustQueue seen, closing ckt in background.")
+	//vv("ErrAntiDeadlockMustQueue seen, closing ckt in background.")
 	select {
 	case queueSendCh <- msg:
 	case <-halt.ReqStop.Chan:
