@@ -742,7 +742,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 
 				case <-goroHalt.ReqStop.Chan:
 					reas, _ := goroHalt.ReqStop.Reason()
-					vv("worker w=%v exit on goroHalt.ReqStop.Chan: '%v'", w, reas)
+					//vv("worker w=%v exit on goroHalt.ReqStop.Chan: '%v'", w, reas)
 					return
 				}
 
