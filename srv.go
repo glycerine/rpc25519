@@ -1882,9 +1882,17 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 
 	//vv("send message attempting to send %v bytes to '%v'", len(data), destAddr)
 
-	// -2 means pump is trying to close a circuit.
-	// it is prepared to queue a background close.
-	if errWriteDur <= -2 {
+	// An errWriteDur == -2 is a special case: it
+	// means that pump.go is trying to
+	// close a circuit, which solves this problem:
+	// if instead we block, this can result in
+	// a distributed deadlock where two senders both block
+	// their read loops trying to close circuits.
+	// pump.go and any caller using -1 is/must be prepared
+	// to queue a background close instead; we
+	// will give up after a millisecond to avoid the
+	// deadlock.
+	if errWriteDur == -2 {
 		select {
 		case sendCh <- msg:
 			return nil, nil
@@ -1893,9 +1901,6 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 			return ErrShutdown(), nil
 		case <-ctx.Done():
 			return ErrContextCancelled, nil
-
-			// maybe soon. atm afraid -1 => 1 nsec won't work.
-			//case <-time.After(-errWriteDur):
 
 		case <-time.After(time.Millisecond):
 			return ErrAntiDeadlockMustQueue, sendCh
