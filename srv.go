@@ -681,10 +681,10 @@ func (m *mapIDtoChan) get(id string) (ch chan *Message, ok bool) {
 }
 func (m *mapIDtoChan) set(id string, ch chan *Message) {
 	m.mut.Lock()
-	_, isOld := m.m[id]
-	if !isOld {
-		vv("adding new mapIDtoChan for key '%v'\nstack='%v'\n", id, stack())
-	}
+	//_, isOld := m.m[id]
+	//if !isOld {
+	//	vv("adding new mapIDtoChan for key '%v'\nstack='%v'\n", id, stack())
+	//}
 	m.m[id] = ch
 	m.mut.Unlock()
 }
@@ -786,7 +786,10 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 			case <-time.After(time.Second * 10):
 				// seen, problem: not cleaning up the registrations?
 				// No, it was legit message waiting, arg.
-				panic(fmt.Sprintf("no wantsToPeerID send after 10 seconds! msg='%v'; keys = '%#v'", msg.String(), c.notifyOnReadToPeerIDMap.keys()))
+				//panic(fmt.Sprintf("no wantsToPeerID send after 10 seconds! msg='%v'; keys = '%#v'", msg.String(), c.notifyOnReadToPeerIDMap.keys()))
+				vv("no wantsToPeerID send after 10 seconds! msg='%v'; keys = '%#v'", msg.String(), c.notifyOnReadToPeerIDMap.keys())
+				var fakeSignal os.Signal
+				sigQuitCh <- fakeSignal
 			}
 			return true // only send to ToPeerID, priority over CallID.
 		}

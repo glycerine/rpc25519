@@ -10,11 +10,13 @@ import (
 	"syscall"
 )
 
+var sigQuitCh chan os.Signal
+
 func init() {
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGQUIT)
+	sigQuitCh = make(chan os.Signal, 1)
+	signal.Notify(sigQuitCh, syscall.SIGQUIT)
 	go func() {
-		for range c {
+		for range sigQuitCh {
 			// Allocate buffer for stack trace
 			buf := make([]byte, 1<<20)
 			for {
