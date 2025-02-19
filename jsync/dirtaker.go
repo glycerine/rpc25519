@@ -139,13 +139,17 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 				// clear out (any) existing directory;
 				// maybe todo: make this optional?
-				vv("dirtaker: to convert dir to file, we wipe out dir: '%v'", sr.TakerPath)
+				//vv("dirtaker: to convert dir to file, we wipe out dir: '%v'", sr.TakerPath)
 				if sr.TakerPath == "" {
 					panic("cannot have empty sr.TakerPath here.")
 				}
 				if dirExists(sr.TakerPath) {
-					err = os.RemoveAll(sr.TakerPath)
-					panicOn(err)
+					if sr.DryRun {
+						alwaysPrintf("dry: would os.RemoveAll('%v')", sr.TakerPath)
+					} else {
+						err = os.RemoveAll(sr.TakerPath)
+						panicOn(err)
+					}
 				}
 
 				err = s.Taker(ctx0, ckt, myPeer, sr)
@@ -427,14 +431,24 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							rnd := cryRandBytesBase64(18)
 							tmp = filepath.Clean(reqDir.TopTakerDirFinal) + ".old." + rnd
 							//vv("haveOld true, renaming before delete: '%v' -> '%v'", reqDir.TopTakerDirFinal, tmp)
-							os.Rename(reqDir.TopTakerDirFinal, tmp)
+							if reqDir.DryRun {
+								alwaysPrintf("dry: would os.Rename(reqDir.TopTakerDirFinal='%v', tmp='%v')", reqDir.TopTakerDirFinal, tmp)
+							} else {
+								os.Rename(reqDir.TopTakerDirFinal, tmp)
+							}
 						}
-						err = os.Rename(reqDir.TopTakerDirTemp,
-							reqDir.TopTakerDirFinal)
-						panicOn(err)
-						if haveOld {
-							//vv("final dirtake act: delete old dir: '%v'", tmp)
-							os.RemoveAll(tmp)
+						if reqDir.DryRun {
+							alwaysPrintf("dry: would rename '%v' -> '%v'"+
+								" and delete all '%v'", reqDir.TopTakerDirTemp,
+								reqDir.TopTakerDirFinal, tmp)
+						} else {
+							err = os.Rename(reqDir.TopTakerDirTemp,
+								reqDir.TopTakerDirFinal)
+							panicOn(err)
+							if haveOld {
+								//vv("final dirtake act: delete old dir: '%v'", tmp)
+								os.RemoveAll(tmp)
+							}
 						}
 					} else {
 
@@ -447,11 +461,15 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							path = filepath.Join(reqDir.TopTakerDirFinal,
 								file.Path)
 
-							vv("deleting taker only path: '%v'", path)
-							if file.IsDir() {
-								os.RemoveAll(path)
+							//vv("deleting taker only path: '%v'", path)
+							if reqDir.DryRun {
+								alwaysPrintf("dry: would remove '%v'", path)
 							} else {
-								os.Remove(path)
+								if file.IsDir() {
+									os.RemoveAll(path)
+								} else {
+									os.Remove(path)
+								}
 							}
 						}
 					}

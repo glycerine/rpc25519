@@ -333,8 +333,12 @@ takerForSelectLoop:
 
 			case OpRsync_TellTakerToDelete: // part of pull
 				//vv("%v: (ckt %v) (Taker) sees OpRsync_TellTakerToDelete. deleting '%v'", name, ckt.Name, syncReq.TakerPath)
-				err := os.Remove(syncReq.TakerPath)
-				panicOn(err)
+				if syncReq.DryRun {
+					alwaysPrintf("dry: would remove '%v', since OpRsync_TellTakerToDelete", syncReq.TakerPath)
+				} else {
+					err := os.Remove(syncReq.TakerPath)
+					panicOn(err)
+				}
 				s.ackBackFINToGiver(ckt, frag)
 				frag = nil
 				continue // wait for FIN
@@ -348,15 +352,24 @@ takerForSelectLoop:
 				//vv("%v: (ckt %v) (Taker) sees OpRsync_ToTakerMetaUpdateAtLeast. updating mode/modTime on '%v' to '%v'", name, ckt.Name, syncReq.TakerPath, precis.ModTime)
 
 				if localPathToWrite != localPathToRead {
-					//vv("hard linking 6 '%v' <- '%v'",localPathToRead, localPathToWrite)
-					panicOn(os.Link(localPathToRead, localPathToWrite))
+					if syncReq.DryRun {
+						alwaysPrintf("dry: would hard linking 6 '%v' <- '%v'",
+							localPathToRead, localPathToWrite)
+					} else {
+						panicOn(os.Link(localPathToRead, localPathToWrite))
+					}
 				} else {
 					// an empty file might need to be created;
 					// its data hash will be the same as a non-existant file.
 					if !fileExists(localPathToWrite) {
-						fd, err := os.Create(localPathToWrite)
-						panicOn(err)
-						fd.Close()
+						if syncReq.DryRun {
+							alwaysPrintf("dry: would create empty file '%v'",
+								localPathToWrite)
+						} else {
+							fd, err := os.Create(localPathToWrite)
+							panicOn(err)
+							fd.Close()
+						}
 					}
 				}
 
@@ -592,7 +605,11 @@ takerForSelectLoop:
 
 				if senderPlan.FileIsDeleted {
 					//vv("senderPlan.FileIsDeleted true, deleting path '%v'", localPathToWrite)
-					_ = os.Remove(localPathToWrite)
+					if syncReq.DryRun {
+						alwaysPrintf("dry: would remove '%v' since senderPlan.FileIsDeleted", localPathToWrite)
+					} else {
+						_ = os.Remove(localPathToWrite)
+					}
 					s.ackBackFINToGiver(ckt, frag)
 					frag = nil
 					continue // wait for other side to close
@@ -1083,6 +1100,11 @@ func (s *SyncService) takeSymlink(syncReq *RequestToSyncPath, localPathToWrite s
 
 	targ := syncReq.GiverSymLinkTarget
 	//vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
+	if syncReq.DryRun {
+		alwaysPrintf("dry: would remove '%v' and put symlink to '%v' there", localPathToWrite, targ)
+		return
+	}
+
 	os.Remove(localPathToWrite)
 	err := os.Symlink(targ, localPathToWrite)
 	panicOn(err)
