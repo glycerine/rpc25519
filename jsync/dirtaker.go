@@ -139,7 +139,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 				// clear out (any) existing directory;
 				// maybe todo: make this optional?
-				//vv("dirtaker: to convert dir to file, we wipe out dir: '%v'", sr.TakerPath)
+				vv("dirtaker: to convert dir to file, we wipe out dir: '%v'", sr.TakerPath)
 				if sr.TakerPath == "" {
 					panic("cannot have empty sr.TakerPath here.")
 				}
@@ -279,7 +279,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 									// also stop the whole batch on single err.
 									// At least for now, sane debugging.
 									haltIndivFileCheck.ReqStop.CloseWithReason(err)
-									vv("dirtaker panic caught: '%v'", err.Error())
+									alwaysPrintf("dirtaker panic caught: '%v'", err.Error())
 								} else {
 									goroHalt.ReqStop.Close()
 								}
@@ -433,7 +433,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							reqDir.TopTakerDirFinal)
 						panicOn(err)
 						if haveOld {
-							//vv("delete the old version: '%v'", tmp)
+							//vv("final dirtake act: delete old dir: '%v'", tmp)
 							os.RemoveAll(tmp)
 						}
 					} else {
@@ -447,7 +447,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							path = filepath.Join(reqDir.TopTakerDirFinal,
 								file.Path)
 
-							//vv("deleting taker only path: '%v'", path)
+							vv("deleting taker only path: '%v'", path)
 							if file.IsDir() {
 								os.RemoveAll(path)
 							} else {
