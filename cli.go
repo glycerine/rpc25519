@@ -275,6 +275,12 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 	var err error
 	ctx, canc := context.WithCancel(context.Background())
 	defer func() {
+		r := recover()
+		if r != nil {
+			alwaysPrintf("cli runReadLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, stack())
+		} else {
+			//vv("cli runReadLoop defer/shutdown running.")
+		}
 		//vv("client runReadLoop exiting, last err = '%v'", err)
 		canc()
 		c.halt.ReqStop.Close()
@@ -385,9 +391,21 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		// a server and starting up a peer service.
 		switch msg.HDR.Typ {
 		case CallPeerStart, CallPeerStartCircuit, CallPeerStartCircuitTakeToID:
+
+			// Why this is not in its own goroutine? Backpressure.
+			// It is important to provide back pressure
+			// and let the sends catch up with the reads... we
+			// just need to make sure that the sends don't also
+			// depend on a read happening, since then we can deadlock.
+			// To wit: peerbackPump in pump.go now detects a
+			// busy send loop and queues closes to avoid such
+			// deadlocks. See also the comments on
+			// SendOneWayMessage in srv.go.
+
 			err := c.PeerAPI.bootstrapCircuit(yesIsClient, msg, ctx, c.oneWayCh)
 			if err != nil {
 				// only error is on shutdown request received.
+				//vv("cli c.PeerAPI.bootstrapCircuit returned err = '%v'", err)
 				return
 			}
 			continue
@@ -436,7 +454,12 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 
 func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 	defer func() {
-		//vv("client runSendLoop shutting down")
+		r := recover()
+		if r != nil {
+			vv("cli runSendLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, stack())
+		} else {
+			vv("cli runSendLoop defer/shutdown running.")
+		}
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
 	}()
@@ -527,8 +550,9 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 			if err := w.sendMessage(conn, msg, nil); err != nil {
 				alwaysPrintf("Failed to send message: %v\n", err)
 				msg.LocalErr = err
-				if strings.Contains(err.Error(),
-					"use of closed network connection") {
+				rr := err.Error()
+				if strings.Contains(rr, "use of closed network connection") ||
+					strings.Contains(rr, "connection reset by peer") {
 					return
 				}
 			} else {
@@ -1851,7 +1875,7 @@ type UniversalCliSrv interface {
 
 	StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, remoteAddr string, waitUpTo time.Duration) (ckt *Circuit, err error)
 
-	SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) error
+	SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (error, chan *Message)
 
 	GetReadsForCallID(ch chan *Message, callID string)
 	GetErrorsForCallID(ch chan *Message, callID string)
@@ -1884,7 +1908,7 @@ var _ UniversalCliSrv = &Server{}
 // for symmetry: see srv.go for details, under the same func name.
 //
 // SendOneWayMessage only sets msg.HDR.From to its correct value.
-func (cli *Client) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) error {
+func (cli *Client) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (error, chan *Message) {
 	return sendOneWayMessage(cli, ctx, msg, errWriteDur)
 }
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/glycerine/idem"
 )
 
 func prettyPrintCircuitMap(m map[string]*Circuit) (s string) {
@@ -59,8 +61,7 @@ func (pb *LocalPeer) peerbackPump() {
 		}
 
 		if notifyPeer {
-			// Politely tell our peer we are going down,
-			// in case they are staying up.
+			// Tell our peer we are going down.
 			frag := pb.U.NewFragment()
 			frag.Typ = CallPeerEndCircuit
 			// Transmit back reason for shutdown if we can.
@@ -69,7 +70,24 @@ func (pb *LocalPeer) peerbackPump() {
 			if reason, ok := ckt.Halt.ReqStop.Reason(); ok && reason != nil {
 				frag.Err = reason.Error()
 			}
-			pb.SendOneWay(ckt, frag, -1) // no blocking
+			// this is blocking, so we cannot finish circuits,
+			// and then we are not servicing reads. Thus both cli
+			// and srv can be blocked waiting to send, resulting
+			// deadlock. Implement the errWaitdur -2 and background
+			// close mechanism below to prevent deadlock.
+			//pb.SendOneWay(ckt, frag, -1) // no blocking
+
+			// to enable background close, get independent of ckt:
+			frag.CircuitID = ckt.CircuitID
+			frag.FromPeerID = ckt.LocalPeerID
+			frag.ToPeerID = ckt.RemotePeerID
+			msg := ckt.ConvertFragmentToMessage(frag)
+			pb.U.FreeFragment(frag)
+
+			err, queueSendCh := pb.U.SendOneWayMessage(pb.Ctx, msg, -2)
+			if err == ErrAntiDeadlockMustQueue {
+				go closeCktInBackgroundToAvoidDeadlock(queueSendCh, msg, pb.Halt)
+			}
 		}
 		ckt.Canc(fmt.Errorf("pump cleanupCkt(notifyPeer=%v) cancelling ckt.Context.", notifyPeer))
 		pb.U.UnregisterChannel(ckt.CircuitID, CallIDReadMap)
@@ -104,6 +122,12 @@ func (pb *LocalPeer) peerbackPump() {
 		}
 		//zz("%v: peerbackPump done telling peers we are down.", name)
 		pb.Halt.Done.Close()
+
+		r := recover()
+		if r != nil {
+			alwaysPrintf("arg. LocalPeer.peerbackPump() exiting on panic: '%v'", r)
+			panic(r)
+		}
 	}()
 
 	done := pb.Ctx.Done()
@@ -239,4 +263,12 @@ func (pb *LocalPeer) TellRemoteWeShutdown(rem *RemotePeer) {
 	shut.HDR.ServiceName = rem.RemoteServiceName
 
 	pb.U.SendOneWayMessage(ctxB, shut, -1) // -1 => no blocking
+}
+
+func closeCktInBackgroundToAvoidDeadlock(queueSendCh chan *Message, msg *Message, halt *idem.Halter) {
+	//vv("ErrAntiDeadlockMustQueue seen, closing ckt in background.")
+	select {
+	case queueSendCh <- msg:
+	case <-halt.ReqStop.Chan:
+	}
 }

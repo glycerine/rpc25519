@@ -430,7 +430,7 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 	msg := ckt.ConvertFragmentToMessage(frag)
 	s.U.FreeFragment(frag)
 
-	err = s.U.SendOneWayMessage(s.Ctx, msg, errWriteDur)
+	err, _ = s.U.SendOneWayMessage(s.Ctx, msg, errWriteDur)
 	if err != nil {
 		return err
 	}
@@ -702,11 +702,7 @@ func (lpb *LocalPeer) newCircuit(
 
 	case <-lpb.Halt.ReqStop.Chan:
 		return nil, nil, ErrHaltRequested
-
-	case <-time.After(time.Second * 10):
-		panic(fmt.Sprintf("problem: could not access pump loop to create newCircuit after 10 sec; trying to make '%v'", circuitName))
 	}
-
 	//vv("tellRemote = %v", tellRemote)
 	if tellRemote {
 		var msg *Message
@@ -731,7 +727,7 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args = map[string]string{
 			"#fromServiceName": lpb.PeerServiceName,
 			"#circuitName":     circuitName}
-		err = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
+		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
 	}
 
 	return
@@ -910,7 +906,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	}()
 
 	//localPeerURL := lpb.URL()
-	////vv("lpb.PeerURL() = '%v'", localPeerURL)
+	//vv("unlockedStartLocalPeer: lpb.URL() = '%v'; peerServiceName='%v', isUpdatedPeerID='%v'; pleaseAssignNewPeerID='%v'; \nstack=%v\n", lpb.URL(), peerServiceName, isUpdatedPeerID, pleaseAssignNewPeerID, stack())
 
 	if requestedCircuit != nil {
 		return lpb, lpb.provideRemoteOnNewPeerCh(p.isCli, requestedCircuit, ctx1, sendCh, isUpdatedPeerID)
@@ -970,7 +966,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 	pollInterval := waitUpTo / 50
 
 	for i := 0; i < 50; i++ {
-		err = p.u.SendOneWayMessage(ctx, msg, 0)
+		err, _ = p.u.SendOneWayMessage(ctx, msg, 0)
 		if err == nil {
 			////vv("SendOneWayMessage retried %v times before succeess; pollInterval: %v",
 			//	i, pollInterval)
@@ -1016,7 +1012,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 		return "", "", fmt.Errorf("remote '%v', peerServiceName '%v' did "+
 			"not respond with peerURL in Args", remoteAddr, peerServiceName)
 	}
-	////vv("got remotePeerURL from Args[peerURL]: '%v'", remotePeerURL)
+	vv("StartRemotePeer got remotePeerURL from Args[peerURL]: '%v'", remotePeerURL)
 	return remotePeerURL, RemotePeerID, nil
 }
 
