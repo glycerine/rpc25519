@@ -717,8 +717,8 @@ func (lpb *LocalPeer) newCircuit(
 				//return nil, nil, ErrHaltRequested
 				return
 
-			case <-time.After(time.Second * 10):
-				panic(fmt.Sprintf("problem: could not access pump loop to create newCircuit after 10 sec; trying to make '%v'", circuitName))
+				//case <-time.After(time.Second * 10):
+				//	panic(fmt.Sprintf("problem: could not access pump loop to create newCircuit after 10 sec; trying to make '%v'", circuitName))
 			}
 		}
 		//vv("tellRemote = %v", tellRemote)
