@@ -175,7 +175,7 @@ func main() {
 					}
 				}()
 
-				lazyStartPeer := true
+				lazyStartPeer := false
 				lpb, ctx, canc, err := rsync.RunRsyncService(cfg, srv, "rsync_server", false, reqs, lazyStartPeer)
 				panicOn(err)
 				if !lazyStartPeer {
@@ -189,6 +189,9 @@ func main() {
 					}
 				} else {
 					select {
+					// The problem with lazyStartPeer is:
+					// we are hung in here after first round, without a
+					// way to detect that the service needs a restart!
 					case <-ctx.Done():
 						canc()
 						vv("lazy rsync.RunRsyncService peer shutdown. starting new instance...")
