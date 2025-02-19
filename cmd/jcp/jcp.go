@@ -181,9 +181,7 @@ func main() {
 
 		splt2 := strings.Split(takerPath, ":")
 		if len(splt2) <= 1 {
-			//fmt.Fprintf(os.Stderr, "jcp error: neither source nor destination had ':' in it. Which is the remote?\n")
-			//os.Exit(1)
-			//fmt.Printf("no ':' in src/target: starting local rsync server to receive files...\n")
+			fmt.Printf("no ':' in src/target: starting local rsync server to receive files...\n")
 			cfg.ServerAddr = "127.0.0.1:0"
 			srv := rpc.NewServer("srv_rsync_jcp", cfg)
 			serverAddr, err := srv.Start()

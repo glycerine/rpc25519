@@ -175,15 +175,24 @@ func main() {
 					}
 				}()
 
-				lpb, ctx, canc, err := rsync.RunRsyncService(cfg, srv, "rsync_server", false, reqs)
-
+				lazyStartPeer := true
+				lpb, ctx, canc, err := rsync.RunRsyncService(cfg, srv, "rsync_server", false, reqs, lazyStartPeer)
+				vv("started rsync_server, lpb.URL = '%v'", lpb.URL())
 				panicOn(err)
-				select {
-				case <-lpb.Halt.Done.Chan:
-					lpb.Close()
-					canc()
-					_ = ctx
-					//vv("rsync.RunRsyncService peer shutdown. starting new instance...")
+				if lazyStartPeer {
+					select {
+					case <-lpb.Halt.Done.Chan:
+						lpb.Close()
+						canc()
+						_ = ctx
+						//vv("rsync.RunRsyncService peer shutdown. starting new instance...")
+					}
+				} else {
+					select {
+					case <-ctx.Done():
+						canc()
+						vv("lazy rsync.RunRsyncService peer shutdown. starting new instance...")
+					}
 				}
 			}()
 		}

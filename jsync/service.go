@@ -316,7 +316,7 @@ func NewRequestToSyncPath() *RequestToSyncPath {
 
 // RequestToSyncPath is the main bridge
 // between user code and the file syncing service
-// implementation (for one file).
+// implementation
 // In essense, the user must:
 //
 // a) request := &RequestToSyncPath{} and set details/RemoteTakes to true/false
@@ -524,6 +524,9 @@ func RunRsyncService(
 	isCli bool,
 	reqs chan *RequestToSyncPath,
 
+	// for server, since client will start peer anyway.
+	lazyStartPeer bool, // if true, return lpb nil; do not actually start peer.
+
 ) (lpb *rpc.LocalPeer, ctx context.Context, canc context.CancelFunc, err error) {
 
 	// get our nice print outs of fragments.
@@ -539,8 +542,10 @@ func RunRsyncService(
 
 	ctx, canc = context.WithCancel(context.Background())
 
-	lpb, err = u.StartLocalPeer(ctx, serviceName, nil)
-	panicOn(err)
+	if !lazyStartPeer {
+		lpb, err = u.StartLocalPeer(ctx, serviceName, nil)
+		panicOn(err)
+	}
 
 	//vv("RunRsyncService back from StartLocalPeer for serviceName '%v'; isCli = %v", serviceName, isCli)
 
