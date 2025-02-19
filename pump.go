@@ -85,6 +85,7 @@ func (pb *LocalPeer) peerbackPump() {
 
 			err, queueSendCh := pb.U.SendOneWayMessage(pb.Ctx, msg, -2)
 			if err == ErrAntiDeadlockMustQueue {
+				vv("ErrAntiDeadlockMustQueue seen, closing ckt in background.")
 				go func() {
 					select {
 					case queueSendCh <- msg:
