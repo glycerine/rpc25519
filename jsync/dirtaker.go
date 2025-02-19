@@ -741,6 +741,8 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 						"begin: "+filepath.Base(file.Path), file.Size, 0, t1)
 
 				case <-goroHalt.ReqStop.Chan:
+					reas, _ := goroHalt.ReqStop.Reason()
+					vv("worker w=%v exit on goroHalt.ReqStop.Chan: '%v'", w, reas)
 					return
 				}
 
