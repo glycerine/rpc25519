@@ -544,8 +544,9 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 			if err := w.sendMessage(conn, msg, nil); err != nil {
 				alwaysPrintf("Failed to send message: %v\n", err)
 				msg.LocalErr = err
-				if strings.Contains(err.Error(),
-					"use of closed network connection") {
+				rr := err.Error()
+				if strings.Contains(rr, "use of closed network connection") ||
+					strings.Contains(rr, "connection reset by peer") {
 					return
 				}
 			} else {
