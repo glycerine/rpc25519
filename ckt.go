@@ -925,7 +925,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	}()
 
 	//localPeerURL := lpb.URL()
-	////vv("lpb.PeerURL() = '%v'", localPeerURL)
+	vv("unlockedStartLocalPeer: lpb.URL() = '%v'", lpb.URL())
 
 	if requestedCircuit != nil {
 		return lpb, lpb.provideRemoteOnNewPeerCh(p.isCli, requestedCircuit, ctx1, sendCh, isUpdatedPeerID)
@@ -1031,7 +1031,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 		return "", "", fmt.Errorf("remote '%v', peerServiceName '%v' did "+
 			"not respond with peerURL in Args", remoteAddr, peerServiceName)
 	}
-	////vv("got remotePeerURL from Args[peerURL]: '%v'", remotePeerURL)
+	vv("StartRemotePeer got remotePeerURL from Args[peerURL]: '%v'", remotePeerURL)
 	return remotePeerURL, RemotePeerID, nil
 }
 

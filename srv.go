@@ -681,6 +681,10 @@ func (m *mapIDtoChan) get(id string) (ch chan *Message, ok bool) {
 }
 func (m *mapIDtoChan) set(id string, ch chan *Message) {
 	m.mut.Lock()
+	_, isNew := m.m[id]
+	if isNew {
+		vv("adding new mapIDtoChan for key '%v'\nstack='%v'\n", id, stack())
+	}
 	m.m[id] = ch
 	m.mut.Unlock()
 }
