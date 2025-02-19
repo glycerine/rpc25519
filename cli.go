@@ -391,11 +391,17 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		// a server and starting up a peer service.
 		switch msg.HDR.Typ {
 		case CallPeerStart, CallPeerStartCircuit, CallPeerStartCircuitTakeToID:
+			// we can get hung in here... and thus block reads,
+			// which we might need to be making progress. So
+			// start it in a goro... later in ckt.go:700 newCircuit()
+			//go func() {
 			err := c.PeerAPI.bootstrapCircuit(yesIsClient, msg, ctx, c.oneWayCh)
 			if err != nil {
 				// only error is on shutdown request received.
+				vv("cli c.PeerAPI.bootstrapCircuit returned err = '%v'", err)
 				return
 			}
+			//}()
 			continue
 		}
 

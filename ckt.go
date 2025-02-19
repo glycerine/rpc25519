@@ -697,42 +697,57 @@ func (lpb *LocalPeer) newCircuit(
 
 	//lpb.Halt.AddChild(ckt.Halt) // no worries: pump will do this.
 
+	sendCkt := true
 	select {
 	case lpb.HandleChansNewCircuit <- ckt:
-
+		sendCkt = false
 	case <-lpb.Halt.ReqStop.Chan:
 		return nil, nil, ErrHaltRequested
-
-	case <-time.After(time.Second * 10):
-		panic(fmt.Sprintf("problem: could not access pump loop to create newCircuit after 10 sec; trying to make '%v'", circuitName))
+	case <-time.After(time.Millisecond * 10):
+		// leave sendCkt true so we
+		// do it in the background on the goroutine next:
 	}
 
-	//vv("tellRemote = %v", tellRemote)
-	if tellRemote {
-		var msg *Message
-		if firstFrag != nil {
-			msg = firstFrag.ToMessage()
-		} else {
-			msg = NewMessage()
+	go func(sendCkt bool) { // instead of in cli read loop
+		if sendCkt {
+			select {
+			case lpb.HandleChansNewCircuit <- ckt:
+
+			case <-lpb.Halt.ReqStop.Chan:
+				//return nil, nil, ErrHaltRequested
+				return
+
+			case <-time.After(time.Second * 10):
+				panic(fmt.Sprintf("problem: could not access pump loop to create newCircuit after 10 sec; trying to make '%v'", circuitName))
+			}
 		}
-		msg.HDR.To = rpb.NetAddr
-		//vv("rpb.NetAddr = '%v'", rpb.NetAddr)
-		msg.HDR.From = lpb.NetAddr
-		msg.HDR.Typ = CallPeerStartCircuit
-		msg.HDR.Created = time.Now()
-		msg.HDR.FromPeerID = lpb.PeerID
-		msg.HDR.ToPeerID = rpb.PeerID
-		msg.HDR.CallID = ckt.CircuitID
-		msg.HDR.Serial = issueSerial()
-		msg.HDR.ServiceName = ckt.RemoteServiceName
+		//vv("tellRemote = %v", tellRemote)
+		if tellRemote {
+			var msg *Message
+			if firstFrag != nil {
+				msg = firstFrag.ToMessage()
+			} else {
+				msg = NewMessage()
+			}
+			msg.HDR.To = rpb.NetAddr
+			//vv("rpb.NetAddr = '%v'", rpb.NetAddr)
+			msg.HDR.From = lpb.NetAddr
+			msg.HDR.Typ = CallPeerStartCircuit
+			msg.HDR.Created = time.Now()
+			msg.HDR.FromPeerID = lpb.PeerID
+			msg.HDR.ToPeerID = rpb.PeerID
+			msg.HDR.CallID = ckt.CircuitID
+			msg.HDR.Serial = issueSerial()
+			msg.HDR.ServiceName = ckt.RemoteServiceName
 
-		// tell the remote which serviceName we are coming from;
-		// so the URL back can be correct.
-		msg.HDR.Args = map[string]string{
-			"#fromServiceName": lpb.PeerServiceName,
-			"#circuitName":     circuitName}
-		err = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
-	}
+			// tell the remote which serviceName we are coming from;
+			// so the URL back can be correct.
+			msg.HDR.Args = map[string]string{
+				"#fromServiceName": lpb.PeerServiceName,
+				"#circuitName":     circuitName}
+			err = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
+		}
+	}(sendCkt)
 
 	return
 }

@@ -496,6 +496,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		<-j.srvs.dropcopy_reads
 		// we know the server has read a frag now.
 
+		//time.Sleep(time.Second)
 		if got, want := cli_lpb.OpenCircuitCount(), 1; got != want {
 			t.Fatalf("error: expected 1 open circuit on cli, got: '%v'", got)
 		}
@@ -612,6 +613,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		<-j.srvs.dropcopy_reads
 		// we know the server has read another frag now.
 
+		//time.Sleep(time.Second)
 		// verify open circuit count
 		if got, want := cli_lpb.OpenCircuitCount(), 2; got != want {
 			t.Fatalf("error: expected %v open circuit on cli, got: '%v'", want, got)
