@@ -1835,6 +1835,16 @@ type oneWaySender interface {
 // catch mis-use of this when the user actually wants a round-trip call.
 //
 // SendOneWayMessage only sets msg.HDR.From to its correct value.
+//
+// As a facility to prevent deadlock when both cli and srv are
+// trying to send and both have full OS read buffers, the
+// pump.go peerbackPump loop will call here with errWriteDur == -2.
+// In this case, if the send cannot pass msg to the send loop
+// within 1 millisecond, we return ErrAntiDeadlockMustQueue
+// along with the sendCh to send on in the background when
+// the send loop becomes available. See pump.go and how
+// it calls closeCktInBackgroundToAvoidDeadlock() to avoid
+// deadlocks on circuit shutdown.
 func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (error, chan *Message) {
 	return sendOneWayMessage(s, ctx, msg, errWriteDur)
 }
