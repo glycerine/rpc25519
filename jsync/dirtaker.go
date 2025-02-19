@@ -696,7 +696,8 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 	fileCh := make(chan *File) // do not buffer, giving work.
 
 	//workPoolSize := runtime.NumCPU()
-	workPoolSize := 1 // debug, todo restore: runtime.NumCPU()
+	// one works fine, no deadlock. how about 2?
+	workPoolSize := 2 // debug, todo restore: runtime.NumCPU()
 	for worker := range workPoolSize {
 
 		goroHalt := idem.NewHalter()
