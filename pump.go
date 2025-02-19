@@ -58,7 +58,8 @@ func (pb *LocalPeer) peerbackPump() {
 			return
 		}
 
-		if notifyPeer {
+		// debug: do we not hang if we skip this? the tests hang: TODO reverse!
+		if false { // notifyPeer {
 			// Politely tell our peer we are going down,
 			// in case they are staying up.
 			frag := pb.U.NewFragment()
