@@ -528,6 +528,14 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 // set useTempDir = false to just evaluate without making hard links
 func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate, takerCatalog *rpc.Mutexmap[string, *File], useTempDir bool) {
 
+	defer func() {
+		r := recover()
+		if r != nil {
+			alwaysPrintf("arg. panic noticed in takeOneFile! '%v'", r)
+			panic(r)
+		}
+	}()
+
 	// subtract from taker starting set, so
 	// we can determine what to delete at the
 	// end on the taker side.
