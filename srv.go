@@ -780,15 +780,17 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 				}
 			case <-ctx.Done():
 				return
-			case <-ctx.Done():
+				//case <-ctx.Done():
 
-			case <-time.After(time.Second * 10):
-				// seen, problem: not cleaning up the registrations?
-				// No, it was legit message waiting, arg.
-				//panic(fmt.Sprintf("no wantsToPeerID send after 10 seconds! msg='%v'; keys = '%#v'", msg.String(), c.notifyOnReadToPeerIDMap.keys()))
-				vv("no wantsToPeerID send after 10 seconds! msg='%v'; keys = '%#v'", msg.String(), c.notifyOnReadToPeerIDMap.keys())
-				var fakeSignal os.Signal
-				sigQuitCh <- fakeSignal
+				/* try just allowing the back pressure
+				case <-time.After(time.Second * 10):
+					// seen, problem: not cleaning up the registrations?
+					// No, it was legit message waiting, arg.
+					//panic(fmt.Sprintf("no wantsToPeerID send after 10 seconds! msg='%v'; keys = '%#v'", msg.String(), c.notifyOnReadToPeerIDMap.keys()))
+					vv("no wantsToPeerID send after 10 seconds! msg='%v'; keys = '%#v'", msg.String(), c.notifyOnReadToPeerIDMap.keys())
+					var fakeSignal os.Signal
+					sigQuitCh <- fakeSignal
+				*/
 			}
 			return true // only send to ToPeerID, priority over CallID.
 		}
