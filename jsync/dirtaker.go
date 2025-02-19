@@ -695,7 +695,8 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 
 	fileCh := make(chan *File) // do not buffer, giving work.
 
-	workPoolSize := runtime.NumCPU()
+	//workPoolSize := runtime.NumCPU()
+	workPoolSize := 1 // debug, todo restore: runtime.NumCPU()
 	for worker := range workPoolSize {
 
 		goroHalt := idem.NewHalter()
@@ -707,7 +708,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 		// We are similar to rsync, within 2x the time
 		// rsync: 1.6s vs jcp 2.8s to restore linux/Documentation
 		// over LAN.
-		//func(file *File, goroHalt *idem.Halter, bt *byteTracker) {
+		//func(file *File, goroHalt *idem.Halter, bt *byteTracker, w int) {
 		go func(fileCh chan *File, goroHalt *idem.Halter, bt *byteTracker, w int) {
 			defer func() {
 
