@@ -11,7 +11,7 @@ require (
 	github.com/glycerine/blake3 v1.5.2
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31
 	github.com/glycerine/greenpack v0.529.0
-	github.com/glycerine/idem v0.8.0
+	github.com/glycerine/idem v0.8.1
 	github.com/glycerine/ipaddr v0.2.7
 	github.com/glycerine/loquet v0.0.19
 	github.com/glycerine/parallelwalk v0.3.1
@@ -21,6 +21,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.0.9
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/quic-go/quic-go v0.48.2
+	github.com/templexxx/cpu v0.1.1
 	golang.org/x/crypto v0.31.0
 	golang.org/x/sys v0.29.0
 	golang.org/x/term v0.27.0
@@ -37,7 +38,6 @@ require (
 	github.com/leesper/go_rng v0.0.0-20190531154944-a612b043e353 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/onsi/ginkgo/v2 v2.9.5 // indirect
-	github.com/templexxx/cpu v0.1.1 // indirect
 	go.uber.org/mock v0.4.0 // indirect
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 // indirect
 	golang.org/x/mod v0.21.0 // indirect
