@@ -696,7 +696,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				// other side ctrl-c will give us a panic here
 				r := recover()
 				if r != nil {
-					vv("dirTakerRequestIndivFiles() supressing panic: '%v'", r)
+					vv("dirTakerRequestIndivFiles() supressing panic: '%v':\nstack:\n%v\n", r, stack())
 					err := fmt.Errorf("dirTakerRequestIndivFiles saw error: '%v'", r)
 					goroHalt.ReqStop.CloseWithReason(err)
 					// also stop the whole batch.
