@@ -42,6 +42,7 @@ type JcopyConfig struct {
 	SerialNotParallel bool
 
 	CompressAlgo string
+	Dry          bool
 }
 
 // backup plan if :7070 was not available...
@@ -68,6 +69,7 @@ func (c *JcopyConfig) SetFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.Quiet, "q", false, "quiet, no progress report")
 	fs.BoolVar(&c.Walk, "w", false, "walk dir, to test walk.go")
 	fs.BoolVar(&c.Verbose, "v", false, "verbosely walk dir, showing paths")
+	fs.BoolVar(&c.Dry, "dry", false, "dry run, do not change anything really")
 
 	fs.BoolVar(&c.WebProfile, "webprofile", false, "start web pprof profiling on localhost:7070")
 	fs.StringVar(&c.Memprofile, "memprof", "", "file to write memory profile 30 sec worth to")
@@ -337,6 +339,7 @@ func main() {
 
 	// pull new file we don't have at the moment.
 	req = &rsync.RequestToSyncPath{
+		DryRun:    jcfg.Dry,
 		GiverPath: giverPath,
 		TakerPath: takerPath,
 

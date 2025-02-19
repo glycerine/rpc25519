@@ -424,6 +424,8 @@ type RequestToSyncPath struct {
 	GiverSymLinkTarget string `zid:"35"`
 
 	UpdateProgress chan *ProgressUpdate `msg:"-"`
+
+	DryRun bool `zid:"36"`
 }
 
 type ProgressUpdate struct {
@@ -506,6 +508,8 @@ type RequestToSyncDir struct {
 	// doesn't know if the name might actually be
 	// just a file.
 	TakerTargetUnknown bool `zid:"8"`
+
+	DryRun bool `zid:"9"`
 }
 
 type DirListing struct {
@@ -699,6 +703,7 @@ func (s *SyncService) Start(
 				//vv("local dir taker: unknown TakerTarget? '%v'", unknown)
 
 				reqDir := &RequestToSyncDir{
+					DryRun:   syncReq.DryRun,
 					GiverDir: syncReq.GiverPath,
 					//GiverDirModTime:   // we don't know this!
 					TopTakerDirTemp:      targetTakerTopTempDir,
@@ -772,6 +777,7 @@ func (s *SyncService) Start(
 				modtm := fi.ModTime()
 
 				reqDir := &RequestToSyncDir{
+					DryRun:          syncReq.DryRun,
 					GiverDir:        syncReq.GiverPath,
 					GiverDirModTime: modtm,
 
