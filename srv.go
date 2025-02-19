@@ -771,16 +771,11 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 
 		wantsToPeerID, ok := c.notifyOnReadToPeerIDMap.get(msg.HDR.ToPeerID)
 		//vv("have ToPeerID msg = '%v'; ok='%v'", msg.HDR.String(), ok)
-		t0 := time.Now()
 		if ok {
 			// allow back pressure. Don't time out here.
 			select {
 			case wantsToPeerID <- msg:
 				//vv("sent msg to wantsToPeerID chan!")
-				elap := time.Since(t0)
-				if elap > time.Second {
-					vv("arg. took %v to contact wantsToPeerID", elap)
-				}
 			case <-ctx.Done():
 				return
 			}
