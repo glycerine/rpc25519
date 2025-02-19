@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/glycerine/idem"
 )
 
 func prettyPrintCircuitMap(m map[string]*Circuit) (s string) {
@@ -85,13 +87,7 @@ func (pb *LocalPeer) peerbackPump() {
 
 			err, queueSendCh := pb.U.SendOneWayMessage(pb.Ctx, msg, -2)
 			if err == ErrAntiDeadlockMustQueue {
-				vv("ErrAntiDeadlockMustQueue seen, closing ckt in background.")
-				go func() {
-					select {
-					case queueSendCh <- msg:
-					case <-pb.Halt.ReqStop.Chan:
-					}
-				}()
+				go closeCktInBackgroundToAvoidDeadlock(queueSendCh, msg, pb.Halt)
 			}
 		}
 		ckt.Canc(fmt.Errorf("pump cleanupCkt(notifyPeer=%v) cancelling ckt.Context.", notifyPeer))
@@ -268,4 +264,12 @@ func (pb *LocalPeer) TellRemoteWeShutdown(rem *RemotePeer) {
 	shut.HDR.ServiceName = rem.RemoteServiceName
 
 	pb.U.SendOneWayMessage(ctxB, shut, -1) // -1 => no blocking
+}
+
+func closeCktInBackgroundToAvoidDeadlock(queueSendCh chan *Message, msg *Message, halt *idem.Halter) {
+	vv("ErrAntiDeadlockMustQueue seen, closing ckt in background.")
+	select {
+	case queueSendCh <- msg:
+	case <-halt.ReqStop.Chan:
+	}
 }
