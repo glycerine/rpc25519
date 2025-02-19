@@ -694,6 +694,14 @@ func (m *mapIDtoChan) clear() {
 	clear(m.m)
 	m.mut.Unlock()
 }
+func (m *mapIDtoChan) keys() (ks []string) {
+	m.mut.Lock()
+	for k := range m.m {
+		ks = append(ks, k)
+	}
+	m.mut.Unlock()
+	return
+}
 
 func newNotifies(isCli bool) *notifies {
 	return &notifies{
@@ -770,9 +778,11 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 			case <-ctx.Done():
 				return
 			case <-ctx.Done():
+
 			case <-time.After(time.Second * 10):
 				// seen, problem: not cleaning up the registrations?
-				panic(fmt.Sprintf("no wantsToPeerID send after 10 seconds! msg='%v'", msg.String()))
+				// No, it was legit message waiting, arg.
+				panic(fmt.Sprintf("no wantsToPeerID send after 10 seconds! msg='%v'; keys = '%#v'", msg.String(), c.notifyOnReadToPeerIDMap.keys()))
 			}
 			return true // only send to ToPeerID, priority over CallID.
 		}
