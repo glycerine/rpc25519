@@ -104,6 +104,12 @@ func (pb *LocalPeer) peerbackPump() {
 		}
 		//zz("%v: peerbackPump done telling peers we are down.", name)
 		pb.Halt.Done.Close()
+
+		r := recover()
+		if r != nil {
+			alwaysPrintf("arg. LocalPeer.peerbackPump() exiting on panic: '%v'", r)
+			panic(r)
+		}
 	}()
 
 	done := pb.Ctx.Done()
