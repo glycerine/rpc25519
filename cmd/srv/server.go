@@ -171,7 +171,7 @@ func main() {
 				defer func() {
 					r := recover()
 					if r != nil {
-						fmt.Printf("rsync_server loop ignoring panic: '%v'\n", r)
+						fmt.Printf("rsync_server loop ignoring panic: '%v'\nstack='%v'\n", r, stack())
 					}
 				}()
 
