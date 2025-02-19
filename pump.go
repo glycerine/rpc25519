@@ -69,6 +69,8 @@ func (pb *LocalPeer) peerbackPump() {
 			if reason, ok := ckt.Halt.ReqStop.Reason(); ok && reason != nil {
 				frag.Err = reason.Error()
 			}
+			// this is blocking, so we cannot finish circuits,
+			// and then we are not servicing reads. args.
 			pb.SendOneWay(ckt, frag, -1) // no blocking
 		}
 		ckt.Canc(fmt.Errorf("pump cleanupCkt(notifyPeer=%v) cancelling ckt.Context.", notifyPeer))
