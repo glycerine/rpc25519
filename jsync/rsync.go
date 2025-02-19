@@ -10,7 +10,7 @@ import (
 	"io/fs"
 	"os"
 	//"os/user"
-	"syscall"
+	//"syscall"
 	"time"
 
 	"github.com/glycerine/blake3"
