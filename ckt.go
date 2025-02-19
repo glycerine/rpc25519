@@ -697,40 +697,12 @@ func (lpb *LocalPeer) newCircuit(
 
 	//lpb.Halt.AddChild(ckt.Halt) // no worries: pump will do this.
 
-	// I think the back-pressure on reads (we are called
-	// from the cli/srv read loops) is important
-	// here, so that sends can catch up/remain roughly in balan e.
-
-	//sendCkt := true
 	select {
 	case lpb.HandleChansNewCircuit <- ckt:
-		//sendCkt = false
+
 	case <-lpb.Halt.ReqStop.Chan:
 		return nil, nil, ErrHaltRequested
-		//case <-time.After(time.Millisecond * 10):
-		// leave sendCkt true so we
-		// do it in the background on the goroutine next:
-
-		// I think we just need to wait, instead of doing this...
-		// to allow the sends to catch up with the reads?
-		//case <-time.After(time.Second * 10):
-		//	panic(fmt.Sprintf("problem: could not access pump loop to create newCircuit after 10 sec; trying to make '%v'", circuitName))
-
 	}
-
-	//go func(sendCkt bool) { // instead of in cli read loop
-	//	if sendCkt {
-	//		select {
-	//		case lpb.HandleChansNewCircuit <- ckt:
-
-	//		case <-lpb.Halt.ReqStop.Chan:
-	//			//return nil, nil, ErrHaltRequested
-	//			return
-
-	//case <-time.After(time.Second * 10):
-	//	panic(fmt.Sprintf("problem: could not access pump loop to create newCircuit after 10 sec; trying to make '%v'", circuitName))
-	//		}
-	//	}
 	//vv("tellRemote = %v", tellRemote)
 	if tellRemote {
 		var msg *Message
@@ -757,7 +729,6 @@ func (lpb *LocalPeer) newCircuit(
 			"#circuitName":     circuitName}
 		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
 	}
-	//}(sendCkt)
 
 	return
 }
