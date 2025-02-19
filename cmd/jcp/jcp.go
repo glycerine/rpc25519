@@ -194,7 +194,8 @@ func main() {
 
 			reqs := make(chan *rsync.RequestToSyncPath)
 			//fmt.Printf("starting rsync_server\n")
-			lpb, ctx, canc, err := rsync.RunRsyncService(cfg, srv, "rsync_server", false, reqs)
+			lazyStartPeer := true
+			lpb, ctx, canc, err := rsync.RunRsyncService(cfg, srv, "rsync_server", false, reqs, lazyStartPeer)
 			panicOn(err)
 			defer lpb.Close()
 			defer canc()
@@ -385,7 +386,8 @@ func main() {
 	}
 
 	reqs := make(chan *rsync.RequestToSyncPath)
-	lpb, ctx, canc, err := rsync.RunRsyncService(cfg, cli, "rsync_client", true, reqs)
+	lazyStartPeer := false
+	lpb, ctx, canc, err := rsync.RunRsyncService(cfg, cli, "rsync_client", true, reqs, lazyStartPeer)
 	panicOn(err)
 	defer lpb.Close()
 	defer canc()
