@@ -579,6 +579,16 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		case CallPeerStart, CallPeerStartCircuit, CallPeerStartCircuitTakeToID:
 
+			// Why this is not in its own goroutine? Backpressure.
+			// It is important to provide back pressure
+			// and let the sends catch up with the reads... we
+			// just need to make sure that the sends don't also
+			// depend on a read happening, since then we can deadlock.
+			// To wit: peerbackPump in pump.go now detects a
+			// busy send loop and queues closes to avoid such
+			// deadlocks. See also the comments on
+			// SendOneWayMessage in srv.go.
+
 			err := s.Server.PeerAPI.bootstrapCircuit(notClient, req, ctx, s.SendCh)
 			if err != nil {
 				// only error is on shutdown request received.

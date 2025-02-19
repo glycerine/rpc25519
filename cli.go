@@ -277,11 +277,11 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 	defer func() {
 		r := recover()
 		if r != nil {
-			vv("cli runReadLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, stack())
+			alwaysPrintf("cli runReadLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, stack())
 		} else {
-			vv("cli runReadLoop defer/shutdown running.")
+			//vv("cli runReadLoop defer/shutdown running.")
 		}
-		vv("client runReadLoop exiting, last err = '%v'", err)
+		//vv("client runReadLoop exiting, last err = '%v'", err)
 		canc()
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
@@ -391,16 +391,21 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		// a server and starting up a peer service.
 		switch msg.HDR.Typ {
 		case CallPeerStart, CallPeerStartCircuit, CallPeerStartCircuitTakeToID:
-			// we can get hung in here... and thus block reads,
-			// which we might need to be making progress. BUT,
-			// we think this is important to provide back pressure
+
+			// Why this is not in its own goroutine? Backpressure.
+			// It is important to provide back pressure
 			// and let the sends catch up with the reads... we
-			// will just need to make sure that the sends don't also
+			// just need to make sure that the sends don't also
 			// depend on a read happening, since then we can deadlock.
+			// To wit: peerbackPump in pump.go now detects a
+			// busy send loop and queues closes to avoid such
+			// deadlocks. See also the comments on
+			// SendOneWayMessage in srv.go.
+
 			err := c.PeerAPI.bootstrapCircuit(yesIsClient, msg, ctx, c.oneWayCh)
 			if err != nil {
 				// only error is on shutdown request received.
-				vv("cli c.PeerAPI.bootstrapCircuit returned err = '%v'", err)
+				//vv("cli c.PeerAPI.bootstrapCircuit returned err = '%v'", err)
 				return
 			}
 			continue
