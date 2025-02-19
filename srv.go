@@ -575,13 +575,12 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			continue
 
 		case CallPeerStart, CallPeerStartCircuit, CallPeerStartCircuitTakeToID:
-			//go func() {
+
 			err := s.Server.PeerAPI.bootstrapCircuit(notClient, req, ctx, s.SendCh)
 			if err != nil {
 				// only error is on shutdown request received.
 				return
 			}
-			//}()
 			continue
 		}
 		if s.Server.notifies.handleReply_to_CallID_ToPeerID(notClient, ctx, req) {

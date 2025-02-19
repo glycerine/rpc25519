@@ -392,16 +392,17 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		switch msg.HDR.Typ {
 		case CallPeerStart, CallPeerStartCircuit, CallPeerStartCircuitTakeToID:
 			// we can get hung in here... and thus block reads,
-			// which we might need to be making progress. So
-			// start it in a goro... later in ckt.go:700 newCircuit()
-			//go func() {
+			// which we might need to be making progress. BUT,
+			// we think this is important to provide back pressure
+			// and let the sends catch up with the reads... we
+			// will just need to make sure that the sends don't also
+			// depend on a read happening, since then we can deadlock.
 			err := c.PeerAPI.bootstrapCircuit(yesIsClient, msg, ctx, c.oneWayCh)
 			if err != nil {
 				// only error is on shutdown request received.
 				vv("cli c.PeerAPI.bootstrapCircuit returned err = '%v'", err)
 				return
 			}
-			//}()
 			continue
 		}
 
