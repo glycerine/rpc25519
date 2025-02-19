@@ -197,7 +197,9 @@ func main() {
 			lazyStartPeer := true
 			lpb, ctx, canc, err := rsync.RunRsyncService(cfg, srv, "rsync_server", false, reqs, lazyStartPeer)
 			panicOn(err)
-			defer lpb.Close()
+			if !lazyStartPeer { // lpb nil if lazy
+				defer lpb.Close()
+			}
 			defer canc()
 			_ = ctx
 
