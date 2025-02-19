@@ -771,7 +771,8 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 				return
 			case <-ctx.Done():
 			case <-time.After(time.Second * 10):
-				panic("no wantsToPeerID send after 10 seconds!")
+				// seen, problem: not cleaning up the registrations?
+				panic(fmt.Sprintf("no wantsToPeerID send after 10 seconds! msg='%v'", msg.String()))
 			}
 			return true // only send to ToPeerID, priority over CallID.
 		}
