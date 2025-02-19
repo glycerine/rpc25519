@@ -179,7 +179,7 @@ func main() {
 				lpb, ctx, canc, err := rsync.RunRsyncService(cfg, srv, "rsync_server", false, reqs, lazyStartPeer)
 				panicOn(err)
 				if !lazyStartPeer {
-					vv("started rsync_server, lpb.URL = '%v'", lpb.URL())
+					//vv("started rsync_server, lpb.URL = '%v'", lpb.URL())
 					select {
 					case <-lpb.Halt.Done.Chan:
 						lpb.Close()
