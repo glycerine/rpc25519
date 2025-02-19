@@ -275,7 +275,13 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 	var err error
 	ctx, canc := context.WithCancel(context.Background())
 	defer func() {
-		//vv("client runReadLoop exiting, last err = '%v'", err)
+		r := recover()
+		if r != nil {
+			vv("cli runReadLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, stack())
+		} else {
+			vv("cli runReadLoop defer/shutdown running.")
+		}
+		vv("client runReadLoop exiting, last err = '%v'", err)
 		canc()
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
