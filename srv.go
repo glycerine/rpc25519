@@ -758,13 +758,20 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 
 		wantsToPeerID, ok := c.notifyOnReadToPeerIDMap.get(msg.HDR.ToPeerID)
 		//vv("have ToPeerID msg = '%v'; ok='%v'", msg.HDR.String(), ok)
+		t0 := time.Now()
 		if ok {
 			select {
 			case wantsToPeerID <- msg:
 				//vv("sent msg to wantsToPeerID chan!")
+				elap := time.Since(t0)
+				if elap > time.Second {
+					vv("arg. took %v to contact wantsToPeerID", elap)
+				}
 			case <-ctx.Done():
 				return
 			case <-ctx.Done():
+			case <-time.After(time.Second * 10):
+				panic("no wantsToPeerID send after 10 seconds!")
 			}
 			return true // only send to ToPeerID, priority over CallID.
 		}
