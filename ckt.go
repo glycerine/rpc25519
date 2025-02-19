@@ -430,7 +430,7 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 	msg := ckt.ConvertFragmentToMessage(frag)
 	s.U.FreeFragment(frag)
 
-	err = s.U.SendOneWayMessage(s.Ctx, msg, errWriteDur)
+	err, _ = s.U.SendOneWayMessage(s.Ctx, msg, errWriteDur)
 	if err != nil {
 		return err
 	}
@@ -755,7 +755,7 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args = map[string]string{
 			"#fromServiceName": lpb.PeerServiceName,
 			"#circuitName":     circuitName}
-		err = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
+		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
 	}
 	//}(sendCkt)
 
@@ -995,7 +995,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 	pollInterval := waitUpTo / 50
 
 	for i := 0; i < 50; i++ {
-		err = p.u.SendOneWayMessage(ctx, msg, 0)
+		err, _ = p.u.SendOneWayMessage(ctx, msg, 0)
 		if err == nil {
 			////vv("SendOneWayMessage retried %v times before succeess; pollInterval: %v",
 			//	i, pollInterval)

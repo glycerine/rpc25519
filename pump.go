@@ -58,10 +58,10 @@ func (pb *LocalPeer) peerbackPump() {
 			return
 		}
 
-		// debug: do we not hang if we skip this? the tests hang: TODO reverse!
-		if false { // notifyPeer {
-			// Politely tell our peer we are going down,
-			// in case they are staying up.
+		// do we not hang if we skip this? too much
+		// depends on it to finish round trips, we cannot skip it.
+		if notifyPeer {
+			// Tell our peer we are going down.
 			frag := pb.U.NewFragment()
 			frag.Typ = CallPeerEndCircuit
 			// Transmit back reason for shutdown if we can.
@@ -71,8 +71,27 @@ func (pb *LocalPeer) peerbackPump() {
 				frag.Err = reason.Error()
 			}
 			// this is blocking, so we cannot finish circuits,
-			// and then we are not servicing reads. args.
-			pb.SendOneWay(ckt, frag, -1) // no blocking
+			// and then we are not servicing reads. Thus both cli
+			// and srv can be blocked waiting to send, resulting
+			// deadlock.
+			//pb.SendOneWay(ckt, frag, -1) // no blocking
+
+			// to enable background close, get independent of ckt:
+			frag.CircuitID = ckt.CircuitID
+			frag.FromPeerID = ckt.LocalPeerID
+			frag.ToPeerID = ckt.RemotePeerID
+			msg := ckt.ConvertFragmentToMessage(frag)
+			pb.U.FreeFragment(frag)
+
+			err, queueSendCh := pb.U.SendOneWayMessage(pb.Ctx, msg, -2)
+			if err == ErrAntiDeadlockMustQueue {
+				go func() {
+					select {
+					case queueSendCh <- msg:
+					case <-pb.Halt.ReqStop.Chan:
+					}
+				}()
+			}
 		}
 		ckt.Canc(fmt.Errorf("pump cleanupCkt(notifyPeer=%v) cancelling ckt.Context.", notifyPeer))
 		pb.U.UnregisterChannel(ckt.CircuitID, CallIDReadMap)

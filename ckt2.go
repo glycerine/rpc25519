@@ -57,7 +57,7 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 
 	// this effectively is all that happens to set
 	// up the circuit.
-	err = p.u.SendOneWayMessage(ctx, msg, errWriteDur)
+	err, _ = p.u.SendOneWayMessage(ctx, msg, errWriteDur)
 	if err != nil {
 		return nil, fmt.Errorf("error requesting CallPeerStartCircuit from remote: '%v'", err)
 	}

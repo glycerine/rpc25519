@@ -42,7 +42,10 @@ const yesIsClient = true
 var ErrContextCancelled = fmt.Errorf("rpc25519 error: context cancelled")
 
 var ErrHaltRequested = fmt.Errorf("rpc25519 error: halt requested")
-var ErrSendTimeout = fmt.Errorf("rpc25519 eroror: send timeout")
+var ErrSendTimeout = fmt.Errorf("rpc25519 error: send timeout")
+
+// break deadlocks on cli/srv both blocked on sending.
+var ErrAntiDeadlockMustQueue = fmt.Errorf("rpc25519 error: must queue send to avoid deadlock. Could not send immediately.")
 
 // boundCh should be buffered, at least 1, if it is not nil. If not nil, we
 // will send the bound net.Addr back on it after we have started listening.
@@ -1832,7 +1835,7 @@ type oneWaySender interface {
 // catch mis-use of this when the user actually wants a round-trip call.
 //
 // SendOneWayMessage only sets msg.HDR.From to its correct value.
-func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) error {
+func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (error, chan *Message) {
 	return sendOneWayMessage(s, ctx, msg, errWriteDur)
 }
 
@@ -1856,15 +1859,15 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 // loops). A positive errWriteDur will wait for that long
 // before returning, and will supply the a DoneCh if it
 // is nil on msg.
-func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWriteDur time.Duration) error {
+func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWriteDur time.Duration) (error, chan *Message) {
 
 	//if msg.HDR.Serial == 0 {
-	// want to do this, but test 004, 014, 015 crash then and need attention.
+	// nice to do this, but test 004, 014, 015 crash then and need attention.
 	//panic("Serial 0 not allowed! must issueSerial() numbers!")
 	//}
 
 	if msg.HDR.Typ < 100 {
-		return ErrWrongCallTypeForSendMessage
+		return ErrWrongCallTypeForSendMessage, nil
 	}
 
 	destAddr := msg.HDR.To
@@ -1873,7 +1876,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 	if !ok {
 		// srv_test.go:651
 		//vv("could not find destAddr='%v' in from our s.destAddrToSendCh() call. stack=\n%v", destAddr, stack())
-		return ErrNetConnectionNotFound
+		return ErrNetConnectionNotFound, nil
 	}
 	if to != destAddr {
 		// re-write the unNAT-ed (or re-NAT-ed!) addresses
@@ -1884,18 +1887,39 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 	msg.HDR.From = from
 
 	//vv("send message attempting to send %v bytes to '%v'", len(data), destAddr)
-	select {
-	case sendCh <- msg:
 
-	case <-haltCh:
-		//vv("shutting down on haltCh = %p", haltCh)
-		return ErrShutdown()
-	case <-ctx.Done():
-		return ErrContextCancelled
+	// -2 means pump is trying to close a circuit.
+	// it is prepared to queue a background close.
+	if errWriteDur <= -2 {
+		select {
+		case sendCh <- msg:
+			return nil, nil
+		case <-haltCh:
+			//vv("shutting down on haltCh = %p", haltCh)
+			return ErrShutdown(), nil
+		case <-ctx.Done():
+			return ErrContextCancelled, nil
+
+			// maybe soon. atm afraid -1 => 1 nsec won't work.
+			//case <-time.After(-errWriteDur):
+
+		case <-time.After(time.Millisecond):
+			return ErrAntiDeadlockMustQueue, sendCh
+		}
+	} else {
+		select {
+		case sendCh <- msg:
+
+		case <-haltCh:
+			//vv("shutting down on haltCh = %p", haltCh)
+			return ErrShutdown(), nil
+		case <-ctx.Done():
+			return ErrContextCancelled, nil
+		}
 	}
 
 	if errWriteDur < 0 {
-		return nil
+		return nil, nil
 	}
 
 	// so we need channel
@@ -1916,15 +1940,15 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 	select {
 	case <-doneCh:
 		//vv("srv SendMessage got back msg.LocalErr = '%v'", msg.LocalErr)
-		return msg.LocalErr
+		return msg.LocalErr, nil
 	case <-timeoutCh:
 		//vv("srv SendMessage timeout after waiting %v", errWriteDur)
-		return ErrSendTimeout
+		return ErrSendTimeout, nil
 	case <-ctx.Done():
-		return ErrContextCancelled
+		return ErrContextCancelled, nil
 
 	}
-	return nil
+	return nil, nil
 }
 
 // NewServer will keep its own copy of
