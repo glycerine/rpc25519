@@ -379,13 +379,6 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 
 func (s *rwPair) runSendLoop(conn net.Conn) {
 	defer func() {
-		r := recover()
-		if r != nil {
-			vv("srv runSendLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n",
-				r, stack())
-		} else {
-			vv("srv runSendLoop defer/shutdown running.")
-		}
 		s.Server.deletePair(s)
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()

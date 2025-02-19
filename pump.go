@@ -60,8 +60,6 @@ func (pb *LocalPeer) peerbackPump() {
 			return
 		}
 
-		// do we not hang if we skip this? too much
-		// depends on it to finish round trips, we cannot skip it.
 		if notifyPeer {
 			// Tell our peer we are going down.
 			frag := pb.U.NewFragment()
@@ -75,7 +73,8 @@ func (pb *LocalPeer) peerbackPump() {
 			// this is blocking, so we cannot finish circuits,
 			// and then we are not servicing reads. Thus both cli
 			// and srv can be blocked waiting to send, resulting
-			// deadlock.
+			// deadlock. Implement the errWaitdur -2 and background
+			// close mechanism below to prevent deadlock.
 			//pb.SendOneWay(ckt, frag, -1) // no blocking
 
 			// to enable background close, get independent of ckt:
