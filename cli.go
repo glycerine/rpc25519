@@ -456,9 +456,9 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 	defer func() {
 		r := recover()
 		if r != nil {
-			vv("cli runSendLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, stack())
+			alwaysPrintf("cli runSendLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, stack())
 		} else {
-			vv("cli runSendLoop defer/shutdown running.")
+			//vv("cli runSendLoop defer/shutdown running.")
 		}
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
