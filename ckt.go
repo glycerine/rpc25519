@@ -925,7 +925,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	}()
 
 	//localPeerURL := lpb.URL()
-	vv("unlockedStartLocalPeer: lpb.URL() = '%v'", lpb.URL())
+	vv("unlockedStartLocalPeer: lpb.URL() = '%v'; peerServiceName='%v', isUpdatedPeerID='%v'; pleaseAssignNewPeerID='%v'; \nstack=%v\n", lpb.URL(), peerServiceName, isUpdatedPeerID, pleaseAssignNewPeerID, stack())
 
 	if requestedCircuit != nil {
 		return lpb, lpb.provideRemoteOnNewPeerCh(p.isCli, requestedCircuit, ctx1, sendCh, isUpdatedPeerID)
