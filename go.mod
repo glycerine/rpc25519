@@ -17,7 +17,7 @@ require (
 	github.com/glycerine/parallelwalk v0.3.1
 	github.com/glycerine/restic-chunker-mod v0.5.0
 	github.com/goccy/go-json v0.10.3
-	github.com/klauspost/compress v1.17.11
+	github.com/klauspost/compress v1.18.0
 	github.com/klauspost/cpuid/v2 v2.0.9
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/quic-go/quic-go v0.48.2
