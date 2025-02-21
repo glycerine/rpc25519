@@ -146,6 +146,7 @@ func ChunkFile2(
 		ChunkerName: cdc.Name(),
 		CDC_Config:  cdc.Config(),
 		HashName:    "blake3.33B",
+		FileMode:    uint32(fi.Mode()),
 	}
 	chunks0 = NewChunks(path)
 	chunks0.FileSize = precis.FileSize
