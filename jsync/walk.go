@@ -6,6 +6,7 @@ import (
 	"iter"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/glycerine/idem"
 	pwalk "github.com/glycerine/parallelwalk"
@@ -445,6 +446,9 @@ func (di *DirIter) OneWalkForAll(root string) iter.Seq2[*File, bool] {
 								//IsSymLink:       true,
 								SymLinkTarget: target,
 								//FollowedSymlink: false,
+							}
+							if strings.Contains(resolveMe, "code-of-conduct.md") {
+								vv("debug log: code-of-conduct.md has rf = '%#v'", rf)
 							}
 							if !yield(rf, true) {
 								return false
