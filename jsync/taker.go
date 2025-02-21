@@ -1099,7 +1099,7 @@ func (s *SyncService) contentsMatch(syncReq *RequestToSyncPath, ckt *rpc.Circuit
 func (s *SyncService) takeSymlink(syncReq *RequestToSyncPath, localPathToWrite string) {
 
 	targ := syncReq.GiverSymLinkTarget
-	//vv("installing symlink '%v' -> '%v'", localPathToWrite, targ)
+	vv("installing symlink '%v' -> '%v'; syncReq.GiverModTime = '%v'", localPathToWrite, targ, syncReq.GiverModTime.Format(time.RFC3339Nano))
 	if syncReq.DryRun {
 		alwaysPrintf("dry: would remove '%v' and put symlink to '%v' there", localPathToWrite, targ)
 		return
