@@ -554,12 +554,6 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 		}
 	}()
 
-	debug := false
-	if strings.Contains(f.Path, "code-of-conduct.md") {
-		debug = true
-		vv("debug log: takeOneFile in dirtaker: code-of-conduct.md has f = '%#v'; ModTime = '%v'", f, f.ModTime.Format(time.RFC3339Nano))
-	}
-
 	// subtract from taker starting set, so
 	// we can determine what to delete at the
 	// end on the taker side.
@@ -595,9 +589,7 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 	fi, err = os.Lstat(localPathToRead)
 	fileExists := (err == nil)
 
-	if debug {
-		vv("debug log: localPathToRead = '%v'; localPathToWrite = '%v'; has Lstat fi.ModTime = '%v'; fileExists='%v'; isSym='%v'", localPathToRead, localPathToWrite, fi.ModTime().Format(time.RFC3339Nano), fileExists, isSym)
-	}
+	//vv("debug log: localPathToRead = '%v'; localPathToWrite = '%v'; has Lstat fi.ModTime = '%v'; fileExists='%v'; isSym='%v'", localPathToRead, localPathToWrite, fi.ModTime().Format(time.RFC3339Nano), fileExists, isSym)
 
 	// might not exist, don't panic on err (really!)
 	if !fileExists && !isSym {
@@ -619,9 +611,7 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 		return
 	} else {
 		if isSym {
-			if debug {
-				vv("have sym link in f: '%#v'", f)
-			}
+			//vv("have sym link in f: '%#v'", f)
 			needWrite := false
 			if !fileExists || useTempDir {
 				needWrite = true
@@ -633,11 +623,8 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 					if curTarget != f.SymLinkTarget {
 						needWrite = true
 					} else {
-						// does mod time need updating?
+						// also! does mod time need updating?
 						if !fi.ModTime().Equal(f.ModTime) {
-							if debug {
-								vv("updating mod time!")
-							}
 							updateLinkModTime(localPathToWrite, f.ModTime)
 						}
 					}
@@ -648,9 +635,7 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 				}
 			}
 			if needWrite {
-				if debug {
-					vv("symlink needs write! useTempDir = %v", useTempDir)
-				}
+				//vv("symlink needs write! useTempDir = %v", useTempDir)
 				// need to install to the new temp dir no matter.
 				targ := f.SymLinkTarget
 				os.Remove(localPathToWrite)
@@ -672,8 +657,7 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 			//vv("good: no update needed for localPathToRead: '%v';   f.Path = '%v'", localPathToRead, f.Path)
 
 			if useTempDir {
-				vv("hard linking 10 '%v' <- '%v'",
-					localPathToRead, localPathToWrite)
+				//vv("hard linking 10 '%v' <- '%v'", localPathToRead, localPathToWrite)
 				panicOn(os.Link(localPathToRead, localPathToWrite))
 				// just adjust mod time and fin.
 				err = os.Chtimes(localPathToWrite, time.Time{}, f.ModTime)
