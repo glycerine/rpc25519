@@ -554,7 +554,9 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 		}
 	}()
 
+	debug := false
 	if strings.Contains(f.Path, "code-of-conduct.md") {
+		debug = true
 		vv("debug log: takeOneFile in dirtaker: code-of-conduct.md has f = '%#v'; ModTime = '%v'", f, f.ModTime.Format(time.RFC3339Nano))
 	}
 
@@ -592,6 +594,10 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 	}
 	fi, err = os.Lstat(localPathToRead)
 	fileExists := (err == nil)
+
+	if debug {
+		vv("debug log: localPathToRead = '%v''; has Lstat fi.ModTime = '%v'; fileExists='%v'; isSym='%v'", localPathToRead, fi.ModTime().Format(time.RFC3339Nano), fileExists, isSym)
+	}
 
 	// might not exist, don't panic on err (really!)
 	if !fileExists && !isSym {
