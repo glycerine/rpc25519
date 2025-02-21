@@ -39,6 +39,7 @@ func getFileOwnerName(filepath string) string {
 }
 
 func updateLinkModTime(path string, modtm time.Time) {
+	vv("updateLinkModTime path = '%v', modtm = '%v'", path, modtm)
 	tv := unix.NsecToTimeval(modtm.UnixNano())
 	unix.Lutimes(path, []unix.Timeval{tv, tv})
 }
