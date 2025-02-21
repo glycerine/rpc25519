@@ -262,7 +262,11 @@ func (pb *LocalPeer) TellRemoteWeShutdown(rem *RemotePeer) {
 	shut.HDR.Serial = issueSerial()
 	shut.HDR.ServiceName = rem.RemoteServiceName
 
-	pb.U.SendOneWayMessage(ctxB, shut, -1) // -1 => no blocking
+	// -2 version => almost no blocking; err below if cannot send in 1 msec.
+	err, queueSendCh := pb.U.SendOneWayMessage(ctxB, shut, -2)
+	if err == ErrAntiDeadlockMustQueue {
+		go closeCktInBackgroundToAvoidDeadlock(queueSendCh, shut, pb.Halt)
+	}
 }
 
 func closeCktInBackgroundToAvoidDeadlock(queueSendCh chan *Message, msg *Message, halt *idem.Halter) {
