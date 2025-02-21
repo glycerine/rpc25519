@@ -554,6 +554,10 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 		}
 	}()
 
+	if strings.Contains(f.Path, "code-of-conduct.md") {
+		vv("debug log: takeOneFile in dirtaker: code-of-conduct.md has f = '%#v'; ModTime = '%v'", f, f.ModTime.Format(time.RFC3339Nano))
+	}
+
 	// subtract from taker starting set, so
 	// we can determine what to delete at the
 	// end on the taker side.
