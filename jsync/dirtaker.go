@@ -596,7 +596,7 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 	fileExists := (err == nil)
 
 	if debug {
-		vv("debug log: localPathToRead = '%v''; has Lstat fi.ModTime = '%v'; fileExists='%v'; isSym='%v'", localPathToRead, fi.ModTime().Format(time.RFC3339Nano), fileExists, isSym)
+		vv("debug log: localPathToRead = '%v'; localPathToWrite = '%v'; has Lstat fi.ModTime = '%v'; fileExists='%v'; isSym='%v'", localPathToRead, localPathToWrite, fi.ModTime().Format(time.RFC3339Nano), fileExists, isSym)
 	}
 
 	// might not exist, don't panic on err (really!)
@@ -619,7 +619,9 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 		return
 	} else {
 		if isSym {
-			//vv("have sym link in f: '%#v'", f)
+			if debug {
+				vv("have sym link in f: '%#v'", f)
+			}
 			needWrite := false
 			if !fileExists || useTempDir {
 				needWrite = true
@@ -630,6 +632,14 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 					panicOn(err)
 					if curTarget != f.SymLinkTarget {
 						needWrite = true
+					} else {
+						// does mod time need updating?
+						if !fi.ModTime().Equal(f.ModTime) {
+							if debug {
+								vv("updating mod time!")
+							}
+							updateLinkModTime(localPathToWrite, f.ModTime)
+						}
 					}
 				} else {
 					// current is regular file, to be replaced
@@ -638,7 +648,9 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 				}
 			}
 			if needWrite {
-				//vv("symlink needs write! useTempDir = %v", useTempDir)
+				if debug {
+					vv("symlink needs write! useTempDir = %v", useTempDir)
+				}
 				// need to install to the new temp dir no matter.
 				targ := f.SymLinkTarget
 				os.Remove(localPathToWrite)
