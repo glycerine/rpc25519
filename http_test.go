@@ -43,7 +43,7 @@ func Test024_RoundTrip_Using_NetRPC_API_TCP_and_http_CONNECT(t *testing.T) {
 			srv.Register(new(Arith))
 			srv.Register(new(Embed))
 			srv.RegisterName("net.rpc.Arith", new(Arith))
-			srv.Register(BuiltinTypes{})
+			srv.Register(&BuiltinTypes{})
 
 			cfg.ClientDialToHostPort = serverAddr.String()
 			client, err := NewClient("test024", cfg)

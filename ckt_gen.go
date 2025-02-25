@@ -472,7 +472,7 @@ func (z *Fragment) MarshalMsg(b []byte) (o []byte, err error) {
 	if !empty[4] {
 		// string "Typ_zid04_rct"
 		o = append(o, 0xad, 0x54, 0x79, 0x70, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x72, 0x63, 0x74)
-		o, err = z.Typ.MarshalMsg(o) // not is.iface, gen/marshal.go:243
+		o, err = z.Typ.MarshalMsg(o) // not is.iface
 		if err != nil {
 			return
 		}
@@ -856,7 +856,7 @@ var decodeMsgFieldOrder10zgensym_f64305401993a07f_11 = []string{"OpenCircuitCoun
 var decodeMsgFieldSkip10zgensym_f64305401993a07f_11 = []bool{false, true}
 
 // fieldsNotEmpty supports omitempty tags
-func (z QueryLocalPeerPump) fieldsNotEmpty(isempty []bool) uint32 {
+func (z *QueryLocalPeerPump) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
 		return 1
 	}
@@ -870,7 +870,7 @@ func (z QueryLocalPeerPump) fieldsNotEmpty(isempty []bool) uint32 {
 }
 
 // EncodeMsg implements msgp.Encodable
-func (z QueryLocalPeerPump) EncodeMsg(en *msgp.Writer) (err error) {
+func (z *QueryLocalPeerPump) EncodeMsg(en *msgp.Writer) (err error) {
 	if p, ok := interface{}(z).(msgp.PreSave); ok {
 		p.PreSaveHook()
 	}
@@ -911,7 +911,7 @@ func (z QueryLocalPeerPump) EncodeMsg(en *msgp.Writer) (err error) {
 }
 
 // MarshalMsg implements msgp.Marshaler
-func (z QueryLocalPeerPump) MarshalMsg(b []byte) (o []byte, err error) {
+func (z *QueryLocalPeerPump) MarshalMsg(b []byte) (o []byte, err error) {
 	if p, ok := interface{}(z).(msgp.PreSave); ok {
 		p.PreSaveHook()
 	}
@@ -1032,7 +1032,7 @@ var unmarshalMsgFieldOrder14zgensym_f64305401993a07f_15 = []string{"OpenCircuitC
 var unmarshalMsgFieldSkip14zgensym_f64305401993a07f_15 = []bool{false, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
-func (z QueryLocalPeerPump) Msgsize() (s int) {
+func (z *QueryLocalPeerPump) Msgsize() (s int) {
 	s = 1 + 22 + msgp.IntSize
 	return
 }

@@ -1236,7 +1236,7 @@ func (z *Message) MarshalMsg(b []byte) (o []byte, err error) {
 	if !empty[0] {
 		// string "HDR_zid00_rct"
 		o = append(o, 0xad, 0x48, 0x44, 0x52, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x72, 0x63, 0x74)
-		o, err = z.HDR.MarshalMsg(o) // not is.iface, gen/marshal.go:243
+		o, err = z.HDR.MarshalMsg(o) // not is.iface
 		if err != nil {
 			return
 		}

@@ -203,7 +203,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		srv.Register(new(Arith))
 		srv.Register(new(Embed))
 		srv.RegisterName("net.rpc.Arith", new(Arith))
-		srv.Register(BuiltinTypes{})
+		srv.Register(&BuiltinTypes{})
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		client, err := NewClient("test006", cfg)
@@ -426,7 +426,7 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 		srv.Register(new(Arith))
 		srv.Register(new(Embed))
 		srv.RegisterName("net.rpc.Arith", new(Arith))
-		srv.Register(BuiltinTypes{})
+		srv.Register(&BuiltinTypes{})
 
 		cfg.ClientDialToHostPort = serverAddr.String()
 		client, err := NewClient("test007", cfg)
