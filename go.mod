@@ -1,6 +1,6 @@
 module github.com/glycerine/rpc25519
 
-go 1.23.3
+go 1.24.0
 
 require (
 	4d63.com/tz v1.2.0
@@ -10,7 +10,7 @@ require (
 	github.com/glycerine/base58 v0.24.2
 	github.com/glycerine/blake3 v1.5.2
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31
-	github.com/glycerine/greenpack v0.529.0
+	github.com/glycerine/greenpack v0.531.0
 	github.com/glycerine/idem v0.8.1
 	github.com/glycerine/ipaddr v0.2.7
 	github.com/glycerine/loquet v0.0.19
@@ -19,8 +19,8 @@ require (
 	github.com/klauspost/cpuid/v2 v2.0.9
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/quic-go/quic-go v0.48.2
-	golang.org/x/crypto v0.31.0
-	golang.org/x/term v0.27.0
+	golang.org/x/crypto v0.33.0
+	golang.org/x/term v0.29.0
 )
 
 require (
@@ -34,10 +34,10 @@ require (
 	github.com/onsi/ginkgo/v2 v2.9.5 // indirect
 	go.uber.org/mock v0.4.0 // indirect
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 // indirect
-	golang.org/x/mod v0.21.0 // indirect
-	golang.org/x/net v0.33.0 // indirect
-	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.29.0 // indirect
-	golang.org/x/tools v0.26.0 // indirect
+	golang.org/x/mod v0.23.0 // indirect
+	golang.org/x/net v0.35.0 // indirect
+	golang.org/x/sync v0.11.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/tools v0.30.0 // indirect
 	gonum.org/v1/gonum v0.15.1 // indirect
 )
