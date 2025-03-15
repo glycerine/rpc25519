@@ -817,7 +817,7 @@ The corresponding private key is stored in `certs/name.key`.
 
 Update: we have added pass-phrase protection to the private keys by default.
 In order to forgo this protection and use the original behavior, supply the
-`selfy --nopass` flag. A long salt and the Argon2id key-derivation-function are used to
+`selfy -nopass` flag. A long salt and the Argon2id key-derivation-function are used to
 provide time and memory-hard protection against ASIC brute-force cracking 
 attempts (see https://en.wikipedia.org/wiki/Argon2  https://datatracker.ietf.org/doc/html/rfc9106 ).
 
