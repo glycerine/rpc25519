@@ -364,7 +364,7 @@ how do we authenticate the server too?
 The identity of an both client and server, either
 end of a connection, is established
 with a private-key/public-key pair in which the
-remote party proves posession of a private-key and
+remote party proves possession of a private-key and
 we can confirm that the associated public-key has been signed
 by our certificate authority. Public keys signed in
 this way are more commonly called certificates or "certs".
