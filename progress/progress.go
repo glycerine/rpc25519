@@ -32,7 +32,7 @@ func isTerminal() bool {
 type TransferStats struct {
 	isTerm         bool
 	filename       string
-	fileSize       int64
+	FileSize       int64
 	fileSizeString string
 	lastUpdate     time.Time
 	lastBytes      int64
@@ -44,13 +44,15 @@ type TransferStats struct {
 	startTime          time.Time
 
 	largestPart int64
+
+	last string // cache
 }
 
 func NewTransferStats(fileSize int64, filename string) *TransferStats {
 	now := time.Now()
 	return &TransferStats{
 		isTerm:             isTerminal(),
-		fileSize:           fileSize,
+		FileSize:           fileSize,
 		fileSizeString:     formatBytesTotal(float64(fileSize)),
 		filename:           filename,
 		lastUpdate:         now,
@@ -106,37 +108,43 @@ func (s *TransferStats) PrintProgressWithSpeed(current int64) {
 
 // Allow user choice of silent or not.
 func (s *TransferStats) DoProgressWithSpeed(current int64, silent bool, part int64) {
+	status := s.ProgressString(current, part)
+	if !s.isTerm || silent {
+		return
+	}
+	// Write the entire line at once
+	fmt.Print(status)
+}
+
+// get the string back, user can decide to print or not.
+func (s *TransferStats) ProgressString(current int64, part int64) string {
 
 	if part > s.largestPart {
 		s.largestPart = part
 	}
 
 	now := time.Now()
-	if now.Sub(s.lastDisplay) < s.minRefreshInterval {
-		return
+	if now.Sub(s.lastDisplay) < s.minRefreshInterval && len(s.last) > 0 {
+		return s.last
 	}
 	s.lastDisplay = now
 
 	width := 30 // Progress bar width
-	percentage := float64(current) / float64(s.fileSize)
+	percentage := float64(current) / float64(s.FileSize)
 	completed := int(percentage * float64(width))
 
 	// Update speed calculation
 	changed := s.updateSpeed(current)
 
-	if !s.isTerm || silent {
-		return
-	}
-
 	// Calculate ETA
 	var eta time.Duration
 	if s.emaSpeed > 0 {
-		remainingBytes := s.fileSize - current
+		remainingBytes := s.FileSize - current
 		eta = time.Duration(float64(remainingBytes)/s.emaSpeed) * time.Second
 	}
 
 	speed := formatSpeed(s.emaSpeed)
-	if current != s.fileSize && changed == 0 {
+	if current != s.FileSize && changed == 0 {
 		speed = "-stalled-"
 	}
 	// Build progress bar
@@ -158,16 +166,17 @@ func (s *TransferStats) DoProgressWithSpeed(current int64, silent bool, part int
 
 	// Format the status line
 	//
+	fbt := formatBytesTotal(float64(current))
 	status := fmt.Sprintf("\r%s %s %3.0f%%  %6s  %7s  %s ETA",
 		fn,
 		bar.String(),
 		percentage*100,
-		formatBytesTotal(float64(current)),
+		fbt,
 		speed,
 		formatDuration(eta))
 
-	// Write the entire line at once
-	fmt.Print(status)
+	s.last = status // cached
+	return status
 }
 
 // Helper function to truncate or pad a string to exact width
@@ -193,7 +202,7 @@ func formatSpeed(bytes float64) string {
 }
 
 // Update formatBytes to match scp style
-func formatBytesTotal(value float64) string {
+func formatBytesTotal(value float64) (s string) {
 	units := []string{"B", "KB", "MB", "GB", "TB"}
 	unitIndex := 0
 
@@ -201,7 +210,8 @@ func formatBytesTotal(value float64) string {
 		value /= 1024
 		unitIndex++
 	}
-	return fmt.Sprintf("%5.1f %s", value, units[unitIndex])
+	s = fmt.Sprintf("%5.1f %s", value, units[unitIndex])
+	return
 }
 
 func formatDuration(d time.Duration) string {
