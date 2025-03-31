@@ -486,7 +486,7 @@ func (peerAPI *peerAPI) newLocalPeer(
 		QueryCh:            make(chan *QueryLocalPeerPump),
 	}
 
-	AliasRegister(peerID, peerID+" ("+peerServiceName+")")
+	//AliasRegister(peerID, peerID+" ("+peerServiceName+")")
 
 	// on host shutdown, they will call
 	// hhalt.StopTreeAndWaitTilDone() so
@@ -887,7 +887,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	} else {
 		localPeerID = pleaseAssignNewPeerID
 	}
-	AliasRegister(localPeerID, localPeerID+" ("+peerServiceName+")")
+	//AliasRegister(localPeerID, localPeerID+" ("+peerServiceName+")")
 
 	localAddr := p.u.LocalAddr()
 	//vv("unlockedStartLocalPeer: localAddr = '%v'", localAddr)
@@ -1155,9 +1155,9 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 	circuitName := ""
 	if msg.HDR.Args != nil {
 		rpb.RemoteServiceName = msg.HDR.Args["#fromServiceName"]
-		if rpb.RemoteServiceName != "" && rpb.PeerID != "" {
-			AliasRegister(rpb.PeerID, rpb.PeerID+" ("+rpb.RemoteServiceName+")")
-		}
+		//if rpb.RemoteServiceName != "" && rpb.PeerID != "" {
+		//	AliasRegister(rpb.PeerID, rpb.PeerID+" ("+rpb.RemoteServiceName+")")
+		//}
 		circuitName = msg.HDR.Args["#circuitName"]
 	}
 
