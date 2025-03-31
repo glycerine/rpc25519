@@ -30,6 +30,7 @@ func Test002_grid_peer_to_peer_works(t *testing.T) {
 	for i, n := range nodes {
 		vv("i=%v has n.seen = %#v", i, n.node.seen)
 	}
+	select {}
 }
 
 type node struct {
@@ -169,7 +170,7 @@ func (s *node) Start(
 ) (err0 error) {
 
 	defer func() {
-		//zz("%v: (%v) end of syncer.Start() inside defer, about the return/finish", s.name, myPeer.ServiceName())
+		vv("%v: (%v) end of node.Start() inside defer, about the return/finish", s.name, myPeer.ServiceName())
 		s.halt.Done.Close()
 	}()
 
@@ -183,50 +184,6 @@ func (s *node) Start(
 	for {
 		//zz("%v: top of select", s.name) // client only seen once, since peer_test acts as cli
 		select {
-		// URL format: tcp://x.x.x.x:port/peerServiceName
-		case pushToURL := <-s.PushToPeerURL:
-			//zz("%v: sees pushToURL '%v'", s.name, pushToURL)
-
-			//zz("%v: about to new up the server. pushToURL='%v'", s.name, pushToURL)
-			ckt, ctx, err := myPeer.NewCircuitToPeerURL("grid-node", pushToURL, nil, 0)
-			//zz("%v: back from myPeer.NewCircuitToPeerURL(pushToURL: '%v'): err='%v'", s.name, pushToURL, err)
-			panicOn(err)
-			//zz("%v: got ckt = '%v' back from NewCircuitToPeerURL '%v'", s.name, ckt.Name, pushToURL)
-			defer func() {
-				//zz("%v: (ckt '%v') defer running; closing ckt for pushToURL.", s.name, ckt.Name)
-				ckt.Close(err0)
-			}()
-
-			done := ctx.Done()
-			_ = done
-
-			for {
-				//zz("%v: (ckt '%v'): top of select", s.name, ckt.Name)
-				select {
-				case frag := <-ckt.Reads:
-					zz("%v: (ckt '%v') got from ckt.Reads ->  '%v'", s.name, ckt.Name, frag.String())
-					s.seen[AliasDecode(frag.FromPeerID)] = true
-					_ = frag
-
-				case fragerr := <-ckt.Errors:
-					//zz("%v: (ckt '%v') got error fragerr back: '%#v'", s.name, ckt.Name, fragerr)
-					_ = fragerr
-				case <-ckt.Halt.ReqStop.Chan:
-					//zz("%v: (ckt '%v') ckt halt requested.", s.name, ckt.Name)
-					return nil
-
-				case <-done:
-					//zz("%v: (ckt '%v') done seen", s.name, ckt.Name)
-					return nil
-				case <-done0:
-					//zz("%v: (ckt '%v') done0 seen", s.name, ckt.Name)
-					return nil
-				case <-s.halt.ReqStop.Chan:
-					//zz("%v: (ckt '%v') topp func halt.ReqStop seen", s.name, ckt.Name)
-					return nil
-				}
-			}
-
 		// new Circuit connection arrives
 		case ckt := <-newCircuitCh:
 
@@ -253,16 +210,21 @@ func (s *node) Start(
 					case frag := <-ckt.Reads:
 						vv("%v: (ckt %v) ckt.Reads sees frag:'%s'", s.name, ckt.Name, frag)
 
+						s.seen[AliasDecode(frag.FromPeerID)] = true
 						if frag.Typ == CallPeerStartCircuit {
-							s.seen[AliasDecode(frag.FromPeerID)] = true
+
+							outFrag := myPeer.U.NewFragment()
+							outFrag.Payload = frag.Payload
+							outFrag.FragSubject = "echo reply"
+							outFrag.ServiceName = myPeer.ServiceName()
+							//vv("%v: (ckt '%v') sending 'echo reply'='%v'", s.name, ckt.Name, frag)
+							err := ckt.SendOneWay(outFrag, 0)
+							panicOn(err)
 						}
-						outFrag := myPeer.U.NewFragment()
-						outFrag.Payload = frag.Payload
-						outFrag.FragSubject = "echo reply"
-						outFrag.ServiceName = myPeer.ServiceName()
-						vv("%v: (ckt '%v') sending 'echo reply'='%v'", s.name, ckt.Name, frag)
-						err := ckt.SendOneWay(outFrag, 0)
-						panicOn(err)
+
+						if frag.FragSubject == "echo reply" {
+							vv("we see echo reply")
+						}
 
 					case fragerr := <-ckt.Errors:
 						//zz("%v: (ckt '%v') fragerr = '%v'", s.name, ckt.Name, fragerr)
