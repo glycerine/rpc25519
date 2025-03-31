@@ -25,12 +25,12 @@ func Test002_grid_peer_to_peer_works(t *testing.T) {
 	c.Start()
 	defer c.Close()
 
-	time.Sleep(time.Second)
+	time.Sleep(1 * time.Second)
 
 	for i, n := range nodes {
 		vv("i=%v has n.node.seen = %#v", i, n.node.seen)
 	}
-
+	select {}
 }
 
 type node struct {
@@ -108,6 +108,8 @@ func (s *grid) Start() {
 			vv("about to connect i=%v to j=%v", i, j)
 			ckt, _, err := n0.lpb.NewCircuitToPeerURL("grid-ckt", n1.URL, nil, 0)
 			panicOn(err)
+			// nope: n0.lpb.HandleChansNewCircuit <- ckt
+			n0.lpb.NewPeerCh <- ckt
 			n0.ckts = append(n0.ckts, ckt)
 			vv("created ckt between n0 '%v' and n1 '%v': '%v'", n0.name, n1.name, ckt.String())
 		}
@@ -176,15 +178,15 @@ func (s *node) Start(
 		s.halt.Done.Close()
 	}()
 
-	vv("%v: node.Start() top.", s.name)
-	vv("%v: ourID = '%v'; peerServiceName='%v';", s.name, myPeer.PeerID, myPeer.ServiceName())
+	//vv("%v: node.Start() top.", s.name)
+	vv("%v: node.Start() top. ourID = '%v'; peerServiceName='%v';", s.name, myPeer.PeerID, myPeer.ServiceName())
 
 	AliasRegister(myPeer.PeerID, myPeer.PeerID+" ("+myPeer.ServiceName()+")")
 
 	done0 := ctx0.Done()
 
 	for {
-		//zz("%v: top of select", s.name) // client only seen once, since peer_test acts as cli
+		vv("%v: top of select", s.name) // client only seen once, since peer_test acts as cli
 		select {
 		// new Circuit connection arrives
 		case ckt := <-newCircuitCh:

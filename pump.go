@@ -132,7 +132,7 @@ func (pb *LocalPeer) peerbackPump() {
 
 	done := pb.Ctx.Done()
 	for {
-		//zz("%v %p: pump loop top of select. pb.handleChansNewCircuit = %p", name, pb, pb.handleChansNewCircuit)
+		vv("%v %p: pump loop top of select. pb.handleChansNewCircuit = %p", name, pb, pb.HandleChansNewCircuit)
 		select {
 		case <-pb.Halt.ReqStop.Chan:
 			return
@@ -143,7 +143,7 @@ func (pb *LocalPeer) peerbackPump() {
 			close(query.Ready)
 
 		case ckt := <-pb.HandleChansNewCircuit:
-			//vv("%v pump: ckt := <-pb.HandleChansNewCircuit: for ckt='%v'", name, ckt.Name)
+			vv("%v pump: ckt := <-pb.HandleChansNewCircuit: for ckt='%v'", name, ckt.Name)
 			m[ckt.CircuitID] = ckt
 			pb.Halt.AddChild(ckt.Halt)
 
@@ -171,7 +171,7 @@ func (pb *LocalPeer) peerbackPump() {
 
 			callID := msg.HDR.CallID
 			ckt, ok := m[callID]
-			////zz("pump %v: sees readsIn msg, ckt ok=%v", name, ok)
+			vv("pump %v: sees readsIn msg, ckt ok=%v", name, ok)
 			if !ok {
 				// we expect the ckt close ack-back to be dropped if we initiated it.
 				//alwaysPrintf("%v: arg. no circuit avail for callID = '%v'/Typ:'%v';"+
@@ -185,7 +185,7 @@ func (pb *LocalPeer) peerbackPump() {
 				}
 				continue
 			}
-			//vv("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
+			vv("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
 
 			if msg.HDR.Typ == CallPeerEndCircuit {
 				//vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg) // seen in crosstalk test server hung log line 311

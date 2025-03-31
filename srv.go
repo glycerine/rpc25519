@@ -772,12 +772,12 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 	if msg.HDR.ToPeerID != "" {
 
 		wantsToPeerID, ok := c.notifyOnReadToPeerIDMap.get(msg.HDR.ToPeerID)
-		//vv("have ToPeerID msg = '%v'; ok='%v'", msg.HDR.String(), ok)
+		vv("have ToPeerID msg = '%v'; ok='%v'; for '%v'", msg.HDR.String(), ok, msg.HDR.ToPeerID)
 		if ok {
 			// allow back pressure. Don't time out here.
 			select {
 			case wantsToPeerID <- msg:
-				//vv("sent msg to wantsToPeerID chan!")
+				vv("sent msg to wantsToPeerID chan! %p", wantsToPeerID)
 			case <-ctx.Done():
 				return
 			}
