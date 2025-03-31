@@ -953,6 +953,15 @@ type Config struct {
 
 	// where the server stores its data. Server.DataDir() to view.
 	srvDataDir string
+
+	// ServerAutoCreateClientsToDialOtherServers:
+	// if the server is asked to connect to peer that
+	// it does not currently have a connection to, setting
+	// this to true means the server will spin up a client
+	// automatically to dial out to create the connection.
+	// This facilitates creating a cluster/grid of
+	// communicating servers.
+	ServerAutoCreateClientsToDialOtherServers bool
 }
 
 // ClientStartingDir returns the directory the Client was started in.

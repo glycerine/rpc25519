@@ -1133,6 +1133,8 @@ type Server struct {
 
 	fragLock     sync.Mutex
 	recycledFrag []*Fragment
+
+	autoClients []*Client
 }
 
 type ServerClient struct {
@@ -1829,8 +1831,40 @@ type oneWaySender interface {
 // the send loop becomes available. See pump.go and how
 // it calls closeCktInBackgroundToAvoidDeadlock() to avoid
 // deadlocks on circuit shutdown.
-func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (error, chan *Message) {
-	return sendOneWayMessage(s, ctx, msg, errWriteDur)
+func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (err error, ch chan *Message) {
+
+	err, ch = sendOneWayMessage(s, ctx, msg, errWriteDur)
+	if err == ErrNetConnectionNotFound {
+		if s.cfg.ServerAutoCreateClientsToDialOtherServers {
+			alwaysPrintf("server did not find destAddr in " +
+				"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers" +
+				" is true so spinning up new client...")
+			dest, err1 := ipaddr.StripNanomsgAddressPrefix(msg.HDR.To)
+			panicOn(err1)
+			cliName := "auto-cli-" + dest
+			ccfg := *s.cfg
+			ccfg.ClientDialToHostPort = dest
+			cli, err2 := NewClient(cliName, &ccfg)
+			panicOn(err2)
+			if err2 != nil {
+				return
+			}
+			err2 = cli.Start()
+			panicOn(err2)
+			if err2 != nil {
+				return
+			}
+			s.autoClients = append(s.autoClients, cli)
+			vv("started client ok")
+
+			// does it matter than the net.Conn / rwPair is
+			// running on a client instead of from the server?
+			// as long as the registry for PeerServiceFunc is
+			// shared between all local clients and servers,
+			// it should not matter.
+		}
+	}
+	return
 }
 
 // one difference from Client.oneWaySendHelper is that
@@ -2080,6 +2114,11 @@ func (s *Server) Close() error {
 	s.lsn.Close() // cause runServerMain listening loop to exit.
 	s.mut.Unlock()
 	<-s.halt.Done.Chan
+
+	// close down any automatically started cluster/grid clients
+	for _, cli := range s.autoClients {
+		cli.Close()
+	}
 	return nil
 }
 
