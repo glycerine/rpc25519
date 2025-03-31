@@ -19,7 +19,7 @@ func newSyncer2(name string) *syncer2 {
 		halt:                   idem.NewHalter(),
 		gotIncomingCkt:         make(chan *Circuit),
 		gotOutgoingCkt:         make(chan *Circuit),
-		gotIncomingCktReadFrag: make(chan *Fragment),
+		gotIncomingCktReadFrag: make(chan *Fragment, 10),
 
 		gotCktHaltReq: idem.NewIdemCloseChan(),
 	}

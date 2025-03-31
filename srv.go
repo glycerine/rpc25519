@@ -1871,6 +1871,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		cli.PeerAPI = s.PeerAPI
 		cli.notifies = s.notifies
 
+		// have to Start() first to get the cli.conn setup.
 		err2 = cli.Start()
 		panicOn(err2)
 		if err2 != nil {
@@ -1891,7 +1892,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		s.pair2remote.Set(p, key)
 		s.mut.Unlock()
 
-		vv("started auto-client ok. trying again...")
+		vv("started auto-client ok. trying again... from:'%v'; to:'%v'", p.from, p.to)
 		err, ch = sendOneWayMessage(s, ctx, msg, errWriteDur)
 	}
 	return

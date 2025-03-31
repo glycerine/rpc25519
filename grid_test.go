@@ -28,9 +28,9 @@ func Test002_grid_peer_to_peer_works(t *testing.T) {
 	time.Sleep(time.Second)
 
 	for i, n := range nodes {
-		vv("i=%v has n.seen = %#v", i, n.node.seen)
+		vv("i=%v has n.node.seen = %#v", i, n.node.seen)
 	}
-	select {}
+
 }
 
 type node struct {
@@ -38,9 +38,10 @@ type node struct {
 	name string
 
 	// comms
-	PushToPeerURL chan string
-	halt          *idem.Halter
-	lpb           *LocalPeer
+	PushToPeerURL          chan string
+	halt                   *idem.Halter
+	lpb                    *LocalPeer
+	gotIncomingCktReadFrag chan *Fragment
 
 	seen map[string]bool
 }
@@ -50,8 +51,9 @@ func newNode(name string, cfg *gridConfig) *node {
 		name: name,
 		seen: make(map[string]bool),
 		// comms
-		PushToPeerURL: make(chan string),
-		halt:          idem.NewHalter(),
+		PushToPeerURL:          make(chan string),
+		halt:                   idem.NewHalter(),
+		gotIncomingCktReadFrag: make(chan *Fragment),
 	}
 }
 
@@ -175,7 +177,7 @@ func (s *node) Start(
 	}()
 
 	vv("%v: node.Start() top.", s.name)
-	//vv("%v: ourID = '%v'; peerServiceName='%v';", s.name, myPeer.PeerID, myPeer.ServiceName())
+	vv("%v: ourID = '%v'; peerServiceName='%v';", s.name, myPeer.PeerID, myPeer.ServiceName())
 
 	AliasRegister(myPeer.PeerID, myPeer.PeerID+" ("+myPeer.ServiceName()+")")
 
@@ -211,19 +213,23 @@ func (s *node) Start(
 						vv("%v: (ckt %v) ckt.Reads sees frag:'%s'", s.name, ckt.Name, frag)
 
 						s.seen[AliasDecode(frag.FromPeerID)] = true
+
+						//s.gotIncomingCktReadFrag <- frag
+						vv("%v: (ckt %v) past s.gotIncomingCktReadFrag <- frag. frag:'%s'", s.name, ckt.Name, frag)
+
 						if frag.Typ == CallPeerStartCircuit {
 
 							outFrag := myPeer.U.NewFragment()
 							outFrag.Payload = frag.Payload
-							outFrag.FragSubject = "echo reply"
+							outFrag.FragSubject = "start reply"
 							outFrag.ServiceName = myPeer.ServiceName()
-							//vv("%v: (ckt '%v') sending 'echo reply'='%v'", s.name, ckt.Name, frag)
 							err := ckt.SendOneWay(outFrag, 0)
 							panicOn(err)
+							vv("%v: (ckt '%v') sent start reply='%v'", s.name, ckt.Name, outFrag)
 						}
 
-						if frag.FragSubject == "echo reply" {
-							vv("we see echo reply")
+						if frag.FragSubject == "start reply" {
+							vv("we see start reply")
 						}
 
 					case fragerr := <-ckt.Errors:
