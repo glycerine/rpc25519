@@ -9,7 +9,8 @@ import (
 	"testing"
 )
 
-func Test002_grid_peer_to_peer_works(t *testing.T) {
+func Test202_grid_peer_to_peer_works(t *testing.T) {
+
 	n := 2
 	cfg := &gridConfig{
 		ReplicationDegree: n,
@@ -27,10 +28,12 @@ func Test002_grid_peer_to_peer_works(t *testing.T) {
 
 	time.Sleep(1 * time.Second)
 
-	for i, n := range nodes {
-		vv("i=%v has n.node.seen = %#v", i, n.node.seen)
+	for i, g := range nodes {
+		vv("i=%v has n.node.seen = %#v", i, g.node.seen)
+		if len(g.node.seen) != n-1 {
+			t.Fatalf("expected n-1=%v nodes contacted, saw '%v'", n-1, len(g.node.seen))
+		}
 	}
-	select {}
 }
 
 type node struct {
@@ -108,8 +111,7 @@ func (s *grid) Start() {
 			vv("about to connect i=%v to j=%v", i, j)
 			ckt, _, err := n0.lpb.NewCircuitToPeerURL("grid-ckt", n1.URL, nil, 0)
 			panicOn(err)
-			// nope: n0.lpb.HandleChansNewCircuit <- ckt
-			n0.lpb.NewPeerCh <- ckt
+			n0.lpb.NewCircuitCh <- ckt
 			n0.ckts = append(n0.ckts, ckt)
 			vv("created ckt between n0 '%v' and n1 '%v': '%v'", n0.name, n1.name, ckt.String())
 		}

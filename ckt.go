@@ -278,14 +278,14 @@ type LocalPeer struct {
 	Canc            context.CancelCauseFunc
 	PeerID          string
 	U               UniversalCliSrv
-	NewPeerCh       chan *Circuit
+	NewCircuitCh    chan *Circuit
 	ReadsIn         chan *Message
 	ErrorsIn        chan *Message
 
-	Remotes               *Mutexmap[string, *RemotePeer]
-	HandleChansNewCircuit chan *Circuit
-	HandleCircuitClose    chan *Circuit
-	QueryCh               chan *QueryLocalPeerPump
+	Remotes            *Mutexmap[string, *RemotePeer]
+	TellPumpNewCircuit chan *Circuit
+	HandleCircuitClose chan *Circuit
+	QueryCh            chan *QueryLocalPeerPump
 
 	// should we shut ourselves down when no more peers?
 	AutoShutdownWhenNoMorePeers    bool
@@ -314,6 +314,11 @@ func (s *LocalPeer) Close() {
 
 // NewCircuitToPeerURL sets up a persistent communication path called a Circuit.
 // The frag can be nil, or set to send it immediately.
+// Note: this does not automatically send the new ckt onto the channel NewCircuitCh
+// since it might be called inside the PeerServiceFunc. If called
+// outside of that goroutine, you'll need to manually do NewCircuitCh <- ckt
+// to tell the PeerServiceFunc goroutine about it (it will get it on
+// its newCircuitCh channel).
 func (s *LocalPeer) NewCircuitToPeerURL(
 	circuitName string,
 	peerURL string,
@@ -426,7 +431,7 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 	frag.FromPeerID = ckt.LocalPeerID
 	frag.ToPeerID = ckt.RemotePeerID
 
-	vv("sending frag='%v'", frag)
+	//vv("sending frag='%v'", frag)
 	msg := ckt.ConvertFragmentToMessage(frag)
 	s.U.FreeFragment(frag)
 
@@ -471,14 +476,14 @@ func (peerAPI *peerAPI) newLocalPeer(
 		Canc:            cancelFunc,
 		PeerID:          peerID,
 		U:               u,
-		NewPeerCh:       newCircuitCh,
+		NewCircuitCh:    newCircuitCh,
 		ReadsIn:         make(chan *Message, 1),
 		ErrorsIn:        make(chan *Message, 1),
 
-		Remotes:               NewMutexmap[string, *RemotePeer](),
-		HandleChansNewCircuit: make(chan *Circuit),
-		HandleCircuitClose:    make(chan *Circuit),
-		QueryCh:               make(chan *QueryLocalPeerPump),
+		Remotes:            NewMutexmap[string, *RemotePeer](),
+		TellPumpNewCircuit: make(chan *Circuit),
+		HandleCircuitClose: make(chan *Circuit),
+		QueryCh:            make(chan *QueryLocalPeerPump),
 	}
 
 	AliasRegister(peerID, peerID+" ("+peerServiceName+")")
@@ -698,7 +703,7 @@ func (lpb *LocalPeer) newCircuit(
 	//lpb.Halt.AddChild(ckt.Halt) // no worries: pump will do this.
 
 	select {
-	case lpb.HandleChansNewCircuit <- ckt:
+	case lpb.TellPumpNewCircuit <- ckt:
 
 	case <-lpb.Halt.ReqStop.Chan:
 		return nil, nil, ErrHaltRequested
@@ -911,7 +916,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	//vv("unlockedStartLocalPeer: lpb.URL() = '%v'; peerServiceName='%v', isUpdatedPeerID='%v'; pleaseAssignNewPeerID='%v'; \nstack=%v\n", lpb.URL(), peerServiceName, isUpdatedPeerID, pleaseAssignNewPeerID, stack())
 
 	if requestedCircuit != nil {
-		return lpb, lpb.provideRemoteOnNewPeerCh(p.isCli, requestedCircuit, ctx1, sendCh, isUpdatedPeerID)
+		return lpb, lpb.provideRemoteOnNewCircuitCh(p.isCli, requestedCircuit, ctx1, sendCh, isUpdatedPeerID)
 	}
 
 	return lpb, nil
@@ -1106,7 +1111,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 			return err
 		}
 		lpb = lpb2
-		// unlockedStartLocalPeer already called provideRemoteOnNewPeerCh.
+		// unlockedStartLocalPeer already called provideRemoteOnNewCircuitCh.
 
 		// Test400: if we were bootstrapped without a remote local peer, just
 		// with a callID, they are waiting for an ack.
@@ -1138,10 +1143,10 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		return nil
 	}
 
-	return lpb.provideRemoteOnNewPeerCh(isCli, msg, ctx, sendCh, isUpdatedPeerID)
+	return lpb.provideRemoteOnNewCircuitCh(isCli, msg, ctx, sendCh, isUpdatedPeerID)
 }
 
-func (lpb *LocalPeer) provideRemoteOnNewPeerCh(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message, isUpdatedPeerID bool) error {
+func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message, isUpdatedPeerID bool) error {
 	rpb := &RemotePeer{
 		LocalPeer: lpb,
 		PeerID:    msg.HDR.FromPeerID,
@@ -1176,10 +1181,10 @@ func (lpb *LocalPeer) provideRemoteOnNewPeerCh(isCli bool, msg *Message, ctx con
 		asFrag.SetSysArg("newPeerURL", lpb.URL())
 	}
 
-	// now we go directly to the NewPeerCh, so user
+	// now we go directly to the NewCircuitCh, so user
 	// does not need a second step to call IncommingCircuit!
 	select {
-	case lpb.NewPeerCh <- ckt:
+	case lpb.NewCircuitCh <- ckt:
 		select {
 		case ckt.Reads <- asFrag:
 		case <-ckt.Halt.ReqStop.Chan:
