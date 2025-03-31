@@ -1805,7 +1805,9 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 	}
 
 	if !ok {
-		alwaysPrintf("yikes! Server did not find destAddr '%v' in remote2pair", destAddr)
+		if !s.cfg.ServerAutoCreateClientsToDialOtherServers {
+			alwaysPrintf("yikes! Server did not find destAddr '%v' in remote2pair", destAddr)
+		}
 		return nil, nil, "", "", false
 	}
 	// INVAR: ok is true
@@ -1840,56 +1842,57 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 
 	err, ch = sendOneWayMessage(s, ctx, msg, errWriteDur)
 	if err == ErrNetConnectionNotFound {
-		if s.cfg.ServerAutoCreateClientsToDialOtherServers {
-			alwaysPrintf("server did not find destAddr in " +
-				"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers" +
-				" is true so spinning up new client...")
-			dest, err1 := ipaddr.StripNanomsgAddressPrefix(msg.HDR.To)
-			panicOn(err1)
-			cliName := "auto-cli-" + dest
-			ccfg := *s.cfg
-			ccfg.ClientDialToHostPort = dest
-			cli, err2 := NewClient(cliName, &ccfg)
-			panicOn(err2)
-			if err2 != nil {
-				return
-			}
-			s.autoClients = append(s.autoClients, cli)
-
-			// does it matter than the net.Conn / rwPair is
-			// running on a client instead of from the server?
-			// as long as the registry for PeerServiceFunc is
-			// shared between all local clients and servers,
-			// it should not matter. So we force the client
-			// to use the registrations of the server.
-			// The localServiceNameMap must be shared; not
-			// sure we can also share the u though.
-			cli.PeerAPI = s.PeerAPI
-			cli.notifies = s.notifies
-
-			err2 = cli.Start()
-			panicOn(err2)
-			if err2 != nil {
-				return
-			}
-
-			key := remote(cli.conn)
-			p := &rwPair{
-				isAutoCli: true,
-				pairID:    s.lastPairID.Add(1),
-				Conn:      cli.conn.(net.Conn),
-				SendCh:    cli.oneWayCh,
-				from:      local(cli.conn),
-				to:        key,
-			}
-			s.mut.Lock() // want these two set together atomically.
-			s.remote2pair.Set(key, p)
-			s.pair2remote.Set(p, key)
-			s.mut.Unlock()
-
-			vv("started auto-client ok. trying again...")
-			err, ch = sendOneWayMessage(s, ctx, msg, errWriteDur)
+		if !s.cfg.ServerAutoCreateClientsToDialOtherServers {
+			return
 		}
+		alwaysPrintf("server did not find destAddr in " +
+			"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers" +
+			" is true so spinning up new client...")
+		dest, err1 := ipaddr.StripNanomsgAddressPrefix(msg.HDR.To)
+		panicOn(err1)
+		cliName := "auto-cli-" + dest
+		ccfg := *s.cfg
+		ccfg.ClientDialToHostPort = dest
+		cli, err2 := NewClient(cliName, &ccfg)
+		panicOn(err2)
+		if err2 != nil {
+			return
+		}
+		s.autoClients = append(s.autoClients, cli)
+
+		// does it matter than the net.Conn / rwPair is
+		// running on a client instead of from the server?
+		// as long as the registry for PeerServiceFunc is
+		// shared between all local clients and servers,
+		// it should not matter. So we force the client
+		// to use the registrations of the server.
+		// The localServiceNameMap must be shared; not
+		// sure we can also share the u though.
+		cli.PeerAPI = s.PeerAPI
+		cli.notifies = s.notifies
+
+		err2 = cli.Start()
+		panicOn(err2)
+		if err2 != nil {
+			return
+		}
+
+		key := remote(cli.conn)
+		p := &rwPair{
+			isAutoCli: true,
+			pairID:    s.lastPairID.Add(1),
+			Conn:      cli.conn.(net.Conn),
+			SendCh:    cli.oneWayCh,
+			from:      local(cli.conn),
+			to:        key,
+		}
+		s.mut.Lock() // want these two set together atomically.
+		s.remote2pair.Set(key, p)
+		s.pair2remote.Set(p, key)
+		s.mut.Unlock()
+
+		vv("started auto-client ok. trying again...")
+		err, ch = sendOneWayMessage(s, ctx, msg, errWriteDur)
 	}
 	return
 }
