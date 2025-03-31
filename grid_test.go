@@ -9,6 +9,27 @@ import (
 	"testing"
 )
 
+// Test202 verifies that wiring up a simple grid of servers
+// that talk to each other works. This taught us that we
+// need two extra things to make it work:
+//
+// a) set cfg.ServerAutoCreateClientsToDialOtherServers = true
+// which means we will start a client to the remote server
+// if no other existing communication path is available;
+//
+// and
+//
+// b) do n0.lpb.NewCircuitCh <- ckt
+// manually with the ckt obtained from NewCircuitToPeerURL().
+//
+// This addition is needed because the ckt might (typically;
+// in the original design and use) be generated inside the
+// PeerServiceFunc goroutine and then it would be
+// redundant to automatically also send it in on the newCircuitCh.
+// Since in grid setup we call NewCircuitToPeerURL()
+// externally (not inside the Start PeerServiceFunc), we have
+// to tell the PeerServiceFunc goroutine
+// about it with that send on NewCircuitCh.
 func Test202_grid_peer_to_peer_works(t *testing.T) {
 
 	//n := 20 // 20*19/2 = 190 tcp conn to setup. ok/green but 35 seconds.
