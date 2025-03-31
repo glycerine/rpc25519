@@ -784,6 +784,8 @@ type peerAPI struct {
 	// peerServiceName key
 	localServiceNameMap *Mutexmap[string, *knownLocalPeer]
 
+	// just for logging. do not depend on this because
+	// it might not be true in a cluster/grid.
 	isCli bool
 }
 

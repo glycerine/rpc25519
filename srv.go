@@ -650,6 +650,7 @@ func (pair *rwPair) handleIncomingMessage(ctx context.Context, req *Message, job
 }
 
 // Client and Server both use (their own copies) to keep code in sync.
+// In fact they might even share one, if in the same process.
 type notifies struct {
 	// use mapIDtoChan instead of mutex in notifies, to avoid
 	// deadlocks with the cli readLoop and the peer pump both accessing,
@@ -657,7 +658,8 @@ type notifies struct {
 	// channel send it got from the notifies map in the first place;
 	// while the pump wants to unregister a shutdown peerID chan.
 
-	isCli bool
+	// isCli must only be for debug logging, b/c might not be accurate!
+	//isCli bool
 
 	notifyOnReadCallIDMap  *mapIDtoChan
 	notifyOnErrorCallIDMap *mapIDtoChan
@@ -715,7 +717,7 @@ func newNotifies(isCli bool) *notifies {
 
 		notifyOnReadToPeerIDMap:  newMapIDtoChan(),
 		notifyOnErrorToPeerIDMap: newMapIDtoChan(),
-		isCli:                    isCli,
+		//isCli:                    isCli,
 	}
 }
 
@@ -1627,6 +1629,9 @@ type rwPair struct {
 
 	// better here than on cfg, more likely to work.
 	lastReadMagic7 atomic.Int64
+
+	// grid based server's auto-client?
+	isAutoCli bool
 }
 
 func (s *Server) newRWPair(conn net.Conn) *rwPair {
@@ -1654,7 +1659,7 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 
 	key := remote(conn)
 
-	s.mut.Lock()
+	s.mut.Lock() // want these two set together atomically.
 	s.remote2pair.Set(key, p)
 	s.pair2remote.Set(p, key)
 	s.mut.Unlock()
@@ -1849,19 +1854,41 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			if err2 != nil {
 				return
 			}
-			err2 = cli.Start()
-			panicOn(err2)
-			if err2 != nil {
-				return
-			}
 			s.autoClients = append(s.autoClients, cli)
-			vv("started client ok")
 
 			// does it matter than the net.Conn / rwPair is
 			// running on a client instead of from the server?
 			// as long as the registry for PeerServiceFunc is
 			// shared between all local clients and servers,
-			// it should not matter.
+			// it should not matter. So we force the client
+			// to use the registrations of the server.
+			// The localServiceNameMap must be shared; not
+			// sure we can also share the u though.
+			cli.PeerAPI = s.PeerAPI
+			cli.notifies = s.notifies
+
+			err2 = cli.Start()
+			panicOn(err2)
+			if err2 != nil {
+				return
+			}
+
+			key := remote(cli.conn)
+			p := &rwPair{
+				isAutoCli: true,
+				pairID:    s.lastPairID.Add(1),
+				Conn:      cli.conn.(net.Conn),
+				SendCh:    cli.oneWayCh,
+				from:      local(cli.conn),
+				to:        key,
+			}
+			s.mut.Lock() // want these two set together atomically.
+			s.remote2pair.Set(key, p)
+			s.pair2remote.Set(p, key)
+			s.mut.Unlock()
+
+			vv("started auto-client ok. trying again...")
+			err, ch = sendOneWayMessage(s, ctx, msg, errWriteDur)
 		}
 	}
 	return
