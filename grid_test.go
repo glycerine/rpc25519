@@ -11,7 +11,8 @@ import (
 
 func Test202_grid_peer_to_peer_works(t *testing.T) {
 
-	n := 2
+	//n := 20 // 20*19/2 = 190 tcp conn to setup. ok/green but 35 seconds.
+	n := 3 // 2.7 sec
 	cfg := &gridConfig{
 		ReplicationDegree: n,
 		Timeout:           time.Second * 5,
@@ -29,7 +30,8 @@ func Test202_grid_peer_to_peer_works(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	for i, g := range nodes {
-		vv("i=%v has n.node.seen = %#v", i, g.node.seen)
+		_ = i
+		//vv("i=%v has n.node.seen = %#v", i, g.node.seen)
 		if len(g.node.seen) != n-1 {
 			t.Fatalf("expected n-1=%v nodes contacted, saw '%v'", n-1, len(g.node.seen))
 		}
@@ -108,12 +110,12 @@ func (s *grid) Start() {
 			// tell a fresh client to connect to server and then pass the
 			// conn to the existing server.
 
-			vv("about to connect i=%v to j=%v", i, j)
+			//vv("about to connect i=%v to j=%v", i, j)
 			ckt, _, err := n0.lpb.NewCircuitToPeerURL("grid-ckt", n1.URL, nil, 0)
 			panicOn(err)
 			n0.lpb.NewCircuitCh <- ckt
 			n0.ckts = append(n0.ckts, ckt)
-			vv("created ckt between n0 '%v' and n1 '%v': '%v'", n0.name, n1.name, ckt.String())
+			//vv("created ckt between n0 '%v' and n1 '%v': '%v'", n0.name, n1.name, ckt.String())
 		}
 	}
 }
@@ -163,7 +165,7 @@ func (s *gridNode) Start() error {
 	s.URL = s.lpb.URL()
 	s.PeerID = s.lpb.PeerID
 
-	vv("gridNode.Start() started '%v' as 'grid' with url = '%v'", s.name, s.URL)
+	//vv("gridNode.Start() started '%v' as 'grid' with url = '%v'", s.name, s.URL)
 
 	return nil
 }
@@ -176,24 +178,24 @@ func (s *node) Start(
 ) (err0 error) {
 
 	defer func() {
-		vv("%v: (%v) end of node.Start() inside defer, about the return/finish", s.name, myPeer.ServiceName())
+		//vv("%v: (%v) end of node.Start() inside defer, about the return/finish", s.name, myPeer.ServiceName())
 		s.halt.Done.Close()
 	}()
 
 	//vv("%v: node.Start() top.", s.name)
-	vv("%v: node.Start() top. ourID = '%v'; peerServiceName='%v';", s.name, myPeer.PeerID, myPeer.ServiceName())
+	//vv("%v: node.Start() top. ourID = '%v'; peerServiceName='%v';", s.name, myPeer.PeerID, myPeer.ServiceName())
 
 	AliasRegister(myPeer.PeerID, myPeer.PeerID+" ("+myPeer.ServiceName()+")")
 
 	done0 := ctx0.Done()
 
 	for {
-		vv("%v: top of select", s.name) // client only seen once, since peer_test acts as cli
+		//vv("%v: top of select", s.name) // client only seen once, since peer_test acts as cli
 		select {
 		// new Circuit connection arrives
 		case ckt := <-newCircuitCh:
 
-			vv("%v: got from newCircuitCh! service '%v' sees new peerURL: '%v'", s.name, myPeer.PeerServiceName, myPeer.URL())
+			//vv("%v: got from newCircuitCh! service '%v' sees new peerURL: '%v'", s.name, myPeer.PeerServiceName, myPeer.URL())
 
 			// talk to this peer on a separate goro if you wish:
 			go func(ckt *Circuit) (err0 error) {
@@ -214,12 +216,12 @@ func (s *node) Start(
 				for {
 					select {
 					case frag := <-ckt.Reads:
-						vv("%v: (ckt %v) ckt.Reads sees frag:'%s'", s.name, ckt.Name, frag)
+						//vv("%v: (ckt %v) ckt.Reads sees frag:'%s'", s.name, ckt.Name, frag)
 
 						s.seen[AliasDecode(frag.FromPeerID)] = true
 
 						//s.gotIncomingCktReadFrag <- frag
-						vv("%v: (ckt %v) past s.gotIncomingCktReadFrag <- frag. frag:'%s'", s.name, ckt.Name, frag)
+						//vv("%v: (ckt %v) past s.gotIncomingCktReadFrag <- frag. frag:'%s'", s.name, ckt.Name, frag)
 
 						if frag.Typ == CallPeerStartCircuit {
 
@@ -229,11 +231,11 @@ func (s *node) Start(
 							outFrag.ServiceName = myPeer.ServiceName()
 							err := ckt.SendOneWay(outFrag, 0)
 							panicOn(err)
-							vv("%v: (ckt '%v') sent start reply='%v'", s.name, ckt.Name, outFrag)
+							//vv("%v: (ckt '%v') sent start reply='%v'", s.name, ckt.Name, outFrag)
 						}
 
 						if frag.FragSubject == "start reply" {
-							vv("we see start reply")
+							//vv("we see start reply") // seen.
 						}
 
 					case fragerr := <-ckt.Errors:
