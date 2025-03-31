@@ -150,16 +150,16 @@ func (s *gridNode) Start() error {
 
 	s.node = newNode(s.name, s.cfg)
 
-	err = s.srv.PeerAPI.RegisterPeerServiceFunc(s.name, s.node.Start)
+	err = s.srv.PeerAPI.RegisterPeerServiceFunc("grid", s.node.Start)
 	panicOn(err)
 
-	s.lpb, err = s.srv.PeerAPI.StartLocalPeer(context.Background(), s.name, nil)
+	s.lpb, err = s.srv.PeerAPI.StartLocalPeer(context.Background(), "grid", nil)
 	panicOn(err)
 	s.node.lpb = s.lpb
 	s.URL = s.lpb.URL()
 	s.PeerID = s.lpb.PeerID
 
-	vv("gridNode.Start() started '%v' with url = '%v'", s.name, s.URL)
+	vv("gridNode.Start() started '%v' as 'grid' with url = '%v'", s.name, s.URL)
 
 	return nil
 }
