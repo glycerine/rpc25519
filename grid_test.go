@@ -30,6 +30,10 @@ import (
 // externally (not inside the Start PeerServiceFunc), we have
 // to tell the PeerServiceFunc goroutine
 // about it with that send on NewCircuitCh.
+//
+// Also note that all the grid service func should be
+// registered under the same name during the call
+// to RegisterPeerServiceFunc(). Here that name is "grid".
 func Test202_grid_peer_to_peer_works(t *testing.T) {
 
 	//n := 20 // 20*19/2 = 190 tcp conn to setup. ok/green but 35 seconds.
