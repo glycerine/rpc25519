@@ -505,7 +505,9 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 		if doPing {
 			now := time.Now()
 			if time.Since(lastPing) > pingEvery {
-				err := w.sendMessage(conn, keepAliveMsg, &keepAliveWriteTimeout)
+				// transmit the EpochID as the StreamPart in keepalives.
+				c.keepAliveMsg.HDR.StreamPart = c.epochV.EpochID
+				err := w.sendMessage(conn, &c.keepAliveMsg, &keepAliveWriteTimeout)
 				//vv("cli sent rpc25519 keep alive. err='%v'; keepAliveWriteTimeout='%v'", err, keepAliveWriteTimeout)
 				if err != nil {
 					alwaysPrintf("client had problem sending keep alive: '%v'", err)
@@ -1103,6 +1105,13 @@ type Client struct {
 
 	fragLock     sync.Mutex
 	recycledFrag []*Fragment
+
+	// client gets its own keep alive message
+	// to avoid data races with any server also here,
+	// and will transmit epochV.EpochID in any
+	// keep-alive ping.
+	epochV       EpochVers
+	keepAliveMsg Message
 }
 
 // Compute HMAC using SHA-256, so 32 bytes long.
@@ -1479,7 +1488,11 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		notifies: newNotifies(yesIsClient),
 		// net/rpc
 		pending: make(map[uint64]*Call),
+		epochV:  EpochVers{EpochTieBreaker: NewCallID("")},
 	}
+	c.keepAliveMsg.HDR.Typ = CallKeepAlive
+	c.keepAliveMsg.HDR.Subject = c.epochV.EpochTieBreaker
+
 	c.PeerAPI = newPeerAPI(c, yesIsClient)
 	c.encBufWriter = bufio.NewWriter(&c.encBuf)
 	c.codec = &greenpackClientCodec{

@@ -1274,3 +1274,15 @@ func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Con
 	}
 	return nil
 }
+
+// EpochCoordID lets PingStat report the
+// highest epoch seen. The ID2 string is independent
+// of the PeerID in ckt, since that subsystem
+// may not be use, but has the same format.
+type EpochVers struct {
+	EpochID         int64  `zid:"0"`
+	EpochTieBreaker string `zid:"1"`
+}
+
+//StreamPart
+//Subject

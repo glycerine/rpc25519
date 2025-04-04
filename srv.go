@@ -420,7 +420,9 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		if doPing {
 			now := time.Now()
 			if time.Since(lastPing) > pingEvery {
-				err := w.sendMessage(conn, keepAliveMsg, &keepAliveWriteTimeout)
+				// transmit the EpochID as the StreamPart in keepalives.
+				s.keepAliveMsg.HDR.StreamPart = s.epochV.EpochID
+				err := w.sendMessage(conn, &s.keepAliveMsg, &keepAliveWriteTimeout)
 				//vv("srv sent rpc25519 keep alive. err='%v'; keepAliveWriteTimeout='%v'", err, keepAliveWriteTimeout)
 				if err != nil {
 					alwaysPrintf("server had problem sending keep alive: '%v'", err)
@@ -1638,6 +1640,13 @@ type rwPair struct {
 
 	lastPingReceivedTmu atomic.Int64
 	lastPingSentTmu     atomic.Int64
+
+	// rwPair gets its own keep alive message
+	// to avoid data races with any client(s) also here,
+	// and will transmit epochV.EpochID in any
+	// keep-alive ping.
+	epochV       EpochVers
+	keepAliveMsg Message
 }
 
 func (s *Server) newRWPair(conn net.Conn) *rwPair {
@@ -1651,7 +1660,10 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 		halt:   idem.NewHalter(),
 		from:   local(conn),
 		to:     remote(conn),
+		epochV: EpochVers{EpochTieBreaker: NewCallID("")},
 	}
+	p.keepAliveMsg.HDR.Typ = CallKeepAlive
+	p.keepAliveMsg.HDR.Subject = p.epochV.EpochTieBreaker
 
 	p.encBufWriter = bufio.NewWriter(&p.encBuf)
 	p.greenCodec = &greenpackServerCodec{
@@ -2048,6 +2060,7 @@ func NewServer(name string, config *Config) *Server {
 		notifies: newNotifies(notClient),
 		unNAT:    NewMutexmap[string, string](),
 	}
+
 	s.PeerAPI = newPeerAPI(s, notClient)
 	return s
 }

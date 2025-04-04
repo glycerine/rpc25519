@@ -57,8 +57,8 @@ func Test202_grid_peer_to_peer_works(t *testing.T) {
 	for i, g := range nodes {
 		_ = i
 		//vv("i=%v has n.node.seen = %#v", i, g.node.seen)
-		if len(g.node.seen) != n-1 {
-			t.Fatalf("expected n-1=%v nodes contacted, saw '%v'", n-1, len(g.node.seen))
+		if g.node.seen.Len() != n-1 {
+			t.Fatalf("expected n-1=%v nodes contacted, saw '%v'", n-1, g.node.seen.Len())
 		}
 	}
 }
@@ -73,13 +73,13 @@ type node struct {
 	lpb                    *LocalPeer
 	gotIncomingCktReadFrag chan *Fragment
 
-	seen map[string]bool
+	seen *Mutexmap[string, bool]
 }
 
 func newNode(name string, cfg *gridConfig) *node {
 	return &node{
 		name: name,
-		seen: make(map[string]bool),
+		seen: NewMutexmap[string, bool](),
 		// comms
 		PushToPeerURL:          make(chan string),
 		halt:                   idem.NewHalter(),
@@ -243,7 +243,7 @@ func (s *node) Start(
 					case frag := <-ckt.Reads:
 						//vv("%v: (ckt %v) ckt.Reads sees frag:'%s'", s.name, ckt.Name, frag)
 
-						s.seen[AliasDecode(frag.FromPeerID)] = true
+						s.seen.Set(AliasDecode(frag.FromPeerID), true)
 
 						//s.gotIncomingCktReadFrag <- frag
 						//vv("%v: (ckt %v) past s.gotIncomingCktReadFrag <- frag. frag:'%s'", s.name, ckt.Name, frag)
