@@ -1086,7 +1086,9 @@ type Client struct {
 
 	codec *greenpackClientCodec
 
-	// which lock?
+	// allow PingStats to be maintained.
+	// note blabber shares, but we use
+	// atomics to update and avoid races.
 	cpair *cliPairState
 
 	reqMutex sync.Mutex // protects following
