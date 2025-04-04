@@ -506,7 +506,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 			now := time.Now()
 			if time.Since(lastPing) > pingEvery {
 				// transmit the EpochID as the StreamPart in keepalives.
-				c.keepAliveMsg.HDR.StreamPart = c.epochV.EpochID
+				c.keepAliveMsg.HDR.StreamPart = atomic.LoadInt64(&c.epochV.EpochID)
 				err := w.sendMessage(conn, &c.keepAliveMsg, &keepAliveWriteTimeout)
 				//vv("cli sent rpc25519 keep alive. err='%v'; keepAliveWriteTimeout='%v'", err, keepAliveWriteTimeout)
 				if err != nil {
