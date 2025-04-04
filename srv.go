@@ -568,6 +568,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		case CallKeepAlive:
 			//vv("srv read loop got an rpc25519 keep alive.")
+			s.lastPingReceivedTm = time.Now()
 			continue
 
 		case CallPeerStart, CallPeerStartCircuit, CallPeerStartCircuitTakeToID:
@@ -1632,6 +1633,8 @@ type rwPair struct {
 
 	// grid based server's auto-client?
 	isAutoCli bool
+
+	lastPingReceivedTm time.Time
 }
 
 func (s *Server) newRWPair(conn net.Conn) *rwPair {

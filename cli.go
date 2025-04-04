@@ -268,7 +268,8 @@ func (c *Client) runClientTCP(serverAddr string) {
 }
 
 type cliPairState struct {
-	lastReadMagic7 atomic.Int64
+	lastReadMagic7     atomic.Int64
+	lastPingReceivedTm time.Time
 }
 
 func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
@@ -372,14 +373,16 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		if msg == nil {
 			continue
 		}
+		now := time.Now()
 		if msg.HDR.Typ == CallKeepAlive {
 			//vv("client got an rpc25519 keep alive.")
 			// nothing more to do, the keepalive just keeps the
 			// middle boxes on the internet from dropping
 			// our network connection.
+			cpair.lastPingReceivedTm = now
 			continue
 		}
-		msg.HDR.LocalRecvTm = time.Now()
+		msg.HDR.LocalRecvTm = now
 
 		seqno := msg.HDR.Seqno
 		//vv("client %v (cliLocalAddr='%v') received message with seqno=%v, msg.HDR='%v'", c.name, cliLocalAddr, seqno, msg.HDR.String())
