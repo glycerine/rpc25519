@@ -424,6 +424,8 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 				//vv("srv sent rpc25519 keep alive. err='%v'; keepAliveWriteTimeout='%v'", err, keepAliveWriteTimeout)
 				if err != nil {
 					alwaysPrintf("server had problem sending keep alive: '%v'", err)
+				} else {
+					s.lastPingSentTmu.Store(now.Unix())
 				}
 				lastPing = now
 				pingWakeCh = time.After(pingEvery)
@@ -568,7 +570,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		case CallKeepAlive:
 			//vv("srv read loop got an rpc25519 keep alive.")
-			s.lastPingReceivedTm = time.Now()
+			s.lastPingReceivedTmu.Store(time.Now().Unix())
 			continue
 
 		case CallPeerStart, CallPeerStartCircuit, CallPeerStartCircuitTakeToID:
@@ -1634,7 +1636,8 @@ type rwPair struct {
 	// grid based server's auto-client?
 	isAutoCli bool
 
-	lastPingReceivedTm time.Time
+	lastPingReceivedTmu atomic.Int64
+	lastPingSentTmu     atomic.Int64
 }
 
 func (s *Server) newRWPair(conn net.Conn) *rwPair {
@@ -2760,4 +2763,27 @@ func (s *Server) RecycleFragLen() int {
 	s.fragLock.Lock()
 	defer s.fragLock.Unlock()
 	return len(s.recycledFrag)
+}
+
+func (s *Server) PingStats(remote string) *PingStat {
+	pair, ok := s.remote2pair.Get(remote)
+	if !ok {
+		return nil
+	}
+	return &PingStat{
+		LastPingSentTmu:     pair.lastPingSentTmu.Load(),
+		LastPingReceivedTmu: pair.lastPingReceivedTmu.Load(),
+	}
+}
+
+func (s *Server) AutoClients() (list []*Client, isServer bool) {
+	isServer = true
+	for _, c := range s.autoClients {
+		list = append(list, c)
+	}
+	return
+}
+
+func (c *Client) AutoClients() (list []*Client, isServer bool) {
+	return
 }

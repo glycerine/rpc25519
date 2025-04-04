@@ -268,8 +268,9 @@ func (c *Client) runClientTCP(serverAddr string) {
 }
 
 type cliPairState struct {
-	lastReadMagic7     atomic.Int64
-	lastPingReceivedTm time.Time
+	lastReadMagic7      atomic.Int64
+	lastPingReceivedTmu atomic.Int64
+	lastPingSentTmu     atomic.Int64
 }
 
 func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
@@ -379,7 +380,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			// nothing more to do, the keepalive just keeps the
 			// middle boxes on the internet from dropping
 			// our network connection.
-			cpair.lastPingReceivedTm = now
+			cpair.lastPingReceivedTmu.Store(now.Unix())
 			continue
 		}
 		msg.HDR.LocalRecvTm = now
@@ -507,6 +508,8 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 				//vv("cli sent rpc25519 keep alive. err='%v'; keepAliveWriteTimeout='%v'", err, keepAliveWriteTimeout)
 				if err != nil {
 					alwaysPrintf("client had problem sending keep alive: '%v'", err)
+				} else {
+					c.cpair.lastPingSentTmu.Store(now.Unix())
 				}
 				lastPing = now
 				pingWakeCh = time.After(pingEvery)
@@ -1082,6 +1085,9 @@ type Client struct {
 	decBuf bytes.Buffer // target for code reads.
 
 	codec *greenpackClientCodec
+
+	// which lock?
+	cpair *cliPairState
 
 	reqMutex sync.Mutex // protects following
 	request  Request
@@ -1910,6 +1916,20 @@ type UniversalCliSrv interface {
 	NewFragment() *Fragment
 	FreeFragment(frag *Fragment)
 	RecycleFragLen() int
+	PingStats(remote string) *PingStat
+	AutoClients() (list []*Client, isServer bool)
+}
+
+type PingStat struct {
+	LastPingSentTmu     int64
+	LastPingReceivedTmu int64
+}
+
+func (c *Client) PingStats(remote string) *PingStat {
+	return &PingStat{
+		LastPingSentTmu:     c.cpair.lastPingSentTmu.Load(),
+		LastPingReceivedTmu: c.cpair.lastPingReceivedTmu.Load(),
+	}
 }
 
 // maintain the requirement that Client and Server both
