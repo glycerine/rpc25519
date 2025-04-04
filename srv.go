@@ -425,7 +425,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 				if err != nil {
 					alwaysPrintf("server had problem sending keep alive: '%v'", err)
 				} else {
-					s.lastPingSentTmu.Store(now.Unix())
+					s.lastPingSentTmu.Store(now.UnixNano())
 				}
 				lastPing = now
 				pingWakeCh = time.After(pingEvery)
@@ -570,7 +570,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		case CallKeepAlive:
 			//vv("srv read loop got an rpc25519 keep alive.")
-			s.lastPingReceivedTmu.Store(time.Now().Unix())
+			s.lastPingReceivedTmu.Store(time.Now().UnixNano())
 			continue
 
 		case CallPeerStart, CallPeerStartCircuit, CallPeerStartCircuitTakeToID:

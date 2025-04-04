@@ -263,6 +263,7 @@ func (c *Client) runClientTCP(serverAddr string) {
 	}
 
 	cpair := &cliPairState{} // track the last compression used, so we can echo it.
+	c.cpair = cpair
 	go c.runSendLoop(conn, cpair)
 	c.runReadLoop(conn, cpair)
 }
@@ -380,7 +381,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			// nothing more to do, the keepalive just keeps the
 			// middle boxes on the internet from dropping
 			// our network connection.
-			cpair.lastPingReceivedTmu.Store(now.Unix())
+			cpair.lastPingReceivedTmu.Store(now.UnixNano())
 			continue
 		}
 		msg.HDR.LocalRecvTm = now
@@ -509,7 +510,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 				if err != nil {
 					alwaysPrintf("client had problem sending keep alive: '%v'", err)
 				} else {
-					c.cpair.lastPingSentTmu.Store(now.Unix())
+					c.cpair.lastPingSentTmu.Store(now.UnixNano())
 				}
 				lastPing = now
 				pingWakeCh = time.After(pingEvery)
@@ -1927,7 +1928,15 @@ type PingStat struct {
 	LastPingReceivedTmu int64
 }
 
+func (s *PingStat) String() string {
+	return fmt.Sprintf(`PingStat{
+    LastPingSentTmu: "%v", 
+LastPingReceivedTmu: "%v",
+}`, time.Unix(s.LastPingSentTmu/1e9, s.LastPingSentTmu%1e9), time.Unix(s.LastPingReceivedTmu/1e9, s.LastPingReceivedTmu%1e9))
+}
+
 func (c *Client) PingStats(remote string) *PingStat {
+	vv("Client.PingStats called.")
 	return &PingStat{
 		LastPingSentTmu:     c.cpair.lastPingSentTmu.Load(),
 		LastPingReceivedTmu: c.cpair.lastPingReceivedTmu.Load(),

@@ -853,3 +853,42 @@ func Test030_RoundTrip_SendAndGetReply_then_JSON(t *testing.T) {
 
 	})
 }
+
+func Test031_PingStats(t *testing.T) {
+	return // too slow for normal test runs.
+
+	cv.Convey("PingStats should be regularly updated by each ping", t, func() {
+
+		cfg := NewConfig()
+		// send pings, both
+		cfg.ClientSendKeepAlive = time.Second
+		cfg.ServerSendKeepAlive = time.Second
+
+		cfg.TCPonly_no_TLS = true
+
+		cfg.ServerAddr = "127.0.0.1:0"
+		srv := NewServer("srv_test001", cfg)
+
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
+
+		//vv("server Start() returned serverAddr = '%v'", serverAddr)
+
+		cfg.ClientDialToHostPort = serverAddr.String()
+		cli, err := NewClient("test001", cfg)
+		panicOn(err)
+		err = cli.Start()
+		panicOn(err)
+
+		defer cli.Close()
+
+		for range 10 {
+			time.Sleep(time.Second)
+			ps := srv.PingStats(cli.LocalAddr())
+			pc := cli.PingStats(serverAddr.String())
+			vv("ps = '%v'; pc='%v'", ps, pc)
+		}
+
+	})
+}
