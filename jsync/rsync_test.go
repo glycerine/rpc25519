@@ -508,6 +508,11 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 		remotePath := "10mb.ub" // has 27 out of 646. why not just 2?
 		//remotePath := "cry.1098290" // compare/contrast
 
+		if !fileExists(remotePath) {
+			vv("warning: skipping test b/c '%v' test file does not exist.", remotePath)
+			return
+		}
+
 		// smaller file while looking at hashes directly.
 		//remotePath := "cry2mb"
 		//remotePath := "cry8mb"
