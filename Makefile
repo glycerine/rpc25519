@@ -4,9 +4,13 @@ all: githash
 	go build -o srv ./cmd/srv
 	go build -o selfy ./cmd/selfy
 	go build -o samesame ./cmd/samesame
+	go build -o jcp ./cmd/jcp
+	go build -o jsrv ./cmd/jsrv
 	cp -p ./cli ~/go/bin
 	cp -p ./srv ~/go/bin
 	cp -p ./selfy ~/go/bin
+	cp -p ./jcp ~/go/bin
+	cp -p ./jsrv ~/go/bin
 
 run:
 	./srv &
