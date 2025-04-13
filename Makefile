@@ -32,4 +32,6 @@ githash:
 
 test:
 	go test -v
-
+	cd jsync && go test -v
+	cd jcdc && go test -v
+	cd bytes && go test -v
