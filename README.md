@@ -211,7 +211,7 @@ and partially implemented solutions.
 
 ~~~
 # to install/get started: 
-#   *warning: ~/go/bin/{srv,cli,selfy,greenpack} are written
+#   *warning: ~/go/bin/{srv,cli,selfy,greenpack,jcp,jsrv} are written
 #
 
  git clone https://github.com/glycerine/greenpack ## pre-req
