@@ -8,7 +8,21 @@ available and ready for use. It is layered on top
 of the Message API. Circuits provide persistent, 
 asynchronous, peer-to-peer, infinite data streams
 of Messages. They are discussed below in the
-Circuit/Fragment/Peer API section.
+Circuit/Fragment/Peer API section. It was written
+to provide an rsync-like protocol for arbitrary 
+state-updates by syncing file systems. 
+
+The short summary is: Circuit/Fragment/Peer
+is an evolution (devolution perhaps...) of RPC. Peers 
+communicate fragments of infinite 
+data streams over any number of persistent circuits. Since
+the roles are peer-to-peer rather than client-server,
+any peer can run the code for any service
+(as here, in the rsync-like-protocol case, 
+either end can give or take a stream of 
+filesystem updates). The API is structured
+around constructing simple finite state machines with
+asynchronous sends and reads.
 
 * Recent News (2025 January 11): v1.6.0 adds compression.
 
