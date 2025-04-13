@@ -10,7 +10,7 @@ require (
 	github.com/glycerine/base58 v0.24.2
 	github.com/glycerine/blake3 v1.5.2
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31
-	github.com/glycerine/greenpack v0.533.0
+	github.com/glycerine/greenpack v0.536.0
 	github.com/glycerine/idem v0.8.1
 	github.com/glycerine/ipaddr v0.2.7
 	github.com/glycerine/loquet v0.0.19
