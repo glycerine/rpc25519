@@ -84,10 +84,21 @@ func (pb *LocalPeer) peerbackPump() {
 			msg := ckt.ConvertFragmentToMessage(frag)
 			pb.U.FreeFragment(frag)
 
-			err, queueSendCh := pb.U.SendOneWayMessage(pb.Ctx, msg, -2)
-			if err == ErrAntiDeadlockMustQueue {
-				go closeCktInBackgroundToAvoidDeadlock(queueSendCh, msg, pb.Halt)
-			}
+			// note srv.go might panic if the peer port
+			// is closed, as they might already also
+			// be down on system shutdown/test cleanup.
+			// Don't freak out.
+			func() {
+				defer func() {
+					r := recover()
+					vv("%v: cleanupCircuit, ignoring common "+
+						"panic on system shutdown: '%v'", name, r)
+				}()
+				err, queueSendCh := pb.U.SendOneWayMessage(pb.Ctx, msg, -2)
+				if err == ErrAntiDeadlockMustQueue {
+					go closeCktInBackgroundToAvoidDeadlock(queueSendCh, msg, pb.Halt)
+				}
+			}()
 		}
 		ckt.Canc(fmt.Errorf("pump cleanupCkt(notifyPeer=%v) cancelling ckt.Context.", notifyPeer))
 		pb.U.UnregisterChannel(ckt.CircuitID, CallIDReadMap)
