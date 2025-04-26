@@ -91,8 +91,10 @@ func (pb *LocalPeer) peerbackPump() {
 			func() {
 				defer func() {
 					r := recover()
-					vv("%v: cleanupCircuit, ignoring common "+
-						"panic on system shutdown: '%v'", name, r)
+					if r != nil {
+						vv("%v: cleanupCircuit, ignoring common "+
+							"panic on system shutdown: '%v'", name, r)
+					}
 				}()
 				err, queueSendCh := pb.U.SendOneWayMessage(pb.Ctx, msg, -2)
 				if err == ErrAntiDeadlockMustQueue {
