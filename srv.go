@@ -1891,7 +1891,6 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 
 		// have to Start() first to get the cli.conn setup.
 		err2 = cli.Start()
-		panicOn(err2)
 		if err2 != nil {
 			return
 		}
