@@ -55,6 +55,8 @@ var _ = fmt.Printf
 // The name blabber? Well... what comes
 // out is just blah, blah, blah.
 type blabber struct {
+	simnet *simnet
+
 	encrypt bool
 
 	compress bool
@@ -68,6 +70,8 @@ type blabber struct {
 
 	enc *encoder
 	dec *decoder
+
+	useSimNet bool
 }
 
 // encoder organizes the encryption of messages
@@ -248,7 +252,10 @@ func newBlabber(
 		cpair:      cpair,
 	}
 
+	//vv("making blabber, conn = '%#v'", conn)
 	return &blabber{
+		simnet:       cfg.simnetRendezvous.simnet,
+		useSimNet:    cfg.UseSimNet,
 		compress:     !cfg.CompressionOff,
 		compressAlgo: cfg.CompressAlgo,
 		conn:         conn,
@@ -263,6 +270,9 @@ func newBlabber(
 // readMessage uses separate memory from sendMessage, so
 // it is safe to do both simultaneously.
 func (blab *blabber) readMessage(conn uConn) (msg *Message, err error) {
+	if blab.useSimNet {
+		return blab.simnet.readMessage(conn)
+	}
 	if !blab.encrypt {
 		return blab.dec.work.readMessage(conn)
 	}
@@ -272,6 +282,9 @@ func (blab *blabber) readMessage(conn uConn) (msg *Message, err error) {
 // sendMessage uses separate memory from readMessage, so
 // it is safe to do both simultaneously.
 func (blab *blabber) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
+	if blab.useSimNet {
+		return blab.simnet.sendMessage(conn, msg, timeout)
+	}
 	if !blab.encrypt {
 		return blab.enc.work.sendMessage(conn, msg, timeout)
 	}

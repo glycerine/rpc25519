@@ -104,6 +104,9 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 
 	// since TCP may verify creds now too, only run TCP client *after* loading creds.
 	if tcp_only {
+		if c.cfg.UseSimNet {
+			panic("cannot have both TCPonly_no_TLS and UseSimNet true")
+		}
 		c.runClientTCP(serverAddr)
 		return
 	}
@@ -135,6 +138,9 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		if c.cfg.TCPonly_no_TLS {
 			panic("cannot have both UseQUIC and TCPonly_no_TLS true")
 		}
+		if c.cfg.UseSimNet {
+			panic("cannot have both UseQUIC and UseSimNet true")
+		}
 		localHostPort := c.cfg.ClientHostPort
 		if localHostPort == "" {
 			localHost, err := ipaddr.LocalAddrMatching(serverAddr)
@@ -143,6 +149,10 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 			localHostPort = localHost + ":0" // client can pick any port
 		}
 		c.runQUIC(localHostPort, serverAddr, config)
+		return
+	}
+	if c.cfg.UseSimNet {
+		c.runSimNetClient(c.cfg.ClientHostPort, serverAddr)
 		return
 	}
 
@@ -486,6 +496,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 	var lastPing time.Time
 	var doPing bool
 	var pingEvery time.Duration
+	var pingTimer *RpcTimer
 	var pingWakeCh <-chan time.Time
 	var keepAliveWriteTimeout time.Duration // := c.cfg.WriteTimeout
 
@@ -494,7 +505,8 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 		doPing = true
 		pingEvery = c.cfg.ClientSendKeepAlive
 		lastPing = time.Now()
-		pingWakeCh = time.After(pingEvery)
+		pingTimer = c.NewTimer(pingEvery)
+		pingWakeCh = pingTimer.C
 		// keep the ping attempts to a minimum to keep this loop lively.
 		if keepAliveWriteTimeout == 0 || keepAliveWriteTimeout > 10*time.Second {
 			keepAliveWriteTimeout = 2 * time.Second
@@ -504,6 +516,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 	for {
 		if doPing {
 			now := time.Now()
+			var nextPingDur time.Duration
 			if time.Since(lastPing) > pingEvery {
 				// transmit the EpochID as the StreamPart in keepalives.
 				c.keepAliveMsg.HDR.StreamPart = atomic.LoadInt64(&c.epochV.EpochID)
@@ -515,7 +528,9 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 					c.cpair.lastPingSentTmu.Store(now.UnixNano())
 				}
 				lastPing = now
-				pingWakeCh = time.After(pingEvery)
+				nextPingDur = pingEvery
+				//pingWakeCh = c.TimeAfter(pingEvery) // bad, hides it from simnet.
+
 			} else {
 				// Pre go1.23 this would have leaked timer memory, but not now.
 				// https://pkg.go.dev/time#After says
@@ -530,8 +545,14 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 				// If using < go1.23, see
 				// https://medium.com/@oboturov/golang-time-after-is-not-garbage-collected-4cbc94740082
 				// for a memory leak story.
-				pingWakeCh = time.After(lastPing.Add(pingEvery).Sub(now))
+				// bad: hides the timer discard from simnet.
+				//pingWakeCh = c.TimeAfter(lastPing.Add(pingEvery).Sub(now))
+				// good: simnet hears about the timer discard.
+				nextPingDur = lastPing.Add(pingEvery).Sub(now)
 			}
+			pingTimer.Discard() // good, let simnet discard it.
+			pingTimer = c.NewTimer(nextPingDur)
+			pingWakeCh = pingTimer.C
 		}
 
 		select {
@@ -828,6 +849,7 @@ type UploadReaderFunc func(ctx context.Context, req *Message, lastReply *Message
 // net.UDPConn is only closed when the last instance
 // in use is Close()-ed.
 type Config struct {
+	simnetRendezvous *simnetRendezvous
 
 	// ServerAddr host:port where the server should listen.
 	ServerAddr string
@@ -971,6 +993,11 @@ type Config struct {
 	// This facilitates creating a cluster/grid of
 	// communicating servers.
 	ServerAutoCreateClientsToDialOtherServers bool
+
+	// UseSimNet uses channels all in one
+	// process, rather than network calls.
+	// Client and Server must be in the same process.
+	UseSimNet bool
 }
 
 // ClientStartingDir returns the directory the Client was started in.
@@ -1027,11 +1054,27 @@ type sharedTransport struct {
 	isClosed      bool
 }
 
+// rendezvous simnet client and server. server creates/sets.
+type simnetRendezvous struct {
+	mut    sync.Mutex
+	simnet *simnet
+
+	// so we can generalize to
+	// a network, cli/server tell
+	// us their simnode
+	clinode *simnode
+	srvnode *simnode
+
+	s2c *simnetConn
+	c2s *simnetConn
+}
+
 // NewConfig should be used to create Config
 // for use in NewClient or NewServer setup.
 func NewConfig() *Config {
 	return &Config{
-		shared: &sharedTransport{},
+		shared:           &sharedTransport{},
+		simnetRendezvous: &simnetRendezvous{},
 	}
 }
 
@@ -1039,6 +1082,10 @@ func NewConfig() *Config {
 type Client struct {
 	cfg *Config
 	mut sync.Mutex
+
+	simnet  *simnet
+	simnode *simnode
+	simconn *simnetConn
 
 	// these are client only. server keeps track
 	// per connection in their rwPair.
@@ -1493,7 +1540,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 	c.keepAliveMsg.HDR.Typ = CallKeepAlive
 	c.keepAliveMsg.HDR.Subject = c.epochV.EpochTieBreaker
 
-	c.PeerAPI = newPeerAPI(c, yesIsClient)
+	c.PeerAPI = newPeerAPI(c, yesIsClient, cfg.UseSimNet)
 	c.encBufWriter = bufio.NewWriter(&c.encBuf)
 	c.codec = &greenpackClientCodec{
 		cli:          c,
@@ -1661,11 +1708,16 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 	// leave deafultTimeout nil if user supplied a cancelJobCh.
 	if cancelJobCh == nil {
 		// try hard not to get stuck when server goes away.
-		defaultTimeout = time.After(20 * time.Second)
+		//defaultTimeout = c.TimeAfter(20 * time.Second)
+		timer := c.NewTimer(20 * time.Second)
+		defer timer.Discard() // let simnet know the timer can be GC-ed.
+		defaultTimeout = timer.C
 	}
 	var writeDurTimeoutChan <-chan time.Time
 	if errWriteDur > 0 {
-		writeDurTimeoutChan = time.After(errWriteDur)
+		ti := c.NewTimer(errWriteDur)
+		defer ti.Discard()
+		writeDurTimeoutChan = ti.C
 	}
 
 	var from, to string
@@ -1675,6 +1727,13 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 	} else {
 		from = local(c.conn)
 		to = remote(c.conn)
+
+		// diagnostics for simnet.
+		sc, ok := c.conn.(*simnetConn)
+		_ = sc
+		if ok {
+			//vv("isCli=%v; c.conn.netAddr = '%v'; simnetConn.local='%v'; remote='%v'; sc.netAddr='%v'", sc.isCli, sc.netAddr, sc.local.name, sc.remote.name, sc.netAddr)
+		}
 	}
 
 	req.HDR.To = to
@@ -1736,7 +1795,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 		return nil, ErrShutdown()
 	}
 
-	//vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req)
+	//vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req) // seen 040
 
 	select {
 	case <-req.DoneCh.WhenClosed():
@@ -1934,6 +1993,8 @@ type UniversalCliSrv interface {
 	RecycleFragLen() int
 	PingStats(remote string) *PingStat
 	AutoClients() (list []*Client, isServer bool)
+
+	NewTimer(dur time.Duration) (ti *RpcTimer)
 }
 
 type PingStat struct {
@@ -1949,7 +2010,7 @@ LastPingReceivedTmu: "%v",
 }
 
 func (c *Client) PingStats(remote string) *PingStat {
-	vv("Client.PingStats called.")
+	//vv("Client.PingStats called.")
 	return &PingStat{
 		LastPingSentTmu:     c.cpair.lastPingSentTmu.Load(),
 		LastPingReceivedTmu: c.cpair.lastPingReceivedTmu.Load(),
@@ -2523,3 +2584,108 @@ func (s *Client) UnregisterChannel(ID string, whichmap int) {
 		s.notifies.notifyOnErrorToPeerIDMap.del(ID)
 	}
 }
+
+/*
+func (c *Client) TimeAfter(dur time.Duration) (timerC <-chan time.Time) {
+	if !c.cfg.UseSimNet {
+		return time.After(dur)
+	}
+	// ignore shutdown errors for now (these are the only
+	// errors possible at the moment. a nil channel
+	// must be handled fine by all client code also
+	// selecting on a shutdown signal.
+	timerC, _ = c.simnet.createNewTimer(dur, time.Now(), true) // isCli
+	return
+}
+
+func (s *Server) TimeAfter(dur time.Duration) (timerC <-chan time.Time) {
+	if !s.cfg.UseSimNet {
+		return time.After(dur)
+	}
+	// ditto: on error a nil channel will be fine.
+	timerC, _ = s.simnet.createNewTimer(dur, time.Now(), false) // isCli
+	return
+}
+*/
+
+type RpcTimer struct {
+	gotimer  *time.Timer
+	isCli    bool
+	simnode  *simnode
+	simnet   *simnet
+	simtimer *mop
+	C        <-chan time.Time
+}
+
+func (c *Client) NewTimer(dur time.Duration) (ti *RpcTimer) {
+	ti = &RpcTimer{
+		isCli: true,
+	}
+	if !c.cfg.UseSimNet {
+		ti.gotimer = time.NewTimer(dur)
+		return
+	}
+	ti.simnet = c.simnet
+	ti.simnode = c.simnode
+	ti.simtimer = c.simnet.createNewTimer(c.simnode, dur, time.Now(), true) // isCli
+	ti.C = ti.simtimer.timerC
+	return
+}
+
+func (s *Server) NewTimer(dur time.Duration) (ti *RpcTimer) {
+	ti = &RpcTimer{
+		isCli: false,
+	}
+	if !s.cfg.UseSimNet {
+		ti.gotimer = time.NewTimer(dur)
+		return
+	}
+	ti.simnet = s.simnet
+	ti.simnode = s.simnode
+	ti.simtimer = s.simnet.createNewTimer(s.simnode, dur, time.Now(), false) // isCli
+	ti.C = ti.simtimer.timerC
+	return
+}
+
+func (ti *RpcTimer) Discard() (wasArmed bool) {
+	if ti.simnet == nil {
+		ti.gotimer.Stop()
+		ti.gotimer = nil // Go will GC.
+		return
+	}
+	wasArmed = ti.simnet.discardTimer(ti.simnode, ti.simtimer, time.Now())
+	return
+}
+
+/*
+func (ti *RpcTimer) Reset(dur time.Duration) (wasArmed bool) {
+	if ti.simnet == nil {
+		return ti.gotimer.Reset(dur)
+	}
+	wasArmed = ti.simnet.resetTimer(ti, time.Now(), ti.onCli)
+	return
+}
+func (ti *RpcTimer) Stop(dur time.Duration) (wasArmed bool) {
+	if ti.simnet == nil {
+		return ti.gotimer.Stop()
+	}
+	wasArmed = ti.simnet.stopTimer(ti, time.Now(), ti.onCli)
+	return
+}
+
+// returns wasArmed (not expired or stopped)
+func (c *Client) StopTimer(ti *RpcTimer) bool {
+	return ti.Stop()
+}
+func (s *Server) StopTimer(ti *RpcTimer) bool {
+	return ti.Stop()
+}
+
+// returns wasArmed (not expired or stopped)
+func (c *Client) ResetTimer(ti *RpcTimer, dur time.Duration) bool {
+	return ti.Reset(dur)
+}
+func (s *Server) ResetTimer(ti *RpcTimer, dur time.Duration) bool {
+	return ti.Reset(dur)
+}
+*/

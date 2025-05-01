@@ -216,6 +216,8 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 				"uploaded tot = %v bytes (=> %0.6f MB/sec) in %v parts",
 				elap, tot, rate, nparts)
 		}
+
+		timeout := cli.NewTimer(time.Minute)
 		select {
 		case errMsg := <-strm.ErrorCh:
 			alwaysPrintf("errMsg: '%v'", errMsg.String())
@@ -237,9 +239,10 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 				vv("PROBLEM! server and client blake3 checksums do not match!\n serverTotSum='%v'\n clientTotsum='%v'", serverTotSum, clientTotSum)
 				panic("checksum mismatch!")
 			}
-		case <-time.After(time.Minute):
+		case <-timeout.C:
 			panic("should have gotten a reply from the server finishing the stream.")
 		}
+		timeout.Discard()
 
 		// final result: did we get the file uploaded the same?
 		diff := compareFilesDiffLen(path, pathOut)

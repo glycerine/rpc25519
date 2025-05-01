@@ -192,6 +192,39 @@ type Message struct {
 	nextOrReply *Message // free list on server, replies to round-trips in the client.
 }
 
+// CopyForSimNetSend is used by the simnet
+// so that senders can overwrite their sent
+// messages once they are "in the network", emulating
+// the copy that the kernel does for socket writes.
+// For safety, this cloning zeroes DoneCh, nextOrReply, ...
+// to avoid false-sharing; anything marked `msg:"-"`
+// would not be serialized by greenpack when
+// sent over a network.
+// In cl.HDR, we nil out Nc, Ctx, and streamCh
+// -- they are marked `msg:"-"` and are expected
+// to be set by the receiver when needed.
+func (m *Message) CopyForSimNetSend() (c *Message) {
+	cp := *m
+	c = &cp
+	c.nextOrReply = nil
+	// make our own copy of these central/critical bytes.
+	c.JobSerz = append([]byte{}, m.JobSerz...)
+	c.LocalErr = nil // marked msg:"-"
+	// like MessageFromGreenpack, DoneCh is
+	// not needed for sends/reads.
+	c.DoneCh = nil
+	c.nextOrReply = nil
+
+	c.HDR.Nc = nil
+	c.HDR.Args = make(map[string]string)
+	for k, v := range m.HDR.Args {
+		c.HDR.Args[k] = v
+	}
+	c.HDR.Ctx = nil
+	c.HDR.streamCh = nil
+	return
+}
+
 // interface for goq
 
 // NewMessage allocates a new Message with a DoneCh properly created.

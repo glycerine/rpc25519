@@ -108,6 +108,9 @@ func (s *Server) runServerMain(
 	// start of as http, the get CONNECT and hijack to TCP.
 
 	if tcp_only {
+		if s.cfg.UseSimNet {
+			panic("cannot have both TCPonly_no_TLS and UseSimNet true")
+		}
 		// actually just run TCP and not TLS, since we might not have cert authority (e.g. under test)
 		s.runTCP(serverAddress, boundCh)
 		return
@@ -125,7 +128,15 @@ func (s *Server) runServerMain(
 		if s.cfg.TCPonly_no_TLS {
 			panic("cannot have both UseQUIC and TCPonly_no_TLS true")
 		}
+		if s.cfg.UseSimNet {
+			panic("cannot have both UseQUIC and UseSimNet true")
+		}
 		s.runQUICServer(serverAddress, config, boundCh)
+		return
+	}
+	if s.cfg.UseSimNet {
+		simNetConfig := &SimNetConfig{}
+		s.runSimNetServer(serverAddress, boundCh, simNetConfig)
 		return
 	}
 
@@ -158,9 +169,12 @@ func (s *Server) runServerMain(
 	//vv("server defaults to binding: scheme='%v', ip='%v', port=%v, isUnspecified='%v', isIPv6='%v'", scheme, ip, port, isUnspecified, isIPv6)
 
 	if boundCh != nil {
+		timeout_100msec := s.NewTimer(100 * time.Millisecond)
+		defer timeout_100msec.Discard()
+
 		select {
 		case boundCh <- addr:
-		case <-time.After(100 * time.Millisecond):
+		case <-timeout_100msec.C:
 		}
 	}
 
@@ -221,10 +235,14 @@ func (s *Server) runTCP(serverAddress string, boundCh chan net.Addr) {
 	s.mut.Unlock()
 
 	//vv("Server listening on %v://%v", addr.Network(), addr.String())
+
 	if boundCh != nil {
+		timeout_100msec := s.NewTimer(100 * time.Millisecond)
+		defer timeout_100msec.Discard()
+
 		select {
 		case boundCh <- addr:
-		case <-time.After(100 * time.Millisecond):
+		case <-timeout_100msec.C:
 		}
 	}
 
@@ -402,6 +420,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 	var lastPing time.Time
 	var doPing bool
 	var pingEvery time.Duration
+	var pingWakeTimer *RpcTimer
 	var pingWakeCh <-chan time.Time
 	var keepAliveWriteTimeout time.Duration // := s.cfg.WriteTimeout
 
@@ -409,7 +428,9 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		doPing = true
 		pingEvery = s.cfg.ServerSendKeepAlive
 		lastPing = time.Now()
-		pingWakeCh = time.After(pingEvery)
+		pingWakeTimer = s.Server.NewTimer(pingEvery) // deadlock? this is stuck! 040 hang circucular trying to ping each other maybe?
+		//pingWakeTimer.Discard()
+		pingWakeCh = pingWakeTimer.C
 		// keep the ping attempts to a minimum to keep this loop lively.
 		if keepAliveWriteTimeout == 0 || keepAliveWriteTimeout > 10*time.Second {
 			keepAliveWriteTimeout = 2 * time.Second
@@ -419,6 +440,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 	for {
 		if doPing {
 			now := time.Now()
+			var nextPingDur time.Duration
 			if time.Since(lastPing) > pingEvery {
 				// transmit the EpochID as the StreamPart in keepalives.
 				s.keepAliveMsg.HDR.StreamPart = atomic.LoadInt64(&s.epochV.EpochID)
@@ -430,10 +452,13 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 					s.lastPingSentTmu.Store(now.UnixNano())
 				}
 				lastPing = now
-				pingWakeCh = time.After(pingEvery)
+				nextPingDur = pingEvery
 			} else {
-				pingWakeCh = time.After(lastPing.Add(pingEvery).Sub(now))
+				nextPingDur = lastPing.Add(pingEvery).Sub(now)
 			}
+			pingWakeTimer.Discard()
+			pingWakeTimer = s.Server.NewTimer(nextPingDur)
+			pingWakeCh = pingWakeTimer.C
 		}
 
 		select {
@@ -518,7 +543,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		// to disallow it.
 		req, err := w.readMessage(conn)
 		if err == io.EOF {
-			//vv("server sees io.EOF from receiveMessage")
+			vv("server sees io.EOF from receiveMessage")
 			// close of socket before read of full message.
 			// shutdown this connection or we'll just
 			// spin here at 500% cpu.
@@ -559,7 +584,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			alwaysPrintf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
 			return
 		}
-		//vv("srv read loop sees req = '%v'", req.String())
+		//vv("srv read loop sees req = '%v'", req.String()) // not seen 040
 
 		if req.HDR.From != "" {
 			s.Server.unNAT.Set(req.HDR.From, remoteAddr)
@@ -873,7 +898,7 @@ func (s *Server) processWork(job *job) {
 	foundUploader := false
 
 	req := job.req
-	//vv("processWork got job: req.HDR='%v'", req.HDR.String())
+	//vv("processWork got job: req.HDR='%v'", req.HDR.String()) // not see 040 hang
 
 	if req.HDR.Typ == CallCancelPrevious {
 		s.cancelCallID(req.HDR.CallID)
@@ -1070,6 +1095,10 @@ func (s *Server) processWork(job *job) {
 // based API. Both can be used concurrently if desired.
 type Server struct {
 	mut sync.Mutex
+
+	StartSimNet chan *SimNetConfig
+	simnet      *simnet
+	simnode     *simnode
 
 	boundAddressString string
 
@@ -1771,7 +1800,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 	case pair.SendCh <- msg:
 		//vv("sent to pair.SendCh, msg='%v'", msg.HDR.String())
 
-		//    case <-time.After(time.Second):
+		//    case <-s.TimeAfter(time.Second):
 		//vv("warning: time out trying to send on pair.SendCh")
 	case <-s.halt.ReqStop.Chan:
 		// shutting down
@@ -1779,6 +1808,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 	}
 
 	var dur time.Duration
+
 	if errWriteDur < 0 {
 		dur = 30 * time.Millisecond
 	} else if errWriteDur > 0 {
@@ -1787,11 +1817,16 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 
 	if dur > 0 {
 		//vv("srv SendMessage about to wait %v to check on connection.", dur)
+
+		sendTimeout := s.NewTimer(dur)
+		defer sendTimeout.Discard()
+		sendTimeoutCh := sendTimeout.C
+
 		select {
 		case <-msg.DoneCh.WhenClosed():
 			//vv("srv SendMessage got back msg.LocalErr = '%v'", msg.LocalErr)
 			return msg.LocalErr
-		case <-time.After(dur):
+		case <-sendTimeoutCh:
 			//vv("srv SendMessage timeout after waiting %v", dur)
 			return ErrSendTimeout
 		}
@@ -1838,6 +1873,7 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 
 type oneWaySender interface {
 	destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh chan struct{}, to, from string, ok bool)
+	NewTimer(dur time.Duration) (ti *RpcTimer)
 }
 
 // SendOneWayMessage is the same as SendMessage above except that it
@@ -1975,6 +2011,10 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 	// will give up after a millisecond to avoid the
 	// deadlock.
 	if errWriteDur == -2 {
+
+		timeout := s.NewTimer(time.Millisecond)
+		defer timeout.Discard()
+
 		select {
 		case sendCh <- msg:
 			return nil, nil
@@ -1984,7 +2024,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		case <-ctx.Done():
 			return ErrContextCancelled, nil
 
-		case <-time.After(time.Millisecond):
+		case <-timeout.C:
 			return ErrAntiDeadlockMustQueue, sendCh
 		}
 	} else {
@@ -2014,7 +2054,9 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		doneCh = msg.DoneCh.WhenClosed()
 	}
 	if errWriteDur > 0 {
-		timeoutCh = time.After(errWriteDur)
+		timeout := s.NewTimer(errWriteDur)
+		defer timeout.Discard()
+		timeoutCh = timeout.C
 	}
 
 	//vv("srv SendMessage about to wait %v to check on connection.", errWriteDur)
@@ -2059,8 +2101,11 @@ func NewServer(name string, config *Config) *Server {
 		notifies: newNotifies(notClient),
 		unNAT:    NewMutexmap[string, string](),
 	}
+	if cfg.UseSimNet {
+		s.StartSimNet = make(chan *SimNetConfig)
+	}
 
-	s.PeerAPI = newPeerAPI(s, notClient)
+	s.PeerAPI = newPeerAPI(s, notClient, cfg.UseSimNet)
 	return s
 }
 
@@ -2127,7 +2172,19 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 
 	select {
 	case serverAddr = <-boundCh:
+
+		// Important about the following, case <-time.After(10 * time.Second).
+		// The simnet not necessarily inititiazed yet,
+		// since that happens in runServerMain() just launched above.
+		// So this next time.After() needs to be an
+		// exception to using s.TimeAfter() which would
+		// put it through the simnet. This is fine.
+		// This is just a bootstrapping thing. We are not
+		// involved in network communication because
+		// the caller won't do net comms until this
+		// select responds that server has bound its port.
 	case <-time.After(10 * time.Second):
+
 		err = fmt.Errorf("server could not bind '%v' after 10 seconds", s.cfg.ServerAddr)
 	}
 	//vv("Server.Start() returning. serverAddr='%v'; err='%v'", serverAddr, err)
@@ -2159,8 +2216,12 @@ func (s *Server) Close() error {
 		s.cfg.shared.mut.Unlock()
 	}
 	s.halt.ReqStop.Close()
-	s.mut.Lock()  // avoid data race
-	s.lsn.Close() // cause runServerMain listening loop to exit.
+	s.mut.Lock() // avoid data race
+	if s.cfg.UseSimNet {
+		// no lsn in use.
+	} else {
+		s.lsn.Close() // cause runServerMain listening loop to exit.
+	}
 	s.mut.Unlock()
 	<-s.halt.Done.Chan
 

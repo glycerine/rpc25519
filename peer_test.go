@@ -202,11 +202,13 @@ func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 
 		// IsClosed() wil race against the close ckt going to the server,
 		// so wait on serverCkt.Halt.Done.Chan first.
+		timeout := j.srv.NewTimer(time.Second * 2)
 		select {
 		case <-serverCkt.Halt.Done.Chan:
-		case <-time.After(2 * time.Second):
+		case <-timeout.C:
 			t.Fatalf("error: server circuit '%v' did not close after 2 sec", serverCkt.Name)
 		}
+		timeout.Discard()
 		if !serverCkt.IsClosed() {
 			t.Fatalf("error: server circuit '%v' should be closed.", serverCkt.Name)
 		}

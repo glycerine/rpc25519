@@ -183,6 +183,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = true
+		//cfg.ServerSendKeepAlive = time.Second * 10
 
 		path := GetPrivateCertificateAuthDir() + sep + "psk.binary"
 		panicOn(setupPSK(path))
@@ -400,8 +401,10 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 			}
 		*/
 
-		cv.So(true, cv.ShouldBeTrue)
+		//cv.So(true, cv.ShouldBeTrue)
+		//vv("good: end of 006 test")
 	})
+	//})
 }
 
 // and with TLS
@@ -898,6 +901,7 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = false
+		//cfg.ServerSendKeepAlive = time.Second * 10 // does not stop hang on synctest
 
 		cfg.ServerAddr = "127.0.0.1:0"
 		srv := NewServer("srv_test040", cfg)
@@ -906,7 +910,7 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 		panicOn(err)
 		defer srv.Close()
 
-		//vv("server Start() returned serverAddr = '%v'", serverAddr)
+		vv("server Start() returned serverAddr = '%v'", serverAddr)
 
 		// net/rpc API on server
 		mustCancelMe := NewMustBeCancelled()
@@ -932,30 +936,33 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 		cliErrIsSet40 := make(chan bool)
 		ctx40, cancelFunc40 := context.WithCancel(context.Background())
 		go func() {
+			vv("client.Call() goro top about to call over net/rpc: MustBeCancelled.WillHangUntilCancel()")
+
 			cliErr40 = client.Call("MustBeCancelled.WillHangUntilCancel", args, reply, ctx40)
-			//vv("client.Call() returned with cliErr = '%v'", cliErr)
+			vv("client.Call() returned with cliErr = '%v'", cliErr40)
 			close(cliErrIsSet40)
 		}()
 
 		// let the call get blocked.
-		<-test040callStarted
-		//vv("cli_test 040: we got past test040callStarted")
+		vv("cli_test 040: about to block on test040callStarted")
+		<-mustCancelMe.callStarted // synctest blocked here
+		vv("cli_test 040: we got past test040callStarted")
 
 		// cancel it: transmit cancel request to server.
 		cancelFunc40()
-		//vv("past cancelFunc()")
+		vv("past cancelFunc()")
 
 		<-cliErrIsSet40
-		//vv("past cliErrIsSet channel; cliErr = '%v'", cliErr)
+		vv("past cliErrIsSet channel; cliErr40 = '%v'", cliErr40)
 
 		if cliErr40 != ErrCancelReqSent {
 			t.Errorf("Test040: expected ErrCancelReqSent but got %v", cliErr40)
 		}
 
 		// confirm that server side function is unblocked too
-		//vv("about to verify that server side context was cancelled.")
-		<-test040callFinished
-		//vv("server side saw the cancellation request: confirmed.")
+		vv("about to verify that server side context was cancelled.")
+		<-mustCancelMe.callFinished
+		vv("server side saw the cancellation request: confirmed.")
 
 		// use Message []byte oriented API: test 041
 
@@ -969,20 +976,20 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 
 		go func() {
 			reply41, cliErr41 = client.SendAndGetReply(req, ctx41.Done(), 0)
-			//vv("client.Call() returned with cliErr = '%v'", cliErr)
+			vv("client.Call() returned with cliErr = '%v'", cliErr41)
 			close(cliErrIsSet41)
 		}()
 
 		// let the call get blocked on the server (only works under test, of course).
-		<-test041callStarted
-		//vv("cli_test 041: we got past test041callStarted")
+		<-mustCancelMe.callStarted
+		vv("cli_test 041: we got past test041callStarted")
 
 		// cancel it: transmit cancel request to server.
 		cancelFunc41()
-		//vv("past cancelFunc()")
+		vv("past cancelFunc()")
 
 		<-cliErrIsSet41
-		//vv("past cliErrIsSet channel; cliErr = '%v'", cliErr)
+		vv("past cliErrIsSet channel; cliErr = '%v'", cliErr41)
 
 		if cliErr41 != ErrCancelReqSent {
 			t.Errorf("Test041: expected ErrCancelReqSent but got %v", cliErr41)
@@ -993,8 +1000,8 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 		}
 
 		// confirm that server side function is unblocked too
-		//vv("about to verify that server side context was cancelled.")
-		<-test041callFinished
+		vv("about to verify that server side context was cancelled.")
+		<-mustCancelMe.callFinished
 
 	})
 }
@@ -1074,6 +1081,7 @@ func Test045_upload(t *testing.T) {
 
 		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
 
+		timeout := client.NewTimer(time.Minute)
 		select {
 		case m := <-strm.ReadCh:
 			report := string(m.JobSerz)
@@ -1082,9 +1090,10 @@ func Test045_upload(t *testing.T) {
 			cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
 			cv.So(fileExists(filename+".servergot"), cv.ShouldBeTrue)
 
-		case <-time.After(time.Minute):
+		case <-timeout.C:
 			t.Fatalf("should have gotten a reply from the server finishing the stream.")
 		}
+		timeout.Discard()
 		if fileExists(filename) && N == 20 {
 			// verify the contents of the assembled file
 			fileBytes, err := os.ReadFile(filename)
@@ -1140,6 +1149,7 @@ func Test055_download(t *testing.T) {
 
 		done := false
 		for i := 0; !done; i++ {
+			timeout := client.NewTimer(time.Second * 10)
 			select {
 			case m := <-downloader.ReadDownloadsCh:
 				//report := string(m.JobSerz)
@@ -1167,13 +1177,15 @@ func Test055_download(t *testing.T) {
 						"downloader.Seqno = %v", m.HDR.Seqno, downloader.Seqno())
 				}
 
-			case <-time.After(time.Second * 10):
+			case <-timeout.C:
 				t.Fatalf("should have gotten a reply from the server finishing the stream.")
 			}
+			timeout.Discard()
 		} // end for i
 
 		// do we get the lastReply too then?
 
+		timeout := client.NewTimer(time.Second * 10)
 		select {
 		case m := <-downloader.ReadDownloadsCh:
 			//report := string(m.JobSerz)
@@ -1192,9 +1204,10 @@ func Test055_download(t *testing.T) {
 					"downloader.Seqno = %v", m.HDR.Seqno, downloader.Seqno())
 			}
 
-		case <-time.After(time.Second * 10):
+		case <-timeout.C:
 			t.Fatalf("should have gotten a lastReply from the server finishing the call.")
 		}
+		timeout.Discard()
 	})
 }
 
@@ -1251,6 +1264,8 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 
 		done := false
 		for i := 0; !done; i++ {
+
+			timeout := client.NewTimer(time.Second * 10)
 			select {
 			case m := <-bistream.ReadDownloadsCh:
 				//report := string(m.JobSerz)
@@ -1278,9 +1293,10 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 						"bistream.Seqno = %v", m.HDR.Seqno, bistream.Seqno())
 				}
 
-			case <-time.After(time.Second * 10):
+			case <-timeout.C:
 				t.Fatalf("should have gotten a reply from the server finishing the stream.")
 			}
+			timeout.Discard()
 		} // end for i
 
 		//vv("done with download. begin upload part")
@@ -1322,6 +1338,7 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 
 		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
 
+		timeout := client.NewTimer(time.Minute)
 		select {
 		case m := <-bistream.ReadDownloadsCh:
 			report := string(m.JobSerz)
@@ -1330,9 +1347,11 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 			cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
 			cv.So(fileExists(filename), cv.ShouldBeTrue)
 
-		case <-time.After(time.Minute):
+		case <-timeout.C:
 			t.Fatalf("should have gotten a reply from the server finishing the stream.")
 		}
+		timeout.Discard()
+
 		if fileExists(filename) && N == 20 {
 			// verify the contents of the assembled file
 			fileBytes, err := os.ReadFile(filename)
