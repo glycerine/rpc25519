@@ -635,7 +635,7 @@ type QueryLocalPeerPump struct {
 }
 
 // NewQueryLocalPeerPump creates a new QueryLocalPeerPump
-// to enquire about the number of open Circuits.
+// to enaquire about the number of open Circuits.
 func NewQueryLocalPeerPump() *QueryLocalPeerPump {
 	return &QueryLocalPeerPump{
 		Ready: make(chan struct{}),
@@ -789,16 +789,19 @@ type peerAPI struct {
 	// peerServiceName key
 	localServiceNameMap *Mutexmap[string, *knownLocalPeer]
 
+	isSim bool // using SimNet instead of actual network calls
+
 	// just for logging. do not depend on this because
 	// it might not be true in a cluster/grid.
 	isCli bool
 }
 
-func newPeerAPI(u UniversalCliSrv, isCli bool) *peerAPI {
+func newPeerAPI(u UniversalCliSrv, isCli, isSim bool) *peerAPI {
 	return &peerAPI{
 		u:                   u,
 		localServiceNameMap: NewMutexmap[string, *knownLocalPeer](),
 		isCli:               isCli,
+		isSim:               isSim,
 	}
 }
 

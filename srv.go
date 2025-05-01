@@ -2060,7 +2060,7 @@ func NewServer(name string, config *Config) *Server {
 		unNAT:    NewMutexmap[string, string](),
 	}
 
-	s.PeerAPI = newPeerAPI(s, notClient)
+	s.PeerAPI = newPeerAPI(s, notClient, cfg.UseSimNet)
 	return s
 }
 
