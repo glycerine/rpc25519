@@ -2727,10 +2727,10 @@ func (s *Server) NewFragment() (f *Fragment) {
 	} else {
 		f = s.recycledFrag[0]
 		s.recycledFrag = s.recycledFrag[1:]
-		s.fragLock.Unlock()
-		*f = Fragment{
+		*f = Fragment{ // needs lock or can get race here.
 			Serial: issueSerial(),
 		}
+		s.fragLock.Unlock()
 		return
 	}
 }
