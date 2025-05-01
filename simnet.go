@@ -1,11 +1,13 @@
 package rpc25519
 
+/* all moved to simnet_test.go
 // simulated network.
 // same send call as UniversalCliSrv
 // interface
 
 import (
 	"context"
+	//"testing/synctest"
 	"time"
 
 	"github.com/glycerine/idem"
@@ -119,3 +121,4 @@ func (s *SimNet) AutoClients() (list []*Client, isServer bool) {
 	panic("TODO")
 	return
 }
+*/
