@@ -616,10 +616,10 @@ type netTimer struct {
 	fires chan struct{}
 }
 
-// reproducibly sort opsn using pseudo rng,
+// reproducibly sort op using pseudo rng,
 // producing a permutation of the available
 // netsim elements (timers, reads, sends).
-type opsn struct {
+type op struct {
 	sn    int64
 	when  time.Time
 	order uint64
@@ -648,8 +648,9 @@ func (s *netsim) start() {
 			// reads can only read on a ckt if a
 			//   send on the ckt happened before.
 
-			op := s.waitQ.pq.peek()
-			if op == nil {
+			op0 := s.waitQ.pq.peek()
+			_ = op0
+			if op0 == nil {
 				vv("empty pq")
 				// get a timer or network op
 				select {
@@ -657,9 +658,9 @@ func (s *netsim) start() {
 					vv("simnet.in -> netSend = '%#v'", netSend)
 				case ti := <-s.addTimer:
 					vv("addTimer: '%#v'", ti)
-					op := &opsn{sn: ti.sn, when: ti.when, kind: TIMER}
-					s.waitQ.pq.add(op)
-					s.waitQ.timers[op.sn] = ti
+					op0 = &op{sn: ti.sn, when: ti.when, kind: TIMER}
+					s.waitQ.pq.add(op0)
+					s.waitQ.timers[op0.sn] = ti
 				//case op := <-s.opReady:
 				//	_ = op
 				default:
@@ -687,11 +688,11 @@ func (s *netsim) start() {
 			}
 			//for _, op := range *log {
 			s.waitQ.pq.pop()
-			switch op.kind {
+			switch op0.kind {
 			case TIMER:
-				vv("firing timer '%#v'", op)
-				ti := s.waitQ.timers[op.sn]
-				delete(s.waitQ.timers, op.sn)
+				vv("firing timer '%#v'", op0)
+				ti := s.waitQ.timers[op0.sn]
+				delete(s.waitQ.timers, op0.sn)
 				close(ti.fires)
 			}
 			/*
@@ -713,7 +714,7 @@ func (s *netsim) start() {
 }
 
 /*
-type permutation []opsn
+type permutation []op
 
 func (p permutation) Len() int { return len(p) }
 func (p permutation) Less(i, j int) bool {
@@ -723,7 +724,7 @@ func (p permutation) Swap(i, j int) {
 	p[i], p[j] = p[j], p[i]
 }
 
-type chronological []opsn
+type chronological []op
 
 func (c chronological) Len() int { return len(c) }
 func (c chronological) Less(i, j int) bool {
@@ -733,7 +734,7 @@ func (c chronological) Swap(i, j int) {
 	c[i], c[j] = c[j], c[i]
 }
 
-type logicalclock []opsn
+type logicalclock []op
 
 func (c logicalclock) Len() int { return len(c) }
 func (c logicalclock) Less(i, j int) bool {
@@ -746,13 +747,13 @@ func (c logicalclock) Swap(i, j int) {
 func (s *netsim) permute() *permutation {
 	var perm permutation
 	for _, ti := range s.waitQ.timers {
-		perm = append(perm, opsn{sn: ti.sn, when: ti.when, order: rng.Unint64(), kind: TIMER})
+		perm = append(perm, op{sn: ti.sn, when: ti.when, order: rng.Unint64(), kind: TIMER})
 	}
 	for _, re := range s.waitQ.reads {
-		perm = append(perm, opsn{sn: re.sn, when: ti.when, order: rng.Unint64(), kind: READ})
+		perm = append(perm, op{sn: re.sn, when: ti.when, order: rng.Unint64(), kind: READ})
 	}
 	for _, se := range sends {
-		perm = append(perm, opsn{sn: se.sn, when: ti.when, order: rng.Unint64(), kind: SEND})
+		perm = append(perm, op{sn: se.sn, when: ti.when, order: rng.Unint64(), kind: SEND})
 	}
 	sort.Sort(perm)
 	return &perm
@@ -761,13 +762,13 @@ func (s *netsim) permute() *permutation {
 func (s *netsim) timeorder() *chronological {
 	var chrono chronological
 	for _, ti := range s.timers {
-		chrono = append(chrono, opsn{sn: ti.sn, when: ti.when, kind: TIMER})
+		chrono = append(chrono, op{sn: ti.sn, when: ti.when, kind: TIMER})
 	}
 	for _, re := range s.reads {
-		chrono = append(chrono, opsn{sn: re.sn, when: re.when, kind: READ})
+		chrono = append(chrono, op{sn: re.sn, when: re.when, kind: READ})
 	}
 	for _, se := range s.sends {
-		chrono = append(chrono, opsn{sn: se.sn, when: se.when, kind: SEND})
+		chrono = append(chrono, op{sn: se.sn, when: se.when, kind: SEND})
 	}
 	sort.Sort(chrono)
 	return &chrono
@@ -776,13 +777,13 @@ func (s *netsim) timeorder() *chronological {
 func (s *netsim) logicalClockOrder() *logicalclock {
 	var logical logicalclock
 	for _, ti := range s.timers {
-		logical = append(logical, opsn{sn: ti.sn, when: ti.when, kind: TIMER})
+		logical = append(logical, op{sn: ti.sn, when: ti.when, kind: TIMER})
 	}
 	for _, re := range s.reads {
-		logical = append(logical, opsn{sn: re.sn, when: re.when, kind: READ})
+		logical = append(logical, op{sn: re.sn, when: re.when, kind: READ})
 	}
 	for _, se := range s.sends {
-		logical = append(logical, opsn{sn: se.sn, when: se.when, kind: SEND})
+		logical = append(logical, op{sn: se.sn, when: se.when, kind: SEND})
 	}
 	sort.Sort(logical)
 	return &logical
@@ -803,10 +804,12 @@ func Test500_synctest_basic(t *testing.T) {
 		schedDone := make(chan struct{})
 		defer close(schedDone)
 
-		readCh := make(chan int)
-		sendCh := make(chan int)
+		readCh := make(chan *Fragment)
+		sendCh := make(chan *Fragment)
 		// play the "scheduler" part
 		go func() {
+			var pq pq
+			_ = pq
 			for {
 				select {
 				case <-schedDone:
@@ -827,7 +830,7 @@ func Test500_synctest_basic(t *testing.T) {
 
 		// sender
 		go func() {
-			sendCh <- 12
+			sendCh <- &Fragment{FragSubject: "hello world"}
 			vv("sender sent")
 		}()
 

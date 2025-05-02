@@ -9,7 +9,7 @@ import (
 
 // An pqTimeItem is something we manage in a priority queue.
 type pqTimeItem struct {
-	value    *opsn
+	value    *op
 	priority time.Time // The priority of the item in the queue.
 	// The index is needed by update and is maintained by the heap.Interface methods.
 	index int // The index of the item in the heap.
@@ -43,14 +43,14 @@ func (p *pq) pop() *pqTimeItem {
 	return p.hea.Pop().(*pqTimeItem)
 }
 
-func (p *pq) peek() (op *opsn) { // , timeout time.Time) {
+func (p *pq) peek() (op *op) { // , timeout time.Time) {
 	p.mut.Lock()
 	defer p.mut.Unlock()
 	return p.hea.peek()
 }
 
 // add a new item to the queue.
-func (p *pq) add(op *opsn) *pqTimeItem {
+func (p *pq) add(op *op) *pqTimeItem {
 	p.mut.Lock()
 	defer p.mut.Unlock()
 	return p.hea.add(op)
@@ -63,7 +63,7 @@ func (p *pq) delOneItem(item *pqTimeItem) {
 }
 
 // update modifies the priority and value of an pqTimeItem in the queue.
-func (p *pq) update(item *pqTimeItem, value *opsn) { // , priority time.Time) {
+func (p *pq) update(item *pqTimeItem, value *op) { // , priority time.Time) {
 	p.mut.Lock()
 	defer p.mut.Unlock()
 	p.hea.update(item, value) // , value.when) //priority)
@@ -117,7 +117,7 @@ func (pq *pqTime) size() int {
 	return len(*pq)
 }
 
-func (pq *pqTime) peek() (op *opsn) { // , timeout time.Time) {
+func (pq *pqTime) peek() (op *op) { // , timeout time.Time) {
 	n := len(*pq)
 	if n == 0 {
 		return
@@ -126,7 +126,7 @@ func (pq *pqTime) peek() (op *opsn) { // , timeout time.Time) {
 }
 
 // add a new item to the queue.
-func (pq *pqTime) add(op *opsn) *pqTimeItem {
+func (pq *pqTime) add(op *op) *pqTimeItem {
 	n := len(*pq)
 	item := &pqTimeItem{
 		priority: op.when,
@@ -166,7 +166,7 @@ func (pq *pqTime) delOneItem(item *pqTimeItem) {
 }
 
 // update modifies the priority and value of an pqTimeItem in the queue.
-func (pq *pqTime) update(item *pqTimeItem, value *opsn) {
+func (pq *pqTime) update(item *pqTimeItem, value *op) {
 	item.value = value
 	item.priority = value.when
 	heap.Fix(pq, item.index)
