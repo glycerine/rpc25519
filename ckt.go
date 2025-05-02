@@ -1,6 +1,7 @@
 package rpc25519
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/url"
@@ -1291,5 +1292,100 @@ type EpochVers struct {
 	EpochTieBreaker string `zid:"1"`
 }
 
-//StreamPart
-//Subject
+// 0 => logically equals (same content); not
+// necessarily the same pointer (a==b would
+// be an easier test if that's all that is needed).
+// -1 means a < b
+// +1 means a > b
+func (a *Fragment) Compare(b *Fragment) int {
+	if a == nil || b == nil {
+		// if both nil, should NaN == NaN? not usually
+		panic("Fragment.Equals does not compare to nil, since two nil pointers may not mean identical things")
+	}
+	if a == b {
+		return 0 // same object in memory
+	}
+	// try to short ciruit as fast as possible,
+	// highest entropy things first.
+	if a.CircuitID < b.CircuitID {
+		return -1
+	}
+	if a.CircuitID > b.CircuitID {
+		return 1
+	}
+	if a.FromPeerID < b.FromPeerID {
+		return -1
+	}
+	if a.FromPeerID > b.FromPeerID {
+		return 1
+	}
+	if a.ToPeerID < b.ToPeerID {
+		return -1
+	}
+	if a.ToPeerID > b.ToPeerID {
+		return 1
+	}
+	if a.Serial < b.Serial {
+		return -1
+	}
+	if a.Serial > b.Serial {
+		return 1
+	}
+	if a.ServiceName < b.ServiceName {
+		return -1
+	}
+	if a.ServiceName > b.ServiceName {
+		return 1
+	}
+
+	// really that should have sufficed,
+	// if the chacha8+blake3 CallID are
+	// in use, as they should be.
+	// For more than good measure,
+	// and because we want to use
+	// this to catch implementation
+	// errors in tests of things like clone()...
+	if a.Typ < b.Typ {
+		return -1
+	}
+	if a.Typ > b.Typ {
+		return 1
+	}
+	if a.FragOp < b.FragOp {
+		return -1
+	}
+	if a.FragOp > b.FragOp {
+		return 1
+	}
+	if a.FragPart < b.FragPart {
+		return -1
+	}
+	if a.FragPart > b.FragPart {
+		return 1
+	}
+	if a.FragSubject < b.FragSubject {
+		return -1
+	}
+	if a.FragSubject > b.FragSubject {
+		return 1
+	}
+	if a.Err < b.Err {
+		return -1
+	}
+	if a.Err > b.Err {
+		return 1
+	}
+	cmp := bytes.Compare(a.Payload, b.Payload)
+	if cmp < 0 {
+		return -1
+	}
+	if cmp > 1 {
+		return 1
+	}
+	// a.Args, b.Args:
+	// map order is non-deterministic, skip
+	// anything related to the content of
+	// the user Args. Really, we are into
+	// way, way overkill here anyway.
+	return 0
+}

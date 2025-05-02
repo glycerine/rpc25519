@@ -63,19 +63,39 @@ func (s *lowestTimeFirst) add(op *fop) (added bool, it rb.Iterator) {
 	return
 }
 
+// order by when, circuitID, fromID, sn; try
+// hard not to delete tickets with the same when,
+// and even then we may have reason to keep
+// the exact same ticket for a task at the same time;
+// so use fop.sn too.
 func newLowestTimeFirst() *lowestTimeFirst {
 	return &lowestTimeFirst{
 		tree: rb.NewTree(func(a, b rb.Item) int {
-			av := a.(*fop).when
-			bv := b.(*fop).when
+			av := a.(*fop)
+			bv := b.(*fop) // .when
 
-			if av.Equal(bv) {
-				return 0
+			if av == bv {
+				return 0 // points to same memory (or both nil)
 			}
-			if av.Before(bv) {
+			if av == nil {
+				// just a is nil; b is not. sort nils to the front
+				// so they get popped and GC-ed sooner (and
+				// don't become temporary memory leaks by sitting at the
+				// back of the queue.x
 				return -1
 			}
-			return 1
+			if bv == nil {
+				return 1
+			}
+			// INVAR: neither av nor bv is nil
+			if av.when.Before(bv.when) {
+				return -1
+			}
+			if av.when.After(bv.when) {
+				return 1
+			}
+			// INVAR: a.when == b.when
+			return av.frag.Compare(bv.frag)
 		}),
 	}
 }
@@ -1064,11 +1084,11 @@ func Test500_synctest_basic(t *testing.T) {
 
 		// sender 1
 		go func() {
-			frag := &Fragment{
-				FromPeerID:  sender1,
-				ToPeerID:    reader1,
-				CircuitID:   cktID,
-				FragSubject: "from sender1 to reader1 on ckt1"}
+			frag := NewFragment()
+			frag.FromPeerID = sender1
+			frag.ToPeerID = reader1
+			frag.CircuitID = cktID
+			frag.FragSubject = "from sender1 to reader1 on ckt1"
 			send := sendOn(ckt1, frag, sender1)
 			<-send.proceed
 			vv("sender1 sent")
