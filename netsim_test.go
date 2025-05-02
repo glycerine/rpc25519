@@ -936,7 +936,7 @@ func Test500_synctest_basic(t *testing.T) {
 									panic("stall the read?")
 								}
 							default:
-								panic("bad op on ckt, not for local or remote")
+								panic("bad READ op on ckt, not for local or remote")
 							}
 
 						case SEND:
@@ -944,9 +944,15 @@ func Test500_synctest_basic(t *testing.T) {
 							if !ok {
 								panic("bad SEND op.frag.CircuitID")
 							}
-							// can't know future read := getNextRead(ckt)
-							// must buffer send somewhere in circuit.
-							ckt.sent = append(ckt.sent, op)
+							// buffer on ckt.sentFromLocal or ckt.sentFromRemote
+							switch op.ToPeerID {
+							case ckt.LocalPeerID:
+								ckt.sentFromRemote = append(ckt.sentFromRemote, op)
+							case ckt.RemotePeerID:
+								ckt.sentFromLocal = append(ckt.sentFromLocal, op)
+							default:
+								panic("bad SEND op on ckt, not for local or remote")
+							}
 
 						case TIMER:
 							vv("TIMER firing")
