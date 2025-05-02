@@ -802,6 +802,9 @@ func Test500_synctest_basic(t *testing.T) {
 		addTimer := make(chan *netTimer)
 		schedDone := make(chan struct{})
 		defer close(schedDone)
+
+		readCh := make(chan int)
+		sendCh := make(chan int)
 		// play the "scheduler" part
 		go func() {
 			for {
@@ -813,8 +816,22 @@ func Test500_synctest_basic(t *testing.T) {
 					time.Sleep(ti.dur)
 					vv("scheduler wakes")
 					close(ti.fires)
+				case v := <-sendCh:
+					readCh <- v
 				}
 			}
+		}()
+
+		// sender
+		go func() {
+			sendCh <- 12
+			vv("sender sent")
+		}()
+
+		// reader
+		go func() {
+			v := <-readCh
+			vv("reader got v = %v", v)
 		}()
 
 		vv("dur=%v, about to wait on timer at %v", dur, time.Now())
