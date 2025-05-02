@@ -42,11 +42,12 @@ func (j *testNetsimJunk4) cleanup() {
 
 func newTestNetsimJunk4(name string) (j *testNetsimJunk4) {
 
+	var seed [32]byte
 	j = &testNetsimJunk4{
 		name:           name,
 		cliServiceName: "cli_" + name,
 		srvServiceName: "srv_" + name,
-		simnet:         Newnetsim(),
+		netsim:         newNetsim(seed),
 	}
 
 	cfg := NewConfig()
@@ -96,7 +97,7 @@ func Test509_netsim_lots_of_send_and_read(t *testing.T) {
 	return
 	cv.Convey("On a netsim, many sends and reads between peers", t, func() {
 
-		j := newTestnetsimJunk4("manysend_509")
+		j := newTestNetsimJunk4("manysend_509")
 		defer j.cleanup()
 
 		ctx := context.Background()
@@ -565,10 +566,11 @@ func newNetRead() *netRead {
 		readgot: make(chan *Fragment),
 	}
 }
-func newNetTimer() *netTimer {
+func newNetTimer(dur time.Duration) *netTimer {
 	return &netTimer{
 		sn:    netsimNextSn(),
-		fires: make(chan struct{}),
+		when:  time.Now().Add(dur),
+		fires: make(chan struct{}), // wakeup
 	}
 }
 
@@ -577,26 +579,27 @@ func newNetsim(seed [32]byte) (s *netsim) {
 		//ckts:     make(map[string]*Circuit),
 		seed:     seed,
 		rng:      mathrand2.NewChaCha8(seed),
-		send:     make(chan *netOP),
+		send:     make(chan *netSend),
 		read:     make(chan *netRead),
 		addTimer: make(chan *netTimer),
 		waitq:    newWaitQ(),
 	}
-	s.reset()
 	return
 }
 
 type waitQ struct {
 	reads  map[int]*netRead
 	sends  map[int]*netSend
-	timers map[ing]*timer
+	timers map[int]*netTimer
+
+	pq pq // priority queue, op.when ordered
 }
 
-func newWaitQueue() *waitQ {
+func newWaitQ() *waitQ {
 	return &waitQ{
 		reads:  make(map[int]*netRead),
 		sends:  make(map[int]*netSend),
-		timers: make(map[ing]*timer),
+		timers: make(map[int]*netTimer),
 	}
 }
 func (s *netsim) AddPeer(peerID string, ckt *Circuit) (err error) {
@@ -604,7 +607,7 @@ func (s *netsim) AddPeer(peerID string, ckt *Circuit) (err error) {
 	return nil
 }
 
-type timer struct {
+type netTimer struct {
 	sn   int64
 	when time.Time
 	//isTicker bool // auto-reloading deferred
@@ -628,7 +631,7 @@ const (
 	READ  simkind = 3
 )
 
-func (s *netsim) Start() {
+func (s *netsim) start() {
 
 	go func() {
 
@@ -640,64 +643,48 @@ func (s *netsim) Start() {
 			vv("scheduling at %v", now)
 
 			//chrono := s.timeorder()
-			log := s.logicalClockOrder()
+			//log := s.logicalClockOrder()
 
 			// causality dictates:
 			// reads can only read on a ckt if a
 			//   send on the ckt happened before.
 
-			for _, op := range *log {
+			op := s.waitQ.peek()
+			if op != nil {
+				//for _, op := range *log {
 				if op.when.After(now) {
 					// preserve time
 					continue
 				}
 				switch op.kind {
 				case TIMER:
-					ti := s.timers[op.sn]
-					delete(s.timers, op.sn)
+					ti := s.q.timers[op.sn]
+					delete(s.q.timers, op.sn)
 					close(ti.fires)
-
-				case READ:
-					re := s.reads[op.sn]
-					delete(s.reads, op.sn)
-					re.frag = frag
-					re.readgot <- frag
-
-				case SEND:
-					se := s.sends[op.sn]
-					delete(s.sends, op.sn)
-					close(se.inside)
 				}
+				/*
+					case READ:
+						re := s.reads[op.sn]
+						delete(s.reads, op.sn)
+						re.frag = frag
+						re.readgot <- frag
+
+					case SEND:
+						se := s.sends[op.sn]
+						delete(s.sends, op.sn)
+						close(se.inside)
+					}
+				*/
 			}
 
 			select {
 			case netSend := <-s.send:
 				vv("simnet.in -> netSend = '%v'", netSend)
+			case timer := <-s.newTimer:
+				vv("newTimer: '%#v'", timer)
 			}
 		}
 	}()
-}
-
-func Test500_synctest_basic(t *testing.T) {
-	synctest.Run(func() {
-
-		/*
-			// Create a context.Context which is canceled after a timeout.
-			const timeout = 5 * time.Second
-			ctx, cancel := context.WithTimeout(context.Background(), timeout)
-			defer cancel()
-
-			// Wait just less than the timeout.
-			time.Sleep(timeout - time.Nanosecond)
-			synctest.Wait()
-			fmt.Printf("before timeout: ctx.Err() = %v\n", ctx.Err())
-
-			// Wait the rest of the way until the timeout.
-			time.Sleep(time.Nanosecond)
-			synctest.Wait()
-			fmt.Printf("after timeout:  ctx.Err() = %v\n", ctx.Err())
-		*/
-	})
 }
 
 type permutation []opsn
@@ -773,4 +760,37 @@ func (s *netsim) logicalClockOrder() *logicalclock {
 	}
 	sort.Sort(logical)
 	return &logical
+}
+
+func Test500_synctest_basic(t *testing.T) {
+	synctest.Run(func() {
+
+		var seed [32]byte
+		netsim := newNetsim(seed)
+		netsim.start()
+
+		dur := time.Second()
+		timer := newNetTimer(dur)
+
+		vv("dur=%v, about to wait on timer at %v", dur, time.Now())
+		<-timer.fires
+		vv("timer fired at %v", time.Now())
+
+		/*
+			// Create a context.Context which is canceled after a timeout.
+			const timeout = 5 * time.Second
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
+
+			// Wait just less than the timeout.
+			time.Sleep(timeout - time.Nanosecond)
+			synctest.Wait()
+			fmt.Printf("before timeout: ctx.Err() = %v\n", ctx.Err())
+
+			// Wait the rest of the way until the timeout.
+			time.Sleep(time.Nanosecond)
+			synctest.Wait()
+			fmt.Printf("after timeout:  ctx.Err() = %v\n", ctx.Err())
+		*/
+	})
 }
