@@ -561,7 +561,7 @@ type fop struct {
 	sn int64
 
 	dur  time.Duration // timer duration
-	when time.Time     // when to proceed
+	when time.Time     // when read for READS, when sent for SENDS?
 
 	sorter uint64
 
@@ -598,6 +598,7 @@ func newSend(ckt *Circuit, frag *Fragment, senderPeerID string) (op *fop) {
 }
 func newRead(ckt *Circuit, readerPeerID string) (op *fop) {
 	op = &fop{
+		when:     time.Now(),
 		ckt:      ckt,
 		sn:       netsimNextSn(),
 		kind:     READ,
@@ -911,18 +912,20 @@ func Test500_synctest_basic(t *testing.T) {
 							case ckt.LocalPeerID:
 								if len(ckt.sentFromRemote) > 0 {
 									// can service the read
-									read := ckt.sentFromRemote[1]
+									read := ckt.sentFromRemote[0]
+									op.frag = read.frag // TODO clone()
 									ckt.sentFromRemote = ckt.sentFromRemote[1:]
-									close(read.proceed)
+									close(op.proceed)
 								} else {
 									panic("stall the read?")
 								}
 							case ckt.RemotePeerID:
 								if len(ckt.sentFromLocal) > 0 {
 									// can service the read
-									read := ckt.sentFromLocal[1]
+									read := ckt.sentFromLocal[0]
+									op.frag = read.frag // TODO clone()
 									ckt.sentFromLocal = ckt.sentFromLocal[1:]
-									close(read.proceed)
+									close(op.proceed)
 								} else {
 									panic("stall the read?")
 								}
