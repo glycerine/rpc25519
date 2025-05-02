@@ -800,14 +800,20 @@ func Test500_synctest_basic(t *testing.T) {
 		timer := newNetTimer(dur)
 
 		addTimer := make(chan *netTimer)
+		schedDone := make(chan struct{})
+		defer close(schedDone)
 		// play the "scheduler" part
 		go func() {
-			select {
-			case ti := <-addTimer:
-				vv("scheduler sleeps")
-				time.Sleep(ti.dur)
-				vv("scheduler wakes")
-				close(ti.fires)
+			for {
+				select {
+				case <-schedDone:
+					return
+				case ti := <-addTimer:
+					vv("scheduler sleeps")
+					time.Sleep(ti.dur)
+					vv("scheduler wakes")
+					close(ti.fires)
+				}
 			}
 		}()
 
@@ -816,6 +822,13 @@ func Test500_synctest_basic(t *testing.T) {
 		addTimer <- timer
 		<-timer.fires
 		vv("timer fired at %v", time.Now())
+
+		timer2 := newNetTimer(dur)
+		vv("dur=%v, about to wait on 2nd timer at %v", dur, time.Now())
+		//netsim.addTimer <- timer
+		addTimer <- timer2
+		<-timer2.fires
+		vv("timer2 fired at %v", time.Now())
 
 		/*
 			// Create a context.Context which is canceled after a timeout.
