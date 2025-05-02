@@ -532,12 +532,13 @@ type netsim struct {
 	//ckts map[string]*Circuit
 	seed     [32]byte
 	rng      *mathrand2.ChaCha8
-	send     chan *netSend
-	read     chan *netRead
-	addTimer chan *netTimer
+	send     chan *op
+	read     chan *op
+	addTimer chan *op
 	waitQ    *waitQ
 }
 
+/*
 type netSend struct {
 	sn     int64
 	when   time.Time
@@ -553,25 +554,49 @@ type netRead struct {
 	frag    *Fragment // maybe redundant
 	readgot chan *Fragment
 }
+*/
 
-func newNetSend() *netSend {
-	return &netSend{
-		sn:     netsimNextSn(),
-		inside: make(chan struct{}),
-	}
+// reproducibly sort op using pseudo rng,
+// producing a permutation of the available
+// netsim elements (timers, reads, sends).
+type op struct {
+	sn int64
+
+	dur  time.Duration // timer duration
+	when time.Time     // when to proceed
+
+	sorter uint64
+
+	kind simkind
+	frag *Fragment
+	ckt  *Circuit
+
+	// clients of scheduler wait on proceed.
+	// timer fires, send delivered, read accepted by kernel
+	proceed chan struct{}
 }
-func newNetRead() *netRead {
-	return &netRead{
+
+func newSend() *op {
+	return &op{
 		sn:      netsimNextSn(),
-		readgot: make(chan *Fragment),
+		kind:    SEND,
+		proceed: make(chan struct{}),
 	}
 }
-func newNetTimer(dur time.Duration) *netTimer {
-	return &netTimer{
-		sn:    netsimNextSn(),
-		dur:   dur,
-		when:  time.Now().Add(dur),
-		fires: make(chan struct{}), // wakeup
+func newRead() *op {
+	return &op{
+		sn:      netsimNextSn(),
+		kind:    READ,
+		proceed: make(chan struct{}),
+	}
+}
+func newTimer(dur time.Duration) *op {
+	return &op{
+		sn:      netsimNextSn(),
+		kind:    TIMER,
+		dur:     dur,
+		when:    time.Now().Add(dur),
+		proceed: make(chan struct{}),
 	}
 }
 
@@ -580,27 +605,27 @@ func newNetsim(seed [32]byte) (s *netsim) {
 		//ckts:     make(map[string]*Circuit),
 		seed:     seed,
 		rng:      mathrand2.NewChaCha8(seed),
-		send:     make(chan *netSend),
-		read:     make(chan *netRead),
-		addTimer: make(chan *netTimer),
+		send:     make(chan *op),
+		read:     make(chan *op),
+		addTimer: make(chan *op),
 		waitQ:    newWaitQ(),
 	}
 	return
 }
 
 type waitQ struct {
-	reads  map[int64]*netRead
-	sends  map[int64]*netSend
-	timers map[int64]*netTimer
+	reads  map[int64]*op
+	sends  map[int64]*op
+	timers map[int64]*op
 
 	pq pq // priority queue, op.when ordered
 }
 
 func newWaitQ() *waitQ {
 	return &waitQ{
-		reads:  make(map[int64]*netRead),
-		sends:  make(map[int64]*netSend),
-		timers: make(map[int64]*netTimer),
+		reads:  make(map[int64]*op),
+		sends:  make(map[int64]*op),
+		timers: make(map[int64]*op),
 	}
 }
 func (s *netsim) AddPeer(peerID string, ckt *Circuit) (err error) {
@@ -608,23 +633,14 @@ func (s *netsim) AddPeer(peerID string, ckt *Circuit) (err error) {
 	return nil
 }
 
-type netTimer struct {
-	sn   int64
-	when time.Time
-	dur  time.Duration
-	//isTicker bool // auto-reloading deferred
-	fires chan struct{}
-}
+// type netTimer struct {
+// 	sn   int64
+// 	when time.Time
+// 	dur  time.Duration
+// 	//isTicker bool // auto-reloading deferred
+// 	fires chan struct{}
+// }
 
-// reproducibly sort op using pseudo rng,
-// producing a permutation of the available
-// netsim elements (timers, reads, sends).
-type op struct {
-	sn    int64
-	when  time.Time
-	order uint64
-	kind  simkind
-}
 type simkind int
 
 const (
@@ -693,7 +709,7 @@ func (s *netsim) start() {
 				vv("firing timer '%#v'", op0)
 				ti := s.waitQ.timers[op0.sn]
 				delete(s.waitQ.timers, op0.sn)
-				close(ti.fires)
+				close(ti.proceed)
 			}
 			/*
 				case READ:
@@ -718,7 +734,7 @@ type permutation []op
 
 func (p permutation) Len() int { return len(p) }
 func (p permutation) Less(i, j int) bool {
-	return p[i].order < p[j].order
+	return p[i].sorter < p[j].sorter
 }
 func (p permutation) Swap(i, j int) {
 	p[i], p[j] = p[j], p[i]
@@ -747,13 +763,13 @@ func (c logicalclock) Swap(i, j int) {
 func (s *netsim) permute() *permutation {
 	var perm permutation
 	for _, ti := range s.waitQ.timers {
-		perm = append(perm, op{sn: ti.sn, when: ti.when, order: rng.Unint64(), kind: TIMER})
+		perm = append(perm, op{sn: ti.sn, when: ti.when, sorter: rng.Unint64(), kind: TIMER})
 	}
 	for _, re := range s.waitQ.reads {
-		perm = append(perm, op{sn: re.sn, when: ti.when, order: rng.Unint64(), kind: READ})
+		perm = append(perm, op{sn: re.sn, when: ti.when, sorter: rng.Unint64(), kind: READ})
 	}
 	for _, se := range sends {
-		perm = append(perm, op{sn: se.sn, when: ti.when, order: rng.Unint64(), kind: SEND})
+		perm = append(perm, op{sn: se.sn, when: ti.when, sorter: rng.Unint64(), kind: SEND})
 	}
 	sort.Sort(perm)
 	return &perm
@@ -798,9 +814,9 @@ func Test500_synctest_basic(t *testing.T) {
 		//netsim.start()
 
 		dur := time.Second * 10
-		timer := newNetTimer(dur)
+		timer := newTimer(dur)
 
-		addTimer := make(chan *netTimer)
+		addTimer := make(chan *op)
 		schedDone := make(chan struct{})
 		defer close(schedDone)
 
@@ -810,27 +826,44 @@ func Test500_synctest_basic(t *testing.T) {
 		go func() {
 			var pq pq
 			_ = pq
+			var nextPQ <-chan time.Time
 			for {
 				select {
+				case <-nextPQ:
+					op := pq.peek()
+					if op != nil {
+						vv("got from <-nextPQ: op = %v", op)
+						switch op.kind {
+						case READ:
+							select {
+							case readCh <- op.frag:
+							}
+						}
+					}
 				case <-schedDone:
 					return
 				case ti := <-addTimer:
 					vv("scheduler sleeps")
 					time.Sleep(ti.dur)
 					vv("scheduler wakes")
-					close(ti.fires)
-				case v := <-sendCh:
-					vv("scheduler got v = %v", v)
-					time.Sleep(5 * time.Second)
-					vv("scheduler passing to readCh v = %v", v)
-					readCh <- v
+					close(ti.proceed)
+				case frag := <-sendCh:
+					vv("scheduler sendCh got frag = %v", frag)
+					//time.Sleep(frag.Delivery)
+					send := newSend()
+					send.frag = frag
+					pq.add(send)
+					next := pq.pop()
+					nextPQ = time.After(next.value.when.Sub(time.Now()))
+					vv("scheduler passing to readCh frag = %v", frag)
+
 				}
 			}
 		}()
 
 		// sender
 		go func() {
-			sendCh <- &Fragment{FragSubject: "hello world"}
+			sendCh <- &Fragment{FragSubject: "hello world", Delivery: 7 * time.Second}
 			vv("sender sent")
 		}()
 
@@ -843,14 +876,14 @@ func Test500_synctest_basic(t *testing.T) {
 		vv("dur=%v, about to wait on timer at %v", dur, time.Now())
 		//netsim.addTimer <- timer
 		addTimer <- timer
-		<-timer.fires
+		<-timer.proceed
 		vv("timer fired at %v", time.Now())
 
-		timer2 := newNetTimer(dur)
+		timer2 := newTimer(dur)
 		vv("dur=%v, about to wait on 2nd timer at %v", dur, time.Now())
 		//netsim.addTimer <- timer
 		addTimer <- timer2
-		<-timer2.fires
+		<-timer2.proceed
 		vv("timer2 fired at %v", time.Now())
 
 		/*
