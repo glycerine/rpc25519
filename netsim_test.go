@@ -645,6 +645,7 @@ type fop struct {
 	ckt  *Circuit
 
 	sendfop *fop // for reads, which send did we get?
+	readfop *fop // for sends, which read did we go to?
 
 	pqit rb.Iterator
 
@@ -658,13 +659,21 @@ type fop struct {
 }
 
 func (op *fop) String() string {
-	// subj := ""
-	// if op.frag != nil {
-	// 	subj = op.frag.FragSubject
-	// } else {
-	// 	subj = "(nil frag)"
-	// }
-	return fmt.Sprintf("fop{kind:%v, from:%v, to:%v, sn:%v, when:%v, note:'%v'}", op.kind, op.FromPeerID, op.ToPeerID, op.sn, op.when, op.note)
+	var spouse *fop
+	var spousenote string
+	switch op.kind {
+	case READ:
+		spouse = op.sendfop
+		if spouse != nil {
+			spousenote = spouse.note
+		}
+	case SEND:
+		spouse = op.readfop
+		if spouse != nil {
+			spousenote = spouse.note
+		}
+	}
+	return fmt.Sprintf("fop{kind:%v, from:%v, to:%v, sn:%v, when:%v, note:'%v'; spouse.note='%v'}", op.kind, op.FromPeerID, op.ToPeerID, op.sn, op.when, op.note, spousenote)
 }
 
 func newSend(ckt *Circuit, frag *Fragment, senderPeerID, note string) (op *fop) {
@@ -1011,7 +1020,8 @@ func Test500_synctest_basic(t *testing.T) {
 					op := pq.peek()
 					if op != nil {
 						pq.pop()
-						vv("got from <-nextPQ: op = %v", op)
+						vv("got from <-nextPQ: op = %v. PQ is now:", op)
+						showQ()
 						switch op.kind {
 						case READ:
 							// read from ckt.sentFromLocal or ckt.sentFromRemote
@@ -1023,8 +1033,12 @@ func Test500_synctest_basic(t *testing.T) {
 							case ckt.LocalPeerID:
 								if len(ckt.sentFromRemote) > 0 {
 									// can service the read
-									read := ckt.sentFromRemote[0]
-									op.frag = read.frag // TODO clone()?
+									send := ckt.sentFromRemote[0]
+									op.frag = send.frag // TODO clone()?
+									// matchmaking
+									op.sendfop = send
+									send.readfop = op
+
 									ckt.sentFromRemote = ckt.sentFromRemote[1:]
 
 									// why the asymmetry? this is ok, but not below?
@@ -1043,9 +1057,13 @@ func Test500_synctest_basic(t *testing.T) {
 								}
 							case ckt.RemotePeerID:
 								if len(ckt.sentFromLocal) > 0 {
-									// can service the read
-									read := ckt.sentFromLocal[0]
-									op.frag = read.frag // TODO clone()?
+									// can service the read op
+									send := ckt.sentFromLocal[0]
+									op.frag = send.frag // TODO clone()?
+									// matchmaking
+									op.sendfop = send
+									send.readfop = op
+
 									ckt.sentFromLocal = ckt.sentFromLocal[1:]
 									//pq.delOneItem(read.pqit)
 									close(op.proceed)
@@ -1149,11 +1167,11 @@ func Test500_synctest_basic(t *testing.T) {
 		go func() {
 			read := readOn(ckt1, reader1, "read1, reader1") // get a read op dest "reader1"
 			<-read.proceed
-			vv("reader 1 got 1st frag from %v; Serial=%v; op='%v'", read.FromPeerID, read.frag.Serial)
+			vv("reader 1 got 1st frag from %v; Serial=%v; op='%v'", read.FromPeerID, read.frag.Serial, read)
 
 			read2 := readOn(ckt1, reader1, "read2, reader1") // get a read op dest "reader1"
 			<-read2.proceed
-			vv("reader 1 got 2nd frag from %v; Serial=%v", read2.FromPeerID, read2.frag.Serial)
+			vv("reader 1 got 2nd frag from %v; Serial=%v; op='%v'", read2.FromPeerID, read2.frag.Serial, read2)
 
 		}()
 
