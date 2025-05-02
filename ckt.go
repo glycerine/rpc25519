@@ -45,6 +45,10 @@ type Circuit struct {
 
 	// racey! use ckt.Halt.ReqStop.CloseWithReason() and Reason() instead.
 	// CloseReasonErr error
+
+	// netsim
+	sentFromLocal  []*op
+	sentFromRemote []*op
 }
 
 func (ckt *Circuit) String() string {
@@ -136,9 +140,6 @@ type Fragment struct {
 	Args    map[string]string `zid:"9"`
 	Payload []byte            `zid:"10"`
 	Err     string            `zid:"11"` // distinguished field for error messages.
-
-	// how long netsim should take to deliver
-	Delivery time.Duration `zid:"12"`
 }
 
 // SetUserArg should be used in user code to set

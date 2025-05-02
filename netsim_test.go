@@ -571,24 +571,40 @@ type op struct {
 	frag *Fragment
 	ckt  *Circuit
 
+	FromPeerID string
+	ToPeerID   string
+
 	// clients of scheduler wait on proceed.
 	// timer fires, send delivered, read accepted by kernel
 	proceed chan struct{}
 }
 
-func newSend() *op {
+func newSend(ckt *Circuit, frag *Fragment) *op {
 	return &op{
+		ckt:     ckt,
+		frag:    frag,
 		sn:      netsimNextSn(),
 		kind:    SEND,
 		proceed: make(chan struct{}),
 	}
 }
-func newRead() *op {
-	return &op{
-		sn:      netsimNextSn(),
-		kind:    READ,
-		proceed: make(chan struct{}),
+func newRead(ckt *Circuit, readerPeerID string) *op {
+	op = &op{
+		ckt:      ckt,
+		sn:       netsimNextSn(),
+		kind:     READ,
+		proceed:  make(chan struct{}),
+		ToPeerID: readerPeerID,
 	}
+	switch {
+	case ckt.LocalPeerID == readerPeerID:
+		op.FromPeerID = ckt.RemotePeerID
+	case ckt.RemotePeerID == readerPeerID:
+		op.ToPeerID = ckt.LocalPeerID
+	default:
+		panic("bad readerPeerID, not on ckt")
+	}
+	return
 }
 func newTimer(dur time.Duration) *op {
 	return &op{
@@ -833,14 +849,31 @@ func Test500_synctest_basic(t *testing.T) {
 		schedDone := make(chan struct{})
 		defer close(schedDone)
 
+		ckts := make(map[string]*Circuit)
+		newCktCh := make(chan *Circuit)
+
 		hop := time.Second * 2 // duration of network single hop/delay
 
-		readCh := make(chan *Fragment)
-		sendCh := make(chan *Fragment)
+		// use ckt now
+		netReadCh := make(chan *op)
+		netSendCh := make(chan *op)
+
+		readOn := func(ckt *Circuit, readerPeerID string) *op {
+			read := newRead(ckt, readerPeerID)
+			netReadCh <- read
+			return read
+		}
+		sendOn := func(ckt *Circuit, frag *Fragment) *op {
+			send := newSend(ckt, frag)
+			netSendCh <- send
+			return send
+		}
+
 		// play the "scheduler" part
 		go func() {
 			var pq pq
 			var nextPQ <-chan time.Time
+
 			queueNext := func() {
 				next := pq.peek()
 				if next != nil {
@@ -850,6 +883,26 @@ func Test500_synctest_basic(t *testing.T) {
 			}
 			for {
 				select {
+				case ckt := <-newCktCh:
+					ckts[ckt.CircuitID] = ckt
+					//ckt.readerCh = make(chan *Fragment)
+					//ckt.senderCh = make(chan *Fragment)
+					// start a pump for this ckt
+					go func() {
+						for {
+							select {
+							case frag := <-ckt.senderCh:
+								send := newSend(ckt)
+								send.when = time.Now().Add(hop)
+								send.frag = frag
+								pq.add(send)
+								queueNext()
+							case <-schedDone:
+								return
+							}
+						}
+					}()
+
 				case <-nextPQ:
 					op := pq.peek()
 					if op != nil {
@@ -857,45 +910,117 @@ func Test500_synctest_basic(t *testing.T) {
 						vv("got from <-nextPQ: op = %#v", op)
 						switch op.kind {
 						case READ:
-						case SEND:
-							vv("SEND passing to readCh")
-							select {
-							case readCh <- op.frag:
+							// from from ckt.sentFromLocal or ckt.sentFromRemote
+							frag := op.frag
+							ckt, ok := ckts[frag.CircuitID]
+							if !ok {
+								panic("bad READ op.frag.CircuitID; not in ckts")
 							}
+							switch op.ToPeerID {
+							case ckt.LocalPeerID:
+								if len(ckt.sentFromRemote) > 0 {
+									// can service the read
+									read := ckt.sentFromRemote[1]
+									ckt.sentFromRemote = ckt.sentFromRemote[1:]
+									close(read.proceed)
+								} else {
+									panic("stall the read?")
+								}
+							case ckt.RemotePeerID:
+								if len(ckt.sentFromLocal) > 0 {
+									// can service the read
+									read := ckt.sentFromLocal[1]
+									ckt.sentFromLocal = ckt.sentFromLocal[1:]
+									close(read.proceed)
+								} else {
+									panic("stall the read?")
+								}
+							default:
+								panic("bad op on ckt, not for local or remote")
+							}
+
+						case SEND:
+							ckt, ok := ckts[op.frag.CircuitID]
+							if !ok {
+								panic("bad SEND op.frag.CircuitID")
+							}
+							// can't know future read := getNextRead(ckt)
+							// must buffer send somewhere in circuit.
+							ckt.sent = append(ckt.sent, op)
+
 						case TIMER:
 							vv("TIMER firing")
 							close(op.proceed)
 						}
 					}
 					queueNext()
-				case <-schedDone:
-					return
-				case timer := <-addTimer:
 
+				case timer := <-addTimer:
 					pq.add(timer)
 					queueNext()
-				case frag := <-sendCh:
-					vv("scheduler sendCh got frag = %v", frag)
-					//time.Sleep(frag.Delivery)
-					send := newSend()
+
+				case send := <-netSendCh:
+					vv("scheduler netSendCh")
+					//send := newSend()
 					send.when = time.Now().Add(hop)
-					send.frag = frag
+					//send.frag = frag
 					pq.add(send)
 					queueNext()
+					close(send.proceed)
+
+				case read := <-netReadCh:
+					vv("scheduler netReadCh")
+					//read := newRead()
+					pq.add(read)
+					queueNext()
+
+				case <-schedDone:
+					return
 				}
 			}
 		}()
 
-		// sender
+		ckt1 := &Circuit{
+			LocalPeerID:  "sender1",
+			RemotePeerID: "reader1",
+			CircuitID:    "ck1",
+			//readerCh:     make(chan *Fragment),
+			//senderCh:     make(chan *Fragment),
+		}
+		newCktCh <- ckt1
+
+		// sender 1
 		go func() {
-			sendCh <- &Fragment{FragSubject: "hello world", Delivery: 7 * time.Second}
-			vv("sender sent")
+			frag := &Fragment{
+				FromPeerID:  "sender1",
+				ToPeerID:    "reader1",
+				CircuitID:   "ckt1",
+				FragSubject: "from sender1 to reader1 on ckt1"}
+			send := sendOn(ckt1, frag)
+			<-send.proceed
+			vv("sender1 sent")
+
 		}()
 
-		// reader
+		/*
+			// sender 2
+			go func() {
+				sendCh <- &Fragment{
+					FromPeerID:  "sender2",
+					ToPeerID:    "reader1",
+					CircuitID:   "ckt1",
+					FragSubject: "from sender2 to reader1 on ckt2"}
+				vv("sender2 sent")
+			}()
+		*/
+
+		// reader 1
 		go func() {
-			v := <-readCh
-			vv("reader got v = %v", v)
+			read := readOn(ckt1, ckt1.RemotePeerID) // get a read op dest "reader1"
+			<-read.proceed
+			vv("reader 1 got frag from %v", read.FromPeerID)
+			//v := <-ckt1.readerCh
+			//vv("reader 1 got frag from %v", v.FromPeerID)
 		}()
 
 		vv("dur=%v, about to wait on timer at %v", dur, time.Now())
