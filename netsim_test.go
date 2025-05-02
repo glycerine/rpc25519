@@ -817,6 +817,9 @@ func Test500_synctest_basic(t *testing.T) {
 					vv("scheduler wakes")
 					close(ti.fires)
 				case v := <-sendCh:
+					vv("scheduler got v = %v", v)
+					time.Sleep(5 * time.Second)
+					vv("scheduler passing to readCh v = %v", v)
 					readCh <- v
 				}
 			}
