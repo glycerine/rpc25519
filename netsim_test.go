@@ -63,7 +63,7 @@ func (s *lowestTimeFirst) add(op *fop) (added bool, it rb.Iterator) {
 	return
 }
 
-// order by when, circuitID, fromID, sn; try
+// order by when, then Frag(circuitID, fromID, sn...); try
 // hard not to delete tickets with the same when,
 // and even then we may have reason to keep
 // the exact same ticket for a task at the same time;
@@ -644,18 +644,32 @@ type fop struct {
 	frag *Fragment
 	ckt  *Circuit
 
+	sendfop *fop // for reads, which send did we get?
+
 	pqit rb.Iterator
 
 	FromPeerID string
 	ToPeerID   string
+	note       string
 
 	// clients of scheduler wait on proceed.
 	// timer fires, send delivered, read accepted by kernel
 	proceed chan struct{}
 }
 
-func newSend(ckt *Circuit, frag *Fragment, senderPeerID string) (op *fop) {
+func (op *fop) String() string {
+	// subj := ""
+	// if op.frag != nil {
+	// 	subj = op.frag.FragSubject
+	// } else {
+	// 	subj = "(nil frag)"
+	// }
+	return fmt.Sprintf("fop{kind:%v, from:%v, to:%v, sn:%v, when:%v, note:'%v'}", op.kind, op.FromPeerID, op.ToPeerID, op.sn, op.when, op.note)
+}
+
+func newSend(ckt *Circuit, frag *Fragment, senderPeerID, note string) (op *fop) {
 	op = &fop{
+		note:       note,
 		ckt:        ckt,
 		frag:       frag,
 		sn:         netsimNextSn(),
@@ -673,8 +687,9 @@ func newSend(ckt *Circuit, frag *Fragment, senderPeerID string) (op *fop) {
 	}
 	return
 }
-func newRead(ckt *Circuit, readerPeerID string) (op *fop) {
+func newRead(ckt *Circuit, readerPeerID, note string) (op *fop) {
 	op = &fop{
+		note:     note,
 		when:     time.Now(),
 		ckt:      ckt,
 		sn:       netsimNextSn(),
@@ -945,16 +960,16 @@ func Test500_synctest_basic(t *testing.T) {
 		cktReadCh := make(chan *fop)
 		cktSendCh := make(chan *fop)
 
-		readOn := func(ckt *Circuit, readerPeerID string) *fop {
-			read := newRead(ckt, readerPeerID)
+		readOn := func(ckt *Circuit, readerPeerID, note string) *fop {
+			read := newRead(ckt, readerPeerID, note)
 			cktReadCh <- read
 			return read
 		}
-		sendOn := func(ckt *Circuit, frag *Fragment, fromPeerID string) *fop {
+		sendOn := func(ckt *Circuit, frag *Fragment, fromPeerID, note string) *fop {
 			if frag.FromPeerID != fromPeerID {
 				panic("bad caller: sendOn with frag.FromPeerID != fromPeerID")
 			}
-			send := newSend(ckt, frag, frag.FromPeerID)
+			send := newSend(ckt, frag, frag.FromPeerID, note)
 			cktSendCh <- send
 			return send
 		}
@@ -964,11 +979,23 @@ func Test500_synctest_basic(t *testing.T) {
 			pq := newLowestTimeFirst()
 			var nextPQ <-chan time.Time
 
+			showQ := func() {
+				i := 0
+				for it := pq.tree.Min(); it != pq.tree.Limit(); it = it.Next() {
+					op := it.Item().(*fop)
+					fmt.Printf("pq[%2d] = %v\n", i, op)
+					i++
+				}
+			}
 			queueNext := func() {
+				vv("top of queueNext")
+				showQ()
 				next := pq.peek()
 				if next != nil {
 					wait := next.when.Sub(time.Now())
 					nextPQ = time.After(wait)
+				} else {
+					vv("queueNext: empty PQ")
 				}
 			}
 			for i := 0; ; i++ {
@@ -984,7 +1011,7 @@ func Test500_synctest_basic(t *testing.T) {
 					op := pq.peek()
 					if op != nil {
 						pq.pop()
-						vv("got from <-nextPQ: op = %v", op.kind)
+						vv("got from <-nextPQ: op = %v", op)
 						switch op.kind {
 						case READ:
 							// read from ckt.sentFromLocal or ckt.sentFromRemote
@@ -1098,10 +1125,11 @@ func Test500_synctest_basic(t *testing.T) {
 			frag.FromPeerID = sender1
 			frag.ToPeerID = reader1
 			frag.CircuitID = cktID
-			frag.FragSubject = "from sender1 to reader1 on ckt1"
-			send := sendOn(ckt1, frag, sender1)
+			frag.Serial = 1
+			note := "from sender1 to reader1 on ckt1"
+			send := sendOn(ckt1, frag, sender1, note)
 			<-send.proceed
-			vv("sender1 sent")
+			vv("sender1 sent '%v'", note)
 
 		}()
 
@@ -1119,11 +1147,14 @@ func Test500_synctest_basic(t *testing.T) {
 
 		// reader 1
 		go func() {
-			read := readOn(ckt1, reader1) // get a read op dest "reader1"
+			read := readOn(ckt1, reader1, "read1, reader1") // get a read op dest "reader1"
 			<-read.proceed
-			vv("reader 1 got frag from %v", read.FromPeerID)
-			//v := <-ckt1.readerCh
-			//vv("reader 1 got frag from %v", v.FromPeerID)
+			vv("reader 1 got 1st frag from %v; Serial=%v; op='%v'", read.FromPeerID, read.frag.Serial)
+
+			read2 := readOn(ckt1, reader1, "read2, reader1") // get a read op dest "reader1"
+			<-read2.proceed
+			vv("reader 1 got 2nd frag from %v; Serial=%v", read2.FromPeerID, read2.frag.Serial)
+
 		}()
 
 		vv("dur=%v, about to wait on timer at %v", dur, time.Now())
@@ -1131,6 +1162,20 @@ func Test500_synctest_basic(t *testing.T) {
 		addTimer <- timer
 		<-timer.proceed
 		vv("timer fired at %v", time.Now())
+
+		// sender 1, sends again.
+		go func() {
+			frag := NewFragment()
+			frag.FromPeerID = sender1
+			frag.ToPeerID = reader1
+			frag.CircuitID = cktID
+			frag.Serial = 2
+			note := "Serial 2 message from sender1 to reader1 on ckt1"
+			send := sendOn(ckt1, frag, sender1, note)
+			<-send.proceed
+			vv("sender1 sent Serial 2")
+
+		}()
 
 		timer2 := newTimer(dur)
 		vv("dur=%v, about to wait on 2nd timer at %v", dur, time.Now())
