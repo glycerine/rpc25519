@@ -94,6 +94,16 @@ func newLowestTimeFirst() *lowestTimeFirst {
 			if av.when.After(bv.when) {
 				return 1
 			}
+			// av.frag could be nil (so could bv.frag)
+			if av.frag == nil && bv.frag == nil {
+				return 0
+			}
+			if av.frag == nil {
+				return -1
+			}
+			if bv.frag == nil {
+				return 1
+			}
 			// INVAR: a.when == b.when
 			return av.frag.Compare(bv.frag)
 		}),
