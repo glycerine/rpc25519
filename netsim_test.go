@@ -569,6 +569,8 @@ type fop struct {
 	frag *Fragment
 	ckt  *Circuit
 
+	pqit *pqTimeItem
+
 	FromPeerID string
 	ToPeerID   string
 
@@ -713,7 +715,7 @@ func (s *netsim) start() {
 				case ti := <-s.addTimer:
 					vv("addTimer: '%#v'", ti)
 					op0 = &fop{sn: ti.sn, when: ti.when, kind: TIMER}
-					s.waitQ.pq.add(op0)
+					op0.pqit = s.waitQ.pq.add(op0)
 					s.waitQ.timers[op0.sn] = ti
 				//case op := <-s.opReady:
 				//	_ = op
@@ -862,6 +864,7 @@ func Test500_synctest_basic(t *testing.T) {
 		newCktCh := make(chan *Circuit)
 
 		hop := time.Second * 2 // duration of network single hop/delay
+		tick := time.Second
 
 		// use ckt now
 		netReadCh := make(chan *fop)
@@ -872,8 +875,11 @@ func Test500_synctest_basic(t *testing.T) {
 			netReadCh <- read
 			return read
 		}
-		sendOn := func(ckt *Circuit, frag *Fragment, from string) *fop {
-			send := newSend(ckt, frag, from)
+		sendOn := func(ckt *Circuit, frag *Fragment, fromPeerID string) *fop {
+			if frag.FromPeerID != fromPeerID {
+				panic("bad caller: sendOn with frag.FromPeerID != fromPeerID")
+			}
+			send := newSend(ckt, frag, frag.FromPeerID)
 			netSendCh <- send
 			return send
 		}
@@ -915,9 +921,15 @@ func Test500_synctest_basic(t *testing.T) {
 									read := ckt.sentFromRemote[0]
 									op.frag = read.frag // TODO clone()
 									ckt.sentFromRemote = ckt.sentFromRemote[1:]
+									pq.delOneItem(read.pqit)
 									close(op.proceed)
 								} else {
 									panic("stall the read?")
+									vv("stalling the read")
+									op.when = time.Now().Add(tick)
+									op.pqit = pq.add(op)
+									queueNext()
+
 								}
 							case ckt.RemotePeerID:
 								if len(ckt.sentFromLocal) > 0 {
@@ -928,6 +940,11 @@ func Test500_synctest_basic(t *testing.T) {
 									close(op.proceed)
 								} else {
 									panic("stall the read?")
+									vv("stalling the read")
+									op.when = time.Now().Add(tick)
+									op.pqit = pq.add(op)
+									queueNext()
+
 								}
 							default:
 								panic("bad READ op on ckt, not for local or remote")
@@ -956,7 +973,7 @@ func Test500_synctest_basic(t *testing.T) {
 					queueNext()
 
 				case timer := <-addTimer:
-					pq.add(timer)
+					timer.pqit = pq.add(timer)
 					queueNext()
 
 				case send := <-netSendCh:
@@ -964,14 +981,14 @@ func Test500_synctest_basic(t *testing.T) {
 					//send := newSend()
 					send.when = time.Now().Add(hop)
 					//send.frag = frag
-					pq.add(send)
+					send.pqit = pq.add(send)
 					queueNext()
 					close(send.proceed)
 
 				case read := <-netReadCh:
 					vv("scheduler netReadCh")
 					//read := newRead()
-					pq.add(read)
+					read.pqit = pq.add(read)
 					queueNext()
 
 				case <-schedDone:
