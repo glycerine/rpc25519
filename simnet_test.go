@@ -5,6 +5,8 @@ import (
 	"fmt"
 	//"os"
 	//"strings"
+	mathrand2 "math/rand/v2"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -16,7 +18,9 @@ import (
 var _ = fmt.Sprintf
 var _ = time.Sleep
 
-type testSimNetJunk4 struct {
+var _ UniversalCliSrv = &netsim{}
+
+type testNetsimJunk4 struct {
 	name string
 	cfg  *Config
 	srv  *Server
@@ -28,21 +32,21 @@ type testSimNetJunk4 struct {
 	clis *countService
 	srvs *countService
 
-	simnet *SimNet
+	netsim *netsim
 }
 
-func (j *testSimNetJunk4) cleanup() {
+func (j *testNetsimJunk4) cleanup() {
 	j.cli.Close()
 	j.srv.Close()
 }
 
-func newTestSimNetJunk4(name string) (j *testSimNetJunk4) {
+func newTestNetsimJunk4(name string) (j *testNetsimJunk4) {
 
-	j = &testSimNetJunk4{
+	j = &testNetsimJunk4{
 		name:           name,
 		cliServiceName: "cli_" + name,
 		srvServiceName: "srv_" + name,
-		simnet:         NewSimNet(),
+		simnet:         Newnetsim(),
 	}
 
 	cfg := NewConfig()
@@ -76,7 +80,7 @@ func newTestSimNetJunk4(name string) (j *testSimNetJunk4) {
 	return j
 }
 
-// SimNet uses channels instead of os network.
+// netsim uses channels instead of os network.
 // It is used for testing, for simulating
 // patitions (isolated peers), and message
 // dropped, duplicated, and reordered Fragments;
@@ -87,12 +91,12 @@ func newTestSimNetJunk4(name string) (j *testSimNetJunk4) {
 // delivered fragment (unlikely with TCP,
 // but that is what Raft/the fault-tolerance
 // protocols guard against).
-func Test509_SimNet_lots_of_send_and_read(t *testing.T) {
+func Test509_netsim_lots_of_send_and_read(t *testing.T) {
 
 	return
-	cv.Convey("On a SimNet, many sends and reads between peers", t, func() {
+	cv.Convey("On a netsim, many sends and reads between peers", t, func() {
 
-		j := newTestSimNetJunk4("manysend_509")
+		j := newTestnetsimJunk4("manysend_509")
 		defer j.cleanup()
 
 		ctx := context.Background()
@@ -425,57 +429,40 @@ func Test509_SimNet_lots_of_send_and_read(t *testing.T) {
 
 }
 
-var _ UniversalCliSrv = &SimNet{}
-
-type SimNet struct {
-	ckts map[string]*Circuit
-}
-
-func NewSimNet() *SimNet {
-	return &SimNet{
-		ckts: make(map[string]*Circuit),
-	}
-}
-
-func (s *SimNet) AddPeer(peerID string, ckt *Circuit) (err error) {
-	s.ckts[peerID] = ckt
-	return nil
-}
-
-func (s *SimNet) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (error, chan *Message) {
+func (s *netsim) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (error, chan *Message) {
 	panic("TODO")
 	return nil, nil
 }
 
-func (s *SimNet) GetConfig() *Config {
+func (s *netsim) GetConfig() *Config {
 	panic("TODO")
 	return nil
 }
-func (s *SimNet) RegisterPeerServiceFunc(peerServiceName string, psf PeerServiceFunc) error {
+func (s *netsim) RegisterPeerServiceFunc(peerServiceName string, psf PeerServiceFunc) error {
 	panic("TODO")
 	return nil
 }
 
-func (s *SimNet) StartLocalPeer(ctx context.Context, peerServiceName string, requestedCircuit *Message) (lpb *LocalPeer, err error) {
+func (s *netsim) StartLocalPeer(ctx context.Context, peerServiceName string, requestedCircuit *Message) (lpb *LocalPeer, err error) {
 	panic("TODO")
 	return
 }
 
-func (s *SimNet) StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string, waitUpTo time.Duration) (remotePeerURL, RemotePeerID string, err error) {
+func (s *netsim) StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string, waitUpTo time.Duration) (remotePeerURL, RemotePeerID string, err error) {
 	panic("TODO")
 	return
 }
 
-func (s *SimNet) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, remoteAddr string, waitUpTo time.Duration) (ckt *Circuit, err error) {
+func (s *netsim) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, remoteAddr string, waitUpTo time.Duration) (ckt *Circuit, err error) {
 	panic("TODO")
 	return nil, nil
 }
 
-func (s *SimNet) GetReadsForCallID(ch chan *Message, callID string) {
+func (s *netsim) GetReadsForCallID(ch chan *Message, callID string) {
 	panic("TODO")
 	return
 }
-func (s *SimNet) GetErrorsForCallID(ch chan *Message, callID string) {
+func (s *netsim) GetErrorsForCallID(ch chan *Message, callID string) {
 	panic("TODO")
 	return
 }
@@ -484,72 +471,306 @@ func (s *SimNet) GetErrorsForCallID(ch chan *Message, callID string) {
 // to allow such systems to implement custom message
 // types. An example is the Fragment/Peer/Circuit system.
 // (This priority is implemented in notifies.handleReply_to_CallID_ToPeerID).
-func (s *SimNet) GetReadsForToPeerID(ch chan *Message, objID string) {
+func (s *netsim) GetReadsForToPeerID(ch chan *Message, objID string) {
 	panic("TODO")
 	return
 }
-func (s *SimNet) GetErrorsForToPeerID(ch chan *Message, objID string) {
+func (s *netsim) GetErrorsForToPeerID(ch chan *Message, objID string) {
 	panic("TODO")
 	return
 }
 
-func (s *SimNet) UnregisterChannel(ID string, whichmap int) {
+func (s *netsim) UnregisterChannel(ID string, whichmap int) {
 	panic("TODO")
 	return
 }
-func (s *SimNet) LocalAddr() string {
+func (s *netsim) LocalAddr() string {
 	panic("TODO")
 	return ""
 }
-func (s *SimNet) RemoteAddr() string { // client provides, server gives ""
+func (s *netsim) RemoteAddr() string { // client provides, server gives ""
 	panic("TODO")
 	return ""
 }
 
 // allow peers to find out that the host Client/Server is stopping.
-func (s *SimNet) GetHostHalter() *idem.Halter {
+func (s *netsim) GetHostHalter() *idem.Halter {
 	panic("TODO")
 	return nil
 }
 
 // fragment memory recycling, to avoid heap pressure.
-func (s *SimNet) NewFragment() *Fragment {
+func (s *netsim) NewFragment() *Fragment {
 	panic("TODO")
 	return nil
 }
-func (s *SimNet) FreeFragment(frag *Fragment) {
+func (s *netsim) FreeFragment(frag *Fragment) {
 	panic("TODO")
 	return
 }
-func (s *SimNet) RecycleFragLen() int {
+func (s *netsim) RecycleFragLen() int {
 	panic("TODO")
 	return 0
 }
-func (s *SimNet) PingStats(remote string) *PingStat {
+func (s *netsim) PingStats(remote string) *PingStat {
 	panic("TODO")
 	return nil
 }
-func (s *SimNet) AutoClients() (list []*Client, isServer bool) {
+func (s *netsim) AutoClients() (list []*Client, isServer bool) {
 	panic("TODO")
 	return
+}
+
+var netsimLastSn int64
+
+func netsimNextSn() int64 {
+	return atomic.AddInt64(&netsimLastSn, 1)
+}
+
+type netsim struct {
+	//ckts map[string]*Circuit
+	seed     [32]byte
+	rng      *mathrand2.ChaCha8
+	send     chan *netSend
+	read     chan *netRead
+	addTimer chan *netTimer
+	waitq    *waitQ
+}
+
+type netSend struct {
+	sn     int64
+	when   time.Time
+	ckt    *Circuit
+	frag   *Fragment
+	inside chan struct{}
+}
+
+type netRead struct {
+	sn      int64
+	when    time.Time
+	ckt     *Circuit
+	frag    *Fragment // maybe redundant
+	readgot chan *Fragment
+}
+
+func newNetSend() *netSend {
+	return &netSend{
+		sn:     netsimNextSn(),
+		inside: make(chan struct{}),
+	}
+}
+func newNetRead() *netRead {
+	return &netRead{
+		sn:      netsimNextSn(),
+		readgot: make(chan *Fragment),
+	}
+}
+func newNetTimer() *netTimer {
+	return &netTimer{
+		sn:    netsimNextSn(),
+		fires: make(chan struct{}),
+	}
+}
+
+func newNetsim(seed [32]byte) (s *netsim) {
+	s = &netsim{
+		//ckts:     make(map[string]*Circuit),
+		seed:     seed,
+		rng:      mathrand2.NewChaCha8(seed),
+		send:     make(chan *netOP),
+		read:     make(chan *netRead),
+		addTimer: make(chan *netTimer),
+		waitq:    newWaitQ(),
+	}
+	s.reset()
+	return
+}
+
+type waitQ struct {
+	reads  map[int]*netRead
+	sends  map[int]*netSend
+	timers map[ing]*timer
+}
+
+func newWaitQueue() *waitQ {
+	return &waitQ{
+		reads:  make(map[int]*netRead),
+		sends:  make(map[int]*netSend),
+		timers: make(map[ing]*timer),
+	}
+}
+func (s *netsim) AddPeer(peerID string, ckt *Circuit) (err error) {
+	//s.ckts[peerID] = ckt
+	return nil
+}
+
+type timer struct {
+	sn   int64
+	when time.Time
+	//isTicker bool // auto-reloading deferred
+	fires chan struct{}
+}
+
+// reproducibly sort opsn using pseudo rng,
+// producing a permutation of the available
+// netsim elements (timers, reads, sends).
+type opsn struct {
+	sn    int64
+	when  time.Time
+	order uint64
+	kind  simkind
+}
+type simkind int
+
+const (
+	TIMER simkind = 1
+	SEND  simkind = 2
+	READ  simkind = 3
+)
+
+func (s *netsim) Start() {
+
+	go func() {
+
+		// deterministic scheduling loop
+		for {
+			synctest.Wait()
+			// all timers and goro are durably blocked, time to schedule
+			now := time.Now()
+			vv("scheduling at %v", now)
+
+			//chrono := s.timeorder()
+			log := s.logicalClockOrder()
+
+			// causality dictates:
+			// reads can only read on a ckt if a
+			//   send on the ckt happened before.
+
+			for _, op := range *log {
+				if op.when.After(now) {
+					// preserve time
+					continue
+				}
+				switch op.kind {
+				case TIMER:
+					ti := s.timers[op.sn]
+					delete(s.timers, op.sn)
+					close(ti.fires)
+
+				case READ:
+					re := s.reads[op.sn]
+					delete(s.reads, op.sn)
+					re.frag = frag
+					re.readgot <- frag
+
+				case SEND:
+					se := s.sends[op.sn]
+					delete(s.sends, op.sn)
+					close(se.inside)
+				}
+			}
+
+			select {
+			case netSend := <-s.send:
+				vv("simnet.in -> netSend = '%v'", netSend)
+			}
+		}
+	}()
 }
 
 func Test500_synctest_basic(t *testing.T) {
 	synctest.Run(func() {
-		// Create a context.Context which is canceled after a timeout.
-		const timeout = 5 * time.Second
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
 
-		// Wait just less than the timeout.
-		time.Sleep(timeout - time.Nanosecond)
-		synctest.Wait()
-		fmt.Printf("before timeout: ctx.Err() = %v\n", ctx.Err())
+		/*
+			// Create a context.Context which is canceled after a timeout.
+			const timeout = 5 * time.Second
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
+			defer cancel()
 
-		// Wait the rest of the way until the timeout.
-		time.Sleep(time.Nanosecond)
-		synctest.Wait()
-		fmt.Printf("after timeout:  ctx.Err() = %v\n", ctx.Err())
+			// Wait just less than the timeout.
+			time.Sleep(timeout - time.Nanosecond)
+			synctest.Wait()
+			fmt.Printf("before timeout: ctx.Err() = %v\n", ctx.Err())
 
+			// Wait the rest of the way until the timeout.
+			time.Sleep(time.Nanosecond)
+			synctest.Wait()
+			fmt.Printf("after timeout:  ctx.Err() = %v\n", ctx.Err())
+		*/
 	})
+}
+
+type permutation []opsn
+
+func (p permutation) Len() int { return len(lo) }
+func (p permutation) Less(i, j int) bool {
+	return p[i].order < p[j].order
+}
+func (p permutation) Swap(i, j int) {
+	p[i], p[j] = p[j], p[i]
+}
+
+type chronological []opsn
+
+func (c chronological) Len() int { return len(c) }
+func (c chronological) Less(i, j int) bool {
+	return c[i].when.Before(c[j].when)
+}
+func (c chronological) Swap(i, j int) {
+	c[i], c[j] = c[j], c[i]
+}
+
+type logicalclock []opsn
+
+func (c logicalclock) Len() int { return len(c) }
+func (c logicalclock) Less(i, j int) bool {
+	return c[i].sn < c[j].sn
+}
+func (c logicalclock) Swap(i, j int) {
+	c[i], c[j] = c[j], c[i]
+}
+
+func (s *netsim) permute() *permutation {
+	var perm permutation
+	for _, ti := range timers {
+		perm = append(perm, opsn{sn: ti.sn, when: ti.when, order: rng.Unint64(), kind: TIMER})
+	}
+	for _, re := range reads {
+		perm = append(perm, opsn{sn: re.sn, when: ti.when, order: rng.Unint64(), kind: READ})
+	}
+	for _, se := range sends {
+		perm = append(perm, opsn{sn: se.sn, when: ti.when, order: rng.Unint64(), kind: SEND})
+	}
+	sort.Sort(perm)
+	return &perm
+}
+
+func (s *netsim) timeorder() *chronological {
+	var chrono chronological
+	for _, ti := range s.timers {
+		chrono = append(chrono, opsn{sn: ti.sn, when: ti.when, kind: TIMER})
+	}
+	for _, re := range s.reads {
+		chrono = append(chrono, opsn{sn: re.sn, when: re.when, kind: READ})
+	}
+	for _, se := range s.sends {
+		chrono = append(chrono, opsn{sn: se.sn, when: se.when, kind: SEND})
+	}
+	sort.Sort(chrono)
+	return &chrono
+}
+
+func (s *netsim) logicalClockOrder() *logicalclock {
+	var logical logicalclock
+	for _, ti := range s.timers {
+		logical = append(logical, opsn{sn: ti.sn, when: ti.when, kind: TIMER})
+	}
+	for _, re := range s.reads {
+		logical = append(logical, opsn{sn: re.sn, when: re.when, kind: READ})
+	}
+	for _, se := range s.sends {
+		logical = append(logical, opsn{sn: se.sn, when: se.when, kind: SEND})
+	}
+	sort.Sort(logical)
+	return &logical
 }
