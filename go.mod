@@ -31,6 +31,7 @@ require (
 	4d63.com/embedfiles v0.0.0-20190311033909-995e0740726f // indirect
 	github.com/apoorvam/goterminal v0.0.0-20180523175556-614d345c47e5 // indirect
 	github.com/glycerine/fwd v1.1.4-beta.jea // indirect
+	github.com/glycerine/rbtree v0.0.0-20190406191118-ceb71889d809 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect

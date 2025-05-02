@@ -13,6 +13,7 @@ import (
 
 	cv "github.com/glycerine/goconvey/convey"
 	"github.com/glycerine/idem"
+	rb "github.com/glycerine/rbtree"
 )
 
 var _ = fmt.Sprintf
@@ -33,6 +34,50 @@ type testNetsimJunk4 struct {
 	srvs *countService
 
 	netsim *netsim
+}
+
+type lowestTimeFirst struct {
+	tree *rb.Tree
+}
+
+func (s *lowestTimeFirst) peek() *fop {
+	if s.tree.Len() == 0 {
+		return nil
+	}
+	it := s.tree.Min()
+	return it.Item().(*fop)
+}
+
+func (s *lowestTimeFirst) pop() *fop {
+	if s.tree.Len() == 0 {
+		return nil
+	}
+	it := s.tree.Min()
+	top := it.Item().(*fop)
+	s.tree.DeleteWithIterator(it)
+	return top
+}
+
+func (s *lowestTimeFirst) add(op *fop) (added bool, it rb.Iterator) {
+	added, it = s.tree.InsertGetIt(op)
+	return
+}
+
+func newLowestTimeFirst() *lowestTimeFirst {
+	return &lowestTimeFirst{
+		tree: rb.NewTree(func(a, b rb.Item) int {
+			av := a.(*fop).when
+			bv := b.(*fop).when
+
+			if av.Equal(bv) {
+				return 0
+			}
+			if av.Before(bv) {
+				return -1
+			}
+			return 1
+		}),
+	}
 }
 
 func (j *testNetsimJunk4) cleanup() {
@@ -535,7 +580,7 @@ type netsim struct {
 	send     chan *fop
 	read     chan *fop
 	addTimer chan *fop
-	waitQ    *waitQ
+	//waitQ    *waitQ
 }
 
 /*
@@ -569,7 +614,7 @@ type fop struct {
 	frag *Fragment
 	ckt  *Circuit
 
-	pqit *pqTimeItem
+	pqit rb.Iterator
 
 	FromPeerID string
 	ToPeerID   string
@@ -635,26 +680,26 @@ func newNetsim(seed [32]byte) (s *netsim) {
 		send:     make(chan *fop),
 		read:     make(chan *fop),
 		addTimer: make(chan *fop),
-		waitQ:    newWaitQ(),
+		//waitQ:    newWaitQ(),
 	}
 	return
 }
 
-type waitQ struct {
-	reads  map[int64]*fop
-	sends  map[int64]*fop
-	timers map[int64]*fop
+// type waitQ struct {
+// 	reads  map[int64]*fop
+// 	sends  map[int64]*fop
+// 	timers map[int64]*fop
 
-	pq pqTime // priority queue, op.when ordered
-}
+// 	pq pqTime // priority queue, op.when ordered
+// }
 
-func newWaitQ() *waitQ {
-	return &waitQ{
-		reads:  make(map[int64]*fop),
-		sends:  make(map[int64]*fop),
-		timers: make(map[int64]*fop),
-	}
-}
+//	func newWaitQ() *waitQ {
+//		return &waitQ{
+//			reads:  make(map[int64]*fop),
+//			sends:  make(map[int64]*fop),
+//			timers: make(map[int64]*fop),
+//		}
+//	}
 func (s *netsim) AddPeer(peerID string, ckt *Circuit) (err error) {
 	//s.ckts[peerID] = ckt
 	return nil
@@ -689,6 +734,7 @@ func (k simkind) String() string {
 	}
 }
 
+/*
 func (s *netsim) start() {
 
 	go func() {
@@ -751,25 +797,24 @@ func (s *netsim) start() {
 				delete(s.waitQ.timers, op0.sn)
 				close(ti.proceed)
 			}
-			/*
-				case READ:
-					re := s.reads[op.sn]
-					delete(s.reads, op.sn)
-					re.frag = frag
-					re.readgot <- frag
 
-				case SEND:
-					se := s.sends[op.sn]
-					delete(s.sends, op.sn)
-					close(se.inside)
-				}
-			*/
+				// case READ:
+				// 	re := s.reads[op.sn]
+				// 	delete(s.reads, op.sn)
+				// 	re.frag = frag
+				// 	re.readgot <- frag
+
+				// case SEND:
+				// 	se := s.sends[op.sn]
+				// 	delete(s.sends, op.sn)
+				// 	close(se.inside)
+				// }
+
 			//}
 		}
 	}()
 }
 
-/*
 type permutation []op
 
 func (p permutation) Len() int { return len(p) }
@@ -886,7 +931,7 @@ func Test500_synctest_basic(t *testing.T) {
 
 		// play the "scheduler" part
 		go func() {
-			var pq pqTime
+			pq := newLowestTimeFirst()
 			var nextPQ <-chan time.Time
 
 			queueNext := func() {
@@ -934,7 +979,8 @@ func Test500_synctest_basic(t *testing.T) {
 									//panic("stall the read?")
 									vv("1st no sends for reader, stalling the read: len(ckt.sentFromLocal)=%v; and len(ckt.sentFromRemote)='%v'", len(ckt.sentFromLocal), len(ckt.sentFromRemote))
 									op.when = time.Now().Add(tick)
-									op.pqit = pq.add(op)
+									_, op.pqit = pq.add(op)
+
 									//below: queueNext()
 
 								}
@@ -950,7 +996,7 @@ func Test500_synctest_basic(t *testing.T) {
 									//panic("stall the read?")
 									vv("2nd no sends for reader, stalling the read: len(ckt.sentFromLocal)=%v; and len(ckt.sentFromRemote)='%v'", len(ckt.sentFromLocal), len(ckt.sentFromRemote))
 									op.when = time.Now().Add(tick)
-									op.pqit = pq.add(op)
+									_, op.pqit = pq.add(op)
 									//below: queueNext()
 
 								}
@@ -981,7 +1027,7 @@ func Test500_synctest_basic(t *testing.T) {
 					queueNext()
 
 				case timer := <-addTimer:
-					timer.pqit = pq.add(timer)
+					_, timer.pqit = pq.add(timer)
 					queueNext()
 
 				case send := <-cktSendCh:
@@ -990,14 +1036,14 @@ func Test500_synctest_basic(t *testing.T) {
 					//send := newSend()
 					send.when = time.Now().Add(hop)
 					//send.frag = frag
-					send.pqit = pq.add(send)
+					_, send.pqit = pq.add(send)
 					queueNext()
 					close(send.proceed)
 
 				case read := <-cktReadCh:
 					vv("scheduler cktReadCh")
 					//read := newRead()
-					read.pqit = pq.add(read)
+					_, read.pqit = pq.add(read)
 					queueNext()
 
 				case <-schedDone:
