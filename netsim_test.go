@@ -867,12 +867,12 @@ func Test500_synctest_basic(t *testing.T) {
 		tick := time.Second
 
 		// use ckt now
-		netReadCh := make(chan *fop)
-		netSendCh := make(chan *fop)
+		cktReadCh := make(chan *fop)
+		cktSendCh := make(chan *fop)
 
 		readOn := func(ckt *Circuit, readerPeerID string) *fop {
 			read := newRead(ckt, readerPeerID)
-			netReadCh <- read
+			cktReadCh <- read
 			return read
 		}
 		sendOn := func(ckt *Circuit, frag *Fragment, fromPeerID string) *fop {
@@ -880,7 +880,7 @@ func Test500_synctest_basic(t *testing.T) {
 				panic("bad caller: sendOn with frag.FromPeerID != fromPeerID")
 			}
 			send := newSend(ckt, frag, frag.FromPeerID)
-			netSendCh <- send
+			cktSendCh <- send
 			return send
 		}
 
@@ -976,8 +976,8 @@ func Test500_synctest_basic(t *testing.T) {
 					timer.pqit = pq.add(timer)
 					queueNext()
 
-				case send := <-netSendCh:
-					vv("scheduler netSendCh")
+				case send := <-cktSendCh:
+					vv("scheduler cktSendCh")
 					//send := newSend()
 					send.when = time.Now().Add(hop)
 					//send.frag = frag
@@ -985,8 +985,8 @@ func Test500_synctest_basic(t *testing.T) {
 					queueNext()
 					close(send.proceed)
 
-				case read := <-netReadCh:
-					vv("scheduler netReadCh")
+				case read := <-cktReadCh:
+					vv("scheduler cktReadCh")
 					//read := newRead()
 					read.pqit = pq.add(read)
 					queueNext()
