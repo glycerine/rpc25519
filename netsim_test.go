@@ -924,7 +924,7 @@ func Test500_synctest_basic(t *testing.T) {
 									pq.delOneItem(read.pqit)
 									close(op.proceed)
 								} else {
-									panic("stall the read?")
+									//panic("stall the read?")
 									vv("stalling the read")
 									op.when = time.Now().Add(tick)
 									op.pqit = pq.add(op)
@@ -939,7 +939,7 @@ func Test500_synctest_basic(t *testing.T) {
 									ckt.sentFromLocal = ckt.sentFromLocal[1:]
 									close(op.proceed)
 								} else {
-									panic("stall the read?")
+									//panic("stall the read?")
 									vv("stalling the read")
 									op.when = time.Now().Add(tick)
 									op.pqit = pq.add(op)
