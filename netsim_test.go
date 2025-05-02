@@ -645,7 +645,7 @@ type waitQ struct {
 	sends  map[int64]*fop
 	timers map[int64]*fop
 
-	pq pq // priority queue, op.when ordered
+	pq pqTime // priority queue, op.when ordered
 }
 
 func newWaitQ() *waitQ {
@@ -886,7 +886,7 @@ func Test500_synctest_basic(t *testing.T) {
 
 		// play the "scheduler" part
 		go func() {
-			var pq pq
+			var pq pqTime
 			var nextPQ <-chan time.Time
 
 			queueNext := func() {
@@ -896,7 +896,10 @@ func Test500_synctest_basic(t *testing.T) {
 					nextPQ = time.After(wait)
 				}
 			}
-			for {
+			for i := 0; ; i++ {
+				if i > 0 {
+					time.Sleep(tick)
+				}
 				select {
 				case ckt := <-newCktCh:
 					ckts[ckt.CircuitID] = ckt
@@ -906,7 +909,7 @@ func Test500_synctest_basic(t *testing.T) {
 					op := pq.peek()
 					if op != nil {
 						pq.pop()
-						vv("got from <-nextPQ: op = %#v", op)
+						vv("got from <-nextPQ: op = %v", op.kind)
 						switch op.kind {
 						case READ:
 							// read from ckt.sentFromLocal or ckt.sentFromRemote
@@ -919,31 +922,36 @@ func Test500_synctest_basic(t *testing.T) {
 								if len(ckt.sentFromRemote) > 0 {
 									// can service the read
 									read := ckt.sentFromRemote[0]
-									op.frag = read.frag // TODO clone()
+									op.frag = read.frag // TODO clone()?
 									ckt.sentFromRemote = ckt.sentFromRemote[1:]
-									pq.delOneItem(read.pqit)
+
+									// why the asymmetry? this is ok, but not below?
+									// think b/c we are randomly deleting?
+									//pq.delOneItem(read.pqit)
+
 									close(op.proceed)
 								} else {
 									//panic("stall the read?")
-									vv("stalling the read")
+									vv("1st no sends for reader, stalling the read: len(ckt.sentFromLocal)=%v; and len(ckt.sentFromRemote)='%v'", len(ckt.sentFromLocal), len(ckt.sentFromRemote))
 									op.when = time.Now().Add(tick)
 									op.pqit = pq.add(op)
-									queueNext()
+									//below: queueNext()
 
 								}
 							case ckt.RemotePeerID:
 								if len(ckt.sentFromLocal) > 0 {
 									// can service the read
 									read := ckt.sentFromLocal[0]
-									op.frag = read.frag // TODO clone()
+									op.frag = read.frag // TODO clone()?
 									ckt.sentFromLocal = ckt.sentFromLocal[1:]
+									//pq.delOneItem(read.pqit)
 									close(op.proceed)
 								} else {
 									//panic("stall the read?")
-									vv("stalling the read")
+									vv("2nd no sends for reader, stalling the read: len(ckt.sentFromLocal)=%v; and len(ckt.sentFromRemote)='%v'", len(ckt.sentFromLocal), len(ckt.sentFromRemote))
 									op.when = time.Now().Add(tick)
 									op.pqit = pq.add(op)
-									queueNext()
+									//below: queueNext()
 
 								}
 							default:
@@ -969,7 +977,7 @@ func Test500_synctest_basic(t *testing.T) {
 							vv("TIMER firing")
 							close(op.proceed)
 						}
-					}
+					} // end if op != nil
 					queueNext()
 
 				case timer := <-addTimer:
@@ -978,6 +986,7 @@ func Test500_synctest_basic(t *testing.T) {
 
 				case send := <-cktSendCh:
 					vv("scheduler cktSendCh")
+					//vv("scheduler cktSendCh from:%v to %v", send.FromPeerID, send.ToPeerID)
 					//send := newSend()
 					send.when = time.Now().Add(hop)
 					//send.frag = frag
