@@ -50,7 +50,7 @@ func (p *pq) peek() (op *opsn) { // , timeout time.Time) {
 }
 
 // add a new item to the queue.
-func (p *pq) add(timeout time.Time, op *opsn) *pqTimeItem {
+func (p *pq) add(op *opsn) *pqTimeItem {
 	p.mut.Lock()
 	defer p.mut.Unlock()
 	return p.hea.add(op)

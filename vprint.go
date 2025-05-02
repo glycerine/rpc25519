@@ -43,7 +43,8 @@ func init() {
 	londonTz, err = tz.LoadLocation("Europe/London")
 	panicOn(err)
 
-	gtz = chicago
+	//gtz = chicago
+	gtz = utcTz
 }
 
 const rfc3339MsecTz0 = "2006-01-02T15:04:05.000Z07:00"
@@ -88,7 +89,7 @@ func tsPrintf(format string, a ...interface{}) {
 
 // get timestamp for logging purposes
 func ts() string {
-	return time.Now().In(chicago).Format("2006-01-02 15:04:05.999 -0700 MST")
+	return time.Now().In(gtz).Format("2006-01-02 15:04:05.999 -0700 MST")
 	//return time.Now().In(nyc).Format("2006-01-02 15:04:05.999 -0700 MST")
 }
 
