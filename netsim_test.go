@@ -649,6 +649,19 @@ const (
 	READ  simkind = 3
 )
 
+func (k simkind) String() string {
+	switch k {
+	case TIMER:
+		return "TIMER"
+	case SEND:
+		return "SEND"
+	case READ:
+		return "READ"
+	default:
+		return fmt.Sprintf("unknown simkind %v", int(k))
+	}
+}
+
 func (s *netsim) start() {
 
 	go func() {
@@ -820,43 +833,55 @@ func Test500_synctest_basic(t *testing.T) {
 		schedDone := make(chan struct{})
 		defer close(schedDone)
 
+		hop := time.Second * 2 // duration of network single hop/delay
+
 		readCh := make(chan *Fragment)
 		sendCh := make(chan *Fragment)
 		// play the "scheduler" part
 		go func() {
 			var pq pq
-			_ = pq
 			var nextPQ <-chan time.Time
+			queueNext := func() {
+				next := pq.peek()
+				if next != nil {
+					wait := next.when.Sub(time.Now())
+					nextPQ = time.After(wait)
+				}
+			}
 			for {
 				select {
 				case <-nextPQ:
 					op := pq.peek()
 					if op != nil {
-						vv("got from <-nextPQ: op = %v", op)
+						pq.pop()
+						vv("got from <-nextPQ: op = %#v", op)
 						switch op.kind {
 						case READ:
+						case SEND:
+							vv("SEND passing to readCh")
 							select {
 							case readCh <- op.frag:
 							}
+						case TIMER:
+							vv("TIMER firing")
+							close(op.proceed)
 						}
 					}
+					queueNext()
 				case <-schedDone:
 					return
-				case ti := <-addTimer:
-					vv("scheduler sleeps")
-					time.Sleep(ti.dur)
-					vv("scheduler wakes")
-					close(ti.proceed)
+				case timer := <-addTimer:
+
+					pq.add(timer)
+					queueNext()
 				case frag := <-sendCh:
 					vv("scheduler sendCh got frag = %v", frag)
 					//time.Sleep(frag.Delivery)
 					send := newSend()
+					send.when = time.Now().Add(hop)
 					send.frag = frag
 					pq.add(send)
-					next := pq.pop()
-					nextPQ = time.After(next.value.when.Sub(time.Now()))
-					vv("scheduler passing to readCh frag = %v", frag)
-
+					queueNext()
 				}
 			}
 		}()
