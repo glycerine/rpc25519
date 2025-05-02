@@ -577,14 +577,24 @@ type fop struct {
 	proceed chan struct{}
 }
 
-func newSend(ckt *Circuit, frag *Fragment) *fop {
-	return &fop{
-		ckt:     ckt,
-		frag:    frag,
-		sn:      netsimNextSn(),
-		kind:    SEND,
-		proceed: make(chan struct{}),
+func newSend(ckt *Circuit, frag *Fragment, senderPeerID string) (op *fop) {
+	op = &fop{
+		ckt:        ckt,
+		frag:       frag,
+		sn:         netsimNextSn(),
+		kind:       SEND,
+		proceed:    make(chan struct{}),
+		FromPeerID: senderPeerID,
 	}
+	switch senderPeerID {
+	case ckt.LocalPeerID:
+		op.ToPeerID = ckt.RemotePeerID
+	case ckt.RemotePeerID:
+		op.ToPeerID = ckt.LocalPeerID
+	default:
+		panic("bad senderPeerID, not on ckt")
+	}
+	return
 }
 func newRead(ckt *Circuit, readerPeerID string) (op *fop) {
 	op = &fop{
@@ -594,11 +604,11 @@ func newRead(ckt *Circuit, readerPeerID string) (op *fop) {
 		proceed:  make(chan struct{}),
 		ToPeerID: readerPeerID,
 	}
-	switch {
-	case ckt.LocalPeerID == readerPeerID:
+	switch readerPeerID {
+	case ckt.LocalPeerID:
 		op.FromPeerID = ckt.RemotePeerID
-	case ckt.RemotePeerID == readerPeerID:
-		op.ToPeerID = ckt.LocalPeerID
+	case ckt.RemotePeerID:
+		op.FromPeerID = ckt.LocalPeerID
 	default:
 		panic("bad readerPeerID, not on ckt")
 	}
@@ -861,8 +871,8 @@ func Test500_synctest_basic(t *testing.T) {
 			netReadCh <- read
 			return read
 		}
-		sendOn := func(ckt *Circuit, frag *Fragment) *fop {
-			send := newSend(ckt, frag)
+		sendOn := func(ckt *Circuit, frag *Fragment, from string) *fop {
+			send := newSend(ckt, frag, from)
 			netSendCh <- send
 			return send
 		}
@@ -883,6 +893,7 @@ func Test500_synctest_basic(t *testing.T) {
 				select {
 				case ckt := <-newCktCh:
 					ckts[ckt.CircuitID] = ckt
+					vv("registered ckt '%v'", ckt.CircuitID)
 
 				case <-nextPQ:
 					op := pq.peek()
@@ -891,9 +902,8 @@ func Test500_synctest_basic(t *testing.T) {
 						vv("got from <-nextPQ: op = %#v", op)
 						switch op.kind {
 						case READ:
-							// from from ckt.sentFromLocal or ckt.sentFromRemote
-							frag := op.frag
-							ckt, ok := ckts[frag.CircuitID]
+							// read from ckt.sentFromLocal or ckt.sentFromRemote
+							ckt, ok := ckts[op.ckt.CircuitID]
 							if !ok {
 								panic("bad READ op.frag.CircuitID; not in ckts")
 							}
@@ -923,7 +933,7 @@ func Test500_synctest_basic(t *testing.T) {
 						case SEND:
 							ckt, ok := ckts[op.frag.CircuitID]
 							if !ok {
-								panic("bad SEND op.frag.CircuitID")
+								panic(fmt.Sprintf("bad SEND, unregistered ckt op.frag.CircuitID='%v'", op.frag.CircuitID))
 							}
 							// buffer on ckt.sentFromLocal or ckt.sentFromRemote
 							switch op.ToPeerID {
@@ -932,7 +942,7 @@ func Test500_synctest_basic(t *testing.T) {
 							case ckt.RemotePeerID:
 								ckt.sentFromLocal = append(ckt.sentFromLocal, op)
 							default:
-								panic("bad SEND op on ckt, not for local or remote")
+								panic(fmt.Sprintf("bad SEND op on ckt, not for local or remote. op.ToPeerID = '%v'; ckt.LocalPeerID='%v'; ckt.RemotePeerID='%v'", op.ToPeerID, ckt.LocalPeerID, ckt.RemotePeerID))
 							}
 
 						case TIMER:
@@ -967,23 +977,24 @@ func Test500_synctest_basic(t *testing.T) {
 			}
 		}()
 
+		cktID := "ckt1"
+		reader1 := "reader1"
+		sender1 := "sender1"
 		ckt1 := &Circuit{
-			LocalPeerID:  "sender1",
-			RemotePeerID: "reader1",
-			CircuitID:    "ck1",
-			//readerCh:     make(chan *Fragment),
-			//senderCh:     make(chan *Fragment),
+			LocalPeerID:  sender1,
+			RemotePeerID: reader1,
+			CircuitID:    cktID,
 		}
 		newCktCh <- ckt1
 
 		// sender 1
 		go func() {
 			frag := &Fragment{
-				FromPeerID:  "sender1",
-				ToPeerID:    "reader1",
-				CircuitID:   "ckt1",
+				FromPeerID:  sender1,
+				ToPeerID:    reader1,
+				CircuitID:   cktID,
 				FragSubject: "from sender1 to reader1 on ckt1"}
-			send := sendOn(ckt1, frag)
+			send := sendOn(ckt1, frag, sender1)
 			<-send.proceed
 			vv("sender1 sent")
 
@@ -1003,7 +1014,7 @@ func Test500_synctest_basic(t *testing.T) {
 
 		// reader 1
 		go func() {
-			read := readOn(ckt1, ckt1.RemotePeerID) // get a read op dest "reader1"
+			read := readOn(ckt1, reader1) // get a read op dest "reader1"
 			<-read.proceed
 			vv("reader 1 got frag from %v", read.FromPeerID)
 			//v := <-ckt1.readerCh
