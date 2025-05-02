@@ -47,8 +47,8 @@ type Circuit struct {
 	// CloseReasonErr error
 
 	// netsim
-	sentFromLocal  []*op
-	sentFromRemote []*op
+	sentFromLocal  []*fop
+	sentFromRemote []*fop
 }
 
 func (ckt *Circuit) String() string {

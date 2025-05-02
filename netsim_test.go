@@ -532,9 +532,9 @@ type netsim struct {
 	//ckts map[string]*Circuit
 	seed     [32]byte
 	rng      *mathrand2.ChaCha8
-	send     chan *op
-	read     chan *op
-	addTimer chan *op
+	send     chan *fop
+	read     chan *fop
+	addTimer chan *fop
 	waitQ    *waitQ
 }
 
@@ -556,10 +556,8 @@ type netRead struct {
 }
 */
 
-// reproducibly sort op using pseudo rng,
-// producing a permutation of the available
-// netsim elements (timers, reads, sends).
-type op struct {
+// fragment operation
+type fop struct {
 	sn int64
 
 	dur  time.Duration // timer duration
@@ -579,8 +577,8 @@ type op struct {
 	proceed chan struct{}
 }
 
-func newSend(ckt *Circuit, frag *Fragment) *op {
-	return &op{
+func newSend(ckt *Circuit, frag *Fragment) *fop {
+	return &fop{
 		ckt:     ckt,
 		frag:    frag,
 		sn:      netsimNextSn(),
@@ -588,8 +586,8 @@ func newSend(ckt *Circuit, frag *Fragment) *op {
 		proceed: make(chan struct{}),
 	}
 }
-func newRead(ckt *Circuit, readerPeerID string) *op {
-	op = &op{
+func newRead(ckt *Circuit, readerPeerID string) (op *fop) {
+	op = &fop{
 		ckt:      ckt,
 		sn:       netsimNextSn(),
 		kind:     READ,
@@ -606,8 +604,8 @@ func newRead(ckt *Circuit, readerPeerID string) *op {
 	}
 	return
 }
-func newTimer(dur time.Duration) *op {
-	return &op{
+func newTimer(dur time.Duration) *fop {
+	return &fop{
 		sn:      netsimNextSn(),
 		kind:    TIMER,
 		dur:     dur,
@@ -621,27 +619,27 @@ func newNetsim(seed [32]byte) (s *netsim) {
 		//ckts:     make(map[string]*Circuit),
 		seed:     seed,
 		rng:      mathrand2.NewChaCha8(seed),
-		send:     make(chan *op),
-		read:     make(chan *op),
-		addTimer: make(chan *op),
+		send:     make(chan *fop),
+		read:     make(chan *fop),
+		addTimer: make(chan *fop),
 		waitQ:    newWaitQ(),
 	}
 	return
 }
 
 type waitQ struct {
-	reads  map[int64]*op
-	sends  map[int64]*op
-	timers map[int64]*op
+	reads  map[int64]*fop
+	sends  map[int64]*fop
+	timers map[int64]*fop
 
 	pq pq // priority queue, op.when ordered
 }
 
 func newWaitQ() *waitQ {
 	return &waitQ{
-		reads:  make(map[int64]*op),
-		sends:  make(map[int64]*op),
-		timers: make(map[int64]*op),
+		reads:  make(map[int64]*fop),
+		sends:  make(map[int64]*fop),
+		timers: make(map[int64]*fop),
 	}
 }
 func (s *netsim) AddPeer(peerID string, ckt *Circuit) (err error) {
@@ -703,7 +701,7 @@ func (s *netsim) start() {
 					vv("simnet.in -> netSend = '%#v'", netSend)
 				case ti := <-s.addTimer:
 					vv("addTimer: '%#v'", ti)
-					op0 = &op{sn: ti.sn, when: ti.when, kind: TIMER}
+					op0 = &fop{sn: ti.sn, when: ti.when, kind: TIMER}
 					s.waitQ.pq.add(op0)
 					s.waitQ.timers[op0.sn] = ti
 				//case op := <-s.opReady:
@@ -845,7 +843,7 @@ func Test500_synctest_basic(t *testing.T) {
 		dur := time.Second * 10
 		timer := newTimer(dur)
 
-		addTimer := make(chan *op)
+		addTimer := make(chan *fop)
 		schedDone := make(chan struct{})
 		defer close(schedDone)
 
@@ -855,15 +853,15 @@ func Test500_synctest_basic(t *testing.T) {
 		hop := time.Second * 2 // duration of network single hop/delay
 
 		// use ckt now
-		netReadCh := make(chan *op)
-		netSendCh := make(chan *op)
+		netReadCh := make(chan *fop)
+		netSendCh := make(chan *fop)
 
-		readOn := func(ckt *Circuit, readerPeerID string) *op {
+		readOn := func(ckt *Circuit, readerPeerID string) *fop {
 			read := newRead(ckt, readerPeerID)
 			netReadCh <- read
 			return read
 		}
-		sendOn := func(ckt *Circuit, frag *Fragment) *op {
+		sendOn := func(ckt *Circuit, frag *Fragment) *fop {
 			send := newSend(ckt, frag)
 			netSendCh <- send
 			return send
@@ -885,23 +883,6 @@ func Test500_synctest_basic(t *testing.T) {
 				select {
 				case ckt := <-newCktCh:
 					ckts[ckt.CircuitID] = ckt
-					//ckt.readerCh = make(chan *Fragment)
-					//ckt.senderCh = make(chan *Fragment)
-					// start a pump for this ckt
-					go func() {
-						for {
-							select {
-							case frag := <-ckt.senderCh:
-								send := newSend(ckt)
-								send.when = time.Now().Add(hop)
-								send.frag = frag
-								pq.add(send)
-								queueNext()
-							case <-schedDone:
-								return
-							}
-						}
-					}()
 
 				case <-nextPQ:
 					op := pq.peek()
