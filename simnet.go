@@ -457,7 +457,7 @@ func (s *simnet) Start() {
 			// allow setting a non-default scenario too.
 			select {
 			case s.cli = <-s.cliReady:
-				vv("simnet got cli")
+				//vv("simnet got cli")
 			case scenario := <-s.newScenarioCh:
 				s.finishScenario()
 				s.initScenario(scenario)
@@ -475,7 +475,7 @@ func (s *simnet) Start() {
 					s.sanity() // can remove once we know startup is okay.
 
 					did := 0
-					for op := s.pq.peek(); op != nil && op.when.Equal(now); did++ {
+					for op := s.pq.peek(); op != nil && !op.when.After(now); did++ {
 						s.pq.pop() // remove op from pq
 						vv("got from <-nextPQ: op = %v. PQ without op is:", op)
 						s.showQ()
