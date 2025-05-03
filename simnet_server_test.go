@@ -1,14 +1,14 @@
 package rpc25519
 
 import (
-	"context"
-	"encoding/base64"
-	"fmt"
-	"os"
-	"path/filepath"
+	//"context"
+	//"encoding/base64"
+	//"fmt"
+	//"os"
+	//"path/filepath"
 	"strings"
 	"testing"
-	"time"
+	//"time"
 
 	cv "github.com/glycerine/goconvey/convey"
 )
@@ -50,6 +50,11 @@ func Test801_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 
 		vv("reply = %p", reply)
 		vv("server sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
+		want := "Hello from client!"
+		gotit := strings.HasPrefix(string(reply.JobSerz), want)
+		if !gotit {
+			t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply.JobSerz))
+		}
 
 	})
 }
