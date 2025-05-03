@@ -63,27 +63,11 @@ func (s *simnet) Start() {
 	}
 }
 
-// receiveMessage reads a framed message from conn.
-func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
-	vv("top simnet.readMessage")
-
-	read := s.newReadMsg()
-	select {
-	case s.msgReadCh <- read:
-	case <-s.halt.ReqStop.Chan:
-		return nil, ErrShutdown()
-	}
-	select {
-	case <-read.proceed:
-		msg = read.msg
-	case <-s.halt.ReqStop.Chan:
-		return nil, ErrShutdown()
-	}
-	return
-}
-
+// Message operation
 type mop struct {
 	sn int64
+
+	originCli bool
 
 	senderLC int64
 	readerLC int64
@@ -106,21 +90,23 @@ type mop struct {
 	proceed chan struct{}
 }
 
-func (s *simnet) newReadMsg() (op *mop) {
+func (s *simnet) newReadMsg(isCli bool) (op *mop) {
 	op = &mop{
-		sn:      simnetNextSn(),
-		kind:    READ,
-		proceed: make(chan struct{}),
+		originCli: isCli,
+		sn:        simnetNextSn(),
+		kind:      READ,
+		proceed:   make(chan struct{}),
 	}
 	return
 }
 
-func (s *simnet) newSendMsg(msg *Message) (op *mop) {
+func (s *simnet) newSendMsg(msg *Message, isCli bool) (op *mop) {
 	op = &mop{
-		msg:     msg,
-		sn:      simnetNextSn(),
-		kind:    SEND,
-		proceed: make(chan struct{}),
+		originCli: isCli,
+		msg:       msg,
+		sn:        simnetNextSn(),
+		kind:      SEND,
+		proceed:   make(chan struct{}),
 	}
 	// switch senderPeerID {
 	// case ckt.LocalPeerID:
@@ -133,10 +119,33 @@ func (s *simnet) newSendMsg(msg *Message) (op *mop) {
 	return
 }
 
+// readMessage reads a framed message from conn.
+func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
+	vv("top simnet.readMessage")
+
+	isCli := conn.(*simnetConn).isCli
+
+	read := s.newReadMsg(isCli)
+	select {
+	case s.msgReadCh <- read:
+	case <-s.halt.ReqStop.Chan:
+		return nil, ErrShutdown()
+	}
+	select {
+	case <-read.proceed:
+		msg = read.msg
+	case <-s.halt.ReqStop.Chan:
+		return nil, ErrShutdown()
+	}
+	return
+}
+
 func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
 	vv("top simnet.sendMessage")
 
-	send := s.newSendMsg(msg)
+	isCli := conn.(*simnetConn).isCli
+
+	send := s.newSendMsg(msg, isCli)
 	select {
 	case s.msgSendCh <- send:
 	case <-s.halt.ReqStop.Chan:
