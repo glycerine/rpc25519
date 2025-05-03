@@ -37,7 +37,7 @@ type simnet struct {
 	msgReadCh chan *mop
 }
 
-func (cfg *Config) newSimnet(simNetConfig *SimNetConfig, srv *Server) *simnet {
+func (cfg *Config) newSimnetOnServer(simNetConfig *SimNetConfig, srv *Server) *simnet {
 
 	// server creates simnet; must start server first.
 	s := &simnet{

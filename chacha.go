@@ -70,6 +70,8 @@ type blabber struct {
 
 	enc *encoder
 	dec *decoder
+
+	useSimNet bool
 }
 
 // encoder organizes the encryption of messages
@@ -250,17 +252,9 @@ func newBlabber(
 		cpair:      cpair,
 	}
 
-	var simt *simnet
-	if cfg.UseSimNet {
-		ok := false
-		simt, ok = conn.(*simnet)
-		if !ok {
-			panic(fmt.Sprintf("could not get *simnet from uConn; is type %T", conn))
-		}
-	}
-
 	return &blabber{
-		simnet:       simt,
+		simnet:       cfg.simnetRendezvous.simnet,
+		useSimNet:    cfg.UseSimNet,
 		compress:     !cfg.CompressionOff,
 		compressAlgo: cfg.CompressAlgo,
 		conn:         conn,
@@ -275,7 +269,7 @@ func newBlabber(
 // readMessage uses separate memory from sendMessage, so
 // it is safe to do both simultaneously.
 func (blab *blabber) readMessage(conn uConn) (msg *Message, err error) {
-	if blab.simnet != nil {
+	if blab.useSimNet {
 		return blab.simnet.readMessage(conn)
 	}
 	if !blab.encrypt {
@@ -287,7 +281,7 @@ func (blab *blabber) readMessage(conn uConn) (msg *Message, err error) {
 // sendMessage uses separate memory from readMessage, so
 // it is safe to do both simultaneously.
 func (blab *blabber) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
-	if blab.simnet != nil {
+	if blab.useSimNet {
 		return blab.simnet.sendMessage(conn, msg, timeout)
 	}
 	if !blab.encrypt {

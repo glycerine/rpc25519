@@ -44,11 +44,12 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 		vv("exiting Server.runSimNetServer('%v')", serverAddr) // seen, yes, on shutdown test.
 	}()
 
-	netAddr := &SimNetAddr{network: "simnet@" + serverAddr}
-
 	s.mut.Lock()
 	AliasRegister(serverAddr, serverAddr+" (simnet_server: "+s.name+")")
 	s.mut.Unlock()
+
+	// satisfy uConn interface; don't crash cli/tests that check
+	netAddr := &SimNetAddr{network: "simnet@" + serverAddr}
 
 	if boundCh != nil {
 		select {
@@ -57,27 +58,38 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 		}
 	}
 
-	s.simnet = s.cfg.newSimnet(simNetConfig, s)
+	s.simnet = s.cfg.newSimnetOnServer(simNetConfig, s)
 	s.simnet.netAddr = netAddr
 
-	conn := s.simnet
+	conn := &simnetConn{
+		isCli:   false,
+		simnet:  s.simnet,
+		netAddr: netAddr,
+	}
 	pair := s.newRWPair(conn)
 	go pair.runSendLoop(conn)
 	go pair.runReadLoop(conn)
 
 }
 
+// distinguish cli from srv
+type simnetConn struct {
+	isCli   bool
+	simnet  *simnet
+	netAddr *SimNetAddr
+}
+
 // not actually used though, much.
-func (s *simnet) Write(p []byte) (n int, err error)   { return }
-func (s *simnet) SetWriteDeadline(t time.Time) error  { return nil }
-func (s *simnet) Read(data []byte) (n int, err error) { return }
-func (s *simnet) SetReadDeadline(t time.Time) error   { return nil }
-func (s *simnet) Close() error                        { return nil }
-func (s *simnet) LocalAddr() net.Addr                 { return s.netAddr }
-func (s *simnet) RemoteAddr() net.Addr {
+func (s *simnetConn) Write(p []byte) (n int, err error)   { return }
+func (s *simnetConn) SetWriteDeadline(t time.Time) error  { return nil }
+func (s *simnetConn) Read(data []byte) (n int, err error) { return }
+func (s *simnetConn) SetReadDeadline(t time.Time) error   { return nil }
+func (s *simnetConn) Close() error                        { return nil }
+func (s *simnetConn) LocalAddr() net.Addr                 { return s.netAddr }
+func (s *simnetConn) RemoteAddr() net.Addr {
 	return s.netAddr
 }
-func (s *simnet) SetDeadline(t time.Time) error { return nil }
+func (s *simnetConn) SetDeadline(t time.Time) error { return nil }
 
-//func (s *simnet) SetReadDeadline(t time.Time) error  { return nil }
-//func (s *simnet) SetWriteDeadline(t time.Time) error { return nil }
+//func (s *simnetConn) SetReadDeadline(t time.Time) error  { return nil }
+//func (s *simnetConn) SetWriteDeadline(t time.Time) error { return nil }
