@@ -252,7 +252,7 @@ func newBlabber(
 		cpair:      cpair,
 	}
 
-	vv("making blabber, conn = '%#v'", conn)
+	//vv("making blabber, conn = '%#v'", conn)
 	return &blabber{
 		simnet:       cfg.simnetRendezvous.simnet,
 		useSimNet:    cfg.UseSimNet,

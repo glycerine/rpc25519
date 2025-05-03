@@ -52,7 +52,7 @@ func Test801_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 		panicOn(err)
 		defer srv.Close()
 
-		vv("(SimNet) server Start() returned serverAddr = '%v'", serverAddr)
+		//vv("(SimNet) server Start() returned serverAddr = '%v'", serverAddr)
 
 		serviceName := "customEcho"
 		srv.Register2Func(serviceName, customEcho)

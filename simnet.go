@@ -184,7 +184,7 @@ type mop struct {
 }
 
 func (op *mop) String() string {
-	return fmt.Sprintf("mop{kind:%v, originCli:%v, sn:%v, when:%v}", op.kind, op.originCli, op.sn, op.when)
+	return fmt.Sprintf("mop{kind:%v, originCli:%v, senderLC:%v, sn:%v, when:%v}", op.kind, op.originCli, op.senderLC, op.sn, op.when)
 }
 
 func (s *simnet) newReadMsg(isCli bool) (op *mop) {
@@ -278,7 +278,7 @@ func (s *pq) add(op *mop) (added bool, it rb.Iterator) {
 	return
 }
 
-// order by mop.when, then Message.HDR.CallID then HDR.Serial
+// order by mop.senderLC, then Message.HDR.CallID then HDR.Serial
 // (try hard not to delete tickets with the same mop.when,
 // and even then we may have reason to keep
 // the exact same mop for a task at the same time;
@@ -303,12 +303,22 @@ func newPQ() *pq {
 				return 1
 			}
 			// INVAR: neither av nor bv is nil
-			if av.when.Before(bv.when) {
+
+			if av.senderLC < bv.senderLC {
 				return -1
 			}
-			if av.when.After(bv.when) {
+			if av.senderLC > bv.senderLC {
 				return 1
 			}
+			// INVAR senderLC equal, delivery order should not matter?
+
+			// if av.when.Before(bv.when) {
+			// 	return -1
+			// }
+			// if av.when.After(bv.when) {
+			// 	return 1
+			// }
+
 			// Hopefully not, but just in case...
 			// av.msg could be nil (so could bv.msg)
 			if av.msg == nil && bv.msg == nil {
@@ -449,7 +459,7 @@ func (s *simnet) queueNext() {
 }
 
 func (s *simnet) Start() {
-	vv("simnet.Start() top")
+	//vv("simnet.Start() top")
 
 	go func() {
 		for {

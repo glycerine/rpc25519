@@ -64,7 +64,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 		}
 	}
 
-	vv("about to call s.cfg.newSimnetOnServer()")
+	//vv("about to call s.cfg.newSimnetOnServer()")
 	s.simnet = s.cfg.newSimnetOnServer(simNetConfig, s)
 	s.simnet.netAddr = netAddr
 
