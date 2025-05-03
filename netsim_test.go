@@ -990,7 +990,24 @@ func Test500_synctest_basic(t *testing.T) {
 			pq := newLowestTimeFirst()
 			var nextPQ <-chan time.Time
 
+			showQ := func() {
+				i := 0
+				tsPrintfMut.Lock()
+				fmt.Printf("\n ------- PQ --------\n")
+				for it := pq.tree.Min(); it != pq.tree.Limit(); it = it.Next() {
+					op := it.Item().(*fop)
+					fmt.Printf("pq[%2d] = %v\n", i, op)
+					i++
+				}
+				if i == 0 {
+					fmt.Printf("empty PQ\n")
+				}
+				tsPrintfMut.Unlock()
+			}
+
 			handleSend := func(send *fop, first bool) {
+				vv("top of handleSend, here is the Q prior to send: '%v'\n", send)
+				showQ()
 
 				if first {
 					send.when = time.Now().Add(hop)
@@ -1012,6 +1029,8 @@ func Test500_synctest_basic(t *testing.T) {
 			}
 
 			handleRead := func(read *fop, first bool) {
+				vv("top of handleRead, here is the Q prior to read='%v'\n", read)
+				showQ()
 				// read from ckt.sentFromLocal or ckt.sentFromRemote
 				ckt, ok := ckts[read.ckt.CircuitID]
 				if !ok {
@@ -1071,14 +1090,6 @@ func Test500_synctest_basic(t *testing.T) {
 				}
 			}
 
-			showQ := func() {
-				i := 0
-				for it := pq.tree.Min(); it != pq.tree.Limit(); it = it.Next() {
-					op := it.Item().(*fop)
-					fmt.Printf("pq[%2d] = %v\n", i, op)
-					i++
-				}
-			}
 			queueNext := func() {
 				vv("top of queueNext")
 				showQ()
