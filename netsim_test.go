@@ -605,11 +605,11 @@ func netsimNextSn() int64 {
 
 type netsim struct {
 	//ckts map[string]*Circuit
-	seed     [32]byte
-	rng      *mathrand2.ChaCha8
-	send     chan *fop
-	read     chan *fop
-	addTimer chan *fop
+	seed [32]byte
+	rng  *mathrand2.ChaCha8
+	//send     chan *fop
+	//read     chan *fop
+	//addTimer chan *fop
 	//waitQ    *waitQ
 }
 
@@ -634,6 +634,8 @@ type netRead struct {
 // fragment operation
 type fop struct {
 	sn int64
+
+	callerLC int64 //
 
 	dur  time.Duration // timer duration
 	when time.Time     // when read for READS, when sent for SENDS?
@@ -729,11 +731,11 @@ func newTimer(dur time.Duration) *fop {
 func newNetsim(seed [32]byte) (s *netsim) {
 	s = &netsim{
 		//ckts:     make(map[string]*Circuit),
-		seed:     seed,
-		rng:      mathrand2.NewChaCha8(seed),
-		send:     make(chan *fop),
-		read:     make(chan *fop),
-		addTimer: make(chan *fop),
+		seed: seed,
+		rng:  mathrand2.NewChaCha8(seed),
+		//send:     make(chan *fop),
+		//read:     make(chan *fop),
+		//addTimer: make(chan *fop),
 		//waitQ:    newWaitQ(),
 	}
 	return
@@ -988,6 +990,87 @@ func Test500_synctest_basic(t *testing.T) {
 			pq := newLowestTimeFirst()
 			var nextPQ <-chan time.Time
 
+			handleSend := func(send *fop, first bool) {
+
+				if first {
+					send.when = time.Now().Add(hop)
+				}
+
+				ckt, ok := ckts[send.frag.CircuitID]
+				if !ok {
+					panic(fmt.Sprintf("bad SEND, unregistered ckt op.frag.CircuitID='%v'", send.frag.CircuitID))
+				}
+				// buffer on ckt.sentFromLocal or ckt.sentFromRemote
+				switch send.ToPeerID {
+				case ckt.LocalPeerID:
+					ckt.sentFromRemote = append(ckt.sentFromRemote, send)
+				case ckt.RemotePeerID:
+					ckt.sentFromLocal = append(ckt.sentFromLocal, send)
+				default:
+					panic(fmt.Sprintf("bad SEND op on ckt, not for local or remote. send.ToPeerID = '%v'; ckt.LocalPeerID='%v'; ckt.RemotePeerID='%v'", send.ToPeerID, ckt.LocalPeerID, ckt.RemotePeerID))
+				}
+			}
+
+			handleRead := func(read *fop, first bool) {
+				// read from ckt.sentFromLocal or ckt.sentFromRemote
+				ckt, ok := ckts[read.ckt.CircuitID]
+				if !ok {
+					panic("bad READ op.frag.CircuitID; not in ckts")
+				}
+				vv("READ resources: len(ckt.sentFromLocal)=%v; and len(ckt.sentFromRemote)='%v'; op='%v'; reader is local=%v; reader is remote=%v", len(ckt.sentFromLocal), len(ckt.sentFromRemote), read, ckt.LocalPeerID == ckt.LocalPeerID, ckt.RemotePeerID == ckt.LocalPeerID)
+				switch read.ToPeerID {
+				case ckt.LocalPeerID:
+					if len(ckt.sentFromRemote) > 0 {
+						// can service the read
+						send := ckt.sentFromRemote[0]
+						read.frag = send.frag // TODO clone()?
+						// matchmaking
+						vv("[1]matchmaking send '%v' -> read '%v'", send, read)
+						read.sendfop = send
+						send.readfop = read
+
+						ckt.sentFromRemote = ckt.sentFromRemote[1:]
+
+						// why the asymmetry? this is ok, but not below?
+						// think b/c we are randomly deleting?
+						//pq.delOneItem(read.pqit)
+
+						close(read.proceed)
+					} else {
+						//panic("stall the read?")
+						vv("1st no sends for reader, stalling the read: len(ckt.sentFromLocal)=%v; and len(ckt.sentFromRemote)='%v'; read='%v'", len(ckt.sentFromLocal), len(ckt.sentFromRemote), read)
+						read.when = time.Now().Add(tick)
+						_, read.pqit = pq.add(read)
+
+						//below: queueNext()
+
+					}
+				case ckt.RemotePeerID:
+					if len(ckt.sentFromLocal) > 0 {
+						// can service the read op
+						send := ckt.sentFromLocal[0]
+						read.frag = send.frag // TODO clone()?
+						// matchmaking
+						vv("[2]matchmaking send '%v' -> read '%v'", send, read)
+						read.sendfop = send
+						send.readfop = read
+
+						ckt.sentFromLocal = ckt.sentFromLocal[1:]
+						//pq.delOneItem(read.pqit)
+						close(read.proceed)
+					} else {
+						//panic("stall the read?")
+						vv("2nd no sends for reader, stalling the read: len(ckt.sentFromLocal)=%v; and len(ckt.sentFromRemote)='%v'; read='%v'", len(ckt.sentFromLocal), len(ckt.sentFromRemote), read)
+						read.when = time.Now().Add(tick)
+						_, read.pqit = pq.add(read)
+						//below: queueNext()
+
+					}
+				default:
+					panic("bad READ op on ckt, not for local or remote")
+				}
+			}
+
 			showQ := func() {
 				i := 0
 				for it := pq.tree.Min(); it != pq.tree.Limit(); it = it.Next() {
@@ -1024,81 +1107,17 @@ func Test500_synctest_basic(t *testing.T) {
 						showQ()
 						switch op.kind {
 						case READ:
-							// read from ckt.sentFromLocal or ckt.sentFromRemote
-							ckt, ok := ckts[op.ckt.CircuitID]
-							if !ok {
-								panic("bad READ op.frag.CircuitID; not in ckts")
-							}
-							switch op.ToPeerID {
-							case ckt.LocalPeerID:
-								if len(ckt.sentFromRemote) > 0 {
-									// can service the read
-									send := ckt.sentFromRemote[0]
-									op.frag = send.frag // TODO clone()?
-									// matchmaking
-									op.sendfop = send
-									send.readfop = op
-
-									ckt.sentFromRemote = ckt.sentFromRemote[1:]
-
-									// why the asymmetry? this is ok, but not below?
-									// think b/c we are randomly deleting?
-									//pq.delOneItem(read.pqit)
-
-									close(op.proceed)
-								} else {
-									//panic("stall the read?")
-									vv("1st no sends for reader, stalling the read: len(ckt.sentFromLocal)=%v; and len(ckt.sentFromRemote)='%v'", len(ckt.sentFromLocal), len(ckt.sentFromRemote))
-									op.when = time.Now().Add(tick)
-									_, op.pqit = pq.add(op)
-
-									//below: queueNext()
-
-								}
-							case ckt.RemotePeerID:
-								if len(ckt.sentFromLocal) > 0 {
-									// can service the read op
-									send := ckt.sentFromLocal[0]
-									op.frag = send.frag // TODO clone()?
-									// matchmaking
-									op.sendfop = send
-									send.readfop = op
-
-									ckt.sentFromLocal = ckt.sentFromLocal[1:]
-									//pq.delOneItem(read.pqit)
-									close(op.proceed)
-								} else {
-									//panic("stall the read?")
-									vv("2nd no sends for reader, stalling the read: len(ckt.sentFromLocal)=%v; and len(ckt.sentFromRemote)='%v'", len(ckt.sentFromLocal), len(ckt.sentFromRemote))
-									op.when = time.Now().Add(tick)
-									_, op.pqit = pq.add(op)
-									//below: queueNext()
-
-								}
-							default:
-								panic("bad READ op on ckt, not for local or remote")
-							}
-
+							vv("have READ from <-nextPQ: op='%v'", op)
+							handleRead(op, false)
 						case SEND:
-							ckt, ok := ckts[op.frag.CircuitID]
-							if !ok {
-								panic(fmt.Sprintf("bad SEND, unregistered ckt op.frag.CircuitID='%v'", op.frag.CircuitID))
-							}
-							// buffer on ckt.sentFromLocal or ckt.sentFromRemote
-							switch op.ToPeerID {
-							case ckt.LocalPeerID:
-								ckt.sentFromRemote = append(ckt.sentFromRemote, op)
-							case ckt.RemotePeerID:
-								ckt.sentFromLocal = append(ckt.sentFromLocal, op)
-							default:
-								panic(fmt.Sprintf("bad SEND op on ckt, not for local or remote. op.ToPeerID = '%v'; ckt.LocalPeerID='%v'; ckt.RemotePeerID='%v'", op.ToPeerID, ckt.LocalPeerID, ckt.RemotePeerID))
-							}
-
+							vv("have SEND from <-nextPQ: op=%v", op)
+							handleSend(op, false)
 						case TIMER:
-							vv("TIMER firing")
+							vv("have TIMER firing from <-nextPQ")
 							close(op.proceed)
 						}
 					} // end if op != nil
+					vv("done with if op != nil, going to queueNext()")
 					queueNext()
 
 				case timer := <-addTimer:
@@ -1106,20 +1125,21 @@ func Test500_synctest_basic(t *testing.T) {
 					queueNext()
 
 				case send := <-cktSendCh:
-					vv("scheduler cktSendCh")
-					//vv("scheduler cktSendCh from:%v to %v", send.FromPeerID, send.ToPeerID)
-					//send := newSend()
-					send.when = time.Now().Add(hop)
-					//send.frag = frag
-					_, send.pqit = pq.add(send)
-					queueNext()
-					close(send.proceed)
+					vv("send := <-cktSendCh")
+					handleSend(send, true)
+					// old:
+					//  send.when = time.Now().Add(hop)
+					//  _, send.pqit = pq.add(send)
+					//  queueNext()
+					//  close(send.proceed)
 
 				case read := <-cktReadCh:
-					vv("scheduler cktReadCh")
+					vv("read := <-cktReadCh")
+					handleRead(read, true)
+					// old:
 					//read := newRead()
-					_, read.pqit = pq.add(read)
-					queueNext()
+					//_, read.pqit = pq.add(read)
+					//queueNext()
 
 				case <-schedDone:
 					return
@@ -1181,17 +1201,18 @@ func Test500_synctest_basic(t *testing.T) {
 		<-timer.proceed
 		vv("timer fired at %v", time.Now())
 
-		// sender 1, sends again.
+		// sender 2 sends on same ckt
 		go func() {
+			vv("sender2 is running")
 			frag := NewFragment()
 			frag.FromPeerID = sender1
 			frag.ToPeerID = reader1
 			frag.CircuitID = cktID
 			frag.Serial = 2
-			note := "Serial 2 message from sender1 to reader1 on ckt1"
+			note := "Serial 2 message from sender2 to reader1 on ckt1"
 			send := sendOn(ckt1, frag, sender1, note)
 			<-send.proceed
-			vv("sender1 sent Serial 2")
+			vv("sender2 sent Serial 2")
 
 		}()
 
