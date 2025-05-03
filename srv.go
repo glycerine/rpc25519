@@ -108,6 +108,9 @@ func (s *Server) runServerMain(
 	// start of as http, the get CONNECT and hijack to TCP.
 
 	if tcp_only {
+		if s.cfg.UseSimNet {
+			panic("cannot have both TCPonly_no_TLS and UseSimNet true")
+		}
 		// actually just run TCP and not TLS, since we might not have cert authority (e.g. under test)
 		s.runTCP(serverAddress, boundCh)
 		return
