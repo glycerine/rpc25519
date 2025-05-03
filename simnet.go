@@ -50,6 +50,9 @@ type simnet struct {
 
 	sentFromCli []*mop
 	sentFromSrv []*mop
+
+	cliLC int64
+	srvLC int64
 }
 
 func (cfg *Config) newSimnetOnServer(simNetConfig *SimNetConfig, srv *Server) *simnet {
@@ -152,6 +155,10 @@ type mop struct {
 	// clients of scheduler wait on proceed.
 	// timer fires, send delivered, read accepted by kernel
 	proceed chan struct{}
+}
+
+func (op *mop) String() string {
+	return fmt.Sprintf("mop{kind:%v, originCli:%v, sn:%v, when:%v}", op.kind, op.originCli, op.sn, op.when)
 }
 
 func (s *simnet) newReadMsg(isCli bool) (op *mop) {
@@ -307,6 +314,13 @@ func (s *simnet) handleSend(send *mop) {
 	vv("top of handleSend, here is the Q prior to send: '%v'\n", send)
 	s.showQ()
 
+	if send.seen == 0 {
+		if send.originCli {
+			send.senderLC = s.cliLC
+		} else {
+			send.senderLC = s.srvLC
+		}
+	}
 	send.seen++
 	send.when = time.Now().Add(s.hop)
 
@@ -330,6 +344,9 @@ func (s *simnet) handleRead(read *mop) {
 			// can service the read
 			send := s.sentFromSrv[0]
 			read.msg = send.msg // TODO clone()?
+
+			s.cliLC = max(s.cliLC, send.senderLC) + 1
+
 			// matchmaking
 			vv("[1]matchmaking send '%v' -> read '%v'", send, read)
 			read.sendmop = send
@@ -351,6 +368,9 @@ func (s *simnet) handleRead(read *mop) {
 			// can service the read
 			send := s.sentFromCli[0]
 			read.msg = send.msg // TODO clone()?
+
+			s.srvLC = max(s.srvLC, send.senderLC) + 1
+
 			// matchmaking
 			vv("[1]matchmaking send '%v' -> read '%v'", send, read)
 			read.sendmop = send
