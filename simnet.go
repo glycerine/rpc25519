@@ -405,6 +405,10 @@ func (s *simnet) queueNext() {
 	next := s.pq.peek()
 	if next != nil {
 		wait := next.when.Sub(time.Now())
+		// needed?
+		if wait < 0 {
+			wait = 0
+		}
 		s.nextPQ.Reset(wait)
 	} else {
 		vv("queueNext: empty PQ")
@@ -441,8 +445,7 @@ func (s *simnet) Start() {
 			s.queueNext()
 
 		case timer := <-s.addTimer:
-			_, timer.pqit = s.pq.add(timer)
-			s.queueNext()
+			s.handleTimer(timer)
 
 		case s.cli = <-s.cliReady:
 		case send := <-s.msgSendCh:
@@ -453,4 +456,9 @@ func (s *simnet) Start() {
 			return
 		}
 	}
+}
+
+func (s *simnet) handleTimer(timer *mop) {
+	_, timer.pqit = s.pq.add(timer)
+	s.queueNext()
 }
