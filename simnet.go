@@ -413,7 +413,7 @@ func (s *simnet) handleRead(read *mop) {
 			read.msg = send.msg // TODO clone()?
 
 			s.cliLC = max(s.cliLC, send.senderLC) + 1
-			vv("servicing cli read: started LC %v -> serviced %v (waited: %v)", read.originLC, s.cliLC, s.cliLC-read.originLC)
+			vv("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, s.cliLC, s.cliLC-read.originLC, read.sn)
 			read.readerLC = s.cliLC
 			read.senderLC = send.senderLC
 
@@ -440,7 +440,7 @@ func (s *simnet) handleRead(read *mop) {
 			read.msg = send.msg // TODO clone()?
 
 			s.srvLC = max(s.srvLC, send.senderLC) + 1
-			vv("servicing srv read: read started LC %v -> serviced %v (waited: %v)", read.originLC, s.srvLC, s.srvLC-read.originLC)
+			vv("servicing srv read: read started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, s.srvLC, s.srvLC-read.originLC, read.sn)
 
 			read.readerLC = s.srvLC
 			read.senderLC = send.senderLC
@@ -504,8 +504,22 @@ func (s *simnet) Start() {
 			}
 
 			for i := int64(0); ; i++ {
+				// each scheduler loop is an event.
+				s.cliLC++
+				s.srvLC++
+
+				// but we only need to sleep a tick after the first
 				if i > 0 {
+					// advance time by one tick
 					time.Sleep(s.scenario.tick)
+
+					// do we need/want to do this?
+					// The pending PQ timer would prevent
+					// this from ever returning, I think.
+					// And both clients and servers should
+					// have outstanding reads open always
+					// as they listen for messages.
+					//synctest.Wait()
 				}
 				select {
 				case now := <-s.nextPQ.C: // the time for action has arrived
