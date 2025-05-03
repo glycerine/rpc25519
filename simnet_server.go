@@ -37,7 +37,6 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr) {
 
 	s.mut.Lock()
 	AliasRegister(serverAddr, serverAddr+" (simnet_server: "+s.name+")")
-	s.haltSimNet = idem.NewHalter()
 	s.mut.Unlock()
 
 	if boundCh != nil {
@@ -55,12 +54,10 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr) {
 		select {
 		case <-s.halt.ReqStop.Chan:
 			return
-		case <-s.haltSimNet.ReqStop.Chan:
-			return
 		case simNetConfig := <-s.StartSimNet:
 			vv("got simNetConfig request (orig serverAddr: '%v') to start a sim net: '%#v'", serverAddr, simNetConfig)
 		}
-		s.simnet = s.cfg.newSimnet(simNetConfig, nil, s, s.haltSimNet)
+		s.simnet = s.cfg.newSimnet(simNetConfig, nil, s, s.halt)
 		s.simnet.netAddr = netAddr
 		conn := s.simnet
 

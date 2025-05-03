@@ -1110,9 +1110,8 @@ type Server struct {
 	notifies *notifies
 	PeerAPI  *peerAPI // must be Exported to users!
 
-	lsn        io.Closer // net.Listener
-	halt       *idem.Halter
-	haltSimNet *idem.Halter // simnet will set on start up
+	lsn  io.Closer // net.Listener
+	halt *idem.Halter
 
 	remote2pair *Mutexmap[string, *rwPair]
 	pair2remote *Mutexmap[*rwPair, string]
@@ -2178,9 +2177,7 @@ func (s *Server) Close() error {
 	s.halt.ReqStop.Close()
 	s.mut.Lock() // avoid data race
 	if s.cfg.UseSimNet {
-		if s.haltSimNet != nil {
-			s.haltSimNet.ReqStop.Close()
-		}
+
 	} else {
 		s.lsn.Close() // cause runServerMain listening loop to exit.
 	}
