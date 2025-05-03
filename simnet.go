@@ -378,6 +378,12 @@ func (s *simnet) handleRead(read *mop) {
 	addedToPQ := false
 
 	if read.seen == 0 {
+		if read.originCli {
+			// use negative numbers to indicate origin LC before read received.
+			read.senderLC = -s.cliLC
+		} else {
+			read.senderLC = -s.srvLC
+		}
 		read.when = time.Now().Add(s.scenario.hop)
 	}
 	read.seen++
