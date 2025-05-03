@@ -17,7 +17,7 @@ var _ = time.Time{}
 
 func (c *Client) runSimNetClient(localHostPort string) {
 
-	netAddr := &SimNetAddr{network: "simnet@" + localHostPort}
+	netAddr := &SimNetAddr{network: "cli simnet@" + localHostPort}
 
 	// how does client pass this to us?/if we need it at all?
 	//simNetConfig := &SimNetConfig{}
@@ -34,10 +34,17 @@ func (c *Client) runSimNetClient(localHostPort string) {
 
 	//c.setLocalAddr(conn)
 	c.connected <- nil
-	defer conn.Close()
+	//defer conn.Close() // let server do if needed (prob not)
 
 	cpair := &cliPairState{}
 	c.cpair = cpair
 	go c.runSendLoop(conn, cpair)
+	select {
+	case c.simnet.cliReady <- c:
+	case <-c.simnet.halt.ReqStop.Chan:
+		return
+	case <-c.halt.ReqStop.Chan:
+		return
+	}
 	c.runReadLoop(conn, cpair)
 }

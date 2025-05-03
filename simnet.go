@@ -29,9 +29,10 @@ type simnet struct {
 	simNetCfg *SimNetConfig
 	netAddr   *SimNetAddr // satisfy uConn
 
-	srv  *Server
-	cli  *Client
-	halt *idem.Halter // just srv.halt for now.
+	srv      *Server
+	cli      *Client
+	cliReady chan *Client
+	halt     *idem.Halter // just srv.halt for now.
 
 	msgSendCh chan *mop
 	msgReadCh chan *mop
@@ -43,6 +44,7 @@ func (cfg *Config) newSimnetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 	s := &simnet{
 		halt:      srv.halt,
 		cfg:       cfg,
+		cliReady:  make(chan *Client),
 		simNetCfg: simNetConfig,
 		msgSendCh: make(chan *mop),
 		msgReadCh: make(chan *mop),
@@ -54,9 +56,16 @@ func (cfg *Config) newSimnetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 	return s
 }
 
+// leave the cli/srv setup in place to avoid the
+// startup overhead for every time, and test
+// at the peer/ckt/frag level a particular test scenario.
+type scenario struct {
+}
+
 func (s *simnet) Start() {
 	for {
 		select {
+		case s.cli = <-s.cliReady:
 		case <-s.halt.ReqStop.Chan:
 			return
 		}

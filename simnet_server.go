@@ -49,7 +49,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	s.mut.Unlock()
 
 	// satisfy uConn interface; don't crash cli/tests that check
-	netAddr := &SimNetAddr{network: "simnet@" + serverAddr}
+	netAddr := &SimNetAddr{network: "srv simnet@" + serverAddr}
 
 	if boundCh != nil {
 		select {
