@@ -60,7 +60,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr) {
 		case simNetConfig := <-s.StartSimNet:
 			vv("got simNetConfig request (orig serverAddr: '%v') to start a sim net: '%#v'", serverAddr, simNetConfig)
 		}
-		s.simnet = s.cfg.newSimnet(simNetConfig, nil, s)
+		s.simnet = s.cfg.newSimnet(simNetConfig, nil, s, s.haltSimNet)
 		s.simnet.netAddr = netAddr
 		conn := s.simnet
 
@@ -86,18 +86,19 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr) {
 type simnet struct {
 	cfg       *Config
 	simNetCfg *SimNetConfig
-	netAddr   *SimNetAddr
+	netAddr   *SimNetAddr // satisfy uConn
 	netsim    *netsim
 	srv       *Server
 	cli       *Client
 	isCli     bool
-	//ckt    *Circuit // wants Fragments not Messages, of course.
+	halt      *idem.Halter
 	msgSendCh chan *fop
 	msgReadCh chan *fop
 }
 
-func (cfg *Config) newSimnet(simNetConfig *SimNetConfig, cli *Client, srv *Server) *simnet {
-	return &simnet{
+func (cfg *Config) newSimnet(simNetConfig *SimNetConfig, cli *Client, srv *Server, halt *idem.Halter) *simnet {
+	s := &simnet{
+		halt:      halt,
 		cfg:       cfg,
 		simNetCfg: simNetConfig,
 		msgSendCh: make(chan *fop),
@@ -106,6 +107,11 @@ func (cfg *Config) newSimnet(simNetConfig *SimNetConfig, cli *Client, srv *Serve
 		srv:       srv,
 		isCli:     cli != nil,
 	}
+	s.Start()
+	return s
+}
+func (s *simnet) Start() {
+
 }
 
 // not actually used though
