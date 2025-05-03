@@ -9,6 +9,7 @@ import (
 	//"log"
 	//"net"
 	//"strings"
+	mathrand2 "math/rand/v2"
 	"sync/atomic"
 	"time"
 
@@ -31,6 +32,9 @@ type simnet struct {
 	tick time.Duration
 	hop  time.Duration
 
+	seed [32]byte
+	rng  *mathrand2.ChaCha8
+
 	cfg       *Config
 	simNetCfg *SimNetConfig
 	netAddr   *SimNetAddr // satisfy uConn
@@ -50,6 +54,8 @@ type simnet struct {
 
 func (cfg *Config) newSimnetOnServer(simNetConfig *SimNetConfig, srv *Server) *simnet {
 
+	var seed [32]byte
+
 	// server creates simnet; must start server first.
 	s := &simnet{
 		tick:      time.Second,
@@ -64,6 +70,8 @@ func (cfg *Config) newSimnetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 		addTimer:  make(chan *mop),
 		nextPQ:    time.After(0),
 		pq:        newPQ(),
+		seed:      seed,
+		rng:       mathrand2.NewChaCha8(seed),
 	}
 	// let client find the shared simnet in their cfg.
 	cfg.simnetRendezvous.simnet = s
