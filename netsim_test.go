@@ -1055,6 +1055,7 @@ func Test500_synctest_basic(t *testing.T) {
 						//pq.delOneItem(read.pqit)
 
 						close(read.proceed)
+						close(send.proceed)
 					} else {
 						//panic("stall the read?")
 						vv("1st no sends for reader, stalling the read: len(ckt.sentFromLocal)=%v; and len(ckt.sentFromRemote)='%v'; read='%v'", len(ckt.sentFromLocal), len(ckt.sentFromRemote), read)
@@ -1077,6 +1078,7 @@ func Test500_synctest_basic(t *testing.T) {
 						ckt.sentFromLocal = ckt.sentFromLocal[1:]
 						//pq.delOneItem(read.pqit)
 						close(read.proceed)
+						close(send.proceed)
 					} else {
 						//panic("stall the read?")
 						vv("2nd no sends for reader, stalling the read: len(ckt.sentFromLocal)=%v; and len(ckt.sentFromRemote)='%v'; read='%v'", len(ckt.sentFromLocal), len(ckt.sentFromRemote), read)
