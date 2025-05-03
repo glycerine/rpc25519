@@ -249,8 +249,8 @@ func (s *pq) add(op *mop) (added bool, it rb.Iterator) {
 	return
 }
 
-// order by when, then Message.HDR.CallID then HDR.Serial
-// (try hard not to delete tickets with the same when,
+// order by mop.when, then Message.HDR.CallID then HDR.Serial
+// (try hard not to delete tickets with the same mop.when,
 // and even then we may have reason to keep
 // the exact same mop for a task at the same time;
 // so use Serial too).
@@ -417,7 +417,7 @@ func (s *simnet) queueNext() {
 
 func (s *simnet) Start() {
 
-	for i := 0; ; i++ {
+	for i := int64(0); ; i++ {
 		if i > 0 {
 			time.Sleep(s.tick)
 		}
@@ -444,14 +444,17 @@ func (s *simnet) Start() {
 			vv("done with now events, going to queueNext()")
 			s.queueNext()
 
+		case s.cli = <-s.cliReady:
+
 		case timer := <-s.addTimer:
 			s.handleTimer(timer)
 
-		case s.cli = <-s.cliReady:
 		case send := <-s.msgSendCh:
 			s.handleSend(send)
+
 		case read := <-s.msgReadCh:
 			s.handleRead(read)
+
 		case <-s.halt.ReqStop.Chan:
 			return
 		}
