@@ -28,11 +28,11 @@ type simnet struct {
 	cfg       *Config
 	simNetCfg *SimNetConfig
 	netAddr   *SimNetAddr // satisfy uConn
-	//netsim    *netsim
-	srv       *Server
-	cli       *Client
-	isCli     bool
-	halt      *idem.Halter
+
+	srv  *Server
+	cli  *Client
+	halt *idem.Halter // just srv.halt for now.
+
 	msgSendCh chan *mop
 	msgReadCh chan *mop
 }
@@ -48,7 +48,8 @@ func (cfg *Config) newSimnet(simNetConfig *SimNetConfig, srv *Server) *simnet {
 		msgReadCh: make(chan *mop),
 		srv:       srv,
 	}
-	cfg.simnetRendezvous.simnet = s // let client find the shared simnet in their cfg.
+	// let client find the shared simnet in their cfg.
+	cfg.simnetRendezvous.simnet = s
 	s.Start()
 	return s
 }
@@ -147,4 +148,92 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) e
 		return ErrShutdown()
 	}
 	return nil
+}
+
+type pq struct {
+	tree *rb.Tree
+}
+
+func (s *pq) peek() *mop {
+	if s.tree.Len() == 0 {
+		return nil
+	}
+	it := s.tree.Min()
+	return it.Item().(*mop)
+}
+
+func (s *pq) pop() *mop {
+	if s.tree.Len() == 0 {
+		return nil
+	}
+	it := s.tree.Min()
+	top := it.Item().(*mop)
+	s.tree.DeleteWithIterator(it)
+	return top
+}
+
+func (s *pq) add(op *mop) (added bool, it rb.Iterator) {
+	added, it = s.tree.InsertGetIt(op)
+	return
+}
+
+// order by when, then Frag(circuitID, fromID, sn...); try
+// hard not to delete tickets with the same when,
+// and even then we may have reason to keep
+// the exact same ticket for a task at the same time;
+// so use fop.sn too.
+func newPQ() *pq {
+	return &pq{
+		tree: rb.NewTree(func(a, b rb.Item) int {
+			av := a.(*mop)
+			bv := b.(*mop)
+
+			if av == bv {
+				return 0 // points to same memory (or both nil)
+			}
+			if av == nil {
+				// just a is nil; b is not. sort nils to the front
+				// so they get popped and GC-ed sooner (and
+				// don't become temporary memory leaks by sitting at the
+				// back of the queue.x
+				return -1
+			}
+			if bv == nil {
+				return 1
+			}
+			// INVAR: neither av nor bv is nil
+			if av.when.Before(bv.when) {
+				return -1
+			}
+			if av.when.After(bv.when) {
+				return 1
+			}
+			// Hopefully not, but just in case...
+			// av.msg could be nil (so could bv.msg)
+			if av.msg == nil && bv.msg == nil {
+				return 0
+			}
+			if av.msg == nil {
+				return -1
+			}
+			if bv.msg == nil {
+				return 1
+			}
+			// INVAR: a.when == b.when
+
+			if av.msg.HDR.CallID == bv.msg.HDR.CallID {
+				if av.msg.HDR.Serial == bv.msg.HDR.Serial {
+					return 0
+				}
+				if av.msg.HDR.Serial < bv.msg.HDR.Serial {
+					return -1
+				}
+				return 1
+			}
+			if av.msg.HDR.CallID < bv.msg.HDR.CallID {
+				return -1
+			}
+			return 1
+		}),
+	}
 }
