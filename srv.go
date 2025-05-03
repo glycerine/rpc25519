@@ -125,12 +125,14 @@ func (s *Server) runServerMain(
 		if s.cfg.TCPonly_no_TLS {
 			panic("cannot have both UseQUIC and TCPonly_no_TLS true")
 		}
+		if s.cfg.UseSimNet {
+			panic("cannot have both UseQUIC and UseSimNet true")
+		}
 		s.runQUICServer(serverAddress, config, boundCh)
 		return
 	}
 	if s.cfg.UseSimNet {
-		panic("TODO wire in simnet")
-		s.runSimNetServer(serverAddress, config, boundCh)
+		s.runSimNetServer(serverAddress, boundCh)
 		return
 	}
 
@@ -1076,6 +1078,8 @@ func (s *Server) processWork(job *job) {
 type Server struct {
 	mut sync.Mutex
 
+	StartSimNet chan *SimNetConfig
+
 	boundAddressString string
 
 	cfg        *Config
@@ -1102,8 +1106,9 @@ type Server struct {
 	notifies *notifies
 	PeerAPI  *peerAPI // must be Exported to users!
 
-	lsn  io.Closer // net.Listener
-	halt *idem.Halter
+	lsn        io.Closer // net.Listener
+	halt       *idem.Halter
+	haltSimNet *idem.Halter // simnet will set on start up
 
 	remote2pair *Mutexmap[string, *rwPair]
 	pair2remote *Mutexmap[*rwPair, string]
@@ -2064,6 +2069,9 @@ func NewServer(name string, config *Config) *Server {
 		notifies: newNotifies(notClient),
 		unNAT:    NewMutexmap[string, string](),
 	}
+	if cfg.UseSimNet {
+		s.StartSimNet = make(chan *SimNetConfig)
+	}
 
 	s.PeerAPI = newPeerAPI(s, notClient, cfg.UseSimNet)
 	return s
@@ -2164,8 +2172,14 @@ func (s *Server) Close() error {
 		s.cfg.shared.mut.Unlock()
 	}
 	s.halt.ReqStop.Close()
-	s.mut.Lock()  // avoid data race
-	s.lsn.Close() // cause runServerMain listening loop to exit.
+	s.mut.Lock() // avoid data race
+	if s.cfg.UseSimNet {
+		if s.haltSimNet != nil {
+			s.haltSimNet.ReqStop.Close()
+		}
+	} else {
+		s.lsn.Close() // cause runServerMain listening loop to exit.
+	}
 	s.mut.Unlock()
 	<-s.halt.Done.Chan
 

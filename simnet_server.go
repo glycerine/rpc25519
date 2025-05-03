@@ -1,240 +1,123 @@
 package rpc25519
 
 import (
-	"context"
-	"crypto/ed25519"
-	"crypto/tls"
+	//"context"
+	//"crypto/ed25519"
+	//"crypto/tls"
 	//"fmt"
-	"io"
-	"log"
+	//"io"
+	//"log"
 	"net"
-	"strings"
+	//"strings"
 	"time"
 
-	"github.com/quic-go/quic-go"
-	//"github.com/quic-go/quic-go/qlog"
+	"github.com/glycerine/idem"
 )
 
-func (s *Server) runSimNetServer(quicServerAddr string, tlsConfig *tls.Config, boundCh chan net.Addr) {
-	panic("TODO delete all below and impl SimNetServer")
+type SimNetConfig struct{}
+
+type SimNetAddr struct { // net.Addr
+	network string
+}
+
+func (s *SimNetAddr) Network() string { // name of the network (for example, "tcp", "udp")
+	return "simnet"
+}
+func (s *SimNetAddr) String() string { // string form of address (for example, "192.0.2.1:25", "[2001:db8::1]:80")
+	return s.network
+}
+
+func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr) {
 	defer func() {
 		s.halt.Done.Close()
 		//vv("exiting Server.runQUICServer('%v')", quicServerAddr) // seen, yes, on shutdown test.
 	}()
 
-	// Server address to connect to
-	serverAddr, err := net.ResolveUDPAddr("udp", quicServerAddr)
-	if err != nil {
-		alwaysPrintf("Failed to resolve server address: %v", err)
-		return
-	}
-	isIPv6 := serverAddr.IP.To4() == nil
-	if isIPv6 {
-		// don't presume.
-		//panic(fmt.Sprintf("quic-go does not work well over IPv6 VPNs, so we reject this server address '%v'. Please use an IPv4 network with quic, or if IPv6 is required then use TCP/TLS over TCP.", serverAddr.String()))
-		//alwaysPrintf("warning: quic serverAddr '%v' is IPv6.", serverAddr.String())
-	}
-	//vv("quicServerAddr '%v' -> '%v'", quicServerAddr, serverAddr)
+	netAddr := &SimNetAddr{network: "simnet@" + serverAddr}
 
-	var transport *quic.Transport
-	s.cfg.shared.mut.Lock()
-	if !s.cfg.NoSharePortQUIC && s.cfg.shared.quicTransport != nil {
-		transport = s.cfg.shared.quicTransport
-		s.cfg.shared.shareCount++
-		//vv("s.cfg.shared.shareCount is now %v on server '%v'", s.cfg.shared.shareCount, s.name)
-		s.cfg.shared.mut.Unlock()
-	} else {
-		udpConn, err := net.ListenUDP("udp", serverAddr)
-		if err != nil {
-			alwaysPrintf("Failed to bind UPD server to '%v': '%v'\n", serverAddr, err)
-			s.cfg.shared.mut.Unlock()
-			return
-		}
-		transport = &quic.Transport{
-			Conn:               udpConn,
-			ConnectionIDLength: 20,
-		}
-		s.cfg.shared.quicTransport = transport
-		s.cfg.shared.shareCount++
-		//vv("s.cfg.shared.shareCount is now %v on server '%v'", s.cfg.shared.shareCount, s.name)
-		s.cfg.shared.mut.Unlock()
-	}
-	// note: we do not defer updConn.Close() because it may be shared with other clients/servers.
-	// Instead: reference count in cfg.shareCount and call in Close()
+	s.mut.Lock()
+	AliasRegister(serverAddr, serverAddr+" (simnet_server: "+s.name+")")
+	s.haltSimNet = idem.NewHalter()
+	s.mut.Unlock()
 
-	// Create a QUIC listener
-
-	quicConfig := &quic.Config{
-		Allow0RTT:         true,
-		InitialPacketSize: 1200, // needed to work over Tailscale that defaults to MTU 1280.
-
-		// export QLOGDIR and set this for qlog tracing.
-		//Tracer: qlog.DefaultConnectionTracer,
-
-		// quic-go keep alives are unreliable, so do them ourselves
-		// in the quic server send loop. See
-		// https://github.com/quic-go/quic-go/issues/4710
-		//KeepAlivePeriod: 5 * time.Second,
-	}
-
-	// "ListenEarly starts listening for incoming QUIC connections.
-	//  There can only be a single listener on any net.PacketConn.
-	//  Listen may only be called again after the current Listener was closed."
-	//  -- https://pkg.go.dev/github.com/quic-go/quic-go#section-readme
-
-	listener, err := transport.ListenEarly(tlsConfig, quicConfig)
-
-	if err != nil {
-		log.Fatalf("Error starting QUIC listener: %v", err)
-	}
-	defer listener.Close()
-
-	addr := listener.Addr()
-	//vv("QUIC Server listening on %v://%v", addr.Network(), addr.String())
 	if boundCh != nil {
 		select {
-		case boundCh <- addr:
+		case boundCh <- netAddr:
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
 
-	s.mut.Lock()     // avoid data race
-	s.lsn = listener // allow shutdown
-	s.quicConfig = quicConfig
-	addrs := addr.Network() + "://" + addr.String()
-	s.boundAddressString = addrs
-	AliasRegister(addrs, addrs+" (quic_server)")
-	s.mut.Unlock()
-
-	ctx := context.Background()
+	var simNetConfig *SimNetConfig
 	for {
-		// Accept a QUIC connection
-		conn, err := listener.Accept(ctx)
-		if err != nil {
-			//vv("Error accepting session: %v", err)
-			r := err.Error()
-
-			// Error accepting session: quic: server closed
-			if strings.Contains(r, "quic: server closed") ||
-				strings.Contains(r, "use of closed network connection") {
-				return
-			}
-			continue
+		if simNetConfig != nil {
+			vv("shut down old simnet first??")
 		}
-
-		// wait for the handshake to complete so we are encrypted/can verify host keys.
-		// see https://quic-go.net/docs/quic/server/
 		select {
-		case <-conn.HandshakeComplete():
-			//vv("quic_server handshake completed")
-		case <-conn.Context().Done():
-			// connection closed before handshake completion, e.g. due to handshake (auth) failure
-			alwaysPrintf("quic_server handshake failure on earlyListener.Accept()")
-			continue
+		case <-s.halt.ReqStop.Chan:
+			return
+		case <-s.haltSimNet.ReqStop.Chan:
+			return
+		case simNetConfig := <-s.StartSimNet:
+			vv("got simNetConfig request (orig serverAddr: '%v') to start a sim net: '%#v'", serverAddr, simNetConfig)
 		}
+		conn := s.cfg.newSimtime(simNetConfig)
+		conn.netAddr = netAddr
+		pair := s.newRWPair(conn)
+		go pair.runSendLoop(conn)
+		go pair.runReadLoop(conn)
 
-		// client key verification.
-		knownHostsPath := "known_client_keys"
-		connState := conn.ConnectionState().TLS
-		raddr := conn.RemoteAddr()
-		remoteAddr := strings.TrimSpace(raddr.String())
-
-		if !s.cfg.SkipVerifyKeys {
-			// NB only ed25519 keys are permitted, any others will result
-			// in an immediate error
-			good, bad, wasNew, err := hostKeyVerifies(knownHostsPath, &connState, remoteAddr)
-			_ = wasNew
-			_ = bad
-			if err != nil && len(good) == 0 {
-				//fmt.Fprintf(os.Stderr, "key failed list:'%#v': '%v'\n", bad, err)
-				return
-			}
-			if err != nil {
-				//vv("hostKeyVerifies returned error '%v' for remote addr '%v'", err, remoteAddr)
-				return
-			}
-			//for i := range good {
-			//	vv("accepted identity for client: '%v' (was new: %v)\n", good[i], wasNew)
-			//}
-		}
-
-		go func(conn quic.Connection) {
-			defer func() {
-				conn.CloseWithError(0, "")
-				//vv("finished with this quic connection.")
-			}()
-
-			for {
-				// Accept a stream
-				stream, err := conn.AcceptStream(context.Background())
-				//vv("quic server accepted a stream, err='%v'", err)
-				if err != nil {
-					if strings.Contains(err.Error(), "timeout: no recent network activity") {
-						// Now that we have app-level keep-alives, this
-						// really does mean the other end went away.
-						// Hopefully we see "Application error 0x0 (remote)"
-						// but if the client crashed before it could
-						// send it, we may not.
-						// vv("quic server read loop finishing quic session/connection: '%v'", err)
-						return
-					}
-					if strings.Contains(err.Error(), "Application error 0x0 (remote)") {
-						// normal shutdown.
-						//vv("client finished.")
-						return
-					}
-					if err == io.EOF {
-						return
-					}
-
-					// Error accepting stream: INTERNAL_ERROR (local):
-					//  write udp [::]:42677->[fdc8:... 61e]:59299: use of closed network connection
-					// quic_server.go:164 quic_server: Error accepting stream: Application error 0x0 (local): server shutdown
-					//vv("quic_server: Error accepting stream: %v", err)
-					return
-				}
-
-				var randomSymmetricSessKey [32]byte
-				var cliEphemPub []byte
-				var srvEphemPub []byte
-				var cliStaticPub ed25519.PublicKey
-
-				//vv("quic server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
-				if s.cfg.encryptPSK {
-					wrap := &NetConnWrapper{Stream: stream, Connection: conn}
-					switch {
-					case useVerifiedHandshake:
-						randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
-							symmetricServerVerifiedHandshake(wrap, s.cfg.preSharedKey, s.creds)
-
-					case wantForwardSecrecy:
-						randomSymmetricSessKey, cliEphemPub, srvEphemPub, cliStaticPub, err =
-							symmetricServerHandshake(wrap, s.cfg.preSharedKey, s.creds)
-
-					case mixRandomnessWithPSK:
-						randomSymmetricSessKey, err = simpleSymmetricServerHandshake(wrap, s.cfg.preSharedKey, s.creds)
-
-					default:
-						randomSymmetricSessKey = s.cfg.preSharedKey
-					}
-					if err != nil {
-						alwaysPrintf("stream failed to athenticate: '%v'", err)
-						return
-					}
-				}
-
-				// each stream gets its own read/send pair.
-				wrap := &NetConnWrapper{Stream: stream, Connection: conn}
-				pair := s.newRWPair(wrap)
-
-				pair.randomSymmetricSessKeyFromPreSharedKey = randomSymmetricSessKey
-				pair.cliEphemPub = cliEphemPub
-				pair.srvEphemPub = srvEphemPub
-				pair.cliStaticPub = cliStaticPub
-
-				go pair.runSendLoop(wrap)
-				go pair.runReadLoop(wrap)
-			}
-		}(conn)
 	}
+}
+
+// simtime implements the same workspace/blabber interface
+// so we can plug in
+// netsim and do comms via channels for testing/synctest
+// based accelerated timeout testing.
+//
+// Note that uConn and its Write/Read are
+// not actually used; channel sends/reads replace them.
+// We still need a dummy uConn to pass to
+// readMessage() and sendMessage() which are the
+// interception points for the simulated network.
+//
+// The blabber does check if the uConn is *simnet, and
+// configures itself to call through it if present.
+type simtime struct {
+	cfg       *Config
+	simNetCfg *SimNetConfig
+	netAddr   *SimNetAddr
+	netsim    *netsim
+	//ckt    *Circuit // wants Fragments not Messages, of course.
+}
+
+func (cfg *Config) newSimtime(simNetConfig *SimNetConfig) *simtime {
+	return &simtime{
+		cfg:       cfg,
+		simNetCfg: simNetConfig,
+		netAddr:   &SimNetAddr{},
+	}
+}
+
+// not actually used though
+func (s *simtime) Write(p []byte) (n int, err error)   { return }
+func (s *simtime) SetWriteDeadline(t time.Time) error  { return nil }
+func (s *simtime) Read(data []byte) (n int, err error) { return }
+func (s *simtime) SetReadDeadline(t time.Time) error   { return nil }
+func (s *simtime) Close() error                        { return nil }
+func (s *simtime) LocalAddr() net.Addr                 { return s.netAddr }
+func (s *simtime) RemoteAddr() net.Addr {
+	return s.netAddr
+}
+func (s *simtime) SetDeadline(t time.Time) error { return nil }
+
+//func (s *simtime) SetReadDeadline(t time.Time) error  { return nil }
+//func (s *simtime) SetWriteDeadline(t time.Time) error { return nil }
+
+// receiveMessage reads a framed message from conn.
+func (w *simtime) readMessage(conn uConn) (msg *Message, err error) {
+	return
+}
+
+func (w *simtime) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
+	return nil
 }

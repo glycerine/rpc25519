@@ -252,7 +252,11 @@ func newBlabber(
 
 	var simt *simtime
 	if cfg.UseSimNet {
-		simt = cfg.newSimtime()
+		ok := false
+		simt, ok = conn.(*simtime)
+		if !ok {
+			panic(fmt.Sprintf("could not get *simtime from uConn; is type %T", conn))
+		}
 	}
 
 	return &blabber{
