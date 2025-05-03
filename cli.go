@@ -1055,6 +1055,8 @@ type Client struct {
 	cfg *Config
 	mut sync.Mutex
 
+	simnet *simnet
+
 	// these are client only. server keeps track
 	// per connection in their rwPair.
 	// These ephemeral keys are from the ephemeral ECDH handshake

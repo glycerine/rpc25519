@@ -111,6 +111,8 @@ type netsim struct {
 	//ckts map[string]*Circuit
 	seed [32]byte
 	rng  *mathrand2.ChaCha8
+
+	msgSendCh chan *fop
 }
 
 // fop is a Fragment operation, either a
@@ -187,6 +189,7 @@ func newSend(ckt *Circuit, frag *Fragment, senderPeerID, note string) (op *fop) 
 	}
 	return
 }
+
 func newRead(ckt *Circuit, readerPeerID, note string) (op *fop) {
 	op = &fop{
 		note:     note,
@@ -222,10 +225,6 @@ func newNetsim(seed [32]byte) (s *netsim) {
 		//ckts:     make(map[string]*Circuit),
 		seed: seed,
 		rng:  mathrand2.NewChaCha8(seed),
-		//send:     make(chan *fop),
-		//read:     make(chan *fop),
-		//addTimer: make(chan *fop),
-		//waitQ:    newWaitQ(),
 	}
 	return
 }

@@ -1082,6 +1082,7 @@ type Server struct {
 	mut sync.Mutex
 
 	StartSimNet chan *SimNetConfig
+	simnet      *simnet
 
 	boundAddressString string
 

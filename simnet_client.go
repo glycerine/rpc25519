@@ -21,7 +21,8 @@ func (c *Client) runSimNetClient(localHostPort string) {
 
 	// how does client pass this to us?/if we need it at all?
 	simNetConfig := &SimNetConfig{}
-	conn := c.cfg.newSimtime(simNetConfig)
+	c.simnet = c.cfg.newSimnet(simNetConfig, c, nil)
+	conn := c.simnet
 	conn.netAddr = netAddr
 
 	c.conn = conn
