@@ -20,9 +20,9 @@ func (c *Client) runSimNetClient(localHostPort string) {
 	netAddr := &SimNetAddr{network: "simnet@" + localHostPort}
 
 	// how does client pass this to us?/if we need it at all?
-	simNetConfig := &SimNetConfig{}
+	//simNetConfig := &SimNetConfig{}
 
-	c.simnet = c.cfg.newSimnet(simNetConfig, c, nil, c.halt)
+	c.simnet = c.cfg.simnetRendezvous.simnet
 	conn := c.simnet
 	conn.netAddr = netAddr
 

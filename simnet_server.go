@@ -38,7 +38,7 @@ func (s *SimNetAddr) String() string { // string form of address (for example, "
 	return s.network
 }
 
-func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr) {
+func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNetConfig *SimNetConfig) {
 	defer func() {
 		s.halt.Done.Close()
 		vv("exiting Server.runSimNetServer('%v')", serverAddr) // seen, yes, on shutdown test.
@@ -57,25 +57,14 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr) {
 		}
 	}
 
-	var simNetConfig *SimNetConfig
-	for {
-		if simNetConfig != nil {
-			vv("shut down old simnet first??")
-		}
-		select {
-		case <-s.halt.ReqStop.Chan:
-			return
-		case simNetConfig := <-s.StartSimNet:
-			vv("got simNetConfig request (orig serverAddr: '%v') to start a sim net: '%#v'", serverAddr, simNetConfig)
-		}
-		s.simnet = s.cfg.newSimnet(simNetConfig, nil, s, s.halt)
-		s.simnet.netAddr = netAddr
-		conn := s.simnet
+	s.simnet = s.cfg.newSimnet(simNetConfig, s)
+	s.simnet.netAddr = netAddr
 
-		pair := s.newRWPair(conn)
-		go pair.runSendLoop(conn)
-		go pair.runReadLoop(conn)
-	}
+	conn := s.simnet
+	pair := s.newRWPair(conn)
+	go pair.runSendLoop(conn)
+	go pair.runReadLoop(conn)
+
 }
 
 // not actually used though, much.

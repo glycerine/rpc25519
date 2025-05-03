@@ -37,27 +37,47 @@ type simnet struct {
 	msgReadCh chan *mop
 }
 
-func (cfg *Config) newSimnet(simNetConfig *SimNetConfig, cli *Client, srv *Server, halt *idem.Halter) *simnet {
+func (cfg *Config) newSimnet(simNetConfig *SimNetConfig, srv *Server) *simnet {
+
+	// server creates simnet; must start server first.
 	s := &simnet{
-		halt:      halt,
+		halt:      srv.halt,
 		cfg:       cfg,
 		simNetCfg: simNetConfig,
 		msgSendCh: make(chan *mop),
 		msgReadCh: make(chan *mop),
-		cli:       cli,
 		srv:       srv,
-		isCli:     cli != nil,
 	}
+	cfg.simnetRendezvous.simnet = s // let client find the shared simnet in their cfg.
 	s.Start()
 	return s
 }
-func (s *simnet) Start() {
 
+func (s *simnet) Start() {
+	for {
+		select {
+		case <-s.halt.ReqStop.Chan:
+			return
+		}
+	}
 }
 
 // receiveMessage reads a framed message from conn.
 func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
-	panic("TODO simnet.readMessage")
+	vv("top simnet.readMessage")
+
+	read := s.newReadMsg()
+	select {
+	case s.msgReadCh <- read:
+	case <-s.halt.ReqStop.Chan:
+		return nil, ErrShutdown()
+	}
+	select {
+	case <-read.proceed:
+		msg = read.msg
+	case <-s.halt.ReqStop.Chan:
+		return nil, ErrShutdown()
+	}
 	return
 }
 
@@ -85,6 +105,15 @@ type mop struct {
 	proceed chan struct{}
 }
 
+func (s *simnet) newReadMsg() (op *mop) {
+	op = &mop{
+		sn:      simnetNextSn(),
+		kind:    READ,
+		proceed: make(chan struct{}),
+	}
+	return
+}
+
 func (s *simnet) newSendMsg(msg *Message) (op *mop) {
 	op = &mop{
 		msg:     msg,
@@ -104,16 +133,17 @@ func (s *simnet) newSendMsg(msg *Message) (op *mop) {
 }
 
 func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
+	vv("top simnet.sendMessage")
 
 	send := s.newSendMsg(msg)
 	select {
 	case s.msgSendCh <- send:
-	case <-s.srv.halt.ReqStop.Chan:
+	case <-s.halt.ReqStop.Chan:
 		return ErrShutdown()
 	}
 	select {
 	case <-send.proceed:
-	case <-s.srv.halt.ReqStop.Chan:
+	case <-s.halt.ReqStop.Chan:
 		return ErrShutdown()
 	}
 	return nil

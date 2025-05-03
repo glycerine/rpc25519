@@ -135,7 +135,8 @@ func (s *Server) runServerMain(
 		return
 	}
 	if s.cfg.UseSimNet {
-		s.runSimNetServer(serverAddress, boundCh)
+		simNetConfig := &SimNetConfig{}
+		s.runSimNetServer(serverAddress, boundCh, simNetConfig)
 		return
 	}
 
