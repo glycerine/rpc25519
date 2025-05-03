@@ -372,6 +372,10 @@ func (s *simnet) handleRead(read *mop) {
 	}
 }
 
+// INVAR: we remove nothing from pq.
+// If pq has anything, set s.nextPQ to
+// fire off a time.After timer when the
+// earliest is due to be delivered.
 func (s *simnet) queueNext() {
 	vv("top of queueNext")
 	s.showQ()
@@ -391,11 +395,12 @@ func (s *simnet) Start() {
 			time.Sleep(s.tick)
 		}
 		select {
-		case <-s.nextPQ: // time for action has arrived
-			op := s.pq.peek()
-			if op != nil {
-				s.pq.pop()
-				vv("got from <-nextPQ: op = %v. PQ is now:", op)
+		case now := <-s.nextPQ: // the time for action has arrived
+			vv("s.nextPQ -> now %v", now)
+
+			for op := s.pq.peek(); op != nil && op.when.Equal(now); {
+				s.pq.pop() // remove op from pq
+				vv("got from <-nextPQ: op = %v. PQ without op is:", op)
 				s.showQ()
 				switch op.kind {
 				case READ:
@@ -408,8 +413,8 @@ func (s *simnet) Start() {
 					vv("have TIMER firing from <-nextPQ")
 					close(op.proceed)
 				}
-			} // end if op != nil
-			vv("done with if op != nil, going to queueNext()")
+			}
+			vv("done with now events, going to queueNext()")
 			s.queueNext()
 
 		case timer := <-s.addTimer:
