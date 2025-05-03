@@ -11,6 +11,7 @@ import (
 	//"strings"
 	mathrand2 "math/rand/v2"
 	"sync/atomic"
+	"testing/synctest"
 	"time"
 
 	"github.com/glycerine/idem"
@@ -26,17 +27,18 @@ func simnetNextSn() int64 {
 }
 
 type simnet struct {
-	pq     *pq
-	nextPQ *time.Timer
-
 	scenario *scenario
 
 	cfg       *Config
 	simNetCfg *SimNetConfig
 	netAddr   *SimNetAddr // satisfy uConn
 
-	srv      *Server
-	cli      *Client
+	srv *Server
+	cli *Client
+
+	clinode *simnode
+	srvnode *simnode
+
 	cliReady chan *Client
 	halt     *idem.Halter // just srv.halt for now.
 
@@ -45,32 +47,48 @@ type simnet struct {
 	addTimer      chan *mop
 	newScenarioCh chan *scenario
 
-	sentFromCli []*mop
-	sentFromSrv []*mop
+	//sentFromCli []*mop
+	//sentFromSrv []*mop
 
-	cliLC int64
-	srvLC int64
 }
 
-func (cfg *Config) newSimnetOnServer(simNetConfig *SimNetConfig, srv *Server) *simnet {
+type simnode struct {
+	lc      int64
+	readQ   *pq
+	preArrQ *pq
+	sim     *simnet
+}
+
+func (s *simnet) newSimnode() *simnode {
+	return &simnode{
+		readQ:   newPQ(),
+		preArrQ: newPQ(),
+	}
+}
+
+func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *simnet {
 
 	scen := newScenario(time.Second, time.Second, [32]byte{})
 
 	// server creates simnet; must start server first.
 	s := &simnet{
-		cfg:           cfg,
-		srv:           srv,
-		halt:          srv.halt,
-		cliReady:      make(chan *Client),
-		simNetCfg:     simNetConfig,
-		msgSendCh:     make(chan *mop),
-		msgReadCh:     make(chan *mop),
-		addTimer:      make(chan *mop),
-		nextPQ:        time.NewTimer(0),
-		pq:            newPQ(),
+
+		cfg:       cfg,
+		srv:       srv,
+		halt:      srv.halt,
+		cliReady:  make(chan *Client),
+		simNetCfg: simNetConfig,
+		msgSendCh: make(chan *mop),
+		msgReadCh: make(chan *mop),
+		addTimer:  make(chan *mop),
+		//nextPQ:        time.NewTimer(0),
+
 		newScenarioCh: make(chan *scenario),
 		scenario:      scen,
 	}
+	s.clinode = s.newSimnode()
+	s.srvnode = s.newSimnode()
+
 	// let client find the shared simnet in their cfg.
 	cfg.simnetRendezvous.simnet = s
 	s.Start()
@@ -118,10 +136,10 @@ func newScenario(tick, hop time.Duration, seed [32]byte) *scenario {
 	}
 }
 
-func (s *simnet) showQ() {
+func (pq *pq) String() (r string) {
 	i := 0
-	r := fmt.Sprintf("\n ------- PQ --------\n")
-	for it := s.pq.tree.Min(); it != s.pq.tree.Limit(); it = it.Next() {
+	r = fmt.Sprintf("\n ------- %v --------\n", pq.name)
+	for it := pq.tree.Min(); it != pq.tree.Limit(); it = it.Next() {
 
 		item := it.Item() // interface{}
 		if IsNil(item) {
@@ -134,20 +152,7 @@ func (s *simnet) showQ() {
 	if i == 0 {
 		r = fmt.Sprintf("empty PQ\n")
 	}
-
-	// show the sent queues too
-	r += fmt.Sprintf(".... s.sentFromCli is len %v\n", len(s.sentFromCli))
-	for i, fromcli := range s.sentFromCli {
-		r += fmt.Sprintf("     sentFromCli[%02d] %v\n", i, fromcli)
-	}
-	r += fmt.Sprintf(".... s.sentFromSrv is len %v\n", len(s.sentFromSrv))
-	for i, fromsrv := range s.sentFromSrv {
-		r += fmt.Sprintf("     sentFromSrv[%02d] %v\n", i, fromsrv)
-	}
-
-	tsPrintfMut.Lock()
-	fmt.Printf("%v", r)
-	tsPrintfMut.Unlock()
+	return
 }
 
 // Message operation
@@ -254,6 +259,7 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) e
 }
 
 type pq struct {
+	name string
 	tree *rb.Tree
 }
 
@@ -368,8 +374,7 @@ func newPQ() *pq {
 }
 
 func (s *simnet) handleSend(send *mop) {
-	vv("top of handleSend, here is the Q prior to send: '%v'\n", send)
-	s.showQ()
+	//vv("top of handleSend(send = '%v')", send)
 
 	if send.seen == 0 {
 		if send.originCli {
@@ -379,21 +384,21 @@ func (s *simnet) handleSend(send *mop) {
 			send.senderLC = s.srvLC
 			send.originLC = s.srvLC
 		}
-		send.when = time.Now().Add(s.scenario.hop)
+		send.when = time.Now() //.Add(s.scenario.hop)
 	}
 	send.seen++
 
 	if send.originCli {
-		s.sentFromCli = append(s.sentFromCli, send)
-		vv("appended send to sentFromCli, now len %v: '%v'", len(s.sentFromCli), send)
+		s.srvPreArrQ.add(send)
+		vv("srvLC:%v  SEND %v from cli->srv srvPreArrQ: '%v'", send, s.srvPreArrQ)
 	} else {
-		s.sentFromSrv = append(s.sentFromSrv, send)
-		vv("appended send to sentFromSrv, now len %v: '%v'", len(s.sentFromSrv), send)
+		s.cliPreArrQ.add(send)
+		vv("cliLC:%v  SEND %v from srv->cli cliPreArrQ: '%v'", send, s.cliPreArrQ)
 	}
 }
+
 func (s *simnet) handleRead(read *mop) {
-	vv("top of handleRead, here is the Q prior to read='%v'\n", read)
-	s.showQ()
+	vv("top of handleRead(read = '%v')", read)
 
 	addedToPQ := false
 
@@ -405,18 +410,57 @@ func (s *simnet) handleRead(read *mop) {
 			//read.senderLC = s.srvLC
 			read.originLC = s.srvLC
 		}
-		read.when = time.Now().Add(s.scenario.hop)
+		read.when = time.Now() //.Add(s.scenario.hop)
 	}
 	read.seen++
 
 	if read.originCli {
-		// read originated on the client
-		if len(s.sentFromSrv) > 0 {
-			// can service the read
-			send := s.sentFromSrv[0]
-			read.msg = send.msg // TODO clone()?
+		s.cliReadQ.add(read)
+		vv("cliLC:%v  READ %v on cli, now cliReadQ: '%v'", s.cliLC, read, s.cliReadQ)
+		s.serviceCliReads()
+		s.cliReadQ.serviceReadsFrom(s.cliLC, s.cliPreArrQ)
+	} else {
+		s.srvReadQ.add(read)
+		vv("srvLC:%v  READ %v on srv, now srvReadQ: '%v'", s.srvLC, read, s.srvReadQ)
+		s.srvReadQ.serviceReadsFrom(s.srvLC, s.srvPreArrQ)
+	}
+}
 
-			s.cliLC = max(s.cliLC, send.senderLC) + 1
+func (s *simnet) serviceReadsFrom(readq *pq, preArr *pq) {
+
+	if readq.tree.Len() == 0 {
+		return
+	}
+	if preArr.tree.Len() == 0 {
+		return
+	}
+
+	readit := readq.tree.Min()
+
+	preit := preArr.tree.Min()
+
+	// for {
+	if readit == pq.tree.Limit() {
+		return
+	}
+
+	if preit == preArr.tree.Limit() {
+		return
+	}
+
+	readit = readit.Next()
+	preit = preit.Next()
+	/*
+		for it := pq.tree.Min(); it != pq.tree.Limit(); it = it.Next() {
+
+			read := readit.Item().(*mop)
+			send := preit.Item().(*mop)
+
+			if lcNow <
+			if read.originLC > send.originLC {
+				// service this read with this send
+				read.msg = send.msg // TODO clone()?
+				s.cliLC = max(s.cliLC, send.senderLC) + 1
 			vv("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, s.cliLC, s.cliLC-read.originLC, read.sn)
 			read.readerLC = s.cliLC
 			read.senderLC = send.senderLC
@@ -426,48 +470,14 @@ func (s *simnet) handleRead(read *mop) {
 			read.sendmop = send
 			send.readmop = read
 
-			s.sentFromSrv = s.sentFromSrv[1:]
+				predel = append(predel, sent)
+				readdel = append(readdel, read)
 
 			close(read.proceed)
 			close(send.proceed)
-		} else {
-			vv("no sends from server, stalling the client read")
-			read.when = time.Now().Add(s.scenario.tick)
-			_, read.pqit = s.pq.add(read)
-			addedToPQ = true
 		}
-	} else {
-		// read originated on server
-		if len(s.sentFromCli) > 0 {
-			// can service the read
-			send := s.sentFromCli[0]
-			read.msg = send.msg // TODO clone()?
-
-			s.srvLC = max(s.srvLC, send.senderLC) + 1
-			vv("servicing srv read: read started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, s.srvLC, s.srvLC-read.originLC, read.sn)
-
-			read.readerLC = s.srvLC
-			read.senderLC = send.senderLC
-
-			// matchmaking
-			vv("[1]matchmaking send '%v' -> read '%v'", send, read)
-			read.sendmop = send
-			send.readmop = read
-
-			s.sentFromCli = s.sentFromCli[1:]
-
-			close(read.proceed)
-			close(send.proceed)
-		} else {
-			vv("no sends from client, stalling the server read")
-			read.when = time.Now().Add(s.scenario.tick)
-			_, read.pqit = s.pq.add(read)
-			addedToPQ = true
-		}
-	}
-	if addedToPQ {
-		s.queueNext()
-	}
+	*/
+	vv("=== end of serviceReadsFrom(lcNow:%v ===", lcNow)
 }
 
 // INVAR: we remove nothing from pq.
@@ -484,7 +494,7 @@ func (s *simnet) queueNext() {
 		if wait < 0 {
 			wait = 0
 		}
-		s.nextPQ.Reset(wait)
+		//s.nextPQ.Reset(wait)
 	} else {
 		vv("queueNext: empty PQ")
 	}
@@ -512,58 +522,53 @@ func (s *simnet) Start() {
 				s.cliLC++
 				s.srvLC++
 
-				// but we only need to sleep a tick after the first
-				if i > 0 {
-					// advance time by one tick
-					time.Sleep(s.scenario.tick)
+				// advance time by one tick
+				time.Sleep(s.scenario.tick)
 
-					// do we need/want to do this?
-					// The pending PQ timer would prevent
-					// this from ever returning, I think.
-					// And both clients and servers should
-					// have outstanding reads open always
-					// as they listen for messages.
-					//synctest.Wait()
-				}
-				select {
-				case now := <-s.nextPQ.C: // the time for action has arrived
-					vv("s.nextPQ -> now %v", now)
-					s.sanity() // can remove once we know startup is okay.
+				// do we need/want to do this?
+				// The pending PQ timer would prevent
+				// this from ever returning, I think.
+				// And both clients and servers should
+				// have outstanding reads open always
+				// as they listen for messages.
+				synctest.Wait()
 
-					did := 0
-					for op := s.pq.peek(); op != nil && !op.when.After(now); did++ {
-						s.pq.pop() // remove op from pq
-						vv("got from <-nextPQ: op = %v. PQ without op is:", op)
-						s.showQ()
-						switch op.kind {
-						case READ:
-							vv("have READ from <-nextPQ: op='%v'", op)
-							s.handleRead(op)
-						case SEND:
-							vv("have SEND from <-nextPQ: op=%v", op)
-							s.handleSend(op)
-						case TIMER:
-							vv("have TIMER firing from <-nextPQ")
-							close(op.proceed)
-						}
+				did := 0
+				for op := s.pq.peek(); op != nil && op.originLC; did++ {
+					s.pq.pop() // remove op from pq
+					vv("got from <-nextPQ: op = %v. PQ without op is:", op)
+					s.showQ()
+					switch op.kind {
+					case READ:
+						vv("have READ from <-nextPQ: op='%v'", op)
+						s.handleRead(op)
+					case SEND:
+						vv("have SEND from <-nextPQ: op=%v", op)
+						s.handleSend(op)
+					case TIMER:
+						vv("have TIMER firing from <-nextPQ")
+						close(op.proceed)
 					}
-					vv("done with %v now events", did)
-					s.queueNext()
+				}
+				vv("done with %v now events", did)
+				//s.queueNext()
+
+				select {
+				//case now := <-s.nextPQ.C: // the time for action has arrived
+				//	vv("s.nextPQ -> now %v", now)
 
 				case scenario := <-s.newScenarioCh:
 					s.finishScenario()
 					s.initScenario(scenario)
 
 				case timer := <-s.addTimer:
-					s.sanity() // can remove once we know startup is okay.
 					s.handleTimer(timer)
 
 				case send := <-s.msgSendCh:
-					s.sanity() // can remove once we know startup is okay.
 					s.handleSend(send)
 
 				case read := <-s.msgReadCh:
-					s.sanity() // can remove once we know startup is okay.
+					vv("have READ from <-msgReadCh: op='%v'", read)
 					s.handleRead(read)
 
 				case <-s.halt.ReqStop.Chan:
@@ -588,10 +593,4 @@ func (s *simnet) initScenario(scenario *scenario) {
 func (s *simnet) handleTimer(timer *mop) {
 	_, timer.pqit = s.pq.add(timer)
 	s.queueNext()
-}
-
-func (s *simnet) sanity() {
-	if s.scenario == nil || s.cli == nil {
-		panic("must have client and scenario first")
-	}
 }
