@@ -339,14 +339,16 @@ func (s *simnet) handleSend(send *mop) {
 		} else {
 			send.senderLC = s.srvLC
 		}
+		send.when = time.Now().Add(s.scenario.hop)
 	}
 	send.seen++
-	send.when = time.Now().Add(s.scenario.hop)
 
 	if send.originCli {
 		s.sentFromCli = append(s.sentFromCli, send)
+		vv("appended send to sentFromCli, now len %v: '%v'", len(s.sentFromCli), send)
 	} else {
 		s.sentFromSrv = append(s.sentFromSrv, send)
+		vv("appended send to sentFromSrv, now len %v: '%v'", len(s.sentFromSrv), send)
 	}
 }
 func (s *simnet) handleRead(read *mop) {
@@ -355,8 +357,10 @@ func (s *simnet) handleRead(read *mop) {
 
 	addedToPQ := false
 
+	if read.seen == 0 {
+		read.when = time.Now().Add(s.scenario.hop)
+	}
 	read.seen++
-	read.when = time.Now().Add(s.scenario.hop)
 
 	if read.originCli {
 		// read originated on the client
