@@ -25,7 +25,9 @@ func simnetNextSn() int64 {
 }
 
 type simnet struct {
-	pq        *pq
+	pq     *pq
+	nextPQ <-chan time.Time
+
 	cfg       *Config
 	simNetCfg *SimNetConfig
 	netAddr   *SimNetAddr // satisfy uConn
@@ -46,13 +48,15 @@ func (cfg *Config) newSimnetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 
 	// server creates simnet; must start server first.
 	s := &simnet{
-		halt:      srv.halt,
 		cfg:       cfg,
+		srv:       srv,
+		halt:      srv.halt,
 		cliReady:  make(chan *Client),
 		simNetCfg: simNetConfig,
 		msgSendCh: make(chan *mop),
 		msgReadCh: make(chan *mop),
-		srv:       srv,
+		nextPQ:    time.After(0),
+		pq:        newPQ(),
 	}
 	// let client find the shared simnet in their cfg.
 	cfg.simnetRendezvous.simnet = s
@@ -265,7 +269,7 @@ func newPQ() *pq {
 
 func (s *simnet) handleSend(send *mop) {
 	vv("top of handleSend, here is the Q prior to send: '%v'\n", send)
-	showQ()
+	s.showQ()
 
 	send.seen++
 	send.when = time.Now().Add(hop)
@@ -277,12 +281,68 @@ func (s *simnet) handleSend(send *mop) {
 	}
 }
 func (s *simnet) handleRead(read *mop) {
+	vv("top of handleRead, here is the Q prior to read='%v'\n", read)
+	s.showQ()
 
+	read.seen++
+	read.when = time.Now().Add(hop)
+
+	if read.originCli {
+		if len(s.sentFromSrv) > 0 {
+			// can service the read
+			send := s.sentFromSrv[0]
+			read.msg = send.msg // TODO clone()?
+			// matchmaking
+			vv("[1]matchmaking send '%v' -> read '%v'", send, read)
+			read.sendmop = send
+			send.readmop = read
+
+			s.sentFromSrv = s.sentFromSrv[1:]
+
+			close(read.proceed)
+			close(send.proceed)
+		} else {
+			vv("no sends from server, stalling the client read")
+			read.when = time.Now().Add(tick)
+			_, read.pqit = s.pq.add(read)
+		}
+	} else {
+		// read originated on server
+		if len(s.sentFromCli) > 0 {
+			// can service the read
+			send := s.sentFromCli[0]
+			read.msg = send.msg // TODO clone()?
+			// matchmaking
+			vv("[1]matchmaking send '%v' -> read '%v'", send, read)
+			read.sendmop = send
+			send.readmop = read
+
+			s.sentFromCli = s.sentFromCli[1:]
+
+			close(read.proceed)
+			close(send.proceed)
+		} else {
+			vv("no sends from client, stalling the server read")
+			read.when = time.Now().Add(tick)
+			_, read.pqit = s.pq.add(read)
+		}
+	}
+	s.queueNext()
+}
+
+func (s *simnet) queueNext() {
+	vv("top of queueNext")
+	s.showQ()
+	next := s.pq.peek()
+	if next != nil {
+		wait := next.when.Sub(time.Now())
+		s.nextPQ = time.After(wait)
+	} else {
+		vv("queueNext: empty PQ")
+	}
 }
 
 func (s *simnet) Start() {
-
-	s.pq = newPQ()
 	for {
 		select {
 		case s.cli = <-s.cliReady:
