@@ -27,7 +27,7 @@ func simnetNextSn() int64 {
 
 type simnet struct {
 	pq     *pq
-	nextPQ <-chan time.Time
+	nextPQ *time.Timer
 
 	tick time.Duration
 	hop  time.Duration
@@ -68,7 +68,7 @@ func (cfg *Config) newSimnetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 		msgSendCh: make(chan *mop),
 		msgReadCh: make(chan *mop),
 		addTimer:  make(chan *mop),
-		nextPQ:    time.After(0),
+		nextPQ:    time.NewTimer(0),
 		pq:        newPQ(),
 		seed:      seed,
 		rng:       mathrand2.NewChaCha8(seed),
@@ -374,7 +374,7 @@ func (s *simnet) handleRead(read *mop) {
 
 // INVAR: we remove nothing from pq.
 // If pq has anything, set s.nextPQ to
-// fire off a time.After timer when the
+// fire off its time.After timer when the
 // earliest is due to be delivered.
 func (s *simnet) queueNext() {
 	vv("top of queueNext")
@@ -382,7 +382,7 @@ func (s *simnet) queueNext() {
 	next := s.pq.peek()
 	if next != nil {
 		wait := next.when.Sub(time.Now())
-		s.nextPQ = time.After(wait)
+		s.nextPQ.Reset(wait)
 	} else {
 		vv("queueNext: empty PQ")
 	}
@@ -395,7 +395,7 @@ func (s *simnet) Start() {
 			time.Sleep(s.tick)
 		}
 		select {
-		case now := <-s.nextPQ: // the time for action has arrived
+		case now := <-s.nextPQ.C: // the time for action has arrived
 			vv("s.nextPQ -> now %v", now)
 
 			for op := s.pq.peek(); op != nil && op.when.Equal(now); {
