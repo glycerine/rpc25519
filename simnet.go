@@ -119,17 +119,24 @@ func newScenario(tick, hop time.Duration, seed [32]byte) *scenario {
 }
 
 func (s *simnet) showQ() {
+	// return // deadlocking on the tsPrintfMut.Lock during panic...??? turn off showQ
 	i := 0
-	tsPrintfMut.Lock()
-	fmt.Printf("\n ------- PQ --------\n")
+	r := fmt.Sprintf("\n ------- PQ --------\n")
 	for it := s.pq.tree.Min(); it != s.pq.tree.Limit(); it = it.Next() {
-		op := it.Item().(*fop)
-		fmt.Printf("pq[%2d] = %v\n", i, op)
+
+		item := it.Item() // interface{}
+		if IsNil(item) {
+			panic("do not put nil into the pq")
+		}
+		op := item.(*mop)
+		r += fmt.Sprintf("pq[%2d] = %v\n", i, op)
 		i++
 	}
 	if i == 0 {
-		fmt.Printf("empty PQ\n")
+		r = fmt.Sprintf("empty PQ\n")
 	}
+	tsPrintfMut.Lock()
+	fmt.Printf("%v", r)
 	tsPrintfMut.Unlock()
 }
 
@@ -254,6 +261,9 @@ func (s *pq) pop() *mop {
 }
 
 func (s *pq) add(op *mop) (added bool, it rb.Iterator) {
+	if op == nil {
+		panic("do not put nil into pq!")
+	}
 	added, it = s.tree.InsertGetIt(op)
 	return
 }
@@ -447,7 +457,8 @@ func (s *simnet) Start() {
 			vv("s.nextPQ -> now %v", now)
 			s.sanity() // can remove once we know startup is okay.
 
-			for op := s.pq.peek(); op != nil && op.when.Equal(now); {
+			did := 0
+			for op := s.pq.peek(); op != nil && op.when.Equal(now); did++ {
 				s.pq.pop() // remove op from pq
 				vv("got from <-nextPQ: op = %v. PQ without op is:", op)
 				s.showQ()
@@ -463,7 +474,7 @@ func (s *simnet) Start() {
 					close(op.proceed)
 				}
 			}
-			vv("done with now events, going to queueNext()")
+			vv("done with %v now events", did)
 			s.queueNext()
 
 		case scenario := <-s.newScenarioCh:

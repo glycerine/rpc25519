@@ -40,6 +40,7 @@ func (s *SimNetAddr) String() string { // string form of address (for example, "
 
 func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNetConfig *SimNetConfig) {
 	defer func() {
+		vv("defer running, end of runSimNetServer() ")
 		s.halt.Done.Close()
 		vv("exiting Server.runSimNetServer('%v')", serverAddr) // seen, yes, on shutdown test.
 	}()
