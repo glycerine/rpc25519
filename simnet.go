@@ -340,12 +340,14 @@ func (s *simnet) handleRead(read *mop) {
 	read.when = time.Now().Add(s.hop)
 
 	if read.originCli {
+		// read originated on the client
 		if len(s.sentFromSrv) > 0 {
 			// can service the read
 			send := s.sentFromSrv[0]
 			read.msg = send.msg // TODO clone()?
 
 			s.cliLC = max(s.cliLC, send.senderLC) + 1
+			read.readerLC = s.cliLC
 
 			// matchmaking
 			vv("[1]matchmaking send '%v' -> read '%v'", send, read)
@@ -370,6 +372,7 @@ func (s *simnet) handleRead(read *mop) {
 			read.msg = send.msg // TODO clone()?
 
 			s.srvLC = max(s.srvLC, send.senderLC) + 1
+			read.readerLC = s.srvLC
 
 			// matchmaking
 			vv("[1]matchmaking send '%v' -> read '%v'", send, read)
