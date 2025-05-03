@@ -131,18 +131,25 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		config.InsecureSkipVerify = true // true would be insecure
 	}
 
+	// used to be in 	if c.cfg.UseQUIC  but shared by runSimNetClient for now
+	localHostPort := c.cfg.ClientHostPort
+	if localHostPort == "" {
+		localHost, err := ipaddr.LocalAddrMatching(serverAddr)
+		panicOn(err)
+		//vv("localHost = '%v', matched to quicServerAddr = '%v'", localHost, serverAddr)
+		localHostPort = localHost + ":0" // client can pick any port
+	}
+
 	if c.cfg.UseQUIC {
 		if c.cfg.TCPonly_no_TLS {
 			panic("cannot have both UseQUIC and TCPonly_no_TLS true")
 		}
-		localHostPort := c.cfg.ClientHostPort
-		if localHostPort == "" {
-			localHost, err := ipaddr.LocalAddrMatching(serverAddr)
-			panicOn(err)
-			//vv("localHost = '%v', matched to quicServerAddr = '%v'", localHost, serverAddr)
-			localHostPort = localHost + ":0" // client can pick any port
-		}
 		c.runQUIC(localHostPort, serverAddr, config)
+		return
+	}
+	if c.cfg.UseSimNet {
+		panic("TODO wire in simnet")
+		c.runSimNetClient(localHostPort, serverAddr, config)
 		return
 	}
 

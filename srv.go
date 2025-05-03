@@ -128,6 +128,11 @@ func (s *Server) runServerMain(
 		s.runQUICServer(serverAddress, config, boundCh)
 		return
 	}
+	if s.cfg.UseSimNet {
+		panic("TODO wire in simnet")
+		s.runSimNetServer(serverAddress, config, boundCh)
+		return
+	}
 
 	// Listen on the specified serverAddress
 	listener, err := tls.Listen("tcp", serverAddress, config)
