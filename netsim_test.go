@@ -133,7 +133,7 @@ type fop struct {
 
 	sorter uint64
 
-	kind simkind
+	kind mopkind
 	frag *Fragment
 	ckt  *Circuit
 
@@ -232,27 +232,6 @@ func newNetsim(seed [32]byte) (s *netsim) {
 func (s *netsim) AddPeer(peerID string, ckt *Circuit) (err error) {
 	//s.ckts[peerID] = ckt
 	return nil
-}
-
-type simkind int
-
-const (
-	TIMER simkind = 1
-	SEND  simkind = 2
-	READ  simkind = 3
-)
-
-func (k simkind) String() string {
-	switch k {
-	case TIMER:
-		return "TIMER"
-	case SEND:
-		return "SEND"
-	case READ:
-		return "READ"
-	default:
-		return fmt.Sprintf("unknown simkind %v", int(k))
-	}
 }
 
 func Test500_synctest_basic(t *testing.T) {

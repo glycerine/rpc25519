@@ -79,6 +79,27 @@ func (cfg *Config) newSimnetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 	return s
 }
 
+type mopkind int
+
+const (
+	TIMER mopkind = 1
+	SEND  mopkind = 2
+	READ  mopkind = 3
+)
+
+func (k mopkind) String() string {
+	switch k {
+	case TIMER:
+		return "TIMER"
+	case SEND:
+		return "SEND"
+	case READ:
+		return "READ"
+	default:
+		return fmt.Sprintf("unknown mopkind %v", int(k))
+	}
+}
+
 // leave the cli/srv setup in place to avoid the
 // startup overhead for every time, and test
 // at the peer/ckt/frag level a particular test scenario.
@@ -120,7 +141,7 @@ type mop struct {
 	// SENDS: when the send returns to user who called sendMessage()
 	when time.Time
 
-	kind simkind
+	kind mopkind
 	msg  *Message
 
 	sendmop *mop // for reads, which send did we get?
