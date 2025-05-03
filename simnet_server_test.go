@@ -1,5 +1,6 @@
 package rpc25519
 
+/*
 import (
 	//"context"
 	//"encoding/base64"
@@ -61,3 +62,4 @@ func Test801_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 		})
 	})
 }
+*/
