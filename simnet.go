@@ -25,6 +25,7 @@ func simnetNextSn() int64 {
 }
 
 type simnet struct {
+	pq        *pq
 	cfg       *Config
 	simNetCfg *SimNetConfig
 	netAddr   *SimNetAddr // satisfy uConn
@@ -36,6 +37,9 @@ type simnet struct {
 
 	msgSendCh chan *mop
 	msgReadCh chan *mop
+
+	sentFromCli []*mop
+	sentFromSrv []*mop
 }
 
 func (cfg *Config) newSimnetOnServer(simNetConfig *SimNetConfig, srv *Server) *simnet {
@@ -62,29 +66,40 @@ func (cfg *Config) newSimnetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 type scenario struct {
 }
 
-func (s *simnet) Start() {
-	for {
-		select {
-		case s.cli = <-s.cliReady:
-		case <-s.halt.ReqStop.Chan:
-			return
-		}
+func (s *simnet) showQ() {
+	i := 0
+	tsPrintfMut.Lock()
+	fmt.Printf("\n ------- PQ --------\n")
+	for it := pq.tree.Min(); it != pq.tree.Limit(); it = it.Next() {
+		op := it.Item().(*fop)
+		fmt.Printf("pq[%2d] = %v\n", i, op)
+		i++
 	}
+	if i == 0 {
+		fmt.Printf("empty PQ\n")
+	}
+	tsPrintfMut.Unlock()
 }
 
 // Message operation
 type mop struct {
 	sn int64
 
+	// number of times handleSend() has seen this mop.
+	seen int
+
 	originCli bool
 
 	senderLC int64
 	readerLC int64
 
-	dur  time.Duration // timer duration
-	when time.Time     // when read for READS, when sent for SENDS?
+	dur time.Duration // timer duration
 
-	sorter uint64
+	// when: when the operation completes and
+	// control returns to user code.
+	// READS: when the read returns to user who called readMessage()
+	// SENDS: when the send returns to user who called sendMessage()
+	when time.Time
 
 	kind simkind
 	msg  *Message
@@ -187,11 +202,11 @@ func (s *pq) add(op *mop) (added bool, it rb.Iterator) {
 	return
 }
 
-// order by when, then Frag(circuitID, fromID, sn...); try
-// hard not to delete tickets with the same when,
+// order by when, then Message.HDR.CallID then HDR.Serial
+// (try hard not to delete tickets with the same when,
 // and even then we may have reason to keep
-// the exact same ticket for a task at the same time;
-// so use fop.sn too.
+// the exact same mop for a task at the same time;
+// so use Serial too).
 func newPQ() *pq {
 	return &pq{
 		tree: rb.NewTree(func(a, b rb.Item) int {
@@ -245,5 +260,38 @@ func newPQ() *pq {
 			}
 			return 1
 		}),
+	}
+}
+
+func (s *simnet) handleSend(send *mop) {
+	vv("top of handleSend, here is the Q prior to send: '%v'\n", send)
+	showQ()
+
+	send.seen++
+	send.when = time.Now().Add(hop)
+
+	if send.originCli {
+		s.sentFromCli = append(s.sentFromCli, send)
+	} else {
+		s.sentFromSrv = append(s.sentFromSrv, send)
+	}
+}
+func (s *simnet) handleRead(read *mop) {
+
+}
+
+func (s *simnet) Start() {
+
+	s.pq = newPQ()
+	for {
+		select {
+		case s.cli = <-s.cliReady:
+		case <-s.halt.ReqStop.Chan:
+			return
+		case send := <-s.msgSendCh:
+			s.handleSend(send)
+		case read := <-s.msgReadCh:
+			s.handleRead(read)
+		}
 	}
 }
