@@ -29,11 +29,7 @@ type simnet struct {
 	pq     *pq
 	nextPQ *time.Timer
 
-	tick time.Duration
-	hop  time.Duration
-
-	seed [32]byte
-	rng  *mathrand2.ChaCha8
+	scenario *scenario
 
 	cfg       *Config
 	simNetCfg *SimNetConfig
@@ -44,9 +40,10 @@ type simnet struct {
 	cliReady chan *Client
 	halt     *idem.Halter // just srv.halt for now.
 
-	msgSendCh chan *mop
-	msgReadCh chan *mop
-	addTimer  chan *mop
+	msgSendCh     chan *mop
+	msgReadCh     chan *mop
+	addTimer      chan *mop
+	newScenarioCh chan *scenario
 
 	sentFromCli []*mop
 	sentFromSrv []*mop
@@ -57,24 +54,22 @@ type simnet struct {
 
 func (cfg *Config) newSimnetOnServer(simNetConfig *SimNetConfig, srv *Server) *simnet {
 
-	var seed [32]byte
+	scen := newScenario(time.Second, time.Second, [32]byte{})
 
 	// server creates simnet; must start server first.
 	s := &simnet{
-		tick:      time.Second,
-		hop:       time.Second,
-		cfg:       cfg,
-		srv:       srv,
-		halt:      srv.halt,
-		cliReady:  make(chan *Client),
-		simNetCfg: simNetConfig,
-		msgSendCh: make(chan *mop),
-		msgReadCh: make(chan *mop),
-		addTimer:  make(chan *mop),
-		nextPQ:    time.NewTimer(0),
-		pq:        newPQ(),
-		seed:      seed,
-		rng:       mathrand2.NewChaCha8(seed),
+		cfg:           cfg,
+		srv:           srv,
+		halt:          srv.halt,
+		cliReady:      make(chan *Client),
+		simNetCfg:     simNetConfig,
+		msgSendCh:     make(chan *mop),
+		msgReadCh:     make(chan *mop),
+		addTimer:      make(chan *mop),
+		nextPQ:        time.NewTimer(0),
+		pq:            newPQ(),
+		newScenarioCh: make(chan *scenario),
+		scenario:      scen,
 	}
 	// let client find the shared simnet in their cfg.
 	cfg.simnetRendezvous.simnet = s
@@ -107,6 +102,20 @@ func (k mopkind) String() string {
 // startup overhead for every time, and test
 // at the peer/ckt/frag level a particular test scenario.
 type scenario struct {
+	seed [32]byte
+	rng  *mathrand2.ChaCha8
+
+	tick time.Duration
+	hop  time.Duration
+}
+
+func newScenario(tick, hop time.Duration, seed [32]byte) *scenario {
+	return &scenario{
+		seed: seed,
+		rng:  mathrand2.NewChaCha8(seed),
+		tick: tick,
+		hop:  hop,
+	}
 }
 
 func (s *simnet) showQ() {
@@ -322,7 +331,7 @@ func (s *simnet) handleSend(send *mop) {
 		}
 	}
 	send.seen++
-	send.when = time.Now().Add(s.hop)
+	send.when = time.Now().Add(s.scenario.hop)
 
 	if send.originCli {
 		s.sentFromCli = append(s.sentFromCli, send)
@@ -337,7 +346,7 @@ func (s *simnet) handleRead(read *mop) {
 	addedToPQ := false
 
 	read.seen++
-	read.when = time.Now().Add(s.hop)
+	read.when = time.Now().Add(s.scenario.hop)
 
 	if read.originCli {
 		// read originated on the client
@@ -360,7 +369,7 @@ func (s *simnet) handleRead(read *mop) {
 			close(send.proceed)
 		} else {
 			vv("no sends from server, stalling the client read")
-			read.when = time.Now().Add(s.tick)
+			read.when = time.Now().Add(s.scenario.tick)
 			_, read.pqit = s.pq.add(read)
 			addedToPQ = true
 		}
@@ -385,7 +394,7 @@ func (s *simnet) handleRead(read *mop) {
 			close(send.proceed)
 		} else {
 			vv("no sends from client, stalling the server read")
-			read.when = time.Now().Add(s.tick)
+			read.when = time.Now().Add(s.scenario.tick)
 			_, read.pqit = s.pq.add(read)
 			addedToPQ = true
 		}
@@ -417,13 +426,26 @@ func (s *simnet) queueNext() {
 
 func (s *simnet) Start() {
 
+	// get a client before anything else.
+	// allow setting a non-default scenario too.
+	select {
+	case s.cli = <-s.cliReady:
+		vv("simnet got cli")
+	case scenario := <-s.newScenarioCh:
+		s.finishScenario()
+		s.initScenario(scenario)
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+
 	for i := int64(0); ; i++ {
 		if i > 0 {
-			time.Sleep(s.tick)
+			time.Sleep(s.scenario.tick)
 		}
 		select {
 		case now := <-s.nextPQ.C: // the time for action has arrived
 			vv("s.nextPQ -> now %v", now)
+			s.sanity() // can remove once we know startup is okay.
 
 			for op := s.pq.peek(); op != nil && op.when.Equal(now); {
 				s.pq.pop() // remove op from pq
@@ -444,15 +466,20 @@ func (s *simnet) Start() {
 			vv("done with now events, going to queueNext()")
 			s.queueNext()
 
-		case s.cli = <-s.cliReady:
+		case scenario := <-s.newScenarioCh:
+			s.finishScenario()
+			s.initScenario(scenario)
 
 		case timer := <-s.addTimer:
+			s.sanity() // can remove once we know startup is okay.
 			s.handleTimer(timer)
 
 		case send := <-s.msgSendCh:
+			s.sanity() // can remove once we know startup is okay.
 			s.handleSend(send)
 
 		case read := <-s.msgReadCh:
+			s.sanity() // can remove once we know startup is okay.
 			s.handleRead(read)
 
 		case <-s.halt.ReqStop.Chan:
@@ -461,7 +488,24 @@ func (s *simnet) Start() {
 	}
 }
 
+func (s *simnet) finishScenario() {
+	// do any tear down work...
+
+	// at the end
+	s.scenario = nil
+}
+func (s *simnet) initScenario(scenario *scenario) {
+	s.scenario = scenario
+	// do any init work...
+}
+
 func (s *simnet) handleTimer(timer *mop) {
 	_, timer.pqit = s.pq.add(timer)
 	s.queueNext()
+}
+
+func (s *simnet) sanity() {
+	if s.scenario == nil || s.cli == nil {
+		panic("must have client and scenario first")
+	}
 }
