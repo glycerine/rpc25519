@@ -115,9 +115,11 @@ func (s *simtime) SetDeadline(t time.Time) error { return nil }
 
 // receiveMessage reads a framed message from conn.
 func (w *simtime) readMessage(conn uConn) (msg *Message, err error) {
+	panic("TODO simtime.readMessage")
 	return
 }
 
 func (w *simtime) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
+
 	return nil
 }
