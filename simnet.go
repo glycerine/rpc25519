@@ -119,7 +119,6 @@ func newScenario(tick, hop time.Duration, seed [32]byte) *scenario {
 }
 
 func (s *simnet) showQ() {
-	// return // deadlocking on the tsPrintfMut.Lock during panic...??? turn off showQ
 	i := 0
 	r := fmt.Sprintf("\n ------- PQ --------\n")
 	for it := s.pq.tree.Min(); it != s.pq.tree.Limit(); it = it.Next() {
@@ -135,6 +134,17 @@ func (s *simnet) showQ() {
 	if i == 0 {
 		r = fmt.Sprintf("empty PQ\n")
 	}
+
+	// show the sent queues too
+	r += fmt.Sprintf(".... s.sentFromCli is len %v\n", len(s.sentFromCli))
+	for i, fromcli := range s.sentFromCli {
+		r += fmt.Sprintf("     sentFromCli[%02d] %v\n", i, fromcli)
+	}
+	r += fmt.Sprintf(".... s.sentFromSrv is len %v\n", len(s.sentFromSrv))
+	for i, fromsrv := range s.sentFromSrv {
+		r += fmt.Sprintf("     sentFromSrv[%02d] %v\n", i, fromsrv)
+	}
+
 	tsPrintfMut.Lock()
 	fmt.Printf("%v", r)
 	tsPrintfMut.Unlock()
