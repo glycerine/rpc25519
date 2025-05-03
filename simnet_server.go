@@ -10,9 +10,22 @@ import (
 	"net"
 	//"strings"
 	"time"
-
-	"github.com/glycerine/idem"
+	//"github.com/glycerine/idem"
 )
+
+// simnet implements the same workspace/blabber interface
+// so we can plug in
+// netsim and do comms via channels for testing/synctest
+// based accelerated timeout testing.
+//
+// Note that uConn and its Write/Read are
+// not actually used; channel sends/reads replace them.
+// We still need a dummy uConn to pass to
+// readMessage() and sendMessage() which are the
+// interception points for the simulated network.
+//
+// The blabber does check if the uConn is *simnet, and
+// configures itself to call through it if present.
 
 type SimNetAddr struct { // net.Addr
 	network string

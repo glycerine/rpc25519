@@ -9,37 +9,32 @@ import (
 	//"log"
 	//"net"
 	//"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/glycerine/idem"
+	rb "github.com/glycerine/rbtree"
 )
 
 type SimNetConfig struct{}
 
-// simnet implements the same workspace/blabber interface
-// so we can plug in
-// netsim and do comms via channels for testing/synctest
-// based accelerated timeout testing.
-//
-// Note that uConn and its Write/Read are
-// not actually used; channel sends/reads replace them.
-// We still need a dummy uConn to pass to
-// readMessage() and sendMessage() which are the
-// interception points for the simulated network.
-//
-// The blabber does check if the uConn is *simnet, and
-// configures itself to call through it if present.
+var simnetLastSn int64
+
+func simnetNextSn() int64 {
+	return atomic.AddInt64(&simnetLastSn, 1)
+}
+
 type simnet struct {
 	cfg       *Config
 	simNetCfg *SimNetConfig
 	netAddr   *SimNetAddr // satisfy uConn
-	netsim    *netsim
+	//netsim    *netsim
 	srv       *Server
 	cli       *Client
 	isCli     bool
 	halt      *idem.Halter
-	msgSendCh chan *fop
-	msgReadCh chan *fop
+	msgSendCh chan *mop
+	msgReadCh chan *mop
 }
 
 func (cfg *Config) newSimnet(simNetConfig *SimNetConfig, cli *Client, srv *Server, halt *idem.Halter) *simnet {
@@ -47,8 +42,8 @@ func (cfg *Config) newSimnet(simNetConfig *SimNetConfig, cli *Client, srv *Serve
 		halt:      halt,
 		cfg:       cfg,
 		simNetCfg: simNetConfig,
-		msgSendCh: make(chan *fop),
-		msgReadCh: make(chan *fop),
+		msgSendCh: make(chan *mop),
+		msgReadCh: make(chan *mop),
 		cli:       cli,
 		srv:       srv,
 		isCli:     cli != nil,
@@ -66,24 +61,45 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 	return
 }
 
-func (s *simnet) newSendMsg(msg *Message) (op *fop) {
-	op = &fop{
-		note:       note,
-		ckt:        ckt,
-		frag:       frag,
-		sn:         netsimNextSn(),
-		kind:       SEND,
-		proceed:    make(chan struct{}),
-		FromPeerID: senderPeerID,
+type mop struct {
+	sn int64
+
+	senderLC int64
+	readerLC int64
+
+	dur  time.Duration // timer duration
+	when time.Time     // when read for READS, when sent for SENDS?
+
+	sorter uint64
+
+	kind simkind
+	msg  *Message
+
+	sendmop *mop // for reads, which send did we get?
+	readmop *mop // for sends, which read did we go to?
+
+	pqit rb.Iterator
+
+	// clients of scheduler wait on proceed.
+	// timer fires, send delivered, read accepted by kernel
+	proceed chan struct{}
+}
+
+func (s *simnet) newSendMsg(msg *Message) (op *mop) {
+	op = &mop{
+		msg:     msg,
+		sn:      simnetNextSn(),
+		kind:    SEND,
+		proceed: make(chan struct{}),
 	}
-	switch senderPeerID {
-	case ckt.LocalPeerID:
-		op.ToPeerID = ckt.RemotePeerID
-	case ckt.RemotePeerID:
-		op.ToPeerID = ckt.LocalPeerID
-	default:
-		panic("bad senderPeerID, not on ckt")
-	}
+	// switch senderPeerID {
+	// case ckt.LocalPeerID:
+	// 	op.ToPeerID = ckt.RemotePeerID
+	// case ckt.RemotePeerID:
+	// 	op.ToPeerID = ckt.LocalPeerID
+	// default:
+	// 	panic("bad senderPeerID, not on ckt")
+	// }
 	return
 }
 
@@ -91,7 +107,7 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) e
 
 	send := s.newSendMsg(msg)
 	select {
-	case s.netsim.msgSendCh <- send:
+	case s.msgSendCh <- send:
 	case <-s.srv.halt.ReqStop.Chan:
 		return ErrShutdown()
 	}
