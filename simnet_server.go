@@ -39,10 +39,15 @@ func (s *SimNetAddr) String() string { // string form of address (for example, "
 }
 
 func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNetConfig *SimNetConfig) {
+	vv("top of runSimnetServer")
 	defer func() {
-		vv("defer running, end of runSimNetServer() ")
+		r := recover()
+		vv("defer running, end of runSimNetServer() r='%v'", r)
 		s.halt.Done.Close()
 		vv("exiting Server.runSimNetServer('%v')", serverAddr) // seen, yes, on shutdown test.
+		if r != nil {
+			panic(r)
+		}
 	}()
 
 	s.mut.Lock()
@@ -59,6 +64,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 		}
 	}
 
+	vv("about to call s.cfg.newSimnetOnServer()")
 	s.simnet = s.cfg.newSimnetOnServer(simNetConfig, s)
 	s.simnet.netAddr = netAddr
 
@@ -67,6 +73,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 		simnet:  s.simnet,
 		netAddr: netAddr,
 	}
+	vv("simnet server: about to start read/send loops")
 	pair := s.newRWPair(conn)
 	go pair.runSendLoop(conn)
 	go pair.runReadLoop(conn)

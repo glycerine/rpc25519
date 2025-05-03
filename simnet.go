@@ -435,68 +435,73 @@ func (s *simnet) queueNext() {
 }
 
 func (s *simnet) Start() {
+	vv("simnet.Start() top")
 
-	// get a client before anything else.
-	// allow setting a non-default scenario too.
-	select {
-	case s.cli = <-s.cliReady:
-		vv("simnet got cli")
-	case scenario := <-s.newScenarioCh:
-		s.finishScenario()
-		s.initScenario(scenario)
-	case <-s.halt.ReqStop.Chan:
-		return
-	}
+	go func() {
+		for {
+			// get a client before anything else.
+			// allow setting a non-default scenario too.
+			select {
+			case s.cli = <-s.cliReady:
+				vv("simnet got cli")
+			case scenario := <-s.newScenarioCh:
+				s.finishScenario()
+				s.initScenario(scenario)
+			case <-s.halt.ReqStop.Chan:
+				return
+			}
 
-	for i := int64(0); ; i++ {
-		if i > 0 {
-			time.Sleep(s.scenario.tick)
-		}
-		select {
-		case now := <-s.nextPQ.C: // the time for action has arrived
-			vv("s.nextPQ -> now %v", now)
-			s.sanity() // can remove once we know startup is okay.
+			for i := int64(0); ; i++ {
+				if i > 0 {
+					time.Sleep(s.scenario.tick)
+				}
+				select {
+				case now := <-s.nextPQ.C: // the time for action has arrived
+					vv("s.nextPQ -> now %v", now)
+					s.sanity() // can remove once we know startup is okay.
 
-			did := 0
-			for op := s.pq.peek(); op != nil && op.when.Equal(now); did++ {
-				s.pq.pop() // remove op from pq
-				vv("got from <-nextPQ: op = %v. PQ without op is:", op)
-				s.showQ()
-				switch op.kind {
-				case READ:
-					vv("have READ from <-nextPQ: op='%v'", op)
-					s.handleRead(op)
-				case SEND:
-					vv("have SEND from <-nextPQ: op=%v", op)
-					s.handleSend(op)
-				case TIMER:
-					vv("have TIMER firing from <-nextPQ")
-					close(op.proceed)
+					did := 0
+					for op := s.pq.peek(); op != nil && op.when.Equal(now); did++ {
+						s.pq.pop() // remove op from pq
+						vv("got from <-nextPQ: op = %v. PQ without op is:", op)
+						s.showQ()
+						switch op.kind {
+						case READ:
+							vv("have READ from <-nextPQ: op='%v'", op)
+							s.handleRead(op)
+						case SEND:
+							vv("have SEND from <-nextPQ: op=%v", op)
+							s.handleSend(op)
+						case TIMER:
+							vv("have TIMER firing from <-nextPQ")
+							close(op.proceed)
+						}
+					}
+					vv("done with %v now events", did)
+					s.queueNext()
+
+				case scenario := <-s.newScenarioCh:
+					s.finishScenario()
+					s.initScenario(scenario)
+
+				case timer := <-s.addTimer:
+					s.sanity() // can remove once we know startup is okay.
+					s.handleTimer(timer)
+
+				case send := <-s.msgSendCh:
+					s.sanity() // can remove once we know startup is okay.
+					s.handleSend(send)
+
+				case read := <-s.msgReadCh:
+					s.sanity() // can remove once we know startup is okay.
+					s.handleRead(read)
+
+				case <-s.halt.ReqStop.Chan:
+					return
 				}
 			}
-			vv("done with %v now events", did)
-			s.queueNext()
-
-		case scenario := <-s.newScenarioCh:
-			s.finishScenario()
-			s.initScenario(scenario)
-
-		case timer := <-s.addTimer:
-			s.sanity() // can remove once we know startup is okay.
-			s.handleTimer(timer)
-
-		case send := <-s.msgSendCh:
-			s.sanity() // can remove once we know startup is okay.
-			s.handleSend(send)
-
-		case read := <-s.msgReadCh:
-			s.sanity() // can remove once we know startup is okay.
-			s.handleRead(read)
-
-		case <-s.halt.ReqStop.Chan:
-			return
 		}
-	}
+	}()
 }
 
 func (s *simnet) finishScenario() {
