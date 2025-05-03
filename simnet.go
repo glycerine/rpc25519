@@ -161,6 +161,7 @@ type mop struct {
 
 	senderLC int64
 	readerLC int64
+	originLC int64
 
 	dur time.Duration // timer duration
 
@@ -278,7 +279,7 @@ func (s *pq) add(op *mop) (added bool, it rb.Iterator) {
 	return
 }
 
-// order by mop.senderLC, then Message.HDR.CallID then HDR.Serial
+// order by mop.originLC, then Message.HDR.CallID then HDR.Serial
 // (try hard not to delete tickets with the same mop.when,
 // and even then we may have reason to keep
 // the exact same mop for a task at the same time;
@@ -303,14 +304,27 @@ func newPQ() *pq {
 				return 1
 			}
 			// INVAR: neither av nor bv is nil
+			if av == bv {
+				return 0 // pointer equality is immediate
+			}
 
-			if av.senderLC < bv.senderLC {
+			if av.originLC < bv.originLC {
 				return -1
 			}
-			if av.senderLC > bv.senderLC {
+			if av.originLC > bv.originLC {
 				return 1
 			}
-			// INVAR senderLC equal, delivery order should not matter?
+			// INVAR originLC equal, delivery order should not matter?
+			// could just use mop.sn ? yes, b/c want determinism/repeatability.
+			// but this is not really deterministic, is it?!!!
+			if av.sn < bv.sn {
+				return -1
+			}
+			if av.sn > bv.sn {
+				return 1
+			}
+			// must be the same if same sn.
+			return 0
 
 			// if av.when.Before(bv.when) {
 			// 	return -1
@@ -356,8 +370,10 @@ func (s *simnet) handleSend(send *mop) {
 	if send.seen == 0 {
 		if send.originCli {
 			send.senderLC = s.cliLC
+			send.originLC = s.cliLC
 		} else {
 			send.senderLC = s.srvLC
+			send.originLC = s.srvLC
 		}
 		send.when = time.Now().Add(s.scenario.hop)
 	}
@@ -379,10 +395,11 @@ func (s *simnet) handleRead(read *mop) {
 
 	if read.seen == 0 {
 		if read.originCli {
-			// use negative numbers to indicate origin LC before read received.
-			read.senderLC = -s.cliLC
+			//read.senderLC = s.cliLC
+			read.originLC = s.cliLC
 		} else {
-			read.senderLC = -s.srvLC
+			//read.senderLC = s.srvLC
+			read.originLC = s.srvLC
 		}
 		read.when = time.Now().Add(s.scenario.hop)
 	}
@@ -396,7 +413,9 @@ func (s *simnet) handleRead(read *mop) {
 			read.msg = send.msg // TODO clone()?
 
 			s.cliLC = max(s.cliLC, send.senderLC) + 1
+			vv("servicing cli read: started LC %v -> serviced %v (waited: %v)", read.originLC, s.cliLC, s.cliLC-read.originLC)
 			read.readerLC = s.cliLC
+			read.senderLC = send.senderLC
 
 			// matchmaking
 			vv("[1]matchmaking send '%v' -> read '%v'", send, read)
@@ -421,7 +440,10 @@ func (s *simnet) handleRead(read *mop) {
 			read.msg = send.msg // TODO clone()?
 
 			s.srvLC = max(s.srvLC, send.senderLC) + 1
+			vv("servicing srv read: read started LC %v -> serviced %v (waited: %v)", read.originLC, s.srvLC, s.srvLC-read.originLC)
+
 			read.readerLC = s.srvLC
+			read.senderLC = send.senderLC
 
 			// matchmaking
 			vv("[1]matchmaking send '%v' -> read '%v'", send, read)
