@@ -108,22 +108,14 @@ func (s *simnet) newSendMsg(msg *Message, isCli bool) (op *mop) {
 		kind:      SEND,
 		proceed:   make(chan struct{}),
 	}
-	// switch senderPeerID {
-	// case ckt.LocalPeerID:
-	// 	op.ToPeerID = ckt.RemotePeerID
-	// case ckt.RemotePeerID:
-	// 	op.ToPeerID = ckt.LocalPeerID
-	// default:
-	// 	panic("bad senderPeerID, not on ckt")
-	// }
 	return
 }
 
 // readMessage reads a framed message from conn.
 func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
-	vv("top simnet.readMessage")
 
 	isCli := conn.(*simnetConn).isCli
+	vv("top simnet.readMessage. iscli=%v", isCli)
 
 	read := s.newReadMsg(isCli)
 	select {
@@ -141,9 +133,9 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 }
 
 func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
-	vv("top simnet.sendMessage")
 
 	isCli := conn.(*simnetConn).isCli
+	vv("top simnet.sendMessage. iscli=%v", isCli)
 
 	send := s.newSendMsg(msg, isCli)
 	select {
