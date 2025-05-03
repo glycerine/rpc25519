@@ -230,33 +230,10 @@ func newNetsim(seed [32]byte) (s *netsim) {
 	return
 }
 
-// type waitQ struct {
-// 	reads  map[int64]*fop
-// 	sends  map[int64]*fop
-// 	timers map[int64]*fop
-
-// 	pq pqTime // priority queue, op.when ordered
-// }
-
-//	func newWaitQ() *waitQ {
-//		return &waitQ{
-//			reads:  make(map[int64]*fop),
-//			sends:  make(map[int64]*fop),
-//			timers: make(map[int64]*fop),
-//		}
-//	}
 func (s *netsim) AddPeer(peerID string, ckt *Circuit) (err error) {
 	//s.ckts[peerID] = ckt
 	return nil
 }
-
-// type netTimer struct {
-// 	sn   int64
-// 	when time.Time
-// 	dur  time.Duration
-// 	//isTicker bool // auto-reloading deferred
-// 	fires chan struct{}
-// }
 
 type simkind int
 
@@ -278,84 +255,6 @@ func (k simkind) String() string {
 		return fmt.Sprintf("unknown simkind %v", int(k))
 	}
 }
-
-/*
-
-type permutation []op
-
-func (p permutation) Len() int { return len(p) }
-func (p permutation) Less(i, j int) bool {
-	return p[i].sorter < p[j].sorter
-}
-func (p permutation) Swap(i, j int) {
-	p[i], p[j] = p[j], p[i]
-}
-
-type chronological []op
-
-func (c chronological) Len() int { return len(c) }
-func (c chronological) Less(i, j int) bool {
-	return c[i].when.Before(c[j].when)
-}
-func (c chronological) Swap(i, j int) {
-	c[i], c[j] = c[j], c[i]
-}
-
-type logicalclock []op
-
-func (c logicalclock) Len() int { return len(c) }
-func (c logicalclock) Less(i, j int) bool {
-	return c[i].sn < c[j].sn
-}
-func (c logicalclock) Swap(i, j int) {
-	c[i], c[j] = c[j], c[i]
-}
-
-func (s *netsim) permute() *permutation {
-	var perm permutation
-	for _, ti := range s.waitQ.timers {
-		perm = append(perm, op{sn: ti.sn, when: ti.when, sorter: rng.Unint64(), kind: TIMER})
-	}
-	for _, re := range s.waitQ.reads {
-		perm = append(perm, op{sn: re.sn, when: ti.when, sorter: rng.Unint64(), kind: READ})
-	}
-	for _, se := range sends {
-		perm = append(perm, op{sn: se.sn, when: ti.when, sorter: rng.Unint64(), kind: SEND})
-	}
-	sort.Sort(perm)
-	return &perm
-}
-
-func (s *netsim) timeorder() *chronological {
-	var chrono chronological
-	for _, ti := range s.timers {
-		chrono = append(chrono, op{sn: ti.sn, when: ti.when, kind: TIMER})
-	}
-	for _, re := range s.reads {
-		chrono = append(chrono, op{sn: re.sn, when: re.when, kind: READ})
-	}
-	for _, se := range s.sends {
-		chrono = append(chrono, op{sn: se.sn, when: se.when, kind: SEND})
-	}
-	sort.Sort(chrono)
-	return &chrono
-}
-
-func (s *netsim) logicalClockOrder() *logicalclock {
-	var logical logicalclock
-	for _, ti := range s.timers {
-		logical = append(logical, op{sn: ti.sn, when: ti.when, kind: TIMER})
-	}
-	for _, re := range s.reads {
-		logical = append(logical, op{sn: re.sn, when: re.when, kind: READ})
-	}
-	for _, se := range s.sends {
-		logical = append(logical, op{sn: se.sn, when: se.when, kind: SEND})
-	}
-	sort.Sort(logical)
-	return &logical
-}
-*/
 
 func Test500_synctest_basic(t *testing.T) {
 	synctest.Run(func() {
@@ -613,7 +512,8 @@ func Test500_synctest_basic(t *testing.T) {
 			vv("reader 1 got 1st frag from %v; Serial=%v; op='%v'", read.FromPeerID, read.frag.Serial, read)
 
 			read2 := readOn(ckt1, reader1, "read2, reader1") // get a read op dest "reader1"
-			<-read2.proceed
+
+			<-read2.proceed // blocked here so read2/send lost?
 			vv("reader 1 got 2nd frag from %v; Serial=%v; op='%v'", read2.FromPeerID, read2.frag.Serial, read2)
 
 		}()
@@ -634,7 +534,7 @@ func Test500_synctest_basic(t *testing.T) {
 			frag.Serial = 2
 			note := "Serial 2 message from sender2 to reader1 on ckt1"
 			send := sendOn(ckt1, frag, sender1, note)
-			<-send.proceed
+			<-send.proceed // blocked here, so send/read lost???
 			vv("sender2 sent Serial 2")
 
 		}()

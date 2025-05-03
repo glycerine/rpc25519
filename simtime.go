@@ -26,7 +26,15 @@ var _ = io.EOF
 // readMessage() and sendMessage() which are the
 // interception points for the simulated network.
 type simtime struct {
+	cfg    *Config
 	netsim *netsim
+	//ckt    *Circuit // wants Fragments not Messages, of course.
+}
+
+func (cfg *Config) newSimtime() *simtime {
+	return &simtime{
+		cfg: cfg,
+	}
 }
 
 // not actually used though
