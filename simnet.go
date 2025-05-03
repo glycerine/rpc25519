@@ -53,14 +53,16 @@ type simnet struct {
 }
 
 type simnode struct {
-	lc      int64
+	name    string
+	LC      int64
 	readQ   *pq
 	preArrQ *pq
-	sim     *simnet
+	net     *simnet
 }
 
-func (s *simnet) newSimnode() *simnode {
+func (s *simnet) newSimnode(name string) *simnode {
 	return &simnode{
+		name:    name,
 		readQ:   newPQ(),
 		preArrQ: newPQ(),
 	}
@@ -86,8 +88,8 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 		newScenarioCh: make(chan *scenario),
 		scenario:      scen,
 	}
-	s.clinode = s.newSimnode()
-	s.srvnode = s.newSimnode()
+	s.clinode = s.newSimnode("cli")
+	s.srvnode = s.newSimnode("srv")
 
 	// let client find the shared simnet in their cfg.
 	cfg.simnetRendezvous.simnet = s
@@ -415,69 +417,91 @@ func (s *simnet) handleRead(read *mop) {
 	read.seen++
 
 	if read.originCli {
-		s.cliReadQ.add(read)
-		vv("cliLC:%v  READ %v on cli, now cliReadQ: '%v'", s.cliLC, read, s.cliReadQ)
-		s.serviceCliReads()
-		s.cliReadQ.serviceReadsFrom(s.cliLC, s.cliPreArrQ)
+		s.clinode.readQ.add(read)
+		vv("cliLC:%v  READ %v on cli, now cliReadQ: '%v'", s.clinode.LC, read, s.cliReadQ)
+		s.clinode.serviceReads()
 	} else {
-		s.srvReadQ.add(read)
-		vv("srvLC:%v  READ %v on srv, now srvReadQ: '%v'", s.srvLC, read, s.srvReadQ)
-		s.srvReadQ.serviceReadsFrom(s.srvLC, s.srvPreArrQ)
+		s.srvnode.readQ.add(read)
+		vv("srvLC:%v  READ %v on srv, now srvReadQ: '%v'", s.srvnode.LC, read, s.srvReadQ)
+		s.srvnode.serviceReads()
 	}
 }
 
-func (s *simnet) serviceReadsFrom(readq *pq, preArr *pq) {
+func (node *simnode) serviceReads() {
 
-	if readq.tree.Len() == 0 {
+	// to be deleted at the end, so
+	// we don't dirupt the iteration order
+	// and miss something.
+	var predel []*mop
+	var readdel []*mop
+
+	if node.readq.tree.Len() == 0 {
 		return
 	}
-	if preArr.tree.Len() == 0 {
-		return
-	}
-
-	readit := readq.tree.Min()
-
-	preit := preArr.tree.Min()
-
-	// for {
-	if readit == pq.tree.Limit() {
+	if node.preArr.tree.Len() == 0 {
 		return
 	}
 
-	if preit == preArr.tree.Limit() {
-		return
-	}
+	readit := node.readq.tree.Min()
+	preit := node.preArr.tree.Min()
 
-	readit = readit.Next()
-	preit = preit.Next()
-	/*
-		for it := pq.tree.Min(); it != pq.tree.Limit(); it = it.Next() {
+	for {
+		if readit == node.readq.tree.Limit() {
+			return
+		}
+		if preit == node.preArr.tree.Limit() {
+			return
+		}
 
-			read := readit.Item().(*mop)
-			send := preit.Item().(*mop)
+		read := readit.Item().(*mop)
+		send := preit.Item().(*mop)
 
-			if lcNow <
-			if read.originLC > send.originLC {
-				// service this read with this send
-				read.msg = send.msg // TODO clone()?
-				s.cliLC = max(s.cliLC, send.senderLC) + 1
-			vv("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, s.cliLC, s.cliLC-read.originLC, read.sn)
-			read.readerLC = s.cliLC
+		// the event of receiving the msg is after
+		// any LC advance
+
+		// our reads are always <= our node.LC
+		if read.originLC > node.LC {
+			panic("impossible! read > node.LC ! logic error")
+		}
+		//if send.originLC < node.LC {
+		//}
+		if read.originLC > send.originLC {
+			// service this read with this send
+			read.msg = send.msg // TODO clone()?
+			// advance our clock
+			node.LC = max(node.LC, send.originLC) + 1
+			vv("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, node.LC, node.LC-read.originLC, read.sn)
+
+			// track clocks on either end for this send and read.
+			read.readerLC = node.LC
 			read.senderLC = send.senderLC
+			send.readerLC = node.LC
 
 			// matchmaking
 			vv("[1]matchmaking send '%v' -> read '%v'", send, read)
 			read.sendmop = send
 			send.readmop = read
 
-				predel = append(predel, sent)
-				readdel = append(readdel, read)
+			predel = append(predel, sent)
+			readdel = append(readdel, read)
 
 			close(read.proceed)
 			close(send.proceed)
 		}
-	*/
-	vv("=== end of serviceReadsFrom(lcNow:%v ===", lcNow)
+		readit = readit.Next()
+		preit = preit.Next()
+	}
+
+	// take care of any deletes
+	for _, op := range predel {
+		node.preArr.tree.DeleteWithKey(op)
+	}
+	for _, op := range readdel {
+		node.readq.tree.DeleteWithKey(op)
+	}
+
+	vv("=== end of serviceReads %v ===", node.name)
+
 }
 
 // INVAR: we remove nothing from pq.
@@ -519,8 +543,8 @@ func (s *simnet) Start() {
 
 			for i := int64(0); ; i++ {
 				// each scheduler loop is an event.
-				s.cliLC++
-				s.srvLC++
+				s.clinode.LC++
+				s.srvnode.LC++
 
 				// advance time by one tick
 				time.Sleep(s.scenario.tick)
