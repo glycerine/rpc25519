@@ -185,7 +185,11 @@ type mop struct {
 }
 
 func (op *mop) String() string {
-	return fmt.Sprintf("mop{kind:%v, originCli:%v, senderLC:%v, sn:%v, when:%v}", op.kind, op.originCli, op.senderLC, op.sn, op.when)
+	var msgSerial int64
+	if op.msg != nil {
+		msgSerial = op.msg.HDR.Serial
+	}
+	return fmt.Sprintf("mop{kind:%v, originCli:%v, originLC:%v, senderLC:%v, op.sn:%v, msg.sn:%v}", op.kind, op.originCli, op.originLC, op.senderLC, op.sn, msgSerial)
 }
 
 func (s *simnet) newReadMsg(isCli bool) (op *mop) {
@@ -213,7 +217,7 @@ func (s *simnet) newSendMsg(msg *Message, isCli bool) (op *mop) {
 func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 
 	isCli := conn.(*simnetConn).isCli
-	vv("top simnet.readMessage. iscli=%v", isCli)
+	vv("top simnet.readMessage. iscli=%v  msg.Serail=%v", isCli, msg.HDR.Serial)
 
 	read := s.newReadMsg(isCli)
 	select {
@@ -233,7 +237,7 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
 
 	isCli := conn.(*simnetConn).isCli
-	vv("top simnet.sendMessage. iscli=%v", isCli)
+	vv("top simnet.sendMessage. iscli=%v  msg.Serial=%v", isCli, msg.HDR.Serial)
 
 	send := s.newSendMsg(msg, isCli)
 	select {
