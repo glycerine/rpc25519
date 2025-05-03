@@ -4,7 +4,7 @@ import (
 	//"context"
 	//"crypto/ed25519"
 	//"crypto/tls"
-	//"fmt"
+	"fmt"
 	//"io"
 	//"log"
 	//"net"
@@ -28,6 +28,9 @@ type simnet struct {
 	pq     *pq
 	nextPQ <-chan time.Time
 
+	tick time.Duration
+	hop  time.Duration
+
 	cfg       *Config
 	simNetCfg *SimNetConfig
 	netAddr   *SimNetAddr // satisfy uConn
@@ -39,6 +42,7 @@ type simnet struct {
 
 	msgSendCh chan *mop
 	msgReadCh chan *mop
+	addTimer  chan *mop
 
 	sentFromCli []*mop
 	sentFromSrv []*mop
@@ -48,6 +52,8 @@ func (cfg *Config) newSimnetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 
 	// server creates simnet; must start server first.
 	s := &simnet{
+		tick:      time.Second,
+		hop:       time.Second,
 		cfg:       cfg,
 		srv:       srv,
 		halt:      srv.halt,
@@ -55,6 +61,7 @@ func (cfg *Config) newSimnetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 		simNetCfg: simNetConfig,
 		msgSendCh: make(chan *mop),
 		msgReadCh: make(chan *mop),
+		addTimer:  make(chan *mop),
 		nextPQ:    time.After(0),
 		pq:        newPQ(),
 	}
@@ -74,7 +81,7 @@ func (s *simnet) showQ() {
 	i := 0
 	tsPrintfMut.Lock()
 	fmt.Printf("\n ------- PQ --------\n")
-	for it := pq.tree.Min(); it != pq.tree.Limit(); it = it.Next() {
+	for it := s.pq.tree.Min(); it != s.pq.tree.Limit(); it = it.Next() {
 		op := it.Item().(*fop)
 		fmt.Printf("pq[%2d] = %v\n", i, op)
 		i++
@@ -272,7 +279,7 @@ func (s *simnet) handleSend(send *mop) {
 	s.showQ()
 
 	send.seen++
-	send.when = time.Now().Add(hop)
+	send.when = time.Now().Add(s.hop)
 
 	if send.originCli {
 		s.sentFromCli = append(s.sentFromCli, send)
@@ -284,8 +291,10 @@ func (s *simnet) handleRead(read *mop) {
 	vv("top of handleRead, here is the Q prior to read='%v'\n", read)
 	s.showQ()
 
+	addedToPQ := false
+
 	read.seen++
-	read.when = time.Now().Add(hop)
+	read.when = time.Now().Add(s.hop)
 
 	if read.originCli {
 		if len(s.sentFromSrv) > 0 {
@@ -303,8 +312,9 @@ func (s *simnet) handleRead(read *mop) {
 			close(send.proceed)
 		} else {
 			vv("no sends from server, stalling the client read")
-			read.when = time.Now().Add(tick)
+			read.when = time.Now().Add(s.tick)
 			_, read.pqit = s.pq.add(read)
+			addedToPQ = true
 		}
 	} else {
 		// read originated on server
@@ -323,11 +333,14 @@ func (s *simnet) handleRead(read *mop) {
 			close(send.proceed)
 		} else {
 			vv("no sends from client, stalling the server read")
-			read.when = time.Now().Add(tick)
+			read.when = time.Now().Add(s.tick)
 			_, read.pqit = s.pq.add(read)
+			addedToPQ = true
 		}
 	}
-	s.queueNext()
+	if addedToPQ {
+		s.queueNext()
+	}
 }
 
 func (s *simnet) queueNext() {
@@ -343,15 +356,44 @@ func (s *simnet) queueNext() {
 }
 
 func (s *simnet) Start() {
-	for {
+
+	for i := 0; ; i++ {
+		if i > 0 {
+			time.Sleep(s.tick)
+		}
 		select {
+		case <-s.nextPQ: // time for action has arrived
+			op := s.pq.peek()
+			if op != nil {
+				s.pq.pop()
+				vv("got from <-nextPQ: op = %v. PQ is now:", op)
+				s.showQ()
+				switch op.kind {
+				case READ:
+					vv("have READ from <-nextPQ: op='%v'", op)
+					s.handleRead(op)
+				case SEND:
+					vv("have SEND from <-nextPQ: op=%v", op)
+					s.handleSend(op)
+				case TIMER:
+					vv("have TIMER firing from <-nextPQ")
+					close(op.proceed)
+				}
+			} // end if op != nil
+			vv("done with if op != nil, going to queueNext()")
+			s.queueNext()
+
+		case timer := <-s.addTimer:
+			_, timer.pqit = s.pq.add(timer)
+			s.queueNext()
+
 		case s.cli = <-s.cliReady:
-		case <-s.halt.ReqStop.Chan:
-			return
 		case send := <-s.msgSendCh:
 			s.handleSend(send)
 		case read := <-s.msgReadCh:
 			s.handleRead(read)
+		case <-s.halt.ReqStop.Chan:
+			return
 		}
 	}
 }
