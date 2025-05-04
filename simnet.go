@@ -673,8 +673,11 @@ func (node *simnode) dispatch() (bump time.Duration) {
 			select { // hung here! how long should we wait.. why cannot deliver? what does the timer do? default: nothing case.
 			case timer.timerC <- now:
 				//vv("sent on timerC")
-			case <-time.After(time.Millisecond * 10):
-				vv("giving up on timer after 10 msec: '%v'", timer)
+			default:
+				// this is what the Go runtime does. otherwise our clock gets 0.01 increments each time...
+				vv("timerC default: giving up on timer immediately!")
+				//case <-time.After(time.Millisecond * 10):
+				//vv("giving up on timer after 10 msec: '%v'", timer)
 				//panic("giving up on timer?!? why blocked? or must we ignore?")
 			case <-node.net.halt.ReqStop.Chan:
 				return
