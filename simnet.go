@@ -200,7 +200,11 @@ func (op *mop) String() string {
 	if op.msg != nil {
 		msgSerial = op.msg.HDR.Serial
 	}
-	return fmt.Sprintf("mop{kind:%v, originCli:%v, originLC:%v, senderLC:%v, op.sn:%v, msg.sn:%v}", op.kind, op.originCli, op.originLC, op.senderLC, op.sn, msgSerial)
+	who := "server"
+	if op.originCli {
+		who = "client"
+	}
+	return fmt.Sprintf("mop{kind:%v, %v, originLC:%v, senderLC:%v, op.sn:%v, msg.sn:%v}", op.kind, who, op.originLC, op.senderLC, op.sn, msgSerial)
 }
 
 func (s *simnet) newReadMsg(isCli bool) (op *mop) {
