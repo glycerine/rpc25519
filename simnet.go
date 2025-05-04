@@ -278,78 +278,12 @@ func (op *mop) String() string {
 	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, msg.sn:%v}", who, op.kind, ini, arr, complete, op.sn, msgSerial)
 }
 
-func (s *simnet) newReadMsg(isCli bool) (op *mop) {
-	op = &mop{
-		originCli: isCli,
-		sn:        simnetNextMopSn(),
-		kind:      READ,
-		proceed:   make(chan struct{}),
-	}
-	return
-}
-
-func (s *simnet) newSendMsg(msg *Message, isCli bool) (op *mop) {
-	op = &mop{
-		originCli: isCli,
-		msg:       msg,
-		sn:        simnetNextMopSn(),
-		kind:      SEND,
-		proceed:   make(chan struct{}),
-	}
-	return
-}
-
 func who(isCli bool) string {
 	if isCli {
 		return "CLIENT"
 	} else {
 		return "SERVER"
 	}
-}
-
-// readMessage reads a framed message from conn.
-func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
-
-	isCli := conn.(*simnetConn).isCli
-
-	vv("top simnet.readMessage() %v READ", who(isCli))
-
-	read := s.newReadMsg(isCli)
-	read.initTm = time.Now()
-
-	select {
-	case s.msgReadCh <- read:
-	case <-s.halt.ReqStop.Chan:
-		return nil, ErrShutdown()
-	}
-	select {
-	case <-read.proceed:
-		msg = read.msg
-	case <-s.halt.ReqStop.Chan:
-		return nil, ErrShutdown()
-	}
-	return
-}
-
-func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
-
-	isCli := conn.(*simnetConn).isCli
-
-	vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", who(isCli), msg.HDR.Serial)
-
-	send := s.newSendMsg(msg, isCli)
-	send.initTm = time.Now()
-	select {
-	case s.msgSendCh <- send:
-	case <-s.halt.ReqStop.Chan:
-		return ErrShutdown()
-	}
-	select {
-	case <-send.proceed:
-	case <-s.halt.ReqStop.Chan:
-		return ErrShutdown()
-	}
-	return nil
 }
 
 type pq struct {
@@ -833,13 +767,6 @@ func (s *simnet) Start() {
 
 			// advance time by one tick
 			time.Sleep(s.scenario.tick)
-
-			// do we need/want to do this?
-			// The pending PQ timer would prevent
-			// this from ever returning, I think.
-			// And both clients and servers should
-			// have outstanding reads open always
-			// as they listen for messages.
 			synctest.Wait()
 			//vv("scheduler top cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
 
@@ -931,6 +858,30 @@ func (s *simnet) handleTimer(timer *mop) {
 	s.nextTimer.Reset(dur)
 }
 
+//=========================================
+// The EXTERNAL client access routines are below.
+//
+// These are goroutine safe; okay to call from
+// any goroutine. Implementation note:
+//
+// createNewTimer(), sendMessage(), readMessage()
+//
+// must never touch anything internal
+// to simnet (else data races).
+//
+// Communicate over channels only:
+//   s.addTimer
+//   s.msgReadCh
+//   s.msgSendCh
+//   s.halt.ReqStop.Chan
+//
+// and the helper routines that setup the
+// channel ops, also below:
+//
+//   newTimerMop(), newSendMop(), newReadMop()
+//
+//=========================================
+
 // called by goroutines outside of the scheduler,
 // so must not touch s.srvnode, s.clinode, etc.
 func (s *simnet) createNewTimer(dur time.Duration, begin time.Time, isCli bool) (timerC chan time.Time, err error) {
@@ -942,7 +893,7 @@ func (s *simnet) createNewTimer(dur time.Duration, begin time.Time, isCli bool) 
 	_ = who
 	vv("top simnet.createNewTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", who, dur, begin, begin.Add(dur))
 
-	timer := s.newTimerMop(isCli)
+	timer := newTimerMop(isCli)
 	timer.timerDur = dur
 	timer.initTm = begin
 	timer.completeTm = begin.Add(dur)
@@ -961,11 +912,77 @@ func (s *simnet) createNewTimer(dur time.Duration, begin time.Time, isCli bool) 
 	return
 }
 
-func (s *simnet) newTimerMop(isCli bool) (op *mop) {
+// readMessage reads a framed message from conn.
+func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
+
+	isCli := conn.(*simnetConn).isCli
+
+	vv("top simnet.readMessage() %v READ", who(isCli))
+
+	read := newReadMop(isCli)
+	read.initTm = time.Now()
+
+	select {
+	case s.msgReadCh <- read:
+	case <-s.halt.ReqStop.Chan:
+		return nil, ErrShutdown()
+	}
+	select {
+	case <-read.proceed:
+		msg = read.msg
+	case <-s.halt.ReqStop.Chan:
+		return nil, ErrShutdown()
+	}
+	return
+}
+
+func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
+
+	isCli := conn.(*simnetConn).isCli
+
+	vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", who(isCli), msg.HDR.Serial)
+
+	send := newSendMop(msg, isCli)
+	send.initTm = time.Now()
+	select {
+	case s.msgSendCh <- send:
+	case <-s.halt.ReqStop.Chan:
+		return ErrShutdown()
+	}
+	select {
+	case <-send.proceed:
+	case <-s.halt.ReqStop.Chan:
+		return ErrShutdown()
+	}
+	return nil
+}
+
+func newTimerMop(isCli bool) (op *mop) {
 	op = &mop{
 		originCli: isCli,
 		sn:        simnetNextMopSn(),
 		kind:      TIMER,
+		proceed:   make(chan struct{}),
+	}
+	return
+}
+
+func newReadMop(isCli bool) (op *mop) {
+	op = &mop{
+		originCli: isCli,
+		sn:        simnetNextMopSn(),
+		kind:      READ,
+		proceed:   make(chan struct{}),
+	}
+	return
+}
+
+func newSendMop(msg *Message, isCli bool) (op *mop) {
+	op = &mop{
+		originCli: isCli,
+		msg:       msg,
+		sn:        simnetNextMopSn(),
+		kind:      SEND,
 		proceed:   make(chan struct{}),
 	}
 	return
