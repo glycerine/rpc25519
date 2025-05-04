@@ -55,9 +55,9 @@ type simnode struct {
 func (s *simnet) newSimnode(name string) *simnode {
 	return &simnode{
 		name:    name,
-		readQ:   newPQ(),     // ascending LC order
-		preArrQ: newPQ(),     // ascending LC order
-		timerQ:  newPQtime(), // ascending time.Time order
+		readQ:   newPQinitTm(),
+		preArrQ: newPQinitTm(),
+		timerQ:  newPQcompleteTm(),
 		net:     s,
 	}
 }
@@ -216,7 +216,7 @@ func (op *mop) String() string {
 	var verb string
 	switch op.kind {
 	case SEND:
-		verb = fmt.Sprintf("happend at %v", op.completeTm)
+		verb = fmt.Sprintf("init at %v", op.initTm)
 	case READ:
 		verb = "initiated"
 	case TIMER:
@@ -330,9 +330,9 @@ func (s *pq) add(op *mop) (added bool, it rb.Iterator) {
 	return
 }
 
-// order by mop.originLC, then mop.sn;
+// order by mop.initTm, then mop.sn;
 // for reads and sends (readQ and pre-arrival preArrQ).
-func newPQ() *pq {
+func newPQinitTm() *pq {
 	return &pq{
 		tree: rb.NewTree(func(a, b rb.Item) int {
 			av := a.(*mop)
@@ -356,15 +356,17 @@ func newPQ() *pq {
 				return 0 // pointer equality is immediate
 			}
 
-			if av.originLC < bv.originLC {
+			if av.initTm.Before(bv.initTm) {
 				return -1
 			}
-			if av.originLC > bv.originLC {
+			if av.initTm.After(bv.initTm) {
 				return 1
 			}
-			// INVAR originLC equal, delivery order should not matter?
-			// could just use mop.sn ? yes, b/c want determinism/repeatability.
-			// but this is not really deterministic, is it?!!!
+			// INVAR initTm equal, but delivery order should not matter...
+			// we can check that with chaos tests... to break ties here
+			// could just use mop.sn ? try, b/c want determinism/repeatability...
+			// but this is not really deterministic, is it?!!! different
+			// goro can create their sn first...
 			if av.sn < bv.sn {
 				return -1
 			}
@@ -374,44 +376,44 @@ func newPQ() *pq {
 			// must be the same if same sn.
 			return 0
 
-			// if av.completeTm.Before(bv.completeTm) {
+			// // if av.completeTm.Before(bv.completeTm) {
+			// // 	return -1
+			// // }
+			// // if av.completeTm.After(bv.completeTm) {
+			// // 	return 1
+			// // }
+			//
+			// // Hopefully not, but just in case...
+			// // av.msg could be nil (so could bv.msg)
+			// if av.msg == nil && bv.msg == nil {
+			// 	return 0
+			// }
+			// if av.msg == nil {
 			// 	return -1
 			// }
-			// if av.completeTm.After(bv.completeTm) {
+			// if bv.msg == nil {
 			// 	return 1
 			// }
-
-			// Hopefully not, but just in case...
-			// av.msg could be nil (so could bv.msg)
-			if av.msg == nil && bv.msg == nil {
-				return 0
-			}
-			if av.msg == nil {
-				return -1
-			}
-			if bv.msg == nil {
-				return 1
-			}
-
-			if av.msg.HDR.CallID == bv.msg.HDR.CallID {
-				if av.msg.HDR.Serial == bv.msg.HDR.Serial {
-					return 0
-				}
-				if av.msg.HDR.Serial < bv.msg.HDR.Serial {
-					return -1
-				}
-				return 1
-			}
-			if av.msg.HDR.CallID < bv.msg.HDR.CallID {
-				return -1
-			}
-			return 1
+			//
+			// if av.msg.HDR.CallID == bv.msg.HDR.CallID {
+			// 	if av.msg.HDR.Serial == bv.msg.HDR.Serial {
+			// 		return 0
+			// 	}
+			// 	if av.msg.HDR.Serial < bv.msg.HDR.Serial {
+			// 		return -1
+			// 	}
+			// 	return 1
+			// }
+			// if av.msg.HDR.CallID < bv.msg.HDR.CallID {
+			// 	return -1
+			// }
+			// return 1
 		}),
 	}
 }
 
-// order by mop.when then mop.sn; for timers
-func newPQtime() *pq {
+// order by mop.completeTm then mop.sn; for timers
+func newPQcompleteTm() *pq {
 	return &pq{
 		tree: rb.NewTree(func(a, b rb.Item) int {
 			av := a.(*mop)
@@ -453,39 +455,39 @@ func newPQtime() *pq {
 			// must be the same if same sn.
 			return 0
 
-			// if av.completeTm.Before(bv.completeTm) {
+			// // if av.initTm.Before(bv.initTm) {
+			// // 	return -1
+			// // }
+			// // if av.initTm.After(bv.initTm) {
+			// // 	return 1
+			// // }
+			//
+			// // Hopefully not, but just in case...
+			// // av.msg could be nil (so could bv.msg)
+			// if av.msg == nil && bv.msg == nil {
+			// 	return 0
+			// }
+			// if av.msg == nil {
 			// 	return -1
 			// }
-			// if av.completeTm.After(bv.completeTm) {
+			// if bv.msg == nil {
 			// 	return 1
 			// }
-
-			// Hopefully not, but just in case...
-			// av.msg could be nil (so could bv.msg)
-			if av.msg == nil && bv.msg == nil {
-				return 0
-			}
-			if av.msg == nil {
-				return -1
-			}
-			if bv.msg == nil {
-				return 1
-			}
-			// INVAR: a.completeTm == b.completeTm
-
-			if av.msg.HDR.CallID == bv.msg.HDR.CallID {
-				if av.msg.HDR.Serial == bv.msg.HDR.Serial {
-					return 0
-				}
-				if av.msg.HDR.Serial < bv.msg.HDR.Serial {
-					return -1
-				}
-				return 1
-			}
-			if av.msg.HDR.CallID < bv.msg.HDR.CallID {
-				return -1
-			}
-			return 1
+			// // INVAR: a.initTm == b.initTm if we uncomment above.
+			//
+			// if av.msg.HDR.CallID == bv.msg.HDR.CallID {
+			// 	if av.msg.HDR.Serial == bv.msg.HDR.Serial {
+			// 		return 0
+			// 	}
+			// 	if av.msg.HDR.Serial < bv.msg.HDR.Serial {
+			// 		return -1
+			// 	}
+			// 	return 1
+			// }
+			// if av.msg.HDR.CallID < bv.msg.HDR.CallID {
+			// 	return -1
+			// }
+			// return 1
 		}),
 	}
 }
@@ -640,24 +642,25 @@ func (node *simnode) dispatchSendsReadsTimers() (bump time.Duration) {
 		// until the read attempts (our pre-arrival queue).
 
 		// Causality demands however that
-		// a read can complete only after
-		// a send was initated, in realtime.
+		// a read can complete only after it was initiated;
+		// and can be matched only to a send already initated.
 
 		// To keep from violating causality,
 		// during our chaos testing, we want
-		// to make sure that the read completion
+		// to make sure that the read completion (now)
 		// cannot happen before the send initiation.
-		//
-		// So we'll need to advance the wall
-		// clock time if we match a pair to
-		// at least the send initiation. This
-		// mininum is the lower bound (instantaneous
-		// communication) and we can always
-		// add delays on top.
-		if send.completeTm.After(now) {
-			bump = send.completeTm.Sub(now)
-			// hold off on delivery until the
-			// scheduler advances by this bump.
+		// Also forbid any reads that have not happened
+		// "yet" (now), should they get rearranged by chaos.
+		if now.Before(read.initTm) { // now < read.initTm
+			// are we done? since readQ is ordered
+			// by initTm, all subsequent reads in it
+			// will have even higher initTm.
+			return
+		}
+		if now.Before(send.initTm) { // now < send.initTm
+			// are we done? since preArrQ is ordered
+			// by initTm, all subsequent pre-arrivals (sends)
+			// will have even higher initTm.
 			return
 		}
 
@@ -672,6 +675,7 @@ func (node *simnode) dispatchSendsReadsTimers() (bump time.Duration) {
 		read.readerLC = node.LC
 		read.senderLC = send.senderLC
 		send.readerLC = node.LC
+		read.completeTm = now
 
 		// matchmaking
 		vv("[1]matchmaking send '%v' -> read '%v'", send, read)
