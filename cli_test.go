@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	cv "github.com/glycerine/goconvey/convey"
@@ -179,10 +180,12 @@ func (BuiltinTypes) WantsContext(ctx context.Context, args *Args, reply *[2]int)
 // to build here without conflict over who is the real Server{}.
 func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 
-	cv.Convey("basic TCP with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.", t, func() {
+	//cv.Convey("basic TCP with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.", t, func() {
 
+	synctest.Run(func() {
 		cfg := NewConfig()
-		cfg.TCPonly_no_TLS = true
+		//orig cfg.TCPonly_no_TLS = true
+		cfg.UseSimNet = true
 
 		path := GetPrivateCertificateAuthDir() + sep + "psk.binary"
 		panicOn(setupPSK(path))
@@ -400,8 +403,10 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 			}
 		*/
 
-		cv.So(true, cv.ShouldBeTrue)
+		//cv.So(true, cv.ShouldBeTrue)
+		vv("good: end of 006 test")
 	})
+	//})
 }
 
 // and with TLS

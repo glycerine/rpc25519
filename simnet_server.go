@@ -60,6 +60,10 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	if boundCh != nil {
 		select {
 		case boundCh <- netAddr:
+			// like the srv comment, this exception to
+			// using the simnet TimeAfter is fine,
+			// as obvious it gets created just below and
+			// the server is not up yet.
 		case <-time.After(100 * time.Millisecond):
 		}
 	}

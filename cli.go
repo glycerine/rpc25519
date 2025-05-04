@@ -1734,7 +1734,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 		// let loop assign Seqno.
 	}
 
-	//vv("Client '%v' SendAndGetReply(req='%v') (ignore req.Seqno:0 not yet assigned)", c.name, req)
+	vv("Client '%v' SendAndGetReply(req='%v') (ignore req.Seqno:0 not yet assigned)", c.name, req)
 	select {
 	case c.roundTripCh <- req:
 		// proceed
@@ -1761,7 +1761,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 		return nil, ErrShutdown()
 	}
 
-	//vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req)
+	vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req)
 
 	select {
 	case <-req.DoneCh.WhenClosed():

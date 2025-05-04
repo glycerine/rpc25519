@@ -45,6 +45,7 @@ type simnet struct {
 	addTimer      chan *mop
 	newScenarioCh chan *scenario
 	nextTimer     *time.Timer
+	lastArmTm     time.Time
 }
 
 type simnode struct {
@@ -59,9 +60,9 @@ type simnode struct {
 func (s *simnet) newSimnode(name string) *simnode {
 	return &simnode{
 		name:    name,
-		readQ:   newPQinitTm(),
-		preArrQ: s.newPQarrivalTm(),
-		timerQ:  newPQcompleteTm(),
+		readQ:   newPQinitTm(name + " readQ "),
+		preArrQ: s.newPQarrivalTm(name + " preArrQ "),
+		timerQ:  newPQcompleteTm(name + " timerQ "),
 		net:     s,
 	}
 }
@@ -186,7 +187,7 @@ func (s *scenario) rngTieBreaker() int {
 
 func (pq *pq) String() (r string) {
 	i := 0
-	r = fmt.Sprintf("\n ------- %v --------\n", pq.name)
+	r = fmt.Sprintf("\n ------- %v %v PQ --------\n", pq.owner, pq.orderby)
 	for it := pq.tree.Min(); it != pq.tree.Limit(); it = it.Next() {
 
 		item := it.Item() // interface{}
@@ -198,7 +199,7 @@ func (pq *pq) String() (r string) {
 		i++
 	}
 	if i == 0 {
-		r = fmt.Sprintf("empty PQ\n")
+		r += fmt.Sprintf("empty PQ\n")
 	}
 	return
 }
@@ -293,8 +294,9 @@ func who(isCli bool) string {
 }
 
 type pq struct {
-	name string
-	tree *rb.Tree
+	owner   string
+	orderby string
+	tree    *rb.Tree
 }
 
 func (s *pq) peek() *mop {
@@ -324,8 +326,10 @@ func (s *pq) add(op *mop) (added bool, it rb.Iterator) {
 }
 
 // order by arrivalTm; for the pre-arrival preArrQ.
-func (s *simnet) newPQarrivalTm() *pq {
+func (s *simnet) newPQarrivalTm(owner string) *pq {
 	return &pq{
+		owner:   owner,
+		orderby: "arrivalTm",
 		tree: rb.NewTree(func(a, b rb.Item) int {
 			av := a.(*mop)
 			bv := b.(*mop)
@@ -363,8 +367,10 @@ func (s *simnet) newPQarrivalTm() *pq {
 
 // order by mop.initTm, then mop.sn;
 // for reads (readQ).
-func newPQinitTm() *pq {
+func newPQinitTm(owner string) *pq {
 	return &pq{
+		owner:   owner,
+		orderby: "initTm",
 		tree: rb.NewTree(func(a, b rb.Item) int {
 			av := a.(*mop)
 			bv := b.(*mop)
@@ -444,8 +450,10 @@ func newPQinitTm() *pq {
 }
 
 // order by mop.completeTm then mop.sn; for timers
-func newPQcompleteTm() *pq {
+func newPQcompleteTm(owner string) *pq {
 	return &pq{
+		owner:   owner,
+		orderby: "completeTm",
 		tree: rb.NewTree(func(a, b rb.Item) int {
 			av := a.(*mop)
 			bv := b.(*mop)
@@ -524,7 +532,7 @@ func newPQcompleteTm() *pq {
 }
 
 func (s *simnet) handleSend(send *mop) {
-	//vv("top of handleSend(send = '%v')", send)
+	////vv("top of handleSend(send = '%v')", send)
 
 	if send.seen == 0 {
 		if send.originCli {
@@ -542,15 +550,13 @@ func (s *simnet) handleSend(send *mop) {
 	}
 
 	if send.originCli {
-		lc := s.clinode.LC
 		s.srvnode.preArrQ.add(send)
-		vv("cli.LC:%v  SEND TO SERVER %v", lc, send)
-		//vv("cli.LC:%v  SEND TO SERVER %v    srvPreArrQ: '%v'", lc, send, s.srvnode.preArrQ)
+		//vv("cli.LC:%v  SEND TO SERVER %v", s.clinode.LC, send)
+		////vv("cli.LC:%v  SEND TO SERVER %v    srvPreArrQ: '%v'", s.clinode.LC, send, s.srvnode.preArrQ)
 	} else {
-		lc := s.srvnode.LC
 		s.clinode.preArrQ.add(send)
-		vv("srv.LC:%v  SEND TO CLIENT %v", lc, send)
-		//vv("srv.LC:%v  SEND TO CLIENT %v    cliPreArrQ: '%v'", lc, send, s.clinode.preArrQ)
+		//vv("srv.LC:%v  SEND TO CLIENT %v", s.srvnode.LC, send)
+		////vv("srv.LC:%v  SEND TO CLIENT %v    cliPreArrQ: '%v'", s.srvnode.LC, send, s.clinode.preArrQ)
 	}
 	// rpc25519 peer/ckt/frag does async sends, so let
 	// the sender keep going.
@@ -563,7 +569,7 @@ func (s *simnet) handleSend(send *mop) {
 }
 
 func (s *simnet) handleRead(read *mop) {
-	//vv("top of handleRead(read = '%v')", read)
+	////vv("top of handleRead(read = '%v')", read)
 
 	if read.seen == 0 {
 		if read.originCli {
@@ -584,17 +590,18 @@ func (s *simnet) handleRead(read *mop) {
 
 	if read.originCli {
 		s.clinode.readQ.add(read)
-		vv("cliLC:%v  READ at CLIENT: %v", s.clinode.LC, read)
-		//vv("cliLC:%v  READ %v at CLIENT, now cliReadQ: '%v'", s.clinode.LC, read, s.clinode.readQ)
+		//vv("cliLC:%v  READ at CLIENT: %v", s.clinode.LC, read)
+		////vv("cliLC:%v  READ %v at CLIENT, now cliReadQ: '%v'", s.clinode.LC, read, s.clinode.readQ)
 		s.clinode.dispatchSendsReadsTimers()
 	} else {
 		s.srvnode.readQ.add(read)
-		vv("srvLC:%v  READ at SERVER: %v", s.srvnode.LC, read)
-		//vv("srvLC:%v  READ %v at SERVER, now srvReadQ: '%v'", s.srvnode.LC, read, s.srvnode.readQ)
+		//vv("srvLC:%v  READ at SERVER: %v", s.srvnode.LC, read)
+		////vv("srvLC:%v  READ %v at SERVER, now srvReadQ: '%v'", s.srvnode.LC, read, s.srvnode.readQ)
 		s.srvnode.dispatchSendsReadsTimers()
 	}
 }
 
+// calls node.net.armTimer() at the end.
 func (node *simnode) dispatchSendsReadsTimers() (bump time.Duration) {
 
 	// to be deleted at the end, so
@@ -613,18 +620,19 @@ func (node *simnode) dispatchSendsReadsTimers() (bump time.Duration) {
 	defer func() {
 		// take care of any deferred-to-keep-sane iteration deletes
 		for _, op := range preDel {
-			//vv("delete '%v'", op)
+			////vv("delete '%v'", op)
 			node.preArrQ.tree.DeleteWithKey(op)
 		}
 		for _, op := range readDel {
-			//vv("delete '%v'", op)
+			////vv("delete '%v'", op)
 			node.readQ.tree.DeleteWithKey(op)
 		}
 		for _, op := range timerDel {
-			//vv("delete '%v'", op)
+			////vv("delete '%v'", op)
 			node.timerQ.tree.DeleteWithKey(op)
 		}
-		//vv("=== end of dispatchSendsReadsTimers %v", node.name)
+		node.net.armTimer()
+		////vv("=== end of dispatchSendsReadsTimers %v", node.name)
 	}()
 
 	nT := node.timerQ.tree.Len()  // number of timers
@@ -646,21 +654,20 @@ func (node *simnode) dispatchSendsReadsTimers() (bump time.Duration) {
 	for ; timerIt != node.timerQ.tree.Limit(); timerIt = timerIt.Next() {
 
 		timer := timerIt.Item().(*mop)
-		vv("check TIMER: %v", timer)
+		//vv("check TIMER: %v", timer)
 
 		if !now.Before(timer.completeTm) {
 			// timer.completeTm <= now
-			vv("have TIMER firing")
+			//vv("have TIMER firing")
 			timerDel = append(timerDel, timer)
 			select {
 			case timer.timerC <- now:
-				vv("sent on timerC")
+				//vv("sent on timerC")
 			case <-node.net.halt.ReqStop.Chan:
 				return
 			}
 		} else {
 			// smallest timer > now
-			node.net.armTimer()
 			break // check send->read next, don't return yet.
 		}
 	}
@@ -722,7 +729,7 @@ func (node *simnode) dispatchSendsReadsTimers() (bump time.Duration) {
 		read.msg = send.msg.CopyForSimNetSend()
 		// advance our logical clock
 		node.LC = max(node.LC, send.originLC) + 1
-		//vv("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, node.LC, node.LC-read.originLC, read.sn)
+		////vv("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, node.LC, node.LC-read.originLC, read.sn)
 
 		// track clocks on either end for this send and read.
 		read.readerLC = node.LC
@@ -732,7 +739,7 @@ func (node *simnode) dispatchSendsReadsTimers() (bump time.Duration) {
 		read.arrivalTm = send.arrivalTm // easier diagnostics
 
 		// matchmaking
-		vv("[1]matchmaking send '%v' -> read '%v'", send, read)
+		//vv("[1]matchmaking send '%v' -> read '%v'", send, read)
 		read.sendmop = send
 		send.readmop = read
 
@@ -755,8 +762,18 @@ func (node *simnode) dispatchSendsReadsTimers() (bump time.Duration) {
 	}
 }
 
+func (s *simnet) qReport() (r string) {
+	for _, node := range s.nodes {
+		r += node.name + " Q summary:\n"
+		r += node.readQ.String()
+		r += node.preArrQ.String()
+		r += node.timerQ.String()
+	}
+	return
+}
+
 func (s *simnet) Start() {
-	//vv("simnet.Start() top")
+	////vv("simnet.Start() top")
 
 	go func() {
 
@@ -765,7 +782,7 @@ func (s *simnet) Start() {
 		// get a client before anything else.
 		select {
 		case s.cli = <-s.cliReady:
-			//vv("simnet got cli")
+			////vv("simnet got cli")
 		case <-s.halt.ReqStop.Chan:
 			return
 		}
@@ -782,31 +799,36 @@ func (s *simnet) Start() {
 			// advance time by one tick
 			time.Sleep(s.scenario.tick)
 			synctest.Wait()
-			//vv("scheduler top cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
+			now := time.Now()
+			_ = now
+			////vv("scheduler top cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
+			vv("scheduler top lastArmTm.After(now) = %v [%v out] %v; qReport = '%v'", s.lastArmTm.After(now), s.lastArmTm.Sub(now), s.lastArmTm, s.qReport())
 
 			s.clinode.dispatchSendsReadsTimers()
 			s.srvnode.dispatchSendsReadsTimers()
 
 			select {
 			case alert := <-s.nextTimer.C: // soonest timer fires
-				vv("s.nextTimer -> alerted at %v", alert)
+				_ = alert
+				//vv("s.nextTimer -> alerted at %v", alert)
 				s.clinode.dispatchSendsReadsTimers()
 				s.srvnode.dispatchSendsReadsTimers()
+				s.armTimer()
 
 			case scenario := <-s.newScenarioCh:
 				s.finishScenario()
 				s.initScenario(scenario)
 
 			case timer := <-s.addTimer:
-				vv("addTimer ->  op='%v'", timer)
+				//vv("addTimer ->  op='%v'", timer)
 				s.handleTimer(timer)
 
 			case send := <-s.msgSendCh:
-				//vv("msgSendCh ->  op='%v'", send)
+				////vv("msgSendCh ->  op='%v'", send)
 				s.handleSend(send)
 
 			case read := <-s.msgReadCh:
-				//vv("msgReadCh ->  op='%v'", read)
+				////vv("msgReadCh ->  op='%v'", read)
 				s.handleRead(read)
 
 			case <-s.halt.ReqStop.Chan:
@@ -837,7 +859,7 @@ func (s *simnet) handleTimer(timer *mop) {
 		lc = s.clinode.LC
 	}
 	_, _ = who, lc
-	vv("handleTimer() %v  TIMER SET; LC = %v", who, lc)
+	//vv("handleTimer() %v  TIMER SET; LC = %v", who, lc)
 
 	if timer.seen == 0 {
 		if timer.originCli {
@@ -854,10 +876,10 @@ func (s *simnet) handleTimer(timer *mop) {
 
 	if timer.originCli {
 		s.clinode.timerQ.add(timer)
-		//vv("cli.LC:%v CLIENT set TIMER %v to fire at '%v'; now timerQ: '%v'", s.clinode.LC, timer, timer.completeTm, s.clinode.timerQ)
+		////vv("cli.LC:%v CLIENT set TIMER %v to fire at '%v'; now timerQ: '%v'", s.clinode.LC, timer, timer.completeTm, s.clinode.timerQ)
 	} else {
 		s.srvnode.timerQ.add(timer)
-		//vv("srv.LC:%v SERVER set TIMER %v to fire at '%v'; now timerQ: '%v'", s.srvnode.LC, timer, timer.completeTm, s.srvnode.timerQ)
+		////vv("srv.LC:%v SERVER set TIMER %v to fire at '%v'; now timerQ: '%v'", s.srvnode.LC, timer, timer.completeTm, s.srvnode.timerQ)
 	}
 
 	s.armTimer()
@@ -874,7 +896,8 @@ func (s *simnet) armTimer() {
 	}
 	now := time.Now()
 	dur := minTimer.completeTm.Sub(now)
-	//vv("dur=%v = when(%v) - now(%v)", dur, minTimer.completeTm, now)
+	////vv("dur=%v = when(%v) - now(%v)", dur, minTimer.completeTm, now)
+	s.lastArmTm = now
 	s.nextTimer.Reset(dur)
 }
 
@@ -928,7 +951,7 @@ func (s *simnet) createNewTimer(dur time.Duration, begin time.Time, isCli bool) 
 		who = "CLIENT"
 	}
 	_ = who
-	vv("top simnet.createNewTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", who, dur, begin, begin.Add(dur))
+	//vv("top simnet.createNewTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", who, dur, begin, begin.Add(dur))
 
 	timer := newTimerMop(isCli)
 	timer.timerDur = dur
@@ -954,7 +977,7 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 
 	isCli := conn.(*simnetConn).isCli
 
-	vv("top simnet.readMessage() %v READ", who(isCli))
+	//vv("top simnet.readMessage() %v READ", who(isCli))
 
 	read := newReadMop(isCli)
 	read.initTm = time.Now()
@@ -977,7 +1000,7 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) e
 
 	isCli := conn.(*simnetConn).isCli
 
-	vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", who(isCli), msg.HDR.Serial)
+	//vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", who(isCli), msg.HDR.Serial)
 
 	send := newSendMop(msg, isCli)
 	send.initTm = time.Now()
