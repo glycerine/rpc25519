@@ -531,16 +531,16 @@ func (s *simnet) handleRead(read *mop) {
 		s.clinode.readQ.add(read)
 		vv("cliLC:%v  READ at CLIENT: %v", s.clinode.LC, read)
 		//vv("cliLC:%v  READ %v at CLIENT, now cliReadQ: '%v'", s.clinode.LC, read, s.clinode.readQ)
-		s.clinode.serviceReads()
+		s.clinode.dispatchSendsReadsTimers()
 	} else {
 		s.srvnode.readQ.add(read)
 		vv("srvLC:%v  READ at SERVER: %v", s.srvnode.LC, read)
 		//vv("srvLC:%v  READ %v at SERVER, now srvReadQ: '%v'", s.srvnode.LC, read, s.srvnode.readQ)
-		s.srvnode.serviceReads()
+		s.srvnode.dispatchSendsReadsTimers()
 	}
 }
 
-func (node *simnode) serviceReads() {
+func (node *simnode) dispatchSendsReadsTimers() {
 
 	// to be deleted at the end, so
 	// we don't dirupt the iteration order
@@ -549,9 +549,32 @@ func (node *simnode) serviceReads() {
 	var readDel []*mop
 	var timerDel []*mop
 
-	nT := node.timerQ.tree.Len()
-	nR := node.readQ.tree.Len()
-	nS := node.preArrQ.tree.Len()
+	// We had an early bug from returning early and
+	// forgetting about preDel, readDel, timerDel
+	// that were waiting for deletion at
+	// the end. Doing the deletes here in
+	// a defer allows us to return safely at any
+	// point, and still do the required cleanup.
+	defer func() {
+		// take care of any deferred-to-keep-sane iteration deletes
+		for _, op := range preDel {
+			//vv("delete '%v'", op)
+			node.preArrQ.tree.DeleteWithKey(op)
+		}
+		for _, op := range readDel {
+			//vv("delete '%v'", op)
+			node.readQ.tree.DeleteWithKey(op)
+		}
+		for _, op := range timerDel {
+			//vv("delete '%v'", op)
+			node.timerQ.tree.DeleteWithKey(op)
+		}
+		//vv("=== end of dispatchSendsReadsTimers %v", node.name)
+	}()
+
+	nT := node.timerQ.tree.Len()  // number of timers
+	nR := node.readQ.tree.Len()   // number of reads
+	nS := node.preArrQ.tree.Len() // number of sends
 
 	if nT == 0 && nR == 0 && nS == 0 {
 		return
@@ -559,14 +582,15 @@ func (node *simnode) serviceReads() {
 
 	readIt := node.readQ.tree.Min()
 	preIt := node.preArrQ.tree.Min()
+	timerIt := node.timerQ.tree.Min()
 
 	now := time.Now()
 
-	// do timers 1st, so we can exit
-	// if no sends and reads match.
-	for timerit := node.timerQ.tree.Min(); timerit != node.timerQ.tree.Limit(); timerit = timerit.Next() {
+	// do timers first, so we can exit
+	// immediately if no sends and reads match.
+	for ; timerIt != node.timerQ.tree.Limit(); timerIt = timerIt.Next() {
 
-		timer := timerit.Item().(*mop)
+		timer := timerIt.Item().(*mop)
 		vv("check TIMER: %v", timer)
 
 		if !now.Before(timer.when) {
@@ -581,17 +605,16 @@ func (node *simnode) serviceReads() {
 			}
 		} else {
 			// smallest timer > now
-			break
+			break // check send->read next, don't return yet.
 		}
 	}
 
 	for {
-
 		if readIt == node.readQ.tree.Limit() {
-			break
+			return
 		}
 		if preIt == node.preArrQ.tree.Limit() {
-			break
+			return
 		}
 
 		read := readIt.Item().(*mop)
@@ -610,7 +633,11 @@ func (node *simnode) serviceReads() {
 		//if read.originLC > send.originLC {
 
 		// service this read with this send
-		read.msg = send.msg // TODO clone()?
+
+		// *** here is where we could re-order
+		// messages in a chaos test.
+
+		read.msg = send.msg.CopyForSimNetSend()
 		// advance our clock
 		node.LC = max(node.LC, send.originLC) + 1
 		//vv("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, node.LC, node.LC-read.originLC, read.sn)
@@ -634,26 +661,9 @@ func (node *simnode) serviceReads() {
 		readIt = readIt.Next()
 		preIt = preIt.Next()
 		//} else {
-		// smallest read.originLC <= smallest send.originLC
+		// INVAR: smallest read.originLC <= smallest send.originLC
 		//}
 	}
-
-	// take care of any deletes
-	for _, op := range preDel {
-		//vv("delete '%v'", op)
-		node.preArrQ.tree.DeleteWithKey(op)
-	}
-	for _, op := range readDel {
-		//vv("delete '%v'", op)
-		node.readQ.tree.DeleteWithKey(op)
-	}
-	for _, op := range timerDel {
-		//vv("delete '%v'", op)
-		node.timerQ.tree.DeleteWithKey(op)
-	}
-
-	//vv("=== end of serviceReads %v", node.name)
-
 }
 
 func (s *simnet) Start() {
@@ -689,14 +699,14 @@ func (s *simnet) Start() {
 			synctest.Wait()
 			//vv("scheduler top cli.LC = %v ; srv.LC = %v", s.clinode.LC, s.srvnode.LC)
 
-			s.clinode.serviceReads() // and timers
-			s.srvnode.serviceReads() // and timers
+			s.clinode.dispatchSendsReadsTimers()
+			s.srvnode.dispatchSendsReadsTimers()
 
 			select {
 			case now := <-s.nextTimer.C: // timer fires
 				vv("s.nextTimer -> now %v", now)
-				s.clinode.serviceReads() // and timers
-				s.srvnode.serviceReads() // and timers
+				s.clinode.dispatchSendsReadsTimers()
+				s.srvnode.dispatchSendsReadsTimers()
 
 			case scenario := <-s.newScenarioCh:
 				s.finishScenario()
