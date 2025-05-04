@@ -670,9 +670,11 @@ func (node *simnode) dispatch() (bump time.Duration) {
 			// timer.completeTm <= now
 			//vv("have TIMER firing")
 			timerDel = append(timerDel, timer)
-			select {
+			select { // hung here! how long should we wait.. why cannot deliver? what does the timer do? default: nothing case.
 			case timer.timerC <- now:
 				//vv("sent on timerC")
+			case <-time.After(time.Millisecond * 10):
+				panic("giving up on timer?!? why blocked? or must we ignore?")
 			case <-node.net.halt.ReqStop.Chan:
 				return
 			}
@@ -790,8 +792,21 @@ func (s *simnet) Start() {
 	go s.scheduler()
 }
 
+func (s *simnet) schedulerReport() string {
+	now := time.Now()
+	return fmt.Sprintf("lastArmTm.After(now) = %v [%v out] %v; qReport = '%v'", s.lastArmTm.After(now), s.lastArmTm.Sub(now), s.lastArmTm, s.qReport())
+}
+
 // makes it clear on a stack trace which goro this is.
 func (s *simnet) scheduler() {
+
+	defer func() {
+		r := recover()
+		if r != nil {
+			vv("scheduler panic-ing: %v", s.schedulerReport())
+			panic(r)
+		}
+	}()
 
 	// init phase
 
@@ -815,10 +830,17 @@ func (s *simnet) scheduler() {
 		now := time.Now()
 		_ = now
 		////vv("scheduler top cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
-		vv("scheduler top lastArmTm.After(now) = %v [%v out] %v; qReport = '%v'", s.lastArmTm.After(now), s.lastArmTm.Sub(now), s.lastArmTm, s.qReport())
+		vv("scheduler top %v", s.schedulerReport())
 
+		// easier debugging
 		s.clinode.dispatch()
 		s.srvnode.dispatch()
+
+		// vs. eventually
+		//for _, node := range s.nodes {
+		//	node.dispatch()
+		//}
+		s.armTimer()
 
 		// advance time by one tick
 		time.Sleep(s.scenario.tick)

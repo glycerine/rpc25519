@@ -186,6 +186,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		cfg := NewConfig()
 		//orig cfg.TCPonly_no_TLS = true
 		cfg.UseSimNet = true
+		cfg.ServerSendKeepAlive = time.Second * 10
 
 		path := GetPrivateCertificateAuthDir() + sep + "psk.binary"
 		panicOn(setupPSK(path))
