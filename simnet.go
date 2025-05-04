@@ -675,15 +675,15 @@ func (s *simnet) Start() {
 				s.initScenario(scenario)
 
 			case timer := <-s.addTimer:
-				vv("have TIMER from <-addTimer: op='%v'", timer)
+				vv("addTimer ->  op='%v'", timer)
 				s.handleTimer(timer)
 
 			case send := <-s.msgSendCh:
-				vv("have SEND from <-msgSendCh: op='%v'", send)
+				vv("msgSendCh ->  op='%v'", send)
 				s.handleSend(send)
 
 			case read := <-s.msgReadCh:
-				vv("have READ from <-msgReadCh: op='%v'", read)
+				vv("msgReadCh ->  op='%v'", read)
 				s.handleRead(read)
 
 			case <-s.halt.ReqStop.Chan:
