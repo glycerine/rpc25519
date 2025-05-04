@@ -91,8 +91,8 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 		newScenarioCh: make(chan *scenario),
 		scenario:      scen,
 	}
-	s.clinode = s.newSimnode("cli")
-	s.srvnode = s.newSimnode("srv")
+	s.clinode = s.newSimnode("CLIENT")
+	s.srvnode = s.newSimnode("SERVER")
 
 	// let client find the shared simnet in their cfg.
 	cfg.simnetRendezvous.simnet = s
@@ -627,7 +627,7 @@ func (node *simnode) serviceReads() {
 		node.timerQ.tree.DeleteWithKey(op)
 	}
 
-	vv("=== end of serviceReads %v ===", node.name)
+	vv("=== end of serviceReads %v", node.name)
 
 }
 
