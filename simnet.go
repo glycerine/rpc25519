@@ -598,7 +598,7 @@ func (node *simnode) serviceReads() {
 		read.msg = send.msg // TODO clone()?
 		// advance our clock
 		node.LC = max(node.LC, send.originLC) + 1
-		vv("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, node.LC, node.LC-read.originLC, read.sn)
+		//vv("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, node.LC, node.LC-read.originLC, read.sn)
 
 		// track clocks on either end for this send and read.
 		read.readerLC = node.LC
@@ -637,7 +637,7 @@ func (node *simnode) serviceReads() {
 		node.timerQ.tree.DeleteWithKey(op)
 	}
 
-	vv("=== end of serviceReads %v", node.name)
+	//vv("=== end of serviceReads %v", node.name)
 
 }
 
