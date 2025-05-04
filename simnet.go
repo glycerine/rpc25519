@@ -496,16 +496,18 @@ func (s *simnet) handleSend(send *mop) {
 	if send.originCli {
 		lc := s.clinode.LC
 		s.srvnode.preArrQ.add(send)
-		vv("cli.LC:%v  SEND TO SERVER %v    srvPreArrQ: '%v'", lc, send, s.srvnode.preArrQ)
+		vv("cli.LC:%v  SEND TO SERVER %v", lc, send)
+		//vv("cli.LC:%v  SEND TO SERVER %v    srvPreArrQ: '%v'", lc, send, s.srvnode.preArrQ)
 	} else {
 		lc := s.srvnode.LC
 		s.clinode.preArrQ.add(send)
-		vv("srv.LC:%v  SEND TO CLIENT %v    cliPreArrQ: '%v'", lc, send, s.clinode.preArrQ)
+		vv("srv.LC:%v  SEND TO CLIENT %v", lc, send)
+		//vv("srv.LC:%v  SEND TO CLIENT %v    cliPreArrQ: '%v'", lc, send, s.clinode.preArrQ)
 	}
 }
 
 func (s *simnet) handleRead(read *mop) {
-	vv("top of handleRead(read = '%v')", read)
+	//vv("top of handleRead(read = '%v')", read)
 
 	if read.seen == 0 {
 		if read.originCli {
@@ -670,7 +672,7 @@ func (s *simnet) Start() {
 			// have outstanding reads open always
 			// as they listen for messages.
 			synctest.Wait()
-			vv("scheduler top cli.LC = %v ; srv.LC = %v", s.clinode.LC, s.srvnode.LC)
+			//vv("scheduler top cli.LC = %v ; srv.LC = %v", s.clinode.LC, s.srvnode.LC)
 
 			s.clinode.serviceReads() // and timers
 			s.srvnode.serviceReads() // and timers
