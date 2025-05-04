@@ -56,7 +56,7 @@ func (s *simnet) newSimnode(name string) *simnode {
 	return &simnode{
 		name:    name,
 		readQ:   newPQinitTm(),
-		preArrQ: newPQinitTm(),
+		preArrQ: s.newPQarrivalTm(),
 		timerQ:  newPQcompleteTm(),
 		net:     s,
 	}
@@ -145,6 +145,21 @@ func newScenario(tick, hop time.Duration, seed [32]byte) *scenario {
 	}
 }
 
+func (s *simnet) rngTieBreaker() int {
+	rng := s.scenario.rng
+	for {
+		a := rng.Uint64()
+		b := rng.Uint64()
+		if a < b {
+			return -1
+		}
+		if a > b {
+			return 1
+		}
+		// loop and try again on ties.
+	}
+}
+
 func (pq *pq) String() (r string) {
 	i := 0
 	r = fmt.Sprintf("\n ------- %v --------\n", pq.name)
@@ -183,6 +198,9 @@ type mop struct {
 
 	// when was the operation initiated?
 	initTm time.Time
+
+	// when did the message arrive?
+	arrivalTm time.Time
 
 	// when: when the operation completes and
 	// control returns to user code.
@@ -330,8 +348,46 @@ func (s *pq) add(op *mop) (added bool, it rb.Iterator) {
 	return
 }
 
+// order by arrivalTm; for the pre-arrival preArrQ.
+func (s *simnet) newPQarrivalTm() *pq {
+	return &pq{
+		tree: rb.NewTree(func(a, b rb.Item) int {
+			av := a.(*mop)
+			bv := b.(*mop)
+
+			if av == bv {
+				return 0 // points to same memory (or both nil)
+			}
+			if av == nil {
+				// just a is nil; b is not. sort nils to the front
+				// so they get popped and GC-ed sooner (and
+				// don't become temporary memory leaks by sitting at the
+				// back of the queue.x
+				return -1
+			}
+			if bv == nil {
+				return 1
+			}
+			// INVAR: neither av nor bv is nil
+			if av == bv {
+				return 0 // pointer equality is immediate
+			}
+
+			if av.arrivalTm.Before(bv.arrivalTm) {
+				return -1
+			}
+			if av.arrivalTm.After(bv.arrivalTm) {
+				return 1
+			}
+			// INVAR arrivalTm equal, break ties
+			// with the permutor
+			return s.rngTieBreaker()
+		}),
+	}
+}
+
 // order by mop.initTm, then mop.sn;
-// for reads and sends (readQ and pre-arrival preArrQ).
+// for reads (readQ).
 func newPQinitTm() *pq {
 	return &pq{
 		tree: rb.NewTree(func(a, b rb.Item) int {
@@ -641,9 +697,9 @@ func (node *simnode) dispatchSendsReadsTimers() (bump time.Duration) {
 		// the kernel buffers the sends
 		// until the read attempts (our pre-arrival queue).
 
-		// Causality demands however that
-		// a read can complete only after it was initiated;
-		// and can be matched only to a send already initated.
+		// Causality also demands that
+		// a read can complete (now) only after it was initiated;
+		// and so can be matched (now) only to a send already initiated.
 
 		// To keep from violating causality,
 		// during our chaos testing, we want
@@ -657,14 +713,18 @@ func (node *simnode) dispatchSendsReadsTimers() (bump time.Duration) {
 			// will have even higher initTm.
 			return
 		}
+		// INVAR: this read.initTm <= now
 		if now.Before(send.initTm) { // now < send.initTm
 			// are we done? since preArrQ is ordered
 			// by initTm, all subsequent pre-arrivals (sends)
 			// will have even higher initTm.
 			return
 		}
+		// INVAR: this send.initTm <= now
 
-		// service this read with this send
+		// Since both have happened, they can be matched.
+
+		// Service this read with this send.
 
 		read.msg = send.msg.CopyForSimNetSend()
 		// advance our clock
