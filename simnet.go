@@ -812,9 +812,6 @@ func (s *simnet) scheduler() {
 		srvLC := s.srvnode.LC
 		_, _ = cliLC, srvLC
 
-		// advance time by one tick
-		time.Sleep(s.scenario.tick)
-		synctest.Wait()
 		now := time.Now()
 		_ = now
 		////vv("scheduler top cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
@@ -822,6 +819,10 @@ func (s *simnet) scheduler() {
 
 		s.clinode.dispatch()
 		s.srvnode.dispatch()
+
+		// advance time by one tick
+		time.Sleep(s.scenario.tick)
+		synctest.Wait()
 
 		select {
 		case alert := <-s.nextTimer.C: // soonest timer fires
