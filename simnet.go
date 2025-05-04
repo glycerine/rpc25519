@@ -33,6 +33,10 @@ type simnet struct {
 	clinode *simnode
 	srvnode *simnode
 
+	// for now just clinode and srvnode in nodes;
+	// plan is to add full network.
+	nodes []*simnode
+
 	cliReady chan *Client
 	halt     *idem.Halter // just srv.halt for now.
 
@@ -88,6 +92,8 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 	s.nextTimer.Stop()
 	s.clinode = s.newSimnode("CLIENT")
 	s.srvnode = s.newSimnode("SERVER")
+
+	s.nodes = []*simnode{s.clinode, s.srvnode}
 
 	// let client find the shared simnet in their cfg.
 	cfg.simnetRendezvous.mut.Lock()
@@ -654,6 +660,7 @@ func (node *simnode) dispatchSendsReadsTimers() (bump time.Duration) {
 			}
 		} else {
 			// smallest timer > now
+			node.net.armTimer()
 			break // check send->read next, don't return yet.
 		}
 	}
@@ -781,8 +788,8 @@ func (s *simnet) Start() {
 			s.srvnode.dispatchSendsReadsTimers()
 
 			select {
-			case now := <-s.nextTimer.C: // timer fires
-				vv("s.nextTimer -> now %v", now)
+			case alert := <-s.nextTimer.C: // soonest timer fires
+				vv("s.nextTimer -> alerted at %v", alert)
 				s.clinode.dispatchSendsReadsTimers()
 				s.srvnode.dispatchSendsReadsTimers()
 
@@ -832,7 +839,6 @@ func (s *simnet) handleTimer(timer *mop) {
 	_, _ = who, lc
 	vv("handleTimer() %v  TIMER SET; LC = %v", who, lc)
 
-	now := time.Now()
 	if timer.seen == 0 {
 		if timer.originCli {
 			timer.senderLC = s.clinode.LC
@@ -846,9 +852,7 @@ func (s *simnet) handleTimer(timer *mop) {
 	}
 	timer.seen++
 
-	timerQ := s.srvnode.timerQ
 	if timer.originCli {
-		timerQ = s.clinode.timerQ
 		lc := s.clinode.LC
 		s.clinode.timerQ.add(timer)
 		vv("cli.LC:%v CLIENT set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer, timer.completeTm, s.clinode.timerQ)
@@ -858,11 +862,39 @@ func (s *simnet) handleTimer(timer *mop) {
 		vv("srv.LC:%v SERVER set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer, timer.completeTm, s.srvnode.timerQ)
 	}
 
-	it := timerQ.tree.Min()
-	minTimer := it.Item().(*mop)
+	s.armTimer()
+}
+
+func (s *simnet) armTimer() {
+
+	var minTimer *mop
+	for _, node := range s.nodes {
+		minTimer = node.soonestTimerLessThan(minTimer)
+	}
+	if minTimer == nil {
+		return
+	}
+	now := time.Now()
 	dur := minTimer.completeTm.Sub(now)
-	vv("dur=%v = when(%v) - now(%v)", dur, minTimer.completeTm, now)
+	//vv("dur=%v = when(%v) - now(%v)", dur, minTimer.completeTm, now)
 	s.nextTimer.Reset(dur)
+}
+
+func (node *simnode) soonestTimerLessThan(bound *mop) *mop {
+	it := node.timerQ.tree.Min()
+	if it == node.timerQ.tree.Limit() {
+		// we have no timers
+		return bound
+	}
+	minTimer := it.Item().(*mop)
+	if bound == nil {
+		// no lower bound yet
+		return minTimer
+	}
+	if minTimer.completeTm.Before(bound.completeTm) {
+		return minTimer
+	}
+	return bound
 }
 
 //=========================================
