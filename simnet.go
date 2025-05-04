@@ -744,8 +744,7 @@ func (s *simnet) handleTimer(timer *mop) {
 			timer.senderLC = s.srvnode.LC
 			timer.originLC = s.srvnode.LC
 		}
-		timer.timerStarted = now
-		timer.when = now.Add(timer.timerDur)
+		timer.when = timer.timerStarted.Add(timer.timerDur)
 		timer.timerC = make(chan time.Time)
 		defer close(timer.proceed)
 	}
@@ -770,7 +769,7 @@ func (s *simnet) handleTimer(timer *mop) {
 	s.nextTimer.Reset(dur)
 }
 
-func (s *simnet) createNewTimer(dur time.Duration, isCli bool) (timerC chan time.Time, err error) {
+func (s *simnet) createNewTimer(dur time.Duration, begin time.Time, isCli bool) (timerC chan time.Time, err error) {
 	lc := s.srvnode.LC
 	who := "SERVER"
 	if isCli {
@@ -782,6 +781,7 @@ func (s *simnet) createNewTimer(dur time.Duration, isCli bool) (timerC chan time
 
 	timer := s.newTimerMop(isCli)
 	timer.timerDur = dur
+	timer.timerStarted = begin
 
 	select {
 	case s.addTimer <- timer:

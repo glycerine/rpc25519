@@ -2554,12 +2554,12 @@ func (c *Client) TimeAfter(dur time.Duration) (timerC <-chan time.Time, err erro
 	if !c.cfg.UseSimNet {
 		return time.After(dur), nil
 	}
-	return c.simnetTimeAfter(dur)
+	return c.simnet.createNewTimer(dur, time.Now(), true)
 }
 
 func (s *Server) TimeAfter(dur time.Duration) (timerC <-chan time.Time, err error) {
 	if !s.cfg.UseSimNet {
 		return time.After(dur), nil
 	}
-	return s.simnetTimeAfter(dur)
+	return s.simnet.createNewTimer(dur, time.Now(), false)
 }
