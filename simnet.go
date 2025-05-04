@@ -212,7 +212,7 @@ func (op *mop) String() string {
 	case READ:
 		verb = "initiated"
 	case TIMER:
-		verb = fmt.Sprintf("set for %v ", op.when)
+		verb = fmt.Sprintf("%v set for %v ", op.timerDur, op.when)
 	}
 	return fmt.Sprintf("mop{%v %v %v originLC:%v, senderLC:%v, op.sn:%v, msg.sn:%v}", who, op.kind, verb, op.originLC, op.senderLC, op.sn, msgSerial)
 }
