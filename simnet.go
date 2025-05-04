@@ -531,6 +531,9 @@ func (s *simnet) handleSend(send *mop) {
 		send.arrivalTm = send.initTm.Add(s.scenario.rngHop())
 	}
 	send.seen++
+	if send.seen != 1 {
+		panic(fmt.Sprintf("should see each send only once now, not %v", send.seen))
+	}
 
 	if send.originCli {
 		lc := s.clinode.LC
@@ -549,6 +552,7 @@ func (s *simnet) handleSend(send *mop) {
 	// delay, but then we'd need another "send finished" PQ,
 	// which is just extra we probably don't need. At
 	// least for now.
+	send.completeTm = time.Now() // on the sender side.
 	close(send.proceed)
 }
 
@@ -568,6 +572,9 @@ func (s *simnet) handleRead(read *mop) {
 		// when the send arrives.
 	}
 	read.seen++
+	if read.seen != 1 {
+		panic(fmt.Sprintf("should see each send only once now, not %v", read.seen))
+	}
 
 	if read.originCli {
 		s.clinode.readQ.add(read)
