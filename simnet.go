@@ -177,16 +177,19 @@ type mop struct {
 	readerLC int64
 	originLC int64
 
-	timerC       chan time.Time
-	timerDur     time.Duration
-	timerStarted time.Time
+	timerC   chan time.Time
+	timerDur time.Duration
+	//timerStarted time.Time // replace with the more generate initTm
+
+	// when was the operation initiated?
+	initTm time.Time
 
 	// when: when the operation completes and
 	// control returns to user code.
 	// READS: when the read returns to user who called readMessage()
 	// SENDS: when the send returns to user who called sendMessage()
 	// TIMERS: when user code <-timerC gets sent the current time.
-	when time.Time
+	completeTm time.Time
 
 	kind mopkind
 	msg  *Message
@@ -213,11 +216,11 @@ func (op *mop) String() string {
 	var verb string
 	switch op.kind {
 	case SEND:
-		verb = fmt.Sprintf("happend at %v", op.when)
+		verb = fmt.Sprintf("happend at %v", op.completeTm)
 	case READ:
 		verb = "initiated"
 	case TIMER:
-		verb = fmt.Sprintf("%v set for %v ", op.timerDur, op.when)
+		verb = fmt.Sprintf("%v set for %v ", op.timerDur, op.completeTm)
 	}
 	return fmt.Sprintf("mop{%v %v %v originLC:%v, senderLC:%v, op.sn:%v, msg.sn:%v}", who, op.kind, verb, op.originLC, op.senderLC, op.sn, msgSerial)
 }
@@ -259,6 +262,8 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 	vv("top simnet.readMessage() %v READ", who(isCli))
 
 	read := s.newReadMsg(isCli)
+	read.initTm = time.Now()
+
 	select {
 	case s.msgReadCh <- read:
 	case <-s.halt.ReqStop.Chan:
@@ -280,6 +285,7 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) e
 	vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", who(isCli), msg.HDR.Serial)
 
 	send := s.newSendMsg(msg, isCli)
+	send.initTm = time.Now()
 	select {
 	case s.msgSendCh <- send:
 	case <-s.halt.ReqStop.Chan:
@@ -368,10 +374,10 @@ func newPQ() *pq {
 			// must be the same if same sn.
 			return 0
 
-			// if av.when.Before(bv.when) {
+			// if av.completeTm.Before(bv.completeTm) {
 			// 	return -1
 			// }
-			// if av.when.After(bv.when) {
+			// if av.completeTm.After(bv.completeTm) {
 			// 	return 1
 			// }
 
@@ -386,7 +392,6 @@ func newPQ() *pq {
 			if bv.msg == nil {
 				return 1
 			}
-			// INVAR: a.when == b.when
 
 			if av.msg.HDR.CallID == bv.msg.HDR.CallID {
 				if av.msg.HDR.Serial == bv.msg.HDR.Serial {
@@ -430,10 +435,10 @@ func newPQtime() *pq {
 				return 0 // pointer equality is immediate
 			}
 
-			if av.when.Before(bv.when) {
+			if av.completeTm.Before(bv.completeTm) {
 				return -1
 			}
-			if av.when.After(bv.when) {
+			if av.completeTm.After(bv.completeTm) {
 				return 1
 			}
 			// INVAR when equal, delivery order should not matter?
@@ -448,10 +453,10 @@ func newPQtime() *pq {
 			// must be the same if same sn.
 			return 0
 
-			// if av.when.Before(bv.when) {
+			// if av.completeTm.Before(bv.completeTm) {
 			// 	return -1
 			// }
-			// if av.when.After(bv.when) {
+			// if av.completeTm.After(bv.completeTm) {
 			// 	return 1
 			// }
 
@@ -466,7 +471,7 @@ func newPQtime() *pq {
 			if bv.msg == nil {
 				return 1
 			}
-			// INVAR: a.when == b.when
+			// INVAR: a.completeTm == b.completeTm
 
 			if av.msg.HDR.CallID == bv.msg.HDR.CallID {
 				if av.msg.HDR.Serial == bv.msg.HDR.Serial {
@@ -496,7 +501,7 @@ func (s *simnet) handleSend(send *mop) {
 			send.senderLC = s.srvnode.LC
 			send.originLC = s.srvnode.LC
 		}
-		send.when = time.Now() //.Add(s.scenario.hop)
+		send.completeTm = send.initTm.Add(s.scenario.hop)
 	}
 	send.seen++
 
@@ -524,7 +529,7 @@ func (s *simnet) handleRead(read *mop) {
 			//read.senderLC = s.srvnode.LC
 			read.originLC = s.srvnode.LC
 		}
-		read.when = time.Now() //.Add(s.scenario.hop)
+		read.completeTm = read.initTm.Add(s.scenario.hop)
 	}
 	read.seen++
 
@@ -541,7 +546,7 @@ func (s *simnet) handleRead(read *mop) {
 	}
 }
 
-func (node *simnode) dispatchSendsReadsTimers() {
+func (node *simnode) dispatchSendsReadsTimers() (bump time.Duration) {
 
 	// to be deleted at the end, so
 	// we don't dirupt the iteration order
@@ -594,8 +599,8 @@ func (node *simnode) dispatchSendsReadsTimers() {
 		timer := timerIt.Item().(*mop)
 		vv("check TIMER: %v", timer)
 
-		if !now.Before(timer.when) {
-			// timer.when <= now
+		if !now.Before(timer.completeTm) {
+			// timer.completeTm <= now
 			vv("have TIMER firing")
 			timerDel = append(timerDel, timer)
 			select {
@@ -624,19 +629,39 @@ func (node *simnode) dispatchSendsReadsTimers() {
 		// the event of receiving the msg is after
 		// any LC advance
 
-		// our reads are always <= our node.LC
-		if read.originLC > node.LC {
-			panic("impossible! read > node.LC ! logic error")
-		}
-		//if send.originLC < node.LC {
-		//}
-
-		//if read.originLC > send.originLC {
-
-		// service this read with this send
-
 		// *** here is where we could re-order
 		// messages in a chaos test.
+
+		// reads can start before sends,
+		// the read blocks until they match.
+		//
+		// reads can start after sends,
+		// the kernel buffers the sends
+		// until the read attempts (our pre-arrival queue).
+
+		// Causality demands however that
+		// a read can complete only after
+		// a send was initated, in realtime.
+
+		// To keep from violating causality,
+		// during our chaos testing, we want
+		// to make sure that the read completion
+		// cannot happen before the send initiation.
+		//
+		// So we'll need to advance the wall
+		// clock time if we match a pair to
+		// at least the send initiation. This
+		// mininum is the lower bound (instantaneous
+		// communication) and we can always
+		// add delays on top.
+		if send.completeTm.After(now) {
+			bump = send.completeTm.Sub(now)
+			// hold off on delivery until the
+			// scheduler advances by this bump.
+			return
+		}
+
+		// service this read with this send
 
 		read.msg = send.msg.CopyForSimNetSend()
 		// advance our clock
@@ -777,17 +802,17 @@ func (s *simnet) handleTimer(timer *mop) {
 		timerQ = s.clinode.timerQ
 		lc := s.clinode.LC
 		s.clinode.timerQ.add(timer)
-		vv("cli.LC:%v CLIENT set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer, timer.when, s.clinode.timerQ)
+		vv("cli.LC:%v CLIENT set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer, timer.completeTm, s.clinode.timerQ)
 	} else {
 		lc := s.srvnode.LC
 		s.srvnode.timerQ.add(timer)
-		vv("srv.LC:%v SERVER set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer, timer.when, s.srvnode.timerQ)
+		vv("srv.LC:%v SERVER set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer, timer.completeTm, s.srvnode.timerQ)
 	}
 
 	it := timerQ.tree.Min()
 	minTimer := it.Item().(*mop)
-	dur := minTimer.when.Sub(now)
-	vv("dur=%v = when(%v) - now(%v)", dur, minTimer.when, now)
+	dur := minTimer.completeTm.Sub(now)
+	vv("dur=%v = when(%v) - now(%v)", dur, minTimer.completeTm, now)
 	s.nextTimer.Reset(dur)
 }
 
@@ -804,8 +829,8 @@ func (s *simnet) createNewTimer(dur time.Duration, begin time.Time, isCli bool) 
 
 	timer := s.newTimerMop(isCli)
 	timer.timerDur = dur
-	timer.timerStarted = begin
-	timer.when = begin.Add(dur)
+	timer.initTm = begin
+	timer.completeTm = begin.Add(dur)
 
 	select {
 	case s.addTimer <- timer:
