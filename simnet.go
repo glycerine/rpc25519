@@ -203,7 +203,12 @@ func (op *mop) String() string {
 	if op.originCli {
 		who = "CLIENT"
 	}
-	return fmt.Sprintf("mop{kind:%v, from: %v, originLC:%v, senderLC:%v, op.sn:%v, msg.sn:%v}", op.kind, who, op.originLC, op.senderLC, op.sn, msgSerial)
+	verb := "from:"
+	switch op.kind {
+	case READ, TIMER:
+		verb = "at:"
+	}
+	return fmt.Sprintf("mop{kind:%v, %v %v, originLC:%v, senderLC:%v, op.sn:%v, msg.sn:%v}", op.kind, verb, who, op.originLC, op.senderLC, op.sn, msgSerial)
 }
 
 func (s *simnet) newReadMsg(isCli bool) (op *mop) {
@@ -237,7 +242,8 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 		who = "CLIENT"
 		lc = s.clinode.LC
 	}
-	vv("top simnet.readMessage() %v READ ; LC = %v", who, lc)
+	_, _ = who, lc
+	//vv("top simnet.readMessage() %v READ ; LC = %v", who, lc)
 
 	read := s.newReadMsg(isCli)
 	select {
@@ -263,7 +269,8 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) e
 		who = "CLIENT"
 		lc = s.clinode.LC
 	}
-	vv("top simnet.sendMessage() %v SEND  LC = %v; msg.Serial=%v", who, lc, msg.HDR.Serial)
+	_, _ = who, lc
+	//vv("top simnet.sendMessage() %v SEND  LC = %v; msg.Serial=%v", who, lc, msg.HDR.Serial)
 
 	send := s.newSendMsg(msg, isCli)
 	select {
@@ -514,11 +521,13 @@ func (s *simnet) handleRead(read *mop) {
 
 	if read.originCli {
 		s.clinode.readQ.add(read)
-		vv("cliLC:%v  READ %v on cli, now cliReadQ: '%v'", s.clinode.LC, read, s.clinode.readQ)
+		vv("cliLC:%v  READ at CLIENT: %v", s.clinode.LC, read)
+		//vv("cliLC:%v  READ %v at CLIENT, now cliReadQ: '%v'", s.clinode.LC, read, s.clinode.readQ)
 		s.clinode.serviceReads()
 	} else {
 		s.srvnode.readQ.add(read)
-		vv("srvLC:%v  READ %v on srv, now srvReadQ: '%v'", s.srvnode.LC, read, s.srvnode.readQ)
+		vv("srvLC:%v  READ at SERVER: %v", s.srvnode.LC, read)
+		//vv("srvLC:%v  READ %v at SERVER, now srvReadQ: '%v'", s.srvnode.LC, read, s.srvnode.readQ)
 		s.srvnode.serviceReads()
 	}
 }
