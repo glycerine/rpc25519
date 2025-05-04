@@ -592,17 +592,18 @@ func (s *simnet) handleRead(read *mop) {
 		s.clinode.readQ.add(read)
 		//vv("cliLC:%v  READ at CLIENT: %v", s.clinode.LC, read)
 		////vv("cliLC:%v  READ %v at CLIENT, now cliReadQ: '%v'", s.clinode.LC, read, s.clinode.readQ)
-		s.clinode.dispatchSendsReadsTimers()
+		s.clinode.dispatch()
 	} else {
 		s.srvnode.readQ.add(read)
 		//vv("srvLC:%v  READ at SERVER: %v", s.srvnode.LC, read)
 		////vv("srvLC:%v  READ %v at SERVER, now srvReadQ: '%v'", s.srvnode.LC, read, s.srvnode.readQ)
-		s.srvnode.dispatchSendsReadsTimers()
+		s.srvnode.dispatch()
 	}
 }
 
+// dispatch delivers sends to reads, and fires timers.
 // calls node.net.armTimer() at the end.
-func (node *simnode) dispatchSendsReadsTimers() (bump time.Duration) {
+func (node *simnode) dispatch() (bump time.Duration) {
 
 	// to be deleted at the end, so
 	// we don't dirupt the iteration order
@@ -632,7 +633,16 @@ func (node *simnode) dispatchSendsReadsTimers() (bump time.Duration) {
 			node.timerQ.tree.DeleteWithKey(op)
 		}
 		node.net.armTimer()
-		////vv("=== end of dispatchSendsReadsTimers %v", node.name)
+		vv("=== end of dispatch %v", node.name)
+		narr := node.preArrQ.tree.Len()
+		if narr > 0 {
+			vv("ummm... why did these not get dispatched? narr = %v", narr)
+			for preIt := node.preArrQ.tree.Min(); preIt != node.preArrQ.tree.Limit(); preIt = preIt.Next() {
+
+				send := preIt.Item().(*mop)
+				vv("left over send: %v", send)
+			}
+		}
 	}()
 
 	nT := node.timerQ.tree.Len()  // number of timers
@@ -710,6 +720,7 @@ func (node *simnode) dispatchSendsReadsTimers() (bump time.Duration) {
 			// are we done? since readQ is ordered
 			// by initTm, all subsequent reads in it
 			// will have >= initTm.
+			vv("rejecting delivery to read that has not happened: '%v'", read)
 			return
 		}
 		// INVAR: this read.initTm <= now
@@ -718,6 +729,8 @@ func (node *simnode) dispatchSendsReadsTimers() (bump time.Duration) {
 			// are we done? since preArrQ is ordered
 			// by arrivalTm, all subsequent pre-arrivals (sends)
 			// will have even >= arrivalTm.
+			vv("rejecting deliver of send that has not happened: '%v'", send)
+			// TODO: I think we might need to set a timer on its delivery then!
 			return
 		}
 		// INVAR: this send.arrivalTm <= now
@@ -774,69 +787,70 @@ func (s *simnet) qReport() (r string) {
 
 func (s *simnet) Start() {
 	////vv("simnet.Start() top")
+	go s.scheduler()
+}
 
-	go func() {
+// makes it clear on a stack trace which goro this is.
+func (s *simnet) scheduler() {
 
-		// init phase
+	// init phase
 
-		// get a client before anything else.
+	// get a client before anything else.
+	select {
+	case s.cli = <-s.cliReady:
+		////vv("simnet got cli")
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+
+	// main scheduler loop
+	for i := int64(0); ; i++ {
+		// each scheduler loop tick is an event.
+		s.clinode.LC++
+		s.srvnode.LC++
+		cliLC := s.clinode.LC
+		srvLC := s.srvnode.LC
+		_, _ = cliLC, srvLC
+
+		// advance time by one tick
+		time.Sleep(s.scenario.tick)
+		synctest.Wait()
+		now := time.Now()
+		_ = now
+		////vv("scheduler top cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
+		vv("scheduler top lastArmTm.After(now) = %v [%v out] %v; qReport = '%v'", s.lastArmTm.After(now), s.lastArmTm.Sub(now), s.lastArmTm, s.qReport())
+
+		s.clinode.dispatch()
+		s.srvnode.dispatch()
+
 		select {
-		case s.cli = <-s.cliReady:
-			////vv("simnet got cli")
+		case alert := <-s.nextTimer.C: // soonest timer fires
+			_ = alert
+			//vv("s.nextTimer -> alerted at %v", alert)
+			s.clinode.dispatch()
+			s.srvnode.dispatch()
+			s.armTimer()
+
+		case scenario := <-s.newScenarioCh:
+			s.finishScenario()
+			s.initScenario(scenario)
+
+		case timer := <-s.addTimer:
+			//vv("addTimer ->  op='%v'", timer)
+			s.handleTimer(timer)
+
+		case send := <-s.msgSendCh:
+			////vv("msgSendCh ->  op='%v'", send)
+			s.handleSend(send)
+
+		case read := <-s.msgReadCh:
+			////vv("msgReadCh ->  op='%v'", read)
+			s.handleRead(read)
+
 		case <-s.halt.ReqStop.Chan:
 			return
 		}
-
-		// main scheduler loop
-		for i := int64(0); ; i++ {
-			// each scheduler loop tick is an event.
-			s.clinode.LC++
-			s.srvnode.LC++
-			cliLC := s.clinode.LC
-			srvLC := s.srvnode.LC
-			_, _ = cliLC, srvLC
-
-			// advance time by one tick
-			time.Sleep(s.scenario.tick)
-			synctest.Wait()
-			now := time.Now()
-			_ = now
-			////vv("scheduler top cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
-			vv("scheduler top lastArmTm.After(now) = %v [%v out] %v; qReport = '%v'", s.lastArmTm.After(now), s.lastArmTm.Sub(now), s.lastArmTm, s.qReport())
-
-			s.clinode.dispatchSendsReadsTimers()
-			s.srvnode.dispatchSendsReadsTimers()
-
-			select {
-			case alert := <-s.nextTimer.C: // soonest timer fires
-				_ = alert
-				//vv("s.nextTimer -> alerted at %v", alert)
-				s.clinode.dispatchSendsReadsTimers()
-				s.srvnode.dispatchSendsReadsTimers()
-				s.armTimer()
-
-			case scenario := <-s.newScenarioCh:
-				s.finishScenario()
-				s.initScenario(scenario)
-
-			case timer := <-s.addTimer:
-				//vv("addTimer ->  op='%v'", timer)
-				s.handleTimer(timer)
-
-			case send := <-s.msgSendCh:
-				////vv("msgSendCh ->  op='%v'", send)
-				s.handleSend(send)
-
-			case read := <-s.msgReadCh:
-				////vv("msgReadCh ->  op='%v'", read)
-				s.handleRead(read)
-
-			case <-s.halt.ReqStop.Chan:
-				return
-			}
-		}
-
-	}()
+	}
 }
 
 func (s *simnet) finishScenario() {
