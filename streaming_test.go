@@ -237,7 +237,7 @@ func Test300_upload_streaming_test_of_large_file(t *testing.T) {
 				vv("PROBLEM! server and client blake3 checksums do not match!\n serverTotSum='%v'\n clientTotsum='%v'", serverTotSum, clientTotSum)
 				panic("checksum mismatch!")
 			}
-		case <-time.After(time.Minute):
+		case <-cli.TimeAfter(time.Minute):
 			panic("should have gotten a reply from the server finishing the stream.")
 		}
 
