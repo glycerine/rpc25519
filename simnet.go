@@ -744,7 +744,6 @@ func (s *simnet) handleTimer(timer *mop) {
 			timer.senderLC = s.srvnode.LC
 			timer.originLC = s.srvnode.LC
 		}
-		timer.when = timer.timerStarted.Add(timer.timerDur)
 		timer.timerC = make(chan time.Time)
 		defer close(timer.proceed)
 	}
@@ -782,6 +781,7 @@ func (s *simnet) createNewTimer(dur time.Duration, begin time.Time, isCli bool) 
 	timer := s.newTimerMop(isCli)
 	timer.timerDur = dur
 	timer.timerStarted = begin
+	timer.when = begin.Add(dur)
 
 	select {
 	case s.addTimer <- timer:
