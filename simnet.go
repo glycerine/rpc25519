@@ -203,7 +203,7 @@ func (op *mop) String() string {
 	if op.originCli {
 		who = "CLIENT"
 	}
-	return fmt.Sprintf("mop{kind:%v, %v, originLC:%v, senderLC:%v, op.sn:%v, msg.sn:%v}", op.kind, who, op.originLC, op.senderLC, op.sn, msgSerial)
+	return fmt.Sprintf("mop{kind:%v, from: %v, originLC:%v, senderLC:%v, op.sn:%v, msg.sn:%v}", op.kind, who, op.originLC, op.senderLC, op.sn, msgSerial)
 }
 
 func (s *simnet) newReadMsg(isCli bool) (op *mop) {
@@ -675,15 +675,15 @@ func (s *simnet) Start() {
 				s.initScenario(scenario)
 
 			case timer := <-s.addTimer:
-				vv("addTimer ->  op='%v'", timer)
+				//vv("addTimer ->  op='%v'", timer)
 				s.handleTimer(timer)
 
 			case send := <-s.msgSendCh:
-				vv("msgSendCh ->  op='%v'", send)
+				//vv("msgSendCh ->  op='%v'", send)
 				s.handleSend(send)
 
 			case read := <-s.msgReadCh:
-				vv("msgReadCh ->  op='%v'", read)
+				//vv("msgReadCh ->  op='%v'", read)
 				s.handleRead(read)
 
 			case <-s.halt.ReqStop.Chan:
@@ -722,10 +722,10 @@ func (s *simnet) handleTimer(timer *mop) {
 	if timer.originCli {
 		lc := s.clinode.LC
 		s.clinode.timerQ.add(timer)
-		vv("cli.LC:%v  TIMER %v now timerQ: '%v'", lc, timer, s.clinode.timerQ)
+		vv("cli.LC:%v CLIENT set TIMER %v now timerQ: '%v'", lc, timer, s.clinode.timerQ)
 	} else {
 		lc := s.srvnode.LC
 		s.srvnode.timerQ.add(timer)
-		vv("srv.LC:%v  TIMER %v now timerQ: '%v'", lc, timer, s.srvnode.timerQ)
+		vv("srv.LC:%v SERVER set TIMER %v now timerQ: '%v'", lc, timer, s.srvnode.timerQ)
 	}
 }
