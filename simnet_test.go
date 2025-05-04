@@ -106,7 +106,9 @@ func Test804_SimNet_rng_hops(t *testing.T) {
 	maxHop = time.Second
 	s := newScenario(tick, minHop, maxHop, seed)
 
-	for range 1000 {
+	var yes, no float64
+	N := float64(100_000)
+	for range int(N) {
 		hop := s.rngHop()
 		if got, want := hop, time.Second; got != want {
 			t.Fatalf("want %v, but got %v", want, got)
@@ -116,6 +118,19 @@ func Test804_SimNet_rng_hops(t *testing.T) {
 		if !ok {
 			t.Fatalf("want +/-1, but got %v", tie)
 		}
+		if tie == 1 {
+			yes++
+		} else {
+			no++
+		}
+	}
+	// tie breaker should be fair
+	if yes < 0.45*N || yes > 0.55*N {
+		t.Fatalf("tie breaker not a fair coin. yes rate = '%v'", yes/N)
+	}
+	// implied, but verify our test too...
+	if no < 0.45*N || no > 0.55*N {
+		t.Fatalf("tie breaker not a fair coin. no rate = '%v'", no/N)
 	}
 
 	minHop = time.Second
@@ -128,5 +143,4 @@ func Test804_SimNet_rng_hops(t *testing.T) {
 			t.Fatalf("got %v out of bounds [%v, %v]", hop, minHop, maxHop)
 		}
 	}
-
 }
