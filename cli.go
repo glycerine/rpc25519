@@ -1045,6 +1045,7 @@ type sharedTransport struct {
 
 // rendezvous simnet client and server. server creates/sets.
 type simnetRendezvous struct {
+	mut    sync.Mutex
 	simnet *simnet
 }
 

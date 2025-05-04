@@ -88,7 +88,10 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 	s.srvnode = s.newSimnode("SERVER")
 
 	// let client find the shared simnet in their cfg.
+	cfg.simnetRendezvous.mut.Lock() // prevent race with simnet_client.go:25 read
 	cfg.simnetRendezvous.simnet = s
+	cfg.simnetRendezvous.mut.Unlock()
+
 	s.Start()
 	return s
 }
