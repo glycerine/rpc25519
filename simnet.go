@@ -242,16 +242,33 @@ func (op *mop) String() string {
 	if op.originCli {
 		who = "CLIENT"
 	}
-	var verb string
-	switch op.kind {
-	case SEND:
-		verb = fmt.Sprintf("init at %v", op.initTm)
-	case READ:
-		verb = "initiated"
-	case TIMER:
-		verb = fmt.Sprintf("%v set for %v ", op.timerDur, op.completeTm)
+	// var verb string
+	// switch op.kind {
+	// case SEND:
+	// 	verb = fmt.Sprintf("init at %v", op.initTm)
+	// case READ:
+	// 	verb = "initiated"
+	// case TIMER:
+	// 	verb = fmt.Sprintf("%v set for %v ", op.timerDur, op.completeTm)
+	// }
+	now := time.Now()
+	var ini, arr, complete string
+	if op.initTm.IsZero() {
+		ini = "unk"
+	} else {
+		ini = fmt.Sprintf("%v", op.initTm.Sub(now))
 	}
-	return fmt.Sprintf("mop{%v %v %v originLC:%v, senderLC:%v, op.sn:%v, msg.sn:%v}", who, op.kind, verb, op.originLC, op.senderLC, op.sn, msgSerial)
+	if op.arrivalTm.IsZero() {
+		arr = "unk"
+	} else {
+		arr = fmt.Sprintf("%v", op.arrivalTm.Sub(now))
+	}
+	if op.completeTm.IsZero() {
+		complete = "unk"
+	} else {
+		complete = fmt.Sprintf("%v", op.completeTm.Sub(now))
+	}
+	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, msg.sn:%v}", who, op.kind, ini, arr, complete, op.sn, msgSerial)
 }
 
 func (s *simnet) newReadMsg(isCli bool) (op *mop) {
@@ -585,6 +602,12 @@ func (s *simnet) handleSend(send *mop) {
 		vv("srv.LC:%v  SEND TO CLIENT %v", lc, send)
 		//vv("srv.LC:%v  SEND TO CLIENT %v    cliPreArrQ: '%v'", lc, send, s.clinode.preArrQ)
 	}
+	// rpc25519 does async sends, so let
+	// the sender keep going.
+	// We could optionally (chaos?) add some
+	// delay, but then we'd need another "send finished" PQ,
+	// which is just extra we probably don't need.
+	close(send.proceed)
 }
 
 func (s *simnet) handleRead(read *mop) {
@@ -750,6 +773,7 @@ func (node *simnode) dispatchSendsReadsTimers() (bump time.Duration) {
 		read.senderLC = send.senderLC
 		send.readerLC = node.LC
 		read.completeTm = now
+		read.arrivalTm = send.arrivalTm // easier diagnostics
 
 		// matchmaking
 		vv("[1]matchmaking send '%v' -> read '%v'", send, read)
@@ -760,7 +784,12 @@ func (node *simnode) dispatchSendsReadsTimers() (bump time.Duration) {
 		readDel = append(readDel, read)
 
 		close(read.proceed)
-		close(send.proceed)
+		// used to have this. but in reality
+		// our sends are asynchronous not RPCs,
+		// so we don't block. This should happen
+		// as soon as we have the send assigned
+		// to the pre-arrival queue.
+		//close(send.proceed)
 
 		readIt = readIt.Next()
 		preIt = preIt.Next()
