@@ -205,12 +205,16 @@ func (op *mop) String() string {
 	if op.originCli {
 		who = "CLIENT"
 	}
-	verb := "from:"
+	var verb string
 	switch op.kind {
-	case READ, TIMER:
-		verb = "at:"
+	case SEND:
+		verb = fmt.Sprintf("happend at %v", op.when)
+	case READ:
+		verb = "initiated"
+	case TIMER:
+		verb = fmt.Sprintf("set for %v ", op.when)
 	}
-	return fmt.Sprintf("mop{kind:%v, %v %v, originLC:%v, senderLC:%v, op.sn:%v, msg.sn:%v}", op.kind, verb, who, op.originLC, op.senderLC, op.sn, msgSerial)
+	return fmt.Sprintf("mop{%v %v %v originLC:%v, senderLC:%v, op.sn:%v, msg.sn:%v}", who, op.kind, verb, op.originLC, op.senderLC, op.sn, msgSerial)
 }
 
 func (s *simnet) newReadMsg(isCli bool) (op *mop) {
@@ -563,7 +567,7 @@ func (node *simnode) serviceReads() {
 	for timerit := node.timerQ.tree.Min(); timerit != node.timerQ.tree.Limit(); timerit = timerit.Next() {
 
 		timer := timerit.Item().(*mop)
-		vv("check TIMER: %v") // not seen
+		vv("check TIMER: %v", timer)
 
 		if !now.Before(timer.when) {
 			// timer.when <= now
