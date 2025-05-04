@@ -472,11 +472,13 @@ func (s *simnet) handleSend(send *mop) {
 	send.seen++
 
 	if send.originCli {
+		lc := s.srvnode.LC
 		s.srvnode.preArrQ.add(send)
-		vv("srvLC:%v  SEND %v from cli->srv srvPreArrQ: '%v'", send, s.srvnode.preArrQ)
+		vv("srvLC:%v  SEND %v from cli->srv srvPreArrQ: '%v'", lc, send, s.srvnode.preArrQ)
 	} else {
+		lc := s.clinode.LC
 		s.clinode.preArrQ.add(send)
-		vv("cliLC:%v  SEND %v from srv->cli cliPreArrQ: '%v'", send, s.clinode.preArrQ)
+		vv("cliLC:%v  SEND %v from srv->cli cliPreArrQ: '%v'", lc, send, s.clinode.preArrQ)
 	}
 }
 
