@@ -200,9 +200,9 @@ func (op *mop) String() string {
 	if op.msg != nil {
 		msgSerial = op.msg.HDR.Serial
 	}
-	who := "server"
+	who := "SERVER"
 	if op.originCli {
-		who = "client"
+		who = "CLIENT"
 	}
 	return fmt.Sprintf("mop{kind:%v, %v, originLC:%v, senderLC:%v, op.sn:%v, msg.sn:%v}", op.kind, who, op.originLC, op.senderLC, op.sn, msgSerial)
 }
@@ -232,7 +232,13 @@ func (s *simnet) newSendMsg(msg *Message, isCli bool) (op *mop) {
 func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 
 	isCli := conn.(*simnetConn).isCli
-	vv("top simnet.readMessage. iscli=%v", isCli)
+	lc := s.srvnode.LC
+	who := "SERVER"
+	if isCli {
+		who = "CLIENT"
+		lc = s.clinode.LC
+	}
+	vv("top simnet.readMessage() %v READ ; LC = %v", isCli, who, lc)
 
 	read := s.newReadMsg(isCli)
 	select {
@@ -252,7 +258,13 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
 
 	isCli := conn.(*simnetConn).isCli
-	vv("top simnet.sendMessage. iscli=%v  msg.Serial=%v", isCli, msg.HDR.Serial)
+	lc := s.srvnode.LC
+	who := "SERVER"
+	if isCli {
+		who = "CLIENT"
+		lc = s.clinode.LC
+	}
+	vv("top simnet.sendMessage() %v SEND  LC = %v; msg.Serial=%v", who, lc, msg.HDR.Serial)
 
 	send := s.newSendMsg(msg, isCli)
 	select {
@@ -570,41 +582,48 @@ func (node *simnode) serviceReads() {
 		//if send.originLC < node.LC {
 		//}
 
-		if read.originLC > send.originLC {
-			// service this read with this send
-			read.msg = send.msg // TODO clone()?
-			// advance our clock
-			node.LC = max(node.LC, send.originLC) + 1
-			vv("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, node.LC, node.LC-read.originLC, read.sn)
+		//if read.originLC > send.originLC {
 
-			// track clocks on either end for this send and read.
-			read.readerLC = node.LC
-			read.senderLC = send.senderLC
-			send.readerLC = node.LC
+		// service this read with this send
+		read.msg = send.msg // TODO clone()?
+		// advance our clock
+		node.LC = max(node.LC, send.originLC) + 1
+		vv("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, node.LC, node.LC-read.originLC, read.sn)
 
-			// matchmaking
-			vv("[1]matchmaking send '%v' -> read '%v'", send, read)
-			read.sendmop = send
-			send.readmop = read
+		// track clocks on either end for this send and read.
+		read.readerLC = node.LC
+		read.senderLC = send.senderLC
+		send.readerLC = node.LC
 
-			preDel = append(preDel, send)
-			readDel = append(readDel, read)
+		// matchmaking
+		vv("[1]matchmaking send '%v' -> read '%v'", send, read)
+		read.sendmop = send
+		send.readmop = read
 
-			close(read.proceed)
-			close(send.proceed)
-		}
+		preDel = append(preDel, send)
+		readDel = append(readDel, read)
+
+		close(read.proceed)
+		close(send.proceed)
+
 		readit = readit.Next()
 		preit = preit.Next()
+		//} else {
+		// smallest read.originLC <= smallest send.originLC
+		//}
 	}
 
 	// take care of any deletes
 	for _, op := range preDel {
+		vv("delete '%v'", op)
 		node.preArrQ.tree.DeleteWithKey(op)
 	}
 	for _, op := range readDel {
+		vv("delete '%v'", op)
 		node.readQ.tree.DeleteWithKey(op)
 	}
 	for _, op := range timerDel {
+		vv("delete '%v'", op)
 		node.timerQ.tree.DeleteWithKey(op)
 	}
 
@@ -664,6 +683,7 @@ func (s *simnet) Start() {
 			// have outstanding reads open always
 			// as they listen for messages.
 			synctest.Wait()
+			vv("scheduler top cli.LC = %v ; srv.LC = %v", s.clinode.LC, s.srvnode.LC)
 
 			s.clinode.serviceReads() // and timers
 			s.srvnode.serviceReads() // and timers
