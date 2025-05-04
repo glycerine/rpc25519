@@ -80,7 +80,9 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 
 		newScenarioCh: make(chan *scenario),
 		scenario:      scen,
-		// really don't want a spurious timer firing.
+		// high duration b/c no need to fire spuriously
+		// and force the Go runtime to do extra work when
+		// we are about to s.nextTimer.Stop() just below.
 		nextTimer: time.NewTimer(time.Hour * 10_000),
 	}
 	s.nextTimer.Stop()
@@ -183,7 +185,7 @@ type mop struct {
 	// control returns to user code.
 	// READS: when the read returns to user who called readMessage()
 	// SENDS: when the send returns to user who called sendMessage()
-	// TIMERS: when they go off.
+	// TIMERS: when user code <-timerC gets sent the current time.
 	when time.Time
 
 	kind mopkind
@@ -241,20 +243,20 @@ func (s *simnet) newSendMsg(msg *Message, isCli bool) (op *mop) {
 	return
 }
 
+func who(isCli bool) string {
+	if isCli {
+		return "CLIENT"
+	} else {
+		return "SERVER"
+	}
+}
+
 // readMessage reads a framed message from conn.
 func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 
 	isCli := conn.(*simnetConn).isCli
 
-	vvIfPrintOn(func() string {
-		var who string
-		if isCli {
-			who = "CLIENT"
-		} else {
-			who = "SERVER"
-		}
-		return fmt.Sprintf("top simnet.readMessage() %v READ", who)
-	})
+	vv("top simnet.readMessage() %v READ", who(isCli))
 
 	read := s.newReadMsg(isCli)
 	select {
@@ -275,15 +277,7 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) e
 
 	isCli := conn.(*simnetConn).isCli
 
-	vvIfPrintOn(func() string {
-		var who string
-		if isCli {
-			who = "CLIENT"
-		} else {
-			who = "SERVER"
-		}
-		return fmt.Sprintf("top simnet.sendMessage() %v SEND  msg.Serial=%v", who, msg.HDR.Serial)
-	})
+	vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", who(isCli), msg.HDR.Serial)
 
 	send := s.newSendMsg(msg, isCli)
 	select {

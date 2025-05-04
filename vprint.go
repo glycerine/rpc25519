@@ -69,13 +69,6 @@ func vv(format string, a ...interface{}) {
 	}
 }
 
-func vvIfPrintOn(f func() string) {
-	if forceQuiet {
-		return
-	}
-	tsPrintf("%v", f())
-}
-
 func alwaysPrintf(format string, a ...interface{}) {
 	tsPrintf(format, a...)
 }
