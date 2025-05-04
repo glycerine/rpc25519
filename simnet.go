@@ -545,33 +545,36 @@ func (node *simnode) serviceReads() {
 	var readDel []*mop
 	var timerDel []*mop
 
-	if node.readQ.tree.Len() == 0 {
-		return
-	}
-	if node.preArrQ.tree.Len() == 0 {
+	nT := node.timerQ.tree.Len()
+	nR := node.readQ.tree.Len()
+	nS := node.preArrQ.tree.Len()
+
+	if nT == 0 && nR == 0 && nS == 0 {
 		return
 	}
 
 	readIt := node.readQ.tree.Min()
 	preIt := node.preArrQ.tree.Min()
 
+	now := time.Now()
+
 	// do timers 1st, so we can exit
 	// if no sends and reads match.
 	for timerit := node.timerQ.tree.Min(); timerit != node.timerQ.tree.Limit(); timerit = timerit.Next() {
 
 		timer := timerit.Item().(*mop)
+		vv("check TIMER: %v") // not seen
 
-		now := time.Now()
 		if !now.Before(timer.when) {
 			// timer.when <= now
 			vv("have TIMER firing")
 			timerDel = append(timerDel, timer)
 			select {
 			case timer.timerC <- now:
+				vv("sent on timerC")
 			case <-node.net.halt.ReqStop.Chan:
 				return
 			}
-			//close(timer.proceed)
 		} else {
 			// smallest timer > now
 			break
@@ -749,11 +752,11 @@ func (s *simnet) handleTimer(timer *mop) {
 		timerQ = s.clinode.timerQ
 		lc := s.clinode.LC
 		s.clinode.timerQ.add(timer)
-		vv("cli.LC:%v CLIENT set TIMER %v now timerQ: '%v'", lc, timer, s.clinode.timerQ)
+		vv("cli.LC:%v CLIENT set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer, timer.when, s.clinode.timerQ)
 	} else {
 		lc := s.srvnode.LC
 		s.srvnode.timerQ.add(timer)
-		vv("srv.LC:%v SERVER set TIMER %v now timerQ: '%v'", lc, timer, s.srvnode.timerQ)
+		vv("srv.LC:%v SERVER set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer, timer.when, s.srvnode.timerQ)
 	}
 
 	it := timerQ.tree.Min()
