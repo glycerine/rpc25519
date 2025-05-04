@@ -94,3 +94,39 @@ func Test801_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 		})
 	})
 }
+
+func Test804_SimNet_rng_hops(t *testing.T) {
+	// rng should respect minHop, maxHop,
+	// and the tie breaker should return -1 or 1
+
+	var tick, minHop, maxHop time.Duration
+	var seed [32]byte
+
+	minHop = time.Second
+	maxHop = time.Second
+	s := newScenario(tick, minHop, maxHop, seed)
+
+	for range 1000 {
+		hop := s.rngHop()
+		if got, want := hop, time.Second; got != want {
+			t.Fatalf("want %v, but got %v", want, got)
+		}
+		tie := s.rngTieBreaker()
+		ok := tie == -1 || tie == 1
+		if !ok {
+			t.Fatalf("want +/-1, but got %v", tie)
+		}
+	}
+
+	minHop = time.Second
+	maxHop = 2 * time.Second
+	s = newScenario(tick, minHop, maxHop, seed)
+
+	for range 1000 {
+		hop := s.rngHop()
+		if hop < minHop || hop > maxHop {
+			t.Fatalf("got %v out of bounds [%v, %v]", hop, minHop, maxHop)
+		}
+	}
+
+}

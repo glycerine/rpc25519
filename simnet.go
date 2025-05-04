@@ -146,21 +146,28 @@ func newScenario(tick, minHop, maxHop time.Duration, seed [32]byte) *scenario {
 		maxHop: maxHop,
 	}
 }
-func (s *scenario) rngHop() time.Duration {
-	r := s.rng.Uint64() % uint64(s.maxHop)
-	// now not worried about overflow
+func (s *scenario) rngHop() (hop time.Duration) {
+	if s.maxHop <= s.minHop {
+		return s.minHop
+	}
+	vary := s.maxHop - s.minHop
+	r := s.rng.Uint64()
+	r = r % uint64(vary)
 	if r < 0 {
 		r = -r
 	}
 	r += uint64(s.minHop)
-	return time.Duration(r)
+	hop = time.Duration(r)
+	return
 }
 
 func (s *simnet) rngTieBreaker() int {
-	rng := s.scenario.rng
+	return s.scenario.rngTieBreaker()
+}
+func (s *scenario) rngTieBreaker() int {
 	for {
-		a := rng.Uint64()
-		b := rng.Uint64()
+		a := s.rng.Uint64()
+		b := s.rng.Uint64()
 		if a < b {
 			return -1
 		}
@@ -602,11 +609,12 @@ func (s *simnet) handleSend(send *mop) {
 		vv("srv.LC:%v  SEND TO CLIENT %v", lc, send)
 		//vv("srv.LC:%v  SEND TO CLIENT %v    cliPreArrQ: '%v'", lc, send, s.clinode.preArrQ)
 	}
-	// rpc25519 does async sends, so let
+	// rpc25519 peer/ckt/frag does async sends, so let
 	// the sender keep going.
 	// We could optionally (chaos?) add some
 	// delay, but then we'd need another "send finished" PQ,
-	// which is just extra we probably don't need.
+	// which is just extra we probably don't need. At
+	// least for now.
 	close(send.proceed)
 }
 
