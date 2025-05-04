@@ -674,7 +674,8 @@ func (node *simnode) dispatch() (bump time.Duration) {
 			case timer.timerC <- now:
 				//vv("sent on timerC")
 			case <-time.After(time.Millisecond * 10):
-				panic("giving up on timer?!? why blocked? or must we ignore?")
+				vv("giving up on timer after 10 msec: '%v'", timer)
+				//panic("giving up on timer?!? why blocked? or must we ignore?")
 			case <-node.net.halt.ReqStop.Chan:
 				return
 			}
