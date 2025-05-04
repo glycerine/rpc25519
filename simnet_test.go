@@ -72,8 +72,8 @@ func Test801_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 			reply, err := cli.SendAndGetReply(req, nil, 0)
 			panicOn(err)
 
-			vv("reply = %p", reply)
-			vv("server sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
+			//vv("reply = %p", reply)
+			//vv("server sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
 			want := "Hello from client!"
 			gotit := strings.HasPrefix(string(reply.JobSerz), want)
 			if !gotit {

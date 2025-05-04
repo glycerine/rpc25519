@@ -20,12 +20,6 @@ import (
 
 type SimNetConfig struct{}
 
-var simnetLastSn int64
-
-func simnetNextSn() int64 {
-	return atomic.AddInt64(&simnetLastSn, 1)
-}
-
 type simnet struct {
 	scenario *scenario
 
@@ -46,10 +40,6 @@ type simnet struct {
 	msgReadCh     chan *mop
 	addTimer      chan *mop
 	newScenarioCh chan *scenario
-
-	//sentFromCli []*mop
-	//sentFromSrv []*mop
-
 }
 
 type simnode struct {
@@ -97,6 +87,12 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 	cfg.simnetRendezvous.simnet = s
 	s.Start()
 	return s
+}
+
+var simnetLastMopSn int64
+
+func simnetNextMopSn() int64 {
+	return atomic.AddInt64(&simnetLastMopSn, 1)
 }
 
 type mopkind int
@@ -214,7 +210,7 @@ func (op *mop) String() string {
 func (s *simnet) newReadMsg(isCli bool) (op *mop) {
 	op = &mop{
 		originCli: isCli,
-		sn:        simnetNextSn(),
+		sn:        simnetNextMopSn(),
 		kind:      READ,
 		proceed:   make(chan struct{}),
 	}
@@ -225,7 +221,7 @@ func (s *simnet) newSendMsg(msg *Message, isCli bool) (op *mop) {
 	op = &mop{
 		originCli: isCli,
 		msg:       msg,
-		sn:        simnetNextSn(),
+		sn:        simnetNextMopSn(),
 		kind:      SEND,
 		proceed:   make(chan struct{}),
 	}
