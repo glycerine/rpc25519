@@ -64,7 +64,7 @@ func (s *simnet) newSimnode(name string) *simnode {
 
 func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *simnet {
 
-	scen := newScenario(time.Second, time.Second, [32]byte{})
+	scen := newScenario(time.Second, time.Second, time.Second, [32]byte{})
 
 	// server creates simnet; must start server first.
 	s := &simnet{
@@ -132,17 +132,28 @@ type scenario struct {
 	seed [32]byte
 	rng  *mathrand2.ChaCha8
 
-	tick time.Duration
-	hop  time.Duration
+	tick   time.Duration
+	minHop time.Duration
+	maxHop time.Duration
 }
 
-func newScenario(tick, hop time.Duration, seed [32]byte) *scenario {
+func newScenario(tick, minHop, maxHop time.Duration, seed [32]byte) *scenario {
 	return &scenario{
-		seed: seed,
-		rng:  mathrand2.NewChaCha8(seed),
-		tick: tick,
-		hop:  hop,
+		seed:   seed,
+		rng:    mathrand2.NewChaCha8(seed),
+		tick:   tick,
+		minHop: minHop,
+		maxHop: maxHop,
 	}
+}
+func (s *scenario) rngHop() time.Duration {
+	r := s.rng.Uint64() % uint64(s.maxHop)
+	// now not worried about overflow
+	if r < 0 {
+		r = -r
+	}
+	r += uint64(s.minHop)
+	return time.Duration(r)
 }
 
 func (s *simnet) rngTieBreaker() int {
@@ -199,7 +210,7 @@ type mop struct {
 	// when was the operation initiated?
 	initTm time.Time
 
-	// when did the message arrive?
+	// when did the send message arrive?
 	arrivalTm time.Time
 
 	// when: when the operation completes and
@@ -559,7 +570,7 @@ func (s *simnet) handleSend(send *mop) {
 			send.senderLC = s.srvnode.LC
 			send.originLC = s.srvnode.LC
 		}
-		send.completeTm = send.initTm.Add(s.scenario.hop)
+		send.arrivalTm = send.initTm.Add(s.scenario.rngHop())
 	}
 	send.seen++
 
@@ -587,7 +598,9 @@ func (s *simnet) handleRead(read *mop) {
 			//read.senderLC = s.srvnode.LC
 			read.originLC = s.srvnode.LC
 		}
-		read.completeTm = read.initTm.Add(s.scenario.hop)
+		// read.completeTm?
+		// unknown yet, dispatcher will assign
+		// when the send arrives.
 	}
 	read.seen++
 
@@ -710,24 +723,25 @@ func (node *simnode) dispatchSendsReadsTimers() (bump time.Duration) {
 		if now.Before(read.initTm) { // now < read.initTm
 			// are we done? since readQ is ordered
 			// by initTm, all subsequent reads in it
-			// will have even higher initTm.
+			// will have >= initTm.
 			return
 		}
 		// INVAR: this read.initTm <= now
-		if now.Before(send.initTm) { // now < send.initTm
+
+		if now.Before(send.arrivalTm) { // now < send.arrivalTm
 			// are we done? since preArrQ is ordered
-			// by initTm, all subsequent pre-arrivals (sends)
-			// will have even higher initTm.
+			// by arrivalTm, all subsequent pre-arrivals (sends)
+			// will have even >= arrivalTm.
 			return
 		}
-		// INVAR: this send.initTm <= now
+		// INVAR: this send.arrivalTm <= now
 
 		// Since both have happened, they can be matched.
 
 		// Service this read with this send.
 
 		read.msg = send.msg.CopyForSimNetSend()
-		// advance our clock
+		// advance our logical clock
 		node.LC = max(node.LC, send.originLC) + 1
 		//vv("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, node.LC, node.LC-read.originLC, read.sn)
 
