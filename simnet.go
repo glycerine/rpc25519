@@ -238,7 +238,7 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 		who = "CLIENT"
 		lc = s.clinode.LC
 	}
-	vv("top simnet.readMessage() %v READ ; LC = %v", isCli, who, lc)
+	vv("top simnet.readMessage() %v READ ; LC = %v", who, lc)
 
 	read := s.newReadMsg(isCli)
 	select {
@@ -563,10 +563,10 @@ func (node *simnode) serviceReads() {
 	for {
 
 		if readit == node.readQ.tree.Limit() {
-			return
+			break
 		}
 		if preit == node.preArrQ.tree.Limit() {
-			return
+			break
 		}
 
 		read := readit.Item().(*mop)
