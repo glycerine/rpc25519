@@ -146,7 +146,7 @@ func Test408_multiple_circuits_open_and_close(t *testing.T) {
 		// so wait on serverCkt.Halt.Done.Chan first.
 		select {
 		case <-serverCkt.Halt.Done.Chan:
-		case <-time.After(2 * time.Second):
+		case <-j.srv.TimeAfter(2 * time.Second):
 			t.Fatalf("error: server circuit '%v' did not close after 2 sec", serverCkt.Name)
 		}
 		if !serverCkt.IsClosed() {

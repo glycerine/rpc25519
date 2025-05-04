@@ -83,8 +83,7 @@ func Test801_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 			// set a timer
 			t0 := time.Now()
 			goalWait := 3 * time.Second
-			timerC, err := cli.TimeAfter(goalWait)
-			panicOn(err)
+			timerC := cli.TimeAfter(goalWait)
 			t1 := <-timerC
 			elap := time.Since(t0)
 			if elap < goalWait {

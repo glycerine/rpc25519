@@ -504,7 +504,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 		doPing = true
 		pingEvery = c.cfg.ClientSendKeepAlive
 		lastPing = time.Now()
-		pingWakeCh = time.After(pingEvery)
+		pingWakeCh = c.TimeAfter(pingEvery)
 		// keep the ping attempts to a minimum to keep this loop lively.
 		if keepAliveWriteTimeout == 0 || keepAliveWriteTimeout > 10*time.Second {
 			keepAliveWriteTimeout = 2 * time.Second
@@ -525,7 +525,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 					c.cpair.lastPingSentTmu.Store(now.UnixNano())
 				}
 				lastPing = now
-				pingWakeCh = time.After(pingEvery)
+				pingWakeCh = c.TimeAfter(pingEvery)
 			} else {
 				// Pre go1.23 this would have leaked timer memory, but not now.
 				// https://pkg.go.dev/time#After says
@@ -540,7 +540,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 				// If using < go1.23, see
 				// https://medium.com/@oboturov/golang-time-after-is-not-garbage-collected-4cbc94740082
 				// for a memory leak story.
-				pingWakeCh = time.After(lastPing.Add(pingEvery).Sub(now))
+				pingWakeCh = c.TimeAfter(lastPing.Add(pingEvery).Sub(now))
 			}
 		}
 
@@ -1686,11 +1686,11 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 	// leave deafultTimeout nil if user supplied a cancelJobCh.
 	if cancelJobCh == nil {
 		// try hard not to get stuck when server goes away.
-		defaultTimeout = time.After(20 * time.Second)
+		defaultTimeout = c.TimeAfter(20 * time.Second)
 	}
 	var writeDurTimeoutChan <-chan time.Time
 	if errWriteDur > 0 {
-		writeDurTimeoutChan = time.After(errWriteDur)
+		writeDurTimeoutChan = c.TimeAfter(errWriteDur)
 	}
 
 	var from, to string
@@ -1960,7 +1960,7 @@ type UniversalCliSrv interface {
 	PingStats(remote string) *PingStat
 	AutoClients() (list []*Client, isServer bool)
 
-	TimeAfter(dur time.Duration) (timerC <-chan time.Time, err error)
+	TimeAfter(dur time.Duration) (timerC <-chan time.Time)
 }
 
 type PingStat struct {
@@ -2551,16 +2551,23 @@ func (s *Client) UnregisterChannel(ID string, whichmap int) {
 	}
 }
 
-func (c *Client) TimeAfter(dur time.Duration) (timerC <-chan time.Time, err error) {
+func (c *Client) TimeAfter(dur time.Duration) (timerC <-chan time.Time) {
 	if !c.cfg.UseSimNet {
-		return time.After(dur), nil
+		return time.After(dur)
 	}
-	return c.simnet.createNewTimer(dur, time.Now(), true)
+	// ignore shutdown errors for now (these are the only
+	// errors possible at the momnet. a nil channel
+	// must be handled fine by all client code also
+	// selecting on a shutdown signal.
+	timerC, _ = c.simnet.createNewTimer(dur, time.Now(), true)
+	return
 }
 
-func (s *Server) TimeAfter(dur time.Duration) (timerC <-chan time.Time, err error) {
+func (s *Server) TimeAfter(dur time.Duration) (timerC <-chan time.Time) {
 	if !s.cfg.UseSimNet {
-		return time.After(dur), nil
+		return time.After(dur)
 	}
-	return s.simnet.createNewTimer(dur, time.Now(), false)
+	// ditto: on error a nil channel will be file.
+	timerC, _ = s.simnet.createNewTimer(dur, time.Now(), false)
+	return
 }

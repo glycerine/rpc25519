@@ -127,7 +127,7 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 	if boundCh != nil {
 		select {
 		case boundCh <- addr:
-		case <-time.After(100 * time.Millisecond):
+		case <-s.TimeAfter(100 * time.Millisecond):
 		}
 	}
 

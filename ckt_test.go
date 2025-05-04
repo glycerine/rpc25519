@@ -555,7 +555,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		// wait for it to get the client
 		select {
 		case <-j.clis.dropcopy_reads:
-		case <-time.After(2 * time.Second):
+		case <-j.cli.TimeAfter(2 * time.Second):
 			t.Fatalf("client did not get their dropcopy after 2 sec")
 		}
 		if got, want := len(j.clis.readch), 1; got != want {
@@ -582,7 +582,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		// wait for it to get the server
 		select {
 		case <-j.srvs.dropcopy_reads:
-		case <-time.After(2 * time.Second):
+		case <-j.srv.TimeAfter(2 * time.Second):
 			t.Fatalf("server did not get their dropcopy after 2 sec")
 		}
 

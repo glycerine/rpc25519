@@ -171,7 +171,7 @@ func (s *Server) runServerMain(
 	if boundCh != nil {
 		select {
 		case boundCh <- addr:
-		case <-time.After(100 * time.Millisecond):
+		case <-s.TimeAfter(100 * time.Millisecond):
 		}
 	}
 
@@ -235,7 +235,7 @@ func (s *Server) runTCP(serverAddress string, boundCh chan net.Addr) {
 	if boundCh != nil {
 		select {
 		case boundCh <- addr:
-		case <-time.After(100 * time.Millisecond):
+		case <-s.TimeAfter(100 * time.Millisecond):
 		}
 	}
 
@@ -420,7 +420,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		doPing = true
 		pingEvery = s.cfg.ServerSendKeepAlive
 		lastPing = time.Now()
-		pingWakeCh = time.After(pingEvery)
+		pingWakeCh = s.Server.TimeAfter(pingEvery)
 		// keep the ping attempts to a minimum to keep this loop lively.
 		if keepAliveWriteTimeout == 0 || keepAliveWriteTimeout > 10*time.Second {
 			keepAliveWriteTimeout = 2 * time.Second
@@ -441,9 +441,9 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 					s.lastPingSentTmu.Store(now.UnixNano())
 				}
 				lastPing = now
-				pingWakeCh = time.After(pingEvery)
+				pingWakeCh = s.Server.TimeAfter(pingEvery)
 			} else {
-				pingWakeCh = time.After(lastPing.Add(pingEvery).Sub(now))
+				pingWakeCh = s.Server.TimeAfter(lastPing.Add(pingEvery).Sub(now))
 			}
 		}
 
@@ -1785,7 +1785,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 	case pair.SendCh <- msg:
 		//vv("sent to pair.SendCh, msg='%v'", msg.HDR.String())
 
-		//    case <-time.After(time.Second):
+		//    case <-s.TimeAfter(time.Second):
 		//vv("warning: time out trying to send on pair.SendCh")
 	case <-s.halt.ReqStop.Chan:
 		// shutting down
@@ -1805,7 +1805,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 		case <-msg.DoneCh.WhenClosed():
 			//vv("srv SendMessage got back msg.LocalErr = '%v'", msg.LocalErr)
 			return msg.LocalErr
-		case <-time.After(dur):
+		case <-s.TimeAfter(dur):
 			//vv("srv SendMessage timeout after waiting %v", dur)
 			return ErrSendTimeout
 		}
@@ -1852,6 +1852,7 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 
 type oneWaySender interface {
 	destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh chan struct{}, to, from string, ok bool)
+	TimeAfter(dur time.Duration) (timerC <-chan time.Time)
 }
 
 // SendOneWayMessage is the same as SendMessage above except that it
@@ -1998,7 +1999,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		case <-ctx.Done():
 			return ErrContextCancelled, nil
 
-		case <-time.After(time.Millisecond):
+		case <-s.TimeAfter(time.Millisecond):
 			return ErrAntiDeadlockMustQueue, sendCh
 		}
 	} else {
@@ -2028,7 +2029,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		doneCh = msg.DoneCh.WhenClosed()
 	}
 	if errWriteDur > 0 {
-		timeoutCh = time.After(errWriteDur)
+		timeoutCh = s.TimeAfter(errWriteDur)
 	}
 
 	//vv("srv SendMessage about to wait %v to check on connection.", errWriteDur)
@@ -2144,7 +2145,19 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 
 	select {
 	case serverAddr = <-boundCh:
+
+		// Important about the following, case <-time.After(10 * time.Second).
+		// The simnet not necessarily inititiazed yet,
+		// since that happens in runServerMain() just launched above.
+		// So this next time.After() needs to be an
+		// exception to using s.TimeAfter() which would
+		// put it through the simnet. This is fine.
+		// This is just a bootstrapping thing. We are not
+		// involved in network communication because
+		// the caller won't do net comms until this
+		// select responds that server has bound its port.
 	case <-time.After(10 * time.Second):
+
 		err = fmt.Errorf("server could not bind '%v' after 10 seconds", s.cfg.ServerAddr)
 	}
 	//vv("Server.Start() returning. serverAddr='%v'; err='%v'", serverAddr, err)

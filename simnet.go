@@ -853,13 +853,11 @@ func (s *simnet) handleTimer(timer *mop) {
 	timer.seen++
 
 	if timer.originCli {
-		lc := s.clinode.LC
 		s.clinode.timerQ.add(timer)
-		vv("cli.LC:%v CLIENT set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer, timer.completeTm, s.clinode.timerQ)
+		//vv("cli.LC:%v CLIENT set TIMER %v to fire at '%v'; now timerQ: '%v'", s.clinode.LC, timer, timer.completeTm, s.clinode.timerQ)
 	} else {
-		lc := s.srvnode.LC
 		s.srvnode.timerQ.add(timer)
-		vv("srv.LC:%v SERVER set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer, timer.completeTm, s.srvnode.timerQ)
+		//vv("srv.LC:%v SERVER set TIMER %v to fire at '%v'; now timerQ: '%v'", s.srvnode.LC, timer, timer.completeTm, s.srvnode.timerQ)
 	}
 
 	s.armTimer()

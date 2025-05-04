@@ -1082,7 +1082,7 @@ func Test045_upload(t *testing.T) {
 			cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
 			cv.So(fileExists(filename+".servergot"), cv.ShouldBeTrue)
 
-		case <-time.After(time.Minute):
+		case <-client.TimeAfter(time.Minute):
 			t.Fatalf("should have gotten a reply from the server finishing the stream.")
 		}
 		if fileExists(filename) && N == 20 {
@@ -1167,7 +1167,7 @@ func Test055_download(t *testing.T) {
 						"downloader.Seqno = %v", m.HDR.Seqno, downloader.Seqno())
 				}
 
-			case <-time.After(time.Second * 10):
+			case <-client.TimeAfter(time.Second * 10):
 				t.Fatalf("should have gotten a reply from the server finishing the stream.")
 			}
 		} // end for i
@@ -1192,7 +1192,7 @@ func Test055_download(t *testing.T) {
 					"downloader.Seqno = %v", m.HDR.Seqno, downloader.Seqno())
 			}
 
-		case <-time.After(time.Second * 10):
+		case <-client.TimeAfter(time.Second * 10):
 			t.Fatalf("should have gotten a lastReply from the server finishing the call.")
 		}
 	})
@@ -1278,7 +1278,7 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 						"bistream.Seqno = %v", m.HDR.Seqno, bistream.Seqno())
 				}
 
-			case <-time.After(time.Second * 10):
+			case <-client.TimeAfter(time.Second * 10):
 				t.Fatalf("should have gotten a reply from the server finishing the stream.")
 			}
 		} // end for i
@@ -1330,7 +1330,7 @@ func Test065_bidirectional_download_and_upload(t *testing.T) {
 			cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
 			cv.So(fileExists(filename), cv.ShouldBeTrue)
 
-		case <-time.After(time.Minute):
+		case <-client.TimeAfter(time.Minute):
 			t.Fatalf("should have gotten a reply from the server finishing the stream.")
 		}
 		if fileExists(filename) && N == 20 {
