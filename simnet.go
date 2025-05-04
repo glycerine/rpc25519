@@ -86,7 +86,6 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 		msgSendCh: make(chan *mop),
 		msgReadCh: make(chan *mop),
 		addTimer:  make(chan *mop),
-		//nextPQ:        time.NewTimer(0),
 
 		newScenarioCh: make(chan *scenario),
 		scenario:      scen,
@@ -488,13 +487,13 @@ func (s *simnet) handleSend(send *mop) {
 	send.seen++
 
 	if send.originCli {
-		lc := s.srvnode.LC
-		s.srvnode.preArrQ.add(send)
-		vv("srv.LC:%v  SEND %v from cli->srv srvPreArrQ: '%v'", lc, send, s.srvnode.preArrQ)
-	} else {
 		lc := s.clinode.LC
+		s.srvnode.preArrQ.add(send)
+		vv("cli.LC:%v  SEND TO SERVER %v    srvPreArrQ: '%v'", lc, send, s.srvnode.preArrQ)
+	} else {
+		lc := s.srvnode.LC
 		s.clinode.preArrQ.add(send)
-		vv("cli.LC:%v  SEND %v from srv->cli cliPreArrQ: '%v'", lc, send, s.clinode.preArrQ)
+		vv("srv.LC:%v  SEND TO CLIENT %v    cliPreArrQ: '%v'", lc, send, s.clinode.preArrQ)
 	}
 }
 
