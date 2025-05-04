@@ -40,6 +40,7 @@ type simnet struct {
 	msgReadCh     chan *mop
 	addTimer      chan *mop
 	newScenarioCh chan *scenario
+	nextTimer     *time.Timer
 }
 
 type simnode struct {
@@ -79,7 +80,10 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 
 		newScenarioCh: make(chan *scenario),
 		scenario:      scen,
+		// really don't want a spurious timer firing.
+		nextTimer: time.NewTimer(time.Hour * 10_000),
 	}
+	s.nextTimer.Stop()
 	s.clinode = s.newSimnode("CLIENT")
 	s.srvnode = s.newSimnode("SERVER")
 
@@ -682,8 +686,10 @@ func (s *simnet) Start() {
 			s.srvnode.serviceReads() // and timers
 
 			select {
-			//case now := <-s.nextPQ.C: // the time for action has arrived
-			//	vv("s.nextPQ -> now %v", now)
+			case now := <-s.nextTimer.C: // timer fires
+				vv("s.nextTimer -> now %v", now)
+				s.clinode.serviceReads() // and timers
+				s.srvnode.serviceReads() // and timers
 
 			case scenario := <-s.newScenarioCh:
 				s.finishScenario()
@@ -722,6 +728,7 @@ func (s *simnet) initScenario(scenario *scenario) {
 
 func (s *simnet) handleTimer(timer *mop) {
 
+	now := time.Now()
 	if timer.seen == 0 {
 		if timer.originCli {
 			timer.senderLC = s.clinode.LC
@@ -730,7 +737,6 @@ func (s *simnet) handleTimer(timer *mop) {
 			timer.senderLC = s.srvnode.LC
 			timer.originLC = s.srvnode.LC
 		}
-		now := time.Now()
 		timer.timerStarted = now
 		timer.when = now.Add(timer.timerDur)
 		timer.timerC = make(chan time.Time)
@@ -738,7 +744,9 @@ func (s *simnet) handleTimer(timer *mop) {
 	}
 	timer.seen++
 
+	timerQ := s.srvnode.timerQ
 	if timer.originCli {
+		timerQ = s.clinode.timerQ
 		lc := s.clinode.LC
 		s.clinode.timerQ.add(timer)
 		vv("cli.LC:%v CLIENT set TIMER %v now timerQ: '%v'", lc, timer, s.clinode.timerQ)
@@ -747,6 +755,12 @@ func (s *simnet) handleTimer(timer *mop) {
 		s.srvnode.timerQ.add(timer)
 		vv("srv.LC:%v SERVER set TIMER %v now timerQ: '%v'", lc, timer, s.srvnode.timerQ)
 	}
+
+	it := timerQ.tree.Min()
+	item := it.Item() // interface{}
+	minTimer := item.(*mop)
+	dur := minTimer.when.Sub(now)
+	s.nextTimer.Reset(dur)
 }
 
 func (s *simnet) createNewTimer(dur time.Duration, isCli bool) (timerC chan time.Time, err error) {
