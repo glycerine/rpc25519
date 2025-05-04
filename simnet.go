@@ -490,11 +490,11 @@ func (s *simnet) handleSend(send *mop) {
 	if send.originCli {
 		lc := s.srvnode.LC
 		s.srvnode.preArrQ.add(send)
-		vv("srvLC:%v  SEND %v from cli->srv srvPreArrQ: '%v'", lc, send, s.srvnode.preArrQ)
+		vv("srv.LC:%v  SEND %v from cli->srv srvPreArrQ: '%v'", lc, send, s.srvnode.preArrQ)
 	} else {
 		lc := s.clinode.LC
 		s.clinode.preArrQ.add(send)
-		vv("cliLC:%v  SEND %v from srv->cli cliPreArrQ: '%v'", lc, send, s.clinode.preArrQ)
+		vv("cli.LC:%v  SEND %v from srv->cli cliPreArrQ: '%v'", lc, send, s.clinode.preArrQ)
 	}
 }
 
@@ -540,8 +540,8 @@ func (node *simnode) serviceReads() {
 		return
 	}
 
-	readit := node.readQ.tree.Min()
-	preit := node.preArrQ.tree.Min()
+	readIt := node.readQ.tree.Min()
+	preIt := node.preArrQ.tree.Min()
 
 	// do timers 1st, so we can exit
 	// if no sends and reads match.
@@ -562,15 +562,15 @@ func (node *simnode) serviceReads() {
 
 	for {
 
-		if readit == node.readQ.tree.Limit() {
+		if readIt == node.readQ.tree.Limit() {
 			break
 		}
-		if preit == node.preArrQ.tree.Limit() {
+		if preIt == node.preArrQ.tree.Limit() {
 			break
 		}
 
-		read := readit.Item().(*mop)
-		send := preit.Item().(*mop)
+		read := readIt.Item().(*mop)
+		send := preIt.Item().(*mop)
 
 		// the event of receiving the msg is after
 		// any LC advance
@@ -606,8 +606,8 @@ func (node *simnode) serviceReads() {
 		close(read.proceed)
 		close(send.proceed)
 
-		readit = readit.Next()
-		preit = preit.Next()
+		readIt = readIt.Next()
+		preIt = preIt.Next()
 		//} else {
 		// smallest read.originLC <= smallest send.originLC
 		//}
@@ -615,41 +615,21 @@ func (node *simnode) serviceReads() {
 
 	// take care of any deletes
 	for _, op := range preDel {
-		vv("delete '%v'", op)
+		//vv("delete '%v'", op)
 		node.preArrQ.tree.DeleteWithKey(op)
 	}
 	for _, op := range readDel {
-		vv("delete '%v'", op)
+		//vv("delete '%v'", op)
 		node.readQ.tree.DeleteWithKey(op)
 	}
 	for _, op := range timerDel {
-		vv("delete '%v'", op)
+		//vv("delete '%v'", op)
 		node.timerQ.tree.DeleteWithKey(op)
 	}
 
 	vv("=== end of serviceReads %v", node.name)
 
 }
-
-// // INVAR: we remove nothing from pq.
-// // If pq has anything, set s.nextPQ to
-// // fire off its time.After timer when the
-// // earliest is due to be delivered.
-// func (s *simnet) queueNext() {
-// 	vv("top of queueNext")
-// 	//s.showQ()
-// 	next := s.pq.peek()
-// 	if next != nil {
-// 		wait := next.when.Sub(time.Now())
-// 		// needed?
-// 		if wait < 0 {
-// 			wait = 0
-// 		}
-// 		//s.nextPQ.Reset(wait)
-// 	} else {
-// 		vv("queueNext: empty PQ")
-// 	}
-// }
 
 func (s *simnet) Start() {
 	//vv("simnet.Start() top")
@@ -659,7 +639,6 @@ func (s *simnet) Start() {
 		// init phase
 
 		// get a client before anything else.
-		// allow setting a non-default scenario too.
 		select {
 		case s.cli = <-s.cliReady:
 			//vv("simnet got cli")
