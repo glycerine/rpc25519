@@ -82,10 +82,15 @@ func Test801_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 
 			// set a timer
 			t0 := time.Now()
-			timerC, err := cli.TimeAfter(3 * time.Second)
+			goalWait := 3 * time.Second
+			timerC, err := cli.TimeAfter(goalWait)
 			panicOn(err)
 			t1 := <-timerC
-			vv("finished timer (fired at %v) after %v", t1, time.Since(t0))
+			elap := time.Since(t0)
+			if elap < goalWait {
+				t.Fatalf("timer went off too early! elap(%v) < goalWait(%v)", elap, goalWait)
+			}
+			vv("good: finished timer (fired at %v) after %v >= goal %v", t1, elap, goalWait)
 		})
 	})
 }

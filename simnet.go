@@ -242,7 +242,7 @@ func (s *simnet) newSendMsg(msg *Message, isCli bool) (op *mop) {
 func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 
 	isCli := conn.(*simnetConn).isCli
-	lc := s.srvnode.LC
+	lc := s.srvnode.LC // data race read, vs. :688
 	who := "SERVER"
 	if isCli {
 		who = "CLIENT"
@@ -273,7 +273,7 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) e
 	who := "SERVER"
 	if isCli {
 		who = "CLIENT"
-		lc = s.clinode.LC
+		lc = s.clinode.LC // data race read vs write :687
 	}
 	_, _ = who, lc
 	//vv("top simnet.sendMessage() %v SEND  LC = %v; msg.Serial=%v", who, lc, msg.HDR.Serial)
@@ -685,7 +685,7 @@ func (s *simnet) Start() {
 		for i := int64(0); ; i++ {
 			// each scheduler loop tick is an event.
 			s.clinode.LC++
-			s.srvnode.LC++
+			s.srvnode.LC++ // race write vs reead createNewTimer :782
 
 			// advance time by one tick
 			time.Sleep(s.scenario.tick)
@@ -745,6 +745,15 @@ func (s *simnet) initScenario(scenario *scenario) {
 
 func (s *simnet) handleTimer(timer *mop) {
 
+	lc := s.srvnode.LC
+	who := "SERVER"
+	if timer.originCli {
+		who = "CLIENT"
+		lc = s.clinode.LC
+	}
+	_, _ = who, lc
+	vv("handleTimer() %v  TIMER SET; LC = %v", who, lc)
+
 	now := time.Now()
 	if timer.seen == 0 {
 		if timer.originCli {
@@ -778,15 +787,16 @@ func (s *simnet) handleTimer(timer *mop) {
 	s.nextTimer.Reset(dur)
 }
 
+// called by goroutines outside of the scheduler,
+// so must not touch s.srvnode, s.clinode, etc.
 func (s *simnet) createNewTimer(dur time.Duration, begin time.Time, isCli bool) (timerC chan time.Time, err error) {
-	lc := s.srvnode.LC
+
 	who := "SERVER"
 	if isCli {
 		who = "CLIENT"
-		lc = s.clinode.LC
 	}
-	_, _ = who, lc
-	vv("top simnet.createNewTimer() %v created TIMER ; LC = %v", who, lc)
+	_ = who
+	vv("top simnet.createNewTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", who, dur, begin, begin.Add(dur))
 
 	timer := s.newTimerMop(isCli)
 	timer.timerDur = dur
