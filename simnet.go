@@ -242,14 +242,19 @@ func (s *simnet) newSendMsg(msg *Message, isCli bool) (op *mop) {
 func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 
 	isCli := conn.(*simnetConn).isCli
-	lc := s.srvnode.LC // data race read, vs. :688
-	who := "SERVER"
-	if isCli {
-		who = "CLIENT"
-		lc = s.clinode.LC
-	}
-	_, _ = who, lc
-	//vv("top simnet.readMessage() %v READ ; LC = %v", who, lc)
+
+	vvIfPrintOn(func() string {
+		var lc int64
+		var who string
+		if isCli {
+			who = "CLIENT"
+			lc = atomic.LoadInt64(&s.clinode.LC)
+		} else {
+			who = "SERVER"
+			lc = atomic.LoadInt64(&s.srvnode.LC)
+		}
+		return fmt.Sprintf("top simnet.readMessage() %v READ  LC = %v", who, lc)
+	})
 
 	read := s.newReadMsg(isCli)
 	select {
@@ -269,14 +274,19 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
 
 	isCli := conn.(*simnetConn).isCli
-	lc := s.srvnode.LC
-	who := "SERVER"
-	if isCli {
-		who = "CLIENT"
-		lc = s.clinode.LC // data race read vs write :687
-	}
-	_, _ = who, lc
-	//vv("top simnet.sendMessage() %v SEND  LC = %v; msg.Serial=%v", who, lc, msg.HDR.Serial)
+
+	vvIfPrintOn(func() string {
+		var lc int64
+		var who string
+		if isCli {
+			who = "CLIENT"
+			lc = atomic.LoadInt64(&s.clinode.LC)
+		} else {
+			who = "SERVER"
+			lc = atomic.LoadInt64(&s.srvnode.LC)
+		}
+		return fmt.Sprintf("top simnet.sendMessage() %v SEND  LC = %v; msg.Serial=%v", who, lc, msg.HDR.Serial)
+	})
 
 	send := s.newSendMsg(msg, isCli)
 	select {
@@ -684,8 +694,9 @@ func (s *simnet) Start() {
 		// main scheduler loop
 		for i := int64(0); ; i++ {
 			// each scheduler loop tick is an event.
-			s.clinode.LC++
-			s.srvnode.LC++ // race write vs reead createNewTimer :782
+			cliLC := atomic.AddInt64(&s.clinode.LC, 1)
+			srvLC := atomic.AddInt64(&s.srvnode.LC, 1)
+			_, _ = cliLC, srvLC
 
 			// advance time by one tick
 			time.Sleep(s.scenario.tick)
@@ -697,7 +708,7 @@ func (s *simnet) Start() {
 			// have outstanding reads open always
 			// as they listen for messages.
 			synctest.Wait()
-			//vv("scheduler top cli.LC = %v ; srv.LC = %v", s.clinode.LC, s.srvnode.LC)
+			//vv("scheduler top cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
 
 			s.clinode.dispatchSendsReadsTimers()
 			s.srvnode.dispatchSendsReadsTimers()
