@@ -88,7 +88,7 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 	s.srvnode = s.newSimnode("SERVER")
 
 	// let client find the shared simnet in their cfg.
-	cfg.simnetRendezvous.mut.Lock() // prevent race with simnet_client.go:25 read
+	cfg.simnetRendezvous.mut.Lock()
 	cfg.simnetRendezvous.simnet = s
 	cfg.simnetRendezvous.mut.Unlock()
 
@@ -247,16 +247,13 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 	isCli := conn.(*simnetConn).isCli
 
 	vvIfPrintOn(func() string {
-		var lc int64
 		var who string
 		if isCli {
 			who = "CLIENT"
-			lc = atomic.LoadInt64(&s.clinode.LC)
 		} else {
 			who = "SERVER"
-			lc = atomic.LoadInt64(&s.srvnode.LC)
 		}
-		return fmt.Sprintf("top simnet.readMessage() %v READ  LC = %v", who, lc)
+		return fmt.Sprintf("top simnet.readMessage() %v READ", who)
 	})
 
 	read := s.newReadMsg(isCli)
@@ -279,16 +276,13 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) e
 	isCli := conn.(*simnetConn).isCli
 
 	vvIfPrintOn(func() string {
-		var lc int64
 		var who string
 		if isCli {
 			who = "CLIENT"
-			lc = atomic.LoadInt64(&s.clinode.LC)
 		} else {
 			who = "SERVER"
-			lc = atomic.LoadInt64(&s.srvnode.LC)
 		}
-		return fmt.Sprintf("top simnet.sendMessage() %v SEND  LC = %v; msg.Serial=%v", who, lc, msg.HDR.Serial)
+		return fmt.Sprintf("top simnet.sendMessage() %v SEND  msg.Serial=%v", who, msg.HDR.Serial)
 	})
 
 	send := s.newSendMsg(msg, isCli)
@@ -697,8 +691,10 @@ func (s *simnet) Start() {
 		// main scheduler loop
 		for i := int64(0); ; i++ {
 			// each scheduler loop tick is an event.
-			cliLC := atomic.AddInt64(&s.clinode.LC, 1)
-			srvLC := atomic.AddInt64(&s.srvnode.LC, 1)
+			s.clinode.LC++
+			s.srvnode.LC++
+			cliLC := s.clinode.LC
+			srvLC := s.srvnode.LC
 			_, _ = cliLC, srvLC
 
 			// advance time by one tick

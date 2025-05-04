@@ -22,7 +22,6 @@ func (c *Client) runSimNetClient(localHostPort string) {
 	// how does client pass this to us?/if we need it at all?
 	//simNetConfig := &SimNetConfig{}
 
-	// prevent race read vs simnet_server.go:68 setting simnet
 	c.cfg.simnetRendezvous.mut.Lock()
 	c.simnet = c.cfg.simnetRendezvous.simnet
 	c.cfg.simnetRendezvous.mut.Unlock()
