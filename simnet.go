@@ -757,9 +757,9 @@ func (s *simnet) handleTimer(timer *mop) {
 	}
 
 	it := timerQ.tree.Min()
-	item := it.Item() // interface{}
-	minTimer := item.(*mop)
+	minTimer := it.Item().(*mop)
 	dur := minTimer.when.Sub(now)
+	vv("dur=%v = when(%v) - now(%v)", dur, minTimer.when, now)
 	s.nextTimer.Reset(dur)
 }
 
@@ -774,6 +774,8 @@ func (s *simnet) createNewTimer(dur time.Duration, isCli bool) (timerC chan time
 	vv("top simnet.createNewTimer() %v created TIMER ; LC = %v", who, lc)
 
 	timer := s.newTimerMop(isCli)
+	timer.timerDur = dur
+
 	select {
 	case s.addTimer <- timer:
 	case <-s.halt.ReqStop.Chan:
