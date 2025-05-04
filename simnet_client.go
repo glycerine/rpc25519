@@ -48,3 +48,11 @@ func (c *Client) runSimNetClient(localHostPort string) {
 	}
 	c.runReadLoop(conn, cpair)
 }
+
+func (c *Client) simnetTimeAfter(dur time.Duration) (timerC <-chan time.Time, err error) {
+	return c.simnet.createNewTimer(dur, true)
+}
+
+func (s *Server) simnetTimeAfter(dur time.Duration) (timerC <-chan time.Time, err error) {
+	return s.simnet.createNewTimer(dur, false)
+}

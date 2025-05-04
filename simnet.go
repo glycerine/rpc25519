@@ -168,7 +168,9 @@ type mop struct {
 	readerLC int64
 	originLC int64
 
-	dur time.Duration // timer duration
+	timerC       <-chan time.Time
+	timerDur     time.Duration
+	timerStarted time.Time
 
 	// when: when the operation completes and
 	// control returns to user code.
@@ -722,7 +724,9 @@ func (s *simnet) handleTimer(timer *mop) {
 			timer.senderLC = s.srvnode.LC
 			timer.originLC = s.srvnode.LC
 		}
-		timer.when = time.Now() //.Add(s.scenario.hop)
+		now := time.Now()
+		timer.when = now.Add(timer.timerDur)
+		timer.timerC = make(<-chan time.Time)
 	}
 	timer.seen++
 
@@ -735,4 +739,39 @@ func (s *simnet) handleTimer(timer *mop) {
 		s.srvnode.timerQ.add(timer)
 		vv("srv.LC:%v SERVER set TIMER %v now timerQ: '%v'", lc, timer, s.srvnode.timerQ)
 	}
+}
+
+func (s *simnet) createNewTimer(dur time.Duration, isCli bool) (timerC <-chan time.Time, err error) {
+	lc := s.srvnode.LC
+	who := "SERVER"
+	if isCli {
+		who = "CLIENT"
+		lc = s.clinode.LC
+	}
+	_, _ = who, lc
+	vv("top simnet.createNewTimer() %v created TIMER ; LC = %v", who, lc)
+
+	timer := s.newTimerMop(isCli)
+	select {
+	case s.addTimer <- timer:
+	case <-s.halt.ReqStop.Chan:
+		return nil, ErrShutdown()
+	}
+	select {
+	case <-timer.proceed:
+		return timer.timerC, nil
+	case <-s.halt.ReqStop.Chan:
+		return nil, ErrShutdown()
+	}
+	return
+}
+
+func (s *simnet) newTimerMop(isCli bool) (op *mop) {
+	op = &mop{
+		originCli: isCli,
+		sn:        simnetNextMopSn(),
+		kind:      TIMER,
+		proceed:   make(chan struct{}),
+	}
+	return
 }

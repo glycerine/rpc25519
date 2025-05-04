@@ -1958,6 +1958,8 @@ type UniversalCliSrv interface {
 	RecycleFragLen() int
 	PingStats(remote string) *PingStat
 	AutoClients() (list []*Client, isServer bool)
+
+	TimeAfter(dur time.Duration) (timerC <-chan time.Time, err error)
 }
 
 type PingStat struct {
@@ -2546,4 +2548,18 @@ func (s *Client) UnregisterChannel(ID string, whichmap int) {
 	case ToPeerIDErrorMap:
 		s.notifies.notifyOnErrorToPeerIDMap.del(ID)
 	}
+}
+
+func (c *Client) TimeAfter(dur time.Duration) (timerC <-chan time.Time, err error) {
+	if !c.cfg.UseSimNet {
+		return time.After(dur), nil
+	}
+	return c.simnetTimeAfter(dur)
+}
+
+func (s *Server) TimeAfter(dur time.Duration) (timerC <-chan time.Time, err error) {
+	if !s.cfg.UseSimNet {
+		return time.After(dur), nil
+	}
+	return s.simnetTimeAfter(dur)
 }

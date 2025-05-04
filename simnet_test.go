@@ -80,6 +80,12 @@ func Test801_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 				t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply.JobSerz))
 			}
 
+			// set a timer
+			t0 := time.Now()
+			timerC, err := cli.TimeAfter(3 * time.Second)
+			panicOn(err)
+			t1 := <-timerC
+			vv("finished timer (fired at %v) after %v", t1, time.Since(t0))
 		})
 	})
 }
