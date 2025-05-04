@@ -168,7 +168,7 @@ type mop struct {
 	readerLC int64
 	originLC int64
 
-	timerC       <-chan time.Time
+	timerC       chan time.Time
 	timerDur     time.Duration
 	timerStarted time.Time
 
@@ -557,11 +557,17 @@ func (node *simnode) serviceReads() {
 
 		timer := timerit.Item().(*mop)
 
-		if !time.Now().Before(timer.when) {
+		now := time.Now()
+		if !now.Before(timer.when) {
 			// timer.when <= now
 			vv("have TIMER firing")
 			timerDel = append(timerDel, timer)
-			close(timer.proceed)
+			select {
+			case timer.timerC <- now:
+			case <-node.net.halt.ReqStop.Chan:
+				return
+			}
+			//close(timer.proceed)
 		} else {
 			// smallest timer > now
 			break
@@ -684,7 +690,7 @@ func (s *simnet) Start() {
 				s.initScenario(scenario)
 
 			case timer := <-s.addTimer:
-				//vv("addTimer ->  op='%v'", timer)
+				vv("addTimer ->  op='%v'", timer)
 				s.handleTimer(timer)
 
 			case send := <-s.msgSendCh:
@@ -725,8 +731,10 @@ func (s *simnet) handleTimer(timer *mop) {
 			timer.originLC = s.srvnode.LC
 		}
 		now := time.Now()
+		timer.timerStarted = now
 		timer.when = now.Add(timer.timerDur)
-		timer.timerC = make(<-chan time.Time)
+		timer.timerC = make(chan time.Time)
+		defer close(timer.proceed)
 	}
 	timer.seen++
 
@@ -741,7 +749,7 @@ func (s *simnet) handleTimer(timer *mop) {
 	}
 }
 
-func (s *simnet) createNewTimer(dur time.Duration, isCli bool) (timerC <-chan time.Time, err error) {
+func (s *simnet) createNewTimer(dur time.Duration, isCli bool) (timerC chan time.Time, err error) {
 	lc := s.srvnode.LC
 	who := "SERVER"
 	if isCli {
