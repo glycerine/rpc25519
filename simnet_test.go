@@ -44,7 +44,7 @@ func Test701_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 		cfg.UseSimNet = true
 
 		cfg.ServerAddr = "127.0.0.1:0"
-		srv := NewServer("srv_test801", cfg)
+		srv := NewServer("srv_test701", cfg)
 
 		serverAddr, err := srv.Start()
 		panicOn(err)
@@ -56,7 +56,7 @@ func Test701_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 		srv.Register2Func(serviceName, customEcho)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
-		cli, err := NewClient("test801", cfg)
+		cli, err := NewClient("cli_test701", cfg)
 		panicOn(err)
 		err = cli.Start()
 		panicOn(err)
@@ -169,7 +169,7 @@ func Test706_SimNet_RoundTrip_Using_NetRPC(t *testing.T) {
 	//cfg.WriteTimeout = 2 * time.Second
 
 	cfg.ServerAddr = "127.0.0.1:0"
-	srv := NewServer("srv_test001", cfg)
+	srv := NewServer("srv_test706", cfg)
 
 	serverAddr, err := srv.Start()
 	panicOn(err)
@@ -184,7 +184,7 @@ func Test706_SimNet_RoundTrip_Using_NetRPC(t *testing.T) {
 	srv.Register(&BuiltinTypes{})
 
 	cfg.ClientDialToHostPort = serverAddr.String()
-	client, err := NewClient("test006", cfg)
+	client, err := NewClient("cli_test706", cfg)
 	panicOn(err)
 	err = client.Start()
 	panicOn(err)
@@ -303,7 +303,7 @@ func Test706_SimNet_RoundTrip_Using_NetRPC(t *testing.T) {
 	//vv("good: end of 706 test")
 }
 
-// synctest version of 040 in cli_test.go
+// simnet version of 040 in cli_test.go
 func Test740_simnet_remote_cancel_by_context(t *testing.T) {
 
 	cv.Convey("simnet remote cancellation", t, func() {
@@ -314,7 +314,7 @@ func Test740_simnet_remote_cancel_by_context(t *testing.T) {
 		//cfg.ServerSendKeepAlive = time.Second * 10 // does not stop hang on synctest
 
 		cfg.ServerAddr = "127.0.0.1:0"
-		srv := NewServer("srv_test040", cfg)
+		srv := NewServer("srv_test740", cfg)
 
 		serverAddr, err := srv.Start()
 		panicOn(err)
@@ -326,12 +326,12 @@ func Test740_simnet_remote_cancel_by_context(t *testing.T) {
 		mustCancelMe := NewMustBeCancelled()
 		srv.Register(mustCancelMe)
 
-		// and register early for 041 below
-		serviceName041 := "test041_hang_until_cancel"
-		srv.Register2Func(serviceName041, mustCancelMe.MessageAPI_HangUntilCancel)
+		// and register early for 741 below
+		serviceName741 := "test741_hang_until_cancel"
+		srv.Register2Func(serviceName741, mustCancelMe.MessageAPI_HangUntilCancel)
 
 		cfg.ClientDialToHostPort = serverAddr.String()
-		client, err := NewClient("test040", cfg)
+		client, err := NewClient("cli_test740", cfg)
 		panicOn(err)
 		err = client.Start()
 		panicOn(err)
@@ -342,76 +342,76 @@ func Test740_simnet_remote_cancel_by_context(t *testing.T) {
 		args := &Args{7, 8}
 		reply := new(Reply)
 
-		var cliErr40 error
-		cliErrIsSet40 := make(chan bool)
-		ctx40, cancelFunc40 := context.WithCancel(context.Background())
+		var cliErr740 error
+		cliErrIsSet740 := make(chan bool)
+		ctx740, cancelFunc740 := context.WithCancel(context.Background())
 		go func() {
 			vv("client.Call() goro top about to call over net/rpc: MustBeCancelled.WillHangUntilCancel()")
 
-			cliErr40 = client.Call("MustBeCancelled.WillHangUntilCancel", args, reply, ctx40)
-			vv("client.Call() returned with cliErr = '%v'", cliErr40)
-			close(cliErrIsSet40)
+			cliErr740 = client.Call("MustBeCancelled.WillHangUntilCancel", args, reply, ctx740)
+			vv("client.Call() returned with cliErr = '%v'", cliErr740)
+			close(cliErrIsSet740)
 		}()
 
 		// let the call get blocked.
-		vv("cli_test 040: about to block on test040callStarted")
-		<-test040callStarted // synctest blocked here
-		vv("cli_test 040: we got past test040callStarted")
+		vv("cli_test 740: about to block on test740callStarted")
+		<-mustCancelMe.callStarted // synctest blocked here
+		vv("cli_test 740: we got past test740callStarted")
 
 		// cancel it: transmit cancel request to server.
-		cancelFunc40()
+		cancelFunc740()
 		vv("past cancelFunc()")
 
-		<-cliErrIsSet40
-		vv("past cliErrIsSet channel; cliErr40 = '%v'", cliErr40)
+		<-cliErrIsSet740
+		vv("past cliErrIsSet channel; cliErr740 = '%v'", cliErr740)
 
-		if cliErr40 != ErrCancelReqSent {
-			t.Errorf("Test040: expected ErrCancelReqSent but got %v", cliErr40)
+		if cliErr740 != ErrCancelReqSent {
+			t.Errorf("Test740: expected ErrCancelReqSent but got %v", cliErr740)
 		}
 
 		// confirm that server side function is unblocked too
 		vv("about to verify that server side context was cancelled.")
-		<-test040callFinished
+		<-mustCancelMe.callFinished
 		vv("server side saw the cancellation request: confirmed.")
 
-		// use Message []byte oriented API: test 041
+		// use Message []byte oriented API: test 741
 
-		var cliErr41 error
-		cliErrIsSet41 := make(chan bool)
-		ctx41, cancelFunc41 := context.WithCancel(context.Background())
+		var cliErr741 error
+		cliErrIsSet741 := make(chan bool)
+		ctx741, cancelFunc741 := context.WithCancel(context.Background())
 		req := NewMessage()
 		req.HDR.Typ = CallRPC
-		req.HDR.ServiceName = serviceName041
-		var reply41 *Message
+		req.HDR.ServiceName = serviceName741
+		var reply741 *Message
 
 		go func() {
-			reply41, cliErr41 = client.SendAndGetReply(req, ctx41.Done(), 0)
-			vv("client.Call() returned with cliErr = '%v'", cliErr41)
-			close(cliErrIsSet41)
+			reply741, cliErr741 = client.SendAndGetReply(req, ctx741.Done(), 0)
+			vv("client.Call() returned with cliErr = '%v'", cliErr741)
+			close(cliErrIsSet741)
 		}()
 
 		// let the call get blocked on the server (only works under test, of course).
-		<-test041callStarted
-		vv("cli_test 041: we got past test041callStarted")
+		<-mustCancelMe.callStarted
+		vv("cli_test 741: we got past test741callStarted")
 
 		// cancel it: transmit cancel request to server.
-		cancelFunc41()
+		cancelFunc741()
 		vv("past cancelFunc()")
 
-		<-cliErrIsSet41
-		vv("past cliErrIsSet channel; cliErr = '%v'", cliErr41)
+		<-cliErrIsSet741
+		vv("past cliErrIsSet channel; cliErr = '%v'", cliErr741)
 
-		if cliErr41 != ErrCancelReqSent {
-			t.Errorf("Test041: expected ErrCancelReqSent but got %v", cliErr41)
+		if cliErr741 != ErrCancelReqSent {
+			t.Errorf("Test741: expected ErrCancelReqSent but got %v", cliErr741)
 		}
 
-		if reply41 != nil {
-			t.Errorf("Test041: expected reply41 to be nil, but got %v", reply41)
+		if reply741 != nil {
+			t.Errorf("Test741: expected reply741 to be nil, but got %v", reply741)
 		}
 
 		// confirm that server side function is unblocked too
 		vv("about to verify that server side context was cancelled.")
-		<-test041callFinished
+		<-mustCancelMe.callFinished
 
 	})
 }

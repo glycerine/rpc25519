@@ -284,21 +284,25 @@ type BenchmarkMessage struct {
 type MustBeCancelled struct {
 	// as greenpack efficiently does nothing without any member elements.
 	Placeholder int `zid:"0"`
+
+	callStarted  chan bool
+	callFinished chan string
 }
 
 // NewMustBeCancelled in example.go is part of the tests.
 // See cli_test.go Test040 for details.
-func NewMustBeCancelled() *MustBeCancelled {
-	return &MustBeCancelled{}
+func NewMustBeCancelled() (must *MustBeCancelled) {
+	must = &MustBeCancelled{
+		callStarted:  make(chan bool, 1),
+		callFinished: make(chan string, 1),
+	}
+	return
 }
-
-var test040callStarted = make(chan bool, 1)
-var test040callFinished = make(chan string, 1)
 
 // WillHangUntilCancel in example.go is part of the tests.
 // See cli_test.go Test040 for details.
 func (s *MustBeCancelled) WillHangUntilCancel(ctx context.Context, args *Args, reply *Reply) error {
-	test040callStarted <- true
+	s.callStarted <- true
 	fmt.Printf("%v server-side: WillHangUntilCancel() is running\n", fileLine(1))
 
 	// demonstrate getting at the net.Conn in use.
@@ -311,18 +315,18 @@ func (s *MustBeCancelled) WillHangUntilCancel(ctx context.Context, args *Args, r
 	case <-ctx.Done():
 		msg := fmt.Sprintf("%v MustBeCancelled.WillHangUntilCancel(): ctx.Done() was closed!", fileLine(1))
 		fmt.Printf("%v\n", msg)
-		test040callFinished <- msg
+		s.callFinished <- msg
 	}
 	return nil
 }
 
-var test041callStarted = make(chan bool, 1)
-var test041callFinished = make(chan string, 1)
+//var test041callStarted = make(chan bool, 1)
+//var test041callFinished = make(chan string, 1)
 
 // MessageAPI_HangUntilCancel in example.go is part of the tests.
 // See cli_test.go Test040 for details.
 func (s *MustBeCancelled) MessageAPI_HangUntilCancel(req, reply *Message) error {
-	test041callStarted <- true
+	s.callStarted <- true
 	fmt.Printf("%v server-side: MessageAPI_HangUntilCancel() is running\n", fileLine(1))
 	// demonstrate net.Conn access:
 	fmt.Printf("%v: Message API: our net.Conn has local = '%v'; remote = '%v'\n", fileLine(1),
@@ -331,7 +335,7 @@ func (s *MustBeCancelled) MessageAPI_HangUntilCancel(req, reply *Message) error 
 	case <-req.HDR.Ctx.Done():
 		msg := "example.go: MustBeCancelled.MessageAPI_HangUntilCancel(): ctx.Done() was closed!"
 		fmt.Printf("%v\n", msg)
-		test041callFinished <- msg
+		s.callFinished <- msg
 	}
 	return nil
 }

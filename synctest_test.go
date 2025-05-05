@@ -313,7 +313,7 @@ func Test840_synctest_remote_cancel_by_context(t *testing.T) {
 
 		// let the call get blocked.
 		vv("cli_test 040: about to block on test040callStarted")
-		<-test040callStarted // synctest blocked here
+		<-mustCancelMe.callStarted // synctest blocked here
 		vv("cli_test 040: we got past test040callStarted")
 
 		// cancel it: transmit cancel request to server.
@@ -329,7 +329,7 @@ func Test840_synctest_remote_cancel_by_context(t *testing.T) {
 
 		// confirm that server side function is unblocked too
 		vv("about to verify that server side context was cancelled.")
-		<-test040callFinished
+		<-mustCancelMe.callFinished
 		vv("server side saw the cancellation request: confirmed.")
 
 		// use Message []byte oriented API: test 041
@@ -349,7 +349,7 @@ func Test840_synctest_remote_cancel_by_context(t *testing.T) {
 		}()
 
 		// let the call get blocked on the server (only works under test, of course).
-		<-test041callStarted
+		<-mustCancelMe.callStarted
 		vv("cli_test 041: we got past test041callStarted")
 
 		// cancel it: transmit cancel request to server.
@@ -369,7 +369,7 @@ func Test840_synctest_remote_cancel_by_context(t *testing.T) {
 
 		// confirm that server side function is unblocked too
 		vv("about to verify that server side context was cancelled.")
-		<-test041callFinished
+		<-mustCancelMe.callFinished
 
 	})
 }
