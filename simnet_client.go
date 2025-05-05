@@ -23,14 +23,16 @@ func (c *Client) runSimNetClient(localHostPort string) {
 	//simNetConfig := &SimNetConfig{}
 
 	c.cfg.simnetRendezvous.mut.Lock()
+
 	c.simnet = c.cfg.simnetRendezvous.simnet
 	conn := c.cfg.simnetRendezvous.c2s
 	conn.netAddr = netAddr
-	c.cfg.simnetRendezvous.mut.Unlock()
-
 	c.simnode = conn.local
 	c.simconn = conn
 	c.conn = conn
+
+	c.cfg.simnetRendezvous.mut.Unlock()
+
 	//c.isTLS = false
 
 	//c.setLocalAddr(conn)

@@ -24,7 +24,7 @@ type SimNetConfig struct{}
 type simnetConn struct {
 	isCli   bool
 	net     *simnet
-	netAddr *SimNetAddr
+	netAddr *SimNetAddr // local address
 
 	local  *simnode
 	remote *simnode
@@ -201,6 +201,7 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 		nextTimer: time.NewTimer(time.Hour * 10_000),
 	}
 	s.nextTimer.Stop()
+
 	clinode := s.newSimnode("CLIENT", true)
 	srvnode := s.newSimnode("SERVER", false)
 	s.clinode = clinode
@@ -208,24 +209,10 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 
 	// nodes
 	s.nodes = make(map[*simnode]map[*simnode]*simnetConn)
+
 	// edges
-	s.nodes[s.clinode] = make(map[*simnode]*simnetConn)
-	c2s := &simnetConn{
-		isCli:  true,
-		net:    s,
-		local:  s.clinode,
-		remote: s.srvnode,
-	}
-	s.nodes[s.clinode][s.srvnode] = c2s
-	s2c := &simnetConn{
-		isCli:   false,
-		net:     s,
-		local:   s.srvnode,
-		remote:  s.clinode,
-		netAddr: srvNetAddr,
-	}
-	s.nodes[s.srvnode] = make(map[*simnode]*simnetConn)
-	s.nodes[s.srvnode][s.clinode] = s2c
+	c2s := s.addEdgeFromCli(clinode, srvnode)
+	s2c := s.addEdgeFromSrv(srvnode, clinode, srvNetAddr)
 
 	// let client find the shared simnet in their cfg.
 	cfg.simnetRendezvous.mut.Lock()
@@ -238,6 +225,43 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 
 	s.Start()
 	return s2c
+}
+
+func (s *simnet) addEdgeFromSrv(srvnode, clinode *simnode, srvNetAddr *SimNetAddr) *simnetConn {
+
+	srv, ok := s.nodes[srvnode] // edges from srv
+	if !ok {
+		srv = make(map[*simnode]*simnetConn)
+		s.nodes[srvnode] = srv
+	}
+	s2c := &simnetConn{
+		isCli:   false,
+		net:     s,
+		local:   srvnode,
+		remote:  clinode,
+		netAddr: srvNetAddr,
+	}
+	// replace any previous conn
+	srv[clinode] = s2c
+	return s2c
+}
+
+func (s *simnet) addEdgeFromCli(clinode, srvnode *simnode) *simnetConn {
+
+	cli, ok := s.nodes[s.clinode] // edges from cli
+	if !ok {
+		cli = make(map[*simnode]*simnetConn)
+		s.nodes[clinode] = cli
+	}
+	c2s := &simnetConn{
+		isCli:  true,
+		net:    s,
+		local:  s.clinode,
+		remote: s.srvnode,
+	}
+	// replace any previous conn
+	cli[s.srvnode] = c2s
+	return c2s
 }
 
 var simnetLastMopSn int64
@@ -909,8 +933,9 @@ func (s *simnet) scheduler() {
 			s.dispatchAll()
 			s.armTimer()
 
-		//case newConn := <-s.newConnCh:
-
+		case newConn := <-s.newConnCh:
+			_ = newConn
+			panic("TODO")
 		case scenario := <-s.newScenarioCh:
 			s.finishScenario()
 			s.initScenario(scenario)
