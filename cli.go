@@ -1729,11 +1729,11 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 		to = remote(c.conn)
 
 		// diagnostics for simnet.
-		sc, ok := c.conn.(*simnetConn)
-		_ = sc
-		if ok {
-			//vv("isCli=%v; c.conn.netAddr = '%v'; simnetConn.local='%v'; remote='%v'; sc.netAddr='%v'", sc.isCli, sc.netAddr, sc.local.name, sc.remote.name, sc.netAddr)
-		}
+		//sc, ok := c.conn.(*simnetConn)
+		//_ = sc
+		//if ok {
+		//	//vv("isCli=%v; c.conn.netAddr = '%v'; simnetConn.local='%v'; remote='%v'; sc.netAddr='%v'", sc.isCli, sc.netAddr, sc.local.name, sc.remote.name, sc.netAddr)
+		//}
 	}
 
 	req.HDR.To = to

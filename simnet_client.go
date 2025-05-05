@@ -1,3 +1,5 @@
+//go:build goexperiment.synctest
+
 package rpc25519
 
 func (c *Client) runSimNetClient(localHostPort, serverAddr string) {
