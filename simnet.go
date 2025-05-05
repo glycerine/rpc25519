@@ -848,6 +848,12 @@ func (s *simnet) schedulerReport() string {
 	return fmt.Sprintf("lastArmTm.After(now) = %v [%v out] %v; qReport = '%v'", s.lastArmTm.After(now), s.lastArmTm.Sub(now), s.lastArmTm, s.qReport())
 }
 
+func (s *simnet) dispatchAll() {
+	for _, node := range s.nodes {
+		node.dispatch()
+	}
+}
+
 // makes it clear on a stack trace which goro this is.
 func (s *simnet) scheduler() {
 
@@ -883,14 +889,7 @@ func (s *simnet) scheduler() {
 		////zz("scheduler top cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
 		//vv("scheduler top %v", s.schedulerReport())
 
-		// easier debugging
-		s.clinode.dispatch()
-		s.srvnode.dispatch()
-
-		// vs. eventually
-		//for _, node := range s.nodes {
-		//	node.dispatch()
-		//}
+		s.dispatchAll()
 		s.armTimer()
 
 		// advance time by one tick
@@ -901,8 +900,7 @@ func (s *simnet) scheduler() {
 		case alert := <-s.nextTimer.C: // soonest timer fires
 			_ = alert
 			//vv("s.nextTimer -> alerted at %v", alert)
-			s.clinode.dispatch()
-			s.srvnode.dispatch()
+			s.dispatchAll()
 			s.armTimer()
 
 		case scenario := <-s.newScenarioCh:
@@ -968,23 +966,14 @@ func (s *simnet) handleDiscardTimer(discard *mop) {
 
 func (s *simnet) handleTimer(timer *mop) {
 
-	lc := s.srvnode.LC
-	who := "SERVER"
-	if timer.originCli {
-		who = "CLIENT"
-		lc = s.clinode.LC
-	}
+	lc := timer.origin.LC
+	who := timer.origin.name
 	_, _ = who, lc
 	//vv("handleTimer() %v  TIMER SET; LC = %v", who, lc)
 
 	if timer.seen == 0 {
-		if timer.originCli {
-			timer.senderLC = s.clinode.LC
-			timer.originLC = s.clinode.LC
-		} else {
-			timer.senderLC = s.srvnode.LC
-			timer.originLC = s.srvnode.LC
-		}
+		timer.senderLC = lc
+		timer.originLC = lc
 		timer.timerC = make(chan time.Time)
 		defer close(timer.proceed)
 	}
@@ -993,13 +982,8 @@ func (s *simnet) handleTimer(timer *mop) {
 		panic(fmt.Sprintf("expect each timer mop only once now, not %v", timer.seen))
 	}
 
-	if timer.originCli {
-		s.clinode.timerQ.add(timer)
-		////zz("cli.LC:%v CLIENT set TIMER %v to fire at '%v'; now timerQ: '%v'", s.clinode.LC, timer, timer.completeTm, s.clinode.timerQ)
-	} else {
-		s.srvnode.timerQ.add(timer)
-		////zz("srv.LC:%v SERVER set TIMER %v to fire at '%v'; now timerQ: '%v'", s.srvnode.LC, timer, timer.completeTm, s.srvnode.timerQ)
-	}
+	timer.origin.timerQ.add(timer)
+	////zz("LC:%v %v set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer.origin.name, timer, timer.completeTm, s.clinode.timerQ)
 
 	s.armTimer()
 }
