@@ -55,7 +55,7 @@ func (s *SimNetAddr) Network() string {
 
 // string form of address (for example, "192.0.2.1:25", "[2001:db8::1]:80")
 func (s *SimNetAddr) String() string {
-	// keep it simple
+	// keep it simple, as it is our simnet.dns lookup key.
 	return s.name
 
 	//	if s.isCli {
@@ -258,8 +258,12 @@ func (s *simnet) handleNewClientRegistration(reg *clientRegistration) {
 	// edges
 	c2s := s.addEdgeFromCli(clinode, srvnode)
 	s2c := s.addEdgeFromSrv(srvnode, clinode)
-	_ = s2c
 
+	select {
+	case srvnode.tellServerNewConnCh <- s2c:
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
 	reg.conn = c2s
 	reg.simnode = clinode
 	close(reg.done)
