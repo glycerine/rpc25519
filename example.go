@@ -299,17 +299,17 @@ var test040callFinished = make(chan string, 1)
 // See cli_test.go Test040 for details.
 func (s *MustBeCancelled) WillHangUntilCancel(ctx context.Context, args *Args, reply *Reply) error {
 	test040callStarted <- true
-	fmt.Printf("example.go: server-side: WillHangUntilCancel() is running\n")
+	fmt.Printf("%v server-side: WillHangUntilCancel() is running\n", fileLine(1))
 
 	// demonstrate getting at the net.Conn in use.
 	if hdr, ok := HDRFromContext(ctx); ok {
-		fmt.Printf("example.go: net.rpc API: our net.Conn has local = '%v'; remote = '%v'\n",
+		fmt.Printf("%v net.rpc API: our net.Conn has \nlocal = '%v'\nremote = '%v'\n", fileLine(1),
 			hdr.Nc.LocalAddr(), hdr.Nc.RemoteAddr())
 	}
 
 	select {
 	case <-ctx.Done():
-		msg := "example.go: MustBeCancelled.WillHangUntilCancel(): ctx.Done() was closed!"
+		msg := fmt.Sprintf("%v MustBeCancelled.WillHangUntilCancel(): ctx.Done() was closed!", fileLine(1))
 		fmt.Printf("%v\n", msg)
 		test040callFinished <- msg
 	}
@@ -323,9 +323,9 @@ var test041callFinished = make(chan string, 1)
 // See cli_test.go Test040 for details.
 func (s *MustBeCancelled) MessageAPI_HangUntilCancel(req, reply *Message) error {
 	test041callStarted <- true
-	fmt.Printf("example.go: server-side: MessageAPI_HangUntilCancel() is running\n")
+	fmt.Printf("%v server-side: MessageAPI_HangUntilCancel() is running\n", fileLine(1))
 	// demonstrate net.Conn access:
-	fmt.Printf("example.go: Message API: our net.Conn has local = '%v'; remote = '%v'\n",
+	fmt.Printf("%v: Message API: our net.Conn has local = '%v'; remote = '%v'\n", fileLine(1),
 		req.HDR.Nc.LocalAddr(), req.HDR.Nc.RemoteAddr())
 	select {
 	case <-req.HDR.Ctx.Done():

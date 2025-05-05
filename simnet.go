@@ -892,7 +892,7 @@ func (s *simnet) scheduler() {
 		now := time.Now()
 		_ = now
 		////zz("scheduler top cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
-		vv("scheduler top %v", s.schedulerReport())
+		vv("scheduler top. schedulerReport: \n%v", s.schedulerReport())
 
 		s.dispatchAll()
 		s.armTimer()
