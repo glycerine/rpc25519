@@ -16,6 +16,8 @@ import (
 	rb "github.com/glycerine/rbtree"
 )
 
+var globalUseSyntest bool = true
+
 var _ = synctest.Wait
 
 type SimNetConfig struct{}
@@ -289,7 +291,7 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 
 	// server creates simnet; must start server first.
 	s := &simnet{
-
+		useSynctest:     globalUseSyntest,
 		cfg:             cfg,
 		srv:             srv,
 		halt:            srv.halt,
@@ -936,7 +938,7 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 		// then wait for the round trip to complete...
 		// but in that case this _still_ not the
 		// right place to close send-- as only
-		// the first have of the trip has
+		// the first half of the round-trip has
 		// finished! We would have to wait for
 		// the reply send to arrive, and match
 		// this with that. We don't track the
@@ -947,9 +949,6 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 
 		readIt = readIt.Next()
 		preIt = preIt.Next()
-		//} else {
-		// INVAR: smallest read.originLC <= smallest send.originLC
-		//}
 	}
 }
 
@@ -1000,8 +999,6 @@ func (s *simnet) scheduler() {
 			panic(r)
 		}
 	}()
-
-	// init phase
 
 	// main scheduler loop
 	for i := int64(0); ; i++ {

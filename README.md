@@ -21,6 +21,20 @@ The simnet/synctest tests are off by default, and run with:
 GOTRACEBACK=all GOEXPERIMENT=synctest go test -v
 ~~~
 
+# test speedup obtained under testing/synctest
+
+Preliminary timing comparison for synctest on/off:
+
+`go test -run _synctestonly_ -count=1` (the tests in 
+synctest_test.go) takes 0.5 seconds. 
+
+In contrast, `go test -run _simnetonly_ -count=1`
+(the same tests but without synctest) takes 3.9 seconds.
+
+So testing/synctest speeds up these tests around 7x. I've
+seen as high as 17x speedup in repeated -count=20 runs
+(maybe some set-up is better amortized?)
+
 * Recent News (2025 January 24): v1.12.0 the new Circuit/Fragment/Peer API
 
 The new Circuit/Fragment/Peer API is now generally 

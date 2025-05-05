@@ -8,8 +8,8 @@ package rpc25519
 import (
 	//"context"
 	//"encoding/base64"
-	//"fmt"
-	//"os"
+	"fmt"
+	"os"
 	//"path/filepath"
 	"context"
 	"strings"
@@ -21,7 +21,9 @@ import (
 
 // note: all synctest use should be in synctest_test.go now.
 
-func Test701_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
+func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
+
+	globalUseSyntest = false
 
 	cv.Convey("basic SimNet channel based remote procedure call with rpc25519: register a callback on the server, and have the client call it.", t, func() {
 
@@ -79,7 +81,7 @@ func Test701_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 	})
 }
 
-func Test704_SimNet_rng_hops(t *testing.T) {
+func Test704_rng_hops(t *testing.T) {
 	// rng should respect minHop, maxHop,
 	// and the tie breaker should return -1 or 1
 
@@ -130,7 +132,9 @@ func Test704_SimNet_rng_hops(t *testing.T) {
 }
 
 // simnet version of cli_test 006
-func Test706_SimNet_RoundTrip_Using_NetRPC(t *testing.T) {
+func Test706_simnetonly_SimNet_RoundTrip_Using_NetRPC(t *testing.T) {
+
+	globalUseSyntest = false
 
 	// basic SimNet with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.
 	cfg := NewConfig()
@@ -289,7 +293,9 @@ func Test706_SimNet_RoundTrip_Using_NetRPC(t *testing.T) {
 }
 
 // simnet version of 040 in cli_test.go
-func Test740_simnet_remote_cancel_by_context(t *testing.T) {
+func Test740_simnetonly_emote_cancel_by_context(t *testing.T) {
+
+	globalUseSyntest = false
 
 	cv.Convey("simnet remote cancellation", t, func() {
 
@@ -398,5 +404,370 @@ func Test740_simnet_remote_cancel_by_context(t *testing.T) {
 		//vv("about to verify that server side context was cancelled.")
 		<-mustCancelMe.callFinished
 
+	})
+}
+
+// add simnetonly
+
+func Test745_simnetonly_upload(t *testing.T) {
+
+	globalUseSyntest = false
+
+	cv.Convey("upload a large file in parts from client to server", t, func() {
+
+		cfg := NewConfig()
+		//cfg.TCPonly_no_TLS = false
+		cfg.UseSimNet = true
+
+		cfg.ServerAddr = "127.0.0.1:0"
+		srv := NewServer("srv_test845", cfg)
+
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
+
+		//vv("server Start() returned serverAddr = '%v'", serverAddr)
+
+		// name must be "__fileUploader" for cli.go Uploader to work.
+		uploaderName := "__fileUploader"
+		streamer := NewServerSideUploadState()
+		srv.RegisterUploadReaderFunc(uploaderName, streamer.ReceiveFileInParts)
+
+		cfg.ClientDialToHostPort = serverAddr.String()
+		client, err := NewClient("test845", cfg)
+		panicOn(err)
+		err = client.Start()
+		panicOn(err)
+
+		defer client.Close()
+
+		// to read the final reply from the server,
+		// use strm.ReadCh rather than client.GetReadIncomingCh(),
+		// since strm.ReadCh is filtered for our CallID.
+
+		ctx45, cancelFunc45 := context.WithCancel(context.Background())
+		defer cancelFunc45()
+
+		// be care not to re-use memory! the client
+		// will not make a copy of the message
+		// while waiting to send it, so you
+		// must allocate new memory to send the next message
+		// (and _not_ overwrite the first!)
+		req := NewMessage()
+		filename := "streams.all.together.txt"
+		os.Remove(filename + ".servergot")
+		req.HDR.ServiceName = uploaderName
+		req.HDR.Args = map[string]string{"readFile": filename}
+		req.JobSerz = []byte("a=c(0")
+
+		// start the call
+		strm, err := client.UploadBegin(ctx45, uploaderName, req, 0)
+		panicOn(err)
+
+		originalStreamCallID := strm.CallID()
+		//vv("strm started, with CallID = '%v'", originalStreamCallID)
+		// then send N more parts
+
+		var last bool
+		N := 20
+		for i := 1; i <= N; i++ {
+			// good, allocating memory for new messages.
+			streamMsg := NewMessage()
+			streamMsg.JobSerz = []byte(fmt.Sprintf(",%v", i))
+			if i == N {
+				last = true
+				streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
+			}
+			streamMsg.HDR.Args["blake3"] = blake3OfBytesString(streamMsg.JobSerz)
+			err = strm.UploadMore(ctx45, streamMsg, last, 0)
+			panicOn(err)
+			//vv("client sent part %v, len %v : '%v'", i, len(streamMsg.JobSerz), string(streamMsg.JobSerz))
+		}
+		//vv("all N=%v parts sent", N)
+
+		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
+
+		timeout := client.NewTimer(time.Minute)
+		select {
+		case m := <-strm.ReadCh:
+			report := string(m.JobSerz)
+			//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+			cv.So(strings.Contains(report, "bytesWrit"), cv.ShouldBeTrue)
+			cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
+			cv.So(fileExists(filename+".servergot"), cv.ShouldBeTrue)
+
+		case <-timeout.C:
+			t.Fatalf("should have gotten a reply from the server finishing the stream.")
+		}
+		timeout.Discard()
+		if fileExists(filename) && N == 20 {
+			// verify the contents of the assembled file
+			fileBytes, err := os.ReadFile(filename)
+			panicOn(err)
+			cv.So(string(fileBytes), cv.ShouldEqual, "a=c(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)")
+		}
+	})
+}
+
+func Test755_simnetonly_simnet_download(t *testing.T) {
+
+	globalUseSyntest = false
+
+	cv.Convey("download a large file in parts from server to client, the opposite direction of the previous test.", t, func() {
+
+		cfg := NewConfig()
+		//cfg.TCPonly_no_TLS = false
+		cfg.UseSimNet = true
+
+		// start server
+		cfg.ServerAddr = "127.0.0.1:0"
+		srv := NewServer("srv_test855", cfg)
+
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
+
+		// register streamer func with server
+		downloaderName := "downloaderName"
+		ssss := &ServerSendsDownloadStateTest{}
+		srv.RegisterServerSendsDownloadFunc(downloaderName, ssss.ServerSendsDownloadTest)
+
+		// start client
+		cfg.ClientDialToHostPort = serverAddr.String()
+		client, err := NewClient("cli_test855", cfg)
+		panicOn(err)
+		err = client.Start()
+		panicOn(err)
+		defer client.Close()
+
+		// ask server to send us the stream
+
+		// use deadline so we can confirm it is transmitted back from server to client
+		// in the stream.
+		deadline := time.Now().Add(time.Hour)
+		ctx55, cancelFunc55 := context.WithDeadline(context.Background(), deadline)
+		defer cancelFunc55()
+
+		// start the call
+		downloader, err := client.RequestDownload(ctx55, downloaderName, "test855_not_real_download")
+		panicOn(err)
+
+		//vv("downloader requested, with CallID = '%v'", downloader.CallID)
+		// then send N more parts
+
+		done := false
+		for i := 0; !done; i++ {
+			timeout := client.NewTimer(time.Second * 10)
+			select {
+			case m := <-downloader.ReadDownloadsCh:
+				//report := string(m.JobSerz)
+				//vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
+
+				if !m.HDR.Deadline.Equal(deadline) {
+					t.Fatalf("deadline not preserved")
+				}
+
+				if m.HDR.Typ == CallDownloadEnd {
+					//vv("good: we see CallDownloadEnd from server.")
+					done = true
+				}
+
+				if i == 0 {
+					cv.So(m.HDR.Typ == CallDownloadBegin, cv.ShouldBeTrue)
+				} else if i == 19 {
+					cv.So(m.HDR.Typ == CallDownloadEnd, cv.ShouldBeTrue)
+				} else {
+					cv.So(m.HDR.Typ == CallDownloadMore, cv.ShouldBeTrue)
+				}
+
+				if m.HDR.Seqno != downloader.Seqno() {
+					t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
+						"downloader.Seqno = %v", m.HDR.Seqno, downloader.Seqno())
+				}
+
+			case <-timeout.C:
+				t.Fatalf("should have gotten a reply from the server finishing the stream.")
+			}
+			timeout.Discard()
+		} // end for i
+
+		// do we get the lastReply too then?
+
+		timeout := client.NewTimer(time.Second * 10)
+		select {
+		case m := <-downloader.ReadDownloadsCh:
+			//report := string(m.JobSerz)
+			//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+
+			if m.HDR.Subject != "This is end. My only friend, the end. - Jim Morrison, The Doors." {
+				t.Fatalf("where did The Doors quote disappear to?")
+			}
+
+			if !m.HDR.Deadline.Equal(deadline) {
+				t.Fatalf("deadline not preserved")
+			}
+
+			if m.HDR.Seqno != downloader.Seqno() {
+				t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
+					"downloader.Seqno = %v", m.HDR.Seqno, downloader.Seqno())
+			}
+
+		case <-timeout.C:
+			t.Fatalf("should have gotten a lastReply from the server finishing the call.")
+		}
+		timeout.Discard()
+	})
+}
+
+func Test765_simnetonly_bidirectional_download_and_upload(t *testing.T) {
+
+	globalUseSyntest = false
+
+	cv.Convey("we should be able to register a server func that does uploads and downloads sequentially or simultaneously.", t, func() {
+
+		cfg := NewConfig()
+		//cfg.TCPonly_no_TLS = false
+		cfg.UseSimNet = true
+
+		// start server
+		cfg.ServerAddr = "127.0.0.1:0"
+		srv := NewServer("srv_test865", cfg)
+
+		serverAddr, err := srv.Start()
+		panicOn(err)
+		defer srv.Close()
+
+		// register streamer func with server
+		streamerName := "bi-streamer Name"
+		bi := &ServeBistreamState{}
+		srv.RegisterBistreamFunc(streamerName, bi.ServeBistream)
+
+		// start client
+		cfg.ClientDialToHostPort = serverAddr.String()
+		client, err := NewClient("cli_test865", cfg)
+		panicOn(err)
+		err = client.Start()
+		panicOn(err)
+		defer client.Close()
+
+		// ask server to send us the bistream
+
+		// use deadline so we can confirm it is transmitted back from server to client
+		// in the stream.
+		deadline := time.Now().Add(time.Hour)
+		ctx65, cancelFunc65 := context.WithDeadline(context.Background(), deadline)
+		defer cancelFunc65()
+
+		// start the bistream
+
+		req := NewMessage()
+		filename := "bi.all.srv.read.streams.txt"
+		os.Remove(filename)
+		req.JobSerz = []byte("receiveFile:" + filename + "\na=c(0")
+
+		bistream, err := client.RequestBistreaming(ctx65, streamerName, req)
+		panicOn(err)
+
+		//vv("bistream requested, with CallID = '%v'", bistream.CallID())
+		// then send N more parts
+
+		//vv("begin download part")
+
+		done := false
+		for i := 0; !done; i++ {
+
+			timeout := client.NewTimer(time.Second * 10)
+			select {
+			case m := <-bistream.ReadDownloadsCh:
+				//report := string(m.JobSerz)
+				//vv("on i = %v; got from readCh: '%v' with JobSerz: '%v'", i, m.HDR.String(), report)
+
+				if !m.HDR.Deadline.Equal(deadline) {
+					t.Fatalf("deadline not preserved")
+				}
+
+				if m.HDR.Typ == CallDownloadEnd {
+					//vv("good: we see CallDownloadEnd from server.")
+					done = true
+				}
+
+				if i == 0 {
+					cv.So(m.HDR.Typ == CallDownloadBegin, cv.ShouldBeTrue)
+				} else if i == 19 {
+					cv.So(m.HDR.Typ == CallDownloadEnd, cv.ShouldBeTrue)
+				} else {
+					cv.So(m.HDR.Typ == CallDownloadMore, cv.ShouldBeTrue)
+				}
+
+				if m.HDR.Seqno != bistream.Seqno() {
+					t.Fatalf("Seqno not preserved/mismatch: m.HDR.Seqno = %v but "+
+						"bistream.Seqno = %v", m.HDR.Seqno, bistream.Seqno())
+				}
+
+			case <-timeout.C:
+				t.Fatalf("should have gotten a reply from the server finishing the stream.")
+			}
+			timeout.Discard()
+		} // end for i
+
+		//vv("done with download. begin upload part")
+
+		// ============================================
+		// ============================================
+		//
+		// next: test that the same server func can receive a stream.
+		//
+		// We now check that the client can upload (send a stream to the server).
+		// While typically these are interleaved in real world usage,
+		// here we start with simple and sequential use.
+		// ============================================
+		// ============================================
+
+		// start upload to the server.
+
+		// read the final reply from the server.
+
+		originalStreamCallID := bistream.CallID()
+		//vv("865 upload starting, with CallID = '%v'", originalStreamCallID)
+		// then send N more parts
+
+		var last bool
+		N := 20
+		for i := 1; i <= N; i++ {
+			streamMsg := NewMessage()
+			streamMsg.JobSerz = []byte(fmt.Sprintf(",%v", i))
+			streamMsg.HDR.Subject = blake3OfBytesString(streamMsg.JobSerz)
+			if i == N {
+				last = true
+				streamMsg.JobSerz = append(streamMsg.JobSerz, []byte(")")...)
+			}
+			err = bistream.UploadMore(ctx65, streamMsg, last, 0)
+			panicOn(err)
+			//vv("uploaded part %v", i)
+		}
+		//vv("all N=%v parts uploaded", N)
+
+		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
+
+		timeout := client.NewTimer(time.Minute)
+		select {
+		case m := <-bistream.ReadDownloadsCh:
+			report := string(m.JobSerz)
+			//vv("got from readCh: '%v' with JobSerz: '%v'", m.HDR.String(), report)
+			cv.So(strings.Contains(report, "bytesWrit"), cv.ShouldBeTrue)
+			cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
+			cv.So(fileExists(filename), cv.ShouldBeTrue)
+
+		case <-timeout.C:
+			t.Fatalf("should have gotten a reply from the server finishing the stream.")
+		}
+		timeout.Discard()
+
+		if fileExists(filename) && N == 20 {
+			// verify the contents of the assembled file
+			fileBytes, err := os.ReadFile(filename)
+			panicOn(err)
+			cv.So(string(fileBytes), cv.ShouldEqual, "a=c(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)")
+		}
 	})
 }
