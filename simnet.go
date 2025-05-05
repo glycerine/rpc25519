@@ -42,10 +42,10 @@ type simnetConn struct {
 // configures itself to call through it if present.
 
 type SimNetAddr struct { // implements net.Addr interface
-	network    string
-	serverAddr string
-	name       string
-	isCli      bool
+	network string
+	addr    string
+	name    string
+	isCli   bool
 }
 
 // name of the network (for example, "tcp", "udp", "simnet")
@@ -56,9 +56,9 @@ func (s *SimNetAddr) Network() string {
 // string form of address (for example, "192.0.2.1:25", "[2001:db8::1]:80")
 func (s *SimNetAddr) String() string {
 	if s.isCli {
-		return fmt.Sprintf(`SimNetAddr{network: %v, CLIENT (name: %v) to serverAddr: %v}`, s.network, s.name, s.serverAddr)
+		return fmt.Sprintf(`SimNetAddr{network: %v, CLIENT (%v) at addr: %v}`, s.network, s.name, s.addr)
 	}
-	return fmt.Sprintf(`SimNetAddr{network: %v, SERVER (name: %v) at serverAddr: %v}`, s.network, s.name, s.serverAddr)
+	return fmt.Sprintf(`SimNetAddr{network: %v, SERVER (%v) at addr: %v}`, s.network, s.name, s.addr)
 }
 
 // Message operation
@@ -181,7 +181,7 @@ type simnet struct {
 
 	cliRegisterCh chan *clientRegistration
 
-	newConnCh chan *simnetConn
+	newClientConnCh chan *simnetConn
 
 	halt *idem.Halter // just srv.halt for now.
 
@@ -203,6 +203,8 @@ type simnode struct {
 	net     *simnet
 	isCli   bool
 	netAddr *SimNetAddr
+
+	tellServerNewConnCh chan *simnetConn
 }
 
 func (s *simnet) newSimnode2(name string) *simnode {
@@ -222,79 +224,52 @@ func (s *simnet) newSimnodeClient(name string) (node *simnode) {
 func (s *simnet) newSimnodeServer(name string) (node *simnode) {
 	node = s.newSimnode2(name)
 	node.isCli = false
+	node.tellServerNewConnCh = make(chan *simnetConn)
 	return
 }
 
 func (s *simnet) handleNewClientRegistration(reg *clientRegistration) {
 
-	reg.serverAddrStr
-	reg.localHostPortStr
+	srvnode, ok := s.dns[reg.serverAddrStr]
+	if !ok {
+		panic(fmt.Sprintf("cannot find server '%v', requested by client registration (%v): '%#v", reg.serverAddrStr, reg.localHostPortStr, reg))
+	}
+	clinode := s.newSimnodeClient(reg.client.name)
+	clinode.setNetAddrSameNetAs(reg.localHostPortStr, srvnode.netAddr)
 
-	clinode := s.newSimnode("CLIENT", true)
-	srvnode := s.newSimnode("SERVER", false)
-	s.clinode = clinode
-	s.srvnode = srvnode
+	s.dns[clinode.name] = clinode
 
-	srvnode.netAddr = srvNetAddr
-	clinode.setCorrespondingClientNetAddr(srvNetAddr)
-
-	// nodes
-	s.nodes = make(map[*simnode]map[*simnode]*simnetConn)
-
-	// edges
-	c2s := s.addEdgeFromCli(clinode, srvnode)
-	s2c := s.addEdgeFromSrv(srvnode, clinode)
-
-	// let client find the shared simnet in their cfg.
-	cfg.simnetRendezvous.mut.Lock()
-	cfg.simnetRendezvous.simnet = s
-	cfg.simnetRendezvous.mut.Unlock()
-
-	clinode := s.newSimnode(reg.client.name, true)
-	//srvnode := s.newSimnode("SERVER", false)
-	s.clinode = clinode
-	//s.srvnode = srvnode
-
-	//srvnode.netAddr = srvNetAddr
-	clinode.setCorrespondingClientNetAddr(srvNetAddr)
-
-	// nodes
-	s.nodes = make(map[*simnode]map[*simnode]*simnetConn)
+	// add node to graph
+	edges := make(map[*simnode]*simnetConn)
+	s.nodes[clinode] = edges
 
 	// edges
 	c2s := s.addEdgeFromCli(clinode, srvnode)
 	s2c := s.addEdgeFromSrv(srvnode, clinode)
+	_ = s2c
 
-	cfg.simnetRendezvous.mut.Lock()
-	cfg.simnetRendezvous.simnet = s
-	cfg.simnetRendezvous.clinode = clinode
-	cfg.simnetRendezvous.srvnode = srvnode
-	cfg.simnetRendezvous.c2s = c2s
-	cfg.simnetRendezvous.s2c = s2c
-	cfg.simnetRendezvous.mut.Unlock()
-
-	reg.conn
+	reg.conn = c2s
 	reg.simnode = clinode
 	close(reg.done)
 }
 
-func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, srvNetAddr *SimNetAddr) *simnetConn {
+func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, srvNetAddr *SimNetAddr) (tellServerNewConnCh chan *simnetConn) {
 
 	scen := newScenario(time.Second, time.Second, time.Second, [32]byte{})
 
 	// server creates simnet; must start server first.
 	s := &simnet{
 
-		cfg:            cfg,
-		srv:            srv,
-		halt:           srv.halt,
-		cliRegisterCh:  make(chan *clientRegistration),
-		simNetCfg:      simNetConfig,
-		msgSendCh:      make(chan *mop),
-		msgReadCh:      make(chan *mop),
-		addTimer:       make(chan *mop),
-		discardTimerCh: make(chan *mop),
-		newConnCh:      make(chan *simnetConn),
+		cfg:             cfg,
+		srv:             srv,
+		halt:            srv.halt,
+		cliRegisterCh:   make(chan *clientRegistration),
+		simNetCfg:       simNetConfig,
+		msgSendCh:       make(chan *mop),
+		msgReadCh:       make(chan *mop),
+		addTimer:        make(chan *mop),
+		discardTimerCh:  make(chan *mop),
+		newClientConnCh: make(chan *simnetConn),
 
 		newScenarioCh: make(chan *scenario),
 		scenario:      scen,
@@ -324,15 +299,15 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 	cfg.simnetRendezvous.mut.Unlock()
 
 	s.Start()
-	return s2c
+	return srvnode.tellServerNewConnCh
 }
 
-func (s *simnode) setCorrespondingClientNetAddr(srvNetAddr *SimNetAddr) {
+func (s *simnode) setNetAddrSameNetAs(addr string, srvNetAddr *SimNetAddr) {
 	s.netAddr = &SimNetAddr{
-		network:    srvNetAddr.network,
-		serverAddr: srvNetAddr.serverAddr,
-		name:       s.name,
-		isCli:      true,
+		network: srvNetAddr.network,
+		addr:    addr,
+		name:    s.name,
+		isCli:   true,
 	}
 }
 
@@ -357,7 +332,7 @@ func (s *simnet) addEdgeFromSrv(srvnode, clinode *simnode) *simnetConn {
 
 func (s *simnet) addEdgeFromCli(clinode, srvnode *simnode) *simnetConn {
 
-	cli, ok := s.nodes[s.clinode] // edges from cli
+	cli, ok := s.nodes[clinode] // edges from cli
 	if !ok {
 		cli = make(map[*simnode]*simnetConn)
 		s.nodes[clinode] = cli
@@ -927,6 +902,12 @@ func (s *simnet) dispatchAll() {
 	}
 }
 
+func (s *simnet) tickLogicalClocks() {
+	for node := range s.nodes {
+		node.LC++
+	}
+}
+
 // makes it clear on a stack trace which goro this is.
 func (s *simnet) scheduler() {
 
@@ -943,11 +924,7 @@ func (s *simnet) scheduler() {
 	// main scheduler loop
 	for i := int64(0); ; i++ {
 		// each scheduler loop tick is an event.
-		s.clinode.LC++
-		s.srvnode.LC++
-		cliLC := s.clinode.LC
-		srvLC := s.srvnode.LC
-		_, _ = cliLC, srvLC
+		s.tickLogicalClocks()
 
 		now := time.Now()
 		_ = now
@@ -973,7 +950,7 @@ func (s *simnet) scheduler() {
 			vv("s.cliRegisterCh got reg = '%#v'", reg)
 			s.handleNewClientRegistration(reg)
 
-		case newConn := <-s.newConnCh:
+		case newConn := <-s.newClientConnCh:
 			_ = newConn
 			panic("TODO <-s.newConnCh for restarted cli or 2nd/later cli")
 

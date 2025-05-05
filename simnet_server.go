@@ -22,7 +22,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	s.mut.Unlock()
 
 	// satisfy uConn interface; don't crash cli/tests that check
-	netAddr := &SimNetAddr{network: "simnet", serverAddr: serverAddr, name: s.name, isCli: false}
+	netAddr := &SimNetAddr{network: "simnet", addr: serverAddr, name: s.name, isCli: false}
 
 	if boundCh != nil {
 		select {
@@ -36,17 +36,24 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	}
 
 	//vv("about to call s.cfg.newSimNetOnServer()")
-	conn := s.cfg.newSimNetOnServer(simNetConfig, s, netAddr)
-	s.simnet = conn.net
-	s.simnode = conn.local
-	s.simconn = conn
-	//s.simnet.netAddr = netAddr
+	serverNewConnCh := s.cfg.newSimNetOnServer(simNetConfig, s, netAddr)
 
-	//vv("simnet server: about to start read/send loops")
-	pair := s.newRWPair(conn)
-	go pair.runSendLoop(conn)
-	go pair.runReadLoop(conn)
+	for {
+		select {
+		case conn := <-serverNewConnCh:
+			s.simnet = conn.net
+			s.simnode = conn.local
+			s.simconn = conn
 
+			vv("simnet server '%v': got new conn '%#v', about to start read/send loops", netAddr, conn)
+			pair := s.newRWPair(conn)
+			go pair.runSendLoop(conn)
+			go pair.runReadLoop(conn)
+
+		case <-s.halt.ReqStop.Chan:
+			return
+		}
+	}
 }
 
 // not actually used though, much.
