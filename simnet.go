@@ -167,14 +167,19 @@ type simnet struct {
 	srv *Server
 	cli *Client
 
-	clinode *simnode
-	srvnode *simnode
+	// first client?? try to get nodes going instead.
+	// clinode0 *simnode
+
+	// first server, probably needed to bootstrap
+	srvnode0 *simnode
+
+	dns map[string]*simnode
 
 	// for now just clinode and srvnode in nodes;
 	// plan is to add full network.
 	nodes map[*simnode]map[*simnode]*simnetConn
 
-	cliReady chan *Client
+	cliRegisterCh chan *clientRegistration
 
 	newConnCh chan *simnetConn
 
@@ -200,43 +205,30 @@ type simnode struct {
 	netAddr *SimNetAddr
 }
 
-func (s *simnet) newSimnode(name string, isCli bool) *simnode {
+func (s *simnet) newSimnode2(name string) *simnode {
 	return &simnode{
 		name:    name,
 		readQ:   newPQinitTm(name + " readQ "),
 		preArrQ: s.newPQarrivalTm(name + " preArrQ "),
 		timerQ:  newPQcompleteTm(name + " timerQ "),
 		net:     s,
-		isCli:   isCli,
 	}
 }
+func (s *simnet) newSimnodeClient(name string) (node *simnode) {
+	node = s.newSimnode2(name)
+	node.isCli = true
+	return
+}
+func (s *simnet) newSimnodeServer(name string) (node *simnode) {
+	node = s.newSimnode2(name)
+	node.isCli = false
+	return
+}
 
-func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, srvNetAddr *SimNetAddr) *simnetConn {
+func (s *simnet) handleNewClientRegistration(reg *clientRegistration) {
 
-	scen := newScenario(time.Second, time.Second, time.Second, [32]byte{})
-
-	// server creates simnet; must start server first.
-	s := &simnet{
-
-		cfg:            cfg,
-		srv:            srv,
-		halt:           srv.halt,
-		cliReady:       make(chan *Client),
-		simNetCfg:      simNetConfig,
-		msgSendCh:      make(chan *mop),
-		msgReadCh:      make(chan *mop),
-		addTimer:       make(chan *mop),
-		discardTimerCh: make(chan *mop),
-		newConnCh:      make(chan *simnetConn),
-
-		newScenarioCh: make(chan *scenario),
-		scenario:      scen,
-		// high duration b/c no need to fire spuriously
-		// and force the Go runtime to do extra work when
-		// we are about to s.nextTimer.Stop() just below.
-		nextTimer: time.NewTimer(time.Hour * 10_000),
-	}
-	s.nextTimer.Stop()
+	reg.serverAddrStr
+	reg.localHostPortStr
 
 	clinode := s.newSimnode("CLIENT", true)
 	srvnode := s.newSimnode("SERVER", false)
@@ -256,10 +248,79 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 	// let client find the shared simnet in their cfg.
 	cfg.simnetRendezvous.mut.Lock()
 	cfg.simnetRendezvous.simnet = s
-	cfg.simnetRendezvous.clinode = s.clinode
-	cfg.simnetRendezvous.srvnode = s.srvnode
+	cfg.simnetRendezvous.mut.Unlock()
+
+	clinode := s.newSimnode(reg.client.name, true)
+	//srvnode := s.newSimnode("SERVER", false)
+	s.clinode = clinode
+	//s.srvnode = srvnode
+
+	//srvnode.netAddr = srvNetAddr
+	clinode.setCorrespondingClientNetAddr(srvNetAddr)
+
+	// nodes
+	s.nodes = make(map[*simnode]map[*simnode]*simnetConn)
+
+	// edges
+	c2s := s.addEdgeFromCli(clinode, srvnode)
+	s2c := s.addEdgeFromSrv(srvnode, clinode)
+
+	cfg.simnetRendezvous.mut.Lock()
+	cfg.simnetRendezvous.simnet = s
+	cfg.simnetRendezvous.clinode = clinode
+	cfg.simnetRendezvous.srvnode = srvnode
 	cfg.simnetRendezvous.c2s = c2s
 	cfg.simnetRendezvous.s2c = s2c
+	cfg.simnetRendezvous.mut.Unlock()
+
+	reg.conn
+	reg.simnode = clinode
+	close(reg.done)
+}
+
+func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, srvNetAddr *SimNetAddr) *simnetConn {
+
+	scen := newScenario(time.Second, time.Second, time.Second, [32]byte{})
+
+	// server creates simnet; must start server first.
+	s := &simnet{
+
+		cfg:            cfg,
+		srv:            srv,
+		halt:           srv.halt,
+		cliRegisterCh:  make(chan *clientRegistration),
+		simNetCfg:      simNetConfig,
+		msgSendCh:      make(chan *mop),
+		msgReadCh:      make(chan *mop),
+		addTimer:       make(chan *mop),
+		discardTimerCh: make(chan *mop),
+		newConnCh:      make(chan *simnetConn),
+
+		newScenarioCh: make(chan *scenario),
+		scenario:      scen,
+
+		dns: make(map[string]*simnode),
+
+		// graph of nodes, edges are nodes[from][to]
+		nodes: make(map[*simnode]map[*simnode]*simnetConn),
+
+		// high duration b/c no need to fire spuriously
+		// and force the Go runtime to do extra work when
+		// we are about to s.nextTimer.Stop() just below.
+		nextTimer: time.NewTimer(time.Hour * 10_000),
+	}
+	s.nextTimer.Stop()
+
+	srvnode := s.newSimnodeServer(srv.name)
+	srvnode.netAddr = srvNetAddr
+	s.nodes[srvnode] = make(map[*simnode]*simnetConn)
+	s.srvnode0 = srvnode // first server, to bootstrap
+	s.dns[srvnode.name] = srvnode
+
+	// let client find the shared simnet in their cfg,
+	// when they shallow copy it.
+	cfg.simnetRendezvous.mut.Lock()
+	cfg.simnetRendezvous.simnet = s
 	cfg.simnetRendezvous.mut.Unlock()
 
 	s.Start()
@@ -879,14 +940,6 @@ func (s *simnet) scheduler() {
 
 	// init phase
 
-	// get first client before anything else.
-	select {
-	case s.cli = <-s.cliReady:
-		vv("simnet got first cli '%v'", s.cli.name)
-	case <-s.halt.ReqStop.Chan:
-		return
-	}
-
 	// main scheduler loop
 	for i := int64(0); ; i++ {
 		// each scheduler loop tick is an event.
@@ -916,9 +969,9 @@ func (s *simnet) scheduler() {
 			s.dispatchAll()
 			s.armTimer()
 
-		case cli := <-s.cliReady:
-			vv("simnet got 2nd/later cli '%v'", cli.name)
-			panic("TODO 2nd/later cli on <-s.cliReady")
+		case reg := <-s.cliRegisterCh:
+			vv("s.cliRegisterCh got reg = '%#v'", reg)
+			s.handleNewClientRegistration(reg)
 
 		case newConn := <-s.newConnCh:
 			_ = newConn
@@ -1201,8 +1254,12 @@ func (s *simnet) discardTimer(origin *simnode, origTimerMop *mop, discardTm time
 
 type clientRegistration struct {
 	// provide
-	client *Client
-	name   string
+	client           *Client
+	localHostPortStr string
+	serverAddrStr    string
+
+	// wait on
+	done chan struct{}
 
 	// receive back
 	simnode *simnode    // our identity in the simnet (conn.local)
@@ -1211,9 +1268,11 @@ type clientRegistration struct {
 
 // external, called by simnet_client.go to
 // get a registration ticket to send on simnet.cliRegisterCh
-func (s *simnet) newClientRegistration(c *Client) *clientRegistration {
+func (s *simnet) newClientRegistration(c *Client, localHostPort, serverAddr string) *clientRegistration {
 	return &clientRegistration{
-		client: c,
-		name:   c.name,
+		client:           c,
+		localHostPortStr: localHostPort,
+		serverAddrStr:    serverAddr,
+		done:             make(chan struct{}),
 	}
 }

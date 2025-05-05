@@ -1,6 +1,6 @@
 package rpc25519
 
-func (c *Client) runSimNetClient(localHostPort string) {
+func (c *Client) runSimNetClient(localHostPort, serverAddr string) {
 
 	//netAddr := &SimNetAddr{network: "cli simnet@" + localHostPort}
 
@@ -11,7 +11,7 @@ func (c *Client) runSimNetClient(localHostPort string) {
 	c.simnet = c.cfg.simnetRendezvous.simnet
 	c.cfg.simnetRendezvous.mut.Unlock()
 
-	registration := c.simnet.newClientRegistration(c)
+	registration := c.simnet.newClientRegistration(c, localHostPort, serverAddr)
 
 	select {
 	case c.simnet.cliRegisterCh <- registration:
