@@ -261,7 +261,6 @@ func Test806_SimNet_RoundTrip_Using_NetRPC(t *testing.T) {
 
 // synctest version of 040 in cli_test.go
 func Test840_synctest_remote_cancel_by_context(t *testing.T) {
-	return // make sure all other tests green first
 
 	//cv.Convey("remote cancellation", t, func() {
 	synctest.Run(func() {
