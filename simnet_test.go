@@ -14,27 +14,7 @@ import (
 	cv "github.com/glycerine/goconvey/convey"
 )
 
-func Test700_SimNet_all_timers_dur_0_fire_now(t *testing.T) {
-
-	cv.Convey("SimNet depends on all the times set to duration 0/now firing before we quiese to durable blocking. verify this assumption. yes: note the Go runtime implementation does a select with a default: so it will discard the timer alert rather than block.", t, func() {
-
-		t0 := time.Now()
-		//vv("start test700")
-		var timers []*time.Timer
-		N := 10
-		for range N {
-			timers = append(timers, time.NewTimer(0))
-		}
-		for _, ti := range timers {
-			<-ti.C
-		}
-		if !t0.Equal(time.Now()) {
-			t.Fatalf("we have a problem, Houston.")
-		}
-		//vv("end test700") // shows same time as start, good.
-		//})
-	})
-}
+// note: all synctest use should be in synctest_test.go now.
 
 func Test701_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 
@@ -311,7 +291,7 @@ func Test740_simnet_remote_cancel_by_context(t *testing.T) {
 		cfg := NewConfig()
 		//cfg.TCPonly_no_TLS = false
 		cfg.UseSimNet = true
-		//cfg.ServerSendKeepAlive = time.Second * 10 // does not stop hang on synctest
+		//cfg.ServerSendKeepAlive = time.Second * 10
 
 		cfg.ServerAddr = "127.0.0.1:0"
 		srv := NewServer("srv_test740", cfg)
@@ -355,7 +335,7 @@ func Test740_simnet_remote_cancel_by_context(t *testing.T) {
 
 		// let the call get blocked.
 		//vv("cli_test 740: about to block on test740callStarted")
-		<-mustCancelMe.callStarted // synctest blocked here
+		<-mustCancelMe.callStarted
 		//vv("cli_test 740: we got past test740callStarted")
 
 		// cancel it: transmit cancel request to server.

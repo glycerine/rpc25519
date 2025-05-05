@@ -17,7 +17,7 @@ import (
 
 func Test800_SimNet_all_timers_dur_0_fire_now(t *testing.T) {
 
-	cv.Convey("SimNet depends on all the times set to duration 0/now firing before we quiese to durable blocking. verify this assumption under synctest. yes: note the Go runtime implementation does a select with a default: so it will discard the timer alert rather than block.", t, func() {
+	cv.Convey("SimNet using synctest depends on all the times set to duration 0/now firing before we quiese to durable blocking. verify this assumption under synctest. yes: note the Go runtime implementation does a select with a default: so it will discard the timer alert rather than block.", t, func() {
 		synctest.Run(func() {
 			t0 := time.Now()
 			//vv("start test800")
