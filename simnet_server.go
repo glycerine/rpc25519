@@ -39,11 +39,29 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	serverNewConnCh := s.cfg.newSimNetOnServer(simNetConfig, s, netAddr)
 
 	for {
-		select {
+		select { // wait for a new client to connect
 		case conn := <-serverNewConnCh:
-			s.simnet = conn.net
-			s.simnode = conn.local
-			s.simconn = conn
+			// just make sure we don't switch the net/identity without intending to.
+			if s.simnet == nil {
+				// first time. fine. good.
+				s.simnet = conn.net
+			} else {
+				// second time, be concerned if simnet is inconsistent
+				if s.simnet != conn.net {
+					vv("warning: server '%v' changing simnet."+
+						" old: '%v'; new:'%v'", s.name, s.simnet, conn.net)
+					panic("unexpected network change")
+				}
+			}
+			if s.simnode == nil {
+				// first time. fine. good.
+				s.simnode = conn.local
+			} else {
+				if s.simnode != conn.local {
+					vv("warning: server '%v' changing to new simnode identity. old: '%v'; new: '%v'", s.name, s.simnode, conn.local)
+					panic("unexpected identity change on server")
+				}
+			}
 
 			vv("simnet server '%v': got new conn '%#v', about to start read/send loops", netAddr, conn)
 			pair := s.newRWPair(conn)

@@ -937,7 +937,7 @@ func (s *simnet) scheduler() {
 	defer func() {
 		r := recover()
 		if r != nil {
-			//vv("scheduler panic-ing: %v", s.schedulerReport())
+			vv("scheduler panic-ing: %v", s.schedulerReport())
 			panic(r)
 		}
 	}()

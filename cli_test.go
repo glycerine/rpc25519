@@ -906,7 +906,7 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 		cfg := NewConfig()
 		//cfg.TCPonly_no_TLS = false
 		cfg.UseSimNet = true
-		cfg.ServerSendKeepAlive = time.Second * 10
+		cfg.ServerSendKeepAlive = time.Second * 10 // does not stop hang on synctest
 
 		cfg.ServerAddr = "127.0.0.1:0"
 		srv := NewServer("srv_test040", cfg)
