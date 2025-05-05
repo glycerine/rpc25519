@@ -1267,12 +1267,7 @@ func (s *Server) GetEmptyMessage() *Message {
 
 func (s *Server) FreeMessage(msg *Message) {
 	s.msgLock.Lock()
-	// should be safe now with the copy at simnet.go:695 in handleSend()
-	//if s.cfg.UseSimNet {
-	//	// on same host, will collide
-	//} else {
 	msg.nextOrReply = s.freeMsg
-	//}
 	s.freeMsg = msg
 	s.msgLock.Unlock()
 }
@@ -2223,7 +2218,7 @@ func (s *Server) Close() error {
 	s.halt.ReqStop.Close()
 	s.mut.Lock() // avoid data race
 	if s.cfg.UseSimNet {
-
+		// no lsn in use.
 	} else {
 		s.lsn.Close() // cause runServerMain listening loop to exit.
 	}
