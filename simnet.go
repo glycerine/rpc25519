@@ -255,11 +255,11 @@ func (s *simnet) addEdgeFromCli(clinode, srvnode *simnode) *simnetConn {
 	c2s := &simnetConn{
 		isCli:  true,
 		net:    s,
-		local:  s.clinode,
-		remote: s.srvnode,
+		local:  clinode,
+		remote: srvnode,
 	}
 	// replace any previous conn
-	cli[s.srvnode] = c2s
+	cli[srvnode] = c2s
 	return c2s
 }
 
@@ -801,7 +801,7 @@ func (node *simnode) String() (r string) {
 }
 
 func (s *simnet) Start() {
-	////zz("simnet.Start() top")
+	vv("simnet.Start() top")
 	go s.scheduler()
 }
 
@@ -832,7 +832,7 @@ func (s *simnet) scheduler() {
 	// get a client before anything else.
 	select {
 	case s.cli = <-s.cliReady:
-		////zz("simnet got cli")
+		vv("simnet got cli")
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
@@ -849,7 +849,7 @@ func (s *simnet) scheduler() {
 		now := time.Now()
 		_ = now
 		////zz("scheduler top cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
-		//vv("scheduler top %v", s.schedulerReport())
+		vv("scheduler top %v", s.schedulerReport())
 
 		s.dispatchAll()
 		s.armTimer()
@@ -857,6 +857,7 @@ func (s *simnet) scheduler() {
 		// advance time by one tick
 		time.Sleep(s.scenario.tick)
 		synctest.Wait()
+		vv("back from synctest.Wait")
 
 		select {
 		case alert := <-s.nextTimer.C: // soonest timer fires
@@ -881,7 +882,7 @@ func (s *simnet) scheduler() {
 			s.handleDiscardTimer(discard)
 
 		case send := <-s.msgSendCh:
-			////zz("msgSendCh ->  op='%v'", send)
+			vv("msgSendCh ->  op='%v'", send) // not seen, 040 hung again...
 			s.handleSend(send)
 
 		case read := <-s.msgReadCh:
@@ -1014,7 +1015,7 @@ func (s *simnet) createNewTimer(origin *simnode, dur time.Duration, begin time.T
 	timer.completeTm = begin.Add(dur)
 	timer.timerFileLine = fileLine(3)
 
-	select {
+	select { // 040 hung here... right, think we have a deadlock!
 	case s.addTimer <- timer:
 	case <-s.halt.ReqStop.Chan:
 		return
@@ -1040,7 +1041,7 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 	read.initTm = time.Now()
 	read.origin = sc.local
 	read.target = sc.remote
-	select {
+	select { // 040 hung here waiting for the scheduler loop 2x, goro 24,8,
 	case s.msgReadCh <- read:
 	case <-s.halt.ReqStop.Chan:
 		return nil, ErrShutdown()
@@ -1059,8 +1060,8 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) e
 	sc := conn.(*simnetConn)
 	isCli := sc.isCli
 
-	//vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", who(isCli), msg.HDR.Serial)
-
+	vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", who(isCli), msg.HDR.Serial)
+	vv("sendMessage\n conn.local = %v (isCli:%v)\n conn.remote = %v (isCli:%v)\n", sc.local.name, sc.local.isCli, sc.remote.name, sc.remote.isCli)
 	send := newSendMop(msg, isCli)
 	send.origin = sc.local
 	send.target = sc.remote

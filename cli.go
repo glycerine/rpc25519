@@ -1727,6 +1727,11 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 	} else {
 		from = local(c.conn)
 		to = remote(c.conn)
+
+		sc, ok := c.conn.(*simnetConn)
+		if ok {
+			vv("isCli=%v; c.conn.netAddr = '%v'; simnetConn.local='%v'; remote='%v'; sc.netAddr='%v'", sc.isCli, sc.netAddr, sc.local.name, sc.remote.name, sc.netAddr)
+		}
 	}
 
 	req.HDR.To = to
@@ -1788,7 +1793,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 		return nil, ErrShutdown()
 	}
 
-	//vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req) // seen 040
+	vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req) // seen 040
 
 	select {
 	case <-req.DoneCh.WhenClosed():

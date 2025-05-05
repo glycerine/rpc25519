@@ -428,7 +428,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		doPing = true
 		pingEvery = s.cfg.ServerSendKeepAlive
 		lastPing = time.Now()
-		pingWakeTimer = s.Server.NewTimer(pingEvery)
+		pingWakeTimer = s.Server.NewTimer(pingEvery) // deadlock? this is stuck! 040 hang circucular trying to ping each other maybe?
 		//pingWakeTimer.Discard()
 		pingWakeCh = pingWakeTimer.C
 		// keep the ping attempts to a minimum to keep this loop lively.

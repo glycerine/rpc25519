@@ -906,6 +906,7 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 		cfg := NewConfig()
 		//cfg.TCPonly_no_TLS = false
 		cfg.UseSimNet = true
+		cfg.ServerSendKeepAlive = time.Second * 10
 
 		cfg.ServerAddr = "127.0.0.1:0"
 		srv := NewServer("srv_test040", cfg)
@@ -949,7 +950,7 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 
 		// let the call get blocked.
 		vv("cli_test 040: about to block on test040callStarted")
-		<-test040callStarted
+		<-test040callStarted // synctest blocked here
 		vv("cli_test 040: we got past test040callStarted")
 
 		// cancel it: transmit cancel request to server.

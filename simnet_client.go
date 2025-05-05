@@ -18,7 +18,7 @@ func (c *Client) runSimNetClient(localHostPort string) {
 
 	c.cfg.simnetRendezvous.mut.Unlock()
 
-	//c.setLocalAddr(conn)
+	c.setLocalAddr(conn)
 	c.connected <- nil
 
 	cpair := &cliPairState{}
