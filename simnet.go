@@ -62,12 +62,6 @@ func (s *SimNetAddr) Network() string {
 func (s *SimNetAddr) String() string {
 	// keep it simple, as it is our simnet.dns lookup key.
 	return s.name
-
-	//	if s.isCli {
-	//		return fmt.Sprintf(`SimNetAddr{network: %v, CLIENT (%v) at addr: %v}`, s.network, s.name, s.addr)
-	//	}
-	//
-	// return fmt.Sprintf(`SimNetAddr{network: %v, SERVER (%v) at addr: %v}`, s.network, s.name, s.addr)
 }
 
 // Message operation
@@ -169,6 +163,7 @@ func (op *mop) String() string {
 	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, msg.sn:%v%v}", who, op.kind, ini, arr, complete, op.sn, msgSerial, extra)
 }
 
+// simnet simulates a network entirely with channels in memory.
 type simnet struct {
 	useSynctest bool
 
@@ -207,6 +202,9 @@ type simnet struct {
 	lastArmTm      time.Time
 }
 
+// simnode is a single host/server/node
+// (really one rpc25519.Client or rpc25519.Server instance)
+// in a simnet.
 type simnode struct {
 	name    string
 	LC      int64
@@ -417,9 +415,9 @@ func (k mopkind) String() string {
 	}
 }
 
-// leave the cli/srv setup in place to avoid the
-// startup overhead for every time, and test
-// at the peer/ckt/frag level a particular test scenario.
+// scenario will, in the future, provide for testing different
+// timeout settings under network partition and
+// flakiness (partial failure). Stubbed for now.
 type scenario struct {
 	seed [32]byte
 	rng  *mathrand2.ChaCha8
@@ -487,14 +485,6 @@ func (pq *pq) String() (r string) {
 		r += fmt.Sprintf("empty PQ\n")
 	}
 	return
-}
-
-func who(isCli bool) string {
-	if isCli {
-		return "CLIENT"
-	} else {
-		return "SERVER"
-	}
 }
 
 type pq struct {
@@ -1216,7 +1206,7 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 	sc := conn.(*simnetConn)
 	isCli := sc.isCli
 
-	//vv("top simnet.readMessage() %v READ", who(isCli))
+	//vv("top simnet.readMessage() %v READ", read.origin)
 
 	read := newReadMop(isCli)
 	read.initTm = time.Now()
@@ -1241,7 +1231,7 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) e
 	sc := conn.(*simnetConn)
 	isCli := sc.isCli
 
-	//vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", who(isCli), msg.HDR.Serial)
+	//vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", send.origin, msg.HDR.Serial)
 	//vv("sendMessage\n conn.local = %v (isCli:%v)\n conn.remote = %v (isCli:%v)\n", sc.local.name, sc.local.isCli, sc.remote.name, sc.remote.isCli)
 	send := newSendMop(msg, isCli)
 	send.origin = sc.local
@@ -1325,6 +1315,8 @@ func (s *simnet) discardTimer(origin *simnode, origTimerMop *mop, discardTm time
 	return
 }
 
+// clientRegistration: a new client joins the simnet.
+// See simnet_client.go
 type clientRegistration struct {
 	// provide
 	client           *Client
