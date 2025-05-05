@@ -46,10 +46,6 @@ type Circuit struct {
 
 	// racey! use ckt.Halt.ReqStop.CloseWithReason() and Reason() instead.
 	// CloseReasonErr error
-
-	// netsim
-	sentFromLocal  []*fop
-	sentFromRemote []*fop
 }
 
 func (ckt *Circuit) String() string {
