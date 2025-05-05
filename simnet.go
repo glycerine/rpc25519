@@ -690,6 +690,10 @@ func (s *simnet) handleSend(send *mop) {
 		panic(fmt.Sprintf("should see each send only once now, not %v", send.seen))
 	}
 
+	// make a copy while the sendMessage() call returns,
+	// so they can recycle or do whatever without data racing on it.
+	send.msg = send.msg.CopyForSimNetSend()
+
 	send.target.preArrQ.add(send)
 	//vv("LC:%v  SEND TO %v %v", origin.LC, origin.name, send)
 	////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.LC, origin.name, send, s.srvnode.preArrQ)
@@ -899,7 +903,7 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 
 		// Service this read with this send.
 
-		read.msg = send.msg.CopyForSimNetSend()
+		read.msg = send.msg // safe b/c already copied in handleSend()
 		// advance our logical clock
 		node.LC = max(node.LC, send.originLC) + 1
 		////zz("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, node.LC, node.LC-read.originLC, read.sn)

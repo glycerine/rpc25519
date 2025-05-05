@@ -1267,11 +1267,12 @@ func (s *Server) GetEmptyMessage() *Message {
 
 func (s *Server) FreeMessage(msg *Message) {
 	s.msgLock.Lock()
-	if s.cfg.UseSimNet {
-		// on same host, will collide
-	} else {
-		msg.nextOrReply = s.freeMsg
-	}
+	// should be safe now with the copy at simnet.go:695 in handleSend()
+	//if s.cfg.UseSimNet {
+	//	// on same host, will collide
+	//} else {
+	msg.nextOrReply = s.freeMsg
+	//}
 	s.freeMsg = msg
 	s.msgLock.Unlock()
 }
