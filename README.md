@@ -1,6 +1,26 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
+* Recent News (2025 May 05): v1.12.62 simnet network simulator with synctest support.
+
+Version v1.12.61 adds support for network simulation
+including support for the new experimental
+testing/synctest Go package, which fakes time in
+a bubble. This fantastic package allows the 
+testing and production code to remain identical,
+while testing many variations of timer and 
+timeout settings which would otherwise take 
+far too long to test. I built simnet to
+test my Raft leader election implementation, 
+which depends strongly for correctness on
+randomized leader election timeouts and 
+heartbeat timeouts.
+
+The simnet/synctest tests are off by default, and run with:
+~~~
+GOTRACEBACK=all GOEXPERIMENT=synctest go test -v
+~~~
+
 * Recent News (2025 January 24): v1.12.0 the new Circuit/Fragment/Peer API
 
 The new Circuit/Fragment/Peer API is now generally 
