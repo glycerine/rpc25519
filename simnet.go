@@ -574,14 +574,10 @@ func newPQcompleteTm(owner string) *pq {
 func (s *simnet) handleSend(send *mop) {
 	////zz("top of handleSend(send = '%v')", send)
 
+	origin := send.origin
 	if send.seen == 0 {
-		if send.originCli {
-			send.senderLC = s.clinode.LC
-			send.originLC = s.clinode.LC
-		} else {
-			send.senderLC = s.srvnode.LC
-			send.originLC = s.srvnode.LC
-		}
+		send.senderLC = origin.LC
+		send.originLC = origin.LC
 		send.arrivalTm = send.initTm.Add(s.scenario.rngHop())
 	}
 	send.seen++
@@ -589,15 +585,10 @@ func (s *simnet) handleSend(send *mop) {
 		panic(fmt.Sprintf("should see each send only once now, not %v", send.seen))
 	}
 
-	if send.originCli {
-		s.srvnode.preArrQ.add(send)
-		//vv("cli.LC:%v  SEND TO SERVER %v", s.clinode.LC, send)
-		////zz("cli.LC:%v  SEND TO SERVER %v    srvPreArrQ: '%v'", s.clinode.LC, send, s.srvnode.preArrQ)
-	} else {
-		s.clinode.preArrQ.add(send)
-		//vv("srv.LC:%v  SEND TO CLIENT %v", s.srvnode.LC, send)
-		////zz("srv.LC:%v  SEND TO CLIENT %v    cliPreArrQ: '%v'", s.srvnode.LC, send, s.clinode.preArrQ)
-	}
+	send.target.preArrQ.add(send)
+	//vv("LC:%v  SEND TO %v %v", origin.LC, origin.name, send)
+	////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.LC, origin.name, send, s.srvnode.preArrQ)
+
 	// rpc25519 peer/ckt/frag does async sends, so let
 	// the sender keep going.
 	// We could optionally (chaos?) add some
@@ -611,34 +602,19 @@ func (s *simnet) handleSend(send *mop) {
 func (s *simnet) handleRead(read *mop) {
 	////zz("top of handleRead(read = '%v')", read)
 
+	origin := read.origin
 	if read.seen == 0 {
-		if read.originCli {
-			//read.senderLC = s.clinode.LC
-			read.originLC = s.clinode.LC
-		} else {
-			//read.senderLC = s.srvnode.LC
-			read.originLC = s.srvnode.LC
-		}
-		// read.completeTm?
-		// unknown yet, dispatcher will assign
-		// when the send arrives.
+		read.originLC = origin.LC
 	}
 	read.seen++
 	if read.seen != 1 {
 		panic(fmt.Sprintf("should see each send only once now, not %v", read.seen))
 	}
 
-	if read.originCli {
-		s.clinode.readQ.add(read)
-		//vv("cliLC:%v  READ at CLIENT: %v", s.clinode.LC, read)
-		////zz("cliLC:%v  READ %v at CLIENT, now cliReadQ: '%v'", s.clinode.LC, read, s.clinode.readQ)
-		s.clinode.dispatch()
-	} else {
-		s.srvnode.readQ.add(read)
-		//vv("srvLC:%v  READ at SERVER: %v", s.srvnode.LC, read)
-		////zz("srvLC:%v  READ %v at SERVER, now srvReadQ: '%v'", s.srvnode.LC, read, s.srvnode.readQ)
-		s.srvnode.dispatch()
-	}
+	origin.readQ.add(read)
+	//vv("LC:%v  READ at %v: %v", origin.LC, origin.name, read)
+	////zz("LC:%v  READ %v at %v, now cliReadQ: '%v'", origin.LC, origin.name, read, origin.readQ)
+	origin.dispatch()
 }
 
 // dispatch delivers sends to reads, and fires timers.
@@ -943,23 +919,14 @@ func (s *simnet) initScenario(scenario *scenario) {
 func (s *simnet) handleDiscardTimer(discard *mop) {
 
 	orig := discard.origTimerMop
-	if discard.originCli {
-		found := s.clinode.timerQ.del(discard.origTimerMop)
-		if found {
-			discard.wasArmed = !orig.timerFiredTm.IsZero()
-			discard.origTimerCompleteTm = orig.completeTm
-		} // leave wasArmed false, could not have been armed if gone.
 
-		////zz("cli.LC:%v CLIENT TIMER_DISCARD %v to fire at '%v'; now timerQ: '%v'", s.clinode.LC, discard, discard.origTimerCompleteTm, s.clinode.timerQ)
-	} else {
-		found := s.srvnode.timerQ.del(discard.origTimerMop)
-		if found {
-			discard.wasArmed = !orig.timerFiredTm.IsZero()
-			discard.origTimerCompleteTm = orig.completeTm
-		} // leave wasArmed false, could not have been armed if gone.
+	found := discard.origin.timerQ.del(discard.origTimerMop)
+	if found {
+		discard.wasArmed = !orig.timerFiredTm.IsZero()
+		discard.origTimerCompleteTm = orig.completeTm
+	} // leave wasArmed false, could not have been armed if gone.
 
-		////zz("srv.LC:%v SERVER TIMER_DISCARD %v; now timerQ: '%v'", s.srvnode.LC, discard, discard.origTimerCompleteTm, s.srvnode.timerQ)
-	}
+	////zz("LC:%v %v TIMER_DISCARD %v to fire at '%v'; now timerQ: '%v'", discard.origin.LC, discard.origin.name, discard, discard.origTimerCompleteTm, s.clinode.timerQ)
 	s.armTimer()
 	close(discard.proceed)
 }
