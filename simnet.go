@@ -762,9 +762,15 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 		// it is normal to have preArrQ if no reads...
 		if narr > 0 && nread > 0 {
 			// if the first preArr is not due yet, that is the reason
-			if node.firstPreArrivalTimeLTE(time.Now()) {
-				alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; summary node summary:\n%v", narr, nread, node.String())
-				panic("should have been dispatchable, no?")
+
+			// if not using fake time, arrival time was probably
+			// almost but not quite here when we checked below.
+			// In this case, don't freak.
+			if node.net.useSynctest {
+				if node.firstPreArrivalTimeLTE(time.Now()) {
+					alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; summary node summary:\n%v", narr, nread, node.String())
+					panic("should have been dispatchable, no?")
+				}
 			}
 		}
 	}()
