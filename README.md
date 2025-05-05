@@ -3,7 +3,7 @@ rpc25519: ed25519 based RPC for Go/golang
 
 * Recent News (2025 May 05): v1.12.62 simnet network simulator with synctest support.
 
-Version v1.12.61 adds support for network simulation
+Version v1.12.62 adds support for network simulation
 including support for the new experimental
 testing/synctest Go package, which fakes time in
 a bubble. This fantastic package allows the 
