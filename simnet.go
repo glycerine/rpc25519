@@ -879,10 +879,10 @@ func (s *simnet) scheduler() {
 
 	// init phase
 
-	// get a client before anything else.
+	// get first client before anything else.
 	select {
 	case s.cli = <-s.cliReady:
-		vv("simnet got cli")
+		vv("simnet got first cli '%v'", s.cli.name)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
@@ -916,9 +916,14 @@ func (s *simnet) scheduler() {
 			s.dispatchAll()
 			s.armTimer()
 
+		case cli := <-s.cliReady:
+			vv("simnet got 2nd/later cli '%v'", cli.name)
+			panic("TODO 2nd/later cli on <-s.cliReady")
+
 		case newConn := <-s.newConnCh:
 			_ = newConn
-			panic("TODO")
+			panic("TODO <-s.newConnCh for restarted cli or 2nd/later cli")
+
 		case scenario := <-s.newScenarioCh:
 			s.finishScenario()
 			s.initScenario(scenario)
