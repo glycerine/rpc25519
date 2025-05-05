@@ -1198,3 +1198,22 @@ func (s *simnet) discardTimer(origin *simnode, origTimerMop *mop, discardTm time
 	}
 	return
 }
+
+type clientRegistration struct {
+	// provide
+	client *Client
+	name   string
+
+	// receive back
+	simnode *simnode    // our identity in the simnet (conn.local)
+	conn    *simnetConn // our connection to server (c2s)
+}
+
+// external, called by simnet_client.go to
+// get a registration ticket to send on simnet.cliRegisterCh
+func (s *simnet) newClientRegistration(c *Client) *clientRegistration {
+	return &clientRegistration{
+		client: c,
+		name:   c.name,
+	}
+}
