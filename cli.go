@@ -1777,7 +1777,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 		return nil, ErrShutdown()
 	}
 
-	vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req) // seen 040
+	//vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req) // seen 040
 
 	select {
 	case <-req.DoneCh.WhenClosed():

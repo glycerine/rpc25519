@@ -584,7 +584,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			alwaysPrintf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
 			return
 		}
-		vv("srv read loop sees req = '%v'", req.String()) // not seen 040
+		//vv("srv read loop sees req = '%v'", req.String()) // not seen 040
 
 		if req.HDR.From != "" {
 			s.Server.unNAT.Set(req.HDR.From, remoteAddr)
@@ -898,7 +898,7 @@ func (s *Server) processWork(job *job) {
 	foundUploader := false
 
 	req := job.req
-	vv("processWork got job: req.HDR='%v'", req.HDR.String()) // not see 040 hang
+	//vv("processWork got job: req.HDR='%v'", req.HDR.String()) // not see 040 hang
 
 	if req.HDR.Typ == CallCancelPrevious {
 		s.cancelCallID(req.HDR.CallID)
