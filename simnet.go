@@ -95,6 +95,9 @@ type mop struct {
 	timerFiredTm time.Time
 	// was discarded timer armed?
 	wasArmed bool
+	// was timer set internally to wake for
+	// arrival of pending message?
+	internalPendingTimer bool
 
 	// when was the operation initiated?
 	// timer started, read begin waiting, send hits the socket.
@@ -306,6 +309,11 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 		// high duration b/c no need to fire spuriously
 		// and force the Go runtime to do extra work when
 		// we are about to s.nextTimer.Stop() just below.
+		// Seems slightly inefficient API design to not
+		// have a way to create an unarmed timer, but maybe
+		// that avoids user code forgetting to set the timer...
+		// in exchange for a couple of microseconds of extra work.
+		// Fortunately we only need do this once.
 		nextTimer: time.NewTimer(time.Hour * 10_000),
 	}
 	s.nextTimer.Stop()
@@ -871,7 +879,17 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 			// will have even >= arrivalTm.
 			vv("rejecting deliver of send that has not happened: '%v'", send)
 			vv("scheduler: %v", node.net.schedulerReport())
-			// TODO: I think we might need to set a timer on its delivery then!
+
+			// we need to set a timer on its delivery then...
+			dur := send.arrivalTm.Sub(now)
+			pending := newTimerCreateMop(node.isCli)
+			pending.origin = node
+			pending.timerDur = dur
+			pending.initTm = now
+			pending.completeTm = now.Add(dur)
+			pending.timerFileLine = fileLine(3)
+			pending.internalPendingTimer = true
+			node.net.handleTimer(pending)
 			return
 		}
 		// INVAR: this send.arrivalTm <= now; good to deliver.
