@@ -78,10 +78,10 @@ type mop struct {
 	sendmop *mop // for reads, which send did we get?
 	readmop *mop // for sends, which read did we go to?
 
-	//pqit rb.Iterator // can discard we think
-
 	// clients of scheduler wait on proceed.
-	// timer fires, send delivered, read accepted by readLoop
+	// When the timer is set; the send sent; the read
+	// matches a send, the client proceeds because
+	// this channel will be closed.
 	proceed chan struct{}
 }
 
