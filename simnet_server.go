@@ -69,14 +69,16 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	}
 
 	//vv("about to call s.cfg.newSimNetOnServer()")
-	s.simnet = s.cfg.newSimNetOnServer(simNetConfig, s)
-	s.simnet.netAddr = netAddr
-
 	conn := &simnetConn{
 		isCli:   false,
 		simnet:  s.simnet,
 		netAddr: netAddr,
 	}
+	s.simnet, conn.local, conn.remote = s.cfg.newSimNetOnServer(simNetConfig, s)
+	s.simnode = conn.local
+	s.simconn = conn
+	s.simnet.netAddr = netAddr
+
 	//vv("simnet server: about to start read/send loops")
 	pair := s.newRWPair(conn)
 	go pair.runSendLoop(conn)
@@ -89,6 +91,9 @@ type simnetConn struct {
 	isCli   bool
 	simnet  *simnet
 	netAddr *SimNetAddr
+
+	local  *simnode
+	remote *simnode
 }
 
 // not actually used though, much.

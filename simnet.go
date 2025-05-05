@@ -26,7 +26,8 @@ type mop struct {
 
 	// so we can handle a network
 	// rather than just cli/srv.
-	node *simnode
+	origin *simnode
+	target *simnode
 
 	// number of times handleSend() has seen this mop.
 	seen int
@@ -139,6 +140,9 @@ type simnet struct {
 	newScenarioCh  chan *scenario
 	nextTimer      *time.Timer
 	lastArmTm      time.Time
+
+	// avoid having to specialize isCli/not everywhere.
+	mop2node map[*mop]*node
 }
 
 type simnode struct {
@@ -148,24 +152,26 @@ type simnode struct {
 	preArrQ *pq
 	timerQ  *pq
 	net     *simnet
+	isCli   bool // hope not to need...
 }
 
-func (s *simnet) newSimnode(name string) *simnode {
+func (s *simnet) newSimnode(name string, isCli bool) *simnode {
 	return &simnode{
 		name:    name,
 		readQ:   newPQinitTm(name + " readQ "),
 		preArrQ: s.newPQarrivalTm(name + " preArrQ "),
 		timerQ:  newPQcompleteTm(name + " timerQ "),
 		net:     s,
+		isCli:   isCli, // hope to discard.
 	}
 }
 
-func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *simnet {
+func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) (s *simnet, srvnode, clinode *simnode) {
 
 	scen := newScenario(time.Second, time.Second, time.Second, [32]byte{})
 
 	// server creates simnet; must start server first.
-	s := &simnet{
+	s = &simnet{
 
 		cfg:            cfg,
 		srv:            srv,
@@ -183,20 +189,25 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 		// and force the Go runtime to do extra work when
 		// we are about to s.nextTimer.Stop() just below.
 		nextTimer: time.NewTimer(time.Hour * 10_000),
+		mop2node:  make(map[*mop]*node),
 	}
 	s.nextTimer.Stop()
-	s.clinode = s.newSimnode("CLIENT")
-	s.srvnode = s.newSimnode("SERVER")
+	clinode = s.newSimnode("CLIENT", true)
+	srvnode = s.newSimnode("SERVER", false)
+	s.clinode = clinode
+	s.srvnode = srvnode
 
 	s.nodes = []*simnode{s.clinode, s.srvnode}
 
 	// let client find the shared simnet in their cfg.
 	cfg.simnetRendezvous.mut.Lock()
 	cfg.simnetRendezvous.simnet = s
+	cfg.simnetRendezvous.clinode = s.clinode
+	cfg.simnetRendezvous.srvnode = s.srvnode
 	cfg.simnetRendezvous.mut.Unlock()
 
 	s.Start()
-	return s
+	return
 }
 
 var simnetLastMopSn int64
@@ -938,20 +949,18 @@ func (s *simnet) handleDiscardTimer(discard *mop) {
 		found := s.clinode.timerQ.del(discard.origTimerMop)
 		if found {
 			discard.wasArmed = !orig.timerFiredTm.IsZero()
-			discard.completeTm = orig.completeTm
 			discard.origTimerCompleteTm = orig.completeTm
 		} // leave wasArmed false, could not have been armed if gone.
 
-		////zz("cli.LC:%v CLIENT TIMER_DISCARD %v to fire at '%v'; now timerQ: '%v'", s.clinode.LC, discard, discard.completeTm, s.clinode.timerQ)
+		////zz("cli.LC:%v CLIENT TIMER_DISCARD %v to fire at '%v'; now timerQ: '%v'", s.clinode.LC, discard, discard.origTimerCompleteTm, s.clinode.timerQ)
 	} else {
 		found := s.srvnode.timerQ.del(discard.origTimerMop)
 		if found {
 			discard.wasArmed = !orig.timerFiredTm.IsZero()
-			discard.completeTm = orig.completeTm
 			discard.origTimerCompleteTm = orig.completeTm
 		} // leave wasArmed false, could not have been armed if gone.
 
-		////zz("srv.LC:%v SERVER TIMER_DISCARD %v; now timerQ: '%v'", s.srvnode.LC, discard, discard.completeTm, s.srvnode.timerQ)
+		////zz("srv.LC:%v SERVER TIMER_DISCARD %v; now timerQ: '%v'", s.srvnode.LC, discard, discard.origTimerCompleteTm, s.srvnode.timerQ)
 	}
 	s.armTimer()
 	close(discard.proceed)
@@ -1054,7 +1063,7 @@ func (node *simnode) soonestTimerLessThan(bound *mop) *mop {
 
 // called by goroutines outside of the scheduler,
 // so must not touch s.srvnode, s.clinode, etc.
-func (s *simnet) createNewTimer(dur time.Duration, begin time.Time, isCli bool) (timer *mop) {
+func (s *simnet) createNewTimer(origin *simnode, dur time.Duration, begin time.Time, isCli bool) (timer *mop) {
 
 	who := "SERVER"
 	if isCli {
@@ -1064,6 +1073,7 @@ func (s *simnet) createNewTimer(dur time.Duration, begin time.Time, isCli bool) 
 	//vv("top simnet.createNewTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", who, dur, begin, begin.Add(dur))
 
 	timer = newTimerCreateMop(isCli)
+	timer.origin = origin
 	timer.timerDur = dur
 	timer.initTm = begin
 	timer.completeTm = begin.Add(dur)
@@ -1086,13 +1096,15 @@ func (s *simnet) createNewTimer(dur time.Duration, begin time.Time, isCli bool) 
 // readMessage reads a framed message from conn.
 func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 
-	isCli := conn.(*simnetConn).isCli
+	sc := conn.(*simnetConn)
+	isCli := sc.isCli
 
 	//vv("top simnet.readMessage() %v READ", who(isCli))
 
 	read := newReadMop(isCli)
 	read.initTm = time.Now()
-
+	read.origin = sc.local
+	read.target = sc.remote
 	select {
 	case s.msgReadCh <- read:
 	case <-s.halt.ReqStop.Chan:
@@ -1109,11 +1121,14 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 
 func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
 
-	isCli := conn.(*simnetConn).isCli
+	sc := conn.(*simnetConn)
+	isCli := sc.isCli
 
 	//vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", who(isCli), msg.HDR.Serial)
 
 	send := newSendMop(msg, isCli)
+	send.origin = sc.local
+	send.target = sc.remote
 	send.initTm = time.Now()
 	select {
 	case s.msgSendCh <- send:
@@ -1170,13 +1185,14 @@ func newSendMop(msg *Message, isCli bool) (op *mop) {
 	return
 }
 
-func (s *simnet) discardTimer(origTimerMop *mop, discardTm time.Time) (wasArmed bool) {
+func (s *simnet) discardTimer(origin *simnode, origTimerMop *mop, discardTm time.Time) (wasArmed bool) {
 
 	//vv("top simnet.discardTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", who, dur, begin, begin.Add(dur))
 
 	discard := newTimerDiscardMop(origTimerMop)
 	discard.initTm = time.Now()
 	discard.timerFileLine = fileLine(3)
+	discard.origin = origin
 
 	select {
 	case s.discardTimerCh <- discard:

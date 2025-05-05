@@ -1098,6 +1098,8 @@ type Server struct {
 
 	StartSimNet chan *SimNetConfig
 	simnet      *simnet
+	simnode     *simnode
+	simconn     *simnetConn
 
 	boundAddressString string
 

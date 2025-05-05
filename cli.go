@@ -1058,6 +1058,12 @@ type sharedTransport struct {
 type simnetRendezvous struct {
 	mut    sync.Mutex
 	simnet *simnet
+
+	// so we can generalize to
+	// a network, cli/server tell
+	// us their simnode
+	clinode *simnode
+	srvnode *simnode
 }
 
 // NewConfig should be used to create Config
@@ -1074,7 +1080,9 @@ type Client struct {
 	cfg *Config
 	mut sync.Mutex
 
-	simnet *simnet
+	simnet  *simnet
+	simnode *simnode
+	simconn *simnetConn
 
 	// these are client only. server keeps track
 	// per connection in their rwPair.
@@ -2593,6 +2601,7 @@ func (s *Server) TimeAfter(dur time.Duration) (timerC <-chan time.Time) {
 type RpcTimer struct {
 	gotimer  *time.Timer
 	isCli    bool
+	simnode  *simnode
 	simnet   *simnet
 	simtimer *mop
 	C        <-chan time.Time
@@ -2607,7 +2616,8 @@ func (c *Client) NewTimer(dur time.Duration) (ti *RpcTimer) {
 		return
 	}
 	ti.simnet = c.simnet
-	ti.simtimer = c.simnet.createNewTimer(dur, time.Now(), true) // isCli
+	ti.simnode = c.simnode
+	ti.simtimer = c.simnet.createNewTimer(c.simnode, dur, time.Now(), true) // isCli
 	ti.C = ti.simtimer.timerC
 	return
 }
@@ -2621,7 +2631,8 @@ func (s *Server) NewTimer(dur time.Duration) (ti *RpcTimer) {
 		return
 	}
 	ti.simnet = s.simnet
-	ti.simtimer = s.simnet.createNewTimer(dur, time.Now(), false) // isCli
+	ti.simnode = s.simnode
+	ti.simtimer = s.simnet.createNewTimer(s.simnode, dur, time.Now(), false) // isCli
 	ti.C = ti.simtimer.timerC
 	return
 }
@@ -2632,7 +2643,7 @@ func (ti *RpcTimer) Discard() (wasArmed bool) {
 		ti.gotimer = nil // Go will GC.
 		return
 	}
-	wasArmed = ti.simnet.discardTimer(ti.simtimer, time.Now())
+	wasArmed = ti.simnet.discardTimer(ti.simnode, ti.simtimer, time.Now())
 	return
 }
 
