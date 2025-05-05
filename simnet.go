@@ -638,7 +638,8 @@ func (node *simnode) dispatch() (bump time.Duration) {
 		nread := node.readQ.tree.Len()
 		// it is normal to have preArrQ if no reads...
 		if narr > 0 && nread > 0 {
-			vv("ummm... why did these not get dispatched? narr = %v, nread = %v; summary node summary:\n%v", narr, nread, node.String())
+			alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; summary node summary:\n%v", narr, nread, node.String())
+			panic("should have been dispatchable, no?")
 		}
 	}()
 
@@ -724,6 +725,7 @@ func (node *simnode) dispatch() (bump time.Duration) {
 			// by initTm, all subsequent reads in it
 			// will have >= initTm.
 			vv("rejecting delivery to read that has not happened: '%v'", read)
+			panic("how possible?")
 			return
 		}
 		// INVAR: this read.initTm <= now
@@ -755,7 +757,7 @@ func (node *simnode) dispatch() (bump time.Duration) {
 		read.arrivalTm = send.arrivalTm // easier diagnostics
 
 		// matchmaking
-		vv("[1]matchmaking: \nsend '%v' -> \nread '%v'", send, read)
+		//vv("[1]matchmaking: \nsend '%v' -> \nread '%v'", send, read)
 		read.sendmop = send
 		send.readmop = read
 
