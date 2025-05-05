@@ -162,6 +162,8 @@ func (op *mop) String() string {
 }
 
 type simnet struct {
+	useSynctest bool
+
 	scenario *scenario
 
 	cfg       *Config
@@ -277,7 +279,7 @@ func (s *simnet) handleNewClientRegistration(reg *clientRegistration) {
 
 func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, srvNetAddr *SimNetAddr) (tellServerNewConnCh chan *simnetConn) {
 
-	scen := newScenario(time.Second, time.Second, time.Second, [32]byte{})
+	scen := newScenario(time.Millisecond, time.Millisecond, time.Millisecond, [32]byte{})
 
 	// server creates simnet; must start server first.
 	s := &simnet{
@@ -712,9 +714,19 @@ func (s *simnet) handleRead(read *mop) {
 	origin.dispatch()
 }
 
+func (node *simnode) firstPreArrivalTimeLTE(now time.Time) bool {
+
+	preIt := node.preArrQ.tree.Min()
+	if preIt == node.preArrQ.tree.Limit() {
+		return false // empty queue
+	}
+	send := preIt.Item().(*mop)
+	return !send.arrivalTm.After(now)
+}
+
 // dispatch delivers sends to reads, and fires timers.
 // calls node.net.armTimer() at the end.
-func (node *simnode) dispatch() (bump time.Duration) {
+func (node *simnode) dispatch() { // (bump time.Duration) {
 
 	// to be deleted at the end, so
 	// we don't dirupt the iteration order
@@ -749,8 +761,11 @@ func (node *simnode) dispatch() (bump time.Duration) {
 		nread := node.readQ.tree.Len()
 		// it is normal to have preArrQ if no reads...
 		if narr > 0 && nread > 0 {
-			alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; summary node summary:\n%v", narr, nread, node.String())
-			panic("should have been dispatchable, no?")
+			// if the first preArr is not due yet, that is the reason
+			if node.firstPreArrivalTimeLTE(now) {
+				alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; summary node summary:\n%v", narr, nread, node.String())
+				panic("should have been dispatchable, no?")
+			}
 		}
 	}()
 
@@ -960,8 +975,11 @@ func (s *simnet) scheduler() {
 
 		// advance time by one tick
 		time.Sleep(s.scenario.tick)
-		synctest.Wait()
-		//vv("back from synctest.Wait")
+
+		if s.useSynctest {
+			synctest.Wait()
+			//vv("back from synctest.Wait")
+		}
 
 		select {
 		case alert := <-s.nextTimer.C: // soonest timer fires

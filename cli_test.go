@@ -183,7 +183,6 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 
 		cfg := NewConfig()
 		cfg.TCPonly_no_TLS = true
-		//cfg.UseSimNet = true
 		//cfg.ServerSendKeepAlive = time.Second * 10
 
 		path := GetPrivateCertificateAuthDir() + sep + "psk.binary"
@@ -901,8 +900,7 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 	cv.Convey("remote cancellation", t, func() {
 
 		cfg := NewConfig()
-		//cfg.TCPonly_no_TLS = false
-		cfg.UseSimNet = true
+		cfg.TCPonly_no_TLS = false
 		//cfg.ServerSendKeepAlive = time.Second * 10 // does not stop hang on synctest
 
 		cfg.ServerAddr = "127.0.0.1:0"
