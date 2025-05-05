@@ -55,10 +55,14 @@ func (s *SimNetAddr) Network() string {
 
 // string form of address (for example, "192.0.2.1:25", "[2001:db8::1]:80")
 func (s *SimNetAddr) String() string {
-	if s.isCli {
-		return fmt.Sprintf(`SimNetAddr{network: %v, CLIENT (%v) at addr: %v}`, s.network, s.name, s.addr)
-	}
-	return fmt.Sprintf(`SimNetAddr{network: %v, SERVER (%v) at addr: %v}`, s.network, s.name, s.addr)
+	// keep it simple
+	return s.name
+
+	//	if s.isCli {
+	//		return fmt.Sprintf(`SimNetAddr{network: %v, CLIENT (%v) at addr: %v}`, s.network, s.name, s.addr)
+	//	}
+	//
+	// return fmt.Sprintf(`SimNetAddr{network: %v, SERVER (%v) at addr: %v}`, s.network, s.name, s.addr)
 }
 
 // Message operation
@@ -228,11 +232,19 @@ func (s *simnet) newSimnodeServer(name string) (node *simnode) {
 	return
 }
 
+func (s *simnet) showDNS() {
+	i := 0
+	for name, node := range s.dns {
+		vv("[%2d] showDNS dns[%v] = %p", i, name, node)
+		i++
+	}
+}
 func (s *simnet) handleNewClientRegistration(reg *clientRegistration) {
 
-	srvnode, ok := s.dns[reg.serverAddrStr]
+	srvnode, ok := s.dns[reg.dialTo]
 	if !ok {
-		panic(fmt.Sprintf("cannot find server '%v', requested by client registration (%v): '%#v", reg.serverAddrStr, reg.localHostPortStr, reg))
+		s.showDNS()
+		panic(fmt.Sprintf("cannot find server '%v', requested by client registration", reg.dialTo)) // , reg.localHostPortStr, reg))
 	}
 	clinode := s.newSimnodeClient(reg.client.name)
 	clinode.setNetAddrSameNetAs(reg.localHostPortStr, srvnode.netAddr)
@@ -914,7 +926,7 @@ func (s *simnet) scheduler() {
 	defer func() {
 		r := recover()
 		if r != nil {
-			vv("scheduler panic-ing: %v", s.schedulerReport())
+			//vv("scheduler panic-ing: %v", s.schedulerReport())
 			panic(r)
 		}
 	}()
@@ -1232,8 +1244,10 @@ func (s *simnet) discardTimer(origin *simnode, origTimerMop *mop, discardTm time
 type clientRegistration struct {
 	// provide
 	client           *Client
-	localHostPortStr string
-	serverAddrStr    string
+	localHostPortStr string // Client.cfg.ClientHostPort
+
+	dialTo        string // preferred, set by tests; Client.cfg.ClientDialToHostPort
+	serverAddrStr string // from runSimNetClient() call by cli.go:155
 
 	// wait on
 	done chan struct{}
@@ -1245,10 +1259,11 @@ type clientRegistration struct {
 
 // external, called by simnet_client.go to
 // get a registration ticket to send on simnet.cliRegisterCh
-func (s *simnet) newClientRegistration(c *Client, localHostPort, serverAddr string) *clientRegistration {
+func (s *simnet) newClientRegistration(c *Client, localHostPort, serverAddr, dialTo string) *clientRegistration {
 	return &clientRegistration{
 		client:           c,
 		localHostPortStr: localHostPort,
+		dialTo:           dialTo,
 		serverAddrStr:    serverAddr,
 		done:             make(chan struct{}),
 	}

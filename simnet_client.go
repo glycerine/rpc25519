@@ -11,7 +11,13 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string) {
 	c.simnet = c.cfg.simnetRendezvous.simnet
 	c.cfg.simnetRendezvous.mut.Unlock()
 
-	registration := c.simnet.newClientRegistration(c, localHostPort, serverAddr)
+	// ignore serverAddr in favor of cfg.ClientDialToHostPort
+	// which tests actually set.
+
+	if c.cfg.ClientDialToHostPort == "" && serverAddr == "" {
+		panic("gotta have a server address of some kind")
+	}
+	registration := c.simnet.newClientRegistration(c, localHostPort, serverAddr, c.cfg.ClientDialToHostPort)
 
 	select {
 	case c.simnet.cliRegisterCh <- registration:
