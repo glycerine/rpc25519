@@ -193,7 +193,7 @@ func getCuts2(
 	for len(data) > opt.MinSize {
 		cutpoint := u.Algorithm(opt, data, len(data))
 		if cutpoint == 0 {
-			panic("should never get cutpoint 0 now")
+			panic(fmt.Sprintf("should never get cutpoint 0 now. len(data)=%v; opt='%#v'", len(data), opt))
 		}
 		cut := last + cutpoint
 		cuts = append(cuts, cut)

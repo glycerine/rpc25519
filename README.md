@@ -21,7 +21,7 @@ The simnet/synctest tests are off by default, and run with:
 GOTRACEBACK=all GOEXPERIMENT=synctest go test -v
 ~~~
 
-# test speedup obtained under testing/synctest
+Test speedup obtained under testing/synctest
 
 Preliminary timing comparison for synctest on/off:
 

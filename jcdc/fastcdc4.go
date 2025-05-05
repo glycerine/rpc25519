@@ -18,11 +18,6 @@ package jcdc
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-import (
-	//"errors"
-	"unsafe"
-)
-
 // stay consistent with
 var _ Cutpointer = &FastCDC_Plakar{}
 
@@ -113,21 +108,18 @@ func (c *FastCDC_Plakar) Algorithm(options *CDC_Config, data []byte, n int) int 
 	}
 
 	fp := uint64(0)
-	i := MinSize
 	mask := MaskS
 
-	p := unsafe.Pointer(&data[i])
-	for ; i < n; i++ {
+	for i := MinSize; i < n; i++ {
 		if i == TargetSize {
 			mask = MaskL
 		}
-		fp = (fp << 1) + GearTable4[*(*byte)(p)]
+		fp = (fp << 1) + GearTable4[data[i]]
 		if (fp & mask) == 0 {
 			return i
 		}
-		p = unsafe.Pointer(uintptr(p) + 1)
 	}
-	return i
+	return n
 }
 
 // randomly generated Gear table
