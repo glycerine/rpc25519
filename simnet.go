@@ -864,10 +864,11 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 			// by arrivalTm, all subsequent pre-arrivals (sends)
 			// will have even >= arrivalTm.
 			vv("rejecting deliver of send that has not happened: '%v'", send)
+			vv("scheduler: %v", node.net.schedulerReport())
 			// TODO: I think we might need to set a timer on its delivery then!
 			return
 		}
-		// INVAR: this send.arrivalTm <= now
+		// INVAR: this send.arrivalTm <= now; good to deliver.
 
 		// Since both have happened, they can be matched.
 
