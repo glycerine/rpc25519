@@ -1179,7 +1179,7 @@ func (s *simnet) discardTimer(origTimerMop *mop, discardTm time.Time) (wasArmed 
 	discard.timerFileLine = fileLine(3)
 
 	select {
-	case s.discardTimer <- discard:
+	case s.discardTimerCh <- discard:
 	case <-s.halt.ReqStop.Chan:
 		return
 	}

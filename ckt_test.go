@@ -553,11 +553,15 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		j.srvs.requestToSend <- frag
 
 		// wait for it to get the client
+
+		timeout := j.cli.NewTimer(2 * time.Second)
 		select {
 		case <-j.clis.dropcopy_reads:
-		case <-j.cli.TimeAfter(2 * time.Second):
+		case <-timeout.C:
+			// don't care, crashing: timeout.Discard()
 			t.Fatalf("client did not get their dropcopy after 2 sec")
 		}
+		timeout.Discard()
 		if got, want := len(j.clis.readch), 1; got != want {
 			t.Fatalf("error: expected cli readch to have %v, got: %v", want, got)
 		}
@@ -580,11 +584,13 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		j.clis.requestToSend <- frag
 
 		// wait for it to get the server
+		timeout = j.srv.NewTimer(2 * time.Second)
 		select {
 		case <-j.srvs.dropcopy_reads:
-		case <-j.srv.TimeAfter(2 * time.Second):
+		case <-timeout.C:
 			t.Fatalf("server did not get their dropcopy after 2 sec")
 		}
+		timeout.Discard()
 
 		// assert readch/sendch state
 		if got, want := len(j.clis.readch), 1; got != want {

@@ -125,9 +125,12 @@ func (s *Server) runQUICServer(quicServerAddr string, tlsConfig *tls.Config, bou
 	addr := listener.Addr()
 	//vv("QUIC Server listening on %v://%v", addr.Network(), addr.String())
 	if boundCh != nil {
+		timeout_100msec := s.NewTimer(100 * time.Millisecond)
+		defer timeout_100msec.Discard()
+
 		select {
 		case boundCh <- addr:
-		case <-s.TimeAfter(100 * time.Millisecond):
+		case <-timeout_100msec.C:
 		}
 	}
 

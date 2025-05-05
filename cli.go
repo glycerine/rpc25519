@@ -1704,7 +1704,9 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 	}
 	var writeDurTimeoutChan <-chan time.Time
 	if errWriteDur > 0 {
-		writeDurTimeoutChan = c.TimeAfter(errWriteDur)
+		ti := c.NewTimer(errWriteDur)
+		defer ti.Discard()
+		writeDurTimeoutChan = ti.C
 	}
 
 	var from, to string

@@ -169,9 +169,12 @@ func (s *Server) runServerMain(
 	//vv("server defaults to binding: scheme='%v', ip='%v', port=%v, isUnspecified='%v', isIPv6='%v'", scheme, ip, port, isUnspecified, isIPv6)
 
 	if boundCh != nil {
+		timeout_100msec := s.NewTimer(100 * time.Millisecond)
+		defer timeout_100msec.Discard()
+
 		select {
 		case boundCh <- addr:
-		case <-s.TimeAfter(100 * time.Millisecond):
+		case <-timeout_100msec.C:
 		}
 	}
 
@@ -232,10 +235,14 @@ func (s *Server) runTCP(serverAddress string, boundCh chan net.Addr) {
 	s.mut.Unlock()
 
 	//vv("Server listening on %v://%v", addr.Network(), addr.String())
+
 	if boundCh != nil {
+		timeout_100msec := s.NewTimer(100 * time.Millisecond)
+		defer timeout_100msec.Discard()
+
 		select {
 		case boundCh <- addr:
-		case <-s.TimeAfter(100 * time.Millisecond):
+		case <-timeout_100msec.C:
 		}
 	}
 
@@ -413,6 +420,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 	var lastPing time.Time
 	var doPing bool
 	var pingEvery time.Duration
+	var pingWakeTimer *RpcTimer
 	var pingWakeCh <-chan time.Time
 	var keepAliveWriteTimeout time.Duration // := s.cfg.WriteTimeout
 
@@ -420,7 +428,9 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		doPing = true
 		pingEvery = s.cfg.ServerSendKeepAlive
 		lastPing = time.Now()
-		pingWakeCh = s.Server.TimeAfter(pingEvery)
+		pingWakeTimer = s.Server.NewTimer(pingEvery)
+		//pingWakeTimer.Discard()
+		pingWakeCh = pingWakeTimer.C // s.Server.TimeAfter(pingEvery)
 		// keep the ping attempts to a minimum to keep this loop lively.
 		if keepAliveWriteTimeout == 0 || keepAliveWriteTimeout > 10*time.Second {
 			keepAliveWriteTimeout = 2 * time.Second
@@ -430,6 +440,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 	for {
 		if doPing {
 			now := time.Now()
+			var nextPingDur time.Duration
 			if time.Since(lastPing) > pingEvery {
 				// transmit the EpochID as the StreamPart in keepalives.
 				s.keepAliveMsg.HDR.StreamPart = atomic.LoadInt64(&s.epochV.EpochID)
@@ -441,10 +452,13 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 					s.lastPingSentTmu.Store(now.UnixNano())
 				}
 				lastPing = now
-				pingWakeCh = s.Server.TimeAfter(pingEvery)
+				nextPingDur = pingEvery
 			} else {
-				pingWakeCh = s.Server.TimeAfter(lastPing.Add(pingEvery).Sub(now))
+				nextPingDur = lastPing.Add(pingEvery).Sub(now)
 			}
+			pingWakeTimer.Discard()
+			pingWakeTimer = s.Server.NewTimer(nextPingDur)
+			pingWakeCh = pingWakeTimer.C
 		}
 
 		select {
@@ -1793,6 +1807,7 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 	}
 
 	var dur time.Duration
+
 	if errWriteDur < 0 {
 		dur = 30 * time.Millisecond
 	} else if errWriteDur > 0 {
@@ -1801,11 +1816,16 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 
 	if dur > 0 {
 		//vv("srv SendMessage about to wait %v to check on connection.", dur)
+
+		sendTimeout := s.NewTimer(dur)
+		defer sendTimeout.Discard()
+		sendTimeoutCh := sendTimeout.C
+
 		select {
 		case <-msg.DoneCh.WhenClosed():
 			//vv("srv SendMessage got back msg.LocalErr = '%v'", msg.LocalErr)
 			return msg.LocalErr
-		case <-s.TimeAfter(dur):
+		case <-sendTimeoutCh:
 			//vv("srv SendMessage timeout after waiting %v", dur)
 			return ErrSendTimeout
 		}
