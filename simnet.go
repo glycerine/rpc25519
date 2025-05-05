@@ -24,6 +24,10 @@ type SimNetConfig struct{}
 type mop struct {
 	sn int64
 
+	// so we can handle a network
+	// rather than just cli/srv.
+	node *simnode
+
 	// number of times handleSend() has seen this mop.
 	seen int
 
@@ -37,8 +41,15 @@ type mop struct {
 	timerDur      time.Duration
 	timerFileLine string // where was this timer from?
 
+	// discards tell us the corresponding create timer here.
+	origTimerMop        *mop
+	origTimerCompleteTm time.Time
+	timerFiredTm        time.Time // when fired => unarmed (we assume resets are whole new? no reset support at the moment!)
+	wasArmed            bool      // was discarded timer armed?
+
 	// when was the operation initiated?
 	// timer started, read begin waiting, send hits the socket.
+	// for timer discards, when discarded so usually initTm
 	initTm time.Time
 
 	// when did the send message arrive?
@@ -48,7 +59,8 @@ type mop struct {
 	// control returns to user code.
 	// READS: when the read returns to user who called readMessage()
 	// SENDS: when the send returns to user who called sendMessage()
-	// TIMERS: when user code <-timerC gets sent the current time.
+	// TIMER: when user code <-timerC gets sent the current time.
+	// TIMER_DISCARD: zero time.Time{}.
 	completeTm time.Time
 
 	kind mopkind
@@ -57,10 +69,10 @@ type mop struct {
 	sendmop *mop // for reads, which send did we get?
 	readmop *mop // for sends, which read did we go to?
 
-	pqit rb.Iterator
+	//pqit rb.Iterator // can discard we think
 
 	// clients of scheduler wait on proceed.
-	// timer fires, send delivered, read accepted by kernel
+	// timer fires, send delivered, read accepted by readLoop
 	proceed chan struct{}
 }
 
@@ -94,6 +106,9 @@ func (op *mop) String() string {
 	if op.kind == TIMER {
 		extra = " timer set at " + op.timerFileLine
 	}
+	if op.kind == TIMER_DISCARD {
+		extra = " timer discarded at " + op.timerFileLine
+	}
 	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, msg.sn:%v%v}", who, op.kind, ini, arr, complete, op.sn, msgSerial, extra)
 }
 
@@ -117,12 +132,13 @@ type simnet struct {
 	cliReady chan *Client
 	halt     *idem.Halter // just srv.halt for now.
 
-	msgSendCh     chan *mop
-	msgReadCh     chan *mop
-	addTimer      chan *mop
-	newScenarioCh chan *scenario
-	nextTimer     *time.Timer
-	lastArmTm     time.Time
+	msgSendCh      chan *mop
+	msgReadCh      chan *mop
+	addTimer       chan *mop
+	discardTimerCh chan *mop
+	newScenarioCh  chan *scenario
+	nextTimer      *time.Timer
+	lastArmTm      time.Time
 }
 
 type simnode struct {
@@ -151,14 +167,15 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *s
 	// server creates simnet; must start server first.
 	s := &simnet{
 
-		cfg:       cfg,
-		srv:       srv,
-		halt:      srv.halt,
-		cliReady:  make(chan *Client),
-		simNetCfg: simNetConfig,
-		msgSendCh: make(chan *mop),
-		msgReadCh: make(chan *mop),
-		addTimer:  make(chan *mop),
+		cfg:            cfg,
+		srv:            srv,
+		halt:           srv.halt,
+		cliReady:       make(chan *Client),
+		simNetCfg:      simNetConfig,
+		msgSendCh:      make(chan *mop),
+		msgReadCh:      make(chan *mop),
+		addTimer:       make(chan *mop),
+		discardTimerCh: make(chan *mop),
 
 		newScenarioCh: make(chan *scenario),
 		scenario:      scen,
@@ -191,15 +208,18 @@ func simnetNextMopSn() int64 {
 type mopkind int
 
 const (
-	TIMER mopkind = 1
-	SEND  mopkind = 2
-	READ  mopkind = 3
+	TIMER         mopkind = 1
+	TIMER_DISCARD mopkind = 2
+	SEND          mopkind = 3
+	READ          mopkind = 4
 )
 
 func (k mopkind) String() string {
 	switch k {
 	case TIMER:
 		return "TIMER"
+	case TIMER_DISCARD:
+		return "TIMER_DISCARD"
 	case SEND:
 		return "SEND"
 	case READ:
@@ -318,6 +338,19 @@ func (s *pq) add(op *mop) (added bool, it rb.Iterator) {
 		panic("do not put nil into pq!")
 	}
 	added, it = s.tree.InsertGetIt(op)
+	return
+}
+
+func (s *pq) del(op *mop) (found bool) {
+	if op == nil {
+		panic("cannot delete nil mop!")
+	}
+	var it rb.Iterator
+	it, found = s.tree.FindGE_isEqual(op)
+	if !found {
+		return
+	}
+	s.tree.DeleteWithIterator(it)
 	return
 }
 
@@ -663,6 +696,7 @@ func (node *simnode) dispatch() (bump time.Duration) {
 		if !now.Before(timer.completeTm) {
 			// timer.completeTm <= now
 			//vv("have TIMER firing")
+			timer.timerFiredTm = now
 			timerDel = append(timerDel, timer)
 			select { // hung here! how long should we wait.. why cannot deliver? what does the timer do? default: nothing case.
 			case timer.timerC <- now:
@@ -868,6 +902,10 @@ func (s *simnet) scheduler() {
 			//vv("addTimer ->  op='%v'", timer)
 			s.handleTimer(timer)
 
+		case discard := <-s.discardTimerCh:
+			//vv("discardTimer ->  op='%v'", discard)
+			s.handleDiscardTimer(discard)
+
 		case send := <-s.msgSendCh:
 			////zz("msgSendCh ->  op='%v'", send)
 			s.handleSend(send)
@@ -893,6 +931,32 @@ func (s *simnet) initScenario(scenario *scenario) {
 	// do any init work...
 }
 
+func (s *simnet) handleDiscardTimer(discard *mop) {
+
+	orig := discard.origTimerMop
+	if discard.originCli {
+		found := s.clinode.timerQ.del(discard.origTimerMop)
+		if found {
+			discard.wasArmed = !orig.timerFiredTm.IsZero()
+			discard.completeTm = orig.completeTm
+			discard.origTimerCompleteTm = orig.completeTm
+		} // leave wasArmed false, could not have been armed if gone.
+
+		////zz("cli.LC:%v CLIENT TIMER_DISCARD %v to fire at '%v'; now timerQ: '%v'", s.clinode.LC, discard, discard.completeTm, s.clinode.timerQ)
+	} else {
+		found := s.srvnode.timerQ.del(discard.origTimerMop)
+		if found {
+			discard.wasArmed = !orig.timerFiredTm.IsZero()
+			discard.completeTm = orig.completeTm
+			discard.origTimerCompleteTm = orig.completeTm
+		} // leave wasArmed false, could not have been armed if gone.
+
+		////zz("srv.LC:%v SERVER TIMER_DISCARD %v; now timerQ: '%v'", s.srvnode.LC, discard, discard.completeTm, s.srvnode.timerQ)
+	}
+	s.armTimer()
+	close(discard.proceed)
+}
+
 func (s *simnet) handleTimer(timer *mop) {
 
 	lc := s.srvnode.LC
@@ -916,6 +980,9 @@ func (s *simnet) handleTimer(timer *mop) {
 		defer close(timer.proceed)
 	}
 	timer.seen++
+	if timer.seen != 1 {
+		panic(fmt.Sprintf("expect each timer mop only once now, not %v", timer.seen))
+	}
 
 	if timer.originCli {
 		s.clinode.timerQ.add(timer)
@@ -987,7 +1054,7 @@ func (node *simnode) soonestTimerLessThan(bound *mop) *mop {
 
 // called by goroutines outside of the scheduler,
 // so must not touch s.srvnode, s.clinode, etc.
-func (s *simnet) createNewTimer(dur time.Duration, begin time.Time, isCli bool) (timerC chan time.Time, err error) {
+func (s *simnet) createNewTimer(dur time.Duration, begin time.Time, isCli bool) (timer *mop) {
 
 	who := "SERVER"
 	if isCli {
@@ -996,7 +1063,7 @@ func (s *simnet) createNewTimer(dur time.Duration, begin time.Time, isCli bool) 
 	_ = who
 	//vv("top simnet.createNewTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", who, dur, begin, begin.Add(dur))
 
-	timer := newTimerMop(isCli)
+	timer = newTimerCreateMop(isCli)
 	timer.timerDur = dur
 	timer.initTm = begin
 	timer.completeTm = begin.Add(dur)
@@ -1005,13 +1072,13 @@ func (s *simnet) createNewTimer(dur time.Duration, begin time.Time, isCli bool) 
 	select {
 	case s.addTimer <- timer:
 	case <-s.halt.ReqStop.Chan:
-		return nil, ErrShutdown()
+		return
 	}
 	select {
 	case <-timer.proceed:
-		return timer.timerC, nil
+		return
 	case <-s.halt.ReqStop.Chan:
-		return nil, ErrShutdown()
+		return
 	}
 	return
 }
@@ -1061,12 +1128,23 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) e
 	return nil
 }
 
-func newTimerMop(isCli bool) (op *mop) {
+func newTimerCreateMop(isCli bool) (op *mop) {
 	op = &mop{
 		originCli: isCli,
 		sn:        simnetNextMopSn(),
 		kind:      TIMER,
 		proceed:   make(chan struct{}),
+	}
+	return
+}
+
+func newTimerDiscardMop(origTimerMop *mop) (op *mop) {
+	op = &mop{
+		originCli:    origTimerMop.originCli,
+		sn:           simnetNextMopSn(),
+		kind:         TIMER_DISCARD,
+		proceed:      make(chan struct{}),
+		origTimerMop: origTimerMop,
 	}
 	return
 }
@@ -1088,6 +1166,28 @@ func newSendMop(msg *Message, isCli bool) (op *mop) {
 		sn:        simnetNextMopSn(),
 		kind:      SEND,
 		proceed:   make(chan struct{}),
+	}
+	return
+}
+
+func (s *simnet) discardTimer(origTimerMop *mop, discardTm time.Time) (wasArmed bool) {
+
+	//vv("top simnet.discardTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", who, dur, begin, begin.Add(dur))
+
+	discard := newTimerDiscardMop(origTimerMop)
+	discard.initTm = time.Now()
+	discard.timerFileLine = fileLine(3)
+
+	select {
+	case s.discardTimer <- discard:
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	select {
+	case <-discard.proceed:
+		return discard.wasArmed
+	case <-s.halt.ReqStop.Chan:
+		return
 	}
 	return
 }

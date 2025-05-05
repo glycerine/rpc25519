@@ -496,6 +496,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 	var lastPing time.Time
 	var doPing bool
 	var pingEvery time.Duration
+	var pingTimer *RpcTimer
 	var pingWakeCh <-chan time.Time
 	var keepAliveWriteTimeout time.Duration // := c.cfg.WriteTimeout
 
@@ -504,7 +505,8 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 		doPing = true
 		pingEvery = c.cfg.ClientSendKeepAlive
 		lastPing = time.Now()
-		pingWakeCh = c.TimeAfter(pingEvery)
+		pingTimer = c.NewTimer(pingEvery)
+		pingWakeCh = pingTimer.C
 		// keep the ping attempts to a minimum to keep this loop lively.
 		if keepAliveWriteTimeout == 0 || keepAliveWriteTimeout > 10*time.Second {
 			keepAliveWriteTimeout = 2 * time.Second
@@ -514,6 +516,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 	for {
 		if doPing {
 			now := time.Now()
+			var nextPingDur time.Duration
 			if time.Since(lastPing) > pingEvery {
 				// transmit the EpochID as the StreamPart in keepalives.
 				c.keepAliveMsg.HDR.StreamPart = atomic.LoadInt64(&c.epochV.EpochID)
@@ -525,7 +528,9 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 					c.cpair.lastPingSentTmu.Store(now.UnixNano())
 				}
 				lastPing = now
-				pingWakeCh = c.TimeAfter(pingEvery)
+				nextPingDur = pingEvery
+				//pingWakeCh = c.TimeAfter(pingEvery) // bad, hides it from simnet.
+
 			} else {
 				// Pre go1.23 this would have leaked timer memory, but not now.
 				// https://pkg.go.dev/time#After says
@@ -540,8 +545,14 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 				// If using < go1.23, see
 				// https://medium.com/@oboturov/golang-time-after-is-not-garbage-collected-4cbc94740082
 				// for a memory leak story.
-				pingWakeCh = c.TimeAfter(lastPing.Add(pingEvery).Sub(now))
+				// bad: hides the timer discard from simnet.
+				//pingWakeCh = c.TimeAfter(lastPing.Add(pingEvery).Sub(now))
+				// good: simnet hears about the timer discard.
+				nextPingDur = lastPing.Add(pingEvery).Sub(now)
 			}
+			pingTimer.Discard() // good, let simnet discard it.
+			pingTimer = c.NewTimer(nextPingDur)
+			pingWakeCh = pingTimer.C
 		}
 
 		select {
@@ -1686,7 +1697,10 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 	// leave deafultTimeout nil if user supplied a cancelJobCh.
 	if cancelJobCh == nil {
 		// try hard not to get stuck when server goes away.
-		defaultTimeout = c.TimeAfter(20 * time.Second)
+		//defaultTimeout = c.TimeAfter(20 * time.Second)
+		timer := c.NewTimer(20 * time.Second)
+		defer timer.Discard() // let simnet know the timer can be GC-ed.
+		defaultTimeout = timer.C
 	}
 	var writeDurTimeoutChan <-chan time.Time
 	if errWriteDur > 0 {
@@ -1960,7 +1974,7 @@ type UniversalCliSrv interface {
 	PingStats(remote string) *PingStat
 	AutoClients() (list []*Client, isServer bool)
 
-	TimeAfter(dur time.Duration) (timerC <-chan time.Time)
+	NewTimer(dur time.Duration) (ti *RpcTimer)
 }
 
 type PingStat struct {
@@ -2551,6 +2565,7 @@ func (s *Client) UnregisterChannel(ID string, whichmap int) {
 	}
 }
 
+/*
 func (c *Client) TimeAfter(dur time.Duration) (timerC <-chan time.Time) {
 	if !c.cfg.UseSimNet {
 		return time.After(dur)
@@ -2571,18 +2586,19 @@ func (s *Server) TimeAfter(dur time.Duration) (timerC <-chan time.Time) {
 	timerC, _ = s.simnet.createNewTimer(dur, time.Now(), false) // isCli
 	return
 }
+*/
 
-/*
 type RpcTimer struct {
 	gotimer  *time.Timer
-	onCli    bool
+	isCli    bool
 	simnet   *simnet
 	simtimer *mop
+	C        <-chan time.Time
 }
 
 func (c *Client) NewTimer(dur time.Duration) (ti *RpcTimer) {
 	ti = &RpcTimer{
-		onCli: true,
+		isCli: true,
 	}
 	if !c.cfg.UseSimNet {
 		ti.gotimer = time.NewTimer(dur)
@@ -2590,12 +2606,13 @@ func (c *Client) NewTimer(dur time.Duration) (ti *RpcTimer) {
 	}
 	ti.simnet = c.simnet
 	ti.simtimer = c.simnet.createNewTimer(dur, time.Now(), true) // isCli
+	ti.C = ti.simtimer.timerC
 	return
 }
 
 func (s *Server) NewTimer(dur time.Duration) (ti *RpcTimer) {
 	ti = &RpcTimer{
-		onCli: false,
+		isCli: false,
 	}
 	if !s.cfg.UseSimNet {
 		ti.gotimer = time.NewTimer(dur)
@@ -2603,9 +2620,21 @@ func (s *Server) NewTimer(dur time.Duration) (ti *RpcTimer) {
 	}
 	ti.simnet = s.simnet
 	ti.simtimer = s.simnet.createNewTimer(dur, time.Now(), false) // isCli
+	ti.C = ti.simtimer.timerC
 	return
 }
 
+func (ti *RpcTimer) Discard() (wasArmed bool) {
+	if ti.simnet == nil {
+		ti.gotimer.Stop()
+		ti.gotimer = nil // Go will GC.
+		return
+	}
+	wasArmed = ti.simnet.discardTimer(ti.simtimer, time.Now())
+	return
+}
+
+/*
 func (ti *RpcTimer) Reset(dur time.Duration) (wasArmed bool) {
 	if ti.simnet == nil {
 		return ti.gotimer.Reset(dur)
