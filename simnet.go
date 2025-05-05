@@ -11,6 +11,8 @@ import (
 	rb "github.com/glycerine/rbtree"
 )
 
+var _ = synctest.Wait
+
 type SimNetConfig struct{}
 
 // a connection between two nodes.
@@ -23,6 +25,40 @@ type simnetConn struct {
 
 	local  *simnode
 	remote *simnode
+}
+
+// simnet implements the same workspace/blabber interface
+// so we can plug in
+// netsim and do comms via channels for testing/synctest
+// based accelerated timeout testing.
+//
+// Note that uConn and its Write/Read are
+// not actually used; channel sends/reads replace them.
+// We still need a dummy uConn to pass to
+// readMessage() and sendMessage() which are the
+// interception points for the simulated network.
+//
+// The blabber does check if the uConn is *simnet, and
+// configures itself to call through it if present.
+
+type SimNetAddr struct { // implements net.Addr interface
+	network    string
+	serverAddr string
+	name       string
+	isCli      bool
+}
+
+// name of the network (for example, "tcp", "udp", "simnet")
+func (s *SimNetAddr) Network() string {
+	return s.network
+}
+
+// string form of address (for example, "192.0.2.1:25", "[2001:db8::1]:80")
+func (s *SimNetAddr) String() string {
+	if s.isCli {
+		return fmt.Sprintf(`SimNetAddr{network: %v, CLIENT (name: "%v") to serverAddr: %v}`, s.network, s.name, s.serverAddr)
+	}
+	return fmt.Sprintf(`SimNetAddr{network: %v, SERVER (name: "%v") at serverAddr: %v}`, s.network, s.name, s.serverAddr)
 }
 
 // Message operation
@@ -126,7 +162,7 @@ type simnet struct {
 
 	cfg       *Config
 	simNetCfg *SimNetConfig
-	netAddr   *SimNetAddr // satisfy uConn
+	//netAddr   *SimNetAddr // satisfy uConn
 
 	srv *Server
 	cli *Client
@@ -210,7 +246,7 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 	s.nodes = make(map[*simnode]map[*simnode]*simnetConn)
 
 	// edges
-	c2s := s.addEdgeFromCli(clinode, srvnode)
+	c2s := s.addEdgeFromCli(clinode, srvnode, srvNetAddr)
 	s2c := s.addEdgeFromSrv(srvnode, clinode, srvNetAddr)
 
 	// let client find the shared simnet in their cfg.
@@ -245,18 +281,25 @@ func (s *simnet) addEdgeFromSrv(srvnode, clinode *simnode, srvNetAddr *SimNetAdd
 	return s2c
 }
 
-func (s *simnet) addEdgeFromCli(clinode, srvnode *simnode) *simnetConn {
+func (s *simnet) addEdgeFromCli(clinode, srvnode *simnode, srvNetAddr *SimNetAddr) *simnetConn {
 
 	cli, ok := s.nodes[s.clinode] // edges from cli
 	if !ok {
 		cli = make(map[*simnode]*simnetConn)
 		s.nodes[clinode] = cli
 	}
+	cliNetAddr := &SimNetAddr{
+		network:    srvNetAddr.network,
+		serverAddr: srvNetAddr.serverAddr,
+		// name: TODO fill in client name, if possible
+		isCli: true,
+	}
 	c2s := &simnetConn{
-		isCli:  true,
-		net:    s,
-		local:  clinode,
-		remote: srvnode,
+		isCli:   true,
+		net:     s,
+		local:   clinode,
+		remote:  srvnode,
+		netAddr: cliNetAddr,
 	}
 	// replace any previous conn
 	cli[srvnode] = c2s
@@ -856,8 +899,8 @@ func (s *simnet) scheduler() {
 
 		// advance time by one tick
 		time.Sleep(s.scenario.tick)
-		synctest.Wait()
-		vv("back from synctest.Wait")
+		//synctest.Wait()
+		//vv("back from synctest.Wait")
 
 		select {
 		case alert := <-s.nextTimer.C: // soonest timer fires

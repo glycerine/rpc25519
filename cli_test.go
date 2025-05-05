@@ -900,8 +900,8 @@ func BenchmarkHelloRpcxMessage(b *testing.B) {
 // this also has 041 in it.
 func Test040_remote_cancel_by_context(t *testing.T) {
 
-	//cv.Convey("remote cancellation", t, func() {
-	synctest.Run(func() {
+	cv.Convey("remote cancellation", t, func() {
+		//synctest.Run(func() {
 
 		cfg := NewConfig()
 		//cfg.TCPonly_no_TLS = false

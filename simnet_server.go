@@ -5,34 +5,6 @@ import (
 	"time"
 )
 
-// simnet implements the same workspace/blabber interface
-// so we can plug in
-// netsim and do comms via channels for testing/synctest
-// based accelerated timeout testing.
-//
-// Note that uConn and its Write/Read are
-// not actually used; channel sends/reads replace them.
-// We still need a dummy uConn to pass to
-// readMessage() and sendMessage() which are the
-// interception points for the simulated network.
-//
-// The blabber does check if the uConn is *simnet, and
-// configures itself to call through it if present.
-
-type SimNetAddr struct { // net.Addr
-	network string
-}
-
-// name of the network (for example, "tcp", "udp")
-func (s *SimNetAddr) Network() string {
-	return "simnet"
-}
-
-// string form of address (for example, "192.0.2.1:25", "[2001:db8::1]:80")
-func (s *SimNetAddr) String() string {
-	return s.network
-}
-
 func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNetConfig *SimNetConfig) {
 	//vv("top of runSimnetServer")
 	defer func() {
@@ -50,7 +22,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	s.mut.Unlock()
 
 	// satisfy uConn interface; don't crash cli/tests that check
-	netAddr := &SimNetAddr{network: "srv simnet@" + serverAddr}
+	netAddr := &SimNetAddr{network: "simnet", serverAddr: serverAddr, name: s.name, isCli: false}
 
 	if boundCh != nil {
 		select {
@@ -68,7 +40,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	s.simnet = conn.net
 	s.simnode = conn.local
 	s.simconn = conn
-	s.simnet.netAddr = netAddr
+	//s.simnet.netAddr = netAddr
 
 	//vv("simnet server: about to start read/send loops")
 	pair := s.newRWPair(conn)

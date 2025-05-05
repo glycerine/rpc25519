@@ -2,7 +2,7 @@ package rpc25519
 
 func (c *Client) runSimNetClient(localHostPort string) {
 
-	netAddr := &SimNetAddr{network: "cli simnet@" + localHostPort}
+	//netAddr := &SimNetAddr{network: "cli simnet@" + localHostPort}
 
 	// how does client pass this to us?/if we need it at all?
 	//simNetConfig := &SimNetConfig{}
@@ -11,7 +11,7 @@ func (c *Client) runSimNetClient(localHostPort string) {
 
 	c.simnet = c.cfg.simnetRendezvous.simnet
 	conn := c.cfg.simnetRendezvous.c2s
-	conn.netAddr = netAddr
+	//conn.netAddr = netAddr
 	c.simnode = conn.local
 	c.simconn = conn
 	c.conn = conn
