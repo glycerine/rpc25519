@@ -1,16 +1,8 @@
 package rpc25519
 
 import (
-	//"context"
-	//"crypto/ed25519"
-	//"crypto/tls"
-	//"fmt"
-	//"io"
-	//"log"
 	"net"
-	//"strings"
 	"time"
-	//"github.com/glycerine/idem"
 )
 
 // simnet implements the same workspace/blabber interface
@@ -31,10 +23,13 @@ type SimNetAddr struct { // net.Addr
 	network string
 }
 
-func (s *SimNetAddr) Network() string { // name of the network (for example, "tcp", "udp")
+// name of the network (for example, "tcp", "udp")
+func (s *SimNetAddr) Network() string {
 	return "simnet"
 }
-func (s *SimNetAddr) String() string { // string form of address (for example, "192.0.2.1:25", "[2001:db8::1]:80")
+
+// string form of address (for example, "192.0.2.1:25", "[2001:db8::1]:80")
+func (s *SimNetAddr) String() string {
 	return s.network
 }
 
@@ -93,6 +88,3 @@ func (s *simnetConn) RemoteAddr() net.Addr {
 	return s.netAddr
 }
 func (s *simnetConn) SetDeadline(t time.Time) error { return nil }
-
-//func (s *simnetConn) SetReadDeadline(t time.Time) error  { return nil }
-//func (s *simnetConn) SetWriteDeadline(t time.Time) error { return nil }

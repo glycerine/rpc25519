@@ -1,20 +1,5 @@
 package rpc25519
 
-import (
-	//"context"
-	//"crypto/tls"
-	//"crypto/x509"
-	//"fmt"
-	//"log"
-	//"net"
-	//"os"
-	//"strings"
-	"time"
-	//"os"
-)
-
-var _ = time.Time{}
-
 func (c *Client) runSimNetClient(localHostPort string) {
 
 	netAddr := &SimNetAddr{network: "cli simnet@" + localHostPort}
@@ -33,11 +18,8 @@ func (c *Client) runSimNetClient(localHostPort string) {
 
 	c.cfg.simnetRendezvous.mut.Unlock()
 
-	//c.isTLS = false
-
 	//c.setLocalAddr(conn)
 	c.connected <- nil
-	//defer conn.Close() // let server do if needed (prob not)
 
 	cpair := &cliPairState{}
 	c.cpair = cpair
