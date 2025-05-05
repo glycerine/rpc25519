@@ -83,9 +83,12 @@ func Test801_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 			// set a timer
 			t0 := time.Now()
 			goalWait := 3 * time.Second
-			timerC := cli.TimeAfter(goalWait)
-			t1 := <-timerC
+			timeout := cli.NewTimer(goalWait)
+
+			//timerC := cli.TimeAfter(goalWait)
+			t1 := <-timeout.C
 			elap := time.Since(t0)
+			timeout.Discard()
 			if elap < goalWait {
 				t.Fatalf("timer went off too early! elap(%v) < goalWait(%v)", elap, goalWait)
 			}
