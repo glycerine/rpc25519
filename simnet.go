@@ -887,7 +887,7 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 			pending.timerDur = dur
 			pending.initTm = now
 			pending.completeTm = now.Add(dur)
-			pending.timerFileLine = fileLine(3)
+			pending.timerFileLine = fileLine(1)
 			pending.internalPendingTimer = true
 			node.net.handleTimer(pending)
 			return
@@ -1167,7 +1167,7 @@ func (s *simnet) createNewTimer(origin *simnode, dur time.Duration, begin time.T
 	timer.completeTm = begin.Add(dur)
 	timer.timerFileLine = fileLine(3)
 
-	select { // 040 hung here... right, think we have a deadlock!
+	select {
 	case s.addTimer <- timer:
 	case <-s.halt.ReqStop.Chan:
 		return
