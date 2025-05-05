@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"testing/synctest"
 	"time"
 
 	cv "github.com/glycerine/goconvey/convey"
@@ -180,13 +179,12 @@ func (BuiltinTypes) WantsContext(ctx context.Context, args *Args, reply *[2]int)
 // to build here without conflict over who is the real Server{}.
 func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 
-	//cv.Convey("basic TCP with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.", t, func() {
+	cv.Convey("basic TCP with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.", t, func() {
 
-	synctest.Run(func() {
 		cfg := NewConfig()
-		//orig cfg.TCPonly_no_TLS = true
-		cfg.UseSimNet = true
-		cfg.ServerSendKeepAlive = time.Second * 10
+		cfg.TCPonly_no_TLS = true
+		//cfg.UseSimNet = true
+		//cfg.ServerSendKeepAlive = time.Second * 10
 
 		path := GetPrivateCertificateAuthDir() + sep + "psk.binary"
 		panicOn(setupPSK(path))
@@ -900,13 +898,12 @@ func BenchmarkHelloRpcxMessage(b *testing.B) {
 // this also has 041 in it.
 func Test040_remote_cancel_by_context(t *testing.T) {
 
-	//cv.Convey("remote cancellation", t, func() {
-	synctest.Run(func() {
+	cv.Convey("remote cancellation", t, func() {
 
 		cfg := NewConfig()
 		//cfg.TCPonly_no_TLS = false
 		cfg.UseSimNet = true
-		cfg.ServerSendKeepAlive = time.Second * 10 // does not stop hang on synctest
+		//cfg.ServerSendKeepAlive = time.Second * 10 // does not stop hang on synctest
 
 		cfg.ServerAddr = "127.0.0.1:0"
 		srv := NewServer("srv_test040", cfg)
