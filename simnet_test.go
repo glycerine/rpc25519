@@ -132,7 +132,7 @@ func Test704_rng_hops(t *testing.T) {
 }
 
 // simnet version of cli_test 006
-func Test706_simnetonly_SimNet_RoundTrip_Using_NetRPC(t *testing.T) {
+func Test706_simnetonly_RoundTrip_Using_NetRPC(t *testing.T) {
 
 	globalUseSyntest = false
 
@@ -140,15 +140,6 @@ func Test706_simnetonly_SimNet_RoundTrip_Using_NetRPC(t *testing.T) {
 	cfg := NewConfig()
 	//orig cfg.TCPonly_no_TLS = true
 	cfg.UseSimNet = true
-	// ah, I think this made it work? hmm... not necessary, works without.
-	// but I see the client has keep-alives on... hm, it does not...
-	// where are these timers coming from then?
-	// simnet.go:843 2000-01-01 00:00:48
-	//  ------- CLIENT timerQ  completeTm PQ --------
-	//pq[ 0] = mop{CLIENT TIMER init:-16s, arr:unk, complete:4s op.sn:33, msg.sn:0}
-	//pq[ 1] = mop{CLIENT TIMER init:-10s, arr:unk, complete:10s op.sn:38, msg.sn:0}
-	//pq[ 2] = mop{CLIENT TIMER init:-6s, arr:unk, complete:14s op.sn:43, msg.sn:0}
-
 	//cfg.ServerSendKeepAlive = time.Second * 10
 
 	path := GetPrivateCertificateAuthDir() + sep + "psk.binary"
@@ -293,7 +284,7 @@ func Test706_simnetonly_SimNet_RoundTrip_Using_NetRPC(t *testing.T) {
 }
 
 // simnet version of 040 in cli_test.go
-func Test740_simnetonly_emote_cancel_by_context(t *testing.T) {
+func Test740_simnetonly_remote_cancel_by_context(t *testing.T) {
 
 	globalUseSyntest = false
 
