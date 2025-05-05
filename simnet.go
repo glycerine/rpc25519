@@ -20,6 +20,16 @@ import (
 
 type SimNetConfig struct{}
 
+// distinguish cli from srv
+type simnetConn struct {
+	isCli   bool
+	net     *simnet
+	netAddr *SimNetAddr
+
+	local  *simnode
+	remote *simnode
+}
+
 // Message operation
 type mop struct {
 	sn int64
@@ -128,10 +138,12 @@ type simnet struct {
 
 	// for now just clinode and srvnode in nodes;
 	// plan is to add full network.
-	nodes []*simnode
+	nodes map[*simnode]map[*simnode]*simnetConn
 
-	cliReady chan *Client
-	halt     *idem.Halter // just srv.halt for now.
+	cliReady  chan *Client
+	newConnCh chan *simnetConn
+
+	halt *idem.Halter // just srv.halt for now.
 
 	msgSendCh      chan *mop
 	msgReadCh      chan *mop
@@ -140,9 +152,6 @@ type simnet struct {
 	newScenarioCh  chan *scenario
 	nextTimer      *time.Timer
 	lastArmTm      time.Time
-
-	// avoid having to specialize isCli/not everywhere.
-	mop2node map[*mop]*node
 }
 
 type simnode struct {
@@ -166,12 +175,12 @@ func (s *simnet) newSimnode(name string, isCli bool) *simnode {
 	}
 }
 
-func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) (s *simnet, srvnode, clinode *simnode) {
+func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, srvNetAddr *SimNetAddr) *simnetConn {
 
 	scen := newScenario(time.Second, time.Second, time.Second, [32]byte{})
 
 	// server creates simnet; must start server first.
-	s = &simnet{
+	s := &simnet{
 
 		cfg:            cfg,
 		srv:            srv,
@@ -182,6 +191,7 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) (s
 		msgReadCh:      make(chan *mop),
 		addTimer:       make(chan *mop),
 		discardTimerCh: make(chan *mop),
+		newConnCh:      make(chan *simnetConn),
 
 		newScenarioCh: make(chan *scenario),
 		scenario:      scen,
@@ -189,25 +199,45 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) (s
 		// and force the Go runtime to do extra work when
 		// we are about to s.nextTimer.Stop() just below.
 		nextTimer: time.NewTimer(time.Hour * 10_000),
-		mop2node:  make(map[*mop]*node),
 	}
 	s.nextTimer.Stop()
-	clinode = s.newSimnode("CLIENT", true)
-	srvnode = s.newSimnode("SERVER", false)
+	clinode := s.newSimnode("CLIENT", true)
+	srvnode := s.newSimnode("SERVER", false)
 	s.clinode = clinode
 	s.srvnode = srvnode
 
-	s.nodes = []*simnode{s.clinode, s.srvnode}
+	// nodes
+	s.nodes = make(map[*simnode]map[*simnode]*simnetConn)
+	// edges
+	s.nodes[s.clinode] = make(map[*simnode]*simnetConn)
+	c2s := &simnetConn{
+		isCli:  true,
+		net:    s,
+		local:  s.clinode,
+		remote: s.srvnode,
+	}
+	s.nodes[s.clinode][s.srvnode] = c2s
+	s2c := &simnetConn{
+		isCli:   false,
+		net:     s,
+		local:   s.srvnode,
+		remote:  s.clinode,
+		netAddr: srvNetAddr,
+	}
+	s.nodes[s.srvnode] = make(map[*simnode]*simnetConn)
+	s.nodes[s.srvnode][s.clinode] = s2c
 
 	// let client find the shared simnet in their cfg.
 	cfg.simnetRendezvous.mut.Lock()
 	cfg.simnetRendezvous.simnet = s
 	cfg.simnetRendezvous.clinode = s.clinode
 	cfg.simnetRendezvous.srvnode = s.srvnode
+	cfg.simnetRendezvous.c2s = c2s
+	cfg.simnetRendezvous.s2c = s2c
 	cfg.simnetRendezvous.mut.Unlock()
 
 	s.Start()
-	return
+	return s2c
 }
 
 var simnetLastMopSn int64
@@ -800,7 +830,7 @@ func (node *simnode) dispatch() (bump time.Duration) {
 }
 
 func (s *simnet) qReport() (r string) {
-	for _, node := range s.nodes {
+	for node := range s.nodes {
 		r += node.String()
 	}
 	return
@@ -825,7 +855,7 @@ func (s *simnet) schedulerReport() string {
 }
 
 func (s *simnet) dispatchAll() {
-	for _, node := range s.nodes {
+	for node := range s.nodes {
 		node.dispatch()
 	}
 }
@@ -878,6 +908,8 @@ func (s *simnet) scheduler() {
 			//vv("s.nextTimer -> alerted at %v", alert)
 			s.dispatchAll()
 			s.armTimer()
+
+		//case newConn := <-s.newConnCh:
 
 		case scenario := <-s.newScenarioCh:
 			s.finishScenario()
@@ -958,7 +990,7 @@ func (s *simnet) handleTimer(timer *mop) {
 func (s *simnet) armTimer() {
 
 	var minTimer *mop
-	for _, node := range s.nodes {
+	for node := range s.nodes {
 		minTimer = node.soonestTimerLessThan(minTimer)
 	}
 	if minTimer == nil {
@@ -1016,12 +1048,7 @@ func (node *simnode) soonestTimerLessThan(bound *mop) *mop {
 // so must not touch s.srvnode, s.clinode, etc.
 func (s *simnet) createNewTimer(origin *simnode, dur time.Duration, begin time.Time, isCli bool) (timer *mop) {
 
-	who := "SERVER"
-	if isCli {
-		who = "CLIENT"
-	}
-	_ = who
-	//vv("top simnet.createNewTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", who, dur, begin, begin.Add(dur))
+	//vv("top simnet.createNewTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", origin.name, dur, begin, begin.Add(dur))
 
 	timer = newTimerCreateMop(isCli)
 	timer.origin = origin

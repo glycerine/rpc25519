@@ -1064,6 +1064,9 @@ type simnetRendezvous struct {
 	// us their simnode
 	clinode *simnode
 	srvnode *simnode
+
+	s2c *simnetConn
+	c2s *simnetConn
 }
 
 // NewConfig should be used to create Config
