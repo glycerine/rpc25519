@@ -1,14 +1,7 @@
 package rpc25519
 
 import (
-	//"context"
-	//"crypto/ed25519"
-	//"crypto/tls"
 	"fmt"
-	//"io"
-	//"log"
-	//"net"
-	//"strings"
 	mathrand2 "math/rand/v2"
 	"sync/atomic"
 	"testing/synctest"
@@ -20,8 +13,10 @@ import (
 
 type SimNetConfig struct{}
 
-// distinguish cli from srv
+// a connection between two nodes.
+// implements uConn, see simnet_server.go
 type simnetConn struct {
+	// distinguish cli from srv
 	isCli   bool
 	net     *simnet
 	netAddr *SimNetAddr // local address
@@ -55,8 +50,11 @@ type mop struct {
 	// discards tell us the corresponding create timer here.
 	origTimerMop        *mop
 	origTimerCompleteTm time.Time
-	timerFiredTm        time.Time // when fired => unarmed (we assume resets are whole new? no reset support at the moment!)
-	wasArmed            bool      // was discarded timer armed?
+
+	// when fired => unarmed. NO timer.Reset support at the moment!
+	timerFiredTm time.Time
+	// was discarded timer armed?
+	wasArmed bool
 
 	// when was the operation initiated?
 	// timer started, read begin waiting, send hits the socket.
@@ -140,7 +138,8 @@ type simnet struct {
 	// plan is to add full network.
 	nodes map[*simnode]map[*simnode]*simnetConn
 
-	cliReady  chan *Client
+	cliReady chan *Client
+
 	newConnCh chan *simnetConn
 
 	halt *idem.Halter // just srv.halt for now.
@@ -161,7 +160,7 @@ type simnode struct {
 	preArrQ *pq
 	timerQ  *pq
 	net     *simnet
-	isCli   bool // hope not to need...
+	isCli   bool
 }
 
 func (s *simnet) newSimnode(name string, isCli bool) *simnode {
@@ -171,7 +170,7 @@ func (s *simnet) newSimnode(name string, isCli bool) *simnode {
 		preArrQ: s.newPQarrivalTm(name + " preArrQ "),
 		timerQ:  newPQcompleteTm(name + " timerQ "),
 		net:     s,
-		isCli:   isCli, // hope to discard.
+		isCli:   isCli,
 	}
 }
 
@@ -506,39 +505,6 @@ func newPQinitTm(owner string) *pq {
 			}
 			// must be the same if same sn.
 			return 0
-
-			// // if av.completeTm.Before(bv.completeTm) {
-			// // 	return -1
-			// // }
-			// // if av.completeTm.After(bv.completeTm) {
-			// // 	return 1
-			// // }
-			//
-			// // Hopefully not, but just in case...
-			// // av.msg could be nil (so could bv.msg)
-			// if av.msg == nil && bv.msg == nil {
-			// 	return 0
-			// }
-			// if av.msg == nil {
-			// 	return -1
-			// }
-			// if bv.msg == nil {
-			// 	return 1
-			// }
-			//
-			// if av.msg.HDR.CallID == bv.msg.HDR.CallID {
-			// 	if av.msg.HDR.Serial == bv.msg.HDR.Serial {
-			// 		return 0
-			// 	}
-			// 	if av.msg.HDR.Serial < bv.msg.HDR.Serial {
-			// 		return -1
-			// 	}
-			// 	return 1
-			// }
-			// if av.msg.HDR.CallID < bv.msg.HDR.CallID {
-			// 	return -1
-			// }
-			// return 1
 		}),
 	}
 }
@@ -587,40 +553,6 @@ func newPQcompleteTm(owner string) *pq {
 			}
 			// must be the same if same sn.
 			return 0
-
-			// // if av.initTm.Before(bv.initTm) {
-			// // 	return -1
-			// // }
-			// // if av.initTm.After(bv.initTm) {
-			// // 	return 1
-			// // }
-			//
-			// // Hopefully not, but just in case...
-			// // av.msg could be nil (so could bv.msg)
-			// if av.msg == nil && bv.msg == nil {
-			// 	return 0
-			// }
-			// if av.msg == nil {
-			// 	return -1
-			// }
-			// if bv.msg == nil {
-			// 	return 1
-			// }
-			// // INVAR: a.initTm == b.initTm if we uncomment above.
-			//
-			// if av.msg.HDR.CallID == bv.msg.HDR.CallID {
-			// 	if av.msg.HDR.Serial == bv.msg.HDR.Serial {
-			// 		return 0
-			// 	}
-			// 	if av.msg.HDR.Serial < bv.msg.HDR.Serial {
-			// 		return -1
-			// 	}
-			// 	return 1
-			// }
-			// if av.msg.HDR.CallID < bv.msg.HDR.CallID {
-			// 	return -1
-			// }
-			// return 1
 		}),
 	}
 }
