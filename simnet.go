@@ -2,6 +2,9 @@
 
 package rpc25519
 
+// build/run with:
+// GOTRACEBACK=all GOEXPERIMENT=synctest go test -v
+
 import (
 	"fmt"
 	mathrand2 "math/rand/v2"

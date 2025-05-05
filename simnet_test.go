@@ -2,6 +2,9 @@
 
 package rpc25519
 
+// build/run with:
+// GOTRACEBACK=all GOEXPERIMENT=synctest go test -v
+
 import (
 	//"context"
 	//"encoding/base64"
