@@ -550,7 +550,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			return
 		}
 		if err != nil {
-			vv("srv read loop err = '%v'", err)
+			//vv("srv read loop err = '%v'", err)
 			r := err.Error()
 			if strings.Contains(r, "remote error: tls: bad certificate") {
 				//vv("ignoring client connection with bad TLS cert.")

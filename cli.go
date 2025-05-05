@@ -1728,9 +1728,11 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 		from = local(c.conn)
 		to = remote(c.conn)
 
+		// diagnostics for simnet.
 		sc, ok := c.conn.(*simnetConn)
+		_ = sc
 		if ok {
-			vv("isCli=%v; c.conn.netAddr = '%v'; simnetConn.local='%v'; remote='%v'; sc.netAddr='%v'", sc.isCli, sc.netAddr, sc.local.name, sc.remote.name, sc.netAddr)
+			//vv("isCli=%v; c.conn.netAddr = '%v'; simnetConn.local='%v'; remote='%v'; sc.netAddr='%v'", sc.isCli, sc.netAddr, sc.local.name, sc.remote.name, sc.netAddr)
 		}
 	}
 
@@ -1793,7 +1795,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 		return nil, ErrShutdown()
 	}
 
-	vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req) // seen 040
+	//vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req) // seen 040
 
 	select {
 	case <-req.DoneCh.WhenClosed():
@@ -2008,7 +2010,7 @@ LastPingReceivedTmu: "%v",
 }
 
 func (c *Client) PingStats(remote string) *PingStat {
-	vv("Client.PingStats called.")
+	//vv("Client.PingStats called.")
 	return &PingStat{
 		LastPingSentTmu:     c.cpair.lastPingSentTmu.Load(),
 		LastPingReceivedTmu: c.cpair.lastPingReceivedTmu.Load(),

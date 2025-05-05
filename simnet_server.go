@@ -63,7 +63,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 				}
 			}
 
-			vv("simnet server '%v': got new conn '%#v', about to start read/send loops", netAddr, conn)
+			//vv("simnet server '%v': got new conn '%#v', about to start read/send loops", netAddr, conn)
 			pair := s.newRWPair(conn)
 			go pair.runSendLoop(conn)
 			go pair.runReadLoop(conn)
