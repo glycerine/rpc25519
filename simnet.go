@@ -809,7 +809,7 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 			//vv("have TIMER firing")
 			timer.timerFiredTm = now
 			timerDel = append(timerDel, timer)
-			select { // hung here! how long should we wait.. why cannot deliver? what does the timer do? default: nothing case.
+			select {
 			case timer.timerC <- now:
 			//vv("sent on timerC")
 			default:
@@ -877,10 +877,11 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 			// are we done? since preArrQ is ordered
 			// by arrivalTm, all subsequent pre-arrivals (sends)
 			// will have even >= arrivalTm.
-			vv("rejecting deliver of send that has not happened: '%v'", send)
-			vv("scheduler: %v", node.net.schedulerReport())
 
-			// we need to set a timer on its delivery then...
+			//vv("rejecting delivery of send that has not happened: '%v'", send)
+			//vv("scheduler: %v", node.net.schedulerReport())
+
+			// we must set a timer on its delivery then...
 			dur := send.arrivalTm.Sub(now)
 			pending := newTimerCreateMop(node.isCli)
 			pending.origin = node
@@ -950,7 +951,7 @@ func (node *simnode) String() (r string) {
 }
 
 func (s *simnet) Start() {
-	vv("simnet.Start() top")
+	//vv("simnet.Start() top")
 	go s.scheduler()
 }
 
@@ -1014,7 +1015,7 @@ func (s *simnet) scheduler() {
 			s.armTimer()
 
 		case reg := <-s.cliRegisterCh:
-			vv("s.cliRegisterCh got reg = '%#v'", reg)
+			//vv("s.cliRegisterCh got reg = '%#v'", reg)
 			s.handleNewClientRegistration(reg)
 
 		case newConn := <-s.newClientConnCh:
@@ -1034,7 +1035,7 @@ func (s *simnet) scheduler() {
 			s.handleDiscardTimer(discard)
 
 		case send := <-s.msgSendCh:
-			vv("msgSendCh ->  op='%v'", send) // not seen, 040 hung again...
+			//vv("msgSendCh ->  op='%v'", send)
 			s.handleSend(send)
 
 		case read := <-s.msgReadCh:
@@ -1193,7 +1194,7 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 	read.initTm = time.Now()
 	read.origin = sc.local
 	read.target = sc.remote
-	select { // 040 hung here waiting for the scheduler loop 2x, goro 24,8,
+	select {
 	case s.msgReadCh <- read:
 	case <-s.halt.ReqStop.Chan:
 		return nil, ErrShutdown()
@@ -1212,8 +1213,8 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) e
 	sc := conn.(*simnetConn)
 	isCli := sc.isCli
 
-	vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", who(isCli), msg.HDR.Serial)
-	vv("sendMessage\n conn.local = %v (isCli:%v)\n conn.remote = %v (isCli:%v)\n", sc.local.name, sc.local.isCli, sc.remote.name, sc.remote.isCli)
+	//vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", who(isCli), msg.HDR.Serial)
+	//vv("sendMessage\n conn.local = %v (isCli:%v)\n conn.remote = %v (isCli:%v)\n", sc.local.name, sc.local.isCli, sc.remote.name, sc.remote.isCli)
 	send := newSendMop(msg, isCli)
 	send.origin = sc.local
 	send.target = sc.remote
