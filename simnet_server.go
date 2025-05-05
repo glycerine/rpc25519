@@ -39,7 +39,7 @@ func (s *SimNetAddr) String() string { // string form of address (for example, "
 }
 
 func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNetConfig *SimNetConfig) {
-	vv("top of runSimnetServer")
+	//vv("top of runSimnetServer")
 	defer func() {
 		r := recover()
 		//vv("defer running, end of runSimNetServer() r='%v'", r)

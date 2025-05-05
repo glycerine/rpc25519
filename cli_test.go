@@ -405,7 +405,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 		*/
 
 		//cv.So(true, cv.ShouldBeTrue)
-		vv("good: end of 006 test")
+		//vv("good: end of 006 test")
 	})
 	//})
 }
