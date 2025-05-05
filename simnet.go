@@ -56,9 +56,9 @@ func (s *SimNetAddr) Network() string {
 // string form of address (for example, "192.0.2.1:25", "[2001:db8::1]:80")
 func (s *SimNetAddr) String() string {
 	if s.isCli {
-		return fmt.Sprintf(`SimNetAddr{network: %v, CLIENT (name: "%v") to serverAddr: %v}`, s.network, s.name, s.serverAddr)
+		return fmt.Sprintf(`SimNetAddr{network: %v, CLIENT (name: %v) to serverAddr: %v}`, s.network, s.name, s.serverAddr)
 	}
-	return fmt.Sprintf(`SimNetAddr{network: %v, SERVER (name: "%v") at serverAddr: %v}`, s.network, s.name, s.serverAddr)
+	return fmt.Sprintf(`SimNetAddr{network: %v, SERVER (name: %v) at serverAddr: %v}`, s.network, s.name, s.serverAddr)
 }
 
 // Message operation
@@ -197,6 +197,7 @@ type simnode struct {
 	timerQ  *pq
 	net     *simnet
 	isCli   bool
+	netAddr *SimNetAddr
 }
 
 func (s *simnet) newSimnode(name string, isCli bool) *simnode {
@@ -242,12 +243,15 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 	s.clinode = clinode
 	s.srvnode = srvnode
 
+	srvnode.netAddr = srvNetAddr
+	clinode.setCorrespondingClientNetAddr(srvNetAddr)
+
 	// nodes
 	s.nodes = make(map[*simnode]map[*simnode]*simnetConn)
 
 	// edges
-	c2s := s.addEdgeFromCli(clinode, srvnode, srvNetAddr)
-	s2c := s.addEdgeFromSrv(srvnode, clinode, srvNetAddr)
+	c2s := s.addEdgeFromCli(clinode, srvnode)
+	s2c := s.addEdgeFromSrv(srvnode, clinode)
 
 	// let client find the shared simnet in their cfg.
 	cfg.simnetRendezvous.mut.Lock()
@@ -262,7 +266,16 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 	return s2c
 }
 
-func (s *simnet) addEdgeFromSrv(srvnode, clinode *simnode, srvNetAddr *SimNetAddr) *simnetConn {
+func (s *simnode) setCorrespondingClientNetAddr(srvNetAddr *SimNetAddr) {
+	s.netAddr = &SimNetAddr{
+		network:    srvNetAddr.network,
+		serverAddr: srvNetAddr.serverAddr,
+		name:       s.name,
+		isCli:      true,
+	}
+}
+
+func (s *simnet) addEdgeFromSrv(srvnode, clinode *simnode) *simnetConn {
 
 	srv, ok := s.nodes[srvnode] // edges from srv
 	if !ok {
@@ -274,32 +287,26 @@ func (s *simnet) addEdgeFromSrv(srvnode, clinode *simnode, srvNetAddr *SimNetAdd
 		net:     s,
 		local:   srvnode,
 		remote:  clinode,
-		netAddr: srvNetAddr,
+		netAddr: srvnode.netAddr,
 	}
 	// replace any previous conn
 	srv[clinode] = s2c
 	return s2c
 }
 
-func (s *simnet) addEdgeFromCli(clinode, srvnode *simnode, srvNetAddr *SimNetAddr) *simnetConn {
+func (s *simnet) addEdgeFromCli(clinode, srvnode *simnode) *simnetConn {
 
 	cli, ok := s.nodes[s.clinode] // edges from cli
 	if !ok {
 		cli = make(map[*simnode]*simnetConn)
 		s.nodes[clinode] = cli
 	}
-	cliNetAddr := &SimNetAddr{
-		network:    srvNetAddr.network,
-		serverAddr: srvNetAddr.serverAddr,
-		// name: TODO fill in client name, if possible
-		isCli: true,
-	}
 	c2s := &simnetConn{
 		isCli:   true,
 		net:     s,
 		local:   clinode,
 		remote:  srvnode,
-		netAddr: cliNetAddr,
+		netAddr: clinode.netAddr,
 	}
 	// replace any previous conn
 	cli[srvnode] = c2s

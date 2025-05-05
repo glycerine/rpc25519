@@ -55,8 +55,8 @@ func (s *simnetConn) SetWriteDeadline(t time.Time) error  { return nil }
 func (s *simnetConn) Read(data []byte) (n int, err error) { return }
 func (s *simnetConn) SetReadDeadline(t time.Time) error   { return nil }
 func (s *simnetConn) Close() error                        { return nil }
-func (s *simnetConn) LocalAddr() net.Addr                 { return s.netAddr }
+func (s *simnetConn) LocalAddr() net.Addr                 { return s.local.netAddr }
 func (s *simnetConn) RemoteAddr() net.Addr {
-	return s.netAddr
+	return s.remote.netAddr
 }
 func (s *simnetConn) SetDeadline(t time.Time) error { return nil }
