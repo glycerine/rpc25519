@@ -166,15 +166,12 @@ type simnet struct {
 
 	cfg       *Config
 	simNetCfg *SimNetConfig
-	//netAddr   *SimNetAddr // satisfy uConn
 
 	srv *Server
 	cli *Client
 
-	// first client?? try to get nodes going instead.
-	// clinode0 *simnode
-
-	// first server, probably needed to bootstrap
+	// first server, not needed to bootstrap,
+	// just for diagnostic reference.
 	srvnode0 *simnode
 
 	dns map[string]*simnode
@@ -187,7 +184,9 @@ type simnet struct {
 
 	newClientConnCh chan *simnetConn
 
-	halt *idem.Halter // just srv.halt for now.
+	// same as srv.halt; we don't need
+	// our own, at least for now.
+	halt *idem.Halter
 
 	msgSendCh      chan *mop
 	msgReadCh      chan *mop
@@ -211,7 +210,7 @@ type simnode struct {
 	tellServerNewConnCh chan *simnetConn
 }
 
-func (s *simnet) newSimnode2(name string) *simnode {
+func (s *simnet) newSimnode(name string) *simnode {
 	return &simnode{
 		name:    name,
 		readQ:   newPQinitTm(name + " readQ "),
@@ -220,13 +219,15 @@ func (s *simnet) newSimnode2(name string) *simnode {
 		net:     s,
 	}
 }
+
 func (s *simnet) newSimnodeClient(name string) (node *simnode) {
-	node = s.newSimnode2(name)
+	node = s.newSimnode(name)
 	node.isCli = true
 	return
 }
+
 func (s *simnet) newSimnodeServer(name string) (node *simnode) {
-	node = s.newSimnode2(name)
+	node = s.newSimnode(name)
 	node.isCli = false
 	node.tellServerNewConnCh = make(chan *simnetConn)
 	return
@@ -244,26 +245,31 @@ func (s *simnet) handleNewClientRegistration(reg *clientRegistration) {
 	srvnode, ok := s.dns[reg.dialTo]
 	if !ok {
 		s.showDNS()
-		panic(fmt.Sprintf("cannot find server '%v', requested by client registration", reg.dialTo)) // , reg.localHostPortStr, reg))
+		panic(fmt.Sprintf("cannot find server '%v', requested "+
+			"by client registration", reg.dialTo))
 	}
+
 	clinode := s.newSimnodeClient(reg.client.name)
 	clinode.setNetAddrSameNetAs(reg.localHostPortStr, srvnode.netAddr)
 
 	s.dns[clinode.name] = clinode
 
 	// add node to graph
-	edges := make(map[*simnode]*simnetConn)
-	s.nodes[clinode] = edges
+	clientOutboundEdges := make(map[*simnode]*simnetConn)
+	s.nodes[clinode] = clientOutboundEdges
 
-	// edges
+	// add both direction edges
 	c2s := s.addEdgeFromCli(clinode, srvnode)
 	s2c := s.addEdgeFromSrv(srvnode, clinode)
 
+	// tell server about new edge
 	select {
 	case srvnode.tellServerNewConnCh <- s2c:
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
+
+	// let client start using the connection/edge.
 	reg.conn = c2s
 	reg.simnode = clinode
 	close(reg.done)
@@ -305,8 +311,9 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 	srvnode := s.newSimnodeServer(srv.name)
 	srvnode.netAddr = srvNetAddr
 	s.nodes[srvnode] = make(map[*simnode]*simnetConn)
-	s.srvnode0 = srvnode // first server, to bootstrap
 	s.dns[srvnode.name] = srvnode
+
+	s.srvnode0 = srvnode // first server, for reference
 
 	// let client find the shared simnet in their cfg,
 	// when they shallow copy it.
@@ -329,7 +336,7 @@ func (s *simnode) setNetAddrSameNetAs(addr string, srvNetAddr *SimNetAddr) {
 
 func (s *simnet) addEdgeFromSrv(srvnode, clinode *simnode) *simnetConn {
 
-	srv, ok := s.nodes[srvnode] // edges from srv
+	srv, ok := s.nodes[srvnode] // edges from srv to clients
 	if !ok {
 		srv = make(map[*simnode]*simnetConn)
 		s.nodes[srvnode] = srv
@@ -348,7 +355,7 @@ func (s *simnet) addEdgeFromSrv(srvnode, clinode *simnode) *simnetConn {
 
 func (s *simnet) addEdgeFromCli(clinode, srvnode *simnode) *simnetConn {
 
-	cli, ok := s.nodes[clinode] // edges from cli
+	cli, ok := s.nodes[clinode] // edge from client to one server
 	if !ok {
 		cli = make(map[*simnode]*simnetConn)
 		s.nodes[clinode] = cli
@@ -939,20 +946,21 @@ func (s *simnet) scheduler() {
 
 	// main scheduler loop
 	for i := int64(0); ; i++ {
+
 		// each scheduler loop tick is an event.
 		s.tickLogicalClocks()
 
 		now := time.Now()
 		_ = now
 		////zz("scheduler top cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
-		vv("scheduler top. schedulerReport: \n%v", s.schedulerReport())
+		//vv("scheduler top. schedulerReport: \n%v", s.schedulerReport())
 
 		s.dispatchAll()
 		s.armTimer()
 
 		// advance time by one tick
 		time.Sleep(s.scenario.tick)
-		//synctest.Wait()
+		synctest.Wait()
 		//vv("back from synctest.Wait")
 
 		select {
