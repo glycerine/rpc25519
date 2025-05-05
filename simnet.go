@@ -690,8 +690,8 @@ func (s *simnet) handleSend(send *mop) {
 		panic(fmt.Sprintf("should see each send only once now, not %v", send.seen))
 	}
 
-	// make a copy while the sendMessage() call returns,
-	// so they can recycle or do whatever without data racing on it.
+	// make a copy _before_ the sendMessage() call returns,
+	// so they can recycle or do whatever without data racing with us.
 	send.msg = send.msg.CopyForSimNetSend()
 
 	send.target.preArrQ.add(send)
@@ -737,7 +737,7 @@ func (node *simnode) firstPreArrivalTimeLTE(now time.Time) bool {
 }
 
 // dispatch delivers sends to reads, and fires timers.
-// calls node.net.armTimer() at the end.
+// It calls node.net.armTimer() at the end (in the defer).
 func (node *simnode) dispatch() { // (bump time.Duration) {
 
 	// to be deleted at the end, so
@@ -769,6 +769,8 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 		}
 		node.net.armTimer()
 		//vv("=== end of dispatch %v", node.name)
+
+		// sanity check that we delivered everything we could.
 		narr := node.preArrQ.tree.Len()
 		nread := node.readQ.tree.Len()
 		// it is normal to have preArrQ if no reads...
@@ -776,8 +778,10 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 			// if the first preArr is not due yet, that is the reason
 
 			// if not using fake time, arrival time was probably
-			// almost but not quite here when we checked below.
-			// In this case, don't freak.
+			// almost but not quite here when we checked below,
+			// but now there is something possible a
+			// few microseconds later. In this case, don't freak.
+			// So make this conditional on synctest being in use:
 			if node.net.useSynctest {
 				if node.firstPreArrivalTimeLTE(time.Now()) {
 					alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; summary node summary:\n%v", narr, nread, node.String())
@@ -924,11 +928,26 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 		readDel = append(readDel, read)
 
 		close(read.proceed)
+
 		// used to have this. but in reality
-		// our sends are asynchronous not RPCs,
+		// our sends are asynchronous -- not RPCs,
 		// so we don't block. This should happen
 		// as soon as we have the send assigned
-		// to the pre-arrival queue.
+		// to the pre-arrival queue; much earlier.
+		// I'm saving this note in case in the
+		// future we wanted to emulate RPC semantics
+		// that do block, and thus we remove
+		// the close at line 708 in handleSend() and
+		// then wait for the round trip to complete...
+		// but in that case this _still_ not the
+		// right place to close send-- as only
+		// the first have of the trip has
+		// finished! We would have to wait for
+		// the reply send to arrive, and match
+		// this with that. We don't track the
+		// CallID inside the simnet like the
+		// client does, at the moment. We don't currently
+		// need RPC semantics, so defer all that for now.
 		//close(send.proceed)
 
 		readIt = readIt.Next()
