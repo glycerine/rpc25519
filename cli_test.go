@@ -1085,6 +1085,7 @@ func Test045_upload(t *testing.T) {
 
 		//vv("first call has returned; it got the reply that the server got the last part:'%v'", string(reply.JobSerz))
 
+		timeout := client.NewTimer(time.Minute)
 		select {
 		case m := <-strm.ReadCh:
 			report := string(m.JobSerz)
@@ -1093,9 +1094,10 @@ func Test045_upload(t *testing.T) {
 			cv.So(m.HDR.CallID, cv.ShouldEqual, originalStreamCallID)
 			cv.So(fileExists(filename+".servergot"), cv.ShouldBeTrue)
 
-		case <-client.TimeAfter(time.Minute):
+		case <-timeout.C:
 			t.Fatalf("should have gotten a reply from the server finishing the stream.")
 		}
+		timeout.Discard()
 		if fileExists(filename) && N == 20 {
 			// verify the contents of the assembled file
 			fileBytes, err := os.ReadFile(filename)
@@ -1151,6 +1153,7 @@ func Test055_download(t *testing.T) {
 
 		done := false
 		for i := 0; !done; i++ {
+			timeout := client.NewTimer(time.Second * 10)
 			select {
 			case m := <-downloader.ReadDownloadsCh:
 				//report := string(m.JobSerz)
@@ -1178,13 +1181,15 @@ func Test055_download(t *testing.T) {
 						"downloader.Seqno = %v", m.HDR.Seqno, downloader.Seqno())
 				}
 
-			case <-client.TimeAfter(time.Second * 10):
+			case <-timeout.C:
 				t.Fatalf("should have gotten a reply from the server finishing the stream.")
 			}
+			timeout.Discard()
 		} // end for i
 
 		// do we get the lastReply too then?
 
+		timeout := client.NewTimer(time.Second * 10)
 		select {
 		case m := <-downloader.ReadDownloadsCh:
 			//report := string(m.JobSerz)
@@ -1203,9 +1208,10 @@ func Test055_download(t *testing.T) {
 					"downloader.Seqno = %v", m.HDR.Seqno, downloader.Seqno())
 			}
 
-		case <-client.TimeAfter(time.Second * 10):
+		case <-timeout.C:
 			t.Fatalf("should have gotten a lastReply from the server finishing the call.")
 		}
+		timeout.Discard()
 	})
 }
 

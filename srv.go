@@ -430,7 +430,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		lastPing = time.Now()
 		pingWakeTimer = s.Server.NewTimer(pingEvery)
 		//pingWakeTimer.Discard()
-		pingWakeCh = pingWakeTimer.C // s.Server.TimeAfter(pingEvery)
+		pingWakeCh = pingWakeTimer.C
 		// keep the ping attempts to a minimum to keep this loop lively.
 		if keepAliveWriteTimeout == 0 || keepAliveWriteTimeout > 10*time.Second {
 			keepAliveWriteTimeout = 2 * time.Second
@@ -1872,7 +1872,7 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 
 type oneWaySender interface {
 	destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh chan struct{}, to, from string, ok bool)
-	TimeAfter(dur time.Duration) (timerC <-chan time.Time)
+	NewTimer(dur time.Duration) (ti *RpcTimer)
 }
 
 // SendOneWayMessage is the same as SendMessage above except that it
@@ -2010,6 +2010,10 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 	// will give up after a millisecond to avoid the
 	// deadlock.
 	if errWriteDur == -2 {
+
+		timeout := s.NewTimer(time.Millisecond)
+		defer timeout.Discard()
+
 		select {
 		case sendCh <- msg:
 			return nil, nil
@@ -2019,7 +2023,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		case <-ctx.Done():
 			return ErrContextCancelled, nil
 
-		case <-s.TimeAfter(time.Millisecond):
+		case <-timeout.C:
 			return ErrAntiDeadlockMustQueue, sendCh
 		}
 	} else {
@@ -2049,7 +2053,9 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		doneCh = msg.DoneCh.WhenClosed()
 	}
 	if errWriteDur > 0 {
-		timeoutCh = s.TimeAfter(errWriteDur)
+		timeout := s.NewTimer(errWriteDur)
+		defer timeout.Discard()
+		timeoutCh = timeout.C
 	}
 
 	//vv("srv SendMessage about to wait %v to check on connection.", errWriteDur)
