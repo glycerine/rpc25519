@@ -1268,7 +1268,11 @@ func (s *Server) GetEmptyMessage() *Message {
 
 func (s *Server) FreeMessage(msg *Message) {
 	s.msgLock.Lock()
-	msg.nextOrReply = s.freeMsg
+	if s.cfg.UseSimNet {
+		// on same host, will collide
+	} else {
+		msg.nextOrReply = s.freeMsg
+	}
 	s.freeMsg = msg
 	s.msgLock.Unlock()
 }

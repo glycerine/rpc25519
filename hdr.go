@@ -206,6 +206,7 @@ type Message struct {
 func (m *Message) CopyForSimNetSend() (c *Message) {
 	cp := *m
 	c = &cp
+	c.nextOrReply = nil
 	// make our own copy of these central/critical bytes.
 	c.JobSerz = append([]byte{}, m.JobSerz...)
 	c.LocalErr = nil // marked msg:"-"
