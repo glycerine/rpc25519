@@ -762,7 +762,7 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 		// it is normal to have preArrQ if no reads...
 		if narr > 0 && nread > 0 {
 			// if the first preArr is not due yet, that is the reason
-			if node.firstPreArrivalTimeLTE(now) {
+			if node.firstPreArrivalTimeLTE(time.Now()) {
 				alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; summary node summary:\n%v", narr, nread, node.String())
 				panic("should have been dispatchable, no?")
 			}
