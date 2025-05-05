@@ -20,6 +20,83 @@ import (
 
 type SimNetConfig struct{}
 
+// Message operation
+type mop struct {
+	sn int64
+
+	// number of times handleSend() has seen this mop.
+	seen int
+
+	originCli bool
+
+	senderLC int64
+	readerLC int64
+	originLC int64
+
+	timerC        chan time.Time
+	timerDur      time.Duration
+	timerFileLine string // where was this timer from?
+
+	// when was the operation initiated?
+	// timer started, read begin waiting, send hits the socket.
+	initTm time.Time
+
+	// when did the send message arrive?
+	arrivalTm time.Time
+
+	// when: when the operation completes and
+	// control returns to user code.
+	// READS: when the read returns to user who called readMessage()
+	// SENDS: when the send returns to user who called sendMessage()
+	// TIMERS: when user code <-timerC gets sent the current time.
+	completeTm time.Time
+
+	kind mopkind
+	msg  *Message
+
+	sendmop *mop // for reads, which send did we get?
+	readmop *mop // for sends, which read did we go to?
+
+	pqit rb.Iterator
+
+	// clients of scheduler wait on proceed.
+	// timer fires, send delivered, read accepted by kernel
+	proceed chan struct{}
+}
+
+func (op *mop) String() string {
+	var msgSerial int64
+	if op.msg != nil {
+		msgSerial = op.msg.HDR.Serial
+	}
+	who := "SERVER"
+	if op.originCli {
+		who = "CLIENT"
+	}
+	now := time.Now()
+	var ini, arr, complete string
+	if op.initTm.IsZero() {
+		ini = "unk"
+	} else {
+		ini = fmt.Sprintf("%v", op.initTm.Sub(now))
+	}
+	if op.arrivalTm.IsZero() {
+		arr = "unk"
+	} else {
+		arr = fmt.Sprintf("%v", op.arrivalTm.Sub(now))
+	}
+	if op.completeTm.IsZero() {
+		complete = "unk"
+	} else {
+		complete = fmt.Sprintf("%v", op.completeTm.Sub(now))
+	}
+	extra := ""
+	if op.kind == TIMER {
+		extra = " timer set at " + op.timerFileLine
+	}
+	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, msg.sn:%v%v}", who, op.kind, ini, arr, complete, op.sn, msgSerial, extra)
+}
+
 type simnet struct {
 	scenario *scenario
 
@@ -202,87 +279,6 @@ func (pq *pq) String() (r string) {
 		r += fmt.Sprintf("empty PQ\n")
 	}
 	return
-}
-
-// Message operation
-type mop struct {
-	sn int64
-
-	// number of times handleSend() has seen this mop.
-	seen int
-
-	originCli bool
-
-	senderLC int64
-	readerLC int64
-	originLC int64
-
-	timerC   chan time.Time
-	timerDur time.Duration
-	//timerStarted time.Time // replace with the more generate initTm
-
-	// when was the operation initiated?
-	initTm time.Time
-
-	// when did the send message arrive?
-	arrivalTm time.Time
-
-	// when: when the operation completes and
-	// control returns to user code.
-	// READS: when the read returns to user who called readMessage()
-	// SENDS: when the send returns to user who called sendMessage()
-	// TIMERS: when user code <-timerC gets sent the current time.
-	completeTm time.Time
-
-	kind mopkind
-	msg  *Message
-
-	sendmop *mop // for reads, which send did we get?
-	readmop *mop // for sends, which read did we go to?
-
-	pqit rb.Iterator
-
-	// clients of scheduler wait on proceed.
-	// timer fires, send delivered, read accepted by kernel
-	proceed chan struct{}
-}
-
-func (op *mop) String() string {
-	var msgSerial int64
-	if op.msg != nil {
-		msgSerial = op.msg.HDR.Serial
-	}
-	who := "SERVER"
-	if op.originCli {
-		who = "CLIENT"
-	}
-	// var verb string
-	// switch op.kind {
-	// case SEND:
-	// 	verb = fmt.Sprintf("init at %v", op.initTm)
-	// case READ:
-	// 	verb = "initiated"
-	// case TIMER:
-	// 	verb = fmt.Sprintf("%v set for %v ", op.timerDur, op.completeTm)
-	// }
-	now := time.Now()
-	var ini, arr, complete string
-	if op.initTm.IsZero() {
-		ini = "unk"
-	} else {
-		ini = fmt.Sprintf("%v", op.initTm.Sub(now))
-	}
-	if op.arrivalTm.IsZero() {
-		arr = "unk"
-	} else {
-		arr = fmt.Sprintf("%v", op.arrivalTm.Sub(now))
-	}
-	if op.completeTm.IsZero() {
-		complete = "unk"
-	} else {
-		complete = fmt.Sprintf("%v", op.completeTm.Sub(now))
-	}
-	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, msg.sn:%v}", who, op.kind, ini, arr, complete, op.sn, msgSerial)
 }
 
 func who(isCli bool) string {
@@ -840,7 +836,7 @@ func (s *simnet) scheduler() {
 		now := time.Now()
 		_ = now
 		////zz("scheduler top cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
-		//vv("scheduler top %v", s.schedulerReport())
+		vv("scheduler top %v", s.schedulerReport())
 
 		// easier debugging
 		s.clinode.dispatch()
@@ -1004,6 +1000,7 @@ func (s *simnet) createNewTimer(dur time.Duration, begin time.Time, isCli bool) 
 	timer.timerDur = dur
 	timer.initTm = begin
 	timer.completeTm = begin.Add(dur)
+	timer.timerFileLine = fileLine(3)
 
 	select {
 	case s.addTimer <- timer:

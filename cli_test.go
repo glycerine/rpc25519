@@ -900,10 +900,12 @@ func BenchmarkHelloRpcxMessage(b *testing.B) {
 // this also has 041 in it.
 func Test040_remote_cancel_by_context(t *testing.T) {
 
-	cv.Convey("remote cancellation", t, func() {
+	//cv.Convey("remote cancellation", t, func() {
+	synctest.Run(func() {
 
 		cfg := NewConfig()
-		cfg.TCPonly_no_TLS = false
+		//cfg.TCPonly_no_TLS = false
+		cfg.UseSimNet = true
 
 		cfg.ServerAddr = "127.0.0.1:0"
 		srv := NewServer("srv_test040", cfg)
@@ -912,7 +914,7 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 		panicOn(err)
 		defer srv.Close()
 
-		//vv("server Start() returned serverAddr = '%v'", serverAddr)
+		vv("server Start() returned serverAddr = '%v'", serverAddr)
 
 		// net/rpc API on server
 		mustCancelMe := NewMustBeCancelled()
@@ -938,30 +940,33 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 		cliErrIsSet40 := make(chan bool)
 		ctx40, cancelFunc40 := context.WithCancel(context.Background())
 		go func() {
+			vv("client.Call() goro top about to call over net/rpc: MustBeCancelled.WillHangUntilCancel()")
+
 			cliErr40 = client.Call("MustBeCancelled.WillHangUntilCancel", args, reply, ctx40)
-			//vv("client.Call() returned with cliErr = '%v'", cliErr)
+			vv("client.Call() returned with cliErr = '%v'", cliErr40)
 			close(cliErrIsSet40)
 		}()
 
 		// let the call get blocked.
+		vv("cli_test 040: about to block on test040callStarted")
 		<-test040callStarted
-		//vv("cli_test 040: we got past test040callStarted")
+		vv("cli_test 040: we got past test040callStarted")
 
 		// cancel it: transmit cancel request to server.
 		cancelFunc40()
-		//vv("past cancelFunc()")
+		vv("past cancelFunc()")
 
 		<-cliErrIsSet40
-		//vv("past cliErrIsSet channel; cliErr = '%v'", cliErr)
+		vv("past cliErrIsSet channel; cliErr40 = '%v'", cliErr40)
 
 		if cliErr40 != ErrCancelReqSent {
 			t.Errorf("Test040: expected ErrCancelReqSent but got %v", cliErr40)
 		}
 
 		// confirm that server side function is unblocked too
-		//vv("about to verify that server side context was cancelled.")
+		vv("about to verify that server side context was cancelled.")
 		<-test040callFinished
-		//vv("server side saw the cancellation request: confirmed.")
+		vv("server side saw the cancellation request: confirmed.")
 
 		// use Message []byte oriented API: test 041
 
@@ -975,20 +980,20 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 
 		go func() {
 			reply41, cliErr41 = client.SendAndGetReply(req, ctx41.Done(), 0)
-			//vv("client.Call() returned with cliErr = '%v'", cliErr)
+			vv("client.Call() returned with cliErr = '%v'", cliErr41)
 			close(cliErrIsSet41)
 		}()
 
 		// let the call get blocked on the server (only works under test, of course).
 		<-test041callStarted
-		//vv("cli_test 041: we got past test041callStarted")
+		vv("cli_test 041: we got past test041callStarted")
 
 		// cancel it: transmit cancel request to server.
 		cancelFunc41()
-		//vv("past cancelFunc()")
+		vv("past cancelFunc()")
 
 		<-cliErrIsSet41
-		//vv("past cliErrIsSet channel; cliErr = '%v'", cliErr)
+		vv("past cliErrIsSet channel; cliErr = '%v'", cliErr41)
 
 		if cliErr41 != ErrCancelReqSent {
 			t.Errorf("Test041: expected ErrCancelReqSent but got %v", cliErr41)
@@ -999,7 +1004,7 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 		}
 
 		// confirm that server side function is unblocked too
-		//vv("about to verify that server side context was cancelled.")
+		vv("about to verify that server side context was cancelled.")
 		<-test041callFinished
 
 	})

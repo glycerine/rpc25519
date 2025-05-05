@@ -1761,7 +1761,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 		return nil, ErrShutdown()
 	}
 
-	//vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req)
+	vv("client '%v' to wait on req.DoneCh; after sending req='%v'", c.name, req) // seen 040
 
 	select {
 	case <-req.DoneCh.WhenClosed():
@@ -2556,10 +2556,10 @@ func (c *Client) TimeAfter(dur time.Duration) (timerC <-chan time.Time) {
 		return time.After(dur)
 	}
 	// ignore shutdown errors for now (these are the only
-	// errors possible at the momnet. a nil channel
+	// errors possible at the moment. a nil channel
 	// must be handled fine by all client code also
 	// selecting on a shutdown signal.
-	timerC, _ = c.simnet.createNewTimer(dur, time.Now(), true)
+	timerC, _ = c.simnet.createNewTimer(dur, time.Now(), true) // isCli
 	return
 }
 
@@ -2567,7 +2567,73 @@ func (s *Server) TimeAfter(dur time.Duration) (timerC <-chan time.Time) {
 	if !s.cfg.UseSimNet {
 		return time.After(dur)
 	}
-	// ditto: on error a nil channel will be file.
-	timerC, _ = s.simnet.createNewTimer(dur, time.Now(), false)
+	// ditto: on error a nil channel will be fine.
+	timerC, _ = s.simnet.createNewTimer(dur, time.Now(), false) // isCli
 	return
 }
+
+/*
+type RpcTimer struct {
+	gotimer  *time.Timer
+	onCli    bool
+	simnet   *simnet
+	simtimer *mop
+}
+
+func (c *Client) NewTimer(dur time.Duration) (ti *RpcTimer) {
+	ti = &RpcTimer{
+		onCli: true,
+	}
+	if !c.cfg.UseSimNet {
+		ti.gotimer = time.NewTimer(dur)
+		return
+	}
+	ti.simnet = c.simnet
+	ti.simtimer = c.simnet.createNewTimer(dur, time.Now(), true) // isCli
+	return
+}
+
+func (s *Server) NewTimer(dur time.Duration) (ti *RpcTimer) {
+	ti = &RpcTimer{
+		onCli: false,
+	}
+	if !s.cfg.UseSimNet {
+		ti.gotimer = time.NewTimer(dur)
+		return
+	}
+	ti.simnet = s.simnet
+	ti.simtimer = s.simnet.createNewTimer(dur, time.Now(), false) // isCli
+	return
+}
+
+func (ti *RpcTimer) Reset(dur time.Duration) (wasArmed bool) {
+	if ti.simnet == nil {
+		return ti.gotimer.Reset(dur)
+	}
+	wasArmed = ti.simnet.resetTimer(ti, time.Now(), ti.onCli)
+	return
+}
+func (ti *RpcTimer) Stop(dur time.Duration) (wasArmed bool) {
+	if ti.simnet == nil {
+		return ti.gotimer.Stop()
+	}
+	wasArmed = ti.simnet.stopTimer(ti, time.Now(), ti.onCli)
+	return
+}
+
+// returns wasArmed (not expired or stopped)
+func (c *Client) StopTimer(ti *RpcTimer) bool {
+	return ti.Stop()
+}
+func (s *Server) StopTimer(ti *RpcTimer) bool {
+	return ti.Stop()
+}
+
+// returns wasArmed (not expired or stopped)
+func (c *Client) ResetTimer(ti *RpcTimer, dur time.Duration) bool {
+	return ti.Reset(dur)
+}
+func (s *Server) ResetTimer(ti *RpcTimer, dur time.Duration) bool {
+	return ti.Reset(dur)
+}
+*/

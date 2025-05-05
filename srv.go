@@ -529,14 +529,14 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		// to disallow it.
 		req, err := w.readMessage(conn)
 		if err == io.EOF {
-			//vv("server sees io.EOF from receiveMessage")
+			vv("server sees io.EOF from receiveMessage")
 			// close of socket before read of full message.
 			// shutdown this connection or we'll just
 			// spin here at 500% cpu.
 			return
 		}
 		if err != nil {
-			//vv("srv read loop err = '%v'", err)
+			vv("srv read loop err = '%v'", err)
 			r := err.Error()
 			if strings.Contains(r, "remote error: tls: bad certificate") {
 				//vv("ignoring client connection with bad TLS cert.")
@@ -570,7 +570,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			alwaysPrintf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
 			return
 		}
-		//vv("srv read loop sees req = '%v'", req.String())
+		vv("srv read loop sees req = '%v'", req.String()) // not seen 040
 
 		if req.HDR.From != "" {
 			s.Server.unNAT.Set(req.HDR.From, remoteAddr)
@@ -884,7 +884,7 @@ func (s *Server) processWork(job *job) {
 	foundUploader := false
 
 	req := job.req
-	//vv("processWork got job: req.HDR='%v'", req.HDR.String())
+	vv("processWork got job: req.HDR='%v'", req.HDR.String()) // not see 040 hang
 
 	if req.HDR.Typ == CallCancelPrevious {
 		s.cancelCallID(req.HDR.CallID)
