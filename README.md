@@ -11,8 +11,8 @@ testing and production code to remain identical,
 while testing many variations of timer and 
 timeout settings which would otherwise take 
 far too long to test. I built simnet to
-test my Raft leader election implementation, 
-which depends strongly for correctness on
+test my Raft implementation. The Raft algorithm
+depends strongly for correctness on
 randomized leader election timeouts and 
 heartbeat timeouts.
 
