@@ -11,7 +11,8 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	vv("top of runSimnetServer") // not seen?!?!
 	defer func() {
 		r := recover()
-		vv("defer running, end of runSimNetServer() r='%v'", r)
+		vv("defer running, end of runSimNetServer() for '%v' r='%v'", s.name, r)
+		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
 		//vv("exiting Server.runSimNetServer('%v')", serverAddr) // seen, yes, on shutdown test.
 		if r != nil {

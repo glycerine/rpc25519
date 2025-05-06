@@ -59,6 +59,7 @@ func (s *Server) runServerMain(
 	vv("runServerMain running")
 
 	defer func() {
+		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
 	}()
 	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
@@ -145,7 +146,7 @@ func (s *Server) runServerMain(
 		simNetConfig := &SimNetConfig{}
 
 		s.runSimNetServer(serverAddress, boundCh, simNetConfig)
-		alwaysPrintf("runSimNetServer exited.") // hung here?
+		alwaysPrintf("runSimNetServer exited: %v", s.simnode.name)
 		return
 	}
 
