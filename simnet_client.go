@@ -49,8 +49,11 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string) {
 
 	c.setLocalAddr(conn)
 	// tell user level client code we are ready
-	c.connected <- nil
-
+	select {
+	case c.connected <- nil:
+	case <-c.halt.ReqStop.Chan:
+		return
+	}
 	cpair := &cliPairState{}
 	c.cpair = cpair
 	go c.runSendLoop(conn, cpair)

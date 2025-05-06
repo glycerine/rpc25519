@@ -2327,7 +2327,7 @@ func (s *Server) registerInFlightCallToCancel(msg *Message, cancelFunc context.C
 			streamChan := make(chan *Message, 10_000)
 			// must queue ourselves to be sure we are
 			// process first.
-			streamChan <- msg
+			streamChan <- msg // large new buffer above, cannot block.
 			cc.streamCh = streamChan
 			msg.HDR.streamCh = streamChan
 		}

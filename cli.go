@@ -1559,7 +1559,10 @@ func (c *Client) Start() (err error) {
 	go c.runClientMain(c.cfg.ClientDialToHostPort, c.cfg.TCPonly_no_TLS, c.cfg.CertPath)
 
 	// wait for connection (or not).
-	err = <-c.connected // hung here in test702
+	select {
+	case err = <-c.connected:
+	case <-c.halt.ReqStop.Chan:
+	}
 	return err
 }
 
