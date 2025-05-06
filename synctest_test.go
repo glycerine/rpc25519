@@ -11,7 +11,7 @@ import (
 	//"context"
 	//"strings"
 	"testing"
-	"testing/synctest"
+	//"testing/synctest"
 	"time"
 
 	cv "github.com/glycerine/goconvey/convey"
@@ -19,23 +19,27 @@ import (
 
 func Test800_SimNet_all_timers_dur_0_fire_now(t *testing.T) {
 
+	if !globalUseSynctest {
+		t.Skip("test only for synctest.") // see also build tag at top.
+		return
+	}
+
 	cv.Convey("SimNet using synctest depends on all the times set to duration 0/now firing before we quiese to durable blocking. verify this assumption under synctest. yes: note the Go runtime implementation does a select with a default: so it will discard the timer alert rather than block.", t, func() {
-		synctest.Run(func() {
-			t0 := time.Now()
-			//vv("start test800")
-			var timers []*time.Timer
-			N := 10
-			for range N {
-				timers = append(timers, time.NewTimer(0))
-			}
-			for _, ti := range timers {
-				<-ti.C
-			}
-			if !t0.Equal(time.Now()) {
-				t.Fatalf("we have a problem, Houston.")
-			}
-			//vv("end test800") // shows same time as start, good.
-		})
+
+		t0 := time.Now()
+		//vv("start test800")
+		var timers []*time.Timer
+		N := 10
+		for range N {
+			timers = append(timers, time.NewTimer(0))
+		}
+		for _, ti := range timers {
+			<-ti.C
+		}
+		if !t0.Equal(time.Now()) {
+			t.Fatalf("we have a problem, Houston.")
+		}
+		//vv("end test800") // shows same time as start, good.
 	})
 }
 
