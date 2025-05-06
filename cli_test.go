@@ -21,6 +21,19 @@ var _ = filepath.Dir
 func TestMain(m *testing.M) {
 
 	var exitVal int
+
+	// Note we learned the hard way of a bad cocktail:
+	// never mix multiple tests with synctest.
+	// The testing machinery needs to get the
+	// real time to time the tests, and the
+	// synctest machinery isnt' sufficiently isolated
+	// from the testing code yet, if ever(?), so
+	// each test has gotta have its own bubbleOrNot() wrapper.
+	//
+	// Do not, I repeat, do not, wrap all tests with
+	// a synctest.Run() here! There be dragons,
+	// with sharp teeth and a hunger for wayward coders.
+
 	func() {
 		//vv("TestMain running.")
 
@@ -57,7 +70,7 @@ func TestMain(m *testing.M) {
 
 		exitVal = m.Run()
 	}()
-
+	//})
 	// Do stuff AFTER the tests
 
 	// clean up the temp dir.
@@ -178,6 +191,11 @@ func (BuiltinTypes) WantsContext(ctx context.Context, args *Args, reply *[2]int)
 // See attic/net_server_test.go:169 herein, which is a copy, with renaming
 // to build here without conflict over who is the real Server{}.
 func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
+
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
 
 	cv.Convey("basic TCP with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.", t, func() {
 
@@ -409,7 +427,12 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 
 // and with TLS
 
-func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
+func Test009_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
+
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
 
 	cv.Convey("TLS over TCP with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.", t, func() {
 
@@ -417,7 +440,7 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 		cfg.TCPonly_no_TLS = false
 
 		cfg.ServerAddr = "127.0.0.1:0"
-		srv := NewServer("srv_test007", cfg)
+		srv := NewServer("srv_test009", cfg)
 
 		serverAddr, err := srv.Start()
 		panicOn(err)
@@ -432,7 +455,7 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 		srv.Register(&BuiltinTypes{})
 
 		cfg.ClientDialToHostPort = serverAddr.String()
-		client, err := NewClient("test007", cfg)
+		client, err := NewClient("test009", cfg)
 		panicOn(err)
 		err = client.Start()
 		panicOn(err)
@@ -615,6 +638,13 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 // and with QUIC
 
 func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
+
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		// skip quic under synctest, it will just hang
+		// since the quic runtime never settles into durably blocked.
+		return
+	}
 
 	cv.Convey("QUIC with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.", t, func() {
 
@@ -848,6 +878,11 @@ func (t *Hello) Say(args *BenchmarkMessage, reply *BenchmarkMessage) (err error)
 
 func BenchmarkHelloRpcxMessage(b *testing.B) {
 
+	if globalUseSynctest {
+		b.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
+
 	cfg := NewConfig()
 	cfg.UseQUIC = true
 
@@ -896,6 +931,11 @@ func BenchmarkHelloRpcxMessage(b *testing.B) {
 
 // this also has 041 in it.
 func Test040_remote_cancel_by_context(t *testing.T) {
+
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
 
 	cv.Convey("remote cancellation", t, func() {
 
@@ -1008,6 +1048,10 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 
 func Test045_upload(t *testing.T) {
 
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle")
+	}
+
 	cv.Convey("upload a large file in parts from client to server", t, func() {
 
 		cfg := NewConfig()
@@ -1105,6 +1149,11 @@ func Test045_upload(t *testing.T) {
 }
 
 func Test055_download(t *testing.T) {
+
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
 
 	cv.Convey("download a large file in parts from server to client, the opposite direction of the previous test.", t, func() {
 
@@ -1212,6 +1261,11 @@ func Test055_download(t *testing.T) {
 }
 
 func Test065_bidirectional_download_and_upload(t *testing.T) {
+
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
 
 	cv.Convey("we should be able to register a server func that does uploads and downloads sequentially or simultaneously.", t, func() {
 

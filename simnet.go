@@ -1,5 +1,3 @@
-//go:build goexperiment.synctest
-
 package rpc25519
 
 // build/run with:
@@ -8,17 +6,14 @@ package rpc25519
 import (
 	"fmt"
 	mathrand2 "math/rand/v2"
+	//"sync"
 	"sync/atomic"
-	"testing/synctest"
+	//"testing/synctest" // moved to simnet_synctest.go
 	"time"
 
 	"github.com/glycerine/idem"
 	rb "github.com/glycerine/rbtree"
 )
-
-var globalUseSyntest bool = true
-
-var _ = synctest.Wait
 
 type SimNetConfig struct{}
 
@@ -57,13 +52,17 @@ type SimNetAddr struct { // implements net.Addr interface
 
 // name of the network (for example, "tcp", "udp", "simnet")
 func (s *SimNetAddr) Network() string {
+	//vv("SimNetAddr.Network() returning '%v'", s.network)
 	return s.network
 }
 
 // string form of address (for example, "192.0.2.1:25", "[2001:db8::1]:80")
-func (s *SimNetAddr) String() string {
+func (s *SimNetAddr) String() (str string) {
 	// keep it simple, as it is our simnet.dns lookup key.
-	return s.name
+	//str = s.addr + "/" + s.name
+	str = s.name
+	//vv("SimNetAddr.String() returning '%v'", str) // recursive... locks
+	return
 }
 
 // Message operation
@@ -156,11 +155,13 @@ func (op *mop) String() string {
 		complete = fmt.Sprintf("%v", op.completeTm.Sub(now))
 	}
 	extra := ""
-	if op.kind == TIMER {
+	switch op.kind {
+	case TIMER:
 		extra = " timer set at " + op.timerFileLine
-	}
-	if op.kind == TIMER_DISCARD {
+	case TIMER_DISCARD:
 		extra = " timer discarded at " + op.timerFileLine
+	case SEND:
+		extra = fmt.Sprintf(" FROM %v TO %v", op.origin.name, op.target.name)
 	}
 	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, msg.sn:%v%v}", who, op.kind, ini, arr, complete, op.sn, msgSerial, extra)
 }
@@ -177,10 +178,6 @@ type simnet struct {
 	srv *Server
 	cli *Client
 
-	// first server, not needed to bootstrap,
-	// just for diagnostic reference.
-	srvnode0 *simnode
-
 	dns map[string]*simnode
 
 	// for now just clinode and srvnode in nodes;
@@ -188,8 +185,9 @@ type simnet struct {
 	nodes map[*simnode]map[*simnode]*simnetConn
 
 	cliRegisterCh chan *clientRegistration
+	srvRegisterCh chan *serverRegistration
 
-	newClientConnCh chan *simnetConn
+	alterNodeCh chan *nodeAlteration
 
 	// same as srv.halt; we don't need
 	// our own, at least for now.
@@ -216,8 +214,30 @@ type simnode struct {
 	net     *simnet
 	isCli   bool
 	netAddr *SimNetAddr
+	state   nodestate
 
 	tellServerNewConnCh chan *simnetConn
+}
+
+type nodestate int
+
+const (
+	HEALTHY     nodestate = 0
+	HALTED      nodestate = 1
+	PARTITIONED nodestate = 2
+)
+
+func (state nodestate) String() string {
+	switch state {
+	case HEALTHY:
+		return "HEALTHY"
+	case HALTED:
+		return "HALTED"
+	case PARTITIONED:
+		return "PARTITIONED"
+	}
+	panic(fmt.Sprintf("unknown nodestate '%v'", int(state)))
+	return "unknown nodestate"
 }
 
 func (s *simnet) newSimnode(name string) *simnode {
@@ -239,24 +259,49 @@ func (s *simnet) newSimnodeClient(name string) (node *simnode) {
 func (s *simnet) newSimnodeServer(name string) (node *simnode) {
 	node = s.newSimnode(name)
 	node.isCli = false
-	node.tellServerNewConnCh = make(chan *simnetConn)
+	// buffer so servers don't have to be up to get them.
+	node.tellServerNewConnCh = make(chan *simnetConn, 100)
 	return
 }
 
 func (s *simnet) showDNS() {
 	i := 0
 	for name, node := range s.dns {
-		vv("[%2d] showDNS dns[%v] = %p", i, name, node)
+		alwaysPrintf("[%2d] showDNS dns[%v] = %p", i, name, node)
 		i++
 	}
 }
-func (s *simnet) handleNewClientRegistration(reg *clientRegistration) {
+
+// for additional servers after the first.
+func (s *simnet) handleServerRegistration(reg *serverRegistration) {
+
+	// srvNetAddr := SimNetAddr{ // implements net.Addr interface
+	// 	network: "simnet",
+	// 	addr:
+	// 	name:    reg.server.name,
+	// 	isCli:   false,
+	// }
+
+	srvnode := s.newSimnodeServer(reg.server.name)
+	srvnode.netAddr = reg.srvNetAddr
+	s.nodes[srvnode] = make(map[*simnode]*simnetConn)
+	s.dns[srvnode.name] = srvnode
+
+	reg.simnode = srvnode
+	reg.simnet = s
+
+	// channel made by newSimnodeServer() above.
+	reg.tellServerNewConnCh = srvnode.tellServerNewConnCh
+	close(reg.done)
+}
+
+func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 
 	srvnode, ok := s.dns[reg.dialTo]
 	if !ok {
 		s.showDNS()
 		panic(fmt.Sprintf("cannot find server '%v', requested "+
-			"by client registration", reg.dialTo))
+			"by client registration from '%v'", reg.dialTo, reg.client.name))
 	}
 
 	clinode := s.newSimnodeClient(reg.client.name)
@@ -272,39 +317,62 @@ func (s *simnet) handleNewClientRegistration(reg *clientRegistration) {
 	c2s := s.addEdgeFromCli(clinode, srvnode)
 	s2c := s.addEdgeFromSrv(srvnode, clinode)
 
-	// tell server about new edge
-	select {
-	case srvnode.tellServerNewConnCh <- s2c:
-	case <-s.halt.ReqStop.Chan:
-		return
-	}
-
-	// let client start using the connection/edge.
 	reg.conn = c2s
 	reg.simnode = clinode
-	close(reg.done)
+
+	// tell server about new edge
+	// vv("about to deadlock? stack=\n'%v'", stack())
+	// I think this might be a chicken and egg problem.
+	// The server cannot register b/c client is here on
+	// the scheduler goro, and client here wants to tell the
+	// the server about it... try in goro
+	go func() {
+		select {
+		case srvnode.tellServerNewConnCh <- s2c:
+			//vv("%v srvnode was notified of new client '%v'; s2c='%#v'", srvnode.name, clinode.name, s2c)
+
+			// let client start using the connection/edge.
+			close(reg.done)
+		case <-s.halt.ReqStop.Chan:
+			return
+		}
+	}()
 }
 
-func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, srvNetAddr *SimNetAddr) (tellServerNewConnCh chan *simnetConn) {
+// idempotent, all servers do this, then register through the same path.
+func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *simnet { // (tellServerNewConnCh chan *simnetConn) {
 
-	scen := newScenario(time.Millisecond, time.Millisecond, time.Millisecond, [32]byte{})
+	//vv("%v newSimNetOnServer top, goro = %v", srv.name, GoroNumber())
+	cfg.simnetRendezvous.singleSimnetMut.Lock()
+	defer cfg.simnetRendezvous.singleSimnetMut.Unlock()
+
+	if cfg.simnetRendezvous.singleSimnet != nil {
+		// already started. Still, everyone
+		// register separately no matter.
+		return cfg.simnetRendezvous.singleSimnet
+	}
+
+	tick := time.Millisecond * 100
+	minHop := time.Millisecond
+	maxHop := minHop
+	var seed [32]byte
+	scen := newScenario(tick, minHop, maxHop, seed)
 
 	// server creates simnet; must start server first.
 	s := &simnet{
-		useSynctest:     globalUseSyntest,
-		cfg:             cfg,
-		srv:             srv,
-		halt:            srv.halt,
-		cliRegisterCh:   make(chan *clientRegistration),
-		simNetCfg:       simNetConfig,
-		msgSendCh:       make(chan *mop),
-		msgReadCh:       make(chan *mop),
-		addTimer:        make(chan *mop),
-		discardTimerCh:  make(chan *mop),
-		newClientConnCh: make(chan *simnetConn),
-
-		newScenarioCh: make(chan *scenario),
-		scenario:      scen,
+		cfg:            cfg,
+		srv:            srv,
+		halt:           srv.halt,
+		cliRegisterCh:  make(chan *clientRegistration),
+		srvRegisterCh:  make(chan *serverRegistration),
+		alterNodeCh:    make(chan *nodeAlteration),
+		simNetCfg:      simNetConfig,
+		msgSendCh:      make(chan *mop),
+		msgReadCh:      make(chan *mop),
+		addTimer:       make(chan *mop),
+		discardTimerCh: make(chan *mop),
+		newScenarioCh:  make(chan *scenario),
+		scenario:       scen,
 
 		dns: make(map[string]*simnode),
 
@@ -323,21 +391,11 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 	}
 	s.nextTimer.Stop()
 
-	srvnode := s.newSimnodeServer(srv.name)
-	srvnode.netAddr = srvNetAddr
-	s.nodes[srvnode] = make(map[*simnode]*simnetConn)
-	s.dns[srvnode.name] = srvnode
-
-	s.srvnode0 = srvnode // first server, for reference
-
-	// let client find the shared simnet in their cfg,
-	// when they shallow copy it.
-	cfg.simnetRendezvous.mut.Lock()
-	cfg.simnetRendezvous.simnet = s
-	cfg.simnetRendezvous.mut.Unlock()
-
+	cfg.simnetRendezvous.singleSimnet = s
+	//vv("newSimNetOnServer: assigned to singleSimnet, releasing lock by  goro = %v", GoroNumber())
 	s.Start()
-	return srvnode.tellServerNewConnCh
+
+	return s
 }
 
 func (s *simnode) setNetAddrSameNetAs(addr string, srvNetAddr *SimNetAddr) {
@@ -534,6 +592,11 @@ func (s *pq) del(op *mop) (found bool) {
 	return
 }
 
+func (s *pq) deleteAll() {
+	s.tree.DeleteAll()
+	return
+}
+
 // order by arrivalTm; for the pre-arrival preArrQ.
 func (s *simnet) newPQarrivalTm(owner string) *pq {
 	return &pq{
@@ -673,8 +736,60 @@ func newPQcompleteTm(owner string) *pq {
 	}
 }
 
+func (s *simnet) shutdownNode(node *simnode) {
+	vv("handleAlterNode: SHUTDOWN %v, going from %v -> HALTED", node.state, node.name)
+	node.state = HALTED
+	node.readQ.deleteAll()
+	node.preArrQ.deleteAll()
+	node.timerQ.deleteAll()
+	vv("handleAlterNode: end SHUTDOWN, node is now: %v", node)
+}
+
+func (s *simnet) restartNode(node *simnode) {
+	vv("handleAlterNode: RESTART %v, wiping queues, going %v -> HEALTHY", node.state, node.name)
+	node.state = HEALTHY
+	node.readQ.deleteAll()
+	node.preArrQ.deleteAll()
+	node.timerQ.deleteAll()
+}
+
+func (s *simnet) partitionNode(node *simnode) {
+	vv("handleAlterNode: from %v -> PARTITION %v, wiping pre-arrival, block any future pre-arrivals", node.state, node.name)
+	node.state = PARTITIONED
+	node.preArrQ.deleteAll()
+}
+func (s *simnet) unPartitionNode(node *simnode) {
+	vv("handleAlterNode: UNPARTITION %v, going from %v -> HEALTHY", node.state, node.name)
+	node.state = HEALTHY
+}
+
+func (s *simnet) handleAlterNode(alt *nodeAlteration) {
+	node := alt.simnode
+	switch alt.alter {
+	case SHUTDOWN:
+		s.shutdownNode(node)
+	case PARTITION:
+		s.partitionNode(node)
+	case UNPARTITION:
+		s.unPartitionNode(node)
+	case RESTART:
+		s.restartNode(node)
+	}
+	close(alt.done)
+}
+
 func (s *simnet) handleSend(send *mop) {
 	////zz("top of handleSend(send = '%v')", send)
+
+	switch send.origin.state {
+	case HALTED:
+		// cannot send when halted. Hmm.
+		// This must be a stray...maybe a race? the
+		// node really should not be doing anything.
+		panic(fmt.Sprintf("yuck: got a SEND from a HALTED node: '%v'", send.origin))
+		// return
+	case PARTITIONED, HEALTHY:
+	}
 
 	origin := send.origin
 	if send.seen == 0 {
@@ -687,14 +802,19 @@ func (s *simnet) handleSend(send *mop) {
 		panic(fmt.Sprintf("should see each send only once now, not %v", send.seen))
 	}
 
-	// make a copy _before_ the sendMessage() call returns,
-	// so they can recycle or do whatever without data racing with us.
-	send.msg = send.msg.CopyForSimNetSend()
+	switch send.target.state {
+	case HALTED, PARTITIONED:
+		vv("send.target.state == %v, dropping msg = '%v'", send.target.state, send.msg)
+	case HEALTHY:
 
-	send.target.preArrQ.add(send)
-	//vv("LC:%v  SEND TO %v %v", origin.LC, origin.name, send)
-	////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.LC, origin.name, send, s.srvnode.preArrQ)
+		// make a copy _before_ the sendMessage() call returns,
+		// so they can recycle or do whatever without data racing with us.
+		send.msg = send.msg.CopyForSimNetSend()
 
+		send.target.preArrQ.add(send)
+		//vv("LC:%v  SEND TO %v %v", origin.LC, origin.name, send)
+		////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.LC, origin.name, send, s.srvnode.preArrQ)
+	}
 	// rpc25519 peer/ckt/frag does async sends, so let
 	// the sender keep going.
 	// We could optionally (chaos?) add some
@@ -703,10 +823,21 @@ func (s *simnet) handleSend(send *mop) {
 	// least for now.
 	send.completeTm = time.Now() // on the sender side.
 	close(send.proceed)
+
 }
 
 func (s *simnet) handleRead(read *mop) {
 	////zz("top of handleRead(read = '%v')", read)
+
+	switch read.origin.state {
+	case HALTED:
+		// cannot read when halted. Hmm.
+		// This must be a stray...maybe a race? the
+		// node really should not be doing anything.
+		panic(fmt.Sprintf("yuck: got a READ from a HALTED node: '%v'", read.origin))
+		// return
+	case PARTITIONED, HEALTHY:
+	}
 
 	origin := read.origin
 	if read.seen == 0 {
@@ -733,9 +864,36 @@ func (node *simnode) firstPreArrivalTimeLTE(now time.Time) bool {
 	return !send.arrivalTm.After(now)
 }
 
+func (node *simnode) optionallyApplyChaos() {
+
+	// based on node.net.scenario
+	//
+	// *** here is where we could re-order
+	// messages in a chaos test.
+	// reads can start before sends,
+	// the read blocks until they match.
+	//
+	// reads can start after sends,
+	// the kernel buffers the sends
+	// until the read attempts (our pre-arrival queue).
+}
+
 // dispatch delivers sends to reads, and fires timers.
 // It calls node.net.armTimer() at the end (in the defer).
 func (node *simnode) dispatch() { // (bump time.Duration) {
+
+	switch node.state {
+	case HALTED:
+		// cannot send, receive, start timers or
+		// discard them; when halted.
+		return
+	case PARTITIONED:
+		// timers need to fire.
+		// pre-arrival Q will be empty, so
+		// no matching will happen anyway.
+		// reads are fine.
+	case HEALTHY:
+	}
 
 	// to be deleted at the end, so
 	// we don't dirupt the iteration order
@@ -845,18 +1003,7 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 		read := readIt.Item().(*mop)
 		send := preIt.Item().(*mop)
 
-		// the event of receiving the msg is after
-		// any LC advance
-
-		// *** here is where we could re-order
-		// messages in a chaos test.
-
-		// reads can start before sends,
-		// the read blocks until they match.
-		//
-		// reads can start after sends,
-		// the kernel buffers the sends
-		// until the read attempts (our pre-arrival queue).
+		node.optionallyApplyChaos()
 
 		// Causality also demands that
 		// a read can complete (now) only after it was initiated;
@@ -868,11 +1015,8 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 		// cannot happen before the send initiation.
 		// Also forbid any reads that have not happened
 		// "yet" (now), should they get rearranged by chaos.
-		if now.Before(read.initTm) { // now < read.initTm
-			// are we done? since readQ is ordered
-			// by initTm, all subsequent reads in it
-			// will have >= initTm.
-			vv("rejecting delivery to read that has not happened: '%v'", read)
+		if now.Before(read.initTm) {
+			alwaysPrintf("rejecting delivery to read that has not happened: '%v'", read)
 			panic("how possible?")
 			return
 		}
@@ -925,27 +1069,7 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 		readDel = append(readDel, read)
 
 		close(read.proceed)
-
-		// used to have this. but in reality
-		// our sends are asynchronous -- not RPCs,
-		// so we don't block. This should happen
-		// as soon as we have the send assigned
-		// to the pre-arrival queue; much earlier.
-		// I'm saving this note in case in the
-		// future we wanted to emulate RPC semantics
-		// that do block, and thus we remove
-		// the close at line 708 in handleSend() and
-		// then wait for the round trip to complete...
-		// but in that case this _still_ not the
-		// right place to close send-- as only
-		// the first half of the round-trip has
-		// finished! We would have to wait for
-		// the reply send to arrive, and match
-		// this with that. We don't track the
-		// CallID inside the simnet like the
-		// client does, at the moment. We don't currently
-		// need RPC semantics, so defer all that for now.
-		//close(send.proceed)
+		// send already closed in handleSend()
 
 		readIt = readIt.Next()
 		preIt = preIt.Next()
@@ -953,23 +1077,21 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 }
 
 func (s *simnet) qReport() (r string) {
+	i := 0
 	for node := range s.nodes {
-		r += node.String()
+		r += fmt.Sprintf("\n[node %v of %v in qReport]: \n", i+1, len(s.nodes))
+		r += node.String() + "\n"
+		i++
 	}
 	return
 }
 
 func (node *simnode) String() (r string) {
-	r += node.name + " Q summary:\n"
+	r += fmt.Sprintf("%v in %v state, Q summary:\n", node.name, node.state)
 	r += node.readQ.String()
 	r += node.preArrQ.String()
 	r += node.timerQ.String()
 	return
-}
-
-func (s *simnet) Start() {
-	//vv("simnet.Start() top")
-	go s.scheduler()
 }
 
 func (s *simnet) schedulerReport() string {
@@ -989,10 +1111,23 @@ func (s *simnet) tickLogicalClocks() {
 	}
 }
 
-// makes it clear on a stack trace which goro this is.
+func (s *simnet) Start() {
+	//vv("simnet.Start() top")
+	go s.scheduler()
+}
+
+// scheduler is the heart of the simnet
+// network simulator. It is the central
+// goroutine launched by simnet.Start().
+// It orders all timer and network
+// operations requests by receiving them
+// in a select on its various channels, each
+// dedicated to one type of call.
 func (s *simnet) scheduler() {
+	//vv("scheduler is running on goro = %v", GoroNumber())
 
 	defer func() {
+		//vv("scheduler defer shutdown running on goro = %v", GoroNumber())
 		r := recover()
 		if r != nil {
 			vv("scheduler panic-ing: %v", s.schedulerReport())
@@ -1014,15 +1149,19 @@ func (s *simnet) scheduler() {
 		s.dispatchAll()
 		s.armTimer()
 
-		// advance time by one tick
+		// Advance time by one tick.
 		time.Sleep(s.scenario.tick)
 
-		if s.useSynctest {
-			synctest.Wait()
-			//vv("back from synctest.Wait")
+		if s.useSynctest && globalUseSynctest {
+			//vv("about to call synctestWait_LetAllOtherGoroFinish")
+			synctestWait_LetAllOtherGoroFinish()
+			//vv("back from synctest.Wait() goro = %v", GoroNumber())
+		} else {
+			// advance time by one tick, the non-synctest version.
+			time.Sleep(s.scenario.tick)
 		}
 
-		select {
+		select { // scheduler main select
 		case alert := <-s.nextTimer.C: // soonest timer fires
 			_ = alert
 			//vv("s.nextTimer -> alerted at %v", alert)
@@ -1030,12 +1169,16 @@ func (s *simnet) scheduler() {
 			s.armTimer()
 
 		case reg := <-s.cliRegisterCh:
-			//vv("s.cliRegisterCh got reg = '%#v'", reg)
-			s.handleNewClientRegistration(reg)
+			// "connect" in network lingo, client reaches out to listening server.
+			//vv("s.cliRegisterCh got reg from '%v' = '%#v'", reg.client.name, reg)
+			s.handleClientRegistration(reg)
+			//vv("back from handleClientRegistration for '%v'", reg.client.name)
 
-		case newConn := <-s.newClientConnCh:
-			_ = newConn
-			panic("TODO <-s.newConnCh for restarted cli or 2nd/later cli")
+		case srvreg := <-s.srvRegisterCh:
+			// "bind/listen" on a socket, server waits for any client to "connect"
+			//vv("s.srvRegisterCh got srvreg for '%v' = '%#v'", srvreg.server.name, srvreg)
+			s.handleServerRegistration(srvreg)
+			//vv("back from handleServerRegistration '%v'", srvreg.server.name)
 
 		case scenario := <-s.newScenarioCh:
 			s.finishScenario()
@@ -1057,6 +1200,9 @@ func (s *simnet) scheduler() {
 			////zz("msgReadCh ->  op='%v'", read)
 			s.handleRead(read)
 
+		case alt := <-s.alterNodeCh:
+			s.handleAlterNode(alt)
+
 		case <-s.halt.ReqStop.Chan:
 			return
 		}
@@ -1076,6 +1222,16 @@ func (s *simnet) initScenario(scenario *scenario) {
 
 func (s *simnet) handleDiscardTimer(discard *mop) {
 
+	switch discard.origin.state {
+	case HALTED:
+		// cannot set/fire timers when halted. Hmm.
+		// This must be a stray...maybe a race? the
+		// node really should not be doing anything.
+		panic(fmt.Sprintf("yuck: got a TIMER_DISCARD from a HALTED node: '%v'", discard.origin))
+		// return
+	case PARTITIONED, HEALTHY:
+	}
+
 	orig := discard.origTimerMop
 
 	found := discard.origin.timerQ.del(discard.origTimerMop)
@@ -1090,6 +1246,16 @@ func (s *simnet) handleDiscardTimer(discard *mop) {
 }
 
 func (s *simnet) handleTimer(timer *mop) {
+
+	switch timer.origin.state {
+	case HALTED:
+		// cannot start timers when halted. Hmm.
+		// This must be a stray...maybe a race? the
+		// node really should not be doing anything.
+		panic(fmt.Sprintf("yuck: got a timer from a HALTED node: '%v'", timer.origin))
+		// return
+	case PARTITIONED, HEALTHY:
+	}
 
 	lc := timer.origin.LC
 	who := timer.origin.name
@@ -1157,7 +1323,7 @@ func (node *simnode) soonestTimerLessThan(bound *mop) *mop {
 // must never touch anything internal
 // to simnet (else data races).
 //
-// Communicate over channels only:
+// Communicate over channels only: e.g.
 //   s.addTimer
 //   s.msgReadCh
 //   s.msgSendCh
@@ -1340,4 +1506,111 @@ func (s *simnet) newClientRegistration(c *Client, localHostPort, serverAddr, dia
 		serverAddrStr:    serverAddr,
 		done:             make(chan struct{}),
 	}
+}
+
+type serverRegistration struct {
+	// provide
+	server     *Server
+	srvNetAddr *SimNetAddr
+
+	// wait on
+	done chan struct{}
+
+	// receive back
+	simnode             *simnode // our identity in the simnet (conn.local)
+	simnet              *simnet
+	tellServerNewConnCh chan *simnetConn
+}
+
+// external
+func (s *simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) *serverRegistration {
+	return &serverRegistration{
+		server:     srv,
+		srvNetAddr: srvNetAddr,
+		done:       make(chan struct{}),
+	}
+}
+
+func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConnCh chan *simnetConn, err error) {
+
+	reg := s.newServerRegistration(srv, srvNetAddr)
+	select {
+	case s.srvRegisterCh <- reg:
+		vv("sent registration on srvRegisterCh; about to wait on done goro = %v", GoroNumber())
+	case <-s.halt.ReqStop.Chan:
+		err = ErrShutdown()
+		return
+	}
+	select {
+	case <-reg.done:
+		vv("server after first registered: '%v'/'%v' sees  reg.tellServerNewConnCh = %p", srv.name, srvNetAddr, reg.tellServerNewConnCh)
+		if reg.tellServerNewConnCh == nil {
+			panic("cannot have nil reg.tellServerNewConnCh back!")
+		}
+		srv.simnode = reg.simnode
+		srv.simnet = reg.simnet
+		newCliConnCh = reg.tellServerNewConnCh
+		return
+	case <-s.halt.ReqStop.Chan:
+		err = ErrShutdown()
+		return
+	}
+	return
+}
+
+type alteration int // on clients or servers, any simnode
+
+const (
+	SHUTDOWN    alteration = 1
+	PARTITION   alteration = 2
+	UNPARTITION alteration = 3
+	RESTART     alteration = 4
+)
+
+func (alt alteration) String() string {
+	switch alt {
+	case SHUTDOWN:
+		return "SHUTDOWN"
+	case PARTITION:
+		return "PARTITION"
+	case UNPARTITION:
+		return "UNPARTITION"
+	case RESTART:
+		return "RESTART"
+	}
+	panic(fmt.Sprintf("unknown alteration %v", int(alt)))
+	return "unknown alteration"
+}
+
+type nodeAlteration struct {
+	simnet  *simnet
+	simnode *simnode
+	alter   alteration
+	done    chan struct{}
+}
+
+func (s *simnet) newNodeAlteration(node *simnode, alter alteration) *nodeAlteration {
+	return &nodeAlteration{
+		simnet:  s,
+		simnode: node,
+		alter:   alter,
+		done:    make(chan struct{}),
+	}
+}
+func (s *simnet) alterNode(node *simnode, alter alteration) {
+
+	alt := s.newNodeAlteration(node, alter)
+	select {
+	case s.alterNodeCh <- alt:
+		//vv("sent alt on alterNodeCh; about to wait on done goro = %v", GoroNumber())
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	select {
+	case <-alt.done:
+		vv("server altered: %v", node)
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	return
 }

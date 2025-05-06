@@ -13,6 +13,11 @@ import (
 
 func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
+
 	cv.Convey("our peer-to-peer Fragment/Circuit API "+
 		"generalizes peer-to-multiple-peers and dealing with infinite "+
 		"streams of Fragments, both arriving and being sent.", t, func() {
@@ -161,6 +166,11 @@ func Test401_PeerURL_parsing(t *testing.T) {
 
 func Test402_simpler_startup_peer_service_test(t *testing.T) {
 
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
+
 	cv.Convey("402: clone 400 and shrink it to focus just on not getting port 0 back", t, func() {
 
 		cfg := NewConfig()
@@ -213,6 +223,11 @@ func Test402_simpler_startup_peer_service_test(t *testing.T) {
 // 403 just bringing up new Circuit from existing peer
 
 func Test403_new_circuit_from_existing_peer(t *testing.T) {
+
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
 
 	cv.Convey("new circuit bootstrapped, from existing registered and started peers.", t, func() {
 

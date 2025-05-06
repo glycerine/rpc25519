@@ -36,6 +36,11 @@ import (
 // to RegisterPeerServiceFunc(). Here that name is "grid".
 func Test202_grid_peer_to_peer_works(t *testing.T) {
 
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
+
 	//n := 20 // 20*19/2 = 190 tcp conn to setup. ok/green but 35 seconds.
 	n := 3 // 2.7 sec
 	cfg := &gridConfig{
@@ -52,13 +57,10 @@ func Test202_grid_peer_to_peer_works(t *testing.T) {
 	c.Start()
 	defer c.Close()
 
-	time.Sleep(1 * time.Second)
-
 	for i, g := range nodes {
-		_ = i
-		//vv("i=%v has n.node.seen = %#v", i, g.node.seen)
-		if g.node.seen.Len() != n-1 {
-			t.Fatalf("expected n-1=%v nodes contacted, saw '%v'", n-1, g.node.seen.Len())
+		select {
+		case <-g.node.peersNeededSeen.Chan:
+			vv("i=%v all peer connections need have been seen(%v) by '%v': '%#v'", i, g.node.peersNeeded, g.node.name, g.node.seen.GetKeySlice())
 		}
 	}
 }
@@ -74,15 +76,20 @@ type node struct {
 	gotIncomingCktReadFrag chan *Fragment
 
 	seen *Mutexmap[string, bool]
+
+	peersNeeded     int
+	peersNeededSeen *idem.IdemCloseChan
 }
 
-func newNode(name string, cfg *gridConfig) *node {
+func newNode(srv *Server, name string, cfg *gridConfig) *node {
 	return &node{
-		name: name,
-		seen: NewMutexmap[string, bool](),
+		peersNeeded:     cfg.ReplicationDegree - 1,
+		peersNeededSeen: idem.NewIdemCloseChan(),
+		name:            name,
+		seen:            NewMutexmap[string, bool](),
 		// comms
 		PushToPeerURL:          make(chan string),
-		halt:                   idem.NewHalter(),
+		halt:                   srv.halt,
 		gotIncomingCktReadFrag: make(chan *Fragment),
 	}
 }
@@ -123,7 +130,7 @@ func (s *grid) Start() {
 		err := n.Start()
 		panicOn(err)
 	}
-	time.Sleep(time.Second)
+	//time.Sleep(time.Second)
 	// now that they are all started, form a complete mesh
 	// by connecting each to all the others
 	sz := len(s.Nodes)
@@ -178,8 +185,9 @@ func (s *gridNode) Start() error {
 	panicOn(err)
 
 	cfg.ClientDialToHostPort = serverAddr.String()
+	vv("serverAddr = '%#v' -> '%v'", serverAddr, cfg.ClientDialToHostPort)
 
-	s.node = newNode(s.name, s.cfg)
+	s.node = newNode(s.srv, s.name, s.cfg)
 
 	err = s.srv.PeerAPI.RegisterPeerServiceFunc("grid", s.node.Start)
 	panicOn(err)
@@ -190,7 +198,7 @@ func (s *gridNode) Start() error {
 	s.URL = s.lpb.URL()
 	s.PeerID = s.lpb.PeerID
 
-	//vv("gridNode.Start() started '%v' as 'grid' with url = '%v'", s.name, s.URL)
+	vv("gridNode.Start() started '%v' as 'grid' with url = '%v'", s.name, s.URL)
 
 	return nil
 }
@@ -244,6 +252,11 @@ func (s *node) Start(
 						//vv("%v: (ckt %v) ckt.Reads sees frag:'%s'", s.name, ckt.Name, frag)
 
 						s.seen.Set(AliasDecode(frag.FromPeerID), true)
+
+						peersSeen := s.seen.Len()
+						if peersSeen >= s.peersNeeded {
+							s.peersNeededSeen.Close()
+						}
 
 						//s.gotIncomingCktReadFrag <- frag
 						//vv("%v: (ckt %v) past s.gotIncomingCktReadFrag <- frag. frag:'%s'", s.name, ckt.Name, frag)

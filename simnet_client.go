@@ -1,17 +1,25 @@
-//go:build goexperiment.synctest
-
 package rpc25519
 
 func (c *Client) runSimNetClient(localHostPort, serverAddr string) {
+
+	defer func() {
+		vv("runSimNetClient defer on exit running client = %p", c) // seen 2x.
+	}()
 
 	//netAddr := &SimNetAddr{network: "cli simnet@" + localHostPort}
 
 	// how does client pass this to us?/if we need it at all?
 	//simNetConfig := &SimNetConfig{}
 
-	c.cfg.simnetRendezvous.mut.Lock()
-	c.simnet = c.cfg.simnetRendezvous.simnet
-	c.cfg.simnetRendezvous.mut.Unlock()
+	c.cfg.simnetRendezvous.singleSimnetMut.Lock()
+	c.simnet = c.cfg.simnetRendezvous.singleSimnet
+	c.cfg.simnetRendezvous.singleSimnetMut.Unlock()
+
+	if c.simnet == nil {
+		panic("arg. client could not find cfg.simnetRendezvous.singleSimnet")
+	}
+
+	vv("runSimNetClient c.simnet = %p, '%v', goro = %v", c.simnet, c.name, GoroNumber()) // only 'auto-cli-srv_grid_node_1'
 
 	// ignore serverAddr in favor of cfg.ClientDialToHostPort
 	// which tests actually set.
@@ -45,8 +53,11 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string) {
 
 	c.setLocalAddr(conn)
 	// tell user level client code we are ready
-	c.connected <- nil
-
+	select {
+	case c.connected <- nil:
+	case <-c.halt.ReqStop.Chan:
+		return
+	}
 	cpair := &cliPairState{}
 	c.cpair = cpair
 	go c.runSendLoop(conn, cpair)

@@ -253,8 +253,23 @@ func newBlabber(
 	}
 
 	//vv("making blabber, conn = '%#v'", conn)
+
+	cfg.simnetRendezvous.singleSimnetMut.Lock()
+	simnet := cfg.simnetRendezvous.singleSimnet
+	cfg.simnetRendezvous.singleSimnetMut.Unlock()
+
+	if cfg.UseSimNet {
+		if simnet == nil {
+			// more rigourus test of
+			// startup if we can do without this check: //if !isServer {
+			panic("was server not started first?!? It should have written cfg.simnetRendezvous.simnet by now!")
+			//}
+		}
+		//vv("good: UseSimNet true and have singleSimnet = %p", simnet)
+	}
+
 	return &blabber{
-		simnet:       cfg.simnetRendezvous.simnet,
+		simnet:       simnet,
 		useSimNet:    cfg.UseSimNet,
 		compress:     !cfg.CompressionOff,
 		compressAlgo: cfg.CompressAlgo,

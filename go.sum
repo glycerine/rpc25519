@@ -30,6 +30,8 @@ github.com/glycerine/greenpack v0.536.0 h1:ocRwKvCQugQ7VYR2j5OxlA/bvAF9XKr+l1zSK
 github.com/glycerine/greenpack v0.536.0/go.mod h1:GIFIXGt5jKO6stqC6EVv5KyAHaWbsUH8n/sOBmW5SMQ=
 github.com/glycerine/idem v0.8.1 h1:hKiUSduCrN3aDTbZNMPOgHSZ6QN23FBW69NPosWVlBs=
 github.com/glycerine/idem v0.8.1/go.mod h1:B72P/ZM99sNiCmaQJflpmMAF5LsDzStpLdWzn0+Vr2Y=
+github.com/glycerine/idem v0.9.0 h1:wD8HRBuJcCS3C6jH/X0IdEmkBXgWDe6AEO1KHB+Vxw8=
+github.com/glycerine/idem v0.9.0/go.mod h1:B72P/ZM99sNiCmaQJflpmMAF5LsDzStpLdWzn0+Vr2Y=
 github.com/glycerine/ipaddr v0.2.7 h1:WRbvTnHOzATK2w2F/NAwYnKulBBsvX7MSp37Mb8BjI0=
 github.com/glycerine/ipaddr v0.2.7/go.mod h1:ook7eYvTG8CSOOEn9oLXaxQwzFo1zcqJbDZT2rxtKVc=
 github.com/glycerine/loquet v0.0.19 h1:R4bKlaiT37ezaoQ9gHEULGYA+xmHiNsjVjinvWMkgEc=
@@ -40,6 +42,8 @@ github.com/glycerine/rbtree v0.0.0-20190406191118-ceb71889d809 h1:wBr8MeUUS+Xi4o
 github.com/glycerine/rbtree v0.0.0-20190406191118-ceb71889d809/go.mod h1:tf1G9WLJXoNEQ5TWYvCSkqsOepuCNCJebECwJ/B/64I=
 github.com/glycerine/rbtree v0.1.0 h1:j19jxi7aj3C+ZP/6hXT6X9yT6Mw16fdky3MRDAggkiQ=
 github.com/glycerine/rbtree v0.1.0/go.mod h1:tf1G9WLJXoNEQ5TWYvCSkqsOepuCNCJebECwJ/B/64I=
+github.com/glycerine/rbtree v0.2.0 h1:lg+e7pMOAw/z6pTwHmBN6GMfOfoN12zPOrgC7NXXfwc=
+github.com/glycerine/rbtree v0.2.0/go.mod h1:tf1G9WLJXoNEQ5TWYvCSkqsOepuCNCJebECwJ/B/64I=
 github.com/glycerine/restic-chunker-mod v0.5.0 h1:6OA/O0rEHvENyTlzYJ2/E7UNQBu3+8NY3Du2hxVp5Gw=
 github.com/glycerine/restic-chunker-mod v0.5.0/go.mod h1:ME0iI4hyOXTHSzS1AunwmanKVWnAt8+JwBl7Zs0YdwU=
 github.com/go-logr/logr v1.2.4 h1:g01GSCwiDw2xSZfjJ2/T9M+S6pFdcNtFYsp+Y43HYDQ=

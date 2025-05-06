@@ -77,6 +77,11 @@ func newTestJunk(name string) (j *testJunk) {
 
 func Test405_user_can_close_Client_and_Server(t *testing.T) {
 
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
+
 	cv.Convey("user code calling Close on Client and Server should shut down. make sure j.cleanup works!", t, func() {
 		j := newTestJunk("close_cli_srv405")
 
@@ -96,6 +101,11 @@ func Test405_user_can_close_Client_and_Server(t *testing.T) {
 }
 
 func Test406_user_can_cancel_local_service_with_context(t *testing.T) {
+
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
 
 	cv.Convey("user code calling halt on a running local peer service should stop it", t, func() {
 		j := newTestJunk("local_ctx_cancel_test406")
@@ -127,7 +137,12 @@ func Test406_user_can_cancel_local_service_with_context(t *testing.T) {
 
 }
 
-func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
+func Test408_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
+
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
 
 	cv.Convey("a circuit can close down, telling the remote but not closing the peer", t, func() {
 

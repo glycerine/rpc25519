@@ -57,6 +57,7 @@ var sep = string(os.PathSeparator)
 func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string) {
 
 	defer func() {
+		//vv("runClientMain defer: end for goro = %v", GoroNumber())
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
 
@@ -67,6 +68,11 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 			c.netRpcShutdownCleanup(ErrShutdown())
 		}
 	}()
+
+	if c.cfg.UseSimNet {
+		c.runSimNetClient(c.cfg.ClientHostPort, serverAddr)
+		return
+	}
 
 	dirCerts := GetCertsDir()
 
@@ -91,6 +97,9 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	var config *tls.Config
 	var creds *selfcert.Creds
 	if !tcp_only {
+		if c.cfg.UseSimNet {
+			panic("cannot have both TLS and UseSimNet true")
+		}
 		// handle pass-phrase protected certs/client.key
 		var err2 error
 		config, creds, err2 = selfcert.LoadNodeTLSConfigProtected(false, sslCA, sslCert, sslCertKey)
@@ -149,10 +158,6 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 			localHostPort = localHost + ":0" // client can pick any port
 		}
 		c.runQUIC(localHostPort, serverAddr, config)
-		return
-	}
-	if c.cfg.UseSimNet {
-		c.runSimNetClient(c.cfg.ClientHostPort, serverAddr)
 		return
 	}
 
@@ -849,7 +854,6 @@ type UploadReaderFunc func(ctx context.Context, req *Message, lastReply *Message
 // net.UDPConn is only closed when the last instance
 // in use is Close()-ed.
 type Config struct {
-	simnetRendezvous *simnetRendezvous
 
 	// ServerAddr host:port where the server should listen.
 	ServerAddr string
@@ -998,6 +1002,18 @@ type Config struct {
 	// process, rather than network calls.
 	// Client and Server must be in the same process.
 	UseSimNet bool
+
+	// point so that the shallow copy of
+	// Config will preserve and share the
+	// one singleSimnet.
+	simnetRendezvous *simnetRendezvous
+}
+
+// gotta have just one simnet, shared by all
+// clients and servers for a single test/Configure.
+type simnetRendezvous struct {
+	singleSimnetMut sync.Mutex
+	singleSimnet    *simnet
 }
 
 // ClientStartingDir returns the directory the Client was started in.
@@ -1052,21 +1068,6 @@ type sharedTransport struct {
 	quicTransport *quic.Transport
 	shareCount    int
 	isClosed      bool
-}
-
-// rendezvous simnet client and server. server creates/sets.
-type simnetRendezvous struct {
-	mut    sync.Mutex
-	simnet *simnet
-
-	// so we can generalize to
-	// a network, cli/server tell
-	// us their simnode
-	clinode *simnode
-	srvnode *simnode
-
-	s2c *simnetConn
-	c2s *simnetConn
 }
 
 // NewConfig should be used to create Config
@@ -1537,6 +1538,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		pending: make(map[uint64]*Call),
 		epochV:  EpochVers{EpochTieBreaker: NewCallID("")},
 	}
+	//vv("NewClient made client = %p", c)
 	c.keepAliveMsg.HDR.Typ = CallKeepAlive
 	c.keepAliveMsg.HDR.Subject = c.epochV.EpochTieBreaker
 
@@ -1571,10 +1573,18 @@ func (c *Client) Start() (err error) {
 		return fmt.Errorf("rpc25519.Client.Start() could not Getwd(): '%v'", err)
 	}
 
+	if c.cfg.UseSimNet {
+		// turn off TLS for sure under simnet.
+		c.cfg.TCPonly_no_TLS = true
+	}
+
 	go c.runClientMain(c.cfg.ClientDialToHostPort, c.cfg.TCPonly_no_TLS, c.cfg.CertPath)
 
 	// wait for connection (or not).
-	err = <-c.connected
+	select {
+	case err = <-c.connected:
+	case <-c.halt.ReqStop.Chan:
+	}
 	return err
 }
 
@@ -1832,7 +1842,6 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 
 	case <-c.halt.ReqStop.Chan:
 		//vv("Client '%v' SendAndGetReply(req='%v'): sees halt.ReqStop", c.name, req) // here
-
 		c.halt.Done.Close()
 		return nil, ErrShutdown()
 	}

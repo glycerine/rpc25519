@@ -1,17 +1,18 @@
-//go:build goexperiment.synctest
-
 package rpc25519
 
 import (
+	"fmt"
 	"net"
+	//"sync/atomic"
 	"time"
 )
 
 func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNetConfig *SimNetConfig) {
-	//vv("top of runSimnetServer")
+	vv("top of runSimnetServer")
 	defer func() {
 		r := recover()
-		//vv("defer running, end of runSimNetServer() r='%v'", r)
+		vv("defer running, end of runSimNetServer() for '%v' r='%v'", s.name, r)
+		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
 		//vv("exiting Server.runSimNetServer('%v')", serverAddr) // seen, yes, on shutdown test.
 		if r != nil {
@@ -26,6 +27,36 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	// satisfy uConn interface; don't crash cli/tests that check
 	netAddr := &SimNetAddr{network: "simnet", addr: serverAddr, name: s.name, isCli: false}
 
+	// idempotent, so all new servers can try;
+	// only the first will boot it up (still pass s for s.halt);
+	// second and subsequent will get back the cfg.simnetRendezvous.singleSimnet
+	// per config shared simnet.
+	simnet := s.cfg.bootSimNetOnServer(simNetConfig, s)
+
+	// sets s.simnode, s.simnet
+	serverNewConnCh, err := simnet.registerServer(s, netAddr)
+	if err != nil {
+		if err == ErrShutdown2 {
+			vv("simnet_server sees shutdown in progress")
+			return
+		}
+		panicOn(err)
+	}
+	if serverNewConnCh == nil {
+		panic(fmt.Sprintf("%v got a nil serverNewConnCh, should not be allowed!", s.name))
+	}
+
+	defer func() {
+		simnet.alterNode(s.simnode, SHUTDOWN)
+		vv("simnet.alterNode(s.simnode, SHUTDOWN) done for %v", s.name)
+	}()
+
+	s.mut.Lock() // avoid data races
+	addrs := netAddr.Network() + "://" + netAddr.String()
+	s.boundAddressString = addrs
+	AliasRegister(addrs, addrs+" (server: "+s.name+")")
+	s.mut.Unlock()
+
 	if boundCh != nil {
 		select {
 		case boundCh <- netAddr:
@@ -37,35 +68,12 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 		}
 	}
 
-	//vv("about to call s.cfg.newSimNetOnServer()")
-	serverNewConnCh := s.cfg.newSimNetOnServer(simNetConfig, s, netAddr)
-
 	for {
 		select { // wait for a new client to connect
 		case conn := <-serverNewConnCh:
-			// just make sure we don't switch the net/identity without intending to.
-			if s.simnet == nil {
-				// first time. fine. good.
-				s.simnet = conn.net
-			} else {
-				// second time, be concerned if simnet is inconsistent
-				if s.simnet != conn.net {
-					vv("warning: server '%v' changing simnet."+
-						" old: '%v'; new:'%v'", s.name, s.simnet, conn.net)
-					panic("unexpected network change")
-				}
-			}
-			if s.simnode == nil {
-				// first time. fine. good.
-				s.simnode = conn.local
-			} else {
-				if s.simnode != conn.local {
-					vv("warning: server '%v' changing to new simnode identity. old: '%v'; new: '%v'", s.name, s.simnode, conn.local)
-					panic("unexpected identity change on server")
-				}
-			}
+			//s.simnode = conn.local
 
-			//vv("simnet server '%v': got new conn '%#v', about to start read/send loops", netAddr, conn)
+			vv("%v simnet server got new conn '%#v', about to start read/send loops", netAddr, conn) // not seen
 			pair := s.newRWPair(conn)
 			go pair.runSendLoop(conn)
 			go pair.runReadLoop(conn)

@@ -52,12 +52,28 @@ var ErrAntiDeadlockMustQueue = fmt.Errorf("rpc25519 error: must queue send to av
 func (s *Server) runServerMain(
 	serverAddress string, tcp_only bool, certPath string, boundCh chan net.Addr) {
 
+	srvNotInit := s.srvStarted.CompareAndSwap(false, true)
+	if !srvNotInit {
+		panic("can only start Server once")
+	}
+	//vv("runServerMain running")
+
 	defer func() {
+		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
 	}()
-	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
-
 	s.tmStart = time.Now()
+
+	//vv("s.cfg.UseSimNet=%v", s.cfg.UseSimNet)
+	if s.cfg.UseSimNet {
+		simNetConfig := &SimNetConfig{}
+
+		s.runSimNetServer(serverAddress, boundCh, simNetConfig)
+		alwaysPrintf("runSimNetServer exited: %v", s.name)
+		return
+	}
+
+	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
 	s.cfg.checkPreSharedKey("server")
 	//vv("server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
@@ -91,6 +107,10 @@ func (s *Server) runServerMain(
 	var config *tls.Config
 
 	if !tcp_only {
+		if s.cfg.UseSimNet {
+			panic("cannot have both TLS and UseSimNet true")
+		}
+
 		// handle pass-phrase protected certs/node.key
 		config, s.creds, err = selfcert.LoadNodeTLSConfigProtected(true, sslCA, sslCert, sslCertKey)
 		if err != nil {
@@ -132,11 +152,6 @@ func (s *Server) runServerMain(
 			panic("cannot have both UseQUIC and UseSimNet true")
 		}
 		s.runQUICServer(serverAddress, config, boundCh)
-		return
-	}
-	if s.cfg.UseSimNet {
-		simNetConfig := &SimNetConfig{}
-		s.runSimNetServer(serverAddress, boundCh, simNetConfig)
 		return
 	}
 
@@ -501,6 +516,10 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 }
 
 func (s *rwPair) runReadLoop(conn net.Conn) {
+
+	if s.Server.cfg.UseSimNet {
+
+	}
 
 	ctx, canc := context.WithCancel(context.Background())
 	defer func() {
@@ -1096,9 +1115,10 @@ func (s *Server) processWork(job *job) {
 type Server struct {
 	mut sync.Mutex
 
-	StartSimNet chan *SimNetConfig
-	simnet      *simnet
-	simnode     *simnode
+	//StartSimNet   chan *SimNetConfig
+	simnet     *simnet
+	simnode    *simnode
+	srvStarted atomic.Bool
 
 	boundAddressString string
 
@@ -1899,12 +1919,13 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		if !s.cfg.ServerAutoCreateClientsToDialOtherServers {
 			return
 		}
-		//alwaysPrintf("server did not find destAddr in " +
-		//	"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers" +
-		//	" is true so spinning up new client...")
+		alwaysPrintf("server did not find destAddr (msg.HDR.To='%v')in "+
+			"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers"+
+			" is true so spinning up new client... full msg='%v'", msg.HDR.To, msg)
 		dest, err1 := ipaddr.StripNanomsgAddressPrefix(msg.HDR.To)
 		panicOn(err1)
-		cliName := "auto-cli-" + dest
+		vv("dest = '%v'", dest)
+		cliName := "auto-cli-from-" + s.name + "-to-" + dest
 		ccfg := *s.cfg
 		ccfg.ClientDialToHostPort = dest
 		cli, err2 := NewClient(cliName, &ccfg)
@@ -1930,6 +1951,10 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		if err2 != nil {
 			return
 		}
+		if cli == nil || cli.conn == nil {
+			alwaysPrintf("no cli.conn, assuming shutdown in progress...")
+			return
+		}
 
 		key := remote(cli.conn)
 		p := &rwPair{
@@ -1945,7 +1970,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		s.pair2remote.Set(p, key)
 		s.mut.Unlock()
 
-		//vv("started auto-client ok. trying again... from:'%v'; to:'%v'", p.from, p.to)
+		vv("started auto-client ok. trying again... from:'%v'; to:'%v'", p.from, p.to)
 		err, ch = sendOneWayMessage(s, ctx, msg, errWriteDur)
 	}
 	return
@@ -2089,7 +2114,7 @@ func NewServer(name string, config *Config) *Server {
 		cfg:               cfg,
 		remote2pair:       NewMutexmap[string, *rwPair](),
 		pair2remote:       NewMutexmap[*rwPair, string](),
-		halt:              idem.NewHalter(),
+		halt:              idem.NewHalter(), // this halter is not Done in 702 test
 		RemoteConnectedCh: make(chan *ServerClient, 20),
 
 		callme2map:                   NewMutexmap[string, TwoWayFunc](),
@@ -2100,9 +2125,6 @@ func NewServer(name string, config *Config) *Server {
 
 		notifies: newNotifies(notClient),
 		unNAT:    NewMutexmap[string, string](),
-	}
-	if cfg.UseSimNet {
-		s.StartSimNet = make(chan *SimNetConfig)
 	}
 
 	s.PeerAPI = newPeerAPI(s, notClient, cfg.UseSimNet)
@@ -2145,6 +2167,12 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 	if s.cfg == nil {
 		s.cfg = NewConfig()
 	}
+
+	if s.cfg.UseSimNet {
+		// turn off TLS for sure under simnet.
+		s.cfg.TCPonly_no_TLS = true
+	}
+
 	s.cfg.srvStartingDir, err = os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("rpc25519.Server.Start() could not Getwd(): '%v'", err)
@@ -2168,6 +2196,7 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 		panic(fmt.Errorf("no ServerAddr specified in Server.cfg"))
 	}
 	boundCh := make(chan net.Addr, 1)
+	//vv("about to call runServerMain")
 	go s.runServerMain(s.cfg.ServerAddr, s.cfg.TCPonly_no_TLS, s.cfg.CertPath, boundCh)
 
 	select {
@@ -2197,7 +2226,9 @@ func (s *Server) Close() error {
 
 	// ask any sub components (peer pump loops) to stop;
 	// give them all up to 500 msec.
+	//vv("%v about to s.halt.StopTreeAndWaitTilDone()", s.name)
 	s.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
+	//vv("%v back from s.halt.StopTreeAndWaitTilDone()", s.name)
 
 	if s.cfg.UseQUIC {
 		s.cfg.shared.mut.Lock()
@@ -2315,7 +2346,7 @@ func (s *Server) registerInFlightCallToCancel(msg *Message, cancelFunc context.C
 			streamChan := make(chan *Message, 10_000)
 			// must queue ourselves to be sure we are
 			// process first.
-			streamChan <- msg
+			streamChan <- msg // large new buffer above, cannot block.
 			cc.streamCh = streamChan
 			msg.HDR.streamCh = streamChan
 		}
@@ -2611,7 +2642,7 @@ func (s *Server) UnregisterChannel(ID string, whichmap int) {
 func (s *Server) LocalAddr() string {
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	//vv("Server.LocalAddr returning '%v'", s.boundAddressString)
+	vv("Server.LocalAddr returning '%v'", s.boundAddressString) // arg! empty for simnet
 	return s.boundAddressString
 }
 
