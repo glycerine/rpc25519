@@ -319,9 +319,13 @@ var singleSimnet *simnet
 
 func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, srvNetAddr *SimNetAddr) (tellServerNewConnCh chan *simnetConn) {
 
+	vv("newSimNetOnServer, goro = %v", GoroNumber())
 	singleSimnetMut.Lock()
-	defer singleSimnetMut.Unlock()
 	if singleSimnet != nil {
+		vv("newSimNetOnServer releasing lock b/c singleSimnet not nil. goro = %v", GoroNumber())
+
+		singleSimnetMut.Unlock()
+
 		// first server already made the global, singleton simnet,
 		// and stored it in singleSimnet. We just register
 		// ourselves with that one, instead of making another.
@@ -329,6 +333,8 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 		reg := singleSimnet.newServerRegistration(srv, srvNetAddr)
 		select {
 		case singleSimnet.srvRegisterCh <- reg:
+			vv("after first server sent registration on srvRegisterCh; about to wait on done goro = %v", GoroNumber())
+
 		case <-singleSimnet.halt.ReqStop.Chan:
 			return
 		}
@@ -401,7 +407,11 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 	//	cfg.simnetRendezvous.mut.Unlock()
 
 	singleSimnet = s
+	vv("newSimNetOnServer: assigned to singleSimnet, releasing lock by  goro = %v", GoroNumber())
+	singleSimnetMut.Unlock()
+
 	s.Start()
+
 	return srvnode.tellServerNewConnCh
 }
 
@@ -1101,9 +1111,9 @@ func (s *simnet) scheduler() {
 			s.handleNewClientRegistration(reg)
 
 		case srvreg := <-s.srvRegisterCh:
-			vv("s.srvRegisterCh got srvreg for '%v' = '%#v'", srvreg.server.name, srvreg)
+			vv("s.srvRegisterCh got srvreg for '%v' = '%#v'", srvreg.server.name, srvreg) // only node_1 seen, now node_2 seen
 			s.handleNewServerRegistration(srvreg)
-			vv("back from handleNewServerRegistration '%v'", srvreg.server.name)
+			vv("back from handleNewServerRegistration '%v'", srvreg.server.name) // only seen once for node_1 on test702 and node_2
 
 		case newConn := <-s.newClientConnCh:
 			_ = newConn

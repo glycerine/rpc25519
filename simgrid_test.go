@@ -174,7 +174,7 @@ func (s *simGridNode) Start() error {
 	s.URL = s.lpb.URL()
 	s.PeerID = s.lpb.PeerID
 
-	vv("simGridNode.Start() started '%v' as 'grid' with url = '%v'", s.name, s.URL)
+	vv("simGridNode.Start() started '%v' as 'grid' with url = '%v'", s.name, s.URL) // saw node_2, 1, 0.
 
 	//grid_test sees grid_test.go:193 2025-05-06 02:40:13.362 +0000 UTC gridNode.Start() started 'grid_node_0' as 'grid' with url = 'tcp://127.0.0.1:65215/grid/Cog7DtZtQdA_EVt6JseOCdhJ3pxW'
 	// simgrid_test: simgrid_test.go:172 2025-05-06 02:40:46.309 +0000 UTC simGridNode.Start() started 'grid_node_0' as 'grid' with url = '/simgrid/w5L6aGyAmYcVhAC9K2EZhLDMS5w_'
