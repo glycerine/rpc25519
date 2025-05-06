@@ -215,9 +215,18 @@ type simnode struct {
 	net     *simnet
 	isCli   bool
 	netAddr *SimNetAddr
+	state   nodestate
 
 	tellServerNewConnCh chan *simnetConn
 }
+
+type nodestate int
+
+const (
+	NORMAL      nodestate = 0
+	HALTED      nodestate = 1
+	PARTITIONED nodestate = 2
+)
 
 func (s *simnet) newSimnode(name string) *simnode {
 	return &simnode{
@@ -572,6 +581,11 @@ func (s *pq) del(op *mop) (found bool) {
 	return
 }
 
+func (s *pq) deleteAll() {
+	s.tree.DeleteAll()
+	return
+}
+
 // order by arrivalTm; for the pre-arrival preArrQ.
 func (s *simnet) newPQarrivalTm(owner string) *pq {
 	return &pq{
@@ -711,16 +725,43 @@ func newPQcompleteTm(owner string) *pq {
 	}
 }
 
+func (s *simnet) shutdownNode(node *simnode) {
+	vv("handleAlterNode: SHUTDOWN %v, going from %v -> HALTED", node.state, node.name)
+	node.state = HALTED
+	node.readQ.deleteAll()
+	node.preArrQ.deleteAll()
+	node.timerQ.deleteAll()
+}
+
+func (s *simnet) restartNode(node *simnode) {
+	vv("handleAlterNode: RESTART %v, wiping queues, going %v -> NORMAL", node.state, node.name)
+	node.state = NORMAL
+	node.readQ.deleteAll()
+	node.preArrQ.deleteAll()
+	node.timerQ.deleteAll()
+}
+
+func (s *simnet) partitionNode(node *simnode) {
+	vv("handleAlterNode: from %v -> PARTITION %v, wiping pre-arrival, block any future pre-arrivals", node.state, node.name)
+	node.state = PARTITIONED
+	node.preArrQ.deleteAll()
+}
+func (s *simnet) unPartitionNode(node *simnode) {
+	vv("handleAlterNode: UNPARTITION %v, going from %v -> NORMAL", node.state, node.name)
+	node.state = NORMAL
+}
+
 func (s *simnet) handleAlterNode(alt *nodeAlteration) {
+	node := alt.simnode
 	switch alt.alter {
 	case SHUTDOWN:
-		vv("handleAlterNode: SHUTDOWN %v", alt.simnode.name)
+		s.shutdownNode(node)
 	case PARTITION:
-		vv("handleAlterNode: PARTITION %v", alt.simnode.name)
+		s.partitionNode(node)
 	case UNPARTITION:
-		vv("handleAlterNode: UNPARTITION %v", alt.simnode.name)
+		s.unPartitionNode(node)
 	case RESTART:
-		vv("handleAlterNode: RESTART %v", alt.simnode.name)
+		s.restartNode(node)
 	}
 	close(alt.done)
 }

@@ -42,6 +42,8 @@ github.com/glycerine/rbtree v0.0.0-20190406191118-ceb71889d809 h1:wBr8MeUUS+Xi4o
 github.com/glycerine/rbtree v0.0.0-20190406191118-ceb71889d809/go.mod h1:tf1G9WLJXoNEQ5TWYvCSkqsOepuCNCJebECwJ/B/64I=
 github.com/glycerine/rbtree v0.1.0 h1:j19jxi7aj3C+ZP/6hXT6X9yT6Mw16fdky3MRDAggkiQ=
 github.com/glycerine/rbtree v0.1.0/go.mod h1:tf1G9WLJXoNEQ5TWYvCSkqsOepuCNCJebECwJ/B/64I=
+github.com/glycerine/rbtree v0.2.0 h1:lg+e7pMOAw/z6pTwHmBN6GMfOfoN12zPOrgC7NXXfwc=
+github.com/glycerine/rbtree v0.2.0/go.mod h1:tf1G9WLJXoNEQ5TWYvCSkqsOepuCNCJebECwJ/B/64I=
 github.com/glycerine/restic-chunker-mod v0.5.0 h1:6OA/O0rEHvENyTlzYJ2/E7UNQBu3+8NY3Du2hxVp5Gw=
 github.com/glycerine/restic-chunker-mod v0.5.0/go.mod h1:ME0iI4hyOXTHSzS1AunwmanKVWnAt8+JwBl7Zs0YdwU=
 github.com/go-logr/logr v1.2.4 h1:g01GSCwiDw2xSZfjJ2/T9M+S6pFdcNtFYsp+Y43HYDQ=
