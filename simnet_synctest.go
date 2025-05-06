@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func bubblesOrNot(f func()) {
+func bubbleOrNot(f func()) {
 	synctest.Run(f)
 }
 

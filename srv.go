@@ -1925,7 +1925,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		dest, err1 := ipaddr.StripNanomsgAddressPrefix(msg.HDR.To)
 		panicOn(err1)
 		vv("dest = '%v'", dest)
-		cliName := "auto-cli-" + dest
+		cliName := "auto-cli-from-" + s.name + "-to-" + dest
 		ccfg := *s.cfg
 		ccfg.ClientDialToHostPort = dest
 		cli, err2 := NewClient(cliName, &ccfg)

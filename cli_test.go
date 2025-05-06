@@ -28,7 +28,7 @@ func TestMain(m *testing.M) {
 	// real time to time the tests, and the
 	// synctest machinery isnt' sufficiently isolated
 	// from the testing code yet, if ever(?), so
-	// each test has gotta have its own bubblesOrNot() wrapper.
+	// each test has gotta have its own bubbleOrNot() wrapper.
 
 	func() {
 		//vv("TestMain running.")

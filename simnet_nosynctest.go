@@ -10,6 +10,6 @@ func waitInBubble() {}
 //	f()
 //}
 
-func bubblesOrNot(f func()) {
+func bubbleOrNot(f func()) {
 	f()
 }

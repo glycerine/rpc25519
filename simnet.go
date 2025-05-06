@@ -302,7 +302,7 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 	if !ok {
 		s.showDNS()
 		panic(fmt.Sprintf("cannot find server '%v', requested "+
-			"by client registration", reg.dialTo))
+			"by client registration from '%v'", reg.dialTo, reg.client.name))
 	}
 
 	clinode := s.newSimnodeClient(reg.client.name)

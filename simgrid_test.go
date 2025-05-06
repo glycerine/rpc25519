@@ -12,32 +12,42 @@ import (
 // 702 is the Same as 202 in grid_test, but now under simnet.
 func Test702_simnet_grid_peer_to_peer_works(t *testing.T) {
 	//return
-	//n := 20 // 20*19/2 = 190 tcp conn to setup. ok/green but 35 seconds.
-	n := 2 // 2.7 sec
-	cfg := &simGridConfig{
-		ReplicationDegree: n,
-		Timeout:           time.Second * 5,
-	}
 
-	var nodes []*simGridNode
-	for i := range n {
-		name := fmt.Sprintf("grid_node_%v", i)
-		nodes = append(nodes, newSimGridNode(name, cfg))
-	}
-	c := newSimGrid(cfg, nodes)
-	c.Start()
-	defer c.Close()
-
-	time.Sleep(1 * time.Second)
-
-	for i, g := range nodes {
-		_ = i
-		vv("i=%v has n.node.seen len = %v: '%v'", i, g.node.seen.Len(), g.node.seen.GetKeySlice())
-		if g.node.seen.Len() != n-1 {
-			//panic("where pumps hung? or, where are the pumps at all???")
-			t.Fatalf("error: expected n-1=%v nodes contacted, saw '%v'", n-1, g.node.seen.Len())
+	bubbleOrNot(func() {
+		//n := 20 // 20*19/2 = 190 tcp conn to setup. ok/green but 35 seconds.
+		n := 2 // 2.7 sec
+		gridCfg := &simGridConfig{
+			ReplicationDegree: n,
+			Timeout:           time.Second * 5,
 		}
-	}
+
+		cfg := NewConfig()
+		// key setting under test here:
+		cfg.ServerAutoCreateClientsToDialOtherServers = true
+		cfg.UseSimNet = true
+		cfg.ServerAddr = "127.0.0.1:0"
+		gridCfg.RpcCfg = cfg
+
+		var nodes []*simGridNode
+		for i := range n {
+			name := fmt.Sprintf("grid_node_%v", i)
+			nodes = append(nodes, newSimGridNode(name, gridCfg))
+		}
+		c := newSimGrid(gridCfg, nodes)
+		c.Start()
+		defer c.Close()
+
+		time.Sleep(1 * time.Second)
+
+		for i, g := range nodes {
+			_ = i
+			vv("i=%v has n.node.seen len = %v: '%v'", i, g.node.seen.Len(), g.node.seen.GetKeySlice())
+			if g.node.seen.Len() != n-1 {
+				//panic("where pumps hung? or, where are the pumps at all???")
+				t.Fatalf("error: expected n-1=%v nodes contacted, saw '%v'", n-1, g.node.seen.Len())
+			}
+		}
+	})
 }
 
 type node2 struct {
@@ -84,6 +94,7 @@ type simGridNode struct {
 type simGridConfig struct {
 	ReplicationDegree int
 	Timeout           time.Duration
+	RpcCfg            *Config
 }
 
 type simGrid struct {
@@ -98,7 +109,7 @@ func newSimGrid(cfg *simGridConfig, nodes []*simGridNode) *simGrid {
 func (s *simGrid) Start() {
 	for i, n := range s.Nodes {
 		_ = i
-		err := n.Start() // Server.Start()
+		err := n.Start(s.Cfg) // Server.Start()
 		panicOn(err)
 	}
 	time.Sleep(time.Second)
@@ -140,19 +151,12 @@ func newSimGridNode(name string, cfg *simGridConfig) *simGridNode {
 	}
 }
 
-func (s *simGridNode) Start() error {
-	cfg := NewConfig()
+func (s *simGridNode) Start(gridCfg *simGridConfig) error {
 	//cfg.TCPonly_no_TLS = true
-	cfg.UseSimNet = true
 
-	cfg.ServerAddr = "127.0.0.1:0"
-
-	// key setting under test here:
-	cfg.ServerAutoCreateClientsToDialOtherServers = true
-
+	cfg := gridCfg.RpcCfg
 	vv("making NewServer %v", s.name)
 	s.srv = NewServer("srv_"+s.name, cfg)
-	s.rpccfg = cfg
 
 	vv("past NewServer()")
 	serverAddr, err := s.srv.Start()
