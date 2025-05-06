@@ -618,6 +618,7 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 
 	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
 		// skip quic under synctest, it will just hang
 		// since the quic runtime never settles into durably blocked.
 		return
@@ -856,7 +857,8 @@ func (t *Hello) Say(args *BenchmarkMessage, reply *BenchmarkMessage) (err error)
 func BenchmarkHelloRpcxMessage(b *testing.B) {
 
 	if globalUseSynctest {
-		return // skip quic under synctest
+		b.Skip("skip under synctest, net calls will never settle.")
+		return
 	}
 
 	cfg := NewConfig()
@@ -909,7 +911,8 @@ func BenchmarkHelloRpcxMessage(b *testing.B) {
 func Test040_remote_cancel_by_context(t *testing.T) {
 
 	if globalUseSynctest {
-		return // actual network calls will never settle.
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
 	}
 
 	cv.Convey("remote cancellation", t, func() {
@@ -1024,7 +1027,7 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 func Test045_upload(t *testing.T) {
 
 	if globalUseSynctest {
-		return // actual network calls will never settle.
+		t.Skip("skip under synctest, net calls will never settle")
 	}
 
 	cv.Convey("upload a large file in parts from client to server", t, func() {
@@ -1126,7 +1129,8 @@ func Test045_upload(t *testing.T) {
 func Test055_download(t *testing.T) {
 
 	if globalUseSynctest {
-		return // actual network calls will never settle.
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
 	}
 
 	cv.Convey("download a large file in parts from server to client, the opposite direction of the previous test.", t, func() {
@@ -1237,7 +1241,8 @@ func Test055_download(t *testing.T) {
 func Test065_bidirectional_download_and_upload(t *testing.T) {
 
 	if globalUseSynctest {
-		return // actual network calls will never settle.
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
 	}
 
 	cv.Convey("we should be able to register a server func that does uploads and downloads sequentially or simultaneously.", t, func() {

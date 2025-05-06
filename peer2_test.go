@@ -75,6 +75,11 @@ func newTestJunk2(name string) (j *testJunk2) {
 
 func Test408_multiple_circuits_open_and_close(t *testing.T) {
 
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
+
 	cv.Convey("testing peer2.go: open and close lots of circuits", t, func() {
 
 		j := newTestJunk2("lots_open_and_closed_test408")
