@@ -18,11 +18,6 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 		}
 	}()
 
-	simnetNotInit := s.simnetStarted.CompareAndSwap(false, true)
-	if !simnetNotInit {
-		panic("can only start simnet once")
-	}
-
 	s.mut.Lock()
 	AliasRegister(serverAddr, serverAddr+" (simnet_server: "+s.name+")")
 	s.mut.Unlock()

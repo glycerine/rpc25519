@@ -6,6 +6,7 @@ package rpc25519
 import (
 	"fmt"
 	mathrand2 "math/rand/v2"
+	"sync"
 	"sync/atomic"
 	//"testing/synctest" // moved to simnet_synctest.go
 	"time"
@@ -186,6 +187,7 @@ type simnet struct {
 	nodes map[*simnode]map[*simnode]*simnetConn
 
 	cliRegisterCh chan *clientRegistration
+	srvRegisterCh chan *serverRegistration
 
 	newClientConnCh chan *simnetConn
 
@@ -248,6 +250,26 @@ func (s *simnet) showDNS() {
 		i++
 	}
 }
+
+// for additional servers after the first.
+func (s *simnet) handleNewServerRegistration(reg *serverRegistration) {
+
+	// srvNetAddr := SimNetAddr{ // implements net.Addr interface
+	// 	network: "simnet",
+	// 	addr:
+	// 	name:    reg.server.name,
+	// 	isCli:   false,
+	// }
+
+	srvnode := s.newSimnodeServer(reg.server.name)
+	srvnode.netAddr = reg.srvNetAddr
+	s.nodes[srvnode] = make(map[*simnode]*simnetConn)
+	s.dns[srvnode.name] = srvnode
+
+	// channel made by newSimnodeServer() above.
+	reg.tellServerNewConnCh = srvnode.tellServerNewConnCh
+}
+
 func (s *simnet) handleNewClientRegistration(reg *clientRegistration) {
 
 	srvnode, ok := s.dns[reg.dialTo]
@@ -283,7 +305,38 @@ func (s *simnet) handleNewClientRegistration(reg *clientRegistration) {
 	close(reg.done)
 }
 
+// gotta have just one simnet, shared by all clients and servers in process.
+var singleSimnetMut sync.Mutex
+var singleSimnet *simnet
+
 func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, srvNetAddr *SimNetAddr) (tellServerNewConnCh chan *simnetConn) {
+
+	singleSimnetMut.Lock()
+	defer singleSimnetMut.Unlock()
+	if singleSimnet != nil {
+		// first server already made the global, singleton simnet,
+		// and stored it in singleSimnet. We just register
+		// ourselves with that one, instead of making another.
+
+		reg := singleSimnet.newServerRegistration(srv, srvNetAddr)
+		select {
+		case singleSimnet.srvRegisterCh <- reg:
+		case <-singleSimnet.halt.ReqStop.Chan:
+			return
+		}
+		select {
+		case <-reg.done:
+			// happy path
+			vv("server after first registered: '%v'/'%v'", srv.name, srvNetAddr)
+			srv.simnode = reg.simnode
+			srv.simnet = singleSimnet
+			return reg.tellServerNewConnCh
+
+		case <-singleSimnet.halt.ReqStop.Chan:
+			return
+		}
+		return
+	}
 
 	scen := newScenario(time.Second, time.Second, time.Second, [32]byte{})
 
@@ -294,6 +347,7 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 		srv:             srv,
 		halt:            srv.halt,
 		cliRegisterCh:   make(chan *clientRegistration),
+		srvRegisterCh:   make(chan *serverRegistration),
 		simNetCfg:       simNetConfig,
 		msgSendCh:       make(chan *mop),
 		msgReadCh:       make(chan *mop),
@@ -334,6 +388,7 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 	cfg.simnetRendezvous.simnet = s
 	cfg.simnetRendezvous.mut.Unlock()
 
+	singleSimnet = s
 	s.Start()
 	return srvnode.tellServerNewConnCh
 }
@@ -1032,6 +1087,9 @@ func (s *simnet) scheduler() {
 			//vv("s.cliRegisterCh got reg = '%#v'", reg)
 			s.handleNewClientRegistration(reg)
 
+		case srvreg := <-s.srvRegisterCh:
+			s.handleNewServerRegistration(srvreg)
+
 		case newConn := <-s.newClientConnCh:
 			_ = newConn
 			panic("TODO <-s.newConnCh for restarted cli or 2nd/later cli")
@@ -1338,5 +1396,28 @@ func (s *simnet) newClientRegistration(c *Client, localHostPort, serverAddr, dia
 		dialTo:           dialTo,
 		serverAddrStr:    serverAddr,
 		done:             make(chan struct{}),
+	}
+}
+
+type serverRegistration struct {
+	// provide
+	server     *Server
+	srvNetAddr *SimNetAddr
+
+	// wait on
+	done chan struct{}
+
+	// receive back
+	simnode             *simnode // our identity in the simnet (conn.local)
+	simnet              *simnet
+	tellServerNewConnCh chan *simnetConn
+}
+
+// external
+func (s *simnet) newServerRegistration(c *Server, srvNetAddr *SimNetAddr) *serverRegistration {
+	return &serverRegistration{
+		server:     c,
+		srvNetAddr: srvNetAddr,
+		done:       make(chan struct{}),
 	}
 }

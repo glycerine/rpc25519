@@ -1105,11 +1105,10 @@ func (s *Server) processWork(job *job) {
 type Server struct {
 	mut sync.Mutex
 
-	StartSimNet   chan *SimNetConfig
-	simnet        *simnet
-	simnode       *simnode
-	simnetStarted atomic.Bool
-	srvStarted    atomic.Bool
+	//StartSimNet   chan *SimNetConfig
+	simnet     *simnet
+	simnode    *simnode
+	srvStarted atomic.Bool
 
 	boundAddressString string
 
@@ -2112,9 +2111,6 @@ func NewServer(name string, config *Config) *Server {
 
 		notifies: newNotifies(notClient),
 		unNAT:    NewMutexmap[string, string](),
-	}
-	if cfg.UseSimNet {
-		s.StartSimNet = make(chan *SimNetConfig)
 	}
 
 	s.PeerAPI = newPeerAPI(s, notClient, cfg.UseSimNet)
