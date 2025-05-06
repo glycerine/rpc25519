@@ -26,6 +26,22 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	// satisfy uConn interface; don't crash cli/tests that check
 	netAddr := &SimNetAddr{network: "simnet", addr: serverAddr, name: s.name, isCli: false}
 
+	// idempotent, so all new servers can try;
+	// only the first will boot it up (still pass s for s.halt);
+	// second and subsequent will get back the singleSimnet global.
+	simnet := s.cfg.bootSimNetOnServer(simNetConfig, s)
+
+	serverNewConnCh := simnet.registerServer(s, netAddr) // sets s.simnode, s.simnet
+	if serverNewConnCh == nil {
+		panic(fmt.Sprintf("%v got a nil serverNewConnCh, should not be allowed!", s.name))
+	}
+
+	s.mut.Lock() // avoid data races
+	addrs := netAddr.Network() + "://" + netAddr.String()
+	s.boundAddressString = addrs
+	AliasRegister(addrs, addrs+" (server: "+s.name+")")
+	s.mut.Unlock()
+
 	if boundCh != nil {
 		select {
 		case boundCh <- netAddr:
@@ -37,26 +53,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 		}
 	}
 
-	s.mut.Lock() // avoid data races
-	addrs := netAddr.Network() + "://" + netAddr.String()
-	s.boundAddressString = addrs
-	AliasRegister(addrs, addrs+" (server: "+s.name+")")
-	s.mut.Unlock()
-
-	vv("about to call s.cfg.newSimNetOnServer()")
-	serverNewConnCh := s.cfg.newSimNetOnServer(simNetConfig, s, netAddr)
-	// INVAR: s.simnet and s.simnode are set for us in simnet.go
-	vv("%v newSimNetOnServer gave us serverNewConnCh = %p for our netAddr='%v'", s.name, serverNewConnCh, netAddr) // both node_0 and node_1 seen, sometimes only node_0
-	if serverNewConnCh == nil {
-		panic(fmt.Sprintf("%v got a nil serverNewConnCh, should not be allowed!", s.name))
-	}
-
 	for {
-		// as a server, we have to emulate the "bind and listen on socket"
-		// by starting a read before we have any new client;
-		// any client could connect to us, but unless we
-		// read first, the simnet cannot deliver us anything.
-
 		select { // wait for a new client to connect
 		case conn := <-serverNewConnCh:
 			//s.simnode = conn.local

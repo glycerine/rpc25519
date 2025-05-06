@@ -178,10 +178,6 @@ type simnet struct {
 	srv *Server
 	cli *Client
 
-	// first server, not needed to bootstrap,
-	// just for diagnostic reference.
-	srvnode0 *simnode
-
 	dns map[string]*simnode
 
 	// for now just clinode and srvnode in nodes;
@@ -272,13 +268,9 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	reg.simnode = srvnode
 	reg.simnet = s
 
-	// could also just do
-	reg.server.simnode = srvnode
-	reg.server.simnet = s
-
 	// channel made by newSimnodeServer() above.
 	reg.tellServerNewConnCh = srvnode.tellServerNewConnCh
-	close(reg.done) // right?
+	close(reg.done)
 }
 
 func (s *simnet) handleClientRegistration(reg *clientRegistration) {
@@ -329,42 +321,15 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 var singleSimnetMut sync.Mutex
 var singleSimnet *simnet
 
-func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, srvNetAddr *SimNetAddr) (tellServerNewConnCh chan *simnetConn) {
+// idempotent, all servers do this, then register through the same path.
+func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *simnet { // (tellServerNewConnCh chan *simnetConn) {
 
 	vv("%v newSimNetOnServer top, goro = %v", srv.name, GoroNumber())
 	singleSimnetMut.Lock()
+	defer singleSimnetMut.Unlock()
 	if singleSimnet != nil {
-		vv("%v newSimNetOnServer releasing lock b/c singleSimnet not nil. goro = %v", srv.name, GoroNumber())
-
-		singleSimnetMut.Unlock()
-
-		// first server already made the global, singleton simnet,
-		// and stored it in singleSimnet. We just register
-		// ourselves with that one, instead of making another.
-
-		reg := singleSimnet.newServerRegistration(srv, srvNetAddr)
-		select {
-		case singleSimnet.srvRegisterCh <- reg:
-			vv("after first server sent registration on srvRegisterCh; about to wait on done goro = %v", GoroNumber())
-
-		case <-singleSimnet.halt.ReqStop.Chan:
-			return
-		}
-		select {
-		case <-reg.done:
-			// happy path
-			vv("server after first registered: '%v'/'%v' sees  reg.tellServerNewConnCh = %p", srv.name, srvNetAddr, reg.tellServerNewConnCh)
-			if reg.tellServerNewConnCh == nil {
-				panic("cannot have nil reg.tellServerNewConnCh back!")
-			}
-			srv.simnode = reg.simnode
-			srv.simnet = singleSimnet
-			return reg.tellServerNewConnCh
-
-		case <-singleSimnet.halt.ReqStop.Chan:
-			return
-		}
-		return
+		// already started, everyone register separately no matter.
+		return singleSimnet
 	}
 
 	scen := newScenario(time.Second, time.Second, time.Second, [32]byte{})
@@ -404,30 +369,11 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 	}
 	s.nextTimer.Stop()
 
-	srvnode := s.newSimnodeServer(srv.name)
-	srvnode.netAddr = srvNetAddr
-	s.nodes[srvnode] = make(map[*simnode]*simnetConn)
-	s.dns[srvnode.name] = srvnode
-
-	srv.simnode = srvnode
-	srv.simnet = s
-
-	s.srvnode0 = srvnode // first server, for reference
-
-	// TODO: replace with just singleSimnet?
-	// let client find the shared simnet in their cfg,
-	// when they shallow copy it.
-	//	cfg.simnetRendezvous.mut.Lock()
-	//	cfg.simnetRendezvous.simnet = s
-	//	cfg.simnetRendezvous.mut.Unlock()
-
 	singleSimnet = s
 	vv("newSimNetOnServer: assigned to singleSimnet, releasing lock by  goro = %v", GoroNumber())
-	singleSimnetMut.Unlock()
-
 	s.Start()
 
-	return srvnode.tellServerNewConnCh
+	return s
 }
 
 func (s *simnode) setNetAddrSameNetAs(addr string, srvNetAddr *SimNetAddr) {
@@ -1461,10 +1407,35 @@ type serverRegistration struct {
 }
 
 // external
-func (s *simnet) newServerRegistration(c *Server, srvNetAddr *SimNetAddr) *serverRegistration {
+func (s *simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) *serverRegistration {
 	return &serverRegistration{
-		server:     c,
+		server:     srv,
 		srvNetAddr: srvNetAddr,
 		done:       make(chan struct{}),
 	}
+}
+
+func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConnCh chan *simnetConn) {
+
+	reg := s.newServerRegistration(srv, srvNetAddr)
+	select {
+	case s.srvRegisterCh <- reg:
+		vv("sent registration on srvRegisterCh; about to wait on done goro = %v", GoroNumber())
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	select {
+	case <-reg.done:
+		vv("server after first registered: '%v'/'%v' sees  reg.tellServerNewConnCh = %p", srv.name, srvNetAddr, reg.tellServerNewConnCh)
+		if reg.tellServerNewConnCh == nil {
+			panic("cannot have nil reg.tellServerNewConnCh back!")
+		}
+		srv.simnode = reg.simnode
+		srv.simnet = reg.simnet
+		return reg.tellServerNewConnCh
+
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	return
 }
