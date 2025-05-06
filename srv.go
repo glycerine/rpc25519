@@ -2100,7 +2100,7 @@ func NewServer(name string, config *Config) *Server {
 		cfg:               cfg,
 		remote2pair:       NewMutexmap[string, *rwPair](),
 		pair2remote:       NewMutexmap[*rwPair, string](),
-		halt:              idem.NewHalter(),
+		halt:              idem.NewHalter(), // this halter is not Done in 702 test
 		RemoteConnectedCh: make(chan *ServerClient, 20),
 
 		callme2map:                   NewMutexmap[string, TwoWayFunc](),
@@ -2206,7 +2206,9 @@ func (s *Server) Close() error {
 
 	// ask any sub components (peer pump loops) to stop;
 	// give them all up to 500 msec.
+	vv("%v about to s.halt.StopTreeAndWaitTilDone()", s.name) // srv.go:2209 2025-05-06 15:20:55.38 +0000 UTC srv_grid_node_1 about to s.halt.StopTreeAndWaitTilDone()
 	s.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
+	vv("%v back from s.halt.StopTreeAndWaitTilDone()", s.name) // NOT SEEN! for node_1
 
 	if s.cfg.UseQUIC {
 		s.cfg.shared.mut.Lock()

@@ -295,7 +295,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		} else {
 			//vv("cli runReadLoop defer/shutdown running.")
 		}
-		//vv("client runReadLoop exiting, last err = '%v'", err)
+		vv("client runReadLoop exiting, last err = '%v'", err)
 		canc()
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
@@ -1521,6 +1521,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		pending: make(map[uint64]*Call),
 		epochV:  EpochVers{EpochTieBreaker: NewCallID("")},
 	}
+	vv("NewClient made client = %p", c) // seen 2x
 	c.keepAliveMsg.HDR.Typ = CallKeepAlive
 	c.keepAliveMsg.HDR.Subject = c.epochV.EpochTieBreaker
 

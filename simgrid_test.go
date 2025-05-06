@@ -150,6 +150,7 @@ func (s *simGridNode) Start() error {
 	// key setting under test here:
 	cfg.ServerAutoCreateClientsToDialOtherServers = true
 
+	vv("making NewServer %v", s.name)
 	s.srv = NewServer("srv_"+s.name, cfg)
 	s.rpccfg = cfg
 

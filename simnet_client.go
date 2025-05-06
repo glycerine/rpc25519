@@ -2,6 +2,10 @@ package rpc25519
 
 func (c *Client) runSimNetClient(localHostPort, serverAddr string) {
 
+	defer func() {
+		vv("runSimNetClient defer on exit running client = %p", c) // seen 2x.
+	}()
+
 	//netAddr := &SimNetAddr{network: "cli simnet@" + localHostPort}
 
 	// how does client pass this to us?/if we need it at all?

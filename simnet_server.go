@@ -11,7 +11,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	vv("top of runSimnetServer") // not seen?!?!
 	defer func() {
 		r := recover()
-		//vv("defer running, end of runSimNetServer() r='%v'", r)
+		vv("defer running, end of runSimNetServer() r='%v'", r)
 		s.halt.Done.Close()
 		//vv("exiting Server.runSimNetServer('%v')", serverAddr) // seen, yes, on shutdown test.
 		if r != nil {
@@ -35,6 +35,11 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	if serverNewConnCh == nil {
 		panic(fmt.Sprintf("%v got a nil serverNewConnCh, should not be allowed!", s.name))
 	}
+
+	defer func() {
+		simnet.alterNode(s.simnode, SHUTDOWN)
+		vv("simnet.alterNode(s.simnode, SHUTDOWN) done for %v", s.name)
+	}()
 
 	s.mut.Lock() // avoid data races
 	addrs := netAddr.Network() + "://" + netAddr.String()

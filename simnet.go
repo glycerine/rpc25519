@@ -188,6 +188,7 @@ type simnet struct {
 	srvRegisterCh chan *serverRegistration
 
 	newClientConnCh chan *simnetConn
+	alterNodeCh     chan *nodeAlteration
 
 	// same as srv.halt; we don't need
 	// our own, at least for now.
@@ -342,6 +343,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		halt:            srv.halt,
 		cliRegisterCh:   make(chan *clientRegistration),
 		srvRegisterCh:   make(chan *serverRegistration),
+		alterNodeCh:     make(chan *nodeAlteration),
 		simNetCfg:       simNetConfig,
 		msgSendCh:       make(chan *mop),
 		msgReadCh:       make(chan *mop),
@@ -707,6 +709,20 @@ func newPQcompleteTm(owner string) *pq {
 			return 0
 		}),
 	}
+}
+
+func (s *simnet) handleAlterNode(alt *nodeAlteration) {
+	switch alt.alter {
+	case SHUTDOWN:
+		vv("handleAlterNode: SHUTDOWN %v", alt.simnode.name)
+	case PARTITION:
+		vv("handleAlterNode: PARTITION %v", alt.simnode.name)
+	case UNPARTITION:
+		vv("handleAlterNode: UNPARTITION %v", alt.simnode.name)
+	case RESTART:
+		vv("handleAlterNode: RESTART %v", alt.simnode.name)
+	}
+	close(alt.done)
 }
 
 func (s *simnet) handleSend(send *mop) {
@@ -1107,6 +1123,9 @@ func (s *simnet) scheduler() {
 			////zz("msgReadCh ->  op='%v'", read)
 			s.handleRead(read)
 
+		case alt := <-s.alterNodeCh:
+			s.handleAlterNode(alt)
+
 		case <-s.halt.ReqStop.Chan:
 			return
 		}
@@ -1434,6 +1453,48 @@ func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConn
 		srv.simnet = reg.simnet
 		return reg.tellServerNewConnCh
 
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	return
+}
+
+type alteration int // on clients or servers, any simnode
+
+const (
+	SHUTDOWN    alteration = 1
+	PARTITION   alteration = 2
+	UNPARTITION alteration = 3
+	RESTART     alteration = 4
+)
+
+type nodeAlteration struct {
+	simnet  *simnet
+	simnode *simnode
+	alter   alteration
+	done    chan struct{}
+}
+
+func (s *simnet) newNodeAlteration(node *simnode, alter alteration) *nodeAlteration {
+	return &nodeAlteration{
+		simnet:  s,
+		simnode: node,
+		alter:   alter,
+		done:    make(chan struct{}),
+	}
+}
+func (s *simnet) alterNode(node *simnode, alter alteration) {
+
+	alt := s.newNodeAlteration(node, alter)
+	select {
+	case s.alterNodeCh <- alt:
+		//vv("sent alt on alterNodeCh; about to wait on done goro = %v", GoroNumber())
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	select {
+	case <-alt.done:
+		vv("server altered: %v: %v", node.name, alter)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
