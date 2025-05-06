@@ -28,14 +28,14 @@ func Test702_simnet_grid_peer_to_peer_works(t *testing.T) {
 	c.Start()
 	defer c.Close()
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	for i, g := range nodes {
 		_ = i
 		vv("i=%v has n.node.seen len = %v: '%v'", i, g.node.seen.Len(), g.node.seen.GetKeySlice())
 		if g.node.seen.Len() != n-1 {
-			panic("where pumps hung? or, where are the pumps at all???")
-			t.Fatalf("expected n-1=%v nodes contacted, saw '%v'", n-1, g.node.seen.Len())
+			//panic("where pumps hung? or, where are the pumps at all???")
+			t.Fatalf("error: expected n-1=%v nodes contacted, saw '%v'", n-1, g.node.seen.Len())
 		}
 	}
 }
@@ -243,7 +243,13 @@ func (s *node2) Start(
 							outFrag.FragSubject = "start reply"
 							outFrag.ServiceName = myPeer.ServiceName()
 							err := ckt.SendOneWay(outFrag, 0)
-							panicOn(err)
+							if err != nil {
+								// typically a normal shutdown, don't freak.
+								if err == ErrShutdown2 {
+									return
+								}
+								panicOn(err)
+							}
 							//vv("%v: (ckt '%v') sent start reply='%v'", s.name, ckt.Name, outFrag)
 						}
 

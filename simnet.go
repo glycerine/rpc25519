@@ -355,7 +355,11 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		return singleSimnet
 	}
 
-	scen := newScenario(time.Second, time.Second, time.Second, [32]byte{})
+	tick := time.Millisecond * 100
+	minHop := time.Millisecond
+	maxHop := minHop
+	var seed [32]byte
+	scen := newScenario(tick, minHop, maxHop, seed)
 
 	// server creates simnet; must start server first.
 	s := &simnet{
@@ -739,11 +743,12 @@ func newPQcompleteTm(owner string) *pq {
 }
 
 func (s *simnet) shutdownNode(node *simnode) {
-	vv("handleAlterNode: SHUTDOWN %v, going from %v -> HALTED", node.state, node.name)
+	vv("handleAlterNode: SHUTDOWN %v, going from %v -> HALTED", node.state, node.name) // not seen???
 	node.state = HALTED
 	node.readQ.deleteAll()
 	node.preArrQ.deleteAll()
 	node.timerQ.deleteAll()
+	vv("handleAlterNode: end SHUTDOWN, node is now: %v", node)
 }
 
 func (s *simnet) restartNode(node *simnode) {
@@ -1130,7 +1135,7 @@ func (s *simnet) scheduler() {
 		now := time.Now()
 		_ = now
 		////zz("scheduler top cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
-		vv("scheduler top. schedulerReport: \n%v", s.schedulerReport())
+		//vv("scheduler top. schedulerReport: \n%v", s.schedulerReport())
 
 		s.dispatchAll()
 		s.armTimer()
@@ -1575,7 +1580,7 @@ func (s *simnet) alterNode(node *simnode, alter alteration) {
 	}
 	select {
 	case <-alt.done:
-		vv("server altered: %v: %v", node.name, alter)
+		vv("server altered: %v", node)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
