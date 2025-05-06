@@ -255,7 +255,7 @@ func (s *simnet) showDNS() {
 }
 
 // for additional servers after the first.
-func (s *simnet) handleNewServerRegistration(reg *serverRegistration) {
+func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 
 	// srvNetAddr := SimNetAddr{ // implements net.Addr interface
 	// 	network: "simnet",
@@ -278,9 +278,10 @@ func (s *simnet) handleNewServerRegistration(reg *serverRegistration) {
 
 	// channel made by newSimnodeServer() above.
 	reg.tellServerNewConnCh = srvnode.tellServerNewConnCh
+	close(reg.done) // right?
 }
 
-func (s *simnet) handleNewClientRegistration(reg *clientRegistration) {
+func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 
 	srvnode, ok := s.dns[reg.dialTo]
 	if !ok {
@@ -352,7 +353,10 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 		select {
 		case <-reg.done:
 			// happy path
-			vv("server after first registered: '%v'/'%v'", srv.name, srvNetAddr)
+			vv("server after first registered: '%v'/'%v' sees  reg.tellServerNewConnCh = %p", srv.name, srvNetAddr, reg.tellServerNewConnCh)
+			if reg.tellServerNewConnCh == nil {
+				panic("cannot have nil reg.tellServerNewConnCh back!")
+			}
 			srv.simnode = reg.simnode
 			srv.simnet = singleSimnet
 			return reg.tellServerNewConnCh
@@ -1123,14 +1127,15 @@ func (s *simnet) scheduler() {
 
 		case reg := <-s.cliRegisterCh:
 			// "connect" in network lingo, client reaches out to listening server.
-			vv("s.cliRegisterCh got reg = '%#v'", reg)
-			s.handleNewClientRegistration(reg)
+			vv("s.cliRegisterCh got reg from '%v' = '%#v'", reg.client.name, reg)
+			s.handleClientRegistration(reg)
+			vv("back from handleClientRegistration for '%v'", reg.client.name)
 
 		case srvreg := <-s.srvRegisterCh:
 			// "bind/listen" on a socket, server waits for any client to "connect"
 			vv("s.srvRegisterCh got srvreg for '%v' = '%#v'", srvreg.server.name, srvreg) // only node_1 seen, now node_2 seen
-			s.handleNewServerRegistration(srvreg)
-			vv("back from handleNewServerRegistration '%v'", srvreg.server.name) // only seen once for node_1 on test702 and node_2
+			s.handleServerRegistration(srvreg)
+			vv("back from handleServerRegistration '%v'", srvreg.server.name) // only seen once for node_1 on test702 and node_2
 
 		case newConn := <-s.newClientConnCh:
 			_ = newConn
