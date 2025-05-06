@@ -16,7 +16,7 @@ import (
 	rb "github.com/glycerine/rbtree"
 )
 
-var globalUseSyntest bool = true
+var globalUseSynctest bool = true
 
 var _ = synctest.Wait
 
@@ -291,7 +291,7 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 
 	// server creates simnet; must start server first.
 	s := &simnet{
-		useSynctest:     globalUseSyntest,
+		useSynctest:     globalUseSynctest,
 		cfg:             cfg,
 		srv:             srv,
 		halt:            srv.halt,

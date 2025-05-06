@@ -19,7 +19,7 @@ import (
 
 func Test800_SimNet_all_timers_dur_0_fire_now(t *testing.T) {
 
-	globalUseSyntest = true
+	globalUseSynctest = true
 
 	cv.Convey("SimNet using synctest depends on all the times set to duration 0/now firing before we quiese to durable blocking. verify this assumption under synctest. yes: note the Go runtime implementation does a select with a default: so it will discard the timer alert rather than block.", t, func() {
 		synctest.Run(func() {
@@ -43,7 +43,7 @@ func Test800_SimNet_all_timers_dur_0_fire_now(t *testing.T) {
 
 func Test801_synctestonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 
-	globalUseSyntest = true
+	globalUseSynctest = true
 
 	cv.Convey("super basic synctest + SimNet send/read/timer test of channel based remote procedure call with rpc25519: register a callback on the server, and have the client call it. See a timer fire.", t, func() {
 
@@ -108,7 +108,7 @@ func Test801_synctestonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 // synctest + simnet version of cli_test 006, simnet_test 706
 func Test806__synctestonly_RoundTrip_Using_NetRPC(t *testing.T) {
 
-	globalUseSyntest = true
+	globalUseSynctest = true
 
 	// basic SimNet with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.
 	synctest.Run(func() {
@@ -262,7 +262,7 @@ func Test806__synctestonly_RoundTrip_Using_NetRPC(t *testing.T) {
 // synctest version of 040 in cli_test.go
 func Test840_synctestonly_remote_cancel_by_context(t *testing.T) {
 
-	globalUseSyntest = true
+	globalUseSynctest = true
 
 	synctest.Run(func() {
 
@@ -378,7 +378,7 @@ func Test840_synctestonly_remote_cancel_by_context(t *testing.T) {
 
 func Test845_synctestonly_simnet_upload(t *testing.T) {
 
-	globalUseSyntest = true
+	globalUseSynctest = true
 
 	synctest.Run(func() {
 
@@ -481,7 +481,7 @@ func Test845_synctestonly_simnet_upload(t *testing.T) {
 
 func Test855_synctestonly_simnet_download(t *testing.T) {
 
-	globalUseSyntest = true
+	globalUseSynctest = true
 
 	synctest.Run(func() {
 
@@ -594,7 +594,7 @@ func Test855_synctestonly_simnet_download(t *testing.T) {
 
 func Test865_synctestonly_simnet_bidirectional_download_and_upload(t *testing.T) {
 
-	globalUseSyntest = true
+	globalUseSynctest = true
 
 	synctest.Run(func() {
 
