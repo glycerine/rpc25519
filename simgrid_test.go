@@ -13,7 +13,7 @@ import (
 func Test702_simnet_grid_peer_to_peer_works(t *testing.T) {
 	//return
 	//n := 20 // 20*19/2 = 190 tcp conn to setup. ok/green but 35 seconds.
-	n := 3 // 2.7 sec
+	n := 2 // 2.7 sec
 	cfg := &simGridConfig{
 		ReplicationDegree: n,
 		Timeout:           time.Second * 5,
@@ -28,12 +28,13 @@ func Test702_simnet_grid_peer_to_peer_works(t *testing.T) {
 	c.Start()
 	defer c.Close()
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	for i, g := range nodes {
 		_ = i
-		//vv("i=%v has n.node.seen = %#v", i, g.node.seen)
+		vv("i=%v has n.node.seen = %#v", i, g.node.seen)
 		if g.node.seen.Len() != n-1 {
+			panic("where pumps hung? or, where are the pumps at all???")
 			t.Fatalf("expected n-1=%v nodes contacted, saw '%v'", n-1, g.node.seen.Len())
 		}
 	}
@@ -189,45 +190,45 @@ func (s *node2) Start(
 ) (err0 error) {
 
 	defer func() {
-		//vv("%v: (%v) end of node.Start() inside defer, about the return/finish", s.name, myPeer.ServiceName())
+		vv("%v: (%v) end of node.Start() inside defer, about the return/finish", s.name, myPeer.ServiceName())
 		s.halt.Done.Close()
 	}()
 
 	//vv("%v: node.Start() top.", s.name)
-	//vv("%v: node.Start() top. ourID = '%v'; peerServiceName='%v';", s.name, myPeer.PeerID, myPeer.ServiceName())
+	vv("%v: node.Start() top. ourID = '%v'; peerServiceName='%v';", s.name, myPeer.PeerID, myPeer.ServiceName())
 
 	AliasRegister(myPeer.PeerID, myPeer.PeerID+" ("+myPeer.ServiceName()+")")
 
 	done0 := ctx0.Done()
 
 	for {
-		//vv("%v: top of select", s.name) // client only seen once, since peer_test acts as cli
+		vv("%v: top of select", s.name) // client only seen once, since peer_test acts as cli
 		select {
 		// new Circuit connection arrives
 		case ckt := <-newCircuitCh:
 
-			//vv("%v: got from newCircuitCh! service '%v' sees new peerURL: '%v'", s.name, myPeer.PeerServiceName, myPeer.URL())
+			vv("%v: got from newCircuitCh! service '%v' sees new peerURL: '%v'", s.name, myPeer.PeerServiceName, myPeer.URL())
 
 			// talk to this peer on a separate goro if you wish:
 			go func(ckt *Circuit) (err0 error) {
 
 				ctx := ckt.Context
-				//zz("%v: (ckt '%v') got incoming ckt", s.name, ckt.Name)
+				vv("%v: (ckt '%v') got incoming ckt", s.name, ckt.Name)
 
 				defer func() {
-					//zz("%v: (ckt '%v') defer running! finishing RemotePeer goro. stack = '%v'", s.name, ckt.Name, stack()) // seen on server
+					vv("%v: (ckt '%v') defer running! finishing RemotePeer goro. stack = '%v'", s.name, ckt.Name, stack()) // seen on server
 					ckt.Close(err0)
 				}()
 
-				//zz("%v: (ckt '%v') <- got new incoming ckt", s.name, ckt.Name)
-				////zz("incoming ckt has RemoteCircuitURL = '%v'", ckt.RemoteCircuitURL())
-				////zz("incoming ckt has LocalCircuitURL = '%v'", ckt.LocalCircuitURL())
+				vv("%v: (ckt '%v') <- got new incoming ckt", s.name, ckt.Name) // grid-ckt
+				vv("incoming ckt has RemoteCircuitURL = '%v'", ckt.RemoteCircuitURL())
+				vv("incoming ckt has LocalCircuitURL = '%v'", ckt.LocalCircuitURL()) // seen 3x
 				done := ctx.Done()
 
 				for {
 					select {
 					case frag := <-ckt.Reads:
-						//vv("%v: (ckt %v) ckt.Reads sees frag:'%s'", s.name, ckt.Name, frag)
+						vv("%v: (ckt %v) ckt.Reads sees frag:'%s'", s.name, ckt.Name, frag) // not seen!!!
 
 						s.seen.Set(AliasDecode(frag.FromPeerID), true)
 

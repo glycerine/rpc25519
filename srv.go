@@ -145,7 +145,7 @@ func (s *Server) runServerMain(
 		simNetConfig := &SimNetConfig{}
 
 		s.runSimNetServer(serverAddress, boundCh, simNetConfig)
-		alwaysPrintf("runSimNetServer exited.")
+		alwaysPrintf("runSimNetServer exited.") // hung here?
 		return
 	}
 
@@ -1956,7 +1956,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		s.pair2remote.Set(p, key)
 		s.mut.Unlock()
 
-		//vv("started auto-client ok. trying again... from:'%v'; to:'%v'", p.from, p.to)
+		vv("started auto-client ok. trying again... from:'%v'; to:'%v'", p.from, p.to)
 		err, ch = sendOneWayMessage(s, ctx, msg, errWriteDur)
 	}
 	return

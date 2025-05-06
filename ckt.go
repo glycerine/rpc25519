@@ -907,10 +907,10 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	knownLocalPeer.mut.Unlock()
 
 	go func() {
-		////vv("launching new peerServiceFunc invocation for '%v'", peerServiceName)
+		vv("launching new peerServiceFunc invocation for '%v'", peerServiceName)
 		err := knownLocalPeer.peerServiceFunc(lpb, ctx1, newCircuitCh)
 
-		////vv("peerServiceFunc has returned: '%v'; clean up the lbp!", peerServiceName)
+		vv("peerServiceFunc has returned: '%v'; clean up the lbp!", peerServiceName)
 		canc1(fmt.Errorf("peerServiceFunc '%v' finished. returned err = '%v'", peerServiceName, err))
 		lpb.Close()
 		// this handles locking on its own.

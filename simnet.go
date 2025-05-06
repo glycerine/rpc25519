@@ -1036,8 +1036,11 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 }
 
 func (s *simnet) qReport() (r string) {
+	i := 0
 	for node := range s.nodes {
-		r += node.String()
+		r += fmt.Sprintf("\n[node %02d of %v in qReport]: \n", i+1, len(s.nodes))
+		r += node.String() + "\n"
+		i++
 	}
 	return
 }
@@ -1077,6 +1080,7 @@ func (s *simnet) scheduler() {
 	vv("scheduler is running on goro = %v", GoroNumber())
 
 	defer func() {
+		vv("scheduler defer shutdown running on goro = %v", GoroNumber())
 		r := recover()
 		if r != nil {
 			vv("scheduler panic-ing: %v", s.schedulerReport())
@@ -1093,7 +1097,7 @@ func (s *simnet) scheduler() {
 		now := time.Now()
 		_ = now
 		////zz("scheduler top cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
-		//vv("scheduler top. schedulerReport: \n%v", s.schedulerReport())
+		vv("scheduler top. schedulerReport: \n%v", s.schedulerReport())
 
 		s.dispatchAll()
 		s.armTimer()

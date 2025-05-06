@@ -22,13 +22,13 @@ func prettyPrintCircuitMap(m map[string]*Circuit) (s string) {
 // to all the circuits live in this peer.
 func (pb *LocalPeer) peerbackPump() {
 
-	//defer func() {
-	//zz("LocalPeer.PeerbackPump all-finished; pb= %p", pb)
-	//}()
+	defer func() {
+		vv("%v LocalPeer.PeerbackPump all-finished; pb= %p", pb.PeerServiceName, pb) // 2x seen, "simgrid"
+	}()
 
 	name := pb.PeerServiceName
 	_ = name
-	//vv("%v: PeerbackPump top.", name)
+	vv("%v: PeerbackPump top.", name)
 
 	// key: CallID (circuit ID)
 	m := make(map[string]*Circuit)
@@ -145,9 +145,10 @@ func (pb *LocalPeer) peerbackPump() {
 
 	done := pb.Ctx.Done()
 	for {
-		//vv("%v %p: pump loop top of select. pb.handleChansNewCircuit = %p", name, pb, pb.TellPumpNewCircuit)
+		vv("%v %p: pump loop top of select. pb.handleChansNewCircuit = %p", name, pb, pb.TellPumpNewCircuit) // seen 3x
 		select {
 		case <-pb.Halt.ReqStop.Chan:
+			vv("%v %p: pump loop pb.Halt.ReqStop.Chan shutdown received; pb = %p", name, pb, pb) // seen 2x
 			return
 
 		case query := <-pb.QueryCh:
@@ -156,12 +157,12 @@ func (pb *LocalPeer) peerbackPump() {
 			close(query.Ready)
 
 		case ckt := <-pb.TellPumpNewCircuit:
-			//vv("%v pump: ckt := <-pb.TellPumpNewCircuit: for ckt='%v'", name, ckt.Name)
+			vv("%v pump: ckt := <-pb.TellPumpNewCircuit: for ckt='%v'", name, ckt.Name) // seen 1x.
 			m[ckt.CircuitID] = ckt
 			pb.Halt.AddChild(ckt.Halt)
 
 		case ckt := <-pb.HandleCircuitClose:
-			//vv("%v pump: ckt := <-pb.HandleCircuitClose: for ckt='%v'", name, ckt.Name)
+			vv("%v pump: ckt := <-pb.HandleCircuitClose: for ckt='%v'", name, ckt.Name) // not seen
 			cleanupCkt(ckt, true)
 
 		case msg := <-pb.ReadsIn:
@@ -169,14 +170,14 @@ func (pb *LocalPeer) peerbackPump() {
 			if msg.HDR.Typ == CallPeerFromIsShutdown && msg.HDR.FromPeerID != pb.PeerID {
 				rpb, n, ok := pb.Remotes.GetValNDel(msg.HDR.FromPeerID)
 				if ok {
-					//zz("%v: got notice of shutdown of peer '%v'", name, aliasDecode(msg.HDR.FromPeerID))
+					vv("%v: got notice of shutdown of peer '%v'", name, AliasDecode(msg.HDR.FromPeerID)) // not seen
 					_ = rpb
 					//zz("what more do we need to do with rpb on its shutdown?")
 				}
 				if n == 0 {
-					//zz("no remote peers left ... we could shut ourselves down to save memory?")
+					vv("no remote peers left ... we could shut ourselves down to save memory?")
 					if pb.AutoShutdownWhenNoMorePeers {
-						//zz("%v: lbp.autoShutdownWhenNoMorePeers true, closing up", name)
+						vv("%v: lbp.autoShutdownWhenNoMorePeers true, closing up", name)
 						return
 					}
 				}
@@ -184,7 +185,7 @@ func (pb *LocalPeer) peerbackPump() {
 
 			callID := msg.HDR.CallID
 			ckt, ok := m[callID]
-			//vv("pump %v: sees readsIn msg, ckt ok=%v", name, ok)
+			vv("pump %v: sees readsIn msg, ckt ok=%v", name, ok) // not seen
 			if !ok {
 				// we expect the ckt close ack-back to be dropped if we initiated it.
 				//alwaysPrintf("%v: arg. no circuit avail for callID = '%v'/Typ:'%v';"+
@@ -198,16 +199,17 @@ func (pb *LocalPeer) peerbackPump() {
 				}
 				continue
 			}
-			//vv("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
+			vv("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg) // not seen
 
 			if msg.HDR.Typ == CallPeerEndCircuit {
-				//vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg) // seen in crosstalk test server hung log line 311
+				vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg) // seen in crosstalk test server hung log line 311
 				cleanupCkt(ckt, false)
 				//zz("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg. back from cleanupCkt, about to continue: '%v'", name, ckt.Name, msg)
 				continue
 			}
 
 			frag := ckt.ConvertMessageToFragment(msg)
+			vv("got frag = '%v'", frag) // not seen
 			select {
 			case ckt.Reads <- frag: // server should be hung here, if peer code not servicing
 			case <-ckt.Halt.ReqStop.Chan:
@@ -224,7 +226,7 @@ func (pb *LocalPeer) peerbackPump() {
 
 			callID := msgerr.HDR.CallID
 			ckt, ok := m[callID]
-			//vv("pump %v: ckt ok=%v on errorsIn", name, ok)
+			vv("pump %v: ckt ok=%v on errorsIn", name, ok)
 			if !ok {
 				//vv("%v: arg. no ckt avail for callID = '%v' on msgerr", name, callID)
 				continue

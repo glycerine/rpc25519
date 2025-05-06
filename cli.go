@@ -57,7 +57,7 @@ var sep = string(os.PathSeparator)
 func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string) {
 
 	defer func() {
-		vv("runClientMain defer: end for goro = %v", GoroNumber())
+		vv("runClientMain defer: end for goro = %v", GoroNumber()) // deadlock on vprint mutex here?
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
 
