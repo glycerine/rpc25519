@@ -93,7 +93,7 @@ func (pb *LocalPeer) peerbackPump() {
 					r := recover()
 					if r != nil {
 						vv("%v: cleanupCircuit, ignoring common "+
-							"panic on system shutdown: '%v'", name, r)
+							"panic on system shutdown: '%v' %v", name, r, stack())
 					}
 				}()
 				err, queueSendCh := pb.U.SendOneWayMessage(pb.Ctx, msg, -2)

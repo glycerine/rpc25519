@@ -1942,6 +1942,10 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		if err2 != nil {
 			return
 		}
+		if cli == nil || cli.conn == nil {
+			alwaysPrintf("no cli.conn, assuming shutdown in progress...")
+			return
+		}
 
 		key := remote(cli.conn)
 		p := &rwPair{
