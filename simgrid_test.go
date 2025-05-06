@@ -217,7 +217,7 @@ func (s *node2) Start(
 				vv("%v: (ckt '%v') got incoming ckt", s.name, ckt.Name)
 
 				defer func() {
-					vv("%v: (ckt '%v') defer running! finishing RemotePeer goro. stack = '%v'", s.name, ckt.Name, stack()) // seen on server
+					vv("%v: (ckt '%v') defer running! finishing RemotePeer goro.", s.name, ckt.Name)
 					ckt.Close(err0)
 				}()
 

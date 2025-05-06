@@ -843,6 +843,16 @@ func (node *simnode) firstPreArrivalTimeLTE(now time.Time) bool {
 // It calls node.net.armTimer() at the end (in the defer).
 func (node *simnode) dispatch() { // (bump time.Duration) {
 
+	switch node.state {
+	case HALTED:
+		return
+	case PARTITIONED:
+		// timers need to fire.
+		// pre-arrival Q will be empty, so
+		// no matching will happen anyway.
+	case NORMAL:
+	}
+
 	// to be deleted at the end, so
 	// we don't dirupt the iteration order
 	// and miss something.
