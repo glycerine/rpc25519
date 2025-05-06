@@ -161,6 +161,9 @@ func (op *mop) String() string {
 	if op.kind == TIMER_DISCARD {
 		extra = " timer discarded at " + op.timerFileLine
 	}
+	if op.kind == SEND {
+		extra = fmt.Sprintf(" FROM %v TO %v", op.origin.name, op.target.name)
+	}
 	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, msg.sn:%v%v}", who, op.kind, ini, arr, complete, op.sn, msgSerial, extra)
 }
 
@@ -1038,7 +1041,7 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 func (s *simnet) qReport() (r string) {
 	i := 0
 	for node := range s.nodes {
-		r += fmt.Sprintf("\n[node %02d of %v in qReport]: \n", i+1, len(s.nodes))
+		r += fmt.Sprintf("\n[node %v of %v in qReport]: \n", i+1, len(s.nodes))
 		r += node.String() + "\n"
 		i++
 	}

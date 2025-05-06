@@ -45,6 +45,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	vv("about to call s.cfg.newSimNetOnServer()")
 	serverNewConnCh := s.cfg.newSimNetOnServer(simNetConfig, s, netAddr)
 	// INVAR: s.simnet and s.simnode are set for us in simnet.go
+	vv("newSimNetOnServer gave us serverNewConnCh = %p for our netAddr='%v'", serverNewConnCh, netAddr) // ONLY node_0 got this???
 
 	for {
 		select { // wait for a new client to connect

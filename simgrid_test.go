@@ -32,7 +32,7 @@ func Test702_simnet_grid_peer_to_peer_works(t *testing.T) {
 
 	for i, g := range nodes {
 		_ = i
-		vv("i=%v has n.node.seen = %#v", i, g.node.seen)
+		vv("i=%v has n.node.seen len = %v: '%v'", i, g.node.seen.Len(), g.node.seen.GetKeySlice())
 		if g.node.seen.Len() != n-1 {
 			panic("where pumps hung? or, where are the pumps at all???")
 			t.Fatalf("expected n-1=%v nodes contacted, saw '%v'", n-1, g.node.seen.Len())
