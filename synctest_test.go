@@ -24,22 +24,25 @@ func Test800_SimNet_all_timers_dur_0_fire_now(t *testing.T) {
 		return
 	}
 
-	cv.Convey("SimNet using synctest depends on all the times set to duration 0/now firing before we quiese to durable blocking. verify this assumption under synctest. yes: note the Go runtime implementation does a select with a default: so it will discard the timer alert rather than block.", t, func() {
+	bubbleOrNot(func() {
+		cv.Convey("SimNet using synctest depends on all the times set to duration 0/now firing before we quiese to durable blocking. verify this assumption under synctest. yes: note the Go runtime implementation does a select with a default: so it will discard the timer alert rather than block.", t, func() {
 
-		t0 := time.Now()
-		//vv("start test800")
-		var timers []*time.Timer
-		N := 10
-		for range N {
-			timers = append(timers, time.NewTimer(0))
-		}
-		for _, ti := range timers {
-			<-ti.C
-		}
-		if !t0.Equal(time.Now()) {
-			t.Fatalf("we have a problem, Houston.")
-		}
-		//vv("end test800") // shows same time as start, good.
+			t0 := time.Now()
+			//vv("start test800")
+			var timers []*time.Timer
+			N := 10
+			for range N {
+				timers = append(timers, time.NewTimer(0))
+			}
+			for _, ti := range timers {
+				<-ti.C
+			}
+			now := time.Now()
+			if !t0.Equal(now) {
+				t.Fatalf("we have a problem, Houston. t0=%v, but now=%v", t0, now)
+			}
+			//vv("end test800") // shows same time as start, good.
+		})
 	})
 }
 

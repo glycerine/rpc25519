@@ -265,7 +265,7 @@ func newBlabber(
 			panic("was server not started first?!? It should have written cfg.simnetRendezvous.simnet by now!")
 			//}
 		}
-		vv("good: UseSimNet true and have singleSimnet = %p", simnet)
+		//vv("good: UseSimNet true and have singleSimnet = %p", simnet)
 	}
 
 	return &blabber{
