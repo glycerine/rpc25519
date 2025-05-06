@@ -14,8 +14,6 @@ import (
 	rb "github.com/glycerine/rbtree"
 )
 
-var globalUseSynctest bool = true
-
 type SimNetConfig struct{}
 
 // a connection between two nodes.
@@ -283,7 +281,7 @@ func (s *simnet) handleNewClientRegistration(reg *clientRegistration) {
 
 func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, srvNetAddr *SimNetAddr) (tellServerNewConnCh chan *simnetConn) {
 
-	scen := newScenario(time.Millisecond, time.Millisecond, time.Millisecond, [32]byte{})
+	scen := newScenario(time.Second, time.Second, time.Second, [32]byte{})
 
 	// server creates simnet; must start server first.
 	s := &simnet{
@@ -1014,8 +1012,9 @@ func (s *simnet) scheduler() {
 		time.Sleep(s.scenario.tick)
 
 		if s.useSynctest {
+			vv("about to call synctestWait; goro = %v", GoroNumber())
 			synctestWait()
-			//vv("back from synctestWait()")
+			vv("back from synctestWait() goro = %v", GoroNumber())
 		}
 
 		select {

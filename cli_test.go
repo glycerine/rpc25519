@@ -21,43 +21,44 @@ var _ = filepath.Dir
 func TestMain(m *testing.M) {
 
 	var exitVal int
-	func() {
-		//vv("TestMain running.")
+	synctestRun(func() {
+		func() {
+			//vv("TestMain running.")
 
-		// create a temp dir for certs/ca,
-		// and configure to uset it.
-		tmp, err := ioutil.TempDir("", "rpc25519-tests-temp-dir")
-		panicOn(err)
-		//vv("running tests in tmp dir: %v", tmp)
-		//vv("comment this next line to preserve the tmp dir for inspection.")
-		defer os.RemoveAll(tmp)
+			// create a temp dir for certs/ca,
+			// and configure to uset it.
+			tmp, err := ioutil.TempDir("", "rpc25519-tests-temp-dir")
+			panicOn(err)
+			//vv("running tests in tmp dir: %v", tmp)
+			//vv("comment this next line to preserve the tmp dir for inspection.")
+			defer os.RemoveAll(tmp)
 
-		// write temp certs here
-		os.Setenv("XDG_CONFIG_HOME", tmp)
-		cwd, err := os.Getwd()
-		_ = cwd
-		panicOn(err)
+			// write temp certs here
+			os.Setenv("XDG_CONFIG_HOME", tmp)
+			cwd, err := os.Getwd()
+			_ = cwd
+			panicOn(err)
 
-		// make the directories
-		dirCerts := GetCertsDir()
-		_ = dirCerts
-		dirCA := GetPrivateCertificateAuthDir()
-		_ = dirCA
-		//vv("dirCerts = '%v'", dirCerts)
+			// make the directories
+			dirCerts := GetCertsDir()
+			_ = dirCerts
+			dirCA := GetPrivateCertificateAuthDir()
+			_ = dirCA
+			//vv("dirCerts = '%v'", dirCerts)
 
-		ca1path := filepath.Dir(dirCA)
+			ca1path := filepath.Dir(dirCA)
 
-		panicOn(SelfyNewKey("node", ca1path))
-		panicOn(SelfyNewKey("client", ca1path))
+			panicOn(SelfyNewKey("node", ca1path))
+			panicOn(SelfyNewKey("client", ca1path))
 
-		os.Chdir(tmp)
-		defer os.Chdir(cwd)
+			os.Chdir(tmp)
+			defer os.Chdir(cwd)
 
-		//vv("running in temp dir '%v'", tmp)
+			//vv("running in temp dir '%v'", tmp)
 
-		exitVal = m.Run()
-	}()
-
+			exitVal = m.Run()
+		}()
+	})
 	// Do stuff AFTER the tests
 
 	// clean up the temp dir.

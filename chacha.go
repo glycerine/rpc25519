@@ -253,6 +253,9 @@ func newBlabber(
 	}
 
 	//vv("making blabber, conn = '%#v'", conn)
+	if cfg.UseSimNet && cfg.simnetRendezvous.simnet == nil {
+		panic("UseSimNet requested, but cfg.simnetRendezvous.simnet is nil!")
+	}
 	return &blabber{
 		simnet:       cfg.simnetRendezvous.simnet,
 		useSimNet:    cfg.UseSimNet,

@@ -11,6 +11,8 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string) {
 	c.simnet = c.cfg.simnetRendezvous.simnet
 	c.cfg.simnetRendezvous.mut.Unlock()
 
+	vv("c.simnet = %p", c.simnet)
+
 	// ignore serverAddr in favor of cfg.ClientDialToHostPort
 	// which tests actually set.
 

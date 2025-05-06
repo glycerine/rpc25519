@@ -11,7 +11,7 @@ import (
 
 // 702 is the Same as 202 in grid_test, but now under simnet.
 func Test702_simnet_grid_peer_to_peer_works(t *testing.T) {
-
+	//return
 	//n := 20 // 20*19/2 = 190 tcp conn to setup. ok/green but 35 seconds.
 	n := 3 // 2.7 sec
 	cfg := &simGridConfig{

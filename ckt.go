@@ -332,7 +332,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	}
 
 	netAddr, serviceName, peerID, circuitID, err := ParsePeerURL(peerURL)
-	//vv("netAddr from ParsePeerURL = '%v' (peerURL = '%v');", netAddr, peerURL)
+	vv("netAddr from ParsePeerURL = '%v' (peerURL = '%v');", netAddr, peerURL)
 	if circuitID != "" {
 		panic(fmt.Sprintf("NewCircuitToPeerURL() use error: peerURL "+
 			"should not have a circuitID "+

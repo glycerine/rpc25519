@@ -1,5 +1,3 @@
-//go:build goexperiment.synctest
-
 package rpc25519
 
 // build/run with:
@@ -19,11 +17,7 @@ import (
 	cv "github.com/glycerine/goconvey/convey"
 )
 
-// note: all synctest use should be in synctest_test.go now.
-
 func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
-
-	globalUseSynctest = false
 
 	cv.Convey("basic SimNet channel based remote procedure call with rpc25519: register a callback on the server, and have the client call it.", t, func() {
 
@@ -133,8 +127,6 @@ func Test704_rng_hops(t *testing.T) {
 
 // simnet version of cli_test 006
 func Test706_simnetonly_RoundTrip_Using_NetRPC(t *testing.T) {
-
-	globalUseSynctest = false
 
 	// basic SimNet with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.
 	cfg := NewConfig()
@@ -286,8 +278,6 @@ func Test706_simnetonly_RoundTrip_Using_NetRPC(t *testing.T) {
 // simnet version of 040 in cli_test.go
 func Test740_simnetonly_remote_cancel_by_context(t *testing.T) {
 
-	globalUseSynctest = false
-
 	cv.Convey("simnet remote cancellation", t, func() {
 
 		cfg := NewConfig()
@@ -394,15 +384,12 @@ func Test740_simnetonly_remote_cancel_by_context(t *testing.T) {
 		// confirm that server side function is unblocked too
 		//vv("about to verify that server side context was cancelled.")
 		<-mustCancelMe.callFinished
-
 	})
 }
 
 // add simnetonly
 
 func Test745_simnetonly_upload(t *testing.T) {
-
-	globalUseSynctest = false
 
 	cv.Convey("upload a large file in parts from client to server", t, func() {
 
@@ -501,8 +488,6 @@ func Test745_simnetonly_upload(t *testing.T) {
 }
 
 func Test755_simnetonly_simnet_download(t *testing.T) {
-
-	globalUseSynctest = false
 
 	cv.Convey("download a large file in parts from server to client, the opposite direction of the previous test.", t, func() {
 
@@ -611,8 +596,6 @@ func Test755_simnetonly_simnet_download(t *testing.T) {
 }
 
 func Test765_simnetonly_bidirectional_download_and_upload(t *testing.T) {
-
-	globalUseSynctest = false
 
 	cv.Convey("we should be able to register a server func that does uploads and downloads sequentially or simultaneously.", t, func() {
 
