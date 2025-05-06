@@ -32,7 +32,15 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	// second and subsequent will get back the singleSimnet global.
 	simnet := s.cfg.bootSimNetOnServer(simNetConfig, s)
 
-	serverNewConnCh := simnet.registerServer(s, netAddr) // sets s.simnode, s.simnet
+	// sets s.simnode, s.simnet
+	serverNewConnCh, err := simnet.registerServer(s, netAddr)
+	if err != nil {
+		if err == ErrShutdown2 {
+			vv("simnet_server sees shutdown in progress")
+			return
+		}
+		panicOn(err)
+	}
 	if serverNewConnCh == nil {
 		panic(fmt.Sprintf("%v got a nil serverNewConnCh, should not be allowed!", s.name))
 	}

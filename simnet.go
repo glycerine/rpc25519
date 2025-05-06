@@ -1475,13 +1475,14 @@ func (s *simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) *ser
 	}
 }
 
-func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConnCh chan *simnetConn) {
+func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConnCh chan *simnetConn, err error) {
 
 	reg := s.newServerRegistration(srv, srvNetAddr)
 	select {
 	case s.srvRegisterCh <- reg:
 		vv("sent registration on srvRegisterCh; about to wait on done goro = %v", GoroNumber())
 	case <-s.halt.ReqStop.Chan:
+		err = ErrShutdown()
 		return
 	}
 	select {
@@ -1492,9 +1493,10 @@ func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConn
 		}
 		srv.simnode = reg.simnode
 		srv.simnet = reg.simnet
-		return reg.tellServerNewConnCh
-
+		newCliConnCh = reg.tellServerNewConnCh
+		return
 	case <-s.halt.ReqStop.Chan:
+		err = ErrShutdown()
 		return
 	}
 	return
