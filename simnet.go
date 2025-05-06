@@ -228,6 +228,19 @@ const (
 	PARTITIONED nodestate = 2
 )
 
+func (state nodestate) String() string {
+	switch state {
+	case NORMAL:
+		return "NORMAL"
+	case HALTED:
+		return "HALTED"
+	case PARTITIONED:
+		return "PARTITIONED"
+	}
+	panic(fmt.Sprintf("unknown nodestate '%v'", int(state)))
+	return "unknown nodestate"
+}
+
 func (s *simnet) newSimnode(name string) *simnode {
 	return &simnode{
 		name:    name,
@@ -1510,6 +1523,21 @@ const (
 	UNPARTITION alteration = 3
 	RESTART     alteration = 4
 )
+
+func (alt alteration) String() string {
+	switch alt {
+	case SHUTDOWN:
+		return "SHUTDOWN"
+	case PARTITION:
+		return "PARTITION"
+	case UNPARTITION:
+		return "UNPARTITION"
+	case RESTART:
+		return "RESTART"
+	}
+	panic(fmt.Sprintf("unknown alteration %v", int(alt)))
+	return "unknown alteration"
+}
 
 type nodeAlteration struct {
 	simnet  *simnet
