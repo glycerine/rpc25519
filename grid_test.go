@@ -37,9 +37,7 @@ import (
 func Test202_grid_peer_to_peer_works(t *testing.T) {
 
 	if globalUseSynctest {
-		// never settles into durably blocked... don't bother
-		// as it will just hang. the actual network calls
-		// prevent it from settling.
+		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
 
