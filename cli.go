@@ -1002,6 +1002,18 @@ type Config struct {
 	// process, rather than network calls.
 	// Client and Server must be in the same process.
 	UseSimNet bool
+
+	// point so that the shallow copy of
+	// Config will preserve and share the
+	// one singleSimnet.
+	simnetRendezvous *simnetRendezvous
+}
+
+// gotta have just one simnet, shared by all
+// clients and servers for a single test/Configure.
+type simnetRendezvous struct {
+	singleSimnetMut sync.Mutex
+	singleSimnet    *simnet
 }
 
 // ClientStartingDir returns the directory the Client was started in.
@@ -1062,7 +1074,8 @@ type sharedTransport struct {
 // for use in NewClient or NewServer setup.
 func NewConfig() *Config {
 	return &Config{
-		shared: &sharedTransport{},
+		shared:           &sharedTransport{},
+		simnetRendezvous: &simnetRendezvous{},
 	}
 }
 

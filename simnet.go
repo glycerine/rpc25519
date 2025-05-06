@@ -6,7 +6,7 @@ package rpc25519
 import (
 	"fmt"
 	mathrand2 "math/rand/v2"
-	"sync"
+	//"sync"
 	"sync/atomic"
 	//"testing/synctest" // moved to simnet_synctest.go
 	"time"
@@ -340,19 +340,17 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 	}()
 }
 
-// gotta have just one simnet, shared by all clients and servers in process.
-var singleSimnetMut sync.Mutex
-var singleSimnet *simnet
-
 // idempotent, all servers do this, then register through the same path.
 func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *simnet { // (tellServerNewConnCh chan *simnetConn) {
 
 	vv("%v newSimNetOnServer top, goro = %v", srv.name, GoroNumber())
-	singleSimnetMut.Lock()
-	defer singleSimnetMut.Unlock()
-	if singleSimnet != nil {
-		// already started, everyone register separately no matter.
-		return singleSimnet
+	cfg.simnetRendezvous.singleSimnetMut.Lock()
+	defer cfg.simnetRendezvous.singleSimnetMut.Unlock()
+
+	if cfg.simnetRendezvous.singleSimnet != nil {
+		// already started. Still, everyone
+		// register separately no matter.
+		return cfg.simnetRendezvous.singleSimnet
 	}
 
 	tick := time.Millisecond * 100
@@ -397,7 +395,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 	}
 	s.nextTimer.Stop()
 
-	singleSimnet = s
+	cfg.simnetRendezvous.singleSimnet = s
 	vv("newSimNetOnServer: assigned to singleSimnet, releasing lock by  goro = %v", GoroNumber())
 	s.Start()
 

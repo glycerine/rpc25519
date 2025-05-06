@@ -29,7 +29,8 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 
 	// idempotent, so all new servers can try;
 	// only the first will boot it up (still pass s for s.halt);
-	// second and subsequent will get back the singleSimnet global.
+	// second and subsequent will get back the cfg.simnetRendezvous.singleSimnet
+	// per config shared simnet.
 	simnet := s.cfg.bootSimNetOnServer(simNetConfig, s)
 
 	// sets s.simnode, s.simnet

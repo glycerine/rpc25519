@@ -11,9 +11,13 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string) {
 	// how does client pass this to us?/if we need it at all?
 	//simNetConfig := &SimNetConfig{}
 
-	singleSimnetMut.Lock()
-	c.simnet = singleSimnet
-	singleSimnetMut.Unlock()
+	c.cfg.simnetRendezvous.singleSimnetMut.Lock()
+	c.simnet = c.cfg.simnetRendezvous.singleSimnet
+	c.cfg.simnetRendezvous.singleSimnetMut.Unlock()
+
+	if c.simnet == nil {
+		panic("arg. client could not find cfg.simnetRendezvous.singleSimnet")
+	}
 
 	vv("runSimNetClient c.simnet = %p, '%v', goro = %v", c.simnet, c.name, GoroNumber()) // only 'auto-cli-srv_grid_node_1'
 
