@@ -146,7 +146,7 @@ func (s *Server) runServerMain(
 		simNetConfig := &SimNetConfig{}
 
 		s.runSimNetServer(serverAddress, boundCh, simNetConfig)
-		alwaysPrintf("runSimNetServer exited: %v", s.simnode.name)
+		alwaysPrintf("runSimNetServer exited: %v", s.name)
 		return
 	}
 
