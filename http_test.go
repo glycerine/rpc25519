@@ -10,6 +10,11 @@ import (
 // Same as 006 in cli_test.go but sets cfg.HTTPConnectRequired = true
 func Test024_RoundTrip_Using_NetRPC_API_TCP_and_http_CONNECT(t *testing.T) {
 
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
+
 	cv.Convey("http CONNECT + tcp hijack => basic TCP with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.", t, func() {
 
 		for i := 0; i < 2; i++ {
