@@ -22,13 +22,13 @@ func prettyPrintCircuitMap(m map[string]*Circuit) (s string) {
 // to all the circuits live in this peer.
 func (pb *LocalPeer) peerbackPump() {
 
-	defer func() {
-		vv("%v LocalPeer.PeerbackPump all-finished; pb= %p", pb.PeerServiceName, pb) // 2x seen, "simgrid"
-	}()
+	//defer func() {
+	//vv("%v LocalPeer.PeerbackPump all-finished; pb= %p", pb.PeerServiceName, pb) // 2x seen, "simgrid"
+	//}()
 
 	name := pb.PeerServiceName
 	_ = name
-	vv("%v: PeerbackPump top.", name)
+	//vv("%v: PeerbackPump top.", name)
 
 	// key: CallID (circuit ID)
 	m := make(map[string]*Circuit)
@@ -92,7 +92,7 @@ func (pb *LocalPeer) peerbackPump() {
 				defer func() {
 					r := recover()
 					if r != nil {
-						vv("%v: cleanupCircuit, ignoring common "+
+						alwaysPrintf("%v: cleanupCircuit, ignoring common "+
 							"panic on system shutdown: '%v' %v", name, r, stack())
 					}
 				}()
@@ -145,7 +145,7 @@ func (pb *LocalPeer) peerbackPump() {
 
 	done := pb.Ctx.Done()
 	for {
-		vv("%v %p: pump loop top of select. pb.handleChansNewCircuit = %p", name, pb, pb.TellPumpNewCircuit) // seen 3x
+		//vv("%v %p: pump loop top of select. pb.handleChansNewCircuit = %p", name, pb, pb.TellPumpNewCircuit)
 		select {
 		case <-pb.Halt.ReqStop.Chan:
 			vv("%v %p: pump loop pb.Halt.ReqStop.Chan shutdown received; pb = %p", name, pb, pb) // seen 2x
