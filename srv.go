@@ -52,6 +52,12 @@ var ErrAntiDeadlockMustQueue = fmt.Errorf("rpc25519 error: must queue send to av
 func (s *Server) runServerMain(
 	serverAddress string, tcp_only bool, certPath string, boundCh chan net.Addr) {
 
+	srvNotInit := s.srvStarted.CompareAndSwap(false, true)
+	if !srvNotInit {
+		panic("can only start Server once")
+	}
+	vv("runServerMain running")
+
 	defer func() {
 		s.halt.Done.Close()
 	}()
@@ -134,9 +140,12 @@ func (s *Server) runServerMain(
 		s.runQUICServer(serverAddress, config, boundCh)
 		return
 	}
+	vv("s.cfg.UseSimNet=%v", s.cfg.UseSimNet)
 	if s.cfg.UseSimNet {
 		simNetConfig := &SimNetConfig{}
+
 		s.runSimNetServer(serverAddress, boundCh, simNetConfig)
+		alwaysPrintf("runSimNetServer exited.")
 		return
 	}
 
@@ -1096,9 +1105,11 @@ func (s *Server) processWork(job *job) {
 type Server struct {
 	mut sync.Mutex
 
-	StartSimNet chan *SimNetConfig
-	simnet      *simnet
-	simnode     *simnode
+	StartSimNet   chan *SimNetConfig
+	simnet        *simnet
+	simnode       *simnode
+	simnetStarted atomic.Bool
+	srvStarted    atomic.Bool
 
 	boundAddressString string
 
@@ -1899,11 +1910,12 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		if !s.cfg.ServerAutoCreateClientsToDialOtherServers {
 			return
 		}
-		alwaysPrintf("server did not find destAddr in " +
-			"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers" +
-			" is true so spinning up new client...")
+		alwaysPrintf("server did not find destAddr (msg.HDR.To='%v')in "+
+			"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers"+
+			" is true so spinning up new client... full msg='%v'; stack=\n%v", msg.HDR.To, msg, stack())
 		dest, err1 := ipaddr.StripNanomsgAddressPrefix(msg.HDR.To)
 		panicOn(err1)
+		vv("dest = '%v'", dest)
 		cliName := "auto-cli-" + dest
 		ccfg := *s.cfg
 		ccfg.ClientDialToHostPort = dest
@@ -2141,7 +2153,7 @@ func (s *Server) RegisterUploadReaderFunc(name string, callmeUploadReader Upload
 // Start has the Server begin receiving and processing RPC calls.
 // The Config.ServerAddr tells us what host:port to bind and listen on.
 func (s *Server) Start() (serverAddr net.Addr, err error) {
-	//vv("Server.Start() called")
+	vv("Server.Start() called")
 	if s.cfg == nil {
 		s.cfg = NewConfig()
 	}
@@ -2168,6 +2180,7 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 		panic(fmt.Errorf("no ServerAddr specified in Server.cfg"))
 	}
 	boundCh := make(chan net.Addr, 1)
+	vv("about to call runServerMain")
 	go s.runServerMain(s.cfg.ServerAddr, s.cfg.TCPonly_no_TLS, s.cfg.CertPath, boundCh)
 
 	select {

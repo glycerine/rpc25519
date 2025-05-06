@@ -96,7 +96,7 @@ func newSimGrid(cfg *simGridConfig, nodes []*simGridNode) *simGrid {
 func (s *simGrid) Start() {
 	for i, n := range s.Nodes {
 		_ = i
-		err := n.Start()
+		err := n.Start() // Server.Start()
 		panicOn(err)
 	}
 	time.Sleep(time.Second)
@@ -111,7 +111,7 @@ func (s *simGrid) Start() {
 			// tell a fresh client to connect to server and then pass the
 			// conn to the existing server.
 
-			//vv("about to connect i=%v to j=%v", i, j)
+			vv("about to connect i=%v to j=%v", i, j)
 			ckt, _, err := n0.lpb.NewCircuitToPeerURL("grid-ckt", n1.URL, nil, 0)
 			panicOn(err)
 			n0.lpb.NewCircuitCh <- ckt
@@ -151,8 +151,10 @@ func (s *simGridNode) Start() error {
 	s.srv = NewServer("srv_"+s.name, cfg)
 	s.rpccfg = cfg
 
+	vv("past NewServer()")
 	serverAddr, err := s.srv.Start()
 	panicOn(err)
+	vv("past s.srv.Start()")
 
 	cfg.ClientDialToHostPort = serverAddr.String()
 
@@ -167,8 +169,10 @@ func (s *simGridNode) Start() error {
 	s.URL = s.lpb.URL()
 	s.PeerID = s.lpb.PeerID
 
-	//vv("simGridNode.Start() started '%v' as 'grid' with url = '%v'", s.name, s.URL)
+	vv("simGridNode.Start() started '%v' as 'grid' with url = '%v'", s.name, s.URL)
 
+	//grid_test sees grid_test.go:193 2025-05-06 02:40:13.362 +0000 UTC gridNode.Start() started 'grid_node_0' as 'grid' with url = 'tcp://127.0.0.1:65215/grid/Cog7DtZtQdA_EVt6JseOCdhJ3pxW'
+	// simgrid_test: simgrid_test.go:172 2025-05-06 02:40:46.309 +0000 UTC simGridNode.Start() started 'grid_node_0' as 'grid' with url = '/simgrid/w5L6aGyAmYcVhAC9K2EZhLDMS5w_'
 	return nil
 }
 

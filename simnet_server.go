@@ -1,14 +1,13 @@
-//go:build goexperiment.synctest
-
 package rpc25519
 
 import (
 	"net"
+	//"sync/atomic"
 	"time"
 )
 
 func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNetConfig *SimNetConfig) {
-	//vv("top of runSimnetServer")
+	vv("top of runSimnetServer") // not seen?!?!
 	defer func() {
 		r := recover()
 		//vv("defer running, end of runSimNetServer() r='%v'", r)
@@ -18,6 +17,11 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 			panic(r)
 		}
 	}()
+
+	simnetNotInit := s.simnetStarted.CompareAndSwap(false, true)
+	if !simnetNotInit {
+		panic("can only start simnet once")
+	}
 
 	s.mut.Lock()
 	AliasRegister(serverAddr, serverAddr+" (simnet_server: "+s.name+")")
@@ -37,7 +41,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 		}
 	}
 
-	//vv("about to call s.cfg.newSimNetOnServer()")
+	vv("about to call s.cfg.newSimNetOnServer()")
 	serverNewConnCh := s.cfg.newSimNetOnServer(simNetConfig, s, netAddr)
 
 	for {

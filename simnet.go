@@ -1,5 +1,3 @@
-//go:build goexperiment.synctest
-
 package rpc25519
 
 // build/run with:
@@ -9,7 +7,7 @@ import (
 	"fmt"
 	mathrand2 "math/rand/v2"
 	"sync/atomic"
-	"testing/synctest"
+	//"testing/synctest" // moved to simnet_synctest.go
 	"time"
 
 	"github.com/glycerine/idem"
@@ -17,8 +15,6 @@ import (
 )
 
 var globalUseSynctest bool = true
-
-var _ = synctest.Wait
 
 type SimNetConfig struct{}
 
@@ -1018,8 +1014,8 @@ func (s *simnet) scheduler() {
 		time.Sleep(s.scenario.tick)
 
 		if s.useSynctest {
-			synctest.Wait()
-			//vv("back from synctest.Wait")
+			synctestWait()
+			//vv("back from synctestWait()")
 		}
 
 		select {

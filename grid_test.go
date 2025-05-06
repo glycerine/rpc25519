@@ -190,7 +190,7 @@ func (s *gridNode) Start() error {
 	s.URL = s.lpb.URL()
 	s.PeerID = s.lpb.PeerID
 
-	//vv("gridNode.Start() started '%v' as 'grid' with url = '%v'", s.name, s.URL)
+	vv("gridNode.Start() started '%v' as 'grid' with url = '%v'", s.name, s.URL)
 
 	return nil
 }

@@ -718,7 +718,7 @@ func (lpb *LocalPeer) newCircuit(
 			msg = NewMessage()
 		}
 		msg.HDR.To = rpb.NetAddr
-		//vv("rpb.NetAddr = '%v'", rpb.NetAddr)
+		vv("rpb.NetAddr = '%v'", rpb.NetAddr)
 		msg.HDR.From = lpb.NetAddr
 		msg.HDR.Typ = CallPeerStartCircuit
 		msg.HDR.Created = time.Now()
