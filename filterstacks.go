@@ -44,7 +44,7 @@ func init() {
 
 			ts := "\n" + time.Now().In(gtz).Format("2006-01-02 15:04:05.999 -0700 MST")
 			os.Stderr.Write([]byte(ts))
-			os.Stderr.Write([]byte("SIGQUIT: quit after filtering.\nfilterstacks.go filtered stacks:\n\n"))
+			os.Stderr.Write([]byte(" SIGQUIT: quit after filtering.\nfilterstacks.go filtered stacks:\n\n"))
 			os.Stderr.Write([]byte(strings.Join(filtered, "\n\n")))
 			os.Exit(1)
 		}

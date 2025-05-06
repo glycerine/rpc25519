@@ -2207,9 +2207,9 @@ func (s *Server) Close() error {
 
 	// ask any sub components (peer pump loops) to stop;
 	// give them all up to 500 msec.
-	vv("%v about to s.halt.StopTreeAndWaitTilDone()", s.name) // srv.go:2209 2025-05-06 15:20:55.38 +0000 UTC srv_grid_node_1 about to s.halt.StopTreeAndWaitTilDone()
+	vv("%v about to s.halt.StopTreeAndWaitTilDone()", s.name) // srv.go:2210 2025-05-06 16:15:57.68 +0000 UTC srv_grid_node_1 about to s.halt.StopTreeAndWaitTilDone(); and srv.go:2210 2025-05-06 16:15:57.615 +0000 UTC srv_grid_node_0 about to s.halt.StopTreeAndWaitTilDone()
 	s.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
-	vv("%v back from s.halt.StopTreeAndWaitTilDone()", s.name) // NOT SEEN! for node_1
+	vv("%v back from s.halt.StopTreeAndWaitTilDone()", s.name) // NOT SEEN! for node_1; only srv.go:2212 2025-05-06 16:15:57.673 +0000 UTC srv_grid_node_0 back from s.halt.StopTreeAndWaitTilDone()
 
 	if s.cfg.UseQUIC {
 		s.cfg.shared.mut.Lock()
