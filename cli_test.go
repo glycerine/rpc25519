@@ -22,42 +22,42 @@ func TestMain(m *testing.M) {
 
 	var exitVal int
 	synctestRun(func() {
-		func() {
-			//vv("TestMain running.")
+		//func() {
+		//vv("TestMain running.")
 
-			// create a temp dir for certs/ca,
-			// and configure to uset it.
-			tmp, err := ioutil.TempDir("", "rpc25519-tests-temp-dir")
-			panicOn(err)
-			//vv("running tests in tmp dir: %v", tmp)
-			//vv("comment this next line to preserve the tmp dir for inspection.")
-			defer os.RemoveAll(tmp)
+		// create a temp dir for certs/ca,
+		// and configure to uset it.
+		tmp, err := ioutil.TempDir("", "rpc25519-tests-temp-dir")
+		panicOn(err)
+		//vv("running tests in tmp dir: %v", tmp)
+		//vv("comment this next line to preserve the tmp dir for inspection.")
+		defer os.RemoveAll(tmp)
 
-			// write temp certs here
-			os.Setenv("XDG_CONFIG_HOME", tmp)
-			cwd, err := os.Getwd()
-			_ = cwd
-			panicOn(err)
+		// write temp certs here
+		os.Setenv("XDG_CONFIG_HOME", tmp)
+		cwd, err := os.Getwd()
+		_ = cwd
+		panicOn(err)
 
-			// make the directories
-			dirCerts := GetCertsDir()
-			_ = dirCerts
-			dirCA := GetPrivateCertificateAuthDir()
-			_ = dirCA
-			//vv("dirCerts = '%v'", dirCerts)
+		// make the directories
+		dirCerts := GetCertsDir()
+		_ = dirCerts
+		dirCA := GetPrivateCertificateAuthDir()
+		_ = dirCA
+		//vv("dirCerts = '%v'", dirCerts)
 
-			ca1path := filepath.Dir(dirCA)
+		ca1path := filepath.Dir(dirCA)
 
-			panicOn(SelfyNewKey("node", ca1path))
-			panicOn(SelfyNewKey("client", ca1path))
+		panicOn(SelfyNewKey("node", ca1path))
+		panicOn(SelfyNewKey("client", ca1path))
 
-			os.Chdir(tmp)
-			defer os.Chdir(cwd)
+		os.Chdir(tmp)
+		defer os.Chdir(cwd)
 
-			//vv("running in temp dir '%v'", tmp)
+		//vv("running in temp dir '%v'", tmp)
 
-			exitVal = m.Run()
-		}()
+		exitVal = m.Run()
+		//}()
 	})
 	// Do stuff AFTER the tests
 
@@ -617,6 +617,12 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 
 func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 
+	if globalUseSynctest {
+		// skip quic under synctest, it will just hang
+		// since the quic runtime never settles into durably blocked.
+		return
+	}
+
 	cv.Convey("QUIC with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.", t, func() {
 
 		cfg := NewConfig()
@@ -849,6 +855,10 @@ func (t *Hello) Say(args *BenchmarkMessage, reply *BenchmarkMessage) (err error)
 
 func BenchmarkHelloRpcxMessage(b *testing.B) {
 
+	if globalUseSynctest {
+		return // skip quic under synctest
+	}
+
 	cfg := NewConfig()
 	cfg.UseQUIC = true
 
@@ -897,6 +907,10 @@ func BenchmarkHelloRpcxMessage(b *testing.B) {
 
 // this also has 041 in it.
 func Test040_remote_cancel_by_context(t *testing.T) {
+
+	if globalUseSynctest {
+		return // actual network calls will never settle.
+	}
 
 	cv.Convey("remote cancellation", t, func() {
 
@@ -1009,6 +1023,10 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 
 func Test045_upload(t *testing.T) {
 
+	if globalUseSynctest {
+		return // actual network calls will never settle.
+	}
+
 	cv.Convey("upload a large file in parts from client to server", t, func() {
 
 		cfg := NewConfig()
@@ -1106,6 +1124,10 @@ func Test045_upload(t *testing.T) {
 }
 
 func Test055_download(t *testing.T) {
+
+	if globalUseSynctest {
+		return // actual network calls will never settle.
+	}
 
 	cv.Convey("download a large file in parts from server to client, the opposite direction of the previous test.", t, func() {
 
@@ -1213,6 +1235,10 @@ func Test055_download(t *testing.T) {
 }
 
 func Test065_bidirectional_download_and_upload(t *testing.T) {
+
+	if globalUseSynctest {
+		return // actual network calls will never settle.
+	}
 
 	cv.Convey("we should be able to register a server func that does uploads and downloads sequentially or simultaneously.", t, func() {
 

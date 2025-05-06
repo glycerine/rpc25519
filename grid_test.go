@@ -36,6 +36,13 @@ import (
 // to RegisterPeerServiceFunc(). Here that name is "grid".
 func Test202_grid_peer_to_peer_works(t *testing.T) {
 
+	if globalUseSynctest {
+		// never settles into durably blocked... don't bother
+		// as it will just hang. the actual network calls
+		// prevent it from settling.
+		return
+	}
+
 	//n := 20 // 20*19/2 = 190 tcp conn to setup. ok/green but 35 seconds.
 	n := 3 // 2.7 sec
 	cfg := &gridConfig{
