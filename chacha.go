@@ -260,14 +260,12 @@ func newBlabber(
 
 	if cfg.UseSimNet {
 		if simnet == nil {
-			panic("UseSimNet requested, but singleSimnet is nil!")
+			// more rigourus test of
+			// startup if we can do without this check: //if !isServer {
+			panic("was server not started first?!? It should have written cfg.simnetRendezvous.simnet by now!")
+			//}
 		}
 		vv("good: UseSimNet true and have singleSimnet = %p", simnet)
-	} else {
-		//if !isServer {
-		vv("hmm: cfg.UseSimNet is false")
-		panic("was server not started first?!? It should have written cfg.simnetRendezvous.simnet by now!")
-		//}
 	}
 
 	return &blabber{

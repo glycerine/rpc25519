@@ -1142,9 +1142,12 @@ func (s *simnet) scheduler() {
 		time.Sleep(s.scenario.tick)
 
 		if s.useSynctest {
-			vv("about to call synctestWait; goro = %v", GoroNumber())
-			synctestWait()
-			vv("back from synctestWait() goro = %v", GoroNumber())
+			//vv("about to call waitInBubble; goro = %v", GoroNumber())
+			// waitInBubble is:
+			// defined in simnet_synctest.go for synctest is on.
+			// defined in simnet_nosynctest.go as a no-op when off.
+			waitInBubble()
+			//vv("back from waitInBubble() goro = %v", GoroNumber())
 		}
 
 		select { // scheduler main select

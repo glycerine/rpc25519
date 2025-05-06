@@ -4,7 +4,7 @@ package rpc25519
 
 const globalUseSynctest bool = false
 
-func synctestWait() {}
+func waitInBubble() {}
 
 //func synctestRun(f func()) {
 //	f()

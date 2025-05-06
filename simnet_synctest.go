@@ -20,11 +20,11 @@ var waitCond *sync.Cond = sync.NewCond(&waitMut)
 var waitBegan time.Time
 var waitEnded time.Time
 
-func synctestWait() {
+func waitInBubble() {
 	synctest.Wait()
 }
 
-func synctestWait2() {
+func waitInBubble2() {
 
 	waitMut.Lock()
 	if waitBegan.After(waitEnded) && waitBegan == time.Now() {

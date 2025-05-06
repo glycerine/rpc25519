@@ -29,7 +29,11 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 			cfg.ServerAddr = "127.0.0.1:0"
 			srv := NewServer("srv_test701", cfg)
 
+			vv("about to srv.Start() in 701")
+			t0 := time.Now()
 			serverAddr, err := srv.Start()
+			vv("back from srv.Start() in 701, elap = %v", time.Since(t0))
+
 			panicOn(err)
 			defer srv.Close()
 
@@ -62,7 +66,7 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 			}
 
 			// set a timer
-			t0 := time.Now()
+			t0 = time.Now()
 			goalWait := 3 * time.Second
 			timeout := cli.NewTimer(goalWait)
 
