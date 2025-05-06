@@ -253,11 +253,17 @@ func newBlabber(
 	}
 
 	//vv("making blabber, conn = '%#v'", conn)
-	if cfg.UseSimNet && cfg.simnetRendezvous.simnet == nil {
-		panic("UseSimNet requested, but cfg.simnetRendezvous.simnet is nil!")
+
+	singleSimnetMut.Lock()
+	simnet := singleSimnet
+	singleSimnetMut.Unlock()
+
+	if cfg.UseSimNet && simnet == nil {
+		panic("UseSimNet requested, but singleSimnet is nil!")
 	}
+
 	return &blabber{
-		simnet:       cfg.simnetRendezvous.simnet,
+		simnet:       simnet,
 		useSimNet:    cfg.UseSimNet,
 		compress:     !cfg.CompressionOff,
 		compressAlgo: cfg.CompressAlgo,

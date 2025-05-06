@@ -7,9 +7,9 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string) {
 	// how does client pass this to us?/if we need it at all?
 	//simNetConfig := &SimNetConfig{}
 
-	c.cfg.simnetRendezvous.mut.Lock()
-	c.simnet = c.cfg.simnetRendezvous.simnet
-	c.cfg.simnetRendezvous.mut.Unlock()
+	singleSimnetMut.Lock()
+	c.simnet = singleSimnet
+	singleSimnetMut.Unlock()
 
 	vv("c.simnet = %p", c.simnet)
 

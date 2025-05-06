@@ -849,7 +849,7 @@ type UploadReaderFunc func(ctx context.Context, req *Message, lastReply *Message
 // net.UDPConn is only closed when the last instance
 // in use is Close()-ed.
 type Config struct {
-	simnetRendezvous *simnetRendezvous
+	//simnetRendezvous *simnetRendezvous
 
 	// ServerAddr host:port where the server should listen.
 	ServerAddr string
@@ -1054,27 +1054,26 @@ type sharedTransport struct {
 	isClosed      bool
 }
 
-// rendezvous simnet client and server. server creates/sets.
-type simnetRendezvous struct {
-	mut    sync.Mutex
-	simnet *simnet
+// // rendezvous simnet client and server. server creates/sets.
+// type simnetRendezvous struct {
+// 	mut    sync.Mutex
+// 	simnet *simnet
 
-	// so we can generalize to
-	// a network, cli/server tell
-	// us their simnode
-	clinode *simnode
-	srvnode *simnode
-
-	s2c *simnetConn
-	c2s *simnetConn
-}
+// 	// so we can generalize to
+// 	// a network, cli/server tell
+// 	// us their simnode
+// 	clinode *simnode
+// 	srvnode *simnode
+//
+// 	s2c *simnetConn
+// 	c2s *simnetConn
+// }
 
 // NewConfig should be used to create Config
 // for use in NewClient or NewServer setup.
 func NewConfig() *Config {
 	return &Config{
-		shared:           &sharedTransport{},
-		simnetRendezvous: &simnetRendezvous{},
+		shared: &sharedTransport{},
 	}
 }
 

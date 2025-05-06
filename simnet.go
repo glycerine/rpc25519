@@ -266,6 +266,13 @@ func (s *simnet) handleNewServerRegistration(reg *serverRegistration) {
 	s.nodes[srvnode] = make(map[*simnode]*simnetConn)
 	s.dns[srvnode.name] = srvnode
 
+	reg.simnode = srvnode
+	reg.simnet = s
+
+	// could also just do
+	reg.server.simnode = srvnode
+	reg.server.simnet = s
+
 	// channel made by newSimnodeServer() above.
 	reg.tellServerNewConnCh = srvnode.tellServerNewConnCh
 }
@@ -293,7 +300,8 @@ func (s *simnet) handleNewClientRegistration(reg *clientRegistration) {
 	s2c := s.addEdgeFromSrv(srvnode, clinode)
 
 	// tell server about new edge
-	select {
+	vv("about to deadlock? stack=\n'%v'", stack())
+	select { // scheduler deadlocked here, calling a server!
 	case srvnode.tellServerNewConnCh <- s2c:
 	case <-s.halt.ReqStop.Chan:
 		return
@@ -380,13 +388,17 @@ func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, sr
 	s.nodes[srvnode] = make(map[*simnode]*simnetConn)
 	s.dns[srvnode.name] = srvnode
 
+	srv.simnode = srvnode
+	srv.simnet = s
+
 	s.srvnode0 = srvnode // first server, for reference
 
+	// TODO: replace with just singleSimnet?
 	// let client find the shared simnet in their cfg,
 	// when they shallow copy it.
-	cfg.simnetRendezvous.mut.Lock()
-	cfg.simnetRendezvous.simnet = s
-	cfg.simnetRendezvous.mut.Unlock()
+	//	cfg.simnetRendezvous.mut.Lock()
+	//	cfg.simnetRendezvous.simnet = s
+	//	cfg.simnetRendezvous.mut.Unlock()
 
 	singleSimnet = s
 	s.Start()
@@ -1044,6 +1056,7 @@ func (s *simnet) tickLogicalClocks() {
 
 // makes it clear on a stack trace which goro this is.
 func (s *simnet) scheduler() {
+	vv("scheduler is running on goro = %v", GoroNumber())
 
 	defer func() {
 		r := recover()
@@ -1084,11 +1097,13 @@ func (s *simnet) scheduler() {
 			s.armTimer()
 
 		case reg := <-s.cliRegisterCh:
-			//vv("s.cliRegisterCh got reg = '%#v'", reg)
+			vv("s.cliRegisterCh got reg = '%#v'", reg)
 			s.handleNewClientRegistration(reg)
 
 		case srvreg := <-s.srvRegisterCh:
+			vv("s.srvRegisterCh got srvreg for '%v' = '%#v'", srvreg.server.name, srvreg)
 			s.handleNewServerRegistration(srvreg)
+			vv("back from handleNewServerRegistration '%v'", srvreg.server.name)
 
 		case newConn := <-s.newClientConnCh:
 			_ = newConn
