@@ -53,14 +53,14 @@ type node2 struct {
 	seen *Mutexmap[string, bool]
 }
 
-func newNode2(name string, cfg *simGridConfig) *node2 {
+func newNode2(srv *Server, name string, cfg *simGridConfig) *node2 {
 	return &node2{
 		cfg:  cfg,
 		name: name,
 		seen: NewMutexmap[string, bool](),
 		// comms
 		PushToPeerURL:          make(chan string),
-		halt:                   idem.NewHalter(),
+		halt:                   srv.halt,
 		gotIncomingCktReadFrag: make(chan *Fragment),
 	}
 }
@@ -164,7 +164,7 @@ func (s *simGridNode) Start() error {
 
 	vv("cfg.ClientDialToHostPort = '%v'", cfg.ClientDialToHostPort) // 'simnet://srv_grid_node_0'
 
-	s.node = newNode2(s.name, s.cfg)
+	s.node = newNode2(s.srv, s.name, s.cfg)
 
 	err = s.srv.PeerAPI.RegisterPeerServiceFunc("simgrid", s.node.Start)
 	panicOn(err)
