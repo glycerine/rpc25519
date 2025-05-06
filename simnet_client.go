@@ -11,7 +11,7 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string) {
 	c.simnet = singleSimnet
 	singleSimnetMut.Unlock()
 
-	vv("c.simnet = %p", c.simnet)
+	vv("runSimNetClient c.simnet = %p, '%v', goro = %v", c.simnet, c.name, GoroNumber()) // only 'auto-cli-srv_grid_node_1'
 
 	// ignore serverAddr in favor of cfg.ClientDialToHostPort
 	// which tests actually set.

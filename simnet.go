@@ -52,7 +52,7 @@ type SimNetAddr struct { // implements net.Addr interface
 
 // name of the network (for example, "tcp", "udp", "simnet")
 func (s *SimNetAddr) Network() string {
-	vv("SimNetAddr.Network() returning '%v'", s.network)
+	//vv("SimNetAddr.Network() returning '%v'", s.network)
 	return s.network
 }
 
@@ -239,7 +239,8 @@ func (s *simnet) newSimnodeClient(name string) (node *simnode) {
 func (s *simnet) newSimnodeServer(name string) (node *simnode) {
 	node = s.newSimnode(name)
 	node.isCli = false
-	node.tellServerNewConnCh = make(chan *simnetConn)
+	// buffer so servers don't have to be up to get them.
+	node.tellServerNewConnCh = make(chan *simnetConn, 100)
 	return
 }
 
@@ -299,17 +300,24 @@ func (s *simnet) handleNewClientRegistration(reg *clientRegistration) {
 	c2s := s.addEdgeFromCli(clinode, srvnode)
 	s2c := s.addEdgeFromSrv(srvnode, clinode)
 
+	reg.conn = c2s
+	reg.simnode = clinode
+
 	// tell server about new edge
-	vv("about to deadlock? stack=\n'%v'", stack())
+	// vv("about to deadlock? stack=\n'%v'", stack())
+	// so I think this might be the chicken and egg problem;
+	// server cannot register b/c client is here on
+	// the scheduler goro, and client here wants to tell the
+	// the server about it... try in goro
+	//go func() {
 	select { // scheduler deadlocked here, calling a server!
 	case srvnode.tellServerNewConnCh <- s2c:
+		vv("srvnode was notified of new client; s2c='%#v'", s2c)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
-
+	//}()
 	// let client start using the connection/edge.
-	reg.conn = c2s
-	reg.simnode = clinode
 	close(reg.done)
 }
 
@@ -1099,7 +1107,7 @@ func (s *simnet) scheduler() {
 			vv("back from synctestWait() goro = %v", GoroNumber())
 		}
 
-		select {
+		select { // scheduler main select
 		case alert := <-s.nextTimer.C: // soonest timer fires
 			_ = alert
 			//vv("s.nextTimer -> alerted at %v", alert)

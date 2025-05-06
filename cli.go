@@ -57,6 +57,7 @@ var sep = string(os.PathSeparator)
 func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string) {
 
 	defer func() {
+		vv("runClientMain defer: end for goro = %v", GoroNumber())
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
 
@@ -1557,7 +1558,7 @@ func (c *Client) Start() (err error) {
 	go c.runClientMain(c.cfg.ClientDialToHostPort, c.cfg.TCPonly_no_TLS, c.cfg.CertPath)
 
 	// wait for connection (or not).
-	err = <-c.connected
+	err = <-c.connected // hung here in test702
 	return err
 }
 
