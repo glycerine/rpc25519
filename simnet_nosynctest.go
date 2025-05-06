@@ -6,6 +6,10 @@ const globalUseSynctest bool = false
 
 func synctestWait() {}
 
-func synctestRun(f func()) {
+//func synctestRun(f func()) {
+//	f()
+//}
+
+func bubblesOrNot(f func()) {
 	f()
 }

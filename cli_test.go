@@ -21,8 +21,16 @@ var _ = filepath.Dir
 func TestMain(m *testing.M) {
 
 	var exitVal int
-	synctestRun(func() {
-		//func() {
+
+	// Note we learned the hard way of a bad cocktail:
+	// never mix multiple tests with synctest.
+	// The testing machinery needs to get the
+	// real time to time the tests, and the
+	// synctest machinery isnt' sufficiently isolated
+	// from the testing code yet, if ever(?), so
+	// each test has gotta have its own bubblesOrNot() wrapper.
+
+	func() {
 		//vv("TestMain running.")
 
 		// create a temp dir for certs/ca,
@@ -57,8 +65,8 @@ func TestMain(m *testing.M) {
 		//vv("running in temp dir '%v'", tmp)
 
 		exitVal = m.Run()
-		//}()
-	})
+	}()
+	//})
 	// Do stuff AFTER the tests
 
 	// clean up the temp dir.
@@ -415,7 +423,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 
 // and with TLS
 
-func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
+func Test009_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 
 	if globalUseSynctest {
 		t.Skip("skip under synctest, net calls will never settle.")
@@ -428,7 +436,7 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 		cfg.TCPonly_no_TLS = false
 
 		cfg.ServerAddr = "127.0.0.1:0"
-		srv := NewServer("srv_test007", cfg)
+		srv := NewServer("srv_test009", cfg)
 
 		serverAddr, err := srv.Start()
 		panicOn(err)
@@ -443,7 +451,7 @@ func Test007_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 		srv.Register(&BuiltinTypes{})
 
 		cfg.ClientDialToHostPort = serverAddr.String()
-		client, err := NewClient("test007", cfg)
+		client, err := NewClient("test009", cfg)
 		panicOn(err)
 		err = client.Start()
 		panicOn(err)

@@ -258,8 +258,13 @@ func newBlabber(
 	simnet := singleSimnet
 	singleSimnetMut.Unlock()
 
-	if cfg.UseSimNet && simnet == nil {
-		panic("UseSimNet requested, but singleSimnet is nil!")
+	if cfg.UseSimNet {
+		if simnet == nil {
+			panic("UseSimNet requested, but singleSimnet is nil!")
+		}
+		vv("good: UseSimNet true and have singleSimnet = %p", singleSimnet)
+	} else {
+		vv("hmm: cfg.UseSimNet is false")
 	}
 
 	return &blabber{

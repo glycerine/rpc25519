@@ -137,7 +137,7 @@ func Test406_user_can_cancel_local_service_with_context(t *testing.T) {
 
 }
 
-func Test407_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
+func Test408_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 
 	if globalUseSynctest {
 		t.Skip("skip under synctest, net calls will never settle.")

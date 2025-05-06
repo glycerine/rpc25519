@@ -62,9 +62,18 @@ func (s *Server) runServerMain(
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
 	}()
-	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
-
 	s.tmStart = time.Now()
+
+	vv("s.cfg.UseSimNet=%v", s.cfg.UseSimNet)
+	if s.cfg.UseSimNet {
+		simNetConfig := &SimNetConfig{}
+
+		s.runSimNetServer(serverAddress, boundCh, simNetConfig)
+		alwaysPrintf("runSimNetServer exited: %v", s.name)
+		return
+	}
+
+	log.SetFlags(log.LstdFlags | log.Lshortfile) // Add Lshortfile for short file names
 
 	s.cfg.checkPreSharedKey("server")
 	//vv("server: s.cfg.encryptPSK = %v", s.cfg.encryptPSK)
@@ -98,6 +107,10 @@ func (s *Server) runServerMain(
 	var config *tls.Config
 
 	if !tcp_only {
+		if s.cfg.UseSimNet {
+			panic("cannot have both TLS and UseSimNet true")
+		}
+
 		// handle pass-phrase protected certs/node.key
 		config, s.creds, err = selfcert.LoadNodeTLSConfigProtected(true, sslCA, sslCert, sslCertKey)
 		if err != nil {
@@ -139,14 +152,6 @@ func (s *Server) runServerMain(
 			panic("cannot have both UseQUIC and UseSimNet true")
 		}
 		s.runQUICServer(serverAddress, config, boundCh)
-		return
-	}
-	vv("s.cfg.UseSimNet=%v", s.cfg.UseSimNet)
-	if s.cfg.UseSimNet {
-		simNetConfig := &SimNetConfig{}
-
-		s.runSimNetServer(serverAddress, boundCh, simNetConfig)
-		alwaysPrintf("runSimNetServer exited: %v", s.name)
 		return
 	}
 
@@ -511,6 +516,10 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 }
 
 func (s *rwPair) runReadLoop(conn net.Conn) {
+
+	if s.Server.cfg.UseSimNet {
+
+	}
 
 	ctx, canc := context.WithCancel(context.Background())
 	defer func() {
@@ -2158,6 +2167,12 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 	if s.cfg == nil {
 		s.cfg = NewConfig()
 	}
+
+	if s.cfg.UseSimNet {
+		// turn off TLS for sure under simnet.
+		s.cfg.TCPonly_no_TLS = true
+	}
+
 	s.cfg.srvStartingDir, err = os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("rpc25519.Server.Start() could not Getwd(): '%v'", err)

@@ -8,6 +8,10 @@ import (
 	"time"
 )
 
+func bubblesOrNot(f func()) {
+	synctest.Run(f)
+}
+
 const globalUseSynctest bool = true
 
 var waitMut sync.Mutex
@@ -17,6 +21,10 @@ var waitBegan time.Time
 var waitEnded time.Time
 
 func synctestWait() {
+	synctest.Wait()
+}
+
+func synctestWait2() {
 
 	waitMut.Lock()
 	if waitBegan.After(waitEnded) && waitBegan == time.Now() {
@@ -34,6 +42,6 @@ func synctestWait() {
 	}
 }
 
-func synctestRun(f func()) {
-	synctest.Run(f)
-}
+//func synctestRun(f func()) {
+//	synctest.Run(f)
+//}

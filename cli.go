@@ -69,6 +69,11 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		}
 	}()
 
+	if c.cfg.UseSimNet {
+		c.runSimNetClient(c.cfg.ClientHostPort, serverAddr)
+		return
+	}
+
 	dirCerts := GetCertsDir()
 
 	c.cfg.checkPreSharedKey("client")
@@ -153,10 +158,6 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 			localHostPort = localHost + ":0" // client can pick any port
 		}
 		c.runQUIC(localHostPort, serverAddr, config)
-		return
-	}
-	if c.cfg.UseSimNet {
-		c.runSimNetClient(c.cfg.ClientHostPort, serverAddr)
 		return
 	}
 
@@ -1557,6 +1558,11 @@ func (c *Client) Start() (err error) {
 	c.cfg.cliStartingDir, err = os.Getwd()
 	if err != nil {
 		return fmt.Errorf("rpc25519.Client.Start() could not Getwd(): '%v'", err)
+	}
+
+	if c.cfg.UseSimNet {
+		// turn off TLS for sure under simnet.
+		c.cfg.TCPonly_no_TLS = true
 	}
 
 	go c.runClientMain(c.cfg.ClientDialToHostPort, c.cfg.TCPonly_no_TLS, c.cfg.CertPath)
