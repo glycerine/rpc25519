@@ -474,6 +474,11 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 
 func Test409_lots_of_send_and_read(t *testing.T) {
 
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
+
 	cv.Convey("many sends and reads between peers", t, func() {
 
 		j := newTestJunk3("manysend_409")

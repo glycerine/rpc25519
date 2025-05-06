@@ -15,6 +15,11 @@ import (
 
 func Test001_RoundTrip_SendAndGetReply_TCP(t *testing.T) {
 
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
+
 	cv.Convey("basic TCP remote procedure call with rpc25519: register a callback on the server, and have the client call it.", t, func() {
 
 		cfg := NewConfig()
@@ -58,6 +63,11 @@ func Test001_RoundTrip_SendAndGetReply_TCP(t *testing.T) {
 }
 
 func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
+
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
 
 	cv.Convey("basic TLS remote procedure call with rpc25519: register a callback on the server, and have the client call it.", t, func() {
 
@@ -132,6 +142,11 @@ func oneWayStreet(in *Message) {
 
 func Test003_client_notification_callbacks(t *testing.T) {
 
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
+
 	cv.Convey("client.GetReads() and GetOneRead() can be used to monitor all messages or just the next one ", t, func() {
 
 		cfg := NewConfig()
@@ -189,6 +204,11 @@ func Test003_client_notification_callbacks(t *testing.T) {
 
 // see below Test014 for QUIC version
 func Test004_server_push(t *testing.T) {
+
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
 
 	cv.Convey("server.SendCh should push messages to the client", t, func() {
 
@@ -274,6 +294,11 @@ func Test004_server_push(t *testing.T) {
 
 func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
+
 	cv.Convey("basic QUIC remote procedure call with rpc25519: register a callback on the server, and have the client call it.", t, func() {
 
 		cfg := NewConfig()
@@ -349,6 +374,11 @@ func setupPSK(path string) error {
 
 func Test011_PreSharedKey_over_TCP(t *testing.T) {
 
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
+
 	cv.Convey("If we enable pre-shared-key encryption, round trips should still work", t, func() {
 
 		cfg := NewConfig()
@@ -392,6 +422,11 @@ func Test011_PreSharedKey_over_TCP(t *testing.T) {
 }
 
 func Test012_PreSharedKey_must_agree(t *testing.T) {
+
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
 
 	cv.Convey("If the pre-shared-keys disagree, we should not communicate", t, func() {
 
@@ -449,6 +484,11 @@ func Test012_PreSharedKey_must_agree(t *testing.T) {
 }
 
 func Test014_server_push_quic(t *testing.T) {
+
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
 
 	cv.Convey("server.SendCh should push messages to the client under QUIC", t, func() {
 
@@ -548,6 +588,11 @@ func Test014_server_push_quic(t *testing.T) {
 }
 
 func Test015_server_push_quic_notice_disco_quickly(t *testing.T) {
+
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
 
 	cv.Convey("the GetReadIncomingCh() channel for srv->cli push should work", t, func() {
 
@@ -688,6 +733,11 @@ func Test015_server_push_quic_notice_disco_quickly(t *testing.T) {
 
 func Test016_WithPreSharedKey_inner_handshake_must_be_properly_signed(t *testing.T) {
 
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
+
 	if !useVerifiedHandshake {
 		return // currently pre-shared-key is super simple and not verified.
 	}
@@ -792,6 +842,11 @@ func Test016_WithPreSharedKey_inner_handshake_must_be_properly_signed(t *testing
 
 func Test030_RoundTrip_SendAndGetReply_then_JSON(t *testing.T) {
 
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
+
 	cv.Convey("convert to JSON after basic TCP, see what we have.", t, func() {
 
 		cfg := NewConfig()
@@ -860,6 +915,11 @@ func Test030_RoundTrip_SendAndGetReply_then_JSON(t *testing.T) {
 
 func Test031_PingStats(t *testing.T) {
 	return // too slow for normal test runs.
+
+	if globalUseSynctest {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
 
 	cv.Convey("PingStats should be regularly updated by each ping", t, func() {
 

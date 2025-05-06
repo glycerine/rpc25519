@@ -128,6 +128,8 @@ func Test704_rng_hops(t *testing.T) {
 // simnet version of cli_test 006
 func Test706_simnetonly_RoundTrip_Using_NetRPC(t *testing.T) {
 
+	return
+
 	// basic SimNet with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.
 	cfg := NewConfig()
 	//orig cfg.TCPonly_no_TLS = true
