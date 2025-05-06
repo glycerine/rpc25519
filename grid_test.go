@@ -76,13 +76,13 @@ type node struct {
 	seen *Mutexmap[string, bool]
 }
 
-func newNode(name string, cfg *gridConfig) *node {
+func newNode(srv *Server, name string, cfg *gridConfig) *node {
 	return &node{
 		name: name,
 		seen: NewMutexmap[string, bool](),
 		// comms
 		PushToPeerURL:          make(chan string),
-		halt:                   idem.NewHalter(),
+		halt:                   srv.halt,
 		gotIncomingCktReadFrag: make(chan *Fragment),
 	}
 }
@@ -180,7 +180,7 @@ func (s *gridNode) Start() error {
 	cfg.ClientDialToHostPort = serverAddr.String()
 	vv("serverAddr = '%#v' -> '%v'", serverAddr, cfg.ClientDialToHostPort)
 
-	s.node = newNode(s.name, s.cfg)
+	s.node = newNode(s.srv, s.name, s.cfg)
 
 	err = s.srv.PeerAPI.RegisterPeerServiceFunc("grid", s.node.Start)
 	panicOn(err)
