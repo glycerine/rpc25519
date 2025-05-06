@@ -41,6 +41,12 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 		}
 	}
 
+	s.mut.Lock() // avoid data races
+	addrs := netAddr.Network() + "://" + netAddr.String()
+	s.boundAddressString = addrs
+	AliasRegister(addrs, addrs+" (server: "+s.name+")")
+	s.mut.Unlock()
+
 	vv("about to call s.cfg.newSimNetOnServer()")
 	serverNewConnCh := s.cfg.newSimNetOnServer(simNetConfig, s, netAddr)
 

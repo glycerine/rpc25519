@@ -54,6 +54,7 @@ type node2 struct {
 
 func newNode2(name string, cfg *simGridConfig) *node2 {
 	return &node2{
+		cfg:  cfg,
 		name: name,
 		seen: NewMutexmap[string, bool](),
 		// comms
@@ -154,15 +155,19 @@ func (s *simGridNode) Start() error {
 	vv("past NewServer()")
 	serverAddr, err := s.srv.Start()
 	panicOn(err)
-	vv("past s.srv.Start()")
+	vv("past s.srv.Start(); serverAddr = '%#v'/ '%v'", serverAddr, serverAddr)
 
 	cfg.ClientDialToHostPort = serverAddr.String()
+	vv("serverAddr = '%#v' -> '%v'", serverAddr, cfg.ClientDialToHostPort) // simgrid_test.go:161 2025-05-06 04:21:12.375 +0000 UTC serverAddr = '&rpc25519.SimNetAddr{network:"simnet", addr:"127.0.0.1:0", name:"srv_grid_node_2", isCli:false}' -> 'simnet://127.0.0.1:0/srv_grid_node_2'
+
+	vv("cfg.ClientDialToHostPort = '%v'", cfg.ClientDialToHostPort) // 'simnet://srv_grid_node_0'
 
 	s.node = newNode2(s.name, s.cfg)
 
 	err = s.srv.PeerAPI.RegisterPeerServiceFunc("simgrid", s.node.Start)
 	panicOn(err)
 
+	// appears that under simnet, the PeerAPI is not getting the server base address with simnet://127... in it.
 	s.lpb, err = s.srv.PeerAPI.StartLocalPeer(context.Background(), "simgrid", nil)
 	panicOn(err)
 	s.node.lpb = s.lpb

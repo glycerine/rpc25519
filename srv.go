@@ -2624,7 +2624,7 @@ func (s *Server) UnregisterChannel(ID string, whichmap int) {
 func (s *Server) LocalAddr() string {
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	//vv("Server.LocalAddr returning '%v'", s.boundAddressString)
+	vv("Server.LocalAddr returning '%v'", s.boundAddressString) // arg! empty for simnet
 	return s.boundAddressString
 }
 

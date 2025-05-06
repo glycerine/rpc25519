@@ -332,7 +332,9 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	}
 
 	netAddr, serviceName, peerID, circuitID, err := ParsePeerURL(peerURL)
-	vv("netAddr from ParsePeerURL = '%v' (peerURL = '%v');", netAddr, peerURL)
+
+	vv("netAddr from ParsePeerURL = '%v' (peerURL = '%v');", netAddr, peerURL) // test202: ckt.go:335 2025-05-06 04:01:15.219 +0000 UTC netAddr from ParsePeerURL = 'tcp://127.0.0.1:49695' (peerURL = 'tcp://127.0.0.1:49695/grid/g6iRkDt1XPwl3M-gdLnoBaCDBua4');
+
 	if circuitID != "" {
 		panic(fmt.Sprintf("NewCircuitToPeerURL() use error: peerURL "+
 			"should not have a circuitID "+
@@ -373,7 +375,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 }
 
 func ParsePeerURL(peerURL string) (netAddr, serviceName, peerID, circuitID string, err error) {
-	//vv("ParsePeerURL(peerURL = '%v') top.", peerURL)
+	vv("ParsePeerURL(peerURL = '%v') top.", peerURL)
 	var u *url.URL
 	u, err = url.Parse(peerURL)
 	if err != nil {
@@ -894,7 +896,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	//AliasRegister(localPeerID, localPeerID+" ("+peerServiceName+")")
 
 	localAddr := p.u.LocalAddr()
-	//vv("unlockedStartLocalPeer: localAddr = '%v'", localAddr)
+	vv("unlockedStartLocalPeer: localAddr = '%v'", localAddr)
 	lpb = p.newLocalPeer(ctx1, canc1, p.u, localPeerID, newCircuitCh, peerServiceName, localAddr)
 
 	knownLocalPeer.mut.Lock()

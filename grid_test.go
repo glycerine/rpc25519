@@ -178,6 +178,7 @@ func (s *gridNode) Start() error {
 	panicOn(err)
 
 	cfg.ClientDialToHostPort = serverAddr.String()
+	vv("serverAddr = '%#v' -> '%v'", serverAddr, cfg.ClientDialToHostPort)
 
 	s.node = newNode(s.name, s.cfg)
 

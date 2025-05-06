@@ -51,13 +51,17 @@ type SimNetAddr struct { // implements net.Addr interface
 
 // name of the network (for example, "tcp", "udp", "simnet")
 func (s *SimNetAddr) Network() string {
+	vv("SimNetAddr.Network() returning '%v'", s.network)
 	return s.network
 }
 
 // string form of address (for example, "192.0.2.1:25", "[2001:db8::1]:80")
-func (s *SimNetAddr) String() string {
+func (s *SimNetAddr) String() (str string) {
 	// keep it simple, as it is our simnet.dns lookup key.
-	return s.name
+	//str = s.addr + "/" + s.name
+	str = s.name
+	//vv("SimNetAddr.String() returning '%v'", str) // recursive... locks
+	return
 }
 
 // Message operation
