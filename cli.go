@@ -92,6 +92,9 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	var config *tls.Config
 	var creds *selfcert.Creds
 	if !tcp_only {
+		if c.cfg.UseSimNet {
+			panic("cannot have both TLS and UseSimNet true")
+		}
 		// handle pass-phrase protected certs/client.key
 		var err2 error
 		config, creds, err2 = selfcert.LoadNodeTLSConfigProtected(false, sslCA, sslCert, sslCertKey)
