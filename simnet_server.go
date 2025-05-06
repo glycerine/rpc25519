@@ -1,6 +1,7 @@
 package rpc25519
 
 import (
+	"fmt"
 	"net"
 	//"sync/atomic"
 	"time"
@@ -45,14 +46,22 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	vv("about to call s.cfg.newSimNetOnServer()")
 	serverNewConnCh := s.cfg.newSimNetOnServer(simNetConfig, s, netAddr)
 	// INVAR: s.simnet and s.simnode are set for us in simnet.go
-	vv("newSimNetOnServer gave us serverNewConnCh = %p for our netAddr='%v'", serverNewConnCh, netAddr) // ONLY node_0 got this???
+	vv("%v newSimNetOnServer gave us serverNewConnCh = %p for our netAddr='%v'", s.name, serverNewConnCh, netAddr) // both node_0 and node_1 seen, sometimes only node_0
+	if serverNewConnCh == nil {
+		panic(fmt.Sprintf("%v got a nil serverNewConnCh, should not be allowed!", s.name))
+	}
 
 	for {
+		// as a server, we have to emulate the "bind and listen on socket"
+		// by starting a read before we have any new client;
+		// any client could connect to us, but unless we
+		// read first, the simnet cannot deliver us anything.
+
 		select { // wait for a new client to connect
 		case conn := <-serverNewConnCh:
 			//s.simnode = conn.local
 
-			vv("simnet server '%v': got new conn '%#v', about to start read/send loops", netAddr, conn)
+			vv("%v simnet server got new conn '%#v', about to start read/send loops", netAddr, conn) // not seen
 			pair := s.newRWPair(conn)
 			go pair.runSendLoop(conn)
 			go pair.runReadLoop(conn)

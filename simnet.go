@@ -155,13 +155,12 @@ func (op *mop) String() string {
 		complete = fmt.Sprintf("%v", op.completeTm.Sub(now))
 	}
 	extra := ""
-	if op.kind == TIMER {
+	switch op.kind {
+	case TIMER:
 		extra = " timer set at " + op.timerFileLine
-	}
-	if op.kind == TIMER_DISCARD {
+	case TIMER_DISCARD:
 		extra = " timer discarded at " + op.timerFileLine
-	}
-	if op.kind == SEND {
+	case SEND:
 		extra = fmt.Sprintf(" FROM %v TO %v", op.origin.name, op.target.name)
 	}
 	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, msg.sn:%v%v}", who, op.kind, ini, arr, complete, op.sn, msgSerial, extra)
@@ -312,16 +311,17 @@ func (s *simnet) handleNewClientRegistration(reg *clientRegistration) {
 	// server cannot register b/c client is here on
 	// the scheduler goro, and client here wants to tell the
 	// the server about it... try in goro
-	//go func() {
-	select { // scheduler deadlocked here, calling a server!
-	case srvnode.tellServerNewConnCh <- s2c:
-		vv("srvnode was notified of new client; s2c='%#v'", s2c)
-	case <-s.halt.ReqStop.Chan:
-		return
-	}
-	//}()
-	// let client start using the connection/edge.
-	close(reg.done)
+	go func() {
+		select {
+		case srvnode.tellServerNewConnCh <- s2c:
+			vv("%v srvnode was notified of new client '%v'; s2c='%#v'", srvnode.name, clinode.name, s2c) // seen for node_1
+
+			// let client start using the connection/edge.
+			close(reg.done)
+		case <-s.halt.ReqStop.Chan:
+			return
+		}
+	}()
 }
 
 // gotta have just one simnet, shared by all clients and servers in process.
@@ -330,10 +330,10 @@ var singleSimnet *simnet
 
 func (cfg *Config) newSimNetOnServer(simNetConfig *SimNetConfig, srv *Server, srvNetAddr *SimNetAddr) (tellServerNewConnCh chan *simnetConn) {
 
-	vv("newSimNetOnServer, goro = %v", GoroNumber())
+	vv("%v newSimNetOnServer top, goro = %v", srv.name, GoroNumber())
 	singleSimnetMut.Lock()
 	if singleSimnet != nil {
-		vv("newSimNetOnServer releasing lock b/c singleSimnet not nil. goro = %v", GoroNumber())
+		vv("%v newSimNetOnServer releasing lock b/c singleSimnet not nil. goro = %v", srv.name, GoroNumber())
 
 		singleSimnetMut.Unlock()
 
@@ -1122,10 +1122,12 @@ func (s *simnet) scheduler() {
 			s.armTimer()
 
 		case reg := <-s.cliRegisterCh:
+			// "connect" in network lingo, client reaches out to listening server.
 			vv("s.cliRegisterCh got reg = '%#v'", reg)
 			s.handleNewClientRegistration(reg)
 
 		case srvreg := <-s.srvRegisterCh:
+			// "bind/listen" on a socket, server waits for any client to "connect"
 			vv("s.srvRegisterCh got srvreg for '%v' = '%#v'", srvreg.server.name, srvreg) // only node_1 seen, now node_2 seen
 			s.handleNewServerRegistration(srvreg)
 			vv("back from handleNewServerRegistration '%v'", srvreg.server.name) // only seen once for node_1 on test702 and node_2
