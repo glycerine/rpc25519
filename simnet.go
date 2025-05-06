@@ -1069,7 +1069,7 @@ func (s *simnet) qReport() (r string) {
 }
 
 func (node *simnode) String() (r string) {
-	r += node.name + " Q summary:\n"
+	r += fmt.Sprintf("%v in %v state, Q summary:\n", node.name, node.state)
 	r += node.readQ.String()
 	r += node.preArrQ.String()
 	r += node.timerQ.String()
