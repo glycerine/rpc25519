@@ -1899,9 +1899,9 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		if !s.cfg.ServerAutoCreateClientsToDialOtherServers {
 			return
 		}
-		//alwaysPrintf("server did not find destAddr in " +
-		//	"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers" +
-		//	" is true so spinning up new client...")
+		alwaysPrintf("server did not find destAddr in " +
+			"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers" +
+			" is true so spinning up new client...")
 		dest, err1 := ipaddr.StripNanomsgAddressPrefix(msg.HDR.To)
 		panicOn(err1)
 		cliName := "auto-cli-" + dest
