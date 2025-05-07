@@ -119,13 +119,16 @@ func (s *inBubbleState) releaseBarrier(moreTime int64) {
 var pauseSchedulerCh = make(chan struct{})
 var pauseMut sync.Mutex
 
+var schedAllowedCh = make(chan bool, 1000)
+
 // cause scheduler to not return from synctest.Wait(),
 // pausing the simulation.
 func pauseScheduler() {
 	pauseMut.Lock()
 	defer pauseMut.Unlock()
 	pauseSchedulerCh = make(chan struct{})
-	vv(" ------------ paused scheduler ---------------")
+
+	vv(" ------ paused scheduler ---- len schedAllowedCh = %v", len(schedAllowedCh))
 }
 func resumeScheduler() {
 	pauseMut.Lock()
@@ -134,6 +137,11 @@ func resumeScheduler() {
 	close(pauseSchedulerCh)
 	vv(" ++++++++++++ about to resume scheduler ++++++")
 	pauseSchedulerCh = nil
+
+	// give it one step at a time after the initial batch.
+	if len(schedAllowedCh) == 0 {
+		schedAllowedCh <- true
+	}
 }
 
 func getPauseChan() chan struct{} {
@@ -145,11 +153,19 @@ func getPauseChan() chan struct{} {
 func Test_does_nil_global_chan_keep_synctest_Wait_returning(t *testing.T) {
 
 	go func() {
+		// if desired, let scheduler run for a bunch first...
+		for range 10 {
+			schedAllowedCh <- true
+		}
+		resumeScheduler()
 		for {
-			resumeScheduler()
 			time.Sleep(time.Millisecond)
+			if len(schedAllowedCh) > 0 {
+				continue
+			}
 			pauseScheduler()
 			time.Sleep(time.Second * 3)
+			resumeScheduler()
 		}
 	}()
 
@@ -221,6 +237,7 @@ func Test_does_nil_global_chan_keep_synctest_Wait_returning(t *testing.T) {
 
 		// this works, but the scheduler runs through
 		// two time steps, time.Sleep() calls, before pausing.
+		// try adding schedAllowedCh chan
 		for j := 0; ; j++ {
 
 			var nProd time.Duration = 3
@@ -229,9 +246,11 @@ func Test_does_nil_global_chan_keep_synctest_Wait_returning(t *testing.T) {
 			consumerCanTakeSteps <- step * nCons
 			producerCanTakeSteps <- step * nProd
 
-			vv("scheduler about to synctest.Wait()")
+			vv("scheduler about to synctest.Wait(); len schedAllowedCh = %v", len(schedAllowedCh))
 
 			//runtime.Gosched() // try to let the pauser pause us if desired.
+
+			<-schedAllowedCh
 
 			// let all the goro get blocked
 			synctest.Wait()
