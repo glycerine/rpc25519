@@ -32,7 +32,7 @@ import (
 //
 // Does the package synctest give that guarantee?
 //
-// Can time advance in some other manner? Is
+// Can time advance in some (any) other manner? Is
 // this other way guaranteed to be the ONLY other way?
 //
 // Let's make assumptions about the things that
@@ -135,6 +135,20 @@ import (
 // as a poor man's model checker for some cases
 // of the temporal logic invariants "never happens", or
 // "always happens".
+//
+// What about concurrent calls to synctest.Wait?
+// Well, they seem like they would be useful...
+// letting all goroutines accumulate against
+// the same barrier... but then when you
+// come out the other side, waking from syntest.Wait,
+// now multiple goroutines could be active
+// at once again!  This is exactly what we
+// wanted to avoid. We want exclusive access
+// while time is frozen "in between two clock ticks"
+// to change lots of state before we resume
+// the clock for other goroutines again. So
+// this is less than useful--it actively hurts
+// our aims.
 
 type SimNetConfig struct{}
 
