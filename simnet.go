@@ -43,8 +43,8 @@ import (
 // was not applied to the blog post statement,
 // "Time advances in the bubble when all goroutines are blocked."
 // so let's further assume that he meant _durably_ blocked.
-// Although if he meant durably he probably would
-// have said durably, because he
+// Although if @neild meant durably he probably would
+// have said durably (maybe?)
 //
 // jea: since we were blocked, other goro can
 // run until blocked in the background; in
@@ -159,6 +159,21 @@ import (
 // you get the runtime's help: the runtime
 // insures that nobody else will read from
 // your channel.
+//
+// The converse might also be useful: since
+// a select on an "outside" channel prevents
+// synctest.Wait() from returning, this
+// could be useful (maybe?) if a worker/node
+// wants to prevent the schduler from
+// blocking it too early while it does
+// some sends and receives on channels.
+// I don't see why this would be needed at
+// the moment, but keep in the back
+// pocket of ideas for the future. The
+// outside channel could be a global
+// system "scheduler" control mechanism
+// if it wanted to pause an instance
+// of the scheduler, for example.
 
 type SimNetConfig struct{}
 
