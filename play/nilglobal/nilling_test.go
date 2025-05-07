@@ -181,11 +181,15 @@ func Test_does_nil_global_chan_keep_synctest_Wait_returning(t *testing.T) {
 			}
 		}()
 
-		var nProd time.Duration = 1
-		var nCons time.Duration = 0
+		var nProd time.Duration = 3
+		var nCons time.Duration = 3
 		vv("giving nProd = %v  and nCons = %v", nProd, nCons)
 		consumerCanTakeSteps <- step * nCons
 		producerCanTakeSteps <- step * nProd
+
+		vv("scheduler about to time.Sleep(step)")
+
+		time.Sleep(step)
 
 		vv("scheduler about to synctest.Wait()")
 
@@ -193,6 +197,7 @@ func Test_does_nil_global_chan_keep_synctest_Wait_returning(t *testing.T) {
 		synctest.Wait()
 
 		vv("scheduler past synctest.Wait()")
+		//select {} // look at the goro, confirm we are the only one by seeing panic
 
 		close(shutdown)
 	})
