@@ -59,18 +59,18 @@ func waitInBubble2() {
 	}
 }
 
-func waitUntilBarrierDown() (alwaysNilChan chan struct{}) {
+func waitUntilBarrierDown(who string) (alwaysNilChan chan struct{}) {
 	barrierMut.Lock()
 	isUp := barrierDownTime.Before(barrierUpTime)
 	if isUp {
 		// barrier   up when: downTime < upTime
 		// barrier down when: downTime >= upTime
 		tot := numWaitingAtBarrier.Add(1)
-		vv("other goro about to block, total blocked: %v", tot)
+		vv("%v goro about to block, total blocked: %v", who, tot)
 		waitCond.Wait() // unlock barrierMut and suspend until Broadcast
 		return
 	}
-	vv("barrier was down")
+	vv("barrier was down, %v checked", who)
 	barrierMut.Unlock()
 	return // always returns a nil channel
 }
@@ -88,7 +88,7 @@ func raiseBarrier() {
 	// INVAR: barrierUpTime > barrierDownTime
 	vv("barrierUpTime = %v", barrierUpTime)
 	barrierUp.Store(true)
-	//synctest.Wait() ?
+	//synctest.Wait() // maybe?
 	barrierMut.Unlock()
 }
 func releaseBarrier() {
@@ -114,24 +114,21 @@ func Test_Are_We_Last(t *testing.T) {
 		shutdown := make(chan struct{})
 
 		for range 1 {
-			T := time.Second
+			tick := time.Second
 			N := 3
-			//N := 1
-			dur := T
-			_ = dur
-			//awake := make(chan int)
 			awake := make(chan time.Time)
 			for i := range N {
+				me := "producer"
 				go func(i int) {
 					// producer workers.
 					for {
 						//dur := randomElectionTimeoutDur(T)
-						//time.Sleep(dur)
+						time.Sleep(tick)
 						select {
 						case awake <- time.Now():
-							vv("produced")
+							vv("producer %v produced", i)
 						case <-shutdown:
-						case <-waitUntilBarrierDown():
+						case <-waitUntilBarrierDown(me):
 						}
 					}
 				}(i)
@@ -140,20 +137,21 @@ func Test_Are_We_Last(t *testing.T) {
 			// service some reads on awake chan, to verify this gets blocked too
 			go func() {
 				// consumer worker.
+				me := "consumer"
 				for {
 					//dur := randomElectionTimeoutDur(T)
-					//time.Sleep(dur)
+					time.Sleep(tick)
 					select {
 					case <-awake:
 						vv("consumed")
 					case <-shutdown:
-					case <-waitUntilBarrierDown():
+					case <-waitUntilBarrierDown(me):
 					}
 				}
 			}()
 
-			// let other goro go for a bit
-			//time.Sleep(dur)
+			// let other goro go for a bit, 10 ticks worth of work.
+			time.Sleep(tick * 10)
 
 			vv("about to raise barrier, num waiting %v", numWaitingAtBarrier.Load())
 			raiseBarrier()
@@ -161,19 +159,41 @@ func Test_Are_We_Last(t *testing.T) {
 
 			vv("after raising barrier")
 
-			//time.Sleep(dur)
+			//time.Sleep(tick)
 
+			// usually what we see:
+			// one worker will be randomly be blocked on the select with
+			// the nil channel and now partners. The other
+			// three will be inside the barrier.
 			vv("num waiting = %v, vs producers N = %v +1 consumer = %v", numWaitingAtBarrier.Load(), N, N+1)
-
-			//vv("scheduler about to sleep")
-			//time.Sleep(dur)
 
 			vv("scheduler about to synctest.Wait")
 			synctest.Wait()
 
 			vv("num waiting after synctest.Wait= %v", numWaitingAtBarrier.Load())
 
-			select {} // good, deadlocked.
+			vv("1) ideally, scheduler has time frozen, can make atomic state changes")
+
+			vv("2) ideally, scheduler has time frozen, can make atomic state changes")
+
+			vv("3) ideally, scheduler has time frozen, can make atomic state changes")
+
+			vv("scheduler about to advance time by one tick, which might fire alarms")
+			time.Sleep(tick)
+
+			vv("scheduler after one tick")
+
+			// if we deadlock, and do not see any consumer/producer
+			// prints, this is good. meaning: no other goro made progress
+			// nor could run... let's even do a bunch of ticks...verify
+			// that we see no consumer/producer prints, but that
+			// the clock goes forward.
+
+			time.Sleep(tick * 60)
+
+			vv("scheduler after 60 ticks")
+
+			select {}
 
 			releaseBarrier()
 			vv("after releaseBarrier")
@@ -181,7 +201,7 @@ func Test_Are_We_Last(t *testing.T) {
 			vv("num waiting after synctest.Wait + Sleep = %v", numWaitingAtBarrier.Load())
 
 			// let other goro go for a bit
-			time.Sleep(dur)
+			time.Sleep(tick)
 
 			vv("about to raise barrier, num waiting %v", numWaitingAtBarrier.Load())
 			raiseBarrier()
@@ -191,7 +211,7 @@ func Test_Are_We_Last(t *testing.T) {
 
 			//vv("I think we're alone now. There doesn't seem to be anyone about...")
 
-			//time.Sleep(dur)
+			//time.Sleep(tick)
 
 			vv("scheduler's last print") // seen, good
 
