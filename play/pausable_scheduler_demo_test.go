@@ -1,6 +1,6 @@
 package main
 
-// The proof of concept demonstrates
+// This proof of concept demonstrates
 // how to pause a test simulation that is
 // running inside a synctest bubble.
 //
