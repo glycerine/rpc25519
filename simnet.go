@@ -361,7 +361,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 
 	// server creates simnet; must start server first.
 	s := &simnet{
-		useSynctest:     globalUseSynctest,
+		useSynctest:     globalUseSynctest, // simple, for now.
 		cfg:             cfg,
 		srv:             srv,
 		halt:            srv.halt,
@@ -1139,15 +1139,43 @@ func (s *simnet) scheduler() {
 		s.armTimer()
 
 		// advance time by one tick
-		time.Sleep(s.scenario.tick)
+		//time.Sleep(s.scenario.tick)
 
-		if s.useSynctest {
-			//vv("about to call waitInBubble; goro = %v", GoroNumber())
+		if s.useSynctest && globalUseSynctest {
 			// waitInBubble is:
 			// defined in simnet_synctest.go for synctest is on.
 			// defined in simnet_nosynctest.go as a no-op when off.
-			waitInBubble()
-			//vv("back from waitInBubble() goro = %v", GoroNumber())
+
+			vv("about to call waitInBubble; goro = %v", GoroNumber())
+
+			// Does the following mean we don't need the sleep first?
+			// And should sleep _after_ ?
+
+			// "Goroutines in the bubble started by Run use a
+			// fake clock. Within the bubble, functions in the
+			// time package operate on the fake clock.
+			// Time advances in the bubble when all goroutines are blocked."
+			// -- https://go.dev/blog/synctest
+
+			// What we see without the sleep first: no time advance!
+			// simnet.go:1145 2000-01-01 00:00:00 +0000 UTC about to call waitInBubble
+			// simnet.go:1158 2000-01-01 00:00:00 +0000 UTC back from waitInBubble()
+
+			waitInBubble() // synctest.Run when
+			vv("back from waitInBubble() goro = %v", GoroNumber())
+
+			// at this point, since all goro are durably blocked,
+			// we should be able to advance time and have any
+			// new timers go off in the background, waking up
+			// any other goroutines simulating client/server nodes,
+			// and possible getting reads/writes in our
+			// channel ops below.
+			time.Sleep(s.scenario.tick)
+			vv("back from sleeping for a tick, now = %v", time.Now())
+
+		} else {
+			// advance time by one tick
+			time.Sleep(s.scenario.tick)
 		}
 
 		select { // scheduler main select
