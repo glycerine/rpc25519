@@ -114,7 +114,42 @@ func (s *inBubbleState) releaseBarrier(moreTime int64) {
 // never close it
 var initTimeBarrierUpNotDurablyBlocking = make(chan struct{})
 
+var pauseSchedulerCh = make(chan struct{})
+var pauseMut sync.Mutex
+
+// cause scheduler to not return from synctest.Wait(),
+// pausing the simulation.
+func pauseScheduler() {
+	pauseMut.Lock()
+	defer pauseMut.Unlock()
+	pauseSchedulerCh = make(chan struct{})
+	vv(" ------------ paused scheduler ---------------")
+}
+func resumeScheduler() {
+	pauseMut.Lock()
+	defer pauseMut.Unlock()
+	// release any worker selects that are blocked...
+	close(pauseSchedulerCh)
+	vv(" ++++++++++++ about to resume scheduler ++++++")
+	pauseSchedulerCh = nil
+}
+
+func getPauseChan() chan struct{} {
+	pauseMut.Lock()
+	defer pauseMut.Unlock()
+	return pauseSchedulerCh
+}
+
 func Test_does_nil_global_chan_keep_synctest_Wait_returning(t *testing.T) {
+
+	go func() {
+		for {
+			resumeScheduler()
+			time.Sleep(time.Millisecond)
+			pauseScheduler()
+			time.Sleep(time.Second * 3)
+		}
+	}()
 
 	synctest.Run(func() {
 
@@ -122,10 +157,7 @@ func Test_does_nil_global_chan_keep_synctest_Wait_returning(t *testing.T) {
 		consumerCanTakeSteps := make(chan time.Duration)
 		producerCanTakeSteps := make(chan time.Duration)
 
-		blockWait := initTimeBarrierUpNotDurablyBlocking
-		blockWait = nil
-		_ = blockWait
-		awake := make(chan time.Time)
+		factory := make(chan time.Time)
 		shutdown := make(chan struct{})
 		set := time.Second
 		_ = set
@@ -143,15 +175,17 @@ func Test_does_nil_global_chan_keep_synctest_Wait_returning(t *testing.T) {
 					vv("producer got budget nStep = %v", nStep)
 				case <-shutdown:
 					return
+				case <-getPauseChan():
 				}
 				// do that many steps
 				for ; nStep > 0; nStep -= step {
 					made := time.Now()
 					select {
-					case awake <- made:
-						vv("producer awake <- made = %v", made)
+					case factory <- made:
+						vv("producer factory <- made = %v", made)
 					case <-shutdown:
 						return
+					case <-getPauseChan():
 					}
 				}
 			}
@@ -168,36 +202,43 @@ func Test_does_nil_global_chan_keep_synctest_Wait_returning(t *testing.T) {
 					vv("consumer got budget nStep = %v", nStep)
 				case <-shutdown:
 					return
+				case <-getPauseChan():
 				}
 				// do that many steps
 				for ; nStep > 0; nStep -= step {
 					select {
-					case tm := <-awake:
-						vv("the consumer got awake -> tm=%v", tm)
+					case tm := <-factory:
+						vv("the consumer got factory -> tm=%v", tm)
 					case <-shutdown:
 						return
+					case <-getPauseChan():
 					}
 				}
 			}
 		}()
 
-		var nProd time.Duration = 3
-		var nCons time.Duration = 3
-		vv("giving nProd = %v  and nCons = %v", nProd, nCons)
-		consumerCanTakeSteps <- step * nCons
-		producerCanTakeSteps <- step * nProd
+		for j := 0; ; j++ {
 
-		vv("scheduler about to time.Sleep(step)")
+			var nProd time.Duration = 3
+			var nCons time.Duration = 3
+			vv("j=%v scheduler giving nProd = %v  and nCons = %v", j, nProd, nCons)
+			consumerCanTakeSteps <- step * nCons
+			producerCanTakeSteps <- step * nProd
 
-		time.Sleep(step)
+			vv("scheduler about to time.Sleep(step=%v)", step)
 
-		vv("scheduler about to synctest.Wait()")
+			time.Sleep(step) // hmm... scheduler never wakes from this sleep after the first pause.
 
-		// let all the goro get blocked
-		synctest.Wait()
+			vv("scheduler about to synctest.Wait()")
 
-		vv("scheduler past synctest.Wait()")
-		//select {} // look at the goro, confirm we are the only one by seeing panic
+			runtime.Gosched() // let pauser pause us if desired.
+
+			// let all the goro get blocked
+			synctest.Wait()
+
+			vv("j=%v, scheduler past synctest.Wait()", j)
+			//select {} // look at the goro, confirm we are the only one by seeing panic
+		}
 
 		close(shutdown)
 	})
