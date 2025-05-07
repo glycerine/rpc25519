@@ -111,9 +111,11 @@ func (s *inBubbleState) releaseBarrier(moreTime int64) {
 	s.barrierMut.Unlock()
 }
 
-// never close it
-var initTimeBarrierUpNotDurablyBlocking = make(chan struct{})
-
+// since outside any bubble, the selects on these will
+// pause the bubble's scheduler goro from exiting synctest.Wait().
+// The workers will not be paused, but will cycle until
+// they run through their step budget and ask the
+// scheduler for more steps.
 var pauseSchedulerCh = make(chan struct{})
 var pauseMut sync.Mutex
 
@@ -217,6 +219,8 @@ func Test_does_nil_global_chan_keep_synctest_Wait_returning(t *testing.T) {
 			}
 		}()
 
+		// this works, but the scheduler runs through
+		// two time steps, time.Sleep() calls, before pausing.
 		for j := 0; ; j++ {
 
 			var nProd time.Duration = 3
@@ -225,16 +229,16 @@ func Test_does_nil_global_chan_keep_synctest_Wait_returning(t *testing.T) {
 			consumerCanTakeSteps <- step * nCons
 			producerCanTakeSteps <- step * nProd
 
-			vv("scheduler about to time.Sleep(step=%v)", step)
-
-			time.Sleep(step) // hmm... scheduler never wakes from this sleep after the first pause.
-
 			vv("scheduler about to synctest.Wait()")
 
-			runtime.Gosched() // let pauser pause us if desired.
+			//runtime.Gosched() // try to let the pauser pause us if desired.
 
 			// let all the goro get blocked
 			synctest.Wait()
+
+			vv("scheduler about to time.Sleep(step=%v)", step)
+
+			time.Sleep(step) // hmm... scheduler never wakes from this sleep after the first pause.
 
 			vv("j=%v, scheduler past synctest.Wait()", j)
 			//select {} // look at the goro, confirm we are the only one by seeing panic
