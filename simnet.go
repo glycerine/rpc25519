@@ -149,6 +149,16 @@ import (
 // the clock for other goroutines again. So
 // this is less than useful--it actively hurts
 // our aims.
+//
+// "Operating on a bubbled channel from outside
+// the bubble panics."
+// This sounds like a great way to "poison"
+// a channel! Like if you have to pass from
+// bubble, out into "enemy" territory, and
+// then back into the safe bubble zone,
+// you get the runtime's help: the runtime
+// insures that nobody else will read from
+// your channel.
 
 type SimNetConfig struct{}
 
