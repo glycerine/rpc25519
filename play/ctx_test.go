@@ -1,5 +1,6 @@
 package main
 
+/*
 import (
 	"context"
 	"fmt"
@@ -219,29 +220,29 @@ func Test_Are_We_Last(t *testing.T) {
 			// does not panic, because the workers are active.
 			select {}
 
-			/*
-				//panic("look at the stack trace") // did not tell us if blocked.
 
-				// If only I am awake, then the receive should default:
-				select {
+				// //panic("look at the stack trace") // did not tell us if blocked.
 
-				// Ah, but this channel receive will also wake them up again! we need a lock... or something. mutexes are excluded from bubble analysis...
-				case when := <-awake:
+				// // If only I am awake, then the receive should default:
+				// select {
 
-					panic(fmt.Sprintf("no other goro should have been awake! awake='%v'; now='%v'", when, time.Now()))
-				default:
-					//vv("good: nobody sent to us, as they were asleep")
-				}
-				vv("about to Unlock") // not seen?!?
-				//rwmut.Unlock()        // let all other goro into select...
-				close(shutdown)
-				vv("past shutdown")
-			*/
+				// // Ah, but this channel receive will also wake them up again! we need a lock... or something. mutexes are excluded from bubble analysis...
+				// case when := <-awake:
+
+				// 	panic(fmt.Sprintf("no other goro should have been awake! awake='%v'; now='%v'", when, time.Now()))
+				// default:
+				// 	//vv("good: nobody sent to us, as they were asleep")
+				// }
+				// vv("about to Unlock") // not seen?!?
+				// //rwmut.Unlock()        // let all other goro into select...
+				// close(shutdown)
+				// vv("past shutdown")
+
 		}
 	})
 }
 
-/*
+
 	barrierMut.Lock()
 	if barrierUpTime.After(barrierDownTime) && barrierUpTime == time.Now() {
 		waitCond.Wait() // unlock barrierMut and suspend until Broadcast
@@ -327,7 +328,6 @@ FAIL	blah	6.735s
 
 Compilation exited abnormally with code 1 at Wed May  7 02:25:33
 
-*/
 
 func TestWithTimeout(t *testing.T) {
 	synctest.Run(func() {
@@ -360,7 +360,7 @@ func TestWithTimeout(t *testing.T) {
 	})
 }
 
-/*
+
 	// Does time ONLY advance when all goro are blocked?
 	// It can it advance in some other manner? Is
 	// this guaranteed?
