@@ -29,6 +29,10 @@ func TestMain(m *testing.M) {
 	// synctest machinery isnt' sufficiently isolated
 	// from the testing code yet, if ever(?), so
 	// each test has gotta have its own bubbleOrNot() wrapper.
+	//
+	// Do not, I repeat, do not, wrap all tests with
+	// a synctest.Run() here! There be dragons,
+	// with sharp teeth and a hunger for wayward coders.
 
 	func() {
 		//vv("TestMain running.")
