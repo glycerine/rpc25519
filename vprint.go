@@ -73,18 +73,18 @@ func alwaysPrintf(format string, a ...interface{}) {
 	tsPrintf(format, a...)
 }
 
-var tsPrintfMut sync.Mutex
+var TsPrintfMut sync.Mutex
 
 // time-stamped printf
 func tsPrintf(format string, a ...interface{}) {
-	tsPrintfMut.Lock()
+	TsPrintfMut.Lock()
 	if showPid {
 		printf("\n%s [pid %v] %s ", fileLine(3), myPid, ts())
 	} else {
 		printf("\n%s %s ", fileLine(3), ts())
 	}
 	printf(format+"\n", a...)
-	tsPrintfMut.Unlock()
+	TsPrintfMut.Unlock()
 }
 
 // get timestamp for logging purposes
