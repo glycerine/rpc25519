@@ -37,14 +37,14 @@ func Test702_simnet_grid_peer_to_peer_works(t *testing.T) {
 		c.Start()
 		defer c.Close()
 
+		// still flakey red, use some chan instead of:
 		time.Sleep(1 * time.Second)
 
 		for i, g := range nodes {
 			_ = i
-			vv("i=%v has n.node.seen len = %v: '%v'", i, g.node.seen.Len(), g.node.seen.GetKeySlice())
-			if g.node.seen.Len() != n-1 {
-				//panic("where pumps hung? or, where are the pumps at all???")
-				t.Fatalf("error: expected n-1=%v nodes contacted, saw '%v'", n-1, g.node.seen.Len())
+			select {
+			case <-g.node.peersNeededSeen.Chan:
+				vv("i=%v all peer connections need have been seen(%v) by '%v': '%#v'", i, g.node.peersNeeded, g.node.name, g.node.seen.GetKeySlice())
 			}
 		}
 	})
@@ -61,13 +61,19 @@ type node2 struct {
 	gotIncomingCktReadFrag chan *Fragment
 
 	seen *Mutexmap[string, bool]
+
+	peersNeeded     int
+	peersSeen       int
+	peersNeededSeen *idem.IdemCloseChan
 }
 
 func newNode2(srv *Server, name string, cfg *simGridConfig) *node2 {
 	return &node2{
-		cfg:  cfg,
-		name: name,
-		seen: NewMutexmap[string, bool](),
+		peersNeeded:     cfg.ReplicationDegree - 1,
+		peersNeededSeen: idem.NewIdemCloseChan(),
+		cfg:             cfg,
+		name:            name,
+		seen:            NewMutexmap[string, bool](),
 		// comms
 		PushToPeerURL:          make(chan string),
 		halt:                   srv.halt,
@@ -205,6 +211,7 @@ func (s *node2) Start(
 	AliasRegister(myPeer.PeerID, fmt.Sprintf("%v (%v %v)", myPeer.PeerID, myPeer.ServiceName(), s.name))
 	done0 := ctx0.Done()
 
+	contacts := make(map[string]bool)
 	for {
 		vv("%v: top of select", s.name) // client only seen once, since peer_test acts as cli
 		select {
@@ -228,6 +235,11 @@ func (s *node2) Start(
 				vv("incoming ckt has RemoteCircuitURL = '%v'", ckt.RemoteCircuitURL())
 				vv("incoming ckt has LocalCircuitURL = '%v'", ckt.LocalCircuitURL()) // seen 3x
 				done := ctx.Done()
+				contacts[ckt.RemotePeerID] = true
+				s.peersSeen = len(contacts)
+				if s.peersSeen >= s.peersNeeded {
+					s.peersNeededSeen.Close()
+				}
 
 				for {
 					select {

@@ -532,7 +532,6 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 
 	// server creates simnet; must start server first.
 	s := &simnet{
-		useSynctest:    globalUseSynctest, // simple, for now.
 		cfg:            cfg,
 		srv:            srv,
 		halt:           srv.halt,
@@ -1355,15 +1354,6 @@ func (s *simnet) scheduler() {
 			// synctest.Wait when its tag in force. Otherwise a no-op.
 			synctestWait_LetAllOtherGoroFinish()
 			//vv("back from synctest.Wait() goro = %v", GoroNumber())
-
-			// at this point, since all goro are durably blocked,
-			// we should be able to advance time and have any
-			// new timers go off in the background, waking up
-			// any other goroutines simulating client/server nodes,
-			// and possible getting reads/writes in our
-			// channel ops below.
-			time.Sleep(s.scenario.tick)
-			//vv("back from sleeping for a tick, now = %v", time.Now())
 
 		} else {
 			// advance time by one tick, the non-synctest version.
