@@ -1852,6 +1852,9 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 		case <-sendTimeoutCh:
 			//vv("srv SendMessage timeout after waiting %v", dur)
 			return ErrSendTimeout
+		case <-s.halt.ReqStop.Chan:
+			// shutting down
+			return ErrShutdown()
 		}
 	}
 	return nil
@@ -2102,7 +2105,8 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		return ErrSendTimeout, nil
 	case <-ctx.Done():
 		return ErrContextCancelled, nil
-
+	case <-haltCh:
+		return ErrShutdown(), nil
 	}
 	return nil, nil
 }

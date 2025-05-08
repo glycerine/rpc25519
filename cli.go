@@ -181,8 +181,12 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	nconn, err := d.DialContext(ctx, "tcp", serverAddr)
 	if err != nil {
 		c.err = err
-		c.connected <- fmt.Errorf("error: client local: '%v' failed to "+
-			"connect to server: '%v'", c.cfg.ClientHostPort, err)
+		select {
+		case c.connected <- fmt.Errorf("error: client local: '%v' failed to "+
+			"connect to server: '%v'", c.cfg.ClientHostPort, err):
+		case <-c.halt.ReqStop.Chan:
+			return
+		}
 		alwaysPrintf("error: client from '%v' failed to connect to server: %v", c.cfg.ClientHostPort, err)
 		return
 	}
@@ -197,7 +201,11 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	c.setLocalAddr(conn)
 
 	// only signal ready once SetLocalAddr() is done, else submitter can crash.
-	c.connected <- nil
+	select {
+	case c.connected <- nil:
+	case <-c.halt.ReqStop.Chan:
+		return
+	}
 
 	if !c.cfg.QuietTestMode {
 		alwaysPrintf("connected to server %s", serverAddr)
@@ -246,7 +254,11 @@ func (c *Client) runClientTCP(serverAddr string) {
 	conn, err := net.Dial("tcp", serverAddr)
 	if err != nil {
 		c.err = err
-		c.connected <- err
+		select {
+		case c.connected <- err:
+		case <-c.halt.ReqStop.Chan:
+			return
+		}
 		alwaysPrintf("Failed to connect to server: %v", err)
 		return
 	}
@@ -255,8 +267,11 @@ func (c *Client) runClientTCP(serverAddr string) {
 
 	c.isTLS = false
 	c.conn = conn
-
-	c.connected <- nil
+	select {
+	case c.connected <- nil:
+	case <-c.halt.ReqStop.Chan:
+		return
+	}
 	defer conn.Close() // in runClientTCP() here.
 	//alwaysPrintf("connected to server %s", serverAddr)
 
