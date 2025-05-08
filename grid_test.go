@@ -57,13 +57,10 @@ func Test202_grid_peer_to_peer_works(t *testing.T) {
 	c.Start()
 	defer c.Close()
 
-	time.Sleep(1 * time.Second)
-
 	for i, g := range nodes {
-		_ = i
-		//vv("i=%v has n.node.seen = %#v", i, g.node.seen)
-		if g.node.seen.Len() != n-1 {
-			t.Fatalf("expected n-1=%v nodes contacted, saw '%v'", n-1, g.node.seen.Len())
+		select {
+		case <-g.node.peersNeededSeen.Chan:
+			vv("i=%v all peer connections need have been seen(%v) by '%v': '%#v'", i, g.node.peersNeeded, g.node.name, g.node.seen.GetKeySlice())
 		}
 	}
 }
@@ -79,12 +76,18 @@ type node struct {
 	gotIncomingCktReadFrag chan *Fragment
 
 	seen *Mutexmap[string, bool]
+
+	peersNeeded     int
+	peersSeen       int
+	peersNeededSeen *idem.IdemCloseChan
 }
 
 func newNode(srv *Server, name string, cfg *gridConfig) *node {
 	return &node{
-		name: name,
-		seen: NewMutexmap[string, bool](),
+		peersNeeded:     cfg.ReplicationDegree - 1,
+		peersNeededSeen: idem.NewIdemCloseChan(),
+		name:            name,
+		seen:            NewMutexmap[string, bool](),
 		// comms
 		PushToPeerURL:          make(chan string),
 		halt:                   srv.halt,
@@ -250,6 +253,11 @@ func (s *node) Start(
 						//vv("%v: (ckt %v) ckt.Reads sees frag:'%s'", s.name, ckt.Name, frag)
 
 						s.seen.Set(AliasDecode(frag.FromPeerID), true)
+
+						s.peersSeen = s.seen.Len()
+						if s.peersSeen >= s.peersNeeded {
+							s.peersNeededSeen.Close()
+						}
 
 						//s.gotIncomingCktReadFrag <- frag
 						//vv("%v: (ckt %v) past s.gotIncomingCktReadFrag <- frag. frag:'%s'", s.name, ckt.Name, frag)

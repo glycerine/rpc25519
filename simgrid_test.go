@@ -37,11 +37,7 @@ func Test702_simnet_grid_peer_to_peer_works(t *testing.T) {
 		c.Start()
 		defer c.Close()
 
-		// still flakey red, use some chan instead of:
-		time.Sleep(1 * time.Second)
-
 		for i, g := range nodes {
-			_ = i
 			select {
 			case <-g.node.peersNeededSeen.Chan:
 				vv("i=%v all peer connections need have been seen(%v) by '%v': '%#v'", i, g.node.peersNeeded, g.node.name, g.node.seen.GetKeySlice())
@@ -211,7 +207,6 @@ func (s *node2) Start(
 	AliasRegister(myPeer.PeerID, fmt.Sprintf("%v (%v %v)", myPeer.PeerID, myPeer.ServiceName(), s.name))
 	done0 := ctx0.Done()
 
-	contacts := make(map[string]bool)
 	for {
 		vv("%v: top of select", s.name) // client only seen once, since peer_test acts as cli
 		select {
@@ -235,11 +230,6 @@ func (s *node2) Start(
 				vv("incoming ckt has RemoteCircuitURL = '%v'", ckt.RemoteCircuitURL())
 				vv("incoming ckt has LocalCircuitURL = '%v'", ckt.LocalCircuitURL()) // seen 3x
 				done := ctx.Done()
-				contacts[ckt.RemotePeerID] = true
-				s.peersSeen = len(contacts)
-				if s.peersSeen >= s.peersNeeded {
-					s.peersNeededSeen.Close()
-				}
 
 				for {
 					select {
@@ -247,6 +237,11 @@ func (s *node2) Start(
 						vv("%v: (ckt %v) ckt.Reads sees frag:'%s'", s.name, ckt.Name, frag) // not seen!!!
 
 						s.seen.Set(AliasDecode(frag.FromPeerID), true)
+
+						s.peersSeen = s.seen.Len()
+						if s.peersSeen >= s.peersNeeded {
+							s.peersNeededSeen.Close()
+						}
 
 						//s.gotIncomingCktReadFrag <- frag
 						//vv("%v: (ckt %v) past s.gotIncomingCktReadFrag <- frag. frag:'%s'", s.name, ckt.Name, frag)
