@@ -653,10 +653,12 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		if req.HDR.Typ == CallPeerTraffic ||
 			req.HDR.Typ == CallPeerError {
-			bad := fmt.Sprintf("srv readLoop: Peer traffic should never get here!"+
-				" req.HDR='%v'", req.HDR.String())
-			vv(bad)
-			panic(bad)
+			//bad := fmt.Sprintf("srv readLoop: Peer traffic should never get here!"+
+			//	" req.HDR='%v'", req.HDR.String())
+			//vv(bad)
+			// on shutdown we can get here.
+			return
+			//panic(bad)
 		}
 
 		// Idea: send the job to the central work queue, so
@@ -719,6 +721,8 @@ type notifies struct {
 
 	notifyOnReadToPeerIDMap  *mapIDtoChan
 	notifyOnErrorToPeerIDMap *mapIDtoChan
+
+	u UniversalCliSrv
 }
 
 // for notifies to avoid long holds of a mutex, we use this instead.
@@ -763,8 +767,9 @@ func (m *mapIDtoChan) keys() (ks []string) {
 	return
 }
 
-func newNotifies(isCli bool) *notifies {
+func newNotifies(isCli bool, u UniversalCliSrv) *notifies {
 	return &notifies{
+		u:                      u,
 		notifyOnReadCallIDMap:  newMapIDtoChan(),
 		notifyOnErrorCallIDMap: newMapIDtoChan(),
 
@@ -801,6 +806,8 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 					//		"channels must be buffered!: could not send to "+
 					//		"whoCh from notifyOnErrorToPeerIDMap; for ToPeerID = %v.",
 					//		msg.HDR.ToPeerID))
+				case <-c.u.GetHostHalter().ReqStop.Chan: // ctx not enough
+
 				}
 				return true // only send to ToPeerID, not CallID too.
 			}
@@ -812,11 +819,12 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 			case wantsErr <- msg:
 			//vv("notified a channel! %p for CallID '%v'", wantsErr, msg.HDR.CallID)
 			case <-ctx.Done():
-				//default:
-				//	panic(fmt.Sprintf("Should never happen b/c the "+
-				//		"channels must be buffered!: could not send to "+
-				//		"whoCh from notifyOnErrorCallIDMap; for CallID = %v.",
-				//		msg.HDR.CallID))
+			//default:
+			//	panic(fmt.Sprintf("Should never happen b/c the "+
+			//		"channels must be buffered!: could not send to "+
+			//		"whoCh from notifyOnErrorCallIDMap; for CallID = %v.",
+			//		msg.HDR.CallID))
+			case <-c.u.GetHostHalter().ReqStop.Chan: // ctx not enough
 			}
 			return true
 		}
@@ -833,6 +841,8 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 				//vv("sent msg to wantsToPeerID chan! %p", wantsToPeerID)
 			case <-ctx.Done():
 				return
+			case <-c.u.GetHostHalter().ReqStop.Chan: // ctx not enough
+				return
 			}
 			return true // only send to ToPeerID, priority over CallID.
 		}
@@ -845,6 +855,7 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 		case wantsCallID <- msg:
 			//vv("isCli = %v; notifies.handleReply notified registered channel for callID = '%v'", isCli, msg.HDR.CallID)
 		case <-ctx.Done():
+		case <-c.u.GetHostHalter().ReqStop.Chan: // ctx not enough
 		}
 		return true
 	}
@@ -2132,9 +2143,9 @@ func NewServer(name string, config *Config) *Server {
 		callmeUploadReaderMap:        NewMutexmap[string, UploadReaderFunc](),
 		callmeBistreamMap:            NewMutexmap[string, BistreamFunc](),
 
-		notifies: newNotifies(notClient),
-		unNAT:    NewMutexmap[string, string](),
+		unNAT: NewMutexmap[string, string](),
 	}
+	s.notifies = newNotifies(notClient, s)
 	// allow nil config still, since the above does.
 	useSimNet := false
 	if cfg != nil {

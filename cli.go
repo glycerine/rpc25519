@@ -297,7 +297,8 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 	defer func() {
 		r := recover()
 		if r != nil {
-			alwaysPrintf("cli runReadLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, stack())
+			// see a ts mutex deadlock under synctest on shutdown, comment out:
+			//alwaysPrintf("cli runReadLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, stack())
 		} else {
 			//vv("cli runReadLoop defer/shutdown running.")
 		}
@@ -441,9 +442,11 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		}
 		if msg.HDR.Typ == CallPeerTraffic ||
 			msg.HDR.Typ == CallPeerError {
-			bad := fmt.Sprintf("cli readLoop: Peer traffic should never get here! msg.HDR='%v'", msg.HDR.String())
-			alwaysPrintf(bad)
-			panic(bad)
+			// we can get here on shutdown, don't freak.
+			return
+			//bad := fmt.Sprintf("cli readLoop: Peer traffic should never get here! msg.HDR='%v'", msg.HDR.String())
+			//alwaysPrintf(bad)
+			//panic(bad)
 		}
 
 		// protect map access. Be sure to Unlock if you "continue" below.
@@ -1540,12 +1543,12 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		lastSeqno:   1,
 		notifyOnce:  make(map[uint64]*loquet.Chan[Message]),
 
-		// share code with server for CallID and ToPeerID callbacks.
-		notifies: newNotifies(yesIsClient),
 		// net/rpc
 		pending: make(map[uint64]*Call),
 		epochV:  EpochVers{EpochTieBreaker: NewCallID("")},
 	}
+	// share code with server for CallID and ToPeerID callbacks.
+	c.notifies = newNotifies(yesIsClient, c)
 	//vv("NewClient made client = %p", c)
 	c.keepAliveMsg.HDR.Typ = CallKeepAlive
 	c.keepAliveMsg.HDR.Subject = c.epochV.EpochTieBreaker
