@@ -114,7 +114,7 @@ func (s *simGrid) Start() {
 		err := n.Start(s.Cfg) // Server.Start()
 		panicOn(err)
 	}
-	time.Sleep(time.Second)
+	//time.Sleep(time.Second)
 	// now that they are all started, form a complete mesh
 	// by connecting each to all the others
 	sz := len(s.Nodes)
