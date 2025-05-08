@@ -786,14 +786,18 @@ type PeerServiceFunc func(
 // members. They use the same peerAPI
 // implementation. It is designed for symmetry.
 type peerAPI struct {
-	u   UniversalCliSrv
+	u UniversalCliSrv
+
+	// where is mut used: StartLocalPeer holds it...
+	// all while doing its thing. Hence need fragMut separately.
 	mut sync.Mutex
+
+	// lock over the recycled frag to prevent data race.
+	fragMut      sync.Mutex
+	recycledFrag []*Fragment
 
 	// peerServiceName key
 	localServiceNameMap *Mutexmap[string, *knownLocalPeer]
-
-	//use mut instead of  fragLock     sync.Mutex
-	recycledFrag []*Fragment
 
 	isSim bool // using SimNet instead of actual network calls
 
@@ -815,17 +819,17 @@ func newPeerAPI(u UniversalCliSrv, isCli, isSim bool) *peerAPI {
 }
 
 func (s *peerAPI) NewFragment() (f *Fragment) {
-	s.mut.Lock()
+	s.fragMut.Lock() // deadlock in 408
 
 	if len(s.recycledFrag) == 0 {
 		f = NewFragment()
-		s.mut.Unlock()
+		s.fragMut.Unlock()
 		return
 	} else {
 		f = s.recycledFrag[0]
 		s.recycledFrag = s.recycledFrag[1:]
-		s.mut.Unlock()
-		// do we need to have thus under lock too? should not.
+		s.fragMut.Unlock()
+		// do we need to have thus under lock too? should not need to.
 		*f = Fragment{
 			Serial: issueSerial(),
 		}
@@ -834,14 +838,14 @@ func (s *peerAPI) NewFragment() (f *Fragment) {
 }
 
 func (s *peerAPI) FreeFragment(frag *Fragment) {
-	s.mut.Lock()
-	defer s.mut.Unlock()
+	s.fragMut.Lock()
+	defer s.fragMut.Unlock()
 	s.recycledFrag = append(s.recycledFrag, frag)
 }
 
 func (s *peerAPI) RecycleFragLen() int {
-	s.mut.Lock()
-	defer s.mut.Unlock()
+	s.fragMut.Lock()
+	defer s.fragMut.Unlock()
 	return len(s.recycledFrag)
 }
 
