@@ -17,6 +17,12 @@ import (
 
 // Question: Should I call synctest.Wait(), then Sleep()?
 // OR should I call time.Sleep(), then synctest.Wait()?
+// Short answer: time.Sleep() then syntest.Wait().
+// Rationale: after Sleep(), the only goroutines that
+// are awake at this moment in faketime are the ones
+// who should be awake, and after Wait() we are
+// guaranteed to be the only goroutine that is
+// running.
 //
 // When I first read https://go.dev/blog/synctest it
 // looked backwards to me. What is the point of
@@ -174,6 +180,8 @@ import (
 // system "scheduler" control mechanism
 // if it wanted to pause an instance
 // of the scheduler, for example.
+// I did a POC for that in the subdirectory
+// play/pausable_scheduler_demo_test.go
 
 type SimNetConfig struct{}
 
@@ -347,8 +355,11 @@ type simnet struct {
 	cliRegisterCh chan *clientRegistration
 	srvRegisterCh chan *serverRegistration
 
-	newClientConnCh chan *simnetConn
-	alterNodeCh     chan *nodeAlteration
+	// not sure we need newClientConnCh since clients are 1-1.
+	// Any new connection to a server means a new client.
+	//newClientConnCh chan *simnetConn
+
+	alterNodeCh chan *nodeAlteration
 
 	// same as srv.halt; we don't need
 	// our own, at least for now.
@@ -428,7 +439,7 @@ func (s *simnet) newSimnodeServer(name string) (node *simnode) {
 func (s *simnet) showDNS() {
 	i := 0
 	for name, node := range s.dns {
-		vv("[%2d] showDNS dns[%v] = %p", i, name, node)
+		alwaysPrintf("[%2d] showDNS dns[%v] = %p", i, name, node)
 		i++
 	}
 }
@@ -503,7 +514,7 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 // idempotent, all servers do this, then register through the same path.
 func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *simnet { // (tellServerNewConnCh chan *simnetConn) {
 
-	vv("%v newSimNetOnServer top, goro = %v", srv.name, GoroNumber())
+	//vv("%v newSimNetOnServer top, goro = %v", srv.name, GoroNumber())
 	cfg.simnetRendezvous.singleSimnetMut.Lock()
 	defer cfg.simnetRendezvous.singleSimnetMut.Unlock()
 
@@ -521,19 +532,19 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 
 	// server creates simnet; must start server first.
 	s := &simnet{
-		useSynctest:     globalUseSynctest, // simple, for now.
-		cfg:             cfg,
-		srv:             srv,
-		halt:            srv.halt,
-		cliRegisterCh:   make(chan *clientRegistration),
-		srvRegisterCh:   make(chan *serverRegistration),
-		alterNodeCh:     make(chan *nodeAlteration),
-		simNetCfg:       simNetConfig,
-		msgSendCh:       make(chan *mop),
-		msgReadCh:       make(chan *mop),
-		addTimer:        make(chan *mop),
-		discardTimerCh:  make(chan *mop),
-		newClientConnCh: make(chan *simnetConn),
+		useSynctest:    globalUseSynctest, // simple, for now.
+		cfg:            cfg,
+		srv:            srv,
+		halt:           srv.halt,
+		cliRegisterCh:  make(chan *clientRegistration),
+		srvRegisterCh:  make(chan *serverRegistration),
+		alterNodeCh:    make(chan *nodeAlteration),
+		simNetCfg:      simNetConfig,
+		msgSendCh:      make(chan *mop),
+		msgReadCh:      make(chan *mop),
+		addTimer:       make(chan *mop),
+		discardTimerCh: make(chan *mop),
+		//newClientConnCh: make(chan *simnetConn),
 
 		newScenarioCh: make(chan *scenario),
 		scenario:      scen,
@@ -556,7 +567,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 	s.nextTimer.Stop()
 
 	cfg.simnetRendezvous.singleSimnet = s
-	vv("newSimNetOnServer: assigned to singleSimnet, releasing lock by  goro = %v", GoroNumber())
+	//vv("newSimNetOnServer: assigned to singleSimnet, releasing lock by  goro = %v", GoroNumber())
 	s.Start()
 
 	return s
@@ -901,7 +912,7 @@ func newPQcompleteTm(owner string) *pq {
 }
 
 func (s *simnet) shutdownNode(node *simnode) {
-	vv("handleAlterNode: SHUTDOWN %v, going from %v -> HALTED", node.state, node.name) // not seen???
+	vv("handleAlterNode: SHUTDOWN %v, going from %v -> HALTED", node.state, node.name)
 	node.state = HALTED
 	node.readQ.deleteAll()
 	node.preArrQ.deleteAll()
@@ -1273,10 +1284,10 @@ func (s *simnet) tickLogicalClocks() {
 
 // makes it clear on a stack trace which goro this is.
 func (s *simnet) scheduler() {
-	vv("scheduler is running on goro = %v", GoroNumber())
+	//vv("scheduler is running on goro = %v", GoroNumber())
 
 	defer func() {
-		vv("scheduler defer shutdown running on goro = %v", GoroNumber())
+		//vv("scheduler defer shutdown running on goro = %v", GoroNumber())
 		r := recover()
 		if r != nil {
 			vv("scheduler panic-ing: %v", s.schedulerReport())
@@ -1298,18 +1309,42 @@ func (s *simnet) scheduler() {
 		s.dispatchAll()
 		s.armTimer()
 
-		// advance time by one tick
-		//time.Sleep(s.scenario.tick)
+		// Advance time by one tick.
+		//
+		// This will wake up and run any goroutines
+		// that should be run before our sleep timer
+		// goes off, as it should, BUT... when they
+		// try to contact us, they will block since
+		// we are asleep. This is actually a good thing!
+		//
+		// It delays their action from continuing
+		// until our time.Sleep() timer expires and
+		// we are woken to service them. Thus all
+		// simulated service will occur at this
+		// new "now" point in faketime.
+		//
+		// Once we return from the sleep,
+		// every goroutine that should be asleep "now"
+		// will be asleep. The only active ones are
+		// those that are doing something they should
+		// be at this new "now" time. We let them
+		// finish first, before us, by calling
+		// synctest.Wait(). Once synctest.Wait()
+		// returns, we know with certainly that we
+		// are the only non-durably-blocked goroutine.
+		// Notice the synctest package forbids ever
+		// having two outstanding synctest.Wait()
+		// calls at once:
+		// "[synctest.Wait] panics if two goroutines
+		// in the same bubble call Wait at the same time."
+		time.Sleep(s.scenario.tick)
 
 		if s.useSynctest && globalUseSynctest {
-			// waitInBubble is:
-			// defined in simnet_synctest.go for synctest is on.
-			// defined in simnet_nosynctest.go as a no-op when off.
+			// synctestWait_LetAllOtherGoroFinish is defined in
+			// simnet_synctest.go for synctest is on, and in
+			// simnet_nosynctest.go as a no-op when off.
 
-			vv("about to call waitInBubble; goro = %v", GoroNumber())
-
-			// Does the following mean we don't need the sleep first?
-			// And should sleep _after_ ?
+			//vv("about to call synctestWait_LetAllOtherGoroFinish")
 
 			// "Goroutines in the bubble started by Run use a
 			// fake clock. Within the bubble, functions in the
@@ -1317,12 +1352,9 @@ func (s *simnet) scheduler() {
 			// Time advances in the bubble when all goroutines are blocked."
 			// -- https://go.dev/blog/synctest
 
-			// What we see without the sleep first: no time advance!
-			// simnet.go:1145 2000-01-01 00:00:00 +0000 UTC about to call waitInBubble
-			// simnet.go:1158 2000-01-01 00:00:00 +0000 UTC back from waitInBubble()
-
-			waitInBubble() // synctest.Run when
-			vv("back from waitInBubble() goro = %v", GoroNumber())
+			// synctest.Wait when its tag in force. Otherwise a no-op.
+			synctestWait_LetAllOtherGoroFinish()
+			//vv("back from synctest.Wait() goro = %v", GoroNumber())
 
 			// at this point, since all goro are durably blocked,
 			// we should be able to advance time and have any
@@ -1331,10 +1363,10 @@ func (s *simnet) scheduler() {
 			// and possible getting reads/writes in our
 			// channel ops below.
 			time.Sleep(s.scenario.tick)
-			vv("back from sleeping for a tick, now = %v", time.Now())
+			//vv("back from sleeping for a tick, now = %v", time.Now())
 
 		} else {
-			// advance time by one tick
+			// advance time by one tick, the non-synctest version.
 			time.Sleep(s.scenario.tick)
 		}
 
@@ -1357,9 +1389,11 @@ func (s *simnet) scheduler() {
 			s.handleServerRegistration(srvreg)
 			vv("back from handleServerRegistration '%v'", srvreg.server.name) // only seen once for node_1 on test702 and node_2
 
-		case newConn := <-s.newClientConnCh:
-			_ = newConn
-			panic("TODO <-s.newConnCh for restarted cli or 2nd/later cli")
+			// not sure we need this since clients are 1-1.
+			// Any new connection to a server means a new client.
+			//case newConn := <-s.newClientConnCh:
+			//	_ = newConn
+			//	panic("TODO <-s.newConnCh for restarted cli or 2nd/later cli")
 
 		case scenario := <-s.newScenarioCh:
 			s.finishScenario()

@@ -20,11 +20,11 @@ var waitCond *sync.Cond = sync.NewCond(&waitMut)
 var waitBegan time.Time
 var waitEnded time.Time
 
-func waitInBubble() {
+func synctestWait_LetAllOtherGoroFinish() {
 	synctest.Wait()
 }
 
-func waitInBubble2() {
+func synctestWait_LetAllOtherGoroFinish2() {
 
 	waitMut.Lock()
 	if waitBegan.After(waitEnded) && waitBegan == time.Now() {

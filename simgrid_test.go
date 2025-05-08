@@ -15,7 +15,7 @@ func Test702_simnet_grid_peer_to_peer_works(t *testing.T) {
 
 	bubbleOrNot(func() {
 		//n := 20 // 20*19/2 = 190 tcp conn to setup. ok/green but 35 seconds.
-		n := 2 // 2.7 sec
+		n := 3 // 2.7 sec
 		gridCfg := &simGridConfig{
 			ReplicationDegree: n,
 			Timeout:           time.Second * 5,
@@ -202,8 +202,7 @@ func (s *node2) Start(
 	//vv("%v: node.Start() top.", s.name)
 	vv("%v: node.Start() top. ourID = '%v'; peerServiceName='%v';", s.name, myPeer.PeerID, myPeer.ServiceName())
 
-	AliasRegister(myPeer.PeerID, myPeer.PeerID+" ("+myPeer.ServiceName()+")")
-
+	AliasRegister(myPeer.PeerID, fmt.Sprintf("%v (%v %v)", myPeer.PeerID, myPeer.ServiceName(), s.name))
 	done0 := ctx0.Done()
 
 	for {

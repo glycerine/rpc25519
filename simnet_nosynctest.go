@@ -4,7 +4,7 @@ package rpc25519
 
 const globalUseSynctest bool = false
 
-func waitInBubble() {}
+func synctestWait_LetAllOtherGoroFinish() {}
 
 //func synctestRun(f func()) {
 //	f()
