@@ -35,3 +35,7 @@ test:
 	cd jsync && go test -v
 	cd jcdc && go test -v
 	cd bytes && go test -v
+
+synctest:
+	GOTRACEBACK=all GOEXPERIMENT=synctest go test -v
+
