@@ -781,6 +781,16 @@ func (s *simnet) handleAlterNode(alt *nodeAlteration) {
 func (s *simnet) handleSend(send *mop) {
 	////zz("top of handleSend(send = '%v')", send)
 
+	switch send.origin.state {
+	case HALTED:
+		// cannot send when halted. Hmm.
+		// This must be a stray...maybe a race? the
+		// node really should not be doing anything.
+		panic(fmt.Sprintf("yuck: got a SEND from a HALTED node: '%v'", send.origin))
+		// return
+	case PARTITIONED, HEALTHY:
+	}
+
 	origin := send.origin
 	if send.seen == 0 {
 		send.senderLC = origin.LC
@@ -818,6 +828,16 @@ func (s *simnet) handleSend(send *mop) {
 
 func (s *simnet) handleRead(read *mop) {
 	////zz("top of handleRead(read = '%v')", read)
+
+	switch read.origin.state {
+	case HALTED:
+		// cannot read when halted. Hmm.
+		// This must be a stray...maybe a race? the
+		// node really should not be doing anything.
+		panic(fmt.Sprintf("yuck: got a READ from a HALTED node: '%v'", read.origin))
+		// return
+	case PARTITIONED, HEALTHY:
+	}
 
 	origin := read.origin
 	if read.seen == 0 {
@@ -864,6 +884,8 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 
 	switch node.state {
 	case HALTED:
+		// cannot send, receive, or even start timers
+		// when halted.
 		return
 	case PARTITIONED:
 		// timers need to fire.
@@ -1199,6 +1221,16 @@ func (s *simnet) initScenario(scenario *scenario) {
 
 func (s *simnet) handleDiscardTimer(discard *mop) {
 
+	switch discard.origin.state {
+	case HALTED:
+		// cannot set/fire timers when halted. Hmm.
+		// This must be a stray...maybe a race? the
+		// node really should not be doing anything.
+		panic(fmt.Sprintf("yuck: got a TIMER_DISCARD from a HALTED node: '%v'", discard.origin))
+		// return
+	case PARTITIONED, HEALTHY:
+	}
+
 	orig := discard.origTimerMop
 
 	found := discard.origin.timerQ.del(discard.origTimerMop)
@@ -1213,6 +1245,16 @@ func (s *simnet) handleDiscardTimer(discard *mop) {
 }
 
 func (s *simnet) handleTimer(timer *mop) {
+
+	switch timer.origin.state {
+	case HALTED:
+		// cannot start timers when halted. Hmm.
+		// This must be a stray...maybe a race? the
+		// node really should not be doing anything.
+		panic(fmt.Sprintf("yuck: got a timer from a HALTED node: '%v'", timer.origin))
+		// return
+	case PARTITIONED, HEALTHY:
+	}
 
 	lc := timer.origin.LC
 	who := timer.origin.name
