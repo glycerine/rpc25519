@@ -59,7 +59,6 @@ type node2 struct {
 	seen *Mutexmap[string, bool]
 
 	peersNeeded     int
-	peersSeen       int
 	peersNeededSeen *idem.IdemCloseChan
 }
 
@@ -238,8 +237,8 @@ func (s *node2) Start(
 
 						s.seen.Set(AliasDecode(frag.FromPeerID), true)
 
-						s.peersSeen = s.seen.Len()
-						if s.peersSeen >= s.peersNeeded {
+						peersSeen := s.seen.Len()
+						if peersSeen >= s.peersNeeded {
 							s.peersNeededSeen.Close()
 						}
 

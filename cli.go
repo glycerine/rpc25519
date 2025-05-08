@@ -57,7 +57,7 @@ var sep = string(os.PathSeparator)
 func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string) {
 
 	defer func() {
-		vv("runClientMain defer: end for goro = %v", GoroNumber()) // deadlock on vprint mutex here?
+		//vv("runClientMain defer: end for goro = %v", GoroNumber())
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
 
@@ -299,7 +299,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		} else {
 			//vv("cli runReadLoop defer/shutdown running.")
 		}
-		vv("client runReadLoop exiting, last err = '%v'", err)
+		//vv("client runReadLoop exiting, last err = '%v'", err)
 		canc()
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
@@ -1538,7 +1538,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		pending: make(map[uint64]*Call),
 		epochV:  EpochVers{EpochTieBreaker: NewCallID("")},
 	}
-	vv("NewClient made client = %p", c) // seen 2x
+	//vv("NewClient made client = %p", c)
 	c.keepAliveMsg.HDR.Typ = CallKeepAlive
 	c.keepAliveMsg.HDR.Subject = c.epochV.EpochTieBreaker
 

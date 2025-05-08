@@ -56,7 +56,7 @@ func (s *Server) runServerMain(
 	if !srvNotInit {
 		panic("can only start Server once")
 	}
-	vv("runServerMain running")
+	//vv("runServerMain running")
 
 	defer func() {
 		s.halt.ReqStop.Close()
@@ -64,7 +64,7 @@ func (s *Server) runServerMain(
 	}()
 	s.tmStart = time.Now()
 
-	vv("s.cfg.UseSimNet=%v", s.cfg.UseSimNet)
+	//vv("s.cfg.UseSimNet=%v", s.cfg.UseSimNet)
 	if s.cfg.UseSimNet {
 		simNetConfig := &SimNetConfig{}
 
@@ -2163,7 +2163,7 @@ func (s *Server) RegisterUploadReaderFunc(name string, callmeUploadReader Upload
 // Start has the Server begin receiving and processing RPC calls.
 // The Config.ServerAddr tells us what host:port to bind and listen on.
 func (s *Server) Start() (serverAddr net.Addr, err error) {
-	vv("Server.Start() called")
+	//vv("Server.Start() called")
 	if s.cfg == nil {
 		s.cfg = NewConfig()
 	}
@@ -2196,7 +2196,7 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 		panic(fmt.Errorf("no ServerAddr specified in Server.cfg"))
 	}
 	boundCh := make(chan net.Addr, 1)
-	vv("about to call runServerMain")
+	//vv("about to call runServerMain")
 	go s.runServerMain(s.cfg.ServerAddr, s.cfg.TCPonly_no_TLS, s.cfg.CertPath, boundCh)
 
 	select {
@@ -2226,9 +2226,9 @@ func (s *Server) Close() error {
 
 	// ask any sub components (peer pump loops) to stop;
 	// give them all up to 500 msec.
-	vv("%v about to s.halt.StopTreeAndWaitTilDone()", s.name) // srv.go:2210 2025-05-06 16:15:57.68 +0000 UTC srv_grid_node_1 about to s.halt.StopTreeAndWaitTilDone(); and srv.go:2210 2025-05-06 16:15:57.615 +0000 UTC srv_grid_node_0 about to s.halt.StopTreeAndWaitTilDone()
+	//vv("%v about to s.halt.StopTreeAndWaitTilDone()", s.name)
 	s.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
-	vv("%v back from s.halt.StopTreeAndWaitTilDone()", s.name) // NOT SEEN! for node_1; only srv.go:2212 2025-05-06 16:15:57.673 +0000 UTC srv_grid_node_0 back from s.halt.StopTreeAndWaitTilDone()
+	//vv("%v back from s.halt.StopTreeAndWaitTilDone()", s.name)
 
 	if s.cfg.UseQUIC {
 		s.cfg.shared.mut.Lock()
