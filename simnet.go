@@ -1536,14 +1536,14 @@ func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConn
 	reg := s.newServerRegistration(srv, srvNetAddr)
 	select {
 	case s.srvRegisterCh <- reg:
-		vv("sent registration on srvRegisterCh; about to wait on done goro = %v", GoroNumber())
+		//vv("sent registration on srvRegisterCh; about to wait on done goro = %v", GoroNumber())
 	case <-s.halt.ReqStop.Chan:
 		err = ErrShutdown()
 		return
 	}
 	select {
 	case <-reg.done:
-		vv("server after first registered: '%v'/'%v' sees  reg.tellServerNewConnCh = %p", srv.name, srvNetAddr, reg.tellServerNewConnCh)
+		//vv("server after first registered: '%v'/'%v' sees  reg.tellServerNewConnCh = %p", srv.name, srvNetAddr, reg.tellServerNewConnCh)
 		if reg.tellServerNewConnCh == nil {
 			panic("cannot have nil reg.tellServerNewConnCh back!")
 		}

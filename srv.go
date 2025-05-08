@@ -1921,10 +1921,11 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		}
 		alwaysPrintf("server did not find destAddr (msg.HDR.To='%v')in "+
 			"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers"+
-			" is true so spinning up new client... full msg='%v'", msg.HDR.To, msg)
+			" is true so spinning up new client...", msg.HDR.To)
+		//" is true so spinning up new client... full msg='%v'", msg.HDR.To, msg)
 		dest, err1 := ipaddr.StripNanomsgAddressPrefix(msg.HDR.To)
 		panicOn(err1)
-		vv("dest = '%v'", dest)
+		//vv("dest = '%v'", dest)
 		cliName := "auto-cli-from-" + s.name + "-to-" + dest
 		ccfg := *s.cfg
 		ccfg.ClientDialToHostPort = dest
@@ -1970,7 +1971,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		s.pair2remote.Set(p, key)
 		s.mut.Unlock()
 
-		vv("started auto-client ok. trying again... from:'%v'; to:'%v'", p.from, p.to)
+		//vv("started auto-client ok. trying again... from:'%v'; to:'%v'", p.from, p.to)
 		err, ch = sendOneWayMessage(s, ctx, msg, errWriteDur)
 	}
 	return
@@ -2642,7 +2643,7 @@ func (s *Server) UnregisterChannel(ID string, whichmap int) {
 func (s *Server) LocalAddr() string {
 	s.mut.Lock()
 	defer s.mut.Unlock()
-	vv("Server.LocalAddr returning '%v'", s.boundAddressString) // arg! empty for simnet
+	//vv("Server.LocalAddr returning '%v'", s.boundAddressString)
 	return s.boundAddressString
 }
 

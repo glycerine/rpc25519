@@ -8,10 +8,10 @@ import (
 )
 
 func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNetConfig *SimNetConfig) {
-	vv("top of runSimnetServer")
+	//vv("top of runSimnetServer")
 	defer func() {
 		r := recover()
-		vv("defer running, end of runSimNetServer() for '%v' r='%v'", s.name, r)
+		//vv("defer running, end of runSimNetServer() for '%v' r='%v'", s.name, r)
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
 		//vv("exiting Server.runSimNetServer('%v')", serverAddr) // seen, yes, on shutdown test.
@@ -37,7 +37,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	serverNewConnCh, err := simnet.registerServer(s, netAddr)
 	if err != nil {
 		if err == ErrShutdown2 {
-			vv("simnet_server sees shutdown in progress")
+			//vv("simnet_server sees shutdown in progress")
 			return
 		}
 		panicOn(err)
@@ -48,7 +48,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 
 	defer func() {
 		simnet.alterNode(s.simnode, SHUTDOWN)
-		vv("simnet.alterNode(s.simnode, SHUTDOWN) done for %v", s.name)
+		//vv("simnet.alterNode(s.simnode, SHUTDOWN) done for %v", s.name)
 	}()
 
 	s.mut.Lock() // avoid data races
@@ -73,7 +73,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 		case conn := <-serverNewConnCh:
 			//s.simnode = conn.local
 
-			vv("%v simnet server got new conn '%#v', about to start read/send loops", netAddr, conn) // not seen
+			//vv("%v simnet server got new conn '%#v', about to start read/send loops", netAddr, conn) // not seen
 			pair := s.newRWPair(conn)
 			go pair.runSendLoop(conn)
 			go pair.runReadLoop(conn)

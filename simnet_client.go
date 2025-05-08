@@ -2,9 +2,9 @@ package rpc25519
 
 func (c *Client) runSimNetClient(localHostPort, serverAddr string) {
 
-	defer func() {
-		vv("runSimNetClient defer on exit running client = %p", c) // seen 2x.
-	}()
+	//defer func() {
+	//	vv("runSimNetClient defer on exit running client = %p", c)
+	//}()
 
 	//netAddr := &SimNetAddr{network: "cli simnet@" + localHostPort}
 
@@ -19,7 +19,7 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string) {
 		panic("arg. client could not find cfg.simnetRendezvous.singleSimnet")
 	}
 
-	vv("runSimNetClient c.simnet = %p, '%v', goro = %v", c.simnet, c.name, GoroNumber()) // only 'auto-cli-srv_grid_node_1'
+	//vv("runSimNetClient c.simnet = %p, '%v', goro = %v", c.simnet, c.name, GoroNumber())
 
 	// ignore serverAddr in favor of cfg.ClientDialToHostPort
 	// which tests actually set.
