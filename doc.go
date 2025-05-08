@@ -169,3 +169,56 @@ package rpc25519
 // of the scheduler, for example.
 // I did a POC for that in the subdirectory
 // play/pausable_scheduler_demo_test.go
+
+// comment on the sleep, wait sequence in simnet.go:
+//
+// Advance time by one tick [in the heart of the scheduler].
+//
+// This will wake up and run any goroutines
+// that should be run before our sleep timer
+// goes off, as it should, BUT... when they
+// try to contact us, they will block since
+// we are asleep. This is actually a good thing!
+//
+// It delays their action from continuing
+// until our time.Sleep() timer expires and
+// we are woken to service them. Thus all
+// simulated service will occur at this
+// new "now" point in faketime.
+//
+// Once we return from the sleep,
+// every goroutine that should be asleep "now"
+// will be asleep. The only active ones are
+// those that are doing something they should
+// be at this new "now" time. We let them
+// finish first, before us, by calling
+// synctest.Wait(). Once synctest.Wait()
+// returns, we know with certainly that we
+// are the only non-durably-blocked goroutine.
+// Notice the synctest package forbids ever
+// having two outstanding synctest.Wait()
+// calls at once:
+// "[synctest.Wait] panics if two goroutines
+// in the same bubble call Wait at the same time."
+//		time.Sleep(s.scenario.tick)
+
+//		if s.useSynctest && globalUseSynctest {
+// synctestWait_LetAllOtherGoroFinish is defined in
+// simnet_synctest.go for synctest is on, and in
+// simnet_nosynctest.go as a no-op when off.
+
+//vv("about to call synctestWait_LetAllOtherGoroFinish")
+
+// "Goroutines in the bubble started by Run use a
+// fake clock. Within the bubble, functions in the
+// time package operate on the fake clock.
+// Time advances in the bubble when all goroutines are blocked."
+// -- https://go.dev/blog/synctest
+
+// synctest.Wait when its tag in force. Otherwise a no-op.
+//			synctestWait_LetAllOtherGoroFinish()
+//vv("back from synctest.Wait() goro = %v", GoroNumber())
+
+// synctestWait_LetAllOtherGoroFinish is defined in
+// simnet_synctest.go for synctest is on, and in
+// simnet_nosynctest.go as a no-op when off.
