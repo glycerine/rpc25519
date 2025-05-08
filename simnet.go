@@ -844,6 +844,20 @@ func (node *simnode) firstPreArrivalTimeLTE(now time.Time) bool {
 	return !send.arrivalTm.After(now)
 }
 
+func (node *simnode) optionallyApplyChaos() {
+
+	// based on node.net.scenario
+	//
+	// *** here is where we could re-order
+	// messages in a chaos test.
+	// reads can start before sends,
+	// the read blocks until they match.
+	//
+	// reads can start after sends,
+	// the kernel buffers the sends
+	// until the read attempts (our pre-arrival queue).
+}
+
 // dispatch delivers sends to reads, and fires timers.
 // It calls node.net.armTimer() at the end (in the defer).
 func (node *simnode) dispatch() { // (bump time.Duration) {
@@ -966,18 +980,7 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 		read := readIt.Item().(*mop)
 		send := preIt.Item().(*mop)
 
-		// the event of receiving the msg is after
-		// any LC advance
-
-		// *** here is where we could re-order
-		// messages in a chaos test.
-
-		// reads can start before sends,
-		// the read blocks until they match.
-		//
-		// reads can start after sends,
-		// the kernel buffers the sends
-		// until the read attempts (our pre-arrival queue).
+		node.optionallyApplyChaos()
 
 		// Causality also demands that
 		// a read can complete (now) only after it was initiated;
@@ -989,11 +992,8 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 		// cannot happen before the send initiation.
 		// Also forbid any reads that have not happened
 		// "yet" (now), should they get rearranged by chaos.
-		if now.Before(read.initTm) { // now < read.initTm
-			// are we done? since readQ is ordered
-			// by initTm, all subsequent reads in it
-			// will have >= initTm.
-			vv("rejecting delivery to read that has not happened: '%v'", read)
+		if now.Before(read.initTm) {
+			alwaysPrintf("rejecting delivery to read that has not happened: '%v'", read)
 			panic("how possible?")
 			return
 		}
@@ -1046,27 +1046,7 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 		readDel = append(readDel, read)
 
 		close(read.proceed)
-
-		// used to have this. but in reality
-		// our sends are asynchronous -- not RPCs,
-		// so we don't block. This should happen
-		// as soon as we have the send assigned
-		// to the pre-arrival queue; much earlier.
-		// I'm saving this note in case in the
-		// future we wanted to emulate RPC semantics
-		// that do block, and thus we remove
-		// the close at line 708 in handleSend() and
-		// then wait for the round trip to complete...
-		// but in that case this _still_ not the
-		// right place to close send-- as only
-		// the first half of the round-trip has
-		// finished! We would have to wait for
-		// the reply send to arrive, and match
-		// this with that. We don't track the
-		// CallID inside the simnet like the
-		// client does, at the moment. We don't currently
-		// need RPC semantics, so defer all that for now.
-		//close(send.proceed)
+		// send already closed in handleSend()
 
 		readIt = readIt.Next()
 		preIt = preIt.Next()
@@ -1091,11 +1071,6 @@ func (node *simnode) String() (r string) {
 	return
 }
 
-func (s *simnet) Start() {
-	//vv("simnet.Start() top")
-	go s.scheduler()
-}
-
 func (s *simnet) schedulerReport() string {
 	now := time.Now()
 	return fmt.Sprintf("lastArmTm.After(now) = %v [%v out] %v; qReport = '%v'", s.lastArmTm.After(now), s.lastArmTm.Sub(now), s.lastArmTm, s.qReport())
@@ -1113,7 +1088,18 @@ func (s *simnet) tickLogicalClocks() {
 	}
 }
 
-// makes it clear on a stack trace which goro this is.
+func (s *simnet) Start() {
+	//vv("simnet.Start() top")
+	go s.scheduler()
+}
+
+// scheduler is the heart of the simnet
+// network simulator. It is the central
+// goroutine launched by simnet.Start().
+// It orders all timer and network
+// operations requests by receiving them
+// in a select on its various channels, each
+// dedicated to one type of call.
 func (s *simnet) scheduler() {
 	//vv("scheduler is running on goro = %v", GoroNumber())
 
