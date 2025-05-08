@@ -67,7 +67,8 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 
 			// set a timer
 			t0 = time.Now()
-			goalWait := 3 * time.Second
+			// default hop now 5 sec, so better be > 5 or deadlock in synctest.
+			goalWait := 20 * time.Second
 			timeout := cli.NewTimer(goalWait)
 
 			//timerC := cli.TimeAfter(goalWait)
