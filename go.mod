@@ -1,6 +1,6 @@
 module github.com/glycerine/rpc25519
 
-go 1.24.0
+go 1.24.2
 
 require (
 	4d63.com/tz v1.2.0
@@ -10,8 +10,8 @@ require (
 	github.com/glycerine/base58 v0.24.2
 	github.com/glycerine/blake3 v1.5.2
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31
-	github.com/glycerine/greenpack v0.536.0
-	github.com/glycerine/idem v0.9.0
+	github.com/glycerine/greenpack v0.538.0
+	github.com/glycerine/idem v0.9.3
 	github.com/glycerine/ipaddr v0.2.7
 	github.com/glycerine/loquet v0.0.19
 	github.com/glycerine/parallelwalk v0.3.1

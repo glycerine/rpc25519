@@ -352,8 +352,10 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		return cfg.simnetRendezvous.singleSimnet
 	}
 
-	tick := time.Millisecond * 100
-	minHop := time.Millisecond
+	//tick := time.Millisecond
+	tick := time.Second
+	//minHop := time.Millisecond * 100
+	minHop := time.Second * 5
 	maxHop := minHop
 	var seed [32]byte
 	scen := newScenario(tick, minHop, maxHop, seed)
