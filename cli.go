@@ -586,7 +586,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 			//if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
 			if err := w.sendMessage(conn, msg, nil); err != nil {
 				if !c.cfg.QuietTestMode {
-					alwaysPrintf("Failed to send message: %v\n", err)
+					alwaysPrintf("%v Failed to sendMessage() err returned: %v\n", c.name, err)
 				}
 				msg.LocalErr = err
 				rr := err.Error()

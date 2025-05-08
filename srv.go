@@ -1924,9 +1924,9 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			return
 		}
 		if !s.cfg.QuietTestMode {
-			alwaysPrintf("server did not find destAddr (msg.HDR.To='%v') in "+
+			alwaysPrintf("%v server did not find destAddr (msg.HDR.To='%v') in "+
 				"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers"+
-				" is true so spinning up new client...", msg.HDR.To)
+				" is true so spinning up new client...", s.name, msg.HDR.To)
 			//" is true so spinning up new client... full msg='%v'", msg.HDR.To, msg)
 		}
 		dest, err1 := ipaddr.StripNanomsgAddressPrefix(msg.HDR.To)
@@ -1959,7 +1959,9 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			return
 		}
 		if cli == nil || cli.conn == nil {
-			//alwaysPrintf("no cli.conn, assuming shutdown in progress...")
+			if !s.cfg.QuietTestMode {
+				alwaysPrintf("%v no cli.conn, assuming shutdown in progress...", s.name)
+			}
 			return
 		}
 

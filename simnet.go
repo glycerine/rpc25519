@@ -1176,7 +1176,7 @@ func (s *simnet) scheduler() {
 
 		case srvreg := <-s.srvRegisterCh:
 			// "bind/listen" on a socket, server waits for any client to "connect"
-			//vv("s.srvRegisterCh got srvreg for '%v' = '%#v'", srvreg.server.name, srvreg)
+			vv("s.srvRegisterCh got srvreg for '%v' = '%#v'", srvreg.server.name, srvreg)
 			s.handleServerRegistration(srvreg)
 			//vv("back from handleServerRegistration '%v'", srvreg.server.name)
 
