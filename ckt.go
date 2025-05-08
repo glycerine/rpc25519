@@ -555,7 +555,7 @@ func (frag *Fragment) ToMessage() (msg *Message) {
 	if frag.Args != nil {
 		msg.HDR.Args = frag.Args
 	}
-	msg.JobSerz = frag.Payload
+	msg.JobSerz = frag.Payload // read race vs tube.go:3765
 	msg.JobErrs = frag.Err
 
 	if frag.Err != "" {
@@ -792,10 +792,16 @@ type peerAPI struct {
 	// peerServiceName key
 	localServiceNameMap *Mutexmap[string, *knownLocalPeer]
 
+	//use mut instead of  fragLock     sync.Mutex
+	recycledFrag []*Fragment
+
 	isSim bool // using SimNet instead of actual network calls
 
 	// just for logging. do not depend on this because
 	// it might not be true in a cluster/grid.
+	// e.g. the Server will start auto-clients for
+	// each new connection, but the frag will
+	// still get sent to a server peer.
 	isCli bool
 }
 
@@ -806,6 +812,37 @@ func newPeerAPI(u UniversalCliSrv, isCli, isSim bool) *peerAPI {
 		isCli:               isCli,
 		isSim:               isSim,
 	}
+}
+
+func (s *peerAPI) NewFragment() (f *Fragment) {
+	s.mut.Lock()
+
+	if len(s.recycledFrag) == 0 {
+		f = NewFragment()
+		s.mut.Unlock()
+		return
+	} else {
+		f = s.recycledFrag[0]
+		s.recycledFrag = s.recycledFrag[1:]
+		s.mut.Unlock()
+		// do we need to have thus under lock too? should not.
+		*f = Fragment{
+			Serial: issueSerial(),
+		}
+		return
+	}
+}
+
+func (s *peerAPI) FreeFragment(frag *Fragment) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	s.recycledFrag = append(s.recycledFrag, frag)
+}
+
+func (s *peerAPI) RecycleFragLen() int {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	return len(s.recycledFrag)
 }
 
 type knownRemotePeer struct {

@@ -811,6 +811,8 @@ func (s *simnet) handleSend(send *mop) {
 
 		// make a copy _before_ the sendMessage() call returns,
 		// so they can recycle or do whatever without data racing with us.
+		// Weird: even with this, the Fragment is getting
+		// races, not the Message.
 		send.msg = send.msg.CopyForSimNetSend()
 
 		send.target.preArrQ.add(send)

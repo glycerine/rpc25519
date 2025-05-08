@@ -1190,9 +1190,6 @@ type Server struct {
 	// cancellation after a reconnect.
 	inflight inflight
 
-	fragLock     sync.Mutex
-	recycledFrag []*Fragment
-
 	autoClients []*Client
 }
 
@@ -2827,64 +2824,77 @@ func (c *Client) GetConfig() *Config {
 	return c.cfg
 }
 
+// need to move this to PeerAPI for finer grained locking
+// within a peer's pump and its service func callback goro. maybe.
 func (s *Server) NewFragment() (f *Fragment) {
-	s.fragLock.Lock()
+	return s.PeerAPI.NewFragment()
 
-	if len(s.recycledFrag) == 0 {
-		s.fragLock.Unlock()
-		f = NewFragment()
-		return
-	} else {
-		f = s.recycledFrag[0]
-		s.recycledFrag = s.recycledFrag[1:]
-		*f = Fragment{ // needs lock or can get race here.
-			Serial: issueSerial(),
-		}
-		s.fragLock.Unlock()
-		return
-	}
+	// s.fragLock.Lock()
+
+	// if len(s.recycledFrag) == 0 {
+	// 	s.fragLock.Unlock()
+	// 	f = NewFragment()
+	// 	return
+	// } else {
+	// 	f = s.recycledFrag[0]
+	// 	s.recycledFrag = s.recycledFrag[1:]
+	// 	// sharing Frag across goro? still getting race here 010 tube test.
+	// 	// the pump and the service call are racing for the frag.
+	// 	// they need to lock too... ckt.go:504 vs ckt.go:909
+	// 	// we need to lock the peerAPI.mut.
+	// 	*f = Fragment{ // needs lock or can get race here.
+	// 		Serial: issueSerial(),
+	// 	}
+	// 	s.fragLock.Unlock()
+	// 	return
+	// }
 }
 
 func (s *Server) FreeFragment(frag *Fragment) {
-	s.fragLock.Lock()
-	s.recycledFrag = append(s.recycledFrag, frag)
-	s.fragLock.Unlock()
+	s.PeerAPI.FreeFragment(frag)
+	// s.fragLock.Lock()
+	// s.recycledFrag = append(s.recycledFrag, frag)
+	// s.fragLock.Unlock()
 }
 
 func (s *Client) NewFragment() (f *Fragment) {
-	s.fragLock.Lock()
+	return s.PeerAPI.NewFragment()
+	// s.fragLock.Lock()
 
-	if len(s.recycledFrag) == 0 {
-		s.fragLock.Unlock()
-		f = NewFragment()
-		return
-	} else {
-		f = s.recycledFrag[0]
-		s.recycledFrag = s.recycledFrag[1:]
-		s.fragLock.Unlock()
-		*f = Fragment{
-			Serial: issueSerial(),
-		}
-		return
-	}
+	// if len(s.recycledFrag) == 0 {
+	// 	s.fragLock.Unlock()
+	// 	f = NewFragment()
+	// 	return
+	// } else {
+	// 	f = s.recycledFrag[0]
+	// 	s.recycledFrag = s.recycledFrag[1:]
+	// 	s.fragLock.Unlock()
+	// 	*f = Fragment{
+	// 		Serial: issueSerial(),
+	// 	}
+	// 	return
+	// }
 }
 
 func (s *Client) FreeFragment(frag *Fragment) {
-	s.fragLock.Lock()
-	s.recycledFrag = append(s.recycledFrag, frag)
-	s.fragLock.Unlock()
+	s.PeerAPI.FreeFragment(frag)
+	//s.fragLock.Lock()
+	//s.recycledFrag = append(s.recycledFrag, frag)
+	//s.fragLock.Unlock()
 }
 
 func (s *Client) RecycleFragLen() int {
-	s.fragLock.Lock()
-	defer s.fragLock.Unlock()
-	return len(s.recycledFrag)
+	return s.PeerAPI.RecycleFragLen()
+	//s.fragLock.Lock()
+	//defer s.fragLock.Unlock()
+	//return len(s.recycledFrag)
 }
 
 func (s *Server) RecycleFragLen() int {
-	s.fragLock.Lock()
-	defer s.fragLock.Unlock()
-	return len(s.recycledFrag)
+	return s.PeerAPI.RecycleFragLen()
+	//s.fragLock.Lock()
+	//defer s.fragLock.Unlock()
+	//return len(s.recycledFrag)
 }
 
 func (s *Server) PingStats(remote string) *PingStat {
