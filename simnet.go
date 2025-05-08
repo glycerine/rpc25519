@@ -222,15 +222,15 @@ type simnode struct {
 type nodestate int
 
 const (
-	NORMAL      nodestate = 0
+	HEALTHY     nodestate = 0
 	HALTED      nodestate = 1
 	PARTITIONED nodestate = 2
 )
 
 func (state nodestate) String() string {
 	switch state {
-	case NORMAL:
-		return "NORMAL"
+	case HEALTHY:
+		return "HEALTHY"
 	case HALTED:
 		return "HALTED"
 	case PARTITIONED:
@@ -746,8 +746,8 @@ func (s *simnet) shutdownNode(node *simnode) {
 }
 
 func (s *simnet) restartNode(node *simnode) {
-	vv("handleAlterNode: RESTART %v, wiping queues, going %v -> NORMAL", node.state, node.name)
-	node.state = NORMAL
+	vv("handleAlterNode: RESTART %v, wiping queues, going %v -> HEALTHY", node.state, node.name)
+	node.state = HEALTHY
 	node.readQ.deleteAll()
 	node.preArrQ.deleteAll()
 	node.timerQ.deleteAll()
@@ -759,8 +759,8 @@ func (s *simnet) partitionNode(node *simnode) {
 	node.preArrQ.deleteAll()
 }
 func (s *simnet) unPartitionNode(node *simnode) {
-	vv("handleAlterNode: UNPARTITION %v, going from %v -> NORMAL", node.state, node.name)
-	node.state = NORMAL
+	vv("handleAlterNode: UNPARTITION %v, going from %v -> HEALTHY", node.state, node.name)
+	node.state = HEALTHY
 }
 
 func (s *simnet) handleAlterNode(alt *nodeAlteration) {
@@ -792,9 +792,10 @@ func (s *simnet) handleSend(send *mop) {
 		panic(fmt.Sprintf("should see each send only once now, not %v", send.seen))
 	}
 
-	if send.target.state == PARTITIONED {
-		vv("send.target.state == PARTITIONED, dropping msg = '%v'", send.msg)
-	} else {
+	switch send.target.state {
+	case HALTED, PARTITIONED:
+		vv("send.target.state == %v, dropping msg = '%v'", send.target.state, send.msg)
+	case HEALTHY:
 
 		// make a copy _before_ the sendMessage() call returns,
 		// so they can recycle or do whatever without data racing with us.
@@ -854,7 +855,7 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 		// timers need to fire.
 		// pre-arrival Q will be empty, so
 		// no matching will happen anyway.
-	case NORMAL:
+	case HEALTHY:
 	}
 
 	// to be deleted at the end, so
@@ -1160,15 +1161,15 @@ func (s *simnet) scheduler() {
 
 		case reg := <-s.cliRegisterCh:
 			// "connect" in network lingo, client reaches out to listening server.
-			vv("s.cliRegisterCh got reg from '%v' = '%#v'", reg.client.name, reg)
+			//vv("s.cliRegisterCh got reg from '%v' = '%#v'", reg.client.name, reg)
 			s.handleClientRegistration(reg)
-			vv("back from handleClientRegistration for '%v'", reg.client.name)
+			//vv("back from handleClientRegistration for '%v'", reg.client.name)
 
 		case srvreg := <-s.srvRegisterCh:
 			// "bind/listen" on a socket, server waits for any client to "connect"
-			vv("s.srvRegisterCh got srvreg for '%v' = '%#v'", srvreg.server.name, srvreg) // only node_1 seen, now node_2 seen
+			//vv("s.srvRegisterCh got srvreg for '%v' = '%#v'", srvreg.server.name, srvreg)
 			s.handleServerRegistration(srvreg)
-			vv("back from handleServerRegistration '%v'", srvreg.server.name) // only seen once for node_1 on test702 and node_2
+			//vv("back from handleServerRegistration '%v'", srvreg.server.name)
 
 		case scenario := <-s.newScenarioCh:
 			s.finishScenario()
