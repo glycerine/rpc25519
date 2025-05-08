@@ -2133,8 +2133,14 @@ func NewServer(name string, config *Config) *Server {
 		notifies: newNotifies(notClient),
 		unNAT:    NewMutexmap[string, string](),
 	}
-
-	s.PeerAPI = newPeerAPI(s, notClient, cfg.UseSimNet)
+	// allow nil config still, since the above does.
+	useSimNet := false
+	if cfg != nil {
+		useSimNet = cfg.UseSimNet
+	} else {
+		alwaysPrintf("warning: nil cfg, so useSimNet off.")
+	}
+	s.PeerAPI = newPeerAPI(s, notClient, useSimNet)
 	return s
 }
 
