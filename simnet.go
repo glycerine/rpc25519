@@ -884,13 +884,14 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 
 	switch node.state {
 	case HALTED:
-		// cannot send, receive, or even start timers
-		// when halted.
+		// cannot send, receive, start timers or
+		// discard them; when halted.
 		return
 	case PARTITIONED:
 		// timers need to fire.
 		// pre-arrival Q will be empty, so
 		// no matching will happen anyway.
+		// reads are fine.
 	case HEALTHY:
 	}
 
@@ -1322,7 +1323,7 @@ func (node *simnode) soonestTimerLessThan(bound *mop) *mop {
 // must never touch anything internal
 // to simnet (else data races).
 //
-// Communicate over channels only:
+// Communicate over channels only: e.g.
 //   s.addTimer
 //   s.msgReadCh
 //   s.msgSendCh
