@@ -653,12 +653,8 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 		if req.HDR.Typ == CallPeerTraffic ||
 			req.HDR.Typ == CallPeerError {
-			//bad := fmt.Sprintf("srv readLoop: Peer traffic should never get here!"+
-			//	" req.HDR='%v'", req.HDR.String())
-			//vv(bad)
-			// on shutdown we can get here.
+			// on shutdown we can get here. Don't freak.
 			return
-			//panic(bad)
 		}
 
 		// Idea: send the job to the central work queue, so

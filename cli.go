@@ -444,9 +444,6 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			msg.HDR.Typ == CallPeerError {
 			// we can get here on shutdown, don't freak.
 			return
-			//bad := fmt.Sprintf("cli readLoop: Peer traffic should never get here! msg.HDR='%v'", msg.HDR.String())
-			//alwaysPrintf(bad)
-			//panic(bad)
 		}
 
 		// protect map access. Be sure to Unlock if you "continue" below.
