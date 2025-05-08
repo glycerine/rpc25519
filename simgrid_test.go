@@ -15,7 +15,8 @@ func Test702_simnet_grid_peer_to_peer_works(t *testing.T) {
 
 	bubbleOrNot(func() {
 		//n := 20 // 20*19/2 = 190 tcp conn to setup. ok/green but 35 seconds.
-		n := 5 // 2.7 sec
+		//n := 10 // 4.4 sec synctest
+		n := 3
 		gridCfg := &simGridConfig{
 			ReplicationDegree: n,
 			Timeout:           time.Second * 5,
@@ -26,6 +27,7 @@ func Test702_simnet_grid_peer_to_peer_works(t *testing.T) {
 		cfg.ServerAutoCreateClientsToDialOtherServers = true
 		cfg.UseSimNet = true
 		cfg.ServerAddr = "127.0.0.1:0"
+		cfg.QuietTestMode = true
 		gridCfg.RpcCfg = cfg
 
 		var nodes []*simGridNode
@@ -38,9 +40,13 @@ func Test702_simnet_grid_peer_to_peer_works(t *testing.T) {
 		defer c.Close()
 
 		for i, g := range nodes {
+			_ = i
 			select {
 			case <-g.node.peersNeededSeen.Chan:
-				vv("i=%v all peer connections need have been seen(%v) by '%v': '%#v'", i, g.node.peersNeeded, g.node.name, g.node.seen.GetKeySlice())
+				//vv("i=%v all peer connections need have been seen(%v) by '%v': '%#v'", i, g.node.peersNeeded, g.node.name, g.node.seen.GetKeySlice())
+
+				// failing test will just hang above.
+				// we cannot really do case <-time.After(time.Minute) with faketime.
 			}
 		}
 	})

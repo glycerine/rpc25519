@@ -199,7 +199,9 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	// only signal ready once SetLocalAddr() is done, else submitter can crash.
 	c.connected <- nil
 
-	//alwaysPrintf("connected to server %s", serverAddr)
+	if !c.cfg.QuietTestMode {
+		alwaysPrintf("connected to server %s", serverAddr)
+	}
 
 	// possible to check host keys for TOFU like SSH does,
 	// but be aware that if they have the contents of
@@ -583,7 +585,9 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 			// Send the message
 			//if err := w.sendMessage(conn, msg, &c.cfg.WriteTimeout); err != nil {
 			if err := w.sendMessage(conn, msg, nil); err != nil {
-				alwaysPrintf("Failed to send message: %v\n", err)
+				if !c.cfg.QuietTestMode {
+					alwaysPrintf("Failed to send message: %v\n", err)
+				}
 				msg.LocalErr = err
 				rr := err.Error()
 				if strings.Contains(rr, "use of closed network connection") ||
@@ -854,6 +858,10 @@ type UploadReaderFunc func(ctx context.Context, req *Message, lastReply *Message
 // net.UDPConn is only closed when the last instance
 // in use is Close()-ed.
 type Config struct {
+
+	// QuietTestMode can be set true on tests to quiet down
+	// the shutdown/auto-client-start chatter.
+	QuietTestMode bool
 
 	// ServerAddr host:port where the server should listen.
 	ServerAddr string

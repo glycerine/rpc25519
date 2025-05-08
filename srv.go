@@ -69,7 +69,9 @@ func (s *Server) runServerMain(
 		simNetConfig := &SimNetConfig{}
 
 		s.runSimNetServer(serverAddress, boundCh, simNetConfig)
-		alwaysPrintf("runSimNetServer exited: %v", s.name)
+		if !s.cfg.QuietTestMode {
+			alwaysPrintf("runSimNetServer exited: %v", s.name)
+		}
 		return
 	}
 
@@ -600,7 +602,9 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 				return
 			}
 
-			alwaysPrintf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
+			if !s.Server.cfg.QuietTestMode {
+				alwaysPrintf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
+			}
 			return
 		}
 		//vv("srv read loop sees req = '%v'", req.String()) // not seen 040
@@ -1919,10 +1923,12 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		if !s.cfg.ServerAutoCreateClientsToDialOtherServers {
 			return
 		}
-		alwaysPrintf("server did not find destAddr (msg.HDR.To='%v')in "+
-			"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers"+
-			" is true so spinning up new client...", msg.HDR.To)
-		//" is true so spinning up new client... full msg='%v'", msg.HDR.To, msg)
+		if !s.cfg.QuietTestMode {
+			alwaysPrintf("server did not find destAddr (msg.HDR.To='%v')in "+
+				"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers"+
+				" is true so spinning up new client...", msg.HDR.To)
+			//" is true so spinning up new client... full msg='%v'", msg.HDR.To, msg)
+		}
 		dest, err1 := ipaddr.StripNanomsgAddressPrefix(msg.HDR.To)
 		panicOn(err1)
 		//vv("dest = '%v'", dest)
@@ -1953,7 +1959,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			return
 		}
 		if cli == nil || cli.conn == nil {
-			alwaysPrintf("no cli.conn, assuming shutdown in progress...")
+			//alwaysPrintf("no cli.conn, assuming shutdown in progress...")
 			return
 		}
 
