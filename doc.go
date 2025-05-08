@@ -1,0 +1,171 @@
+package rpc25519
+
+// simnet.go discussion/learnings:
+//
+// Question: Should I call synctest.Wait(), then Sleep()?
+// OR should I call time.Sleep(), then synctest.Wait()?
+// Short answer: time.Sleep() then syntest.Wait().
+// Rationale: after Sleep(), the only goroutines that
+// are awake at this moment in faketime are the ones
+// who should be awake, and after Wait() we are
+// guaranteed to be the only goroutine that is
+// running.
+//
+// When I first read https://go.dev/blog/synctest it
+// looked backwards to me. What is the point of
+// doing a sleep and THEN doing a synctest.Wait?
+// Isn't the sleep wasted? I've just woken up
+// again after the sleep, so any number of other
+// goroutines could also have woken up too... how
+// can I reason about anything now with all
+// the possible concurrency?
+//
+// Let's further ask:
+// Does fake time ONLY advance when all goro are blocked?
+//
+// Does the package synctest give that guarantee?
+//
+// Can time advance in some (any) other manner? Is
+// this other way guaranteed to be the ONLY other way?
+//
+// Let's make assumptions about the things that
+// were vague and not spelled out in the blog post.
+//
+// Let's assume for a moment that time can ONLY advance when
+// all goro are blocked? The adjective durably
+// was not applied to the blog post statement,
+// "Time advances in the bubble when all goroutines are blocked."
+// so let's further assume that he meant _durably_ blocked.
+// Although if @neild meant durably he probably would
+// have said durably (maybe?)
+//
+// jea: since we were blocked, other goro can
+// run until blocked in the background; in
+// fact, time won't advance until they are
+// blocked. So once we get to here, we
+// know:
+// 1) all other goroutines were blocked
+// until a nanosecond before now.
+// 2) We are now awake, but also any
+// other goro that is due to wake at
+// this moment is also now awake as well.
+//
+// Still under those assumptions, now ask:
+// What does the synctest.Wait() do for us?
+//
+//synctest.Wait()
+//
+// okay, we now know that all _other_ goroutines
+// that woke up when we did just now
+// have also finished their business and are
+// now durably blocked. We are the only
+// one that has any more business to do
+// at this time point. So this is useful in
+// that we can now presume to "go last" in
+// this nanosecond, with the assurance that
+// we won't miss a send we were supposed
+// to get at this point in time. During
+// this nanosecond, the order of who does
+// what is undefined, and lots of other
+// goro could be doing stuff before the
+// synctest.Wait(). But, now, after the
+// synctest.Wait, we know they are all done,
+// and we are the only one who will
+// operate until the next time we sleep.
+// In effect, we have frozen time just
+// at the end of this nanosecond. We
+// can adjust our queues, match sends and reads,
+// set new timers, process expired timers,
+// change node state to partitioned, etc,
+// with the full knowledge that we are
+// not operating concurrently with anyone
+// else, but just after all of them have
+// done any business they are going to
+// do at the top of this nanosecond.
+// We are now "at the bottom" of the nanosecond.
+
+// What if we did the wait, then slept?
+// After the wait, we also know that
+// everyone else is durably blocked.
+// So in fact, we don't need to sleep
+// ourselves to know that nobody else
+// will be doing anything concurrently.
+// It is guaranteed that we are the last,
+// no matter what time it is. In fact,
+// we might want to have other goroutines
+// do stuff for us now, respond to us,
+// and take any actions they are going
+// to take, get blocked on timers or
+// reads or sends. They can do so, operating
+// independently and concurrently with us,
+// until the next sleep or synctest.Wait(),
+// *IF* we want to be operating with them
+// concurrently (MUCH more non-deterministic!)
+// then this is fine. BUT if we want the
+// determinism guarantee that we are
+// "going last" and have seen everyone
+// else's poker hand before placing our bets,
+// then we will want to do the Sleep then
+// Wait approach.
+//
+// Let's write a test to check that we are
+// indeed "last" after the double shot of
+// sleep + sycntest.Wait? How can we know
+// if there is anyone else "active"? simple:
+// block ourselves with a select{}. If we
+// were the only one's active, then the
+// synctest system will panic, reporting deadlock.
+//
+// Possibly very interesting, the blog says,
+//
+// "The Run function starts a goroutine in a new
+// bubble. It returns when every goroutine in
+// the bubble has exited. It panics if the bubble
+// is durably blocked and _cannot be unblocked
+// by advancing time_." (emphasis mine)
+//
+// To me this implies that we can use the panic
+// as a poor man's model checker for some cases
+// of the temporal logic invariants "never happens", or
+// "always happens".
+//
+// What about concurrent calls to synctest.Wait?
+// Well, they seem like they would be useful...
+// letting all goroutines accumulate against
+// the same barrier... but then when you
+// come out the other side, waking from syntest.Wait,
+// now multiple goroutines could be active
+// at once again!  This is exactly what we
+// wanted to avoid. We want exclusive access
+// while time is frozen "in between two clock ticks"
+// to change lots of state before we resume
+// the clock for other goroutines again. So
+// this is less than useful--it actively hurts
+// our aims.
+//
+// "Operating on a bubbled channel from outside
+// the bubble panics."
+// This sounds like a great way to "poison"
+// a channel! Like if you have to pass from
+// bubble, out into "enemy" territory, and
+// then back into the safe bubble zone,
+// you get the runtime's help: the runtime
+// insures that nobody else will read from
+// your channel.
+//
+// The converse might also be useful: since
+// a select on an "outside" channel prevents
+// synctest.Wait() from returning, this
+// could be useful (maybe?) if a worker/node
+// wants to prevent the schduler from
+// blocking it too early while it does
+// some sends and receives on channels.
+// I don't see why this would be needed at
+// the moment, but keep in the back
+// pocket of ideas for the future. The
+// outside channel could be a global
+// system "scheduler" control mechanism
+// if it wanted to pause an instance
+// of the scheduler, for example.
+// I did a POC for that in the subdirectory
+// play/pausable_scheduler_demo_test.go
