@@ -797,12 +797,8 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 
 				case <-ctx.Done():
 					// think we want backpressure and to make sure the peer goro keep up.
-					//default:
-					//	panic(fmt.Sprintf("Should never happen b/c the "+
-					//		"channels must be buffered!: could not send to "+
-					//		"whoCh from notifyOnErrorToPeerIDMap; for ToPeerID = %v.",
-					//		msg.HDR.ToPeerID))
-				case <-c.u.GetHostHalter().ReqStop.Chan: // ctx not enough
+				case <-c.u.GetHostHalter().ReqStop.Chan:
+					// ctx not enough for clean shutdown, need this too.
 
 				}
 				return true // only send to ToPeerID, not CallID too.
@@ -815,12 +811,8 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 			case wantsErr <- msg:
 			//vv("notified a channel! %p for CallID '%v'", wantsErr, msg.HDR.CallID)
 			case <-ctx.Done():
-			//default:
-			//	panic(fmt.Sprintf("Should never happen b/c the "+
-			//		"channels must be buffered!: could not send to "+
-			//		"whoCh from notifyOnErrorCallIDMap; for CallID = %v.",
-			//		msg.HDR.CallID))
-			case <-c.u.GetHostHalter().ReqStop.Chan: // ctx not enough
+			case <-c.u.GetHostHalter().ReqStop.Chan:
+				// ctx not enough for clean shutdown, need this too.
 			}
 			return true
 		}
