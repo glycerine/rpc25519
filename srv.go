@@ -1927,7 +1927,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		if !s.cfg.QuietTestMode {
 			alwaysPrintf("%v server did not find destAddr (msg.HDR.To='%v') in "+
 				"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers"+
-				" is true so spinning up new client...", s.name, msg.HDR.To)
+				" is true so spinning up new client... for a total of %v autoClients", s.name, msg.HDR.To, len(s.autoClients)+1)
 			//" is true so spinning up new client... full msg='%v'", msg.HDR.To, msg)
 		}
 		dest, err1 := ipaddr.StripNanomsgAddressPrefix(msg.HDR.To)
