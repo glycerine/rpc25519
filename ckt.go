@@ -555,7 +555,7 @@ func (frag *Fragment) ToMessage() (msg *Message) {
 	if frag.Args != nil {
 		msg.HDR.Args = frag.Args
 	}
-	msg.JobSerz = frag.Payload // read race vs tube.go:3765
+	msg.JobSerz = frag.Payload // read race vs write tube.go:2894
 	msg.JobErrs = frag.Err
 
 	if frag.Err != "" {
@@ -828,11 +828,10 @@ func (s *peerAPI) NewFragment() (f *Fragment) {
 	} else {
 		f = s.recycledFrag[0]
 		s.recycledFrag = s.recycledFrag[1:]
-		s.fragMut.Unlock()
-		// do we need to have thus under lock too? should not need to.
 		*f = Fragment{
 			Serial: issueSerial(),
 		}
+		s.fragMut.Unlock()
 		return
 	}
 }
