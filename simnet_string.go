@@ -1,0 +1,183 @@
+package rpc25519
+
+import (
+	"fmt"
+	"time"
+)
+
+func (node *simnode) String() (r string) {
+	r += fmt.Sprintf("%v in %v state, Q summary:\n", node.name, node.state)
+	r += node.readQ.String()
+	r += node.preArrQ.String()
+	r += node.timerQ.String()
+	return
+}
+
+func (alt alteration) String() string {
+	switch alt {
+	case SHUTDOWN:
+		return "SHUTDOWN"
+	case PARTITION:
+		return "PARTITION"
+	case UNPARTITION:
+		return "UNPARTITION"
+	case RESTART:
+		return "RESTART"
+	}
+	panic(fmt.Sprintf("unknown alteration %v", int(alt)))
+	return "unknown alteration"
+}
+
+func (pq *pq) String() (r string) {
+	i := 0
+	r = fmt.Sprintf("\n ------- %v %v PQ --------\n", pq.owner, pq.orderby)
+	for it := pq.tree.Min(); it != pq.tree.Limit(); it = it.Next() {
+
+		item := it.Item() // interface{}
+		if IsNil(item) {
+			panic("do not put nil into the pq")
+		}
+		op := item.(*mop)
+		r += fmt.Sprintf("pq[%2d] = %v\n", i, op)
+		i++
+	}
+	if i == 0 {
+		r += fmt.Sprintf("empty PQ\n")
+	}
+	return
+}
+
+func (state nodestate) String() string {
+	switch state {
+	case HEALTHY:
+		return "HEALTHY"
+	case HALTED:
+		return "HALTED"
+	case PARTITIONED:
+		return "PARTITIONED"
+	}
+	panic(fmt.Sprintf("unknown nodestate '%v'", int(state)))
+	return "unknown nodestate"
+}
+
+func (k mopkind) String() string {
+	switch k {
+	case TIMER:
+		return "TIMER"
+	case TIMER_DISCARD:
+		return "TIMER_DISCARD"
+	case SEND:
+		return "SEND"
+	case READ:
+		return "READ"
+	default:
+		return fmt.Sprintf("unknown mopkind %v", int(k))
+	}
+}
+
+func (op *mop) String() string {
+	var msgSerial int64
+	if op.msg != nil {
+		msgSerial = op.msg.HDR.Serial
+	}
+	who := "SERVER"
+	if op.originCli {
+		who = "CLIENT"
+	}
+	now := time.Now()
+	var ini, arr, complete string
+	if op.initTm.IsZero() {
+		ini = "unk"
+	} else {
+		ini = fmt.Sprintf("%v", op.initTm.Sub(now))
+	}
+	if op.arrivalTm.IsZero() {
+		arr = "unk"
+	} else {
+		arr = fmt.Sprintf("%v", op.arrivalTm.Sub(now))
+	}
+	if op.completeTm.IsZero() {
+		complete = "unk"
+	} else {
+		complete = fmt.Sprintf("%v", op.completeTm.Sub(now))
+	}
+	extra := ""
+	switch op.kind {
+	case TIMER:
+		extra = " timer set at " + op.timerFileLine
+	case TIMER_DISCARD:
+		extra = " timer discarded at " + op.timerFileLine
+	case SEND:
+		extra = fmt.Sprintf(" FROM %v TO %v", op.origin.name, op.target.name)
+	}
+	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, msg.sn:%v%v}", who, op.kind, ini, arr, complete, op.sn, msgSerial, extra)
+}
+
+// traditionally, a string form of address
+// (for example, "192.0.2.1:25", "[2001:db8::1]:80").
+// In simnet, we just use the name. Easier diagnostics,
+// simpler "dns" lookup keys.
+func (s *SimNetAddr) String() (str string) {
+	// keep it simple, as it is our simnet.dns lookup key.
+	//str = s.addr + "/" + s.name
+	str = s.name
+	//vv("SimNetAddr.String() returning '%v'", str) // recursive... locks
+	return
+}
+
+func (s *simnet) String() (r string) {
+	r = "&simnet{\n"
+	r += fmt.Sprintf("useSynctest: %v,\n", s.useSynctest)
+	r += fmt.Sprintf("   scenario: %v,\n", s.scenario)
+	r += fmt.Sprintf("        cfg: %v,\n", s.cfg)
+	r += fmt.Sprintf("  simNetCfg: %v,\n", s.simNetCfg)
+	r += fmt.Sprintf("        srv: %v,\n", s.srv)
+	r += fmt.Sprintf("        cli: %v,\n", s.cli)
+	r += fmt.Sprintf("        dns: %v,\n", s.dns)
+	r += fmt.Sprintf("       halt: %v,\n", s.halt)
+	r += fmt.Sprintf("  nextTimer: %v,\n", s.nextTimer)
+	r += fmt.Sprintf("  lastArmTm: %v,\n", s.lastArmTm)
+	r += "}\n"
+	return
+}
+
+func (s *serverRegistration) String() (r string) {
+	r = "&serverRegistration{\n"
+	r += fmt.Sprintf("        server.name: %v,\n", s.server.name)
+	r += fmt.Sprintf("         srvNetAddr: %v,\n", s.srvNetAddr)
+	r += fmt.Sprintf("            simnode: %v,\n", s.simnode)
+	r += fmt.Sprintf("             simnet: %v,\n", s.simnet)
+	r += "}\n"
+	return
+}
+
+func (s *clientRegistration) String() (r string) {
+	r = "&clientRegistration{\n"
+	r += fmt.Sprintf("     client.name: %v,\n", s.client.name)
+	r += fmt.Sprintf("localHostPortStr: \"%v\",\n", s.localHostPortStr)
+	r += fmt.Sprintf("          dialTo: \"%v\",\n", s.dialTo)
+	r += fmt.Sprintf("   serverAddrStr: \"%v\",\n", s.serverAddrStr)
+	r += fmt.Sprintf("         simnode: %v,\n", s.simnode)
+	r += fmt.Sprintf("            conn: %v,\n", s.conn)
+	r += "}\n"
+	return
+}
+func (s *nodeAlteration) String() (r string) {
+	r = "&nodeAlteration{\n"
+	r += fmt.Sprintf(" simnet: %v,\n", s.simnet)
+	r += fmt.Sprintf("simnode: %v,\n", s.simnode)
+	r += fmt.Sprintf("  alter: %v,\n", s.alter)
+	r += "}\n"
+	return
+}
+
+func (s *scenario) String() (r string) {
+	r = "&scenario{\n"
+	r += fmt.Sprintf("  seed: %v,\n", s.seed)
+	r += fmt.Sprintf("   rng: %v,\n", s.rng)
+	r += fmt.Sprintf("  tick: %v,\n", s.tick)
+	r += fmt.Sprintf("minHop: %v,\n", s.minHop)
+	r += fmt.Sprintf("maxHop: %v,\n", s.maxHop)
+	r += "}\n"
+	return
+}

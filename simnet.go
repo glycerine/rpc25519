@@ -57,15 +57,6 @@ func (s *SimNetAddr) Network() string {
 	return s.network
 }
 
-// string form of address (for example, "192.0.2.1:25", "[2001:db8::1]:80")
-func (s *SimNetAddr) String() (str string) {
-	// keep it simple, as it is our simnet.dns lookup key.
-	//str = s.addr + "/" + s.name
-	str = s.name
-	//vv("SimNetAddr.String() returning '%v'", str) // recursive... locks
-	return
-}
-
 // Message operation
 type mop struct {
 	sn int64
@@ -129,44 +120,6 @@ type mop struct {
 	proceed chan struct{}
 }
 
-func (op *mop) String() string {
-	var msgSerial int64
-	if op.msg != nil {
-		msgSerial = op.msg.HDR.Serial
-	}
-	who := "SERVER"
-	if op.originCli {
-		who = "CLIENT"
-	}
-	now := time.Now()
-	var ini, arr, complete string
-	if op.initTm.IsZero() {
-		ini = "unk"
-	} else {
-		ini = fmt.Sprintf("%v", op.initTm.Sub(now))
-	}
-	if op.arrivalTm.IsZero() {
-		arr = "unk"
-	} else {
-		arr = fmt.Sprintf("%v", op.arrivalTm.Sub(now))
-	}
-	if op.completeTm.IsZero() {
-		complete = "unk"
-	} else {
-		complete = fmt.Sprintf("%v", op.completeTm.Sub(now))
-	}
-	extra := ""
-	switch op.kind {
-	case TIMER:
-		extra = " timer set at " + op.timerFileLine
-	case TIMER_DISCARD:
-		extra = " timer discarded at " + op.timerFileLine
-	case SEND:
-		extra = fmt.Sprintf(" FROM %v TO %v", op.origin.name, op.target.name)
-	}
-	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, msg.sn:%v%v}", who, op.kind, ini, arr, complete, op.sn, msgSerial, extra)
-}
-
 // simnet simulates a network entirely with channels in memory.
 type simnet struct {
 	useSynctest bool
@@ -227,19 +180,6 @@ const (
 	HALTED      nodestate = 1
 	PARTITIONED nodestate = 2
 )
-
-func (state nodestate) String() string {
-	switch state {
-	case HEALTHY:
-		return "HEALTHY"
-	case HALTED:
-		return "HALTED"
-	case PARTITIONED:
-		return "PARTITIONED"
-	}
-	panic(fmt.Sprintf("unknown nodestate '%v'", int(state)))
-	return "unknown nodestate"
-}
 
 func (s *simnet) newSimnode(name string) *simnode {
 	return &simnode{
@@ -464,21 +404,6 @@ const (
 	READ          mopkind = 4
 )
 
-func (k mopkind) String() string {
-	switch k {
-	case TIMER:
-		return "TIMER"
-	case TIMER_DISCARD:
-		return "TIMER_DISCARD"
-	case SEND:
-		return "SEND"
-	case READ:
-		return "READ"
-	default:
-		return fmt.Sprintf("unknown mopkind %v", int(k))
-	}
-}
-
 // scenario will, in the future, provide for testing different
 // timeout settings under network partition and
 // flakiness (partial failure). Stubbed for now.
@@ -530,25 +455,6 @@ func (s *scenario) rngTieBreaker() int {
 		}
 		// loop and try again on ties.
 	}
-}
-
-func (pq *pq) String() (r string) {
-	i := 0
-	r = fmt.Sprintf("\n ------- %v %v PQ --------\n", pq.owner, pq.orderby)
-	for it := pq.tree.Min(); it != pq.tree.Limit(); it = it.Next() {
-
-		item := it.Item() // interface{}
-		if IsNil(item) {
-			panic("do not put nil into the pq")
-		}
-		op := item.(*mop)
-		r += fmt.Sprintf("pq[%2d] = %v\n", i, op)
-		i++
-	}
-	if i == 0 {
-		r += fmt.Sprintf("empty PQ\n")
-	}
-	return
 }
 
 type pq struct {
@@ -1092,14 +998,6 @@ func (s *simnet) qReport() (r string) {
 	return
 }
 
-func (node *simnode) String() (r string) {
-	r += fmt.Sprintf("%v in %v state, Q summary:\n", node.name, node.state)
-	r += node.readQ.String()
-	r += node.preArrQ.String()
-	r += node.timerQ.String()
-	return
-}
-
 func (s *simnet) schedulerReport() string {
 	now := time.Now()
 	return fmt.Sprintf("lastArmTm.After(now) = %v [%v out] %v; qReport = '%v'", s.lastArmTm.After(now), s.lastArmTm.Sub(now), s.lastArmTm, s.qReport())
@@ -1182,9 +1080,9 @@ func (s *simnet) scheduler() {
 
 		case srvreg := <-s.srvRegisterCh:
 			// "bind/listen" on a socket, server waits for any client to "connect"
-			vv("s.srvRegisterCh got srvreg for '%v' = '%v'", srvreg.server.name, srvreg)
+			vv("s.srvRegisterCh got srvreg for '%v'", srvreg.server.name)
 			s.handleServerRegistration(srvreg)
-			//vv("back from handleServerRegistration '%v'", srvreg.server.name)
+			vv("back from handleServerRegistration, srvreg = %v", srvreg)
 
 		case scenario := <-s.newScenarioCh:
 			s.finishScenario()
@@ -1528,16 +1426,6 @@ type serverRegistration struct {
 	tellServerNewConnCh chan *simnetConn
 }
 
-func (s *serverRegistration) String() (r string) {
-	r = "&serverRegistration{\n"
-	r += fmt.Sprintf("             server: %v,\n", s.server)
-	r += fmt.Sprintf("         srvNetAddr: %v,\n", s.srvNetAddr)
-	r += fmt.Sprintf("            simnode: %v,\n", s.simnode)
-	r += fmt.Sprintf("             simnet: %v,\n", s.simnet)
-	r += "}\n"
-	return
-}
-
 // external
 func (s *simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) *serverRegistration {
 	return &serverRegistration{
@@ -1582,21 +1470,6 @@ const (
 	UNPARTITION alteration = 3
 	RESTART     alteration = 4
 )
-
-func (alt alteration) String() string {
-	switch alt {
-	case SHUTDOWN:
-		return "SHUTDOWN"
-	case PARTITION:
-		return "PARTITION"
-	case UNPARTITION:
-		return "UNPARTITION"
-	case RESTART:
-		return "RESTART"
-	}
-	panic(fmt.Sprintf("unknown alteration %v", int(alt)))
-	return "unknown alteration"
-}
 
 type nodeAlteration struct {
 	simnet  *simnet
