@@ -11,11 +11,11 @@ require (
 	github.com/glycerine/blake3 v1.5.2
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31
 	github.com/glycerine/greenpack v0.538.0
-	github.com/glycerine/idem v0.9.3
+	github.com/glycerine/idem v0.9.6
 	github.com/glycerine/ipaddr v0.2.7
 	github.com/glycerine/loquet v0.0.19
 	github.com/glycerine/parallelwalk v0.3.1
-	github.com/glycerine/rbtree v0.2.0
+	github.com/glycerine/rbtree v0.2.1
 	github.com/glycerine/restic-chunker-mod v0.5.0
 	github.com/goccy/go-json v0.10.3
 	github.com/klauspost/compress v1.17.11

@@ -19,7 +19,7 @@ import (
 
 func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 
-	bubbleOrNot(func() {
+	onlyBubbled(t, func() {
 
 		cv.Convey("basic SimNet channel based remote procedure call with rpc25519: register a callback on the server, and have the client call it.", t, func() {
 
@@ -136,7 +136,7 @@ func Test604_rng_hops(t *testing.T) {
 // simnet version of cli_test 006
 func Test706_simnetonly_RoundTrip_Using_NetRPC(t *testing.T) {
 
-	bubbleOrNot(func() {
+	onlyBubbled(t, func() {
 
 		// basic SimNet with rpc25519 using the net/rpc API: register a callback on the server, and have the client call it.
 		cfg := NewConfig()
@@ -292,7 +292,7 @@ func Test706_simnetonly_RoundTrip_Using_NetRPC(t *testing.T) {
 // simnet version of 040 in cli_test.go
 func Test740_simnetonly_remote_cancel_by_context(t *testing.T) {
 
-	bubbleOrNot(func() {
+	onlyBubbled(t, func() {
 
 		cv.Convey("simnet remote cancellation", t, func() {
 
@@ -408,7 +408,7 @@ func Test740_simnetonly_remote_cancel_by_context(t *testing.T) {
 
 func Test745_simnetonly_upload(t *testing.T) {
 
-	bubbleOrNot(func() {
+	onlyBubbled(t, func() {
 		cv.Convey("upload a large file in parts from client to server", t, func() {
 
 			cfg := NewConfig()
@@ -508,7 +508,7 @@ func Test745_simnetonly_upload(t *testing.T) {
 
 func Test755_simnetonly_simnet_download(t *testing.T) {
 
-	bubbleOrNot(func() {
+	onlyBubbled(t, func() {
 
 		cv.Convey("download a large file in parts from server to client, the opposite direction of the previous test.", t, func() {
 
@@ -619,7 +619,7 @@ func Test755_simnetonly_simnet_download(t *testing.T) {
 
 func Test765_simnetonly_bidirectional_download_and_upload(t *testing.T) {
 
-	bubbleOrNot(func() {
+	onlyBubbled(t, func() {
 
 		cv.Convey("we should be able to register a server func that does uploads and downloads sequentially or simultaneously.", t, func() {
 
