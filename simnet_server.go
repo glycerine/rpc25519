@@ -7,6 +7,8 @@ import (
 	"sync"
 	//"sync/atomic"
 	"time"
+
+	"github.com/glycerine/idem"
 )
 
 func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNetConfig *SimNetConfig) {
@@ -108,6 +110,7 @@ type simnetConn struct {
 
 	// no more reads, but serve the rest of nextRead.
 	isClosed bool
+	closed   *idem.IdemCloseChan
 }
 
 // originally not actually used much by simnet. We'll
@@ -167,6 +170,9 @@ func (s *simnetConn) Write(p []byte) (n int, err error) {
 		n = 0
 		err = &simconnError{isTimeout: true, desc: "i/o timeout"}
 		return
+	case <-s.closed.Chan:
+		err = io.EOF
+		return
 	}
 	select {
 	case <-send.proceed:
@@ -179,6 +185,10 @@ func (s *simnetConn) Write(p []byte) (n int, err error) {
 		_ = timeout
 		n = 0
 		err = &simconnError{isTimeout: true, desc: "i/o timeout"}
+		return
+	case <-s.closed.Chan:
+		n = 0
+		err = io.EOF
 		return
 	}
 	return
@@ -247,6 +257,9 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 		_ = timeout
 		err = &simconnError{isTimeout: true, desc: "i/o timeout"}
 		return
+	case <-s.closed.Chan:
+		err = io.EOF
+		return
 	}
 	select {
 	case <-read.proceed:
@@ -263,14 +276,19 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 		_ = timeout
 		err = &simconnError{isTimeout: true, desc: "i/o timeout"}
 		return
+	case <-s.closed.Chan:
+		err = io.EOF
+		return
 	}
 	return
 }
+
 func (s *simnetConn) Close() error {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
 	s.isClosed = true
+	s.closed.Close() // unblock sends/reads
 	return nil
 }
 
@@ -279,11 +297,13 @@ func (s *simnetConn) LocalAddr() net.Addr {
 	defer s.mut.Unlock()
 	return s.local.netAddr
 }
+
 func (s *simnetConn) RemoteAddr() net.Addr {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 	return s.remote.netAddr
 }
+
 func (s *simnetConn) SetDeadline(t time.Time) error {
 	s.mut.Lock()
 	defer s.mut.Unlock()
@@ -299,6 +319,7 @@ func (s *simnetConn) SetDeadline(t time.Time) error {
 	s.sendDeadlineTimer = s.readDeadlineTimer
 	return nil
 }
+
 func (s *simnetConn) SetWriteDeadline(t time.Time) error {
 	s.mut.Lock()
 	defer s.mut.Unlock()
@@ -341,4 +362,37 @@ func (s *simconnError) Timeout() bool {
 }
 func (s *simconnError) Temporary() bool {
 	return s.isTimeout
+}
+
+func (s *simnet) Dial(localHostPort, serverAddr string) *simnetConn {
+
+	// so something like
+	// runSimNetClient(localHostPort, serverAddr string)
+	// in simnet_client.go
+
+	//
+	// currently the simnet.go:413 :433 methods
+	//
+	// addEdgeFromSrv(srvnode, clinode *simnode) *simnetConn
+	// and
+	// addEdgeFromCli(clinode, srvnode *simnode) *simnetConn
+	//
+	// are how we make new simnetConn; but they are
+	// internal not external.
+	// We'll wait until we have actual client code to figure
+	// out what is actually required.
+	panic("TODO Dial for clients")
+	return nil
+}
+
+func (s *simnet) Listen() *simnetConn {
+	// see comments in Dial above. wait for actual client code.
+
+	// s.bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *simnet
+	// will be needed.
+	// then a more standalone version of the simnet.go:1540  code
+	// s.registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConnCh chan *simnetConn, err error)
+
+	panic("TODO Listen for servers")
+	return nil
 }

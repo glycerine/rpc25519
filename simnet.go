@@ -423,6 +423,7 @@ func (s *simnet) addEdgeFromSrv(srvnode, clinode *simnode) *simnetConn {
 		local:   srvnode,
 		remote:  clinode,
 		netAddr: srvnode.netAddr,
+		closed:  idem.NewIdemCloseChan(),
 	}
 	// replace any previous conn
 	srv[clinode] = s2c
