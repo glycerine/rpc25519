@@ -123,7 +123,7 @@ type simnetConn struct {
 // Implementations must not retain p."
 //
 // Implementation note: we will only send
-// maxMessage bytes at a time.
+// UserMaxPayload bytes at a time.
 func (s *simnetConn) Write(p []byte) (n int, err error) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
@@ -142,9 +142,10 @@ func (s *simnetConn) Write(p []byte) (n int, err error) {
 	isCli := s.isCli
 	msg := NewMessage()
 	n = len(p)
-	if n > maxMessage {
-		msg.JobSerz = append([]byte{}, p[:maxMessage]...)
-		n = maxMessage
+	if n > UserMaxPayload {
+		n = UserMaxPayload
+		// copy into the "kernel buffer"
+		msg.JobSerz = append([]byte{}, p[:n]...)
 	} else {
 		msg.JobSerz = append([]byte{}, p...)
 	}
