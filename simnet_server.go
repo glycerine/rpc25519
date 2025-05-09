@@ -84,14 +84,172 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	}
 }
 
-// not actually used though, much.
-func (s *simnetConn) Write(p []byte) (n int, err error)   { return }
-func (s *simnetConn) SetWriteDeadline(t time.Time) error  { return nil }
-func (s *simnetConn) Read(data []byte) (n int, err error) { return }
-func (s *simnetConn) SetReadDeadline(t time.Time) error   { return nil }
-func (s *simnetConn) Close() error                        { return nil }
-func (s *simnetConn) LocalAddr() net.Addr                 { return s.local.netAddr }
+// a connection between two nodes.
+// implements uConn, see simnet_server.go
+// the readMessage/sendMessage are well tested;
+// the other net.Conn generic Read/Write less so, at the moment.
+type simnetConn struct {
+	// distinguish cli from srv
+	isCli   bool
+	net     *simnet
+	netAddr *SimNetAddr // local address
+
+	local  *simnode
+	remote *simnode
+
+	readDeadlineTimer *mop
+	sendDeadlineTimer *mop
+
+	nextRead []byte
+}
+
+// originally not actually used much by simnet. We'll
+// fill them out to try and allow testing of net.Conn code.
+func (s *simnetConn) Write(p []byte) (n int, err error) {
+
+	if len(p) == 0 {
+		return
+	}
+
+	isCli := s.isCli
+	msg := NewMessage()
+	msg.JobSerz = append([]byte{}, p...)
+
+	//vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", send.origin, msg.HDR.Serial)
+	//vv("sendMessage\n conn.local = %v (isCli:%v)\n conn.remote = %v (isCli:%v)\n", s.local.name, s.local.isCli, s.remote.name, s.remote.isCli)
+	send := newSendMop(msg, isCli)
+	send.origin = s.local
+	send.target = s.remote
+	send.initTm = time.Now()
+	select {
+	case s.net.msgSendCh <- send:
+	case <-s.net.halt.ReqStop.Chan:
+		err = ErrShutdown()
+		return
+	case timeout := <-s.sendDeadlineTimer.timerC:
+		_ = timeout
+		err = &simnetError{isTimeout: true, desc: "i/o timeout"}
+		return
+	}
+	select {
+	case <-send.proceed:
+		n = len(p) // sent all by default
+		return
+	case <-s.net.halt.ReqStop.Chan:
+		err = ErrShutdown()
+		return
+	case timeout := <-s.sendDeadlineTimer.timerC:
+		_ = timeout
+		err = &simnetError{isTimeout: true, desc: "i/o timeout"}
+		return
+	}
+	return
+}
+func (s *simnetConn) Read(data []byte) (n int, err error) {
+
+	if len(data) == 0 {
+		return
+	}
+
+	// leftovers?
+	if len(s.nextRead) > 0 {
+		n = copy(data, s.nextRead)
+		s.nextRead = s.nextRead[n:]
+		return
+	}
+
+	isCli := s.isCli
+
+	//vv("top simnet.readMessage() %v READ", read.origin)
+
+	read := newReadMop(isCli)
+	read.initTm = time.Now()
+	read.origin = s.local
+	read.target = s.remote
+	select {
+	case s.net.msgReadCh <- read:
+	case <-s.net.halt.ReqStop.Chan:
+		err = ErrShutdown()
+		return
+	case timeout := <-s.readDeadlineTimer.timerC:
+		_ = timeout
+		err = &simnetError{isTimeout: true, desc: "i/o timeout"}
+		return
+	}
+	select {
+	case <-read.proceed:
+		msg := read.msg
+		n = copy(data, msg.JobSerz)
+		if n < len(msg.JobSerz) {
+			// buffer the leftover
+			s.nextRead = append(s.nextRead, msg.JobSerz[n:]...)
+		}
+	case <-s.net.halt.ReqStop.Chan:
+		err = ErrShutdown()
+		return
+	case timeout := <-s.readDeadlineTimer.timerC:
+		_ = timeout
+		err = &simnetError{isTimeout: true, desc: "i/o timeout"}
+		return
+	}
+	return
+}
+func (s *simnetConn) Close() error {
+	return nil
+}
+
+func (s *simnetConn) LocalAddr() net.Addr {
+	return s.local.netAddr
+}
 func (s *simnetConn) RemoteAddr() net.Addr {
 	return s.remote.netAddr
 }
-func (s *simnetConn) SetDeadline(t time.Time) error { return nil }
+func (s *simnetConn) SetDeadline(t time.Time) error {
+	if t.IsZero() {
+		s.readDeadlineTimer = nil
+		s.sendDeadlineTimer = nil
+		return nil
+	}
+	now := time.Now()
+	dur := t.Sub(now)
+	s.readDeadlineTimer = s.net.createNewTimer(s.local, dur, now, s.isCli)
+	s.sendDeadlineTimer = s.readDeadlineTimer
+	return nil
+}
+func (s *simnetConn) SetWriteDeadline(t time.Time) error {
+	if t.IsZero() {
+		s.sendDeadlineTimer = nil
+		return nil
+	}
+	now := time.Now()
+	dur := t.Sub(now)
+	s.sendDeadlineTimer = s.net.createNewTimer(s.local, dur, now, s.isCli)
+	return nil
+}
+func (s *simnetConn) SetReadDeadline(t time.Time) error {
+	if t.IsZero() {
+		s.readDeadlineTimer = nil
+		return nil
+	}
+	now := time.Now()
+	dur := t.Sub(now)
+	s.readDeadlineTimer = s.net.createNewTimer(s.local, dur, now, s.isCli)
+	return nil
+}
+
+// implements net.Error interface, which
+// net.Conn operations return; for Timeout() especially.
+type simnetError struct {
+	isTimeout bool
+	desc      string
+}
+
+func (s *simnetError) Error() string {
+	return s.desc
+}
+func (s *simnetError) Timeout() bool {
+	return s.isTimeout
+}
+func (s *simnetError) Temporary() bool {
+	return s.isTimeout
+}

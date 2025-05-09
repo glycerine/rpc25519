@@ -17,17 +17,18 @@ import (
 
 type SimNetConfig struct{}
 
+// moved to simnet_server.go to implement net.Conn
 // a connection between two nodes.
 // implements uConn, see simnet_server.go
-type simnetConn struct {
-	// distinguish cli from srv
-	isCli   bool
-	net     *simnet
-	netAddr *SimNetAddr // local address
+// type simnetConn struct {
+// 	// distinguish cli from srv
+// 	isCli   bool
+// 	net     *simnet
+// 	netAddr *SimNetAddr // local address
 
-	local  *simnode
-	remote *simnode
-}
+// 	local  *simnode
+// 	remote *simnode
+// }
 
 // simnet implements the same workspace/blabber interface
 // so we can plug in
