@@ -2,7 +2,9 @@ package rpc25519
 
 import (
 	"fmt"
+	"io"
 	"net"
+	"sync"
 	//"sync/atomic"
 	"time"
 )
@@ -89,6 +91,8 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 // the readMessage/sendMessage are well tested;
 // the other net.Conn generic Read/Write less so, at the moment.
 type simnetConn struct {
+	mut sync.Mutex
+
 	// distinguish cli from srv
 	isCli   bool
 	net     *simnet
@@ -101,11 +105,35 @@ type simnetConn struct {
 	sendDeadlineTimer *mop
 
 	nextRead []byte
+
+	// no more reads, but serve the rest of nextRead.
+	isClosed bool
 }
 
 // originally not actually used much by simnet. We'll
 // fill them out to try and allow testing of net.Conn code.
+// doc:
+// "Write writes len(p) bytes from p to the
+// underlying data stream. It returns the number
+// of bytes written from p (0 <= n <= len(p)) and
+// any error encountered that caused the write to
+// stop early. Write must return a non-nil error
+// if it returns n < len(p). Write must not modify
+// the slice data, even temporarily.
+// Implementations must not retain p."
+//
+// Implementation note: we will only send
+// maxMessage bytes at a time.
 func (s *simnetConn) Write(p []byte) (n int, err error) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
+	if s.isClosed {
+		err = &simconnError{
+			desc: "use of closed network connection",
+		}
+		return
+	}
 
 	if len(p) == 0 {
 		return
@@ -113,7 +141,13 @@ func (s *simnetConn) Write(p []byte) (n int, err error) {
 
 	isCli := s.isCli
 	msg := NewMessage()
-	msg.JobSerz = append([]byte{}, p...)
+	n = len(p)
+	if n > maxMessage {
+		msg.JobSerz = append([]byte{}, p[:maxMessage]...)
+		n = maxMessage
+	} else {
+		msg.JobSerz = append([]byte{}, p...)
+	}
 
 	//vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", send.origin, msg.HDR.Serial)
 	//vv("sendMessage\n conn.local = %v (isCli:%v)\n conn.remote = %v (isCli:%v)\n", s.local.name, s.local.isCli, s.remote.name, s.remote.isCli)
@@ -124,37 +158,74 @@ func (s *simnetConn) Write(p []byte) (n int, err error) {
 	select {
 	case s.net.msgSendCh <- send:
 	case <-s.net.halt.ReqStop.Chan:
+		n = 0
 		err = ErrShutdown()
 		return
 	case timeout := <-s.sendDeadlineTimer.timerC:
 		_ = timeout
-		err = &simnetError{isTimeout: true, desc: "i/o timeout"}
+		n = 0
+		err = &simconnError{isTimeout: true, desc: "i/o timeout"}
 		return
 	}
 	select {
 	case <-send.proceed:
-		n = len(p) // sent all by default
 		return
 	case <-s.net.halt.ReqStop.Chan:
+		n = 0
 		err = ErrShutdown()
 		return
 	case timeout := <-s.sendDeadlineTimer.timerC:
 		_ = timeout
-		err = &simnetError{isTimeout: true, desc: "i/o timeout"}
+		n = 0
+		err = &simconnError{isTimeout: true, desc: "i/o timeout"}
 		return
 	}
 	return
 }
+
+// doc:
+// "When Read encounters an error or end-of-file
+// condition after successfully reading n > 0 bytes,
+// it returns the number of bytes read. It may
+// return the (non-nil) error from the same call
+// or return the error (and n == 0) from a subsequent call.
+// An instance of this general case is that a
+// Reader returning a non-zero number of bytes
+// at the end of the input stream may return
+// either err == EOF or err == nil. The next
+// Read should return 0, EOF.
+// ...
+// "If len(p) == 0, Read should always
+// return n == 0. It may return a non-nil
+// error if some error condition is known,
+// such as EOF.
+//
+// "Implementations of Read are discouraged
+// from returning a zero byte count with a nil
+// error, except when len(p) == 0. Callers should
+// treat a return of 0 and nil as indicating that
+// nothing happened; in particular it
+// does not indicate EOF.
+//
+// "Implementations must not retain p."
 func (s *simnetConn) Read(data []byte) (n int, err error) {
 
 	if len(data) == 0 {
 		return
 	}
 
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
 	// leftovers?
 	if len(s.nextRead) > 0 {
 		n = copy(data, s.nextRead)
 		s.nextRead = s.nextRead[n:]
+		return
+	}
+
+	if s.isClosed {
+		err = io.EOF
 		return
 	}
 
@@ -173,7 +244,7 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 		return
 	case timeout := <-s.readDeadlineTimer.timerC:
 		_ = timeout
-		err = &simnetError{isTimeout: true, desc: "i/o timeout"}
+		err = &simconnError{isTimeout: true, desc: "i/o timeout"}
 		return
 	}
 	select {
@@ -189,22 +260,33 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 		return
 	case timeout := <-s.readDeadlineTimer.timerC:
 		_ = timeout
-		err = &simnetError{isTimeout: true, desc: "i/o timeout"}
+		err = &simconnError{isTimeout: true, desc: "i/o timeout"}
 		return
 	}
 	return
 }
 func (s *simnetConn) Close() error {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
+	s.isClosed = true
 	return nil
 }
 
 func (s *simnetConn) LocalAddr() net.Addr {
+	s.mut.Lock()
+	defer s.mut.Unlock()
 	return s.local.netAddr
 }
 func (s *simnetConn) RemoteAddr() net.Addr {
+	s.mut.Lock()
+	defer s.mut.Unlock()
 	return s.remote.netAddr
 }
 func (s *simnetConn) SetDeadline(t time.Time) error {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
 	if t.IsZero() {
 		s.readDeadlineTimer = nil
 		s.sendDeadlineTimer = nil
@@ -217,6 +299,9 @@ func (s *simnetConn) SetDeadline(t time.Time) error {
 	return nil
 }
 func (s *simnetConn) SetWriteDeadline(t time.Time) error {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
 	if t.IsZero() {
 		s.sendDeadlineTimer = nil
 		return nil
@@ -227,6 +312,9 @@ func (s *simnetConn) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 func (s *simnetConn) SetReadDeadline(t time.Time) error {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
 	if t.IsZero() {
 		s.readDeadlineTimer = nil
 		return nil
@@ -239,17 +327,17 @@ func (s *simnetConn) SetReadDeadline(t time.Time) error {
 
 // implements net.Error interface, which
 // net.Conn operations return; for Timeout() especially.
-type simnetError struct {
+type simconnError struct {
 	isTimeout bool
 	desc      string
 }
 
-func (s *simnetError) Error() string {
+func (s *simconnError) Error() string {
 	return s.desc
 }
-func (s *simnetError) Timeout() bool {
+func (s *simconnError) Timeout() bool {
 	return s.isTimeout
 }
-func (s *simnetError) Temporary() bool {
+func (s *simconnError) Temporary() bool {
 	return s.isTimeout
 }
