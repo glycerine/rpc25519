@@ -1528,6 +1528,16 @@ type serverRegistration struct {
 	tellServerNewConnCh chan *simnetConn
 }
 
+func (s *serverRegistration) String() (r string) {
+	r = "&serverRegistration{\n"
+	r += fmt.Sprintf("             server: %v,\n", s.server)
+	r += fmt.Sprintf("         srvNetAddr: %v,\n", s.srvNetAddr)
+	r += fmt.Sprintf("            simnode: %v,\n", s.simnode)
+	r += fmt.Sprintf("             simnet: %v,\n", s.simnet)
+	r += "}\n"
+	return
+}
+
 // external
 func (s *simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) *serverRegistration {
 	return &serverRegistration{
