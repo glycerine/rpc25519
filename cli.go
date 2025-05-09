@@ -2694,6 +2694,32 @@ func (ti *RpcTimer) Discard() (wasArmed bool) {
 	return
 }
 
+func (c *Config) String() (r string) {
+	r = "&Config{\n"
+	r += fmt.Sprintf("       QuietTestMode: %v,\n", c.QuietTestMode)
+	r += fmt.Sprintf("          ServerAddr: \"%v\",\n", c.ServerAddr)
+	r += fmt.Sprintf("      ClientHostPort: \"%v\",\n", c.ClientHostPort)
+	r += fmt.Sprintf("ClientDialToHostPort: \"%v\",\n", c.ClientDialToHostPort)
+	r += fmt.Sprintf("      TCPonly_no_TLS: %v,\n", c.TCPonly_no_TLS)
+	r += fmt.Sprintf("             UseQUIC: %v,\n", c.UseQUIC)
+	r += fmt.Sprintf("     NoSharePortQUIC: %v,\n", c.NoSharePortQUIC)
+	r += fmt.Sprintf("            CertPath: \"%v\",\n", c.CertPath)
+	r += fmt.Sprintf("      SkipVerifyKeys: %v,\n", c.SkipVerifyKeys)
+	r += fmt.Sprintf("   ClientKeyPairName: \"%v\",\n", c.ClientKeyPairName)
+	r += fmt.Sprintf("   ServerKeyPairName: \"%v\",\n", c.ServerKeyPairName)
+	r += fmt.Sprintf("    PreSharedKeyPath: \"%v\",\n", c.PreSharedKeyPath)
+	r += fmt.Sprintf("      ConnectTimeout: %v,\n", c.ConnectTimeout)
+	r += fmt.Sprintf(" ServerSendKeepAlive: %v,\n", c.ServerSendKeepAlive)
+	r += fmt.Sprintf(" ClientSendKeepAlive: %v,\n", c.ClientSendKeepAlive)
+	r += fmt.Sprintf("        CompressAlgo: \"%v\",\n", c.CompressAlgo)
+	r += fmt.Sprintf("      CompressionOff: %v,\n", c.CompressionOff)
+	r += fmt.Sprintf(" HTTPConnectRequired: %v,\n", c.HTTPConnectRequired)
+	r += fmt.Sprintf("           UseSimNet: %v,\n", c.UseSimNet)
+	r += fmt.Sprintf("ServerAutoCreateClientsToDialOtherServers: %v,\n", c.ServerAutoCreateClientsToDialOtherServers)
+	r += "}"
+	return
+}
+
 /*
 func (ti *RpcTimer) Reset(dur time.Duration) (wasArmed bool) {
 	if ti.simnet == nil {

@@ -25,7 +25,6 @@ type SimNetConfig struct{}
 // 	isCli   bool
 // 	net     *simnet
 // 	netAddr *SimNetAddr // local address
-
 // 	local  *simnode
 // 	remote *simnode
 // }
@@ -230,6 +229,8 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 
 	reg.simnode = srvnode
 	reg.simnet = s
+
+	//vv("end of handleServerRegistration, srvreg is %v", reg)
 
 	// channel made by newSimnodeServer() above.
 	reg.tellServerNewConnCh = srvnode.tellServerNewConnCh
@@ -1082,7 +1083,8 @@ func (s *simnet) scheduler() {
 			// "bind/listen" on a socket, server waits for any client to "connect"
 			vv("s.srvRegisterCh got srvreg for '%v'", srvreg.server.name)
 			s.handleServerRegistration(srvreg)
-			vv("back from handleServerRegistration, srvreg = %v", srvreg)
+			// do not vv here, as it is very racey with the server who
+			// has been given permission to proceed.
 
 		case scenario := <-s.newScenarioCh:
 			s.finishScenario()

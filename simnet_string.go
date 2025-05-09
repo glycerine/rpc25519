@@ -174,7 +174,7 @@ func (s *nodeAlteration) String() (r string) {
 func (s *scenario) String() (r string) {
 	r = "&scenario{\n"
 	r += fmt.Sprintf("  seed: %v,\n", s.seed)
-	r += fmt.Sprintf("   rng: %v,\n", s.rng)
+	//r += fmt.Sprintf("   rng: %v,\n", s.rng)
 	r += fmt.Sprintf("  tick: %v,\n", s.tick)
 	r += fmt.Sprintf("minHop: %v,\n", s.minHop)
 	r += fmt.Sprintf("maxHop: %v,\n", s.maxHop)
