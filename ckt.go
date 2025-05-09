@@ -571,7 +571,7 @@ func (frag *Fragment) ToMessage() (msg *Message) {
 	if frag.Args != nil {
 		msg.HDR.Args = frag.Args
 	}
-	msg.JobSerz = frag.Payload // read race vs write tube.go:2894
+	msg.JobSerz = frag.Payload
 	msg.JobErrs = frag.Err
 
 	if frag.Err != "" {
@@ -853,7 +853,6 @@ func (s *peerAPI) newFragment() (f *Fragment) {
 func (s *peerAPI) freeFragment(frag *Fragment) {
 	s.fragMut.Lock()
 	defer s.fragMut.Unlock()
-	// *might* still have data race here, even holding fragMut. 003 tube_test. write vs prev write :411
 	*frag = Fragment{}
 	s.recycledFrag = append(s.recycledFrag, frag)
 }
@@ -962,7 +961,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	knownLocalPeer.active.Set(localPeerID, lpb)
 	knownLocalPeer.mut.Unlock()
 
-	go func() { // ckt.go:411 race here: this goro is racing on NewFragment results with the peerbackPump at  (pump at ckt.go:831)
+	go func() {
 		//vv("launching new peerServiceFunc invocation for '%v'", peerServiceName)
 		err := knownLocalPeer.peerServiceFunc(lpb, ctx1, newCircuitCh)
 
