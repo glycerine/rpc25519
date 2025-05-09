@@ -62,7 +62,7 @@ func (pb *LocalPeer) peerbackPump() {
 
 		if notifyPeer {
 			// Tell our peer we are going down.
-			frag := pb.U.NewFragment()
+			frag := pb.NewFragment()
 			frag.Typ = CallPeerEndCircuit
 			// Transmit back reason for shutdown if we can.
 			// Q: will this mess up delivery (to Errors instead of Reads?)
@@ -82,7 +82,7 @@ func (pb *LocalPeer) peerbackPump() {
 			frag.FromPeerID = ckt.LocalPeerID
 			frag.ToPeerID = ckt.RemotePeerID
 			msg := ckt.ConvertFragmentToMessage(frag)
-			pb.U.FreeFragment(frag)
+			pb.FreeFragment(frag)
 
 			// note srv.go might panic if the peer port
 			// is closed, as they might already also

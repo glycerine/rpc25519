@@ -291,6 +291,10 @@ type LocalPeer struct {
 	// should we shut ourselves down when no more peers?
 	AutoShutdownWhenNoMorePeers    bool
 	AutoShutdownWhenNoMoreCircuits bool
+
+	// put this in b/c the pump and the peer service
+	// pump were racing on recycled new frag.
+	peerLocalFragMut sync.Mutex
 }
 
 // ServiceName is the string used when we were registered/invoked.
@@ -311,6 +315,18 @@ func (s *LocalPeer) Close() {
 	s.Canc(fmt.Errorf("LocalPeer.Close() called. stack='%v'", stack()))
 	s.Halt.ReqStop.Close()
 	//<-s.Halt.Done.Chan // hung here so often. just seems a bad idea.
+}
+
+func (s *LocalPeer) NewFragment() (f *Fragment) {
+	s.peerLocalFragMut.Lock()
+	defer s.peerLocalFragMut.Unlock()
+	return s.U.newFragment()
+}
+
+func (s *LocalPeer) FreeFragment(f *Fragment) {
+	s.peerLocalFragMut.Lock()
+	defer s.peerLocalFragMut.Unlock()
+	s.U.freeFragment(f)
 }
 
 // NewCircuitToPeerURL sets up a persistent communication path called a Circuit.
@@ -346,7 +362,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 			"parse peerURL: '%v': '%v'", peerURL, err)
 	}
 	if frag == nil {
-		frag = s.U.NewFragment()
+		frag = s.NewFragment()
 	}
 	frag.FromPeerID = s.PeerID
 	frag.ToPeerID = peerID
@@ -436,7 +452,7 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 
 	//vv("sending frag='%v'", frag)
 	msg := ckt.ConvertFragmentToMessage(frag)
-	s.U.FreeFragment(frag)
+	s.FreeFragment(frag)
 
 	err, _ = s.U.SendOneWayMessage(s.Ctx, msg, errWriteDur)
 	if err != nil {
@@ -818,8 +834,8 @@ func newPeerAPI(u UniversalCliSrv, isCli, isSim bool) *peerAPI {
 	}
 }
 
-func (s *peerAPI) NewFragment() (f *Fragment) {
-	s.fragMut.Lock() // deadlock in 408
+func (s *peerAPI) newFragment() (f *Fragment) {
+	s.fragMut.Lock()
 
 	if len(s.recycledFrag) == 0 {
 		f = NewFragment()
@@ -828,21 +844,21 @@ func (s *peerAPI) NewFragment() (f *Fragment) {
 	} else {
 		f = s.recycledFrag[0]
 		s.recycledFrag = s.recycledFrag[1:]
-		*f = Fragment{
-			Serial: issueSerial(),
-		}
+		f.Serial = issueSerial()
 		s.fragMut.Unlock()
 		return
 	}
 }
 
-func (s *peerAPI) FreeFragment(frag *Fragment) {
+func (s *peerAPI) freeFragment(frag *Fragment) {
 	s.fragMut.Lock()
 	defer s.fragMut.Unlock()
+	// *might* still have data race here, even holding fragMut. 003 tube_test. write vs prev write :411
+	*frag = Fragment{}
 	s.recycledFrag = append(s.recycledFrag, frag)
 }
 
-func (s *peerAPI) RecycleFragLen() int {
+func (s *peerAPI) recycleFragLen() int {
 	s.fragMut.Lock()
 	defer s.fragMut.Unlock()
 	return len(s.recycledFrag)
@@ -946,7 +962,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	knownLocalPeer.active.Set(localPeerID, lpb)
 	knownLocalPeer.mut.Unlock()
 
-	go func() {
+	go func() { // ckt.go:411 race here: this goro is racing on NewFragment results with the peerbackPump at  (pump at ckt.go:831)
 		//vv("launching new peerServiceFunc invocation for '%v'", peerServiceName)
 		err := knownLocalPeer.peerServiceFunc(lpb, ctx1, newCircuitCh)
 

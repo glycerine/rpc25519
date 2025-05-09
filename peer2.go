@@ -93,7 +93,7 @@ func (s *syncer2) Start(
 						s.gotIncomingCktReadFrag <- frag
 						//zz("%v: (ckt %v) past s.gotIncomingCktReadFrag <- frag. frag:'%s'", s.name, ckt.Name, frag)
 
-						outFrag := myPeer.U.NewFragment()
+						outFrag := myPeer.NewFragment()
 						outFrag.Payload = frag.Payload
 						outFrag.FragSubject = "echo reply"
 						outFrag.ServiceName = myPeer.ServiceName()

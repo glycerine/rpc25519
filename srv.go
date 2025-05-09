@@ -2826,39 +2826,40 @@ func (c *Client) GetConfig() *Config {
 	return c.cfg
 }
 
-// need to move this to PeerAPI for finer grained locking
-// within a peer's pump and its service func callback goro. maybe.
-func (s *Server) NewFragment() (f *Fragment) {
+// Used to be public, but data races forced
+// a re-design to use the NewFragment on the LocalPeer.
+// Just means doing peer.NewFragment() instead of peer.U.NewFragment().
+func (s *Server) newFragment() (f *Fragment) {
 	s.fragLock.Lock()
 	defer s.fragLock.Unlock()
-	return s.PeerAPI.NewFragment()
+	return s.PeerAPI.newFragment()
 }
-func (s *Client) NewFragment() (f *Fragment) {
+func (s *Client) newFragment() (f *Fragment) {
 	s.fragLock.Lock()
 	defer s.fragLock.Unlock()
-	return s.PeerAPI.NewFragment()
-}
-
-func (s *Server) FreeFragment(frag *Fragment) {
-	s.fragLock.Lock()
-	defer s.fragLock.Unlock()
-	s.PeerAPI.FreeFragment(frag)
-}
-func (s *Client) FreeFragment(frag *Fragment) {
-	s.fragLock.Lock()
-	defer s.fragLock.Unlock()
-	s.PeerAPI.FreeFragment(frag)
+	return s.PeerAPI.newFragment()
 }
 
-func (s *Client) RecycleFragLen() int {
+func (s *Server) freeFragment(frag *Fragment) {
 	s.fragLock.Lock()
 	defer s.fragLock.Unlock()
-	return s.PeerAPI.RecycleFragLen()
+	s.PeerAPI.freeFragment(frag)
 }
-func (s *Server) RecycleFragLen() int {
+func (s *Client) freeFragment(frag *Fragment) {
 	s.fragLock.Lock()
 	defer s.fragLock.Unlock()
-	return s.PeerAPI.RecycleFragLen()
+	s.PeerAPI.freeFragment(frag)
+}
+
+func (s *Client) recycleFragLen() int {
+	s.fragLock.Lock()
+	defer s.fragLock.Unlock()
+	return s.PeerAPI.recycleFragLen()
+}
+func (s *Server) recycleFragLen() int {
+	s.fragLock.Lock()
+	defer s.fragLock.Unlock()
+	return s.PeerAPI.recycleFragLen()
 }
 
 func (s *Server) PingStats(remote string) *PingStat {

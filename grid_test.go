@@ -263,7 +263,7 @@ func (s *node) Start(
 
 						if frag.Typ == CallPeerStartCircuit {
 
-							outFrag := myPeer.U.NewFragment()
+							outFrag := myPeer.NewFragment()
 							outFrag.Payload = frag.Payload
 							outFrag.FragSubject = "start reply"
 							outFrag.ServiceName = myPeer.ServiceName()

@@ -2020,9 +2020,14 @@ type UniversalCliSrv interface {
 	GetHostHalter() *idem.Halter
 
 	// fragment memory recycling, to avoid heap pressure.
-	NewFragment() *Fragment
-	FreeFragment(frag *Fragment)
-	RecycleFragLen() int
+	// Since we saw datarace between peer back pump and the
+	// peer serviceFunc use of these, we force them to use
+	// a method on the peer instead, which does its own
+	// peer level fragment locking too.
+	newFragment() *Fragment
+	freeFragment(frag *Fragment)
+	recycleFragLen() int
+
 	PingStats(remote string) *PingStat
 	AutoClients() (list []*Client, isServer bool)
 
