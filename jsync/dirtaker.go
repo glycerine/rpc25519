@@ -215,7 +215,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				}
 				// INVAR: targetTakerTopTempDir is set.
 
-				tmpReady := s.U.NewFragment()
+				tmpReady := myPeer.NewFragment()
 				tmpReady.FragOp = OpRsync_DirSyncBeginReplyFromTaker // 23
 
 				// useful visibility, but use the struct fields as definitive.
@@ -487,7 +487,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					// vv("dirtaker returning nil!")
 					//return nil
 
-					end := s.U.NewFragment()
+					end := myPeer.NewFragment()
 					end.FragOp = OpRsync_ToDirGiverEndingTotals // 42
 					reqDir.SR.BytesRead = int64(bt.bread)
 					reqDir.SR.BytesSent = int64(bt.bsend)
@@ -771,7 +771,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				}
 				panicOn(err)
 
-				frag := s.U.NewFragment()
+				frag := myPeer.NewFragment()
 				frag.FragOp = OpRsync_RequestRemoteToGive // 12
 				frag.FragSubject = giverPath
 				//vv("dirtaker file worker sending 12")

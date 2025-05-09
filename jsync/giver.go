@@ -118,7 +118,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					// giver will send OpRsync_ToGiverSizeMatchButCheckHashAck
 					// SetUserArg("giverFullFileBlake3sum", b3sumGiver)
 				}
-				ack := s.U.NewFragment()
+				ack := myPeer.NewFragment()
 				ack.FragOp = OpRsync_ToGiverSizeMatchButCheckHashAck
 				ack.SetUserArg("giverFullFileBlake3sum", b3sumGiver)
 				ack.SetUserArg("takerFullFileBlake3sum", b3sumTaker)
@@ -143,7 +143,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				fi, err := os.Stat(path)
 				if err != nil {
 					// file does not exist
-					notfound := s.U.NewFragment()
+					notfound := myPeer.NewFragment()
 					notfound.FragSubject = frag0.FragSubject
 					notfound.Typ = rpc.CallPeerError
 					//notfound.FragOp =
@@ -163,7 +163,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					//vv("drat: taker has file '%v' but on giver it is a dir."+
 					//	" Have to restart with DirTaker supervising.", path)
 
-					drat := s.U.NewFragment()
+					drat := myPeer.NewFragment()
 					drat.FragOp = OpRsync_ToTakerDratGiverFileIsNowDir
 					drat.FragSubject = frag0.FragSubject
 					bt.bsend += drat.Msgsize()
@@ -177,7 +177,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				if syncReq.TakerFileSize == sz && syncReq.TakerModTime.Equal(mod) {
 					//vv("giver: OpRsync_LazyTakerWantsToPull: size + modtime match. nothing to do, tell taker. syncReq.GiverPath = '%v'", syncReq.GiverPath)
 					// let the taker know they can stop with this file.
-					ack := s.U.NewFragment()
+					ack := myPeer.NewFragment()
 					ack.FragSubject = frag0.FragSubject
 					ack.FragOp = OpRsync_FileSizeModTimeMatch
 
@@ -199,7 +199,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					b3sumGiver := myblake3.RawSumBytesToString(sum)
 					syncReq.GiverFullFileBlake3 = b3sumGiver
 
-					ack := s.U.NewFragment()
+					ack := myPeer.NewFragment()
 					ack.FragSubject = frag0.FragSubject
 					ack.FragOp = OpRsync_LazyTakerNoLuck_ChunksRequired
 					bts, err := syncReq.MarshalMsg(nil)
@@ -402,7 +402,7 @@ func (s *SyncService) giverReportFileNotFound(
 		SenderPath:    localPath,
 	}
 
-	pf := s.U.NewFragment()
+	pf := ckt.LpbFrom.NewFragment()
 	pf.FragSubject = frag0.FragSubject
 	pf.FragOp = OpRsync_SenderPlanEnclosed
 
@@ -482,7 +482,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	if remoteWantsUpdate.FileCry == goalPrecis.FileCry {
 		//vv("we can save on sending chunks! remoteWantsUpdate.FileCry == goalPrecis.FileCry = '%v'. sending back OpRsync_ToTakerMetaUpdateAtLeast", remoteWantsUpdate.FileCry)
 
-		updateMeta := s.U.NewFragment()
+		updateMeta := ckt.LpbFrom.NewFragment()
 		updateMeta.FragOp = OpRsync_ToTakerMetaUpdateAtLeast
 		updateMeta.FragSubject = frag0.FragSubject
 
@@ -527,7 +527,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 		SenderChunksNoSlice: lightPlan,
 	}
 
-	pf := s.U.NewFragment()
+	pf := ckt.LpbFrom.NewFragment()
 	pf.FragSubject = frag0.FragSubject
 	pf.FragOp = OpRsync_SenderPlanEnclosed
 
@@ -623,7 +623,7 @@ upload:
 		//vv("i=%v, len=%v, sumstring = '%v'", i, nr, sumstring)
 		//blake3hash.Write(send)
 
-		frag := s.U.NewFragment()
+		frag := ckt.LpbFrom.NewFragment()
 		frag.FragSubject = frag0.FragSubject
 		frag.FragPart = i
 		frag.SetUserArg("readFile", giverPath)
@@ -704,7 +704,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 	//}()
 	if !fileExists(syncReq.GiverPath) {
 		//vv("path '%v' does not exist on Giver: tell Taker to delete their file.", syncReq.GiverPath)
-		rm := s.U.NewFragment()
+		rm := ckt.LpbFrom.NewFragment()
 		rm.FragOp = OpRsync_TellTakerToDelete
 
 		bt.bsend += rm.Msgsize()
@@ -722,7 +722,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 		syncReq.GiverDirAbs == absCwd &&
 		syncReq.GiverPath == syncReq.TakerPath {
 
-		skip := s.U.NewFragment()
+		skip := ckt.LpbFrom.NewFragment()
 		skip.FragSubject = frag.FragSubject
 		skip.Typ = rpc.CallPeerError
 		skip.Err = fmt.Sprintf("same host and dir detected! cowardly refusing to overwrite path with itself: '%v' on '%v' / Hostname '%v'", syncReq.GiverPath, syncReq.ToRemoteNetAddr, rpc.Hostname)
@@ -746,7 +746,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 		//
 		if false { // too advanced for now. start simpler.
 			if syncReq.TakerFileMode != mode {
-				updateMeta := s.U.NewFragment()
+				updateMeta := ckt.LpbFrom.NewFragment()
 				updateMeta.FragOp = OpRsync_ToTakerMetaUpdateAtLeast
 				updateMeta.FragSubject = frag.FragSubject
 
@@ -764,7 +764,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 			}
 		}
 		// let the taker know they can stop with this file.
-		ack := s.U.NewFragment()
+		ack := ckt.LpbFrom.NewFragment()
 		ack.FragSubject = frag.FragSubject
 		ack.FragOp = OpRsync_FileSizeModTimeMatch
 
@@ -811,7 +811,7 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 
 	//for i, chunk := range heavyPlan.Chunks
 	for i := 0; i < n; {
-		f := s.U.NewFragment()
+		f := ckt.LpbFrom.NewFragment()
 		f.FragSubject = subject
 
 		// use FragPart to give the
@@ -906,7 +906,7 @@ func (s *SyncService) packAndSendChunksJustInTime(
 
 	//for i, chunk := range oneByteMarkedPlan.Chunks
 	for i := 0; i < n; {
-		f := s.U.NewFragment()
+		f := ckt.LpbFrom.NewFragment()
 		f.FragSubject = subject
 
 		// use FragPart to give the

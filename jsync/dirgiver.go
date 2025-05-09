@@ -182,7 +182,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					reqDir.TopTakerDirTempDirID = reqDir2.TopTakerDirTempDirID
 				}
 
-				begin := s.U.NewFragment()
+				begin := myPeer.NewFragment()
 				begin.FragOp = OpRsync_DirSyncBeginToTaker // 22
 				bts, err := reqDir.MarshalMsg(nil)
 				panicOn(err)
@@ -252,7 +252,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 							lastser = dirsum.NumFiles // on first Frag, give total.
 						}
 
-						fragPOF := s.U.NewFragment()
+						fragPOF := myPeer.NewFragment()
 						bts, err := pof.MarshalMsg(nil)
 						panicOn(err)
 						fragPOF.Payload = bts
@@ -330,7 +330,7 @@ func (s *SyncService) convertedDirToFile_giveFile(
 ) error {
 	path := reqDir.GiverDir
 
-	tofile := s.U.NewFragment()
+	tofile := ckt.LpbFrom.NewFragment()
 	tofile.FragSubject = path
 	tofile.FragOp = OpRsync_ToDirTakerGiverDirIsNowFile // 39
 	// send back the dirReq for detail matching.

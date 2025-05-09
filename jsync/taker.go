@@ -275,7 +275,7 @@ takerForSelectLoop:
 
 				bts, err := syncReq2.MarshalMsg(nil)
 				panicOn(err)
-				beginAgain := s.U.NewFragment()
+				beginAgain := myPeer.NewFragment()
 				beginAgain.FragSubject = frag.FragSubject
 				beginAgain.FragOp = OpRsync_RequestRemoteToGive // 12
 				beginAgain.Payload = bts
@@ -584,7 +584,7 @@ takerForSelectLoop:
 
 				//vv("ack back file fully received! set Chtimes -> goalPrecis.ModTime='%v'", goalPrecis.ModTime)
 				// needed? we'll probably be racing against shut down here.
-				ackAll := s.U.NewFragment()
+				ackAll := myPeer.NewFragment()
 				ackAll.FragSubject = frag.FragSubject
 				ackAll.FragOp = OpRsync_FileAllReadAckToGiver
 				ackAll.FragPart = int64(bt.bsend + bt.bread)
@@ -645,7 +645,7 @@ takerForSelectLoop:
 
 					//vv("ack back all done: file was truncated to 0 bytes.")
 
-					ackAll := s.U.NewFragment()
+					ackAll := myPeer.NewFragment()
 					ackAll.FragSubject = frag.FragSubject
 					ackAll.FragOp = OpRsync_FileAllReadAckToGiver
 					ackAll.FragPart = int64(bt.bsend + bt.bread)
@@ -722,7 +722,7 @@ takerForSelectLoop:
 					}
 				}
 
-				ackAll := s.U.NewFragment()
+				ackAll := myPeer.NewFragment()
 				ackAll.FragSubject = frag.FragSubject
 				ackAll.FragOp = OpRsync_FileAllReadAckToGiver
 				ackAll.FragPart = int64(bt.bsend + bt.bread)
@@ -844,7 +844,7 @@ takerForSelectLoop:
 						syncReq.GiverDirAbs == absCwd &&
 						syncReq.GiverPath == syncReq.TakerPath {
 
-						skip := s.U.NewFragment()
+						skip := myPeer.NewFragment()
 						skip.FragSubject = frag.FragSubject
 						skip.Typ = rpc.CallPeerError
 						skip.Err = fmt.Sprintf("same host and dir detected! cowardly refusing to overwrite path with itself: path='%v'; on '%v' / Hostname '%v'", syncReq.TakerPath, syncReq.ToRemoteNetAddr, rpc.Hostname)
@@ -930,7 +930,7 @@ takerForSelectLoop:
 							// Request the file hash first.
 							// Since content chunking is slow, this
 							// might save us alot of work.
-							check := s.U.NewFragment()
+							check := myPeer.NewFragment()
 							check.FragOp = OpRsync_ToGiverSizeMatchButCheckHash
 							check.SetUserArg("takerFullFileBlake3sum", b3sum)
 							check.FragSubject = frag.FragSubject
@@ -989,7 +989,7 @@ takerForSelectLoop:
 				bts, err := light.MarshalMsg(nil)
 				panicOn(err)
 
-				pre := s.U.NewFragment()
+				pre := myPeer.NewFragment()
 				pre.FragSubject = frag.FragSubject
 				pre.FragOp = OpRsync_LightRequestEnclosed
 				pre.Payload = bts
@@ -1030,7 +1030,7 @@ takerForSelectLoop:
 					//	"full file for syncReq.TakerPath='%v'",
 					//	syncReq.TakerPath)
 
-					fullReq := s.U.NewFragment()
+					fullReq := myPeer.NewFragment()
 					fullReq.FragOp = OpRsync_ToGiverNeedFullFile2
 
 					bt.bsend += fullReq.Msgsize()
@@ -1087,7 +1087,7 @@ func (s *SyncService) contentsMatch(syncReq *RequestToSyncPath, ckt *rpc.Circuit
 		panicOn(os.Link(localPathToRead, localPathToWrite))
 	}
 
-	ack := s.U.NewFragment()
+	ack := ckt.LpbFrom.NewFragment()
 	ack.FragSubject = frag.FragSubject
 	ack.FragOp = OpRsync_FileSizeModTimeMatch
 

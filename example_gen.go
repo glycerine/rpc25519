@@ -3,6 +3,8 @@
 package rpc25519
 
 import (
+	"fmt"
+
 	"github.com/glycerine/greenpack/msgp"
 )
 
@@ -317,6 +319,14 @@ var unmarshalMsgFieldSkip4zgensym_7ba73e3e9c15c593_5 = []bool{false, false}
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Args) Msgsize() (s int) {
 	s = 1 + 12 + msgp.IntSize + 12 + msgp.IntSize
+	return
+}
+func (z *Args) Gstring() (r string) {
+
+	r = "&Args{\n"
+	r += fmt.Sprintf("A: %v,\n", z.A)
+	r += fmt.Sprintf("B: %v,\n", z.B)
+	r += "}\n"
 	return
 }
 
@@ -2096,6 +2106,52 @@ func (z *BenchmarkMessage) Msgsize() (s int) {
 	s = 3 + 17 + msgp.StringPrefixSize + len(z.Field1) + 17 + msgp.StringPrefixSize + len(z.Field9) + 18 + msgp.StringPrefixSize + len(z.Field18) + 18 + msgp.BoolSize + 18 + msgp.BoolSize + 17 + msgp.Int32Size + 17 + msgp.Int32Size + 19 + msgp.Int32Size + 17 + msgp.Int32Size + 18 + msgp.Int64Size + 17 + msgp.StringPrefixSize + len(z.Field4) + 17 + msgp.ArrayHeaderSize + (len(z.Field5) * (msgp.Uint64Size)) + 18 + msgp.BoolSize + 17 + msgp.StringPrefixSize + len(z.Field7) + 18 + msgp.Int32Size + 19 + msgp.Int32Size + 18 + msgp.BoolSize + 18 + msgp.BoolSize + 18 + msgp.BoolSize + 18 + msgp.BoolSize + 19 + msgp.Int32Size + 19 + msgp.Int32Size + 19 + msgp.Int32Size + 19 + msgp.StringPrefixSize + len(z.Field102) + 19 + msgp.StringPrefixSize + len(z.Field103) + 18 + msgp.Int32Size + 18 + msgp.BoolSize + 18 + msgp.Int32Size + 19 + msgp.Int32Size + 19 + msgp.Int32Size + 19 + msgp.Int32Size + 18 + msgp.Int32Size + 18 + msgp.BoolSize + 18 + msgp.Int32Size + 18 + msgp.BoolSize + 18 + msgp.Int32Size + 18 + msgp.Int32Size + 19 + msgp.Int32Size + 19 + msgp.StringPrefixSize + len(z.Field129) + 19 + msgp.Int32Size
 	return
 }
+func (z *BenchmarkMessage) Gstring() (r string) {
+
+	r = "&BenchmarkMessage{\n"
+	r += fmt.Sprintf("  Field1: \"%v\",\n", z.Field1)
+	r += fmt.Sprintf("  Field9: \"%v\",\n", z.Field9)
+	r += fmt.Sprintf(" Field18: \"%v\",\n", z.Field18)
+	r += fmt.Sprintf(" Field80: %v,\n", z.Field80)
+	r += fmt.Sprintf(" Field81: %v,\n", z.Field81)
+	r += fmt.Sprintf("  Field2: %v,\n", z.Field2)
+	r += fmt.Sprintf("  Field3: %v,\n", z.Field3)
+	r += fmt.Sprintf("Field280: %v,\n", z.Field280)
+	r += fmt.Sprintf("  Field6: %v,\n", z.Field6)
+	r += fmt.Sprintf(" Field22: %v,\n", z.Field22)
+	r += fmt.Sprintf("  Field4: \"%v\",\n", z.Field4)
+	r += fmt.Sprintf("  Field5: %v,\n", z.Field5)
+	r += fmt.Sprintf(" Field59: %v,\n", z.Field59)
+	r += fmt.Sprintf("  Field7: \"%v\",\n", z.Field7)
+	r += fmt.Sprintf(" Field16: %v,\n", z.Field16)
+	r += fmt.Sprintf("Field130: %v,\n", z.Field130)
+	r += fmt.Sprintf(" Field12: %v,\n", z.Field12)
+	r += fmt.Sprintf(" Field17: %v,\n", z.Field17)
+	r += fmt.Sprintf(" Field13: %v,\n", z.Field13)
+	r += fmt.Sprintf(" Field14: %v,\n", z.Field14)
+	r += fmt.Sprintf("Field104: %v,\n", z.Field104)
+	r += fmt.Sprintf("Field100: %v,\n", z.Field100)
+	r += fmt.Sprintf("Field101: %v,\n", z.Field101)
+	r += fmt.Sprintf("Field102: \"%v\",\n", z.Field102)
+	r += fmt.Sprintf("Field103: \"%v\",\n", z.Field103)
+	r += fmt.Sprintf(" Field29: %v,\n", z.Field29)
+	r += fmt.Sprintf(" Field30: %v,\n", z.Field30)
+	r += fmt.Sprintf(" Field60: %v,\n", z.Field60)
+	r += fmt.Sprintf("Field271: %v,\n", z.Field271)
+	r += fmt.Sprintf("Field272: %v,\n", z.Field272)
+	r += fmt.Sprintf("Field150: %v,\n", z.Field150)
+	r += fmt.Sprintf(" Field23: %v,\n", z.Field23)
+	r += fmt.Sprintf(" Field24: %v,\n", z.Field24)
+	r += fmt.Sprintf(" Field25: %v,\n", z.Field25)
+	r += fmt.Sprintf(" Field78: %v,\n", z.Field78)
+	r += fmt.Sprintf(" Field67: %v,\n", z.Field67)
+	r += fmt.Sprintf(" Field68: %v,\n", z.Field68)
+	r += fmt.Sprintf("Field128: %v,\n", z.Field128)
+	r += fmt.Sprintf("Field129: \"%v\",\n", z.Field129)
+	r += fmt.Sprintf("Field131: %v,\n", z.Field131)
+	r += "}\n"
+	return
+}
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
@@ -2373,6 +2429,13 @@ var unmarshalMsgFieldSkip21zgensym_7ba73e3e9c15c593_22 = []bool{false}
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *BuiltinTypes) Msgsize() (s int) {
 	s = 1 + 22 + msgp.IntSize
+	return
+}
+func (z *BuiltinTypes) Gstring() (r string) {
+
+	r = "&BuiltinTypes{\n"
+	r += fmt.Sprintf("Placeholder: %v,\n", z.Placeholder)
+	r += "}\n"
 	return
 }
 
@@ -2662,6 +2725,13 @@ func (z *Embed) Msgsize() (s int) {
 	s = 1 + 17 + msgp.IntSize
 	return
 }
+func (z *Embed) Gstring() (r string) {
+
+	r = "&Embed{\n"
+	r += fmt.Sprintf("Simple: %v,\n", z.Simple)
+	r += "}\n"
+	return
+}
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
@@ -2939,6 +3009,13 @@ var unmarshalMsgFieldSkip35zgensym_7ba73e3e9c15c593_36 = []bool{false}
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Hello) Msgsize() (s int) {
 	s = 1 + 22 + msgp.IntSize
+	return
+}
+func (z *Hello) Gstring() (r string) {
+
+	r = "&Hello{\n"
+	r += fmt.Sprintf("Placeholder: %v,\n", z.Placeholder)
+	r += "}\n"
 	return
 }
 
@@ -3220,6 +3297,13 @@ func (z *InvalidRequest) Msgsize() (s int) {
 	s = 1 + 22 + msgp.IntSize
 	return
 }
+func (z *InvalidRequest) Gstring() (r string) {
+
+	r = "&InvalidRequest{\n"
+	r += fmt.Sprintf("Placeholder: %v,\n", z.Placeholder)
+	r += "}\n"
+	return
+}
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
@@ -3499,6 +3583,13 @@ func (z *MustBeCancelled) Msgsize() (s int) {
 	s = 1 + 22 + msgp.IntSize
 	return
 }
+func (z *MustBeCancelled) Gstring() (r string) {
+
+	r = "&MustBeCancelled{\n"
+	r += fmt.Sprintf("Placeholder: %v,\n", z.Placeholder)
+	r += "}\n"
+	return
+}
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
@@ -3776,6 +3867,13 @@ var unmarshalMsgFieldSkip53zgensym_7ba73e3e9c15c593_54 = []bool{false}
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Reply) Msgsize() (s int) {
 	s = 1 + 12 + msgp.IntSize
+	return
+}
+func (z *Reply) Gstring() (r string) {
+
+	r = "&Reply{\n"
+	r += fmt.Sprintf("C: %v,\n", z.C)
+	r += "}\n"
 	return
 }
 
@@ -4090,6 +4188,14 @@ var unmarshalMsgFieldSkip59zgensym_7ba73e3e9c15c593_60 = []bool{false, false}
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Request) Msgsize() (s int) {
 	s = 1 + 24 + msgp.StringPrefixSize + len(z.ServiceMethod) + 14 + msgp.Uint64Size
+	return
+}
+func (z *Request) Gstring() (r string) {
+
+	r = "&Request{\n"
+	r += fmt.Sprintf("ServiceMethod: \"%v\",\n", z.ServiceMethod)
+	r += fmt.Sprintf("          Seq: %v,\n", z.Seq)
+	r += "}\n"
 	return
 }
 
@@ -4439,6 +4545,15 @@ var unmarshalMsgFieldSkip65zgensym_7ba73e3e9c15c593_66 = []bool{false, false, fa
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Response) Msgsize() (s int) {
 	s = 1 + 24 + msgp.StringPrefixSize + len(z.ServiceMethod) + 14 + msgp.Uint64Size + 16 + msgp.StringPrefixSize + len(z.Error)
+	return
+}
+func (z *Response) Gstring() (r string) {
+
+	r = "&Response{\n"
+	r += fmt.Sprintf("ServiceMethod: \"%v\",\n", z.ServiceMethod)
+	r += fmt.Sprintf("          Seq: %v,\n", z.Seq)
+	r += fmt.Sprintf("        Error: \"%v\",\n", z.Error)
+	r += "}\n"
 	return
 }
 
