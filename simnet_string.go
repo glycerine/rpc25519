@@ -2,14 +2,50 @@ package rpc25519
 
 import (
 	"fmt"
+	"sort"
 	"time"
 )
 
+func (s *simnet) showDNS() {
+	alwaysPrintf("simnet dns: %v", s.stringDNS)
+}
+
+func (s *simnet) stringDNS() (r string) {
+
+	// sort names first for easier reading
+	var names []string
+	for nm := range s.dns {
+		names = append(names, nm)
+	}
+	sort.Strings(names)
+
+	i := 0
+	r = "map[string]*simnode = {\n"
+	for _, name := range names {
+		node := s.dns[name]
+		r += fmt.Sprintf("[%2d] showDNS dns[%v] = %p\n", i, name, node)
+		i++
+	}
+	r += "}"
+	return
+}
+
 func (node *simnode) String() (r string) {
+	if node == nil {
+		return "(nil *simnode)"
+	}
 	r += fmt.Sprintf("%v in %v state, Q summary:\n", node.name, node.state)
 	r += node.readQ.String()
 	r += node.preArrQ.String()
 	r += node.timerQ.String()
+	return
+}
+
+func (node *simnode) StringNoPQ() (r string) {
+	if node == nil {
+		return "(nil *simnode)"
+	}
+	r += fmt.Sprintf("%v in %v state, Q summary:\n", node.name, node.state)
 	return
 }
 
@@ -29,6 +65,9 @@ func (alt alteration) String() string {
 }
 
 func (pq *pq) String() (r string) {
+	if pq == nil {
+		return "(nil *pq)"
+	}
 	i := 0
 	r = fmt.Sprintf("\n ------- %v %v PQ --------\n", pq.owner, pq.orderby)
 	for it := pq.tree.Min(); it != pq.tree.Limit(); it = it.Next() {
@@ -76,6 +115,9 @@ func (k mopkind) String() string {
 }
 
 func (op *mop) String() string {
+	if op == nil {
+		return "(nil *mop)"
+	}
 	var msgSerial int64
 	if op.msg != nil {
 		msgSerial = op.msg.HDR.Serial
@@ -118,6 +160,9 @@ func (op *mop) String() string {
 // In simnet, we just use the name. Easier diagnostics,
 // simpler "dns" lookup keys.
 func (s *SimNetAddr) String() (str string) {
+	if s == nil {
+		return "(nil *SimNetAddr)"
+	}
 	// keep it simple, as it is our simnet.dns lookup key.
 	//str = s.addr + "/" + s.name
 	str = s.name
@@ -126,43 +171,72 @@ func (s *SimNetAddr) String() (str string) {
 }
 
 func (s *simnet) String() (r string) {
+	if s == nil {
+		return "(nil *simnet)"
+	}
 	r = "&simnet{\n"
 	r += fmt.Sprintf("useSynctest: %v,\n", s.useSynctest)
 	r += fmt.Sprintf("   scenario: %v,\n", s.scenario)
 	r += fmt.Sprintf("        cfg: %v,\n", s.cfg)
-	r += fmt.Sprintf("  simNetCfg: %v,\n", s.simNetCfg)
-	r += fmt.Sprintf("        srv: %v,\n", s.srv)
-	r += fmt.Sprintf("        cli: %v,\n", s.cli)
-	r += fmt.Sprintf("        dns: %v,\n", s.dns)
-	r += fmt.Sprintf("       halt: %v,\n", s.halt)
-	r += fmt.Sprintf("  nextTimer: %v,\n", s.nextTimer)
+	//r += fmt.Sprintf("  simNetCfg: %v,\n", s.simNetCfg)
+	if s.srv != nil {
+		r += fmt.Sprintf("   srv.name: %v,\n", s.srv.name)
+	} else {
+		r += fmt.Sprintf("        srv: %v,\n", s.srv)
+	}
+	if s.cli != nil {
+		r += fmt.Sprintf("   cli.name: %v,\n", s.cli.name)
+	} else {
+		r += fmt.Sprintf("        cli: %v,\n", s.cli)
+	}
+	r += fmt.Sprintf("        dns: %v,\n", s.stringDNS())
+	//r += fmt.Sprintf("       halt: %v,\n", s.halt)
+	//r += fmt.Sprintf("  nextTimer: %v,\n", s.nextTimer)
 	r += fmt.Sprintf("  lastArmTm: %v,\n", s.lastArmTm)
 	r += "}\n"
 	return
 }
 
 func (s *serverRegistration) String() (r string) {
+	if s == nil {
+		return "(nil *serverRegistration)"
+	}
 	r = "&serverRegistration{\n"
-	r += fmt.Sprintf("        server.name: %v,\n", s.server.name)
+	if s.server != nil {
+		r += fmt.Sprintf("        server.name: %v,\n", s.server.name)
+	} else {
+		r += fmt.Sprintf("              server: %v,\n", s.server)
+	}
 	r += fmt.Sprintf("         srvNetAddr: %v,\n", s.srvNetAddr)
-	r += fmt.Sprintf("            simnode: %v,\n", s.simnode)
+	r += fmt.Sprintf("            simnode: %v,\n", s.simnode.StringNoPQ())
 	r += fmt.Sprintf("             simnet: %v,\n", s.simnet)
 	r += "}\n"
 	return
 }
 
 func (s *clientRegistration) String() (r string) {
+	if s == nil {
+		return "(nil *clientRegistration)"
+	}
 	r = "&clientRegistration{\n"
-	r += fmt.Sprintf("     client.name: %v,\n", s.client.name)
+	if s.client != nil {
+		r += fmt.Sprintf("     client.name: %v,\n", s.client.name)
+	} else {
+		r += fmt.Sprintf("          client: %v,\n", s.client)
+	}
 	r += fmt.Sprintf("localHostPortStr: \"%v\",\n", s.localHostPortStr)
 	r += fmt.Sprintf("          dialTo: \"%v\",\n", s.dialTo)
 	r += fmt.Sprintf("   serverAddrStr: \"%v\",\n", s.serverAddrStr)
-	r += fmt.Sprintf("         simnode: %v,\n", s.simnode)
+	r += fmt.Sprintf("         simnode: %v,\n", s.simnode.StringNoPQ())
 	r += fmt.Sprintf("            conn: %v,\n", s.conn)
 	r += "}\n"
 	return
 }
+
 func (s *nodeAlteration) String() (r string) {
+	if s == nil {
+		return "(nil *nodeAlteration)"
+	}
 	r = "&nodeAlteration{\n"
 	r += fmt.Sprintf(" simnet: %v,\n", s.simnet)
 	r += fmt.Sprintf("simnode: %v,\n", s.simnode)
@@ -172,6 +246,9 @@ func (s *nodeAlteration) String() (r string) {
 }
 
 func (s *scenario) String() (r string) {
+	if s == nil {
+		return "(nil *scenario)"
+	}
 	r = "&scenario{\n"
 	r += fmt.Sprintf("  seed: %v,\n", s.seed)
 	//r += fmt.Sprintf("   rng: %v,\n", s.rng)

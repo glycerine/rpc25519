@@ -15,6 +15,8 @@ import (
 	rb "github.com/glycerine/rbtree"
 )
 
+// NB: all String() methods are now in simnet_string.go
+
 type SimNetConfig struct{}
 
 // moved to simnet_server.go to implement net.Conn
@@ -204,14 +206,6 @@ func (s *simnet) newSimnodeServer(name string) (node *simnode) {
 	return
 }
 
-func (s *simnet) showDNS() {
-	i := 0
-	for name, node := range s.dns {
-		alwaysPrintf("[%2d] showDNS dns[%v] = %p", i, name, node)
-		i++
-	}
-}
-
 // for additional servers after the first.
 func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 
@@ -230,7 +224,7 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	reg.simnode = srvnode
 	reg.simnet = s
 
-	//vv("end of handleServerRegistration, srvreg is %v", reg)
+	vv("end of handleServerRegistration, srvreg is %v", reg)
 
 	// channel made by newSimnodeServer() above.
 	reg.tellServerNewConnCh = srvnode.tellServerNewConnCh
