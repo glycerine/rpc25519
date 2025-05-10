@@ -32,6 +32,8 @@ github.com/glycerine/idem v0.10.1 h1:/y2rucg88cRzlGdXkCl6QjsPkfnSKB16l8WTsUYMTIc
 github.com/glycerine/idem v0.10.1/go.mod h1:vFYNiwmmva2CEglryb5rMQdTqEGOSkpBMNl9z4JDneo=
 github.com/glycerine/idem v0.10.2 h1:GYDf0iEM6j6WWVf2MuNQJksnsEIQ9jZpIMVErc6lP30=
 github.com/glycerine/idem v0.10.2/go.mod h1:vFYNiwmmva2CEglryb5rMQdTqEGOSkpBMNl9z4JDneo=
+github.com/glycerine/idem v0.11.0 h1:kHlHkgTt055K2YCSynZDjy0ecK7gIGqDLBwjVA8mSPw=
+github.com/glycerine/idem v0.11.0/go.mod h1:vFYNiwmmva2CEglryb5rMQdTqEGOSkpBMNl9z4JDneo=
 github.com/glycerine/ipaddr v0.2.7 h1:WRbvTnHOzATK2w2F/NAwYnKulBBsvX7MSp37Mb8BjI0=
 github.com/glycerine/ipaddr v0.2.7/go.mod h1:ook7eYvTG8CSOOEn9oLXaxQwzFo1zcqJbDZT2rxtKVc=
 github.com/glycerine/loquet v0.0.19 h1:R4bKlaiT37ezaoQ9gHEULGYA+xmHiNsjVjinvWMkgEc=

@@ -12,7 +12,7 @@ require (
 	github.com/glycerine/blake3 v1.5.2
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31
 	github.com/glycerine/greenpack v0.540.0
-	github.com/glycerine/idem v0.10.2
+	github.com/glycerine/idem v0.11.0
 	github.com/glycerine/ipaddr v0.2.7
 	github.com/glycerine/loquet v0.0.19
 	github.com/glycerine/parallelwalk v0.3.1
@@ -29,7 +29,7 @@ require (
 	golang.org/x/term v0.29.0
 )
 
-//replace github.com/glycerine/idem => /Users/jaten/go/src/github.com/glycerine/idem
+replace github.com/glycerine/idem => /Users/jaten/go/src/github.com/glycerine/idem
 
 require (
 	4d63.com/embedfiles v0.0.0-20190311033909-995e0740726f // indirect
