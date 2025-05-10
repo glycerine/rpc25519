@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"sort"
 	"time"
+
+	cristalbase64 "github.com/cristalhq/base64"
+	"github.com/glycerine/blake3"
 )
 
 func (s *simnet) showDNS() {
@@ -245,12 +248,27 @@ func (s *nodeAlteration) String() (r string) {
 	return
 }
 
+func blake3OfSeed32(seed [32]byte) (b3 string, isZero bool) {
+	isZero = seed == [32]byte{}
+	h := blake3.New(64, nil)
+	h.Write(seed[:])
+	sum := h.Sum(nil)
+	b3 = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:33])
+	return
+}
+
 func (s *scenario) String() (r string) {
 	if s == nil {
 		return "(nil *scenario)"
 	}
+	b3seed, isZero := blake3OfSeed32(s.seed)
+	if isZero {
+		b3seed = "(zero seed) " + b3seed
+	} else {
+		b3seed = fmt.Sprintf("(seed[0]=%v) %v", s.seed[0], b3seed)
+	}
 	r = "&scenario{\n"
-	r += fmt.Sprintf("  seed: %v,\n", s.seed)
+	r += fmt.Sprintf("  seed: %v,\n", b3seed)
 	//r += fmt.Sprintf("   rng: %v,\n", s.rng)
 	r += fmt.Sprintf("  tick: %v,\n", s.tick)
 	r += fmt.Sprintf("minHop: %v,\n", s.minHop)
