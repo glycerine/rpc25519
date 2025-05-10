@@ -22,9 +22,11 @@ func prettyPrintCircuitMap(m map[string]*Circuit) (s string) {
 // to all the circuits live in this peer.
 func (pb *LocalPeer) peerbackPump() {
 
-	//defer func() {
-	//vv("%v LocalPeer.PeerbackPump all-finished; pb= %p", pb.PeerServiceName, pb) // 2x seen, "simgrid"
-	//}()
+	defer func() {
+		//vv("%v LocalPeer.PeerbackPump all-finished; pb= %p", pb.PeerServiceName, pb) // 2x seen, "simgrid"
+		pb.Halt.ReqStop.Close()
+		pb.Halt.Done.Close()
+	}()
 
 	name := pb.PeerServiceName
 	_ = name

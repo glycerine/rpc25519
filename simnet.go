@@ -290,8 +290,6 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 
 	tick := time.Millisecond
 	minHop := time.Millisecond * 10
-	//tick := time.Second
-	//minHop := time.Second * 5
 	maxHop := minHop
 	var seed [32]byte
 	scen := newScenario(tick, minHop, maxHop, seed)
@@ -1026,7 +1024,7 @@ func (s *simnet) scheduler() {
 	//vv("scheduler is running on goro = %v", GoroNumber())
 
 	defer func() {
-		//vv("scheduler defer shutdown running on goro = %v", GoroNumber())
+		vv("scheduler defer shutdown running on goro = %v", GoroNumber())
 		r := recover()
 		if r != nil {
 			vv("scheduler panic-ing: %v", s.schedulerReport())
