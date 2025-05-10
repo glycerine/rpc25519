@@ -4,6 +4,7 @@ go 1.24.2
 
 require (
 	4d63.com/tz v1.2.0
+	github.com/apoorvam/goterminal v0.0.0-20180523175556-614d345c47e5
 	github.com/caio/go-tdigest v3.1.0+incompatible
 	github.com/cloudflare/circl v1.5.0
 	github.com/cristalhq/base64 v0.1.2
@@ -11,7 +12,7 @@ require (
 	github.com/glycerine/blake3 v1.5.2
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31
 	github.com/glycerine/greenpack v0.540.0
-	github.com/glycerine/idem v0.9.6
+	github.com/glycerine/idem v0.10.1
 	github.com/glycerine/ipaddr v0.2.7
 	github.com/glycerine/loquet v0.0.19
 	github.com/glycerine/parallelwalk v0.3.1
@@ -28,11 +29,10 @@ require (
 	golang.org/x/term v0.29.0
 )
 
-//replace github.com/glycerine/idem => /Users/jaten/go/src/github.com/glycerine/idem
+replace github.com/glycerine/idem => /Users/jaten/go/src/github.com/glycerine/idem
 
 require (
 	4d63.com/embedfiles v0.0.0-20190311033909-995e0740726f // indirect
-	github.com/apoorvam/goterminal v0.0.0-20180523175556-614d345c47e5 // indirect
 	github.com/glycerine/fwd v1.1.4-beta.jea // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
