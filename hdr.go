@@ -225,6 +225,17 @@ func (m *Message) CopyForSimNetSend() (c *Message) {
 	return
 }
 
+func copyArgsMap(args map[string]string) (clone map[string]string) {
+	if args == nil || len(args) == 0 {
+		return
+	}
+	clone = make(map[string]string)
+	for k, v := range args {
+		clone[k] = v
+	}
+	return
+}
+
 // interface for goq
 
 // NewMessage allocates a new Message with a DoneCh properly created.

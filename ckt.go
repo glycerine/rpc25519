@@ -105,9 +105,6 @@ func NewFragment() (frag *Fragment) {
 	frag = &Fragment{
 		Serial: issueSerial(),
 	}
-	if frag.Serial == 8 {
-		panic("where 8?")
-	}
 	return
 }
 
@@ -464,7 +461,15 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 	msg := ckt.ConvertFragmentToMessage(frag)
 	if keepFragIfPositive <= 0 {
 		s.FreeFragment(frag)
-	} // else user plans to re-use the frag on the next message.
+	} else {
+		// else user plans to re-use the frag on the next message.
+		// The only prob with re-use is that the Args
+		// map is a pointer internally. When the simnet
+		// tries to copy that map, we have a problem (data race).
+		// We fixed this by forcing the ConvertFragmentToMessage(frag)
+		// just above to copy the frag.Args map rather than
+		// share it between the origin frag and the new Message.
+	}
 
 	err, _ = s.U.SendOneWayMessage(s.Ctx, msg, errWriteDur)
 	if err != nil {
@@ -582,7 +587,14 @@ func (frag *Fragment) ToMessage() (msg *Message) {
 	msg.HDR.StreamPart = frag.FragPart
 
 	if frag.Args != nil {
-		msg.HDR.Args = frag.Args
+		// arg! about Args(hah!) drat:
+		// a straight map re-use leads
+		// to a data race on simnet, when
+		// the tube.go code tries to broadcast
+		// the same fragment to many peers. Instead of
+		//msg.HDR.Args = frag.Args
+		// make a copy:
+		msg.HDR.Args = copyArgsMap(frag.Args)
 	}
 	msg.JobSerz = frag.Payload
 	msg.JobErrs = frag.Err
