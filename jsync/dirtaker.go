@@ -227,7 +227,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				bts, err := reqDir.MarshalMsg(nil)
 				panicOn(err)
 				tmpReady.Payload = bts
-				err = ckt.SendOneWay(tmpReady, 0)
+				err = ckt.SendOneWay(tmpReady, 0, 0)
 				bt.bsend += len(bts)
 				panicOn(err)
 
@@ -494,7 +494,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					bts, err := reqDir.MarshalMsg(nil)
 					panicOn(err)
 					end.Payload = bts
-					err = ckt.SendOneWay(end, 0)
+					err = ckt.SendOneWay(end, 0, 0)
 					bt.bsend += len(bts)
 					panicOn(err)
 					// wait for them to reply with 43

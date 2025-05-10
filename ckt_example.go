@@ -152,7 +152,7 @@ func (me *PeerImpl) Start(
 							outFrag.FragSubject = "echo reply"
 							// set for us: outFrag.ServiceName = myPeer.ServiceName()
 							vv("ckt.Reads sees frag with echo request! sending reply='%v'", frag)
-							err := ckt.SendOneWay(outFrag, 0)
+							err := ckt.SendOneWay(outFrag, 0, 0)
 							panicOn(err)
 						}
 

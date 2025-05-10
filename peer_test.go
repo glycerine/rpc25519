@@ -185,7 +185,7 @@ func Test408_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 		// verify server gets Reads
 		frag := NewFragment()
 		frag.FragSubject = "are we live?"
-		cli_lpb.SendOneWay(ckt, frag, 0)
+		cli_lpb.SendOneWay(ckt, frag, 0, 0)
 		vv("cli_lpb.SendOneWay() are we live back.")
 
 		fragSrvInRead1 := <-j.srvSync.gotIncomingCktReadFrag
@@ -272,7 +272,7 @@ func Test408_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 		// verify client gets Reads
 		frag3 := NewFragment()
 		frag3.FragSubject = "frag3 to the client"
-		server_lpb.SendOneWay(ckt2, frag3, 0)
+		server_lpb.SendOneWay(ckt2, frag3, 0, 0)
 
 		fragCliInRead3 := <-j.cliSync.gotIncomingCktReadFrag
 		vv("good: past frag3 read in the client. fragCliInRead3 = '%v'", fragCliInRead3)

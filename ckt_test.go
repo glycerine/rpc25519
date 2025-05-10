@@ -304,7 +304,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 					case errReq := <-s.passiveSideSendCktError:
 						frag := NewFragment()
 						frag.Err = errReq
-						err := ckt.SendOneWay(frag, 0)
+						err := ckt.SendOneWay(frag, 0, 0)
 						panicOn(err)
 						s.incrementSends(ckt.Name)
 						s.sendch <- frag
@@ -315,7 +315,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						for i := range n {
 							frag := NewFragment()
 							frag.FragPart = int64(i)
-							err := ckt.SendOneWay(frag, 0)
+							err := ckt.SendOneWay(frag, 0, 0)
 							panicOn(err)
 							s.incrementSends(ckt.Name)
 							s.sendch <- frag
@@ -334,7 +334,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						// external test code requests that we send.
 						//vv("%v: (ckt '%v') (passive) got requestToSend, sending to '%v'; from '%v'", name, ckt.Name, ckt.RemoteCircuitURL(), ckt.LocalCircuitURL())
 
-						err := ckt.SendOneWay(frag, 0)
+						err := ckt.SendOneWay(frag, 0, 0)
 						panicOn(err)
 						s.incrementSends(ckt.Name)
 						s.sendch <- frag
@@ -406,7 +406,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 					case errReq := <-s.activeSideSendCktError:
 						frag := NewFragment()
 						frag.Err = errReq
-						err := ckt.SendOneWay(frag, 0)
+						err := ckt.SendOneWay(frag, 0, 0)
 						panicOn(err)
 						s.incrementSends(ckt.Name)
 						s.sendch <- frag
@@ -417,7 +417,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						for i := range n {
 							frag := NewFragment()
 							frag.FragPart = int64(i)
-							err := ckt.SendOneWay(frag, 0)
+							err := ckt.SendOneWay(frag, 0, 0)
 							panicOn(err)
 							s.incrementSends(ckt.Name)
 							s.sendch <- frag
@@ -457,7 +457,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						// external test code requests that we send.
 						//vv("%v: (ckt '%v') (active) got on requestToSend, sending to '%v'; from '%v'", name, ckt.Name, ckt.RemoteCircuitURL(), ckt.LocalCircuitURL())
 
-						err := myPeer.SendOneWay(ckt, frag, 0)
+						err := myPeer.SendOneWay(ckt, frag, 0, 0)
 						panicOn(err)
 						s.incrementSends(ckt.Name)
 						s.sendch <- frag

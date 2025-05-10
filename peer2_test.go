@@ -117,7 +117,7 @@ func Test408_multiple_circuits_open_and_close(t *testing.T) {
 		// verify server gets Reads
 		frag := NewFragment()
 		frag.FragSubject = "are we live?"
-		cli_lpb.SendOneWay(ckt, frag, 0)
+		cli_lpb.SendOneWay(ckt, frag, 0, 0)
 		//zz("cli_lpb.SendOneWay() are we live back.")
 
 		fragSrvInRead1 := <-j.srvSync.gotIncomingCktReadFrag

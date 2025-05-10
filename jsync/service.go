@@ -992,7 +992,7 @@ func (s *SyncService) ackBackFINToTaker(ckt *rpc.Circuit, frag *rpc.Fragment) {
 	ack := ckt.LpbFrom.NewFragment()
 	ack.FragSubject = frag.FragSubject
 	ack.FragOp = OpRsync_AckBackFIN_ToTaker
-	err := ckt.SendOneWay(ack, 0)
+	err := ckt.SendOneWay(ack, 0, 0)
 	//panicOn(err) races with shutdown, skip.
 	_ = err // rpc25519 error: context cancelled. Normal shutdown, don't panic.
 }
@@ -1001,7 +1001,7 @@ func (s *SyncService) ackBackFINToGiver(ckt *rpc.Circuit, frag *rpc.Fragment) {
 	ack := ckt.LpbFrom.NewFragment()
 	ack.FragSubject = frag.FragSubject
 	ack.FragOp = OpRsync_AckBackFIN_ToGiver
-	err := ckt.SendOneWay(ack, 0)
+	err := ckt.SendOneWay(ack, 0, 0)
 	//panicOn(err) races with shutdown, skip.
 	_ = err // rpc25519 error: context cancelled. Normal shutdown. Don't panic.
 }

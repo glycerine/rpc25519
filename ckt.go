@@ -101,10 +101,14 @@ func (ckt *Circuit) ID2() (LocalPeerID, RemotePeerID string) {
 	return ckt.LpbFrom.PeerID, ckt.RpbTo.PeerID
 }
 
-func NewFragment() *Fragment {
-	return &Fragment{
+func NewFragment() (frag *Fragment) {
+	frag = &Fragment{
 		Serial: issueSerial(),
 	}
+	if frag.Serial == 8 {
+		panic("where 8?")
+	}
+	return
 }
 
 // Fragments are sent to, and read from,
@@ -426,14 +430,17 @@ func ParsePeerURL(peerURL string) (netAddr, serviceName, peerID, circuitID strin
 	return
 }
 
-func (ckt *Circuit) SendOneWay(frag *Fragment, errWriteDur time.Duration) error {
-	return ckt.LpbFrom.SendOneWay(ckt, frag, errWriteDur)
+func (ckt *Circuit) SendOneWay(frag *Fragment, errWriteDur time.Duration, keepFragIfPositive int) error {
+	return ckt.LpbFrom.SendOneWay(ckt, frag, errWriteDur, keepFragIfPositive)
 }
 
 // SendOneWayMessage sends a Frament on the given Circuit.
 // We check for cancelled ckt and LocalPeer and return an error
 // rather than send if they are shutting down.
-func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Duration) (err error) {
+// keepFragIfPositive > 0 means we will not recycle
+// this fragment. Applications can set this to send
+// the same fragment to many destinations.
+func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Duration, keepFragIfPositive int) (err error) {
 
 	// regular quick check if shutdown is requested.
 	select {
@@ -455,7 +462,9 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 
 	//vv("sending frag='%v'", frag)
 	msg := ckt.ConvertFragmentToMessage(frag)
-	s.FreeFragment(frag)
+	if keepFragIfPositive <= 0 {
+		s.FreeFragment(frag)
+	} // else user plans to re-use the frag on the next message.
 
 	err, _ = s.U.SendOneWayMessage(s.Ctx, msg, errWriteDur)
 	if err != nil {

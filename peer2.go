@@ -98,7 +98,7 @@ func (s *syncer2) Start(
 						outFrag.FragSubject = "echo reply"
 						outFrag.ServiceName = myPeer.ServiceName()
 						//zz("%v: (ckt '%v') sending 'echo reply'='%v'", s.name, ckt.Name, frag)
-						err := ckt.SendOneWay(outFrag, 0)
+						err := ckt.SendOneWay(outFrag, 0, 0)
 						// on shutdown this can error, e.g. context.Cancelled,
 						// so don't panic.
 						if err != nil {

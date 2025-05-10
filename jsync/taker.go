@@ -279,7 +279,7 @@ takerForSelectLoop:
 				beginAgain.FragSubject = frag.FragSubject
 				beginAgain.FragOp = OpRsync_RequestRemoteToGive // 12
 				beginAgain.Payload = bts
-				err = ckt.SendOneWay(beginAgain, 0)
+				err = ckt.SendOneWay(beginAgain, 0, 0)
 				panicOn(err)
 				bt.bsend += len(bts)
 
@@ -590,7 +590,7 @@ takerForSelectLoop:
 				ackAll.FragPart = int64(bt.bsend + bt.bread)
 				bt.bsend += ackAll.Msgsize()
 
-				err = ckt.SendOneWay(ackAll, 0)
+				err = ckt.SendOneWay(ackAll, 0, 0)
 				panicOn(err)
 				frag = nil
 				// wait for ack back FIN
@@ -650,7 +650,7 @@ takerForSelectLoop:
 					ackAll.FragOp = OpRsync_FileAllReadAckToGiver
 					ackAll.FragPart = int64(bt.bsend + bt.bread)
 					bt.bsend += ackAll.Msgsize()
-					err = ckt.SendOneWay(ackAll, 0)
+					err = ckt.SendOneWay(ackAll, 0, 0)
 					panicOn(err)
 
 					frag = nil
@@ -735,7 +735,7 @@ takerForSelectLoop:
 					disk.T0, elap, mb, rate, disk.BytesWrit))
 
 				bt.bsend += ackAll.Msgsize()
-				err = ckt.SendOneWay(ackAll, 0)
+				err = ckt.SendOneWay(ackAll, 0, 0)
 				frag = nil
 				ackAll = nil
 				continue // wait for fin ack back.
@@ -850,7 +850,7 @@ takerForSelectLoop:
 						skip.Err = fmt.Sprintf("same host and dir detected! cowardly refusing to overwrite path with itself: path='%v'; on '%v' / Hostname '%v'", syncReq.TakerPath, syncReq.ToRemoteNetAddr, rpc.Hostname)
 						//vv(skip.Err)
 						bt.bsend += skip.Msgsize()
-						err = ckt.SendOneWay(skip, 0)
+						err = ckt.SendOneWay(skip, 0, 0)
 						panicOn(err)
 
 						frag = nil
@@ -936,7 +936,7 @@ takerForSelectLoop:
 							check.FragSubject = frag.FragSubject
 							bt.bsend += check.Msgsize()
 
-							err = ckt.SendOneWay(check, 0)
+							err = ckt.SendOneWay(check, 0, 0)
 							panicOn(err)
 
 							// giver will send
@@ -993,7 +993,7 @@ takerForSelectLoop:
 				pre.FragSubject = frag.FragSubject
 				pre.FragOp = OpRsync_LightRequestEnclosed
 				pre.Payload = bts
-				err = ckt.SendOneWay(pre, 0)
+				err = ckt.SendOneWay(pre, 0, 0)
 				panicOn(err)
 				bt.bsend += len(bts)
 
@@ -1034,7 +1034,7 @@ takerForSelectLoop:
 					fullReq.FragOp = OpRsync_ToGiverNeedFullFile2
 
 					bt.bsend += fullReq.Msgsize()
-					err := ckt.SendOneWay(fullReq, 0)
+					err := ckt.SendOneWay(fullReq, 0, 0)
 					panicOn(err)
 					frag = nil
 					fullReq = nil
@@ -1092,7 +1092,7 @@ func (s *SyncService) contentsMatch(syncReq *RequestToSyncPath, ckt *rpc.Circuit
 	ack.FragOp = OpRsync_FileSizeModTimeMatch
 
 	bt.bsend += ack.Msgsize()
-	err := ckt.SendOneWay(ack, 0)
+	err := ckt.SendOneWay(ack, 0, 0)
 	panicOn(err)
 }
 

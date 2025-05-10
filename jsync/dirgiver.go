@@ -187,7 +187,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				bts, err := reqDir.MarshalMsg(nil)
 				panicOn(err)
 				begin.Payload = bts
-				err = ckt.SendOneWay(begin, 0)
+				err = ckt.SendOneWay(begin, 0, 0)
 				panicOn(err)
 				bt.bsend += len(bts)
 
@@ -260,7 +260,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 						fragPOF.FragPart = lastser
 						fragPOF.SetUserArg("structType", "PackOfFiles")
 						//vv("dirgiver sending 26 with len(pof) = %v; pof[0] = '%#v'", len(pof.Pack), pof.Pack[0])
-						err = ckt.SendOneWay(fragPOF, 0)
+						err = ckt.SendOneWay(fragPOF, 0, 0)
 						panicOn(err)
 						bt.bsend += len(bts)
 
@@ -337,7 +337,7 @@ func (s *SyncService) convertedDirToFile_giveFile(
 	tofile.Payload = frag0.Payload
 	tofile.SetUserArg("structType", "RequestToSyncDir")
 	bt.bsend += len(tofile.Payload)
-	err := ckt.SendOneWay(tofile, 0)
+	err := ckt.SendOneWay(tofile, 0, 0)
 	panicOn(err)
 
 	//vv("Q: is this the right takerPath to pass to giverSendsWholefile? reqDir.TopTakerDirFinal = '%v'", reqDir.TopTakerDirFinal)
