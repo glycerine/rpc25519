@@ -201,6 +201,7 @@ func (f *Fragment) GetSysArg(key string) (val string, ok bool) {
 
 func (f *Fragment) String() string {
 	return fmt.Sprintf(`&rpc25519.Fragment{
+    "Created": %v,
     "FromPeerID": %q,
     "ToPeerID": %q,
     "CircuitID": %q,
@@ -214,6 +215,7 @@ func (f *Fragment) String() string {
     "Payload": %v,
     "Err": %q,
 }`,
+		f.Created.Format(rfc3339MsecTz0),
 		AliasDecode(f.FromPeerID),
 		AliasDecode(f.ToPeerID),
 		AliasDecode(f.CircuitID),
