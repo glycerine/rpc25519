@@ -12,7 +12,7 @@ import (
 )
 
 func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNetConfig *SimNetConfig) {
-	vv("top of runSimnetServer, serverAddr = '%v'; name='%v'", serverAddr, s.name)
+	//vv("top of runSimnetServer, serverAddr = '%v'; name='%v'", serverAddr, s.name)
 	defer func() {
 		r := recover()
 		//vv("defer running, end of runSimNetServer() for '%v' r='%v'", s.name, r)

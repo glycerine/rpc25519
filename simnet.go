@@ -224,7 +224,7 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	reg.simnode = srvnode
 	reg.simnet = s
 
-	vv("end of handleServerRegistration, srvreg is %v", reg)
+	//vv("end of handleServerRegistration, srvreg is %v", reg)
 
 	// channel made by newSimnodeServer() above.
 	reg.tellServerNewConnCh = srvnode.tellServerNewConnCh
@@ -1075,7 +1075,7 @@ func (s *simnet) scheduler() {
 
 		case srvreg := <-s.srvRegisterCh:
 			// "bind/listen" on a socket, server waits for any client to "connect"
-			vv("s.srvRegisterCh got srvreg for '%v'", srvreg.server.name)
+			//vv("s.srvRegisterCh got srvreg for '%v'", srvreg.server.name)
 			s.handleServerRegistration(srvreg)
 			// do not vv here, as it is very racey with the server who
 			// has been given permission to proceed.
