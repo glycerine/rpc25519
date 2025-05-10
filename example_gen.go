@@ -322,7 +322,6 @@ func (z *Args) Msgsize() (s int) {
 	return
 }
 func (z *Args) Gstring() (r string) {
-
 	r = "&Args{\n"
 	r += fmt.Sprintf("A: %v,\n", z.A)
 	r += fmt.Sprintf("B: %v,\n", z.B)
@@ -2107,7 +2106,6 @@ func (z *BenchmarkMessage) Msgsize() (s int) {
 	return
 }
 func (z *BenchmarkMessage) Gstring() (r string) {
-
 	r = "&BenchmarkMessage{\n"
 	r += fmt.Sprintf("  Field1: \"%v\",\n", z.Field1)
 	r += fmt.Sprintf("  Field9: \"%v\",\n", z.Field9)
@@ -2432,7 +2430,6 @@ func (z *BuiltinTypes) Msgsize() (s int) {
 	return
 }
 func (z *BuiltinTypes) Gstring() (r string) {
-
 	r = "&BuiltinTypes{\n"
 	r += fmt.Sprintf("Placeholder: %v,\n", z.Placeholder)
 	r += "}\n"
@@ -2726,7 +2723,6 @@ func (z *Embed) Msgsize() (s int) {
 	return
 }
 func (z *Embed) Gstring() (r string) {
-
 	r = "&Embed{\n"
 	r += fmt.Sprintf("Simple: %v,\n", z.Simple)
 	r += "}\n"
@@ -3012,7 +3008,6 @@ func (z *Hello) Msgsize() (s int) {
 	return
 }
 func (z *Hello) Gstring() (r string) {
-
 	r = "&Hello{\n"
 	r += fmt.Sprintf("Placeholder: %v,\n", z.Placeholder)
 	r += "}\n"
@@ -3298,7 +3293,6 @@ func (z *InvalidRequest) Msgsize() (s int) {
 	return
 }
 func (z *InvalidRequest) Gstring() (r string) {
-
 	r = "&InvalidRequest{\n"
 	r += fmt.Sprintf("Placeholder: %v,\n", z.Placeholder)
 	r += "}\n"
@@ -3584,7 +3578,6 @@ func (z *MustBeCancelled) Msgsize() (s int) {
 	return
 }
 func (z *MustBeCancelled) Gstring() (r string) {
-
 	r = "&MustBeCancelled{\n"
 	r += fmt.Sprintf("Placeholder: %v,\n", z.Placeholder)
 	r += "}\n"
@@ -3870,7 +3863,6 @@ func (z *Reply) Msgsize() (s int) {
 	return
 }
 func (z *Reply) Gstring() (r string) {
-
 	r = "&Reply{\n"
 	r += fmt.Sprintf("C: %v,\n", z.C)
 	r += "}\n"
@@ -4191,7 +4183,6 @@ func (z *Request) Msgsize() (s int) {
 	return
 }
 func (z *Request) Gstring() (r string) {
-
 	r = "&Request{\n"
 	r += fmt.Sprintf("ServiceMethod: \"%v\",\n", z.ServiceMethod)
 	r += fmt.Sprintf("          Seq: %v,\n", z.Seq)
@@ -4548,7 +4539,6 @@ func (z *Response) Msgsize() (s int) {
 	return
 }
 func (z *Response) Gstring() (r string) {
-
 	r = "&Response{\n"
 	r += fmt.Sprintf("ServiceMethod: \"%v\",\n", z.ServiceMethod)
 	r += fmt.Sprintf("          Seq: %v,\n", z.Seq)

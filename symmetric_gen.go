@@ -727,7 +727,6 @@ func (z *caboose) Msgsize() (s int) {
 	return
 }
 func (z *caboose) Gstring() (r string) {
-
 	r = "&caboose{\n"
 	r += fmt.Sprintf("    ClientAuthTag: %v,\n", z.ClientAuthTag)
 	r += fmt.Sprintf("ClientEphemPubKey: %v,\n", z.ClientEphemPubKey)
@@ -1158,7 +1157,6 @@ func (z *verifiedHandshake) Msgsize() (s int) {
 	return
 }
 func (z *verifiedHandshake) Gstring() (r string) {
-
 	r = "&verifiedHandshake{\n"
 	r += fmt.Sprintf("     EphemPubKey: %v,\n", z.EphemPubKey)
 	r += fmt.Sprintf("SignatureOfEphem: %v,\n", z.SignatureOfEphem)

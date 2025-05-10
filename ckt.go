@@ -137,6 +137,7 @@ type Fragment struct {
 	Args    map[string]string `zid:"9"`
 	Payload []byte            `zid:"10"`
 	Err     string            `zid:"11"` // distinguished field for error messages.
+	Created time.Time         `zid:"12"` // from Message.HDR.Created
 }
 
 // SetUserArg should be used in user code to set
@@ -525,6 +526,7 @@ func (peerAPI *peerAPI) newLocalPeer(
 // incoming
 func (ckt *Circuit) ConvertMessageToFragment(msg *Message) (frag *Fragment) {
 	frag = &Fragment{
+		Created:     msg.HDR.Created,
 		FromPeerID:  msg.HDR.FromPeerID,
 		ToPeerID:    msg.HDR.ToPeerID,
 		CircuitID:   msg.HDR.CallID,

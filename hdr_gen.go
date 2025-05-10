@@ -1026,7 +1026,6 @@ func (z *HDR) Msgsize() (s int) {
 	return
 }
 func (z *HDR) Gstring() (r string) {
-
 	r = "&HDR{\n"
 	r += fmt.Sprintf("            Created: %v,\n", z.Created)
 	r += fmt.Sprintf("               From: \"%v\",\n", z.From)
@@ -1410,11 +1409,10 @@ func (z *Message) Msgsize() (s int) {
 	return
 }
 func (z *Message) Gstring() (r string) {
-
 	r = "&Message{\n"
-	r += fmt.Sprintf("     HDR: %v,\n", z.HDR)
-	r += fmt.Sprintf(" JobSerz: %v,\n", z.JobSerz)
-	r += fmt.Sprintf(" JobErrs: \"%v\",\n", z.JobErrs)
+	r += fmt.Sprintf("    HDR: %v,\n", z.HDR)
+	r += fmt.Sprintf("JobSerz: %v,\n", z.JobSerz)
+	r += fmt.Sprintf("JobErrs: \"%v\",\n", z.JobErrs)
 	r += "}\n"
 	return
 }
