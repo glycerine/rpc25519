@@ -808,6 +808,9 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 	var readDel []*mop
 	var timerDel []*mop
 
+	// skip the not dispatched assert on shutdown
+	shuttingDown := false
+
 	// We had an early bug from returning early and
 	// forgetting about preDel, readDel, timerDel
 	// that were waiting for deletion at
@@ -843,7 +846,7 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 			// but now there is something possible a
 			// few microseconds later. In this case, don't freak.
 			// So make this conditional on synctest being in use:
-			if node.net.useSynctest {
+			if !shuttingDown && node.net.useSynctest {
 				if node.firstPreArrivalTimeLTE(time.Now()) {
 					alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; summary node summary:\n%v", narr, nread, node.String())
 					panic("should have been dispatchable, no?")
@@ -890,6 +893,7 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 			//vv("giving up on timer after 10 msec: '%v'", timer)
 			//panic("giving up on timer?!? why blocked? or must we ignore?")
 			case <-node.net.halt.ReqStop.Chan:
+				shuttingDown = true
 				return
 			}
 		} else {
@@ -1053,6 +1057,7 @@ func (s *simnet) scheduler() {
 		// bah, too slow:
 		// Advance time by one tick.
 		time.Sleep(s.scenario.tick)
+
 		if s.useSynctest && globalUseSynctest {
 			//vv("about to call synctestWait_LetAllOtherGoroFinish")
 			synctestWait_LetAllOtherGoroFinish()
