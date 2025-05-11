@@ -167,7 +167,7 @@ func allstacks() string {
 
 // IsNil uses reflect to to return true iff the face
 // contains a nil pointer, map, array, slice, or channel.
-func IsNil(face interface{}) bool {
+func isNil(face interface{}) bool {
 	if face == nil {
 		return true
 	}

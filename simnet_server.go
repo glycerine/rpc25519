@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"sync"
 	//"sync/atomic"
 	"time"
@@ -176,11 +177,11 @@ func (s *simnetConn) Write(p []byte) (n int, err error) {
 	//vv("sendMessage\n conn.local = %v (isCli:%v)\n conn.remote = %v (isCli:%v)\n", s.local.name, s.local.isCli, s.remote.name, s.remote.isCli)
 	send := newSendMop(msg, isCli)
 	send.origin = s.local
-	send.fileLine = fileLine(3)
+	send.sendFileLine = fileLine(3)
 	send.target = s.remote
 	send.initTm = time.Now()
 
-	//vv("top simnet.Write(%v) from %v at %v to %v", string(msg.JobSerz), send.origin.name, send.fileLine, send.target.name)
+	//vv("top simnet.Write(%v) from %v at %v to %v", string(msg.JobSerz), send.origin.name, send.sendFileLine, send.target.name)
 
 	select {
 	case s.net.msgSendCh <- send:
@@ -287,7 +288,7 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 	read := newReadMop(isCli)
 	read.initTm = time.Now()
 	read.origin = s.local
-	read.fileLine = fileLine(2)
+	read.readFileLine = fileLine(2)
 	read.target = s.remote
 
 	//vv("in simnetConn.Read() isCli=%v, origin=%v at %v; target=%v", s.isCli, read.origin.name, read.fileLine, read.target.name)
@@ -439,12 +440,12 @@ func (s *Server) Accept() (nc net.Conn, err error) {
 	select {
 	case nc = <-s.simnode.tellServerNewConnCh:
 		if isNil(nc) {
-			err = ErrShutdown
+			err = ErrShutdown()
 			return
 		}
 		//vv("Server.Accept returning nc = '%#v'", nc.(*simnetConn))
 	case <-s.halt.ReqStop.Chan:
-		err = ErrShutdown
+		err = ErrShutdown()
 	}
 	return
 }
@@ -456,7 +457,7 @@ func (s *Server) Addr() (a net.Addr) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 	// avoid data race
-	cp := *s.netAddr
+	cp := *s.simNetAddr
 	return &cp
 }
 
@@ -466,151 +467,16 @@ func (s *Server) Addr() (a net.Addr) {
 func (s *Server) Listen(network, addr string) (lsn net.Listener, err error) {
 	// start the server, first server boots the network,
 	// but it can continue even if the server is shutdown.
-	addrCh := make(chan *SimNetAddr, 1)
+	addrCh := make(chan net.Addr, 1)
 	s.runSimNetServer(s.name, addrCh, nil)
 	lsn = s
 	var netAddr *SimNetAddr
 	select {
-	case netAddr = <-addrCh:
+	case iface := <-addrCh:
+		netAddr = iface.(*SimNetAddr)
 	case <-s.halt.ReqStop.Chan:
-		err = ErrShutdown
+		err = ErrShutdown()
 	}
 	_ = netAddr
 	return
-}
-
-// Close terminates the Server. Any blocked Accept
-// operations will be unblocked and return errors.
-func (s *Server) Close() error {
-	//vv("Server.Close() running")
-	s.mut.Lock()
-	defer s.mut.Unlock()
-	if s.simnode == nil {
-		return nil // not an error to Close before we started.
-	}
-	s.simnet.alterNode(s.simnode, SHUTDOWN)
-	//vv("simnet.alterNode(s.simnode, SHUTDOWN) done for %v", s.name)
-	s.halt.ReqStop.Close()
-	// nobody else we need ack from, so don't hang on:
-	//<-s.halt.Done.Chan
-	return nil
-}
-
-// originally not actually used much by simnet. We'll
-// fill them out to try and allow testing of net.Conn code.
-// doc:
-// "Write writes len(p) bytes from p to the
-// underlying data stream. It returns the number
-// of bytes written from p (0 <= n <= len(p)) and
-// any error encountered that caused the write to
-// stop early. Write must return a non-nil error
-// if it returns n < len(p). Write must not modify
-// the slice data, even temporarily.
-// Implementations must not retain p."
-//
-// Implementation note: we will only send
-// UserMaxPayload bytes at a time.
-func (s *simnetConn) Write(p []byte) (n int, err error) {
-	s.mut.Lock()
-	defer s.mut.Unlock()
-
-	isCli := s.isCli
-
-	if s.localClosed.IsClosed() {
-		err = &simconnError{
-			desc: "use of closed network connection",
-		}
-		return
-	}
-
-	if len(p) == 0 {
-		return
-	}
-
-	msg := newMessage()
-	n = len(p)
-	if n > UserMaxPayload {
-		n = UserMaxPayload
-		// copy into the "kernel buffer"
-		msg.JobSerz = append([]byte{}, p[:n]...)
-	} else {
-		msg.JobSerz = append([]byte{}, p...)
-	}
-
-	var sendDead chan time.Time
-	if s.sendDeadlineTimer != nil {
-		sendDead = s.sendDeadlineTimer.timerC
-	}
-
-	send := newSendMop(msg, isCli)
-	send.origin = s.local
-	send.fileLine = fileLine(3)
-	send.target = s.remote
-	send.initTm = time.Now()
-
-	//vv("top simnet.Write(%v) from %v at %v to %v", string(msg.JobSerz), send.origin.name, send.fileLine, send.target.name)
-
-	select {
-	case s.net.msgSendCh <- send:
-	case <-s.net.halt.ReqStop.Chan:
-		n = 0
-		err = ErrShutdown
-		return
-	case timeout := <-sendDead:
-		_ = timeout
-		n = 0
-		err = &simconnError{isTimeout: true, desc: "i/o timeout"}
-		return
-	case <-s.localClosed.Chan:
-		n = 0
-		err = io.EOF
-		return
-	case <-s.remoteClosed.Chan:
-		n = 0
-		err = io.EOF
-		return
-	}
-
-	//vv("net has it, about to wait for proceed... simnetConn.Write('%v') isCli=%v, origin=%v ; target=%v;", string(send.msg.JobSerz), s.isCli, send.origin.name, send.target.name)
-
-	select {
-	case <-send.proceed:
-		return
-	case <-s.net.halt.ReqStop.Chan:
-		n = 0
-		err = ErrShutdown
-		return
-	case timeout := <-sendDead:
-		_ = timeout
-		n = 0
-		err = &simconnError{isTimeout: true, desc: "i/o timeout"}
-		return
-	case <-s.localClosed.Chan:
-		n = 0
-		err = io.EOF
-		return
-	case <-s.remoteClosed.Chan:
-		n = 0
-		err = io.EOF
-		return
-	}
-	return
-}
-
-func (s *simnetConn) Close() error {
-	// only close local, might still be bytes to read on other end.
-	s.localClosed.Close()
-	return nil
-}
-
-func (s *simnetConn) LocalAddr() net.Addr {
-	s.mut.Lock()
-	defer s.mut.Unlock()
-	return s.local.netAddr
-}
-
-func (s *simnetConn) RemoteAddr() net.Addr {
-	s.mut.Lock()
-	defer s.mut.Unlock()
-	return s.remote.netAddr
 }

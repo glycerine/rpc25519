@@ -1292,7 +1292,7 @@ func (c *Client) send(call *Call, octx context.Context) {
 	copy(req.JobSerz, by)
 
 	var requestStopCh <-chan struct{}
-	if octx != nil && !IsNil(octx) {
+	if octx != nil && !isNil(octx) {
 		requestStopCh = octx.Done()
 		deadline, ok := octx.Deadline()
 		if ok {
@@ -1780,7 +1780,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 
 	// Allow user to adjust deadline however they like.
 	// But if not set, set it if context has one.
-	if req.HDR.Ctx != nil && !IsNil(req.HDR.Ctx) {
+	if req.HDR.Ctx != nil && !isNil(req.HDR.Ctx) {
 		hdrCtxDone = req.HDR.Ctx.Done()
 		if req.HDR.Deadline.IsZero() {
 			req.HDR.Deadline, _ = req.HDR.Ctx.Deadline()

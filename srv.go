@@ -2243,6 +2243,10 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 func (s *Server) Close() error {
 	//vv("Server.Close() '%v' called.", s.name)
 
+	if s.simnet != nil && s.simnode != nil {
+		s.simnet.alterNode(s.simnode, SHUTDOWN)
+	}
+
 	// ask any sub components (peer pump loops) to stop;
 	// give them all up to 500 msec.
 	//vv("%v about to s.halt.StopTreeAndWaitTilDone()", s.name)

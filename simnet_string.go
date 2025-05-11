@@ -76,7 +76,7 @@ func (pq *pq) String() (r string) {
 	for it := pq.tree.Min(); it != pq.tree.Limit(); it = it.Next() {
 
 		item := it.Item() // interface{}
-		if IsNil(item) {
+		if isNil(item) {
 			panic("do not put nil into the pq")
 		}
 		op := item.(*mop)

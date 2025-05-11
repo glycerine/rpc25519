@@ -118,6 +118,9 @@ type mop struct {
 	timerDur      time.Duration
 	timerFileLine string // where was this timer from?
 
+	readFileLine string
+	sendFileLine string
+
 	// discards tell us the corresponding create timer here.
 	origTimerMop        *mop
 	origTimerCompleteTm time.Time
@@ -389,14 +392,13 @@ func (s *simnet) addEdgeFromSrv(srvnode, clinode *simnode) *simnetConn {
 		srv = make(map[*simnode]*simnetConn)
 		s.nodes[srvnode] = srv
 	}
-	s2c := &simnetConn{
-		isCli:   false,
-		net:     s,
-		local:   srvnode,
-		remote:  clinode,
-		netAddr: srvnode.netAddr,
-		closed:  idem.NewIdemCloseChan(),
-	}
+	s2c := newSimnetConn()
+	s2c.isCli = false
+	s2c.net = s
+	s2c.local = srvnode
+	s2c.remote = clinode
+	s2c.netAddr = srvnode.netAddr
+
 	// replace any previous conn
 	srv[clinode] = s2c
 	return s2c
@@ -409,13 +411,13 @@ func (s *simnet) addEdgeFromCli(clinode, srvnode *simnode) *simnetConn {
 		cli = make(map[*simnode]*simnetConn)
 		s.nodes[clinode] = cli
 	}
-	c2s := &simnetConn{
-		isCli:   true,
-		net:     s,
-		local:   clinode,
-		remote:  srvnode,
-		netAddr: clinode.netAddr,
-	}
+	c2s := newSimnetConn()
+	c2s.isCli = true
+	c2s.net = s
+	c2s.local = clinode
+	c2s.remote = srvnode
+	c2s.netAddr = clinode.netAddr
+
 	// replace any previous conn
 	cli[srvnode] = c2s
 	return c2s
