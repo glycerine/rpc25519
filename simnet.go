@@ -819,6 +819,11 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 
 	// skip the not dispatched assert on shutdown
 	shuttingDown := false
+	// for assert we dispatched all we could
+	var endOn, lastMatchSend, lastMatchRead *mop
+	var endOnSituation string
+
+	now := time.Now()
 
 	// We had an early bug from returning early and
 	// forgetting about preDel, readDel, timerDel
@@ -828,17 +833,29 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 	// point, and still do the required cleanup.
 	defer func() {
 		// take care of any deferred-to-keep-sane iteration deletes
+		nPreDel := len(preDel)
+		var delListSN []int64
 		for _, op := range preDel {
 			////zz("delete '%v'", op)
-			node.preArrQ.tree.DeleteWithKey(op)
+			found := node.preArrQ.tree.DeleteWithKey(op)
+			if !found {
+				panic(fmt.Sprintf("failed to delete from preArrQ: '%v'; preArrQ = '%v'", op, node.preArrQ.String()))
+			}
+			delListSN = append(delListSN, op.sn)
 		}
 		for _, op := range readDel {
 			////zz("delete '%v'", op)
-			node.readQ.tree.DeleteWithKey(op)
+			found := node.readQ.tree.DeleteWithKey(op)
+			if !found {
+				panic(fmt.Sprintf("failed to delete from readQ: '%v'", op))
+			}
 		}
 		for _, op := range timerDel {
 			////zz("delete '%v'", op)
-			node.timerQ.tree.DeleteWithKey(op)
+			found := node.timerQ.tree.DeleteWithKey(op)
+			if !found {
+				panic(fmt.Sprintf("failed to delete from timerQ: '%v'", op))
+			}
 		}
 		node.net.armTimer()
 		//vv("=== end of dispatch %v", node.name)
@@ -854,10 +871,16 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 			// almost but not quite here when we checked below,
 			// but now there is something possible a
 			// few microseconds later. In this case, don't freak.
-			// So make this conditional on faketime being in use:
+			// So make this conditional on faketime being in use.
 			if !shuttingDown && faketime { // && node.net.barrier {
-				if node.firstPreArrivalTimeLTE(time.Now()) {
-					alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; summary node summary:\n%v", narr, nread, node.String())
+
+				// super strange. a matched and deleted send,
+				// at now, is still in the queue after being deleted!
+				// sporadically...
+
+				now2 := time.Now()
+				if node.firstPreArrivalTimeLTE(now2) {
+					alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; nPreDel = %v; delListSN = '%v', (now2 - now = %v);\n endOn = %v\n lastMatchSend=%v \n lastMatchRead = %v \n\n endOnSituation = %v\n summary node summary:\n%v", narr, nread, nPreDel, delListSN, now2.Sub(now), endOn, lastMatchSend, lastMatchRead, endOnSituation, node.String())
 					panic("should have been dispatchable, no?")
 				}
 			}
@@ -875,8 +898,6 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 	readIt := node.readQ.tree.Min()
 	preIt := node.preArrQ.tree.Min()
 	timerIt := node.timerQ.tree.Min()
-
-	now := time.Now()
 
 	// do timers first, so we can exit
 	// immediately if no sends and reads match.
@@ -913,9 +934,11 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 
 	for {
 		if readIt == node.readQ.tree.Limit() {
+			// no reads, no point.
 			return
 		}
 		if preIt == node.preArrQ.tree.Limit() {
+			// no sends to match with reads
 			return
 		}
 
@@ -949,8 +972,16 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 			// will have even more _greater_  arrivalTm;
 			// so no point in looking.
 
+			// super noisy!
 			//vv("rejecting delivery of send that has not happened: '%v'", send)
-			//vv("scheduler: %v", node.net.schedulerReport())
+			//vv("dispatch: %v", node.net.schedulerReport())
+			endOn = send
+			it2 := preIt
+			afterN := 0
+			for ; it2 != node.preArrQ.tree.Limit(); it2 = it2.Next() {
+				afterN++
+			}
+			endOnSituation = fmt.Sprintf("after me: %v; preArrQ: %v", afterN, node.preArrQ.String())
 
 			// we must set a timer on its delivery then...
 			dur := send.arrivalTm.Sub(now)
@@ -971,6 +1002,9 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 		// Service this read with this send.
 
 		read.msg = send.msg // safe b/c already copied in handleSend()
+
+		lastMatchSend = send
+		lastMatchRead = read
 		// advance our logical clock
 		node.LC = max(node.LC, send.originLC) + 1
 		////zz("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, node.LC, node.LC-read.originLC, read.sn)
@@ -995,7 +1029,8 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 
 		readIt = readIt.Next()
 		preIt = preIt.Next()
-	}
+
+	} // end for
 }
 
 func (s *simnet) qReport() (r string) {
@@ -1049,6 +1084,8 @@ func (s *simnet) scheduler() {
 		}
 	}()
 
+	var nextReport time.Time
+
 	// main scheduler loop
 	for i := int64(0); ; i++ {
 
@@ -1056,9 +1093,12 @@ func (s *simnet) scheduler() {
 		s.tickLogicalClocks()
 
 		now := time.Now()
-		_ = now
-		//vv("scheduler top") //  cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
-		//vv("scheduler top. schedulerReport: \n%v", s.schedulerReport())
+		if gte(now, nextReport) {
+			nextReport = now.Add(time.Second)
+			vv("scheduler top")
+			//cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
+			//vv("scheduler top. schedulerReport: \n%v", s.schedulerReport())
+		}
 
 		s.dispatchAll()
 		minDur := s.armTimer()
