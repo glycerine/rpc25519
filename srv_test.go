@@ -15,7 +15,7 @@ import (
 
 func Test001_RoundTrip_SendAndGetReply_TCP(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -64,7 +64,7 @@ func Test001_RoundTrip_SendAndGetReply_TCP(t *testing.T) {
 
 func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -142,7 +142,7 @@ func oneWayStreet(in *Message) {
 
 func Test003_client_notification_callbacks(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -205,7 +205,7 @@ func Test003_client_notification_callbacks(t *testing.T) {
 // see below Test014 for QUIC version
 func Test004_server_push(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -294,7 +294,7 @@ func Test004_server_push(t *testing.T) {
 
 func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -374,7 +374,7 @@ func setupPSK(path string) error {
 
 func Test011_PreSharedKey_over_TCP(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -423,7 +423,7 @@ func Test011_PreSharedKey_over_TCP(t *testing.T) {
 
 func Test012_PreSharedKey_must_agree(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -485,7 +485,7 @@ func Test012_PreSharedKey_must_agree(t *testing.T) {
 
 func Test014_server_push_quic(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -589,7 +589,7 @@ func Test014_server_push_quic(t *testing.T) {
 
 func Test015_server_push_quic_notice_disco_quickly(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -733,7 +733,7 @@ func Test015_server_push_quic_notice_disco_quickly(t *testing.T) {
 
 func Test016_WithPreSharedKey_inner_handshake_must_be_properly_signed(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -842,7 +842,7 @@ func Test016_WithPreSharedKey_inner_handshake_must_be_properly_signed(t *testing
 
 func Test030_RoundTrip_SendAndGetReply_then_JSON(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -916,7 +916,7 @@ func Test030_RoundTrip_SendAndGetReply_then_JSON(t *testing.T) {
 func Test031_PingStats(t *testing.T) {
 	return // too slow for normal test runs.
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}

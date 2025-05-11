@@ -66,7 +66,7 @@ func (s *Server) runServerMain(
 
 	//vv("s.cfg.UseSimNet=%v", s.cfg.UseSimNet)
 	if s.cfg.UseSimNet {
-		simNetConfig := &SimNetConfig{}
+		simNetConfig := &s.cfg.SimNetConfig
 
 		// note this blocks until the server exits.
 		s.runSimNetServer(serverAddress, boundCh, simNetConfig)

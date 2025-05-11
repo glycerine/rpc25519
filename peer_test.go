@@ -77,7 +77,7 @@ func newTestJunk(name string) (j *testJunk) {
 
 func Test405_user_can_close_Client_and_Server(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -102,7 +102,7 @@ func Test405_user_can_close_Client_and_Server(t *testing.T) {
 
 func Test406_user_can_cancel_local_service_with_context(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -139,7 +139,7 @@ func Test406_user_can_cancel_local_service_with_context(t *testing.T) {
 
 func Test408_single_circuits_can_cancel_and_propagate_to_remote(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}

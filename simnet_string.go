@@ -178,10 +178,11 @@ func (s *simnet) String() (r string) {
 		return "(nil *simnet)"
 	}
 	r = "&simnet{\n"
-	r += fmt.Sprintf("useSynctest: %v,\n", s.useSynctest)
+	r += fmt.Sprintf("   faketime: %v,\n", faketime)
+	r += fmt.Sprintf("    barrier: %v,\n", s.barrier)
 	r += fmt.Sprintf("   scenario: %v,\n", s.scenario)
 	r += fmt.Sprintf("        cfg: %v,\n", s.cfg)
-	//r += fmt.Sprintf("  simNetCfg: %v,\n", s.simNetCfg)
+	//r += fmt.Sprintf("simNetCfg: %v,\n", s.simNetCfg)
 	if s.srv != nil {
 		r += fmt.Sprintf("   srv.name: %v,\n", s.srv.name)
 	} else {

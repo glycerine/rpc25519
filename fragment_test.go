@@ -13,7 +13,7 @@ import (
 
 func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -166,7 +166,7 @@ func Test401_PeerURL_parsing(t *testing.T) {
 
 func Test402_simpler_startup_peer_service_test(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -224,7 +224,7 @@ func Test402_simpler_startup_peer_service_test(t *testing.T) {
 
 func Test403_new_circuit_from_existing_peer(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}

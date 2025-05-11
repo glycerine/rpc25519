@@ -192,7 +192,7 @@ func (BuiltinTypes) WantsContext(ctx context.Context, args *Args, reply *[2]int)
 // to build here without conflict over who is the real Server{}.
 func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -429,7 +429,7 @@ func Test006_RoundTrip_Using_NetRPC_API_TCP(t *testing.T) {
 
 func Test009_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -639,7 +639,7 @@ func Test009_RoundTrip_Using_NetRPC_API_TLS(t *testing.T) {
 
 func Test008_RoundTrip_Using_NetRPC_API_QUIC(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		// skip quic under synctest, it will just hang
 		// since the quic runtime never settles into durably blocked.
@@ -878,7 +878,7 @@ func (t *Hello) Say(args *BenchmarkMessage, reply *BenchmarkMessage) (err error)
 
 func BenchmarkHelloRpcxMessage(b *testing.B) {
 
-	if globalUseSynctest {
+	if faketime {
 		b.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -932,7 +932,7 @@ func BenchmarkHelloRpcxMessage(b *testing.B) {
 // this also has 041 in it.
 func Test040_remote_cancel_by_context(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -1048,7 +1048,7 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 
 func Test045_upload(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle")
 	}
 
@@ -1150,7 +1150,7 @@ func Test045_upload(t *testing.T) {
 
 func Test055_download(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
@@ -1262,7 +1262,7 @@ func Test055_download(t *testing.T) {
 
 func Test065_bidirectional_download_and_upload(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}

@@ -17,7 +17,9 @@ import (
 
 // NB: all String() methods are now in simnet_string.go
 
-type SimNetConfig struct{}
+type SimNetConfig struct {
+	BarrierOff bool
+}
 
 // moved to simnet_server.go to implement net.Conn
 // a connection between two nodes.
@@ -123,7 +125,7 @@ type mop struct {
 
 // simnet simulates a network entirely with channels in memory.
 type simnet struct {
-	useSynctest bool
+	barrier bool
 
 	scenario *scenario
 
@@ -296,7 +298,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 
 	// server creates simnet; must start server first.
 	s := &simnet{
-		useSynctest:    globalUseSynctest,
+		barrier:        !simNetConfig.BarrierOff,
 		cfg:            cfg,
 		srv:            srv,
 		halt:           srv.halt,
@@ -846,7 +848,7 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 			// but now there is something possible a
 			// few microseconds later. In this case, don't freak.
 			// So make this conditional on synctest being in use:
-			if !shuttingDown && node.net.useSynctest {
+			if !shuttingDown && node.net.barrier {
 				if node.firstPreArrivalTimeLTE(time.Now()) {
 					alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; summary node summary:\n%v", narr, nread, node.String())
 					panic("should have been dispatchable, no?")
@@ -1014,7 +1016,7 @@ func (s *simnet) tickLogicalClocks() {
 }
 
 func (s *simnet) Start() {
-	alwaysPrintf("simnet.Start: synctest = %v", s.useSynctest && globalUseSynctest)
+	alwaysPrintf("simnet.Start: synctest = %v", s.barrier && faketime)
 	go s.scheduler()
 }
 
@@ -1054,16 +1056,15 @@ func (s *simnet) scheduler() {
 			//vv("minDur = %v; vs s.scenario.tick = %v", minDur, s.scenario.tick)
 		}
 
-		// bah, too slow:
-		// Advance time by one tick.
-		time.Sleep(s.scenario.tick)
+		if faketime && s.barrier {
+			// Advance time by one tick.
+			time.Sleep(s.scenario.tick)
 
-		if s.useSynctest && globalUseSynctest {
 			//vv("about to call synctestWait_LetAllOtherGoroFinish")
 			synctestWait_LetAllOtherGoroFinish()
 			//vv("back from synctest.Wait() goro = %v", GoroNumber())
 		} else {
-			//vv("synctest is off. s.useSynctest=%v; globalUseSynctest=%v", s.useSynctest, globalUseSynctest)
+			//vv("s.barrier=%v; faketime=%v", s.barrier, faketime)
 			// advance time by one tick, the non-synctest version.
 			time.Sleep(s.scenario.tick)
 		}

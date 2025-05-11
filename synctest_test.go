@@ -19,7 +19,7 @@ import (
 
 func Test800_SimNet_all_timers_dur_0_fire_now(t *testing.T) {
 
-	if !globalUseSynctest {
+	if !faketime {
 		t.Skip("test only for synctest.") // see also build tag at top.
 		return
 	}

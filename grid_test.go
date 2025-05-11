@@ -36,7 +36,7 @@ import (
 // to RegisterPeerServiceFunc(). Here that name is "grid".
 func Test202_grid_peer_to_peer_works(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}

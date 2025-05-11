@@ -75,7 +75,7 @@ func newTestJunk2(name string) (j *testJunk2) {
 
 func Test408_multiple_circuits_open_and_close(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}

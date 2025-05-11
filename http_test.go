@@ -10,7 +10,7 @@ import (
 // Same as 006 in cli_test.go but sets cfg.HTTPConnectRequired = true
 func Test024_RoundTrip_Using_NetRPC_API_TCP_and_http_CONNECT(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}

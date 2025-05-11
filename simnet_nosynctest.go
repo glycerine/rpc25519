@@ -7,10 +7,10 @@ import (
 	"testing"
 )
 
-const globalUseSynctest bool = false
+const faketime bool = false
 
 func init() {
-	fmt.Printf("globalUseSynctest = %v\n", globalUseSynctest)
+	fmt.Printf("faketime = %v\n", faketime)
 }
 
 func synctestWait_LetAllOtherGoroFinish() {}

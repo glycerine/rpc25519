@@ -474,7 +474,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 
 func Test409_lots_of_send_and_read(t *testing.T) {
 
-	if globalUseSynctest {
+	if faketime {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}

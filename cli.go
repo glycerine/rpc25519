@@ -1024,7 +1024,8 @@ type Config struct {
 	// UseSimNet uses channels all in one
 	// process, rather than network calls.
 	// Client and Server must be in the same process.
-	UseSimNet bool
+	UseSimNet    bool
+	SimNetConfig SimNetConfig
 
 	// point so that the shallow copy of
 	// Config will preserve and share the
