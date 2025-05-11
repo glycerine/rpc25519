@@ -472,8 +472,8 @@ func (s *Server) Listen(network, addr string) (lsn net.Listener, err error) {
 	lsn = s
 	var netAddr *SimNetAddr
 	select {
-	case iface := <-addrCh:
-		netAddr = iface.(*SimNetAddr)
+	case netAddrI := <-addrCh:
+		netAddr = netAddrI.(*SimNetAddr)
 	case <-s.halt.ReqStop.Chan:
 		err = ErrShutdown()
 	}
