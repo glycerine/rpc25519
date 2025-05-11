@@ -786,6 +786,13 @@ func (node *simnode) optionallyApplyChaos() {
 	// until the read attempts (our pre-arrival queue).
 }
 
+func lte(a, b time.Time) bool {
+	return !a.After(b)
+}
+func gte(a, b time.Time) bool {
+	return !a.Before(b)
+}
+
 // dispatch delivers sends to reads, and fires timers.
 // It calls node.net.armTimer() at the end (in the defer).
 func (node *simnode) dispatch() { // (bump time.Duration) {
@@ -847,8 +854,8 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 			// almost but not quite here when we checked below,
 			// but now there is something possible a
 			// few microseconds later. In this case, don't freak.
-			// So make this conditional on synctest being in use:
-			if !shuttingDown && node.net.barrier {
+			// So make this conditional on faketime being in use:
+			if !shuttingDown && faketime { // && node.net.barrier {
 				if node.firstPreArrivalTimeLTE(time.Now()) {
 					alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; summary node summary:\n%v", narr, nread, node.String())
 					panic("should have been dispatchable, no?")
@@ -934,10 +941,13 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 		}
 		// INVAR: this read.initTm <= now
 
-		if now.Before(send.arrivalTm) { // now < send.arrivalTm
+		if send.arrivalTm.After(now) {
+			// send has not arrived yet.
+
 			// are we done? since preArrQ is ordered
 			// by arrivalTm, all subsequent pre-arrivals (sends)
-			// will have even >= arrivalTm.
+			// will have even more _greater_  arrivalTm;
+			// so no point in looking.
 
 			//vv("rejecting delivery of send that has not happened: '%v'", send)
 			//vv("scheduler: %v", node.net.schedulerReport())
@@ -1016,7 +1026,7 @@ func (s *simnet) tickLogicalClocks() {
 }
 
 func (s *simnet) Start() {
-	alwaysPrintf("simnet.Start: synctest = %v", s.barrier && faketime)
+	alwaysPrintf("simnet.Start: faketime = %v; s.barrier=%v", faketime, s.barrier)
 	go s.scheduler()
 }
 
