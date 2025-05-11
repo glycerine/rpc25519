@@ -1122,6 +1122,7 @@ type Server struct {
 	//StartSimNet   chan *SimNetConfig
 	simnet     *simnet
 	simnode    *simnode
+	simNetAddr *SimNetAddr
 	srvStarted atomic.Bool
 
 	boundAddressString string

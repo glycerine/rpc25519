@@ -1063,7 +1063,7 @@ func (z *Message) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields14zgensym_28874796354aa7f3_15 = 5
+	const maxFields14zgensym_28874796354aa7f3_15 = 6
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields14zgensym_28874796354aa7f3_15 uint32
@@ -1130,6 +1130,12 @@ doneWithStruct14zgensym_28874796354aa7f3_15:
 			if err != nil {
 				return
 			}
+		case "EOF_zid03_boo":
+			found14zgensym_28874796354aa7f3_15[3] = true
+			z.EOF, err = dc.ReadBool()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -1153,16 +1159,16 @@ doneWithStruct14zgensym_28874796354aa7f3_15:
 }
 
 // fields of Message
-var decodeMsgFieldOrder14zgensym_28874796354aa7f3_15 = []string{"HDR_zid00_rct", "JobSerz_zid01_bin", "JobErrs_zid02_str", "", ""}
+var decodeMsgFieldOrder14zgensym_28874796354aa7f3_15 = []string{"HDR_zid00_rct", "JobSerz_zid01_bin", "JobErrs_zid02_str", "EOF_zid03_boo", "", ""}
 
-var decodeMsgFieldSkip14zgensym_28874796354aa7f3_15 = []bool{false, false, false, true, true}
+var decodeMsgFieldSkip14zgensym_28874796354aa7f3_15 = []bool{false, false, false, false, true, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *Message) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 3
+		return 4
 	}
-	var fieldsInUse uint32 = 3
+	var fieldsInUse uint32 = 4
 	isempty[0] = false
 	if isempty[0] {
 		fieldsInUse--
@@ -1173,6 +1179,10 @@ func (z *Message) fieldsNotEmpty(isempty []bool) uint32 {
 	}
 	isempty[2] = (len(z.JobErrs) == 0) // string, omitempty
 	if isempty[2] {
+		fieldsInUse--
+	}
+	isempty[3] = (!z.EOF) // bool, omitempty
+	if isempty[3] {
 		fieldsInUse--
 	}
 
@@ -1186,7 +1196,7 @@ func (z *Message) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_28874796354aa7f3_16 [5]bool
+	var empty_zgensym_28874796354aa7f3_16 [6]bool
 	fieldsInUse_zgensym_28874796354aa7f3_17 := z.fieldsNotEmpty(empty_zgensym_28874796354aa7f3_16[:])
 
 	// map header
@@ -1241,6 +1251,18 @@ func (z *Message) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_28874796354aa7f3_16[3] {
+		// write "EOF_zid03_boo"
+		err = en.Append(0xad, 0x45, 0x4f, 0x46, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x62, 0x6f, 0x6f)
+		if err != nil {
+			return err
+		}
+		err = en.WriteBool(z.EOF)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -1253,7 +1275,7 @@ func (z *Message) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [5]bool
+	var empty [6]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -1278,6 +1300,12 @@ func (z *Message) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendString(o, z.JobErrs)
 	}
 
+	if !empty[3] {
+		// string "EOF_zid03_boo"
+		o = append(o, 0xad, 0x45, 0x4f, 0x46, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x62, 0x6f, 0x6f)
+		o = msgp.AppendBool(o, z.EOF)
+	}
+
 	return
 }
 
@@ -1296,7 +1324,7 @@ func (z *Message) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []
 
 	var field []byte
 	_ = field
-	const maxFields18zgensym_28874796354aa7f3_19 = 5
+	const maxFields18zgensym_28874796354aa7f3_19 = 6
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields18zgensym_28874796354aa7f3_19 uint32
@@ -1376,6 +1404,13 @@ doneWithStruct18zgensym_28874796354aa7f3_19:
 			if err != nil {
 				return
 			}
+		case "EOF_zid03_boo":
+			found18zgensym_28874796354aa7f3_19[3] = true
+			z.EOF, bts, err = nbs.ReadBoolBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1399,13 +1434,13 @@ doneWithStruct18zgensym_28874796354aa7f3_19:
 }
 
 // fields of Message
-var unmarshalMsgFieldOrder18zgensym_28874796354aa7f3_19 = []string{"HDR_zid00_rct", "JobSerz_zid01_bin", "JobErrs_zid02_str", "", ""}
+var unmarshalMsgFieldOrder18zgensym_28874796354aa7f3_19 = []string{"HDR_zid00_rct", "JobSerz_zid01_bin", "JobErrs_zid02_str", "EOF_zid03_boo", "", ""}
 
-var unmarshalMsgFieldSkip18zgensym_28874796354aa7f3_19 = []bool{false, false, false, true, true}
+var unmarshalMsgFieldSkip18zgensym_28874796354aa7f3_19 = []bool{false, false, false, false, true, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Message) Msgsize() (s int) {
-	s = 1 + 14 + z.HDR.Msgsize() + 18 + msgp.BytesPrefixSize + len(z.JobSerz) + 18 + msgp.StringPrefixSize + len(z.JobErrs)
+	s = 1 + 14 + z.HDR.Msgsize() + 18 + msgp.BytesPrefixSize + len(z.JobSerz) + 18 + msgp.StringPrefixSize + len(z.JobErrs) + 14 + msgp.BoolSize
 	return
 }
 func (z *Message) Gstring() (r string) {
@@ -1413,6 +1448,7 @@ func (z *Message) Gstring() (r string) {
 	r += fmt.Sprintf("    HDR: %v,\n", z.HDR)
 	r += fmt.Sprintf("JobSerz: %v,\n", z.JobSerz)
 	r += fmt.Sprintf("JobErrs: \"%v\",\n", z.JobErrs)
+	r += fmt.Sprintf("    EOF: %v,\n", z.EOF)
 	r += "}\n"
 	return
 }

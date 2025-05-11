@@ -189,6 +189,10 @@ type Message struct {
 	// should be used when creating a new Message (on the client to send).
 	DoneCh *loquet.Chan[Message] `msg:"-"`
 
+	// for emulating a socket connection,
+	// after the JobSerz bytes are read that is the end-of-file.
+	EOF bool `zid:"3"`
+
 	nextOrReply *Message // free list on server, replies to round-trips in the client.
 }
 

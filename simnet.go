@@ -18,6 +18,42 @@ import (
 // NB: all String() methods are now in simnet_string.go
 
 type SimNetConfig struct {
+
+	// The barrier is the synctest.Wait call
+	// the lets the caller resume only when
+	// all other goro are durably blocked.
+	// (All goroutines in the simulation are/
+	// must be in the same bubble with the simnet).
+	//
+	// The barrier can only be used (or not) if faketime
+	// is also used, so this option will have
+	// no effect unless the simnet is run
+	// in a synctest.Wait bubble (using synctest.Run).
+	//
+	// Under faketime, BarrierOff true means
+	// the scheduler will not wait to know
+	// for sure that it is the only active goroutine
+	// when doing its scheduling steps, such as firing
+	// new timers and matching sends and reads.
+	//
+	// This introduces more non-determinism --
+	// which provides more test coverage --
+	// but the tradeoff is that those tests are
+	// not reliably repeatable, since the
+	// Go runtime's goroutine interleaving order is
+	// randomized. The scheduler might take more
+	// steps than otherwise to deliver a
+	// message or to fire a timer, since we
+	// the scheduler can wake alongside us
+	// and become active.
+	//
+	// At the moment this can't happen in our simulation
+	// because the simnet controls all
+	// timers in rpc25519 tests, and so
+	// only the scheduler calls time.Sleep.
+	// However future tests and user code
+	// might call time.Sleep, in which
+	// case the
 	BarrierOff bool
 }
 
@@ -504,6 +540,13 @@ func (s *pq) deleteAll() {
 }
 
 // order by arrivalTm; for the pre-arrival preArrQ.
+//
+// Note: must be deterministic iteration order! Don't
+// use random tie breakers in here.
+// Otherwise we might decide, as the dispatcher does,
+// that the mop we wanted to delete on the first
+// pass is not there when we look again, or vice-versa.
+// We learned this the hard way.
 func (s *simnet) newPQarrivalTm(owner string) *pq {
 	return &pq{
 		owner:   owner,

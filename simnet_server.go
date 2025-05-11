@@ -30,6 +30,10 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 
 	// satisfy uConn interface; don't crash cli/tests that check
 	netAddr := &SimNetAddr{network: "simnet", addr: serverAddr, name: s.name, isCli: false}
+	// avoid client/server races by giving userland test
+	// a copy of the address rather than the same.
+	cp := *netAddr
+	externalizedNetAddr := &cp
 
 	// idempotent, so all new servers can try;
 	// only the first will boot it up (still pass s for s.halt);
@@ -37,7 +41,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	// per config shared simnet.
 	simnet := s.cfg.bootSimNetOnServer(simNetConfig, s)
 
-	// sets s.simnode, s.simnet
+	// sets s.simnode, s.simnet, s.netAddr
 	serverNewConnCh, err := simnet.registerServer(s, netAddr)
 	if err != nil {
 		if err == ErrShutdown2 {
@@ -58,12 +62,13 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	s.mut.Lock() // avoid data races
 	addrs := netAddr.Network() + "://" + netAddr.String()
 	s.boundAddressString = addrs
+	s.simNetAddr = netAddr
 	AliasRegister(addrs, addrs+" (server: "+s.name+")")
 	s.mut.Unlock()
 
 	if boundCh != nil {
 		select {
-		case boundCh <- netAddr:
+		case boundCh <- externalizedNetAddr: // not  netAddr
 			// like the srv comment, this exception to
 			// using the simnet TimeAfter is fine,
 			// as obvious it gets created just below and
@@ -109,8 +114,16 @@ type simnetConn struct {
 	nextRead []byte
 
 	// no more reads, but serve the rest of nextRead.
-	isClosed bool
-	closed   *idem.IdemCloseChan
+	// no more reads, but serve the rest of nextRead.
+	localClosed  *idem.IdemCloseChan
+	remoteClosed *idem.IdemCloseChan
+}
+
+func newSimnetConn() *simnetConn {
+	return &simnetConn{
+		localClosed:  idem.NewIdemCloseChan(),
+		remoteClosed: idem.NewIdemCloseChan(),
+	}
 }
 
 // originally not actually used much by simnet. We'll
@@ -131,7 +144,9 @@ func (s *simnetConn) Write(p []byte) (n int, err error) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
-	if s.isClosed {
+	isCli := s.isCli
+
+	if s.localClosed.IsClosed() {
 		err = &simconnError{
 			desc: "use of closed network connection",
 		}
@@ -142,7 +157,6 @@ func (s *simnetConn) Write(p []byte) (n int, err error) {
 		return
 	}
 
-	isCli := s.isCli
 	msg := NewMessage()
 	n = len(p)
 	if n > UserMaxPayload {
@@ -153,27 +167,44 @@ func (s *simnetConn) Write(p []byte) (n int, err error) {
 		msg.JobSerz = append([]byte{}, p...)
 	}
 
+	var sendDead chan time.Time
+	if s.sendDeadlineTimer != nil {
+		sendDead = s.sendDeadlineTimer.timerC
+	}
+
 	//vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", send.origin, msg.HDR.Serial)
 	//vv("sendMessage\n conn.local = %v (isCli:%v)\n conn.remote = %v (isCli:%v)\n", s.local.name, s.local.isCli, s.remote.name, s.remote.isCli)
 	send := newSendMop(msg, isCli)
 	send.origin = s.local
+	send.fileLine = fileLine(3)
 	send.target = s.remote
 	send.initTm = time.Now()
+
+	//vv("top simnet.Write(%v) from %v at %v to %v", string(msg.JobSerz), send.origin.name, send.fileLine, send.target.name)
+
 	select {
 	case s.net.msgSendCh <- send:
 	case <-s.net.halt.ReqStop.Chan:
 		n = 0
 		err = ErrShutdown()
 		return
-	case timeout := <-s.sendDeadlineTimer.timerC:
+	case timeout := <-sendDead:
 		_ = timeout
 		n = 0
 		err = &simconnError{isTimeout: true, desc: "i/o timeout"}
 		return
-	case <-s.closed.Chan:
+	case <-s.localClosed.Chan:
+		n = 0
+		err = io.EOF
+		return
+	case <-s.remoteClosed.Chan:
+		n = 0
 		err = io.EOF
 		return
 	}
+
+	//vv("net has it, about to wait for proceed... simnetConn.Write('%v') isCli=%v, origin=%v ; target=%v;", string(send.msg.JobSerz), s.isCli, send.origin.name, send.target.name)
+
 	select {
 	case <-send.proceed:
 		return
@@ -181,12 +212,16 @@ func (s *simnetConn) Write(p []byte) (n int, err error) {
 		n = 0
 		err = ErrShutdown()
 		return
-	case timeout := <-s.sendDeadlineTimer.timerC:
+	case timeout := <-sendDead:
 		_ = timeout
 		n = 0
 		err = &simconnError{isTimeout: true, desc: "i/o timeout"}
 		return
-	case <-s.closed.Chan:
+	case <-s.localClosed.Chan:
+		n = 0
+		err = io.EOF
+		return
+	case <-s.remoteClosed.Chan:
 		n = 0
 		err = io.EOF
 		return
@@ -235,19 +270,28 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 		return
 	}
 
-	if s.isClosed {
+	if s.localClosed.IsClosed() {
 		err = io.EOF
 		return
 	}
 
 	isCli := s.isCli
 
+	var readDead chan time.Time
+	if s.readDeadlineTimer != nil {
+		readDead = s.readDeadlineTimer.timerC
+	}
+
 	//vv("top simnet.readMessage() %v READ", read.origin)
 
 	read := newReadMop(isCli)
 	read.initTm = time.Now()
 	read.origin = s.local
+	read.fileLine = fileLine(2)
 	read.target = s.remote
+
+	//vv("in simnetConn.Read() isCli=%v, origin=%v at %v; target=%v", s.isCli, read.origin.name, read.fileLine, read.target.name)
+
 	select {
 	case s.net.msgReadCh <- read:
 	case <-s.net.halt.ReqStop.Chan:
@@ -257,7 +301,19 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 		_ = timeout
 		err = &simconnError{isTimeout: true, desc: "i/o timeout"}
 		return
-	case <-s.closed.Chan:
+	case timeout := <-readDead:
+		_ = timeout
+		err = os.ErrDeadlineExceeded
+		//err = &simconnError{isTimeout: true, desc: "i/o timeout"}
+		return
+	case <-s.localClosed.Chan:
+		err = io.EOF
+		return
+
+		// TODO: implement an EOF "message" sent
+		// after the last send...instead of assuming omniscience
+		// I think we want reads to finish first?
+	case <-s.remoteClosed.Chan:
 		err = io.EOF
 		return
 	}
@@ -272,11 +328,16 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 	case <-s.net.halt.ReqStop.Chan:
 		err = ErrShutdown()
 		return
-	case timeout := <-s.readDeadlineTimer.timerC:
+	case timeout := <-readDead:
 		_ = timeout
-		err = &simconnError{isTimeout: true, desc: "i/o timeout"}
+		err = os.ErrDeadlineExceeded
+		//err = &simconnError{isTimeout: true, desc: "i/o timeout"}
 		return
-	case <-s.closed.Chan:
+	case <-s.localClosed.Chan:
+		err = io.EOF
+		return
+	// TODO: implement an EOF message instead of assuming omniscience
+	case <-s.remoteClosed.Chan:
 		err = io.EOF
 		return
 	}
@@ -284,11 +345,8 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 }
 
 func (s *simnetConn) Close() error {
-	s.mut.Lock()
-	defer s.mut.Unlock()
-
-	s.isClosed = true
-	s.closed.Close() // unblock sends/reads
+	// only close local, might still be bytes to read on other end.
+	s.localClosed.Close()
 	return nil
 }
 
@@ -364,35 +422,195 @@ func (s *simconnError) Temporary() bool {
 	return s.isTimeout
 }
 
-func (s *simnet) Dial(localHostPort, serverAddr string) *simnetConn {
+// ============ from gosimnet version
 
-	// so something like
-	// runSimNetClient(localHostPort, serverAddr string)
-	// in simnet_client.go
+var _ net.Listener = &Server{}
 
-	//
-	// currently the simnet.go:413 :433 methods
-	//
-	// addEdgeFromSrv(srvnode, clinode *simnode) *simnetConn
-	// and
-	// addEdgeFromCli(clinode, srvnode *simnode) *simnetConn
-	//
-	// are how we make new simnetConn; but they are
-	// internal not external.
-	// We'll wait until we have actual client code to figure
-	// out what is actually required.
-	panic("TODO Dial for clients")
+// Accept is part of the net.Listener interface.
+// Accept waits for and returns the next connection
+// from a Client.
+// You should call Server.Listen() to start the Server
+// before calling Accept() on the Listener
+// interface returned. Currently the Server is also
+// the Listener, but following the net
+// package's use convention allows us flexibility
+// to change this in the future if need be.
+func (s *Server) Accept() (nc net.Conn, err error) {
+	select {
+	case nc = <-s.simnode.tellServerNewConnCh:
+		if isNil(nc) {
+			err = ErrShutdown
+			return
+		}
+		//vv("Server.Accept returning nc = '%#v'", nc.(*simnetConn))
+	case <-s.halt.ReqStop.Chan:
+		err = ErrShutdown
+	}
+	return
+}
+
+// Addr is a method on the net.Listener interface
+// for obtaining the Server's locally bound
+// address.
+func (s *Server) Addr() (a net.Addr) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	// avoid data race
+	cp := *s.netAddr
+	return &cp
+}
+
+// Listen currently ignores the network and addr strings,
+// which are there to match the net.Listen method.
+// The addr will be the name set on NewServer(name).
+func (s *Server) Listen(network, addr string) (lsn net.Listener, err error) {
+	// start the server, first server boots the network,
+	// but it can continue even if the server is shutdown.
+	addrCh := make(chan *SimNetAddr, 1)
+	s.runSimNetServer(s.name, addrCh, nil)
+	lsn = s
+	var netAddr *SimNetAddr
+	select {
+	case netAddr = <-addrCh:
+	case <-s.halt.ReqStop.Chan:
+		err = ErrShutdown
+	}
+	_ = netAddr
+	return
+}
+
+// Close terminates the Server. Any blocked Accept
+// operations will be unblocked and return errors.
+func (s *Server) Close() error {
+	//vv("Server.Close() running")
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	if s.simnode == nil {
+		return nil // not an error to Close before we started.
+	}
+	s.simnet.alterNode(s.simnode, SHUTDOWN)
+	//vv("simnet.alterNode(s.simnode, SHUTDOWN) done for %v", s.name)
+	s.halt.ReqStop.Close()
+	// nobody else we need ack from, so don't hang on:
+	//<-s.halt.Done.Chan
 	return nil
 }
 
-func (s *simnet) Listen() *simnetConn {
-	// see comments in Dial above. wait for actual client code.
+// originally not actually used much by simnet. We'll
+// fill them out to try and allow testing of net.Conn code.
+// doc:
+// "Write writes len(p) bytes from p to the
+// underlying data stream. It returns the number
+// of bytes written from p (0 <= n <= len(p)) and
+// any error encountered that caused the write to
+// stop early. Write must return a non-nil error
+// if it returns n < len(p). Write must not modify
+// the slice data, even temporarily.
+// Implementations must not retain p."
+//
+// Implementation note: we will only send
+// UserMaxPayload bytes at a time.
+func (s *simnetConn) Write(p []byte) (n int, err error) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
 
-	// s.bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *simnet
-	// will be needed.
-	// then a more standalone version of the simnet.go:1540  code
-	// s.registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConnCh chan *simnetConn, err error)
+	isCli := s.isCli
 
-	panic("TODO Listen for servers")
+	if s.localClosed.IsClosed() {
+		err = &simconnError{
+			desc: "use of closed network connection",
+		}
+		return
+	}
+
+	if len(p) == 0 {
+		return
+	}
+
+	msg := newMessage()
+	n = len(p)
+	if n > UserMaxPayload {
+		n = UserMaxPayload
+		// copy into the "kernel buffer"
+		msg.JobSerz = append([]byte{}, p[:n]...)
+	} else {
+		msg.JobSerz = append([]byte{}, p...)
+	}
+
+	var sendDead chan time.Time
+	if s.sendDeadlineTimer != nil {
+		sendDead = s.sendDeadlineTimer.timerC
+	}
+
+	send := newSendMop(msg, isCli)
+	send.origin = s.local
+	send.fileLine = fileLine(3)
+	send.target = s.remote
+	send.initTm = time.Now()
+
+	//vv("top simnet.Write(%v) from %v at %v to %v", string(msg.JobSerz), send.origin.name, send.fileLine, send.target.name)
+
+	select {
+	case s.net.msgSendCh <- send:
+	case <-s.net.halt.ReqStop.Chan:
+		n = 0
+		err = ErrShutdown
+		return
+	case timeout := <-sendDead:
+		_ = timeout
+		n = 0
+		err = &simconnError{isTimeout: true, desc: "i/o timeout"}
+		return
+	case <-s.localClosed.Chan:
+		n = 0
+		err = io.EOF
+		return
+	case <-s.remoteClosed.Chan:
+		n = 0
+		err = io.EOF
+		return
+	}
+
+	//vv("net has it, about to wait for proceed... simnetConn.Write('%v') isCli=%v, origin=%v ; target=%v;", string(send.msg.JobSerz), s.isCli, send.origin.name, send.target.name)
+
+	select {
+	case <-send.proceed:
+		return
+	case <-s.net.halt.ReqStop.Chan:
+		n = 0
+		err = ErrShutdown
+		return
+	case timeout := <-sendDead:
+		_ = timeout
+		n = 0
+		err = &simconnError{isTimeout: true, desc: "i/o timeout"}
+		return
+	case <-s.localClosed.Chan:
+		n = 0
+		err = io.EOF
+		return
+	case <-s.remoteClosed.Chan:
+		n = 0
+		err = io.EOF
+		return
+	}
+	return
+}
+
+func (s *simnetConn) Close() error {
+	// only close local, might still be bytes to read on other end.
+	s.localClosed.Close()
 	return nil
+}
+
+func (s *simnetConn) LocalAddr() net.Addr {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	return s.local.netAddr
+}
+
+func (s *simnetConn) RemoteAddr() net.Addr {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	return s.remote.netAddr
 }
