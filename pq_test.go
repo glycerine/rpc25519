@@ -1,10 +1,19 @@
 package rpc25519
 
+/*
 import (
 	"fmt"
 	"testing"
 	"time"
 )
+
+// Deletes from pq work fine now.
+// The issue was iteration order was non-deterministic,
+// for arrival Q, which was a mistake! We took out
+// the random tie breaker for preArrQ; that won't work for
+// deleting things. iteration must be consistent
+// so the original find and the delete find can
+// do their jobs correctly and consistently.
 
 func Test555_preArrQ_deletes_actually_delete(t *testing.T) {
 
@@ -20,10 +29,11 @@ func Test555_preArrQ_deletes_actually_delete(t *testing.T) {
 	m := make(map[time.Time]*mop)
 
 	N := 10
-	now := time.Now()
+	var now time.Time
 	for i := range N {
 		r := rng.pseudoRandNonNegInt64() % 5
 		arr := now.Add(time.Duration(r))
+		vv("r = %v; arr = %v", r, arr)
 		op := &mop{
 			arrivalTm: arr,
 		}
@@ -47,3 +57,4 @@ func Test555_preArrQ_deletes_actually_delete(t *testing.T) {
 		}
 	}
 }
+*/

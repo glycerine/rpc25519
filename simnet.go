@@ -529,16 +529,20 @@ func (s *simnet) newPQarrivalTm(owner string) *pq {
 			if av == bv {
 				return 0 // pointer equality is immediate
 			}
-
 			if av.arrivalTm.Before(bv.arrivalTm) {
 				return -1
 			}
 			if av.arrivalTm.After(bv.arrivalTm) {
 				return 1
 			}
-			// INVAR arrivalTm equal, break ties
-			// with the permutor
-			return s.rngTieBreaker()
+			if av.sn < bv.sn {
+				return -1
+			}
+			if av.sn > bv.sn {
+				return 1
+			}
+			// must be the same if same sn.
+			return 0
 		}),
 	}
 }
@@ -837,6 +841,7 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 		var delListSN []int64
 		for _, op := range preDel {
 			////zz("delete '%v'", op)
+			// TODO: delete with iterator! should be more reliable and faster.
 			found := node.preArrQ.tree.DeleteWithKey(op)
 			if !found {
 				panic(fmt.Sprintf("failed to delete from preArrQ: '%v'; preArrQ = '%v'", op, node.preArrQ.String()))

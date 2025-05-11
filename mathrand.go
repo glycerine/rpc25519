@@ -7,7 +7,8 @@ import (
 	"sync"
 )
 
-// pseudo random number generator
+// pseudo random number generator using chacha8.
+// goroutine safe b/c protected by mutex.
 type prng struct {
 	mut  sync.Mutex
 	seed [32]byte
