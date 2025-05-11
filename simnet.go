@@ -296,6 +296,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 
 	// server creates simnet; must start server first.
 	s := &simnet{
+		useSynctest:    globalUseSynctest,
 		cfg:            cfg,
 		srv:            srv,
 		halt:           srv.halt,
@@ -1009,7 +1010,7 @@ func (s *simnet) tickLogicalClocks() {
 }
 
 func (s *simnet) Start() {
-	//vv("simnet.Start() top")
+	alwaysPrintf("simnet.Start: synctest = %v", s.useSynctest && globalUseSynctest)
 	go s.scheduler()
 }
 
@@ -1040,20 +1041,24 @@ func (s *simnet) scheduler() {
 
 		now := time.Now()
 		_ = now
-		////zz("scheduler top cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
+		//vv("scheduler top") //  cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
 		//vv("scheduler top. schedulerReport: \n%v", s.schedulerReport())
 
 		s.dispatchAll()
-		s.armTimer()
+		minDur := s.armTimer()
+		if minDur > 0 {
+			//vv("minDur = %v; vs s.scenario.tick = %v", minDur, s.scenario.tick)
+		}
 
+		// bah, too slow:
 		// Advance time by one tick.
 		time.Sleep(s.scenario.tick)
-
 		if s.useSynctest && globalUseSynctest {
 			//vv("about to call synctestWait_LetAllOtherGoroFinish")
 			synctestWait_LetAllOtherGoroFinish()
 			//vv("back from synctest.Wait() goro = %v", GoroNumber())
 		} else {
+			//vv("synctest is off. s.useSynctest=%v; globalUseSynctest=%v", s.useSynctest, globalUseSynctest)
 			// advance time by one tick, the non-synctest version.
 			time.Sleep(s.scenario.tick)
 		}
@@ -1177,20 +1182,21 @@ func (s *simnet) handleTimer(timer *mop) {
 	s.armTimer()
 }
 
-func (s *simnet) armTimer() {
+func (s *simnet) armTimer() time.Duration {
 
 	var minTimer *mop
 	for node := range s.nodes {
 		minTimer = node.soonestTimerLessThan(minTimer)
 	}
 	if minTimer == nil {
-		return
+		return 0
 	}
 	now := time.Now()
 	dur := minTimer.completeTm.Sub(now)
 	////zz("dur=%v = when(%v) - now(%v)", dur, minTimer.completeTm, now)
 	s.lastArmTm = now
 	s.nextTimer.Reset(dur)
+	return dur
 }
 
 func (node *simnode) soonestTimerLessThan(bound *mop) *mop {
@@ -1497,3 +1503,7 @@ func (s *simnet) alterNode(node *simnode, alter alteration) {
 	}
 	return
 }
+
+// =========================================
+// ============ internal again =============
+// =========================================
