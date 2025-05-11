@@ -145,8 +145,6 @@ func (s *simnetConn) Write(p []byte) (n int, err error) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
-	isCli := s.isCli
-
 	if s.localClosed.IsClosed() {
 		err = &simconnError{
 			desc: "use of closed network connection",
@@ -173,15 +171,27 @@ func (s *simnetConn) Write(p []byte) (n int, err error) {
 		sendDead = s.sendDeadlineTimer.timerC
 	}
 
-	//vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", send.origin, msg.HDR.Serial)
-	//vv("sendMessage\n conn.local = %v (isCli:%v)\n conn.remote = %v (isCli:%v)\n", s.local.name, s.local.isCli, s.remote.name, s.remote.isCli)
+	return s.msgWrite(msg, sendDead, n)
+}
+
+// helper for Write. s.mut must be held locked during.
+func (s *simnetConn) msgWrite(msg *Message, sendDead chan time.Time, n0 int) (n int, err error) {
+
+	n = n0
+	isCli := s.isCli
+
 	send := newSendMop(msg, isCli)
 	send.origin = s.local
 	send.sendFileLine = fileLine(3)
 	send.target = s.remote
 	send.initTm = time.Now()
 
-	//vv("top simnet.Write(%v) from %v at %v to %v", string(msg.JobSerz), send.origin.name, send.sendFileLine, send.target.name)
+	isEOF := msg.EOF
+	if isEOF {
+		send.isEOF_RST = true
+	}
+
+	vv("top simnet.Write(%v) (isEOF_RST: %v) from %v at %v to %v", string(msg.JobSerz), send.isEOF_RST, send.origin.name, send.sendFileLine, send.target.name)
 
 	select {
 	case s.net.msgSendCh <- send:
@@ -204,7 +214,11 @@ func (s *simnetConn) Write(p []byte) (n int, err error) {
 		return
 	}
 
-	//vv("net has it, about to wait for proceed... simnetConn.Write('%v') isCli=%v, origin=%v ; target=%v;", string(send.msg.JobSerz), s.isCli, send.origin.name, send.target.name)
+	vv("net has it (isEOF:%v), about to wait for proceed... simnetConn.Write('%v') isCli=%v, origin=%v ; target=%v;", isEOF, string(send.msg.JobSerz), s.isCli, send.origin.name, send.target.name)
+
+	if isEOF {
+		return 0, nil // don't expect a reply from EOF/RST
+	}
 
 	select {
 	case <-send.proceed:
@@ -310,10 +324,6 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 	case <-s.localClosed.Chan:
 		err = io.EOF
 		return
-
-		// TODO: implement an EOF "message" sent
-		// after the last send...instead of assuming omniscience
-		// I think we want reads to finish first?
 	case <-s.remoteClosed.Chan:
 		err = io.EOF
 		return
@@ -326,6 +336,13 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 			// buffer the leftover
 			s.nextRead = append(s.nextRead, msg.JobSerz[n:]...)
 		}
+		if read.isEOF_RST {
+			vv("read has EOF mark!")
+			err = io.EOF
+			//s.remoteClosed.Close() // for sure?
+			//s.localClosed.Close()  // this too, maybe?
+		}
+
 	case <-s.net.halt.ReqStop.Chan:
 		err = ErrShutdown()
 		return
@@ -347,6 +364,13 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 
 func (s *simnetConn) Close() error {
 	// only close local, might still be bytes to read on other end.
+
+	// send the EOF message
+	m := NewMessage()
+	m.EOF = true
+	vv("Close sending EOF in msgWrite")
+	s.msgWrite(m, nil, 0) // nil send-deadline channel for now. TODO improve?
+
 	s.localClosed.Close()
 	return nil
 }

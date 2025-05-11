@@ -160,6 +160,8 @@ type mop struct {
 	// matches a send, the client proceeds because
 	// this channel will be closed.
 	proceed chan struct{}
+
+	isEOF_RST bool
 }
 
 // simnet simulates a network entirely with channels in memory.
@@ -1052,6 +1054,11 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 		// Service this read with this send.
 
 		read.msg = send.msg // safe b/c already copied in handleSend()
+
+		read.isEOF_RST = send.isEOF_RST // convey EOF/RST
+		if send.isEOF_RST {
+			//vv("copied EOF marker from send '%v' \n to read: '%v'", send, read)
+		}
 
 		lastMatchSend = send
 		lastMatchRead = read
