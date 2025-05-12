@@ -213,7 +213,7 @@ func (s *simnetConn) msgWrite(msg *Message, sendDead chan time.Time, n0 int) (n 
 		send.isEOF_RST = true
 	}
 
-	vv("top simnet.Write(%v) (isEOF_RST: %v) from %v at %v to %v", string(msg.JobSerz), send.isEOF_RST, send.origin.name, send.sendFileLine, send.target.name)
+	//vv("top simnet.Write(%v) (isEOF_RST: %v) from %v at %v to %v", string(msg.JobSerz), send.isEOF_RST, send.origin.name, send.sendFileLine, send.target.name) // RACEY! comment out before go test -race
 
 	select {
 	case s.net.msgSendCh <- send:
@@ -236,7 +236,7 @@ func (s *simnetConn) msgWrite(msg *Message, sendDead chan time.Time, n0 int) (n 
 		//	return
 	}
 
-	vv("net has it (isEOF:%v), about to wait for proceed... simnetConn.Write('%v') isCli=%v, origin=%v ; target=%v;", isEOF, string(send.msg.JobSerz), s.isCli, send.origin.name, send.target.name)
+	//vv("net has it (isEOF:%v), about to wait for proceed... simnetConn.Write('%v') isCli=%v, origin=%v ; target=%v;", isEOF, string(send.msg.JobSerz), s.isCli, send.origin.name, send.target.name)  // RACEY! comment out before go test -race
 
 	if isEOF {
 		return 0, nil // don't expect a reply from EOF/RST

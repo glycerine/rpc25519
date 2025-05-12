@@ -1622,7 +1622,8 @@ func (c *Client) Close() error {
 	//vv("Client.Close() called.") // not seen in shutdown.
 
 	if c.cfg.UseSimNet && c.simnet != nil && c.simnode != nil {
-		c.simnet.alterNode(c.simnode, SHUTDOWN)
+		// panics simnet on halted client doing reads, off for now.
+		//c.simnet.alterNode(c.simnode, SHUTDOWN)
 	}
 
 	// ask any sub components (peer pump loops) to stop.

@@ -787,7 +787,7 @@ func (s *simnet) handleRead(read *mop) {
 		// cannot read when halted. Hmm.
 		// This must be a stray...maybe a race? the
 		// node really should not be doing anything.
-		panic(fmt.Sprintf("yuck: got a READ from a HALTED node: '%v'", read.origin))
+		panic(fmt.Sprintf("yuck: got a READ from a HALTED node. User should shutdown their client too... but that is racing with the background goroutines maybe. node: '%v'", read.origin))
 		// return
 	case PARTITIONED, HEALTHY:
 	}
