@@ -69,6 +69,14 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	}
 }
 
+// bootAndRegisterSimNetServer is the
+// the core helper for getting a simnet server
+// started. It returns normally after
+// booting the simnet and registering s.
+//
+// This is used by runSimNetServer() above
+// and by Listen() below. Listen is a super thin
+// wrapper around it.
 func (s *Server) bootAndRegisterSimNetServer(serverAddr string, simNetConfig *SimNetConfig) (simnet *simnet, serverNewConnCh chan *simnetConn, netAddr *SimNetAddr, err error) {
 	//vv("top of runSimnetServer, serverAddr = '%v'; name='%v'", serverAddr, s.name)
 

@@ -911,7 +911,9 @@ func Test101_gosimnet_basics(t *testing.T) {
 		// back to common code
 		fmt.Fprintf(conn, "hello gosimnet")
 		response, err := bufio.NewReader(conn).ReadString('\n')
-		panicOn(err)
+
+		panicOn(err) // EOF back here under synctest, so it is a timing thing
+
 		vv("client sees response: '%v'", string(response))
 
 		// reading more should get EOF, since server now closes the file.
