@@ -533,10 +533,15 @@ func (s *Server) Addr() (a net.Addr) {
 	return &cp
 }
 
-// Dial connects a Client to a Server. Only for simnet!
-func (c *Client) DialSimnet(network, address string) (nc net.Conn, err error) {
+// Dial connects a Client to a Server. This is ONLY for simnet!
+// We will panic if not c.cfg.UseSimNet. Regular
+// RPC and peer/circuit use uses Client.Start() as usual.
+func (c *Client) Dial(network, address string) (nc net.Conn, err error) {
 
-	//vv("Client.Dial called with local='%v', server='%v'", c.name, address)
+	if !c.cfg.UseSimNet {
+		panic("Client.Dial is only for simnet.")
+	}
+	//vv("Client.DialSimnet called with local='%v', server='%v'", c.name, address)
 
 	err = c.runSimNetClient(c.name, address, false) // false => no loops
 

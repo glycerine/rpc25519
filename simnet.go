@@ -688,12 +688,12 @@ func newPQcompleteTm(owner string) *pq {
 }
 
 func (s *simnet) shutdownNode(node *simnode) {
-	vv("handleAlterNode: SHUTDOWN %v, going from %v -> HALTED", node.state, node.name)
+	//vv("handleAlterNode: SHUTDOWN %v, going from %v -> HALTED", node.state, node.name)
 	node.state = HALTED
 	node.readQ.deleteAll()
 	node.preArrQ.deleteAll()
 	node.timerQ.deleteAll()
-	vv("handleAlterNode: end SHUTDOWN, node is now: %v", node)
+	//vv("handleAlterNode: end SHUTDOWN, node is now: %v", node)
 }
 
 func (s *simnet) restartNode(node *simnode) {
@@ -1603,7 +1603,7 @@ func (s *simnet) alterNode(node *simnode, alter Alteration) {
 	}
 	select {
 	case <-alt.done:
-		vv("server altered: %v", node)
+		//vv("server altered: %v", node)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
