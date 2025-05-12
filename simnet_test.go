@@ -892,21 +892,23 @@ func Test101_gosimnet_basics(t *testing.T) {
 		// gosimnet
 		//cli := network.NewSimClient("cli_" + t.Name())
 		//defer cli.Close()
-		//vv("cli about to Dial")
-		//conn, err := cli.Dial("gosimnet", serverAddr.String())
-		//vv("err = '%v'", err) // simnet_test.go:82 2000-01-01 00:00:00.002 +0000 UTC err = 'this client is already connected. create a NewClient()'
-		//panicOn(err)
-		//defer conn.Close()
 
 		// stardard rpc25519
 		cfg.ClientDialToHostPort = serverAddr.String()
-		cli, err := NewClient("cli_test701", cfg)
-		panicOn(err)
-		err = cli.Start()
+		cli, err := NewClient("cli_"+t.Name(), cfg)
 		panicOn(err)
 		defer cli.Close()
+		//err = cli.Start()
+		//panicOn(err)
 
-		conn := cli.simconn
+		//shared / similar
+		vv("cli about to Dial")
+		conn, err := cli.DialSimnet("gosimnet", serverAddr.String())
+		vv("err = '%v'", err) // simnet_test.go:82 2000-01-01 00:00:00.002 +0000 UTC err = 'this client is already connected. create a NewClient()'
+		panicOn(err)
+		defer conn.Close()
+
+		//conn := cli.simconn
 
 		// back to common code
 		fmt.Fprintf(conn, "hello gosimnet")

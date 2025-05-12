@@ -204,7 +204,7 @@ func (s *simnetConn) msgWrite(msg *Message, sendDead chan time.Time, n0 int) (n 
 
 	send := newSendMop(msg, isCli)
 	send.origin = s.local
-	send.sendFileLine = fileLine(3)
+	send.sendFileLine = fileLine(2)
 	send.target = s.remote
 	send.initTm = time.Now()
 
@@ -360,7 +360,7 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 		}
 		vv("Read on '%v' got '%v'; eof: %v", s.local.name, string(data[:n]), read.isEOF_RST)
 		if read.isEOF_RST {
-			vv("read has EOF mark!") // seen
+			vv("read has EOF mark! on read at %v from %v", s.local.name, s.remote.name) // seen
 			err = io.EOF
 			//s.remoteClosed.Close() // for sure?
 			//s.localClosed.Close()  // this too, maybe?
@@ -531,4 +531,22 @@ func (s *Server) Addr() (a net.Addr) {
 	// avoid data race
 	cp := *s.simNetAddr
 	return &cp
+}
+
+// Dial connects a Client to a Server. Only for simnet!
+func (c *Client) DialSimnet(network, address string) (nc net.Conn, err error) {
+
+	//vv("Client.Dial called with local='%v', server='%v'", c.name, address)
+
+	err = c.runSimNetClient(c.name, address, false) // false => no loops
+
+	select {
+	case <-c.connected:
+		nc = c.simconn
+		return
+	case <-c.halt.ReqStop.Chan:
+		err = ErrShutdown()
+		return
+	}
+	return
 }

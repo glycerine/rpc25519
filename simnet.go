@@ -335,12 +335,12 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 	s := &simnet{
 		barrier:        !simNetConfig.BarrierOff,
 		cfg:            cfg,
+		simNetCfg:      simNetConfig,
 		srv:            srv,
 		halt:           srv.halt,
 		cliRegisterCh:  make(chan *clientRegistration),
 		srvRegisterCh:  make(chan *serverRegistration),
 		alterNodeCh:    make(chan *nodeAlteration),
-		simNetCfg:      simNetConfig,
 		msgSendCh:      make(chan *mop),
 		msgReadCh:      make(chan *mop),
 		addTimer:       make(chan *mop),
@@ -919,10 +919,6 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 			// few microseconds later. In this case, don't freak.
 			// So make this conditional on faketime being in use.
 			if !shuttingDown && faketime { // && node.net.barrier {
-
-				// super strange. a matched and deleted send,
-				// at now, is still in the queue after being deleted!
-				// sporadically...
 
 				now2 := time.Now()
 				if node.firstPreArrivalTimeLTE(now2) {

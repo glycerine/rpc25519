@@ -1,6 +1,9 @@
 package rpc25519
 
-func (c *Client) runSimNetClient(localHostPort, serverAddr string) {
+// doLoops is for traditional rpc/peer where we need the
+// readLoop and the sendLoop going. The Dial/net.Conn
+// stuff does not want these loops, so sets doLoops false.
+func (c *Client) runSimNetClient(localHostPort, serverAddr string, doLoops bool) (err error) {
 
 	//defer func() {
 	//	vv("runSimNetClient defer on exit running client = %p", c)
@@ -58,8 +61,12 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string) {
 	case <-c.halt.ReqStop.Chan:
 		return
 	}
-	cpair := &cliPairState{}
-	c.cpair = cpair
-	go c.runSendLoop(conn, cpair)
-	c.runReadLoop(conn, cpair)
+	if doLoops {
+		cpair := &cliPairState{}
+		c.cpair = cpair
+		go c.runSendLoop(conn, cpair)
+		// does not return until client is stopped.
+		c.runReadLoop(conn, cpair)
+	}
+	return
 }

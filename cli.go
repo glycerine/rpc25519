@@ -70,7 +70,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	}()
 
 	if c.cfg.UseSimNet {
-		c.runSimNetClient(c.cfg.ClientHostPort, serverAddr)
+		c.runSimNetClient(c.cfg.ClientHostPort, serverAddr, true) // true => do loops
 		return
 	}
 
