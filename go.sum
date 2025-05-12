@@ -24,6 +24,8 @@ github.com/glycerine/fwd v1.1.4-beta.jea h1:penEwsXMBPCMCH+iUj/HKRIuRzfESzLIk99O
 github.com/glycerine/fwd v1.1.4-beta.jea/go.mod h1:N5KPZnp8z9AaPcR/9r5u2BcdqnlfcTcEGbX1In/yyIE=
 github.com/glycerine/global_single_mutex v1.0.1 h1:JXhvHupGSMzH7DMLJEXXdLgZrjGsBzTBr6YyCLViChU=
 github.com/glycerine/global_single_mutex v1.0.1/go.mod h1:EMPzf5TwCw2yeYDzrlojUyL8XJ6qWgLScXhnvUrB/bw=
+github.com/glycerine/global_single_mutex v1.0.2 h1:KC/sPOj5ja496xEbpWCQq/5Ut+hCTfIn/LJTloUpVTc=
+github.com/glycerine/global_single_mutex v1.0.2/go.mod h1:EMPzf5TwCw2yeYDzrlojUyL8XJ6qWgLScXhnvUrB/bw=
 github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31 h1:gclg6gY70GLy3PbkQ1AERPfmLMMagS60DKF78eWwLn8=
 github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31/go.mod h1:Ogl1Tioa0aV7gstGFO7KhffUsb9M4ydbEbbxpcEDc24=
 github.com/glycerine/greenpack v0.540.0 h1:lD0iXPRh9/+qoR4c8BPkiLOwledln/DQhlQiP7QU2WA=
@@ -42,6 +44,8 @@ github.com/glycerine/idem v0.14.0 h1:rvoJq9PvCuJ+TqmPKoebHX8gKgRm4cqwdUjNO6rHBXw
 github.com/glycerine/idem v0.14.0/go.mod h1:V1qlHF2vmNUylC7qlh2b+lFH9WKGTqPpK9c5+FVFt7Y=
 github.com/glycerine/idem v0.15.0 h1:Jjhq+fNzLGYzr2bHNhQx2c77gP6AvlHEfcsxmZpAerY=
 github.com/glycerine/idem v0.15.0/go.mod h1:V1qlHF2vmNUylC7qlh2b+lFH9WKGTqPpK9c5+FVFt7Y=
+github.com/glycerine/idem v0.16.0 h1:TGNDrldXaDmNLg0zrixDblphHT+pbu8ESmHxTgBWL4o=
+github.com/glycerine/idem v0.16.0/go.mod h1:gFXkQwcePfNlt+Pz43ZpmDxIcf+TJBJdrDBfH1zqRqU=
 github.com/glycerine/ipaddr v0.2.7 h1:WRbvTnHOzATK2w2F/NAwYnKulBBsvX7MSp37Mb8BjI0=
 github.com/glycerine/ipaddr v0.2.7/go.mod h1:ook7eYvTG8CSOOEn9oLXaxQwzFo1zcqJbDZT2rxtKVc=
 github.com/glycerine/loquet v0.0.19 h1:R4bKlaiT37ezaoQ9gHEULGYA+xmHiNsjVjinvWMkgEc=
