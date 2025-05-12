@@ -911,8 +911,9 @@ func Test101_gosimnet_basics(t *testing.T) {
 		// back to common code
 		fmt.Fprintf(conn, "hello gosimnet")
 		response, err := bufio.NewReader(conn).ReadString('\n')
-
+		vv("response = '%v', err = '%v'", string(response), err)
 		panicOn(err) // EOF back here under synctest, so it is a timing thing
+		// likely we have to now be checking the remotes close chan too.x
 
 		vv("client sees response: '%v'", string(response))
 
