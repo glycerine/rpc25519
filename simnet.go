@@ -6,9 +6,7 @@ package rpc25519
 import (
 	"fmt"
 	mathrand2 "math/rand/v2"
-	//"sync"
 	"sync/atomic"
-	//"testing/synctest" // moved to simnet_synctest.go
 	"time"
 
 	"github.com/glycerine/idem"
@@ -17,6 +15,7 @@ import (
 
 // NB: all String() methods are now in simnet_string.go
 
+// SimNetConfig provides control parameters.
 type SimNetConfig struct {
 
 	// The barrier is the synctest.Wait call
@@ -57,19 +56,14 @@ type SimNetConfig struct {
 	BarrierOff bool
 }
 
-// moved to simnet_server.go to implement net.Conn
-// a connection between two nodes.
-// implements uConn, see simnet_server.go
-// type simnetConn struct {
-// 	// distinguish cli from srv
-// 	isCli   bool
-// 	net     *simnet
-// 	netAddr *SimNetAddr // local address
-// 	local  *simnode
-// 	remote *simnode
-// }
+// NewSimNetConfig should be called
+// to get an initial SimNetConfig to
+// set parameters.
+func NewSimNetConfig() *SimNetConfig {
+	return &SimNetConfig{}
+}
 
-// simnet implements the same workspace/blabber interface
+// simnet implements the workspace/blabber interface
 // so we can plug in
 // netsim and do comms via channels for testing/synctest
 // based accelerated timeout testing.

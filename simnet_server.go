@@ -25,49 +25,24 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 		}
 	}()
 
-	s.mut.Lock()
-	AliasRegister(serverAddr, serverAddr+" (simnet_server: "+s.name+")")
-	s.mut.Unlock()
-
-	// satisfy uConn interface; don't crash cli/tests that check
-	netAddr := &SimNetAddr{network: "simnet", addr: serverAddr, name: s.name, isCli: false}
-	// avoid client/server races by giving userland test
-	// a copy of the address rather than the same.
-	cp := *netAddr
-	externalizedNetAddr := &cp
-
-	// idempotent, so all new servers can try;
-	// only the first will boot it up (still pass s for s.halt);
-	// second and subsequent will get back the cfg.simnetRendezvous.singleSimnet
-	// per config shared simnet.
-	simnet := s.cfg.bootSimNetOnServer(simNetConfig, s)
-
-	// sets s.simnode, s.simnet, s.netAddr
-	serverNewConnCh, err := simnet.registerServer(s, netAddr)
+	simnet, serverNewConnCh, netAddr, err := s.bootAndRegisterSimNetServer(serverAddr, simNetConfig)
 	if err != nil {
-		if err == ErrShutdown2 {
-			//vv("simnet_server sees shutdown in progress")
-			return
-		}
-		panicOn(err)
-	}
-	if serverNewConnCh == nil {
-		panic(fmt.Sprintf("%v got a nil serverNewConnCh, should not be allowed!", s.name))
+		return
 	}
 
 	defer func() {
-		simnet.alterNode(s.simnode, SHUTDOWN)
-		//vv("simnet.alterNode(s.simnode, SHUTDOWN) done for %v", s.name)
+		if simnet != nil && s.simnode != nil {
+			simnet.alterNode(s.simnode, SHUTDOWN)
+			//vv("simnet.alterNode(s.simnode, SHUTDOWN) done for %v", s.name)
+		}
 	}()
 
-	s.mut.Lock() // avoid data races
-	addrs := netAddr.Network() + "://" + netAddr.String()
-	s.boundAddressString = addrs
-	s.simNetAddr = netAddr
-	AliasRegister(addrs, addrs+" (server: "+s.name+")")
-	s.mut.Unlock()
-
 	if boundCh != nil {
+		// avoid client/server races by giving userland test
+		// a copy of the address rather than the same.
+		cp := *netAddr
+		externalizedNetAddr := &cp
+
 		select {
 		case boundCh <- externalizedNetAddr: // not  netAddr
 			// like the srv comment, this exception to
@@ -92,6 +67,45 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 			return
 		}
 	}
+}
+
+func (s *Server) bootAndRegisterSimNetServer(serverAddr string, simNetConfig *SimNetConfig) (simnet *simnet, serverNewConnCh chan *simnetConn, netAddr *SimNetAddr, err error) {
+	//vv("top of runSimnetServer, serverAddr = '%v'; name='%v'", serverAddr, s.name)
+
+	// satisfy uConn interface; don't crash cli/tests that check
+	netAddr = &SimNetAddr{network: "simnet", addr: serverAddr, name: s.name, isCli: false}
+
+	s.mut.Lock()
+	AliasRegister(serverAddr, serverAddr+" (simnet_server: "+s.name+")")
+	s.mut.Unlock()
+
+	// idempotent, so all new servers can try;
+	// only the first will boot it up (still pass s for s.halt);
+	// second and subsequent will get back
+	// the cfg.simnetRendezvous.singleSimnet
+	// per config shared simnet.
+	simnet = s.cfg.bootSimNetOnServer(simNetConfig, s)
+
+	// sets s.simnode, s.simnet, s.netAddr
+	serverNewConnCh, err = simnet.registerServer(s, netAddr)
+	if err != nil {
+		if err == ErrShutdown2 {
+			//vv("simnet_server sees shutdown in progress")
+			return
+		}
+		panicOn(err)
+	}
+	if serverNewConnCh == nil {
+		panic(fmt.Sprintf("%v got a nil serverNewConnCh, should not be allowed!", s.name))
+	}
+
+	s.mut.Lock() // avoid data races
+	addrs := netAddr.Network() + "://" + netAddr.String()
+	s.boundAddressString = addrs
+	s.simNetAddr = netAddr
+	AliasRegister(addrs, addrs+" (server: "+s.name+")")
+	s.mut.Unlock()
+	return
 }
 
 // a connection between two nodes.
@@ -312,7 +326,7 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 	case <-s.net.halt.ReqStop.Chan:
 		err = ErrShutdown()
 		return
-	case timeout := <-s.readDeadlineTimer.timerC:
+	case timeout := <-readDead:
 		_ = timeout
 		err = &simconnError{isTimeout: true, desc: "i/o timeout"}
 		return
@@ -445,4 +459,65 @@ func (s *simconnError) Timeout() bool {
 }
 func (s *simconnError) Temporary() bool {
 	return s.isTimeout
+}
+
+// =============================================
+// By Implementing the net.Listener interface,
+// as gosimnet does, we provide a
+// net.Conn oriented altenative to srv.Start();
+// namely srv.Listen() and srv.Accept()
+// =============================================
+
+var _ net.Listener = &Server{}
+
+// Listen currently ignores the network and addr strings,
+// which are there to match the net.Listen method.
+// The addr will be the name set on NewServer(name).
+func (s *Server) Listen(network, addr string) (lsn net.Listener, err error) {
+	// start the server, first server boots the network,
+	// but it can continue even if the server is shutdown.
+
+	simnet, serverNewConnCh, netAddr, err :=
+		s.bootAndRegisterSimNetServer(s.name, &s.cfg.SimNetConfig)
+
+	_, _, _ = simnet, serverNewConnCh, netAddr
+	if err != nil {
+		return nil, err
+	}
+	lsn = s
+	return
+}
+
+// Accept is part of the net.Listener interface.
+// Accept waits for and returns the next connection
+// from a Client.
+// You should call Server.Listen() to start the Server
+// before calling Accept() on the Listener
+// interface returned. Currently the Server is also
+// the Listener, but following the net
+// package's use convention allows us flexibility
+// to change this in the future if need be.
+func (s *Server) Accept() (nc net.Conn, err error) {
+	select {
+	case nc = <-s.simnode.tellServerNewConnCh:
+		if isNil(nc) {
+			err = ErrShutdown()
+			return
+		}
+		//vv("Server.Accept returning nc = '%#v'", nc.(*simnetConn))
+	case <-s.halt.ReqStop.Chan:
+		err = ErrShutdown()
+	}
+	return
+}
+
+// Addr is a method on the net.Listener interface
+// for obtaining the Server's locally bound
+// address.
+func (s *Server) Addr() (a net.Addr) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	// avoid data race
+	cp := *s.simNetAddr
+	return &cp
 }

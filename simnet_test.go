@@ -784,16 +784,38 @@ func Test101_gosimnet_basics(t *testing.T) {
 		shutdown := make(chan struct{})
 		defer close(shutdown)
 
-		cfg := NewSimNetConfig()
-		network := NewSimNet(cfg)
-		defer network.Close()
-		srv := network.NewSimServer("srv_" + t.Name())
+		// gosimnet version of startup.
+		//cfg := NewSimNetConfig()
+		//network := NewSimNet(cfg)
+		//defer network.Close()
+		//srv := network.NewSimServer("srv_" + t.Name())
+		//defer srv.Close()
 
-		//vv("about to srv.Listen() in %v", t.Name())
+		// gosimnet does Listen and Accept instead of Start().
+		// We'll try to backport this to make it work below,
+		// so the user can write their own conn oriented
+		// server instead of registering callback RPC/peer service func.
+		//lsn, err := srv.Listen("", "")
+		//panicOn(err)
+		//serverAddr := lsn.Addr()
+
+		// standard rpc25519 startup.
+		cfg := NewConfig()
+		cfg.UseSimNet = true
+
+		cfg.ServerAddr = "127.0.0.1:0"
+		srv := NewServer("srv_"+t.Name(), cfg)
+
+		//serverAddr, err := srv.Start()
+		//vv("back from srv.Start() in 701, elap = %v", time.Since(t0))
+
+		// but then diverge here
 		lsn, err := srv.Listen("", "")
 		panicOn(err)
-		defer srv.Close()
 		serverAddr := lsn.Addr()
+
+		panicOn(err)
+		defer srv.Close()
 
 		// we need the server's conn2 in order
 		// to break it out of the Read by conn2.Close()
@@ -867,15 +889,26 @@ func Test101_gosimnet_basics(t *testing.T) {
 			} // end for
 		}() // end server
 
-		cli := network.NewSimClient("cli_" + t.Name())
+		// gosimnet
+		//cli := network.NewSimClient("cli_" + t.Name())
+		//defer cli.Close()
+		//vv("cli about to Dial")
+		//conn, err := cli.Dial("gosimnet", serverAddr.String())
+		//vv("err = '%v'", err) // simnet_test.go:82 2000-01-01 00:00:00.002 +0000 UTC err = 'this client is already connected. create a NewClient()'
+		//panicOn(err)
+		//defer conn.Close()
+
+		// stardard rpc25519
+		cfg.ClientDialToHostPort = serverAddr.String()
+		cli, err := NewClient("cli_test701", cfg)
+		panicOn(err)
+		err = cli.Start()
+		panicOn(err)
 		defer cli.Close()
 
-		vv("cli about to Dial")
-		conn, err := cli.Dial("gosimnet", serverAddr.String())
-		vv("err = '%v'", err) // simnet_test.go:82 2000-01-01 00:00:00.002 +0000 UTC err = 'this client is already connected. create a NewClient()'
-		panicOn(err)
-		defer conn.Close()
+		conn := cli.simconn
 
+		// back to common code
 		fmt.Fprintf(conn, "hello gosimnet")
 		response, err := bufio.NewReader(conn).ReadString('\n')
 		panicOn(err)
