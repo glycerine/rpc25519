@@ -308,7 +308,7 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 	}
 
 	if s.localClosed.IsClosed() {
-		vv("Read at %v: local is already closed", s.local.name)
+		//vv("Read at %v: local is already closed", s.local.name)
 		err = io.EOF
 		return
 	}
@@ -320,7 +320,7 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 		readDead = s.readDeadlineTimer.timerC
 	}
 
-	//vv("top simnet.readMessage() %v READ", read.origin)
+	////vv("top simnet.readMessage() %v READ", read.origin)
 
 	read := newReadMop(isCli)
 	read.initTm = time.Now()
@@ -328,7 +328,7 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 	read.readFileLine = fileLine(2)
 	read.target = s.remote
 
-	vv("in simnetConn.Read() isCli=%v, origin=%v at %v; target=%v", s.isCli, read.origin.name, read.readFileLine, read.target.name)
+	//vv("in simnetConn.Read() isCli=%v, origin=%v at %v; target=%v", s.isCli, read.origin.name, read.readFileLine, read.target.name)
 
 	select {
 	case s.net.msgReadCh <- read:
@@ -341,7 +341,7 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 		//err = &simconnError{isTimeout: true, desc: "i/o timeout"}
 		return
 	case <-s.localClosed.Chan:
-		vv("local side was closed before Read submitted")
+		//vv("local side was closed before Read submitted")
 		err = io.EOF
 		return
 
@@ -358,9 +358,9 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 			// buffer the leftover
 			s.nextRead = append(s.nextRead, msg.JobSerz[n:]...)
 		}
-		vv("Read on '%v' got '%v'; eof: %v", s.local.name, string(data[:n]), read.isEOF_RST)
+		//vv("Read on '%v' got '%v'; eof: %v", s.local.name, string(data[:n]), read.isEOF_RST)
 		if read.isEOF_RST {
-			vv("read has EOF mark! on read at %v from %v", s.local.name, s.remote.name) // seen
+			//vv("read has EOF mark! on read at %v from %v", s.local.name, s.remote.name) // seen
 			err = io.EOF
 			//s.remoteClosed.Close() // for sure?
 			//s.localClosed.Close()  // this too, maybe?
@@ -375,7 +375,7 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 		//err = &simconnError{isTimeout: true, desc: "i/o timeout"}
 		return
 	case <-s.localClosed.Chan:
-		vv("local side was closed waiting for proceed")
+		//vv("local side was closed waiting for proceed")
 		err = io.EOF
 		return
 
@@ -393,7 +393,7 @@ func (s *simnetConn) Close() error {
 	// send the EOF message
 	m := NewMessage()
 	m.EOF = true
-	vv("Close sending EOF in msgWrite, on %v", s.local.name)
+	//vv("Close sending EOF in msgWrite, on %v", s.local.name)
 	s.msgWrite(m, nil, 0) // nil send-deadline channel for now. TODO improve?
 
 	s.localClosed.Close()
@@ -515,7 +515,7 @@ func (s *Server) Accept() (nc net.Conn, err error) {
 			err = ErrShutdown()
 			return
 		}
-		//vv("Server.Accept returning nc = '%#v'", nc.(*simnetConn))
+		////vv("Server.Accept returning nc = '%#v'", nc.(*simnetConn))
 	case <-s.halt.ReqStop.Chan:
 		err = ErrShutdown()
 	}
@@ -541,7 +541,7 @@ func (c *Client) Dial(network, address string) (nc net.Conn, err error) {
 	if !c.cfg.UseSimNet {
 		panic("Client.Dial is only for simnet.")
 	}
-	//vv("Client.DialSimnet called with local='%v', server='%v'", c.name, address)
+	////vv("Client.DialSimnet called with local='%v', server='%v'", c.name, address)
 
 	err = c.runSimNetClient(c.name, address, false) // false => no loops
 

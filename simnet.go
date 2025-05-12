@@ -697,7 +697,7 @@ func (s *simnet) shutdownNode(node *simnode) {
 }
 
 func (s *simnet) restartNode(node *simnode) {
-	vv("handleAlterNode: RESTART %v, wiping queues, going %v -> HEALTHY", node.state, node.name)
+	//vv("handleAlterNode: RESTART %v, wiping queues, going %v -> HEALTHY", node.state, node.name)
 	node.state = HEALTHY
 	node.readQ.deleteAll()
 	node.preArrQ.deleteAll()
@@ -705,12 +705,12 @@ func (s *simnet) restartNode(node *simnode) {
 }
 
 func (s *simnet) partitionNode(node *simnode) {
-	vv("handleAlterNode: from %v -> PARTITION %v, wiping pre-arrival, block any future pre-arrivals", node.state, node.name)
+	//vv("handleAlterNode: from %v -> PARTITION %v, wiping pre-arrival, block any future pre-arrivals", node.state, node.name)
 	node.state = PARTITIONED
 	node.preArrQ.deleteAll()
 }
 func (s *simnet) unPartitionNode(node *simnode) {
-	vv("handleAlterNode: UNPARTITION %v, going from %v -> HEALTHY", node.state, node.name)
+	//vv("handleAlterNode: UNPARTITION %v, going from %v -> HEALTHY", node.state, node.name)
 	node.state = HEALTHY
 }
 
@@ -755,7 +755,7 @@ func (s *simnet) handleSend(send *mop) {
 
 	switch send.target.state {
 	case HALTED, PARTITIONED:
-		vv("send.target.state == %v, dropping msg = '%v'", send.target.state, send.msg)
+		//vv("send.target.state == %v, dropping msg = '%v'", send.target.state, send.msg)
 	case HEALTHY:
 
 		// make a copy _before_ the sendMessage() call returns,
@@ -1123,10 +1123,10 @@ func (s *simnet) scheduler() {
 	//vv("scheduler is running on goro = %v", GoroNumber())
 
 	defer func() {
-		vv("scheduler defer shutdown running on goro = %v", GoroNumber())
+		//vv("scheduler defer shutdown running on goro = %v", GoroNumber())
 		r := recover()
 		if r != nil {
-			vv("scheduler panic-ing: %v", s.schedulerReport())
+			alwaysPrintf("scheduler panic-ing: %v", s.schedulerReport())
 			panic(r)
 		}
 	}()
@@ -1142,7 +1142,7 @@ func (s *simnet) scheduler() {
 		now := time.Now()
 		if gte(now, nextReport) {
 			nextReport = now.Add(time.Second)
-			vv("scheduler top")
+			//vv("scheduler top")
 			//cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
 			//vv("scheduler top. schedulerReport: \n%v", s.schedulerReport())
 		}
