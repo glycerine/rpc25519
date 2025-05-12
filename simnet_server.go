@@ -328,10 +328,6 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 		return
 	case timeout := <-readDead:
 		_ = timeout
-		err = &simconnError{isTimeout: true, desc: "i/o timeout"}
-		return
-	case timeout := <-readDead:
-		_ = timeout
 		err = os.ErrDeadlineExceeded
 		//err = &simconnError{isTimeout: true, desc: "i/o timeout"}
 		return
@@ -368,7 +364,6 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 	case <-s.localClosed.Chan:
 		err = io.EOF
 		return
-	// TODO: implement an EOF message instead of assuming omniscience
 	case <-s.remoteClosed.Chan:
 		err = io.EOF
 		return
