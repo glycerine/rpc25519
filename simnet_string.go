@@ -52,7 +52,7 @@ func (node *simnode) StringNoPQ() (r string) {
 	return
 }
 
-func (alt alteration) String() string {
+func (alt Alteration) String() string {
 	switch alt {
 	case SHUTDOWN:
 		return "SHUTDOWN"
@@ -63,8 +63,8 @@ func (alt alteration) String() string {
 	case RESTART:
 		return "RESTART"
 	}
-	panic(fmt.Sprintf("unknown alteration %v", int(alt)))
-	return "unknown alteration"
+	panic(fmt.Sprintf("unknown Alteration %v", int(alt)))
+	return "unknown Alteration"
 }
 
 func (pq *pq) String() (r string) {

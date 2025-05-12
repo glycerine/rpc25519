@@ -438,7 +438,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 	var lastPing time.Time
 	var doPing bool
 	var pingEvery time.Duration
-	var pingWakeTimer *RpcTimer
+	var pingWakeTimer *SimTimer
 	var pingWakeCh <-chan time.Time
 	var keepAliveWriteTimeout time.Duration // := s.cfg.WriteTimeout
 
@@ -1900,7 +1900,7 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 
 type oneWaySender interface {
 	destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh chan struct{}, to, from string, ok bool)
-	NewTimer(dur time.Duration) (ti *RpcTimer)
+	NewTimer(dur time.Duration) (ti *SimTimer)
 }
 
 // SendOneWayMessage is the same as SendMessage above except that it

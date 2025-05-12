@@ -518,7 +518,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 	var lastPing time.Time
 	var doPing bool
 	var pingEvery time.Duration
-	var pingTimer *RpcTimer
+	var pingTimer *SimTimer
 	var pingWakeCh <-chan time.Time
 	var keepAliveWriteTimeout time.Duration // := c.cfg.WriteTimeout
 
@@ -2032,7 +2032,7 @@ type UniversalCliSrv interface {
 	PingStats(remote string) *PingStat
 	AutoClients() (list []*Client, isServer bool)
 
-	NewTimer(dur time.Duration) (ti *RpcTimer)
+	NewTimer(dur time.Duration) (ti *SimTimer)
 }
 
 type PingStat struct {
@@ -2646,7 +2646,7 @@ func (s *Server) TimeAfter(dur time.Duration) (timerC <-chan time.Time) {
 }
 */
 
-type RpcTimer struct {
+type SimTimer struct {
 	gotimer  *time.Timer
 	isCli    bool
 	simnode  *simnode
@@ -2655,8 +2655,8 @@ type RpcTimer struct {
 	C        <-chan time.Time
 }
 
-func (c *Client) NewTimer(dur time.Duration) (ti *RpcTimer) {
-	ti = &RpcTimer{
+func (c *Client) NewTimer(dur time.Duration) (ti *SimTimer) {
+	ti = &SimTimer{
 		isCli: true,
 	}
 	if !c.cfg.UseSimNet {
@@ -2670,8 +2670,8 @@ func (c *Client) NewTimer(dur time.Duration) (ti *RpcTimer) {
 	return
 }
 
-func (s *Server) NewTimer(dur time.Duration) (ti *RpcTimer) {
-	ti = &RpcTimer{
+func (s *Server) NewTimer(dur time.Duration) (ti *SimTimer) {
+	ti = &SimTimer{
 		isCli: false,
 	}
 	if !s.cfg.UseSimNet {
@@ -2685,7 +2685,7 @@ func (s *Server) NewTimer(dur time.Duration) (ti *RpcTimer) {
 	return
 }
 
-func (ti *RpcTimer) Discard() (wasArmed bool) {
+func (ti *SimTimer) Discard() (wasArmed bool) {
 	if ti.simnet == nil {
 		ti.gotimer.Stop()
 		ti.gotimer = nil // Go will GC.
@@ -2722,14 +2722,14 @@ func (c *Config) String() (r string) {
 }
 
 /*
-func (ti *RpcTimer) Reset(dur time.Duration) (wasArmed bool) {
+func (ti *SimTimer) Reset(dur time.Duration) (wasArmed bool) {
 	if ti.simnet == nil {
 		return ti.gotimer.Reset(dur)
 	}
 	wasArmed = ti.simnet.resetTimer(ti, time.Now(), ti.onCli)
 	return
 }
-func (ti *RpcTimer) Stop(dur time.Duration) (wasArmed bool) {
+func (ti *SimTimer) Stop(dur time.Duration) (wasArmed bool) {
 	if ti.simnet == nil {
 		return ti.gotimer.Stop()
 	}
@@ -2738,18 +2738,18 @@ func (ti *RpcTimer) Stop(dur time.Duration) (wasArmed bool) {
 }
 
 // returns wasArmed (not expired or stopped)
-func (c *Client) StopTimer(ti *RpcTimer) bool {
+func (c *Client) StopTimer(ti *SimTimer) bool {
 	return ti.Stop()
 }
-func (s *Server) StopTimer(ti *RpcTimer) bool {
+func (s *Server) StopTimer(ti *SimTimer) bool {
 	return ti.Stop()
 }
 
 // returns wasArmed (not expired or stopped)
-func (c *Client) ResetTimer(ti *RpcTimer, dur time.Duration) bool {
+func (c *Client) ResetTimer(ti *SimTimer, dur time.Duration) bool {
 	return ti.Reset(dur)
 }
-func (s *Server) ResetTimer(ti *RpcTimer, dur time.Duration) bool {
+func (s *Server) ResetTimer(ti *SimTimer, dur time.Duration) bool {
 	return ti.Reset(dur)
 }
 */

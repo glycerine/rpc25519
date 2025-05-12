@@ -1575,23 +1575,26 @@ func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConn
 	return
 }
 
-type alteration int // on clients or servers, any simnode
+// Alteration flags are used in AlterNode() calls
+// to specify what change you want to
+// a specific network node.
+type Alteration int // on clients or servers, any simnode
 
 const (
-	SHUTDOWN    alteration = 1
-	PARTITION   alteration = 2
-	UNPARTITION alteration = 3
-	RESTART     alteration = 4
+	SHUTDOWN    Alteration = 1
+	PARTITION   Alteration = 2
+	UNPARTITION Alteration = 3
+	RESTART     Alteration = 4
 )
 
 type nodeAlteration struct {
 	simnet  *simnet
 	simnode *simnode
-	alter   alteration
+	alter   Alteration
 	done    chan struct{}
 }
 
-func (s *simnet) newNodeAlteration(node *simnode, alter alteration) *nodeAlteration {
+func (s *simnet) newNodeAlteration(node *simnode, alter Alteration) *nodeAlteration {
 	return &nodeAlteration{
 		simnet:  s,
 		simnode: node,
@@ -1599,7 +1602,7 @@ func (s *simnet) newNodeAlteration(node *simnode, alter alteration) *nodeAlterat
 		done:    make(chan struct{}),
 	}
 }
-func (s *simnet) alterNode(node *simnode, alter alteration) {
+func (s *simnet) alterNode(node *simnode, alter Alteration) {
 
 	alt := s.newNodeAlteration(node, alter)
 	select {
