@@ -149,20 +149,7 @@ func newSimnetConn() *simnetConn {
 	}
 }
 
-// originally not actually used much by simnet. We'll
-// fill them out to try and allow testing of net.Conn code.
-// doc:
-// "Write writes len(p) bytes from p to the
-// underlying data stream. It returns the number
-// of bytes written from p (0 <= n <= len(p)) and
-// any error encountered that caused the write to
-// stop early. Write must return a non-nil error
-// if it returns n < len(p). Write must not modify
-// the slice data, even temporarily.
-// Implementations must not retain p."
-//
-// Implementation note: we will only send
-// UserMaxPayload bytes at a time.
+// Write implements io.Writer.
 func (s *simnetConn) Write(p []byte) (n int, err error) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
@@ -266,31 +253,7 @@ func (s *simnetConn) msgWrite(msg *Message, sendDead chan time.Time, n0 int) (n 
 	return
 }
 
-// doc:
-// "When Read encounters an error or end-of-file
-// condition after successfully reading n > 0 bytes,
-// it returns the number of bytes read. It may
-// return the (non-nil) error from the same call
-// or return the error (and n == 0) from a subsequent call.
-// An instance of this general case is that a
-// Reader returning a non-zero number of bytes
-// at the end of the input stream may return
-// either err == EOF or err == nil. The next
-// Read should return 0, EOF.
-// ...
-// "If len(p) == 0, Read should always
-// return n == 0. It may return a non-nil
-// error if some error condition is known,
-// such as EOF.
-//
-// "Implementations of Read are discouraged
-// from returning a zero byte count with a nil
-// error, except when len(p) == 0. Callers should
-// treat a return of 0 and nil as indicating that
-// nothing happened; in particular it
-// does not indicate EOF.
-//
-// "Implementations must not retain p."
+// Read implements io.Reader.
 func (s *simnetConn) Read(data []byte) (n int, err error) {
 
 	if len(data) == 0 {
@@ -320,7 +283,7 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 		readDead = s.readDeadlineTimer.timerC
 	}
 
-	////vv("top simnet.readMessage() %v READ", read.origin)
+	//vv("top simnet.readMessage() %v READ", read.origin)
 
 	read := newReadMop(isCli)
 	read.initTm = time.Now()
@@ -476,7 +439,9 @@ func (s *simconnError) Temporary() bool {
 // By Implementing the net.Listener interface,
 // as gosimnet does, we provide a
 // net.Conn oriented altenative to srv.Start();
-// namely srv.Listen() and srv.Accept()
+// namely srv.Listen() and srv.Accept() --
+// warning! they ONLY WORK ON simnet! These
+// are NOT for regular actual network connections.
 // =============================================
 
 var _ net.Listener = &Server{}
@@ -515,7 +480,7 @@ func (s *Server) Accept() (nc net.Conn, err error) {
 			err = ErrShutdown()
 			return
 		}
-		////vv("Server.Accept returning nc = '%#v'", nc.(*simnetConn))
+		//vv("Server.Accept returning nc = '%#v'", nc.(*simnetConn))
 	case <-s.halt.ReqStop.Chan:
 		err = ErrShutdown()
 	}
@@ -535,15 +500,16 @@ func (s *Server) Addr() (a net.Addr) {
 
 // Dial connects a Client to a Server. This is ONLY for simnet!
 // We will panic if not c.cfg.UseSimNet. Regular
-// RPC and peer/circuit use uses Client.Start() as usual.
+// RPC and peer/circuit must use Client.Start() as usual.
 func (c *Client) Dial(network, address string) (nc net.Conn, err error) {
 
 	if !c.cfg.UseSimNet {
 		panic("Client.Dial is only for simnet.")
 	}
-	////vv("Client.DialSimnet called with local='%v', server='%v'", c.name, address)
+	//vv("Client.DialSimnet called with local='%v', server='%v'", c.name, address)
 
-	err = c.runSimNetClient(c.name, address, false) // false => no loops
+	// false => no read/send loops
+	err = c.runSimNetClient(c.name, address, false)
 
 	select {
 	case <-c.connected:

@@ -1609,7 +1609,3 @@ func (s *simnet) alterNode(node *simnode, alter Alteration) {
 	}
 	return
 }
-
-// =========================================
-// ============ internal again =============
-// =========================================
