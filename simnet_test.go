@@ -791,14 +791,6 @@ func Test101_gosimnet_basics(t *testing.T) {
 		//srv := network.NewSimServer("srv_" + t.Name())
 		//defer srv.Close()
 
-		// gosimnet does Listen and Accept instead of Start().
-		// We'll try to backport this to make it work below,
-		// so the user can write their own conn oriented
-		// server instead of registering callback RPC/peer service func.
-		//lsn, err := srv.Listen("", "")
-		//panicOn(err)
-		//serverAddr := lsn.Addr()
-
 		// standard rpc25519 startup.
 		cfg := NewConfig()
 		cfg.UseSimNet = true
@@ -838,13 +830,13 @@ func Test101_gosimnet_basics(t *testing.T) {
 			for {
 				select {
 				case <-shutdown:
-					vv("server exiting on shutdown")
+					//vv("server exiting on shutdown")
 					return
 				default:
 				}
 				c2, err := lsn.Accept()
 				if err != nil {
-					vv("server exiting on '%v'", err)
+					//alwaysPrintf("lsn.Accept err: server exiting on '%v'", err)
 					return
 				}
 				conn2mut.Lock()
@@ -855,9 +847,10 @@ func Test101_gosimnet_basics(t *testing.T) {
 				conn2 = append(conn2, c2)
 				conn2mut.Unlock()
 
-				vv("Accept on conn: local %v <-> %v remote", c2.LocalAddr(), c2.RemoteAddr())
+				//vv("Accept on conn: local %v <-> %v remote", c2.LocalAddr(), c2.RemoteAddr())
 				// per-client connection.
 				go func(c2 net.Conn) {
+					readCount := 0
 					by := make([]byte, 1000)
 					for {
 						select {
@@ -866,14 +859,23 @@ func Test101_gosimnet_basics(t *testing.T) {
 							return
 						default:
 						}
-						vv("server about to read on conn")
+						//vv("server about to read on conn")
+						readCount++
 						n, err := c2.Read(by)
+						if readCount == 1 {
+							// first read should not error
+							panicOn(err)
+						}
 						if err != nil {
-							vv("server conn exiting on Read error '%v'", err)
+							if err != io.EOF {
+								vv("server conn exiting on Read error '%v'", err)
+								panic(err)
+							}
+							// expected EOF at end of test.
 							return
 						}
 						by = by[:n]
-						vv("echo server got '%v'", string(by))
+						//vv("echo server got '%v'", string(by))
 						// must end in \n or client will hang!
 						_, err = fmt.Fprintf(c2,
 							"hi back from echo server, I saw '%v'\n", string(by))
@@ -902,9 +904,9 @@ func Test101_gosimnet_basics(t *testing.T) {
 		//panicOn(err)
 
 		//shared / similar
-		vv("cli about to Dial")
+		//vv("cli about to Dial")
 		conn, err := cli.DialSimnet("gosimnet", serverAddr.String())
-		vv("err = '%v'", err) // simnet_test.go:82 2000-01-01 00:00:00.002 +0000 UTC err = 'this client is already connected. create a NewClient()'
+		//vv("err = '%v'", err) // simnet_test.go:82 2000-01-01 00:00:00.002 +0000 UTC err = 'this client is already connected. create a NewClient()'
 		panicOn(err)
 		defer conn.Close()
 
@@ -913,11 +915,15 @@ func Test101_gosimnet_basics(t *testing.T) {
 		// back to common code
 		fmt.Fprintf(conn, "hello gosimnet")
 		response, err := bufio.NewReader(conn).ReadString('\n')
-		vv("response = '%v', err = '%v'", string(response), err)
+		//vv("response = '%v', err = '%v'", string(response), err)
 		panicOn(err) // EOF back here under synctest, so it is a timing thing
 		// likely we have to now be checking the remotes close chan too.x
 
-		vv("client sees response: '%v'", string(response))
+		//vv("client sees response: '%v'", string(response))
+		if got, want := string(response), `hi back from echo server, I saw 'hello gosimnet'
+`; got != want {
+			t.Fatalf("error: want '%v' but got '%v'", want, got)
+		}
 
 		// reading more should get EOF, since server now closes the file.
 		buf := make([]byte, 1)
@@ -925,7 +931,7 @@ func Test101_gosimnet_basics(t *testing.T) {
 		if err != io.EOF {
 			panic(fmt.Sprintf("expected io.EOF, got nr=%v; err = '%v'", nr, err))
 		}
-		vv("good: got EOF as we should, since server closes the conn.")
+		//vv("good: got EOF as we should, since server closes the conn.")
 
 		// timer test
 		t0 := time.Now()
@@ -934,6 +940,7 @@ func Test101_gosimnet_basics(t *testing.T) {
 		// set a timer on the client side.
 		timeout := cli.NewTimer(goalWait)
 		t1 := <-timeout.C
+		_ = t1
 		elap := time.Since(t0)
 
 		// must do this, since no automatic GC of gosimnet Timers.
@@ -944,6 +951,6 @@ func Test101_gosimnet_basics(t *testing.T) {
 		if elap < goalWait {
 			t.Fatalf("timer went off too early! elap(%v) < goalWait(%v)", elap, goalWait)
 		}
-		vv("good: finished timer (fired at %v) after %v >= goal %v", t1, elap, goalWait)
+		//vv("good: finished timer (fired at %v) after %v >= goal %v", t1, elap, goalWait)
 	})
 }

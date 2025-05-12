@@ -1621,6 +1621,10 @@ func (c *Client) Name() string {
 func (c *Client) Close() error {
 	//vv("Client.Close() called.") // not seen in shutdown.
 
+	if c.cfg.UseSimNet && c.simnet != nil && c.simnode != nil {
+		c.simnet.alterNode(c.simnode, SHUTDOWN)
+	}
+
 	// ask any sub components (peer pump loops) to stop.
 	c.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
 
