@@ -28,6 +28,8 @@ github.com/glycerine/global_single_mutex v1.0.2 h1:KC/sPOj5ja496xEbpWCQq/5Ut+hCT
 github.com/glycerine/global_single_mutex v1.0.2/go.mod h1:EMPzf5TwCw2yeYDzrlojUyL8XJ6qWgLScXhnvUrB/bw=
 github.com/glycerine/global_single_mutex v1.0.3 h1:/cpTYgIX7uWgrLLDhCD1GQjRHsqOOST8ieW8WyvwFYs=
 github.com/glycerine/global_single_mutex v1.0.3/go.mod h1:EMPzf5TwCw2yeYDzrlojUyL8XJ6qWgLScXhnvUrB/bw=
+github.com/glycerine/global_single_mutex v1.0.4 h1:FQmWpth5OyI6/rx7Jz23OGLUH4mSJUZeHopevWBeaWo=
+github.com/glycerine/global_single_mutex v1.0.4/go.mod h1:EMPzf5TwCw2yeYDzrlojUyL8XJ6qWgLScXhnvUrB/bw=
 github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31 h1:gclg6gY70GLy3PbkQ1AERPfmLMMagS60DKF78eWwLn8=
 github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31/go.mod h1:Ogl1Tioa0aV7gstGFO7KhffUsb9M4ydbEbbxpcEDc24=
 github.com/glycerine/greenpack v0.540.0 h1:lD0iXPRh9/+qoR4c8BPkiLOwledln/DQhlQiP7QU2WA=
@@ -50,6 +52,8 @@ github.com/glycerine/idem v0.16.0 h1:TGNDrldXaDmNLg0zrixDblphHT+pbu8ESmHxTgBWL4o
 github.com/glycerine/idem v0.16.0/go.mod h1:gFXkQwcePfNlt+Pz43ZpmDxIcf+TJBJdrDBfH1zqRqU=
 github.com/glycerine/idem v0.16.1 h1:0fodjCD2Yxbe/37PdM4FI0+lu6wKnDNhKi+AEo8gU9g=
 github.com/glycerine/idem v0.16.1/go.mod h1:76nR1/45/j6H07X3N2wzpt8fRFm702GwjFcDhnTX7/o=
+github.com/glycerine/idem v0.16.2 h1:gl7ANFx4mLlBqgVDum4JBD5QOpFmFjBVF4nHiQfNndk=
+github.com/glycerine/idem v0.16.2/go.mod h1:SnE7/qqCNSfTZSu4p2Gi/W1W/Zt/4R//xMWr0k7a60Q=
 github.com/glycerine/ipaddr v0.2.7 h1:WRbvTnHOzATK2w2F/NAwYnKulBBsvX7MSp37Mb8BjI0=
 github.com/glycerine/ipaddr v0.2.7/go.mod h1:ook7eYvTG8CSOOEn9oLXaxQwzFo1zcqJbDZT2rxtKVc=
 github.com/glycerine/loquet v0.0.19 h1:R4bKlaiT37ezaoQ9gHEULGYA+xmHiNsjVjinvWMkgEc=
