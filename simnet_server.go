@@ -325,8 +325,8 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 		if read.isEOF_RST {
 			//vv("read has EOF mark! on read at %v from %v", s.local.name, s.remote.name) // seen
 			err = io.EOF
-			//s.remoteClosed.Close() // for sure?
-			//s.localClosed.Close()  // this too, maybe?
+			s.remoteClosed.Close() // for sure?
+			s.localClosed.Close()  // this too, maybe?
 		}
 
 	case <-s.net.halt.ReqStop.Chan:
