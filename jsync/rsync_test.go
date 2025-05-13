@@ -496,7 +496,7 @@ func Test302_incremental_chunker_matches_batch_bigger(t *testing.T) {
 
 // efficient on big files with small deltas
 
-func Test777_big_files_with_small_changes(t *testing.T) {
+func Test377_big_files_with_small_changes(t *testing.T) {
 	//return
 	cv.Convey("using our rsync-like-protocol, rectifying a small diff in a big file should be efficient. Let the local have a small difference, and sync it to the remote 'template'", t, func() {
 
