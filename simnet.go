@@ -256,6 +256,10 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	srvnode := s.newSimnodeServer(reg.server.name)
 	srvnode.netAddr = reg.srvNetAddr
 	s.nodes[srvnode] = make(map[*simnode]*simnetConn)
+	_, already := s.dns[srvnode.name]
+	if already {
+		panic(fmt.Sprintf("server name already taken: '%v'", srvnode.name))
+	}
 	s.dns[srvnode.name] = srvnode
 
 	reg.simnode = srvnode
@@ -280,6 +284,10 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 	clinode := s.newSimnodeClient(reg.client.name)
 	clinode.setNetAddrSameNetAs(reg.localHostPortStr, srvnode.netAddr)
 
+	_, already := s.dns[clinode.name]
+	if already {
+		panic(fmt.Sprintf("client name already taken: '%v'", clinode.name))
+	}
 	s.dns[clinode.name] = clinode
 
 	// add node to graph
