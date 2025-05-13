@@ -12,7 +12,7 @@ require (
 	github.com/glycerine/blake3 v1.5.2
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31
 	github.com/glycerine/greenpack v0.540.0
-	github.com/glycerine/idem v0.17.0
+	github.com/glycerine/idem v0.18.0
 	github.com/glycerine/ipaddr v0.2.7
 	github.com/glycerine/loquet v0.0.19
 	github.com/glycerine/parallelwalk v0.3.1
@@ -34,7 +34,7 @@ require (
 require (
 	4d63.com/embedfiles v0.0.0-20190311033909-995e0740726f // indirect
 	github.com/glycerine/fwd v1.1.4-beta.jea // indirect
-	github.com/glycerine/process_wide_single_rwmutex v1.0.0 // indirect
+	github.com/glycerine/one_tree_rwmut v1.0.0 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/gopherjs/gopherjs v1.17.2 // indirect
