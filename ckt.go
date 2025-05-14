@@ -1076,7 +1076,6 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 				// don't sleep past our deadline
 				dur = left
 			}
-			//time.Sleep(dur)
 			ti := p.u.NewTimer(dur)
 			select {
 			case <-ti.C:

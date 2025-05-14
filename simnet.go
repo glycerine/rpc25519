@@ -848,7 +848,7 @@ func gte(a, b time.Time) bool {
 
 // dispatch delivers sends to reads, and fires timers.
 // It calls node.net.armTimer() at the end (in the defer).
-func (node *simnode) dispatch() { // (bump time.Duration) {
+func (node *simnode) dispatch() (changes int64) {
 
 	switch node.state {
 	case HALTED:
@@ -959,6 +959,7 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 		if !now.Before(timer.completeTm) {
 			// timer.completeTm <= now
 			//vv("have TIMER firing")
+			changes++
 			timer.timerFiredTm = now
 			timerDel = append(timerDel, timer)
 			select {
@@ -1013,6 +1014,7 @@ func (node *simnode) dispatch() { // (bump time.Duration) {
 			return
 		}
 		// INVAR: this read.initTm <= now
+		changes++
 
 		if send.arrivalTm.After(now) {
 			// send has not arrived yet.
@@ -1103,10 +1105,11 @@ func (s *simnet) schedulerReport() string {
 	return fmt.Sprintf("lastArmTm.After(now) = %v [%v out] %v; qReport = '%v'", s.lastArmTm.After(now), s.lastArmTm.Sub(now), s.lastArmTm, s.qReport())
 }
 
-func (s *simnet) dispatchAll() {
+func (s *simnet) dispatchAll() (changes int64) {
 	for node := range s.nodes {
-		node.dispatch()
+		changes += node.dispatch()
 	}
+	return
 }
 
 func (s *simnet) tickLogicalClocks() {
@@ -1142,7 +1145,16 @@ func (s *simnet) scheduler() {
 	var nextReport time.Time
 
 	// main scheduler loop
-	for i := int64(0); ; i++ {
+	genesis := time.Now()
+	// jump allows us to get back to an integer
+	// tick grid at each iteration, even if we
+	// wait longer than a tick in our experiments
+	// with waiting-til-the-next timer to optimize/minimize
+	// the overhead of synctime.Wait calls.
+	var jump int64 = 1
+restartI:
+	for i := int64(0); ; i += jump {
+		jump = 1
 
 		now := time.Now()
 		if gte(now, nextReport) {
@@ -1163,9 +1175,48 @@ func (s *simnet) scheduler() {
 		}
 
 		if faketime && s.barrier {
-			// Advance time by one tick.
-			time.Sleep(s.scenario.tick)
-			// Advance to next timer.
+			// Advance time to the next tick grid point.
+			goal := genesis.Add(time.Duration(i+1) * s.scenario.tick)
+			dur := goal.Sub(now)
+			vv("i=%v; now=%v; goal=%v; tick=%v; dur=%v", i, now, goal, s.scenario.tick, dur)
+			if dur <= 0 { // i.e. now <= goal
+				// how did this happen?
+				// should we assert to find out?
+				// Certainly might happen if we switch
+				// tick size in a new scenario...
+				// hmm... we should probably restart
+				// the whole loop at 0 for a new scenario!
+				// Otherwise the goal above could an be arbitrarily
+				// big jump forward. Done: see i = 0 and
+				// continue restartI below on scenario change.
+				// Happens at i = 22 on Test702; so
+				// probably common.
+				panic(fmt.Sprintf("why was proposed sleep dur = %v < 0 ? i=%v; s.scenario.tick=%v; genesis=%v; now=%v; if somebody else is sleeping and not using the SimTimer? or, why??", dur, i, s.scenario.tick, genesis, now))
+				// In any case, go back to aligned steps.
+
+				// round down to next lowest tick point.
+				goal = now.Add(s.scenario.tick).Truncate(s.scenario.tick)
+				// if that does not advance time, the
+				// next step point is what we want.
+				if goal.Before(now) {
+					goal = goal.Add(s.scenario.tick)
+				}
+				dur = goal.Sub(now)
+				// how far did we jump? advance i by more
+				// than one at the top of the loop, if needed.
+				j := int64(dur / s.scenario.tick)
+				jump = j - i
+				if jump <= 0 {
+					// hit at 21 steps into 702 test.
+					panic(fmt.Sprintf("what? jump(%v) <=0  logic error above?? i=%v; goal = %v ; dur = %v ; s.scenario.tick = %v; now = %v", i, jump, goal, dur, s.scenario.tick, now))
+				} else {
+					if jump > 1 {
+						vv("hmm... scheduler will jump by %v > 1 at next loop top. cur i = %v; goal = %v ; dur = %v ; s.scenario.tick = %v", i, jump, goal, dur, s.scenario.tick)
+					}
+				}
+			}
+			time.Sleep(dur)
+			// or... Advance to next timer? but only if > dur
 			//time.Sleep(minDur)
 
 			//vv("about to call synctestWait_LetAllOtherGoroFinish")
@@ -1177,16 +1228,17 @@ func (s *simnet) scheduler() {
 			time.Sleep(s.scenario.tick)
 		}
 
+		// each scheduler loop tick is an event.
+		s.tickLogicalClocks()
+
 		// We dispatch only after the synctest.Wait
 		// guarantee that we are lone/awake goro.
 		// Both the dispatch and the channel
 		// ops below will wake up nodes. Otherwise
 		// other goro might still be active, so this
 		// doing all waking now gives better reproducibility.
-		s.dispatchAll()
-
-		// each scheduler loop tick is an event.
-		s.tickLogicalClocks()
+		nd0 := s.dispatchAll()
+		_ = nd0
 
 		select { // scheduler main select
 		case alert := <-s.nextTimer.C: // soonest timer fires
@@ -1211,6 +1263,8 @@ func (s *simnet) scheduler() {
 		case scenario := <-s.newScenarioCh:
 			s.finishScenario()
 			s.initScenario(scenario)
+			i = 0
+			continue restartI
 
 		case timer := <-s.addTimer:
 			//vv("addTimer ->  op='%v'", timer)
@@ -1234,6 +1288,22 @@ func (s *simnet) scheduler() {
 		case <-s.halt.ReqStop.Chan:
 			return
 		}
+
+		// let those settle, then dispatch again,
+		// to try and be sure we have handled everything
+		// that could have happened now.
+		if faketime && s.barrier {
+			vv("about to make 2nd barrier call")
+			// wake ourselves after they have settled.
+			time.Sleep(time.Nanosecond)
+			synctestWait_LetAllOtherGoroFinish()
+			vv("after 2nd barrier")
+		}
+
+		nd1 := s.dispatchAll()
+		_ = nd1
+		vv("num dispatch events = nd0(%v) + nd1(%v) = %v", nd0, nd1, nd0+nd1)
+
 	}
 }
 
