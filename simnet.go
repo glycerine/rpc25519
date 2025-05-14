@@ -120,12 +120,18 @@ type mop struct {
 	origTimerCompleteTm time.Time
 
 	// when fired => unarmed. NO timer.Reset support at the moment!
+	// (except conceptually for the scheduler's gridStepTimer).
 	timerFiredTm time.Time
 	// was discarded timer armed?
 	wasArmed bool
 	// was timer set internally to wake for
 	// arrival of pending message?
 	internalPendingTimer bool
+
+	// is this our single grid step timer?
+	// There should only ever be one
+	// timer with this flag true.
+	isGridStepTimer bool
 
 	// when was the operation initiated?
 	// timer started, read begin waiting, send hits the socket.
@@ -160,7 +166,9 @@ type mop struct {
 
 // simnet simulates a network entirely with channels in memory.
 type simnet struct {
-	barrier bool
+	barrier       bool
+	bigbang       time.Time
+	gridStepTimer *mop
 
 	scenario *scenario
 
@@ -199,7 +207,7 @@ type simnet struct {
 // in a simnet.
 type simnode struct {
 	name    string
-	LC      int64
+	lc      int64 // logical clock
 	readQ   *pq
 	preArrQ *pq
 	timerQ  *pq
@@ -752,8 +760,8 @@ func (s *simnet) handleSend(send *mop) {
 
 	origin := send.origin
 	if send.seen == 0 {
-		send.senderLC = origin.LC
-		send.originLC = origin.LC
+		send.senderLC = origin.lc
+		send.originLC = origin.lc
 		send.arrivalTm = send.initTm.Add(s.scenario.rngHop())
 	}
 	send.seen++
@@ -773,8 +781,8 @@ func (s *simnet) handleSend(send *mop) {
 		send.msg = send.msg.CopyForSimNetSend()
 
 		send.target.preArrQ.add(send)
-		//vv("LC:%v  SEND TO %v %v", origin.LC, origin.name, send)
-		////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.LC, origin.name, send, s.srvnode.preArrQ)
+		//vv("LC:%v  SEND TO %v %v", origin.lc, origin.name, send)
+		////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvnode.preArrQ)
 	}
 	// rpc25519 peer/ckt/frag does async sends, so let
 	// the sender keep going.
@@ -802,7 +810,7 @@ func (s *simnet) handleRead(read *mop) {
 
 	origin := read.origin
 	if read.seen == 0 {
-		read.originLC = origin.LC
+		read.originLC = origin.lc
 	}
 	read.seen++
 	if read.seen != 1 {
@@ -810,8 +818,8 @@ func (s *simnet) handleRead(read *mop) {
 	}
 
 	origin.readQ.add(read)
-	//vv("LC:%v  READ at %v: %v", origin.LC, origin.name, read)
-	////zz("LC:%v  READ %v at %v, now cliReadQ: '%v'", origin.LC, origin.name, read, origin.readQ)
+	//vv("LC:%v  READ at %v: %v", origin.lc, origin.name, read)
+	////zz("LC:%v  READ %v at %v, now cliReadQ: '%v'", origin.lc, origin.name, read, origin.readQ)
 	origin.dispatch()
 }
 
@@ -1063,13 +1071,13 @@ func (node *simnode) dispatch() (changes int64) {
 		lastMatchSend = send
 		lastMatchRead = read
 		// advance our logical clock
-		node.LC = max(node.LC, send.originLC) + 1
-		////zz("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, node.LC, node.LC-read.originLC, read.sn)
+		node.lc = max(node.lc, send.originLC) + 1
+		////zz("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, node.lc, node.lc-read.originLC, read.sn)
 
 		// track clocks on either end for this send and read.
-		read.readerLC = node.LC
+		read.readerLC = node.lc
 		read.senderLC = send.senderLC
-		send.readerLC = node.LC
+		send.readerLC = node.lc
 		read.completeTm = now
 		read.arrivalTm = send.arrivalTm // easier diagnostics
 
@@ -1114,13 +1122,53 @@ func (s *simnet) dispatchAll() (changes int64) {
 
 func (s *simnet) tickLogicalClocks() {
 	for node := range s.nodes {
-		node.LC++
+		node.lc++
 	}
 }
 
 func (s *simnet) Start() {
 	alwaysPrintf("simnet.Start: faketime = %v; s.barrier=%v", faketime, s.barrier)
 	go s.scheduler()
+}
+
+// durToGridPoint:
+// how far into the future is grid point i?
+// for getting the kinks out of the system,
+// we may panic if dur <= 0, at the moment.
+func (s *simnet) durToGridPoint(i int64) (dur time.Duration) {
+
+	goal := s.bigbang.Add(time.Duration(i) * s.scenario.tick)
+	now := time.Now()
+	dur = goal.Sub(now)
+	vv("i=%v; now=%v; goal=%v; tick=%v; dur=%v", i, now, goal, s.scenario.tick, dur)
+	if dur <= 0 { // i.e. now <= goal
+		panic(fmt.Sprintf("why was proposed sleep dur = %v < 0 ? i=%v; s.scenario.tick=%v; bigbang=%v; now=%v; if somebody else is sleeping and not using the SimTimer? or, why?? seems we skipped a step!?! is our step increment logic wrong?", dur, i, s.scenario.tick, s.bigbang, now)) // at i=22, or i=20 on 702
+		// In any case, go back to aligned steps.
+
+		// round down to next lowest tick point.
+		goal = now.Add(s.scenario.tick).Truncate(s.scenario.tick)
+		// if that does not advance time, the
+		// next step point is what we want.
+		if goal.Before(now) {
+			goal = goal.Add(s.scenario.tick)
+		}
+		dur = goal.Sub(now)
+		/* probably not...
+		// how far did we jump? advance i by more
+		// than one at the top of the loop, if needed.
+		j := int64(dur / s.scenario.tick)
+		jump = j - i
+		if jump <= 0 {
+			// hit at 21 steps into 702 test.
+			panic(fmt.Sprintf("what? jump(%v) <=0  logic error above?? i=%v; goal = %v ; dur = %v ; s.scenario.tick = %v; now = %v", i, jump, goal, dur, s.scenario.tick, now))
+		} else {
+			if jump > 1 {
+				vv("hmm... scheduler will jump by %v > 1 at next loop top. cur i = %v; goal = %v ; dur = %v ; s.scenario.tick = %v", i, jump, goal, dur, s.scenario.tick)
+			}
+		}
+		*/
+	}
+	return
 }
 
 // scheduler is the heart of the simnet
@@ -1137,7 +1185,8 @@ func (s *simnet) scheduler() {
 		//vv("scheduler defer shutdown running on goro = %v", GoroNumber())
 		r := recover()
 		if r != nil {
-			alwaysPrintf("scheduler panic-ing: %v", s.schedulerReport())
+			alwaysPrintf("scheduler panic-ing: %v", r)
+			//alwaysPrintf("scheduler panic-ing: %v", s.schedulerReport())
 			panic(r)
 		}
 	}()
@@ -1145,7 +1194,17 @@ func (s *simnet) scheduler() {
 	var nextReport time.Time
 
 	// main scheduler loop
-	genesis := time.Now()
+	now := time.Now()
+
+	// bigbang is the "start of time" --
+	// the t0 or time zero for our simulation.
+	// This should never be changed in any code below.
+	// It gives us a stable reference point
+	// to see how long we have been running,
+	// whether under faketime or in real time,
+	// whichever is in use.
+	s.bigbang = now
+
 	var totalSleepDur time.Duration
 	// jump allows us to get back to an integer
 	// tick grid at each iteration, even if we
@@ -1153,109 +1212,94 @@ func (s *simnet) scheduler() {
 	// with waiting-til-the-next timer to optimize/minimize
 	// the overhead of synctime.Wait calls.
 	var jump int64 = 1
+
+	// get regular scheduler wakeups on a time
+	// grid of step size s.scenario.tick.
+	// We can get woken earlier too by
+	// sends, reads, and timers. The nextTimer
+	// logic below can decide how it wants
+	// to handle that.
+	timer := newTimerCreateMop(false)
+	timer.proceed = nil          // never used, don't leak it.
+	timer.isGridStepTimer = true // should be only one.
+	timer.initTm = now
+	timer.timerDur = s.scenario.tick
+	timer.completeTm = now.Add(s.scenario.tick)
+	timer.timerFileLine = fileLine(3)
+	s.gridStepTimer = timer
+
 restartI:
 	for i := int64(0); ; i += jump {
 		jump = 1
+
+		// reset dispatch counters each time through.
+		var nd0, nd1, nd2 int64
 
 		now := time.Now()
 		if gte(now, nextReport) {
 			nextReport = now.Add(time.Second)
 			//vv("scheduler top")
-			//cli.LC = %v ; srv.LC = %v", cliLC, srvLC)
+			//cli.lc = %v ; srv.lc = %v", clilc, srvlc)
 			//vv("scheduler top. schedulerReport: \n%v", s.schedulerReport())
 		}
 
-		minDur := s.armTimer()
-		if minDur > 0 {
-			//vv("minDur = %v; vs s.scenario.tick = %v", minDur, s.scenario.tick)
-		} else {
-			if i > 1 {
-				//vv("no timers, what?? i = %v", i)
-				minDur = s.scenario.tick
-			}
-		}
-
-		if faketime && s.barrier {
-			// Advance time to the next tick grid point.
-			goal := genesis.Add(time.Duration(i+1) * s.scenario.tick)
-			dur := goal.Sub(now)
-			vv("i=%v; now=%v; goal=%v; tick=%v; dur=%v", i, now, goal, s.scenario.tick, dur)
-			if dur <= 0 { // i.e. now <= goal
-				// how did this happen?
-				// should we assert to find out?
-				// Certainly might happen if we switch
-				// tick size in a new scenario...
-				// hmm... we should probably restart
-				// the whole loop at 0 for a new scenario!
-				// Otherwise the goal above could an be arbitrarily
-				// big jump forward. Done: see i = 0 and
-				// continue restartI below on scenario change.
-				// Happens at i = 22 on Test702; so
-				// probably common.
-				panic(fmt.Sprintf("why was proposed sleep dur = %v < 0 ? i=%v; s.scenario.tick=%v; genesis=%v; now=%v; if somebody else is sleeping and not using the SimTimer? or, why?? seems we skipped a step!?! is our step increment logic wrong?", dur, i, s.scenario.tick, genesis, now)) // at i=22, or i=20 on 702
-				// In any case, go back to aligned steps.
-
-				// round down to next lowest tick point.
-				goal = now.Add(s.scenario.tick).Truncate(s.scenario.tick)
-				// if that does not advance time, the
-				// next step point is what we want.
-				if goal.Before(now) {
-					goal = goal.Add(s.scenario.tick)
-				}
-				dur = goal.Sub(now)
-				// how far did we jump? advance i by more
-				// than one at the top of the loop, if needed.
-				j := int64(dur / s.scenario.tick)
-				jump = j - i
-				if jump <= 0 {
-					// hit at 21 steps into 702 test.
-					panic(fmt.Sprintf("what? jump(%v) <=0  logic error above?? i=%v; goal = %v ; dur = %v ; s.scenario.tick = %v; now = %v", i, jump, goal, dur, s.scenario.tick, now))
-				} else {
-					if jump > 1 {
-						vv("hmm... scheduler will jump by %v > 1 at next loop top. cur i = %v; goal = %v ; dur = %v ; s.scenario.tick = %v", i, jump, goal, dur, s.scenario.tick)
-					}
-				}
-			}
-
-			time.Sleep(dur) // this should be the ONLY sleep in this test/bubble.
-			totalSleepDur += dur
-			now = time.Now()
-			vv("done with 1st sleep i=%v, dur %v ; totalSleepDur %v; actual now(%v) - expected now(%v) = %v", i, dur, totalSleepDur, now, genesis.Add(totalSleepDur), now.Sub(genesis.Add(totalSleepDur)))
-			// or... Advance to next timer? but only if > dur
-			//sleep(minDur)
-
-			//vv("about to call synctestWait_LetAllOtherGoroFinish")
-			synctestWait_LetAllOtherGoroFinish()
-			vv("done with 1st barrier")
-
-			//vv("back from synctest.Wait() goro = %v", GoroNumber())
-		} else {
-			panic("TODO remove, just establishing understanding and we should not be bootlegging sleep any other place than above for the moment.")
-			//vv("s.barrier=%v; faketime=%v", s.barrier, faketime)
-			// advance time by one tick, the non-synctest version.
-			time.Sleep(s.scenario.tick)
-			now = time.Now()
-		}
-
-		// each scheduler loop tick is an event.
-		s.tickLogicalClocks()
-
-		// We dispatch only after the synctest.Wait
-		// guarantee that we are lone/awake goro.
-		// Both the dispatch and the channel
-		// ops below will wake up nodes. Otherwise
-		// other goro might still be active, so this
-		// doing all waking now gives better reproducibility.
-		nd0 := s.dispatchAll()
-		_ = nd0
-		var nd1 int64
-
+		preSelectTm := now
 		select { // scheduler main select
-		case alert := <-s.nextTimer.C: // soonest timer fires
-			_ = alert
-			//vv("s.nextTimer -> alerted at %v", alert)
-			nd1 = s.dispatchAll()
-			s.armTimer()
+
+		case <-s.nextTimer.C: // soonest timer fires
+			// faketime has just advanced (so has real time).
+
+			// This could be a grid step, or sooner.
+
+			// There can be many goro that
+			// need service now.
+			now := time.Now()
+			elapsed := now.Sub(preSelectTm)
+			totalSleepDur += elapsed
+
+			// each wake here is an event.
+			s.tickLogicalClocks()
+
+			if gte(now, s.gridStepTimer.completeTm) {
+				s.gridStepTimer.initTm = now
+				dur := s.durToGridPoint(i + 1)
+				s.gridStepTimer.timerDur = dur
+				s.gridStepTimer.completeTm = now.Add(dur)
+
+				if gte(now, s.gridStepTimer.completeTm) {
+					panic(fmt.Sprintf("i=%v, durToGridPoint(i+1=%v) gave completeTm(%v) <= now(%v); should be impossible, no? are we servicing all events in order? are we missing a wakeup? oversleeping? wat?", i, i+1, s.gridStepTimer.completeTm, now))
+				}
+			}
+			// INVAR: s.gridStepTimer.completeTm > now.
+			// Hence synctest.Wait below should never deadlock.
+
+			nd0 = s.dispatchAll()
+
+			// Some dispatch() call might have re-armed
+			// the nextTmer, but equally none might
+			// have done so. It's cheap and important
+			// to be sure the next event wakes us.
+			// We could consider taking the armTimer
+			// out of dispatch's defer too... TODO. harmless for now.
+			minTimerDur := s.armTimer()
+			if minTimerDur > 0 {
+				vv("armTimer reported minTimerDur = %v; vs s.scenario.tick = %v", minTimerDur, s.scenario.tick)
+			} else {
+				vv("no timers, what?? i = %v", i)
+				panic("why not even the grid timer?")
+			}
+
+			if faketime && s.barrier {
+
+				vv("about to call synctestWait_LetAllOtherGoroFinish")
+				synctestWait_LetAllOtherGoroFinish()
+				vv("done with 1st barrier")
+			} else {
+				panic("TODO remove, just establishing understanding and we should not be bootlegging sleep any other place than above for the moment.")
+				//vv("s.barrier=%v; faketime=%v", s.barrier, faketime)
+				// advance time by one tick, the non-synctest version.
+				time.Sleep(minTimerDur)
+			}
 
 		case reg := <-s.cliRegisterCh:
 			// "connect" in network lingo, client reaches out to listening server.
@@ -1271,6 +1315,7 @@ restartI:
 			// has been given permission to proceed.
 
 		case scenario := <-s.newScenarioCh:
+			panic("should have no scenario changes under 702 test. TODO remove")
 			s.finishScenario()
 			s.initScenario(scenario)
 			i = 0
@@ -1299,28 +1344,28 @@ restartI:
 			return
 		}
 
-		// let those settle, then dispatch again,
-		// to try and be sure we have handled everything
-		// that could have happened now.
-		if faketime && s.barrier {
-			vv("about to make 2nd barrier call")
-			// wake ourselves after they have settled.
+		if false {
+			// let those settle, then dispatch again,
+			// to try and be sure we have handled everything
+			// that could have happened now.
+			if faketime && s.barrier {
+				vv("about to make 2nd barrier call")
+				// wake ourselves after they have settled.
 
-			// "Wait blocks until every goroutine within
-			// the current bubble, other than the current goroutine,
-			// is durably blocked. It panics if called
-			// from a non-bubbled goroutine, or if two
-			// goroutines in the same bubble call Wait
-			// at the same time."
-			// -- https://pkg.go.dev/testing/synctest
-			synctestWait_LetAllOtherGoroFinish()
-			vv("after 2nd barrier")
+				// "Wait blocks until every goroutine within
+				// the current bubble, other than the current goroutine,
+				// is durably blocked. It panics if called
+				// from a non-bubbled goroutine, or if two
+				// goroutines in the same bubble call Wait
+				// at the same time."
+				// -- https://pkg.go.dev/testing/synctest
+				synctestWait_LetAllOtherGoroFinish()
+				vv("after 2nd barrier")
+			}
+
+			nd2 = s.dispatchAll()
 		}
-
-		nd2 := s.dispatchAll()
-		_ = nd2
 		vv("bottom of scheduler loop. num dispatch events = nd0(%v) + nd1(%v) + nd2(%v) = %v", nd0, nd1, nd2, nd0+nd1+nd2)
-
 	}
 }
 
@@ -1355,7 +1400,7 @@ func (s *simnet) handleDiscardTimer(discard *mop) {
 		discard.origTimerCompleteTm = orig.completeTm
 	} // leave wasArmed false, could not have been armed if gone.
 
-	////zz("LC:%v %v TIMER_DISCARD %v to fire at '%v'; now timerQ: '%v'", discard.origin.LC, discard.origin.name, discard, discard.origTimerCompleteTm, s.clinode.timerQ)
+	////zz("LC:%v %v TIMER_DISCARD %v to fire at '%v'; now timerQ: '%v'", discard.origin.lc, discard.origin.name, discard, discard.origTimerCompleteTm, s.clinode.timerQ)
 	s.armTimer()
 	close(discard.proceed)
 }
@@ -1372,7 +1417,7 @@ func (s *simnet) handleTimer(timer *mop) {
 	case PARTITIONED, HEALTHY:
 	}
 
-	lc := timer.origin.LC
+	lc := timer.origin.lc
 	who := timer.origin.name
 	_, _ = who, lc
 	//vv("handleTimer() %v  TIMER SET; LC = %v", who, lc)
@@ -1396,11 +1441,12 @@ func (s *simnet) handleTimer(timer *mop) {
 
 func (s *simnet) armTimer() time.Duration {
 
-	var minTimer *mop
+	var minTimer *mop = s.gridStepTimer
 	for node := range s.nodes {
 		minTimer = node.soonestTimerLessThan(minTimer)
 	}
 	if minTimer == nil {
+		panic("should never happen, s.gridStepTimer should always be active")
 		return 0
 	}
 	now := time.Now()
