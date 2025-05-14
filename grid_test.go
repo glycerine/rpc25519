@@ -130,7 +130,7 @@ func (s *grid) Start() {
 		err := n.Start()
 		panicOn(err)
 	}
-	//time.Sleep(time.Second)
+
 	// now that they are all started, form a complete mesh
 	// by connecting each to all the others
 	sz := len(s.Nodes)

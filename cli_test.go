@@ -136,11 +136,6 @@ func (t *Arith) Error(args *Args, reply *Reply) error {
 	panic("ERROR")
 }
 
-func (t *Arith) SleepMilli(args *Args, reply *Reply) error {
-	time.Sleep(time.Duration(args.A) * time.Millisecond)
-	return nil
-}
-
 type hidden int
 
 func (t *hidden) Exported(args Args, reply *Reply) error {

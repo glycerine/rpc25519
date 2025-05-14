@@ -13,7 +13,6 @@ import (
 )
 
 var _ = fmt.Sprintf
-var _ = time.Sleep
 
 type testJunk3 struct {
 	name string

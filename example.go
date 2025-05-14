@@ -89,13 +89,6 @@ func (t *Arith) Error(args *Args, reply *Reply) error {
 	panic("ERROR")
 }
 
-// want to always user cli/srv.NewTimer instead of sleep.
-// Arith.SleepMilli in example.go is part of the tests.
-//func (t *Arith) SleepMilli(args *Args, reply *Reply) error {
-//	time.Sleep(time.Duration(args.A) * time.Millisecond)
-//	return nil
-//}
-
 // Simple in example.go is part of the tests.
 type Simple int
 

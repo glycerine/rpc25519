@@ -49,9 +49,9 @@ type SimNetConfig struct {
 	// At the moment this can't happen in our simulation
 	// because the simnet controls all
 	// timers in rpc25519 tests, and so
-	// only the scheduler calls time.Sleep.
+	// only the scheduler calls Sleep.
 	// However future tests and user code
-	// might call time.Sleep, in which
+	// might call Sleep, in which
 	// case the
 	BarrierOff bool
 }
@@ -1146,6 +1146,7 @@ func (s *simnet) scheduler() {
 
 	// main scheduler loop
 	genesis := time.Now()
+	var totalSleepDur time.Duration
 	// jump allows us to get back to an integer
 	// tick grid at each iteration, even if we
 	// wait longer than a tick in our experiments
@@ -1191,7 +1192,7 @@ restartI:
 				// continue restartI below on scenario change.
 				// Happens at i = 22 on Test702; so
 				// probably common.
-				panic(fmt.Sprintf("why was proposed sleep dur = %v < 0 ? i=%v; s.scenario.tick=%v; genesis=%v; now=%v; if somebody else is sleeping and not using the SimTimer? or, why??", dur, i, s.scenario.tick, genesis, now))
+				panic(fmt.Sprintf("why was proposed sleep dur = %v < 0 ? i=%v; s.scenario.tick=%v; genesis=%v; now=%v; if somebody else is sleeping and not using the SimTimer? or, why?? seems we skipped a step!?! is our step increment logic wrong?", dur, i, s.scenario.tick, genesis, now)) // at i=22, or i=20 on 702
 				// In any case, go back to aligned steps.
 
 				// round down to next lowest tick point.
@@ -1215,17 +1216,25 @@ restartI:
 					}
 				}
 			}
-			time.Sleep(dur)
+
+			time.Sleep(dur) // this should be the ONLY sleep in this test/bubble.
+			totalSleepDur += dur
+			now = time.Now()
+			vv("done with 1st sleep i=%v, dur %v ; totalSleepDur %v; actual now(%v) - expected now(%v) = %v", i, dur, totalSleepDur, now, genesis.Add(totalSleepDur), now.Sub(genesis.Add(totalSleepDur)))
 			// or... Advance to next timer? but only if > dur
-			//time.Sleep(minDur)
+			//sleep(minDur)
 
 			//vv("about to call synctestWait_LetAllOtherGoroFinish")
 			synctestWait_LetAllOtherGoroFinish()
+			vv("done with 1st barrier")
+
 			//vv("back from synctest.Wait() goro = %v", GoroNumber())
 		} else {
+			panic("TODO remove, just establishing understanding and we should not be bootlegging sleep any other place than above for the moment.")
 			//vv("s.barrier=%v; faketime=%v", s.barrier, faketime)
 			// advance time by one tick, the non-synctest version.
 			time.Sleep(s.scenario.tick)
+			now = time.Now()
 		}
 
 		// each scheduler loop tick is an event.
@@ -1239,12 +1248,13 @@ restartI:
 		// doing all waking now gives better reproducibility.
 		nd0 := s.dispatchAll()
 		_ = nd0
+		var nd1 int64
 
 		select { // scheduler main select
 		case alert := <-s.nextTimer.C: // soonest timer fires
 			_ = alert
 			//vv("s.nextTimer -> alerted at %v", alert)
-			s.dispatchAll()
+			nd1 = s.dispatchAll()
 			s.armTimer()
 
 		case reg := <-s.cliRegisterCh:
@@ -1295,14 +1305,21 @@ restartI:
 		if faketime && s.barrier {
 			vv("about to make 2nd barrier call")
 			// wake ourselves after they have settled.
-			time.Sleep(time.Nanosecond)
+
+			// "Wait blocks until every goroutine within
+			// the current bubble, other than the current goroutine,
+			// is durably blocked. It panics if called
+			// from a non-bubbled goroutine, or if two
+			// goroutines in the same bubble call Wait
+			// at the same time."
+			// -- https://pkg.go.dev/testing/synctest
 			synctestWait_LetAllOtherGoroFinish()
 			vv("after 2nd barrier")
 		}
 
-		nd1 := s.dispatchAll()
-		_ = nd1
-		vv("num dispatch events = nd0(%v) + nd1(%v) = %v", nd0, nd1, nd0+nd1)
+		nd2 := s.dispatchAll()
+		_ = nd2
+		vv("bottom of scheduler loop. num dispatch events = nd0(%v) + nd1(%v) + nd2(%v) = %v", nd0, nd1, nd2, nd0+nd1+nd2)
 
 	}
 }
