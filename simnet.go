@@ -1144,9 +1144,6 @@ func (s *simnet) scheduler() {
 	// main scheduler loop
 	for i := int64(0); ; i++ {
 
-		// each scheduler loop tick is an event.
-		s.tickLogicalClocks()
-
 		now := time.Now()
 		if gte(now, nextReport) {
 			nextReport = now.Add(time.Second)
@@ -1155,7 +1152,6 @@ func (s *simnet) scheduler() {
 			//vv("scheduler top. schedulerReport: \n%v", s.schedulerReport())
 		}
 
-		s.dispatchAll()
 		minDur := s.armTimer()
 		if minDur > 0 {
 			//vv("minDur = %v; vs s.scenario.tick = %v", minDur, s.scenario.tick)
@@ -1180,6 +1176,17 @@ func (s *simnet) scheduler() {
 			// advance time by one tick, the non-synctest version.
 			time.Sleep(s.scenario.tick)
 		}
+
+		// We dispatch only after the synctest.Wait
+		// guarantee that we are lone/awake goro.
+		// Both the dispatch and the channel
+		// ops below will wake up nodes. Otherwise
+		// other goro might still be active, so this
+		// doing all waking now gives better reproducibility.
+		s.dispatchAll()
+
+		// each scheduler loop tick is an event.
+		s.tickLogicalClocks()
 
 		select { // scheduler main select
 		case alert := <-s.nextTimer.C: // soonest timer fires
