@@ -2628,29 +2628,6 @@ func (s *Client) UnregisterChannel(ID string, whichmap int) {
 	}
 }
 
-/*
-func (c *Client) TimeAfter(dur time.Duration) (timerC <-chan time.Time) {
-	if !c.cfg.UseSimNet {
-		return time.After(dur)
-	}
-	// ignore shutdown errors for now (these are the only
-	// errors possible at the moment. a nil channel
-	// must be handled fine by all client code also
-	// selecting on a shutdown signal.
-	timerC, _ = c.simnet.createNewTimer(dur, time.Now(), true) // isCli
-	return
-}
-
-func (s *Server) TimeAfter(dur time.Duration) (timerC <-chan time.Time) {
-	if !s.cfg.UseSimNet {
-		return time.After(dur)
-	}
-	// ditto: on error a nil channel will be fine.
-	timerC, _ = s.simnet.createNewTimer(dur, time.Now(), false) // isCli
-	return
-}
-*/
-
 type SimTimer struct {
 	gotimer  *time.Timer
 	isCli    bool

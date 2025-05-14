@@ -2603,7 +2603,13 @@ func (s *Server) respondToReqWithError(req *Message, job *job, description strin
 	// Hopefully client will get it first and do the disconnect
 	// themselves; since then they will have TIME_WAIT and not
 	// the server.
-	time.Sleep(time.Second * 3)
+	//time.Sleep(time.Second * 3)
+	ti := s.NewTimer(time.Second * 3)
+	select {
+	case <-ti.C:
+	case <-job.pair.halt.ReqStop.Chan:
+	}
+	ti.Discard()
 	job.pair.halt.ReqStop.Close()
 }
 

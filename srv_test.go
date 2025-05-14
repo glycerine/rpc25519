@@ -119,7 +119,11 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 		vv("yay. we confirmed that oneWayStreen func has run")
 		// sleep a little to avoid shutting down before server can decide
 		// not to process/return a reply.
-		time.Sleep(time.Millisecond * 50)
+		//time.Sleep(time.Millisecond * 50)
+		ti := cli.NewTimer(time.Millisecond * 50)
+		<-ti.C
+		ti.Discard()
+
 	})
 }
 
@@ -285,7 +289,11 @@ func Test004_server_push(t *testing.T) {
 
 		// does the client get it?
 
-		time.Sleep(time.Millisecond * 50)
+		//time.Sleep(time.Millisecond * 50)
+		ti := srv.NewTimer(time.Millisecond * 50)
+		<-ti.C
+		ti.Discard()
+
 		close(done)
 		<-ackDone
 
@@ -349,7 +357,10 @@ func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 		vv("yay. we confirmed that oneWayStreet func has run")
 		// sleep a little to avoid shutting down before server can decide
 		// not to process/return a reply.
-		time.Sleep(time.Millisecond * 50)
+		//time.Sleep(time.Millisecond * 50)
+		ti := cli.NewTimer(time.Millisecond * 50)
+		<-ti.C
+		ti.Discard()
 	})
 }
 
@@ -580,7 +591,11 @@ func Test014_server_push_quic(t *testing.T) {
 
 		// does the client get it?
 
-		time.Sleep(time.Millisecond * 50)
+		//time.Sleep(time.Millisecond * 50)
+		ti := srv.NewTimer(time.Millisecond * 50)
+		<-ti.C
+		ti.Discard()
+
 		close(done)
 		<-ackDone
 
@@ -948,7 +963,10 @@ func Test031_PingStats(t *testing.T) {
 		defer cli.Close()
 
 		for range 10 {
-			time.Sleep(time.Second)
+			//time.Sleep(time.Second)
+			ti := cli.NewTimer(time.Second)
+			<-ti.C
+			ti.Discard()
 			ps := srv.PingStats(cli.LocalAddr())
 			pc := cli.PingStats(serverAddr.String())
 			vv("ps = '%v'; pc='%v'", ps, pc)

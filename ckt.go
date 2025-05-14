@@ -1057,6 +1057,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 	defer p.u.UnregisterChannel(callID, CallIDReadMap)
 
 	pollInterval := waitUpTo / 50
+	hhalt := p.u.GetHostHalter()
 
 	for i := 0; i < 50; i++ {
 		err, _ = p.u.SendOneWayMessage(ctx, msg, 0)
@@ -1075,12 +1076,18 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 				// don't sleep past our deadline
 				dur = left
 			}
-			time.Sleep(dur)
+			//time.Sleep(dur)
+			ti := p.u.NewTimer(dur)
+			select {
+			case <-ti.C:
+				ti.Discard()
+			case <-hhalt.ReqStop.Chan:
+				ti.Discard()
+				return
+			}
 			continue
 		}
 	}
-
-	hhalt := p.u.GetHostHalter()
 
 	//vv("isCli=%v, StartRemotePeer about to wait for reply on ch to callID = '%v'", p.isCli, callID)
 	var reply *Message

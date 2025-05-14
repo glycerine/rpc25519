@@ -380,7 +380,13 @@ func (s *simnetConn) SetDeadline(t time.Time) error {
 	defer s.mut.Unlock()
 
 	if t.IsZero() {
+		if s.readDeadlineTimer != nil {
+			s.net.discardTimer(s.local, s.readDeadlineTimer, time.Now())
+		}
 		s.readDeadlineTimer = nil
+		if s.sendDeadlineTimer != nil {
+			s.net.discardTimer(s.local, s.sendDeadlineTimer, time.Now())
+		}
 		s.sendDeadlineTimer = nil
 		return nil
 	}
@@ -396,6 +402,9 @@ func (s *simnetConn) SetWriteDeadline(t time.Time) error {
 	defer s.mut.Unlock()
 
 	if t.IsZero() {
+		if s.sendDeadlineTimer != nil {
+			s.net.discardTimer(s.local, s.sendDeadlineTimer, time.Now())
+		}
 		s.sendDeadlineTimer = nil
 		return nil
 	}
@@ -409,6 +418,9 @@ func (s *simnetConn) SetReadDeadline(t time.Time) error {
 	defer s.mut.Unlock()
 
 	if t.IsZero() {
+		if s.readDeadlineTimer != nil {
+			s.net.discardTimer(s.local, s.sendDeadlineTimer, time.Now())
+		}
 		s.readDeadlineTimer = nil
 		return nil
 	}
