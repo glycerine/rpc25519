@@ -1135,38 +1135,29 @@ func (s *simnet) Start() {
 // how far into the future is grid point i?
 // for getting the kinks out of the system,
 // we may panic if dur <= 0, at the moment.
-func (s *simnet) durToGridPoint(i int64) (dur time.Duration) {
+func (s *simnet) durToGridPoint(i int64) (dur time.Duration, goal time.Time) {
 
-	goal := s.bigbang.Add(time.Duration(i) * s.scenario.tick)
 	now := time.Now()
-	dur = goal.Sub(now)
-	vv("i=%v; now=%v; goal=%v; tick=%v; dur=%v", i, now, goal, s.scenario.tick, dur)
-	if dur <= 0 { // i.e. now <= goal
-		panic(fmt.Sprintf("why was proposed sleep dur = %v < 0 ? i=%v; s.scenario.tick=%v; bigbang=%v; now=%v; if somebody else is sleeping and not using the SimTimer? or, why?? seems we skipped a step!?! is our step increment logic wrong?", dur, i, s.scenario.tick, s.bigbang, now)) // at i=22, or i=20 on 702
-		// In any case, go back to aligned steps.
 
-		// round down to next lowest tick point.
-		goal = now.Add(s.scenario.tick).Truncate(s.scenario.tick)
-		// if that does not advance time, the
-		// next step point is what we want.
-		if goal.Before(now) {
-			goal = goal.Add(s.scenario.tick)
-		}
-		dur = goal.Sub(now)
-		/* probably not...
-		// how far did we jump? advance i by more
-		// than one at the top of the loop, if needed.
-		j := int64(dur / s.scenario.tick)
-		jump = j - i
-		if jump <= 0 {
-			// hit at 21 steps into 702 test.
-			panic(fmt.Sprintf("what? jump(%v) <=0  logic error above?? i=%v; goal = %v ; dur = %v ; s.scenario.tick = %v; now = %v", i, jump, goal, dur, s.scenario.tick, now))
-		} else {
-			if jump > 1 {
-				vv("hmm... scheduler will jump by %v > 1 at next loop top. cur i = %v; goal = %v ; dur = %v ; s.scenario.tick = %v", i, jump, goal, dur, s.scenario.tick)
-			}
-		}
-		*/
+	// This commented approach of keeping goal time and i
+	// aligned jumps us 15 msec at startup, after 15 grid
+	// getting established events... which seems odd.
+	//
+	// Instead, we let i in the scheduler loop be a
+	// logical clock that can run much faster than simtime.
+	//goal := s.bigbang.Add(time.Duration(i) * s.scenario.tick)
+
+	tick := s.scenario.tick
+
+	// this handles both
+	// a) we are on a grid point now; and
+	// b) we are off a grid point and we want the next one.
+	goal = now.Add(tick).Truncate(tick)
+
+	dur = goal.Sub(now)
+	vv("i=%v; now=%v; goal=%v; tick=%v; durToGridPoint=%v", i, now, goal, s.scenario.tick, dur)
+	if dur <= 0 { // i.e. now <= goal
+		panic(fmt.Sprintf("why was proposed sleep dur = %v <= 0 ? i=%v; s.scenario.tick=%v; bigbang=%v; now=%v", dur, i, s.scenario.tick, s.bigbang, now))
 	}
 	return
 }
@@ -1206,12 +1197,6 @@ func (s *simnet) scheduler() {
 	s.bigbang = now
 
 	var totalSleepDur time.Duration
-	// jump allows us to get back to an integer
-	// tick grid at each iteration, even if we
-	// wait longer than a tick in our experiments
-	// with waiting-til-the-next timer to optimize/minimize
-	// the overhead of synctime.Wait calls.
-	var jump int64 = 1
 
 	// get regular scheduler wakeups on a time
 	// grid of step size s.scenario.tick.
@@ -1229,11 +1214,10 @@ func (s *simnet) scheduler() {
 	s.gridStepTimer = timer
 
 restartI:
-	for i := int64(0); ; i += jump {
-		jump = 1
+	for i := int64(0); ; i++ {
 
 		// reset dispatch counters each time through.
-		var nd0, nd1, nd2 int64
+		var nd0 int64 // , nd1, nd2 int64
 
 		now := time.Now()
 		if gte(now, nextReport) {
@@ -1247,12 +1231,11 @@ restartI:
 		select { // scheduler main select
 
 		case <-s.nextTimer.C: // soonest timer fires
-			// faketime has just advanced (so has real time).
+			vv("i=%v, nextTimer fired", i)
 
+			// faketime has just advanced (so has real time).
 			// This could be a grid step, or sooner.
 
-			// There can be many goro that
-			// need service now.
 			now := time.Now()
 			elapsed := now.Sub(preSelectTm)
 			totalSleepDur += elapsed
@@ -1262,9 +1245,9 @@ restartI:
 
 			if gte(now, s.gridStepTimer.completeTm) {
 				s.gridStepTimer.initTm = now
-				dur := s.durToGridPoint(i + 1)
+				dur, goal := s.durToGridPoint(i + 1)
 				s.gridStepTimer.timerDur = dur
-				s.gridStepTimer.completeTm = now.Add(dur)
+				s.gridStepTimer.completeTm = goal
 
 				if gte(now, s.gridStepTimer.completeTm) {
 					panic(fmt.Sprintf("i=%v, durToGridPoint(i+1=%v) gave completeTm(%v) <= now(%v); should be impossible, no? are we servicing all events in order? are we missing a wakeup? oversleeping? wat?", i, i+1, s.gridStepTimer.completeTm, now))
@@ -1273,7 +1256,18 @@ restartI:
 			// INVAR: s.gridStepTimer.completeTm > now.
 			// Hence synctest.Wait below should never deadlock.
 
-			nd0 = s.dispatchAll()
+			// There can be many goro that
+			// need service now.
+			// Should we dispatch
+			// until they there is no one?
+			//for {
+			changed := s.dispatchAll()
+			nd0 += changed
+			if changed == 0 {
+				vv("i=%v, dispatchAll no change, total nd0=%v", i, changed, nd0)
+			} else {
+				vv("i=%v, dispatchAll changed=%v, total nd0=%v", i, changed, nd0)
+			}
 
 			// Some dispatch() call might have re-armed
 			// the nextTmer, but equally none might
@@ -1303,13 +1297,13 @@ restartI:
 
 		case reg := <-s.cliRegisterCh:
 			// "connect" in network lingo, client reaches out to listening server.
-			//vv("s.cliRegisterCh got reg from '%v' = '%#v'", reg.client.name, reg)
+			vv("i=%v, cliRegisterCh got reg from '%v' = '%#v'", i, reg.client.name, reg)
 			s.handleClientRegistration(reg)
 			//vv("back from handleClientRegistration for '%v'", reg.client.name)
 
 		case srvreg := <-s.srvRegisterCh:
 			// "bind/listen" on a socket, server waits for any client to "connect"
-			//vv("s.srvRegisterCh got srvreg for '%v'", srvreg.server.name)
+			vv("i=%v, s.srvRegisterCh got srvreg for '%v'", i, srvreg.server.name)
 			s.handleServerRegistration(srvreg)
 			// do not vv here, as it is very racey with the server who
 			// has been given permission to proceed.
@@ -1322,19 +1316,19 @@ restartI:
 			continue restartI
 
 		case timer := <-s.addTimer:
-			//vv("addTimer ->  op='%v'", timer)
+			vv("i=%v, addTimer ->  op='%v'", i, timer)
 			s.handleTimer(timer)
 
 		case discard := <-s.discardTimerCh:
-			//vv("discardTimer ->  op='%v'", discard)
+			vv("i=%v, discardTimer ->  op='%v'", i, discard)
 			s.handleDiscardTimer(discard)
 
 		case send := <-s.msgSendCh:
-			//vv("msgSendCh ->  op='%v'", send)
+			vv("i=%v, msgSendCh ->  op='%v'", i, send)
 			s.handleSend(send)
 
 		case read := <-s.msgReadCh:
-			////zz("msgReadCh ->  op='%v'", read)
+			vv("i=%v msgReadCh ->  op='%v'", i, read)
 			s.handleRead(read)
 
 		case alt := <-s.alterNodeCh:
@@ -1342,30 +1336,9 @@ restartI:
 
 		case <-s.halt.ReqStop.Chan:
 			return
-		}
+		} // end select
 
-		if false {
-			// let those settle, then dispatch again,
-			// to try and be sure we have handled everything
-			// that could have happened now.
-			if faketime && s.barrier {
-				vv("about to make 2nd barrier call")
-				// wake ourselves after they have settled.
-
-				// "Wait blocks until every goroutine within
-				// the current bubble, other than the current goroutine,
-				// is durably blocked. It panics if called
-				// from a non-bubbled goroutine, or if two
-				// goroutines in the same bubble call Wait
-				// at the same time."
-				// -- https://pkg.go.dev/testing/synctest
-				synctestWait_LetAllOtherGoroFinish()
-				vv("after 2nd barrier")
-			}
-
-			nd2 = s.dispatchAll()
-		}
-		vv("bottom of scheduler loop. num dispatch events = nd0(%v) + nd1(%v) + nd2(%v) = %v", nd0, nd1, nd2, nd0+nd1+nd2)
+		vv("i=%v bottom of scheduler loop. num dispatch events = %v", i, nd0)
 	}
 }
 
