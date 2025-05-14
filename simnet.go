@@ -1132,9 +1132,8 @@ func (s *simnet) Start() {
 }
 
 // durToGridPoint:
-// how far into the future is grid point i?
-// for getting the kinks out of the system,
-// we may panic if dur <= 0, at the moment.
+// given the time now, return the dur to
+// get us to the next grid point, which is goal.
 func (s *simnet) durToGridPoint(i int64) (dur time.Duration, goal time.Time) {
 
 	now := time.Now()
