@@ -1161,16 +1161,16 @@ func (s *simnet) scheduler() {
 			//vv("minDur = %v; vs s.scenario.tick = %v", minDur, s.scenario.tick)
 		} else {
 			if i > 1 {
-				vv("no timers, what?? i = %v", i)
+				//vv("no timers, what?? i = %v", i)
 				minDur = s.scenario.tick
 			}
 		}
 
 		if faketime && s.barrier {
 			// Advance time by one tick.
-			//time.Sleep(s.scenario.tick)
+			time.Sleep(s.scenario.tick)
 			// Advance to next timer.
-			time.Sleep(minDur)
+			//time.Sleep(minDur)
 
 			//vv("about to call synctestWait_LetAllOtherGoroFinish")
 			synctestWait_LetAllOtherGoroFinish()
