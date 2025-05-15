@@ -1223,8 +1223,9 @@ func (s *simnet) scheduler() {
 restartI:
 	for i := int64(0); ; i++ {
 
-		// reset dispatch counters each time through.
-		var nd0 int64 // , nd1, nd2 int64
+		// number dispatched counter
+		// is reset each time through. TODO remove?
+		var nd0 int64
 
 		now := time.Now()
 		if gte(now, nextReport) {
@@ -1266,8 +1267,9 @@ restartI:
 			// There can be many goro that
 			// need service now.
 			// Should we dispatch
-			// until they there is no one?
-			//for {
+			// until they there is no one? No,
+			// we let them finish using the synctest.Wait
+			// or an actual sleep below.
 			changed := s.dispatchAll()
 			nd0 += changed
 			if changed == 0 {
@@ -1276,12 +1278,23 @@ restartI:
 				vv("i=%v, dispatchAll changed=%v, total nd0=%v", i, changed, nd0)
 			}
 
-			// Some dispatch() call might have re-armed
-			// the nextTmer, but equally none might
-			// have done so. It's cheap and important
-			// to be sure the next event wakes us.
-			// We could consider taking the armTimer
-			// out of dispatch's defer too... TODO. harmless for now.
+			// Some dispatch() call just above
+			// might have re-armed the nextTmer,
+			// but equally none might have.
+			// Also we cannot be the only
+			// place that armTimer is called, because
+			// another select case may have changed
+			// things and set a new nextTimer, and
+			// we would not have gotten to run yet.
+			// So we have to do armTimer here,
+			// even though it might be redundant
+			// on occassion, to ensure nextTimer is
+			// armed. This is cheap anyway, just
+			// a single lookup of the min node in
+			// the priority queue, which our
+			// red-black tree has cached anyway,
+			// so involves only O(1) time per
+			// node in the simnet.
 			minTimerDur := s.armTimer()
 			if minTimerDur > 0 {
 				vv("armTimer reported minTimerDur = %v; vs s.scenario.tick = %v", minTimerDur, s.scenario.tick)
