@@ -6,6 +6,7 @@ package rpc25519
 import (
 	"fmt"
 	mathrand2 "math/rand/v2"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -170,7 +171,7 @@ type simnet struct {
 	bigbang       time.Time
 	gridStepTimer *mop
 
-	backgoundTimerGoroCount int64 // atomic access only
+	backgoundTimerFiringGoro *pqBackgroundTimer
 
 	scenario *scenario
 
@@ -351,20 +352,21 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 
 	// server creates simnet; must start server first.
 	s := &simnet{
-		barrier:        !simNetConfig.BarrierOff,
-		cfg:            cfg,
-		simNetCfg:      simNetConfig,
-		srv:            srv,
-		halt:           srv.halt,
-		cliRegisterCh:  make(chan *clientRegistration),
-		srvRegisterCh:  make(chan *serverRegistration),
-		alterNodeCh:    make(chan *nodeAlteration),
-		msgSendCh:      make(chan *mop),
-		msgReadCh:      make(chan *mop),
-		addTimer:       make(chan *mop),
-		discardTimerCh: make(chan *mop),
-		newScenarioCh:  make(chan *scenario),
-		scenario:       scen,
+		barrier:                  !simNetConfig.BarrierOff,
+		cfg:                      cfg,
+		simNetCfg:                simNetConfig,
+		srv:                      srv,
+		halt:                     srv.halt,
+		cliRegisterCh:            make(chan *clientRegistration),
+		srvRegisterCh:            make(chan *serverRegistration),
+		alterNodeCh:              make(chan *nodeAlteration),
+		msgSendCh:                make(chan *mop),
+		msgReadCh:                make(chan *mop),
+		addTimer:                 make(chan *mop),
+		discardTimerCh:           make(chan *mop),
+		newScenarioCh:            make(chan *scenario),
+		scenario:                 scen,
+		backgoundTimerFiringGoro: newPQbackgroundTimer(srv.name),
 
 		dns: make(map[string]*simnode),
 
@@ -553,6 +555,27 @@ func (s *pq) del(op *mop) (found bool) {
 func (s *pq) deleteAll() {
 	s.tree.DeleteAll()
 	return
+}
+
+type pqBackgroundTimer struct {
+	mut sync.Mutex
+	pq  *pq
+}
+
+func newPQbackgroundTimer(owner string) *pqBackgroundTimer {
+	return &pqBackgroundTimer{
+		pq: newPQcompleteTm(owner),
+	}
+}
+func (s *pqBackgroundTimer) add(timer *mop) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	s.pq.add(timer)
+}
+func (s *pqBackgroundTimer) del(timer *mop) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	s.pq.del(timer)
 }
 
 // order by arrivalTm; for the pre-arrival preArrQ.
@@ -893,7 +916,7 @@ func (node *simnode) dispatchTimers(now time.Time) (changes int64) {
 				// send until a receiver goro can receive it,
 				// but we cannot. Hence we use a goroutine if
 				// we didn't get through on the above attempt.
-				atomic.AddInt64(&node.net.backgoundTimerGoroCount, 1)
+				node.net.backgoundTimerFiringGoro.add(timer)
 				go node.backgroundFireTimer(timer, now)
 			}
 		} else {
@@ -909,7 +932,7 @@ func (node *simnode) backgroundFireTimer(timer *mop, now time.Time) {
 	case timer.timerC <- now:
 	case <-node.net.halt.ReqStop.Chan:
 	}
-	atomic.AddInt64(&node.net.backgoundTimerGoroCount, -1)
+	node.net.backgoundTimerFiringGoro.del(timer)
 }
 
 // does not call armTimer. Caller/scheduler should
