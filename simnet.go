@@ -1528,41 +1528,39 @@ restartI:
 		// To maximize reproducbility, this barrier lets all
 		// other goro get durably blocked, then lets just us proceed.
 		if faketime && s.barrier {
-			//vv("about to call synctestWait_LetAllOtherGoroFinish")
-			synctestWait_LetAllOtherGoroFinish()
-			//vv("done with 1st barrier")
+			synctestWait_LetAllOtherGoroFinish() // 1st barrier
 		}
 		// under faketime, we are alone now.
-		// Time has not advanced.
-
-		// each loop iter is an event.
+		// Time has not advanced. This is the
+		// perfect point at which to advance the
+		// event/logical clock of each node, no races.
 		s.tickLogicalClocks()
 
-		changed := s.dispatchAll(now) // sends, reads, and timers.
-		nd0 += changed
+		// only dispatch one place, in nextTimer now.
+		// simpler, easier to reason about.
+		//changed := s.dispatchAll(now) // sends, reads, and timers.
+		//nd0 += changed
 		//vv("i=%v, dispatchAll changed=%v, total nd0=%v", i, changed, nd0)
 
 		preSelectTm := now
 		select { // scheduler main select
 
-		case <-s.nextTimer.C: // soonest timer fires
+		case <-s.nextTimer.C: // time advances when soonest timer fires
 			//vv("i=%v, nextTimer fired", i)
-
-			// In faketime, time has just advanced.
-			// Could be: grid step, network send/read, or client/node timer.
 			now = time.Now()
 			totalSleepDur += now.Sub(preSelectTm)
 
-			// gotta dispatch/delete all timers with
-			// completeTm <= now _before_ we refresh gridStepTimer
+			// max determinism: go last
+			// among all goro who were woken by other
+			// timers that fired at this instant.
+			if faketime && s.barrier {
+				synctestWait_LetAllOtherGoroFinish() // 2nd barrier
+			}
+			s.tickLogicalClocks()
 
-			changed := s.dispatchAll(now)
-			nd0 += changed
-			//vv("i=%v, dispatchAll changed=%v, total nd0=%v", i, changed, nd0)
-			dur, goal := s.refreshGridStepTimer(now)
-			_, _ = dur, goal
+			nd0 += s.dispatchAll(now)
+			s.refreshGridStepTimer(now)
 			s.armTimer(now)
-			// INVAR: s.gridStepTimer.completeTm > now, so no barrier deadlock
 
 		case reg := <-s.cliRegisterCh:
 			// "connect" in network lingo, client reaches out to listening server.
