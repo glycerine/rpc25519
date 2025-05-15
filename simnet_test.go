@@ -1020,9 +1020,6 @@ func Test102_time_truncate_works_under_synctest(t *testing.T) {
 	}
 }
 
-const timeMask0 = time.Microsecond * 100
-const timeMask9 = time.Microsecond*100 - 1
-
 func Test103_maskTime(t *testing.T) {
 
 	bubbleOrNot(func() {

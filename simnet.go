@@ -1773,6 +1773,9 @@ func (node *simnode) soonestTimerLessThan(bound *mop) *mop {
 	return bound
 }
 
+const timeMask0 = time.Microsecond * 100
+const timeMask9 = time.Microsecond*100 - 1
+
 // maskTime makes the last 5 digits
 // of a nanosecond timestamp all 9s: 99_999
 // Any digit above 100 microseconds is unchanged.
