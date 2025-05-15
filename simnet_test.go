@@ -1019,3 +1019,27 @@ func Test102_time_truncate_works_under_synctest(t *testing.T) {
 		bubbleOrNot(f) // calls synctest.Run(f) when faketime is true.
 	}
 }
+
+const timeMask0 = time.Microsecond * 100
+const timeMask9 = time.Microsecond*100 - 1
+
+func Test103_maskTime(t *testing.T) {
+
+	bubbleOrNot(func() {
+		now := time.Now()
+		for range 100 {
+			m := maskTime(now)
+			if m.Before(now) {
+				panic(fmt.Sprintf("m(%v) < now(%v) wrong", m, now))
+			}
+			mod := m.UnixNano() % int64(timeMask0)
+			if mod != int64(timeMask9) {
+				panic(fmt.Sprintf("mod(%v) != timeMask9(%v)", mod, timeMask9))
+			}
+			//vv("%v -> %v", now, m)
+			advance := time.Duration(cryptoRandPositiveInt64()) %
+				(time.Millisecond * 10)
+			now = now.Add(advance)
+		}
+	})
+}
