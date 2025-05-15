@@ -984,7 +984,7 @@ func Test102_time_truncate_works_under_synctest(t *testing.T) {
 
 			now := time.Now()
 
-			//dur, goal := net.durToGridPoint(0, now)
+			//dur, goal := net.durToGridPoint(now)
 			// equivalently:
 			goal := now.Add(tick).Truncate(tick)
 			dur := goal.Sub(now)
