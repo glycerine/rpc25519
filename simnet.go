@@ -912,10 +912,7 @@ func (node *simnode) backgroundFireTimer(timer *mop, now time.Time) {
 	atomic.AddInt64(&node.net.backgoundTimerGoroCount, -1)
 }
 
-// does not call armTimer. Caller/scheduler should
-// if changes > 0 {
-// node.net.armTimer(now)
-// }
+// does not call armTimer.
 func (node *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 
 	switch node.state {
@@ -1175,9 +1172,9 @@ func (node *simnode) dispatch(now time.Time) (changes int64) {
 				panic(fmt.Sprintf("failed to delete from timerQ: '%v'", op))
 			}
 		}
-		if changes > 0 {
-			node.net.armTimer(now) // dispatch
-		}
+		//if changes > 0 {
+		// let scheduler, to avoid false alarms: node.net.armTimer(now)
+		//}
 		//vv("=== end of dispatch %v", node.name)
 
 		// sanity check that we delivered everything we could.
@@ -1432,6 +1429,40 @@ func (s *simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 // operations requests by receiving them
 // in a select on its various channels, each
 // dedicated to one type of call.
+//
+// After each dispatchAll, our channel closes
+// have started node goroutines, so they
+// are running and may now be trying
+// to do network operations. The
+// select below will service those
+// operations, or take a time step
+// if nextTimer goes off first. Since
+// synctest ONLY advances time when
+// all goro are blocked, nextTimer
+// will go off last, once all other node
+// goro have blocked. This is nice: it does
+// not required another barrier opreation
+// to get to "go last". Client code
+// might also be woken at the instant
+// that nextTimer fires, but we have no
+// a guarantee that they won't race with
+// our timer: they could do further network
+// operations through our select cases
+// before our timer gets to fire. But
+// this should be rare and only apply
+// to client code using time.Timer/After directly,
+// as our mock SimTimer will not be woken:
+// that is also already simulated/combined
+// into the nextTimer. This is why we would
+// like _all_ sim code to use SimTimer
+// for a more highly deterministic simulation test.
+// Since that invasively requires changing
+// user code in some cases, the tradeoff is
+// unavoidable. The user client code can stay as is,
+// and will work/should test, but errors/red
+// tests will not be as reproducible as
+// possible, compared to if it were to be
+// udpated use the SimTimer instead.
 func (s *simnet) scheduler() {
 	//vv("scheduler is running on goro = %v", GoroNumber())
 
@@ -1450,13 +1481,7 @@ func (s *simnet) scheduler() {
 	// main scheduler loop
 	now := time.Now()
 
-	// bigbang is the "start of time" --
-	// the t0 or time zero for our simulation.
-	// This should never be changed in any code below.
-	// It gives us a stable reference point
-	// to see how long we have been running,
-	// whether under faketime or in real time,
-	// whichever is in use.
+	// bigbang is the "start of time" -- don't change below.
 	s.bigbang = now
 
 	var totalSleepDur time.Duration
@@ -1477,15 +1502,10 @@ func (s *simnet) scheduler() {
 
 	// As a special case, armTimer always includes
 	// the gridStepTimer when computing the minimum
-	// next timer to go off. So even though it
-	// doesn't live in any particular node's
-	// priority queue, it is always a candidate
-	// to be the next timer due, and it will be
-	// if there aren't any due sooner.
+	// next timer to go off, so barrier cannot deadlock.
 	s.gridStepTimer = timer
-	// always have at least one timer going,
-	// so we can barrier at the top of the
-	// loop, outside of the select.
+
+	// always have at least one timer going.
 	s.armTimer(now)
 
 restartI:
@@ -1503,64 +1523,22 @@ restartI:
 			//vv("scheduler top. schedulerReport: \n%v", s.schedulerReport())
 		}
 
-		// If we barrier in the select, we don't
-		// have any guarantee of "going last" among
-		// all awake goroutines when our nextTimer chan
-		// fires. What if we barrier here, before
-		// the select? What does the barrier do?
-		// It waits for everyone else to get durably
-		// blocked, then lets just us proceed.
-		// This sounds exactly like what we want.
+		// To maximize reproducbility, this barrier lets all
+		// other goro get durably blocked, then lets just us proceed.
 		if faketime && s.barrier {
 			//vv("about to call synctestWait_LetAllOtherGoroFinish")
 			synctestWait_LetAllOtherGoroFinish()
 			//vv("done with 1st barrier")
 		}
 		// under faketime, we are alone now.
-		// time has not advanced.
+		// Time has not advanced.
 
 		// each loop iter is an event.
 		s.tickLogicalClocks()
 
 		changed := s.dispatchAll(now) // sends, reads, and timers.
 		nd0 += changed
-		if changed == 0 {
-			//vv("i=%v, dispatchAll no change, total nd0=%v", i, changed, nd0)
-		} else {
-			//vv("i=%v, dispatchAll changed=%v, total nd0=%v", i, changed, nd0)
-		}
-		// after dispatch, our channel closes
-		// have started node goroutines, they
-		// are running and may now be trying
-		// to do network operations. The
-		// select below will service those
-		// operations, or take a time step
-		// if nextTimer goes off first. Since
-		// synctest ONLY advances time when
-		// all goro are blocked, nextTimer
-		// will go off last, once all other node
-		// goro have blocked. This is nice: it does
-		// not required another barrier opreation
-		// to get to "go last". Client code
-		// might also be woken at the instant
-		// that nextTimer fires, but we have no
-		// a guarantee that they won't race with
-		// our timer: they could do further network
-		// operations through our select cases
-		// before our timer gets to fire. But
-		// this should be rare and only apply
-		// to client code using time.Timer/After directly,
-		// as our mock SimTimer will not be woken:
-		// that is also already simulated/combined
-		// into the nextTimer. This is why we would
-		// like _all_ sim code to use SimTimer
-		// for a more highly deterministic simulation test.
-		// Since that invasively requires changing
-		// user code in some cases, the tradeoff is
-		// unavoidable. The user client code can stay as is, and will
-		// test, but errors/red tests will not be
-		// as reproducible as possible if were to be
-		// udpated to plug in the SimTimer instead.
+		//vv("i=%v, dispatchAll changed=%v, total nd0=%v", i, changed, nd0)
 
 		preSelectTm := now
 		select { // scheduler main select
@@ -1569,40 +1547,20 @@ restartI:
 			//vv("i=%v, nextTimer fired", i)
 
 			// In faketime, time has just advanced.
-			// This could be a grid step, or sooner, if
-			// network send/read pair is due to match, or
-			// a node timer is firing.
-
-			// steps below:
-			// 1) reset our gridStepTimer if it has expired.
-			//    (rearm the nextTimer with it if so).
-			// 2) dispatch all timers.
+			// Could be: grid step, network send/read, or client/node timer.
 			now = time.Now()
 			totalSleepDur += now.Sub(preSelectTm)
 
-			// At a minimum, we've gotta dispatch (delete) all
-			// timers with completeTm <= now _before_ we add
-			// our own refreshed gridStepTimer back in to pq,
-			// or else the undeleted minimum next timer can
-			// look like "now" when we do a sanity check,
-			// raising a false alarm.
+			// gotta dispatch/delete all timers with
+			// completeTm <= now _before_ we refresh gridStepTimer
 
-			//changed := s.dispatchAllTimers(now)
 			changed := s.dispatchAll(now)
 			nd0 += changed
 			//vv("i=%v, dispatchAll changed=%v, total nd0=%v", i, changed, nd0)
 			dur, goal := s.refreshGridStepTimer(now)
 			_, _ = dur, goal
-			minTimerDur := s.armTimer(now)
-			if minTimerDur > 0 {
-				//vv("armTimer reported minTimerDur = %v; vs s.scenario.tick = %v", minTimerDur, s.scenario.tick)
-			} else {
-				vv("no timers, what?? i = %v; minTimerDur = %v", i, minTimerDur)
-				panic("why not even the grid timer?")
-			}
-			// INVAR: s.gridStepTimer.completeTm > now.
-			// Hence the synctest.Wait barrier before this
-			// select, above in the loop should never deadlock.
+			s.armTimer(now)
+			// INVAR: s.gridStepTimer.completeTm > now, so no barrier deadlock
 
 		case reg := <-s.cliRegisterCh:
 			// "connect" in network lingo, client reaches out to listening server.
@@ -1663,7 +1621,7 @@ func (s *simnet) initScenario(scenario *scenario) {
 }
 
 func (s *simnet) handleDiscardTimer(discard *mop) {
-	now := time.Now()
+	//now := time.Now()
 
 	switch discard.origin.state {
 	case HALTED:
@@ -1684,12 +1642,12 @@ func (s *simnet) handleDiscardTimer(discard *mop) {
 	} // leave wasArmed false, could not have been armed if gone.
 
 	////zz("LC:%v %v TIMER_DISCARD %v to fire at '%v'; now timerQ: '%v'", discard.origin.lc, discard.origin.name, discard, discard.origTimerCompleteTm, s.clinode.timerQ)
-	s.armTimer(now)
+	// let scheduler, to avoid false alarms: s.armTimer(now)
 	close(discard.proceed)
 }
 
 func (s *simnet) handleTimer(timer *mop) {
-	now := time.Now()
+	//now := time.Now()
 
 	switch timer.origin.state {
 	case HALTED:
@@ -1720,7 +1678,7 @@ func (s *simnet) handleTimer(timer *mop) {
 	timer.origin.timerQ.add(timer)
 	////zz("LC:%v %v set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer.origin.name, timer, timer.completeTm, s.clinode.timerQ)
 
-	s.armTimer(now) // handleTimer
+	// let scheduler, to avoid false alarms: s.armTimer(now) // handleTimer
 }
 
 // refreshGridStepTimer context:
@@ -1742,6 +1700,8 @@ func (s *simnet) handleTimer(timer *mop) {
 // the each priority queue, which our
 // red-black tree has cached anyway.
 // For K simnodes * 3 PQ per node => O(K).
+//
+// armTimer is not called; keep it as a separate step.
 func (s *simnet) refreshGridStepTimer(now time.Time) (dur time.Duration, goal time.Time) {
 	if gte(now, s.gridStepTimer.completeTm) {
 		s.gridStepTimer.initTm = now
@@ -1774,6 +1734,10 @@ func (s *simnet) armTimer(now time.Time) time.Duration {
 
 	dur := minTimer.completeTm.Sub(now)
 	////zz("dur=%v = when(%v) - now(%v)", dur, minTimer.completeTm, now)
+	if dur <= 0 {
+		vv("no timers, what?? minTimerDur = %v", dur)
+		panic("must always have at least the grid timer!")
+	}
 	s.lastArmTm = now
 	s.nextTimer.Reset(dur)
 	return dur
