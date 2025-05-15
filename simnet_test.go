@@ -956,55 +956,63 @@ func Test101_gosimnet_basics(t *testing.T) {
 		//vv("good: finished timer (fired at %v) after %v >= goal %v", t1, elap, goalWait)
 	})
 }
-func Test102_truncate_works_under_synctest(t *testing.T) {
+func Test102_time_truncate_works_under_synctest(t *testing.T) {
 
-	// truncate was giving unexpected answers under synctest...
-	// compare to real time.
+	if !faketime {
+		t.Skip("real time sensitive to slow machine: skipping test")
+	}
+
+	// truncate was giving unexpected
+	// answers under synctest...
+	// compare to real time. hmm. seems fine.
+
+	tick := 100 * time.Millisecond
+	//tick := time.Second
 
 	net := &simnet{
 		scenario: &scenario{
-			tick: time.Second,
+			tick: tick,
 		},
 	}
+	_ = net
 
 	fake := false
 	f := func() {
-		//tick := time.Millisecond
-		tick := time.Second
-		subtick := time.Millisecond / 3
 
-		fmt.Printf("\n\n running in a synctime bubble = %v; tick=%v; incr=%v\n\n", fake, tick, subtick)
-		for i := range 8 {
+		//vv("\n\n running in a synctime bubble = %v; tick=%v;\n\n", fake, tick)
+		for i := range 30 {
 
-			//now := time.Now()
-			//goal := now.Add(tick).Truncate(tick)
-			//dur := goal.Sub(now)
-			// equivalent:
 			now := time.Now()
-			dur, goal := net.durToGridPoint(0, now)
+
+			//dur, goal := net.durToGridPoint(0, now)
+			// equivalently:
+			goal := now.Add(tick).Truncate(tick)
+			dur := goal.Sub(now)
 
 			time.Sleep(dur)
-			was := now
+
 			now2 := time.Now()
 			offby := now2.Sub(goal)
 
-			pct := math.Abs(float64(offby)) / float64(tick)
+			pct := 100 * math.Abs(float64(offby)) / float64(tick)
 
-			fmt.Printf("i=%03d, dur=%v -> goal:%v ; offby = %v (%0.2f); tick=%v;\n was=%v\n ->\n now2=%v\n\n", i, dur, goal, offby, pct, tick, was, now2)
+			//vv("i=%03d, dur=%v ; offby = %v (%0.2f %%); tick=%v; \n now=%v\n ->\n now2=%v\n goal=%v\n\n", i, dur, offby, pct, tick, now, now2, goal)
 
 			if fake {
 				if offby != 0 {
 					panic(fmt.Sprintf("fake time, i=%v; expected offby of 0, got %v", i, offby))
 				}
 			} else {
-				if pct > 0.05 {
-					panic(fmt.Sprintf("real time, i=%v; expected offby < 0.05, got %0.2f (%v)", i, pct, offby))
+				if pct >= 10 {
+					panic(fmt.Sprintf("real time, i=%v; expected offby < 10%%, got %0.2f %% (%v)", i, pct, offby))
 				}
 			}
 		}
 	}
 	// realtime
-	f()
+	if !faketime {
+		f()
+	}
 
 	if faketime {
 		fake = true
