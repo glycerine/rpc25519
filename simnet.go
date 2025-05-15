@@ -1154,7 +1154,7 @@ func (s *simnet) durToGridPoint(i int64) (dur time.Duration, goal time.Time) {
 	goal = now.Add(tick).Truncate(tick)
 
 	dur = goal.Sub(now)
-	vv("i=%v; now=%v; goal=%v; tick=%v; durToGridPoint=%v", i, now, goal, s.scenario.tick, dur)
+	vv("i=%v; just before dispatchAll(), durToGridPoint computed: dur=%v -> goal:%v to reset the gridTimer; tick=%v", i, dur, goal, s.scenario.tick)
 	if dur <= 0 { // i.e. now <= goal
 		panic(fmt.Sprintf("why was proposed sleep dur = %v <= 0 ? i=%v; s.scenario.tick=%v; bigbang=%v; now=%v", dur, i, s.scenario.tick, s.bigbang, now))
 	}
