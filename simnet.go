@@ -240,7 +240,8 @@ func (s *simnet) newSimnode(name string) (node *simnode) {
 		net:     s,
 		halt:    idem.NewHalter(),
 	}
-	s.halt.AddChild(node.halt) // deadlocking! TODO fix.
+	vv("newSimnode halt.ReqStop=%p, parent simnet halt.ReqStop=%p", s.halt.ReqStop, node.halt.ReqStop)
+	s.halt.AddChild(node.halt) // deadlocking! TODO fix. cycle/dup child weird
 	return
 }
 

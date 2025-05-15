@@ -529,7 +529,12 @@ func (peerAPI *peerAPI) newLocalPeer(
 	// we will get a ReqStop and wait until Done (or 500 msec)
 	// by adding our halter as a child of theirs.
 	hhalt := u.GetHostHalter()
-	hhalt.AddChild(pb.Halt)
+	if pb.Halt == hhalt {
+		vv("pb.Halt == hhalt == %p, not adding as child of self!", hhalt)
+	} else {
+		vv("hhalt(%p).AddChild(%p)", hhalt, pb.Halt)
+		hhalt.AddChild(pb.Halt)
+	}
 
 	// service reads for local.
 	u.GetReadsForToPeerID(pb.ReadsIn, peerID)
