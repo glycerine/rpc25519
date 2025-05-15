@@ -1366,11 +1366,18 @@ func (s *simnet) dispatchAll(now time.Time) (changes int64) {
 	return
 }
 
-// does not call armTimer(), so scheduler should
-// afterwards.
+// does not call armTimer(), so scheduler should afterwards.
 func (s *simnet) dispatchAllTimers(now time.Time) (changes int64) {
 	for node := range s.nodes {
 		changes += node.dispatchTimers(now)
+	}
+	return
+}
+
+// does not call armTimer(), so scheduler should afterwards.
+func (s *simnet) dispatchAllReadsSends(now time.Time) (changes int64) {
+	for node := range s.nodes {
+		changes += node.dispatchReadsSends(now)
 	}
 	return
 }
