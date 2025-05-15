@@ -1176,7 +1176,7 @@ func (node *simnode) dispatch(now time.Time) (changes int64) {
 			}
 		}
 		if changes > 0 {
-			node.net.armTimer(now)
+			node.net.armTimer(now) // dispatch
 		}
 		//vv("=== end of dispatch %v", node.name)
 
@@ -1720,7 +1720,7 @@ func (s *simnet) handleTimer(timer *mop) {
 	timer.origin.timerQ.add(timer)
 	////zz("LC:%v %v set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer.origin.name, timer, timer.completeTm, s.clinode.timerQ)
 
-	s.armTimer(now)
+	s.armTimer(now) // handleTimer
 }
 
 // refreshGridStepTimer context:
@@ -1760,7 +1760,9 @@ func (s *simnet) armTimer(now time.Time) time.Duration {
 
 	var minTimer *mop = s.gridStepTimer
 	if s.gridStepTimer.completeTm.Before(now) {
-		panic(fmt.Sprintf("gridStepTimer(%v) not refreshed! < now %v", s.gridStepTimer.completeTm, now))
+		//panic(fmt.Sprintf("gridStepTimer(%v) not refreshed! < now %v", s.gridStepTimer.completeTm, now))
+		// just fix it by refreshing.
+		s.refreshGridStepTimer(now)
 	}
 	for node := range s.nodes {
 		minTimer = node.soonestTimerLessThan(minTimer)
