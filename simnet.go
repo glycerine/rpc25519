@@ -170,6 +170,8 @@ type simnet struct {
 	bigbang       time.Time
 	gridStepTimer *mop
 
+	backgoundTimerGoroCount int64 // atomic access only
+
 	scenario *scenario
 
 	cfg       *Config
@@ -886,7 +888,13 @@ func (node *simnode) dispatchTimers(now time.Time) (changes int64) {
 			case timer.timerC <- now:
 			case <-node.net.halt.ReqStop.Chan:
 				return
-			default: // match what Go runtime does for timer chan sends
+			default:
+				// The Go runtime will delay the timer channel
+				// send until a receiver goro can receive it,
+				// but we cannot. Hence we use a goroutine if
+				// we didn't get through on the above attempt.
+				atomic.AddInt64(&node.net.backgoundTimerGoroCount, 1)
+				go node.backgroundFireTimer(timer, now)
 			}
 		} else {
 			// INVAR: smallest timer > now
@@ -896,12 +904,18 @@ func (node *simnode) dispatchTimers(now time.Time) (changes int64) {
 	return
 }
 
-// does not call armTimer. Caller/scheduler
-// should if changes > 0:
-//
-//	if changes > 0 {
-//	    node.net.armTimer(now)
-//	}
+func (node *simnode) backgroundFireTimer(timer *mop, now time.Time) {
+	select {
+	case timer.timerC <- now:
+	case <-node.net.halt.ReqStop.Chan:
+	}
+	atomic.AddInt64(&node.net.backgoundTimerGoroCount, -1)
+}
+
+// does not call armTimer. Caller/scheduler should
+// if changes > 0 {
+// node.net.armTimer(now)
+// }
 func (node *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 
 	switch node.state {
@@ -1480,7 +1494,7 @@ func (s *simnet) scheduler() {
 	// if there aren't any due sooner.
 	s.gridStepTimer = timer
 	// always have at least one timer going,
-	// so we car barrier at the top of the
+	// so we can barrier at the top of the
 	// loop, outside of the select.
 	s.armTimer(now)
 
@@ -1529,7 +1543,7 @@ restartI:
 		}
 		// under faketime, we are alone now
 
-		// each wake here is an event.
+		// each loop iter is an event.
 		s.tickLogicalClocks()
 
 		changed := s.dispatchAll(now)
