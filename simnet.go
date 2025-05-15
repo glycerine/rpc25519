@@ -1428,7 +1428,7 @@ func (s *simnet) durToGridPoint(i int64, now time.Time) (dur time.Duration, goal
 	goal = now.Add(tick).Truncate(tick)
 
 	dur = goal.Sub(now)
-	vv("i=%v; just before dispatchAll(), durToGridPoint computed: dur=%v -> goal:%v to reset the gridTimer; tick=%v", i, dur, goal, s.scenario.tick)
+	//vv("i=%v; just before dispatchAll(), durToGridPoint computed: dur=%v -> goal:%v to reset the gridTimer; tick=%v", i, dur, goal, s.scenario.tick)
 	if dur <= 0 { // i.e. now <= goal
 		panic(fmt.Sprintf("why was proposed sleep dur = %v <= 0 ? i=%v; s.scenario.tick=%v; bigbang=%v; now=%v", dur, i, s.scenario.tick, s.bigbang, now))
 	}
@@ -1537,9 +1537,9 @@ restartI:
 		// }
 		//
 		if faketime && s.barrier {
-			vv("about to call synctestWait_LetAllOtherGoroFinish")
+			//vv("about to call synctestWait_LetAllOtherGoroFinish")
 			synctestWait_LetAllOtherGoroFinish()
-			vv("done with 1st barrier")
+			//vv("done with 1st barrier")
 		}
 		// under faketime, we are alone now
 
@@ -1549,16 +1549,16 @@ restartI:
 		changed := s.dispatchAll(now)
 		nd0 += changed
 		if changed == 0 {
-			vv("i=%v, dispatchAll no change, total nd0=%v", i, changed, nd0)
+			//vv("i=%v, dispatchAll no change, total nd0=%v", i, changed, nd0)
 		} else {
-			vv("i=%v, dispatchAll changed=%v, total nd0=%v", i, changed, nd0)
+			//vv("i=%v, dispatchAll changed=%v, total nd0=%v", i, changed, nd0)
 		}
 
 		preSelectTm := now
 		select { // scheduler main select
 
 		case <-s.nextTimer.C: // soonest timer fires
-			vv("i=%v, nextTimer fired", i)
+			//vv("i=%v, nextTimer fired", i)
 
 			// faketime has just advanced (so has real time).
 			// This could be a grid step, or sooner.
@@ -1738,9 +1738,9 @@ restartI:
 			changed := s.dispatchAllTimers(now)
 			nd0 += changed
 			if changed == 0 {
-				vv("i=%v, dispatchAll no change, total nd0=%v", i, changed, nd0)
+				//vv("i=%v, dispatchAll no change, total nd0=%v", i, changed, nd0)
 			} else {
-				vv("i=%v, dispatchAll changed=%v, total nd0=%v", i, changed, nd0)
+				//vv("i=%v, dispatchAll changed=%v, total nd0=%v", i, changed, nd0)
 			}
 
 			// Some dispatch() call just above
@@ -1773,7 +1773,7 @@ restartI:
 			}
 			minTimerDur := s.armTimer(now)
 			if minTimerDur > 0 {
-				vv("armTimer reported minTimerDur = %v; vs s.scenario.tick = %v", minTimerDur, s.scenario.tick)
+				//vv("armTimer reported minTimerDur = %v; vs s.scenario.tick = %v", minTimerDur, s.scenario.tick)
 			} else {
 				vv("no timers, what?? i = %v; minTimerDur = %v", i, minTimerDur)
 				panic("why not even the grid timer?")
@@ -1783,13 +1783,13 @@ restartI:
 
 		case reg := <-s.cliRegisterCh:
 			// "connect" in network lingo, client reaches out to listening server.
-			vv("i=%v, cliRegisterCh got reg from '%v' = '%#v'", i, reg.client.name, reg)
+			//vv("i=%v, cliRegisterCh got reg from '%v' = '%#v'", i, reg.client.name, reg)
 			s.handleClientRegistration(reg)
 			//vv("back from handleClientRegistration for '%v'", reg.client.name)
 
 		case srvreg := <-s.srvRegisterCh:
 			// "bind/listen" on a socket, server waits for any client to "connect"
-			vv("i=%v, s.srvRegisterCh got srvreg for '%v'", i, srvreg.server.name)
+			//vv("i=%v, s.srvRegisterCh got srvreg for '%v'", i, srvreg.server.name)
 			s.handleServerRegistration(srvreg)
 			// do not vv here, as it is very racey with the server who
 			// has been given permission to proceed.
@@ -1802,19 +1802,19 @@ restartI:
 			continue restartI
 
 		case timer := <-s.addTimer:
-			vv("i=%v, addTimer ->  op='%v'", i, timer)
+			//vv("i=%v, addTimer ->  op='%v'", i, timer)
 			s.handleTimer(timer)
 
 		case discard := <-s.discardTimerCh:
-			vv("i=%v, discardTimer ->  op='%v'", i, discard)
+			//vv("i=%v, discardTimer ->  op='%v'", i, discard)
 			s.handleDiscardTimer(discard)
 
 		case send := <-s.msgSendCh:
-			vv("i=%v, msgSendCh ->  op='%v'", i, send)
+			//vv("i=%v, msgSendCh ->  op='%v'", i, send)
 			s.handleSend(send)
 
 		case read := <-s.msgReadCh:
-			vv("i=%v msgReadCh ->  op='%v'", i, read)
+			//vv("i=%v msgReadCh ->  op='%v'", i, read)
 			s.handleRead(read)
 
 		case alt := <-s.alterNodeCh:
@@ -1824,7 +1824,7 @@ restartI:
 			return
 		} // end select
 
-		vv("i=%v bottom of scheduler loop. num dispatch events = %v", i, nd0)
+		//vv("i=%v bottom of scheduler loop. num dispatch events = %v", i, nd0)
 	}
 }
 
