@@ -1513,8 +1513,7 @@ func (s *simnet) scheduler() {
 restartI:
 	for i := int64(0); ; i++ {
 
-		// number dispatched counter
-		// is reset each time through. TODO remove?
+		// number dispatched operations
 		var nd0 int64
 
 		now := time.Now()
@@ -1533,11 +1532,12 @@ restartI:
 		// under faketime, we are alone now.
 		// Time has not advanced. This is the
 		// perfect point at which to advance the
-		// event/logical clock of each node, no races.
+		// event/logical clock of each node, as no races.
 		s.tickLogicalClocks()
 
 		// only dispatch one place, in nextTimer now.
-		// simpler, easier to reason about.
+		// simpler, easier to reason about. this is viable too,
+		// but creates less determinism.
 		//changed := s.dispatchAll(now) // sends, reads, and timers.
 		//nd0 += changed
 		//vv("i=%v, dispatchAll changed=%v, total nd0=%v", i, changed, nd0)
@@ -1576,7 +1576,6 @@ restartI:
 			// has been given permission to proceed.
 
 		case scenario := <-s.newScenarioCh:
-			panic("should have no scenario changes under 702 test. TODO remove")
 			s.finishScenario()
 			s.initScenario(scenario)
 			i = 0
