@@ -855,6 +855,249 @@ func gte(a, b time.Time) bool {
 	return !a.Before(b)
 }
 
+// does not call armTimer(), so scheduler should
+// afterwards.
+func (node *simnode) dispatchTimers(now time.Time) (changes int64) {
+	if node.state == HALTED {
+		return 0
+	}
+	if node.timerQ.tree.Len() == 0 {
+		return
+	}
+
+	timerIt := node.timerQ.tree.Min()
+	for timerIt != node.timerQ.tree.Limit() {
+
+		timer := timerIt.Item().(*mop)
+		//vv("check TIMER: %v", timer)
+
+		if lte(timer.completeTm, now) {
+			// timer.completeTm <= now
+
+			//vv("have TIMER firing")
+			changes++
+			timer.timerFiredTm = now
+			// advance, and delete behind us
+			delmeIt := timerIt
+			timerIt = timerIt.Next()
+			node.timerQ.tree.DeleteWithIterator(delmeIt)
+
+			select {
+			case timer.timerC <- now:
+			case <-node.net.halt.ReqStop.Chan:
+				return
+			default: // match what Go runtime does for timer chan sends
+			}
+		} else {
+			// INVAR: smallest timer > now
+			return
+		}
+	}
+	return
+}
+
+// does not call armTimer. Caller/scheduler
+// should if changes > 0:
+//
+//	if changes > 0 {
+//	    node.net.armTimer(now)
+//	}
+func (node *simnode) dispatchReadsSends(now time.Time) (changes int64) {
+
+	switch node.state {
+	case HALTED:
+		// cannot send, receive, start timers or
+		// discard them; when halted.
+		return
+	case PARTITIONED:
+		// timers need to fire.
+		// pre-arrival Q will be empty, so
+		// no matching will happen anyway.
+		// reads are fine.
+	case HEALTHY:
+	}
+
+	// to be deleted at the end, so
+	// we don't dirupt the iteration order
+	// and miss something.
+	var preDel []*mop
+	var readDel []*mop
+
+	// skip the not dispatched assert on shutdown
+	shuttingDown := false
+	// for assert we dispatched all we could
+	var endOn, lastMatchSend, lastMatchRead *mop
+	var endOnSituation string
+
+	// We had an early bug from returning early and
+	// forgetting about preDel, readDel
+	// that were waiting for deletion at
+	// the end. Doing the deletes here in
+	// a defer allows us to return safely at any
+	// point, and still do the required cleanup.
+	defer func() {
+		// take care of any deferred-to-keep-sane iteration deletes
+		nPreDel := len(preDel)
+		var delListSN []int64
+		for _, op := range preDel {
+			////zz("delete '%v'", op)
+			// TODO: delete with iterator! should be more reliable and faster.
+			found := node.preArrQ.tree.DeleteWithKey(op)
+			if !found {
+				panic(fmt.Sprintf("failed to delete from preArrQ: '%v'; preArrQ = '%v'", op, node.preArrQ.String()))
+			}
+			delListSN = append(delListSN, op.sn)
+		}
+		for _, op := range readDel {
+			////zz("delete '%v'", op)
+			found := node.readQ.tree.DeleteWithKey(op)
+			if !found {
+				panic(fmt.Sprintf("failed to delete from readQ: '%v'", op))
+			}
+		}
+		//vv("=== end of dispatch %v", node.name)
+
+		// sanity check that we delivered everything we could.
+		narr := node.preArrQ.tree.Len()
+		nread := node.readQ.tree.Len()
+		// it is normal to have preArrQ if no reads...
+		if narr > 0 && nread > 0 {
+			// if the first preArr is not due yet, that is the reason
+
+			// if not using fake time, arrival time was probably
+			// almost but not quite here when we checked below,
+			// but now there is something possible a
+			// few microseconds later. In this case, don't freak.
+			// So make this conditional on faketime being in use.
+			if !shuttingDown && faketime { // && node.net.barrier {
+
+				now2 := time.Now()
+				if node.firstPreArrivalTimeLTE(now2) {
+					alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; nPreDel = %v; delListSN = '%v', (now2 - now = %v);\n endOn = %v\n lastMatchSend=%v \n lastMatchRead = %v \n\n endOnSituation = %v\n summary node summary:\n%v", narr, nread, nPreDel, delListSN, now2.Sub(now), endOn, lastMatchSend, lastMatchRead, endOnSituation, node.String())
+					panic("should have been dispatchable, no?")
+				}
+			}
+		}
+	}()
+
+	nR := node.readQ.tree.Len()   // number of reads
+	nS := node.preArrQ.tree.Len() // number of sends
+
+	if nR == 0 && nS == 0 {
+		return
+	}
+
+	readIt := node.readQ.tree.Min()
+	preIt := node.preArrQ.tree.Min()
+
+	// matching reads and sends
+	for {
+		if readIt == node.readQ.tree.Limit() {
+			// no reads, no point.
+			return
+		}
+		if preIt == node.preArrQ.tree.Limit() {
+			// no sends to match with reads
+			return
+		}
+
+		read := readIt.Item().(*mop)
+		send := preIt.Item().(*mop)
+
+		node.optionallyApplyChaos()
+
+		// Causality also demands that
+		// a read can complete (now) only after it was initiated;
+		// and so can be matched (now) only to a send already initiated.
+
+		// To keep from violating causality,
+		// during our chaos testing, we want
+		// to make sure that the read completion (now)
+		// cannot happen before the send initiation.
+		// Also forbid any reads that have not happened
+		// "yet" (now), should they get rearranged by chaos.
+		if now.Before(read.initTm) {
+			alwaysPrintf("rejecting delivery to read that has not happened: '%v'", read)
+			panic("how possible?")
+			return
+		}
+		// INVAR: this read.initTm <= now
+		changes++
+
+		if send.arrivalTm.After(now) {
+			// send has not arrived yet.
+
+			// are we done? since preArrQ is ordered
+			// by arrivalTm, all subsequent pre-arrivals (sends)
+			// will have even more _greater_  arrivalTm;
+			// so no point in looking.
+
+			// super noisy!
+			//vv("rejecting delivery of send that has not happened: '%v'", send)
+			//vv("dispatch: %v", node.net.schedulerReport())
+			endOn = send
+			it2 := preIt
+			afterN := 0
+			for ; it2 != node.preArrQ.tree.Limit(); it2 = it2.Next() {
+				afterN++
+			}
+			endOnSituation = fmt.Sprintf("after me: %v; preArrQ: %v", afterN, node.preArrQ.String())
+
+			// we must set a timer on its delivery then...
+			dur := send.arrivalTm.Sub(now)
+			pending := newTimerCreateMop(node.isCli)
+			pending.origin = node
+			pending.timerDur = dur
+			pending.initTm = now
+			pending.completeTm = now.Add(dur)
+			pending.timerFileLine = fileLine(1)
+			pending.internalPendingTimer = true
+			node.net.handleTimer(pending)
+			return
+		}
+		// INVAR: this send.arrivalTm <= now; good to deliver.
+
+		// Since both have happened, they can be matched.
+
+		// Service this read with this send.
+
+		read.msg = send.msg // safe b/c already copied in handleSend()
+
+		read.isEOF_RST = send.isEOF_RST // convey EOF/RST
+		if send.isEOF_RST {
+			//vv("copied EOF marker from send '%v' \n to read: '%v'", send, read)
+		}
+
+		lastMatchSend = send
+		lastMatchRead = read
+		// advance our logical clock
+		node.lc = max(node.lc, send.originLC) + 1
+		////zz("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, node.lc, node.lc-read.originLC, read.sn)
+
+		// track clocks on either end for this send and read.
+		read.readerLC = node.lc
+		read.senderLC = send.senderLC
+		send.readerLC = node.lc
+		read.completeTm = now
+		read.arrivalTm = send.arrivalTm // easier diagnostics
+
+		// matchmaking
+		//vv("[1]matchmaking: \nsend '%v' -> \nread '%v'", send, read)
+		read.sendmop = send
+		send.readmop = read
+
+		preDel = append(preDel, send)
+		readDel = append(readDel, read)
+
+		close(read.proceed)
+		// send already closed in handleSend()
+
+		readIt = readIt.Next()
+		preIt = preIt.Next()
+
+	} // end for
+}
+
 // dispatch delivers sends to reads, and fires timers.
 // It calls node.net.armTimer() at the end (in the defer).
 func (node *simnode) dispatch(now time.Time) (changes int64) {
@@ -918,7 +1161,9 @@ func (node *simnode) dispatch(now time.Time) (changes int64) {
 				panic(fmt.Sprintf("failed to delete from timerQ: '%v'", op))
 			}
 		}
-		node.net.armTimer(now)
+		if changes > 0 {
+			node.net.armTimer(now)
+		}
 		//vv("=== end of dispatch %v", node.name)
 
 		// sanity check that we delivered everything we could.
@@ -989,6 +1234,8 @@ func (node *simnode) dispatch(now time.Time) (changes int64) {
 			break // check send->read next, don't return yet.
 		}
 	}
+
+	// done with timers. on to matching reads and sends.
 
 	for {
 		if readIt == node.readQ.tree.Limit() {
@@ -1119,6 +1366,15 @@ func (s *simnet) dispatchAll(now time.Time) (changes int64) {
 	return
 }
 
+// does not call armTimer(), so scheduler should
+// afterwards.
+func (s *simnet) dispatchAllTimers(now time.Time) (changes int64) {
+	for node := range s.nodes {
+		changes += node.dispatchTimers(now)
+	}
+	return
+}
+
 func (s *simnet) tickLogicalClocks() {
 	for node := range s.nodes {
 		node.lc++
@@ -1236,6 +1492,47 @@ restartI:
 			//vv("scheduler top. schedulerReport: \n%v", s.schedulerReport())
 		}
 
+		// If we barrier in the select, we don't
+		// have any guarantee of "going last" among
+		// all awake goroutines when our nextTimer chan
+		// fires. What if we barrier here, before
+		// the select? What does the barrier do?
+		// It waits for everyone else to get durably
+		// blocked, then lets just us proceed.
+		// This sounds exactly like what we want.
+		// If we had a WaitChan() too, we could use it.
+		// Actually can I just make a function that
+		// does that, if I want it, by having
+		//
+		// func WaitChan() chan any {
+		//     ch := make(chan any, 1)
+		//     synctest.Wait() // the select has not started yet
+		//     // we are alone
+		//     ch <- true
+		//     // but no guarantee our select
+		//     // will be chosen. That would need runtime assistance.
+		//     // but: do we not need it?
+		//     return ch
+		// }
+		//
+		if faketime && s.barrier {
+			vv("about to call synctestWait_LetAllOtherGoroFinish")
+			synctestWait_LetAllOtherGoroFinish()
+			vv("done with 1st barrier")
+		}
+		// under faketime, we are alone now
+
+		// each wake here is an event.
+		s.tickLogicalClocks()
+
+		changed := s.dispatchAll(now)
+		nd0 += changed
+		if changed == 0 {
+			vv("i=%v, dispatchAll no change, total nd0=%v", i, changed, nd0)
+		} else {
+			vv("i=%v, dispatchAll changed=%v, total nd0=%v", i, changed, nd0)
+		}
+
 		preSelectTm := now
 		select { // scheduler main select
 
@@ -1245,8 +1542,78 @@ restartI:
 			// faketime has just advanced (so has real time).
 			// This could be a grid step, or sooner.
 
+			// if false { // try moving back above the select for!
+			//
 			// steps below:
-			// 1) tick our logical clocks forward
+			// 1) execute the barrier. This lets any
+			//    client user code that is using
+			//    raw time.After or time.Timer and has
+			//    just awoken, finish their business and
+			//    get durably blocked on us (our channels,
+			//    which are unavailable since we are here
+			//    inside a select case) or something of
+			//    their own first. Once that is done, we
+			//    know reliably that our dispatches can
+			//    be more deterministic? No, we've gotten
+			//    everything we are going to get? No,
+			//    there could be channels ready in other
+			//    arms of the select? No, those would
+			//    have fired during our sleep if they could?
+			//
+			//    Is there a race between when the moment when
+			//    the timers go off now, and when the
+			//    branch of the select that has the timer
+			//    on it goes off? Because multiple timers have
+			//    to get released in some order, so if
+			//    we are second, we might still see an
+			//    action on another arm of this select
+			//    statement before our timer channel
+			//    gets a chance to fire, right? There's
+			//    no way the runtime gives us determinism
+			//    there... with just sleep. It feels
+			//    like there needs to be an atomic
+			//    operation in synctest to address this situation.
+			//    Because Wait is a function, not a channel.
+			//
+			//    What guarantees, if any, do I have? Or can I get?
+			//    Can I for instance put a priority
+			//    on a timer, so I know I get serviced
+			//    first, or last? (last would mirror synctest.Wait)
+			//    Or can I query all the timers
+			//    to know there is no other coincident
+			//    with my own? I don't think the go runtime
+			//    can guarantee that. What I want is to
+			//    know that when the new time has arrived
+			//    that everyone else can finish first, before
+			//    my select arm with the timer fires. Just
+			//    like what synctest.Wait does for non-select code.
+			//
+			//    Can I prevent those goro from calling
+			//    my select? Only by doing the barrier
+			//    before entering the select, at this point.
+			//    But I had problems when had the sleep
+			//    before the select... what were they?
+			//
+			//    Really I want my scheduler goro to be
+			//    able to run alone for a little while.
+			//    I can't do that with a timer channel on
+			//    a select, since all my case arms are open
+			//    simultaneously.
+			//
+			//    What if both our timer and one of the
+			//    channels were available and we pseudo
+			//    randomly chose the timer channel? Does
+			//    synctest guarrantee that only one
+			//    channel of a select, the timer channel
+			//    will deterministically fire? What if
+			//    there are two channels waiting on the
+			//    same timer? or two timers with the same
+			//    deadline? Is choice still pseudo random?
+			//
+			//    The only way we wake up from the sleep
+			//    is if everything is durably blocked.
+			//
+			// 2) tick our logical clocks forward
 			// 2) reset our gridStepTimer if it has expired.
 			//    (rearm the nextTimer with it if so).
 			// 3) dispatch all ready reads, sends and timers,
@@ -1258,26 +1625,96 @@ restartI:
 			//    Yes, but they already can, right?
 			//    Do we even need or want the barrier at all?
 
+			// What does doing the barrier now get us?
+			// All client goro are off doing work on the
+			// sends/reads/timers we have just dispatched
+			// to them. If we proceed through the loop
+			// very quickly, then some of them that
+			// should get their next request in by the
+			// end of the next sleep might not? Well,
+			// no, time advances in the bubble only
+			// when all goroutines are blocked.
+			//
+			// docs: "Time advances when every
+			// goroutine in the bubble is blocked.
+			// For example, a call to time.Sleep will
+			// block until all other goroutines are
+			// blocked and return after the bubble's
+			// clock has advanced." So somehow we
+			// would rather have the barrier after
+			// the clock advance, but before we do
+			// any dispatching...? Hold on, we know
+			// that they were durably blocked already or
+			// else time would not have advanced.
+			// Our nextTimer is the only real/fake
+			// timer that the runtime knows about,
+			// so it will only wake us-- not any
+			// other goroutines. In the much more
+			// general than simnet use case, there
+			// can be other timers due now, and
+			// they can be released now at the same
+			// time as we are. In that case the barrier
+			// gets us something: we let those other
+			// goro finish their tasks before we
+			// go, and thus we get to go last knowing
+			// that they are done with their
+			// business. Here in simnet though, we
+			// don't have that issue. Suppose though
+			// that we use client code (or have
+			// clients of the client, use code
+			// that has not been converted to use
+			// the simnet SimTimer? They _may_ have
+			// been woken up at the same time as
+			// we were, so to handle them properly,
+			// we would want to do the barrier
+			// right after we awake. (Must be still
+			// my code to be in a test bubble, of
+			// course... -- actual user code using
+			// the network cannot be tested with synctest).
+			//
+			// So clients: they either they got their requests into
+			// our channels while we were sleeping, or
+			// they missed the cutoff when our
+			// timer fired. Even if they are blocked on
+			// one of our channels, can they be doing
+			// other stuff on another goroutine in
+			// the background? synctest says no, because
+			// they have to have been durably blocked first.
+			// Only if they had a timer coincident with
+			// our will they now be awake. In that case,
+			// they can compute stuff with us concurrently,
+			// right now. For reproducibility, we'd like
+			// to let them finish their business, and
+			// only then unblock them with our dispatches;
+			// we want to "go last", after they are done.
+			// That is what the barrier does for us.
+			// Here it is.
+			// Now:
+			// Arg. See above analysis, try moving it
+			// before the select for better determinism.
+			//if faketime && s.barrier {
+			//	vv("about to call synctestWait_LetAllOtherGoroFinish")
+			//	synctestWait_LetAllOtherGoroFinish()
+			//	vv("done with 1st barrier")
+			//}
+
 			now := time.Now()
 			elapsed := now.Sub(preSelectTm)
 			totalSleepDur += elapsed
 
-			// each wake here is an event.
-			s.tickLogicalClocks()
-
+			if false {
+				// each wake here is an event.
+				s.tickLogicalClocks()
+			}
 			// Gotta dispatch (delete) all
 			// timers with completeTm <= now
 			// before we add our own back in
 			// else the min can look like now
 			// when we do a sanity check.
 
-			// There can be many goro that
-			// need service now.
-			// Should we dispatch
-			// until they there is no one? No,
-			// we let them finish using the synctest.Wait
-			// or an actual sleep below.
-			changed := s.dispatchAll(now)
+			// maybe I can just dispatch and
+			// reset the timers here?
+			changed := s.dispatchAllTimers(now)
 			nd0 += changed
 			if changed == 0 {
 				vv("i=%v, dispatchAll no change, total nd0=%v", i, changed, nd0)
@@ -1322,12 +1759,6 @@ restartI:
 			}
 			// INVAR: s.gridStepTimer.completeTm > now.
 			// Hence synctest.Wait below should never deadlock.
-
-			if faketime && s.barrier {
-				vv("about to call synctestWait_LetAllOtherGoroFinish")
-				synctestWait_LetAllOtherGoroFinish()
-				vv("done with 1st barrier")
-			}
 
 		case reg := <-s.cliRegisterCh:
 			// "connect" in network lingo, client reaches out to listening server.
