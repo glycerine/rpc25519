@@ -820,7 +820,8 @@ func (s *simnet) handleRead(read *mop) {
 	origin.readQ.add(read)
 	//vv("LC:%v  READ at %v: %v", origin.lc, origin.name, read)
 	////zz("LC:%v  READ %v at %v, now cliReadQ: '%v'", origin.lc, origin.name, read, origin.readQ)
-	origin.dispatch()
+	now := time.Now()
+	origin.dispatch(now)
 }
 
 func (node *simnode) firstPreArrivalTimeLTE(now time.Time) bool {
@@ -856,7 +857,7 @@ func gte(a, b time.Time) bool {
 
 // dispatch delivers sends to reads, and fires timers.
 // It calls node.net.armTimer() at the end (in the defer).
-func (node *simnode) dispatch() (changes int64) {
+func (node *simnode) dispatch(now time.Time) (changes int64) {
 
 	switch node.state {
 	case HALTED:
@@ -883,8 +884,6 @@ func (node *simnode) dispatch() (changes int64) {
 	// for assert we dispatched all we could
 	var endOn, lastMatchSend, lastMatchRead *mop
 	var endOnSituation string
-
-	now := time.Now()
 
 	// We had an early bug from returning early and
 	// forgetting about preDel, readDel, timerDel
@@ -919,7 +918,7 @@ func (node *simnode) dispatch() (changes int64) {
 				panic(fmt.Sprintf("failed to delete from timerQ: '%v'", op))
 			}
 		}
-		node.net.armTimer()
+		node.net.armTimer(now)
 		//vv("=== end of dispatch %v", node.name)
 
 		// sanity check that we delivered everything we could.
@@ -1113,9 +1112,9 @@ func (s *simnet) schedulerReport() string {
 	return fmt.Sprintf("lastArmTm.After(now) = %v [%v out] %v; qReport = '%v'", s.lastArmTm.After(now), s.lastArmTm.Sub(now), s.lastArmTm, s.qReport())
 }
 
-func (s *simnet) dispatchAll() (changes int64) {
+func (s *simnet) dispatchAll(now time.Time) (changes int64) {
 	for node := range s.nodes {
-		changes += node.dispatch()
+		changes += node.dispatch(now)
 	}
 	return
 }
@@ -1152,7 +1151,7 @@ func (s *simnet) durToGridPoint(i int64, now time.Time) (dur time.Duration, goal
 	goal = now.Add(tick).Truncate(tick)
 
 	dur = goal.Sub(now)
-	// vv("i=%v; just before dispatchAll(), durToGridPoint computed: dur=%v -> goal:%v to reset the gridTimer; tick=%v", i, dur, goal, s.scenario.tick)
+	vv("i=%v; just before dispatchAll(), durToGridPoint computed: dur=%v -> goal:%v to reset the gridTimer; tick=%v", i, dur, goal, s.scenario.tick)
 	if dur <= 0 { // i.e. now <= goal
 		panic(fmt.Sprintf("why was proposed sleep dur = %v <= 0 ? i=%v; s.scenario.tick=%v; bigbang=%v; now=%v", dur, i, s.scenario.tick, s.bigbang, now))
 	}
@@ -1220,7 +1219,7 @@ func (s *simnet) scheduler() {
 	// always have at least one timer going,
 	// so we car barrier at the top of the
 	// loop, outside of the select.
-	s.armTimer()
+	s.armTimer(now)
 
 restartI:
 	for i := int64(0); ; i++ {
@@ -1266,25 +1265,11 @@ restartI:
 			// each wake here is an event.
 			s.tickLogicalClocks()
 
-			if gte(now, s.gridStepTimer.completeTm) {
-				s.gridStepTimer.initTm = now
-				dur, goal := s.durToGridPoint(i+1, now)
-				s.gridStepTimer.timerDur = dur
-				s.gridStepTimer.completeTm = goal
-
-				if gte(now, s.gridStepTimer.completeTm) {
-					panic(fmt.Sprintf("i=%v, durToGridPoint(i+1=%v) gave completeTm(%v) <= now(%v); should be impossible, no? are we servicing all events in order? are we missing a wakeup? oversleeping? wat?", i, i+1, s.gridStepTimer.completeTm, now))
-				}
-				minTimerDur := s.armTimer()
-				if minTimerDur > 0 {
-					vv("armTimer reported minTimerDur = %v; vs s.scenario.tick = %v", minTimerDur, s.scenario.tick)
-				} else {
-					vv("no timers, what?? i = %v", i)
-					panic("why not even the grid timer?")
-				}
-			}
-			// INVAR: s.gridStepTimer.completeTm > now.
-			// Hence synctest.Wait below should never deadlock.
+			// Gotta dispatch (delete) all
+			// timers with completeTm <= now
+			// before we add our own back in
+			// else the min can look like now
+			// when we do a sanity check.
 
 			// There can be many goro that
 			// need service now.
@@ -1292,7 +1277,7 @@ restartI:
 			// until they there is no one? No,
 			// we let them finish using the synctest.Wait
 			// or an actual sleep below.
-			changed := s.dispatchAll()
+			changed := s.dispatchAll(now)
 			nd0 += changed
 			if changed == 0 {
 				vv("i=%v, dispatchAll no change, total nd0=%v", i, changed, nd0)
@@ -1318,13 +1303,25 @@ restartI:
 			// the each priority queue, which our
 			// red-black tree has cached anyway.
 			// For K simnodes * 3 PQ per node => O(K).
-			// minTimerDur := s.armTimer()
-			// if minTimerDur > 0 {
-			// 	vv("armTimer reported minTimerDur = %v; vs s.scenario.tick = %v", minTimerDur, s.scenario.tick)
-			// } else {
-			// 	vv("no timers, what?? i = %v", i)
-			// 	panic("why not even the grid timer?")
-			// }
+			if gte(now, s.gridStepTimer.completeTm) {
+				s.gridStepTimer.initTm = now
+				dur, goal := s.durToGridPoint(i+1, now)
+				s.gridStepTimer.timerDur = dur
+				s.gridStepTimer.completeTm = goal
+
+				if gte(now, s.gridStepTimer.completeTm) {
+					panic(fmt.Sprintf("i=%v, durToGridPoint(i+1=%v) gave completeTm(%v) <= now(%v); should be impossible, no? are we servicing all events in order? are we missing a wakeup? oversleeping? wat?", i, i+1, s.gridStepTimer.completeTm, now))
+				}
+			}
+			minTimerDur := s.armTimer(now)
+			if minTimerDur > 0 {
+				vv("armTimer reported minTimerDur = %v; vs s.scenario.tick = %v", minTimerDur, s.scenario.tick)
+			} else {
+				vv("no timers, what?? i = %v; minTimerDur = %v", i, minTimerDur)
+				panic("why not even the grid timer?")
+			}
+			// INVAR: s.gridStepTimer.completeTm > now.
+			// Hence synctest.Wait below should never deadlock.
 
 			if faketime && s.barrier {
 				vv("about to call synctestWait_LetAllOtherGoroFinish")
@@ -1391,6 +1388,7 @@ func (s *simnet) initScenario(scenario *scenario) {
 }
 
 func (s *simnet) handleDiscardTimer(discard *mop) {
+	now := time.Now()
 
 	switch discard.origin.state {
 	case HALTED:
@@ -1411,11 +1409,12 @@ func (s *simnet) handleDiscardTimer(discard *mop) {
 	} // leave wasArmed false, could not have been armed if gone.
 
 	////zz("LC:%v %v TIMER_DISCARD %v to fire at '%v'; now timerQ: '%v'", discard.origin.lc, discard.origin.name, discard, discard.origTimerCompleteTm, s.clinode.timerQ)
-	s.armTimer()
+	s.armTimer(now)
 	close(discard.proceed)
 }
 
 func (s *simnet) handleTimer(timer *mop) {
+	now := time.Now()
 
 	switch timer.origin.state {
 	case HALTED:
@@ -1446,12 +1445,15 @@ func (s *simnet) handleTimer(timer *mop) {
 	timer.origin.timerQ.add(timer)
 	////zz("LC:%v %v set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer.origin.name, timer, timer.completeTm, s.clinode.timerQ)
 
-	s.armTimer()
+	s.armTimer(now)
 }
 
-func (s *simnet) armTimer() time.Duration {
+func (s *simnet) armTimer(now time.Time) time.Duration {
 
 	var minTimer *mop = s.gridStepTimer
+	if s.gridStepTimer.completeTm.Before(now) {
+		panic(fmt.Sprintf("gridStepTimer(%v) not refreshed! < now %v", s.gridStepTimer.completeTm, now))
+	}
 	for node := range s.nodes {
 		minTimer = node.soonestTimerLessThan(minTimer)
 	}
@@ -1459,7 +1461,7 @@ func (s *simnet) armTimer() time.Duration {
 		panic("should never happen, s.gridStepTimer should always be active")
 		return 0
 	}
-	now := time.Now()
+
 	dur := minTimer.completeTm.Sub(now)
 	////zz("dur=%v = when(%v) - now(%v)", dur, minTimer.completeTm, now)
 	s.lastArmTm = now
@@ -1468,19 +1470,28 @@ func (s *simnet) armTimer() time.Duration {
 }
 
 func (node *simnode) soonestTimerLessThan(bound *mop) *mop {
+
+	//if bound != nil {
+	//vv("soonestTimerLessThan(bound.completeTm = '%v'", bound.completeTm)
+	//} else {
+	//vv("soonestTimerLessThan(nil bound)")
+	//}
 	it := node.timerQ.tree.Min()
 	if it == node.timerQ.tree.Limit() {
-		// we have no timers
+		//vv("we have no timers, returning bound")
 		return bound
 	}
 	minTimer := it.Item().(*mop)
 	if bound == nil {
 		// no lower bound yet
+		//vv("we have no lower bound, returning min timer: '%#v'", minTimer)
 		return minTimer
 	}
 	if minTimer.completeTm.Before(bound.completeTm) {
+		//vv("minTimer.completeTm(%v) < bound.completeTm(%v)", minTimer.completeTm, bound.completeTm)
 		return minTimer
 	}
+	//vv("soonestTimerLessThan end: returning bound")
 	return bound
 }
 
