@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"os"
 	"sync"
@@ -954,4 +955,59 @@ func Test101_gosimnet_basics(t *testing.T) {
 		}
 		//vv("good: finished timer (fired at %v) after %v >= goal %v", t1, elap, goalWait)
 	})
+}
+func Test102_truncate_works_under_synctest(t *testing.T) {
+
+	// truncate was giving unexpected answers under synctest...
+	// compare to real time.
+
+	net := &simnet{
+		scenario: &scenario{
+			tick: time.Second,
+		},
+	}
+
+	fake := false
+	f := func() {
+		//tick := time.Millisecond
+		tick := time.Second
+		subtick := time.Millisecond / 3
+
+		fmt.Printf("\n\n running in a synctime bubble = %v; tick=%v; incr=%v\n\n", fake, tick, subtick)
+		for i := range 8 {
+
+			//now := time.Now()
+			//goal := now.Add(tick).Truncate(tick)
+			//dur := goal.Sub(now)
+			// equivalent:
+			now := time.Now()
+			dur, goal := net.durToGridPoint(0, now)
+
+			time.Sleep(dur)
+			was := now
+			now2 := time.Now()
+			offby := now2.Sub(goal)
+
+			pct := math.Abs(float64(offby)) / float64(tick)
+
+			fmt.Printf("i=%03d, dur=%v -> goal:%v ; offby = %v (%0.2f); tick=%v;\n was=%v\n ->\n now2=%v\n\n", i, dur, goal, offby, pct, tick, was, now2)
+
+			if fake {
+				if offby != 0 {
+					panic(fmt.Sprintf("fake time, i=%v; expected offby of 0, got %v", i, offby))
+				}
+			} else {
+				if pct > 0.05 {
+					panic(fmt.Sprintf("real time, i=%v; expected offby < 0.05, got %0.2f (%v)", i, pct, offby))
+				}
+			}
+		}
+	}
+	// realtime
+	f()
+
+	if faketime {
+		fake = true
+		bubbleOrNot(f) // calls synctest.Run(f) when faketime is true.
+	}
 }

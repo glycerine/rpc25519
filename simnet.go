@@ -1134,9 +1134,7 @@ func (s *simnet) Start() {
 // durToGridPoint:
 // given the time now, return the dur to
 // get us to the next grid point, which is goal.
-func (s *simnet) durToGridPoint(i int64) (dur time.Duration, goal time.Time) {
-
-	now := time.Now()
+func (s *simnet) durToGridPoint(i int64, now time.Time) (dur time.Duration, goal time.Time) {
 
 	// This commented approach of keeping goal time and i
 	// aligned jumps us 15 msec at startup, after 15 grid
@@ -1154,7 +1152,7 @@ func (s *simnet) durToGridPoint(i int64) (dur time.Duration, goal time.Time) {
 	goal = now.Add(tick).Truncate(tick)
 
 	dur = goal.Sub(now)
-	vv("i=%v; just before dispatchAll(), durToGridPoint computed: dur=%v -> goal:%v to reset the gridTimer; tick=%v", i, dur, goal, s.scenario.tick)
+	// vv("i=%v; just before dispatchAll(), durToGridPoint computed: dur=%v -> goal:%v to reset the gridTimer; tick=%v", i, dur, goal, s.scenario.tick)
 	if dur <= 0 { // i.e. now <= goal
 		panic(fmt.Sprintf("why was proposed sleep dur = %v <= 0 ? i=%v; s.scenario.tick=%v; bigbang=%v; now=%v", dur, i, s.scenario.tick, s.bigbang, now))
 	}
@@ -1219,6 +1217,10 @@ func (s *simnet) scheduler() {
 	// to be the next timer due, and it will be
 	// if there aren't any due sooner.
 	s.gridStepTimer = timer
+	// always have at least one timer going,
+	// so we car barrier at the top of the
+	// loop, outside of the select.
+	s.armTimer()
 
 restartI:
 	for i := int64(0); ; i++ {
@@ -1244,6 +1246,19 @@ restartI:
 			// faketime has just advanced (so has real time).
 			// This could be a grid step, or sooner.
 
+			// steps below:
+			// 1) tick our logical clocks forward
+			// 2) reset our gridStepTimer if it has expired.
+			//    (rearm the nextTimer with it if so).
+			// 3) dispatch all ready reads, sends and timers,
+			//    those goro will want to call back in here
+			//    when they do their next read/write/set a timer.
+			//    so we have lock stepped them...well, good.
+			//    Do we want them to run in the background
+			//    while we are asleep inside the select?
+			//    Yes, but they already can, right?
+			//    Do we even need or want the barrier at all?
+
 			now := time.Now()
 			elapsed := now.Sub(preSelectTm)
 			totalSleepDur += elapsed
@@ -1253,12 +1268,19 @@ restartI:
 
 			if gte(now, s.gridStepTimer.completeTm) {
 				s.gridStepTimer.initTm = now
-				dur, goal := s.durToGridPoint(i + 1)
+				dur, goal := s.durToGridPoint(i+1, now)
 				s.gridStepTimer.timerDur = dur
 				s.gridStepTimer.completeTm = goal
 
 				if gte(now, s.gridStepTimer.completeTm) {
 					panic(fmt.Sprintf("i=%v, durToGridPoint(i+1=%v) gave completeTm(%v) <= now(%v); should be impossible, no? are we servicing all events in order? are we missing a wakeup? oversleeping? wat?", i, i+1, s.gridStepTimer.completeTm, now))
+				}
+				minTimerDur := s.armTimer()
+				if minTimerDur > 0 {
+					vv("armTimer reported minTimerDur = %v; vs s.scenario.tick = %v", minTimerDur, s.scenario.tick)
+				} else {
+					vv("no timers, what?? i = %v", i)
+					panic("why not even the grid timer?")
 				}
 			}
 			// INVAR: s.gridStepTimer.completeTm > now.
@@ -1285,34 +1307,29 @@ restartI:
 			// place that armTimer is called, because
 			// another select case may have changed
 			// things and set a new nextTimer, and
-			// we would not have gotten to run yet.
+			// we would not have gotten to again
+			// before that next timer fires us
+			// to add in our own gridStepTimer.
 			// So we have to do armTimer here,
 			// even though it might be redundant
 			// on occassion, to ensure nextTimer is
 			// armed. This is cheap anyway, just
-			// a single lookup of the min node in
-			// the priority queue, which our
-			// red-black tree has cached anyway,
-			// so involves only O(1) time per
-			// node in the simnet.
-			minTimerDur := s.armTimer()
-			if minTimerDur > 0 {
-				vv("armTimer reported minTimerDur = %v; vs s.scenario.tick = %v", minTimerDur, s.scenario.tick)
-			} else {
-				vv("no timers, what?? i = %v", i)
-				panic("why not even the grid timer?")
-			}
+			// a lookup of the min node in
+			// the each priority queue, which our
+			// red-black tree has cached anyway.
+			// For K simnodes * 3 PQ per node => O(K).
+			// minTimerDur := s.armTimer()
+			// if minTimerDur > 0 {
+			// 	vv("armTimer reported minTimerDur = %v; vs s.scenario.tick = %v", minTimerDur, s.scenario.tick)
+			// } else {
+			// 	vv("no timers, what?? i = %v", i)
+			// 	panic("why not even the grid timer?")
+			// }
 
 			if faketime && s.barrier {
-
 				vv("about to call synctestWait_LetAllOtherGoroFinish")
 				synctestWait_LetAllOtherGoroFinish()
 				vv("done with 1st barrier")
-			} else {
-				panic("TODO remove, just establishing understanding and we should not be bootlegging sleep any other place than above for the moment.")
-				//vv("s.barrier=%v; faketime=%v", s.barrier, faketime)
-				// advance time by one tick, the non-synctest version.
-				time.Sleep(minTimerDur)
 			}
 
 		case reg := <-s.cliRegisterCh:
