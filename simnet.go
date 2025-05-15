@@ -240,7 +240,7 @@ func (s *simnet) newSimnode(name string) (node *simnode) {
 		net:     s,
 		halt:    idem.NewHalter(),
 	}
-	vv("newSimnode halt.ReqStop=%p, parent simnet halt.ReqStop=%p", s.halt.ReqStop, node.halt.ReqStop)
+	vv("newSimnode.halt(%p).ReqStop=%p, parent simnet halt(%p).ReqStop=%p", node.halt, node.halt.ReqStop, s.halt, s.halt.ReqStop)
 	s.halt.AddChild(node.halt) // deadlocking! TODO fix. cycle/dup child weird
 	return
 }
@@ -1448,7 +1448,7 @@ func (s *simnet) Start() {
 // durToGridPoint:
 // given the time now, return the dur to
 // get us to the next grid point, which is goal.
-func (s *simnet) durToGridPoint(i int64, now time.Time) (dur time.Duration, goal time.Time) {
+func (s *simnet) durToGridPoint(now time.Time) (dur time.Duration, goal time.Time) {
 
 	// This commented approach of keeping goal time and i
 	// aligned jumps us 15 msec at startup, after 15 grid
@@ -1468,7 +1468,21 @@ func (s *simnet) durToGridPoint(i int64, now time.Time) (dur time.Duration, goal
 	dur = goal.Sub(now)
 	//vv("i=%v; just before dispatchAll(), durToGridPoint computed: dur=%v -> goal:%v to reset the gridTimer; tick=%v", i, dur, goal, s.scenario.tick)
 	if dur <= 0 { // i.e. now <= goal
-		panic(fmt.Sprintf("why was proposed sleep dur = %v <= 0 ? i=%v; s.scenario.tick=%v; bigbang=%v; now=%v", dur, i, s.scenario.tick, s.bigbang, now))
+		panic(fmt.Sprintf("why was proposed sleep dur = %v <= 0 ? scenario.tick=%v; bigbang=%v; now=%v", dur, s.scenario.tick, s.bigbang, now))
+	}
+	return
+}
+
+func (s *simnet) refreshGridStepTimer(now time.Time) (dur time.Duration, goal time.Time) {
+	if gte(now, s.gridStepTimer.completeTm) {
+		s.gridStepTimer.initTm = now
+		dur, goal = s.durToGridPoint(now)
+		s.gridStepTimer.timerDur = dur
+		s.gridStepTimer.completeTm = goal
+
+		if gte(now, s.gridStepTimer.completeTm) {
+			panic(fmt.Sprintf("durToGridPoint() gave completeTm(%v) <= now(%v); should be impossible, no? are we servicing all events in order? are we missing a wakeup? oversleeping? wat?", s.gridStepTimer.completeTm, now))
+		}
 	}
 	return
 }
@@ -1553,38 +1567,28 @@ restartI:
 
 		// If we barrier in the select, we don't
 		// have any guarantee of "going last" among
-		// all awake goroutines when our nextTimer chan
-		// fires. What if we barrier here, before
-		// the select? What does the barrier do?
-		// It waits for everyone else to get durably
-		// blocked, then lets just us proceed.
-		// This sounds exactly like what we want.
-		// If we had a WaitChan() too, we could use it.
-		// Actually can I just make a function that
-		// does that, if I want it, by having
-		//
-		// func WaitChan() chan any {
-		//     ch := make(chan any, 1)
-		//     synctest.Wait() // the select has not started yet
-		//     // we are alone
-		//     ch <- true
-		//     // but no guarantee our select
-		//     // will be chosen. That would need runtime assistance.
-		//     // but: do we not need it?
-		//     return ch
-		// }
-		//
+		// all awake goroutines when our nextTimer chan fires?
+		// *BUT* we know they can't make any progress
+		// over the network, since we are the network. :)
+		if dur, goal := s.refreshGridStepTimer(now); dur > 0 {
+			_ = goal
+			vv("top loop i=%v about to sleep %v aiming at goal %v", i, dur, goal)
+			time.Sleep(dur)
+		}
+
 		if faketime && s.barrier {
-			//vv("about to call synctestWait_LetAllOtherGoroFinish")
-			synctestWait_LetAllOtherGoroFinish()
+			vv("i=%v, about to call synctestWait_LetAllOtherGoroFinish", i)
+			synctestWait_LetAllOtherGoroFinish() // blocked here 702
 			//vv("done with 1st barrier")
 		}
 		// under faketime, we are alone now
+		vv("i=%v, past barrier", i)
 
 		// each loop iter is an event.
 		s.tickLogicalClocks()
 
-		changed := s.dispatchAll(now)
+		//changed := s.dispatchAll(now) // panics b/c calls armTimer and we have not refreshed s.gridTickTimer yet
+		changed := s.dispatchAllReadsSends(now)
 		nd0 += changed
 		if changed == 0 {
 			//vv("i=%v, dispatchAll no change, total nd0=%v", i, changed, nd0)
@@ -1595,167 +1599,170 @@ restartI:
 		preSelectTm := now
 		select { // scheduler main select
 
+		//case <-s.nextTimer.C: // soonest timer fires
+		//vv("i=%v, nextTimer fired", i)
+
+		// faketime has just advanced (so has real time).
+		// This could be a grid step, or sooner.
+
+		// if false { // try moving back above the select for!
+		//
+		// steps below:
+		// 1) execute the barrier. This lets any
+		//    client user code that is using
+		//    raw time.After or time.Timer and has
+		//    just awoken, finish their business and
+		//    get durably blocked on us (our channels,
+		//    which are unavailable since we are here
+		//    inside a select case) or something of
+		//    their own first. Once that is done, we
+		//    know reliably that our dispatches can
+		//    be more deterministic? No, we've gotten
+		//    everything we are going to get? No,
+		//    there could be channels ready in other
+		//    arms of the select? No, those would
+		//    have fired during our sleep if they could?
+		//
+		//    Is there a race between when the moment when
+		//    the timers go off now, and when the
+		//    branch of the select that has the timer
+		//    on it goes off? Because multiple timers have
+		//    to get released in some order, so if
+		//    we are second, we might still see an
+		//    action on another arm of this select
+		//    statement before our timer channel
+		//    gets a chance to fire, right? There's
+		//    no way the runtime gives us determinism
+		//    there... with just sleep. It feels
+		//    like there needs to be an atomic
+		//    operation in synctest to address this situation.
+		//    Because Wait is a function, not a channel.
+		//
+		//    What guarantees, if any, do I have? Or can I get?
+		//    Can I for instance put a priority
+		//    on a timer, so I know I get serviced
+		//    first, or last? (last would mirror synctest.Wait)
+		//    Or can I query all the timers
+		//    to know there is no other coincident
+		//    with my own? I don't think the go runtime
+		//    can guarantee that. What I want is to
+		//    know that when the new time has arrived
+		//    that everyone else can finish first, before
+		//    my select arm with the timer fires. Just
+		//    like what synctest.Wait does for non-select code.
+		//
+		//    Can I prevent those goro from calling
+		//    my select? Only by doing the barrier
+		//    before entering the select, at this point.
+		//    But I had problems when had the sleep
+		//    before the select... what were they?
+		//
+		//    Really I want my scheduler goro to be
+		//    able to run alone for a little while.
+		//    I can't do that with a timer channel on
+		//    a select, since all my case arms are open
+		//    simultaneously.
+		//
+		//    What if both our timer and one of the
+		//    channels were available and we pseudo
+		//    randomly chose the timer channel? Does
+		//    synctest guarrantee that only one
+		//    channel of a select, the timer channel
+		//    will deterministically fire? What if
+		//    there are two channels waiting on the
+		//    same timer? or two timers with the same
+		//    deadline? Is choice still pseudo random?
+		//
+		//    The only way we wake up from the sleep
+		//    is if everything is durably blocked.
+		//
+		// 2) tick our logical clocks forward
+		// 2) reset our gridStepTimer if it has expired.
+		//    (rearm the nextTimer with it if so).
+		// 3) dispatch all ready reads, sends and timers,
+		//    those goro will want to call back in here
+		//    when they do their next read/write/set a timer.
+		//    so we have lock stepped them...well, good.
+		//    Do we want them to run in the background
+		//    while we are asleep inside the select?
+		//    Yes, but they already can, right?
+		//    Do we even need or want the barrier at all?
+
+		// What does doing the barrier now get us?
+		// All client goro are off doing work on the
+		// sends/reads/timers we have just dispatched
+		// to them. If we proceed through the loop
+		// very quickly, then some of them that
+		// should get their next request in by the
+		// end of the next sleep might not? Well,
+		// no, time advances in the bubble only
+		// when all goroutines are blocked.
+		//
+		// docs: "Time advances when every
+		// goroutine in the bubble is blocked.
+		// For example, a call to time.Sleep will
+		// block until all other goroutines are
+		// blocked and return after the bubble's
+		// clock has advanced." So somehow we
+		// would rather have the barrier after
+		// the clock advance, but before we do
+		// any dispatching...? Hold on, we know
+		// that they were durably blocked already or
+		// else time would not have advanced.
+		// Our nextTimer is the only real/fake
+		// timer that the runtime knows about,
+		// so it will only wake us-- not any
+		// other goroutines. In the much more
+		// general than simnet use case, there
+		// can be other timers due now, and
+		// they can be released now at the same
+		// time as we are. In that case the barrier
+		// gets us something: we let those other
+		// goro finish their tasks before we
+		// go, and thus we get to go last knowing
+		// that they are done with their
+		// business. Here in simnet though, we
+		// don't have that issue. Suppose though
+		// that we use client code (or have
+		// clients of the client, use code
+		// that has not been converted to use
+		// the simnet SimTimer? They _may_ have
+		// been woken up at the same time as
+		// we were, so to handle them properly,
+		// we would want to do the barrier
+		// right after we awake. (Must be still
+		// my code to be in a test bubble, of
+		// course... -- actual user code using
+		// the network cannot be tested with synctest).
+		//
+		// So clients: they either they got their requests into
+		// our channels while we were sleeping, or
+		// they missed the cutoff when our
+		// timer fired. Even if they are blocked on
+		// one of our channels, can they be doing
+		// other stuff on another goroutine in
+		// the background? synctest says no, because
+		// they have to have been durably blocked first.
+		// Only if they had a timer coincident with
+		// our will they now be awake. In that case,
+		// they can compute stuff with us concurrently,
+		// right now. For reproducibility, we'd like
+		// to let them finish their business, and
+		// only then unblock them with our dispatches;
+		// we want to "go last", after they are done.
+		// That is what the barrier does for us.
+		// Here it is.
+		// Now:
+		// Arg. See above analysis, try moving it
+		// before the select for better determinism.
+		//if faketime && s.barrier {
+		//	vv("about to call synctestWait_LetAllOtherGoroFinish")
+		//	synctestWait_LetAllOtherGoroFinish()
+		//	vv("done with 1st barrier")
+		//}
+
 		case <-s.nextTimer.C: // soonest timer fires
-			//vv("i=%v, nextTimer fired", i)
-
-			// faketime has just advanced (so has real time).
-			// This could be a grid step, or sooner.
-
-			// if false { // try moving back above the select for!
-			//
-			// steps below:
-			// 1) execute the barrier. This lets any
-			//    client user code that is using
-			//    raw time.After or time.Timer and has
-			//    just awoken, finish their business and
-			//    get durably blocked on us (our channels,
-			//    which are unavailable since we are here
-			//    inside a select case) or something of
-			//    their own first. Once that is done, we
-			//    know reliably that our dispatches can
-			//    be more deterministic? No, we've gotten
-			//    everything we are going to get? No,
-			//    there could be channels ready in other
-			//    arms of the select? No, those would
-			//    have fired during our sleep if they could?
-			//
-			//    Is there a race between when the moment when
-			//    the timers go off now, and when the
-			//    branch of the select that has the timer
-			//    on it goes off? Because multiple timers have
-			//    to get released in some order, so if
-			//    we are second, we might still see an
-			//    action on another arm of this select
-			//    statement before our timer channel
-			//    gets a chance to fire, right? There's
-			//    no way the runtime gives us determinism
-			//    there... with just sleep. It feels
-			//    like there needs to be an atomic
-			//    operation in synctest to address this situation.
-			//    Because Wait is a function, not a channel.
-			//
-			//    What guarantees, if any, do I have? Or can I get?
-			//    Can I for instance put a priority
-			//    on a timer, so I know I get serviced
-			//    first, or last? (last would mirror synctest.Wait)
-			//    Or can I query all the timers
-			//    to know there is no other coincident
-			//    with my own? I don't think the go runtime
-			//    can guarantee that. What I want is to
-			//    know that when the new time has arrived
-			//    that everyone else can finish first, before
-			//    my select arm with the timer fires. Just
-			//    like what synctest.Wait does for non-select code.
-			//
-			//    Can I prevent those goro from calling
-			//    my select? Only by doing the barrier
-			//    before entering the select, at this point.
-			//    But I had problems when had the sleep
-			//    before the select... what were they?
-			//
-			//    Really I want my scheduler goro to be
-			//    able to run alone for a little while.
-			//    I can't do that with a timer channel on
-			//    a select, since all my case arms are open
-			//    simultaneously.
-			//
-			//    What if both our timer and one of the
-			//    channels were available and we pseudo
-			//    randomly chose the timer channel? Does
-			//    synctest guarrantee that only one
-			//    channel of a select, the timer channel
-			//    will deterministically fire? What if
-			//    there are two channels waiting on the
-			//    same timer? or two timers with the same
-			//    deadline? Is choice still pseudo random?
-			//
-			//    The only way we wake up from the sleep
-			//    is if everything is durably blocked.
-			//
-			// 2) tick our logical clocks forward
-			// 2) reset our gridStepTimer if it has expired.
-			//    (rearm the nextTimer with it if so).
-			// 3) dispatch all ready reads, sends and timers,
-			//    those goro will want to call back in here
-			//    when they do their next read/write/set a timer.
-			//    so we have lock stepped them...well, good.
-			//    Do we want them to run in the background
-			//    while we are asleep inside the select?
-			//    Yes, but they already can, right?
-			//    Do we even need or want the barrier at all?
-
-			// What does doing the barrier now get us?
-			// All client goro are off doing work on the
-			// sends/reads/timers we have just dispatched
-			// to them. If we proceed through the loop
-			// very quickly, then some of them that
-			// should get their next request in by the
-			// end of the next sleep might not? Well,
-			// no, time advances in the bubble only
-			// when all goroutines are blocked.
-			//
-			// docs: "Time advances when every
-			// goroutine in the bubble is blocked.
-			// For example, a call to time.Sleep will
-			// block until all other goroutines are
-			// blocked and return after the bubble's
-			// clock has advanced." So somehow we
-			// would rather have the barrier after
-			// the clock advance, but before we do
-			// any dispatching...? Hold on, we know
-			// that they were durably blocked already or
-			// else time would not have advanced.
-			// Our nextTimer is the only real/fake
-			// timer that the runtime knows about,
-			// so it will only wake us-- not any
-			// other goroutines. In the much more
-			// general than simnet use case, there
-			// can be other timers due now, and
-			// they can be released now at the same
-			// time as we are. In that case the barrier
-			// gets us something: we let those other
-			// goro finish their tasks before we
-			// go, and thus we get to go last knowing
-			// that they are done with their
-			// business. Here in simnet though, we
-			// don't have that issue. Suppose though
-			// that we use client code (or have
-			// clients of the client, use code
-			// that has not been converted to use
-			// the simnet SimTimer? They _may_ have
-			// been woken up at the same time as
-			// we were, so to handle them properly,
-			// we would want to do the barrier
-			// right after we awake. (Must be still
-			// my code to be in a test bubble, of
-			// course... -- actual user code using
-			// the network cannot be tested with synctest).
-			//
-			// So clients: they either they got their requests into
-			// our channels while we were sleeping, or
-			// they missed the cutoff when our
-			// timer fired. Even if they are blocked on
-			// one of our channels, can they be doing
-			// other stuff on another goroutine in
-			// the background? synctest says no, because
-			// they have to have been durably blocked first.
-			// Only if they had a timer coincident with
-			// our will they now be awake. In that case,
-			// they can compute stuff with us concurrently,
-			// right now. For reproducibility, we'd like
-			// to let them finish their business, and
-			// only then unblock them with our dispatches;
-			// we want to "go last", after they are done.
-			// That is what the barrier does for us.
-			// Here it is.
-			// Now:
-			// Arg. See above analysis, try moving it
-			// before the select for better determinism.
-			//if faketime && s.barrier {
-			//	vv("about to call synctestWait_LetAllOtherGoroFinish")
-			//	synctestWait_LetAllOtherGoroFinish()
-			//	vv("done with 1st barrier")
-			//}
+			vv("i=%v, nextTimer fired!", i) // seen i=40
 
 			now := time.Now()
 			elapsed := now.Sub(preSelectTm)
@@ -1799,16 +1806,8 @@ restartI:
 			// the each priority queue, which our
 			// red-black tree has cached anyway.
 			// For K simnodes * 3 PQ per node => O(K).
-			if gte(now, s.gridStepTimer.completeTm) {
-				s.gridStepTimer.initTm = now
-				dur, goal := s.durToGridPoint(i+1, now)
-				s.gridStepTimer.timerDur = dur
-				s.gridStepTimer.completeTm = goal
+			s.refreshGridStepTimer(now)
 
-				if gte(now, s.gridStepTimer.completeTm) {
-					panic(fmt.Sprintf("i=%v, durToGridPoint(i+1=%v) gave completeTm(%v) <= now(%v); should be impossible, no? are we servicing all events in order? are we missing a wakeup? oversleeping? wat?", i, i+1, s.gridStepTimer.completeTm, now))
-				}
-			}
 			minTimerDur := s.armTimer(now)
 			if minTimerDur > 0 {
 				//vv("armTimer reported minTimerDur = %v; vs s.scenario.tick = %v", minTimerDur, s.scenario.tick)
@@ -1942,7 +1941,9 @@ func (s *simnet) armTimer(now time.Time) time.Duration {
 
 	var minTimer *mop = s.gridStepTimer
 	if s.gridStepTimer.completeTm.Before(now) {
-		panic(fmt.Sprintf("gridStepTimer(%v) not refreshed! < now %v", s.gridStepTimer.completeTm, now))
+		//panic(fmt.Sprintf("gridStepTimer(%v) not refreshed! < now %v", s.gridStepTimer.completeTm, now))
+		// just fix it
+		s.refreshGridStepTimer(now)
 	}
 	for node := range s.nodes {
 		minTimer = node.soonestTimerLessThan(minTimer)
@@ -2042,7 +2043,7 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 	sc := conn.(*simnetConn)
 	isCli := sc.isCli
 
-	//vv("top simnet.readMessage() %v READ", read.origin)
+	//vv("top simnet.readMessage() %v READ", sc.local) // 702 is spinning in background?
 
 	read := newReadMop(isCli)
 	read.initTm = time.Now()

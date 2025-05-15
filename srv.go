@@ -1943,7 +1943,9 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		if err2 != nil {
 			return
 		}
+		s.mut.Lock() // avoid data race
 		s.autoClients = append(s.autoClients, cli)
+		s.mut.Unlock()
 
 		// does it matter than the net.Conn / rwPair is
 		// running on a client instead of from the server?
@@ -2279,10 +2281,12 @@ func (s *Server) Close() error {
 	s.mut.Unlock()
 	<-s.halt.Done.Chan
 
+	s.mut.Lock() // avoid data race
 	// close down any automatically started cluster/grid clients
 	for _, cli := range s.autoClients {
 		cli.Close()
 	}
+	s.mut.Unlock()
 	return nil
 }
 
