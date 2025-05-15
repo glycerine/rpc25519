@@ -1210,6 +1210,14 @@ func (s *simnet) scheduler() {
 	timer.timerDur = s.scenario.tick
 	timer.completeTm = now.Add(s.scenario.tick)
 	timer.timerFileLine = fileLine(3)
+
+	// As a special case, armTimer always includes
+	// the gridStepTimer when computing the minimum
+	// next timer to go off. So even though it
+	// doesn't live in any particular node's
+	// priority queue, it is always a candidate
+	// to be the next timer due, and it will be
+	// if there aren't any due sooner.
 	s.gridStepTimer = timer
 
 restartI:
