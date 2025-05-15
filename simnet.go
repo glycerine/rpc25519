@@ -218,6 +218,7 @@ type simnode struct {
 	isCli   bool
 	netAddr *SimNetAddr
 	state   nodestate
+	halt    *idem.Halter
 
 	tellServerNewConnCh chan *simnetConn
 }
@@ -230,14 +231,17 @@ const (
 	PARTITIONED nodestate = 2
 )
 
-func (s *simnet) newSimnode(name string) *simnode {
-	return &simnode{
+func (s *simnet) newSimnode(name string) (node *simnode) {
+	node = &simnode{
 		name:    name,
 		readQ:   newPQinitTm(name + " readQ "),
 		preArrQ: s.newPQarrivalTm(name + " preArrQ "),
 		timerQ:  newPQcompleteTm(name + " timerQ "),
 		net:     s,
+		halt:    idem.NewHalter(),
 	}
+	s.halt.AddChild(node.halt) // deadlocking! TODO fix.
+	return
 }
 
 func (s *simnet) newSimnodeClient(name string) (node *simnode) {
@@ -734,6 +738,8 @@ func (s *simnet) shutdownNode(node *simnode) {
 	node.readQ.deleteAll()
 	node.preArrQ.deleteAll()
 	node.timerQ.deleteAll()
+	node.halt.ReqStop.Close() // cleanup any background timer goro
+	node.halt.Done.Close()
 	//vv("handleAlterNode: end SHUTDOWN, node is now: %v", node)
 }
 
@@ -743,6 +749,11 @@ func (s *simnet) restartNode(node *simnode) {
 	node.readQ.deleteAll()
 	node.preArrQ.deleteAll()
 	node.timerQ.deleteAll()
+	// cleanup any background timer goro.
+	// they should not resurve a restart.
+	node.halt.ReqStop.Close()
+	node.halt.Done.Close()
+	node.halt = idem.NewHalter()
 }
 
 func (s *simnet) partitionNode(node *simnode) {
@@ -911,6 +922,8 @@ func (node *simnode) dispatchTimers(now time.Time) (changes int64) {
 			case timer.timerC <- now:
 			case <-node.net.halt.ReqStop.Chan:
 				return
+			case <-node.halt.ReqStop.Chan:
+				return
 			default:
 				// The Go runtime will delay the timer channel
 				// send until a receiver goro can receive it,
@@ -931,6 +944,7 @@ func (node *simnode) backgroundFireTimer(timer *mop, now time.Time) {
 	select {
 	case timer.timerC <- now:
 	case <-node.net.halt.ReqStop.Chan:
+	case <-node.halt.ReqStop.Chan:
 	}
 	node.net.backgoundTimerFiringGoro.del(timer)
 }
