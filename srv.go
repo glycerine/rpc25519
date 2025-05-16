@@ -1194,6 +1194,7 @@ type Server struct {
 	// cancellation after a reconnect.
 	inflight inflight
 
+	// protect with mut to avoid data races.
 	autoClients []*Client
 }
 
@@ -1927,9 +1928,12 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			return
 		}
 		if !s.cfg.QuietTestMode {
+			s.mut.Lock()
+			lenAutoCli := len(s.autoClients) + 1
+			s.mut.Unlock()
 			alwaysPrintf("%v server did not find destAddr (msg.HDR.To='%v') in "+
 				"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers"+
-				" is true so spinning up new client... for a total of %v autoClients", s.name, msg.HDR.To, len(s.autoClients)+1)
+				" is true so spinning up new client... for a total of %v autoClients", s.name, msg.HDR.To, lenAutoCli)
 			//" is true so spinning up new client... full msg='%v'", msg.HDR.To, msg)
 		}
 		dest, err1 := ipaddr.StripNanomsgAddressPrefix(msg.HDR.To)
@@ -1943,7 +1947,9 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		if err2 != nil {
 			return
 		}
+		s.mut.Lock()
 		s.autoClients = append(s.autoClients, cli)
+		s.mut.Unlock()
 
 		// does it matter than the net.Conn / rwPair is
 		// running on a client instead of from the server?
@@ -2276,13 +2282,13 @@ func (s *Server) Close() error {
 	} else {
 		s.lsn.Close() // cause runServerMain listening loop to exit.
 	}
-	s.mut.Unlock()
-	<-s.halt.Done.Chan
-
 	// close down any automatically started cluster/grid clients
 	for _, cli := range s.autoClients {
 		cli.Close()
 	}
+	s.mut.Unlock()
+	<-s.halt.Done.Chan
+
 	return nil
 }
 
@@ -2886,6 +2892,9 @@ func (s *Server) PingStats(remote string) *PingStat {
 
 func (s *Server) AutoClients() (list []*Client, isServer bool) {
 	isServer = true
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
 	for _, c := range s.autoClients {
 		list = append(list, c)
 	}
