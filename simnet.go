@@ -149,6 +149,9 @@ type mop struct {
 	// TIMER_DISCARD: zero time.Time{}.
 	completeTm time.Time
 
+	unmaskedCompleteTm time.Time
+	unmaskedDur        time.Duration
+
 	kind mopkind
 	msg  *Message
 
@@ -1513,7 +1516,7 @@ func (s *simnet) scheduler() {
 restartI:
 	for i := int64(0); ; i++ {
 
-		// number dispatched operations
+		// number of dispatched operations
 		var nd0 int64
 
 		now := time.Now()
@@ -1679,6 +1682,13 @@ func (s *simnet) handleTimer(timer *mop) {
 		panic(fmt.Sprintf("expect each timer mop only once now, not %v", timer.seen))
 	}
 
+	// mask it up!
+	timer.unmaskedCompleteTm = timer.completeTm
+	timer.unmaskedDur = timer.timerDur
+	timer.completeTm = maskTime(timer.completeTm)
+	timer.timerDur = timer.completeTm.Sub(timer.initTm)
+	//vv("masked timer:\n dur: %v -> %v\n completeTm: %v -> %v\n", timer.unmaskedDur, timer.timerDur, timer.unmaskedCompleteTm, timer.completeTm)
+
 	timer.origin.timerQ.add(timer)
 	////zz("LC:%v %v set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer.origin.name, timer, timer.completeTm, s.clinode.timerQ)
 
@@ -1788,6 +1798,13 @@ const timeMask9 = time.Microsecond*100 - 1
 // 2006-01-02T15:04:05.000099999-07:00
 func maskTime(tm time.Time) time.Time {
 	return tm.Truncate(timeMask0).Add(timeMask9)
+}
+
+func CallbackOnNewTimer(
+	func(proposedDeadline time.Time,
+		pkgFileLine string,
+	) (assignedDeadline time.Time)) {
+
 }
 
 //=========================================
