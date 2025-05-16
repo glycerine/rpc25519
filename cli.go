@@ -2650,7 +2650,15 @@ func (c *Client) NewTimer(dur time.Duration) (ti *SimTimer) {
 	ti.simnet = c.simnet
 	ti.simnode = c.simnode
 	ti.simtimer = c.simnet.createNewTimer(c.simnode, dur, time.Now(), true) // isCli
-	ti.C = ti.simtimer.timerC
+	select {
+	case <-c.simnet.halt.ReqStop.Chan:
+		// if we shutdown, this timer is no good anyway,
+		// and we need to avoid a race on reading timerC.
+		// Leaving ti.C nil means that timer will never fire.
+		// Seems reasonable for a dead node/network system.
+	default:
+		ti.C = ti.simtimer.timerC
+	}
 	return
 }
 
@@ -2665,8 +2673,17 @@ func (s *Server) NewTimer(dur time.Duration) (ti *SimTimer) {
 	}
 	ti.simnet = s.simnet
 	ti.simnode = s.simnode
-	ti.simtimer = s.simnet.createNewTimer(s.simnode, dur, time.Now(), false) // isCli
-	ti.C = ti.simtimer.timerC
+	// false => isCli false
+	ti.simtimer = s.simnet.createNewTimer(s.simnode, dur, time.Now(), false)
+	select {
+	case <-s.simnet.halt.ReqStop.Chan:
+		// if we shutdown, this timer is no good anyway,
+		// and we need to avoid a race on reading timerC.
+		// Leaving ti.C nil means that timer will never fire.
+		// Seems reasonable for a dead node/network system.
+	default:
+		ti.C = ti.simtimer.timerC
+	}
 	return
 }
 
