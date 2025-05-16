@@ -608,6 +608,10 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			}
 			return
 		}
+		if req == nil {
+			// simnet shutdown can cause this
+			continue
+		}
 		//vv("srv read loop sees req = '%v'", req.String()) // not seen 040
 
 		if req.HDR.From != "" {
