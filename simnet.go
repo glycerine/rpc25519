@@ -462,16 +462,21 @@ type scenario struct {
 	seed [32]byte
 	rng  *mathrand2.ChaCha8
 
+	// we enforce ending in 00_000 ns for all tick
 	tick   time.Duration
 	minHop time.Duration
 	maxHop time.Duration
+}
+
+func enforceTickDur(tick time.Duration) time.Duration {
+	return tick.Truncate(timeMask0)
 }
 
 func newScenario(tick, minHop, maxHop time.Duration, seed [32]byte) *scenario {
 	return &scenario{
 		seed:   seed,
 		rng:    mathrand2.NewChaCha8(seed),
-		tick:   tick,
+		tick:   enforceTickDur(tick),
 		minHop: minHop,
 		maxHop: maxHop,
 	}
@@ -768,7 +773,7 @@ func (s *simnet) handleSend(send *mop) {
 	if send.seen == 0 {
 		send.senderLC = origin.lc
 		send.originLC = origin.lc
-		send.arrivalTm = send.initTm.Add(s.scenario.rngHop())
+		send.arrivalTm = userMaskTime(send.initTm.Add(s.scenario.rngHop()))
 	}
 	send.seen++
 	if send.seen != 1 {
@@ -1226,7 +1231,7 @@ func (node *simnode) dispatch(now time.Time) (changes int64) {
 
 		if !now.Before(timer.completeTm) {
 			// timer.completeTm <= now
-			//vv("have TIMER firing")
+			pp("have TIMER firing: %v", timer)
 			changes++
 			timer.timerFiredTm = now
 			timerDel = append(timerDel, timer)
@@ -1334,7 +1339,7 @@ func (node *simnode) dispatch(now time.Time) (changes int64) {
 		lastMatchRead = read
 		// advance our logical clock
 		node.lc = max(node.lc, send.originLC) + 1
-		////zz("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, node.lc, node.lc-read.originLC, read.sn)
+		//pp("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, node.lc, node.lc-read.originLC, read.sn)
 
 		// track clocks on either end for this send and read.
 		read.readerLC = node.lc
@@ -1344,7 +1349,7 @@ func (node *simnode) dispatch(now time.Time) (changes int64) {
 		read.arrivalTm = send.arrivalTm // easier diagnostics
 
 		// matchmaking
-		//vv("[1]matchmaking: \nsend '%v' -> \nread '%v'", send, read)
+		//pp("[1]matchmaking: \nsend '%v' -> \nread '%v'", send, read)
 		read.sendmop = send
 		send.readmop = read
 
@@ -1417,7 +1422,12 @@ func (s *simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 	// this handles both
 	// a) we are on a grid point now; and
 	// b) we are off a grid point and we want the next one.
-	goal = now.Add(tick).Truncate(tick)
+
+	// since tick is already enforceTickDur()
+	// we shouldn't need to systemMaskTime, but just in case
+	// that changes... it is cheap anyway, and conveys the
+	// convention in force.
+	goal = systemMaskTime(now.Add(tick).Truncate(tick))
 
 	dur = goal.Sub(now)
 	//vv("i=%v; just before dispatchAll(), durToGridPoint computed: dur=%v -> goal:%v to reset the gridTimer; tick=%v", i, dur, goal, s.scenario.tick)
@@ -1516,6 +1526,10 @@ func (s *simnet) scheduler() {
 restartI:
 	for i := int64(0); ; i++ {
 
+		//if i == 42 {
+		//	verboseVerbose = true
+		//}
+
 		// number of dispatched operations
 		var nd0 int64
 
@@ -1549,9 +1563,9 @@ restartI:
 		select { // scheduler main select
 
 		case <-s.nextTimer.C: // time advances when soonest timer fires
-			//vv("i=%v, nextTimer fired", i)
 			now = time.Now()
 			totalSleepDur += now.Sub(preSelectTm)
+			//vv("i=%v, nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
 
 			// max determinism: go last
 			// among all goro who were woken by other
@@ -1604,6 +1618,10 @@ restartI:
 			s.handleAlterNode(alt)
 
 		case <-s.halt.ReqStop.Chan:
+			bb := time.Since(s.bigbang)
+			pct := 100 * float64(totalSleepDur) / float64(bb)
+			_ = pct
+			//vv("simnet.halt.ReqStop totalSleepDur = %v (%0.2f%%) since bb = %v)", totalSleepDur, pct, bb)
 			return
 		} // end select
 
@@ -1685,7 +1703,7 @@ func (s *simnet) handleTimer(timer *mop) {
 	// mask it up!
 	timer.unmaskedCompleteTm = timer.completeTm
 	timer.unmaskedDur = timer.timerDur
-	timer.completeTm = maskTime(timer.completeTm)
+	timer.completeTm = userMaskTime(timer.completeTm)
 	timer.timerDur = timer.completeTm.Sub(timer.initTm)
 	//vv("masked timer:\n dur: %v -> %v\n completeTm: %v -> %v\n", timer.unmaskedDur, timer.timerDur, timer.unmaskedCompleteTm, timer.completeTm)
 
@@ -1796,8 +1814,13 @@ const timeMask9 = time.Microsecond*100 - 1
 // 2006-01-02T15:04:05.000000000-07:00
 // maskTime will return
 // 2006-01-02T15:04:05.000099999-07:00
-func maskTime(tm time.Time) time.Time {
+func userMaskTime(tm time.Time) time.Time {
 	return tm.Truncate(timeMask0).Add(timeMask9)
+}
+
+// system gridTimer points always end in 00_000
+func systemMaskTime(tm time.Time) time.Time {
+	return tm.Truncate(timeMask0)
 }
 
 func CallbackOnNewTimer(

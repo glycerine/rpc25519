@@ -1025,7 +1025,7 @@ func Test103_maskTime(t *testing.T) {
 	bubbleOrNot(func() {
 		now := time.Now()
 		for range 100 {
-			m := maskTime(now)
+			m := userMaskTime(now)
 			if m.Before(now) {
 				panic(fmt.Sprintf("m(%v) < now(%v) wrong", m, now))
 			}
