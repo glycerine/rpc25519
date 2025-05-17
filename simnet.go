@@ -789,7 +789,10 @@ func (s *simnet) handleSend(send *mop) {
 		// so they can recycle or do whatever without data racing with us.
 		// Weird: even with this, the Fragment is getting
 		// races, not the Message.
-		send.msg = send.msg.CopyForSimNetSend()
+		msg1 := send.msg.CopyForSimNetSend()
+		// split into two parts to try and understand the shutdown data race here.
+		// we've got to try and have shutdown not read send.msg
+		send.msg = msg1
 
 		send.target.preArrQ.add(send)
 		//vv("LC:%v  SEND TO %v %v", origin.lc, origin.name, send)
@@ -1875,6 +1878,9 @@ func (s *simnet) createNewTimer(origin *simnode, dur time.Duration, begin time.T
 	}
 	select {
 	case <-timer.proceed:
+		if s.halt.ReqStop.IsClosed() {
+			timer = nil
+		}
 		return
 	case <-s.halt.ReqStop.Chan:
 		return
@@ -1901,6 +1907,11 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 	}
 	select {
 	case <-read.proceed:
+		// this could be data racey on shutdown. double
+		// check we are not shutting down.
+		if s.halt.ReqStop.IsClosed() {
+			return nil, ErrShutdown()
+		}
 		msg = read.msg
 	case <-s.halt.ReqStop.Chan:
 		return nil, ErrShutdown()
@@ -1926,6 +1937,11 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) e
 	}
 	select {
 	case <-send.proceed:
+		// this could be data racey on shutdown. double
+		// check we are not shutting down.
+		if s.halt.ReqStop.IsClosed() {
+			return ErrShutdown()
+		}
 	case <-s.halt.ReqStop.Chan:
 		return ErrShutdown()
 	}

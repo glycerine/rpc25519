@@ -208,7 +208,7 @@ type Message struct {
 // -- they are marked `msg:"-"` and are expected
 // to be set by the receiver when needed.
 func (m *Message) CopyForSimNetSend() (c *Message) {
-	cp := *m
+	cp := *m // our caller simnet.go:792. shutdown read race vs... simnet_server:63 runSendLoop
 	c = &cp
 	c.nextOrReply = nil
 	// make our own copy of these central/critical bytes.
