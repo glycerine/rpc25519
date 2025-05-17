@@ -1755,6 +1755,7 @@ func (s *simnet) armTimer(now time.Time) time.Duration {
 		//panic(fmt.Sprintf("gridStepTimer(%v) not refreshed! < now %v", s.gridStepTimer.completeTm, now))
 		// just fix it by refreshing.
 		s.refreshGridStepTimer(now)
+		minTimer = s.gridStepTimer
 	}
 	for node := range s.nodes {
 		minTimer = node.soonestTimerLessThan(minTimer)
