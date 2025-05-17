@@ -1077,6 +1077,10 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 				dur = left
 			}
 			ti := p.u.NewTimer(dur)
+			if ti == nil {
+				// simnet shutdown
+				return "", "", ErrHaltRequested
+			}
 			select {
 			case <-ti.C:
 				ti.Discard()

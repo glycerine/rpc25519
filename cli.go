@@ -528,6 +528,10 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 		pingEvery = c.cfg.ClientSendKeepAlive
 		lastPing = time.Now()
 		pingTimer = c.NewTimer(pingEvery)
+		if pingTimer == nil {
+			// simnet shutdown in progress
+			return
+		}
 		pingWakeCh = pingTimer.C
 		// keep the ping attempts to a minimum to keep this loop lively.
 		if keepAliveWriteTimeout == 0 || keepAliveWriteTimeout > 10*time.Second {
@@ -574,6 +578,10 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 			}
 			pingTimer.Discard() // good, let simnet discard it.
 			pingTimer = c.NewTimer(nextPingDur)
+			if pingTimer == nil {
+				// simnet shutdown in progress
+				return
+			}
 			pingWakeCh = pingTimer.C
 		}
 
@@ -1749,12 +1757,20 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 		// try hard not to get stuck when server goes away.
 		//defaultTimeout = c.TimeAfter(20 * time.Second)
 		timer := c.NewTimer(20 * time.Second)
+		if timer == nil {
+			// simnet shutdown in progress
+			return nil, ErrShutdown()
+		}
 		defer timer.Discard() // let simnet know the timer can be GC-ed.
 		defaultTimeout = timer.C
 	}
 	var writeDurTimeoutChan <-chan time.Time
 	if errWriteDur > 0 {
 		ti := c.NewTimer(errWriteDur)
+		if ti == nil {
+			// simnet shutdown in progress
+			return nil, ErrShutdown()
+		}
 		defer ti.Discard()
 		writeDurTimeoutChan = ti.C
 	}
@@ -2038,6 +2054,7 @@ type UniversalCliSrv interface {
 	AutoClients() (list []*Client, isServer bool)
 
 	NewTimer(dur time.Duration) (ti *SimTimer)
+	Sleep(dur time.Duration)
 }
 
 type PingStat struct {
@@ -2637,6 +2654,7 @@ type SimTimer struct {
 	C        <-chan time.Time
 }
 
+// returned ti can be nil if system is shutting down.
 func (c *Client) NewTimer(dur time.Duration) (ti *SimTimer) {
 	ti = &SimTimer{
 		isCli: true,
@@ -2656,12 +2674,46 @@ func (c *Client) NewTimer(dur time.Duration) (ti *SimTimer) {
 		// and we need to avoid a race on reading timerC.
 		// Leaving ti.C nil means that timer will never fire.
 		// Seems reasonable for a dead node/network system.
+		return nil
 	default:
 		ti.C = ti.simtimer.timerC
 	}
 	return
 }
 
+func (c *Client) Sleep(dur time.Duration) {
+	if !c.cfg.UseSimNet {
+		time.Sleep(dur)
+		return
+	}
+	ti := c.NewTimer(dur)
+	if ti == nil {
+		// system shutting down
+		return
+	}
+	select {
+	case <-c.simnet.halt.ReqStop.Chan:
+	case <-ti.C:
+	}
+}
+
+func (s *Server) Sleep(dur time.Duration) {
+	if !s.cfg.UseSimNet {
+		time.Sleep(dur)
+		return
+	}
+	ti := s.NewTimer(dur)
+	if ti == nil {
+		// system shutting down
+		return
+	}
+	select {
+	case <-s.simnet.halt.ReqStop.Chan:
+	case <-ti.C:
+	}
+}
+
+// returned ti can be nil if system is shutting down.
 func (s *Server) NewTimer(dur time.Duration) (ti *SimTimer) {
 	ti = &SimTimer{
 		isCli: false,
@@ -2681,6 +2733,7 @@ func (s *Server) NewTimer(dur time.Duration) (ti *SimTimer) {
 		// and we need to avoid a race on reading timerC.
 		// Leaving ti.C nil means that timer will never fire.
 		// Seems reasonable for a dead node/network system.
+		return nil
 	default:
 		ti.C = ti.simtimer.timerC
 	}
@@ -2688,6 +2741,9 @@ func (s *Server) NewTimer(dur time.Duration) (ti *SimTimer) {
 }
 
 func (ti *SimTimer) Discard() (wasArmed bool) {
+	if ti == nil {
+		return
+	}
 	if ti.simnet == nil {
 		if ti.gotimer != nil {
 			ti.gotimer.Stop()

@@ -188,6 +188,10 @@ func (s *Server) runServerMain(
 
 	if boundCh != nil {
 		timeout_100msec := s.NewTimer(100 * time.Millisecond)
+		if timeout_100msec == nil {
+			// happens on system shutdown
+			return
+		}
 		defer timeout_100msec.Discard()
 
 		select {
@@ -256,6 +260,10 @@ func (s *Server) runTCP(serverAddress string, boundCh chan net.Addr) {
 
 	if boundCh != nil {
 		timeout_100msec := s.NewTimer(100 * time.Millisecond)
+		if timeout_100msec == nil {
+			// happens on system shutdown
+			return
+		}
 		defer timeout_100msec.Discard()
 
 		select {
@@ -446,7 +454,11 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		doPing = true
 		pingEvery = s.cfg.ServerSendKeepAlive
 		lastPing = time.Now()
-		pingWakeTimer = s.Server.NewTimer(pingEvery) // deadlock? this is stuck! 040 hang circucular trying to ping each other maybe?
+		pingWakeTimer = s.Server.NewTimer(pingEvery)
+		if pingWakeTimer == nil {
+			// shutdown in progress
+			return
+		}
 		//pingWakeTimer.Discard()
 		pingWakeCh = pingWakeTimer.C
 		// keep the ping attempts to a minimum to keep this loop lively.
@@ -476,6 +488,10 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 			}
 			pingWakeTimer.Discard()
 			pingWakeTimer = s.Server.NewTimer(nextPingDur)
+			if pingWakeTimer == nil {
+				// shutdown in progress
+				return
+			}
 			pingWakeCh = pingWakeTimer.C
 		}
 
@@ -1848,6 +1864,10 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 		//vv("srv SendMessage about to wait %v to check on connection.", dur)
 
 		sendTimeout := s.NewTimer(dur)
+		if sendTimeout == nil {
+			// shutdown in progress
+			return ErrShutdown()
+		}
 		defer sendTimeout.Discard()
 		sendTimeoutCh := sendTimeout.C
 
@@ -2060,6 +2080,10 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 	if errWriteDur == -2 {
 
 		timeout := s.NewTimer(time.Millisecond)
+		if timeout == nil {
+			// happens on system shutdown
+			return ErrShutdown(), nil
+		}
 		defer timeout.Discard()
 
 		select {
@@ -2102,6 +2126,10 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 	}
 	if errWriteDur > 0 {
 		timeout := s.NewTimer(errWriteDur)
+		if timeout == nil {
+			// happens on system shutdown
+			return ErrShutdown(), nil
+		}
 		defer timeout.Discard()
 		timeoutCh = timeout.C
 	}
@@ -2614,6 +2642,11 @@ func (s *Server) respondToReqWithError(req *Message, job *job, description strin
 	// themselves; since then they will have TIME_WAIT and not
 	// the server.
 	ti := s.NewTimer(time.Second * 3)
+	if ti == nil {
+		// happens on system shutdown
+		return
+	}
+
 	select {
 	case <-ti.C:
 	case <-job.pair.halt.ReqStop.Chan:
