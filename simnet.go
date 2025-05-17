@@ -1910,6 +1910,7 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 		// this could be data racey on shutdown. double
 		// check we are not shutting down.
 		if s.halt.ReqStop.IsClosed() {
+			// avoid .msg race on shutdown, CopyForSimNetSend vs sendLoop
 			return nil, ErrShutdown()
 		}
 		msg = read.msg
@@ -1940,6 +1941,7 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) e
 		// this could be data racey on shutdown. double
 		// check we are not shutting down.
 		if s.halt.ReqStop.IsClosed() {
+			// avoid .msg race on shutdown, CopyForSimNetSend vs sendLoop
 			return ErrShutdown()
 		}
 	case <-s.halt.ReqStop.Chan:

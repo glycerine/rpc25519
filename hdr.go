@@ -208,12 +208,6 @@ type Message struct {
 // -- they are marked `msg:"-"` and are expected
 // to be set by the receiver when needed.
 func (m *Message) CopyForSimNetSend() (c *Message) {
-	// we've added double checks for shutdown into
-	// simnet external routines to try and not touch
-	// the .msg field on shutdown. This was to try
-	// and avoid this race:
-	// our caller simnet.go:792. shutdown read race vs...
-	// simnet_server:63 runSendLoop
 	cp := *m
 	c = &cp
 	c.nextOrReply = nil
