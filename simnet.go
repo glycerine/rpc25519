@@ -163,7 +163,7 @@ type mop struct {
 	sendIsDropped bool
 	readIsDeaf    bool
 
-	// on dropDeaf requests
+	// on kind: DEAFDROP requests
 	originName       string
 	targetName       string // empty string means all targets/ remote conn.
 	updateDeafReads  bool
@@ -206,9 +206,11 @@ func (s *simnet) handleDeafDrop(dd *mop) (err error) {
 		for rem, conn := range remotes {
 			if target == nil || target == rem {
 				if dd.updateDeafReads {
+					vv("setting conn(%v).deafRead = dd.deafReadsNewProb = %v", conn, dd.deafReadsNewProb)
 					conn.deafRead = dd.deafReadsNewProb
 				}
 				if dd.updateDropSends {
+					vv("setting conn(%v).dropSend = dd.dropSendsNewProb = %v", conn, dd.dropSendsNewProb)
 					conn.dropSend = dd.dropSendsNewProb
 				}
 			}
