@@ -1041,6 +1041,19 @@ type Config struct {
 	simnetRendezvous *simnetRendezvous
 }
 
+func (cfg *Config) GetSimnet() *simnet {
+	if !cfg.UseSimNet {
+		return nil
+	}
+	if cfg.simnetRendezvous == nil {
+		return nil
+	}
+	cfg.simnetRendezvous.singleSimnetMut.Lock()
+	defer cfg.simnetRendezvous.singleSimnetMut.Unlock()
+	// might be nil, but that informs caller too.
+	return cfg.simnetRendezvous.singleSimnet
+}
+
 // gotta have just one simnet, shared by all
 // clients and servers for a single test/Configure.
 type simnetRendezvous struct {

@@ -112,6 +112,8 @@ func (k mopkind) String() string {
 		return "SEND"
 	case READ:
 		return "READ"
+	case DEAFDROP:
+		return "DEAFDROP"
 	default:
 		return fmt.Sprintf("unknown mopkind %v", int(k))
 	}

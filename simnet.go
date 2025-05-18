@@ -158,9 +158,19 @@ type mop struct {
 	sendmop *mop // for reads, which send did we get?
 	readmop *mop // for sends, which read did we go to?
 
-	// model network/card faults
+	// on sends/reads
+	// model network/card faults, nil means no change.
 	sendIsDropped bool
 	readIsDeaf    bool
+
+	// on dropDeaf requests
+	originName       string
+	targetName       string // empty string means all targets/ remote conn.
+	updateDeafReads  bool
+	deafReadsNewProb float64
+	updateDropSends  bool
+	dropSendsNewProb float64
+	err              error // e.g. cannot find name.
 
 	// clients of scheduler wait on proceed.
 	// When the timer is set; the send sent; the read
@@ -169,6 +179,42 @@ type mop struct {
 	proceed chan struct{}
 
 	isEOF_RST bool
+}
+
+func (s *simnet) handleDeafDrop(dd *mop) (err error) {
+	defer func() {
+		dd.err = err
+		close(dd.proceed)
+	}()
+
+	origin, ok := s.dns[dd.originName]
+	_ = origin
+	if !ok {
+		err = fmt.Errorf("could not find originName = '%v' in dns", dd.originName)
+		return
+	}
+	var target *simnode
+	if dd.targetName != "" {
+		target, ok = s.dns[dd.targetName]
+		if !ok {
+			err = fmt.Errorf("could not find targetName = '%v' in dns", dd.targetName)
+			return
+		}
+	}
+	remotes, ok := s.nodes[origin]
+	if ok {
+		for rem, conn := range remotes {
+			if target == nil || target == rem {
+				if dd.updateDeafReads {
+					conn.deafRead = dd.deafReadsNewProb
+				}
+				if dd.updateDropSends {
+					conn.dropSend = dd.dropSendsNewProb
+				}
+			}
+		}
+	} // else no remote conn to adjust
+	return
 }
 
 // simnet simulates a network entirely with channels in memory.
@@ -298,9 +344,11 @@ type simnet struct {
 	msgReadCh      chan *mop
 	addTimer       chan *mop
 	discardTimerCh chan *mop
-	newScenarioCh  chan *scenario
-	nextTimer      *time.Timer
-	lastArmTm      time.Time
+	deafDropCh     chan *mop
+
+	newScenarioCh chan *scenario
+	nextTimer     *time.Timer
+	lastArmTm     time.Time
 }
 
 // simnode is a single host/server/node
@@ -463,6 +511,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		addTimer:       make(chan *mop),
 		discardTimerCh: make(chan *mop),
 		newScenarioCh:  make(chan *scenario),
+		deafDropCh:     make(chan *mop),
 		scenario:       scen,
 
 		dns: make(map[string]*simnode),
@@ -549,6 +598,7 @@ const (
 	TIMER_DISCARD mopkind = 2
 	SEND          mopkind = 3
 	READ          mopkind = 4
+	DEAFDROP      mopkind = 5 // set a fault on a node
 )
 
 // scenario will, in the future, provide for testing different
@@ -1758,6 +1808,10 @@ restartI:
 		case alt := <-s.alterNodeCh:
 			s.handleAlterNode(alt)
 
+		case dd := <-s.deafDropCh:
+			vv("i=%v deafDropCh ->  dd='%v'", i, dd)
+			s.handleDeafDrop(dd)
+
 		case <-s.halt.ReqStop.Chan:
 			bb := time.Since(s.bigbang)
 			pct := 100 * float64(totalSleepDur) / float64(bb)
@@ -2275,6 +2329,73 @@ func (s *simnet) alterNode(node *simnode, alter Alteration) {
 	select {
 	case <-alt.done:
 		//vv("server altered: %v", node)
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	return
+}
+
+// false updateDeaf or false updateDrop means no
+// change in that state.
+func newDeafDrop(originName, targetName string, updateDeaf, updateDrop bool, deafProb, dropProb float64) *mop {
+	m := &mop{
+		kind:             DEAFDROP,
+		originName:       originName,
+		targetName:       targetName,
+		updateDeafReads:  updateDeaf,
+		deafReadsNewProb: deafProb,
+		updateDropSends:  updateDrop,
+		dropSendsNewProb: dropProb,
+
+		// coming from tube, so...
+		// unknown originCli: isCli,
+
+		sn:      simnetNextMopSn(),
+		proceed: make(chan struct{}),
+	}
+
+	return m
+}
+
+// empty string target means all possible targets
+func (s *simnet) DeafToReads(origin, target string, deafProb float64) (err error) {
+
+	updateDeaf, updateDrop, dropProb := true, false, 0.0
+	dd := newDeafDrop(origin, target, updateDeaf, updateDrop, deafProb, dropProb)
+
+	select {
+	case s.deafDropCh <- dd:
+		vv("sent DeafToReads dd on deafDropCh; about to wait on proceed")
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	select {
+	case <-dd.proceed:
+		err = dd.err
+		vv("server '%v' DeafToReads from '%v'; err = '%v'", origin, target, err)
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	return
+
+}
+
+// empty target string means all possible targets
+func (s *simnet) DropSends(origin, target string, dropProb float64) (err error) {
+
+	updateDeaf, updateDrop, deafProb := false, true, 0.0
+	dd := newDeafDrop(origin, target, updateDeaf, updateDrop, deafProb, dropProb)
+
+	select {
+	case s.deafDropCh <- dd:
+		vv("sent DropSends dd on deafDropCh; about to wait on proceed")
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	select {
+	case <-dd.proceed:
+		err = dd.err
+		vv("server '%v' will DropSends to '%v'; err = '%v'", origin, target, err)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
