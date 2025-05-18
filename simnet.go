@@ -190,14 +190,14 @@ func (s *simnet) handleDeafDrop(dd *mop) (err error) {
 	origin, ok := s.dns[dd.originName]
 	_ = origin
 	if !ok {
-		err = fmt.Errorf("could not find originName = '%v' in dns", dd.originName)
+		err = fmt.Errorf("could not find originName = '%v' in dns: '%v'", dd.originName, s.stringDNS())
 		return
 	}
 	var target *simnode
 	if dd.targetName != "" {
 		target, ok = s.dns[dd.targetName]
 		if !ok {
-			err = fmt.Errorf("could not find targetName = '%v' in dns", dd.targetName)
+			err = fmt.Errorf("could not find targetName = '%v' in dns: '%v'", dd.targetName, s.stringDNS())
 			return
 		}
 	}
