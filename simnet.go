@@ -160,8 +160,9 @@ type mop struct {
 
 	// on sends/reads
 	// model network/card faults, nil means no change.
-	sendIsDropped bool
-	readIsDeaf    bool
+	sendIsDropped   bool
+	readIsDeaf      bool
+	isDropDeafFault bool // either sendIsDropped or readIsDeaf
 
 	// on kind: DEAFDROP requests
 	originName       string
@@ -961,6 +962,7 @@ func (s *simnet) handleSend(send *mop) {
 		if s.localDropSend(send) {
 			vv("DROP SEND %v", send)
 			send.sendIsDropped = true
+			send.isDropDeafFault = true
 		}
 		// make a copy _before_ the sendMessage() call returns,
 		// so they can recycle or do whatever without data racing with us.
@@ -1019,6 +1021,7 @@ func (s *simnet) handleRead(read *mop) {
 	if s.localDeafRead(read) {
 		vv("DEAF READ %v", read)
 		read.readIsDeaf = true
+		read.isDropDeafFault = true
 	}
 	origin.readQ.add(read)
 	//vv("LC:%v  READ at %v: %v", origin.lc, origin.name, read)
@@ -1170,24 +1173,26 @@ func (node *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 		}
 		//vv("=== end of dispatch %v", node.name)
 
-		// sanity check that we delivered everything we could.
-		narr := node.preArrQ.tree.Len()
-		nread := node.readQ.tree.Len()
-		// it is normal to have preArrQ if no reads...
-		if narr > 0 && nread > 0 {
-			// if the first preArr is not due yet, that is the reason
+		if false { // off for deafDrop development
+			// sanity check that we delivered everything we could.
+			narr := node.preArrQ.tree.Len()
+			nread := node.readQ.tree.Len()
+			// it is normal to have preArrQ if no reads...
+			if narr > 0 && nread > 0 {
+				// if the first preArr is not due yet, that is the reason
 
-			// if not using fake time, arrival time was probably
-			// almost but not quite here when we checked below,
-			// but now there is something possible a
-			// few microseconds later. In this case, don't freak.
-			// So make this conditional on faketime being in use.
-			if !shuttingDown && faketime { // && node.net.barrier {
+				// if not using fake time, arrival time was probably
+				// almost but not quite here when we checked below,
+				// but now there is something possible a
+				// few microseconds later. In this case, don't freak.
+				// So make this conditional on faketime being in use.
+				if !shuttingDown && faketime { // && node.net.barrier {
 
-				now2 := time.Now()
-				if node.firstPreArrivalTimeLTE(now2) {
-					alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; nPreDel = %v; delListSN = '%v', (now2 - now = %v);\n endOn = %v\n lastMatchSend=%v \n lastMatchRead = %v \n\n endOnSituation = %v\n summary node summary:\n%v", narr, nread, nPreDel, delListSN, now2.Sub(now), endOn, lastMatchSend, lastMatchRead, endOnSituation, node.String())
-					panic("should have been dispatchable, no?")
+					now2 := time.Now()
+					if node.firstPreArrivalTimeLTE(now2) {
+						alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; nPreDel = %v; delListSN = '%v', (now2 - now = %v);\n endOn = %v\n lastMatchSend=%v \n lastMatchRead = %v \n\n endOnSituation = %v\n summary node summary:\n%v", narr, nread, nPreDel, delListSN, now2.Sub(now), endOn, lastMatchSend, lastMatchRead, endOnSituation, node.String())
+						panic("should have been dispatchable, no?")
+					}
 				}
 			}
 		}
@@ -1218,6 +1223,18 @@ func (node *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 		send := preIt.Item().(*mop)
 
 		node.optionallyApplyChaos()
+
+		// check readIsDeaf and/or sendIsDropped, these
+		// should not be matched to simulate the fault.
+		// For now we keep them in the queue for visibility.
+		if send.sendIsDropped {
+			preIt = preIt.Next()
+			continue
+		}
+		if read.readIsDeaf {
+			readIt = readIt.Next()
+			continue
+		}
 
 		// Causality also demands that
 		// a read can complete (now) only after it was initiated;
@@ -1315,246 +1332,271 @@ func (node *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 // It calls node.net.armTimer() at the end (in the defer).
 func (node *simnode) dispatch(now time.Time) (changes int64) {
 
-	switch node.state {
-	case HALTED:
-		// cannot send, receive, start timers or
-		// discard them; when halted.
-		return
-	case ISOLATED:
-		// timers need to fire.
-		// pre-arrival Q will be empty, so
-		// no matching will happen anyway.
-		// reads are fine.
-	case HEALTHY:
-	}
+	changes += node.dispatchTimers(now)
+	changes += node.dispatchReadsSends(now)
+	return
 
-	// to be deleted at the end, so
-	// we don't dirupt the iteration order
-	// and miss something.
-	var preDel []*mop
-	var readDel []*mop
-	var timerDel []*mop
+	/*
+	   switch node.state {
+	   case HALTED:
 
-	// skip the not dispatched assert on shutdown
-	shuttingDown := false
-	// for assert we dispatched all we could
-	var endOn, lastMatchSend, lastMatchRead *mop
-	var endOnSituation string
+	   	// cannot send, receive, start timers or
+	   	// discard them; when halted.
+	   	return
 
-	// We had an early bug from returning early and
-	// forgetting about preDel, readDel, timerDel
-	// that were waiting for deletion at
-	// the end. Doing the deletes here in
-	// a defer allows us to return safely at any
-	// point, and still do the required cleanup.
-	defer func() {
-		// take care of any deferred-to-keep-sane iteration deletes
-		nPreDel := len(preDel)
-		var delListSN []int64
-		for _, op := range preDel {
-			////zz("delete '%v'", op)
-			// TODO: delete with iterator! should be more reliable and faster.
-			found := node.preArrQ.tree.DeleteWithKey(op)
-			if !found {
-				panic(fmt.Sprintf("failed to delete from preArrQ: '%v'; preArrQ = '%v'", op, node.preArrQ.String()))
-			}
-			delListSN = append(delListSN, op.sn)
-		}
-		for _, op := range readDel {
-			////zz("delete '%v'", op)
-			found := node.readQ.tree.DeleteWithKey(op)
-			if !found {
-				panic(fmt.Sprintf("failed to delete from readQ: '%v'", op))
-			}
-		}
-		for _, op := range timerDel {
-			////zz("delete '%v'", op)
-			found := node.timerQ.tree.DeleteWithKey(op)
-			if !found {
-				panic(fmt.Sprintf("failed to delete from timerQ: '%v'", op))
-			}
-		}
-		//if changes > 0 {
-		// let scheduler, to avoid false alarms: node.net.armTimer(now)
-		//}
-		//vv("=== end of dispatch %v", node.name)
+	   case ISOLATED:
 
-		// sanity check that we delivered everything we could.
-		narr := node.preArrQ.tree.Len()
-		nread := node.readQ.tree.Len()
-		// it is normal to have preArrQ if no reads...
-		if narr > 0 && nread > 0 {
-			// if the first preArr is not due yet, that is the reason
+	   	// timers need to fire.
+	   	// pre-arrival Q will be empty, so
+	   	// no matching will happen anyway.
+	   	// reads are fine.
 
-			// if not using fake time, arrival time was probably
-			// almost but not quite here when we checked below,
-			// but now there is something possible a
-			// few microseconds later. In this case, don't freak.
-			// So make this conditional on faketime being in use.
-			if !shuttingDown && faketime { // && node.net.barrier {
+	   case HEALTHY:
+	   }
 
-				now2 := time.Now()
-				if node.firstPreArrivalTimeLTE(now2) {
-					alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; nPreDel = %v; delListSN = '%v', (now2 - now = %v);\n endOn = %v\n lastMatchSend=%v \n lastMatchRead = %v \n\n endOnSituation = %v\n summary node summary:\n%v", narr, nread, nPreDel, delListSN, now2.Sub(now), endOn, lastMatchSend, lastMatchRead, endOnSituation, node.String())
-					panic("should have been dispatchable, no?")
-				}
-			}
-		}
-	}()
+	   // to be deleted at the end, so
+	   // we don't dirupt the iteration order
+	   // and miss something.
+	   var preDel []*mop
+	   var readDel []*mop
+	   var timerDel []*mop
 
-	nT := node.timerQ.tree.Len()  // number of timers
-	nR := node.readQ.tree.Len()   // number of reads
-	nS := node.preArrQ.tree.Len() // number of sends
+	   // skip the not dispatched assert on shutdown
+	   shuttingDown := false
+	   // for assert we dispatched all we could
+	   var endOn, lastMatchSend, lastMatchRead *mop
+	   var endOnSituation string
 
-	if nT == 0 && nR == 0 && nS == 0 {
-		return
-	}
+	   // We had an early bug from returning early and
+	   // forgetting about preDel, readDel, timerDel
+	   // that were waiting for deletion at
+	   // the end. Doing the deletes here in
+	   // a defer allows us to return safely at any
+	   // point, and still do the required cleanup.
 
-	readIt := node.readQ.tree.Min()
-	preIt := node.preArrQ.tree.Min()
-	timerIt := node.timerQ.tree.Min()
+	   	defer func() {
+	   		// take care of any deferred-to-keep-sane iteration deletes
+	   		nPreDel := len(preDel)
+	   		var delListSN []int64
+	   		for _, op := range preDel {
+	   			////zz("delete '%v'", op)
+	   			// TODO: delete with iterator! should be more reliable and faster.
+	   			found := node.preArrQ.tree.DeleteWithKey(op)
+	   			if !found {
+	   				panic(fmt.Sprintf("failed to delete from preArrQ: '%v'; preArrQ = '%v'", op, node.preArrQ.String()))
+	   			}
+	   			delListSN = append(delListSN, op.sn)
+	   		}
+	   		for _, op := range readDel {
+	   			////zz("delete '%v'", op)
+	   			found := node.readQ.tree.DeleteWithKey(op)
+	   			if !found {
+	   				panic(fmt.Sprintf("failed to delete from readQ: '%v'", op))
+	   			}
+	   		}
+	   		for _, op := range timerDel {
+	   			////zz("delete '%v'", op)
+	   			found := node.timerQ.tree.DeleteWithKey(op)
+	   			if !found {
+	   				panic(fmt.Sprintf("failed to delete from timerQ: '%v'", op))
+	   			}
+	   		}
+	   		//if changes > 0 {
+	   		// let scheduler, to avoid false alarms: node.net.armTimer(now)
+	   		//}
+	   		//vv("=== end of dispatch %v", node.name)
 
-	// do timers first, so we can exit
-	// immediately if no sends and reads match.
-	for ; timerIt != node.timerQ.tree.Limit(); timerIt = timerIt.Next() {
+	   		if false { // turn off for drop/deaf development
+	   			// sanity check that we delivered everything we could.
+	   			narr := node.preArrQ.tree.Len()
+	   			nread := node.readQ.tree.Len()
+	   			// it is normal to have preArrQ if no reads...
+	   			if narr > 0 && nread > 0 {
+	   				// if the first preArr is not due yet, that is the reason
 
-		timer := timerIt.Item().(*mop)
-		//vv("check TIMER: %v", timer)
+	   				// if not using fake time, arrival time was probably
+	   				// almost but not quite here when we checked below,
+	   				// but now there is something possible a
+	   				// few microseconds later. In this case, don't freak.
+	   				// So make this conditional on faketime being in use.
+	   				if !shuttingDown && faketime { // && node.net.barrier {
 
-		if !now.Before(timer.completeTm) {
-			// timer.completeTm <= now
-			pp("have TIMER firing: %v", timer)
-			changes++
-			timer.timerFiredTm = now
-			timerDel = append(timerDel, timer)
-			select {
-			case timer.timerC <- now:
-			//vv("sent on timerC")
-			default:
-			// this is what the Go runtime does. otherwise our clock gets 0.01 increments each time...
-			//vv("timerC default: giving up on timer immediately!")
-			// this works fine, it seems. this was alt:
-			//case <-time.After(time.Millisecond * 10):
-			// see 8 of these in cli_test 006; since 00:01:07.08 is ending time.
-			//vv("giving up on timer after 10 msec: '%v'", timer)
-			//panic("giving up on timer?!? why blocked? or must we ignore?")
-			case <-node.net.halt.ReqStop.Chan:
-				shuttingDown = true
-				return
-			}
-		} else {
-			// smallest timer > now
-			break // check send->read next, don't return yet.
-		}
-	}
+	   					now2 := time.Now()
+	   					if node.firstPreArrivalTimeLTE(now2) {
+	   						alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; nPreDel = %v; delListSN = '%v', (now2 - now = %v);\n endOn = %v\n lastMatchSend=%v \n lastMatchRead = %v \n\n endOnSituation = %v\n summary node summary:\n%v", narr, nread, nPreDel, delListSN, now2.Sub(now), endOn, lastMatchSend, lastMatchRead, endOnSituation, node.String())
+	   						panic("should have been dispatchable, no?")
+	   					}
+	   				}
+	   			}
+	   		}
+	   	}()
 
-	// done with timers. on to matching reads and sends.
+	   nT := node.timerQ.tree.Len()  // number of timers
+	   nR := node.readQ.tree.Len()   // number of reads
+	   nS := node.preArrQ.tree.Len() // number of sends
 
-	for {
-		if readIt == node.readQ.tree.Limit() {
-			// no reads, no point.
-			return
-		}
-		if preIt == node.preArrQ.tree.Limit() {
-			// no sends to match with reads
-			return
-		}
+	   	if nT == 0 && nR == 0 && nS == 0 {
+	   		return
+	   	}
 
-		read := readIt.Item().(*mop)
-		send := preIt.Item().(*mop)
+	   readIt := node.readQ.tree.Min()
+	   preIt := node.preArrQ.tree.Min()
+	   timerIt := node.timerQ.tree.Min()
 
-		node.optionallyApplyChaos()
+	   // do timers first, so we can exit
+	   // immediately if no sends and reads match.
+	   for ; timerIt != node.timerQ.tree.Limit(); timerIt = timerIt.Next() {
 
-		// Causality also demands that
-		// a read can complete (now) only after it was initiated;
-		// and so can be matched (now) only to a send already initiated.
+	   		timer := timerIt.Item().(*mop)
+	   		//vv("check TIMER: %v", timer)
 
-		// To keep from violating causality,
-		// during our chaos testing, we want
-		// to make sure that the read completion (now)
-		// cannot happen before the send initiation.
-		// Also forbid any reads that have not happened
-		// "yet" (now), should they get rearranged by chaos.
-		if now.Before(read.initTm) {
-			alwaysPrintf("rejecting delivery to read that has not happened: '%v'", read)
-			panic("how possible?")
-			return
-		}
-		// INVAR: this read.initTm <= now
-		changes++
+	   		if !now.Before(timer.completeTm) {
+	   			// timer.completeTm <= now
+	   			pp("have TIMER firing: %v", timer)
+	   			changes++
+	   			timer.timerFiredTm = now
+	   			timerDel = append(timerDel, timer)
+	   			select {
+	   			case timer.timerC <- now:
+	   			//vv("sent on timerC")
+	   			default:
+	   			// this is what the Go runtime does. otherwise our clock gets 0.01 increments each time...
+	   			//vv("timerC default: giving up on timer immediately!")
+	   			// this works fine, it seems. this was alt:
+	   			//case <-time.After(time.Millisecond * 10):
+	   			// see 8 of these in cli_test 006; since 00:01:07.08 is ending time.
+	   			//vv("giving up on timer after 10 msec: '%v'", timer)
+	   			//panic("giving up on timer?!? why blocked? or must we ignore?")
+	   			case <-node.net.halt.ReqStop.Chan:
+	   				shuttingDown = true
+	   				return
+	   			}
+	   		} else {
+	   			// smallest timer > now
+	   			break // check send->read next, don't return yet.
+	   		}
+	   	}
 
-		if send.arrivalTm.After(now) {
-			// send has not arrived yet.
+	   // done with timers. on to matching reads and sends.
 
-			// are we done? since preArrQ is ordered
-			// by arrivalTm, all subsequent pre-arrivals (sends)
-			// will have even more _greater_  arrivalTm;
-			// so no point in looking.
+	   	for {
+	   		if readIt == node.readQ.tree.Limit() {
+	   			// no reads, no point.
+	   			return
+	   		}
+	   		if preIt == node.preArrQ.tree.Limit() {
+	   			// no sends to match with reads
+	   			return
+	   		}
 
-			// super noisy!
-			//vv("rejecting delivery of send that has not happened: '%v'", send)
-			//vv("dispatch: %v", node.net.schedulerReport())
-			endOn = send
-			it2 := preIt
-			afterN := 0
-			for ; it2 != node.preArrQ.tree.Limit(); it2 = it2.Next() {
-				afterN++
-			}
-			endOnSituation = fmt.Sprintf("after me: %v; preArrQ: %v", afterN, node.preArrQ.String())
+	   		read := readIt.Item().(*mop)
+	   		send := preIt.Item().(*mop)
 
-			// we must set a timer on its delivery then...
-			dur := send.arrivalTm.Sub(now)
-			pending := newTimerCreateMop(node.isCli)
-			pending.origin = node
-			pending.timerDur = dur
-			pending.initTm = now
-			pending.completeTm = now.Add(dur)
-			pending.timerFileLine = fileLine(1)
-			pending.internalPendingTimer = true
-			node.net.handleTimer(pending)
-			return
-		}
-		// INVAR: this send.arrivalTm <= now; good to deliver.
+	   		node.optionallyApplyChaos()
 
-		// Since both have happened, they can be matched.
+	   		// check readIsDeaf and/or sendIsDropped, these
+	   		// should not be matched to simulate the fault.
+	   		// For now we keep them in the queue for visibility.
+	   		if send.sendIsDropped {
+	   			preIt = preIt.Next()
+	   			continue
+	   		}
+	   		if read.readIsDeaf {
+	   			readIt = readIt.Next()
+	   			continue
+	   		}
 
-		// Service this read with this send.
+	   		// Causality also demands that
+	   		// a read can complete (now) only after it was initiated;
+	   		// and so can be matched (now) only to a send already initiated.
 
-		read.msg = send.msg // safe b/c already copied in handleSend()
+	   		// To keep from violating causality,
+	   		// during our chaos testing, we want
+	   		// to make sure that the read completion (now)
+	   		// cannot happen before the send initiation.
+	   		// Also forbid any reads that have not happened
+	   		// "yet" (now), should they get rearranged by chaos.
+	   		if now.Before(read.initTm) {
+	   			alwaysPrintf("rejecting delivery to read that has not happened: '%v'", read)
+	   			panic("how possible?")
+	   			return
+	   		}
+	   		// INVAR: this read.initTm <= now
+	   		changes++
 
-		read.isEOF_RST = send.isEOF_RST // convey EOF/RST
-		if send.isEOF_RST {
-			//vv("copied EOF marker from send '%v' \n to read: '%v'", send, read)
-		}
+	   		if send.arrivalTm.After(now) {
+	   			// send has not arrived yet.
 
-		lastMatchSend = send
-		lastMatchRead = read
-		// advance our logical clock
-		node.lc = max(node.lc, send.originLC) + 1
-		//pp("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, node.lc, node.lc-read.originLC, read.sn)
+	   			// are we done? since preArrQ is ordered
+	   			// by arrivalTm, all subsequent pre-arrivals (sends)
+	   			// will have even more _greater_  arrivalTm;
+	   			// so no point in looking.
 
-		// track clocks on either end for this send and read.
-		read.readerLC = node.lc
-		read.senderLC = send.senderLC
-		send.readerLC = node.lc
-		read.completeTm = now
-		read.arrivalTm = send.arrivalTm // easier diagnostics
+	   			// super noisy!
+	   			//vv("rejecting delivery of send that has not happened: '%v'", send)
+	   			//vv("dispatch: %v", node.net.schedulerReport())
+	   			endOn = send
+	   			it2 := preIt
+	   			afterN := 0
+	   			for ; it2 != node.preArrQ.tree.Limit(); it2 = it2.Next() {
+	   				afterN++
+	   			}
+	   			endOnSituation = fmt.Sprintf("after me: %v; preArrQ: %v", afterN, node.preArrQ.String())
 
-		// matchmaking
-		//pp("[1]matchmaking: \nsend '%v' -> \nread '%v'", send, read)
-		read.sendmop = send
-		send.readmop = read
+	   			// we must set a timer on its delivery then...
+	   			dur := send.arrivalTm.Sub(now)
+	   			pending := newTimerCreateMop(node.isCli)
+	   			pending.origin = node
+	   			pending.timerDur = dur
+	   			pending.initTm = now
+	   			pending.completeTm = now.Add(dur)
+	   			pending.timerFileLine = fileLine(1)
+	   			pending.internalPendingTimer = true
+	   			node.net.handleTimer(pending)
+	   			return
+	   		}
+	   		// INVAR: this send.arrivalTm <= now; good to deliver.
 
-		preDel = append(preDel, send)
-		readDel = append(readDel, read)
+	   		// Since both have happened, they can be matched.
 
-		close(read.proceed)
-		// send already closed in handleSend()
+	   		// Service this read with this send.
 
-		readIt = readIt.Next()
-		preIt = preIt.Next()
+	   		read.msg = send.msg // safe b/c already copied in handleSend()
 
-	} // end for
+	   		read.isEOF_RST = send.isEOF_RST // convey EOF/RST
+	   		if send.isEOF_RST {
+	   			//vv("copied EOF marker from send '%v' \n to read: '%v'", send, read)
+	   		}
+
+	   		lastMatchSend = send
+	   		lastMatchRead = read
+	   		// advance our logical clock
+	   		node.lc = max(node.lc, send.originLC) + 1
+	   		//pp("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, node.lc, node.lc-read.originLC, read.sn)
+
+	   		// track clocks on either end for this send and read.
+	   		read.readerLC = node.lc
+	   		read.senderLC = send.senderLC
+	   		send.readerLC = node.lc
+	   		read.completeTm = now
+	   		read.arrivalTm = send.arrivalTm // easier diagnostics
+
+	   		// matchmaking
+	   		//pp("[1]matchmaking: \nsend '%v' -> \nread '%v'", send, read)
+	   		read.sendmop = send
+	   		send.readmop = read
+
+	   		preDel = append(preDel, send)
+	   		readDel = append(readDel, read)
+
+	   		close(read.proceed)
+	   		// send already closed in handleSend()
+
+	   		readIt = readIt.Next()
+	   		preIt = preIt.Next()
+
+	   } // end for
+	*/
 }
 
 func (s *simnet) qReport() (r string) {
