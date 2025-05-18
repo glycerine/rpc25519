@@ -162,7 +162,7 @@ func Test706_simnetonly_RoundTrip_Using_NetRPC(t *testing.T) {
 		vv("about to srv.Start() in 706")
 		t0 := time.Now()
 		serverAddr, err := srv.Start()
-		vv("back from srv.Start() in 706, elap = %v", time.Since(t0)) // not seen when run together with 701! e.g. GOTRACEBACK=all go test -v -run 70[16] ...well, seen at the end, just over 10sec: after the panic: simnet_test.go:154 2025-05-06 22:22:20.039 +0000 UTC back from srv.Start() in 706, elap = 10.000866635s
+		vv("back from srv.Start() in 706, elap = %v", time.Since(t0))
 		panicOn(err)
 		defer srv.Close()
 

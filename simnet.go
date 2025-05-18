@@ -530,8 +530,9 @@ const (
 // timeout settings under network partition and
 // flakiness (partial failure). Stubbed for now.
 type scenario struct {
-	seed [32]byte
-	rng  *mathrand2.ChaCha8
+	seed   [32]byte
+	chacha *mathrand2.ChaCha8
+	rng    *mathrand2.Rand
 
 	// we enforce ending in 00_000 ns for all tick
 	tick   time.Duration
@@ -544,13 +545,15 @@ func enforceTickDur(tick time.Duration) time.Duration {
 }
 
 func newScenario(tick, minHop, maxHop time.Duration, seed [32]byte) *scenario {
-	return &scenario{
+	s := &scenario{
 		seed:   seed,
-		rng:    mathrand2.NewChaCha8(seed),
+		chacha: mathrand2.NewChaCha8(seed),
 		tick:   enforceTickDur(tick),
 		minHop: minHop,
 		maxHop: maxHop,
 	}
+	s.rng = mathrand2.New(s.chacha)
+	return s
 }
 func (s *scenario) rngHop() (hop time.Duration) {
 	if s.maxHop <= s.minHop {
@@ -826,6 +829,17 @@ func (s *simnet) handleAlterNode(alt *nodeAlteration) {
 	close(alt.done)
 }
 
+func (s *simnet) dropSend(send *mop) bool {
+	// dropSend
+	// get the local origin conn probability of drop
+	prob := s.nodes[send.origin][send.target].dropSend
+	if prob == 0 {
+		return false
+	}
+	random01 := s.scenario.rng.Float64() // in [0, 1)
+	return random01 < prob
+}
+
 func (s *simnet) handleSend(send *mop) {
 	////zz("top of handleSend(send = '%v')", send)
 
@@ -855,19 +869,23 @@ func (s *simnet) handleSend(send *mop) {
 	case HALTED, ISOLATED:
 		//vv("send.target.state == %v, dropping msg = '%v'", send.target.state, send.msg)
 	case HEALTHY:
+		if s.dropSend(send) {
+			vv("DROP SEND %v", send)
 
-		// make a copy _before_ the sendMessage() call returns,
-		// so they can recycle or do whatever without data racing with us.
-		// Weird: even with this, the Fragment is getting
-		// races, not the Message.
-		msg1 := send.msg.CopyForSimNetSend()
-		// split into two parts to try and understand the shutdown data race here.
-		// we've got to try and have shutdown not read send.msg
-		send.msg = msg1
+		} else {
+			// make a copy _before_ the sendMessage() call returns,
+			// so they can recycle or do whatever without data racing with us.
+			// Weird: even with this, the Fragment is getting
+			// races, not the Message.
+			msg1 := send.msg.CopyForSimNetSend()
+			// split into two parts to try and understand the shutdown data race here.
+			// we've got to try and have shutdown not read send.msg
+			send.msg = msg1
 
-		send.target.preArrQ.add(send)
-		//vv("LC:%v  SEND TO %v %v", origin.lc, origin.name, send)
-		////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvnode.preArrQ)
+			send.target.preArrQ.add(send)
+			//vv("LC:%v  SEND TO %v %v", origin.lc, origin.name, send)
+			////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvnode.preArrQ)
+		}
 	}
 	// rpc25519 peer/ckt/frag does async sends, so let
 	// the sender keep going.

@@ -142,13 +142,15 @@ type simnetConn struct {
 	remoteClosed *idem.IdemCloseChan
 
 	// probability of local read fault, in [0,1].
-	// 0 means normal operation, not deaf to reads.
 	// 1 means no reads will be obtained.
+	// 0 means normal operation, not deaf to reads (default).
+	// The other end can still be dropping their sends; see dropSend.
 	deafRead float64
 
 	// probability of local send fault, in [0,1].
-	// 0 means normal operation, not dropping sends.
-	// 1 means all sends go out. The other end can still be deaf.
+	// 1 means all sends dropped. No sends go out.
+	// 0 means normal operation, not dropping sends (default).
+	// The other end can still be deaf to the send; see deafRead.
 	dropSend float64
 }
 
