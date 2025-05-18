@@ -914,7 +914,13 @@ func (s *simnet) handleSend(send *mop) {
 		// so they can recycle or do whatever without data racing with us.
 		// Weird: even with this, the Fragment is getting
 		// races, not the Message.
-		msg1 := send.msg.CopyForSimNetSend()
+		msg1 := send.msg // copy not needed now? newSendMop() now does: .CopyForSimNetSend()
+
+		//msg1 := send.msg.CopyForSimNetSend() // race read vs srv.go:517
+		// how is a race possible? we have not closed the proceed chan yet!?!
+		// ah: maybe the send was non-blocking. do the copy earlier
+		// on the sender side in sendMessage() during newSendMop().
+
 		// split into two parts to try and understand the shutdown data race here.
 		// we've got to try and have shutdown not read send.msg
 		send.msg = msg1
@@ -2061,7 +2067,7 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) e
 
 	//vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", send.origin, msg.HDR.Serial)
 	//vv("sendMessage\n conn.local = %v (isCli:%v)\n conn.remote = %v (isCli:%v)\n", sc.local.name, sc.local.isCli, sc.remote.name, sc.remote.isCli)
-	send := newSendMop(msg, isCli)
+	send := newSendMop(msg, isCli) // clones msg to prevent race with srv.go:517
 	send.origin = sc.local
 	send.target = sc.remote
 	send.initTm = time.Now()
@@ -2115,10 +2121,11 @@ func newReadMop(isCli bool) (op *mop) {
 	return
 }
 
+// clones msg to prevent race with srv.go:517
 func newSendMop(msg *Message, isCli bool) (op *mop) {
 	op = &mop{
 		originCli: isCli,
-		msg:       msg,
+		msg:       msg.CopyForSimNetSend(),
 		sn:        simnetNextMopSn(),
 		kind:      SEND,
 		proceed:   make(chan struct{}),
