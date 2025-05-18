@@ -206,11 +206,11 @@ func (s *simnet) handleDeafDrop(dd *mop) (err error) {
 		for rem, conn := range remotes {
 			if target == nil || target == rem {
 				if dd.updateDeafReads {
-					vv("setting conn(%v).deafRead = dd.deafReadsNewProb = %v", conn, dd.deafReadsNewProb)
+					//vv("setting conn(%v).deafRead = dd.deafReadsNewProb = %v", conn, dd.deafReadsNewProb)
 					conn.deafRead = dd.deafReadsNewProb
 				}
 				if dd.updateDropSends {
-					vv("setting conn(%v).dropSend = dd.dropSendsNewProb = %v", conn, dd.dropSendsNewProb)
+					//vv("setting conn(%v).dropSend = dd.dropSendsNewProb = %v", conn, dd.dropSendsNewProb)
 					conn.dropSend = dd.dropSendsNewProb
 				}
 			}
@@ -1811,7 +1811,7 @@ restartI:
 			s.handleAlterNode(alt)
 
 		case dd := <-s.deafDropCh:
-			vv("i=%v deafDropCh ->  dd='%v'", i, dd)
+			//vv("i=%v deafDropCh ->  dd='%v'", i, dd)
 			s.handleDeafDrop(dd)
 
 		case <-s.halt.ReqStop.Chan:
@@ -2367,14 +2367,17 @@ func (s *simnet) DeafToReads(origin, target string, deafProb float64) (err error
 
 	select {
 	case s.deafDropCh <- dd:
-		vv("sent DeafToReads dd on deafDropCh; about to wait on proceed")
+		//vv("sent DeafToReads dd on deafDropCh; about to wait on proceed")
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
 	select {
 	case <-dd.proceed:
 		err = dd.err
-		vv("server '%v' DeafToReads from '%v'; err = '%v'", origin, target, err)
+		if target == "" {
+			target = "(any and all)"
+		}
+		//vv("server '%v' DeafToReads from '%v'; err = '%v'", origin, target, err)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
@@ -2390,14 +2393,17 @@ func (s *simnet) DropSends(origin, target string, dropProb float64) (err error) 
 
 	select {
 	case s.deafDropCh <- dd:
-		vv("sent DropSends dd on deafDropCh; about to wait on proceed")
+		//vv("sent DropSends dd on deafDropCh; about to wait on proceed")
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
 	select {
 	case <-dd.proceed:
 		err = dd.err
-		vv("server '%v' will DropSends to '%v'; err = '%v'", origin, target, err)
+		if target == "" {
+			target = "(any and all)"
+		}
+		//vv("server '%v' will DropSends to '%v'; err = '%v'", origin, target, err)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
