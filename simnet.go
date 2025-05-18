@@ -172,6 +172,7 @@ type mop struct {
 	updateDropSends  bool
 	dropSendsNewProb float64
 	err              error // e.g. cannot find name.
+	allHealthy       bool  // delete all faults?
 
 	// clients of scheduler wait on proceed.
 	// When the timer is set; the send sent; the read
@@ -182,7 +183,37 @@ type mop struct {
 	isEOF_RST bool
 }
 
+func (s *simnet) handleAllHealthy(dd *mop) (err error) {
+	defer func() {
+		dd.err = err
+		close(dd.proceed)
+	}()
+
+	for node, remotes := range s.nodes {
+		vv("handleAllHealthy: node '%v' goes from %v to HEALTHY", node.name, node.state)
+		node.state = HEALTHY
+
+		// might want to keep these for testing? for
+		// now let's observe that the allHealthy worked.
+		node.deafReadsQ.deleteAll()
+		node.droppedSendsQ.deleteAll()
+
+		for rem, conn := range remotes {
+			_ = rem
+			vv("handleAllHealthy: before zero-ing deafRead and deafSend, conn=%v", conn)
+			conn.deafRead = 0 // zero prob of deaf read.
+			conn.dropSend = 0 // zero prob of dropped send.
+			vv("handleAllHealthy: after deafRead=0 and deafSend=0, conn=%v", conn)
+		}
+	}
+	return
+}
+
 func (s *simnet) handleDeafDrop(dd *mop) (err error) {
+
+	if dd.allHealthy {
+		return s.handleAllHealthy(dd)
+	}
 	defer func() {
 		dd.err = err
 		close(dd.proceed)
@@ -204,20 +235,58 @@ func (s *simnet) handleDeafDrop(dd *mop) (err error) {
 	}
 	remotes, ok := s.nodes[origin]
 	if ok {
+		recheckHealth := false
+		addedFault := false
 		for rem, conn := range remotes {
 			if target == nil || target == rem {
 				if dd.updateDeafReads {
 					//vv("setting conn(%v).deafRead = dd.deafReadsNewProb = %v", conn, dd.deafReadsNewProb)
 					conn.deafRead = dd.deafReadsNewProb
+					if conn.deafRead > 0 {
+						origin.state = FAULTY
+						addedFault = true
+					} else {
+						recheckHealth = true
+					}
 				}
 				if dd.updateDropSends {
 					//vv("setting conn(%v).dropSend = dd.dropSendsNewProb = %v", conn, dd.dropSendsNewProb)
 					conn.dropSend = dd.dropSendsNewProb
+					if conn.dropSend > 0 {
+						origin.state = FAULTY
+						addedFault = true
+					} else {
+						recheckHealth = true
+					}
 				}
 			}
 		}
+		if !addedFault && recheckHealth {
+			// node may be HEALTHY now, if faults are all gone,
+			// but an early fault may still be installed; full scan needed.
+			s.recheckHealthState(origin)
+		}
 	} // else no remote conn to adjust
 	return
+}
+
+func (s *simnet) recheckHealthState(node *simnode) {
+	remotes, ok := s.nodes[node]
+	if !ok {
+		return
+	}
+	for rem, conn := range remotes {
+		_ = rem
+		if conn.deafRead > 0 {
+			return // not healthy
+		}
+		if conn.dropSend > 0 {
+			return // not healthy
+		}
+	}
+	node.state = HEALTHY
+	node.deafReadsQ.deleteAll()
+	node.droppedSendsQ.deleteAll()
 }
 
 // simnet simulates a network entirely with channels in memory.
@@ -379,8 +448,11 @@ type nodestate int
 
 const (
 	HEALTHY  nodestate = 0
-	HALTED   nodestate = 1
-	ISOLATED nodestate = 2
+	HALTED   nodestate = 1 // dead node, nothing in or out
+	ISOLATED nodestate = 2 // cruder than FAULTY. no comms with anyone else
+
+	// if deafDrop has been applied, then node is marked FAULTY
+	FAULTY nodestate = 3 // some conn may drop sends, be deaf to reads
 )
 
 func (s *simnet) newSimnode(name string) *simnode {
@@ -2147,6 +2219,16 @@ func newDeafDrop(originName, targetName string, updateDeaf, updateDrop bool, dea
 	return m
 }
 
+func (s *simnet) newAllHealthy() *mop {
+	m := &mop{
+		kind:       DEAFDROP,
+		allHealthy: true, // delete all faults
+		sn:         simnetNextMopSn(),
+		proceed:    make(chan struct{}),
+	}
+	return m
+}
+
 // empty string target means all possible targets
 func (s *simnet) DeafToReads(origin, target string, deafProb float64) (err error) {
 
@@ -2192,6 +2274,27 @@ func (s *simnet) DropSends(origin, target string, dropProb float64) (err error) 
 			target = "(any and all)"
 		}
 		//vv("server '%v' will DropSends to '%v'; err = '%v'", origin, target, err)
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	return
+}
+
+// heal all partitions, undo all faults
+func (s *simnet) AllHealthy() (err error) {
+
+	allGood := s.newAllHealthy()
+
+	select {
+	case s.deafDropCh <- allGood:
+		vv("sent AllHealthy allGood on deafDropCh; about to wait on proceed")
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	select {
+	case <-allGood.proceed:
+		err = allGood.err
+		vv("all healthy processed. err = '%v'", err)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}

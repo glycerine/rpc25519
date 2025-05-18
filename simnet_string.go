@@ -99,6 +99,8 @@ func (state nodestate) String() string {
 		return "HALTED"
 	case ISOLATED:
 		return "ISOLATED"
+	case FAULTY:
+		return "FAULTY"
 	}
 	panic(fmt.Sprintf("unknown nodestate '%v'", int(state)))
 	return "unknown nodestate"
