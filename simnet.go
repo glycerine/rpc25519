@@ -189,24 +189,36 @@ func (s *simnet) handleAllHealthy(dd *mop) (err error) {
 		close(dd.proceed)
 	}()
 
-	for node, remotes := range s.nodes {
+	for node := range s.nodes {
 		vv("handleAllHealthy: node '%v' goes from %v to HEALTHY", node.name, node.state)
-		node.state = HEALTHY
-
-		// might want to keep these for testing? for
-		// now let's observe that the allHealthy worked.
-		node.deafReadsQ.deleteAll()
-		node.droppedSendsQ.deleteAll()
-
-		for rem, conn := range remotes {
-			_ = rem
-			vv("handleAllHealthy: before zero-ing deafRead and deafSend, conn=%v", conn)
-			conn.deafRead = 0 // zero prob of deaf read.
-			conn.dropSend = 0 // zero prob of dropped send.
-			vv("handleAllHealthy: after deafRead=0 and deafSend=0, conn=%v", conn)
-		}
+		s.setHealthy(node, node.state == HEALTHY)
 	}
 	return
+}
+
+func (s *simnet) setHealthy(node *simnode, expectAlreadyHealthy bool) {
+	node.state = HEALTHY
+
+	// might want to keep these for testing? for
+	// now let's observe that the allHealthy worked.
+	node.deafReadsQ.deleteAll()
+	node.droppedSendsQ.deleteAll()
+
+	for rem, conn := range s.nodes[node] {
+		_ = rem
+		if expectAlreadyHealthy {
+			if conn.deafRead > 0 {
+				panic(fmt.Sprintf("error assert deafRead(%v) == 0, on conn(%v), node not healthy: '%v'", conn.deafRead, conn, node))
+			}
+			if conn.dropSend > 0 {
+				panic(fmt.Sprintf("error assert dropSend(%v) == 0 on conn(%v), node not healthy: '%v'", conn.dropSend, conn, node))
+			}
+		}
+		vv("setHealthy: before zero-ing deafRead and deafSend, conn=%v", conn)
+		conn.deafRead = 0 // zero prob of deaf read.
+		conn.dropSend = 0 // zero prob of dropped send.
+		vv("setHealthy: after deafRead=0 and deafSend=0, conn=%v", conn)
+	}
 }
 
 func (s *simnet) handleDeafDrop(dd *mop) (err error) {
@@ -234,39 +246,41 @@ func (s *simnet) handleDeafDrop(dd *mop) (err error) {
 		}
 	}
 	remotes, ok := s.nodes[origin]
-	if ok {
-		recheckHealth := false
-		addedFault := false
-		for rem, conn := range remotes {
-			if target == nil || target == rem {
-				if dd.updateDeafReads {
-					//vv("setting conn(%v).deafRead = dd.deafReadsNewProb = %v", conn, dd.deafReadsNewProb)
-					conn.deafRead = dd.deafReadsNewProb
-					if conn.deafRead > 0 {
-						origin.state = FAULTY
-						addedFault = true
-					} else {
-						recheckHealth = true
-					}
+	if !ok {
+		// no remote conn to adjust
+		return
+	}
+	recheckHealth := false
+	addedFault := false
+	for rem, conn := range remotes {
+		if target == nil || target == rem {
+			if dd.updateDeafReads {
+				//vv("setting conn(%v).deafRead = dd.deafReadsNewProb = %v", conn, dd.deafReadsNewProb)
+				conn.deafRead = dd.deafReadsNewProb
+				if conn.deafRead > 0 {
+					origin.state = FAULTY
+					addedFault = true
+				} else {
+					recheckHealth = true
 				}
-				if dd.updateDropSends {
-					//vv("setting conn(%v).dropSend = dd.dropSendsNewProb = %v", conn, dd.dropSendsNewProb)
-					conn.dropSend = dd.dropSendsNewProb
-					if conn.dropSend > 0 {
-						origin.state = FAULTY
-						addedFault = true
-					} else {
-						recheckHealth = true
-					}
+			}
+			if dd.updateDropSends {
+				//vv("setting conn(%v).dropSend = dd.dropSendsNewProb = %v", conn, dd.dropSendsNewProb)
+				conn.dropSend = dd.dropSendsNewProb
+				if conn.dropSend > 0 {
+					origin.state = FAULTY
+					addedFault = true
+				} else {
+					recheckHealth = true
 				}
 			}
 		}
-		if !addedFault && recheckHealth {
-			// node may be HEALTHY now, if faults are all gone,
-			// but an early fault may still be installed; full scan needed.
-			s.recheckHealthState(origin)
-		}
-	} // else no remote conn to adjust
+	}
+	if !addedFault && recheckHealth {
+		// node may be healthy now, if faults are all gone.
+		// but, an early fault may still be installed; full scan needed.
+		s.recheckHealthState(origin)
+	}
 	return
 }
 
@@ -284,9 +298,7 @@ func (s *simnet) recheckHealthState(node *simnode) {
 			return // not healthy
 		}
 	}
-	node.state = HEALTHY
-	node.deafReadsQ.deleteAll()
-	node.droppedSendsQ.deleteAll()
+	s.setHealthy(node, true)
 }
 
 // simnet simulates a network entirely with channels in memory.
@@ -1019,7 +1031,7 @@ func (s *simnet) handleSend(send *mop) {
 		//alwaysPrintf("yuck: got a SEND from a HALTED node: '%v'", send.origin)
 		close(send.proceed) // probably just a shutdown race, don't deadlock them.
 		return
-	case ISOLATED, HEALTHY:
+	case ISOLATED, HEALTHY, FAULTY:
 	}
 
 	origin := send.origin
@@ -1036,12 +1048,15 @@ func (s *simnet) handleSend(send *mop) {
 	switch send.target.state {
 	case HALTED, ISOLATED:
 		//vv("send.target.state == %v, dropping msg = '%v'", send.target.state, send.msg)
-	case HEALTHY:
+	case HEALTHY, FAULTY:
 		if s.localDropSend(send) {
 			vv("DROP SEND %v", send)
 			send.sendIsDropped = true
 			send.isDropDeafFault = true
 			send.origin.droppedSendsQ.add(send)
+
+			// advance and delete behind? not needed.
+			// send has never been added to any pre-arrival Q.
 			return
 		}
 		// make a copy _before_ the sendMessage() call returns,
@@ -1086,7 +1101,7 @@ func (s *simnet) handleRead(read *mop) {
 		//alwaysPrintf("yuck: got a READ from a HALTED node: '%v'", read.origin)
 		close(read.proceed) // probably just a shutdown race, don't deadlock them.
 		return
-	case ISOLATED, HEALTHY:
+	case ISOLATED, HEALTHY, FAULTY:
 	}
 
 	origin := read.origin
@@ -1212,6 +1227,8 @@ func (node *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 		// pre-arrival Q will be empty, so
 		// no matching will happen anyway.
 		// reads are fine.
+	case FAULTY:
+		// faults are data dependent
 	case HEALTHY:
 	}
 
@@ -1255,7 +1272,7 @@ func (node *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 		}
 		//vv("=== end of dispatch %v", node.name)
 
-		if false { // off for deafDrop development
+		if true { // was off for deafDrop development, separate queues now back on.
 			// sanity check that we delivered everything we could.
 			narr := node.preArrQ.tree.Len()
 			nread := node.readQ.tree.Len()
@@ -1312,7 +1329,13 @@ func (node *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 		// timestamps don't mess up the sort order of live queues.
 		if read.readIsDeaf {
 			node.deafReadsQ.add(read)
+			// leave done chan open. a deaf read does not complete.
+
+			// advance and delete behind.
+			delmeIt := readIt
 			readIt = readIt.Next()
+			node.readQ.tree.DeleteWithIterator(delmeIt)
+
 			continue
 		}
 
@@ -1708,7 +1731,7 @@ func (s *simnet) handleDiscardTimer(discard *mop) {
 		//alwaysPrintf("yuck: got a TIMER_DISCARD from a HALTED node: '%v'", discard.origin)
 		close(discard.proceed) // probably just a shutdown race, don't deadlock them.
 		return
-	case ISOLATED, HEALTHY:
+	case ISOLATED, HEALTHY, FAULTY:
 	}
 
 	orig := discard.origTimerMop
@@ -1740,7 +1763,7 @@ func (s *simnet) handleTimer(timer *mop) {
 		//alwaysPrintf("yuck: got a timer from a HALTED node: '%v'", timer.origin)
 		close(timer.proceed) // likely shutdown race, don't deadlock them.
 		return
-	case ISOLATED, HEALTHY:
+	case ISOLATED, HEALTHY, FAULTY:
 	}
 
 	lc := timer.origin.lc
