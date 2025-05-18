@@ -158,6 +158,10 @@ type mop struct {
 	sendmop *mop // for reads, which send did we get?
 	readmop *mop // for sends, which read did we go to?
 
+	// model network/card faults
+	sendIsDropped bool
+	readIsDeaf    bool
+
 	// clients of scheduler wait on proceed.
 	// When the timer is set; the send sent; the read
 	// matches a send, the client proceeds because
@@ -186,11 +190,12 @@ type simnet struct {
 	dns map[string]*simnode
 
 	// nodes[A][B] is the very cyclic (bi-directed?) graph
-	// of the network. Each A has a bi-directional
-	// network "socket" to all of nodes[A].
+	// of the network.
 	//
-	// Both clients and servers are in the set top
-	// level keys of the nodes map.
+	// The simnode.name is the key of the node map.
+	// Both client and server names are keys in nodes.
+	//
+	// Each A has a bi-directional network "socket" to each of nodes[A].
 	//
 	// nodes[A][B] is A's connection to B; that owned by A.
 	//
@@ -216,20 +221,40 @@ type simnet struct {
 	//
 	// Technically, if the node is backed by
 	// rpc25519, each node has both a rpc25519.Server
-	// and a set of rpc25519.Clients, one per
-	// outgoing connection, and so there are
+	// and a set of rpc25519.Clients, one client per
+	// outgoing initated connection, and so there are
 	// redundant paths to get a message from
-	// A to B through the network.
+	// A to B through the network. This is necessary
+	// because only the Client in TCP is the active initator,
+	// and can only talk to one Server. A Server
+	// can always talk to any number of Clients,
+	// but typically must begin passively and
+	// cannot initiate a connection to another
+	// server. On TCP, rpc25519 enables active grid
+	// creation. Each peer runs a server, and
+	// servers establish the grid by automatically creating an
+	// internal auto-Client when the server (peer)
+	// wishes to initate contact with another server (peer).
+	// The QUIC version is... probably similar;
+	// since QUIC was slower I have not thought
+	// about it in a while--but QUIC can use the
+	// same port for client and server (to simplify
+	// diagnostics).
 	//
-	// The simnet tries to not care about this detail, and
-	// the rpc system connects the message to
-	// the peer no matter where it lives (on
-	// Client or on Server).
+	// The simnet tries to not care about these detail,
+	// and the rpc25519 peer system is symmetric by design.
+	// Thus it will forward a message to the peer no
+	// matter where it lives (be it technically on an
+	// rpc25519.Client or rpc25519.Server).
 	//
-	// The isCli flag distinguishes whether A
-	// is a Client or Server when
-	// it matters, but we try to treat nodes
-	// same; they are peers.
+	// The isCli flag distinguishes whether a given
+	// simnode is on a Client or Server when
+	// it matters, but we try to minimize its use.
+	// It should not matter for the most part; in
+	// the ckt.go code there is even a note that
+	// the peerAPI.isCli can be misleading with auto-Clients
+	// in play. The simnode.isCli however should be
+	// accurate (we think).
 	//
 	// Each peer-to-peer connection is a network
 	// endpoint that can send and read messages
@@ -829,8 +854,20 @@ func (s *simnet) handleAlterNode(alt *nodeAlteration) {
 	close(alt.done)
 }
 
-func (s *simnet) dropSend(send *mop) bool {
-	// dropSend
+func (s *simnet) localDeafRead(read *mop) bool {
+
+	// get the local (read) origin conn probability of deafness
+	// note: not the remote's deafness, only local.
+	prob := s.nodes[read.origin][read.target].deafRead
+
+	if prob == 0 {
+		return false
+	}
+	random01 := s.scenario.rng.Float64() // in [0, 1)
+	return random01 < prob
+}
+
+func (s *simnet) localDropSend(send *mop) bool {
 	// get the local origin conn probability of drop
 	prob := s.nodes[send.origin][send.target].dropSend
 	if prob == 0 {
@@ -869,23 +906,23 @@ func (s *simnet) handleSend(send *mop) {
 	case HALTED, ISOLATED:
 		//vv("send.target.state == %v, dropping msg = '%v'", send.target.state, send.msg)
 	case HEALTHY:
-		if s.dropSend(send) {
+		if s.localDropSend(send) {
 			vv("DROP SEND %v", send)
-
-		} else {
-			// make a copy _before_ the sendMessage() call returns,
-			// so they can recycle or do whatever without data racing with us.
-			// Weird: even with this, the Fragment is getting
-			// races, not the Message.
-			msg1 := send.msg.CopyForSimNetSend()
-			// split into two parts to try and understand the shutdown data race here.
-			// we've got to try and have shutdown not read send.msg
-			send.msg = msg1
-
-			send.target.preArrQ.add(send)
-			//vv("LC:%v  SEND TO %v %v", origin.lc, origin.name, send)
-			////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvnode.preArrQ)
+			send.sendIsDropped = true
 		}
+		// make a copy _before_ the sendMessage() call returns,
+		// so they can recycle or do whatever without data racing with us.
+		// Weird: even with this, the Fragment is getting
+		// races, not the Message.
+		msg1 := send.msg.CopyForSimNetSend()
+		// split into two parts to try and understand the shutdown data race here.
+		// we've got to try and have shutdown not read send.msg
+		send.msg = msg1
+
+		send.target.preArrQ.add(send)
+		//vv("LC:%v  SEND TO %v %v", origin.lc, origin.name, send)
+		////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvnode.preArrQ)
+
 	}
 	// rpc25519 peer/ckt/frag does async sends, so let
 	// the sender keep going.
@@ -921,11 +958,16 @@ func (s *simnet) handleRead(read *mop) {
 		panic(fmt.Sprintf("should see each send only once now, not %v", read.seen))
 	}
 
+	if s.localDeafRead(read) {
+		vv("DEAF READ %v", read)
+		read.readIsDeaf = true
+	}
 	origin.readQ.add(read)
 	//vv("LC:%v  READ at %v: %v", origin.lc, origin.name, read)
 	////zz("LC:%v  READ %v at %v, now cliReadQ: '%v'", origin.lc, origin.name, read, origin.readQ)
 	now := time.Now()
 	origin.dispatch(now)
+
 }
 
 func (node *simnode) firstPreArrivalTimeLTE(now time.Time) bool {
