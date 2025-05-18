@@ -241,8 +241,10 @@ type simnet struct {
 	// most general case of a fully connected
 	// network, where any peer can talk to any
 	// other peer in the network; like the internet.
+	// I think of a simnet as the big single
+	// ethernet switch that all nodes plug into.
 	//
-	// To that end, we try to keep the nodes network
+	// When modeling faults, we try to keep the nodes network
 	// as static as possible, and set .deafRead
 	// or .dropSend flags to model faults. A server
 	// in the network can be in HALTED or ISOLATED

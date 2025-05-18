@@ -137,9 +137,19 @@ type simnetConn struct {
 	nextRead []byte
 
 	// no more reads, but serve the rest of nextRead.
-	// no more reads, but serve the rest of nextRead.
-	localClosed  *idem.IdemCloseChan
+	localClosed *idem.IdemCloseChan
+	// like EOF or TPC RST has been sent.
 	remoteClosed *idem.IdemCloseChan
+
+	// probability of local read fault, in [0,1].
+	// 0 means normal operation, not deaf to reads.
+	// 1 means no reads will be obtained.
+	deafRead float64
+
+	// probability of local send fault, in [0,1].
+	// 0 means normal operation, not dropping sends.
+	// 1 means all sends go out. The other end can still be deaf.
+	dropSend float64
 }
 
 func newSimnetConn() *simnetConn {
