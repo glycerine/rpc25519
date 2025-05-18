@@ -158,6 +158,25 @@ func (op *mop) String() string {
 		extra = fmt.Sprintf(" FROM %v TO %v (eof:%v)", op.origin.name, op.target.name, op.isEOF_RST)
 	case READ:
 		extra = fmt.Sprintf(" AT %v FROM %v (eof:%v)", op.origin.name, op.target.name, op.isEOF_RST)
+	case DEAFDROP:
+		return fmt.Sprintf(`
+mop{%v %v op.sn:%v
+          originName: %v,
+          targetName: %v,
+     updateDeafReads: %v,
+    deafReadsNewProb: %v,
+     updateDropSends: %v,
+    dropSendsNewProb: %v,
+                 err: %v,
+}`, who, op.kind, op.sn,
+			op.originName,
+			op.targetName,
+			op.updateDeafReads,
+			op.deafReadsNewProb,
+			op.updateDropSends,
+			op.dropSendsNewProb,
+			op.err,
+		)
 	}
 	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, msg.sn:%v%v}", who, op.kind, ini, arr, complete, op.sn, msgSerial, extra)
 }
