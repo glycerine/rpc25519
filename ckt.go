@@ -297,7 +297,9 @@ type LocalPeer struct {
 	AutoShutdownWhenNoMoreCircuits bool
 
 	// put this in b/c the pump and the peer service
-	// pump were racing on recycled new frag.
+	// func were racing on recycled new frag. might have
+	// been solved since then. is safe to leave in, but
+	// might be perf optimization to see if can do without now.
 	peerLocalFragMut sync.Mutex
 }
 
