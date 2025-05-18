@@ -175,7 +175,10 @@ type mop struct {
 	updateDropSends  bool
 	dropSendsNewProb float64
 	err              error // e.g. cannot find name.
-	allHealthy       bool  // delete all faults?
+
+	// should only specific one of originHealthy and allHealthy!
+	allHealthy    bool // all nodes, heal drop/deaf faults. isolation unchanged.
+	originHealthy bool // heal drop/deaf faults on just the originName node.
 
 	// clients of scheduler wait on proceed.
 	// When the timer is set; the send sent; the read
@@ -187,27 +190,43 @@ type mop struct {
 }
 
 func (s *simnet) handleAllHealthy(dd *mop) (err error) {
+	if !dd.allHealthy && !dd.originHealthy {
+		panic("why call here in not a healing request?")
+	}
+	if dd.allHealthy && dd.originHealthy {
+		panic("confused caller: only set one of dd.allHealthy and dd.originHealthy")
+	}
 	defer func() {
 		dd.err = err
 		close(dd.proceed)
 	}()
 
+	if dd.originHealthy {
+		node, ok := s.dns[dd.originName]
+		if !ok {
+			return fmt.Errorf("error on originHealthy: originName not found: '%v'", dd.originName)
+		}
+		node.state = HEALTHY
+		s.nodeUndoAllDeafDrops(node)
+		return
+	}
+
 	for node := range s.nodes {
 		vv("handleAllHealthy: node '%v' goes from %v to HEALTHY", node.name, node.state)
 		node.state = HEALTHY
-		s.setOtherwiseHealthy(node)
+		s.nodeUndoAllDeafDrops(node)
 	}
 	return
 }
 
-// called by handleAllHealthy and recheckHealthState.
+// This is a central place to handle healing all netcard faults;
+// undoing all deafDrop modifications.
+//
+// We are called by handleAllHealthy and recheckHealthState.
 // state can be ISOLATED or HEALTHY, we do not change these.
 // If state is FAULTY, we go to HEALTHY.
 // If state is FAULTY_ISOLATED, we go to ISOLATED.
-//
-// This is a central place to handle healing all netcard faults;
-// undoing all deafDrop modifications.
-func (s *simnet) setOtherwiseHealthy(node *simnode) {
+func (s *simnet) nodeUndoAllDeafDrops(node *simnode) {
 
 	switch node.state {
 	case HEALTHY:
@@ -227,16 +246,16 @@ func (s *simnet) setOtherwiseHealthy(node *simnode) {
 
 	for rem, conn := range s.nodes[node] {
 		_ = rem
-		vv("setOtherwiseHealthy: before zero-ing deafRead and deafSend, conn=%v", conn)
+		//vv("nodeUndoAllDeafDrops: before 0 out deafRead and deafSend, conn=%v", conn)
 		conn.deafRead = 0 // zero prob of deaf read.
 		conn.dropSend = 0 // zero prob of dropped send.
-		vv("setOtherwiseHealthy: after deafRead=0 and deafSend=0, conn=%v", conn)
+		//vv("nodeUndoAllDeafDrops: after deafRead=0 and deafSend=0, conn=%v", conn)
 	}
 }
 
 func (s *simnet) handleDeafDrop(dd *mop) (err error) {
 
-	if dd.allHealthy {
+	if dd.allHealthy || dd.originHealthy {
 		return s.handleAllHealthy(dd)
 	}
 	defer func() {
@@ -311,7 +330,7 @@ func (s *simnet) recheckHealthState(node *simnode) {
 			return // not healthy
 		}
 	}
-	s.setOtherwiseHealthy(node)
+	s.nodeUndoAllDeafDrops(node)
 }
 
 // simnet simulates a network entirely with channels in memory.
