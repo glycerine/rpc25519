@@ -185,8 +185,77 @@ type simnet struct {
 
 	dns map[string]*simnode
 
-	// for now just clinode and srvnode in nodes;
-	// plan is to add full network.
+	// nodes[A][B] is the very cyclic (bi-directed?) graph
+	// of the network. Each A has a bi-directional
+	// network "socket" to all of nodes[A].
+	//
+	// Both clients and servers are in the set top
+	// level keys of the nodes map.
+	//
+	// nodes[A][B] is A's connection to B; that owned by A.
+	//
+	// nodes[B][A] is B's connection to A; that owned by B.
+	//
+	// The system guarantees that the keys of nodes
+	// (the names of all endpoints) are unique strings,
+	// by rejecting any already taken names (panic-ing on attempted
+	// registration) during the moral equivalent of
+	// server Bind/Listen and client Dial. The go map
+	// is not a multi-map anyway, but that is just
+	// an implementation detail that happens to provide extra
+	// enforcement. Even if we change the map out
+	// later, each endpoint name in the network must be unique.
+	//
+	// Users specify their own names for modeling
+	// convenience, but assist them by enforcing
+	// global name uniqueness.
+	//
+	// See handleServerRegistration() and
+	// handleClientRegistration() where these
+	// panics enforce uniqueness.
+	//
+	// Technically, if the node is backed by
+	// rpc25519, each node has both a rpc25519.Server
+	// and a set of rpc25519.Clients, one per
+	// outgoing connection, and so there are
+	// redundant paths to get a message from
+	// A to B through the network.
+	//
+	// The simnet tries to not care about this detail, and
+	// the rpc system connects the message to
+	// the peer no matter where it lives (on
+	// Client or on Server).
+	//
+	// The isCli flag distinguishes whether A
+	// is a Client or Server when
+	// it matters, but we try to treat nodes
+	// same; they are peers.
+	//
+	// Each peer-to-peer connection is a network
+	// endpoint that can send and read messages
+	// to exactly one other network endpoint.
+	//
+	// Even during "partition" of the network,
+	// or when modeling faulty links or network cards,
+	// in general we want to be maintain the
+	// most general case of a fully connected
+	// network, where any peer can talk to any
+	// other peer in the network; like the internet.
+	//
+	// To that end, we try to keep the nodes network
+	// as static as possible, and set .deafRead
+	// or .dropSend flags to model faults. A server
+	// in the network can be in HALTED or PARTITIONED
+	// state, but we leave the nodes network the same to
+	// facilitate modeling later restart on unpartition.
+	//
+	// To recap, both clinode.name and srvnode.name are keys
+	// in the nodes map. So nodes[clinode.name] returns
+	// the map of who clinode is connected to.
+	//
+	// In other words, the value of the map nodes[A]
+	// is another map, which is the set of nodes that A
+	// is connected to by the simnetConn nodes[A][B].
 	nodes map[*simnode]map[*simnode]*simnetConn
 
 	cliRegisterCh chan *clientRegistration
@@ -1384,6 +1453,7 @@ func (s *simnet) schedulerReport() string {
 }
 
 func (s *simnet) dispatchAll(now time.Time) (changes int64) {
+	// notice here we only use the key of s.nodes
 	for node := range s.nodes {
 		changes += node.dispatch(now)
 	}
