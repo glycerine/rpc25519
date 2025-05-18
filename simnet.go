@@ -363,6 +363,10 @@ type simnode struct {
 	readQ   *pq
 	preArrQ *pq
 	timerQ  *pq
+
+	deafReadsQ    *pq
+	droppedSendsQ *pq
+
 	net     *simnet
 	isCli   bool
 	netAddr *SimNetAddr
@@ -381,11 +385,13 @@ const (
 
 func (s *simnet) newSimnode(name string) *simnode {
 	return &simnode{
-		name:    name,
-		readQ:   newPQinitTm(name + " readQ "),
-		preArrQ: s.newPQarrivalTm(name + " preArrQ "),
-		timerQ:  newPQcompleteTm(name + " timerQ "),
-		net:     s,
+		name:          name,
+		readQ:         newPQinitTm(name + " readQ "),
+		preArrQ:       s.newPQarrivalTm(name + " preArrQ "),
+		timerQ:        newPQcompleteTm(name + " timerQ "),
+		deafReadsQ:    newPQinitTm(name + " deaf reads Q "),
+		droppedSendsQ: s.newPQarrivalTm(name + " dropped sends Q "),
+		net:           s,
 	}
 }
 
@@ -963,6 +969,8 @@ func (s *simnet) handleSend(send *mop) {
 			vv("DROP SEND %v", send)
 			send.sendIsDropped = true
 			send.isDropDeafFault = true
+			send.origin.droppedSendsQ.add(send)
+			return
 		}
 		// make a copy _before_ the sendMessage() call returns,
 		// so they can recycle or do whatever without data racing with us.
@@ -1226,14 +1234,12 @@ func (node *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 
 		node.optionallyApplyChaos()
 
-		// check readIsDeaf and/or sendIsDropped, these
+		// check readIsDeaf these
 		// should not be matched to simulate the fault.
-		// For now we keep them in the queue for visibility.
-		if send.sendIsDropped {
-			preIt = preIt.Next()
-			continue
-		}
+		// We move them into their own queues so their
+		// timestamps don't mess up the sort order of live queues.
 		if read.readIsDeaf {
+			node.deafReadsQ.add(read)
 			readIt = readIt.Next()
 			continue
 		}
