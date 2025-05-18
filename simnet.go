@@ -245,7 +245,7 @@ type simnet struct {
 	// To that end, we try to keep the nodes network
 	// as static as possible, and set .deafRead
 	// or .dropSend flags to model faults. A server
-	// in the network can be in HALTED or PARTITIONED
+	// in the network can be in HALTED or ISOLATED
 	// state, but we leave the nodes network the same to
 	// facilitate modeling later restart on unpartition.
 	//
@@ -296,9 +296,9 @@ type simnode struct {
 type nodestate int
 
 const (
-	HEALTHY     nodestate = 0
-	HALTED      nodestate = 1
-	PARTITIONED nodestate = 2
+	HEALTHY  nodestate = 0
+	HALTED   nodestate = 1
+	ISOLATED nodestate = 2
 )
 
 func (s *simnet) newSimnode(name string) *simnode {
@@ -799,13 +799,13 @@ func (s *simnet) restartNode(node *simnode) {
 	node.timerQ.deleteAll()
 }
 
-func (s *simnet) partitionNode(node *simnode) {
-	//vv("handleAlterNode: from %v -> PARTITION %v, wiping pre-arrival, block any future pre-arrivals", node.state, node.name)
-	node.state = PARTITIONED
+func (s *simnet) isolateNode(node *simnode) {
+	//vv("handleAlterNode: from %v -> ISOLATED %v, wiping pre-arrival, block any future pre-arrivals", node.state, node.name)
+	node.state = ISOLATED
 	node.preArrQ.deleteAll()
 }
-func (s *simnet) unPartitionNode(node *simnode) {
-	//vv("handleAlterNode: UNPARTITION %v, going from %v -> HEALTHY", node.state, node.name)
+func (s *simnet) unIsolateNode(node *simnode) {
+	//vv("handleAlterNode: UNISOLATE %v, going from %v -> HEALTHY", node.state, node.name)
 	node.state = HEALTHY
 }
 
@@ -814,10 +814,10 @@ func (s *simnet) handleAlterNode(alt *nodeAlteration) {
 	switch alt.alter {
 	case SHUTDOWN:
 		s.shutdownNode(node)
-	case PARTITION:
-		s.partitionNode(node)
-	case UNPARTITION:
-		s.unPartitionNode(node)
+	case ISOLATE:
+		s.isolateNode(node)
+	case UNISOLATE:
+		s.unIsolateNode(node)
 	case RESTART:
 		s.restartNode(node)
 	}
@@ -835,7 +835,7 @@ func (s *simnet) handleSend(send *mop) {
 		//alwaysPrintf("yuck: got a SEND from a HALTED node: '%v'", send.origin)
 		close(send.proceed) // probably just a shutdown race, don't deadlock them.
 		return
-	case PARTITIONED, HEALTHY:
+	case ISOLATED, HEALTHY:
 	}
 
 	origin := send.origin
@@ -850,7 +850,7 @@ func (s *simnet) handleSend(send *mop) {
 	}
 
 	switch send.target.state {
-	case HALTED, PARTITIONED:
+	case HALTED, ISOLATED:
 		//vv("send.target.state == %v, dropping msg = '%v'", send.target.state, send.msg)
 	case HEALTHY:
 
@@ -889,7 +889,7 @@ func (s *simnet) handleRead(read *mop) {
 		//alwaysPrintf("yuck: got a READ from a HALTED node: '%v'", read.origin)
 		close(read.proceed) // probably just a shutdown race, don't deadlock them.
 		return
-	case PARTITIONED, HEALTHY:
+	case ISOLATED, HEALTHY:
 	}
 
 	origin := read.origin
@@ -1002,7 +1002,7 @@ func (node *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 		// cannot send, receive, start timers or
 		// discard them; when halted.
 		return
-	case PARTITIONED:
+	case ISOLATED:
 		// timers need to fire.
 		// pre-arrival Q will be empty, so
 		// no matching will happen anyway.
@@ -1200,7 +1200,7 @@ func (node *simnode) dispatch(now time.Time) (changes int64) {
 		// cannot send, receive, start timers or
 		// discard them; when halted.
 		return
-	case PARTITIONED:
+	case ISOLATED:
 		// timers need to fire.
 		// pre-arrival Q will be empty, so
 		// no matching will happen anyway.
@@ -1724,7 +1724,7 @@ func (s *simnet) handleDiscardTimer(discard *mop) {
 		//alwaysPrintf("yuck: got a TIMER_DISCARD from a HALTED node: '%v'", discard.origin)
 		close(discard.proceed) // probably just a shutdown race, don't deadlock them.
 		return
-	case PARTITIONED, HEALTHY:
+	case ISOLATED, HEALTHY:
 	}
 
 	orig := discard.origTimerMop
@@ -1756,7 +1756,7 @@ func (s *simnet) handleTimer(timer *mop) {
 		//alwaysPrintf("yuck: got a timer from a HALTED node: '%v'", timer.origin)
 		close(timer.proceed) // likely shutdown race, don't deadlock them.
 		return
-	case PARTITIONED, HEALTHY:
+	case ISOLATED, HEALTHY:
 	}
 
 	lc := timer.origin.lc
@@ -2173,10 +2173,10 @@ func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConn
 type Alteration int // on clients or servers, any simnode
 
 const (
-	SHUTDOWN    Alteration = 1
-	PARTITION   Alteration = 2
-	UNPARTITION Alteration = 3
-	RESTART     Alteration = 4
+	SHUTDOWN  Alteration = 1
+	ISOLATE   Alteration = 2
+	UNISOLATE Alteration = 3
+	RESTART   Alteration = 4
 )
 
 type nodeAlteration struct {

@@ -56,10 +56,10 @@ func (alt Alteration) String() string {
 	switch alt {
 	case SHUTDOWN:
 		return "SHUTDOWN"
-	case PARTITION:
-		return "PARTITION"
-	case UNPARTITION:
-		return "UNPARTITION"
+	case ISOLATE:
+		return "ISOLATE"
+	case UNISOLATE:
+		return "UNISOLATE"
 	case RESTART:
 		return "RESTART"
 	}
@@ -95,8 +95,8 @@ func (state nodestate) String() string {
 		return "HEALTHY"
 	case HALTED:
 		return "HALTED"
-	case PARTITIONED:
-		return "PARTITIONED"
+	case ISOLATED:
+		return "ISOLATED"
 	}
 	panic(fmt.Sprintf("unknown nodestate '%v'", int(state)))
 	return "unknown nodestate"
