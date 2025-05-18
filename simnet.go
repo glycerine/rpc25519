@@ -176,10 +176,14 @@ type mop struct {
 	dropSendsNewProb float64
 	err              error // e.g. cannot find name.
 
-	// should only specific one of originHealthy and allHealthy!
-	allHealthy          bool // all nodes, heal drop/deaf faults. isolation unchanged.
+	// reversing faults is also uses a DEAFDROP
+	// should only specific one of originHealthy and allHealthy.
+	allHealthy    bool // all nodes, heal drop/deaf faults. isolation unchanged.
+	powerOnAnyOff bool // for allHealthy, also power on any powerOff nodes?
+
 	justOriginHealed    bool // heal drop/deaf faults on just the originName node.
 	justOriginUnisolate bool // if true and node is isolated, it goes to healthy.
+	justOriginPowerOn   bool // also power on origin?
 
 	// clients of scheduler wait on proceed.
 	// When the timer is set; the send sent; the read
@@ -211,6 +215,9 @@ func (s *simnet) handleHealing(dd *mop) (err error) {
 		if dd.justOriginUnisolate {
 			node.state = HEALTHY
 		}
+		if dd.justOriginPowerOn {
+			node.powerOff = false
+		}
 		return
 	}
 
@@ -218,6 +225,9 @@ func (s *simnet) handleHealing(dd *mop) (err error) {
 		vv("handleHealing: node '%v' goes from %v to HEALTHY", node.name, node.state)
 		node.state = HEALTHY
 		s.nodeUndoAllDeafDrops(node)
+		if dd.powerOnAnyOff {
+			node.powerOff = false
+		}
 	}
 	return
 }
@@ -2287,21 +2297,23 @@ func newDeafDrop(originName, targetName string, updateDeaf, updateDrop bool, dea
 	return m
 }
 
-func (s *simnet) newAllHealthy() *mop {
+func (s *simnet) newAllHealthy(powerOnAnyOff bool) *mop {
 	m := &mop{
-		kind:       DEAFDROP,
-		allHealthy: true, // delete all faults
-		sn:         simnetNextMopSn(),
-		proceed:    make(chan struct{}),
+		kind:          DEAFDROP,
+		allHealthy:    true, // delete all faults
+		powerOnAnyOff: powerOnAnyOff,
+		sn:            simnetNextMopSn(),
+		proceed:       make(chan struct{}),
 	}
 	return m
 }
 
-func (s *simnet) newOriginHealed(originName string, unIsolate bool) *mop {
+func (s *simnet) newOriginHealed(originName string, unIsolate, powerOnIfOff bool) *mop {
 	m := &mop{
 		kind:                DEAFDROP,
 		justOriginHealed:    true,
 		justOriginUnisolate: unIsolate,
+		justOriginPowerOn:   powerOnIfOff,
 		originName:          originName,
 		sn:                  simnetNextMopSn(),
 		proceed:             make(chan struct{}),
@@ -2360,10 +2372,13 @@ func (s *simnet) DropSends(origin, target string, dropProb float64) (err error) 
 	return
 }
 
-// heal all partitions, undo all faults, network wide.
-func (s *simnet) AllHealthy() (err error) {
+// AllHealthy heal all partitions, undo all faults, network wide.
+// All nodes are returned to HEALTHY status. Their powerOff status
+// is not updated unless powerOnAnyOff is also true.
+// See also HealNode for single node repair.
+func (s *simnet) AllHealthy(powerOnAnyOff bool) (err error) {
 
-	allGood := s.newAllHealthy()
+	allGood := s.newAllHealthy(powerOnAnyOff)
 
 	select {
 	case s.deafDropCh <- allGood:
@@ -2385,10 +2400,10 @@ func (s *simnet) AllHealthy() (err error) {
 // full working order. It undoes the effects of
 // prior deafDrop actions, if any. It does not
 // change an isolated node's isolation unless unIsolate
-// is also true.
-func (s *simnet) HealNode(originName string, unIsolate bool) (err error) {
+// is also true. See also AllHealthy.
+func (s *simnet) HealNode(originName string, unIsolate bool, powerOnIfOff bool) (err error) {
 
-	oneGood := s.newOriginHealed(originName, unIsolate)
+	oneGood := s.newOriginHealed(originName, unIsolate, powerOnIfOff)
 
 	select {
 	case s.deafDropCh <- oneGood:
