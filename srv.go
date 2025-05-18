@@ -581,7 +581,9 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		// to disallow it.
 		req, err := w.readMessage(conn)
 		if err == io.EOF {
-			vv("server sees io.EOF from receiveMessage")
+			if !s.Server.cfg.QuietTestMode {
+				alwaysPrintf("server sees io.EOF from receiveMessage")
+			}
 			// close of socket before read of full message.
 			// shutdown this connection or we'll just
 			// spin here at 500% cpu.
