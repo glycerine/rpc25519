@@ -37,7 +37,7 @@ func (node *simnode) String() (r string) {
 	if node == nil {
 		return "(nil *simnode)"
 	}
-	r += fmt.Sprintf("%v in %v state, Q summary:\n", node.name, node.state)
+	r += fmt.Sprintf("%v (powerOff: %v) in %v state, Q summary:\n", node.name, node.powerOff, node.state)
 	r += node.readQ.String()
 	r += node.preArrQ.String()
 	r += node.timerQ.String()
@@ -95,12 +95,12 @@ func (state nodestate) String() string {
 	switch state {
 	case HEALTHY:
 		return "HEALTHY"
-	case HALTED:
-		return "HALTED"
 	case ISOLATED:
 		return "ISOLATED"
 	case FAULTY:
 		return "FAULTY"
+	case FAULTY_ISOLATED:
+		return "FAULTY_ISOLATED"
 	}
 	panic(fmt.Sprintf("unknown nodestate '%v'", int(state)))
 	return "unknown nodestate"

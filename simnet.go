@@ -27,7 +27,8 @@ type SimNetConfig struct {
 	// The barrier can only be used (or not) if faketime
 	// is also used, so this option will have
 	// no effect unless the simnet is run
-	// in a synctest.Wait bubble (using synctest.Run).
+	// in a synctest.Wait bubble (using synctest.Run
+	// or synctest.Test, the upcomming rename).
 	//
 	// Under faketime, BarrierOff true means
 	// the scheduler will not wait to know
@@ -48,11 +49,13 @@ type SimNetConfig struct {
 	//
 	// At the moment this can't happen in our simulation
 	// because the simnet controls all
-	// timers in rpc25519 tests, and so
-	// only the scheduler calls Sleep.
+	// timers in rpc25519 tests, and so (unless we missed
+	// a real time.Sleep which we tried to purge)
+	// only the scheduler calls time.Sleep.
 	// However future tests and user code
-	// might call Sleep, in which
-	// case the
+	// might call Sleep... we want to use
+	// cli/srv.U.Sleep() instead for more
+	// deterministic, repeatable tests whenever possible.
 	BarrierOff bool
 }
 
@@ -191,33 +194,43 @@ func (s *simnet) handleAllHealthy(dd *mop) (err error) {
 
 	for node := range s.nodes {
 		vv("handleAllHealthy: node '%v' goes from %v to HEALTHY", node.name, node.state)
-		s.setHealthy(node, node.state == HEALTHY)
+		node.state = HEALTHY
+		s.setOtherwiseHealthy(node)
 	}
 	return
 }
 
-func (s *simnet) setHealthy(node *simnode, expectAlreadyHealthy bool) {
-	node.state = HEALTHY
+// called by handleAllHealthy and recheckHealthState.
+// state can be ISOLATED or HEALTHY, we do not change these.
+// If state is FAULTY, we go to HEALTHY.
+// If state is FAULTY_ISOLATED, we go to ISOLATED.
+//
+// This is a central place to handle healing all netcard faults;
+// undoing all deafDrop modifications.
+func (s *simnet) setOtherwiseHealthy(node *simnode) {
+
+	switch node.state {
+	case HEALTHY:
+		// fine.
+	case ISOLATED:
+		// fine.
+	case FAULTY:
+		node.state = HEALTHY
+	case FAULTY_ISOLATED:
+		node.state = ISOLATED
+	}
 
 	// might want to keep these for testing? for
-	// now let's observe that the allHealthy worked.
+	// now let's observe that the allHealthy request worked.
 	node.deafReadsQ.deleteAll()
 	node.droppedSendsQ.deleteAll()
 
 	for rem, conn := range s.nodes[node] {
 		_ = rem
-		if expectAlreadyHealthy {
-			if conn.deafRead > 0 {
-				panic(fmt.Sprintf("error assert deafRead(%v) == 0, on conn(%v), node not healthy: '%v'", conn.deafRead, conn, node))
-			}
-			if conn.dropSend > 0 {
-				panic(fmt.Sprintf("error assert dropSend(%v) == 0 on conn(%v), node not healthy: '%v'", conn.dropSend, conn, node))
-			}
-		}
-		vv("setHealthy: before zero-ing deafRead and deafSend, conn=%v", conn)
+		vv("setOtherwiseHealthy: before zero-ing deafRead and deafSend, conn=%v", conn)
 		conn.deafRead = 0 // zero prob of deaf read.
 		conn.dropSend = 0 // zero prob of dropped send.
-		vv("setHealthy: after deafRead=0 and deafSend=0, conn=%v", conn)
+		vv("setOtherwiseHealthy: after deafRead=0 and deafSend=0, conn=%v", conn)
 	}
 }
 
@@ -298,7 +311,7 @@ func (s *simnet) recheckHealthState(node *simnode) {
 			return // not healthy
 		}
 	}
-	s.setHealthy(node, true)
+	s.setOtherwiseHealthy(node)
 }
 
 // simnet simulates a network entirely with channels in memory.
@@ -401,10 +414,8 @@ type simnet struct {
 	//
 	// When modeling faults, we try to keep the nodes network
 	// as static as possible, and set .deafRead
-	// or .dropSend flags to model faults. A server
-	// in the network can be in HALTED or ISOLATED
-	// state, but we leave the nodes network the same to
-	// facilitate modeling later restart on unpartition.
+	// or .dropSend flags to model faults.
+	// Reboot/restart should not heal net/net card faults.
 	//
 	// To recap, both clinode.name and srvnode.name are keys
 	// in the nodes map. So nodes[clinode.name] returns
@@ -451,20 +462,35 @@ type simnode struct {
 	net     *simnet
 	isCli   bool
 	netAddr *SimNetAddr
-	state   nodestate
+
+	// state survives power cycling, i.e. rebooting
+	// a node does not heal the network or repair a
+	// faulty network card.
+	state    nodestate
+	powerOff bool
 
 	tellServerNewConnCh chan *simnetConn
 }
 
+// the nodes powerOff status is independent
+// of its health stated, so that net card faults and
+// network isolatation survive a reboot.
 type nodestate int
 
 const (
-	HEALTHY  nodestate = 0
-	HALTED   nodestate = 1 // dead node, nothing in or out
-	ISOLATED nodestate = 2 // cruder than FAULTY. no comms with anyone else
+	HEALTHY nodestate = 0
 
-	// if deafDrop has been applied, then node is marked FAULTY
-	FAULTY nodestate = 3 // some conn may drop sends, be deaf to reads
+	ISOLATED nodestate = 1 // cruder than FAULTY. no comms with anyone else
+
+	// if a deafDrop fault has been applied to a healthy node,
+	// then the node is marked FAULTY.
+	// if a deafDrop removes the last fault, we change it back to HEALTHY.
+	FAULTY nodestate = 2 // some conn may drop sends, be deaf to reads
+
+	// if a deafDrop fault has been applied to an isolated node,
+	// then the node is marked FAULTY_ISOLATED.
+	// if a deafDrop removes the last fault, we change it back to ISOLATED.
+	FAULTY_ISOLATED nodestate = 3 // some conn may drop sends, be deaf to reads
 )
 
 func (s *simnet) newSimnode(name string) *simnode {
@@ -956,8 +982,8 @@ func newPQcompleteTm(owner string) *pq {
 }
 
 func (s *simnet) shutdownNode(node *simnode) {
-	//vv("handleAlterNode: SHUTDOWN %v, going from %v -> HALTED", node.state, node.name)
-	node.state = HALTED
+	//vv("handleAlterNode: SHUTDOWN %v, going to powerOff true, in state %v", node.name, node.state)
+	node.powerOff = true
 	node.readQ.deleteAll()
 	node.preArrQ.deleteAll()
 	node.timerQ.deleteAll()
@@ -966,7 +992,7 @@ func (s *simnet) shutdownNode(node *simnode) {
 
 func (s *simnet) restartNode(node *simnode) {
 	//vv("handleAlterNode: RESTART %v, wiping queues, going %v -> HEALTHY", node.state, node.name)
-	node.state = HEALTHY
+	node.powerOff = false
 	node.readQ.deleteAll()
 	node.preArrQ.deleteAll()
 	node.timerQ.deleteAll()
@@ -974,12 +1000,29 @@ func (s *simnet) restartNode(node *simnode) {
 
 func (s *simnet) isolateNode(node *simnode) {
 	//vv("handleAlterNode: from %v -> ISOLATED %v, wiping pre-arrival, block any future pre-arrivals", node.state, node.name)
-	node.state = ISOLATED
+	switch node.state {
+	case ISOLATED, FAULTY_ISOLATED:
+		return
+	case FAULTY:
+		node.state = FAULTY_ISOLATED
+	case HEALTHY:
+		node.state = ISOLATED
+	}
+
 	node.preArrQ.deleteAll()
 }
 func (s *simnet) unIsolateNode(node *simnode) {
 	//vv("handleAlterNode: UNISOLATE %v, going from %v -> HEALTHY", node.state, node.name)
-	node.state = HEALTHY
+	switch node.state {
+	case ISOLATED:
+		node.state = HEALTHY
+	case FAULTY_ISOLATED:
+		node.state = FAULTY
+	case FAULTY:
+		// not isolated already
+	case HEALTHY:
+		// not isolated already
+	}
 }
 
 func (s *simnet) handleAlterNode(alt *nodeAlteration) {
@@ -1023,15 +1066,13 @@ func (s *simnet) localDropSend(send *mop) bool {
 func (s *simnet) handleSend(send *mop) {
 	////zz("top of handleSend(send = '%v')", send)
 
-	switch send.origin.state {
-	case HALTED:
-		// cannot send when halted. Hmm.
+	if send.origin.powerOff {
+		// cannot send when power is off. Hmm.
 		// This must be a stray...maybe a race? the
 		// node really should not be doing anything.
-		//alwaysPrintf("yuck: got a SEND from a HALTED node: '%v'", send.origin)
+		//alwaysPrintf("yuck: got a SEND from a powerOff node: '%v'", send.origin)
 		close(send.proceed) // probably just a shutdown race, don't deadlock them.
 		return
-	case ISOLATED, HEALTHY, FAULTY:
 	}
 
 	origin := send.origin
@@ -1045,10 +1086,9 @@ func (s *simnet) handleSend(send *mop) {
 		panic(fmt.Sprintf("should see each send only once now, not %v", send.seen))
 	}
 
-	switch send.target.state {
-	case HALTED, ISOLATED:
-		//vv("send.target.state == %v, dropping msg = '%v'", send.target.state, send.msg)
-	case HEALTHY, FAULTY:
+	if send.target.powerOff || send.target.state == ISOLATED {
+		//vv("powerOff or ISOLATED, dropping msg = '%v'", send.msg)
+	} else {
 		if s.localDropSend(send) {
 			vv("DROP SEND %v", send)
 			send.sendIsDropped = true
@@ -1093,15 +1133,13 @@ func (s *simnet) handleSend(send *mop) {
 func (s *simnet) handleRead(read *mop) {
 	////zz("top of handleRead(read = '%v')", read)
 
-	switch read.origin.state {
-	case HALTED:
-		// cannot read when halted. Hmm.
+	if read.origin.powerOff {
+		// cannot read when off. Hmm.
 		// This must be a stray...maybe a race? the
 		// node really should not be doing anything.
-		//alwaysPrintf("yuck: got a READ from a HALTED node: '%v'", read.origin)
+		//alwaysPrintf("yuck: got a READ from a powerOff node: '%v'", read.origin)
 		close(read.proceed) // probably just a shutdown race, don't deadlock them.
 		return
-	case ISOLATED, HEALTHY, FAULTY:
 	}
 
 	origin := read.origin
@@ -1160,7 +1198,7 @@ func gte(a, b time.Time) bool {
 // does not call armTimer(), so scheduler should
 // afterwards.
 func (node *simnode) dispatchTimers(now time.Time) (changes int64) {
-	if node.state == HALTED {
+	if node.powerOff {
 		return 0
 	}
 	if node.timerQ.tree.Len() == 0 {
@@ -1217,19 +1255,8 @@ func (node *simnode) backgroundFireTimer(timer *mop, now time.Time) {
 // does not call armTimer.
 func (node *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 
-	switch node.state {
-	case HALTED:
-		// cannot send, receive, start timers or
-		// discard them; when halted.
+	if node.powerOff {
 		return
-	case ISOLATED:
-		// timers need to fire.
-		// pre-arrival Q will be empty, so
-		// no matching will happen anyway.
-		// reads are fine.
-	case FAULTY:
-		// faults are data dependent
-	case HEALTHY:
 	}
 
 	// to be deleted at the end, so
@@ -1723,15 +1750,13 @@ func (s *simnet) initScenario(scenario *scenario) {
 func (s *simnet) handleDiscardTimer(discard *mop) {
 	//now := time.Now()
 
-	switch discard.origin.state {
-	case HALTED:
+	if discard.origin.powerOff {
 		// cannot set/fire timers when halted. Hmm.
 		// This must be a stray...maybe a race? the
 		// node really should not be doing anything.
-		//alwaysPrintf("yuck: got a TIMER_DISCARD from a HALTED node: '%v'", discard.origin)
+		//alwaysPrintf("yuck: got a TIMER_DISCARD from a powerOff node: '%v'", discard.origin)
 		close(discard.proceed) // probably just a shutdown race, don't deadlock them.
 		return
-	case ISOLATED, HEALTHY, FAULTY:
 	}
 
 	orig := discard.origTimerMop
@@ -1750,8 +1775,7 @@ func (s *simnet) handleDiscardTimer(discard *mop) {
 func (s *simnet) handleTimer(timer *mop) {
 	//now := time.Now()
 
-	switch timer.origin.state {
-	case HALTED:
+	if timer.origin.powerOff {
 		// cannot start timers when halted. Hmm.
 		// This must be a stray...maybe a race? the
 		// node really should not be doing anything.
@@ -1760,10 +1784,9 @@ func (s *simnet) handleTimer(timer *mop) {
 		// so don't freak. Probably just a shutdown race.
 		//
 		// Very very common at test shutdown, so we comment.
-		//alwaysPrintf("yuck: got a timer from a HALTED node: '%v'", timer.origin)
+		//alwaysPrintf("yuck: got a timer from a powerOff node: '%v'", timer.origin)
 		close(timer.proceed) // likely shutdown race, don't deadlock them.
 		return
-	case ISOLATED, HEALTHY, FAULTY:
 	}
 
 	lc := timer.origin.lc
