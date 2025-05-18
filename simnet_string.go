@@ -281,3 +281,38 @@ func (s *scenario) String() (r string) {
 	r += "}\n"
 	return
 }
+
+func (s *simnetConn) String() (r string) {
+
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
+	r = fmt.Sprintf(`
+     simnetConn{
+                isCli: %v,
+                  net: %v,
+              netAddr: %v,
+                local: %v,
+               remote: %v,
+    readDeadlineTimer: %v,
+    sendDeadlineTimer: %v,
+          localClosed: %v,
+         remoteClosed: %v,
+             deafRead: %0.3f (probability),
+             dropSend: %0.3f (probability),
+             nextRead: "%v",
+}`, s.isCli,
+		s.net,
+		s.netAddr,
+		s.local,
+		s.remote,
+		s.readDeadlineTimer,
+		s.sendDeadlineTimer,
+		s.localClosed,
+		s.remoteClosed,
+		s.deafRead,
+		s.dropSend,
+		string(s.nextRead),
+	)
+	return
+}
