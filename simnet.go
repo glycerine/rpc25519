@@ -177,8 +177,9 @@ type mop struct {
 	err              error // e.g. cannot find name.
 
 	// should only specific one of originHealthy and allHealthy!
-	allHealthy    bool // all nodes, heal drop/deaf faults. isolation unchanged.
-	originHealthy bool // heal drop/deaf faults on just the originName node.
+	allHealthy          bool // all nodes, heal drop/deaf faults. isolation unchanged.
+	justOriginHealed    bool // heal drop/deaf faults on just the originName node.
+	justOriginUnisolate bool // if true and node is isolated, it goes to healthy.
 
 	// clients of scheduler wait on proceed.
 	// When the timer is set; the send sent; the read
@@ -189,30 +190,32 @@ type mop struct {
 	isEOF_RST bool
 }
 
-func (s *simnet) handleAllHealthy(dd *mop) (err error) {
-	if !dd.allHealthy && !dd.originHealthy {
+func (s *simnet) handleHealing(dd *mop) (err error) {
+	if !dd.allHealthy && !dd.justOriginHealed {
 		panic("why call here in not a healing request?")
 	}
-	if dd.allHealthy && dd.originHealthy {
-		panic("confused caller: only set one of dd.allHealthy and dd.originHealthy")
+	if dd.allHealthy && dd.justOriginHealed {
+		panic("confused caller: only set one of dd.allHealthy and dd.justOriginHealed")
 	}
 	defer func() {
 		dd.err = err
 		close(dd.proceed)
 	}()
 
-	if dd.originHealthy {
+	if dd.justOriginHealed {
 		node, ok := s.dns[dd.originName]
 		if !ok {
-			return fmt.Errorf("error on originHealthy: originName not found: '%v'", dd.originName)
+			return fmt.Errorf("error on justOriginHealed: originName not found: '%v'", dd.originName)
 		}
-		node.state = HEALTHY
 		s.nodeUndoAllDeafDrops(node)
+		if dd.justOriginUnisolate {
+			node.state = HEALTHY
+		}
 		return
 	}
 
 	for node := range s.nodes {
-		vv("handleAllHealthy: node '%v' goes from %v to HEALTHY", node.name, node.state)
+		vv("handleHealing: node '%v' goes from %v to HEALTHY", node.name, node.state)
 		node.state = HEALTHY
 		s.nodeUndoAllDeafDrops(node)
 	}
@@ -220,9 +223,9 @@ func (s *simnet) handleAllHealthy(dd *mop) (err error) {
 }
 
 // This is a central place to handle healing all netcard faults;
-// undoing all deafDrop modifications.
+// undoing all deafDrop modifications on a single simnode.
 //
-// We are called by handleAllHealthy and recheckHealthState.
+// We are called by handleHealing and recheckHealthState.
 // state can be ISOLATED or HEALTHY, we do not change these.
 // If state is FAULTY, we go to HEALTHY.
 // If state is FAULTY_ISOLATED, we go to ISOLATED.
@@ -255,8 +258,8 @@ func (s *simnet) nodeUndoAllDeafDrops(node *simnode) {
 
 func (s *simnet) handleDeafDrop(dd *mop) (err error) {
 
-	if dd.allHealthy || dd.originHealthy {
-		return s.handleAllHealthy(dd)
+	if dd.allHealthy || dd.justOriginHealed {
+		return s.handleHealing(dd)
 	}
 	defer func() {
 		dd.err = err
@@ -2294,6 +2297,18 @@ func (s *simnet) newAllHealthy() *mop {
 	return m
 }
 
+func (s *simnet) newOriginHealed(originName string, unIsolate bool) *mop {
+	m := &mop{
+		kind:                DEAFDROP,
+		justOriginHealed:    true,
+		justOriginUnisolate: unIsolate,
+		originName:          originName,
+		sn:                  simnetNextMopSn(),
+		proceed:             make(chan struct{}),
+	}
+	return m
+}
+
 // empty string target means all possible targets
 func (s *simnet) DeafToReads(origin, target string, deafProb float64) (err error) {
 
@@ -2345,7 +2360,7 @@ func (s *simnet) DropSends(origin, target string, dropProb float64) (err error) 
 	return
 }
 
-// heal all partitions, undo all faults
+// heal all partitions, undo all faults, network wide.
 func (s *simnet) AllHealthy() (err error) {
 
 	allGood := s.newAllHealthy()
@@ -2360,6 +2375,31 @@ func (s *simnet) AllHealthy() (err error) {
 	case <-allGood.proceed:
 		err = allGood.err
 		vv("all healthy processed. err = '%v'", err)
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	return
+}
+
+// HealNode restores the local network card to
+// full working order. It undoes the effects of
+// prior deafDrop actions, if any. It does not
+// change an isolated node's isolation unless unIsolate
+// is also true.
+func (s *simnet) HealNode(originName string, unIsolate bool) (err error) {
+
+	oneGood := s.newOriginHealed(originName, unIsolate)
+
+	select {
+	case s.deafDropCh <- oneGood:
+		vv("HealNode sent oneGood on deafDropCh; about to wait on proceed")
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	select {
+	case <-oneGood.proceed:
+		err = oneGood.err
+		vv("one healthy '%v' processed. err = '%v'", originName, err)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
