@@ -763,7 +763,7 @@ func (s *simnet) handleSend(send *mop) {
 		// cannot send when halted. Hmm.
 		// This must be a stray...maybe a race? the
 		// node really should not be doing anything.
-		alwaysPrintf("yuck: got a SEND from a HALTED node: '%v'", send.origin)
+		//alwaysPrintf("yuck: got a SEND from a HALTED node: '%v'", send.origin)
 		close(send.proceed) // probably just a shutdown race, don't deadlock them.
 		return
 	case PARTITIONED, HEALTHY:
@@ -817,7 +817,7 @@ func (s *simnet) handleRead(read *mop) {
 		// cannot read when halted. Hmm.
 		// This must be a stray...maybe a race? the
 		// node really should not be doing anything.
-		alwaysPrintf("yuck: got a READ from a HALTED node: '%v'", read.origin)
+		//alwaysPrintf("yuck: got a READ from a HALTED node: '%v'", read.origin)
 		close(read.proceed) // probably just a shutdown race, don't deadlock them.
 		return
 	case PARTITIONED, HEALTHY:
@@ -1651,7 +1651,7 @@ func (s *simnet) handleDiscardTimer(discard *mop) {
 		// cannot set/fire timers when halted. Hmm.
 		// This must be a stray...maybe a race? the
 		// node really should not be doing anything.
-		alwaysPrintf("yuck: got a TIMER_DISCARD from a HALTED node: '%v'", discard.origin)
+		//alwaysPrintf("yuck: got a TIMER_DISCARD from a HALTED node: '%v'", discard.origin)
 		close(discard.proceed) // probably just a shutdown race, don't deadlock them.
 		return
 	case PARTITIONED, HEALTHY:
@@ -1681,7 +1681,9 @@ func (s *simnet) handleTimer(timer *mop) {
 		// This does happen though, e.g. in test
 		// Test010_tube_write_new_value_two_replicas,
 		// so don't freak. Probably just a shutdown race.
-		alwaysPrintf("yuck: got a timer from a HALTED node: '%v'", timer.origin)
+		//
+		// Very very common at test shutdown, so we comment.
+		//alwaysPrintf("yuck: got a timer from a HALTED node: '%v'", timer.origin)
 		close(timer.proceed) // likely shutdown race, don't deadlock them.
 		return
 	case PARTITIONED, HEALTHY:
