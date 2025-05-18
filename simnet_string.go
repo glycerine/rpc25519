@@ -287,6 +287,15 @@ func (s *simnetConn) String() (r string) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
+	readDead := "nil"
+	if s.readDeadlineTimer != nil {
+		readDead = s.readDeadlineTimer.completeTm.Format(rfc3339MsecTz0)
+	}
+	sendDead := "nil"
+	if s.sendDeadlineTimer != nil {
+		sendDead = s.sendDeadlineTimer.completeTm.Format(rfc3339MsecTz0)
+	}
+
 	r = fmt.Sprintf(`
      simnetConn{
                 isCli: %v,
@@ -302,17 +311,21 @@ func (s *simnetConn) String() (r string) {
              dropSend: %0.3f (probability),
              nextRead: "%v",
 }`, s.isCli,
-		s.net,
+		s.net.simNetCfg,
 		s.netAddr,
-		s.local,
-		s.remote,
-		s.readDeadlineTimer,
-		s.sendDeadlineTimer,
-		s.localClosed,
-		s.remoteClosed,
+		s.local.name,
+		s.remote.name,
+		readDead,
+		sendDead,
+		s.localClosed.IsClosed(),
+		s.remoteClosed.IsClosed(),
 		s.deafRead,
 		s.dropSend,
 		string(s.nextRead),
 	)
 	return
+}
+
+func (s *SimNetConfig) String() string {
+	return fmt.Sprintf(`SimNetConfig{BarrierOff: %v}`, s.BarrierOff)
 }
