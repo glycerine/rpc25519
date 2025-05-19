@@ -515,12 +515,20 @@ type simnet struct {
 }
 
 // a simnode is a network peer --
-// either a Server or the auto-Client
-// the Server has created to initiate
-// outgoing connections. By matching
+// either a Server or Client.
+// Clients talk to only one Server, but
+// Servers can talk to any number of Clients.
+//
+// In grid or cluster simulation, the
+// Clients are typically the auto-Clients that
+// a Server itself has created to initiate
+// connections to form a grid.
+//
+// In this case, by matching
 // on serverBaseID, we can group
 // the auto-clients and their server node
-// together into a simhost.
+// together into a simhost: a single
+// server peer and all of its auto-clients.
 type simnode struct {
 	name    string
 	lc      int64 // logical clock
