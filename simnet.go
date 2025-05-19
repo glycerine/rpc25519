@@ -203,7 +203,7 @@ func (s *simnet) handleRepair(dd *repair, closeProceed bool) (err error) {
 		return
 	}
 
-	for simckt := range s.simckts {
+	for simckt := range s.circuits {
 		vv("handleRepair: simckt '%v' goes from %v to HEALTHY", simckt.name, simckt.state)
 		simckt.state = HEALTHY
 		s.simcktUndoAllDeafDrops(simckt)
@@ -239,7 +239,7 @@ func (s *simnet) simcktUndoAllDeafDrops(simckt *simckt) {
 	simckt.deafReadsQ.deleteAll()
 	simckt.droppedSendsQ.deleteAll()
 
-	for rem, conn := range s.simckts[simckt] {
+	for rem, conn := range s.circuits[simckt] {
 		_ = rem
 		//vv("simcktUndoAllDeafDrops: before 0 out deafRead and deafSend, conn=%v", conn)
 		conn.deafRead = 0 // zero prob of deaf read.
@@ -329,7 +329,7 @@ func (s *simnet) induceFault(dd *fault, closeProceed bool) (err error) {
 			return
 		}
 	}
-	remotes, ok := s.simckts[origin]
+	remotes, ok := s.circuits[origin]
 	if !ok {
 		// no remote conn to adjust
 		return
@@ -369,7 +369,7 @@ func (s *simnet) induceFault(dd *fault, closeProceed bool) (err error) {
 }
 
 func (s *simnet) recheckHealthState(simckt *simckt) {
-	remotes, ok := s.simckts[simckt]
+	remotes, ok := s.circuits[simckt]
 	if !ok {
 		return
 	}
@@ -406,19 +406,19 @@ type simnet struct {
 
 	dns map[string]*simckt
 
-	// simckts[A][B] is the very cyclic (bi-directed?) graph
+	// circuits[A][B] is the very cyclic (bi-directed?) graph
 	// of the network.
 	//
-	// The simckt.name is the key of the simckts map.
-	// Both client and server names are keys in simckts.
+	// The simckt.name is the key of the circuits map.
+	// Both client and server names are keys in circuits.
 	//
-	// Each A has a bi-directional network "socket" to each of simckts[A].
+	// Each A has a bi-directional network "socket" to each of circuits[A].
 	//
-	// simckts[A][B] is A's connection to B; that owned by A.
+	// circuits[A][B] is A's connection to B; that owned by A.
 	//
-	// simckts[B][A] is B's connection to A; that owned by B.
+	// circuits[B][A] is B's connection to A; that owned by B.
 	//
-	// The system guarantees that the keys of simckts
+	// The system guarantees that the keys of circuits
 	// (the names of all endpoints) are unique strings,
 	// by rejecting any already taken names (panic-ing on attempted
 	// registration) during the moral equivalent of
@@ -484,21 +484,21 @@ type simnet struct {
 	// network, where any peer can talk to any
 	// other peer in the network; like the internet.
 	// I think of a simnet as the big single
-	// ethernet switch that all simckts plug into.
+	// ethernet switch that all circuits plug into.
 	//
-	// When modeling faults, we try to keep the simckts network
+	// When modeling faults, we try to keep the circuits network
 	// as static as possible, and set .deafRead
 	// or .dropSend flags to model faults.
 	// Reboot/restart should not heal net/net card faults.
 	//
 	// To recap, both clisimckt.name and srvsimckt.name are keys
-	// in the simckts map. So simckts[clisimckt.name] returns
+	// in the circuits map. So circuits[clisimckt.name] returns
 	// the map of who clisimckt is connected to.
 	//
-	// In other words, the value of the map simckts[A]
-	// is another map, which is the set of simckts that A
-	// is connected to by the simconn simckts[A][B].
-	simckts map[*simckt]map[*simckt]*simconn
+	// In other words, the value of the map circuits[A]
+	// is another map, which is the set of circuits that A
+	// is connected to by the simconn circuits[A][B].
+	circuits map[*simckt]map[*simckt]*simconn
 
 	cliRegisterCh chan *clientRegistration
 	srvRegisterCh chan *serverRegistration
@@ -535,7 +535,7 @@ type simnet struct {
 // to two other servers. Thus there are
 // 6 total network endpoints at minimum
 // in a 3 server cluster. We are registering
-// the auto-clients currently as simckts
+// the auto-clients currently as circuits
 // as well... maybe we only want/need to
 // register the servers? but we need to
 // manage and supervise all the network
@@ -564,31 +564,31 @@ type simckt struct {
 	// state survives power cycling, i.e. rebooting
 	// a simckt does not heal the network or repair a
 	// faulty network card.
-	state    simcktstate
+	state    circuitstate
 	powerOff bool
 
 	tellServerNewConnCh chan *simconn
 }
 
-// the simckts powerOff status is independent
+// the circuits powerOff status is independent
 // of its health stated, so that net card faults and
 // network isolatation survive a reboot.
-type simcktstate int
+type circuitstate int
 
 const (
-	HEALTHY simcktstate = 0
+	HEALTHY circuitstate = 0
 
-	ISOLATED simcktstate = 1 // cruder than FAULTY. no comms with anyone else
+	ISOLATED circuitstate = 1 // cruder than FAULTY. no comms with anyone else
 
 	// if a deafDrop fault has been applied to a healthy simckt,
 	// then the simckt is marked FAULTY.
 	// if a deafDrop removes the last fault, we change it back to HEALTHY.
-	FAULTY simcktstate = 2 // some conn may drop sends, be deaf to reads
+	FAULTY circuitstate = 2 // some conn may drop sends, be deaf to reads
 
 	// if a deafDrop fault has been applied to an isolated simckt,
 	// then the simckt is marked FAULTY_ISOLATED.
 	// if a deafDrop removes the last fault, we change it back to ISOLATED.
-	FAULTY_ISOLATED simcktstate = 3 // some conn may drop sends, be deaf to reads
+	FAULTY_ISOLATED circuitstate = 3 // some conn may drop sends, be deaf to reads
 )
 
 func (s *simnet) newSimckt(name, serverBaseID string) *simckt {
@@ -610,7 +610,7 @@ func (s *simnet) newSimcktClient(name, serverBaseID string) (simckt *simckt) {
 	return
 }
 
-func (s *simnet) newSimcktServer(name, serverBaseID string) (simckt *simckt) {
+func (s *simnet) newCircuitserver(name, serverBaseID string) (simckt *simckt) {
 	simckt = s.newSimckt(name, serverBaseID)
 	simckt.isCli = false
 	// buffer so servers don't have to be up to get them.
@@ -628,9 +628,9 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	// 	isCli:   false,
 	// }
 
-	srvsimckt := s.newSimcktServer(reg.server.name, reg.serverBaseID)
+	srvsimckt := s.newCircuitserver(reg.server.name, reg.serverBaseID)
 	srvsimckt.netAddr = reg.srvNetAddr
-	s.simckts[srvsimckt] = make(map[*simckt]*simconn)
+	s.circuits[srvsimckt] = make(map[*simckt]*simconn)
 	_, already := s.dns[srvsimckt.name]
 	if already {
 		panic(fmt.Sprintf("server name already taken: '%v'", srvsimckt.name))
@@ -649,7 +649,7 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 
 	//vv("end of handleServerRegistration, srvreg is %v", reg)
 
-	// channel made by newSimcktServer() above.
+	// channel made by newCircuitserver() above.
 	reg.tellServerNewConnCh = srvsimckt.tellServerNewConnCh
 	close(reg.done)
 }
@@ -674,7 +674,7 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 
 	// add simckt to graph
 	clientOutboundEdges := make(map[*simckt]*simconn)
-	s.simckts[clisimckt] = clientOutboundEdges
+	s.circuits[clisimckt] = clientOutboundEdges
 
 	// add both direction edges
 	c2s := s.addEdgeFromCli(clisimckt, srvsimckt)
@@ -770,8 +770,8 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		hosts:             make(map[string]*simhost), // key is serverBaseID
 		simckt2host:       make(map[*simckt]*simhost),
 
-		// graph of simckts, edges are simckts[from][to]
-		simckts: make(map[*simckt]map[*simckt]*simconn),
+		// graph of circuits, edges are circuits[from][to]
+		circuits: make(map[*simckt]map[*simckt]*simconn),
 
 		// high duration b/c no need to fire spuriously
 		// and force the Go runtime to do extra work when
@@ -803,10 +803,10 @@ func (s *simckt) setNetAddrSameNetAs(addr string, srvNetAddr *SimNetAddr) {
 
 func (s *simnet) addEdgeFromSrv(srvsimckt, clisimckt *simckt) *simconn {
 
-	srv, ok := s.simckts[srvsimckt] // edges from srv to clients
+	srv, ok := s.circuits[srvsimckt] // edges from srv to clients
 	if !ok {
 		srv = make(map[*simckt]*simconn)
-		s.simckts[srvsimckt] = srv
+		s.circuits[srvsimckt] = srv
 	}
 	s2c := newSimconn()
 	s2c.isCli = false
@@ -822,10 +822,10 @@ func (s *simnet) addEdgeFromSrv(srvsimckt, clisimckt *simckt) *simconn {
 
 func (s *simnet) addEdgeFromCli(clisimckt, srvsimckt *simckt) *simconn {
 
-	cli, ok := s.simckts[clisimckt] // edge from client to one server
+	cli, ok := s.circuits[clisimckt] // edge from client to one server
 	if !ok {
 		cli = make(map[*simckt]*simconn)
-		s.simckts[clisimckt] = cli
+		s.circuits[clisimckt] = cli
 	}
 	c2s := newSimconn()
 	c2s.isCli = true
@@ -1221,7 +1221,7 @@ func (s *simnet) localDeafRead(read *mop) bool {
 
 	// get the local (read) origin conn probability of deafness
 	// note: not the remote's deafness, only local.
-	prob := s.simckts[read.origin][read.target].deafRead
+	prob := s.circuits[read.origin][read.target].deafRead
 
 	if prob == 0 {
 		return false
@@ -1232,7 +1232,7 @@ func (s *simnet) localDeafRead(read *mop) bool {
 
 func (s *simnet) localDropSend(send *mop) bool {
 	// get the local origin conn probability of drop
-	prob := s.simckts[send.origin][send.target].dropSend
+	prob := s.circuits[send.origin][send.target].dropSend
 	if prob == 0 {
 		return false
 	}
@@ -1646,8 +1646,8 @@ func (simckt *simckt) dispatch(now time.Time) (changes int64) {
 
 func (s *simnet) qReport() (r string) {
 	i := 0
-	for simckt := range s.simckts {
-		r += fmt.Sprintf("\n[simckt %v of %v in qReport]: \n", i+1, len(s.simckts))
+	for simckt := range s.circuits {
+		r += fmt.Sprintf("\n[simckt %v of %v in qReport]: \n", i+1, len(s.circuits))
 		r += simckt.String() + "\n"
 		i++
 	}
@@ -1660,8 +1660,8 @@ func (s *simnet) schedulerReport() string {
 }
 
 func (s *simnet) dispatchAll(now time.Time) (changes int64) {
-	// notice here we only use the key of s.simckts
-	for simckt := range s.simckts {
+	// notice here we only use the key of s.circuits
+	for simckt := range s.circuits {
 		changes += simckt.dispatch(now)
 	}
 	return
@@ -1669,7 +1669,7 @@ func (s *simnet) dispatchAll(now time.Time) (changes int64) {
 
 // does not call armTimer(), so scheduler should afterwards.
 func (s *simnet) dispatchAllTimers(now time.Time) (changes int64) {
-	for simckt := range s.simckts {
+	for simckt := range s.circuits {
 		changes += simckt.dispatchTimers(now)
 	}
 	return
@@ -1677,14 +1677,14 @@ func (s *simnet) dispatchAllTimers(now time.Time) (changes int64) {
 
 // does not call armTimer(), so scheduler should afterwards.
 func (s *simnet) dispatchAllReadsSends(now time.Time) (changes int64) {
-	for simckt := range s.simckts {
+	for simckt := range s.circuits {
 		changes += simckt.dispatchReadsSends(now)
 	}
 	return
 }
 
 func (s *simnet) tickLogicalClocks() {
-	for simckt := range s.simckts {
+	for simckt := range s.circuits {
 		simckt.lc++
 	}
 }
@@ -1932,7 +1932,7 @@ restartI:
 	}
 }
 
-// simhost collects all the simckts on
+// simhost collects all the circuits on
 // a given host, to make e.g. isolation easier.
 // enables applying an action like powerOff
 // to all ports on the simulated host.
@@ -1941,7 +1941,7 @@ restartI:
 type simhost struct {
 	name         string
 	serverBaseID string
-	state        simcktstate
+	state        circuitstate
 	powerOff     bool
 	port2host    map[*simckt]*simhost
 	host2port    map[*simhost]*simckt
@@ -2085,7 +2085,7 @@ func (s *simnet) handleTimer(timer *mop) {
 // a lookup of the min simckt in
 // the each priority queue, which our
 // red-black tree has cached anyway.
-// For K simckts * 3 PQ per simckt => O(K).
+// For K circuits * 3 PQ per simckt => O(K).
 //
 // armTimer is not called; keep it as a separate step.
 func (s *simnet) refreshGridStepTimer(now time.Time) (dur time.Duration, goal time.Time) {
@@ -2111,7 +2111,7 @@ func (s *simnet) armTimer(now time.Time) time.Duration {
 		s.refreshGridStepTimer(now)
 		minTimer = s.gridStepTimer
 	}
-	for simckt := range s.simckts {
+	for simckt := range s.circuits {
 		minTimer = simckt.soonestTimerLessThan(minTimer)
 	}
 	if minTimer == nil {
@@ -2549,8 +2549,8 @@ type repair struct {
 	targetName string // empty string means all targets/ remote conn.
 	err        error  // e.g. cannot find name.
 
-	allHealthy    bool // all simckts, heal drop/deaf faults. isolation unchanged.
-	powerOnAnyOff bool // for allHealthy, also power on any powerOff simckts?
+	allHealthy    bool // all circuits, heal drop/deaf faults. isolation unchanged.
+	powerOnAnyOff bool // for allHealthy, also power on any powerOff circuits?
 
 	justOriginHealed    bool // heal drop/deaf faults on just the originName simckt.
 	justOriginUnisolate bool // if true and simckt is isolated, it goes to healthy.
@@ -2655,7 +2655,7 @@ func (s *simnet) DropSends(origin, target string, dropProb float64, wholeHost bo
 }
 
 // AllHealthy heal all partitions, undo all faults, network wide.
-// All simckts are returned to HEALTHY status. Their powerOff status
+// All circuits are returned to HEALTHY status. Their powerOff status
 // is not updated unless powerOnAnyOff is also true.
 // See also RepairSimckt for single simckt repair.
 func (s *simnet) AllHealthy(powerOnAnyOff bool) (err error) {
