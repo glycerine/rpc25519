@@ -473,6 +473,8 @@ type simnet struct {
 	discardTimerCh chan *mop
 	deafDropCh     chan *mop
 
+	safeStateStringCh chan *simnetSafeState
+
 	newScenarioCh chan *scenario
 	nextTimer     *time.Timer
 	lastArmTm     time.Time
@@ -502,6 +504,11 @@ type simnode struct {
 	powerOff bool
 
 	tellServerNewConnCh chan *simnetConn
+
+	// deafDrop and healing, isolation or not,
+	// should apply to both server and its auto-cli,
+	// since they are all locally on the same host.
+	autocli []*simnode
 }
 
 // the nodes powerOff status is independent
@@ -649,23 +656,23 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 
 	// server creates simnet; must start server first.
 	s := &simnet{
-		barrier:        !simNetConfig.BarrierOff,
-		cfg:            cfg,
-		simNetCfg:      simNetConfig,
-		srv:            srv,
-		halt:           srv.halt,
-		cliRegisterCh:  make(chan *clientRegistration),
-		srvRegisterCh:  make(chan *serverRegistration),
-		alterNodeCh:    make(chan *nodeAlteration),
-		msgSendCh:      make(chan *mop),
-		msgReadCh:      make(chan *mop),
-		addTimer:       make(chan *mop),
-		discardTimerCh: make(chan *mop),
-		newScenarioCh:  make(chan *scenario),
-		deafDropCh:     make(chan *mop),
-		scenario:       scen,
-
-		dns: make(map[string]*simnode),
+		barrier:           !simNetConfig.BarrierOff,
+		cfg:               cfg,
+		simNetCfg:         simNetConfig,
+		srv:               srv,
+		halt:              srv.halt,
+		cliRegisterCh:     make(chan *clientRegistration),
+		srvRegisterCh:     make(chan *serverRegistration),
+		alterNodeCh:       make(chan *nodeAlteration),
+		msgSendCh:         make(chan *mop),
+		msgReadCh:         make(chan *mop),
+		addTimer:          make(chan *mop),
+		discardTimerCh:    make(chan *mop),
+		newScenarioCh:     make(chan *scenario),
+		deafDropCh:        make(chan *mop),
+		scenario:          scen,
+		safeStateStringCh: make(chan *simnetSafeState),
+		dns:               make(map[string]*simnode),
 
 		// graph of nodes, edges are nodes[from][to]
 		nodes: make(map[*simnode]map[*simnode]*simnetConn),
@@ -1756,6 +1763,10 @@ restartI:
 			//vv("i=%v deafDropCh ->  dd='%v'", i, dd)
 			s.handleDeafDrop(dd)
 
+		case safe := <-s.safeStateStringCh:
+			safe.str = s.String()
+			close(safe.proceed)
+
 		case <-s.halt.ReqStop.Chan:
 			bb := time.Since(s.bigbang)
 			pct := 100 * float64(totalSleepDur) / float64(bb)
@@ -2415,6 +2426,38 @@ func (s *simnet) HealNode(originName string, unIsolate bool, powerOnIfOff bool) 
 	case <-oneGood.proceed:
 		err = oneGood.err
 		vv("one healthy '%v' processed. err = '%v'", originName, err)
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	return
+}
+
+type simnetSafeState struct {
+	sn      int64
+	str     string
+	err     error
+	proceed chan struct{}
+}
+
+// let clients not race but still view the simnet's state.
+// calling simnet.String() directly is super racey.
+func (s *simnet) SafeStateString() (r string) {
+
+	reqState := &simnetSafeState{
+		sn:      simnetNextMopSn(),
+		proceed: make(chan struct{}),
+	}
+	select {
+	case s.safeStateStringCh <- reqState:
+		vv("sent AllHealthy reqState on deafDropCh; about to wait on proceed")
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	select {
+	case <-reqState.proceed:
+		panicOn(reqState.err)
+		r = reqState.str
+		return
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
