@@ -99,8 +99,8 @@ type mop struct {
 
 	// so we can handle a network
 	// rather than just cli/srv.
-	origin *simnode
-	target *simnode
+	origin *simport
+	target *simport
 
 	// number of times handleSend() has seen this mop.
 	seen int
@@ -167,25 +167,6 @@ type mop struct {
 	readIsDeaf      bool
 	isDropDeafFault bool // either sendIsDropped or readIsDeaf
 
-	// on kind: DEAFDROP requests
-	originName       string
-	targetName       string // empty string means all targets/ remote conn.
-	updateDeafReads  bool
-	deafReadsNewProb float64
-	updateDropSends  bool
-	dropSendsNewProb float64
-	err              error // e.g. cannot find name.
-
-	// reversing faults is also uses a DEAFDROP
-	// should only specific one of originHealthy and allHealthy.
-	allHealthy    bool // all nodes, heal drop/deaf faults. isolation unchanged.
-	powerOnAnyOff bool // for allHealthy, also power on any powerOff nodes?
-
-	justOriginHealed    bool // heal drop/deaf faults on just the originName node.
-	justOriginUnisolate bool // if true and node is isolated, it goes to healthy.
-	justOriginPowerOn   bool // also power on origin?
-	wholeHost           bool
-
 	// clients of scheduler wait on proceed.
 	// When the timer is set; the send sent; the read
 	// matches a send, the client proceeds because
@@ -195,10 +176,8 @@ type mop struct {
 	isEOF_RST bool
 }
 
-func (s *simnet) handleHealing(dd *mop, closeProceed bool) (err error) {
-	if !dd.allHealthy && !dd.justOriginHealed {
-		panic("why call here in not a healing request?")
-	}
+func (s *simnet) handleRepair(dd *repair, closeProceed bool) (err error) {
+
 	if dd.allHealthy && dd.justOriginHealed {
 		panic("confused caller: only set one of dd.allHealthy and dd.justOriginHealed")
 	}
@@ -225,7 +204,7 @@ func (s *simnet) handleHealing(dd *mop, closeProceed bool) (err error) {
 	}
 
 	for node := range s.nodes {
-		vv("handleHealing: node '%v' goes from %v to HEALTHY", node.name, node.state)
+		vv("handleRepair: node '%v' goes from %v to HEALTHY", node.name, node.state)
 		node.state = HEALTHY
 		s.nodeUndoAllDeafDrops(node)
 		if dd.powerOnAnyOff {
@@ -236,13 +215,13 @@ func (s *simnet) handleHealing(dd *mop, closeProceed bool) (err error) {
 }
 
 // This is a central place to handle healing all netcard faults;
-// undoing all deafDrop modifications on a single simnode.
+// undoing all deafDrop modifications on a single simport.
 //
-// We are called by handleHealing and recheckHealthState.
+// We are called by handleRepair and recheckHealthState.
 // state can be ISOLATED or HEALTHY, we do not change these.
 // If state is FAULTY, we go to HEALTHY.
 // If state is FAULTY_ISOLATED, we go to ISOLATED.
-func (s *simnet) nodeUndoAllDeafDrops(node *simnode) {
+func (s *simnet) nodeUndoAllDeafDrops(node *simport) {
 
 	switch node.state {
 	case HEALTHY:
@@ -269,12 +248,12 @@ func (s *simnet) nodeUndoAllDeafDrops(node *simnode) {
 	}
 }
 
-func (s *simnet) handleHealingWholeHost(dd *mop) (err error) {
+func (s *simnet) handleRepairWholeHost(dd *repair) (err error) {
 	if !dd.allHealthy {
 		panic("why call here in not a healing request?")
 	}
 	if dd.justOriginHealed {
-		panic("confused caller: dd.justOriginHealed makes no sense in handleHealingWholeHost")
+		panic("confused caller: dd.justOriginHealed makes no sense in handleRepairWholeHost")
 	}
 	defer func() {
 		dd.err = err
@@ -289,9 +268,9 @@ func (s *simnet) handleHealingWholeHost(dd *mop) (err error) {
 	if !ok {
 		panic(fmt.Sprintf("origin not registered in s.node2host: origin.name = '%v'", origin.name))
 	}
-	for end := range host.end2host {
+	for end := range host.port2host {
 		dd.originName = end.name
-		s.handleHealing(dd, false)
+		s.handleRepair(dd, false)
 	}
 	host.state = HEALTHY
 	if dd.powerOnAnyOff {
@@ -300,10 +279,10 @@ func (s *simnet) handleHealingWholeHost(dd *mop) (err error) {
 	return
 }
 
-func (s *simnet) handleDeafDropWholeHost(dd *mop) (err error) {
-	if dd.allHealthy || dd.justOriginHealed {
-		return s.handleHealingWholeHost(dd)
-	}
+func (s *simnet) induceFaultWholeHost(dd *fault) (err error) {
+	//if dd.allHealthy || dd.justOriginHealed {
+	//	return s.handleRepairWholeHost(dd)
+	//}
 	defer func() {
 		dd.err = err
 		close(dd.proceed)
@@ -317,18 +296,18 @@ func (s *simnet) handleDeafDropWholeHost(dd *mop) (err error) {
 	if !ok {
 		panic(fmt.Sprintf("not registered in s.node2host: origin.name = '%v'", origin.name))
 	}
-	for end := range host.end2host {
+	for end := range host.port2host {
 		dd.originName = end.name
-		s.handleDeafDrop(dd, false)
+		s.induceFault(dd, false)
 	}
 	return
 }
 
-func (s *simnet) handleDeafDrop(dd *mop, closeProceed bool) (err error) {
+func (s *simnet) induceFault(dd *fault, closeProceed bool) (err error) {
 
-	if dd.allHealthy || dd.justOriginHealed {
-		return s.handleHealing(dd, closeProceed)
-	}
+	//	if dd.allHealthy || dd.justOriginHealed {
+	//		return s.handleRepair(dd, closeProceed)
+	//	}
 	if closeProceed {
 		defer func() {
 			dd.err = err
@@ -342,7 +321,7 @@ func (s *simnet) handleDeafDrop(dd *mop, closeProceed bool) (err error) {
 		err = fmt.Errorf("could not find originName = '%v' in dns: '%v'", dd.originName, s.stringDNS())
 		return
 	}
-	var target *simnode
+	var target *simport
 	if dd.targetName != "" {
 		target, ok = s.dns[dd.targetName]
 		if !ok {
@@ -389,7 +368,7 @@ func (s *simnet) handleDeafDrop(dd *mop, closeProceed bool) (err error) {
 	return
 }
 
-func (s *simnet) recheckHealthState(node *simnode) {
+func (s *simnet) recheckHealthState(node *simport) {
 	remotes, ok := s.nodes[node]
 	if !ok {
 		return
@@ -422,15 +401,15 @@ type simnet struct {
 	srv *Server
 	cli *Client
 
-	hosts     map[string]*simHost // key is serverBaseID
-	node2host map[*simnode]*simHost
+	hosts     map[string]*simhost // key is serverBaseID
+	node2host map[*simport]*simhost
 
-	dns map[string]*simnode
+	dns map[string]*simport
 
 	// nodes[A][B] is the very cyclic (bi-directed?) graph
 	// of the network.
 	//
-	// The simnode.name is the key of the node map.
+	// The simport.name is the key of the node map.
 	// Both client and server names are keys in nodes.
 	//
 	// Each A has a bi-directional network "socket" to each of nodes[A].
@@ -486,12 +465,12 @@ type simnet struct {
 	// rpc25519.Client or rpc25519.Server).
 	//
 	// The isCli flag distinguishes whether a given
-	// simnode is on a Client or Server when
+	// simport is on a Client or Server when
 	// it matters, but we try to minimize its use.
 	// It should not matter for the most part; in
 	// the ckt.go code there is even a note that
 	// the peerAPI.isCli can be misleading with auto-Clients
-	// in play. The simnode.isCli however should be
+	// in play. The simport.isCli however should be
 	// accurate (we think).
 	//
 	// Each peer-to-peer connection is a network
@@ -518,8 +497,8 @@ type simnet struct {
 	//
 	// In other words, the value of the map nodes[A]
 	// is another map, which is the set of nodes that A
-	// is connected to by the simnetConn nodes[A][B].
-	nodes map[*simnode]map[*simnode]*simnetConn
+	// is connected to by the simconn nodes[A][B].
+	nodes map[*simport]map[*simport]*simconn
 
 	cliRegisterCh chan *clientRegistration
 	srvRegisterCh chan *serverRegistration
@@ -535,7 +514,9 @@ type simnet struct {
 	msgReadCh      chan *mop
 	addTimer       chan *mop
 	discardTimerCh chan *mop
-	deafDropCh     chan *mop
+
+	makeBuggyCh  chan *fault
+	makeRepairCh chan *repair
 
 	safeStateStringCh chan *simnetSafeState
 
@@ -545,7 +526,7 @@ type simnet struct {
 }
 
 // update: really at the moment it may
-// be that simnode is a single
+// be that simport is a single
 // network endpoint, or net.Conn, on either
 // a client or server; like a host:port pair.
 //
@@ -554,22 +535,22 @@ type simnet struct {
 // to two other servers. Thus there are
 // 6 total network endpoints at minimum
 // in a 3 server cluster. We are registering
-// the auto-clients currently as simnodes
+// the auto-clients currently as simports
 // as well... maybe we only want/need to
 // register the servers? but we need to
 // manage and supervise all the network
 // end points at each step. So maybe
-// TODO: rename simnode to something
-// clearer? but distinct from simnetConn
+// TODO: rename simport to something
+// clearer? but distinct from simconn
 // which is our net.Conn implementation...?
 //
-// stale: simnode is a single host/server/node
+// stale: simport is a single host/server/node
 // (really one rpc25519.Client or rpc25519.Server instance)
 // in a simnet.
 //
 // for applying isolation how do I know which
 // connections are on the same host? serverBaseID
-type simnode struct {
+type simport struct {
 	name    string
 	lc      int64 // logical clock
 	readQ   *pq
@@ -590,7 +571,7 @@ type simnode struct {
 	state    nodestate
 	powerOff bool
 
-	tellServerNewConnCh chan *simnetConn
+	tellServerNewConnCh chan *simconn
 }
 
 // the nodes powerOff status is independent
@@ -614,8 +595,8 @@ const (
 	FAULTY_ISOLATED nodestate = 3 // some conn may drop sends, be deaf to reads
 )
 
-func (s *simnet) newSimnode(name, serverBaseID string) *simnode {
-	return &simnode{
+func (s *simnet) newSimport(name, serverBaseID string) *simport {
+	return &simport{
 		name:          name,
 		serverBaseID:  serverBaseID,
 		readQ:         newPQinitTm(name + " readQ "),
@@ -627,17 +608,17 @@ func (s *simnet) newSimnode(name, serverBaseID string) *simnode {
 	}
 }
 
-func (s *simnet) newSimnodeClient(name, serverBaseID string) (node *simnode) {
-	node = s.newSimnode(name, serverBaseID)
+func (s *simnet) newSimportClient(name, serverBaseID string) (node *simport) {
+	node = s.newSimport(name, serverBaseID)
 	node.isCli = true
 	return
 }
 
-func (s *simnet) newSimnodeServer(name, serverBaseID string) (node *simnode) {
-	node = s.newSimnode(name, serverBaseID)
+func (s *simnet) newSimportServer(name, serverBaseID string) (node *simport) {
+	node = s.newSimport(name, serverBaseID)
 	node.isCli = false
 	// buffer so servers don't have to be up to get them.
-	node.tellServerNewConnCh = make(chan *simnetConn, 100)
+	node.tellServerNewConnCh = make(chan *simconn, 100)
 	return
 }
 
@@ -651,9 +632,9 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	// 	isCli:   false,
 	// }
 
-	srvnode := s.newSimnodeServer(reg.server.name, reg.serverBaseID)
+	srvnode := s.newSimportServer(reg.server.name, reg.serverBaseID)
 	srvnode.netAddr = reg.srvNetAddr
-	s.nodes[srvnode] = make(map[*simnode]*simnetConn)
+	s.nodes[srvnode] = make(map[*simport]*simconn)
 	_, already := s.dns[srvnode.name]
 	if already {
 		panic(fmt.Sprintf("server name already taken: '%v'", srvnode.name))
@@ -662,17 +643,17 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 
 	host, ok := s.hosts[reg.serverBaseID]
 	if !ok {
-		host = newSimHost(reg.server.name, reg.serverBaseID)
+		host = newSimhost(reg.server.name, reg.serverBaseID)
 		s.hosts[reg.serverBaseID] = host
 	}
 	s.node2host[srvnode] = host
 
-	reg.simnode = srvnode
+	reg.simport = srvnode
 	reg.simnet = s
 
 	//vv("end of handleServerRegistration, srvreg is %v", reg)
 
-	// channel made by newSimnodeServer() above.
+	// channel made by newSimportServer() above.
 	reg.tellServerNewConnCh = srvnode.tellServerNewConnCh
 	close(reg.done)
 }
@@ -686,7 +667,7 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 			"by client registration from '%v'", reg.dialTo, reg.client.name))
 	}
 
-	clinode := s.newSimnodeClient(reg.client.name, reg.serverBaseID)
+	clinode := s.newSimportClient(reg.client.name, reg.serverBaseID)
 	clinode.setNetAddrSameNetAs(reg.localHostPortStr, srvnode.netAddr)
 
 	_, already := s.dns[clinode.name]
@@ -696,7 +677,7 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 	s.dns[clinode.name] = clinode
 
 	// add node to graph
-	clientOutboundEdges := make(map[*simnode]*simnetConn)
+	clientOutboundEdges := make(map[*simport]*simconn)
 	s.nodes[clinode] = clientOutboundEdges
 
 	// add both direction edges
@@ -707,28 +688,28 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 	if !ok {
 		panic(fmt.Sprintf("why no host for server? serverBaseID = '%v'; s.hosts='%#v'", srvnode.serverBaseID, s.hosts))
 		// happened on server registration:
-		//srvhost = newSimHost(srvnode.name, srvnode.serverBaseID)
+		//srvhost = newSimhost(srvnode.name, srvnode.serverBaseID)
 		//s.hosts[srvnode.serverBaseID] = srvhost
 		//s.node2host[srvnode] = srvhost
 	}
 
 	clihost, ok := s.hosts[clinode.serverBaseID] // host for the remote
 	if !ok {
-		clihost = newSimHost(clinode.name, clinode.serverBaseID)
+		clihost = newSimhost(clinode.name, clinode.serverBaseID)
 		s.hosts[clinode.serverBaseID] = clihost
 	}
 	s.node2host[clinode] = clihost
 
-	srvhost.host2end[clihost] = clinode
-	srvhost.end2host[clinode] = clihost
+	srvhost.host2port[clihost] = clinode
+	srvhost.port2host[clinode] = clihost
 	srvhost.host2conn[clihost] = s2c
 
-	clihost.host2end[srvhost] = srvnode
-	clihost.end2host[srvnode] = srvhost
+	clihost.host2port[srvhost] = srvnode
+	clihost.port2host[srvnode] = srvhost
 	clihost.host2conn[srvhost] = c2s
 
 	reg.conn = c2s
-	reg.simnode = clinode
+	reg.simport = clinode
 
 	// tell server about new edge
 	// vv("about to deadlock? stack=\n'%v'", stack())
@@ -750,7 +731,7 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 }
 
 // idempotent, all servers do this, then register through the same path.
-func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *simnet { // (tellServerNewConnCh chan *simnetConn) {
+func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *simnet { // (tellServerNewConnCh chan *simconn) {
 
 	//vv("%v newSimNetOnServer top, goro = %v", srv.name, GoroNumber())
 	cfg.simnetRendezvous.singleSimnetMut.Lock()
@@ -770,29 +751,31 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 
 	// server creates simnet; must start server first.
 	s := &simnet{
-		barrier:           !simNetConfig.BarrierOff,
-		cfg:               cfg,
-		simNetCfg:         simNetConfig,
-		srv:               srv,
-		halt:              srv.halt,
-		cliRegisterCh:     make(chan *clientRegistration),
-		srvRegisterCh:     make(chan *serverRegistration),
-		alterNodeCh:       make(chan *nodeAlteration),
-		alterHostCh:       make(chan *nodeAlteration),
-		msgSendCh:         make(chan *mop),
-		msgReadCh:         make(chan *mop),
-		addTimer:          make(chan *mop),
-		discardTimerCh:    make(chan *mop),
-		newScenarioCh:     make(chan *scenario),
-		deafDropCh:        make(chan *mop),
+		barrier:        !simNetConfig.BarrierOff,
+		cfg:            cfg,
+		simNetCfg:      simNetConfig,
+		srv:            srv,
+		halt:           srv.halt,
+		cliRegisterCh:  make(chan *clientRegistration),
+		srvRegisterCh:  make(chan *serverRegistration),
+		alterNodeCh:    make(chan *nodeAlteration),
+		alterHostCh:    make(chan *nodeAlteration),
+		msgSendCh:      make(chan *mop),
+		msgReadCh:      make(chan *mop),
+		addTimer:       make(chan *mop),
+		discardTimerCh: make(chan *mop),
+		newScenarioCh:  make(chan *scenario),
+		makeBuggyCh:    make(chan *fault),
+		makeRepairCh:   make(chan *repair),
+
 		scenario:          scen,
 		safeStateStringCh: make(chan *simnetSafeState),
-		dns:               make(map[string]*simnode),
-		hosts:             make(map[string]*simHost), // key is serverBaseID
-		node2host:         make(map[*simnode]*simHost),
+		dns:               make(map[string]*simport),
+		hosts:             make(map[string]*simhost), // key is serverBaseID
+		node2host:         make(map[*simport]*simhost),
 
 		// graph of nodes, edges are nodes[from][to]
-		nodes: make(map[*simnode]map[*simnode]*simnetConn),
+		nodes: make(map[*simport]map[*simport]*simconn),
 
 		// high duration b/c no need to fire spuriously
 		// and force the Go runtime to do extra work when
@@ -813,7 +796,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 	return s
 }
 
-func (s *simnode) setNetAddrSameNetAs(addr string, srvNetAddr *SimNetAddr) {
+func (s *simport) setNetAddrSameNetAs(addr string, srvNetAddr *SimNetAddr) {
 	s.netAddr = &SimNetAddr{
 		network: srvNetAddr.network,
 		addr:    addr,
@@ -822,14 +805,14 @@ func (s *simnode) setNetAddrSameNetAs(addr string, srvNetAddr *SimNetAddr) {
 	}
 }
 
-func (s *simnet) addEdgeFromSrv(srvnode, clinode *simnode) *simnetConn {
+func (s *simnet) addEdgeFromSrv(srvnode, clinode *simport) *simconn {
 
 	srv, ok := s.nodes[srvnode] // edges from srv to clients
 	if !ok {
-		srv = make(map[*simnode]*simnetConn)
+		srv = make(map[*simport]*simconn)
 		s.nodes[srvnode] = srv
 	}
-	s2c := newSimnetConn()
+	s2c := newSimconn()
 	s2c.isCli = false
 	s2c.net = s
 	s2c.local = srvnode
@@ -841,14 +824,14 @@ func (s *simnet) addEdgeFromSrv(srvnode, clinode *simnode) *simnetConn {
 	return s2c
 }
 
-func (s *simnet) addEdgeFromCli(clinode, srvnode *simnode) *simnetConn {
+func (s *simnet) addEdgeFromCli(clinode, srvnode *simport) *simconn {
 
 	cli, ok := s.nodes[clinode] // edge from client to one server
 	if !ok {
-		cli = make(map[*simnode]*simnetConn)
+		cli = make(map[*simport]*simconn)
 		s.nodes[clinode] = cli
 	}
-	c2s := newSimnetConn()
+	c2s := newSimconn()
 	c2s.isCli = true
 	c2s.net = s
 	c2s.local = clinode
@@ -873,7 +856,6 @@ const (
 	TIMER_DISCARD mopkind = 2
 	SEND          mopkind = 3
 	READ          mopkind = 4
-	DEAFDROP      mopkind = 5 // set a fault on a node
 )
 
 // scenario will, in the future, provide for testing different
@@ -1137,7 +1119,7 @@ func newPQcompleteTm(owner string) *pq {
 	}
 }
 
-func (s *simnet) shutdownNode(node *simnode) {
+func (s *simnet) shutdownNode(node *simport) {
 	//vv("handleAlterNode: SHUTDOWN %v, going to powerOff true, in state %v", node.name, node.state)
 	node.powerOff = true
 	node.readQ.deleteAll()
@@ -1146,7 +1128,7 @@ func (s *simnet) shutdownNode(node *simnode) {
 	//vv("handleAlterNode: end SHUTDOWN, node is now: %v", node)
 }
 
-func (s *simnet) restartNode(node *simnode) {
+func (s *simnet) restartNode(node *simport) {
 	//vv("handleAlterNode: RESTART %v, wiping queues, going %v -> HEALTHY", node.state, node.name)
 	node.powerOff = false
 	node.readQ.deleteAll()
@@ -1154,7 +1136,7 @@ func (s *simnet) restartNode(node *simnode) {
 	node.timerQ.deleteAll()
 }
 
-func (s *simnet) isolateNode(node *simnode) {
+func (s *simnet) isolateNode(node *simport) {
 	//vv("handleAlterNode: from %v -> ISOLATED %v, wiping pre-arrival, block any future pre-arrivals", node.state, node.name)
 	switch node.state {
 	case ISOLATED, FAULTY_ISOLATED:
@@ -1167,7 +1149,7 @@ func (s *simnet) isolateNode(node *simnode) {
 
 	node.preArrQ.deleteAll()
 }
-func (s *simnet) unIsolateNode(node *simnode) {
+func (s *simnet) unIsolateNode(node *simport) {
 	//vv("handleAlterNode: UNISOLATE %v, going from %v -> HEALTHY", node.state, node.name)
 	switch node.state {
 	case ISOLATED:
@@ -1182,7 +1164,7 @@ func (s *simnet) unIsolateNode(node *simnode) {
 }
 
 func (s *simnet) handleAlterNode(alt *nodeAlteration, closeDone bool) {
-	node := alt.simnode
+	node := alt.simport
 	switch alt.alter {
 	case SHUTDOWN:
 		s.shutdownNode(node)
@@ -1200,12 +1182,12 @@ func (s *simnet) handleAlterNode(alt *nodeAlteration, closeDone bool) {
 
 func (s *simnet) handleAlterHost(alt *nodeAlteration) {
 
-	host, ok := s.node2host[alt.simnode]
+	host, ok := s.node2host[alt.simport]
 	if !ok {
-		panic(fmt.Sprintf("not registered in s.node2host: alt.simnode = '%v'", alt.simnode))
+		panic(fmt.Sprintf("not registered in s.node2host: alt.simport = '%v'", alt.simport))
 	}
-	for end := range host.end2host {
-		alt.simnode = end
+	for end := range host.port2host {
+		alt.simport = end
 		s.handleAlterNode(alt, false)
 	}
 	switch alt.alter {
@@ -1363,7 +1345,7 @@ func (s *simnet) handleRead(read *mop) {
 
 }
 
-func (node *simnode) firstPreArrivalTimeLTE(now time.Time) bool {
+func (node *simport) firstPreArrivalTimeLTE(now time.Time) bool {
 
 	preIt := node.preArrQ.tree.Min()
 	if preIt == node.preArrQ.tree.Limit() {
@@ -1373,7 +1355,7 @@ func (node *simnode) firstPreArrivalTimeLTE(now time.Time) bool {
 	return !send.arrivalTm.After(now)
 }
 
-func (node *simnode) optionallyApplyChaos() {
+func (node *simport) optionallyApplyChaos() {
 
 	// based on node.net.scenario
 	//
@@ -1396,7 +1378,7 @@ func gte(a, b time.Time) bool {
 
 // does not call armTimer(), so scheduler should
 // afterwards.
-func (node *simnode) dispatchTimers(now time.Time) (changes int64) {
+func (node *simport) dispatchTimers(now time.Time) (changes int64) {
 	if node.powerOff {
 		return 0
 	}
@@ -1443,7 +1425,7 @@ func (node *simnode) dispatchTimers(now time.Time) (changes int64) {
 	return
 }
 
-func (node *simnode) backgroundFireTimer(timer *mop, now time.Time) {
+func (node *simport) backgroundFireTimer(timer *mop, now time.Time) {
 	select {
 	case timer.timerC <- now:
 	case <-node.net.halt.ReqStop.Chan:
@@ -1452,7 +1434,7 @@ func (node *simnode) backgroundFireTimer(timer *mop, now time.Time) {
 }
 
 // does not call armTimer.
-func (node *simnode) dispatchReadsSends(now time.Time) (changes int64) {
+func (node *simport) dispatchReadsSends(now time.Time) (changes int64) {
 
 	if node.powerOff {
 		return
@@ -1659,7 +1641,7 @@ func (node *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 
 // dispatch delivers sends to reads, and fires timers.
 // It calls node.net.armTimer() at the end (in the defer).
-func (node *simnode) dispatch(now time.Time) (changes int64) {
+func (node *simport) dispatch(now time.Time) (changes int64) {
 
 	changes += node.dispatchTimers(now)
 	changes += node.dispatchReadsSends(now)
@@ -1922,12 +1904,20 @@ restartI:
 		case alt := <-s.alterHostCh:
 			s.handleAlterHost(alt)
 
-		case dd := <-s.deafDropCh:
-			//vv("i=%v deafDropCh ->  dd='%v'", i, dd)
-			if dd.wholeHost {
-				s.handleDeafDropWholeHost(dd)
+		case fault := <-s.makeBuggyCh:
+			//vv("i=%v makeBuggyCh ->  dd='%v'", i, fault)
+			if fault.wholeHost {
+				s.induceFaultWholeHost(fault)
 			} else {
-				s.handleDeafDrop(dd, true)
+				s.induceFault(fault, true)
+			}
+
+		case repair := <-s.makeRepairCh:
+			//vv("i=%v makeBuggyCh ->  dd='%v'", i, dd)
+			if repair.wholeHost {
+				s.handleRepairWholeHost(repair)
+			} else {
+				s.handleRepair(repair, true)
 			}
 
 		case safe := <-s.safeStateStringCh:
@@ -1945,29 +1935,29 @@ restartI:
 	}
 }
 
-// simHost collects all the endpoints on
+// simhost collects all the simports on
 // a given host, to make e.g. isolation easier.
 // enables applying an action like powerOff
-// to a whole group of endpoints en mass.
+// to all ports on the simulated host.
 // the name should correspond to servers,
 // not isCli auto-clients.
-type simHost struct {
+type simhost struct {
 	name         string
 	serverBaseID string
 	state        nodestate
 	powerOff     bool
-	end2host     map[*simnode]*simHost
-	host2end     map[*simHost]*simnode
-	host2conn    map[*simHost]*simnetConn
+	port2host    map[*simport]*simhost
+	host2port    map[*simhost]*simport
+	host2conn    map[*simhost]*simconn
 }
 
-func newSimHost(name, serverBaseID string) *simHost {
-	return &simHost{
+func newSimhost(name, serverBaseID string) *simhost {
+	return &simhost{
 		name:         name,
 		serverBaseID: serverBaseID,
-		end2host:     make(map[*simnode]*simHost),
-		host2end:     make(map[*simHost]*simnode),
-		host2conn:    make(map[*simHost]*simnetConn),
+		port2host:    make(map[*simport]*simhost),
+		host2port:    make(map[*simhost]*simport),
+		host2conn:    make(map[*simhost]*simconn),
 	}
 }
 
@@ -1980,13 +1970,13 @@ func (s *simnet) allConnString() (r string) {
 				h.name, conn.remote.name)
 		}
 		if false {
-			r += fmt.Sprintf("host:%v has host2end:\n", host.name)
-			for h, end := range host.host2end {
-				r += fmt.Sprintf("    host2end[%v] = %v\n", h.name, end.name)
+			r += fmt.Sprintf("host:%v has host2port:\n", host.name)
+			for h, end := range host.host2port {
+				r += fmt.Sprintf("    host2port[%v] = %v\n", h.name, end.name)
 			}
-			r += fmt.Sprintf("host:%v has end2host:\n", host.name)
-			for end, h := range host.end2host {
-				r += fmt.Sprintf("    end2host[%v] = %v\n", end.name, h.name)
+			r += fmt.Sprintf("host:%v has port2host:\n", host.name)
+			for end, h := range host.port2host {
+				r += fmt.Sprintf("    port2host[%v] = %v\n", end.name, h.name)
 			}
 		}
 	}
@@ -2098,7 +2088,7 @@ func (s *simnet) handleTimer(timer *mop) {
 // a lookup of the min node in
 // the each priority queue, which our
 // red-black tree has cached anyway.
-// For K simnodes * 3 PQ per node => O(K).
+// For K simports * 3 PQ per node => O(K).
 //
 // armTimer is not called; keep it as a separate step.
 func (s *simnet) refreshGridStepTimer(now time.Time) (dur time.Duration, goal time.Time) {
@@ -2143,7 +2133,7 @@ func (s *simnet) armTimer(now time.Time) time.Duration {
 	return dur
 }
 
-func (node *simnode) soonestTimerLessThan(bound *mop) *mop {
+func (node *simport) soonestTimerLessThan(bound *mop) *mop {
 
 	//if bound != nil {
 	//vv("soonestTimerLessThan(bound.completeTm = '%v'", bound.completeTm)
@@ -2224,7 +2214,7 @@ func CallbackOnNewTimer(
 
 // called by goroutines outside of the scheduler,
 // so must not touch s.srvnode, s.clinode, etc.
-func (s *simnet) createNewTimer(origin *simnode, dur time.Duration, begin time.Time, isCli bool) (timer *mop) {
+func (s *simnet) createNewTimer(origin *simport, dur time.Duration, begin time.Time, isCli bool) (timer *mop) {
 
 	//vv("top simnet.createNewTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", origin.name, dur, begin, begin.Add(dur))
 
@@ -2255,7 +2245,7 @@ func (s *simnet) createNewTimer(origin *simnode, dur time.Duration, begin time.T
 // readMessage reads a framed message from conn.
 func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 
-	sc := conn.(*simnetConn)
+	sc := conn.(*simconn)
 	isCli := sc.isCli
 
 	//vv("top simnet.readMessage() %v READ", read.origin)
@@ -2286,7 +2276,7 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 
 func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
 
-	sc := conn.(*simnetConn)
+	sc := conn.(*simconn)
 	isCli := sc.isCli
 
 	//vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", send.origin, msg.HDR.Serial)
@@ -2357,7 +2347,7 @@ func newSendMop(msg *Message, isCli bool) (op *mop) {
 	return
 }
 
-func (s *simnet) discardTimer(origin *simnode, origTimerMop *mop, discardTm time.Time) (wasArmed bool) {
+func (s *simnet) discardTimer(origin *simport, origTimerMop *mop, discardTm time.Time) (wasArmed bool) {
 
 	//vv("top simnet.discardTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", who, dur, begin, begin.Add(dur))
 
@@ -2397,8 +2387,8 @@ type clientRegistration struct {
 	done chan struct{}
 
 	// receive back
-	simnode *simnode    // our identity in the simnet (conn.local)
-	conn    *simnetConn // our connection to server (c2s)
+	simport *simport // our identity in the simnet (conn.local)
+	conn    *simconn // our connection to server (c2s)
 }
 
 // external, called by simnet_client.go to
@@ -2428,9 +2418,9 @@ type serverRegistration struct {
 	done chan struct{}
 
 	// receive back
-	simnode             *simnode // our identity in the simnet (conn.local)
+	simport             *simport // our identity in the simnet (conn.local)
 	simnet              *simnet
-	tellServerNewConnCh chan *simnetConn
+	tellServerNewConnCh chan *simconn
 }
 
 // external
@@ -2443,7 +2433,7 @@ func (s *simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) *ser
 	}
 }
 
-func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConnCh chan *simnetConn, err error) {
+func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConnCh chan *simconn, err error) {
 
 	reg := s.newServerRegistration(srv, srvNetAddr)
 	select {
@@ -2459,7 +2449,7 @@ func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConn
 		if reg.tellServerNewConnCh == nil {
 			panic("cannot have nil reg.tellServerNewConnCh back!")
 		}
-		srv.simnode = reg.simnode
+		srv.simport = reg.simport
 		srv.simnet = reg.simnet
 		newCliConnCh = reg.tellServerNewConnCh
 		return
@@ -2473,7 +2463,7 @@ func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConn
 // Alteration flags are used in AlterNode() calls
 // to specify what change you want to
 // a specific network node.
-type Alteration int // on clients or servers, any simnode
+type Alteration int // on clients or servers, any simport
 
 const (
 	SHUTDOWN  Alteration = 1
@@ -2484,23 +2474,23 @@ const (
 
 type nodeAlteration struct {
 	simnet      *simnet
-	simnode     *simnode
+	simport     *simport
 	alter       Alteration
 	isHostAlter bool
 	done        chan struct{}
 }
 
-func (s *simnet) newNodeAlteration(node *simnode, alter Alteration, isHostAlter bool) *nodeAlteration {
+func (s *simnet) newNodeAlteration(node *simport, alter Alteration, isHostAlter bool) *nodeAlteration {
 	return &nodeAlteration{
 		simnet:      s,
-		simnode:     node,
+		simport:     node,
 		alter:       alter,
 		isHostAlter: isHostAlter,
 		done:        make(chan struct{}),
 	}
 }
 
-func (s *simnet) alterNode(node *simnode, alter Alteration, wholeHost bool) {
+func (s *simnet) alterNode(node *simport, alter Alteration, wholeHost bool) {
 	if wholeHost {
 		s.alterHost(node, alter)
 		return
@@ -2522,7 +2512,7 @@ func (s *simnet) alterNode(node *simnode, alter Alteration, wholeHost bool) {
 	return
 }
 
-func (s *simnet) alterHost(node *simnode, alter Alteration) {
+func (s *simnet) alterHost(node *simport, alter Alteration) {
 
 	alt := s.newNodeAlteration(node, alter, true)
 	select {
@@ -2540,11 +2530,44 @@ func (s *simnet) alterHost(node *simnode, alter Alteration) {
 	return
 }
 
+type fault struct {
+	originName string
+	targetName string // empty string means all targets/ remote conn.
+	wholeHost  bool
+
+	updateDeafReads  bool
+	deafReadsNewProb float64
+	updateDropSends  bool
+	dropSendsNewProb float64
+	err              error // e.g. cannot find name.
+
+	sn      int64
+	proceed chan struct{}
+}
+
+type repair struct {
+	sn int64
+
+	originName string
+	targetName string // empty string means all targets/ remote conn.
+	err        error  // e.g. cannot find name.
+
+	allHealthy    bool // all nodes, heal drop/deaf faults. isolation unchanged.
+	powerOnAnyOff bool // for allHealthy, also power on any powerOff nodes?
+
+	justOriginHealed    bool // heal drop/deaf faults on just the originName node.
+	justOriginUnisolate bool // if true and node is isolated, it goes to healthy.
+	justOriginPowerOn   bool // also power on origin?
+	wholeHost           bool
+
+	proceed chan struct{}
+}
+
 // false updateDeaf or false updateDrop means no
 // change in that state.
-func newDeafDrop(originName, targetName string, updateDeaf, updateDrop bool, deafProb, dropProb float64, wholeHost bool) *mop {
-	m := &mop{
-		kind:             DEAFDROP,
+func newFault(originName, targetName string, updateDeaf, updateDrop bool, deafProb, dropProb float64, wholeHost bool) *fault {
+	m := &fault{
+
 		wholeHost:        wholeHost,
 		originName:       originName,
 		targetName:       targetName,
@@ -2553,9 +2576,6 @@ func newDeafDrop(originName, targetName string, updateDeaf, updateDrop bool, dea
 		updateDropSends:  updateDrop,
 		dropSendsNewProb: dropProb,
 
-		// coming from tube, so...
-		// unknown originCli: isCli,
-
 		sn:      simnetNextMopSn(),
 		proceed: make(chan struct{}),
 	}
@@ -2563,9 +2583,8 @@ func newDeafDrop(originName, targetName string, updateDeaf, updateDrop bool, dea
 	return m
 }
 
-func (s *simnet) newAllHealthy(powerOnAnyOff bool) *mop {
-	m := &mop{
-		kind:          DEAFDROP,
+func (s *simnet) newAllHealthy(powerOnAnyOff bool) *repair {
+	m := &repair{
 		allHealthy:    true, // delete all faults
 		powerOnAnyOff: powerOnAnyOff,
 		sn:            simnetNextMopSn(),
@@ -2574,9 +2593,8 @@ func (s *simnet) newAllHealthy(powerOnAnyOff bool) *mop {
 	return m
 }
 
-func (s *simnet) newOriginHealed(originName string, unIsolate, powerOnIfOff bool) *mop {
-	m := &mop{
-		kind:                DEAFDROP,
+func (s *simnet) newOriginRepair(originName string, unIsolate, powerOnIfOff bool) *repair {
+	m := &repair{
 		justOriginHealed:    true,
 		justOriginUnisolate: unIsolate,
 		justOriginPowerOn:   powerOnIfOff,
@@ -2591,11 +2609,11 @@ func (s *simnet) newOriginHealed(originName string, unIsolate, powerOnIfOff bool
 func (s *simnet) DeafToReads(origin, target string, deafProb float64, wholeHost bool) (err error) {
 
 	updateDeaf, updateDrop, dropProb := true, false, 0.0
-	dd := newDeafDrop(origin, target, updateDeaf, updateDrop, deafProb, dropProb, wholeHost)
+	dd := newFault(origin, target, updateDeaf, updateDrop, deafProb, dropProb, wholeHost)
 
 	select {
-	case s.deafDropCh <- dd:
-		//vv("sent DeafToReads dd on deafDropCh; about to wait on proceed")
+	case s.makeBuggyCh <- dd:
+		//vv("sent DeafToReads dd on makeBuggyCh; about to wait on proceed")
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
@@ -2617,11 +2635,11 @@ func (s *simnet) DeafToReads(origin, target string, deafProb float64, wholeHost 
 func (s *simnet) DropSends(origin, target string, dropProb float64, wholeHost bool) (err error) {
 
 	updateDeaf, updateDrop, deafProb := false, true, 0.0
-	dd := newDeafDrop(origin, target, updateDeaf, updateDrop, deafProb, dropProb, wholeHost)
+	dd := newFault(origin, target, updateDeaf, updateDrop, deafProb, dropProb, wholeHost)
 
 	select {
-	case s.deafDropCh <- dd:
-		//vv("sent DropSends dd on deafDropCh; about to wait on proceed")
+	case s.makeBuggyCh <- dd:
+		//vv("sent DropSends dd on makeBuggyCh; about to wait on proceed")
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
@@ -2641,14 +2659,14 @@ func (s *simnet) DropSends(origin, target string, dropProb float64, wholeHost bo
 // AllHealthy heal all partitions, undo all faults, network wide.
 // All nodes are returned to HEALTHY status. Their powerOff status
 // is not updated unless powerOnAnyOff is also true.
-// See also HealNode for single node repair.
+// See also RepairNode for single node repair.
 func (s *simnet) AllHealthy(powerOnAnyOff bool) (err error) {
 
 	allGood := s.newAllHealthy(powerOnAnyOff)
 
 	select {
-	case s.deafDropCh <- allGood:
-		vv("sent AllHealthy allGood on deafDropCh; about to wait on proceed")
+	case s.makeRepairCh <- allGood:
+		vv("sent AllHealthy allGood on makeBuggyCh; about to wait on proceed")
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
@@ -2662,18 +2680,18 @@ func (s *simnet) AllHealthy(powerOnAnyOff bool) (err error) {
 	return
 }
 
-// HealNode restores the local network card to
+// RepairNode restores the local network card to
 // full working order. It undoes the effects of
 // prior deafDrop actions, if any. It does not
 // change an isolated node's isolation unless unIsolate
 // is also true. See also AllHealthy.
-func (s *simnet) HealNode(originName string, unIsolate bool, powerOnIfOff bool) (err error) {
+func (s *simnet) RepairNode(originName string, unIsolate bool, powerOnIfOff bool) (err error) {
 
-	oneGood := s.newOriginHealed(originName, unIsolate, powerOnIfOff)
+	oneGood := s.newOriginRepair(originName, unIsolate, powerOnIfOff)
 
 	select {
-	case s.deafDropCh <- oneGood:
-		vv("HealNode sent oneGood on deafDropCh; about to wait on proceed")
+	case s.makeRepairCh <- oneGood:
+		vv("RepairNode sent oneGood on makeBuggyCh; about to wait on proceed")
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
@@ -2704,7 +2722,7 @@ func (s *simnet) SafeStateString() (r string) {
 	}
 	select {
 	case s.safeStateStringCh <- reqState:
-		vv("sent AllHealthy reqState on deafDropCh; about to wait on proceed")
+		vv("sent AllHealthy reqState on safeStateStringCh; about to wait on proceed")
 	case <-s.halt.ReqStop.Chan:
 		return
 	}

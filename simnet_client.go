@@ -50,7 +50,7 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string, doLoops bool)
 
 	//conn := c.cfg.simnetRendezvous.c2s
 	conn := registration.conn
-	c.simnode = registration.simnode // conn.local
+	c.simport = registration.simport // conn.local
 	c.simconn = conn
 	c.conn = conn
 

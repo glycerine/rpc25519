@@ -31,10 +31,10 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	}
 
 	defer func() {
-		if simnet != nil && s.simnode != nil {
+		if simnet != nil && s.simport != nil {
 			const wholeHost = true
-			simnet.alterNode(s.simnode, SHUTDOWN, wholeHost)
-			//vv("simnet.alterNode(s.simnode, SHUTDOWN) done for %v", s.name)
+			simnet.alterNode(s.simport, SHUTDOWN, wholeHost)
+			//vv("simnet.alterNode(s.simport, SHUTDOWN) done for %v", s.name)
 		}
 	}()
 
@@ -57,7 +57,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	for {
 		select { // wait for a new client to connect
 		case conn := <-serverNewConnCh:
-			//s.simnode = conn.local
+			//s.simport = conn.local
 
 			//vv("%v simnet server got new conn '%#v', about to start read/send loops", netAddr, conn) // not seen
 			pair := s.newRWPair(conn)
@@ -78,7 +78,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 // This is used by runSimNetServer() above
 // and by Listen() below. Listen is a super thin
 // wrapper around it.
-func (s *Server) bootAndRegisterSimNetServer(serverAddr string, simNetConfig *SimNetConfig) (simnet *simnet, serverNewConnCh chan *simnetConn, netAddr *SimNetAddr, err error) {
+func (s *Server) bootAndRegisterSimNetServer(serverAddr string, simNetConfig *SimNetConfig) (simnet *simnet, serverNewConnCh chan *simconn, netAddr *SimNetAddr, err error) {
 	//vv("top of runSimnetServer, serverAddr = '%v'; name='%v'", serverAddr, s.name)
 
 	// satisfy uConn interface; don't crash cli/tests that check
@@ -95,7 +95,7 @@ func (s *Server) bootAndRegisterSimNetServer(serverAddr string, simNetConfig *Si
 	// per config shared simnet.
 	simnet = s.cfg.bootSimNetOnServer(simNetConfig, s)
 
-	// sets s.simnode, s.simnet, s.netAddr
+	// sets s.simport, s.simnet, s.netAddr
 	serverNewConnCh, err = simnet.registerServer(s, netAddr)
 	if err != nil {
 		if err == ErrShutdown2 {
@@ -121,7 +121,7 @@ func (s *Server) bootAndRegisterSimNetServer(serverAddr string, simNetConfig *Si
 // implements uConn, see simnet_server.go
 // the readMessage/sendMessage are well tested;
 // the other net.Conn generic Read/Write less so, at the moment.
-type simnetConn struct {
+type simconn struct {
 	mut sync.Mutex
 
 	// distinguish cli from srv
@@ -129,8 +129,8 @@ type simnetConn struct {
 	net     *simnet
 	netAddr *SimNetAddr // local address
 
-	local  *simnode
-	remote *simnode
+	local  *simport
+	remote *simport
 
 	readDeadlineTimer *mop
 	sendDeadlineTimer *mop
@@ -155,15 +155,15 @@ type simnetConn struct {
 	dropSend float64
 }
 
-func newSimnetConn() *simnetConn {
-	return &simnetConn{
+func newSimconn() *simconn {
+	return &simconn{
 		localClosed:  idem.NewIdemCloseChan(),
 		remoteClosed: idem.NewIdemCloseChan(),
 	}
 }
 
 // Write implements io.Writer.
-func (s *simnetConn) Write(p []byte) (n int, err error) {
+func (s *simconn) Write(p []byte) (n int, err error) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
@@ -197,7 +197,7 @@ func (s *simnetConn) Write(p []byte) (n int, err error) {
 }
 
 // helper for Write. s.mut must be held locked during.
-func (s *simnetConn) msgWrite(msg *Message, sendDead chan time.Time, n0 int) (n int, err error) {
+func (s *simconn) msgWrite(msg *Message, sendDead chan time.Time, n0 int) (n int, err error) {
 
 	n = n0
 	isCli := s.isCli
@@ -236,7 +236,7 @@ func (s *simnetConn) msgWrite(msg *Message, sendDead chan time.Time, n0 int) (n 
 		//	return
 	}
 
-	//vv("net has it (isEOF:%v), about to wait for proceed... simnetConn.Write('%v') isCli=%v, origin=%v ; target=%v;", isEOF, string(send.msg.JobSerz), s.isCli, send.origin.name, send.target.name)  // RACEY! comment out before go test -race
+	//vv("net has it (isEOF:%v), about to wait for proceed... simconn.Write('%v') isCli=%v, origin=%v ; target=%v;", isEOF, string(send.msg.JobSerz), s.isCli, send.origin.name, send.target.name)  // RACEY! comment out before go test -race
 
 	if isEOF {
 		return 0, nil // don't expect a reply from EOF/RST
@@ -267,7 +267,7 @@ func (s *simnetConn) msgWrite(msg *Message, sendDead chan time.Time, n0 int) (n 
 }
 
 // Read implements io.Reader.
-func (s *simnetConn) Read(data []byte) (n int, err error) {
+func (s *simconn) Read(data []byte) (n int, err error) {
 
 	if len(data) == 0 {
 		return
@@ -304,7 +304,7 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 	read.readFileLine = fileLine(2)
 	read.target = s.remote
 
-	//vv("in simnetConn.Read() isCli=%v, origin=%v at %v; target=%v", s.isCli, read.origin.name, read.readFileLine, read.target.name)
+	//vv("in simconn.Read() isCli=%v, origin=%v at %v; target=%v", s.isCli, read.origin.name, read.readFileLine, read.target.name)
 
 	select {
 	case s.net.msgReadCh <- read:
@@ -363,7 +363,7 @@ func (s *simnetConn) Read(data []byte) (n int, err error) {
 	return
 }
 
-func (s *simnetConn) Close() error {
+func (s *simconn) Close() error {
 	// only close local, might still be bytes to read on other end.
 
 	// send the EOF message
@@ -376,19 +376,19 @@ func (s *simnetConn) Close() error {
 	return nil
 }
 
-func (s *simnetConn) LocalAddr() net.Addr {
+func (s *simconn) LocalAddr() net.Addr {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 	return s.local.netAddr
 }
 
-func (s *simnetConn) RemoteAddr() net.Addr {
+func (s *simconn) RemoteAddr() net.Addr {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 	return s.remote.netAddr
 }
 
-func (s *simnetConn) SetDeadline(t time.Time) error {
+func (s *simconn) SetDeadline(t time.Time) error {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
@@ -410,7 +410,7 @@ func (s *simnetConn) SetDeadline(t time.Time) error {
 	return nil
 }
 
-func (s *simnetConn) SetWriteDeadline(t time.Time) error {
+func (s *simconn) SetWriteDeadline(t time.Time) error {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
@@ -426,7 +426,7 @@ func (s *simnetConn) SetWriteDeadline(t time.Time) error {
 	s.sendDeadlineTimer = s.net.createNewTimer(s.local, dur, now, s.isCli)
 	return nil
 }
-func (s *simnetConn) SetReadDeadline(t time.Time) error {
+func (s *simconn) SetReadDeadline(t time.Time) error {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
@@ -500,12 +500,12 @@ func (s *Server) Listen(network, addr string) (lsn net.Listener, err error) {
 // to change this in the future if need be.
 func (s *Server) Accept() (nc net.Conn, err error) {
 	select {
-	case nc = <-s.simnode.tellServerNewConnCh:
+	case nc = <-s.simport.tellServerNewConnCh:
 		if isNil(nc) {
 			err = ErrShutdown()
 			return
 		}
-		//vv("Server.Accept returning nc = '%#v'", nc.(*simnetConn))
+		//vv("Server.Accept returning nc = '%#v'", nc.(*simconn))
 	case <-s.halt.ReqStop.Chan:
 		err = ErrShutdown()
 	}

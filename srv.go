@@ -1143,7 +1143,7 @@ type Server struct {
 
 	//StartSimNet   chan *SimNetConfig
 	simnet     *simnet
-	simnode    *simnode
+	simport    *simport
 	simNetAddr *SimNetAddr
 	srvStarted atomic.Bool
 
@@ -2294,9 +2294,9 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 func (s *Server) Close() error {
 	//vv("Server.Close() '%v' called.", s.name)
 
-	if s.simnet != nil && s.simnode != nil {
+	if s.simnet != nil && s.simport != nil {
 		const wholeHost = true
-		s.simnet.alterNode(s.simnode, SHUTDOWN, wholeHost)
+		s.simnet.alterNode(s.simport, SHUTDOWN, wholeHost)
 	}
 
 	// ask any sub components (peer pump loops) to stop;

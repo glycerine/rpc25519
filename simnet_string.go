@@ -33,9 +33,9 @@ func (s *simnet) stringDNS() (r string) {
 	return
 }
 
-func (node *simnode) String() (r string) {
+func (node *simport) String() (r string) {
 	if node == nil {
-		return "(nil *simnode)"
+		return "(nil *simport)"
 	}
 	r += fmt.Sprintf("%v (powerOff: %v) in %v state, Q summary:\n", node.name, node.powerOff, node.state)
 	r += node.readQ.String()
@@ -46,9 +46,9 @@ func (node *simnode) String() (r string) {
 	return
 }
 
-func (node *simnode) StringNoPQ() (r string) {
+func (node *simport) StringNoPQ() (r string) {
 	if node == nil {
-		return "(nil *simnode)"
+		return "(nil *simport)"
 	}
 	r += fmt.Sprintf("%v in %v state, Q summary:\n", node.name, node.state)
 	return
@@ -116,8 +116,6 @@ func (k mopkind) String() string {
 		return "SEND"
 	case READ:
 		return "READ"
-	case DEAFDROP:
-		return "DEAFDROP"
 	default:
 		return fmt.Sprintf("unknown mopkind %v", int(k))
 	}
@@ -173,9 +171,16 @@ func (op *mop) String() string {
 		}
 		extra = fmt.Sprintf(" AT %v FROM %v (eof:%v)%v", op.origin.name, op.target.name, op.isEOF_RST, deaf)
 
-	case DEAFDROP:
-		return fmt.Sprintf(`
-mop{%v %v op.sn:%v
+	}
+	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, msg.sn:%v%v}", who, op.kind, ini, arr, complete, op.sn, msgSerial, extra)
+}
+
+func (op *fault) String() string {
+	if op == nil {
+		return "(nil *fault)"
+	}
+	return fmt.Sprintf(`
+        fault{ op.sn:%v
           originName: %v,
           targetName: %v,
      updateDeafReads: %v,
@@ -183,17 +188,15 @@ mop{%v %v op.sn:%v
      updateDropSends: %v,
     dropSendsNewProb: %v,
                  err: %v,
-}`, who, op.kind, op.sn,
-			op.originName,
-			op.targetName,
-			op.updateDeafReads,
-			op.deafReadsNewProb,
-			op.updateDropSends,
-			op.dropSendsNewProb,
-			op.err,
-		)
-	}
-	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, msg.sn:%v%v}", who, op.kind, ini, arr, complete, op.sn, msgSerial, extra)
+}`, op.sn,
+		op.originName,
+		op.targetName,
+		op.updateDeafReads,
+		op.deafReadsNewProb,
+		op.updateDropSends,
+		op.dropSendsNewProb,
+		op.err,
+	)
 }
 
 // traditionally, a string form of address
@@ -250,7 +253,7 @@ func (s *serverRegistration) String() (r string) {
 		r += fmt.Sprintf("              server: %v,\n", s.server)
 	}
 	r += fmt.Sprintf("         srvNetAddr: %v,\n", s.srvNetAddr)
-	r += fmt.Sprintf("            simnode: %v,\n", s.simnode.StringNoPQ())
+	r += fmt.Sprintf("            simport: %v,\n", s.simport.StringNoPQ())
 	r += fmt.Sprintf("             simnet: %v,\n", s.simnet)
 	r += "}\n"
 	return
@@ -269,7 +272,7 @@ func (s *clientRegistration) String() (r string) {
 	r += fmt.Sprintf("localHostPortStr: \"%v\",\n", s.localHostPortStr)
 	r += fmt.Sprintf("          dialTo: \"%v\",\n", s.dialTo)
 	r += fmt.Sprintf("   serverAddrStr: \"%v\",\n", s.serverAddrStr)
-	r += fmt.Sprintf("         simnode: %v,\n", s.simnode.StringNoPQ())
+	r += fmt.Sprintf("         simport: %v,\n", s.simport.StringNoPQ())
 	r += fmt.Sprintf("            conn: %v,\n", s.conn)
 	r += "}\n"
 	return
@@ -281,7 +284,7 @@ func (s *nodeAlteration) String() (r string) {
 	}
 	r = "&nodeAlteration{\n"
 	r += fmt.Sprintf(" simnet: %v,\n", s.simnet)
-	r += fmt.Sprintf("simnode: %v,\n", s.simnode)
+	r += fmt.Sprintf("simport: %v,\n", s.simport)
 	r += fmt.Sprintf("  alter: %v,\n", s.alter)
 	r += "}\n"
 	return
@@ -316,7 +319,7 @@ func (s *scenario) String() (r string) {
 	return
 }
 
-func (s *simnetConn) String() (r string) {
+func (s *simconn) String() (r string) {
 
 	s.mut.Lock()
 	defer s.mut.Unlock()
@@ -331,7 +334,7 @@ func (s *simnetConn) String() (r string) {
 	}
 
 	r = fmt.Sprintf(`
-     simnetConn{
+     simconn{
                 isCli: %v,
                   net: %v,
               netAddr: %v,
