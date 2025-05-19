@@ -362,7 +362,8 @@ type simnet struct {
 	srv *Server
 	cli *Client
 
-	hosts map[string]*simHost // key is serverBaseID
+	hosts     map[string]*simHost // key is serverBaseID
+	node2host map[*simnode]*simHost
 
 	dns map[string]*simnode
 
@@ -603,6 +604,7 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 		host = newSimHost(reg.server.name, reg.serverBaseID)
 		s.hosts[reg.serverBaseID] = host
 	}
+	s.node2host[srvnode] = host
 
 	reg.simnode = srvnode
 	reg.simnet = s
@@ -643,14 +645,18 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 	srvhost, ok := s.hosts[srvnode.serverBaseID]
 	if !ok {
 		panic(fmt.Sprintf("why no host for server? serverBaseID = '%v'; s.hosts='%#v'", srvnode.serverBaseID, s.hosts))
-		//host = newSimHost(srvnode.name, srvnode.serverBaseID)
-		//s.hosts[srvnode.serverBaseID] = host
+		// happened on server registration:
+		//srvhost = newSimHost(srvnode.name, srvnode.serverBaseID)
+		//s.hosts[srvnode.serverBaseID] = srvhost
+		//s.node2host[srvnode] = srvhost
 	}
+
 	clihost, ok := s.hosts[clinode.serverBaseID] // host for the remote
 	if !ok {
 		clihost = newSimHost(clinode.name, clinode.serverBaseID)
 		s.hosts[clinode.serverBaseID] = clihost
 	}
+	s.node2host[clinode] = clihost
 
 	srvhost.host2end[clihost] = clinode
 	srvhost.end2host[clinode] = clihost
@@ -721,6 +727,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		safeStateStringCh: make(chan *simnetSafeState),
 		dns:               make(map[string]*simnode),
 		hosts:             make(map[string]*simHost), // key is serverBaseID
+		node2host:         make(map[*simnode]*simHost),
 
 		// graph of nodes, edges are nodes[from][to]
 		nodes: make(map[*simnode]map[*simnode]*simnetConn),
@@ -1089,7 +1096,7 @@ func (s *simnet) isolateNode(node *simnode) {
 	//vv("handleAlterNode: from %v -> ISOLATED %v, wiping pre-arrival, block any future pre-arrivals", node.state, node.name)
 	switch node.state {
 	case ISOLATED, FAULTY_ISOLATED:
-		return
+		// already there
 	case FAULTY:
 		node.state = FAULTY_ISOLATED
 	case HEALTHY:
@@ -1112,7 +1119,7 @@ func (s *simnet) unIsolateNode(node *simnode) {
 	}
 }
 
-func (s *simnet) handleAlterNode(alt *nodeAlteration) {
+func (s *simnet) handleAlterNode(alt *nodeAlteration, closeDone bool) {
 	node := alt.simnode
 	switch alt.alter {
 	case SHUTDOWN:
@@ -1123,6 +1130,18 @@ func (s *simnet) handleAlterNode(alt *nodeAlteration) {
 		s.unIsolateNode(node)
 	case RESTART:
 		s.restartNode(node)
+	}
+	if closeDone {
+		close(alt.done)
+	}
+}
+
+func (s *simnet) handleAlterHost(alt *nodeAlteration) {
+
+	host := s.node2host[alt.simnode]
+	for end := range host.end2host {
+		alt.simnode = end
+		s.handleAlterNode(alt, false)
 	}
 	close(alt.done)
 }
@@ -1805,7 +1824,7 @@ restartI:
 			s.handleRead(read)
 
 		case alt := <-s.alterNodeCh:
-			s.handleAlterNode(alt)
+			s.handleAlterNode(alt, true)
 
 		case dd := <-s.deafDropCh:
 			//vv("i=%v deafDropCh ->  dd='%v'", i, dd)
@@ -1835,10 +1854,10 @@ restartI:
 type simHost struct {
 	name         string
 	serverBaseID string
+	state        nodestate
 	end2host     map[*simnode]*simHost
 	host2end     map[*simHost]*simnode
 	host2conn    map[*simHost]*simnetConn
-	conns        []*simnetConn
 }
 
 func newSimHost(name, serverBaseID string) *simHost {
@@ -1853,32 +1872,7 @@ func newSimHost(name, serverBaseID string) *simHost {
 
 func (s *simnet) allConnString() (r string) {
 
-	// group by serverBaseID
-	hosts := make(map[string]*simHost)
-	for node := range s.nodes {
-		_, ok := hosts[node.serverBaseID]
-		if !ok {
-			if !node.isCli {
-				host := newSimHost(node.name, node.serverBaseID)
-				hosts[node.serverBaseID] = host
-			}
-		}
-	}
-	// have all the serverBaseID with a host in hosts now.
-	for node, remotes := range s.nodes {
-		host := hosts[node.serverBaseID]
-		for rem, conn := range remotes {
-			_ = rem
-			host.conns = append(host.conns, conn)
-
-			hr := hosts[rem.serverBaseID] // host for the remote
-			host.host2end[hr] = rem
-			host.host2conn[hr] = conn
-			host.end2host[rem] = hr
-		}
-	}
-	i := 0
-	for _, host := range hosts {
+	for _, host := range s.hosts {
 		r += fmt.Sprintf("host:%v has host2conn:\n", host.name)
 		for h, conn := range host.host2conn {
 			r += fmt.Sprintf("    host2conn[%v] conn.remote.name: %v\n",
@@ -1892,12 +1886,6 @@ func (s *simnet) allConnString() (r string) {
 			r += fmt.Sprintf("host:%v has end2host:\n", host.name)
 			for end, h := range host.end2host {
 				r += fmt.Sprintf("    end2host[%v] = %v\n", end.name, h.name)
-			}
-			r += fmt.Sprintf("host:%v has conns:\n", host.name)
-			for _, conn := range host.conns {
-				r += fmt.Sprintf("    [%03d] simnetConn from %v -> %v\n",
-					i, conn.local.name, conn.remote.name)
-				i++
 			}
 		}
 	}
