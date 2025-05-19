@@ -1968,6 +1968,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		cliName := "auto-cli-from-" + s.name + "-to-" + dest
 		ccfg := *s.cfg
 		ccfg.ClientDialToHostPort = dest
+		// uses same serverBaseID so simnet can group same host endpoints.
 		cli, err2 := NewClient(cliName, &ccfg)
 		panicOn(err2)
 		if err2 != nil {
@@ -2161,7 +2162,12 @@ func NewServer(name string, config *Config) *Server {
 	if config != nil {
 		clone := *config // cfg.shared is a pointer to enable this shallow copy.
 		cfg = &clone
+	} else {
+		// why defer this to Start()? needed for serverBaseID now. previously was lazy
+		cfg = NewConfig()
 	}
+	cfg.serverBaseID = NewCallID("")
+
 	s := &Server{
 		name:              name,
 		cfg:               cfg,
@@ -2183,8 +2189,9 @@ func NewServer(name string, config *Config) *Server {
 	useSimNet := false
 	if cfg != nil {
 		useSimNet = cfg.UseSimNet
-	} else {
-		alwaysPrintf("warning: nil cfg, so useSimNet off.")
+		// always have cfg above, to assign serverBaseID
+		//} else {
+		//	alwaysPrintf("warning: nil cfg, so useSimNet off.")
 	}
 	s.PeerAPI = newPeerAPI(s, notClient, useSimNet)
 	return s
@@ -2224,6 +2231,10 @@ func (s *Server) RegisterUploadReaderFunc(name string, callmeUploadReader Upload
 func (s *Server) Start() (serverAddr net.Addr, err error) {
 	//vv("Server.Start() called")
 	if s.cfg == nil {
+		// we do this in NewServer now, but leave this here
+		// in case we revert/realize why we didn't eagerly instantiate
+		// it there before... might have to do with cli and srv
+		// sharing a config.
 		s.cfg = NewConfig()
 	}
 

@@ -882,6 +882,14 @@ type UploadReaderFunc func(ctx context.Context, req *Message, lastReply *Message
 // in use is Close()-ed.
 type Config struct {
 
+	// ServerBaseID allows simnet to treat all
+	// connections originating from the server
+	// and its auto-clients together for the
+	// purposes of isolation and fault simulation.
+	// Auto-clients should convey the ServerBaseID
+	// when creating their connection.
+	serverBaseID string
+
 	// QuietTestMode can be set true on tests to quiet down
 	// the shutdown/auto-client-start chatter.
 	QuietTestMode bool
@@ -1119,6 +1127,7 @@ type sharedTransport struct {
 // for use in NewClient or NewServer setup.
 func NewConfig() *Config {
 	return &Config{
+		//serverBaseID:     NewCallID(""), // too early. must be NewServer that assigns.
 		shared:           &sharedTransport{},
 		simnetRendezvous: &simnetRendezvous{},
 	}

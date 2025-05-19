@@ -502,6 +502,9 @@ type simnet struct {
 // stale: simnode is a single host/server/node
 // (really one rpc25519.Client or rpc25519.Server instance)
 // in a simnet.
+//
+// for applying isolation how do I know which
+// connections are on the same host? serverBaseID
 type simnode struct {
 	name    string
 	lc      int64 // logical clock
@@ -512,9 +515,10 @@ type simnode struct {
 	deafReadsQ    *pq
 	droppedSendsQ *pq
 
-	net     *simnet
-	isCli   bool
-	netAddr *SimNetAddr
+	net          *simnet
+	isCli        bool
+	netAddr      *SimNetAddr
+	serverBaseID string
 
 	// state survives power cycling, i.e. rebooting
 	// a node does not heal the network or repair a
@@ -523,11 +527,6 @@ type simnode struct {
 	powerOff bool
 
 	tellServerNewConnCh chan *simnetConn
-
-	// deafDrop and healing, isolation or not,
-	// should apply to both server and its auto-cli,
-	// since they are all locally on the same host.
-	autocli []*simnode
 }
 
 // the nodes powerOff status is independent
@@ -551,9 +550,10 @@ const (
 	FAULTY_ISOLATED nodestate = 3 // some conn may drop sends, be deaf to reads
 )
 
-func (s *simnet) newSimnode(name string) *simnode {
+func (s *simnet) newSimnode(name, serverBaseID string) *simnode {
 	return &simnode{
 		name:          name,
+		serverBaseID:  serverBaseID,
 		readQ:         newPQinitTm(name + " readQ "),
 		preArrQ:       s.newPQarrivalTm(name + " preArrQ "),
 		timerQ:        newPQcompleteTm(name + " timerQ "),
@@ -563,14 +563,14 @@ func (s *simnet) newSimnode(name string) *simnode {
 	}
 }
 
-func (s *simnet) newSimnodeClient(name string) (node *simnode) {
-	node = s.newSimnode(name)
+func (s *simnet) newSimnodeClient(name, serverBaseID string) (node *simnode) {
+	node = s.newSimnode(name, serverBaseID)
 	node.isCli = true
 	return
 }
 
-func (s *simnet) newSimnodeServer(name string) (node *simnode) {
-	node = s.newSimnode(name)
+func (s *simnet) newSimnodeServer(name, serverBaseID string) (node *simnode) {
+	node = s.newSimnode(name, serverBaseID)
 	node.isCli = false
 	// buffer so servers don't have to be up to get them.
 	node.tellServerNewConnCh = make(chan *simnetConn, 100)
@@ -587,7 +587,7 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	// 	isCli:   false,
 	// }
 
-	srvnode := s.newSimnodeServer(reg.server.name)
+	srvnode := s.newSimnodeServer(reg.server.name, reg.serverBaseID)
 	srvnode.netAddr = reg.srvNetAddr
 	s.nodes[srvnode] = make(map[*simnode]*simnetConn)
 	_, already := s.dns[srvnode.name]
@@ -615,7 +615,7 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 			"by client registration from '%v'", reg.dialTo, reg.client.name))
 	}
 
-	clinode := s.newSimnodeClient(reg.client.name)
+	clinode := s.newSimnodeClient(reg.client.name, reg.serverBaseID)
 	clinode.setNetAddrSameNetAs(reg.localHostPortStr, srvnode.netAddr)
 
 	_, already := s.dns[clinode.name]
@@ -1799,10 +1799,13 @@ restartI:
 
 func (s *simnet) allConnString() (r string) {
 	i := 0
-	for _, remotes := range s.nodes {
-		for _, conn := range remotes {
-			r += fmt.Sprintf("[%03d] simnetConn from %v -> %v\n",
-				i, conn.local.name, conn.remote.name)
+	for node, remotes := range s.nodes {
+		for rem, conn := range remotes {
+			r += fmt.Sprintf("[%03d] node.serverBaseID:%v "+
+				"rem.serverBaseID:%v simnetConn from %v -> %v\n",
+
+				i, node.serverBaseID, rem.serverBaseID,
+				conn.local.name, conn.remote.name)
 			i++
 		}
 	}
@@ -2206,6 +2209,9 @@ type clientRegistration struct {
 	dialTo        string // preferred, set by tests; Client.cfg.ClientDialToHostPort
 	serverAddrStr string // from runSimNetClient() call by cli.go:155
 
+	// group endpoints on the same server by serverBaseID
+	serverBaseID string
+
 	// wait on
 	done chan struct{}
 
@@ -2216,20 +2222,26 @@ type clientRegistration struct {
 
 // external, called by simnet_client.go to
 // get a registration ticket to send on simnet.cliRegisterCh
-func (s *simnet) newClientRegistration(c *Client, localHostPort, serverAddr, dialTo string) *clientRegistration {
+func (s *simnet) newClientRegistration(
+	c *Client,
+	localHostPort, serverAddr, dialTo, serverBaseID string,
+) *clientRegistration {
+
 	return &clientRegistration{
 		client:           c,
 		localHostPortStr: localHostPort,
 		dialTo:           dialTo,
 		serverAddrStr:    serverAddr,
+		serverBaseID:     serverBaseID,
 		done:             make(chan struct{}),
 	}
 }
 
 type serverRegistration struct {
 	// provide
-	server     *Server
-	srvNetAddr *SimNetAddr
+	server       *Server
+	srvNetAddr   *SimNetAddr
+	serverBaseID string
 
 	// wait on
 	done chan struct{}
@@ -2243,9 +2255,10 @@ type serverRegistration struct {
 // external
 func (s *simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) *serverRegistration {
 	return &serverRegistration{
-		server:     srv,
-		srvNetAddr: srvNetAddr,
-		done:       make(chan struct{}),
+		server:       srv,
+		serverBaseID: srv.cfg.serverBaseID,
+		srvNetAddr:   srvNetAddr,
+		done:         make(chan struct{}),
 	}
 }
 

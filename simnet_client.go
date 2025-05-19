@@ -30,7 +30,7 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string, doLoops bool)
 	if c.cfg.ClientDialToHostPort == "" && serverAddr == "" {
 		panic("gotta have a server address of some kind")
 	}
-	registration := c.simnet.newClientRegistration(c, localHostPort, serverAddr, c.cfg.ClientDialToHostPort)
+	registration := c.simnet.newClientRegistration(c, localHostPort, serverAddr, c.cfg.ClientDialToHostPort, c.cfg.serverBaseID)
 
 	select {
 	case c.simnet.cliRegisterCh <- registration:
