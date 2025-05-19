@@ -480,7 +480,26 @@ type simnet struct {
 	lastArmTm     time.Time
 }
 
-// simnode is a single host/server/node
+// update: really at the moment it may
+// be that simnode is a single
+// network endpoint, or net.Conn, on either
+// a client or server; like a host:port pair.
+//
+// For instance, in a three host cluster, each of the three
+// servers needs a local net.Conn to talk
+// to two other servers. Thus there are
+// 6 total network endpoints at minimum
+// in a 3 server cluster. We are registering
+// the auto-clients currently as simnodes
+// as well... maybe we only want/need to
+// register the servers? but we need to
+// manage and supervise all the network
+// end points at each step. So maybe
+// TODO: rename simnode to something
+// clearer? but distinct from simnetConn
+// which is our net.Conn implementation...?
+//
+// stale: simnode is a single host/server/node
 // (really one rpc25519.Client or rpc25519.Server instance)
 // in a simnet.
 type simnode struct {
@@ -1764,8 +1783,7 @@ restartI:
 			s.handleDeafDrop(dd)
 
 		case safe := <-s.safeStateStringCh:
-			safe.str = s.String()
-			close(safe.proceed)
+			s.handleSafeStateString(safe)
 
 		case <-s.halt.ReqStop.Chan:
 			bb := time.Since(s.bigbang)
@@ -1777,6 +1795,23 @@ restartI:
 
 		//vv("i=%v bottom of scheduler loop. num dispatch events = %v", i, nd0)
 	}
+}
+
+func (s *simnet) allConnString() (r string) {
+	i := 0
+	for _, remotes := range s.nodes {
+		for _, conn := range remotes {
+			r += fmt.Sprintf("[%03d] simnetConn from %v -> %v\n",
+				i, conn.local.name, conn.remote.name)
+			i++
+		}
+	}
+	return
+}
+
+func (s *simnet) handleSafeStateString(safe *simnetSafeState) {
+	safe.str = s.String() + "\n" + s.allConnString()
+	close(safe.proceed)
 }
 
 func (s *simnet) finishScenario() {
