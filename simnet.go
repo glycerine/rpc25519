@@ -367,9 +367,17 @@ type simnode struct {
 func (s *simnet) locals(node *simnode) map[*simnode]bool {
 	srvnode, ok := s.node2server[node]
 	if !ok {
-		panic(fmt.Sprintf("not registered in s.node2server: alt.simnode = '%v'", node.name))
+		panic(fmt.Sprintf("not registered in s.node2server: node = '%v'", node.name))
 	}
 	return srvnode.allnode
+}
+
+func (s *simnet) localServer(node *simnode) *simnode {
+	srvnode, ok := s.node2server[node]
+	if !ok {
+		panic(fmt.Sprintf("not registered in s.node2server: node = '%v'", node.name))
+	}
+	return srvnode
 }
 
 // Circuitstate is one of HEALTHY, FAULTY,
