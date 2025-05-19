@@ -2,7 +2,7 @@ package rpc25519
 
 import (
 	"fmt"
-	//"time"
+	"time"
 )
 
 func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err error) {
@@ -40,21 +40,22 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 	for rem, conn := range remotes {
 		if target == nil || target == rem {
 			if fault.UpdateDeafReads {
-				//vv("setting conn(%v).deafRead = fault.deafReadsNewProb = %v", conn, fault.deafReadsNewProb)
 				conn.deafRead = fault.DeafReadsNewProb
 				if conn.deafRead > 0 {
 					origin.state = FAULTY
 					addedFault = true
+					vv("set deafRead = fault.DeafReadsNewProb = %v; now conn = '%v'", fault.DeafReadsNewProb, conn)
+
 				} else {
 					recheckHealth = true
 				}
 			}
 			if fault.UpdateDropSends {
-				//vv("setting conn(%v).dropSend = fault.dropSendsNewProb = %v", conn, fault.dropSendsNewProb)
 				conn.dropSend = fault.DropSendsNewProb
 				if conn.dropSend > 0 {
 					origin.state = FAULTY
 					addedFault = true
+					vv("set dropSend = fault.DropSendsNewProb = %v; now conn='%v'", fault.DropSendsNewProb, conn)
 				} else {
 					recheckHealth = true
 				}
@@ -66,6 +67,9 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 		// but, an early fault may still be installed; full scan needed.
 		s.recheckHealthState(origin)
 	}
+	vv("after injectCircuitFault '%v', simnet: '%v'", fault.String(), s.schedulerReport())
+	now := time.Now() // TODO thread from caller in.
+	s.addFaultsToPQ(now, origin, target, fault.DropDeafSpec)
 	return
 }
 

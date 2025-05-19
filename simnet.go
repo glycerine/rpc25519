@@ -162,7 +162,7 @@ type mop struct {
 	readmop *mop // for sends, which read did we go to?
 
 	// on sends/reads
-	// model network/card faults, nil means no change.
+	// model network/card faults, false means no change.
 	sendIsDropped   bool
 	readIsDeaf      bool
 	isDropDeafFault bool // either sendIsDropped or readIsDeaf
@@ -363,6 +363,95 @@ type simnode struct {
 	autocli map[*simnode]*simconn
 	// autocli + self
 	allnode map[*simnode]bool
+}
+
+// defean reads/drop sends that were started
+// but still in progress with this fault.
+func (s *simnet) addFaultsToPQ(now time.Time, origin, target *simnode, dd DropDeafSpec) {
+
+	if !dd.UpdateDeafReads && !dd.UpdateDropSends {
+		return
+	}
+	if dd.UpdateDeafReads && dd.DeafReadsNewProb > 0 {
+		s.addFaultsToReadQ(now, origin, target, dd.DeafReadsNewProb)
+	}
+	if dd.UpdateDropSends && dd.DropSendsNewProb > 0 {
+		s.addSendFaults(now, origin, target, dd.DropSendsNewProb)
+	}
+}
+
+func (s *simnet) addFaultsToReadQ(now time.Time, origin, target *simnode, deafReadProb float64) {
+
+	readIt := origin.readQ.tree.Min()
+	for readIt != origin.readQ.tree.Limit() {
+		read := readIt.Item().(*mop)
+		if target == nil || read.target == target {
+			if s.deaf(deafReadProb) {
+
+				vv("deaf fault enforced on read='%v'", read)
+				read.readIsDeaf = true
+				read.isDropDeafFault = true
+				origin.deafReadsQ.add(read)
+
+				// advance readIt, and delete behind
+				delmeIt := readIt
+				readIt = readIt.Next()
+				origin.readQ.tree.DeleteWithIterator(delmeIt)
+				continue
+			}
+		}
+		readIt = readIt.Next()
+	}
+}
+
+func (s *simnet) addSendFaults(now time.Time, origin, target *simnode, dropSendProb float64) {
+
+	// have to look for origin's sends in all other pre-arrQ...
+	// and check all, in case disconnect happened since...
+
+	for node := range s.circuits {
+		if node == origin {
+			// No way at present for a TCP client or server
+			// to read or send to itself. Different sockets
+			// on the same host would be different nodes.
+			continue
+		}
+		if target != nil && node != target {
+			continue
+		}
+		sendIt := node.preArrQ.tree.Min()
+		for sendIt != node.preArrQ.tree.Limit() {
+
+			send := sendIt.Item().(*mop)
+
+			if gte(send.arrivalTm, now) {
+				// droppable, due to arrive >= now
+			} else {
+				// INVAR: smallest time send < now.
+				//
+				// preArrQ is ordered by arrivalTm,
+				// but that doesn't let us short-circuit here,
+				// since we must fault everything due
+				// to arrive >= now. So we keep scanning.
+				continue
+			}
+			if send.origin == origin &&
+				s.dropped(dropSendProb) {
+
+				vv("drop fault enforced on send='%v'", send)
+				send.sendIsDropped = true
+				send.isDropDeafFault = true
+				node.droppedSendsQ.add(send)
+
+				// advance sendIt, and delete behind
+				delmeIt := sendIt
+				sendIt = sendIt.Next()
+				node.preArrQ.tree.DeleteWithIterator(delmeIt)
+				continue
+			}
+			sendIt = sendIt.Next()
+		}
+	}
 }
 
 func (s *simnet) locals(node *simnode) map[*simnode]bool {
@@ -1062,9 +1151,26 @@ func (s *simnet) localDeafRead(read *mop) bool {
 	// get the local (read) origin conn probability of deafness
 	// note: not the remote's deafness, only local.
 	prob := s.circuits[read.origin][read.target].deafRead
+	return s.deaf(prob)
+}
 
-	if prob == 0 {
+func (s *simnet) deaf(prob float64) bool {
+	if prob <= 0 {
 		return false
+	}
+	if prob >= 1 {
+		return true
+	}
+	random01 := s.scenario.rng.Float64() // in [0, 1)
+	return random01 < prob
+}
+
+func (s *simnet) dropped(prob float64) bool {
+	if prob <= 0 {
+		return false
+	}
+	if prob >= 1 {
+		return true
 	}
 	random01 := s.scenario.rng.Float64() // in [0, 1)
 	return random01 < prob
@@ -1073,11 +1179,7 @@ func (s *simnet) localDeafRead(read *mop) bool {
 func (s *simnet) localDropSend(send *mop) bool {
 	// get the local origin conn probability of drop
 	prob := s.circuits[send.origin][send.target].dropSend
-	if prob == 0 {
-		return false
-	}
-	random01 := s.scenario.rng.Float64() // in [0, 1)
-	return random01 < prob
+	return s.dropped(prob)
 }
 
 func (s *simnet) handleSend(send *mop) {
@@ -1459,7 +1561,7 @@ func (simnode *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 		read.arrivalTm = send.arrivalTm // easier diagnostics
 
 		// matchmaking
-		//vv("[1]matchmaking: \nsend '%v' -> \nread '%v'", send, read)
+		vv("[1]matchmaking: \nsend '%v' -> \nread '%v'", send, read)
 		read.sendmop = send
 		send.readmop = read
 

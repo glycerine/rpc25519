@@ -179,7 +179,7 @@ func (z *circuitFault) String() (r string) {
 	r = "&circuitFault{\n"
 	r += fmt.Sprintf("  originName: \"%v\",\n", z.originName)
 	r += fmt.Sprintf("  targetName: \"%v\",\n", z.targetName)
-	r += fmt.Sprintf("DropDeafSpec: %v,\n", z.DropDeafSpec)
+	r += fmt.Sprintf("DropDeafSpec: %v,\n", z.DropDeafSpec.String())
 	r += fmt.Sprintf("          sn: %v,\n", z.sn)
 	r += fmt.Sprintf("         err: %v,\n", z.err)
 	r += "}\n"
