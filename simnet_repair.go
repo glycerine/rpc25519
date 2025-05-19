@@ -166,18 +166,20 @@ func (s *simnet) handleHostRepair(repair *hostRepair) (err error) {
 		close(repair.proceed)
 	}()
 
-	origin, ok := s.dns[repair.hostName]
-	if !ok {
-		panic(fmt.Sprintf("not avail in dns repair.origName = '%v'", repair.hostName))
-	}
-
 	const closeProceed_NO = false
-	justOrigin := true
 
-	group := s.locals(origin)
-	if repair.allHosts {
-		justOrigin = false
-		group = s.allnodes
+	// default to repair allHosts, then revise.
+	// repair.hostName will be empty to repair them all.
+	justOrigin := false
+	group := s.allnodes
+
+	if !repair.allHosts {
+		justOrigin = true
+		origin, ok := s.dns[repair.hostName]
+		if !ok {
+			panic(fmt.Sprintf("not avail in dns repair.origName = '%v'", repair.hostName))
+		}
+		group = s.locals(origin)
 	}
 
 	for node := range group {
