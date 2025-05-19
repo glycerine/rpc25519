@@ -290,6 +290,7 @@ type simnet struct {
 	// is connected to by the simconn circuits[A][B].
 	circuits map[*simnode]map[*simnode]*simconn
 	servers  map[string]*simnode // serverBaseID:srvnode
+	allnodes map[*simnode]bool
 
 	cliRegisterCh chan *clientRegistration
 	srvRegisterCh chan *serverRegistration
@@ -342,8 +343,10 @@ type simnode struct {
 	deafReadsQ    *pq
 	droppedSendsQ *pq
 
-	net          *simnet
-	isCli        bool
+	net     *simnet
+	isCli   bool
+	cliConn *simconn
+
 	netAddr      *SimNetAddr
 	serverBaseID string
 
@@ -478,7 +481,29 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	}
 	s.dns[srvnode.name] = srvnode
 	s.node2server[srvnode] = srvnode
-	s.servers[reg.serverBaseID] = srvnode
+
+	basesrv, ok := s.servers[reg.serverBaseID]
+	if ok {
+		panic("what? can't have more than one server for same baseID!")
+	} else {
+		// expected
+		s.servers[reg.serverBaseID] = srvnode
+		basesrv = srvnode
+	}
+	// our auto-cli might have raced and got here first?
+	// scan for any we should have
+	for clinode := range s.allnodes {
+		if clinode.isCli && clinode.serverBaseID == reg.serverBaseID {
+			c2s := clinode.cliConn
+			// do the same as client registration would have
+			// if it could have earlier.
+			s.node2server[clinode] = basesrv
+			basesrv.autocli[clinode] = c2s
+			basesrv.allnode[clinode] = true
+		}
+	}
+
+	s.allnodes[srvnode] = true
 
 	reg.simnode = srvnode
 	reg.simnet = s
@@ -501,6 +526,7 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 
 	clinode := s.newSimnodeClient(reg.client.name, reg.serverBaseID)
 	clinode.setNetAddrSameNetAs(reg.localHostPortStr, srvnode.netAddr)
+	s.allnodes[clinode] = true
 
 	_, already := s.dns[clinode.name]
 	if already {
@@ -516,11 +542,17 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 	c2s := s.addEdgeFromCli(clinode, srvnode)
 	s2c := s.addEdgeFromSrv(srvnode, clinode)
 
-	basesrv := s.servers[reg.serverBaseID]
+	// let server reconstruct its autocli if it comes late
+	clinode.cliConn = c2s
 
-	s.node2server[clinode] = basesrv
-	basesrv.autocli[clinode] = c2s
-	basesrv.allnode[clinode] = true
+	if reg.serverBaseID != "" {
+		basesrv, ok := s.servers[reg.serverBaseID]
+		if ok {
+			s.node2server[clinode] = basesrv
+			basesrv.autocli[clinode] = c2s
+			basesrv.allnode[clinode] = true
+		}
+	}
 
 	reg.conn = c2s
 	reg.simnode = clinode
@@ -595,7 +627,8 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 
 		// just the servers/peers, not their autocli.
 		// use locals() to self + all autocli on peer.
-		servers: make(map[string]*simnode),
+		servers:  make(map[string]*simnode),
+		allnodes: make(map[*simnode]bool),
 
 		// high duration b/c no need to fire spuriously
 		// and force the Go runtime to do extra work when

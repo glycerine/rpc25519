@@ -172,10 +172,17 @@ func (s *simnet) handleHostRepair(repair *hostRepair) (err error) {
 	}
 
 	const closeProceed_NO = false
-	const justOrigin = true
+	justOrigin := true
 
-	for node := range s.locals(origin) {
-		cktRepair := s.newCircuitRepair(node.name, "", repair.unIsolate, repair.powerOnIfOff, justOrigin)
+	group := s.locals(origin)
+	if repair.allHosts {
+		justOrigin = false
+		group = s.allnodes
+	}
+
+	for node := range group {
+		cktRepair := s.newCircuitRepair(node.name, "",
+			repair.unIsolate, repair.powerOnIfOff, justOrigin)
 		s.handleCircuitRepair(cktRepair, closeProceed_NO)
 	}
 	return
@@ -349,7 +356,7 @@ func (s *simnet) HostFault(hostName string, dd DropDeafSpec) (err error) {
 // full working order. It undoes the effects of
 // prior deafDrop actions, if any. It does not
 // change an isolated simnode's isolation unless unIsolate
-// is also true. See also AllHealthy.
+// is also true. See also RepairHost, AllHealthy.
 func (s *simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff bool) (err error) {
 
 	targetName := "" // all corresponding targets
@@ -372,6 +379,7 @@ func (s *simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff b
 	return
 }
 
+// RepairHost repairs all the circuits on the host.
 func (s *simnet) RepairHost(originName string, unIsolate bool, powerOnIfOff, allHosts bool) (err error) {
 
 	repair := s.newHostRepair(originName, unIsolate, powerOnIfOff, allHosts)
