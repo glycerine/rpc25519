@@ -518,7 +518,7 @@ type simnet struct {
 	injectFaultCh chan *fault
 	makeRepairCh  chan *repair
 
-	safeStateStringCh chan *simnetSafeState
+	safeStateStringCh chan *simnetSafeStateQuery
 
 	newScenarioCh chan *scenario
 	nextTimer     *time.Timer
@@ -765,7 +765,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		makeRepairCh:   make(chan *repair),
 
 		scenario:          scen,
-		safeStateStringCh: make(chan *simnetSafeState),
+		safeStateStringCh: make(chan *simnetSafeStateQuery),
 		dns:               make(map[string]*simckt),
 		hosts:             make(map[string]*simhost), // key is serverBaseID
 		simckt2host:       make(map[*simckt]*simhost),
@@ -1980,7 +1980,7 @@ func (s *simnet) allConnString() (r string) {
 	return
 }
 
-func (s *simnet) handleSafeStateString(safe *simnetSafeState) {
+func (s *simnet) handleSafeStateString(safe *simnetSafeStateQuery) {
 	safe.str = s.String() + "\n" + s.allConnString()
 	close(safe.proceed)
 }
@@ -2703,31 +2703,34 @@ func (s *simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff b
 	return
 }
 
-type simnetSafeState struct {
+type simnetSafeStateQuery struct {
 	sn      int64
 	str     string
 	err     error
 	proceed chan struct{}
 }
 
-// let clients not race but still view the simnet's state.
-// calling simnet.String() directly is super racey.
+// SafeStateString lets clients not race but still view
+// the simnet's internal state for diagnostics.
+// Calling simnet.String() directly is super data racey; avoid this.
+// We would lowercase simnet.String but the standard Go interface
+// to fmt.Printf/fmt.Sprintf requires an uppercased String method.
 func (s *simnet) SafeStateString() (r string) {
 
-	reqState := &simnetSafeState{
+	requestState := &simnetSafeStateQuery{
 		sn:      simnetNextMopSn(),
 		proceed: make(chan struct{}),
 	}
 	select {
-	case s.safeStateStringCh <- reqState:
-		vv("sent AllHealthy reqState on safeStateStringCh; about to wait on proceed")
+	case s.safeStateStringCh <- requestState:
+		vv("sent AllHealthy requestState on safeStateStringCh; about to wait on proceed")
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
 	select {
-	case <-reqState.proceed:
-		panicOn(reqState.err)
-		r = reqState.str
+	case <-requestState.proceed:
+		panicOn(requestState.err)
+		r = requestState.str
 		return
 	case <-s.halt.ReqStop.Chan:
 		return
