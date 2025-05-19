@@ -155,7 +155,7 @@ func Test604_rng_hops(t *testing.T) {
 
 	minHop = time.Second
 	maxHop = time.Second
-	s := newScenario(tick, minHop, maxHop, seed)
+	s := NewScenario(tick, minHop, maxHop, seed)
 
 	var yes, no float64
 	N := float64(100_000)
@@ -186,7 +186,7 @@ func Test604_rng_hops(t *testing.T) {
 
 	minHop = time.Second
 	maxHop = 2 * time.Second
-	s = newScenario(tick, minHop, maxHop, seed)
+	s = NewScenario(tick, minHop, maxHop, seed)
 
 	for range 1000 {
 		hop := s.rngHop()

@@ -552,7 +552,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 	minHop := time.Millisecond * 10
 	maxHop := minHop
 	var seed [32]byte
-	scen := newScenario(tick, minHop, maxHop, seed)
+	scen := NewScenario(tick, minHop, maxHop, seed)
 
 	// server creates simnet; must start server first.
 	s := &simnet{

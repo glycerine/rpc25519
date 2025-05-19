@@ -45,7 +45,7 @@ type scenario struct {
 	maxHop time.Duration
 }
 
-func newScenario(tick, minHop, maxHop time.Duration, seed [32]byte) *scenario {
+func NewScenario(tick, minHop, maxHop time.Duration, seed [32]byte) *scenario {
 	s := &scenario{
 		seed:   seed,
 		chacha: mathrand2.NewChaCha8(seed),
