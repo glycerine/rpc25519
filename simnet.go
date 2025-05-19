@@ -1797,6 +1797,12 @@ restartI:
 	}
 }
 
+// simHost collects all the endpoints on
+// a given host, to make e.g. isolation easier.
+// enables applying an action like powerOff
+// to a whole group of endpoints en mass.
+// the name should correspond to servers,
+// not isCli auto-clients.
 type simHost struct {
 	name         string
 	serverBaseID string
@@ -1815,6 +1821,7 @@ func newSimHost(name, serverBaseID string) *simHost {
 		host2conn:    make(map[*simHost]*simnetConn),
 	}
 }
+
 func (s *simnet) allConnString() (r string) {
 
 	// group by serverBaseID
@@ -1845,7 +1852,8 @@ func (s *simnet) allConnString() (r string) {
 	for _, host := range hosts {
 		r += fmt.Sprintf("host:%v has host2conn:\n", host.name)
 		for h, conn := range host.host2conn {
-			r += fmt.Sprintf("    host2conn[%v] = %v -> %v\n", h.name, conn.local.name, conn.remote.name)
+			r += fmt.Sprintf("    host2conn[%v] = %v -> %v\n",
+				h.name, conn.local.name, conn.remote.name)
 		}
 		r += fmt.Sprintf("host:%v has host2end:\n", host.name)
 		for h, end := range host.host2end {
@@ -1857,13 +1865,6 @@ func (s *simnet) allConnString() (r string) {
 		}
 		r += fmt.Sprintf("host:%v has conns:\n", host.name)
 		for _, conn := range host.conns {
-			// version for serverBaseID if we need it again.
-			//r += fmt.Sprintf("[%03d] node.serverBaseID:%v "+
-			//	"rem.serverBaseID:%v simnetConn from %v -> %v\n",
-			//	i, node.serverBaseID, rem.serverBaseID,
-			//	conn.local.name, conn.remote.name)
-
-			// easier to read:
 			r += fmt.Sprintf("    [%03d] simnetConn from %v -> %v\n",
 				i, conn.local.name, conn.remote.name)
 			i++
