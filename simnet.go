@@ -480,56 +480,61 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 
 func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 
-	srvsimnode, ok := s.dns[reg.dialTo]
+	srvnode, ok := s.dns[reg.dialTo]
 	if !ok {
 		s.showDNS()
 		panic(fmt.Sprintf("cannot find server '%v', requested "+
 			"by client registration from '%v'", reg.dialTo, reg.client.name))
 	}
 
-	clisimnode := s.newSimnodeClient(reg.client.name, reg.serverBaseID)
-	clisimnode.setNetAddrSameNetAs(reg.localHostPortStr, srvsimnode.netAddr)
+	clinode := s.newSimnodeClient(reg.client.name, reg.serverBaseID)
+	clinode.setNetAddrSameNetAs(reg.localHostPortStr, srvnode.netAddr)
 
-	_, already := s.dns[clisimnode.name]
+	_, already := s.dns[clinode.name]
 	if already {
-		panic(fmt.Sprintf("client name already taken: '%v'", clisimnode.name))
+		panic(fmt.Sprintf("client name already taken: '%v'", clinode.name))
 	}
-	s.dns[clisimnode.name] = clisimnode
+	s.dns[clinode.name] = clinode
 
 	// add simnode to graph
 	clientOutboundEdges := make(map[*simnode]*simconn)
-	s.circuits[clisimnode] = clientOutboundEdges
+	s.circuits[clinode] = clientOutboundEdges
 
 	// add both direction edges
-	c2s := s.addEdgeFromCli(clisimnode, srvsimnode)
-	s2c := s.addEdgeFromSrv(srvsimnode, clisimnode)
+	c2s := s.addEdgeFromCli(clinode, srvnode)
+	s2c := s.addEdgeFromSrv(srvnode, clinode)
 
-	srvhost, ok := s.hosts[srvsimnode.serverBaseID]
+	srvhost, ok := s.hosts[srvnode.serverBaseID]
 	if !ok {
-		panic(fmt.Sprintf("why no host for server? serverBaseID = '%v'; s.hosts='%#v'", srvsimnode.serverBaseID, s.hosts))
+		panic(fmt.Sprintf("why no host for server? serverBaseID = '%v'; s.hosts='%#v'", srvnode.serverBaseID, s.hosts))
 		// happened on server registration:
-		//srvhost = newSimhost(srvsimnode.name, srvsimnode.serverBaseID)
-		//s.hosts[srvsimnode.serverBaseID] = srvhost
-		//s.simnode2host[srvsimnode] = srvhost
+		//srvhost = newSimhost(srvnode.name, srvnode.serverBaseID)
+		//s.hosts[srvnode.serverBaseID] = srvhost
+		//s.simnode2host[srvnode] = srvhost
 	}
 
-	clihost, ok := s.hosts[clisimnode.serverBaseID] // host for the remote
+	clihost, ok := s.hosts[clinode.serverBaseID] // host for the remote
 	if !ok {
-		clihost = newSimhost(clisimnode.name, clisimnode.serverBaseID)
-		s.hosts[clisimnode.serverBaseID] = clihost
+		clihost = newSimhost(clinode.name, clinode.serverBaseID)
+		s.hosts[clinode.serverBaseID] = clihost
 	}
-	s.simnode2host[clisimnode] = clihost
+	if clihost == srvhost {
+		panic(fmt.Sprintf("unsupported loopback: cannot create clients talking to own haost, at least for now. clinode='%v'; srvnode='%v'", clinode, srvnode))
+	}
+	s.simnode2host[clinode] = clihost
 
-	srvhost.host2node[clihost] = clisimnode
-	srvhost.node2host[clisimnode] = clihost
+	clihost.mynodes[clinode] = clihost
+	srvhost.mynodes[srvnode] = srvhost
+
+	clihost.host2node[srvhost] = clinode
+	srvhost.host2node[clihost] = srvnode
+
+	// the conn to go from host A to host B
 	srvhost.host2conn[clihost] = s2c
-
-	clihost.host2node[srvhost] = srvsimnode
-	clihost.node2host[srvsimnode] = srvhost
 	clihost.host2conn[srvhost] = c2s
 
 	reg.conn = c2s
-	reg.simnode = clisimnode
+	reg.simnode = clinode
 
 	// tell server about new edge
 	// vv("about to deadlock? stack=\n'%v'", stack())
@@ -539,8 +544,8 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 	// the server about it... try in goro
 	go func() {
 		select {
-		case srvsimnode.tellServerNewConnCh <- s2c:
-			//vv("%v srvsimnode was notified of new client '%v'; s2c='%#v'", srvsimnode.name, clisimnode.name, s2c)
+		case srvnode.tellServerNewConnCh <- s2c:
+			//vv("%v srvnode was notified of new client '%v'; s2c='%#v'", srvnode.name, clinode.name, s2c)
 
 			// let client start using the connection/edge.
 			close(reg.done)
@@ -1773,15 +1778,16 @@ type simhost struct {
 	node2host    map[*simnode]*simhost
 	host2node    map[*simhost]*simnode
 	host2conn    map[*simhost]*simconn
+	mynodes      map[*simnode]*simhost
 }
 
 func newSimhost(name, serverBaseID string) *simhost {
 	return &simhost{
 		name:         name,
 		serverBaseID: serverBaseID,
-		node2host:    make(map[*simnode]*simhost),
 		host2node:    make(map[*simhost]*simnode),
 		host2conn:    make(map[*simhost]*simconn),
+		mynodes:      make(map[*simnode]*simhost),
 	}
 }
 

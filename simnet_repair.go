@@ -105,6 +105,9 @@ func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (
 	if repair.powerOnIfOff {
 		origin.powerOff = false
 	}
+	if repair.justOriginHealed {
+		return
+	}
 
 	var target *simnode
 	if repair.targetName != "" {
@@ -165,7 +168,7 @@ func (s *simnet) handleHostRepair(repair *hostRepair) (err error) {
 		close(repair.proceed)
 	}()
 
-	origin, ok := s.dns[repair.originName]
+	origin, ok := s.dns[repair.hostName]
 	if !ok {
 		panic(fmt.Sprintf("not avail in dns repair.origName = '%v'", repair.originName))
 	}
@@ -173,9 +176,12 @@ func (s *simnet) handleHostRepair(repair *hostRepair) (err error) {
 	if !ok {
 		panic(fmt.Sprintf("origin not registered in s.simnode2host: origin.name = '%v'", origin.name))
 	}
-	for end := range host.node2host {
-		repair.originName = end.name
-		s.handleCircuitRepair(repair, false)
+	for simnode := range host.mynodes {
+		const justOrigin = false
+		const noProceedCloseYet = false
+
+		cktRepair := newCircuitRepair(simnode.name, "", repair.unIsolate, repair.powerOnIfOff, justOrigin)
+		s.handleCircuitRepair(cktRepair, noProceedCloseYet)
 	}
 	host.state = HEALTHY
 	if repair.powerOnIfOff {
