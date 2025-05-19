@@ -184,6 +184,7 @@ type mop struct {
 	justOriginHealed    bool // heal drop/deaf faults on just the originName node.
 	justOriginUnisolate bool // if true and node is isolated, it goes to healthy.
 	justOriginPowerOn   bool // also power on origin?
+	wholeHost           bool
 
 	// clients of scheduler wait on proceed.
 	// When the timer is set; the send sent; the read
@@ -194,17 +195,19 @@ type mop struct {
 	isEOF_RST bool
 }
 
-func (s *simnet) handleHealing(dd *mop) (err error) {
+func (s *simnet) handleHealing(dd *mop, closeProceed bool) (err error) {
 	if !dd.allHealthy && !dd.justOriginHealed {
 		panic("why call here in not a healing request?")
 	}
 	if dd.allHealthy && dd.justOriginHealed {
 		panic("confused caller: only set one of dd.allHealthy and dd.justOriginHealed")
 	}
-	defer func() {
-		dd.err = err
-		close(dd.proceed)
-	}()
+	if closeProceed {
+		defer func() {
+			dd.err = err
+			close(dd.proceed)
+		}()
+	}
 
 	if dd.justOriginHealed {
 		node, ok := s.dns[dd.originName]
@@ -266,15 +269,72 @@ func (s *simnet) nodeUndoAllDeafDrops(node *simnode) {
 	}
 }
 
-func (s *simnet) handleDeafDrop(dd *mop) (err error) {
-
-	if dd.allHealthy || dd.justOriginHealed {
-		return s.handleHealing(dd)
+func (s *simnet) handleHealingWholeHost(dd *mop) (err error) {
+	if !dd.allHealthy {
+		panic("why call here in not a healing request?")
+	}
+	if dd.justOriginHealed {
+		panic("confused caller: dd.justOriginHealed makes no sense in handleHealingWholeHost")
 	}
 	defer func() {
 		dd.err = err
 		close(dd.proceed)
 	}()
+
+	origin, ok := s.dns[dd.originName]
+	if !ok {
+		panic(fmt.Sprintf("not avail in dns dd.origName = '%v'", dd.originName))
+	}
+	host, ok := s.node2host[origin]
+	if !ok {
+		panic(fmt.Sprintf("origin not registered in s.node2host: origin.name = '%v'", origin.name))
+	}
+	for end := range host.end2host {
+		dd.originName = end.name
+		s.handleHealing(dd, false)
+	}
+	host.state = HEALTHY
+	if dd.powerOnAnyOff {
+		host.powerOff = false
+	}
+	return
+}
+
+func (s *simnet) handleDeafDropWholeHost(dd *mop) (err error) {
+	if dd.allHealthy || dd.justOriginHealed {
+		return s.handleHealingWholeHost(dd)
+	}
+	defer func() {
+		dd.err = err
+		close(dd.proceed)
+	}()
+
+	origin, ok := s.dns[dd.originName]
+	if !ok {
+		panic(fmt.Sprintf("not avail in dns dd.origName = '%v'", dd.originName))
+	}
+	host, ok := s.node2host[origin]
+	if !ok {
+		panic(fmt.Sprintf("not registered in s.node2host: origin.name = '%v'", origin.name))
+	}
+	for end := range host.end2host {
+		dd.originName = end.name
+		s.handleDeafDrop(dd, false)
+	}
+	return
+}
+
+func (s *simnet) handleDeafDrop(dd *mop, closeProceed bool) (err error) {
+
+	if dd.allHealthy || dd.justOriginHealed {
+		return s.handleHealing(dd, closeProceed)
+	}
+	if closeProceed {
+		defer func() {
+			dd.err = err
+			close(dd.proceed)
+		}()
+	}
 
 	origin, ok := s.dns[dd.originName]
 	_ = origin
@@ -1864,7 +1924,11 @@ restartI:
 
 		case dd := <-s.deafDropCh:
 			//vv("i=%v deafDropCh ->  dd='%v'", i, dd)
-			s.handleDeafDrop(dd)
+			if dd.wholeHost {
+				s.handleDeafDropWholeHost(dd)
+			} else {
+				s.handleDeafDrop(dd, true)
+			}
 
 		case safe := <-s.safeStateStringCh:
 			s.handleSafeStateString(safe)
@@ -2478,9 +2542,10 @@ func (s *simnet) alterHost(node *simnode, alter Alteration) {
 
 // false updateDeaf or false updateDrop means no
 // change in that state.
-func newDeafDrop(originName, targetName string, updateDeaf, updateDrop bool, deafProb, dropProb float64) *mop {
+func newDeafDrop(originName, targetName string, updateDeaf, updateDrop bool, deafProb, dropProb float64, wholeHost bool) *mop {
 	m := &mop{
 		kind:             DEAFDROP,
+		wholeHost:        wholeHost,
 		originName:       originName,
 		targetName:       targetName,
 		updateDeafReads:  updateDeaf,
@@ -2523,10 +2588,10 @@ func (s *simnet) newOriginHealed(originName string, unIsolate, powerOnIfOff bool
 }
 
 // empty string target means all possible targets
-func (s *simnet) DeafToReads(origin, target string, deafProb float64) (err error) {
+func (s *simnet) DeafToReads(origin, target string, deafProb float64, wholeHost bool) (err error) {
 
 	updateDeaf, updateDrop, dropProb := true, false, 0.0
-	dd := newDeafDrop(origin, target, updateDeaf, updateDrop, deafProb, dropProb)
+	dd := newDeafDrop(origin, target, updateDeaf, updateDrop, deafProb, dropProb, wholeHost)
 
 	select {
 	case s.deafDropCh <- dd:
@@ -2549,10 +2614,10 @@ func (s *simnet) DeafToReads(origin, target string, deafProb float64) (err error
 }
 
 // empty target string means all possible targets
-func (s *simnet) DropSends(origin, target string, dropProb float64) (err error) {
+func (s *simnet) DropSends(origin, target string, dropProb float64, wholeHost bool) (err error) {
 
 	updateDeaf, updateDrop, deafProb := false, true, 0.0
-	dd := newDeafDrop(origin, target, updateDeaf, updateDrop, deafProb, dropProb)
+	dd := newDeafDrop(origin, target, updateDeaf, updateDrop, deafProb, dropProb, wholeHost)
 
 	select {
 	case s.deafDropCh <- dd:
