@@ -6,7 +6,6 @@ import (
 )
 
 func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err error) {
-
 	if closeProceed {
 		defer func() {
 			fault.err = err
@@ -17,7 +16,7 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 	origin, ok := s.dns[fault.originName]
 	_ = origin
 	if !ok {
-		err = fmt.Errorf("could not find originName = '%v' in dns: '%v'", fault.originName, s.stringDNS())
+		err = fmt.Errorf("injectCircuitFault could not find originName = '%v' in dns: '%v'", fault.originName, s.stringDNS())
 		return
 	}
 	var target *simnode
@@ -37,7 +36,7 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 	addedFault := false
 	for rem, conn := range remotes {
 		if target == nil || target == rem {
-			if fault.updateDeafReads {
+			if fault.UpdateDeafReads {
 				//vv("setting conn(%v).deafRead = fault.deafReadsNewProb = %v", conn, fault.deafReadsNewProb)
 				conn.deafRead = fault.deafReadsNewProb
 				if conn.deafRead > 0 {
@@ -47,7 +46,7 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 					recheckHealth = true
 				}
 			}
-			if fault.updateDropSends {
+			if fault.UpdateDropSends {
 				//vv("setting conn(%v).dropSend = fault.dropSendsNewProb = %v", conn, fault.dropSendsNewProb)
 				conn.dropSend = fault.dropSendsNewProb
 				if conn.dropSend > 0 {
@@ -74,23 +73,22 @@ func (s *simnet) injectHostFault(fault *hostFault) (err error) {
 		close(fault.proceed)
 	}()
 
-	origin, ok := s.dns[fault.originName]
+	origin, ok := s.dns[fault.hostName]
 	if !ok {
-		panic(fmt.Sprintf("not avail in dns fault.origName = '%v'", fault.originName))
+		panic(fmt.Sprintf("not avail in dns fault.origName = '%v'", fault.hostName))
 	}
 	host, ok := s.simnode2host[origin]
 	if !ok {
 		panic(fmt.Sprintf("not registered in s.simnode2host: origin.name = '%v'", origin.name))
 	}
-	for end := range host.port2host {
-		fault.originName = end.name
-		s.injectFault(fault, false)
+	for end := range host.node2host {
+		cktFault := newCircuitFault(end.name, "", fault.DropDeafSpec)
+		s.injectCircuitFault(cktFault, false)
 	}
 	return
 }
 
 func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (err error) {
-
 	if closeProceed {
 		defer func() {
 			repair.err = err
@@ -98,27 +96,30 @@ func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (
 		}()
 	}
 
-	if repair.justOriginHealed {
-		simnode, ok := s.dns[repair.originName]
-		if !ok {
-			return fmt.Errorf("error on justOriginHealed: originName not found: '%v'", repair.originName)
-		}
-		s.repairAllFaults(simnode)
-		if repair.unIsolate {
-			simnode.state = HEALTHY
-		}
-		if repair.powerOnIfOff {
-			simnode.powerOff = false
-		}
-		return
+	origin, ok := s.dns[repair.originName]
+	if !ok {
+		return fmt.Errorf("error in handleCircuitRepair: originName not found: '%v'", repair.originName)
 	}
 
-	for simnode := range s.circuits {
-		vv("handleCircuitRepair: simnode '%v' goes from %v to HEALTHY", simnode.name, simnode.state)
-		simnode.state = HEALTHY
-		s.repairAllFaults(simnode)
-		if repair.powerOnAnyOff {
-			simnode.powerOff = false
+	s.repairAllCircuitFaults(origin)
+	if repair.powerOnIfOff {
+		origin.powerOff = false
+	}
+
+	var target *simnode
+	if repair.targetName != "" {
+		target, ok = s.dns[repair.targetName]
+		if !ok {
+			err = fmt.Errorf("handleCircuitRepair could not find targetName = '%v' in dns: '%v'", repair.targetName, s.stringDNS())
+			return
+		}
+	}
+	for remote := range s.circuits[origin] {
+		if target == nil || target == remote {
+			s.repairAllFaults(remote)
+			if repair.powerOnIfOff {
+				remote.powerOff = false
+			}
 		}
 	}
 	return
@@ -145,12 +146,11 @@ func (s *simnet) repairAllCircuitFaults(simnode *simnode) {
 	}
 
 	// might want to keep these for testing? for
-	// now let's observe that the allHealthy request worked.
+	// now let's observe that the repair worked.
 	simnode.deafReadsQ.deleteAll()
 	simnode.droppedSendsQ.deleteAll()
 
-	for rem, conn := range s.circuits[simnode] {
-		_ = rem
+	for _, conn := range s.circuits[simnode] {
 		//vv("repairAllCircuitFaults: before 0 out deafRead and deafSend, conn=%v", conn)
 		conn.deafRead = 0 // zero prob of deaf read.
 		conn.dropSend = 0 // zero prob of dropped send.
@@ -173,12 +173,12 @@ func (s *simnet) handleHostRepair(repair *hostRepair) (err error) {
 	if !ok {
 		panic(fmt.Sprintf("origin not registered in s.simnode2host: origin.name = '%v'", origin.name))
 	}
-	for end := range host.port2host {
+	for end := range host.node2host {
 		repair.originName = end.name
 		s.handleCircuitRepair(repair, false)
 	}
 	host.state = HEALTHY
-	if repair.powerOnAnyOff {
+	if repair.powerOnIfOff {
 		host.powerOff = false
 	}
 	return
@@ -225,36 +225,36 @@ type DropDeafSpec struct {
 type circuitFault struct {
 	originName string
 	targetName string
-	dd         DropDeafSpec
-	sn         int64
-	proceed    chan struct{}
-	err        error
+	DropDeafSpec
+	sn      int64
+	proceed chan struct{}
+	err     error
 }
 
 func newCircuitFault(originName, targetName string, dd DropDeafSpec) *circuitFault {
 	return &circuitFault{
-		originName: originName,
-		targetName: targetName,
-		dd:         dd,
-		sn:         simnetNextMopSn(),
-		proceed:    make(chan struct{}),
+		originName:   originName,
+		targetName:   targetName,
+		DropDeafSpec: dd,
+		sn:           simnetNextMopSn(),
+		proceed:      make(chan struct{}),
 	}
 }
 
 type hostFault struct {
 	hostName string
-	dd       DropDeafSpec
-	sn       int64
-	proceed  chan struct{}
-	err      error
+	DropDeafSpec
+	sn      int64
+	proceed chan struct{}
+	err     error
 }
 
 func newHostFault(hostName string, dd DropDeafSpec) *hostFault {
 	return &hostFault{
-		hostName: hostName,
-		dd:       dd,
-		sn:       simnetNextMopSn(),
-		proceed:  make(chan struct{}),
+		hostName:     hostName,
+		DropDeafSpec: dd,
+		sn:           simnetNextMopSn(),
+		proceed:      make(chan struct{}),
 	}
 }
 
@@ -398,8 +398,8 @@ func (s *simnet) RepairHost(originName string, unIsolate bool, powerOnIfOff, all
 
 // AllHealthy heal all partitions, undo all faults, network wide.
 // All circuits are returned to HEALTHY status. Their powerOff status
-// is not updated unless powerOnAnyOff is also true.
+// is not updated unless powerOnIfOff is also true.
 // See also RepairSimnode for single simnode repair.
-func (s *simnet) AllHealthy(powerOnAnyOff bool) (err error) {
-	return s.RepairHost("", true, powerOnAnyOff, true)
+func (s *simnet) AllHealthy(powerOnIfOff bool) (err error) {
+	return s.RepairHost("", true, powerOnIfOff, true)
 }

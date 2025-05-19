@@ -520,12 +520,12 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 	}
 	s.simnode2host[clisimnode] = clihost
 
-	srvhost.host2port[clihost] = clisimnode
-	srvhost.port2host[clisimnode] = clihost
+	srvhost.host2node[clihost] = clisimnode
+	srvhost.node2host[clisimnode] = clihost
 	srvhost.host2conn[clihost] = s2c
 
-	clihost.host2port[srvhost] = srvsimnode
-	clihost.port2host[srvsimnode] = srvhost
+	clihost.host2node[srvhost] = srvsimnode
+	clihost.node2host[srvsimnode] = srvhost
 	clihost.host2conn[srvhost] = c2s
 
 	reg.conn = c2s
@@ -1009,7 +1009,7 @@ func (s *simnet) handleAlterHost(alt *simnodeAlteration) {
 	if !ok {
 		panic(fmt.Sprintf("not registered in s.simnode2host: alt.simnode = '%v'", alt.simnode))
 	}
-	for end := range host.port2host {
+	for end := range host.node2host {
 		alt.simnode = end
 		s.handleAlterCircuit(alt, false)
 	}
@@ -1770,8 +1770,8 @@ type simhost struct {
 	serverBaseID string
 	state        Circuitstate
 	powerOff     bool
-	port2host    map[*simnode]*simhost
-	host2port    map[*simhost]*simnode
+	node2host    map[*simnode]*simhost
+	host2node    map[*simhost]*simnode
 	host2conn    map[*simhost]*simconn
 }
 
@@ -1779,8 +1779,8 @@ func newSimhost(name, serverBaseID string) *simhost {
 	return &simhost{
 		name:         name,
 		serverBaseID: serverBaseID,
-		port2host:    make(map[*simnode]*simhost),
-		host2port:    make(map[*simhost]*simnode),
+		node2host:    make(map[*simnode]*simhost),
+		host2node:    make(map[*simhost]*simnode),
 		host2conn:    make(map[*simhost]*simconn),
 	}
 }
@@ -1794,13 +1794,13 @@ func (s *simnet) allConnString() (r string) {
 				h.name, conn.remote.name)
 		}
 		if false {
-			r += fmt.Sprintf("host:%v has host2port:\n", host.name)
-			for h, end := range host.host2port {
-				r += fmt.Sprintf("    host2port[%v] = %v\n", h.name, end.name)
+			r += fmt.Sprintf("host:%v has host2node:\n", host.name)
+			for h, end := range host.host2node {
+				r += fmt.Sprintf("    host2node[%v] = %v\n", h.name, end.name)
 			}
-			r += fmt.Sprintf("host:%v has port2host:\n", host.name)
-			for end, h := range host.port2host {
-				r += fmt.Sprintf("    port2host[%v] = %v\n", end.name, h.name)
+			r += fmt.Sprintf("host:%v has node2host:\n", host.name)
+			for end, h := range host.node2host {
+				r += fmt.Sprintf("    node2host[%v] = %v\n", end.name, h.name)
 			}
 		}
 	}
