@@ -2,7 +2,7 @@ package rpc25519
 
 import (
 	"fmt"
-	"time"
+	//"time"
 )
 
 func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err error) {
@@ -32,6 +32,9 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 		// no remote conn to adjust
 		return
 	}
+	// this is all "local/origin only" because
+	// our conn are just our local net.Conn equivalent.
+	// We don't adjust the other end at all.
 	recheckHealth := false
 	addedFault := false
 	for rem, conn := range remotes {
@@ -77,12 +80,12 @@ func (s *simnet) injectHostFault(fault *hostFault) (err error) {
 	if !ok {
 		panic(fmt.Sprintf("not avail in dns fault.origName = '%v'", fault.hostName))
 	}
-	host, ok := s.simnode2host[origin]
+	srvnode, ok := s.node2server[origin]
 	if !ok {
-		panic(fmt.Sprintf("not registered in s.simnode2host: origin.name = '%v'", origin.name))
+		panic(fmt.Sprintf("not registered in s.node2server: origin.name = '%v'", origin.name))
 	}
-	for end := range host.node2host {
-		cktFault := newCircuitFault(end.name, "", fault.DropDeafSpec)
+	for node := range srvnode.allnode {
+		cktFault := newCircuitFault(node.name, "", fault.DropDeafSpec)
 		s.injectCircuitFault(cktFault, false)
 	}
 	return
@@ -119,7 +122,7 @@ func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (
 	}
 	for remote := range s.circuits[origin] {
 		if target == nil || target == remote {
-			s.repairAllFaults(remote)
+			s.repairAllCircuitFaults(remote)
 			if repair.powerOnIfOff {
 				remote.powerOff = false
 			}
@@ -170,22 +173,19 @@ func (s *simnet) handleHostRepair(repair *hostRepair) (err error) {
 
 	origin, ok := s.dns[repair.hostName]
 	if !ok {
-		panic(fmt.Sprintf("not avail in dns repair.origName = '%v'", repair.originName))
+		panic(fmt.Sprintf("not avail in dns repair.origName = '%v'", repair.hostName))
 	}
-	host, ok := s.simnode2host[origin]
-	if !ok {
-		panic(fmt.Sprintf("origin not registered in s.simnode2host: origin.name = '%v'", origin.name))
-	}
-	for simnode := range host.mynodes {
-		const justOrigin = false
-		const noProceedCloseYet = false
 
-		cktRepair := newCircuitRepair(simnode.name, "", repair.unIsolate, repair.powerOnIfOff, justOrigin)
-		s.handleCircuitRepair(cktRepair, noProceedCloseYet)
+	srvnode, ok := s.node2server[origin]
+	if !ok {
+		panic(fmt.Sprintf("not registered in s.node2server: origin.name = '%v'", origin.name))
 	}
-	host.state = HEALTHY
-	if repair.powerOnIfOff {
-		host.powerOff = false
+	const closeProceed_NO = false
+	const justOrigin = true
+	for node, conn := range srvnode.allnode { // includes srvnode itself
+		_ = conn
+		cktRepair := s.newCircuitRepair(node.name, "", repair.unIsolate, repair.powerOnIfOff, justOrigin)
+		s.handleCircuitRepair(cktRepair, closeProceed_NO)
 	}
 	return
 }
@@ -347,9 +347,6 @@ func (s *simnet) HostFault(hostName string, dd DropDeafSpec) (err error) {
 	select {
 	case <-fault.proceed:
 		err = fault.err
-		if target == "" {
-			target = "(any and all)"
-		}
 		//vv("server '%v' hostFault from '%v'; dd='%v'; err = '%v'", hostName, dd, err)
 	case <-s.halt.ReqStop.Chan:
 		return
@@ -364,7 +361,9 @@ func (s *simnet) HostFault(hostName string, dd DropDeafSpec) (err error) {
 // is also true. See also AllHealthy.
 func (s *simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff bool) (err error) {
 
-	oneGood := s.newCircuitRepair(originName, unIsolate, powerOnIfOff)
+	targetName := "" // all corresponding targets
+	const justOrigin_NO = false
+	oneGood := s.newCircuitRepair(originName, targetName, unIsolate, powerOnIfOff, justOrigin_NO)
 
 	select {
 	case s.repairCircuitCh <- oneGood:

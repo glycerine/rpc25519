@@ -192,8 +192,7 @@ type simnet struct {
 	srv *Server
 	cli *Client
 
-	hosts        map[string]*simhost // key is serverBaseID
-	simnode2host map[*simnode]*simhost
+	node2server map[*simnode]*simnode
 
 	dns map[string]*simnode
 
@@ -282,9 +281,9 @@ type simnet struct {
 	// or .dropSend flags to model faults.
 	// Reboot/restart should not heal net/net card faults.
 	//
-	// To recap, both clisimnode.name and srvsimnode.name are keys
-	// in the circuits map. So circuits[clisimnode.name] returns
-	// the map of who clisimnode is connected to.
+	// To recap, both clinode.name and srvnode.name are keys
+	// in the circuits map. So circuits[clinode.name] returns
+	// the map of who clinode is connected to.
 	//
 	// In other words, the value of the map circuits[A]
 	// is another map, which is the set of circuits that A
@@ -318,13 +317,12 @@ type simnet struct {
 	lastArmTm     time.Time
 }
 
-// a simnode is a network peer --
-// either a Server or Client.
-// Clients talk to only one Server, but
-// Servers can talk to any number of Clients.
+// a simnode is a client or server in the network.
+// Clients talk to only one server, but
+// servers can talk to any number of clients.
 //
 // In grid or cluster simulation, the
-// Clients are typically the auto-Clients that
+// clients are typically the auto-Clients that
 // a Server itself has created to initiate
 // connections to form a grid.
 //
@@ -355,6 +353,11 @@ type simnode struct {
 	powerOff bool
 
 	tellServerNewConnCh chan *simconn
+
+	// servers track their autocli here
+	autocli map[*simnode]*simconn
+	// autocli + self
+	allnode map[*simnode]bool
 }
 
 // Circuitstate is one of HEALTHY, FAULTY,
@@ -425,6 +428,10 @@ func (s *simnet) newSimnode(name, serverBaseID string) *simnode {
 		deafReadsQ:    newPQinitTm(name + " deaf reads Q "),
 		droppedSendsQ: s.newPQarrivalTm(name + " dropped sends Q "),
 		net:           s,
+
+		// clients don't need these, so we could make them lazily
+		autocli: make(map[*simnode]*simconn),
+		allnode: make(map[*simnode]bool),
 	}
 }
 
@@ -452,29 +459,24 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	// 	isCli:   false,
 	// }
 
-	srvsimnode := s.newCircuitserver(reg.server.name, reg.serverBaseID)
-	srvsimnode.netAddr = reg.srvNetAddr
-	s.circuits[srvsimnode] = make(map[*simnode]*simconn)
-	_, already := s.dns[srvsimnode.name]
+	srvnode := s.newCircuitserver(reg.server.name, reg.serverBaseID)
+	srvnode.allnode[srvnode] = true
+	srvnode.netAddr = reg.srvNetAddr
+	s.circuits[srvnode] = make(map[*simnode]*simconn)
+	_, already := s.dns[srvnode.name]
 	if already {
-		panic(fmt.Sprintf("server name already taken: '%v'", srvsimnode.name))
+		panic(fmt.Sprintf("server name already taken: '%v'", srvnode.name))
 	}
-	s.dns[srvsimnode.name] = srvsimnode
+	s.dns[srvnode.name] = srvnode
+	s.node2server[srvnode] = srvnode
 
-	host, ok := s.hosts[reg.serverBaseID]
-	if !ok {
-		host = newSimhost(reg.server.name, reg.serverBaseID)
-		s.hosts[reg.serverBaseID] = host
-	}
-	s.simnode2host[srvsimnode] = host
-
-	reg.simnode = srvsimnode
+	reg.simnode = srvnode
 	reg.simnet = s
 
 	//vv("end of handleServerRegistration, srvreg is %v", reg)
 
 	// channel made by newCircuitserver() above.
-	reg.tellServerNewConnCh = srvsimnode.tellServerNewConnCh
+	reg.tellServerNewConnCh = srvnode.tellServerNewConnCh
 	close(reg.done)
 }
 
@@ -504,34 +506,9 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 	c2s := s.addEdgeFromCli(clinode, srvnode)
 	s2c := s.addEdgeFromSrv(srvnode, clinode)
 
-	srvhost, ok := s.hosts[srvnode.serverBaseID]
-	if !ok {
-		panic(fmt.Sprintf("why no host for server? serverBaseID = '%v'; s.hosts='%#v'", srvnode.serverBaseID, s.hosts))
-		// happened on server registration:
-		//srvhost = newSimhost(srvnode.name, srvnode.serverBaseID)
-		//s.hosts[srvnode.serverBaseID] = srvhost
-		//s.simnode2host[srvnode] = srvhost
-	}
-
-	clihost, ok := s.hosts[clinode.serverBaseID] // host for the remote
-	if !ok {
-		clihost = newSimhost(clinode.name, clinode.serverBaseID)
-		s.hosts[clinode.serverBaseID] = clihost
-	}
-	if clihost == srvhost {
-		panic(fmt.Sprintf("unsupported loopback: cannot create clients talking to own haost, at least for now. clinode='%v'; srvnode='%v'", clinode, srvnode))
-	}
-	s.simnode2host[clinode] = clihost
-
-	clihost.mynodes[clinode] = clihost
-	srvhost.mynodes[srvnode] = srvhost
-
-	clihost.host2node[srvhost] = clinode
-	srvhost.host2node[clihost] = srvnode
-
-	// the conn to go from host A to host B
-	srvhost.host2conn[clihost] = s2c
-	clihost.host2conn[srvhost] = c2s
+	s.node2server[clinode] = srvnode
+	srvnode.autocli[clinode] = c2s
+	srvnode.allnode[clinode] = true
 
 	reg.conn = c2s
 	reg.simnode = clinode
@@ -599,8 +576,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		scenario:          scen,
 		safeStateStringCh: make(chan *simnetSafeStateQuery),
 		dns:               make(map[string]*simnode),
-		hosts:             make(map[string]*simhost), // key is serverBaseID
-		simnode2host:      make(map[*simnode]*simhost),
+		node2server:       make(map[*simnode]*simnode),
 
 		// graph of circuits, edges are circuits[from][to]
 		circuits: make(map[*simnode]map[*simnode]*simconn),
@@ -633,41 +609,41 @@ func (s *simnode) setNetAddrSameNetAs(addr string, srvNetAddr *SimNetAddr) {
 	}
 }
 
-func (s *simnet) addEdgeFromSrv(srvsimnode, clisimnode *simnode) *simconn {
+func (s *simnet) addEdgeFromSrv(srvnode, clinode *simnode) *simconn {
 
-	srv, ok := s.circuits[srvsimnode] // edges from srv to clients
+	srv, ok := s.circuits[srvnode] // edges from srv to clients
 	if !ok {
 		srv = make(map[*simnode]*simconn)
-		s.circuits[srvsimnode] = srv
+		s.circuits[srvnode] = srv
 	}
 	s2c := newSimconn()
 	s2c.isCli = false
 	s2c.net = s
-	s2c.local = srvsimnode
-	s2c.remote = clisimnode
-	s2c.netAddr = srvsimnode.netAddr
+	s2c.local = srvnode
+	s2c.remote = clinode
+	s2c.netAddr = srvnode.netAddr
 
 	// replace any previous conn
-	srv[clisimnode] = s2c
+	srv[clinode] = s2c
 	return s2c
 }
 
-func (s *simnet) addEdgeFromCli(clisimnode, srvsimnode *simnode) *simconn {
+func (s *simnet) addEdgeFromCli(clinode, srvnode *simnode) *simconn {
 
-	cli, ok := s.circuits[clisimnode] // edge from client to one server
+	cli, ok := s.circuits[clinode] // edge from client to one server
 	if !ok {
 		cli = make(map[*simnode]*simconn)
-		s.circuits[clisimnode] = cli
+		s.circuits[clinode] = cli
 	}
 	c2s := newSimconn()
 	c2s.isCli = true
 	c2s.net = s
-	c2s.local = clisimnode
-	c2s.remote = srvsimnode
-	c2s.netAddr = clisimnode.netAddr
+	c2s.local = clinode
+	c2s.remote = srvnode
+	c2s.netAddr = clinode.netAddr
 
 	// replace any previous conn
-	cli[srvsimnode] = c2s
+	cli[srvnode] = c2s
 	return c2s
 }
 
@@ -1008,43 +984,16 @@ func (s *simnet) handleAlterCircuit(alt *simnodeAlteration, closeDone bool) {
 	}
 }
 
+// alter all the auto-cli of a server and the server itself.
 func (s *simnet) handleAlterHost(alt *simnodeAlteration) {
-
-	host, ok := s.simnode2host[alt.simnode]
+	srvnode, ok := s.node2server[alt.simnode]
 	if !ok {
-		panic(fmt.Sprintf("not registered in s.simnode2host: alt.simnode = '%v'", alt.simnode))
+		panic(fmt.Sprintf("not registered in s.node2server: alt.simnode = '%v'", alt.simnode))
 	}
-	for end := range host.node2host {
-		alt.simnode = end
-		s.handleAlterCircuit(alt, false)
-	}
-	switch alt.alter {
-	case SHUTDOWN:
-		host.powerOff = true
-	case ISOLATE:
-		switch host.state {
-		case HEALTHY:
-			host.state = ISOLATED
-		case FAULTY:
-			host.state = FAULTY_ISOLATED
-		case ISOLATED:
-			// noop
-		case FAULTY_ISOLATED:
-			// noop
-		}
-	case UNISOLATE:
-		switch host.state {
-		case HEALTHY:
-			// no-op, not isolated
-		case FAULTY:
-			// no-op, not isolated
-		case ISOLATED:
-			host.state = HEALTHY
-		case FAULTY_ISOLATED:
-			host.state = FAULTY
-		}
-	case RESTART:
-		host.powerOff = false
+	const closeDone = false
+	for node := range srvnode.allnode { // includes srvnode itself
+		alt.simnode = node
+		s.handleAlterCircuit(alt, closeDone)
 	}
 	close(alt.done)
 }
@@ -1125,7 +1074,7 @@ func (s *simnet) handleSend(send *mop) {
 
 		send.target.preArrQ.add(send)
 		//vv("LC:%v  SEND TO %v %v", origin.lc, origin.name, send)
-		////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvsimnode.preArrQ)
+		////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvnode.preArrQ)
 
 	}
 	// rpc25519 peer/ckt/frag does async sends, so let
@@ -1764,49 +1713,19 @@ restartI:
 	}
 }
 
-// simhost collects all the circuits on
-// a given host, to make e.g. isolation easier.
-// enables applying an action like powerOff
-// to all ports on the simulated host.
-// the name should correspond to servers,
-// not isCli auto-clients.
-type simhost struct {
-	name         string
-	serverBaseID string
-	state        Circuitstate
-	powerOff     bool
-	node2host    map[*simnode]*simhost
-	host2node    map[*simhost]*simnode
-	host2conn    map[*simhost]*simconn
-	mynodes      map[*simnode]*simhost
-}
-
-func newSimhost(name, serverBaseID string) *simhost {
-	return &simhost{
-		name:         name,
-		serverBaseID: serverBaseID,
-		host2node:    make(map[*simhost]*simnode),
-		host2conn:    make(map[*simhost]*simconn),
-		mynodes:      make(map[*simnode]*simhost),
-	}
-}
-
 func (s *simnet) allConnString() (r string) {
 
-	for _, host := range s.hosts {
-		r += fmt.Sprintf("host:%v has host2conn:\n", host.name)
-		for h, conn := range host.host2conn {
-			r += fmt.Sprintf("    host2conn[%v] conn.remote.name: %v\n",
-				h.name, conn.remote.name)
+	for origin, dest := range s.circuits {
+		r += fmt.Sprintf("circuits[origin:%v] has targets:\n", origin.name)
+		for target, conn := range dest {
+			r += fmt.Sprintf("    circuits[%v][%v] conn.remote.name: %v\n",
+				origin.name, target.name, conn.remote.name)
 		}
-		if false {
-			r += fmt.Sprintf("host:%v has host2node:\n", host.name)
-			for h, end := range host.host2node {
-				r += fmt.Sprintf("    host2node[%v] = %v\n", h.name, end.name)
-			}
-			r += fmt.Sprintf("host:%v has node2host:\n", host.name)
-			for end, h := range host.node2host {
-				r += fmt.Sprintf("    node2host[%v] = %v\n", end.name, h.name)
+		if !origin.isCli {
+			r += fmt.Sprintf("server %v has autocli:\n", origin.name)
+			for clinode, conn := range origin.autocli {
+				r += fmt.Sprintf("    %v  conn.local:%v,  conn.remote:%v\n",
+					clinode.name, conn.local.name, conn.remote.name)
 			}
 		}
 	}
@@ -1849,7 +1768,7 @@ func (s *simnet) handleDiscardTimer(discard *mop) {
 		discard.origTimerCompleteTm = orig.completeTm
 	} // leave wasArmed false, could not have been armed if gone.
 
-	////zz("LC:%v %v TIMER_DISCARD %v to fire at '%v'; now timerQ: '%v'", discard.origin.lc, discard.origin.name, discard, discard.origTimerCompleteTm, s.clisimnode.timerQ)
+	////zz("LC:%v %v TIMER_DISCARD %v to fire at '%v'; now timerQ: '%v'", discard.origin.lc, discard.origin.name, discard, discard.origTimerCompleteTm, s.clinode.timerQ)
 	// let scheduler, to avoid false alarms: s.armTimer(now)
 	close(discard.proceed)
 }
@@ -1895,7 +1814,7 @@ func (s *simnet) handleTimer(timer *mop) {
 	//vv("masked timer:\n dur: %v -> %v\n completeTm: %v -> %v\n", timer.unmaskedDur, timer.timerDur, timer.unmaskedCompleteTm, timer.completeTm)
 
 	timer.origin.timerQ.add(timer)
-	////zz("LC:%v %v set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer.origin.name, timer, timer.completeTm, s.clisimnode.timerQ)
+	////zz("LC:%v %v set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer.origin.name, timer, timer.completeTm, s.clinode.timerQ)
 
 	// let scheduler, to avoid false alarms: s.armTimer(now) // handleTimer
 }
@@ -2043,7 +1962,7 @@ func CallbackOnNewTimer(
 //=========================================
 
 // called by goroutines outside of the scheduler,
-// so must not touch s.srvsimnode, s.clisimnode, etc.
+// so must not touch s.srvnode, s.clinode, etc.
 func (s *simnet) createNewTimer(origin *simnode, dur time.Duration, begin time.Time, isCli bool) (timer *mop) {
 
 	//vv("top simnet.createNewTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", origin.name, dur, begin, begin.Add(dur))

@@ -177,11 +177,11 @@ func (op *mop) String() string {
 
 func (z *circuitFault) String() (r string) {
 	r = "&circuitFault{\n"
-	r += fmt.Sprintf("originName: \"%v\",\n", z.originName)
-	r += fmt.Sprintf("targetName: \"%v\",\n", z.targetName)
-	r += fmt.Sprintf("       err: %v,\n", z.err)
-	r += fmt.Sprintf("        sn: %v,\n", z.sn)
-	r += fmt.Sprintf("        dd: %v,\n", z.dd)
+	r += fmt.Sprintf("  originName: \"%v\",\n", z.originName)
+	r += fmt.Sprintf("  targetName: \"%v\",\n", z.targetName)
+	r += fmt.Sprintf("DropDeafSpec: %v,\n", z.DropDeafSpec)
+	r += fmt.Sprintf("          sn: %v,\n", z.sn)
+	r += fmt.Sprintf("         err: %v,\n", z.err)
 	r += "}\n"
 	return
 }
@@ -200,22 +200,24 @@ func (z *circuitRepair) String() (r string) {
 }
 func (z *DropDeafSpec) String() (r string) {
 	r = "&DropDeafSpec{\n"
-	r += fmt.Sprintf(" updateDeafReads: %v,\n", z.updateDeafReads)
-	r += fmt.Sprintf(" updateDropSends: %v,\n", z.updateDropSends)
+	r += fmt.Sprintf(" UpdateDeafReads: %v,\n", z.UpdateDeafReads)
+	r += fmt.Sprintf(" UpdateDropSends: %v,\n", z.UpdateDropSends)
 	r += fmt.Sprintf("deafReadsNewProb: %v,\n", z.deafReadsNewProb)
 	r += fmt.Sprintf("dropSendsNewProb: %v,\n", z.dropSendsNewProb)
 	r += "}\n"
 	return
 }
+
 func (z *hostFault) String() (r string) {
 	r = "&hostFault{\n"
-	r += fmt.Sprintf("hostName: \"%v\",\n", z.hostName)
-	r += fmt.Sprintf("     err: %v,\n", z.err)
-	r += fmt.Sprintf("      sn: %v,\n", z.sn)
-	r += fmt.Sprintf("      dd: %v,\n", z.dd)
+	r += fmt.Sprintf("    hostName: \"%v\",\n", z.hostName)
+	r += fmt.Sprintf("DropDeafSpec: %v,\n", z.DropDeafSpec)
+	r += fmt.Sprintf("          sn: %v,\n", z.sn)
+	r += fmt.Sprintf("         err: %v,\n", z.err)
 	r += "}\n"
 	return
 }
+
 func (z *hostRepair) String() (r string) {
 	r = "&hostRepair{\n"
 	r += fmt.Sprintf("    hostName: \"%v\",\n", z.hostName)

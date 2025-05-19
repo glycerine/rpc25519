@@ -31,10 +31,10 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	}
 
 	defer func() {
-		if simnet != nil && s.simckt != nil {
+		if simnet != nil && s.simnode != nil {
 			const wholeHost = true
-			simnet.alterCircuit(s.simckt, SHUTDOWN, wholeHost)
-			//vv("simnet.alterNode(s.simckt, SHUTDOWN) done for %v", s.name)
+			simnet.alterCircuit(s.simnode, SHUTDOWN, wholeHost)
+			//vv("simnet.alterNode(s.simnode, SHUTDOWN) done for %v", s.name)
 		}
 	}()
 
@@ -57,7 +57,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	for {
 		select { // wait for a new client to connect
 		case conn := <-serverNewConnCh:
-			//s.simckt = conn.local
+			//s.simnode = conn.local
 
 			//vv("%v simnet server got new conn '%#v', about to start read/send loops", netAddr, conn) // not seen
 			pair := s.newRWPair(conn)
@@ -95,7 +95,7 @@ func (s *Server) bootAndRegisterSimNetServer(serverAddr string, simNetConfig *Si
 	// per config shared simnet.
 	simnet = s.cfg.bootSimNetOnServer(simNetConfig, s)
 
-	// sets s.simckt, s.simnet, s.netAddr
+	// sets s.simnode, s.simnet, s.netAddr
 	serverNewConnCh, err = simnet.registerServer(s, netAddr)
 	if err != nil {
 		if err == ErrShutdown2 {
