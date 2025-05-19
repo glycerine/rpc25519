@@ -303,7 +303,7 @@ func (s *simnet) addFaultsToReadQ(now time.Time, origin, target *simnode, deafRe
 		if target == nil || read.target == target {
 			if s.deaf(deafReadProb) {
 
-				vv("deaf fault enforced on read='%v'", read)
+				//vv("deaf fault enforced on read='%v'", read)
 				// don't mark them, so we can restore them later.
 				origin.deafReadQ.add(read)
 
@@ -352,7 +352,7 @@ func (s *simnet) addSendFaults(now time.Time, origin, target *simnode, dropSendP
 			if send.origin == origin &&
 				s.dropped(dropSendProb) {
 
-				vv("drop fault enforced on send='%v'", send)
+				//vv("drop fault enforced on send='%v'", send)
 				// don't mark them, so we can restore them later.
 				//send.sendIsDropped = true
 				//send.isDropDeafFault = true
@@ -517,7 +517,7 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 	reg.simnode = clinode
 
 	// tell server about new edge
-	// vv("about to deadlock? stack=\n'%v'", stack())
+	// //vv("about to deadlock? stack=\n'%v'", stack())
 	// I think this might be a chicken and egg problem.
 	// The server cannot register b/c client is here on
 	// the scheduler goro, and client here wants to tell the
@@ -1020,7 +1020,7 @@ func (s *simnet) handleSend(send *mop) {
 		//vv("powerOff or ISOLATED, dropping msg = '%v'", send.msg)
 	} else {
 		if s.localDropSend(send) {
-			vv("DROP SEND %v", send)
+			//vv("DROP SEND %v", send)
 			//send.sendIsDropped = true
 			//send.isDropDeafFault = true
 			send.origin.droppedSendQ.add(send)
@@ -1082,7 +1082,7 @@ func (s *simnet) handleRead(read *mop) {
 	}
 
 	if s.localDeafRead(read) {
-		vv("DEAF READ %v", read)
+		//vv("DEAF READ %v", read)
 		origin.deafReadQ.add(read)
 	} else {
 		origin.readQ.add(read)
@@ -1826,7 +1826,7 @@ func (s *simnet) armTimer(now time.Time) time.Duration {
 	dur := minTimer.completeTm.Sub(now)
 	////zz("dur=%v = when(%v) - now(%v)", dur, minTimer.completeTm, now)
 	if dur <= 0 {
-		vv("no timers, what?? minTimerDur = %v", dur)
+		//vv("no timers, what?? minTimerDur = %v", dur)
 		panic("must always have at least the grid timer!")
 	}
 	s.lastArmTm = now

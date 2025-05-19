@@ -362,7 +362,7 @@ func (s *simnet) RepairHost(originName string, unIsolate bool, powerOnIfOff, all
 // See also RepairSimnode for single simnode repair.
 // .
 func (s *simnet) AllHealthy(powerOnIfOff bool) (err error) {
-	vv("AllHealthy(powerOnIfOff=%v) called.", powerOnIfOff)
+	//vv("AllHealthy(powerOnIfOff=%v) called.", powerOnIfOff)
 
 	return s.RepairHost("", true, powerOnIfOff, true)
 }
@@ -692,7 +692,7 @@ func (s *simnet) SafeStateString() (r string) {
 	}
 	select {
 	case s.safeStateStringCh <- requestState:
-		vv("sent AllHealthy requestState on safeStateStringCh; about to wait on proceed")
+		//vv("sent AllHealthy requestState on safeStateStringCh; about to wait on proceed")
 	case <-s.halt.ReqStop.Chan:
 		return
 	}

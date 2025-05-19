@@ -52,7 +52,7 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 					_ = was
 					origin.state = FAULTY
 					addedFault = true
-					vv("set deafRead = fault.DeafReadsNewProb = %v; (%v -> FAULTY) now conn = '%v'", fault.DeafReadsNewProb, was, conn)
+					//vv("set deafRead = fault.DeafReadsNewProb = %v; (%v -> FAULTY) now conn = '%v'", fault.DeafReadsNewProb, was, conn)
 
 				} else {
 					recheckHealth = true
@@ -65,7 +65,7 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 					_ = was
 					origin.state = FAULTY
 					addedFault = true
-					vv("set dropSend = fault.DropSendsNewProb = %v; (%v -> FAULTY) now conn='%v'", fault.DropSendsNewProb, was, conn)
+					//vv("set dropSend = fault.DropSendsNewProb = %v; (%v -> FAULTY) now conn='%v'", fault.DropSendsNewProb, was, conn)
 				} else {
 					recheckHealth = true
 				}
@@ -79,7 +79,7 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 	}
 	now := time.Now() // TODO thread from caller in.
 	s.addFaultsToPQ(now, origin, target, fault.DropDeafSpec)
-	vv("after injectCircuitFault '%v', simnet: '%v'", fault.String(), s.schedulerReport())
+	//vv("after injectCircuitFault '%v', simnet: '%v'", fault.String(), s.schedulerReport())
 	return
 }
 
@@ -239,7 +239,7 @@ func (s *simnet) repairAllCircuitFaults(simnode *simnode) {
 	if nDeaf > 0 {
 		for it := simnode.deafReadQ.tree.Min(); it != simnode.deafReadQ.tree.Limit(); it = it.Next() {
 			read := it.Item().(*mop)
-			vv("transferring read = %v' from deafReadQ to readQ on '%v'", read, simnode.name)
+			//vv("transferring read = %v' from deafReadQ to readQ on '%v'", read, simnode.name)
 			simnode.readQ.add(read)
 		}
 		simnode.deafReadQ.deleteAll()
@@ -255,7 +255,7 @@ func (s *simnet) repairAllCircuitFaults(simnode *simnode) {
 			if nDrop > 0 {
 				for it := node.droppedSendQ.tree.Min(); it != node.droppedSendQ.tree.Limit(); it = it.Next() {
 					send := it.Item().(*mop)
-					vv("transferring send = %v' from droppedSendQ to preArrQ on '%v'", send, node.name)
+					//vv("transferring send = %v' from droppedSendQ to preArrQ on '%v'", send, node.name)
 					node.preArrQ.add(send)
 				}
 				node.droppedSendQ.deleteAll()
