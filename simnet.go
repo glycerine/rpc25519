@@ -1148,6 +1148,34 @@ func (s *simnet) handleAlterHost(alt *nodeAlteration) {
 		alt.simnode = end
 		s.handleAlterNode(alt, false)
 	}
+	switch alt.alter {
+	case SHUTDOWN:
+		host.powerOff = true
+	case ISOLATE:
+		switch host.state {
+		case HEALTHY:
+			host.state = ISOLATED
+		case FAULTY:
+			host.state = FAULTY_ISOLATED
+		case ISOLATED:
+			// noop
+		case FAULTY_ISOLATED:
+			// noop
+		}
+	case UNISOLATE:
+		switch host.state {
+		case HEALTHY:
+			// no-op, not isolated
+		case FAULTY:
+			// no-op, not isolated
+		case ISOLATED:
+			host.state = HEALTHY
+		case FAULTY_ISOLATED:
+			host.state = FAULTY
+		}
+	case RESTART:
+		host.powerOff = false
+	}
 	close(alt.done)
 }
 
@@ -1863,6 +1891,7 @@ type simHost struct {
 	name         string
 	serverBaseID string
 	state        nodestate
+	powerOff     bool
 	end2host     map[*simnode]*simHost
 	host2end     map[*simHost]*simnode
 	host2conn    map[*simHost]*simnetConn
