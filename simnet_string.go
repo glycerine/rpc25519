@@ -202,8 +202,8 @@ func (z *DropDeafSpec) String() (r string) {
 	r = "&DropDeafSpec{\n"
 	r += fmt.Sprintf(" UpdateDeafReads: %v,\n", z.UpdateDeafReads)
 	r += fmt.Sprintf(" UpdateDropSends: %v,\n", z.UpdateDropSends)
-	r += fmt.Sprintf("deafReadsNewProb: %v,\n", z.deafReadsNewProb)
-	r += fmt.Sprintf("dropSendsNewProb: %v,\n", z.dropSendsNewProb)
+	r += fmt.Sprintf("DeafReadsNewProb: %v,\n", z.DeafReadsNewProb)
+	r += fmt.Sprintf("DropSendsNewProb: %v,\n", z.DropSendsNewProb)
 	r += "}\n"
 	return
 }

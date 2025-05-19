@@ -41,7 +41,7 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 		if target == nil || target == rem {
 			if fault.UpdateDeafReads {
 				//vv("setting conn(%v).deafRead = fault.deafReadsNewProb = %v", conn, fault.deafReadsNewProb)
-				conn.deafRead = fault.deafReadsNewProb
+				conn.deafRead = fault.DeafReadsNewProb
 				if conn.deafRead > 0 {
 					origin.state = FAULTY
 					addedFault = true
@@ -51,7 +51,7 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 			}
 			if fault.UpdateDropSends {
 				//vv("setting conn(%v).dropSend = fault.dropSendsNewProb = %v", conn, fault.dropSendsNewProb)
-				conn.dropSend = fault.dropSendsNewProb
+				conn.dropSend = fault.DropSendsNewProb
 				if conn.dropSend > 0 {
 					origin.state = FAULTY
 					addedFault = true
@@ -220,12 +220,12 @@ type DropDeafSpec struct {
 	// probability of ignoring (being deaf) to a read.
 	// 0 => never be deaf to a read (healthy).
 	// 1 => ignore all reads (dead).
-	deafReadsNewProb float64
+	DeafReadsNewProb float64
 
 	// probability of dropping a send.
 	// 0 => never drop a send (healthy).
 	// 1 => always drop a send (dead).
-	dropSendsNewProb float64
+	DropSendsNewProb float64
 }
 
 type circuitFault struct {
