@@ -67,9 +67,9 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 		// but, an early fault may still be installed; full scan needed.
 		s.recheckHealthState(origin)
 	}
-	vv("after injectCircuitFault '%v', simnet: '%v'", fault.String(), s.schedulerReport())
 	now := time.Now() // TODO thread from caller in.
 	s.addFaultsToPQ(now, origin, target, fault.DropDeafSpec)
+	vv("after injectCircuitFault '%v', simnet: '%v'", fault.String(), s.schedulerReport())
 	return
 }
 

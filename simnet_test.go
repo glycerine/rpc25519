@@ -63,8 +63,8 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 			// err is normal on shutdown...
 			//panicOn(err)
 
-			//vv("reply = %p", reply)
-			//vv("server sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
+			vv("reply = %p", reply)
+			vv("cli sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
 			want := "Hello from client!"
 			gotit := strings.HasPrefix(string(reply.JobSerz), want)
 			if !gotit {
@@ -102,13 +102,27 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 			vv("server partitioned, try cli call again.")
 
 			waitFor := time.Second * 10
-			reply2, err := cli.SendAndGetReply(req, nil, waitFor)
+
+			// NOTE! must not re-use the req Message above!
+			// its reply ready DoneCh is already closed, and
+			// the nextOrReply field has the reply cached.
+			// We won't even see any network activity if
+			// we send the exact same req again.
+			req2 := NewMessage()
+			req2.HDR.ServiceName = serviceName
+			req2.JobSerz = []byte("Hello from client! 2nd time.")
+
+			reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
 			// should hang here until timeout.
 
-			vv("reply2 = %p", reply2)
-			vv("cli sees reply AFTER partition: (Seqno=%v) = '%v'", reply2.HDR.Seqno, string(reply2.JobSerz))
+			if reply2 != nil {
+				vv("reply2 = %p", reply2)
+				vv("cli sees reply AFTER partition: (Seqno=%v) = '%v'", reply2.HDR.Seqno, string(reply2.JobSerz))
+			}
 			if err == nil {
 				t.Fatalf("error: wanted timeout! server not partitioned??")
+			} else {
+				vv("good! got err = '%v'", err)
 			}
 			//panicOn(err)
 
