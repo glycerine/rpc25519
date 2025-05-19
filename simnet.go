@@ -1356,7 +1356,7 @@ func (simnode *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 		read.arrivalTm = send.arrivalTm // easier diagnostics
 
 		// matchmaking
-		vv("[1]matchmaking: \nsend '%v' -> \nread '%v'", send, read)
+		//vv("[1]matchmaking: \nsend '%v' -> \nread '%v'", send, read)
 		read.sendmop = send
 		send.readmop = read
 
