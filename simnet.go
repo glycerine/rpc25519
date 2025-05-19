@@ -362,6 +362,8 @@ type simnet struct {
 	srv *Server
 	cli *Client
 
+	hosts map[string]*simHost // key is serverBaseID
+
 	dns map[string]*simnode
 
 	// nodes[A][B] is the very cyclic (bi-directed?) graph
@@ -596,6 +598,12 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	}
 	s.dns[srvnode.name] = srvnode
 
+	host, ok := s.hosts[reg.serverBaseID]
+	if !ok {
+		host = newSimHost(reg.server.name, reg.serverBaseID)
+		s.hosts[reg.serverBaseID] = host
+	}
+
 	reg.simnode = srvnode
 	reg.simnet = s
 
@@ -631,6 +639,18 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 	// add both direction edges
 	c2s := s.addEdgeFromCli(clinode, srvnode)
 	s2c := s.addEdgeFromSrv(srvnode, clinode)
+
+	host, ok := s.hosts[srvnode.serverBaseID]
+	if !ok {
+		panic(fmt.Sprintf("why no host for server? serverBaseID = '%v'; s.hosts='%#v'", srvnode.serverBaseID, s.hosts))
+		//host = newSimHost(srvnode.name, srvnode.serverBaseID)
+		//s.hosts[srvnode.serverBaseID] = host
+	}
+	host.conns = append(host.conns, s2c)
+	hr := s.hosts[clinode.serverBaseID] // host for the remote
+	host.host2end[hr] = clinode
+	host.host2conn[hr] = s2c
+	host.end2host[clinode] = hr
 
 	reg.conn = c2s
 	reg.simnode = clinode
@@ -692,6 +712,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		scenario:          scen,
 		safeStateStringCh: make(chan *simnetSafeState),
 		dns:               make(map[string]*simnode),
+		hosts:             make(map[string]*simHost), // key is serverBaseID
 
 		// graph of nodes, edges are nodes[from][to]
 		nodes: make(map[*simnode]map[*simnode]*simnetConn),
@@ -1852,22 +1873,24 @@ func (s *simnet) allConnString() (r string) {
 	for _, host := range hosts {
 		r += fmt.Sprintf("host:%v has host2conn:\n", host.name)
 		for h, conn := range host.host2conn {
-			r += fmt.Sprintf("    host2conn[%v] = %v -> %v\n",
-				h.name, conn.local.name, conn.remote.name)
+			r += fmt.Sprintf("    host2conn[%v] conn.remote.name: %v\n",
+				h.name, conn.remote.name)
 		}
-		r += fmt.Sprintf("host:%v has host2end:\n", host.name)
-		for h, end := range host.host2end {
-			r += fmt.Sprintf("    host2end[%v] = %v\n", h.name, end.name)
-		}
-		r += fmt.Sprintf("host:%v has end2host:\n", host.name)
-		for end, h := range host.end2host {
-			r += fmt.Sprintf("    end2host[%v] = %v\n", end.name, h.name)
-		}
-		r += fmt.Sprintf("host:%v has conns:\n", host.name)
-		for _, conn := range host.conns {
-			r += fmt.Sprintf("    [%03d] simnetConn from %v -> %v\n",
-				i, conn.local.name, conn.remote.name)
-			i++
+		if false {
+			r += fmt.Sprintf("host:%v has host2end:\n", host.name)
+			for h, end := range host.host2end {
+				r += fmt.Sprintf("    host2end[%v] = %v\n", h.name, end.name)
+			}
+			r += fmt.Sprintf("host:%v has end2host:\n", host.name)
+			for end, h := range host.end2host {
+				r += fmt.Sprintf("    end2host[%v] = %v\n", end.name, h.name)
+			}
+			r += fmt.Sprintf("host:%v has conns:\n", host.name)
+			for _, conn := range host.conns {
+				r += fmt.Sprintf("    [%03d] simnetConn from %v -> %v\n",
+					i, conn.local.name, conn.remote.name)
+				i++
+			}
 		}
 	}
 	return
