@@ -161,12 +161,6 @@ type mop struct {
 	sendmop *mop // for reads, which send did we get?
 	readmop *mop // for sends, which read did we go to?
 
-	// on sends/reads
-	// model network/card faults, false means no change.
-	sendIsDropped   bool
-	readIsDeaf      bool
-	isDropDeafFault bool // either sendIsDropped or readIsDeaf
-
 	// clients of scheduler wait on proceed.
 	// When the timer is set; the send sent; the read
 	// matches a send, the client proceeds because
@@ -390,8 +384,6 @@ func (s *simnet) addFaultsToReadQ(now time.Time, origin, target *simnode, deafRe
 
 				vv("deaf fault enforced on read='%v'", read)
 				// don't mark them, so we can restore them later.
-				//read.readIsDeaf = true
-				//read.isDropDeafFault = true
 				origin.deafReadQ.add(read)
 
 				// advance readIt, and delete behind
@@ -884,11 +876,13 @@ type pq struct {
 }
 
 func (s *pq) peek() *mop {
-	if s.tree.Len() == 0 {
+	n := s.tree.Len()
+	if n == 0 {
 		return nil
 	}
 	it := s.tree.Min()
 	if it == s.tree.Limit() {
+		panic("n > 0 above, how is this possible?")
 		return nil
 	}
 	return it.Item().(*mop)
@@ -896,12 +890,13 @@ func (s *pq) peek() *mop {
 
 func (s *pq) pop() *mop {
 	n := s.tree.Len()
-	vv("pop n = %v", n)
+	//vv("pop n = %v", n)
 	if n == 0 {
 		return nil
 	}
 	it := s.tree.Min()
 	if it == s.tree.Limit() {
+		panic("n > 0 above, how is this possible?")
 		return nil
 	}
 	top := it.Item().(*mop)
@@ -1282,8 +1277,6 @@ func (s *simnet) handleRead(read *mop) {
 
 	if s.localDeafRead(read) {
 		vv("DEAF READ %v", read)
-		//read.readIsDeaf = true
-		//read.isDropDeafFault = true
 		origin.deafReadQ.add(read)
 	} else {
 		origin.readQ.add(read)
@@ -1480,27 +1473,6 @@ func (simnode *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 		send := preIt.Item().(*mop)
 
 		simnode.optionallyApplyChaos()
-
-		// check readIsDeaf these
-		// should not be matched to simulate the fault.
-		// We move them into their own queues so their
-		// timestamps don't mess up the sort order of live queues.
-		if read.readIsDeaf {
-
-			// unmark, to make restore easier.
-			read.readIsDeaf = false
-			read.isDropDeafFault = false
-
-			simnode.deafReadQ.add(read)
-			// leave done chan open. a deaf read does not complete.
-
-			// advance and delete behind.
-			delmeIt := readIt
-			readIt = readIt.Next()
-			simnode.readQ.tree.DeleteWithIterator(delmeIt)
-
-			continue
-		}
 
 		// Causality also demands that
 		// a read can complete (now) only after it was initiated;

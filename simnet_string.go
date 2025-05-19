@@ -158,18 +158,10 @@ func (op *mop) String() string {
 		extra = " timer discarded at " + op.timerFileLine
 
 	case SEND:
-		dropped := ""
-		if op.sendIsDropped {
-			dropped = " DROPPED SEND"
-		}
-		extra = fmt.Sprintf(" FROM %v TO %v (eof:%v)%v", op.origin.name, op.target.name, op.isEOF_RST, dropped)
+		extra = fmt.Sprintf(" FROM %v TO %v (eof:%v)", op.origin.name, op.target.name, op.isEOF_RST)
 
 	case READ:
-		deaf := ""
-		if op.readIsDeaf {
-			deaf = " DEAF READ"
-		}
-		extra = fmt.Sprintf(" AT %v FROM %v (eof:%v)%v", op.origin.name, op.target.name, op.isEOF_RST, deaf)
+		extra = fmt.Sprintf(" AT %v FROM %v (eof:%v)", op.origin.name, op.target.name, op.isEOF_RST)
 
 	}
 	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, msg.sn:%v%v}", who, op.kind, ini, arr, complete, op.sn, msgSerial, extra)
