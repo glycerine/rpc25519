@@ -41,8 +41,8 @@ func (node *simnode) String() (r string) {
 	r += node.readQ.String()
 	r += node.preArrQ.String()
 	r += node.timerQ.String()
-	r += node.deafReadsQ.String()
-	r += node.droppedSendsQ.String()
+	r += node.deafReadQ.String()
+	r += node.droppedSendQ.String()
 	return
 }
 

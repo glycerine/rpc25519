@@ -341,8 +341,8 @@ type simnode struct {
 	preArrQ *pq
 	timerQ  *pq
 
-	deafReadsQ    *pq
-	droppedSendsQ *pq
+	deafReadQ    *pq
+	droppedSendQ *pq
 
 	net     *simnet
 	isCli   bool
@@ -389,9 +389,10 @@ func (s *simnet) addFaultsToReadQ(now time.Time, origin, target *simnode, deafRe
 			if s.deaf(deafReadProb) {
 
 				vv("deaf fault enforced on read='%v'", read)
-				read.readIsDeaf = true
-				read.isDropDeafFault = true
-				origin.deafReadsQ.add(read)
+				// don't mark them, so we can restore them later.
+				//read.readIsDeaf = true
+				//read.isDropDeafFault = true
+				origin.deafReadQ.add(read)
 
 				// advance readIt, and delete behind
 				delmeIt := readIt
@@ -439,9 +440,10 @@ func (s *simnet) addSendFaults(now time.Time, origin, target *simnode, dropSendP
 				s.dropped(dropSendProb) {
 
 				vv("drop fault enforced on send='%v'", send)
-				send.sendIsDropped = true
-				send.isDropDeafFault = true
-				node.droppedSendsQ.add(send)
+				// don't mark them, so we can restore them later.
+				//send.sendIsDropped = true
+				//send.isDropDeafFault = true
+				node.droppedSendQ.add(send)
 
 				// advance sendIt, and delete behind
 				delmeIt := sendIt
@@ -530,14 +532,14 @@ const (
 
 func (s *simnet) newSimnode(name, serverBaseID string) *simnode {
 	return &simnode{
-		name:          name,
-		serverBaseID:  serverBaseID,
-		readQ:         newPQinitTm(name + " readQ "),
-		preArrQ:       s.newPQarrivalTm(name + " preArrQ "),
-		timerQ:        newPQcompleteTm(name + " timerQ "),
-		deafReadsQ:    newPQinitTm(name + " deaf reads Q "),
-		droppedSendsQ: s.newPQarrivalTm(name + " dropped sends Q "),
-		net:           s,
+		name:         name,
+		serverBaseID: serverBaseID,
+		readQ:        newPQinitTm(name + " readQ "),
+		preArrQ:      s.newPQarrivalTm(name + " preArrQ "),
+		timerQ:       newPQcompleteTm(name + " timerQ "),
+		deafReadQ:    newPQinitTm(name + " deaf reads Q "),
+		droppedSendQ: s.newPQarrivalTm(name + " dropped sends Q "),
+		net:          s,
 
 		// clients don't need these, so we could make them lazily
 		autocli: make(map[*simnode]*simconn),
@@ -886,14 +888,22 @@ func (s *pq) peek() *mop {
 		return nil
 	}
 	it := s.tree.Min()
+	if it == s.tree.Limit() {
+		return nil
+	}
 	return it.Item().(*mop)
 }
 
 func (s *pq) pop() *mop {
-	if s.tree.Len() == 0 {
+	n := s.tree.Len()
+	vv("pop n = %v", n)
+	if n == 0 {
 		return nil
 	}
 	it := s.tree.Min()
+	if it == s.tree.Limit() {
+		return nil
+	}
 	top := it.Item().(*mop)
 	s.tree.DeleteWithIterator(it)
 	return top
@@ -1210,9 +1220,9 @@ func (s *simnet) handleSend(send *mop) {
 	} else {
 		if s.localDropSend(send) {
 			vv("DROP SEND %v", send)
-			send.sendIsDropped = true
-			send.isDropDeafFault = true
-			send.origin.droppedSendsQ.add(send)
+			//send.sendIsDropped = true
+			//send.isDropDeafFault = true
+			send.origin.droppedSendQ.add(send)
 
 			// advance and delete behind? not needed.
 			// send has never been added to any pre-arrival Q.
@@ -1272,10 +1282,12 @@ func (s *simnet) handleRead(read *mop) {
 
 	if s.localDeafRead(read) {
 		vv("DEAF READ %v", read)
-		read.readIsDeaf = true
-		read.isDropDeafFault = true
+		//read.readIsDeaf = true
+		//read.isDropDeafFault = true
+		origin.deafReadQ.add(read)
+	} else {
+		origin.readQ.add(read)
 	}
-	origin.readQ.add(read)
 	//vv("LC:%v  READ at %v: %v", origin.lc, origin.name, read)
 	////zz("LC:%v  READ %v at %v, now cliReadQ: '%v'", origin.lc, origin.name, read, origin.readQ)
 	now := time.Now()
@@ -1474,7 +1486,12 @@ func (simnode *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 		// We move them into their own queues so their
 		// timestamps don't mess up the sort order of live queues.
 		if read.readIsDeaf {
-			simnode.deafReadsQ.add(read)
+
+			// unmark, to make restore easier.
+			read.readIsDeaf = false
+			read.isDropDeafFault = false
+
+			simnode.deafReadQ.add(read)
 			// leave done chan open. a deaf read does not complete.
 
 			// advance and delete behind.

@@ -42,9 +42,11 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 			if fault.UpdateDeafReads {
 				conn.deafRead = fault.DeafReadsNewProb
 				if conn.deafRead > 0 {
+					was := origin.state
+					_ = was
 					origin.state = FAULTY
 					addedFault = true
-					vv("set deafRead = fault.DeafReadsNewProb = %v; now conn = '%v'", fault.DeafReadsNewProb, conn)
+					vv("set deafRead = fault.DeafReadsNewProb = %v; (%v -> FAULTY) now conn = '%v'", fault.DeafReadsNewProb, was, conn)
 
 				} else {
 					recheckHealth = true
@@ -53,9 +55,11 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 			if fault.UpdateDropSends {
 				conn.dropSend = fault.DropSendsNewProb
 				if conn.dropSend > 0 {
+					was := origin.state
+					_ = was
 					origin.state = FAULTY
 					addedFault = true
-					vv("set dropSend = fault.DropSendsNewProb = %v; now conn='%v'", fault.DropSendsNewProb, conn)
+					vv("set dropSend = fault.DropSendsNewProb = %v; (%v -> FAULTY) now conn='%v'", fault.DropSendsNewProb, was, conn)
 				} else {
 					recheckHealth = true
 				}
@@ -92,6 +96,11 @@ func (s *simnet) injectHostFault(fault *hostFault) (err error) {
 }
 
 func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (err error) {
+	vv("top of handleCircuitRepair; closeProceed = %v; repair = '%v'", closeProceed, repair)
+	defer func() {
+		vv("end of handleCircuitRepair")
+	}()
+
 	if closeProceed {
 		defer func() {
 			repair.err = err
@@ -104,11 +113,14 @@ func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (
 		return fmt.Errorf("error in handleCircuitRepair: originName not found: '%v'", repair.originName)
 	}
 
+	vv("handleCircuitRepair about self-repair, repairAllCircuitFaults('%v')", origin.name)
 	s.repairAllCircuitFaults(origin)
+	vv("handleCircuitRepair back from self-repair, repairAllCircuitFaults('%v')", origin.name)
 	if repair.powerOnIfOff {
 		origin.powerOff = false
 	}
 	if repair.justOriginHealed {
+		vv("handleCircuitRepair sees justOriginHealed, returning w/o touching targets")
 		return
 	}
 
@@ -122,6 +134,7 @@ func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (
 	}
 	for remote := range s.circuits[origin] {
 		if target == nil || target == remote {
+			vv("handleCircuitRepair about clear target remote '%v'", remote.name)
 			s.repairAllCircuitFaults(remote)
 			if repair.powerOnIfOff {
 				remote.powerOff = false
@@ -139,6 +152,10 @@ func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (
 // If state is FAULTY, we go to HEALTHY.
 // If state is FAULTY_ISOLATED, we go to ISOLATED.
 func (s *simnet) repairAllCircuitFaults(simnode *simnode) {
+	vv("top of repairAllCircuitFaults, simnode = '%v'", simnode.name)
+	defer func() {
+		vv("end of repairAllCircuitFaults")
+	}()
 
 	switch simnode.state {
 	case HEALTHY:
@@ -151,22 +168,33 @@ func (s *simnet) repairAllCircuitFaults(simnode *simnode) {
 		simnode.state = ISOLATED
 	}
 
-	// might want to keep these for testing? for
-	// now let's observe that the repair worked.
-	simnode.deafReadsQ.deleteAll()
-	simnode.droppedSendsQ.deleteAll()
+	// restore reads, b/c e.g. nodes won't know to start
+	// a new read... don't restore sends for now... assume
+	// they were just lost in the interrim.
+	for {
+		top := simnode.deafReadQ.pop()
+		if top == nil {
+			break
+		}
+		vv("transfering top = %v' from deafReadQ to readQ on '%v'", top, simnode.name)
+		simnode.readQ.add(top)
+	}
+	//simnode.droppedSendsQ.deleteAll()
 
 	for _, conn := range s.circuits[simnode] {
-		//vv("repairAllCircuitFaults: before 0 out deafRead and deafSend, conn=%v", conn)
+		//vv("repairAllCircuitFaults: before zero out, conn=%v", conn)
 		conn.deafRead = 0 // zero prob of deaf read.
 		conn.dropSend = 0 // zero prob of dropped send.
-		//vv("repairAllCircuitFaults: after deafRead=0 and deafSend=0, conn=%v", conn)
+		//vv("repairAllCircuitFaults: after zero out, conn=%v", conn)
 	}
 }
 
 func (s *simnet) handleHostRepair(repair *hostRepair) (err error) {
+
+	vv("top of handleHostRepair; repair = '%v'", repair)
 	defer func() {
 		repair.err = err
+		vv("end of handleHostRepair, closing repair proceed. err = '%v'", err)
 		close(repair.proceed)
 	}()
 
@@ -186,9 +214,11 @@ func (s *simnet) handleHostRepair(repair *hostRepair) (err error) {
 		group = s.locals(origin)
 	}
 
+	vv("group is len %v", len(group))
 	for node := range group {
 		cktRepair := s.newCircuitRepair(node.name, "",
 			repair.unIsolate, repair.powerOnIfOff, justOrigin)
+		vv("handleHostRepair about to call handleCircuitRepair with cktRepair='%v'", cktRepair)
 		s.handleCircuitRepair(cktRepair, closeProceed_NO)
 	}
 	return
@@ -208,6 +238,7 @@ func (s *simnet) recheckHealthState(simnode *simnode) {
 			return // not healthy
 		}
 	}
+	vv("recheckHealthState sees no conn faults in replace for '%v'", simnode.name)
 	s.repairAllCircuitFaults(simnode)
 }
 
@@ -387,6 +418,10 @@ func (s *simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff b
 
 // RepairHost repairs all the circuits on the host.
 func (s *simnet) RepairHost(originName string, unIsolate bool, powerOnIfOff, allHosts bool) (err error) {
+	vv("top of RepairHost, originName = '%v'; unIsolate=%v, powerOnIfOff=%v, allHosts=%v", originName, unIsolate, powerOnIfOff, allHosts)
+	defer func() {
+		vv("end of RepairHost('%v')", originName)
+	}()
 
 	repair := s.newHostRepair(originName, unIsolate, powerOnIfOff, allHosts)
 

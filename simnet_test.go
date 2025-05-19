@@ -95,7 +95,7 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 				UpdateDeafReads:  true,
 				UpdateDropSends:  false,
 				DeafReadsNewProb: 1,
-				DropSendsNewProb: 1,
+				DropSendsNewProb: 0,
 			}
 			err = simnet.HostFault(srv.simnode.name, dd)
 			panicOn(err)
@@ -124,7 +124,23 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 			} else {
 				vv("good! got err = '%v'", err)
 			}
-			//panicOn(err)
+
+			// now reverse the fault, and get the third attempt through.
+			err = simnet.AllHealthy(true)
+			panicOn(err)
+			vv("server un-partitioned, try cli call 3rd time.")
+
+			req3 := NewMessage()
+			req3.HDR.ServiceName = serviceName
+			req3.JobSerz = []byte("Hello from client! 3rd time.")
+
+			reply3, err := cli.SendAndGetReply(req3, nil, waitFor)
+			panicOn(err)
+			want = "Hello from client! 3rd time."
+			gotit = strings.HasPrefix(string(reply3.JobSerz), want)
+			if !gotit {
+				t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply3.JobSerz))
+			}
 
 		})
 	})
