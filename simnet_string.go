@@ -175,50 +175,56 @@ func (op *mop) String() string {
 	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, msg.sn:%v%v}", who, op.kind, ini, arr, complete, op.sn, msgSerial, extra)
 }
 
-func (f *circuitFault) String() string {
-	if f == nil {
-		return "(nil)"
-	}
-	return fmt.Sprintf(`
-      circuitFault{ op.sn:%v
-          originName: %v,
-          targetName: %v,
-     updateDeafReads: %v,
-    deafReadsNewProb: %v,
-     updateDropSends: %v,
-    dropSendsNewProb: %v,
-                 err: %v,
-}`, f.sn,
-		f.originName,
-		f.targetName,
-		f.dd.updateDeafReads,
-		f.dd.deafReadsNewProb,
-		f.dd.updateDropSends,
-		f.dd.dropSendsNewProb,
-		f.err,
-	)
+func (z *circuitFault) String() (r string) {
+	r = "&circuitFault{\n"
+	r += fmt.Sprintf("originName: \"%v\",\n", z.originName)
+	r += fmt.Sprintf("targetName: \"%v\",\n", z.targetName)
+	r += fmt.Sprintf("       err: %v,\n", z.err)
+	r += fmt.Sprintf("        sn: %v,\n", z.sn)
+	r += fmt.Sprintf("        dd: %v,\n", z.dd)
+	r += "}\n"
+	return
 }
 
-func (f *hostFault) String() string {
-	if f == nil {
-		return "(nil)"
-	}
-	return fmt.Sprintf(`
-      hostFault{ f.sn:%v
-            hostName: %v,
-     updateDeafReads: %v,
-    deafReadsNewProb: %v,
-     updateDropSends: %v,
-    dropSendsNewProb: %v,
-                 err: %v,
-}`, f.sn,
-		f.hostName,
-		f.dd.updateDeafReads,
-		f.dd.deafReadsNewProb,
-		f.dd.updateDropSends,
-		f.dd.dropSendsNewProb,
-		f.err,
-	)
+func (z *circuitRepair) String() (r string) {
+	r = "&circuitRepair{\n"
+	r += fmt.Sprintf("  originName: \"%v\",\n", z.originName)
+	r += fmt.Sprintf("  targetName: \"%v\",\n", z.targetName)
+	r += fmt.Sprintf("         err: %v,\n", z.err)
+	r += fmt.Sprintf("   unIsolate: %v,\n", z.unIsolate)
+	r += fmt.Sprintf("powerOnIfOff: %v,\n", z.powerOnIfOff)
+	r += fmt.Sprintf("          sn: %v,\n", z.sn)
+	r += "}\n"
+	return
+}
+func (z *dropDeafSpec) String() (r string) {
+	r = "&dropDeafSpec{\n"
+	r += fmt.Sprintf(" updateDeafReads: %v,\n", z.updateDeafReads)
+	r += fmt.Sprintf(" updateDropSends: %v,\n", z.updateDropSends)
+	r += fmt.Sprintf("deafReadsNewProb: %v,\n", z.deafReadsNewProb)
+	r += fmt.Sprintf("dropSendsNewProb: %v,\n", z.dropSendsNewProb)
+	r += "}\n"
+	return
+}
+func (z *hostFault) String() (r string) {
+	r = "&hostFault{\n"
+	r += fmt.Sprintf("hostName: \"%v\",\n", z.hostName)
+	r += fmt.Sprintf("     err: %v,\n", z.err)
+	r += fmt.Sprintf("      sn: %v,\n", z.sn)
+	r += fmt.Sprintf("      dd: %v,\n", z.dd)
+	r += "}\n"
+	return
+}
+func (z *hostRepair) String() (r string) {
+	r = "&hostRepair{\n"
+	r += fmt.Sprintf("    hostName: \"%v\",\n", z.hostName)
+	r += fmt.Sprintf("         err: %v,\n", z.err)
+	r += fmt.Sprintf("powerOnIfOff: %v,\n", z.powerOnIfOff)
+	r += fmt.Sprintf("   unIsolate: %v,\n", z.unIsolate)
+	r += fmt.Sprintf("    allHosts: %v,\n", z.allHosts)
+	r += fmt.Sprintf("          sn: %v,\n", z.sn)
+	r += "}\n"
+	return
 }
 
 // traditionally, a string form of address
