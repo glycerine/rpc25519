@@ -2533,21 +2533,21 @@ func (s *simnet) alterHost(node *simport, alter Alteration) {
 type fault struct {
 	originName string
 	targetName string // empty string means all targets/ remote conn.
-	wholeHost  bool
+	err        error  // e.g. cannot find name.
 
-	updateDeafReads  bool
+	wholeHost bool
+
+	updateDeafReads bool
+	updateDropSends bool
+
 	deafReadsNewProb float64
-	updateDropSends  bool
 	dropSendsNewProb float64
-	err              error // e.g. cannot find name.
 
 	sn      int64
 	proceed chan struct{}
 }
 
 type repair struct {
-	sn int64
-
 	originName string
 	targetName string // empty string means all targets/ remote conn.
 	err        error  // e.g. cannot find name.
@@ -2560,14 +2560,15 @@ type repair struct {
 	justOriginPowerOn   bool // also power on origin?
 	wholeHost           bool
 
+	sn      int64
 	proceed chan struct{}
 }
 
 // false updateDeaf or false updateDrop means no
 // change in that state.
 func newFault(originName, targetName string, updateDeaf, updateDrop bool, deafProb, dropProb float64, wholeHost bool) *fault {
-	m := &fault{
 
+	f := &fault{
 		wholeHost:        wholeHost,
 		originName:       originName,
 		targetName:       targetName,
@@ -2580,12 +2581,12 @@ func newFault(originName, targetName string, updateDeaf, updateDrop bool, deafPr
 		proceed: make(chan struct{}),
 	}
 
-	return m
+	return f
 }
 
 func (s *simnet) newAllHealthy(powerOnAnyOff bool) *repair {
 	m := &repair{
-		allHealthy:    true, // delete all faults
+		allHealthy:    true, // repair all faults
 		powerOnAnyOff: powerOnAnyOff,
 		sn:            simnetNextMopSn(),
 		proceed:       make(chan struct{}),
