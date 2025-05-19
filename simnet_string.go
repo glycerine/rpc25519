@@ -23,7 +23,7 @@ func (s *simnet) stringDNS() (r string) {
 	sort.Strings(names)
 
 	i := 0
-	r = "map[string]*simnode = {\n"
+	r = "map[string]*simckt = {\n"
 	for _, name := range names {
 		node := s.dns[name]
 		r += fmt.Sprintf("[%2d] showDNS dns[%v] = %p\n", i, name, node)
@@ -33,9 +33,9 @@ func (s *simnet) stringDNS() (r string) {
 	return
 }
 
-func (node *simport) String() (r string) {
+func (node *simckt) String() (r string) {
 	if node == nil {
-		return "(nil *simport)"
+		return "(nil *simckt)"
 	}
 	r += fmt.Sprintf("%v (powerOff: %v) in %v state, Q summary:\n", node.name, node.powerOff, node.state)
 	r += node.readQ.String()
@@ -46,9 +46,9 @@ func (node *simport) String() (r string) {
 	return
 }
 
-func (node *simport) StringNoPQ() (r string) {
+func (node *simckt) StringNoPQ() (r string) {
 	if node == nil {
-		return "(nil *simport)"
+		return "(nil *simckt)"
 	}
 	r += fmt.Sprintf("%v in %v state, Q summary:\n", node.name, node.state)
 	return
@@ -91,7 +91,7 @@ func (pq *pq) String() (r string) {
 	return
 }
 
-func (state nodestate) String() string {
+func (state simcktstate) String() string {
 	switch state {
 	case HEALTHY:
 		return "HEALTHY"
@@ -102,8 +102,8 @@ func (state nodestate) String() string {
 	case FAULTY_ISOLATED:
 		return "FAULTY_ISOLATED"
 	}
-	panic(fmt.Sprintf("unknown nodestate '%v'", int(state)))
-	return "unknown nodestate"
+	panic(fmt.Sprintf("unknown simcktstate '%v'", int(state)))
+	return "unknown simcktstate"
 }
 
 func (k mopkind) String() string {
@@ -253,7 +253,7 @@ func (s *serverRegistration) String() (r string) {
 		r += fmt.Sprintf("              server: %v,\n", s.server)
 	}
 	r += fmt.Sprintf("         srvNetAddr: %v,\n", s.srvNetAddr)
-	r += fmt.Sprintf("            simport: %v,\n", s.simport.StringNoPQ())
+	r += fmt.Sprintf("            simckt: %v,\n", s.simckt.StringNoPQ())
 	r += fmt.Sprintf("             simnet: %v,\n", s.simnet)
 	r += "}\n"
 	return
@@ -272,20 +272,20 @@ func (s *clientRegistration) String() (r string) {
 	r += fmt.Sprintf("localHostPortStr: \"%v\",\n", s.localHostPortStr)
 	r += fmt.Sprintf("          dialTo: \"%v\",\n", s.dialTo)
 	r += fmt.Sprintf("   serverAddrStr: \"%v\",\n", s.serverAddrStr)
-	r += fmt.Sprintf("         simport: %v,\n", s.simport.StringNoPQ())
+	r += fmt.Sprintf("         simckt: %v,\n", s.simckt.StringNoPQ())
 	r += fmt.Sprintf("            conn: %v,\n", s.conn)
 	r += "}\n"
 	return
 }
 
-func (s *nodeAlteration) String() (r string) {
+func (s *simcktAlteration) String() (r string) {
 	if s == nil {
-		return "(nil *nodeAlteration)"
+		return "(nil *simcktAlteration)"
 	}
-	r = "&nodeAlteration{\n"
-	r += fmt.Sprintf(" simnet: %v,\n", s.simnet)
-	r += fmt.Sprintf("simport: %v,\n", s.simport)
-	r += fmt.Sprintf("  alter: %v,\n", s.alter)
+	r = "&simcktAlteration{\n"
+	r += fmt.Sprintf("simnet: %v,\n", s.simnet)
+	r += fmt.Sprintf("simckt: %v,\n", s.simckt)
+	r += fmt.Sprintf(" alter: %v,\n", s.alter)
 	r += "}\n"
 	return
 }

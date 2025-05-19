@@ -31,10 +31,10 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	}
 
 	defer func() {
-		if simnet != nil && s.simport != nil {
+		if simnet != nil && s.simckt != nil {
 			const wholeHost = true
-			simnet.alterNode(s.simport, SHUTDOWN, wholeHost)
-			//vv("simnet.alterNode(s.simport, SHUTDOWN) done for %v", s.name)
+			simnet.alterCircuit(s.simckt, SHUTDOWN, wholeHost)
+			//vv("simnet.alterNode(s.simckt, SHUTDOWN) done for %v", s.name)
 		}
 	}()
 
@@ -57,7 +57,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 	for {
 		select { // wait for a new client to connect
 		case conn := <-serverNewConnCh:
-			//s.simport = conn.local
+			//s.simckt = conn.local
 
 			//vv("%v simnet server got new conn '%#v', about to start read/send loops", netAddr, conn) // not seen
 			pair := s.newRWPair(conn)
@@ -95,7 +95,7 @@ func (s *Server) bootAndRegisterSimNetServer(serverAddr string, simNetConfig *Si
 	// per config shared simnet.
 	simnet = s.cfg.bootSimNetOnServer(simNetConfig, s)
 
-	// sets s.simport, s.simnet, s.netAddr
+	// sets s.simckt, s.simnet, s.netAddr
 	serverNewConnCh, err = simnet.registerServer(s, netAddr)
 	if err != nil {
 		if err == ErrShutdown2 {
@@ -129,8 +129,8 @@ type simconn struct {
 	net     *simnet
 	netAddr *SimNetAddr // local address
 
-	local  *simport
-	remote *simport
+	local  *simckt
+	remote *simckt
 
 	readDeadlineTimer *mop
 	sendDeadlineTimer *mop
@@ -500,7 +500,7 @@ func (s *Server) Listen(network, addr string) (lsn net.Listener, err error) {
 // to change this in the future if need be.
 func (s *Server) Accept() (nc net.Conn, err error) {
 	select {
-	case nc = <-s.simport.tellServerNewConnCh:
+	case nc = <-s.simckt.tellServerNewConnCh:
 		if isNil(nc) {
 			err = ErrShutdown()
 			return

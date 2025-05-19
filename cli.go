@@ -1139,7 +1139,7 @@ type Client struct {
 	mut sync.Mutex
 
 	simnet  *simnet
-	simport *simport
+	simckt  *simckt
 	simconn *simconn
 
 	// these are client only. server keeps track
@@ -1651,9 +1651,9 @@ func (c *Client) Name() string {
 func (c *Client) Close() error {
 	//vv("Client.Close() called.") // not seen in shutdown.
 
-	if c.cfg.UseSimNet && c.simnet != nil && c.simport != nil {
+	if c.cfg.UseSimNet && c.simnet != nil && c.simckt != nil {
 		// panics simnet on halted client doing reads, off for now.
-		//c.simnet.alterNode(c.simport, SHUTDOWN)
+		//c.simnet.alterNode(c.simckt, SHUTDOWN)
 	}
 
 	// ask any sub components (peer pump loops) to stop.
@@ -2670,7 +2670,7 @@ func (s *Client) UnregisterChannel(ID string, whichmap int) {
 type SimTimer struct {
 	gotimer  *time.Timer
 	isCli    bool
-	simport  *simport
+	simckt   *simckt
 	simnet   *simnet
 	simtimer *mop
 	C        <-chan time.Time
@@ -2688,8 +2688,8 @@ func (c *Client) NewTimer(dur time.Duration) (ti *SimTimer) {
 		return
 	}
 	ti.simnet = c.simnet
-	ti.simport = c.simport
-	ti.simtimer = c.simnet.createNewTimer(c.simport, dur, time.Now(), true) // isCli
+	ti.simckt = c.simckt
+	ti.simtimer = c.simnet.createNewTimer(c.simckt, dur, time.Now(), true) // isCli
 	select {
 	case <-c.simnet.halt.ReqStop.Chan:
 		// if we shutdown, this timer is no good anyway,
@@ -2746,9 +2746,9 @@ func (s *Server) NewTimer(dur time.Duration) (ti *SimTimer) {
 		return
 	}
 	ti.simnet = s.simnet
-	ti.simport = s.simport
+	ti.simckt = s.simckt
 	// false => isCli false
-	ti.simtimer = s.simnet.createNewTimer(s.simport, dur, time.Now(), false)
+	ti.simtimer = s.simnet.createNewTimer(s.simckt, dur, time.Now(), false)
 	select {
 	case <-s.simnet.halt.ReqStop.Chan:
 		// if we shutdown, this timer is no good anyway,
@@ -2773,7 +2773,7 @@ func (ti *SimTimer) Discard() (wasArmed bool) {
 		}
 		return
 	}
-	wasArmed = ti.simnet.discardTimer(ti.simport, ti.simtimer, time.Now())
+	wasArmed = ti.simnet.discardTimer(ti.simckt, ti.simtimer, time.Now())
 	return
 }
 
