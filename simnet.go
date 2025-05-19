@@ -291,6 +291,7 @@ type simnet struct {
 	circuits map[*simnode]map[*simnode]*simconn
 	servers  map[string]*simnode // serverBaseID:srvnode
 	allnodes map[*simnode]bool
+	orphans  map[*simnode]bool // cli without baseserver
 
 	cliRegisterCh chan *clientRegistration
 	srvRegisterCh chan *serverRegistration
@@ -500,7 +501,8 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	}
 	// our auto-cli might have raced and got here first?
 	// scan for any we should have
-	for clinode := range s.allnodes {
+	//for clinode := range s.allnodes {
+	for clinode := range s.orphans {
 		if clinode.isCli && clinode.serverBaseID == reg.serverBaseID {
 			c2s := clinode.cliConn
 			// do the same as client registration would have
@@ -508,6 +510,7 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 			s.node2server[clinode] = basesrv
 			basesrv.autocli[clinode] = c2s
 			basesrv.allnode[clinode] = true
+			delete(s.orphans, clinode)
 		}
 	}
 
@@ -559,6 +562,8 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 			s.node2server[clinode] = basesrv
 			basesrv.autocli[clinode] = c2s
 			basesrv.allnode[clinode] = true
+		} else {
+			s.orphans[clinode] = true
 		}
 	}
 
@@ -637,6 +642,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		// use locals() to self + all autocli on peer.
 		servers:  make(map[string]*simnode),
 		allnodes: make(map[*simnode]bool),
+		orphans:  make(map[*simnode]bool), // cli without baseserver
 
 		// high duration b/c no need to fire spuriously
 		// and force the Go runtime to do extra work when
@@ -1772,24 +1778,10 @@ func (s *simnet) allConnString() (r string) {
 	for _, srvnode := range s.servers {
 		r += fmt.Sprintf("srvnode [%v] has locals:\n", srvnode.name)
 		for node := range s.locals(srvnode) {
-			r += fmt.Sprintf("    [%02d] %v\n", i, node.name)
+
+			r += fmt.Sprintf("   [localServer:'%v'] [%02d] %v  \n",
+				s.localServer(node).name, i, node.name)
 			i++
-		}
-	}
-	if false {
-		for origin, dest := range s.circuits {
-			r += fmt.Sprintf("circuits[origin:%v] has targets:\n", origin.name)
-			for target, conn := range dest {
-				r += fmt.Sprintf("    circuits[%v][%v] conn.remote.name: %v\n",
-					origin.name, target.name, conn.remote.name)
-			}
-			if !origin.isCli {
-				r += fmt.Sprintf("server %v has autocli:\n", origin.name)
-				for clinode, conn := range origin.autocli {
-					r += fmt.Sprintf("    %v  conn.local:%v,  conn.remote:%v\n",
-						clinode.name, conn.local.name, conn.remote.name)
-				}
-			}
 		}
 	}
 	return

@@ -890,6 +890,11 @@ type Config struct {
 	// when creating their connection.
 	serverBaseID string
 
+	// if cli starts first, we can try to recover
+	// later if server joins and wants to know who
+	// its auto-cli are...
+	configBaseID string
+
 	// QuietTestMode can be set true on tests to quiet down
 	// the shutdown/auto-client-start chatter.
 	QuietTestMode bool
@@ -1127,7 +1132,7 @@ type sharedTransport struct {
 // for use in NewClient or NewServer setup.
 func NewConfig() *Config {
 	return &Config{
-		//serverBaseID:     NewCallID(""), // too early. must be NewServer that assigns.
+		configBaseID:     NewCallID(""),
 		shared:           &sharedTransport{},
 		simnetRendezvous: &simnetRendezvous{},
 	}
