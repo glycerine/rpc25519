@@ -99,8 +99,8 @@ type mop struct {
 
 	// so we can handle a network
 	// rather than just cli/srv.
-	origin *endpoint
-	target *endpoint
+	origin *simnode
+	target *simnode
 
 	// number of times handleSend() has seen this mop.
 	seen int
@@ -178,9 +178,6 @@ type mop struct {
 
 func (s *simnet) handleRepairCircuit(repair *circuitRepair, closeProceed bool) (err error) {
 
-	if repair.allHealthy && repair.justOriginHealed {
-		panic("confused caller: only set one of repair.allHealthy and repair.justOriginHealed")
-	}
 	if closeProceed {
 		defer func() {
 			repair.err = err
@@ -189,26 +186,26 @@ func (s *simnet) handleRepairCircuit(repair *circuitRepair, closeProceed bool) (
 	}
 
 	if repair.justOriginHealed {
-		endpoint, ok := s.dns[repair.originName]
+		simnode, ok := s.dns[repair.originName]
 		if !ok {
 			return fmt.Errorf("error on justOriginHealed: originName not found: '%v'", repair.originName)
 		}
-		s.repairAllFaults(endpoint)
+		s.repairAllFaults(simnode)
 		if repair.unIsolate {
-			endpoint.state = HEALTHY
+			simnode.state = HEALTHY
 		}
 		if repair.powerOnIfOff {
-			endpoint.powerOff = false
+			simnode.powerOff = false
 		}
 		return
 	}
 
-	for endpoint := range s.circuits {
-		vv("handleRepairCircuit: endpoint '%v' goes from %v to HEALTHY", endpoint.name, endpoint.state)
-		endpoint.state = HEALTHY
-		s.repairAllFaults(endpoint)
+	for simnode := range s.circuits {
+		vv("handleRepairCircuit: simnode '%v' goes from %v to HEALTHY", simnode.name, simnode.state)
+		simnode.state = HEALTHY
+		s.repairAllFaults(simnode)
 		if repair.powerOnAnyOff {
-			endpoint.powerOff = false
+			simnode.powerOff = false
 		}
 	}
 	return
@@ -221,25 +218,25 @@ func (s *simnet) handleRepairCircuit(repair *circuitRepair, closeProceed bool) (
 // state can be ISOLATED or HEALTHY, we do not change these.
 // If state is FAULTY, we go to HEALTHY.
 // If state is FAULTY_ISOLATED, we go to ISOLATED.
-func (s *simnet) repairAllCircuitFaults(endpoint *endpoint) {
+func (s *simnet) repairAllCircuitFaults(simnode *simnode) {
 
-	switch endpoint.state {
+	switch simnode.state {
 	case HEALTHY:
 		// fine.
 	case ISOLATED:
 		// fine.
 	case FAULTY:
-		endpoint.state = HEALTHY
+		simnode.state = HEALTHY
 	case FAULTY_ISOLATED:
-		endpoint.state = ISOLATED
+		simnode.state = ISOLATED
 	}
 
 	// might want to keep these for testing? for
 	// now let's observe that the allHealthy request worked.
-	endpoint.deafReadsQ.deleteAll()
-	endpoint.droppedSendsQ.deleteAll()
+	simnode.deafReadsQ.deleteAll()
+	simnode.droppedSendsQ.deleteAll()
 
-	for rem, conn := range s.circuits[endpoint] {
+	for rem, conn := range s.circuits[simnode] {
 		_ = rem
 		//vv("repairAllCircuitFaults: before 0 out deafRead and deafSend, conn=%v", conn)
 		conn.deafRead = 0 // zero prob of deaf read.
@@ -249,12 +246,7 @@ func (s *simnet) repairAllCircuitFaults(endpoint *endpoint) {
 }
 
 func (s *simnet) handleRepairHost(repair *hostRepair) (err error) {
-	if !repair.allHealthy {
-		panic("why call here in not a healing request?")
-	}
-	if repair.justOriginHealed {
-		panic("confused caller: repair.justOriginHealed makes no sense in handleRepairHost")
-	}
+
 	defer func() {
 		repair.err = err
 		close(repair.proceed)
@@ -264,9 +256,9 @@ func (s *simnet) handleRepairHost(repair *hostRepair) (err error) {
 	if !ok {
 		panic(fmt.Sprintf("not avail in dns repair.origName = '%v'", repair.originName))
 	}
-	host, ok := s.endpoint2host[origin]
+	host, ok := s.simnode2host[origin]
 	if !ok {
-		panic(fmt.Sprintf("origin not registered in s.endpoint2host: origin.name = '%v'", origin.name))
+		panic(fmt.Sprintf("origin not registered in s.simnode2host: origin.name = '%v'", origin.name))
 	}
 	for end := range host.port2host {
 		repair.originName = end.name
@@ -290,9 +282,9 @@ func (s *simnet) injectFaultWholeHost(fault *hostFault) (err error) {
 	if !ok {
 		panic(fmt.Sprintf("not avail in dns fault.origName = '%v'", fault.originName))
 	}
-	host, ok := s.endpoint2host[origin]
+	host, ok := s.simnode2host[origin]
 	if !ok {
-		panic(fmt.Sprintf("not registered in s.endpoint2host: origin.name = '%v'", origin.name))
+		panic(fmt.Sprintf("not registered in s.simnode2host: origin.name = '%v'", origin.name))
 	}
 	for end := range host.port2host {
 		fault.originName = end.name
@@ -316,7 +308,7 @@ func (s *simnet) injectFault(fault *circuitFault, closeProceed bool) (err error)
 		err = fmt.Errorf("could not find originName = '%v' in dns: '%v'", fault.originName, s.stringDNS())
 		return
 	}
-	var target *endpoint
+	var target *simnode
 	if fault.targetName != "" {
 		target, ok = s.dns[fault.targetName]
 		if !ok {
@@ -356,15 +348,15 @@ func (s *simnet) injectFault(fault *circuitFault, closeProceed bool) (err error)
 		}
 	}
 	if !addedFault && recheckHealth {
-		// endpoint may be healthy now, if faults are all gone.
+		// simnode may be healthy now, if faults are all gone.
 		// but, an early fault may still be installed; full scan needed.
 		s.recheckHealthState(origin)
 	}
 	return
 }
 
-func (s *simnet) recheckHealthState(endpoint *endpoint) {
-	remotes, ok := s.circuits[endpoint]
+func (s *simnet) recheckHealthState(simnode *simnode) {
+	remotes, ok := s.circuits[simnode]
 	if !ok {
 		return
 	}
@@ -377,7 +369,7 @@ func (s *simnet) recheckHealthState(endpoint *endpoint) {
 			return // not healthy
 		}
 	}
-	s.repairAllCircuitFaults(endpoint)
+	s.repairAllCircuitFaults(simnode)
 }
 
 // simnet simulates a network entirely with channels in memory.
@@ -396,15 +388,15 @@ type simnet struct {
 	srv *Server
 	cli *Client
 
-	hosts         map[string]*simhost // key is serverBaseID
-	endpoint2host map[*endpoint]*simhost
+	hosts        map[string]*simhost // key is serverBaseID
+	simnode2host map[*simnode]*simhost
 
-	dns map[string]*endpoint
+	dns map[string]*simnode
 
 	// circuits[A][B] is the very cyclic (bi-directed?) graph
 	// of the network.
 	//
-	// The endpoint.name is the key of the circuits map.
+	// The simnode.name is the key of the circuits map.
 	// Both client and server names are keys in circuits.
 	//
 	// Each A has a bi-directional network "socket" to each of circuits[A].
@@ -414,14 +406,14 @@ type simnet struct {
 	// circuits[B][A] is B's connection to A; that owned by B.
 	//
 	// The system guarantees that the keys of circuits
-	// (the names of all endpoints) are unique strings,
+	// (the names of all simnodes) are unique strings,
 	// by rejecting any already taken names (panic-ing on attempted
 	// registration) during the moral equivalent of
 	// server Bind/Listen and client Dial. The go map
 	// is not a multi-map anyway, but that is just
 	// an implementation detail that happens to provide extra
 	// enforcement. Even if we change the map out
-	// later, each endpoint name in the network must be unique.
+	// later, each simnode name in the network must be unique.
 	//
 	// Users specify their own names for modeling
 	// convenience, but assist them by enforcing
@@ -431,8 +423,8 @@ type simnet struct {
 	// handleClientRegistration() where these
 	// panics enforce uniqueness.
 	//
-	// Technically, if the endpoint is backed by
-	// rpc25519, each endpoint has both a rpc25519.Server
+	// Technically, if the simnode is backed by
+	// rpc25519, each simnode has both a rpc25519.Server
 	// and a set of rpc25519.Clients, one client per
 	// outgoing initated connection, and so there are
 	// redundant paths to get a message from
@@ -460,17 +452,17 @@ type simnet struct {
 	// rpc25519.Client or rpc25519.Server).
 	//
 	// The isCli flag distinguishes whether a given
-	// endpoint is on a Client or Server when
+	// simnode is on a Client or Server when
 	// it matters, but we try to minimize its use.
 	// It should not matter for the most part; in
 	// the ckt.go code there is even a note that
 	// the peerAPI.isCli can be misleading with auto-Clients
-	// in play. The endpoint.isCli however should be
+	// in play. The simnode.isCli however should be
 	// accurate (we think).
 	//
 	// Each peer-to-peer connection is a network
-	// endpoint that can send and read messages
-	// to exactly one other network endpoint.
+	// simnode that can send and read messages
+	// to exactly one other network simnode.
 	//
 	// Even during "partition" of the network,
 	// or when modeling faulty links or network cards,
@@ -486,20 +478,20 @@ type simnet struct {
 	// or .dropSend flags to model faults.
 	// Reboot/restart should not heal net/net card faults.
 	//
-	// To recap, both cliendpoint.name and srvendpoint.name are keys
-	// in the circuits map. So circuits[cliendpoint.name] returns
-	// the map of who cliendpoint is connected to.
+	// To recap, both clisimnode.name and srvsimnode.name are keys
+	// in the circuits map. So circuits[clisimnode.name] returns
+	// the map of who clisimnode is connected to.
 	//
 	// In other words, the value of the map circuits[A]
 	// is another map, which is the set of circuits that A
 	// is connected to by the simconn circuits[A][B].
-	circuits map[*endpoint]map[*endpoint]*simconn
+	circuits map[*simnode]map[*simnode]*simconn
 
 	cliRegisterCh chan *clientRegistration
 	srvRegisterCh chan *serverRegistration
 
-	alterEndpointCh chan *endpointAlteration
-	alterHostCh     chan *endpointAlteration
+	alterSimnodeCh chan *simnodeAlteration
+	alterHostCh    chan *simnodeAlteration
 
 	// same as srv.halt; we don't need
 	// our own, at least for now.
@@ -522,28 +514,14 @@ type simnet struct {
 	lastArmTm     time.Time
 }
 
-// update: really at the moment it may
-// be that endpoint is a single
-// network endpoint, or net.Conn, on either
-// a client or server; like a host:port pair.
-//
-// For instance, in a three host cluster, each of the three
-// servers needs a local net.Conn to talk
-// to two other servers. Thus there are
-// 6 total network endpoints at minimum
-// in a 3 server cluster. We are registering
-// the auto-clients currently as circuits
-// as well... maybe we only want/need to
-// register the servers? but we need to
-// manage and supervise all the network
-// end points at each step. So maybe
-// TODO: rename endpoint to something
-// clearer? but distinct from simconn
-// which is our net.Conn implementation...?
-//
-// for applying isolation how do I know which
-// endpoint are on the same host? serverBaseID
-type endpoint struct {
+// a simnode is a network peer --
+// either a Server or the auto-Client
+// the Server has created to initiate
+// outgoing connections. By matching
+// on serverBaseID, we can group
+// the auto-clients and their server node
+// together into a simhost.
+type simnode struct {
 	name    string
 	lc      int64 // logical clock
 	readQ   *pq
@@ -559,7 +537,7 @@ type endpoint struct {
 	serverBaseID string
 
 	// state survives power cycling, i.e. rebooting
-	// a endpoint does not heal the network or repair a
+	// a simnode does not heal the network or repair a
 	// faulty network card.
 	state    Circuitstate
 	powerOff bool
@@ -595,7 +573,7 @@ type endpoint struct {
 // ending at the same host, or between the same
 // pair of hosts, are healthy too.
 // A simhost server will typically host
-// many circuit endpoints; at least one per
+// many circuit simnodes; at least one per
 // connected peer server.
 //
 // A circuit's powerOff status is independent
@@ -606,7 +584,7 @@ type endpoint struct {
 //
 // We reuse Circuitstate for the whole host state,
 // to keep things simple and to summarize
-// the status of all circuit endpoints at a host.
+// the status of all circuit simnodes at a host.
 type Circuitstate int
 
 const (
@@ -625,8 +603,8 @@ const (
 	FAULTY_ISOLATED Circuitstate = 3
 )
 
-func (s *simnet) newEndpoint(name, serverBaseID string) *endpoint {
-	return &endpoint{
+func (s *simnet) newSimnode(name, serverBaseID string) *simnode {
+	return &simnode{
 		name:          name,
 		serverBaseID:  serverBaseID,
 		readQ:         newPQinitTm(name + " readQ "),
@@ -638,17 +616,17 @@ func (s *simnet) newEndpoint(name, serverBaseID string) *endpoint {
 	}
 }
 
-func (s *simnet) newEndpointClient(name, serverBaseID string) (endpoint *endpoint) {
-	endpoint = s.newEndpoint(name, serverBaseID)
-	endpoint.isCli = true
+func (s *simnet) newSimnodeClient(name, serverBaseID string) (simnode *simnode) {
+	simnode = s.newSimnode(name, serverBaseID)
+	simnode.isCli = true
 	return
 }
 
-func (s *simnet) newCircuitserver(name, serverBaseID string) (endpoint *endpoint) {
-	endpoint = s.newEndpoint(name, serverBaseID)
-	endpoint.isCli = false
+func (s *simnet) newCircuitserver(name, serverBaseID string) (simnode *simnode) {
+	simnode = s.newSimnode(name, serverBaseID)
+	simnode.isCli = false
 	// buffer so servers don't have to be up to get them.
-	endpoint.tellServerNewConnCh = make(chan *simconn, 100)
+	simnode.tellServerNewConnCh = make(chan *simconn, 100)
 	return
 }
 
@@ -662,84 +640,84 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	// 	isCli:   false,
 	// }
 
-	srvendpoint := s.newCircuitserver(reg.server.name, reg.serverBaseID)
-	srvendpoint.netAddr = reg.srvNetAddr
-	s.circuits[srvendpoint] = make(map[*endpoint]*simconn)
-	_, already := s.dns[srvendpoint.name]
+	srvsimnode := s.newCircuitserver(reg.server.name, reg.serverBaseID)
+	srvsimnode.netAddr = reg.srvNetAddr
+	s.circuits[srvsimnode] = make(map[*simnode]*simconn)
+	_, already := s.dns[srvsimnode.name]
 	if already {
-		panic(fmt.Sprintf("server name already taken: '%v'", srvendpoint.name))
+		panic(fmt.Sprintf("server name already taken: '%v'", srvsimnode.name))
 	}
-	s.dns[srvendpoint.name] = srvendpoint
+	s.dns[srvsimnode.name] = srvsimnode
 
 	host, ok := s.hosts[reg.serverBaseID]
 	if !ok {
 		host = newSimhost(reg.server.name, reg.serverBaseID)
 		s.hosts[reg.serverBaseID] = host
 	}
-	s.endpoint2host[srvendpoint] = host
+	s.simnode2host[srvsimnode] = host
 
-	reg.endpoint = srvendpoint
+	reg.simnode = srvsimnode
 	reg.simnet = s
 
 	//vv("end of handleServerRegistration, srvreg is %v", reg)
 
 	// channel made by newCircuitserver() above.
-	reg.tellServerNewConnCh = srvendpoint.tellServerNewConnCh
+	reg.tellServerNewConnCh = srvsimnode.tellServerNewConnCh
 	close(reg.done)
 }
 
 func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 
-	srvendpoint, ok := s.dns[reg.dialTo]
+	srvsimnode, ok := s.dns[reg.dialTo]
 	if !ok {
 		s.showDNS()
 		panic(fmt.Sprintf("cannot find server '%v', requested "+
 			"by client registration from '%v'", reg.dialTo, reg.client.name))
 	}
 
-	cliendpoint := s.newEndpointClient(reg.client.name, reg.serverBaseID)
-	cliendpoint.setNetAddrSameNetAs(reg.localHostPortStr, srvendpoint.netAddr)
+	clisimnode := s.newSimnodeClient(reg.client.name, reg.serverBaseID)
+	clisimnode.setNetAddrSameNetAs(reg.localHostPortStr, srvsimnode.netAddr)
 
-	_, already := s.dns[cliendpoint.name]
+	_, already := s.dns[clisimnode.name]
 	if already {
-		panic(fmt.Sprintf("client name already taken: '%v'", cliendpoint.name))
+		panic(fmt.Sprintf("client name already taken: '%v'", clisimnode.name))
 	}
-	s.dns[cliendpoint.name] = cliendpoint
+	s.dns[clisimnode.name] = clisimnode
 
-	// add endpoint to graph
-	clientOutboundEdges := make(map[*endpoint]*simconn)
-	s.circuits[cliendpoint] = clientOutboundEdges
+	// add simnode to graph
+	clientOutboundEdges := make(map[*simnode]*simconn)
+	s.circuits[clisimnode] = clientOutboundEdges
 
 	// add both direction edges
-	c2s := s.addEdgeFromCli(cliendpoint, srvendpoint)
-	s2c := s.addEdgeFromSrv(srvendpoint, cliendpoint)
+	c2s := s.addEdgeFromCli(clisimnode, srvsimnode)
+	s2c := s.addEdgeFromSrv(srvsimnode, clisimnode)
 
-	srvhost, ok := s.hosts[srvendpoint.serverBaseID]
+	srvhost, ok := s.hosts[srvsimnode.serverBaseID]
 	if !ok {
-		panic(fmt.Sprintf("why no host for server? serverBaseID = '%v'; s.hosts='%#v'", srvendpoint.serverBaseID, s.hosts))
+		panic(fmt.Sprintf("why no host for server? serverBaseID = '%v'; s.hosts='%#v'", srvsimnode.serverBaseID, s.hosts))
 		// happened on server registration:
-		//srvhost = newSimhost(srvendpoint.name, srvendpoint.serverBaseID)
-		//s.hosts[srvendpoint.serverBaseID] = srvhost
-		//s.endpoint2host[srvendpoint] = srvhost
+		//srvhost = newSimhost(srvsimnode.name, srvsimnode.serverBaseID)
+		//s.hosts[srvsimnode.serverBaseID] = srvhost
+		//s.simnode2host[srvsimnode] = srvhost
 	}
 
-	clihost, ok := s.hosts[cliendpoint.serverBaseID] // host for the remote
+	clihost, ok := s.hosts[clisimnode.serverBaseID] // host for the remote
 	if !ok {
-		clihost = newSimhost(cliendpoint.name, cliendpoint.serverBaseID)
-		s.hosts[cliendpoint.serverBaseID] = clihost
+		clihost = newSimhost(clisimnode.name, clisimnode.serverBaseID)
+		s.hosts[clisimnode.serverBaseID] = clihost
 	}
-	s.endpoint2host[cliendpoint] = clihost
+	s.simnode2host[clisimnode] = clihost
 
-	srvhost.host2port[clihost] = cliendpoint
-	srvhost.port2host[cliendpoint] = clihost
+	srvhost.host2port[clihost] = clisimnode
+	srvhost.port2host[clisimnode] = clihost
 	srvhost.host2conn[clihost] = s2c
 
-	clihost.host2port[srvhost] = srvendpoint
-	clihost.port2host[srvendpoint] = srvhost
+	clihost.host2port[srvhost] = srvsimnode
+	clihost.port2host[srvsimnode] = srvhost
 	clihost.host2conn[srvhost] = c2s
 
 	reg.conn = c2s
-	reg.endpoint = cliendpoint
+	reg.simnode = clisimnode
 
 	// tell server about new edge
 	// vv("about to deadlock? stack=\n'%v'", stack())
@@ -749,8 +727,8 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 	// the server about it... try in goro
 	go func() {
 		select {
-		case srvendpoint.tellServerNewConnCh <- s2c:
-			//vv("%v srvendpoint was notified of new client '%v'; s2c='%#v'", srvendpoint.name, cliendpoint.name, s2c)
+		case srvsimnode.tellServerNewConnCh <- s2c:
+			//vv("%v srvsimnode was notified of new client '%v'; s2c='%#v'", srvsimnode.name, clisimnode.name, s2c)
 
 			// let client start using the connection/edge.
 			close(reg.done)
@@ -781,20 +759,20 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 
 	// server creates simnet; must start server first.
 	s := &simnet{
-		barrier:         !simNetConfig.BarrierOff,
-		cfg:             cfg,
-		simNetCfg:       simNetConfig,
-		srv:             srv,
-		halt:            srv.halt,
-		cliRegisterCh:   make(chan *clientRegistration),
-		srvRegisterCh:   make(chan *serverRegistration),
-		alterEndpointCh: make(chan *endpointAlteration),
-		alterHostCh:     make(chan *endpointAlteration),
-		msgSendCh:       make(chan *mop),
-		msgReadCh:       make(chan *mop),
-		addTimer:        make(chan *mop),
-		discardTimerCh:  make(chan *mop),
-		newScenarioCh:   make(chan *scenario),
+		barrier:        !simNetConfig.BarrierOff,
+		cfg:            cfg,
+		simNetCfg:      simNetConfig,
+		srv:            srv,
+		halt:           srv.halt,
+		cliRegisterCh:  make(chan *clientRegistration),
+		srvRegisterCh:  make(chan *serverRegistration),
+		alterSimnodeCh: make(chan *simnodeAlteration),
+		alterHostCh:    make(chan *simnodeAlteration),
+		msgSendCh:      make(chan *mop),
+		msgReadCh:      make(chan *mop),
+		addTimer:       make(chan *mop),
+		discardTimerCh: make(chan *mop),
+		newScenarioCh:  make(chan *scenario),
 
 		injectCircuitFaultCh: make(chan *circuitFault),
 		injectHostFaultCh:    make(chan *hostFault),
@@ -803,12 +781,12 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 
 		scenario:          scen,
 		safeStateStringCh: make(chan *simnetSafeStateQuery),
-		dns:               make(map[string]*endpoint),
+		dns:               make(map[string]*simnode),
 		hosts:             make(map[string]*simhost), // key is serverBaseID
-		endpoint2host:     make(map[*endpoint]*simhost),
+		simnode2host:      make(map[*simnode]*simhost),
 
 		// graph of circuits, edges are circuits[from][to]
-		circuits: make(map[*endpoint]map[*endpoint]*simconn),
+		circuits: make(map[*simnode]map[*simnode]*simconn),
 
 		// high duration b/c no need to fire spuriously
 		// and force the Go runtime to do extra work when
@@ -829,7 +807,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 	return s
 }
 
-func (s *endpoint) setNetAddrSameNetAs(addr string, srvNetAddr *SimNetAddr) {
+func (s *simnode) setNetAddrSameNetAs(addr string, srvNetAddr *SimNetAddr) {
 	s.netAddr = &SimNetAddr{
 		network: srvNetAddr.network,
 		addr:    addr,
@@ -838,41 +816,41 @@ func (s *endpoint) setNetAddrSameNetAs(addr string, srvNetAddr *SimNetAddr) {
 	}
 }
 
-func (s *simnet) addEdgeFromSrv(srvendpoint, cliendpoint *endpoint) *simconn {
+func (s *simnet) addEdgeFromSrv(srvsimnode, clisimnode *simnode) *simconn {
 
-	srv, ok := s.circuits[srvendpoint] // edges from srv to clients
+	srv, ok := s.circuits[srvsimnode] // edges from srv to clients
 	if !ok {
-		srv = make(map[*endpoint]*simconn)
-		s.circuits[srvendpoint] = srv
+		srv = make(map[*simnode]*simconn)
+		s.circuits[srvsimnode] = srv
 	}
 	s2c := newSimconn()
 	s2c.isCli = false
 	s2c.net = s
-	s2c.local = srvendpoint
-	s2c.remote = cliendpoint
-	s2c.netAddr = srvendpoint.netAddr
+	s2c.local = srvsimnode
+	s2c.remote = clisimnode
+	s2c.netAddr = srvsimnode.netAddr
 
 	// replace any previous conn
-	srv[cliendpoint] = s2c
+	srv[clisimnode] = s2c
 	return s2c
 }
 
-func (s *simnet) addEdgeFromCli(cliendpoint, srvendpoint *endpoint) *simconn {
+func (s *simnet) addEdgeFromCli(clisimnode, srvsimnode *simnode) *simconn {
 
-	cli, ok := s.circuits[cliendpoint] // edge from client to one server
+	cli, ok := s.circuits[clisimnode] // edge from client to one server
 	if !ok {
-		cli = make(map[*endpoint]*simconn)
-		s.circuits[cliendpoint] = cli
+		cli = make(map[*simnode]*simconn)
+		s.circuits[clisimnode] = cli
 	}
 	c2s := newSimconn()
 	c2s.isCli = true
 	c2s.net = s
-	c2s.local = cliendpoint
-	c2s.remote = srvendpoint
-	c2s.netAddr = cliendpoint.netAddr
+	c2s.local = clisimnode
+	c2s.remote = srvsimnode
+	c2s.netAddr = clisimnode.netAddr
 
 	// replace any previous conn
-	cli[srvendpoint] = c2s
+	cli[srvsimnode] = c2s
 	return c2s
 }
 
@@ -1152,43 +1130,43 @@ func newPQcompleteTm(owner string) *pq {
 	}
 }
 
-func (s *simnet) shutdownEndpoint(endpoint *endpoint) {
-	//vv("handleAlterCircuit: SHUTDOWN %v, going to powerOff true, in state %v", endpoint.name, endpoint.state)
-	endpoint.powerOff = true
-	endpoint.readQ.deleteAll()
-	endpoint.preArrQ.deleteAll()
-	endpoint.timerQ.deleteAll()
-	//vv("handleAlterCircuit: end SHUTDOWN, endpoint is now: %v", endpoint)
+func (s *simnet) shutdownSimnode(simnode *simnode) {
+	//vv("handleAlterCircuit: SHUTDOWN %v, going to powerOff true, in state %v", simnode.name, simnode.state)
+	simnode.powerOff = true
+	simnode.readQ.deleteAll()
+	simnode.preArrQ.deleteAll()
+	simnode.timerQ.deleteAll()
+	//vv("handleAlterCircuit: end SHUTDOWN, simnode is now: %v", simnode)
 }
 
-func (s *simnet) restartEndpoint(endpoint *endpoint) {
-	//vv("handleAlterCircuit: RESTART %v, wiping queues, going %v -> HEALTHY", endpoint.state, endpoint.name)
-	endpoint.powerOff = false
-	endpoint.readQ.deleteAll()
-	endpoint.preArrQ.deleteAll()
-	endpoint.timerQ.deleteAll()
+func (s *simnet) restartSimnode(simnode *simnode) {
+	//vv("handleAlterCircuit: RESTART %v, wiping queues, going %v -> HEALTHY", simnode.state, simnode.name)
+	simnode.powerOff = false
+	simnode.readQ.deleteAll()
+	simnode.preArrQ.deleteAll()
+	simnode.timerQ.deleteAll()
 }
 
-func (s *simnet) isolateEndpoint(endpoint *endpoint) {
-	//vv("handleAlterCircuit: from %v -> ISOLATED %v, wiping pre-arrival, block any future pre-arrivals", endpoint.state, endpoint.name)
-	switch endpoint.state {
+func (s *simnet) isolateSimnode(simnode *simnode) {
+	//vv("handleAlterCircuit: from %v -> ISOLATED %v, wiping pre-arrival, block any future pre-arrivals", simnode.state, simnode.name)
+	switch simnode.state {
 	case ISOLATED, FAULTY_ISOLATED:
 		// already there
 	case FAULTY:
-		endpoint.state = FAULTY_ISOLATED
+		simnode.state = FAULTY_ISOLATED
 	case HEALTHY:
-		endpoint.state = ISOLATED
+		simnode.state = ISOLATED
 	}
 
-	endpoint.preArrQ.deleteAll()
+	simnode.preArrQ.deleteAll()
 }
-func (s *simnet) unIsolateEndpoint(endpoint *endpoint) {
-	//vv("handleAlterCircuit: UNISOLATE %v, going from %v -> HEALTHY", endpoint.state, endpoint.name)
-	switch endpoint.state {
+func (s *simnet) unIsolateSimnode(simnode *simnode) {
+	//vv("handleAlterCircuit: UNISOLATE %v, going from %v -> HEALTHY", simnode.state, simnode.name)
+	switch simnode.state {
 	case ISOLATED:
-		endpoint.state = HEALTHY
+		simnode.state = HEALTHY
 	case FAULTY_ISOLATED:
-		endpoint.state = FAULTY
+		simnode.state = FAULTY
 	case FAULTY:
 		// not isolated already
 	case HEALTHY:
@@ -1196,31 +1174,31 @@ func (s *simnet) unIsolateEndpoint(endpoint *endpoint) {
 	}
 }
 
-func (s *simnet) handleAlterCircuit(alt *endpointAlteration, closeDone bool) {
-	endpoint := alt.endpoint
+func (s *simnet) handleAlterCircuit(alt *simnodeAlteration, closeDone bool) {
+	simnode := alt.simnode
 	switch alt.alter {
 	case SHUTDOWN:
-		s.shutdownEndpoint(endpoint)
+		s.shutdownSimnode(simnode)
 	case ISOLATE:
-		s.isolateEndpoint(endpoint)
+		s.isolateSimnode(simnode)
 	case UNISOLATE:
-		s.unIsolateEndpoint(endpoint)
+		s.unIsolateSimnode(simnode)
 	case RESTART:
-		s.restartEndpoint(endpoint)
+		s.restartSimnode(simnode)
 	}
 	if closeDone {
 		close(alt.done)
 	}
 }
 
-func (s *simnet) handleAlterHost(alt *endpointAlteration) {
+func (s *simnet) handleAlterHost(alt *simnodeAlteration) {
 
-	host, ok := s.endpoint2host[alt.endpoint]
+	host, ok := s.simnode2host[alt.simnode]
 	if !ok {
-		panic(fmt.Sprintf("not registered in s.endpoint2host: alt.endpoint = '%v'", alt.endpoint))
+		panic(fmt.Sprintf("not registered in s.simnode2host: alt.simnode = '%v'", alt.simnode))
 	}
 	for end := range host.port2host {
-		alt.endpoint = end
+		alt.simnode = end
 		s.handleAlterCircuit(alt, false)
 	}
 	switch alt.alter {
@@ -1283,8 +1261,8 @@ func (s *simnet) handleSend(send *mop) {
 	if send.origin.powerOff {
 		// cannot send when power is off. Hmm.
 		// This must be a stray...maybe a race? the
-		// endpoint really should not be doing anything.
-		//alwaysPrintf("yuck: got a SEND from a powerOff endpoint: '%v'", send.origin)
+		// simnode really should not be doing anything.
+		//alwaysPrintf("yuck: got a SEND from a powerOff simnode: '%v'", send.origin)
 		close(send.proceed) // probably just a shutdown race, don't deadlock them.
 		return
 	}
@@ -1330,7 +1308,7 @@ func (s *simnet) handleSend(send *mop) {
 
 		send.target.preArrQ.add(send)
 		//vv("LC:%v  SEND TO %v %v", origin.lc, origin.name, send)
-		////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvendpoint.preArrQ)
+		////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvsimnode.preArrQ)
 
 	}
 	// rpc25519 peer/ckt/frag does async sends, so let
@@ -1350,8 +1328,8 @@ func (s *simnet) handleRead(read *mop) {
 	if read.origin.powerOff {
 		// cannot read when off. Hmm.
 		// This must be a stray...maybe a race? the
-		// endpoint really should not be doing anything.
-		//alwaysPrintf("yuck: got a READ from a powerOff endpoint: '%v'", read.origin)
+		// simnode really should not be doing anything.
+		//alwaysPrintf("yuck: got a READ from a powerOff simnode: '%v'", read.origin)
 		close(read.proceed) // probably just a shutdown race, don't deadlock them.
 		return
 	}
@@ -1378,19 +1356,19 @@ func (s *simnet) handleRead(read *mop) {
 
 }
 
-func (endpoint *endpoint) firstPreArrivalTimeLTE(now time.Time) bool {
+func (simnode *simnode) firstPreArrivalTimeLTE(now time.Time) bool {
 
-	preIt := endpoint.preArrQ.tree.Min()
-	if preIt == endpoint.preArrQ.tree.Limit() {
+	preIt := simnode.preArrQ.tree.Min()
+	if preIt == simnode.preArrQ.tree.Limit() {
 		return false // empty queue
 	}
 	send := preIt.Item().(*mop)
 	return !send.arrivalTm.After(now)
 }
 
-func (endpoint *endpoint) optionallyApplyChaos() {
+func (simnode *simnode) optionallyApplyChaos() {
 
-	// based on endpoint.net.scenario
+	// based on simnode.net.scenario
 	//
 	// *** here is where we could re-order
 	// messages in a chaos test.
@@ -1411,16 +1389,16 @@ func gte(a, b time.Time) bool {
 
 // does not call armTimer(), so scheduler should
 // afterwards.
-func (endpoint *endpoint) dispatchTimers(now time.Time) (changes int64) {
-	if endpoint.powerOff {
+func (simnode *simnode) dispatchTimers(now time.Time) (changes int64) {
+	if simnode.powerOff {
 		return 0
 	}
-	if endpoint.timerQ.tree.Len() == 0 {
+	if simnode.timerQ.tree.Len() == 0 {
 		return
 	}
 
-	timerIt := endpoint.timerQ.tree.Min()
-	for timerIt != endpoint.timerQ.tree.Limit() { // advance, and delete behind below
+	timerIt := simnode.timerQ.tree.Min()
+	for timerIt != simnode.timerQ.tree.Limit() { // advance, and delete behind below
 
 		timer := timerIt.Item().(*mop)
 		//vv("check TIMER: %v", timer)
@@ -1434,11 +1412,11 @@ func (endpoint *endpoint) dispatchTimers(now time.Time) (changes int64) {
 			// advance, and delete behind us
 			delmeIt := timerIt
 			timerIt = timerIt.Next()
-			endpoint.timerQ.tree.DeleteWithIterator(delmeIt)
+			simnode.timerQ.tree.DeleteWithIterator(delmeIt)
 
 			select {
 			case timer.timerC <- now:
-			case <-endpoint.net.halt.ReqStop.Chan:
+			case <-simnode.net.halt.ReqStop.Chan:
 				return
 			default:
 				// The Go runtime will delay the timer channel
@@ -1447,8 +1425,8 @@ func (endpoint *endpoint) dispatchTimers(now time.Time) (changes int64) {
 				// we didn't get through on the above attempt.
 				// TODO: maybe time.AfterFunc could help here to
 				// avoid a goro?
-				atomic.AddInt64(&endpoint.net.backgoundTimerGoroCount, 1)
-				go endpoint.backgroundFireTimer(timer, now)
+				atomic.AddInt64(&simnode.net.backgoundTimerGoroCount, 1)
+				go simnode.backgroundFireTimer(timer, now)
 			}
 		} else {
 			// INVAR: smallest timer > now
@@ -1458,18 +1436,18 @@ func (endpoint *endpoint) dispatchTimers(now time.Time) (changes int64) {
 	return
 }
 
-func (endpoint *endpoint) backgroundFireTimer(timer *mop, now time.Time) {
+func (simnode *simnode) backgroundFireTimer(timer *mop, now time.Time) {
 	select {
 	case timer.timerC <- now:
-	case <-endpoint.net.halt.ReqStop.Chan:
+	case <-simnode.net.halt.ReqStop.Chan:
 	}
-	atomic.AddInt64(&endpoint.net.backgoundTimerGoroCount, -1)
+	atomic.AddInt64(&simnode.net.backgoundTimerGoroCount, -1)
 }
 
 // does not call armTimer.
-func (endpoint *endpoint) dispatchReadsSends(now time.Time) (changes int64) {
+func (simnode *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 
-	if endpoint.powerOff {
+	if simnode.powerOff {
 		return
 	}
 
@@ -1498,25 +1476,25 @@ func (endpoint *endpoint) dispatchReadsSends(now time.Time) (changes int64) {
 		for _, op := range preDel {
 			////zz("delete '%v'", op)
 			// TODO: delete with iterator! should be more reliable and faster.
-			found := endpoint.preArrQ.tree.DeleteWithKey(op)
+			found := simnode.preArrQ.tree.DeleteWithKey(op)
 			if !found {
-				panic(fmt.Sprintf("failed to delete from preArrQ: '%v'; preArrQ = '%v'", op, endpoint.preArrQ.String()))
+				panic(fmt.Sprintf("failed to delete from preArrQ: '%v'; preArrQ = '%v'", op, simnode.preArrQ.String()))
 			}
 			delListSN = append(delListSN, op.sn)
 		}
 		for _, op := range readDel {
 			////zz("delete '%v'", op)
-			found := endpoint.readQ.tree.DeleteWithKey(op)
+			found := simnode.readQ.tree.DeleteWithKey(op)
 			if !found {
 				panic(fmt.Sprintf("failed to delete from readQ: '%v'", op))
 			}
 		}
-		//vv("=== end of dispatch %v", endpoint.name)
+		//vv("=== end of dispatch %v", simnode.name)
 
 		if true { // was off for deafDrop development, separate queues now back on.
 			// sanity check that we delivered everything we could.
-			narr := endpoint.preArrQ.tree.Len()
-			nread := endpoint.readQ.tree.Len()
+			narr := simnode.preArrQ.tree.Len()
+			nread := simnode.readQ.tree.Len()
 			// it is normal to have preArrQ if no reads...
 			if narr > 0 && nread > 0 {
 				// if the first preArr is not due yet, that is the reason
@@ -1526,11 +1504,11 @@ func (endpoint *endpoint) dispatchReadsSends(now time.Time) (changes int64) {
 				// but now there is something possible a
 				// few microseconds later. In this case, don't freak.
 				// So make this conditional on faketime being in use.
-				if !shuttingDown && faketime { // && endpoint.net.barrier {
+				if !shuttingDown && faketime { // && simnode.net.barrier {
 
 					now2 := time.Now()
-					if endpoint.firstPreArrivalTimeLTE(now2) {
-						alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; nPreDel = %v; delListSN = '%v', (now2 - now = %v);\n endOn = %v\n lastMatchSend=%v \n lastMatchRead = %v \n\n endOnSituation = %v\n summary endpoint summary:\n%v", narr, nread, nPreDel, delListSN, now2.Sub(now), endOn, lastMatchSend, lastMatchRead, endOnSituation, endpoint.String())
+					if simnode.firstPreArrivalTimeLTE(now2) {
+						alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; nPreDel = %v; delListSN = '%v', (now2 - now = %v);\n endOn = %v\n lastMatchSend=%v \n lastMatchRead = %v \n\n endOnSituation = %v\n summary simnode summary:\n%v", narr, nread, nPreDel, delListSN, now2.Sub(now), endOn, lastMatchSend, lastMatchRead, endOnSituation, simnode.String())
 						panic("should have been dispatchable, no?")
 					}
 				}
@@ -1538,23 +1516,23 @@ func (endpoint *endpoint) dispatchReadsSends(now time.Time) (changes int64) {
 		}
 	}()
 
-	nR := endpoint.readQ.tree.Len()   // number of reads
-	nS := endpoint.preArrQ.tree.Len() // number of sends
+	nR := simnode.readQ.tree.Len()   // number of reads
+	nS := simnode.preArrQ.tree.Len() // number of sends
 
 	if nR == 0 && nS == 0 {
 		return
 	}
 
-	readIt := endpoint.readQ.tree.Min()
-	preIt := endpoint.preArrQ.tree.Min()
+	readIt := simnode.readQ.tree.Min()
+	preIt := simnode.preArrQ.tree.Min()
 
 	// matching reads and sends
 	for {
-		if readIt == endpoint.readQ.tree.Limit() {
+		if readIt == simnode.readQ.tree.Limit() {
 			// no reads, no point.
 			return
 		}
-		if preIt == endpoint.preArrQ.tree.Limit() {
+		if preIt == simnode.preArrQ.tree.Limit() {
 			// no sends to match with reads
 			return
 		}
@@ -1562,20 +1540,20 @@ func (endpoint *endpoint) dispatchReadsSends(now time.Time) (changes int64) {
 		read := readIt.Item().(*mop)
 		send := preIt.Item().(*mop)
 
-		endpoint.optionallyApplyChaos()
+		simnode.optionallyApplyChaos()
 
 		// check readIsDeaf these
 		// should not be matched to simulate the fault.
 		// We move them into their own queues so their
 		// timestamps don't mess up the sort order of live queues.
 		if read.readIsDeaf {
-			endpoint.deafReadsQ.add(read)
+			simnode.deafReadsQ.add(read)
 			// leave done chan open. a deaf read does not complete.
 
 			// advance and delete behind.
 			delmeIt := readIt
 			readIt = readIt.Next()
-			endpoint.readQ.tree.DeleteWithIterator(delmeIt)
+			simnode.readQ.tree.DeleteWithIterator(delmeIt)
 
 			continue
 		}
@@ -1608,25 +1586,25 @@ func (endpoint *endpoint) dispatchReadsSends(now time.Time) (changes int64) {
 
 			// super noisy!
 			//vv("rejecting delivery of send that has not happened: '%v'", send)
-			//vv("dispatch: %v", endpoint.net.schedulerReport())
+			//vv("dispatch: %v", simnode.net.schedulerReport())
 			endOn = send
 			it2 := preIt
 			afterN := 0
-			for ; it2 != endpoint.preArrQ.tree.Limit(); it2 = it2.Next() {
+			for ; it2 != simnode.preArrQ.tree.Limit(); it2 = it2.Next() {
 				afterN++
 			}
-			endOnSituation = fmt.Sprintf("after me: %v; preArrQ: %v", afterN, endpoint.preArrQ.String())
+			endOnSituation = fmt.Sprintf("after me: %v; preArrQ: %v", afterN, simnode.preArrQ.String())
 
 			// we must set a timer on its delivery then...
 			dur := send.arrivalTm.Sub(now)
-			pending := newTimerCreateMop(endpoint.isCli)
-			pending.origin = endpoint
+			pending := newTimerCreateMop(simnode.isCli)
+			pending.origin = simnode
 			pending.timerDur = dur
 			pending.initTm = now
 			pending.completeTm = now.Add(dur)
 			pending.timerFileLine = fileLine(1)
 			pending.internalPendingTimer = true
-			endpoint.net.handleTimer(pending)
+			simnode.net.handleTimer(pending)
 			return
 		}
 		// INVAR: this send.arrivalTm <= now; good to deliver.
@@ -1645,13 +1623,13 @@ func (endpoint *endpoint) dispatchReadsSends(now time.Time) (changes int64) {
 		lastMatchSend = send
 		lastMatchRead = read
 		// advance our logical clock
-		endpoint.lc = max(endpoint.lc, send.originLC) + 1
-		////zz("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, endpoint.lc, endpoint.lc-read.originLC, read.sn)
+		simnode.lc = max(simnode.lc, send.originLC) + 1
+		////zz("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, simnode.lc, simnode.lc-read.originLC, read.sn)
 
 		// track clocks on either end for this send and read.
-		read.readerLC = endpoint.lc
+		read.readerLC = simnode.lc
 		read.senderLC = send.senderLC
-		send.readerLC = endpoint.lc
+		send.readerLC = simnode.lc
 		read.completeTm = now
 		read.arrivalTm = send.arrivalTm // easier diagnostics
 
@@ -1673,19 +1651,19 @@ func (endpoint *endpoint) dispatchReadsSends(now time.Time) (changes int64) {
 }
 
 // dispatch delivers sends to reads, and fires timers.
-// It calls endpoint.net.armTimer() at the end (in the defer).
-func (endpoint *endpoint) dispatch(now time.Time) (changes int64) {
+// It calls simnode.net.armTimer() at the end (in the defer).
+func (simnode *simnode) dispatch(now time.Time) (changes int64) {
 
-	changes += endpoint.dispatchTimers(now)
-	changes += endpoint.dispatchReadsSends(now)
+	changes += simnode.dispatchTimers(now)
+	changes += simnode.dispatchReadsSends(now)
 	return
 }
 
 func (s *simnet) qReport() (r string) {
 	i := 0
-	for endpoint := range s.circuits {
-		r += fmt.Sprintf("\n[endpoint %v of %v in qReport]: \n", i+1, len(s.circuits))
-		r += endpoint.String() + "\n"
+	for simnode := range s.circuits {
+		r += fmt.Sprintf("\n[simnode %v of %v in qReport]: \n", i+1, len(s.circuits))
+		r += simnode.String() + "\n"
 		i++
 	}
 	return
@@ -1698,31 +1676,31 @@ func (s *simnet) schedulerReport() string {
 
 func (s *simnet) dispatchAll(now time.Time) (changes int64) {
 	// notice here we only use the key of s.circuits
-	for endpoint := range s.circuits {
-		changes += endpoint.dispatch(now)
+	for simnode := range s.circuits {
+		changes += simnode.dispatch(now)
 	}
 	return
 }
 
 // does not call armTimer(), so scheduler should afterwards.
 func (s *simnet) dispatchAllTimers(now time.Time) (changes int64) {
-	for endpoint := range s.circuits {
-		changes += endpoint.dispatchTimers(now)
+	for simnode := range s.circuits {
+		changes += simnode.dispatchTimers(now)
 	}
 	return
 }
 
 // does not call armTimer(), so scheduler should afterwards.
 func (s *simnet) dispatchAllReadsSends(now time.Time) (changes int64) {
-	for endpoint := range s.circuits {
-		changes += endpoint.dispatchReadsSends(now)
+	for simnode := range s.circuits {
+		changes += simnode.dispatchReadsSends(now)
 	}
 	return
 }
 
 func (s *simnet) tickLogicalClocks() {
-	for endpoint := range s.circuits {
-		endpoint.lc++
+	for simnode := range s.circuits {
+		simnode.lc++
 	}
 }
 
@@ -1763,7 +1741,7 @@ func (s *simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 // dedicated to one type of call.
 //
 // After each dispatchAll, our channel closes
-// have started endpoint goroutines, so they
+// have started simnode goroutines, so they
 // are running and may now be trying
 // to do network operations. The
 // select below will service those
@@ -1771,7 +1749,7 @@ func (s *simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 // if nextTimer goes off first. Since
 // synctest ONLY advances time when
 // all goro are blocked, nextTimer
-// will go off last, once all other endpoint
+// will go off last, once all other simnode
 // goro have blocked. This is nice: it does
 // not required another barrier opreation
 // to get to "go last". Client code
@@ -1866,7 +1844,7 @@ restartI:
 		// under faketime, we are alone now.
 		// Time has not advanced. This is the
 		// perfect point at which to advance the
-		// event/logical clock of each endpoint, as no races.
+		// event/logical clock of each simnode, as no races.
 		s.tickLogicalClocks()
 
 		// only dispatch one place, in nextTimer now.
@@ -1931,7 +1909,7 @@ restartI:
 			//vv("i=%v msgReadCh ->  op='%v'", i, read)
 			s.handleRead(read)
 
-		case alt := <-s.alterEndpointCh:
+		case alt := <-s.alterSimnodeCh:
 			s.handleAlterCircuit(alt, true)
 
 		case alt := <-s.alterHostCh:
@@ -1980,8 +1958,8 @@ type simhost struct {
 	serverBaseID string
 	state        Circuitstate
 	powerOff     bool
-	port2host    map[*endpoint]*simhost
-	host2port    map[*simhost]*endpoint
+	port2host    map[*simnode]*simhost
+	host2port    map[*simhost]*simnode
 	host2conn    map[*simhost]*simconn
 }
 
@@ -1989,8 +1967,8 @@ func newSimhost(name, serverBaseID string) *simhost {
 	return &simhost{
 		name:         name,
 		serverBaseID: serverBaseID,
-		port2host:    make(map[*endpoint]*simhost),
-		host2port:    make(map[*simhost]*endpoint),
+		port2host:    make(map[*simnode]*simhost),
+		host2port:    make(map[*simhost]*simnode),
 		host2conn:    make(map[*simhost]*simconn),
 	}
 }
@@ -2039,8 +2017,8 @@ func (s *simnet) handleDiscardTimer(discard *mop) {
 	if discard.origin.powerOff {
 		// cannot set/fire timers when halted. Hmm.
 		// This must be a stray...maybe a race? the
-		// endpoint really should not be doing anything.
-		//alwaysPrintf("yuck: got a TIMER_DISCARD from a powerOff endpoint: '%v'", discard.origin)
+		// simnode really should not be doing anything.
+		//alwaysPrintf("yuck: got a TIMER_DISCARD from a powerOff simnode: '%v'", discard.origin)
 		close(discard.proceed) // probably just a shutdown race, don't deadlock them.
 		return
 	}
@@ -2053,7 +2031,7 @@ func (s *simnet) handleDiscardTimer(discard *mop) {
 		discard.origTimerCompleteTm = orig.completeTm
 	} // leave wasArmed false, could not have been armed if gone.
 
-	////zz("LC:%v %v TIMER_DISCARD %v to fire at '%v'; now timerQ: '%v'", discard.origin.lc, discard.origin.name, discard, discard.origTimerCompleteTm, s.cliendpoint.timerQ)
+	////zz("LC:%v %v TIMER_DISCARD %v to fire at '%v'; now timerQ: '%v'", discard.origin.lc, discard.origin.name, discard, discard.origTimerCompleteTm, s.clisimnode.timerQ)
 	// let scheduler, to avoid false alarms: s.armTimer(now)
 	close(discard.proceed)
 }
@@ -2064,13 +2042,13 @@ func (s *simnet) handleTimer(timer *mop) {
 	if timer.origin.powerOff {
 		// cannot start timers when halted. Hmm.
 		// This must be a stray...maybe a race? the
-		// endpoint really should not be doing anything.
+		// simnode really should not be doing anything.
 		// This does happen though, e.g. in test
 		// Test010_tube_write_new_value_two_replicas,
 		// so don't freak. Probably just a shutdown race.
 		//
 		// Very very common at test shutdown, so we comment.
-		//alwaysPrintf("yuck: got a timer from a powerOff endpoint: '%v'", timer.origin)
+		//alwaysPrintf("yuck: got a timer from a powerOff simnode: '%v'", timer.origin)
 		close(timer.proceed) // likely shutdown race, don't deadlock them.
 		return
 	}
@@ -2099,7 +2077,7 @@ func (s *simnet) handleTimer(timer *mop) {
 	//vv("masked timer:\n dur: %v -> %v\n completeTm: %v -> %v\n", timer.unmaskedDur, timer.timerDur, timer.unmaskedCompleteTm, timer.completeTm)
 
 	timer.origin.timerQ.add(timer)
-	////zz("LC:%v %v set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer.origin.name, timer, timer.completeTm, s.cliendpoint.timerQ)
+	////zz("LC:%v %v set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer.origin.name, timer, timer.completeTm, s.clisimnode.timerQ)
 
 	// let scheduler, to avoid false alarms: s.armTimer(now) // handleTimer
 }
@@ -2119,10 +2097,10 @@ func (s *simnet) handleTimer(timer *mop) {
 // even though it might be redundant
 // on occassion, to ensure nextTimer is
 // armed. This is cheap anyway, just
-// a lookup of the min endpoint in
+// a lookup of the min simnode in
 // the each priority queue, which our
 // red-black tree has cached anyway.
-// For K circuits * 3 PQ per endpoint => O(K).
+// For K circuits * 3 PQ per simnode => O(K).
 //
 // armTimer is not called; keep it as a separate step.
 func (s *simnet) refreshGridStepTimer(now time.Time) (dur time.Duration, goal time.Time) {
@@ -2148,8 +2126,8 @@ func (s *simnet) armTimer(now time.Time) time.Duration {
 		s.refreshGridStepTimer(now)
 		minTimer = s.gridStepTimer
 	}
-	for endpoint := range s.circuits {
-		minTimer = endpoint.soonestTimerLessThan(minTimer)
+	for simnode := range s.circuits {
+		minTimer = simnode.soonestTimerLessThan(minTimer)
 	}
 	if minTimer == nil {
 		panic("should never happen, s.gridStepTimer should always be active")
@@ -2167,15 +2145,15 @@ func (s *simnet) armTimer(now time.Time) time.Duration {
 	return dur
 }
 
-func (endpoint *endpoint) soonestTimerLessThan(bound *mop) *mop {
+func (simnode *simnode) soonestTimerLessThan(bound *mop) *mop {
 
 	//if bound != nil {
 	//vv("soonestTimerLessThan(bound.completeTm = '%v'", bound.completeTm)
 	//} else {
 	//vv("soonestTimerLessThan(nil bound)")
 	//}
-	it := endpoint.timerQ.tree.Min()
-	if it == endpoint.timerQ.tree.Limit() {
+	it := simnode.timerQ.tree.Min()
+	if it == simnode.timerQ.tree.Limit() {
 		//vv("we have no timers, returning bound")
 		return bound
 	}
@@ -2247,8 +2225,8 @@ func CallbackOnNewTimer(
 //=========================================
 
 // called by goroutines outside of the scheduler,
-// so must not touch s.srvendpoint, s.cliendpoint, etc.
-func (s *simnet) createNewTimer(origin *endpoint, dur time.Duration, begin time.Time, isCli bool) (timer *mop) {
+// so must not touch s.srvsimnode, s.clisimnode, etc.
+func (s *simnet) createNewTimer(origin *simnode, dur time.Duration, begin time.Time, isCli bool) (timer *mop) {
 
 	//vv("top simnet.createNewTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", origin.name, dur, begin, begin.Add(dur))
 
@@ -2381,7 +2359,7 @@ func newSendMop(msg *Message, isCli bool) (op *mop) {
 	return
 }
 
-func (s *simnet) discardTimer(origin *endpoint, origTimerMop *mop, discardTm time.Time) (wasArmed bool) {
+func (s *simnet) discardTimer(origin *simnode, origTimerMop *mop, discardTm time.Time) (wasArmed bool) {
 
 	//vv("top simnet.discardTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", who, dur, begin, begin.Add(dur))
 
@@ -2414,15 +2392,15 @@ type clientRegistration struct {
 	dialTo        string // preferred, set by tests; Client.cfg.ClientDialToHostPort
 	serverAddrStr string // from runSimNetClient() call by cli.go:155
 
-	// group endpoints on the same server by serverBaseID
+	// group simnodes on the same server by serverBaseID
 	serverBaseID string
 
 	// wait on
 	done chan struct{}
 
 	// receive back
-	endpoint *endpoint // our identity in the simnet (conn.local)
-	conn     *simconn  // our connection to server (c2s)
+	simnode *simnode // our identity in the simnet (conn.local)
+	conn    *simconn // our connection to server (c2s)
 }
 
 // external, called by simnet_client.go to
@@ -2452,7 +2430,7 @@ type serverRegistration struct {
 	done chan struct{}
 
 	// receive back
-	endpoint            *endpoint // our identity in the simnet (conn.local)
+	simnode             *simnode // our identity in the simnet (conn.local)
 	simnet              *simnet
 	tellServerNewConnCh chan *simconn
 }
@@ -2483,7 +2461,7 @@ func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConn
 		if reg.tellServerNewConnCh == nil {
 			panic("cannot have nil reg.tellServerNewConnCh back!")
 		}
-		srv.endpoint = reg.endpoint
+		srv.simnode = reg.simnode
 		srv.simnet = reg.simnet
 		newCliConnCh = reg.tellServerNewConnCh
 		return
@@ -2496,8 +2474,8 @@ func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConn
 
 // Alteration flags are used in AlterCircuit() calls
 // to specify what change you want to
-// a specific network endpoint.
-type Alteration int // on clients or servers, any endpoint
+// a specific network simnode.
+type Alteration int // on clients or servers, any simnode
 
 const (
 	SHUTDOWN  Alteration = 1
@@ -2506,49 +2484,49 @@ const (
 	RESTART   Alteration = 4
 )
 
-type endpointAlteration struct {
+type simnodeAlteration struct {
 	simnet      *simnet
-	endpoint    *endpoint
+	simnode     *simnode
 	alter       Alteration
 	isHostAlter bool
 	done        chan struct{}
 }
 
-func (s *simnet) newCircuitAlteration(endpoint *endpoint, alter Alteration, isHostAlter bool) *endpointAlteration {
-	return &endpointAlteration{
+func (s *simnet) newCircuitAlteration(simnode *simnode, alter Alteration, isHostAlter bool) *simnodeAlteration {
+	return &simnodeAlteration{
 		simnet:      s,
-		endpoint:    endpoint,
+		simnode:     simnode,
 		alter:       alter,
 		isHostAlter: isHostAlter,
 		done:        make(chan struct{}),
 	}
 }
 
-func (s *simnet) alterCircuit(endpoint *endpoint, alter Alteration, wholeHost bool) {
+func (s *simnet) alterCircuit(simnode *simnode, alter Alteration, wholeHost bool) {
 	if wholeHost {
-		s.alterHost(endpoint, alter)
+		s.alterHost(simnode, alter)
 		return
 	}
 
-	alt := s.newCircuitAlteration(endpoint, alter, wholeHost)
+	alt := s.newCircuitAlteration(simnode, alter, wholeHost)
 	select {
-	case s.alterEndpointCh <- alt:
-		//vv("sent alt on alterEndpointCh; about to wait on done goro = %v", GoroNumber())
+	case s.alterSimnodeCh <- alt:
+		//vv("sent alt on alterSimnodeCh; about to wait on done goro = %v", GoroNumber())
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
 	select {
 	case <-alt.done:
-		//vv("server altered: %v", endpoint)
+		//vv("server altered: %v", simnode)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
 	return
 }
 
-func (s *simnet) alterHost(endpoint *endpoint, alter Alteration) {
+func (s *simnet) alterHost(simnode *simnode, alter Alteration) {
 
-	alt := s.newCircuitAlteration(endpoint, alter, true)
+	alt := s.newCircuitAlteration(simnode, alter, true)
 	select {
 	case s.alterHostCh <- alt:
 		//vv("sent alt on alterHostCh; about to wait on done goro = %v", GoroNumber())
@@ -2557,7 +2535,7 @@ func (s *simnet) alterHost(endpoint *endpoint, alter Alteration) {
 	}
 	select {
 	case <-alt.done:
-		//vv("host altered: %v", endpoint)
+		//vv("host altered: %v", simnode)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
@@ -2599,15 +2577,15 @@ func (s *simnet) SafeStateString() (r string) {
 	return
 }
 
-// dropDeafSpec specifies a network/netcard fault
+// DropDeafSpec specifies a network/netcard fault
 // with a given probability.
-type dropDeafSpec struct {
+type DropDeafSpec struct {
 
-	// false updateDeafReads means no change to deafRead probability.
-	updateDeafReads bool
+	// false UpdateDeafReads means no change to deafRead probability.
+	UpdateDeafReads bool
 
-	// false updateDropSends means no change to dropSend probability.
-	updateDropSends bool
+	// false UpdateDropSends means no change to dropSend probability.
+	UpdateDropSends bool
 
 	// probability of ignoring (being deaf) to a read.
 	// 0 => never be deaf to a read (healthy).
@@ -2623,13 +2601,13 @@ type dropDeafSpec struct {
 type circuitFault struct {
 	originName string
 	targetName string
-	err        error // e.g. cannot find name.
-	dd         dropDeafSpec
+	dd         DropDeafSpec
 	sn         int64
 	proceed    chan struct{}
+	err        error
 }
 
-func newCircuitFault(originName, targetName string, dd dropDeafSpec) *circuitFault {
+func newCircuitFault(originName, targetName string, dd DropDeafSpec) *circuitFault {
 	return &circuitFault{
 		originName: originName,
 		targetName: targetName,
@@ -2641,13 +2619,13 @@ func newCircuitFault(originName, targetName string, dd dropDeafSpec) *circuitFau
 
 type hostFault struct {
 	hostName string
-	err      error // e.g. cannot find name.
-	dd       dropDeafSpec
+	dd       DropDeafSpec
 	sn       int64
 	proceed  chan struct{}
+	err      error
 }
 
-func newHostFault(hostName string, dd dropDeafSpec) *hostFault {
+func newHostFault(hostName string, dd DropDeafSpec) *hostFault {
 	return &hostFault{
 		hostName: hostName,
 		dd:       dd,
@@ -2657,42 +2635,45 @@ func newHostFault(hostName string, dd dropDeafSpec) *hostFault {
 }
 
 type circuitRepair struct {
-	originName   string
-	targetName   string
-	err          error // e.g. cannot find name.
-	unIsolate    bool  // if true and endpoint is isolated, it goes to healthy.
-	powerOnIfOff bool  // also power on origin?
-	sn           int64
-	proceed      chan struct{}
+	originName string
+	targetName string
+
+	justOriginHealed bool
+	unIsolate        bool
+	powerOnIfOff     bool
+	sn               int64
+	proceed          chan struct{}
+	err              error
 }
 
-func (s *simnet) newCircuitRepair(originName, targetName string, unIsolate, powerOnIfOff bool) *circuitRepair {
+func (s *simnet) newCircuitRepair(originName, targetName string, unIsolate, powerOnIfOff, justOrigin bool) *circuitRepair {
 	return &circuitRepair{
-		originName:   originName,
-		targetName:   targetName,
-		unIsolate:    unIsolate,
-		powerOnIfOff: powerOnIfOff,
-		sn:           simnetNextMopSn(),
-		proceed:      make(chan struct{}),
+		justOriginHealed: justOrigin,
+		originName:       originName,
+		targetName:       targetName,
+		unIsolate:        unIsolate,
+		powerOnIfOff:     powerOnIfOff,
+		sn:               simnetNextMopSn(),
+		proceed:          make(chan struct{}),
 	}
 }
 
 type hostRepair struct {
-	hostName string
-	err      error // e.g. cannot find name.
-
+	hostName     string
 	powerOnIfOff bool
-	unIsolate    bool // if true and endpoint is isolated, it goes to healthy.
+	unIsolate    bool
 	allHosts     bool
-
-	sn      int64
-	proceed chan struct{}
+	sn           int64
+	proceed      chan struct{}
+	err          error
 }
 
-func (s *simnet) newHostRepair(hostName string, powerOnIfOff bool) *hostRepair {
+func (s *simnet) newHostRepair(hostName string, unIsolate, powerOnIfOff, allHosts bool) *hostRepair {
 	m := &hostRepair{
 		hostName:     hostName,
 		powerOnIfOff: powerOnIfOff,
+		unIsolate:    unIsolate,
+		allHosts:     allHosts,
 		sn:           simnetNextMopSn(),
 		proceed:      make(chan struct{}),
 	}
@@ -2700,10 +2681,9 @@ func (s *simnet) newHostRepair(hostName string, powerOnIfOff bool) *hostRepair {
 }
 
 // empty string target means all possible targets
-func (s *simnet) CircuitDeafToReads(origin, target string, deafProb float64) (err error) {
+func (s *simnet) CircuitFault(origin, target string, dd DropDeafSpec) (err error) {
 
-	updateDeaf, updateDrop, dropProb := true, false, 0.0
-	fault := newCircuitFault(origin, target, updateDeaf, updateDrop, deafProb, dropProb)
+	fault := newCircuitFault(origin, target, dd)
 
 	select {
 	case s.injectCircuitFaultCh <- fault:
@@ -2717,23 +2697,20 @@ func (s *simnet) CircuitDeafToReads(origin, target string, deafProb float64) (er
 		if target == "" {
 			target = "(any and all)"
 		}
-		//vv("server '%v' DeafToReads from '%v'; err = '%v'", origin, target, err)
+		//vv("server '%v' CircuitFault from '%v'; err = '%v'", origin, target, err)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
 	return
-
 }
 
-// empty target string means all possible targets
-func (s *simnet) CircuitDropSends(origin, target string, dropProb float64) (err error) {
+func (s *simnet) HostFault(hostName string, dd DropDeafSpec) (err error) {
 
-	updateDeaf, updateDrop, deafProb := false, true, 0.0
-	fault := newCircuitFault(origin, target, updateDeaf, updateDrop, deafProb, dropProb)
+	fault := newHostFault(hostName, dd)
 
 	select {
-	case s.injectFaultCh <- fault:
-		//vv("sent DropSends fault on injectFaultCh; about to wait on proceed")
+	case s.injectHostFaultCh <- fault:
+		//vv("sent fault on injectHostFaultCh; about to wait on proceed")
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
@@ -2743,31 +2720,7 @@ func (s *simnet) CircuitDropSends(origin, target string, dropProb float64) (err 
 		if target == "" {
 			target = "(any and all)"
 		}
-		//vv("server '%v' will DropSends to '%v'; err = '%v'", origin, target, err)
-	case <-s.halt.ReqStop.Chan:
-		return
-	}
-	return
-}
-
-// AllHealthy heal all partitions, undo all faults, network wide.
-// All circuits are returned to HEALTHY status. Their powerOff status
-// is not updated unless powerOnAnyOff is also true.
-// See also RepairEndpoint for single endpoint repair.
-func (s *simnet) AllHealthy(powerOnAnyOff bool) (err error) {
-
-	allGood := s.newAllHealthy(powerOnAnyOff)
-
-	select {
-	case s.makeRepairCh <- allGood:
-		vv("sent AllHealthy allGood on injectFaultCh; about to wait on proceed")
-	case <-s.halt.ReqStop.Chan:
-		return
-	}
-	select {
-	case <-allGood.proceed:
-		err = allGood.err
-		vv("all healthy processed. err = '%v'", err)
+		//vv("server '%v' hostFault from '%v'; dd='%v'; err = '%v'", hostName, dd, err)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
@@ -2777,7 +2730,7 @@ func (s *simnet) AllHealthy(powerOnAnyOff bool) (err error) {
 // RepairCircuit restores the local circuit to
 // full working order. It undoes the effects of
 // prior deafDrop actions, if any. It does not
-// change an isolated endpoint's isolation unless unIsolate
+// change an isolated simnode's isolation unless unIsolate
 // is also true. See also AllHealthy.
 func (s *simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff bool) (err error) {
 
@@ -2797,4 +2750,32 @@ func (s *simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff b
 		return
 	}
 	return
+}
+
+func (s *simnet) RepairHost(originName string, unIsolate bool, powerOnIfOff, allHosts bool) (err error) {
+
+	repair := s.newHostRepair(originName, unIsolate, powerOnIfOff, allHosts)
+
+	select {
+	case s.repairHostCh <- repair:
+		vv("RepairHost sent repair on repairHostCh; about to wait on proceed")
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	select {
+	case <-repair.proceed:
+		err = repair.err
+		vv("one healthy '%v' processed. err = '%v'", originName, err)
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	return
+}
+
+// AllHealthy heal all partitions, undo all faults, network wide.
+// All circuits are returned to HEALTHY status. Their powerOff status
+// is not updated unless powerOnAnyOff is also true.
+// See also RepairSimnode for single simnode repair.
+func (s *simnet) AllHealthy(powerOnAnyOff bool) (err error) {
+	return s.RepairHost("", true, powerOnAnyOff, true)
 }

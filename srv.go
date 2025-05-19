@@ -1143,7 +1143,7 @@ type Server struct {
 
 	//StartSimNet   chan *SimNetConfig
 	simnet     *simnet
-	endpoint   *endpoint
+	simnode    *simnode
 	simNetAddr *SimNetAddr
 	srvStarted atomic.Bool
 
@@ -1968,7 +1968,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		cliName := "auto-cli-from-" + s.name + "-to-" + dest
 		ccfg := *s.cfg
 		ccfg.ClientDialToHostPort = dest
-		// uses same serverBaseID so simnet can group same host endpoints.
+		// uses same serverBaseID so simnet can group same host simnodes.
 		cli, err2 := NewClient(cliName, &ccfg)
 		panicOn(err2)
 		if err2 != nil {
@@ -2294,9 +2294,9 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 func (s *Server) Close() error {
 	//vv("Server.Close() '%v' called.", s.name)
 
-	if s.simnet != nil && s.endpoint != nil {
+	if s.simnet != nil && s.simnode != nil {
 		const wholeHost = true
-		s.simnet.alterCircuit(s.endpoint, SHUTDOWN, wholeHost)
+		s.simnet.alterCircuit(s.simnode, SHUTDOWN, wholeHost)
 	}
 
 	// ask any sub components (peer pump loops) to stop;

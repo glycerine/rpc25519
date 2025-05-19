@@ -129,8 +129,8 @@ type simconn struct {
 	net     *simnet
 	netAddr *SimNetAddr // local address
 
-	local  *endpoint
-	remote *endpoint
+	local  *simnode
+	remote *simnode
 
 	readDeadlineTimer *mop
 	sendDeadlineTimer *mop
@@ -500,7 +500,7 @@ func (s *Server) Listen(network, addr string) (lsn net.Listener, err error) {
 // to change this in the future if need be.
 func (s *Server) Accept() (nc net.Conn, err error) {
 	select {
-	case nc = <-s.endpoint.tellServerNewConnCh:
+	case nc = <-s.simnode.tellServerNewConnCh:
 		if isNil(nc) {
 			err = ErrShutdown()
 			return
