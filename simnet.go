@@ -176,7 +176,7 @@ type mop struct {
 	isEOF_RST bool
 }
 
-func (s *simnet) handleRepair(repair *repair, closeProceed bool) (err error) {
+func (s *simnet) handleRepairCircuit(repair *repair, closeProceed bool) (err error) {
 
 	if repair.allHealthy && repair.justOriginHealed {
 		panic("confused caller: only set one of repair.allHealthy and repair.justOriginHealed")
@@ -194,7 +194,7 @@ func (s *simnet) handleRepair(repair *repair, closeProceed bool) (err error) {
 			return fmt.Errorf("error on justOriginHealed: originName not found: '%v'", repair.originName)
 		}
 		s.repairAllFaults(simckt)
-		if repair.justOriginUnisolate {
+		if repair.unIsolate {
 			simckt.state = HEALTHY
 		}
 		if repair.justOriginPowerOn {
@@ -204,7 +204,7 @@ func (s *simnet) handleRepair(repair *repair, closeProceed bool) (err error) {
 	}
 
 	for simckt := range s.circuits {
-		vv("handleRepair: simckt '%v' goes from %v to HEALTHY", simckt.name, simckt.state)
+		vv("handleRepairCircuit: simckt '%v' goes from %v to HEALTHY", simckt.name, simckt.state)
 		simckt.state = HEALTHY
 		s.repairAllFaults(simckt)
 		if repair.powerOnAnyOff {
@@ -214,14 +214,14 @@ func (s *simnet) handleRepair(repair *repair, closeProceed bool) (err error) {
 	return
 }
 
-// This is a central place to handle healing all netcard faults;
-// undoing all deafDrop modifications on a single simckt.
+// This is a central place to handle repairs to a circuit;
+// undoing all deaf/drop faults on a single circuit.
 //
-// We are called by handleRepair and recheckHealthState.
+// We are called by handleRepairCircuit and recheckHealthState.
 // state can be ISOLATED or HEALTHY, we do not change these.
 // If state is FAULTY, we go to HEALTHY.
 // If state is FAULTY_ISOLATED, we go to ISOLATED.
-func (s *simnet) repairAllFaults(simckt *simckt) {
+func (s *simnet) repairAllCircuitFaults(simckt *simckt) {
 
 	switch simckt.state {
 	case HEALTHY:
@@ -241,19 +241,19 @@ func (s *simnet) repairAllFaults(simckt *simckt) {
 
 	for rem, conn := range s.circuits[simckt] {
 		_ = rem
-		//vv("repairAllFaults: before 0 out deafRead and deafSend, conn=%v", conn)
+		//vv("repairAllCircuitFaults: before 0 out deafRead and deafSend, conn=%v", conn)
 		conn.deafRead = 0 // zero prob of deaf read.
 		conn.dropSend = 0 // zero prob of dropped send.
-		//vv("repairAllFaults: after deafRead=0 and deafSend=0, conn=%v", conn)
+		//vv("repairAllCircuitFaults: after deafRead=0 and deafSend=0, conn=%v", conn)
 	}
 }
 
-func (s *simnet) handleRepairWholeHost(repair *repair) (err error) {
+func (s *simnet) handleRepairHost(repair *repair) (err error) {
 	if !repair.allHealthy {
 		panic("why call here in not a healing request?")
 	}
 	if repair.justOriginHealed {
-		panic("confused caller: repair.justOriginHealed makes no sense in handleRepairWholeHost")
+		panic("confused caller: repair.justOriginHealed makes no sense in handleRepairHost")
 	}
 	defer func() {
 		repair.err = err
@@ -270,7 +270,7 @@ func (s *simnet) handleRepairWholeHost(repair *repair) (err error) {
 	}
 	for end := range host.port2host {
 		repair.originName = end.name
-		s.handleRepair(repair, false)
+		s.handleRepairCircuit(repair, false)
 	}
 	host.state = HEALTHY
 	if repair.powerOnAnyOff {
@@ -377,7 +377,7 @@ func (s *simnet) recheckHealthState(simckt *simckt) {
 			return // not healthy
 		}
 	}
-	s.repairAllFaults(simckt)
+	s.repairAllCircuitFaults(simckt)
 }
 
 // simnet simulates a network entirely with channels in memory.
@@ -510,8 +510,10 @@ type simnet struct {
 	addTimer       chan *mop
 	discardTimerCh chan *mop
 
-	injectFaultCh chan *fault
-	makeRepairCh  chan *repair
+	injectCircuitFaultCh chan *faultCircuit
+	injectHostFaultCh    chan *faultHost
+	repairCircuitCh      chan *repairCircuit
+	repairHostCh         chan *repairHost
 
 	safeStateStringCh chan *simnetSafeStateQuery
 
@@ -559,31 +561,68 @@ type simckt struct {
 	// state survives power cycling, i.e. rebooting
 	// a simckt does not heal the network or repair a
 	// faulty network card.
-	state    circuitstate
+	state    Circuitstate
 	powerOff bool
 
 	tellServerNewConnCh chan *simconn
 }
 
-// the circuits powerOff status is independent
-// of its health stated, so that net card faults and
-// network isolatation survive a reboot.
-type circuitstate int
+// Circuitstate is one of HEALTHY, FAULTY,
+// ISOLATED, or FAULTY_ISOLATED.
+//
+// FAULTY models network card problems. These
+// can be either dropped sends or deaf reads.
+// The probability of each can be set independently.
+// A card might be able to send messages but
+// only read incoming messages half the time,
+// for example; an asymmetric and intermittent failure mode.
+//
+// ISOLATED models a dead network switch.
+// While this can be modelled more orthogonally
+// as a collection of individual card faults on either side
+// of switch (and may be implemented
+// as such internally) it is a common enough
+// failure mode and test scenario that giving
+// it a distinct name enhances the API's usability and
+// clarifies the scenario being simulated.
+//
+// FAULTY_ISOLATED models network card problems
+// alongside network switch problem.
+//
+// HEALTHY means the network and card are
+// fully operational with respect to this circuit.
+// This does not imply that other circuits
+// ending at the same host, or between the same
+// pair of hosts, are healthy too.
+// A simhost server will typically host
+// many circuit endpoints; at least one per
+// connected peer server.
+//
+// A circuit's powerOff status is independent
+// of its Circuitstate, so that circuit
+// faults like flakey network cards and
+// network isolatation (dead switches) survive
+// (are not repaired by) a simple host or circuit reboot.
+//
+// We reuse Circuitstate for the whole host state,
+// to keep things simple and to summarize
+// the status of all circuit endpoints at a host.
+type Circuitstate int
 
 const (
-	HEALTHY circuitstate = 0
+	HEALTHY Circuitstate = 0
 
-	ISOLATED circuitstate = 1 // cruder than FAULTY. no comms with anyone else
+	ISOLATED Circuitstate = 1 // cruder than FAULTY. no comms with anyone else
 
-	// if a deafDrop fault has been applied to a healthy simckt,
-	// then the simckt is marked FAULTY.
-	// if a deafDrop removes the last fault, we change it back to HEALTHY.
-	FAULTY circuitstate = 2 // some conn may drop sends, be deaf to reads
+	// If a (deaf/drop) fault is applied to a HEALTHY circuit,
+	// then the circuit is marked FAULTY.
+	// If a repair removes the last fault, we change it back to HEALTHY.
+	FAULTY Circuitstate = 2 // some conn may drop sends, be deaf to reads
 
-	// if a deafDrop fault has been applied to an isolated simckt,
-	// then the simckt is marked FAULTY_ISOLATED.
-	// if a deafDrop removes the last fault, we change it back to ISOLATED.
-	FAULTY_ISOLATED circuitstate = 3 // some conn may drop sends, be deaf to reads
+	// If a (deaf/drop) fault is applied to an ISOLATED circuit,
+	// then the circuit is marked FAULTY_ISOLATED.
+	// if a reapir removes the last fault, we change it back to ISOLATED.
+	FAULTY_ISOLATED Circuitstate = 3
 )
 
 func (s *simnet) newSimckt(name, serverBaseID string) *simckt {
@@ -756,8 +795,11 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		addTimer:       make(chan *mop),
 		discardTimerCh: make(chan *mop),
 		newScenarioCh:  make(chan *scenario),
-		injectFaultCh:  make(chan *fault),
-		makeRepairCh:   make(chan *repair),
+
+		injectCircuitFaultCh: make(chan *circuitFault),
+		injectHostFaultCh:    make(chan *hostFault),
+		repairCircuitCh:      make(chan *repairCircuit),
+		repairHostCh:         make(chan *repairHost),
 
 		scenario:          scen,
 		safeStateStringCh: make(chan *simnetSafeStateQuery),
@@ -1895,21 +1937,21 @@ restartI:
 		case alt := <-s.alterHostCh:
 			s.handleAlterHost(alt)
 
-		case fault := <-s.injectFaultCh:
-			//vv("i=%v injectFaultCh ->  dd='%v'", i, fault)
-			if fault.wholeHost {
-				s.injectFaultWholeHost(fault)
-			} else {
-				s.injectFault(fault, true)
-			}
+		case fault := <-s.injectCircuitFaultCh:
+			//vv("i=%v injectCircuitFaultCh ->  dd='%v'", i, fault)
+			s.injectCircuitFault(fault, true)
 
-		case repair := <-s.makeRepairCh:
-			//vv("i=%v makeRepairCh ->  dd='%v'", i, repair)
-			if repair.wholeHost {
-				s.handleRepairWholeHost(repair)
-			} else {
-				s.handleRepair(repair, true)
-			}
+		case fault := <-s.injectHostFaultCh:
+			//vv("i=%v injectHostFaultCh ->  dd='%v'", i, fault)
+			s.injectHostFault(fault)
+
+		case repairCkt := <-s.repairCircuitCh:
+			//vv("i=%v repairCircuitCh ->  repairCkt='%v'", i, repairCkt)
+			s.handleRepairCircuit(repairCkt, true)
+
+		case repairHost := <-s.repairHostCh:
+			//vv("i=%v repairHostCh ->  repairHost='%v'", i, repairHost)
+			s.handleRepairHost(repairHost)
 
 		case safe := <-s.safeStateStringCh:
 			// prints internal state to string, without data races.
@@ -1936,7 +1978,7 @@ restartI:
 type simhost struct {
 	name         string
 	serverBaseID string
-	state        circuitstate
+	state        Circuitstate
 	powerOff     bool
 	port2host    map[*simckt]*simhost
 	host2port    map[*simhost]*simckt
@@ -2522,12 +2564,10 @@ func (s *simnet) alterHost(simckt *simckt, alter Alteration) {
 	return
 }
 
-type fault struct {
+type circuitFault struct {
 	originName string
 	targetName string // empty string means all targets/ remote conn.
 	err        error  // e.g. cannot find name.
-
-	wholeHost bool
 
 	updateDeafReads bool
 	updateDropSends bool
@@ -2539,18 +2579,46 @@ type fault struct {
 	proceed chan struct{}
 }
 
-type repair struct {
+type hostFault struct {
 	originName string
 	targetName string // empty string means all targets/ remote conn.
 	err        error  // e.g. cannot find name.
 
-	allHealthy    bool // all circuits, heal drop/deaf faults. isolation unchanged.
+	updateDeafReads bool
+	updateDropSends bool
+
+	deafReadsNewProb float64
+	dropSendsNewProb float64
+
+	sn      int64
+	proceed chan struct{}
+}
+
+type circuitRepair struct {
+	originName string
+	targetName string // empty string means all targets/ remote conn.
+	err        error  // e.g. cannot find name.
+
+	allHealthy        bool
+	unIsolate         bool // if true and simckt is isolated, it goes to healthy.
+	justOriginPowerOn bool // also power on origin?
+
+	sn      int64
+	proceed chan struct{}
+}
+
+type hostRepair struct {
+	originName string
+	targetName string // empty string means all targets/ remote conn.
+	err        error  // e.g. cannot find name.
+
+	allHealthy    bool
 	powerOnAnyOff bool // for allHealthy, also power on any powerOff circuits?
 
-	justOriginHealed    bool // heal drop/deaf faults on just the originName simckt.
-	justOriginUnisolate bool // if true and simckt is isolated, it goes to healthy.
-	justOriginPowerOn   bool // also power on origin?
-	wholeHost           bool
+	justOriginHealed  bool // heal drop/deaf faults on just the originName simckt.
+	unIsolate         bool // if true and simckt is isolated, it goes to healthy.
+	justOriginPowerOn bool // also power on origin?
+	wholeHost         bool
 
 	sn      int64
 	proceed chan struct{}
@@ -2558,9 +2626,9 @@ type repair struct {
 
 // false updateDeaf or false updateDrop means no
 // change in that state.
-func newFault(originName, targetName string, updateDeaf, updateDrop bool, deafProb, dropProb float64, wholeHost bool) *fault {
+func newCircuitFault(originName, targetName string, updateDeaf, updateDrop bool, deafProb, dropProb float64, wholeHost bool) *circuitFault {
 
-	f := &fault{
+	f := &circuitFault{
 		wholeHost:        wholeHost,
 		originName:       originName,
 		targetName:       targetName,
@@ -2576,9 +2644,25 @@ func newFault(originName, targetName string, updateDeaf, updateDrop bool, deafPr
 	return f
 }
 
-func (s *simnet) newAllHealthy(powerOnAnyOff bool) *repair {
+func newHostFault(originName, targetName string, updateDeaf, updateDrop bool, deafProb, dropProb float64) *hostFault {
+
+	f := &hostFault{
+		originName:       originName,
+		targetName:       targetName,
+		updateDeafReads:  updateDeaf,
+		deafReadsNewProb: deafProb,
+		updateDropSends:  updateDrop,
+		dropSendsNewProb: dropProb,
+
+		sn:      simnetNextMopSn(),
+		proceed: make(chan struct{}),
+	}
+
+	return f
+}
+
+func (s *simnet) newHostRepair(powerOnAnyOff bool) *hostRepair {
 	m := &repair{
-		allHealthy:    true, // repair all faults
 		powerOnAnyOff: powerOnAnyOff,
 		sn:            simnetNextMopSn(),
 		proceed:       make(chan struct{}),
@@ -2586,33 +2670,33 @@ func (s *simnet) newAllHealthy(powerOnAnyOff bool) *repair {
 	return m
 }
 
-func (s *simnet) newOriginRepair(originName string, unIsolate, powerOnIfOff bool) *repair {
-	m := &repair{
-		justOriginHealed:    true,
-		justOriginUnisolate: unIsolate,
-		justOriginPowerOn:   powerOnIfOff,
-		originName:          originName,
-		sn:                  simnetNextMopSn(),
-		proceed:             make(chan struct{}),
+func (s *simnet) newCircuitRepair(originName string, unIsolate, powerOnIfOff bool) *circuitRepair {
+	m := &circuitRepair{
+		justOriginHealed:  true,
+		unIsolate:         unIsolate,
+		justOriginPowerOn: powerOnIfOff,
+		originName:        originName,
+		sn:                simnetNextMopSn(),
+		proceed:           make(chan struct{}),
 	}
 	return m
 }
 
 // empty string target means all possible targets
-func (s *simnet) DeafToReads(origin, target string, deafProb float64, wholeHost bool) (err error) {
+func (s *simnet) CircuitDeafToReads(origin, target string, deafProb float64) (err error) {
 
 	updateDeaf, updateDrop, dropProb := true, false, 0.0
-	dd := newFault(origin, target, updateDeaf, updateDrop, deafProb, dropProb, wholeHost)
+	fault := newCircuitFault(origin, target, updateDeaf, updateDrop, deafProb, dropProb)
 
 	select {
-	case s.injectFaultCh <- dd:
-		//vv("sent DeafToReads dd on injectFaultCh; about to wait on proceed")
+	case s.injectCircuitFaultCh <- fault:
+		//vv("sent DeafToReads fault on injectFaultCh; about to wait on proceed")
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
 	select {
-	case <-dd.proceed:
-		err = dd.err
+	case <-fault.proceed:
+		err = fault.err
 		if target == "" {
 			target = "(any and all)"
 		}
@@ -2625,20 +2709,20 @@ func (s *simnet) DeafToReads(origin, target string, deafProb float64, wholeHost 
 }
 
 // empty target string means all possible targets
-func (s *simnet) DropSends(origin, target string, dropProb float64, wholeHost bool) (err error) {
+func (s *simnet) CircuitDropSends(origin, target string, dropProb float64) (err error) {
 
 	updateDeaf, updateDrop, deafProb := false, true, 0.0
-	dd := newFault(origin, target, updateDeaf, updateDrop, deafProb, dropProb, wholeHost)
+	fault := newCircuitFault(origin, target, updateDeaf, updateDrop, deafProb, dropProb)
 
 	select {
-	case s.injectFaultCh <- dd:
-		//vv("sent DropSends dd on injectFaultCh; about to wait on proceed")
+	case s.injectFaultCh <- fault:
+		//vv("sent DropSends fault on injectFaultCh; about to wait on proceed")
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
 	select {
-	case <-dd.proceed:
-		err = dd.err
+	case <-fault.proceed:
+		err = fault.err
 		if target == "" {
 			target = "(any and all)"
 		}
@@ -2680,11 +2764,11 @@ func (s *simnet) AllHealthy(powerOnAnyOff bool) (err error) {
 // is also true. See also AllHealthy.
 func (s *simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff bool) (err error) {
 
-	oneGood := s.newOriginRepair(originName, unIsolate, powerOnIfOff)
+	oneGood := s.newCircuitRepair(originName, unIsolate, powerOnIfOff)
 
 	select {
-	case s.makeRepairCh <- oneGood:
-		vv("RepairCircuit sent oneGood on makeRepairCh; about to wait on proceed")
+	case s.repairCircuitCh <- oneGood:
+		vv("RepairCircuit sent oneGood on repairCircuitCh; about to wait on proceed")
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
