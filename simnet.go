@@ -1797,15 +1797,68 @@ restartI:
 	}
 }
 
-func (s *simnet) allConnString() (r string) {
-	i := 0
-	for node, remotes := range s.nodes {
-		for rem, conn := range remotes {
-			r += fmt.Sprintf("[%03d] node.serverBaseID:%v "+
-				"rem.serverBaseID:%v simnetConn from %v -> %v\n",
+type simHost struct {
+	name         string
+	serverBaseID string
+	end2host     map[*simnode]*simHost
+	host2end     map[*simHost]*simnode
+	conns        []*simnetConn
+}
 
-				i, node.serverBaseID, rem.serverBaseID,
-				conn.local.name, conn.remote.name)
+func newSimHost(name, serverBaseID string) *simHost {
+	return &simHost{
+		name:         name,
+		serverBaseID: serverBaseID,
+		end2host:     make(map[*simnode]*simHost),
+		host2end:     make(map[*simHost]*simnode),
+	}
+}
+func (s *simnet) allConnString() (r string) {
+
+	// group by serverBaseID
+	hosts := make(map[string]*simHost)
+	for node := range s.nodes {
+		_, ok := hosts[node.serverBaseID]
+		if !ok {
+			if !node.isCli {
+				host := newSimHost(node.name, node.serverBaseID)
+				hosts[node.serverBaseID] = host
+			}
+		}
+	}
+	// have all the serverBaseID with a host in hosts now.
+	for node, remotes := range s.nodes {
+		host := hosts[node.serverBaseID]
+		for rem, conn := range remotes {
+			_ = rem
+			host.conns = append(host.conns, conn)
+
+			hr := hosts[rem.serverBaseID] // host for the remote
+			host.host2end[hr] = rem
+			host.end2host[rem] = hr
+		}
+	}
+	i := 0
+	for _, host := range hosts {
+		r += fmt.Sprintf("host:%v has host2end:\n", host.name)
+		for h, end := range host.host2end {
+			r += fmt.Sprintf("    host2end[%v] = %v\n", h.name, end.name)
+		}
+		r += fmt.Sprintf("host:%v has end2host:\n", host.name)
+		for end, h := range host.end2host {
+			r += fmt.Sprintf("    end2host[%v] = %v\n", end.name, h.name)
+		}
+		r += fmt.Sprintf("host:%v has conns:\n", host.name)
+		for _, conn := range host.conns {
+			// version for serverBaseID if we need it again.
+			//r += fmt.Sprintf("[%03d] node.serverBaseID:%v "+
+			//	"rem.serverBaseID:%v simnetConn from %v -> %v\n",
+			//	i, node.serverBaseID, rem.serverBaseID,
+			//	conn.local.name, conn.remote.name)
+
+			// easier to read:
+			r += fmt.Sprintf("    [%03d] simnetConn from %v -> %v\n",
+				i, conn.local.name, conn.remote.name)
 			i++
 		}
 	}
