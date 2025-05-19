@@ -640,17 +640,25 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 	c2s := s.addEdgeFromCli(clinode, srvnode)
 	s2c := s.addEdgeFromSrv(srvnode, clinode)
 
-	host, ok := s.hosts[srvnode.serverBaseID]
+	srvhost, ok := s.hosts[srvnode.serverBaseID]
 	if !ok {
 		panic(fmt.Sprintf("why no host for server? serverBaseID = '%v'; s.hosts='%#v'", srvnode.serverBaseID, s.hosts))
 		//host = newSimHost(srvnode.name, srvnode.serverBaseID)
 		//s.hosts[srvnode.serverBaseID] = host
 	}
-	host.conns = append(host.conns, s2c)
-	hr := s.hosts[clinode.serverBaseID] // host for the remote
-	host.host2end[hr] = clinode
-	host.host2conn[hr] = s2c
-	host.end2host[clinode] = hr
+	clihost, ok := s.hosts[clinode.serverBaseID] // host for the remote
+	if !ok {
+		clihost = newSimHost(clinode.name, clinode.serverBaseID)
+		s.hosts[clinode.serverBaseID] = clihost
+	}
+
+	srvhost.host2end[clihost] = clinode
+	srvhost.end2host[clinode] = clihost
+	srvhost.host2conn[clihost] = s2c
+
+	clihost.host2end[srvhost] = srvnode
+	clihost.end2host[srvnode] = srvhost
+	clihost.host2conn[srvhost] = c2s
 
 	reg.conn = c2s
 	reg.simnode = clinode
