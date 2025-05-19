@@ -279,7 +279,7 @@ func (s *simnet) handleRepairWholeHost(dd *repair) (err error) {
 	return
 }
 
-func (s *simnet) induceFaultWholeHost(dd *fault) (err error) {
+func (s *simnet) injectFaultWholeHost(dd *fault) (err error) {
 	//if dd.allHealthy || dd.justOriginHealed {
 	//	return s.handleRepairWholeHost(dd)
 	//}
@@ -298,12 +298,12 @@ func (s *simnet) induceFaultWholeHost(dd *fault) (err error) {
 	}
 	for end := range host.port2host {
 		dd.originName = end.name
-		s.induceFault(dd, false)
+		s.injectFault(dd, false)
 	}
 	return
 }
 
-func (s *simnet) induceFault(dd *fault, closeProceed bool) (err error) {
+func (s *simnet) injectFault(dd *fault, closeProceed bool) (err error) {
 
 	//	if dd.allHealthy || dd.justOriginHealed {
 	//		return s.handleRepair(dd, closeProceed)
@@ -515,8 +515,8 @@ type simnet struct {
 	addTimer       chan *mop
 	discardTimerCh chan *mop
 
-	makeBuggyCh  chan *fault
-	makeRepairCh chan *repair
+	injectFaultCh chan *fault
+	makeRepairCh  chan *repair
 
 	safeStateStringCh chan *simnetSafeState
 
@@ -761,7 +761,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		addTimer:       make(chan *mop),
 		discardTimerCh: make(chan *mop),
 		newScenarioCh:  make(chan *scenario),
-		makeBuggyCh:    make(chan *fault),
+		injectFaultCh:  make(chan *fault),
 		makeRepairCh:   make(chan *repair),
 
 		scenario:          scen,
@@ -1900,12 +1900,12 @@ restartI:
 		case alt := <-s.alterHostCh:
 			s.handleAlterHost(alt)
 
-		case fault := <-s.makeBuggyCh:
-			//vv("i=%v makeBuggyCh ->  dd='%v'", i, fault)
+		case fault := <-s.injectFaultCh:
+			//vv("i=%v injectFaultCh ->  dd='%v'", i, fault)
 			if fault.wholeHost {
-				s.induceFaultWholeHost(fault)
+				s.injectFaultWholeHost(fault)
 			} else {
-				s.induceFault(fault, true)
+				s.injectFault(fault, true)
 			}
 
 		case repair := <-s.makeRepairCh:
@@ -2610,8 +2610,8 @@ func (s *simnet) DeafToReads(origin, target string, deafProb float64, wholeHost 
 	dd := newFault(origin, target, updateDeaf, updateDrop, deafProb, dropProb, wholeHost)
 
 	select {
-	case s.makeBuggyCh <- dd:
-		//vv("sent DeafToReads dd on makeBuggyCh; about to wait on proceed")
+	case s.injectFaultCh <- dd:
+		//vv("sent DeafToReads dd on injectFaultCh; about to wait on proceed")
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
@@ -2636,8 +2636,8 @@ func (s *simnet) DropSends(origin, target string, dropProb float64, wholeHost bo
 	dd := newFault(origin, target, updateDeaf, updateDrop, deafProb, dropProb, wholeHost)
 
 	select {
-	case s.makeBuggyCh <- dd:
-		//vv("sent DropSends dd on makeBuggyCh; about to wait on proceed")
+	case s.injectFaultCh <- dd:
+		//vv("sent DropSends dd on injectFaultCh; about to wait on proceed")
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
@@ -2664,7 +2664,7 @@ func (s *simnet) AllHealthy(powerOnAnyOff bool) (err error) {
 
 	select {
 	case s.makeRepairCh <- allGood:
-		vv("sent AllHealthy allGood on makeBuggyCh; about to wait on proceed")
+		vv("sent AllHealthy allGood on injectFaultCh; about to wait on proceed")
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
@@ -2689,7 +2689,7 @@ func (s *simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff b
 
 	select {
 	case s.makeRepairCh <- oneGood:
-		vv("RepairSimckt sent oneGood on makeBuggyCh; about to wait on proceed")
+		vv("RepairCircuit sent oneGood on makeRepairCh; about to wait on proceed")
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
