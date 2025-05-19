@@ -85,6 +85,33 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 				t.Fatalf("timer went off too early! elap(%v) < goalWait(%v)", elap, goalWait)
 			}
 			vv("good: finished timer (fired at %v) after %v >= goal %v", t1, elap, goalWait)
+			// if the server is partitioned, the client should not
+			// be able to make a call.
+			simnet := cfg.GetSimnet()
+			if simnet == nil {
+				panic("no simnet??")
+			}
+			dd := DropDeafSpec{
+				UpdateDeafReads:  true,
+				UpdateDropSends:  false,
+				DeafReadsNewProb: 1,
+				DropSendsNewProb: 1,
+			}
+			err = simnet.HostFault(srv.simnode.name, dd)
+			panicOn(err)
+			vv("server partitioned, try cli call again.")
+
+			waitFor := time.Second * 10
+			reply2, err := cli.SendAndGetReply(req, nil, waitFor)
+			// should hang here until timeout.
+
+			vv("reply2 = %p", reply2)
+			vv("cli sees reply AFTER partition: (Seqno=%v) = '%v'", reply2.HDR.Seqno, string(reply2.JobSerz))
+			if err == nil {
+				t.Fatalf("error: wanted timeout! server not partitioned??")
+			}
+			//panicOn(err)
+
 		})
 	})
 }
