@@ -176,28 +176,28 @@ type mop struct {
 	isEOF_RST bool
 }
 
-func (s *simnet) handleRepair(dd *repair, closeProceed bool) (err error) {
+func (s *simnet) handleRepair(repair *repair, closeProceed bool) (err error) {
 
-	if dd.allHealthy && dd.justOriginHealed {
-		panic("confused caller: only set one of dd.allHealthy and dd.justOriginHealed")
+	if repair.allHealthy && repair.justOriginHealed {
+		panic("confused caller: only set one of repair.allHealthy and repair.justOriginHealed")
 	}
 	if closeProceed {
 		defer func() {
-			dd.err = err
-			close(dd.proceed)
+			repair.err = err
+			close(repair.proceed)
 		}()
 	}
 
-	if dd.justOriginHealed {
-		simckt, ok := s.dns[dd.originName]
+	if repair.justOriginHealed {
+		simckt, ok := s.dns[repair.originName]
 		if !ok {
-			return fmt.Errorf("error on justOriginHealed: originName not found: '%v'", dd.originName)
+			return fmt.Errorf("error on justOriginHealed: originName not found: '%v'", repair.originName)
 		}
-		s.simcktUndoAllDeafDrops(simckt)
-		if dd.justOriginUnisolate {
+		s.repairAllFaults(simckt)
+		if repair.justOriginUnisolate {
 			simckt.state = HEALTHY
 		}
-		if dd.justOriginPowerOn {
+		if repair.justOriginPowerOn {
 			simckt.powerOff = false
 		}
 		return
@@ -206,8 +206,8 @@ func (s *simnet) handleRepair(dd *repair, closeProceed bool) (err error) {
 	for simckt := range s.circuits {
 		vv("handleRepair: simckt '%v' goes from %v to HEALTHY", simckt.name, simckt.state)
 		simckt.state = HEALTHY
-		s.simcktUndoAllDeafDrops(simckt)
-		if dd.powerOnAnyOff {
+		s.repairAllFaults(simckt)
+		if repair.powerOnAnyOff {
 			simckt.powerOff = false
 		}
 	}
@@ -221,7 +221,7 @@ func (s *simnet) handleRepair(dd *repair, closeProceed bool) (err error) {
 // state can be ISOLATED or HEALTHY, we do not change these.
 // If state is FAULTY, we go to HEALTHY.
 // If state is FAULTY_ISOLATED, we go to ISOLATED.
-func (s *simnet) simcktUndoAllDeafDrops(simckt *simckt) {
+func (s *simnet) repairAllFaults(simckt *simckt) {
 
 	switch simckt.state {
 	case HEALTHY:
@@ -241,91 +241,86 @@ func (s *simnet) simcktUndoAllDeafDrops(simckt *simckt) {
 
 	for rem, conn := range s.circuits[simckt] {
 		_ = rem
-		//vv("simcktUndoAllDeafDrops: before 0 out deafRead and deafSend, conn=%v", conn)
+		//vv("repairAllFaults: before 0 out deafRead and deafSend, conn=%v", conn)
 		conn.deafRead = 0 // zero prob of deaf read.
 		conn.dropSend = 0 // zero prob of dropped send.
-		//vv("simcktUndoAllDeafDrops: after deafRead=0 and deafSend=0, conn=%v", conn)
+		//vv("repairAllFaults: after deafRead=0 and deafSend=0, conn=%v", conn)
 	}
 }
 
-func (s *simnet) handleRepairWholeHost(dd *repair) (err error) {
-	if !dd.allHealthy {
+func (s *simnet) handleRepairWholeHost(repair *repair) (err error) {
+	if !repair.allHealthy {
 		panic("why call here in not a healing request?")
 	}
-	if dd.justOriginHealed {
-		panic("confused caller: dd.justOriginHealed makes no sense in handleRepairWholeHost")
+	if repair.justOriginHealed {
+		panic("confused caller: repair.justOriginHealed makes no sense in handleRepairWholeHost")
 	}
 	defer func() {
-		dd.err = err
-		close(dd.proceed)
+		repair.err = err
+		close(repair.proceed)
 	}()
 
-	origin, ok := s.dns[dd.originName]
+	origin, ok := s.dns[repair.originName]
 	if !ok {
-		panic(fmt.Sprintf("not avail in dns dd.origName = '%v'", dd.originName))
+		panic(fmt.Sprintf("not avail in dns repair.origName = '%v'", repair.originName))
 	}
 	host, ok := s.simckt2host[origin]
 	if !ok {
 		panic(fmt.Sprintf("origin not registered in s.simckt2host: origin.name = '%v'", origin.name))
 	}
 	for end := range host.port2host {
-		dd.originName = end.name
-		s.handleRepair(dd, false)
+		repair.originName = end.name
+		s.handleRepair(repair, false)
 	}
 	host.state = HEALTHY
-	if dd.powerOnAnyOff {
+	if repair.powerOnAnyOff {
 		host.powerOff = false
 	}
 	return
 }
 
-func (s *simnet) injectFaultWholeHost(dd *fault) (err error) {
-	//if dd.allHealthy || dd.justOriginHealed {
-	//	return s.handleRepairWholeHost(dd)
-	//}
+func (s *simnet) injectFaultWholeHost(fault *fault) (err error) {
+
 	defer func() {
-		dd.err = err
-		close(dd.proceed)
+		fault.err = err
+		close(fault.proceed)
 	}()
 
-	origin, ok := s.dns[dd.originName]
+	origin, ok := s.dns[fault.originName]
 	if !ok {
-		panic(fmt.Sprintf("not avail in dns dd.origName = '%v'", dd.originName))
+		panic(fmt.Sprintf("not avail in dns fault.origName = '%v'", fault.originName))
 	}
 	host, ok := s.simckt2host[origin]
 	if !ok {
 		panic(fmt.Sprintf("not registered in s.simckt2host: origin.name = '%v'", origin.name))
 	}
 	for end := range host.port2host {
-		dd.originName = end.name
-		s.injectFault(dd, false)
+		fault.originName = end.name
+		s.injectFault(fault, false)
 	}
 	return
 }
 
-func (s *simnet) injectFault(dd *fault, closeProceed bool) (err error) {
+func (s *simnet) injectFault(fault *fault, closeProceed bool) (err error) {
 
-	//	if dd.allHealthy || dd.justOriginHealed {
-	//		return s.handleRepair(dd, closeProceed)
-	//	}
 	if closeProceed {
 		defer func() {
-			dd.err = err
-			close(dd.proceed)
+			fault.err = err
+			close(fault.proceed)
 		}()
 	}
 
-	origin, ok := s.dns[dd.originName]
+	origin, ok := s.dns[fault.originName]
 	_ = origin
 	if !ok {
-		err = fmt.Errorf("could not find originName = '%v' in dns: '%v'", dd.originName, s.stringDNS())
+		err = fmt.Errorf("could not find originName = '%v' in dns: '%v'", fault.originName, s.stringDNS())
 		return
 	}
 	var target *simckt
-	if dd.targetName != "" {
-		target, ok = s.dns[dd.targetName]
+	if fault.targetName != "" {
+		target, ok = s.dns[fault.targetName]
 		if !ok {
-			err = fmt.Errorf("could not find targetName = '%v' in dns: '%v'", dd.targetName, s.stringDNS())
+			err = fmt.Errorf("could not find targetName = '%v' in dns: '%v'", fault.targetName, s.stringDNS())
 			return
 		}
 	}
@@ -338,9 +333,9 @@ func (s *simnet) injectFault(dd *fault, closeProceed bool) (err error) {
 	addedFault := false
 	for rem, conn := range remotes {
 		if target == nil || target == rem {
-			if dd.updateDeafReads {
-				//vv("setting conn(%v).deafRead = dd.deafReadsNewProb = %v", conn, dd.deafReadsNewProb)
-				conn.deafRead = dd.deafReadsNewProb
+			if fault.updateDeafReads {
+				//vv("setting conn(%v).deafRead = fault.deafReadsNewProb = %v", conn, fault.deafReadsNewProb)
+				conn.deafRead = fault.deafReadsNewProb
 				if conn.deafRead > 0 {
 					origin.state = FAULTY
 					addedFault = true
@@ -348,9 +343,9 @@ func (s *simnet) injectFault(dd *fault, closeProceed bool) (err error) {
 					recheckHealth = true
 				}
 			}
-			if dd.updateDropSends {
-				//vv("setting conn(%v).dropSend = dd.dropSendsNewProb = %v", conn, dd.dropSendsNewProb)
-				conn.dropSend = dd.dropSendsNewProb
+			if fault.updateDropSends {
+				//vv("setting conn(%v).dropSend = fault.dropSendsNewProb = %v", conn, fault.dropSendsNewProb)
+				conn.dropSend = fault.dropSendsNewProb
 				if conn.dropSend > 0 {
 					origin.state = FAULTY
 					addedFault = true
@@ -382,7 +377,7 @@ func (s *simnet) recheckHealthState(simckt *simckt) {
 			return // not healthy
 		}
 	}
-	s.simcktUndoAllDeafDrops(simckt)
+	s.repairAllFaults(simckt)
 }
 
 // simnet simulates a network entirely with channels in memory.
