@@ -1802,6 +1802,7 @@ type simHost struct {
 	serverBaseID string
 	end2host     map[*simnode]*simHost
 	host2end     map[*simHost]*simnode
+	host2conn    map[*simHost]*simnetConn
 	conns        []*simnetConn
 }
 
@@ -1811,6 +1812,7 @@ func newSimHost(name, serverBaseID string) *simHost {
 		serverBaseID: serverBaseID,
 		end2host:     make(map[*simnode]*simHost),
 		host2end:     make(map[*simHost]*simnode),
+		host2conn:    make(map[*simHost]*simnetConn),
 	}
 }
 func (s *simnet) allConnString() (r string) {
@@ -1835,11 +1837,16 @@ func (s *simnet) allConnString() (r string) {
 
 			hr := hosts[rem.serverBaseID] // host for the remote
 			host.host2end[hr] = rem
+			host.host2conn[hr] = conn
 			host.end2host[rem] = hr
 		}
 	}
 	i := 0
 	for _, host := range hosts {
+		r += fmt.Sprintf("host:%v has host2conn:\n", host.name)
+		for h, conn := range host.host2conn {
+			r += fmt.Sprintf("    host2conn[%v] = %v -> %v\n", h.name, conn.local.name, conn.remote.name)
+		}
 		r += fmt.Sprintf("host:%v has host2end:\n", host.name)
 		for h, end := range host.host2end {
 			r += fmt.Sprintf("    host2end[%v] = %v\n", h.name, end.name)
