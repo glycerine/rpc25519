@@ -2407,9 +2407,13 @@ func (s *simnet) newNodeAlteration(node *simnode, alter Alteration, isHostAlter 
 	}
 }
 
-func (s *simnet) alterNode(node *simnode, alter Alteration) {
+func (s *simnet) alterNode(node *simnode, alter Alteration, wholeHost bool) {
+	if wholeHost {
+		s.alterHost(node, alter)
+		return
+	}
 
-	alt := s.newNodeAlteration(node, alter, false)
+	alt := s.newNodeAlteration(node, alter, wholeHost)
 	select {
 	case s.alterNodeCh <- alt:
 		//vv("sent alt on alterNodeCh; about to wait on done goro = %v", GoroNumber())

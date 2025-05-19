@@ -2295,7 +2295,8 @@ func (s *Server) Close() error {
 	//vv("Server.Close() '%v' called.", s.name)
 
 	if s.simnet != nil && s.simnode != nil {
-		s.simnet.alterNode(s.simnode, SHUTDOWN)
+		const wholeHost = true
+		s.simnet.alterNode(s.simnode, SHUTDOWN, wholeHost)
 	}
 
 	// ask any sub components (peer pump loops) to stop;

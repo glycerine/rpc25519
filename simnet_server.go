@@ -32,7 +32,8 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 
 	defer func() {
 		if simnet != nil && s.simnode != nil {
-			simnet.alterNode(s.simnode, SHUTDOWN)
+			const wholeHost = true
+			simnet.alterNode(s.simnode, SHUTDOWN, wholeHost)
 			//vv("simnet.alterNode(s.simnode, SHUTDOWN) done for %v", s.name)
 		}
 	}()
