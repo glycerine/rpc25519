@@ -289,6 +289,7 @@ type simnet struct {
 	// is another map, which is the set of circuits that A
 	// is connected to by the simconn circuits[A][B].
 	circuits map[*simnode]map[*simnode]*simconn
+	servers  map[string]*simnode // serverBaseID:srvnode
 
 	cliRegisterCh chan *clientRegistration
 	srvRegisterCh chan *serverRegistration
@@ -358,6 +359,14 @@ type simnode struct {
 	autocli map[*simnode]*simconn
 	// autocli + self
 	allnode map[*simnode]bool
+}
+
+func (s *simnet) locals(node *simnode) map[*simnode]bool {
+	srvnode, ok := s.node2server[node]
+	if !ok {
+		panic(fmt.Sprintf("not registered in s.node2server: alt.simnode = '%v'", node.name))
+	}
+	return srvnode.allnode
 }
 
 // Circuitstate is one of HEALTHY, FAULTY,
@@ -469,6 +478,7 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	}
 	s.dns[srvnode.name] = srvnode
 	s.node2server[srvnode] = srvnode
+	s.servers[reg.serverBaseID] = srvnode
 
 	reg.simnode = srvnode
 	reg.simnet = s
@@ -506,9 +516,11 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 	c2s := s.addEdgeFromCli(clinode, srvnode)
 	s2c := s.addEdgeFromSrv(srvnode, clinode)
 
-	s.node2server[clinode] = srvnode
-	srvnode.autocli[clinode] = c2s
-	srvnode.allnode[clinode] = true
+	basesrv := s.servers[reg.serverBaseID]
+
+	s.node2server[clinode] = basesrv
+	basesrv.autocli[clinode] = c2s
+	basesrv.allnode[clinode] = true
 
 	reg.conn = c2s
 	reg.simnode = clinode
@@ -580,6 +592,10 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 
 		// graph of circuits, edges are circuits[from][to]
 		circuits: make(map[*simnode]map[*simnode]*simconn),
+
+		// just the servers/peers, not their autocli.
+		// use locals() to self + all autocli on peer.
+		servers: make(map[string]*simnode),
 
 		// high duration b/c no need to fire spuriously
 		// and force the Go runtime to do extra work when
@@ -986,12 +1002,8 @@ func (s *simnet) handleAlterCircuit(alt *simnodeAlteration, closeDone bool) {
 
 // alter all the auto-cli of a server and the server itself.
 func (s *simnet) handleAlterHost(alt *simnodeAlteration) {
-	srvnode, ok := s.node2server[alt.simnode]
-	if !ok {
-		panic(fmt.Sprintf("not registered in s.node2server: alt.simnode = '%v'", alt.simnode))
-	}
 	const closeDone = false
-	for node := range srvnode.allnode { // includes srvnode itself
+	for node := range s.locals(alt.simnode) { // includes srvnode itself
 		alt.simnode = node
 		s.handleAlterCircuit(alt, closeDone)
 	}
@@ -1715,17 +1727,27 @@ restartI:
 
 func (s *simnet) allConnString() (r string) {
 
-	for origin, dest := range s.circuits {
-		r += fmt.Sprintf("circuits[origin:%v] has targets:\n", origin.name)
-		for target, conn := range dest {
-			r += fmt.Sprintf("    circuits[%v][%v] conn.remote.name: %v\n",
-				origin.name, target.name, conn.remote.name)
+	i := 0
+	for _, srvnode := range s.servers {
+		r += fmt.Sprintf("srvnode [%v] has locals:\n", srvnode.name)
+		for node := range s.locals(srvnode) {
+			r += fmt.Sprintf("    [%02d] %v\n", i, node.name)
+			i++
 		}
-		if !origin.isCli {
-			r += fmt.Sprintf("server %v has autocli:\n", origin.name)
-			for clinode, conn := range origin.autocli {
-				r += fmt.Sprintf("    %v  conn.local:%v,  conn.remote:%v\n",
-					clinode.name, conn.local.name, conn.remote.name)
+	}
+	if false {
+		for origin, dest := range s.circuits {
+			r += fmt.Sprintf("circuits[origin:%v] has targets:\n", origin.name)
+			for target, conn := range dest {
+				r += fmt.Sprintf("    circuits[%v][%v] conn.remote.name: %v\n",
+					origin.name, target.name, conn.remote.name)
+			}
+			if !origin.isCli {
+				r += fmt.Sprintf("server %v has autocli:\n", origin.name)
+				for clinode, conn := range origin.autocli {
+					r += fmt.Sprintf("    %v  conn.local:%v,  conn.remote:%v\n",
+						clinode.name, conn.local.name, conn.remote.name)
+				}
 			}
 		}
 	}

@@ -80,11 +80,7 @@ func (s *simnet) injectHostFault(fault *hostFault) (err error) {
 	if !ok {
 		panic(fmt.Sprintf("not avail in dns fault.origName = '%v'", fault.hostName))
 	}
-	srvnode, ok := s.node2server[origin]
-	if !ok {
-		panic(fmt.Sprintf("not registered in s.node2server: origin.name = '%v'", origin.name))
-	}
-	for node := range srvnode.allnode {
+	for node := range s.locals(origin) {
 		cktFault := newCircuitFault(node.name, "", fault.DropDeafSpec)
 		s.injectCircuitFault(cktFault, false)
 	}
@@ -165,7 +161,6 @@ func (s *simnet) repairAllCircuitFaults(simnode *simnode) {
 }
 
 func (s *simnet) handleHostRepair(repair *hostRepair) (err error) {
-
 	defer func() {
 		repair.err = err
 		close(repair.proceed)
@@ -176,14 +171,10 @@ func (s *simnet) handleHostRepair(repair *hostRepair) (err error) {
 		panic(fmt.Sprintf("not avail in dns repair.origName = '%v'", repair.hostName))
 	}
 
-	srvnode, ok := s.node2server[origin]
-	if !ok {
-		panic(fmt.Sprintf("not registered in s.node2server: origin.name = '%v'", origin.name))
-	}
 	const closeProceed_NO = false
 	const justOrigin = true
-	for node, conn := range srvnode.allnode { // includes srvnode itself
-		_ = conn
+
+	for node := range s.locals(origin) {
 		cktRepair := s.newCircuitRepair(node.name, "", repair.unIsolate, repair.powerOnIfOff, justOrigin)
 		s.handleCircuitRepair(cktRepair, closeProceed_NO)
 	}
