@@ -994,7 +994,7 @@ func (s *simnet) localDropSend(send *mop) bool {
 }
 
 // ignores FAULTY, check that with localDropSend if need be.
-func (s *simnet) statewiseCanSendFromTo(origin, target *simnode) bool {
+func (s *simnet) statewiseConnected(origin, target *simnode) bool {
 	if origin.powerOff ||
 		target.powerOff {
 		return false
@@ -1020,7 +1020,7 @@ func (s *simnet) handleSend(send *mop) {
 	send.arrivalTm = userMaskTime(send.initTm.Add(s.scenario.rngHop()))
 	send.completeTm = time.Now() // send complete on the sender side.
 
-	if !s.statewiseCanSendFromTo(send.origin, send.target) ||
+	if !s.statewiseConnected(send.origin, send.target) ||
 		s.localDropSend(send) {
 
 		vv("handleSend DROP SEND %v", send)
@@ -1030,25 +1030,21 @@ func (s *simnet) handleSend(send *mop) {
 	send.target.preArrQ.add(send)
 	//vv("LC:%v  SEND TO %v %v", origin.lc, origin.name, send)
 	////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvnode.preArrQ)
+	now := time.Now()
+	send.target.dispatch(now)
 }
 
 func (s *simnet) handleRead(read *mop) {
 	////zz("top of handleRead(read = '%v')", read)
-
-	if read.origin.powerOff {
-		// cannot read when off. Hmm.
-		// This must be a stray...maybe a race? the
-		// simnode really should not be doing anything.
-		//alwaysPrintf("yuck: got a READ from a powerOff simnode: '%v'", read.origin)
-		close(read.proceed) // probably just a shutdown race, don't deadlock them.
-		return
-	}
+	defer close(read.proceed)
 
 	origin := read.origin
 	read.originLC = origin.lc
 
-	if s.localDeafRead(read) {
-		//vv("DEAF READ %v", read)
+	if !s.statewiseConnected(read.origin, read.target) ||
+		s.localDeafRead(read) {
+
+		vv("DEAF READ %v", read)
 		origin.deafReadQ.add(read)
 	} else {
 		origin.readQ.add(read)
@@ -1057,7 +1053,6 @@ func (s *simnet) handleRead(read *mop) {
 	////zz("LC:%v  READ %v at %v, now cliReadQ: '%v'", origin.lc, origin.name, read, origin.readQ)
 	now := time.Now()
 	origin.dispatch(now)
-
 }
 
 func (simnode *simnode) firstPreArrivalTimeLTE(now time.Time) bool {

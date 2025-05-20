@@ -251,7 +251,7 @@ func (s *simnet) repairAllCircuitFaults(simnode *simnode, deliverDroppedSends bo
 			if nDrop > 0 {
 				for it := node.droppedSendQ.tree.Min(); it != node.droppedSendQ.tree.Limit(); {
 					send := it.Item().(*mop)
-					if s.statewiseCanSendFromTo(send.origin, send.target) {
+					if s.statewiseConnected(send.origin, send.target) {
 						//vv("transferring send = %v' from droppedSendQ to preArrQ on '%v'", send, send.target.name)
 						send.target.preArrQ.add(send)
 						// advance and delete behind
