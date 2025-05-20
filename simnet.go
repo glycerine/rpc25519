@@ -5,6 +5,7 @@ package rpc25519
 
 import (
 	"fmt"
+	"sort"
 	"sync/atomic"
 	"time"
 
@@ -1669,26 +1670,6 @@ restartI:
 	}
 }
 
-func (s *simnet) allConnString() (r string) {
-
-	i := 0
-	for _, srvnode := range s.servers {
-		r += fmt.Sprintf("srvnode [%v] has locals:\n", srvnode.name)
-		for node := range s.locals(srvnode) {
-
-			r += fmt.Sprintf("   [localServer:'%v'] [%02d] %v  \n",
-				s.localServer(node).name, i, node.name)
-			i++
-		}
-	}
-	return
-}
-
-func (s *simnet) handleSafeStateString(safe *simnetSafeStateQuery) {
-	safe.str = s.String() + "\n" + s.allConnString()
-	close(safe.proceed)
-}
-
 func (s *simnet) finishScenario() {
 	// do any tear down work...
 
@@ -1880,4 +1861,57 @@ func userMaskTime(tm time.Time) time.Time {
 // system gridTimer points always end in 00_000
 func systemMaskTime(tm time.Time) time.Time {
 	return tm.Truncate(timeMask0)
+}
+
+type byName []*simnode
+
+func (s byName) Len() int {
+	return len(s)
+}
+func (s byName) Less(i, j int) bool {
+	return s[i].name < s[j].name
+}
+func (s byName) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+// input s.servers is map[string]*simnode
+func valNameSort[K comparable](m map[K]*simnode) byName {
+	var nodes []*simnode
+	for _, srvnode := range m {
+		nodes = append(nodes, srvnode)
+	}
+	sort.Sort(byName(nodes))
+	return nodes
+}
+
+// input s.locals(srvnode) is map[*simnode]bool
+func keyNameSort[V any](m map[*simnode]V) byName {
+	var nodes []*simnode
+	for srvnode := range m {
+		nodes = append(nodes, srvnode)
+	}
+	sort.Sort(byName(nodes))
+	return nodes
+}
+
+func (s *simnet) allConnString() (r string) {
+
+	i := 0
+	for _, srvnode := range valNameSort(s.servers) {
+		r += fmt.Sprintf("srvnode [%v] has locals:\n", srvnode.name)
+
+		for _, node := range keyNameSort(s.locals(srvnode)) {
+
+			r += fmt.Sprintf("   [localServer:'%v'] [%02d] %v  \n",
+				s.localServer(node).name, i, node.name)
+			i++
+		}
+	}
+	return
+}
+
+func (s *simnet) handleSafeStateString(safe *simnetSafeStateQuery) {
+	safe.str = s.String() + "\n" + s.allConnString()
+	close(safe.proceed)
 }
