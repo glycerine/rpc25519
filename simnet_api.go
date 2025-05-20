@@ -801,16 +801,18 @@ func CallbackOnNewTimer(
 }
 
 type SimnetConnSummary struct {
-	IsCli        bool
-	Origin       string
-	Target       string
-	OriginState  Faultstate
-	TargetState  Faultstate
-	DropSendProb float64
-	DeafReadProb float64
-	OriginClosed bool
-	TargetClosed bool
-	Poweroff     bool
+	OriginIsCli      bool
+	Origin           string
+	OriginState      Faultstate
+	OriginConnClosed bool
+	OriginPoweroff   bool
+	Target           string
+	TargetState      Faultstate
+	TargetConnClosed bool
+	TargetPoweroff   bool
+	DropSendProb     float64
+	DeafReadProb     float64
+	Qs               string
 }
 
 type SimnetServerStatus struct {
@@ -820,7 +822,7 @@ type SimnetServerStatus struct {
 	Poweroff     bool
 	LC           int64
 	ServerBaseID string
-	Qs           string
+	//Qs           string
 }
 
 type SimnetStatus struct {

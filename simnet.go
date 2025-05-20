@@ -1986,31 +1986,30 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 			Poweroff:     srvnode.powerOff,
 			LC:           srvnode.lc,
 			ServerBaseID: srvnode.serverBaseID,
-			Qs:           srvnode.String(),
 		}
 		req.Server = append(req.Server, sss)
 
 		// s.locals() gives srvnode.allnode, includes server's simnode itself.
 		// srvnode.autocli also available for just local cli simnode.
-		for _, node := range keyNameSort(s.locals(srvnode)) {
-			conn, ok := s.circuits[srvnode][node]
-			vv("ok=%v, conn = %#v", ok, conn)
-			if ok {
+		for _, origin := range keyNameSort(s.locals(srvnode)) {
+			for target, conn := range s.circuits[origin] {
 				connsum := &SimnetConnSummary{
-					IsCli:        conn.isCli,
-					Origin:       conn.local.name,
-					Target:       conn.remote.name,
-					OriginState:  conn.local.state,
-					TargetState:  conn.remote.state,
-					Poweroff:     node.powerOff,
+					OriginIsCli: origin.isCli,
+					// origin details
+					Origin:           origin.name,
+					OriginState:      origin.state,
+					OriginConnClosed: conn.localClosed.IsClosed(),
+					OriginPoweroff:   origin.powerOff,
+					// target details
+					Target:           target.name,
+					TargetState:      target.state,
+					TargetConnClosed: conn.remoteClosed.IsClosed(),
+					TargetPoweroff:   target.powerOff,
+					// specific faults on the connection
 					DeafReadProb: conn.deafRead,
 					DropSendProb: conn.dropSend,
-				}
-				if conn.localClosed != nil {
-					connsum.OriginClosed = conn.localClosed.IsClosed()
-				}
-				if conn.remoteClosed != nil {
-					connsum.TargetClosed = conn.remoteClosed.IsClosed()
+					// readQ, preArrQ, etc in summary string form.
+					Qs: origin.String(),
 				}
 				sss.Conn = append(sss.Conn, connsum)
 			}
