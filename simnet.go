@@ -230,7 +230,8 @@ type simnet struct {
 	repairCircuitCh      chan *circuitRepair
 	repairHostCh         chan *hostRepair
 
-	safeStateStringCh chan *simnetSafeStateQuery
+	safeStateStringCh     chan *simnetSafeStateQuery
+	simnetStatusRequestCh chan *SimnetStatus
 
 	newScenarioCh chan *scenario
 	nextTimer     *time.Timer
@@ -271,7 +272,7 @@ type simnode struct {
 	// state survives power cycling, i.e. rebooting
 	// a simnode does not heal the network or repair a
 	// faulty network card.
-	state    Circuitstate
+	state    Faultstate
 	powerOff bool
 
 	tellServerNewConnCh chan *simconn
@@ -578,10 +579,11 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		repairCircuitCh:      make(chan *circuitRepair),
 		repairHostCh:         make(chan *hostRepair),
 
-		scenario:          scen,
-		safeStateStringCh: make(chan *simnetSafeStateQuery),
-		dns:               make(map[string]*simnode),
-		node2server:       make(map[*simnode]*simnode),
+		scenario:              scen,
+		safeStateStringCh:     make(chan *simnetSafeStateQuery),
+		simnetStatusRequestCh: make(chan *SimnetStatus),
+		dns:                   make(map[string]*simnode),
+		node2server:           make(map[*simnode]*simnode),
 
 		// graph of circuits, edges are circuits[from][to]
 		circuits: make(map[*simnode]map[*simnode]*simconn),
@@ -1146,7 +1148,9 @@ func (simnode *simnode) dispatchTimers(now time.Time) (changes int64) {
 		if lte(timer.completeTm, now) {
 			// timer.completeTm <= now
 
-			//vv("have TIMER firing")
+			if !timer.isGridStepTimer && !timer.internalPendingTimer {
+				vv("have TIMER firing: '%v'", timer, simnode.net.schedulerReport())
+			}
 			changes++
 			if timer.timerFiredTm.IsZero() {
 				// only mark the first firing
@@ -1686,6 +1690,10 @@ restartI:
 			// prints internal state to string, without data races.
 			s.handleSafeStateString(safe)
 
+		case statusReq := <-s.simnetStatusRequestCh:
+			// user can confirm/view all current faults/health
+			s.handleSimnetStatusRequest(statusReq)
+
 		case <-s.halt.ReqStop.Chan:
 			bb := time.Since(s.bigbang)
 			pct := 100 * float64(totalSleepDur) / float64(bb)
@@ -1946,4 +1954,47 @@ func (s *simnet) allConnString() (r string) {
 func (s *simnet) handleSafeStateString(safe *simnetSafeStateQuery) {
 	safe.str = s.String() + "\n" + s.allConnString()
 	close(safe.proceed)
+}
+
+// user can confirm/view all current faults/health
+func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus) {
+	defer close(req.proceed)
+
+	req.NetClosed = s.halt.ReqStop.IsClosed()
+	if len(s.servers) == 0 {
+		req.Err = fmt.Errorf("no servers found in simnet; "+
+			"len(allnodes)=%v", len(s.allnodes))
+		return
+	}
+	for _, srvnode := range valNameSort(s.servers) {
+		sss := &SimnetServerStatus{
+			Name:         srvnode.name,
+			ServerState:  srvnode.state,
+			Poweroff:     srvnode.powerOff,
+			LC:           srvnode.lc,
+			ServerBaseID: srvnode.serverBaseID,
+			Qs:           srvnode.String(),
+		}
+		req.Server = append(req.Server, sss)
+
+		// s.locals() gives srvnode.allnode, includes server's simnode itself.
+		// srvnode.autocli also available for just local cli simnode.
+		for _, node := range keyNameSort(s.locals(srvnode)) {
+			conn := s.circuits[srvnode][node]
+			connsum := &SimnetConnSummary{
+				IsCli:        conn.isCli,
+				Origin:       conn.local.name,
+				Target:       conn.remote.name,
+				OriginState:  conn.local.state,
+				TargetState:  conn.remote.state,
+				Poweroff:     node.powerOff,
+				OriginClosed: conn.localClosed.IsClosed(),
+				TargetClosed: conn.remoteClosed.IsClosed(),
+				DeafReadProb: conn.deafRead,
+				DropSendProb: conn.dropSend,
+			}
+			sss.Conn = append(sss.Conn, connsum)
+		}
+	}
+	// end handleSimnetStatusRequest
 }

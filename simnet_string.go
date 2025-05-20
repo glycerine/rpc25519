@@ -91,7 +91,7 @@ func (pq *pq) String() (r string) {
 	return
 }
 
-func (state Circuitstate) String() string {
+func (state Faultstate) String() string {
 	switch state {
 	case HEALTHY:
 		return "HEALTHY"
@@ -102,8 +102,8 @@ func (state Circuitstate) String() string {
 	case FAULTY_ISOLATED:
 		return "FAULTY_ISOLATED"
 	}
-	panic(fmt.Sprintf("unknown circuitstate '%v'", int(state)))
-	return "unknown circuitstate"
+	panic(fmt.Sprintf("unknown Faultstate '%v'", int(state)))
+	return "unknown Faultstate"
 }
 
 func (k mopkind) String() string {

@@ -88,7 +88,7 @@ func (s *scenario) rngTieBreaker() int {
 	}
 }
 
-// Circuitstate is one of HEALTHY, FAULTY,
+// Faultstate is one of HEALTHY, FAULTY,
 // ISOLATED, or FAULTY_ISOLATED.
 //
 // FAULTY models network card problems. These
@@ -116,34 +116,37 @@ func (s *scenario) rngTieBreaker() int {
 // ending at the same host, or between the same
 // pair of hosts, are healthy too.
 // A simhost server will typically host
-// many circuit simnodes; at least one per
+// many circuit connections; at least one per
 // connected peer server.
 //
 // A circuit's powerOff status is independent
-// of its Circuitstate, so that circuit
+// of its Faultstate, so that circuit
 // faults like flakey network cards and
 // network isolatation (dead switches) survive
 // (are not repaired by) a simple host or circuit reboot.
 //
-// We reuse Circuitstate for the whole host state,
+// We reuse Faultstate for the whole server state,
 // to keep things simple and to summarize
-// the status of all circuit simnodes at a host.
-type Circuitstate int
+// the status of all circuits therein.
+// If a simnode or Server is in powerOff, then
+// all circuits terminating there are also
+// in powerOff.
+type Faultstate int
 
 const (
-	HEALTHY Circuitstate = 0
+	HEALTHY Faultstate = 0
 
-	ISOLATED Circuitstate = 1 // cruder than FAULTY. no comms with anyone else
+	ISOLATED Faultstate = 1 // cruder than FAULTY. no comms with anyone else
 
 	// If a (deaf/drop) fault is applied to a HEALTHY circuit,
 	// then the circuit is marked FAULTY.
 	// If a repair removes the last fault, we change it back to HEALTHY.
-	FAULTY Circuitstate = 2 // some conn may drop sends, be deaf to reads
+	FAULTY Faultstate = 2 // some conn may drop sends, be deaf to reads
 
 	// If a (deaf/drop) fault is applied to an ISOLATED circuit,
 	// then the circuit is marked FAULTY_ISOLATED.
 	// if a reapir removes the last fault, we change it back to ISOLATED.
-	FAULTY_ISOLATED Circuitstate = 3
+	FAULTY_ISOLATED Faultstate = 3
 )
 
 // SimNetConfig provides control parameters.
@@ -794,4 +797,51 @@ func CallbackOnNewTimer(
 		pkgFileLine string,
 	) (assignedDeadline time.Time)) {
 
+}
+
+type SimnetConnSummary struct {
+	IsCli        bool
+	Origin       string
+	Target       string
+	OriginState  Faultstate
+	TargetState  Faultstate
+	DropSendProb float64
+	DeafReadProb float64
+	OriginClosed bool
+	TargetClosed bool
+	Poweroff     bool
+}
+
+type SimnetServerStatus struct {
+	Name         string
+	Conn         []*SimnetConnSummary
+	ServerState  Faultstate
+	Poweroff     bool
+	LC           int64
+	ServerBaseID string
+	Qs           string
+}
+
+type SimnetStatus struct {
+	NetClosed bool
+	Server    []*SimnetServerStatus
+	Err       error
+
+	proceed chan struct{}
+}
+
+func (s *simnet) GetSimnetStatus() (status *SimnetStatus) {
+	status = &SimnetStatus{
+		proceed: make(chan struct{}),
+	}
+	select {
+	case s.simnetStatusRequestCh <- status:
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	select {
+	case <-status.proceed:
+	case <-s.halt.ReqStop.Chan:
+	}
+	return
 }
