@@ -355,11 +355,10 @@ func (s *simnet) addSendFaults(now time.Time, origin, target *simnode, dropSendP
 			if send.origin == origin &&
 				s.dropped(dropSendProb) {
 
-				//vv("drop fault enforced on send='%v'", send)
-				// don't mark them, so we can restore them later.
-				//send.sendIsDropped = true
-				//send.isDropDeafFault = true
-				node.droppedSendQ.add(send)
+				// easier to understand if we store on origin,
+				// not in targets pre-arr Q.
+				vv("addSendFaults DROP SEND %v", send)
+				origin.droppedSendQ.add(send)
 
 				// advance sendIt, and delete behind
 				delmeIt := sendIt
@@ -1024,7 +1023,7 @@ func (s *simnet) handleSend(send *mop) {
 		//vv("powerOff or ISOLATED, dropping msg = '%v'", send.msg)
 	} else {
 		if s.localDropSend(send) {
-			//vv("DROP SEND %v", send)
+			vv("handleSend DROP SEND %v", send)
 			//send.sendIsDropped = true
 			//send.isDropDeafFault = true
 			send.origin.droppedSendQ.add(send)

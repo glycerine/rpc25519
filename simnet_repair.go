@@ -75,7 +75,7 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 	if !addedFault && recheckHealth {
 		// simnode may be healthy now, if faults are all gone.
 		// but, an early fault may still be installed; full scan needed.
-		s.recheckHealthState(origin)
+		s.recheckHealthState(origin, fault.deliverDroppedSends)
 	}
 	now := time.Now() // TODO thread from caller in.
 	s.addFaultsToPQ(now, origin, target, fault.DropDeafSpec)
@@ -101,7 +101,7 @@ func (s *simnet) injectHostFault(fault *hostFault) (err error) {
 		panic(fmt.Sprintf("not avail in dns fault.origName = '%v'", fault.hostName))
 	}
 	for node := range s.locals(origin) {
-		cktFault := newCircuitFault(node.name, "", fault.DropDeafSpec)
+		cktFault := newCircuitFault(node.name, "", fault.DropDeafSpec, fault.deliverDroppedSends)
 		s.injectCircuitFault(cktFault, false)
 	}
 	return
@@ -142,7 +142,7 @@ func (s *simnet) handleHostRepair(repair *hostRepair) (err error) {
 	//vv("group is len %v", len(group))
 	for node := range group {
 		cktRepair := s.newCircuitRepair(node.name, "",
-			repair.unIsolate, repair.powerOnIfOff, justOrigin)
+			repair.unIsolate, repair.powerOnIfOff, justOrigin, repair.deliverDroppedSends)
 		//vv("handleHostRepair about to call handleCircuitRepair with cktRepair='%v'", cktRepair)
 		s.handleCircuitRepair(cktRepair, closeProceed_NO)
 	}
@@ -171,7 +171,7 @@ func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (
 	}
 
 	//vv("handleCircuitRepair about self-repair, repairAllCircuitFaults('%v')", origin.name)
-	s.repairAllCircuitFaults(origin)
+	s.repairAllCircuitFaults(origin, repair.deliverDroppedSends)
 	//vv("handleCircuitRepair back from self-repair, repairAllCircuitFaults('%v')", origin.name)
 	if repair.powerOnIfOff {
 		origin.powerOff = false
@@ -192,7 +192,7 @@ func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (
 	for remote := range s.circuits[origin] {
 		if target == nil || target == remote {
 			//vv("handleCircuitRepair about clear target remote '%v'", remote.name)
-			s.repairAllCircuitFaults(remote)
+			s.repairAllCircuitFaults(remote, repair.deliverDroppedSends)
 			if repair.powerOnIfOff {
 				remote.powerOff = false
 			}
@@ -208,7 +208,7 @@ func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (
 // state can be ISOLATED or HEALTHY, we do not change these.
 // If state is FAULTY, we go to HEALTHY.
 // If state is FAULTY_ISOLATED, we go to ISOLATED.
-func (s *simnet) repairAllCircuitFaults(simnode *simnode) {
+func (s *simnet) repairAllCircuitFaults(simnode *simnode, deliverDroppedSends bool) {
 	//vv("top of repairAllCircuitFaults, simnode = '%v'", simnode.name)
 	//defer func() {
 	//vv("end of repairAllCircuitFaults")
@@ -244,19 +244,15 @@ func (s *simnet) repairAllCircuitFaults(simnode *simnode) {
 		}
 		simnode.deafReadQ.deleteAll()
 	}
-	// =================   restore sends?   ===============
-	//
-	// don't restore sends, they are lost (for now).
-	//simnode.droppedSendsQ.deleteAll() ??? leave visible for tests for now.
 
-	if false { // if we do want to restore and delete them as lost...
+	if deliverDroppedSends {
 		for node := range s.circuits {
 			nDrop := node.droppedSendQ.tree.Len()
 			if nDrop > 0 {
 				for it := node.droppedSendQ.tree.Min(); it != node.droppedSendQ.tree.Limit(); it = it.Next() {
 					send := it.Item().(*mop)
-					//vv("transferring send = %v' from droppedSendQ to preArrQ on '%v'", send, node.name)
-					node.preArrQ.add(send)
+					//vv("transferring send = %v' from droppedSendQ to preArrQ on '%v'", send, send.target.name)
+					send.target.preArrQ.add(send)
 				}
 				node.droppedSendQ.deleteAll()
 			}
@@ -277,7 +273,7 @@ func (s *simnet) repairAllCircuitFaults(simnode *simnode) {
 	}
 }
 
-func (s *simnet) recheckHealthState(simnode *simnode) {
+func (s *simnet) recheckHealthState(simnode *simnode, deliverDroppedSends bool) {
 	remotes, ok := s.circuits[simnode]
 	if !ok {
 		return
@@ -292,7 +288,7 @@ func (s *simnet) recheckHealthState(simnode *simnode) {
 		}
 	}
 	//vv("recheckHealthState sees no conn faults in replace for '%v'", simnode.name)
-	s.repairAllCircuitFaults(simnode)
+	s.repairAllCircuitFaults(simnode, deliverDroppedSends)
 }
 
 // ===========================================

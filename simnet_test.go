@@ -97,7 +97,8 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 				DeafReadsNewProb: 1,
 				DropSendsNewProb: 0,
 			}
-			err = simnet.HostFault(srv.simnode.name, dd)
+			const deliverDroppedSends_NO = false
+			err = simnet.HostFault(srv.simnode.name, dd, deliverDroppedSends_NO)
 			panicOn(err)
 			vv("server partitioned, try cli call again.")
 
@@ -125,8 +126,10 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 				vv("good! got err = '%v'", err)
 			}
 
+			const deliverDroppedSends_YES = true
+			const powerOnIfOff_YES = true
 			// now reverse the fault, and get the third attempt through.
-			err = simnet.AllHealthy(true)
+			err = simnet.AllHealthy(powerOnIfOff_YES, deliverDroppedSends_YES)
 			panicOn(err)
 			vv("server un-partitioned, try cli call 3rd time.")
 

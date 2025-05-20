@@ -264,9 +264,9 @@ const (
 )
 
 // empty string target means all possible targets
-func (s *simnet) CircuitFault(origin, target string, dd DropDeafSpec) (err error) {
+func (s *simnet) CircuitFault(origin, target string, dd DropDeafSpec, deliverDroppedSends bool) (err error) {
 
-	fault := newCircuitFault(origin, target, dd)
+	fault := newCircuitFault(origin, target, dd, deliverDroppedSends)
 
 	select {
 	case s.injectCircuitFaultCh <- fault:
@@ -287,9 +287,9 @@ func (s *simnet) CircuitFault(origin, target string, dd DropDeafSpec) (err error
 	return
 }
 
-func (s *simnet) HostFault(hostName string, dd DropDeafSpec) (err error) {
+func (s *simnet) HostFault(hostName string, dd DropDeafSpec, deliverDroppedSends bool) (err error) {
 
-	fault := newHostFault(hostName, dd)
+	fault := newHostFault(hostName, dd, deliverDroppedSends)
 
 	select {
 	case s.injectHostFaultCh <- fault:
@@ -313,11 +313,11 @@ func (s *simnet) HostFault(hostName string, dd DropDeafSpec) (err error) {
 // change an isolated simnode's isolation unless unIsolate
 // is also true. See also RepairHost, AllHealthy.
 // .
-func (s *simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff bool) (err error) {
+func (s *simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff, deliverDroppedSends bool) (err error) {
 
 	targetName := "" // all corresponding targets
 	const justOrigin_NO = false
-	oneGood := s.newCircuitRepair(originName, targetName, unIsolate, powerOnIfOff, justOrigin_NO)
+	oneGood := s.newCircuitRepair(originName, targetName, unIsolate, powerOnIfOff, justOrigin_NO, deliverDroppedSends)
 
 	select {
 	case s.repairCircuitCh <- oneGood:
@@ -336,13 +336,13 @@ func (s *simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff b
 }
 
 // RepairHost repairs all the circuits on the host.
-func (s *simnet) RepairHost(originName string, unIsolate bool, powerOnIfOff, allHosts bool) (err error) {
+func (s *simnet) RepairHost(originName string, unIsolate bool, powerOnIfOff, allHosts, deliverDroppedSends bool) (err error) {
 	//vv("top of RepairHost, originName = '%v'; unIsolate=%v, powerOnIfOff=%v, allHosts=%v", originName, unIsolate, powerOnIfOff, allHosts)
 	//defer func() {
 	//vv("end of RepairHost('%v')", originName)
 	//}()
 
-	repair := s.newHostRepair(originName, unIsolate, powerOnIfOff, allHosts)
+	repair := s.newHostRepair(originName, unIsolate, powerOnIfOff, allHosts, deliverDroppedSends)
 
 	select {
 	case s.repairHostCh <- repair:
@@ -365,10 +365,11 @@ func (s *simnet) RepairHost(originName string, unIsolate bool, powerOnIfOff, all
 // is not updated unless powerOnIfOff is also true.
 // See also RepairSimnode for single simnode repair.
 // .
-func (s *simnet) AllHealthy(powerOnIfOff bool) (err error) {
+func (s *simnet) AllHealthy(powerOnIfOff bool, deliverDroppedSends bool) (err error) {
 	//vv("AllHealthy(powerOnIfOff=%v) called.", powerOnIfOff)
 
-	return s.RepairHost("", true, powerOnIfOff, true)
+	const allHealthy_YES = true
+	return s.RepairHost("", true, powerOnIfOff, allHealthy_YES, deliverDroppedSends)
 }
 
 // called by goroutines outside of the scheduler,
@@ -715,35 +716,40 @@ type circuitFault struct {
 	originName string
 	targetName string
 	DropDeafSpec
+	deliverDroppedSends bool
+
 	sn      int64
 	proceed chan struct{}
 	err     error
 }
 
-func newCircuitFault(originName, targetName string, dd DropDeafSpec) *circuitFault {
+func newCircuitFault(originName, targetName string, dd DropDeafSpec, deliverDroppedSends bool) *circuitFault {
 	return &circuitFault{
-		originName:   originName,
-		targetName:   targetName,
-		DropDeafSpec: dd,
-		sn:           simnetNextMopSn(),
-		proceed:      make(chan struct{}),
+		originName:          originName,
+		targetName:          targetName,
+		DropDeafSpec:        dd,
+		deliverDroppedSends: deliverDroppedSends,
+		sn:                  simnetNextMopSn(),
+		proceed:             make(chan struct{}),
 	}
 }
 
 type hostFault struct {
 	hostName string
 	DropDeafSpec
-	sn      int64
-	proceed chan struct{}
-	err     error
+	deliverDroppedSends bool
+	sn                  int64
+	proceed             chan struct{}
+	err                 error
 }
 
-func newHostFault(hostName string, dd DropDeafSpec) *hostFault {
+func newHostFault(hostName string, dd DropDeafSpec, deliverDroppedSends bool) *hostFault {
 	return &hostFault{
-		hostName:     hostName,
-		DropDeafSpec: dd,
-		sn:           simnetNextMopSn(),
-		proceed:      make(chan struct{}),
+		hostName:            hostName,
+		DropDeafSpec:        dd,
+		deliverDroppedSends: deliverDroppedSends,
+		sn:                  simnetNextMopSn(),
+		proceed:             make(chan struct{}),
 	}
 }
 
@@ -751,44 +757,48 @@ type circuitRepair struct {
 	originName string
 	targetName string
 
-	justOriginHealed bool
-	unIsolate        bool
-	powerOnIfOff     bool
-	sn               int64
-	proceed          chan struct{}
-	err              error
+	deliverDroppedSends bool
+	justOriginHealed    bool
+	unIsolate           bool
+	powerOnIfOff        bool
+	sn                  int64
+	proceed             chan struct{}
+	err                 error
 }
 
-func (s *simnet) newCircuitRepair(originName, targetName string, unIsolate, powerOnIfOff, justOrigin bool) *circuitRepair {
+func (s *simnet) newCircuitRepair(originName, targetName string, unIsolate, powerOnIfOff, justOrigin, deliverDroppedSends bool) *circuitRepair {
 	return &circuitRepair{
-		justOriginHealed: justOrigin,
-		originName:       originName,
-		targetName:       targetName,
-		unIsolate:        unIsolate,
-		powerOnIfOff:     powerOnIfOff,
-		sn:               simnetNextMopSn(),
-		proceed:          make(chan struct{}),
+		deliverDroppedSends: deliverDroppedSends,
+		justOriginHealed:    justOrigin,
+		originName:          originName,
+		targetName:          targetName,
+		unIsolate:           unIsolate,
+		powerOnIfOff:        powerOnIfOff,
+		sn:                  simnetNextMopSn(),
+		proceed:             make(chan struct{}),
 	}
 }
 
 type hostRepair struct {
-	hostName     string
-	powerOnIfOff bool
-	unIsolate    bool
-	allHosts     bool
-	sn           int64
-	proceed      chan struct{}
-	err          error
+	hostName            string
+	powerOnIfOff        bool
+	unIsolate           bool
+	allHosts            bool
+	deliverDroppedSends bool
+	sn                  int64
+	proceed             chan struct{}
+	err                 error
 }
 
-func (s *simnet) newHostRepair(hostName string, unIsolate, powerOnIfOff, allHosts bool) *hostRepair {
+func (s *simnet) newHostRepair(hostName string, unIsolate, powerOnIfOff, allHosts, deliverDroppedSends bool) *hostRepair {
 	m := &hostRepair{
-		hostName:     hostName,
-		powerOnIfOff: powerOnIfOff,
-		unIsolate:    unIsolate,
-		allHosts:     allHosts,
-		sn:           simnetNextMopSn(),
-		proceed:      make(chan struct{}),
+		deliverDroppedSends: deliverDroppedSends,
+		hostName:            hostName,
+		powerOnIfOff:        powerOnIfOff,
+		unIsolate:           unIsolate,
+		allHosts:            allHosts,
+		sn:                  simnetNextMopSn(),
+		proceed:             make(chan struct{}),
 	}
 	return m
 }
