@@ -392,12 +392,12 @@ func (s *SimNetConfig) String() string {
 
 func (z *SimnetConnSummary) String() (r string) {
 	//r = "&SimnetConnSummary{\n"
-	r += fmt.Sprintf("   OriginIsCli: %v\n", z.OriginIsCli)
 	r += fmt.Sprintf("   ----  origin details  ----\n")
 	r += fmt.Sprintf("        Origin: %v\n", z.Origin)
 	r += fmt.Sprintf("   OriginState: %v\n", z.OriginState)
 	r += fmt.Sprintf("  OriginClosed: %v\n", z.OriginConnClosed)
 	r += fmt.Sprintf("OriginPoweroff: %v\n", z.OriginPoweroff)
+	r += fmt.Sprintf("   OriginIsCli: %v\n", z.OriginIsCli)
 	r += fmt.Sprintf("   ----  target details  ----\n")
 	r += fmt.Sprintf("        Target: %v\n", z.Target)
 	r += fmt.Sprintf("   TargetState: %v\n", z.TargetState)
@@ -434,7 +434,7 @@ func (z *SimnetPeerStatus) String() (r string) {
 	r += fmt.Sprintf("    Conn[%v: peer has %v dialed client + 1 listening server]:\n", len(z.Conn), len(z.Conn)-1)
 	for i, conn := range z.Conn {
 		//r += fmt.Sprintf(" ===============================\n")
-		r += fmt.Sprintf("=========  conn[%02d on srv] %v -> %v\n",
+		r += fmt.Sprintf("=========  conn[%02d on peer] %v -> %v\n",
 			i, conn.Origin, conn.Target)
 		r += fmt.Sprintf("%v\n", conn.String())
 	}
