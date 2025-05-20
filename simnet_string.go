@@ -392,20 +392,33 @@ func (s *SimNetConfig) String() string {
 
 func (z *SimnetConnSummary) String() (r string) {
 	//r = "&SimnetConnSummary{\n"
-	r += fmt.Sprintf("   OriginIsCli: %v,\n", z.OriginIsCli)
+	r += fmt.Sprintf("   OriginIsCli: %v\n", z.OriginIsCli)
 	r += fmt.Sprintf("   ----  origin details  ----\n")
-	r += fmt.Sprintf("        Origin: \"%v\",\n", z.Origin)
-	r += fmt.Sprintf("   OriginState: %v,\n", z.OriginState)
-	r += fmt.Sprintf("  OriginClosed: %v,\n", z.OriginConnClosed)
-	r += fmt.Sprintf("OriginPoweroff: %v,\n", z.OriginPoweroff)
+	r += fmt.Sprintf("        Origin: %v\n", z.Origin)
+	r += fmt.Sprintf("   OriginState: %v\n", z.OriginState)
+	r += fmt.Sprintf("  OriginClosed: %v\n", z.OriginConnClosed)
+	r += fmt.Sprintf("OriginPoweroff: %v\n", z.OriginPoweroff)
 	r += fmt.Sprintf("   ----  target details  ----\n")
-	r += fmt.Sprintf("        Target: \"%v\",\n", z.Target)
-	r += fmt.Sprintf("   TargetState: %v,\n", z.TargetState)
-	r += fmt.Sprintf("  TargetClosed: %v,\n", z.TargetConnClosed)
-	r += fmt.Sprintf("TargetPoweroff: %v,\n", z.TargetPoweroff)
+	r += fmt.Sprintf("        Target: %v\n", z.Target)
+	r += fmt.Sprintf("   TargetState: %v\n", z.TargetState)
+	r += fmt.Sprintf("  TargetClosed: %v\n", z.TargetConnClosed)
+	r += fmt.Sprintf("TargetPoweroff: %v\n", z.TargetPoweroff)
 	r += fmt.Sprintf(" ----  origin side fault settings  ----\n")
-	r += fmt.Sprintf("  DropSendProb: %v,\n", z.DropSendProb)
-	r += fmt.Sprintf("  DeafReadProb: %v,\n", z.DeafReadProb)
+	drop, deaf := "(healthy)", "(healthy)"
+	if z.DropSendProb > 0 {
+		drop = "(send dropped with probability)"
+		if z.DropSendProb >= 1 {
+			drop = "(all sends dropped)"
+		}
+	}
+	if z.DeafReadProb > 0 {
+		deaf = "(read deaf with probability)"
+		if z.DeafReadProb >= 1 {
+			deaf = "(all reads deaf)"
+		}
+	}
+	r += fmt.Sprintf("  DropSendProb: %0.3f %v\n", z.DropSendProb, drop)
+	r += fmt.Sprintf("  DeafReadProb: %0.3f %v\n", z.DeafReadProb, deaf)
 	r += fmt.Sprintf(" ----  origin priority queues  ----\n%v\n", z.Qs)
 	//r += "}\n"
 	return
@@ -413,11 +426,11 @@ func (z *SimnetConnSummary) String() (r string) {
 
 func (z *SimnetServerStatus) String() (r string) {
 	//r = "&SimnetServerStatus{\n"
-	r += fmt.Sprintf("        Name: \"%v\",\n", z.Name)
-	r += fmt.Sprintf(" ServerState: %v,\n", z.ServerState)
-	r += fmt.Sprintf("    Poweroff: %v,\n", z.Poweroff)
-	r += fmt.Sprintf("          LC: %v,\n", z.LC)
-	r += fmt.Sprintf("ServerBaseID: \"%v\",\n", z.ServerBaseID)
+	r += fmt.Sprintf("        Name: %v\n", z.Name)
+	r += fmt.Sprintf(" ServerState: %v\n", z.ServerState)
+	r += fmt.Sprintf("    Poweroff: %v\n", z.Poweroff)
+	r += fmt.Sprintf("          LC: %v\n", z.LC)
+	r += fmt.Sprintf("ServerBaseID: %v\n", z.ServerBaseID)
 	r += fmt.Sprintf("Conn[len %02d]:\n", len(z.Conn))
 	for i, conn := range z.Conn {
 		//r += fmt.Sprintf(" ===============================\n")
