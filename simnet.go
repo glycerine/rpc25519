@@ -1975,7 +1975,7 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 
 	req.NetClosed = s.halt.ReqStop.IsClosed()
 	if len(s.servers) == 0 {
-		req.Err = fmt.Errorf("no servers found in simnet; "+
+		req.GetSimnetStatusErr = fmt.Errorf("no servers found in simnet; "+
 			"len(allnodes)=%v", len(s.allnodes))
 		return
 	}

@@ -260,7 +260,7 @@ func (s *simnet) String() (r string) {
 	r += fmt.Sprintf("        dns: %v,\n", s.stringDNS())
 	//r += fmt.Sprintf("       halt: %v,\n", s.halt)
 	//r += fmt.Sprintf("  nextTimer: %v,\n", s.nextTimer)
-	r += fmt.Sprintf("  lastArmTm: %v,\n", s.lastArmTm)
+	r += fmt.Sprintf("  lastArmTm: %v,\n", s.lastArmTm.Format(rfc3339NanoNumericTZ0pad))
 	r += "}\n"
 	return
 }
@@ -407,27 +407,27 @@ func (z *SimnetConnSummary) String() (r string) {
 }
 
 func (z *SimnetServerStatus) String() (r string) {
-	r = "&SimnetServerStatus{\n"
+	//r = "&SimnetServerStatus{\n"
 	r += fmt.Sprintf("        Name: \"%v\",\n", z.Name)
-	r += fmt.Sprintf("        Conn: %v,\n", z.Conn)
 	r += fmt.Sprintf(" ServerState: %v,\n", z.ServerState)
 	r += fmt.Sprintf("    Poweroff: %v,\n", z.Poweroff)
 	r += fmt.Sprintf("          LC: %v,\n", z.LC)
 	r += fmt.Sprintf("ServerBaseID: \"%v\",\n", z.ServerBaseID)
-	r += fmt.Sprintf("          Qs: \"%v\",\n", z.Qs)
-	r += "}\n"
+	r += fmt.Sprintf("        Conn: %v,\n", z.Conn)
+	r += fmt.Sprintf("          Qs: %v\n", z.Qs)
+	//r += "}\n"
 	return
 }
 
 func (z *SimnetStatus) String() (r string) {
 	r = "&SimnetStatus{\n"
-	r += fmt.Sprintf("          Asof: %v,\n", z.Asof.Format(rfc3339NanoNumericTZ0pad))
-	r += fmt.Sprintf("     NetClosed: %v,\n", z.NetClosed)
-	r += fmt.Sprintf("           Cfg: %v,\n", z.Cfg.String())
-	r += fmt.Sprintf("        Server: %v,\n", z.Server)
-	r += fmt.Sprintf("           Err: %v,\n", z.Err)
-	r += fmt.Sprintf("         Loopi: %v,\n", z.Loopi)
-	r += fmt.Sprintf("   ScenarioNum: %v,\n", z.ScenarioNum)
+	r += fmt.Sprintf("              Asof: %v,\n",
+		z.Asof.Format(rfc3339NanoNumericTZ0pad))
+	r += fmt.Sprintf("         NetClosed: %v,\n", z.NetClosed)
+	r += fmt.Sprintf("               Cfg: %v,\n", z.Cfg.String())
+	r += fmt.Sprintf("             Loopi: %v,\n", z.Loopi)
+	r += fmt.Sprintf("       ScenarioNum: %v,\n", z.ScenarioNum)
+	r += fmt.Sprintf("GetSimnetStatusErr: %v,\n", z.GetSimnetStatusErr)
 
 	b3seed, isZero := blake3OfSeed32(z.ScenarioSeed)
 	if isZero {
@@ -439,6 +439,14 @@ func (z *SimnetStatus) String() (r string) {
 	r += fmt.Sprintf("  ScenarioTick: %v,\n", z.ScenarioTick)
 	r += fmt.Sprintf("ScenarioMinHop: %v,\n", z.ScenarioMinHop)
 	r += fmt.Sprintf("ScenarioMaxHop: %v,\n", z.ScenarioMaxHop)
+
+	r += fmt.Sprintf("    Server(%v):\n", len(z.Server))
+	for i, srv := range z.Server {
+		r += fmt.Sprintf(" ===============================\n")
+		r += fmt.Sprintf(" =======  SimnetServerStatus[%02d]  %v\n", i, srv.Name)
+		r += fmt.Sprintf("%v\n", srv.String())
+	}
+
 	r += "}\n"
 	return
 }

@@ -824,18 +824,19 @@ type SimnetServerStatus struct {
 }
 
 type SimnetStatus struct {
-	Asof      time.Time
-	NetClosed bool
-	Cfg       SimNetConfig
-	Server    []*SimnetServerStatus
-	Err       error
+	Asof               time.Time
+	Loopi              int64
+	NetClosed          bool
+	GetSimnetStatusErr error
+	Cfg                SimNetConfig
 
-	Loopi          int64
 	ScenarioNum    int
 	ScenarioSeed   [32]byte
 	ScenarioTick   time.Duration
 	ScenarioMinHop time.Duration
 	ScenarioMaxHop time.Duration
+
+	Server []*SimnetServerStatus
 
 	proceed chan struct{}
 }
