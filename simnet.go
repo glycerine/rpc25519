@@ -318,28 +318,30 @@ func (s *simnet) addFaultsToReadQ(now time.Time, origin, target *simnode, deafRe
 	}
 }
 
-func (s *simnet) addSendFaults(now time.Time, origin, target *simnode, dropSendProb float64) {
+func (s *simnet) addSendFaults(now time.Time, originNowFaulty, target *simnode, dropSendProb float64) {
 
 	// have to look for origin's sends in all other pre-arrQ...
-	// and check all, in case disconnect happened since...
-
-	for node := range s.circuits {
-		if node == origin {
+	// and check all, in case disconnect happened since the send.
+	for other := range s.circuits {
+		if other == originNowFaulty {
 			// No way at present for a TCP client or server
 			// to read or send to itself. Different sockets
 			// on the same host would be different nodes.
 			continue
 		}
-		if target != nil && node != target {
+		if target != nil && other != target {
 			continue
 		}
-		sendIt := node.preArrQ.tree.Min()
-		for sendIt != node.preArrQ.tree.Limit() {
+		// INVAR: target == nil || other == target
+		// target == nil means add faults to all of originNowFaulty conns
+
+		sendIt := other.preArrQ.tree.Min()
+		for sendIt != other.preArrQ.tree.Limit() {
 
 			send := sendIt.Item().(*mop)
 
 			if gte(send.arrivalTm, now) {
-				// droppable, due to arrive >= now
+				// droppable, due to arrive >= now, keep going below.
 			} else {
 				// INVAR: smallest time send < now.
 				//
@@ -349,19 +351,22 @@ func (s *simnet) addSendFaults(now time.Time, origin, target *simnode, dropSendP
 				// to arrive >= now. So we keep scanning.
 				continue
 			}
-			if send.origin == origin &&
-				s.dropped(dropSendProb) {
+			if send.origin == originNowFaulty {
 
-				// easier to understand if we store on origin,
-				// not in targets pre-arr Q.
-				vv("addSendFaults DROP SEND %v", send)
-				origin.droppedSendQ.add(send)
+				if !s.statewiseConnected(send.origin, send.target) ||
+					s.dropped(dropSendProb) {
 
-				// advance sendIt, and delete behind
-				delmeIt := sendIt
-				sendIt = sendIt.Next()
-				node.preArrQ.tree.DeleteWithIterator(delmeIt)
-				continue
+					// easier to understand if we store on origin,
+					// not in targets pre-arr Q.
+					vv("addSendFaults DROP SEND %v", send)
+					originNowFaulty.droppedSendQ.add(send)
+
+					// advance sendIt, and delete behind
+					delmeIt := sendIt
+					sendIt = sendIt.Next()
+					other.preArrQ.tree.DeleteWithIterator(delmeIt)
+					continue
+				}
 			}
 			sendIt = sendIt.Next()
 		}
