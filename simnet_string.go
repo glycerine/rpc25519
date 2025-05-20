@@ -421,14 +421,21 @@ func (z *SimnetServerStatus) String() (r string) {
 
 func (z *SimnetStatus) String() (r string) {
 	r = "&SimnetStatus{\n"
-	r += fmt.Sprintf("          Asof: %v,\n", z.Asof)
+	r += fmt.Sprintf("          Asof: %v,\n", z.Asof.Format(rfc3339NanoNumericTZ0pad))
 	r += fmt.Sprintf("     NetClosed: %v,\n", z.NetClosed)
-	r += fmt.Sprintf("           Cfg: %v,\n", z.Cfg)
+	r += fmt.Sprintf("           Cfg: %v,\n", z.Cfg.String())
 	r += fmt.Sprintf("        Server: %v,\n", z.Server)
 	r += fmt.Sprintf("           Err: %v,\n", z.Err)
 	r += fmt.Sprintf("         Loopi: %v,\n", z.Loopi)
 	r += fmt.Sprintf("   ScenarioNum: %v,\n", z.ScenarioNum)
-	r += fmt.Sprintf("  ScenarioSeed: %v,\n", z.ScenarioSeed)
+
+	b3seed, isZero := blake3OfSeed32(z.ScenarioSeed)
+	if isZero {
+		b3seed = "(zero seed) " + b3seed
+	} else {
+		b3seed = fmt.Sprintf("(seed[0]=%v) %v", z.ScenarioSeed[0], b3seed)
+	}
+	r += fmt.Sprintf("  ScenarioSeed: %v,\n", b3seed)
 	r += fmt.Sprintf("  ScenarioTick: %v,\n", z.ScenarioTick)
 	r += fmt.Sprintf("ScenarioMinHop: %v,\n", z.ScenarioMinHop)
 	r += fmt.Sprintf("ScenarioMaxHop: %v,\n", z.ScenarioMaxHop)

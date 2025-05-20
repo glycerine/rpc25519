@@ -1956,6 +1956,10 @@ func (s *simnet) handleSafeStateString(safe *simnetSafeStateQuery) {
 	close(safe.proceed)
 }
 
+// in hdr/vprint
+//const rfc3339MsecTz0 = "2006-01-02T15:04:05.000Z07:00"
+//const rfc3339NanoNumericTZ0pad = "2006-01-02T15:04:05.000000000-07:00"
+
 // user can confirm/view all current faults/health
 func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loopi int64) {
 	defer close(req.proceed)
@@ -1989,20 +1993,27 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 		// s.locals() gives srvnode.allnode, includes server's simnode itself.
 		// srvnode.autocli also available for just local cli simnode.
 		for _, node := range keyNameSort(s.locals(srvnode)) {
-			conn := s.circuits[srvnode][node]
-			connsum := &SimnetConnSummary{
-				IsCli:        conn.isCli,
-				Origin:       conn.local.name,
-				Target:       conn.remote.name,
-				OriginState:  conn.local.state,
-				TargetState:  conn.remote.state,
-				Poweroff:     node.powerOff,
-				OriginClosed: conn.localClosed.IsClosed(),
-				TargetClosed: conn.remoteClosed.IsClosed(),
-				DeafReadProb: conn.deafRead,
-				DropSendProb: conn.dropSend,
+			conn, ok := s.circuits[srvnode][node]
+			vv("ok=%v, conn = %#v", ok, conn)
+			if ok {
+				connsum := &SimnetConnSummary{
+					IsCli:        conn.isCli,
+					Origin:       conn.local.name,
+					Target:       conn.remote.name,
+					OriginState:  conn.local.state,
+					TargetState:  conn.remote.state,
+					Poweroff:     node.powerOff,
+					DeafReadProb: conn.deafRead,
+					DropSendProb: conn.dropSend,
+				}
+				if conn.localClosed != nil {
+					connsum.OriginClosed = conn.localClosed.IsClosed()
+				}
+				if conn.remoteClosed != nil {
+					connsum.TargetClosed = conn.remoteClosed.IsClosed()
+				}
+				sss.Conn = append(sss.Conn, connsum)
 			}
-			sss.Conn = append(sss.Conn, connsum)
 		}
 	}
 	// end handleSimnetStatusRequest
