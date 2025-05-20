@@ -996,6 +996,23 @@ func (s *simnet) localDropSend(send *mop) bool {
 	return s.dropped(prob)
 }
 
+// ignores FAULTY, check that with localDropSend if need be.
+func (s *simnet) statewiseCanSendFromTo(origin, target *simnode) bool {
+	if origin.powerOff ||
+		target.powerOff {
+		return false
+	}
+	switch origin.state {
+	case ISOLATED, FAULTY_ISOLATED:
+		return false
+	}
+	switch target.state {
+	case ISOLATED, FAULTY_ISOLATED:
+		return false
+	}
+	return true
+}
+
 func (s *simnet) handleSend(send *mop) {
 	////zz("top of handleSend(send = '%v')", send)
 
@@ -1019,39 +1036,35 @@ func (s *simnet) handleSend(send *mop) {
 		panic(fmt.Sprintf("should see each send only once now, not %v", send.seen))
 	}
 
-	if send.target.powerOff || send.target.state == ISOLATED {
-		//vv("powerOff or ISOLATED, dropping msg = '%v'", send.msg)
-	} else {
-		if s.localDropSend(send) {
-			vv("handleSend DROP SEND %v", send)
-			//send.sendIsDropped = true
-			//send.isDropDeafFault = true
-			send.origin.droppedSendQ.add(send)
+	if !s.statewiseCanSendFromTo(send.origin, send.target) ||
+		s.localDropSend(send) {
 
-			// advance and delete behind? not needed.
-			// send has never been added to any pre-arrival Q.
-			return
-		}
-		// make a copy _before_ the sendMessage() call returns,
-		// so they can recycle or do whatever without data racing with us.
-		// Weird: even with this, the Fragment is getting
-		// races, not the Message.
-		msg1 := send.msg // copy not needed now? newSendMop() now does: .CopyForSimNetSend()
+		vv("handleSend DROP SEND %v", send)
+		send.origin.droppedSendQ.add(send)
 
-		//msg1 := send.msg.CopyForSimNetSend() // race read vs srv.go:517
-		// how is a race possible? we have not closed the proceed chan yet!?!
-		// ah: maybe the send was non-blocking. do the copy earlier
-		// on the sender side in sendMessage() during newSendMop().
-
-		// split into two parts to try and understand the shutdown data race here.
-		// we've got to try and have shutdown not read send.msg
-		send.msg = msg1
-
-		send.target.preArrQ.add(send)
-		//vv("LC:%v  SEND TO %v %v", origin.lc, origin.name, send)
-		////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvnode.preArrQ)
-
+		// advance and delete behind? not needed.
+		// send has never been added to any pre-arrival Q.
+		return
 	}
+	// make a copy _before_ the sendMessage() call returns,
+	// so they can recycle or do whatever without data racing with us.
+	// Weird: even with this, the Fragment is getting
+	// races, not the Message.
+	msg1 := send.msg // copy not needed now? newSendMop() now does: .CopyForSimNetSend()
+
+	//msg1 := send.msg.CopyForSimNetSend() // race read vs srv.go:517
+	// how is a race possible? we have not closed the proceed chan yet!?!
+	// ah: maybe the send was non-blocking. do the copy earlier
+	// on the sender side in sendMessage() during newSendMop().
+
+	// split into two parts to try and understand the shutdown data race here.
+	// we've got to try and have shutdown not read send.msg
+	send.msg = msg1
+
+	send.target.preArrQ.add(send)
+	//vv("LC:%v  SEND TO %v %v", origin.lc, origin.name, send)
+	////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvnode.preArrQ)
+
 	// rpc25519 peer/ckt/frag does async sends, so let
 	// the sender keep going.
 	// We could optionally (chaos?) add some
