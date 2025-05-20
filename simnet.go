@@ -33,9 +33,10 @@ type mop struct {
 	readerLC int64
 	originLC int64
 
-	timerC        chan time.Time
-	timerDur      time.Duration
-	timerFileLine string // where was this timer from?
+	timerC           chan time.Time
+	timerDur         time.Duration
+	timerFileLine    string // where was this timer from?
+	timerReseenCount int
 
 	readFileLine string
 	sendFileLine string
@@ -46,7 +47,7 @@ type mop struct {
 
 	// when fired => unarmed. NO timer.Reset support at the moment!
 	// (except conceptually for the scheduler's gridStepTimer).
-	timerFiredTm time.Time
+	timerFiredTm time.Time // first fire time, count in timerReseenCount
 	// was discarded timer armed?
 	wasArmed bool
 	// was timer set internally to wake for
@@ -1147,25 +1148,47 @@ func (simnode *simnode) dispatchTimers(now time.Time) (changes int64) {
 
 			//vv("have TIMER firing")
 			changes++
-			timer.timerFiredTm = now
+			if timer.timerFiredTm.IsZero() {
+				// only mark the first firing
+				timer.timerFiredTm = now
+			} else {
+				timer.timerReseenCount++
+				if timer.timerReseenCount > 5 {
+					panic(fmt.Sprintf("why was timerReseenCount > 5 ? '%v'", timer))
+				}
+			}
 			// advance, and delete behind us
 			delmeIt := timerIt
 			timerIt = timerIt.Next()
 			simnode.timerQ.tree.DeleteWithIterator(delmeIt)
 
-			select {
-			case timer.timerC <- now:
-			case <-simnode.net.halt.ReqStop.Chan:
-				return
-			default:
-				// The Go runtime will delay the timer channel
-				// send until a receiver goro can receive it,
-				// but we cannot. Hence we use a goroutine if
-				// we didn't get through on the above attempt.
-				// TODO: maybe time.AfterFunc could help here to
-				// avoid a goro?
-				atomic.AddInt64(&simnode.net.backgoundTimerGoroCount, 1)
-				go simnode.backgroundFireTimer(timer, now)
+			if timer.internalPendingTimer {
+				// this was our own, just discard!
+			} else {
+				// user timer
+				select {
+				case timer.timerC <- now:
+				case <-simnode.net.halt.ReqStop.Chan:
+					return
+				default:
+					// this disastrously gave use 3000+ timers.
+					// maybe we just re-queue for 100 ms later?
+					vv("could not deliver timer? '%v'  requeue or what?", timer)
+					panic("why not deliverable?")
+
+					// The Go runtime will delay the timer channel
+					// send until a receiver goro can receive it,
+					// but we cannot. Hence we use a goroutine if
+					// we didn't get through on the above attempt.
+					// TODO: maybe time.AfterFunc could help here to
+					// avoid a goro?
+					bkg := atomic.AddInt64(&simnode.net.backgoundTimerGoroCount, 1)
+					vv("arg: could not fire timer. backgrounding it, count = %v", bkg)
+					if bkg > 10 {
+						panic("why are timers not being accepted?")
+					}
+					go simnode.backgroundFireTimer(timer, now) // crap. 3496 of these! 051 hopefully all internal timers that we now omit this for...
+				}
 			}
 		} else {
 			// INVAR: smallest timer > now
@@ -1559,6 +1582,11 @@ restartI:
 			//vv("scheduler top. schedulerReport: \n%v", s.schedulerReport())
 		}
 
+		bkgTimers := atomic.LoadInt64(&s.backgoundTimerGoroCount)
+		if bkgTimers > 10 {
+			panic(fmt.Sprintf("arg too many bkgTimers! %v", bkgTimers))
+		}
+
 		// To maximize reproducbility, this barrier lets all
 		// other goro get durably blocked, then lets just us proceed.
 		if faketime && s.barrier {
@@ -1684,14 +1712,18 @@ func (s *simnet) initScenario(scenario *scenario) {
 func (s *simnet) handleDiscardTimer(discard *mop) {
 	//now := time.Now()
 
-	if discard.origin.powerOff {
-		// cannot set/fire timers when halted. Hmm.
-		// This must be a stray...maybe a race? the
-		// simnode really should not be doing anything.
-		//alwaysPrintf("yuck: got a TIMER_DISCARD from a powerOff simnode: '%v'", discard.origin)
-		close(discard.proceed) // probably just a shutdown race, don't deadlock them.
-		return
-	}
+	//if discard.origin.powerOff {
+	// cannot set/fire timers when halted. Hmm.
+	// This must be a stray...maybe a race? the
+	// simnode really should not be doing anything.
+	//alwaysPrintf("yuck: got a TIMER_DISCARD from a powerOff simnode: '%v'", discard.origin)
+
+	// probably just a shutdown race, don't deadlock them.
+	// but also! cleanup the timer below to GC it, still!
+
+	//close(discard.proceed)
+	//return
+	//}
 
 	orig := discard.origTimerMop
 
