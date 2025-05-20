@@ -1011,7 +1011,7 @@ func (s *simnet) statewiseConnected(origin, target *simnode) bool {
 }
 
 func (s *simnet) handleSend(send *mop) {
-	vv("top of handleSend(send = '%v')", send)
+	//vv("top of handleSend(send = '%v')", send)
 	defer close(send.proceed)
 
 	origin := send.origin
