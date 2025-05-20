@@ -431,10 +431,10 @@ func (z *SimnetServerStatus) String() (r string) {
 	r += fmt.Sprintf("    Poweroff: %v\n", z.Poweroff)
 	r += fmt.Sprintf("          LC: %v\n", z.LC)
 	r += fmt.Sprintf("ServerBaseID: %v\n", z.ServerBaseID)
-	r += fmt.Sprintf("Conn[len %02d]:\n", len(z.Conn))
+	r += fmt.Sprintf("    Conn[%v: peer has %v dialed client + 1 listening server]:\n", len(z.Conn), len(z.Conn)-1)
 	for i, conn := range z.Conn {
 		//r += fmt.Sprintf(" ===============================\n")
-		r += fmt.Sprintf("=========  conn [%02d] %v -> %v\n",
+		r += fmt.Sprintf("=========  conn[%02d on srv] %v -> %v\n",
 			i, conn.Origin, conn.Target)
 		r += fmt.Sprintf("%v\n", conn.String())
 	}
