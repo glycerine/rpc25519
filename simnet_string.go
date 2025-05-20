@@ -424,8 +424,8 @@ func (z *SimnetConnSummary) String() (r string) {
 	return
 }
 
-func (z *SimnetServerStatus) String() (r string) {
-	//r = "&SimnetServerStatus{\n"
+func (z *SimnetPeerStatus) String() (r string) {
+	//r = "&SimnetPeerStatus{\n"
 	r += fmt.Sprintf("        Name: %v\n", z.Name)
 	r += fmt.Sprintf(" ServerState: %v\n", z.ServerState)
 	r += fmt.Sprintf("    Poweroff: %v\n", z.Poweroff)
@@ -464,10 +464,10 @@ func (z *SimnetStatus) String() (r string) {
 	r += fmt.Sprintf("ScenarioMinHop: %v,\n", z.ScenarioMinHop)
 	r += fmt.Sprintf("ScenarioMaxHop: %v,\n", z.ScenarioMaxHop)
 
-	r += fmt.Sprintf("servers(%v) total connection count(%v):\n", len(z.Server), z.ConnCount)
-	for i, srv := range z.Server {
+	r += fmt.Sprintf("peer count(%v) total connection count(%v):\n", len(z.Peer), z.ConnCount)
+	for i, srv := range z.Peer {
 		r += fmt.Sprintf(" ===============================\n")
-		r += fmt.Sprintf(" =======  SimnetServerStatus[%02d]  %v\n", i, srv.Name)
+		r += fmt.Sprintf(" =======  SimnetPeerStatus[%02d]  %v\n", i, srv.Name)
 		r += fmt.Sprintf("%v\n", srv.String())
 	}
 

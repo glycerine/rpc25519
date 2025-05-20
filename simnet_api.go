@@ -815,7 +815,7 @@ type SimnetConnSummary struct {
 	Qs               string
 }
 
-type SimnetServerStatus struct {
+type SimnetPeerStatus struct {
 	Name         string
 	Conn         []*SimnetConnSummary
 	ServerState  Faultstate
@@ -839,7 +839,7 @@ type SimnetStatus struct {
 	ScenarioMinHop time.Duration
 	ScenarioMaxHop time.Duration
 
-	Server []*SimnetServerStatus
+	Peer []*SimnetPeerStatus
 
 	proceed chan struct{}
 }

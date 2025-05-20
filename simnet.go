@@ -1980,14 +1980,14 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 		return
 	}
 	for _, srvnode := range valNameSort(s.servers) {
-		sss := &SimnetServerStatus{
+		sss := &SimnetPeerStatus{
 			Name:         srvnode.name,
 			ServerState:  srvnode.state,
 			Poweroff:     srvnode.powerOff,
 			LC:           srvnode.lc,
 			ServerBaseID: srvnode.serverBaseID,
 		}
-		req.Server = append(req.Server, sss)
+		req.Peer = append(req.Peer, sss)
 
 		// s.locals() gives srvnode.allnode, includes server's simnode itself.
 		// srvnode.autocli also available for just local cli simnode.
