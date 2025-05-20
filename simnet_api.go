@@ -35,6 +35,7 @@ import (
 // timeout settings under network partition and
 // flakiness (partial failure). Stubbed for now.
 type scenario struct {
+	num    int
 	seed   [32]byte
 	chacha *mathrand2.ChaCha8
 	rng    *mathrand2.Rand
@@ -823,9 +824,18 @@ type SimnetServerStatus struct {
 }
 
 type SimnetStatus struct {
+	Asof      time.Time
 	NetClosed bool
+	Cfg       SimNetConfig
 	Server    []*SimnetServerStatus
 	Err       error
+
+	Loopi          int64
+	ScenarioNum    int
+	ScenarioSeed   [32]byte
+	ScenarioTick   time.Duration
+	ScenarioMinHop time.Duration
+	ScenarioMaxHop time.Duration
 
 	proceed chan struct{}
 }

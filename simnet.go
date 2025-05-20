@@ -1692,7 +1692,7 @@ restartI:
 
 		case statusReq := <-s.simnetStatusRequestCh:
 			// user can confirm/view all current faults/health
-			s.handleSimnetStatusRequest(statusReq)
+			s.handleSimnetStatusRequest(statusReq, now, i)
 
 		case <-s.halt.ReqStop.Chan:
 			bb := time.Since(s.bigbang)
@@ -1957,8 +1957,17 @@ func (s *simnet) handleSafeStateString(safe *simnetSafeStateQuery) {
 }
 
 // user can confirm/view all current faults/health
-func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus) {
+func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loopi int64) {
 	defer close(req.proceed)
+
+	req.Asof = now
+	req.Loopi = loopi
+	req.Cfg = *s.simNetCfg
+	req.ScenarioNum = s.scenario.num
+	req.ScenarioSeed = s.scenario.seed
+	req.ScenarioTick = s.scenario.tick
+	req.ScenarioMinHop = s.scenario.minHop
+	req.ScenarioMaxHop = s.scenario.maxHop
 
 	req.NetClosed = s.halt.ReqStop.IsClosed()
 	if len(s.servers) == 0 {
