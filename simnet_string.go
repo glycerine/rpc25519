@@ -389,3 +389,49 @@ func (s *simconn) String() (r string) {
 func (s *SimNetConfig) String() string {
 	return fmt.Sprintf(`SimNetConfig{BarrierOff: %v}`, s.BarrierOff)
 }
+
+func (z *SimnetConnSummary) String() (r string) {
+	r = "&SimnetConnSummary{\n"
+	r += fmt.Sprintf("       IsCli: %v,\n", z.IsCli)
+	r += fmt.Sprintf("      Origin: \"%v\",\n", z.Origin)
+	r += fmt.Sprintf("      Target: \"%v\",\n", z.Target)
+	r += fmt.Sprintf(" OriginState: %v,\n", z.OriginState)
+	r += fmt.Sprintf(" TargetState: %v,\n", z.TargetState)
+	r += fmt.Sprintf("DropSendProb: %v,\n", z.DropSendProb)
+	r += fmt.Sprintf("DeafReadProb: %v,\n", z.DeafReadProb)
+	r += fmt.Sprintf("OriginClosed: %v,\n", z.OriginClosed)
+	r += fmt.Sprintf("TargetClosed: %v,\n", z.TargetClosed)
+	r += fmt.Sprintf("    Poweroff: %v,\n", z.Poweroff)
+	r += "}\n"
+	return
+}
+
+func (z *SimnetServerStatus) String() (r string) {
+	r = "&SimnetServerStatus{\n"
+	r += fmt.Sprintf("        Name: \"%v\",\n", z.Name)
+	r += fmt.Sprintf("        Conn: %v,\n", z.Conn)
+	r += fmt.Sprintf(" ServerState: %v,\n", z.ServerState)
+	r += fmt.Sprintf("    Poweroff: %v,\n", z.Poweroff)
+	r += fmt.Sprintf("          LC: %v,\n", z.LC)
+	r += fmt.Sprintf("ServerBaseID: \"%v\",\n", z.ServerBaseID)
+	r += fmt.Sprintf("          Qs: \"%v\",\n", z.Qs)
+	r += "}\n"
+	return
+}
+
+func (z *SimnetStatus) String() (r string) {
+	r = "&SimnetStatus{\n"
+	r += fmt.Sprintf("          Asof: %v,\n", z.Asof)
+	r += fmt.Sprintf("     NetClosed: %v,\n", z.NetClosed)
+	r += fmt.Sprintf("           Cfg: %v,\n", z.Cfg)
+	r += fmt.Sprintf("        Server: %v,\n", z.Server)
+	r += fmt.Sprintf("           Err: %v,\n", z.Err)
+	r += fmt.Sprintf("         Loopi: %v,\n", z.Loopi)
+	r += fmt.Sprintf("   ScenarioNum: %v,\n", z.ScenarioNum)
+	r += fmt.Sprintf("  ScenarioSeed: %v,\n", z.ScenarioSeed)
+	r += fmt.Sprintf("  ScenarioTick: %v,\n", z.ScenarioTick)
+	r += fmt.Sprintf("ScenarioMinHop: %v,\n", z.ScenarioMinHop)
+	r += fmt.Sprintf("ScenarioMaxHop: %v,\n", z.ScenarioMaxHop)
+	r += "}\n"
+	return
+}
