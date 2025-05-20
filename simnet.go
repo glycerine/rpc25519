@@ -24,9 +24,6 @@ type mop struct {
 	origin *simnode
 	target *simnode
 
-	// number of times handleSend() has seen this mop.
-	seen int
-
 	originCli bool
 
 	senderLC int64
@@ -1015,65 +1012,24 @@ func (s *simnet) statewiseCanSendFromTo(origin, target *simnode) bool {
 
 func (s *simnet) handleSend(send *mop) {
 	////zz("top of handleSend(send = '%v')", send)
-
-	if send.origin.powerOff {
-		// cannot send when power is off. Hmm.
-		// This must be a stray...maybe a race? the
-		// simnode really should not be doing anything.
-		//alwaysPrintf("yuck: got a SEND from a powerOff simnode: '%v'", send.origin)
-		close(send.proceed) // probably just a shutdown race, don't deadlock them.
-		return
-	}
+	defer close(send.proceed)
 
 	origin := send.origin
-	if send.seen == 0 {
-		send.senderLC = origin.lc
-		send.originLC = origin.lc
-		send.arrivalTm = userMaskTime(send.initTm.Add(s.scenario.rngHop()))
-	}
-	send.seen++
-	if send.seen != 1 {
-		panic(fmt.Sprintf("should see each send only once now, not %v", send.seen))
-	}
+	send.senderLC = origin.lc
+	send.originLC = origin.lc
+	send.arrivalTm = userMaskTime(send.initTm.Add(s.scenario.rngHop()))
+	send.completeTm = time.Now() // send complete on the sender side.
 
 	if !s.statewiseCanSendFromTo(send.origin, send.target) ||
 		s.localDropSend(send) {
 
 		vv("handleSend DROP SEND %v", send)
 		send.origin.droppedSendQ.add(send)
-
-		// advance and delete behind? not needed.
-		// send has never been added to any pre-arrival Q.
 		return
 	}
-	// make a copy _before_ the sendMessage() call returns,
-	// so they can recycle or do whatever without data racing with us.
-	// Weird: even with this, the Fragment is getting
-	// races, not the Message.
-	msg1 := send.msg // copy not needed now? newSendMop() now does: .CopyForSimNetSend()
-
-	//msg1 := send.msg.CopyForSimNetSend() // race read vs srv.go:517
-	// how is a race possible? we have not closed the proceed chan yet!?!
-	// ah: maybe the send was non-blocking. do the copy earlier
-	// on the sender side in sendMessage() during newSendMop().
-
-	// split into two parts to try and understand the shutdown data race here.
-	// we've got to try and have shutdown not read send.msg
-	send.msg = msg1
-
 	send.target.preArrQ.add(send)
 	//vv("LC:%v  SEND TO %v %v", origin.lc, origin.name, send)
 	////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvnode.preArrQ)
-
-	// rpc25519 peer/ckt/frag does async sends, so let
-	// the sender keep going.
-	// We could optionally (chaos?) add some
-	// delay, but then we'd need another "send finished" PQ,
-	// which is just extra we probably don't need. At
-	// least for now.
-	send.completeTm = time.Now() // on the sender side.
-	close(send.proceed)
-
 }
 
 func (s *simnet) handleRead(read *mop) {
@@ -1089,13 +1045,7 @@ func (s *simnet) handleRead(read *mop) {
 	}
 
 	origin := read.origin
-	if read.seen == 0 {
-		read.originLC = origin.lc
-	}
-	read.seen++
-	if read.seen != 1 {
-		panic(fmt.Sprintf("should see each send only once now, not %v", read.seen))
-	}
+	read.originLC = origin.lc
 
 	if s.localDeafRead(read) {
 		//vv("DEAF READ %v", read)
@@ -1780,16 +1730,10 @@ func (s *simnet) handleTimer(timer *mop) {
 	_, _ = who, lc
 	//vv("handleTimer() %v  TIMER SET; LC = %v", who, lc)
 
-	if timer.seen == 0 {
-		timer.senderLC = lc
-		timer.originLC = lc
-		timer.timerC = make(chan time.Time)
-		defer close(timer.proceed)
-	}
-	timer.seen++
-	if timer.seen != 1 {
-		panic(fmt.Sprintf("expect each timer mop only once now, not %v", timer.seen))
-	}
+	timer.senderLC = lc
+	timer.originLC = lc
+	timer.timerC = make(chan time.Time)
+	defer close(timer.proceed)
 
 	// mask it up!
 	timer.unmaskedCompleteTm = timer.completeTm
