@@ -434,7 +434,7 @@ func (z *SimnetPeerStatus) String() (r string) {
 	r += fmt.Sprintf("    Conn[%v: peer has %v dialed client + 1 listening server]:\n", len(z.Conn), len(z.Conn)-1)
 	for i, conn := range z.Conn {
 		//r += fmt.Sprintf(" ===============================\n")
-		r += fmt.Sprintf("=========  conn[%02d on peer] %v -> %v\n",
+		r += fmt.Sprintf("=========  conn[%v on peer] %v -> %v\n",
 			i, conn.Origin, conn.Target)
 		r += fmt.Sprintf("%v\n", conn.String())
 	}
@@ -467,7 +467,7 @@ func (z *SimnetStatus) String() (r string) {
 	r += fmt.Sprintf("peer count(%v) total connection count(%v):\n", len(z.Peer), z.ConnCount)
 	for i, srv := range z.Peer {
 		r += fmt.Sprintf(" ===============================\n")
-		r += fmt.Sprintf(" =======  SimnetPeerStatus[%02d]  %v\n", i, srv.Name)
+		r += fmt.Sprintf(" =======  SimnetPeerStatus[%v]  %v\n", i, srv.Name)
 		r += fmt.Sprintf("%v\n", srv.String())
 	}
 
