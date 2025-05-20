@@ -74,7 +74,7 @@ func (pq *pq) String() (r string) {
 		return "(nil *pq)"
 	}
 	i := 0
-	r = fmt.Sprintf("\n ------- %v %v PQ --------\n", pq.owner, pq.orderby)
+	r = fmt.Sprintf(" ------- %v %v PQ --------\n", pq.owner, pq.orderby)
 	for it := pq.tree.Min(); it != pq.tree.Limit(); it = it.Next() {
 
 		item := it.Item() // interface{}
@@ -451,7 +451,7 @@ func (z *SimnetStatus) String() (r string) {
 	r += fmt.Sprintf("ScenarioMinHop: %v,\n", z.ScenarioMinHop)
 	r += fmt.Sprintf("ScenarioMaxHop: %v,\n", z.ScenarioMaxHop)
 
-	r += fmt.Sprintf("    Server(%v):\n", len(z.Server))
+	r += fmt.Sprintf("servers(%v) total connection count(%v):\n", len(z.Server), z.ConnCount)
 	for i, srv := range z.Server {
 		r += fmt.Sprintf(" ===============================\n")
 		r += fmt.Sprintf(" =======  SimnetServerStatus[%02d]  %v\n", i, srv.Name)

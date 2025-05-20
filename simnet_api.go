@@ -831,6 +831,7 @@ type SimnetStatus struct {
 	NetClosed          bool
 	GetSimnetStatusErr error
 	Cfg                SimNetConfig
+	ConnCount          int
 
 	ScenarioNum    int
 	ScenarioSeed   [32]byte

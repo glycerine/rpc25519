@@ -1993,6 +1993,7 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 		// srvnode.autocli also available for just local cli simnode.
 		for _, origin := range keyNameSort(s.locals(srvnode)) {
 			for target, conn := range s.circuits[origin] {
+				req.ConnCount++
 				connsum := &SimnetConnSummary{
 					OriginIsCli: origin.isCli,
 					// origin details
