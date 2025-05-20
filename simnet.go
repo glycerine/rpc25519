@@ -1028,7 +1028,7 @@ func (s *simnet) handleSend(send *mop) {
 		return
 	}
 	send.target.preArrQ.add(send)
-	vv("handleSend SEND send = %v", send)
+	//vv("handleSend SEND send = %v", send)
 	////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvnode.preArrQ)
 	now := time.Now()
 	send.target.dispatch(now) // needed?
