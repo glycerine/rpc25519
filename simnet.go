@@ -1011,7 +1011,7 @@ func (s *simnet) statewiseConnected(origin, target *simnode) bool {
 }
 
 func (s *simnet) handleSend(send *mop) {
-	////zz("top of handleSend(send = '%v')", send)
+	vv("top of handleSend(send = '%v')", send)
 	defer close(send.proceed)
 
 	origin := send.origin
@@ -1028,15 +1028,16 @@ func (s *simnet) handleSend(send *mop) {
 		return
 	}
 	send.target.preArrQ.add(send)
-	//vv("LC:%v  SEND TO %v %v", origin.lc, origin.name, send)
+	vv("handleSend SEND send = %v", send)
 	////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvnode.preArrQ)
 	now := time.Now()
-	send.target.dispatch(now)
+	send.target.dispatch(now) // needed?
 }
 
 func (s *simnet) handleRead(read *mop) {
-	////zz("top of handleRead(read = '%v')", read)
-	defer close(read.proceed)
+	//vv("top of handleRead(read = '%v')", read)
+	// don't want this! only when read matches with send!
+	//defer close(read.proceed)
 
 	origin := read.origin
 	read.originLC = origin.lc
