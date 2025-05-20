@@ -367,8 +367,8 @@ func (s *simconn) String() (r string) {
     sendDeadlineTimer: %v,
           localClosed: %v,
          remoteClosed: %v,
-             deafRead: %0.3f (probability),
-             dropSend: %0.3f (probability),
+             deafRead: %0.2f (probability),
+             dropSend: %0.2f (probability),
              nextRead: "%v",
 }`, s.isCli,
 		s.net.simNetCfg,
@@ -417,8 +417,8 @@ func (z *SimnetConnSummary) String() (r string) {
 			deaf = "(all reads deaf)"
 		}
 	}
-	r += fmt.Sprintf("  DropSendProb: %0.3f %v\n", z.DropSendProb, drop)
-	r += fmt.Sprintf("  DeafReadProb: %0.3f %v\n", z.DeafReadProb, deaf)
+	r += fmt.Sprintf("  DropSendProb: %0.2f %v\n", z.DropSendProb, drop)
+	r += fmt.Sprintf("  DeafReadProb: %0.2f %v\n", z.DeafReadProb, deaf)
 	r += fmt.Sprintf(" ----  origin priority queues  ----\n%v\n", z.Qs)
 	//r += "}\n"
 	return
@@ -430,7 +430,7 @@ func (z *SimnetPeerStatus) String() (r string) {
 	r += fmt.Sprintf(" ServerState: %v\n", z.ServerState)
 	r += fmt.Sprintf("    Poweroff: %v\n", z.Poweroff)
 	r += fmt.Sprintf("          LC: %v\n", z.LC)
-	r += fmt.Sprintf("ServerBaseID: %v\n", z.ServerBaseID)
+	//r += fmt.Sprintf("ServerBaseID: %v\n", z.ServerBaseID)
 	r += fmt.Sprintf("    Conn[%v: peer has %v dialed client + 1 listening server]:\n", len(z.Conn), len(z.Conn)-1)
 	for i, conn := range z.Conn {
 		//r += fmt.Sprintf(" ===============================\n")
