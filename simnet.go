@@ -383,7 +383,9 @@ func (s *simnet) addSendFaults(now time.Time, originNowFaulty, target *simnode, 
 func (s *simnet) locals(node *simnode) map[*simnode]bool {
 	srvnode, ok := s.node2server[node]
 	if !ok {
-		panic(fmt.Sprintf("not registered in s.node2server: node = '%v'", node.name))
+		// must be lone cli, e.g. 771 simnet_test.
+		return map[*simnode]bool{node: true}
+		//panic(fmt.Sprintf("not registered in s.node2server: node = '%v'", node.name))
 	}
 	return srvnode.allnode
 }
