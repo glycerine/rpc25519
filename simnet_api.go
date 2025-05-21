@@ -234,20 +234,25 @@ func (s *SimNetAddr) Network() string {
 // with a given probability.
 type DropDeafSpec struct {
 
-	// false UpdateDeafReads means no change to deafRead probability.
+	// false UpdateDeafReads means no change to deafRead
+	// probability. The DeafReadsNewProb field is ignored.
+	// This allows setting DeafReadsNewProb to 0 only
+	// when you want to.
 	UpdateDeafReads bool
-
-	// false UpdateDropSends means no change to dropSend probability.
-	UpdateDropSends bool
 
 	// probability of ignoring (being deaf) to a read.
 	// 0 => never be deaf to a read (healthy).
-	// 1 => ignore all reads (dead).
+	// 1 => ignore all reads (dead hardware).
 	DeafReadsNewProb float64
+
+	// false UpdateDropSends means the DropSendsNewProb
+	// is ignored, and there is no change to the dropSend
+	// probability.
+	UpdateDropSends bool
 
 	// probability of dropping a send.
 	// 0 => never drop a send (healthy).
-	// 1 => always drop a send (dead).
+	// 1 => always drop a send (dead hardware).
 	DropSendsNewProb float64
 }
 
@@ -822,17 +827,33 @@ type SimnetConnSummary struct {
 	TargetPoweroff   bool
 	DropSendProb     float64
 	DeafReadProb     float64
-	Qs               string
+
+	// origin Q summary
+	Qs string
+
+	// origin priority queues:
+	// Qs is the convenient/already stringified form of
+	// these origin queues.
+	// These allow stronger test assertions.  They are deep clones
+	// and so mostly race free except for the
+	// pointers mop.{origin,target,origTimerMop,msg,sendmop,readmop},
+	// access those only after the simnet has been shutdown.
+	// The proceed channel is always nil.
+	DroppedSendQ *pq
+	DeafReadQ    *pq
+	ReadQ        *pq
+	PreArrQ      *pq
+	TimerQ       *pq
 }
 
 type SimnetPeerStatus struct {
 	Name         string
 	Conn         []*SimnetConnSummary
+	Connmap      map[string]*SimnetConnSummary
 	ServerState  Faultstate
 	Poweroff     bool
 	LC           int64
 	ServerBaseID string
-	//Qs           string
 }
 
 type SimnetStatus struct {
@@ -849,7 +870,8 @@ type SimnetStatus struct {
 	ScenarioMinHop time.Duration
 	ScenarioMaxHop time.Duration
 
-	Peer []*SimnetPeerStatus
+	Peer    []*SimnetPeerStatus
+	Peermap map[string]*SimnetPeerStatus
 
 	proceed chan struct{}
 }

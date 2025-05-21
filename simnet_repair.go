@@ -235,9 +235,9 @@ func (s *simnet) repairAllCircuitFaults(simnode *simnode, deliverDroppedSends bo
 	// that if the kernel did give us an error, we would
 	// retry the read just the same.
 
-	nDeaf := simnode.deafReadQ.tree.Len()
+	nDeaf := simnode.deafReadQ.Tree.Len()
 	if nDeaf > 0 {
-		for it := simnode.deafReadQ.tree.Min(); it != simnode.deafReadQ.tree.Limit(); it = it.Next() {
+		for it := simnode.deafReadQ.Tree.Min(); it != simnode.deafReadQ.Tree.Limit(); it = it.Next() {
 			read := it.Item().(*mop)
 			//vv("transferring read = %v' from deafReadQ to readQ on '%v'", read, simnode.name)
 			simnode.readQ.add(read)
@@ -247,16 +247,16 @@ func (s *simnet) repairAllCircuitFaults(simnode *simnode, deliverDroppedSends bo
 
 	if deliverDroppedSends {
 		for node := range s.circuits {
-			nDrop := node.droppedSendQ.tree.Len()
+			nDrop := node.droppedSendQ.Tree.Len()
 			if nDrop > 0 {
-				for it := node.droppedSendQ.tree.Min(); it != node.droppedSendQ.tree.Limit(); {
+				for it := node.droppedSendQ.Tree.Min(); it != node.droppedSendQ.Tree.Limit(); {
 					send := it.Item().(*mop)
 					if s.statewiseConnected(send.origin, send.target) {
 						//vv("transferring send = %v' from droppedSendQ to preArrQ on '%v'", send, send.target.name)
 						send.target.preArrQ.add(send)
 						// advance and delete behind
 						delit := it
-						node.droppedSendQ.tree.DeleteWithIterator(delit)
+						node.droppedSendQ.Tree.DeleteWithIterator(delit)
 						it = it.Next()
 						continue
 					}

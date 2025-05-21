@@ -24,8 +24,8 @@ import (
 
 func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 
-	onlyBubbled(t, func() {
-
+	//	onlyBubbled(t, func() { // fast
+	bubbleOrNot(func() { // slow
 		cv.Convey("basic SimNet channel based remote procedure call with rpc25519: register a callback on the server, and have the client call it.", t, func() {
 
 			cfg := NewConfig()
@@ -93,14 +93,14 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 			}
 			dd := DropDeafSpec{
 				UpdateDeafReads:  true,
-				UpdateDropSends:  false,
+				UpdateDropSends:  true,
 				DeafReadsNewProb: 1,
-				DropSendsNewProb: 0,
+				DropSendsNewProb: 1,
 			}
 			const deliverDroppedSends_NO = false
 			err = simnet.HostFault(srv.simnode.name, dd, deliverDroppedSends_NO)
 			panicOn(err)
-			vv("server partitioned, try cli call again.")
+			vv("server partitioned, try cli call again. net: %v", simnet.GetSimnetStatus())
 
 			waitFor := time.Second * 10
 
@@ -131,8 +131,8 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 			// now reverse the fault, and get the third attempt through.
 			err = simnet.AllHealthy(powerOnIfOff_YES, deliverDroppedSends_YES)
 			panicOn(err)
-			vv("server un-partitioned, try cli call 3rd time.")
-
+			//vv("server un-partitioned, try cli call 3rd time.")
+			vv("server un-partitioned, try cli call 3rd time. net: %v", simnet.GetSimnetStatus())
 			req3 := NewMessage()
 			req3.HDR.ServiceName = serviceName
 			req3.JobSerz = []byte("Hello from client! 3rd time.")
@@ -1098,5 +1098,119 @@ func Test103_maskTime(t *testing.T) {
 				(time.Millisecond * 10)
 			now = now.Add(advance)
 		}
+	})
+}
+
+func Test770_simnetonly_dropped_sends(t *testing.T) {
+
+	//bubbleOrNot(func() { // very slow
+
+	onlyBubbled(t, func() { // fast
+		cv.Convey("simnet dropped sends should appear in the senders dropped send Q", t, func() {
+
+			cfg := NewConfig()
+			cfg.UseSimNet = true
+
+			cfg.ServerAddr = "127.0.0.1:0"
+			srv := NewServer("srv_test770", cfg)
+
+			vv("about to srv.Start() in 770")
+			t0 := time.Now()
+			serverAddr, err := srv.Start()
+			vv("back from srv.Start() in 770, elap = %v", time.Since(t0))
+
+			panicOn(err)
+			defer srv.Close()
+
+			simnet := cfg.GetSimnet()
+			partition := func() {
+				dd := DropDeafSpec{
+					//UpdateDeafReads:  true,
+					//DeafReadsNewProb: 1,
+					UpdateDropSends:  true,
+					DropSendsNewProb: 1,
+				}
+
+				// this is for recover really, it typically only
+				// matters when faults are removed, but can
+				// be used to time-warp packets while still faulted.
+				const deliverDroppedSends_NO = false
+
+				err = simnet.HostFault(srv.simnode.name, dd, deliverDroppedSends_NO)
+				panicOn(err)
+				vv("server partitioned")
+			}
+			serviceName := "customEcho"
+			srv.Register2Func(serviceName, customEcho)
+
+			cfg.ClientDialToHostPort = serverAddr.String()
+			cli, err := NewClient("cli_test770", cfg)
+			panicOn(err)
+			err = cli.Start()
+			panicOn(err)
+			defer cli.Close()
+
+			vv("client started. net before partition: %v", simnet.GetSimnetStatus())
+			partition()
+			vv("net after partition: %v", simnet.GetSimnetStatus())
+
+			req := NewMessage()
+			req.HDR.ServiceName = serviceName
+			req.JobSerz = []byte("Hello from client!")
+			waitFor := time.Second
+			reply, err := cli.SendAndGetReply(req, nil, waitFor)
+			if err == nil {
+				panic("wanted timeout could not see server")
+			}
+			// is dropped send visible? both cli and srv
+			stat := simnet.GetSimnetStatus()
+
+			sps := stat.Peermap["srv_test770"]
+			sconn := sps.Connmap["srv_test770"]
+			cconn := sps.Connmap["cli_test770"]
+
+			vv("stat.Peermap = '%#v'", stat.Peermap)
+			ndrop := cconn.DroppedSendQ.Len()
+			if ndrop == 0 {
+				panic(fmt.Sprintf("expected cli ndrop(%v) > 0", ndrop))
+			} else {
+				vv("good, saw cli ndrop(%v) > 0", ndrop)
+			}
+			ndrop = sconn.DroppedSendQ.Len()
+			if ndrop == 0 {
+				panic(fmt.Sprintf("expected srv ndrop(%v) > 0", ndrop))
+			} else {
+				vv("good, saw srv ndrop(%v) > 0", ndrop)
+			}
+
+			vv("err = '%v'; reply = %p", err, reply)
+			vv("cli sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
+			want := string(req.JobSerz)
+			gotit := strings.HasPrefix(string(reply.JobSerz), want)
+			if !gotit {
+				t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply.JobSerz))
+			}
+
+			const deliverDroppedSends_YES = true
+			const deliverDroppedSends_NO = false
+			const powerOnIfOff_YES = true
+			// now reverse the fault, and get the third attempt through.
+			err = simnet.AllHealthy(powerOnIfOff_YES, deliverDroppedSends_NO)
+			panicOn(err)
+			//vv("server un-partitioned, try cli call 3rd time.")
+			vv("server un-partitioned, try cli call 3rd time. net: %v", simnet.GetSimnetStatus())
+			req2 := NewMessage()
+			req2.HDR.ServiceName = serviceName
+			req2.JobSerz = []byte("Hello from client! 2nd time.")
+
+			reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
+			panicOn(err)
+			want = "Hello from client! 2nd time."
+			gotit = strings.HasPrefix(string(reply2.JobSerz), want)
+			if !gotit {
+				t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply2.JobSerz))
+			}
+
+		})
 	})
 }

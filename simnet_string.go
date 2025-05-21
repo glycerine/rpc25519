@@ -74,8 +74,8 @@ func (pq *pq) String() (r string) {
 		return "(nil *pq)"
 	}
 	i := 0
-	r = fmt.Sprintf(" ------- %v %v PQ --------\n", pq.owner, pq.orderby)
-	for it := pq.tree.Min(); it != pq.tree.Limit(); it = it.Next() {
+	r = fmt.Sprintf(" ------- %v %v PQ --------\n", pq.Owner, pq.Orderby)
+	for it := pq.Tree.Min(); it != pq.Tree.Limit(); it = it.Next() {
 
 		item := it.Item() // interface{}
 		if isNil(item) {

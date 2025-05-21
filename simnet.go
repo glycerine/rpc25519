@@ -90,6 +90,13 @@ type mop struct {
 	isEOF_RST bool
 }
 
+func (s *mop) clone() (c *mop) {
+	cp := *s
+	c = &cp
+	c.proceed = nil // not cloned
+	return
+}
+
 // simnet simulates a network entirely with channels in memory.
 type simnet struct {
 	barrier       bool
@@ -297,8 +304,8 @@ func (s *simnet) addFaultsToPQ(now time.Time, origin, target *simnode, dd DropDe
 
 func (s *simnet) addFaultsToReadQ(now time.Time, origin, target *simnode, deafReadProb float64) {
 
-	readIt := origin.readQ.tree.Min()
-	for readIt != origin.readQ.tree.Limit() {
+	readIt := origin.readQ.Tree.Min()
+	for readIt != origin.readQ.Tree.Limit() {
 		read := readIt.Item().(*mop)
 		if target == nil || read.target == target {
 			if s.deaf(deafReadProb) {
@@ -310,7 +317,7 @@ func (s *simnet) addFaultsToReadQ(now time.Time, origin, target *simnode, deafRe
 				// advance readIt, and delete behind
 				delmeIt := readIt
 				readIt = readIt.Next()
-				origin.readQ.tree.DeleteWithIterator(delmeIt)
+				origin.readQ.Tree.DeleteWithIterator(delmeIt)
 				continue
 			}
 		}
@@ -335,8 +342,8 @@ func (s *simnet) addSendFaults(now time.Time, originNowFaulty, target *simnode, 
 		// INVAR: target == nil || other == target
 		// target == nil means add faults to all of originNowFaulty conns
 
-		sendIt := other.preArrQ.tree.Min()
-		for sendIt != other.preArrQ.tree.Limit() {
+		sendIt := other.preArrQ.Tree.Min()
+		for sendIt != other.preArrQ.Tree.Limit() {
 
 			send := sendIt.Item().(*mop)
 
@@ -364,7 +371,7 @@ func (s *simnet) addSendFaults(now time.Time, originNowFaulty, target *simnode, 
 					// advance sendIt, and delete behind
 					delmeIt := sendIt
 					sendIt = sendIt.Next()
-					other.preArrQ.tree.DeleteWithIterator(delmeIt)
+					other.preArrQ.Tree.DeleteWithIterator(delmeIt)
 					continue
 				}
 			}
@@ -681,18 +688,36 @@ func enforceTickDur(tick time.Duration) time.Duration {
 }
 
 type pq struct {
-	owner   string
-	orderby string
-	tree    *rb.Tree
+	Owner   string
+	Orderby string
+	Tree    *rb.Tree
+	cmp     func(a, b rb.Item) int
+}
+
+func (s *pq) Len() int {
+	return s.Tree.Len()
+}
+
+func (s *pq) deepclone() (c *pq) {
+	c = &pq{
+		Owner:   s.Owner,
+		Orderby: s.Orderby,
+		Tree:    rb.NewTree(s.cmp),
+		cmp:     s.cmp,
+	}
+	for it := s.Tree.Min(); it != s.Tree.Limit(); it = it.Next() {
+		c.Tree.Insert(it.Item().(*mop).clone())
+	}
+	return
 }
 
 func (s *pq) peek() *mop {
-	n := s.tree.Len()
+	n := s.Tree.Len()
 	if n == 0 {
 		return nil
 	}
-	it := s.tree.Min()
-	if it == s.tree.Limit() {
+	it := s.Tree.Min()
+	if it == s.Tree.Limit() {
 		panic("n > 0 above, how is this possible?")
 		return nil
 	}
@@ -700,18 +725,18 @@ func (s *pq) peek() *mop {
 }
 
 func (s *pq) pop() *mop {
-	n := s.tree.Len()
+	n := s.Tree.Len()
 	//vv("pop n = %v", n)
 	if n == 0 {
 		return nil
 	}
-	it := s.tree.Min()
-	if it == s.tree.Limit() {
+	it := s.Tree.Min()
+	if it == s.Tree.Limit() {
 		panic("n > 0 above, how is this possible?")
 		return nil
 	}
 	top := it.Item().(*mop)
-	s.tree.DeleteWithIterator(it)
+	s.Tree.DeleteWithIterator(it)
 	return top
 }
 
@@ -719,7 +744,7 @@ func (s *pq) add(op *mop) (added bool, it rb.Iterator) {
 	if op == nil {
 		panic("do not put nil into pq!")
 	}
-	added, it = s.tree.InsertGetIt(op)
+	added, it = s.Tree.InsertGetIt(op)
 	return
 }
 
@@ -728,16 +753,16 @@ func (s *pq) del(op *mop) (found bool) {
 		panic("cannot delete nil mop!")
 	}
 	var it rb.Iterator
-	it, found = s.tree.FindGE_isEqual(op)
+	it, found = s.Tree.FindGE_isEqual(op)
 	if !found {
 		return
 	}
-	s.tree.DeleteWithIterator(it)
+	s.Tree.DeleteWithIterator(it)
 	return
 }
 
 func (s *pq) deleteAll() {
-	s.tree.DeleteAll()
+	s.Tree.DeleteAll()
 	return
 }
 
@@ -750,144 +775,150 @@ func (s *pq) deleteAll() {
 // pass is not there when we look again, or vice-versa.
 // We learned this the hard way.
 func (s *simnet) newPQarrivalTm(owner string) *pq {
-	return &pq{
-		owner:   owner,
-		orderby: "arrivalTm",
-		tree: rb.NewTree(func(a, b rb.Item) int {
-			av := a.(*mop)
-			bv := b.(*mop)
+	cmp := func(a, b rb.Item) int {
+		av := a.(*mop)
+		bv := b.(*mop)
 
-			if av == bv {
-				return 0 // points to same memory (or both nil)
-			}
-			if av == nil {
-				// just a is nil; b is not. sort nils to the front
-				// so they get popped and GC-ed sooner (and
-				// don't become temporary memory leaks by sitting at the
-				// back of the queue.x
-				return -1
-			}
-			if bv == nil {
-				return 1
-			}
-			// INVAR: neither av nor bv is nil
-			if av == bv {
-				return 0 // pointer equality is immediate
-			}
-			if av.arrivalTm.Before(bv.arrivalTm) {
-				return -1
-			}
-			if av.arrivalTm.After(bv.arrivalTm) {
-				return 1
-			}
-			if av.sn < bv.sn {
-				return -1
-			}
-			if av.sn > bv.sn {
-				return 1
-			}
-			// must be the same if same sn.
-			return 0
-		}),
+		if av == bv {
+			return 0 // points to same memory (or both nil)
+		}
+		if av == nil {
+			// just a is nil; b is not. sort nils to the front
+			// so they get popped and GC-ed sooner (and
+			// don't become temporary memory leaks by sitting at the
+			// back of the queue.x
+			return -1
+		}
+		if bv == nil {
+			return 1
+		}
+		// INVAR: neither av nor bv is nil
+		if av == bv {
+			return 0 // pointer equality is immediate
+		}
+		if av.arrivalTm.Before(bv.arrivalTm) {
+			return -1
+		}
+		if av.arrivalTm.After(bv.arrivalTm) {
+			return 1
+		}
+		if av.sn < bv.sn {
+			return -1
+		}
+		if av.sn > bv.sn {
+			return 1
+		}
+		// must be the same if same sn.
+		return 0
+	}
+	return &pq{
+		Owner:   owner,
+		Orderby: "arrivalTm",
+		Tree:    rb.NewTree(cmp),
+		cmp:     cmp,
 	}
 }
 
 // order by mop.initTm, then mop.sn;
 // for reads (readQ).
 func newPQinitTm(owner string) *pq {
+	cmp := func(a, b rb.Item) int {
+		av := a.(*mop)
+		bv := b.(*mop)
+
+		if av == bv {
+			return 0 // points to same memory (or both nil)
+		}
+		if av == nil {
+			// just a is nil; b is not. sort nils to the front
+			// so they get popped and GC-ed sooner (and
+			// don't become temporary memory leaks by sitting at the
+			// back of the queue.x
+			return -1
+		}
+		if bv == nil {
+			return 1
+		}
+		// INVAR: neither av nor bv is nil
+		if av == bv {
+			return 0 // pointer equality is immediate
+		}
+
+		if av.initTm.Before(bv.initTm) {
+			return -1
+		}
+		if av.initTm.After(bv.initTm) {
+			return 1
+		}
+		// INVAR initTm equal, but delivery order should not matter...
+		// we can check that with chaos tests... to break ties here
+		// could just use mop.sn ? try, b/c want determinism/repeatability...
+		// but this is not really deterministic, is it?!!! different
+		// goro can create their sn first...
+		if av.sn < bv.sn {
+			return -1
+		}
+		if av.sn > bv.sn {
+			return 1
+		}
+		// must be the same if same sn.
+		return 0
+	}
 	return &pq{
-		owner:   owner,
-		orderby: "initTm",
-		tree: rb.NewTree(func(a, b rb.Item) int {
-			av := a.(*mop)
-			bv := b.(*mop)
-
-			if av == bv {
-				return 0 // points to same memory (or both nil)
-			}
-			if av == nil {
-				// just a is nil; b is not. sort nils to the front
-				// so they get popped and GC-ed sooner (and
-				// don't become temporary memory leaks by sitting at the
-				// back of the queue.x
-				return -1
-			}
-			if bv == nil {
-				return 1
-			}
-			// INVAR: neither av nor bv is nil
-			if av == bv {
-				return 0 // pointer equality is immediate
-			}
-
-			if av.initTm.Before(bv.initTm) {
-				return -1
-			}
-			if av.initTm.After(bv.initTm) {
-				return 1
-			}
-			// INVAR initTm equal, but delivery order should not matter...
-			// we can check that with chaos tests... to break ties here
-			// could just use mop.sn ? try, b/c want determinism/repeatability...
-			// but this is not really deterministic, is it?!!! different
-			// goro can create their sn first...
-			if av.sn < bv.sn {
-				return -1
-			}
-			if av.sn > bv.sn {
-				return 1
-			}
-			// must be the same if same sn.
-			return 0
-		}),
+		Owner:   owner,
+		Orderby: "initTm",
+		Tree:    rb.NewTree(cmp),
+		cmp:     cmp,
 	}
 }
 
 // order by mop.completeTm then mop.sn; for timers
 func newPQcompleteTm(owner string) *pq {
+	cmp := func(a, b rb.Item) int {
+		av := a.(*mop)
+		bv := b.(*mop)
+
+		if av == bv {
+			return 0 // points to same memory (or both nil)
+		}
+		if av == nil {
+			// just a is nil; b is not. sort nils to the front
+			// so they get popped and GC-ed sooner (and
+			// don't become temporary memory leaks by sitting at the
+			// back of the queue.x
+			return -1
+		}
+		if bv == nil {
+			return 1
+		}
+		// INVAR: neither av nor bv is nil
+		if av == bv {
+			return 0 // pointer equality is immediate
+		}
+
+		if av.completeTm.Before(bv.completeTm) {
+			return -1
+		}
+		if av.completeTm.After(bv.completeTm) {
+			return 1
+		}
+		// INVAR when equal, delivery order should not matter?
+		// could just use mop.sn ? yes, b/c want determinism/repeatability.
+		// but this is not really deterministic, is it?!!!
+		if av.sn < bv.sn {
+			return -1
+		}
+		if av.sn > bv.sn {
+			return 1
+		}
+		// must be the same if same sn.
+		return 0
+	}
 	return &pq{
-		owner:   owner,
-		orderby: "completeTm",
-		tree: rb.NewTree(func(a, b rb.Item) int {
-			av := a.(*mop)
-			bv := b.(*mop)
-
-			if av == bv {
-				return 0 // points to same memory (or both nil)
-			}
-			if av == nil {
-				// just a is nil; b is not. sort nils to the front
-				// so they get popped and GC-ed sooner (and
-				// don't become temporary memory leaks by sitting at the
-				// back of the queue.x
-				return -1
-			}
-			if bv == nil {
-				return 1
-			}
-			// INVAR: neither av nor bv is nil
-			if av == bv {
-				return 0 // pointer equality is immediate
-			}
-
-			if av.completeTm.Before(bv.completeTm) {
-				return -1
-			}
-			if av.completeTm.After(bv.completeTm) {
-				return 1
-			}
-			// INVAR when equal, delivery order should not matter?
-			// could just use mop.sn ? yes, b/c want determinism/repeatability.
-			// but this is not really deterministic, is it?!!!
-			if av.sn < bv.sn {
-				return -1
-			}
-			if av.sn > bv.sn {
-				return 1
-			}
-			// must be the same if same sn.
-			return 0
-		}),
+		Owner:   owner,
+		Orderby: "completeTm",
+		Tree:    rb.NewTree(cmp),
+		cmp:     cmp,
 	}
 }
 
@@ -1063,8 +1094,8 @@ func (s *simnet) handleRead(read *mop) {
 
 func (simnode *simnode) firstPreArrivalTimeLTE(now time.Time) bool {
 
-	preIt := simnode.preArrQ.tree.Min()
-	if preIt == simnode.preArrQ.tree.Limit() {
+	preIt := simnode.preArrQ.Tree.Min()
+	if preIt == simnode.preArrQ.Tree.Limit() {
 		return false // empty queue
 	}
 	send := preIt.Item().(*mop)
@@ -1098,12 +1129,12 @@ func (simnode *simnode) dispatchTimers(now time.Time) (changes int64) {
 	if simnode.powerOff {
 		return 0
 	}
-	if simnode.timerQ.tree.Len() == 0 {
+	if simnode.timerQ.Tree.Len() == 0 {
 		return
 	}
 
-	timerIt := simnode.timerQ.tree.Min()
-	for timerIt != simnode.timerQ.tree.Limit() { // advance, and delete behind below
+	timerIt := simnode.timerQ.Tree.Min()
+	for timerIt != simnode.timerQ.Tree.Limit() { // advance, and delete behind below
 
 		timer := timerIt.Item().(*mop)
 		//vv("check TIMER: %v", timer)
@@ -1112,7 +1143,7 @@ func (simnode *simnode) dispatchTimers(now time.Time) (changes int64) {
 			// timer.completeTm <= now
 
 			if !timer.isGridStepTimer && !timer.internalPendingTimer {
-				vv("have TIMER firing: '%v'", timer, simnode.net.schedulerReport())
+				vv("have TIMER firing: '%v'; report = %v", timer, simnode.net.schedulerReport())
 			}
 			changes++
 			if timer.timerFiredTm.IsZero() {
@@ -1127,7 +1158,7 @@ func (simnode *simnode) dispatchTimers(now time.Time) (changes int64) {
 			// advance, and delete behind us
 			delmeIt := timerIt
 			timerIt = timerIt.Next()
-			simnode.timerQ.tree.DeleteWithIterator(delmeIt)
+			simnode.timerQ.Tree.DeleteWithIterator(delmeIt)
 
 			if timer.internalPendingTimer {
 				// this was our own, just discard!
@@ -1205,7 +1236,7 @@ func (simnode *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 		for _, op := range preDel {
 			////zz("delete '%v'", op)
 			// TODO: delete with iterator! should be more reliable and faster.
-			found := simnode.preArrQ.tree.DeleteWithKey(op)
+			found := simnode.preArrQ.Tree.DeleteWithKey(op)
 			if !found {
 				panic(fmt.Sprintf("failed to delete from preArrQ: '%v'; preArrQ = '%v'", op, simnode.preArrQ.String()))
 			}
@@ -1213,7 +1244,7 @@ func (simnode *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 		}
 		for _, op := range readDel {
 			////zz("delete '%v'", op)
-			found := simnode.readQ.tree.DeleteWithKey(op)
+			found := simnode.readQ.Tree.DeleteWithKey(op)
 			if !found {
 				panic(fmt.Sprintf("failed to delete from readQ: '%v'", op))
 			}
@@ -1222,8 +1253,8 @@ func (simnode *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 
 		if true { // was off for deafDrop development, separate queues now back on.
 			// sanity check that we delivered everything we could.
-			narr := simnode.preArrQ.tree.Len()
-			nread := simnode.readQ.tree.Len()
+			narr := simnode.preArrQ.Tree.Len()
+			nread := simnode.readQ.Tree.Len()
 			// it is normal to have preArrQ if no reads...
 			if narr > 0 && nread > 0 {
 				// if the first preArr is not due yet, that is the reason
@@ -1245,23 +1276,23 @@ func (simnode *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 		}
 	}()
 
-	nR := simnode.readQ.tree.Len()   // number of reads
-	nS := simnode.preArrQ.tree.Len() // number of sends
+	nR := simnode.readQ.Tree.Len()   // number of reads
+	nS := simnode.preArrQ.Tree.Len() // number of sends
 
 	if nR == 0 && nS == 0 {
 		return
 	}
 
-	readIt := simnode.readQ.tree.Min()
-	preIt := simnode.preArrQ.tree.Min()
+	readIt := simnode.readQ.Tree.Min()
+	preIt := simnode.preArrQ.Tree.Min()
 
 	// matching reads and sends
 	for {
-		if readIt == simnode.readQ.tree.Limit() {
+		if readIt == simnode.readQ.Tree.Limit() {
 			// no reads, no point.
 			return
 		}
-		if preIt == simnode.preArrQ.tree.Limit() {
+		if preIt == simnode.preArrQ.Tree.Limit() {
 			// no sends to match with reads
 			return
 		}
@@ -1303,7 +1334,7 @@ func (simnode *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 			endOn = send
 			it2 := preIt
 			afterN := 0
-			for ; it2 != simnode.preArrQ.tree.Limit(); it2 = it2.Next() {
+			for ; it2 != simnode.preArrQ.Tree.Limit(); it2 = it2.Next() {
 				afterN++
 			}
 			endOnSituation = fmt.Sprintf("after me: %v; preArrQ: %v", afterN, simnode.preArrQ.String())
@@ -1418,7 +1449,11 @@ func (s *simnet) tickLogicalClocks() {
 }
 
 func (s *simnet) Start() {
-	alwaysPrintf("simnet.Start: faketime = %v; s.barrier=%v", faketime, s.barrier)
+	if faketime {
+		alwaysPrintf("simnet.Start: faketime = %v; s.barrier=%v", faketime, s.barrier)
+	} else {
+		alwaysPrintf("simnet.Start: faketime = %v", faketime) // barrier is irrelevant
+	}
 	go s.scheduler()
 }
 
@@ -1819,8 +1854,8 @@ func (simnode *simnode) soonestTimerLessThan(bound *mop) *mop {
 	//} else {
 	//vv("soonestTimerLessThan(nil bound)")
 	//}
-	it := simnode.timerQ.tree.Min()
-	if it == simnode.timerQ.tree.Limit() {
+	it := simnode.timerQ.Tree.Min()
+	if it == simnode.timerQ.Tree.Limit() {
 		//vv("we have no timers, returning bound")
 		return bound
 	}
@@ -1929,6 +1964,7 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 	req.ScenarioTick = s.scenario.tick
 	req.ScenarioMinHop = s.scenario.minHop
 	req.ScenarioMaxHop = s.scenario.maxHop
+	req.Peermap = make(map[string]*SimnetPeerStatus)
 
 	req.NetClosed = s.halt.ReqStop.IsClosed()
 	if len(s.servers) == 0 {
@@ -1937,14 +1973,16 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 		return
 	}
 	for _, srvnode := range valNameSort(s.servers) {
-		sss := &SimnetPeerStatus{
+		sps := &SimnetPeerStatus{
 			Name:         srvnode.name,
 			ServerState:  srvnode.state,
 			Poweroff:     srvnode.powerOff,
 			LC:           srvnode.lc,
 			ServerBaseID: srvnode.serverBaseID,
+			Connmap:      make(map[string]*SimnetConnSummary),
 		}
-		req.Peer = append(req.Peer, sss)
+		req.Peer = append(req.Peer, sps)
+		req.Peermap[srvnode.name] = sps
 
 		// s.locals() gives srvnode.allnode, includes server's simnode itself.
 		// srvnode.autocli also available for just local cli simnode.
@@ -1968,9 +2006,17 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 					DropSendProb: conn.dropSend,
 					// readQ, preArrQ, etc in summary string form.
 					Qs: origin.String(),
+
+					DroppedSendQ: origin.droppedSendQ.deepclone(),
+					DeafReadQ:    origin.deafReadQ.deepclone(),
+					ReadQ:        origin.readQ.deepclone(),
+					PreArrQ:      origin.preArrQ.deepclone(),
+					TimerQ:       origin.timerQ.deepclone(),
 				}
-				sss.Conn = append(sss.Conn, connsum)
+				sps.Conn = append(sps.Conn, connsum)
+				sps.Connmap[origin.name] = connsum
 			}
+
 		}
 	}
 	// end handleSimnetStatusRequest
