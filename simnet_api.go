@@ -854,6 +854,7 @@ type SimnetPeerStatus struct {
 	Poweroff     bool
 	LC           int64
 	ServerBaseID string
+	IsLoneCli    bool // and not really a peer server with auto-cli
 }
 
 type SimnetStatus struct {

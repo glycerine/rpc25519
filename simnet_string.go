@@ -430,12 +430,22 @@ func (z *SimnetPeerStatus) String() (r string) {
 	r += fmt.Sprintf(" ServerState: %v\n", z.ServerState)
 	r += fmt.Sprintf("    Poweroff: %v\n", z.Poweroff)
 	r += fmt.Sprintf("          LC: %v\n", z.LC)
+	if z.IsLoneCli {
+		r += fmt.Sprintf("   IsLoneCli: %v\n", z.IsLoneCli)
+	}
+	// distracting, but might need it later.
 	//r += fmt.Sprintf("ServerBaseID: %v\n", z.ServerBaseID)
-	r += fmt.Sprintf("    Conn[%v: peer has %v dialed client + 1 listening server]:\n", len(z.Conn), len(z.Conn)-1)
+	if !z.IsLoneCli {
+		r += fmt.Sprintf("    Conn[%v: peer has %v dialed client + 1 listening server]:\n", len(z.Conn), len(z.Conn)-1)
+	}
 	for i, conn := range z.Conn {
-		//r += fmt.Sprintf(" ===============================\n")
-		r += fmt.Sprintf("=========  conn[%v on peer] %v -> %v\n",
-			i, conn.Origin, conn.Target)
+		if z.IsLoneCli {
+			r += fmt.Sprintf("=========  the conn[on lone cli] %v -> %v\n",
+				conn.Origin, conn.Target)
+		} else {
+			r += fmt.Sprintf("=========  conn[%v on peer] %v -> %v\n",
+				i, conn.Origin, conn.Target)
+		}
 		r += fmt.Sprintf("%v\n", conn.String())
 	}
 

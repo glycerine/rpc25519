@@ -2078,6 +2078,7 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 					ServerBaseID: origin.serverBaseID,
 					Conn:         []*SimnetConnSummary{connsum},
 					Connmap:      map[string]*SimnetConnSummary{origin.name: connsum},
+					IsLoneCli:    true,
 				}
 				_, impos := req.LoneCli[origin.name]
 				if impos {
