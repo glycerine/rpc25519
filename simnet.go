@@ -6,6 +6,7 @@ package rpc25519
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -365,7 +366,7 @@ func (s *simnet) addSendFaults(now time.Time, originNowFaulty, target *simnode, 
 
 					// easier to understand if we store on origin,
 					// not in targets pre-arr Q.
-					vv("addSendFaults DROP SEND %v", send)
+					//vv("addSendFaults DROP SEND %v", send)
 					originNowFaulty.droppedSendQ.add(send)
 
 					// advance sendIt, and delete behind
@@ -1031,7 +1032,7 @@ func (s *simnet) localDeafRead(read *mop) (isDeaf bool) {
 	// note: not the remote's deafness, only local.
 	prob := s.circuits[read.origin][read.target].deafRead
 	isDeaf = s.deaf(prob)
-	vv("localDeafRead: prob=%v; isDeaf=%v", prob, isDeaf)
+	//vv("localDeafRead: prob=%v; isDeaf=%v", prob, isDeaf)
 	return
 }
 
@@ -1061,7 +1062,7 @@ func (s *simnet) localDropSend(send *mop) (isDropped bool) {
 	// get the local origin conn probability of drop
 	prob := s.circuits[send.origin][send.target].dropSend
 	isDropped = s.dropped(prob)
-	vv("localDropSend: prob=%v; isDropped=%v", prob, isDropped)
+	//vv("localDropSend: prob=%v; isDropped=%v", prob, isDropped)
 	return isDropped
 }
 
@@ -1095,7 +1096,7 @@ func (s *simnet) handleSend(send *mop) {
 	if !s.statewiseConnected(send.origin, send.target) ||
 		s.localDropSend(send) {
 
-		vv("handleSend DROP SEND %v", send)
+		//vv("handleSend DROP SEND %v", send)
 		send.origin.droppedSendQ.add(send)
 		return
 	}
@@ -1117,7 +1118,7 @@ func (s *simnet) handleRead(read *mop) {
 	if !s.statewiseConnected(read.origin, read.target) ||
 		s.localDeafRead(read) {
 
-		vv("DEAF READ %v", read)
+		//vv("DEAF READ %v", read)
 		origin.deafReadQ.add(read)
 	} else {
 		origin.readQ.add(read)
@@ -1270,14 +1271,14 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 		read := readIt.Item().(*mop)
 		send := preIt.Item().(*mop)
 
-		vv("eval match: read = '%v'; connected = %v; s.localDeafRead(read)=%v", read, s.statewiseConnected(read.origin, read.target), s.localDeafRead(read))
-		vv("eval match: send = '%v'; connected = %v; s.localDropSend(send)=%v", send, s.statewiseConnected(send.origin, send.target), s.localDropSend(send))
+		//vv("eval match: read = '%v'; connected = %v; s.localDeafRead(read)=%v", read, s.statewiseConnected(read.origin, read.target), s.localDeafRead(read))
+		//vv("eval match: send = '%v'; connected = %v; s.localDropSend(send)=%v", send, s.statewiseConnected(send.origin, send.target), s.localDropSend(send))
 
 		simnode.optionallyApplyChaos()
 
 		if !s.statewiseConnected(send.origin, send.target) ||
 			s.localDropSend(send) {
-			vv("dispatchReadsSends DROP SEND %v", send)
+			//vv("dispatchReadsSends DROP SEND %v", send)
 			// note that the dropee is stored on the send.origin
 			// in the droppedSendQ, which is never the same
 			// as simnode here which supplied from its preArrQ.
@@ -1291,7 +1292,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 
 		if !s.statewiseConnected(read.origin, read.target) ||
 			s.localDeafRead(read) {
-			vv("dispatchReadsSends DEAF READ %v", read)
+			//vv("dispatchReadsSends DEAF READ %v", read)
 			simnode.deafReadQ.add(read)
 			delit := readIt
 			readIt = readIt.Next()
@@ -1366,7 +1367,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 		read.arrivalTm = send.arrivalTm // easier diagnostics
 
 		// matchmaking
-		vv("[1]matchmaking: \nsend '%v' -> \nread '%v'", send, read)
+		//vv("[1]matchmaking: \nsend '%v' -> \nread '%v'", send, read)
 		read.sendmop = send
 		send.readmop = read
 
@@ -1967,7 +1968,18 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 	// start with everything, delete what we see, then report on the rest.
 	alone := make(map[*simnode]bool)
 	for node := range s.circuits {
-		alone[node] = true
+		if node.isCli { // only consider clients, non-auto-cli ones
+			if strings.HasPrefix(node.name, auto_cli_recognition_prefix) {
+				// has the "auto-cli-from-" prefix, so
+				// treat it as an autocli and not a lonecli.
+				// Its okay if we mis-classify something in an
+				// edge case that happens to share our prefix,
+				// as this does not impact correctness, just test
+				// convenience.
+			} else {
+				alone[node] = true
+			}
+		}
 	}
 	for _, srvnode := range valNameSort(s.servers) {
 		delete(alone, srvnode)
@@ -1984,7 +1996,6 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 
 		// s.locals() gives srvnode.allnode, includes server's simnode itself.
 		// srvnode.autocli also available for just local cli simnode.
-		// do orphans below.
 		for _, origin := range keyNameSort(s.locals(srvnode)) {
 			delete(alone, origin)
 			for target, conn := range s.circuits[origin] {
@@ -2019,12 +2030,12 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 			}
 		}
 		if len(alone) > 0 {
-			// not really a peer but meh.
+			// not really a peer but meh. not worth another struct.
 			req.LoneCli = make(map[string]*SimnetPeerStatus)
 		}
 		for origin := range alone {
-			if !origin.isCli {
-				panic(fmt.Sprintf("what?? only cli simnode should be alone: '%v'", origin))
+			if strings.HasPrefix(origin.name, auto_cli_recognition_prefix) {
+				panic(fmt.Sprintf("arg! logic error: we are declaring an autocli to be alone?!?! '%v'", origin))
 			}
 			// note, each cli can only have one target, but
 			// for-range is much more convenient.

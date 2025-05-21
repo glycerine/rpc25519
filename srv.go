@@ -1930,6 +1930,10 @@ type oneWaySender interface {
 	NewTimer(dur time.Duration) (ti *SimTimer)
 }
 
+// allow simnet to properly classify LoneCli vs autocli
+// associted with server peers.
+const auto_cli_recognition_prefix = "auto-cli-from-"
+
 // SendOneWayMessage is the same as SendMessage above except that it
 // takes a fully prepared msg to avoid API churn when new HDR fields are
 // added/needed. msg.HDR.Type must be >= CallOneWay (100), to try and
@@ -1965,7 +1969,11 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		dest, err1 := ipaddr.StripNanomsgAddressPrefix(msg.HDR.To)
 		panicOn(err1)
 		//vv("dest = '%v'", dest)
-		cliName := "auto-cli-from-" + s.name + "-to-" + dest
+
+		// note: simnet depends on auto_cli_recognition_prefix
+		// to properly report auto-clients vs lone-cli in the
+		// reporting/diagnostics calls. Hence leave this prefix in place.
+		cliName := auto_cli_recognition_prefix + s.name + "-to-" + dest
 		ccfg := *s.cfg
 		ccfg.ClientDialToHostPort = dest
 		// uses same serverBaseID so simnet can group same host simnodes.

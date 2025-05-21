@@ -1121,6 +1121,7 @@ func Test770_simnetonly_server_dropped_sends(t *testing.T) {
 			defer srv.Close()
 
 			simnet := cfg.GetSimnet()
+
 			injectFaultDD := func() {
 				dd := DropDeafSpec{
 					//UpdateDeafReads:  true,
