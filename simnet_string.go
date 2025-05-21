@@ -440,7 +440,7 @@ func (z *SimnetPeerStatus) String() (r string) {
 	}
 	for i, conn := range z.Conn {
 		if z.IsLoneCli {
-			r += fmt.Sprintf("=========  the conn[on lone cli] %v -> %v\n",
+			r += fmt.Sprintf("=========  the conn[lone cli] %v -> %v\n",
 				conn.Origin, conn.Target)
 		} else {
 			r += fmt.Sprintf("=========  conn[%v on peer] %v -> %v\n",

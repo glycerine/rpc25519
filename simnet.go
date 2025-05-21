@@ -1023,12 +1023,14 @@ func (s *simnet) handleAlterHost(alt *simnodeAlteration) {
 	close(alt.done)
 }
 
-func (s *simnet) localDeafRead(read *mop) bool {
+func (s *simnet) localDeafRead(read *mop) (isDeaf bool) {
 
 	// get the local (read) origin conn probability of deafness
 	// note: not the remote's deafness, only local.
 	prob := s.circuits[read.origin][read.target].deafRead
-	return s.deaf(prob)
+	isDeaf = s.deaf(prob)
+	vv("localDeafRead: prob=%v; isDeaf=%v", prob, isDeaf)
+	return
 }
 
 func (s *simnet) deaf(prob float64) bool {
@@ -1053,10 +1055,12 @@ func (s *simnet) dropped(prob float64) bool {
 	return random01 < prob
 }
 
-func (s *simnet) localDropSend(send *mop) bool {
+func (s *simnet) localDropSend(send *mop) (isDropped bool) {
 	// get the local origin conn probability of drop
 	prob := s.circuits[send.origin][send.target].dropSend
-	return s.dropped(prob)
+	isDropped = s.dropped(prob)
+	vv("localDropSend: prob=%v; isDropped=%v", prob, isDropped)
+	return isDropped
 }
 
 // ignores FAULTY, check that with localDropSend if need be.
@@ -1264,8 +1268,8 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 		read := readIt.Item().(*mop)
 		send := preIt.Item().(*mop)
 
-		vv("eval match: read = '%v'; connected = %v", read, s.statewiseConnected(read.origin, read.target))
-		vv("eval match: send = '%v'; connected = %v", send, s.statewiseConnected(send.origin, send.target))
+		vv("eval match: read = '%v'; connected = %v; s.localDeafRead(read)=%v", read, s.statewiseConnected(read.origin, read.target), s.localDeafRead(read))
+		vv("eval match: send = '%v'; connected = %v; s.localDropSend(send)=%v", send, s.statewiseConnected(send.origin, send.target), s.localDropSend(send))
 
 		simnode.optionallyApplyChaos()
 

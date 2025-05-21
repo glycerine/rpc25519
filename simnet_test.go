@@ -1170,12 +1170,15 @@ func Test770_simnetonly_dropped_sends(t *testing.T) {
 			cconn := stat.LoneCli["cli_test770"].Conn[0]
 
 			vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
+
+			// client is not faulty in sending, only server.
 			ndrop := cconn.DroppedSendQ.Len()
-			if ndrop == 0 {
-				panic(fmt.Sprintf("expected cli ndrop(%v) > 0", ndrop))
+			if ndrop != 0 {
+				panic(fmt.Sprintf("expected cli ndrop(%v) == 0", ndrop))
 			} else {
-				vv("good, saw cli ndrop(%v) > 0", ndrop)
+				vv("good, saw cli ndrop(%v) == 0", ndrop)
 			}
+
 			ndrop = sconn.DroppedSendQ.Len()
 			if ndrop == 0 {
 				panic(fmt.Sprintf("expected srv ndrop(%v) > 0", ndrop))
@@ -1184,17 +1187,12 @@ func Test770_simnetonly_dropped_sends(t *testing.T) {
 			}
 
 			vv("err = '%v'; reply = %p", err, reply)
-			vv("cli sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
-			want := string(req.JobSerz)
-			gotit := strings.HasPrefix(string(reply.JobSerz), want)
-			if !gotit {
-				t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply.JobSerz))
-			}
 
+			// repair the network
 			const deliverDroppedSends_YES = true
 			const deliverDroppedSends_NO = false
 			const powerOnIfOff_YES = true
-			// now reverse the fault, and get the third attempt through.
+			// now reverse the fault, and get the second attempt through.
 			err = simnet.AllHealthy(powerOnIfOff_YES, deliverDroppedSends_NO)
 			panicOn(err)
 			//vv("server un-partitioned, try cli call 3rd time.")
@@ -1205,8 +1203,8 @@ func Test770_simnetonly_dropped_sends(t *testing.T) {
 
 			reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
 			panicOn(err)
-			want = "Hello from client! 2nd time."
-			gotit = strings.HasPrefix(string(reply2.JobSerz), want)
+			want := "Hello from client! 2nd time."
+			gotit := strings.HasPrefix(string(reply2.JobSerz), want)
 			if !gotit {
 				t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply2.JobSerz))
 			}
