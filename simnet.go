@@ -1056,15 +1056,23 @@ func (s *simnet) transferPreArrQ_to_droppedSendQ(simnode *simnode) {
 
 // dramatic network fault simulation: now deliver all "lost"
 // messages sitting in the droppedSendQ for simnode, to
-// each message target's preArrQ.
-func (s *simnet) timeWarp_transferDroppedSendQ_to_PreArrQ(simnode *simnode) {
+// each message target's preArrQ. If target is nil we
+// do this for all targets.
+func (s *simnet) timeWarp_transferDroppedSendQ_to_PreArrQ(simnode, target *simnode) {
 
-	for it := simnode.droppedSendQ.Tree.Min(); it != simnode.droppedSendQ.Tree.Limit(); it = it.Next() {
+	it := simnode.droppedSendQ.Tree.Min()
+	for it != simnode.droppedSendQ.Tree.Limit() {
 		send := it.Item().(*mop)
-		// put back on the target:
-		send.target.preArrQ.add(send)
+		if target == nil || target == send.target {
+			// put back on the target:
+			send.target.preArrQ.add(send)
+			delit := it
+			it = it.Next()
+			simnode.droppedSendQ.Tree.DeleteWithIterator(delit)
+			continue
+		}
+		it = it.Next()
 	}
-	simnode.droppedSendQ.deleteAll()
 }
 
 func (s *simnet) unIsolateSimnode(simnode *simnode) (undo Alteration) {
