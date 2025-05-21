@@ -1308,9 +1308,9 @@ func Test772_simnetonly_server_dropped_sends(t *testing.T) {
 			serviceName := "customEcho"
 			srv.Register2Func(serviceName, customEcho)
 
-			vv("simnet before serverDropSends %v", simnet.GetSimnetSnapshot())
+			//vv("simnet before serverDropSends %v", simnet.GetSimnetSnapshot())
 			undoServerDrop := simt.serverDropsSends()
-			vv("simnet after serverDropsSends %v", simnet.GetSimnetSnapshot())
+			//vv("simnet after serverDropsSends %v", simnet.GetSimnetSnapshot())
 
 			req := NewMessage()
 			req.HDR.ServiceName = serviceName
@@ -1337,21 +1337,21 @@ func Test772_simnetonly_server_dropped_sends(t *testing.T) {
 			if ndrop != 0 {
 				panic(fmt.Sprintf("expected cli ndrop(%v) == 0", ndrop))
 			} else {
-				vv("good, saw cli ndrop(%v) == 0", ndrop)
+				//vv("good, saw cli ndrop(%v) == 0", ndrop)
 			}
 
 			ndrop = sconn.DroppedSendQ.Len()
 			if ndrop == 0 {
 				panic(fmt.Sprintf("expected srv ndrop(%v) > 0", ndrop))
 			} else {
-				vv("good, saw srv ndrop(%v) > 0", ndrop)
+				//vv("good, saw srv ndrop(%v) > 0", ndrop)
 			}
 			//vv("err = '%v'; reply = %p", err, reply)
 
 			// repair the network
 			undoServerDrop()
 
-			vv("after srv repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
+			//vv("after srv repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
 
 			req2 := NewMessage()
 			req2.HDR.ServiceName = serviceName
