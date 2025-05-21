@@ -1298,7 +1298,7 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 func Test772_simnetonly_server_dropped_sends(t *testing.T) {
 
 	onlyBubbled(t, func() {
-		cv.Convey("simnet server dropped sends should appear in the senders dropped send Q", t, func() {
+		cv.Convey("simnet server dropped sends should appear in the servers dropped send Q", t, func() {
 
 			simt, cfg := newSimnetTest(t, "test772")
 			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
@@ -1318,7 +1318,7 @@ func Test772_simnetonly_server_dropped_sends(t *testing.T) {
 			waitFor := time.Second
 			reply, err := cli.SendAndGetReply(req, nil, waitFor)
 			if err == nil {
-				panic("wanted timeout could not see server")
+				panic("wanted timeout did not hear from server")
 			}
 			if reply != nil {
 				panic(fmt.Sprintf("expected nil reply on error, got '%v'", reply))
@@ -1332,26 +1332,26 @@ func Test772_simnetonly_server_dropped_sends(t *testing.T) {
 
 			//vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
 
-			// verify client is not faulty in sending, only server.
+			// verify only server is faulty in sending, not client.
 			ndrop := cconn.DroppedSendQ.Len()
-			if ndrop == 0 {
-				panic(fmt.Sprintf("expected cli ndrop(%v) > 0", ndrop))
+			if ndrop != 0 {
+				panic(fmt.Sprintf("expected cli ndrop(%v) == 0", ndrop))
 			} else {
-				//vv("good, saw cli ndrop(%v) > 0", ndrop)
+				vv("good, saw cli ndrop(%v) == 0", ndrop)
 			}
 
 			ndrop = sconn.DroppedSendQ.Len()
-			if ndrop != 0 {
-				panic(fmt.Sprintf("expected srv ndrop(%v) == 0", ndrop))
+			if ndrop == 0 {
+				panic(fmt.Sprintf("expected srv ndrop(%v) > 0", ndrop))
 			} else {
-				//vv("good, saw srv ndrop(%v) == 0", ndrop)
+				vv("good, saw srv ndrop(%v) > 0", ndrop)
 			}
 			//vv("err = '%v'; reply = %p", err, reply)
 
 			// repair the network
 			undoServerDrop()
 
-			//vv("after cli repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
+			vv("after srv repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
 
 			req2 := NewMessage()
 			req2.HDR.ServiceName = serviceName
@@ -1496,7 +1496,6 @@ func (t *simnetTest) nodeDeaf(node *simnode) (undo func()) {
 	// be used to time-warp packets while still faulted.
 	const deliverDroppedSends_NO = false
 
-	//err = simnet.FaultHost(srv.simnode.name, dd, deliverDroppedSends_NO)
 	err := t.simnet.FaultHost(node.name, dd, deliverDroppedSends_NO)
 	panicOn(err)
 	undo = func() {
