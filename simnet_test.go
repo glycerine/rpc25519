@@ -1407,14 +1407,14 @@ func (t *simnetTest) AlterClient(alt Alteration) (undo func()) {
 
 func (t *simnetTest) alterNode(node *simnode, alt Alteration) (undo func()) {
 
-	was, err := t.simnet.AlterHost(node.name, alt)
+	undoAlter, err := t.simnet.AlterHost(node.name, alt)
 	panicOn(err)
 	undo = func() {
-		_, err := t.simnet.AlterHost(node.name, was)
+		_, err := t.simnet.AlterHost(node.name, undoAlter)
 		panicOn(err)
 	}
 
-	//vv("alterHost done for '%v'", node.name)
+	//vv("alterNode done for '%v'", node.name)
 	return
 }
 
@@ -1432,9 +1432,9 @@ func Test781_simnetonly_client_isolated(t *testing.T) {
 			serviceName := "customEcho"
 			srv.Register2Func(serviceName, customEcho)
 
-			//vv("simnet before cliDropSends %v", simnet.GetSimnetSnapshot())
+			//vv("before simt.AlterClient(ISOLATE): %v", simnet.GetSimnetSnapshot())
 			undoIsolated := simt.AlterClient(ISOLATE)
-			//vv("simnet after cliDropsSends %v", simnet.GetSimnetSnapshot())
+			vv("after simt.AlterClient(ISOLATE): %v", simnet.GetSimnetSnapshot())
 
 			req := NewMessage()
 			req.HDR.ServiceName = serviceName
@@ -1475,7 +1475,7 @@ func Test781_simnetonly_client_isolated(t *testing.T) {
 			// repair the network
 			undoIsolated()
 
-			//vv("after cli repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
+			vv("after cli repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
 
 			req2 := NewMessage()
 			req2.HDR.ServiceName = serviceName

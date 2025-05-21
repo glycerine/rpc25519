@@ -262,10 +262,11 @@ type DropDeafSpec struct {
 type Alteration int // on clients or servers, any simnode
 
 const (
+	UNDEFINED Alteration = 0
 	SHUTDOWN  Alteration = 1
-	ISOLATE   Alteration = 2
-	UNISOLATE Alteration = 3
-	RESTART   Alteration = 4
+	POWERON   Alteration = 2
+	ISOLATE   Alteration = 3
+	UNISOLATE Alteration = 4
 )
 
 // empty string target means all possible targets
@@ -648,11 +649,10 @@ func (s *simnet) newCircuitAlteration(simnodeName string, alter Alteration, isHo
 	}
 }
 
-func (s *simnet) AlterCircuit(simnodeName string, alter Alteration, wholeHost bool) (err error) {
-	var undo Alteration
+func (s *simnet) AlterCircuit(simnodeName string, alter Alteration, wholeHost bool) (undo Alteration, err error) {
+
 	if wholeHost {
 		undo, err = s.AlterHost(simnodeName, alter)
-		_ = undo
 		return
 	}
 
@@ -665,6 +665,7 @@ func (s *simnet) AlterCircuit(simnodeName string, alter Alteration, wholeHost bo
 	}
 	select {
 	case <-alt.done:
+		undo = alt.undo
 		err = alt.err
 		//vv("server altered: %v", simnode)
 	case <-s.halt.ReqStop.Chan:

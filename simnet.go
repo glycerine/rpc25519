@@ -942,38 +942,58 @@ func newPQcompleteTm(owner string) *pq {
 	}
 }
 
-func (s *simnet) shutdownSimnode(simnode *simnode) {
+func (s *simnet) shutdownSimnode(simnode *simnode) (undo Alteration) {
+	if simnode.powerOff {
+		// no-op. already off.
+		return UNDEFINED
+	}
 	//vv("handleAlterCircuit: SHUTDOWN %v, going to powerOff true, in state %v", simnode.name, simnode.state)
 	simnode.powerOff = true
+	undo = POWERON
+
 	simnode.readQ.deleteAll()
 	simnode.preArrQ.deleteAll()
 	simnode.timerQ.deleteAll()
 	simnode.deafReadQ.deleteAll()
-	// leave droppedSendQ, useful to simulate a slooow network.
+	// leave droppedSendQ, useful to simulate a slooow network
+	// that eventually delivers messages from a server after several
+	// power cycles.
 
 	//vv("handleAlterCircuit: end SHUTDOWN, simnode is now: %v", simnode)
+	return
 }
 
-// a restart can apply to a node that is on or off.
-// from on -> reset -> on; or off -> on.
-func (s *simnet) restartSimnode(simnode *simnode) {
-	//vv("handleAlterCircuit: RESTART %v, wiping queues, going %v -> HEALTHY", simnode.state, simnode.name)
+func (s *simnet) powerOnSimnode(simnode *simnode) (undo Alteration) {
+	if !simnode.powerOff {
+		// no-op. already on.
+		return UNDEFINED
+	}
+	undo = SHUTDOWN
+	//vv("handleAlterCircuit: POWERON %v, wiping queues, going %v -> HEALTHY", simnode.state, simnode.name)
 	simnode.powerOff = false
-	simnode.readQ.deleteAll()
-	simnode.preArrQ.deleteAll()
-	simnode.timerQ.deleteAll()
-	simnode.deafReadQ.deleteAll()
+
+	// leave these as-is, to allow tests to manipulate the
+	// network before starting a node.
+	//simnode.readQ.deleteAll()
+	//simnode.preArrQ.deleteAll()
+	//simnode.timerQ.deleteAll()
+	//simnode.deafReadQ.deleteAll()
+	// leave droppedSendQ, useful to simulate a slooow network.
+	return
 }
 
-func (s *simnet) isolateSimnode(simnode *simnode) {
+func (s *simnet) isolateSimnode(simnode *simnode) (undo Alteration) {
 	//vv("handleAlterCircuit: from %v -> ISOLATED %v, wiping pre-arrival, block any future pre-arrivals", simnode.state, simnode.name)
 	switch simnode.state {
 	case ISOLATED, FAULTY_ISOLATED:
 		// already there
+		return UNDEFINED
 	case FAULTY:
 		simnode.state = FAULTY_ISOLATED
+		undo = UNISOLATE
 	case HEALTHY:
 		simnode.state = ISOLATED
+		undo = UNISOLATE
 	}
 	// move pending arrivals into droppedSendQ
 	for it := simnode.preArrQ.Tree.Min(); it != simnode.preArrQ.Tree.Limit(); it = it.Next() {
@@ -981,32 +1001,41 @@ func (s *simnet) isolateSimnode(simnode *simnode) {
 		simnode.droppedSendQ.add(send)
 	}
 	simnode.preArrQ.deleteAll()
+	return
 }
-func (s *simnet) unIsolateSimnode(simnode *simnode) {
+func (s *simnet) unIsolateSimnode(simnode *simnode) (undo Alteration) {
 	//vv("handleAlterCircuit: UNISOLATE %v, going from %v -> HEALTHY", simnode.state, simnode.name)
 	switch simnode.state {
 	case ISOLATED:
 		simnode.state = HEALTHY
+		undo = ISOLATE
 	case FAULTY_ISOLATED:
 		simnode.state = FAULTY
+		undo = ISOLATE
 	case FAULTY:
 		// not isolated already
+		undo = UNDEFINED
 	case HEALTHY:
 		// not isolated already
+		undo = UNDEFINED
 	}
 	// user will issue separate deliverDroppedSends flag
 	// on a fault/repair if they want to deliver "timewarped" lost
 	// messages from simnode.droppedSendQ. Leave it alone here.
+	return
 }
 
-func (s *simnet) handleAlterCircuit(alt *simnodeAlteration, closeDone bool) {
+func (s *simnet) handleAlterCircuit(alt *simnodeAlteration, closeDone bool) (undo Alteration) {
 
-	var undo Alteration
 	defer func() {
 		if closeDone {
 			alt.undo = undo
 			close(alt.done)
+			return
 		}
+		// else we are a part of a larger host
+		// alteration set, don't close done
+		// prematurely.
 	}()
 
 	simnode, ok := s.dns[alt.simnodeName]
@@ -1016,45 +1045,40 @@ func (s *simnet) handleAlterCircuit(alt *simnodeAlteration, closeDone bool) {
 	}
 
 	switch alt.alter {
+	case UNDEFINED:
+		undo = UNDEFINED // idempotent
 	case SHUTDOWN:
-		s.shutdownSimnode(simnode)
+		undo = s.shutdownSimnode(simnode)
+	case POWERON:
+		undo = s.powerOnSimnode(simnode)
 	case ISOLATE:
-		s.isolateSimnode(simnode)
+		undo = s.isolateSimnode(simnode)
 	case UNISOLATE:
-		s.unIsolateSimnode(simnode)
-	case RESTART:
-		s.restartSimnode(simnode)
+		undo = s.unIsolateSimnode(simnode)
 	}
+	return
 }
 
-func (s *simnet) undoForNode(node *simnode, alt Alteration) (undo Alteration) {
-
-	// switch node.state {
-	// case ISOLATED:
-	// case FAULTY_ISOLATED:
-	// case FAULTY:
-	// case HEALTHY:
-	// }
-
+func (s *simnet) reverse(alt Alteration) (undo Alteration) {
 	switch alt {
+	case UNDEFINED:
+		undo = UNDEFINED // idemopotent
 	case ISOLATE:
 		undo = UNISOLATE
 	case UNISOLATE:
 		undo = ISOLATE
 	case SHUTDOWN:
-		undo = RESTART
-	case RESTART:
-		if node.powerOff {
-			undo = SHUTDOWN
-		} else {
-			undo = RESTART
-		}
+		undo = POWERON
+	case POWERON:
+		undo = SHUTDOWN
+	default:
+		panic(fmt.Sprintf("unknown Alteration %v in reverse()", int(alt)))
 	}
 	return
 }
 
 // alter all the auto-cli of a server and the server itself.
-func (s *simnet) handleAlterHost(alt *simnodeAlteration) {
+func (s *simnet) handleAlterHost(alt *simnodeAlteration) (undo Alteration) {
 
 	node, ok := s.dns[alt.simnodeName]
 	if !ok {
@@ -1062,7 +1086,7 @@ func (s *simnet) handleAlterHost(alt *simnodeAlteration) {
 		return
 	}
 
-	alt.undo = s.undoForNode(node, alt.alter)
+	undo = s.reverse(alt.alter)
 
 	// alter all auto-cli and the peer's server.
 	// note that s.locals(node) now returns a single
@@ -1070,9 +1094,13 @@ func (s *simnet) handleAlterHost(alt *simnodeAlteration) {
 	const closeDone_NO = false
 	for node := range s.locals(node) { // includes srvnode itself
 		alt.simnodeName = node.name
-		s.handleAlterCircuit(alt, closeDone_NO)
+		// notice that we reuse alt, but set the final undo
+		// based on the host level state seen in the above reverse.
+		_ = s.handleAlterCircuit(alt, closeDone_NO)
 	}
+	alt.undo = undo
 	close(alt.done)
+	return
 }
 
 func (s *simnet) localDeafRead(read *mop) (isDeaf bool) {
