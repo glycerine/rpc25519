@@ -695,19 +695,32 @@ type pq struct {
 	Owner   string
 	Orderby string
 	Tree    *rb.Tree
-	cmp     func(a, b rb.Item) int
+
+	// don't export so user does not
+	// accidentally mess with it.
+	cmp func(a, b rb.Item) int
 }
 
 func (s *pq) Len() int {
 	return s.Tree.Len()
 }
 
+// deep meaning we clone the *mop contents as
+// well as the tree. the *mop themselves are a
+// shallow cloned to avoid infinite loop on cycles
+// of pointers.
 func (s *pq) deepclone() (c *pq) {
+
 	c = &pq{
 		Owner:   s.Owner,
 		Orderby: s.Orderby,
 		Tree:    rb.NewTree(s.cmp),
-		cmp:     s.cmp,
+		// cmp is shared by simnet and out to user goro
+		// without locking; it is a pure function
+		// though, so this should be fine--also this saves us
+		// from having to know exactly which of thee
+		// three possible PQ ordering functions we have.
+		cmp: s.cmp,
 	}
 	for it := s.Tree.Min(); it != s.Tree.Limit(); it = it.Next() {
 		c.Tree.Insert(it.Item().(*mop).clone())
@@ -932,15 +945,21 @@ func (s *simnet) shutdownSimnode(simnode *simnode) {
 	simnode.readQ.deleteAll()
 	simnode.preArrQ.deleteAll()
 	simnode.timerQ.deleteAll()
+	simnode.deafReadQ.deleteAll()
+	// leave droppedSendQ, useful to simulate a slooow network.
+
 	//vv("handleAlterCircuit: end SHUTDOWN, simnode is now: %v", simnode)
 }
 
+// a restart can apply to a node that is on or off.
+// from on -> reset -> on; or off -> on.
 func (s *simnet) restartSimnode(simnode *simnode) {
 	//vv("handleAlterCircuit: RESTART %v, wiping queues, going %v -> HEALTHY", simnode.state, simnode.name)
 	simnode.powerOff = false
 	simnode.readQ.deleteAll()
 	simnode.preArrQ.deleteAll()
 	simnode.timerQ.deleteAll()
+	simnode.deafReadQ.deleteAll()
 }
 
 func (s *simnet) isolateSimnode(simnode *simnode) {
@@ -953,7 +972,11 @@ func (s *simnet) isolateSimnode(simnode *simnode) {
 	case HEALTHY:
 		simnode.state = ISOLATED
 	}
-
+	// move pending arrivals into droppedSendQ
+	for it := simnode.preArrQ.Tree.Min(); it != simnode.preArrQ.Tree.Limit(); it = it.Next() {
+		send := it.Item().(*mop)
+		simnode.droppedSendQ.add(send)
+	}
 	simnode.preArrQ.deleteAll()
 }
 func (s *simnet) unIsolateSimnode(simnode *simnode) {
@@ -968,6 +991,9 @@ func (s *simnet) unIsolateSimnode(simnode *simnode) {
 	case HEALTHY:
 		// not isolated already
 	}
+	// user will issue separate deliverDroppedSends flag
+	// on a fault/repair if they want to deliver "timewarped" lost
+	// messages from simnode.droppedSendQ. Leave it alone here.
 }
 
 func (s *simnet) handleAlterCircuit(alt *simnodeAlteration, closeDone bool) {
@@ -1128,11 +1154,10 @@ func gte(a, b time.Time) bool {
 }
 
 // does not call armTimer(), so scheduler should
-// afterwards.
+// afterwards. We don't worry about powerOff b/c
+// when set it deletes all timers.
 func (simnode *simnode) dispatchTimers(now time.Time) (changes int64) {
-	if simnode.powerOff {
-		return 0
-	}
+
 	if simnode.timerQ.Tree.Len() == 0 {
 		return
 	}
@@ -1211,73 +1236,8 @@ func (simnode *simnode) backgroundFireTimer(timer *mop, now time.Time) {
 // does not call armTimer.
 func (simnode *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 
-	if simnode.powerOff {
-		return
-	}
-
-	// to be deleted at the end, so
-	// we don't dirupt the iteration order
-	// and miss something.
-	var preDel []*mop
-	var readDel []*mop
-
-	// skip the not dispatched assert on shutdown
-	shuttingDown := false
-	// for assert we dispatched all we could
-	var endOn, lastMatchSend, lastMatchRead *mop
-	var endOnSituation string
-
-	// We had an early bug from returning early and
-	// forgetting about preDel, readDel
-	// that were waiting for deletion at
-	// the end. Doing the deletes here in
-	// a defer allows us to return safely at any
-	// point, and still do the required cleanup.
 	defer func() {
-		// take care of any deferred-to-keep-sane iteration deletes
-		nPreDel := len(preDel)
-		var delListSN []int64
-		for _, op := range preDel {
-			////zz("delete '%v'", op)
-			// TODO: delete with iterator! should be more reliable and faster.
-			found := simnode.preArrQ.Tree.DeleteWithKey(op)
-			if !found {
-				panic(fmt.Sprintf("failed to delete from preArrQ: '%v'; preArrQ = '%v'", op, simnode.preArrQ.String()))
-			}
-			delListSN = append(delListSN, op.sn)
-		}
-		for _, op := range readDel {
-			////zz("delete '%v'", op)
-			found := simnode.readQ.Tree.DeleteWithKey(op)
-			if !found {
-				panic(fmt.Sprintf("failed to delete from readQ: '%v'", op))
-			}
-		}
 		//vv("=== end of dispatch %v", simnode.name)
-
-		if true { // was off for deafDrop development, separate queues now back on.
-			// sanity check that we delivered everything we could.
-			narr := simnode.preArrQ.Tree.Len()
-			nread := simnode.readQ.Tree.Len()
-			// it is normal to have preArrQ if no reads...
-			if narr > 0 && nread > 0 {
-				// if the first preArr is not due yet, that is the reason
-
-				// if not using fake time, arrival time was probably
-				// almost but not quite here when we checked below,
-				// but now there is something possible a
-				// few microseconds later. In this case, don't freak.
-				// So make this conditional on faketime being in use.
-				if !shuttingDown && faketime { // && simnode.net.barrier {
-
-					now2 := time.Now()
-					if simnode.firstPreArrivalTimeLTE(now2) {
-						alwaysPrintf("ummm... why did these not get dispatched? narr = %v, nread = %v; nPreDel = %v; delListSN = '%v', (now2 - now = %v);\n endOn = %v\n lastMatchSend=%v \n lastMatchRead = %v \n\n endOnSituation = %v\n summary simnode summary:\n%v", narr, nread, nPreDel, delListSN, now2.Sub(now), endOn, lastMatchSend, lastMatchRead, endOnSituation, simnode.String())
-						panic("should have been dispatchable, no?")
-					}
-				}
-			}
-		}
 	}()
 
 	nR := simnode.readQ.Tree.Len()   // number of reads
@@ -1305,6 +1265,31 @@ func (simnode *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 		send := preIt.Item().(*mop)
 
 		simnode.optionallyApplyChaos()
+
+		s := simnode.net
+		if !s.statewiseConnected(send.origin, send.target) ||
+			s.localDropSend(send) {
+			vv("dispatchReadsSends DROP SEND %v", send)
+			// note that the dropee is stored on the send.origin
+			// in the droppedSendQ, which is never the same
+			// as simnode here which supplied from its preArrQ.
+			send.origin.droppedSendQ.add(send)
+			delit := preIt
+			preIt = preIt.Next()
+			simnode.preArrQ.Tree.DeleteWithIterator(delit)
+			continue
+		}
+		// INVAR: send is okay to deliver wrt faults.
+
+		if !s.statewiseConnected(read.origin, read.target) ||
+			s.localDeafRead(read) {
+			vv("dispatchReadsSends DEAF READ %v", read)
+			simnode.deafReadQ.add(read)
+			delit := readIt
+			readIt = readIt.Next()
+			simnode.readQ.Tree.DeleteWithIterator(delit)
+			continue
+		}
 
 		// Causality also demands that
 		// a read can complete (now) only after it was initiated;
@@ -1335,13 +1320,6 @@ func (simnode *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 			// super noisy!
 			//vv("rejecting delivery of send that has not happened: '%v'", send)
 			//vv("dispatch: %v", simnode.net.schedulerReport())
-			endOn = send
-			it2 := preIt
-			afterN := 0
-			for ; it2 != simnode.preArrQ.Tree.Limit(); it2 = it2.Next() {
-				afterN++
-			}
-			endOnSituation = fmt.Sprintf("after me: %v; preArrQ: %v", afterN, simnode.preArrQ.String())
 
 			// we must set a timer on its delivery then...
 			dur := send.arrivalTm.Sub(now)
@@ -1368,8 +1346,6 @@ func (simnode *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 			//vv("copied EOF marker from send '%v' \n to read: '%v'", send, read)
 		}
 
-		lastMatchSend = send
-		lastMatchRead = read
 		// advance our logical clock
 		simnode.lc = max(simnode.lc, send.originLC) + 1
 		////zz("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, simnode.lc, simnode.lc-read.originLC, read.sn)
@@ -1382,18 +1358,21 @@ func (simnode *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 		read.arrivalTm = send.arrivalTm // easier diagnostics
 
 		// matchmaking
-		//vv("[1]matchmaking: \nsend '%v' -> \nread '%v'", send, read)
+		vv("[1]matchmaking: \nsend '%v' -> \nread '%v'", send, read)
 		read.sendmop = send
 		send.readmop = read
 
-		preDel = append(preDel, send)
-		readDel = append(readDel, read)
+		// advance, and delete behind. on both.
+		delit := preIt
+		preIt = preIt.Next()
+		simnode.preArrQ.Tree.DeleteWithIterator(delit)
+
+		delit = readIt
+		readIt = readIt.Next()
+		simnode.readQ.Tree.DeleteWithIterator(delit)
 
 		close(read.proceed)
 		// send already closed in handleSend()
-
-		readIt = readIt.Next()
-		preIt = preIt.Next()
 
 	} // end for
 }
