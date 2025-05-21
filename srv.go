@@ -2302,10 +2302,11 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 func (s *Server) Close() error {
 	//vv("Server.Close() '%v' called.", s.name)
 
-	if s.simnet != nil && s.simnode != nil {
-		const wholeHost = true
-		s.simnet.alterCircuit(s.simnode, SHUTDOWN, wholeHost)
-	}
+	// simnet_server.go:36 already does this, if started.
+	//if s.simnet != nil && s.simnode != nil {
+	//	const wholeHost = true
+	//	s.simnet.alterCircuit(s.simnode.name, SHUTDOWN, wholeHost)
+	//}
 
 	// ask any sub components (peer pump loops) to stop;
 	// give them all up to 500 msec.

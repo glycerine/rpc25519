@@ -1105,10 +1105,10 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 
 	// onlyBubbled is fast. bubbleOrNot in realtime is very slow.
 	//
-	// to keep regular test runs fast, we only use synctest.
+	// to keep regular test runs fast, we use onlyBubbled.
 	// It is legitimate to check on realtime too, but
 	// only do that if you are prepared to wait minutes
-	// for each test.
+	// for each test; under bubbleOrNot with realtime.
 	onlyBubbled(t, func() {
 		cv.Convey("simnet client dropped sends should appear in the senders dropped send Q", t, func() {
 
@@ -1277,7 +1277,7 @@ func newSimnetTest(t *testing.T, shortTestName string) (simt *simnetTest, cfg *C
 }
 
 // setupSimnetTest: encapsulate all the boilerplate to
-// set up a 770 or 771 style test: run a single Server (not peer)
+// set up a 772 or 771 style test: run a single Server (not peer)
 // plus a single Client that starts connected to that Server.
 //
 // For now we always assume that the client and server can
@@ -1395,4 +1395,79 @@ func (t *simnetTest) nodeDeaf(node *simnode) (undo func()) {
 
 	//vv("nodeDeaf done for '%v'", node.name)
 	return
+}
+
+func Test781_simnetonly_client_isolated(t *testing.T) {
+
+	// same as 771 but use AlterHost
+	onlyBubbled(t, func() {
+		cv.Convey("simnet ISOLATED client dropped sends should appear in the client's dropped send Q", t, func() {
+
+			simt, cfg := newSimnetTest(t, "test771")
+			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
+			defer srv.Close()
+			defer cli.Close()
+
+			serviceName := "customEcho"
+			srv.Register2Func(serviceName, customEcho)
+
+			//vv("simnet before cliDropSends %v", simnet.GetSimnetSnapshot())
+			undoCliDrop := simt.clientDropsSends()
+			//vv("simnet after cliDropsSends %v", simnet.GetSimnetSnapshot())
+
+			req := NewMessage()
+			req.HDR.ServiceName = serviceName
+			req.JobSerz = []byte("Hello from client!")
+			waitFor := time.Second
+			reply, err := cli.SendAndGetReply(req, nil, waitFor)
+			if err == nil {
+				panic("wanted timeout could not see server")
+			}
+			if reply != nil {
+				panic(fmt.Sprintf("expected nil reply on error, got '%v'", reply))
+			}
+			// is dropped send visible? both cli and srv
+			stat := simnet.GetSimnetSnapshot()
+
+			sps := stat.Peermap[srvname]
+			sconn := sps.Connmap[srvname]
+			cconn := stat.LoneCli[cliname].Conn[0]
+
+			//vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
+
+			// verify client is not faulty in sending, only server.
+			ndrop := cconn.DroppedSendQ.Len()
+			if ndrop == 0 {
+				panic(fmt.Sprintf("expected cli ndrop(%v) > 0", ndrop))
+			} else {
+				//vv("good, saw cli ndrop(%v) > 0", ndrop)
+			}
+
+			ndrop = sconn.DroppedSendQ.Len()
+			if ndrop != 0 {
+				panic(fmt.Sprintf("expected srv ndrop(%v) == 0", ndrop))
+			} else {
+				//vv("good, saw srv ndrop(%v) == 0", ndrop)
+			}
+			//vv("err = '%v'; reply = %p", err, reply)
+
+			// repair the network
+			undoCliDrop()
+
+			//vv("after cli repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
+
+			req2 := NewMessage()
+			req2.HDR.ServiceName = serviceName
+			req2.JobSerz = []byte("Hello from client! 2nd time.")
+
+			reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
+			panicOn(err)
+			want := string(req2.JobSerz)
+			gotit := strings.HasPrefix(string(reply2.JobSerz), want)
+			if !gotit {
+				t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply2.JobSerz))
+			}
+
+		})
+	})
 }

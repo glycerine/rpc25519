@@ -625,30 +625,36 @@ func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConn
 }
 
 type simnodeAlteration struct {
-	simnet      *simnet
+	simnet *simnet
+
+	simnodeName string
+	err         error // e.g. simnodeName not found
+
 	simnode     *simnode
 	alter       Alteration
 	isHostAlter bool
 	done        chan struct{}
 }
 
-func (s *simnet) newCircuitAlteration(simnode *simnode, alter Alteration, isHostAlter bool) *simnodeAlteration {
+// func (s *simnet) newCircuitAlteration(simnode *simnode, alter Alteration, isHostAlter bool) *simnodeAlteration {
+func (s *simnet) newCircuitAlteration(simnodeName string, alter Alteration, isHostAlter bool) *simnodeAlteration {
 	return &simnodeAlteration{
-		simnet:      s,
-		simnode:     simnode,
+		simnet: s,
+		//simnode:     simnode,
+		simnodeName: simnodeName,
 		alter:       alter,
 		isHostAlter: isHostAlter,
 		done:        make(chan struct{}),
 	}
 }
 
-func (s *simnet) alterCircuit(simnode *simnode, alter Alteration, wholeHost bool) {
+func (s *simnet) alterCircuit(simnodeName string, alter Alteration, wholeHost bool) (err error) {
 	if wholeHost {
-		s.alterHost(simnode, alter)
+		err = s.alterHost(simnodeName, alter)
 		return
 	}
 
-	alt := s.newCircuitAlteration(simnode, alter, wholeHost)
+	alt := s.newCircuitAlteration(simnodeName, alter, wholeHost)
 	select {
 	case s.alterSimnodeCh <- alt:
 		//vv("sent alt on alterSimnodeCh; about to wait on done goro = %v", GoroNumber())
@@ -657,6 +663,7 @@ func (s *simnet) alterCircuit(simnode *simnode, alter Alteration, wholeHost bool
 	}
 	select {
 	case <-alt.done:
+		err = alt.err
 		//vv("server altered: %v", simnode)
 	case <-s.halt.ReqStop.Chan:
 		return
@@ -664,9 +671,9 @@ func (s *simnet) alterCircuit(simnode *simnode, alter Alteration, wholeHost bool
 	return
 }
 
-func (s *simnet) alterHost(simnode *simnode, alter Alteration) {
+func (s *simnet) alterHost(simnodeName string, alter Alteration) (err error) {
 
-	alt := s.newCircuitAlteration(simnode, alter, true)
+	alt := s.newCircuitAlteration(simnodeName, alter, true)
 	select {
 	case s.alterHostCh <- alt:
 		//vv("sent alt on alterHostCh; about to wait on done goro = %v", GoroNumber())
@@ -675,6 +682,7 @@ func (s *simnet) alterHost(simnode *simnode, alter Alteration) {
 	}
 	select {
 	case <-alt.done:
+		err = alt.err
 		//vv("host altered: %v", simnode)
 	case <-s.halt.ReqStop.Chan:
 		return

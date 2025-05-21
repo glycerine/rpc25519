@@ -1000,7 +1000,17 @@ func (s *simnet) unIsolateSimnode(simnode *simnode) {
 }
 
 func (s *simnet) handleAlterCircuit(alt *simnodeAlteration, closeDone bool) {
-	simnode := alt.simnode
+	defer func() {
+		if closeDone {
+			close(alt.done)
+		}
+	}()
+
+	simnode, ok := s.dns[alt.simnodeName]
+	if !ok {
+		alt.err = fmt.Errorf("could not find simnodeName '%v' in dns: '%v'", alt.simnodeName, s.dns)
+		return
+	}
 	switch alt.alter {
 	case SHUTDOWN:
 		s.shutdownSimnode(simnode)
@@ -1011,17 +1021,14 @@ func (s *simnet) handleAlterCircuit(alt *simnodeAlteration, closeDone bool) {
 	case RESTART:
 		s.restartSimnode(simnode)
 	}
-	if closeDone {
-		close(alt.done)
-	}
 }
 
 // alter all the auto-cli of a server and the server itself.
 func (s *simnet) handleAlterHost(alt *simnodeAlteration) {
-	const closeDone = false
+	const closeDone_NO = false
 	for node := range s.locals(alt.simnode) { // includes srvnode itself
 		alt.simnode = node
-		s.handleAlterCircuit(alt, closeDone)
+		s.handleAlterCircuit(alt, closeDone_NO)
 	}
 	close(alt.done)
 }
