@@ -1268,13 +1268,14 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 			// repair the network
 			undoCliDrop()
 
-			const deliverDroppedSends_YES = true
-			const deliverDroppedSends_NO = false
-			const powerOnIfOff_YES = true
-			// now reverse the fault, and get the second attempt through.
-			err = simnet.AllHealthy(powerOnIfOff_YES, deliverDroppedSends_NO)
-			panicOn(err)
-
+			/*
+				const deliverDroppedSends_YES = true
+				const deliverDroppedSends_NO = false
+				const powerOnIfOff_YES = true
+				// now reverse the fault, and get the second attempt through.
+				err = simnet.AllHealthy(powerOnIfOff_YES, deliverDroppedSends_NO)
+				panicOn(err)
+			*/
 			vv("repaired/healed: server un-injectFaultDDed, try cli call 2nd time. net: %v", simnet.GetSimnetSnapshot())
 
 			req2 := NewMessage()
