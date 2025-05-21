@@ -1101,118 +1101,6 @@ func Test103_maskTime(t *testing.T) {
 	})
 }
 
-func Test770_simnetonly_server_dropped_sends(t *testing.T) {
-
-	onlyBubbled(t, func() { // fast, bubbleOrNot(func() { is very slow
-		cv.Convey("simnet server dropped sends should appear in the senders dropped send Q", t, func() {
-
-			cfg := NewConfig()
-			cfg.UseSimNet = true
-
-			cfg.ServerAddr = "127.0.0.1:0"
-			srv := NewServer("srv_test770", cfg)
-
-			vv("about to srv.Start() in 770")
-			t0 := time.Now()
-			serverAddr, err := srv.Start()
-			vv("back from srv.Start() in 770, elap = %v", time.Since(t0))
-
-			panicOn(err)
-			defer srv.Close()
-
-			simnet := cfg.GetSimnet()
-
-			injectFaultDD := func() {
-				dd := DropDeafSpec{
-					//UpdateDeafReads:  true,
-					//DeafReadsNewProb: 1,
-					UpdateDropSends:  true,
-					DropSendsNewProb: 1,
-				}
-
-				// this is for recover really, it typically only
-				// matters when faults are removed, but can
-				// be used to time-warp packets while still faulted.
-				const deliverDroppedSends_NO = false
-
-				err = simnet.FaultHost(srv.simnode.name, dd, deliverDroppedSends_NO)
-				panicOn(err)
-				vv("server cannot send")
-			}
-			serviceName := "customEcho"
-			srv.Register2Func(serviceName, customEcho)
-
-			cfg.ClientDialToHostPort = serverAddr.String()
-			cli, err := NewClient("cli_test770", cfg)
-			panicOn(err)
-			err = cli.Start()
-			panicOn(err)
-			defer cli.Close()
-
-			vv("client started. net before injectFaultDD: %v", simnet.GetSimnetSnapshot())
-			injectFaultDD()
-			vv("net after injectFaultDD: %v", simnet.GetSimnetSnapshot())
-
-			req := NewMessage()
-			req.HDR.ServiceName = serviceName
-			req.JobSerz = []byte("Hello from client!")
-			waitFor := time.Second
-			reply, err := cli.SendAndGetReply(req, nil, waitFor)
-			if err == nil {
-				panic("wanted timeout could not see server")
-			}
-			// is dropped send visible? both cli and srv
-			stat := simnet.GetSimnetSnapshot()
-
-			sps := stat.Peermap["srv_test770"]
-			sconn := sps.Connmap["srv_test770"]
-			cconn := stat.LoneCli["cli_test770"].Conn[0]
-
-			vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
-
-			// client is not faulty in sending, only server.
-			ndrop := cconn.DroppedSendQ.Len()
-			if ndrop != 0 {
-				panic(fmt.Sprintf("expected cli ndrop(%v) == 0", ndrop))
-			} else {
-				vv("good, saw cli ndrop(%v) == 0", ndrop)
-			}
-
-			ndrop = sconn.DroppedSendQ.Len()
-			if ndrop == 0 {
-				panic(fmt.Sprintf("expected srv ndrop(%v) > 0", ndrop))
-			} else {
-				vv("good, saw srv ndrop(%v) > 0", ndrop)
-			}
-
-			vv("err = '%v'; reply = %p", err, reply)
-
-			// repair the network
-			const deliverDroppedSends_YES = true
-			const deliverDroppedSends_NO = false
-			const powerOnIfOff_YES = true
-			// now reverse the fault, and get the second attempt through.
-			err = simnet.AllHealthy(powerOnIfOff_YES, deliverDroppedSends_NO)
-			panicOn(err)
-
-			vv("repaired/healed: server un-injectFaultDDed, try cli call 2nd time. net: %v", simnet.GetSimnetSnapshot())
-
-			req2 := NewMessage()
-			req2.HDR.ServiceName = serviceName
-			req2.JobSerz = []byte("Hello from client! 2nd time.")
-
-			reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
-			panicOn(err)
-			want := "Hello from client! 2nd time."
-			gotit := strings.HasPrefix(string(reply2.JobSerz), want)
-			if !gotit {
-				t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply2.JobSerz))
-			}
-
-		})
-	})
-}
-
 func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 
 	// onlyBubbled is fast. bubbleOrNot in realtime is very slow.
@@ -1293,8 +1181,6 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 	})
 }
 
-// version of 770 using new compact framework. Once 772 is working,
-// then 770 can be retired/deleted.
 func Test772_simnetonly_server_dropped_sends(t *testing.T) {
 
 	onlyBubbled(t, func() {
