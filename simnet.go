@@ -1011,13 +1011,33 @@ func (s *simnet) transferReadsQ_to_deafReadsQ(simnode *simnode) {
 	simnode.readQ.deleteAll()
 }
 
+// func (s *simnet) transferDeafReadsQ_to_readsQ(simnode *simnode) {
+// 	for it := simnode.deafReadQ.Tree.Min(); it != simnode.deafReadQ.Tree.Limit(); it = it.Next() {
+// 		read := it.Item().(*mop)
+// 		simnode.readQ.add(read)
+// 	}
+// 	simnode.deafReadQ.deleteAll()
+// }
+
 // network/card repaired, deaf reads can hear again.
-func (s *simnet) transferDeafReadsQ_to_readsQ(simnode *simnode) {
-	for it := simnode.deafReadQ.Tree.Min(); it != simnode.deafReadQ.Tree.Limit(); it = it.Next() {
+// If target == nil, we move all of deafReadsQ to readQ.
+// If target != nil, only those reads from target
+// will hear again, and deafReads may still contain reads.
+func (s *simnet) transferDeafReadsQ_to_readsQ(origin, target *simnode) {
+
+	it := origin.deafReadQ.Tree.Min()
+
+	for it != origin.deafReadQ.Tree.Limit() {
 		read := it.Item().(*mop)
-		simnode.readQ.add(read)
+		if target == nil || target == read.target {
+			origin.readQ.add(read)
+			delit := it
+			it = it.Next()
+			origin.deafReadQ.Tree.DeleteWithIterator(delit)
+			continue
+		}
+		it = it.Next()
 	}
-	simnode.deafReadQ.deleteAll()
 }
 
 // network card goes down. move pending arrivals into origin's droppedSendQ
@@ -1068,7 +1088,13 @@ func (s *simnet) unIsolateSimnode(simnode *simnode) (undo Alteration) {
 	//s.transferDroppedSendQ_to_preArrQ_on_target(simnode) // hypothetical
 
 	// have to bring back the reads that went deaf during isolation.
-	s.transferDeafReadsQ_to_readsQ(simnode)
+	// nil target means from all read targets.
+	s.transferDeafReadsQ_to_readsQ(simnode, nil)
+
+	// same needed on each connection to simnode
+	for remote := range s.circuits[simnode] {
+		s.transferDeafReadsQ_to_readsQ(remote, simnode)
+	}
 
 	return
 }
