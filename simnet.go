@@ -1004,25 +1004,23 @@ func (s *simnet) isolateSimnode(simnode *simnode) (undo Alteration) {
 
 // make all current reads deaf.
 func (s *simnet) transferReadsQ_to_deafReadsQ(simnode *simnode) {
-	for it := simnode.readQ.Tree.Min(); it != simnode.readQ.Tree.Limit(); it = it.Next() {
+
+	it := simnode.readQ.Tree.Min()
+	for it != simnode.readQ.Tree.Limit() {
 		read := it.Item().(*mop)
 		simnode.deafReadQ.add(read)
+		it = it.Next()
 	}
 	simnode.readQ.deleteAll()
 }
 
-// func (s *simnet) transferDeafReadsQ_to_readsQ(simnode *simnode) {
-// 	for it := simnode.deafReadQ.Tree.Min(); it != simnode.deafReadQ.Tree.Limit(); it = it.Next() {
-// 		read := it.Item().(*mop)
-// 		simnode.readQ.add(read)
-// 	}
-// 	simnode.deafReadQ.deleteAll()
-// }
-
-// network/card repaired, deaf reads can hear again.
-// If target == nil, we move all of deafReadsQ to readQ.
+// transferDeafReadsQ_to_readsQ models
+// network repair that unisolates a node.
+// Deaf reads at origin can hear again.
+// If target == nil, we move all of origin.deafReadsQ to origin.readQ.
 // If target != nil, only those reads from target
-// will hear again, and deafReads may still contain reads.
+// will hear again, and deafReads from other targets
+// are still deaf.
 func (s *simnet) transferDeafReadsQ_to_readsQ(origin, target *simnode) {
 
 	it := origin.deafReadQ.Tree.Min()
@@ -1040,7 +1038,12 @@ func (s *simnet) transferDeafReadsQ_to_readsQ(origin, target *simnode) {
 	}
 }
 
-// network card goes down. move pending arrivals into origin's droppedSendQ
+// transferPreArrQ_to_droppedSendQ models a network isolation or
+// network card going down. move pending arrivals into at
+// simnode back into their origin's droppedSendQ (not simnode's).
+// This makes it easier to understand the dropped sends by
+// inspecting the queues, and also easier to re-send them even if
+// the target has since been power cycled.
 func (s *simnet) transferPreArrQ_to_droppedSendQ(simnode *simnode) {
 	for it := simnode.preArrQ.Tree.Min(); it != simnode.preArrQ.Tree.Limit(); it = it.Next() {
 		send := it.Item().(*mop)
