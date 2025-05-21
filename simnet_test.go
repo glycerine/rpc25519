@@ -1293,6 +1293,82 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 	})
 }
 
+// version of 770 using new compact framework. Once 772 is working,
+// then 770 can be retired/deleted.
+func Test772_simnetonly_server_dropped_sends(t *testing.T) {
+
+	onlyBubbled(t, func() {
+		cv.Convey("simnet server dropped sends should appear in the senders dropped send Q", t, func() {
+
+			simt, cfg := newSimnetTest(t, "test772")
+			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
+			defer srv.Close()
+			defer cli.Close()
+
+			serviceName := "customEcho"
+			srv.Register2Func(serviceName, customEcho)
+
+			vv("simnet before serverDropSends %v", simnet.GetSimnetSnapshot())
+			undoServerDrop := simt.serverDropsSends()
+			vv("simnet after serverDropsSends %v", simnet.GetSimnetSnapshot())
+
+			req := NewMessage()
+			req.HDR.ServiceName = serviceName
+			req.JobSerz = []byte("Hello from client!")
+			waitFor := time.Second
+			reply, err := cli.SendAndGetReply(req, nil, waitFor)
+			if err == nil {
+				panic("wanted timeout could not see server")
+			}
+			if reply != nil {
+				panic(fmt.Sprintf("expected nil reply on error, got '%v'", reply))
+			}
+			// is dropped send visible? both cli and srv
+			stat := simnet.GetSimnetSnapshot()
+
+			sps := stat.Peermap[srvname]
+			sconn := sps.Connmap[srvname]
+			cconn := stat.LoneCli[cliname].Conn[0]
+
+			//vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
+
+			// verify client is not faulty in sending, only server.
+			ndrop := cconn.DroppedSendQ.Len()
+			if ndrop == 0 {
+				panic(fmt.Sprintf("expected cli ndrop(%v) > 0", ndrop))
+			} else {
+				//vv("good, saw cli ndrop(%v) > 0", ndrop)
+			}
+
+			ndrop = sconn.DroppedSendQ.Len()
+			if ndrop != 0 {
+				panic(fmt.Sprintf("expected srv ndrop(%v) == 0", ndrop))
+			} else {
+				//vv("good, saw srv ndrop(%v) == 0", ndrop)
+			}
+			//vv("err = '%v'; reply = %p", err, reply)
+
+			// repair the network
+			undoServerDrop()
+
+			//vv("after cli repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
+
+			req2 := NewMessage()
+			req2.HDR.ServiceName = serviceName
+			req2.JobSerz = []byte("Hello from client! 2nd time.")
+
+			reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
+			panicOn(err)
+			want := string(req2.JobSerz)
+			gotit := strings.HasPrefix(string(reply2.JobSerz), want)
+			if !gotit {
+				t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply2.JobSerz))
+			}
+
+		})
+	})
+}
+
 type simnetTest struct {
 	cfg    *Config
 	short  string // short test name
@@ -1357,7 +1433,23 @@ func setupSimnetTest(simt *simnetTest, cfg *Config) (
 	return
 }
 
+func (t *simnetTest) setAllHealthy() {
+	const deliverDroppedSends_YES = true
+	const deliverDroppedSends_NO = false
+	const powerOnIfOff_YES = true
+
+	err := t.simnet.AllHealthy(powerOnIfOff_YES, deliverDroppedSends_NO)
+	panicOn(err)
+}
+
+func (t *simnetTest) serverDropsSends() (undo func()) {
+	return t.nodeDropsSends(t.srv.simnode)
+}
 func (t *simnetTest) clientDropsSends() (undo func()) {
+	return t.nodeDropsSends(t.cli.simnode)
+}
+
+func (t *simnetTest) nodeDropsSends(node *simnode) (undo func()) {
 
 	dd := DropDeafSpec{
 		UpdateDropSends:  true,
@@ -1370,27 +1462,52 @@ func (t *simnetTest) clientDropsSends() (undo func()) {
 	const deliverDroppedSends_NO = false
 
 	//err = simnet.FaultHost(srv.simnode.name, dd, deliverDroppedSends_NO)
-	err := t.simnet.FaultHost(t.cli.simnode.name, dd, deliverDroppedSends_NO)
+	err := t.simnet.FaultHost(node.name, dd, deliverDroppedSends_NO)
 	panicOn(err)
 	undo = func() {
 		dd := DropDeafSpec{
 			UpdateDropSends:  true,
 			DropSendsNewProb: 0,
 		}
-		err := t.simnet.FaultHost(t.cli.simnode.name, dd, deliverDroppedSends_NO)
+		err := t.simnet.FaultHost(node.name, dd, deliverDroppedSends_NO)
 		panicOn(err)
 	}
 
-	//vv("clientDropsSends done")
+	//vv("nodeDropsSends done for '%v'", node.name)
 	return
 }
 
-func (t *simnetTest) setAllHealthy() {
+func (t *simnetTest) serverDeaf() (undo func()) {
+	return t.nodeDeaf(t.srv.simnode)
+}
+func (t *simnetTest) clientDeaf() (undo func()) {
+	return t.nodeDeaf(t.cli.simnode)
+}
 
-	const deliverDroppedSends_YES = true
+func (t *simnetTest) nodeDeaf(node *simnode) (undo func()) {
+
+	dd := DropDeafSpec{
+		UpdateDeafReads:  true,
+		DeafReadsNewProb: 1,
+	}
+
+	// this is for recover really, it typically only
+	// matters when faults are removed, but can
+	// be used to time-warp packets while still faulted.
 	const deliverDroppedSends_NO = false
-	const powerOnIfOff_YES = true
 
-	err := t.simnet.AllHealthy(powerOnIfOff_YES, deliverDroppedSends_NO)
+	//err = simnet.FaultHost(srv.simnode.name, dd, deliverDroppedSends_NO)
+	err := t.simnet.FaultHost(node.name, dd, deliverDroppedSends_NO)
 	panicOn(err)
+	undo = func() {
+		dd := DropDeafSpec{
+			UpdateDeafReads:  true,
+			DeafReadsNewProb: 0,
+		}
+		err := t.simnet.FaultHost(node.name, dd, deliverDroppedSends_NO)
+		panicOn(err)
+	}
+
+	//vv("nodeDeaf done for '%v'", node.name)
+	return
 }
