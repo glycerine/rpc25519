@@ -1097,7 +1097,7 @@ func (s *simnet) handleSend(send *mop) {
 	//vv("handleSend SEND send = %v", send)
 	////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvnode.preArrQ)
 	now := time.Now()
-	send.target.dispatch(now) // needed?
+	s.dispatch(send.target, now) // needed?
 }
 
 func (s *simnet) handleRead(read *mop) {
@@ -1119,7 +1119,7 @@ func (s *simnet) handleRead(read *mop) {
 	//vv("LC:%v  READ at %v: %v", origin.lc, origin.name, read)
 	////zz("LC:%v  READ %v at %v, now cliReadQ: '%v'", origin.lc, origin.name, read, origin.readQ)
 	now := time.Now()
-	origin.dispatch(now)
+	s.dispatch(origin, now)
 }
 
 func (simnode *simnode) firstPreArrivalTimeLTE(now time.Time) bool {
@@ -1156,7 +1156,7 @@ func gte(a, b time.Time) bool {
 // does not call armTimer(), so scheduler should
 // afterwards. We don't worry about powerOff b/c
 // when set it deletes all timers.
-func (simnode *simnode) dispatchTimers(now time.Time) (changes int64) {
+func (s *simnet) dispatchTimers(simnode *simnode, now time.Time) (changes int64) {
 
 	if simnode.timerQ.Tree.Len() == 0 {
 		return
@@ -1172,7 +1172,7 @@ func (simnode *simnode) dispatchTimers(now time.Time) (changes int64) {
 			// timer.completeTm <= now
 
 			if !timer.isGridStepTimer && !timer.internalPendingTimer {
-				vv("have TIMER firing: '%v'; report = %v", timer, simnode.net.schedulerReport())
+				vv("have TIMER firing: '%v'; report = %v", timer, s.schedulerReport())
 			}
 			changes++
 			if timer.timerFiredTm.IsZero() {
@@ -1234,7 +1234,7 @@ func (simnode *simnode) backgroundFireTimer(timer *mop, now time.Time) {
 }
 
 // does not call armTimer.
-func (simnode *simnode) dispatchReadsSends(now time.Time) (changes int64) {
+func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes int64) {
 
 	defer func() {
 		//vv("=== end of dispatch %v", simnode.name)
@@ -1264,9 +1264,11 @@ func (simnode *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 		read := readIt.Item().(*mop)
 		send := preIt.Item().(*mop)
 
+		vv("eval match: read = '%v'; connected = %v", read, s.statewiseConnected(read.origin, read.target))
+		vv("eval match: send = '%v'; connected = %v", send, s.statewiseConnected(send.origin, send.target))
+
 		simnode.optionallyApplyChaos()
 
-		s := simnode.net
 		if !s.statewiseConnected(send.origin, send.target) ||
 			s.localDropSend(send) {
 			vv("dispatchReadsSends DROP SEND %v", send)
@@ -1379,10 +1381,10 @@ func (simnode *simnode) dispatchReadsSends(now time.Time) (changes int64) {
 
 // dispatch delivers sends to reads, and fires timers.
 // It calls simnode.net.armTimer() at the end (in the defer).
-func (simnode *simnode) dispatch(now time.Time) (changes int64) {
+func (s *simnet) dispatch(simnode *simnode, now time.Time) (changes int64) {
 
-	changes += simnode.dispatchTimers(now)
-	changes += simnode.dispatchReadsSends(now)
+	changes += s.dispatchTimers(simnode, now)
+	changes += s.dispatchReadsSends(simnode, now)
 	return
 }
 
@@ -1404,7 +1406,7 @@ func (s *simnet) schedulerReport() string {
 func (s *simnet) dispatchAll(now time.Time) (changes int64) {
 	// notice here we only use the key of s.circuits
 	for simnode := range s.circuits {
-		changes += simnode.dispatch(now)
+		changes += s.dispatch(simnode, now)
 	}
 	return
 }
@@ -1412,7 +1414,7 @@ func (s *simnet) dispatchAll(now time.Time) (changes int64) {
 // does not call armTimer(), so scheduler should afterwards.
 func (s *simnet) dispatchAllTimers(now time.Time) (changes int64) {
 	for simnode := range s.circuits {
-		changes += simnode.dispatchTimers(now)
+		changes += s.dispatchTimers(simnode, now)
 	}
 	return
 }
@@ -1420,7 +1422,7 @@ func (s *simnet) dispatchAllTimers(now time.Time) (changes int64) {
 // does not call armTimer(), so scheduler should afterwards.
 func (s *simnet) dispatchAllReadsSends(now time.Time) (changes int64) {
 	for simnode := range s.circuits {
-		changes += simnode.dispatchReadsSends(now)
+		changes += s.dispatchReadsSends(simnode, now)
 	}
 	return
 }
