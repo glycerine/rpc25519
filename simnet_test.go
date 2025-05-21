@@ -1167,9 +1167,9 @@ func Test770_simnetonly_dropped_sends(t *testing.T) {
 
 			sps := stat.Peermap["srv_test770"]
 			sconn := sps.Connmap["srv_test770"]
-			cconn := sps.Connmap["cli_test770"]
+			cconn := stat.LoneCli["cli_test770"].Conn[0]
 
-			vv("stat.Peermap = '%#v'", stat.Peermap)
+			vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
 			ndrop := cconn.DroppedSendQ.Len()
 			if ndrop == 0 {
 				panic(fmt.Sprintf("expected cli ndrop(%v) > 0", ndrop))

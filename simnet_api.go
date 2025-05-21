@@ -872,6 +872,7 @@ type SimnetStatus struct {
 
 	Peer    []*SimnetPeerStatus
 	Peermap map[string]*SimnetPeerStatus
+	LoneCli map[string]*SimnetPeerStatus // not really a peer but meh.
 
 	proceed chan struct{}
 }

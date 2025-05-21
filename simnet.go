@@ -516,12 +516,16 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 	if reg.serverBaseID != "" {
 		basesrv, ok := s.servers[reg.serverBaseID]
 		if ok {
+			//vv("cli is auto-cli of basesrv='%v'", basesrv.name)
 			s.node2server[clinode] = basesrv
 			basesrv.autocli[clinode] = c2s
 			basesrv.allnode[clinode] = true
 		} else {
+			//vv("cli is orphan")
 			s.orphans[clinode] = true
 		}
+	} else {
+		//vv("no reg.serverBaseID")
 	}
 
 	reg.conn = c2s
@@ -1972,7 +1976,14 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 			"len(allnodes)=%v", len(s.allnodes))
 		return
 	}
+	// detect standalone cli (not auto-cli of server/peer) and report them too.
+	// start with everything, delete what we see, then report on the rest.
+	alone := make(map[*simnode]bool)
+	for node := range s.circuits {
+		alone[node] = true
+	}
 	for _, srvnode := range valNameSort(s.servers) {
+		delete(alone, srvnode)
 		sps := &SimnetPeerStatus{
 			Name:         srvnode.name,
 			ServerState:  srvnode.state,
@@ -1986,7 +1997,9 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 
 		// s.locals() gives srvnode.allnode, includes server's simnode itself.
 		// srvnode.autocli also available for just local cli simnode.
+		// do orphans below.
 		for _, origin := range keyNameSort(s.locals(srvnode)) {
+			delete(alone, origin)
 			for target, conn := range s.circuits[origin] {
 				req.ConnCount++
 				connsum := &SimnetConnSummary{
@@ -2006,7 +2019,7 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 					DropSendProb: conn.dropSend,
 					// readQ, preArrQ, etc in summary string form.
 					Qs: origin.String(),
-
+					// origin queues
 					DroppedSendQ: origin.droppedSendQ.deepclone(),
 					DeafReadQ:    origin.deafReadQ.deepclone(),
 					ReadQ:        origin.readQ.deepclone(),
@@ -2015,9 +2028,58 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 				}
 				sps.Conn = append(sps.Conn, connsum)
 				sps.Connmap[origin.name] = connsum
+				//vv("sps.Connmap['%v'] set", origin.name)
 			}
-
 		}
+		if len(alone) > 0 {
+			// not really a peer but meh.
+			req.LoneCli = make(map[string]*SimnetPeerStatus)
+		}
+		for origin := range alone {
+			if !origin.isCli {
+				panic(fmt.Sprintf("what?? only cli simnode should be alone: '%v'", origin))
+			}
+			// note, each cli can only have one target, but
+			// for-range is much more convenient.
+			for target, conn := range s.circuits[origin] {
+				connsum := &SimnetConnSummary{
+					OriginIsCli: origin.isCli,
+					// origin details
+					Origin:           origin.name,
+					OriginState:      origin.state,
+					OriginConnClosed: conn.localClosed.IsClosed(),
+					OriginPoweroff:   origin.powerOff,
+					// target details
+					Target:           target.name,
+					TargetState:      target.state,
+					TargetConnClosed: conn.remoteClosed.IsClosed(),
+					TargetPoweroff:   target.powerOff,
+					// specific faults on the connection
+					DeafReadProb: conn.deafRead,
+					DropSendProb: conn.dropSend,
+					// readQ, preArrQ, etc in summary string form.
+					Qs: origin.String(),
+					// origin queues
+					DroppedSendQ: origin.droppedSendQ.deepclone(),
+					DeafReadQ:    origin.deafReadQ.deepclone(),
+					ReadQ:        origin.readQ.deepclone(),
+					PreArrQ:      origin.preArrQ.deepclone(),
+					TimerQ:       origin.timerQ.deepclone(),
+				}
+				// not really a peer but meh. not worth its
+				// own separate struct.
+				sps := &SimnetPeerStatus{
+					Name:         origin.name,
+					ServerState:  origin.state,
+					Poweroff:     origin.powerOff,
+					LC:           origin.lc,
+					ServerBaseID: origin.serverBaseID,
+					Conn:         []*SimnetConnSummary{connsum},
+					Connmap:      map[string]*SimnetConnSummary{origin.name: connsum},
+				}
+				req.LoneCli[origin.name] = sps
+			}
+		} // end alone
 	}
 	// end handleSimnetStatusRequest
 }
