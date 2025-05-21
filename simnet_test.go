@@ -1215,21 +1215,26 @@ func Test770_simnetonly_server_dropped_sends(t *testing.T) {
 
 func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 
-	onlyBubbled(t, func() { // fast, bubbleOrNot(func() { is very slow
+	// onlyBubbled is fast. bubbleOrNot in realtime is very slow.
+	//
+	// to keep regular test runs fast, we only use synctest.
+	// It is legitimate to check on realtime too, but
+	// only do that if you are prepared to wait minutes
+	// for each test.
+	onlyBubbled(t, func() {
 		cv.Convey("simnet client dropped sends should appear in the senders dropped send Q", t, func() {
 
 			simt, cfg := newSimnetTest(t, "test771")
 			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
-			_, _ = srvname, cliname
 			defer srv.Close()
 			defer cli.Close()
 
 			serviceName := "customEcho"
 			srv.Register2Func(serviceName, customEcho)
 
-			vv("client started. net before cliDropSends %v", simnet.GetSimnetSnapshot())
+			//vv("simnet before cliDropSends %v", simnet.GetSimnetSnapshot())
 			undoCliDrop := simt.clientDropsSends()
-			vv("net after cliDropsSends %v", simnet.GetSimnetSnapshot())
+			//vv("simnet after cliDropsSends %v", simnet.GetSimnetSnapshot())
 
 			req := NewMessage()
 			req.HDR.ServiceName = serviceName
@@ -1239,44 +1244,38 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 			if err == nil {
 				panic("wanted timeout could not see server")
 			}
+			if reply != nil {
+				panic(fmt.Sprintf("expected nil reply on error, got '%v'", reply))
+			}
 			// is dropped send visible? both cli and srv
 			stat := simnet.GetSimnetSnapshot()
 
-			sps := stat.Peermap["srv_test771"]
-			sconn := sps.Connmap["srv_test771"]
-			cconn := stat.LoneCli["cli_test771"].Conn[0]
+			sps := stat.Peermap[srvname]
+			sconn := sps.Connmap[srvname]
+			cconn := stat.LoneCli[cliname].Conn[0]
 
-			vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
+			//vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
 
-			// client is not faulty in sending, only server.
+			// verify client is not faulty in sending, only server.
 			ndrop := cconn.DroppedSendQ.Len()
 			if ndrop == 0 {
 				panic(fmt.Sprintf("expected cli ndrop(%v) > 0", ndrop))
 			} else {
-				vv("good, saw cli ndrop(%v) > 0", ndrop)
+				//vv("good, saw cli ndrop(%v) > 0", ndrop)
 			}
 
 			ndrop = sconn.DroppedSendQ.Len()
 			if ndrop != 0 {
 				panic(fmt.Sprintf("expected srv ndrop(%v) == 0", ndrop))
 			} else {
-				vv("good, saw srv ndrop(%v) == 0", ndrop)
+				//vv("good, saw srv ndrop(%v) == 0", ndrop)
 			}
-
-			vv("err = '%v'; reply = %p", err, reply)
+			//vv("err = '%v'; reply = %p", err, reply)
 
 			// repair the network
 			undoCliDrop()
 
-			/*
-				const deliverDroppedSends_YES = true
-				const deliverDroppedSends_NO = false
-				const powerOnIfOff_YES = true
-				// now reverse the fault, and get the second attempt through.
-				err = simnet.AllHealthy(powerOnIfOff_YES, deliverDroppedSends_NO)
-				panicOn(err)
-			*/
-			vv("repaired/healed: server un-injectFaultDDed, try cli call 2nd time. net: %v", simnet.GetSimnetSnapshot())
+			//vv("after cli repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
 
 			req2 := NewMessage()
 			req2.HDR.ServiceName = serviceName
@@ -1284,7 +1283,7 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 
 			reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
 			panicOn(err)
-			want := "Hello from client! 2nd time."
+			want := string(req2.JobSerz)
 			gotit := strings.HasPrefix(string(reply2.JobSerz), want)
 			if !gotit {
 				t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply2.JobSerz))
@@ -1306,6 +1305,7 @@ type simnetTest struct {
 func newSimnetTest(t *testing.T, shortTestName string) (simt *simnetTest, cfg *Config) {
 	cfg = NewConfig()
 	cfg.UseSimNet = true
+	cfg.QuietTestMode = true
 
 	return &simnetTest{
 		cfg:   cfg,
@@ -1313,6 +1313,17 @@ func newSimnetTest(t *testing.T, shortTestName string) (simt *simnetTest, cfg *C
 		t:     t,
 	}, cfg
 }
+
+// setupSimnetTest: encapsulate all the boilerplate to
+// set up a 770 or 771 style test: run a single Server (not peer)
+// plus a single Client that starts connected to that Server.
+//
+// For now we always assume that the client and server can
+// initially talk to each other before introducing any faults.
+//
+// Otherwise the Client will error out with a
+// "cannot Dial server" error before anything interesting
+// can be tested with the simnet.
 func setupSimnetTest(simt *simnetTest, cfg *Config) (
 	// returned:
 	cli *Client,
@@ -1325,10 +1336,11 @@ func setupSimnetTest(simt *simnetTest, cfg *Config) (
 	cfg.ServerAddr = "127.0.0.1:0"
 	srvname = "srv_" + simt.short
 	srv = NewServer(srvname, cfg)
-	vv("about to srv.Start() srvname = %v", srvname)
+	//vv("about to srv.Start() srvname = %v", srvname)
 	t0 := time.Now()
+	_ = t0
 	serverAddr, err := srv.Start()
-	vv("back from srv.Start() in 771, elap = %v", time.Since(t0))
+	//vv("back from srv.Start() in 771, elap = %v", time.Since(t0))
 	panicOn(err)
 	simnet = cfg.GetSimnet()
 
@@ -1369,6 +1381,16 @@ func (t *simnetTest) clientDropsSends() (undo func()) {
 		panicOn(err)
 	}
 
-	vv("clientDropsSends done")
+	//vv("clientDropsSends done")
 	return
+}
+
+func (t *simnetTest) setAllHealthy() {
+
+	const deliverDroppedSends_YES = true
+	const deliverDroppedSends_NO = false
+	const powerOnIfOff_YES = true
+
+	err := t.simnet.AllHealthy(powerOnIfOff_YES, deliverDroppedSends_NO)
+	panicOn(err)
 }

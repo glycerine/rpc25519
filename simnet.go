@@ -1179,7 +1179,7 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time) (changes int64)
 			// timer.completeTm <= now
 
 			if !timer.isGridStepTimer && !timer.internalPendingTimer {
-				vv("have TIMER firing: '%v'; report = %v", timer, s.schedulerReport())
+				//vv("have TIMER firing: '%v'; report = %v", timer, s.schedulerReport())
 			}
 			changes++
 			if timer.timerFiredTm.IsZero() {
@@ -1441,10 +1441,12 @@ func (s *simnet) tickLogicalClocks() {
 }
 
 func (s *simnet) Start() {
-	if faketime {
-		alwaysPrintf("simnet.Start: faketime = %v; s.barrier=%v", faketime, s.barrier)
-	} else {
-		alwaysPrintf("simnet.Start: faketime = %v", faketime) // barrier is irrelevant
+	if !s.cfg.QuietTestMode {
+		if faketime {
+			alwaysPrintf("simnet.Start: faketime = %v; s.barrier=%v", faketime, s.barrier)
+		} else {
+			alwaysPrintf("simnet.Start: faketime = %v", faketime) // barrier is irrelevant
+		}
 	}
 	go s.scheduler()
 }
