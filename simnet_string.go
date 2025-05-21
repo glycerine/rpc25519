@@ -169,55 +169,55 @@ func (op *mop) String() string {
 
 func (z *circuitFault) String() (r string) {
 	r = "&circuitFault{\n"
-	r += fmt.Sprintf("  originName: \"%v\",\n", z.originName)
-	r += fmt.Sprintf("  targetName: \"%v\",\n", z.targetName)
-	r += fmt.Sprintf("DropDeafSpec: %v,\n", z.DropDeafSpec.String())
-	r += fmt.Sprintf("          sn: %v,\n", z.sn)
-	r += fmt.Sprintf("         err: %v,\n", z.err)
+	r += fmt.Sprintf("  originName: %v\n", z.originName)
+	r += fmt.Sprintf("  targetName: %v\n", z.targetName)
+	r += fmt.Sprintf("DropDeafSpec: %v\n", z.DropDeafSpec.String())
+	r += fmt.Sprintf("          sn: %v\n", z.sn)
+	r += fmt.Sprintf("         err: %v\n", z.err)
 	r += "}\n"
 	return
 }
 
 func (z *circuitRepair) String() (r string) {
 	r = "&circuitRepair{\n"
-	r += fmt.Sprintf("              sn: %v,\n", z.sn)
-	r += fmt.Sprintf("      originName: \"%v\",\n", z.originName)
-	r += fmt.Sprintf("      targetName: \"%v\",\n", z.targetName)
-	r += fmt.Sprintf("       unIsolate: %v,\n", z.unIsolate)
-	r += fmt.Sprintf("    powerOnIfOff: %v,\n", z.powerOnIfOff)
-	r += fmt.Sprintf("justOriginHealed: %v,\n", z.justOriginHealed)
-	r += fmt.Sprintf("             err: %v,\n", z.err)
+	r += fmt.Sprintf("              sn: %v\n", z.sn)
+	r += fmt.Sprintf("      originName: %v\n", z.originName)
+	r += fmt.Sprintf("      targetName: %v\n", z.targetName)
+	r += fmt.Sprintf("       unIsolate: %v\n", z.unIsolate)
+	r += fmt.Sprintf("    powerOnIfOff: %v\n", z.powerOnIfOff)
+	r += fmt.Sprintf("justOriginHealed: %v\n", z.justOriginHealed)
+	r += fmt.Sprintf("             err: %v\n", z.err)
 	r += "}\n"
 	return
 }
 func (z *DropDeafSpec) String() (r string) {
 	r = "&DropDeafSpec{\n"
-	r += fmt.Sprintf(" UpdateDeafReads: %v,\n", z.UpdateDeafReads)
-	r += fmt.Sprintf(" UpdateDropSends: %v,\n", z.UpdateDropSends)
-	r += fmt.Sprintf("DeafReadsNewProb: %v,\n", z.DeafReadsNewProb)
-	r += fmt.Sprintf("DropSendsNewProb: %v,\n", z.DropSendsNewProb)
+	r += fmt.Sprintf(" UpdateDeafReads: %v\n", z.UpdateDeafReads)
+	r += fmt.Sprintf(" UpdateDropSends: %v\n", z.UpdateDropSends)
+	r += fmt.Sprintf("DeafReadsNewProb: %v\n", z.DeafReadsNewProb)
+	r += fmt.Sprintf("DropSendsNewProb: %v\n", z.DropSendsNewProb)
 	r += "}\n"
 	return
 }
 
 func (z *hostFault) String() (r string) {
 	r = "&hostFault{\n"
-	r += fmt.Sprintf("    hostName: \"%v\",\n", z.hostName)
-	r += fmt.Sprintf("DropDeafSpec: %v,\n", z.DropDeafSpec)
-	r += fmt.Sprintf("          sn: %v,\n", z.sn)
-	r += fmt.Sprintf("         err: %v,\n", z.err)
+	r += fmt.Sprintf("    hostName: %v\n", z.hostName)
+	r += fmt.Sprintf("DropDeafSpec: %v\n", z.DropDeafSpec)
+	r += fmt.Sprintf("          sn: %v\n", z.sn)
+	r += fmt.Sprintf("         err: %v\n", z.err)
 	r += "}\n"
 	return
 }
 
 func (z *hostRepair) String() (r string) {
 	r = "&hostRepair{\n"
-	r += fmt.Sprintf("    hostName: \"%v\",\n", z.hostName)
-	r += fmt.Sprintf("         err: %v,\n", z.err)
-	r += fmt.Sprintf("powerOnIfOff: %v,\n", z.powerOnIfOff)
-	r += fmt.Sprintf("   unIsolate: %v,\n", z.unIsolate)
-	r += fmt.Sprintf("    allHosts: %v,\n", z.allHosts)
-	r += fmt.Sprintf("          sn: %v,\n", z.sn)
+	r += fmt.Sprintf("    hostName: %v\n", z.hostName)
+	r += fmt.Sprintf("         err: %v\n", z.err)
+	r += fmt.Sprintf("powerOnIfOff: %v\n", z.powerOnIfOff)
+	r += fmt.Sprintf("   unIsolate: %v\n", z.unIsolate)
+	r += fmt.Sprintf("    allHosts: %v\n", z.allHosts)
+	r += fmt.Sprintf("          sn: %v\n", z.sn)
 	r += "}\n"
 	return
 }
@@ -242,25 +242,25 @@ func (s *simnet) String() (r string) {
 		return "(nil *simnet)"
 	}
 	r = "&simnet{\n"
-	r += fmt.Sprintf("   faketime: %v,\n", faketime)
-	r += fmt.Sprintf("    barrier: %v,\n", s.barrier)
-	r += fmt.Sprintf("   scenario: %v,\n", s.scenario)
-	r += fmt.Sprintf("        cfg: %v,\n", s.cfg)
-	//r += fmt.Sprintf("simNetCfg: %v,\n", s.simNetCfg)
+	r += fmt.Sprintf("   faketime: %v\n", faketime)
+	r += fmt.Sprintf("    barrier: %v\n", s.barrier)
+	r += fmt.Sprintf("   scenario: %v\n", s.scenario)
+	r += fmt.Sprintf("        cfg: %v\n", s.cfg)
+	//r += fmt.Sprintf("simNetCfg: %v\n", s.simNetCfg)
 	if s.srv != nil {
-		r += fmt.Sprintf("   srv.name: %v,\n", s.srv.name)
+		r += fmt.Sprintf("   srv.name: %v\n", s.srv.name)
 	} else {
-		r += fmt.Sprintf("        srv: %v,\n", s.srv)
+		r += fmt.Sprintf("        srv: %v\n", s.srv)
 	}
 	if s.cli != nil {
-		r += fmt.Sprintf("   cli.name: %v,\n", s.cli.name)
+		r += fmt.Sprintf("   cli.name: %v\n", s.cli.name)
 	} else {
-		r += fmt.Sprintf("        cli: %v,\n", s.cli)
+		r += fmt.Sprintf("        cli: %v\n", s.cli)
 	}
-	r += fmt.Sprintf("        dns: %v,\n", s.stringDNS())
-	//r += fmt.Sprintf("       halt: %v,\n", s.halt)
-	//r += fmt.Sprintf("  nextTimer: %v,\n", s.nextTimer)
-	r += fmt.Sprintf("  lastArmTm: %v,\n", s.lastArmTm.Format(rfc3339NanoNumericTZ0pad))
+	r += fmt.Sprintf("        dns: %v\n", s.stringDNS())
+	//r += fmt.Sprintf("       halt: %v\n", s.halt)
+	//r += fmt.Sprintf("  nextTimer: %v\n", s.nextTimer)
+	r += fmt.Sprintf("  lastArmTm: %v\n", s.lastArmTm.Format(rfc3339NanoNumericTZ0pad))
 	r += "}\n"
 	return
 }
@@ -271,13 +271,13 @@ func (s *serverRegistration) String() (r string) {
 	}
 	r = "&serverRegistration{\n"
 	if s.server != nil {
-		r += fmt.Sprintf("        server.name: %v,\n", s.server.name)
+		r += fmt.Sprintf("        server.name: %v\n", s.server.name)
 	} else {
-		r += fmt.Sprintf("              server: %v,\n", s.server)
+		r += fmt.Sprintf("              server: %v\n", s.server)
 	}
-	r += fmt.Sprintf("         srvNetAddr: %v,\n", s.srvNetAddr)
-	r += fmt.Sprintf("            simnode: %v,\n", s.simnode.StringNoPQ())
-	r += fmt.Sprintf("             simnet: %v,\n", s.simnet)
+	r += fmt.Sprintf("         srvNetAddr: %v\n", s.srvNetAddr)
+	r += fmt.Sprintf("            simnode: %v\n", s.simnode.StringNoPQ())
+	r += fmt.Sprintf("             simnet: %v\n", s.simnet)
 	r += "}\n"
 	return
 }
@@ -288,15 +288,15 @@ func (s *clientRegistration) String() (r string) {
 	}
 	r = "&clientRegistration{\n"
 	if s.client != nil {
-		r += fmt.Sprintf("     client.name: %v,\n", s.client.name)
+		r += fmt.Sprintf("     client.name: %v\n", s.client.name)
 	} else {
-		r += fmt.Sprintf("          client: %v,\n", s.client)
+		r += fmt.Sprintf("          client: %v\n", s.client)
 	}
-	r += fmt.Sprintf("localHostPortStr: \"%v\",\n", s.localHostPortStr)
-	r += fmt.Sprintf("          dialTo: \"%v\",\n", s.dialTo)
-	r += fmt.Sprintf("   serverAddrStr: \"%v\",\n", s.serverAddrStr)
-	r += fmt.Sprintf("         simnode: %v,\n", s.simnode.StringNoPQ())
-	r += fmt.Sprintf("            conn: %v,\n", s.conn)
+	r += fmt.Sprintf("localHostPortStr: %v\n", s.localHostPortStr)
+	r += fmt.Sprintf("          dialTo: %v\n", s.dialTo)
+	r += fmt.Sprintf("   serverAddrStr: %v\n", s.serverAddrStr)
+	r += fmt.Sprintf("         simnode: %v\n", s.simnode.StringNoPQ())
+	r += fmt.Sprintf("            conn: %v\n", s.conn)
 	r += "}\n"
 	return
 }
@@ -306,9 +306,9 @@ func (s *simnodeAlteration) String() (r string) {
 		return "(nil *simnodeAlteration)"
 	}
 	r = "&simnodeAlteration{\n"
-	r += fmt.Sprintf("simnet: %v,\n", s.simnet)
-	r += fmt.Sprintf("simnode: %v,\n", s.simnode)
-	r += fmt.Sprintf(" alter: %v,\n", s.alter)
+	r += fmt.Sprintf(" simnet: %v\n", s.simnet)
+	r += fmt.Sprintf("simnode: %v\n", s.simnode)
+	r += fmt.Sprintf("  alter: %v\n", s.alter)
 	r += "}\n"
 	return
 }
@@ -333,11 +333,11 @@ func (s *scenario) String() (r string) {
 		b3seed = fmt.Sprintf("(seed[0]=%v) %v", s.seed[0], b3seed)
 	}
 	r = "&scenario{\n"
-	r += fmt.Sprintf("  seed: %v,\n", b3seed)
-	//r += fmt.Sprintf("   rng: %v,\n", s.rng)
-	r += fmt.Sprintf("  tick: %v,\n", s.tick)
-	r += fmt.Sprintf("minHop: %v,\n", s.minHop)
-	r += fmt.Sprintf("maxHop: %v,\n", s.maxHop)
+	r += fmt.Sprintf("  seed: %v\n", b3seed)
+	//r += fmt.Sprintf("   rng: %v\n", s.rng)
+	r += fmt.Sprintf("  tick: %v\n", s.tick)
+	r += fmt.Sprintf("minHop: %v\n", s.minHop)
+	r += fmt.Sprintf("maxHop: %v\n", s.maxHop)
 	r += "}\n"
 	return
 }
@@ -358,18 +358,18 @@ func (s *simconn) String() (r string) {
 
 	r = fmt.Sprintf(`
      simconn{
-                isCli: %v,
-                  net: %v,
-              netAddr: %v,
-                local: %v,
-               remote: %v,
-    readDeadlineTimer: %v,
-    sendDeadlineTimer: %v,
-          localClosed: %v,
-         remoteClosed: %v,
-             deafRead: %0.2f (probability),
-             dropSend: %0.2f (probability),
-             nextRead: "%v",
+                isCli: %v
+                  net: %v
+              netAddr: %v
+                local: %v
+               remote: %v
+    readDeadlineTimer: %v
+    sendDeadlineTimer: %v
+          localClosed: %v
+         remoteClosed: %v
+             deafRead: %0.2f (probability)
+             dropSend: %0.2f (probability)
+             nextRead: "%v"
 }`, s.isCli,
 		s.net.simNetCfg,
 		s.netAddr,
@@ -455,13 +455,13 @@ func (z *SimnetPeerStatus) String() (r string) {
 
 func (z *SimnetStatus) String() (r string) {
 	r = "&SimnetStatus{\n"
-	r += fmt.Sprintf("              Asof: %v,\n",
+	r += fmt.Sprintf("              Asof: %v\n",
 		z.Asof.Format(rfc3339NanoNumericTZ0pad))
-	r += fmt.Sprintf("         NetClosed: %v,\n", z.NetClosed)
-	r += fmt.Sprintf("               Cfg: %v,\n", z.Cfg.String())
-	r += fmt.Sprintf("             Loopi: %v,\n", z.Loopi)
-	r += fmt.Sprintf("       ScenarioNum: %v,\n", z.ScenarioNum)
-	r += fmt.Sprintf("GetSimnetStatusErr: %v,\n", z.GetSimnetStatusErr)
+	r += fmt.Sprintf("         NetClosed: %v\n", z.NetClosed)
+	r += fmt.Sprintf("               Cfg: %v\n", z.Cfg.String())
+	r += fmt.Sprintf("             Loopi: %v\n", z.Loopi)
+	r += fmt.Sprintf("       ScenarioNum: %v\n", z.ScenarioNum)
+	r += fmt.Sprintf("GetSimnetStatusErr: %v\n", z.GetSimnetStatusErr)
 
 	b3seed, isZero := blake3OfSeed32(z.ScenarioSeed)
 	if isZero {
@@ -469,10 +469,10 @@ func (z *SimnetStatus) String() (r string) {
 	} else {
 		b3seed = fmt.Sprintf("(seed[0]=%v) %v", z.ScenarioSeed[0], b3seed)
 	}
-	r += fmt.Sprintf("  ScenarioSeed: %v,\n", b3seed)
-	r += fmt.Sprintf("  ScenarioTick: %v,\n", z.ScenarioTick)
-	r += fmt.Sprintf("ScenarioMinHop: %v,\n", z.ScenarioMinHop)
-	r += fmt.Sprintf("ScenarioMaxHop: %v,\n", z.ScenarioMaxHop)
+	r += fmt.Sprintf("  ScenarioSeed: %v\n", b3seed)
+	r += fmt.Sprintf("  ScenarioTick: %v\n", z.ScenarioTick)
+	r += fmt.Sprintf("ScenarioMinHop: %v\n", z.ScenarioMinHop)
+	r += fmt.Sprintf("ScenarioMaxHop: %v\n", z.ScenarioMaxHop)
 
 	r += fmt.Sprintf("peer count(%v) total connection count(%v):\n", len(z.Peer), z.ConnCount)
 	for i, srv := range z.Peer {

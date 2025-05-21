@@ -1195,8 +1195,9 @@ func Test770_simnetonly_dropped_sends(t *testing.T) {
 			// now reverse the fault, and get the second attempt through.
 			err = simnet.AllHealthy(powerOnIfOff_YES, deliverDroppedSends_NO)
 			panicOn(err)
-			//vv("server un-partitioned, try cli call 3rd time.")
-			vv("server un-partitioned, try cli call 3rd time. net: %v", simnet.GetSimnetStatus())
+
+			vv("repaired/healed: server un-partitioned, try cli call 2nd time. net: %v", simnet.GetSimnetStatus())
+
 			req2 := NewMessage()
 			req2.HDR.ServiceName = serviceName
 			req2.JobSerz = []byte("Hello from client! 2nd time.")
