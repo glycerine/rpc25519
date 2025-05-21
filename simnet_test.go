@@ -100,7 +100,7 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 			const deliverDroppedSends_NO = false
 			err = simnet.HostFault(srv.simnode.name, dd, deliverDroppedSends_NO)
 			panicOn(err)
-			vv("server partitioned, try cli call again. net: %v", simnet.GetSimnetStatus())
+			vv("server partitioned, try cli call again. net: %v", simnet.GetSimnetSnapshot())
 
 			waitFor := time.Second * 10
 
@@ -132,7 +132,7 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 			err = simnet.AllHealthy(powerOnIfOff_YES, deliverDroppedSends_YES)
 			panicOn(err)
 			//vv("server un-partitioned, try cli call 3rd time.")
-			vv("server un-partitioned, try cli call 3rd time. net: %v", simnet.GetSimnetStatus())
+			vv("server un-partitioned, try cli call 3rd time. net: %v", simnet.GetSimnetSnapshot())
 			req3 := NewMessage()
 			req3.HDR.ServiceName = serviceName
 			req3.JobSerz = []byte("Hello from client! 3rd time.")
@@ -1149,9 +1149,9 @@ func Test770_simnetonly_server_dropped_sends(t *testing.T) {
 			panicOn(err)
 			defer cli.Close()
 
-			vv("client started. net before injectFaultDD: %v", simnet.GetSimnetStatus())
+			vv("client started. net before injectFaultDD: %v", simnet.GetSimnetSnapshot())
 			injectFaultDD()
-			vv("net after injectFaultDD: %v", simnet.GetSimnetStatus())
+			vv("net after injectFaultDD: %v", simnet.GetSimnetSnapshot())
 
 			req := NewMessage()
 			req.HDR.ServiceName = serviceName
@@ -1162,7 +1162,7 @@ func Test770_simnetonly_server_dropped_sends(t *testing.T) {
 				panic("wanted timeout could not see server")
 			}
 			// is dropped send visible? both cli and srv
-			stat := simnet.GetSimnetStatus()
+			stat := simnet.GetSimnetSnapshot()
 
 			sps := stat.Peermap["srv_test770"]
 			sconn := sps.Connmap["srv_test770"]
@@ -1195,7 +1195,7 @@ func Test770_simnetonly_server_dropped_sends(t *testing.T) {
 			err = simnet.AllHealthy(powerOnIfOff_YES, deliverDroppedSends_NO)
 			panicOn(err)
 
-			vv("repaired/healed: server un-injectFaultDDed, try cli call 2nd time. net: %v", simnet.GetSimnetStatus())
+			vv("repaired/healed: server un-injectFaultDDed, try cli call 2nd time. net: %v", simnet.GetSimnetSnapshot())
 
 			req2 := NewMessage()
 			req2.HDR.ServiceName = serviceName
@@ -1262,9 +1262,9 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 				vv("client cannot send")
 			}
 
-			vv("client started. net before injectFaultDD: %v", simnet.GetSimnetStatus())
+			vv("client started. net before injectFaultDD: %v", simnet.GetSimnetSnapshot())
 			injectFaultDD()
-			vv("net after injectFaultDD: %v", simnet.GetSimnetStatus())
+			vv("net after injectFaultDD: %v", simnet.GetSimnetSnapshot())
 
 			req := NewMessage()
 			req.HDR.ServiceName = serviceName
@@ -1275,7 +1275,7 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 				panic("wanted timeout could not see server")
 			}
 			// is dropped send visible? both cli and srv
-			stat := simnet.GetSimnetStatus()
+			stat := simnet.GetSimnetSnapshot()
 
 			sps := stat.Peermap["srv_test771"]
 			sconn := sps.Connmap["srv_test771"]
@@ -1308,7 +1308,7 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 			err = simnet.AllHealthy(powerOnIfOff_YES, deliverDroppedSends_NO)
 			panicOn(err)
 
-			vv("repaired/healed: server un-injectFaultDDed, try cli call 2nd time. net: %v", simnet.GetSimnetStatus())
+			vv("repaired/healed: server un-injectFaultDDed, try cli call 2nd time. net: %v", simnet.GetSimnetSnapshot())
 
 			req2 := NewMessage()
 			req2.HDR.ServiceName = serviceName

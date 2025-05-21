@@ -236,7 +236,7 @@ type simnet struct {
 	repairHostCh         chan *hostRepair
 
 	safeStateStringCh     chan *simnetSafeStateQuery
-	simnetStatusRequestCh chan *SimnetStatus
+	simnetStatusRequestCh chan *SimnetSnapshot
 
 	newScenarioCh chan *scenario
 	nextTimer     *time.Timer
@@ -596,7 +596,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 
 		scenario:              scen,
 		safeStateStringCh:     make(chan *simnetSafeStateQuery),
-		simnetStatusRequestCh: make(chan *SimnetStatus),
+		simnetStatusRequestCh: make(chan *SimnetSnapshot),
 		dns:                   make(map[string]*simnode),
 		node2server:           make(map[*simnode]*simnode),
 
@@ -1682,7 +1682,7 @@ restartI:
 
 		case statusReq := <-s.simnetStatusRequestCh:
 			// user can confirm/view all current faults/health
-			s.handleSimnetStatusRequest(statusReq, now, i)
+			s.handleSimnetSnapshotRequest(statusReq, now, i)
 
 		case <-s.halt.ReqStop.Chan:
 			bb := time.Since(s.bigbang)
@@ -1944,8 +1944,11 @@ func (s *simnet) handleSafeStateString(safe *simnetSafeStateQuery) {
 //const rfc3339MsecTz0 = "2006-01-02T15:04:05.000Z07:00"
 //const rfc3339NanoNumericTZ0pad = "2006-01-02T15:04:05.000000000-07:00"
 
-// user can confirm/view all current faults/health
-func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loopi int64) {
+// user/tests can confirm/view all current faults/health,
+// without data races inherent in just printing the simnet
+// fields, by asking the simnet nicely to return a snapshot
+// of the internal state of the network in a SimnetSnapshot.
+func (s *simnet) handleSimnetSnapshotRequest(req *SimnetSnapshot, now time.Time, loopi int64) {
 	defer close(req.proceed)
 
 	req.Asof = now
@@ -1977,6 +1980,8 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 				// as this does not impact correctness, just test
 				// convenience.
 			} else {
+				// possibly alone, but if we see it associated
+				// with a server peer below, delete from the alone set.
 				alone[node] = true
 			}
 		}
@@ -2030,7 +2035,14 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 			}
 		}
 		if len(alone) > 0 {
-			// not really a peer but meh. not worth another struct.
+			// lone cli are not really a peer but meh.
+			// not worth a separate struct type that has
+			// the exact same fields. So we re-use SimnetPeerStatus
+			// for lone clients too, even though the name
+			// of the struct has Peer. This stuff is for
+			// diagnostics and tests not correctness,
+			// and uniform handling of all clients and servers
+			// in tests is much easier this way.
 			req.LoneCli = make(map[string]*SimnetPeerStatus)
 		}
 		for origin := range alone {
@@ -2086,5 +2098,5 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 			}
 		} // end alone
 	}
-	// end handleSimnetStatusRequest
+	// end handleSimnetSnapshotRequest
 }

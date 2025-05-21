@@ -857,7 +857,7 @@ type SimnetPeerStatus struct {
 	IsLoneCli    bool // and not really a peer server with auto-cli
 }
 
-type SimnetStatus struct {
+type SimnetSnapshot struct {
 	Asof               time.Time
 	Loopi              int64
 	NetClosed          bool
@@ -879,8 +879,8 @@ type SimnetStatus struct {
 	proceed chan struct{}
 }
 
-func (s *simnet) GetSimnetStatus() (status *SimnetStatus) {
-	status = &SimnetStatus{
+func (s *simnet) GetSimnetSnapshot() (status *SimnetSnapshot) {
+	status = &SimnetSnapshot{
 		proceed: make(chan struct{}),
 	}
 	select {

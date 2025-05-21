@@ -453,8 +453,8 @@ func (z *SimnetPeerStatus) String() (r string) {
 	return
 }
 
-func (z *SimnetStatus) String() (r string) {
-	r = "&SimnetStatus{\n"
+func (z *SimnetSnapshot) String() (r string) {
+	r = "&SimnetSnapshot{\n"
 	r += fmt.Sprintf("              Asof: %v\n",
 		z.Asof.Format(rfc3339NanoNumericTZ0pad))
 	r += fmt.Sprintf("         NetClosed: %v\n", z.NetClosed)
