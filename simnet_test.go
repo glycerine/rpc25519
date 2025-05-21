@@ -1461,16 +1461,18 @@ func Test781_simnetonly_client_isolated(t *testing.T) {
 			if ndrop == 0 {
 				panic(fmt.Sprintf("expected cli ndrop(%v) > 0", ndrop))
 			} else {
-				//vv("good, saw cli ndrop(%v) > 0", ndrop)
+				vv("good, saw cli ndrop(%v) > 0", ndrop)
 			}
 
 			ndrop = sconn.DroppedSendQ.Len()
 			if ndrop != 0 {
 				panic(fmt.Sprintf("expected srv ndrop(%v) == 0", ndrop))
 			} else {
-				//vv("good, saw srv ndrop(%v) == 0", ndrop)
+				vv("good, saw srv ndrop(%v) == 0", ndrop)
 			}
 			//vv("err = '%v'; reply = %p", err, reply)
+
+			vv("cli still isolated, network after cli tried to send echo request: %v", simnet.GetSimnetSnapshot())
 
 			// repair the network
 			undoIsolated()

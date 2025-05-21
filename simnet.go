@@ -995,14 +995,55 @@ func (s *simnet) isolateSimnode(simnode *simnode) (undo Alteration) {
 		simnode.state = ISOLATED
 		undo = UNISOLATE
 	}
-	// move pending arrivals into droppedSendQ
-	for it := simnode.preArrQ.Tree.Min(); it != simnode.preArrQ.Tree.Limit(); it = it.Next() {
-		send := it.Item().(*mop)
-		simnode.droppedSendQ.add(send)
-	}
-	simnode.preArrQ.deleteAll()
+
+	s.transferReadsQ_to_deafReadsQ(simnode)
+	s.transferPreArrQ_to_droppedSendQ(simnode)
+
 	return
 }
+
+// make all current reads deaf.
+func (s *simnet) transferReadsQ_to_deafReadsQ(simnode *simnode) {
+	for it := simnode.readQ.Tree.Min(); it != simnode.readQ.Tree.Limit(); it = it.Next() {
+		read := it.Item().(*mop)
+		simnode.deafReadQ.add(read)
+	}
+	simnode.readQ.deleteAll()
+}
+
+// network/card repaired, deaf reads can hear again.
+func (s *simnet) transferDeafReadsQ_to_readsQ(simnode *simnode) {
+	for it := simnode.deafReadQ.Tree.Min(); it != simnode.deafReadQ.Tree.Limit(); it = it.Next() {
+		read := it.Item().(*mop)
+		simnode.readQ.add(read)
+	}
+	simnode.deafReadQ.deleteAll()
+}
+
+// network card goes down. move pending arrivals into origin's droppedSendQ
+func (s *simnet) transferPreArrQ_to_droppedSendQ(simnode *simnode) {
+	for it := simnode.preArrQ.Tree.Min(); it != simnode.preArrQ.Tree.Limit(); it = it.Next() {
+		send := it.Item().(*mop)
+		// not: simnode.droppedSendQ.add(send)
+		// but back on the origin:
+		send.origin.droppedSendQ.add(send)
+	}
+	simnode.preArrQ.deleteAll()
+}
+
+// dramatic network fault simulation: now deliver all "lost"
+// messages sitting in the droppedSendQ for simnode, to
+// each message target's preArrQ.
+func (s *simnet) timeWarp_transferDroppedSendQ_to_PreArrQ(simnode *simnode) {
+
+	for it := simnode.droppedSendQ.Tree.Min(); it != simnode.droppedSendQ.Tree.Limit(); it = it.Next() {
+		send := it.Item().(*mop)
+		// put back on the target:
+		send.target.preArrQ.add(send)
+	}
+	simnode.droppedSendQ.deleteAll()
+}
+
 func (s *simnet) unIsolateSimnode(simnode *simnode) (undo Alteration) {
 	//vv("handleAlterCircuit: UNISOLATE %v, going from %v -> HEALTHY", simnode.state, simnode.name)
 	switch simnode.state {
@@ -1015,13 +1056,20 @@ func (s *simnet) unIsolateSimnode(simnode *simnode) (undo Alteration) {
 	case FAULTY:
 		// not isolated already
 		undo = UNDEFINED
+		return
 	case HEALTHY:
 		// not isolated already
 		undo = UNDEFINED
+		return
 	}
 	// user will issue separate deliverDroppedSends flag
 	// on a fault/repair if they want to deliver "timewarped" lost
 	// messages from simnode.droppedSendQ. Leave it alone here.
+	//s.transferDroppedSendQ_to_preArrQ_on_target(simnode) // hypothetical
+
+	// have to bring back the reads that went deaf during isolation.
+	s.transferDeafReadsQ_to_readsQ(simnode)
+
 	return
 }
 

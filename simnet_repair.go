@@ -209,7 +209,7 @@ func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (
 // If state is FAULTY, we go to HEALTHY.
 // If state is FAULTY_ISOLATED, we go to ISOLATED.
 func (s *simnet) repairAllCircuitFaults(simnode *simnode, deliverDroppedSends bool) {
-	//vv("top of repairAllCircuitFaults, simnode = '%v'", simnode.name)
+	vv("top of repairAllCircuitFaults, simnode = '%v'", simnode.name)
 	//defer func() {
 	//vv("end of repairAllCircuitFaults")
 	//}()
@@ -217,8 +217,12 @@ func (s *simnet) repairAllCircuitFaults(simnode *simnode, deliverDroppedSends bo
 	switch simnode.state {
 	case HEALTHY:
 		// fine.
+		// our state management better be correct!
+		return
 	case ISOLATED:
 		// fine.
+		// our state management better be correct!
+		return
 	case FAULTY:
 		simnode.state = HEALTHY
 	case FAULTY_ISOLATED:
@@ -272,13 +276,21 @@ func (s *simnet) repairAllCircuitFaults(simnode *simnode, deliverDroppedSends bo
 	// clear the deaf/drop probabilities from each conn.
 
 	for _, conn := range s.circuits[simnode] {
-		if conn.deafRead <= 0 && conn.dropSend <= 0 {
-			continue
-		}
-		//vv("repairAllCircuitFaults: before zero out, conn=%v", conn)
+		conn.repair()
+	}
+}
+
+func (conn *simconn) repair() (changed int) {
+	//vv("repairAllCircuitFaults: before zero out, conn=%v", conn)
+	if conn.deafRead > 0 {
+		changed++
 		conn.deafRead = 0 // zero prob of deaf read.
+	}
+	if conn.dropSend > 0 {
+		changed++
 		conn.dropSend = 0 // zero prob of dropped send.
 	}
+	return
 }
 
 func (s *simnet) recheckHealthState(simnode *simnode, deliverDroppedSends bool) {
