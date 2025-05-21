@@ -863,6 +863,7 @@ type SimnetStatus struct {
 	GetSimnetStatusErr error
 	Cfg                SimNetConfig
 	ConnCount          int
+	LoneCliConnCount   int
 
 	ScenarioNum    int
 	ScenarioSeed   [32]byte

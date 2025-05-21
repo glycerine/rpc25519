@@ -471,6 +471,12 @@ func (z *SimnetStatus) String() (r string) {
 		r += fmt.Sprintf("%v\n", srv.String())
 	}
 
-	r += "}\n"
+	r += fmt.Sprintf("lone cli count(%v); not with a peer. conns(%v)\n", len(z.LoneCli), z.LoneCliConnCount)
+	for i, cli := range z.LoneCli {
+		r += fmt.Sprintf(" ===============================\n")
+		r += fmt.Sprintf(" =======  Simnet LoneCli Status[%v]  %v\n", i, cli.Name)
+		r += fmt.Sprintf("%v\n", cli.String())
+	}
+	//r += "}\n"
 	return
 }

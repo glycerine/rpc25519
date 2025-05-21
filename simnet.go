@@ -2042,6 +2042,8 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 			// note, each cli can only have one target, but
 			// for-range is much more convenient.
 			for target, conn := range s.circuits[origin] {
+				req.LoneCliConnCount++
+
 				connsum := &SimnetConnSummary{
 					OriginIsCli: origin.isCli,
 					// origin details
@@ -2076,6 +2078,10 @@ func (s *simnet) handleSimnetStatusRequest(req *SimnetStatus, now time.Time, loo
 					ServerBaseID: origin.serverBaseID,
 					Conn:         []*SimnetConnSummary{connsum},
 					Connmap:      map[string]*SimnetConnSummary{origin.name: connsum},
+				}
+				_, impos := req.LoneCli[origin.name]
+				if impos {
+					panic(fmt.Sprintf("should be impossible to have more than one connection per lone cli, they are clients. origin='%v'", origin))
 				}
 				req.LoneCli[origin.name] = sps
 			}
