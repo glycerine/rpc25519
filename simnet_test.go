@@ -1218,31 +1218,16 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 	onlyBubbled(t, func() { // fast, bubbleOrNot(func() { is very slow
 		cv.Convey("simnet client dropped sends should appear in the senders dropped send Q", t, func() {
 
-			cfg := NewConfig()
-			cfg.UseSimNet = true
-
-			cfg.ServerAddr = "127.0.0.1:0"
-			srv := NewServer("srv_test771", cfg)
-
-			vv("about to srv.Start() in 771")
-			t0 := time.Now()
-			serverAddr, err := srv.Start()
-			vv("back from srv.Start() in 771, elap = %v", time.Since(t0))
-
-			panicOn(err)
+			simt, cfg := newSimnetTest(t, "test771")
+			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
+			_, _ = srvname, cliname
 			defer srv.Close()
+			defer cli.Close()
 
-			simnet := cfg.GetSimnet()
 			serviceName := "customEcho"
 			srv.Register2Func(serviceName, customEcho)
 
-			cfg.ClientDialToHostPort = serverAddr.String()
-			cli, err := NewClient("cli_test771", cfg)
-			panicOn(err)
-			err = cli.Start()
-			panicOn(err)
-			defer cli.Close()
-
+			//injectFault(t
 			injectFaultDD := func() {
 				dd := DropDeafSpec{
 					//UpdateDeafReads:  true,
@@ -1257,7 +1242,7 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 				const deliverDroppedSends_NO = false
 
 				//err = simnet.HostFault(srv.simnode.name, dd, deliverDroppedSends_NO)
-				err = simnet.HostFault(cli.simnode.name, dd, deliverDroppedSends_NO)
+				err := simnet.HostFault(cli.simnode.name, dd, deliverDroppedSends_NO)
 				panicOn(err)
 				vv("client cannot send")
 			}
@@ -1324,4 +1309,48 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 
 		})
 	})
+}
+
+type simnetTest struct {
+	cfg   *Config
+	short string // short test name
+	t     *testing.T
+}
+
+func newSimnetTest(t *testing.T, shortTestName string) (simt *simnetTest, cfg *Config) {
+	cfg = NewConfig()
+	cfg.UseSimNet = true
+
+	return &simnetTest{
+		cfg:   cfg,
+		short: shortTestName,
+		t:     t,
+	}, cfg
+}
+func setupSimnetTest(simt *simnetTest, cfg *Config) (
+	// returned:
+	cli *Client,
+	srv *Server,
+	simnet *simnet,
+	srvname string,
+	cliname string,
+) {
+
+	cfg.ServerAddr = "127.0.0.1:0"
+	srvname = "srv_" + simt.short
+	srv = NewServer(srvname, cfg)
+	vv("about to srv.Start() srvname = %v", srvname)
+	t0 := time.Now()
+	serverAddr, err := srv.Start()
+	vv("back from srv.Start() in 771, elap = %v", time.Since(t0))
+	panicOn(err)
+	simnet = cfg.GetSimnet()
+
+	cliname = "cli_" + simt.short
+	cfg.ClientDialToHostPort = serverAddr.String()
+	cli, err = NewClient(cliname, cfg)
+	panicOn(err)
+	err = cli.Start()
+	panicOn(err)
+	return
 }
