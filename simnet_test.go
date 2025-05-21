@@ -98,7 +98,7 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 				DropSendsNewProb: 1,
 			}
 			const deliverDroppedSends_NO = false
-			err = simnet.HostFault(srv.simnode.name, dd, deliverDroppedSends_NO)
+			err = simnet.FaultHost(srv.simnode.name, dd, deliverDroppedSends_NO)
 			panicOn(err)
 			vv("server partitioned, try cli call again. net: %v", simnet.GetSimnetSnapshot())
 
@@ -1135,7 +1135,7 @@ func Test770_simnetonly_server_dropped_sends(t *testing.T) {
 				// be used to time-warp packets while still faulted.
 				const deliverDroppedSends_NO = false
 
-				err = simnet.HostFault(srv.simnode.name, dd, deliverDroppedSends_NO)
+				err = simnet.FaultHost(srv.simnode.name, dd, deliverDroppedSends_NO)
 				panicOn(err)
 				vv("server cannot send")
 			}
@@ -1227,29 +1227,9 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 			serviceName := "customEcho"
 			srv.Register2Func(serviceName, customEcho)
 
-			//injectFault(t
-			injectFaultDD := func() {
-				dd := DropDeafSpec{
-					//UpdateDeafReads:  true,
-					//DeafReadsNewProb: 1,
-					UpdateDropSends:  true,
-					DropSendsNewProb: 1,
-				}
-
-				// this is for recover really, it typically only
-				// matters when faults are removed, but can
-				// be used to time-warp packets while still faulted.
-				const deliverDroppedSends_NO = false
-
-				//err = simnet.HostFault(srv.simnode.name, dd, deliverDroppedSends_NO)
-				err := simnet.HostFault(cli.simnode.name, dd, deliverDroppedSends_NO)
-				panicOn(err)
-				vv("client cannot send")
-			}
-
-			vv("client started. net before injectFaultDD: %v", simnet.GetSimnetSnapshot())
-			injectFaultDD()
-			vv("net after injectFaultDD: %v", simnet.GetSimnetSnapshot())
+			vv("client started. net before cliDropSends %v", simnet.GetSimnetSnapshot())
+			undoCliDrop := simt.clientDropsSends()
+			vv("net after cliDropsSends %v", simnet.GetSimnetSnapshot())
 
 			req := NewMessage()
 			req.HDR.ServiceName = serviceName
@@ -1286,6 +1266,8 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 			vv("err = '%v'; reply = %p", err, reply)
 
 			// repair the network
+			undoCliDrop()
+
 			const deliverDroppedSends_YES = true
 			const deliverDroppedSends_NO = false
 			const powerOnIfOff_YES = true
@@ -1312,9 +1294,12 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 }
 
 type simnetTest struct {
-	cfg   *Config
-	short string // short test name
-	t     *testing.T
+	cfg    *Config
+	short  string // short test name
+	simnet *simnet
+	t      *testing.T
+	cli    *Client
+	srv    *Server
 }
 
 func newSimnetTest(t *testing.T, shortTestName string) (simt *simnetTest, cfg *Config) {
@@ -1352,5 +1337,37 @@ func setupSimnetTest(simt *simnetTest, cfg *Config) (
 	panicOn(err)
 	err = cli.Start()
 	panicOn(err)
+
+	simt.simnet = simnet
+	simt.srv = srv
+	simt.cli = cli
+	return
+}
+
+func (t *simnetTest) clientDropsSends() (undo func()) {
+
+	dd := DropDeafSpec{
+		UpdateDropSends:  true,
+		DropSendsNewProb: 1,
+	}
+
+	// this is for recover really, it typically only
+	// matters when faults are removed, but can
+	// be used to time-warp packets while still faulted.
+	const deliverDroppedSends_NO = false
+
+	//err = simnet.FaultHost(srv.simnode.name, dd, deliverDroppedSends_NO)
+	err := t.simnet.FaultHost(t.cli.simnode.name, dd, deliverDroppedSends_NO)
+	panicOn(err)
+	undo = func() {
+		dd := DropDeafSpec{
+			UpdateDropSends:  true,
+			DropSendsNewProb: 0,
+		}
+		err := t.simnet.FaultHost(t.cli.simnode.name, dd, deliverDroppedSends_NO)
+		panicOn(err)
+	}
+
+	vv("clientDropsSends done")
 	return
 }

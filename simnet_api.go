@@ -269,7 +269,7 @@ const (
 )
 
 // empty string target means all possible targets
-func (s *simnet) CircuitFault(origin, target string, dd DropDeafSpec, deliverDroppedSends bool) (err error) {
+func (s *simnet) FaultCircuit(origin, target string, dd DropDeafSpec, deliverDroppedSends bool) (err error) {
 
 	fault := newCircuitFault(origin, target, dd, deliverDroppedSends)
 
@@ -292,7 +292,7 @@ func (s *simnet) CircuitFault(origin, target string, dd DropDeafSpec, deliverDro
 	return
 }
 
-func (s *simnet) HostFault(hostName string, dd DropDeafSpec, deliverDroppedSends bool) (err error) {
+func (s *simnet) FaultHost(hostName string, dd DropDeafSpec, deliverDroppedSends bool) (err error) {
 
 	fault := newHostFault(hostName, dd, deliverDroppedSends)
 
