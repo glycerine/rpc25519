@@ -307,7 +307,7 @@ func (s *simnodeAlteration) String() (r string) {
 	}
 	r = "&simnodeAlteration{\n"
 	r += fmt.Sprintf(" simnet: %v\n", s.simnet)
-	r += fmt.Sprintf("simnode: %v\n", s.simnode)
+	r += fmt.Sprintf("simnode: %v\n", s.simnodeName)
 	r += fmt.Sprintf("  alter: %v\n", s.alter)
 	r += "}\n"
 	return

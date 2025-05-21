@@ -630,13 +630,13 @@ type simnodeAlteration struct {
 	simnodeName string
 	err         error // e.g. simnodeName not found
 
-	simnode     *simnode
-	alter       Alteration
+	alter Alteration
+	undo  Alteration // how to reverse the alter
+
 	isHostAlter bool
 	done        chan struct{}
 }
 
-// func (s *simnet) newCircuitAlteration(simnode *simnode, alter Alteration, isHostAlter bool) *simnodeAlteration {
 func (s *simnet) newCircuitAlteration(simnodeName string, alter Alteration, isHostAlter bool) *simnodeAlteration {
 	return &simnodeAlteration{
 		simnet: s,
@@ -648,9 +648,11 @@ func (s *simnet) newCircuitAlteration(simnodeName string, alter Alteration, isHo
 	}
 }
 
-func (s *simnet) alterCircuit(simnodeName string, alter Alteration, wholeHost bool) (err error) {
+func (s *simnet) AlterCircuit(simnodeName string, alter Alteration, wholeHost bool) (err error) {
+	var undo Alteration
 	if wholeHost {
-		err = s.alterHost(simnodeName, alter)
+		undo, err = s.AlterHost(simnodeName, alter)
+		_ = undo
 		return
 	}
 
@@ -671,7 +673,13 @@ func (s *simnet) alterCircuit(simnodeName string, alter Alteration, wholeHost bo
 	return
 }
 
-func (s *simnet) alterHost(simnodeName string, alter Alteration) (err error) {
+// we cannot guarantee that the undo will reverse all the
+// changes if fine grained faults are in place; e.g. if
+// only one auto-cli was down and we shutdown
+// the host, the undo of restart will also bring up that
+// auto-cli too. The undo is still very useful for tests
+// even without that guarantee.
+func (s *simnet) AlterHost(simnodeName string, alter Alteration) (undo Alteration, err error) {
 
 	alt := s.newCircuitAlteration(simnodeName, alter, true)
 	select {
@@ -682,6 +690,7 @@ func (s *simnet) alterHost(simnodeName string, alter Alteration) (err error) {
 	}
 	select {
 	case <-alt.done:
+		undo = alt.undo
 		err = alt.err
 		//vv("host altered: %v", simnode)
 	case <-s.halt.ReqStop.Chan:

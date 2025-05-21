@@ -1397,9 +1397,30 @@ func (t *simnetTest) nodeDeaf(node *simnode) (undo func()) {
 	return
 }
 
+func (t *simnetTest) AlterServer(alt Alteration) (undo func()) {
+	return t.alterNode(t.srv.simnode, alt)
+}
+
+func (t *simnetTest) AlterClient(alt Alteration) (undo func()) {
+	return t.alterNode(t.cli.simnode, alt)
+}
+
+func (t *simnetTest) alterNode(node *simnode, alt Alteration) (undo func()) {
+
+	was, err := t.simnet.AlterHost(node.name, alt)
+	panicOn(err)
+	undo = func() {
+		_, err := t.simnet.AlterHost(node.name, was)
+		panicOn(err)
+	}
+
+	//vv("alterHost done for '%v'", node.name)
+	return
+}
+
 func Test781_simnetonly_client_isolated(t *testing.T) {
 
-	// same as 771 but use AlterHost
+	// same as 771 but use AlterHost -> ISOLATED
 	onlyBubbled(t, func() {
 		cv.Convey("simnet ISOLATED client dropped sends should appear in the client's dropped send Q", t, func() {
 
@@ -1412,7 +1433,7 @@ func Test781_simnetonly_client_isolated(t *testing.T) {
 			srv.Register2Func(serviceName, customEcho)
 
 			//vv("simnet before cliDropSends %v", simnet.GetSimnetSnapshot())
-			undoCliDrop := simt.clientDropsSends()
+			undoIsolated := simt.AlterClient(ISOLATE)
 			//vv("simnet after cliDropsSends %v", simnet.GetSimnetSnapshot())
 
 			req := NewMessage()
@@ -1452,7 +1473,7 @@ func Test781_simnetonly_client_isolated(t *testing.T) {
 			//vv("err = '%v'; reply = %p", err, reply)
 
 			// repair the network
-			undoCliDrop()
+			undoIsolated()
 
 			//vv("after cli repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
 

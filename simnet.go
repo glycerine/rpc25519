@@ -1000,17 +1000,21 @@ func (s *simnet) unIsolateSimnode(simnode *simnode) {
 }
 
 func (s *simnet) handleAlterCircuit(alt *simnodeAlteration, closeDone bool) {
+
+	var undo Alteration
 	defer func() {
 		if closeDone {
+			alt.undo = undo
 			close(alt.done)
 		}
 	}()
 
 	simnode, ok := s.dns[alt.simnodeName]
 	if !ok {
-		alt.err = fmt.Errorf("could not find simnodeName '%v' in dns: '%v'", alt.simnodeName, s.dns)
+		alt.err = fmt.Errorf("error: handleAlterCircuit could not find simnodeName '%v' in dns: '%v'", alt.simnodeName, s.dns)
 		return
 	}
+
 	switch alt.alter {
 	case SHUTDOWN:
 		s.shutdownSimnode(simnode)
@@ -1023,11 +1027,49 @@ func (s *simnet) handleAlterCircuit(alt *simnodeAlteration, closeDone bool) {
 	}
 }
 
+func (s *simnet) undoForNode(node *simnode, alt Alteration) (undo Alteration) {
+
+	// switch node.state {
+	// case ISOLATED:
+	// case FAULTY_ISOLATED:
+	// case FAULTY:
+	// case HEALTHY:
+	// }
+
+	switch alt {
+	case ISOLATE:
+		undo = UNISOLATE
+	case UNISOLATE:
+		undo = ISOLATE
+	case SHUTDOWN:
+		undo = RESTART
+	case RESTART:
+		if node.powerOff {
+			undo = SHUTDOWN
+		} else {
+			undo = RESTART
+		}
+	}
+	return
+}
+
 // alter all the auto-cli of a server and the server itself.
 func (s *simnet) handleAlterHost(alt *simnodeAlteration) {
+
+	node, ok := s.dns[alt.simnodeName]
+	if !ok {
+		alt.err = fmt.Errorf("error: handleAlterHost could not find simnodeName '%v' in dns: '%v'", alt.simnodeName, s.dns)
+		return
+	}
+
+	alt.undo = s.undoForNode(node, alt.alter)
+
+	// alter all auto-cli and the peer's server.
+	// note that s.locals(node) now returns a single
+	// node map for lone clients, so this works for them too.
 	const closeDone_NO = false
-	for node := range s.locals(alt.simnode) { // includes srvnode itself
-		alt.simnode = node
+	for node := range s.locals(node) { // includes srvnode itself
+		alt.simnodeName = node.name
 		s.handleAlterCircuit(alt, closeDone_NO)
 	}
 	close(alt.done)
