@@ -153,6 +153,15 @@ type simconn struct {
 	// 0 means normal operation, not dropping sends (default).
 	// The other end can still be deaf to the send; see deafRead.
 	dropSend float64
+
+	// stats, to match probs.
+	attemptedRead     int64
+	attemptedReadDeaf int64
+	attemptedReadOK   int64
+
+	attemptedSend        int64
+	attemptedSendDropped int64
+	attemptedSendOK      int64
 }
 
 func newSimconn() *simconn {

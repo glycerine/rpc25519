@@ -295,8 +295,6 @@ type simnode struct {
 	// count of probabilistically dropped/deaf
 	droppedSendDueToProb int64
 	deafReadDueToProb    int64
-	attemptedRead        int64
-	attemptedSend        int64
 }
 
 func (s *simnet) locals(node *simnode) map[*simnode]bool {
@@ -1171,11 +1169,23 @@ func (s *simnet) localDeafRead(read *mop) (isDeaf bool) {
 
 	// get the local (read) origin conn probability of deafness
 	// note: not the remote's deafness, only local.
-	prob := s.circuits[read.origin][read.target].deafRead
-	// trials not independent, as below for sends.
-	isDeaf = s.deaf(prob * float64(read.readAttempt) / float64(read.origin.attemptedRead))
+	conn := s.circuits[read.origin][read.target]
+	prob := conn.deafRead
+
+	conn.attemptedRead++ // at least 1.
+
+	freq := float64(conn.attemptedReadDeaf) / float64(conn.attemptedRead)
+
+	isDeaf = freq < prob
+
+	//isDeaf = s.deaf(prob)
+	//  * float64(read.readAttempt) / float64(read.origin.attemptedRead))
+
 	if isDeaf {
 		//vv("localDeafRead: prob=%v; isDeaf=%v", prob, isDeaf)
+		conn.attemptedReadDeaf++
+	} else {
+		conn.attemptedReadOK++
 	}
 	return
 }
@@ -1208,13 +1218,24 @@ func (s *simnet) dropped(prob float64) bool {
 
 func (s *simnet) localDropSend(send *mop) (isDropped bool) {
 	// get the local origin conn probability of drop
-	prob := s.circuits[send.origin][send.target].dropSend
 
+	conn := s.circuits[send.origin][send.target]
+	prob := conn.dropSend
 	// trials are not independent, for prob to
 	// converge, must be multiplied by number of attempts.
 	//isDropped = s.dropped(prob * float64(send.sendAttempt) / float64(send.origin.attemptedSend))
-	isDropped = s.dropped(prob / float64(send.origin.attemptedSend))
+
+	conn.attemptedSend++ // at least 1.
+	freq := float64(conn.attemptedSendDropped) / float64(conn.attemptedSend)
+	isDropped = freq < prob
+
+	//isDropped = s.dropped(prob / float64(send.origin.attemptedSend))
 	//vv("localDropSend: prob=%v; isDropped=%v", prob, isDropped)
+	if isDropped {
+		conn.attemptedSendDropped++
+	} else {
+		conn.attemptedSendOK++
+	}
 	return isDropped
 }
 
@@ -1431,8 +1452,6 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 		simnode.optionallyApplyChaos()
 
 		// realized that dropping in handleSend only works if prod drop == 1
-		send.sendAttempt++
-		send.origin.attemptedSend++
 		drop := s.localDropSend(send)
 		if drop {
 			send.origin.droppedSendDueToProb++
@@ -1457,8 +1476,6 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 		//}
 		// INVAR: send is okay to deliver wrt faults.
 
-		read.readAttempt++
-		read.origin.attemptedRead++
 		deaf := s.localDeafRead(read)
 		if deaf {
 			read.origin.deafReadDueToProb++
