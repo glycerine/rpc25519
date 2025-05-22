@@ -122,6 +122,9 @@ func (s *simnet) equilibrateReads(origin, target *simnode) {
 	} else {
 		vv("top equilibrateReads(origin='%v', target='%v')", origin.name, target.name)
 	}
+	defer func() {
+		vv("end equilibrateReads, simnet = %v", s.qReport())
+	}()
 
 	var addToReadQ, addToDeafReadQ []*mop
 
@@ -421,7 +424,7 @@ func (s *simnet) localCircuitFaultsPresent(origin, target *simnode) bool {
 func (s *simnet) localCircuitDeafForSure(origin, target *simnode) bool {
 	for rem, conn := range s.circuits[origin] {
 		if target == nil || target == rem {
-			if conn.deafRead >= 0 {
+			if conn.deafRead >= 1 {
 				return true // not healthy
 			}
 		}
@@ -435,12 +438,12 @@ func (s *simnet) localCircuitDeafForSure(origin, target *simnode) bool {
 func (s *simnet) localCircuitNotDeafForSure(origin, target *simnode) bool {
 	for rem, conn := range s.circuits[origin] {
 		if target == nil || target == rem {
-			if conn.deafRead <= 0 {
-				return true // healthy
+			if conn.deafRead > 0 {
+				return false
 			}
 		}
 	}
-	return false
+	return true
 }
 
 // deafen reads/drop sends that were started
