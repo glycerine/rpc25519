@@ -1221,8 +1221,9 @@ func (s *simnet) handleSend(send *mop) {
 	send.arrivalTm = userMaskTime(send.initTm.Add(s.scenario.rngHop()))
 	send.completeTm = time.Now() // send complete on the sender side.
 
+	probDrop := s.circuits[send.origin][send.target].dropSend
 	if !s.statewiseConnected(send.origin, send.target) ||
-		s.localDropSend(send) {
+		probDrop >= 1 { // s.localDropSend(send) {
 
 		//vv("handleSend DROP SEND %v", send)
 		send.origin.droppedSendQ.add(send)
@@ -1243,8 +1244,10 @@ func (s *simnet) handleRead(read *mop) {
 	origin := read.origin
 	read.originLC = origin.lc
 
+	probDeaf := s.circuits[read.origin][read.target].deafRead
 	if !s.statewiseConnected(read.origin, read.target) ||
-		s.localDeafRead(read) {
+		probDeaf >= 1 {
+		// 	s.localDeafRead(read) {
 
 		//vv("DEAF READ %v", read)
 		origin.deafReadQ.add(read)
@@ -1404,19 +1407,20 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 
 		simnode.optionallyApplyChaos()
 
-		if !s.statewiseConnected(send.origin, send.target) { //||
-			// Only check statewise connection here, drop
-			// probability was already checked in handleSend?
-			//s.localDropSend(send) {
+		// realized that dropping in handleSend only works if prod drop == 1
+		if !s.statewiseConnected(send.origin, send.target) ||
+			s.localDropSend(send) {
 
 			//vv("dispatchReadsSends DROP SEND %v", send)
 			// note that the dropee is stored on the send.origin
 			// in the droppedSendQ, which is never the same
 			// as simnode here which supplied from its preArrQ.
-			send.origin.droppedSendQ.add(send)
-			delit := preIt
-			preIt = preIt.Next()
-			simnode.preArrQ.Tree.DeleteWithIterator(delit)
+			/*
+				send.origin.droppedSendQ.add(send)
+				delit := preIt
+				preIt = preIt.Next()
+				simnode.preArrQ.Tree.DeleteWithIterator(delit)
+			*/
 			continue
 		}
 		// INVAR: send is okay to deliver wrt faults.
