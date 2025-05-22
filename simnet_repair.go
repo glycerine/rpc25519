@@ -444,6 +444,7 @@ func (s *simnet) localCircuitNotDeafForSure(origin, target *simnode) bool {
 			}
 		}
 	}
+	// all are <= 0
 	return true
 }
 
