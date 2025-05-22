@@ -286,6 +286,10 @@ type simnode struct {
 	autocli map[*simnode]*simconn
 	// autocli + self
 	allnode map[*simnode]bool
+
+	// count of probabilistically dropped/deaf
+	probDroppedSend int
+	probDeafRead    int
 }
 
 func (s *simnet) locals(node *simnode) map[*simnode]bool {
@@ -1246,8 +1250,7 @@ func (s *simnet) handleRead(read *mop) {
 
 	probDeaf := s.circuits[read.origin][read.target].deafRead
 	if !s.statewiseConnected(read.origin, read.target) ||
-		probDeaf >= 1 {
-		// 	s.localDeafRead(read) {
+		probDeaf >= 1 { // 	s.localDeafRead(read) {
 
 		//vv("DEAF READ %v", read)
 		origin.deafReadQ.add(read)
@@ -1408,30 +1411,37 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 		simnode.optionallyApplyChaos()
 
 		// realized that dropping in handleSend only works if prod drop == 1
-		if !s.statewiseConnected(send.origin, send.target) ||
-			s.localDropSend(send) {
+		if !s.statewiseConnected(send.origin, send.target) {
 
 			//vv("dispatchReadsSends DROP SEND %v", send)
 			// note that the dropee is stored on the send.origin
 			// in the droppedSendQ, which is never the same
 			// as simnode here which supplied from its preArrQ.
-			/*
-				send.origin.droppedSendQ.add(send)
-				delit := preIt
-				preIt = preIt.Next()
-				simnode.preArrQ.Tree.DeleteWithIterator(delit)
-			*/
+			send.origin.droppedSendQ.add(send)
+			delit := preIt
+			preIt = preIt.Next()
+			simnode.preArrQ.Tree.DeleteWithIterator(delit)
+			continue
+		}
+		if s.localDropSend(send) {
+			//vv("skipping send b/c prob of drop happenned.") // seen
+			send.origin.probDroppedSend++
+			preIt = preIt.Next()
 			continue
 		}
 		// INVAR: send is okay to deliver wrt faults.
 
-		if !s.statewiseConnected(read.origin, read.target) ||
-			s.localDeafRead(read) {
+		if !s.statewiseConnected(read.origin, read.target) {
 			//vv("dispatchReadsSends DEAF READ %v", read)
 			simnode.deafReadQ.add(read)
 			delit := readIt
 			readIt = readIt.Next()
 			simnode.readQ.Tree.DeleteWithIterator(delit)
+			continue
+		}
+		if s.localDeafRead(read) {
+			read.origin.probDeafRead++
+			readIt = readIt.Next()
 			continue
 		}
 
@@ -1474,7 +1484,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 			pending.completeTm = now.Add(dur)
 			pending.timerFileLine = fileLine(1)
 			pending.internalPendingTimer = true
-			simnode.net.handleTimer(pending)
+			s.handleTimer(pending)
 			return
 		}
 		// INVAR: this send.arrivalTm <= now; good to deliver.

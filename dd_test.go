@@ -42,7 +42,7 @@ func Test1001_simnetonly_drop_prob(t *testing.T) {
 			} else {
 				undoIsolated = simt.serverDropsSends(dropPct)
 			}
-			//vv("after clientDropsSends(%v): %v", dropPct, simnet.GetSimnetSnapshot())
+			vv("after clientDropsSends(%v): %v", dropPct, simnet.GetSimnetSnapshot())
 			//vv("after clientDropsSends(%v): %v", dropPct, simnet.GetSimnetSnapshot().ShortString())
 			got, goterr := 0, 0
 			waitFor := 1000 * time.Millisecond
