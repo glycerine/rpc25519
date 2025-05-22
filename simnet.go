@@ -288,99 +288,6 @@ type simnode struct {
 	allnode map[*simnode]bool
 }
 
-// defean reads/drop sends that were started
-// but still in progress with this fault.
-func (s *simnet) addFaultsToPQ(now time.Time, origin, target *simnode, dd DropDeafSpec) {
-
-	if !dd.UpdateDeafReads && !dd.UpdateDropSends {
-		return
-	}
-	if dd.UpdateDeafReads && dd.DeafReadsNewProb > 0 {
-		s.addFaultsToReadQ(now, origin, target, dd.DeafReadsNewProb)
-	}
-	if dd.UpdateDropSends && dd.DropSendsNewProb > 0 {
-		s.addSendFaults(now, origin, target, dd.DropSendsNewProb)
-	}
-}
-
-func (s *simnet) addFaultsToReadQ(now time.Time, origin, target *simnode, deafReadProb float64) {
-
-	readIt := origin.readQ.Tree.Min()
-	for readIt != origin.readQ.Tree.Limit() {
-		read := readIt.Item().(*mop)
-		if target == nil || read.target == target {
-			if s.deaf(deafReadProb) {
-
-				//vv("deaf fault enforced on read='%v'", read)
-				// don't mark them, so we can restore them later.
-				origin.deafReadQ.add(read)
-
-				// advance readIt, and delete behind
-				delmeIt := readIt
-				readIt = readIt.Next()
-				origin.readQ.Tree.DeleteWithIterator(delmeIt)
-				continue
-			}
-		}
-		readIt = readIt.Next()
-	}
-}
-
-func (s *simnet) addSendFaults(now time.Time, originNowFaulty, target *simnode, dropSendProb float64) {
-
-	// have to look for origin's sends in all other pre-arrQ...
-	// and check all, in case disconnect happened since the send.
-	for other := range s.circuits {
-		if other == originNowFaulty {
-			// No way at present for a TCP client or server
-			// to read or send to itself. Different sockets
-			// on the same host would be different nodes.
-			continue
-		}
-		if target != nil && other != target {
-			continue
-		}
-		// INVAR: target == nil || other == target
-		// target == nil means add faults to all of originNowFaulty conns
-
-		sendIt := other.preArrQ.Tree.Min()
-		for sendIt != other.preArrQ.Tree.Limit() {
-
-			send := sendIt.Item().(*mop)
-
-			if gte(send.arrivalTm, now) {
-				// droppable, due to arrive >= now, keep going below.
-			} else {
-				// INVAR: smallest time send < now.
-				//
-				// preArrQ is ordered by arrivalTm,
-				// but that doesn't let us short-circuit here,
-				// since we must fault everything due
-				// to arrive >= now. So we keep scanning.
-				continue
-			}
-			if send.origin == originNowFaulty {
-
-				if !s.statewiseConnected(send.origin, send.target) ||
-					s.dropped(dropSendProb) {
-
-					// easier to understand if we store on origin,
-					// not in targets pre-arr Q.
-					//vv("addSendFaults DROP SEND %v", send)
-					originNowFaulty.droppedSendQ.add(send)
-
-					// advance sendIt, and delete behind
-					delmeIt := sendIt
-					sendIt = sendIt.Next()
-					other.preArrQ.Tree.DeleteWithIterator(delmeIt)
-					continue
-				}
-			}
-			sendIt = sendIt.Next()
-		}
-	}
-}
-
 func (s *simnet) locals(node *simnode) map[*simnode]bool {
 	srvnode, ok := s.node2server[node]
 	if !ok {
@@ -1064,15 +971,49 @@ func (s *simnet) timeWarp_transferDroppedSendQ_to_PreArrQ(simnode, target *simno
 	for it != simnode.droppedSendQ.Tree.Limit() {
 		send := it.Item().(*mop)
 		if target == nil || target == send.target {
-			// put back on the target:
-			send.target.preArrQ.add(send)
-			delit := it
-			it = it.Next()
-			simnode.droppedSendQ.Tree.DeleteWithIterator(delit)
-			continue
+			// deliver to the target, if we are now connected.
+			if s.statewiseConnected(send.origin, send.target) {
+				send.target.preArrQ.add(send)
+				delit := it
+				it = it.Next()
+				simnode.droppedSendQ.Tree.DeleteWithIterator(delit)
+				continue
+			}
 		}
 		it = it.Next()
 	}
+}
+
+func (s *simnet) markFaulty(simnode *simnode) (was Faultstate) {
+	was = simnode.state
+
+	switch simnode.state {
+	case FAULTY_ISOLATED:
+		// no-op.
+	case FAULTY:
+		// no-op
+	case ISOLATED:
+		simnode.state = FAULTY_ISOLATED
+	case HEALTHY:
+		simnode.state = FAULTY
+	}
+	return
+}
+
+func (s *simnet) markNotFaulty(simnode *simnode) (was Faultstate) {
+	was = simnode.state
+
+	switch simnode.state {
+	case FAULTY_ISOLATED:
+		simnode.state = ISOLATED
+	case FAULTY:
+		simnode.state = HEALTHY
+	case ISOLATED:
+		// no-op
+	case HEALTHY:
+		// no-op
+	}
+	return
 }
 
 func (s *simnet) unIsolateSimnode(simnode *simnode) (undo Alteration) {
