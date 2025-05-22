@@ -407,17 +407,26 @@ func (z *SimnetConnSummary) String() (r string) {
 	r += fmt.Sprintf("TargetPoweroff: %v\n", z.TargetPoweroff)
 	r += fmt.Sprintf(" ----  origin side fault settings  ----\n")
 	drop, deaf := "(healthy)", "(healthy)"
+	alldrop, alldeaf := false, false
 	if z.DropSendProb > 0 {
 		drop = "(send dropped with probability)"
 		if z.DropSendProb >= 1 {
 			drop = "(all sends dropped)"
+			alldrop = true
 		}
 	}
 	if z.DeafReadProb > 0 {
 		deaf = "(read deaf with probability)"
 		if z.DeafReadProb >= 1 {
 			deaf = "(all reads deaf)"
+			alldeaf = true
 		}
+	}
+	if !alldrop && z.OriginState == ISOLATED {
+		drop += " but ISOLATED will drop any send."
+	}
+	if !alldeaf && z.OriginState == ISOLATED {
+		deaf += " but ISOLATED will deafen any read"
 	}
 	r += fmt.Sprintf("  DropSendProb: %0.2f %v\n", z.DropSendProb, drop)
 	r += fmt.Sprintf("  DeafReadProb: %0.2f %v\n", z.DeafReadProb, deaf)

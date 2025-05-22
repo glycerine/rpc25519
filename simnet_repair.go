@@ -62,7 +62,11 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 		}
 	}
 
-	if s.localCircuitFaultsPresent(origin) {
+	// use nil target so we check everything and
+	// can accurately set our state before
+	// doing the apply faults below and the
+	// equilibrate reads when defer runs.
+	if s.localCircuitFaultsPresent(origin, nil) {
 		s.markFaulty(origin)
 	} else {
 		s.markNotFaulty(origin)
@@ -74,12 +78,50 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 	return
 }
 
+// equilibrateReads conservatively moves
+// reads between the readQ and the deafReadQ,
+// based on the current connection state of
+// the end points of each origin read
+// (calling statewiseConnected). Only if
+// we know for sure now that the two
+// nodes are not isolated from each other,
+// and that there are no deaf read
+// probability left, do we transfer from
+// deafReadQ to readQ.
+//
+// We want to allow healing,
+// but in the case of only partial reapir,
+// we don't want to allow reads that were
+// assigned deaf with some probability before.
+// Otherwise our flakey card simulation
+// gets mooted.
+//
+// Conversely, the other direction is also
+// conservative, from readQ to deafRead.
+// So equilibrateReads only moves reads
+// to deafRead if the origin and the target
+// are structurally isolated or if the
+// local conn is definitely, fully, 100%
+// blocked to reads.
+//
+// In all other cases, we assume that the
+// client code wants to keep the probabilistic
+// "flaky network" in place. Code that
+// wants to clear all deaf reads into the readQ
+// should simply do that directly, by
+// calling the imperative transferDeafReadsQ_to_readsQ.
+//
 // called at the end of injectCircuitFault, before
 // any time warp delivery. We need to set and
 // clear deaf reads based on the current state
 // of the connection faults and each end's
 // isolation state.
 func (s *simnet) equilibrateReads(origin, target *simnode) {
+	if target == nil {
+		vv("top equilibrateReads(origin='%v', target='nil')", origin.name)
+	} else {
+		vv("top equilibrateReads(origin='%v', target='%v')", origin.name, target.name)
+	}
 
 	var addToReadQ, addToDeafReadQ []*mop
 
@@ -89,7 +131,15 @@ func (s *simnet) equilibrateReads(origin, target *simnode) {
 		read := it.Item().(*mop)
 		if target == nil || target == read.target {
 
-			if s.statewiseConnected(read.origin, read.target) {
+			// this will allow previously deaf reads
+			// to proceed, only if neither is isolated and there are
+			// no local circuit faults at all (even
+			// probabilitistically) at the origin; i.e.
+			// the probability of deaf reads on the
+			// connection is now zero.
+			if s.statewiseConnected(read.origin, read.target) &&
+				s.localCircuitNotDeafForSure(read.origin, read.target) {
+
 				addToReadQ = append(addToReadQ, read)
 				delit := it
 				it = it.Next()
@@ -105,7 +155,18 @@ func (s *simnet) equilibrateReads(origin, target *simnode) {
 		read := it.Item().(*mop)
 		if target == nil || target == read.target {
 
-			if !s.statewiseConnected(read.origin, read.target) {
+			// can we do this accurately without rolling
+			// the dice again? that could make determinism
+			// very hard. What can we reason about for sure?
+			// We can for sure deafen reads where the nodes
+			// are no longer statewise connected, and those
+			// where the probabilty of deaf read is 1.
+			// We will assume that if the prob is in (0,1)
+			// that we should not change any reads deaf/non-deaf
+			// state.
+			if !s.statewiseConnected(read.origin, read.target) ||
+				s.localCircuitDeafForSure(read.origin, read.target) {
+
 				addToDeafReadQ = append(addToDeafReadQ, read)
 				delit := it
 				it = it.Next()
@@ -264,7 +325,7 @@ func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (
 // If state is HEALTHY, this is a no-op.
 // If state is ISOLATED, this is a no-op.
 func (s *simnet) repairAllCircuitFaults(simnode *simnode) {
-	vv("top of repairAllCircuitFaults, simnode = '%v'", simnode.name)
+	vv("top of repairAllCircuitFaults, simnode = '%v'; state = %v", simnode.name, simnode.state)
 	//defer func() {
 	//vv("end of repairAllCircuitFaults")
 	//}()
@@ -336,19 +397,47 @@ func (conn *simconn) repair() (changed int) {
 	return
 }
 
-// only from simnode conn point of view
-func (s *simnet) localCircuitFaultsPresent(simnode *simnode) bool {
-	remotes, ok := s.circuits[simnode]
-	if !ok {
-		return false
-	}
-	for rem, conn := range remotes {
-		_ = rem
-		if conn.deafRead > 0 {
-			return true // not healthy
+// only from origin conn point of view. if
+// target is nil, we check all conn/circuits starting
+// at origin. otherwise just the conn from origin -> target.
+func (s *simnet) localCircuitFaultsPresent(origin, target *simnode) bool {
+
+	for rem, conn := range s.circuits[origin] {
+		if target == nil || target == rem {
+			if conn.deafRead > 0 {
+				return true // not healthy
+			}
+			if conn.dropSend > 0 {
+				return true // not healthy
+			}
 		}
-		if conn.dropSend > 0 {
-			return true // not healthy
+	}
+	return false
+}
+
+// only from origin conn point of view. if
+// target is nil, we check all conn/circuits starting
+// at origin. otherwise just the conn from origin -> target.
+func (s *simnet) localCircuitDeafForSure(origin, target *simnode) bool {
+	for rem, conn := range s.circuits[origin] {
+		if target == nil || target == rem {
+			if conn.deafRead >= 0 {
+				return true // not healthy
+			}
+		}
+	}
+	return false
+}
+
+// only from origin conn point of view. if
+// target is nil, we check all conn/circuits starting
+// at origin. otherwise just the conn from origin -> target.
+func (s *simnet) localCircuitNotDeafForSure(origin, target *simnode) bool {
+	for rem, conn := range s.circuits[origin] {
+		if target == nil || target == rem {
+			if conn.deafRead <= 0 {
+				return true // healthy
+			}
 		}
 	}
 	return false

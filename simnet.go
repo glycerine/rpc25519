@@ -971,13 +971,18 @@ func (s *simnet) transferPreArrQ_to_droppedSendQ(simnode *simnode) {
 }
 
 // dramatic network fault simulation: now deliver all "lost"
-// messages sitting in the droppedSendQ for simnode, to
+// messages sitting in the droppedSendQ for origin, to
 // each message target's preArrQ. If target is nil we
-// do this for all targets.
-func (s *simnet) timeWarp_transferDroppedSendQ_to_PreArrQ(simnode, target *simnode) {
+// do this for all targets. If the origin and the
+// target are not now statewiseConnected, the send
+// will not be recovered and will stay in the origin.droppedSendQ.
+// Since we always respect isolation state, the user
+// should unIsolate nodes first if they want to
+// hit them with time-warped (previously dropped) messsages.
+func (s *simnet) timeWarp_transferDroppedSendQ_to_PreArrQ(origin, target *simnode) {
 
-	it := simnode.droppedSendQ.Tree.Min()
-	for it != simnode.droppedSendQ.Tree.Limit() {
+	it := origin.droppedSendQ.Tree.Min()
+	for it != origin.droppedSendQ.Tree.Limit() {
 		send := it.Item().(*mop)
 		if target == nil || target == send.target {
 			// deliver to the target, if we are now connected.
@@ -985,7 +990,7 @@ func (s *simnet) timeWarp_transferDroppedSendQ_to_PreArrQ(simnode, target *simno
 				send.target.preArrQ.add(send)
 				delit := it
 				it = it.Next()
-				simnode.droppedSendQ.Tree.DeleteWithIterator(delit)
+				origin.droppedSendQ.Tree.DeleteWithIterator(delit)
 				continue
 			}
 		}
@@ -1026,7 +1031,9 @@ func (s *simnet) markNotFaulty(simnode *simnode) (was Faultstate) {
 }
 
 func (s *simnet) unIsolateSimnode(simnode *simnode) (undo Alteration) {
-	//vv("handleAlterCircuit: UNISOLATE %v, going from %v -> HEALTHY", simnode.state, simnode.name)
+	was := simnode.state
+	_ = was
+	//defer vv("handleAlterCircuit: UNISOLATE %v, went from %v -> %v", simnode.name, was, simnode.state)
 	switch simnode.state {
 	case ISOLATED:
 		simnode.state = HEALTHY
@@ -1046,15 +1053,22 @@ func (s *simnet) unIsolateSimnode(simnode *simnode) (undo Alteration) {
 	// user will issue separate deliverDroppedSends flag
 	// on a fault/repair if they want to deliver "timewarped" lost
 	// messages from simnode.droppedSendQ. Leave it alone here.
-	//s.transferDroppedSendQ_to_preArrQ_on_target(simnode) // hypothetical
+	//s.timeWarp_transferDroppedSendQ_to_PreArrQ(origin, target)
 
 	// have to bring back the reads that went deaf during isolation.
 	// nil target means from all read targets.
-	s.transferDeafReadsQ_to_readsQ(simnode, nil)
+	// two choices here:
+	// 1) does everything:
+	//s.transferDeafReadsQ_to_readsQ(simnode, nil)
+	// 2) leaves probabilistic faulty conn alone:
+	s.equilibrateReads(simnode, nil)
 
 	// same needed on each connection to simnode
 	for remote := range s.circuits[simnode] {
-		s.transferDeafReadsQ_to_readsQ(remote, simnode)
+		// 1) does everything:
+		//s.transferDeafReadsQ_to_readsQ(remote, simnode)
+		// 2) leaves probabilist faulty conn alone:
+		s.equilibrateReads(remote, simnode)
 	}
 
 	return
