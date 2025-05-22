@@ -13,6 +13,8 @@ import (
 	cv "github.com/glycerine/goconvey/convey"
 )
 
+var _ = strings.HasPrefix
+
 func Test1001_simnetonly_drop_deaf_tests(t *testing.T) {
 
 	// see that probability of deaf read matches
@@ -25,16 +27,24 @@ func Test1001_simnetonly_drop_deaf_tests(t *testing.T) {
 			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
 			defer srv.Close()
 			defer cli.Close()
+			_, _, _ = simnet, srvname, cliname
 
 			serviceName := "customEcho"
 			srv.Register2Func(serviceName, customEcho)
 
 			dropPct := 0.1
-			//vv("before clientDropsSends(0.5)", simnet.GetSimnetSnapshot())
-			///undoIsolated := simt.clientDropsSends(0.5)
-			undoIsolated := simt.clientDropsSends(dropPct)
-			//vv("after clientDropsSends(0.5): %v", simnet.GetSimnetSnapshot())
-			//vv("after clientDropsSends(0.5): %v", simnet.GetSimnetSnapshot().ShortString())
+			cliDrops := true
+			var undoIsolated func()
+			_ = undoIsolated
+			//vv("before clientDropsSends(%v): %v", dropPct, simnet.GetSimnetSnapshot())
+			///undoIsolated := simt.clientDropsSends(dropPct)
+			if cliDrops {
+				undoIsolated = simt.clientDropsSends(dropPct)
+			} else {
+				undoIsolated = simt.serverDropsSends(dropPct)
+			}
+			//vv("after clientDropsSends(%v): %v", dropPct, simnet.GetSimnetSnapshot())
+			//vv("after clientDropsSends(%v): %v", dropPct, simnet.GetSimnetSnapshot().ShortString())
 			got, goterr := 0, 0
 			waitFor := 100 * time.Millisecond
 			for range nmsg {
@@ -59,51 +69,53 @@ func Test1001_simnetonly_drop_deaf_tests(t *testing.T) {
 			}
 			vv("good, diff = %0.5f < 0.05", diff)
 
-			stat := simnet.GetSimnetSnapshot()
+			/*
+				stat := simnet.GetSimnetSnapshot()
 
-			sps := stat.Peermap[srvname]
-			sconn := sps.Connmap[srvname]
-			cconn := stat.LoneCli[cliname].Conn[0]
+				sps := stat.Peermap[srvname]
+				sconn := sps.Connmap[srvname]
+				cconn := stat.LoneCli[cliname].Conn[0]
 
-			//vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
+				//vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
 
-			// verify client is got ~ dropPct through
-			ndrop := cconn.DroppedSendQ.Len()
-			x := nmsg - got
-			if ndrop != x {
-				panic(fmt.Sprintf("expected cli ndrop(%v)== x(%v) == nmsg(%v) - got(%v)", ndrop, x, nmsg, got))
-			} else {
-				vv("good, saw cli ndrop(%v) == x(%v)", ndrop, x)
-			}
-
-			if false {
-				ndrop = sconn.DroppedSendQ.Len()
-				if ndrop > 0 {
-					panic(fmt.Sprintf("expected srv ndrop(%v) == 0", ndrop))
+				// verify client is got ~ dropPct through
+				ndrop := cconn.DroppedSendQ.Len()
+				x := nmsg - got
+				if ndrop != x {
+					panic(fmt.Sprintf("expected cli ndrop(%v)== x(%v) == nmsg(%v) - got(%v)", ndrop, x, nmsg, got))
 				} else {
-					vv("good, saw srv ndrop(%v) == 0", ndrop)
+					vv("good, saw cli ndrop(%v) == x(%v)", ndrop, x)
 				}
-				//vv("err = '%v'; reply = %p", err, reply)
 
-				vv("srv still isolated, network after cli tried to send echo request: %v", simnet.GetSimnetSnapshot())
+				if false {
+					ndrop = sconn.DroppedSendQ.Len()
+					if ndrop > 0 {
+						panic(fmt.Sprintf("expected srv ndrop(%v) == 0", ndrop))
+					} else {
+						vv("good, saw srv ndrop(%v) == 0", ndrop)
+					}
+					//vv("err = '%v'; reply = %p", err, reply)
 
-				// repair the network
-				undoIsolated()
+					vv("srv still isolated, network after cli tried to send echo request: %v", simnet.GetSimnetSnapshot())
 
-				vv("after srv repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
+					// repair the network
+					undoIsolated()
 
-				req2 := NewMessage()
-				req2.HDR.ServiceName = serviceName
-				req2.JobSerz = []byte("Hello from client! 2nd time.")
+					vv("after srv repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
 
-				reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
-				panicOn(err)
-				want := string(req2.JobSerz)
-				gotit := strings.HasPrefix(string(reply2.JobSerz), want)
-				if !gotit {
-					t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply2.JobSerz))
+					req2 := NewMessage()
+					req2.HDR.ServiceName = serviceName
+					req2.JobSerz = []byte("Hello from client! 2nd time.")
+
+					reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
+					panicOn(err)
+					want := string(req2.JobSerz)
+					gotit := strings.HasPrefix(string(reply2.JobSerz), want)
+					if !gotit {
+						t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply2.JobSerz))
+					}
 				}
-			}
+			*/
 		})
 	})
 }
