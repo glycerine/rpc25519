@@ -1121,7 +1121,7 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 			srv.Register2Func(serviceName, customEcho)
 
 			//vv("simnet before cliDropSends %v", simnet.GetSimnetSnapshot())
-			undoCliDrop := simt.clientDropsSends()
+			undoCliDrop := simt.clientDropsSends(1)
 			//vv("simnet after cliDropsSends %v", simnet.GetSimnetSnapshot())
 
 			req := NewMessage()
@@ -1195,7 +1195,7 @@ func Test772_simnetonly_server_dropped_sends(t *testing.T) {
 			srv.Register2Func(serviceName, customEcho)
 
 			//vv("simnet before serverDropSends %v", simnet.GetSimnetSnapshot())
-			undoServerDrop := simt.serverDropsSends()
+			undoServerDrop := simt.serverDropsSends(1)
 			//vv("simnet after serverDropsSends %v", simnet.GetSimnetSnapshot())
 
 			req := NewMessage()
@@ -1328,18 +1328,18 @@ func (t *simnetTest) setAllHealthy() {
 	panicOn(err)
 }
 
-func (t *simnetTest) serverDropsSends() (undo func()) {
-	return t.nodeDropsSends(t.srv.simnode)
+func (t *simnetTest) serverDropsSends(prob float64) (undo func()) {
+	return t.nodeDropsSends(t.srv.simnode, prob)
 }
-func (t *simnetTest) clientDropsSends() (undo func()) {
-	return t.nodeDropsSends(t.cli.simnode)
+func (t *simnetTest) clientDropsSends(prob float64) (undo func()) {
+	return t.nodeDropsSends(t.cli.simnode, prob)
 }
 
-func (t *simnetTest) nodeDropsSends(node *simnode) (undo func()) {
+func (t *simnetTest) nodeDropsSends(node *simnode, prob float64) (undo func()) {
 
 	dd := DropDeafSpec{
 		UpdateDropSends:  true,
-		DropSendsNewProb: 1,
+		DropSendsNewProb: prob,
 	}
 
 	// this is for recover really, it typically only
@@ -1363,18 +1363,18 @@ func (t *simnetTest) nodeDropsSends(node *simnode) (undo func()) {
 	return
 }
 
-func (t *simnetTest) serverDeaf() (undo func()) {
-	return t.nodeDeaf(t.srv.simnode)
+func (t *simnetTest) serverDeaf(prob float64) (undo func()) {
+	return t.nodeDeaf(t.srv.simnode, prob)
 }
-func (t *simnetTest) clientDeaf() (undo func()) {
-	return t.nodeDeaf(t.cli.simnode)
+func (t *simnetTest) clientDeaf(prob float64) (undo func()) {
+	return t.nodeDeaf(t.cli.simnode, prob)
 }
 
-func (t *simnetTest) nodeDeaf(node *simnode) (undo func()) {
+func (t *simnetTest) nodeDeaf(node *simnode, prob float64) (undo func()) {
 
 	dd := DropDeafSpec{
 		UpdateDeafReads:  true,
-		DeafReadsNewProb: 1,
+		DeafReadsNewProb: prob,
 	}
 
 	// this is for recover really, it typically only
