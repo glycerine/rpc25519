@@ -427,11 +427,11 @@ func (z *SimnetConnSummary) String() (r string) {
 	}
 	if !alldrop && (z.OriginState == ISOLATED ||
 		z.OriginState == FAULTY_ISOLATED) {
-		drop += fmt.Sprintf(" but %v will drop any send.", z.OriginState)
+		drop += fmt.Sprintf(" but %v drops all -> sender's droppedSendQ", z.OriginState)
 	}
 	if !alldeaf && (z.OriginState == ISOLATED ||
 		z.OriginState == FAULTY_ISOLATED) {
-		deaf += fmt.Sprintf(" but %v will deafen any read", z.OriginState)
+		deaf += fmt.Sprintf(" but %v deafens all reads -> reader's deafReadQ", z.OriginState)
 	}
 	r += fmt.Sprintf("  DropSendProb: %0.2f %v\n", z.DropSendProb, drop)
 	r += fmt.Sprintf("  DeafReadProb: %0.2f %v\n", z.DeafReadProb, deaf)

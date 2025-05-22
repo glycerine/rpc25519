@@ -1424,7 +1424,7 @@ func Test781_simnetonly_client_isolated(t *testing.T) {
 	onlyBubbled(t, func() {
 		cv.Convey("simnet ISOLATED client dropped sends should appear in the client's dropped send Q", t, func() {
 
-			simt, cfg := newSimnetTest(t, "test771")
+			simt, cfg := newSimnetTest(t, "test781")
 			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
 			defer srv.Close()
 			defer cli.Close()
@@ -1478,6 +1478,84 @@ func Test781_simnetonly_client_isolated(t *testing.T) {
 			undoIsolated()
 
 			vv("after cli repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
+
+			req2 := NewMessage()
+			req2.HDR.ServiceName = serviceName
+			req2.JobSerz = []byte("Hello from client! 2nd time.")
+
+			reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
+			panicOn(err)
+			want := string(req2.JobSerz)
+			gotit := strings.HasPrefix(string(reply2.JobSerz), want)
+			if !gotit {
+				t.Fatalf("expected JobSerz to start with '%v' but got '%v'", want, string(reply2.JobSerz))
+			}
+
+		})
+	})
+}
+
+func Test782_simnetonly_server_isolated(t *testing.T) {
+
+	// same as 781 but for server (isolate with AlterHost -> ISOLATED)
+	onlyBubbled(t, func() {
+		cv.Convey("simnet ISOLATED server dropped sends should appear in the server's dropped send Q", t, func() {
+
+			simt, cfg := newSimnetTest(t, "test782")
+			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
+			defer srv.Close()
+			defer cli.Close()
+
+			serviceName := "customEcho"
+			srv.Register2Func(serviceName, customEcho)
+
+			vv("before simt.AlterServer(ISOLATE): %v", simnet.GetSimnetSnapshot())
+			undoIsolated := simt.AlterServer(ISOLATE)
+			//vv("after simt.AlterServer(ISOLATE): %v", simnet.GetSimnetSnapshot())
+			vv("after simt.AlterServer(ISOLATE): %v", simnet.GetSimnetSnapshot().ShortString())
+
+			req := NewMessage()
+			req.HDR.ServiceName = serviceName
+			req.JobSerz = []byte("Hello from client!")
+			waitFor := time.Second
+			reply, err := cli.SendAndGetReply(req, nil, waitFor)
+			if err == nil {
+				panic("wanted timeout could not see server")
+			}
+			if reply != nil {
+				panic(fmt.Sprintf("expected nil reply on error, got '%v'", reply))
+			}
+			// is dropped send visible? both cli and srv
+			stat := simnet.GetSimnetSnapshot()
+
+			sps := stat.Peermap[srvname]
+			sconn := sps.Connmap[srvname]
+			cconn := stat.LoneCli[cliname].Conn[0]
+
+			//vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
+
+			// verify client is not faulty in sending, only server.
+			ndrop := cconn.DroppedSendQ.Len()
+			if ndrop == 0 {
+				panic(fmt.Sprintf("expected cli ndrop(%v) > 0", ndrop))
+			} else {
+				vv("good, saw cli ndrop(%v) > 0", ndrop)
+			}
+
+			ndrop = sconn.DroppedSendQ.Len()
+			if ndrop > 0 {
+				panic(fmt.Sprintf("expected srv ndrop(%v) == 0", ndrop))
+			} else {
+				vv("good, saw srv ndrop(%v) == 0", ndrop)
+			}
+			//vv("err = '%v'; reply = %p", err, reply)
+
+			vv("srv still isolated, network after cli tried to send echo request: %v", simnet.GetSimnetSnapshot())
+
+			// repair the network
+			undoIsolated()
+
+			vv("after srv repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
 
 			req2 := NewMessage()
 			req2.HDR.ServiceName = serviceName
