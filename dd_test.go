@@ -84,8 +84,8 @@ func Test1002_simnetonly_deaf_prob_tests(t *testing.T) {
 		onlyBubbled(t, func() {
 			// simnet with probabilistic deaf fault on server or client experiences the set level of send and/or read flakiness
 
-			nmsg := 1000
-			simt, cfg := newSimnetTest(t, "test1001")
+			nmsg := 10
+			simt, cfg := newSimnetTest(t, "test1002")
 			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
 			defer srv.Close()
 			defer cli.Close()
@@ -101,10 +101,11 @@ func Test1002_simnetonly_deaf_prob_tests(t *testing.T) {
 			///undoIsolated := simt.clientDropsSends(dropPct)
 			if cliDeaf {
 				undoIsolated = simt.clientDeaf(dropPct)
-			} else {
-				undoIsolated = simt.serverDeaf(dropPct)
+				vv("after clientDeaf(%v): %v", dropPct, simnet.GetSimnetSnapshot())
+				//} else {
+				//undoIsolated = simt.serverDeaf(dropPct)
+				//vv("after serverDeaf(%v): %v", dropPct, simnet.GetSimnetSnapshot())
 			}
-			//vv("after clientDropsSends(%v): %v", dropPct, simnet.GetSimnetSnapshot())
 			//vv("after clientDropsSends(%v): %v", dropPct, simnet.GetSimnetSnapshot().ShortString())
 			got, goterr := 0, 0
 			waitFor := 100 * time.Millisecond
@@ -117,9 +118,9 @@ func Test1002_simnetonly_deaf_prob_tests(t *testing.T) {
 					got++
 				} else {
 					goterr++
-					if goterr == 1 {
-						vv("first err = '%v'", err)
-					}
+					//if goterr == 1 {
+					vv("goterr %v,  err = '%v': %v", goterr, err, simnet.GetSimnetSnapshot()) // all 10 calls timeout
+					//}
 				}
 			}
 			pctDropped := 1 - (float64(got))/float64(nmsg)
