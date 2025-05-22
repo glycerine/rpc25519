@@ -46,6 +46,8 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 		// no remote conn to adjust
 		return
 	}
+	defer s.equilibrateReads(origin, target) // allow any newly possible reads too.
+
 	// this is all "local/origin only" because
 	// our conn are just our local net.Conn equivalent.
 	// We don't adjust the other end at all.
@@ -60,15 +62,65 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 		}
 	}
 
-	if s.circuitFaultsPresent(origin) {
+	if s.localCircuitFaultsPresent(origin) {
 		s.markFaulty(origin)
 	} else {
 		s.markNotFaulty(origin)
 	}
+
 	now := time.Now() // TODO thread from caller in.
 	s.applyFaultsToPQ(now, origin, target, fault.DropDeafSpec)
 	//vv("after injectCircuitFault '%v', simnet: '%v'", fault.String(), s.schedulerReport())
 	return
+}
+
+// called at the end of injectCircuitFault, before
+// any time warp delivery. We need to set and
+// clear deaf reads based on the current state
+// of the connection faults and each end's
+// isolation state.
+func (s *simnet) equilibrateReads(origin, target *simnode) {
+
+	var addToReadQ, addToDeafReadQ []*mop
+
+	// scan deafReadQ first
+	it := origin.deafReadQ.Tree.Min()
+	for it != origin.deafReadQ.Tree.Limit() {
+		read := it.Item().(*mop)
+		if target == nil || target == read.target {
+
+			if s.statewiseConnected(read.origin, read.target) {
+				addToReadQ = append(addToReadQ, read)
+				delit := it
+				it = it.Next()
+				origin.deafReadQ.Tree.DeleteWithIterator(delit)
+				continue
+			}
+		}
+		it = it.Next()
+	}
+	// scan readQ second
+	it = origin.readQ.Tree.Min()
+	for it != origin.readQ.Tree.Limit() {
+		read := it.Item().(*mop)
+		if target == nil || target == read.target {
+
+			if !s.statewiseConnected(read.origin, read.target) {
+				addToDeafReadQ = append(addToDeafReadQ, read)
+				delit := it
+				it = it.Next()
+				origin.readQ.Tree.DeleteWithIterator(delit)
+				continue
+			}
+		}
+		it = it.Next()
+	}
+	for _, read := range addToReadQ {
+		origin.readQ.add(read)
+	}
+	for _, read := range addToDeafReadQ {
+		origin.deafReadQ.add(read)
+	}
 }
 
 func (s *simnet) injectHostFault(fault *hostFault) (err error) {
@@ -200,7 +252,8 @@ func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (
 // not isolation. POST invariant is that we are either
 // ISOLATED or HEALTHY. We will not be FAULTY or FAULTY_ISOLATED.
 //
-// We are called by handleCircuitRepair and recheckHealthState.
+// We are called by handleCircuitRepair and injectCircuitFault,
+// since the later can be used to remove faults too.
 //
 // If state is FAULTY, we go to HEALTHY.
 // If state is FAULTY_ISOLATED, we go to ISOLATED.
@@ -279,7 +332,8 @@ func (conn *simconn) repair() (changed int) {
 	return
 }
 
-func (s *simnet) circuitFaultsPresent(simnode *simnode) bool {
+// only from simnode conn point of view
+func (s *simnet) localCircuitFaultsPresent(simnode *simnode) bool {
 	remotes, ok := s.circuits[simnode]
 	if !ok {
 		return false
@@ -294,11 +348,11 @@ func (s *simnet) circuitFaultsPresent(simnode *simnode) bool {
 		}
 	}
 	return false
-	//s.repairAllCircuitFaults(simnode)
 }
 
-// defean reads/drop sends that were started
-// but still in progress with this fault.
+// deafen reads/drop sends that were started
+// but still in progress with this fault. Applies
+// to any sends that we arrive >= now.
 func (s *simnet) applyFaultsToPQ(now time.Time, origin, target *simnode, dd DropDeafSpec) {
 
 	if !dd.UpdateDeafReads && !dd.UpdateDropSends {
@@ -318,10 +372,10 @@ func (s *simnet) applyFaultsToReadQ(now time.Time, origin, target *simnode, deaf
 	for readIt != origin.readQ.Tree.Limit() {
 		read := readIt.Item().(*mop)
 		if target == nil || read.target == target {
-			if s.deaf(deafReadProb) {
+			if !s.statewiseConnected(read.origin, read.target) ||
+				s.deaf(deafReadProb) {
 
 				//vv("deaf fault enforced on read='%v'", read)
-				// don't mark them, so we can restore them later.
 				origin.deafReadQ.add(read)
 
 				// advance readIt, and delete behind
@@ -343,7 +397,8 @@ func (s *simnet) applySendFaults(now time.Time, originNowFaulty, target *simnode
 		if other == originNowFaulty {
 			// No way at present for a TCP client or server
 			// to read or send to itself. Different sockets
-			// on the same host would be different nodes.
+			// on the same host would be different nodes, so
+			// this does not suppress "loop back".
 			continue
 		}
 		if target != nil && other != target {
@@ -357,24 +412,27 @@ func (s *simnet) applySendFaults(now time.Time, originNowFaulty, target *simnode
 
 			send := sendIt.Item().(*mop)
 
-			if gte(send.arrivalTm, now) {
-				// droppable, due to arrive >= now, keep going below.
-			} else {
+			if send.arrivalTm.Before(now) {
 				// INVAR: smallest time send < now.
+				//
+				// Since this message is due to arrive
+				// before the fault at now, we let
+				// it be delivered.
 				//
 				// preArrQ is ordered by arrivalTm,
 				// but that doesn't let us short-circuit here,
 				// since we must fault everything due
-				// to arrive >= now. So we keep scanning.
+				// to arrive >= now. So we must continue
+				// scanning rather than return.
 				continue
 			}
+			// INVAR: message is droppable, due to arrive >= now
+
 			if send.origin == originNowFaulty {
 
 				if !s.statewiseConnected(send.origin, send.target) ||
 					s.dropped(dropSendProb) {
 
-					// easier to understand if we store on origin,
-					// not in targets pre-arr Q.
 					//vv("addSendFaults DROP SEND %v", send)
 					originNowFaulty.droppedSendQ.add(send)
 

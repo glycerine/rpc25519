@@ -923,6 +923,12 @@ func (s *simnet) transferReadsQ_to_deafReadsQ(simnode *simnode) {
 
 // transferDeafReadsQ_to_readsQ models
 // network repair that unisolates a node.
+//
+// The state of all nodes in the network should
+// be accurate before calling here. We will
+// only un-deafen reads that are now
+// possible between connected nodes.
+//
 // Deaf reads at origin can hear again.
 // If target == nil, we move all of origin.deafReadsQ to origin.readQ.
 // If target != nil, only those reads from target
@@ -935,11 +941,14 @@ func (s *simnet) transferDeafReadsQ_to_readsQ(origin, target *simnode) {
 	for it != origin.deafReadQ.Tree.Limit() {
 		read := it.Item().(*mop)
 		if target == nil || target == read.target {
-			origin.readQ.add(read)
-			delit := it
-			it = it.Next()
-			origin.deafReadQ.Tree.DeleteWithIterator(delit)
-			continue
+
+			if s.statewiseConnected(read.origin, read.target) {
+				origin.readQ.add(read)
+				delit := it
+				it = it.Next()
+				origin.deafReadQ.Tree.DeleteWithIterator(delit)
+				continue
+			}
 		}
 		it = it.Next()
 	}
