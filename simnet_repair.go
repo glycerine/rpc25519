@@ -424,12 +424,13 @@ func (s *simnet) localCircuitFaultsPresent(origin, target *simnode) bool {
 func (s *simnet) localCircuitDeafForSure(origin, target *simnode) bool {
 	for rem, conn := range s.circuits[origin] {
 		if target == nil || target == rem {
-			if conn.deafRead >= 1 {
-				return true // not healthy
+			if conn.deafRead < 1 {
+				return false
 			}
 		}
 	}
-	return false
+	// all are >= 1
+	return true
 }
 
 // only from origin conn point of view. if
