@@ -117,14 +117,14 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 // of the connection faults and each end's
 // isolation state.
 func (s *simnet) equilibrateReads(origin, target *simnode) {
-	if target == nil {
-		vv("top equilibrateReads(origin='%v', target='nil')", origin.name)
-	} else {
-		vv("top equilibrateReads(origin='%v', target='%v')", origin.name, target.name)
-	}
-	defer func() {
-		vv("end equilibrateReads, simnet = %v", s.qReport())
-	}()
+	//if target == nil {
+	//	vv("top equilibrateReads(origin='%v', target='nil')", origin.name)
+	//} else {
+	//	vv("top equilibrateReads(origin='%v', target='%v')", origin.name, target.name)
+	//}
+	//defer func() {
+	//	vv("end equilibrateReads, simnet = %v", s.qReport())
+	//}()
 
 	var addToReadQ, addToDeafReadQ []*mop
 
