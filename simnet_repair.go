@@ -222,6 +222,7 @@ func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (
 	}
 	if repair.justOriginHealed {
 		//vv("handleCircuitRepair sees justOriginHealed, returning w/o touching targets")
+		s.equilibrateReads(origin, nil) // allow any newly possible reads too.
 		return
 	}
 
@@ -233,6 +234,9 @@ func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (
 			return
 		}
 	}
+
+	defer s.equilibrateReads(origin, target) // allow any newly possible reads too.
+
 	for remote := range s.circuits[origin] {
 		if target == nil || target == remote {
 			//vv("handleCircuitRepair about clear target remote '%v'", remote.name)
