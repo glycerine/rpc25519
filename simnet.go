@@ -94,6 +94,8 @@ type mop struct {
 	// probability by the number of attempts at delivery/read
 	readAttempt int64
 	sendAttempt int64
+
+	passOKprob int64 // >0 => probability already applied, and ok to send.
 }
 
 func (s *mop) clone() (c *mop) {
@@ -1216,27 +1218,31 @@ func (s *simnet) dropped(prob float64) bool {
 //	return s.circuits[send.origin][send.target].dropSend
 //}
 
-func (s *simnet) localDropSend(send *mop) (isDropped bool) {
+func (s *simnet) localDropSend(send *mop) (isDropped bool, connAttemptedSend int64) {
 	// get the local origin conn probability of drop
 
 	conn := s.circuits[send.origin][send.target]
 	prob := conn.dropSend
-	// trials are not independent, for prob to
-	// converge, must be multiplied by number of attempts.
-	//isDropped = s.dropped(prob * float64(send.sendAttempt) / float64(send.origin.attemptedSend))
 
 	conn.attemptedSend++ // at least 1.
+	connAttemptedSend = conn.attemptedSend
 	freq := float64(conn.attemptedSendDropped) / float64(conn.attemptedSend)
 	isDropped = freq < prob
 
+	// trials are not independent, for prob to
+	// converge, must be multiplied by number of attempts.
+	send.sendAttempt++
+	isDropped2 := s.dropped(prob * float64(send.sendAttempt))
+
 	//isDropped = s.dropped(prob / float64(send.origin.attemptedSend))
-	//vv("localDropSend: prob=%v; isDropped=%v", prob, isDropped)
+	vv("localDropSend: prob=%v; freq=%v, isDropped=%v; conn.attemptedSend=%v; conn.attemptedSendDropped=%v; isDropped2=%v; prob*float64(send.sendAttempt)=%v; send.sendAttempt=%v", prob, freq, isDropped, conn.attemptedSend, conn.attemptedSendDropped, isDropped2, prob*float64(send.sendAttempt), send.sendAttempt)
 	if isDropped {
 		conn.attemptedSendDropped++
 	} else {
+		send.passOKprob++ // don't apply prob again!
 		conn.attemptedSendOK++
 	}
-	return isDropped
+	return
 }
 
 // ignores FAULTY, check that with localDropSend if need be.
@@ -1451,23 +1457,30 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 
 		simnode.optionallyApplyChaos()
 
-		// realized that dropping in handleSend only works if prod drop == 1
-		drop := s.localDropSend(send)
-		if drop {
-			send.origin.droppedSendDueToProb++
-		}
-		if !s.statewiseConnected(send.origin, send.target) || drop {
+		var connAttemptedSend int64
+		var drop bool
+		if send.passOKprob == 0 {
+			// realized that dropping in handleSend only works if prod drop == 1
+			drop, connAttemptedSend = s.localDropSend(send)
+			if drop {
+				send.origin.droppedSendDueToProb++
+			}
+			connected := s.statewiseConnected(send.origin, send.target)
+			if !connected || drop {
 
-			//vv("dispatchReadsSends DROP SEND %v", send)
-			// note that the dropee is stored on the send.origin
-			// in the droppedSendQ, which is never the same
-			// as simnode here which supplied from its preArrQ.
-			send.origin.droppedSendQ.add(send)
-			delit := preIt
-			preIt = preIt.Next()
-			simnode.preArrQ.Tree.DeleteWithIterator(delit)
-			continue
+				vv("dispatchReadsSends DROP SEND %v; drop=%v; send.origin.droppedSendDueToProb=%v, connected=%v", send, drop, send.origin.droppedSendDueToProb, connected)
+				// note that the dropee is stored on the send.origin
+				// in the droppedSendQ, which is never the same
+				// as simnode here which supplied from its preArrQ.
+				send.origin.droppedSendQ.add(send)
+				delit := preIt
+				preIt = preIt.Next()
+				simnode.preArrQ.Tree.DeleteWithIterator(delit)
+				continue
+			}
 		}
+		vv("send not dropped: conn.attemptedSend=%v, send.sendAttempt=%v; send.passOKprob=%v", connAttemptedSend, send.sendAttempt, send.passOKprob)
+
 		//if s.localDropSend(send) {
 		//	//vv("skipping send b/c prob of drop happenned.") // seen
 		//	send.origin.droppedSendDueToProb++
@@ -1480,8 +1493,9 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 		if deaf {
 			read.origin.deafReadDueToProb++
 		}
-		if !s.statewiseConnected(read.origin, read.target) || deaf {
-			//vv("dispatchReadsSends DEAF READ %v", read)
+		connectedR := s.statewiseConnected(read.origin, read.target)
+		if !connectedR || deaf {
+			vv("dispatchReadsSends DEAF READ %v; connectedR=%v; deaf=%v", read, connectedR, deaf) // not seen
 			simnode.deafReadQ.add(read)
 			delit := readIt
 			readIt = readIt.Next()
@@ -1521,8 +1535,8 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 			// so no point in looking.
 
 			// super noisy!
-			//vv("rejecting delivery of send that has not happened: '%v'", send)
-			//vv("dispatch: %v", simnode.net.schedulerReport())
+			vv("rejecting delivery of send that has not happened: '%v'", send)
+			vv("dispatch: %v", simnode.net.schedulerReport())
 
 			// we must set a timer on its delivery then...
 			dur := send.arrivalTm.Sub(now)
@@ -1561,7 +1575,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 		read.arrivalTm = send.arrivalTm // easier diagnostics
 
 		// matchmaking
-		//vv("[1]matchmaking: \nsend '%v' -> \nread '%v'", send, read)
+		vv("[1]matchmaking: \nsend '%v' -> \nread '%v'", send, read) // not seen!
 		read.sendmop = send
 		send.readmop = read
 

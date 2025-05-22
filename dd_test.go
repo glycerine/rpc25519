@@ -45,7 +45,7 @@ func Test1001_simnetonly_drop_prob(t *testing.T) {
 			vv("after clientDropsSends(%v): %v", dropPct, simnet.GetSimnetSnapshot())
 			//vv("after clientDropsSends(%v): %v", dropPct, simnet.GetSimnetSnapshot().ShortString())
 			got, goterr := 0, 0
-			waitFor := 1000 * time.Millisecond
+			waitFor := 200 * time.Millisecond
 			for range nmsg {
 				req := NewMessage()
 				req.HDR.ServiceName = serviceName
@@ -62,7 +62,7 @@ func Test1001_simnetonly_drop_prob(t *testing.T) {
 			}
 			pctDropped := 1 - (float64(got))/float64(nmsg)
 			vv("nmsg = %v; got=%v; pctDropped=%0.5f; goterr=%v", nmsg, got, pctDropped, goterr)
-			vv("cli attemptedSend = %v; droppedSendDueToProb = %v", cli.simnode.attemptedSend, cli.simnode.droppedSendDueToProb)
+			//vv("cli attemptedSend = %v; droppedSendDueToProb = %v", conn.attemptedSend, conn.droppedSendDueToProb)
 			diff := math.Abs(pctDropped - dropPct)
 			if diff >= 0.05 {
 				panic(fmt.Sprintf("diff = %0.5f >= 0.05", diff))
