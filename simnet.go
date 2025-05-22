@@ -1402,8 +1402,11 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 
 		simnode.optionallyApplyChaos()
 
-		if !s.statewiseConnected(send.origin, send.target) ||
-			s.localDropSend(send) {
+		if !s.statewiseConnected(send.origin, send.target) { //||
+			// Only check statewise connection here, drop
+			// probability was already checked in handleSend?
+			//s.localDropSend(send) {
+
 			//vv("dispatchReadsSends DROP SEND %v", send)
 			// note that the dropee is stored on the send.origin
 			// in the droppedSendQ, which is never the same

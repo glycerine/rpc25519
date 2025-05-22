@@ -20,7 +20,7 @@ func Test1001_simnetonly_drop_deaf_tests(t *testing.T) {
 	onlyBubbled(t, func() {
 		cv.Convey("simnet with probabilistic deaf fault on server or client experiences the set level of send and/or read flakiness", t, func() {
 
-			nmsg := 100
+			nmsg := 1000
 			simt, cfg := newSimnetTest(t, "test1001")
 			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
 			defer srv.Close()
@@ -36,7 +36,7 @@ func Test1001_simnetonly_drop_deaf_tests(t *testing.T) {
 			//vv("after clientDropsSends(0.5): %v", simnet.GetSimnetSnapshot())
 			//vv("after clientDropsSends(0.5): %v", simnet.GetSimnetSnapshot().ShortString())
 			got, goterr := 0, 0
-			waitFor := 200 * time.Millisecond
+			waitFor := 100 * time.Millisecond
 			for range nmsg {
 				req := NewMessage()
 				req.HDR.ServiceName = serviceName
