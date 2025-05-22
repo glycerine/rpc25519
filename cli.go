@@ -1067,6 +1067,14 @@ func (cfg *Config) GetSimnet() *simnet {
 	return cfg.simnetRendezvous.singleSimnet
 }
 
+func (cfg *Config) GetSimnetSnapshotter() *SimnetSnapshotter {
+	simnet := cfg.GetSimnet()
+	if simnet == nil {
+		return nil
+	}
+	return &SimnetSnapshotter{simnet: simnet}
+}
+
 // gotta have just one simnet, shared by all
 // clients and servers for a single test/Configure.
 type simnetRendezvous struct {

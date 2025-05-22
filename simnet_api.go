@@ -912,3 +912,11 @@ func (s *simnet) GetSimnetSnapshot() (status *SimnetSnapshot) {
 	}
 	return
 }
+
+type SimnetSnapshotter struct {
+	simnet *simnet
+}
+
+func (s *SimnetSnapshotter) GetSimnetSnapshot() *SimnetSnapshot {
+	return s.simnet.GetSimnetSnapshot()
+}
