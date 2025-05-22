@@ -89,6 +89,11 @@ type mop struct {
 	proceed chan struct{}
 
 	isEOF_RST bool
+
+	// have to adjust the probabililistic drop/deaf
+	// probability by the number of attempts at delivery/read
+	readAttempt int64
+	sendAttempt int64
 }
 
 func (s *mop) clone() (c *mop) {
@@ -288,8 +293,10 @@ type simnode struct {
 	allnode map[*simnode]bool
 
 	// count of probabilistically dropped/deaf
-	probDroppedSend int
-	probDeafRead    int
+	droppedSendDueToProb int64
+	deafReadDueToProb    int64
+	attemptedRead        int64
+	attemptedSend        int64
 }
 
 func (s *simnet) locals(node *simnode) map[*simnode]bool {
@@ -1156,12 +1163,17 @@ func (s *simnet) handleAlterHost(alt *simnodeAlteration) (undo Alteration) {
 	return
 }
 
+//func (s *simnet) localDeafReadProb(read *mop) float64 {
+//	return s.circuits[read.origin][read.target].deafRead
+//}
+
 func (s *simnet) localDeafRead(read *mop) (isDeaf bool) {
 
 	// get the local (read) origin conn probability of deafness
 	// note: not the remote's deafness, only local.
 	prob := s.circuits[read.origin][read.target].deafRead
-	isDeaf = s.deaf(prob)
+	// trials not independent, as below for sends.
+	isDeaf = s.deaf(prob * float64(read.readAttempt) / float64(read.origin.attemptedRead))
 	if isDeaf {
 		//vv("localDeafRead: prob=%v; isDeaf=%v", prob, isDeaf)
 	}
@@ -1190,10 +1202,18 @@ func (s *simnet) dropped(prob float64) bool {
 	return random01 < prob
 }
 
+//func (s *simnet) localDropSendProb(send *mop) float64 {
+//	return s.circuits[send.origin][send.target].dropSend
+//}
+
 func (s *simnet) localDropSend(send *mop) (isDropped bool) {
 	// get the local origin conn probability of drop
 	prob := s.circuits[send.origin][send.target].dropSend
-	isDropped = s.dropped(prob)
+
+	// trials are not independent, for prob to
+	// converge, must be multiplied by number of attempts.
+	//isDropped = s.dropped(prob * float64(send.sendAttempt) / float64(send.origin.attemptedSend))
+	isDropped = s.dropped(prob / float64(send.origin.attemptedSend))
 	//vv("localDropSend: prob=%v; isDropped=%v", prob, isDropped)
 	return isDropped
 }
@@ -1411,7 +1431,13 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 		simnode.optionallyApplyChaos()
 
 		// realized that dropping in handleSend only works if prod drop == 1
-		if !s.statewiseConnected(send.origin, send.target) {
+		send.sendAttempt++
+		send.origin.attemptedSend++
+		drop := s.localDropSend(send)
+		if drop {
+			send.origin.droppedSendDueToProb++
+		}
+		if !s.statewiseConnected(send.origin, send.target) || drop {
 
 			//vv("dispatchReadsSends DROP SEND %v", send)
 			// note that the dropee is stored on the send.origin
@@ -1423,15 +1449,21 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 			simnode.preArrQ.Tree.DeleteWithIterator(delit)
 			continue
 		}
-		if s.localDropSend(send) {
-			//vv("skipping send b/c prob of drop happenned.") // seen
-			send.origin.probDroppedSend++
-			preIt = preIt.Next()
-			continue
-		}
+		//if s.localDropSend(send) {
+		//	//vv("skipping send b/c prob of drop happenned.") // seen
+		//	send.origin.droppedSendDueToProb++
+		//	preIt = preIt.Next()
+		//	continue
+		//}
 		// INVAR: send is okay to deliver wrt faults.
 
-		if !s.statewiseConnected(read.origin, read.target) {
+		read.readAttempt++
+		read.origin.attemptedRead++
+		deaf := s.localDeafRead(read)
+		if deaf {
+			read.origin.deafReadDueToProb++
+		}
+		if !s.statewiseConnected(read.origin, read.target) || deaf {
 			//vv("dispatchReadsSends DEAF READ %v", read)
 			simnode.deafReadQ.add(read)
 			delit := readIt
@@ -1439,11 +1471,11 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 			simnode.readQ.Tree.DeleteWithIterator(delit)
 			continue
 		}
-		if s.localDeafRead(read) {
-			read.origin.probDeafRead++
-			readIt = readIt.Next()
-			continue
-		}
+		// if s.localDeafRead(read) {
+		// 	read.origin.deafReadDueToProb++
+		// 	readIt = readIt.Next()
+		// 	continue
+		// }
 
 		// Causality also demands that
 		// a read can complete (now) only after it was initiated;
