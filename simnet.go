@@ -1158,7 +1158,9 @@ func (s *simnet) localDeafRead(read *mop) (isDeaf bool) {
 	// note: not the remote's deafness, only local.
 	prob := s.circuits[read.origin][read.target].deafRead
 	isDeaf = s.deaf(prob)
-	//vv("localDeafRead: prob=%v; isDeaf=%v", prob, isDeaf)
+	if isDeaf {
+		//vv("localDeafRead: prob=%v; isDeaf=%v", prob, isDeaf)
+	}
 	return
 }
 

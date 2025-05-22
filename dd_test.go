@@ -29,7 +29,7 @@ func Test1001_simnetonly_drop_deaf_tests(t *testing.T) {
 			serviceName := "customEcho"
 			srv.Register2Func(serviceName, customEcho)
 
-			dropPct := 0.5
+			dropPct := 0.1
 			//vv("before clientDropsSends(0.5)", simnet.GetSimnetSnapshot())
 			///undoIsolated := simt.clientDropsSends(0.5)
 			undoIsolated := simt.clientDropsSends(dropPct)
@@ -51,13 +51,13 @@ func Test1001_simnetonly_drop_deaf_tests(t *testing.T) {
 					}
 				}
 			}
-			pctGot := float64(got) / float64(nmsg)
-			vv("nmsg = %v; got=%v; pctGot=%v; goterr=%v", nmsg, got, pctGot, goterr)
-			diff := math.Abs(pctGot - dropPct)
+			pctDropped := 1 - (float64(got))/float64(nmsg)
+			vv("nmsg = %v; got=%v; pctDropped=%0.5f; goterr=%v", nmsg, got, pctDropped, goterr)
+			diff := math.Abs(pctDropped - dropPct)
 			if diff >= 0.05 {
-				panic(fmt.Sprintf("diff = %v >= 0.05", diff))
+				panic(fmt.Sprintf("diff = %0.5f >= 0.05", diff))
 			}
-			vv("good, diff = %v < 0.05", diff)
+			vv("good, diff = %0.5f < 0.05", diff)
 
 			stat := simnet.GetSimnetSnapshot()
 

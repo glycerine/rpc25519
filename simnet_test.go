@@ -1255,6 +1255,10 @@ func Test772_simnetonly_server_dropped_sends(t *testing.T) {
 	})
 }
 
+//func (simt *simnetTest) Close() {
+//	simt.simnet.Close()
+//}
+
 type simnetTest struct {
 	cfg    *Config
 	short  string // short test name
