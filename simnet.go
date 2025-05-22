@@ -51,6 +51,8 @@ type mop struct {
 	// was timer set internally to wake for
 	// arrival of pending message?
 	internalPendingTimer bool
+	// so we can cleanup the timers from dropped sends.
+	internalPendingTimerForSend *mop
 
 	// is this our single grid step timer?
 	// There should only ever be one
@@ -1476,6 +1478,10 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 				delit := preIt
 				preIt = preIt.Next()
 				simnode.preArrQ.Tree.DeleteWithIterator(delit)
+				// cleanup the timer that scheduled this send, if any.
+				if send.internalPendingTimerForSend != nil {
+					send.origin.timerQ.del(send.internalPendingTimerForSend)
+				}
 				continue
 			}
 		}
@@ -1547,6 +1553,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 			pending.completeTm = now.Add(dur)
 			pending.timerFileLine = fileLine(1)
 			pending.internalPendingTimer = true
+			send.internalPendingTimerForSend = pending
 			s.handleTimer(pending)
 			return
 		}
@@ -1587,6 +1594,11 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 		delit = readIt
 		readIt = readIt.Next()
 		simnode.readQ.Tree.DeleteWithIterator(delit)
+
+		// cleanup the timer that scheduled this send, if any.
+		if send.internalPendingTimerForSend != nil {
+			send.origin.timerQ.del(send.internalPendingTimerForSend)
+		}
 
 		close(read.proceed)
 		// send already closed in handleSend()
