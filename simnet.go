@@ -1185,28 +1185,14 @@ func (s *simnet) localDeafRead(read *mop) (isDeaf bool) {
 	conn.attemptedRead++ // at least 1.
 	read.readAttempt++
 
-	// we want to converge freq to prob still, but
-	// where sends are a single shot trial (the send
-	// is either dropped or matches), reads with some
-	// deaf prob in (0,1) have multiple trials. After
-	// multiple deaf read attempts, the next one that
-	// succeeds should result in the conn having
-	// the overall read deaf prob of prob. If we
-	// deliver at the k-th trial with prob p_k, with
-	// p_1 = deafProb boundary, then the
-	// the prob of delivery at the k-th trial for k>1 is
-	// (1-p_1)*...*(1-p_{k-1}) * p_k which should -> deafProb
-	// as k -> infinity. What should the p_j be for j > 1 ?
-	// At k=2, we have (1-deafProb) * p_2 wanting to -> deafProb,
-	// which suggests that p_2 should -> deafProb/(1-deafProb),
-	// or p_2 -> p_1/(1-p_1).
 	freqDeaf := float64(conn.attemptedReadDeaf) / float64(conn.attemptedRead)
 	_ = freqDeaf
 
 	random01 := s.scenario.rng.Float64() // in [0, 1)
 	if read.readAttempt == 1 {
-		//isDeaf = random01 < prob
-		isDeaf = freqDeaf < prob
+		// why is this not deterministic???
+		isDeaf = random01 < prob
+		//isDeaf = freqDeaf < prob // not random b/c freqDef is always 0 here.
 		if isDeaf {
 			conn.attemptedReadDeaf++
 			// we will see this again, with higher readAttempt.
@@ -1214,31 +1200,38 @@ func (s *simnet) localDeafRead(read *mop) (isDeaf bool) {
 			read.lastP = 1 - prob
 			//read.lastP = 1 - random01
 		} else {
-			// we will never see this read again, as it will match, right?
+			// we will never see this read again, as it will match.
 			// we evaluate sends before reads...
 			conn.attemptedReadOK++
 		}
 		return
 	}
 	// INVAR: read.readAttempt > 1
+	var acceptProb float64
 	if freqDeaf < prob {
 		// since we want freqDeaf to -> prob,
 		// we want the odds of being deaf to be > 0.5 on this round.
 		// Assuming a single message,
 		// at round 2, freq will be 0.5;
 		// at round 3, freq will be 1/3 or 0.333333...;
+		acceptProb = (prob - freqDeaf) / (1 - freqDeaf)
 	} else {
-		// freqDeaf >= prob (our goal)
+		// freqDeaf >= prob (our goal). Too many deaf reads.
 		// we want the odds of being deaf to be < 0.5 on this round.
+		// try just forcing it!
+		// nope. we end up not dropping any!
+		// the overall conn prob turns out perfect, but the
+		// individual reads all get through eventually.
+		//acceptProb = 1
+		//acceptProb = read.lastP / (1 - read.lastP) // 100% dropped?!? or 0.9
+		acceptProb = prob * (prob / freqDeaf)
 	}
-	//acceptProb := read.lastP / (1 - read.lastP)
-	acceptProb := 1 - freqDeaf
 
 	accept := random01 < acceptProb
 	//accept := freqDeaf < acceptProb
 	isDeaf = !accept
 
-	vv("localDeafRead: prob=%v; read.lastP=%v, acceptProb=%v, accept=%v, isDeaf=%v; freqDeaf = %v = (a/b) where a = conn.attemptedReadDeaf = %v; b = conn.attemptedRead=%v", prob, read.lastP, acceptProb, accept, isDeaf, freqDeaf, conn.attemptedReadDeaf, conn.attemptedRead)
+	vv("localDeafRead: prob=%v; read.lastP=%v, acceptProb=%v, accept=%v, isDeaf=%v; freqDeaf = %v = (a/b) where a = conn.attemptedReadDeaf = %v; b = conn.attemptedRead=%v; read.sn=%v", prob, read.lastP, acceptProb, accept, isDeaf, freqDeaf, conn.attemptedReadDeaf, conn.attemptedRead, read.sn)
 
 	if isDeaf {
 		read.lastP = acceptProb
@@ -1881,6 +1874,8 @@ func (s *simnet) scheduler() {
 	// always have at least one timer going.
 	s.armTimer(now)
 
+	var ndtot int64 // num dispatched total.
+
 restartI:
 	for i := int64(0); ; i++ {
 
@@ -1896,8 +1891,9 @@ restartI:
 			nextReport = now.Add(time.Second)
 			//vv("scheduler top")
 			//cli.lc = %v ; srv.lc = %v", clilc, srvlc)
-			//vv("scheduler top. schedulerReport: \n%v", s.schedulerReport())
+			//vv("i=%v scheduler top. schedulerReport: \n%v", i, s.schedulerReport())
 		}
+		vv("i=%v scheduler top. ndtot=%v", i, ndtot)
 
 		bkgTimers := atomic.LoadInt64(&s.backgoundTimerGoroCount)
 		if bkgTimers > 10 {
@@ -1928,7 +1924,7 @@ restartI:
 		case <-s.nextTimer.C: // time advances when soonest timer fires
 			now = time.Now()
 			totalSleepDur += now.Sub(preSelectTm)
-			//vv("i=%v, nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
+			vv("i=%v, nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
 
 			// max determinism: go last
 			// among all goro who were woken by other
@@ -1939,75 +1935,83 @@ restartI:
 			s.tickLogicalClocks()
 
 			nd0 += s.dispatchAll(now)
+			ndtot += nd0
 			s.refreshGridStepTimer(now)
 			s.armTimer(now)
 
 		case reg := <-s.cliRegisterCh:
 			// "connect" in network lingo, client reaches out to listening server.
-			//vv("i=%v, cliRegisterCh got reg from '%v' = '%#v'", i, reg.client.name, reg)
+			vv("i=%v, cliRegisterCh got reg from '%v' = '%#v'", i, reg.client.name, reg)
 			s.handleClientRegistration(reg)
 			//vv("back from handleClientRegistration for '%v'", reg.client.name)
 
 		case srvreg := <-s.srvRegisterCh:
 			// "bind/listen" on a socket, server waits for any client to "connect"
-			//vv("i=%v, s.srvRegisterCh got srvreg for '%v'", i, srvreg.server.name)
+			vv("i=%v, s.srvRegisterCh got srvreg for '%v'", i, srvreg.server.name)
 			s.handleServerRegistration(srvreg)
 			// do not vv here, as it is very racey with the server who
 			// has been given permission to proceed.
 
 		case scenario := <-s.newScenarioCh:
+			vv("i=%v, newScenarioCh ->  scenario='%v'", i, scenario)
 			s.finishScenario()
 			s.initScenario(scenario)
 			i = 0
+			panic("TODO, impossible to restart network???")
 			continue restartI
 
 		case timer := <-s.addTimer:
-			//vv("i=%v, addTimer ->  op='%v'", i, timer)
+			vv("i=%v, addTimer ->  timer='%v'", i, timer)
 			s.handleTimer(timer)
 
 		case discard := <-s.discardTimerCh:
-			//vv("i=%v, discardTimer ->  op='%v'", i, discard)
+			vv("i=%v, discardTimer ->  discard='%v'", i, discard)
 			s.handleDiscardTimer(discard)
 
 		case send := <-s.msgSendCh:
-			//vv("i=%v, msgSendCh ->  op='%v'", i, send)
+			vv("i=%v, msgSendCh ->  send='%v'", i, send)
 			s.handleSend(send)
 
 		case read := <-s.msgReadCh:
-			//vv("i=%v msgReadCh ->  op='%v'", i, read)
+			vv("i=%v msgReadCh ->  read='%v'", i, read)
 			s.handleRead(read)
 
 		case alt := <-s.alterSimnodeCh:
+			vv("i=%v alterSimnodeCh ->  alt='%v'", i, alt)
 			s.handleAlterCircuit(alt, true)
 
 		case alt := <-s.alterHostCh:
+			vv("i=%v alterHostCh ->  alt='%v'", i, alt)
 			s.handleAlterHost(alt)
 
 		case cktFault := <-s.injectCircuitFaultCh:
-			//vv("i=%v injectCircuitFaultCh ->  dd='%v'", i, cktFault)
+			vv("i=%v injectCircuitFaultCh ->  cktFault='%v'", i, cktFault)
 			s.injectCircuitFault(cktFault, true)
 
 		case hostFault := <-s.injectHostFaultCh:
-			//vv("i=%v injectHostFaultCh ->  dd='%v'", i, cktFault)
+			vv("i=%v injectHostFaultCh ->  hostFault='%v'", i, hostFault)
 			s.injectHostFault(hostFault)
 
 		case repairCkt := <-s.repairCircuitCh:
-			//vv("i=%v repairCircuitCh ->  repairCkt='%v'", i, repairCkt)
+			vv("i=%v repairCircuitCh ->  repairCkt='%v'", i, repairCkt)
 			s.handleCircuitRepair(repairCkt, true)
 
 		case repairHost := <-s.repairHostCh:
-			//vv("i=%v repairHostCh ->  repairHost='%v'", i, repairHost)
+			vv("i=%v repairHostCh ->  repairHost='%v'", i, repairHost)
 			s.handleHostRepair(repairHost)
 
 		case safe := <-s.safeStateStringCh:
+			vv("i=%v safeStateStringCh ->  safe", i)
 			// prints internal state to string, without data races.
 			s.handleSafeStateString(safe)
 
 		case statusReq := <-s.simnetStatusRequestCh:
+			vv("i=%v simnetStatusRequestCh ->  statusReq", i)
 			// user can confirm/view all current faults/health
 			s.handleSimnetSnapshotRequest(statusReq, now, i)
 
 		case <-s.halt.ReqStop.Chan:
+			vv("i=%v <-s.halt.ReqStop.Chan", i)
 			bb := time.Since(s.bigbang)
 			pct := 100 * float64(totalSleepDur) / float64(bb)
 			_ = pct
@@ -2015,7 +2019,7 @@ restartI:
 			return
 		} // end select
 
-		//vv("i=%v bottom of scheduler loop. num dispatch events = %v", i, nd0)
+		vv("i=%v bottom of scheduler loop. num dispatch events = %v", i, nd0)
 	}
 }
 
