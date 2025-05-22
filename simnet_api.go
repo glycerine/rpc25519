@@ -881,7 +881,7 @@ type SimnetSnapshot struct {
 	NetClosed          bool
 	GetSimnetStatusErr error
 	Cfg                SimNetConfig
-	ConnCount          int
+	PeerConnCount      int
 	LoneCliConnCount   int
 
 	ScenarioNum    int

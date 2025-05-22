@@ -389,7 +389,10 @@ func (s *simconn) String() (r string) {
 }
 
 func (s *SimNetConfig) String() string {
-	return fmt.Sprintf(`SimNetConfig{BarrierOff: %v}`, s.BarrierOff)
+	if s.BarrierOff {
+		return fmt.Sprintf(`SimNetConfig{ barrier is OFF}`)
+	}
+	return fmt.Sprintf(`SimNetConfig{ barrier is ON}`)
 }
 
 func (z *SimnetConnSummary) String() (r string) {
@@ -466,8 +469,79 @@ func (z *SimnetPeerStatus) String() (r string) {
 	return
 }
 
+func (z *SimnetSnapshot) notAllHealthy() (long bool) {
+	for _, srv := range z.Peer {
+		if srv.ServerState != HEALTHY {
+			long = true
+			return
+		}
+	}
+	if !long {
+		for _, cli := range z.LoneCli {
+			if cli.ServerState != HEALTHY {
+				long = true
+				return
+			}
+		}
+	}
+	return
+}
+
+// ShortString: if everything is healthy, just give a short
+// summary. Otherwise give the full snapshot.
+func (z *SimnetSnapshot) ShortString() (r string) {
+	faults := z.notAllHealthy()
+	if faults {
+		r += "SimnetSnapshot{some faults}:"
+	} else {
+		r += "SimnetSnapshot{all HEALTHY}:"
+	}
+	np := len(z.Peer)
+	if np > 0 {
+		r += fmt.Sprintf(" Peers[%v][%v conn]{", np, z.PeerConnCount)
+		for i, peer := range z.Peer {
+			if i > 0 {
+				r += ", "
+			}
+			r += fmt.Sprintf("%v", peer.Name)
+			if faults {
+				r += fmt.Sprintf("(%v)", peer.ServerState)
+			}
+		}
+		r += "}"
+	}
+	ncli := len(z.LoneCli)
+	if ncli > 0 {
+		r += fmt.Sprintf(" LoneCli[%v][%v conn]{", ncli, z.LoneCliConnCount)
+		i := 0
+		for _, cli := range z.LoneCli {
+			if i > 0 {
+				r += ", "
+			}
+			r += fmt.Sprintf("%v", cli.Name)
+			if faults {
+				r += fmt.Sprintf("(%v)", cli.ServerState)
+			}
+			i++
+		}
+		r += "}"
+	}
+	r += "}\n"
+	return
+}
+
+// String: if everything is healthy, just give a short
+// summary. Otherwise give the full snapshot.
 func (z *SimnetSnapshot) String() (r string) {
+	if z.notAllHealthy() {
+		return z.LongString()
+	}
+	return z.ShortString()
+}
+
+func (z *SimnetSnapshot) LongString() (r string) {
 	r = "&SimnetSnapshot{\n"
+
 	r += fmt.Sprintf("              Asof: %v\n",
 		z.Asof.Format(rfc3339NanoNumericTZ0pad))
 	r += fmt.Sprintf("         NetClosed: %v\n", z.NetClosed)
@@ -487,7 +561,7 @@ func (z *SimnetSnapshot) String() (r string) {
 	r += fmt.Sprintf("ScenarioMinHop: %v\n", z.ScenarioMinHop)
 	r += fmt.Sprintf("ScenarioMaxHop: %v\n", z.ScenarioMaxHop)
 
-	r += fmt.Sprintf("peer count(%v) total connection count(%v):\n", len(z.Peer), z.ConnCount)
+	r += fmt.Sprintf("peer count(%v) total connection count(%v):\n", len(z.Peer), z.PeerConnCount)
 	for i, srv := range z.Peer {
 		r += fmt.Sprintf(" ===============================\n")
 		r += fmt.Sprintf(" =======  SimnetPeerStatus[%v]  %v\n", i, srv.Name)

@@ -2132,7 +2132,7 @@ func (s *simnet) handleSimnetSnapshotRequest(req *SimnetSnapshot, now time.Time,
 		for _, origin := range keyNameSort(s.locals(srvnode)) {
 			delete(alone, origin)
 			for target, conn := range s.circuits[origin] {
-				req.ConnCount++
+				req.PeerConnCount++
 				connsum := &SimnetConnSummary{
 					OriginIsCli: origin.isCli,
 					// origin details
