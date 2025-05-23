@@ -2090,7 +2090,7 @@ restartI:
 			s.armTimer(now)
 
 		case timer := <-s.addTimer:
-			vv("i=%v, addTimer ->  timer='%v'", i, timer)
+			//vv("i=%v, addTimer ->  timer='%v'", i, timer)
 			//s.handleTimer(timer)
 			s.meq.add(timer)
 
@@ -2134,32 +2134,32 @@ restartI:
 			s.meq.add(newAlterNodeMop(alt))
 
 		case alt := <-s.alterHostCh:
-			vv("i=%v alterHostCh ->  alt='%v'", i, alt)
+			//vv("i=%v alterHostCh ->  alt='%v'", i, alt)
 			//s.handleAlterHost(op.alt)
 			s.meq.add(newAlterHostMop(alt))
 
 		case cktFault := <-s.injectCircuitFaultCh:
-			vv("i=%v injectCircuitFaultCh ->  cktFault='%v'", i, cktFault)
+			//vv("i=%v injectCircuitFaultCh ->  cktFault='%v'", i, cktFault)
 			//s.injectCircuitFault(cktFault, true)
 			s.meq.add(newCktFaultMop(cktFault))
 
 		case hostFault := <-s.injectHostFaultCh:
-			vv("i=%v injectHostFaultCh ->  hostFault='%v'", i, hostFault)
+			//vv("i=%v injectHostFaultCh ->  hostFault='%v'", i, hostFault)
 			//s.injectHostFault(hostFault)
 			s.meq.add(newHostFaultMop(hostFault))
 
 		case repairCkt := <-s.repairCircuitCh:
-			vv("i=%v repairCircuitCh ->  repairCkt='%v'", i, repairCkt)
+			//vv("i=%v repairCircuitCh ->  repairCkt='%v'", i, repairCkt)
 			//s.handleCircuitRepair(repairCkt, true)
 			s.meq.add(newRepairCktMop(repairCkt))
 
 		case repairHost := <-s.repairHostCh:
-			vv("i=%v repairHostCh ->  repairHost='%v'", i, repairHost)
+			//vv("i=%v repairHostCh ->  repairHost='%v'", i, repairHost)
 			//s.handleHostRepair(repairHost)
 			s.meq.add(newRepairHostMop(repairHost))
 
 		case snapReq := <-s.simnetSnapshotRequestCh:
-			vv("i=%v simnetSnapshotRequestCh -> snapReq", i)
+			//vv("i=%v simnetSnapshotRequestCh -> snapReq", i)
 			// user can confirm/view all current faults/health
 			//s.handleSimnetSnapshotRequest(snapReq, now, i)
 			s.meq.add(newSnapReqMop(snapReq))
