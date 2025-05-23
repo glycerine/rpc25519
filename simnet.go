@@ -1189,6 +1189,7 @@ func (s *simnet) localDeafRead(read *mop) (isDeaf bool) {
 	_ = freqDeaf
 
 	random01 := s.scenario.rng.Float64() // in [0, 1)
+	vv("localDeafRead top: random01 = %v", random01)
 	if read.readAttempt == 1 {
 		// why is this not deterministic???
 		isDeaf = random01 < prob
@@ -1223,9 +1224,12 @@ func (s *simnet) localDeafRead(read *mop) (isDeaf bool) {
 		// the overall conn prob turns out perfect, but the
 		// individual reads all get through eventually.
 		//acceptProb = 1
-		//acceptProb = read.lastP / (1 - read.lastP) // 100% dropped?!? or 0.9
-		acceptProb = prob * (prob / freqDeaf)
+
+		// when no a/b seen, 10 out of 10 dropped.
+		acceptProb = read.lastP / (1 - read.lastP) // 100% dropped?!? or 0.9
+		//acceptProb = prob * (prob / freqDeaf)
 	}
+	read.lastP = acceptProb
 
 	accept := random01 < acceptProb
 	//accept := freqDeaf < acceptProb
@@ -1234,8 +1238,8 @@ func (s *simnet) localDeafRead(read *mop) (isDeaf bool) {
 	vv("localDeafRead: prob=%v; read.lastP=%v, acceptProb=%v, accept=%v, isDeaf=%v; freqDeaf = %v = (a/b) where a = conn.attemptedReadDeaf = %v; b = conn.attemptedRead=%v; read.sn=%v", prob, read.lastP, acceptProb, accept, isDeaf, freqDeaf, conn.attemptedReadDeaf, conn.attemptedRead, read.sn)
 
 	if isDeaf {
-		read.lastP = acceptProb
 		conn.attemptedReadDeaf++
+		read.lastIsDeafTrueTm = time.Now()
 		//read.readDeafDueToProb++
 	} else {
 		conn.attemptedReadOK++
@@ -1676,7 +1680,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 		read.arrivalTm = send.arrivalTm // easier diagnostics
 
 		// matchmaking
-		vv("[1]matchmaking: \nsend '%v' -> \nread '%v'", send, read) // not seen!
+		vv("[1]matchmaking: \nsend '%v' -> \nread '%v' \nread.sn=%v, readAttempt=%v, read.lastP=%v, lastIsDeafTrueTm=%v", send, read, read.sn, read.readAttempt, read.lastP, nice(read.lastIsDeafTrueTm))
 		read.sendmop = send
 		send.readmop = read
 
