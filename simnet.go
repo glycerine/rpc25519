@@ -105,26 +105,8 @@ type mop struct {
 	lastP            float64
 }
 
-// event priority lets the master
-// event queue sort different kinds
-// of mop together by the right tm for that event.
-// and: to break ties by priority for
-// deterministic replay.
-type event interface {
-	serial() int64   // identity
-	tm() time.Time   // the important when part
-	priority() int64 // break ties at same tm.
-	knd() mopkind
-}
-
 func (s *mop) priority() int64 {
 	return s.sn // for now
-}
-func (s *mop) knd() mopkind {
-	return s.kind
-}
-func (s *mop) serial() int64 {
-	return s.sn
 }
 func (s *mop) tm() time.Time {
 	switch s.kind {
@@ -140,15 +122,14 @@ func (s *mop) tm() time.Time {
 	case TIMER_DISCARD:
 		return s.initTm
 	}
-	panic(fmt.Sprintf("mop kind tm not defined, what tm "+
-		"to use for kind='%v'", int(s.kind)))
+	panic(fmt.Sprintf("mop kind '%v' needs tm", int(s.kind)))
 }
 
 func newMasterEventQueue(owner string) *pq {
 
 	cmp := func(a, b rb.Item) int {
-		av := a.(event)
-		bv := b.(event)
+		av := a.(*mop)
+		bv := b.(*mop)
 
 		if av == nil {
 			panic("no nil events allowed in the meq")
@@ -158,8 +139,9 @@ func newMasterEventQueue(owner string) *pq {
 			panic("no nil events allowed in the meq")
 			return 1
 		}
-		asn := av.serial()
-		bsn := bv.serial()
+		asn := av.sn
+		bsn := bv.sn
+		// be sure to keep delete by sn working
 		if asn == bsn {
 			return 0
 		}
@@ -214,7 +196,7 @@ type simnet struct {
 
 	scenario *scenario
 
-	meQ *pq // the master event queue.
+	meq *pq // the master event queue.
 
 	cfg       *Config
 	simNetCfg *SimNetConfig
@@ -512,7 +494,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 
 	// server creates simnet; must start server first.
 	s := &simnet{
-		meQ:            newMasterEventQueue("scheduler"),
+		meq:            newMasterEventQueue("scheduler"),
 		barrier:        !simNetConfig.BarrierOff,
 		cfg:            cfg,
 		simNetCfg:      simNetConfig,
@@ -1493,7 +1475,7 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time) (changes int64)
 					// this disastrously gave use 3000+ timers.
 					// maybe we just re-queue for 100 ms later?
 					vv("could not deliver timer? '%v'  requeue or what?", timer)
-					panic("why not deliverable?")
+					panic("why not deliverable? hopefully we never hit this and can just delete the backup attempt below")
 
 					// The Go runtime will delay the timer channel
 					// send until a receiver goro can receive it,
@@ -1648,7 +1630,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 
 			// are we done? since preArrQ is ordered
 			// by arrivalTm, all subsequent pre-arrivals (sends)
-			// will have even more _greater_  arrivalTm;
+			// will have even more _greater_ arrivalTm;
 			// so no point in looking.
 
 			// super noisy!
@@ -1718,7 +1700,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 }
 
 // dispatch delivers sends to reads, and fires timers.
-// It calls simnode.net.armTimer() at the end (in the defer).
+// It no longer calls simnode.net.armTimer().
 func (s *simnet) dispatch(simnode *simnode, now time.Time) (changes int64) {
 
 	changes += s.dispatchTimers(simnode, now)
@@ -1930,10 +1912,10 @@ restartI:
 
 		// only dispatch one place, in nextTimer now.
 		// simpler, easier to reason about. this is viable too,
-		// but creates less determinism.
+		// but creates less determinism. Hmm. maybe?!
 		//changed := s.dispatchAll(now) // sends, reads, and timers.
 		//nd0 += changed
-		//vv("i=%v, dispatchAll changed=%v, total nd0=%v", i, changed, nd0)
+		//vv("i=%v, first dispatchAll changed=%v, total nd0=%v", i, changed, nd0)
 
 		preSelectTm := now
 		select { // scheduler main select
@@ -1951,10 +1933,77 @@ restartI:
 			}
 			s.tickLogicalClocks()
 
+			// meq is trying for
+			// more deterministic event ordering. we have
+			// accumulated and held any events from the
+			// the read/send/timer/discard select cases
+			// into the meq during the last sleep, and
+			// now we act on them.
+			for {
+				mop := s.meq.pop()
+				if mop == nil {
+					break
+				}
+				switch mop.kind {
+				case TIMER:
+					vv("i=%v, meq sees timer='%v'", i, mop)
+					s.handleTimer(mop)
+
+				case TIMER_DISCARD:
+					vv("i=%v, meq sees discard='%v'", i, mop)
+					s.handleDiscardTimer(mop)
+
+				case SEND:
+					vv("i=%v, meq sees send='%v'", i, mop)
+					s.handleSend(mop)
+
+				case READ:
+					vv("i=%v meq sees read='%v'", i, mop)
+					s.handleRead(mop)
+				default:
+					panic(fmt.Sprintf("why in our meq this mop kind? '%v'", int(mop.kind)))
+				}
+			}
 			nd0 += s.dispatchAll(now)
 			ndtot += nd0
 			s.refreshGridStepTimer(now)
 			s.armTimer(now)
+
+		case timer := <-s.addTimer:
+			vv("i=%v, addTimer ->  timer='%v'", i, timer)
+			//s.handleTimer(timer)
+			s.meq.add(timer)
+
+		case discard := <-s.discardTimerCh:
+			vv("i=%v, discardTimer ->  discard='%v'", i, discard)
+			//s.handleDiscardTimer(discard)
+			s.meq.add(discard)
+
+		case send := <-s.msgSendCh:
+			vv("i=%v, msgSendCh ->  send='%v'", i, send)
+			//s.handleSend(send)
+			s.meq.add(send)
+
+		case read := <-s.msgReadCh:
+			vv("i=%v msgReadCh ->  read='%v'", i, read)
+			//s.handleRead(read)
+			s.meq.add(read)
+
+		// case timer := <-s.addTimer:
+		// 	vv("i=%v, addTimer ->  timer='%v'", i, timer)
+		// 	s.handleTimer(timer)
+
+		// case discard := <-s.discardTimerCh:
+		// 	vv("i=%v, discardTimer ->  discard='%v'", i, discard)
+		// 	s.handleDiscardTimer(discard)
+
+		// case send := <-s.msgSendCh:
+		// 	vv("i=%v, msgSendCh ->  send='%v'", i, send)
+		// 	s.handleSend(send)
+
+		// case read := <-s.msgReadCh:
+		// 	vv("i=%v msgReadCh ->  read='%v'", i, read)
+		// 	s.handleRead(read)
 
 		case reg := <-s.cliRegisterCh:
 			// "connect" in network lingo, client reaches out to listening server.
@@ -1976,22 +2025,6 @@ restartI:
 			i = 0
 			panic("TODO, impossible to restart network???")
 			continue restartI
-
-		case timer := <-s.addTimer:
-			vv("i=%v, addTimer ->  timer='%v'", i, timer)
-			s.handleTimer(timer)
-
-		case discard := <-s.discardTimerCh:
-			vv("i=%v, discardTimer ->  discard='%v'", i, discard)
-			s.handleDiscardTimer(discard)
-
-		case send := <-s.msgSendCh:
-			vv("i=%v, msgSendCh ->  send='%v'", i, send)
-			s.handleSend(send)
-
-		case read := <-s.msgReadCh:
-			vv("i=%v msgReadCh ->  read='%v'", i, read)
-			s.handleRead(read)
 
 		case alt := <-s.alterSimnodeCh:
 			vv("i=%v alterSimnodeCh ->  alt='%v'", i, alt)
@@ -2071,7 +2104,6 @@ func (s *simnet) handleDiscardTimer(discard *mop) {
 	} // leave wasArmed false, could not have been armed if gone.
 
 	////zz("LC:%v %v TIMER_DISCARD %v to fire at '%v'; now timerQ: '%v'", discard.origin.lc, discard.origin.name, discard, discard.origTimerCompleteTm, s.clinode.timerQ)
-	// let scheduler, to avoid false alarms: s.armTimer(now)
 	close(discard.proceed)
 }
 
@@ -2112,7 +2144,6 @@ func (s *simnet) handleTimer(timer *mop) {
 	timer.origin.timerQ.add(timer)
 	////zz("LC:%v %v set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer.origin.name, timer, timer.completeTm, s.clinode.timerQ)
 
-	// let scheduler, to avoid false alarms: s.armTimer(now) // handleTimer
 }
 
 // refreshGridStepTimer context:
