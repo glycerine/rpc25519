@@ -118,9 +118,13 @@ type simnet struct {
 	bigbang       time.Time
 	gridStepTimer *mop
 
+	// these were mostly internal self-timers
+	// that we now properly retire. may can get rid of?
 	backgoundTimerGoroCount int64 // atomic access only
 
 	scenario *scenario
+
+	meQ *pq // the master event queue.
 
 	cfg       *Config
 	simNetCfg *SimNetConfig
@@ -500,6 +504,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 
 	// server creates simnet; must start server first.
 	s := &simnet{
+		meQ:            newMasterEventQueue("scheduler"),
 		barrier:        !simNetConfig.BarrierOff,
 		cfg:            cfg,
 		simNetCfg:      simNetConfig,
@@ -710,6 +715,63 @@ func (s *pq) del(op *mop) (found bool) {
 func (s *pq) deleteAll() {
 	s.Tree.DeleteAll()
 	return
+}
+
+type event interface {
+	sn() int64       // identity
+	tm() time.Time   // the important when part
+	priority() int64 // break ties at same tm.
+}
+
+func newMasterEventQueue(owner string) *pq {
+
+	cmp := func(a, b rb.Item) int {
+		av := a.(event)
+		bv := b.(event)
+
+		if av == nil {
+			panic("no nil events allowed in the meq")
+			return -1
+		}
+		if bv == nil {
+			panic("no nil events allowed in the meq")
+			return 1
+		}
+		asn := av.sn()
+		bsn := bv.sn()
+		if asn == bsn {
+			return 0
+		}
+		atm := av.tm()
+		btm := bv.tm()
+		if atm.Before(btm) {
+			return -1
+		}
+		if atm.After(btm) {
+			return 1
+		}
+		apri := av.priority()
+		bpri := bv.priority()
+		if apri < bpri {
+			return -1
+		}
+		if apri > bpri {
+			return 1
+		}
+		if asn < bsn {
+			return -1
+		}
+		if asn > bsn {
+			return 1
+		}
+		return 0
+	}
+	return &pq{
+		Owner:   owner,
+		Orderby: "tm() then priority() then sn()",
+		Tree:    rb.NewTree(cmp),
+		cmp:     cmp,
+	}
 }
 
 // order by arrivalTm; for the pre-arrival preArrQ.

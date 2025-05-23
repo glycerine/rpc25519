@@ -73,7 +73,7 @@ func Test1001_simnetonly_drop_prob(t *testing.T) {
 }
 
 func Test1002_simnetonly_deaf_prob_tests(t *testing.T) {
-	return // red atm
+	//return // red atm
 	cliDeaf := true
 	for j := range 1 {
 		if j > 0 {
