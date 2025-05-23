@@ -222,3 +222,98 @@ package rpc25519
 // synctestWait_LetAllOtherGoroFinish is defined in
 // simnet_synctest.go for synctest is on, and in
 // simnet_nosynctest.go as a no-op when off.
+
+// graph kept in simnet.circuits:
+//
+// circuits[A][B] is the very cyclic (bi-directed?) graph
+// of the network.
+//
+// The simnode.name is the key of the circuits map.
+// Both client and server names are keys in circuits.
+//
+// Each A has a bi-directional network "socket" to each of circuits[A].
+//
+// circuits[A][B] is A's connection to B; that owned by A.
+//
+// circuits[B][A] is B's connection to A; that owned by B.
+//
+// The system guarantees that the keys of circuits
+// (the names of all simnodes) are unique strings,
+// by rejecting any already taken names (panic-ing on attempted
+// registration) during the moral equivalent of
+// server Bind/Listen and client Dial. The go map
+// is not a multi-map anyway, but that is just
+// an implementation detail that happens to provide extra
+// enforcement. Even if we change the map out
+// later, each simnode name in the network must be unique.
+//
+// Users specify their own names for modeling
+// convenience, but assist them by enforcing
+// global name uniqueness.
+//
+// See handleServerRegistration() and
+// handleClientRegistration() where these
+// panics enforce uniqueness.
+//
+// Technically, if the simnode is backed by
+// rpc25519, each simnode has both a rpc25519.Server
+// and a set of rpc25519.Clients, one client per
+// outgoing initated connection, and so there are
+// redundant paths to get a message from
+// A to B through the network. This is necessary
+// because only the Client in TCP is the active initator,
+// and can only talk to one Server. A Server
+// can always talk to any number of Clients,
+// but typically must begin passively and
+// cannot initiate a connection to another
+// server. On TCP, rpc25519 enables active grid
+// creation. Each peer runs a server, and
+// servers establish the grid by automatically creating an
+// internal auto-Client when the server (peer)
+// wishes to initate contact with another server (peer).
+// The QUIC version is... probably similar;
+// since QUIC was slower I have not thought
+// about it in a while--but QUIC can use the
+// same port for client and server (to simplify
+// diagnostics).
+//
+// The simnet tries to not care about these detail,
+// and the rpc25519 peer system is symmetric by design.
+// Thus it will forward a message to the peer no
+// matter where it lives (be it technically on an
+// rpc25519.Client or rpc25519.Server).
+//
+// The isCli flag distinguishes whether a given
+// simnode is on a Client or Server when
+// it matters, but we try to minimize its use.
+// It should not matter for the most part; in
+// the ckt.go code there is even a note that
+// the peerAPI.isCli can be misleading with auto-Clients
+// in play. The simnode.isCli however should be
+// accurate (we think).
+//
+// Each peer-to-peer connection is a network
+// simnode that can send and read messages
+// to exactly one other network simnode.
+//
+// Even during "partition" of the network,
+// or when modeling faulty links or network cards,
+// in general we want to be maintain the
+// most general case of a fully connected
+// network, where any peer can talk to any
+// other peer in the network; like the internet.
+// I think of a simnet as the big single
+// ethernet switch that all circuits plug into.
+//
+// When modeling faults, we try to keep the circuits network
+// as static as possible, and set .deafRead
+// or .dropSend flags to model faults.
+// Reboot/restart should not heal net/net card faults.
+//
+// To recap, both clinode.name and srvnode.name are keys
+// in the circuits map. So circuits[clinode.name] returns
+// the map of who clinode is connected to.
+//
+// In other words, the value of the map circuits[A]
+// is another map, which is the set of circuits that A
+// is connected to by the simconn circuits[A][B].

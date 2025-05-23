@@ -105,6 +105,96 @@ type mop struct {
 	lastP            float64
 }
 
+// event priority lets the master
+// event queue sort different kinds
+// of mop together by the right tm for that event.
+// and: to break ties by priority for
+// deterministic replay.
+type event interface {
+	serial() int64   // identity
+	tm() time.Time   // the important when part
+	priority() int64 // break ties at same tm.
+	knd() mopkind
+}
+
+func (s *mop) priority() int64 {
+	return s.sn // for now
+}
+func (s *mop) knd() mopkind {
+	return s.kind
+}
+func (s *mop) serial() int64 {
+	return s.sn
+}
+func (s *mop) tm() time.Time {
+	switch s.kind {
+	case SEND:
+		return s.arrivalTm
+	case READ:
+		// not completeTm: when the read returns to user who called readMessage()
+		// initTm: timer started, read begin waiting, send hits the socket.
+		// initTm: for timer discards, when discarded so usually initTm.
+		return s.initTm
+	case TIMER:
+		return s.completeTm
+	case TIMER_DISCARD:
+		return s.initTm
+	}
+	panic(fmt.Sprintf("mop kind tm not defined, what tm "+
+		"to use for kind='%v'", int(s.kind)))
+}
+
+func newMasterEventQueue(owner string) *pq {
+
+	cmp := func(a, b rb.Item) int {
+		av := a.(event)
+		bv := b.(event)
+
+		if av == nil {
+			panic("no nil events allowed in the meq")
+			return -1
+		}
+		if bv == nil {
+			panic("no nil events allowed in the meq")
+			return 1
+		}
+		asn := av.serial()
+		bsn := bv.serial()
+		if asn == bsn {
+			return 0
+		}
+		atm := av.tm()
+		btm := bv.tm()
+		if atm.Before(btm) {
+			return -1
+		}
+		if atm.After(btm) {
+			return 1
+		}
+		apri := av.priority()
+		bpri := bv.priority()
+		if apri < bpri {
+			return -1
+		}
+		if apri > bpri {
+			return 1
+		}
+		if asn < bsn {
+			return -1
+		}
+		if asn > bsn {
+			return 1
+		}
+		return 0
+	}
+	return &pq{
+		Owner:   owner,
+		Orderby: "tm() then priority() then sn()",
+		Tree:    rb.NewTree(cmp),
+		cmp:     cmp,
+	}
+}
+
 func (s *mop) clone() (c *mop) {
 	cp := *s
 	c = &cp
@@ -136,98 +226,17 @@ type simnet struct {
 
 	dns map[string]*simnode
 
-	// circuits[A][B] is the very cyclic (bi-directed?) graph
-	// of the network.
+	// circuits[A][B] is the bi-directed, very cyclic,
+	// graph of the network. A sparse matrix, circuits[A]
+	// is a map of circuits that A has locally, keyed
+	// by remote node; circuits[A][B] is A's local
+	// simconn to B. The corresponding simmconn connection
+	// endpoint owned by B is found in circuits[B][A].
 	//
-	// The simnode.name is the key of the circuits map.
-	// Both client and server names are keys in circuits.
-	//
-	// Each A has a bi-directional network "socket" to each of circuits[A].
-	//
-	// circuits[A][B] is A's connection to B; that owned by A.
-	//
-	// circuits[B][A] is B's connection to A; that owned by B.
-	//
-	// The system guarantees that the keys of circuits
-	// (the names of all simnodes) are unique strings,
-	// by rejecting any already taken names (panic-ing on attempted
-	// registration) during the moral equivalent of
-	// server Bind/Listen and client Dial. The go map
-	// is not a multi-map anyway, but that is just
-	// an implementation detail that happens to provide extra
-	// enforcement. Even if we change the map out
-	// later, each simnode name in the network must be unique.
-	//
-	// Users specify their own names for modeling
-	// convenience, but assist them by enforcing
-	// global name uniqueness.
-	//
-	// See handleServerRegistration() and
-	// handleClientRegistration() where these
-	// panics enforce uniqueness.
-	//
-	// Technically, if the simnode is backed by
-	// rpc25519, each simnode has both a rpc25519.Server
-	// and a set of rpc25519.Clients, one client per
-	// outgoing initated connection, and so there are
-	// redundant paths to get a message from
-	// A to B through the network. This is necessary
-	// because only the Client in TCP is the active initator,
-	// and can only talk to one Server. A Server
-	// can always talk to any number of Clients,
-	// but typically must begin passively and
-	// cannot initiate a connection to another
-	// server. On TCP, rpc25519 enables active grid
-	// creation. Each peer runs a server, and
-	// servers establish the grid by automatically creating an
-	// internal auto-Client when the server (peer)
-	// wishes to initate contact with another server (peer).
-	// The QUIC version is... probably similar;
-	// since QUIC was slower I have not thought
-	// about it in a while--but QUIC can use the
-	// same port for client and server (to simplify
-	// diagnostics).
-	//
-	// The simnet tries to not care about these detail,
-	// and the rpc25519 peer system is symmetric by design.
-	// Thus it will forward a message to the peer no
-	// matter where it lives (be it technically on an
-	// rpc25519.Client or rpc25519.Server).
-	//
-	// The isCli flag distinguishes whether a given
-	// simnode is on a Client or Server when
-	// it matters, but we try to minimize its use.
-	// It should not matter for the most part; in
-	// the ckt.go code there is even a note that
-	// the peerAPI.isCli can be misleading with auto-Clients
-	// in play. The simnode.isCli however should be
-	// accurate (we think).
-	//
-	// Each peer-to-peer connection is a network
-	// simnode that can send and read messages
-	// to exactly one other network simnode.
-	//
-	// Even during "partition" of the network,
-	// or when modeling faulty links or network cards,
-	// in general we want to be maintain the
-	// most general case of a fully connected
-	// network, where any peer can talk to any
-	// other peer in the network; like the internet.
-	// I think of a simnet as the big single
-	// ethernet switch that all circuits plug into.
-	//
-	// When modeling faults, we try to keep the circuits network
-	// as static as possible, and set .deafRead
-	// or .dropSend flags to model faults.
-	// Reboot/restart should not heal net/net card faults.
-	//
-	// To recap, both clinode.name and srvnode.name are keys
-	// in the circuits map. So circuits[clinode.name] returns
-	// the map of who clinode is connected to.
-	//
-	// In other words, the value of the map circuits[A]
-	// is another map, which is the set of circuits that A
-	// is connected to by the simconn circuits[A][B].
+	// I use bi-directed to mean each A -> B is always
+	// paired with a B -> A connection. Thus one-way
+	// faults to be modelled or assigned probability
+	// indepenent of the other directions fault status.
 	circuits map[*simnode]map[*simnode]*simconn
 	servers  map[string]*simnode // serverBaseID:srvnode
 	allnodes map[*simnode]bool
@@ -253,7 +262,6 @@ type simnet struct {
 	repairCircuitCh      chan *circuitRepair
 	repairHostCh         chan *hostRepair
 
-	//safeStateStringCh     chan *simnetSafeStateQuery
 	simnetStatusRequestCh chan *SimnetSnapshot
 
 	newScenarioCh chan *scenario
@@ -715,63 +723,6 @@ func (s *pq) del(op *mop) (found bool) {
 func (s *pq) deleteAll() {
 	s.Tree.DeleteAll()
 	return
-}
-
-type event interface {
-	sn() int64       // identity
-	tm() time.Time   // the important when part
-	priority() int64 // break ties at same tm.
-}
-
-func newMasterEventQueue(owner string) *pq {
-
-	cmp := func(a, b rb.Item) int {
-		av := a.(event)
-		bv := b.(event)
-
-		if av == nil {
-			panic("no nil events allowed in the meq")
-			return -1
-		}
-		if bv == nil {
-			panic("no nil events allowed in the meq")
-			return 1
-		}
-		asn := av.sn()
-		bsn := bv.sn()
-		if asn == bsn {
-			return 0
-		}
-		atm := av.tm()
-		btm := bv.tm()
-		if atm.Before(btm) {
-			return -1
-		}
-		if atm.After(btm) {
-			return 1
-		}
-		apri := av.priority()
-		bpri := bv.priority()
-		if apri < bpri {
-			return -1
-		}
-		if apri > bpri {
-			return 1
-		}
-		if asn < bsn {
-			return -1
-		}
-		if asn > bsn {
-			return 1
-		}
-		return 0
-	}
-	return &pq{
-		Owner:   owner,
-		Orderby: "tm() then priority() then sn()",
-		Tree:    rb.NewTree(cmp),
-		cmp:     cmp,
-	}
 }
 
 // order by arrivalTm; for the pre-arrival preArrQ.
