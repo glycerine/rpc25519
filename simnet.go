@@ -120,7 +120,8 @@ type mop struct {
 	hostFault  *hostFault
 	repairCkt  *circuitRepair
 	repairHost *hostRepair
-	alt        *simnodeAlteration
+	alterHost  *simnodeAlteration
+	alterNode  *simnodeAlteration
 }
 
 // increase determinism by processing
@@ -2076,9 +2077,9 @@ restartI:
 				case REPAIR_HOST:
 					s.handleHostRepair(op.repairHost)
 				case ALTER_HOST:
-					s.handleAlterHost(op.alt)
+					s.handleAlterHost(op.alterHost)
 				case ALTER_NODE:
-					s.handleAlterCircuit(op.alt, true)
+					s.handleAlterCircuit(op.alterNode, true)
 				default:
 					panic(fmt.Sprintf("why in our meq this mop kind? '%v'", int(op.kind)))
 				}
@@ -2618,20 +2619,20 @@ func newScenarioMop(scen *scenario) (op *mop) {
 
 func newAlterNodeMop(alt *simnodeAlteration) (op *mop) {
 	op = &mop{
-		alt:     alt,
-		sn:      simnetNextMopSn(),
-		kind:    ALTER_NODE,
-		proceed: alt.done,
+		alterNode: alt,
+		sn:        simnetNextMopSn(),
+		kind:      ALTER_NODE,
+		proceed:   alt.done,
 	}
 	return
 }
 
 func newAlterHostMop(alt *simnodeAlteration) (op *mop) {
 	op = &mop{
-		alt:     alt,
-		sn:      simnetNextMopSn(),
-		kind:    ALTER_HOST,
-		proceed: alt.done,
+		alterHost: alt,
+		sn:        simnetNextMopSn(),
+		kind:      ALTER_HOST,
+		proceed:   alt.done,
 	}
 	return
 }
