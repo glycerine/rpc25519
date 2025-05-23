@@ -94,19 +94,19 @@ func Test1002_simnetonly_deaf_prob_tests(t *testing.T) {
 			serviceName := "customEcho"
 			srv.Register2Func(serviceName, customEcho)
 
-			dropPct := 0.5
+			deafPct := 0.5
 			var undoIsolated func()
 			_ = undoIsolated
-			//vv("before clientDropsSends(%v): %v", dropPct, simnet.GetSimnetSnapshot())
-			///undoIsolated := simt.clientDropsSends(dropPct)
+			//vv("before clientDeaf(%v): %v", deafPct, simnet.GetSimnetSnapshot())
+			//undoIsolated := simt.clientDeaf(deafPct)
 			if cliDeaf {
-				undoIsolated = simt.clientDeaf(dropPct)
-				vv("after clientDeaf(%v): %v", dropPct, simnet.GetSimnetSnapshot())
+				undoIsolated = simt.clientDeaf(deafPct)
+				vv("after clientDeaf(%v): %v", deafPct, simnet.GetSimnetSnapshot())
 				//} else {
-				//undoIsolated = simt.serverDeaf(dropPct)
-				//vv("after serverDeaf(%v): %v", dropPct, simnet.GetSimnetSnapshot())
+				//undoIsolated = simt.serverDeaf(deafPct)
+				//vv("after serverDeaf(%v): %v", deafPct, simnet.GetSimnetSnapshot())
 			}
-			//vv("after clientDropsSends(%v): %v", dropPct, simnet.GetSimnetSnapshot().ShortString())
+			//vv("after clientDeaf(%v): %v", deafPct, simnet.GetSimnetSnapshot().ShortString())
 			got, goterr := 0, 0
 			waitFor := 100 * time.Millisecond
 			for range nmsg {
@@ -123,9 +123,10 @@ func Test1002_simnetonly_deaf_prob_tests(t *testing.T) {
 					//}
 				}
 			}
-			pctDropped := 1 - (float64(got))/float64(nmsg)
-			vv("nmsg = %v; got=%v; pctDropped=%0.5f; goterr=%v", nmsg, got, pctDropped, goterr)
-			diff := math.Abs(pctDropped - dropPct)
+			obsPctDeaf := 1 - (float64(got))/float64(nmsg)
+			vv("nmsg = %v; got=%v; obsPctDeaf=%0.5f; goterr=%v; requested/expected deafPct:%0.5f", nmsg, got, obsPctDeaf, goterr, deafPct)
+
+			diff := math.Abs(obsPctDeaf - deafPct)
 			if diff >= 0.05 {
 				panic(fmt.Sprintf("diff = %0.5f >= 0.05", diff))
 			}

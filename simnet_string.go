@@ -118,6 +118,12 @@ func (k mopkind) String() string {
 		return "SEND"
 	case READ:
 		return "READ"
+	case SNAPSHOT:
+		return "SNAPSHOT"
+	case CLIENT_REG:
+		return "CLIENT_REG"
+	case SERVER_REG:
+		return "SERVER_REG"
 	default:
 		return fmt.Sprintf("unknown mopkind %v", int(k))
 	}

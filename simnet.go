@@ -20,6 +20,13 @@ import (
 type mop struct {
 	sn int64
 
+	// API origin submission to simnet, consistently
+	// on all requests like client/server registration,
+	// snapshots, everything. probably redundant with
+	// the earlier fields below, but okay; this might
+	// be realtime if we are not under faketime.
+	reqtm time.Time
+
 	// so we can handle a network
 	// rather than just cli/srv.
 	origin *simnode
@@ -103,6 +110,10 @@ type mop struct {
 
 	lastIsDeafTrueTm time.Time
 	lastP            float64
+
+	cliReg  *clientRegistration
+	srvReg  *serverRegistration
+	snapReq *SimnetSnapshot
 }
 
 func (s *mop) priority() int64 {
@@ -121,6 +132,13 @@ func (s *mop) tm() time.Time {
 		return s.completeTm
 	case TIMER_DISCARD:
 		return s.initTm
+
+	case SNAPSHOT:
+		return s.reqtm
+	case CLIENT_REG:
+		return s.reqtm
+	case SERVER_REG:
+		return s.reqtm
 	}
 	panic(fmt.Sprintf("mop kind '%v' needs tm", int(s.kind)))
 }
@@ -244,7 +262,7 @@ type simnet struct {
 	repairCircuitCh      chan *circuitRepair
 	repairHostCh         chan *hostRepair
 
-	simnetStatusRequestCh chan *SimnetSnapshot
+	simnetSnapshotRequestCh chan *SimnetSnapshot
 
 	newScenarioCh chan *scenario
 	nextTimer     *time.Timer
@@ -463,7 +481,7 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 	go func() {
 		select {
 		case srvnode.tellServerNewConnCh <- s2c:
-			//vv("%v srvnode was notified of new client '%v'; s2c='%#v'", srvnode.name, clinode.name, s2c)
+			//vv("%v srvnode was notified of new client '%v'; s2c='%v'", srvnode.name, clinode.name, s2c)
 
 			// let client start using the connection/edge.
 			close(reg.done)
@@ -517,9 +535,9 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 
 		scenario: scen,
 		//safeStateStringCh:     make(chan *simnetSafeStateQuery),
-		simnetStatusRequestCh: make(chan *SimnetSnapshot),
-		dns:                   make(map[string]*simnode),
-		node2server:           make(map[*simnode]*simnode),
+		simnetSnapshotRequestCh: make(chan *SimnetSnapshot),
+		dns:                     make(map[string]*simnode),
+		node2server:             make(map[*simnode]*simnode),
 
 		// graph of circuits, edges are circuits[from][to]
 		circuits: make(map[*simnode]map[*simnode]*simconn),
@@ -609,6 +627,10 @@ const (
 	TIMER_DISCARD mopkind = 2
 	SEND          mopkind = 3
 	READ          mopkind = 4
+
+	SNAPSHOT   mopkind = 5
+	CLIENT_REG mopkind = 6
+	SERVER_REG mopkind = 7
 )
 
 func enforceTickDur(tick time.Duration) time.Duration {
@@ -1892,7 +1914,7 @@ restartI:
 			//cli.lc = %v ; srv.lc = %v", clilc, srvlc)
 			//vv("i=%v scheduler top. schedulerReport: \n%v", i, s.schedulerReport())
 		}
-		vv("i=%v scheduler top. ndtot=%v", i, ndtot)
+		//vv("i=%v scheduler top. ndtot=%v", i, ndtot)
 
 		bkgTimers := atomic.LoadInt64(&s.backgoundTimerGoroCount)
 		if bkgTimers > 10 {
@@ -1925,7 +1947,7 @@ restartI:
 			totalSleepDur += now.Sub(preSelectTm)
 			vv("i=%v, nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
 
-			// max determinism: go last
+			// maximizing determinism: go last
 			// among all goro who were woken by other
 			// timers that fired at this instant.
 			if faketime && s.barrier {
@@ -1960,6 +1982,12 @@ restartI:
 				case READ:
 					vv("i=%v meq sees read='%v'", i, mop)
 					s.handleRead(mop)
+				case SNAPSHOT:
+					s.handleSimnetSnapshotRequest(mop.snapReq, now, i)
+				case CLIENT_REG:
+					s.handleClientRegistration(mop.cliReg)
+				case SERVER_REG:
+					s.handleServerRegistration(mop.srvReg)
 				default:
 					panic(fmt.Sprintf("why in our meq this mop kind? '%v'", int(mop.kind)))
 				}
@@ -2007,16 +2035,18 @@ restartI:
 
 		case reg := <-s.cliRegisterCh:
 			// "connect" in network lingo, client reaches out to listening server.
-			vv("i=%v, cliRegisterCh got reg from '%v' = '%#v'", i, reg.client.name, reg)
-			s.handleClientRegistration(reg)
+			vv("i=%v, cliRegisterCh got reg from '%v' = '%v'", i, reg.client.name, reg)
+			//s.handleClientRegistration(reg)
+			s.meq.add(newClientRegMop(reg))
 			//vv("back from handleClientRegistration for '%v'", reg.client.name)
 
 		case srvreg := <-s.srvRegisterCh:
 			// "bind/listen" on a socket, server waits for any client to "connect"
 			vv("i=%v, s.srvRegisterCh got srvreg for '%v'", i, srvreg.server.name)
-			s.handleServerRegistration(srvreg)
+			//s.handleServerRegistration(srvreg)
 			// do not vv here, as it is very racey with the server who
 			// has been given permission to proceed.
+			s.meq.add(newServerRegMop(srvreg))
 
 		case scenario := <-s.newScenarioCh:
 			vv("i=%v, newScenarioCh ->  scenario='%v'", i, scenario)
@@ -2050,10 +2080,11 @@ restartI:
 			vv("i=%v repairHostCh ->  repairHost='%v'", i, repairHost)
 			s.handleHostRepair(repairHost)
 
-		case statusReq := <-s.simnetStatusRequestCh:
-			vv("i=%v simnetStatusRequestCh ->  statusReq", i)
+		case snapReq := <-s.simnetSnapshotRequestCh:
+			vv("i=%v simnetSnapshotRequestCh -> snapReq", i)
 			// user can confirm/view all current faults/health
-			s.handleSimnetSnapshotRequest(statusReq, now, i)
+			//s.handleSimnetSnapshotRequest(snapReq, now, i)
+			s.meq.add(newSnapReqMop(snapReq))
 
 		case <-s.halt.ReqStop.Chan:
 			vv("i=%v <-s.halt.ReqStop.Chan", i)
@@ -2064,7 +2095,7 @@ restartI:
 			return
 		} // end select
 
-		vv("i=%v bottom of scheduler loop. num dispatch events = %v", i, nd0)
+		//vv("i=%v bottom of scheduler loop. num dispatch events = %v", i, nd0)
 	}
 }
 
@@ -2224,7 +2255,7 @@ func (simnode *simnode) soonestTimerLessThan(bound *mop) *mop {
 	minTimer := it.Item().(*mop)
 	if bound == nil {
 		// no lower bound yet
-		//vv("we have no lower bound, returning min timer: '%#v'", minTimer)
+		//vv("we have no lower bound, returning min timer: '%v'", minTimer)
 		return minTimer
 	}
 	if minTimer.completeTm.Before(bound.completeTm) {
@@ -2464,4 +2495,36 @@ func (s *simnet) handleSimnetSnapshotRequest(req *SimnetSnapshot, now time.Time,
 		} // end alone
 	}
 	// end handleSimnetSnapshotRequest
+}
+
+func newClientRegMop(clireg *clientRegistration) (op *mop) {
+	op = &mop{
+		cliReg:    clireg,
+		originCli: true,
+		sn:        simnetNextMopSn(),
+		kind:      CLIENT_REG,
+		proceed:   clireg.done,
+	}
+	return
+}
+
+func newServerRegMop(srvreg *serverRegistration) (op *mop) {
+	op = &mop{
+		srvReg:    srvreg,
+		originCli: false,
+		sn:        simnetNextMopSn(),
+		kind:      SERVER_REG,
+		proceed:   srvreg.done,
+	}
+	return
+}
+
+func newSnapReqMop(snapReq *SimnetSnapshot) (op *mop) {
+	op = &mop{
+		snapReq: snapReq,
+		sn:      simnetNextMopSn(),
+		kind:    SNAPSHOT,
+		proceed: snapReq.proceed,
+	}
+	return
 }

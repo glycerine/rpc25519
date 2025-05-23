@@ -44,15 +44,20 @@ type scenario struct {
 	tick   time.Duration
 	minHop time.Duration
 	maxHop time.Duration
+
+	reqtm   time.Time
+	proceed chan struct{}
 }
 
 func NewScenario(tick, minHop, maxHop time.Duration, seed [32]byte) *scenario {
 	s := &scenario{
-		seed:   seed,
-		chacha: mathrand2.NewChaCha8(seed),
-		tick:   enforceTickDur(tick),
-		minHop: minHop,
-		maxHop: maxHop,
+		seed:    seed,
+		chacha:  mathrand2.NewChaCha8(seed),
+		tick:    enforceTickDur(tick),
+		minHop:  minHop,
+		maxHop:  maxHop,
+		reqtm:   time.Now(),
+		proceed: make(chan struct{}),
 	}
 	s.rng = mathrand2.New(s.chacha)
 	return s
@@ -476,6 +481,7 @@ func newTimerCreateMop(isCli bool) (op *mop) {
 		sn:        simnetNextMopSn(),
 		kind:      TIMER,
 		proceed:   make(chan struct{}),
+		reqtm:     time.Now(),
 	}
 	return
 }
@@ -487,6 +493,7 @@ func newTimerDiscardMop(origTimerMop *mop) (op *mop) {
 		kind:         TIMER_DISCARD,
 		proceed:      make(chan struct{}),
 		origTimerMop: origTimerMop,
+		reqtm:        time.Now(),
 	}
 	return
 }
@@ -497,6 +504,7 @@ func newReadMop(isCli bool) (op *mop) {
 		sn:        simnetNextMopSn(),
 		kind:      READ,
 		proceed:   make(chan struct{}),
+		reqtm:     time.Now(),
 	}
 	return
 }
@@ -509,6 +517,7 @@ func newSendMop(msg *Message, isCli bool) (op *mop) {
 		sn:        simnetNextMopSn(),
 		kind:      SEND,
 		proceed:   make(chan struct{}),
+		reqtm:     time.Now(),
 	}
 	return
 }
@@ -550,7 +559,8 @@ type clientRegistration struct {
 	serverBaseID string
 
 	// wait on
-	done chan struct{}
+	done  chan struct{}
+	reqtm time.Time
 
 	// receive back
 	simnode *simnode // our identity in the simnet (conn.local)
@@ -570,6 +580,7 @@ func (s *simnet) newClientRegistration(
 		dialTo:           dialTo,
 		serverAddrStr:    serverAddr,
 		serverBaseID:     serverBaseID,
+		reqtm:            time.Now(),
 		done:             make(chan struct{}),
 	}
 }
@@ -581,7 +592,8 @@ type serverRegistration struct {
 	serverBaseID string
 
 	// wait on
-	done chan struct{}
+	done  chan struct{}
+	reqtm time.Time
 
 	// receive back
 	simnode             *simnode // our identity in the simnet (conn.local)
@@ -595,6 +607,7 @@ func (s *simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) *ser
 		serverBaseID: srv.cfg.serverBaseID,
 		srvNetAddr:   srvNetAddr,
 		done:         make(chan struct{}),
+		reqtm:        time.Now(),
 	}
 }
 
@@ -636,6 +649,7 @@ type simnodeAlteration struct {
 
 	isHostAlter bool
 	done        chan struct{}
+	reqtm       time.Time
 }
 
 func (s *simnet) newCircuitAlteration(simnodeName string, alter Alteration, isHostAlter bool) *simnodeAlteration {
@@ -646,6 +660,7 @@ func (s *simnet) newCircuitAlteration(simnodeName string, alter Alteration, isHo
 		alter:       alter,
 		isHostAlter: isHostAlter,
 		done:        make(chan struct{}),
+		reqtm:       time.Now(),
 	}
 }
 
@@ -708,7 +723,9 @@ type circuitFault struct {
 
 	sn      int64
 	proceed chan struct{}
-	err     error
+	reqtm   time.Time
+
+	err error
 }
 
 func newCircuitFault(originName, targetName string, dd DropDeafSpec, deliverDroppedSends bool) *circuitFault {
@@ -719,6 +736,7 @@ func newCircuitFault(originName, targetName string, dd DropDeafSpec, deliverDrop
 		deliverDroppedSends: deliverDroppedSends,
 		sn:                  simnetNextMopSn(),
 		proceed:             make(chan struct{}),
+		reqtm:               time.Now(),
 	}
 }
 
@@ -728,6 +746,7 @@ type hostFault struct {
 	deliverDroppedSends bool
 	sn                  int64
 	proceed             chan struct{}
+	reqtm               time.Time
 	err                 error
 }
 
@@ -738,6 +757,7 @@ func newHostFault(hostName string, dd DropDeafSpec, deliverDroppedSends bool) *h
 		deliverDroppedSends: deliverDroppedSends,
 		sn:                  simnetNextMopSn(),
 		proceed:             make(chan struct{}),
+		reqtm:               time.Now(),
 	}
 }
 
@@ -751,6 +771,7 @@ type circuitRepair struct {
 	powerOnIfOff        bool
 	sn                  int64
 	proceed             chan struct{}
+	reqtm               time.Time
 	err                 error
 }
 
@@ -764,6 +785,7 @@ func (s *simnet) newCircuitRepair(originName, targetName string, unIsolate, powe
 		powerOnIfOff:        powerOnIfOff,
 		sn:                  simnetNextMopSn(),
 		proceed:             make(chan struct{}),
+		reqtm:               time.Now(),
 	}
 }
 
@@ -775,6 +797,7 @@ type hostRepair struct {
 	deliverDroppedSends bool
 	sn                  int64
 	proceed             chan struct{}
+	reqtm               time.Time
 	err                 error
 }
 
@@ -787,6 +810,7 @@ func (s *simnet) newHostRepair(hostName string, unIsolate, powerOnIfOff, allHost
 		allHosts:            allHosts,
 		sn:                  simnetNextMopSn(),
 		proceed:             make(chan struct{}),
+		reqtm:               time.Now(),
 	}
 	return m
 }
@@ -859,20 +883,22 @@ type SimnetSnapshot struct {
 	Peermap map[string]*SimnetPeerStatus
 	LoneCli map[string]*SimnetPeerStatus // not really a peer but meh.
 
+	reqtm   time.Time
 	proceed chan struct{}
 }
 
-func (s *simnet) GetSimnetSnapshot() (status *SimnetSnapshot) {
-	status = &SimnetSnapshot{
+func (s *simnet) GetSimnetSnapshot() (snap *SimnetSnapshot) {
+	snap = &SimnetSnapshot{
+		reqtm:   time.Now(),
 		proceed: make(chan struct{}),
 	}
 	select {
-	case s.simnetStatusRequestCh <- status:
+	case s.simnetSnapshotRequestCh <- snap:
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
 	select {
-	case <-status.proceed:
+	case <-snap.proceed:
 	case <-s.halt.ReqStop.Chan:
 	}
 	return
