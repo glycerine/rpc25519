@@ -116,8 +116,41 @@ type mop struct {
 	snapReq *SimnetSnapshot
 }
 
+// increase determinism by processing
+// the meq in priority order, after
+// giving each mop a different priority.
 func (s *mop) priority() int64 {
-	return s.sn // for now
+	switch s.kind {
+	case SCENARIO:
+		return 100
+
+	case CLIENT_REG:
+		return 200
+	case SERVER_REG:
+		return 300
+
+	case FAULT_CKT:
+		return 400
+	case FAULT_HOST:
+		return 500
+	case REPAIR_CKT:
+		return 600
+	case REPAIR_HOST:
+		return 700
+
+	case SEND:
+		return 800
+	case READ:
+		return 900
+	case TIMER:
+		return 1000
+	case TIMER_DISCARD:
+		return 1100
+
+	case SNAPSHOT:
+		return 2000
+	}
+	panic(fmt.Sprintf("mop kind '%v' needs priority", int(s.kind)))
 }
 func (s *mop) tm() time.Time {
 	switch s.kind {
@@ -138,6 +171,17 @@ func (s *mop) tm() time.Time {
 	case CLIENT_REG:
 		return s.reqtm
 	case SERVER_REG:
+		return s.reqtm
+
+	case FAULT_CKT:
+		return s.reqtm
+	case FAULT_HOST:
+		return s.reqtm
+	case REPAIR_CKT:
+		return s.reqtm
+	case REPAIR_HOST:
+		return s.reqtm
+	case SCENARIO:
 		return s.reqtm
 	}
 	panic(fmt.Sprintf("mop kind '%v' needs tm", int(s.kind)))
@@ -631,6 +675,12 @@ const (
 	SNAPSHOT   mopkind = 5
 	CLIENT_REG mopkind = 6
 	SERVER_REG mopkind = 7
+
+	FAULT_CKT   mopkind = 8
+	FAULT_HOST  mopkind = 9
+	REPAIR_CKT  mopkind = 10
+	REPAIR_HOST mopkind = 11
+	SCENARIO    mopkind = 12
 )
 
 func enforceTickDur(tick time.Duration) time.Duration {
