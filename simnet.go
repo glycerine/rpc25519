@@ -249,7 +249,7 @@ type simnet struct {
 	repairCircuitCh      chan *circuitRepair
 	repairHostCh         chan *hostRepair
 
-	safeStateStringCh     chan *simnetSafeStateQuery
+	//safeStateStringCh     chan *simnetSafeStateQuery
 	simnetStatusRequestCh chan *SimnetSnapshot
 
 	newScenarioCh chan *scenario
@@ -520,8 +520,8 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		repairCircuitCh:      make(chan *circuitRepair),
 		repairHostCh:         make(chan *hostRepair),
 
-		scenario:              scen,
-		safeStateStringCh:     make(chan *simnetSafeStateQuery),
+		scenario: scen,
+		//safeStateStringCh:     make(chan *simnetSafeStateQuery),
 		simnetStatusRequestCh: make(chan *SimnetSnapshot),
 		dns:                   make(map[string]*simnode),
 		node2server:           make(map[*simnode]*simnode),
@@ -2004,11 +2004,6 @@ restartI:
 			vv("i=%v repairHostCh ->  repairHost='%v'", i, repairHost)
 			s.handleHostRepair(repairHost)
 
-		case safe := <-s.safeStateStringCh:
-			vv("i=%v safeStateStringCh ->  safe", i)
-			// prints internal state to string, without data races.
-			s.handleSafeStateString(safe)
-
 		case statusReq := <-s.simnetStatusRequestCh:
 			vv("i=%v simnetStatusRequestCh ->  statusReq", i)
 			// user can confirm/view all current faults/health
@@ -2264,11 +2259,6 @@ func (s *simnet) allConnString() (r string) {
 		}
 	}
 	return
-}
-
-func (s *simnet) handleSafeStateString(safe *simnetSafeStateQuery) {
-	safe.str = s.String() + "\n" + s.allConnString()
-	close(safe.proceed)
 }
 
 // in hdr/vprint

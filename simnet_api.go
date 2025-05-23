@@ -700,41 +700,6 @@ func (s *simnet) AlterHost(simnodeName string, alter Alteration) (undo Alteratio
 	return
 }
 
-type simnetSafeStateQuery struct {
-	sn      int64
-	str     string
-	err     error
-	proceed chan struct{}
-}
-
-// SafeStateString lets clients not race but still view
-// the simnet's internal state for diagnostics.
-// Calling simnet.String() directly is super data racey; avoid this.
-// We would lowercase simnet.String but the standard Go interface
-// to fmt.Printf/fmt.Sprintf requires an uppercased String method.
-func (s *simnet) SafeStateString() (r string) {
-
-	requestState := &simnetSafeStateQuery{
-		sn:      simnetNextMopSn(),
-		proceed: make(chan struct{}),
-	}
-	select {
-	case s.safeStateStringCh <- requestState:
-		//vv("sent AllHealthy requestState on safeStateStringCh; about to wait on proceed")
-	case <-s.halt.ReqStop.Chan:
-		return
-	}
-	select {
-	case <-requestState.proceed:
-		panicOn(requestState.err)
-		r = requestState.str
-		return
-	case <-s.halt.ReqStop.Chan:
-		return
-	}
-	return
-}
-
 type circuitFault struct {
 	originName string
 	targetName string
