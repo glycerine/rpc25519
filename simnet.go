@@ -114,6 +114,13 @@ type mop struct {
 	cliReg  *clientRegistration
 	srvReg  *serverRegistration
 	snapReq *SimnetSnapshot
+
+	scen       *scenario
+	cktFault   *circuitFault
+	hostFault  *hostFault
+	repairCkt  *circuitRepair
+	repairHost *hostRepair
+	alt        *simnodeAlteration
 }
 
 // increase determinism by processing
@@ -138,17 +145,22 @@ func (s *mop) priority() int64 {
 	case REPAIR_HOST:
 		return 700
 
-	case SEND:
+	case ALTER_HOST:
 		return 800
-	case READ:
+	case ALTER_NODE:
 		return 900
-	case TIMER:
+
+	case SEND:
 		return 1000
+	case READ:
+		return 2000
+	case TIMER:
+		return 3000
 	case TIMER_DISCARD:
-		return 1100
+		return 4000
 
 	case SNAPSHOT:
-		return 2000
+		return 5000
 	}
 	panic(fmt.Sprintf("mop kind '%v' needs priority", int(s.kind)))
 }
@@ -182,6 +194,11 @@ func (s *mop) tm() time.Time {
 	case REPAIR_HOST:
 		return s.reqtm
 	case SCENARIO:
+		return s.reqtm
+
+	case ALTER_HOST:
+		return s.reqtm
+	case ALTER_NODE:
 		return s.reqtm
 	}
 	panic(fmt.Sprintf("mop kind '%v' needs tm", int(s.kind)))
@@ -667,6 +684,8 @@ func simnetNextMopSn() int64 {
 type mopkind int
 
 const (
+	MOP_UNDEFINED mopkind = 0
+
 	TIMER         mopkind = 1
 	TIMER_DISCARD mopkind = 2
 	SEND          mopkind = 3
@@ -680,7 +699,9 @@ const (
 	FAULT_HOST  mopkind = 9
 	REPAIR_CKT  mopkind = 10
 	REPAIR_HOST mopkind = 11
-	SCENARIO    mopkind = 12
+	ALTER_HOST  mopkind = 12
+	ALTER_NODE  mopkind = 13
+	SCENARIO    mopkind = 14
 )
 
 func enforceTickDur(tick time.Duration) time.Duration {
@@ -2012,34 +2033,54 @@ restartI:
 			// into the meq during the last sleep, and
 			// now we act on them.
 			for {
-				mop := s.meq.pop()
-				if mop == nil {
+				op := s.meq.pop()
+				if op == nil {
 					break
 				}
-				switch mop.kind {
+				switch op.kind {
 				case TIMER:
-					vv("i=%v, meq sees timer='%v'", i, mop)
-					s.handleTimer(mop)
+					vv("i=%v, meq sees timer='%v'", i, op)
+					s.handleTimer(op)
 
 				case TIMER_DISCARD:
-					vv("i=%v, meq sees discard='%v'", i, mop)
-					s.handleDiscardTimer(mop)
+					vv("i=%v, meq sees discard='%v'", i, op)
+					s.handleDiscardTimer(op)
 
 				case SEND:
-					vv("i=%v, meq sees send='%v'", i, mop)
-					s.handleSend(mop)
+					vv("i=%v, meq sees send='%v'", i, op)
+					s.handleSend(op)
 
 				case READ:
-					vv("i=%v meq sees read='%v'", i, mop)
-					s.handleRead(mop)
+					vv("i=%v meq sees read='%v'", i, op)
+					s.handleRead(op)
 				case SNAPSHOT:
-					s.handleSimnetSnapshotRequest(mop.snapReq, now, i)
+					s.handleSimnetSnapshotRequest(op.snapReq, now, i)
 				case CLIENT_REG:
-					s.handleClientRegistration(mop.cliReg)
+					s.handleClientRegistration(op.cliReg)
 				case SERVER_REG:
-					s.handleServerRegistration(mop.srvReg)
+					s.handleServerRegistration(op.srvReg)
+
+				case SCENARIO:
+					s.finishScenario()
+					s.initScenario(op.scen)
+					i = 0
+					panic("TODO, impossible to restart network???")
+					continue restartI
+
+				case FAULT_CKT:
+					s.injectCircuitFault(op.cktFault, true)
+				case FAULT_HOST:
+					s.injectHostFault(op.hostFault)
+				case REPAIR_CKT:
+					s.handleCircuitRepair(op.repairCkt, true)
+				case REPAIR_HOST:
+					s.handleHostRepair(op.repairHost)
+				case ALTER_HOST:
+					s.handleAlterHost(op.alt)
+				case ALTER_NODE:
+					s.handleAlterCircuit(op.alt, true)
 				default:
-					panic(fmt.Sprintf("why in our meq this mop kind? '%v'", int(mop.kind)))
+					panic(fmt.Sprintf("why in our meq this mop kind? '%v'", int(op.kind)))
 				}
 			}
 			nd0 += s.dispatchAll(now)
@@ -2053,82 +2094,68 @@ restartI:
 			s.meq.add(timer)
 
 		case discard := <-s.discardTimerCh:
-			vv("i=%v, discardTimer ->  discard='%v'", i, discard)
+			//vv("i=%v, discardTimer ->  discard='%v'", i, discard)
 			//s.handleDiscardTimer(discard)
 			s.meq.add(discard)
 
 		case send := <-s.msgSendCh:
-			vv("i=%v, msgSendCh ->  send='%v'", i, send)
+			//vv("i=%v, msgSendCh ->  send='%v'", i, send)
 			//s.handleSend(send)
 			s.meq.add(send)
 
 		case read := <-s.msgReadCh:
-			vv("i=%v msgReadCh ->  read='%v'", i, read)
+			//vv("i=%v msgReadCh ->  read='%v'", i, read)
 			//s.handleRead(read)
 			s.meq.add(read)
 
-		// case timer := <-s.addTimer:
-		// 	vv("i=%v, addTimer ->  timer='%v'", i, timer)
-		// 	s.handleTimer(timer)
-
-		// case discard := <-s.discardTimerCh:
-		// 	vv("i=%v, discardTimer ->  discard='%v'", i, discard)
-		// 	s.handleDiscardTimer(discard)
-
-		// case send := <-s.msgSendCh:
-		// 	vv("i=%v, msgSendCh ->  send='%v'", i, send)
-		// 	s.handleSend(send)
-
-		// case read := <-s.msgReadCh:
-		// 	vv("i=%v msgReadCh ->  read='%v'", i, read)
-		// 	s.handleRead(read)
-
 		case reg := <-s.cliRegisterCh:
 			// "connect" in network lingo, client reaches out to listening server.
-			vv("i=%v, cliRegisterCh got reg from '%v' = '%v'", i, reg.client.name, reg)
+			//vv("i=%v, cliRegisterCh got reg from '%v' = '%v'", i, reg.client.name, reg)
 			//s.handleClientRegistration(reg)
 			s.meq.add(newClientRegMop(reg))
 			//vv("back from handleClientRegistration for '%v'", reg.client.name)
 
 		case srvreg := <-s.srvRegisterCh:
 			// "bind/listen" on a socket, server waits for any client to "connect"
-			vv("i=%v, s.srvRegisterCh got srvreg for '%v'", i, srvreg.server.name)
+			//vv("i=%v, s.srvRegisterCh got srvreg for '%v'", i, srvreg.server.name)
 			//s.handleServerRegistration(srvreg)
 			// do not vv here, as it is very racey with the server who
 			// has been given permission to proceed.
 			s.meq.add(newServerRegMop(srvreg))
 
 		case scenario := <-s.newScenarioCh:
-			vv("i=%v, newScenarioCh ->  scenario='%v'", i, scenario)
-			s.finishScenario()
-			s.initScenario(scenario)
-			i = 0
-			panic("TODO, impossible to restart network???")
-			continue restartI
+			//vv("i=%v, newScenarioCh ->  scenario='%v'", i, scenario)
+			s.meq.add(newScenarioMop(scenario))
 
 		case alt := <-s.alterSimnodeCh:
-			vv("i=%v alterSimnodeCh ->  alt='%v'", i, alt)
-			s.handleAlterCircuit(alt, true)
+			//vv("i=%v alterSimnodeCh ->  alt='%v'", i, alt)
+			//s.handleAlterCircuit(alt, true)
+			s.meq.add(newAlterNodeMop(alt))
 
 		case alt := <-s.alterHostCh:
 			vv("i=%v alterHostCh ->  alt='%v'", i, alt)
-			s.handleAlterHost(alt)
+			//s.handleAlterHost(op.alt)
+			s.meq.add(newAlterHostMop(alt))
 
 		case cktFault := <-s.injectCircuitFaultCh:
 			vv("i=%v injectCircuitFaultCh ->  cktFault='%v'", i, cktFault)
-			s.injectCircuitFault(cktFault, true)
+			//s.injectCircuitFault(cktFault, true)
+			s.meq.add(newCktFaultMop(cktFault))
 
 		case hostFault := <-s.injectHostFaultCh:
 			vv("i=%v injectHostFaultCh ->  hostFault='%v'", i, hostFault)
-			s.injectHostFault(hostFault)
+			//s.injectHostFault(hostFault)
+			s.meq.add(newHostFaultMop(hostFault))
 
 		case repairCkt := <-s.repairCircuitCh:
 			vv("i=%v repairCircuitCh ->  repairCkt='%v'", i, repairCkt)
-			s.handleCircuitRepair(repairCkt, true)
+			//s.handleCircuitRepair(repairCkt, true)
+			s.meq.add(newRepairCktMop(repairCkt))
 
 		case repairHost := <-s.repairHostCh:
 			vv("i=%v repairHostCh ->  repairHost='%v'", i, repairHost)
-			s.handleHostRepair(repairHost)
+			//s.handleHostRepair(repairHost)
+			s.meq.add(newRepairHostMop(repairHost))
 
 		case snapReq := <-s.simnetSnapshotRequestCh:
 			vv("i=%v simnetSnapshotRequestCh -> snapReq", i)
@@ -2575,6 +2602,76 @@ func newSnapReqMop(snapReq *SimnetSnapshot) (op *mop) {
 		sn:      simnetNextMopSn(),
 		kind:    SNAPSHOT,
 		proceed: snapReq.proceed,
+	}
+	return
+}
+
+func newScenarioMop(scen *scenario) (op *mop) {
+	op = &mop{
+		scen:    scen,
+		sn:      simnetNextMopSn(),
+		kind:    SCENARIO,
+		proceed: scen.proceed,
+	}
+	return
+}
+
+func newAlterNodeMop(alt *simnodeAlteration) (op *mop) {
+	op = &mop{
+		alt:     alt,
+		sn:      simnetNextMopSn(),
+		kind:    ALTER_NODE,
+		proceed: alt.done,
+	}
+	return
+}
+
+func newAlterHostMop(alt *simnodeAlteration) (op *mop) {
+	op = &mop{
+		alt:     alt,
+		sn:      simnetNextMopSn(),
+		kind:    ALTER_HOST,
+		proceed: alt.done,
+	}
+	return
+}
+
+func newCktFaultMop(cktFault *circuitFault) (op *mop) {
+	op = &mop{
+		cktFault: cktFault,
+		sn:       simnetNextMopSn(),
+		kind:     FAULT_CKT,
+		proceed:  cktFault.proceed,
+	}
+	return
+}
+
+func newHostFaultMop(hostFault *hostFault) (op *mop) {
+	op = &mop{
+		hostFault: hostFault,
+		sn:        simnetNextMopSn(),
+		kind:      FAULT_HOST,
+		proceed:   hostFault.proceed,
+	}
+	return
+}
+
+func newRepairCktMop(cktRepair *circuitRepair) (op *mop) {
+	op = &mop{
+		repairCkt: cktRepair,
+		sn:        simnetNextMopSn(),
+		kind:      REPAIR_CKT,
+		proceed:   cktRepair.proceed,
+	}
+	return
+}
+
+func newRepairHostMop(hostRepair *hostRepair) (op *mop) {
+	op = &mop{
+		repairHost: hostRepair,
+		sn:         simnetNextMopSn(),
+		kind:       REPAIR_HOST,
+		proceed:    hostRepair.proceed,
 	}
 	return
 }

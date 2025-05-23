@@ -134,6 +134,10 @@ func (k mopkind) String() string {
 		return "REPAIR_HOST"
 	case SCENARIO:
 		return "SCENARIO"
+	case ALTER_HOST:
+		return "ALTER_HOST"
+	case ALTER_NODE:
+		return "ALTER_NODE"
 
 	default:
 		return fmt.Sprintf("unknown mopkind %v", int(k))
