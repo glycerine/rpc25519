@@ -112,6 +112,33 @@ func (s *dmap[K, V]) delkey(key K) (found bool, next rb.Iterator) {
 	return
 }
 
+func (s *dmap[K, V]) deleteWithIter(it rb.Iterator) (found bool, next rb.Iterator) {
+
+	kv, ok := it.Item().(*ikv[K, V])
+	if !ok {
+		// bad it
+		return
+	}
+
+	if s.idx == nil {
+		// nothing present
+		next = s.tree.Limit()
+		return
+	} else {
+		_, ok = s.idx[kv.id]
+		if !ok {
+			// not present
+			next = s.tree.Limit()
+			return
+		}
+	}
+	s.ordercache = nil
+	next = it.Next()
+	s.tree.DeleteWithIterator(it)
+	delete(s.idx, kv.id)
+	return
+}
+
 // deleteAll clears the tree in O(1) time.
 func (s *dmap[K, V]) deleteAll() {
 	s.ordercache = nil
@@ -162,17 +189,45 @@ func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 		nc := len(m.ordercache)
 		if nc == n {
 			// cache hit
-			for _, kv := range m.ordercache {
+			for i, kv := range m.ordercache {
+				nextit := kv.it.Next()
 				if !yield(kv.key, kv) {
 					return
+				}
+				nc2 := len(m.ordercache)
+				n2 := m.tree.Len()
+				if nc2 != nc || n2 != n {
+					// ugh. delete in middle of iteration.
+					// we can do it, but we down shift to
+					// the slow path using nextit, assuming
+					// there will be more of the same.
+					m.ordercache = nil
+					if i < n2-1 {
+						lim := m.tree.Limit()
+						it := nextit
+						for it != lim {
+							kv := it.Item().(*ikv[K, V])
+							it = it.Next()
+							if !yield(kv.key, kv) {
+								return
+							}
+						}
+					}
 				}
 			}
 		} else {
 			// cache miss. only do full fills for simplicity.
 			m.ordercache = nil
 			lim := m.tree.Limit()
-			for it := m.tree.Min(); it != lim; it = it.Next() {
+			it := m.tree.Min()
+			for it != lim {
+
 				kv := it.Item().(*ikv[K, V])
+				// advance before yeilding so user
+				// can delete at it if desired, and
+				// we will keep on going
+				it = it.Next()
+
 				m.ordercache = append(m.ordercache, kv)
 				if !yield(kv.key, kv) {
 					return
