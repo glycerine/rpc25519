@@ -187,6 +187,8 @@ func (s *dmap[K, V]) deleteAll() {
 func (s *dmap[K, V]) upsert(key K, val V) (newlyAdded bool) {
 
 	atomic.AddInt64(&s.version, 1)
+	s.ordercache = nil
+
 	id := key.id()
 
 	var it rb.Iterator
@@ -200,7 +202,6 @@ func (s *dmap[K, V]) upsert(key K, val V) (newlyAdded bool) {
 	if !ok {
 		// not yet in idx/tree, so add it.
 		newlyAdded = true
-		s.ordercache = nil
 		item := &ikv[K, V]{id: id, key: key, val: val}
 		added, it2 := s.tree.InsertGetIt(item)
 		item.it = it2
@@ -217,39 +218,44 @@ func (s *dmap[K, V]) upsert(key K, val V) (newlyAdded bool) {
 	return
 }
 
-func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
+// unlocked true means we yield values without
+// holding any locks, so the user can delete.
+func all[K ided, V any](s *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 
-	return func(yield func(K, *ikv[K, V]) bool) {
+	seq2 := func(yield func(K, *ikv[K, V]) bool) {
 
 		//vv("start of all iteration.")
-		n := m.tree.Len()
-		nc := len(m.ordercache)
-		vers := atomic.LoadInt64(&m.version)
+		n := s.tree.Len()
+		nc := len(s.ordercache)
+		vers := atomic.LoadInt64(&s.version)
+		hit := false
 		if nc == n {
-			// cache hit
-			for i, kv := range m.ordercache {
-				nextit := kv.it.Next()
-				//vv("about to yield 1st")
+			hit = true // s.ordercache is usable.
+		}
+		// allow the user to delete in the middle of iteration.
+		if hit {
+			for i, kv := range s.ordercache {
+				nextit := kv.it.Next() // in case of slow path below
 				if !yield(kv.key, kv) {
 					return
 				}
-				//vv("back from yield 1st")
-				vers2 := atomic.LoadInt64(&m.version)
+				vers2 := atomic.LoadInt64(&s.version)
 				if vers2 != vers {
 					//vv("vers2 %v != vers %v down shifting stack=\n%v", vers2, vers, stack())
 					// delete in middle of iteration.
-					// we can do it, but we down shift to
-					// the slow path using nextit, assuming
-					// there will be more of the same.
-					m.ordercache = nil
-					n2 := m.tree.Len()
+					// abandon oc, down shift to
+					// slow/safe path using nextit.
+					n2 := s.tree.Len()
 					if i < n2-1 {
-						lim := m.tree.Limit()
+						// still have some left
+						lim := s.tree.Limit()
 						it := nextit
-						for it != lim {
-							kv := it.Item().(*ikv[K, V])
-							it = it.Next()
-							//vv("about to yield 2nd")
+						var kv *ikv[K, V]
+						for nextit != lim {
+							it = nextit
+							kv = it.Item().(*ikv[K, V])
+							// pre-advance, allows deletion via it.
+							nextit = nextit.Next()
 							if !yield(kv.key, kv) {
 								return
 							}
@@ -257,37 +263,40 @@ func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 						}
 					}
 					return // essential, cannot resume 1st loop.
-				}
-			}
-		} else {
-			// cache miss. only do full fills for simplicity.
-			m.ordercache = nil
-			cachegood := true // invalidate if delete in middle of all.
-			lim := m.tree.Limit()
-			it := m.tree.Min()
-			for it != lim {
+				} // end if vers2 != vers
+			} // end for i over oc
+			return
+		} // end if hit
 
-				kv := it.Item().(*ikv[K, V])
-				// advance before yeilding so user
-				// can delete at it if desired, and
-				// we will keep on going
-				it = it.Next()
+		// cache miss. only do full fills for simplicity.
+		s.ordercache = nil
+		cachegood := true // invalidate if delete in middle of all.
+		lim := s.tree.Limit()
+		it := s.tree.Min()
+		for it != lim {
 
-				if cachegood {
-					m.ordercache = append(m.ordercache, kv)
-				}
-				if !yield(kv.key, kv) {
-					return
-				}
-				// check for delete/change in middle.
-				vers2 := atomic.LoadInt64(&m.version)
-				if vers2 != vers {
-					cachegood = false
-					m.ordercache = nil
-				}
+			kv := it.Item().(*ikv[K, V])
+			// advance before yeilding so user
+			// can delete at it if desired, and
+			// we will keep on going
+			it = it.Next()
+
+			if cachegood {
+				s.ordercache = append(s.ordercache, kv)
 			}
-		}
-	}
+			if !yield(kv.key, kv) {
+				return
+			}
+			// check for delete/change in middle.
+			vers2 := atomic.LoadInt64(&s.version)
+			if vers2 != vers {
+				cachegood = false
+				s.ordercache = nil
+			}
+
+		} // end for it != lim
+	} // end seq2 definition
+	return seq2
 }
 
 // get returns the val corresponding to key in
