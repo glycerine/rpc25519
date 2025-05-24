@@ -1,6 +1,7 @@
 package rpc25519
 
 import (
+	"fmt"
 	"iter"
 	"sync/atomic"
 
@@ -84,6 +85,26 @@ func (s *dmap[K, V]) Len() int {
 	return len(s.idx)
 }
 
+func (s *dmap[K, V]) String() (r string) {
+	vers := atomic.LoadInt64(&s.version)
+	r = fmt.Sprintf("dmap{ version:%v id:{", vers)
+	lim := s.tree.Limit()
+	it := s.tree.Min()
+	i := 0
+	extra := ""
+	for it != lim {
+		kv := it.Item().(*ikv[K, V])
+		if i == 1 {
+			extra = ", "
+		}
+		r += fmt.Sprintf("%v%v", extra, kv.id)
+		it = it.Next()
+		i++
+	}
+	r += "}}"
+	return
+}
+
 // delkey deletes a key from the dmap, if present.
 // This is a constant O(1) time operation.
 //
@@ -141,11 +162,14 @@ func (s *dmap[K, V]) deleteWithIter(it rb.Iterator) (found bool, next rb.Iterato
 			return
 		}
 	}
+	vv("deleteWithIter before changes: '%v'", s)
 	atomic.AddInt64(&s.version, 1)
 	s.ordercache = nil
 	next = it.Next()
 	s.tree.DeleteWithIterator(it)
 	delete(s.idx, kv.id)
+	vv("deleteWithIter after changes: '%v'", s)
+
 	return
 }
 
@@ -232,6 +256,7 @@ func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 							vv("back from yield 2nd")
 						}
 					}
+					return // essential, cannot resume 1st loop.
 				}
 			}
 		} else {
