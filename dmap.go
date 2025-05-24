@@ -2,6 +2,7 @@ package rpc25519
 
 import (
 	"iter"
+	"sync/atomic"
 
 	rb "github.com/glycerine/rbtree"
 )
@@ -42,6 +43,8 @@ type ided interface {
 // insertion into/update of the ordered key-value dictionary
 // in O(log n) time.
 type dmap[K ided, V any] struct {
+	version int64
+
 	tree *rb.Tree
 	idx  map[string]rb.Iterator
 
@@ -105,6 +108,7 @@ func (s *dmap[K, V]) delkey(key K) (found bool, next rb.Iterator) {
 			return
 		}
 	}
+	atomic.AddInt64(&s.version, 1)
 	s.ordercache = nil
 	next = it.Next()
 	s.tree.DeleteWithIterator(it)
@@ -132,6 +136,7 @@ func (s *dmap[K, V]) deleteWithIter(it rb.Iterator) (found bool, next rb.Iterato
 			return
 		}
 	}
+	atomic.AddInt64(&s.version, 1)
 	s.ordercache = nil
 	next = it.Next()
 	s.tree.DeleteWithIterator(it)
@@ -141,6 +146,7 @@ func (s *dmap[K, V]) deleteWithIter(it rb.Iterator) (found bool, next rb.Iterato
 
 // deleteAll clears the tree in O(1) time.
 func (s *dmap[K, V]) deleteAll() {
+	atomic.AddInt64(&s.version, 1)
 	s.ordercache = nil
 	s.tree.DeleteAll()
 	s.idx = nil
@@ -151,6 +157,7 @@ func (s *dmap[K, V]) deleteAll() {
 // otherwise it updates the current key's value in place.
 func (s *dmap[K, V]) upsert(key K, val V) (newlyAdded bool) {
 
+	atomic.AddInt64(&s.version, 1)
 	id := key.id()
 
 	var it rb.Iterator
@@ -187,6 +194,7 @@ func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 
 		n := m.tree.Len()
 		nc := len(m.ordercache)
+		vers := atomic.LoadInt64(&m.version)
 		if nc == n {
 			// cache hit
 			for i, kv := range m.ordercache {
@@ -194,14 +202,15 @@ func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 				if !yield(kv.key, kv) {
 					return
 				}
-				nc2 := len(m.ordercache)
-				n2 := m.tree.Len()
-				if nc2 != nc || n2 != n {
+				vers2 := atomic.LoadInt64(&m.version)
+				if vers2 != vers {
+					vv("down shifting")
 					// ugh. delete in middle of iteration.
 					// we can do it, but we down shift to
 					// the slow path using nextit, assuming
 					// there will be more of the same.
 					m.ordercache = nil
+					n2 := m.tree.Len()
 					if i < n2-1 {
 						lim := m.tree.Limit()
 						it := nextit
