@@ -1056,7 +1056,10 @@ func (s *simnet) isolateSimnode(simnode *simnode) (undo Alteration) {
 		undo = UNISOLATE
 	}
 
-	s.transferReadsQ_to_deafReadsQ(simnode)
+	// now we allow reads to stay in readQ, and put
+	// any sends corresponding to deafReads into the
+	// reader-side deafReadQ.
+	//s.transferReadsQ_to_deafReadsQ(simnode)
 	s.transferPreArrQ_to_droppedSendQ(simnode)
 
 	return
@@ -1313,7 +1316,11 @@ func (s *simnet) localDeafReadProb(read *mop) float64 {
 // or the moral equivalent, maybe a lost message bucket.
 // the send can't keep coming back if the read is deaf; else
 // its like an auto-retry that will eventually get through.
-func (s *simnet) localDeafRead(read *mop) (isDeaf bool) {
+func (s *simnet) localDeafRead(read, send *mop) (isDeaf bool) {
+	vv("localDeafRead called by '%v'", fileLine(2))
+	defer func() {
+		vv("defer localDeafRead returning %v, called by '%v'", isDeaf, fileLine(3))
+	}()
 
 	// get the local (read) origin conn probability of deafness
 	// note: not the remote's deafness, only local.
@@ -1323,10 +1330,14 @@ func (s *simnet) localDeafRead(read *mop) (isDeaf bool) {
 	conn.attemptedRead++ // at least 1.
 	read.readAttempt++
 
-	random01 := s.scenario.rng.Float64() // in [0, 1)
-	vv("localDeafRead top: random01 = %v", random01)
+	if prob == 0 {
+		vv("localDeafRead top: prob = 0, not deaf for sure: read='%v'; send='%v'", read, send)
+	} else {
+		random01 := s.scenario.rng.Float64() // in [0, 1)
+		vv("localDeafRead top: random01 = %v < prob(%v) = %v ; read='%v'; send='%v'", random01, prob, random01 < prob, read, send)
+		isDeaf = random01 < prob
+	}
 
-	isDeaf = random01 < prob
 	if isDeaf {
 		conn.attemptedReadDeaf++
 	} else {
@@ -1553,10 +1564,11 @@ func (s *simnet) handleRead(read *mop) {
 	//probDeaf := s.circuits[read.origin][read.target].deafRead
 	probDeaf := s.circuits.get(read.origin).get(read.target).deafRead
 	if !s.statewiseConnected(read.origin, read.target) ||
-		probDeaf >= 1 { // 	s.localDeafRead(read) {
+		probDeaf >= 1 {
 
-		//vv("DEAF READ %v", read)
-		origin.deafReadQ.add(read)
+		vv("handleRead: DEAF READ %v BUT LEAVING it in the readQ so we can possibly make this same read viable in the future", read)
+		//origin.deafReadQ.add(read)
+		origin.readQ.add(read)
 	} else {
 		origin.readQ.add(read)
 	}
@@ -1716,7 +1728,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 		var connAttemptedSend int64
 		_ = connAttemptedSend
 		var drop bool
-		if send.passOKprob == 0 {
+		if send.passOKprob == 0 { // means we only call localDropSend once per send
 			drop, connAttemptedSend = s.localDropSend(send)
 			if drop {
 				send.origin.droppedSendDueToProb++
@@ -1736,61 +1748,10 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 				if send.internalPendingTimerForSend != nil {
 					send.origin.timerQ.del(send.internalPendingTimerForSend)
 				}
+				changes++
 				continue
 			}
 		}
-		//vv("send okay to deliver (below deaf read might drop it though): conn.attemptedSend=%v, send.sendAttempt=%v; send.passOKprob=%v", connAttemptedSend, send.sendAttempt, send.passOKprob)
-		// INVAR: send is okay to deliver wrt faults.
-
-		connectedR := s.statewiseConnected(read.origin, read.target)
-		if !connectedR || s.localDeafRead(read) {
-			vv("dispatchReadsSends DEAF READ %v; connectedR=%v", read, connectedR)
-
-			// why would we just skip past this read? It doesn't fail
-			// back to the client; its like a silent network problem.
-			// if it is flaky, it might work the next time.
-			// but should other reads get a chance? typically only
-			// one open at a time.
-			//readIt = readIt.Next()
-
-			// 2) but we actually have to drop _the send_ on a deaf read,
-			// otherwise the send is "auto-retried" until success.
-
-			// for better better accounting, lets put it into the reader
-			// deaf queue
-
-			// classic, above, from send drop prob
-			//send.origin.droppedSendQ.add(send)
-			// different, for read deaf -> send drop.
-			simnode.deafReadQ.add(send)
-
-			delit := preIt
-			preIt = preIt.Next()
-			simnode.preArrQ.Tree.DeleteWithIterator(delit)
-			// cleanup the timer that scheduled this send, if any.
-			if send.internalPendingTimerForSend != nil {
-				send.origin.timerQ.del(send.internalPendingTimerForSend)
-			}
-			continue
-		}
-
-		// Causality also demands that
-		// a read can complete (now) only after it was initiated;
-		// and so can be matched (now) only to a send already initiated.
-
-		// To keep from violating causality,
-		// during our chaos testing, we want
-		// to make sure that the read completion (now)
-		// cannot happen before the send initiation.
-		// Also forbid any reads that have not happened
-		// "yet" (now), should they get rearranged by chaos.
-		if now.Before(read.initTm) {
-			alwaysPrintf("rejecting delivery to read that has not happened: '%v'", read)
-			panic("how possible?")
-			return
-		}
-		// INVAR: this read.initTm <= now
-		changes++
 
 		if send.arrivalTm.After(now) {
 			// send has not arrived yet.
@@ -1815,8 +1776,71 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 			pending.internalPendingTimer = true
 			send.internalPendingTimerForSend = pending
 			s.handleTimer(pending)
+
+			changes++
 			return
 		}
+		// INVAR: this send.arrivalTm <= now
+
+		//vv("send okay to deliver (below deaf read might drop it though): conn.attemptedSend=%v, send.sendAttempt=%v; send.passOKprob=%v", connAttemptedSend, send.sendAttempt, send.passOKprob)
+		// INVAR: send is okay to deliver wrt faults.
+
+		connectedR := s.statewiseConnected(read.origin, read.target)
+		if !connectedR || s.localDeafRead(read, send) {
+			vv("dispatchReadsSends DEAF READ %v; connectedR=%v", read, connectedR)
+
+			// why would we just skip past this read? It doesn't fail
+			// back to the client; its like a silent network problem.
+			// if it is flaky, it might work the next time.
+			// but should other reads get a chance? typically only
+			// one open at a time.
+			//readIt = readIt.Next()
+
+			// 2) but we actually have to drop _the send_ on a deaf read,
+			// otherwise the send is "auto-retried" until success.
+
+			// for better better accounting, lets put it into the reader
+			// deaf queue
+
+			// classic, above, from send drop prob
+			//send.origin.droppedSendQ.add(send)
+
+			// different, for read deaf -> send drop.
+			vv("adding the _send_ of a deaf read into the reader side deaf Q, and deleting it from the preArrQ: '%v'\n node before: '%v'", send, simnode)
+			simnode.deafReadQ.add(send)
+
+			delit := preIt
+			preIt = preIt.Next()
+			simnode.preArrQ.Tree.DeleteWithIterator(delit)
+			// cleanup the timer that scheduled this send, if any.
+			if send.internalPendingTimerForSend != nil {
+				send.origin.timerQ.del(send.internalPendingTimerForSend)
+			}
+
+			vv("node after adding deaf-read-send to the deafReadQ: '%v'", simnode)
+			changes++
+			continue
+		}
+
+		// Causality also demands that
+		// a read can complete (now) only after it was initiated;
+		// and so can be matched (now) only to a send already initiated.
+
+		// To keep from violating causality,
+		// during our chaos testing, we want
+		// to make sure that the read completion (now)
+		// cannot happen before the send initiation.
+		// Also forbid any reads that have not happened
+		// "yet" (now), should they get rearranged by chaos.
+		if now.Before(read.initTm) {
+			alwaysPrintf("rejecting delivery to read that has not happened: '%v'", read)
+			panic("how possible?")
+			return
+		}
+		// INVAR: this read.initTm <= now
+		// INVAR: this send.arrivalTm <= now
+		changes++
+
 		// INVAR: this send.arrivalTm <= now; good to deliver.
 
 		// Since both have happened, they can be matched.
