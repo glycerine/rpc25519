@@ -15,10 +15,23 @@ type ided interface {
 	id() string
 }
 
-// dmap is a deterministic map, that can be
+// dmap is a deterministic map.
+//
+// Unlike Go's builtin map, a dmap can be
 // range iterated in a repeatable order,
-// unlike the Go's builtin map. This is
-// important for simulation testing.
+// This is critical for simulation testing
+// to give reproducible test runs.
+//
+// However, like the built-in map, dmap does no
+// internal locking, and is not goroutine safe.
+// The user must provide external sync.Mutex or otherwise
+// coordinate access if a dmap is shared
+// across goroutines. This allows dmap to
+// also provide for deletion or modification
+// during an for range all(dmap) iteration.
+//
+// In what order does a dmap return keys?
+// How fast is it?
 //
 // The key's ided interface supplies a
 // sortable id() string which determines
@@ -35,14 +48,20 @@ type ided interface {
 // use patterns, while providing deterministic,
 // repeatable iteration order.
 //
-// To provide these guarantees, it uses approximately 3x
-// the memory compared to the builtin map. The
-// memory goes towards (1) a built in map for
-// fast O(1) get and del operations; (2) full range scans are
-// cached in contiguous slice of memory; and (3)
-// a red-black tree is maintained to allow efficient
-// insertion into/update of the ordered key-value dictionary
-// in O(log n) time.
+// To provide these guarantees, dmap uses approximately 3x
+// the memory of the builtin map. The
+// memory goes towards:
+//
+// (1) a built-in map for fast O(1) get and delkey operations;
+//
+// (2) full range scans are cached in contiguous
+// slice of memory, so that the common case of repeated
+// full range scans should be even faster than a
+// builtin map by allowing better L1 cache performance; and
+//
+// (3) a red-black tree is maintained to
+// allow efficient insertion into/update of the
+// ordered key-value dictionary in O(log n) time.
 type dmap[K ided, V any] struct {
 	version int64
 
