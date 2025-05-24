@@ -26,8 +26,8 @@ type mop struct {
 	// the earlier fields below, but okay; this might
 	// be realtime if we are not under faketime.
 	reqtm        time.Time
-	batch        int64
-	batchsz      int64
+	batchSn      int64
+	batchSz      int64
 	batchSubwhen time.Time
 
 	// so we can handle a network
@@ -125,6 +125,7 @@ type mop struct {
 	repairHost *hostRepair
 	alterHost  *simnodeAlteration
 	alterNode  *simnodeAlteration
+	batch      *SimnetBatch
 }
 
 // increase determinism by processing
@@ -341,6 +342,7 @@ type simnet struct {
 
 	alterSimnodeCh chan *simnodeAlteration
 	alterHostCh    chan *simnodeAlteration
+	submitBatchCh  chan *mop
 
 	// same as srv.halt; we don't need
 	// our own, at least for now.
@@ -619,6 +621,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		srvRegisterCh:  make(chan *serverRegistration),
 		alterSimnodeCh: make(chan *simnodeAlteration),
 		alterHostCh:    make(chan *simnodeAlteration),
+		submitBatchCh:  make(chan *mop),
 		msgSendCh:      make(chan *mop),
 		msgReadCh:      make(chan *mop),
 		addTimer:       make(chan *mop),
@@ -744,6 +747,7 @@ const (
 	ALTER_HOST  mopkind = 12
 	ALTER_NODE  mopkind = 13
 	SCENARIO    mopkind = 14
+	BATCH       mopkind = 15
 )
 
 func enforceTickDur(tick time.Duration) time.Duration {
@@ -2120,6 +2124,8 @@ restartI:
 					s.handleAlterHost(op.alterHost)
 				case ALTER_NODE:
 					s.handleAlterCircuit(op.alterNode, true)
+				case BATCH:
+					s.handleBatch(op.batch)
 				default:
 					panic(fmt.Sprintf("why in our meq this mop kind? '%v'", int(op.kind)))
 				}
@@ -2129,6 +2135,8 @@ restartI:
 			s.refreshGridStepTimer(now)
 			s.armTimer(now)
 
+		case batch := <-s.submitBatchCh:
+			s.meq.add(batch)
 		case timer := <-s.addTimer:
 			//vv("i=%v, addTimer ->  timer='%v'", i, timer)
 			//s.handleTimer(timer)
@@ -2215,6 +2223,13 @@ restartI:
 
 		//vv("i=%v bottom of scheduler loop. num dispatch events = %v", i, nd0)
 	}
+}
+
+func (s *simnet) handleBatch(batch *SimnetBatch) {
+	// submit now?
+
+	// else set timer for when to submit
+	panic("TODO handleBatch")
 }
 
 func (s *simnet) finishScenario() {

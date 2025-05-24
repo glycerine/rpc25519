@@ -917,21 +917,44 @@ type SimnetBatch struct {
 	batchSn      int64
 	batchSz      int64
 	batchSubWhen time.Time
-	batchSubNow  bool
+	batchSubAsap bool
 	reqtm        time.Time
 	proceed      chan struct{}
+	err          error
 	batchOps     []*mop
 }
 
-func (s *simnet) NewSimnetBatch(subwhen time.Time, subNow bool) *SimnetBatch {
+func (s *simnet) NewSimnetBatch(subwhen time.Time, subAsap bool) *SimnetBatch {
 	return &SimnetBatch{
 		net:          s,
 		batchSn:      simnetNextBatchSn(),
 		batchSubWhen: subwhen,
-		batchSubNow:  subNow,
+		batchSubAsap: subAsap,
 		reqtm:        time.Now(),
 		proceed:      make(chan struct{}),
 	}
+}
+
+// SubmitBatch does not block.
+func (s *simnet) SubmitBatch(batch *SimnetBatch) {
+	op := &mop{
+		kind:    BATCH,
+		sn:      simnetNextMopSn(),
+		batch:   batch,
+		proceed: batch.proceed,
+		reqtm:   time.Now(),
+	}
+	select {
+	case s.submitBatchCh <- op:
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	//select {
+	//case <-batch.proceed:
+	//	err = batch.err
+	//case <-s.halt.ReqStop.Chan:
+	//}
+	return
 }
 
 func (b *SimnetBatch) add(op *mop) {

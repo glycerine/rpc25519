@@ -138,7 +138,8 @@ func (k mopkind) String() string {
 		return "ALTER_HOST"
 	case ALTER_NODE:
 		return "ALTER_NODE"
-
+	case BATCH:
+		return "BATCH"
 	default:
 		return fmt.Sprintf("unknown mopkind %v", int(k))
 	}
