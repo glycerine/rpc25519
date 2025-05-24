@@ -6,13 +6,17 @@ import (
 	rb "github.com/glycerine/rbtree"
 )
 
+// The ided interface allows any object
+// to be a key in a dmap, simply by providing an id()
+// method whose returned string we can sort on.
 type ided interface {
 	id() string
 }
 
 // dmap is a deterministic map, that can be
 // range iterated in a repeatable order,
-// unlike the Go's builtin map.
+// unlike the Go's builtin map. This is
+// important for simulation testing.
 //
 // The key's ided interface supplies a
 // sortable id() string which determines
@@ -69,9 +73,10 @@ type ikv[K ided, V any] struct {
 	id  string // sorted order
 	key K
 	val V
+	it  rb.Iterator
 }
 
-// delete key from the dmap, if present.
+// delkey deletes a key from the dmap, if present.
 // This is a constant O(1) time operation.
 //
 // If found returns true, next has the
@@ -82,7 +87,7 @@ type ikv[K ided, V any] struct {
 //
 // Using next provides "advance and delete behind"
 // semantics.
-func (s *dmap[K, V]) del(key K) (found bool, next rb.Iterator) {
+func (s *dmap[K, V]) delkey(key K) (found bool, next rb.Iterator) {
 
 	id := key.id()
 
@@ -111,6 +116,7 @@ func (s *dmap[K, V]) del(key K) (found bool, next rb.Iterator) {
 func (s *dmap[K, V]) deleteAll() {
 	s.ordercache = nil
 	s.tree.DeleteAll()
+	s.idx = nil
 }
 
 // upsert does an insert if the key is
@@ -134,6 +140,7 @@ func (s *dmap[K, V]) upsert(key K, val V) (newlyAdded bool) {
 		s.ordercache = nil
 		item := &ikv[K, V]{id: id, key: key, val: val}
 		added, it2 := s.tree.InsertGetIt(item)
+		item.it = it2
 		if !added {
 			panic("should have hit in s.idx, out of sync with tree")
 		}
@@ -147,16 +154,16 @@ func (s *dmap[K, V]) upsert(key K, val V) (newlyAdded bool) {
 	return
 }
 
-func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, V] {
+func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 
-	return func(yield func(K, V) bool) {
+	return func(yield func(K, *ikv[K, V]) bool) {
 
 		n := m.tree.Len()
 		nc := len(m.ordercache)
 		if nc == n {
 			// cache hit
 			for _, kv := range m.ordercache {
-				if !yield(kv.key, kv.val) {
+				if !yield(kv.key, kv) {
 					return
 				}
 			}
@@ -167,7 +174,7 @@ func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, V] {
 			for it := m.tree.Min(); it != lim; it = it.Next() {
 				kv := it.Item().(*ikv[K, V])
 				m.ordercache = append(m.ordercache, kv)
-				if !yield(kv.key, kv.val) {
+				if !yield(kv.key, kv) {
 					return
 				}
 			}
@@ -180,9 +187,10 @@ func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, V] {
 // found, the it will point to it in the dmap tree,
 // which can be used to iterator forward or
 // back from that point.
-func (s *dmap[K, V]) get(key K) (val V, found bool, it rb.Iterator) {
+func (s *dmap[K, V]) get(key K) (kv *ikv[K, V], found bool) {
 
 	id := key.id()
+	var it rb.Iterator
 	if s.idx == nil {
 		// not present
 		return
@@ -192,6 +200,6 @@ func (s *dmap[K, V]) get(key K) (val V, found bool, it rb.Iterator) {
 			return
 		}
 	}
-	val = it.Item().(*ikv[K, V]).val
+	kv = it.Item().(*ikv[K, V])
 	return
 }

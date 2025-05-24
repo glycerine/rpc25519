@@ -25,20 +25,20 @@ func TestDmap(t *testing.T) {
 	}
 	//vv("m = '%#v'", m)
 	i := 0
-	for pd, j := range all(m) {
-		if j != i {
-			t.Fatalf("expected val %v, got %v for pd='%#v'", i, j, pd)
+	for pd, kv := range all(m) {
+		if kv.val != i {
+			t.Fatalf("expected val %v, got %v for pd='%#v'", i, kv.val, pd)
 		}
 		//vv("at i = %v, see pd = '%#v'", i, pd)
 		i++
 	}
 	i = 0
-	for pd, j := range all(m) {
+	for pd, kv := range all(m) {
+		j := kv.val
 		if j != i {
 			t.Fatalf("expected val %v, got %v for pd='%#v'", i, j, pd)
 		}
 		//vv("at i = %v, see pd = '%#v'", i, pd)
 		i++
 	}
-
 }
