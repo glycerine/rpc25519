@@ -33,7 +33,7 @@ func TestDmap(t *testing.T) {
 		//vv("at i = %v, see pd = '%#v'", i, pd)
 		i++
 	}
-	vv("done with first all: have %v elements", i)
+	//vv("done with first all: have %v elements", i)
 	i = 0
 	// delete odds over 2
 	for pd, kv := range all(m) {
@@ -43,14 +43,14 @@ func TestDmap(t *testing.T) {
 		//	t.Fatalf("expected val %v, got %v for pd='%#v'", i, j, pd)
 		//}
 		if i > 2 && i%2 == 1 {
-			vv("about to deleteWithIter(%v)", i)
+			//vv("about to deleteWithIter(%v)", i)
 			m.deleteWithIter(kv.it)
 		}
 		//vv("at i = %v, see pd = '%#v'", i, pd)
 		i++
 	}
 	ne := m.Len()
-	vv("done with deleting 3,5,7: have %v elements. dmap = '%v'", ne, m)
+	//vv("done with deleting 3,5,7: have %v elements. dmap = '%v'", ne, m)
 	if ne != 6 {
 		t.Fatalf("expected 6 now, have %v", ne)
 	}
@@ -62,7 +62,7 @@ func TestDmap(t *testing.T) {
 		if j != expect[i] {
 			t.Fatalf("expected val %v, got %v for pd='%#v'", expect[i], j, pd)
 		}
-		vv("at i = %v, see pd = '%#v'", i, pd)
+		//vv("at i = %v, see pd = '%#v'", i, pd)
 		i++
 	}
 	if i != len(expect) {

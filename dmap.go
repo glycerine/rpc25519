@@ -162,13 +162,13 @@ func (s *dmap[K, V]) deleteWithIter(it rb.Iterator) (found bool, next rb.Iterato
 			return
 		}
 	}
-	vv("deleteWithIter before changes: '%v'", s)
+	//vv("deleteWithIter before changes: '%v'", s)
 	atomic.AddInt64(&s.version, 1)
 	s.ordercache = nil
 	next = it.Next()
 	s.tree.DeleteWithIterator(it)
 	delete(s.idx, kv.id)
-	vv("deleteWithIter after changes: '%v'", s)
+	//vv("deleteWithIter after changes: '%v'", s)
 
 	return
 }
@@ -221,7 +221,7 @@ func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 
 	return func(yield func(K, *ikv[K, V]) bool) {
 
-		vv("start of all iteration.")
+		//vv("start of all iteration.")
 		n := m.tree.Len()
 		nc := len(m.ordercache)
 		vers := atomic.LoadInt64(&m.version)
@@ -229,14 +229,14 @@ func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 			// cache hit
 			for i, kv := range m.ordercache {
 				nextit := kv.it.Next()
-				vv("about to yield 1st")
+				//vv("about to yield 1st")
 				if !yield(kv.key, kv) {
 					return
 				}
-				vv("back from yield 1st")
+				//vv("back from yield 1st")
 				vers2 := atomic.LoadInt64(&m.version)
 				if vers2 != vers {
-					vv("vers2 %v != vers %v down shifting stack=\n%v", vers2, vers, stack())
+					//vv("vers2 %v != vers %v down shifting stack=\n%v", vers2, vers, stack())
 					// delete in middle of iteration.
 					// we can do it, but we down shift to
 					// the slow path using nextit, assuming
@@ -249,11 +249,11 @@ func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 						for it != lim {
 							kv := it.Item().(*ikv[K, V])
 							it = it.Next()
-							vv("about to yield 2nd")
+							//vv("about to yield 2nd")
 							if !yield(kv.key, kv) {
 								return
 							}
-							vv("back from yield 2nd")
+							//vv("back from yield 2nd")
 						}
 					}
 					return // essential, cannot resume 1st loop.
@@ -262,6 +262,7 @@ func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 		} else {
 			// cache miss. only do full fills for simplicity.
 			m.ordercache = nil
+			cachegood := true // invalidate if delete in middle of all.
 			lim := m.tree.Limit()
 			it := m.tree.Min()
 			for it != lim {
@@ -272,9 +273,17 @@ func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 				// we will keep on going
 				it = it.Next()
 
-				m.ordercache = append(m.ordercache, kv)
+				if cachegood {
+					m.ordercache = append(m.ordercache, kv)
+				}
 				if !yield(kv.key, kv) {
 					return
+				}
+				// check for delete/change in middle.
+				vers2 := atomic.LoadInt64(&m.version)
+				if vers2 != vers {
+					cachegood = false
+					m.ordercache = nil
 				}
 			}
 		}
