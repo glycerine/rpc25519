@@ -11,8 +11,10 @@ type ided interface {
 }
 
 // dmap is a deterministic map, that can be
-// range iterated in a deterministic order.
-// the key's ided interface supplies a
+// range iterated in a repeatable order,
+// unlike the builtin map.
+//
+// The key's ided interface supplies a
 // sortable id() string which determines
 // the range all() order, and gives O(log n)
 // upserts. The get and del methods are O(1),
@@ -45,8 +47,8 @@ type ikv[K ided, V any] struct {
 	val V
 }
 
-// delete key from the dmap, if present,
-// in O(1) time.
+// delete key from the dmap, if present.
+// This is a constant O(1) time operation.
 //
 // If found returns true, next has the
 // iterator following the deleted key.
