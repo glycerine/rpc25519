@@ -20,6 +20,9 @@ import (
 type mop struct {
 	sn int64
 
+	batchSn   int64
+	batchPart int64
+
 	// API origin submission to simnet, consistently
 	// on all requests like client/server registration,
 	// snapshots, everything. probably redundant with

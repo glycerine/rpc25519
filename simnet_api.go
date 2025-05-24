@@ -958,6 +958,8 @@ func (s *simnet) SubmitBatch(batch *SimnetBatch) {
 }
 
 func (b *SimnetBatch) add(op *mop) {
+	op.batchPart = int64(len(b.batchOps))
+	op.batchSn = b.batchSn
 	b.batchOps = append(b.batchOps, op)
 }
 
