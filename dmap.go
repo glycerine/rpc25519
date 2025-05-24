@@ -1,7 +1,6 @@
 package rpc25519
 
 import (
-	"cmp"
 	"iter"
 	"sort"
 )
@@ -10,16 +9,11 @@ type ided interface {
 	id() string
 }
 
-/*type ordered interface {
-	~int | ~int8 | ~int16 | ~int32 | ~int64 |
-		~uint | ~uint8 | ~uint16 | ~uint32 | ~uint64 | ~uintptr |
-		~float32 | ~float64 |
-		~string
-}
-*/
-
-// dmap is a deterministic map, that
-// can be iterated in a deterministic order.
+// dmap is a deterministic map, that can be
+// range iterated in a deterministic order.
+// the key's ided interace supplies a
+// sortable id() string which determintes
+// the range all() order.
 type dmap[K ided, V any] struct {
 	keys  []string
 	vals  []V
@@ -42,7 +36,7 @@ func (s *dmap[K, V]) upsert(k K, val V) {
 	} else {
 		if s.idx[key] {
 			i := sort.Search(len(s.keys), func(i int) bool {
-				return s.keys[i] >= key
+				return key <= s.keys[i]
 			})
 			s.vals[i] = val // updated value for key
 			return
@@ -50,10 +44,21 @@ func (s *dmap[K, V]) upsert(k K, val V) {
 	}
 	// not present already
 	s.idx[key] = true
-	s.keys = append(s.keys, key)
-	s.vals = append(s.vals, val)
-	s.ideds = append(s.ideds, k)
-	sort.Sort(s)
+
+	i := sort.Search(len(s.keys), func(i int) bool {
+		return key <= s.keys[i]
+	})
+	if i == len(s.keys) {
+		// key is larger than everything else
+		s.keys = append(s.keys, key)
+		s.vals = append(s.vals, val)
+		s.ideds = append(s.ideds, k)
+		return
+	}
+	s.keys = append(s.keys[:i], append([]string{key}, s.keys[i:]...)...)
+	s.vals = append(s.vals[:i], append([]V{val}, s.vals[i:]...)...)
+	s.ideds = append(s.ideds[:i], append([]K{k}, s.ideds[i:]...)...)
+	//we did the equivalent of: sort.Sort(s)
 }
 
 func (s *dmap[K, V]) Len() int {
@@ -68,7 +73,7 @@ func (s *dmap[K, V]) Less(i, j int) bool {
 	return s.keys[i] < s.keys[j]
 }
 
-func rangeAll[K ided, V any](m *dmap[K, V]) iter.Seq2[K, V] {
+func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, V] {
 
 	return func(yield func(K, V) bool) {
 		for i := range m.keys {

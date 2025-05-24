@@ -303,7 +303,7 @@ type simnet struct {
 	// need a deterministic iteration order to
 	// make the simulation more repeatable, so
 	// map is a problem. try dmap.
-	circuits dmap[*simnode, dmap[*simnode, *simconn]]
+	circuits map[*simnode]map[*simnode]*simconn
 	servers  map[string]*simnode // serverBaseID:srvnode
 	allnodes map[*simnode]bool
 	orphans  map[*simnode]bool // cli without baseserver
@@ -450,8 +450,8 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	srvnode := s.newCircuitserver(reg.server.name, reg.serverBaseID)
 	srvnode.allnode[srvnode] = true
 	srvnode.netAddr = reg.srvNetAddr
-	//s.circuits[srvnode] = make(map[*simnode]*simconn)
-	s.circuits.upsert(srvnode, newDmap[*simnode, *simconn]())
+	s.circuits[srvnode] = make(map[*simnode]*simconn)
+	//s.circuits.upsert(srvnode, newDmap[*simnode, *simconn]())
 	_, already := s.dns[srvnode.name]
 	if already {
 		panic(fmt.Sprintf("server name already taken: '%v'", srvnode.name))
