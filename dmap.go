@@ -36,9 +36,11 @@ type ided interface {
 // The key's ided interface supplies a
 // sortable id() string which determines
 // the range all() order, and gives O(log n)
-// upserts. The get and del methods are O(1),
-// as is deleteAll. For repeated full range all
-// scans, we cache the values in contiguous
+// set (upsert) time. The get and del
+// methods are O(1) time, as is deleteAll.
+//
+// For repeated full range all
+// scans, we cache the ikv pointers in contiguous
 // memory to maximize L1 cache hits and
 // minimize pointer chasing in the underlying
 // red-black tree.
@@ -199,10 +201,10 @@ func (s *dmap[K, V]) deleteAll() {
 	s.idx = nil
 }
 
-// upsert does an insert if the key is
+// set is an upsert. It does an insert if the key is
 // not already present returning newlyAdded true;
 // otherwise it updates the current key's value in place.
-func (s *dmap[K, V]) upsert(key K, val V) (newlyAdded bool) {
+func (s *dmap[K, V]) set(key K, val V) (newlyAdded bool) {
 
 	atomic.AddInt64(&s.version, 1)
 	s.ordercache = nil
@@ -240,7 +242,90 @@ func (s *dmap[K, V]) upsert(key K, val V) (newlyAdded bool) {
 // the dmap. To allow the user to delete in
 // the middle of iteration, there is no locking
 // internally.
-func all[K ided, V any](s *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
+func all[K ided, V any](s *dmap[K, V]) iter.Seq2[K, V] {
+
+	seq2 := func(yield func(K, V) bool) {
+
+		//vv("start of all iteration.")
+		n := s.tree.Len()
+		nc := len(s.ordercache)
+
+		// detect deletes in the middle of using s.ordercache.
+		vers := atomic.LoadInt64(&s.version)
+
+		if nc == n {
+			// s.ordercache is usable.
+			for i, kv := range s.ordercache {
+				nextit := kv.it.Next() // in case of slow path below
+				if !yield(kv.key, kv.val) {
+					return
+				}
+				vers2 := atomic.LoadInt64(&s.version)
+				if vers2 == vers {
+					continue
+				} else {
+					// delete in middle of iteration.
+					// abandon oc, down shift to
+					// slow/safe path using nextit.
+					n2 := s.tree.Len()
+					if i >= n2-1 {
+						// we were on the last anyway. done.
+						return
+					}
+					// still have some left
+					it := nextit
+					var kv *ikv[K, V]
+					for !nextit.Limit() {
+						it = nextit
+						kv = it.Item().(*ikv[K, V])
+						// pre-advance, allows deletion of it.
+						nextit = nextit.Next()
+						if !yield(kv.key, kv.val) {
+							return
+						}
+						//vv("back from yield 2nd")
+					}
+					return // essential, cannot resume 1st loop.
+				} // end if else vers2 != vers
+			} // end for i over s.ordercache
+			return
+		} // end if ordercache hit
+
+		// cache miss. cannot read from
+		// s.ordercache, but we will try to fill
+		// it on this pass. only do full fills
+		// for simplicity.
+		s.ordercache = nil
+		cachegood := true // invalidate if delete in middle of all.
+		it := s.tree.Min()
+		for !it.Limit() {
+
+			kv := it.Item().(*ikv[K, V])
+			// advance before yeilding so user
+			// can delete at it if desired, and
+			// we will keep on going
+			it = it.Next()
+
+			if cachegood {
+				s.ordercache = append(s.ordercache, kv)
+			}
+			if !yield(kv.key, kv.val) {
+				return
+			}
+			// check for delete/change in middle.
+			vers2 := atomic.LoadInt64(&s.version)
+			if vers2 != vers {
+				cachegood = false
+				s.ordercache = nil
+			}
+
+		} // end for it != lim
+	} // end seq2 definition
+	return seq2
+}
+
+// allikv returns the ikvs not the val
+func allikv[K ided, V any](s *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 
 	seq2 := func(yield func(K, *ikv[K, V]) bool) {
 
@@ -323,11 +408,47 @@ func all[K ided, V any](s *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 }
 
 // get returns the val corresponding to key in
-// O(1) constant time per query. If they key
+// O(1) constant time per query.
+func (s *dmap[K, V]) get(key K) (val V, found bool) {
+	if s.idx == nil {
+		// not present
+		return
+	}
+	id := key.id()
+	var it rb.Iterator
+	it, found = s.idx[id]
+	if !found {
+		return
+	}
+	val = it.Item().(*ikv[K, V]).val
+	return
+}
+
+// get1 does getv but without the found flag.
+func (s *dmap[K, V]) get1(key K) (val V) {
+	if s.idx == nil {
+		// not present
+		return
+	}
+	id := key.id()
+	it, found := s.idx[id]
+	if !found {
+		return
+	}
+	return it.Item().(*ikv[K, V]).val
+}
+
+// getikv returns the ikv[K,V] struct corresponding to key in
+// O(1) constant time per query. If the key is
 // found, the it will point to it in the dmap tree,
 // which can be used to iterator forward or
-// back from that point.
-func (s *dmap[K, V]) get(key K) (kv *ikv[K, V], found bool) {
+// back from that point. The ikv is what the
+// tree stores, and thus provides for
+// for fast updates of ikv.val if required. Note
+// the ikv.id should not be changed, as that
+// would invalidate the tree without notifying
+// it of the need to rebalance.
+func (s *dmap[K, V]) getikv(key K) (kv *ikv[K, V], found bool) {
 
 	id := key.id()
 	var it rb.Iterator

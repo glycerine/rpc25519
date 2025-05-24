@@ -21,12 +21,11 @@ func TestDmap(t *testing.T) {
 	for i := range 9 {
 		d := &dmapt{name: fmt.Sprintf("%v", 8-i)}
 		slc = append(slc, d)
-		m.upsert(d, 8-i)
+		m.set(d, 8-i)
 	}
 	//vv("m = '%#v'", m)
 	i := 0
-	for pd, kv := range all(m) {
-		j := kv.val
+	for pd, j := range all(m) {
 		if j != i {
 			t.Fatalf("expected val %v, got %v for pd='%#v'", i, j, pd)
 		}
@@ -36,7 +35,7 @@ func TestDmap(t *testing.T) {
 	//vv("done with first all: have %v elements", i)
 	i = 0
 	// delete odds over 2
-	for pd, kv := range all(m) {
+	for pd, kv := range allikv(m) {
 		_ = pd
 		//j := kv.val
 		//if j != i {
@@ -57,7 +56,7 @@ func TestDmap(t *testing.T) {
 
 	expect := []int{0, 1, 2, 4, 6, 8} // , deleted 3,5,7
 	i = 0
-	for pd, kv := range all(m) {
+	for pd, kv := range allikv(m) {
 		j := kv.val
 		if j != expect[i] {
 			t.Fatalf("expected val %v, got %v for pd='%#v'", expect[i], j, pd)
