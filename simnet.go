@@ -1309,7 +1309,33 @@ func (s *simnet) localDeafReadProb(read *mop) float64 {
 	return s.circuits.get(read.origin).get(read.target).deafRead
 }
 
+// insight: deaf reads must create dropped sends for the sender.
+// or the moral equivalent, maybe a lost message bucket.
+// the send can't keep coming back if the read is deaf; else
+// its like an auto-retry that will eventually get through.
 func (s *simnet) localDeafRead(read *mop) (isDeaf bool) {
+
+	// get the local (read) origin conn probability of deafness
+	// note: not the remote's deafness, only local.
+	conn := s.circuits.get(read.origin).get(read.target)
+	prob := conn.deafRead
+
+	conn.attemptedRead++ // at least 1.
+	read.readAttempt++
+
+	random01 := s.scenario.rng.Float64() // in [0, 1)
+	vv("localDeafRead top: random01 = %v", random01)
+
+	isDeaf = random01 < prob
+	if isDeaf {
+		conn.attemptedReadDeaf++
+	} else {
+		conn.attemptedReadOK++
+	}
+	return
+}
+
+func (s *simnet) localDeafRead_BADOLD(read *mop) (isDeaf bool) {
 
 	// get the local (read) origin conn probability of deafness
 	// note: not the remote's deafness, only local.
@@ -1325,7 +1351,6 @@ func (s *simnet) localDeafRead(read *mop) (isDeaf bool) {
 	random01 := s.scenario.rng.Float64() // in [0, 1)
 	vv("localDeafRead top: random01 = %v", random01)
 	if read.readAttempt == 1 {
-		// why is this not deterministic???
 		isDeaf = random01 < prob
 		//isDeaf = freqDeaf < prob // not random b/c freqDef is always 0 here.
 		if isDeaf {
@@ -1513,6 +1538,10 @@ func (s *simnet) handleSend(send *mop) {
 	s.dispatch(send.target, now) // needed?
 }
 
+// note that reads that fail with a probability
+// have to result in the corresponding send
+// also failing, or else the send is "auto-retrying"
+// forever until it gets through!?!
 func (s *simnet) handleRead(read *mop) {
 	//vv("top of handleRead(read = '%v')", read)
 	// don't want this! only when read matches with send!
@@ -1710,43 +1739,40 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 				continue
 			}
 		}
-		//vv("send not dropped: conn.attemptedSend=%v, send.sendAttempt=%v; send.passOKprob=%v", connAttemptedSend, send.sendAttempt, send.passOKprob)
+		//vv("send okay to deliver (below deaf read might drop it though): conn.attemptedSend=%v, send.sendAttempt=%v; send.passOKprob=%v", connAttemptedSend, send.sendAttempt, send.passOKprob)
 		// INVAR: send is okay to deliver wrt faults.
 
 		connectedR := s.statewiseConnected(read.origin, read.target)
-		deafProb := s.localDeafReadProb(read)
-		if !connectedR || deafProb >= 1 {
+		if !connectedR || s.localDeafRead(read) {
 			vv("dispatchReadsSends DEAF READ %v; connectedR=%v", read, connectedR)
-			simnode.deafReadQ.add(read)
-			delit := readIt
-			readIt = readIt.Next()
-			simnode.readQ.Tree.DeleteWithIterator(delit)
+
+			// why would we just skip past this read? It doesn't fail
+			// back to the client; its like a silent network problem.
+			// if it is flaky, it might work the next time.
+			// but should other reads get a chance? typically only
+			// one open at a time.
+			//readIt = readIt.Next()
+
+			// 2) but we actually have to drop _the send_ on a deaf read,
+			// otherwise the send is "auto-retried" until success.
+
+			// for better better accounting, lets put it into the reader
+			// deaf queue
+
+			// classic, above, from send drop prob
+			//send.origin.droppedSendQ.add(send)
+			// different, for read deaf -> send drop.
+			simnode.deafReadQ.add(send)
+
+			delit := preIt
+			preIt = preIt.Next()
+			simnode.preArrQ.Tree.DeleteWithIterator(delit)
+			// cleanup the timer that scheduled this send, if any.
+			if send.internalPendingTimerForSend != nil {
+				send.origin.timerQ.del(send.internalPendingTimerForSend)
+			}
 			continue
 		}
-		// INVAR: connectedR true, and deafProb < 1
-		if deafProb > 0 {
-			// probabilistically deaf, deafProb in (0,1)
-
-			// these have to be allowed to match with some prob.
-			// so we cannot shunt into deafReadQ b/c need to e.g.
-			// let it match on second attempt, even if first was deaf.
-			deaf := s.localDeafRead(read)
-			if deaf {
-				read.readDeafDueToProb++
-				// what do we do with it? just skip for now?
-				readIt = readIt.Next()
-				continue
-			} else {
-				//read.readOKDueToProb++
-				// notice these will never come back, as
-				// the match will discard them.
-			}
-		}
-		// if s.localDeafRead(read) {
-		// 	read.origin.deafReadDueToProb++
-		// 	readIt = readIt.Next()
-		// 	continue
-		// }
 
 		// Causality also demands that
 		// a read can complete (now) only after it was initiated;
