@@ -923,11 +923,12 @@ type SimnetBatch struct {
 	batchOps     []*mop
 }
 
-func (s *simnet) NewSimnetBatch(subwhen time.Time) *SimnetBatch {
+func (s *simnet) NewSimnetBatch(subwhen time.Time, subNow bool) *SimnetBatch {
 	return &SimnetBatch{
 		net:          s,
 		batchSn:      simnetNextBatchSn(),
 		batchSubWhen: subwhen,
+		batchSubNow:  subNow,
 		reqtm:        time.Now(),
 		proceed:      make(chan struct{}),
 	}
