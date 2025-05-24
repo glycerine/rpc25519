@@ -130,7 +130,7 @@ func (s *simnet) equilibrateReads(origin, target *simnode) {
 
 	// scan deafReadQ first
 	it := origin.deafReadQ.Tree.Min()
-	for it != origin.deafReadQ.Tree.Limit() {
+	for !it.Limit() {
 		read := it.Item().(*mop)
 		if target == nil || target == read.target {
 
@@ -154,7 +154,7 @@ func (s *simnet) equilibrateReads(origin, target *simnode) {
 	}
 	// scan readQ second
 	it = origin.readQ.Tree.Min()
-	for it != origin.readQ.Tree.Limit() {
+	for !it.Limit() {
 		read := it.Item().(*mop)
 		if target == nil || target == read.target {
 
@@ -370,7 +370,7 @@ func (s *simnet) deliverDroppedSends(origin *simnode) {
 	for node := range s.circuits {
 		nDrop := node.droppedSendQ.Tree.Len()
 		if nDrop > 0 {
-			for it := node.droppedSendQ.Tree.Min(); it != node.droppedSendQ.Tree.Limit(); {
+			for it := node.droppedSendQ.Tree.Min(); !it.Limit(); {
 				send := it.Item().(*mop)
 				if s.statewiseConnected(send.origin, send.target) {
 					//vv("transferring send = %v' from droppedSendQ to preArrQ on '%v'", send, send.target.name)
@@ -467,7 +467,7 @@ func (s *simnet) applyFaultsToPQ(now time.Time, origin, target *simnode, dd Drop
 func (s *simnet) applyFaultsToReadQ(now time.Time, origin, target *simnode, deafReadProb float64) {
 
 	readIt := origin.readQ.Tree.Min()
-	for readIt != origin.readQ.Tree.Limit() {
+	for !readIt.Limit() {
 		read := readIt.Item().(*mop)
 		if target == nil || read.target == target {
 			if !s.statewiseConnected(read.origin, read.target) ||
@@ -506,7 +506,7 @@ func (s *simnet) applySendFaults(now time.Time, originNowFaulty, target *simnode
 		// target == nil means add faults to all of originNowFaulty conns
 
 		sendIt := other.preArrQ.Tree.Min()
-		for sendIt != other.preArrQ.Tree.Limit() {
+		for !sendIt.Limit() {
 
 			send := sendIt.Item().(*mop)
 

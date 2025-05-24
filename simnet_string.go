@@ -77,7 +77,7 @@ func (pq *pq) String() (r string) {
 	}
 	i := 0
 	r = fmt.Sprintf(" ------- %v %v PQ --------\n", pq.Owner, pq.Orderby)
-	for it := pq.Tree.Min(); it != pq.Tree.Limit(); it = it.Next() {
+	for it := pq.Tree.Min(); !it.Limit(); it = it.Next() {
 
 		item := it.Item() // interface{}
 		if isNil(item) {

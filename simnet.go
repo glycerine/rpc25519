@@ -748,7 +748,7 @@ func (s *pq) deepclone() (c *pq) {
 		// three possible PQ ordering functions we have.
 		cmp: s.cmp,
 	}
-	for it := s.Tree.Min(); it != s.Tree.Limit(); it = it.Next() {
+	for it := s.Tree.Min(); !it.Limit(); it = it.Next() {
 		c.Tree.Insert(it.Item().(*mop).clone())
 	}
 	return
@@ -760,7 +760,7 @@ func (s *pq) peek() *mop {
 		return nil
 	}
 	it := s.Tree.Min()
-	if it == s.Tree.Limit() {
+	if it.Limit() {
 		panic("n > 0 above, how is this possible?")
 		return nil
 	}
@@ -774,7 +774,7 @@ func (s *pq) pop() *mop {
 		return nil
 	}
 	it := s.Tree.Min()
-	if it == s.Tree.Limit() {
+	if it.Limit() {
 		panic("n > 0 above, how is this possible?")
 		return nil
 	}
@@ -1029,7 +1029,7 @@ func (s *simnet) isolateSimnode(simnode *simnode) (undo Alteration) {
 func (s *simnet) transferReadsQ_to_deafReadsQ(simnode *simnode) {
 
 	it := simnode.readQ.Tree.Min()
-	for it != simnode.readQ.Tree.Limit() {
+	for !it.Limit() {
 		read := it.Item().(*mop)
 		simnode.deafReadQ.add(read)
 		it = it.Next()
@@ -1054,7 +1054,7 @@ func (s *simnet) transferDeafReadsQ_to_readsQ(origin, target *simnode) {
 
 	it := origin.deafReadQ.Tree.Min()
 
-	for it != origin.deafReadQ.Tree.Limit() {
+	for !it.Limit() {
 		read := it.Item().(*mop)
 		if target == nil || target == read.target {
 
@@ -1077,7 +1077,7 @@ func (s *simnet) transferDeafReadsQ_to_readsQ(origin, target *simnode) {
 // inspecting the queues, and also easier to re-send them even if
 // the target has since been power cycled.
 func (s *simnet) transferPreArrQ_to_droppedSendQ(simnode *simnode) {
-	for it := simnode.preArrQ.Tree.Min(); it != simnode.preArrQ.Tree.Limit(); it = it.Next() {
+	for it := simnode.preArrQ.Tree.Min(); !it.Limit(); it = it.Next() {
 		send := it.Item().(*mop)
 		// not: simnode.droppedSendQ.add(send)
 		// but back on the origin:
@@ -1098,7 +1098,7 @@ func (s *simnet) transferPreArrQ_to_droppedSendQ(simnode *simnode) {
 func (s *simnet) timeWarp_transferDroppedSendQ_to_PreArrQ(origin, target *simnode) {
 
 	it := origin.droppedSendQ.Tree.Min()
-	for it != origin.droppedSendQ.Tree.Limit() {
+	for !it.Limit() {
 		send := it.Item().(*mop)
 		if target == nil || target == send.target {
 			// deliver to the target, if we are now connected.
@@ -1501,7 +1501,7 @@ func (s *simnet) handleRead(read *mop) {
 func (simnode *simnode) firstPreArrivalTimeLTE(now time.Time) bool {
 
 	preIt := simnode.preArrQ.Tree.Min()
-	if preIt == simnode.preArrQ.Tree.Limit() {
+	if preIt.Limit() {
 		return false // empty queue
 	}
 	send := preIt.Item().(*mop)
@@ -1539,7 +1539,7 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time) (changes int64)
 	}
 
 	timerIt := simnode.timerQ.Tree.Min()
-	for timerIt != simnode.timerQ.Tree.Limit() { // advance, and delete behind below
+	for !timerIt.Limit() { // advance, and delete behind below
 
 		timer := timerIt.Item().(*mop)
 		//vv("check TIMER: %v", timer)
@@ -1628,11 +1628,11 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 
 	// matching reads and sends
 	for {
-		if readIt == simnode.readQ.Tree.Limit() {
+		if readIt.Limit() {
 			// no reads, no point.
 			return
 		}
-		if preIt == simnode.preArrQ.Tree.Limit() {
+		if preIt.Limit() {
 			// no sends to match with reads
 			return
 		}
@@ -2334,7 +2334,7 @@ func (simnode *simnode) soonestTimerLessThan(bound *mop) *mop {
 	//vv("soonestTimerLessThan(nil bound)")
 	//}
 	it := simnode.timerQ.Tree.Min()
-	if it == simnode.timerQ.Tree.Limit() {
+	if it.Limit() {
 		//vv("we have no timers, returning bound")
 		return bound
 	}

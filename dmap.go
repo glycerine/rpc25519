@@ -88,11 +88,10 @@ func (s *dmap[K, V]) Len() int {
 func (s *dmap[K, V]) String() (r string) {
 	vers := atomic.LoadInt64(&s.version)
 	r = fmt.Sprintf("dmap{ version:%v id:{", vers)
-	lim := s.tree.Limit()
 	it := s.tree.Min()
 	i := 0
 	extra := ""
-	for it != lim {
+	for !it.Limit() {
 		kv := it.Item().(*ikv[K, V])
 		if i == 1 {
 			extra = ", "
@@ -218,8 +217,10 @@ func (s *dmap[K, V]) upsert(key K, val V) (newlyAdded bool) {
 	return
 }
 
-// unlocked true means we yield values without
-// holding any locks, so the user can delete.
+// all starts an iteration over all elements in
+// the dmap. To allow the user to delete in
+// the middle of iteration, there is no locking
+// internally.
 func all[K ided, V any](s *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 
 	seq2 := func(yield func(K, *ikv[K, V]) bool) {
@@ -227,53 +228,56 @@ func all[K ided, V any](s *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 		//vv("start of all iteration.")
 		n := s.tree.Len()
 		nc := len(s.ordercache)
+
+		// detect deletes in the middle of using s.ordercache.
 		vers := atomic.LoadInt64(&s.version)
-		hit := false
+
 		if nc == n {
-			hit = true // s.ordercache is usable.
-		}
-		// allow the user to delete in the middle of iteration.
-		if hit {
+			// s.ordercache is usable.
 			for i, kv := range s.ordercache {
 				nextit := kv.it.Next() // in case of slow path below
 				if !yield(kv.key, kv) {
 					return
 				}
 				vers2 := atomic.LoadInt64(&s.version)
-				if vers2 != vers {
-					//vv("vers2 %v != vers %v down shifting stack=\n%v", vers2, vers, stack())
+				if vers2 == vers {
+					continue
+				} else {
 					// delete in middle of iteration.
 					// abandon oc, down shift to
 					// slow/safe path using nextit.
 					n2 := s.tree.Len()
-					if i < n2-1 {
-						// still have some left
-						lim := s.tree.Limit()
-						it := nextit
-						var kv *ikv[K, V]
-						for nextit != lim {
-							it = nextit
-							kv = it.Item().(*ikv[K, V])
-							// pre-advance, allows deletion via it.
-							nextit = nextit.Next()
-							if !yield(kv.key, kv) {
-								return
-							}
-							//vv("back from yield 2nd")
+					if i >= n2-1 {
+						// we were on the last anyway. done.
+						return
+					}
+					// still have some left
+					it := nextit
+					var kv *ikv[K, V]
+					for !nextit.Limit() {
+						it = nextit
+						kv = it.Item().(*ikv[K, V])
+						// pre-advance, allows deletion of it.
+						nextit = nextit.Next()
+						if !yield(kv.key, kv) {
+							return
 						}
+						//vv("back from yield 2nd")
 					}
 					return // essential, cannot resume 1st loop.
-				} // end if vers2 != vers
-			} // end for i over oc
+				} // end if else vers2 != vers
+			} // end for i over s.ordercache
 			return
-		} // end if hit
+		} // end if ordercache hit
 
-		// cache miss. only do full fills for simplicity.
+		// cache miss. cannot read from
+		// s.ordercache, but we will try to fill
+		// it on this pass. only do full fills
+		// for simplicity.
 		s.ordercache = nil
 		cachegood := true // invalidate if delete in middle of all.
-		lim := s.tree.Limit()
 		it := s.tree.Min()
-		for it != lim {
+		for !it.Limit() {
 
 			kv := it.Item().(*ikv[K, V])
 			// advance before yeilding so user

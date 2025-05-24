@@ -47,7 +47,7 @@ func Test555_preArrQ_deletes_actually_delete(t *testing.T) {
 			panic(fmt.Sprintf("len pq=%v, len map = %v", n1, n2))
 		}
 		j := 0
-		for it := pq.tree.Min(); it != pq.tree.Limit(); it = it.Next() {
+		for it := pq.tree.Min(); !it.Limit(); it = it.Next() {
 			op := it.Item().(*mop)
 			v := m[op.arrivalTm]
 			if v != op {
