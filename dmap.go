@@ -12,18 +12,42 @@ type ided interface {
 
 // dmap is a deterministic map, that can be
 // range iterated in a repeatable order,
-// unlike the builtin map.
+// unlike the Go's builtin map.
 //
 // The key's ided interface supplies a
 // sortable id() string which determines
 // the range all() order, and gives O(log n)
 // upserts. The get and del methods are O(1),
-// as is deleteAll.
+// as is deleteAll. For repeated full range all
+// scans, we cache the values in contiguous
+// memory to maximize L1 cache hits and
+// minimize pointer chasing in the underlying
+// red-black tree.
+//
+// Thus dmap aims to be almost as fast, or
+// faster, than the built in Go map, for common
+// use patterns, while providing deterministic,
+// repeatable iteration order.
+//
+// To provide these guarantees, it uses approximately 3x
+// the memory compared to the builtin map. The
+// memory goes towards (1) a built in map for
+// fast O(1) get and del operations; (2) full range scans are
+// cached in contiguous slice of memory; and (3)
+// a red-black tree is maintained to allow efficient
+// insertion into/update of the ordered key-value dictionary
+// in O(log n) time.
 type dmap[K ided, V any] struct {
 	tree *rb.Tree
 	idx  map[string]rb.Iterator
+
+	// cache the first range all, and use
+	// ordercache if we range all again without
+	// intervening upsert or deletes.
+	ordercache []*ikv[K, V]
 }
 
+// newDmap makes a new dmap.
 func newDmap[K ided, V any]() *dmap[K, V] {
 	return &dmap[K, V]{
 		idx: make(map[string]rb.Iterator),
@@ -76,17 +100,23 @@ func (s *dmap[K, V]) del(key K) (found bool, next rb.Iterator) {
 			return
 		}
 	}
+	s.ordercache = nil
 	next = it.Next()
 	s.tree.DeleteWithIterator(it)
 	delete(s.idx, id)
 	return
 }
 
+// deleteAll clears the tree in O(1) time.
 func (s *dmap[K, V]) deleteAll() {
+	s.ordercache = nil
 	s.tree.DeleteAll()
 }
 
-func (s *dmap[K, V]) upsert(key K, val V) {
+// upsert does an insert if the key is
+// not already present returning newlyAdded true;
+// otherwise it updates the current key's value in place.
+func (s *dmap[K, V]) upsert(key K, val V) (newlyAdded bool) {
 
 	id := key.id()
 
@@ -100,6 +130,8 @@ func (s *dmap[K, V]) upsert(key K, val V) {
 
 	if !ok {
 		// not yet in idx/tree, so add it.
+		newlyAdded = true
+		s.ordercache = nil
 		item := &ikv[K, V]{id: id, key: key, val: val}
 		added, it2 := s.tree.InsertGetIt(item)
 		if !added {
@@ -112,18 +144,32 @@ func (s *dmap[K, V]) upsert(key K, val V) {
 	prev := it.Item().(*ikv[K, V])
 	prev.key = key
 	prev.val = val
+	return
 }
 
 func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, V] {
 
 	return func(yield func(K, V) bool) {
 
-		lim := m.tree.Limit()
-
-		for it := m.tree.Min(); it != lim; it = it.Next() {
-			kv := it.Item().(*ikv[K, V])
-			if !yield(kv.key, kv.val) {
-				return
+		n := m.tree.Len()
+		nc := len(m.ordercache)
+		if nc == n {
+			// cache hit
+			for _, kv := range m.ordercache {
+				if !yield(kv.key, kv.val) {
+					return
+				}
+			}
+		} else {
+			// cache miss. only do full fills for simplicity.
+			m.ordercache = nil
+			lim := m.tree.Limit()
+			for it := m.tree.Min(); it != lim; it = it.Next() {
+				kv := it.Item().(*ikv[K, V])
+				m.ordercache = append(m.ordercache, kv)
+				if !yield(kv.key, kv.val) {
+					return
+				}
 			}
 		}
 	}
