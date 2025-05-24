@@ -12,9 +12,11 @@ type ided interface {
 
 // dmap is a deterministic map, that can be
 // range iterated in a deterministic order.
-// the key's ided interace supplies a
-// sortable id() string which determintes
-// the range all() order.
+// the key's ided interface supplies a
+// sortable id() string which determines
+// the range all() order, and gives O(log n)
+// upserts. The get and del methods are O(1),
+// as is deleteAll.
 type dmap[K ided, V any] struct {
 	tree *rb.Tree
 	idx  map[string]rb.Iterator
@@ -43,7 +45,8 @@ type ikv[K ided, V any] struct {
 	val V
 }
 
-// delete key from the dmap, if present.
+// delete key from the dmap, if present,
+// in O(1) time.
 //
 // If found returns true, next has the
 // iterator following the deleted key.
@@ -54,15 +57,26 @@ type ikv[K ided, V any] struct {
 // Using next provides "advance and delete behind"
 // semantics.
 func (s *dmap[K, V]) del(key K) (found bool, next rb.Iterator) {
-	query := &ikv[K, V]{id: key.id()}
+
+	id := key.id()
+
 	var it rb.Iterator
-	it, found = s.tree.FindGE_isEqual(query)
-	if !found {
+	var ok bool
+	if s.idx == nil {
+		// not present
 		next = s.tree.Limit()
 		return
+	} else {
+		it, ok = s.idx[id]
+		if !ok {
+			// not present
+			next = s.tree.Limit()
+			return
+		}
 	}
 	next = it.Next()
 	s.tree.DeleteWithIterator(it)
+	delete(s.idx, id)
 	return
 }
 
@@ -111,4 +125,25 @@ func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, V] {
 			}
 		}
 	}
+}
+
+// get returns the val corresponding to key in
+// O(1) constant time per query. If they key
+// found, the it will point to it in the dmap tree,
+// which can be used to iterator forward or
+// back from that point.
+func (s *dmap[K, V]) get(key K) (val V, found bool, it rb.Iterator) {
+
+	id := key.id()
+	if s.idx == nil {
+		// not present
+		return
+	} else {
+		it, found = s.idx[id]
+		if !found {
+			return
+		}
+	}
+	val = it.Item().(*ikv[K, V]).val
+	return
 }
