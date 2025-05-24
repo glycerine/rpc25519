@@ -299,6 +299,10 @@ type simnet struct {
 	// paired with a B -> A connection. Thus one-way
 	// faults to be modelled or assigned probability
 	// indepenent of the other directions fault status.
+
+	// need a deterministic iteration order to
+	// make the simulation more repeatable, so
+	// map is a problem. try dmap.
 	circuits map[*simnode]map[*simnode]*simconn
 	servers  map[string]*simnode // serverBaseID:srvnode
 	allnodes map[*simnode]bool
