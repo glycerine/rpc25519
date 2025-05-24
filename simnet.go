@@ -25,7 +25,10 @@ type mop struct {
 	// snapshots, everything. probably redundant with
 	// the earlier fields below, but okay; this might
 	// be realtime if we are not under faketime.
-	reqtm time.Time
+	reqtm        time.Time
+	batch        int64
+	batchsz      int64
+	batchSubwhen time.Time
 
 	// so we can handle a network
 	// rather than just cli/srv.
@@ -712,6 +715,12 @@ var simnetLastMopSn int64
 
 func simnetNextMopSn() int64 {
 	return atomic.AddInt64(&simnetLastMopSn, 1)
+}
+
+var simnetLastBatchSn int64
+
+func simnetNextBatchSn() int64 {
+	return atomic.AddInt64(&simnetLastBatchSn, 1)
 }
 
 type mopkind int
@@ -2006,10 +2015,6 @@ func (s *simnet) scheduler() {
 
 restartI:
 	for i := int64(0); ; i++ {
-
-		//if i == 42 {
-		//	verboseVerbose = true
-		//}
 
 		// number of dispatched operations
 		var nd0 int64

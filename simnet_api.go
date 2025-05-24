@@ -911,3 +911,100 @@ type SimnetSnapshotter struct {
 func (s *SimnetSnapshotter) GetSimnetSnapshot() *SimnetSnapshot {
 	return s.simnet.GetSimnetSnapshot()
 }
+
+type SimnetBatch struct {
+	net          *simnet
+	batchSn      int64
+	batchSz      int64
+	batchSubWhen time.Time
+	batchSubNow  bool
+	reqtm        time.Time
+	proceed      chan struct{}
+	batchOps     []*mop
+}
+
+func (s *simnet) NewSimnetBatch(subwhen time.Time) *SimnetBatch {
+	return &SimnetBatch{
+		net:          s,
+		batchSn:      simnetNextBatchSn(),
+		batchSubWhen: subwhen,
+		reqtm:        time.Now(),
+		proceed:      make(chan struct{}),
+	}
+}
+
+func (b *SimnetBatch) add(op *mop) {
+	b.batchOps = append(b.batchOps, op)
+}
+
+// empty string target means all possible targets
+func (b *SimnetBatch) FaultCircuit(origin, target string, dd DropDeafSpec, deliverDroppedSends bool) {
+	//s := b.net
+
+	cktFault := newCircuitFault(origin, target, dd, deliverDroppedSends)
+	b.add(newCktFaultMop(cktFault))
+}
+
+func (b *SimnetBatch) FaultHost(hostName string, dd DropDeafSpec, deliverDroppedSends bool) {
+	//s := b.net
+
+	hostFault := newHostFault(hostName, dd, deliverDroppedSends)
+	b.add(newHostFaultMop(hostFault))
+}
+
+func (b *SimnetBatch) RepairCircuit(originName string, unIsolate bool, powerOnIfOff, deliverDroppedSends bool) {
+	s := b.net
+
+	targetName := "" // all corresponding targets
+	const justOrigin_NO = false
+	repairCkt := s.newCircuitRepair(originName, targetName, unIsolate, powerOnIfOff, justOrigin_NO, deliverDroppedSends)
+	b.add(newRepairCktMop(repairCkt))
+}
+
+// RepairHost repairs all the circuits on the host.
+func (b *SimnetBatch) RepairHost(originName string, unIsolate bool, powerOnIfOff, allHosts, deliverDroppedSends bool) {
+	repairHost := b.net.newHostRepair(originName, unIsolate, powerOnIfOff, allHosts, deliverDroppedSends)
+	b.add(newRepairHostMop(repairHost))
+}
+
+func (b *SimnetBatch) AllHealthy(powerOnIfOff bool, deliverDroppedSends bool) {
+	const allHealthy_YES = true
+	repairHost := b.net.newHostRepair("", true, powerOnIfOff, allHealthy_YES, deliverDroppedSends)
+	b.add(newRepairHostMop(repairHost))
+}
+func (b *SimnetBatch) registerServer(srv *Server, srvNetAddr *SimNetAddr) {
+	s := b.net
+
+	srvreg := s.newServerRegistration(srv, srvNetAddr)
+	b.add(newServerRegMop(srvreg))
+}
+
+func (b *SimnetBatch) AlterCircuit(simnodeName string, alter Alteration, wholeHost bool) {
+	s := b.net
+	if wholeHost {
+		b.AlterHost(simnodeName, alter)
+		return
+	}
+	alt := s.newCircuitAlteration(simnodeName, alter, wholeHost)
+	b.add(newAlterNodeMop(alt))
+}
+
+// we cannot guarantee that the undo will reverse all the
+// changes if fine grained faults are in place; e.g. if
+// only one auto-cli was down and we shutdown
+// the host, the undo of restart will also bring up that
+// auto-cli too. The undo is still very useful for tests
+// even without that guarantee.
+func (b *SimnetBatch) AlterHost(simnodeName string, alter Alteration) {
+	s := b.net
+
+	alt := s.newCircuitAlteration(simnodeName, alter, true)
+	b.add(newAlterHostMop(alt))
+}
+
+func (b *SimnetBatch) GetSimnetSnapshot() {
+	snapReq := &SimnetSnapshot{
+		reqtm: time.Now(),
+	}
+	b.add(newSnapReqMop(snapReq))
+}
