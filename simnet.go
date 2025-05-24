@@ -205,6 +205,11 @@ func (s *mop) tm() time.Time {
 	panic(fmt.Sprintf("mop kind '%v' needs tm", int(s.kind)))
 }
 
+// mop.sn assignment by client code is
+// non-deterministic. the client or the
+// server could get their read in first,
+// for example. so avoid using .sn to break ties
+// until after looking at origin:target.
 func newMasterEventQueue(owner string) *pq {
 
 	cmp := func(a, b rb.Item) int {
@@ -241,6 +246,25 @@ func newMasterEventQueue(owner string) *pq {
 		if apri > bpri {
 			return 1
 		}
+		// same priority, i.e. both reads
+		if av.origin.name < bv.origin.name {
+			return -1
+		}
+		if av.origin.name > bv.origin.name {
+			return 1
+		}
+		if av.target.name < bv.target.name {
+			return -1
+		}
+		if av.target.name > bv.target.name {
+			return 1
+		}
+		// same origin, same target.
+		// maybe these next?
+		//senderLC int64
+		//readerLC int64
+		//originLC int64
+
 		if asn < bsn {
 			return -1
 		}
