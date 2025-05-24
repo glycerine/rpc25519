@@ -2111,7 +2111,7 @@ restartI:
 		case <-s.nextTimer.C: // time advances when soonest timer fires
 			now = time.Now()
 			totalSleepDur += now.Sub(preSelectTm)
-			vv("i=%v, nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
+			//vv("i=%v, nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
 
 			// maximizing determinism: go last
 			// among all goro who were woken by other
