@@ -311,6 +311,7 @@ type simnet struct {
 	node2server map[*simnode]*simnode
 
 	dns map[string]*simnode
+	//dns *dmap[string, *simnode]
 
 	// circuits[A][B] is the bi-directed, very cyclic,
 	// graph of the network. A sparse matrix, circuits[A]
@@ -626,8 +627,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		repairCircuitCh:      make(chan *circuitRepair),
 		repairHostCh:         make(chan *hostRepair),
 
-		scenario: scen,
-		//safeStateStringCh:     make(chan *simnetSafeStateQuery),
+		scenario:                scen,
 		simnetSnapshotRequestCh: make(chan *SimnetSnapshot),
 		dns:                     make(map[string]*simnode),
 		node2server:             make(map[*simnode]*simnode),
