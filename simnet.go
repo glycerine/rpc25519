@@ -131,6 +131,9 @@ type mop struct {
 // increase determinism by processing
 // the meq in priority order, after
 // giving each mop a different priority.
+// note: keeping the priority numbers as 100 x the mopking
+// just makes it easy to be sure we have not
+// missed a priority if we add a new mopkind.
 func (s *mop) priority() int64 {
 	switch s.kind {
 	case SCENARIO:
@@ -155,17 +158,20 @@ func (s *mop) priority() int64 {
 	case ALTER_NODE:
 		return 900
 
+	case BATCH:
+		return 1000 // not sure. how strongly prioritized should batches be?
+
 	case SEND:
-		return 1000
+		return 1100
 	case READ:
-		return 2000
+		return 1200
 	case TIMER:
-		return 3000
+		return 1300
 	case TIMER_DISCARD:
-		return 4000
+		return 1400
 
 	case SNAPSHOT:
-		return 5000
+		return 1500
 	}
 	panic(fmt.Sprintf("mop kind '%v' needs priority", int(s.kind)))
 }
@@ -731,23 +737,29 @@ type mopkind int
 const (
 	MOP_UNDEFINED mopkind = 0
 
-	TIMER         mopkind = 1
-	TIMER_DISCARD mopkind = 2
-	SEND          mopkind = 3
-	READ          mopkind = 4
+	SCENARIO mopkind = 1
 
-	SNAPSHOT   mopkind = 5
-	CLIENT_REG mopkind = 6
-	SERVER_REG mopkind = 7
+	CLIENT_REG mopkind = 2
+	SERVER_REG mopkind = 3
 
-	FAULT_CKT   mopkind = 8
-	FAULT_HOST  mopkind = 9
-	REPAIR_CKT  mopkind = 10
-	REPAIR_HOST mopkind = 11
-	ALTER_HOST  mopkind = 12
-	ALTER_NODE  mopkind = 13
-	SCENARIO    mopkind = 14
-	BATCH       mopkind = 15
+	FAULT_CKT   mopkind = 4
+	FAULT_HOST  mopkind = 5
+	REPAIR_CKT  mopkind = 6
+	REPAIR_HOST mopkind = 7
+	ALTER_HOST  mopkind = 8
+	ALTER_NODE  mopkind = 9
+
+	// atomically apply a set of the above.
+	BATCH mopkind = 10
+
+	// core network primitives
+	SEND          mopkind = 11
+	READ          mopkind = 12
+	TIMER         mopkind = 13
+	TIMER_DISCARD mopkind = 14
+
+	// report a snapshot of the entire network/state.
+	SNAPSHOT mopkind = 15
 )
 
 func enforceTickDur(tick time.Duration) time.Duration {
