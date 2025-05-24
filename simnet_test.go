@@ -24,8 +24,8 @@ import (
 
 func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 
-	//	onlyBubbled(t, func() { // fast
-	bubbleOrNot(func() { // slow
+	onlyBubbled(t, func() { // fast
+		//bubbleOrNot(func() { // slow, also :85 assertion incorrect from realtime
 		cv.Convey("basic SimNet channel based remote procedure call with rpc25519: register a callback on the server, and have the client call it.", t, func() {
 
 			cfg := NewConfig()

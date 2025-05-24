@@ -303,7 +303,6 @@ type simnet struct {
 	// need a deterministic iteration order to
 	// make the simulation more repeatable, so
 	// map is a problem. try dmap.
-	//circuits map[*simnode]map[*simnode]*simconn
 	circuits *dmap[*simnode, *dmap[*simnode, *simconn]]
 	servers  map[string]*simnode // serverBaseID:srvnode
 	allnodes map[*simnode]bool
@@ -451,7 +450,6 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	srvnode := s.newCircuitserver(reg.server.name, reg.serverBaseID)
 	srvnode.allnode[srvnode] = true
 	srvnode.netAddr = reg.srvNetAddr
-	//s.circuits[srvnode] = make(map[*simnode]*simconn)
 	s.circuits.set(srvnode, newDmap[*simnode, *simconn]())
 	_, already := s.dns[srvnode.name]
 	if already {
@@ -515,8 +513,6 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 	s.dns[clinode.name] = clinode
 
 	// add simnode to graph
-	//clientOutboundEdges := make(map[*simnode]*simconn)
-	//s.circuits[clinode] = clientOutboundEdges
 	clientOutboundEdges := newDmap[*simnode, *simconn]()
 	s.circuits.set(clinode, clientOutboundEdges)
 
@@ -613,7 +609,6 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		node2server:             make(map[*simnode]*simnode),
 
 		// graph of circuits, edges are circuits[from][to]
-		//circuits: make(map[*simnode]map[*simnode]*simconn),
 		circuits: newDmap[*simnode, *dmap[*simnode, *simconn]](),
 
 		// just the servers/peers, not their autocli.
@@ -652,11 +647,8 @@ func (s *simnode) setNetAddrSameNetAs(addr string, srvNetAddr *SimNetAddr) {
 
 func (s *simnet) addEdgeFromSrv(srvnode, clinode *simnode) *simconn {
 
-	//srv, ok := s.circuits[srvnode] // edges from srv to clients
-	srv, ok := s.circuits.get(srvnode) // edges from srv to clients
+	srv, ok := s.circuits.get2(srvnode) // edges from srv to clients
 	if !ok {
-		//srv = make(map[*simnode]*simconn)
-		//s.circuits[srvnode] = srv
 		srv = newDmap[*simnode, *simconn]()
 		s.circuits.set(srvnode, srv)
 	}
@@ -668,18 +660,14 @@ func (s *simnet) addEdgeFromSrv(srvnode, clinode *simnode) *simconn {
 	s2c.netAddr = srvnode.netAddr
 
 	// replace any previous conn
-	//srv[clinode] = s2c
 	srv.set(clinode, s2c)
 	return s2c
 }
 
 func (s *simnet) addEdgeFromCli(clinode, srvnode *simnode) *simconn {
 
-	//cli, ok := s.circuits[clinode] // edge from client to one server
-	cli, ok := s.circuits.get(clinode)
+	cli, ok := s.circuits.get2(clinode) // edge from client to one server
 	if !ok {
-		//cli = make(map[*simnode]*simconn)
-		//s.circuits[clinode] = cli
 		cli = newDmap[*simnode, *simconn]()
 		s.circuits.set(clinode, cli)
 	}
@@ -1192,11 +1180,10 @@ func (s *simnet) unIsolateSimnode(simnode *simnode) (undo Alteration) {
 	s.equilibrateReads(simnode, nil)
 
 	// same needed on each connection to simnode
-	//for remote := range s.circuits[simnode] {
-	for remote := range all(s.circuits.get1(simnode)) {
+	for remote := range all(s.circuits.get(simnode)) {
 		// 1) does everything:
-		//s.transferDeafReadsQ_to_readsQ(remote, simnode)
-		// 2) leaves probabilist faulty conn alone:
+		//    s.transferDeafReadsQ_to_readsQ(remote, simnode)
+		// vs 2) leaves probabilist faulty conn alone:
 		s.equilibrateReads(remote, simnode)
 	}
 
@@ -1282,16 +1269,14 @@ func (s *simnet) handleAlterHost(alt *simnodeAlteration) (undo Alteration) {
 }
 
 func (s *simnet) localDeafReadProb(read *mop) float64 {
-	//return s.circuits[read.origin][read.target].deafRead
-	return s.circuits.get1(read.origin).get1(read.target).deafRead
+	return s.circuits.get(read.origin).get(read.target).deafRead
 }
 
 func (s *simnet) localDeafRead(read *mop) (isDeaf bool) {
 
 	// get the local (read) origin conn probability of deafness
 	// note: not the remote's deafness, only local.
-	//conn := s.circuits[read.origin][read.target]
-	conn := s.circuits.get1(read.origin).get1(read.target)
+	conn := s.circuits.get(read.origin).get(read.target)
 	prob := conn.deafRead
 
 	conn.attemptedRead++ // at least 1.
@@ -1423,8 +1408,7 @@ func (s *simnet) dropped(prob float64) bool {
 func (s *simnet) localDropSend(send *mop) (isDropped bool, connAttemptedSend int64) {
 	// get the local origin conn probability of drop
 
-	//conn := s.circuits[send.origin][send.target]
-	conn := s.circuits.get1(send.origin).get1(send.target)
+	conn := s.circuits.get(send.origin).get(send.target)
 	prob := conn.dropSend
 
 	conn.attemptedSend++ // at least 1.
@@ -1477,7 +1461,7 @@ func (s *simnet) handleSend(send *mop) {
 	send.completeTm = time.Now() // send complete on the sender side.
 
 	//probDrop := s.circuits[send.origin][send.target].dropSend
-	probDrop := s.circuits.get1(send.origin).get1(send.target).dropSend
+	probDrop := s.circuits.get(send.origin).get(send.target).dropSend
 	if !s.statewiseConnected(send.origin, send.target) ||
 		probDrop >= 1 { // s.localDropSend(send) {
 
@@ -1501,7 +1485,7 @@ func (s *simnet) handleRead(read *mop) {
 	read.originLC = origin.lc
 
 	//probDeaf := s.circuits[read.origin][read.target].deafRead
-	probDeaf := s.circuits.get1(read.origin).get1(read.target).deafRead
+	probDeaf := s.circuits.get(read.origin).get(read.target).deafRead
 	if !s.statewiseConnected(read.origin, read.target) ||
 		probDeaf >= 1 { // 	s.localDeafRead(read) {
 
@@ -2504,7 +2488,7 @@ func (s *simnet) handleSimnetSnapshotRequest(req *SimnetSnapshot, now time.Time,
 		// srvnode.autocli also available for just local cli simnode.
 		for _, origin := range keyNameSort(s.locals(srvnode)) {
 			delete(alone, origin)
-			for target, conn := range all(s.circuits.get1(origin)) {
+			for target, conn := range all(s.circuits.get(origin)) {
 				req.PeerConnCount++
 				connsum := &SimnetConnSummary{
 					OriginIsCli: origin.isCli,
@@ -2552,7 +2536,7 @@ func (s *simnet) handleSimnetSnapshotRequest(req *SimnetSnapshot, now time.Time,
 			}
 			// note, each cli can only have one target, but
 			// for-range is much more convenient.
-			for target, conn := range all(s.circuits.get1(origin)) {
+			for target, conn := range all(s.circuits.get(origin)) {
 				req.LoneCliConnCount++
 
 				connsum := &SimnetConnSummary{

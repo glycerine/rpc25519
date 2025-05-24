@@ -407,9 +407,10 @@ func allikv[K ided, V any](s *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 	return seq2
 }
 
-// get returns the val corresponding to key in
-// O(1) constant time per query.
-func (s *dmap[K, V]) get(key K) (val V, found bool) {
+// get2 returns the val corresponding to key in
+// O(1) constant time per query. found will be
+// false iff the key was not present.
+func (s *dmap[K, V]) get2(key K) (val V, found bool) {
 	if s.idx == nil {
 		// not present
 		return
@@ -424,8 +425,8 @@ func (s *dmap[K, V]) get(key K) (val V, found bool) {
 	return
 }
 
-// get1 does getv but without the found flag.
-func (s *dmap[K, V]) get1(key K) (val V) {
+// get does get2 but without the found flag.
+func (s *dmap[K, V]) get(key K) (val V) {
 	if s.idx == nil {
 		// not present
 		return
@@ -450,16 +451,15 @@ func (s *dmap[K, V]) get1(key K) (val V) {
 // it of the need to rebalance.
 func (s *dmap[K, V]) getikv(key K) (kv *ikv[K, V], found bool) {
 
-	id := key.id()
-	var it rb.Iterator
 	if s.idx == nil {
 		// not present
 		return
-	} else {
-		it, found = s.idx[id]
-		if !found {
-			return
-		}
+	}
+	var it rb.Iterator
+	id := key.id()
+	it, found = s.idx[id]
+	if !found {
+		return
 	}
 	kv = it.Item().(*ikv[K, V])
 	return
