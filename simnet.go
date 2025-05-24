@@ -25,10 +25,7 @@ type mop struct {
 	// snapshots, everything. probably redundant with
 	// the earlier fields below, but okay; this might
 	// be realtime if we are not under faketime.
-	reqtm        time.Time
-	batchSn      int64
-	batchSz      int64
-	batchSubwhen time.Time
+	reqtm time.Time
 
 	// so we can handle a network
 	// rather than just cli/srv.
