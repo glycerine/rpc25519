@@ -33,6 +33,7 @@ func TestDmap(t *testing.T) {
 		//vv("at i = %v, see pd = '%#v'", i, pd)
 		i++
 	}
+	vv("done with first all: have %v elements", i)
 	i = 0
 	// delete odds over 2
 	for pd, kv := range all(m) {
@@ -46,6 +47,11 @@ func TestDmap(t *testing.T) {
 		}
 		//vv("at i = %v, see pd = '%#v'", i, pd)
 		i++
+	}
+	ne := m.Len()
+	vv("done with deleting 3,5,7: have %v elements", ne)
+	if ne != 6 {
+		t.Fatalf("expected 6 now, have %v", ne)
 	}
 
 	expect := []int{0, 1, 2, 4, 6, 8} // , deleted 3,5,7

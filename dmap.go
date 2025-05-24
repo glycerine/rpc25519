@@ -79,6 +79,11 @@ type ikv[K ided, V any] struct {
 	it  rb.Iterator
 }
 
+// Len returns the number of keys stored in the dmap.
+func (s *dmap[K, V]) Len() int {
+	return len(s.idx)
+}
+
 // delkey deletes a key from the dmap, if present.
 // This is a constant O(1) time operation.
 //
@@ -192,6 +197,7 @@ func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 
 	return func(yield func(K, *ikv[K, V]) bool) {
 
+		vv("start of all iteration.")
 		n := m.tree.Len()
 		nc := len(m.ordercache)
 		vers := atomic.LoadInt64(&m.version)
@@ -199,13 +205,15 @@ func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 			// cache hit
 			for i, kv := range m.ordercache {
 				nextit := kv.it.Next()
+				vv("about to yield 1st")
 				if !yield(kv.key, kv) {
 					return
 				}
+				vv("back from yield 1st")
 				vers2 := atomic.LoadInt64(&m.version)
 				if vers2 != vers {
-					vv("down shifting")
-					// ugh. delete in middle of iteration.
+					vv("vers2 %v != vers %v down shifting stack=\n%v", vers2, vers, stack())
+					// delete in middle of iteration.
 					// we can do it, but we down shift to
 					// the slow path using nextit, assuming
 					// there will be more of the same.
@@ -217,9 +225,11 @@ func all[K ided, V any](m *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 						for it != lim {
 							kv := it.Item().(*ikv[K, V])
 							it = it.Next()
+							vv("about to yield 2nd")
 							if !yield(kv.key, kv) {
 								return
 							}
+							vv("back from yield 2nd")
 						}
 					}
 				}
