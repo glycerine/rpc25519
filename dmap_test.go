@@ -23,13 +23,22 @@ func TestDmap(t *testing.T) {
 		slc = append(slc, d)
 		m.upsert(d, 8-i)
 	}
-	vv("m = '%#v'", m)
+	//vv("m = '%#v'", m)
 	i := 0
 	for pd, j := range all(m) {
 		if j != i {
 			t.Fatalf("expected val %v, got %v for pd='%#v'", i, j, pd)
 		}
-		vv("at i = %v, see pd = '%#v'", i, pd)
+		//vv("at i = %v, see pd = '%#v'", i, pd)
 		i++
 	}
+	i = 0
+	for pd, j := range all(m) {
+		if j != i {
+			t.Fatalf("expected val %v, got %v for pd='%#v'", i, j, pd)
+		}
+		//vv("at i = %v, see pd = '%#v'", i, pd)
+		i++
+	}
+
 }

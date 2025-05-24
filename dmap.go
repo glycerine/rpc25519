@@ -43,6 +43,33 @@ type ikv[K ided, V any] struct {
 	val V
 }
 
+// delete key from the dmap, if present.
+//
+// If found returns true, next has the
+// iterator following the deleted key.
+//
+// If found returns false, next is s.tree.Limit(),
+// which can be used to terminate an iteration.
+//
+// Using next provides "advance and delete behind"
+// semantics.
+func (s *dmap[K, V]) del(key K) (found bool, next rb.Iterator) {
+	query := &ikv[K, V]{id: key.id()}
+	var it rb.Iterator
+	it, found = s.tree.FindGE_isEqual(query)
+	if !found {
+		next = s.tree.Limit()
+		return
+	}
+	next = it.Next()
+	s.tree.DeleteWithIterator(it)
+	return
+}
+
+func (s *dmap[K, V]) deleteAll() {
+	s.tree.DeleteAll()
+}
+
 func (s *dmap[K, V]) upsert(key K, val V) {
 
 	id := key.id()
