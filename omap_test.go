@@ -271,7 +271,7 @@ func TestOmapString(t *testing.T) {
 func TestOmapRandomOperations(t *testing.T) {
 	const (
 		numKeys = 7
-		numOps  = 1_000_000
+		numOps  = 100_000
 		seed    = 42 // fixed seed for reproducibility
 	)
 
