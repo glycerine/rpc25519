@@ -27,8 +27,9 @@ type ided interface {
 // The user must provide external sync.Mutex or otherwise
 // coordinate access if a dmap is shared
 // across goroutines. This allows dmap to
-// also provide for deletion or modification
-// during a for-range all(dmap) iteration.
+// also provide for deletion or value update (not
+// key modification, of course) during a
+// for-range dmap.all() iteration.
 //
 // In what order does a dmap return keys?
 // How fast is it?

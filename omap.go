@@ -37,8 +37,8 @@ import (
 // The user must provide external sync.Mutex or otherwise
 // coordinate access if a omap is shared
 // across goroutines. This allows omap to
-// also provide for deletion or modification
-// during a for-range allo(omap) iteration.
+// also provide for deletion or value update (not key)
+// during a for-range omap.all() iteration.
 //
 // For repeated full range all
 // scans, we cache the okv pointers in contiguous
