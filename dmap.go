@@ -76,6 +76,18 @@ type dmap[K ided, V any] struct {
 	ordercache []*ikv[K, V]
 }
 
+func (s *dmap[K, V]) cached() []*ikv[K, V] {
+	n := s.tree.Len()
+	nc := len(s.ordercache)
+	if nc == n {
+		return s.ordercache
+	}
+	for range all(s) {
+		// fills in s.ordercache
+	}
+	return s.ordercache
+}
+
 // newDmap makes a new dmap.
 func newDmap[K ided, V any]() *dmap[K, V] {
 	return &dmap[K, V]{

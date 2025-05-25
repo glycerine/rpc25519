@@ -11,13 +11,11 @@ type dmapt struct {
 	name string
 }
 
-func (s *dmapt) id() (id string, ok bool) {
+func (s *dmapt) id() string {
 	if s == nil {
-		return
+		return ""
 	}
-	ok = true
-	id = s.name
-	return
+	return s.name
 }
 
 func TestDmap(t *testing.T) {
@@ -522,7 +520,8 @@ func BenchmarkDmapVsBuiltin(b *testing.B) {
 }
 
 /*
-Compilation started at Sun May 25 03:44:17
+
+Compilation started at Sun May 25 03:54:29
 
 GOTRACEBACK=all GOEXPERIMENT=synctest go test -v -race -bench=BenchmarkDmapVsBuiltin -run=blah
 faketime = true
@@ -533,64 +532,28 @@ cpu: Intel(R) Core(TM) i7-1068NG7 CPU @ 2.30GHz
 BenchmarkDmapVsBuiltin
 BenchmarkDmapVsBuiltin/Set
 BenchmarkDmapVsBuiltin/Set/Dmap
-BenchmarkDmapVsBuiltin/Set/Dmap-8    	 7525636	       155.3 ns/op
+BenchmarkDmapVsBuiltin/Set/Dmap-8    	 3876800	       301.5 ns/op
 BenchmarkDmapVsBuiltin/Set/Builtin
-BenchmarkDmapVsBuiltin/Set/Builtin-8 	32828542	        35.88 ns/op
+BenchmarkDmapVsBuiltin/Set/Builtin-8 	34976158	        33.93 ns/op
 BenchmarkDmapVsBuiltin/Get
 BenchmarkDmapVsBuiltin/Get/Dmap
-BenchmarkDmapVsBuiltin/Get/Dmap-8    	 7858725	       138.7 ns/op
+BenchmarkDmapVsBuiltin/Get/Dmap-8    	 7941308	       138.4 ns/op
 BenchmarkDmapVsBuiltin/Get/Builtin
-BenchmarkDmapVsBuiltin/Get/Builtin-8 	32884836	        34.72 ns/op
+BenchmarkDmapVsBuiltin/Get/Builtin-8 	33435048	        35.41 ns/op
 BenchmarkDmapVsBuiltin/Delete
 BenchmarkDmapVsBuiltin/Delete/Dmap
-BenchmarkDmapVsBuiltin/Delete/Dmap-8 	  671907	      1744 ns/op
+BenchmarkDmapVsBuiltin/Delete/Dmap-8 	  392959	      2971 ns/op
 BenchmarkDmapVsBuiltin/Delete/Builtin
-BenchmarkDmapVsBuiltin/Delete/Builtin-8         	16444497	        67.89 ns/op
+BenchmarkDmapVsBuiltin/Delete/Builtin-8         	17438089	        65.88 ns/op
 BenchmarkDmapVsBuiltin/Range
 BenchmarkDmapVsBuiltin/Range/Dmap
-BenchmarkDmapVsBuiltin/Range/Dmap-8             	   18390	     64158 ns/op
+BenchmarkDmapVsBuiltin/Range/Dmap-8             	   12086	     96360 ns/op
 BenchmarkDmapVsBuiltin/Range/Dmap_ordercache
-BenchmarkDmapVsBuiltin/Range/Dmap_ordercache-8  	  138068	      8156 ns/op
+BenchmarkDmapVsBuiltin/Range/Dmap_ordercache-8  	  149186	      7503 ns/op
 BenchmarkDmapVsBuiltin/Range/Builtin
-BenchmarkDmapVsBuiltin/Range/Builtin-8          	   27908	     43369 ns/op
+BenchmarkDmapVsBuiltin/Range/Builtin-8          	   26757	     42736 ns/op
 PASS
-ok  	github.com/glycerine/rpc25519	13.878s
+ok  	github.com/glycerine/rpc25519	14.392s
 
-Compilation finished at Sun May 25 03:44:34
-
-Compilation started at Sun May 25 03:40:14
-
-GOTRACEBACK=all GOEXPERIMENT=synctest go test -v -race -bench=BenchmarkDmapVsBuiltin -run=blah
-faketime = true
-goos: darwin
-goarch: amd64
-pkg: github.com/glycerine/rpc25519
-cpu: Intel(R) Core(TM) i7-1068NG7 CPU @ 2.30GHz
-BenchmarkDmapVsBuiltin
-BenchmarkDmapVsBuiltin/Set
-BenchmarkDmapVsBuiltin/Set/Dmap
-BenchmarkDmapVsBuiltin/Set/Dmap-8    	 3876409	       301.4 ns/op
-BenchmarkDmapVsBuiltin/Set/Builtin
-BenchmarkDmapVsBuiltin/Set/Builtin-8 	32415962	        34.66 ns/op
-BenchmarkDmapVsBuiltin/Get
-BenchmarkDmapVsBuiltin/Get/Dmap
-BenchmarkDmapVsBuiltin/Get/Dmap-8    	 7653172	       145.1 ns/op
-BenchmarkDmapVsBuiltin/Get/Builtin
-BenchmarkDmapVsBuiltin/Get/Builtin-8 	32522094	        33.48 ns/op
-BenchmarkDmapVsBuiltin/Delete
-BenchmarkDmapVsBuiltin/Delete/Dmap
-BenchmarkDmapVsBuiltin/Delete/Dmap-8 	  368490	      2949 ns/op
-BenchmarkDmapVsBuiltin/Delete/Builtin
-BenchmarkDmapVsBuiltin/Delete/Builtin-8         	16710434	        65.34 ns/op
-BenchmarkDmapVsBuiltin/Range
-BenchmarkDmapVsBuiltin/Range/Dmap
-BenchmarkDmapVsBuiltin/Range/Dmap-8             	   10000	    103857 ns/op
-BenchmarkDmapVsBuiltin/Range/Dmap_ordercache
-BenchmarkDmapVsBuiltin/Range/Dmap_ordercache-8  	  146912	      7864 ns/op
-BenchmarkDmapVsBuiltin/Range/Builtin
-BenchmarkDmapVsBuiltin/Range/Builtin-8          	   26803	     44668 ns/op
-PASS
-ok  	github.com/glycerine/rpc25519	13.094s
-
-Compilation finished at Sun May 25 03:40:30
+Compilation finished at Sun May 25 03:54:47
 */

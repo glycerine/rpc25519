@@ -424,6 +424,9 @@ type simnode struct {
 }
 
 func (s *simnode) id() string {
+	if s == nil {
+		return ""
+	}
 	return s.name
 }
 func (s *simnet) locals(node *simnode) map[*simnode]bool {
