@@ -96,10 +96,11 @@ func newOmap[K cmp.Ordered, V any]() *omap[K, V] {
 	}
 }
 
+// okv holds an ordered key and its value together.
+// the red-black tree stores pointers to okv.
 type okv[K cmp.Ordered, V any] struct {
 	key K
 	val V
-	it  rb.Iterator
 }
 
 // Len returns the number of keys stored in the omap.
@@ -219,7 +220,6 @@ func (s *omap[K, V]) set(key K, val V) (newlyAdded bool) {
 	}
 	newlyAdded = true
 	_, it = s.tree.InsertGetIt(query)
-	query.it = it
 
 	return
 }
@@ -241,8 +241,9 @@ func (s *omap[K, V]) all() iter.Seq2[K, V] {
 
 		if nc == n && s.cacheversion == vers {
 			// s.ordercache is usable.
+			nextit := s.tree.Min()
 			for i, kv := range s.ordercache {
-				nextit := kv.it.Next() // in case of slow path below
+				nextit = nextit.Next() // in case of slow path below
 				if !yield(kv.key, kv.val) {
 					return
 				}
@@ -259,11 +260,9 @@ func (s *omap[K, V]) all() iter.Seq2[K, V] {
 						return
 					}
 					// still have some left
-					it := nextit
 					var kv *okv[K, V]
 					for !nextit.Limit() {
-						it = nextit
-						kv = it.Item().(*okv[K, V])
+						kv = nextit.Item().(*okv[K, V])
 						// pre-advance, allows deletion of it.
 						nextit = nextit.Next()
 						if !yield(kv.key, kv.val) {
@@ -347,8 +346,9 @@ func (s *omap[K, V]) allokv() iter.Seq2[K, *okv[K, V]] {
 
 		if nc == n && s.cacheversion == vers {
 			// s.ordercache is usable.
+			nextit := s.tree.Min()
 			for i, kv := range s.ordercache {
-				nextit := kv.it.Next() // in case of slow path below
+				nextit = nextit.Next()
 				if !yield(kv.key, kv) {
 					return
 				}
@@ -365,11 +365,9 @@ func (s *omap[K, V]) allokv() iter.Seq2[K, *okv[K, V]] {
 						return
 					}
 					// still have some left
-					it := nextit
 					var kv *okv[K, V]
 					for !nextit.Limit() {
-						it = nextit
-						kv = it.Item().(*okv[K, V])
+						kv = nextit.Item().(*okv[K, V])
 						// pre-advance, allows deletion of it.
 						nextit = nextit.Next()
 						if !yield(kv.key, kv) {

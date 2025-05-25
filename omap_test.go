@@ -34,8 +34,8 @@ func TestOmap(t *testing.T) {
 		//	t.Fatalf("expected val %v, got %v for pd='%#v'", i, j, pd)
 		//}
 		if i > 2 && i%2 == 1 {
-			//vv("about to deleteWithIter(%v)", i)
-			m.deleteWithIter(kv.it)
+			//vv("about to delkey(%v)", i)
+			m.delkey(kv.key)
 		}
 		//vv("at i = %v, see pd = '%#v'", i, pd)
 		i++
