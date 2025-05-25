@@ -28,7 +28,7 @@ type ided interface {
 // coordinate access if a dmap is shared
 // across goroutines. This allows dmap to
 // also provide for deletion or modification
-// during an for range all(dmap) iteration.
+// during a for-range all(dmap) iteration.
 //
 // In what order does a dmap return keys?
 // How fast is it?
