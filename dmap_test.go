@@ -291,7 +291,7 @@ func TestDmapString(t *testing.T) {
 func TestDmapRandomOperations(t *testing.T) {
 	const (
 		numKeys = 7
-		numOps  = 1000
+		numOps  = 1_000_000
 		seed    = 42 // fixed seed for reproducibility
 	)
 
@@ -360,37 +360,30 @@ func TestDmapRandomOperations(t *testing.T) {
 
 		ops = append(ops, op{opStr, keyStr, val})
 
-		// Periodically verify lengths match
-		if i%100 == 0 {
-			if dmap.Len() != len(builtin) {
-				t.Errorf("length mismatch at op %d: dmap=%d, builtin=%d",
-					i, dmap.Len(), len(builtin))
-				// Print last few operations for debugging
-				start := max(0, len(ops)-5)
-				t.Errorf("last operations: %v", ops[start:])
+		// verify lengths match
+		if dmap.Len() != len(builtin) {
+			t.Errorf("length mismatch at op %d: dmap=%d, builtin=%d",
+				i, dmap.Len(), len(builtin))
+			// Print last few operations for debugging
+			start := max(0, len(ops)-5)
+			t.Errorf("last operations: %v", ops[start:])
+		}
+
+		// Verify all keys in dmap are in builtin and vice versa
+		for k, v := range all(dmap) {
+			if bval, found := builtin[k.id()]; !found || bval != v {
+				t.Errorf("final key mismatch: key=%s, dmap=%v, builtin=%v (found=%v)",
+					k.id(), v, bval, found)
+			}
+		}
+		for k, v := range builtin {
+			if dval, found := dmap.get2(&dmapt{name: k}); !found || dval != v {
+				t.Errorf("final key mismatch: key=%s, dmap=%v (found=%v), builtin=%v",
+					k, dval, found, v)
 			}
 		}
 	}
-
-	// Final verification
-	if dmap.Len() != len(builtin) {
-		t.Errorf("final length mismatch: dmap=%d, builtin=%d",
-			dmap.Len(), len(builtin))
-	}
-
-	// Verify all keys in dmap are in builtin and vice versa
-	for k, v := range all(dmap) {
-		if bval, found := builtin[k.id()]; !found || bval != v {
-			t.Errorf("final key mismatch: key=%s, dmap=%v, builtin=%v (found=%v)",
-				k.id(), v, bval, found)
-		}
-	}
-	for k, v := range builtin {
-		if dval, found := dmap.get2(&dmapt{name: k}); !found || dval != v {
-			t.Errorf("final key mismatch: key=%s, dmap=%v (found=%v), builtin=%v",
-				k, dval, found, v)
-		}
-	}
+	fmt.Printf("dmap and map match, %v ops\n", numOps)
 }
 
 // BenchmarkDmapVsBuiltin benchmarks dmap against built-in map
@@ -521,10 +514,10 @@ func BenchmarkDmapVsBuiltin(b *testing.B) {
 
 /*
 
-Compilation started at Sun May 25 03:54:29
+Compilation started at Sun May 25 04:00:12
 
-GOTRACEBACK=all GOEXPERIMENT=synctest go test -v -race -bench=BenchmarkDmapVsBuiltin -run=blah
-faketime = true
+go test -v -bench=BenchmarkDmapVsBuiltin -run=blah
+faketime = false
 goos: darwin
 goarch: amd64
 pkg: github.com/glycerine/rpc25519
@@ -532,28 +525,28 @@ cpu: Intel(R) Core(TM) i7-1068NG7 CPU @ 2.30GHz
 BenchmarkDmapVsBuiltin
 BenchmarkDmapVsBuiltin/Set
 BenchmarkDmapVsBuiltin/Set/Dmap
-BenchmarkDmapVsBuiltin/Set/Dmap-8    	 3876800	       301.5 ns/op
+BenchmarkDmapVsBuiltin/Set/Dmap-8       48343575      22.36 ns/op
 BenchmarkDmapVsBuiltin/Set/Builtin
-BenchmarkDmapVsBuiltin/Set/Builtin-8 	34976158	        33.93 ns/op
+BenchmarkDmapVsBuiltin/Set/Builtin-8    75154516      15.51 ns/op
 BenchmarkDmapVsBuiltin/Get
 BenchmarkDmapVsBuiltin/Get/Dmap
-BenchmarkDmapVsBuiltin/Get/Dmap-8    	 7941308	       138.4 ns/op
+BenchmarkDmapVsBuiltin/Get/Dmap-8       62711772      18.13 ns/op
 BenchmarkDmapVsBuiltin/Get/Builtin
-BenchmarkDmapVsBuiltin/Get/Builtin-8 	33435048	        35.41 ns/op
+BenchmarkDmapVsBuiltin/Get/Builtin-8   100000000      10.89 ns/op
 BenchmarkDmapVsBuiltin/Delete
 BenchmarkDmapVsBuiltin/Delete/Dmap
-BenchmarkDmapVsBuiltin/Delete/Dmap-8 	  392959	      2971 ns/op
+BenchmarkDmapVsBuiltin/Delete/Dmap-8     3335937      359.3 ns/op
 BenchmarkDmapVsBuiltin/Delete/Builtin
-BenchmarkDmapVsBuiltin/Delete/Builtin-8         	17438089	        65.88 ns/op
+BenchmarkDmapVsBuiltin/Delete/Builtin-8 27277524      39.09 ns/op
 BenchmarkDmapVsBuiltin/Range
 BenchmarkDmapVsBuiltin/Range/Dmap
-BenchmarkDmapVsBuiltin/Range/Dmap-8             	   12086	     96360 ns/op
+BenchmarkDmapVsBuiltin/Range/Dmap-8             316316   3477 ns/op  << nice
 BenchmarkDmapVsBuiltin/Range/Dmap_ordercache
-BenchmarkDmapVsBuiltin/Range/Dmap_ordercache-8  	  149186	      7503 ns/op
+BenchmarkDmapVsBuiltin/Range/Dmap_ordercache-8 2099700   560.4 ns/op << very nice
 BenchmarkDmapVsBuiltin/Range/Builtin
-BenchmarkDmapVsBuiltin/Range/Builtin-8          	   26757	     42736 ns/op
+BenchmarkDmapVsBuiltin/Range/Builtin-8          144405   7922 ns/op
 PASS
-ok  	github.com/glycerine/rpc25519	14.392s
+ok    github.com/glycerine/rpc25519  11.701s
 
-Compilation finished at Sun May 25 03:54:47
+Compilation finished at Sun May 25 04:00:27
 */
