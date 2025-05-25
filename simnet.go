@@ -1474,7 +1474,6 @@ func (s *simnet) handleSend(send *mop) {
 	send.arrivalTm = userMaskTime(send.initTm.Add(s.scenario.rngHop()))
 	send.completeTm = time.Now() // send complete on the sender side.
 
-	//probDrop := s.circuits[send.origin][send.target].dropSend
 	probDrop := s.circuits.get(send.origin).get(send.target).dropSend
 	if !s.statewiseConnected(send.origin, send.target) ||
 		probDrop >= 1 { // s.localDropSend(send) {
@@ -1502,7 +1501,6 @@ func (s *simnet) handleRead(read *mop) {
 	origin := read.origin
 	read.originLC = origin.lc
 
-	//probDeaf := s.circuits[read.origin][read.target].deafRead
 	probDeaf := s.circuits.get(read.origin).get(read.target).deafRead
 	if !s.statewiseConnected(read.origin, read.target) ||
 		probDeaf >= 1 {
@@ -1850,7 +1848,6 @@ func (s *simnet) dispatch(simnode *simnode, now time.Time) (changes int64) {
 
 func (s *simnet) qReport() (r string) {
 	i := 0
-	//for simnode := range s.circuits {
 	for simnode := range all(s.circuits) {
 		r += fmt.Sprintf("\n[simnode %v of %v in qReport]: \n", i+1, s.circuits.Len())
 		r += simnode.String() + "\n"

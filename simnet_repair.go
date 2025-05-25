@@ -358,7 +358,6 @@ func (s *simnet) repairAllCircuitFaults(simnode *simnode) {
 
 	// ================ repair connections ==================
 	// clear the deaf/drop probabilities from each conn.
-	//for _, conn := range s.circuits[simnode] {
 	for _, conn := range all(s.circuits.get(simnode)) {
 		conn.repair()
 	}
@@ -387,7 +386,6 @@ func (conn *simconn) repair() (changed int) {
 // at origin. otherwise just the conn from origin -> target.
 func (s *simnet) localCircuitFaultsPresent(origin, target *simnode) bool {
 
-	//for rem, conn := range s.circuits[origin] {
 	for rem, conn := range all(s.circuits.get(origin)) {
 		if target == nil || target == rem {
 			if conn.deafRead > 0 {
@@ -405,7 +403,7 @@ func (s *simnet) localCircuitFaultsPresent(origin, target *simnode) bool {
 // target is nil, we check all conn/circuits starting
 // at origin. otherwise just the conn from origin -> target.
 func (s *simnet) localCircuitDeafForSure(origin, target *simnode) bool {
-	//for rem, conn := range s.circuits[origin] {
+
 	for rem, conn := range all(s.circuits.get(origin)) {
 		if target == nil || target == rem {
 			if conn.deafRead < 1 {
@@ -421,7 +419,7 @@ func (s *simnet) localCircuitDeafForSure(origin, target *simnode) bool {
 // target is nil, we check all conn/circuits starting
 // at origin. otherwise just the conn from origin -> target.
 func (s *simnet) localCircuitNotDeafForSure(origin, target *simnode) bool {
-	//for rem, conn := range s.circuits[origin] {
+
 	for rem, conn := range all(s.circuits.get(origin)) {
 		if target == nil || target == rem {
 			if conn.deafRead > 0 {
