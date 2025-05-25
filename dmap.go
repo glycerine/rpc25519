@@ -48,7 +48,14 @@ type ided interface {
 // Thus dmap aims to be almost as fast, or
 // faster, than the built in Go map, for common
 // use patterns, while providing deterministic,
-// repeatable iteration order.
+// repeatable iteration order. The quick benchmarks
+// in dmap_test show that repeated full-range
+// scans are between 2x and 14x faster than
+// the built-in Go map. The 7x difference in
+// dmap vs dmap is due to the iter/coroutine
+// iterator overhead. Use the cached() method
+// instead of all() to range over a slice and
+// maximize your L1 cache performance.
 //
 // To provide these guarantees, dmap uses approximately 3x
 // the memory of the builtin map. The
