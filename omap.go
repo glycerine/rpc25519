@@ -24,7 +24,8 @@ import (
 // this may make little to no difference in
 // your use case. deleteAll remains O(1).
 //
-// The rest is almost verbatim from dmap docs:
+// The rest is almost verbatim from dmap docs;
+// compare to dmap.go.
 //
 // Unlike Go's builtin map, a omap can be
 // range iterated in a repeatable order,
@@ -39,9 +40,6 @@ import (
 // also provide for deletion or modification
 // during a for-range allo(omap) iteration.
 //
-// In what order does a omap return keys?
-// How fast is it?
-//
 // For repeated full range all
 // scans, we cache the okv pointers in contiguous
 // memory to maximize L1 cache hits and
@@ -51,7 +49,11 @@ import (
 // Thus omap aims to be almost as fast, or
 // faster, than the built in Go map, for common
 // use patterns, while providing deterministic,
-// repeatable iteration order, at twice the memory.
+// repeatable iteration order, at just twice the memory.
+//
+// The quick benchmarks in omap_test show that for
+// repeated full range scans, an omap can be
+// up to 20x faster than the builtin Go map.
 type omap[K cmp.Ordered, V any] struct {
 	version int64
 
