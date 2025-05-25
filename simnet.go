@@ -259,17 +259,36 @@ func newMasterEventQueue(owner string) *pq {
 			return 1
 		}
 		// same priority, i.e. both reads
-		if av.origin.name < bv.origin.name {
+
+		// some alt from <-s.alterHostCh, newAlterHostMop(alt)) had
+		// mop.origin nil, so try not to seg fault on it.
+		if av.origin == nil && bv.origin != nil {
 			return -1
 		}
-		if av.origin.name > bv.origin.name {
+		if av.origin != nil && bv.origin == nil {
 			return 1
 		}
-		if av.target.name < bv.target.name {
+		if av.origin != nil && bv.origin != nil {
+			if av.origin.name < bv.origin.name {
+				return -1
+			}
+			if av.origin.name > bv.origin.name {
+				return 1
+			}
+		}
+		if av.target == nil && bv.target != nil {
 			return -1
 		}
-		if av.target.name > bv.target.name {
+		if av.target != nil && bv.target == nil {
 			return 1
+		}
+		if av.target != nil && bv.target != nil {
+			if av.target.name < bv.target.name {
+				return -1
+			}
+			if av.target.name > bv.target.name {
+				return 1
+			}
 		}
 		// same origin, same target.
 		// maybe these next?
@@ -2181,7 +2200,7 @@ restartI:
 			s.meq.add(newAlterNodeMop(alt))
 
 		case alt := <-s.alterHostCh:
-			//vv("i=%v alterHostCh ->  alt='%v'", i, alt)
+			vv("i=%v alterHostCh ->  alt='%v'", i, alt)
 			//s.handleAlterHost(op.alt)
 			s.meq.add(newAlterHostMop(alt))
 
