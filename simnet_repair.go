@@ -328,7 +328,7 @@ func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (
 // If state is HEALTHY, this is a no-op.
 // If state is ISOLATED, this is a no-op.
 func (s *simnet) repairAllCircuitFaults(simnode *simnode) {
-	vv("top of repairAllCircuitFaults, simnode = '%v'; state = %v", simnode.name, simnode.state)
+	//vv("top of repairAllCircuitFaults, simnode = '%v'; state = %v", simnode.name, simnode.state)
 	//defer func() {
 	//vv("end of repairAllCircuitFaults")
 	//}()
