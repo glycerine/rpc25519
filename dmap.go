@@ -57,7 +57,9 @@ type ided interface {
 // instead of all() to range over a slice and
 // maximize your L1 cache performance.
 //
-// To provide these guarantees, dmap uses approximately 3x
+// To provide the reproducible sorted range
+// order and efficient get/set/delete/deleteAll
+// operations, dmap uses approximately 3x
 // the memory of the builtin map. The
 // memory goes towards:
 //
