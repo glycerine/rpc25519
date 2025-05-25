@@ -29,7 +29,7 @@ func TestDmap(t *testing.T) {
 	}
 	//vv("m = '%#v'", m)
 	i := 0
-	for pd, j := range all(m) {
+	for pd, j := range m.all() {
 		if j != i {
 			t.Fatalf("expected val %v, got %v for pd='%#v'", i, j, pd)
 		}
@@ -39,7 +39,7 @@ func TestDmap(t *testing.T) {
 	//vv("done with first all: have %v elements", i)
 	i = 0
 	// delete odds over 2
-	for pd, kv := range allikv(m) {
+	for pd, kv := range m.allikv() {
 		_ = pd
 		//j := kv.val
 		//if j != i {
@@ -60,7 +60,7 @@ func TestDmap(t *testing.T) {
 
 	expect := []int{0, 1, 2, 4, 6, 8} // , deleted 3,5,7
 	i = 0
-	for pd, kv := range allikv(m) {
+	for pd, kv := range m.allikv() {
 		j := kv.val
 		if j != expect[i] {
 			t.Fatalf("expected val %v, got %v for pd='%#v'", expect[i], j, pd)
@@ -122,13 +122,13 @@ func TestDmapDeterministicOrder(t *testing.T) {
 
 	// First iteration
 	var firstOrder []string
-	for k, _ := range all(m) {
+	for k, _ := range m.all() {
 		firstOrder = append(firstOrder, k.id())
 	}
 
 	// Second iteration should match first
 	var secondOrder []string
-	for k, _ := range all(m) {
+	for k, _ := range m.all() {
 		secondOrder = append(secondOrder, k.id())
 	}
 
@@ -214,7 +214,7 @@ func TestDmapDeleteDuringIteration(t *testing.T) {
 
 	// Delete every other key during iteration
 	deleted := make(map[string]bool)
-	for k, v := range all(m) {
+	for k, v := range m.all() {
 		if v%2 == 0 {
 			m.delkey(k)
 			deleted[k.id()] = true
@@ -222,7 +222,7 @@ func TestDmapDeleteDuringIteration(t *testing.T) {
 	}
 
 	// Verify remaining keys
-	for k, v := range all(m) {
+	for k, v := range m.all() {
 		if deleted[k.id()] {
 			t.Errorf("key %s should have been deleted", k.id())
 		}
@@ -370,7 +370,7 @@ func TestDmapRandomOperations(t *testing.T) {
 		}
 
 		// Verify all keys in dmap are in builtin and vice versa
-		for k, v := range all(dmap) {
+		for k, v := range dmap.all() {
 			if bval, found := builtin[k.id()]; !found || bval != v {
 				t.Errorf("final key mismatch: key=%s, dmap=%v, builtin=%v (found=%v)",
 					k.id(), v, bval, found)
@@ -485,7 +485,7 @@ func BenchmarkDmapVsBuiltin(b *testing.B) {
 		b.Run("Dmap", func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				sum := 0
-				for _, v := range all(dmap) {
+				for _, v := range dmap.all() {
 					sum += v
 				}
 				_ = sum

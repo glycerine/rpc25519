@@ -1192,7 +1192,7 @@ func (s *simnet) timeWarp_transferDroppedSendQ_to_PreArrQ(origin, target *simnod
 
 func (s *simnet) timeWarp_transferDeafReadQsends_to_PreArrQ(origin, target *simnode) {
 
-	for remote := range all(s.circuits.get(origin)) {
+	for remote := range s.circuits.get(origin).all() {
 		if target != nil && target != remote {
 			continue
 		}
@@ -1289,7 +1289,7 @@ func (s *simnet) unIsolateSimnode(simnode *simnode) (undo Alteration) {
 	s.equilibrateReads(simnode, nil)
 
 	// same needed on each connection to simnode
-	for remote := range all(s.circuits.get(simnode)) {
+	for remote := range s.circuits.get(simnode).all() {
 		// 1) does everything:
 		//    s.transferDeafReadsQ_to_readsQ(remote, simnode)
 		// vs 2) leaves probabilist faulty conn alone:
@@ -1870,7 +1870,7 @@ func (s *simnet) dispatch(simnode *simnode, now time.Time) (changes int64) {
 
 func (s *simnet) qReport() (r string) {
 	i := 0
-	for simnode := range all(s.circuits) {
+	for simnode := range s.circuits.all() {
 		r += fmt.Sprintf("\n[simnode %v of %v in qReport]: \n", i+1, s.circuits.Len())
 		r += simnode.String() + "\n"
 		i++
@@ -1885,7 +1885,7 @@ func (s *simnet) schedulerReport() string {
 
 func (s *simnet) dispatchAll(now time.Time) (changes int64) {
 	// notice here we only use the key of s.circuits
-	for simnode := range all(s.circuits) {
+	for simnode := range s.circuits.all() {
 		changes += s.dispatch(simnode, now)
 	}
 	return
@@ -1893,7 +1893,7 @@ func (s *simnet) dispatchAll(now time.Time) (changes int64) {
 
 // does not call armTimer(), so scheduler should afterwards.
 func (s *simnet) dispatchAllTimers(now time.Time) (changes int64) {
-	for simnode := range all(s.circuits) {
+	for simnode := range s.circuits.all() {
 		changes += s.dispatchTimers(simnode, now)
 	}
 	return
@@ -1901,14 +1901,14 @@ func (s *simnet) dispatchAllTimers(now time.Time) (changes int64) {
 
 // does not call armTimer(), so scheduler should afterwards.
 func (s *simnet) dispatchAllReadsSends(now time.Time) (changes int64) {
-	for simnode := range all(s.circuits) {
+	for simnode := range s.circuits.all() {
 		changes += s.dispatchReadsSends(simnode, now)
 	}
 	return
 }
 
 func (s *simnet) tickLogicalClocks() {
-	for simnode := range all(s.circuits) {
+	for simnode := range s.circuits.all() {
 		simnode.lc++
 	}
 }
@@ -2372,7 +2372,7 @@ func (s *simnet) armTimer(now time.Time) time.Duration {
 		s.refreshGridStepTimer(now)
 		minTimer = s.gridStepTimer
 	}
-	for simnode := range all(s.circuits) {
+	for simnode := range s.circuits.all() {
 		minTimer = simnode.soonestTimerLessThan(minTimer)
 	}
 	if minTimer == nil {
@@ -2517,7 +2517,7 @@ func (s *simnet) handleSimnetSnapshotRequest(req *SimnetSnapshot, now time.Time,
 	// detect standalone cli (not auto-cli of server/peer) and report them too.
 	// start with everything, delete what we see, then report on the rest.
 	alone := make(map[*simnode]bool)
-	for node := range all(s.circuits) {
+	for node := range s.circuits.all() {
 		if node.isCli { // only consider clients, non-auto-cli ones
 			if strings.HasPrefix(node.name, auto_cli_recognition_prefix) {
 				// has the "auto-cli-from-" prefix, so
@@ -2550,7 +2550,7 @@ func (s *simnet) handleSimnetSnapshotRequest(req *SimnetSnapshot, now time.Time,
 		// srvnode.autocli also available for just local cli simnode.
 		for _, origin := range keyNameSort(s.locals(srvnode)) {
 			delete(alone, origin)
-			for target, conn := range all(s.circuits.get(origin)) {
+			for target, conn := range s.circuits.get(origin).all() {
 				req.PeerConnCount++
 				connsum := &SimnetConnSummary{
 					OriginIsCli: origin.isCli,
@@ -2598,7 +2598,7 @@ func (s *simnet) handleSimnetSnapshotRequest(req *SimnetSnapshot, now time.Time,
 			}
 			// note, each cli can only have one target, but
 			// for-range is much more convenient.
-			for target, conn := range all(s.circuits.get(origin)) {
+			for target, conn := range s.circuits.get(origin).all() {
 				req.LoneCliConnCount++
 
 				connsum := &SimnetConnSummary{

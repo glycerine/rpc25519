@@ -291,7 +291,7 @@ func (s *dmap[K, V]) set(key K, val V) (newlyAdded bool) {
 // the dmap. To allow the user to delete in
 // the middle of iteration, there is no locking
 // internally.
-func all[K ided, V any](s *dmap[K, V]) iter.Seq2[K, V] {
+func (s *dmap[K, V]) all() iter.Seq2[K, V] {
 
 	seq2 := func(yield func(K, V) bool) {
 
@@ -397,7 +397,7 @@ func all[K ided, V any](s *dmap[K, V]) iter.Seq2[K, V] {
 // tree, and so allows efficient start of iteration in the
 // middle and/or delete in O(1) rather than O(log n) from
 // the middle of the tree.
-func allikv[K ided, V any](s *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
+func (s *dmap[K, V]) allikv() iter.Seq2[K, *ikv[K, V]] {
 
 	seq2 := func(yield func(K, *ikv[K, V]) bool) {
 
