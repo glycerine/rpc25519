@@ -163,6 +163,7 @@ func (s *dmap[K, V]) String() (r string) {
 // semantics.
 func (s *dmap[K, V]) delkey(key K) (found bool, next rb.Iterator) {
 	if isNil(key) {
+		next = s.tree.Limit()
 		return
 	}
 
@@ -195,12 +196,14 @@ func (s *dmap[K, V]) delkey(key K) (found bool, next rb.Iterator) {
 
 func (s *dmap[K, V]) deleteWithIter(it rb.Iterator) (found bool, next rb.Iterator) {
 	if it.Limit() {
+		next = it
 		return
 	}
 
 	kv, ok := it.Item().(*ikv[K, V])
 	if !ok {
 		// bad it
+		next = s.tree.Limit()
 		return
 	}
 
@@ -217,6 +220,7 @@ func (s *dmap[K, V]) deleteWithIter(it rb.Iterator) (found bool, next rb.Iterato
 		}
 	}
 	//vv("deleteWithIter before changes: '%v'", s)
+	found = true
 	atomic.AddInt64(&s.version, 1)
 	s.ordercache = nil
 	s.cacheversion = 0
