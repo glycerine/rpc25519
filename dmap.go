@@ -137,9 +137,12 @@ func (s *dmap[K, V]) String() (r string) {
 // Using next provides "advance and delete behind"
 // semantics.
 func (s *dmap[K, V]) delkey(key K) (found bool, next rb.Iterator) {
+	if isNil(key) {
+		return
+	}
 
 	id := key.id()
-
+	//vv("delkey id = '%v'", id)
 	var it rb.Iterator
 	var ok bool
 	if s.idx == nil {
@@ -154,6 +157,8 @@ func (s *dmap[K, V]) delkey(key K) (found bool, next rb.Iterator) {
 			return
 		}
 	}
+	found = true
+	//vv("deleting id='%v' -> it.Item() = '%v'", id, it.Item())
 	atomic.AddInt64(&s.version, 1)
 	s.ordercache = nil
 	next = it.Next()
@@ -163,6 +168,9 @@ func (s *dmap[K, V]) delkey(key K) (found bool, next rb.Iterator) {
 }
 
 func (s *dmap[K, V]) deleteWithIter(it rb.Iterator) (found bool, next rb.Iterator) {
+	if it.Limit() {
+		return
+	}
 
 	kv, ok := it.Item().(*ikv[K, V])
 	if !ok {
@@ -205,12 +213,14 @@ func (s *dmap[K, V]) deleteAll() {
 // not already present returning newlyAdded true;
 // otherwise it updates the current key's value in place.
 func (s *dmap[K, V]) set(key K, val V) (newlyAdded bool) {
-
+	if isNil(key) {
+		return
+	}
 	atomic.AddInt64(&s.version, 1)
 	s.ordercache = nil
 
 	id := key.id()
-
+	//vv("set id = '%v'", id)
 	var it rb.Iterator
 	var ok bool
 	if s.idx == nil {
@@ -220,7 +230,7 @@ func (s *dmap[K, V]) set(key K, val V) (newlyAdded bool) {
 	}
 
 	if !ok {
-		// not yet in idx/tree, so add it.
+		//vv("not yet in idx/tree, so add it. id='%v'", id)
 		newlyAdded = true
 		item := &ikv[K, V]{id: id, key: key, val: val}
 		added, it2 := s.tree.InsertGetIt(item)
@@ -231,8 +241,8 @@ func (s *dmap[K, V]) set(key K, val V) (newlyAdded bool) {
 		s.idx[id] = it2
 		return
 	}
-	// id already in tree, just update in place
 	prev := it.Item().(*ikv[K, V])
+	//vv("id already in tree, just update in place: id='%v'; prev='%#v'", id, prev)
 	prev.key = key
 	prev.val = val
 	return
@@ -411,8 +421,8 @@ func allikv[K ided, V any](s *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 // O(1) constant time per query. found will be
 // false iff the key was not present.
 func (s *dmap[K, V]) get2(key K) (val V, found bool) {
-	if s.idx == nil {
-		// not present
+	if s.idx == nil || isNil(key) {
+		// not present, or nil key request.
 		return
 	}
 	id := key.id()
@@ -427,8 +437,8 @@ func (s *dmap[K, V]) get2(key K) (val V, found bool) {
 
 // get does get2 but without the found flag.
 func (s *dmap[K, V]) get(key K) (val V) {
-	if s.idx == nil {
-		// not present
+	if s.idx == nil || isNil(key) {
+		// not present, or nil key
 		return
 	}
 	id := key.id()
@@ -451,7 +461,7 @@ func (s *dmap[K, V]) get(key K) (val V) {
 // it of the need to rebalance.
 func (s *dmap[K, V]) getikv(key K) (kv *ikv[K, V], found bool) {
 
-	if s.idx == nil {
+	if s.idx == nil || isNil(key) {
 		// not present
 		return
 	}
