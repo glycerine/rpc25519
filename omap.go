@@ -1,6 +1,7 @@
 package rpc25519
 
 import (
+	"cmp"
 	"fmt"
 	"iter"
 	"sync/atomic"
@@ -8,87 +9,64 @@ import (
 	rb "github.com/glycerine/rbtree"
 )
 
-// The ided interface allows any object
-// to be a key in a dmap, simply by providing an id()
-// method whose returned string we can sort on.
-type ided interface {
-	id() string
-}
-
-// dmap is a deterministic map.
+// omap is a deterministic map. It is very
+// similar to dmap, but works for any
+// cmp.Comparable key. Compared to a dmap,
+// an omap uses less memory (as it does not
+// maintain an internal builtin Go map),
+// but has slightly slower (asymptodic time)
+// operations. On an omap, get/set/delete are O(log n)
+// per the underlying red-black tree, instead of O(1)
+// provided by a dmap.
 //
-// Unlike Go's builtin map, a dmap can be
+// O(log n) is still very fast in practice for
+// all but the largest of dictionaries, so
+// this may make little to no difference in
+// your use case. deleteAll remains O(1).
+//
+// The rest is almost verbatim from dmap docs:
+//
+// Unlike Go's builtin map, a omap can be
 // range iterated in a repeatable order,
 // This is critical for simulation testing
 // to give reproducible test runs.
 //
-// However, like the built-in map, dmap does no
+// However, like the built-in map, omap does no
 // internal locking, and is not goroutine safe.
 // The user must provide external sync.Mutex or otherwise
-// coordinate access if a dmap is shared
-// across goroutines. This allows dmap to
+// coordinate access if a omap is shared
+// across goroutines. This allows omap to
 // also provide for deletion or modification
-// during a for-range all(dmap) iteration.
+// during a for-range allo(omap) iteration.
 //
-// In what order does a dmap return keys?
+// In what order does a omap return keys?
 // How fast is it?
 //
-// The key's ided interface supplies a
-// sortable id() string which determines
-// the range all() order, and gives O(log n)
-// set (upsert) time. The get and del
-// methods are O(1) time, as is deleteAll.
-//
 // For repeated full range all
-// scans, we cache the ikv pointers in contiguous
+// scans, we cache the okv pointers in contiguous
 // memory to maximize L1 cache hits and
 // minimize pointer chasing in the underlying
 // red-black tree.
 //
-// Thus dmap aims to be almost as fast, or
+// Thus omap aims to be almost as fast, or
 // faster, than the built in Go map, for common
 // use patterns, while providing deterministic,
-// repeatable iteration order. The quick benchmarks
-// in dmap_test show that repeated full-range
-// scans are between 2x and 14x faster than
-// the built-in Go map. The 7x difference in
-// dmap vs dmap is due to the iter/coroutine
-// iterator overhead. Use the cached() method
-// instead of all() to range over a slice and
-// maximize your L1 cache performance.
-//
-// To provide the reproducible sorted range
-// order and efficient get/set/delete/deleteAll
-// operations, dmap uses approximately 3x
-// the memory of the builtin map. The
-// memory goes towards:
-//
-// (1) a built-in map for fast O(1) get and delkey operations;
-//
-// (2) full range scans are cached in contiguous
-// slice of memory, so that the common case of repeated
-// full range scans should be even faster than a
-// builtin map by allowing better L1 cache performance; and
-//
-// (3) a red-black tree is maintained to
-// allow efficient insertion into/update of the
-// ordered key-value dictionary in O(log n) time.
-type dmap[K ided, V any] struct {
+// repeatable iteration order, at twice the memory.
+type omap[K cmp.Ordered, V any] struct {
 	version int64
 
 	tree *rb.Tree
-	idx  map[string]rb.Iterator
 
 	// cache the first range all, and use
 	// ordercache if we range all again without
 	// intervening upsert or deletes.
-	ordercache   []*ikv[K, V]
+	ordercache   []*okv[K, V]
 	cacheversion int64
 }
 
-// cached returns the raw internal ikv slice
+// cached returns the raw internal okv slice
 // for very fast iteration in a for-range loop.
-func (s *dmap[K, V]) cached() []*ikv[K, V] {
+func (s *omap[K, V]) cached() []*okv[K, V] {
 	n := s.tree.Len()
 	nc := len(s.ordercache)
 	vers := atomic.LoadInt64(&s.version)
@@ -99,54 +77,46 @@ func (s *dmap[K, V]) cached() []*ikv[K, V] {
 	s.ordercache = nil
 	s.cacheversion = vers
 	for it := s.tree.Min(); !it.Limit(); it = it.Next() {
-		kv := it.Item().(*ikv[K, V])
+		kv := it.Item().(*okv[K, V])
 		s.ordercache = append(s.ordercache, kv)
 	}
 	return s.ordercache
 }
 
-// newDmap makes a new dmap.
-func newDmap[K ided, V any]() *dmap[K, V] {
-	return &dmap[K, V]{
-		idx: make(map[string]rb.Iterator),
+// newOmap makes a new omap.
+func newOmap[K cmp.Ordered, V any]() *omap[K, V] {
+	return &omap[K, V]{
 		tree: rb.NewTree(func(a, b rb.Item) int {
-			ak := a.(*ikv[K, V]).id
-			bk := b.(*ikv[K, V]).id
-			if ak < bk {
-				return -1
-			}
-			if ak > bk {
-				return 1
-			}
-			return 0
+			ak := a.(*okv[K, V]).key
+			bk := b.(*okv[K, V]).key
+			return cmp.Compare(ak, bk)
 		}),
 	}
 }
 
-type ikv[K ided, V any] struct {
-	id  string // sorted order
+type okv[K cmp.Ordered, V any] struct {
 	key K
 	val V
 	it  rb.Iterator
 }
 
-// Len returns the number of keys stored in the dmap.
-func (s *dmap[K, V]) Len() int {
-	return len(s.idx)
+// Len returns the number of keys stored in the omap.
+func (s *omap[K, V]) Len() int {
+	return s.tree.Len()
 }
 
-func (s *dmap[K, V]) String() (r string) {
+func (s *omap[K, V]) String() (r string) {
 	vers := atomic.LoadInt64(&s.version)
-	r = fmt.Sprintf("dmap{ version:%v id:{", vers)
+	r = fmt.Sprintf("omap{ version:%v {", vers)
 	it := s.tree.Min()
 	i := 0
 	extra := ""
 	for !it.Limit() {
-		kv := it.Item().(*ikv[K, V])
+		kv := it.Item().(*okv[K, V])
 		if i == 1 {
 			extra = ", "
 		}
-		r += fmt.Sprintf("%v%v", extra, kv.id)
+		r += fmt.Sprintf("%v%v:%v", extra, kv.key, kv.val)
 		it = it.Next()
 		i++
 	}
@@ -154,7 +124,7 @@ func (s *dmap[K, V]) String() (r string) {
 	return
 }
 
-// delkey deletes a key from the dmap, if present.
+// delkey deletes a key from the omap, if present.
 // This is a constant O(1) time operation.
 //
 // If found returns true, next has the
@@ -165,40 +135,29 @@ func (s *dmap[K, V]) String() (r string) {
 //
 // Using next provides "advance and delete behind"
 // semantics.
-func (s *dmap[K, V]) delkey(key K) (found bool, next rb.Iterator) {
+func (s *omap[K, V]) delkey(key K) (found bool, next rb.Iterator) {
 	if isNil(key) {
 		next = s.tree.Limit()
 		return
 	}
 
-	id := key.id()
-	//vv("delkey id = '%v'", id)
-	var it rb.Iterator
-	var ok bool
-	if s.idx == nil {
-		// not present
-		next = s.tree.Limit()
-		return
-	} else {
-		it, ok = s.idx[id]
-		if !ok {
-			// not present
-			next = s.tree.Limit()
-			return
-		}
-	}
-	found = true
 	//vv("deleting id='%v' -> it.Item() = '%v'", id, it.Item())
-	atomic.AddInt64(&s.version, 1)
-	s.ordercache = nil
-	s.cacheversion = 0
-	next = it.Next()
-	s.tree.DeleteWithIterator(it)
-	delete(s.idx, id)
+	query := &okv[K, V]{key: key}
+	var it rb.Iterator
+	it, found = s.tree.FindGE_isEqual(query)
+	if found {
+		atomic.AddInt64(&s.version, 1)
+		s.ordercache = nil
+		s.cacheversion = 0
+		next = it.Next()
+		s.tree.DeleteWithIterator(it)
+	} else {
+		next = it // Limit
+	}
 	return
 }
 
-func (s *dmap[K, V]) deleteWithIter(it rb.Iterator) (found bool, next rb.Iterator) {
+func (s *omap[K, V]) deleteWithIter(it rb.Iterator) (found bool, next rb.Iterator) {
 	if it.Limit() {
 		// return Limit, this one is
 		// at hand, and any will do.
@@ -206,51 +165,41 @@ func (s *dmap[K, V]) deleteWithIter(it rb.Iterator) (found bool, next rb.Iterato
 		return
 	}
 
-	kv, ok := it.Item().(*ikv[K, V])
+	kv, ok := it.Item().(*okv[K, V])
 	if !ok {
 		// bad it
 		next = s.tree.Limit()
 		return
 	}
 
-	if s.idx == nil {
-		// nothing present
-		next = s.tree.Limit()
-		return
-	}
-	_, ok = s.idx[kv.id]
-	if !ok {
-		// not present
-		next = s.tree.Limit()
-		return
-	}
-
+	// verify in tree first.
 	//vv("deleteWithIter before changes: '%v'", s)
-	found = true
-	atomic.AddInt64(&s.version, 1)
-	s.ordercache = nil
-	s.cacheversion = 0
-	next = it.Next()
-	s.tree.DeleteWithIterator(it)
-	delete(s.idx, kv.id)
+	it, found = s.tree.FindGE_isEqual(kv)
+	if found {
+		atomic.AddInt64(&s.version, 1)
+		s.ordercache = nil
+		s.cacheversion = 0
+		next = it.Next()
+		s.tree.DeleteWithIterator(it)
+	} else {
+		next = it // Limit
+	}
 	//vv("deleteWithIter after changes: '%v'", s)
-
 	return
 }
 
 // deleteAll clears the tree in O(1) time.
-func (s *dmap[K, V]) deleteAll() {
+func (s *omap[K, V]) deleteAll() {
 	atomic.AddInt64(&s.version, 1)
 	s.ordercache = nil
 	s.cacheversion = 0
 	s.tree.DeleteAll()
-	s.idx = nil
 }
 
 // set is an upsert. It does an insert if the key is
 // not already present returning newlyAdded true;
 // otherwise it updates the current key's value in place.
-func (s *dmap[K, V]) set(key K, val V) (newlyAdded bool) {
+func (s *omap[K, V]) set(key K, val V) (newlyAdded bool) {
 	if isNil(key) {
 		return
 	}
@@ -258,39 +207,26 @@ func (s *dmap[K, V]) set(key K, val V) (newlyAdded bool) {
 	s.ordercache = nil
 	s.cacheversion = 0
 
-	id := key.id()
-	//vv("set id = '%v'", id)
-	var it rb.Iterator
-	var ok bool
-	if s.idx == nil {
-		s.idx = make(map[string]rb.Iterator)
-	} else {
-		it, ok = s.idx[id]
-	}
-
-	if !ok {
-		//vv("not yet in idx/tree, so add it. id='%v'", id)
-		newlyAdded = true
-		item := &ikv[K, V]{id: id, key: key, val: val}
-		added, it2 := s.tree.InsertGetIt(item)
-		item.it = it2
-		if !added {
-			panic("should have hit in s.idx, out of sync with tree")
-		}
-		s.idx[id] = it2
+	query := &okv[K, V]{key: key, val: val}
+	it, found := s.tree.FindGE_isEqual(query)
+	if found {
+		prev := it.Item().(*okv[K, V])
+		//vv("id already in tree, just update in place: key='%v'; prev='%#v'", keyprev)
+		prev.val = val
 		return
 	}
-	prev := it.Item().(*ikv[K, V])
-	//vv("id already in tree, just update in place: id='%v'; prev='%#v'", id, prev)
-	prev.val = val
+	newlyAdded = true
+	_, it = s.tree.InsertGetIt(query)
+	query.it = it
+
 	return
 }
 
 // all starts an iteration over all elements in
-// the dmap. To allow the user to delete in
+// the omap. To allow the user to delete in
 // the middle of iteration, there is no locking
 // internally.
-func (s *dmap[K, V]) all() iter.Seq2[K, V] {
+func (s *omap[K, V]) all() iter.Seq2[K, V] {
 
 	seq2 := func(yield func(K, V) bool) {
 
@@ -322,10 +258,10 @@ func (s *dmap[K, V]) all() iter.Seq2[K, V] {
 					}
 					// still have some left
 					it := nextit
-					var kv *ikv[K, V]
+					var kv *okv[K, V]
 					for !nextit.Limit() {
 						it = nextit
-						kv = it.Item().(*ikv[K, V])
+						kv = it.Item().(*okv[K, V])
 						// pre-advance, allows deletion of it.
 						nextit = nextit.Next()
 						if !yield(kv.key, kv.val) {
@@ -349,7 +285,7 @@ func (s *dmap[K, V]) all() iter.Seq2[K, V] {
 		it := s.tree.Min()
 		for !it.Limit() {
 
-			kv := it.Item().(*ikv[K, V])
+			kv := it.Item().(*okv[K, V])
 			// advance before yeilding so user
 			// can delete at it if desired, and
 			// we will keep on going
@@ -374,31 +310,31 @@ func (s *dmap[K, V]) all() iter.Seq2[K, V] {
 	return seq2
 }
 
-// allikv returns the ikv(s) not the val. This
+// allokv returns the okv(s) not the val. This
 // allows highly efficient val updates in place, but
 // is mildly vulnerable to mis-use: the user must not
-// change the other ikv.id field. Otherwise the
+// change the other okv.id field. Otherwise the
 // red-black tree will be borked.
 //
 // Hence this function is for performance oriented users who
-// can guarantee their code will leave ikv.id (and ikv.it,
-// and most probably ikv.key too) alone. You can
+// can guarantee their code will leave okv.id (and okv.it,
+// and most probably okv.key too) alone. You can
 // read these, but don't write. If you
-// need to change the ikv.id/key, you must delkey or
+// need to change the okv.id/key, you must delkey or
 // deleteWithIter to remove the old key from the tree first;
 // then add in the new key. This allows the tree
 // to properly rebalance itself.
 //
-// The tree does not care about ikv.val, so the user
-// can update that at will. The ikv.it, like the ikv.id/key
+// The tree does not care about okv.val, so the user
+// can update that at will. The okv.it, like the okv.id/key
 // should be considered const/not be altered by user code.
 // It is the iterator that points into the red-back
 // tree, and so allows efficient start of iteration in the
 // middle and/or delete in O(1) rather than O(log n) from
 // the middle of the tree.
-func (s *dmap[K, V]) allikv() iter.Seq2[K, *ikv[K, V]] {
+func (s *omap[K, V]) allokv() iter.Seq2[K, *okv[K, V]] {
 
-	seq2 := func(yield func(K, *ikv[K, V]) bool) {
+	seq2 := func(yield func(K, *okv[K, V]) bool) {
 
 		//vv("start of all iteration.")
 		n := s.tree.Len()
@@ -428,10 +364,10 @@ func (s *dmap[K, V]) allikv() iter.Seq2[K, *ikv[K, V]] {
 					}
 					// still have some left
 					it := nextit
-					var kv *ikv[K, V]
+					var kv *okv[K, V]
 					for !nextit.Limit() {
 						it = nextit
-						kv = it.Item().(*ikv[K, V])
+						kv = it.Item().(*okv[K, V])
 						// pre-advance, allows deletion of it.
 						nextit = nextit.Next()
 						if !yield(kv.key, kv) {
@@ -455,7 +391,7 @@ func (s *dmap[K, V]) allikv() iter.Seq2[K, *ikv[K, V]] {
 		it := s.tree.Min()
 		for !it.Limit() {
 
-			kv := it.Item().(*ikv[K, V])
+			kv := it.Item().(*okv[K, V])
 			// advance before yeilding so user
 			// can delete at it if desired, and
 			// we will keep on going
@@ -482,58 +418,58 @@ func (s *dmap[K, V]) allikv() iter.Seq2[K, *ikv[K, V]] {
 // get2 returns the val corresponding to key in
 // O(1) constant time per query. found will be
 // false iff the key was not present.
-func (s *dmap[K, V]) get2(key K) (val V, found bool) {
-	if s.idx == nil || isNil(key) {
-		// not present, or nil key request.
+func (s *omap[K, V]) get2(key K) (val V, found bool) {
+	if isNil(key) {
 		return
 	}
-	id := key.id()
 	var it rb.Iterator
-	it, found = s.idx[id]
-	if !found {
+	query := &okv[K, V]{key: key}
+	it, found = s.tree.FindGE_isEqual(query)
+	if found {
+		prev := it.Item().(*okv[K, V])
+		val = prev.val
 		return
 	}
-	val = it.Item().(*ikv[K, V]).val
 	return
 }
 
 // get does get2 but without the found flag.
-func (s *dmap[K, V]) get(key K) (val V) {
-	if s.idx == nil || isNil(key) {
-		// not present, or nil key
+func (s *omap[K, V]) get(key K) (val V) {
+	if isNil(key) {
 		return
 	}
-	id := key.id()
-	it, found := s.idx[id]
-	if !found {
-		return
+	query := &okv[K, V]{key: key}
+	it, found := s.tree.FindGE_isEqual(query)
+	if found {
+		val = it.Item().(*okv[K, V]).val
 	}
-	return it.Item().(*ikv[K, V]).val
+	return
 }
 
-// getikv returns the ikv[K,V] struct corresponding to key in
+// getokv returns the okv[K,V] struct corresponding to key in
 // O(1) constant time per query. If the key is
-// found, the kv.it will point to it in the dmap tree,
+// found, the kv.it will point to it in the omap tree,
 // which can be used to walk the
 // tree in sorted order forwards or
-// back from that point. The ikv is what the
+// back from that point. The okv is what the
 // tree stores, so this provides for
-// for fast updates of ikv.val if required. Note
-// the ikv.id and should not be changed, as that
+// for fast updates of okv.val if required. Note
+// the okv.id and should not be changed, as that
 // would invalidate the tree without notifying
 // it of the need to rebalance.
-func (s *dmap[K, V]) getikv(key K) (kv *ikv[K, V], found bool) {
-
-	if s.idx == nil || isNil(key) {
-		// not present
+func (s *omap[K, V]) getokv(key K) (kv *okv[K, V], found bool) {
+	if isNil(key) {
 		return
 	}
+	query := &okv[K, V]{key: key}
 	var it rb.Iterator
-	id := key.id()
-	it, found = s.idx[id]
-	if !found {
-		return
+	it, found = s.tree.FindGE_isEqual(query)
+	if found {
+		kv = it.Item().(*okv[K, V])
 	}
-	kv = it.Item().(*ikv[K, V])
 	return
+}
+
+func main() {
+
 }
