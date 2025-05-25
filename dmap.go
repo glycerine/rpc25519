@@ -196,6 +196,8 @@ func (s *dmap[K, V]) delkey(key K) (found bool, next rb.Iterator) {
 
 func (s *dmap[K, V]) deleteWithIter(it rb.Iterator) (found bool, next rb.Iterator) {
 	if it.Limit() {
+		// return Limit, this one is
+		// at hand, and any will do.
 		next = it
 		return
 	}
@@ -211,14 +213,14 @@ func (s *dmap[K, V]) deleteWithIter(it rb.Iterator) (found bool, next rb.Iterato
 		// nothing present
 		next = s.tree.Limit()
 		return
-	} else {
-		_, ok = s.idx[kv.id]
-		if !ok {
-			// not present
-			next = s.tree.Limit()
-			return
-		}
 	}
+	_, ok = s.idx[kv.id]
+	if !ok {
+		// not present
+		next = s.tree.Limit()
+		return
+	}
+
 	//vv("deleteWithIter before changes: '%v'", s)
 	found = true
 	atomic.AddInt64(&s.version, 1)
