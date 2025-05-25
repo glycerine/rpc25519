@@ -912,6 +912,9 @@ func (s *SimnetSnapshotter) GetSimnetSnapshot() *SimnetSnapshot {
 	return s.simnet.GetSimnetSnapshot()
 }
 
+// SimnetBatch is a proposed design for
+// sending in a batch of network fault/repair/config changes
+// at once. Currently a prototype; not really finished/tested yet.
 type SimnetBatch struct {
 	net          *simnet
 	batchSn      int64
