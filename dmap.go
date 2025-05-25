@@ -84,6 +84,8 @@ type dmap[K ided, V any] struct {
 	cacheversion int64
 }
 
+// cached returns the raw internal ikv slice
+// for very fast iteration in a for-range loop.
 func (s *dmap[K, V]) cached() []*ikv[K, V] {
 	n := s.tree.Len()
 	nc := len(s.ordercache)
@@ -371,7 +373,27 @@ func all[K ided, V any](s *dmap[K, V]) iter.Seq2[K, V] {
 	return seq2
 }
 
-// allikv returns the ikvs not the val
+// allikv returns the ikv(s) not the val. This
+// allows highly efficient val updates in place, but
+// is mildly vulnerable to mis-use: the user must not
+// change the ikv.key or ikv.it. Otherwise the
+// red-black tree will be borked.
+//
+// Hence this function is for performance oriented users who
+// can guarantee their code will leave ikv.key (and ikv.it)
+// alone. You can read these, but don't write. If you
+// need to change the ikv.key, you must delkey or
+// deleteWithIter to remove the old key from the tree first;
+// then add in the new key. This allows the tree
+// to properly rebalance itself.
+//
+// The tree does not care about ikv.val, so the user
+// can update that at will. The ikv.it, like the ikv.key
+// should be considered const/not be altered by user code.
+// It is the iterator that points into the red-back
+// tree, and so allows efficient start of iteration in the
+// middle and/or delete in O(1) rather than O(log n) from
+// the middle of the tree.
 func allikv[K ided, V any](s *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 
 	seq2 := func(yield func(K, *ikv[K, V]) bool) {
