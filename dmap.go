@@ -87,12 +87,13 @@ type dmap[K ided, V any] struct {
 func (s *dmap[K, V]) cached() []*ikv[K, V] {
 	n := s.tree.Len()
 	nc := len(s.ordercache)
-	if nc == n && s.cacheversion == s.version {
+	vers := atomic.LoadInt64(&s.version)
+	if nc == n && s.cacheversion == vers {
 		return s.ordercache
 	}
 	// refill ordercache
 	s.ordercache = nil
-	s.cacheversion = s.version
+	s.cacheversion = vers
 	for it := s.tree.Min(); !it.Limit(); it = it.Next() {
 		kv := it.Item().(*ikv[K, V])
 		s.ordercache = append(s.ordercache, kv)
