@@ -42,7 +42,7 @@ func Test1001_simnetonly_drop_prob(t *testing.T) {
 			} else {
 				undoIsolated = simt.serverDropsSends(dropPct)
 			}
-			vv("after clientDropsSends(%v): %v", dropPct, simnet.GetSimnetSnapshot())
+			//vv("after clientDropsSends(%v): %v", dropPct, simnet.GetSimnetSnapshot())
 			//vv("after clientDropsSends(%v): %v", dropPct, simnet.GetSimnetSnapshot().ShortString())
 			got, goterr := 0, 0
 			waitFor := 200 * time.Millisecond
@@ -56,7 +56,7 @@ func Test1001_simnetonly_drop_prob(t *testing.T) {
 				} else {
 					goterr++
 					if goterr == 1 {
-						vv("first err = '%v'", err)
+						//vv("first err = '%v'", err)
 					}
 				}
 			}
@@ -73,64 +73,56 @@ func Test1001_simnetonly_drop_prob(t *testing.T) {
 }
 
 func Test1002_simnetonly_deaf_prob_tests(t *testing.T) {
-	//return // red atm
-	cliDeaf := true
-	for j := range 1 {
-		if j > 0 {
-			cliDeaf = false
+
+	onlyBubbled(t, func() {
+		// simnet with probabilistic deaf fault on server or client experiences the set level of send and/or read flakiness
+
+		nmsg := 1000
+		simt, cfg := newSimnetTest(t, "test1002")
+		cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
+		defer srv.Close()
+		defer cli.Close()
+		_, _, _ = simnet, srvname, cliname
+
+		serviceName := "customEcho"
+		srv.Register2Func(serviceName, customEcho)
+
+		deafPct := 0.5
+		var undoIsolated func()
+		_ = undoIsolated
+		//vv("before clientDeaf(%v): %v", deafPct, simnet.GetSimnetSnapshot())
+		//undoIsolated := simt.clientDeaf(deafPct)
+
+		undoIsolated = simt.clientDeaf(deafPct)
+		//vv("after clientDeaf(%v): %v", deafPct, simnet.GetSimnetSnapshot())
+
+		//undoIsolated = simt.serverDeaf(deafPct)
+		//vv("after serverDeaf(%v): %v", deafPct, simnet.GetSimnetSnapshot())
+		//}
+		//vv("after clientDeaf(%v): %v", deafPct, simnet.GetSimnetSnapshot().ShortString())
+		got, goterr := 0, 0
+		waitFor := 100 * time.Millisecond
+		for range nmsg {
+			req := NewMessage()
+			req.HDR.ServiceName = serviceName
+			req.JobSerz = []byte("Hello from client!")
+			_, err := cli.SendAndGetReply(req, nil, waitFor)
+			if err == nil {
+				got++
+			} else {
+				goterr++
+				//if goterr == 1 {
+				//vv("goterr %v,  err = '%v': %v", goterr, err, simnet.GetSimnetSnapshot())
+				//}
+			}
 		}
-		// see that probability of deaf read matches
-		// our setting, but running 10K messages through
-		onlyBubbled(t, func() {
-			// simnet with probabilistic deaf fault on server or client experiences the set level of send and/or read flakiness
+		obsPctDeaf := 1 - (float64(got))/float64(nmsg)
+		vv("nmsg = %v; got=%v; obsPctDeaf=%0.5f; goterr=%v; requested/expected deafPct:%0.5f", nmsg, got, obsPctDeaf, goterr, deafPct)
 
-			nmsg := 100
-			simt, cfg := newSimnetTest(t, "test1002")
-			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
-			defer srv.Close()
-			defer cli.Close()
-			_, _, _ = simnet, srvname, cliname
-
-			serviceName := "customEcho"
-			srv.Register2Func(serviceName, customEcho)
-
-			deafPct := 0.5
-			var undoIsolated func()
-			_ = undoIsolated
-			//vv("before clientDeaf(%v): %v", deafPct, simnet.GetSimnetSnapshot())
-			//undoIsolated := simt.clientDeaf(deafPct)
-			if cliDeaf {
-				undoIsolated = simt.clientDeaf(deafPct)
-				//vv("after clientDeaf(%v): %v", deafPct, simnet.GetSimnetSnapshot())
-				//} else {
-				//undoIsolated = simt.serverDeaf(deafPct)
-				//vv("after serverDeaf(%v): %v", deafPct, simnet.GetSimnetSnapshot())
-			}
-			//vv("after clientDeaf(%v): %v", deafPct, simnet.GetSimnetSnapshot().ShortString())
-			got, goterr := 0, 0
-			waitFor := 100 * time.Millisecond
-			for range nmsg {
-				req := NewMessage()
-				req.HDR.ServiceName = serviceName
-				req.JobSerz = []byte("Hello from client!")
-				_, err := cli.SendAndGetReply(req, nil, waitFor)
-				if err == nil {
-					got++
-				} else {
-					goterr++
-					//if goterr == 1 {
-					//vv("goterr %v,  err = '%v': %v", goterr, err, simnet.GetSimnetSnapshot())
-					//}
-				}
-			}
-			obsPctDeaf := 1 - (float64(got))/float64(nmsg)
-			vv("nmsg = %v; got=%v; obsPctDeaf=%0.5f; goterr=%v; requested/expected deafPct:%0.5f", nmsg, got, obsPctDeaf, goterr, deafPct)
-
-			diff := math.Abs(obsPctDeaf - deafPct)
-			if diff >= 0.05 {
-				panic(fmt.Sprintf("diff = %0.5f >= 0.05", diff))
-			}
-			vv("good, diff = %0.5f < 0.05", diff)
-		})
-	}
+		diff := math.Abs(obsPctDeaf - deafPct)
+		if diff >= 0.05 {
+			panic(fmt.Sprintf("diff = %0.5f >= 0.05", diff))
+		}
+		vv("good, diff = %0.5f < 0.05", diff)
+	})
 }
