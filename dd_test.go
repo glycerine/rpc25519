@@ -84,7 +84,7 @@ func Test1002_simnetonly_deaf_prob_tests(t *testing.T) {
 		onlyBubbled(t, func() {
 			// simnet with probabilistic deaf fault on server or client experiences the set level of send and/or read flakiness
 
-			nmsg := 10
+			nmsg := 100
 			simt, cfg := newSimnetTest(t, "test1002")
 			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
 			defer srv.Close()
@@ -101,7 +101,7 @@ func Test1002_simnetonly_deaf_prob_tests(t *testing.T) {
 			//undoIsolated := simt.clientDeaf(deafPct)
 			if cliDeaf {
 				undoIsolated = simt.clientDeaf(deafPct)
-				vv("after clientDeaf(%v): %v", deafPct, simnet.GetSimnetSnapshot())
+				//vv("after clientDeaf(%v): %v", deafPct, simnet.GetSimnetSnapshot())
 				//} else {
 				//undoIsolated = simt.serverDeaf(deafPct)
 				//vv("after serverDeaf(%v): %v", deafPct, simnet.GetSimnetSnapshot())
@@ -119,7 +119,7 @@ func Test1002_simnetonly_deaf_prob_tests(t *testing.T) {
 				} else {
 					goterr++
 					//if goterr == 1 {
-					vv("goterr %v,  err = '%v': %v", goterr, err, simnet.GetSimnetSnapshot()) // all 10 calls timeout
+					//vv("goterr %v,  err = '%v': %v", goterr, err, simnet.GetSimnetSnapshot())
 					//}
 				}
 			}

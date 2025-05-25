@@ -1329,10 +1329,10 @@ func (s *simnet) localDeafReadProb(read *mop) float64 {
 // the send can't keep coming back if the read is deaf; else
 // its like an auto-retry that will eventually get through.
 func (s *simnet) localDeafRead(read, send *mop) (isDeaf bool) {
-	vv("localDeafRead called by '%v'", fileLine(2))
-	defer func() {
-		vv("defer localDeafRead returning %v, called by '%v'", isDeaf, fileLine(3))
-	}()
+	//vv("localDeafRead called by '%v'", fileLine(2))
+	//defer func() {
+	//	vv("defer localDeafRead returning %v, called by '%v'", isDeaf, fileLine(3))
+	//}()
 
 	// get the local (read) origin conn probability of deafness
 	// note: not the remote's deafness, only local.
@@ -1343,10 +1343,10 @@ func (s *simnet) localDeafRead(read, send *mop) (isDeaf bool) {
 	read.readAttempt++
 
 	if prob == 0 {
-		vv("localDeafRead top: prob = 0, not deaf for sure: read='%v'; send='%v'", read, send)
+		//vv("localDeafRead top: prob = 0, not deaf for sure: read='%v'; send='%v'", read, send)
 	} else {
 		random01 := s.scenario.rng.Float64() // in [0, 1)
-		vv("localDeafRead top: random01 = %v < prob(%v) = %v ; read='%v'; send='%v'", random01, prob, random01 < prob, read, send)
+		//vv("localDeafRead top: random01 = %v < prob(%v) = %v ; read='%v'; send='%v'", random01, prob, random01 < prob, read, send)
 		isDeaf = random01 < prob
 	}
 
@@ -1799,7 +1799,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 
 		connectedR := s.statewiseConnected(read.origin, read.target)
 		if !connectedR || s.localDeafRead(read, send) {
-			vv("dispatchReadsSends DEAF READ %v; connectedR=%v", read, connectedR)
+			//vv("dispatchReadsSends DEAF READ %v; connectedR=%v", read, connectedR)
 
 			// why would we just skip past this read? It doesn't fail
 			// back to the client; its like a silent network problem.
@@ -1818,7 +1818,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 			//send.origin.droppedSendQ.add(send)
 
 			// different, for read deaf -> send drop.
-			vv("adding the _send_ of a deaf read into the reader side deaf Q, and deleting it from the preArrQ: '%v'\n node before: '%v'", send, simnode)
+			//vv("adding the _send_ of a deaf read into the reader side deaf Q, and deleting it from the preArrQ: '%v'\n node before: '%v'", send, simnode)
 			simnode.deafReadQ.add(send)
 
 			delit := preIt
@@ -1829,7 +1829,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 				send.origin.timerQ.del(send.internalPendingTimerForSend)
 			}
 
-			vv("node after adding deaf-read-send to the deafReadQ: '%v'", simnode)
+			//vv("node after adding deaf-read-send to the deafReadQ: '%v'", simnode)
 			changes++
 			continue
 		}
@@ -1878,7 +1878,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 		read.arrivalTm = send.arrivalTm // easier diagnostics
 
 		// matchmaking
-		vv("[1]matchmaking: \nsend '%v' -> \nread '%v' \nread.sn=%v, readAttempt=%v, read.lastP=%v, lastIsDeafTrueTm=%v", send, read, read.sn, read.readAttempt, read.lastP, nice(read.lastIsDeafTrueTm))
+		//vv("[1]matchmaking: \nsend '%v' -> \nread '%v' \nread.sn=%v, readAttempt=%v, read.lastP=%v, lastIsDeafTrueTm=%v", send, read, read.sn, read.readAttempt, read.lastP, nice(read.lastIsDeafTrueTm))
 		read.sendmop = send
 		send.readmop = read
 
@@ -2146,19 +2146,19 @@ restartI:
 				}
 				switch op.kind {
 				case TIMER:
-					vv("i=%v, meq sees timer='%v'", i, op)
+					//vv("i=%v, meq sees timer='%v'", i, op)
 					s.handleTimer(op)
 
 				case TIMER_DISCARD:
-					vv("i=%v, meq sees discard='%v'", i, op)
+					//vv("i=%v, meq sees discard='%v'", i, op)
 					s.handleDiscardTimer(op)
 
 				case SEND:
-					vv("i=%v, meq sees send='%v'", i, op)
+					//vv("i=%v, meq sees send='%v'", i, op)
 					s.handleSend(op)
 
 				case READ:
-					vv("i=%v meq sees read='%v'", i, op)
+					//vv("i=%v meq sees read='%v'", i, op)
 					s.handleRead(op)
 				case SNAPSHOT:
 					s.handleSimnetSnapshotRequest(op.snapReq, now, i)
