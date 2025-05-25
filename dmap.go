@@ -376,19 +376,20 @@ func all[K ided, V any](s *dmap[K, V]) iter.Seq2[K, V] {
 // allikv returns the ikv(s) not the val. This
 // allows highly efficient val updates in place, but
 // is mildly vulnerable to mis-use: the user must not
-// change the ikv.key or ikv.it. Otherwise the
+// change the other ikv.id field. Otherwise the
 // red-black tree will be borked.
 //
 // Hence this function is for performance oriented users who
-// can guarantee their code will leave ikv.key (and ikv.it)
-// alone. You can read these, but don't write. If you
-// need to change the ikv.key, you must delkey or
+// can guarantee their code will leave ikv.id (and ikv.it,
+// and most probably ikv.key too) alone. You can
+// read these, but don't write. If you
+// need to change the ikv.id/key, you must delkey or
 // deleteWithIter to remove the old key from the tree first;
 // then add in the new key. This allows the tree
 // to properly rebalance itself.
 //
 // The tree does not care about ikv.val, so the user
-// can update that at will. The ikv.it, like the ikv.key
+// can update that at will. The ikv.it, like the ikv.id/key
 // should be considered const/not be altered by user code.
 // It is the iterator that points into the red-back
 // tree, and so allows efficient start of iteration in the
@@ -511,12 +512,13 @@ func (s *dmap[K, V]) get(key K) (val V) {
 
 // getikv returns the ikv[K,V] struct corresponding to key in
 // O(1) constant time per query. If the key is
-// found, the it will point to it in the dmap tree,
-// which can be used to iterator forward or
+// found, the kv.it will point to it in the dmap tree,
+// which can be used to walk the
+// tree in sorted order forwards or
 // back from that point. The ikv is what the
-// tree stores, and thus provides for
+// tree stores, so this provides for
 // for fast updates of ikv.val if required. Note
-// the ikv.id should not be changed, as that
+// the ikv.id and should not be changed, as that
 // would invalidate the tree without notifying
 // it of the need to rebalance.
 func (s *dmap[K, V]) getikv(key K) (kv *ikv[K, V], found bool) {
