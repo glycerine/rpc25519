@@ -28,11 +28,6 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 		return
 	}
 
-	if fault.deliverDroppedSends {
-		// at the end, after all other fault adjustments
-		defer s.deliverDroppedSends(origin)
-	}
-
 	var target *simnode
 	if fault.targetName != "" {
 		target, ok = s.dns[fault.targetName]
@@ -41,7 +36,11 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 			return
 		}
 	}
-	//remotes, ok := s.circuits[origin]
+	if fault.deliverDroppedSends {
+		// at the end, after all other fault adjustments
+		defer s.deliverDroppedSends(origin, target)
+	}
+
 	remotes, ok := s.circuits.get2(origin)
 	if !ok {
 		// no remote conn to adjust
@@ -275,8 +274,17 @@ func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (
 		return fmt.Errorf("error in handleCircuitRepair: originName not found: '%v'", repair.originName)
 	}
 
+	var target *simnode
+	if repair.targetName != "" {
+		target, ok = s.dns[repair.targetName]
+		if !ok {
+			err = fmt.Errorf("handleCircuitRepair could not find targetName = '%v' in dns: '%v'", repair.targetName, s.stringDNS())
+			return
+		}
+	}
+
 	if repair.deliverDroppedSends {
-		defer s.deliverDroppedSends(origin)
+		defer s.deliverDroppedSends(origin, target)
 	}
 
 	//vv("handleCircuitRepair about self-repair, repairAllCircuitFaults('%v')", origin.name)
@@ -291,18 +299,8 @@ func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (
 		return
 	}
 
-	var target *simnode
-	if repair.targetName != "" {
-		target, ok = s.dns[repair.targetName]
-		if !ok {
-			err = fmt.Errorf("handleCircuitRepair could not find targetName = '%v' in dns: '%v'", repair.targetName, s.stringDNS())
-			return
-		}
-	}
-
 	defer s.equilibrateReads(origin, target) // allow any newly possible reads too.
 
-	//for remote := range s.circuits[origin] {
 	for remote := range all(s.circuits.get(origin)) {
 		if target == nil || target == remote {
 			//vv("handleCircuitRepair about clear target remote '%v'", remote.name)
@@ -366,29 +364,9 @@ func (s *simnet) repairAllCircuitFaults(simnode *simnode) {
 	}
 }
 
-func (s *simnet) deliverDroppedSends(origin *simnode) {
-	// can we do this instead?
-	// s.timeWarp_transferDroppedSendQ_to_PreArrQ(simnode, nil)
-
-	//for node := range s.circuits {
-	for node := range all(s.circuits) {
-		nDrop := node.droppedSendQ.Tree.Len()
-		if nDrop > 0 {
-			for it := node.droppedSendQ.Tree.Min(); !it.Limit(); {
-				send := it.Item().(*mop)
-				if s.statewiseConnected(send.origin, send.target) {
-					//vv("transferring send = %v' from droppedSendQ to preArrQ on '%v'", send, send.target.name)
-					send.target.preArrQ.add(send)
-					// advance and delete behind
-					delit := it
-					node.droppedSendQ.Tree.DeleteWithIterator(delit)
-					it = it.Next()
-					continue
-				}
-				it = it.Next()
-			}
-		}
-	}
+func (s *simnet) deliverDroppedSends(origin, target *simnode) {
+	s.timeWarp_transferDroppedSendQ_to_PreArrQ(origin, target)
+	s.timeWarp_transferDeafReadQsends_to_PreArrQ(origin, target)
 }
 
 func (conn *simconn) repair() (changed int) {

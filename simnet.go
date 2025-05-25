@@ -107,7 +107,9 @@ type mop struct {
 	readAttempt int64
 	sendAttempt int64
 
-	passOKprob        int64 // >0 => probability already applied, and ok to send.
+	// true if drop probability already applied (=> ok to send)
+	sendDropFilteringApplied bool
+
 	readDeafDueToProb int64 // >0 => read is deaf due to flaky net
 	readOKDueToProb   int64 // >0 => read is fine despite flaky net
 
@@ -1166,6 +1168,39 @@ func (s *simnet) timeWarp_transferDroppedSendQ_to_PreArrQ(origin, target *simnod
 	}
 }
 
+func (s *simnet) timeWarp_transferDeafReadQsends_to_PreArrQ(origin, target *simnode) {
+
+	for remote := range all(s.circuits.get(origin)) {
+		if target != nil && target != remote {
+			continue
+		}
+		it := remote.deafReadQ.Tree.Min()
+		for !it.Limit() {
+			send := it.Item().(*mop)
+			// might also be storing some deaf reads, so only look at sends.
+			if send.kind != SEND {
+				it = it.Next()
+				continue
+			}
+			// sanity check
+			if send.target != remote {
+				panic(fmt.Sprintf("huh? this send ('%v') was in remotes deafReadQ, should only be also from remotes preArrQ?? '%v'", send, remote))
+			}
+			// deliver to the target, if we are now connected.
+			if s.statewiseConnected(send.origin, send.target) {
+				remote.preArrQ.add(send)
+				delit := it
+				it = it.Next()
+				remote.deafReadQ.Tree.DeleteWithIterator(delit)
+
+				// already advanced it, avoid double advance below
+				continue
+			}
+			it = it.Next()
+		}
+	} // end for range over all remote
+}
+
 func (s *simnet) markFaulty(simnode *simnode) (was Faultstate) {
 	was = simnode.state
 
@@ -1358,112 +1393,6 @@ func (s *simnet) localDeafRead(read, send *mop) (isDeaf bool) {
 	return
 }
 
-func (s *simnet) localDeafRead_BADOLD(read *mop) (isDeaf bool) {
-
-	// get the local (read) origin conn probability of deafness
-	// note: not the remote's deafness, only local.
-	conn := s.circuits.get(read.origin).get(read.target)
-	prob := conn.deafRead
-
-	conn.attemptedRead++ // at least 1.
-	read.readAttempt++
-
-	freqDeaf := float64(conn.attemptedReadDeaf) / float64(conn.attemptedRead)
-	_ = freqDeaf
-
-	random01 := s.scenario.rng.Float64() // in [0, 1)
-	vv("localDeafRead top: random01 = %v", random01)
-	if read.readAttempt == 1 {
-		isDeaf = random01 < prob
-		//isDeaf = freqDeaf < prob // not random b/c freqDef is always 0 here.
-		if isDeaf {
-			conn.attemptedReadDeaf++
-			// we will see this again, with higher readAttempt.
-			read.lastIsDeafTrueTm = time.Now()
-			read.lastP = 1 - prob
-			//read.lastP = 1 - random01
-		} else {
-			// we will never see this read again, as it will match.
-			// we evaluate sends before reads...
-			conn.attemptedReadOK++
-		}
-		return
-	}
-	// INVAR: read.readAttempt > 1
-	var acceptProb float64
-	if freqDeaf < prob {
-		// since we want freqDeaf to -> prob,
-		// we want the odds of being deaf to be > 0.5 on this round.
-		// Assuming a single message,
-		// at round 2, freq will be 0.5;
-		// at round 3, freq will be 1/3 or 0.333333...;
-		acceptProb = (prob - freqDeaf) / (1 - freqDeaf)
-	} else {
-		// freqDeaf >= prob (our goal). Too many deaf reads.
-		// we want the odds of being deaf to be < 0.5 on this round.
-		// try just forcing it!
-		// nope. we end up not dropping any!
-		// the overall conn prob turns out perfect, but the
-		// individual reads all get through eventually.
-		//acceptProb = 1
-
-		// when no a/b seen, 10 out of 10 dropped.
-		acceptProb = read.lastP / (1 - read.lastP) // 100% dropped?!? or 0.9
-		//acceptProb = prob * (prob / freqDeaf)
-	}
-	read.lastP = acceptProb
-
-	accept := random01 < acceptProb
-	//accept := freqDeaf < acceptProb
-	isDeaf = !accept
-
-	vv("localDeafRead: prob=%v; read.lastP=%v, acceptProb=%v, accept=%v, isDeaf=%v; freqDeaf = %v = (a/b) where a = conn.attemptedReadDeaf = %v; b = conn.attemptedRead=%v; read.sn=%v", prob, read.lastP, acceptProb, accept, isDeaf, freqDeaf, conn.attemptedReadDeaf, conn.attemptedRead, read.sn)
-
-	if isDeaf {
-		conn.attemptedReadDeaf++
-		read.lastIsDeafTrueTm = time.Now()
-		//read.readDeafDueToProb++
-	} else {
-		conn.attemptedReadOK++
-		//read.readOKDueToProb++
-	}
-	return
-
-	// if random01 < acceptProb {
-	// 	isDeaf = false
-	// } else {
-	// 	isDeaf = true
-	// 	read.lastIsDeafTrueTm = time.Now()
-	// }
-	// However, this results in never dropping anything though.
-	// as we do multiple trials (dispatch attempts) per
-	// single clock tick. We have to track if we have
-	// already rolled the dice in this time quantum,
-	// and only roll again on the next "real" trial.
-	// Since isDeaf == false means we never get back here,
-	// we only need to track the last time isDeaf == true
-	// was returned.
-
-	// isDeaf = freq < prob
-
-	// // return // 100% dropped
-
-	// //random01 := s.scenario.rng.Float64() // in [0, 1)
-	// isDeaf2 := random01 < prob
-	// isDeaf3 := random01 < (prob * float64(read.readAttempt))
-	// //  / float64(read.origin.attemptedRead)
-
-	// //isDeaf = isDeaf3 // 100% dropped in the end.
-	// if isDeaf {
-	// 	conn.attemptedReadDeaf++
-	// 	//read.readDeafDueToProb++
-	// } else {
-	// 	conn.attemptedReadOK++
-	// 	//read.readOKDueToProb++
-	// }
-	return
-}
-
 func (s *simnet) deaf(prob float64) bool {
 	if prob <= 0 {
 		return false
@@ -1512,7 +1441,7 @@ func (s *simnet) localDropSend(send *mop) (isDropped bool, connAttemptedSend int
 	if isDropped {
 		conn.attemptedSendDropped++
 	} else {
-		send.passOKprob++ // don't apply prob again!
+		send.sendDropFilteringApplied = true // don't apply prob again!
 		conn.attemptedSendOK++
 	}
 	return
@@ -1737,18 +1666,24 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 
 		simnode.optionallyApplyChaos()
 
-		var connAttemptedSend int64
-		_ = connAttemptedSend
+		var connAttemptedSend int64 // for logging below
 		var drop bool
-		if send.passOKprob == 0 { // means we only call localDropSend once per send
+		// insist on !sendDropFilteringApplied, so we only
+		// call localDropSend once per send, and let
+		// them through if they've already survived
+		// one roll of the dice. localDropSend increments it.
+		if send.sendDropFilteringApplied {
+			// don't double filter! dispatchAll calls in here alot.
+		} else {
 			drop, connAttemptedSend = s.localDropSend(send)
+			_ = connAttemptedSend
 			if drop {
 				send.origin.droppedSendDueToProb++
 			}
 			connected := s.statewiseConnected(send.origin, send.target)
 			if !connected || drop {
 
-				vv("dispatchReadsSends DROP SEND %v; drop=%v; send.origin.droppedSendDueToProb=%v, connected=%v", send, drop, send.origin.droppedSendDueToProb, connected)
+				//vv("dispatchReadsSends DROP SEND %v; drop=%v; send.origin.droppedSendDueToProb=%v, connected=%v", send, drop, send.origin.droppedSendDueToProb, connected)
 				// note that the dropee is stored on the send.origin
 				// in the droppedSendQ, which is never the same
 				// as simnode here which supplied from its preArrQ.
@@ -1763,7 +1698,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 				changes++
 				continue
 			}
-		}
+		} // end else !send.sendDropFilteringApplied
 
 		if send.arrivalTm.After(now) {
 			// send has not arrived yet.
@@ -1794,7 +1729,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 		}
 		// INVAR: this send.arrivalTm <= now
 
-		//vv("send okay to deliver (below deaf read might drop it though): conn.attemptedSend=%v, send.sendAttempt=%v; send.passOKprob=%v", connAttemptedSend, send.sendAttempt, send.passOKprob)
+		//vv("send okay to deliver (below deaf read might drop it though): conn.attemptedSend=%v, send.sendAttempt=%v; send.sendDropFilteringApplied=%v", connAttemptedSend, send.sendAttempt, send.sendDropFilteringApplied)
 		// INVAR: send is okay to deliver wrt faults.
 
 		connectedR := s.statewiseConnected(read.origin, read.target)
@@ -1819,6 +1754,8 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 
 			// different, for read deaf -> send drop.
 			//vv("adding the _send_ of a deaf read into the reader side deaf Q, and deleting it from the preArrQ: '%v'\n node before: '%v'", send, simnode)
+			// simnode is the reader, so target of the send from
+			// retreived from its own preArrQ.
 			simnode.deafReadQ.add(send)
 
 			delit := preIt
