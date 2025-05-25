@@ -80,17 +80,22 @@ type dmap[K ided, V any] struct {
 	// cache the first range all, and use
 	// ordercache if we range all again without
 	// intervening upsert or deletes.
-	ordercache []*ikv[K, V]
+	ordercache   []*ikv[K, V]
+	cacheversion int64
 }
 
 func (s *dmap[K, V]) cached() []*ikv[K, V] {
 	n := s.tree.Len()
 	nc := len(s.ordercache)
-	if nc == n {
+	if nc == n && s.cacheversion == s.version {
 		return s.ordercache
 	}
-	for range all(s) {
-		// fills in s.ordercache
+	// refill ordercache
+	s.ordercache = nil
+	s.cacheversion = s.version
+	for it := s.tree.Min(); !it.Limit(); it = it.Next() {
+		kv := it.Item().(*ikv[K, V])
+		s.ordercache = append(s.ordercache, kv)
 	}
 	return s.ordercache
 }
@@ -180,6 +185,7 @@ func (s *dmap[K, V]) delkey(key K) (found bool, next rb.Iterator) {
 	//vv("deleting id='%v' -> it.Item() = '%v'", id, it.Item())
 	atomic.AddInt64(&s.version, 1)
 	s.ordercache = nil
+	s.cacheversion = 0
 	next = it.Next()
 	s.tree.DeleteWithIterator(it)
 	delete(s.idx, id)
@@ -212,6 +218,7 @@ func (s *dmap[K, V]) deleteWithIter(it rb.Iterator) (found bool, next rb.Iterato
 	//vv("deleteWithIter before changes: '%v'", s)
 	atomic.AddInt64(&s.version, 1)
 	s.ordercache = nil
+	s.cacheversion = 0
 	next = it.Next()
 	s.tree.DeleteWithIterator(it)
 	delete(s.idx, kv.id)
@@ -224,6 +231,7 @@ func (s *dmap[K, V]) deleteWithIter(it rb.Iterator) (found bool, next rb.Iterato
 func (s *dmap[K, V]) deleteAll() {
 	atomic.AddInt64(&s.version, 1)
 	s.ordercache = nil
+	s.cacheversion = 0
 	s.tree.DeleteAll()
 	s.idx = nil
 }
@@ -237,6 +245,7 @@ func (s *dmap[K, V]) set(key K, val V) (newlyAdded bool) {
 	}
 	atomic.AddInt64(&s.version, 1)
 	s.ordercache = nil
+	s.cacheversion = 0
 
 	id := key.id()
 	//vv("set id = '%v'", id)
@@ -282,7 +291,7 @@ func all[K ided, V any](s *dmap[K, V]) iter.Seq2[K, V] {
 		// detect deletes in the middle of using s.ordercache.
 		vers := atomic.LoadInt64(&s.version)
 
-		if nc == n {
+		if nc == n && s.cacheversion == vers {
 			// s.ordercache is usable.
 			for i, kv := range s.ordercache {
 				nextit := kv.it.Next() // in case of slow path below
@@ -325,6 +334,7 @@ func all[K ided, V any](s *dmap[K, V]) iter.Seq2[K, V] {
 		// it on this pass. only do full fills
 		// for simplicity.
 		s.ordercache = nil
+		s.cacheversion = vers
 		cachegood := true // invalidate if delete in middle of all.
 		it := s.tree.Min()
 		for !it.Limit() {
@@ -346,6 +356,7 @@ func all[K ided, V any](s *dmap[K, V]) iter.Seq2[K, V] {
 			if vers2 != vers {
 				cachegood = false
 				s.ordercache = nil
+				s.cacheversion = 0
 			}
 
 		} // end for it != lim
@@ -365,7 +376,7 @@ func allikv[K ided, V any](s *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 		// detect deletes in the middle of using s.ordercache.
 		vers := atomic.LoadInt64(&s.version)
 
-		if nc == n {
+		if nc == n && s.cacheversion == vers {
 			// s.ordercache is usable.
 			for i, kv := range s.ordercache {
 				nextit := kv.it.Next() // in case of slow path below
@@ -408,6 +419,7 @@ func allikv[K ided, V any](s *dmap[K, V]) iter.Seq2[K, *ikv[K, V]] {
 		// it on this pass. only do full fills
 		// for simplicity.
 		s.ordercache = nil
+		s.cacheversion = vers
 		cachegood := true // invalidate if delete in middle of all.
 		it := s.tree.Min()
 		for !it.Limit() {
