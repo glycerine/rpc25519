@@ -3,6 +3,7 @@ package rpc25519
 import (
 	//"fmt"
 	mathrand2 "math/rand/v2"
+	"runtime"
 	"time"
 )
 
@@ -47,6 +48,7 @@ type scenario struct {
 
 	reqtm   time.Time
 	proceed chan struct{}
+	who     int
 }
 
 func NewScenario(tick, minHop, maxHop time.Duration, seed [32]byte) *scenario {
@@ -482,6 +484,7 @@ func newTimerCreateMop(isCli bool) (op *mop) {
 		kind:      TIMER,
 		proceed:   make(chan struct{}),
 		reqtm:     time.Now(),
+		who:       runtime.GoID(),
 	}
 	return
 }
@@ -925,6 +928,7 @@ type SimnetBatch struct {
 	proceed      chan struct{}
 	err          error
 	batchOps     []*mop
+	who          int
 }
 
 func (s *simnet) NewSimnetBatch(subwhen time.Time, subAsap bool) *SimnetBatch {

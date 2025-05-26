@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -16,9 +17,16 @@ import (
 
 // NB: all String() methods are now in simnet_string.go
 
+type GoroControl struct {
+	Mut  sync.Mutex
+	Tm   time.Time
+	Goro int
+}
+
 // Message operation
 type mop struct {
-	sn int64
+	sn  int64
+	who uint64 // goro number
 
 	batchSn   int64
 	batchPart int64
@@ -2095,11 +2103,18 @@ restartI:
 			// the read/send/timer/discard select cases
 			// into the meq during the last sleep, and
 			// now we act on them.
+
+			// do we have more than one goro sending us stuff
+			// in a single tick?
+			// that would imply non-determinism yes?
+			who := make(map[uint64]bool)
 			for {
 				op := s.meq.pop()
 				if op == nil {
 					break
 				}
+				who[op.who] = true
+
 				switch op.kind {
 				case TIMER:
 					//vv("i=%v, meq sees timer='%v'", i, op)
@@ -2147,6 +2162,10 @@ restartI:
 				default:
 					panic(fmt.Sprintf("why in our meq this mop kind? '%v'", int(op.kind)))
 				}
+			}
+			vv("who count = %v", len(who))
+			if len(who) > 1 {
+				panic("arg, non-determinism with two callers?!")
 			}
 			nd0 += s.dispatchAll(now)
 			ndtot += nd0
