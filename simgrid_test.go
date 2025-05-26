@@ -120,15 +120,13 @@ type simGridConfig struct {
 type simGrid struct {
 	Cfg   *simGridConfig
 	Nodes []*simGridNode
-	//Halt  *idem.Halter
-	net *simnet
+	net   *simnet // for halting with net.Close()
 }
 
 func newSimGrid(cfg *simGridConfig, nodes []*simGridNode) *simGrid {
 	return &simGrid{
 		Cfg:   cfg,
 		Nodes: nodes,
-		//Halt:  idem.NewHalterNamed("simGrid"),
 	}
 }
 
@@ -139,6 +137,10 @@ func (s *simGrid) Start() {
 		panicOn(err)
 		if i == 0 {
 			s.net = s.Cfg.RpcCfg.GetSimnet()
+			if s.net == nil {
+				panic("nil simnet from GetSimnet() arg")
+			}
+			vv("good: simGrid.net set")
 		}
 	}
 

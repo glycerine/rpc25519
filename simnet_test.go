@@ -91,6 +91,8 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 			if simnet == nil {
 				panic("no simnet??")
 			}
+			defer simnet.Close() // let shutdown happen.
+
 			dd := DropDeafSpec{
 				UpdateDeafReads:  true,
 				UpdateDropSends:  true,
@@ -225,6 +227,9 @@ func Test706_simnetonly_RoundTrip_Using_NetRPC(t *testing.T) {
 		vv("back from srv.Start() in 706, elap = %v", time.Since(t0))
 		panicOn(err)
 		defer srv.Close()
+
+		simnet := srv.cfg.GetSimnet()
+		defer simnet.Close()
 
 		//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
@@ -374,6 +379,9 @@ func Test740_simnetonly_remote_cancel_by_context(t *testing.T) {
 			panicOn(err)
 			defer srv.Close()
 
+			simnet := srv.cfg.GetSimnet()
+			defer simnet.Close()
+
 			//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
 			// net/rpc API on server
@@ -488,6 +496,9 @@ func Test745_simnetonly_upload(t *testing.T) {
 			panicOn(err)
 			defer srv.Close()
 
+			simnet := srv.cfg.GetSimnet()
+			defer simnet.Close()
+
 			//vv("server Start() returned serverAddr = '%v'", serverAddr)
 
 			// name must be "__fileUploader" for cli.go Uploader to work.
@@ -589,6 +600,9 @@ func Test755_simnetonly_simnet_download(t *testing.T) {
 			serverAddr, err := srv.Start()
 			panicOn(err)
 			defer srv.Close()
+
+			simnet := srv.cfg.GetSimnet()
+			defer simnet.Close()
 
 			// register streamer func with server
 			downloaderName := "downloaderName"
@@ -700,6 +714,9 @@ func Test765_simnetonly_bidirectional_download_and_upload(t *testing.T) {
 			serverAddr, err := srv.Start()
 			panicOn(err)
 			defer srv.Close()
+
+			simnet := srv.cfg.GetSimnet()
+			defer simnet.Close()
 
 			// register streamer func with server
 			streamerName := "bi-streamer Name"
@@ -870,6 +887,9 @@ func Test101_gosimnet_basics(t *testing.T) {
 
 		panicOn(err)
 		defer srv.Close()
+
+		simnet := srv.cfg.GetSimnet()
+		defer simnet.Close()
 
 		// we need the server's conn2 in order
 		// to break it out of the Read by conn2.Close()
@@ -1116,6 +1136,7 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
 			defer srv.Close()
 			defer cli.Close()
+			defer simnet.Close()
 
 			serviceName := "customEcho"
 			srv.Register2Func(serviceName, customEcho)
@@ -1190,6 +1211,7 @@ func Test772_simnetonly_server_dropped_sends(t *testing.T) {
 			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
 			defer srv.Close()
 			defer cli.Close()
+			defer simnet.Close()
 
 			serviceName := "customEcho"
 			srv.Register2Func(serviceName, customEcho)
@@ -1432,6 +1454,7 @@ func Test781_simnetonly_client_isolated(t *testing.T) {
 			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
 			defer srv.Close()
 			defer cli.Close()
+			defer simnet.Close()
 
 			serviceName := "customEcho"
 			srv.Register2Func(serviceName, customEcho)
@@ -1509,6 +1532,7 @@ func Test782_simnetonly_server_isolated(t *testing.T) {
 			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
 			defer srv.Close()
 			defer cli.Close()
+			defer simnet.Close()
 
 			serviceName := "customEcho"
 			srv.Register2Func(serviceName, customEcho)
