@@ -27,6 +27,7 @@ func Test1001_simnetonly_drop_prob(t *testing.T) {
 			cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
 			defer srv.Close()
 			defer cli.Close()
+			defer simnet.Close()
 			_, _, _ = simnet, srvname, cliname
 
 			serviceName := "customEcho"
@@ -82,6 +83,7 @@ func Test1002_simnetonly_deaf_prob_tests(t *testing.T) {
 		cli, srv, simnet, srvname, cliname := setupSimnetTest(simt, cfg)
 		defer srv.Close()
 		defer cli.Close()
+		defer simnet.Close()
 		_, _, _ = simnet, srvname, cliname
 
 		serviceName := "customEcho"

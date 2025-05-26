@@ -2759,3 +2759,7 @@ func newRepairHostMop(hostRepair *hostRepair) (op *mop) {
 	}
 	return
 }
+
+func (s *simnet) Close() {
+	s.halt.ReqStop.Close()
+}
