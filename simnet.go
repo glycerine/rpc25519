@@ -2761,6 +2761,6 @@ func newRepairHostMop(hostRepair *hostRepair) (op *mop) {
 }
 
 func (s *simnet) Close() {
-	vv("simnet.Close() called.") // not seen 701
+	//vv("simnet.Close() called.")
 	s.halt.ReqStop.Close()
 }
