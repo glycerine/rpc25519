@@ -439,6 +439,8 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 			return nil, ErrShutdown()
 		}
 		msg = read.msg
+		err = read.err
+
 	case <-s.halt.ReqStop.Chan:
 		return nil, ErrShutdown()
 	}

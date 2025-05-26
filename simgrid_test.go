@@ -3,6 +3,7 @@ package rpc25519
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/glycerine/idem"
@@ -12,6 +13,18 @@ import (
 // 702 is the Same as 202 in grid_test, but now under simnet.
 func Test702_simnet_grid_peer_to_peer_works(t *testing.T) {
 	//return
+
+	var m0, m1 runtime.MemStats
+	runtime.ReadMemStats(&m0)
+	// regular, no wasm: m0 Alloc:2349128 HeapSys:7897088
+	vv("m0 Alloc:%v HeapSys:%v", int(m0.Alloc), int(m0.HeapSys))
+	defer func() {
+		runtime.ReadMemStats(&m1)
+		// regular, no wasm: m0 Alloc:1837775728 HeapSys:1844772864
+		vv("m1 Alloc:%v HeapSys:%v", int(m1.Alloc), int(m1.HeapSys))
+		vv("diff Alloc:%v MB HeapSys:%v MB", int(m1.Alloc-m0.Alloc)/(1<<20), int(m1.HeapSys-m0.HeapSys)/(1<<20))
+		// non wasm: diff Alloc:1750 MB HeapSys:1751 MB
+	}()
 
 	bubbleOrNot(func() {
 		//n := 20 // 20*19/2 = 190 tcp conn to setup. ok/green but 35 seconds.
@@ -107,16 +120,21 @@ type simGridConfig struct {
 type simGrid struct {
 	Cfg   *simGridConfig
 	Nodes []*simGridNode
+	Halt  *idem.Halter
 }
 
 func newSimGrid(cfg *simGridConfig, nodes []*simGridNode) *simGrid {
-	return &simGrid{Cfg: cfg, Nodes: nodes}
+	return &simGrid{
+		Cfg:   cfg,
+		Nodes: nodes,
+		Halt:  idem.NewHalterNamed("simGrid"),
+	}
 }
 
 func (s *simGrid) Start() {
 	for i, n := range s.Nodes {
 		_ = i
-		err := n.Start(s.Cfg) // Server.Start()
+		err := n.Start(s) // Server.Start()
 		panicOn(err)
 	}
 
@@ -148,7 +166,8 @@ func (s *simGrid) Close() {
 }
 
 func (s *simGridNode) Close() {
-	s.srv.Close()
+	vv("simGridNode.Close: tree:\n %v", s.srv.halt.RootString())
+	s.srv.Close() // calls s.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil); then s.halt.ReqStop.Close() when that finishes. then closes autoclients.
 }
 
 func newSimGridNode(name string, cfg *simGridConfig) *simGridNode {
@@ -158,9 +177,10 @@ func newSimGridNode(name string, cfg *simGridConfig) *simGridNode {
 	}
 }
 
-func (s *simGridNode) Start(gridCfg *simGridConfig) error {
+func (s *simGridNode) Start(grid *simGrid) error {
 	//cfg.TCPonly_no_TLS = true
 
+	gridCfg := grid.Cfg
 	cfg := gridCfg.RpcCfg
 	//vv("making NewServer %v", s.name)
 	s.srv = NewServer("srv_"+s.name, cfg)

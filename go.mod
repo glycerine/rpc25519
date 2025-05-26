@@ -12,7 +12,7 @@ require (
 	github.com/glycerine/blake3 v1.5.2
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31
 	github.com/glycerine/greenpack v0.540.0
-	github.com/glycerine/idem v0.20.3
+	github.com/glycerine/idem v0.20.4
 	github.com/glycerine/ipaddr v0.2.7
 	github.com/glycerine/loquet v0.0.19
 	github.com/glycerine/parallelwalk v0.3.1

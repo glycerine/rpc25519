@@ -16,7 +16,7 @@ func newSyncer(name string) *syncer {
 	return &syncer{
 		name:                   name,
 		PushToPeerURL:          make(chan string),
-		halt:                   idem.NewHalter(),
+		halt:                   idem.NewHalterNamed("syncer"),
 		gotIncomingCkt:         make(chan *Circuit),
 		gotOutgoingCkt:         make(chan *Circuit),
 		gotIncomingCktReadFrag: make(chan *Fragment),

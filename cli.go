@@ -1594,7 +1594,6 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		name:        name,
 		oneWayCh:    make(chan *Message), // not buffered! synchronous so we get back-pressure.
 		roundTripCh: make(chan *Message), // not buffered! synchronous so we get back-pressure.
-		halt:        idem.NewHalter(),
 		connected:   make(chan error, 1),
 		lastSeqno:   1,
 		notifyOnce:  make(map[uint64]*loquet.Chan[Message]),
@@ -1603,6 +1602,8 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		pending: make(map[uint64]*Call),
 		epochV:  EpochVers{EpochTieBreaker: NewCallID("")},
 	}
+	c.halt = idem.NewHalterNamed(fmt.Sprintf("Client(%v %p)", name, c))
+
 	// share code with server for CallID and ToPeerID callbacks.
 	c.notifies = newNotifies(yesIsClient, c)
 	//vv("NewClient made client = %p", c)

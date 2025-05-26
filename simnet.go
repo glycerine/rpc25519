@@ -94,6 +94,8 @@ type mop struct {
 	sendmop *mop // for reads, which send did we get?
 	readmop *mop // for sends, which read did we go to?
 
+	err error // read/send errors
+
 	// clients of scheduler wait on proceed.
 	// When the timer is set; the send sent; the read
 	// matches a send, the client proceeds because
@@ -630,7 +632,9 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 	if cfg.simnetRendezvous.singleSimnet != nil {
 		// already started. Still, everyone
 		// register separately no matter.
-		return cfg.simnetRendezvous.singleSimnet
+		net := cfg.simnetRendezvous.singleSimnet
+		net.halt.AddChild(srv.halt)
+		return net
 	}
 
 	tick := time.Millisecond
@@ -646,7 +650,6 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		cfg:            cfg,
 		simNetCfg:      simNetConfig,
 		srv:            srv,
-		halt:           srv.halt,
 		cliRegisterCh:  make(chan *clientRegistration),
 		srvRegisterCh:  make(chan *serverRegistration),
 		alterSimnodeCh: make(chan *simnodeAlteration),
@@ -688,6 +691,8 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		nextTimer: time.NewTimer(time.Hour * 10_000),
 	}
 	s.nextTimer.Stop()
+	s.halt = idem.NewHalterNamed(fmt.Sprintf("simnet %p", s))
+	s.halt.AddChild(srv.halt)
 
 	cfg.simnetRendezvous.singleSimnet = s
 	//vv("newSimNetOnServer: assigned to singleSimnet, releasing lock by  goro = %v", GoroNumber())
@@ -1519,6 +1524,11 @@ func (s *simnet) handleRead(read *mop) {
 	//vv("top of handleRead(read = '%v')", read)
 	// don't want this! only when read matches with send!
 	//defer close(read.proceed)
+
+	if s.halt.ReqStop.IsClosed() {
+		read.err = ErrShutdown()
+		close(read.proceed)
+	}
 
 	origin := read.origin
 	read.originLC = origin.lc

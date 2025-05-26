@@ -506,7 +506,6 @@ func (peerAPI *peerAPI) newLocalPeer(
 ) (pb *LocalPeer) {
 
 	pb = &LocalPeer{
-		Halt:            idem.NewHalter(),
 		NetAddr:         netAddr,
 		PeerServiceName: peerServiceName,
 		PeerAPI:         peerAPI,
@@ -523,6 +522,7 @@ func (peerAPI *peerAPI) newLocalPeer(
 		HandleCircuitClose: make(chan *Circuit),
 		QueryCh:            make(chan *QueryLocalPeerPump),
 	}
+	pb.Halt = idem.NewHalterNamed(fmt.Sprintf("LocalPeer(%v %p)", peerServiceName, pb))
 
 	//AliasRegister(peerID, peerID+" ("+peerServiceName+")")
 
@@ -727,7 +727,6 @@ func (lpb *LocalPeer) newCircuit(
 	reads := make(chan *Fragment)
 	errors := make(chan *Fragment)
 	ckt = &Circuit{
-		Halt:              idem.NewHalter(),
 		Name:              circuitName,
 		LocalServiceName:  lpb.PeerServiceName,
 		RemoteServiceName: rpb.RemoteServiceName,
@@ -741,6 +740,7 @@ func (lpb *LocalPeer) newCircuit(
 		Context:           ctx2,
 		Canc:              canc2,
 	}
+	ckt.Halt = idem.NewHalterNamed(fmt.Sprintf("Circuit(%v %p)", circuitName, ckt))
 	if ckt.CircuitID == "" {
 		ckt.CircuitID = NewCallID(circuitName)
 	}

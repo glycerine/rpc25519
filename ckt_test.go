@@ -128,7 +128,7 @@ type countService struct {
 
 func newcountService() *countService {
 	return &countService{
-		halt:   idem.NewHalter(),
+		halt:   idem.NewHalterNamed("countService"),
 		stats:  NewMutexmap[string, *counts](),
 		readch: make(chan *Fragment, 1000),
 		sendch: make(chan *Fragment, 1000),

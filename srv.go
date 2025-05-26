@@ -1733,11 +1733,11 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 		Server: s,
 		Conn:   conn,
 		SendCh: make(chan *Message),
-		halt:   idem.NewHalter(),
 		from:   local(conn),
 		to:     remote(conn),
 		epochV: EpochVers{EpochTieBreaker: NewCallID("")},
 	}
+	p.halt = idem.NewHalterNamed(fmt.Sprintf("Server.rwPair(%p)", p))
 	p.keepAliveMsg.HDR.Typ = CallKeepAlive
 	p.keepAliveMsg.HDR.Subject = p.epochV.EpochTieBreaker
 
@@ -1982,6 +1982,8 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		if err2 != nil {
 			return
 		}
+		s.halt.AddChild(cli.halt)
+
 		s.mut.Lock()
 		s.autoClients = append(s.autoClients, cli)
 		s.mut.Unlock()
@@ -2181,7 +2183,6 @@ func NewServer(name string, config *Config) *Server {
 		cfg:               cfg,
 		remote2pair:       NewMutexmap[string, *rwPair](),
 		pair2remote:       NewMutexmap[*rwPair, string](),
-		halt:              idem.NewHalter(), // this halter is not Done in 702 test
 		RemoteConnectedCh: make(chan *ServerClient, 20),
 
 		callme2map:                   NewMutexmap[string, TwoWayFunc](),
@@ -2192,6 +2193,8 @@ func NewServer(name string, config *Config) *Server {
 
 		unNAT: NewMutexmap[string, string](),
 	}
+	s.halt = idem.NewHalterNamed(fmt.Sprintf("Server(%v %p)", name, s))
+
 	s.notifies = newNotifies(notClient, s)
 	// allow nil config still, since the above does.
 	useSimNet := false
