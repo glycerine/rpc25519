@@ -1665,10 +1665,10 @@ func (c *Client) Name() string {
 func (c *Client) Close() error {
 	//vv("Client.Close() called.") // not seen in shutdown.
 
-	if c.cfg.UseSimNet && c.simnet != nil && c.simnode != nil {
-		// panics simnet on halted client doing reads, off for now.
-		//c.simnet.alterNode(c.simnode, SHUTDOWN)
-	}
+	// don't touch simnet directly here; racey. would need
+	// something like this to not race with simnet_client.go:18
+	//c.cfg.simnetRendezvous.singleSimnetMut.Lock()
+	//c.cfg.simnetRendezvous.singleSimnetMut.Unlock()
 
 	// ask any sub components (peer pump loops) to stop.
 	c.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
