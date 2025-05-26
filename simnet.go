@@ -26,7 +26,7 @@ type GoroControl struct {
 // Message operation
 type mop struct {
 	sn  int64
-	who uint64 // goro number
+	who int // goro number
 
 	sendCloserMop *mop // in meq, should close(proceed) at completeTm
 
@@ -2260,7 +2260,6 @@ restartI:
 			var op *mop
 			for ; j < jlim; j++ {
 				op = s.meq.pop()
-
 				if op == nil {
 					break
 				}
@@ -2320,7 +2319,6 @@ restartI:
 					panic(fmt.Sprintf("why in our meq this mop kind? '%v'", int(op.kind)))
 				}
 			}
-
 			vv("who count = %v", len(who))
 			if len(who) > 1 {
 				panic("arg, non-determinism with two callers?!")
@@ -2417,6 +2415,8 @@ restartI:
 			//vv("simnet.halt.ReqStop totalSleepDur = %v (%0.2f%%) since bb = %v)", totalSleepDur, pct, bb)
 			return
 		} // end select
+
+		// force time to advance after each select case by a nanosecond if not a timer?
 
 		//vv("i=%v bottom of scheduler loop. num dispatch events = %v", i, nd0)
 	}
@@ -2902,6 +2902,7 @@ func newClientRegMop(clireg *clientRegistration) (op *mop) {
 		sn:        simnetNextMopSn(),
 		kind:      CLIENT_REG,
 		proceed:   clireg.done,
+		who:       clireg.who,
 	}
 	return
 }
@@ -2913,6 +2914,7 @@ func newServerRegMop(srvreg *serverRegistration) (op *mop) {
 		sn:        simnetNextMopSn(),
 		kind:      SERVER_REG,
 		proceed:   srvreg.done,
+		who:       srvreg.who,
 	}
 	return
 }
@@ -2923,6 +2925,7 @@ func newSnapReqMop(snapReq *SimnetSnapshot) (op *mop) {
 		sn:      simnetNextMopSn(),
 		kind:    SNAPSHOT,
 		proceed: snapReq.proceed,
+		who:     snapReq.who,
 	}
 	return
 }
@@ -2943,6 +2946,7 @@ func newAlterNodeMop(alt *simnodeAlteration) (op *mop) {
 		sn:        simnetNextMopSn(),
 		kind:      ALTER_NODE,
 		proceed:   alt.done,
+		who:       alt.who,
 	}
 	return
 }
@@ -2953,6 +2957,7 @@ func newAlterHostMop(alt *simnodeAlteration) (op *mop) {
 		sn:        simnetNextMopSn(),
 		kind:      ALTER_HOST,
 		proceed:   alt.done,
+		who:       alt.who,
 	}
 	return
 }
@@ -2963,6 +2968,7 @@ func newCktFaultMop(cktFault *circuitFault) (op *mop) {
 		sn:       simnetNextMopSn(),
 		kind:     FAULT_CKT,
 		proceed:  cktFault.proceed,
+		who:      cktFault.who,
 	}
 	return
 }
@@ -2973,6 +2979,7 @@ func newHostFaultMop(hostFault *hostFault) (op *mop) {
 		sn:        simnetNextMopSn(),
 		kind:      FAULT_HOST,
 		proceed:   hostFault.proceed,
+		who:       hostFault.who,
 	}
 	return
 }
@@ -2983,6 +2990,7 @@ func newRepairCktMop(cktRepair *circuitRepair) (op *mop) {
 		sn:        simnetNextMopSn(),
 		kind:      REPAIR_CKT,
 		proceed:   cktRepair.proceed,
+		who:       cktRepair.who,
 	}
 	return
 }
@@ -2993,6 +3001,7 @@ func newRepairHostMop(hostRepair *hostRepair) (op *mop) {
 		sn:         simnetNextMopSn(),
 		kind:       REPAIR_HOST,
 		proceed:    hostRepair.proceed,
+		who:        hostRepair.who,
 	}
 	return
 }
