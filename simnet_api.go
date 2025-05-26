@@ -447,7 +447,7 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 	return
 }
 
-func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) error {
+func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) (err error) {
 
 	sc := conn.(*simconn)
 	isCli := sc.isCli
@@ -471,10 +471,11 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) e
 			// avoid .msg race on shutdown, CopyForSimNetSend vs sendLoop
 			return ErrShutdown()
 		}
+		err = send.err
 	case <-s.halt.ReqStop.Chan:
 		return ErrShutdown()
 	}
-	return nil
+	return
 }
 
 func newTimerCreateMop(isCli bool) (op *mop) {
