@@ -22,3 +22,5 @@ func bubbleOrNot(f func()) {
 func onlyBubbled(t *testing.T, f func()) {
 	t.Skip("onlyBubbled: skipping test")
 }
+
+func (s *simnet) assertGoroAlone() {}

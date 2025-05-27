@@ -50,7 +50,7 @@ func init() {
 const rfc3339MsecTz0 = "2006-01-02T15:04:05.000Z07:00"
 
 var myPid = os.Getpid()
-var showPid bool
+var showPid bool = true
 
 func nice(tm time.Time) string {
 	return tm.Format(rfc3339MsecTz0)

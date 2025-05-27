@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -85,8 +86,12 @@ type mop struct {
 	// TIMER_DISCARD: zero time.Time{}.
 	completeTm time.Time
 
+	// timers
 	unmaskedCompleteTm time.Time
 	unmaskedDur        time.Duration
+
+	// sends
+	unmaskedSendArrivalTm time.Time
 
 	kind mopkind
 	msg  *Message
@@ -326,6 +331,11 @@ type simnet struct {
 	barrier       bool
 	bigbang       time.Time
 	gridStepTimer *mop
+
+	// for assertGoroAlone in simnet_synctest
+	singleGoroMut sync.Mutex
+	singleGoroTm  time.Time
+	singleGoroID  int
 
 	// these were mostly internal self-timers
 	// that we now properly retire. may can get rid of?
@@ -1297,7 +1307,7 @@ func (s *simnet) unIsolateSimnode(simnode *simnode) (undo Alteration) {
 	for remote := range s.circuits.get(simnode).all() {
 		// 1) does everything:
 		//    s.transferDeafReadsQ_to_readsQ(remote, simnode)
-		// vs 2) leaves probabilist faulty conn alone:
+		// vs 2) leaves probabilistically faulty conn alone:
 		s.equilibrateReads(remote, simnode)
 	}
 
@@ -1498,7 +1508,10 @@ func (s *simnet) handleSend(send *mop) {
 	origin := send.origin
 	send.senderLC = origin.lc
 	send.originLC = origin.lc
-	send.arrivalTm = userMaskTime(send.initTm.Add(s.scenario.rngHop()))
+
+	send.unmaskedSendArrivalTm = send.initTm.Add(s.scenario.rngHop())
+
+	send.arrivalTm = userMaskTime(send.unmaskedSendArrivalTm)
 	send.completeTm = time.Now() // send complete on the sender side.
 
 	probDrop := s.circuits.get(send.origin).get(send.target).dropSend
@@ -2607,7 +2620,8 @@ func (s *simnet) handleSimnetSnapshotRequest(req *SimnetSnapshot, now time.Time,
 				panic(fmt.Sprintf("arg! logic error: we are declaring an autocli to be alone?!?! '%v'", origin))
 			}
 			// note, each cli can only have one target, but
-			// for-range is much more convenient.
+			// a for-range is simply convenient here, even though
+			// this loop will only iterate once. We sanity assert that below.
 			for target, conn := range s.circuits.get(origin).all() {
 				req.LoneCliConnCount++
 
