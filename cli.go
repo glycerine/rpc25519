@@ -310,13 +310,14 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 	var err error
 	ctx, canc := context.WithCancel(context.Background())
 	defer func() {
-		r := recover()
-		if r != nil {
-			// see a ts mutex deadlock under synctest on shutdown, comment out:
-			//alwaysPrintf("cli runReadLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, stack())
-		} else {
-			//vv("cli runReadLoop defer/shutdown running.")
-		}
+		// if we aren't going to print b/c of the ts mutex deadlock, don't recover
+		//r := recover()
+		//if r != nil {
+		//	// see a ts mutex deadlock under synctest on shutdown, comment out:
+		//	//alwaysPrintf("cli runReadLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, stack())
+		//} else {
+		//	//vv("cli runReadLoop defer/shutdown running.")
+		//}
 		//vv("client runReadLoop exiting, last err = '%v'", err)
 		canc()
 		c.halt.ReqStop.Close()
