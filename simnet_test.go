@@ -44,6 +44,14 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 
 			//vv("(SimNet) server Start() returned serverAddr = '%v'", serverAddr)
 
+			// if the server is partitioned, the client should not
+			// be able to make a call.
+			simnet := cfg.GetSimnet()
+			if simnet == nil {
+				panic("no simnet??")
+			}
+			defer simnet.Close() // let shutdown happen.
+
 			serviceName := "customEcho"
 			srv.Register2Func(serviceName, customEcho)
 
@@ -61,10 +69,14 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 
 			reply, err := cli.SendAndGetReply(req, nil, 0)
 			// err is normal on shutdown...
-			//panicOn(err)
+			panicOn(err)
 
 			vv("reply = %p", reply)
-			vv("cli sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
+			if reply == nil {
+				vv("arg. reply == nil. why no shutdown error?")
+			} else {
+				vv("cli sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))
+			}
 			want := "Hello from client!"
 			gotit := strings.HasPrefix(string(reply.JobSerz), want)
 			if !gotit {
@@ -85,13 +97,6 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 				t.Fatalf("timer went off too early! elap(%v) < goalWait(%v)", elap, goalWait)
 			}
 			vv("good: finished timer (fired at %v) after %v >= goal %v", t1, elap, goalWait)
-			// if the server is partitioned, the client should not
-			// be able to make a call.
-			simnet := cfg.GetSimnet()
-			if simnet == nil {
-				panic("no simnet??")
-			}
-			defer simnet.Close() // let shutdown happen.
 
 			dd := DropDeafSpec{
 				UpdateDeafReads:  true,

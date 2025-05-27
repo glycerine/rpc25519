@@ -1,4 +1,4 @@
-//go:build goexperiment.synctest
+//go:build goexperiment.synctest && !goj
 
 package rpc25519
 

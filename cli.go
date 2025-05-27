@@ -340,6 +340,9 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 	_ = readTimeout
 	var msg *Message
 	for {
+		if c.cfg.UseSimNet {
+			c.simnet.assertGoroAlone()
+		}
 
 		// poll for: shutting down?
 		select {
@@ -540,6 +543,10 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 	}
 
 	for {
+		if c.cfg.UseSimNet {
+			c.simnet.assertGoroAlone()
+		}
+
 		if doPing {
 			now := time.Now()
 			var nextPingDur time.Duration
