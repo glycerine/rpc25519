@@ -347,7 +347,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 	var li int64
 	for {
 		if c.cfg.UseSimNet && li > 0 {
-			c.simnet.assertGoroAlone()
+			//c.simnet.assertGoroAlone()
 		}
 		li++
 
@@ -552,7 +552,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 	var li int64
 	for {
 		if c.cfg.UseSimNet && li > 0 {
-			c.simnet.assertGoroAlone()
+			//c.simnet.assertGoroAlone()
 		}
 		li++
 

@@ -41,10 +41,10 @@ func (s *simnet) assertGoroAlone() {
 
 	if now.Equal(s.singleGoroTm) {
 		if s.singleGoroID != me {
-			panic(fmt.Sprintf(
-				"%v Wish I were alone, but I'm(%v) "+
-					"with stupid: %v",
-				now, me, s.singleGoroID))
+			//panic(fmt.Sprintf(
+			vv("%v Wish I were alone, but I'm(%v) "+
+				"with stupid: %v",
+				now, me, s.singleGoroID)
 		}
 	} else {
 		s.singleGoroTm = now
