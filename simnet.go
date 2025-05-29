@@ -21,6 +21,8 @@ import (
 type mop struct {
 	sn int64
 
+	sendCloserMop *mop // in meq, should close(proceed) at completeTm
+
 	batchSn   int64
 	batchPart int64
 
@@ -220,6 +222,13 @@ func (s *mop) tm() time.Time {
 		return s.reqtm
 	case ALTER_NODE:
 		return s.reqtm
+	case SEND_CLOSER:
+		return s.completeTm
+	case READ_CLOSER:
+		// might end up being the same as the
+		// send arrival time, but allow it to
+		// be distinct just in case.
+		return s.completeTm
 	}
 	panic(fmt.Sprintf("mop kind '%v' needs tm", int(s.kind)))
 }
@@ -326,11 +335,36 @@ func (s *mop) clone() (c *mop) {
 	return
 }
 
+// simnet wide next deadline assignment for all
+// timers on all nodes, and all send and read points.
+func (s *simnet) nextUniqTm(atleast time.Time) time.Time {
+	if atleast.After(s.lastTimerDeadline) {
+		s.lastTimerDeadline = atleast
+	} else {
+		// atleast <= s.lastTimerDeadline
+		const bump = time.Microsecond // more than mask
+		s.lastTimerDeadline = s.lastTimerDeadline.Add(bump)
+	}
+	s.lastTimerDeadline = userMaskTime(s.lastTimerDeadline)
+	return s.lastTimerDeadline
+}
+
 // simnet simulates a network entirely with channels in memory.
 type simnet struct {
 	barrier       bool
 	bigbang       time.Time
 	gridStepTimer *mop
+
+	// lastTimerDeadline: issue all timers
+	// must be greater than lastTimerDeadline,
+	// and then they must set their time to it.
+	// by induction we just have to
+	// record each timer deadline, and make
+	// sure each new one is
+	// distinct from the last.
+	// then all timers will have
+	// distinct firing times.
+	lastTimerDeadline time.Time
 
 	// for assertGoroAlone in simnet_synctest
 	singleGoroMut sync.Mutex
@@ -655,6 +689,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 
 	// server creates simnet; must start server first.
 	s := &simnet{
+		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
 		meq:            newMasterEventQueue("scheduler"),
 		barrier:        !simNetConfig.BarrierOff,
 		cfg:            cfg,
@@ -798,7 +833,9 @@ const (
 	TIMER_DISCARD mopkind = 14
 
 	// report a snapshot of the entire network/state.
-	SNAPSHOT mopkind = 15
+	SNAPSHOT    mopkind = 15
+	SEND_CLOSER mopkind = 16
+	READ_CLOSER mopkind = 17
 )
 
 func enforceTickDur(tick time.Duration) time.Duration {
@@ -917,10 +954,12 @@ func (s *simnet) newPQarrivalTm(owner string) *pq {
 			// just a is nil; b is not. sort nils to the front
 			// so they get popped and GC-ed sooner (and
 			// don't become temporary memory leaks by sitting at the
-			// back of the queue.x
+			// back of the queue.
+			panic("no nils in pq")
 			return -1
 		}
 		if bv == nil {
+			panic("no nils in pq")
 			return 1
 		}
 		// INVAR: neither av nor bv is nil
@@ -953,6 +992,11 @@ func (s *simnet) newPQarrivalTm(owner string) *pq {
 // order by mop.initTm, then mop.sn;
 // for reads (readQ).
 func newPQinitTm(owner string) *pq {
+
+	q := &pq{
+		Owner:   owner,
+		Orderby: "initTm",
+	}
 	cmp := func(a, b rb.Item) int {
 		av := a.(*mop)
 		bv := b.(*mop)
@@ -964,10 +1008,12 @@ func newPQinitTm(owner string) *pq {
 			// just a is nil; b is not. sort nils to the front
 			// so they get popped and GC-ed sooner (and
 			// don't become temporary memory leaks by sitting at the
-			// back of the queue.x
+			// back of the queue.
+			panic("no nils allowed in tree")
 			return -1
 		}
 		if bv == nil {
+			panic("no nils allowed in tree")
 			return 1
 		}
 		// INVAR: neither av nor bv is nil
@@ -995,12 +1041,9 @@ func newPQinitTm(owner string) *pq {
 		// must be the same if same sn.
 		return 0
 	}
-	return &pq{
-		Owner:   owner,
-		Orderby: "initTm",
-		Tree:    rb.NewTree(cmp),
-		cmp:     cmp,
-	}
+	q.Tree = rb.NewTree(cmp)
+	q.cmp = cmp
+	return q
 }
 
 // order by mop.completeTm then mop.sn; for timers
@@ -1016,10 +1059,12 @@ func newPQcompleteTm(owner string) *pq {
 			// just a is nil; b is not. sort nils to the front
 			// so they get popped and GC-ed sooner (and
 			// don't become temporary memory leaks by sitting at the
-			// back of the queue.x
+			// back of the queue.
+			panic("no nils in pq")
 			return -1
 		}
 		if bv == nil {
+			panic("no nils in pq")
 			return 1
 		}
 		// INVAR: neither av nor bv is nil
@@ -1501,9 +1546,10 @@ func (s *simnet) statewiseConnected(origin, target *simnode) bool {
 	return true
 }
 
-func (s *simnet) handleSend(send *mop) {
+func (s *simnet) handleSend(send *mop, limit int64) (changed int64) {
+	now := time.Now()
 	//vv("top of handleSend(send = '%v')", send)
-	defer close(send.proceed)
+	//defer close(send.proceed)
 
 	origin := send.origin
 	send.senderLC = origin.lc
@@ -1511,13 +1557,20 @@ func (s *simnet) handleSend(send *mop) {
 
 	send.unmaskedSendArrivalTm = send.initTm.Add(s.scenario.rngHop())
 
-	send.arrivalTm = userMaskTime(send.unmaskedSendArrivalTm)
-	send.completeTm = time.Now() // send complete on the sender side.
+	// make sure send happens before receive by doing
+	// this first.
+	send.completeTm = s.nextUniqTm(now) // send complete on the sender side.
+
+	send.arrivalTm = s.nextUniqTm(send.unmaskedSendArrivalTm) // handleSend
+	// note that read matching time will be unique based on
+	// send arrival time.
 
 	probDrop := s.circuits.get(send.origin).get(send.target).dropSend
 	if !s.statewiseConnected(send.origin, send.target) ||
 		probDrop >= 1 { // s.localDropSend(send) {
 
+		changed++
+		limit--
 		//vv("handleSend DROP SEND %v", send)
 		send.origin.droppedSendQ.add(send)
 		return
@@ -1525,15 +1578,33 @@ func (s *simnet) handleSend(send *mop) {
 	send.target.preArrQ.add(send)
 	//vv("handleSend SEND send = %v", send)
 	////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvnode.preArrQ)
-	now := time.Now()
-	s.dispatch(send.target, now) // needed?
+
+	// Do we need to s.nextUniqTm() when we close(send.proceed)?
+	// I think we do want to queue up the send.proceed into
+	// the meq and do it at a unique time we just assigned to
+	// send.completeTm.
+	closer := &mop{
+		completeTm:    send.completeTm, // what tm() refers to.
+		kind:          SEND_CLOSER,
+		sendCloserMop: send,
+		sn:            simnetNextMopSn(),
+		proceed:       send.proceed,
+		reqtm:         now,
+	}
+	s.meq.add(closer)
+
+	//now := time.Now()
+	//delta := s.dispatch(send.target, now, limit) // needed?
+	//changed += delta
+	//limit -= delta
+	return
 }
 
 // note that reads that fail with a probability
 // have to result in the corresponding send
 // also failing, or else the send is "auto-retrying"
 // forever until it gets through!?!
-func (s *simnet) handleRead(read *mop) {
+func (s *simnet) handleRead(read *mop, limit int64) (changed int64) {
 	//vv("top of handleRead(read = '%v')", read)
 	// don't want this! only when read matches with send!
 	//defer close(read.proceed)
@@ -1541,6 +1612,7 @@ func (s *simnet) handleRead(read *mop) {
 	if s.halt.ReqStop.IsClosed() {
 		read.err = ErrShutdown()
 		close(read.proceed)
+		return
 	}
 
 	origin := read.origin
@@ -1551,15 +1623,20 @@ func (s *simnet) handleRead(read *mop) {
 		probDeaf >= 1 {
 
 		vv("handleRead: DEAF READ %v BUT LEAVING it in the readQ so we can possibly make this same read viable in the future", read)
-		//origin.deafReadQ.add(read)
-		origin.readQ.add(read)
+		//origin.deafReadQ.add(read) // I think we do want this...
+		origin.readQ.add(read) // is this really what we want now?
 	} else {
 		origin.readQ.add(read)
 	}
+	changed++
+	limit--
 	//vv("LC:%v  READ at %v: %v", origin.lc, origin.name, read)
 	////zz("LC:%v  READ %v at %v, now cliReadQ: '%v'", origin.lc, origin.name, read, origin.readQ)
-	now := time.Now()
-	s.dispatch(origin, now)
+	//now := time.Now()
+	//delta := s.dispatch(origin, now, limit)
+	//changed += delta
+	//limit -= delta
+	return
 }
 
 func (simnode *simnode) firstPreArrivalTimeLTE(now time.Time) bool {
@@ -1596,14 +1673,20 @@ func gte(a, b time.Time) bool {
 // does not call armTimer(), so scheduler should
 // afterwards. We don't worry about powerOff b/c
 // when set it deletes all timers.
-func (s *simnet) dispatchTimers(simnode *simnode, now time.Time) (changes int64) {
-
+func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit int64) (changes int64) {
+	if limit <= 0 {
+		return
+	}
 	if simnode.timerQ.Tree.Len() == 0 {
 		return
 	}
 
 	timerIt := simnode.timerQ.Tree.Min()
 	for !timerIt.Limit() { // advance, and delete behind below
+
+		if limit <= 0 {
+			return
+		}
 
 		timer := timerIt.Item().(*mop)
 		//vv("check TIMER: %v", timer)
@@ -1615,6 +1698,7 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time) (changes int64)
 				//vv("have TIMER firing: '%v'; report = %v", timer, s.schedulerReport())
 			}
 			changes++
+			limit--
 			if timer.timerFiredTm.IsZero() {
 				// only mark the first firing
 				timer.timerFiredTm = now
@@ -1674,11 +1758,13 @@ func (simnode *simnode) backgroundFireTimer(timer *mop, now time.Time) {
 }
 
 // does not call armTimer.
-func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes int64) {
-
+func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit int64) (changes int64) {
 	defer func() {
 		//vv("=== end of dispatch %v", simnode.name)
 	}()
+	if limit <= 0 {
+		return
+	}
 
 	nR := simnode.readQ.Tree.Len()   // number of reads
 	nS := simnode.preArrQ.Tree.Len() // number of sends
@@ -1692,6 +1778,9 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 
 	// matching reads and sends
 	for {
+		if limit <= 0 {
+			return
+		}
 		if readIt.Limit() {
 			// no reads, no point.
 			return
@@ -1739,6 +1828,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 					send.origin.timerQ.del(send.internalPendingTimerForSend)
 				}
 				changes++
+				limit--
 				continue
 			}
 		} // end else !send.sendDropFilteringApplied
@@ -1768,6 +1858,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 			s.handleTimer(pending)
 
 			changes++
+			limit--
 			return
 		}
 		// INVAR: this send.arrivalTm <= now
@@ -1811,6 +1902,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 
 			//vv("node after adding deaf-read-send to the deafReadQ: '%v'", simnode)
 			changes++
+			limit--
 			continue
 		}
 
@@ -1832,6 +1924,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 		// INVAR: this read.initTm <= now
 		// INVAR: this send.arrivalTm <= now
 		changes++
+		limit--
 
 		// INVAR: this send.arrivalTm <= now; good to deliver.
 
@@ -1884,10 +1977,12 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time) (changes in
 
 // dispatch delivers sends to reads, and fires timers.
 // It no longer calls simnode.net.armTimer().
-func (s *simnet) dispatch(simnode *simnode, now time.Time) (changes int64) {
-
-	changes += s.dispatchTimers(simnode, now)
-	changes += s.dispatchReadsSends(simnode, now)
+func (s *simnet) dispatch(simnode *simnode, now time.Time, limit int64) (changes int64) {
+	if limit <= 0 {
+		return
+	}
+	changes += s.dispatchTimers(simnode, now, limit)
+	changes += s.dispatchReadsSends(simnode, now, limit)
 	return
 }
 
@@ -1906,26 +2001,50 @@ func (s *simnet) schedulerReport() string {
 	return fmt.Sprintf("lastArmTm.After(now) = %v [%v out] %v; qReport = '%v'", s.lastArmTm.After(now), s.lastArmTm.Sub(now), s.lastArmTm, s.qReport())
 }
 
-func (s *simnet) dispatchAll(now time.Time) (changes int64) {
+func (s *simnet) dispatchAll(now time.Time, limit int64) (changes int64) {
+	if limit <= 0 {
+		return
+	}
 	// notice here we only use the key of s.circuits
 	for simnode := range s.circuits.all() {
-		changes += s.dispatch(simnode, now)
+		if limit <= 0 {
+			return
+		}
+		delta := s.dispatch(simnode, now, limit)
+		changes += delta
+		limit -= delta
 	}
 	return
 }
 
 // does not call armTimer(), so scheduler should afterwards.
-func (s *simnet) dispatchAllTimers(now time.Time) (changes int64) {
+func (s *simnet) dispatchAllTimers(now time.Time, limit int64) (changes int64) {
+	if limit <= 0 {
+		return
+	}
 	for simnode := range s.circuits.all() {
-		changes += s.dispatchTimers(simnode, now)
+		if limit <= 0 {
+			return
+		}
+		delta := s.dispatchTimers(simnode, now, limit)
+		changes += delta
+		limit -= delta
 	}
 	return
 }
 
 // does not call armTimer(), so scheduler should afterwards.
-func (s *simnet) dispatchAllReadsSends(now time.Time) (changes int64) {
+func (s *simnet) dispatchAllReadsSends(now time.Time, limit int64) (changes int64) {
+	if limit <= 0 {
+		return
+	}
 	for simnode := range s.circuits.all() {
-		changes += s.dispatchReadsSends(simnode, now)
+		if limit <= 0 {
+			return
+		}
+		delta := s.dispatchReadsSends(simnode, now, limit)
+		changes += delta
+		limit -= delta
 	}
 	return
 }
@@ -2101,8 +2220,13 @@ restartI:
 
 		case <-s.nextTimer.C: // time advances when soonest timer fires
 			now = time.Now()
-			totalSleepDur += now.Sub(preSelectTm)
+			elap := now.Sub(preSelectTm)
+			totalSleepDur += elap
 			//vv("i=%v, nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
+			//if elap == 0 {
+			// too many! and no time advance... we should sleep when there's nothing left to dispatch/no changes.
+			//vv("i=%v, cool: elap was 0, nice. single stepping the next goro... nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
+			//}
 
 			// maximizing determinism: go last
 			// among all goro who were woken by other
@@ -2118,12 +2242,21 @@ restartI:
 			// the read/send/timer/discard select cases
 			// into the meq during the last sleep, and
 			// now we act on them.
-			for {
-				op := s.meq.pop()
+			j := 0
+			jlim := 1 // just do one now.
+			var op *mop
+			for ; j < jlim; j++ {
+				op = s.meq.pop()
 				if op == nil {
 					break
 				}
 				switch op.kind {
+				case SEND_CLOSER:
+					close(op.proceed) // let the sender proceed
+
+				case READ_CLOSER:
+					close(op.proceed) // let the reader proceed
+
 				case TIMER:
 					//vv("i=%v, meq sees timer='%v'", i, op)
 					s.handleTimer(op)
@@ -2134,11 +2267,11 @@ restartI:
 
 				case SEND:
 					//vv("i=%v, meq sees send='%v'", i, op)
-					s.handleSend(op)
+					s.handleSend(op, 1)
 
 				case READ:
 					//vv("i=%v meq sees read='%v'", i, op)
-					s.handleRead(op)
+					s.handleRead(op, 1)
 				case SNAPSHOT:
 					s.handleSimnetSnapshotRequest(op.snapReq, now, i)
 				case CLIENT_REG:
@@ -2171,11 +2304,12 @@ restartI:
 					panic(fmt.Sprintf("why in our meq this mop kind? '%v'", int(op.kind)))
 				}
 			}
-			nd0 += s.dispatchAll(now)
-			ndtot += nd0
+			if op != nil {
+				nd0 += s.dispatchAll(now, 1)
+				ndtot += nd0
+			}
 			s.refreshGridStepTimer(now)
 			s.armTimer(now)
-
 		case batch := <-s.submitBatchCh:
 			s.meq.add(batch)
 		case timer := <-s.addTimer:
@@ -2342,7 +2476,7 @@ func (s *simnet) handleTimer(timer *mop) {
 	// mask it up!
 	timer.unmaskedCompleteTm = timer.completeTm
 	timer.unmaskedDur = timer.timerDur
-	timer.completeTm = userMaskTime(timer.completeTm)
+	timer.completeTm = s.nextUniqTm(timer.completeTm) // handle timer
 	timer.timerDur = timer.completeTm.Sub(timer.initTm)
 	//vv("masked timer:\n dur: %v -> %v\n completeTm: %v -> %v\n", timer.unmaskedDur, timer.timerDur, timer.unmaskedCompleteTm, timer.completeTm)
 
@@ -2382,36 +2516,101 @@ func (s *simnet) refreshGridStepTimer(now time.Time) (dur time.Duration, goal ti
 		if gte(now, s.gridStepTimer.completeTm) {
 			panic(fmt.Sprintf("durToGridPoint() gave completeTm(%v) <= now(%v); should be impossible, no? are we servicing all events in order? are we missing a wakeup? oversleeping? wat?", s.gridStepTimer.completeTm, now))
 		}
+	} else {
+		vv("refreshGridStepTimer does nothing; sees now < s.gridStepTimer.completeTm(%v)", nice(s.gridStepTimer.completeTm))
 	}
 	return
 }
 
-func (s *simnet) armTimer(now time.Time) time.Duration {
+func (s *simnet) armTimer(now time.Time) (dur time.Duration) {
 
-	var minTimer *mop = s.gridStepTimer
-	if s.gridStepTimer.completeTm.Before(now) {
-		//panic(fmt.Sprintf("gridStepTimer(%v) not refreshed! < now %v", s.gridStepTimer.completeTm, now))
-		// just fix it by refreshing.
-		s.refreshGridStepTimer(now)
-		minTimer = s.gridStepTimer
-	}
-	for simnode := range s.circuits.all() {
-		minTimer = simnode.soonestTimerLessThan(minTimer)
-	}
-	if minTimer == nil {
-		panic("should never happen, s.gridStepTimer should always be active")
-		return 0
-	}
+	// Ah! We only want to scheduler to sleep if
+	// we have some work to do in the meq.
+	// then while we are sleeping in the timer arm,
+	// the live goro can wake us to do work
+	// for them on a select branch. We should put
+	// that into the meq, and after each such
+	// addition, arm the timer for the min next
+	// meq event.
+	// does that work? should. the scheduler should "wake"
+	// on select from another goro channel op. We want
+	// to assign each goro time by their ID too.
+	op := s.meq.peek()
+	if op != nil {
+		// assume this has already been uniquified in the past
+		// when it entered the meq. would be hard to do here
+		// since much time may have passed in the interim,
+		// and we'd only end up jumping it forward by alot.
+		when := op.tm()
+		dur = when.Sub(now)
+		if dur <= 0 {
+			vv("times were not all unique, but they should be! op='%v'", op)
+			panic("make times all unique!")
+		}
 
-	dur := minTimer.completeTm.Sub(now)
-	////zz("dur=%v = when(%v) - now(%v)", dur, minTimer.completeTm, now)
-	if dur <= 0 {
-		//vv("no timers, what?? minTimerDur = %v", dur)
-		panic("must always have at least the grid timer!")
+		s.lastArmTm = now
+		s.nextTimer.Reset(dur)
+		return dur
 	}
-	s.lastArmTm = now
-	s.nextTimer.Reset(dur)
-	return dur
+	vv("okay, so meq is empty. hmm.")
+	panic("what to do when meq is empty?")
+	return
+	/*
+		// find the min timers that is not the grid step first.
+		var minTimer *mop
+		for simnode := range s.circuits.all() {
+			minTimer = simnode.soonestTimerLessThan(minTimer)
+		}
+		if minTimer == nil {
+			// no other timers due now
+		} else {
+			if minTimer.completeTm.After(now) {
+				// have other timers, but none due now
+			} else {
+				// have other timers due now. let them do their thing.
+				// well, really we only want to let one of them do
+				// their thing. we need to be guaranteeing there is
+				// only one goro (including scheduler???) at each
+				// timer expiration.
+				// how can we handle their select
+				dur = 0
+				s.lastArmTm = now
+				s.nextTimer.Reset(dur)
+				return dur
+			}
+		}
+
+		//var minTimer *mop = s.gridStepTimer
+		if s.gridStepTimer.completeTm.Before(now) {
+			//panic(fmt.Sprintf("gridStepTimer(%v) not refreshed! < now %v", s.gridStepTimer.completeTm, now))
+			// just fix it by refreshing.
+			s.refreshGridStepTimer(now)
+			minTimer = s.gridStepTimer
+		}
+		if minTimer == nil {
+			panic("should never happen, s.gridStepTimer should always be active")
+			return 0
+		}
+
+		dur := minTimer.completeTm.Sub(now)
+		////zz("dur=%v = when(%v) - now(%v)", dur, minTimer.completeTm, now)
+
+		// actually this is okay now: with single stepping it will happen
+		// alot since we dispatch one timer, then do a little sleep
+		// to let any woken goro settle. those timers can also
+		// be due now, but we put them off for at least a synctest.Wait cycle.
+		if dur <= 0 {
+			//vv("no timers, what?? minTimerDur = %v", dur)
+			//panic("must always have at least the grid timer!")
+
+			if minTimer == s.gridStepTimer {
+
+			}
+		}
+		s.lastArmTm = now
+		s.nextTimer.Reset(dur)
+		return dur
+	*/
 }
 
 func (simnode *simnode) soonestTimerLessThan(bound *mop) *mop {
@@ -2440,7 +2639,7 @@ func (simnode *simnode) soonestTimerLessThan(bound *mop) *mop {
 	return bound
 }
 
-const timeMask0 = time.Microsecond * 100
+const timeMask0 = time.Microsecond * 100 // then add GoID on top.
 const timeMask9 = time.Microsecond*100 - 1
 
 // maskTime makes the last 5 digits
@@ -2453,8 +2652,10 @@ const timeMask9 = time.Microsecond*100 - 1
 // 2006-01-02T15:04:05.000000000-07:00
 // maskTime will return
 // 2006-01-02T15:04:05.000099999-07:00
-func userMaskTime(tm time.Time) time.Time {
-	return tm.Truncate(timeMask0).Add(timeMask9)
+func userMaskTime(tm time.Time, who int) time.Time {
+	// always bump to next 100 usec, so we are
+	// for sure after tm.
+	return tm.Truncate(timeMask0).Add(timeMask0)
 }
 
 // system gridTimer points always end in 00_000

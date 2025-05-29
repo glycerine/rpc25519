@@ -140,6 +140,10 @@ func (k mopkind) String() string {
 		return "ALTER_NODE"
 	case BATCH:
 		return "BATCH"
+	case SEND_CLOSER:
+		return "SEND_CLOSER"
+	case READ_CLOSER:
+		return "READ_CLOSER"
 	default:
 		return fmt.Sprintf("unknown mopkind %v", int(k))
 	}
