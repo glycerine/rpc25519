@@ -28,7 +28,7 @@ type mop struct {
 	sn  int64
 	who int // goro number
 
-	sendCloserMop *mop // in meq, should close(proceed) at completeTm
+	closerMop *mop // in meq, should close(proceed) at completeTm
 
 	batchSn   int64
 	batchPart int64
@@ -229,12 +229,7 @@ func (s *mop) tm() time.Time {
 		return s.reqtm
 	case ALTER_NODE:
 		return s.reqtm
-	case SEND_CLOSER:
-		return s.completeTm
-	case READ_CLOSER:
-		// might end up being the same as the
-		// send arrival time, but allow it to
-		// be distinct just in case.
+	case CLOSER:
 		return s.completeTm
 	}
 	panic(fmt.Sprintf("mop kind '%v' needs tm", int(s.kind)))
@@ -607,7 +602,17 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 
 	// channel made by newCircuitserver() above.
 	reg.tellServerNewConnCh = srvnode.tellServerNewConnCh
-	close(reg.done)
+	//close(reg.done)
+	now := time.Now()
+	closer := &mop{
+		completeTm: userMaskTime(now, reg.who), // what tm() refers to.
+		kind:       CLOSER,
+		//closerMop:  reg,
+		sn:      simnetNextMopSn(),
+		proceed: reg.proceed,
+		reqtm:   reg.reqtm,
+	}
+	s.add2meq(closer)
 }
 
 func (s *simnet) handleClientRegistration(reg *clientRegistration) {
@@ -670,7 +675,7 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 			//vv("%v srvnode was notified of new client '%v'; s2c='%v'", srvnode.name, clinode.name, s2c)
 
 			// let client start using the connection/edge.
-			close(reg.done)
+			close(reg.proceed)
 		case <-s.halt.ReqStop.Chan:
 			return
 		}
@@ -844,9 +849,8 @@ const (
 	TIMER_DISCARD mopkind = 14
 
 	// report a snapshot of the entire network/state.
-	SNAPSHOT    mopkind = 15
-	SEND_CLOSER mopkind = 16
-	READ_CLOSER mopkind = 17
+	SNAPSHOT mopkind = 15
+	CLOSER   mopkind = 16
 )
 
 func enforceTickDur(tick time.Duration) time.Duration {
@@ -1375,11 +1379,11 @@ func (s *simnet) handleAlterCircuit(alt *simnodeAlteration, closeDone bool) (und
 	defer func() {
 		if closeDone {
 			alt.undo = undo
-			close(alt.done)
+			close(alt.proceed)
 			return
 		}
 		// else we are a part of a larger host
-		// alteration set, don't close done
+		// alteration set, don't close proceed
 		// prematurely.
 	}()
 
@@ -1444,7 +1448,7 @@ func (s *simnet) handleAlterHost(alt *simnodeAlteration) (undo Alteration) {
 		_ = s.handleAlterCircuit(alt, closeDone_NO)
 	}
 	alt.undo = undo
-	close(alt.done)
+	close(alt.proceed)
 	return
 }
 
@@ -1595,12 +1599,13 @@ func (s *simnet) handleSend(send *mop, limit int64) (changed int64) {
 	// the meq and do it at a unique time we just assigned to
 	// send.completeTm.
 	closer := &mop{
-		completeTm:    send.completeTm, // what tm() refers to.
-		kind:          SEND_CLOSER,
-		sendCloserMop: send,
-		sn:            simnetNextMopSn(),
-		proceed:       send.proceed,
-		reqtm:         now,
+		// completeTm is what tm() refers to for CLOSER.
+		completeTm: userMaskTime(send.completeTm, send.who),
+		kind:       CLOSER,
+		closerMop:  send,
+		sn:         simnetNextMopSn(),
+		proceed:    send.proceed,
+		reqtm:      now,
 	}
 	s.add2meq(closer)
 
@@ -2295,12 +2300,9 @@ restartI:
 				who[op.who] = true
 
 				switch op.kind {
-				case SEND_CLOSER:
-					vv("SEND_CLOSER releasing send: %v", op.sendCloserMop)
-					close(op.proceed) // let the sender proceed
-
-				case READ_CLOSER:
-					close(op.proceed) // let the reader proceed
+				case CLOSER:
+					vv("CLOSER releasing: %v", op.closerMop)
+					close(op.proceed)
 
 				case TIMER:
 					//vv("i=%v, meq sees timer='%v'", i, op)
@@ -2911,7 +2913,7 @@ func newClientRegMop(clireg *clientRegistration) (op *mop) {
 		originCli: true,
 		sn:        simnetNextMopSn(),
 		kind:      CLIENT_REG,
-		proceed:   clireg.done,
+		proceed:   clireg.proceed,
 		who:       clireg.who,
 		reqtm:     clireg.reqtm,
 	}
@@ -2924,7 +2926,7 @@ func newServerRegMop(srvreg *serverRegistration) (op *mop) {
 		originCli: false,
 		sn:        simnetNextMopSn(),
 		kind:      SERVER_REG,
-		proceed:   srvreg.done,
+		proceed:   srvreg.proceed,
 		who:       srvreg.who,
 		reqtm:     srvreg.reqtm,
 	}
@@ -2960,7 +2962,7 @@ func newAlterNodeMop(alt *simnodeAlteration) (op *mop) {
 		alterNode: alt,
 		sn:        simnetNextMopSn(),
 		kind:      ALTER_NODE,
-		proceed:   alt.done,
+		proceed:   alt.proceed,
 		who:       alt.who,
 		reqtm:     alt.reqtm,
 	}
@@ -2972,7 +2974,7 @@ func newAlterHostMop(alt *simnodeAlteration) (op *mop) {
 		alterHost: alt,
 		sn:        simnetNextMopSn(),
 		kind:      ALTER_HOST,
-		proceed:   alt.done,
+		proceed:   alt.proceed,
 		who:       alt.who,
 		reqtm:     alt.reqtm,
 	}

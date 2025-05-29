@@ -342,7 +342,7 @@ func (s *simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff, 
 	select {
 	case <-oneGood.proceed:
 		err = oneGood.err
-		//vv("RepairCircuit '%v' done. err = '%v'", originName, err)
+		//vv("RepairCircuit '%v' proceed. err = '%v'", originName, err)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
@@ -367,7 +367,7 @@ func (s *simnet) RepairHost(originName string, unIsolate bool, powerOnIfOff, all
 	select {
 	case <-repair.proceed:
 		err = repair.err
-		//vv("RepairHost '%v' done. err = '%v'", originName, err)
+		//vv("RepairHost '%v' proceed. err = '%v'", originName, err)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
@@ -569,8 +569,8 @@ type clientRegistration struct {
 	serverBaseID string
 
 	// wait on
-	done  chan struct{}
-	reqtm time.Time
+	proceed chan struct{}
+	reqtm   time.Time
 
 	// receive back
 	simnode *simnode // our identity in the simnet (conn.local)
@@ -592,7 +592,7 @@ func (s *simnet) newClientRegistration(
 		serverAddrStr:    serverAddr,
 		serverBaseID:     serverBaseID,
 		reqtm:            time.Now(),
-		done:             make(chan struct{}),
+		proceed:          make(chan struct{}),
 		who:              goID(),
 	}
 }
@@ -604,8 +604,8 @@ type serverRegistration struct {
 	serverBaseID string
 
 	// wait on
-	done  chan struct{}
-	reqtm time.Time
+	proceed chan struct{}
+	reqtm   time.Time
 
 	// receive back
 	simnode             *simnode // our identity in the simnet (conn.local)
@@ -619,7 +619,7 @@ func (s *simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) *ser
 		server:       srv,
 		serverBaseID: srv.cfg.serverBaseID,
 		srvNetAddr:   srvNetAddr,
-		done:         make(chan struct{}),
+		proceed:      make(chan struct{}),
 		reqtm:        time.Now(),
 		who:          goID(),
 	}
@@ -630,13 +630,13 @@ func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConn
 	reg := s.newServerRegistration(srv, srvNetAddr)
 	select {
 	case s.srvRegisterCh <- reg:
-		//vv("sent registration on srvRegisterCh; about to wait on done goro = %v", GoroNumber())
+		//vv("sent registration on srvRegisterCh; about to wait on proceed goro = %v", GoroNumber())
 	case <-s.halt.ReqStop.Chan:
 		err = ErrShutdown()
 		return
 	}
 	select {
-	case <-reg.done:
+	case <-reg.proceed:
 		//vv("server after first registered: '%v'/'%v' sees  reg.tellServerNewConnCh = %p", srv.name, srvNetAddr, reg.tellServerNewConnCh)
 		if reg.tellServerNewConnCh == nil {
 			panic("cannot have nil reg.tellServerNewConnCh back!")
@@ -662,7 +662,7 @@ type simnodeAlteration struct {
 	undo  Alteration // how to reverse the alter
 
 	isHostAlter bool
-	done        chan struct{}
+	proceed     chan struct{}
 	reqtm       time.Time
 	who         int
 }
@@ -674,7 +674,7 @@ func (s *simnet) newCircuitAlteration(simnodeName string, alter Alteration, isHo
 		simnodeName: simnodeName,
 		alter:       alter,
 		isHostAlter: isHostAlter,
-		done:        make(chan struct{}),
+		proceed:     make(chan struct{}),
 		reqtm:       time.Now(),
 		who:         goID(),
 	}
@@ -690,12 +690,12 @@ func (s *simnet) AlterCircuit(simnodeName string, alter Alteration, wholeHost bo
 	alt := s.newCircuitAlteration(simnodeName, alter, wholeHost)
 	select {
 	case s.alterSimnodeCh <- alt:
-		//vv("sent alt on alterSimnodeCh; about to wait on done goro = %v", GoroNumber())
+		//vv("sent alt on alterSimnodeCh; about to wait on proceed goro = %v", GoroNumber())
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
 	select {
-	case <-alt.done:
+	case <-alt.proceed:
 		undo = alt.undo
 		err = alt.err
 		//vv("server altered: %v", simnode)
@@ -716,12 +716,12 @@ func (s *simnet) AlterHost(simnodeName string, alter Alteration) (undo Alteratio
 	alt := s.newCircuitAlteration(simnodeName, alter, true)
 	select {
 	case s.alterHostCh <- alt:
-		//vv("sent alt on alterHostCh; about to wait on done goro = %v", GoroNumber())
+		//vv("sent alt on alterHostCh; about to wait on proceed goro = %v", GoroNumber())
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
 	select {
-	case <-alt.done:
+	case <-alt.proceed:
 		undo = alt.undo
 		err = alt.err
 		//vv("host altered: %v", simnode)

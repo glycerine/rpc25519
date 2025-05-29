@@ -41,8 +41,8 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string, doLoops bool)
 	}
 
 	select {
-	case <-registration.done:
-		vv("client registration.done")
+	case <-registration.proceed:
+		vv("client registration.proceed")
 	case <-c.simnet.halt.ReqStop.Chan:
 		return
 	case <-c.halt.ReqStop.Chan:
