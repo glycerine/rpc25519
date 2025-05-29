@@ -603,7 +603,7 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	reg.simnode = srvnode
 	reg.simnet = s
 
-	vv("end of handleServerRegistration, srvreg is %v", reg) // not seen
+	vv("end of handleServerRegistration, about to close(reg.done). srvreg is %v", reg)
 
 	// channel made by newCircuitserver() above.
 	reg.tellServerNewConnCh = srvnode.tellServerNewConnCh
@@ -2275,10 +2275,11 @@ restartI:
 			// cli/srv spin up their read loops/send loops.
 			who := make(map[int]bool)
 
-			j := 0
-			jlim := 1 // just do one now.
+			// if we don't process all the meq and assign
+			// them timepoints in the future to run, then
+			// the subsequent queued events might get to run first?
 			var op *mop
-			for ; j < jlim; j++ {
+			for {
 				op = s.meq.pop()
 				if op == nil {
 					break
