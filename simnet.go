@@ -2146,7 +2146,7 @@ func (s *simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 }
 
 func (s *simnet) add2meq(op *mop, loopi int64) {
-	vv("add2meq %v", op)
+	vv("i=%v, add2meq %v", loopi, op)
 	// need to bump up the time... with nextUniqTm,
 	// so deliveries are all at a unique time point.
 	if !op.reqtm.IsZero() {
@@ -2155,7 +2155,7 @@ func (s *simnet) add2meq(op *mop, loopi int64) {
 
 	s.meq.add(op)
 	armed := s.armTimer(time.Now(), loopi)
-	vv("end of add2meq. meq sz %v; armed = %v", s.meq.Len(), armed)
+	vv("i=%v, end of add2meq. meq sz %v; armed = %v -> s.lastArmDur: %v; caller %v; op = %v", loopi, s.meq.Len(), armed, s.lastArmDur, fileLine(2), op)
 }
 
 // scheduler is the heart of the simnet
@@ -2268,17 +2268,32 @@ restartI:
 
 		// likewise to the Arg just below,
 		// we want "wake-able sleep with the nextTimer.
-		//next := userMaskTime(now, goID())
-		//dur := next.Sub(now)
-		//time.Sleep(dur)
+		next := userMaskTime(now, goID())
+		dur := next.Sub(now)
+		// but try not to starve the meq
+		op := s.meq.peek()
+		if op != nil {
+			meqMin := op.tm()
+			if !meqMin.IsZero() {
+				if meqMin.Before(next) {
+					next = meqMin
+					dur = next.Sub(now)
+				}
+			}
+		}
+		if dur > 0 {
+			//vv("i=%v, loop top about to sleep for dur %v", i, dur)
+			time.Sleep(dur)
+		}
 
 		// Arg. Cannot do this, or goro trying to
 		// get in while we are otherwise waiting on
 		// our next timer will not be able to make
-		// that timer smaller!
-		//if faketime && s.barrier {
-		//	synctestWait_LetAllOtherGoroFinish() // 1st barrier
-		//}
+		// that timer smaller! or... actually maybe it
+		// let's them win vs the next timer...
+		if faketime && s.barrier {
+			synctestWait_LetAllOtherGoroFinish() // 1st barrier
+		}
 		//vv("done with 1st barrier") // seen
 		// under faketime, we are alone now.
 		// Time has not advanced. This is the
@@ -2306,6 +2321,10 @@ restartI:
 			// too many! and no time advance... we should sleep when there's nothing left to dispatch/no changes.
 			//vv("i=%v, cool: elap was 0, nice. single stepping the next goro... nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
 			//}
+
+			// problem: if we barrier here, we
+			// cannot allow other goro to wake us
+			// on our select case arms.
 
 			// maximizing determinism: go last
 			// among all goro who were woken by other
@@ -2707,17 +2726,18 @@ func (s *simnet) armTimer(now time.Time, loopi int64) (armed bool) {
 			// should be okay, since we can't be here and
 			// also waiting on the timer.
 			s.nextTimer.Reset(dur) // this should be the only such reset.
-			//vv("i=%v, arm timer: armed. when=%v, nextTimer dur=%v; into future(when - now): %v;  op='%v'", loopi, when2, dur, when2.Sub(now), op)
+			vv("i=%v, arm timer: armed. when=%v, nextTimer dur=%v; into future(when - now): %v;  op='%v'", loopi, when2, dur, when2.Sub(now), op)
 			//return dur
 			return true
 		}
 	}
-	vv("okay, so meq is empty. hmm. tick='%v'; caller='%v'", s.scenario.tick, fileLine(2))
+	vv("i=%v, okay, so meq is empty. hmm. tick='%v'; caller='%v'", loopi, s.scenario.tick, fileLine(2))
 	//vv("okay, so meq is empty. hmm. goal: '%v'; dur='%v'; tick='%v'; caller='%v'", goal, dur, s.scenario.tick, fileLine(2))
 
 	// tell haveNextTimer that we don't have one; it should return nil.
 	s.lastArmToFire = time.Time{}
 	s.lastArmDur = -1
+	s.nextTimer.Stop()
 	return false
 }
 
