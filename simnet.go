@@ -387,7 +387,7 @@ type simnet struct {
 
 	scenario *scenario
 
-	meq *pq // the master event queue.
+	meq2 *pq // the master event queue.
 
 	cfg       *Config
 	simNetCfg *SimNetConfig
@@ -700,7 +700,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 	// server creates simnet; must start server first.
 	s := &simnet{
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
-		meq:            newMasterEventQueue("scheduler"),
+		meq2:           newMasterEventQueue("scheduler"),
 		barrier:        !simNetConfig.BarrierOff,
 		cfg:            cfg,
 		simNetCfg:      simNetConfig,
@@ -1601,7 +1601,7 @@ func (s *simnet) handleSend(send *mop, limit int64) (changed int64) {
 		proceed:       send.proceed,
 		reqtm:         now,
 	}
-	s.meq.add(closer)
+	s.add2meq(closer)
 
 	//now := time.Now()
 	//delta := s.dispatch(send.target, now, limit) // needed?
@@ -2099,6 +2099,11 @@ func (s *simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 	return
 }
 
+func (s *simnet) add2meq(op *mop) {
+	s.meq2.add(op)
+	s.armTimer(time.Now())
+}
+
 // scheduler is the heart of the simnet
 // network simulator. It is the central
 // goroutine launched by simnet.Start().
@@ -2212,6 +2217,7 @@ restartI:
 		if faketime && s.barrier {
 			synctestWait_LetAllOtherGoroFinish() // 1st barrier
 		}
+		//vv("done with 1st barrier") // seen
 		// under faketime, we are alone now.
 		// Time has not advanced. This is the
 		// perfect point at which to advance the
@@ -2262,7 +2268,7 @@ restartI:
 			jlim := 1 // just do one now.
 			var op *mop
 			for ; j < jlim; j++ {
-				op = s.meq.pop()
+				op = s.meq2.pop()
 				if op == nil {
 					break
 				}
@@ -2270,6 +2276,7 @@ restartI:
 
 				switch op.kind {
 				case SEND_CLOSER:
+					vv("SEND_CLOSER releasing send: %v", op.sendCloserMop)
 					close(op.proceed) // let the sender proceed
 
 				case READ_CLOSER:
@@ -2322,10 +2329,10 @@ restartI:
 					panic(fmt.Sprintf("why in our meq this mop kind? '%v'", int(op.kind)))
 				}
 			}
-			vv("who count = %v", len(who))
-			if len(who) > 1 {
-				panic("arg, non-determinism with two callers?!")
-			}
+			//vv("who count = %v", len(who))
+			//if len(who) > 1 {
+			//	panic("arg, non-determinism with two callers?!")
+			//}
 			if op != nil {
 				nd0 += s.dispatchAll(now, 1)
 				ndtot += nd0
@@ -2334,32 +2341,32 @@ restartI:
 			s.refreshGridStepTimer(now)
 			s.armTimer(now)
 		case batch := <-s.submitBatchCh:
-			s.meq.add(batch)
+			s.add2meq(batch)
 		case timer := <-s.addTimer:
 			//vv("i=%v, addTimer ->  timer='%v'", i, timer)
 			//s.handleTimer(timer)
-			s.meq.add(timer)
+			s.add2meq(timer)
 
 		case discard := <-s.discardTimerCh:
 			//vv("i=%v, discardTimer ->  discard='%v'", i, discard)
 			//s.handleDiscardTimer(discard)
-			s.meq.add(discard)
+			s.add2meq(discard)
 
 		case send := <-s.msgSendCh:
 			//vv("i=%v, msgSendCh ->  send='%v'", i, send)
 			//s.handleSend(send)
-			s.meq.add(send)
+			s.add2meq(send)
 
 		case read := <-s.msgReadCh:
 			//vv("i=%v msgReadCh ->  read='%v'", i, read)
 			//s.handleRead(read)
-			s.meq.add(read)
+			s.add2meq(read)
 
 		case reg := <-s.cliRegisterCh:
 			// "connect" in network lingo, client reaches out to listening server.
 			//vv("i=%v, cliRegisterCh got reg from '%v' = '%v'", i, reg.client.name, reg)
 			//s.handleClientRegistration(reg)
-			s.meq.add(newClientRegMop(reg))
+			s.add2meq(newClientRegMop(reg))
 			//vv("back from handleClientRegistration for '%v'", reg.client.name)
 
 		case srvreg := <-s.srvRegisterCh:
@@ -2368,47 +2375,47 @@ restartI:
 			//s.handleServerRegistration(srvreg)
 			// do not vv here, as it is very racey with the server who
 			// has been given permission to proceed.
-			s.meq.add(newServerRegMop(srvreg))
+			s.add2meq(newServerRegMop(srvreg))
 
 		case scenario := <-s.newScenarioCh:
 			//vv("i=%v, newScenarioCh ->  scenario='%v'", i, scenario)
-			s.meq.add(newScenarioMop(scenario))
+			s.add2meq(newScenarioMop(scenario))
 
 		case alt := <-s.alterSimnodeCh:
 			//vv("i=%v alterSimnodeCh ->  alt='%v'", i, alt)
 			//s.handleAlterCircuit(alt, true)
-			s.meq.add(newAlterNodeMop(alt))
+			s.add2meq(newAlterNodeMop(alt))
 
 		case alt := <-s.alterHostCh:
 			vv("i=%v alterHostCh ->  alt='%v'", i, alt)
 			//s.handleAlterHost(op.alt)
-			s.meq.add(newAlterHostMop(alt))
+			s.add2meq(newAlterHostMop(alt))
 
 		case cktFault := <-s.injectCircuitFaultCh:
 			//vv("i=%v injectCircuitFaultCh ->  cktFault='%v'", i, cktFault)
 			//s.injectCircuitFault(cktFault, true)
-			s.meq.add(newCktFaultMop(cktFault))
+			s.add2meq(newCktFaultMop(cktFault))
 
 		case hostFault := <-s.injectHostFaultCh:
 			//vv("i=%v injectHostFaultCh ->  hostFault='%v'", i, hostFault)
 			//s.injectHostFault(hostFault)
-			s.meq.add(newHostFaultMop(hostFault))
+			s.add2meq(newHostFaultMop(hostFault))
 
 		case repairCkt := <-s.repairCircuitCh:
 			//vv("i=%v repairCircuitCh ->  repairCkt='%v'", i, repairCkt)
 			//s.handleCircuitRepair(repairCkt, true)
-			s.meq.add(newRepairCktMop(repairCkt))
+			s.add2meq(newRepairCktMop(repairCkt))
 
 		case repairHost := <-s.repairHostCh:
 			//vv("i=%v repairHostCh ->  repairHost='%v'", i, repairHost)
 			//s.handleHostRepair(repairHost)
-			s.meq.add(newRepairHostMop(repairHost))
+			s.add2meq(newRepairHostMop(repairHost))
 
 		case snapReq := <-s.simnetSnapshotRequestCh:
 			//vv("i=%v simnetSnapshotRequestCh -> snapReq", i)
 			// user can confirm/view all current faults/health
 			//s.handleSimnetSnapshotRequest(snapReq, now, i)
-			s.meq.add(newSnapReqMop(snapReq))
+			s.add2meq(newSnapReqMop(snapReq))
 
 		case <-s.halt.ReqStop.Chan:
 			vv("i=%v <-s.halt.ReqStop.Chan", i)
@@ -2542,7 +2549,9 @@ func (s *simnet) refreshGridStepTimer(now time.Time) (dur time.Duration, goal ti
 			panic(fmt.Sprintf("durToGridPoint() gave completeTm(%v) <= now(%v); should be impossible, no? are we servicing all events in order? are we missing a wakeup? oversleeping? wat?", s.gridStepTimer.completeTm, now))
 		}
 	} else {
-		vv("refreshGridStepTimer does nothing; sees now < s.gridStepTimer.completeTm(%v)", nice(s.gridStepTimer.completeTm))
+		//vv("refreshGridStepTimer does nothing; sees now < s.gridStepTimer.completeTm(%v)", nice(s.gridStepTimer.completeTm)) // seen alot
+		goal = s.gridStepTimer.completeTm
+		dur = s.gridStepTimer.completeTm.Sub(now)
 	}
 	return
 }
@@ -2560,7 +2569,7 @@ func (s *simnet) armTimer(now time.Time) (dur time.Duration) {
 	// does that work? should. the scheduler should "wake"
 	// on select from another goro channel op. We want
 	// to assign each goro time by their ID too.
-	op := s.meq.peek()
+	op := s.meq2.peek()
 	if op != nil {
 		// assume this has already been uniquified in the past
 		// when it entered the meq. would be hard to do here
@@ -2570,7 +2579,7 @@ func (s *simnet) armTimer(now time.Time) (dur time.Duration) {
 		dur = when.Sub(now)
 		if dur <= 0 {
 			vv("times were not all unique, but they should be! op='%v'", op)
-			panic("make times all unique!")
+			//panic("make times all unique!")
 		}
 
 		s.lastArmTm = now
@@ -2578,7 +2587,8 @@ func (s *simnet) armTimer(now time.Time) (dur time.Duration) {
 		return dur
 	}
 	dur, goal := s.refreshGridStepTimer(now)
-	vv("okay, so meq is empty. hmm. goal: '%v'; dur='%v'", goal, dur)
+	_ = goal
+	vv("okay, so meq is empty. hmm. goal: '%v'; dur='%v'; tick='%v'; caller='%v'", goal, dur, s.scenario.tick, fileLine(2))
 	s.lastArmTm = now
 	s.nextTimer.Reset(dur)
 	return dur
