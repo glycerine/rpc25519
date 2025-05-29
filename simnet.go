@@ -629,7 +629,7 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 		reqtm:   reg.reqtm,
 		who:     reg.who,
 	}
-	s.add2meq(0, closer)
+	s.add2meq(closer, -1)
 }
 
 func (s *simnet) handleClientRegistration(reg *clientRegistration) {
@@ -1627,7 +1627,7 @@ func (s *simnet) handleSend(send *mop, limit int64) (changed int64) {
 		reqtm:      now,
 		who:        send.who,
 	}
-	s.add2meq(0, closer)
+	s.add2meq(closer, -1)
 
 	//now := time.Now()
 	//delta := s.dispatch(send.target, now, limit) // needed?
@@ -1709,7 +1709,7 @@ func gte(a, b time.Time) bool {
 // does not call armTimer(), so scheduler should
 // afterwards. We don't worry about powerOff b/c
 // when set it deletes all timers.
-func (s *simnet) dispatchTimers(loopi int64, simnode *simnode, now time.Time, limit int64) (changes int64) {
+func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi int64) (changes int64) {
 	if limit <= 0 {
 		return
 	}
@@ -1765,7 +1765,7 @@ func (s *simnet) dispatchTimers(loopi int64, simnode *simnode, now time.Time, li
 					reqtm: timer.reqtm,
 					who:   timer.who,
 				}
-				s.add2meq(loopi, closer)
+				s.add2meq(closer, loopi)
 				continue
 
 				select {
@@ -1809,7 +1809,7 @@ func (simnode *simnode) backgroundFireTimer(timer *mop, now time.Time) {
 }
 
 // does not call armTimer.
-func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit int64) (changes int64) {
+func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loopi int64) (changes int64) {
 	defer func() {
 		//vv("=== end of dispatch %v", simnode.name)
 	}()
@@ -2028,12 +2028,12 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit int64
 
 // dispatch delivers sends to reads, and fires timers.
 // It no longer calls simnode.net.armTimer().
-func (s *simnet) dispatch(loopi int64, simnode *simnode, now time.Time, limit int64) (changes int64) {
+func (s *simnet) dispatch(simnode *simnode, now time.Time, limit, loopi int64) (changes int64) {
 	if limit <= 0 {
 		return
 	}
-	changes += s.dispatchTimers(loopi, simnode, now, limit)
-	changes += s.dispatchReadsSends(loopi, simnode, now, limit)
+	changes += s.dispatchTimers(simnode, now, limit, loopi)
+	changes += s.dispatchReadsSends(simnode, now, limit, loopi)
 	return
 }
 
@@ -2052,7 +2052,7 @@ func (s *simnet) schedulerReport() string {
 	return fmt.Sprintf("lastArmToFire.After(now) = %v [%v out] %v; qReport = '%v'", s.lastArmToFire.After(now), s.lastArmToFire.Sub(now), s.lastArmToFire, s.qReport())
 }
 
-func (s *simnet) dispatchAll(loopi int64, now time.Time, limit int64) (changes int64) {
+func (s *simnet) dispatchAll(now time.Time, limit, loopi int64) (changes int64) {
 	if limit <= 0 {
 		return
 	}
@@ -2061,7 +2061,7 @@ func (s *simnet) dispatchAll(loopi int64, now time.Time, limit int64) (changes i
 		if limit <= 0 {
 			return
 		}
-		delta := s.dispatch(loopi, simnode, now, limit)
+		delta := s.dispatch(simnode, now, limit, loopi)
 		changes += delta
 		limit -= delta
 	}
@@ -2069,7 +2069,7 @@ func (s *simnet) dispatchAll(loopi int64, now time.Time, limit int64) (changes i
 }
 
 // does not call armTimer(), so scheduler should afterwards.
-func (s *simnet) dispatchAllTimers(loopi int64, now time.Time, limit int64) (changes int64) {
+func (s *simnet) dispatchAllTimers(now time.Time, limit, loopi int64) (changes int64) {
 	if limit <= 0 {
 		return
 	}
@@ -2077,7 +2077,7 @@ func (s *simnet) dispatchAllTimers(loopi int64, now time.Time, limit int64) (cha
 		if limit <= 0 {
 			return
 		}
-		delta := s.dispatchTimers(loopi, simnode, now, limit)
+		delta := s.dispatchTimers(simnode, now, limit, loopi)
 		changes += delta
 		limit -= delta
 	}
@@ -2085,7 +2085,7 @@ func (s *simnet) dispatchAllTimers(loopi int64, now time.Time, limit int64) (cha
 }
 
 // does not call armTimer(), so scheduler should afterwards.
-func (s *simnet) dispatchAllReadsSends(loopi int64, now time.Time, limit int64) (changes int64) {
+func (s *simnet) dispatchAllReadsSends(now time.Time, limit, loopi int64) (changes int64) {
 	if limit <= 0 {
 		return
 	}
@@ -2093,7 +2093,7 @@ func (s *simnet) dispatchAllReadsSends(loopi int64, now time.Time, limit int64) 
 		if limit <= 0 {
 			return
 		}
-		delta := s.dispatchReadsSends(loopi, simnode, now, limit)
+		delta := s.dispatchReadsSends(simnode, now, limit, loopi)
 		changes += delta
 		limit -= delta
 	}
@@ -2140,7 +2140,7 @@ func (s *simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 	return
 }
 
-func (s *simnet) add2meq(loopi int64, op *mop) {
+func (s *simnet) add2meq(op *mop, loopi int64) {
 	vv("add2meq %v", op)
 	// need to bump up the time... with nextUniqTm,
 	// so deliveries are all at a unique time point.
@@ -2149,7 +2149,7 @@ func (s *simnet) add2meq(loopi int64, op *mop) {
 	}
 
 	s.meq.add(op)
-	armed := s.armTimer(loopi, time.Now())
+	armed := s.armTimer(time.Now(), loopi)
 	vv("end of add2meq. meq sz %v; armed = %v", s.meq.Len(), armed)
 }
 
@@ -2405,39 +2405,39 @@ restartI:
 			//	panic("arg, non-determinism with two callers?!")
 			//}
 			if op != nil {
-				nd0 += s.dispatchAll(i, now, 1)
+				nd0 += s.dispatchAll(now, 1, i)
 				ndtot += nd0
 			}
 
 			s.refreshGridStepTimer(now)
-			s.armTimer(i, now)
+			s.armTimer(now, i)
 		case batch := <-s.submitBatchCh:
-			s.add2meq(batch)
+			s.add2meq(batch, i)
 		case timer := <-s.addTimer:
 			//vv("i=%v, addTimer ->  timer='%v'", i, timer)
 			//s.handleTimer(timer)
-			s.add2meq(timer)
+			s.add2meq(timer, i)
 
 		case discard := <-s.discardTimerCh:
 			//vv("i=%v, discardTimer ->  discard='%v'", i, discard)
 			//s.handleDiscardTimer(discard)
-			s.add2meq(discard)
+			s.add2meq(discard, i)
 
 		case send := <-s.msgSendCh:
 			//vv("i=%v, msgSendCh ->  send='%v'", i, send)
 			//s.handleSend(send)
-			s.add2meq(send)
+			s.add2meq(send, i)
 
 		case read := <-s.msgReadCh:
 			//vv("i=%v msgReadCh ->  read='%v'", i, read)
 			//s.handleRead(read)
-			s.add2meq(read)
+			s.add2meq(read, i)
 
 		case reg := <-s.cliRegisterCh:
 			// "connect" in network lingo, client reaches out to listening server.
 			//vv("i=%v, cliRegisterCh got reg from '%v' = '%v'", i, reg.client.name, reg)
 			//s.handleClientRegistration(reg)
-			s.add2meq(newClientRegMop(reg))
+			s.add2meq(newClientRegMop(reg), i)
 			//vv("back from handleClientRegistration for '%v'", reg.client.name)
 
 		case srvreg := <-s.srvRegisterCh:
@@ -2446,47 +2446,47 @@ restartI:
 			//s.handleServerRegistration(srvreg)
 			// do not vv here, as it is very racey with the server who
 			// has been given permission to proceed.
-			s.add2meq(newServerRegMop(srvreg))
+			s.add2meq(newServerRegMop(srvreg), i)
 
 		case scenario := <-s.newScenarioCh:
 			//vv("i=%v, newScenarioCh ->  scenario='%v'", i, scenario)
-			s.add2meq(newScenarioMop(scenario))
+			s.add2meq(newScenarioMop(scenario), i)
 
 		case alt := <-s.alterSimnodeCh:
 			//vv("i=%v alterSimnodeCh ->  alt='%v'", i, alt)
 			//s.handleAlterCircuit(alt, true)
-			s.add2meq(newAlterNodeMop(alt))
+			s.add2meq(newAlterNodeMop(alt), i)
 
 		case alt := <-s.alterHostCh:
 			vv("i=%v alterHostCh ->  alt='%v'", i, alt)
 			//s.handleAlterHost(op.alt)
-			s.add2meq(newAlterHostMop(alt))
+			s.add2meq(newAlterHostMop(alt), i)
 
 		case cktFault := <-s.injectCircuitFaultCh:
 			//vv("i=%v injectCircuitFaultCh ->  cktFault='%v'", i, cktFault)
 			//s.injectCircuitFault(cktFault, true)
-			s.add2meq(newCktFaultMop(cktFault))
+			s.add2meq(newCktFaultMop(cktFault), i)
 
 		case hostFault := <-s.injectHostFaultCh:
 			//vv("i=%v injectHostFaultCh ->  hostFault='%v'", i, hostFault)
 			//s.injectHostFault(hostFault)
-			s.add2meq(newHostFaultMop(hostFault))
+			s.add2meq(newHostFaultMop(hostFault), i)
 
 		case repairCkt := <-s.repairCircuitCh:
 			//vv("i=%v repairCircuitCh ->  repairCkt='%v'", i, repairCkt)
 			//s.handleCircuitRepair(repairCkt, true)
-			s.add2meq(newRepairCktMop(repairCkt))
+			s.add2meq(newRepairCktMop(repairCkt), i)
 
 		case repairHost := <-s.repairHostCh:
 			//vv("i=%v repairHostCh ->  repairHost='%v'", i, repairHost)
 			//s.handleHostRepair(repairHost)
-			s.add2meq(newRepairHostMop(repairHost))
+			s.add2meq(newRepairHostMop(repairHost), i)
 
 		case snapReq := <-s.simnetSnapshotRequestCh:
 			//vv("i=%v simnetSnapshotRequestCh -> snapReq", i)
 			// user can confirm/view all current faults/health
 			//s.handleSimnetSnapshotRequest(snapReq, now, i)
-			s.add2meq(newSnapReqMop(snapReq))
+			s.add2meq(newSnapReqMop(snapReq), i)
 
 		case <-s.halt.ReqStop.Chan:
 			vv("i=%v <-s.halt.ReqStop.Chan", i)
@@ -2638,7 +2638,7 @@ func (s *simnet) refreshGridStepTimer(now time.Time) (dur time.Duration, goal ti
 	return
 }
 
-func (s *simnet) armTimer(loopi int64, now time.Time) (armed bool) {
+func (s *simnet) armTimer(now time.Time, loopi int64) (armed bool) {
 
 	// Ah! We only want to scheduler to sleep if
 	// we have some work to do in the meq.
