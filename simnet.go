@@ -2280,10 +2280,14 @@ restartI:
 			// the subsequent queued events might get to run first?
 			var op *mop
 			for {
-				op = s.meq.pop()
-				if op == nil {
+				top := s.meq.peek()
+				if top == nil {
 					break
 				}
+				if top.tm().After(now) {
+					break
+				}
+				op = s.meq.pop()
 				who[op.who] = true
 
 				switch op.kind {
