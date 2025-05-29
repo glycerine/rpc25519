@@ -3,6 +3,7 @@ package rpc25519
 import (
 	//"fmt"
 	mathrand2 "math/rand/v2"
+	//"runtime"
 	"time"
 )
 
@@ -47,6 +48,7 @@ type scenario struct {
 
 	reqtm   time.Time
 	proceed chan struct{}
+	who     int
 }
 
 func NewScenario(tick, minHop, maxHop time.Duration, seed [32]byte) *scenario {
@@ -58,6 +60,7 @@ func NewScenario(tick, minHop, maxHop time.Duration, seed [32]byte) *scenario {
 		maxHop:  maxHop,
 		reqtm:   time.Now(),
 		proceed: make(chan struct{}),
+		who:     goID(),
 	}
 	s.rng = mathrand2.New(s.chacha)
 	return s
@@ -339,7 +342,7 @@ func (s *simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff, 
 	select {
 	case <-oneGood.proceed:
 		err = oneGood.err
-		//vv("RepairCircuit '%v' done. err = '%v'", originName, err)
+		//vv("RepairCircuit '%v' proceed. err = '%v'", originName, err)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
@@ -364,7 +367,7 @@ func (s *simnet) RepairHost(originName string, unIsolate bool, powerOnIfOff, all
 	select {
 	case <-repair.proceed:
 		err = repair.err
-		//vv("RepairHost '%v' done. err = '%v'", originName, err)
+		//vv("RepairHost '%v' proceed. err = '%v'", originName, err)
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
@@ -485,6 +488,7 @@ func newTimerCreateMop(isCli bool) (op *mop) {
 		kind:      TIMER,
 		proceed:   make(chan struct{}),
 		reqtm:     time.Now(),
+		who:       goID(),
 	}
 	return
 }
@@ -497,6 +501,7 @@ func newTimerDiscardMop(origTimerMop *mop) (op *mop) {
 		proceed:      make(chan struct{}),
 		origTimerMop: origTimerMop,
 		reqtm:        time.Now(),
+		who:          goID(),
 	}
 	return
 }
@@ -508,6 +513,7 @@ func newReadMop(isCli bool) (op *mop) {
 		kind:      READ,
 		proceed:   make(chan struct{}),
 		reqtm:     time.Now(),
+		who:       goID(),
 	}
 	return
 }
@@ -521,6 +527,7 @@ func newSendMop(msg *Message, isCli bool) (op *mop) {
 		kind:      SEND,
 		proceed:   make(chan struct{}),
 		reqtm:     time.Now(),
+		who:       goID(),
 	}
 	return
 }
@@ -562,12 +569,13 @@ type clientRegistration struct {
 	serverBaseID string
 
 	// wait on
-	done  chan struct{}
-	reqtm time.Time
+	proceed chan struct{}
+	reqtm   time.Time
 
 	// receive back
 	simnode *simnode // our identity in the simnet (conn.local)
 	conn    *simconn // our connection to server (c2s)
+	who     int
 }
 
 // external, called by simnet_client.go to
@@ -584,7 +592,8 @@ func (s *simnet) newClientRegistration(
 		serverAddrStr:    serverAddr,
 		serverBaseID:     serverBaseID,
 		reqtm:            time.Now(),
-		done:             make(chan struct{}),
+		proceed:          make(chan struct{}),
+		who:              goID(),
 	}
 }
 
@@ -595,13 +604,14 @@ type serverRegistration struct {
 	serverBaseID string
 
 	// wait on
-	done  chan struct{}
-	reqtm time.Time
+	proceed chan struct{}
+	reqtm   time.Time
 
 	// receive back
 	simnode             *simnode // our identity in the simnet (conn.local)
 	simnet              *simnet
 	tellServerNewConnCh chan *simconn
+	who                 int
 }
 
 func (s *simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) *serverRegistration {
@@ -609,8 +619,9 @@ func (s *simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) *ser
 		server:       srv,
 		serverBaseID: srv.cfg.serverBaseID,
 		srvNetAddr:   srvNetAddr,
-		done:         make(chan struct{}),
+		proceed:      make(chan struct{}),
 		reqtm:        time.Now(),
+		who:          goID(),
 	}
 }
 
@@ -619,13 +630,13 @@ func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConn
 	reg := s.newServerRegistration(srv, srvNetAddr)
 	select {
 	case s.srvRegisterCh <- reg:
-		//vv("sent registration on srvRegisterCh; about to wait on done goro = %v", GoroNumber())
+		//vv("sent registration on srvRegisterCh; about to wait on proceed goro = %v", GoroNumber())
 	case <-s.halt.ReqStop.Chan:
 		err = ErrShutdown()
 		return
 	}
 	select {
-	case <-reg.done:
+	case <-reg.proceed:
 		//vv("server after first registered: '%v'/'%v' sees  reg.tellServerNewConnCh = %p", srv.name, srvNetAddr, reg.tellServerNewConnCh)
 		if reg.tellServerNewConnCh == nil {
 			panic("cannot have nil reg.tellServerNewConnCh back!")
@@ -651,8 +662,9 @@ type simnodeAlteration struct {
 	undo  Alteration // how to reverse the alter
 
 	isHostAlter bool
-	done        chan struct{}
+	proceed     chan struct{}
 	reqtm       time.Time
+	who         int
 }
 
 func (s *simnet) newCircuitAlteration(simnodeName string, alter Alteration, isHostAlter bool) *simnodeAlteration {
@@ -662,8 +674,9 @@ func (s *simnet) newCircuitAlteration(simnodeName string, alter Alteration, isHo
 		simnodeName: simnodeName,
 		alter:       alter,
 		isHostAlter: isHostAlter,
-		done:        make(chan struct{}),
+		proceed:     make(chan struct{}),
 		reqtm:       time.Now(),
+		who:         goID(),
 	}
 }
 
@@ -677,12 +690,12 @@ func (s *simnet) AlterCircuit(simnodeName string, alter Alteration, wholeHost bo
 	alt := s.newCircuitAlteration(simnodeName, alter, wholeHost)
 	select {
 	case s.alterSimnodeCh <- alt:
-		//vv("sent alt on alterSimnodeCh; about to wait on done goro = %v", GoroNumber())
+		//vv("sent alt on alterSimnodeCh; about to wait on proceed goro = %v", GoroNumber())
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
 	select {
-	case <-alt.done:
+	case <-alt.proceed:
 		undo = alt.undo
 		err = alt.err
 		//vv("server altered: %v", simnode)
@@ -703,12 +716,12 @@ func (s *simnet) AlterHost(simnodeName string, alter Alteration) (undo Alteratio
 	alt := s.newCircuitAlteration(simnodeName, alter, true)
 	select {
 	case s.alterHostCh <- alt:
-		//vv("sent alt on alterHostCh; about to wait on done goro = %v", GoroNumber())
+		//vv("sent alt on alterHostCh; about to wait on proceed goro = %v", GoroNumber())
 	case <-s.halt.ReqStop.Chan:
 		return
 	}
 	select {
-	case <-alt.done:
+	case <-alt.proceed:
 		undo = alt.undo
 		err = alt.err
 		//vv("host altered: %v", simnode)
@@ -727,6 +740,7 @@ type circuitFault struct {
 	sn      int64
 	proceed chan struct{}
 	reqtm   time.Time
+	who     int
 
 	err error
 }
@@ -740,6 +754,7 @@ func newCircuitFault(originName, targetName string, dd DropDeafSpec, deliverDrop
 		sn:                  simnetNextMopSn(),
 		proceed:             make(chan struct{}),
 		reqtm:               time.Now(),
+		who:                 goID(),
 	}
 }
 
@@ -751,6 +766,7 @@ type hostFault struct {
 	proceed             chan struct{}
 	reqtm               time.Time
 	err                 error
+	who                 int
 }
 
 func newHostFault(hostName string, dd DropDeafSpec, deliverDroppedSends bool) *hostFault {
@@ -761,6 +777,7 @@ func newHostFault(hostName string, dd DropDeafSpec, deliverDroppedSends bool) *h
 		sn:                  simnetNextMopSn(),
 		proceed:             make(chan struct{}),
 		reqtm:               time.Now(),
+		who:                 goID(),
 	}
 }
 
@@ -776,6 +793,7 @@ type circuitRepair struct {
 	proceed             chan struct{}
 	reqtm               time.Time
 	err                 error
+	who                 int
 }
 
 func (s *simnet) newCircuitRepair(originName, targetName string, unIsolate, powerOnIfOff, justOrigin, deliverDroppedSends bool) *circuitRepair {
@@ -789,6 +807,7 @@ func (s *simnet) newCircuitRepair(originName, targetName string, unIsolate, powe
 		sn:                  simnetNextMopSn(),
 		proceed:             make(chan struct{}),
 		reqtm:               time.Now(),
+		who:                 goID(),
 	}
 }
 
@@ -802,6 +821,7 @@ type hostRepair struct {
 	proceed             chan struct{}
 	reqtm               time.Time
 	err                 error
+	who                 int
 }
 
 func (s *simnet) newHostRepair(hostName string, unIsolate, powerOnIfOff, allHosts, deliverDroppedSends bool) *hostRepair {
@@ -814,6 +834,7 @@ func (s *simnet) newHostRepair(hostName string, unIsolate, powerOnIfOff, allHost
 		sn:                  simnetNextMopSn(),
 		proceed:             make(chan struct{}),
 		reqtm:               time.Now(),
+		who:                 goID(),
 	}
 	return m
 }
@@ -888,12 +909,14 @@ type SimnetSnapshot struct {
 
 	reqtm   time.Time
 	proceed chan struct{}
+	who     int
 }
 
 func (s *simnet) GetSimnetSnapshot() (snap *SimnetSnapshot) {
 	snap = &SimnetSnapshot{
 		reqtm:   time.Now(),
 		proceed: make(chan struct{}),
+		who:     goID(),
 	}
 	select {
 	case s.simnetSnapshotRequestCh <- snap:
@@ -928,6 +951,7 @@ type SimnetBatch struct {
 	proceed      chan struct{}
 	err          error
 	batchOps     []*mop
+	who          int
 }
 
 func (s *simnet) NewSimnetBatch(subwhen time.Time, subAsap bool) *SimnetBatch {
@@ -938,6 +962,7 @@ func (s *simnet) NewSimnetBatch(subwhen time.Time, subAsap bool) *SimnetBatch {
 		batchSubAsap: subAsap,
 		reqtm:        time.Now(),
 		proceed:      make(chan struct{}),
+		who:          goID(),
 	}
 }
 
@@ -949,6 +974,7 @@ func (s *simnet) SubmitBatch(batch *SimnetBatch) {
 		batch:   batch,
 		proceed: batch.proceed,
 		reqtm:   time.Now(),
+		who:     goID(),
 	}
 	select {
 	case s.submitBatchCh <- op:
@@ -1037,6 +1063,7 @@ func (b *SimnetBatch) AlterHost(simnodeName string, alter Alteration) {
 func (b *SimnetBatch) GetSimnetSnapshot() {
 	snapReq := &SimnetSnapshot{
 		reqtm: time.Now(),
+		who:   goID(),
 	}
 	b.add(newSnapReqMop(snapReq))
 }

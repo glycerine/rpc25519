@@ -24,3 +24,7 @@ func onlyBubbled(t *testing.T, f func()) {
 }
 
 func (s *simnet) assertGoroAlone() {}
+
+func goID() int {
+	return GoroNumber()
+}

@@ -131,6 +131,7 @@ func newSimGrid(cfg *simGridConfig, nodes []*simGridNode) *simGrid {
 }
 
 func (s *simGrid) Start() {
+	vv("simGrid.Start on goro %v", GoroNumber())
 	for i, n := range s.Nodes {
 		_ = i
 		err := n.Start(s) // Server.Start()

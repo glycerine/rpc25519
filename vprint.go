@@ -50,7 +50,8 @@ func init() {
 const rfc3339MsecTz0 = "2006-01-02T15:04:05.000Z07:00"
 
 var myPid = os.Getpid()
-var showPid bool = true
+var showPid bool = false
+var showGoID bool = true
 
 func nice(tm time.Time) string {
 	return tm.Format(rfc3339MsecTz0)
@@ -85,7 +86,11 @@ func tsPrintf(format string, a ...interface{}) {
 	if showPid {
 		printf("\n%s [pid %v] %s ", fileLine(3), myPid, ts())
 	} else {
-		printf("\n%s %s ", fileLine(3), ts())
+		if showGoID {
+			printf("\n%s [goID %v] %s ", fileLine(3), goID(), ts())
+		} else {
+			printf("\n%s %s ", fileLine(3), ts())
+		}
 	}
 	printf(format+"\n", a...)
 	TsPrintfMut.Unlock()
@@ -93,7 +98,8 @@ func tsPrintf(format string, a ...interface{}) {
 
 // get timestamp for logging purposes
 func ts() string {
-	return time.Now().In(gtz).Format("2006-01-02 15:04:05.000 -0700 MST")
+	return time.Now().In(gtz).Format("2006-01-02 15:04:05.999999999 -0700 MST")
+	//return time.Now().In(gtz).Format("2006-01-02 15:04:05.000 -0700 MST")
 	//return time.Now().In(nyc).Format("2006-01-02 15:04:05.999 -0700 MST")
 }
 
@@ -191,6 +197,9 @@ func thisStack() []byte {
 
 // GoroNumber returns the calling goroutine's number.
 func GoroNumber() int {
+
+	//g1 := int(runtime.GoID())
+
 	buf := make([]byte, 48)
 	nw := runtime.Stack(buf, false) // false => just us, no other goro.
 	buf = buf[:nw]
@@ -202,6 +211,11 @@ func GoroNumber() int {
 	}
 	n, err := strconv.Atoi(string(buf[10:i]))
 	panicOn(err)
+
+	//if g1 != n {
+	//	panic(fmt.Sprintf("GoID() %v != GoroNumber %v", g1, n))
+	//}
+
 	return n
 }
 

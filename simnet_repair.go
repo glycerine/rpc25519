@@ -8,6 +8,7 @@ import (
 // we _only_ update the conn ends at fault.originName.
 // The corresponding remote conn are not changed.
 func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err error) {
+	//vv("top injectCircuitFault: fault = '%v'", fault) // seen 1002, good.
 	defer func() {
 		if err != nil {
 			if fault.err == nil {
@@ -54,6 +55,7 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 	for rem, conn := range remotes.all() {
 		if target == nil || target == rem {
 			if fault.UpdateDeafReads {
+				//vv("origin %v, setting conn.deafRead = %v", origin.name, fault.DeafReadsNewProb) // seen, good 1002.
 				conn.deafRead = fault.DeafReadsNewProb
 			}
 			if fault.UpdateDropSends {
@@ -454,10 +456,11 @@ func (s *simnet) applyFaultsToReadQ(now time.Time, origin, target *simnode, deaf
 		read := readIt.Item().(*mop)
 		if target == nil || read.target == target {
 			if !s.statewiseConnected(read.origin, read.target) ||
-				s.deaf(deafReadProb) {
+				//s.deaf(deafReadProb) { wrong! makes 1002 red, 50% deaf cli.
+				s.localDeafReadProb(read) >= 1 {
 
 				//vv("deaf fault enforced on read='%v'", read)
-				origin.deafReadQ.add(read)
+				origin.deafReadQ.add(read) // this is defeaning all in 1002!
 
 				// advance readIt, and delete behind
 				delmeIt := readIt
