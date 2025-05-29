@@ -2221,6 +2221,10 @@ restartI:
 			panic(fmt.Sprintf("arg too many bkgTimers! %v", bkgTimers))
 		}
 
+		next := userMaskTime(now, goID())
+		dur := next.Sub(now)
+		time.Sleep(dur)
+
 		// To maximize reproducbility, this barrier lets all
 		// other goro get durably blocked, then lets just us proceed.
 		if faketime && s.barrier {
@@ -2607,16 +2611,24 @@ func (s *simnet) armTimer(now time.Time) (armed bool) {
 			panic(fmt.Sprintf("why is when zero time? %v", op))
 		}
 		if !when.IsZero() {
-			dur := when.Sub(now)
+
+			when2 := when
+			if lte(when, now) {
+				when2 = userMaskTime(now, op.who)
+			} else {
+				when2 = userMaskTime(when, op.who)
+			}
+
+			dur := when2.Sub(now)
 			if dur <= 0 {
 				//old: vv("times were not all unique, but they should be! op='%v'", op)
 				//panic("make times all unique!")
 			}
 
-			s.lastArmToFire = when
+			s.lastArmToFire = when2
 			s.lastArmDur = dur
 			s.nextTimer.Reset(dur) // this should be the only such reset.
-			vv("arm timer: armed. when=%v, nextTimer dur=%v; into future(when - now): %v;  op='%v'", when, dur, when.Sub(now), op)
+			vv("arm timer: armed. when=%v, nextTimer dur=%v; into future(when - now): %v;  op='%v'", when2, dur, when2.Sub(now), op)
 			//return dur
 			return true
 		}
