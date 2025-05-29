@@ -142,6 +142,8 @@ func (k mopkind) String() string {
 		return "BATCH"
 	case PROCEED:
 		return "PROCEED"
+	case TIMER_FIRES:
+		return "TIMER_FIRES"
 	default:
 		return fmt.Sprintf("unknown mopkind %v", int(k))
 	}

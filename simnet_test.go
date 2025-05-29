@@ -68,6 +68,7 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 			req.JobSerz = []byte("Hello from client!")
 
 			reply, err := cli.SendAndGetReply(req, nil, 0)
+			vv("back from cli.SendAndGetReply") // not seen.
 			// err is normal on shutdown...
 			panicOn(err)
 

@@ -231,6 +231,8 @@ func (s *mop) tm() time.Time {
 		return s.reqtm
 	case PROCEED:
 		return s.completeTm
+	case TIMER_FIRES:
+		return s.completeTm
 	}
 	panic(fmt.Sprintf("mop kind '%v' needs tm", int(s.kind)))
 }
@@ -850,8 +852,9 @@ const (
 	TIMER_DISCARD mopkind = 14
 
 	// report a snapshot of the entire network/state.
-	SNAPSHOT mopkind = 15
-	PROCEED  mopkind = 16
+	SNAPSHOT    mopkind = 15
+	PROCEED     mopkind = 16
+	TIMER_FIRES mopkind = 17
 )
 
 func enforceTickDur(tick time.Duration) time.Duration {
@@ -1735,6 +1738,21 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit int64) (c
 				// this was our own, just discard!
 			} else {
 				// user timer
+
+				// deliver with the meq
+				closer := &mop{
+					// completeTm is what tm() refers to for PROCEED.
+					completeTm: userMaskTime(timer.completeTm, timer.who),
+					kind:       TIMER_FIRES,
+					closerMop:  timer,
+					sn:         simnetNextMopSn(),
+					//proceed:    send.proceed,
+					reqtm: timer.reqtm,
+					who:   timer.who,
+				}
+				s.add2meq(closer)
+				continue
+
 				select {
 				case timer.timerC <- now:
 				case <-simnode.net.halt.ReqStop.Chan:
@@ -2305,6 +2323,16 @@ restartI:
 				case PROCEED:
 					vv("PROCEED releasing op.completeTm = %v", op.completeTm)
 					close(op.proceed)
+
+				case TIMER_FIRES:
+					vv("TIMER_FIRES: %v", op)
+					select {
+					case op.closerMop.timerC <- now: // might need to make buffered
+						vv("TIMER_FIRES delivered to timer: %v", op.closerMop)
+					case <-s.halt.ReqStop.Chan:
+						vv("i=%v <-s.halt.ReqStop.Chan", i)
+						return
+					}
 
 				case TIMER:
 					//vv("i=%v, meq sees timer='%v'", i, op)
