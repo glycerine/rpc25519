@@ -214,6 +214,7 @@ func (z *circuitRepair) String() (r string) {
 	r += fmt.Sprintf("       unIsolate: %v\n", z.unIsolate)
 	r += fmt.Sprintf("    powerOnIfOff: %v\n", z.powerOnIfOff)
 	r += fmt.Sprintf("justOriginHealed: %v\n", z.justOriginHealed)
+	r += fmt.Sprintf("             who: %v\n", z.who)
 	r += fmt.Sprintf("             err: %v\n", z.err)
 	r += "}\n"
 	return
@@ -234,6 +235,7 @@ func (z *hostFault) String() (r string) {
 	r += fmt.Sprintf("DropDeafSpec: %v\n", z.DropDeafSpec)
 	r += fmt.Sprintf("          sn: %v\n", z.sn)
 	r += fmt.Sprintf("         err: %v\n", z.err)
+	r += fmt.Sprintf("         who: %v\n", z.who)
 	r += "}\n"
 	return
 }
@@ -246,6 +248,7 @@ func (z *hostRepair) String() (r string) {
 	r += fmt.Sprintf("   unIsolate: %v\n", z.unIsolate)
 	r += fmt.Sprintf("    allHosts: %v\n", z.allHosts)
 	r += fmt.Sprintf("          sn: %v\n", z.sn)
+	r += fmt.Sprintf("         who: %v\n", z.who)
 	r += "}\n"
 	return
 }
@@ -288,7 +291,7 @@ func (s *simnet) String() (r string) {
 	r += fmt.Sprintf("        dns: %v\n", s.stringDNS())
 	//r += fmt.Sprintf("       halt: %v\n", s.halt)
 	//r += fmt.Sprintf("  nextTimer: %v\n", s.nextTimer)
-	r += fmt.Sprintf("  lastArmTm: %v\n", s.lastArmTm.Format(rfc3339NanoNumericTZ0pad))
+	r += fmt.Sprintf("  lastArmToFire: %v\n", s.lastArmToFire.Format(rfc3339NanoNumericTZ0pad))
 	r += "}\n"
 	return
 }
@@ -304,6 +307,7 @@ func (s *serverRegistration) String() (r string) {
 		r += fmt.Sprintf("              server: %v\n", s.server)
 	}
 	r += fmt.Sprintf("         srvNetAddr: %v\n", s.srvNetAddr)
+	r += fmt.Sprintf("                who: %v\n", s.who)
 	r += fmt.Sprintf("            simnode: %v\n", s.simnode.StringNoPQ())
 	r += fmt.Sprintf("             simnet: %v\n", s.simnet)
 	r += "}\n"
@@ -321,6 +325,7 @@ func (s *clientRegistration) String() (r string) {
 		r += fmt.Sprintf("          client: %v\n", s.client)
 	}
 	r += fmt.Sprintf("localHostPortStr: %v\n", s.localHostPortStr)
+	r += fmt.Sprintf("             who: %v\n", s.who)
 	r += fmt.Sprintf("          dialTo: %v\n", s.dialTo)
 	r += fmt.Sprintf("   serverAddrStr: %v\n", s.serverAddrStr)
 	r += fmt.Sprintf("         simnode: %v\n", s.simnode.StringNoPQ())
@@ -366,6 +371,7 @@ func (s *scenario) String() (r string) {
 	r += fmt.Sprintf("  tick: %v\n", s.tick)
 	r += fmt.Sprintf("minHop: %v\n", s.minHop)
 	r += fmt.Sprintf("maxHop: %v\n", s.maxHop)
+	r += fmt.Sprintf("   who: %v\n", s.who)
 	r += "}\n"
 	return
 }

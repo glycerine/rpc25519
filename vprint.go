@@ -50,7 +50,7 @@ func init() {
 const rfc3339MsecTz0 = "2006-01-02T15:04:05.000Z07:00"
 
 var myPid = os.Getpid()
-var showPid bool = true
+var showPid bool = false
 
 func nice(tm time.Time) string {
 	return tm.Format(rfc3339MsecTz0)
@@ -93,7 +93,8 @@ func tsPrintf(format string, a ...interface{}) {
 
 // get timestamp for logging purposes
 func ts() string {
-	return time.Now().In(gtz).Format("2006-01-02 15:04:05.000 -0700 MST")
+	return time.Now().In(gtz).Format("2006-01-02 15:04:05.000000000 -0700 MST")
+	//return time.Now().In(gtz).Format("2006-01-02 15:04:05.000 -0700 MST")
 	//return time.Now().In(nyc).Format("2006-01-02 15:04:05.999 -0700 MST")
 }
 

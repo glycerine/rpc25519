@@ -445,7 +445,8 @@ type simnet struct {
 
 	newScenarioCh chan *scenario
 	nextTimer     *time.Timer
-	lastArmTm     time.Time
+	lastArmToFire time.Time
+	lastArmDur    time.Duration
 }
 
 // a simnode is a client or server in the network.
@@ -2008,7 +2009,7 @@ func (s *simnet) qReport() (r string) {
 
 func (s *simnet) schedulerReport() string {
 	now := time.Now()
-	return fmt.Sprintf("lastArmTm.After(now) = %v [%v out] %v; qReport = '%v'", s.lastArmTm.After(now), s.lastArmTm.Sub(now), s.lastArmTm, s.qReport())
+	return fmt.Sprintf("lastArmToFire.After(now) = %v [%v out] %v; qReport = '%v'", s.lastArmToFire.After(now), s.lastArmToFire.Sub(now), s.lastArmToFire, s.qReport())
 }
 
 func (s *simnet) dispatchAll(now time.Time, limit int64) (changes int64) {
@@ -2239,14 +2240,14 @@ restartI:
 		//nd0 += changed
 		//vv("i=%v, first dispatchAll changed=%v, total nd0=%v", i, changed, nd0)
 
-		preSelectTm := now
+		//preSelectTm := now
 		select { // scheduler main select
 
 		case <-s.haveNextTimer(): // time advances when soonest timer fires
 			now = time.Now()
-			elap := now.Sub(preSelectTm)
-			totalSleepDur += elap
-			vv("i=%v, nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
+			//elap := now.Sub(s.lastArmToFire)
+			//totalSleepDur += elap
+			vv("i=%v, nextTimer fired. s.lastArmDur=%v; s.lastArmToFire = %v", i, s.lastArmDur, s.lastArmToFire)
 			//if elap == 0 {
 			// too many! and no time advance... we should sleep when there's nothing left to dispatch/no changes.
 			//vv("i=%v, cool: elap was 0, nice. single stepping the next goro... nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
@@ -2446,7 +2447,7 @@ restartI:
 // just service other cases, which should
 // establish a nextTimer.
 func (s *simnet) haveNextTimer() <-chan time.Time {
-	if s.lastArmTm.IsZero() {
+	if s.lastArmToFire.IsZero() {
 		// no timer at the moment
 		return nil
 	}
@@ -2607,9 +2608,10 @@ func (s *simnet) armTimer(now time.Time) (armed bool) {
 				//panic("make times all unique!")
 			}
 
-			s.lastArmTm = now
-			s.nextTimer.Reset(dur)
-			vv("arm timer: armed. when=%v, nextTimer dur=%v, op='%v'", when, dur, op)
+			s.lastArmToFire = when
+			s.lastArmDur = dur
+			s.nextTimer.Reset(dur) // this should be the only such reset.
+			vv("arm timer: armed. when=%v, nextTimer dur=%v; into future(when - now): %v;  op='%v'", when, dur, when.Sub(now), op)
 			//return dur
 			return true
 		}
@@ -2618,73 +2620,9 @@ func (s *simnet) armTimer(now time.Time) (armed bool) {
 	//vv("okay, so meq is empty. hmm. goal: '%v'; dur='%v'; tick='%v'; caller='%v'", goal, dur, s.scenario.tick, fileLine(2))
 
 	// tell haveNextTimer that we don't have one; it should return nil.
-	s.lastArmTm = time.Time{}
+	s.lastArmToFire = time.Time{}
+	s.lastArmDur = -1
 	return false
-
-	//dur, goal := s.refreshGridStepTimer(now)
-	//_ = goal
-	//s.lastArmTm = now
-	//s.nextTimer.Reset(dur)
-	//return dur
-
-	panic("what to do when meq is empty?")
-	return
-	/*
-		// find the min timers that is not the grid step first.
-		var minTimer *mop
-		for simnode := range s.circuits.all() {
-			minTimer = simnode.soonestTimerLessThan(minTimer)
-		}
-		if minTimer == nil {
-			// no other timers due now
-		} else {
-			if minTimer.completeTm.After(now) {
-				// have other timers, but none due now
-			} else {
-				// have other timers due now. let them do their thing.
-				// well, really we only want to let one of them do
-				// their thing. we need to be guaranteeing there is
-				// only one goro (including scheduler???) at each
-				// timer expiration.
-				// how can we handle their select
-				dur = 0
-				s.lastArmTm = now
-				s.nextTimer.Reset(dur)
-				return dur
-			}
-		}
-
-		//var minTimer *mop = s.gridStepTimer
-		if s.gridStepTimer.completeTm.Before(now) {
-			//panic(fmt.Sprintf("gridStepTimer(%v) not refreshed! < now %v", s.gridStepTimer.completeTm, now))
-			// just fix it by refreshing.
-			s.refreshGridStepTimer(now)
-			minTimer = s.gridStepTimer
-		}
-		if minTimer == nil {
-			panic("should never happen, s.gridStepTimer should always be active")
-			return 0
-		}
-
-		dur := minTimer.completeTm.Sub(now)
-		////zz("dur=%v = when(%v) - now(%v)", dur, minTimer.completeTm, now)
-
-		// actually this is okay now: with single stepping it will happen
-		// alot since we dispatch one timer, then do a little sleep
-		// to let any woken goro settle. those timers can also
-		// be due now, but we put them off for at least a synctest.Wait cycle.
-		if dur <= 0 {
-			//vv("no timers, what?? minTimerDur = %v", dur)
-			//panic("must always have at least the grid timer!")
-
-			if minTimer == s.gridStepTimer {
-
-			}
-		}
-		s.lastArmTm = now
-		s.nextTimer.Reset(dur)
-		return dur
-	*/
 }
 
 func (simnode *simnode) soonestTimerLessThan(bound *mop) *mop {
