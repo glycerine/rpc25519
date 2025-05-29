@@ -69,11 +69,12 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 
 			reply, err := cli.SendAndGetReply(req, nil, 0)
 			// err is normal on shutdown...
-			//panicOn(err)
+			panicOn(err)
 
 			vv("reply = %p", reply)
 			if reply == nil {
 				vv("arg. reply == nil. probably a panic error somewhere. bail.")
+				panic("reply was nil")
 				return
 			} else {
 				vv("cli sees reply (Seqno=%v) = '%v'", reply.HDR.Seqno, string(reply.JobSerz))

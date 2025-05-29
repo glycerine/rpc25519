@@ -387,7 +387,7 @@ type simnet struct {
 
 	scenario *scenario
 
-	meq2 *pq // the master event queue.
+	meq *pq // the master event queue.
 
 	cfg       *Config
 	simNetCfg *SimNetConfig
@@ -602,7 +602,7 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	reg.simnode = srvnode
 	reg.simnet = s
 
-	//vv("end of handleServerRegistration, srvreg is %v", reg)
+	vv("end of handleServerRegistration, srvreg is %v", reg) // not seen
 
 	// channel made by newCircuitserver() above.
 	reg.tellServerNewConnCh = srvnode.tellServerNewConnCh
@@ -700,7 +700,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 	// server creates simnet; must start server first.
 	s := &simnet{
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
-		meq2:           newMasterEventQueue("scheduler"),
+		meq:            newMasterEventQueue("scheduler"),
 		barrier:        !simNetConfig.BarrierOff,
 		cfg:            cfg,
 		simNetCfg:      simNetConfig,
@@ -2100,8 +2100,16 @@ func (s *simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 }
 
 func (s *simnet) add2meq(op *mop) {
-	s.meq2.add(op)
-	s.armTimer(time.Now())
+	vv("add2meq %v", op)
+	// need to bump up the time... with nextUniqTm,
+	// so deliveries are all at a unique time point.
+	if !op.reqtm.IsZero() {
+		op.reqtm = s.nextUniqTm(op.reqtm, op.who)
+	}
+
+	s.meq.add(op)
+	armed := s.armTimer(time.Now())
+	vv("end of add2meq. meq sz %v; armed = %v", s.meq.Len(), armed)
 }
 
 // scheduler is the heart of the simnet
@@ -2187,8 +2195,8 @@ func (s *simnet) scheduler() {
 	// next timer to go off, so barrier cannot deadlock.
 	s.gridStepTimer = timer
 
-	// always have at least one timer going.
-	s.armTimer(now)
+	// always have at least one timer going. maybe not anymore!
+	//s.armTimer(now)
 
 	var ndtot int64 // num dispatched total.
 
@@ -2234,11 +2242,11 @@ restartI:
 		preSelectTm := now
 		select { // scheduler main select
 
-		case <-s.nextTimer.C: // time advances when soonest timer fires
+		case <-s.haveNextTimer(): // time advances when soonest timer fires
 			now = time.Now()
 			elap := now.Sub(preSelectTm)
 			totalSleepDur += elap
-			//vv("i=%v, nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
+			vv("i=%v, nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
 			//if elap == 0 {
 			// too many! and no time advance... we should sleep when there's nothing left to dispatch/no changes.
 			//vv("i=%v, cool: elap was 0, nice. single stepping the next goro... nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
@@ -2262,13 +2270,15 @@ restartI:
 			// do we have more than one goro sending us stuff
 			// in a single tick?
 			// that would imply non-determinism yes?
+			// happens for sure on startup though, when
+			// cli/srv spin up their read loops/send loops.
 			who := make(map[int]bool)
 
 			j := 0
 			jlim := 1 // just do one now.
 			var op *mop
 			for ; j < jlim; j++ {
-				op = s.meq2.pop()
+				op = s.meq.pop()
 				if op == nil {
 					break
 				}
@@ -2432,6 +2442,17 @@ restartI:
 	}
 }
 
+// we might not have a next timer, then we
+// just service other cases, which should
+// establish a nextTimer.
+func (s *simnet) haveNextTimer() <-chan time.Time {
+	if s.lastArmTm.IsZero() {
+		// no timer at the moment
+		return nil
+	}
+	return s.nextTimer.C
+}
+
 func (s *simnet) handleBatch(batch *SimnetBatch) {
 	// submit now?
 
@@ -2556,7 +2577,7 @@ func (s *simnet) refreshGridStepTimer(now time.Time) (dur time.Duration, goal ti
 	return
 }
 
-func (s *simnet) armTimer(now time.Time) (dur time.Duration) {
+func (s *simnet) armTimer(now time.Time) (armed bool) {
 
 	// Ah! We only want to scheduler to sleep if
 	// we have some work to do in the meq.
@@ -2569,29 +2590,42 @@ func (s *simnet) armTimer(now time.Time) (dur time.Duration) {
 	// does that work? should. the scheduler should "wake"
 	// on select from another goro channel op. We want
 	// to assign each goro time by their ID too.
-	op := s.meq2.peek()
+	op := s.meq.peek()
 	if op != nil {
 		// assume this has already been uniquified in the past
 		// when it entered the meq. would be hard to do here
 		// since much time may have passed in the interim,
 		// and we'd only end up jumping it forward by alot.
 		when := op.tm()
-		dur = when.Sub(now)
-		if dur <= 0 {
-			vv("times were not all unique, but they should be! op='%v'", op)
-			//panic("make times all unique!")
+		if when.IsZero() {
+			panic(fmt.Sprintf("why is when zero time? %v", op))
 		}
+		if !when.IsZero() {
+			dur := when.Sub(now)
+			if dur <= 0 {
+				//old: vv("times were not all unique, but they should be! op='%v'", op)
+				//panic("make times all unique!")
+			}
 
-		s.lastArmTm = now
-		s.nextTimer.Reset(dur)
-		return dur
+			s.lastArmTm = now
+			s.nextTimer.Reset(dur)
+			vv("arm timer: armed. when=%v, nextTimer dur=%v, op='%v'", when, dur, op)
+			//return dur
+			return true
+		}
 	}
-	dur, goal := s.refreshGridStepTimer(now)
-	_ = goal
-	vv("okay, so meq is empty. hmm. goal: '%v'; dur='%v'; tick='%v'; caller='%v'", goal, dur, s.scenario.tick, fileLine(2))
-	s.lastArmTm = now
-	s.nextTimer.Reset(dur)
-	return dur
+	vv("okay, so meq is empty. hmm. tick='%v'; caller='%v'", s.scenario.tick, fileLine(2))
+	//vv("okay, so meq is empty. hmm. goal: '%v'; dur='%v'; tick='%v'; caller='%v'", goal, dur, s.scenario.tick, fileLine(2))
+
+	// tell haveNextTimer that we don't have one; it should return nil.
+	s.lastArmTm = time.Time{}
+	return false
+
+	//dur, goal := s.refreshGridStepTimer(now)
+	//_ = goal
+	//s.lastArmTm = now
+	//s.nextTimer.Reset(dur)
+	//return dur
 
 	panic("what to do when meq is empty?")
 	return
@@ -2693,6 +2727,9 @@ const timeMask9 = time.Microsecond*100 - 1
 // maskTime will return
 // 2006-01-02T15:04:05.000099999-07:00
 func userMaskTime(tm time.Time, who int) time.Time {
+	if who == 0 {
+		panic("who 0 not set!")
+	}
 	// always bump to next 100 usec, so we are
 	// for sure after tm.
 	return tm.Truncate(timeMask0).Add(timeMask0 + time.Duration(who))
@@ -2921,6 +2958,7 @@ func newClientRegMop(clireg *clientRegistration) (op *mop) {
 		kind:      CLIENT_REG,
 		proceed:   clireg.done,
 		who:       clireg.who,
+		reqtm:     clireg.reqtm,
 	}
 	return
 }
@@ -2933,6 +2971,7 @@ func newServerRegMop(srvreg *serverRegistration) (op *mop) {
 		kind:      SERVER_REG,
 		proceed:   srvreg.done,
 		who:       srvreg.who,
+		reqtm:     srvreg.reqtm,
 	}
 	return
 }
@@ -2944,6 +2983,7 @@ func newSnapReqMop(snapReq *SimnetSnapshot) (op *mop) {
 		kind:    SNAPSHOT,
 		proceed: snapReq.proceed,
 		who:     snapReq.who,
+		reqtm:   snapReq.reqtm,
 	}
 	return
 }
@@ -2954,6 +2994,8 @@ func newScenarioMop(scen *scenario) (op *mop) {
 		sn:      simnetNextMopSn(),
 		kind:    SCENARIO,
 		proceed: scen.proceed,
+		who:     scen.who,
+		reqtm:   scen.reqtm,
 	}
 	return
 }
@@ -2965,6 +3007,7 @@ func newAlterNodeMop(alt *simnodeAlteration) (op *mop) {
 		kind:      ALTER_NODE,
 		proceed:   alt.done,
 		who:       alt.who,
+		reqtm:     alt.reqtm,
 	}
 	return
 }
@@ -2976,6 +3019,7 @@ func newAlterHostMop(alt *simnodeAlteration) (op *mop) {
 		kind:      ALTER_HOST,
 		proceed:   alt.done,
 		who:       alt.who,
+		reqtm:     alt.reqtm,
 	}
 	return
 }
@@ -2987,6 +3031,7 @@ func newCktFaultMop(cktFault *circuitFault) (op *mop) {
 		kind:     FAULT_CKT,
 		proceed:  cktFault.proceed,
 		who:      cktFault.who,
+		reqtm:    cktFault.reqtm,
 	}
 	return
 }
@@ -2998,6 +3043,7 @@ func newHostFaultMop(hostFault *hostFault) (op *mop) {
 		kind:      FAULT_HOST,
 		proceed:   hostFault.proceed,
 		who:       hostFault.who,
+		reqtm:     hostFault.reqtm,
 	}
 	return
 }
@@ -3009,6 +3055,7 @@ func newRepairCktMop(cktRepair *circuitRepair) (op *mop) {
 		kind:      REPAIR_CKT,
 		proceed:   cktRepair.proceed,
 		who:       cktRepair.who,
+		reqtm:     cktRepair.reqtm,
 	}
 	return
 }
@@ -3020,6 +3067,7 @@ func newRepairHostMop(hostRepair *hostRepair) (op *mop) {
 		kind:       REPAIR_HOST,
 		proceed:    hostRepair.proceed,
 		who:        hostRepair.who,
+		reqtm:      hostRepair.reqtm,
 	}
 	return
 }
