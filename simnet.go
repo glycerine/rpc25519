@@ -611,6 +611,7 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 		sn:      simnetNextMopSn(),
 		proceed: reg.proceed,
 		reqtm:   reg.reqtm,
+		who:     reg.who,
 	}
 	s.add2meq(closer)
 }
@@ -1606,6 +1607,7 @@ func (s *simnet) handleSend(send *mop, limit int64) (changed int64) {
 		sn:         simnetNextMopSn(),
 		proceed:    send.proceed,
 		reqtm:      now,
+		who:        send.who,
 	}
 	s.add2meq(closer)
 
