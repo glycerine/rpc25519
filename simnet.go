@@ -344,7 +344,10 @@ func (s *mop) clone() (c *mop) {
 
 // simnet wide next deadline assignment for all
 // timers on all nodes, and all send and read points.
-func (s *simnet) nextUniqTm(atleast time.Time) time.Time {
+func (s *simnet) nextUniqTm(atleast time.Time, who int) time.Time {
+	if who == 0 {
+		panic("who 0 not set!")
+	}
 	if atleast.After(s.lastTimerDeadline) {
 		s.lastTimerDeadline = atleast
 	} else {
@@ -352,7 +355,7 @@ func (s *simnet) nextUniqTm(atleast time.Time) time.Time {
 		const bump = time.Microsecond // more than mask
 		s.lastTimerDeadline = s.lastTimerDeadline.Add(bump)
 	}
-	s.lastTimerDeadline = userMaskTime(s.lastTimerDeadline)
+	s.lastTimerDeadline = userMaskTime(s.lastTimerDeadline, who)
 	return s.lastTimerDeadline
 }
 
@@ -1566,9 +1569,9 @@ func (s *simnet) handleSend(send *mop, limit int64) (changed int64) {
 
 	// make sure send happens before receive by doing
 	// this first.
-	send.completeTm = s.nextUniqTm(now) // send complete on the sender side.
-
-	send.arrivalTm = s.nextUniqTm(send.unmaskedSendArrivalTm) // handleSend
+	send.completeTm = s.nextUniqTm(now, send.who) // send complete on the sender side.
+	// handleSend
+	send.arrivalTm = s.nextUniqTm(send.unmaskedSendArrivalTm, send.who)
 	// note that read matching time will be unique based on
 	// send arrival time.
 
@@ -2253,7 +2256,7 @@ restartI:
 			// do we have more than one goro sending us stuff
 			// in a single tick?
 			// that would imply non-determinism yes?
-			who := make(map[uint64]bool)
+			who := make(map[int]bool)
 
 			j := 0
 			jlim := 1 // just do one now.
@@ -2498,7 +2501,7 @@ func (s *simnet) handleTimer(timer *mop) {
 	// mask it up!
 	timer.unmaskedCompleteTm = timer.completeTm
 	timer.unmaskedDur = timer.timerDur
-	timer.completeTm = s.nextUniqTm(timer.completeTm) // handle timer
+	timer.completeTm = s.nextUniqTm(timer.completeTm, timer.who) // handle timer
 	timer.timerDur = timer.completeTm.Sub(timer.initTm)
 	//vv("masked timer:\n dur: %v -> %v\n completeTm: %v -> %v\n", timer.unmaskedDur, timer.timerDur, timer.unmaskedCompleteTm, timer.completeTm)
 
@@ -2574,7 +2577,12 @@ func (s *simnet) armTimer(now time.Time) (dur time.Duration) {
 		s.nextTimer.Reset(dur)
 		return dur
 	}
-	vv("okay, so meq is empty. hmm.")
+	dur, goal := s.refreshGridStepTimer(now)
+	vv("okay, so meq is empty. hmm. goal: '%v'; dur='%v'", goal, dur)
+	s.lastArmTm = now
+	s.nextTimer.Reset(dur)
+	return dur
+
 	panic("what to do when meq is empty?")
 	return
 	/*
@@ -2677,7 +2685,7 @@ const timeMask9 = time.Microsecond*100 - 1
 func userMaskTime(tm time.Time, who int) time.Time {
 	// always bump to next 100 usec, so we are
 	// for sure after tm.
-	return tm.Truncate(timeMask0).Add(timeMask0)
+	return tm.Truncate(timeMask0).Add(timeMask0 + time.Duration(who))
 }
 
 // system gridTimer points always end in 00_000
