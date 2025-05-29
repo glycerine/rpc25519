@@ -196,15 +196,27 @@ func (s *mop) priority() int64 {
 func (s *mop) tm() time.Time {
 	switch s.kind {
 	case SEND:
+		if s.arrivalTm.IsZero() {
+			return s.reqtm // not yet hit handleSend()
+		}
 		return s.arrivalTm
 	case READ:
+		if s.initTm.IsZero() {
+			return s.reqtm // not yet hit handleRead()
+		}
 		// not completeTm: when the read returns to user who called readMessage()
 		// initTm: timer started, read begin waiting, send hits the socket.
 		// initTm: for timer discards, when discarded so usually initTm.
 		return s.initTm
 	case TIMER:
+		if s.completeTm.IsZero() {
+			return s.reqtm // not yet hit handleTimer()
+		}
 		return s.completeTm
 	case TIMER_DISCARD:
+		if s.completeTm.IsZero() {
+			return s.reqtm // not yet hit handleDiscardTimer()
+		}
 		return s.initTm
 
 	case SNAPSHOT:
@@ -339,6 +351,7 @@ func (s *mop) clone() (c *mop) {
 	return
 }
 
+/* want decentralized userMaskTime instead! so
 // simnet wide next deadline assignment for all
 // timers on all nodes, and all send and read points.
 func (s *simnet) nextUniqTm(atleast time.Time, who int) time.Time {
@@ -355,6 +368,7 @@ func (s *simnet) nextUniqTm(atleast time.Time, who int) time.Time {
 	s.lastTimerDeadline = userMaskTime(s.lastTimerDeadline, who)
 	return s.lastTimerDeadline
 }
+*/
 
 // simnet simulates a network entirely with channels in memory.
 type simnet struct {
@@ -1567,7 +1581,7 @@ func (s *simnet) statewiseConnected(origin, target *simnode) bool {
 
 func (s *simnet) handleSend(send *mop, limit int64) (changed int64) {
 	now := time.Now()
-	//vv("top of handleSend(send = '%v')", send)
+	vv("top of handleSend(send = '%v')", send)
 	//defer close(send.proceed)
 
 	origin := send.origin
@@ -1578,9 +1592,10 @@ func (s *simnet) handleSend(send *mop, limit int64) (changed int64) {
 
 	// make sure send happens before receive by doing
 	// this first.
-	send.completeTm = s.nextUniqTm(now, send.who) // send complete on the sender side.
+	send.completeTm = userMaskTime(now, send.who) // send complete on the sender side.
 	// handleSend
-	send.arrivalTm = s.nextUniqTm(send.unmaskedSendArrivalTm, send.who)
+	send.arrivalTm = userMaskTime(send.unmaskedSendArrivalTm, send.who)
+	vv("send.arrivalTm = '%v'", send.arrivalTm)
 	// note that read matching time will be unique based on
 	// send arrival time.
 
@@ -2130,7 +2145,7 @@ func (s *simnet) add2meq(op *mop) {
 	// need to bump up the time... with nextUniqTm,
 	// so deliveries are all at a unique time point.
 	if !op.reqtm.IsZero() {
-		op.reqtm = s.nextUniqTm(op.reqtm, op.who)
+		op.reqtm = userMaskTime(op.reqtm, op.who)
 	}
 
 	s.meq.add(op)
@@ -2571,7 +2586,7 @@ func (s *simnet) handleTimer(timer *mop) {
 	// mask it up!
 	timer.unmaskedCompleteTm = timer.completeTm
 	timer.unmaskedDur = timer.timerDur
-	timer.completeTm = s.nextUniqTm(timer.completeTm, timer.who) // handle timer
+	timer.completeTm = userMaskTime(timer.completeTm, timer.who) // handle timer
 	timer.timerDur = timer.completeTm.Sub(timer.initTm)
 	//vv("masked timer:\n dur: %v -> %v\n completeTm: %v -> %v\n", timer.unmaskedDur, timer.timerDur, timer.unmaskedCompleteTm, timer.completeTm)
 
@@ -2640,6 +2655,7 @@ func (s *simnet) armTimer(now time.Time) (armed bool) {
 		// and we'd only end up jumping it forward by alot.
 		when := op.tm()
 		if when.IsZero() {
+			// e.g. a send that has not yet had handleSend called on it.
 			panic(fmt.Sprintf("why is when zero time? %v", op))
 		}
 		if !when.IsZero() {
@@ -2659,6 +2675,10 @@ func (s *simnet) armTimer(now time.Time) (armed bool) {
 
 			s.lastArmToFire = when2
 			s.lastArmDur = dur
+			// ouch: what happens when you reset a timer
+			// to be sooner than the previous, say, 20s?
+			// should be okay, since we can't be here and
+			// also waiting on the timer.
 			s.nextTimer.Reset(dur) // this should be the only such reset.
 			vv("arm timer: armed. when=%v, nextTimer dur=%v; into future(when - now): %v;  op='%v'", when2, dur, when2.Sub(now), op)
 			//return dur
