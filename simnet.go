@@ -629,7 +629,7 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 		reqtm:   reg.reqtm,
 		who:     reg.who,
 	}
-	s.add2meq(closer)
+	s.add2meq(0, closer)
 }
 
 func (s *simnet) handleClientRegistration(reg *clientRegistration) {
@@ -1627,7 +1627,7 @@ func (s *simnet) handleSend(send *mop, limit int64) (changed int64) {
 		reqtm:      now,
 		who:        send.who,
 	}
-	s.add2meq(closer)
+	s.add2meq(0, closer)
 
 	//now := time.Now()
 	//delta := s.dispatch(send.target, now, limit) // needed?
@@ -1709,7 +1709,7 @@ func gte(a, b time.Time) bool {
 // does not call armTimer(), so scheduler should
 // afterwards. We don't worry about powerOff b/c
 // when set it deletes all timers.
-func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit int64) (changes int64) {
+func (s *simnet) dispatchTimers(loopi int64, simnode *simnode, now time.Time, limit int64) (changes int64) {
 	if limit <= 0 {
 		return
 	}
@@ -1765,7 +1765,7 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit int64) (c
 					reqtm: timer.reqtm,
 					who:   timer.who,
 				}
-				s.add2meq(closer)
+				s.add2meq(loopi, closer)
 				continue
 
 				select {
@@ -2028,12 +2028,12 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit int64
 
 // dispatch delivers sends to reads, and fires timers.
 // It no longer calls simnode.net.armTimer().
-func (s *simnet) dispatch(simnode *simnode, now time.Time, limit int64) (changes int64) {
+func (s *simnet) dispatch(loopi int64, simnode *simnode, now time.Time, limit int64) (changes int64) {
 	if limit <= 0 {
 		return
 	}
-	changes += s.dispatchTimers(simnode, now, limit)
-	changes += s.dispatchReadsSends(simnode, now, limit)
+	changes += s.dispatchTimers(loopi, simnode, now, limit)
+	changes += s.dispatchReadsSends(loopi, simnode, now, limit)
 	return
 }
 
@@ -2052,7 +2052,7 @@ func (s *simnet) schedulerReport() string {
 	return fmt.Sprintf("lastArmToFire.After(now) = %v [%v out] %v; qReport = '%v'", s.lastArmToFire.After(now), s.lastArmToFire.Sub(now), s.lastArmToFire, s.qReport())
 }
 
-func (s *simnet) dispatchAll(now time.Time, limit int64) (changes int64) {
+func (s *simnet) dispatchAll(loopi int64, now time.Time, limit int64) (changes int64) {
 	if limit <= 0 {
 		return
 	}
@@ -2061,7 +2061,7 @@ func (s *simnet) dispatchAll(now time.Time, limit int64) (changes int64) {
 		if limit <= 0 {
 			return
 		}
-		delta := s.dispatch(simnode, now, limit)
+		delta := s.dispatch(loopi, simnode, now, limit)
 		changes += delta
 		limit -= delta
 	}
@@ -2069,7 +2069,7 @@ func (s *simnet) dispatchAll(now time.Time, limit int64) (changes int64) {
 }
 
 // does not call armTimer(), so scheduler should afterwards.
-func (s *simnet) dispatchAllTimers(now time.Time, limit int64) (changes int64) {
+func (s *simnet) dispatchAllTimers(loopi int64, now time.Time, limit int64) (changes int64) {
 	if limit <= 0 {
 		return
 	}
@@ -2077,7 +2077,7 @@ func (s *simnet) dispatchAllTimers(now time.Time, limit int64) (changes int64) {
 		if limit <= 0 {
 			return
 		}
-		delta := s.dispatchTimers(simnode, now, limit)
+		delta := s.dispatchTimers(loopi, simnode, now, limit)
 		changes += delta
 		limit -= delta
 	}
@@ -2085,7 +2085,7 @@ func (s *simnet) dispatchAllTimers(now time.Time, limit int64) (changes int64) {
 }
 
 // does not call armTimer(), so scheduler should afterwards.
-func (s *simnet) dispatchAllReadsSends(now time.Time, limit int64) (changes int64) {
+func (s *simnet) dispatchAllReadsSends(loopi int64, now time.Time, limit int64) (changes int64) {
 	if limit <= 0 {
 		return
 	}
@@ -2093,7 +2093,7 @@ func (s *simnet) dispatchAllReadsSends(now time.Time, limit int64) (changes int6
 		if limit <= 0 {
 			return
 		}
-		delta := s.dispatchReadsSends(simnode, now, limit)
+		delta := s.dispatchReadsSends(loopi, simnode, now, limit)
 		changes += delta
 		limit -= delta
 	}
@@ -2140,7 +2140,7 @@ func (s *simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 	return
 }
 
-func (s *simnet) add2meq(op *mop) {
+func (s *simnet) add2meq(loopi int64, op *mop) {
 	vv("add2meq %v", op)
 	// need to bump up the time... with nextUniqTm,
 	// so deliveries are all at a unique time point.
@@ -2149,7 +2149,7 @@ func (s *simnet) add2meq(op *mop) {
 	}
 
 	s.meq.add(op)
-	armed := s.armTimer(time.Now())
+	armed := s.armTimer(loopi, time.Now())
 	vv("end of add2meq. meq sz %v; armed = %v", s.meq.Len(), armed)
 }
 
@@ -2261,21 +2261,25 @@ restartI:
 			panic(fmt.Sprintf("arg too many bkgTimers! %v", bkgTimers))
 		}
 
-		next := userMaskTime(now, goID())
-		dur := next.Sub(now)
-		time.Sleep(dur)
+		// likewise to the Arg just below,
+		// we want "wake-able sleep with the nextTimer.
+		//next := userMaskTime(now, goID())
+		//dur := next.Sub(now)
+		//time.Sleep(dur)
 
-		// To maximize reproducbility, this barrier lets all
-		// other goro get durably blocked, then lets just us proceed.
-		if faketime && s.barrier {
-			synctestWait_LetAllOtherGoroFinish() // 1st barrier
-		}
+		// Arg. Cannot do this, or goro trying to
+		// get in while we are otherwise waiting on
+		// our next timer will not be able to make
+		// that timer smaller!
+		//if faketime && s.barrier {
+		//	synctestWait_LetAllOtherGoroFinish() // 1st barrier
+		//}
 		//vv("done with 1st barrier") // seen
 		// under faketime, we are alone now.
 		// Time has not advanced. This is the
 		// perfect point at which to advance the
 		// event/logical clock of each simnode, as no races.
-		s.tickLogicalClocks()
+		//s.tickLogicalClocks()
 
 		// only dispatch one place, in nextTimer now.
 		// simpler, easier to reason about. this is viable too,
@@ -2401,12 +2405,12 @@ restartI:
 			//	panic("arg, non-determinism with two callers?!")
 			//}
 			if op != nil {
-				nd0 += s.dispatchAll(now, 1)
+				nd0 += s.dispatchAll(i, now, 1)
 				ndtot += nd0
 			}
 
 			s.refreshGridStepTimer(now)
-			s.armTimer(now)
+			s.armTimer(i, now)
 		case batch := <-s.submitBatchCh:
 			s.add2meq(batch)
 		case timer := <-s.addTimer:
@@ -2634,7 +2638,7 @@ func (s *simnet) refreshGridStepTimer(now time.Time) (dur time.Duration, goal ti
 	return
 }
 
-func (s *simnet) armTimer(now time.Time) (armed bool) {
+func (s *simnet) armTimer(loopi int64, now time.Time) (armed bool) {
 
 	// Ah! We only want to scheduler to sleep if
 	// we have some work to do in the meq.
@@ -2661,11 +2665,16 @@ func (s *simnet) armTimer(now time.Time) (armed bool) {
 		if !when.IsZero() {
 
 			when2 := when
-			if lte(when, now) {
-				when2 = userMaskTime(now, op.who)
-			} else {
-				when2 = userMaskTime(when, op.who)
-			}
+
+			// arg. if a mop is already masked, it should not
+			// be re-masked again. lets assume that the times
+			// in the meq are to be honored. any add to meq must
+			// add the right tm.
+			// if lte(when, now) {
+			// 	when2 = userMaskTime(now, op.who)
+			// } else {
+			// 	when2 = userMaskTime(when, op.who)
+			// }
 
 			dur := when2.Sub(now)
 			if dur <= 0 {
@@ -2680,7 +2689,7 @@ func (s *simnet) armTimer(now time.Time) (armed bool) {
 			// should be okay, since we can't be here and
 			// also waiting on the timer.
 			s.nextTimer.Reset(dur) // this should be the only such reset.
-			vv("arm timer: armed. when=%v, nextTimer dur=%v; into future(when - now): %v;  op='%v'", when2, dur, when2.Sub(now), op)
+			vv("i=%v, arm timer: armed. when=%v, nextTimer dur=%v; into future(when - now): %v;  op='%v'", loopi, when2, dur, when2.Sub(now), op)
 			//return dur
 			return true
 		}
