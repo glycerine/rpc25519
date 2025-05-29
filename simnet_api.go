@@ -3,7 +3,7 @@ package rpc25519
 import (
 	//"fmt"
 	mathrand2 "math/rand/v2"
-	"runtime"
+	//"runtime"
 	"time"
 )
 
@@ -60,7 +60,7 @@ func NewScenario(tick, minHop, maxHop time.Duration, seed [32]byte) *scenario {
 		maxHop:  maxHop,
 		reqtm:   time.Now(),
 		proceed: make(chan struct{}),
-		who:     runtime.GoID(),
+		who:     goID(),
 	}
 	s.rng = mathrand2.New(s.chacha)
 	return s
@@ -488,7 +488,7 @@ func newTimerCreateMop(isCli bool) (op *mop) {
 		kind:      TIMER,
 		proceed:   make(chan struct{}),
 		reqtm:     time.Now(),
-		who:       runtime.GoID(),
+		who:       goID(),
 	}
 	return
 }
@@ -501,7 +501,7 @@ func newTimerDiscardMop(origTimerMop *mop) (op *mop) {
 		proceed:      make(chan struct{}),
 		origTimerMop: origTimerMop,
 		reqtm:        time.Now(),
-		who:          runtime.GoID(),
+		who:          goID(),
 	}
 	return
 }
@@ -513,7 +513,7 @@ func newReadMop(isCli bool) (op *mop) {
 		kind:      READ,
 		proceed:   make(chan struct{}),
 		reqtm:     time.Now(),
-		who:       runtime.GoID(),
+		who:       goID(),
 	}
 	return
 }
@@ -527,7 +527,7 @@ func newSendMop(msg *Message, isCli bool) (op *mop) {
 		kind:      SEND,
 		proceed:   make(chan struct{}),
 		reqtm:     time.Now(),
-		who:       runtime.GoID(),
+		who:       goID(),
 	}
 	return
 }
@@ -593,7 +593,7 @@ func (s *simnet) newClientRegistration(
 		serverBaseID:     serverBaseID,
 		reqtm:            time.Now(),
 		done:             make(chan struct{}),
-		who:              runtime.GoID(),
+		who:              goID(),
 	}
 }
 
@@ -621,7 +621,7 @@ func (s *simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) *ser
 		srvNetAddr:   srvNetAddr,
 		done:         make(chan struct{}),
 		reqtm:        time.Now(),
-		who:          runtime.GoID(),
+		who:          goID(),
 	}
 }
 
@@ -676,7 +676,7 @@ func (s *simnet) newCircuitAlteration(simnodeName string, alter Alteration, isHo
 		isHostAlter: isHostAlter,
 		done:        make(chan struct{}),
 		reqtm:       time.Now(),
-		who:         runtime.GoID(),
+		who:         goID(),
 	}
 }
 
@@ -754,7 +754,7 @@ func newCircuitFault(originName, targetName string, dd DropDeafSpec, deliverDrop
 		sn:                  simnetNextMopSn(),
 		proceed:             make(chan struct{}),
 		reqtm:               time.Now(),
-		who:                 runtime.GoID(),
+		who:                 goID(),
 	}
 }
 
@@ -777,7 +777,7 @@ func newHostFault(hostName string, dd DropDeafSpec, deliverDroppedSends bool) *h
 		sn:                  simnetNextMopSn(),
 		proceed:             make(chan struct{}),
 		reqtm:               time.Now(),
-		who:                 runtime.GoID(),
+		who:                 goID(),
 	}
 }
 
@@ -807,7 +807,7 @@ func (s *simnet) newCircuitRepair(originName, targetName string, unIsolate, powe
 		sn:                  simnetNextMopSn(),
 		proceed:             make(chan struct{}),
 		reqtm:               time.Now(),
-		who:                 runtime.GoID(),
+		who:                 goID(),
 	}
 }
 
@@ -834,7 +834,7 @@ func (s *simnet) newHostRepair(hostName string, unIsolate, powerOnIfOff, allHost
 		sn:                  simnetNextMopSn(),
 		proceed:             make(chan struct{}),
 		reqtm:               time.Now(),
-		who:                 runtime.GoID(),
+		who:                 goID(),
 	}
 	return m
 }
@@ -916,7 +916,7 @@ func (s *simnet) GetSimnetSnapshot() (snap *SimnetSnapshot) {
 	snap = &SimnetSnapshot{
 		reqtm:   time.Now(),
 		proceed: make(chan struct{}),
-		who:     runtime.GoID(),
+		who:     goID(),
 	}
 	select {
 	case s.simnetSnapshotRequestCh <- snap:
@@ -962,7 +962,7 @@ func (s *simnet) NewSimnetBatch(subwhen time.Time, subAsap bool) *SimnetBatch {
 		batchSubAsap: subAsap,
 		reqtm:        time.Now(),
 		proceed:      make(chan struct{}),
-		who:          runtime.GoID(),
+		who:          goID(),
 	}
 }
 
@@ -974,7 +974,7 @@ func (s *simnet) SubmitBatch(batch *SimnetBatch) {
 		batch:   batch,
 		proceed: batch.proceed,
 		reqtm:   time.Now(),
-		who:     runtime.GoID(),
+		who:     goID(),
 	}
 	select {
 	case s.submitBatchCh <- op:
@@ -1063,7 +1063,7 @@ func (b *SimnetBatch) AlterHost(simnodeName string, alter Alteration) {
 func (b *SimnetBatch) GetSimnetSnapshot() {
 	snapReq := &SimnetSnapshot{
 		reqtm: time.Now(),
-		who:   runtime.GoID(),
+		who:   goID(),
 	}
 	b.add(newSnapReqMop(snapReq))
 }

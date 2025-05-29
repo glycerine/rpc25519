@@ -192,7 +192,7 @@ func (op *mop) String() string {
 		extra = fmt.Sprintf(" AT %v FROM %v (eof:%v)", op.origin.name, op.target.name, op.isEOF_RST)
 
 	}
-	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, msg.sn:%v%v}", who, op.kind, ini, arr, complete, op.sn, msgSerial, extra)
+	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, who:%v, msg.sn:%v%v}", who, op.kind, ini, arr, complete, op.sn, op.who, msgSerial, extra)
 }
 
 func (z *circuitFault) String() (r string) {

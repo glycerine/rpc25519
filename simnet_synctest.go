@@ -51,3 +51,7 @@ func (s *simnet) assertGoroAlone() {
 		s.singleGoroID = me
 	}
 }
+
+func goID() int {
+	return GoroNumber()
+}
