@@ -1581,7 +1581,7 @@ func (s *simnet) statewiseConnected(origin, target *simnode) bool {
 	return true
 }
 
-func (s *simnet) handleSend(send *mop, limit int64) (changed int64) {
+func (s *simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	now := time.Now()
 	vv("top of handleSend(send = '%v')", send)
 	defer close(send.proceed)
@@ -1633,9 +1633,9 @@ func (s *simnet) handleSend(send *mop, limit int64) (changed int64) {
 		s.add2meq(closer, -1)
 	}
 	//now := time.Now()
-	//delta := s.dispatch(send.target, now, limit) // needed?
-	//changed += delta
-	//limit -= delta
+	delta := s.dispatch(send.target, now, limit, loopi) // needed?
+	changed += delta
+	limit -= delta
 	return
 }
 
@@ -1643,7 +1643,7 @@ func (s *simnet) handleSend(send *mop, limit int64) (changed int64) {
 // have to result in the corresponding send
 // also failing, or else the send is "auto-retrying"
 // forever until it gets through!?!
-func (s *simnet) handleRead(read *mop, limit int64) (changed int64) {
+func (s *simnet) handleRead(read *mop, limit, loopi int64) (changed int64) {
 	//vv("top of handleRead(read = '%v')", read)
 	// don't want this! only when read matches with send!
 	//defer close(read.proceed)
@@ -1671,10 +1671,10 @@ func (s *simnet) handleRead(read *mop, limit int64) (changed int64) {
 	limit--
 	//vv("LC:%v  READ at %v: %v", origin.lc, origin.name, read)
 	////zz("LC:%v  READ %v at %v, now cliReadQ: '%v'", origin.lc, origin.name, read, origin.readQ)
-	//now := time.Now()
-	//delta := s.dispatch(origin, now, limit)
-	//changed += delta
-	//limit -= delta
+	now := time.Now()
+	delta := s.dispatch(origin, now, limit, loopi) // needed?
+	changed += delta
+	limit -= delta
 	return
 }
 
@@ -2298,9 +2298,10 @@ restartI:
 
 		case <-s.haveNextTimer(preSelectTm): // time advances when soonest timer fires
 			now = time.Now()
-			//elap := now.Sub(s.lastArmToFire)
+			elap := now.Sub(preSelectTm)
+			_ = elap
 			//totalSleepDur += elap
-			vv("i=%v, nextTimer fired. s.lastArmDur=%v; s.lastArmToFire = %v", i, s.lastArmDur, s.lastArmToFire)
+			//vv("i=%v, nextTimer fired. s.lastArmDur=%v; s.lastArmToFire = %v; elap = '%v'", i, s.lastArmDur, s.lastArmToFire, elap)
 			//if elap == 0 {
 			// too many! and no time advance... we should sleep when there's nothing left to dispatch/no changes.
 			//vv("i=%v, cool: elap was 0, nice. single stepping the next goro... nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
@@ -2368,11 +2369,11 @@ restartI:
 
 				case SEND:
 					//vv("i=%v, meq sees send='%v'", i, op)
-					s.handleSend(op, 1)
+					s.handleSend(op, 1, i)
 
 				case READ:
 					//vv("i=%v meq sees read='%v'", i, op)
-					s.handleRead(op, 1)
+					s.handleRead(op, 1, i)
 				case SNAPSHOT:
 					s.handleSimnetSnapshotRequest(op.snapReq, now, i)
 				case CLIENT_REG:
@@ -2405,7 +2406,7 @@ restartI:
 					panic(fmt.Sprintf("why in our meq this mop kind? '%v'", int(op.kind)))
 				}
 			}
-			//vv("who count = %v", len(who))
+			//vv("i=%v; who count = %v", i, len(who))
 			//if len(who) > 1 {
 			//	panic("arg, non-determinism with two callers?!")
 			//}
@@ -2694,6 +2695,10 @@ func (s *simnet) armTimer(now time.Time, loopi int64) (armed bool) {
 				//old: vv("times were not all unique, but they should be! op='%v'", op)
 				//panic("make times all unique!")
 			}
+			if dur > s.scenario.tick {
+				dur = s.scenario.tick
+				when2 = now.Add(dur)
+			}
 
 			s.lastArmToFire = when2
 			s.lastArmDur = dur
@@ -2702,7 +2707,7 @@ func (s *simnet) armTimer(now time.Time, loopi int64) (armed bool) {
 			// should be okay, since we can't be here and
 			// also waiting on the timer.
 			s.nextTimer.Reset(dur) // this should be the only such reset.
-			vv("i=%v, arm timer: armed. when=%v, nextTimer dur=%v; into future(when - now): %v;  op='%v'", loopi, when2, dur, when2.Sub(now), op)
+			//vv("i=%v, arm timer: armed. when=%v, nextTimer dur=%v; into future(when - now): %v;  op='%v'", loopi, when2, dur, when2.Sub(now), op)
 			//return dur
 			return true
 		}
