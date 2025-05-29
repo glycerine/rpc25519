@@ -229,7 +229,7 @@ func (s *mop) tm() time.Time {
 		return s.reqtm
 	case ALTER_NODE:
 		return s.reqtm
-	case CLOSER:
+	case PROCEED:
 		return s.completeTm
 	}
 	panic(fmt.Sprintf("mop kind '%v' needs tm", int(s.kind)))
@@ -606,7 +606,7 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	now := time.Now()
 	closer := &mop{
 		completeTm: userMaskTime(now, reg.who), // what tm() refers to.
-		kind:       CLOSER,
+		kind:       PROCEED,
 		//closerMop:  reg,
 		sn:      simnetNextMopSn(),
 		proceed: reg.proceed,
@@ -851,7 +851,7 @@ const (
 
 	// report a snapshot of the entire network/state.
 	SNAPSHOT mopkind = 15
-	CLOSER   mopkind = 16
+	PROCEED  mopkind = 16
 )
 
 func enforceTickDur(tick time.Duration) time.Duration {
@@ -1600,9 +1600,9 @@ func (s *simnet) handleSend(send *mop, limit int64) (changed int64) {
 	// the meq and do it at a unique time we just assigned to
 	// send.completeTm.
 	closer := &mop{
-		// completeTm is what tm() refers to for CLOSER.
+		// completeTm is what tm() refers to for PROCEED.
 		completeTm: userMaskTime(send.completeTm, send.who),
-		kind:       CLOSER,
+		kind:       PROCEED,
 		closerMop:  send,
 		sn:         simnetNextMopSn(),
 		proceed:    send.proceed,
@@ -2302,8 +2302,8 @@ restartI:
 				who[op.who] = true
 
 				switch op.kind {
-				case CLOSER:
-					vv("CLOSER releasing: %v", op.closerMop)
+				case PROCEED:
+					vv("PROCEED releasing op.completeTm = %v", op.completeTm)
 					close(op.proceed)
 
 				case TIMER:
