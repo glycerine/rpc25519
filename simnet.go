@@ -618,18 +618,20 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 
 	// channel made by newCircuitserver() above.
 	reg.tellServerNewConnCh = srvnode.tellServerNewConnCh
-	//close(reg.done)
-	now := time.Now()
-	closer := &mop{
-		completeTm: userMaskTime(now, reg.who), // what tm() refers to.
-		kind:       PROCEED,
-		//closerMop:  reg,
-		sn:      simnetNextMopSn(),
-		proceed: reg.proceed,
-		reqtm:   reg.reqtm,
-		who:     reg.who,
+	close(reg.proceed)
+	if false {
+		now := time.Now()
+		closer := &mop{
+			completeTm: userMaskTime(now, reg.who), // what tm() refers to.
+			kind:       PROCEED,
+			//closerMop:  reg,
+			sn:      simnetNextMopSn(),
+			proceed: reg.proceed,
+			reqtm:   reg.reqtm,
+			who:     reg.who,
+		}
+		s.add2meq(closer, -1)
 	}
-	s.add2meq(closer, -1)
 }
 
 func (s *simnet) handleClientRegistration(reg *clientRegistration) {
@@ -1582,7 +1584,7 @@ func (s *simnet) statewiseConnected(origin, target *simnode) bool {
 func (s *simnet) handleSend(send *mop, limit int64) (changed int64) {
 	now := time.Now()
 	vv("top of handleSend(send = '%v')", send)
-	//defer close(send.proceed)
+	defer close(send.proceed)
 
 	origin := send.origin
 	send.senderLC = origin.lc
@@ -1613,22 +1615,23 @@ func (s *simnet) handleSend(send *mop, limit int64) (changed int64) {
 	//vv("handleSend SEND send = %v", send)
 	////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvnode.preArrQ)
 
-	// Do we need to s.nextUniqTm() when we close(send.proceed)?
-	// I think we do want to queue up the send.proceed into
-	// the meq and do it at a unique time we just assigned to
-	// send.completeTm.
-	closer := &mop{
-		// completeTm is what tm() refers to for PROCEED.
-		completeTm: userMaskTime(send.completeTm, send.who),
-		kind:       PROCEED,
-		closerMop:  send,
-		sn:         simnetNextMopSn(),
-		proceed:    send.proceed,
-		reqtm:      now,
-		who:        send.who,
+	if false { // we put back in the above close(proceed) for now
+		// Do we need to s.nextUniqTm() when we close(send.proceed)?
+		// I think we do want to queue up the send.proceed into
+		// the meq and do it at a unique time we just assigned to
+		// send.completeTm.
+		closer := &mop{
+			// completeTm is what tm() refers to for PROCEED.
+			completeTm: userMaskTime(send.completeTm, send.who),
+			kind:       PROCEED,
+			closerMop:  send,
+			sn:         simnetNextMopSn(),
+			proceed:    send.proceed,
+			reqtm:      now,
+			who:        send.who,
+		}
+		s.add2meq(closer, -1)
 	}
-	s.add2meq(closer, -1)
-
 	//now := time.Now()
 	//delta := s.dispatch(send.target, now, limit) // needed?
 	//changed += delta
@@ -1710,7 +1713,7 @@ func gte(a, b time.Time) bool {
 // afterwards. We don't worry about powerOff b/c
 // when set it deletes all timers.
 func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi int64) (changes int64) {
-	if limit <= 0 {
+	if limit == 0 {
 		return
 	}
 	if simnode.timerQ.Tree.Len() == 0 {
@@ -1720,7 +1723,7 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 	timerIt := simnode.timerQ.Tree.Min()
 	for !timerIt.Limit() { // advance, and delete behind below
 
-		if limit <= 0 {
+		if limit == 0 {
 			return
 		}
 
@@ -1754,19 +1757,21 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 			} else {
 				// user timer
 
-				// deliver with the meq
-				closer := &mop{
-					// completeTm is what tm() refers to for PROCEED.
-					completeTm: userMaskTime(timer.completeTm, timer.who),
-					kind:       TIMER_FIRES,
-					closerMop:  timer,
-					sn:         simnetNextMopSn(),
-					//proceed:    send.proceed,
-					reqtm: timer.reqtm,
-					who:   timer.who,
+				if false {
+					// deliver with the meq
+					closer := &mop{
+						// completeTm is what tm() refers to for PROCEED.
+						completeTm: userMaskTime(timer.completeTm, timer.who),
+						kind:       TIMER_FIRES,
+						closerMop:  timer,
+						sn:         simnetNextMopSn(),
+						//proceed:    send.proceed,
+						reqtm: timer.reqtm,
+						who:   timer.who,
+					}
+					s.add2meq(closer, loopi)
+					continue
 				}
-				s.add2meq(closer, loopi)
-				continue
 
 				select {
 				case timer.timerC <- now:
@@ -1813,7 +1818,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 	defer func() {
 		//vv("=== end of dispatch %v", simnode.name)
 	}()
-	if limit <= 0 {
+	if limit == 0 {
 		return
 	}
 
@@ -1829,7 +1834,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 
 	// matching reads and sends
 	for {
-		if limit <= 0 {
+		if limit == 0 {
 			return
 		}
 		if readIt.Limit() {
@@ -2002,7 +2007,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 		read.arrivalTm = send.arrivalTm // easier diagnostics
 
 		// matchmaking
-		//vv("[1]matchmaking: \nsend '%v' -> \nread '%v' \nread.sn=%v, readAttempt=%v, read.lastP=%v, lastIsDeafTrueTm=%v", send, read, read.sn, read.readAttempt, read.lastP, nice(read.lastIsDeafTrueTm))
+		vv("[1]matchmaking: \nsend '%v' -> \nread '%v' \nread.sn=%v, readAttempt=%v, read.lastP=%v, lastIsDeafTrueTm=%v", send, read, read.sn, read.readAttempt, read.lastP, nice(read.lastIsDeafTrueTm))
 		read.sendmop = send
 		send.readmop = read
 
@@ -2029,7 +2034,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 // dispatch delivers sends to reads, and fires timers.
 // It no longer calls simnode.net.armTimer().
 func (s *simnet) dispatch(simnode *simnode, now time.Time, limit, loopi int64) (changes int64) {
-	if limit <= 0 {
+	if limit == 0 {
 		return
 	}
 	changes += s.dispatchTimers(simnode, now, limit, loopi)
@@ -2053,12 +2058,12 @@ func (s *simnet) schedulerReport() string {
 }
 
 func (s *simnet) dispatchAll(now time.Time, limit, loopi int64) (changes int64) {
-	if limit <= 0 {
+	if limit == 0 {
 		return
 	}
 	// notice here we only use the key of s.circuits
 	for simnode := range s.circuits.all() {
-		if limit <= 0 {
+		if limit == 0 {
 			return
 		}
 		delta := s.dispatch(simnode, now, limit, loopi)
@@ -2070,11 +2075,11 @@ func (s *simnet) dispatchAll(now time.Time, limit, loopi int64) (changes int64) 
 
 // does not call armTimer(), so scheduler should afterwards.
 func (s *simnet) dispatchAllTimers(now time.Time, limit, loopi int64) (changes int64) {
-	if limit <= 0 {
+	if limit == 0 {
 		return
 	}
 	for simnode := range s.circuits.all() {
-		if limit <= 0 {
+		if limit == 0 {
 			return
 		}
 		delta := s.dispatchTimers(simnode, now, limit, loopi)
@@ -2086,11 +2091,11 @@ func (s *simnet) dispatchAllTimers(now time.Time, limit, loopi int64) (changes i
 
 // does not call armTimer(), so scheduler should afterwards.
 func (s *simnet) dispatchAllReadsSends(now time.Time, limit, loopi int64) (changes int64) {
-	if limit <= 0 {
+	if limit == 0 {
 		return
 	}
 	for simnode := range s.circuits.all() {
-		if limit <= 0 {
+		if limit == 0 {
 			return
 		}
 		delta := s.dispatchReadsSends(simnode, now, limit, loopi)
@@ -2288,10 +2293,10 @@ restartI:
 		//nd0 += changed
 		//vv("i=%v, first dispatchAll changed=%v, total nd0=%v", i, changed, nd0)
 
-		//preSelectTm := now
+		preSelectTm := now
 		select { // scheduler main select
 
-		case <-s.haveNextTimer(): // time advances when soonest timer fires
+		case <-s.haveNextTimer(preSelectTm): // time advances when soonest timer fires
 			now = time.Now()
 			//elap := now.Sub(s.lastArmToFire)
 			//totalSleepDur += elap
@@ -2404,12 +2409,13 @@ restartI:
 			//if len(who) > 1 {
 			//	panic("arg, non-determinism with two callers?!")
 			//}
-			if op != nil {
-				nd0 += s.dispatchAll(now, 1, i)
-				ndtot += nd0
-			}
+			//if op != nil {
+			// limit of -1 means no limit.
+			nd0 += s.dispatchAll(now, -1, i)
+			ndtot += nd0
+			//}
 
-			s.refreshGridStepTimer(now)
+			//s.refreshGridStepTimer(now)
 			s.armTimer(now, i)
 		case batch := <-s.submitBatchCh:
 			s.add2meq(batch, i)
@@ -2506,10 +2512,17 @@ restartI:
 // we might not have a next timer, then we
 // just service other cases, which should
 // establish a nextTimer.
-func (s *simnet) haveNextTimer() <-chan time.Time {
+func (s *simnet) haveNextTimer(now time.Time) <-chan time.Time {
 	if s.lastArmToFire.IsZero() {
 		// no timer at the moment
-		return nil
+
+		// set grid timer instead
+		next := userMaskTime(now, goID())
+		dur := next.Sub(now)
+		s.lastArmToFire = next
+		s.lastArmDur = dur
+		s.nextTimer.Reset(dur)
+		//return nil
 	}
 	return s.nextTimer.C
 }
