@@ -62,6 +62,7 @@ func Test702_simnet_grid_peer_to_peer_works(t *testing.T) {
 				// we cannot really do case <-time.After(time.Minute) with faketime.
 			}
 		}
+		//vv("end of 702")
 	})
 }
 

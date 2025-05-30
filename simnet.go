@@ -2203,13 +2203,10 @@ func (s *simnet) scheduler() {
 	// next timer to go off, so barrier cannot deadlock.
 	// s.gridStepTimer = timer
 
-	var ndtot int64 // num dispatched total.
+	//var ndtot int64 // num dispatched total.
 
-restartI:
+	//restartI:
 	for i := int64(0); ; i++ {
-
-		// number of dispatched operations
-		var nd0 int64
 
 		now := time.Now()
 		if gte(now, nextReport) {
@@ -2223,13 +2220,11 @@ restartI:
 			//vv("i=%v scheduler top. ndtot=%v", i, ndtot)
 		}
 
-		// inline haveNextTimer() to make behavior more obvious.
-		// so <-s.nextTimer.C below instead of <-s.haveNextTimer(preSelectTm)
-		if s.lastArmToFire.IsZero() {
-			// no timer at the moment
-			s.nextTimer.Reset(0) // means we get synctest.Wait behavior.
+		// let goroutines get blocked waiting on the select arms below.
+		if faketime && s.barrier {
+			synctestWait_LetAllOtherGoroFinish() // 1st barrier
 		}
-
+		//vv("i=%v, about to select", i)
 		preSelectTm := now
 		select { // scheduler main select
 
@@ -2238,12 +2233,14 @@ restartI:
 		// is equivalent to a synctest.Wait in that it
 		// returns only once the bubble is blocked.
 		//
-		case <-s.nextTimer.C:
+		case <-s.haveNextTimer(preSelectTm):
 			now = time.Now()
 			elap := now.Sub(preSelectTm)
 			slept := elap > 0
 			if elap == 0 {
-
+				if faketime && s.lastArmDur > 0 { // simnet.go:2170 [goID 13] 2000-01-01 00:00:00.000400024 +0000 UTC scheduler panic-ing: why awake when elap=0 but lastArmDur=-1ns
+					panic(fmt.Sprintf("why awake when elap=0 but lastArmDur=%v", s.lastArmDur))
+				}
 				// A timer of dur zero is equivalent to synctest.Wait;
 				// so time has not advanced, but the rest of the
 				// bubble is blocked now. Do we want to sleep to
@@ -2288,111 +2285,7 @@ restartI:
 			}
 			s.tickLogicalClocks()
 
-			// meq is trying for
-			// more deterministic event ordering. we have
-			// accumulated and held any events from the
-			// the read/send/timer/discard select cases
-			// into the meq during the last <-s.haveNextTimer, and
-			// now we act on them.
-
-			// do we have more than one goro sending us stuff
-			// in a single tick?
-			// that would imply non-determinism, but sadly
-			// this happens for sure on startup though, when
-			// cli/srv spin up their read loops/send loops.
-			// Once we hit steady state we could try to
-			// get more determinism, but start up is inherently
-			// parallel at the moment.
-			who := make(map[int]bool)
-
-			// if we don't process all the meq and assign
-			// them timepoints in the future to run, then
-			// the subsequent queued events might get to run first?
-			var op *mop
-			for {
-				top := s.meq.peek()
-				if top == nil {
-					break
-				}
-				if top.tm().After(now) {
-					break
-				}
-				op = s.meq.pop()
-				who[op.who] = true
-
-				switch op.kind {
-				case PROCEED: // not currently used.
-					vv("PROCEED releasing op.completeTm = %v", op.completeTm)
-					close(op.proceed)
-
-				case TIMER_FIRES: // not currently used.
-					vv("TIMER_FIRES: %v", op)
-					select {
-					case op.proceedMop.timerC <- now: // might need to make buffered
-						vv("TIMER_FIRES delivered to timer: %v", op.proceedMop)
-					case <-s.halt.ReqStop.Chan:
-						vv("i=%v <-s.halt.ReqStop.Chan", i)
-						return
-					}
-
-				case TIMER:
-					//vv("i=%v, meq sees timer='%v'", i, op)
-					s.handleTimer(op)
-
-				case TIMER_DISCARD:
-					//vv("i=%v, meq sees discard='%v'", i, op)
-					s.handleDiscardTimer(op)
-
-				case SEND:
-					//vv("i=%v, meq sees send='%v'", i, op)
-					s.handleSend(op, 1, i)
-
-				case READ:
-					//vv("i=%v meq sees read='%v'", i, op)
-					s.handleRead(op, 1, i)
-				case SNAPSHOT:
-					s.handleSimnetSnapshotRequest(op.snapReq, now, i)
-				case CLIENT_REG:
-					s.handleClientRegistration(op.cliReg)
-				case SERVER_REG:
-					s.handleServerRegistration(op.srvReg)
-
-				case SCENARIO:
-					s.finishScenario()
-					s.initScenario(op.scen)
-					i = 0
-					panic("TODO, impossible to restart network???")
-					continue restartI
-
-				case FAULT_CKT:
-					s.injectCircuitFault(op.cktFault, true)
-				case FAULT_HOST:
-					s.injectHostFault(op.hostFault)
-				case REPAIR_CKT:
-					s.handleCircuitRepair(op.repairCkt, true)
-				case REPAIR_HOST:
-					s.handleHostRepair(op.repairHost)
-				case ALTER_HOST:
-					s.handleAlterHost(op.alterHost)
-				case ALTER_NODE:
-					s.handleAlterCircuit(op.alterNode, true)
-				case BATCH:
-					s.handleBatch(op.batch)
-				default:
-					panic(fmt.Sprintf("why in our meq this mop kind? '%v'", int(op.kind)))
-				}
-			}
-			//vv("i=%v; who count = %v", i, len(who))
-			//if len(who) > 1 {
-			//	panic("arg, non-determinism with two callers?!")
-			//}
-			// limit of -1 means no limit on number of dispatched mop.
-			nd0 += s.dispatchAll(now, -1, i)
-			ndtot += nd0
-
-			//s.refreshGridStepTimer(now) // not really used atm.
-			s.armTimer(now, i)
-
+			s.distributeMEQ(now, i)
 			// end case wakeup <-s.haveNextTimer
 
 		case batch := <-s.submitBatchCh:
@@ -2479,10 +2372,144 @@ restartI:
 			_ = pct
 			//vv("simnet.halt.ReqStop totalSleepDur = %v (%0.2f%%) since bb = %v)", totalSleepDur, pct, bb)
 			return
+
+			/*		default:
+					vv("i=%v, default: nobody else wanted to use our services.", i)
+					now = time.Now()
+					sz := s.meq.Len()
+					var npop int
+					if sz > 0 {
+						npop = s.distributeMEQ(now, i)
+					} // else {
+					//vv("i=%v, sz=%v, just advance time and try to dispatch on next loop", i, sz)
+					_ = npop
+					//if npop == 0 {
+					s.armTimer(now, i)
+					if s.lastArmToFire.IsZero() {
+						// durToGridPoint does userMaskTime for us now.
+						dur, _ := s.durToGridPoint(now, s.scenario.tick)
+						vv("dur = %v; tick=%v", dur, s.scenario.tick)
+						time.Sleep(dur)
+					}
+					//}
+			*/
 		} // end select
 
 		//vv("i=%v bottom of scheduler loop. num dispatch events = %v", i, nd0)
 	}
+}
+
+func (s *simnet) distributeMEQ(now time.Time, i int64) (npop int) {
+	//vv("i=%v, top distributeMEQ", i)
+	// meq is trying for
+	// more deterministic event ordering. we have
+	// accumulated and held any events from the
+	// the read/send/timer/discard select cases
+	// into the meq during the last <-s.haveNextTimer, and
+	// now we act on them.
+
+	// do we have more than one goro sending us stuff
+	// in a single tick?
+	// that would imply non-determinism, but sadly
+	// this happens for sure on startup though, when
+	// cli/srv spin up their read loops/send loops.
+	// Once we hit steady state we could try to
+	// get more determinism, but start up is inherently
+	// parallel at the moment.
+	who := make(map[int]bool)
+
+	// if we don't process all the meq and assign
+	// them timepoints in the future to run, then
+	// the subsequent queued events might get to run first?
+	var op *mop
+	for {
+		top := s.meq.peek()
+		if top == nil {
+			break
+		}
+		if top.tm().After(now) {
+			break
+		}
+		op = s.meq.pop()
+		npop++
+		who[op.who] = true
+
+		switch op.kind {
+		case PROCEED: // not currently used.
+			vv("PROCEED releasing op.completeTm = %v", op.completeTm)
+			close(op.proceed)
+
+		case TIMER_FIRES: // not currently used.
+			vv("TIMER_FIRES: %v", op)
+			select {
+			case op.proceedMop.timerC <- now: // might need to make buffered
+				vv("TIMER_FIRES delivered to timer: %v", op.proceedMop)
+			case <-s.halt.ReqStop.Chan:
+				vv("i=%v <-s.halt.ReqStop.Chan", i)
+				return
+			}
+
+		case TIMER:
+			//vv("i=%v, meq sees timer='%v'", i, op)
+			s.handleTimer(op)
+
+		case TIMER_DISCARD:
+			//vv("i=%v, meq sees discard='%v'", i, op)
+			s.handleDiscardTimer(op)
+
+		case SEND:
+			//vv("i=%v, meq sees send='%v'", i, op)
+			s.handleSend(op, 1, i)
+
+		case READ:
+			//vv("i=%v meq sees read='%v'", i, op)
+			s.handleRead(op, 1, i)
+		case SNAPSHOT:
+			s.handleSimnetSnapshotRequest(op.snapReq, now, i)
+		case CLIENT_REG:
+			s.handleClientRegistration(op.cliReg)
+		case SERVER_REG:
+			s.handleServerRegistration(op.srvReg)
+
+		case SCENARIO:
+			s.finishScenario()
+			s.initScenario(op.scen)
+			i = 0
+			panic("TODO, impossible to restart network???")
+			//continue restartI
+
+		case FAULT_CKT:
+			s.injectCircuitFault(op.cktFault, true)
+		case FAULT_HOST:
+			s.injectHostFault(op.hostFault)
+		case REPAIR_CKT:
+			s.handleCircuitRepair(op.repairCkt, true)
+		case REPAIR_HOST:
+			s.handleHostRepair(op.repairHost)
+		case ALTER_HOST:
+			s.handleAlterHost(op.alterHost)
+		case ALTER_NODE:
+			s.handleAlterCircuit(op.alterNode, true)
+		case BATCH:
+			s.handleBatch(op.batch)
+		default:
+			panic(fmt.Sprintf("why in our meq this mop kind? '%v'", int(op.kind)))
+		}
+	} // end for
+
+	//vv("i=%v; who count = %v", i, len(who))
+	//if len(who) > 1 {
+	//	panic("arg, non-determinism with two callers?!")
+	//}
+	// limit of -1 means no limit on number of dispatched mop.
+	//nd0 += s.dispatchAll(now, -1, i)
+	s.dispatchAll(now, -1, i)
+	//ndtot += nd0
+
+	//s.refreshGridStepTimer(now) // not really used atm.
+	s.armTimer(now, i)
+
+	return
 }
 
 // If we don't have a next timer, do
@@ -2490,9 +2517,11 @@ restartI:
 // https://github.com/golang/go/issues/73876#issuecomment-2920758263
 func (s *simnet) haveNextTimer(now time.Time) <-chan time.Time {
 	if s.lastArmToFire.IsZero() {
-		// no timer at the moment
-		s.nextTimer.Reset(0) // means we get synctest.Wait behavior.
+		s.nextTimer.Reset(0)
+		//vv("haveNextTimer: no timer at the moment, don't wait on it.")
+		//return nil
 	}
+	//vv("haveNextTimer: s.lastArmToFire = %v; s.lastArmDur = %v", s.lastArmToFire, s.lastArmDur)
 	return s.nextTimer.C
 }
 
@@ -2663,13 +2692,15 @@ func (s *simnet) armTimer(now time.Time, loopi int64) (armed bool) {
 			// }
 
 			dur := when2.Sub(now)
-			if dur <= 0 {
+			if dur < 0 {
 				//old: vv("times were not all unique, but they should be! op='%v'", op)
-				//panic("make times all unique!")
+				panic("negative dur will collide with s.lastArmDur = -1 ?!?")
 			}
 			if dur > s.scenario.tick {
-				dur = s.scenario.tick
-				when2 = now.Add(dur)
+				//dur = s.scenario.tick
+				//when2 = now.Add(dur)
+				//when2 = userMaskTime(now.Add(dur), s.who)
+				dur, when2 = s.durToGridPoint(now, s.scenario.tick)
 			}
 
 			s.lastArmToFire = when2
