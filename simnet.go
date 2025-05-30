@@ -2152,38 +2152,12 @@ func (s *simnet) add2meq(op *mop, loopi int64) (armed bool) {
 // dedicated to one type of call.
 //
 // After each dispatchAll, our channel closes
-// have started simnode goroutines, so they
+// have unblocked simnode goroutines, so they
 // are running and may now be trying
 // to do network operations. The
 // select below will service those
-// operations, or take a time step
-// if nextTimer goes off first. Since
-// synctest ONLY advances time when
-// all goro are blocked, nextTimer
-// will go off last, once all other simnode
-// goro have blocked. This is nice: it does
-// not required another barrier opreation
-// to get to "go last". Client code
-// might also be woken at the instant
-// that nextTimer fires, but we have no
-// a guarantee that they won't race with
-// our timer: they could do further network
-// operations through our select cases
-// before our timer gets to fire. But
-// this should be rare and only apply
-// to client code using time.Timer/After directly,
-// as our mock SimTimer will not be woken:
-// that is also already simulated/combined
-// into the nextTimer. This is why we would
-// like _all_ sim code to use SimTimer
-// for a more highly deterministic simulation test.
-// Since that invasively requires changing
-// user code in some cases, the tradeoff is
-// unavoidable. The user client code can stay as is,
-// and will work/should test, but errors/red
-// tests will not be as reproducible as
-// possible, compared to if it were to be
-// udpated use the SimTimer instead.
+// operations, or take a time step forward
+// if they are all blocked.
 func (s *simnet) scheduler() {
 	//vv("scheduler is running on goro = %v", GoroNumber())
 
@@ -2247,6 +2221,13 @@ restartI:
 			//vv("i=%v scheduler top. ndtot=%v", i, ndtot)
 		}
 
+		// inline haveNextTimer() to make behavior more obvious.
+		// so <-s.nextTimer.C below instead of <-s.haveNextTimer(preSelectTm)
+		if s.lastArmToFire.IsZero() {
+			// no timer at the moment
+			s.nextTimer.Reset(0) // means we get synctest.Wait behavior.
+		}
+
 		preSelectTm := now
 		select { // scheduler main select
 
@@ -2255,7 +2236,7 @@ restartI:
 		// is equivalent to a synctest.Wait in that it
 		// returns only once the bubble is blocked.
 		//
-		case <-s.haveNextTimer(preSelectTm):
+		case <-s.nextTimer.C:
 			now = time.Now()
 			elap := now.Sub(preSelectTm)
 			slept := elap > 0
