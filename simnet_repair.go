@@ -456,7 +456,7 @@ func (s *simnet) applyFaultsToReadQ(now time.Time, origin, target *simnode, deaf
 		read := readIt.Item().(*mop)
 		if target == nil || read.target == target {
 			if !s.statewiseConnected(read.origin, read.target) ||
-				//s.deaf(deafReadProb) {
+				//s.deaf(deafReadProb) { wrong! makes 1002 red, 50% deaf cli.
 				s.localDeafReadProb(read) >= 1 {
 
 				//vv("deaf fault enforced on read='%v'", read)

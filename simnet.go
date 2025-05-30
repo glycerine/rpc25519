@@ -1488,10 +1488,10 @@ func (s *simnet) localDeafReadProb(read *mop) float64 {
 // the send can't keep coming back if the read is deaf; else
 // its like an auto-retry that will eventually get through.
 func (s *simnet) localDeafRead(read, send *mop) (isDeaf bool) {
-	vv("localDeafRead called by '%v'", fileLine(2))
-	defer func() {
-		vv("defer localDeafRead returning %v, called by '%v', read='%v'", isDeaf, fileLine(3), read)
-	}()
+	//vv("localDeafRead called by '%v'", fileLine(2))
+	//defer func() {
+	//	vv("defer localDeafRead returning %v, called by '%v', read='%v'", isDeaf, fileLine(3), read)
+	//}()
 
 	// get the local (read) origin conn probability of deafness
 	// note: not the remote's deafness, only local.
@@ -1502,11 +1502,11 @@ func (s *simnet) localDeafRead(read, send *mop) (isDeaf bool) {
 	read.readAttempt++
 
 	if prob == 0 {
-		vv("localDeafRead top: prob = 0, not deaf for sure: read='%v'; send='%v'", read, send)
+		//vv("localDeafRead top: prob = 0, not deaf for sure: read='%v'; send='%v'", read, send)
 	} else {
 		random01 := s.scenario.rng.Float64() // in [0, 1)
 
-		vv("localDeafRead top: random01 = %v < prob(%v) = %v ; read='%v'; send='%v'", random01, prob, random01 < prob, read, send) // not seen 1002
+		//vv("localDeafRead top: random01 = %v < prob(%v) = %v ; read='%v'; send='%v'", random01, prob, random01 < prob, read, send) // not seen 1002
 		isDeaf = random01 < prob
 	}
 
@@ -1652,7 +1652,7 @@ func (s *simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 // also failing, or else the send is "auto-retrying"
 // forever until it gets through!?!
 func (s *simnet) handleRead(read *mop, limit, loopi int64) (changed int64) {
-	vv("top of handleRead(read = '%v')", read)
+	//vv("top of handleRead(read = '%v')", read)
 	// don't want this! only when read matches with send!
 	//defer close(read.proceed)
 
@@ -1669,7 +1669,7 @@ func (s *simnet) handleRead(read *mop, limit, loopi int64) (changed int64) {
 	if !s.statewiseConnected(read.origin, read.target) ||
 		probDeaf >= 1 {
 
-		vv("handleRead: DEAF READ %v BUT LEAVING it in the readQ so we can possibly make this same read viable in the future", read)
+		//vv("handleRead: DEAF READ %v BUT LEAVING it in the readQ so we can possibly make this same read viable in the future", read)
 		//origin.deafReadQ.add(read) // I think we do want this...
 		origin.readQ.add(read) // is this really what we want now?
 	} else {
@@ -2012,7 +2012,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 		read.arrivalTm = send.arrivalTm // easier diagnostics
 
 		// matchmaking
-		vv("[1]matchmaking: \nsend '%v' -> \nread '%v' \nread.sn=%v, readAttempt=%v, read.lastP=%v, lastIsDeafTrueTm=%v", send, read, read.sn, read.readAttempt, read.lastP, nice(read.lastIsDeafTrueTm))
+		//vv("[1]matchmaking: \nsend '%v' -> \nread '%v' \nread.sn=%v, readAttempt=%v, read.lastP=%v, lastIsDeafTrueTm=%v", send, read, read.sn, read.readAttempt, read.lastP, nice(read.lastIsDeafTrueTm))
 		read.sendmop = send
 		send.readmop = read
 
@@ -2487,7 +2487,7 @@ restartI:
 			s.add2meq(discard, i)
 
 		case send := <-s.msgSendCh:
-			vv("i=%v, msgSendCh ->  send='%v'", i, send)
+			//vv("i=%v, msgSendCh ->  send='%v'", i, send)
 			//s.handleSend(send)
 			s.add2meq(send, i)
 
