@@ -950,9 +950,9 @@ func (s *pq) add(op *mop) (added bool, it rb.Iterator) {
 	if op == nil {
 		panic("do not put nil into pq!")
 	}
-	if s.isDeafQ {
-		//panic(fmt.Sprintf("where added to deafReadQ: '%v'", op))
-	}
+	//if s.isDeafQ && op.kind == READ { // sends go in too.
+	//	panic(fmt.Sprintf("where read added to deafReadQ: '%v'", op))
+	//}
 	added, it = s.Tree.InsertGetIt(op)
 	return
 }
