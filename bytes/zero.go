@@ -1,3 +1,5 @@
+//go:build !wasm
+
 package bytes
 
 import "github.com/templexxx/cpu"
