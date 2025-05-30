@@ -28,7 +28,7 @@ type mop struct {
 	sn  int64
 	who int // goro number
 
-	closerMop *mop // in meq, should close(proceed) at completeTm
+	proceedMop *mop // in meq, should close(proceed) at completeTm
 
 	batchSn   int64
 	batchPart int64
@@ -625,7 +625,7 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 		closer := &mop{
 			completeTm: userMaskTime(now, reg.who), // what tm() refers to.
 			kind:       PROCEED,
-			//closerMop:  reg,
+			//proceedMop:  reg,
 			sn:      simnetNextMopSn(),
 			proceed: reg.proceed,
 			reqtm:   reg.reqtm,
@@ -870,8 +870,8 @@ const (
 
 	// report a snapshot of the entire network/state.
 	SNAPSHOT    mopkind = 15
-	PROCEED     mopkind = 16
-	TIMER_FIRES mopkind = 17
+	PROCEED     mopkind = 16 // not currently used.
+	TIMER_FIRES mopkind = 17 // not currently used.
 )
 
 func enforceTickDur(tick time.Duration) time.Duration {
@@ -1632,7 +1632,7 @@ func (s *simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 			// completeTm is what tm() refers to for PROCEED.
 			completeTm: userMaskTime(send.completeTm, send.who),
 			kind:       PROCEED,
-			closerMop:  send,
+			proceedMop: send,
 			sn:         simnetNextMopSn(),
 			proceed:    send.proceed,
 			reqtm:      now,
@@ -1771,7 +1771,7 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 						// completeTm is what tm() refers to for PROCEED.
 						completeTm: userMaskTime(timer.completeTm, timer.who),
 						kind:       TIMER_FIRES,
-						closerMop:  timer,
+						proceedMop: timer,
 						sn:         simnetNextMopSn(),
 						//proceed:    send.proceed,
 						reqtm: timer.reqtm,
@@ -2401,15 +2401,15 @@ restartI:
 				who[op.who] = true
 
 				switch op.kind {
-				case PROCEED:
+				case PROCEED: // not currently used.
 					vv("PROCEED releasing op.completeTm = %v", op.completeTm)
 					close(op.proceed)
 
-				case TIMER_FIRES:
+				case TIMER_FIRES: // not currently used.
 					vv("TIMER_FIRES: %v", op)
 					select {
-					case op.closerMop.timerC <- now: // might need to make buffered
-						vv("TIMER_FIRES delivered to timer: %v", op.closerMop)
+					case op.proceedMop.timerC <- now: // might need to make buffered
+						vv("TIMER_FIRES delivered to timer: %v", op.proceedMop)
 					case <-s.halt.ReqStop.Chan:
 						vv("i=%v <-s.halt.ReqStop.Chan", i)
 						return
