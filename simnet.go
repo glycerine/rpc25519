@@ -51,10 +51,11 @@ type mop struct {
 	readerLC int64
 	originLC int64
 
-	timerC           chan time.Time
-	timerDur         time.Duration
-	timerFileLine    string // where was this timer from?
-	timerReseenCount int
+	timerC              chan time.Time
+	timerDur            time.Duration
+	timerFileLine       string // where was this timer from?
+	timerReseenCount    int
+	handleDiscardCalled bool
 
 	readFileLine string
 	sendFileLine string
@@ -197,7 +198,7 @@ func (s *mop) tm() time.Time {
 	switch s.kind {
 	case SEND:
 		if s.arrivalTm.IsZero() {
-			return s.reqtm // not yet hit handleSend()
+			return s.reqtm // not yet hit handleSend(); s.initTm same == s.reqtm
 		}
 		return s.arrivalTm
 	case READ:
@@ -209,12 +210,12 @@ func (s *mop) tm() time.Time {
 		// initTm: for timer discards, when discarded so usually initTm.
 		return s.initTm
 	case TIMER:
-		if s.completeTm.IsZero() {
+		if s.unmaskedCompleteTm.IsZero() {
 			return s.reqtm // not yet hit handleTimer()
 		}
 		return s.completeTm
 	case TIMER_DISCARD:
-		if s.completeTm.IsZero() {
+		if !s.handleDiscardCalled {
 			return s.reqtm // not yet hit handleDiscardTimer()
 		}
 		return s.initTm
@@ -2052,9 +2053,16 @@ func (s *simnet) qReport() (r string) {
 	return
 }
 
-func (s *simnet) schedulerReport() string {
+func (s *simnet) schedulerReport() (r string) {
 	now := time.Now()
-	return fmt.Sprintf("lastArmToFire.After(now) = %v [%v out] %v; qReport = '%v'", s.lastArmToFire.After(now), s.lastArmToFire.Sub(now), s.lastArmToFire, s.qReport())
+	r = fmt.Sprintf("lastArmToFire.After(now) = %v [%v out] %v; qReport = '%v'", s.lastArmToFire.After(now), s.lastArmToFire.Sub(now), s.lastArmToFire, s.qReport())
+	sz := s.meq.Len()
+	if sz == 0 {
+		r += "\n empty meq\n"
+		return
+	}
+	r += fmt.Sprintf("\n meq size %v:\n%v", sz, s.meq)
+	return
 }
 
 func (s *simnet) dispatchAll(now time.Time, limit, loopi int64) (changes int64) {
@@ -2155,7 +2163,7 @@ func (s *simnet) add2meq(op *mop, loopi int64) {
 
 	s.meq.add(op)
 	armed := s.armTimer(time.Now(), loopi)
-	vv("i=%v, end of add2meq. meq sz %v; armed = %v -> s.lastArmDur: %v; caller %v; op = %v", loopi, s.meq.Len(), armed, s.lastArmDur, fileLine(2), op)
+	vv("i=%v, end of add2meq. meq sz %v; armed = %v -> s.lastArmDur: %v; caller %v; op = %v\n\n meq=%v\n", loopi, s.meq.Len(), armed, s.lastArmDur, fileLine(2), op, s.meq)
 }
 
 // scheduler is the heart of the simnet
@@ -2212,7 +2220,7 @@ func (s *simnet) scheduler() {
 		}
 	}()
 
-	var nextReport time.Time
+	//var nextReport time.Time
 
 	// main scheduler loop
 	now := time.Now()
@@ -2253,54 +2261,62 @@ restartI:
 		var nd0 int64
 
 		now := time.Now()
-		if gte(now, nextReport) {
-			nextReport = now.Add(time.Second)
-			//vv("scheduler top")
+		//if gte(now, nextReport) {
+		//	nextReport = now.Add(time.Second)
+		sz := s.meq.Len()
+		if sz > 0 {
+			//vv("scheduler top with meq len %v", sz)
 			//cli.lc = %v ; srv.lc = %v", clilc, srvlc)
 			//vv("i=%v scheduler top. schedulerReport: \n%v", i, s.schedulerReport())
+			//}
+			//vv("i=%v scheduler top. ndtot=%v", i, ndtot)
 		}
-		//vv("i=%v scheduler top. ndtot=%v", i, ndtot)
+
+		//if i == 8 {
+		//panic("i = 8, why doesn't send go?")
+		//}
 
 		bkgTimers := atomic.LoadInt64(&s.backgoundTimerGoroCount)
 		if bkgTimers > 10 {
 			panic(fmt.Sprintf("arg too many bkgTimers! %v", bkgTimers))
 		}
 
-		// likewise to the Arg just below,
-		// we want "wake-able sleep with the nextTimer.
-		next := userMaskTime(now, goID())
-		dur := next.Sub(now)
-		// but try not to starve the meq
-		op := s.meq.peek()
-		if op != nil {
-			meqMin := op.tm()
-			if !meqMin.IsZero() {
-				if meqMin.Before(next) {
-					next = meqMin
-					dur = next.Sub(now)
+		if false {
+			// likewise to the Arg just below,
+			// we want "wake-able sleep with the nextTimer.
+			next := userMaskTime(now, goID())
+			dur := next.Sub(now)
+			// but try not to starve the meq
+			op := s.meq.peek()
+			if op != nil {
+				meqMin := op.tm()
+				if !meqMin.IsZero() {
+					if meqMin.Before(next) {
+						next = meqMin
+						dur = next.Sub(now)
+					}
 				}
 			}
-		}
-		if dur > 0 {
-			//vv("i=%v, loop top about to sleep for dur %v", i, dur)
-			time.Sleep(dur)
-		}
+			if dur > 0 {
+				//vv("i=%v, loop top about to sleep for dur %v", i, dur)
+				time.Sleep(dur)
+			}
 
-		// Arg. Cannot do this, or goro trying to
-		// get in while we are otherwise waiting on
-		// our next timer will not be able to make
-		// that timer smaller! or... actually maybe it
-		// let's them win vs the next timer...
-		if faketime && s.barrier {
-			synctestWait_LetAllOtherGoroFinish() // 1st barrier
+			// Arg. Cannot do this, or goro trying to
+			// get in while we are otherwise waiting on
+			// our next timer will not be able to make
+			// that timer smaller! or... actually maybe it
+			// let's them win vs the next timer...
+			if faketime && s.barrier {
+				synctestWait_LetAllOtherGoroFinish() // 1st barrier
+			}
+			//vv("done with 1st barrier") // seen
+			// under faketime, we are alone now.
+			// Time has not advanced. This is the
+			// perfect point at which to advance the
+			// event/logical clock of each simnode, as no races.
+			//s.tickLogicalClocks()
 		}
-		//vv("done with 1st barrier") // seen
-		// under faketime, we are alone now.
-		// Time has not advanced. This is the
-		// perfect point at which to advance the
-		// event/logical clock of each simnode, as no races.
-		//s.tickLogicalClocks()
-
 		// only dispatch one place, in nextTimer now.
 		// simpler, easier to reason about. this is viable too,
 		// but creates less determinism. Hmm. maybe?!
@@ -2314,7 +2330,23 @@ restartI:
 		case <-s.haveNextTimer(preSelectTm): // time advances when soonest timer fires
 			now = time.Now()
 			elap := now.Sub(preSelectTm)
-			_ = elap
+			if elap == 0 {
+				// timer of dur zero is equivalent to synctest.Wait;
+				// so time has not advanced, but the rest of the
+				// bubble is blocked now. Do we want to sleep to
+				// advance time now? I don't think so; let us
+				// service all available work in mew, and they will
+				// likely set some timers etc.
+				sz := s.meq.Len()
+				if sz == 0 {
+					//vv("i=%v, elap=0 and no work, just advance time and try to dispatch below.", i)
+					time.Sleep(s.scenario.tick)
+					// should we barrier now? no other selects
+					// are possible, so... meh/pointless.
+				} else {
+					vv("i=%v, elap=0 but have sz meq=%v :\n %v", i, sz, s.meq)
+				}
+			}
 			//totalSleepDur += elap
 			//vv("i=%v, nextTimer fired. s.lastArmDur=%v; s.lastArmToFire = %v; elap = '%v'", i, s.lastArmDur, s.lastArmToFire, elap)
 			//if elap == 0 {
@@ -2329,9 +2361,9 @@ restartI:
 			// maximizing determinism: go last
 			// among all goro who were woken by other
 			// timers that fired at this instant.
-			if faketime && s.barrier {
-				synctestWait_LetAllOtherGoroFinish() // 2nd barrier
-			}
+			//if faketime && s.barrier {
+			//	synctestWait_LetAllOtherGoroFinish() // 2nd barrier
+			//}
 			s.tickLogicalClocks()
 
 			// meq is trying for
@@ -2450,7 +2482,7 @@ restartI:
 			s.add2meq(discard, i)
 
 		case send := <-s.msgSendCh:
-			//vv("i=%v, msgSendCh ->  send='%v'", i, send)
+			vv("i=%v, msgSendCh ->  send='%v'", i, send)
 			//s.handleSend(send)
 			s.add2meq(send, i)
 
@@ -2536,12 +2568,15 @@ func (s *simnet) haveNextTimer(now time.Time) <-chan time.Time {
 	if s.lastArmToFire.IsZero() {
 		// no timer at the moment
 
-		// set grid timer instead
-		next := userMaskTime(now, goID())
-		dur := next.Sub(now)
-		s.lastArmToFire = next
-		s.lastArmDur = dur
-		s.nextTimer.Reset(dur)
+		s.nextTimer.Reset(0) // means we get synctest.Wait behavior.
+		if false {
+			// set grid timer instead
+			next := userMaskTime(now, goID())
+			dur := next.Sub(now)
+			s.lastArmToFire = next
+			s.lastArmDur = dur
+			s.nextTimer.Reset(dur)
+		}
 		//return nil
 	}
 	return s.nextTimer.C
@@ -2581,6 +2616,7 @@ func (s *simnet) handleDiscardTimer(discard *mop) {
 	//return
 	//}
 
+	discard.handleDiscardCalled = true
 	orig := discard.origTimerMop
 
 	found := discard.origin.timerQ.del(discard.origTimerMop)
@@ -2613,7 +2649,7 @@ func (s *simnet) handleTimer(timer *mop) {
 	lc := timer.origin.lc
 	who := timer.origin.name
 	_, _ = who, lc
-	//vv("handleTimer() %v  TIMER SET; LC = %v", who, lc)
+	vv("handleTimer() %v  TIMER SET: %v", who, timer) // not seen!?!
 
 	timer.senderLC = lc
 	timer.originLC = lc
@@ -2628,7 +2664,7 @@ func (s *simnet) handleTimer(timer *mop) {
 	//vv("masked timer:\n dur: %v -> %v\n completeTm: %v -> %v\n", timer.unmaskedDur, timer.timerDur, timer.unmaskedCompleteTm, timer.completeTm)
 
 	timer.origin.timerQ.add(timer)
-	////zz("LC:%v %v set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer.origin.name, timer, timer.completeTm, s.clinode.timerQ)
+	//vv("LC:%v %v set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer.origin.name, timer, timer.completeTm, s.clinode.timerQ)
 
 }
 
@@ -2726,12 +2762,12 @@ func (s *simnet) armTimer(now time.Time, loopi int64) (armed bool) {
 			// should be okay, since we can't be here and
 			// also waiting on the timer.
 			s.nextTimer.Reset(dur) // this should be the only such reset.
-			vv("i=%v, arm timer: armed. when=%v, nextTimer dur=%v; into future(when - now): %v;  op='%v'", loopi, when2, dur, when2.Sub(now), op)
+			//vv("i=%v, arm timer: armed. when=%v, nextTimer dur=%v; into future(when - now): %v;  op='%v'", loopi, when2, dur, when2.Sub(now), op)
 			//return dur
 			return true
 		}
 	}
-	vv("i=%v, okay, so meq is empty. hmm. tick='%v'; caller='%v'", loopi, s.scenario.tick, fileLine(2))
+	//vv("i=%v, okay, so meq is empty. hmm. tick='%v'; caller='%v'", loopi, s.scenario.tick, fileLine(2))
 	//vv("okay, so meq is empty. hmm. goal: '%v'; dur='%v'; tick='%v'; caller='%v'", goal, dur, s.scenario.tick, fileLine(2))
 
 	// tell haveNextTimer that we don't have one; it should return nil.
