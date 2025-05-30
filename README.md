@@ -1,6 +1,13 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
+* Recent News (2025 May 30): v1.21.54 simnet network simulator features
+
+The latest internal simnet can now model asymmetric and
+flakey (probabilistic) read and send faults, as well as
+the traditional bigger hammers of full node isolation
+during network partition.
+
 * Recent News (2025 May 05): v1.12.62 simnet network simulator with synctest support.
 
 Version v1.12.62 adds support for network simulation
