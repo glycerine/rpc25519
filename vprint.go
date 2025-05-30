@@ -198,7 +198,7 @@ func thisStack() []byte {
 // GoroNumber returns the calling goroutine's number.
 func GoroNumber() int {
 
-	g1 := int(runtime.GoID())
+	//g1 := int(runtime.GoID())
 
 	buf := make([]byte, 48)
 	nw := runtime.Stack(buf, false) // false => just us, no other goro.
@@ -212,9 +212,9 @@ func GoroNumber() int {
 	n, err := strconv.Atoi(string(buf[10:i]))
 	panicOn(err)
 
-	if g1 != n {
-		panic(fmt.Sprintf("GoID() %v != GoroNumber %v", g1, n))
-	}
+	//if g1 != n {
+	//	panic(fmt.Sprintf("GoID() %v != GoroNumber %v", g1, n))
+	//}
 
 	return n
 }

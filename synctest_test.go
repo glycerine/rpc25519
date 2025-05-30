@@ -39,12 +39,15 @@ func Test800_SimNet_all_timers_dur_0_fire_now(t *testing.T) {
 		}
 		got := 0
 		for i, ti := range timers {
+			_ = ti
+			_ = i
 			//  <-ti.C
 			chosen, recvVal, recvOK := reflect.Select(cases)
+			_, _ = chosen, recvVal
 			if !recvOK {
 				panic("why not recvOK ?")
 			}
-			vv("on i=%v, chosen=%v, timer %v: %v", i, chosen, order[ti], recvVal)
+			//vv("on i=%v, chosen=%v, timer %v: %v", i, chosen, order[ti], recvVal)
 			got++
 		}
 		now := time.Now()
