@@ -2350,6 +2350,7 @@ restartI:
 					// are possible, so... meh/pointless.
 				} else {
 					//vv("i=%v, elap=0 but have sz meq=%v :\n %v", i, sz, s.meq)
+					// experiment... just continue? nope. we get bubble deadlock!
 				}
 			}
 			//totalSleepDur += elap
@@ -2363,9 +2364,6 @@ restartI:
 			// cannot allow other goro to wake us
 			// on our select case arms.
 
-			// maximizing determinism: go last
-			// among all goro who were woken by other
-			// timers that fired at this instant.
 			//if faketime && s.barrier {
 			//	synctestWait_LetAllOtherGoroFinish() // 2nd barrier
 			//}
