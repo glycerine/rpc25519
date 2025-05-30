@@ -9,10 +9,12 @@ import (
 
 //=========================================
 // The EXTERNAL client access routines are
-// in this file simnet_api.go
+// in this file, simnet_api.go
 //
-// These are goroutine safe; okay to call from
-// any goroutine. Implementation note:
+// These are goroutine safe. They are okay to call from
+// any goroutine.
+//
+// Implementation note:
 //
 // createNewTimer(), sendMessage(), readMessage()
 //

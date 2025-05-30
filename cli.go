@@ -311,17 +311,17 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 	ctx, canc := context.WithCancel(context.Background())
 	defer func() {
 		// if we aren't going to print b/c of the ts mutex deadlock, really recover?
-		// TODO: put this recover back in once we have synctest single goro running.
-		// for now, it hides who else is running with us...
-		if false { // TODO remove/ back to false.
-			r := recover()
-			if r != nil {
-				// see a ts mutex deadlock under synctest on shutdown, comment out:
-				alwaysPrintf("cli runReadLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, stack())
-			} else {
-				//vv("cli runReadLoop defer/shutdown running.")
-			}
+		// TODO: if we false out recover to work on synctest single goro running,
+		// since it hides who else is running with us... be sure to put it back.
+		//if false {
+		r := recover()
+		if r != nil {
+			// see a ts mutex deadlock under synctest on shutdown, comment out:
+			alwaysPrintf("cli runReadLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, stack())
+		} else {
+			//vv("cli runReadLoop defer/shutdown running.")
 		}
+		//}
 		//vv("client runReadLoop exiting, last err = '%v'", err)
 		canc()
 		c.halt.ReqStop.Close()
