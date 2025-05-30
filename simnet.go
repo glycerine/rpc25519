@@ -65,7 +65,6 @@ type mop struct {
 	origTimerCompleteTm time.Time
 
 	// when fired => unarmed. NO timer.Reset support at the moment!
-	// (except conceptually for the scheduler's gridStepTimer).
 	timerFiredTm time.Time // first fire time, count in timerReseenCount
 	// was discarded timer armed?
 	wasArmed bool
@@ -392,10 +391,6 @@ type simnet struct {
 	singleGoroMut sync.Mutex
 	singleGoroTm  time.Time
 	singleGoroID  int
-
-	// these were mostly internal self-timers
-	// that we now properly retire. may can get rid of?
-	backgoundTimerGoroCount int64 // atomic access only
 
 	scenario *scenario
 
@@ -1786,23 +1781,8 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 				case <-simnode.net.halt.ReqStop.Chan:
 					return
 				default:
-					// this disastrously gave use 3000+ timers.
-					// maybe we just re-queue for 100 ms later?
 					vv("could not deliver timer? '%v'  requeue or what?", timer)
 					panic("why not deliverable? hopefully we never hit this and can just delete the backup attempt below")
-
-					// The Go runtime will delay the timer channel
-					// send until a receiver goro can receive it,
-					// but we cannot. Hence we use a goroutine if
-					// we didn't get through on the above attempt.
-					// TODO: maybe time.AfterFunc could help here to
-					// avoid a goro?
-					bkg := atomic.AddInt64(&simnode.net.backgoundTimerGoroCount, 1)
-					vv("arg: could not fire timer. backgrounding it, count = %v", bkg)
-					if bkg > 10 {
-						panic("why are timers not being accepted?")
-					}
-					go simnode.backgroundFireTimer(timer, now) // crap. 3496 of these! 051 hopefully all internal timers that we now omit this for...
 				}
 			}
 		} else {
@@ -1811,14 +1791,6 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 		}
 	}
 	return
-}
-
-func (simnode *simnode) backgroundFireTimer(timer *mop, now time.Time) {
-	select {
-	case timer.timerC <- now:
-	case <-simnode.net.halt.ReqStop.Chan:
-	}
-	atomic.AddInt64(&simnode.net.backgoundTimerGoroCount, -1)
 }
 
 // does not call armTimer.
@@ -2225,7 +2197,7 @@ func (s *simnet) scheduler() {
 		}
 	}()
 
-	//var nextReport time.Time
+	var nextReport time.Time
 
 	// main scheduler loop
 	now := time.Now()
@@ -2254,9 +2226,6 @@ func (s *simnet) scheduler() {
 	// next timer to go off, so barrier cannot deadlock.
 	s.gridStepTimer = timer
 
-	// always have at least one timer going. maybe not anymore!
-	//s.armTimer(now)
-
 	var ndtot int64 // num dispatched total.
 
 restartI:
@@ -2266,121 +2235,86 @@ restartI:
 		var nd0 int64
 
 		now := time.Now()
-		//if gte(now, nextReport) {
-		//	nextReport = now.Add(time.Second)
-		//sz := s.meq.Len()
-		//if sz > 0 {
-		//vv("scheduler top with meq len %v", sz)
-		//cli.lc = %v ; srv.lc = %v", clilc, srvlc)
-		//vv("i=%v scheduler top. schedulerReport: \n%v", i, s.schedulerReport())
-		//}
-		//vv("i=%v scheduler top. ndtot=%v", i, ndtot)
-		//}
-
-		//if i == 8 {
-		//panic("i = 8, why doesn't send go?")
-		//}
-
-		bkgTimers := atomic.LoadInt64(&s.backgoundTimerGoroCount)
-		if bkgTimers > 10 {
-			panic(fmt.Sprintf("arg too many bkgTimers! %v", bkgTimers))
+		if gte(now, nextReport) {
+			nextReport = now.Add(time.Second)
+			//sz := s.meq.Len()
+			//if sz > 0 {
+			//vv("scheduler top with meq len %v", sz)
+			//cli.lc = %v ; srv.lc = %v", clilc, srvlc)
+			//vv("i=%v scheduler top. schedulerReport: \n%v", i, s.schedulerReport())
+			//}
+			//vv("i=%v scheduler top. ndtot=%v", i, ndtot)
 		}
-
-		if false {
-			// likewise to the Arg just below,
-			// we want "wake-able sleep with the nextTimer.
-			next := userMaskTime(now, goID())
-			dur := next.Sub(now)
-			// but try not to starve the meq
-			op := s.meq.peek()
-			if op != nil {
-				meqMin := op.tm()
-				if !meqMin.IsZero() {
-					if meqMin.Before(next) {
-						next = meqMin
-						dur = next.Sub(now)
-					}
-				}
-			}
-			if dur > 0 {
-				//vv("i=%v, loop top about to sleep for dur %v", i, dur)
-				time.Sleep(dur)
-			}
-
-			// Arg. Cannot do this, or goro trying to
-			// get in while we are otherwise waiting on
-			// our next timer will not be able to make
-			// that timer smaller! or... actually maybe it
-			// let's them win vs the next timer...
-			if faketime && s.barrier {
-				synctestWait_LetAllOtherGoroFinish() // 1st barrier
-			}
-			//vv("done with 1st barrier") // seen
-			// under faketime, we are alone now.
-			// Time has not advanced. This is the
-			// perfect point at which to advance the
-			// event/logical clock of each simnode, as no races.
-			//s.tickLogicalClocks()
-		}
-		// only dispatch one place, in nextTimer now.
-		// simpler, easier to reason about. this is viable too,
-		// but creates less determinism. Hmm. maybe?!
-		//changed := s.dispatchAll(now) // sends, reads, and timers.
-		//nd0 += changed
-		//vv("i=%v, first dispatchAll changed=%v, total nd0=%v", i, changed, nd0)
 
 		preSelectTm := now
 		select { // scheduler main select
 
-		case <-s.haveNextTimer(preSelectTm): // time advances when soonest timer fires
+		// time advances when soonest timer fires, but we could
+		// also be waiting on a 0 duration timer, which
+		// is equivalent to a synctest.Wait in that it
+		// returns only once the bubble is blocked.
+		//
+		case <-s.haveNextTimer(preSelectTm):
 			now = time.Now()
 			elap := now.Sub(preSelectTm)
+			slept := elap > 0
 			if elap == 0 {
-				// timer of dur zero is equivalent to synctest.Wait;
+
+				// A timer of dur zero is equivalent to synctest.Wait;
 				// so time has not advanced, but the rest of the
 				// bubble is blocked now. Do we want to sleep to
-				// advance time now? I don't think so; let us
-				// service all available work in mew, and they will
+				// advance time now? Only if the meq is empty,
+				// otherwise try to dispatch again before advancing
+				// time, with the design aim of maximizing
+				// determinism and reproducibility. Released goro will
 				// likely set some timers etc.
 				sz := s.meq.Len()
 				if sz == 0 {
 					//vv("i=%v, elap=0 and no work, just advance time and try to dispatch below.", i)
 					time.Sleep(s.scenario.tick)
 					// should we barrier now? no other selects
-					// are possible, so... meh/pointless.
+					// are possible in here, so...pointless? But
+					// might give a small increase in determinism,
+					// so try it if we have actually slept at all.
+					slept = true
 				} else {
 					//vv("i=%v, elap=0 but have sz meq=%v :\n %v", i, sz, s.meq)
-					// experiment... just continue? nope. we get bubble deadlock!
+					// just continue? nope. we get bubble deadlock.
 				}
 			}
-			//totalSleepDur += elap
+			totalSleepDur += elap
 			//vv("i=%v, nextTimer fired. s.lastArmDur=%v; s.lastArmToFire = %v; elap = '%v'", i, s.lastArmDur, s.lastArmToFire, elap)
 			//if elap == 0 {
-			// too many! and no time advance... we should sleep when there's nothing left to dispatch/no changes.
 			//vv("i=%v, cool: elap was 0, nice. single stepping the next goro... nextTimer fired. totalSleepDur = %v; last = %v", i, totalSleepDur, now.Sub(preSelectTm))
 			//}
 
 			// problem: if we barrier here, we
 			// cannot allow other goro to wake us
-			// on our select case arms.
-
-			//if faketime && s.barrier {
-			//	synctestWait_LetAllOtherGoroFinish() // 2nd barrier
-			//}
+			// on our select case arms, to queue up their mops.
+			// BUT, we still might get a tiny increase in
+			// determinism, and it should be fast anyway...
+			if slept {
+				if faketime && s.barrier {
+					synctestWait_LetAllOtherGoroFinish() // 2nd barrier
+				}
+			}
 			s.tickLogicalClocks()
 
 			// meq is trying for
 			// more deterministic event ordering. we have
 			// accumulated and held any events from the
 			// the read/send/timer/discard select cases
-			// into the meq during the last sleep, and
+			// into the meq during the last <-s.haveNextTimer, and
 			// now we act on them.
 
 			// do we have more than one goro sending us stuff
 			// in a single tick?
-			// that would imply non-determinism yes?
-			// happens for sure on startup though, when
+			// that would imply non-determinism, but sadly
+			// this happens for sure on startup though, when
 			// cli/srv spin up their read loops/send loops.
+			// Once we hit steady state we could try to
+			// get more determinism, but start up is inherently
+			// parallel at the moment.
 			who := make(map[int]bool)
 
 			// if we don't process all the meq and assign
@@ -2464,14 +2398,15 @@ restartI:
 			//if len(who) > 1 {
 			//	panic("arg, non-determinism with two callers?!")
 			//}
-			//if op != nil {
-			// limit of -1 means no limit.
+			// limit of -1 means no limit on number of dispatched mop.
 			nd0 += s.dispatchAll(now, -1, i)
 			ndtot += nd0
-			//}
 
-			//s.refreshGridStepTimer(now)
+			//s.refreshGridStepTimer(now) // not really used atm.
 			s.armTimer(now, i)
+
+			// end case wakeup <-s.haveNextTimer
+
 		case batch := <-s.submitBatchCh:
 			s.add2meq(batch, i)
 		case timer := <-s.addTimer:
@@ -2558,29 +2493,17 @@ restartI:
 			return
 		} // end select
 
-		// force time to advance after each select case by a nanosecond if not a timer?
-
 		//vv("i=%v bottom of scheduler loop. num dispatch events = %v", i, nd0)
 	}
 }
 
-// we might not have a next timer, then we
-// just service other cases, which should
-// establish a nextTimer.
+// If we don't have a next timer, do
+// s.nextTimer.Reset(0) to get a synctest.Wait effect.
+// https://github.com/golang/go/issues/73876#issuecomment-2920758263
 func (s *simnet) haveNextTimer(now time.Time) <-chan time.Time {
 	if s.lastArmToFire.IsZero() {
 		// no timer at the moment
-
 		s.nextTimer.Reset(0) // means we get synctest.Wait behavior.
-		if false {
-			// set grid timer instead
-			next := userMaskTime(now, goID())
-			dur := next.Sub(now)
-			s.lastArmToFire = next
-			s.lastArmDur = dur
-			s.nextTimer.Reset(dur)
-		}
-		//return nil
 	}
 	return s.nextTimer.C
 }
