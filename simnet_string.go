@@ -181,7 +181,11 @@ func (op *mop) String() string {
 	extra := ""
 	switch op.kind {
 	case TIMER:
-		extra = " timer set at " + op.timerFileLine
+		var pending string
+		if op.internalPendingTimer {
+			pending = " (internal pending send timer)"
+		}
+		extra = " timer set at " + op.timerFileLine + pending
 	case TIMER_DISCARD:
 		extra = " timer discarded at " + op.timerFileLine
 
