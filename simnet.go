@@ -77,7 +77,7 @@ type mop struct {
 	// is this our single grid step timer?
 	// There should only ever be one
 	// timer with this flag true.
-	isGridStepTimer bool
+	isGridStepTimer bool // TODO possible delete.
 
 	// when was the operation initiated?
 	// timer started, read begin waiting, send hits the socket.
@@ -372,9 +372,9 @@ func (s *simnet) nextUniqTm(atleast time.Time, who int) time.Time {
 
 // simnet simulates a network entirely with channels in memory.
 type simnet struct {
-	barrier       bool
-	bigbang       time.Time
-	gridStepTimer *mop
+	barrier bool
+	bigbang time.Time
+	//gridStepTimer *mop
 
 	// lastTimerDeadline: issue all timers
 	// must be greater than lastTimerDeadline,
@@ -2207,24 +2207,25 @@ func (s *simnet) scheduler() {
 
 	var totalSleepDur time.Duration
 
+	// not in use atm. comment out for possible delete.
 	// get regular scheduler wakeups on a time
 	// grid of step size s.scenario.tick.
 	// We can get woken earlier too by
 	// sends, reads, and timers. The nextTimer
 	// logic below can decide how it wants
 	// to handle that.
-	timer := newTimerCreateMop(false)
-	timer.proceed = nil          // never used, don't leak it.
-	timer.isGridStepTimer = true // should be only one.
-	timer.initTm = now
-	timer.timerDur = s.scenario.tick
-	timer.completeTm = now.Add(s.scenario.tick)
-	timer.timerFileLine = fileLine(3)
-
+	// timer := newTimerCreateMop(false)
+	// timer.proceed = nil          // never used, don't leak it.
+	// timer.isGridStepTimer = true // should be only one.
+	// timer.initTm = now
+	// timer.timerDur = s.scenario.tick
+	// timer.completeTm = now.Add(s.scenario.tick)
+	// timer.timerFileLine = fileLine(3)
+	//
 	// As a special case, armTimer always includes
 	// the gridStepTimer when computing the minimum
 	// next timer to go off, so barrier cannot deadlock.
-	s.gridStepTimer = timer
+	// s.gridStepTimer = timer
 
 	var ndtot int64 // num dispatched total.
 
@@ -2594,6 +2595,9 @@ func (s *simnet) handleTimer(timer *mop) {
 
 }
 
+// commented for possible deletion later if we
+// really don't end up needing a grid-step timer.
+//
 // refreshGridStepTimer context:
 // Some dispatch() call just before us
 // might have re-armed the nextTmer,
@@ -2615,23 +2619,23 @@ func (s *simnet) handleTimer(timer *mop) {
 // For K circuits * 3 PQ per simnode => O(K).
 //
 // armTimer is not called; keep it as a separate step.
-func (s *simnet) refreshGridStepTimer(now time.Time) (dur time.Duration, goal time.Time) {
-	if gte(now, s.gridStepTimer.completeTm) {
-		s.gridStepTimer.initTm = now
-		dur, goal = s.durToGridPoint(now, s.scenario.tick)
-		s.gridStepTimer.timerDur = dur
-		s.gridStepTimer.completeTm = goal
+// func (s *simnet) refreshGridStepTimer(now time.Time) (dur time.Duration, goal time.Time) {
+// 	if gte(now, s.gridStepTimer.completeTm) {
+// 		s.gridStepTimer.initTm = now
+// 		dur, goal = s.durToGridPoint(now, s.scenario.tick)
+// 		s.gridStepTimer.timerDur = dur
+// 		s.gridStepTimer.completeTm = goal
 
-		if gte(now, s.gridStepTimer.completeTm) {
-			panic(fmt.Sprintf("durToGridPoint() gave completeTm(%v) <= now(%v); should be impossible, no? are we servicing all events in order? are we missing a wakeup? oversleeping? wat?", s.gridStepTimer.completeTm, now))
-		}
-	} else {
-		//vv("refreshGridStepTimer does nothing; sees now < s.gridStepTimer.completeTm(%v)", nice(s.gridStepTimer.completeTm)) // seen alot
-		goal = s.gridStepTimer.completeTm
-		dur = s.gridStepTimer.completeTm.Sub(now)
-	}
-	return
-}
+// 		if gte(now, s.gridStepTimer.completeTm) {
+// 			panic(fmt.Sprintf("durToGridPoint() gave completeTm(%v) <= now(%v); should be impossible, no? are we servicing all events in order? are we missing a wakeup? oversleeping? wat?", s.gridStepTimer.completeTm, now))
+// 		}
+// 	} else {
+// 		//vv("refreshGridStepTimer does nothing; sees now < s.gridStepTimer.completeTm(%v)", nice(s.gridStepTimer.completeTm)) // seen alot
+// 		goal = s.gridStepTimer.completeTm
+// 		dur = s.gridStepTimer.completeTm.Sub(now)
+// 	}
+// 	return
+// }
 
 func (s *simnet) armTimer(now time.Time, loopi int64) (armed bool) {
 
