@@ -2255,14 +2255,14 @@ restartI:
 				sz := s.meq.Len()
 				if sz == 0 {
 					//vv("i=%v, elap=0 and no work, just advance time and try to dispatch below.", i)
-					//time.Sleep(s.scenario.tick)
-					//_, _, _ = userMaskTime(now, s.who)
+					// durToGridPoint does userMaskTime for us now.
 					dur, _ := s.durToGridPoint(now, s.scenario.tick)
 					time.Sleep(dur)
-					//time.Sleep(s.scenario.tick)
 					// should we barrier now? no other selects
 					// are possible in here, so...pointless? But
-					// might give a small increase in determinism,
+					// might give a small increase in determinism
+					// from background goro racing to meet our next
+					// select call --
 					// so try it if we have actually slept at all.
 					slept = true
 				} else {
