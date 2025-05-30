@@ -456,10 +456,11 @@ func (s *simnet) applyFaultsToReadQ(now time.Time, origin, target *simnode, deaf
 		read := readIt.Item().(*mop)
 		if target == nil || read.target == target {
 			if !s.statewiseConnected(read.origin, read.target) ||
-				s.deaf(deafReadProb) {
+				//s.deaf(deafReadProb) {
+				s.localDeafReadProb(read) >= 1 {
 
 				//vv("deaf fault enforced on read='%v'", read)
-				origin.deafReadQ.add(read)
+				origin.deafReadQ.add(read) // this is defeaning all in 1002!
 
 				// advance readIt, and delete behind
 				delmeIt := readIt

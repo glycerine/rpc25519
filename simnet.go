@@ -539,10 +539,10 @@ func (s *simnet) newSimnode(name, serverBaseID string) *simnode {
 	return &simnode{
 		name:         name,
 		serverBaseID: serverBaseID,
-		readQ:        newPQinitTm(name + " readQ "),
+		readQ:        newPQinitTm(name+" readQ ", false),
 		preArrQ:      s.newPQarrivalTm(name + " preArrQ "),
 		timerQ:       newPQcompleteTm(name + " timerQ "),
-		deafReadQ:    newPQinitTm(name + " deaf reads Q "),
+		deafReadQ:    newPQinitTm(name+" deaf reads Q ", true),
 		droppedSendQ: s.newPQarrivalTm(name + " dropped sends Q "),
 		net:          s,
 
@@ -886,6 +886,8 @@ type pq struct {
 	// don't export so user does not
 	// accidentally mess with it.
 	cmp func(a, b rb.Item) int
+
+	isDeafQ bool
 }
 
 func (s *pq) Len() int {
@@ -947,6 +949,9 @@ func (s *pq) pop() *mop {
 func (s *pq) add(op *mop) (added bool, it rb.Iterator) {
 	if op == nil {
 		panic("do not put nil into pq!")
+	}
+	if s.isDeafQ {
+		//panic(fmt.Sprintf("where added to deafReadQ: '%v'", op))
 	}
 	added, it = s.Tree.InsertGetIt(op)
 	return
@@ -1027,11 +1032,12 @@ func (s *simnet) newPQarrivalTm(owner string) *pq {
 
 // order by mop.initTm, then mop.sn;
 // for reads (readQ).
-func newPQinitTm(owner string) *pq {
+func newPQinitTm(owner string, isDeafQ bool) *pq {
 
 	q := &pq{
 		Owner:   owner,
 		Orderby: "initTm",
+		isDeafQ: isDeafQ,
 	}
 	cmp := func(a, b rb.Item) int {
 		av := a.(*mop)
@@ -1484,7 +1490,7 @@ func (s *simnet) localDeafReadProb(read *mop) float64 {
 func (s *simnet) localDeafRead(read, send *mop) (isDeaf bool) {
 	vv("localDeafRead called by '%v'", fileLine(2))
 	defer func() {
-		vv("defer localDeafRead returning %v, called by '%v'", isDeaf, fileLine(3))
+		vv("defer localDeafRead returning %v, called by '%v', read='%v'", isDeaf, fileLine(3), read)
 	}()
 
 	// get the local (read) origin conn probability of deafness
@@ -1646,7 +1652,7 @@ func (s *simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 // also failing, or else the send is "auto-retrying"
 // forever until it gets through!?!
 func (s *simnet) handleRead(read *mop, limit, loopi int64) (changed int64) {
-	//vv("top of handleRead(read = '%v')", read)
+	vv("top of handleRead(read = '%v')", read)
 	// don't want this! only when read matches with send!
 	//defer close(read.proceed)
 
@@ -1937,9 +1943,6 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 
 			// 2) but we actually have to drop _the send_ on a deaf read,
 			// otherwise the send is "auto-retried" until success.
-
-			// for better better accounting, lets put it into the reader
-			// deaf queue
 
 			// classic, above, from send drop prob
 			//send.origin.droppedSendQ.add(send)
