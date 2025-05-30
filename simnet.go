@@ -2268,14 +2268,14 @@ restartI:
 		now := time.Now()
 		//if gte(now, nextReport) {
 		//	nextReport = now.Add(time.Second)
-		sz := s.meq.Len()
-		if sz > 0 {
-			//vv("scheduler top with meq len %v", sz)
-			//cli.lc = %v ; srv.lc = %v", clilc, srvlc)
-			//vv("i=%v scheduler top. schedulerReport: \n%v", i, s.schedulerReport())
-			//}
-			//vv("i=%v scheduler top. ndtot=%v", i, ndtot)
-		}
+		//sz := s.meq.Len()
+		//if sz > 0 {
+		//vv("scheduler top with meq len %v", sz)
+		//cli.lc = %v ; srv.lc = %v", clilc, srvlc)
+		//vv("i=%v scheduler top. schedulerReport: \n%v", i, s.schedulerReport())
+		//}
+		//vv("i=%v scheduler top. ndtot=%v", i, ndtot)
+		//}
 
 		//if i == 8 {
 		//panic("i = 8, why doesn't send go?")
