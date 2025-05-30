@@ -5,6 +5,7 @@ package rpc25519
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -2692,10 +2693,10 @@ func (s *simnet) armTimer(now time.Time, loopi int64) (armed bool) {
 			// }
 
 			dur := when2.Sub(now)
-			if dur < 0 {
-				//old: vv("times were not all unique, but they should be! op='%v'", op)
-				panic("negative dur will collide with s.lastArmDur = -1 ?!?")
-			}
+			//if dur < 0 {
+			//old: vv("times were not all unique, but they should be! op='%v'", op)
+			//	panic(fmt.Sprintf("negative dur will collide with s.lastArmDur = -1 ?!?: %v", dur))
+			//}
 			if dur > s.scenario.tick {
 				//dur = s.scenario.tick
 				//when2 = now.Add(dur)
@@ -2720,7 +2721,7 @@ func (s *simnet) armTimer(now time.Time, loopi int64) (armed bool) {
 
 	// tell haveNextTimer that we don't have one; it should return nil.
 	s.lastArmToFire = time.Time{}
-	s.lastArmDur = -1
+	s.lastArmDur = math.MinInt64
 	s.nextTimer.Stop()
 	return false
 }
