@@ -71,6 +71,11 @@ func Test710_client_gets_new_file_over_rsync_twice(t *testing.T) {
 
 			vv("server Start() returned serverAddr = '%v'", serverAddr)
 
+			if faketime {
+				simnet := cfg.GetSimnet()
+				defer simnet.Close()
+			}
+
 			//srv.RegisterBistreamFunc("RsyncServerSide", srv.RsyncServerSide)
 
 			srvRsyncNode := &RsyncNode{}
