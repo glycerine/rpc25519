@@ -416,8 +416,8 @@ type simnet struct {
 	//
 	// I use bi-directed to mean each A -> B is always
 	// paired with a B -> A connection. Thus one-way
-	// faults to be modelled or assigned probability
-	// indepenent of the other directions fault status.
+	// faults can be modelled or assigned probability
+	// independent of the other direction's fault status.
 
 	// need a deterministic iteration order to
 	// make the simulation more repeatable, so
