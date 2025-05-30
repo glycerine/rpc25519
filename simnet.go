@@ -2720,6 +2720,9 @@ func (simnode *simnode) soonestTimerLessThan(bound *mop) *mop {
 	return bound
 }
 
+// We assume atm that all goID are < 100_000.
+// So this suffices to avoid collissions.
+// We validate this assumption in userMaskTime too.
 const timeMask0 = time.Microsecond * 100 // then add GoID on top.
 const timeMask9 = time.Microsecond*100 - 1
 
@@ -2734,8 +2737,11 @@ const timeMask9 = time.Microsecond*100 - 1
 // maskTime will return
 // 2006-01-02T15:04:05.000099999-07:00
 func userMaskTime(tm time.Time, who int) time.Time {
-	if who == 0 {
-		panic("who 0 not set!")
+	if who <= 0 {
+		panic(fmt.Sprintf("who %v not set or negative!", who))
+	}
+	if who >= 100_000 {
+		panic(fmt.Sprintf("who goID = %v > 100_000 limit", who))
 	}
 	// always bump to next 100 usec, so we are
 	// for sure after tm.
