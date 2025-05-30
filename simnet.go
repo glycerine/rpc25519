@@ -375,6 +375,7 @@ type simnet struct {
 	barrier bool
 	bigbang time.Time
 	//gridStepTimer *mop
+	who int
 
 	// lastTimerDeadline: issue all timers
 	// must be greater than lastTimerDeadline,
@@ -2119,7 +2120,8 @@ func (s *simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 	// we shouldn't need to systemMaskTime, but just in case
 	// that changes... it is cheap anyway, and conveys the
 	// convention in force.
-	goal = systemMaskTime(now.Add(tick).Truncate(tick))
+	//goal = systemMaskTime(now.Add(tick).Truncate(tick))
+	goal = userMaskTime(now.Add(tick).Truncate(tick), s.who)
 
 	dur = goal.Sub(now)
 	//vv("i=%v; just before dispatchAll(), durToGridPoint computed: dur=%v -> goal:%v to reset the gridTimer; tick=%v", i, dur, goal, s.scenario.tick)
@@ -2170,7 +2172,7 @@ func (s *simnet) scheduler() {
 			panic(r)
 		}
 	}()
-
+	s.who = goID()
 	var nextReport time.Time
 
 	// main scheduler loop
@@ -2253,7 +2255,11 @@ restartI:
 				sz := s.meq.Len()
 				if sz == 0 {
 					//vv("i=%v, elap=0 and no work, just advance time and try to dispatch below.", i)
-					time.Sleep(s.scenario.tick)
+					//time.Sleep(s.scenario.tick)
+					//_, _, _ = userMaskTime(now, s.who)
+					dur, _ := s.durToGridPoint(now, s.scenario.tick)
+					time.Sleep(dur)
+					//time.Sleep(s.scenario.tick)
 					// should we barrier now? no other selects
 					// are possible in here, so...pointless? But
 					// might give a small increase in determinism,
