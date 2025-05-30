@@ -309,6 +309,11 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 			panicOn(err)
 			defer srv.Close()
 
+			if faketime {
+				simnet := cfg.GetSimnet()
+				defer simnet.Close()
+			}
+
 			// about 4 seconds to copy.
 			vv("copy done. server Start() returned serverAddr = '%v'", serverAddr)
 
@@ -515,6 +520,11 @@ func Test788_rle_zeros_encoded(t *testing.T) {
 			serverAddr, err := srv.Start()
 			panicOn(err)
 			defer srv.Close()
+
+			if faketime {
+				simnet := cfg.GetSimnet()
+				defer simnet.Close()
+			}
 
 			// about 4 seconds to copy.
 			vv("copy done. server Start() returned serverAddr = '%v'", serverAddr)
