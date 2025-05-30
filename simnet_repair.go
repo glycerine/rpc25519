@@ -8,6 +8,7 @@ import (
 // we _only_ update the conn ends at fault.originName.
 // The corresponding remote conn are not changed.
 func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err error) {
+	//vv("top injectCircuitFault: fault = '%v'", fault) // seen 1002, good.
 	defer func() {
 		if err != nil {
 			if fault.err == nil {
@@ -54,6 +55,7 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 	for rem, conn := range remotes.all() {
 		if target == nil || target == rem {
 			if fault.UpdateDeafReads {
+				//vv("origin %v, setting conn.deafRead = %v", origin.name, fault.DeafReadsNewProb) // seen, good 1002.
 				conn.deafRead = fault.DeafReadsNewProb
 			}
 			if fault.UpdateDropSends {

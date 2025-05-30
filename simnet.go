@@ -1482,10 +1482,10 @@ func (s *simnet) localDeafReadProb(read *mop) float64 {
 // the send can't keep coming back if the read is deaf; else
 // its like an auto-retry that will eventually get through.
 func (s *simnet) localDeafRead(read, send *mop) (isDeaf bool) {
-	//vv("localDeafRead called by '%v'", fileLine(2))
-	//defer func() {
-	//	vv("defer localDeafRead returning %v, called by '%v'", isDeaf, fileLine(3))
-	//}()
+	vv("localDeafRead called by '%v'", fileLine(2))
+	defer func() {
+		vv("defer localDeafRead returning %v, called by '%v'", isDeaf, fileLine(3))
+	}()
 
 	// get the local (read) origin conn probability of deafness
 	// note: not the remote's deafness, only local.
@@ -1496,10 +1496,11 @@ func (s *simnet) localDeafRead(read, send *mop) (isDeaf bool) {
 	read.readAttempt++
 
 	if prob == 0 {
-		//vv("localDeafRead top: prob = 0, not deaf for sure: read='%v'; send='%v'", read, send)
+		vv("localDeafRead top: prob = 0, not deaf for sure: read='%v'; send='%v'", read, send)
 	} else {
 		random01 := s.scenario.rng.Float64() // in [0, 1)
-		//vv("localDeafRead top: random01 = %v < prob(%v) = %v ; read='%v'; send='%v'", random01, prob, random01 < prob, read, send)
+
+		vv("localDeafRead top: random01 = %v < prob(%v) = %v ; read='%v'; send='%v'", random01, prob, random01 < prob, read, send) // not seen 1002
 		isDeaf = random01 < prob
 	}
 
@@ -1584,7 +1585,7 @@ func (s *simnet) statewiseConnected(origin, target *simnode) bool {
 
 func (s *simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	now := time.Now()
-	vv("top of handleSend(send = '%v')", send)
+	//vv("top of handleSend(send = '%v')", send)
 	defer close(send.proceed)
 
 	origin := send.origin
@@ -1598,7 +1599,7 @@ func (s *simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	send.completeTm = userMaskTime(now, send.who) // send complete on the sender side.
 	// handleSend
 	send.arrivalTm = userMaskTime(send.unmaskedSendArrivalTm, send.who)
-	vv("send.arrivalTm = '%v'", send.arrivalTm)
+	//vv("send.arrivalTm = '%v'", send.arrivalTm)
 	// note that read matching time will be unique based on
 	// send arrival time.
 
@@ -2153,8 +2154,8 @@ func (s *simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 	return
 }
 
-func (s *simnet) add2meq(op *mop, loopi int64) {
-	vv("i=%v, add2meq %v", loopi, op)
+func (s *simnet) add2meq(op *mop, loopi int64) (armed bool) {
+	//vv("i=%v, add2meq %v", loopi, op)
 	// need to bump up the time... with nextUniqTm,
 	// so deliveries are all at a unique time point.
 	if !op.reqtm.IsZero() {
@@ -2162,8 +2163,9 @@ func (s *simnet) add2meq(op *mop, loopi int64) {
 	}
 
 	s.meq.add(op)
-	armed := s.armTimer(time.Now(), loopi)
-	vv("i=%v, end of add2meq. meq sz %v; armed = %v -> s.lastArmDur: %v; caller %v; op = %v\n\n meq=%v\n", loopi, s.meq.Len(), armed, s.lastArmDur, fileLine(2), op, s.meq)
+	armed = s.armTimer(time.Now(), loopi)
+	//vv("i=%v, end of add2meq. meq sz %v; armed = %v -> s.lastArmDur: %v; caller %v; op = %v\n\n meq=%v\n", loopi, s.meq.Len(), armed, s.lastArmDur, fileLine(2), op, s.meq)
+	return
 }
 
 // scheduler is the heart of the simnet
@@ -2344,7 +2346,7 @@ restartI:
 					// should we barrier now? no other selects
 					// are possible, so... meh/pointless.
 				} else {
-					vv("i=%v, elap=0 but have sz meq=%v :\n %v", i, sz, s.meq)
+					//vv("i=%v, elap=0 but have sz meq=%v :\n %v", i, sz, s.meq)
 				}
 			}
 			//totalSleepDur += elap
@@ -2649,7 +2651,7 @@ func (s *simnet) handleTimer(timer *mop) {
 	lc := timer.origin.lc
 	who := timer.origin.name
 	_, _ = who, lc
-	vv("handleTimer() %v  TIMER SET: %v", who, timer) // not seen!?!
+	//vv("handleTimer() %v  TIMER SET: %v", who, timer) // not seen!?!
 
 	timer.senderLC = lc
 	timer.originLC = lc

@@ -74,7 +74,7 @@ func Test1001_simnetonly_drop_prob(t *testing.T) {
 }
 
 func Test1002_simnetonly_deaf_prob_tests(t *testing.T) {
-	return
+
 	onlyBubbled(t, func() {
 		// simnet with probabilistic deaf fault on server or client experiences the set level of send and/or read flakiness
 
