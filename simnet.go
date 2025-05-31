@@ -378,6 +378,10 @@ type simnet struct {
 	//gridStepTimer *mop
 	who int
 
+	// upon request, we can be noisy if we
+	// have nothing to do, for diagnostics.
+	noisyNothing atomic.Bool
+
 	// lastTimerDeadline: issue all timers
 	// must be greater than lastTimerDeadline,
 	// and then they must set their time to it.
@@ -2504,12 +2508,22 @@ func (s *simnet) distributeMEQ(now time.Time, i int64) (npop int) {
 	//}
 	// limit of -1 means no limit on number of dispatched mop.
 	//nd0 += s.dispatchAll(now, -1, i)
-	s.dispatchAll(now, -1, i)
+	nd := s.dispatchAll(now, -1, i)
+	_ = nd
 	//ndtot += nd0
 
 	//s.refreshGridStepTimer(now) // not really used atm.
-	s.armTimer(now, i)
+	armed := s.armTimer(now, i)
+	_ = armed
 
+	if !armed && nd == 0 && npop == 0 {
+		// can see alot of this while waiting for stuff
+		// e.g. a first leader election. Let user test code
+		// activate it with a simnet.NoisyNothing call.
+		if s.noisyNothing.Load() {
+			alwaysPrintf("timer not armed, simnet npop=0 and num dispatched = 0, quiescent?")
+		}
+	}
 	return
 }
 
@@ -3120,6 +3134,10 @@ func newRepairHostMop(hostRepair *hostRepair) (op *mop) {
 		reqtm:      hostRepair.reqtm,
 	}
 	return
+}
+
+func (s *simnet) NoisyNothing(oldval, newval bool) (swapped bool) {
+	return s.noisyNothing.CompareAndSwap(oldval, newval)
 }
 
 func (s *simnet) Close() {
