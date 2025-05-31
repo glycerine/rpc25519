@@ -2518,7 +2518,12 @@ func (s *simnet) distributeMEQ(now time.Time, i int64) (npop int) {
 // https://github.com/golang/go/issues/73876#issuecomment-2920758263
 func (s *simnet) haveNextTimer(now time.Time) <-chan time.Time {
 	if s.lastArmToFire.IsZero() {
-		s.nextTimer.Reset(0)
+		//s.nextTimer.Reset(0) // faketime: 5.9s, 5.53s, 5.48 sec. realtime: 7.333s, 7.252s, 7.262s, 7.4s
+		dur, _ := s.durToGridPoint(now, s.scenario.tick) // 5.589s, 5.3s, 5.54s, 5.55sec faketime. realtime 7.411s, 7.02s, 7.1s
+		s.nextTimer.Reset(dur)
+		if dur == 0 {
+			vv("dur was 0 !!!") // never seen. good.
+		}
 		//vv("haveNextTimer: no timer at the moment, don't wait on it.")
 		//return nil
 	}
