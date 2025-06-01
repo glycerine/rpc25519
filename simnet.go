@@ -1641,10 +1641,9 @@ func (s *simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 		}
 		s.add2meq(closer, -1)
 	}
-	//now := time.Now()
-	delta := s.dispatch(send.target, now, limit, loopi) // needed?
-	changed += delta
-	limit -= delta
+	// delta := s.dispatch(send.target, now, limit, loopi) // needed?
+	// changed += delta
+	// limit -= delta
 	return
 }
 
@@ -2231,19 +2230,24 @@ func (s *simnet) scheduler() {
 		}
 		//vv("i=%v, about to select", i)
 		preSelectTm := now
+		preSelMeqSz := s.meq.Len()
+		_ = preSelMeqSz
+
+		// what we want to maximize determinism:
+		// single goro at time, see if we can make any
+		// progress, make all the progress we can,
+		// only once no further progress, then allow
+		// the next goro. Try to release them with
+		// a clock that corresponds to their goID.
+
 		select { // scheduler main select
 
-		// time advances when soonest timer fires, but we could
-		// also be waiting on a 0 duration timer, which
-		// is equivalent to a synctest.Wait in that it
-		// returns only once the bubble is blocked.
-		//
 		case <-s.haveNextTimer(preSelectTm):
 			now = time.Now()
 			elap := now.Sub(preSelectTm)
 			slept := elap > 0
 			if elap == 0 {
-				if faketime && s.lastArmDur > 0 { // simnet.go:2170 [goID 13] 2000-01-01 00:00:00.000400024 +0000 UTC scheduler panic-ing: why awake when elap=0 but lastArmDur=-1ns
+				if faketime && s.lastArmDur > 0 {
 					panic(fmt.Sprintf("why awake when elap=0 but lastArmDur=%v", s.lastArmDur))
 				}
 				// A timer of dur zero is equivalent to synctest.Wait;
@@ -2532,14 +2536,15 @@ func (s *simnet) distributeMEQ(now time.Time, i int64) (npop int) {
 // https://github.com/golang/go/issues/73876#issuecomment-2920758263
 func (s *simnet) haveNextTimer(now time.Time) <-chan time.Time {
 	if s.lastArmToFire.IsZero() {
-		//s.nextTimer.Reset(0) // faketime: 5.9s, 5.53s, 5.48 sec. realtime: 7.333s, 7.252s, 7.262s, 7.4s
-		dur, _ := s.durToGridPoint(now, s.scenario.tick) // 5.589s, 5.3s, 5.54s, 5.55sec faketime. realtime 7.411s, 7.02s, 7.1s
+		s.nextTimer.Reset(0) // faketime: 5.9s, 5.53s, 5.48 sec. realtime: 7.333s, 7.252s, 7.262s, 7.4s
+		/*dur, _ := s.durToGridPoint(now, s.scenario.tick) // 5.589s, 5.3s, 5.54s, 5.55sec faketime. realtime 7.411s, 7.02s, 7.1s
 		s.nextTimer.Reset(dur)
 		if dur == 0 {
 			vv("dur was 0 !!!") // never seen. good.
 		}
 		//vv("haveNextTimer: no timer at the moment, don't wait on it.")
 		//return nil
+		*/
 	}
 	//vv("haveNextTimer: s.lastArmToFire = %v; s.lastArmDur = %v", s.lastArmToFire, s.lastArmDur)
 	return s.nextTimer.C
@@ -2787,7 +2792,7 @@ const timeMask9 = time.Microsecond*100 - 1
 // 2006-01-02T15:04:05.000000000-07:00
 // maskTime will return
 // 2006-01-02T15:04:05.000099999-07:00
-func userMaskTime(tm time.Time, who int) time.Time {
+func userMaskTime(tm time.Time, who int) (newtm time.Time) {
 	if who <= 0 {
 		panic(fmt.Sprintf("who %v not set or negative!", who))
 	}
@@ -2796,7 +2801,18 @@ func userMaskTime(tm time.Time, who int) time.Time {
 	}
 	// always bump to next 100 usec, so we are
 	// for sure after tm.
-	return tm.Truncate(timeMask0).Add(timeMask0 + time.Duration(who))
+	now := time.Now()
+	newtm = tm.Truncate(timeMask0).Add(timeMask0 + time.Duration(who))
+	if newtm.After(now) {
+		return
+	} else {
+		newtm = now.Truncate(timeMask0).Add(timeMask0 + time.Duration(who))
+		if newtm.Before(now) {
+			// arg. our correction did not help.
+			panic(fmt.Sprintf("arg! newtm(%v) < now(%v)", nice(newtm), nice(now)))
+		}
+	}
+	return
 }
 
 // system gridTimer points always end in 00_000
