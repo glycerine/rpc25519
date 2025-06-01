@@ -2803,15 +2803,18 @@ func userMaskTime(tm time.Time, who int) (newtm time.Time) {
 	// for sure after tm.
 	now := time.Now()
 	newtm = tm.Truncate(timeMask0).Add(timeMask0 + time.Duration(who))
+	if newtm.Before(tm) {
+		panic(fmt.Sprintf("arg. want newtm(%v) >= tm(%v)", newtm, tm))
+	}
 	if newtm.After(now) {
 		return
 	} else {
 		newtm = now.Truncate(timeMask0).Add(timeMask0 + time.Duration(who))
 		//if newtm.Before(now) {
-		if lte(newtm, now) {
+		if lte(newtm, now) || newtm.Before(tm) {
 			// arg. our correction did not help.
 			// it should have for any who > 0, so wat?
-			panic(fmt.Sprintf("arg! newtm(%v) <= now(%v); who=%v", nice(newtm), nice(now), who))
+			panic(fmt.Sprintf("arg! newtm(%v) <= now(%v) || newtm.Before(tm='%v'); who=%v", nice(newtm), nice(now), nice(tm), who))
 		}
 	}
 	return
