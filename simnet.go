@@ -352,7 +352,8 @@ func (s *mop) clone() (c *mop) {
 	return
 }
 
-/* want decentralized userMaskTime instead! so
+// want decentralized userMaskTime instead, mostly...
+// but try again for more deterministic scheduling.
 // simnet wide next deadline assignment for all
 // timers on all nodes, and all send and read points.
 func (s *simnet) nextUniqTm(atleast time.Time, who int) time.Time {
@@ -362,14 +363,16 @@ func (s *simnet) nextUniqTm(atleast time.Time, who int) time.Time {
 	if atleast.After(s.lastTimerDeadline) {
 		s.lastTimerDeadline = atleast
 	} else {
-		// atleast <= s.lastTimerDeadline
-		const bump = time.Microsecond // more than mask
-		s.lastTimerDeadline = s.lastTimerDeadline.Add(bump)
+		// INVAR: atleast <= s.lastTimerDeadline
+		// I think userMaskTime alone might suffice now.
+		// We know that s.lastTimerDeadline is acceptable.
+
+		//const bump = timeMask0 // more than mask
+		//s.lastTimerDeadline = s.lastTimerDeadline.Add(bump)
 	}
 	s.lastTimerDeadline = userMaskTime(s.lastTimerDeadline, who)
 	return s.lastTimerDeadline
 }
-*/
 
 // simnet simulates a network entirely with channels in memory.
 type simnet struct {
@@ -3160,6 +3163,9 @@ func newRepairHostMop(hostRepair *hostRepair) (op *mop) {
 	return
 }
 
+// NoisyNothing makes simnet print/log if it appears
+// to have nothing to do at the end of each
+// scheduling loop.
 func (s *simnet) NoisyNothing(oldval, newval bool) (swapped bool) {
 	return s.noisyNothing.CompareAndSwap(oldval, newval)
 }
