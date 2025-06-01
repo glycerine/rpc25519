@@ -2788,6 +2788,9 @@ const timeMask9 = time.Microsecond*100 - 1
 //
 // This can be used to order wake from sleep/timer events.
 //
+// We assert before returning that both
+// (newtm >= tm) and (newtm > now).
+//
 // If we start with
 // 2006-01-02T15:04:05.000000000-07:00
 // maskTime will return
@@ -2797,7 +2800,7 @@ func userMaskTime(tm time.Time, who int) (newtm time.Time) {
 		panic(fmt.Sprintf("who %v not set or negative!", who))
 	}
 	if who >= 100_000 {
-		panic(fmt.Sprintf("who goID = %v > 100_000 limit", who))
+		panic(fmt.Sprintf("who goID = %v > 100_000 limit. simnet currently has a max goroutine limit of 100_000.", who))
 	}
 	// always bump to next 100 usec, so we are
 	// for sure after tm.
