@@ -2143,7 +2143,10 @@ func (s *simnet) add2meq(op *mop, loopi int64) (armed bool) {
 	// need to bump up the time... with nextUniqTm,
 	// so deliveries are all at a unique time point.
 	if !op.reqtm.IsZero() {
-		op.reqtm = userMaskTime(op.reqtm, op.who)
+		// works fine, but non-determ?
+		//op.reqtm = userMaskTime(op.reqtm, op.who)
+		// experiment with:
+		op.reqtm = s.nextUniqTm(op.reqtm, op.who)
 	}
 
 	s.meq.add(op)
