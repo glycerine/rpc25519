@@ -2172,10 +2172,12 @@ func (s *simnet) add2meq(op *mop, loopi int64) (armed bool) {
 // operations, or take a time step forward
 // if they are all blocked.
 func (s *simnet) scheduler() {
-	//vv("scheduler is running on goro = %v", GoroNumber())
+	vv("scheduler is running on goro = %v", GoroNumber())
 
 	defer func() {
-		//vv("scheduler defer shutdown running on goro = %v", GoroNumber())
+		vv("scheduler defer shutdown running on goro = %v", GoroNumber())
+		s.halt.ReqStop.Close()
+		s.halt.Done.Close()
 		r := recover()
 		if r != nil {
 			alwaysPrintf("scheduler panic-ing: %v", r)
@@ -2233,7 +2235,7 @@ func (s *simnet) scheduler() {
 
 		// let goroutines get blocked waiting on the select arms below.
 		if faketime && s.barrier {
-			synctestWait_LetAllOtherGoroFinish() // 1st barrier
+			synctestWait_LetAllOtherGoroFinish() // 1st barrier // already here?? two goro: 26(group 23), goro 131(group 23)
 		}
 		//vv("i=%v, about to select", i)
 		preSelectTm := now

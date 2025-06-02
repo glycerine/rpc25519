@@ -447,70 +447,81 @@ func (s *node2) Start(
 
 func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 
-	// tube raft grid had sporadic read loss. Let's
+	// At one point, tube raft grid had sporadic read loss. Let's
 	// stress test a simnet grid, lower level, and
 	// see that we deliver everything sent with
 	// no faults injected.
 
-	bubbleOrNot(func() {
-		//n := 20
-		//n := 10
-		n := 3
-		gridCfg := &simGridConfig{
-			ReplicationDegree: n,
-			Timeout:           time.Second * 5,
-		}
+	loadtest := func(nNodes, wantRead, wantSend int, sendEvery time.Duration, note string) {
 
-		cfg := NewConfig()
-		// key setting under test here:
-		cfg.ServerAutoCreateClientsToDialOtherServers = true
-		cfg.UseSimNet = true
-		cfg.ServerAddr = "127.0.0.1:0"
-		cfg.QuietTestMode = true
-		gridCfg.RpcCfg = cfg
+		bubbleOrNot(func() {
 
-		var nodes []*simGridNode
-		for i := range n {
-			name := fmt.Sprintf("grid_node_%v", i)
-			nodes = append(nodes, newSimGridNode(name, gridCfg))
-		}
-		c := newSimGrid(gridCfg, nodes)
-		c.Start()
-		defer c.Close()
+			//n := 20
+			//n := 10
 
-		for i, g := range nodes {
-			_ = i
-			select {
-			case <-g.node.peersNeededSeen.Chan:
-				//vv("i=%v all peer connections need have been seen(%v) by '%v': '%#v'", i, g.node.peersNeeded, g.node.name, g.node.seen.GetKeySlice())
-
-				// failing test will just hang above.
-				// we cannot really do case <-time.After(time.Minute) with faketime.
+			n := nNodes
+			gridCfg := &simGridConfig{
+				ReplicationDegree: n,
+				Timeout:           time.Second * 5,
 			}
-		}
 
-		k := n - 1
-		wantRead := 1
-		wantSend := 1
-		sendEvery := time.Second
-		var loads []*gridLoadTestTicket
-		proceed := make(chan struct{})
-		for _, g := range nodes {
-			lo := newGridLoadTestTicket(k, wantRead, wantSend, sendEvery)
-			lo.proceed = proceed
-			loads = append(loads, lo)
-			g.node.gridLoadTestCh <- lo
-			<-lo.ready
-		}
-		close(proceed)
-		for i, g := range nodes {
-			//<-g.node.done
-			_ = g
-			<-loads[i].done.Chan
-		}
+			cfg := NewConfig()
+			// key setting under test here:
+			cfg.ServerAutoCreateClientsToDialOtherServers = true
+			cfg.UseSimNet = true
+			cfg.ServerAddr = "127.0.0.1:0"
+			cfg.QuietTestMode = true
+			gridCfg.RpcCfg = cfg
 
-		vv("end of 707")
-	})
+			var nodes []*simGridNode
+			for i := range n {
+				name := fmt.Sprintf("grid_node_%v", i)
+				nodes = append(nodes, newSimGridNode(name, gridCfg))
+			}
+			c := newSimGrid(gridCfg, nodes)
+			c.Start()
+			defer c.Close()
+
+			for i, g := range nodes {
+				_ = i
+				select {
+				case <-g.node.peersNeededSeen.Chan:
+					//vv("i=%v all peer connections need have been seen(%v) by '%v': '%#v'", i, g.node.peersNeeded, g.node.name, g.node.seen.GetKeySlice())
+
+					// failing test will just hang above.
+					// we cannot really do case <-time.After(time.Minute) with faketime.
+				}
+			}
+
+			k := nNodes - 1
+			var loads []*gridLoadTestTicket
+			proceed := make(chan struct{})
+			for _, g := range nodes {
+				lo := newGridLoadTestTicket(k, wantRead, wantSend, sendEvery)
+				lo.proceed = proceed
+				loads = append(loads, lo)
+				g.node.gridLoadTestCh <- lo
+				<-lo.ready
+			}
+			close(proceed)
+			for i, g := range nodes {
+				//<-g.node.done
+				_ = g
+				<-loads[i].done.Chan
+			}
+		}) // end bubbleOrNot
+	} // end loadtest func definition
+
+	loadtest(2, 1, 1, time.Second, "707 loadtest 1")
+	vv("done with first")
+
+	loadtest(3, 1, 1, time.Second, "707 loadtest 2")
+	vv("done with second loadtest")
+
+	loadtest(4, 1, 1, time.Second, "707 loadtest 3")
+
+	vv("end of 707")
+
 }
 
 func (s *node2) loadDone(me string, addSends, addReads int) bool {
