@@ -317,7 +317,10 @@ func (s *node2) Start(
 					frag.FragSubject = "load test"
 					ckt.val.SendOneWay(frag, -1, 0)
 					sends++
-					vv("%v send to %v", me, AliasDecode(ckt.key))
+					if sends%100 == 0 {
+						// show some progress
+						vv("%v send to %v", me, AliasDecode(ckt.key))
+					}
 				}
 				if s.loadDone(me, sends, 0) {
 					continue
@@ -401,7 +404,7 @@ func (s *node2) Start(
 						if frag.FragSubject == "load test" {
 							//vv("we see load test frag")
 							if s.load.done.IsClosed() {
-								panic("arg. got load test frag after we are finished")
+								panic("arg. got load test frag after we are finished") // seen. why??? on 9 x 100,100, 1sec. double delivery?
 							}
 							if s.load == nil {
 								panic("arg. got load test frag without current load test")
@@ -512,13 +515,13 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 		}) // end bubbleOrNot
 	} // end loadtest func definition
 
-	loadtest(2, 1, 1, time.Second, "707 loadtest 1")
-	vv("done with first")
+	//loadtest(2, 1, 1, time.Second, "707 loadtest 1")
+	//vv("done with first")
 
-	loadtest(3, 1, 1, time.Second, "707 loadtest 2")
+	loadtest(9, 100, 100, time.Second, "707 loadtest 2")
 	vv("done with second loadtest")
 
-	loadtest(4, 1, 1, time.Second, "707 loadtest 3")
+	//loadtest(5, 1, 1, time.Second, "707 loadtest 3")
 
 	vv("end of 707")
 
