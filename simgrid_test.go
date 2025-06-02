@@ -267,6 +267,7 @@ func (s *simGridNode) Start(grid *simGrid) error {
 	s.URL = s.lpb.URL()
 	s.PeerID = s.lpb.PeerID
 
+	AliasRegister(s.PeerID, s.name)
 	//vv("simGridNode.Start() started '%v' as 'grid' with url = '%v'", s.name, s.URL)
 
 	return nil
