@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/glycerine/idem"
@@ -95,6 +96,8 @@ type node2 struct {
 }
 
 type gridLoadTestTicket struct {
+	mut sync.Mutex
+
 	nmsgSend int
 	nmsgRead int
 	wantRead int
@@ -106,13 +109,12 @@ type gridLoadTestTicket struct {
 
 	sendEvery time.Duration // how often to send.
 
-	started  bool
-	finished bool
+	started bool
 
 	// close done when both reads and sends are done.
 	readsDone bool
 	sendsDone bool
-	done      chan struct{} // done with load test
+	done      *idem.IdemCloseChan
 
 	ready   chan struct{} // acknowledge the load test
 	proceed chan struct{} // begin load test
@@ -127,7 +129,7 @@ func newGridLoadTestTicket(k, wantRead, wantSend int, sendEvery time.Duration) *
 		ready:     make(chan struct{}),
 		// let test make just one
 		//proceed:   make(chan struct{}),
-		done: make(chan struct{}),
+		done: idem.NewIdemCloseChan(),
 	}
 }
 
@@ -299,7 +301,7 @@ func (s *node2) Start(
 		case <-s.timeToSendLoadTimerC:
 			s.timeToSendLoadTimer.Discard()
 
-			if s.load.finished {
+			if s.load.done.IsClosed() {
 				continue
 			}
 			if s.load.nmsgSend*s.load.k < s.load.wantSend*s.load.k {
@@ -307,14 +309,15 @@ func (s *node2) Start(
 				if s.load.k != s.ckts.Len() {
 					panic(fmt.Sprintf("short on destinations. s.load.k=%v while s.ckts.Len = %v", s.load.k, s.ckts.Len()))
 				}
+				sends := 0
 				for rem, ckt := range s.ckts.cached() {
 					frag := lpb.NewFragment()
 					frag.FragSubject = "load test"
 					ckt.val.SendOneWay(frag, -1, 0)
-					s.load.nmsgSend++
-					vv("%v send to %v n send = %v", me, rem, s.load.nmsgSend)
+					sends++
+					vv("%v send to %v", me, rem)
 				}
-				if s.loadDone(me) {
+				if s.loadDone(me, sends, 0) {
 					continue
 				}
 			}
@@ -395,14 +398,14 @@ func (s *node2) Start(
 
 						if frag.FragSubject == "load test" {
 							//vv("we see load test frag")
-							if s.load.finished {
+							if s.load.done.IsClosed() {
 								panic("arg. got load test frag after we are finished")
 							}
 							if s.load == nil {
 								panic("arg. got load test frag without current load test")
 							}
-							s.load.nmsgRead++
-							if s.loadDone(me) {
+							reads := 1
+							if s.loadDone(me, 0, reads) {
 								continue
 							}
 						}
@@ -501,18 +504,23 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 		for i, g := range nodes {
 			//<-g.node.done
 			_ = g
-			<-loads[i].done
+			<-loads[i].done.Chan
 		}
 
 		vv("end of 707")
 	})
 }
 
-func (s *node2) loadDone(me string) bool {
+func (s *node2) loadDone(me string, addSends, addReads int) bool {
+	s.load.mut.Lock()
+	defer s.load.mut.Unlock()
 
-	if s.load.finished {
+	if s.load.done.IsClosed() {
 		return true
 	}
+
+	s.load.nmsgRead += addReads
+	s.load.nmsgSend += addReads
 
 	if !s.load.readsDone && s.load.nmsgRead*s.load.k == s.load.wantRead*s.load.k {
 		vv("%v peer has load total frag wantRead*k: %v", me, s.load.wantRead*s.load.k)
@@ -525,8 +533,7 @@ func (s *node2) loadDone(me string) bool {
 	}
 
 	if s.load.readsDone && s.load.sendsDone {
-		s.load.finished = true
-		close(s.load.done)
+		s.load.done.Close()
 		return true
 	}
 	return false
