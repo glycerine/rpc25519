@@ -228,7 +228,7 @@ func (s *simGrid) Close() {
 }
 
 func (s *simGridNode) Close() {
-	vv("simGridNode.Close: tree:\n %v", s.srv.halt.RootString())
+	//vv("simGridNode.Close: tree:\n %v", s.srv.halt.RootString())
 	s.srv.Close() // calls s.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil); then s.halt.ReqStop.Close() when that finishes. then closes autoclients.
 }
 
@@ -289,9 +289,11 @@ func (s *node2) Start(
 
 	//vv("%v: node.Start() top. ourID = '%v'; peerServiceName='%v';", s.name, lpb.PeerID, lpb.ServiceName())
 
-	me := AliasDecode(lpb.PeerID)
+	me := s.name
 
-	AliasRegister(lpb.PeerID, fmt.Sprintf("%v (%v %v)", lpb.PeerID, lpb.ServiceName(), s.name))
+	AliasRegister(lpb.PeerID, me)
+	//AliasRegister(lpb.PeerID, fmt.Sprintf("%v (%v %v)", lpb.PeerID, lpb.ServiceName(), s.name))
+
 	done0 := ctx0.Done()
 
 	for {
@@ -310,12 +312,12 @@ func (s *node2) Start(
 					panic(fmt.Sprintf("short on destinations. s.load.k=%v while s.ckts.Len = %v", s.load.k, s.ckts.Len()))
 				}
 				sends := 0
-				for rem, ckt := range s.ckts.cached() {
+				for _, ckt := range s.ckts.cached() {
 					frag := lpb.NewFragment()
 					frag.FragSubject = "load test"
 					ckt.val.SendOneWay(frag, -1, 0)
 					sends++
-					vv("%v send to %v", me, rem)
+					vv("%v send to %v", me, AliasDecode(ckt.key))
 				}
 				if s.loadDone(me, sends, 0) {
 					continue
