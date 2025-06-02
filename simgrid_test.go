@@ -76,19 +76,70 @@ type node2 struct {
 	lpb                    *LocalPeer
 	gotIncomingCktReadFrag chan *Fragment
 
-	seen *Mutexmap[string, bool]
+	ckts *syncomap[string, *Circuit]
+	seen *Mutexmap[string, *Circuit]
 
 	peersNeeded     int
 	peersNeededSeen *idem.IdemCloseChan
+
+	load           *gridLoadTestTicket
+	gridLoadTestCh chan *gridLoadTestTicket
+
+	// leave nil initially, then
+	// load.proceed for a moment
+	// to start the load test.
+	startLoadTestCh chan struct{}
+	// leave nil initially
+	timeToSendLoadTimer  *SimTimer
+	timeToSendLoadTimerC <-chan time.Time
+}
+
+type gridLoadTestTicket struct {
+	nmsgSend int
+	nmsgRead int
+	wantRead int
+	wantSend int
+
+	// k == number of other peers. at least 1.
+	// k is size of cluster -1
+	k int
+
+	sendEvery time.Duration // how often to send.
+
+	started  bool
+	finished bool
+
+	// close done when both reads and sends are done.
+	readsDone bool
+	sendsDone bool
+	done      chan struct{} // done with load test
+
+	ready   chan struct{} // acknowledge the load test
+	proceed chan struct{} // begin load test
+}
+
+func newGridLoadTestTicket(k, wantRead, wantSend int, sendEvery time.Duration) *gridLoadTestTicket {
+	return &gridLoadTestTicket{
+		sendEvery: sendEvery,
+		k:         k,
+		wantSend:  wantSend,
+		wantRead:  wantRead,
+		ready:     make(chan struct{}),
+		// let test make just one
+		//proceed:   make(chan struct{}),
+		done: make(chan struct{}),
+	}
 }
 
 func newNode2(srv *Server, name string, cfg *simGridConfig) *node2 {
 	return &node2{
+		gridLoadTestCh:  make(chan *gridLoadTestTicket),
 		peersNeeded:     cfg.ReplicationDegree - 1,
 		peersNeededSeen: idem.NewIdemCloseChan(),
 		cfg:             cfg,
 		name:            name,
-		seen:            NewMutexmap[string, bool](),
+		seen:            NewMutexmap[string, *Circuit](),
+		ckts:            newSyncomap[string, *Circuit](),
 		// comms
 		PushToPeerURL:          make(chan string),
 		halt:                   srv.halt,
@@ -222,29 +273,72 @@ func (s *simGridNode) Start(grid *simGrid) error {
 }
 
 func (s *node2) Start(
-	myPeer *LocalPeer,
+	lpb *LocalPeer,
 	ctx0 context.Context,
 	newCircuitCh <-chan *Circuit,
 
 ) (err0 error) {
 
 	defer func() {
-		//vv("%v: (%v) end of node.Start() inside defer, about the return/finish", s.name, myPeer.ServiceName())
+		//vv("%v: (%v) end of node.Start() inside defer, about the return/finish", s.name, lpb.ServiceName())
 		s.halt.Done.Close()
 	}()
 
-	//vv("%v: node.Start() top. ourID = '%v'; peerServiceName='%v';", s.name, myPeer.PeerID, myPeer.ServiceName())
+	//vv("%v: node.Start() top. ourID = '%v'; peerServiceName='%v';", s.name, lpb.PeerID, lpb.ServiceName())
 
-	AliasRegister(myPeer.PeerID, fmt.Sprintf("%v (%v %v)", myPeer.PeerID, myPeer.ServiceName(), s.name))
+	me := AliasDecode(lpb.PeerID)
+
+	AliasRegister(lpb.PeerID, fmt.Sprintf("%v (%v %v)", lpb.PeerID, lpb.ServiceName(), s.name))
 	done0 := ctx0.Done()
 
 	for {
 		//vv("%v: top of select", s.name) // client only seen once, since peer_test acts as cli
 		select {
+
+		case <-s.timeToSendLoadTimerC:
+			s.timeToSendLoadTimer.Discard()
+
+			if s.load.finished {
+				continue
+			}
+			if s.load.nmsgSend*s.load.k < s.load.wantSend*s.load.k {
+				// send a round
+				if s.load.k != s.ckts.Len() {
+					panic(fmt.Sprintf("short on destinations. s.load.k=%v while s.ckts.Len = %v", s.load.k, s.ckts.Len()))
+				}
+				for rem, ckt := range s.ckts.cached() {
+					frag := lpb.NewFragment()
+					frag.FragSubject = "load test"
+					ckt.val.SendOneWay(frag, -1, 0)
+					s.load.nmsgSend++
+					vv("%v send to %v n send = %v", me, rem, s.load.nmsgSend)
+				}
+				if s.loadDone(me) {
+					continue
+				}
+			}
+			ti := lpb.U.NewTimer(s.load.sendEvery)
+			s.timeToSendLoadTimer = ti
+			s.timeToSendLoadTimerC = ti.C
+
+		case <-s.startLoadTestCh:
+			s.load.started = true
+			s.startLoadTestCh = nil
+
+			ti := lpb.U.NewTimer(s.load.sendEvery)
+			s.timeToSendLoadTimer = ti
+			s.timeToSendLoadTimerC = ti.C
+
+		case load := <-s.gridLoadTestCh:
+			s.load = load
+			s.startLoadTestCh = load.proceed
+			close(s.load.ready)
+
 		// new Circuit connection arrives
 		case ckt := <-newCircuitCh:
 
-			//vv("%v: got from newCircuitCh! service '%v' sees new peerURL: '%v'", s.name, myPeer.PeerServiceName, myPeer.URL())
+			//vv("%v: got from newCircuitCh! service '%v' sees new peerURL: '%v'", s.name, lpb.PeerServiceName, lpb.URL())
+			s.ckts.set(ckt.RemotePeerID, ckt)
 
 			// talk to this peer on a separate goro if you wish:
 			go func(ckt *Circuit) (err0 error) {
@@ -267,7 +361,7 @@ func (s *node2) Start(
 					case frag := <-ckt.Reads:
 						//vv("%v: (ckt %v) ckt.Reads sees frag:'%s'", s.name, ckt.Name, frag) // not seen!!!
 
-						s.seen.Set(AliasDecode(frag.FromPeerID), true)
+						s.seen.Set(AliasDecode(frag.FromPeerID), ckt)
 
 						peersSeen := s.seen.Len()
 						if peersSeen >= s.peersNeeded {
@@ -279,10 +373,10 @@ func (s *node2) Start(
 
 						if frag.Typ == CallPeerStartCircuit {
 
-							outFrag := myPeer.NewFragment()
+							outFrag := lpb.NewFragment()
 							outFrag.Payload = frag.Payload
 							outFrag.FragSubject = "start reply"
-							outFrag.ServiceName = myPeer.ServiceName()
+							outFrag.ServiceName = lpb.ServiceName()
 							err := ckt.SendOneWay(outFrag, 0, 0)
 							if err != nil {
 								// typically a normal shutdown, don't freak.
@@ -296,6 +390,20 @@ func (s *node2) Start(
 
 						if frag.FragSubject == "start reply" {
 							//vv("we see start reply") // seen.
+						}
+
+						if frag.FragSubject == "load test" {
+							//vv("we see load test frag")
+							if s.load.finished {
+								panic("arg. got load test frag after we are finished")
+							}
+							if s.load == nil {
+								panic("arg. got load test frag without current load test")
+							}
+							s.load.nmsgRead++
+							if s.loadDone(me) {
+								continue
+							}
 						}
 
 					case fragerr := <-ckt.Errors:
@@ -329,4 +437,96 @@ func (s *node2) Start(
 		}
 	}
 	return nil
+}
+
+func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
+
+	// tube raft grid had sporadic read loss. Let's
+	// stress test a simnet grid, lower level, and
+	// see that we deliver everything sent with
+	// no faults injected.
+
+	bubbleOrNot(func() {
+		//n := 20
+		//n := 10
+		n := 3
+		gridCfg := &simGridConfig{
+			ReplicationDegree: n,
+			Timeout:           time.Second * 5,
+		}
+
+		cfg := NewConfig()
+		// key setting under test here:
+		cfg.ServerAutoCreateClientsToDialOtherServers = true
+		cfg.UseSimNet = true
+		cfg.ServerAddr = "127.0.0.1:0"
+		cfg.QuietTestMode = true
+		gridCfg.RpcCfg = cfg
+
+		var nodes []*simGridNode
+		for i := range n {
+			name := fmt.Sprintf("grid_node_%v", i)
+			nodes = append(nodes, newSimGridNode(name, gridCfg))
+		}
+		c := newSimGrid(gridCfg, nodes)
+		c.Start()
+		defer c.Close()
+
+		for i, g := range nodes {
+			_ = i
+			select {
+			case <-g.node.peersNeededSeen.Chan:
+				//vv("i=%v all peer connections need have been seen(%v) by '%v': '%#v'", i, g.node.peersNeeded, g.node.name, g.node.seen.GetKeySlice())
+
+				// failing test will just hang above.
+				// we cannot really do case <-time.After(time.Minute) with faketime.
+			}
+		}
+
+		k := n - 1
+		wantRead := 1
+		wantSend := 1
+		sendEvery := time.Second
+		var loads []*gridLoadTestTicket
+		proceed := make(chan struct{})
+		for _, g := range nodes {
+			lo := newGridLoadTestTicket(k, wantRead, wantSend, sendEvery)
+			lo.proceed = proceed
+			loads = append(loads, lo)
+			g.node.gridLoadTestCh <- lo
+			<-lo.ready
+		}
+		close(proceed)
+		for i, g := range nodes {
+			//<-g.node.done
+			_ = g
+			<-loads[i].done
+		}
+
+		vv("end of 707")
+	})
+}
+
+func (s *node2) loadDone(me string) bool {
+
+	if s.load.finished {
+		return true
+	}
+
+	if !s.load.readsDone && s.load.nmsgRead*s.load.k == s.load.wantRead*s.load.k {
+		vv("%v peer has load total frag wantRead*k: %v", me, s.load.wantRead*s.load.k)
+		s.load.readsDone = true
+	}
+
+	if !s.load.sendsDone && s.load.nmsgSend*s.load.k == s.load.wantSend*s.load.k {
+		vv("%v peer send and seen full load wantRead*k = %v; wantSend*k = %v for k=%v", me, s.load.wantRead*s.load.k, s.load.wantSend*s.load.k, s.load.k)
+		s.load.sendsDone = true
+	}
+
+	if s.load.readsDone && s.load.sendsDone {
+		s.load.finished = true
+		close(s.load.done)
+		return true
+	}
+	return false
 }
