@@ -39,3 +39,7 @@ test:
 synctest:
 	GOTRACEBACK=all GOEXPERIMENT=synctest go test -v
 
+rr:
+	GOTRACEBACK=all GOEXPERIMENT=synctest go test -race -c -o rpc.test
+	rr record ./rpc.test -test.v -test.run 707
+	rr replay
