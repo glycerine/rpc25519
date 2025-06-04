@@ -450,9 +450,12 @@ func (s *node2) Start(
 
 func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 
-	// At one point, tube raft grid had sporadic read loss. Let's
-	// stress test a simnet grid, lower level, and
-	// see that we deliver everything sent with
+	// At one point, tube raft grid had sporadic
+	// read loss resulting in a hung client. It
+	// could have been at the tube layer, but to
+	// be extra careful, here we stress test a
+	// simnet grid, lower level, and see that we
+	// deliver everything sent with
 	// no faults injected.
 
 	loadtest := func(nNodes, wantRead, wantSend int, sendEvery time.Duration, note string) {

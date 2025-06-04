@@ -43,3 +43,6 @@ rr:
 	GOTRACEBACK=all GOEXPERIMENT=synctest go test -race -c -o rpc.test
 	rr record ./rpc.test -test.v -test.run 707
 	rr replay
+
+grid707test:
+	GOTRACEBACK=all GOEXPERIMENT=synctest go test -v -run Test707_simnet_grid_does_not_lose_messages # in simgrid_test.go
