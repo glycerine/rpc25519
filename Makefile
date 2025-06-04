@@ -40,8 +40,12 @@ synctest:
 	GOTRACEBACK=all GOEXPERIMENT=synctest go test -v
 
 rr:
-	GOTRACEBACK=all GOEXPERIMENT=synctest go test -race -c -o rpc.test
+	##rm -rf ~/.local/share/rr/ ## careful! deletes all old traces!
+	#GOTRACEBACK=all GOEXPERIMENT=synctest go test -race -c -o rpc.test -count=1
+	GOTRACEBACK=all GOEXPERIMENT=synctest go test -c -o rpc.test -count=1
 	rr record ./rpc.test -test.v -test.run 707
+
+replay:
 	rr replay
 
 grid707test:
