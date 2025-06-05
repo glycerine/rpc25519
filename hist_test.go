@@ -16,6 +16,26 @@ func Test708_gridHistory_helper(t *testing.T) {
 		nodes = append(nodes, newSimGridNode(name, gridCfg))
 	}
 
-	hist := newGridHistory(nodes)
-	vv("empty hist: \n%v", hist)
+	h := newGridHistory(nodes)
+	//vv("empty hist: \n%v", h)
+
+	m := &Message{}
+	h.addSend(nodes[0], nodes[1], m)
+	h.addRead(nodes[1], nodes[0], m)
+
+	//vv("after a send from 0 -> 1: \n%v", h)
+
+	h.reset()
+	for range 10 {
+		for i := range n {
+			for j := range n {
+				if i == j {
+					continue
+				}
+				h.addSend(nodes[i], nodes[j], m)
+				h.addRead(nodes[j], nodes[i], m)
+			}
+		}
+	}
+	//vv("after 10 sends/reads from each to each: \n%v", h)
 }

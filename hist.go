@@ -17,14 +17,18 @@ func newMsghistory() *msghistory {
 	return &msghistory{}
 }
 
+func (s *msghistory) reset() {
+	s.h = nil
+}
+
 // a matrix of histories
-type smatrix struct {
+type matrix struct {
 	nrow int
 	ncol int
 	m    *omap[string, *omap[string, *msghistory]]
 }
 
-func newSmatrix(nodes []*simGridNode) *smatrix {
+func newMatrix(nodes []*simGridNode) *matrix {
 	fromI := newOmap[string, *omap[string, *msghistory]]()
 	n := len(nodes)
 	for i := range nodes {
@@ -34,15 +38,15 @@ func newSmatrix(nodes []*simGridNode) *smatrix {
 		}
 		fromI.set(nodes[i].name, toJ)
 	}
-	return &smatrix{
+	return &matrix{
 		nrow: n,
 		ncol: n,
 		m:    fromI,
 	}
 }
 
-func (s *smatrix) String() (r string) {
-	r = fmt.Sprintf("smatrix[%v x %v]\n       ", s.nrow, s.ncol)
+func (s *matrix) String() (r string) {
+	r = fmt.Sprintf("matrix[%v x %v]\n       ", s.nrow, s.ncol)
 	for col := range s.m.all() {
 		r += fmt.Sprintf("%6s  ", col)
 	}
@@ -57,18 +61,26 @@ func (s *smatrix) String() (r string) {
 	return
 }
 
+func (s *matrix) reset() {
+	for _, cols := range s.m.all() {
+		for _, hist := range cols.all() {
+			hist.reset()
+		}
+	}
+}
+
 // a pair of history matrixes, one for sends,
 // one for reads.
 type gridhistory struct {
 	mut   sync.Mutex
-	reads *smatrix
-	sends *smatrix
+	reads *matrix
+	sends *matrix
 }
 
 func newGridHistory(nodes []*simGridNode) *gridhistory {
 	return &gridhistory{
-		reads: newSmatrix(nodes),
-		sends: newSmatrix(nodes),
+		reads: newMatrix(nodes),
+		sends: newMatrix(nodes),
 	}
 }
 
@@ -79,4 +91,19 @@ func (h *gridhistory) String() (r string) {
  reads: %v
  sends: %v
 }`, h.reads, h.sends)
+}
+
+func (g *gridhistory) addSend(a, b *simGridNode, m *Message) {
+	h := g.sends.m.get(a.name).get(b.name)
+	h.h = append(h.h, m)
+}
+
+func (g *gridhistory) addRead(a, b *simGridNode, m *Message) {
+	h := g.reads.m.get(a.name).get(b.name)
+	h.h = append(h.h, m)
+}
+
+func (g *gridhistory) reset() {
+	g.reads.reset()
+	g.sends.reset()
 }
