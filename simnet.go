@@ -623,7 +623,7 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	reg.simnode = srvnode
 	reg.simnet = s
 
-	vv("end of handleServerRegistration, about to close(reg.done). srvreg is %v", reg)
+	//vv("end of handleServerRegistration, about to close(reg.done). srvreg is %v", reg)
 
 	// channel made by newCircuitserver() above.
 	reg.tellServerNewConnCh = srvnode.tellServerNewConnCh
@@ -1793,9 +1793,6 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 				case timer.timerC <- now:
 				case <-simnode.net.halt.ReqStop.Chan:
 					return
-				//case <-time.After(time.Nanosecond):
-				//	vv("good:delivered timer after 1nsec pause")
-				//	continue
 				default:
 					vv("arg! could not deliver timer? '%v'  requeue or what?", timer)
 					//continue
@@ -2392,7 +2389,7 @@ func (s *simnet) scheduler() {
 			s.add2meq(newSnapReqMop(snapReq), i)
 
 		case <-s.halt.ReqStop.Chan:
-			vv("i=%v <-s.halt.ReqStop.Chan", i)
+			//vv("i=%v <-s.halt.ReqStop.Chan", i)
 			bb := time.Since(s.bigbang)
 			pct := 100 * float64(totalSleepDur) / float64(bb)
 			_ = pct
@@ -2420,7 +2417,7 @@ func (s *simnet) scheduler() {
 					//}
 			*/
 		} // end select
-		if true { // false {
+		if false {
 			if i > 0 && i%2000 == 0 {
 				if s.ndtot > s.ndtotPrev {
 					s.ndtotPrev = s.ndtot

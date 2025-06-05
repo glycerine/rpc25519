@@ -517,20 +517,20 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 				ReplicationDegree: n,
 				Timeout:           time.Second * 5,
 			}
-			histShown := false
-			defer func() {
-				if !histShown {
-					vv("in defer, history: %v", gridCfg.hist)
-				}
-			}()
+			//histShown := false
+			//defer func() {
+			//	if !histShown {
+			//		vv("in defer, history: %v", gridCfg.hist)
+			//	}
+			//}()
 
 			cfg := NewConfig()
 			// key setting under test here:
 			cfg.ServerAutoCreateClientsToDialOtherServers = true
 			cfg.UseSimNet = true
-			gridCfg.testDebugCB = func() {
-				vv("frag history: %v", gridCfg.hist)
-			}
+			//gridCfg.testDebugCB = func() {
+			//	vv("frag history: %v", gridCfg.hist)
+			//}
 			//cfg.UseSimNet = faketime
 			cfg.ServerAddr = "127.0.0.1:0"
 			cfg.QuietTestMode = true
@@ -573,8 +573,8 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 			}
 
 			//time.Sleep(time.Second)
-			vv("after load all done, history: %v", gridCfg.hist)
-			histShown = true
+			//vv("after load all done, history: %v", gridCfg.hist)
+			//histShown = true
 
 			for i := range nodes {
 				gotSent := gridCfg.hist.sentBy(nodes[i].name)
@@ -600,9 +600,9 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	sendEvery := time.Millisecond
 	loadtest(nNode, wantSendPerPeer, sendEvery, "707 loadtest 2")
 
-	vv("done with second loadtest")
+	//vv("done with second loadtest")
 
 	//loadtest(5, 1, 1, time.Second, "707 loadtest 3")
 
-	vv("end of 707")
+	//vv("end of 707")
 }
