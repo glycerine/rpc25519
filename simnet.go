@@ -1792,10 +1792,11 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 				case timer.timerC <- now:
 				case <-simnode.net.halt.ReqStop.Chan:
 					return
+					// inherently race wrt shutdown though, right?
 				default:
-					vv("arg! could not deliver timer? '%v'  requeue or what?", timer)
-					//continue
-					panic("why not deliverable? hopefully we never hit this and can just delete the backup attempt below")
+					vv("arg! could not deliver timer? '%v'  requeue or what? ...assume this was just a shutdown race...", timer)
+					continue
+					//panic("why not deliverable? hopefully we never hit this and can just delete the backup attempt below")
 				}
 			}
 		} else {

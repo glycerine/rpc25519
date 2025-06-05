@@ -267,7 +267,7 @@ func Test408_multiple_circuits_open_and_close(t *testing.T) {
 		srv_ckts[9].Close(nil)
 
 		vv("at 408 end. do cleanup. this might stop some above ckt setup " +
-			"operations in progress and we want to verify they shutdown without panic.")
+			"operations in progress and we want to verify they shutdown without freakout.")
 		//select {}
 	})
 
