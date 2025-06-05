@@ -376,6 +376,8 @@ func (s *simnet) nextUniqTm(atleast time.Time, who int) time.Time {
 
 // simnet simulates a network entirely with channels in memory.
 type simnet struct {
+	ndtotPrev   int64
+	ndtot       int64 // num dispatched total.
 	testDebugCB func()
 
 	barrier bool
@@ -2222,8 +2224,6 @@ func (s *simnet) scheduler() {
 	// next timer to go off, so barrier cannot deadlock.
 	// s.gridStepTimer = timer
 
-	//var ndtot int64 // num dispatched total.
-
 	//restartI:
 	for i := int64(0); ; i++ {
 
@@ -2236,7 +2236,7 @@ func (s *simnet) scheduler() {
 			//cli.lc = %v ; srv.lc = %v", clilc, srvlc)
 			//vv("i=%v scheduler top. schedulerReport: \n%v", i, s.schedulerReport())
 			//}
-			//vv("i=%v scheduler top. ndtot=%v", i, ndtot)
+			//vv("i=%v scheduler top. ndtot=%v", i, s.ndtot)
 		}
 
 		// let goroutines get blocked waiting on the select arms below.
@@ -2420,11 +2420,16 @@ func (s *simnet) scheduler() {
 					//}
 			*/
 		} // end select
-		if i%100 == 0 {
-			vv("i=%v bottom of scheduler loop. since bb: %v; faketime=%v", i, time.Since(s.bigbang), faketime)
-			if s.testDebugCB != nil {
-				s.testDebugCB()
+		if i > 0 && i%2000 == 0 {
+			if s.ndtot > s.ndtotPrev {
+				s.ndtotPrev = s.ndtot
+			} else {
+				vv("stalled? i=%v no new dispatches in last 100 iterataioins... bottom of scheduler loop. since bb: %v; faketime=%v", i, time.Since(s.bigbang), faketime)
+				if s.testDebugCB != nil {
+					s.testDebugCB()
+				}
 				alwaysPrintf("schedulerReport %v", s.schedulerReport())
+				panic("stalled?")
 			}
 		}
 	}
@@ -2536,7 +2541,7 @@ func (s *simnet) distributeMEQ(now time.Time, i int64) (npop int) {
 	//nd0 += s.dispatchAll(now, -1, i)
 	nd := s.dispatchAll(now, -1, i)
 	_ = nd
-	//ndtot += nd0
+	s.ndtot += nd
 
 	//s.refreshGridStepTimer(now) // not really used atm.
 	armed := s.armTimer(now, i)
