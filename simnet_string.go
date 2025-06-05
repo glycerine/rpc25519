@@ -161,6 +161,7 @@ func (op *mop) String() string {
 	if op.originCli {
 		who = "CLIENT"
 	}
+	who += fmt.Sprintf("(%v)", op.origin.name)
 	now := time.Now()
 	var ini, arr, complete string
 	if op.initTm.IsZero() {

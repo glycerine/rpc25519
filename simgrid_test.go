@@ -288,7 +288,7 @@ func (s *node2) Start(
 ) (err0 error) {
 
 	defer func() {
-		//vv("%v: (%v) end of node.Start() inside defer, about the return/finish", s.name, lpb.ServiceName())
+		//vv("%v: (%v) end of node.Start() inside defer, about the return/finish. reason=%v", s.name, lpb.ServiceName())
 		s.halt.Done.Close()
 	}()
 
@@ -316,7 +316,7 @@ func (s *node2) Start(
 			goal := s.load.wantSendPerPeer * len(ckts_cached)
 			if s.load.nmsgSend == goal {
 				// no more sends needed
-				return
+				continue
 			}
 			if s.load.nmsgSend > goal {
 				panic(fmt.Sprintf("should never seen nmsgSend(%v) > [wantSendPerPeer(%v) * peers(%v) = %v]", s.load.nmsgSend, s.load.wantSendPerPeer, len(ckts_cached), goal))
