@@ -1547,10 +1547,10 @@ func Test782_simnetonly_server_isolated(t *testing.T) {
 			serviceName := "customEcho"
 			srv.Register2Func(serviceName, customEcho)
 
-			vv("before simt.AlterServer(ISOLATE): %v", simnet.GetSimnetSnapshot())
+			//vv("before simt.AlterServer(ISOLATE): %v", simnet.GetSimnetSnapshot())
 			undoIsolated := simt.AlterServer(ISOLATE)
 			//vv("after simt.AlterServer(ISOLATE): %v", simnet.GetSimnetSnapshot())
-			vv("after simt.AlterServer(ISOLATE): %v", simnet.GetSimnetSnapshot().ShortString())
+			//vv("after simt.AlterServer(ISOLATE): %v", simnet.GetSimnetSnapshot().ShortString())
 
 			req := NewMessage()
 			req.HDR.ServiceName = serviceName
@@ -1588,7 +1588,7 @@ func Test782_simnetonly_server_isolated(t *testing.T) {
 			}
 			//vv("err = '%v'; reply = %p", err, reply)
 
-			vv("srv still isolated, network after cli tried to send echo request: %v", simnet.GetSimnetSnapshot())
+			//vv("srv still isolated, network after cli tried to send echo request: %v", simnet.GetSimnetSnapshot())
 
 			// repair the network
 			undoIsolated()

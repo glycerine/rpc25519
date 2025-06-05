@@ -2357,7 +2357,7 @@ func (s *simnet) scheduler() {
 			s.add2meq(newAlterNodeMop(alt), i)
 
 		case alt := <-s.alterHostCh:
-			vv("i=%v alterHostCh ->  alt='%v'", i, alt)
+			//vv("i=%v alterHostCh ->  alt='%v'", i, alt)
 			//s.handleAlterHost(op.alt)
 			s.add2meq(newAlterHostMop(alt), i)
 
