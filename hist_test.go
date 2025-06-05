@@ -21,9 +21,9 @@ func Test708_gridHistory_helper(t *testing.T) {
 	h := newGridHistory(nodes)
 	//vv("empty hist: \n%v", h)
 
-	m := &Message{}
-	h.addSend(nodes[0], nodes[1], m)
-	h.addRead(nodes[1], nodes[0], m)
+	m := &Fragment{}
+	h.addSend(nodes[0].name, nodes[1].name, m)
+	h.addRead(nodes[1].name, nodes[0].name, m)
 
 	//vv("after a send from 0 -> 1: \n%v", h)
 
@@ -34,8 +34,8 @@ func Test708_gridHistory_helper(t *testing.T) {
 				if i == j {
 					continue
 				}
-				h.addSend(nodes[i], nodes[j], m)
-				h.addRead(nodes[j], nodes[i], m)
+				h.addSend(nodes[i].name, nodes[j].name, m)
+				h.addRead(nodes[j].name, nodes[i].name, m)
 			}
 		}
 	}

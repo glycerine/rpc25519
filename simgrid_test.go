@@ -169,21 +169,21 @@ type simGridConfig struct {
 	ReplicationDegree int
 	Timeout           time.Duration
 	RpcCfg            *Config
+
+	hist *gridhistory
 }
 
 type simGrid struct {
 	Cfg   *simGridConfig
 	Nodes []*simGridNode
 	net   *simnet // for halting with net.Close()
-
-	h *gridhistory
 }
 
 func newSimGrid(cfg *simGridConfig, nodes []*simGridNode) *simGrid {
+	cfg.hist = newGridHistory(nodes)
 	return &simGrid{
 		Cfg:   cfg,
 		Nodes: nodes,
-		h:     newGridHistory(nodes),
 	}
 }
 
@@ -319,6 +319,7 @@ func (s *node2) Start(
 					frag := lpb.NewFragment()
 					frag.FragSubject = "load test"
 					ckt.val.SendOneWay(frag, -1, 0)
+					s.cfg.hist.addSend(me, AliasDecode(ckt.key), frag)
 					sends++
 					if sends%100 == 0 {
 						// show some progress
@@ -407,11 +408,13 @@ func (s *node2) Start(
 						if frag.FragSubject == "load test" {
 							//vv("we see load test frag")
 							if s.load.done.IsClosed() {
-								panic("arg. got load test frag after we are finished") // seen. why??? on 9 x 100,100, 1sec. double delivery?
+								vv("s.cfg.hist = %v", s.cfg.hist)
+								panic(fmt.Sprintf("arg. got load test frag after we are finished. me = %v; frag='%v'", me, frag)) // seen. why??? on 9 x 100,100, 1sec. double delivery?
 							}
 							if s.load == nil {
 								panic("arg. got load test frag without current load test")
 							}
+							s.cfg.hist.addRead(me, AliasDecode(ckt.RemotePeerID), frag)
 							reads := 1
 							if s.loadDone(me, 0, reads) {
 								continue
@@ -514,10 +517,13 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 			}
 			close(proceed)
 			for i, g := range nodes {
-				//<-g.node.done
 				_ = g
 				<-loads[i].done.Chan
 			}
+
+			time.Sleep(time.Second)
+			vv("history: %v", gridCfg.hist)
+
 		}) // end bubbleOrNot
 	} // end loadtest func definition
 

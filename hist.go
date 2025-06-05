@@ -10,7 +10,7 @@ import (
 // simple message history, our own copies.
 // in observed order.
 type msghistory struct {
-	h []*Message
+	h []*Fragment
 }
 
 func newMsghistory() *msghistory {
@@ -93,20 +93,34 @@ func (h *gridhistory) String() (r string) {
 }`, h.reads, h.sends)
 }
 
-func (g *gridhistory) addSend(a, b *simGridNode, m *Message) {
+func (g *gridhistory) addSend(a, b string, frag *Fragment) {
 	g.mut.Lock()
 	defer g.mut.Unlock()
 
-	h := g.sends.m.get(a.name).get(b.name)
-	h.h = append(h.h, m)
+	ah, ok := g.sends.m.get2(a)
+	if !ok {
+		panic(fmt.Sprintf("no a key '%v'", a))
+	}
+	h, ok := ah.get2(b)
+	if !ok {
+		panic(fmt.Sprintf("no b key '%v'", b))
+	}
+	h.h = append(h.h, frag)
 }
 
-func (g *gridhistory) addRead(a, b *simGridNode, m *Message) {
+func (g *gridhistory) addRead(a, b string, frag *Fragment) {
 	g.mut.Lock()
 	defer g.mut.Unlock()
 
-	h := g.reads.m.get(a.name).get(b.name)
-	h.h = append(h.h, m)
+	ah, ok := g.reads.m.get2(a)
+	if !ok {
+		panic(fmt.Sprintf("no a key '%v'", a))
+	}
+	h, ok := ah.get2(b)
+	if !ok {
+		panic(fmt.Sprintf("no b key '%v'", b))
+	}
+	h.h = append(h.h, frag)
 }
 
 func (g *gridhistory) reset() {
