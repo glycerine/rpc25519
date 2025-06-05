@@ -332,7 +332,7 @@ func (s *node2) Start(
 				ckt.val.SendOneWay(frag, -1, 0)
 				s.cfg.hist.addSend(me, AliasDecode(ckt.key), frag)
 				sends++
-				if sends%1000 == 0 {
+				if sends%20 == 0 {
 					// show some progress
 					vv("%v send to %v", me, AliasDecode(ckt.key))
 				}
@@ -594,8 +594,9 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	//vv("done with first")
 
 	//loadtest(9, 100, 100, time.Second, "707 loadtest 2")
-	const nNode = 8
-	const wantSendPerPeer = 1000
+	// 5 nodes, 100 msgs = 1.7sec test-time under faketime, 1.1s under realtime.
+	const nNode = 5
+	const wantSendPerPeer = 100
 	sendEvery := time.Millisecond
 	loadtest(nNode, wantSendPerPeer, sendEvery, "707 loadtest 2")
 

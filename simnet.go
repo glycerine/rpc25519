@@ -1793,8 +1793,9 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 				case timer.timerC <- now:
 				case <-simnode.net.halt.ReqStop.Chan:
 					return
-				case <-time.After(time.Nanosecond):
-					continue
+				//case <-time.After(time.Nanosecond):
+				//	vv("good:delivered timer after 1nsec pause")
+				//	continue
 				default:
 					vv("arg! could not deliver timer? '%v'  requeue or what?", timer)
 					//continue
@@ -2419,16 +2420,18 @@ func (s *simnet) scheduler() {
 					//}
 			*/
 		} // end select
-		if i > 0 && i%2000 == 0 {
-			if s.ndtot > s.ndtotPrev {
-				s.ndtotPrev = s.ndtot
-			} else {
-				vv("stalled? i=%v no new dispatches in last 100 iterataioins... bottom of scheduler loop. since bb: %v; faketime=%v", i, time.Since(s.bigbang), faketime)
-				if s.testDebugCB != nil {
-					s.testDebugCB()
+		if true { // false {
+			if i > 0 && i%2000 == 0 {
+				if s.ndtot > s.ndtotPrev {
+					s.ndtotPrev = s.ndtot
+				} else {
+					vv("stalled? i=%v no new dispatches in last 2000 iterataioins... bottom of scheduler loop. since bb: %v; faketime=%v", i, time.Since(s.bigbang), faketime)
+					if s.testDebugCB != nil {
+						s.testDebugCB()
+					}
+					alwaysPrintf("schedulerReport %v", s.schedulerReport())
+					panic("stalled?")
 				}
-				alwaysPrintf("schedulerReport %v", s.schedulerReport())
-				panic("stalled?")
 			}
 		}
 	}
