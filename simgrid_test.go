@@ -333,7 +333,7 @@ func (s *node2) Start(
 				ckt.val.SendOneWay(frag, -1, 0)
 				s.cfg.hist.addSend(me, AliasDecode(ckt.key), frag)
 				sends++
-				if sends%20 == 0 {
+				if sends%2000 == 0 {
 					// show some progress
 					vv("%v send to %v", me, AliasDecode(ckt.key))
 				}
@@ -588,6 +588,14 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 
 		}) // end bubbleOrNot
 	} // end loadtest func definition
+
+	// 15 nodes, 100 frag: 60 seconds testtime for realtime. 70sec faketime
+	// 21 nodes, 1k frag: 105s testtimie under simnet/synctest-faketime.
+	const nNode1 = 5
+	const wantSendPerPeer1 = 100
+	sendEvery1 := time.Millisecond
+	loadtest(nNode1, wantSendPerPeer1, sendEvery1, "707 loadtest 1")
+	return
 
 	//loadtest(2, 1, 1, time.Second, "707 loadtest 1")
 	//vv("done with first")
