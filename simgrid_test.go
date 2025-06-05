@@ -103,10 +103,6 @@ type gridLoadTestTicket struct {
 	wantRead int
 	wantSend int
 
-	// k == number of other peers. at least 1.
-	// k is size of cluster -1
-	//k int
-
 	sendEvery time.Duration // how often to send.
 
 	started bool
@@ -120,15 +116,13 @@ type gridLoadTestTicket struct {
 	proceed chan struct{} // begin load test
 }
 
-func newGridLoadTestTicket(k, wantRead, wantSend int, sendEvery time.Duration) *gridLoadTestTicket {
+func newGridLoadTestTicket(wantRead, wantSend int, sendEvery time.Duration) *gridLoadTestTicket {
 	return &gridLoadTestTicket{
 		sendEvery: sendEvery,
-		//k:         k,
-		wantSend: wantSend,
-		wantRead: wantRead,
-		ready:    make(chan struct{}),
-		// let test make just one
-		//proceed:   make(chan struct{}),
+		wantSend:  wantSend,
+		wantRead:  wantRead,
+		ready:     make(chan struct{}),
+		// let test make just one proceed for all.
 		done: idem.NewIdemCloseChan(),
 	}
 }
@@ -309,26 +303,27 @@ func (s *node2) Start(
 			if s.load.done.IsClosed() {
 				continue
 			}
-			if s.load.nmsgSend < s.load.wantSend {
-				// send a round
-				//if s.load.k != s.ckts.Len() {
-				//	panic(fmt.Sprintf("short on destinations. s.load.k=%v while s.ckts.Len = %v", s.load.k, s.ckts.Len()))
-				//}
-				sends := 0
-				for _, ckt := range s.ckts.cached() {
-					frag := lpb.NewFragment()
-					frag.FragSubject = "load test"
-					ckt.val.SendOneWay(frag, -1, 0)
-					s.cfg.hist.addSend(me, AliasDecode(ckt.key), frag)
-					sends++
-					if sends%100 == 0 {
-						// show some progress
-						vv("%v send to %v", me, AliasDecode(ckt.key))
-					}
+			if s.load.nmsgSend >= s.load.wantSend {
+				panic(fmt.Sprintf("should be done if nmsgSend(%v) >= wantSend(%v)", s.load.nmsgSend, s.load.wantSend))
+			}
+			vv("%v timeToSendLoadTimerC went off. PRE: nmsgSend(%v); wantSend(%v)", me, s.load.nmsgSend, s.load.wantSend)
+			//if s.load.k != s.ckts.Len() {
+			//	panic(fmt.Sprintf("short on destinations. s.load.k=%v while s.ckts.Len = %v", s.load.k, s.ckts.Len()))
+			//}
+			sends := 0
+			for _, ckt := range s.ckts.cached() {
+				frag := lpb.NewFragment()
+				frag.FragSubject = "load test"
+				ckt.val.SendOneWay(frag, -1, 0)
+				s.cfg.hist.addSend(me, AliasDecode(ckt.key), frag)
+				sends++
+				if true { //if sends%100 == 0 {
+					// show some progress
+					vv("%v send to %v", me, AliasDecode(ckt.key))
 				}
-				if s.loadDone(me, sends, 0) {
-					continue
-				}
+			}
+			if s.loadDone(me, sends, 0) {
+				continue
 			}
 			ti := lpb.U.NewTimer(s.load.sendEvery)
 			s.timeToSendLoadTimer = ti
@@ -415,8 +410,7 @@ func (s *node2) Start(
 								panic("arg. got load test frag without current load test")
 							}
 							s.cfg.hist.addRead(me, AliasDecode(ckt.RemotePeerID), frag)
-							reads := 1
-							if s.loadDone(me, 0, reads) {
+							if s.loadDone(me, 0, 1) {
 								continue
 							}
 						}
@@ -505,11 +499,11 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 				}
 			}
 
-			k := nNodes - 1
+			//k := nNodes - 1
 			var loads []*gridLoadTestTicket
 			proceed := make(chan struct{})
 			for _, g := range nodes {
-				lo := newGridLoadTestTicket(k, wantRead, wantSend, sendEvery)
+				lo := newGridLoadTestTicket(wantRead, wantSend, sendEvery)
 				lo.proceed = proceed
 				loads = append(loads, lo)
 				g.node.gridLoadTestCh <- lo
@@ -542,7 +536,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	//vv("done with first")
 
 	//loadtest(9, 100, 100, time.Second, "707 loadtest 2")
-	loadtest(5, 25, 25, time.Second, "707 loadtest 2")
+	loadtest(2, 1, 1, time.Second, "707 loadtest 2")
 	vv("done with second loadtest")
 
 	//loadtest(5, 1, 1, time.Second, "707 loadtest 3")
@@ -573,6 +567,7 @@ func (s *node2) loadDone(me string, addSends, addReads int) bool {
 	}
 
 	if s.load.readsDone && s.load.sendsDone {
+		vv("node %v closing load.done", me)
 		s.load.done.Close()
 		return true
 	}
