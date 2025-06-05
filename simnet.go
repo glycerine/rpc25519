@@ -2421,9 +2421,10 @@ func (s *simnet) scheduler() {
 			*/
 		} // end select
 		if i%100 == 0 {
-			vv("i=%v bottom of scheduler loop", i)
+			vv("i=%v bottom of scheduler loop. since bb: %v; faketime=%v", i, time.Since(s.bigbang), faketime)
 			if s.testDebugCB != nil {
 				s.testDebugCB()
+				alwaysPrintf("schedulerReport %v", s.schedulerReport())
 			}
 		}
 	}
