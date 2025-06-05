@@ -98,10 +98,11 @@ type node2 struct {
 type gridLoadTestTicket struct {
 	mut sync.Mutex
 
-	nmsgSend int
-	nmsgRead int
-	wantRead int
-	wantSend int
+	nmsgSend        int
+	nmsgRead        int
+	wantRead        int
+	wantSendPerPeer int
+	npeer           int
 
 	sendEvery time.Duration // how often to send.
 
@@ -116,12 +117,13 @@ type gridLoadTestTicket struct {
 	proceed chan struct{} // begin load test
 }
 
-func newGridLoadTestTicket(wantRead, wantSend int, sendEvery time.Duration) *gridLoadTestTicket {
+func newGridLoadTestTicket(npeer, wantRead, wantSendPerPeer int, sendEvery time.Duration) *gridLoadTestTicket {
 	return &gridLoadTestTicket{
-		sendEvery: sendEvery,
-		wantSend:  wantSend,
-		wantRead:  wantRead,
-		ready:     make(chan struct{}),
+		npeer:           npeer,
+		sendEvery:       sendEvery,
+		wantSendPerPeer: wantSendPerPeer,
+		wantRead:        wantRead,
+		ready:           make(chan struct{}),
 		// let test make just one proceed for all.
 		done: idem.NewIdemCloseChan(),
 	}
@@ -189,10 +191,10 @@ func (s *simGrid) Start() {
 		panicOn(err)
 		if i == 0 {
 			s.net = s.Cfg.RpcCfg.GetSimnet()
-			if s.net == nil {
+			if s.net == nil && faketime {
 				panic("nil simnet from GetSimnet() arg")
 			}
-			vv("good: simGrid.net set")
+			vv("faketime = %v; simGrid.net = %p", faketime, s.net)
 		}
 	}
 
@@ -218,7 +220,9 @@ func (s *simGrid) Start() {
 }
 
 func (s *simGrid) Close() {
-	s.net.Close()
+	if s.net != nil {
+		s.net.Close()
+	}
 	for _, n := range s.Nodes {
 		n.Close()
 	}
@@ -303,21 +307,24 @@ func (s *node2) Start(
 			if s.load.done.IsClosed() {
 				continue
 			}
-			if s.load.nmsgSend >= s.load.wantSend {
-				panic(fmt.Sprintf("should be done if nmsgSend(%v) >= wantSend(%v)", s.load.nmsgSend, s.load.wantSend))
+			ckts_cached := s.ckts.cached()
+
+			goal := s.load.wantSendPerPeer * len(ckts_cached)
+			if s.load.nmsgSend >= goal {
+				panic(fmt.Sprintf("should be done if nmsgSend(%v) >= [wantSendPerPeer(%v) * peers(%v) = %v]", s.load.nmsgSend, s.load.wantSendPerPeer, len(ckts_cached), goal))
 			}
-			vv("%v timeToSendLoadTimerC went off. PRE: nmsgSend(%v); wantSend(%v)", me, s.load.nmsgSend, s.load.wantSend)
+			//vv("%v timeToSendLoadTimerC went off. PRE: nmsgSend(%v); wantSendPerPeer(%v)", me, s.load.nmsgSend, s.load.wantSendPerPeer)
 			//if s.load.k != s.ckts.Len() {
 			//	panic(fmt.Sprintf("short on destinations. s.load.k=%v while s.ckts.Len = %v", s.load.k, s.ckts.Len()))
 			//}
 			sends := 0
-			for _, ckt := range s.ckts.cached() {
+			for _, ckt := range ckts_cached {
 				frag := lpb.NewFragment()
 				frag.FragSubject = "load test"
 				ckt.val.SendOneWay(frag, -1, 0)
 				s.cfg.hist.addSend(me, AliasDecode(ckt.key), frag)
 				sends++
-				if true { //if sends%100 == 0 {
+				if sends%5 == 0 {
 					// show some progress
 					vv("%v send to %v", me, AliasDecode(ckt.key))
 				}
@@ -458,7 +465,10 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	// deliver everything sent with
 	// no faults injected.
 
-	loadtest := func(nNodes, wantRead, wantSend int, sendEvery time.Duration, note string) {
+	loadtest := func(nNodes, wantSendPerPeer int, sendEvery time.Duration, note string) {
+
+		nPeer := nNodes - 1
+		wantRead := nPeer * wantSendPerPeer
 
 		bubbleOrNot(func() {
 
@@ -474,7 +484,8 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 			cfg := NewConfig()
 			// key setting under test here:
 			cfg.ServerAutoCreateClientsToDialOtherServers = true
-			cfg.UseSimNet = true
+			//cfg.UseSimNet = true
+			cfg.UseSimNet = faketime
 			cfg.ServerAddr = "127.0.0.1:0"
 			cfg.QuietTestMode = true
 			gridCfg.RpcCfg = cfg
@@ -499,11 +510,11 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 				}
 			}
 
-			//k := nNodes - 1
+			npeer := nNodes - 1
 			var loads []*gridLoadTestTicket
 			proceed := make(chan struct{})
 			for _, g := range nodes {
-				lo := newGridLoadTestTicket(wantRead, wantSend, sendEvery)
+				lo := newGridLoadTestTicket(npeer, wantRead, wantSendPerPeer, sendEvery)
 				lo.proceed = proceed
 				loads = append(loads, lo)
 				g.node.gridLoadTestCh <- lo
@@ -515,13 +526,13 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 				<-loads[i].done.Chan
 			}
 
-			time.Sleep(time.Second)
+			//time.Sleep(time.Second)
 			vv("history: %v", gridCfg.hist)
 
 			for i := range nodes {
 				gotSent := gridCfg.hist.sentBy(nodes[i].name)
-				if gotSent != wantSend {
-					t.Fatalf("node %v sent %v but wanted %v", i, gotSent, wantSend)
+				if gotSent != wantSendPerPeer*nPeer {
+					t.Fatalf("node %v sent %v but wanted %v", i, gotSent, wantSendPerPeer*nPeer)
 				}
 				gotRead := gridCfg.hist.readBy(nodes[i].name)
 				if gotRead != wantRead {
@@ -536,7 +547,10 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	//vv("done with first")
 
 	//loadtest(9, 100, 100, time.Second, "707 loadtest 2")
-	loadtest(2, 1, 1, time.Second, "707 loadtest 2")
+	const nNode = 3
+	const wantSendPerPeer = 5
+	sendEvery := time.Second
+	loadtest(nNode, wantSendPerPeer, sendEvery, "707 loadtest 2")
 	vv("done with second loadtest")
 
 	//loadtest(5, 1, 1, time.Second, "707 loadtest 3")
@@ -561,8 +575,8 @@ func (s *node2) loadDone(me string, addSends, addReads int) bool {
 		s.load.readsDone = true
 	}
 
-	if !s.load.sendsDone && s.load.nmsgSend == s.load.wantSend {
-		vv("%v peer done full sends %v. wantSend = %v", me, s.load.nmsgSend, s.load.wantSend)
+	if !s.load.sendsDone && s.load.nmsgSend == s.load.wantSendPerPeer*s.load.npeer {
+		vv("%v peer done full sends %v. wantSend = %v", me, s.load.nmsgSend, s.load.wantSendPerPeer*s.load.npeer)
 		s.load.sendsDone = true
 	}
 
