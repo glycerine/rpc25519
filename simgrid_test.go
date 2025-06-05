@@ -455,6 +455,35 @@ func (s *node2) Start(
 	return nil
 }
 
+func (s *node2) loadDone(me string, addSends, addReads int) bool {
+	s.load.mut.Lock()
+	defer s.load.mut.Unlock()
+
+	if s.load.done.IsClosed() {
+		return true
+	}
+
+	s.load.nmsgRead += addReads
+	s.load.nmsgSend += addSends
+
+	if !s.load.readsDone && s.load.nmsgRead == s.load.wantRead {
+		//vv("%v peer done full reads %v. wantRead: %v", me, s.load.nmsgRead, s.load.wantRead)
+		s.load.readsDone = true
+	}
+
+	if !s.load.sendsDone && s.load.nmsgSend == s.load.wantSendPerPeer*s.load.npeer {
+		//vv("%v peer done full sends %v. wantSend = %v", me, s.load.nmsgSend, s.load.wantSendPerPeer*s.load.npeer)
+		s.load.sendsDone = true
+	}
+
+	if s.load.readsDone && s.load.sendsDone {
+		//vv("node %v closing load.done", me)
+		s.load.done.Close()
+		return true
+	}
+	return false
+}
+
 func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 
 	// At one point, tube raft grid had sporadic
@@ -547,43 +576,14 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	//vv("done with first")
 
 	//loadtest(9, 100, 100, time.Second, "707 loadtest 2")
-	const nNode = 3
-	const wantSendPerPeer = 5
-	sendEvery := time.Second
+	const nNode = 5
+	const wantSendPerPeer = 100
+	sendEvery := time.Millisecond
 	loadtest(nNode, wantSendPerPeer, sendEvery, "707 loadtest 2")
+
 	vv("done with second loadtest")
 
 	//loadtest(5, 1, 1, time.Second, "707 loadtest 3")
 
 	vv("end of 707")
-
-}
-
-func (s *node2) loadDone(me string, addSends, addReads int) bool {
-	s.load.mut.Lock()
-	defer s.load.mut.Unlock()
-
-	if s.load.done.IsClosed() {
-		return true
-	}
-
-	s.load.nmsgRead += addReads
-	s.load.nmsgSend += addSends
-
-	if !s.load.readsDone && s.load.nmsgRead == s.load.wantRead {
-		vv("%v peer done full reads %v. wantRead: %v", me, s.load.nmsgRead, s.load.wantRead)
-		s.load.readsDone = true
-	}
-
-	if !s.load.sendsDone && s.load.nmsgSend == s.load.wantSendPerPeer*s.load.npeer {
-		vv("%v peer done full sends %v. wantSend = %v", me, s.load.nmsgSend, s.load.wantSendPerPeer*s.load.npeer)
-		s.load.sendsDone = true
-	}
-
-	if s.load.readsDone && s.load.sendsDone {
-		vv("node %v closing load.done", me)
-		s.load.done.Close()
-		return true
-	}
-	return false
 }
