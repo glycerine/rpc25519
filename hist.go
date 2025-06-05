@@ -130,3 +130,30 @@ func (g *gridhistory) reset() {
 	g.reads.reset()
 	g.sends.reset()
 }
+
+func (g *gridhistory) sentBy(name string) (sends int) {
+	g.mut.Lock()
+	defer g.mut.Unlock()
+
+	ah, ok := g.sends.m.get2(name)
+	if !ok {
+		panic(fmt.Sprintf("no sends key '%v'", name))
+	}
+	for _, hist := range ah.all() {
+		sends += len(hist.h)
+	}
+	return
+}
+func (g *gridhistory) readBy(name string) (reads int) {
+	g.mut.Lock()
+	defer g.mut.Unlock()
+
+	ah, ok := g.reads.m.get2(name)
+	if !ok {
+		panic(fmt.Sprintf("no reads key '%v'", name))
+	}
+	for _, hist := range ah.all() {
+		reads += len(hist.h)
+	}
+	return
+}

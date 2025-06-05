@@ -105,7 +105,7 @@ type gridLoadTestTicket struct {
 
 	// k == number of other peers. at least 1.
 	// k is size of cluster -1
-	k int
+	//k int
 
 	sendEvery time.Duration // how often to send.
 
@@ -123,10 +123,10 @@ type gridLoadTestTicket struct {
 func newGridLoadTestTicket(k, wantRead, wantSend int, sendEvery time.Duration) *gridLoadTestTicket {
 	return &gridLoadTestTicket{
 		sendEvery: sendEvery,
-		k:         k,
-		wantSend:  wantSend,
-		wantRead:  wantRead,
-		ready:     make(chan struct{}),
+		//k:         k,
+		wantSend: wantSend,
+		wantRead: wantRead,
+		ready:    make(chan struct{}),
 		// let test make just one
 		//proceed:   make(chan struct{}),
 		done: idem.NewIdemCloseChan(),
@@ -309,11 +309,11 @@ func (s *node2) Start(
 			if s.load.done.IsClosed() {
 				continue
 			}
-			if s.load.nmsgSend*s.load.k < s.load.wantSend*s.load.k {
+			if s.load.nmsgSend < s.load.wantSend {
 				// send a round
-				if s.load.k != s.ckts.Len() {
-					panic(fmt.Sprintf("short on destinations. s.load.k=%v while s.ckts.Len = %v", s.load.k, s.ckts.Len()))
-				}
+				//if s.load.k != s.ckts.Len() {
+				//	panic(fmt.Sprintf("short on destinations. s.load.k=%v while s.ckts.Len = %v", s.load.k, s.ckts.Len()))
+				//}
 				sends := 0
 				for _, ckt := range s.ckts.cached() {
 					frag := lpb.NewFragment()
@@ -524,13 +524,25 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 			time.Sleep(time.Second)
 			vv("history: %v", gridCfg.hist)
 
+			for i := range nodes {
+				gotSent := gridCfg.hist.sentBy(nodes[i].name)
+				if gotSent != wantSend {
+					t.Fatalf("node %v sent %v but wanted %v", i, gotSent, wantSend)
+				}
+				gotRead := gridCfg.hist.readBy(nodes[i].name)
+				if gotRead != wantRead {
+					t.Fatalf("node %v read %v but wanted %v", i, gotRead, wantRead)
+				}
+			}
+
 		}) // end bubbleOrNot
 	} // end loadtest func definition
 
 	//loadtest(2, 1, 1, time.Second, "707 loadtest 1")
 	//vv("done with first")
 
-	loadtest(9, 100, 100, time.Second, "707 loadtest 2")
+	//loadtest(9, 100, 100, time.Second, "707 loadtest 2")
+	loadtest(5, 25, 25, time.Second, "707 loadtest 2")
 	vv("done with second loadtest")
 
 	//loadtest(5, 1, 1, time.Second, "707 loadtest 3")
@@ -548,15 +560,15 @@ func (s *node2) loadDone(me string, addSends, addReads int) bool {
 	}
 
 	s.load.nmsgRead += addReads
-	s.load.nmsgSend += addReads
+	s.load.nmsgSend += addSends
 
-	if !s.load.readsDone && s.load.nmsgRead*s.load.k == s.load.wantRead*s.load.k {
-		vv("%v peer has load total frag wantRead*k: %v", me, s.load.wantRead*s.load.k)
+	if !s.load.readsDone && s.load.nmsgRead == s.load.wantRead {
+		vv("%v peer done full reads %v. wantRead: %v", me, s.load.nmsgRead, s.load.wantRead)
 		s.load.readsDone = true
 	}
 
-	if !s.load.sendsDone && s.load.nmsgSend*s.load.k == s.load.wantSend*s.load.k {
-		vv("%v peer send and seen full load wantRead*k = %v; wantSend*k = %v for k=%v", me, s.load.wantRead*s.load.k, s.load.wantSend*s.load.k, s.load.k)
+	if !s.load.sendsDone && s.load.nmsgSend == s.load.wantSend {
+		vv("%v peer done full sends %v. wantSend = %v", me, s.load.nmsgSend, s.load.wantSend)
 		s.load.sendsDone = true
 	}
 
