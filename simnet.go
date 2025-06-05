@@ -1796,9 +1796,8 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 				case <-time.After(time.Nanosecond):
 					continue
 				default:
-					// they probably exited on shutdown or something? srv.go:2095 allocated to break deadlocks..
 					vv("arg! could not deliver timer? '%v'  requeue or what?", timer)
-					continue
+					//continue
 					panic("why not deliverable? hopefully we never hit this and can just delete the backup attempt below")
 				}
 			}
