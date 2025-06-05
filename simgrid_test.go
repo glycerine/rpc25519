@@ -314,12 +314,17 @@ func (s *node2) Start(
 			ckts_cached := s.ckts.cached()
 
 			goal := s.load.wantSendPerPeer * len(ckts_cached)
-			if s.load.nmsgSend == goal {
+
+			s.load.mut.Lock()
+			nmsgSent := s.load.nmsgSend
+			wantSendPerPeer := s.load.wantSendPerPeer
+			s.load.mut.Unlock()
+			if nmsgSent == goal {
 				// no more sends needed
 				continue
 			}
-			if s.load.nmsgSend > goal {
-				panic(fmt.Sprintf("should never seen nmsgSend(%v) > [wantSendPerPeer(%v) * peers(%v) = %v]", s.load.nmsgSend, s.load.wantSendPerPeer, len(ckts_cached), goal))
+			if nmsgSent > goal {
+				panic(fmt.Sprintf("should never seen nmsgSent(%v) > [wantSendPerPeer(%v) * peers(%v) = %v]", nmsgSent, wantSendPerPeer, len(ckts_cached), goal))
 			}
 			//vv("%v timeToSendLoadTimerC went off. PRE: nmsgSend(%v); wantSendPerPeer(%v)", me, s.load.nmsgSend, s.load.wantSendPerPeer)
 			//if s.load.k != s.ckts.Len() {
@@ -341,6 +346,10 @@ func (s *node2) Start(
 				continue
 			}
 			ti := lpb.U.NewTimer(s.load.sendEvery)
+			if ti == nil {
+				vv("NewTimer nil, presummably shutting down...")
+				return // rather than derefer the nil pointer below.
+			}
 			s.timeToSendLoadTimer = ti
 			s.timeToSendLoadTimerC = ti.C
 
