@@ -514,9 +514,6 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 
 		bubbleOrNot(func() {
 
-			//n := 20
-			//n := 10
-
 			n := nNodes
 			gridCfg := &simGridConfig{
 				ReplicationDegree: n,
