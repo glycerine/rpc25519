@@ -1735,6 +1735,14 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 		return
 	}
 
+	var reQtimer []*mop
+	defer func() {
+		for _, timer := range reQtimer {
+			vv("defer dispatchTimer re-queuing undeliverable timer: %v", timer)
+			simnode.timerQ.add(timer)
+		}
+	}()
+
 	timerIt := simnode.timerQ.Tree.Min()
 	for !timerIt.Limit() { // advance, and delete behind below
 
@@ -1795,6 +1803,7 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 					// inherently race wrt shutdown though, right?
 				default:
 					vv("arg! could not deliver timer? '%v'  requeue or what? ...assume this was just a shutdown race...", timer)
+					reQtimer = append(reQtimer, timer)
 					continue
 					//panic("why not deliverable? hopefully we never hit this and can just delete the backup attempt below")
 				}
