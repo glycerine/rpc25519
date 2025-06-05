@@ -175,12 +175,15 @@ type simGrid struct {
 	Cfg   *simGridConfig
 	Nodes []*simGridNode
 	net   *simnet // for halting with net.Close()
+
+	h *gridhistory
 }
 
 func newSimGrid(cfg *simGridConfig, nodes []*simGridNode) *simGrid {
 	return &simGrid{
 		Cfg:   cfg,
 		Nodes: nodes,
+		h:     newGridHistory(nodes),
 	}
 }
 
