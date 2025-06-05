@@ -5,6 +5,8 @@ import (
 	"testing"
 )
 
+// helpers for simgrid test, a test.
+
 func Test708_gridHistory_helper(t *testing.T) {
 	n := 3
 	gridCfg := &simGridConfig{

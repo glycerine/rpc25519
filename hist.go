@@ -94,16 +94,25 @@ func (h *gridhistory) String() (r string) {
 }
 
 func (g *gridhistory) addSend(a, b *simGridNode, m *Message) {
+	g.mut.Lock()
+	defer g.mut.Unlock()
+
 	h := g.sends.m.get(a.name).get(b.name)
 	h.h = append(h.h, m)
 }
 
 func (g *gridhistory) addRead(a, b *simGridNode, m *Message) {
+	g.mut.Lock()
+	defer g.mut.Unlock()
+
 	h := g.reads.m.get(a.name).get(b.name)
 	h.h = append(h.h, m)
 }
 
 func (g *gridhistory) reset() {
+	g.mut.Lock()
+	defer g.mut.Unlock()
+
 	g.reads.reset()
 	g.sends.reset()
 }
