@@ -46,11 +46,15 @@ func newMatrix(nodes []*simGridNode) *matrix {
 }
 
 func (s *matrix) String() (r string) {
-	r = fmt.Sprintf("matrix[%v x %v]\n       ", s.nrow, s.ncol)
-	for col := range s.m.all() {
-		r += fmt.Sprintf("%6s  ", col)
+	r = fmt.Sprintf("matrix[%v x %v]\n", s.nrow, s.ncol)
+	const header = false
+	if header {
+		r += "       "
+		for col := range s.m.all() {
+			r += fmt.Sprintf("%6s  ", col)
+		}
+		r += "\n"
 	}
-	r += "\n"
 	i := 0
 	for row, cols := range s.m.all() {
 		r += fmt.Sprintf("%v: ", row)
