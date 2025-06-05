@@ -51,12 +51,20 @@ func (s *matrix) String() (r string) {
 		r += fmt.Sprintf("%6s  ", col)
 	}
 	r += "\n"
+	i := 0
 	for row, cols := range s.m.all() {
 		r += fmt.Sprintf("%v: ", row)
+		j := 0
 		for _, hist := range cols.all() {
-			r += fmt.Sprintf("%6v  ", len(hist.h))
+			if i == j {
+				r += "     _  "
+			} else {
+				r += fmt.Sprintf("%6v  ", len(hist.h))
+			}
+			j++
 		}
 		r += "\n"
+		i++
 	}
 	return
 }

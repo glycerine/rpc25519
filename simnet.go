@@ -376,6 +376,8 @@ func (s *simnet) nextUniqTm(atleast time.Time, who int) time.Time {
 
 // simnet simulates a network entirely with channels in memory.
 type simnet struct {
+	testDebugCB func()
+
 	barrier bool
 	bigbang time.Time
 	//gridStepTimer *mop
@@ -2420,6 +2422,9 @@ func (s *simnet) scheduler() {
 		} // end select
 		if i%100 == 0 {
 			vv("i=%v bottom of scheduler loop", i)
+			if s.testDebugCB != nil {
+				s.testDebugCB()
+			}
 		}
 	}
 }
