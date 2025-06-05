@@ -310,8 +310,12 @@ func (s *node2) Start(
 			ckts_cached := s.ckts.cached()
 
 			goal := s.load.wantSendPerPeer * len(ckts_cached)
-			if s.load.nmsgSend >= goal {
-				panic(fmt.Sprintf("should be done if nmsgSend(%v) >= [wantSendPerPeer(%v) * peers(%v) = %v]", s.load.nmsgSend, s.load.wantSendPerPeer, len(ckts_cached), goal))
+			if s.load.nmsgSend == goal {
+				// no more sends needed
+				return
+			}
+			if s.load.nmsgSend > goal {
+				panic(fmt.Sprintf("should never seen nmsgSend(%v) > [wantSendPerPeer(%v) * peers(%v) = %v]", s.load.nmsgSend, s.load.wantSendPerPeer, len(ckts_cached), goal))
 			}
 			//vv("%v timeToSendLoadTimerC went off. PRE: nmsgSend(%v); wantSendPerPeer(%v)", me, s.load.nmsgSend, s.load.wantSendPerPeer)
 			//if s.load.k != s.ckts.Len() {
@@ -509,6 +513,12 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 				ReplicationDegree: n,
 				Timeout:           time.Second * 5,
 			}
+			histShown := false
+			defer func() {
+				if !histShown {
+					vv("in defer, history: %v", gridCfg.hist)
+				}
+			}()
 
 			cfg := NewConfig()
 			// key setting under test here:
@@ -556,7 +566,8 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 			}
 
 			//time.Sleep(time.Second)
-			vv("history: %v", gridCfg.hist)
+			vv("after load all done, history: %v", gridCfg.hist)
+			histShown = true
 
 			for i := range nodes {
 				gotSent := gridCfg.hist.sentBy(nodes[i].name)

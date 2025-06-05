@@ -1789,8 +1789,12 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 				case timer.timerC <- now:
 				case <-simnode.net.halt.ReqStop.Chan:
 					return
+				case <-time.After(time.Nanosecond):
+					continue
 				default:
-					vv("could not deliver timer? '%v'  requeue or what?", timer)
+					// they probably exited on shutdown or something? srv.go:2095 allocated to break deadlocks..
+					vv("arg! could not deliver timer? '%v'  requeue or what?", timer)
+					continue
 					panic("why not deliverable? hopefully we never hit this and can just delete the backup attempt below")
 				}
 			}
@@ -2414,8 +2418,9 @@ func (s *simnet) scheduler() {
 					//}
 			*/
 		} // end select
-
-		//vv("i=%v bottom of scheduler loop. num dispatch events = %v", i, nd0)
+		if i%100 == 0 {
+			vv("i=%v bottom of scheduler loop", i)
+		}
 	}
 }
 
