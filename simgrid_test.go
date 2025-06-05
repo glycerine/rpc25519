@@ -166,8 +166,7 @@ type simGridConfig struct {
 	Timeout           time.Duration
 	RpcCfg            *Config
 
-	testDebugCB func()
-	hist        *gridhistory
+	hist *gridhistory
 }
 
 type simGrid struct {
@@ -196,9 +195,6 @@ func (s *simGrid) Start() {
 				panic("nil simnet from GetSimnet() arg")
 			}
 			vv("faketime = %v; simGrid.net = %p", faketime, s.net)
-			if s.net != nil {
-				s.net.testDebugCB = s.Cfg.testDebugCB
-			}
 		}
 	}
 
@@ -537,9 +533,6 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 			// key setting under test here:
 			cfg.ServerAutoCreateClientsToDialOtherServers = true
 			cfg.UseSimNet = true
-			//gridCfg.testDebugCB = func() {
-			//	vv("frag history: %v", gridCfg.hist)
-			//}
 			//cfg.UseSimNet = faketime
 			cfg.ServerAddr = "127.0.0.1:0"
 			cfg.QuietTestMode = true

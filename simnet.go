@@ -376,9 +376,8 @@ func (s *simnet) nextUniqTm(atleast time.Time, who int) time.Time {
 
 // simnet simulates a network entirely with channels in memory.
 type simnet struct {
-	ndtotPrev   int64
-	ndtot       int64 // num dispatched total.
-	testDebugCB func()
+	ndtotPrev int64
+	ndtot     int64 // num dispatched total.
 
 	barrier bool
 	bigbang time.Time
@@ -2423,9 +2422,6 @@ func (s *simnet) scheduler() {
 					s.ndtotPrev = s.ndtot
 				} else {
 					vv("stalled? i=%v no new dispatches in last 2000 iterataioins... bottom of scheduler loop. since bb: %v; faketime=%v", i, time.Since(s.bigbang), faketime)
-					if s.testDebugCB != nil {
-						s.testDebugCB()
-					}
 					alwaysPrintf("schedulerReport %v", s.schedulerReport())
 					panic("stalled?")
 				}
