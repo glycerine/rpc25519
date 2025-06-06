@@ -1096,5 +1096,6 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 		nw += n
 	}
 	fmt.Fprintf(fd, "%v\n", snap.Xhash)
-	vv("path = '%v' for %v/ nw=%v; out='%v'", path, len(snap.Xorder), nw, fd.Name())
+	_ = nw
+	//vv("path = '%v' for %v/ nw=%v; out='%v'", path, len(snap.Xorder), nw, fd.Name())
 }
