@@ -406,9 +406,11 @@ func (s *simnet) nextUniqTm(atleast time.Time, who int) time.Time {
 // are executed/finished into s.xorder.
 func (s *simnet) fin(op *mop) {
 	// gets called by api on different goro.
+	now := time.Now()
 	s.xmut.Lock()
 	defer s.xmut.Unlock()
 	s.xorder = append(s.xorder, op.sn)
+	s.xretire[op.sn] = now
 	w := op.whence()
 	s.xwhence = append(s.xwhence, w)
 	s.xkind = append(s.xkind, op.kind)
@@ -427,12 +429,25 @@ func (s *simnet) fin(op *mop) {
 	s.xb3hash.Write(append(b[:], []byte(w)...))
 }
 
+func (s *simnet) simnetNextMopSn() (sn int64) {
+	s.xmut.Lock()
+	defer s.xmut.Unlock()
+	sn = s.nextMopSn
+	s.nextMopSn++
+	s.xissue = append(s.xissue, time.Now())
+	return
+}
+
+func (s *simnet) simnetNextBatchSn() int64 {
+	return atomic.AddInt64(&s.simnetLastBatchSn, 1)
+}
+
 // simnet simulates a network entirely with channels in memory.
 type simnet struct {
 	ndtotPrev int64
 	ndtot     int64 // num dispatched total.
 
-	simnetLastMopSn   int64
+	nextMopSn         int64
 	simnetLastBatchSn int64
 
 	// fin records execution/finishing order
@@ -440,6 +455,8 @@ type simnet struct {
 	xorder  []int64
 	xwhence []string
 	xkind   []mopkind
+	xissue  []time.Time
+	xretire map[int64]time.Time
 	xmut    sync.Mutex
 	xb3hash *blake3.Hasher
 
@@ -803,6 +820,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 	// server creates simnet; must start server first.
 	s := &simnet{
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
+		xretire:        make(map[int64]time.Time),
 		xb3hash:        blake3.New(64, nil),
 		meq:            newMasterEventQueue("scheduler"),
 		barrier:        !simNetConfig.BarrierOff,
@@ -906,14 +924,6 @@ func (s *simnet) addEdgeFromCli(clinode, srvnode *simnode) *simconn {
 	//cli[srvnode] = c2s
 	cli.set(srvnode, c2s)
 	return c2s
-}
-
-func (s *simnet) simnetNextMopSn() int64 {
-	return atomic.AddInt64(&s.simnetLastMopSn, 1)
-}
-
-func (s *simnet) simnetNextBatchSn() int64 {
-	return atomic.AddInt64(&s.simnetLastBatchSn, 1)
 }
 
 type mopkind int
