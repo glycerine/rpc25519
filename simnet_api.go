@@ -1,8 +1,10 @@
 package rpc25519
 
 import (
-	//"fmt"
+	"fmt"
 	mathrand2 "math/rand/v2"
+	"os"
+	"strings"
 	//"runtime"
 	"time"
 )
@@ -899,7 +901,7 @@ type SimnetSnapshot struct {
 	PeerConnCount      int
 	LoneCliConnCount   int
 	Xorder             []int64
-	Xhash              []byte
+	Xhash              string
 
 	ScenarioNum    int
 	ScenarioSeed   [32]byte
@@ -1070,4 +1072,29 @@ func (b *SimnetBatch) GetSimnetSnapshot() {
 		who:   goID(),
 	}
 	b.add(newSnapReqMop(snapReq))
+}
+
+func (snap *SimnetSnapshot) ToFile(nm string) {
+	i := 0
+	var path string
+	home := os.Getenv("HOME")
+	nm = strings.Replace(nm, "~", home, 1)
+	for {
+		path = fmt.Sprintf("%v.%03d.snaptxt", nm, i)
+		if fileExists(path) {
+			i++
+			continue
+		}
+		break
+	}
+	fd, err := os.Create(path)
+	panicOn(err)
+	defer fd.Close()
+	var n, nw int
+	for _, sn := range snap.Xorder {
+		n, _ = fmt.Fprintf(fd, "%v\n", sn)
+		nw += n
+	}
+	fmt.Fprintf(fd, "%v\n", snap.Xhash)
+	vv("path = '%v' for %v/ nw=%v; out='%v'", path, len(snap.Xorder), nw, fd.Name())
 }

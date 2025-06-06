@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	cristalbase64 "github.com/cristalhq/base64"
 	"github.com/glycerine/blake3"
 	"github.com/glycerine/idem"
 	rb "github.com/glycerine/rbtree"
@@ -378,6 +379,7 @@ func (s *simnet) nextUniqTm(atleast time.Time, who int) time.Time {
 // fin records the order in which mop sn
 // are executed/finished into s.xorder.
 func (s *simnet) fin(op *mop) {
+	// gets called by api on different goro.
 	s.xmut.Lock()
 	defer s.xmut.Unlock()
 	s.xorder = append(s.xorder, op.sn)
@@ -2994,7 +2996,8 @@ func (s *simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	req.ScenarioMaxHop = s.scenario.maxHop
 	req.Peermap = make(map[string]*SimnetPeerStatus)
 	req.Xorder = append([]int64{}, s.xorder...)
-	req.Xhash = append([]byte{}, s.xb3hash.Sum(nil)...)
+	sum := s.xb3hash.Sum(nil)
+	req.Xhash = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:33])
 
 	req.NetClosed = s.halt.ReqStop.IsClosed()
 	if len(s.servers) == 0 {
