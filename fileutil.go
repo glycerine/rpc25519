@@ -5,6 +5,8 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -96,4 +98,21 @@ func FileSizeModTime(name string) (sz int64, modTime time.Time, err error) {
 		return
 	}
 	return fi.Size(), fi.ModTime(), nil
+}
+
+func homed(path string) string {
+	home := os.Getenv("HOME")
+	return strings.Replace(path, "~", home, 1)
+}
+
+func removeAllFilesWithPrefix(prefixPath string) {
+	matches, err := filepath.Glob(prefixPath + "*")
+	if err != nil {
+		return
+	}
+	//vv("matches = '%#v'", matches)
+	for _, m := range matches {
+		//vv("would delete '%v'", m)
+		os.Remove(m)
+	}
 }

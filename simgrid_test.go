@@ -597,7 +597,8 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	const nNode1 = 2
 	const wantSendPerPeer1 = 1
 	sendEvery1 := time.Millisecond
-	xorderPath := "~/rpc25519/snap707"
+	xorderPath := homed("~/rpc25519/snap707")
+	removeAllFilesWithPrefix(xorderPath)
 	loadtest(nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
 	loadtest(nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
 	return

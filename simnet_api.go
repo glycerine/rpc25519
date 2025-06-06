@@ -4,7 +4,7 @@ import (
 	"fmt"
 	mathrand2 "math/rand/v2"
 	"os"
-	"strings"
+	//"strings"
 	//"runtime"
 	"time"
 )
@@ -1083,8 +1083,7 @@ func (b *SimnetBatch) GetSimnetSnapshot() {
 func (snap *SimnetSnapshot) ToFile(nm string) {
 	i := 0
 	var path string
-	home := os.Getenv("HOME")
-	nm = strings.Replace(nm, "~", home, 1)
+	nm = homed(nm)
 	for {
 		path = fmt.Sprintf("%v.%03d.snaptxt", nm, i)
 		if fileExists(path) {
