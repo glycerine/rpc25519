@@ -28,8 +28,9 @@ type GoroControl struct {
 
 // Message operation
 type mop struct {
-	sn  int64
-	who int // goro number
+	sn    int64
+	who   int    // goro number
+	where string // generic fileLine (send,read,timer have their atm)
 
 	proceedMop *mop // in meq, should close(proceed) at completeTm
 
@@ -147,6 +148,31 @@ type mop struct {
 	alterHost  *simnodeAlteration
 	alterNode  *simnodeAlteration
 	batch      *SimnetBatch
+}
+
+func (op *mop) whence() string {
+	switch op.kind {
+	case SCENARIO:
+	case CLIENT_REG:
+	case SERVER_REG:
+	case FAULT_CKT:
+	case FAULT_HOST:
+	case REPAIR_CKT:
+	case REPAIR_HOST:
+	case ALTER_HOST:
+	case ALTER_NODE:
+	case BATCH:
+	case SEND:
+		return op.sendFileLine
+	case READ:
+		return op.readFileLine
+	case TIMER:
+		return op.timerFileLine
+	case TIMER_DISCARD:
+		return op.timerFileLine
+	case SNAPSHOT:
+	}
+	return op.where
 }
 
 // increase determinism by processing
@@ -383,6 +409,7 @@ func (s *simnet) fin(op *mop) {
 	s.xmut.Lock()
 	defer s.xmut.Unlock()
 	s.xorder = append(s.xorder, op.sn)
+	s.xwhence = append(s.xwhence, op.whence())
 
 	i := op.sn
 	var b [8]byte
@@ -408,6 +435,7 @@ type simnet struct {
 	// fin records execution/finishing order
 	// for mop sn into xorder.
 	xorder  []int64
+	xwhence []string
 	xmut    sync.Mutex
 	xb3hash *blake3.Hasher
 
@@ -2995,6 +3023,7 @@ func (s *simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	req.ScenarioMaxHop = s.scenario.maxHop
 	req.Peermap = make(map[string]*SimnetPeerStatus)
 	req.Xorder = append([]int64{}, s.xorder...)
+	req.Xwhence = append([]string{}, s.xwhence...)
 	sum := s.xb3hash.Sum(nil)
 	req.Xhash = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:33])
 
@@ -3173,6 +3202,7 @@ func (s *simnet) newSnapReqMop(snapReq *SimnetSnapshot) (op *mop) {
 		proceed: snapReq.proceed,
 		who:     snapReq.who,
 		reqtm:   snapReq.reqtm,
+		where:   snapReq.where,
 	}
 	return
 }

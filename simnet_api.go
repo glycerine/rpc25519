@@ -901,6 +901,7 @@ type SimnetSnapshot struct {
 	PeerConnCount      int
 	LoneCliConnCount   int
 	Xorder             []int64
+	Xwhence            []string
 	Xhash              string
 
 	ScenarioNum    int
@@ -916,6 +917,7 @@ type SimnetSnapshot struct {
 	reqtm   time.Time
 	proceed chan struct{}
 	who     int
+	where   string
 }
 
 func (s *simnet) GetSimnetSnapshot() (snap *SimnetSnapshot) {
@@ -923,6 +925,7 @@ func (s *simnet) GetSimnetSnapshot() (snap *SimnetSnapshot) {
 		reqtm:   time.Now(),
 		proceed: make(chan struct{}),
 		who:     goID(),
+		where:   fileLine(2),
 	}
 	select {
 	case s.simnetSnapshotRequestCh <- snap:
