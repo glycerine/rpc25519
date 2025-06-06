@@ -374,10 +374,23 @@ func (s *simnet) nextUniqTm(atleast time.Time, who int) time.Time {
 	return s.lastTimerDeadline
 }
 
+// fin records the order in which mop sn
+// are executed/finished into s.xorder.
+func (s *simnet) fin(op *mop) {
+	s.xmut.Lock()
+	defer s.xmut.Unlock()
+	s.xorder = append(s.xorder, op.sn)
+}
+
 // simnet simulates a network entirely with channels in memory.
 type simnet struct {
 	ndtotPrev int64
 	ndtot     int64 // num dispatched total.
+
+	// fin records execution/finishing order
+	// for mop sn into xorder.
+	xorder []int64
+	xmut   sync.Mutex // protects xorder
 
 	barrier bool
 	bigbang time.Time
@@ -574,7 +587,9 @@ func (s *simnet) newCircuitserver(name, serverBaseID string) (simnode *simnode) 
 }
 
 // for additional servers after the first.
-func (s *simnet) handleServerRegistration(reg *serverRegistration) {
+func (s *simnet) handleServerRegistration(op *mop) {
+
+	var reg *serverRegistration = op.srvReg
 
 	// srvNetAddr := SimNetAddr{ // implements net.Addr interface
 	// 	network: "simnet",
@@ -626,6 +641,7 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 
 	// channel made by newCircuitserver() above.
 	reg.tellServerNewConnCh = srvnode.tellServerNewConnCh
+	s.fin(op)
 	close(reg.proceed)
 	if false {
 		now := time.Now()
@@ -642,7 +658,9 @@ func (s *simnet) handleServerRegistration(reg *serverRegistration) {
 	}
 }
 
-func (s *simnet) handleClientRegistration(reg *clientRegistration) {
+func (s *simnet) handleClientRegistration(regop *mop) {
+
+	var reg *clientRegistration = regop.cliReg
 
 	srvnode, ok := s.dns[reg.dialTo]
 	if !ok {
@@ -702,6 +720,7 @@ func (s *simnet) handleClientRegistration(reg *clientRegistration) {
 			//vv("%v srvnode was notified of new client '%v'; s2c='%v'", srvnode.name, clinode.name, s2c)
 
 			// let client start using the connection/edge.
+			s.fin(regop)
 			close(reg.proceed)
 		case <-s.halt.ReqStop.Chan:
 			return
@@ -1408,11 +1427,14 @@ func (s *simnet) unIsolateSimnode(simnode *simnode) (undo Alteration) {
 	return
 }
 
-func (s *simnet) handleAlterCircuit(alt *simnodeAlteration, closeDone bool) (undo Alteration) {
+func (s *simnet) handleAlterCircuit(altop *mop, closeDone bool) (undo Alteration) {
+
+	var alt *simnodeAlteration = altop.alterNode
 
 	defer func() {
 		if closeDone {
 			alt.undo = undo
+			s.fin(altop)
 			close(alt.proceed)
 			return
 		}
@@ -1461,7 +1483,9 @@ func (s *simnet) reverse(alt Alteration) (undo Alteration) {
 }
 
 // alter all the auto-cli of a server and the server itself.
-func (s *simnet) handleAlterHost(alt *simnodeAlteration) (undo Alteration) {
+func (s *simnet) handleAlterHost(altop *mop) (undo Alteration) {
+
+	var alt *simnodeAlteration = altop.alterHost
 
 	node, ok := s.dns[alt.simnodeName]
 	if !ok {
@@ -1479,9 +1503,10 @@ func (s *simnet) handleAlterHost(alt *simnodeAlteration) (undo Alteration) {
 		alt.simnodeName = node.name
 		// notice that we reuse alt, but set the final undo
 		// based on the host level state seen in the above reverse.
-		_ = s.handleAlterCircuit(alt, closeDone_NO)
+		_ = s.handleAlterCircuit(altop, closeDone_NO)
 	}
 	alt.undo = undo
+	s.fin(altop)
 	close(alt.proceed)
 	return
 }
@@ -1599,7 +1624,10 @@ func (s *simnet) statewiseConnected(origin, target *simnode) bool {
 func (s *simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	now := time.Now()
 	//vv("top of handleSend(send = '%v')", send)
-	defer close(send.proceed)
+	defer func() {
+		s.fin(send)
+		close(send.proceed)
+	}()
 
 	origin := send.origin
 	send.senderLC = origin.lc
@@ -1664,6 +1692,7 @@ func (s *simnet) handleRead(read *mop, limit, loopi int64) (changed int64) {
 
 	if s.halt.ReqStop.IsClosed() {
 		read.err = ErrShutdown()
+		s.fin(read)
 		close(read.proceed)
 		return
 	}
@@ -2025,6 +2054,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 			send.origin.timerQ.del(send.internalPendingTimerForSend)
 		}
 
+		s.fin(read)
 		close(read.proceed)
 		// send already closed in handleSend()
 
@@ -2478,6 +2508,7 @@ func (s *simnet) distributeMEQ(now time.Time, i int64) (npop int) {
 		switch op.kind {
 		case PROCEED: // not currently used.
 			vv("PROCEED releasing op.completeTm = %v", op.completeTm)
+			s.fin(op)
 			close(op.proceed)
 
 		case TIMER_FIRES: // not currently used.
@@ -2506,11 +2537,11 @@ func (s *simnet) distributeMEQ(now time.Time, i int64) (npop int) {
 			//vv("i=%v meq sees read='%v'", i, op)
 			s.handleRead(op, 1, i)
 		case SNAPSHOT:
-			s.handleSimnetSnapshotRequest(op.snapReq, now, i)
+			s.handleSimnetSnapshotRequest(op, now, i)
 		case CLIENT_REG:
-			s.handleClientRegistration(op.cliReg)
+			s.handleClientRegistration(op)
 		case SERVER_REG:
-			s.handleServerRegistration(op.srvReg)
+			s.handleServerRegistration(op)
 
 		case SCENARIO:
 			s.finishScenario()
@@ -2520,19 +2551,19 @@ func (s *simnet) distributeMEQ(now time.Time, i int64) (npop int) {
 			//continue restartI
 
 		case FAULT_CKT:
-			s.injectCircuitFault(op.cktFault, true)
+			s.injectCircuitFault(op, true)
 		case FAULT_HOST:
-			s.injectHostFault(op.hostFault)
+			s.injectHostFault(op)
 		case REPAIR_CKT:
-			s.handleCircuitRepair(op.repairCkt, true)
+			s.handleCircuitRepair(op, true)
 		case REPAIR_HOST:
-			s.handleHostRepair(op.repairHost)
+			s.handleHostRepair(op)
 		case ALTER_HOST:
-			s.handleAlterHost(op.alterHost)
+			s.handleAlterHost(op)
 		case ALTER_NODE:
-			s.handleAlterCircuit(op.alterNode, true)
+			s.handleAlterCircuit(op, true)
 		case BATCH:
-			s.handleBatch(op.batch)
+			s.handleBatch(op)
 		default:
 			panic(fmt.Sprintf("why in our meq this mop kind? '%v'", int(op.kind)))
 		}
@@ -2581,8 +2612,11 @@ func (s *simnet) haveNextTimer(now time.Time) <-chan time.Time {
 	return s.nextTimer.C
 }
 
-func (s *simnet) handleBatch(batch *SimnetBatch) {
+func (s *simnet) handleBatch(batchop *mop) {
 	// submit now?
+
+	var batch *SimnetBatch = batchop.batch
+	_ = batch
 
 	// else set timer for when to submit
 	panic("TODO handleBatch")
@@ -2611,6 +2645,7 @@ func (s *simnet) handleDiscardTimer(discard *mop) {
 	// probably just a shutdown race, don't deadlock them.
 	// but also! cleanup the timer below to GC it, still!
 
+	//s.fin(discard)
 	//close(discard.proceed)
 	//return
 	//}
@@ -2625,6 +2660,7 @@ func (s *simnet) handleDiscardTimer(discard *mop) {
 	} // leave wasArmed false, could not have been armed if gone.
 
 	////zz("LC:%v %v TIMER_DISCARD %v to fire at '%v'; now timerQ: '%v'", discard.origin.lc, discard.origin.name, discard, discard.origTimerCompleteTm, s.clinode.timerQ)
+	s.fin(discard)
 	close(discard.proceed)
 }
 
@@ -2641,6 +2677,7 @@ func (s *simnet) handleTimer(timer *mop) {
 		//
 		// Very very common at test shutdown, so we comment.
 		//alwaysPrintf("yuck: got a timer from a powerOff simnode: '%v'", timer.origin)
+		s.fin(timer)
 		close(timer.proceed) // likely shutdown race, don't deadlock them.
 		return
 	}
@@ -2653,7 +2690,10 @@ func (s *simnet) handleTimer(timer *mop) {
 	timer.senderLC = lc
 	timer.originLC = lc
 	timer.timerC = make(chan time.Time)
-	defer close(timer.proceed)
+	defer func() {
+		s.fin(timer)
+		close(timer.proceed)
+	}()
 
 	// mask it up!
 	timer.unmaskedCompleteTm = timer.completeTm
@@ -2915,8 +2955,12 @@ func (s *simnet) allConnString() (r string) {
 // without data races inherent in just printing the simnet
 // fields, by asking the simnet nicely to return a snapshot
 // of the internal state of the network in a SimnetSnapshot.
-func (s *simnet) handleSimnetSnapshotRequest(req *SimnetSnapshot, now time.Time, loopi int64) {
-	defer close(req.proceed)
+func (s *simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi int64) {
+	var req *SimnetSnapshot = reqop.snapReq
+	defer func() {
+		s.fin(reqop)
+		close(req.proceed)
+	}()
 
 	req.Asof = now
 	req.Loopi = loopi

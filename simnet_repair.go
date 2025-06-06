@@ -7,7 +7,9 @@ import (
 
 // we _only_ update the conn ends at fault.originName.
 // The corresponding remote conn are not changed.
-func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err error) {
+func (s *simnet) injectCircuitFault(faultop *mop, closeProceed bool) (err error) {
+
+	var fault *circuitFault = faultop.cktFault
 	//vv("top injectCircuitFault: fault = '%v'", fault) // seen 1002, good.
 	defer func() {
 		if err != nil {
@@ -18,6 +20,7 @@ func (s *simnet) injectCircuitFault(fault *circuitFault, closeProceed bool) (err
 			}
 		}
 		if closeProceed {
+			s.fin(faultop)
 			close(fault.proceed)
 		}
 	}()
@@ -189,8 +192,9 @@ func (s *simnet) equilibrateReads(origin, target *simnode) {
 	}
 }
 
-func (s *simnet) injectHostFault(fault *hostFault) (err error) {
+func (s *simnet) injectHostFault(faultop *mop) (err error) {
 
+	var fault *hostFault = faultop.hostFault
 	defer func() {
 		if err != nil {
 			if fault.err == nil {
@@ -199,6 +203,7 @@ func (s *simnet) injectHostFault(fault *hostFault) (err error) {
 				fault.err = fmt.Errorf("%v [AND] %v", fault.err, err)
 			}
 		}
+		s.fin(faultop)
 		close(fault.proceed)
 	}()
 
@@ -208,12 +213,15 @@ func (s *simnet) injectHostFault(fault *hostFault) (err error) {
 	}
 	for node := range s.locals(origin) {
 		cktFault := newCircuitFault(node.name, "", fault.DropDeafSpec, fault.deliverDroppedSends)
-		s.injectCircuitFault(cktFault, false)
+		cktFaultOp := newCktFaultMop(cktFault)
+		s.injectCircuitFault(cktFaultOp, false)
 	}
 	return
 }
 
-func (s *simnet) handleHostRepair(repair *hostRepair) (err error) {
+func (s *simnet) handleHostRepair(repairop *mop) (err error) {
+
+	var repair *hostRepair = repairop.repairHost
 
 	//vv("top of handleHostRepair; repair = '%v'", repair)
 
@@ -226,6 +234,7 @@ func (s *simnet) handleHostRepair(repair *hostRepair) (err error) {
 			}
 		}
 		//vv("end of handleHostRepair, closing repair proceed. err = '%v'", err)
+		s.fin(repairop)
 		close(repair.proceed)
 	}()
 
@@ -250,12 +259,15 @@ func (s *simnet) handleHostRepair(repair *hostRepair) (err error) {
 		cktRepair := s.newCircuitRepair(node.name, "",
 			repair.unIsolate, repair.powerOnIfOff, justOrigin, repair.deliverDroppedSends)
 		//vv("handleHostRepair about to call handleCircuitRepair with cktRepair='%v'", cktRepair)
-		s.handleCircuitRepair(cktRepair, closeProceed_NO)
+		cktRepairOp := newRepairCktMop(cktRepair)
+		s.handleCircuitRepair(cktRepairOp, closeProceed_NO)
 	}
 	return
 }
 
-func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (err error) {
+func (s *simnet) handleCircuitRepair(repairop *mop, closeProceed bool) (err error) {
+
+	var repair *circuitRepair = repairop.repairCkt
 	//vv("top of handleCircuitRepair; closeProceed = %v; repair = '%v'", closeProceed, repair)
 	defer func() {
 		//vv("end of handleCircuitRepair")
@@ -267,6 +279,7 @@ func (s *simnet) handleCircuitRepair(repair *circuitRepair, closeProceed bool) (
 			}
 		}
 		if closeProceed {
+			s.fin(repairop)
 			close(repair.proceed)
 		}
 	}()
