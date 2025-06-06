@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/glycerine/blake3"
 	"github.com/glycerine/idem"
 	rb "github.com/glycerine/rbtree"
 )
@@ -380,6 +381,18 @@ func (s *simnet) fin(op *mop) {
 	s.xmut.Lock()
 	defer s.xmut.Unlock()
 	s.xorder = append(s.xorder, op.sn)
+
+	i := op.sn
+	var b [8]byte
+	b[0] = byte(i >> 56)
+	b[1] = byte(i >> 48)
+	b[2] = byte(i >> 40)
+	b[3] = byte(i >> 32)
+	b[4] = byte(i >> 24)
+	b[5] = byte(i >> 16)
+	b[6] = byte(i >> 8)
+	b[7] = byte(i)
+	s.xb3hash.Write(b[:])
 }
 
 // simnet simulates a network entirely with channels in memory.
@@ -389,8 +402,9 @@ type simnet struct {
 
 	// fin records execution/finishing order
 	// for mop sn into xorder.
-	xorder []int64
-	xmut   sync.Mutex // protects xorder
+	xorder  []int64
+	xmut    sync.Mutex
+	xb3hash *blake3.Hasher
 
 	barrier bool
 	bigbang time.Time
@@ -752,6 +766,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 	// server creates simnet; must start server first.
 	s := &simnet{
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
+		xb3hash:        blake3.New(64, nil),
 		meq:            newMasterEventQueue("scheduler"),
 		barrier:        !simNetConfig.BarrierOff,
 		cfg:            cfg,
@@ -2978,6 +2993,8 @@ func (s *simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	req.ScenarioMinHop = s.scenario.minHop
 	req.ScenarioMaxHop = s.scenario.maxHop
 	req.Peermap = make(map[string]*SimnetPeerStatus)
+	req.Xorder = append([]int64{}, s.xorder...)
+	req.Xhash = append([]byte{}, s.xb3hash.Sum(nil)...)
 
 	req.NetClosed = s.halt.ReqStop.IsClosed()
 	if len(s.servers) == 0 {

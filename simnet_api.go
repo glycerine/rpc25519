@@ -898,6 +898,8 @@ type SimnetSnapshot struct {
 	Cfg                SimNetConfig
 	PeerConnCount      int
 	LoneCliConnCount   int
+	Xorder             []int64
+	Xhash              []byte
 
 	ScenarioNum    int
 	ScenarioSeed   [32]byte
