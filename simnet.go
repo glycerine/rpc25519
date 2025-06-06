@@ -402,6 +402,9 @@ type simnet struct {
 	ndtotPrev int64
 	ndtot     int64 // num dispatched total.
 
+	simnetLastMopSn   int64
+	simnetLastBatchSn int64
+
 	// fin records execution/finishing order
 	// for mop sn into xorder.
 	xorder  []int64
@@ -665,7 +668,7 @@ func (s *simnet) handleServerRegistration(op *mop) {
 			completeTm: userMaskTime(now, reg.who), // what tm() refers to.
 			kind:       PROCEED,
 			//proceedMop:  reg,
-			sn:      simnetNextMopSn(),
+			sn:      s.simnetNextMopSn(),
 			proceed: reg.proceed,
 			reqtm:   reg.reqtm,
 			who:     reg.who,
@@ -819,7 +822,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 	s.halt.AddChild(srv.halt)
 
 	cfg.simnetRendezvous.singleSimnet = s
-	//vv("newSimNetOnServer: assigned to singleSimnet, releasing lock by  goro = %v", GoroNumber())
+	vv("newSimNetOnServer: assigned to singleSimnet, releasing lock by  goro = %v", GoroNumber())
 	s.Start()
 
 	return s
@@ -873,16 +876,12 @@ func (s *simnet) addEdgeFromCli(clinode, srvnode *simnode) *simconn {
 	return c2s
 }
 
-var simnetLastMopSn int64
-
-func simnetNextMopSn() int64 {
-	return atomic.AddInt64(&simnetLastMopSn, 1)
+func (s *simnet) simnetNextMopSn() int64 {
+	return atomic.AddInt64(&s.simnetLastMopSn, 1)
 }
 
-var simnetLastBatchSn int64
-
-func simnetNextBatchSn() int64 {
-	return atomic.AddInt64(&simnetLastBatchSn, 1)
+func (s *simnet) simnetNextBatchSn() int64 {
+	return atomic.AddInt64(&s.simnetLastBatchSn, 1)
 }
 
 type mopkind int
@@ -1692,7 +1691,7 @@ func (s *simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 			completeTm: userMaskTime(send.completeTm, send.who),
 			kind:       PROCEED,
 			proceedMop: send,
-			sn:         simnetNextMopSn(),
+			sn:         s.simnetNextMopSn(),
 			proceed:    send.proceed,
 			reqtm:      now,
 			who:        send.who,
@@ -1840,7 +1839,7 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 						completeTm: userMaskTime(timer.completeTm, timer.who),
 						kind:       TIMER_FIRES,
 						proceedMop: timer,
-						sn:         simnetNextMopSn(),
+						sn:         s.simnetNextMopSn(),
 						//proceed:    send.proceed,
 						reqtm: timer.reqtm,
 						who:   timer.who,
@@ -1959,7 +1958,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 
 			// we must set a timer on its delivery then...
 			dur := send.arrivalTm.Sub(now)
-			pending := newTimerCreateMop(simnode.isCli)
+			pending := s.newTimerCreateMop(simnode.isCli)
 			pending.origin = simnode
 			pending.timerDur = dur
 			pending.initTm = now
@@ -2400,7 +2399,7 @@ func (s *simnet) scheduler() {
 			// "connect" in network lingo, client reaches out to listening server.
 			//vv("i=%v, cliRegisterCh got reg from '%v' = '%v'", i, reg.client.name, reg)
 			//s.handleClientRegistration(reg)
-			s.add2meq(newClientRegMop(reg), i)
+			s.add2meq(s.newClientRegMop(reg), i)
 			//vv("back from handleClientRegistration for '%v'", reg.client.name)
 
 		case srvreg := <-s.srvRegisterCh:
@@ -2409,47 +2408,47 @@ func (s *simnet) scheduler() {
 			//s.handleServerRegistration(srvreg)
 			// do not vv here, as it is very racey with the server who
 			// has been given permission to proceed.
-			s.add2meq(newServerRegMop(srvreg), i)
+			s.add2meq(s.newServerRegMop(srvreg), i)
 
 		case scenario := <-s.newScenarioCh:
 			//vv("i=%v, newScenarioCh ->  scenario='%v'", i, scenario)
-			s.add2meq(newScenarioMop(scenario), i)
+			s.add2meq(s.newScenarioMop(scenario), i)
 
 		case alt := <-s.alterSimnodeCh:
 			//vv("i=%v alterSimnodeCh ->  alt='%v'", i, alt)
 			//s.handleAlterCircuit(alt, true)
-			s.add2meq(newAlterNodeMop(alt), i)
+			s.add2meq(s.newAlterNodeMop(alt), i)
 
 		case alt := <-s.alterHostCh:
 			//vv("i=%v alterHostCh ->  alt='%v'", i, alt)
 			//s.handleAlterHost(op.alt)
-			s.add2meq(newAlterHostMop(alt), i)
+			s.add2meq(s.newAlterHostMop(alt), i)
 
 		case cktFault := <-s.injectCircuitFaultCh:
 			//vv("i=%v injectCircuitFaultCh ->  cktFault='%v'", i, cktFault)
 			//s.injectCircuitFault(cktFault, true)
-			s.add2meq(newCktFaultMop(cktFault), i)
+			s.add2meq(s.newCktFaultMop(cktFault), i)
 
 		case hostFault := <-s.injectHostFaultCh:
 			//vv("i=%v injectHostFaultCh ->  hostFault='%v'", i, hostFault)
 			//s.injectHostFault(hostFault)
-			s.add2meq(newHostFaultMop(hostFault), i)
+			s.add2meq(s.newHostFaultMop(hostFault), i)
 
 		case repairCkt := <-s.repairCircuitCh:
 			//vv("i=%v repairCircuitCh ->  repairCkt='%v'", i, repairCkt)
 			//s.handleCircuitRepair(repairCkt, true)
-			s.add2meq(newRepairCktMop(repairCkt), i)
+			s.add2meq(s.newRepairCktMop(repairCkt), i)
 
 		case repairHost := <-s.repairHostCh:
 			//vv("i=%v repairHostCh ->  repairHost='%v'", i, repairHost)
 			//s.handleHostRepair(repairHost)
-			s.add2meq(newRepairHostMop(repairHost), i)
+			s.add2meq(s.newRepairHostMop(repairHost), i)
 
 		case snapReq := <-s.simnetSnapshotRequestCh:
 			//vv("i=%v simnetSnapshotRequestCh -> snapReq", i)
 			// user can confirm/view all current faults/health
 			//s.handleSimnetSnapshotRequest(snapReq, now, i)
-			s.add2meq(newSnapReqMop(snapReq), i)
+			s.add2meq(s.newSnapReqMop(snapReq), i)
 
 		case <-s.halt.ReqStop.Chan:
 			//vv("i=%v <-s.halt.ReqStop.Chan", i)
@@ -3140,11 +3139,11 @@ func (s *simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	// end handleSimnetSnapshotRequest
 }
 
-func newClientRegMop(clireg *clientRegistration) (op *mop) {
+func (s *simnet) newClientRegMop(clireg *clientRegistration) (op *mop) {
 	op = &mop{
 		cliReg:    clireg,
 		originCli: true,
-		sn:        simnetNextMopSn(),
+		sn:        s.simnetNextMopSn(),
 		kind:      CLIENT_REG,
 		proceed:   clireg.proceed,
 		who:       clireg.who,
@@ -3153,11 +3152,11 @@ func newClientRegMop(clireg *clientRegistration) (op *mop) {
 	return
 }
 
-func newServerRegMop(srvreg *serverRegistration) (op *mop) {
+func (s *simnet) newServerRegMop(srvreg *serverRegistration) (op *mop) {
 	op = &mop{
 		srvReg:    srvreg,
 		originCli: false,
-		sn:        simnetNextMopSn(),
+		sn:        s.simnetNextMopSn(),
 		kind:      SERVER_REG,
 		proceed:   srvreg.proceed,
 		who:       srvreg.who,
@@ -3166,10 +3165,10 @@ func newServerRegMop(srvreg *serverRegistration) (op *mop) {
 	return
 }
 
-func newSnapReqMop(snapReq *SimnetSnapshot) (op *mop) {
+func (s *simnet) newSnapReqMop(snapReq *SimnetSnapshot) (op *mop) {
 	op = &mop{
 		snapReq: snapReq,
-		sn:      simnetNextMopSn(),
+		sn:      s.simnetNextMopSn(),
 		kind:    SNAPSHOT,
 		proceed: snapReq.proceed,
 		who:     snapReq.who,
@@ -3178,10 +3177,10 @@ func newSnapReqMop(snapReq *SimnetSnapshot) (op *mop) {
 	return
 }
 
-func newScenarioMop(scen *scenario) (op *mop) {
+func (s *simnet) newScenarioMop(scen *scenario) (op *mop) {
 	op = &mop{
 		scen:    scen,
-		sn:      simnetNextMopSn(),
+		sn:      s.simnetNextMopSn(),
 		kind:    SCENARIO,
 		proceed: scen.proceed,
 		who:     scen.who,
@@ -3190,10 +3189,10 @@ func newScenarioMop(scen *scenario) (op *mop) {
 	return
 }
 
-func newAlterNodeMop(alt *simnodeAlteration) (op *mop) {
+func (s *simnet) newAlterNodeMop(alt *simnodeAlteration) (op *mop) {
 	op = &mop{
 		alterNode: alt,
-		sn:        simnetNextMopSn(),
+		sn:        s.simnetNextMopSn(),
 		kind:      ALTER_NODE,
 		proceed:   alt.proceed,
 		who:       alt.who,
@@ -3202,10 +3201,10 @@ func newAlterNodeMop(alt *simnodeAlteration) (op *mop) {
 	return
 }
 
-func newAlterHostMop(alt *simnodeAlteration) (op *mop) {
+func (s *simnet) newAlterHostMop(alt *simnodeAlteration) (op *mop) {
 	op = &mop{
 		alterHost: alt,
-		sn:        simnetNextMopSn(),
+		sn:        s.simnetNextMopSn(),
 		kind:      ALTER_HOST,
 		proceed:   alt.proceed,
 		who:       alt.who,
@@ -3214,10 +3213,10 @@ func newAlterHostMop(alt *simnodeAlteration) (op *mop) {
 	return
 }
 
-func newCktFaultMop(cktFault *circuitFault) (op *mop) {
+func (s *simnet) newCktFaultMop(cktFault *circuitFault) (op *mop) {
 	op = &mop{
 		cktFault: cktFault,
-		sn:       simnetNextMopSn(),
+		sn:       s.simnetNextMopSn(),
 		kind:     FAULT_CKT,
 		proceed:  cktFault.proceed,
 		who:      cktFault.who,
@@ -3226,10 +3225,10 @@ func newCktFaultMop(cktFault *circuitFault) (op *mop) {
 	return
 }
 
-func newHostFaultMop(hostFault *hostFault) (op *mop) {
+func (s *simnet) newHostFaultMop(hostFault *hostFault) (op *mop) {
 	op = &mop{
 		hostFault: hostFault,
-		sn:        simnetNextMopSn(),
+		sn:        s.simnetNextMopSn(),
 		kind:      FAULT_HOST,
 		proceed:   hostFault.proceed,
 		who:       hostFault.who,
@@ -3238,10 +3237,10 @@ func newHostFaultMop(hostFault *hostFault) (op *mop) {
 	return
 }
 
-func newRepairCktMop(cktRepair *circuitRepair) (op *mop) {
+func (s *simnet) newRepairCktMop(cktRepair *circuitRepair) (op *mop) {
 	op = &mop{
 		repairCkt: cktRepair,
-		sn:        simnetNextMopSn(),
+		sn:        s.simnetNextMopSn(),
 		kind:      REPAIR_CKT,
 		proceed:   cktRepair.proceed,
 		who:       cktRepair.who,
@@ -3250,10 +3249,10 @@ func newRepairCktMop(cktRepair *circuitRepair) (op *mop) {
 	return
 }
 
-func newRepairHostMop(hostRepair *hostRepair) (op *mop) {
+func (s *simnet) newRepairHostMop(hostRepair *hostRepair) (op *mop) {
 	op = &mop{
 		repairHost: hostRepair,
-		sn:         simnetNextMopSn(),
+		sn:         s.simnetNextMopSn(),
 		kind:       REPAIR_HOST,
 		proceed:    hostRepair.proceed,
 		who:        hostRepair.who,

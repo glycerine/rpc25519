@@ -284,7 +284,7 @@ const (
 // empty string target means all possible targets
 func (s *simnet) FaultCircuit(origin, target string, dd DropDeafSpec, deliverDroppedSends bool) (err error) {
 
-	fault := newCircuitFault(origin, target, dd, deliverDroppedSends)
+	fault := s.newCircuitFault(origin, target, dd, deliverDroppedSends)
 
 	select {
 	case s.injectCircuitFaultCh <- fault:
@@ -307,7 +307,7 @@ func (s *simnet) FaultCircuit(origin, target string, dd DropDeafSpec, deliverDro
 
 func (s *simnet) FaultHost(hostName string, dd DropDeafSpec, deliverDroppedSends bool) (err error) {
 
-	fault := newHostFault(hostName, dd, deliverDroppedSends)
+	fault := s.newHostFault(hostName, dd, deliverDroppedSends)
 
 	select {
 	case s.injectHostFaultCh <- fault:
@@ -396,7 +396,7 @@ func (s *simnet) createNewTimer(origin *simnode, dur time.Duration, begin time.T
 
 	//vv("top simnet.createNewTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", origin.name, dur, begin, begin.Add(dur))
 
-	timer = newTimerCreateMop(isCli)
+	timer = s.newTimerCreateMop(isCli)
 	timer.origin = origin
 	timer.timerDur = dur
 	timer.initTm = begin
@@ -428,7 +428,7 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 
 	//vv("top simnet.readMessage() %v READ", read.origin)
 
-	read := newReadMop(isCli)
+	read := s.newReadMop(isCli)
 	read.initTm = time.Now()
 	read.origin = sc.local
 	read.target = sc.remote
@@ -461,7 +461,7 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) (
 
 	//vv("top simnet.sendMessage() %v SEND  msg.Serial=%v", send.origin, msg.HDR.Serial)
 	//vv("sendMessage\n conn.local = %v (isCli:%v)\n conn.remote = %v (isCli:%v)\n", sc.local.name, sc.local.isCli, sc.remote.name, sc.remote.isCli)
-	send := newSendMop(msg, isCli) // clones msg to prevent race with srv.go:517
+	send := s.newSendMop(msg, isCli) // clones msg to prevent race with srv.go:517
 	send.origin = sc.local
 	send.target = sc.remote
 	send.initTm = time.Now()
@@ -485,10 +485,10 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) (
 	return
 }
 
-func newTimerCreateMop(isCli bool) (op *mop) {
+func (s *simnet) newTimerCreateMop(isCli bool) (op *mop) {
 	op = &mop{
 		originCli: isCli,
-		sn:        simnetNextMopSn(),
+		sn:        s.simnetNextMopSn(),
 		kind:      TIMER,
 		proceed:   make(chan struct{}),
 		reqtm:     time.Now(),
@@ -497,10 +497,10 @@ func newTimerCreateMop(isCli bool) (op *mop) {
 	return
 }
 
-func newTimerDiscardMop(origTimerMop *mop) (op *mop) {
+func (s *simnet) newTimerDiscardMop(origTimerMop *mop) (op *mop) {
 	op = &mop{
 		originCli:    origTimerMop.originCli,
-		sn:           simnetNextMopSn(),
+		sn:           s.simnetNextMopSn(),
 		kind:         TIMER_DISCARD,
 		proceed:      make(chan struct{}),
 		origTimerMop: origTimerMop,
@@ -510,10 +510,10 @@ func newTimerDiscardMop(origTimerMop *mop) (op *mop) {
 	return
 }
 
-func newReadMop(isCli bool) (op *mop) {
+func (s *simnet) newReadMop(isCli bool) (op *mop) {
 	op = &mop{
 		originCli: isCli,
-		sn:        simnetNextMopSn(),
+		sn:        s.simnetNextMopSn(),
 		kind:      READ,
 		proceed:   make(chan struct{}),
 		reqtm:     time.Now(),
@@ -523,11 +523,11 @@ func newReadMop(isCli bool) (op *mop) {
 }
 
 // clones msg to prevent race with srv.go:517
-func newSendMop(msg *Message, isCli bool) (op *mop) {
+func (s *simnet) newSendMop(msg *Message, isCli bool) (op *mop) {
 	op = &mop{
 		originCli: isCli,
 		msg:       msg.CopyForSimNetSend(),
-		sn:        simnetNextMopSn(),
+		sn:        s.simnetNextMopSn(),
 		kind:      SEND,
 		proceed:   make(chan struct{}),
 		reqtm:     time.Now(),
@@ -540,7 +540,7 @@ func (s *simnet) discardTimer(origin *simnode, origTimerMop *mop, discardTm time
 
 	//vv("top simnet.discardTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", who, dur, begin, begin.Add(dur))
 
-	discard := newTimerDiscardMop(origTimerMop)
+	discard := s.newTimerDiscardMop(origTimerMop)
 	discard.initTm = time.Now()
 	discard.timerFileLine = fileLine(3)
 	discard.origin = origin
@@ -749,13 +749,13 @@ type circuitFault struct {
 	err error
 }
 
-func newCircuitFault(originName, targetName string, dd DropDeafSpec, deliverDroppedSends bool) *circuitFault {
+func (s *simnet) newCircuitFault(originName, targetName string, dd DropDeafSpec, deliverDroppedSends bool) *circuitFault {
 	return &circuitFault{
 		originName:          originName,
 		targetName:          targetName,
 		DropDeafSpec:        dd,
 		deliverDroppedSends: deliverDroppedSends,
-		sn:                  simnetNextMopSn(),
+		sn:                  s.simnetNextMopSn(),
 		proceed:             make(chan struct{}),
 		reqtm:               time.Now(),
 		who:                 goID(),
@@ -773,12 +773,12 @@ type hostFault struct {
 	who                 int
 }
 
-func newHostFault(hostName string, dd DropDeafSpec, deliverDroppedSends bool) *hostFault {
+func (s *simnet) newHostFault(hostName string, dd DropDeafSpec, deliverDroppedSends bool) *hostFault {
 	return &hostFault{
 		hostName:            hostName,
 		DropDeafSpec:        dd,
 		deliverDroppedSends: deliverDroppedSends,
-		sn:                  simnetNextMopSn(),
+		sn:                  s.simnetNextMopSn(),
 		proceed:             make(chan struct{}),
 		reqtm:               time.Now(),
 		who:                 goID(),
@@ -808,7 +808,7 @@ func (s *simnet) newCircuitRepair(originName, targetName string, unIsolate, powe
 		targetName:          targetName,
 		unIsolate:           unIsolate,
 		powerOnIfOff:        powerOnIfOff,
-		sn:                  simnetNextMopSn(),
+		sn:                  s.simnetNextMopSn(),
 		proceed:             make(chan struct{}),
 		reqtm:               time.Now(),
 		who:                 goID(),
@@ -835,7 +835,7 @@ func (s *simnet) newHostRepair(hostName string, unIsolate, powerOnIfOff, allHost
 		powerOnIfOff:        powerOnIfOff,
 		unIsolate:           unIsolate,
 		allHosts:            allHosts,
-		sn:                  simnetNextMopSn(),
+		sn:                  s.simnetNextMopSn(),
 		proceed:             make(chan struct{}),
 		reqtm:               time.Now(),
 		who:                 goID(),
@@ -963,7 +963,7 @@ type SimnetBatch struct {
 func (s *simnet) NewSimnetBatch(subwhen time.Time, subAsap bool) *SimnetBatch {
 	return &SimnetBatch{
 		net:          s,
-		batchSn:      simnetNextBatchSn(),
+		batchSn:      s.simnetNextBatchSn(),
 		batchSubWhen: subwhen,
 		batchSubAsap: subAsap,
 		reqtm:        time.Now(),
@@ -976,7 +976,7 @@ func (s *simnet) NewSimnetBatch(subwhen time.Time, subAsap bool) *SimnetBatch {
 func (s *simnet) SubmitBatch(batch *SimnetBatch) {
 	op := &mop{
 		kind:    BATCH,
-		sn:      simnetNextMopSn(),
+		sn:      s.simnetNextMopSn(),
 		batch:   batch,
 		proceed: batch.proceed,
 		reqtm:   time.Now(),
@@ -1005,15 +1005,15 @@ func (b *SimnetBatch) add(op *mop) {
 func (b *SimnetBatch) FaultCircuit(origin, target string, dd DropDeafSpec, deliverDroppedSends bool) {
 	//s := b.net
 
-	cktFault := newCircuitFault(origin, target, dd, deliverDroppedSends)
-	b.add(newCktFaultMop(cktFault))
+	cktFault := b.net.newCircuitFault(origin, target, dd, deliverDroppedSends)
+	b.add(b.net.newCktFaultMop(cktFault))
 }
 
 func (b *SimnetBatch) FaultHost(hostName string, dd DropDeafSpec, deliverDroppedSends bool) {
 	//s := b.net
 
-	hostFault := newHostFault(hostName, dd, deliverDroppedSends)
-	b.add(newHostFaultMop(hostFault))
+	hostFault := b.net.newHostFault(hostName, dd, deliverDroppedSends)
+	b.add(b.net.newHostFaultMop(hostFault))
 }
 
 func (b *SimnetBatch) RepairCircuit(originName string, unIsolate bool, powerOnIfOff, deliverDroppedSends bool) {
@@ -1022,25 +1022,25 @@ func (b *SimnetBatch) RepairCircuit(originName string, unIsolate bool, powerOnIf
 	targetName := "" // all corresponding targets
 	const justOrigin_NO = false
 	repairCkt := s.newCircuitRepair(originName, targetName, unIsolate, powerOnIfOff, justOrigin_NO, deliverDroppedSends)
-	b.add(newRepairCktMop(repairCkt))
+	b.add(s.newRepairCktMop(repairCkt))
 }
 
 // RepairHost repairs all the circuits on the host.
 func (b *SimnetBatch) RepairHost(originName string, unIsolate bool, powerOnIfOff, allHosts, deliverDroppedSends bool) {
 	repairHost := b.net.newHostRepair(originName, unIsolate, powerOnIfOff, allHosts, deliverDroppedSends)
-	b.add(newRepairHostMop(repairHost))
+	b.add(b.net.newRepairHostMop(repairHost))
 }
 
 func (b *SimnetBatch) AllHealthy(powerOnIfOff bool, deliverDroppedSends bool) {
 	const allHealthy_YES = true
 	repairHost := b.net.newHostRepair("", true, powerOnIfOff, allHealthy_YES, deliverDroppedSends)
-	b.add(newRepairHostMop(repairHost))
+	b.add(b.net.newRepairHostMop(repairHost))
 }
 func (b *SimnetBatch) registerServer(srv *Server, srvNetAddr *SimNetAddr) {
 	s := b.net
 
 	srvreg := s.newServerRegistration(srv, srvNetAddr)
-	b.add(newServerRegMop(srvreg))
+	b.add(s.newServerRegMop(srvreg))
 }
 
 func (b *SimnetBatch) AlterCircuit(simnodeName string, alter Alteration, wholeHost bool) {
@@ -1050,7 +1050,7 @@ func (b *SimnetBatch) AlterCircuit(simnodeName string, alter Alteration, wholeHo
 		return
 	}
 	alt := s.newCircuitAlteration(simnodeName, alter, wholeHost)
-	b.add(newAlterNodeMop(alt))
+	b.add(s.newAlterNodeMop(alt))
 }
 
 // we cannot guarantee that the undo will reverse all the
@@ -1063,7 +1063,7 @@ func (b *SimnetBatch) AlterHost(simnodeName string, alter Alteration) {
 	s := b.net
 
 	alt := s.newCircuitAlteration(simnodeName, alter, true)
-	b.add(newAlterHostMop(alt))
+	b.add(s.newAlterHostMop(alt))
 }
 
 func (b *SimnetBatch) GetSimnetSnapshot() {
@@ -1071,7 +1071,7 @@ func (b *SimnetBatch) GetSimnetSnapshot() {
 		reqtm: time.Now(),
 		who:   goID(),
 	}
-	b.add(newSnapReqMop(snapReq))
+	b.add(b.net.newSnapReqMop(snapReq))
 }
 
 func (snap *SimnetSnapshot) ToFile(nm string) {

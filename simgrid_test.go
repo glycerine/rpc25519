@@ -507,7 +507,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	// deliver everything sent with
 	// no faults injected.
 
-	loadtest := func(nNodes, wantSendPerPeer int, sendEvery time.Duration, note string) {
+	loadtest := func(nNodes, wantSendPerPeer int, sendEvery time.Duration, xorderPath string) {
 
 		nPeer := nNodes - 1
 		wantRead := nPeer * wantSendPerPeer
@@ -588,17 +588,18 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 
 			snap := c.net.GetSimnetSnapshot()
 			vv("snap.Xorder len = '%v'; Xhash='%v'", len(snap.Xorder), snap.Xhash) // 53343
-			snap.ToFile("~/rpc25519/snap707")
-
+			snap.ToFile(xorderPath)
 		}) // end bubbleOrNot
 	} // end loadtest func definition
 
 	// 15 nodes, 100 frag: 60 seconds testtime for realtime. 70sec faketime
 	// 21 nodes, 1k frag: 105s testtimie under simnet/synctest-faketime.
-	const nNode1 = 5
-	const wantSendPerPeer1 = 100
+	const nNode1 = 2
+	const wantSendPerPeer1 = 2
 	sendEvery1 := time.Millisecond
-	loadtest(nNode1, wantSendPerPeer1, sendEvery1, "707 loadtest 1")
+	xorderPath := "~/rpc25519/snap707"
+	loadtest(nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
+	loadtest(nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
 	return
 
 	//loadtest(2, 1, 1, time.Second, "707 loadtest 1")

@@ -211,7 +211,7 @@ func (s *simconn) msgWrite(msg *Message, sendDead chan time.Time, n0 int) (n int
 	n = n0
 	isCli := s.isCli
 
-	send := newSendMop(msg, isCli)
+	send := s.net.newSendMop(msg, isCli)
 	send.origin = s.local
 	send.sendFileLine = fileLine(2)
 	send.target = s.remote
@@ -307,7 +307,7 @@ func (s *simconn) Read(data []byte) (n int, err error) {
 
 	//vv("top simnet.readMessage() %v READ", read.origin)
 
-	read := newReadMop(isCli)
+	read := s.net.newReadMop(isCli)
 	read.initTm = time.Now()
 	read.origin = s.local
 	read.readFileLine = fileLine(2)

@@ -212,8 +212,8 @@ func (s *simnet) injectHostFault(faultop *mop) (err error) {
 		panic(fmt.Sprintf("not avail in dns fault.origName = '%v'", fault.hostName))
 	}
 	for node := range s.locals(origin) {
-		cktFault := newCircuitFault(node.name, "", fault.DropDeafSpec, fault.deliverDroppedSends)
-		cktFaultOp := newCktFaultMop(cktFault)
+		cktFault := s.newCircuitFault(node.name, "", fault.DropDeafSpec, fault.deliverDroppedSends)
+		cktFaultOp := s.newCktFaultMop(cktFault)
 		s.injectCircuitFault(cktFaultOp, false)
 	}
 	return
@@ -259,7 +259,7 @@ func (s *simnet) handleHostRepair(repairop *mop) (err error) {
 		cktRepair := s.newCircuitRepair(node.name, "",
 			repair.unIsolate, repair.powerOnIfOff, justOrigin, repair.deliverDroppedSends)
 		//vv("handleHostRepair about to call handleCircuitRepair with cktRepair='%v'", cktRepair)
-		cktRepairOp := newRepairCktMop(cktRepair)
+		cktRepairOp := s.newRepairCktMop(cktRepair)
 		s.handleCircuitRepair(cktRepairOp, closeProceed_NO)
 	}
 	return
