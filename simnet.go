@@ -409,10 +409,12 @@ func (s *simnet) fin(op *mop) {
 	s.xmut.Lock()
 	defer s.xmut.Unlock()
 	s.xorder = append(s.xorder, op.sn)
-	s.xwhence = append(s.xwhence, op.whence())
+	w := op.whence()
+	s.xwhence = append(s.xwhence, w)
+	s.xkind = append(s.xkind, op.kind)
 
 	i := op.sn
-	var b [8]byte
+	var b [9]byte
 	b[0] = byte(i >> 56)
 	b[1] = byte(i >> 48)
 	b[2] = byte(i >> 40)
@@ -421,7 +423,8 @@ func (s *simnet) fin(op *mop) {
 	b[5] = byte(i >> 16)
 	b[6] = byte(i >> 8)
 	b[7] = byte(i)
-	s.xb3hash.Write(b[:])
+	b[8] = byte(op.kind)
+	s.xb3hash.Write(append(b[:], []byte(w)...))
 }
 
 // simnet simulates a network entirely with channels in memory.
@@ -436,6 +439,7 @@ type simnet struct {
 	// for mop sn into xorder.
 	xorder  []int64
 	xwhence []string
+	xkind   []mopkind
 	xmut    sync.Mutex
 	xb3hash *blake3.Hasher
 
@@ -3024,6 +3028,7 @@ func (s *simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	req.Peermap = make(map[string]*SimnetPeerStatus)
 	req.Xorder = append([]int64{}, s.xorder...)
 	req.Xwhence = append([]string{}, s.xwhence...)
+	req.Xkind = append([]mopkind{}, s.xkind...)
 	sum := s.xb3hash.Sum(nil)
 	req.Xhash = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:33])
 

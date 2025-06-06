@@ -595,7 +595,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	// 15 nodes, 100 frag: 60 seconds testtime for realtime. 70sec faketime
 	// 21 nodes, 1k frag: 105s testtimie under simnet/synctest-faketime.
 	const nNode1 = 2
-	const wantSendPerPeer1 = 2
+	const wantSendPerPeer1 = 1
 	sendEvery1 := time.Millisecond
 	xorderPath := "~/rpc25519/snap707"
 	loadtest(nNode1, wantSendPerPeer1, sendEvery1, xorderPath)

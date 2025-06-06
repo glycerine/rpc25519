@@ -432,6 +432,7 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 	read.initTm = time.Now()
 	read.origin = sc.local
 	read.target = sc.remote
+	read.readFileLine = fileLine(3)
 	select {
 	case s.msgReadCh <- read:
 	case <-s.halt.ReqStop.Chan:
@@ -465,6 +466,7 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) (
 	send.origin = sc.local
 	send.target = sc.remote
 	send.initTm = time.Now()
+	send.sendFileLine = fileLine(3)
 	select {
 	case s.msgSendCh <- send:
 	case <-s.halt.ReqStop.Chan:
@@ -902,6 +904,7 @@ type SimnetSnapshot struct {
 	LoneCliConnCount   int
 	Xorder             []int64
 	Xwhence            []string
+	Xkind              []mopkind
 	Xhash              string
 
 	ScenarioNum    int
@@ -1094,8 +1097,8 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	panicOn(err)
 	defer fd.Close()
 	var n, nw int
-	for _, sn := range snap.Xorder {
-		n, _ = fmt.Fprintf(fd, "%v\n", sn)
+	for i, sn := range snap.Xorder {
+		n, _ = fmt.Fprintf(fd, "%v %v %v\n", sn, snap.Xwhence[i], snap.Xkind[i])
 		nw += n
 	}
 	fmt.Fprintf(fd, "%v\n", snap.Xhash)
