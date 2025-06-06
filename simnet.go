@@ -1429,7 +1429,13 @@ func (s *simnet) unIsolateSimnode(simnode *simnode) (undo Alteration) {
 
 func (s *simnet) handleAlterCircuit(altop *mop, closeDone bool) (undo Alteration) {
 
-	var alt *simnodeAlteration = altop.alterNode
+	var alt *simnodeAlteration
+	switch altop.kind {
+	case ALTER_NODE:
+		alt = altop.alterNode
+	case ALTER_HOST:
+		alt = altop.alterHost
+	}
 
 	defer func() {
 		if closeDone {
@@ -1503,6 +1509,7 @@ func (s *simnet) handleAlterHost(altop *mop) (undo Alteration) {
 		alt.simnodeName = node.name
 		// notice that we reuse alt, but set the final undo
 		// based on the host level state seen in the above reverse.
+
 		_ = s.handleAlterCircuit(altop, closeDone_NO)
 	}
 	alt.undo = undo
