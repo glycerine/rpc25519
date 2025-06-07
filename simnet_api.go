@@ -1106,9 +1106,9 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	for sn := range snap.Xcountsn {
 		if !snap.Xfintm[sn].IsZero() {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
-			fmt.Fprintf(fd, "%v %v %v\t%v %v [goID %v]\n",
+			fmt.Fprintf(fd, "%v %v %v\t%v %v [goID %v; fin< %v]\n",
 				nice9(snap.Xissuetm[sn]), sn, snap.Xwhence[sn], snap.Xkind[sn],
-				elap, snap.Xwho[sn])
+				elap, snap.Xwho[sn], snap.Xfinorder[sn])
 		} else {
 			// not finished yet
 			fmt.Fprintf(fd, "%v %v not_finished\n",
