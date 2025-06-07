@@ -402,8 +402,8 @@ func (s *simnet) nextUniqTm(atleast time.Time, who int) time.Time {
 	return s.lastTimerDeadline
 }
 
-// fin records the order in which mop sn
-// are executed/finished into s.xorder.
+// fin records details of a finished mop
+// into our mop tracking slices.
 func (s *simnet) fin(op *mop) {
 	// gets called by api on different goro.
 	now := time.Now()
@@ -1749,6 +1749,31 @@ func (s *simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	// delta := s.dispatch(send.target, now, limit, loopi) // needed?
 	// changed += delta
 	// limit -= delta
+
+	// just this? no, the meq is what called us.
+	// s.add2meq(send, -1)
+
+	if false {
+		// allow delivery between scheduling quantum...?
+		// copied from dispatchSendsReads but not deployed
+		// dur := send.arrivalTm.Sub(now)
+		// pending := s.newTimerCreateMop(simnode.isCli)
+		// pending.origin = simnode
+		// pending.timerDur = dur
+		// pending.initTm = now
+		// pending.completeTm = now.Add(dur)
+		// pending.timerFileLine = fileLine(1)
+		// pending.internalPendingTimer = true
+		// send.internalPendingTimerForSend = pending
+
+		// vv("dur=%v, queue new timer (sn:%v) for delivery of send in that has not happened (arrivalTm: %v): '%v'", dur, pending.sn, nice9(send.arrivalTm), send)
+		// s.handleTimer(pending)
+
+		//changes++
+		//limit--
+		//return
+	}
+
 	return
 }
 
@@ -1864,6 +1889,7 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 			if timer.timerFiredTm.IsZero() {
 				// only mark the first firing
 				timer.timerFiredTm = now
+				s.fin(timer)
 			} else {
 				timer.timerReseenCount++
 				if timer.timerReseenCount > 5 {
@@ -1957,6 +1983,8 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 
 		simnode.optionallyApplyChaos()
 
+		// TODO Q: should we wait to drop-or-not until arrival time comes?
+
 		var connAttemptedSend int64 // for logging below
 		var drop bool
 		// insist on !sendDropFilteringApplied, so we only
@@ -1985,6 +2013,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 				// cleanup the timer that scheduled this send, if any.
 				if send.internalPendingTimerForSend != nil {
 					send.origin.timerQ.del(send.internalPendingTimerForSend)
+					s.fin(send.internalPendingTimerForSend)
 				}
 				changes++
 				limit--
@@ -2003,22 +2032,34 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 			// super noisy!
 			//vv("dispatch: %v", simnode.net.schedulerReport())
 
-			// we must set a timer on its delivery then...
-			dur := send.arrivalTm.Sub(now)
-			pending := s.newTimerCreateMop(simnode.isCli)
-			pending.origin = simnode
-			pending.timerDur = dur
-			pending.initTm = now
-			pending.completeTm = now.Add(dur)
-			pending.timerFileLine = fileLine(1)
-			pending.internalPendingTimer = true
-			send.internalPendingTimerForSend = pending
+			// the send is still in the send queue.
+			// problem with a timer is we set a new one
+			// each time through here!?! we don't need 10 timers
+			// for each millisecond between now and delivery in 10msec.
+			// If we need a timer, we should be setting just
+			// one when it hits to preArrQ
+			// in handleSend. The only reason we would need a timer
+			// would be to deliver before a scheduling time quantum
+			// is up.
 
-			vv("dur=%v, queue new timer (sn:%v) for delivery of send in that has not happened: '%v'", dur, pending.sn, send)
-			s.handleTimer(pending)
+			if false {
+				// we must set a timer on its delivery then...
+				dur := send.arrivalTm.Sub(now)
+				pending := s.newTimerCreateMop(simnode.isCli)
+				pending.origin = simnode
+				pending.timerDur = dur
+				pending.initTm = now
+				pending.completeTm = now.Add(dur)
+				pending.timerFileLine = fileLine(1)
+				pending.internalPendingTimer = true
+				send.internalPendingTimerForSend = pending
 
-			changes++
-			limit--
+				vv("dur=%v, queue new timer (sn:%v) for delivery of send in that has not happened (arrivalTm: %v): '%v'", dur, pending.sn, nice9(send.arrivalTm), send)
+				s.handleTimer(pending)
+
+				changes++
+				limit--
+			}
 			return
 		}
 		// INVAR: this send.arrivalTm <= now
@@ -2763,7 +2804,7 @@ func (s *simnet) handleTimer(timer *mop) {
 	timer.originLC = lc
 	timer.timerC = make(chan time.Time)
 	defer func() {
-		s.fin(timer)
+		// not yet! s.fin(timer)
 		close(timer.proceed)
 	}()
 
