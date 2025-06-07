@@ -910,6 +910,7 @@ type SimnetSnapshot struct {
 	Xkind     []mopkind   // send,read,timer,discard,...
 	Xissuetm  []time.Time // when issued
 	Xfintm    []time.Time // when finished
+	Xwho      []int
 
 	Xhash string // hash of the sequence
 
@@ -1105,9 +1106,9 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	for sn := range snap.Xcountsn {
 		if !snap.Xfintm[sn].IsZero() {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
-			fmt.Fprintf(fd, "%v %v %v\t%v %v\n",
+			fmt.Fprintf(fd, "%v %v %v\t%v %v [goID %v]\n",
 				nice9(snap.Xissuetm[sn]), sn, snap.Xwhence[sn], snap.Xkind[sn],
-				elap)
+				elap, snap.Xwho[sn])
 		} else {
 			// not finished yet
 			fmt.Fprintf(fd, "%v %v not_finished\n",

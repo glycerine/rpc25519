@@ -415,6 +415,7 @@ func (s *simnet) fin(op *mop) {
 	w := op.whence() // file:line where created.
 	s.xwhence[op.sn] = w
 	s.xkind[op.sn] = op.kind
+	s.xwho[op.sn] = op.who
 
 	i := op.sn
 	var b [9]byte
@@ -440,6 +441,7 @@ func (s *simnet) simnetNextMopSn() (sn int64) {
 	s.xwhence = append(s.xwhence, "")
 	s.xkind = append(s.xkind, -1)
 	s.xfinorder = append(s.xfinorder, -1)
+	s.xwho = append(s.xwho, -1)
 
 	return
 }
@@ -463,6 +465,7 @@ type simnet struct {
 	xkind     []mopkind
 	xissuetm  []time.Time
 	xfintm    []time.Time
+	xwho      []int
 
 	xmut    sync.Mutex
 	xb3hash *blake3.Hasher
@@ -3093,6 +3096,7 @@ func (s *simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	req.Xkind = append([]mopkind{}, s.xkind...)
 	req.Xissuetm = append([]time.Time{}, s.xissuetm...)
 	req.Xfintm = append([]time.Time{}, s.xfintm...)
+	req.Xwho = append([]int{}, s.xwho...)
 
 	sum := s.xb3hash.Sum(nil)
 	req.Xhash = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:33])
