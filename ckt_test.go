@@ -3,7 +3,7 @@ package rpc25519
 import (
 	"context"
 	"fmt"
-	//"os"
+	"os"
 	//"strings"
 	"testing"
 	"time"
@@ -493,6 +493,9 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		t.Skip("skip under synctest, net calls will never settle.")
 		return
 	}
+	if _, rr := os.LookupEnv("RUNNING_UNDER_RR"); rr {
+		t.Skip("flaky under rr chaos")
+	}
 
 	cv.Convey("many sends and reads between peers", t, func() {
 
@@ -574,7 +577,8 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 
 		// wait for it to get the client
 
-		timeout := j.cli.NewTimer(5 * time.Second)
+		// 5 sec still flaky under rr chaos, turn off above.
+		timeout := j.cli.NewTimer(2 * time.Second)
 		select {
 		case <-j.clis.dropcopy_reads:
 		case <-timeout.C:
