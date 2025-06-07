@@ -1101,17 +1101,20 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	fd, err := os.Create(path)
 	panicOn(err)
 	defer fd.Close()
-	var n, nw int
-	for sn := range snap.Xcountsn {
-		fin := snap.Xsn2fin[sn]
-		elap := snap.Xfintm[fin].Sub(snap.Xissuetm[sn])
-		n, _ = fmt.Fprintf(fd, "%v %v %v\t%v %v\n",
-			nice(snap.Xissuetm[sn]), sn, snap.Xwhence[fin], snap.Xkind[fin],
-			elap)
 
-		nw += n
+	for sn := range snap.Xcountsn {
+		fin, ok := snap.Xsn2fin[sn]
+		if ok {
+			elap := snap.Xfintm[fin].Sub(snap.Xissuetm[sn])
+			fmt.Fprintf(fd, "%v %v %v\t%v %v\n",
+				nice(snap.Xissuetm[sn]), sn, snap.Xwhence[fin], snap.Xkind[fin],
+				elap)
+		} else {
+			// not finished yet
+			fmt.Fprintf(fd, "%v %v not_finished\n",
+				nice(snap.Xissuetm[sn]), sn)
+		}
 	}
 	fmt.Fprintf(fd, "%v\n", snap.Xhash)
-	_ = nw
 	//vv("path = '%v' for %v/ nw=%v; out='%v'", path, len(snap.Xorder), nw, fd.Name())
 }
