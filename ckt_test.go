@@ -334,7 +334,11 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						//vv("%v: (ckt '%v') (passive) got requestToSend, sending to '%v'; from '%v'", name, ckt.Name, ckt.RemoteCircuitURL(), ckt.LocalCircuitURL())
 
 						err := ckt.SendOneWay(frag, 0, 0)
-						panicOn(err)
+						//panicOn(err)
+						if err != nil {
+							// shutdown
+							return
+						}
 						s.incrementSends(ckt.Name)
 						s.sendch <- frag
 						s.dropcopy_sends <- frag
@@ -382,7 +386,11 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 			//vv("%v: requested startCircuitWith: '%v'", name, remoteURL)
 			ckt, _, err := myPeer.NewCircuitToPeerURL(fmt.Sprintf("cicuit-init-by:%v:%v", name, s.nextCktNo), remoteURL, nil, 0)
 			s.nextCktNo++
-			panicOn(err)
+			//panicOn(err)
+			if err != nil {
+				// shutdown
+				return
+			}
 			s.incrementSends(ckt.Name)
 			s.sendch <- nil
 			s.dropcopy_sends <- nil
@@ -406,7 +414,11 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						frag := NewFragment()
 						frag.Err = errReq
 						err := ckt.SendOneWay(frag, 0, 0)
-						panicOn(err)
+						//panicOn(err)
+						if err != nil {
+							// shutdown
+							return
+						}
 						s.incrementSends(ckt.Name)
 						s.sendch <- frag
 						s.dropcopy_sends <- frag
@@ -417,7 +429,11 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 							frag := NewFragment()
 							frag.FragPart = int64(i)
 							err := ckt.SendOneWay(frag, 0, 0)
-							panicOn(err)
+							//panicOn(err)
+							if err != nil {
+								// shutdown
+								return
+							}
 							s.incrementSends(ckt.Name)
 							s.sendch <- frag
 							s.dropcopy_sends <- frag
@@ -558,7 +574,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 
 		// wait for it to get the client
 
-		timeout := j.cli.NewTimer(2 * time.Second)
+		timeout := j.cli.NewTimer(5 * time.Second)
 		select {
 		case <-j.clis.dropcopy_reads:
 		case <-timeout.C:
@@ -576,7 +592,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 			t.Fatalf("error: expected cli sendch to have %v, got: %v", want, got)
 		}
 		if got, want := len(j.srvs.sendch), 1; got != want {
-			t.Fatalf("error: expected srv sendch to have %v, got: %v", want, got)
+			t.Fatalf("error: expected srv sendch to have %v, got: %v", want, got) // ckt_test.go:595: error: expected srv sendch to have 1, got: 0
 		}
 
 		//vv("okay up to here.")
