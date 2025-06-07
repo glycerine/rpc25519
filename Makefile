@@ -57,6 +57,10 @@ rr2h:
 	go test -c -o rpc.test
 	rr record -h ./rpc.test -test.v #-test.run 707
 
+rr2hr:
+	go test -race -c -o rpc.test
+	rr record -h ./rpc.test -test.v -test.run Test04[05]
+
 replay:
 	rr replay
 

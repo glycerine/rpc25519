@@ -639,7 +639,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 			}
 			if msg.HDR.Typ == CallCancelPrevious {
 				if msg.LocalErr == nil {
-					msg.LocalErr = ErrCancelReqSent
+					//msg.LocalErr = ErrCancelReqSent // race write vs cli.go:2244
 				}
 			}
 			// convey the error or lack thereof.
@@ -2241,6 +2241,7 @@ func (c *Client) oneWaySendHelper(msg *Message, cancelJobCh <-chan struct{}, err
 
 		select {
 		case <-msg.DoneCh.WhenClosed():
+			// race read vs send loop cli.go:642. oneWaySendHelper here
 			return msg.LocalErr
 
 		case <-c.halt.ReqStop.Chan:
