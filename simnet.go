@@ -1933,6 +1933,11 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 					vv("weak pointer to timer already collected: %v", timer)
 					// user code does not have any references
 					// so we don't bother to try and fire it.
+
+					// this means we already tried once and below we
+					// could not deliver, so we deleted our timerCstrong
+					// strong reference. Then we are trying at most 2x.
+					// TODO: do we need more than 2x?
 					continue
 				}
 				select {
@@ -1944,6 +1949,11 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 				default:
 					vv("arg! could not deliver timer? '%v'  requeue or what? ...assume this was just a shutdown race...", timer)
 					reQtimer = append(reQtimer, timer)
+					// Q TODO: should we also? as client user might be
+					// long gone... could do:
+					//if timer.timerReseenCount > 10 {
+					// timer.timerCstrong = nil
+					//}
 					continue
 					//panic("why not deliverable? hopefully we never hit this and can just delete the backup attempt below")
 				}
