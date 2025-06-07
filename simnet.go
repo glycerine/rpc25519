@@ -3029,6 +3029,8 @@ func (s *simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 		s.fin(reqop)
 		close(req.proceed)
 	}()
+	s.xmut.Lock()
+	defer s.xmut.Unlock()
 
 	req.Asof = now
 	req.Loopi = loopi
@@ -3040,6 +3042,7 @@ func (s *simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	req.ScenarioMaxHop = s.scenario.maxHop
 	req.Peermap = make(map[string]*SimnetPeerStatus)
 
+	req.Xcountsn = s.nextMopSn
 	req.Xfinorder = append([]int64{}, s.xfinorder...)
 	req.Xwhence = append([]string{}, s.xwhence...)
 	req.Xkind = append([]mopkind{}, s.xkind...)

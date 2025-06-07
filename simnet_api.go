@@ -904,6 +904,7 @@ type SimnetSnapshot struct {
 	LoneCliConnCount   int
 
 	// mop creation/finish data.
+	Xcountsn  int64
 	Xfinorder []int64       // finish order
 	Xwhence   []string      // file:line creation place
 	Xkind     []mopkind     // send,read,timer,discard,...
@@ -1101,10 +1102,12 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	panicOn(err)
 	defer fd.Close()
 	var n, nw int
-	for i, sn := range snap.Xfinorder {
+	for sn := range snap.Xcountsn {
+		fin := snap.Xsn2fin[sn]
+		elap := snap.Xfintm[fin].Sub(snap.Xissuetm[sn])
 		n, _ = fmt.Fprintf(fd, "%v %v %v\t%v %v\n",
-			sn, snap.Xwhence[i], snap.Xkind[i],
-			nice(snap.Xissuetm[i]), nice(snap.Xfintm[i]))
+			nice(snap.Xissuetm[sn]), sn, snap.Xwhence[fin], snap.Xkind[fin],
+			elap)
 
 		nw += n
 	}
