@@ -2816,7 +2816,7 @@ func (s *simnet) handleTimer(timer *mop) {
 	timer.unmaskedDur = timer.timerDur
 	timer.completeTm = userMaskTime(timer.completeTm, timer.who) // handle timer
 	timer.timerDur = timer.completeTm.Sub(timer.initTm)
-	//vv("masked timer:\n dur: %v -> %v\n completeTm: %v -> %v\n", timer.unmaskedDur, timer.timerDur, timer.unmaskedCompleteTm, timer.completeTm)
+	vv("masked timer(sn %v):\n dur: %v -> %v\n completeTm: %v -> %v\n timer.who: %v", timer.sn, timer.unmaskedDur, timer.timerDur, nice9(timer.unmaskedCompleteTm), nice9(timer.completeTm), timer.who)
 
 	timer.origin.timerQ.add(timer)
 	//vv("LC:%v %v set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer.origin.name, timer, timer.completeTm, s.clinode.timerQ)
