@@ -1885,7 +1885,7 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 			// timer.completeTm <= now
 
 			if !timer.isGridStepTimer && !timer.internalPendingTimer {
-				//vv("have TIMER firing: '%v'; report = %v", timer, s.schedulerReport())
+				vv("have TIMER firing: '%v'; report = %v", timer, s.schedulerReport())
 			}
 			changes++
 			limit--
