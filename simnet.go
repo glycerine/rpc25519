@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"weak"
 
 	cristalbase64 "github.com/cristalhq/base64"
 	"github.com/glycerine/blake3"
@@ -55,7 +56,9 @@ type mop struct {
 	readerLC int64
 	originLC int64
 
-	timerC              chan time.Time
+	//	timerC              chan time.Time
+	timerC              weak.Pointer[chan time.Time]
+	timerCstrong        chan time.Time
 	timerDur            time.Duration
 	timerFileLine       string // where was this timer from?
 	timerReseenCount    int
@@ -1925,8 +1928,16 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 					continue
 				}
 
+				tC := timer.timerC.Value()
+				if tC == nil {
+					vv("weak pointer to timer already collected: %v", timer)
+					// user code does not have any references
+					// so we don't bother to try and fire it.
+					continue
+				}
 				select {
-				case timer.timerC <- now:
+				//case timer.timerC <- now:
+				case *tC <- now:
 				case <-simnode.net.halt.ReqStop.Chan:
 					return
 					// inherently race wrt shutdown though, right?
@@ -2629,13 +2640,18 @@ func (s *simnet) distributeMEQ(now time.Time, i int64) (npop int) {
 
 		case TIMER_FIRES: // not currently used.
 			vv("TIMER_FIRES: %v", op)
-			select {
-			case op.proceedMop.timerC <- now: // might need to make buffered
-				vv("TIMER_FIRES delivered to timer: %v", op.proceedMop)
-			case <-s.halt.ReqStop.Chan:
-				vv("i=%v <-s.halt.ReqStop.Chan", i)
-				return
+			tC := op.proceedMop.timerC.Value()
+			if tC != nil {
+				select {
+				//case op.proceedMop.timerC <- now: // might need to make buffered?
+				case *tC <- now: // might need to make buffered?
+					vv("TIMER_FIRES delivered to timer: %v", op.proceedMop)
+				case <-s.halt.ReqStop.Chan:
+					vv("i=%v <-s.halt.ReqStop.Chan", i)
+					return
+				}
 			}
+			// let op be GC-ed.
 
 		case TIMER:
 			//vv("i=%v, meq sees timer='%v'", i, op)
@@ -2805,7 +2821,8 @@ func (s *simnet) handleTimer(timer *mop) {
 
 	timer.senderLC = lc
 	timer.originLC = lc
-	timer.timerC = make(chan time.Time)
+	timer.timerCstrong = make(chan time.Time)
+	timer.timerC = weak.Make(&timer.timerCstrong)
 	defer func() {
 		// not yet! s.fin(timer)
 		close(timer.proceed)

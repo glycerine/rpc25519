@@ -199,7 +199,7 @@ func (s *simconn) Write(p []byte) (n int, err error) {
 
 	var sendDead chan time.Time
 	if s.sendDeadlineTimer != nil {
-		sendDead = s.sendDeadlineTimer.timerC
+		sendDead = s.sendDeadlineTimer.timerCstrong
 	}
 
 	return s.msgWrite(msg, sendDead, n)
@@ -302,7 +302,7 @@ func (s *simconn) Read(data []byte) (n int, err error) {
 
 	var readDead chan time.Time
 	if s.readDeadlineTimer != nil {
-		readDead = s.readDeadlineTimer.timerC
+		readDead = s.readDeadlineTimer.timerCstrong
 	}
 
 	//vv("top simnet.readMessage() %v READ", read.origin)

@@ -2728,7 +2728,8 @@ func (c *Client) NewTimer(dur time.Duration) (ti *SimTimer) {
 		// Seems reasonable for a dead node/network system.
 		return nil
 	default:
-		ti.C = ti.simtimer.timerC
+		ti.C = ti.simtimer.timerCstrong
+		//ti.simtimer.timerCstrong = nil
 	}
 	return
 }
@@ -2785,9 +2786,11 @@ func (s *Server) NewTimer(dur time.Duration) (ti *SimTimer) {
 		// and we need to avoid a race on reading timerC.
 		// Leaving ti.C nil means that timer will never fire.
 		// Seems reasonable for a dead node/network system.
+		//ti.simtimer.timerCstrong = nil // needed?
 		return nil
 	default:
-		ti.C = ti.simtimer.timerC
+		ti.C = ti.simtimer.timerCstrong
+		//ti.simtimer.timerCstrong = nil
 	}
 	return
 }
