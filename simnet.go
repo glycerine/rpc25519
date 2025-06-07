@@ -1888,7 +1888,7 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 			// timer.completeTm <= now
 
 			if !timer.isGridStepTimer && !timer.internalPendingTimer {
-				vv("have TIMER firing: '%v'; report = %v", timer, s.schedulerReport())
+				//vv("have TIMER firing: '%v'; report = %v", timer, s.schedulerReport())
 			}
 			changes++
 			limit--
@@ -2843,7 +2843,7 @@ func (s *simnet) handleTimer(timer *mop) {
 	timer.unmaskedDur = timer.timerDur
 	timer.completeTm = userMaskTime(timer.completeTm, timer.who) // handle timer
 	timer.timerDur = timer.completeTm.Sub(timer.initTm)
-	vv("masked timer(sn %v):\n dur: %v -> %v\n completeTm: %v -> %v\n timer.who: %v", timer.sn, timer.unmaskedDur, timer.timerDur, nice9(timer.unmaskedCompleteTm), nice9(timer.completeTm), timer.who)
+	//vv("masked timer(sn %v):\n dur: %v -> %v\n completeTm: %v -> %v\n timer.who: %v", timer.sn, timer.unmaskedDur, timer.timerDur, nice9(timer.unmaskedCompleteTm), nice9(timer.completeTm), timer.who)
 
 	timer.origin.timerQ.add(timer)
 	//vv("LC:%v %v set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer.origin.name, timer, timer.completeTm, s.clinode.timerQ)
