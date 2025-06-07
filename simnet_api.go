@@ -904,14 +904,14 @@ type SimnetSnapshot struct {
 	LoneCliConnCount   int
 
 	// mop creation/finish data.
-	Xcountsn  int64
-	Xfinorder []int64       // finish order
-	Xwhence   []string      // file:line creation place
-	Xkind     []mopkind     // send,read,timer,discard,...
-	Xissuetm  []time.Time   // when issued
-	Xfintm    []time.Time   // when finished
-	Xsn2fin   map[int64]int // sn -> Xorder finish order location
-	Xhash     string        // hash of the sequence
+	Xcountsn  int64       // number of mop issued
+	Xfinorder []int64     // finish order (nextMopSn at time of finish)
+	Xwhence   []string    // file:line creation place
+	Xkind     []mopkind   // send,read,timer,discard,...
+	Xissuetm  []time.Time // when issued
+	Xfintm    []time.Time // when finished
+
+	Xhash string // hash of the sequence
 
 	ScenarioNum    int
 	ScenarioSeed   [32]byte
@@ -1103,11 +1103,10 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	defer fd.Close()
 
 	for sn := range snap.Xcountsn {
-		fin, ok := snap.Xsn2fin[sn]
-		if ok {
-			elap := snap.Xfintm[fin].Sub(snap.Xissuetm[sn])
+		if !snap.Xfintm[sn].IsZero() {
+			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
 			fmt.Fprintf(fd, "%v %v %v\t%v %v\n",
-				nice(snap.Xissuetm[sn]), sn, snap.Xwhence[fin], snap.Xkind[fin],
+				nice(snap.Xissuetm[sn]), sn, snap.Xwhence[sn], snap.Xkind[sn],
 				elap)
 		} else {
 			// not finished yet

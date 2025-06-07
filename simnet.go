@@ -410,12 +410,11 @@ func (s *simnet) fin(op *mop) {
 	s.xmut.Lock()
 	defer s.xmut.Unlock()
 
-	s.xsn2fin[op.sn] = len(s.xfinorder)
-	s.xfinorder = append(s.xfinorder, op.sn)
-	s.xfintm = append(s.xfintm, now)
+	s.xfinorder[op.sn] = s.nextMopSn
+	s.xfintm[op.sn] = now
 	w := op.whence() // file:line where created.
-	s.xwhence = append(s.xwhence, w)
-	s.xkind = append(s.xkind, op.kind)
+	s.xwhence[op.sn] = w
+	s.xkind[op.sn] = op.kind
 
 	i := op.sn
 	var b [9]byte
@@ -437,6 +436,11 @@ func (s *simnet) simnetNextMopSn() (sn int64) {
 	sn = s.nextMopSn
 	s.nextMopSn++
 	s.xissuetm = append(s.xissuetm, time.Now())
+	s.xfintm = append(s.xfintm, time.Time{})
+	s.xwhence = append(s.xwhence, "")
+	s.xkind = append(s.xkind, -1)
+	s.xfinorder = append(s.xfinorder, -1)
+
 	return
 }
 
@@ -459,9 +463,9 @@ type simnet struct {
 	xkind     []mopkind
 	xissuetm  []time.Time
 	xfintm    []time.Time
-	xsn2fin   map[int64]int
-	xmut      sync.Mutex
-	xb3hash   *blake3.Hasher
+
+	xmut    sync.Mutex
+	xb3hash *blake3.Hasher
 
 	barrier bool
 	bigbang time.Time
@@ -823,7 +827,6 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 	// server creates simnet; must start server first.
 	s := &simnet{
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
-		xsn2fin:        make(map[int64]int),
 		xb3hash:        blake3.New(64, nil),
 		meq:            newMasterEventQueue("scheduler"),
 		barrier:        !simNetConfig.BarrierOff,
@@ -1998,7 +2001,6 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 			// so no point in looking.
 
 			// super noisy!
-			//vv("rejecting delivery of send that has not happened: '%v'", send)
 			//vv("dispatch: %v", simnode.net.schedulerReport())
 
 			// we must set a timer on its delivery then...
@@ -2011,6 +2013,8 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 			pending.timerFileLine = fileLine(1)
 			pending.internalPendingTimer = true
 			send.internalPendingTimerForSend = pending
+
+			vv("dur=%v, queue new timer (sn:%v) for delivery of send in that has not happened: '%v'", dur, pending.sn, send)
 			s.handleTimer(pending)
 
 			changes++
@@ -3046,13 +3050,9 @@ func (s *simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	req.Xfinorder = append([]int64{}, s.xfinorder...)
 	req.Xwhence = append([]string{}, s.xwhence...)
 	req.Xkind = append([]mopkind{}, s.xkind...)
-
 	req.Xissuetm = append([]time.Time{}, s.xissuetm...)
 	req.Xfintm = append([]time.Time{}, s.xfintm...)
-	req.Xsn2fin = make(map[int64]int)
-	for k, v := range s.xsn2fin {
-		req.Xsn2fin[k] = v
-	}
+
 	sum := s.xb3hash.Sum(nil)
 	req.Xhash = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:33])
 
