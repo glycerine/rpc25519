@@ -409,9 +409,11 @@ func (s *simnet) fin(op *mop) {
 	now := time.Now()
 	s.xmut.Lock()
 	defer s.xmut.Unlock()
-	s.xorder = append(s.xorder, op.sn)
-	s.xretire[op.sn] = now
-	w := op.whence()
+
+	s.xsn2fin[op.sn] = len(s.xfinorder)
+	s.xfinorder = append(s.xfinorder, op.sn)
+	s.xfintm = append(s.xfintm, now)
+	w := op.whence() // file:line where created.
 	s.xwhence = append(s.xwhence, w)
 	s.xkind = append(s.xkind, op.kind)
 
@@ -434,7 +436,7 @@ func (s *simnet) simnetNextMopSn() (sn int64) {
 	defer s.xmut.Unlock()
 	sn = s.nextMopSn
 	s.nextMopSn++
-	s.xissue = append(s.xissue, time.Now())
+	s.xissuetm = append(s.xissuetm, time.Now())
 	return
 }
 
@@ -452,13 +454,14 @@ type simnet struct {
 
 	// fin records execution/finishing order
 	// for mop sn into xorder.
-	xorder  []int64
-	xwhence []string
-	xkind   []mopkind
-	xissue  []time.Time
-	xretire map[int64]time.Time
-	xmut    sync.Mutex
-	xb3hash *blake3.Hasher
+	xfinorder []int64
+	xwhence   []string
+	xkind     []mopkind
+	xissuetm  []time.Time
+	xfintm    []time.Time
+	xsn2fin   map[int64]int
+	xmut      sync.Mutex
+	xb3hash   *blake3.Hasher
 
 	barrier bool
 	bigbang time.Time
@@ -820,7 +823,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 	// server creates simnet; must start server first.
 	s := &simnet{
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
-		xretire:        make(map[int64]time.Time),
+		xsn2fin:        make(map[int64]int),
 		xb3hash:        blake3.New(64, nil),
 		meq:            newMasterEventQueue("scheduler"),
 		barrier:        !simNetConfig.BarrierOff,
@@ -3036,9 +3039,17 @@ func (s *simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	req.ScenarioMinHop = s.scenario.minHop
 	req.ScenarioMaxHop = s.scenario.maxHop
 	req.Peermap = make(map[string]*SimnetPeerStatus)
-	req.Xorder = append([]int64{}, s.xorder...)
+
+	req.Xfinorder = append([]int64{}, s.xfinorder...)
 	req.Xwhence = append([]string{}, s.xwhence...)
 	req.Xkind = append([]mopkind{}, s.xkind...)
+
+	req.Xissuetm = append([]time.Time{}, s.xissuetm...)
+	req.Xfintm = append([]time.Time{}, s.xfintm...)
+	req.Xsn2fin = make(map[int64]int)
+	for k, v := range s.xsn2fin {
+		req.Xsn2fin[k] = v
+	}
 	sum := s.xb3hash.Sum(nil)
 	req.Xhash = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:33])
 

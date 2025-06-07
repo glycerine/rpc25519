@@ -587,7 +587,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 			}
 
 			snap := c.net.GetSimnetSnapshot()
-			vv("snap.Xorder len = '%v'; Xhash='%v'", len(snap.Xorder), snap.Xhash) // 53343
+			vv("snap.Xfinorder len = '%v'; Xhash='%v'", len(snap.Xfinorder), snap.Xhash) // 53343
 			snap.ToFile(xorderPath)
 		}) // end bubbleOrNot
 	} // end loadtest func definition

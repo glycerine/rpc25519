@@ -902,10 +902,15 @@ type SimnetSnapshot struct {
 	Cfg                SimNetConfig
 	PeerConnCount      int
 	LoneCliConnCount   int
-	Xorder             []int64
-	Xwhence            []string
-	Xkind              []mopkind
-	Xhash              string
+
+	// mop creation/finish data.
+	Xfinorder []int64       // finish order
+	Xwhence   []string      // file:line creation place
+	Xkind     []mopkind     // send,read,timer,discard,...
+	Xissuetm  []time.Time   // when issued
+	Xfintm    []time.Time   // when finished
+	Xsn2fin   map[int64]int // sn -> Xorder finish order location
+	Xhash     string        // hash of the sequence
 
 	ScenarioNum    int
 	ScenarioSeed   [32]byte
@@ -1096,8 +1101,11 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	panicOn(err)
 	defer fd.Close()
 	var n, nw int
-	for i, sn := range snap.Xorder {
-		n, _ = fmt.Fprintf(fd, "%v %v %v\n", sn, snap.Xwhence[i], snap.Xkind[i])
+	for i, sn := range snap.Xfinorder {
+		n, _ = fmt.Fprintf(fd, "%v %v %v\t%v %v\n",
+			sn, snap.Xwhence[i], snap.Xkind[i],
+			nice(snap.Xissuetm[i]), nice(snap.Xfintm[i]))
+
 		nw += n
 	}
 	fmt.Fprintf(fd, "%v\n", snap.Xhash)
