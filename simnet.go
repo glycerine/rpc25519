@@ -2042,7 +2042,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 			// would be to deliver before a scheduling time quantum
 			// is up.
 
-			if false {
+			if false { // atgrs without this. 2025 June 07. 2b8022e.
 				// we must set a timer on its delivery then...
 				dur := send.arrivalTm.Sub(now)
 				pending := s.newTimerCreateMop(simnode.isCli)
