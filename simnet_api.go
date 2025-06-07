@@ -1106,12 +1106,12 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 		if !snap.Xfintm[sn].IsZero() {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
 			fmt.Fprintf(fd, "%v %v %v\t%v %v\n",
-				nice(snap.Xissuetm[sn]), sn, snap.Xwhence[sn], snap.Xkind[sn],
+				nice9(snap.Xissuetm[sn]), sn, snap.Xwhence[sn], snap.Xkind[sn],
 				elap)
 		} else {
 			// not finished yet
 			fmt.Fprintf(fd, "%v %v not_finished\n",
-				nice(snap.Xissuetm[sn]), sn)
+				nice9(snap.Xissuetm[sn]), sn)
 		}
 	}
 	fmt.Fprintf(fd, "%v\n", snap.Xhash)

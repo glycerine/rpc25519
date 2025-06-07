@@ -49,12 +49,17 @@ func init() {
 
 const rfc3339MsecTz0 = "2006-01-02T15:04:05.000Z07:00"
 
+const rfc3339NanoTz0 = "2006-01-02 15:04:05.000000000Z07:00"
+
 var myPid = os.Getpid()
 var showPid bool = false
 var showGoID bool = true
 
 func nice(tm time.Time) string {
 	return tm.Format(rfc3339MsecTz0)
+}
+func nice9(tm time.Time) string {
+	return tm.Format(rfc3339NanoTz0)
 }
 
 func pp(format string, a ...interface{}) {
