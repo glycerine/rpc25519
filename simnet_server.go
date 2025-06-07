@@ -303,6 +303,9 @@ func (s *simconn) Read(data []byte) (n int, err error) {
 	var readDead chan time.Time
 	if s.readDeadlineTimer != nil {
 		readDead = s.readDeadlineTimer.timerCstrong
+		// note that the net.Conn deadline semantics means
+		// we should not discard the timer after a single read.
+		// The deadlines stay in force over multiple reads.
 	}
 
 	//vv("top simnet.readMessage() %v READ", read.origin)
