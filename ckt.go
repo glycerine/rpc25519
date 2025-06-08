@@ -152,7 +152,7 @@ func (f *Fragment) SetUserArg(key, val string) {
 		panic("empty string keys are not allowed in Args")
 	}
 	if key[0] == '#' {
-		panic(fmt.Sprintf("Fragment.GetUserArg error: "+
+		panic(fmt.Sprintf("Fragment.SetUserArg error: "+
 			"user keys cannot start with '#': bad key '%v'", key))
 	}
 	if f.Args == nil {

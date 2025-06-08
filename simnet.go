@@ -2353,10 +2353,10 @@ func (s *simnet) add2meq(op *mop, loopi int64) (armed bool) {
 // operations, or take a time step forward
 // if they are all blocked.
 func (s *simnet) scheduler() {
-	vv("scheduler is running on goro = %v", GoroNumber())
+	//vv("scheduler is running on goro = %v", GoroNumber())
 
 	defer func() {
-		vv("scheduler defer shutdown running on goro = %v", GoroNumber())
+		//vv("scheduler defer shutdown running on goro = %v", GoroNumber())
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
 		r := recover()
