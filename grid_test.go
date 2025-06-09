@@ -268,6 +268,9 @@ func (s *node) Start(
 							outFrag.FragSubject = "start reply"
 							outFrag.ServiceName = myPeer.ServiceName()
 							err := ckt.SendOneWay(outFrag, 0, 0)
+							if err == ErrShutdown2 {
+								return // don't panic on shutdown
+							}
 							panicOn(err)
 							//vv("%v: (ckt '%v') sent start reply='%v'", s.name, ckt.Name, outFrag)
 						}
