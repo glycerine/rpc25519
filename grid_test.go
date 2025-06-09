@@ -3,6 +3,7 @@ package rpc25519
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/glycerine/idem"
@@ -268,10 +269,18 @@ func (s *node) Start(
 							outFrag.FragSubject = "start reply"
 							outFrag.ServiceName = myPeer.ServiceName()
 							err := ckt.SendOneWay(outFrag, 0, 0)
-							if err == ErrShutdown2 {
-								return // don't panic on shutdown
+							if err != nil {
+								if err == ErrShutdown2 {
+									return // don't panic on shutdown
+								}
+								errs := err.Error()
+								if strings.Contains(errs, "shutting down") ||
+									strings.Contains(errs, "context cancelled") ||
+									strings.Contains(errs, "halt requested") {
+									return // don't panic on shutdown
+								}
+								panicOn(err)
 							}
-							panicOn(err)
 							//vv("%v: (ckt '%v') sent start reply='%v'", s.name, ckt.Name, outFrag)
 						}
 
