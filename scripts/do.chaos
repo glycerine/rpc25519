@@ -1,0 +1,13 @@
+#!/bin/bash
+
+## export GOROOT=/usr/local/go1.24.3_heaplock
+## go-heaplock test -race -c -o rpc.test.heaplock
+
+for i in `seq 0 100`; do
+
+rr record -h ./rpc.test.heaplock -test.v -test.run Test04[05] &> /home/jaten/issue74019/heaplock.logs/log.heaplock.$i.txt
+
+rr pack 
+
+done
+

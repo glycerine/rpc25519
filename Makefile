@@ -58,7 +58,7 @@ rr2h:
 	rr record -h ./rpc.test -test.v #-test.run 707
 
 rr2hr:
-	go test -race -c -o rpc.test
+	go test -race -c -o rpc.test -count=1
 	rr record -h ./rpc.test -test.v -test.run Test04[05]
 
 replay:
