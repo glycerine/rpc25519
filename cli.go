@@ -1070,7 +1070,7 @@ type Config struct {
 	simnetRendezvous *simnetRendezvous
 }
 
-func (cfg *Config) GetSimnet() *simnet {
+func (cfg *Config) GetSimnet() *Simnet {
 	if !cfg.UseSimNet {
 		return nil
 	}
@@ -1095,7 +1095,7 @@ func (cfg *Config) GetSimnetSnapshotter() *SimnetSnapshotter {
 // clients and servers for a single test/Configure.
 type simnetRendezvous struct {
 	singleSimnetMut sync.Mutex
-	singleSimnet    *simnet
+	singleSimnet    *Simnet
 }
 
 // ClientStartingDir returns the directory the Client was started in.
@@ -1167,7 +1167,7 @@ type Client struct {
 	cfg *Config
 	mut sync.Mutex
 
-	simnet  *simnet
+	simnet  *Simnet
 	simnode *simnode
 	simconn *simconn
 
@@ -2702,7 +2702,7 @@ type SimTimer struct {
 	gotimer  *time.Timer
 	isCli    bool
 	simnode  *simnode
-	simnet   *simnet
+	simnet   *Simnet
 	simtimer *mop
 	C        <-chan time.Time
 }

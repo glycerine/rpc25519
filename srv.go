@@ -1142,7 +1142,7 @@ type Server struct {
 	mut sync.Mutex
 
 	//StartSimNet   chan *SimNetConfig
-	simnet     *simnet
+	simnet     *Simnet
 	simnode    *simnode
 	simNetAddr *SimNetAddr
 	srvStarted atomic.Bool

@@ -84,7 +84,7 @@ func (s *scenario) rngHop() (hop time.Duration) {
 	return
 }
 
-func (s *simnet) rngTieBreaker() int {
+func (s *Simnet) rngTieBreaker() int {
 	return s.scenario.rngTieBreaker()
 }
 func (s *scenario) rngTieBreaker() int {
@@ -282,7 +282,7 @@ const (
 )
 
 // empty string target means all possible targets
-func (s *simnet) FaultCircuit(origin, target string, dd DropDeafSpec, deliverDroppedSends bool) (err error) {
+func (s *Simnet) FaultCircuit(origin, target string, dd DropDeafSpec, deliverDroppedSends bool) (err error) {
 
 	fault := s.newCircuitFault(origin, target, dd, deliverDroppedSends)
 
@@ -305,7 +305,7 @@ func (s *simnet) FaultCircuit(origin, target string, dd DropDeafSpec, deliverDro
 	return
 }
 
-func (s *simnet) FaultHost(hostName string, dd DropDeafSpec, deliverDroppedSends bool) (err error) {
+func (s *Simnet) FaultHost(hostName string, dd DropDeafSpec, deliverDroppedSends bool) (err error) {
 
 	fault := s.newHostFault(hostName, dd, deliverDroppedSends)
 
@@ -331,7 +331,7 @@ func (s *simnet) FaultHost(hostName string, dd DropDeafSpec, deliverDroppedSends
 // change an isolated simnode's isolation unless unIsolate
 // is also true. See also RepairHost, AllHealthy.
 // .
-func (s *simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff, deliverDroppedSends bool) (err error) {
+func (s *Simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff, deliverDroppedSends bool) (err error) {
 
 	targetName := "" // all corresponding targets
 	const justOrigin_NO = false
@@ -354,7 +354,7 @@ func (s *simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff, 
 }
 
 // RepairHost repairs all the circuits on the host.
-func (s *simnet) RepairHost(originName string, unIsolate bool, powerOnIfOff, allHosts, deliverDroppedSends bool) (err error) {
+func (s *Simnet) RepairHost(originName string, unIsolate bool, powerOnIfOff, allHosts, deliverDroppedSends bool) (err error) {
 	//vv("top of RepairHost, originName = '%v'; unIsolate=%v, powerOnIfOff=%v, allHosts=%v", originName, unIsolate, powerOnIfOff, allHosts)
 	//defer func() {
 	//vv("end of RepairHost('%v')", originName)
@@ -383,7 +383,7 @@ func (s *simnet) RepairHost(originName string, unIsolate bool, powerOnIfOff, all
 // is not updated unless powerOnIfOff is also true.
 // See also RepairSimnode for single simnode repair.
 // .
-func (s *simnet) AllHealthy(powerOnIfOff bool, deliverDroppedSends bool) (err error) {
+func (s *Simnet) AllHealthy(powerOnIfOff bool, deliverDroppedSends bool) (err error) {
 	//vv("AllHealthy(powerOnIfOff=%v) called.", powerOnIfOff)
 
 	const allHealthy_YES = true
@@ -392,7 +392,7 @@ func (s *simnet) AllHealthy(powerOnIfOff bool, deliverDroppedSends bool) (err er
 
 // called by goroutines outside of the scheduler,
 // so must not touch s.srvnode, s.clinode, etc.
-func (s *simnet) createNewTimer(origin *simnode, dur time.Duration, begin time.Time, isCli bool) (timer *mop) {
+func (s *Simnet) createNewTimer(origin *simnode, dur time.Duration, begin time.Time, isCli bool) (timer *mop) {
 
 	//vv("top simnet.createNewTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", origin.name, dur, begin, begin.Add(dur))
 
@@ -421,7 +421,7 @@ func (s *simnet) createNewTimer(origin *simnode, dur time.Duration, begin time.T
 }
 
 // readMessage reads a framed message from conn.
-func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
+func (s *Simnet) readMessage(conn uConn) (msg *Message, err error) {
 
 	sc := conn.(*simconn)
 	isCli := sc.isCli
@@ -455,7 +455,7 @@ func (s *simnet) readMessage(conn uConn) (msg *Message, err error) {
 	return
 }
 
-func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) (err error) {
+func (s *Simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) (err error) {
 
 	sc := conn.(*simconn)
 	isCli := sc.isCli
@@ -487,7 +487,7 @@ func (s *simnet) sendMessage(conn uConn, msg *Message, timeout *time.Duration) (
 	return
 }
 
-func (s *simnet) newTimerCreateMop(isCli bool) (op *mop) {
+func (s *Simnet) newTimerCreateMop(isCli bool) (op *mop) {
 	op = &mop{
 		originCli: isCli,
 		sn:        s.simnetNextMopSn(),
@@ -499,7 +499,7 @@ func (s *simnet) newTimerCreateMop(isCli bool) (op *mop) {
 	return
 }
 
-func (s *simnet) newTimerDiscardMop(origTimerMop *mop) (op *mop) {
+func (s *Simnet) newTimerDiscardMop(origTimerMop *mop) (op *mop) {
 	op = &mop{
 		originCli:    origTimerMop.originCli,
 		sn:           s.simnetNextMopSn(),
@@ -512,7 +512,7 @@ func (s *simnet) newTimerDiscardMop(origTimerMop *mop) (op *mop) {
 	return
 }
 
-func (s *simnet) newReadMop(isCli bool) (op *mop) {
+func (s *Simnet) newReadMop(isCli bool) (op *mop) {
 	op = &mop{
 		originCli: isCli,
 		sn:        s.simnetNextMopSn(),
@@ -525,7 +525,7 @@ func (s *simnet) newReadMop(isCli bool) (op *mop) {
 }
 
 // clones msg to prevent race with srv.go:517
-func (s *simnet) newSendMop(msg *Message, isCli bool) (op *mop) {
+func (s *Simnet) newSendMop(msg *Message, isCli bool) (op *mop) {
 	op = &mop{
 		originCli: isCli,
 		msg:       msg.CopyForSimNetSend(),
@@ -538,7 +538,7 @@ func (s *simnet) newSendMop(msg *Message, isCli bool) (op *mop) {
 	return
 }
 
-func (s *simnet) discardTimer(origin *simnode, origTimerMop *mop, discardTm time.Time) (wasArmed bool) {
+func (s *Simnet) discardTimer(origin *simnode, origTimerMop *mop, discardTm time.Time) (wasArmed bool) {
 
 	//vv("top simnet.discardTimer() %v SETS TIMER dur='%v' begin='%v' => when='%v'", who, dur, begin, begin.Add(dur))
 
@@ -586,7 +586,7 @@ type clientRegistration struct {
 
 // external, called by simnet_client.go to
 // get a registration ticket to send on simnet.cliRegisterCh
-func (s *simnet) newClientRegistration(
+func (s *Simnet) newClientRegistration(
 	c *Client,
 	localHostPort, serverAddr, dialTo, serverBaseID string,
 ) *clientRegistration {
@@ -615,12 +615,12 @@ type serverRegistration struct {
 
 	// receive back
 	simnode             *simnode // our identity in the simnet (conn.local)
-	simnet              *simnet
+	simnet              *Simnet
 	tellServerNewConnCh chan *simconn
 	who                 int
 }
 
-func (s *simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) *serverRegistration {
+func (s *Simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) *serverRegistration {
 	return &serverRegistration{
 		server:       srv,
 		serverBaseID: srv.cfg.serverBaseID,
@@ -631,7 +631,7 @@ func (s *simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) *ser
 	}
 }
 
-func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConnCh chan *simconn, err error) {
+func (s *Simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConnCh chan *simconn, err error) {
 
 	reg := s.newServerRegistration(srv, srvNetAddr)
 	select {
@@ -659,7 +659,7 @@ func (s *simnet) registerServer(srv *Server, srvNetAddr *SimNetAddr) (newCliConn
 }
 
 type simnodeAlteration struct {
-	simnet *simnet
+	simnet *Simnet
 
 	simnodeName string
 	err         error // e.g. simnodeName not found
@@ -673,7 +673,7 @@ type simnodeAlteration struct {
 	who         int
 }
 
-func (s *simnet) newCircuitAlteration(simnodeName string, alter Alteration, isHostAlter bool) *simnodeAlteration {
+func (s *Simnet) newCircuitAlteration(simnodeName string, alter Alteration, isHostAlter bool) *simnodeAlteration {
 	return &simnodeAlteration{
 		simnet: s,
 		//simnode:     simnode,
@@ -686,7 +686,7 @@ func (s *simnet) newCircuitAlteration(simnodeName string, alter Alteration, isHo
 	}
 }
 
-func (s *simnet) AlterCircuit(simnodeName string, alter Alteration, wholeHost bool) (undo Alteration, err error) {
+func (s *Simnet) AlterCircuit(simnodeName string, alter Alteration, wholeHost bool) (undo Alteration, err error) {
 
 	if wholeHost {
 		undo, err = s.AlterHost(simnodeName, alter)
@@ -717,7 +717,7 @@ func (s *simnet) AlterCircuit(simnodeName string, alter Alteration, wholeHost bo
 // the host, the undo of restart will also bring up that
 // auto-cli too. The undo is still very useful for tests
 // even without that guarantee.
-func (s *simnet) AlterHost(simnodeName string, alter Alteration) (undo Alteration, err error) {
+func (s *Simnet) AlterHost(simnodeName string, alter Alteration) (undo Alteration, err error) {
 
 	alt := s.newCircuitAlteration(simnodeName, alter, true)
 	select {
@@ -751,7 +751,7 @@ type circuitFault struct {
 	err error
 }
 
-func (s *simnet) newCircuitFault(originName, targetName string, dd DropDeafSpec, deliverDroppedSends bool) *circuitFault {
+func (s *Simnet) newCircuitFault(originName, targetName string, dd DropDeafSpec, deliverDroppedSends bool) *circuitFault {
 	return &circuitFault{
 		originName:          originName,
 		targetName:          targetName,
@@ -775,7 +775,7 @@ type hostFault struct {
 	who                 int
 }
 
-func (s *simnet) newHostFault(hostName string, dd DropDeafSpec, deliverDroppedSends bool) *hostFault {
+func (s *Simnet) newHostFault(hostName string, dd DropDeafSpec, deliverDroppedSends bool) *hostFault {
 	return &hostFault{
 		hostName:            hostName,
 		DropDeafSpec:        dd,
@@ -802,7 +802,7 @@ type circuitRepair struct {
 	who                 int
 }
 
-func (s *simnet) newCircuitRepair(originName, targetName string, unIsolate, powerOnIfOff, justOrigin, deliverDroppedSends bool) *circuitRepair {
+func (s *Simnet) newCircuitRepair(originName, targetName string, unIsolate, powerOnIfOff, justOrigin, deliverDroppedSends bool) *circuitRepair {
 	return &circuitRepair{
 		deliverDroppedSends: deliverDroppedSends,
 		justOriginHealed:    justOrigin,
@@ -830,7 +830,7 @@ type hostRepair struct {
 	who                 int
 }
 
-func (s *simnet) newHostRepair(hostName string, unIsolate, powerOnIfOff, allHosts, deliverDroppedSends bool) *hostRepair {
+func (s *Simnet) newHostRepair(hostName string, unIsolate, powerOnIfOff, allHosts, deliverDroppedSends bool) *hostRepair {
 	m := &hostRepair{
 		deliverDroppedSends: deliverDroppedSends,
 		hostName:            hostName,
@@ -930,7 +930,7 @@ type SimnetSnapshot struct {
 	where   string
 }
 
-func (s *simnet) GetSimnetSnapshot() (snap *SimnetSnapshot) {
+func (s *Simnet) GetSimnetSnapshot() (snap *SimnetSnapshot) {
 	snap = &SimnetSnapshot{
 		reqtm:   time.Now(),
 		proceed: make(chan struct{}),
@@ -950,7 +950,7 @@ func (s *simnet) GetSimnetSnapshot() (snap *SimnetSnapshot) {
 }
 
 type SimnetSnapshotter struct {
-	simnet *simnet
+	simnet *Simnet
 }
 
 func (s *SimnetSnapshotter) GetSimnetSnapshot() *SimnetSnapshot {
@@ -961,7 +961,7 @@ func (s *SimnetSnapshotter) GetSimnetSnapshot() *SimnetSnapshot {
 // sending in a batch of network fault/repair/config changes
 // at once. Currently a prototype; not really finished/tested yet.
 type SimnetBatch struct {
-	net          *simnet
+	net          *Simnet
 	batchSn      int64
 	batchSz      int64
 	batchSubWhen time.Time
@@ -973,7 +973,7 @@ type SimnetBatch struct {
 	who          int
 }
 
-func (s *simnet) NewSimnetBatch(subwhen time.Time, subAsap bool) *SimnetBatch {
+func (s *Simnet) NewSimnetBatch(subwhen time.Time, subAsap bool) *SimnetBatch {
 	return &SimnetBatch{
 		net:          s,
 		batchSn:      s.simnetNextBatchSn(),
@@ -986,7 +986,7 @@ func (s *simnet) NewSimnetBatch(subwhen time.Time, subAsap bool) *SimnetBatch {
 }
 
 // SubmitBatch does not block.
-func (s *simnet) SubmitBatch(batch *SimnetBatch) {
+func (s *Simnet) SubmitBatch(batch *SimnetBatch) {
 	op := &mop{
 		kind:    BATCH,
 		sn:      s.simnetNextMopSn(),

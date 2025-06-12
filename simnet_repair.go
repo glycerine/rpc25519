@@ -7,7 +7,7 @@ import (
 
 // we _only_ update the conn ends at fault.originName.
 // The corresponding remote conn are not changed.
-func (s *simnet) injectCircuitFault(faultop *mop, closeProceed bool) (err error) {
+func (s *Simnet) injectCircuitFault(faultop *mop, closeProceed bool) (err error) {
 
 	var fault *circuitFault = faultop.cktFault
 	//vv("top injectCircuitFault: fault = '%v'", fault) // seen 1002, good.
@@ -121,7 +121,7 @@ func (s *simnet) injectCircuitFault(faultop *mop, closeProceed bool) (err error)
 // clear deaf reads based on the current state
 // of the connection faults and each end's
 // isolation state.
-func (s *simnet) equilibrateReads(origin, target *simnode) {
+func (s *Simnet) equilibrateReads(origin, target *simnode) {
 	//if target == nil {
 	//	vv("top equilibrateReads(origin='%v', target='nil')", origin.name)
 	//} else {
@@ -192,7 +192,7 @@ func (s *simnet) equilibrateReads(origin, target *simnode) {
 	}
 }
 
-func (s *simnet) injectHostFault(faultop *mop) (err error) {
+func (s *Simnet) injectHostFault(faultop *mop) (err error) {
 
 	var fault *hostFault = faultop.hostFault
 	defer func() {
@@ -219,7 +219,7 @@ func (s *simnet) injectHostFault(faultop *mop) (err error) {
 	return
 }
 
-func (s *simnet) handleHostRepair(repairop *mop) (err error) {
+func (s *Simnet) handleHostRepair(repairop *mop) (err error) {
 
 	var repair *hostRepair = repairop.repairHost
 
@@ -265,7 +265,7 @@ func (s *simnet) handleHostRepair(repairop *mop) (err error) {
 	return
 }
 
-func (s *simnet) handleCircuitRepair(repairop *mop, closeProceed bool) (err error) {
+func (s *Simnet) handleCircuitRepair(repairop *mop, closeProceed bool) (err error) {
 
 	var repair *circuitRepair = repairop.repairCkt
 	//vv("top of handleCircuitRepair; closeProceed = %v; repair = '%v'", closeProceed, repair)
@@ -342,7 +342,7 @@ func (s *simnet) handleCircuitRepair(repairop *mop, closeProceed bool) (err erro
 // If state is FAULTY_ISOLATED, we go to ISOLATED.
 // If state is HEALTHY, this is a no-op.
 // If state is ISOLATED, this is a no-op.
-func (s *simnet) repairAllCircuitFaults(simnode *simnode) {
+func (s *Simnet) repairAllCircuitFaults(simnode *simnode) {
 	//vv("top of repairAllCircuitFaults, simnode = '%v'; state = %v", simnode.name, simnode.state)
 	//defer func() {
 	//vv("end of repairAllCircuitFaults")
@@ -378,7 +378,7 @@ func (s *simnet) repairAllCircuitFaults(simnode *simnode) {
 	}
 }
 
-func (s *simnet) deliverDroppedSends(origin, target *simnode) {
+func (s *Simnet) deliverDroppedSends(origin, target *simnode) {
 	s.timeWarp_transferDroppedSendQ_to_PreArrQ(origin, target)
 	s.timeWarp_transferDeafReadQsends_to_PreArrQ(origin, target)
 }
@@ -399,7 +399,7 @@ func (conn *simconn) repair() (changed int) {
 // only from origin conn point of view. if
 // target is nil, we check all conn/circuits starting
 // at origin. otherwise just the conn from origin -> target.
-func (s *simnet) localCircuitFaultsPresent(origin, target *simnode) bool {
+func (s *Simnet) localCircuitFaultsPresent(origin, target *simnode) bool {
 
 	for rem, conn := range s.circuits.get(origin).all() {
 		if target == nil || target == rem {
@@ -417,7 +417,7 @@ func (s *simnet) localCircuitFaultsPresent(origin, target *simnode) bool {
 // only from origin conn point of view. if
 // target is nil, we check all conn/circuits starting
 // at origin. otherwise just the conn from origin -> target.
-func (s *simnet) localCircuitDeafForSure(origin, target *simnode) bool {
+func (s *Simnet) localCircuitDeafForSure(origin, target *simnode) bool {
 
 	for rem, conn := range s.circuits.get(origin).all() {
 		if target == nil || target == rem {
@@ -433,7 +433,7 @@ func (s *simnet) localCircuitDeafForSure(origin, target *simnode) bool {
 // only from origin conn point of view. if
 // target is nil, we check all conn/circuits starting
 // at origin. otherwise just the conn from origin -> target.
-func (s *simnet) localCircuitNotDeafForSure(origin, target *simnode) bool {
+func (s *Simnet) localCircuitNotDeafForSure(origin, target *simnode) bool {
 
 	for rem, conn := range s.circuits.get(origin).all() {
 		if target == nil || target == rem {
@@ -449,7 +449,7 @@ func (s *simnet) localCircuitNotDeafForSure(origin, target *simnode) bool {
 // deafen reads/drop sends that were started
 // but still in progress with this fault. Applies
 // to any sends that we arrive >= now.
-func (s *simnet) applyFaultsToPQ(now time.Time, origin, target *simnode, dd DropDeafSpec) {
+func (s *Simnet) applyFaultsToPQ(now time.Time, origin, target *simnode, dd DropDeafSpec) {
 
 	if !dd.UpdateDeafReads && !dd.UpdateDropSends {
 		return
@@ -462,7 +462,7 @@ func (s *simnet) applyFaultsToPQ(now time.Time, origin, target *simnode, dd Drop
 	}
 }
 
-func (s *simnet) applyFaultsToReadQ(now time.Time, origin, target *simnode, deafReadProb float64) {
+func (s *Simnet) applyFaultsToReadQ(now time.Time, origin, target *simnode, deafReadProb float64) {
 
 	readIt := origin.readQ.Tree.Min()
 	for !readIt.Limit() {
@@ -486,7 +486,7 @@ func (s *simnet) applyFaultsToReadQ(now time.Time, origin, target *simnode, deaf
 	}
 }
 
-func (s *simnet) applySendFaults(now time.Time, originNowFaulty, target *simnode, dropSendProb float64) {
+func (s *Simnet) applySendFaults(now time.Time, originNowFaulty, target *simnode, dropSendProb float64) {
 
 	// have to look for origin's sends in all other pre-arrQ...
 	// and check all, in case disconnect happened since the send.

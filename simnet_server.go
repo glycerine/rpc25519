@@ -78,7 +78,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 // This is used by runSimNetServer() above
 // and by Listen() below. Listen is a super thin
 // wrapper around it.
-func (s *Server) bootAndRegisterSimNetServer(serverAddr string, simNetConfig *SimNetConfig) (simnet *simnet, serverNewConnCh chan *simconn, netAddr *SimNetAddr, err error) {
+func (s *Server) bootAndRegisterSimNetServer(serverAddr string, simNetConfig *SimNetConfig) (simnet *Simnet, serverNewConnCh chan *simconn, netAddr *SimNetAddr, err error) {
 	//vv("top of runSimnetServer, serverAddr = '%v'; name='%v'", serverAddr, s.name)
 
 	// satisfy uConn interface; don't crash cli/tests that check
@@ -126,7 +126,7 @@ type simconn struct {
 
 	// distinguish cli from srv
 	isCli   bool
-	net     *simnet
+	net     *Simnet
 	netAddr *SimNetAddr // local address
 
 	local  *simnode

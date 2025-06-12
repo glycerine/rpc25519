@@ -387,7 +387,7 @@ func (s *mop) clone() (c *mop) {
 // but try again for more deterministic scheduling.
 // simnet wide next deadline assignment for all
 // timers on all nodes, and all send and read points.
-func (s *simnet) nextUniqTm(atleast time.Time, who int) time.Time {
+func (s *Simnet) nextUniqTm(atleast time.Time, who int) time.Time {
 	if who == 0 {
 		panic("who 0 not set!")
 	}
@@ -407,7 +407,7 @@ func (s *simnet) nextUniqTm(atleast time.Time, who int) time.Time {
 
 // fin records details of a finished mop
 // into our mop tracking slices.
-func (s *simnet) fin(op *mop) {
+func (s *Simnet) fin(op *mop) {
 	// gets called by api on different goro.
 	now := time.Now()
 	s.xmut.Lock()
@@ -434,7 +434,7 @@ func (s *simnet) fin(op *mop) {
 	s.xb3hash.Write(append(b[:], []byte(w)...))
 }
 
-func (s *simnet) simnetNextMopSn() (sn int64) {
+func (s *Simnet) simnetNextMopSn() (sn int64) {
 	s.xmut.Lock()
 	defer s.xmut.Unlock()
 	sn = s.nextMopSn
@@ -449,12 +449,12 @@ func (s *simnet) simnetNextMopSn() (sn int64) {
 	return
 }
 
-func (s *simnet) simnetNextBatchSn() int64 {
+func (s *Simnet) simnetNextBatchSn() int64 {
 	return atomic.AddInt64(&s.simnetLastBatchSn, 1)
 }
 
 // simnet simulates a network entirely with channels in memory.
-type simnet struct {
+type Simnet struct {
 	ndtotPrev int64
 	ndtot     int64 // num dispatched total.
 
@@ -586,7 +586,7 @@ type simnode struct {
 	deafReadQ    *pq
 	droppedSendQ *pq
 
-	net     *simnet
+	net     *Simnet
 	isCli   bool
 	cliConn *simconn
 
@@ -618,7 +618,7 @@ func (s *simnode) id() string {
 	}
 	return s.name
 }
-func (s *simnet) locals(node *simnode) map[*simnode]bool {
+func (s *Simnet) locals(node *simnode) map[*simnode]bool {
 	srvnode, ok := s.node2server[node]
 	if !ok {
 		// must be lone cli, e.g. 771 simnet_test.
@@ -628,7 +628,7 @@ func (s *simnet) locals(node *simnode) map[*simnode]bool {
 	return srvnode.allnode
 }
 
-func (s *simnet) localServer(node *simnode) *simnode {
+func (s *Simnet) localServer(node *simnode) *simnode {
 	srvnode, ok := s.node2server[node]
 	if !ok {
 		panic(fmt.Sprintf("not registered in s.node2server: node = '%v'", node.name))
@@ -636,7 +636,7 @@ func (s *simnet) localServer(node *simnode) *simnode {
 	return srvnode
 }
 
-func (s *simnet) newSimnode(name, serverBaseID string) *simnode {
+func (s *Simnet) newSimnode(name, serverBaseID string) *simnode {
 	return &simnode{
 		name:         name,
 		serverBaseID: serverBaseID,
@@ -653,13 +653,13 @@ func (s *simnet) newSimnode(name, serverBaseID string) *simnode {
 	}
 }
 
-func (s *simnet) newSimnodeClient(name, serverBaseID string) (simnode *simnode) {
+func (s *Simnet) newSimnodeClient(name, serverBaseID string) (simnode *simnode) {
 	simnode = s.newSimnode(name, serverBaseID)
 	simnode.isCli = true
 	return
 }
 
-func (s *simnet) newCircuitserver(name, serverBaseID string) (simnode *simnode) {
+func (s *Simnet) newCircuitserver(name, serverBaseID string) (simnode *simnode) {
 	simnode = s.newSimnode(name, serverBaseID)
 	simnode.isCli = false
 	// buffer so servers don't have to be up to get them.
@@ -668,7 +668,7 @@ func (s *simnet) newCircuitserver(name, serverBaseID string) (simnode *simnode) 
 }
 
 // for additional servers after the first.
-func (s *simnet) handleServerRegistration(op *mop) {
+func (s *Simnet) handleServerRegistration(op *mop) {
 
 	var reg *serverRegistration = op.srvReg
 
@@ -739,7 +739,7 @@ func (s *simnet) handleServerRegistration(op *mop) {
 	}
 }
 
-func (s *simnet) handleClientRegistration(regop *mop) {
+func (s *Simnet) handleClientRegistration(regop *mop) {
 
 	var reg *clientRegistration = regop.cliReg
 
@@ -810,7 +810,7 @@ func (s *simnet) handleClientRegistration(regop *mop) {
 }
 
 // idempotent, all servers do this, then register through the same path.
-func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *simnet { // (tellServerNewConnCh chan *simconn) {
+func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *Simnet { // (tellServerNewConnCh chan *simconn) {
 
 	//vv("%v newSimNetOnServer top, goro = %v", srv.name, GoroNumber())
 	cfg.simnetRendezvous.singleSimnetMut.Lock()
@@ -831,7 +831,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 	scen := NewScenario(tick, minHop, maxHop, seed)
 
 	// server creates simnet; must start server first.
-	s := &simnet{
+	s := &Simnet{
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
 		xb3hash:        blake3.New(64, nil),
 		meq:            newMasterEventQueue("scheduler"),
@@ -899,7 +899,7 @@ func (s *simnode) setNetAddrSameNetAs(addr string, srvNetAddr *SimNetAddr) {
 	}
 }
 
-func (s *simnet) addEdgeFromSrv(srvnode, clinode *simnode) *simconn {
+func (s *Simnet) addEdgeFromSrv(srvnode, clinode *simnode) *simconn {
 
 	srv, ok := s.circuits.get2(srvnode) // edges from srv to clients
 	if !ok {
@@ -918,7 +918,7 @@ func (s *simnet) addEdgeFromSrv(srvnode, clinode *simnode) *simconn {
 	return s2c
 }
 
-func (s *simnet) addEdgeFromCli(clinode, srvnode *simnode) *simconn {
+func (s *Simnet) addEdgeFromCli(clinode, srvnode *simnode) *simconn {
 
 	cli, ok := s.circuits.get2(clinode) // edge from client to one server
 	if !ok {
@@ -1079,7 +1079,7 @@ func (s *pq) deleteAll() {
 // that the mop we wanted to delete on the first
 // pass is not there when we look again, or vice-versa.
 // We learned this the hard way.
-func (s *simnet) newPQarrivalTm(owner string) *pq {
+func (s *Simnet) newPQarrivalTm(owner string) *pq {
 	cmp := func(a, b rb.Item) int {
 		av := a.(*mop)
 		bv := b.(*mop)
@@ -1236,7 +1236,7 @@ func newPQcompleteTm(owner string) *pq {
 	}
 }
 
-func (s *simnet) shutdownSimnode(simnode *simnode) (undo Alteration) {
+func (s *Simnet) shutdownSimnode(simnode *simnode) (undo Alteration) {
 	if simnode.powerOff {
 		// no-op. already off.
 		return UNDEFINED
@@ -1257,7 +1257,7 @@ func (s *simnet) shutdownSimnode(simnode *simnode) (undo Alteration) {
 	return
 }
 
-func (s *simnet) powerOnSimnode(simnode *simnode) (undo Alteration) {
+func (s *Simnet) powerOnSimnode(simnode *simnode) (undo Alteration) {
 	if !simnode.powerOff {
 		// no-op. already on.
 		return UNDEFINED
@@ -1276,7 +1276,7 @@ func (s *simnet) powerOnSimnode(simnode *simnode) (undo Alteration) {
 	return
 }
 
-func (s *simnet) isolateSimnode(simnode *simnode) (undo Alteration) {
+func (s *Simnet) isolateSimnode(simnode *simnode) (undo Alteration) {
 	//vv("handleAlterCircuit: from %v -> ISOLATED %v, wiping pre-arrival, block any future pre-arrivals", simnode.state, simnode.name)
 	switch simnode.state {
 	case ISOLATED, FAULTY_ISOLATED:
@@ -1300,7 +1300,7 @@ func (s *simnet) isolateSimnode(simnode *simnode) (undo Alteration) {
 }
 
 // make all current reads deaf.
-func (s *simnet) transferReadsQ_to_deafReadsQ(simnode *simnode) {
+func (s *Simnet) transferReadsQ_to_deafReadsQ(simnode *simnode) {
 
 	it := simnode.readQ.Tree.Min()
 	for !it.Limit() {
@@ -1324,7 +1324,7 @@ func (s *simnet) transferReadsQ_to_deafReadsQ(simnode *simnode) {
 // If target != nil, only those reads from target
 // will hear again, and deafReads from other targets
 // are still deaf.
-func (s *simnet) transferDeafReadsQ_to_readsQ(origin, target *simnode) {
+func (s *Simnet) transferDeafReadsQ_to_readsQ(origin, target *simnode) {
 
 	it := origin.deafReadQ.Tree.Min()
 
@@ -1350,7 +1350,7 @@ func (s *simnet) transferDeafReadsQ_to_readsQ(origin, target *simnode) {
 // This makes it easier to understand the dropped sends by
 // inspecting the queues, and also easier to re-send them even if
 // the target has since been power cycled.
-func (s *simnet) transferPreArrQ_to_droppedSendQ(simnode *simnode) {
+func (s *Simnet) transferPreArrQ_to_droppedSendQ(simnode *simnode) {
 	for it := simnode.preArrQ.Tree.Min(); !it.Limit(); it = it.Next() {
 		send := it.Item().(*mop)
 		// not: simnode.droppedSendQ.add(send)
@@ -1369,7 +1369,7 @@ func (s *simnet) transferPreArrQ_to_droppedSendQ(simnode *simnode) {
 // Since we always respect isolation state, the user
 // should unIsolate nodes first if they want to
 // hit them with time-warped (previously dropped) messsages.
-func (s *simnet) timeWarp_transferDroppedSendQ_to_PreArrQ(origin, target *simnode) {
+func (s *Simnet) timeWarp_transferDroppedSendQ_to_PreArrQ(origin, target *simnode) {
 
 	it := origin.droppedSendQ.Tree.Min()
 	for !it.Limit() {
@@ -1388,7 +1388,7 @@ func (s *simnet) timeWarp_transferDroppedSendQ_to_PreArrQ(origin, target *simnod
 	}
 }
 
-func (s *simnet) timeWarp_transferDeafReadQsends_to_PreArrQ(origin, target *simnode) {
+func (s *Simnet) timeWarp_transferDeafReadQsends_to_PreArrQ(origin, target *simnode) {
 
 	for remote := range s.circuits.get(origin).all() {
 		if target != nil && target != remote {
@@ -1421,7 +1421,7 @@ func (s *simnet) timeWarp_transferDeafReadQsends_to_PreArrQ(origin, target *simn
 	} // end for range over all remote
 }
 
-func (s *simnet) markFaulty(simnode *simnode) (was Faultstate) {
+func (s *Simnet) markFaulty(simnode *simnode) (was Faultstate) {
 	was = simnode.state
 
 	switch simnode.state {
@@ -1437,7 +1437,7 @@ func (s *simnet) markFaulty(simnode *simnode) (was Faultstate) {
 	return
 }
 
-func (s *simnet) markNotFaulty(simnode *simnode) (was Faultstate) {
+func (s *Simnet) markNotFaulty(simnode *simnode) (was Faultstate) {
 	was = simnode.state
 
 	switch simnode.state {
@@ -1453,7 +1453,7 @@ func (s *simnet) markNotFaulty(simnode *simnode) (was Faultstate) {
 	return
 }
 
-func (s *simnet) unIsolateSimnode(simnode *simnode) (undo Alteration) {
+func (s *Simnet) unIsolateSimnode(simnode *simnode) (undo Alteration) {
 	was := simnode.state
 	_ = was
 	//defer vv("handleAlterCircuit: UNISOLATE %v, went from %v -> %v", simnode.name, was, simnode.state)
@@ -1497,7 +1497,7 @@ func (s *simnet) unIsolateSimnode(simnode *simnode) (undo Alteration) {
 	return
 }
 
-func (s *simnet) handleAlterCircuit(altop *mop, closeDone bool) (undo Alteration) {
+func (s *Simnet) handleAlterCircuit(altop *mop, closeDone bool) (undo Alteration) {
 
 	var alt *simnodeAlteration
 	switch altop.kind {
@@ -1540,7 +1540,7 @@ func (s *simnet) handleAlterCircuit(altop *mop, closeDone bool) (undo Alteration
 	return
 }
 
-func (s *simnet) reverse(alt Alteration) (undo Alteration) {
+func (s *Simnet) reverse(alt Alteration) (undo Alteration) {
 	switch alt {
 	case UNDEFINED:
 		undo = UNDEFINED // idemopotent
@@ -1559,7 +1559,7 @@ func (s *simnet) reverse(alt Alteration) (undo Alteration) {
 }
 
 // alter all the auto-cli of a server and the server itself.
-func (s *simnet) handleAlterHost(altop *mop) (undo Alteration) {
+func (s *Simnet) handleAlterHost(altop *mop) (undo Alteration) {
 
 	var alt *simnodeAlteration = altop.alterHost
 
@@ -1588,7 +1588,7 @@ func (s *simnet) handleAlterHost(altop *mop) (undo Alteration) {
 	return
 }
 
-func (s *simnet) localDeafReadProb(read *mop) float64 {
+func (s *Simnet) localDeafReadProb(read *mop) float64 {
 	return s.circuits.get(read.origin).get(read.target).deafRead
 }
 
@@ -1596,7 +1596,7 @@ func (s *simnet) localDeafReadProb(read *mop) float64 {
 // or the moral equivalent, maybe a lost message bucket.
 // the send can't keep coming back if the read is deaf; else
 // its like an auto-retry that will eventually get through.
-func (s *simnet) localDeafRead(read, send *mop) (isDeaf bool) {
+func (s *Simnet) localDeafRead(read, send *mop) (isDeaf bool) {
 	//vv("localDeafRead called by '%v'", fileLine(2))
 	//defer func() {
 	//	vv("defer localDeafRead returning %v, called by '%v', read='%v'", isDeaf, fileLine(3), read)
@@ -1627,7 +1627,7 @@ func (s *simnet) localDeafRead(read, send *mop) (isDeaf bool) {
 	return
 }
 
-func (s *simnet) deaf(prob float64) bool {
+func (s *Simnet) deaf(prob float64) bool {
 	if prob <= 0 {
 		return false
 	}
@@ -1638,7 +1638,7 @@ func (s *simnet) deaf(prob float64) bool {
 	return random01 < prob
 }
 
-func (s *simnet) dropped(prob float64) bool {
+func (s *Simnet) dropped(prob float64) bool {
 	if prob <= 0 {
 		return false
 	}
@@ -1649,11 +1649,11 @@ func (s *simnet) dropped(prob float64) bool {
 	return random01 < prob
 }
 
-//func (s *simnet) localDropSendProb(send *mop) float64 {
+//func (s *Simnet) localDropSendProb(send *mop) float64 {
 //	return s.circuits[send.origin][send.target].dropSend
 //}
 
-func (s *simnet) localDropSend(send *mop) (isDropped bool, connAttemptedSend int64) {
+func (s *Simnet) localDropSend(send *mop) (isDropped bool, connAttemptedSend int64) {
 	// get the local origin conn probability of drop
 
 	conn := s.circuits.get(send.origin).get(send.target)
@@ -1682,7 +1682,7 @@ func (s *simnet) localDropSend(send *mop) (isDropped bool, connAttemptedSend int
 }
 
 // ignores FAULTY, check that with localDropSend if need be.
-func (s *simnet) statewiseConnected(origin, target *simnode) bool {
+func (s *Simnet) statewiseConnected(origin, target *simnode) bool {
 	if origin.powerOff ||
 		target.powerOff {
 		return false
@@ -1698,7 +1698,7 @@ func (s *simnet) statewiseConnected(origin, target *simnode) bool {
 	return true
 }
 
-func (s *simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
+func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	now := time.Now()
 	//vv("top of handleSend(send = '%v')", send)
 	defer func() {
@@ -1787,7 +1787,7 @@ func (s *simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 // have to result in the corresponding send
 // also failing, or else the send is "auto-retrying"
 // forever until it gets through!?!
-func (s *simnet) handleRead(read *mop, limit, loopi int64) (changed int64) {
+func (s *Simnet) handleRead(read *mop, limit, loopi int64) (changed int64) {
 	//vv("top of handleRead(read = '%v')", read)
 	// don't want this! only when read matches with send!
 	//defer close(read.proceed)
@@ -1858,7 +1858,7 @@ func gte(a, b time.Time) bool {
 // does not call armTimer(), so scheduler should
 // afterwards. We don't worry about powerOff b/c
 // when set it deletes all timers.
-func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi int64) (changes int64) {
+func (s *Simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi int64) (changes int64) {
 	if limit == 0 {
 		return
 	}
@@ -1967,7 +1967,7 @@ func (s *simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 }
 
 // does not call armTimer.
-func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loopi int64) (changes int64) {
+func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loopi int64) (changes int64) {
 	defer func() {
 		//vv("=== end of dispatch %v", simnode.name)
 	}()
@@ -2200,7 +2200,7 @@ func (s *simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 
 // dispatch delivers sends to reads, and fires timers.
 // It no longer calls simnode.net.armTimer().
-func (s *simnet) dispatch(simnode *simnode, now time.Time, limit, loopi int64) (changes int64) {
+func (s *Simnet) dispatch(simnode *simnode, now time.Time, limit, loopi int64) (changes int64) {
 	if limit == 0 {
 		return
 	}
@@ -2209,7 +2209,7 @@ func (s *simnet) dispatch(simnode *simnode, now time.Time, limit, loopi int64) (
 	return
 }
 
-func (s *simnet) qReport() (r string) {
+func (s *Simnet) qReport() (r string) {
 	i := 0
 	for simnode := range s.circuits.all() {
 		r += fmt.Sprintf("\n[simnode %v of %v in qReport]: \n", i+1, s.circuits.Len())
@@ -2219,7 +2219,7 @@ func (s *simnet) qReport() (r string) {
 	return
 }
 
-func (s *simnet) schedulerReport() (r string) {
+func (s *Simnet) schedulerReport() (r string) {
 	now := time.Now()
 	r = fmt.Sprintf("lastArmToFire.After(now) = %v [%v out] %v; qReport = '%v'", s.lastArmToFire.After(now), s.lastArmToFire.Sub(now), s.lastArmToFire, s.qReport())
 	sz := s.meq.Len()
@@ -2231,7 +2231,7 @@ func (s *simnet) schedulerReport() (r string) {
 	return
 }
 
-func (s *simnet) dispatchAll(now time.Time, limit, loopi int64) (changes int64) {
+func (s *Simnet) dispatchAll(now time.Time, limit, loopi int64) (changes int64) {
 	if limit == 0 {
 		return
 	}
@@ -2248,7 +2248,7 @@ func (s *simnet) dispatchAll(now time.Time, limit, loopi int64) (changes int64) 
 }
 
 // does not call armTimer(), so scheduler should afterwards.
-func (s *simnet) dispatchAllTimers(now time.Time, limit, loopi int64) (changes int64) {
+func (s *Simnet) dispatchAllTimers(now time.Time, limit, loopi int64) (changes int64) {
 	if limit == 0 {
 		return
 	}
@@ -2264,7 +2264,7 @@ func (s *simnet) dispatchAllTimers(now time.Time, limit, loopi int64) (changes i
 }
 
 // does not call armTimer(), so scheduler should afterwards.
-func (s *simnet) dispatchAllReadsSends(now time.Time, limit, loopi int64) (changes int64) {
+func (s *Simnet) dispatchAllReadsSends(now time.Time, limit, loopi int64) (changes int64) {
 	if limit == 0 {
 		return
 	}
@@ -2279,13 +2279,13 @@ func (s *simnet) dispatchAllReadsSends(now time.Time, limit, loopi int64) (chang
 	return
 }
 
-func (s *simnet) tickLogicalClocks() {
+func (s *Simnet) tickLogicalClocks() {
 	for simnode := range s.circuits.all() {
 		simnode.lc++
 	}
 }
 
-func (s *simnet) Start() {
+func (s *Simnet) Start() {
 	if !s.cfg.QuietTestMode {
 		if faketime {
 			alwaysPrintf("simnet.Start: faketime = %v; s.barrier=%v", faketime, s.barrier)
@@ -2299,7 +2299,7 @@ func (s *simnet) Start() {
 // durToGridPoint:
 // given the time now, return the dur to
 // get us to the next grid point, which is goal.
-func (s *simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Duration, goal time.Time) {
+func (s *Simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Duration, goal time.Time) {
 
 	// this handles both
 	// a) we are on a grid point now; and
@@ -2320,7 +2320,7 @@ func (s *simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 	return
 }
 
-func (s *simnet) add2meq(op *mop, loopi int64) (armed bool) {
+func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 	//vv("i=%v, add2meq %v", loopi, op)
 	// need to bump up the time... with nextUniqTm,
 	// so deliveries are all at a unique time point.
@@ -2352,7 +2352,7 @@ func (s *simnet) add2meq(op *mop, loopi int64) (armed bool) {
 // select below will service those
 // operations, or take a time step forward
 // if they are all blocked.
-func (s *simnet) scheduler() {
+func (s *Simnet) scheduler() {
 	//vv("scheduler is running on goro = %v", GoroNumber())
 
 	defer func() {
@@ -2607,7 +2607,7 @@ func (s *simnet) scheduler() {
 	}
 }
 
-func (s *simnet) distributeMEQ(now time.Time, i int64) (npop int) {
+func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int) {
 	//vv("i=%v, top distributeMEQ", i)
 	// meq is trying for
 	// more deterministic event ordering. we have
@@ -2739,7 +2739,7 @@ func (s *simnet) distributeMEQ(now time.Time, i int64) (npop int) {
 // If we don't have a next timer, do
 // s.nextTimer.Reset(0) to get a synctest.Wait effect.
 // https://github.com/golang/go/issues/73876#issuecomment-2920758263
-func (s *simnet) haveNextTimer(now time.Time) <-chan time.Time {
+func (s *Simnet) haveNextTimer(now time.Time) <-chan time.Time {
 	if s.lastArmToFire.IsZero() {
 		//s.nextTimer.Reset(0) // faketime: 5.9s, 5.53s, 5.48 sec. realtime: 7.333s, 7.252s, 7.262s, 7.4s
 		dur, _ := s.durToGridPoint(now, s.scenario.tick) // 5.589s, 5.3s, 5.54s, 5.55sec faketime. realtime 7.411s, 7.02s, 7.1s
@@ -2754,7 +2754,7 @@ func (s *simnet) haveNextTimer(now time.Time) <-chan time.Time {
 	return s.nextTimer.C
 }
 
-func (s *simnet) handleBatch(batchop *mop) {
+func (s *Simnet) handleBatch(batchop *mop) {
 	// submit now?
 
 	var batch *SimnetBatch = batchop.batch
@@ -2764,18 +2764,18 @@ func (s *simnet) handleBatch(batchop *mop) {
 	panic("TODO handleBatch")
 }
 
-func (s *simnet) finishScenario() {
+func (s *Simnet) finishScenario() {
 	// do any tear down work...
 
 	// at the end
 	s.scenario = nil
 }
-func (s *simnet) initScenario(scenario *scenario) {
+func (s *Simnet) initScenario(scenario *scenario) {
 	s.scenario = scenario
 	// do any init work...
 }
 
-func (s *simnet) handleDiscardTimer(discard *mop) {
+func (s *Simnet) handleDiscardTimer(discard *mop) {
 	//now := time.Now()
 
 	//if discard.origin.powerOff {
@@ -2806,7 +2806,7 @@ func (s *simnet) handleDiscardTimer(discard *mop) {
 	close(discard.proceed)
 }
 
-func (s *simnet) handleTimer(timer *mop) {
+func (s *Simnet) handleTimer(timer *mop) {
 	//now := time.Now()
 
 	if timer.origin.powerOff {
@@ -2874,7 +2874,7 @@ func (s *simnet) handleTimer(timer *mop) {
 // For K circuits * 3 PQ per simnode => O(K).
 //
 // armTimer is not called; keep it as a separate step.
-// func (s *simnet) refreshGridStepTimer(now time.Time) (dur time.Duration, goal time.Time) {
+// func (s *Simnet) refreshGridStepTimer(now time.Time) (dur time.Duration, goal time.Time) {
 // 	if gte(now, s.gridStepTimer.completeTm) {
 // 		s.gridStepTimer.initTm = now
 // 		dur, goal = s.durToGridPoint(now, s.scenario.tick)
@@ -2892,7 +2892,7 @@ func (s *simnet) handleTimer(timer *mop) {
 // 	return
 // }
 
-func (s *simnet) armTimer(now time.Time, loopi int64) (armed bool) {
+func (s *Simnet) armTimer(now time.Time, loopi int64) (armed bool) {
 
 	// Ah! We only want to scheduler to sleep if
 	// we have some work to do in the meq.
@@ -3074,7 +3074,7 @@ func keyNameSort[V any](m map[*simnode]V) byName {
 	return nodes
 }
 
-func (s *simnet) allConnString() (r string) {
+func (s *Simnet) allConnString() (r string) {
 
 	i := 0
 	for _, srvnode := range valNameSort(s.servers) {
@@ -3098,7 +3098,7 @@ func (s *simnet) allConnString() (r string) {
 // without data races inherent in just printing the simnet
 // fields, by asking the simnet nicely to return a snapshot
 // of the internal state of the network in a SimnetSnapshot.
-func (s *simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi int64) {
+func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi int64) {
 	var req *SimnetSnapshot = reqop.snapReq
 	defer func() {
 		s.fin(reqop)
@@ -3269,7 +3269,7 @@ func (s *simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	// end handleSimnetSnapshotRequest
 }
 
-func (s *simnet) newClientRegMop(clireg *clientRegistration) (op *mop) {
+func (s *Simnet) newClientRegMop(clireg *clientRegistration) (op *mop) {
 	op = &mop{
 		cliReg:    clireg,
 		originCli: true,
@@ -3282,7 +3282,7 @@ func (s *simnet) newClientRegMop(clireg *clientRegistration) (op *mop) {
 	return
 }
 
-func (s *simnet) newServerRegMop(srvreg *serverRegistration) (op *mop) {
+func (s *Simnet) newServerRegMop(srvreg *serverRegistration) (op *mop) {
 	op = &mop{
 		srvReg:    srvreg,
 		originCli: false,
@@ -3295,7 +3295,7 @@ func (s *simnet) newServerRegMop(srvreg *serverRegistration) (op *mop) {
 	return
 }
 
-func (s *simnet) newSnapReqMop(snapReq *SimnetSnapshot) (op *mop) {
+func (s *Simnet) newSnapReqMop(snapReq *SimnetSnapshot) (op *mop) {
 	op = &mop{
 		snapReq: snapReq,
 		sn:      s.simnetNextMopSn(),
@@ -3308,7 +3308,7 @@ func (s *simnet) newSnapReqMop(snapReq *SimnetSnapshot) (op *mop) {
 	return
 }
 
-func (s *simnet) newScenarioMop(scen *scenario) (op *mop) {
+func (s *Simnet) newScenarioMop(scen *scenario) (op *mop) {
 	op = &mop{
 		scen:    scen,
 		sn:      s.simnetNextMopSn(),
@@ -3320,7 +3320,7 @@ func (s *simnet) newScenarioMop(scen *scenario) (op *mop) {
 	return
 }
 
-func (s *simnet) newAlterNodeMop(alt *simnodeAlteration) (op *mop) {
+func (s *Simnet) newAlterNodeMop(alt *simnodeAlteration) (op *mop) {
 	op = &mop{
 		alterNode: alt,
 		sn:        s.simnetNextMopSn(),
@@ -3332,7 +3332,7 @@ func (s *simnet) newAlterNodeMop(alt *simnodeAlteration) (op *mop) {
 	return
 }
 
-func (s *simnet) newAlterHostMop(alt *simnodeAlteration) (op *mop) {
+func (s *Simnet) newAlterHostMop(alt *simnodeAlteration) (op *mop) {
 	op = &mop{
 		alterHost: alt,
 		sn:        s.simnetNextMopSn(),
@@ -3344,7 +3344,7 @@ func (s *simnet) newAlterHostMop(alt *simnodeAlteration) (op *mop) {
 	return
 }
 
-func (s *simnet) newCktFaultMop(cktFault *circuitFault) (op *mop) {
+func (s *Simnet) newCktFaultMop(cktFault *circuitFault) (op *mop) {
 	op = &mop{
 		cktFault: cktFault,
 		sn:       s.simnetNextMopSn(),
@@ -3356,7 +3356,7 @@ func (s *simnet) newCktFaultMop(cktFault *circuitFault) (op *mop) {
 	return
 }
 
-func (s *simnet) newHostFaultMop(hostFault *hostFault) (op *mop) {
+func (s *Simnet) newHostFaultMop(hostFault *hostFault) (op *mop) {
 	op = &mop{
 		hostFault: hostFault,
 		sn:        s.simnetNextMopSn(),
@@ -3368,7 +3368,7 @@ func (s *simnet) newHostFaultMop(hostFault *hostFault) (op *mop) {
 	return
 }
 
-func (s *simnet) newRepairCktMop(cktRepair *circuitRepair) (op *mop) {
+func (s *Simnet) newRepairCktMop(cktRepair *circuitRepair) (op *mop) {
 	op = &mop{
 		repairCkt: cktRepair,
 		sn:        s.simnetNextMopSn(),
@@ -3380,7 +3380,7 @@ func (s *simnet) newRepairCktMop(cktRepair *circuitRepair) (op *mop) {
 	return
 }
 
-func (s *simnet) newRepairHostMop(hostRepair *hostRepair) (op *mop) {
+func (s *Simnet) newRepairHostMop(hostRepair *hostRepair) (op *mop) {
 	op = &mop{
 		repairHost: hostRepair,
 		sn:         s.simnetNextMopSn(),
@@ -3395,11 +3395,11 @@ func (s *simnet) newRepairHostMop(hostRepair *hostRepair) (op *mop) {
 // NoisyNothing makes simnet print/log if it appears
 // to have nothing to do at the end of each
 // scheduling loop.
-func (s *simnet) NoisyNothing(oldval, newval bool) (swapped bool) {
+func (s *Simnet) NoisyNothing(oldval, newval bool) (swapped bool) {
 	return s.noisyNothing.CompareAndSwap(oldval, newval)
 }
 
-func (s *simnet) Close() {
+func (s *Simnet) Close() {
 	//vv("simnet.Close() called.")
 	if s == nil || s.halt == nil {
 		return

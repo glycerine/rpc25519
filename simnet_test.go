@@ -1058,7 +1058,7 @@ func Test102_time_truncate_works_under_synctest(t *testing.T) {
 	tick := 100 * time.Millisecond
 	//tick := time.Second
 
-	net := &simnet{
+	net := &Simnet{
 		scenario: &scenario{
 			tick: tick,
 		},
@@ -1294,7 +1294,7 @@ func Test772_simnetonly_server_dropped_sends(t *testing.T) {
 type simnetTest struct {
 	cfg    *Config
 	short  string // short test name
-	simnet *simnet
+	simnet *Simnet
 	t      *testing.T
 	cli    *Client
 	srv    *Server
@@ -1326,7 +1326,7 @@ func setupSimnetTest(simt *simnetTest, cfg *Config) (
 	// returned:
 	cli *Client,
 	srv *Server,
-	simnet *simnet,
+	simnet *Simnet,
 	srvname string,
 	cliname string,
 ) {

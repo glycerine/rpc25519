@@ -9,11 +9,11 @@ import (
 	"github.com/glycerine/blake3"
 )
 
-func (s *simnet) showDNS() {
+func (s *Simnet) showDNS() {
 	alwaysPrintf("simnet dns: %v", s.stringDNS)
 }
 
-func (s *simnet) stringDNS() (r string) {
+func (s *Simnet) stringDNS() (r string) {
 
 	// sort names first for easier reading
 	var names []string
@@ -273,9 +273,9 @@ func (s *SimNetAddr) String() (str string) {
 	return
 }
 
-func (s *simnet) String() (r string) {
+func (s *Simnet) String() (r string) {
 	if s == nil {
-		return "(nil *simnet)"
+		return "(nil *Simnet)"
 	}
 	r = "&simnet{\n"
 	r += fmt.Sprintf("   faketime: %v\n", faketime)

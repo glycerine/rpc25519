@@ -33,7 +33,7 @@ func synctestWait_LetAllOtherGoroFinish() {
 // ideally we want every client goro to run
 // a single step after scheduling. Assert to
 // see how well we've acheived this goal.
-func (s *simnet) assertGoroAlone() {
+func (s *Simnet) assertGoroAlone() {
 	vv("top assertGoroAlone()")
 	s.singleGoroMut.Lock()
 	defer s.singleGoroMut.Unlock()

@@ -172,7 +172,7 @@ type simGridConfig struct {
 type simGrid struct {
 	Cfg   *simGridConfig
 	Nodes []*simGridNode
-	net   *simnet // for halting with net.Close()
+	net   *Simnet // for halting with net.Close()
 }
 
 func newSimGrid(cfg *simGridConfig, nodes []*simGridNode) *simGrid {

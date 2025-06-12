@@ -55,7 +55,7 @@ var _ = fmt.Printf
 // The name blabber? Well... what comes
 // out is just blah, blah, blah.
 type blabber struct {
-	simnet *simnet
+	simnet *Simnet
 
 	encrypt bool
 
