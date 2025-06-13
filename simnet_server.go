@@ -245,7 +245,7 @@ func (s *simconn) msgWrite(msg *Message, sendDead chan time.Time, n0 int) (n int
 		//	return
 	}
 
-	//vv("net has it (isEOF:%v), about to wait for proceed... simconn.Write('%v') isCli=%v, origin=%v ; target=%v;", isEOF, string(send.msg.JobSerz), s.isCli, send.origin.name, send.target.name)  // RACEY! comment out before go test -race
+	vv("net has it (isEOF:%v), about to wait for proceed... simconn.Write('%v' nbyte:%v) isCli=%v, origin=%v ; target=%v;", isEOF, string(send.msg.JobSerz), len(send.msg.JobSerz), s.isCli, send.origin.name, send.target.name) // RACEY! comment out before go test -race
 
 	if isEOF {
 		return 0, nil // don't expect a reply from EOF/RST
@@ -316,7 +316,7 @@ func (s *simconn) Read(data []byte) (n int, err error) {
 	read.readFileLine = fileLine(2)
 	read.target = s.remote
 
-	//vv("in simconn.Read() isCli=%v, origin=%v at %v; target=%v", s.isCli, read.origin.name, read.readFileLine, read.target.name)
+	vv("in simconn.Read() isCli=%v, origin=%v at %v; target=%v", s.isCli, read.origin.name, read.readFileLine, read.target.name)
 
 	select {
 	case s.net.msgReadCh <- read:
@@ -324,12 +324,13 @@ func (s *simconn) Read(data []byte) (n int, err error) {
 		err = ErrShutdown()
 		return
 	case timeout := <-readDead:
+		vv("readDead deadline exceeded on submitting to msgReadch")
 		_ = timeout
 		err = os.ErrDeadlineExceeded
 		//err = &simconnError{isTimeout: true, desc: "i/o timeout"}
 		return
 	case <-s.localClosed.Chan:
-		//vv("local side was closed before Read submitted")
+		vv("local side was closed before Read submitted")
 		err = io.EOF
 		return
 
@@ -346,24 +347,26 @@ func (s *simconn) Read(data []byte) (n int, err error) {
 			// buffer the leftover
 			s.nextRead = append(s.nextRead, msg.JobSerz[n:]...)
 		}
-		//vv("Read on '%v' got '%v'; eof: %v", s.local.name, string(data[:n]), read.isEOF_RST)
+		vv("read.proceed closed: Read on '%v' got '%v'; eof: %v", s.local.name, string(data[:n]), read.isEOF_RST)
 		if read.isEOF_RST {
-			//vv("read has EOF mark! on read at %v from %v", s.local.name, s.remote.name) // seen
+			vv("read has EOF mark! on read at %v from %v", s.local.name, s.remote.name) // seen
 			err = io.EOF
 			s.remoteClosed.Close() // for sure?
 			s.localClosed.Close()  // this too, maybe?
 		}
 
 	case <-s.net.halt.ReqStop.Chan:
+		vv("halted during Read")
 		err = ErrShutdown()
 		return
 	case timeout := <-readDead:
+		vv("readDead deadline 2nd place exceeded")
 		_ = timeout
 		err = os.ErrDeadlineExceeded
 		//err = &simconnError{isTimeout: true, desc: "i/o timeout"}
 		return
 	case <-s.localClosed.Chan:
-		//vv("local side was closed waiting for proceed")
+		vv("local side was closed waiting for proceed")
 		err = io.EOF
 		return
 
@@ -497,6 +500,8 @@ func (s *Server) Listen(network, addr string) (lsn net.Listener, err error) {
 	if err != nil {
 		return nil, err
 	}
+	// TODO: allow single server to Listen on more than one port?
+	// need to add separate lsn object for each? with its own simnode?
 	lsn = s
 	return
 }

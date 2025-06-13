@@ -195,10 +195,10 @@ func (op *mop) String() string {
 		if op.msg != nil {
 			nbyte = len(op.msg.JobSerz)
 		}
-		extra = fmt.Sprintf(" FROM %v TO %v (eof:%v; nbyte:%v)", op.origin.name, op.target.name, op.isEOF_RST, nbyte)
+		extra = fmt.Sprintf(" FROM %v TO %v (eof:%v; nbyte:%v; at %v)", op.origin.name, op.target.name, op.isEOF_RST, nbyte, op.sendFileLine)
 
 	case READ:
-		extra = fmt.Sprintf(" AT %v FROM %v (eof:%v)", op.origin.name, op.target.name, op.isEOF_RST)
+		extra = fmt.Sprintf(" AT %v FROM %v (eof:%v; at %v)", op.origin.name, op.target.name, op.isEOF_RST, op.readFileLine)
 
 	}
 	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, who:%v, msg.sn:%v%v}", who, op.kind, ini, arr, complete, op.sn, op.who, msgSerial, extra)

@@ -1975,6 +1975,8 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 		return
 	}
 
+	vv("dispatchReadsSends top: %v", simnode.net.schedulerReport())
+
 	nR := simnode.readQ.Tree.Len()   // number of reads
 	nS := simnode.preArrQ.Tree.Len() // number of sends
 
@@ -2173,7 +2175,7 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 		read.arrivalTm = send.arrivalTm // easier diagnostics
 
 		// matchmaking
-		//vv("[1]matchmaking: \nsend '%v' -> \nread '%v' \nread.sn=%v, readAttempt=%v, read.lastP=%v, lastIsDeafTrueTm=%v", send, read, read.sn, read.readAttempt, read.lastP, nice(read.lastIsDeafTrueTm))
+		vv("[1]matchmaking: \nsend '%v' -> \nread '%v' \nread.sn=%v, readAttempt=%v, read.lastP=%v, lastIsDeafTrueTm=%v", send, read, read.sn, read.readAttempt, read.lastP, nice(read.lastIsDeafTrueTm))
 		read.sendmop = send
 		send.readmop = read
 
