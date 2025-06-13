@@ -774,16 +774,16 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 	if reg.serverBaseID != "" {
 		basesrv, ok := s.servers[reg.serverBaseID]
 		if ok {
-			vv("cli is auto-cli of basesrv='%v'", basesrv.name)
+			//vv("cli is auto-cli of basesrv='%v'", basesrv.name)
 			s.node2server[clinode] = basesrv
 			basesrv.autocli[clinode] = c2s
 			basesrv.allnode[clinode] = true
 		} else {
-			vv("cli is orphan")
+			//vv("cli is orphan")
 			s.orphans[clinode] = true
 		}
 	} else {
-		vv("no reg.serverBaseID")
+		//vv("no reg.serverBaseID -- expected for lone/orphan cli")
 	}
 
 	reg.conn = c2s
@@ -798,7 +798,7 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 	go func() {
 		select {
 		case srvnode.tellServerNewConnCh <- s2c:
-			vv("%v srvnode was notified of new client '%v'; s2c='%v'", srvnode.name, clinode.name, s2c)
+			//vv("%v srvnode was notified of new client '%v'; s2c='%v'", srvnode.name, clinode.name, s2c)
 
 			// let client start using the connection/edge.
 			s.fin(regop)
@@ -884,7 +884,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 	s.halt.AddChild(srv.halt)
 
 	cfg.simnetRendezvous.singleSimnet = s
-	vv("newSimNetOnServer: assigned to singleSimnet, releasing lock by  goro = %v", GoroNumber())
+	//vv("newSimNetOnServer: assigned to singleSimnet, releasing lock by  goro = %v", GoroNumber())
 	s.Start()
 
 	return s
@@ -1700,7 +1700,7 @@ func (s *Simnet) statewiseConnected(origin, target *simnode) bool {
 
 func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	now := time.Now()
-	vv("top of handleSend(send = '%v')", send)
+	//vv("top of handleSend(send = '%v')", send)
 	defer func() {
 		s.fin(send)
 		close(send.proceed)
@@ -2175,7 +2175,7 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 		read.arrivalTm = send.arrivalTm // easier diagnostics
 
 		// matchmaking
-		vv("[1]matchmaking: \nsend '%v' -> \nread '%v' \nread.sn=%v, readAttempt=%v, read.lastP=%v, lastIsDeafTrueTm=%v", send, read, read.sn, read.readAttempt, read.lastP, nice(read.lastIsDeafTrueTm))
+		//vv("[1]matchmaking: \nsend '%v' -> \nread '%v' \nread.sn=%v, readAttempt=%v, read.lastP=%v, lastIsDeafTrueTm=%v", send, read, read.sn, read.readAttempt, read.lastP, nice(read.lastIsDeafTrueTm))
 		read.sendmop = send
 		send.readmop = read
 
