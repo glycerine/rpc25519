@@ -191,7 +191,11 @@ func (op *mop) String() string {
 		extra = " timer discarded at " + op.timerFileLine
 
 	case SEND:
-		extra = fmt.Sprintf(" FROM %v TO %v (eof:%v)", op.origin.name, op.target.name, op.isEOF_RST)
+		nbyte := 0
+		if op.msg != nil {
+			nbyte = len(op.msg.JobSerz)
+		}
+		extra = fmt.Sprintf(" FROM %v TO %v (eof:%v; nbyte:%v)", op.origin.name, op.target.name, op.isEOF_RST, nbyte)
 
 	case READ:
 		extra = fmt.Sprintf(" AT %v FROM %v (eof:%v)", op.origin.name, op.target.name, op.isEOF_RST)

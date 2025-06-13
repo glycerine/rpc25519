@@ -1245,6 +1245,18 @@ type Client struct {
 	keepAliveMsg Message
 }
 
+var ErrNoSimconnAvail = fmt.Errorf("rpc25519.Client error: no simconn available")
+
+func (c *Client) GetSimconn() (simconn *simconn, err error) {
+	c.mut.Lock()
+	defer c.mut.Unlock()
+	simconn = c.simconn
+	if simconn == nil {
+		err = ErrNoSimconnAvail
+	}
+	return
+}
+
 // Compute HMAC using SHA-256, so 32 bytes long.
 func computeHMAC(plaintext []byte, key []byte) (hash []byte) {
 	h := hmac.New(sha256.New, key)

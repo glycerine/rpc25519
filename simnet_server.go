@@ -517,7 +517,7 @@ func (s *Server) Accept() (nc net.Conn, err error) {
 			err = ErrShutdown()
 			return
 		}
-		//vv("Server.Accept returning nc = '%#v'", nc.(*simconn))
+		vv("Server.Accept returning nc = '%#v'", nc.(*simconn))
 	case <-s.halt.ReqStop.Chan:
 		err = ErrShutdown()
 	}

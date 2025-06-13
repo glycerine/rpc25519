@@ -51,9 +51,11 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string, doLoops bool)
 
 	//conn := c.cfg.simnetRendezvous.c2s
 	conn := registration.conn
+	c.mut.Lock()
 	c.simnode = registration.simnode // conn.local
 	c.simconn = conn
 	c.conn = conn
+	c.mut.Unlock()
 
 	c.setLocalAddr(conn)
 	// tell user level client code we are ready
