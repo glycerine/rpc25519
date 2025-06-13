@@ -1975,7 +1975,7 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 		return
 	}
 
-	vv("dispatchReadsSends top: %v", simnode.net.schedulerReport())
+	//vv("dispatchReadsSends top: %v", simnode.net.schedulerReport())
 
 	nR := simnode.readQ.Tree.Len()   // number of reads
 	nS := simnode.preArrQ.Tree.Len() // number of sends
