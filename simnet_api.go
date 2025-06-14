@@ -6,6 +6,7 @@ import (
 	"os"
 	//"strings"
 	//"runtime"
+	"path/filepath"
 	"time"
 )
 
@@ -1099,6 +1100,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 		}
 		break
 	}
+	os.MkdirAll(filepath.Dir(path), 0755)
 	fd, err := os.Create(path)
 	panicOn(err)
 	defer fd.Close()

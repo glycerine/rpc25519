@@ -3,8 +3,6 @@
 package rpc25519
 
 import (
-	"fmt"
-
 	"github.com/glycerine/greenpack/msgp"
 )
 
@@ -1025,28 +1023,6 @@ func (z *HDR) Msgsize() (s int) {
 	s += 30 + msgp.BoolSize + 19 + msgp.StringPrefixSize + len(z.ToPeerID) + 21 + msgp.StringPrefixSize + len(z.FromPeerID) + 17 + msgp.IntSize
 	return
 }
-func (z *HDR) Gstring() (r string) {
-	r = "&HDR{\n"
-	r += fmt.Sprintf("            Created: %v,\n", z.Created)
-	r += fmt.Sprintf("               From: \"%v\",\n", z.From)
-	r += fmt.Sprintf("                 To: \"%v\",\n", z.To)
-	r += fmt.Sprintf("            Subject: \"%v\",\n", z.Subject)
-	r += fmt.Sprintf("              Seqno: %v,\n", z.Seqno)
-	r += fmt.Sprintf("                Typ: %v,\n", z.Typ)
-	r += fmt.Sprintf("             CallID: \"%v\",\n", z.CallID)
-	r += fmt.Sprintf("             Serial: %v,\n", z.Serial)
-	r += fmt.Sprintf("        LocalRecvTm: %v,\n", z.LocalRecvTm)
-	r += fmt.Sprintf("           Deadline: %v,\n", z.Deadline)
-	r += fmt.Sprintf("         StreamPart: %v,\n", z.StreamPart)
-	r += fmt.Sprintf("        ServiceName: \"%v\",\n", z.ServiceName)
-	r += fmt.Sprintf("               Args: %v,\n", z.Args)
-	r += fmt.Sprintf("NoSystemCompression: %v,\n", z.NoSystemCompression)
-	r += fmt.Sprintf("           ToPeerID: \"%v\",\n", z.ToPeerID)
-	r += fmt.Sprintf("         FromPeerID: \"%v\",\n", z.FromPeerID)
-	r += fmt.Sprintf("             FragOp: %v,\n", z.FragOp)
-	r += "}\n"
-	return
-}
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
@@ -1441,14 +1417,5 @@ var unmarshalMsgFieldSkip18zgensym_28874796354aa7f3_19 = []bool{false, false, fa
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Message) Msgsize() (s int) {
 	s = 1 + 14 + z.HDR.Msgsize() + 18 + msgp.BytesPrefixSize + len(z.JobSerz) + 18 + msgp.StringPrefixSize + len(z.JobErrs) + 14 + msgp.BoolSize
-	return
-}
-func (z *Message) Gstring() (r string) {
-	r = "&Message{\n"
-	r += fmt.Sprintf("    HDR: %v,\n", z.HDR)
-	r += fmt.Sprintf("JobSerz: %v,\n", z.JobSerz)
-	r += fmt.Sprintf("JobErrs: \"%v\",\n", z.JobErrs)
-	r += fmt.Sprintf("    EOF: %v,\n", z.EOF)
-	r += "}\n"
 	return
 }
