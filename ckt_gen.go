@@ -3,6 +3,8 @@
 package rpc25519
 
 import (
+	"fmt"
+
 	"github.com/glycerine/greenpack/msgp"
 )
 
@@ -317,6 +319,13 @@ var unmarshalMsgFieldSkip4zgensym_f64305401993a07f_5 = []bool{false, false}
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *EpochVers) Msgsize() (s int) {
 	s = 1 + 18 + msgp.Int64Size + 26 + msgp.StringPrefixSize + len(z.EpochTieBreaker)
+	return
+}
+func (z *EpochVers) Gstring() (r string) {
+	r = "&EpochVers{\n"
+	r += fmt.Sprintf("        EpochID: %v,\n", z.EpochID)
+	r += fmt.Sprintf("EpochTieBreaker: \"%v\",\n", z.EpochTieBreaker)
+	r += "}\n"
 	return
 }
 
@@ -1106,6 +1115,24 @@ func (z *Fragment) Msgsize() (s int) {
 	s += 18 + msgp.BytesPrefixSize + len(z.Payload) + 14 + msgp.StringPrefixSize + len(z.Err) + 18 + msgp.TimeSize
 	return
 }
+func (z *Fragment) Gstring() (r string) {
+	r = "&Fragment{\n"
+	r += fmt.Sprintf(" FromPeerID: \"%v\",\n", z.FromPeerID)
+	r += fmt.Sprintf("   ToPeerID: \"%v\",\n", z.ToPeerID)
+	r += fmt.Sprintf("  CircuitID: \"%v\",\n", z.CircuitID)
+	r += fmt.Sprintf("     Serial: %v,\n", z.Serial)
+	r += fmt.Sprintf("        Typ: %v,\n", z.Typ)
+	r += fmt.Sprintf("ServiceName: \"%v\",\n", z.ServiceName)
+	r += fmt.Sprintf("     FragOp: %v,\n", z.FragOp)
+	r += fmt.Sprintf("FragSubject: \"%v\",\n", z.FragSubject)
+	r += fmt.Sprintf("   FragPart: %v,\n", z.FragPart)
+	r += fmt.Sprintf("       Args: %v,\n", z.Args)
+	r += fmt.Sprintf("    Payload: %v,\n", z.Payload)
+	r += fmt.Sprintf("        Err: \"%v\",\n", z.Err)
+	r += fmt.Sprintf("    Created: %v,\n", z.Created)
+	r += "}\n"
+	return
+}
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
@@ -1383,5 +1410,11 @@ var unmarshalMsgFieldSkip20zgensym_f64305401993a07f_21 = []bool{false, true}
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *QueryLocalPeerPump) Msgsize() (s int) {
 	s = 1 + 22 + msgp.IntSize
+	return
+}
+func (z *QueryLocalPeerPump) Gstring() (r string) {
+	r = "&QueryLocalPeerPump{\n"
+	r += fmt.Sprintf("OpenCircuitCount: %v,\n", z.OpenCircuitCount)
+	r += "}\n"
 	return
 }

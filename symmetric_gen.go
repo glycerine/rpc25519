@@ -3,6 +3,8 @@
 package rpc25519
 
 import (
+	"fmt"
+
 	"github.com/glycerine/greenpack/msgp"
 )
 
@@ -724,6 +726,22 @@ func (z *caboose) Msgsize() (s int) {
 	s = 1 + 24 + msgp.BytesPrefixSize + len(z.ClientAuthTag) + 28 + msgp.BytesPrefixSize + len(z.ClientEphemPubKey) + 27 + msgp.BytesPrefixSize + len(z.ClientSigOfEphem) + 28 + msgp.BytesPrefixSize + len(z.ClientSigningCert) + 23 + msgp.TimeSize + 24 + msgp.BytesPrefixSize + len(z.ServerAuthTag) + 28 + msgp.BytesPrefixSize + len(z.ServerEphemPubKey) + 27 + msgp.BytesPrefixSize + len(z.ServerSigOfEphem) + 28 + msgp.BytesPrefixSize + len(z.ServerSigningCert) + 23 + msgp.TimeSize + 23 + msgp.BytesPrefixSize + len(z.ServerNewPub)
 	return
 }
+func (z *caboose) Gstring() (r string) {
+	r = "&caboose{\n"
+	r += fmt.Sprintf("    ClientAuthTag: %v,\n", z.ClientAuthTag)
+	r += fmt.Sprintf("ClientEphemPubKey: %v,\n", z.ClientEphemPubKey)
+	r += fmt.Sprintf(" ClientSigOfEphem: %v,\n", z.ClientSigOfEphem)
+	r += fmt.Sprintf("ClientSigningCert: %v,\n", z.ClientSigningCert)
+	r += fmt.Sprintf("     ClientSentAt: %v,\n", z.ClientSentAt)
+	r += fmt.Sprintf("    ServerAuthTag: %v,\n", z.ServerAuthTag)
+	r += fmt.Sprintf("ServerEphemPubKey: %v,\n", z.ServerEphemPubKey)
+	r += fmt.Sprintf(" ServerSigOfEphem: %v,\n", z.ServerSigOfEphem)
+	r += fmt.Sprintf("ServerSigningCert: %v,\n", z.ServerSigningCert)
+	r += fmt.Sprintf("     ServerSentAt: %v,\n", z.ServerSentAt)
+	r += fmt.Sprintf("     ServerNewPub: %v,\n", z.ServerNewPub)
+	r += "}\n"
+	return
+}
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
@@ -1136,5 +1154,14 @@ var unmarshalMsgFieldSkip10zgensym_a7cb2775ed474a48_11 = []bool{false, false, fa
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *verifiedHandshake) Msgsize() (s int) {
 	s = 1 + 22 + msgp.BytesPrefixSize + len(z.EphemPubKey) + 27 + msgp.BytesPrefixSize + len(z.SignatureOfEphem) + 22 + msgp.BytesPrefixSize + len(z.SigningCert) + 23 + msgp.TimeSize
+	return
+}
+func (z *verifiedHandshake) Gstring() (r string) {
+	r = "&verifiedHandshake{\n"
+	r += fmt.Sprintf("     EphemPubKey: %v,\n", z.EphemPubKey)
+	r += fmt.Sprintf("SignatureOfEphem: %v,\n", z.SignatureOfEphem)
+	r += fmt.Sprintf("     SigningCert: %v,\n", z.SigningCert)
+	r += fmt.Sprintf("    SenderSentAt: %v,\n", z.SenderSentAt)
+	r += "}\n"
 	return
 }
