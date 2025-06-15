@@ -112,7 +112,8 @@ func (s *scenario) rngTieBreaker() int {
 // only read incoming messages half the time,
 // for example; an asymmetric and intermittent failure mode.
 //
-// ISOLATED models a dead network switch.
+// ISOLATED models a dead network card switch
+// or switch port.
 // While this can be modelled more orthogonally
 // as a collection of individual card faults on either side
 // of switch (and may be implemented
@@ -331,7 +332,6 @@ func (s *Simnet) FaultHost(hostName string, dd DropDeafSpec, deliverDroppedSends
 // prior deafDrop actions, if any. It does not
 // change an isolated simnode's isolation unless unIsolate
 // is also true. See also RepairHost, AllHealthy.
-// .
 func (s *Simnet) RepairCircuit(originName string, unIsolate bool, powerOnIfOff, deliverDroppedSends bool) (err error) {
 
 	targetName := "" // all corresponding targets
@@ -379,11 +379,10 @@ func (s *Simnet) RepairHost(originName string, unIsolate bool, powerOnIfOff, all
 	return
 }
 
-// AllHealthy heal all partitions, undo all faults, network wide.
+// AllHealthy heals all partitions, and reverses all faults, network wide.
 // All circuits are returned to HEALTHY status. Their powerOff status
 // is not updated unless powerOnIfOff is also true.
 // See also RepairSimnode for single simnode repair.
-// .
 func (s *Simnet) AllHealthy(powerOnIfOff bool, deliverDroppedSends bool) (err error) {
 	//vv("AllHealthy(powerOnIfOff=%v) called.", powerOnIfOff)
 
@@ -853,6 +852,10 @@ func CallbackOnNewTimer(
 
 }
 
+// SimnetConnSummary is part
+// of a SimnetSnapshot.
+// It conveys the full state of a
+// net.Conn connection endpoint.
 type SimnetConnSummary struct {
 	OriginIsCli      bool
 	Origin           string
@@ -884,6 +887,8 @@ type SimnetConnSummary struct {
 	TimerQ       *pq
 }
 
+// SimnetPeerStatus is a part of a SimnetSnapshot.
+// It describes a single peer server, or a lone client.
 type SimnetPeerStatus struct {
 	Name         string
 	Conn         []*SimnetConnSummary
@@ -895,6 +900,10 @@ type SimnetPeerStatus struct {
 	IsLoneCli    bool // and not really a peer server with auto-cli
 }
 
+// SimnetSnapshot is returned by
+// SimnetSnapshotter.GetSimnetSnapshot(),
+// and gives a picture of the
+// simulated network at a moment in time.
 type SimnetSnapshot struct {
 	Asof               time.Time
 	Loopi              int64

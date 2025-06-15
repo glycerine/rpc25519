@@ -580,6 +580,8 @@ func (z *SimnetSnapshot) String() (r string) {
 	return z.ShortString()
 }
 
+// LongString provides all the details,
+// even when the network is all healthy.
 func (z *SimnetSnapshot) LongString() (r string) {
 	r = "&SimnetSnapshot{\n"
 
