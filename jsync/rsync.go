@@ -517,7 +517,7 @@ func (s *BlobStore) GetPlanToUpdateFromGoal(updateme, goal *Chunks, dropGoalData
 // readers's version that are
 // already available. The
 // responder will send back
-// an HeavyPlan that includes
+// a HeavyPlan that includes
 // the minimal necessary data and
 // instructions on how to
 // assemble the desired file from
