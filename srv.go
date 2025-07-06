@@ -26,7 +26,7 @@ import (
 	"github.com/glycerine/idem"
 	"github.com/glycerine/ipaddr"
 	"github.com/glycerine/rpc25519/selfcert"
-	"github.com/quic-go/quic-go"
+	//"github.com/quic-go/quic-go"
 )
 
 var _ = os.MkdirAll
@@ -148,14 +148,15 @@ func (s *Server) runServerMain(
 	}
 
 	if s.cfg.UseQUIC {
-		if s.cfg.TCPonly_no_TLS {
-			panic("cannot have both UseQUIC and TCPonly_no_TLS true")
-		}
-		if s.cfg.UseSimNet {
-			panic("cannot have both UseQUIC and UseSimNet true")
-		}
-		s.runQUICServer(serverAddress, config, boundCh)
-		return
+		panic("quic not available under tinygo")
+		// if s.cfg.TCPonly_no_TLS {
+		// 	panic("cannot have both UseQUIC and TCPonly_no_TLS true")
+		// }
+		// if s.cfg.UseSimNet {
+		// 	panic("cannot have both UseQUIC and UseSimNet true")
+		// }
+		// s.runQUICServer(serverAddress, config, boundCh)
+		// return
 	}
 
 	// Listen on the specified serverAddress
@@ -1149,9 +1150,9 @@ type Server struct {
 
 	boundAddressString string
 
-	cfg        *Config
-	quicConfig *quic.Config
-	tmStart    time.Time
+	cfg *Config
+	//quicConfig *quic.Config
+	tmStart time.Time
 
 	lastPairID atomic.Int64
 
@@ -2318,20 +2319,21 @@ func (s *Server) Close() error {
 	//vv("%v back from s.halt.StopTreeAndWaitTilDone()", s.name)
 
 	if s.cfg.UseQUIC {
-		s.cfg.shared.mut.Lock()
-		if !s.cfg.shared.isClosed { // since Server.Close() might be called more than once.
-			s.cfg.shared.shareCount--
-			if s.cfg.shared.shareCount < 0 {
-				panic("server count should never be < 0")
-			}
-			//vv("s.cfg.shared.shareCount = '%v' for '%v'", s.cfg.shared.shareCount, s.name)
-			if s.cfg.shared.shareCount == 0 {
-				s.cfg.shared.quicTransport.Conn.Close()
-				s.cfg.shared.isClosed = true
-				//vv("s.cfg.shared.quicTransport.Conn.Close() called for '%v'.", s.name)
-			}
-		}
-		s.cfg.shared.mut.Unlock()
+		panic("quic not available under tinygo")
+		// s.cfg.shared.mut.Lock()
+		// if !s.cfg.shared.isClosed { // since Server.Close() might be called more than once.
+		// 	s.cfg.shared.shareCount--
+		// 	if s.cfg.shared.shareCount < 0 {
+		// 		panic("server count should never be < 0")
+		// 	}
+		// 	//vv("s.cfg.shared.shareCount = '%v' for '%v'", s.cfg.shared.shareCount, s.name)
+		// 	if s.cfg.shared.shareCount == 0 {
+		// 		//s.cfg.shared.quicTransport.Conn.Close()
+		// 		s.cfg.shared.isClosed = true
+		// 		//vv("s.cfg.shared.quicTransport.Conn.Close() called for '%v'.", s.name)
+		// 	}
+		// }
+		// s.cfg.shared.mut.Unlock()
 	}
 	s.halt.ReqStop.Close()
 	s.mut.Lock() // avoid data race

@@ -27,10 +27,10 @@ import (
 
 	"github.com/glycerine/greenpack/msgp"
 	"github.com/glycerine/idem"
-	"github.com/glycerine/ipaddr"
+	//"github.com/glycerine/ipaddr"
 	"github.com/glycerine/loquet"
 	"github.com/glycerine/rpc25519/selfcert"
-	"github.com/quic-go/quic-go"
+	//"github.com/quic-go/quic-go"
 )
 
 var _ = cryrand.Read
@@ -48,7 +48,7 @@ type uConnLR interface {
 	localRemoteAddr
 }
 
-var _ quic.Connection
+// var _ quic.Connection
 
 var sep = string(os.PathSeparator)
 
@@ -144,21 +144,22 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	}
 
 	if c.cfg.UseQUIC {
-		if c.cfg.TCPonly_no_TLS {
-			panic("cannot have both UseQUIC and TCPonly_no_TLS true")
-		}
-		if c.cfg.UseSimNet {
-			panic("cannot have both UseQUIC and UseSimNet true")
-		}
-		localHostPort := c.cfg.ClientHostPort
-		if localHostPort == "" {
-			localHost, err := ipaddr.LocalAddrMatching(serverAddr)
-			panicOn(err)
-			//vv("localHost = '%v', matched to quicServerAddr = '%v'", localHost, serverAddr)
-			localHostPort = localHost + ":0" // client can pick any port
-		}
-		c.runQUIC(localHostPort, serverAddr, config)
-		return
+		panic("quic not available under tinygo")
+		// 	if c.cfg.TCPonly_no_TLS {
+		// 		panic("cannot have both UseQUIC and TCPonly_no_TLS true")
+		// 	}
+		// 	if c.cfg.UseSimNet {
+		// 		panic("cannot have both UseQUIC and UseSimNet true")
+		// 	}
+		// 	localHostPort := c.cfg.ClientHostPort
+		// 	if localHostPort == "" {
+		// 		localHost, err := ipaddr.LocalAddrMatching(serverAddr)
+		// 		panicOn(err)
+		// 		//vv("localHost = '%v', matched to quicServerAddr = '%v'", localHost, serverAddr)
+		// 		localHostPort = localHost + ":0" // client can pick any port
+		// 	}
+		// 	c.runQUIC(localHostPort, serverAddr, config)
+		// 	return
 	}
 
 	// Dial the server, with a timeout
@@ -1146,10 +1147,10 @@ func (cfg *Config) checkPreSharedKey(name string) {
 }
 
 type sharedTransport struct {
-	mut           sync.Mutex
-	quicTransport *quic.Transport
-	shareCount    int
-	isClosed      bool
+	mut sync.Mutex
+	//quicTransport *quic.Transport
+	shareCount int
+	isClosed   bool
 }
 
 // NewConfig should be used to create Config
@@ -1189,9 +1190,9 @@ type Client struct {
 	notifies *notifies
 	PeerAPI  *peerAPI // must be Exported to users!
 
-	conn       uConnLR
-	quicConn   quic.Connection
-	quicConfig *quic.Config
+	conn uConnLR
+	//quicConn   quic.Connection
+	//quicConfig *quic.Config
 
 	isTLS  bool
 	isQUIC bool
@@ -1701,27 +1702,27 @@ func (c *Client) Close() error {
 	// ask any sub components (peer pump loops) to stop.
 	c.halt.StopTreeAndWaitTilDone(500*time.Millisecond, nil, nil)
 
-	if c.cfg.UseQUIC {
-		if c.isQUIC && c.quicConn != nil {
-			// try to tell server we are gone before
-			// we tear down the communication framework.
-			c.quicConn.CloseWithError(0, "")
-			//vv("cli quicConn.CloseWithError(0) sent.")
-		}
-		c.cfg.shared.mut.Lock()
-		if !c.cfg.shared.isClosed { // since Client.Close() might be called more than once.
-			c.cfg.shared.shareCount--
-			if c.cfg.shared.shareCount < 0 {
-				panic("client count should never be < 0")
-			}
-			//vv("c.cfg.shared.shareCount = '%v' for '%v'", c.cfg.shared.shareCount, c.name)
-			if c.cfg.shared.shareCount == 0 {
-				c.cfg.shared.quicTransport.Conn.Close()
-				c.cfg.shared.isClosed = true
-			}
-		}
-		c.cfg.shared.mut.Unlock()
-	}
+	// if c.cfg.UseQUIC {
+	// 	if c.isQUIC && c.quicConn != nil {
+	// 		// try to tell server we are gone before
+	// 		// we tear down the communication framework.
+	// 		c.quicConn.CloseWithError(0, "")
+	// 		//vv("cli quicConn.CloseWithError(0) sent.")
+	// 	}
+	// 	c.cfg.shared.mut.Lock()
+	// 	if !c.cfg.shared.isClosed { // since Client.Close() might be called more than once.
+	// 		c.cfg.shared.shareCount--
+	// 		if c.cfg.shared.shareCount < 0 {
+	// 			panic("client count should never be < 0")
+	// 		}
+	// 		//vv("c.cfg.shared.shareCount = '%v' for '%v'", c.cfg.shared.shareCount, c.name)
+	// 		if c.cfg.shared.shareCount == 0 {
+	// 			c.cfg.shared.quicTransport.Conn.Close()
+	// 			c.cfg.shared.isClosed = true
+	// 		}
+	// 	}
+	// 	c.cfg.shared.mut.Unlock()
+	// }
 	c.halt.ReqStop.Close()
 	<-c.halt.Done.Chan
 	//vv("Client.Close() finished.")
@@ -1840,20 +1841,20 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 	}
 
 	var from, to string
-	if c.isQUIC {
-		from = local(c.quicConn)
-		to = remote(c.quicConn)
-	} else {
-		from = local(c.conn)
-		to = remote(c.conn)
+	//	if c.isQUIC {
+	//		from = local(c.quicConn)
+	//		to = remote(c.quicConn)
+	//	} else {
+	from = local(c.conn)
+	to = remote(c.conn)
 
-		// diagnostics for simnet.
-		//sc, ok := c.conn.(*simconn)
-		//_ = sc
-		//if ok {
-		//	//vv("isCli=%v; c.conn.netAddr = '%v'; simconn.local='%v'; remote='%v'; sc.netAddr='%v'", sc.isCli, sc.netAddr, sc.local.name, sc.remote.name, sc.netAddr)
-		//}
-	}
+	// diagnostics for simnet.
+	//sc, ok := c.conn.(*simconn)
+	//_ = sc
+	//if ok {
+	//	//vv("isCli=%v; c.conn.netAddr = '%v'; simconn.local='%v'; remote='%v'; sc.netAddr='%v'", sc.isCli, sc.netAddr, sc.local.name, sc.remote.name, sc.netAddr)
+	//}
+	//	}
 
 	req.HDR.To = to
 	req.HDR.From = from
@@ -2162,13 +2163,13 @@ func (cli *Client) destAddrToSendCh(destAddr string) (sendCh chan *Message, halt
 	//	vv("Client.destAddrToSendCh() returning ok = '%v'", ok)
 	//}()
 
-	if cli.isQUIC {
-		from = local(cli.quicConn)
-		to = remote(cli.quicConn)
-	} else {
-		from = local(cli.conn)
-		to = remote(cli.conn)
-	}
+	//if cli.isQUIC {
+	//	from = local(cli.quicConn)
+	//	to = remote(cli.quicConn)
+	//} else {
+	from = local(cli.conn)
+	to = remote(cli.conn)
+	//}
 	_ = from
 	// fill default if empty, like fragment.go converting Fragment to Message does.
 	if destAddr == "" {
@@ -2201,13 +2202,13 @@ func (cli *Client) destAddrToSendCh(destAddr string) (sendCh chan *Message, halt
 func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}, errWriteDur time.Duration) (err error) {
 
 	var from, to string
-	if c.isQUIC {
-		from = local(c.quicConn)
-		to = remote(c.quicConn)
-	} else {
-		from = local(c.conn)
-		to = remote(c.conn)
-	}
+	//if c.isQUIC {
+	//	from = local(c.quicConn)
+	//	to = remote(c.quicConn)
+	//} else {
+	from = local(c.conn)
+	to = remote(c.conn)
+	//}
 
 	msg.HDR.To = to
 	msg.HDR.From = from
@@ -2292,11 +2293,11 @@ func (c *Client) RemoteAddr() string {
 	c.mut.Lock()
 	defer c.mut.Unlock()
 
-	if c.isQUIC {
-		return remote(c.quicConn)
-	} else {
-		return remote(c.conn)
-	}
+	//if c.isQUIC {
+	//	return remote(c.quicConn)
+	//} else {
+	return remote(c.conn)
+	//}
 }
 
 func remote(nc localRemoteAddr) string {
@@ -2489,13 +2490,13 @@ func (b *Downloader) BeginDownload(ctx context.Context, path string) (err error)
 	//vv("downloader to use seqno %v", seqno)
 
 	var from, to string
-	if cli.isQUIC {
-		from = local(cli.quicConn)
-		to = remote(cli.quicConn)
-	} else {
-		from = local(cli.conn)
-		to = remote(cli.conn)
-	}
+	//if cli.isQUIC {
+	//	from = local(cli.quicConn)
+	//	to = remote(cli.quicConn)
+	//} else {
+	from = local(cli.conn)
+	to = remote(cli.conn)
+	//}
 	// from bistream
 
 	req := NewMessage()
@@ -2635,13 +2636,13 @@ func (b *Bistreamer) Begin(ctx context.Context, req *Message) (err error) {
 	}
 
 	var from, to string
-	if b.cli.isQUIC {
-		from = local(b.cli.quicConn)
-		to = remote(b.cli.quicConn)
-	} else {
-		from = local(b.cli.conn)
-		to = remote(b.cli.conn)
-	}
+	//if b.cli.isQUIC {
+	//	from = local(b.cli.quicConn)
+	//	to = remote(b.cli.quicConn)
+	//} else {
+	from = local(b.cli.conn)
+	to = remote(b.cli.conn)
+	//}
 
 	req.HDR.To = to
 	req.HDR.From = from
