@@ -16,7 +16,7 @@ import (
 	cristalbase64 "github.com/cristalhq/base64"
 	"github.com/glycerine/greenpack/msgp"
 	"github.com/glycerine/loquet"
-	gjson "github.com/goccy/go-json"
+	//gjson "github.com/goccy/go-json" // ../go/pkg/mod/github.com/goccy/go-json@v0.10.3/internal/decoder/slice.go:95:19: undefined: reflect.SliceOf
 	mathrand2 "math/rand/v2"
 )
 
@@ -559,6 +559,7 @@ func (m *HDR) Bytes() []byte {
 	return m.JSON()
 }
 
+/* tinygo hates github.com/goccy/go-json
 // Unbytes reverses Bytes.
 func Unbytes(jsonData []byte) *HDR {
 	var mid HDR
@@ -575,6 +576,7 @@ func HDRFromBytes(jsonData []byte) (*HDR, error) {
 	}
 	return &mid, nil
 }
+*/
 
 // Pretty shows in pretty-printed JSON format.
 func (m *HDR) Pretty() string {
