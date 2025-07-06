@@ -1,5 +1,6 @@
 package selfcert
 
+/*
 // find the ssh-agent from the socket at env SSH_AUTH_SOCK
 // then read and or store keys in the agent.
 
@@ -121,3 +122,4 @@ func exampleMain() {
 	// Display information about the retrieved key
 	log.Printf("Retrieved Key: %s (Comment: %s)\n", retrievedKey.Format, retrievedKey.Comment)
 }
+*/
