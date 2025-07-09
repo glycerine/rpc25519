@@ -1,7 +1,7 @@
 package jsync
 
 import (
-	"bufio"
+	//"bufio"
 	"context"
 	"fmt"
 	myblake3 "github.com/glycerine/rpc25519/hash"
@@ -125,12 +125,12 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 	// working buffer to read local file chunks into.
 	buf := make([]byte, rpc.UserMaxPayload+10_000)
-	var newversBufio *bufio.Writer // comment for sparse
+	//var newversBufio *bufio.Writer // comment for sparse
 	var newversFd *os.File
 	var tmp string
 
 	// turn RLE0 into sparse holes
-	var totsparse []*sparsified.SparseSpan
+	//var totsparse []*sparsified.SparseSpan
 
 	j := 0 // index to new version, how much we have written.
 	h := blake3.New(64, nil)
@@ -436,9 +436,9 @@ takerForSelectLoop:
 					panicOn(err)
 
 					//vv("taker created file '%v'", tmp)
-					newversBufio = bufio.NewWriterSize(newversFd, rpc.UserMaxPayload)
+					//newversBufio = bufio.NewWriterSize(newversFd, rpc.UserMaxPayload)
 					// remember to Flush and Close!
-					defer newversBufio.Flush() // must be first
+					//defer newversBufio.Flush() // must be first
 					defer newversFd.Close()
 
 					// prep local file too, for seeking to chunks.
@@ -466,28 +466,44 @@ takerForSelectLoop:
 
 						if chunk.Cry == "RLE0;" {
 							span, wings := sparsified.AlignedSparseSpan(int64(chunk.Beg), int64(chunk.Endx))
-							_ = wings
+
+							// 3 steps to write a sparse hole full
+							// of logically 0. Each optional is optional:
+							// a) actual data 0, up to a 4k alignment point (pre-wing).
+							// b) the hole, a span >= 4k, 4k aligned.
+							// c) actuall data 0, trailing the hole (the post-wing).
+							if wings != nil && wings.Pre != nil {
+								n := wings.Pre.Endx - wings.Pre.Beg
+								wb, err := newversFd.Write(zeros4k[:n])
+								panicOn(err)
+								j += wb
+								h.Write(zeros4k[:n])
+							}
 							if span != nil {
-								totsparse = append(totsparse, span)
-
-							} else {
-
-								n := chunk.Endx - chunk.Beg
-								ns := n / len(zeros4k)
-								rem := n % len(zeros4k)
+								n := span.Endx - span.Beg
+								ns := n / 4096                // len(zeros4k)
+								rem := n % 4096               // len(zeros4k)
+								_, err = newversFd.Seek(n, 1) // 1=> relative to current offset
+								panicOn(err)
+								// hasher update
 								for range ns {
-									wb, err := newversBufio.Write(zeros4k)
-									panicOn(err)
-									j += wb
+									//wb, err := newversFd.Write(zeros4k)
+									//panicOn(err)
+									j += len(zeros4k)
 									h.Write(zeros4k)
 								}
-								if rem > 0 {
-									wb, err := newversBufio.Write(zeros4k[:rem])
-									panicOn(err)
-									j += wb
-									h.Write(zeros4k[:rem])
+								if rem != 0 {
+									panic(fmt.Sprintf("span must be 4k aligned: rem=%v", rem))
 								}
 							}
+							if wings != nil && wings.Post != nil {
+								n := wings.Post.Endx - wings.Post.Beg
+								wb, err := newversFd.Write(zeros4k[:n])
+								panicOn(err)
+								j += wb
+								h.Write(zeros4k[:n])
+							}
+
 						} else {
 							lc, ok := localMap[chunk.Cry]
 							if !ok {
@@ -514,7 +530,8 @@ takerForSelectLoop:
 								panicOn(err)
 							}
 
-							wb, err := newversBufio.Write(data)
+							//wb, err := newversBufio.Write(data)
+							wb, err := newversFd.Write(data)
 							panicOn(err)
 
 							j += wb
@@ -532,7 +549,8 @@ takerForSelectLoop:
 						//vv("number sparse holes seen = %v", len(sparse))
 					} else {
 						// INVAR: len(chunk.Data) > 0
-						wb, err := newversBufio.Write(chunk.Data)
+						//wb, err := newversBufio.Write(chunk.Data)
+						wb, err := newversFd.Write(chunk.Data)
 						panicOn(err)
 
 						j += wb
@@ -567,14 +585,14 @@ takerForSelectLoop:
 					panic(err)
 				}
 
-				newversBufio.Flush() // must be before newversFd.Close()
+				//newversBufio.Flush() // must be before newversFd.Close()
 
-				vv("total number sparse holes seen = %v", len(totsparse))
-				for _, span := range totsparse {
-					sz := span.Endx - span.Beg
-					_, err = sparsified.Fallocate(newversFd, sparsified.FALLOC_FL_PUNCH_HOLE, span.Beg, sz)
-					panicOn(err)
-				}
+				// vv("total number sparse holes seen = %v", len(totsparse))
+				// for _, span := range totsparse {
+				// 	sz := span.Endx - span.Beg
+				// 	_, err = sparsified.Fallocate(newversFd, sparsified.FALLOC_FL_PUNCH_HOLE, span.Beg, sz)
+				// 	panicOn(err)
+				// }
 				newversFd.Close()
 
 				// if TakerTempDir is set we are
