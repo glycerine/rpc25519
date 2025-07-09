@@ -431,8 +431,11 @@ takerForSelectLoop:
 					newversFd, err = os.Create(tmp)
 					panicOn(err)
 
-					// make sparse if possible!
-					err = newversFd.Truncate(int64(chunks.FileSize))
+					if chunks.FileSize == 0 {
+						panic("chunks.FileSize==0 ???")
+					}
+					vv("make sparse if possible! truncating to %v our tmp file '%v'", chunks.FileSize, tmp)
+					err = newversFd.Truncate(int64(chunks.FileSize)) // zero??
 					panicOn(err)
 
 					//vv("taker created file '%v'", tmp)
@@ -481,6 +484,7 @@ takerForSelectLoop:
 							}
 							if span != nil {
 								n := span.Endx - span.Beg
+								vv("applying sparse span of len %v", n)
 								ns := n / 4096                // len(zeros4k)
 								rem := n % 4096               // len(zeros4k)
 								_, err = newversFd.Seek(n, 1) // 1=> relative to current offset

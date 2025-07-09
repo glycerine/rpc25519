@@ -980,8 +980,9 @@ func (s *SyncService) packAndSendChunksJustInTime(
 			f.FragOp = opMore // OpRsync_HeavyDiffChunksEnclosed
 		}
 		chnks := &Chunks{
-			Chunks: pack,
-			Path:   path,
+			Chunks:   pack,
+			Path:     path,
+			FileSize: goalPrecis.FileSize,
 		}
 		bts, err := chnks.MarshalMsg(nil)
 		panicOn(err)
