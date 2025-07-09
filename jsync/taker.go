@@ -19,6 +19,7 @@ import (
 	"github.com/glycerine/blake3"
 	"github.com/glycerine/idem"
 	rpc "github.com/glycerine/rpc25519"
+	"github.com/glycerine/rpc25519/jsync/sparsified"
 )
 
 const useRLE0 = true
@@ -561,9 +562,14 @@ takerForSelectLoop:
 				}
 
 				newversBufio.Flush() // must be before newversFd.Close()
-				newversFd.Close()
 
 				vv("total number sparse holes seen = %v", len(totsparse))
+				for _, span := range totsparse {
+					sz := span.Endx - span.Beg
+					_, err = sparsified.Fallocate(newversFd, sparsified.FALLOC_FL_PUNCH_HOLE, span.Beg, sz)
+					panicOn(err)
+				}
+				newversFd.Close()
 
 				// if TakerTempDir is set we are
 				// already writing into a full
