@@ -129,9 +129,6 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	var newversFd *os.File
 	var tmp string
 
-	// turn RLE0 into sparse holes
-	//var totsparse []*sparsified.SparseSpan
-
 	j := 0 // index to new version, how much we have written.
 	h := blake3.New(64, nil)
 
@@ -201,7 +198,7 @@ takerForSelectLoop:
 	for {
 		select {
 		case frag := <-ckt.Reads:
-			//vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
+			vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
 			_ = frag
 			switch frag.FragOp {
 
@@ -431,7 +428,7 @@ takerForSelectLoop:
 					newversFd, err = os.Create(tmp)
 					panicOn(err)
 
-					//vv("make sparse if possible! truncating to %v our tmp file '%v'", syncReq.GiverFileSize, tmp)
+					vv("make sparse if possible! truncating to %v our tmp file '%v'", syncReq.GiverFileSize, tmp)
 					err = newversFd.Truncate(int64(syncReq.GiverFileSize))
 					panicOn(err)
 

@@ -44,8 +44,9 @@ type Span struct {
 	IsUnwrittenPrealloc bool
 	// (regular spans have both IsHole and IsUnwrittenPrealloc false).
 
-	Beg  int64
-	Endx int64
+	Beg   int64
+	Endx  int64
+	Flags uint32
 }
 
 type Spans struct {
@@ -283,7 +284,7 @@ func SparseFileSize(fd *os.File) (isSparse bool, diskBytesInUse, statSize int64,
 		// report a hole at position 369
 		// because the rest of rh 4K block is technically empty
 		// but in use by the file. We don't call
-		// that a sparse file. See Test007 in fileop_test.go.
+		// that a sparse file. See Test007 in sparse_test.go.
 		return
 	}
 	////vv("have holeBeg = %v < statSz = %v", holeBeg, statSz)
@@ -349,6 +350,8 @@ func FindSparseRegions(f *os.File) (spans *Spans, err error) {
 
 	// non-fiemap workaround: only handles pre-allocation
 	// at the first and second segment, but is portable to darwin.
+	// plus fiemap is pretty lame about fully pre-alloced files anyway,
+	// giving an error rather than useful info.
 	if disksz > statsz {
 		// we have pre-allocated some of the file.
 		if !isSparse {
@@ -745,7 +748,15 @@ func CopySparseFile(srcpath, destpath string) (err error) {
 		// and pre-allocated unwritten regions are deferred until
 		// we have an actual use case at hand.
 		//
-		// The idea is that if pre-allocation is used to avoid
+		// Normally a user using pre-allocation would loathe
+		// to have any sparsity in their file, because the point
+		// of pre-allocation is to make appends super-fast,
+		// avoid disk fragmentation, and hopefully almost
+		// never get an out-of-disk-space error unexpectedly. If
+		// you start punching holes in your file, those guarantees
+		// are voided.
+		//
+		// Hence our thesis is that if pre-allocation is used to avoid
 		// fragmentation and out-of-disk-space write failures,
 		// then the file is unlikely to also be sparse: the typical
 		// use is expected to actually fill some prefix of the

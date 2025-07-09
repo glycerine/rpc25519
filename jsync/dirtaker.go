@@ -97,7 +97,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			}
 			if r != rpc.ErrContextCancelled && r != rpc.ErrHaltRequested {
 				alwaysPrintf("dirtaker sees abnormal shutdown panic: '%v'", r)
-				//panic(r)
+				panic(r)
 			} else {
 				//vv("DirTaker suppressing rpc.ErrContextCancelled or ErrHaltRequested, this is normal shutdown.")
 			}
@@ -147,6 +147,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					if sr.DryRun {
 						alwaysPrintf("dry: would os.RemoveAll('%v')", sr.TakerPath)
 					} else {
+						vv("about to os.RemoveAll(sr.Takerpath='%v')", sr.TakerPath)
 						err = os.RemoveAll(sr.TakerPath)
 						panicOn(err)
 					}

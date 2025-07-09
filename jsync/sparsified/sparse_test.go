@@ -56,6 +56,7 @@ func TestFallocateInsertRangeTooBig(t *testing.T) {
 	fd, err := os.Create(path)
 	panicOn(err)
 	defer fd.Close()
+	defer os.Remove(path)
 
 	// does file need to be non-empty? yep. hmm... would be nice if that was not the case.
 	_, err = fd.Write(oneZeroBlock4k[:])
@@ -80,18 +81,6 @@ func TestFallocateInsertRangeTooBig(t *testing.T) {
 	// asked for length='16777216', got='16777216'. wrote to path 'out.db'. all done.
 	// got a 16MB span.
 }
-
-/* linux is going to report the extent-added (sparse?) file differently the Darwin.
-$ ls -al
--rw-------   1 jaten jaten  65M Mar 18 13:46 out.db
-jaten@rog ~/yogadb (master) $ du -sh .
-3.2M	.
-jaten@rog ~/yogadb (master) $ du -sh out.db
-4.0K	out.db
-jaten@rog ~/yogadb (master) $ ls -ls out.db
-4 -rw------- 1 jaten jaten 67108865 Mar 18 13:46 out.db
-jaten@rog ~/yogadb (master) $
-*/
 
 // Collapse-range is the opposite of Insert-range.
 // These are from https://pkg.go.dev/golang.org/x/sys/unix#section-readme for Linux/amd64:
@@ -158,6 +147,7 @@ func TestCollapseRange(t *testing.T) {
 	fd, err := os.Create(path)
 	panicOn(err)
 	defer fd.Close()
+	defer os.Remove(path)
 
 	// does file need to be non-empty? yep. hmm... would be nice if that was not the case.
 	var nw int
@@ -275,6 +265,7 @@ func Test005_apfs(t *testing.T) {
 
 		spansRead, err := FindSparseRegions(fd)
 		panicOn(err)
+		fd.Close()
 		////vv("spansRead = '%v'", spansRead)
 		if spansRead.Equal(spec) {
 			////vv("good: spansRead Equal spec, on i=%v, path='%v'", i, path)
@@ -475,7 +466,7 @@ func Test010_pre_allocated_file_some_data(t *testing.T) {
 	// maybe darwin hates doing a pre-alloc not from Beg: 0.
 	// invalid argument'/'0x16' back from
 	// unix.FcntlFstore(fd.Fd(), int(unix.F_PREALLOCATE), store)
-	// inside fallocate in fileop_darwin.go.
+	// inside fallocate in sparse_darwin.go.
 	// So we'll just write some stuff below.
 	var mb64 int64 = 1 << 26
 	spec := &Spans{Slc: []Span{

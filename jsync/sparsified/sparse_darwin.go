@@ -596,7 +596,5 @@ func createSparseFileFromSpans(path string, spans *Spans, rng *prng) (fd *os.Fil
 			}
 		}
 	}
-
-	//fd.Sync()
 	return
 }
