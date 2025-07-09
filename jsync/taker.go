@@ -127,6 +127,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	var newversBufio *bufio.Writer
 	var newversFd *os.File
 	var tmp string
+	var totsparse []*SparseSpan
 
 	j := 0 // index to new version, how much we have written.
 	h := blake3.New(64, nil)
@@ -449,6 +450,9 @@ takerForSelectLoop:
 
 				// compute the full file hash/checksum as we go
 
+				// turn RLE0 into sparse holes
+				var sparse []*SparseSpan
+
 				// remote gives the plan of what to create
 				for _, chunk := range chunks.Chunks {
 
@@ -456,6 +460,12 @@ takerForSelectLoop:
 						// the data is local
 
 						if chunk.Cry == "RLE0;" {
+							span := AlignedSparseSpan(int64(chunk.Beg), int64(chunk.Endx))
+							if span != nil {
+								sparse = append(sparse, span)
+								totsparse = append(totsparse, span)
+							}
+
 							n := chunk.Endx - chunk.Beg
 							ns := n / len(zeros4k)
 							rem := n % len(zeros4k)
@@ -511,6 +521,8 @@ takerForSelectLoop:
 							} // panic: lc.Endx = 2992124, lc.Beg = 2914998, but lc.Data len = 0
 							h.Write(data) // update checksum
 						} // end else not RLE0;
+
+						vv("number sparse holes seen = %v", len(sparse))
 					} else {
 						// INVAR: len(chunk.Data) > 0
 						wb, err := newversBufio.Write(chunk.Data)
@@ -550,6 +562,8 @@ takerForSelectLoop:
 
 				newversBufio.Flush() // must be before newversFd.Close()
 				newversFd.Close()
+
+				vv("total number sparse holes seen = %v", len(totsparse))
 
 				// if TakerTempDir is set we are
 				// already writing into a full

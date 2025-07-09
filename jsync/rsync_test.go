@@ -73,7 +73,7 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		remotePath := fmt.Sprintf("charand%vmb", N)
 		testfd, err := os.Create(remotePath)
 		panicOn(err)
-		slc := make([]byte, 1<<20) // 1 MB slice
+		slc := make([]byte, 1<<19) // 0.5 MB slice
 
 		// deterministic pseudo-random numbers as data.
 		var seed [32]byte
@@ -91,6 +91,10 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 			_, err = testfd.Write(slc)
 			panicOn(err)
 		}
+		// add a big sparse hole at the end of the remote path.
+		err = testfd.Truncate(1 << 20)
+		panicOn(err)
+
 		testfd.Close()
 		vv("created N = %v MB test file in remotePath='%v'.", N, remotePath)
 

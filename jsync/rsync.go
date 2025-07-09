@@ -125,6 +125,9 @@ var zeros4k = make([]byte, 4096)
 // The new version the file is constructed from
 // existing data (in localMap) and the updated
 // new chunk data we've received (in remote).
+//
+// Note that taker.go:405 is the "broken into pieces" version
+// actually used.
 func UpdateLocalWithRemoteDiffs(
 	localPathToWrite string,
 
@@ -244,11 +247,14 @@ func UpdateLocalWithRemoteDiffs(
 	sparsify := false
 	sznew := int64(len(newvers))
 	if len(sparse) > 0 {
+		vv("UpdateLocalWithRemoteDiffs detected %v sparse holes", len(sparse))
 		sparsify = true
 		err = fd.Truncate(sznew)
 		if err != nil {
 			return fmt.Errorf("error failed to Truncate to max size (make sparse file) in UpdateLocalWithRemoteDiffs: '%v'", err)
 		}
+	} else {
+		vv("UpdateLocalWithRemoteDiffs detected NO sparse holes")
 	}
 
 	// Close just returns an error if called 2x. That is fine.
@@ -480,7 +486,7 @@ func (s *BlobStore) GetPlanToUpdateFromGoal(updateme, goal *Chunks, dropGoalData
 		_ = i
 		//vv("i=%v, adding to updateme_map: '%v'", i, c)
 		if c.Cry == "RLE0;" {
-			// omit
+			// omit -- update: ?? do we need to transmit for sparseness TODO?
 		} else {
 			updatememap[c.Cry] = c
 		}
@@ -495,7 +501,7 @@ func (s *BlobStore) GetPlanToUpdateFromGoal(updateme, goal *Chunks, dropGoalData
 			}
 			//vv("checking for goal.Chunk c = '%v'", c)
 			if c.Cry == "RLE0;" {
-				// other side never needs RLE0; its just all 0.
+				// other side never needs RLE0; its just all 0. // update TODO RLE0->sparse might need to transmit?
 			} else {
 				_, ok := updatememap[c.Cry]
 				if !ok {
@@ -1124,6 +1130,7 @@ func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 	return
 }
 
+// seems to be only called from rsync_test.go and rsync_simnet_test.go
 func UpdateLocalFileWithRemoteDiffs(
 	localPathToWrite string,
 	localPathToRead string,
@@ -1154,6 +1161,9 @@ func UpdateLocalFileWithRemoteDiffs(
 	if remote.FileSize != remote.Last().Endx {
 		panic(fmt.Sprintf("remote was not a full plan for every byte! remote.FileSize = %v; but remote.Last().Endx = %v", remote.FileSize, remote.Last().Endx))
 	}
+
+	// turn RLE0 into sparse holes
+	var sparse []*SparseSpan
 
 	// working buffer to read local file chunks into.
 	buf := make([]byte, rpc.UserMaxPayload+10_000)
@@ -1199,6 +1209,12 @@ func UpdateLocalFileWithRemoteDiffs(
 
 		// handle "RLE0;" case, run-length-encoded zeros.
 		if chunk.Cry == "RLE0;" {
+			// can we turn it into a sparse hole?
+			span := AlignedSparseSpan(int64(chunk.Beg), int64(chunk.Endx))
+			if span != nil {
+				sparse = append(sparse, span)
+			}
+
 			n := chunk.Endx - chunk.Beg
 			ns := n / len(zeros4k)
 			rem := n % len(zeros4k)
@@ -1274,6 +1290,12 @@ func UpdateLocalFileWithRemoteDiffs(
 			h.Write(chunk.Data)
 		}
 	} // end for chunk over chunks.Chunks
+
+	if len(sparse) > 0 {
+		vv("UpdateLocalFileWithRemoteDiffs detected %v sparse holes, TODO: implement below... take out Bufio?", len(sparse))
+	} else {
+		vv("UpdateLocalFileWithRemoteDiffs detected NO sparse holes")
+	}
 
 	newversBufio.Flush() // must be before newversFd.Close()
 	newversFd.Close()
