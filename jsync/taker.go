@@ -125,12 +125,12 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 	// working buffer to read local file chunks into.
 	buf := make([]byte, rpc.UserMaxPayload+10_000)
-	var newversBufio *bufio.Writer
+	var newversBufio *bufio.Writer // comment for sparse
 	var newversFd *os.File
 	var tmp string
 
 	// turn RLE0 into sparse holes
-	var totsparse []*SparseSpan
+	var totsparse []*sparsified.SparseSpan
 
 	j := 0 // index to new version, how much we have written.
 	h := blake3.New(64, nil)
@@ -465,25 +465,28 @@ takerForSelectLoop:
 						// the data is local
 
 						if chunk.Cry == "RLE0;" {
-							span := AlignedSparseSpan(int64(chunk.Beg), int64(chunk.Endx))
+							span, wings := sparsified.AlignedSparseSpan(int64(chunk.Beg), int64(chunk.Endx))
+							_ = wings
 							if span != nil {
 								totsparse = append(totsparse, span)
-							}
 
-							n := chunk.Endx - chunk.Beg
-							ns := n / len(zeros4k)
-							rem := n % len(zeros4k)
-							for range ns {
-								wb, err := newversBufio.Write(zeros4k)
-								panicOn(err)
-								j += wb
-								h.Write(zeros4k)
-							}
-							if rem > 0 {
-								wb, err := newversBufio.Write(zeros4k[:rem])
-								panicOn(err)
-								j += wb
-								h.Write(zeros4k[:rem])
+							} else {
+
+								n := chunk.Endx - chunk.Beg
+								ns := n / len(zeros4k)
+								rem := n % len(zeros4k)
+								for range ns {
+									wb, err := newversBufio.Write(zeros4k)
+									panicOn(err)
+									j += wb
+									h.Write(zeros4k)
+								}
+								if rem > 0 {
+									wb, err := newversBufio.Write(zeros4k[:rem])
+									panicOn(err)
+									j += wb
+									h.Write(zeros4k[:rem])
+								}
 							}
 						} else {
 							lc, ok := localMap[chunk.Cry]

@@ -18,6 +18,7 @@ import (
 	rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/hash"
 	"github.com/glycerine/rpc25519/jcdc"
+	"github.com/glycerine/rpc25519/jsync/sparsified"
 )
 
 //go:generate greenpack -no-dedup=true
@@ -150,7 +151,7 @@ func UpdateLocalWithRemoteDiffs(
 	}
 
 	// turn RLE0 into sparse holes
-	var sparse []*SparseSpan
+	var sparse []*sparsified.SparseSpan
 
 	if len(remote.Chunks) == 0 {
 		panic(fmt.Sprintf("missing remote chunks for non-size-zero file '%v'", localPathToWrite))
@@ -175,10 +176,11 @@ func UpdateLocalWithRemoteDiffs(
 		// handle "RLE0;" case, run-length-encoded zeros.
 		if chunk.Cry == "RLE0;" {
 			// can we turn it into a sparse hole?
-			span := AlignedSparseSpan(int64(chunk.Beg), int64(chunk.Endx))
+			span, wings := sparsified.AlignedSparseSpan(int64(chunk.Beg), int64(chunk.Endx))
 			if span != nil {
 				sparse = append(sparse, span)
 			}
+			_ = wings
 			n := chunk.Endx - chunk.Beg
 			ns := n / len(zeros4k)
 			rem := n % len(zeros4k)
@@ -1163,7 +1165,7 @@ func UpdateLocalFileWithRemoteDiffs(
 	}
 
 	// turn RLE0 into sparse holes
-	var sparse []*SparseSpan
+	var sparse []*sparsified.SparseSpan
 
 	// working buffer to read local file chunks into.
 	buf := make([]byte, rpc.UserMaxPayload+10_000)
@@ -1210,7 +1212,8 @@ func UpdateLocalFileWithRemoteDiffs(
 		// handle "RLE0;" case, run-length-encoded zeros.
 		if chunk.Cry == "RLE0;" {
 			// can we turn it into a sparse hole?
-			span := AlignedSparseSpan(int64(chunk.Beg), int64(chunk.Endx))
+			span, wings := sparsified.AlignedSparseSpan(int64(chunk.Beg), int64(chunk.Endx))
+			_ = wings
 			if span != nil {
 				sparse = append(sparse, span)
 			}
