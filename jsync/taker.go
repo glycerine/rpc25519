@@ -128,6 +128,8 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	var newversBufio *bufio.Writer
 	var newversFd *os.File
 	var tmp string
+
+	// turn RLE0 into sparse holes
 	var totsparse []*SparseSpan
 
 	j := 0 // index to new version, how much we have written.
@@ -428,6 +430,11 @@ takerForSelectLoop:
 					//}
 					newversFd, err = os.Create(tmp)
 					panicOn(err)
+
+					// make sparse if possible!
+					err = newversFd.Truncate(int64(chunks.FileSize))
+					panicOn(err)
+
 					//vv("taker created file '%v'", tmp)
 					newversBufio = bufio.NewWriterSize(newversFd, rpc.UserMaxPayload)
 					// remember to Flush and Close!
@@ -451,9 +458,6 @@ takerForSelectLoop:
 
 				// compute the full file hash/checksum as we go
 
-				// turn RLE0 into sparse holes
-				var sparse []*SparseSpan
-
 				// remote gives the plan of what to create
 				for _, chunk := range chunks.Chunks {
 
@@ -463,7 +467,6 @@ takerForSelectLoop:
 						if chunk.Cry == "RLE0;" {
 							span := AlignedSparseSpan(int64(chunk.Beg), int64(chunk.Endx))
 							if span != nil {
-								sparse = append(sparse, span)
 								totsparse = append(totsparse, span)
 							}
 
@@ -523,7 +526,7 @@ takerForSelectLoop:
 							h.Write(data) // update checksum
 						} // end else not RLE0;
 
-						vv("number sparse holes seen = %v", len(sparse))
+						//vv("number sparse holes seen = %v", len(sparse))
 					} else {
 						// INVAR: len(chunk.Data) > 0
 						wb, err := newversBufio.Write(chunk.Data)
