@@ -12,6 +12,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+//go:generate greenpack
+
 // fortunately, this is the same number on linux and darwin.
 // const FALLOC_FL_INSERT_RANGE = unix.FALLOC_FL_INSERT_RANGE
 const FALLOC_FL_INSERT_RANGE = 32
@@ -40,17 +42,22 @@ var ErrFileTooLarge = fmt.Errorf("extent requested was too large.")
 
 // Span represents a sparse hole region, or a data region.
 type Span struct {
-	IsHole              bool
-	IsUnwrittenPrealloc bool
-	// (regular spans have both IsHole and IsUnwrittenPrealloc false).
+	IsHole              bool `zid:"0"`
+	IsUnwrittenPrealloc bool `zid:"1"`
 
-	Beg   int64
-	Endx  int64
-	Flags uint32
+	// notes:
+	// 1. Regular data spans have both IsHole and
+	//    IsUnwrittenPrealloc false.
+	// 2. It is illegal to have both IsHole and
+	//    IsUnwrittenPrealloc true on the same Span.
+
+	Beg   int64  `zid:"2"`
+	Endx  int64  `zid:"3"`
+	Flags uint32 `zid:"4"`
 }
 
 type Spans struct {
-	Slc []Span
+	Slc []Span `zid:"0"`
 }
 
 func (s *Spans) String() (r string) {
