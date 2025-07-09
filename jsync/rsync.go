@@ -146,6 +146,9 @@ func UpdateLocalWithRemoteDiffs(
 		return truncateFileToZero(localPathToWrite)
 	}
 
+	// turn RLE0 into sparse holes
+	var sparse []*SparseSpan
+
 	if len(remote.Chunks) == 0 {
 		panic(fmt.Sprintf("missing remote chunks for non-size-zero file '%v'", localPathToWrite))
 	}
@@ -168,6 +171,11 @@ func UpdateLocalWithRemoteDiffs(
 
 		// handle "RLE0;" case, run-length-encoded zeros.
 		if chunk.Cry == "RLE0;" {
+			// can we turn it into a sparse hole?
+			span := AlignedSparseSpan(int64(chunk.Beg), int64(chunk.Endx))
+			if span != nil {
+				sparse = append(sparse, span)
+			}
 			n := chunk.Endx - chunk.Beg
 			ns := n / len(zeros4k)
 			rem := n % len(zeros4k)
@@ -192,6 +200,9 @@ func UpdateLocalWithRemoteDiffs(
 				panic(fmt.Sprintf("rsync algo failed, the needed data is not "+
 					"available locally: '%v'; len(localMap) = %v", chunk, len(localMap))) // it was not this one, but further down at 220
 			}
+
+			// TODO: preserve/detect sparseness from local data too.
+
 			wb := copy(newvers[j:], lc.Data)
 			j += wb
 			if wb != len(lc.Data) {
@@ -227,13 +238,44 @@ func UpdateLocalWithRemoteDiffs(
 	tmp := localPathToWrite + "_accept_plan_tmp_" + rnd
 	fd, err = os.Create(tmp)
 	if err != nil {
-		return err
+		return fmt.Errorf("error failed to create tmp file in UpdateLocalWithRemoteDiffs: '%v'", err)
+	}
+
+	sparsify := false
+	sznew := int64(len(newvers))
+	if len(sparse) > 0 {
+		sparsify = true
+		err = fd.Truncate(sznew)
+		if err != nil {
+			return fmt.Errorf("error failed to Truncate to max size (make sparse file) in UpdateLocalWithRemoteDiffs: '%v'", err)
+		}
 	}
 
 	// Close just returns an error if called 2x. That is fine.
 	defer fd.Close()
-	_, err = fd.Write(newvers)
-	panicOn(err)
+	if !sparsify {
+		_, err = fd.Write(newvers)
+		panicOn(err)
+	} else {
+		var offset int64
+		for _, span := range sparse {
+			if offset < span.Beg {
+				// data before the hole.
+				_, err = fd.Write(newvers[offset:span.Beg])
+				panicOn(err)
+			}
+			// skip to end of hole.
+			offset = span.Endx
+			_, err = fd.Seek(offset, 0)
+			panicOn(err)
+		}
+		// might have data after last sparse span.
+		if offset < sznew {
+			// write last data segment
+			_, err = fd.Write(newvers[offset:])
+			panicOn(err)
+		}
+	}
 
 	fd.Close()
 	err = os.Rename(tmp, localPathToWrite)
