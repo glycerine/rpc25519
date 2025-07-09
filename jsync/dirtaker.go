@@ -143,7 +143,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				if sr.TakerPath == "" {
 					panic("cannot have empty sr.TakerPath here.")
 				}
-				if dirExists(sr.TakerPath) {
+				if dirExists(sr.TakerPath) && sr.TakerPath != "." {
 					if sr.DryRun {
 						alwaysPrintf("dry: would os.RemoveAll('%v')", sr.TakerPath)
 					} else {
