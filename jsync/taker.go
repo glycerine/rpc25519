@@ -431,7 +431,7 @@ takerForSelectLoop:
 					newversFd, err = os.Create(tmp)
 					panicOn(err)
 
-					vv("make sparse if possible! truncating to %v our tmp file '%v'", syncReq.GiverFileSize, tmp)
+					//vv("make sparse if possible! truncating to %v our tmp file '%v'", syncReq.GiverFileSize, tmp)
 					err = newversFd.Truncate(int64(syncReq.GiverFileSize))
 					panicOn(err)
 
