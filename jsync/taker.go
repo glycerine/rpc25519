@@ -431,11 +431,8 @@ takerForSelectLoop:
 					newversFd, err = os.Create(tmp)
 					panicOn(err)
 
-					if chunks.FileSize == 0 {
-						panic("chunks.FileSize==0 ???")
-					}
-					vv("make sparse if possible! truncating to %v our tmp file '%v'", chunks.FileSize, tmp)
-					err = newversFd.Truncate(int64(chunks.FileSize)) // zero??
+					vv("make sparse if possible! truncating to %v our tmp file '%v'", syncReq.GiverFileSize, tmp)
+					err = newversFd.Truncate(int64(syncReq.GiverFileSize))
 					panicOn(err)
 
 					//vv("taker created file '%v'", tmp)
