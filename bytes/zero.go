@@ -43,16 +43,16 @@ func allZeroAVX512(b []byte) bool
 // LongestZeroSpan returns the start index and length of the longest continuous
 // span of zero bytes in the given slice. If no zeros are found, returns (0, 0).
 // If multiple spans of the same longest length exist, returns the first one.
-func SIMDLongestZeroSpan(b []byte) (start, length int) {
+func SIMDLongestZeroSpan(b []byte) (start, length int64) {
 	if len(b) == 0 {
 		return 0, 0
 	}
 
 	var (
-		currentStart = 0
-		currentLen   = 0
-		maxStart     = 0
-		maxLen       = 0
+		currentStart int64
+		currentLen   int64
+		maxStart     int64
+		maxLen       int64
 	)
 
 	// Process the slice looking for spans of zeros
@@ -60,7 +60,7 @@ func SIMDLongestZeroSpan(b []byte) (start, length int) {
 		// If we find a zero byte, try to extend the span using SIMD
 		if b[i] == 0 {
 			if currentLen == 0 {
-				currentStart = i
+				currentStart = int64(i)
 			}
 
 			// Try to find the end of this zero span using SIMD
@@ -95,7 +95,7 @@ func SIMDLongestZeroSpan(b []byte) (start, length int) {
 			}
 
 			// Update current span length
-			currentLen = j
+			currentLen = int64(j)
 			i += j
 
 			// If we hit the end of the slice or a non-zero byte
@@ -126,22 +126,22 @@ func SIMDLongestZeroSpan(b []byte) (start, length int) {
 // LongestZeroSpan is a simple byte-by-byte implementation for benchmarking.
 // This naive version is on par with the SIMD version above.
 // To see on your machine, run: go test -bench=. -benchmem
-func LongestZeroSpan(b []byte) (start, length int) {
+func LongestZeroSpan(b []byte) (start, length int64) {
 	if len(b) == 0 {
 		return 0, 0
 	}
 
 	var (
-		currentStart = 0
-		currentLen   = 0
-		maxStart     = 0
-		maxLen       = 0
+		currentStart int64
+		currentLen   int64
+		maxStart     int64
+		maxLen       int64
 	)
 
 	for i := range b {
 		if b[i] == 0 {
 			if currentLen == 0 {
-				currentStart = i
+				currentStart = int64(i)
 			}
 			currentLen++
 		} else {

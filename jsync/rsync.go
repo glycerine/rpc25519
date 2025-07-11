@@ -33,8 +33,8 @@ import (
 //
 //mspg:tuple Chunk
 type Chunk struct {
-	Beg  int `zid:"0"`
-	Endx int `zid:"1"`
+	Beg  int64 `zid:"0"`
+	Endx int64 `zid:"1"`
 
 	// Simple protocol for run-length-encoding (RLE) of zeros.
 	// Cry of "RLE0;" means repeat 0 from [Beg:Endx)
@@ -55,7 +55,7 @@ func (c *Chunk) CloneNoData() (r *Chunk) {
 	return
 }
 
-func (c *Chunk) Len() int { return c.Endx - c.Beg }
+func (c *Chunk) Len() int64 { return c.Endx - c.Beg }
 
 // Chunks holds all the chunks for a file, at
 // some specific version of that file.
@@ -76,7 +76,7 @@ type Chunks struct {
 	// FileSize gives the total size of Path,
 	// since we may have only a subset of
 	// Path's data chunks (e.g. the updated ones).
-	FileSize int    `zid:"2"`
+	FileSize int64  `zid:"2"`
 	FileCry  string `zid:"3"` // the cryptographic hash of the whole file.
 }
 
@@ -164,7 +164,7 @@ func UpdateLocalWithRemoteDiffs(
 
 	// assemble in memory first, later stream to disk.
 	newvers := make([]byte, remote.FileSize)
-	j := 0 // index to new version, how much we have written.
+	var j int64 // index to new version, how much we have written.
 
 	// compute the full file hash/checksum as we go
 	h := blake3.New(64, nil)
@@ -182,15 +182,15 @@ func UpdateLocalWithRemoteDiffs(
 			}
 			_ = wings
 			n := chunk.Endx - chunk.Beg
-			ns := n / len(zeros4k)
-			rem := n % len(zeros4k)
+			ns := n / int64(len(zeros4k))
+			rem := n % int64(len(zeros4k))
 			for range ns {
-				wb := copy(newvers[j:], zeros4k)
+				wb := int64(copy(newvers[j:], zeros4k))
 				j += wb
 				h.Write(zeros4k)
 			}
 			if rem > 0 {
-				wb := copy(newvers[j:], zeros4k[:rem])
+				wb := int64(copy(newvers[j:], zeros4k[:rem]))
 				j += wb
 				h.Write(zeros4k[:rem])
 			}
@@ -208,9 +208,9 @@ func UpdateLocalWithRemoteDiffs(
 
 			// TODO: preserve/detect sparseness from local data too.
 
-			wb := copy(newvers[j:], lc.Data)
+			wb := int64(copy(newvers[j:], lc.Data))
 			j += wb
-			if wb != len(lc.Data) {
+			if wb != int64(len(lc.Data)) {
 				panic("newvers did not have enough space")
 			}
 			// sanity check the local chunk as a precaution.
@@ -219,9 +219,9 @@ func UpdateLocalWithRemoteDiffs(
 			}
 			h.Write(lc.Data)
 		} else {
-			wb := copy(newvers[j:], chunk.Data)
+			wb := int64(copy(newvers[j:], chunk.Data))
 			j += wb
-			if wb != len(chunk.Data) {
+			if wb != int64(len(chunk.Data)) {
 				panic("newvers did not have enough space")
 			}
 			// sanity check the local chunk as a precaution.
@@ -330,7 +330,7 @@ type FilePrecis struct {
 	Path string `zid:"4"`
 
 	ModTime     time.Time `zid:"5"`
-	FileSize    int       `zid:"6"`
+	FileSize    int64     `zid:"6"`
 	FileMode    uint32    `zid:"7"`
 	FileOwner   string    `zid:"8"`
 	FileOwnerID uint32    `zid:"9"`
@@ -761,7 +761,7 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 	precis = &FilePrecis{
 		Host:        host,
 		Path:        path,
-		FileSize:    int(fileStatSz), // len(data),
+		FileSize:    fileStatSz, // len(data),
 		ModTime:     modTime,
 		ChunkerName: cdc.Name(),
 		CDC_Config:  cdc.Config(),
@@ -944,13 +944,13 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 	if err != nil {
 		return nil, nil, err
 	}
-	sz := int(sz64)
+	//sz := int(sz64)
 	//vv("sz = %v", sz)
 
 	precis = &FilePrecis{
 		Host:     host,
 		Path:     path,
-		FileSize: sz,
+		FileSize: sz64,
 		ModTime:  modTime,
 		//FileCry:     hash.Blake3OfBytesString(data),
 		ChunkerName: cdc.Name(),
@@ -985,7 +985,7 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 		}
 	}()
 
-	if sz == 0 {
+	if sz64 == 0 {
 		return
 	}
 
@@ -1000,13 +1000,13 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 	defer fd.Close()
 
 	k := 0 // chunk count
-	addChunk := func(slc []byte, beg int) {
+	addChunk := func(slc []byte, beg int64) {
 		hsh := hash.Blake3OfBytesString(slc)
 		//fmt.Printf("[%03d]GetHashes hsh = %v\n", k, hsh)
 		k++
 		chunk := &Chunk{
 			Beg:  beg,
-			Endx: beg + len(slc),
+			Endx: beg + int64(len(slc)),
 			Cry:  hsh,
 		}
 		chunks.Chunks = append(chunks.Chunks, chunk)
@@ -1016,11 +1016,11 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 	//vv("using bufsz = %v in GetHashesOneByOne", bufsz)
 	buf := make([]byte, bufsz)
 
-	var totalread int // total bytes read from file so far.
+	var totalread int64 // total bytes read from file so far.
 
-	var bufbeg int  // offset where buf starts in the origin file.
-	var bufendx int // offset where buf ends in the origin file.
-	var dataoff int // offset where data starts in the original file. pass to addChunk()
+	var bufbeg int64  // offset where buf starts in the origin file.
+	var bufendx int64 // offset where buf ends in the origin file.
+	var dataoff int64 // offset where data starts in the original file. pass to addChunk()
 
 	var nr int
 	nr, err = io.ReadFull(fd, buf)
@@ -1031,8 +1031,8 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 		err = nil
 		return
 	}
-	bufendx += nr
-	totalread += nr // gives offset of end of data
+	bufendx += int64(nr)
+	totalread += int64(nr) // gives offset of end of data
 
 	if err == io.ErrUnexpectedEOF {
 		err = nil
@@ -1047,7 +1047,7 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 
 	for j := 0; len(data) > 0; j++ {
 
-		cut := cdc.NextCut(data)
+		cut := int64(cdc.NextCut(data))
 
 		if len(data) >= cdcCfg.MaxSize {
 			// legit cut
@@ -1060,10 +1060,10 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 			}
 		}
 		// INVAR: len(data) < opts.MaxSize, we need to read from file, if we can.
-		if bufendx == sz {
+		if bufendx == sz64 {
 			//vv("no more data available, the last will be oddly truncated.")
 			for len(data) > 0 {
-				cut := cdc.NextCut(data)
+				cut := int64(cdc.NextCut(data))
 				addChunk(data[:cut], dataoff)
 				data = data[cut:]
 				dataoff += cut
@@ -1075,7 +1075,7 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 
 		// move what we have left in data to the beginning of buf,
 		// before we read again, so we don't lose it.
-		k := copy(buf, data)
+		k := int64(copy(buf, data))
 		bufbeg = dataoff
 		bufendx = dataoff + k
 		//vv("data out of space, read from file. copied k = %v", k)
@@ -1089,8 +1089,8 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 			//vv("we see EOF after totalread = %v", totalread)
 			return
 		}
-		bufendx += nr
-		totalread += nr
+		bufendx += int64(nr)
+		totalread += int64(nr)
 
 		if err == io.ErrUnexpectedEOF {
 			// buf is less than full. meh. ignore this error.
@@ -1104,7 +1104,7 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 		}
 		data = buf[:(bufendx - bufbeg)]
 		// dataoff is fine.
-		if len(data) == 0 && totalread != sz {
+		if len(data) == 0 && totalread != sz64 {
 			panic("why is data len 0 when have not ready whole file?")
 		}
 	}
@@ -1127,13 +1127,13 @@ func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 	if err != nil {
 		return nil, err
 	}
-	sz := int(sz64)
+	//sz := int(sz64)
 	//vv("sz = %v", sz)
 
 	precis = &FilePrecis{
 		Host:     host,
 		Path:     path,
-		FileSize: sz,
+		FileSize: sz64,
 		ModTime:  modTime,
 		//FileCry:     hash.Blake3OfBytesString(data),
 		ChunkerName: cdc.Name(),
@@ -1251,8 +1251,8 @@ func UpdateLocalFileWithRemoteDiffs(
 			}
 
 			n := chunk.Endx - chunk.Beg
-			ns := n / len(zeros4k)
-			rem := n % len(zeros4k)
+			ns := n / int64(len(zeros4k))
+			rem := n % int64(len(zeros4k))
 			for range ns {
 				wb, err := newversBufio.Write(zeros4k)
 				panicOn(err)
@@ -1303,7 +1303,7 @@ func UpdateLocalFileWithRemoteDiffs(
 				panic("short write?!?!")
 			}
 			// sanity check the local chunk as a precaution.
-			if wb != lc.Endx-lc.Beg {
+			if int64(wb) != lc.Endx-lc.Beg {
 				panic(fmt.Sprintf("lc.Endx = %v, lc.Beg = %v, but "+
 					"lc.Data len = %v", lc.Endx, lc.Beg, wb))
 			} // panic: lc.Endx = 2992124, lc.Beg = 2914998, but lc.Data len = 0
@@ -1318,7 +1318,7 @@ func UpdateLocalFileWithRemoteDiffs(
 				panic("short write!?!!")
 			}
 			// sanity check the local chunk as a precaution.
-			if wb != chunk.Endx-chunk.Beg {
+			if int64(wb) != chunk.Endx-chunk.Beg {
 				panic(fmt.Sprintf("lc.Endx = %v, lc.Beg = %v, but "+
 					"lc.Data len = %v", chunk.Endx, chunk.Beg, wb))
 			}

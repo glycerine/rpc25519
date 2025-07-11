@@ -412,7 +412,7 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 
 			// from giver.go:801
 
-			bytesFromDisk := 0
+			var bytesFromDisk int64
 			t4 := time.Now()
 			fd, err := os.Open(remotePath)
 			panicOn(err)
@@ -631,7 +631,7 @@ func Test788_rle_zeros_encoded(t *testing.T) {
 
 			// from giver.go:801
 
-			bytesFromDisk := 0
+			var bytesFromDisk int64
 			t4 := time.Now()
 			fd, err := os.Open(remotePath)
 			panicOn(err)

@@ -3,6 +3,8 @@
 package jsync
 
 import (
+	"fmt"
+
 	"github.com/glycerine/greenpack/msgp"
 	"github.com/glycerine/rpc25519/jcdc"
 )
@@ -41,7 +43,7 @@ doneWithStruct2zgensym_9db0ba711f6a3e5a_3:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft2zgensym_9db0ba711f6a3e5a_3 > 0 || missingFieldsLeft2zgensym_9db0ba711f6a3e5a_3 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft2zgensym_9db0ba711f6a3e5a_3, missingFieldsLeft2zgensym_9db0ba711f6a3e5a_3, msgp.ShowFound(found2zgensym_9db0ba711f6a3e5a_3[:]), decodeMsgFieldOrder2zgensym_9db0ba711f6a3e5a_3)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft2zgensym_9db0ba711f6a3e5a_3, missingFieldsLeft2zgensym_9db0ba711f6a3e5a_3, msgp.ShowFound(found2zgensym_9db0ba711f6a3e5a_3[:]), decodeMsgFieldOrder2zgensym_9db0ba711f6a3e5a_3)
 		if encodedFieldsLeft2zgensym_9db0ba711f6a3e5a_3 > 0 {
 			encodedFieldsLeft2zgensym_9db0ba711f6a3e5a_3--
 			field, err = dc.ReadMapKeyPtr()
@@ -67,7 +69,7 @@ doneWithStruct2zgensym_9db0ba711f6a3e5a_3:
 			missingFieldsLeft2zgensym_9db0ba711f6a3e5a_3--
 			curField2zgensym_9db0ba711f6a3e5a_3 = decodeMsgFieldOrder2zgensym_9db0ba711f6a3e5a_3[nextMiss2zgensym_9db0ba711f6a3e5a_3]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField2zgensym_9db0ba711f6a3e5a_3)
+		//fmt.Printf("switching on curField: '%v'\n", curField2zgensym_9db0ba711f6a3e5a_3)
 		switch curField2zgensym_9db0ba711f6a3e5a_3 {
 		// -- templateDecodeMsg ends here --
 
@@ -296,7 +298,7 @@ doneWithStruct7zgensym_9db0ba711f6a3e5a_8:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft7zgensym_9db0ba711f6a3e5a_8 > 0 || missingFieldsLeft7zgensym_9db0ba711f6a3e5a_8 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft7zgensym_9db0ba711f6a3e5a_8, missingFieldsLeft7zgensym_9db0ba711f6a3e5a_8, msgp.ShowFound(found7zgensym_9db0ba711f6a3e5a_8[:]), unmarshalMsgFieldOrder7zgensym_9db0ba711f6a3e5a_8)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft7zgensym_9db0ba711f6a3e5a_8, missingFieldsLeft7zgensym_9db0ba711f6a3e5a_8, msgp.ShowFound(found7zgensym_9db0ba711f6a3e5a_8[:]), unmarshalMsgFieldOrder7zgensym_9db0ba711f6a3e5a_8)
 		if encodedFieldsLeft7zgensym_9db0ba711f6a3e5a_8 > 0 {
 			encodedFieldsLeft7zgensym_9db0ba711f6a3e5a_8--
 			field, bts, err = nbs.ReadMapKeyZC(bts)
@@ -321,7 +323,7 @@ doneWithStruct7zgensym_9db0ba711f6a3e5a_8:
 			missingFieldsLeft7zgensym_9db0ba711f6a3e5a_8--
 			curField7zgensym_9db0ba711f6a3e5a_8 = unmarshalMsgFieldOrder7zgensym_9db0ba711f6a3e5a_8[nextMiss7zgensym_9db0ba711f6a3e5a_8]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField7zgensym_9db0ba711f6a3e5a_8)
+		//fmt.Printf("switching on curField: '%v'\n", curField7zgensym_9db0ba711f6a3e5a_8)
 		switch curField7zgensym_9db0ba711f6a3e5a_8 {
 		// -- templateUnmarshalMsg ends here --
 
@@ -431,6 +433,12 @@ func (z *BlobStore) Msgsize() (s int) {
 	}
 	return
 }
+func (z *BlobStore) Gstring() (r string) {
+	r = "&BlobStore{\n"
+	r += fmt.Sprintf("Map: %v,\n", z.Map)
+	r += "}\n"
+	return
+}
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
@@ -466,7 +474,7 @@ doneWithStruct10zgensym_9db0ba711f6a3e5a_11:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft10zgensym_9db0ba711f6a3e5a_11 > 0 || missingFieldsLeft10zgensym_9db0ba711f6a3e5a_11 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft10zgensym_9db0ba711f6a3e5a_11, missingFieldsLeft10zgensym_9db0ba711f6a3e5a_11, msgp.ShowFound(found10zgensym_9db0ba711f6a3e5a_11[:]), decodeMsgFieldOrder10zgensym_9db0ba711f6a3e5a_11)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft10zgensym_9db0ba711f6a3e5a_11, missingFieldsLeft10zgensym_9db0ba711f6a3e5a_11, msgp.ShowFound(found10zgensym_9db0ba711f6a3e5a_11[:]), decodeMsgFieldOrder10zgensym_9db0ba711f6a3e5a_11)
 		if encodedFieldsLeft10zgensym_9db0ba711f6a3e5a_11 > 0 {
 			encodedFieldsLeft10zgensym_9db0ba711f6a3e5a_11--
 			field, err = dc.ReadMapKeyPtr()
@@ -492,19 +500,19 @@ doneWithStruct10zgensym_9db0ba711f6a3e5a_11:
 			missingFieldsLeft10zgensym_9db0ba711f6a3e5a_11--
 			curField10zgensym_9db0ba711f6a3e5a_11 = decodeMsgFieldOrder10zgensym_9db0ba711f6a3e5a_11[nextMiss10zgensym_9db0ba711f6a3e5a_11]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField10zgensym_9db0ba711f6a3e5a_11)
+		//fmt.Printf("switching on curField: '%v'\n", curField10zgensym_9db0ba711f6a3e5a_11)
 		switch curField10zgensym_9db0ba711f6a3e5a_11 {
 		// -- templateDecodeMsg ends here --
 
-		case "Beg_zid00_int":
+		case "Beg_zid00_i64":
 			found10zgensym_9db0ba711f6a3e5a_11[0] = true
-			z.Beg, err = dc.ReadInt()
+			z.Beg, err = dc.ReadInt64()
 			if err != nil {
 				return
 			}
-		case "Endx_zid01_int":
+		case "Endx_zid01_i64":
 			found10zgensym_9db0ba711f6a3e5a_11[1] = true
-			z.Endx, err = dc.ReadInt()
+			z.Endx, err = dc.ReadInt64()
 			if err != nil {
 				return
 			}
@@ -543,7 +551,7 @@ doneWithStruct10zgensym_9db0ba711f6a3e5a_11:
 }
 
 // fields of Chunk
-var decodeMsgFieldOrder10zgensym_9db0ba711f6a3e5a_11 = []string{"Beg_zid00_int", "Endx_zid01_int", "Cry_zid02_str", "Data_zid03_bin"}
+var decodeMsgFieldOrder10zgensym_9db0ba711f6a3e5a_11 = []string{"Beg_zid00_i64", "Endx_zid01_i64", "Cry_zid02_str", "Data_zid03_bin"}
 
 var decodeMsgFieldSkip10zgensym_9db0ba711f6a3e5a_11 = []bool{false, false, false, false}
 
@@ -600,24 +608,24 @@ func (z *Chunk) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_9db0ba711f6a3e5a_12[0] {
-		// write "Beg_zid00_int"
-		err = en.Append(0xad, 0x42, 0x65, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x69, 0x6e, 0x74)
+		// write "Beg_zid00_i64"
+		err = en.Append(0xad, 0x42, 0x65, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
-		err = en.WriteInt(z.Beg)
+		err = en.WriteInt64(z.Beg)
 		if err != nil {
 			return
 		}
 	}
 
 	if !empty_zgensym_9db0ba711f6a3e5a_12[1] {
-		// write "Endx_zid01_int"
-		err = en.Append(0xae, 0x45, 0x6e, 0x64, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x69, 0x6e, 0x74)
+		// write "Endx_zid01_i64"
+		err = en.Append(0xae, 0x45, 0x6e, 0x64, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
-		err = en.WriteInt(z.Endx)
+		err = en.WriteInt64(z.Endx)
 		if err != nil {
 			return
 		}
@@ -664,15 +672,15 @@ func (z *Chunk) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
 	if !empty[0] {
-		// string "Beg_zid00_int"
-		o = append(o, 0xad, 0x42, 0x65, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x69, 0x6e, 0x74)
-		o = msgp.AppendInt(o, z.Beg)
+		// string "Beg_zid00_i64"
+		o = append(o, 0xad, 0x42, 0x65, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x30, 0x5f, 0x69, 0x36, 0x34)
+		o = msgp.AppendInt64(o, z.Beg)
 	}
 
 	if !empty[1] {
-		// string "Endx_zid01_int"
-		o = append(o, 0xae, 0x45, 0x6e, 0x64, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x69, 0x6e, 0x74)
-		o = msgp.AppendInt(o, z.Endx)
+		// string "Endx_zid01_i64"
+		o = append(o, 0xae, 0x45, 0x6e, 0x64, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x69, 0x36, 0x34)
+		o = msgp.AppendInt64(o, z.Endx)
 	}
 
 	if !empty[2] {
@@ -726,7 +734,7 @@ doneWithStruct14zgensym_9db0ba711f6a3e5a_15:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft14zgensym_9db0ba711f6a3e5a_15 > 0 || missingFieldsLeft14zgensym_9db0ba711f6a3e5a_15 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft14zgensym_9db0ba711f6a3e5a_15, missingFieldsLeft14zgensym_9db0ba711f6a3e5a_15, msgp.ShowFound(found14zgensym_9db0ba711f6a3e5a_15[:]), unmarshalMsgFieldOrder14zgensym_9db0ba711f6a3e5a_15)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft14zgensym_9db0ba711f6a3e5a_15, missingFieldsLeft14zgensym_9db0ba711f6a3e5a_15, msgp.ShowFound(found14zgensym_9db0ba711f6a3e5a_15[:]), unmarshalMsgFieldOrder14zgensym_9db0ba711f6a3e5a_15)
 		if encodedFieldsLeft14zgensym_9db0ba711f6a3e5a_15 > 0 {
 			encodedFieldsLeft14zgensym_9db0ba711f6a3e5a_15--
 			field, bts, err = nbs.ReadMapKeyZC(bts)
@@ -751,20 +759,20 @@ doneWithStruct14zgensym_9db0ba711f6a3e5a_15:
 			missingFieldsLeft14zgensym_9db0ba711f6a3e5a_15--
 			curField14zgensym_9db0ba711f6a3e5a_15 = unmarshalMsgFieldOrder14zgensym_9db0ba711f6a3e5a_15[nextMiss14zgensym_9db0ba711f6a3e5a_15]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField14zgensym_9db0ba711f6a3e5a_15)
+		//fmt.Printf("switching on curField: '%v'\n", curField14zgensym_9db0ba711f6a3e5a_15)
 		switch curField14zgensym_9db0ba711f6a3e5a_15 {
 		// -- templateUnmarshalMsg ends here --
 
-		case "Beg_zid00_int":
+		case "Beg_zid00_i64":
 			found14zgensym_9db0ba711f6a3e5a_15[0] = true
-			z.Beg, bts, err = nbs.ReadIntBytes(bts)
+			z.Beg, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "Endx_zid01_int":
+		case "Endx_zid01_i64":
 			found14zgensym_9db0ba711f6a3e5a_15[1] = true
-			z.Endx, bts, err = nbs.ReadIntBytes(bts)
+			z.Endx, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
 				return
@@ -816,13 +824,22 @@ doneWithStruct14zgensym_9db0ba711f6a3e5a_15:
 }
 
 // fields of Chunk
-var unmarshalMsgFieldOrder14zgensym_9db0ba711f6a3e5a_15 = []string{"Beg_zid00_int", "Endx_zid01_int", "Cry_zid02_str", "Data_zid03_bin"}
+var unmarshalMsgFieldOrder14zgensym_9db0ba711f6a3e5a_15 = []string{"Beg_zid00_i64", "Endx_zid01_i64", "Cry_zid02_str", "Data_zid03_bin"}
 
 var unmarshalMsgFieldSkip14zgensym_9db0ba711f6a3e5a_15 = []bool{false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Chunk) Msgsize() (s int) {
-	s = 1 + 14 + msgp.IntSize + 15 + msgp.IntSize + 14 + msgp.StringPrefixSize + len(z.Cry) + 15 + msgp.BytesPrefixSize + len(z.Data)
+	s = 1 + 14 + msgp.Int64Size + 15 + msgp.Int64Size + 14 + msgp.StringPrefixSize + len(z.Cry) + 15 + msgp.BytesPrefixSize + len(z.Data)
+	return
+}
+func (z *Chunk) Gstring() (r string) {
+	r = "&Chunk{\n"
+	r += fmt.Sprintf(" Beg: %v,\n", z.Beg)
+	r += fmt.Sprintf("Endx: %v,\n", z.Endx)
+	r += fmt.Sprintf(" Cry: \"%v\",\n", z.Cry)
+	r += fmt.Sprintf("Data: %v,\n", z.Data)
+	r += "}\n"
 	return
 }
 
@@ -860,7 +877,7 @@ doneWithStruct17zgensym_9db0ba711f6a3e5a_18:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft17zgensym_9db0ba711f6a3e5a_18 > 0 || missingFieldsLeft17zgensym_9db0ba711f6a3e5a_18 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft17zgensym_9db0ba711f6a3e5a_18, missingFieldsLeft17zgensym_9db0ba711f6a3e5a_18, msgp.ShowFound(found17zgensym_9db0ba711f6a3e5a_18[:]), decodeMsgFieldOrder17zgensym_9db0ba711f6a3e5a_18)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft17zgensym_9db0ba711f6a3e5a_18, missingFieldsLeft17zgensym_9db0ba711f6a3e5a_18, msgp.ShowFound(found17zgensym_9db0ba711f6a3e5a_18[:]), decodeMsgFieldOrder17zgensym_9db0ba711f6a3e5a_18)
 		if encodedFieldsLeft17zgensym_9db0ba711f6a3e5a_18 > 0 {
 			encodedFieldsLeft17zgensym_9db0ba711f6a3e5a_18--
 			field, err = dc.ReadMapKeyPtr()
@@ -886,7 +903,7 @@ doneWithStruct17zgensym_9db0ba711f6a3e5a_18:
 			missingFieldsLeft17zgensym_9db0ba711f6a3e5a_18--
 			curField17zgensym_9db0ba711f6a3e5a_18 = decodeMsgFieldOrder17zgensym_9db0ba711f6a3e5a_18[nextMiss17zgensym_9db0ba711f6a3e5a_18]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField17zgensym_9db0ba711f6a3e5a_18)
+		//fmt.Printf("switching on curField: '%v'\n", curField17zgensym_9db0ba711f6a3e5a_18)
 		switch curField17zgensym_9db0ba711f6a3e5a_18 {
 		// -- templateDecodeMsg ends here --
 
@@ -937,9 +954,9 @@ doneWithStruct17zgensym_9db0ba711f6a3e5a_18:
 			if err != nil {
 				return
 			}
-		case "FileSize_zid02_int":
+		case "FileSize_zid02_i64":
 			found17zgensym_9db0ba711f6a3e5a_18[2] = true
-			z.FileSize, err = dc.ReadInt()
+			z.FileSize, err = dc.ReadInt64()
 			if err != nil {
 				return
 			}
@@ -972,7 +989,7 @@ doneWithStruct17zgensym_9db0ba711f6a3e5a_18:
 }
 
 // fields of Chunks
-var decodeMsgFieldOrder17zgensym_9db0ba711f6a3e5a_18 = []string{"Chunks_zid00_slc", "Path_zid01_str", "FileSize_zid02_int", "FileCry_zid03_str"}
+var decodeMsgFieldOrder17zgensym_9db0ba711f6a3e5a_18 = []string{"Chunks_zid00_slc", "Path_zid01_str", "FileSize_zid02_i64", "FileCry_zid03_str"}
 
 var decodeMsgFieldSkip17zgensym_9db0ba711f6a3e5a_18 = []bool{false, false, false, false}
 
@@ -1068,12 +1085,12 @@ func (z *Chunks) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_9db0ba711f6a3e5a_20[2] {
-		// write "FileSize_zid02_int"
-		err = en.Append(0xb2, 0x46, 0x69, 0x6c, 0x65, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x6e, 0x74)
+		// write "FileSize_zid02_i64"
+		err = en.Append(0xb2, 0x46, 0x69, 0x6c, 0x65, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
-		err = en.WriteInt(z.FileSize)
+		err = en.WriteInt64(z.FileSize)
 		if err != nil {
 			return
 		}
@@ -1134,9 +1151,9 @@ func (z *Chunks) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[2] {
-		// string "FileSize_zid02_int"
-		o = append(o, 0xb2, 0x46, 0x69, 0x6c, 0x65, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x6e, 0x74)
-		o = msgp.AppendInt(o, z.FileSize)
+		// string "FileSize_zid02_i64"
+		o = append(o, 0xb2, 0x46, 0x69, 0x6c, 0x65, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x36, 0x34)
+		o = msgp.AppendInt64(o, z.FileSize)
 	}
 
 	if !empty[3] {
@@ -1184,7 +1201,7 @@ doneWithStruct22zgensym_9db0ba711f6a3e5a_23:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft22zgensym_9db0ba711f6a3e5a_23 > 0 || missingFieldsLeft22zgensym_9db0ba711f6a3e5a_23 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft22zgensym_9db0ba711f6a3e5a_23, missingFieldsLeft22zgensym_9db0ba711f6a3e5a_23, msgp.ShowFound(found22zgensym_9db0ba711f6a3e5a_23[:]), unmarshalMsgFieldOrder22zgensym_9db0ba711f6a3e5a_23)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft22zgensym_9db0ba711f6a3e5a_23, missingFieldsLeft22zgensym_9db0ba711f6a3e5a_23, msgp.ShowFound(found22zgensym_9db0ba711f6a3e5a_23[:]), unmarshalMsgFieldOrder22zgensym_9db0ba711f6a3e5a_23)
 		if encodedFieldsLeft22zgensym_9db0ba711f6a3e5a_23 > 0 {
 			encodedFieldsLeft22zgensym_9db0ba711f6a3e5a_23--
 			field, bts, err = nbs.ReadMapKeyZC(bts)
@@ -1209,7 +1226,7 @@ doneWithStruct22zgensym_9db0ba711f6a3e5a_23:
 			missingFieldsLeft22zgensym_9db0ba711f6a3e5a_23--
 			curField22zgensym_9db0ba711f6a3e5a_23 = unmarshalMsgFieldOrder22zgensym_9db0ba711f6a3e5a_23[nextMiss22zgensym_9db0ba711f6a3e5a_23]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField22zgensym_9db0ba711f6a3e5a_23)
+		//fmt.Printf("switching on curField: '%v'\n", curField22zgensym_9db0ba711f6a3e5a_23)
 		switch curField22zgensym_9db0ba711f6a3e5a_23 {
 		// -- templateUnmarshalMsg ends here --
 
@@ -1267,9 +1284,9 @@ doneWithStruct22zgensym_9db0ba711f6a3e5a_23:
 			if err != nil {
 				return
 			}
-		case "FileSize_zid02_int":
+		case "FileSize_zid02_i64":
 			found22zgensym_9db0ba711f6a3e5a_23[2] = true
-			z.FileSize, bts, err = nbs.ReadIntBytes(bts)
+			z.FileSize, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
 				return
@@ -1304,7 +1321,7 @@ doneWithStruct22zgensym_9db0ba711f6a3e5a_23:
 }
 
 // fields of Chunks
-var unmarshalMsgFieldOrder22zgensym_9db0ba711f6a3e5a_23 = []string{"Chunks_zid00_slc", "Path_zid01_str", "FileSize_zid02_int", "FileCry_zid03_str"}
+var unmarshalMsgFieldOrder22zgensym_9db0ba711f6a3e5a_23 = []string{"Chunks_zid00_slc", "Path_zid01_str", "FileSize_zid02_i64", "FileCry_zid03_str"}
 
 var unmarshalMsgFieldSkip22zgensym_9db0ba711f6a3e5a_23 = []bool{false, false, false, false}
 
@@ -1318,7 +1335,16 @@ func (z *Chunks) Msgsize() (s int) {
 			s += z.Chunks[zgensym_9db0ba711f6a3e5a_16].Msgsize()
 		}
 	}
-	s += 15 + msgp.StringPrefixSize + len(z.Path) + 19 + msgp.IntSize + 18 + msgp.StringPrefixSize + len(z.FileCry)
+	s += 15 + msgp.StringPrefixSize + len(z.Path) + 19 + msgp.Int64Size + 18 + msgp.StringPrefixSize + len(z.FileCry)
+	return
+}
+func (z *Chunks) Gstring() (r string) {
+	r = "&Chunks{\n"
+	r += fmt.Sprintf("  Chunks: %v,\n", z.Chunks)
+	r += fmt.Sprintf("    Path: \"%v\",\n", z.Path)
+	r += fmt.Sprintf("FileSize: %v,\n", z.FileSize)
+	r += fmt.Sprintf(" FileCry: \"%v\",\n", z.FileCry)
+	r += "}\n"
 	return
 }
 
@@ -1356,7 +1382,7 @@ doneWithStruct25zgensym_9db0ba711f6a3e5a_26:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft25zgensym_9db0ba711f6a3e5a_26 > 0 || missingFieldsLeft25zgensym_9db0ba711f6a3e5a_26 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft25zgensym_9db0ba711f6a3e5a_26, missingFieldsLeft25zgensym_9db0ba711f6a3e5a_26, msgp.ShowFound(found25zgensym_9db0ba711f6a3e5a_26[:]), decodeMsgFieldOrder25zgensym_9db0ba711f6a3e5a_26)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft25zgensym_9db0ba711f6a3e5a_26, missingFieldsLeft25zgensym_9db0ba711f6a3e5a_26, msgp.ShowFound(found25zgensym_9db0ba711f6a3e5a_26[:]), decodeMsgFieldOrder25zgensym_9db0ba711f6a3e5a_26)
 		if encodedFieldsLeft25zgensym_9db0ba711f6a3e5a_26 > 0 {
 			encodedFieldsLeft25zgensym_9db0ba711f6a3e5a_26--
 			field, err = dc.ReadMapKeyPtr()
@@ -1382,7 +1408,7 @@ doneWithStruct25zgensym_9db0ba711f6a3e5a_26:
 			missingFieldsLeft25zgensym_9db0ba711f6a3e5a_26--
 			curField25zgensym_9db0ba711f6a3e5a_26 = decodeMsgFieldOrder25zgensym_9db0ba711f6a3e5a_26[nextMiss25zgensym_9db0ba711f6a3e5a_26]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField25zgensym_9db0ba711f6a3e5a_26)
+		//fmt.Printf("switching on curField: '%v'\n", curField25zgensym_9db0ba711f6a3e5a_26)
 		switch curField25zgensym_9db0ba711f6a3e5a_26 {
 		// -- templateDecodeMsg ends here --
 
@@ -1422,9 +1448,9 @@ doneWithStruct25zgensym_9db0ba711f6a3e5a_26:
 			if err != nil {
 				return
 			}
-		case "FileSize_zid06_int":
+		case "FileSize_zid06_i64":
 			found25zgensym_9db0ba711f6a3e5a_26[6] = true
-			z.FileSize, err = dc.ReadInt()
+			z.FileSize, err = dc.ReadInt64()
 			if err != nil {
 				return
 			}
@@ -1534,7 +1560,7 @@ doneWithStruct25zgensym_9db0ba711f6a3e5a_26:
 }
 
 // fields of FilePrecis
-var decodeMsgFieldOrder25zgensym_9db0ba711f6a3e5a_26 = []string{"CallID_zid00_str", "IsFromSender_zid01_boo", "Created_zid02_tim", "Host_zid03_str", "Path_zid04_str", "ModTime_zid05_tim", "FileSize_zid06_int", "FileMode_zid07_u32", "FileOwner_zid08_str", "FileOwnerID_zid09_u32", "FileGroup_zid10_str", "FileGroupID_zid11_u32", "FileMeta_zid12_bin", "HashName_zid13_str", "FileCry_zid14_str", "ChunkerName_zid15_str", "CDC_Config_zid16_ptr"}
+var decodeMsgFieldOrder25zgensym_9db0ba711f6a3e5a_26 = []string{"CallID_zid00_str", "IsFromSender_zid01_boo", "Created_zid02_tim", "Host_zid03_str", "Path_zid04_str", "ModTime_zid05_tim", "FileSize_zid06_i64", "FileMode_zid07_u32", "FileOwner_zid08_str", "FileOwnerID_zid09_u32", "FileGroup_zid10_str", "FileGroupID_zid11_u32", "FileMeta_zid12_bin", "HashName_zid13_str", "FileCry_zid14_str", "ChunkerName_zid15_str", "CDC_Config_zid16_ptr"}
 
 var decodeMsgFieldSkip25zgensym_9db0ba711f6a3e5a_26 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
@@ -1715,12 +1741,12 @@ func (z *FilePrecis) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_9db0ba711f6a3e5a_27[6] {
-		// write "FileSize_zid06_int"
-		err = en.Append(0xb2, 0x46, 0x69, 0x6c, 0x65, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x69, 0x6e, 0x74)
+		// write "FileSize_zid06_i64"
+		err = en.Append(0xb2, 0x46, 0x69, 0x6c, 0x65, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
-		err = en.WriteInt(z.FileSize)
+		err = en.WriteInt64(z.FileSize)
 		if err != nil {
 			return
 		}
@@ -1908,9 +1934,9 @@ func (z *FilePrecis) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[6] {
-		// string "FileSize_zid06_int"
-		o = append(o, 0xb2, 0x46, 0x69, 0x6c, 0x65, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x69, 0x6e, 0x74)
-		o = msgp.AppendInt(o, z.FileSize)
+		// string "FileSize_zid06_i64"
+		o = append(o, 0xb2, 0x46, 0x69, 0x6c, 0x65, 0x53, 0x69, 0x7a, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x69, 0x36, 0x34)
+		o = msgp.AppendInt64(o, z.FileSize)
 	}
 
 	if !empty[7] {
@@ -2023,7 +2049,7 @@ doneWithStruct29zgensym_9db0ba711f6a3e5a_30:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft29zgensym_9db0ba711f6a3e5a_30 > 0 || missingFieldsLeft29zgensym_9db0ba711f6a3e5a_30 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft29zgensym_9db0ba711f6a3e5a_30, missingFieldsLeft29zgensym_9db0ba711f6a3e5a_30, msgp.ShowFound(found29zgensym_9db0ba711f6a3e5a_30[:]), unmarshalMsgFieldOrder29zgensym_9db0ba711f6a3e5a_30)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft29zgensym_9db0ba711f6a3e5a_30, missingFieldsLeft29zgensym_9db0ba711f6a3e5a_30, msgp.ShowFound(found29zgensym_9db0ba711f6a3e5a_30[:]), unmarshalMsgFieldOrder29zgensym_9db0ba711f6a3e5a_30)
 		if encodedFieldsLeft29zgensym_9db0ba711f6a3e5a_30 > 0 {
 			encodedFieldsLeft29zgensym_9db0ba711f6a3e5a_30--
 			field, bts, err = nbs.ReadMapKeyZC(bts)
@@ -2048,7 +2074,7 @@ doneWithStruct29zgensym_9db0ba711f6a3e5a_30:
 			missingFieldsLeft29zgensym_9db0ba711f6a3e5a_30--
 			curField29zgensym_9db0ba711f6a3e5a_30 = unmarshalMsgFieldOrder29zgensym_9db0ba711f6a3e5a_30[nextMiss29zgensym_9db0ba711f6a3e5a_30]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField29zgensym_9db0ba711f6a3e5a_30)
+		//fmt.Printf("switching on curField: '%v'\n", curField29zgensym_9db0ba711f6a3e5a_30)
 		switch curField29zgensym_9db0ba711f6a3e5a_30 {
 		// -- templateUnmarshalMsg ends here --
 
@@ -2094,9 +2120,9 @@ doneWithStruct29zgensym_9db0ba711f6a3e5a_30:
 			if err != nil {
 				return
 			}
-		case "FileSize_zid06_int":
+		case "FileSize_zid06_i64":
 			found29zgensym_9db0ba711f6a3e5a_30[6] = true
-			z.FileSize, bts, err = nbs.ReadIntBytes(bts)
+			z.FileSize, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
 				return
@@ -2227,18 +2253,40 @@ doneWithStruct29zgensym_9db0ba711f6a3e5a_30:
 }
 
 // fields of FilePrecis
-var unmarshalMsgFieldOrder29zgensym_9db0ba711f6a3e5a_30 = []string{"CallID_zid00_str", "IsFromSender_zid01_boo", "Created_zid02_tim", "Host_zid03_str", "Path_zid04_str", "ModTime_zid05_tim", "FileSize_zid06_int", "FileMode_zid07_u32", "FileOwner_zid08_str", "FileOwnerID_zid09_u32", "FileGroup_zid10_str", "FileGroupID_zid11_u32", "FileMeta_zid12_bin", "HashName_zid13_str", "FileCry_zid14_str", "ChunkerName_zid15_str", "CDC_Config_zid16_ptr"}
+var unmarshalMsgFieldOrder29zgensym_9db0ba711f6a3e5a_30 = []string{"CallID_zid00_str", "IsFromSender_zid01_boo", "Created_zid02_tim", "Host_zid03_str", "Path_zid04_str", "ModTime_zid05_tim", "FileSize_zid06_i64", "FileMode_zid07_u32", "FileOwner_zid08_str", "FileOwnerID_zid09_u32", "FileGroup_zid10_str", "FileGroupID_zid11_u32", "FileMeta_zid12_bin", "HashName_zid13_str", "FileCry_zid14_str", "ChunkerName_zid15_str", "CDC_Config_zid16_ptr"}
 
 var unmarshalMsgFieldSkip29zgensym_9db0ba711f6a3e5a_30 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *FilePrecis) Msgsize() (s int) {
-	s = 3 + 17 + msgp.StringPrefixSize + len(z.CallID) + 23 + msgp.BoolSize + 18 + msgp.TimeSize + 15 + msgp.StringPrefixSize + len(z.Host) + 15 + msgp.StringPrefixSize + len(z.Path) + 18 + msgp.TimeSize + 19 + msgp.IntSize + 19 + msgp.Uint32Size + 20 + msgp.StringPrefixSize + len(z.FileOwner) + 22 + msgp.Uint32Size + 20 + msgp.StringPrefixSize + len(z.FileGroup) + 22 + msgp.Uint32Size + 19 + msgp.BytesPrefixSize + len(z.FileMeta) + 19 + msgp.StringPrefixSize + len(z.HashName) + 18 + msgp.StringPrefixSize + len(z.FileCry) + 22 + msgp.StringPrefixSize + len(z.ChunkerName) + 21
+	s = 3 + 17 + msgp.StringPrefixSize + len(z.CallID) + 23 + msgp.BoolSize + 18 + msgp.TimeSize + 15 + msgp.StringPrefixSize + len(z.Host) + 15 + msgp.StringPrefixSize + len(z.Path) + 18 + msgp.TimeSize + 19 + msgp.Int64Size + 19 + msgp.Uint32Size + 20 + msgp.StringPrefixSize + len(z.FileOwner) + 22 + msgp.Uint32Size + 20 + msgp.StringPrefixSize + len(z.FileGroup) + 22 + msgp.Uint32Size + 19 + msgp.BytesPrefixSize + len(z.FileMeta) + 19 + msgp.StringPrefixSize + len(z.HashName) + 18 + msgp.StringPrefixSize + len(z.FileCry) + 22 + msgp.StringPrefixSize + len(z.ChunkerName) + 21
 	if z.CDC_Config == nil {
 		s += msgp.NilSize
 	} else {
 		s += z.CDC_Config.Msgsize()
 	}
+	return
+}
+func (z *FilePrecis) Gstring() (r string) {
+	r = "&FilePrecis{\n"
+	r += fmt.Sprintf("      CallID: \"%v\",\n", z.CallID)
+	r += fmt.Sprintf("IsFromSender: %v,\n", z.IsFromSender)
+	r += fmt.Sprintf("     Created: %v,\n", z.Created)
+	r += fmt.Sprintf("        Host: \"%v\",\n", z.Host)
+	r += fmt.Sprintf("        Path: \"%v\",\n", z.Path)
+	r += fmt.Sprintf("     ModTime: %v,\n", z.ModTime)
+	r += fmt.Sprintf("    FileSize: %v,\n", z.FileSize)
+	r += fmt.Sprintf("    FileMode: %v,\n", z.FileMode)
+	r += fmt.Sprintf("   FileOwner: \"%v\",\n", z.FileOwner)
+	r += fmt.Sprintf(" FileOwnerID: %v,\n", z.FileOwnerID)
+	r += fmt.Sprintf("   FileGroup: \"%v\",\n", z.FileGroup)
+	r += fmt.Sprintf(" FileGroupID: %v,\n", z.FileGroupID)
+	r += fmt.Sprintf("    FileMeta: %v,\n", z.FileMeta)
+	r += fmt.Sprintf("    HashName: \"%v\",\n", z.HashName)
+	r += fmt.Sprintf("     FileCry: \"%v\",\n", z.FileCry)
+	r += fmt.Sprintf(" ChunkerName: \"%v\",\n", z.ChunkerName)
+	r += fmt.Sprintf("  CDC_Config: %v,\n", z.CDC_Config)
+	r += "}\n"
 	return
 }
 
@@ -2276,7 +2324,7 @@ doneWithStruct31zgensym_9db0ba711f6a3e5a_32:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft31zgensym_9db0ba711f6a3e5a_32 > 0 || missingFieldsLeft31zgensym_9db0ba711f6a3e5a_32 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft31zgensym_9db0ba711f6a3e5a_32, missingFieldsLeft31zgensym_9db0ba711f6a3e5a_32, msgp.ShowFound(found31zgensym_9db0ba711f6a3e5a_32[:]), decodeMsgFieldOrder31zgensym_9db0ba711f6a3e5a_32)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft31zgensym_9db0ba711f6a3e5a_32, missingFieldsLeft31zgensym_9db0ba711f6a3e5a_32, msgp.ShowFound(found31zgensym_9db0ba711f6a3e5a_32[:]), decodeMsgFieldOrder31zgensym_9db0ba711f6a3e5a_32)
 		if encodedFieldsLeft31zgensym_9db0ba711f6a3e5a_32 > 0 {
 			encodedFieldsLeft31zgensym_9db0ba711f6a3e5a_32--
 			field, err = dc.ReadMapKeyPtr()
@@ -2302,7 +2350,7 @@ doneWithStruct31zgensym_9db0ba711f6a3e5a_32:
 			missingFieldsLeft31zgensym_9db0ba711f6a3e5a_32--
 			curField31zgensym_9db0ba711f6a3e5a_32 = decodeMsgFieldOrder31zgensym_9db0ba711f6a3e5a_32[nextMiss31zgensym_9db0ba711f6a3e5a_32]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField31zgensym_9db0ba711f6a3e5a_32)
+		//fmt.Printf("switching on curField: '%v'\n", curField31zgensym_9db0ba711f6a3e5a_32)
 		switch curField31zgensym_9db0ba711f6a3e5a_32 {
 		// -- templateDecodeMsg ends here --
 
@@ -2594,7 +2642,7 @@ doneWithStruct35zgensym_9db0ba711f6a3e5a_36:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft35zgensym_9db0ba711f6a3e5a_36 > 0 || missingFieldsLeft35zgensym_9db0ba711f6a3e5a_36 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft35zgensym_9db0ba711f6a3e5a_36, missingFieldsLeft35zgensym_9db0ba711f6a3e5a_36, msgp.ShowFound(found35zgensym_9db0ba711f6a3e5a_36[:]), unmarshalMsgFieldOrder35zgensym_9db0ba711f6a3e5a_36)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft35zgensym_9db0ba711f6a3e5a_36, missingFieldsLeft35zgensym_9db0ba711f6a3e5a_36, msgp.ShowFound(found35zgensym_9db0ba711f6a3e5a_36[:]), unmarshalMsgFieldOrder35zgensym_9db0ba711f6a3e5a_36)
 		if encodedFieldsLeft35zgensym_9db0ba711f6a3e5a_36 > 0 {
 			encodedFieldsLeft35zgensym_9db0ba711f6a3e5a_36--
 			field, bts, err = nbs.ReadMapKeyZC(bts)
@@ -2619,7 +2667,7 @@ doneWithStruct35zgensym_9db0ba711f6a3e5a_36:
 			missingFieldsLeft35zgensym_9db0ba711f6a3e5a_36--
 			curField35zgensym_9db0ba711f6a3e5a_36 = unmarshalMsgFieldOrder35zgensym_9db0ba711f6a3e5a_36[nextMiss35zgensym_9db0ba711f6a3e5a_36]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField35zgensym_9db0ba711f6a3e5a_36)
+		//fmt.Printf("switching on curField: '%v'\n", curField35zgensym_9db0ba711f6a3e5a_36)
 		switch curField35zgensym_9db0ba711f6a3e5a_36 {
 		// -- templateUnmarshalMsg ends here --
 
@@ -2733,6 +2781,14 @@ func (z *HeavyPlan) Msgsize() (s int) {
 	}
 	return
 }
+func (z *HeavyPlan) Gstring() (r string) {
+	r = "&HeavyPlan{\n"
+	r += fmt.Sprintf("  SenderPath: \"%v\",\n", z.SenderPath)
+	r += fmt.Sprintf("SenderPrecis: %v,\n", z.SenderPrecis)
+	r += fmt.Sprintf("  SenderPlan: %v,\n", z.SenderPlan)
+	r += "}\n"
+	return
+}
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
@@ -2768,7 +2824,7 @@ doneWithStruct37zgensym_9db0ba711f6a3e5a_38:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft37zgensym_9db0ba711f6a3e5a_38 > 0 || missingFieldsLeft37zgensym_9db0ba711f6a3e5a_38 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft37zgensym_9db0ba711f6a3e5a_38, missingFieldsLeft37zgensym_9db0ba711f6a3e5a_38, msgp.ShowFound(found37zgensym_9db0ba711f6a3e5a_38[:]), decodeMsgFieldOrder37zgensym_9db0ba711f6a3e5a_38)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft37zgensym_9db0ba711f6a3e5a_38, missingFieldsLeft37zgensym_9db0ba711f6a3e5a_38, msgp.ShowFound(found37zgensym_9db0ba711f6a3e5a_38[:]), decodeMsgFieldOrder37zgensym_9db0ba711f6a3e5a_38)
 		if encodedFieldsLeft37zgensym_9db0ba711f6a3e5a_38 > 0 {
 			encodedFieldsLeft37zgensym_9db0ba711f6a3e5a_38--
 			field, err = dc.ReadMapKeyPtr()
@@ -2794,7 +2850,7 @@ doneWithStruct37zgensym_9db0ba711f6a3e5a_38:
 			missingFieldsLeft37zgensym_9db0ba711f6a3e5a_38--
 			curField37zgensym_9db0ba711f6a3e5a_38 = decodeMsgFieldOrder37zgensym_9db0ba711f6a3e5a_38[nextMiss37zgensym_9db0ba711f6a3e5a_38]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField37zgensym_9db0ba711f6a3e5a_38)
+		//fmt.Printf("switching on curField: '%v'\n", curField37zgensym_9db0ba711f6a3e5a_38)
 		switch curField37zgensym_9db0ba711f6a3e5a_38 {
 		// -- templateDecodeMsg ends here --
 
@@ -3086,7 +3142,7 @@ doneWithStruct41zgensym_9db0ba711f6a3e5a_42:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft41zgensym_9db0ba711f6a3e5a_42 > 0 || missingFieldsLeft41zgensym_9db0ba711f6a3e5a_42 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft41zgensym_9db0ba711f6a3e5a_42, missingFieldsLeft41zgensym_9db0ba711f6a3e5a_42, msgp.ShowFound(found41zgensym_9db0ba711f6a3e5a_42[:]), unmarshalMsgFieldOrder41zgensym_9db0ba711f6a3e5a_42)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft41zgensym_9db0ba711f6a3e5a_42, missingFieldsLeft41zgensym_9db0ba711f6a3e5a_42, msgp.ShowFound(found41zgensym_9db0ba711f6a3e5a_42[:]), unmarshalMsgFieldOrder41zgensym_9db0ba711f6a3e5a_42)
 		if encodedFieldsLeft41zgensym_9db0ba711f6a3e5a_42 > 0 {
 			encodedFieldsLeft41zgensym_9db0ba711f6a3e5a_42--
 			field, bts, err = nbs.ReadMapKeyZC(bts)
@@ -3111,7 +3167,7 @@ doneWithStruct41zgensym_9db0ba711f6a3e5a_42:
 			missingFieldsLeft41zgensym_9db0ba711f6a3e5a_42--
 			curField41zgensym_9db0ba711f6a3e5a_42 = unmarshalMsgFieldOrder41zgensym_9db0ba711f6a3e5a_42[nextMiss41zgensym_9db0ba711f6a3e5a_42]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField41zgensym_9db0ba711f6a3e5a_42)
+		//fmt.Printf("switching on curField: '%v'\n", curField41zgensym_9db0ba711f6a3e5a_42)
 		switch curField41zgensym_9db0ba711f6a3e5a_42 {
 		// -- templateUnmarshalMsg ends here --
 
@@ -3225,6 +3281,14 @@ func (z *LightRequest) Msgsize() (s int) {
 	}
 	return
 }
+func (z *LightRequest) Gstring() (r string) {
+	r = "&LightRequest{\n"
+	r += fmt.Sprintf("  SenderPath: \"%v\",\n", z.SenderPath)
+	r += fmt.Sprintf("ReaderPrecis: %v,\n", z.ReaderPrecis)
+	r += fmt.Sprintf("ReaderChunks: %v,\n", z.ReaderChunks)
+	r += "}\n"
+	return
+}
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
@@ -3260,7 +3324,7 @@ doneWithStruct43zgensym_9db0ba711f6a3e5a_44:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft43zgensym_9db0ba711f6a3e5a_44 > 0 || missingFieldsLeft43zgensym_9db0ba711f6a3e5a_44 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft43zgensym_9db0ba711f6a3e5a_44, missingFieldsLeft43zgensym_9db0ba711f6a3e5a_44, msgp.ShowFound(found43zgensym_9db0ba711f6a3e5a_44[:]), decodeMsgFieldOrder43zgensym_9db0ba711f6a3e5a_44)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft43zgensym_9db0ba711f6a3e5a_44, missingFieldsLeft43zgensym_9db0ba711f6a3e5a_44, msgp.ShowFound(found43zgensym_9db0ba711f6a3e5a_44[:]), decodeMsgFieldOrder43zgensym_9db0ba711f6a3e5a_44)
 		if encodedFieldsLeft43zgensym_9db0ba711f6a3e5a_44 > 0 {
 			encodedFieldsLeft43zgensym_9db0ba711f6a3e5a_44--
 			field, err = dc.ReadMapKeyPtr()
@@ -3286,7 +3350,7 @@ doneWithStruct43zgensym_9db0ba711f6a3e5a_44:
 			missingFieldsLeft43zgensym_9db0ba711f6a3e5a_44--
 			curField43zgensym_9db0ba711f6a3e5a_44 = decodeMsgFieldOrder43zgensym_9db0ba711f6a3e5a_44[nextMiss43zgensym_9db0ba711f6a3e5a_44]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField43zgensym_9db0ba711f6a3e5a_44)
+		//fmt.Printf("switching on curField: '%v'\n", curField43zgensym_9db0ba711f6a3e5a_44)
 		switch curField43zgensym_9db0ba711f6a3e5a_44 {
 		// -- templateDecodeMsg ends here --
 
@@ -3436,7 +3500,7 @@ doneWithStruct47zgensym_9db0ba711f6a3e5a_48:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft47zgensym_9db0ba711f6a3e5a_48 > 0 || missingFieldsLeft47zgensym_9db0ba711f6a3e5a_48 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft47zgensym_9db0ba711f6a3e5a_48, missingFieldsLeft47zgensym_9db0ba711f6a3e5a_48, msgp.ShowFound(found47zgensym_9db0ba711f6a3e5a_48[:]), unmarshalMsgFieldOrder47zgensym_9db0ba711f6a3e5a_48)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft47zgensym_9db0ba711f6a3e5a_48, missingFieldsLeft47zgensym_9db0ba711f6a3e5a_48, msgp.ShowFound(found47zgensym_9db0ba711f6a3e5a_48[:]), unmarshalMsgFieldOrder47zgensym_9db0ba711f6a3e5a_48)
 		if encodedFieldsLeft47zgensym_9db0ba711f6a3e5a_48 > 0 {
 			encodedFieldsLeft47zgensym_9db0ba711f6a3e5a_48--
 			field, bts, err = nbs.ReadMapKeyZC(bts)
@@ -3461,7 +3525,7 @@ doneWithStruct47zgensym_9db0ba711f6a3e5a_48:
 			missingFieldsLeft47zgensym_9db0ba711f6a3e5a_48--
 			curField47zgensym_9db0ba711f6a3e5a_48 = unmarshalMsgFieldOrder47zgensym_9db0ba711f6a3e5a_48[nextMiss47zgensym_9db0ba711f6a3e5a_48]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField47zgensym_9db0ba711f6a3e5a_48)
+		//fmt.Printf("switching on curField: '%v'\n", curField47zgensym_9db0ba711f6a3e5a_48)
 		switch curField47zgensym_9db0ba711f6a3e5a_48 {
 		// -- templateUnmarshalMsg ends here --
 
@@ -3504,6 +3568,12 @@ func (z *Nil) Msgsize() (s int) {
 	s = 1 + 17 + msgp.IntSize
 	return
 }
+func (z *Nil) Gstring() (r string) {
+	r = "&Nil{\n"
+	r += fmt.Sprintf("Placeholder: %v,\n", z.Placeholder)
+	r += "}\n"
+	return
+}
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
@@ -3539,7 +3609,7 @@ doneWithStruct49zgensym_9db0ba711f6a3e5a_50:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft49zgensym_9db0ba711f6a3e5a_50 > 0 || missingFieldsLeft49zgensym_9db0ba711f6a3e5a_50 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft49zgensym_9db0ba711f6a3e5a_50, missingFieldsLeft49zgensym_9db0ba711f6a3e5a_50, msgp.ShowFound(found49zgensym_9db0ba711f6a3e5a_50[:]), decodeMsgFieldOrder49zgensym_9db0ba711f6a3e5a_50)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft49zgensym_9db0ba711f6a3e5a_50, missingFieldsLeft49zgensym_9db0ba711f6a3e5a_50, msgp.ShowFound(found49zgensym_9db0ba711f6a3e5a_50[:]), decodeMsgFieldOrder49zgensym_9db0ba711f6a3e5a_50)
 		if encodedFieldsLeft49zgensym_9db0ba711f6a3e5a_50 > 0 {
 			encodedFieldsLeft49zgensym_9db0ba711f6a3e5a_50--
 			field, err = dc.ReadMapKeyPtr()
@@ -3565,7 +3635,7 @@ doneWithStruct49zgensym_9db0ba711f6a3e5a_50:
 			missingFieldsLeft49zgensym_9db0ba711f6a3e5a_50--
 			curField49zgensym_9db0ba711f6a3e5a_50 = decodeMsgFieldOrder49zgensym_9db0ba711f6a3e5a_50[nextMiss49zgensym_9db0ba711f6a3e5a_50]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField49zgensym_9db0ba711f6a3e5a_50)
+		//fmt.Printf("switching on curField: '%v'\n", curField49zgensym_9db0ba711f6a3e5a_50)
 		switch curField49zgensym_9db0ba711f6a3e5a_50 {
 		// -- templateDecodeMsg ends here --
 
@@ -3829,7 +3899,7 @@ doneWithStruct53zgensym_9db0ba711f6a3e5a_54:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft53zgensym_9db0ba711f6a3e5a_54 > 0 || missingFieldsLeft53zgensym_9db0ba711f6a3e5a_54 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft53zgensym_9db0ba711f6a3e5a_54, missingFieldsLeft53zgensym_9db0ba711f6a3e5a_54, msgp.ShowFound(found53zgensym_9db0ba711f6a3e5a_54[:]), unmarshalMsgFieldOrder53zgensym_9db0ba711f6a3e5a_54)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft53zgensym_9db0ba711f6a3e5a_54, missingFieldsLeft53zgensym_9db0ba711f6a3e5a_54, msgp.ShowFound(found53zgensym_9db0ba711f6a3e5a_54[:]), unmarshalMsgFieldOrder53zgensym_9db0ba711f6a3e5a_54)
 		if encodedFieldsLeft53zgensym_9db0ba711f6a3e5a_54 > 0 {
 			encodedFieldsLeft53zgensym_9db0ba711f6a3e5a_54--
 			field, bts, err = nbs.ReadMapKeyZC(bts)
@@ -3854,7 +3924,7 @@ doneWithStruct53zgensym_9db0ba711f6a3e5a_54:
 			missingFieldsLeft53zgensym_9db0ba711f6a3e5a_54--
 			curField53zgensym_9db0ba711f6a3e5a_54 = unmarshalMsgFieldOrder53zgensym_9db0ba711f6a3e5a_54[nextMiss53zgensym_9db0ba711f6a3e5a_54]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField53zgensym_9db0ba711f6a3e5a_54)
+		//fmt.Printf("switching on curField: '%v'\n", curField53zgensym_9db0ba711f6a3e5a_54)
 		switch curField53zgensym_9db0ba711f6a3e5a_54 {
 		// -- templateUnmarshalMsg ends here --
 
@@ -3961,6 +4031,13 @@ func (z *Pair) Msgsize() (s int) {
 	}
 	return
 }
+func (z *Pair) Gstring() (r string) {
+	r = "&Pair{\n"
+	r += fmt.Sprintf("A: %v,\n", z.A)
+	r += fmt.Sprintf("B: %v,\n", z.B)
+	r += "}\n"
+	return
+}
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
@@ -3996,7 +4073,7 @@ doneWithStruct55zgensym_9db0ba711f6a3e5a_56:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft55zgensym_9db0ba711f6a3e5a_56 > 0 || missingFieldsLeft55zgensym_9db0ba711f6a3e5a_56 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft55zgensym_9db0ba711f6a3e5a_56, missingFieldsLeft55zgensym_9db0ba711f6a3e5a_56, msgp.ShowFound(found55zgensym_9db0ba711f6a3e5a_56[:]), decodeMsgFieldOrder55zgensym_9db0ba711f6a3e5a_56)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft55zgensym_9db0ba711f6a3e5a_56, missingFieldsLeft55zgensym_9db0ba711f6a3e5a_56, msgp.ShowFound(found55zgensym_9db0ba711f6a3e5a_56[:]), decodeMsgFieldOrder55zgensym_9db0ba711f6a3e5a_56)
 		if encodedFieldsLeft55zgensym_9db0ba711f6a3e5a_56 > 0 {
 			encodedFieldsLeft55zgensym_9db0ba711f6a3e5a_56--
 			field, err = dc.ReadMapKeyPtr()
@@ -4022,7 +4099,7 @@ doneWithStruct55zgensym_9db0ba711f6a3e5a_56:
 			missingFieldsLeft55zgensym_9db0ba711f6a3e5a_56--
 			curField55zgensym_9db0ba711f6a3e5a_56 = decodeMsgFieldOrder55zgensym_9db0ba711f6a3e5a_56[nextMiss55zgensym_9db0ba711f6a3e5a_56]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField55zgensym_9db0ba711f6a3e5a_56)
+		//fmt.Printf("switching on curField: '%v'\n", curField55zgensym_9db0ba711f6a3e5a_56)
 		switch curField55zgensym_9db0ba711f6a3e5a_56 {
 		// -- templateDecodeMsg ends here --
 
@@ -4200,7 +4277,7 @@ doneWithStruct59zgensym_9db0ba711f6a3e5a_60:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft59zgensym_9db0ba711f6a3e5a_60 > 0 || missingFieldsLeft59zgensym_9db0ba711f6a3e5a_60 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft59zgensym_9db0ba711f6a3e5a_60, missingFieldsLeft59zgensym_9db0ba711f6a3e5a_60, msgp.ShowFound(found59zgensym_9db0ba711f6a3e5a_60[:]), unmarshalMsgFieldOrder59zgensym_9db0ba711f6a3e5a_60)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft59zgensym_9db0ba711f6a3e5a_60, missingFieldsLeft59zgensym_9db0ba711f6a3e5a_60, msgp.ShowFound(found59zgensym_9db0ba711f6a3e5a_60[:]), unmarshalMsgFieldOrder59zgensym_9db0ba711f6a3e5a_60)
 		if encodedFieldsLeft59zgensym_9db0ba711f6a3e5a_60 > 0 {
 			encodedFieldsLeft59zgensym_9db0ba711f6a3e5a_60--
 			field, bts, err = nbs.ReadMapKeyZC(bts)
@@ -4225,7 +4302,7 @@ doneWithStruct59zgensym_9db0ba711f6a3e5a_60:
 			missingFieldsLeft59zgensym_9db0ba711f6a3e5a_60--
 			curField59zgensym_9db0ba711f6a3e5a_60 = unmarshalMsgFieldOrder59zgensym_9db0ba711f6a3e5a_60[nextMiss59zgensym_9db0ba711f6a3e5a_60]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField59zgensym_9db0ba711f6a3e5a_60)
+		//fmt.Printf("switching on curField: '%v'\n", curField59zgensym_9db0ba711f6a3e5a_60)
 		switch curField59zgensym_9db0ba711f6a3e5a_60 {
 		// -- templateUnmarshalMsg ends here --
 
@@ -4275,6 +4352,13 @@ func (z *RsyncNode) Msgsize() (s int) {
 	s = 1 + 15 + msgp.StringPrefixSize + len(z.Host) + 17 + msgp.IntSize
 	return
 }
+func (z *RsyncNode) Gstring() (r string) {
+	r = "&RsyncNode{\n"
+	r += fmt.Sprintf("       Host: \"%v\",\n", z.Host)
+	r += fmt.Sprintf("Placeholder: %v,\n", z.Placeholder)
+	r += "}\n"
+	return
+}
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
@@ -4310,7 +4394,7 @@ doneWithStruct61zgensym_9db0ba711f6a3e5a_62:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft61zgensym_9db0ba711f6a3e5a_62 > 0 || missingFieldsLeft61zgensym_9db0ba711f6a3e5a_62 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft61zgensym_9db0ba711f6a3e5a_62, missingFieldsLeft61zgensym_9db0ba711f6a3e5a_62, msgp.ShowFound(found61zgensym_9db0ba711f6a3e5a_62[:]), decodeMsgFieldOrder61zgensym_9db0ba711f6a3e5a_62)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft61zgensym_9db0ba711f6a3e5a_62, missingFieldsLeft61zgensym_9db0ba711f6a3e5a_62, msgp.ShowFound(found61zgensym_9db0ba711f6a3e5a_62[:]), decodeMsgFieldOrder61zgensym_9db0ba711f6a3e5a_62)
 		if encodedFieldsLeft61zgensym_9db0ba711f6a3e5a_62 > 0 {
 			encodedFieldsLeft61zgensym_9db0ba711f6a3e5a_62--
 			field, err = dc.ReadMapKeyPtr()
@@ -4336,7 +4420,7 @@ doneWithStruct61zgensym_9db0ba711f6a3e5a_62:
 			missingFieldsLeft61zgensym_9db0ba711f6a3e5a_62--
 			curField61zgensym_9db0ba711f6a3e5a_62 = decodeMsgFieldOrder61zgensym_9db0ba711f6a3e5a_62[nextMiss61zgensym_9db0ba711f6a3e5a_62]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField61zgensym_9db0ba711f6a3e5a_62)
+		//fmt.Printf("switching on curField: '%v'\n", curField61zgensym_9db0ba711f6a3e5a_62)
 		switch curField61zgensym_9db0ba711f6a3e5a_62 {
 		// -- templateDecodeMsg ends here --
 
@@ -4656,7 +4740,7 @@ doneWithStruct65zgensym_9db0ba711f6a3e5a_66:
 	// First fill all the encoded fields, then
 	// treat the remaining, missing fields, as Nil.
 	for encodedFieldsLeft65zgensym_9db0ba711f6a3e5a_66 > 0 || missingFieldsLeft65zgensym_9db0ba711f6a3e5a_66 > 0 {
-		//fmt.Printf("encodedFieldsLeft: %%v, missingFieldsLeft: %%v, found: '%%v', fields: '%%#v'\n", encodedFieldsLeft65zgensym_9db0ba711f6a3e5a_66, missingFieldsLeft65zgensym_9db0ba711f6a3e5a_66, msgp.ShowFound(found65zgensym_9db0ba711f6a3e5a_66[:]), unmarshalMsgFieldOrder65zgensym_9db0ba711f6a3e5a_66)
+		//fmt.Printf("encodedFieldsLeft: %v, missingFieldsLeft: %v, found: '%v', fields: '%#v'\n", encodedFieldsLeft65zgensym_9db0ba711f6a3e5a_66, missingFieldsLeft65zgensym_9db0ba711f6a3e5a_66, msgp.ShowFound(found65zgensym_9db0ba711f6a3e5a_66[:]), unmarshalMsgFieldOrder65zgensym_9db0ba711f6a3e5a_66)
 		if encodedFieldsLeft65zgensym_9db0ba711f6a3e5a_66 > 0 {
 			encodedFieldsLeft65zgensym_9db0ba711f6a3e5a_66--
 			field, bts, err = nbs.ReadMapKeyZC(bts)
@@ -4681,7 +4765,7 @@ doneWithStruct65zgensym_9db0ba711f6a3e5a_66:
 			missingFieldsLeft65zgensym_9db0ba711f6a3e5a_66--
 			curField65zgensym_9db0ba711f6a3e5a_66 = unmarshalMsgFieldOrder65zgensym_9db0ba711f6a3e5a_66[nextMiss65zgensym_9db0ba711f6a3e5a_66]
 		}
-		//fmt.Printf("switching on curField: '%%v'\n", curField65zgensym_9db0ba711f6a3e5a_66)
+		//fmt.Printf("switching on curField: '%v'\n", curField65zgensym_9db0ba711f6a3e5a_66)
 		switch curField65zgensym_9db0ba711f6a3e5a_66 {
 		// -- templateUnmarshalMsg ends here --
 
@@ -4801,5 +4885,14 @@ func (z *SenderPlan) Msgsize() (s int) {
 		s += z.SenderChunksNoSlice.Msgsize()
 	}
 	s += 24 + msgp.BoolSize
+	return
+}
+func (z *SenderPlan) Gstring() (r string) {
+	r = "&SenderPlan{\n"
+	r += fmt.Sprintf("         SenderPath: \"%v\",\n", z.SenderPath)
+	r += fmt.Sprintf("       SenderPrecis: %v,\n", z.SenderPrecis)
+	r += fmt.Sprintf("SenderChunksNoSlice: %v,\n", z.SenderChunksNoSlice)
+	r += fmt.Sprintf("      FileIsDeleted: %v,\n", z.FileIsDeleted)
+	r += "}\n"
 	return
 }

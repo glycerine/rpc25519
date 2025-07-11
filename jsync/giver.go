@@ -805,7 +805,7 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 	//nBytesTot := heavyPlan.DataPresent()
 	nBytesTot := heavyPlan.Chunks[n-1].Endx
 	_ = nBytesTot
-	tot := 0
+	var tot int64
 	_ = tot
 	last := false
 
@@ -888,8 +888,8 @@ func (s *SyncService) packAndSendChunksJustInTime(
 	//vv("top of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; len(oneByteMarkedPlan.Chunks) = %v", oneByteMarkedPlan.DataPresent(), len(oneByteMarkedPlan.Chunks))
 
 	t0 := time.Now()
-	bytesFromDisk := 0
-	tot := 0 // total accounted for; either sent or not needed to send.
+	var bytesFromDisk int64
+	var tot int64 // total accounted for; either sent or not needed to send.
 
 	//defer func() {
 	//vv("end of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; bytesFromDisk = %v", oneByteMarkedPlan.DataPresent(), bytesFromDisk)

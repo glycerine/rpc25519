@@ -537,7 +537,7 @@ takerForSelectLoop:
 								panic("short write?!?!")
 							}
 							// sanity check the local chunk as a precaution.
-							if wb != lc.Endx-lc.Beg {
+							if int64(wb) != lc.Endx-lc.Beg {
 								panic(fmt.Sprintf("lc.Endx = %v, lc.Beg = %v, but "+
 									"lc.Data len = %v", lc.Endx, lc.Beg, wb))
 							} // panic: lc.Endx = 2992124, lc.Beg = 2914998, but lc.Data len = 0
@@ -556,7 +556,7 @@ takerForSelectLoop:
 							panic("short write!?!!")
 						}
 						// sanity check the local chunk as a precaution.
-						if wb != chunk.Endx-chunk.Beg {
+						if int64(wb) != chunk.Endx-chunk.Beg {
 							panic(fmt.Sprintf("lc.Endx = %v, lc.Beg = %v, but "+
 								"lc.Data len = %v", chunk.Endx, chunk.Beg, wb))
 						}

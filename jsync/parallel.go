@@ -22,20 +22,20 @@ import (
 // single file. See ChunkFile and ChunkFile2
 // below.
 type job struct {
-	beg  int
-	endx int
+	beg  int64
+	endx int64
 
-	newEndx int
+	newEndx int64
 
-	nodeK int
+	nodeK int64
 
 	genCuts bool // else get hashes
 	isLast  bool
 
-	cand []int
+	cand []int64
 	rle0 []bool // is rle0 candidate?
 
-	cuts []int
+	cuts []int64
 
 	chunks []*Chunk
 }
@@ -93,7 +93,7 @@ func ChunkFile2(
 		err0 = err
 		return
 	}
-	sz := int(fi.Size())
+	sz := fi.Size()
 	if sz == 0 {
 		//vv("path is empty! '%v'", path)
 		return SummarizeBytesInCDCHashes(host, path, nil, fi.ModTime(), false, 0)
@@ -154,7 +154,7 @@ func ChunkFile2(
 
 	// segment is the size in bytes that one goroutine
 	// reads from disk and hashes.
-	segment := int(1 << 20) // 1<<19 => 512KB
+	segment := int64(1 << 20) // 1<<19 => 512KB
 
 	// try to re-compute prev cut without knowing it.
 	// Good: we see the pre-reading allows us to
@@ -166,7 +166,7 @@ func ChunkFile2(
 	if parallelBits != 0 {
 		segment = 1 << parallelBits
 	}
-	minSegSize := int(Default_CDC_Config.MaxSize) // 1 MB
+	minSegSize := int64(Default_CDC_Config.MaxSize) // 1 MB
 	if segment < minSegSize {
 		segment = minSegSize
 	}
@@ -179,8 +179,8 @@ func ChunkFile2(
 	//
 	// Nice: rsync: 34 sec; vs ChunkFile 9.2 sec to update Ub across lan
 	// after appending a few bytes.
-	preRead := 2 * minSegSize
-	postRead := minSegSize
+	preRead := int64(2 * minSegSize)
+	postRead := int64(minSegSize)
 	//preRead := 3 * minSegSize
 	//postRead := 2 * minSegSize
 
@@ -200,8 +200,8 @@ func ChunkFile2(
 		nWorkers = ngoro
 	}
 
-	if segN < nWorkers {
-		nWorkers = segN // get smaller, but not larger.
+	if segN < int64(nWorkers) {
+		nWorkers = int(segN) // get smaller, but not larger.
 	}
 
 	buf := make([][]byte, nWorkers)
@@ -221,7 +221,7 @@ func ChunkFile2(
 	// output
 	jobs := make([]*job, nJobs)
 
-	maxcut := int(Default_CDC_Config.MaxSize)
+	maxcut := int64(Default_CDC_Config.MaxSize)
 	nW := int(nWorkers)
 	//vv("nW = %v; mincut = %v; maxcut = %v", nW, mincut, maxcut)
 
@@ -250,7 +250,7 @@ func ChunkFile2(
 			if job.beg < pre {
 				pre = job.beg
 			}
-			lastCut := 0
+			var lastCut int64
 			if !job.genCuts {
 				pre = 0
 				//vv("on hashing... job = '%#v'", job)
@@ -308,7 +308,7 @@ func ChunkFile2(
 				}
 
 				for j := 0; len(data) >= mincutCand; j++ {
-					relcut := cdc.NextCut(data)
+					relcut := int64(cdc.NextCut(data))
 					job.cand = append(job.cand, dataoff+relcut)
 					job.rle0 = append(job.rle0, false)
 					data = data[relcut:]
@@ -367,8 +367,8 @@ func ChunkFile2(
 	last := nJobs - 1
 	for i := range nJobs {
 
-		beg := i * int(segment)
-		endx := (i + 1) * int(segment)
+		beg := i * segment
+		endx := (i + 1) * segment
 		if endx > sz {
 			endx = sz
 		}
@@ -392,24 +392,24 @@ func ChunkFile2(
 	//couldNotResync := 0
 
 	// compute keeper cutpoints
-	var gkeep []int
+	var gkeep []int64
 
-	prev := 0
+	var prev int64
 
 	lastjob := len(jobs) - 1
 	for i, curjob := range jobs {
 		if i == 0 {
 			// base case
-			curjob.cuts = []int{0}
+			curjob.cuts = []int64{0}
 		}
-		if false {
-			//vv("here are candidates: jobs[%v].cand = '%#v'", i, jobs[i].cand)
-			prev := 0
-			for _, cut := range jobs[i].cand {
-				fmt.Printf("%v (%v)\n", cut, cut-prev)
-				prev = cut
-			}
-		}
+		// if false {
+		// 	//vv("here are candidates: jobs[%v].cand = '%#v'", i, jobs[i].cand)
+		// 	var prev int64
+		// 	for _, cut := range jobs[i].cand {
+		// 		fmt.Printf("%v (%v)\n", cut, cut-prev)
+		// 		prev = cut
+		// 	}
+		// }
 
 		for j, cut := range curjob.cand {
 			_ = j
@@ -422,7 +422,7 @@ func ChunkFile2(
 			} else {
 
 				d := cut - prev
-				if d < mincut {
+				if d < int64(mincut) {
 					continue
 				}
 				if d >= maxcut {
@@ -538,7 +538,7 @@ func ChunkFile2(
 	var coal []*Chunk
 
 	var lastRLE *Chunk
-	total0 := 0
+	var total0 int64
 	for _, chnk := range chunks0.Chunks {
 		if chnk.Cry == "RLE0;" {
 			if lastRLE != nil {
@@ -569,7 +569,7 @@ func ChunkFile2(
 
 func printCutsPerJob(begJobNum int, jobs []*job, showChunks bool) {
 	// print cuts for each segment.
-	prevcut := 0
+	var prevcut int64
 	k := begJobNum - 1
 	for _, curjob := range jobs {
 		k++

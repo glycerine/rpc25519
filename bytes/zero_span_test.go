@@ -8,8 +8,8 @@ func TestSIMDLongestZeroSpan_and_LongestZeroSpan(t *testing.T) {
 	tests := []struct {
 		name       string
 		input      []byte
-		wantStart  int
-		wantLength int
+		wantStart  int64
+		wantLength int64
 	}{
 		{
 			name:       "empty slice",
