@@ -30,6 +30,12 @@ import (
 
 type Cutpointer interface {
 	Cutpoints(data []byte, maxPoints int) (cuts []int)
+
+	// use sparse mapping and do full zero span detection.
+	// allzero can be empty/nil even if len(cuts) > 0,
+	// especially when there are no sparse regions in the file.
+	CutpointsAndAllZero(fd *os.File) (cuts []int, allzero []bool)
+
 	Name() string
 	Config() *CDC_Config
 	SetConfig(cfg *CDC_Config)

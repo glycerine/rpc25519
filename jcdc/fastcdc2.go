@@ -163,6 +163,10 @@ func (c *FastCDC_Stadia) NextCut(data []byte) (cutpoint int) {
 	return c.Algorithm(c.Opts, data, len(data))
 }
 
+func (c *FastCDC_Stadia) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero []bool) {
+	panic("TODO implement")
+}
+
 // Cutpoints computes all the cutpoints we can in a batch, all at once,
 // if maxPoints <= 0; otherwise only up to a maximum of maxPoints.
 // We may find fewer, of course. There will always be one, as

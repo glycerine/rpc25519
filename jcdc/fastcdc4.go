@@ -72,6 +72,71 @@ func (c *FastCDC_Plakar) NextCut(data []byte) (cutpoint int) {
 	return c.Algorithm(c.Opts, data, len(data))
 }
 
+func (c *FastCDC_Plakar) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero []bool) {
+
+	data := make([]byte, 1<<20) // 1MB buffer to read/scan
+
+	panicOn(fd.Seek(0, 0))
+
+	spans, err := sparsified.FindSparseRegions(fd)
+	panicOn(err)
+	if spans == nil || len(spans.Slc) == 0 {
+		// empty file
+		return
+	}
+
+	// how far we have read in the file.
+	var offset int64
+
+	// most recently found cut.
+	var cutpoint int
+
+	// new, loop over sparse/dense spans
+	for _, span := range spans.Slc {
+
+		beg := span.Beg
+		endx := span.Endx
+
+		switch {
+		case span.IsHole:
+		case span.IsUnwrittenPrealloc:
+		default: // regular data
+			if beg != offset {
+				panic(fmt.Sprintf("beg(%v) != offset(%v)", beg, offset))
+			}
+			for j := beg; j < endx; {
+				_, err = fd.Seek(beg, 0)
+				panicOn(err)
+				nr, err := fd.Read(data)
+				panicOn(err)
+				j += nr
+				d := data[:nr]
+
+				dCuts := c.Cutpoints(d, len(d))
+				isLastDataInFile := (j >= endx)
+				if isLastDataInFile {
+					for _, cut := range dCuts {
+						cuts = append(cuts, cut)
+						allzero = append(allzero, false)
+					}
+				}
+			}
+		}
+		offset = endx
+	}
+
+	// orig
+
+	for len(data) > 0 {
+		cut := c.Algorithm(c.Opts, data, len(data))
+		cutpoint += cut
+		cuts = append(cuts, cutpoint)
+		data = data[cut:]
+	}
+	return
+}
+
+// TODO: add full zero run detection
 func (c *FastCDC_Plakar) Cutpoints(data []byte, maxPoints int) (cuts []int) {
 
 	// not yet inlined! just calls Algorithm().

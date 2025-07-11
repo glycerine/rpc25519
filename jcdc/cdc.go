@@ -28,7 +28,7 @@ func GetCutpointer(choice CDCAlgo, cfg *CDC_Config) (cdc Cutpointer) {
 		// my take on the Stadia improved version of FastCDC
 		cdc = NewFastCDC_Stadia(cfg)
 	case FastCDC_PlakarAlgo:
-		// Plakar version of FastCDC
+		// My fixes to the Plakar version of FastCDC, see fastcdc4.go
 		cdc = NewFastCDC_Plakar(cfg)
 	case UltraCDC_Algo:
 		// UltraCDC that I implemented.
