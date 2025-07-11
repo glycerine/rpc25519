@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"math/bits"
+	"os"
 )
 
 type Cutpointer interface {
@@ -264,6 +265,10 @@ func (c *UltraCDC) Algorithm(options *CDC_Config, data []byte, n int) (cutpoint 
 	// obviously preserves the POST INVARIANT that cutpoint <= n.
 	cutpoint = n
 	return
+}
+
+func (c *UltraCDC) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero []bool) {
+	panic("TODO implement if needed")
 }
 
 // Cutpoints computes all the cutpoints we can in a batch, all at once,

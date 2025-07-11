@@ -18,6 +18,14 @@ package jcdc
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+import (
+	"fmt"
+	"io"
+	"os"
+
+	"github.com/glycerine/rpc25519/jsync/sparsified"
+)
+
 // stay consistent with
 var _ Cutpointer = &FastCDC_Plakar{}
 
@@ -76,7 +84,8 @@ func (c *FastCDC_Plakar) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero [
 
 	data := make([]byte, 1<<20) // 1MB buffer to read/scan
 
-	panicOn(fd.Seek(0, 0))
+	_, err := fd.Seek(0, 0)
+	panicOn(err)
 
 	spans, err := sparsified.FindSparseRegions(fd)
 	panicOn(err)
@@ -89,9 +98,10 @@ func (c *FastCDC_Plakar) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero [
 	var offset int64
 
 	// most recently found cut.
-	var cutpoint int
+	//var cutpoint int
 
 	// new, loop over sparse/dense spans
+nextSpan:
 	for _, span := range spans.Slc {
 
 		beg := span.Beg
@@ -99,41 +109,84 @@ func (c *FastCDC_Plakar) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero [
 
 		switch {
 		case span.IsHole:
+			cuts = append(cuts, int(endx))
+			allzero = append(allzero, true)
+
 		case span.IsUnwrittenPrealloc:
+			cuts = append(cuts, int(endx))
+			allzero = append(allzero, true)
+
 		default: // regular data
 			if beg != offset {
 				panic(fmt.Sprintf("beg(%v) != offset(%v)", beg, offset))
 			}
-			for j := beg; j < endx; {
-				_, err = fd.Seek(beg, 0)
+
+		readAtOffset:
+			for offset < endx {
+
+				dataReadFrom := int(offset)
+				_, err = fd.Seek(offset, 0)
 				panicOn(err)
-				nr, err := fd.Read(data)
-				panicOn(err)
-				j += nr
+				nr, err := io.ReadFull(fd, data[offset:])
+				if err == io.EOF {
+					// no bytes read
+					panic(fmt.Sprintf("error: have %v bytes left to process but could not read them from path '%v': got io.EOF from io.ReadFull().", endx-offset, fd.Name()))
+				}
+				if err == io.ErrUnexpectedEOF {
+					// fewer than len(data) bytes read.
+					// This is always going to happen on the
+					// last read when the file is not
+					// an even multiple of 1<<20.
+					err = nil
+				}
+				if nr <= 0 {
+					panic(fmt.Sprintf("nr=%v; no forward progress on path '%v'", nr, fd.Name()))
+				}
+				maxAhead := offset + int64(nr)
+				isLastDataInSpan := (maxAhead >= endx)
 				d := data[:nr]
 
+				cutbeg := offset
 				dCuts := c.Cutpoints(d, len(d))
-				isLastDataInFile := (j >= endx)
-				if isLastDataInFile {
-					for _, cut := range dCuts {
-						cuts = append(cuts, cut)
-						allzero = append(allzero, false)
+				stopAt := len(dCuts)
+				// append them all by default
+				if !isLastDataInSpan {
+					// don't append the last one, have to redo
+					// after reading more data.
+					stopAt--
+				}
+				for k, cut := range dCuts {
+					cutendx := cut
+					cuts = append(cuts, dataReadFrom+cut)
+					isAllZero := allZero(data[cutbeg:cutendx])
+					allzero = append(allzero, isAllZero)
+					offset = int64(cut)
+					cutbeg = int64(cut)
+
+					if k == stopAt {
+						if isLastDataInSpan {
+							continue nextSpan
+						}
+						// skip the last (like premature) cut
+						// and read more data.
+						continue readAtOffset
 					}
 				}
-			}
-		}
+
+			} // end for offset < endx
+		} // end switch on isHole, prealloc, or regular data.
 		offset = endx
 	}
-
-	// orig
-
-	for len(data) > 0 {
-		cut := c.Algorithm(c.Opts, data, len(data))
-		cutpoint += cut
-		cuts = append(cuts, cutpoint)
-		data = data[cut:]
-	}
 	return
+}
+
+func allZero(b []byte) bool {
+	for i := range b {
+		if b[i] != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // TODO: add full zero run detection

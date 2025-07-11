@@ -2,6 +2,7 @@ package jcdc
 
 import (
 	"fmt"
+	"os"
 )
 
 type RabinKarpCDC struct {

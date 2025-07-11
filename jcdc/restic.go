@@ -5,6 +5,7 @@ import (
 	//"crypto/sha256"
 	"fmt"
 	"math"
+	"os"
 	//"io"
 	//"math/rand"
 
@@ -68,6 +69,10 @@ func (c *ResticRabinCDC) Algorithm(options *CDC_Config, data []byte, n int) (cut
 	}
 
 	return
+}
+
+func (c *ResticRabinCDC) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero []bool) {
+	panic("TODO implement if needed")
 }
 
 // Cutpoints finds all cut points in the data
