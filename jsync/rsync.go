@@ -778,9 +778,8 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 	chunks.FileSize = precis.FileSize
 	chunks.FileCry = precis.FileCry
 
-	if fileStatSz == 0 {
-		// might have pre-allocated space, don't return yet.
-		//return
+	if fd == nil {
+		return
 	}
 
 	cuts, allzero, preun := cdc.CutpointsAndAllZero(fd)

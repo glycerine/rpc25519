@@ -39,7 +39,15 @@ func Test201_rsync_style_chunking_and_hash_generation(t *testing.T) {
 
 		// now alter the data by prepending 2 bytes
 		data2 := append([]byte{0x24, 0xff}, data...)
-		_, bchunks, err := SummarizeBytesInCDCHashes(host, path+".prepend2bytes", data2, modTime, true, int64(len(data2)))
+		path2 := path + ".prepend2bytes"
+		fd2, err2 := os.Create(path2)
+		panicOn(err2)
+		defer fd2.Close()
+		defer os.Remove(path2)
+		_, err = fd2.Write(data2)
+		panicOn(err)
+		fd2.Sync()
+		_, bchunks, err := SummarizeBytesInCDCHashes(host, path2, fd2, modTime, true, int64(len(data2)))
 		panicOn(err)
 
 		onlyA, onlyB, both := Diff(achunks, bchunks)
@@ -51,7 +59,16 @@ func Test201_rsync_style_chunking_and_hash_generation(t *testing.T) {
 
 		// lets try putting 2 bytes at the end instead:
 		data3 := append(data, []byte{0xf3, 0xee}...)
-		_, bchunks, err = SummarizeBytesInCDCHashes(host, path+".postpend2bytes", data3, modTime, true, int64(len(data3)))
+		path3 := path + ".postpend2bytes"
+		fd3, err3 := os.Create(path3)
+		panicOn(err3)
+		defer fd3.Close()
+		defer os.Remove(path3)
+		_, err = fd3.Write(data3)
+		panicOn(err)
+		fd3.Sync()
+
+		_, bchunks, err = SummarizeBytesInCDCHashes(host, path3, fd3, modTime, true, int64(len(data3)))
 		panicOn(err)
 
 		onlyA, onlyB, both = Diff(achunks, bchunks)
