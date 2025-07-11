@@ -103,10 +103,12 @@ func (c *FastCDC_Plakar) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero [
 
 	// new, loop over sparse/dense spans
 nextSpan:
-	for _, span := range spans.Slc {
-
+	for j, span := range spans.Slc {
+		_ = j
+		vv("on j = %v; offset = %v; span = '%v'", j, offset, span.String())
 		beg := span.Beg
 		endx := span.Endx
+		//spansz := endx - beg
 
 		switch {
 		case span.IsHole:
@@ -121,7 +123,7 @@ nextSpan:
 			if beg != offset {
 				panic(fmt.Sprintf("beg(%v) != offset(%v)", beg, offset))
 			}
-
+			vv("regular data span j=%v; beg=%v; endx=%v", j, beg, endx)
 		readAtOffset:
 			for offset < endx {
 
@@ -132,7 +134,13 @@ nextSpan:
 				// some overlaps twice.
 				_, err = fd.Seek(offset, 0)
 				panicOn(err)
-				nr, err := io.ReadFull(fd, data)
+				// only read up to endx (this span)
+				left := endx - offset
+				lim := int64(len(data))
+				if left < lim {
+					lim = left
+				}
+				nr, err := io.ReadFull(fd, data[:lim])
 				if err == io.EOF {
 					// no bytes read
 					panic(fmt.Sprintf("error: have %v bytes left to process but could not read them from path '%v': got io.EOF from io.ReadFull().", endx-offset, fd.Name()))
