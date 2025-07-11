@@ -105,7 +105,7 @@ func (c *FastCDC_Plakar) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero
 nextSpan:
 	for j, span := range spans.Slc {
 		_ = j
-		vv("on j = %v; offset = %v; span = '%v'", j, offset, span.String())
+		//vv("on j = %v; offset = %v; span = '%v'", j, offset, span.String())
 		beg := span.Beg
 		endx := span.Endx
 		//spansz := endx - beg

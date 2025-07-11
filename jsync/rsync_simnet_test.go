@@ -163,7 +163,7 @@ func Test710_client_gets_new_file_over_rsync_twice(t *testing.T) {
 			err = cli.Call("RsyncNode.RequestLatest", light, senderDeltas, nil)
 			panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
 
-			vv("senderDeltas = '%v'", senderDeltas) // not seen
+			//vv("senderDeltas = '%v'", senderDeltas) // not seen
 
 			plan = senderDeltas.SenderPlan // the plan follow remote template, our target.
 			cv.So(plan.DataPresent(), cv.ShouldEqual, 0)

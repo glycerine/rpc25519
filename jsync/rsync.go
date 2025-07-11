@@ -222,7 +222,7 @@ func UpdateLocalWithRemoteDiffs(
 			}
 			h.Write(lc.Data)
 		} else {
-			vv("at j = %v, apply to newvers chunk.Data = '%v'", j, chunk.String())
+			//vv("at j = %v, apply to newvers chunk.Data = '%v'", j, chunk.String())
 			wb := int64(copy(newvers[j:], chunk.Data))
 			j += wb
 			if wb != int64(len(chunk.Data)) {
@@ -234,7 +234,7 @@ func UpdateLocalWithRemoteDiffs(
 				panic(fmt.Sprintf("lc.Endx = %v, lc.Beg = %v, but lc.Data len = %v", chunk.Endx, chunk.Beg, wb))
 			}
 			h.Write(chunk.Data)
-			vv("added to h %v bytes of chunk.Data; total = j = %v; hash is now '%v'; first 10 bytes of chunk = '%v'", len(chunk.Data), j, hash.SumToString(h), string(chunk.Data[:10]))
+			//vv("added to h %v bytes of chunk.Data; total = j = %v; hash is now '%v'; first 10 bytes of chunk = '%v'", len(chunk.Data), j, hash.SumToString(h), string(chunk.Data[:10]))
 
 		}
 	}
@@ -782,7 +782,7 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 	} else {
 		precis.FileCry, err = hash.Blake3OfFile(path)
 		panicOn(err)
-		vv("path '%v' is fine. precis.FileCry = '%v'", path, precis.FileCry)
+		//vv("path '%v' is fine. precis.FileCry = '%v'", path, precis.FileCry)
 		// compare to how we used to do it
 		data2, err = os.ReadFile(path)
 		panicOn(err)
@@ -803,20 +803,21 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 
 	cuts, allzero, preun := cdc.CutpointsAndAllZero(fd)
 
-	cuts2 := cdc.Cutpoints(data2, 0)
+	cutsOrig := cdc.Cutpoints(data2, 0)
 
 	// begin assert same as before
-	if len(cuts2) != len(cuts) {
-		panic(fmt.Sprintf("len(cuts2) = %v but len(cuts) = %v", len(cuts2), len(cuts)))
-	}
-
 	for i := range cuts {
-		if cuts[i] != cuts2[i] {
-			vv("i = %v, cuts[%v] = %v; cuts2[%v] = %v", i, cuts[i], cuts2[i])
+		if cuts[i] != cutsOrig[i] {
+			vv("i = %v, cuts[%v] = %v; cutsOrig[%v] = %v", i, i, cuts[i], i, cutsOrig[i]) // rsync.go:811 2025-07-11 18:40:46.941 -0500 CDT i = 106, cuts[106] = 1048576; cutsOrig[106] = 1048578
 			panic(fmt.Sprintf("cuts differ at i = %v", i))
 		}
 	}
+	if len(cutsOrig) != len(cuts) {
+		panic(fmt.Sprintf("len(cutsOrig) = %v but len(cuts) = %v", len(cutsOrig), len(cuts)))
+	}
+
 	// end assert same as before
+	vv("good: assert passed, new cuts equals cutsOrig, in SummarizeBytesInCDCHashes()")
 
 	if len(cuts) == 0 {
 		// okay, is truly an empty file
@@ -828,7 +829,7 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 
 	incrHash := blake3.New(64, nil)
 
-	vv("empty incrHash = '%v'", hash.SumToString(incrHash))
+	//vv("empty incrHash = '%v'", hash.SumToString(incrHash))
 
 	data := make([]byte, cfg.MaxSize)
 	var prev int64
@@ -859,7 +860,7 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 				panic("slices chosen differ!") // not seen
 			}
 			incrHash.Write(slc)
-			vv("after cut i = %v; len(slc)=%v, incrHash = '%v'; first 10 bytes of slc added = '%v'", i, len(slc), hash.SumToString(incrHash), string(slc[:10]))
+			//vv("after cut i = %v; len(slc)=%v, incrHash = '%v'; first 10 bytes of slc added = '%v'", i, len(slc), hash.SumToString(incrHash), string(slc[:10]))
 		}
 		//fmt.Printf("[%03d]Summarize hsh = %v\n", i, hsh)
 		chunk := &Chunk{
