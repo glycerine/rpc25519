@@ -163,7 +163,7 @@ func Test_Splits_Not_Changed(t *testing.T) {
 	cuts, _ := getCuts("orig", data, u, opt)
 
 	for j, cut := range cuts {
-		if expectedCuts[j] != cut {
+		if expectedCuts[j] != int64(cut) {
 			t.Fatalf(`expected %v but got %v at j = %v`, expectedCuts[j], cut, j)
 		}
 	}
@@ -223,7 +223,7 @@ func regenExpected(u *UltraCDC, data []byte, opt *CDC_Config) {
 	fmt.Printf("\n}\n")
 }
 
-var expectedCuts = []int{
+var expectedCuts = []int64{
 	1300, 2533, 2716, 7542, 8163, 8850, 9235, 9352, 9768,
 	10470, 18470, 22235, 25918, 27177, 28756, 29658, 32586,
 	36105, 37570, 37873, 37992, 39888, 41003, 42307, 42559,

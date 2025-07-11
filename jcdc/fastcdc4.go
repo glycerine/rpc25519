@@ -80,7 +80,7 @@ func (c *FastCDC_Plakar) NextCut(data []byte) (cutpoint int) {
 	return c.Algorithm(c.Opts, data, len(data))
 }
 
-func (c *FastCDC_Plakar) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero, preun []bool) {
+func (c *FastCDC_Plakar) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero, preun []bool) {
 
 	data := make([]byte, 1<<20) // 1MB buffer to read/scan
 
@@ -112,12 +112,12 @@ nextSpan:
 
 		switch {
 		case span.IsHole:
-			cuts = append(cuts, int(endx))
+			cuts = append(cuts, endx)
 			allzero = append(allzero, true)
 			preun = append(preun, false)
 
 		case span.IsUnwrittenPrealloc:
-			cuts = append(cuts, int(endx))
+			cuts = append(cuts, endx)
 			allzero = append(allzero, true)
 			preun = append(preun, true)
 
@@ -129,7 +129,7 @@ nextSpan:
 		readAtOffset:
 			for offset < endx {
 
-				dataReadFrom := int(offset)
+				dataReadFrom := offset
 				// since we backup/move forward as need
 				// be with the seek, we can always just
 				// read fully into data, even if we read
@@ -169,9 +169,13 @@ nextSpan:
 					// after reading more data.
 					stopAt--
 				}
-				prevcut := 0
+				var prevcut int64
 				for k, cut := range dCuts {
-					cuts = append(cuts, dataReadFrom+cut)
+					nextcut := dataReadFrom + cut
+					if nextcut <= prevcut {
+						panic(fmt.Sprintf("assert nextcut > prevcut failed! nextcut=%v; prevcut=%v", nextcut, prevcut))
+					}
+					cuts = append(cuts, nextcut)
 					preun = append(preun, false)
 					isAllZero := allZero(data[prevcut:cut])
 					allzero = append(allzero, isAllZero)
@@ -205,16 +209,16 @@ func allZero(b []byte) bool {
 }
 
 // TODO: add full zero run detection
-func (c *FastCDC_Plakar) Cutpoints(data []byte, maxPoints int) (cuts []int) {
+func (c *FastCDC_Plakar) Cutpoints(data []byte, maxPoints int) (cuts []int64) {
 
 	// not yet inlined! just calls Algorithm().
 
 	// most recently found cut.
-	var cutpoint int
+	var cutpoint int64
 
 	for len(data) > 0 {
 		cut := c.Algorithm(c.Opts, data, len(data))
-		cutpoint += cut
+		cutpoint += int64(cut)
 		cuts = append(cuts, cutpoint)
 		data = data[cut:]
 	}

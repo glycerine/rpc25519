@@ -61,15 +61,15 @@ func (f *FNVCDC) NextCut(data []byte) (cutpoint int) {
 	return f.Algorithm(f.Opts, data, len(data))
 }
 
-func (c *FNVCDC) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero, preun []bool) {
+func (c *FNVCDC) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero, preun []bool) {
 	panic("TODO implement")
 }
 
-func (f *FNVCDC) Cutpoints(data []byte, maxPoints int) (cuts []int) {
-	cutpoint := 0
+func (f *FNVCDC) Cutpoints(data []byte, maxPoints int) (cuts []int64) {
+	var cutpoint int64
 	for len(data) > 0 {
 		cut := f.Algorithm(f.Opts, data, len(data))
-		cutpoint += cut
+		cutpoint += int64(cut)
 		cuts = append(cuts, cutpoint)
 		data = data[cut:]
 

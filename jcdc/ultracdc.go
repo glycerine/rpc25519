@@ -30,12 +30,12 @@ import (
 )
 
 type Cutpointer interface {
-	Cutpoints(data []byte, maxPoints int) (cuts []int)
+	Cutpoints(data []byte, maxPoints int) (cuts []int64)
 
 	// use sparse mapping and do full zero span detection.
 	// allzero can be empty/nil even if len(cuts) > 0,
 	// especially when there are no sparse regions in the file.
-	CutpointsAndAllZero(fd *os.File) (cuts []int, allzero, preun []bool)
+	CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero, preun []bool)
 
 	Name() string
 	Config() *CDC_Config
@@ -267,7 +267,7 @@ func (c *UltraCDC) Algorithm(options *CDC_Config, data []byte, n int) (cutpoint 
 	return
 }
 
-func (c *UltraCDC) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero, preun []bool) {
+func (c *UltraCDC) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero, preun []bool) {
 	panic("TODO implement if needed")
 }
 
@@ -277,7 +277,7 @@ func (c *UltraCDC) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero, preun 
 // len(data) is returned in cuts if no sooner cutpoint is found.
 // If maxPoints <= 0 then the last cutpoint in cuts will
 // always be len(data).
-func (c *UltraCDC) Cutpoints(data []byte, maxPoints int) (cuts []int) {
+func (c *UltraCDC) Cutpoints(data []byte, maxPoints int) (cuts []int64) {
 
 	const (
 		maskS uint64 = 0x2F // binary 101111
@@ -298,7 +298,7 @@ func (c *UltraCDC) Cutpoints(data []byte, maxPoints int) (cuts []int) {
 	}
 
 	// most recently found cut.
-	var cutpoint int
+	var cutpoint int64
 
 	// Find as many cutpoints as we can.
 	// After each one, start again at begin.
@@ -330,7 +330,7 @@ begin:
 		if end <= minSize {
 			// clients should recognize that the very
 			// last cut may be "pre-mature".
-			cutpoint += end
+			cutpoint += int64(end)
 			cuts = append(cuts, cutpoint)
 			//fmt.Printf("end %v <= minSize = %v, returning\n", end, minSize)
 			return
@@ -387,7 +387,7 @@ begin:
 					// If i == n-8, its largest, then this returns n,
 					// which maintains our POST INVARIANT that cutpoint <= n.
 					cut := i + 8
-					cutpoint += cut
+					cutpoint += int64(cut)
 					cuts = append(cuts, cutpoint)
 					data = data[cut:]
 					//fmt.Printf("found LEST cutpoint %v; data now len %v\n", cutpoint, len(data))
@@ -408,7 +408,7 @@ begin:
 					// i + j could here be as big as n - 8 + 7 == n-1
 					// So, yes, n-1 is the biggest we could return here.
 					cut := i + j
-					cutpoint += cut
+					cutpoint += int64(cut)
 					cuts = append(cuts, cutpoint)
 					data = data[cut:]
 					//fmt.Printf("found dist cut %v; cutpoint %v; data now len %v\n", cut, cutpoint, len(data))
@@ -442,7 +442,7 @@ begin:
 		} // end i
 
 		cut := end
-		cutpoint += cut
+		cutpoint += int64(cut)
 		cuts = append(cuts, cutpoint)
 		data = data[cut:]
 		//fmt.Printf("found no other cutpoint %v; data now len %v\n", cutpoint, len(data))

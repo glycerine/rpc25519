@@ -164,7 +164,7 @@ func (c *FastCDC_Stadia) NextCut(data []byte) (cutpoint int) {
 	return c.Algorithm(c.Opts, data, len(data))
 }
 
-func (c *FastCDC_Stadia) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero, preun []bool) {
+func (c *FastCDC_Stadia) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero, preun []bool) {
 	panic("TODO implement")
 }
 
@@ -174,16 +174,16 @@ func (c *FastCDC_Stadia) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero, 
 // len(data) is returned in cuts if no sooner cutpoint is found.
 // If maxPoints <= 0 then the last cutpoint in cuts will
 // always be len(data).
-func (c *FastCDC_Stadia) Cutpoints(data []byte, maxPoints int) (cuts []int) {
+func (c *FastCDC_Stadia) Cutpoints(data []byte, maxPoints int) (cuts []int64) {
 
 	// TODO: not yet inlined! just calls Algorithm() above.
 
 	// most recently found cut.
-	var cutpoint int
+	var cutpoint int64
 
 	for len(data) > 0 {
 		cut := c.Algorithm(c.Opts, data, len(data))
-		cutpoint += cut
+		cutpoint += int64(cut)
 		cuts = append(cuts, cutpoint)
 		data = data[cut:]
 	}

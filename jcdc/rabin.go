@@ -198,18 +198,18 @@ func (c *RabinKarpCDC) Algorithm(options *CDC_Config, data []byte, n int) (cutpo
 	return n
 }
 
-func (c *RabinKarpCDC) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero, preun []bool) {
+func (c *RabinKarpCDC) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero, preun []bool) {
 	panic("TODO implement")
 }
 
 // Cutpoints finds all cut points in the data
-func (c *RabinKarpCDC) Cutpoints(data []byte, maxPoints int) (cuts []int) {
-	var cutpoint int
+func (c *RabinKarpCDC) Cutpoints(data []byte, maxPoints int) (cuts []int64) {
+	var cutpoint int64
 	remaining := data
 
 	for len(remaining) > 0 {
 		cut := c.Algorithm(c.Opts, remaining, len(remaining))
-		cutpoint += cut
+		cutpoint += int64(cut)
 		cuts = append(cuts, cutpoint)
 
 		if maxPoints > 0 && len(cuts) >= maxPoints {

@@ -707,7 +707,7 @@ func SummarizeFileInCDCHashes(host, path string, wantChunks, keepData bool) (pre
 	}
 
 	// file system details fill in:
-	var data []byte
+	//var data []byte
 
 	// need it all anyway, just read it in.
 	// Update: no, not with sparse file support. wait.
@@ -726,7 +726,7 @@ func SummarizeFileInCDCHashes(host, path string, wantChunks, keepData bool) (pre
 	modTime := fi.ModTime()
 	if wantChunks {
 		//precis, chunks, err = SummarizeBytesInCDCHashes(host, path, data, modTime, keepData, false)
-		precis, chunks, err = SummarizeBytesInCDCHashes(host, path, fd, modTime, keepData, false, fi.Size())
+		precis, chunks, err = SummarizeBytesInCDCHashes(host, path, fd, modTime, keepData, fi.Size())
 	}
 	precis.FileMode = uint32(fi.Mode())
 	precis.ModTime = modTime
@@ -747,7 +747,7 @@ func SummarizeFileInCDCHashes(host, path string, wantChunks, keepData bool) (pre
 // host identifier, such as rpc25519.Hostname.
 // If keepData is false, the returned chunks will
 // have nil Data.
-func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time, keepData, fileStatSz int64) (
+func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time, keepData bool, fileStatSz int64) (
 	precis *FilePrecis, chunks *Chunks, err error) {
 
 	// These two different chunking approaches,
@@ -755,7 +755,8 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 	// parameter min/max/target settings in
 	// order to give good chunking.
 
-	cdc := jcdc.GetCutpointer(Default_CDC, Default_CDC_Config)
+	cfg := Default_CDC_Config
+	cdc := jcdc.GetCutpointer(Default_CDC, cfg)
 
 	precis = &FilePrecis{
 		Host:        host,
@@ -769,36 +770,52 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 	if fileStatSz == 0 {
 		precis.FileCry = hash.Blake3OfBytesString([]byte{})
 	} else {
-		precis.FileCry = hash.Blake3OfFile(path)
+		precis.FileCry, err = hash.Blake3OfFile(path)
+		panicOn(err)
 	}
 
 	chunks = NewChunks(path)
 	chunks.FileSize = precis.FileSize
 	chunks.FileCry = precis.FileCry
 
-	if len(data) == 0 {
-		return
+	if fileStatSz == 0 {
+		// might have pre-allocated space, don't return yet.
+		//return
 	}
 
-	cuts, allzero := cdc.CutpointsAndAllZero(fd, data, 0)
+	cuts, allzero, preun := cdc.CutpointsAndAllZero(fd)
 
-	emptyAllZero := (len(allzero) == 0)
+	if len(cuts) == 0 {
+		// okay, is truly an empty file
+		return
+	}
+	//emptyAllZero := (len(allzero) == 0)
 	//vv("cuts = '%#v'", cuts)
 
-	prev := 0
+	data := make([]byte, cfg.MaxSize)
+	var prev int64
 	var hsh string
 	for i, c := range cuts {
 
-		slc := data[prev:cuts[i]]
-		if !emptyAllZero && allzero[i] {
+		var slc []byte
+		switch {
+		case allzero[i]:
 			hsh = "RLE0;"
-		} else {
+		case preun[i]:
+			// pre-allocated yet unwritten. logical zeros.
+			hsh = "UNWRIT;"
+		default:
+			fd.Seek(prev, 0)
+			sz := c - prev
+			_, err := io.ReadFull(fd, data[:sz])
+			panicOn(err)
+			slc = data[:sz]
 			hsh = hash.Blake3OfBytesString(slc)
 		}
 		//fmt.Printf("[%03d]Summarize hsh = %v\n", i, hsh)
 		chunk := &Chunk{
 			Beg:  prev,
-			Endx: cuts[i],
+			Endx: c, // cuts[i],
 			Cry:  hsh,
 		}
 		if keepData {
@@ -910,7 +927,7 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 
 	//vv("GetHashesOneByOne top")
 	if !fileExists(path) {
-		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false, true)
+		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false, 0)
 	}
 
 	// These two different chunking approaches,
@@ -1100,7 +1117,7 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 
 	if !fileExists(path) {
-		precis, _, err = SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false, true)
+		precis, _, err = SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false, 0)
 		return
 	}
 
