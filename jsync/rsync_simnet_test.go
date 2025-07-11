@@ -122,7 +122,9 @@ func Test710_client_gets_new_file_over_rsync_twice(t *testing.T) {
 			cv.So(plan.DataPresent(), cv.ShouldEqual, 1048576)
 			cv.So(plan.FileSize, cv.ShouldEqual, 1048576)
 
+			vv("about to UpdateLocalWithRemoteDiffs")
 			err = UpdateLocalWithRemoteDiffs(local.Path, localMap, plan, senderDeltas.SenderPrecis)
+			vv("back from UpdateLocalWithRemoteDiffs")
 			panicOn(err)
 
 			if !fileExists(local.Path) {
@@ -161,7 +163,7 @@ func Test710_client_gets_new_file_over_rsync_twice(t *testing.T) {
 			err = cli.Call("RsyncNode.RequestLatest", light, senderDeltas, nil)
 			panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
 
-			//vv("senderDeltas = '%v'", senderDeltas)
+			vv("senderDeltas = '%v'", senderDeltas) // not seen
 
 			plan = senderDeltas.SenderPlan // the plan follow remote template, our target.
 			cv.So(plan.DataPresent(), cv.ShouldEqual, 0)

@@ -175,6 +175,7 @@ func UpdateLocalWithRemoteDiffs(
 
 		// handle "RLE0;" case, run-length-encoded zeros.
 		if chunk.Cry == "RLE0;" {
+			vv("we see RLE0") // not seen.
 			// can we turn it into a sparse hole?
 			span, wings := sparsified.AlignedSparseSpan(int64(chunk.Beg), int64(chunk.Endx))
 			if span != nil {
@@ -199,7 +200,7 @@ func UpdateLocalWithRemoteDiffs(
 
 		if len(chunk.Data) == 0 {
 
-			// the data is local
+			vv("the data is local") // not seen
 			lc, ok := localMap[chunk.Cry]
 			if !ok {
 				panic(fmt.Sprintf("rsync algo failed, the needed data is not "+
@@ -224,6 +225,7 @@ func UpdateLocalWithRemoteDiffs(
 			if wb != int64(len(chunk.Data)) {
 				panic("newvers did not have enough space")
 			}
+			vv("copied wb=%v -> j = %v", wb, j)
 			// sanity check the local chunk as a precaution.
 			if wb != chunk.Endx-chunk.Beg {
 				panic(fmt.Sprintf("lc.Endx = %v, lc.Beg = %v, but lc.Data len = %v", chunk.Endx, chunk.Beg, wb))
@@ -233,7 +235,7 @@ func UpdateLocalWithRemoteDiffs(
 	}
 	sum := hash.SumToString(h)
 	if sum != remote.FileCry {
-		err = fmt.Errorf("checksum mismatch error! reconstructed='%v'; expected='%v'; remote path = ''%v'", sum, remote.FileCry, remote.Path)
+		err = fmt.Errorf("checksum mismatch error! reconstructed='%v'; expected='%v'; remote path = '%v'", sum, remote.FileCry, remote.Path)
 		panic(err)
 		return err
 	}
