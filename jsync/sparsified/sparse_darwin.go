@@ -491,8 +491,8 @@ FSCTL_FIOSEEKDATA: Finds the next data region after a given offset
 // can also make non-sparse files.
 // rng can be nil. If rng is not nil, we will
 // use it to fill in data segments (non-sparse spans).
-func createSparseFileFromSpans(path string, spans *Spans, rng *prng) (fd *os.File, err error) {
-	////vv("top createSparseFileFromSpans path='%v'", path)
+func createSparseFileFromSparseSpans(path string, spans *SparseSpans, rng *prng) (fd *os.File, err error) {
+	////vv("top createSparseFileFromSparseSpans path='%v'", path)
 	nspan := len(spans.Slc)
 	if nspan == 0 {
 		panic(fmt.Sprintf("spans.Slc was empty"))
@@ -514,6 +514,12 @@ func createSparseFileFromSpans(path string, spans *Spans, rng *prng) (fd *os.Fil
 	// first truncate to zero size.
 	err = fd.Truncate(0)
 	panicOn(err)
+
+	// make sure changes are committed at the end.
+	// So we don't get caught out on the wrong foot
+	// like 018 before we added
+	// the manual fd.Sync().
+	defer fd.Sync()
 
 	lastSpan := spans.Slc[nspan-1]
 	maxSz := lastSpan.Endx

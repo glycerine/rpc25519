@@ -3,6 +3,7 @@ package sparsified
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"syscall"
 	"testing"
 	//"golang.org/x/sys/unix"
@@ -47,7 +48,8 @@ func insertRange(path string, fd *os.File, offset int64, length int64) (file *os
 }
 
 // do we get an error when our allocation did not succeed?
-func TestFallocateInsertRangeTooBig(t *testing.T) {
+// on AFPS and ext4 yes. XFS (aorus) actually succeeds, yikes!?! :)
+func Test021_FallocateInsertRangeTooBig(t *testing.T) {
 
 	path := "out.db"
 	// note: file must be writable! so Open() does not suffice!
@@ -57,6 +59,12 @@ func TestFallocateInsertRangeTooBig(t *testing.T) {
 	panicOn(err)
 	defer fd.Close()
 	defer os.Remove(path)
+
+	fsDesc, err := FileSystemType(fd)
+	panicOn(err)
+	if fsDesc == "xfs" {
+		t.Skip("xfs will claim to allocate 4 ExaB okay, so skip 021 test")
+	}
 
 	// does file need to be non-empty? yep. hmm... would be nice if that was not the case.
 	_, err = fd.Write(oneZeroBlock4k[:])
@@ -260,7 +268,7 @@ func Test005_apfs(t *testing.T) {
 		var err error
 		os.Remove(path)
 
-		fd, err = createSparseFileFromSpans(path, spec, nil)
+		fd, err = createSparseFileFromSparseSpans(path, spec, nil)
 		panicOn(err)
 
 		spansRead, err := FindSparseRegions(fd)
@@ -277,9 +285,9 @@ func Test005_apfs(t *testing.T) {
 	}
 }
 
-func genSpecSparse(rng *prng) *Spans {
+func genSpecSparse(rng *prng) *SparseSpans {
 
-	spans := &Spans{}
+	spans := &SparseSpans{}
 
 	const pagesz int64 = 4096
 	var nextbeg int64
@@ -298,7 +306,7 @@ func genSpecSparse(rng *prng) *Spans {
 		nextLen := (npage) * pagesz
 		////vv("npage = %v; nextLen = %v", npage, nextLen)
 
-		sp := Span{
+		sp := SparseSpan{
 			IsHole: nextIsHole,
 			Beg:    nextbeg,
 			Endx:   nextbeg + nextLen,
@@ -315,9 +323,9 @@ func Test006_darwin_mixed_sparse_file(t *testing.T) {
 
 	// 32KB is not enough on Sonoma 14.0 with amd64 to get sparse file out.
 	// But now that we have a 2nd hole punching pass, this works.
-	spec := &Spans{Slc: []Span{
-		Span{IsHole: true, Beg: 0, Endx: 12288},      // (3 pages of 4KB)
-		Span{IsHole: false, Beg: 12288, Endx: 32768}, // (5 pages of 4KB)
+	spec := &SparseSpans{Slc: []SparseSpan{
+		SparseSpan{IsHole: true, Beg: 0, Endx: 12288},      // (3 pages of 4KB)
+		SparseSpan{IsHole: false, Beg: 12288, Endx: 32768}, // (5 pages of 4KB)
 	}}
 
 	path := fmt.Sprintf("test006.outpath.sparsefile")
@@ -331,10 +339,10 @@ func Test006_darwin_mixed_sparse_file(t *testing.T) {
 	// strace -f -e lseek go test -v -run 005
 	os.Remove(path)
 
-	fd, err = createSparseFileFromSpans(path, spec, nil)
+	fd, err = createSparseFileFromSparseSpans(path, spec, nil)
 	panicOn(err)
 
-	//vv("done with createSparseFileFromSpans, on to FindSparseRegions")
+	//vv("done with createSparseFileFromSparseSpans, on to FindSparseRegions")
 	spansRead, err := FindSparseRegions(fd)
 	panicOn(err)
 	//vv("spansRead = '%v'", spansRead)
@@ -349,8 +357,8 @@ func Test006_darwin_mixed_sparse_file(t *testing.T) {
 
 func Test007_small_file_not_sparse_file(t *testing.T) {
 
-	spec := &Spans{Slc: []Span{
-		Span{IsHole: false, Beg: 0, Endx: 369},
+	spec := &SparseSpans{Slc: []SparseSpan{
+		SparseSpan{IsHole: false, Beg: 0, Endx: 369},
 	}}
 
 	path := fmt.Sprintf("test007.outpath.small_not_sparsefile")
@@ -361,10 +369,10 @@ func Test007_small_file_not_sparse_file(t *testing.T) {
 
 	os.Remove(path)
 
-	fd, err = createSparseFileFromSpans(path, spec, nil)
+	fd, err = createSparseFileFromSparseSpans(path, spec, nil)
 	panicOn(err)
 
-	//vv("done with createSparseFileFromSpans, on to FindSparseRegions")
+	//vv("done with createSparseFileFromSparseSpans, on to FindSparseRegions")
 	spansRead, err := FindSparseRegions(fd)
 	panicOn(err)
 	//vv("spansRead = '%v'", spansRead)
@@ -380,8 +388,8 @@ func Test007_small_file_not_sparse_file(t *testing.T) {
 func Test008_pre_allocated_file(t *testing.T) {
 
 	var mb64 int64 = 1 << 26
-	spec := &Spans{Slc: []Span{
-		Span{IsHole: false, IsUnwrittenPrealloc: true, Beg: 0, Endx: mb64},
+	spec := &SparseSpans{Slc: []SparseSpan{
+		SparseSpan{IsHole: false, IsUnwrittenPrealloc: true, Beg: 0, Endx: mb64},
 	}}
 
 	path := fmt.Sprintf("test008.outpath.pre_allocated")
@@ -393,10 +401,10 @@ func Test008_pre_allocated_file(t *testing.T) {
 	os.Remove(path)
 	defer os.Remove(path)
 
-	//vv("did remove path='%v'; about to call createSparseFileFromSpans()", path)
-	fd, err = createSparseFileFromSpans(path, spec, nil)
+	//vv("did remove path='%v'; about to call createSparseFileFromSparseSpans()", path)
+	fd, err = createSparseFileFromSparseSpans(path, spec, nil)
 	panicOn(err)
-	//vv("done with createSparseFileFromSpans()")
+	//vv("done with createSparseFileFromSparseSpans()")
 	defer fd.Close()
 
 	isSparse, disksz, statsz, err := SparseFileSize(fd)
@@ -445,7 +453,7 @@ func Test009_copy_sparse(t *testing.T) {
 		os.Remove(path)
 		os.Remove(path2)
 
-		fd, err = createSparseFileFromSpans(path, spec, rng)
+		fd, err = createSparseFileFromSparseSpans(path, spec, rng)
 		panicOn(err)
 		fd.Sync()
 
@@ -469,8 +477,8 @@ func Test010_pre_allocated_file_some_data(t *testing.T) {
 	// inside fallocate in sparse_darwin.go.
 	// So we'll just write some stuff below.
 	var mb64 int64 = 1 << 26
-	spec := &Spans{Slc: []Span{
-		Span{IsHole: false, IsUnwrittenPrealloc: true, Beg: 0, Endx: mb64},
+	spec := &SparseSpans{Slc: []SparseSpan{
+		SparseSpan{IsHole: false, IsUnwrittenPrealloc: true, Beg: 0, Endx: mb64},
 	}}
 
 	path := fmt.Sprintf("test010.pre_allocated.some_data")
@@ -482,10 +490,10 @@ func Test010_pre_allocated_file_some_data(t *testing.T) {
 	os.Remove(path)
 	defer os.Remove(path)
 
-	//vv("did remove path='%v'; about to call createSparseFileFromSpans()", path)
-	fd, err = createSparseFileFromSpans(path, spec, nil)
+	//vv("did remove path='%v'; about to call createSparseFileFromSparseSpans()", path)
+	fd, err = createSparseFileFromSparseSpans(path, spec, nil)
 	panicOn(err)
-	//vv("done with createSparseFileFromSpans()")
+	//vv("done with createSparseFileFromSparseSpans()")
 	defer fd.Close()
 
 	isSparse, disksz, statsz, err := SparseFileSize(fd)
@@ -543,4 +551,34 @@ func Test011_MinSparseHoleSize(t *testing.T) {
 	panicOn(err)
 
 	fmt.Printf("MinSparseHoleSize = %v, on '%v'\n", mn, fsname)
+}
+
+// similar to 009 but exercises GenerateSparseTestFiles() helper.
+func Test022_copy_GenerateSparseTestFiles(t *testing.T) {
+
+	dir := "dir.test.022"
+	os.RemoveAll(dir)
+	defer func() {
+		r := recover()
+		if r == nil {
+			//os.RemoveAll(dir)
+		} // else on error leave dir for inspection
+	}()
+
+	MustGenerateSparseTestFiles(dir, 0, 0)
+
+	list, err := filepath.Glob(dir + "/*")
+	panicOn(err)
+
+	//vv("list = '%#v'", list)
+	for i, path := range list {
+		_ = i
+		path2 := path + ".copy"
+		//vv("i=%v, path='%v'; path2='%v'", i, path, path2)
+		err = CopySparseFile(path, path2)
+		panicOn(err)
+
+		err = SparseDiff(path, path2)
+		panicOn(err)
+	}
 }

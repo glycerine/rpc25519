@@ -55,6 +55,14 @@ const FIEMAP_EXTENT_DATA_TAIL = 0x00000400
 // Space allocated, but no data (i.e. zero).
 const FIEMAP_EXTENT_UNWRITTEN = 0x00000800
 
+// File does not natively support extents. Result merged for efficiency.
+const FIEMAP_EXTENT_MERGED = 0x00001000
+
+// end <linux/fiemap.h> constants
+
+// Space shared with other files.
+const FIEMAP_EXTENT_SHARED = 0x00002000
+
 //var fcntl64Syscall uintptr = unix.SYS_FCNTL
 
 // used by sparse_test.go, defined here for portability.
@@ -239,8 +247,8 @@ func Fallocate(file *os.File, mode uint32, offset int64, length int64) (allocate
 
 // adapted from the mac version.
 // can also make non-sparse files.
-func createSparseFileFromSpans(path string, spans *Spans, rng *prng) (fd *os.File, err error) {
-	//vv("top createSparseFileFromSpans path='%v'", path)
+func createSparseFileFromSparseSpans(path string, spans *SparseSpans, rng *prng) (fd *os.File, err error) {
+	//vv("top createSparseFileFromSparseSpans path='%v'", path)
 	nspan := len(spans.Slc)
 	if nspan == 0 {
 		panic(fmt.Sprintf("spans.Slc was empty"))
@@ -256,6 +264,12 @@ func createSparseFileFromSpans(path string, spans *Spans, rng *prng) (fd *os.Fil
 	// first truncate to zero size.
 	err = fd.Truncate(0)
 	panicOn(err)
+
+	// make sure changes are committed at the end.
+	// So we don't get caught out on the wrong foot
+	// like 018 before we added
+	// the manual fd.Sync().
+	defer fd.Sync()
 
 	lastSpan := spans.Slc[nspan-1]
 	maxSz := lastSpan.Endx
@@ -345,42 +359,63 @@ func MinSparseHoleSize(fd *os.File) (val int, err error) {
 	return int(stat.Blksize), nil
 }
 
-func FieMap(fd *os.File) (spans *Spans, err error) {
+// FieMap asks for all spans back in one go, using
+// at most 2 system ioctl calls. FieMap2 by contrast
+// guesses that most files will be minimally sparse
+// and so it allocates a bunch of sparse extent
+// memory and passes it in on the first call, hoping
+// to avoid a second system call, but with the risk
+// that it could take many such batches (more than
+// two batches if the extent count is > 2*292 for
+// instance) for very fragmented/sparse files. This is
+// the heuristic that the linux utility filefrag uses;
+// we have just emulated it in FieMap2 in fie.go.
+//
+// We still need to benchmark to see which is actually faster.
+func FieMap(fd *os.File) (spans *SparseSpans, err error) {
+
+	return FieMap2(fd)
 
 	isSparse, disksz, statsz, err := SparseFileSize(fd)
 	if err != nil {
 		return nil, err
 	}
 	_ = isSparse
-	if statsz == 0 && disksz == 0 {
+	if statsz <= 0 && disksz <= 0 {
 		return
 	}
+	sz := statsz
+	maxsz := sz
+	if disksz > sz {
+		maxsz = disksz
+	}
+	vv("sz = '%v'; vs disksz = %v; maxsz = %v", sz, disksz, maxsz)
+	// INVAR: maxsz > 0 b/c we return above otherwise.
 
-	if disksz > statsz {
-		// we have pre-allocated some of the file.
-		if !isSparse {
-			spans = &Spans{}
-			if statsz > 0 {
-				spans.Slc = append(spans.Slc, Span{
-					Beg:  0,
-					Endx: statsz,
+	if false { // check again what prealloc and fiemap do
+		if disksz > statsz {
+			// we have pre-allocated some of the file.
+			if !isSparse {
+				spans = &SparseSpans{}
+				if statsz > 0 {
+					spans.Slc = append(spans.Slc, SparseSpan{
+						Beg:  0,
+						Endx: statsz,
+					})
+				}
+				spans.Slc = append(spans.Slc, SparseSpan{
+					IsUnwrittenPrealloc: true,
+					Beg:                 statsz,
+					Endx:                disksz,
 				})
+				return
 			}
-			spans.Slc = append(spans.Slc, Span{
-				IsUnwrittenPrealloc: true,
-				Beg:                 statsz,
-				Endx:                disksz,
-			})
-			return
 		}
 	}
 
-	sz := statsz
-	//vv("sz = '%v'", sz)
-
 	fiemapCheck := &C.struct_fiemap{}
 	fiemapCheck.fm_start = 0
-	fiemapCheck.fm_length = C.__u64(sz)
+	fiemapCheck.fm_length = C.__u64(maxsz)
 	fiemapCheck.fm_flags = 0
 	fiemapCheck.fm_extent_count = 0
 	_ = fiemapCheck
@@ -390,7 +425,7 @@ func FieMap(fd *os.File) (spans *Spans, err error) {
 	_, _, errno := unix.Syscall(unix.SYS_IOCTL,
 		fdint, uintptr(C.FS_IOC_FIEMAP), uintptr(unsafe.Pointer(fiemapCheck)))
 
-	//vv("sz = %v; errno = %#v; fiemapCheck = '%#v'", sz, errno, fiemapCheck) // 0x16, -1, 0 if empty file
+	vv("disksz=%v; sz = %v; errno = %#v; fiemapCheck = '%#v'", disksz, sz, errno, fiemapCheck) // 0x16, -1, 0 if empty file
 
 	if errno != 0 {
 		err = errno
@@ -401,110 +436,125 @@ func FieMap(fd *os.File) (spans *Spans, err error) {
 	}
 
 	if fiemapCheck.fm_mapped_extents == 0 {
-		vv("entirely sparse file (just one hole)")
-		spans = &Spans{
-			Slc: []Span{
-				Span{
+		vv("entirely sparse file: no extents (so just one hole)")
+		spans = &SparseSpans{
+			Slc: []SparseSpan{
+				SparseSpan{
 					IsHole: true,
 					Beg:    0,
-					Endx:   sz,
+					Endx:   maxsz,
 				},
 			},
 		}
 		return
-	} else {
-		spans = &Spans{}
+	}
+	spans = &SparseSpans{}
 
-		extentCount := fiemapCheck.fm_mapped_extents
+	extentCount := fiemapCheck.fm_mapped_extents
 
-		// Calculate the total size needed for the
-		// fiemap struct and the flexible extent array.
-		fiemapSize := unsafe.Sizeof(C.struct_fiemap{}) + (uintptr(extentCount) * unsafe.Sizeof(C.struct_fiemap_extent{}))
+	// Calculate the total size needed for the
+	// fiemap struct and the flexible extent array.
+	fiemapSize := unsafe.Sizeof(C.struct_fiemap{}) + (uintptr(extentCount) * unsafe.Sizeof(C.struct_fiemap_extent{}))
 
-		// Allocate a byte slice of the required size.
-		fiemapBytes := make([]byte, fiemapSize)
+	// Allocate a byte slice of the required size.
+	fiemapBytes := make([]byte, fiemapSize)
 
-		// Cast the byte slice to a Fiemap pointer.
-		// This is the Go way of handling
-		// C-style flexible array member structs.
-		fiemapData := (*C.struct_fiemap)(unsafe.Pointer(&fiemapBytes[0]))
+	// Cast the byte slice to a Fiemap pointer.
+	// This is the Go way of handling
+	// C-style flexible array member structs.
+	fiemapData := (*C.struct_fiemap)(unsafe.Pointer(&fiemapBytes[0]))
 
-		// Populate the struct for the real call.
-		fiemapData.fm_start = 0
-		fiemapData.fm_length = C.__u64(sz)
-		fiemapData.fm_flags = 0
-		fiemapData.fm_extent_count = extentCount
+	// Populate the struct for the real call.
+	fiemapData.fm_start = 0
+	fiemapData.fm_length = C.__u64(maxsz)
+	fiemapData.fm_flags = 0
+	fiemapData.fm_extent_count = extentCount
 
-		// Call ioctl again to get the actual extent data.
-		_, _, errno = unix.Syscall(
-			unix.SYS_IOCTL,
-			fdint,
-			uintptr(C.FS_IOC_FIEMAP),
-			uintptr(unsafe.Pointer(fiemapData)),
-		)
-		if errno != 0 {
-			fmt.Fprintf(os.Stderr, "ioctl(FS_IOC_FIEMAP) to get extents failed: %v\n", errno)
-			os.Exit(1)
-		}
+	// Call ioctl again to get the actual extent data.
+	_, _, errno = unix.Syscall(
+		unix.SYS_IOCTL,
+		fdint,
+		uintptr(C.FS_IOC_FIEMAP),
+		uintptr(unsafe.Pointer(fiemapData)),
+	)
+	if errno != 0 {
+		fmt.Fprintf(os.Stderr, "ioctl(FS_IOC_FIEMAP) to get extents failed: %v\n", errno)
+		os.Exit(1)
+	}
 
-		//vv("look for holes in path: %v (Size: %v bytes)\n", fd.Name(), sz)
-		//vv("found %v mapped extents.\n\n", fiemapData.fm_mapped_extents)
+	//vv("look for holes in path: %v (Size: %v bytes)\n", fd.Name(), sz)
+	//vv("found %v mapped extents.\n\n", fiemapData.fm_mapped_extents)
 
-		// To access the extents, we create a slice header pointing to the memory
-		// right after the main Fiemap struct fields.
-		extents := (*[1 << 30]C.struct_fiemap_extent)(unsafe.Pointer(
-			uintptr(unsafe.Pointer(fiemapData)) + unsafe.Sizeof(C.struct_fiemap{}),
-		))[:fiemapData.fm_mapped_extents:fiemapData.fm_mapped_extents]
+	// To access the extents, we create a slice header pointing to the memory
+	// right after the main Fiemap struct fields.
+	extents := (*[1 << 30]C.struct_fiemap_extent)(unsafe.Pointer(
+		uintptr(unsafe.Pointer(fiemapData)) + unsafe.Sizeof(C.struct_fiemap{}),
+	))[:fiemapData.fm_mapped_extents:fiemapData.fm_mapped_extents]
 
-		var offset int64
+	var offset int64
 
-		for i, extent := range extents {
-			//vv("i=%v, extent = '%#v'", i, extent)
+	for i, extent := range extents {
+		vv("i=%v, extent = '%#v'", i, extent)
+		// sparse_linux.go:464 2025-07-10 03:31:49.465 -0500 CDT i=0, extent = 'sparsified._Ctype_struct_fiemap_extent{fe_logical:0x0, fe_physical:0xede8000000, fe_length:0x1000, fe_reserved64:[2]sparsified._Ctype_ulonglong{0x0, 0x0}, fe_flags:0x801, fe_reserved:[3]sparsified._Ctype_uint{0x0, 0x0, 0x0}}'
+		// so FIEMAP_EXTENT_UNWRITTEN
+		// and FIEMAP_EXTENT_LAST
+		// fe_flags are set.
 
-			// Check for a hole between the end of
-			// the last extent and the start of this one.
-			logical := int64(extent.fe_logical)
-			extlen := int64(extent.fe_length)
+		// Check for a hole between the end of
+		// the last extent and the start of this one.
+		logical := int64(extent.fe_logical)
+		extlen := int64(extent.fe_length)
 
-			if logical > offset {
-				holeStart := offset
-				holeLength := logical - offset
-				//vv("Hole found at offset %v with length %v bytes.\n", holeStart, holeLength)
+		if logical > offset {
+			holeStart := offset
+			holeLength := logical - offset
+			//vv("Hole found at offset %v with length %v bytes.\n", holeStart, holeLength)
 
-				span := Span{
-					IsHole: true,
-					Beg:    int64(holeStart),
-					Endx:   int64(holeStart) + int64(holeLength),
-					Flags:  uint32(extent.fe_flags),
-				}
-				spans.Slc = append(spans.Slc, span)
-			}
-			vv("on i = %v, logical(%v) <= offset(%v)", i, logical, offset)
-			span := Span{
-				IsHole: false,
-				Beg:    logical,
-				Endx:   logical + extlen,
+			span := SparseSpan{
+				IsHole: true,
+				Beg:    int64(holeStart),
+				Endx:   int64(holeStart) + int64(holeLength),
 				Flags:  uint32(extent.fe_flags),
 			}
-			// pre-allocated?
-			if (extent.fe_flags & C.FIEMAP_EXTENT_UNWRITTEN) != 0 {
-				//vv("Unwritten extent (hole) at offset %v with length %v bytes.\n", logical, extent.fe_length)
-				span.IsUnwrittenPrealloc = true
-			}
 			spans.Slc = append(spans.Slc, span)
-
-			offset = logical + extlen // (extlen * 512)
-		} // end for extents
-
-		// hole at the end?
-		//vv("after extents: sz = %v; offset = %v", sz, offset)
-		if sz > offset {
-			spans.Slc = append(spans.Slc, Span{
-				IsHole: true,
-				Beg:    offset,
-				Endx:   sz,
-			})
 		}
+		vv("on i = %v, logical(%v) <= offset(%v)", i, logical, offset)
+		span := SparseSpan{
+			IsHole: false,
+			Beg:    logical,
+			Endx:   logical + extlen,
+			Flags:  uint32(extent.fe_flags),
+		}
+		// pre-allocated?
+		if (extent.fe_flags & C.FIEMAP_EXTENT_UNWRITTEN) != 0 {
+			vv("Unwritten extent (hole) at offset %v with length %v bytes.\n", logical, extent.fe_length)
+			span.IsUnwrittenPrealloc = true
+		}
+		spans.Slc = append(spans.Slc, span)
+
+		offset = logical + extlen // (extlen * 512)
+	} // end for extents
+
+	// hole at the end?
+	//vv("after extents: sz = %v; offset = %v", sz, offset)
+	if sz > offset {
+		spans.Slc = append(spans.Slc, SparseSpan{
+			IsHole: true,
+			Beg:    offset,
+			Endx:   sz,
+		})
+		offset = sz
 	}
+
+	// pre-alloc hole at the end?
+	//vv("after extents: disksz = %v; offset = %v", disksz, offset)
+	if disksz > offset {
+		spans.Slc = append(spans.Slc, SparseSpan{
+			IsHole: true,
+			Beg:    offset,
+			Endx:   disksz,
+		})
+	}
+
 	return
 }

@@ -10,7 +10,7 @@ import (
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
-func (z *Span) DecodeMsg(dc *msgp.Reader) (err error) {
+func (z *SparseSpan) DecodeMsg(dc *msgp.Reader) (err error) {
 	var sawTopNil bool
 	if dc.IsNil() {
 		sawTopNil = true
@@ -124,13 +124,13 @@ doneWithStruct0zgensym_9448d11fab5a6b17_1:
 	return
 }
 
-// fields of Span
+// fields of SparseSpan
 var decodeMsgFieldOrder0zgensym_9448d11fab5a6b17_1 = []string{"IsHole_zid00_boo", "IsUnwrittenPrealloc_zid01_boo", "Beg_zid02_i64", "Endx_zid03_i64", "Flags_zid04_u32"}
 
 var decodeMsgFieldSkip0zgensym_9448d11fab5a6b17_1 = []bool{false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
-func (z *Span) fieldsNotEmpty(isempty []bool) uint32 {
+func (z *SparseSpan) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
 		return 5
 	}
@@ -160,7 +160,7 @@ func (z *Span) fieldsNotEmpty(isempty []bool) uint32 {
 }
 
 // EncodeMsg implements msgp.Encodable
-func (z *Span) EncodeMsg(en *msgp.Writer) (err error) {
+func (z *SparseSpan) EncodeMsg(en *msgp.Writer) (err error) {
 	if p, ok := interface{}(z).(msgp.PreSave); ok {
 		p.PreSaveHook()
 	}
@@ -175,12 +175,12 @@ func (z *Span) EncodeMsg(en *msgp.Writer) (err error) {
 		return err
 	}
 
-	// runtime struct type identification for 'Span'
+	// runtime struct type identification for 'SparseSpan'
 	err = en.Append(0xa1, 0x40)
 	if err != nil {
 		return err
 	}
-	err = en.WriteStringFromBytes([]byte{0x53, 0x70, 0x61, 0x6e})
+	err = en.WriteStringFromBytes([]byte{0x53, 0x70, 0x61, 0x72, 0x73, 0x65, 0x53, 0x70, 0x61, 0x6e})
 	if err != nil {
 		return err
 	}
@@ -249,7 +249,7 @@ func (z *Span) EncodeMsg(en *msgp.Writer) (err error) {
 }
 
 // MarshalMsg implements msgp.Marshaler
-func (z *Span) MarshalMsg(b []byte) (o []byte, err error) {
+func (z *SparseSpan) MarshalMsg(b []byte) (o []byte, err error) {
 	if p, ok := interface{}(z).(msgp.PreSave); ok {
 		p.PreSaveHook()
 	}
@@ -295,10 +295,10 @@ func (z *Span) MarshalMsg(b []byte) (o []byte, err error) {
 }
 
 // UnmarshalMsg implements msgp.Unmarshaler
-func (z *Span) UnmarshalMsg(bts []byte) (o []byte, err error) {
+func (z *SparseSpan) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	return z.UnmarshalMsgWithCfg(bts, nil)
 }
-func (z *Span) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte, err error) {
+func (z *SparseSpan) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte, err error) {
 	var nbs msgp.NilBitsStack
 	nbs.Init(cfg)
 	var sawTopNil bool
@@ -416,18 +416,18 @@ doneWithStruct4zgensym_9448d11fab5a6b17_5:
 	return
 }
 
-// fields of Span
+// fields of SparseSpan
 var unmarshalMsgFieldOrder4zgensym_9448d11fab5a6b17_5 = []string{"IsHole_zid00_boo", "IsUnwrittenPrealloc_zid01_boo", "Beg_zid02_i64", "Endx_zid03_i64", "Flags_zid04_u32"}
 
 var unmarshalMsgFieldSkip4zgensym_9448d11fab5a6b17_5 = []bool{false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
-func (z *Span) Msgsize() (s int) {
+func (z *SparseSpan) Msgsize() (s int) {
 	s = 1 + 17 + msgp.BoolSize + 30 + msgp.BoolSize + 14 + msgp.Int64Size + 15 + msgp.Int64Size + 16 + msgp.Uint32Size
 	return
 }
-func (z *Span) Gstring() (r string) {
-	r = "&Span{\n"
+func (z *SparseSpan) Gstring() (r string) {
+	r = "&SparseSpan{\n"
 	r += fmt.Sprintf("             IsHole: %v,\n", z.IsHole)
 	r += fmt.Sprintf("IsUnwrittenPrealloc: %v,\n", z.IsUnwrittenPrealloc)
 	r += fmt.Sprintf("                Beg: %v,\n", z.Beg)
@@ -439,7 +439,7 @@ func (z *Span) Gstring() (r string) {
 
 // DecodeMsg implements msgp.Decodable
 // We treat empty fields as if we read a Nil from the wire.
-func (z *Spans) DecodeMsg(dc *msgp.Reader) (err error) {
+func (z *SparseSpans) DecodeMsg(dc *msgp.Reader) (err error) {
 	var sawTopNil bool
 	if dc.IsNil() {
 		sawTopNil = true
@@ -511,7 +511,7 @@ doneWithStruct7zgensym_9448d11fab5a6b17_8:
 			if cap(z.Slc) >= int(zgensym_9448d11fab5a6b17_9) {
 				z.Slc = (z.Slc)[:zgensym_9448d11fab5a6b17_9]
 			} else {
-				z.Slc = make([]Span, zgensym_9448d11fab5a6b17_9)
+				z.Slc = make([]SparseSpan, zgensym_9448d11fab5a6b17_9)
 			}
 			for zgensym_9448d11fab5a6b17_6 := range z.Slc {
 				err = z.Slc[zgensym_9448d11fab5a6b17_6].DecodeMsg(dc)
@@ -541,13 +541,13 @@ doneWithStruct7zgensym_9448d11fab5a6b17_8:
 	return
 }
 
-// fields of Spans
+// fields of SparseSpans
 var decodeMsgFieldOrder7zgensym_9448d11fab5a6b17_8 = []string{"Slc_zid00_slc"}
 
 var decodeMsgFieldSkip7zgensym_9448d11fab5a6b17_8 = []bool{false}
 
 // fieldsNotEmpty supports omitempty tags
-func (z *Spans) fieldsNotEmpty(isempty []bool) uint32 {
+func (z *SparseSpans) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
 		return 1
 	}
@@ -561,7 +561,7 @@ func (z *Spans) fieldsNotEmpty(isempty []bool) uint32 {
 }
 
 // EncodeMsg implements msgp.Encodable
-func (z *Spans) EncodeMsg(en *msgp.Writer) (err error) {
+func (z *SparseSpans) EncodeMsg(en *msgp.Writer) (err error) {
 	if p, ok := interface{}(z).(msgp.PreSave); ok {
 		p.PreSaveHook()
 	}
@@ -576,12 +576,12 @@ func (z *Spans) EncodeMsg(en *msgp.Writer) (err error) {
 		return err
 	}
 
-	// runtime struct type identification for 'Spans'
+	// runtime struct type identification for 'SparseSpans'
 	err = en.Append(0xa1, 0x40)
 	if err != nil {
 		return err
 	}
-	err = en.WriteStringFromBytes([]byte{0x53, 0x70, 0x61, 0x6e, 0x73})
+	err = en.WriteStringFromBytes([]byte{0x53, 0x70, 0x61, 0x72, 0x73, 0x65, 0x53, 0x70, 0x61, 0x6e, 0x73})
 	if err != nil {
 		return err
 	}
@@ -608,7 +608,7 @@ func (z *Spans) EncodeMsg(en *msgp.Writer) (err error) {
 }
 
 // MarshalMsg implements msgp.Marshaler
-func (z *Spans) MarshalMsg(b []byte) (o []byte, err error) {
+func (z *SparseSpans) MarshalMsg(b []byte) (o []byte, err error) {
 	if p, ok := interface{}(z).(msgp.PreSave); ok {
 		p.PreSaveHook()
 	}
@@ -636,10 +636,10 @@ func (z *Spans) MarshalMsg(b []byte) (o []byte, err error) {
 }
 
 // UnmarshalMsg implements msgp.Unmarshaler
-func (z *Spans) UnmarshalMsg(bts []byte) (o []byte, err error) {
+func (z *SparseSpans) UnmarshalMsg(bts []byte) (o []byte, err error) {
 	return z.UnmarshalMsgWithCfg(bts, nil)
 }
-func (z *Spans) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte, err error) {
+func (z *SparseSpans) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []byte, err error) {
 	var nbs msgp.NilBitsStack
 	nbs.Init(cfg)
 	var sawTopNil bool
@@ -714,7 +714,7 @@ doneWithStruct12zgensym_9448d11fab5a6b17_13:
 				if cap(z.Slc) >= int(zgensym_9448d11fab5a6b17_14) {
 					z.Slc = (z.Slc)[:zgensym_9448d11fab5a6b17_14]
 				} else {
-					z.Slc = make([]Span, zgensym_9448d11fab5a6b17_14)
+					z.Slc = make([]SparseSpan, zgensym_9448d11fab5a6b17_14)
 				}
 				for zgensym_9448d11fab5a6b17_6 := range z.Slc {
 					bts, err = z.Slc[zgensym_9448d11fab5a6b17_6].UnmarshalMsg(bts)
@@ -745,21 +745,21 @@ doneWithStruct12zgensym_9448d11fab5a6b17_13:
 	return
 }
 
-// fields of Spans
+// fields of SparseSpans
 var unmarshalMsgFieldOrder12zgensym_9448d11fab5a6b17_13 = []string{"Slc_zid00_slc"}
 
 var unmarshalMsgFieldSkip12zgensym_9448d11fab5a6b17_13 = []bool{false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
-func (z *Spans) Msgsize() (s int) {
+func (z *SparseSpans) Msgsize() (s int) {
 	s = 1 + 14 + msgp.ArrayHeaderSize
 	for zgensym_9448d11fab5a6b17_6 := range z.Slc {
 		s += z.Slc[zgensym_9448d11fab5a6b17_6].Msgsize()
 	}
 	return
 }
-func (z *Spans) Gstring() (r string) {
-	r = "&Spans{\n"
+func (z *SparseSpans) Gstring() (r string) {
+	r = "&SparseSpans{\n"
 	r += fmt.Sprintf("Slc: %v,\n", z.Slc)
 	r += "}\n"
 	return

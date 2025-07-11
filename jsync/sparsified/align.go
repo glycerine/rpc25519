@@ -1,10 +1,5 @@
 package sparsified
 
-type SparseSpan struct {
-	Beg  int64
-	Endx int64
-}
-
 type SparseWings struct {
 	Pre  *SparseSpan
 	Post *SparseSpan

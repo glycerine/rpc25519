@@ -55,7 +55,8 @@ func FileSystemType(f *os.File) (string, error) {
 		}
 
 		if fsNameDarwin != "" {
-			fsName = strings.ToUpper(fsNameDarwin)
+			//fsName = strings.ToUpper(fsNameDarwin)
+			fsName = strings.ToLower(fsNameDarwin)
 		} else {
 			fsName = fmt.Sprintf("Unknown (Magic: 0x%X)", fsTypeMagic)
 		}

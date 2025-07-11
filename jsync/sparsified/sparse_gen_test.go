@@ -9,8 +9,8 @@ import (
 	"github.com/glycerine/greenpack/msgp"
 )
 
-func TestMarshalUnmarshalSpan(t *testing.T) {
-	v := Span{}
+func TestMarshalUnmarshalSparseSpan(t *testing.T) {
+	v := SparseSpan{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -32,8 +32,8 @@ func TestMarshalUnmarshalSpan(t *testing.T) {
 	}
 }
 
-func BenchmarkMarshalMsgSpan(b *testing.B) {
-	v := Span{}
+func BenchmarkMarshalMsgSparseSpan(b *testing.B) {
+	v := SparseSpan{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -41,8 +41,8 @@ func BenchmarkMarshalMsgSpan(b *testing.B) {
 	}
 }
 
-func BenchmarkAppendMsgSpan(b *testing.B) {
-	v := Span{}
+func BenchmarkAppendMsgSparseSpan(b *testing.B) {
+	v := SparseSpan{}
 	bts := make([]byte, 0, v.Msgsize())
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -53,8 +53,8 @@ func BenchmarkAppendMsgSpan(b *testing.B) {
 	}
 }
 
-func BenchmarkUnmarshalSpan(b *testing.B) {
-	v := Span{}
+func BenchmarkUnmarshalSparseSpan(b *testing.B) {
+	v := SparseSpan{}
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
@@ -67,8 +67,8 @@ func BenchmarkUnmarshalSpan(b *testing.B) {
 	}
 }
 
-func TestEncodeDecodeSpan(t *testing.T) {
-	v := Span{}
+func TestEncodeDecodeSparseSpan(t *testing.T) {
+	v := SparseSpan{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
@@ -77,7 +77,7 @@ func TestEncodeDecodeSpan(t *testing.T) {
 		t.Logf("WARNING: Msgsize() for %v is inaccurate", v)
 	}
 
-	vn := Span{}
+	vn := SparseSpan{}
 	err := msgp.Decode(&buf, &vn)
 	if err != nil {
 		t.Error(err)
@@ -91,8 +91,8 @@ func TestEncodeDecodeSpan(t *testing.T) {
 	}
 }
 
-func BenchmarkEncodeSpan(b *testing.B) {
-	v := Span{}
+func BenchmarkEncodeSparseSpan(b *testing.B) {
+	v := SparseSpan{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -105,8 +105,8 @@ func BenchmarkEncodeSpan(b *testing.B) {
 	en.Flush()
 }
 
-func BenchmarkDecodeSpan(b *testing.B) {
-	v := Span{}
+func BenchmarkDecodeSparseSpan(b *testing.B) {
+	v := SparseSpan{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -122,8 +122,8 @@ func BenchmarkDecodeSpan(b *testing.B) {
 	}
 }
 
-func TestMarshalUnmarshalSpans(t *testing.T) {
-	v := Spans{}
+func TestMarshalUnmarshalSparseSpans(t *testing.T) {
+	v := SparseSpans{}
 	bts, err := v.MarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -145,8 +145,8 @@ func TestMarshalUnmarshalSpans(t *testing.T) {
 	}
 }
 
-func BenchmarkMarshalMsgSpans(b *testing.B) {
-	v := Spans{}
+func BenchmarkMarshalMsgSparseSpans(b *testing.B) {
+	v := SparseSpans{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -154,8 +154,8 @@ func BenchmarkMarshalMsgSpans(b *testing.B) {
 	}
 }
 
-func BenchmarkAppendMsgSpans(b *testing.B) {
-	v := Spans{}
+func BenchmarkAppendMsgSparseSpans(b *testing.B) {
+	v := SparseSpans{}
 	bts := make([]byte, 0, v.Msgsize())
 	bts, _ = v.MarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -166,8 +166,8 @@ func BenchmarkAppendMsgSpans(b *testing.B) {
 	}
 }
 
-func BenchmarkUnmarshalSpans(b *testing.B) {
-	v := Spans{}
+func BenchmarkUnmarshalSparseSpans(b *testing.B) {
+	v := SparseSpans{}
 	bts, _ := v.MarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
@@ -180,8 +180,8 @@ func BenchmarkUnmarshalSpans(b *testing.B) {
 	}
 }
 
-func TestEncodeDecodeSpans(t *testing.T) {
-	v := Spans{}
+func TestEncodeDecodeSparseSpans(t *testing.T) {
+	v := SparseSpans{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 
@@ -190,7 +190,7 @@ func TestEncodeDecodeSpans(t *testing.T) {
 		t.Logf("WARNING: Msgsize() for %v is inaccurate", v)
 	}
 
-	vn := Spans{}
+	vn := SparseSpans{}
 	err := msgp.Decode(&buf, &vn)
 	if err != nil {
 		t.Error(err)
@@ -204,8 +204,8 @@ func TestEncodeDecodeSpans(t *testing.T) {
 	}
 }
 
-func BenchmarkEncodeSpans(b *testing.B) {
-	v := Spans{}
+func BenchmarkEncodeSparseSpans(b *testing.B) {
+	v := SparseSpans{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))
@@ -218,8 +218,8 @@ func BenchmarkEncodeSpans(b *testing.B) {
 	en.Flush()
 }
 
-func BenchmarkDecodeSpans(b *testing.B) {
-	v := Spans{}
+func BenchmarkDecodeSparseSpans(b *testing.B) {
+	v := SparseSpans{}
 	var buf bytes.Buffer
 	msgp.Encode(&buf, &v)
 	b.SetBytes(int64(buf.Len()))

@@ -2,10 +2,12 @@ package sparsified
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	//"runtime"
 	"syscall"
 
@@ -40,8 +42,8 @@ var ErrShortAlloc = fmt.Errorf("smaller extent than requested was allocated.")
 // we asked for "all-or-nothing"
 var ErrFileTooLarge = fmt.Errorf("extent requested was too large.")
 
-// Span represents a sparse hole region, or a data region.
-type Span struct {
+// SparseSpan represents a sparse hole region, or a data region.
+type SparseSpan struct {
 	IsHole              bool `zid:"0"`
 	IsUnwrittenPrealloc bool `zid:"1"`
 
@@ -49,22 +51,22 @@ type Span struct {
 	// 1. Regular data spans have both IsHole and
 	//    IsUnwrittenPrealloc false.
 	// 2. It is illegal to have both IsHole and
-	//    IsUnwrittenPrealloc true on the same Span.
+	//    IsUnwrittenPrealloc true on the same SparseSpan.
 
 	Beg   int64  `zid:"2"`
 	Endx  int64  `zid:"3"`
 	Flags uint32 `zid:"4"`
 }
 
-type Spans struct {
-	Slc []Span `zid:"0"`
+type SparseSpans struct {
+	Slc []SparseSpan `zid:"0"`
 }
 
-func (s *Spans) String() (r string) {
+func (s *SparseSpans) String() (r string) {
 	if len(s.Slc) == 0 {
-		return "Spans{}"
+		return "SparseSpans{}"
 	}
-	r = "Spans{\n"
+	r = "SparseSpans{\n"
 	for i, sp := range s.Slc {
 		r += fmt.Sprintf("[%02d] %v\n", i, sp.String())
 	}
@@ -72,8 +74,8 @@ func (s *Spans) String() (r string) {
 	return
 }
 
-// two nil Span are never equal; like NaN
-func (s *Span) Equal(r *Span) bool {
+// two nil SparseSpan are never equal; like NaN
+func (s *SparseSpan) Equal(r *SparseSpan) bool {
 	if s == nil || r == nil {
 		return false
 	}
@@ -89,8 +91,8 @@ func (s *Span) Equal(r *Span) bool {
 	return true
 }
 
-// lastSpanPreAlloc is a helper for Equal below.
-func lastSpanPreAlloc(slc []Span) bool {
+// lastSparseSpanPreAlloc is a helper for Equal below.
+func lastSparseSpanPreAlloc(slc []SparseSpan) bool {
 	n := len(slc)
 	if n <= 0 {
 		return false
@@ -98,8 +100,8 @@ func lastSpanPreAlloc(slc []Span) bool {
 	return slc[n-1].IsUnwrittenPrealloc
 }
 
-// two nil Spans are never equal; like NaN
-func (s *Spans) Equal(r *Spans) bool {
+// two nil SparseSpans are never equal; like NaN
+func (s *SparseSpans) Equal(r *SparseSpans) bool {
 	if s == nil || r == nil {
 		return false
 	}
@@ -127,7 +129,7 @@ func (s *Spans) Equal(r *Spans) bool {
 		if diff < 0 {
 			diff = -diff
 		}
-		if diff != 1 || !lastSpanPreAlloc(longer) {
+		if diff != 1 || !lastSparseSpanPreAlloc(longer) {
 			return false
 		}
 	}
@@ -141,8 +143,8 @@ func (s *Spans) Equal(r *Spans) bool {
 	return true
 }
 
-func (s *Span) String() string {
-	return fmt.Sprintf("Span{IsHole:%v, Pre:%v, Beg:%v, Endx: %v} (%v pages of 4KB)",
+func (s *SparseSpan) String() string {
+	return fmt.Sprintf("SparseSpan{IsHole:%v, Pre:%v, Beg:%v, Endx: %v} (%v pages of 4KB)",
 		s.IsHole, s.IsUnwrittenPrealloc, s.Beg, s.Endx, (s.Endx-s.Beg)/4096)
 }
 
@@ -333,8 +335,8 @@ func SparseFileSize(fd *os.File) (isSparse bool, diskBytesInUse, statSize int64,
 }
 
 // FindSparseRegions finds data and hole regions in a sparse file.
-func FindSparseRegions(f *os.File) (spans *Spans, err error) {
-	spans = &Spans{}
+func FindSparseRegions(f *os.File) (spans *SparseSpans, err error) {
+	spans = &SparseSpans{}
 
 	isSparse, disksz, statsz, err := SparseFileSize(f)
 	panicOn(err)
@@ -363,12 +365,12 @@ func FindSparseRegions(f *os.File) (spans *Spans, err error) {
 		// we have pre-allocated some of the file.
 		if !isSparse {
 			if statsz > 0 {
-				spans.Slc = append(spans.Slc, Span{
+				spans.Slc = append(spans.Slc, SparseSpan{
 					Beg:  0,
 					Endx: statsz,
 				})
 			}
-			spans.Slc = append(spans.Slc, Span{
+			spans.Slc = append(spans.Slc, SparseSpan{
 				IsUnwrittenPrealloc: true,
 				Beg:                 statsz,
 				Endx:                disksz,
@@ -378,7 +380,7 @@ func FindSparseRegions(f *os.File) (spans *Spans, err error) {
 	}
 
 	if !isSparse {
-		spans.Slc = append(spans.Slc, Span{
+		spans.Slc = append(spans.Slc, SparseSpan{
 			IsHole: false,
 			Beg:    0,
 			Endx:   fileSize,
@@ -406,7 +408,7 @@ func FindSparseRegions(f *os.File) (spans *Spans, err error) {
 				//errs := err.Error()
 				//if strings.Contains(errs, `no such device or address`) {
 				////vv("concluding just one hole left from offset %v", offset)
-				spans.Slc = append(spans.Slc, Span{
+				spans.Slc = append(spans.Slc, SparseSpan{
 					IsHole: true,
 					Beg:    offset,
 					Endx:   fileSize,
@@ -420,7 +422,7 @@ func FindSparseRegions(f *os.File) (spans *Spans, err error) {
 
 		// If dataBeg is greater than current offset, there's a hole before it
 		if dataBeg > offset {
-			spans.Slc = append(spans.Slc, Span{
+			spans.Slc = append(spans.Slc, SparseSpan{
 				IsHole: true,
 				Beg:    offset,
 				Endx:   dataBeg,
@@ -435,7 +437,7 @@ func FindSparseRegions(f *os.File) (spans *Spans, err error) {
 		holeBeg, err = unix.Seek(fd, dataBeg, unix.SEEK_HOLE)
 		if err != nil {
 			if err == syscall.ENXIO { // No more holes (all data till end)
-				spans.Slc = append(spans.Slc, Span{
+				spans.Slc = append(spans.Slc, SparseSpan{
 					IsHole: false,
 					Beg:    dataBeg,
 					Endx:   fileSize,
@@ -448,7 +450,7 @@ func FindSparseRegions(f *os.File) (spans *Spans, err error) {
 		}
 
 		// The region from dataBeg to holeBeg is data
-		spans.Slc = append(spans.Slc, Span{
+		spans.Slc = append(spans.Slc, SparseSpan{
 			IsHole: false,
 			Beg:    dataBeg,
 			Endx:   holeBeg,
@@ -635,9 +637,9 @@ func SparseDiff(srcpath, destpath string) (err error) {
 		}
 		// INVAR: dataBeg0 == dataBeg1
 
-		// If dataBeg is greater than current offset, there's a hole before it
-		// if dataBeg > offset {
-		// 	spans.Slc = append(spans.Slc, Span{
+		// If dataBeg is greater than current offset, there's a
+		// hole before it if dataBeg > offset {
+		// 	spans.Slc = append(spans.Slc, SparseSpan{
 		// 		IsHole: true,
 		// 		Beg:    offset,
 		// 		Endx:   dataBeg,
@@ -836,7 +838,7 @@ func CopySparseFile(srcpath, destpath string) (err error) {
 				if !didPrealloc {
 					sz := fileSize - offset
 					//vv("did not preallocate, so punching hole in dest, offset=%v, sz=%v", offset, sz)
-					// spans.Slc = append(spans.Slc, Span{
+					// spans.Slc = append(spans.Slc, SparseSpan{
 					// 	IsHole: true,
 					// 	Beg:    offset,
 					// 	Endx:   fileSize,
@@ -852,7 +854,7 @@ func CopySparseFile(srcpath, destpath string) (err error) {
 
 		// If dataBeg is greater than current offset, there's a hole before it
 		if dataBeg > offset {
-			// spans.Slc = append(spans.Slc, Span{
+			// spans.Slc = append(spans.Slc, SparseSpan{
 			// 	IsHole: true,
 			// 	Beg:    offset,
 			// 	Endx:   dataBeg,
@@ -871,7 +873,7 @@ func CopySparseFile(srcpath, destpath string) (err error) {
 		if err != nil {
 			if err == syscall.ENXIO { // No more holes (all data till end)
 				err = nil
-				// spans.Slc = append(spans.Slc, Span{
+				// spans.Slc = append(spans.Slc, SparseSpan{
 				// 	IsHole: false,
 				// 	Beg:    dataBeg,
 				// 	Endx:   fileSize,
@@ -897,7 +899,7 @@ func CopySparseFile(srcpath, destpath string) (err error) {
 		}
 
 		// The region from dataBeg to holeBeg is data
-		// spans.Slc = append(spans.Slc, Span{
+		// spans.Slc = append(spans.Slc, SparseSpan{
 		// 	IsHole: false,
 		// 	Beg:    dataBeg,
 		// 	Endx:   holeBeg,
@@ -925,4 +927,114 @@ func CopySparseFile(srcpath, destpath string) (err error) {
 	}
 
 	return
+}
+
+// MustGenerateSparseTestFiles makes 15 test files in dir.
+// Since git/scp/etc may not be sparse file aware or
+// preserving, for testing we must generate the
+// sparse testfiles on demand just prior to running
+// the sparse file funcationality tests. Hence this
+// function generates a kind of "standard test suite"
+// of sparse (and two pre-allocated) files. A minimum
+// of 15 test files are created, and more can be
+// requested by setting extra > 0. This function
+// will panic with, rather than return, any error encountered.
+// The seed0 can be varied to change the pseudo random
+// data fill and sparse file structure.
+// We will call os.MkdirAll to create dir, but will not
+// panic if it already exists. The extra cannot
+// be negative.
+func MustGenerateSparseTestFiles(dir string, extra, seed0 int) {
+
+	if extra < 0 {
+		panic("extra cannot be negative")
+	}
+
+	os.MkdirAll(dir, 0777)
+
+	var mb64 int64 = 1 << 26
+	var seed [32]byte
+	binary.LittleEndian.PutUint64(seed[:8], uint64(seed0))
+	rng := newPRNG(seed)
+
+	for i := range 15 + extra {
+
+		var fd *os.File
+		var err error
+		path := filepath.Join(dir, fmt.Sprintf("testZZZ.outpath.%02d.sparsefile", i))
+
+		if i <= 5 {
+			// base cases to be sure we cover.
+			switch i {
+			case 0:
+				// empty file. completely.
+				fd, err := os.Create(path)
+				panicOn(err)
+				panicOn(fd.Close())
+			case 1:
+				// completely sparse file of some size but no data.
+				fd, err := os.Create(path)
+				panicOn(err)
+				err = fd.Truncate(mb64)
+				panicOn(err)
+				panicOn(fd.Close())
+			case 2:
+				// some data, then the rest sparse (hole at end)
+				fd, err := os.Create(path)
+				panicOn(err)
+				err = fd.Truncate(mb64)
+				panicOn(err)
+				_, err = fd.Seek(0, 0)
+				panicOn(err)
+				data := make([]byte, 4096)
+				rng.cha8.Read(data)
+				_, err = fd.Write(data)
+				panicOn(err)
+				panicOn(fd.Close())
+			case 3:
+				// start with sparse hole, then data to the end.
+				fd, err := os.Create(path)
+				panicOn(err)
+				err = fd.Truncate(mb64)
+				panicOn(err)
+				_, err = fd.Seek((1<<26)-4096, 0)
+				panicOn(err)
+				data := make([]byte, 4096)
+				rng.cha8.Read(data)
+				_, err = fd.Write(data)
+				panicOn(err)
+				panicOn(fd.Close())
+			case 4:
+				// pre-allocated file of some size, but no data.
+				fd, err := os.Create(path)
+				panicOn(err)
+				_, err = Fallocate(fd, FALLOC_FL_KEEP_SIZE, 0, mb64)
+				panicOn(err)
+				panicOn(fd.Close())
+			case 5:
+				// pre-allocated and some prefix of data.
+				fd, err := os.Create(path)
+				panicOn(err)
+				_, err = Fallocate(fd, FALLOC_FL_KEEP_SIZE, 0, mb64)
+				panicOn(err)
+				_, err = fd.Seek(0, 0)
+				panicOn(err)
+				data := make([]byte, 4096)
+				rng.cha8.Read(data)
+				_, err = fd.Write(data)
+				panicOn(err)
+				panicOn(fd.Close())
+			}
+			continue
+		}
+		// the rest are randomly structured with any
+		// data segments filled with random data.
+		spec := genSpecSparse(rng)
+
+		//vv("on i = %v, path = '%v'; spec = '%v'", i, path, spec)
+
+		fd, err = createSparseFileFromSparseSpans(path, spec, rng)
+		panicOn(err)
+		panicOn(fd.Close())
+	}
 }
