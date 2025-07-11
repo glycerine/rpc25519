@@ -285,38 +285,6 @@ func Test005_apfs(t *testing.T) {
 	}
 }
 
-func genSpecSparse(rng *prng) *SparseSpans {
-
-	spans := &SparseSpans{}
-
-	const pagesz int64 = 4096
-	var nextbeg int64
-	numSegments := 1
-	numSegments += int(rng.pseudoRandPositiveInt64() % 5)
-
-	nextIsHole := false
-	for k := range numSegments {
-
-		if k == 0 {
-			nextIsHole = rng.pseudoRandBool()
-		} else {
-			nextIsHole = !nextIsHole
-		}
-		npage := rng.pseudoRandPositiveInt64()%5 + 1
-		nextLen := (npage) * pagesz
-		////vv("npage = %v; nextLen = %v", npage, nextLen)
-
-		sp := SparseSpan{
-			IsHole: nextIsHole,
-			Beg:    nextbeg,
-			Endx:   nextbeg + nextLen,
-		}
-		spans.Slc = append(spans.Slc, sp)
-		nextbeg = sp.Endx
-	}
-	return spans
-}
-
 func Test006_darwin_mixed_sparse_file(t *testing.T) {
 
 	//spec := genSpecSparse(rng)

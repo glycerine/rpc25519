@@ -1038,3 +1038,36 @@ func MustGenerateSparseTestFiles(dir string, extra, seed0 int) {
 		panicOn(fd.Close())
 	}
 }
+
+// mostly for tests; called by MustGenerateSparseTestFiles().
+func genSpecSparse(rng *prng) *SparseSpans {
+
+	spans := &SparseSpans{}
+
+	const pagesz int64 = 4096
+	var nextbeg int64
+	numSegments := 1
+	numSegments += int(rng.pseudoRandPositiveInt64() % 5)
+
+	nextIsHole := false
+	for k := range numSegments {
+
+		if k == 0 {
+			nextIsHole = rng.pseudoRandBool()
+		} else {
+			nextIsHole = !nextIsHole
+		}
+		npage := rng.pseudoRandPositiveInt64()%5 + 1
+		nextLen := (npage) * pagesz
+		////vv("npage = %v; nextLen = %v", npage, nextLen)
+
+		sp := SparseSpan{
+			IsHole: nextIsHole,
+			Beg:    nextbeg,
+			Endx:   nextbeg + nextLen,
+		}
+		spans.Slc = append(spans.Slc, sp)
+		nextbeg = sp.Endx
+	}
+	return spans
+}
