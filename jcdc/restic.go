@@ -71,7 +71,7 @@ func (c *ResticRabinCDC) Algorithm(options *CDC_Config, data []byte, n int) (cut
 	return
 }
 
-func (c *ResticRabinCDC) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero []bool) {
+func (c *ResticRabinCDC) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero, preun []bool) {
 	panic("TODO implement if needed")
 }
 

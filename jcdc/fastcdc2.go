@@ -164,7 +164,7 @@ func (c *FastCDC_Stadia) NextCut(data []byte) (cutpoint int) {
 	return c.Algorithm(c.Opts, data, len(data))
 }
 
-func (c *FastCDC_Stadia) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero []bool) {
+func (c *FastCDC_Stadia) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero, preun []bool) {
 	panic("TODO implement")
 }
 

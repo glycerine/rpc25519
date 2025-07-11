@@ -80,7 +80,7 @@ func (c *FastCDC_Plakar) NextCut(data []byte) (cutpoint int) {
 	return c.Algorithm(c.Opts, data, len(data))
 }
 
-func (c *FastCDC_Plakar) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero []bool) {
+func (c *FastCDC_Plakar) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero, preun []bool) {
 
 	data := make([]byte, 1<<20) // 1MB buffer to read/scan
 
@@ -114,10 +114,12 @@ nextSpan:
 		case span.IsHole:
 			cuts = append(cuts, int(endx))
 			allzero = append(allzero, true)
+			preun = append(preun, false)
 
 		case span.IsUnwrittenPrealloc:
 			cuts = append(cuts, int(endx))
 			allzero = append(allzero, true)
+			preun = append(preun, true)
 
 		default: // regular data
 			if beg != offset {
@@ -170,6 +172,7 @@ nextSpan:
 				prevcut := 0
 				for k, cut := range dCuts {
 					cuts = append(cuts, dataReadFrom+cut)
+					preun = append(preun, false)
 					isAllZero := allZero(data[prevcut:cut])
 					allzero = append(allzero, isAllZero)
 					offset = int64(dataReadFrom + cut)

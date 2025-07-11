@@ -35,7 +35,7 @@ type Cutpointer interface {
 	// use sparse mapping and do full zero span detection.
 	// allzero can be empty/nil even if len(cuts) > 0,
 	// especially when there are no sparse regions in the file.
-	CutpointsAndAllZero(fd *os.File) (cuts []int, allzero []bool)
+	CutpointsAndAllZero(fd *os.File) (cuts []int, allzero, preun []bool)
 
 	Name() string
 	Config() *CDC_Config
@@ -267,7 +267,7 @@ func (c *UltraCDC) Algorithm(options *CDC_Config, data []byte, n int) (cutpoint 
 	return
 }
 
-func (c *UltraCDC) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero []bool) {
+func (c *UltraCDC) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero, preun []bool) {
 	panic("TODO implement if needed")
 }
 

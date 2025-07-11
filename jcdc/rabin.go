@@ -198,7 +198,7 @@ func (c *RabinKarpCDC) Algorithm(options *CDC_Config, data []byte, n int) (cutpo
 	return n
 }
 
-func (c *RabinKarpCDC) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero []bool) {
+func (c *RabinKarpCDC) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero, preun []bool) {
 	panic("TODO implement")
 }
 
