@@ -89,6 +89,7 @@ func (c *FastCDC_Plakar) CutpointsAndAllZero(fd *os.File) (cuts []int, allzero [
 
 	spans, err := sparsified.FindSparseRegions(fd)
 	panicOn(err)
+	vv("spans = '%v'", spans)
 	if spans == nil || len(spans.Slc) == 0 {
 		// empty file
 		return
@@ -125,9 +126,13 @@ nextSpan:
 			for offset < endx {
 
 				dataReadFrom := int(offset)
+				// since we backup/move forward as need
+				// be with the seek, we can always just
+				// read fully into data, even if we read
+				// some overlaps twice.
 				_, err = fd.Seek(offset, 0)
 				panicOn(err)
-				nr, err := io.ReadFull(fd, data[offset:])
+				nr, err := io.ReadFull(fd, data)
 				if err == io.EOF {
 					// no bytes read
 					panic(fmt.Sprintf("error: have %v bytes left to process but could not read them from path '%v': got io.EOF from io.ReadFull().", endx-offset, fd.Name()))
@@ -146,7 +151,6 @@ nextSpan:
 				isLastDataInSpan := (maxAhead >= endx)
 				d := data[:nr]
 
-				cutbeg := offset
 				dCuts := c.Cutpoints(d, len(d))
 				stopAt := len(dCuts)
 				// append them all by default
@@ -155,13 +159,13 @@ nextSpan:
 					// after reading more data.
 					stopAt--
 				}
+				prevcut := 0
 				for k, cut := range dCuts {
-					cutendx := cut
 					cuts = append(cuts, dataReadFrom+cut)
-					isAllZero := allZero(data[cutbeg:cutendx])
+					isAllZero := allZero(data[prevcut:cut])
 					allzero = append(allzero, isAllZero)
-					offset = int64(cut)
-					cutbeg = int64(cut)
+					offset = int64(dataReadFrom + cut)
+					prevcut = cut
 
 					if k == stopAt {
 						if isLastDataInSpan {
