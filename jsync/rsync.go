@@ -779,19 +779,10 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 
 	if fd == nil || fileStatSz == 0 {
 		precis.FileCry = hash.Blake3OfBytesString([]byte{})
-		vv("path '%v' is empty or nil fd passed; fd = %p; fileStatSz = %v; returning precis.FileCry = '%v'", path, fd, fileStatSz, precis.FileCry)
+		//vv("path '%v' is empty or nil fd passed; fd = %p; fileStatSz = %v; returning precis.FileCry = '%v'", path, fd, fileStatSz, precis.FileCry)
 	} else {
 		precis.FileCry, err = hash.Blake3OfFile(path)
 		panicOn(err)
-		//vv("path '%v' is fine. precis.FileCry = '%v'", path, precis.FileCry)
-		// compare to how we used to do it
-		// data2, err = os.ReadFile(path)
-		// panicOn(err)
-		// hsh2 := hash.Blake3OfBytesString(data2)
-		// if hsh2 != precis.FileCry {
-		// 	panic(fmt.Sprintf("hsh='%v' but hsh2='%v'", precis.FileCry, hsh2))
-		// }
-		// vv("good: FileCry same")
 	}
 
 	chunks = NewChunks(path)
@@ -805,9 +796,6 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 	cuts, allzero, preun := cdc.CutpointsAndAllZero(fd)
 
 	//cutsOrig := cdc.Cutpoints(data2, 0)
-
-	//vv("cuts[105:] = '%#v'", cuts[105:])
-	//vv("cutsOrig[105:] = '%#v'", cutsOrig[105:])
 
 	if len(cuts) == 0 {
 		// okay, is truly an empty file

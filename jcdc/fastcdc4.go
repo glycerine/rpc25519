@@ -89,15 +89,15 @@ func (c *FastCDC_Plakar) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero
 
 	spans, err := sparsified.FindSparseRegions(fd)
 	panicOn(err)
-	vv("spans = '%v'", spans)
+	//vv("spans = '%v'", spans)
 	nslc := len(spans.Slc)
 	if spans == nil || nslc == 0 {
 		// empty file
 		return
 	}
 
-	maxEndx := spans.Slc[nslc-1].Endx
-	vv("maxEndx = %v", maxEndx)
+	//maxEndx := spans.Slc[nslc-1].Endx
+	//vv("maxEndx = %v", maxEndx)
 
 	// how far we have read in the file.
 	var offset int64
@@ -109,7 +109,7 @@ func (c *FastCDC_Plakar) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero
 nextSpan:
 	for j, span := range spans.Slc {
 		_ = j
-		vv("on j = %v; offset = %v; span = '%v'", j, offset, span.String())
+		//vv("on j = %v; offset = %v; span = '%v'", j, offset, span.String())
 		beg := span.Beg
 		endx := span.Endx
 		//spansz := endx - beg
@@ -130,7 +130,7 @@ nextSpan:
 			if beg != offset {
 				panic(fmt.Sprintf("beg(%v) != offset(%v)", beg, offset))
 			}
-			vv("regular data span j=%v; beg=%v; endx=%v", j, beg, endx)
+			//vv("regular data span j=%v; beg=%v; endx=%v", j, beg, endx)
 		readAtOffset:
 			for offset < endx {
 
@@ -179,9 +179,6 @@ nextSpan:
 					nextcut := dataReadFrom + cut
 					if nextcut <= prevcut {
 						panic(fmt.Sprintf("assert nextcut > prevcut failed! nextcut=%v; prevcut=%v", nextcut, prevcut))
-					}
-					if maxEndx == 1052672 && nextcut == 1048576 {
-						panic(fmt.Sprintf("why is 1048576 being added as nextcut; dCuts = '%#v'", dCuts))
 					}
 					cuts = append(cuts, nextcut)
 					preun = append(preun, false)
