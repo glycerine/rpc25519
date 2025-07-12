@@ -27,6 +27,8 @@ import (
 	"fmt"
 	"math/bits"
 	"os"
+
+	"github.com/glycerine/rpc25519/jsync/sparsified"
 )
 
 type Cutpointer interface {
@@ -35,7 +37,7 @@ type Cutpointer interface {
 	// use sparse mapping and do full zero span detection.
 	// allzero can be empty/nil even if len(cuts) > 0,
 	// especially when there are no sparse regions in the file.
-	CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero, preun []bool)
+	CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero, preun []bool, spans *sparsified.SparseSpans)
 
 	Name() string
 	Config() *CDC_Config
@@ -267,7 +269,7 @@ func (c *UltraCDC) Algorithm(options *CDC_Config, data []byte, n int) (cutpoint 
 	return
 }
 
-func (c *UltraCDC) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero, preun []bool) {
+func (c *UltraCDC) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero, preun []bool, spans *sparsified.SparseSpans) {
 	panic("TODO implement if needed")
 }
 

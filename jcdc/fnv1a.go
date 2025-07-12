@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"os"
+
+	"github.com/glycerine/rpc25519/jsync/sparsified"
 )
 
 type FNVCDC struct {
@@ -61,7 +63,7 @@ func (f *FNVCDC) NextCut(data []byte) (cutpoint int) {
 	return f.Algorithm(f.Opts, data, len(data))
 }
 
-func (c *FNVCDC) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero, preun []bool) {
+func (c *FNVCDC) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero, preun []bool, spans *sparsified.SparseSpans) {
 	panic("TODO implement")
 }
 

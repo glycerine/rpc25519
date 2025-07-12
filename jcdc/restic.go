@@ -10,6 +10,7 @@ import (
 	//"math/rand"
 
 	chunker "github.com/glycerine/restic-chunker-mod"
+	"github.com/glycerine/rpc25519/jsync/sparsified"
 )
 
 func evaluateDistribution() {
@@ -71,7 +72,7 @@ func (c *ResticRabinCDC) Algorithm(options *CDC_Config, data []byte, n int) (cut
 	return
 }
 
-func (c *ResticRabinCDC) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero, preun []bool) {
+func (c *ResticRabinCDC) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero, preun []bool, spans *sparsified.SparseSpans) {
 	panic("TODO implement if needed")
 }
 

@@ -3,6 +3,8 @@ package jcdc
 import (
 	"fmt"
 	"os"
+
+	"github.com/glycerine/rpc25519/jsync/sparsified"
 )
 
 type RabinKarpCDC struct {
@@ -198,7 +200,7 @@ func (c *RabinKarpCDC) Algorithm(options *CDC_Config, data []byte, n int) (cutpo
 	return n
 }
 
-func (c *RabinKarpCDC) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero, preun []bool) {
+func (c *RabinKarpCDC) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero, preun []bool, spans *sparsified.SparseSpans) {
 	panic("TODO implement")
 }
 

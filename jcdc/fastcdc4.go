@@ -80,14 +80,14 @@ func (c *FastCDC_Plakar) NextCut(data []byte) (cutpoint int) {
 	return c.Algorithm(c.Opts, data, len(data))
 }
 
-func (c *FastCDC_Plakar) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero, preun []bool) {
+func (c *FastCDC_Plakar) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero, preun []bool, spans *sparsified.SparseSpans) {
 
 	data := make([]byte, 1<<20) // 1MB buffer to read/scan
 
 	_, err := fd.Seek(0, 0)
 	panicOn(err)
 
-	spans, err := sparsified.FindSparseRegions(fd)
+	spans, err = sparsified.FindSparseRegions(fd)
 	panicOn(err)
 	//vv("spans = '%v'", spans)
 	nslc := len(spans.Slc)
@@ -180,10 +180,21 @@ nextSpan:
 					if nextcut <= prevcut {
 						panic(fmt.Sprintf("assert nextcut > prevcut failed! nextcut=%v; prevcut=%v", nextcut, prevcut))
 					}
-					cuts = append(cuts, nextcut)
-					preun = append(preun, false)
 					isAllZero := allZero(data[prevcut:cut])
-					allzero = append(allzero, isAllZero)
+					// can we coalesce two RLE0 into one bigger one?
+					if isAllZero {
+						last := len(cuts) - 1
+						if last >= 0 {
+							if allzero[last] && !preun[last] {
+								vv("yes: coalesce/extend cuts[last] from %v -> %v", cuts[last], nextcut)
+								cuts[last] = nextcut
+							}
+						}
+					} else {
+						cuts = append(cuts, nextcut)
+						preun = append(preun, false)
+						allzero = append(allzero, isAllZero)
+					}
 					offset = int64(dataReadFrom + cut)
 					prevcut = cut
 
