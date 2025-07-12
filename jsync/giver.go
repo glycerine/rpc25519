@@ -560,6 +560,8 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 		placeholderPlan.Path,
 		syncReq,
 		goalPrecis,
+		false,
+		nil,
 	)
 }
 
@@ -572,7 +574,8 @@ func (s *SyncService) giverSendsWholeFile(
 	syncReq *RequestToSyncPath,
 
 ) error {
-	panic("who is calling, we want to use RLE0 instead")
+	// convertedDirToFile_giveFile calls us from dirgiver.go.
+
 	//vv("giverSendsWholeFile(giverPath='%v', takerPath='%v')", giverPath, takerPath)
 	t0 := time.Now()
 
@@ -591,6 +594,60 @@ func (s *SyncService) giverSendsWholeFile(
 		//vv("no ability to report progress, don't try.")
 		quietProgress = true
 	}
+
+	// to re-use code from giverSendsPlanAndDataUpdates
+	localPath := giverPath
+
+	var goalPrecis *FilePrecis
+	var local *Chunks
+
+	if parallelChunking {
+		// parallel version
+		//vv("begin ChunkFile (parallel)")
+		goalPrecis, local, err = ChunkFile(localPath)
+	} else {
+		// non-parallel version:
+		//vv("begin GetHashesOneByOne")
+		goalPrecis, local, err = GetHashesOneByOne(rpc.Hostname, localPath)
+	}
+	panicOn(err)
+	// above func call into SummarizeBytesInCDCHashes
+	// with keepData = false, so chunk.Data will be nil.
+
+	// don't think we need all this stuff from
+	// giverSendsPlanAndDataUpdates
+
+	// Now stream the heavy chunks. Since our max message
+	// is typically about 1MB, we'll pack lots of
+	// shunks into one message. Some of them will
+	// have no attached Data, so will be very small.
+
+	return s.packAndSendChunksJustInTime(
+		local,
+		frag0.FragSubject,
+		OpRsync_HereIsFullFileEnd5,
+		OpRsync_HereIsFullFileMore4,
+		ckt,
+		bt,
+		localPath,
+		syncReq,
+		goalPrecis,
+		true,
+		func(frag *rpc.Fragment) {
+			frag.SetUserArg("readFile", giverPath)
+			frag.SetUserArg("writeFile", takerPath)
+			//frag.SetUserArg("blake3", sumstring)
+
+			mode := strconv.FormatUint(uint64(fi.Mode()), 10)
+			frag.SetUserArg("mode", mode)
+
+			frag.SetUserArg("modTime", fi.ModTime().Format(time.RFC3339Nano))
+		},
+	)
+
+	// end code from giverSendsPlanAndDataUpdates
+
+	// old bad non RLE0 aware code...
 
 	r, err := os.Open(giverPath)
 	if err != nil {
@@ -883,7 +940,8 @@ func (s *SyncService) packAndSendChunksJustInTime(
 	path string,
 	syncReq *RequestToSyncPath,
 	goalPrecis *FilePrecis,
-
+	sendDataWithoutOneByteMarkers bool,
+	lastFragCallBack func(f *rpc.Fragment),
 ) (err error) {
 
 	//vv("top of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; len(oneByteMarkedPlan.Chunks) = %v", oneByteMarkedPlan.DataPresent(), len(oneByteMarkedPlan.Chunks))
@@ -959,10 +1017,10 @@ func (s *SyncService) packAndSendChunksJustInTime(
 			letgo = next.CloneNoData()
 			tot = next.Endx
 
-			if len(next.Data) > 0 { // is our 1 marker byte there?
-				if next.Cry == "RLE0;" {
-					panic("RLE0 should never have Data!?!")
-				}
+			if (sendDataWithoutOneByteMarkers &&
+				next.Cry != "RLE0;" &&
+				next.Cry != "UNWRIT;") ||
+				len(next.Data) > 0 { // is our 1 marker byte there?
 
 				// fill in letgo.Data
 				_, err := fd.Seek(int64(next.Beg), 0)
@@ -978,6 +1036,9 @@ func (s *SyncService) packAndSendChunksJustInTime(
 		}
 		if last {
 			f.FragOp = opLast // OpRsync_HeavyDiffChunksLast
+			if lastFragCallBack != nil {
+				lastFragCallBack(f)
+			}
 		} else {
 			f.FragOp = opMore // OpRsync_HeavyDiffChunksEnclosed
 		}
@@ -993,7 +1054,7 @@ func (s *SyncService) packAndSendChunksJustInTime(
 		bt.bsend += len(bts)
 
 		s.reportProgress(syncReq, path, int64(goalPrecis.FileSize), int64(tot), t0)
-	}
+	} // end for i
 	return nil
 }
 
