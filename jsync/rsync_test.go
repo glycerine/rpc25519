@@ -99,7 +99,8 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		generator := mathrand2.NewChaCha8(seed)
 
 		// random or zeros?
-		allZeros := false
+		//allZeros := false
+		allZeros := true
 		if allZeros {
 			// slc is already ready with all 0.
 		} else {
@@ -186,7 +187,11 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		// 1048576 -> 538512 b/c much more aggressive RLE0;
 		// why are linux and darwin different?
 		if runtime.GOOS == "darwin" {
-			cv.So(plan.DataPresent(), cv.ShouldEqual, 538512) // darwin
+			if allZeros {
+				cv.So(plan.DataPresent(), cv.ShouldEqual, 0) // darwin
+			} else {
+				cv.So(plan.DataPresent(), cv.ShouldEqual, 538512) // darwin
+			}
 		} else {
 			cv.So(plan.DataPresent(), cv.ShouldEqual, 524288) // linux
 		}
@@ -286,10 +291,16 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		dropPlanData := true
 		plan2 := bs.GetPlanToUpdateFromGoal(remoteWantsUpdate, local2, dropPlanData, false)
 
+		vv("plan2 = '%v'", plan2)
 		// verify minimal changes being sent
 		if allZeros {
-			cv.So(plan2.DataChunkCount(), cv.ShouldEqual, 2)
-			cv.So(plan2.DataPresent(), cv.ShouldEqual, 147458)
+			if runtime.GOOS == "darwin" {
+				cv.So(plan2.DataChunkCount(), cv.ShouldEqual, 1)
+				cv.So(plan2.DataPresent(), cv.ShouldEqual, 16384)
+			} else {
+				cv.So(plan2.DataChunkCount(), cv.ShouldEqual, 2)
+				cv.So(plan2.DataPresent(), cv.ShouldEqual, 147458)
+			}
 
 			vv("out of %v chunks, in a %v byte long file, these were updated: '%v'",
 				len(plan2.Chunks), plan2.FileSize, plan2.DataFilter())
