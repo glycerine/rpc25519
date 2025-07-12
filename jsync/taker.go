@@ -428,7 +428,7 @@ takerForSelectLoop:
 					newversFd, err = os.Create(tmp)
 					panicOn(err)
 
-					vv("make sparse if possible! truncating to %v our tmp file '%v'", syncReq.GiverFileSize, tmp)
+					//vv("make sparse if possible! truncating to %v our tmp file '%v'", syncReq.GiverFileSize, tmp)
 					err = newversFd.Truncate(int64(syncReq.GiverFileSize))
 					panicOn(err)
 
@@ -463,7 +463,7 @@ takerForSelectLoop:
 				for _, chunk := range chunks.Chunks {
 
 					if len(chunk.Data) == 0 {
-						vv("len(chunk.Data) == 0 => the data is local, or RLE0; .Cry = '%v'", chunk.Cry)
+						//vv("len(chunk.Data) == 0 => the data is local, or RLE0; .Cry = '%v'", chunk.Cry)
 
 						if chunk.Cry == "RLE0;" {
 							span, wings := sparsified.AlignedSparseSpan(int64(chunk.Beg), int64(chunk.Endx))
@@ -483,12 +483,12 @@ takerForSelectLoop:
 							if span != nil {
 								startPos := curpos(newversFd)
 								n := span.Endx - span.Beg
-								vv("applying sparse span of len %v; curpos = %v", n, startPos)
+								//vv("applying sparse span of len %v; curpos = %v", n, startPos)
 								ns := n / 4096                // len(zeros4k)
 								rem := n % 4096               // len(zeros4k)
 								_, err = newversFd.Seek(n, 1) // 1=> relative to current offset
 								panicOn(err)
-								vv("after Seek(n=%v,1): curpos = %v", n, curpos(newversFd))
+								//vv("after Seek(n=%v,1): curpos = %v", n, curpos(newversFd))
 								// hasher update only. not to disk.
 								for range ns {
 									//wb, err := newversFd.Write(zeros4k)
@@ -614,9 +614,10 @@ takerForSelectLoop:
 				// }
 
 				// debug, is it sparse before we rename it?
-				spans, err := sparsified.FindSparseRegions(newversFd)
-				panicOn(err)
-				vv("debug sparse spans just before newversFd.Close() = '%v'", spans)
+				// only with the hole punching above.
+				//spans, err := sparsified.FindSparseRegions(newversFd)
+				//panicOn(err)
+				//vv("debug sparse spans just before newversFd.Close() = '%v'", spans)
 
 				newversFd.Close()
 
