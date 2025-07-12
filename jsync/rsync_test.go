@@ -86,265 +86,274 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 
 	cv.Convey("using our rsync-like-protocol, the client, lacking a file, should be able to fetch it from the server. The second time fetching the same should be very fast because of chunking and hash comparisons in the rsync-like protocol", t, func() {
 
-		// create a test file
-		N := 1
-		remotePath := fmt.Sprintf("charand%vmb", N)
-		testfd, err := os.Create(remotePath)
-		panicOn(err)
-		slc := make([]byte, 1<<19) // 0.5 MB slice
+		for j := range 2 {
 
-		// deterministic pseudo-random numbers as data.
-		var seed [32]byte
-		seed[1] = 2
-		generator := mathrand2.NewChaCha8(seed)
+			// random or zeros?
+			var allZeros bool
+			switch j {
+			case 0:
+				allZeros = true
+			case 1:
+				allZeros = false // random data
+			}
 
-		// random or zeros?
-		//allZeros := false
-		allZeros := true
-		if allZeros {
-			// slc is already ready with all 0.
-		} else {
-			generator.Read(slc)
-		}
-		for range N {
-			_, err = testfd.Write(slc)
+			// create a test file
+			N := 1
+			remotePath := fmt.Sprintf("charand%vmb", N)
+			testfd, err := os.Create(remotePath)
 			panicOn(err)
-		}
-		// add a big sparse hole at the end of the remote path.
-		err = testfd.Truncate(1 << 20)
-		panicOn(err)
+			slc := make([]byte, 1<<19) // 0.5 MB slice
 
-		testfd.Close()
-		vv("created N = %v MB test file in remotePath='%v'.", N, remotePath)
+			// deterministic pseudo-random numbers as data.
+			var seed [32]byte
+			seed[1] = 2
+			generator := mathrand2.NewChaCha8(seed)
 
-		// modify "local" target path so we don't overwrite our
-		// source file when testing in one directory
-		localPath := remotePath + ".local_rsync_out"
-		vv("localPath = '%v'", localPath)
-
-		// delete any old leftover test file from before.
-		os.Remove(localPath)
-
-		// set up a server and a client.
-
-		cfg := rpc.NewConfig()
-		cfg.TCPonly_no_TLS = true
-
-		cfg.CompressionOff = true
-
-		cfg.ServerAddr = "127.0.0.1:0"
-		srv := rpc.NewServer("srv_rsync_test210", cfg)
-
-		serverAddr, err := srv.Start()
-		panicOn(err)
-		defer srv.Close()
-
-		vv("server Start() returned serverAddr = '%v'", serverAddr)
-
-		//srv.RegisterBistreamFunc("RsyncServerSide", srv.RsyncServerSide)
-
-		srvRsyncNode := &RsyncNode{}
-		panicOn(srv.Register(srvRsyncNode))
-
-		cfg.ClientDialToHostPort = serverAddr.String()
-		cli, err := rpc.NewClient("cli_rsync_test210", cfg)
-		panicOn(err)
-		err = cli.Start()
-		panicOn(err)
-
-		defer cli.Close()
-
-		// summarize our local file contents (empty here, but in general).
-		host := "localhost"
-		//localPrecis, local, err := SummarizeFileInCDCHashes(host, localPath, true, true)
-		localPrecis, local, err := GetHashesOneByOne(host, localPath)
-		panicOn(err)
-
-		// get diffs from what we have. We send a light
-		// request (one without Data attached, just hashes);
-		// but since we send to RequestLatest, we'll get back
-		// a Data heavy payload; possibly requiring
-		// a stream.
-		light := &LightRequest{
-			SenderPath:   remotePath,
-			ReaderPrecis: localPrecis,
-			ReaderChunks: local,
-		}
-
-		senderDeltas := &HeavyPlan{} // response
-
-		err = cli.Call("RsyncNode.RequestLatest", light, senderDeltas, nil)
-		panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
-
-		//vv("senderDeltas = '%v'", senderDeltas)
-
-		plan := senderDeltas.SenderPlan // the plan follow remote template, our target.
-		//vv("plan = '%v'", plan)
-		//local is our origin or starting point.
-		localMap := getCryMap(local) // pre-index them for the update.
-
-		// had to do a full file transfer for missing file.
-		// 1048576 -> 538512 b/c much more aggressive RLE0;
-		// why are linux and darwin different?
-		if runtime.GOOS == "darwin" {
 			if allZeros {
+				// slc is already ready with all 0.
+			} else {
+				generator.Read(slc)
+			}
+			for range N {
+				_, err = testfd.Write(slc)
+				panicOn(err)
+			}
+			// add a big sparse hole at the end of the remote path.
+			err = testfd.Truncate(1 << 20)
+			panicOn(err)
+
+			testfd.Close()
+			vv("created N = %v MB test file in remotePath='%v'.", N, remotePath)
+
+			// modify "local" target path so we don't overwrite our
+			// source file when testing in one directory
+			localPath := remotePath + ".local_rsync_out"
+			vv("localPath = '%v'", localPath)
+
+			// delete any old leftover test file from before.
+			os.Remove(localPath)
+
+			// set up a server and a client.
+
+			cfg := rpc.NewConfig()
+			cfg.TCPonly_no_TLS = true
+
+			cfg.CompressionOff = true
+
+			cfg.ServerAddr = "127.0.0.1:0"
+			srv := rpc.NewServer("srv_rsync_test210", cfg)
+
+			serverAddr, err := srv.Start()
+			panicOn(err)
+			defer srv.Close()
+
+			vv("server Start() returned serverAddr = '%v'", serverAddr)
+
+			//srv.RegisterBistreamFunc("RsyncServerSide", srv.RsyncServerSide)
+
+			srvRsyncNode := &RsyncNode{}
+			panicOn(srv.Register(srvRsyncNode))
+
+			cfg.ClientDialToHostPort = serverAddr.String()
+			cli, err := rpc.NewClient("cli_rsync_test210", cfg)
+			panicOn(err)
+			err = cli.Start()
+			panicOn(err)
+
+			defer cli.Close()
+
+			// summarize our local file contents (empty here, but in general).
+			host := "localhost"
+			//localPrecis, local, err := SummarizeFileInCDCHashes(host, localPath, true, true)
+			localPrecis, local, err := GetHashesOneByOne(host, localPath)
+			panicOn(err)
+
+			// get diffs from what we have. We send a light
+			// request (one without Data attached, just hashes);
+			// but since we send to RequestLatest, we'll get back
+			// a Data heavy payload; possibly requiring
+			// a stream.
+			light := &LightRequest{
+				SenderPath:   remotePath,
+				ReaderPrecis: localPrecis,
+				ReaderChunks: local,
+			}
+
+			senderDeltas := &HeavyPlan{} // response
+
+			err = cli.Call("RsyncNode.RequestLatest", light, senderDeltas, nil)
+			panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
+
+			//vv("senderDeltas = '%v'", senderDeltas)
+
+			plan := senderDeltas.SenderPlan // the plan follow remote template, our target.
+			//vv("plan = '%v'", plan)
+			//local is our origin or starting point.
+			localMap := getCryMap(local) // pre-index them for the update.
+
+			// had to do a full file transfer for missing file.
+			// 1048576 -> 538512 b/c much more aggressive RLE0;
+			// why are linux and darwin different?
+			if runtime.GOOS == "darwin" {
+				if allZeros {
+					cv.So(plan.DataPresent(), cv.ShouldEqual, 0) // darwin
+				} else {
+					cv.So(plan.DataPresent(), cv.ShouldEqual, 538512) // darwin
+				}
+			} else {
+				if allZeros {
+					cv.So(plan.DataPresent(), cv.ShouldEqual, 0) // linux
+				} else {
+					cv.So(plan.DataPresent(), cv.ShouldEqual, 524288) // linux
+				}
+			}
+
+			//cv.So(plan.DataPresent(), cv.ShouldEqual, 1048576)
+			cv.So(plan.FileSize, cv.ShouldEqual, 1048576)
+
+			err = UpdateLocalWithRemoteDiffs(local.Path, localMap, plan, senderDeltas.SenderPrecis)
+			panicOn(err)
+
+			if !fileExists(local.Path) {
+				panic("file should have been written locally now!")
+			}
+			difflen := compareFilesDiffLen(local.Path, remotePath)
+			cv.So(difflen, cv.ShouldEqual, 0)
+
+			// ==============================
+			// ==============================
+			//
+			// now repeat a second time, and we should get
+			// no Data segments transfered.
+			//
+			// ==============================
+			// ==============================
+
+			vv("========>  second time! now no data expected")
+
+			// update the localState, as if we didn't know it already.
+			//localPrecis, local, err = SummarizeFileInCDCHashes(host, localPath, true, true)
+			localPrecis, local, err = GetHashesOneByOne(host, localPath)
+			panicOn(err)
+
+			clearLocal := local.CloneWithClearData()
+
+			//  get diffs from what we have.
+			light = &LightRequest{
+				SenderPath:   remotePath,
+				ReaderPrecis: localPrecis,
+				ReaderChunks: clearLocal,
+			}
+
+			senderDeltas = &HeavyPlan{} // response
+
+			err = cli.Call("RsyncNode.RequestLatest", light, senderDeltas, nil)
+			panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
+
+			//vv("senderDeltas = '%v'", senderDeltas)
+
+			plan = senderDeltas.SenderPlan // the plan follow remote template, our target.
+			// why darwin and linux different?
+			if runtime.GOOS == "darwin" {
 				cv.So(plan.DataPresent(), cv.ShouldEqual, 0) // darwin
 			} else {
-				cv.So(plan.DataPresent(), cv.ShouldEqual, 538512) // darwin
+				if allZeros {
+					cv.So(plan.DataPresent(), cv.ShouldEqual, 0) // linux
+				} else {
+					cv.So(plan.DataPresent(), cv.ShouldEqual, 2160) // linux
+				}
 			}
-		} else {
+
+			// ==============================
+			// ==============================
+			//
+			// third time: pre-pend 2 bytes, and
+			// tell server we want them to sync
+			// to us.
+			//
+			// ==============================
+			// ==============================
+			cur, err := os.ReadFile(localPath)
+			panicOn(err)
+
+			pre2path := remotePath + ".pre2"
+			pre2, err := os.Create(pre2path)
+			panicOn(err)
+
+			_, err = pre2.Write([]byte{0x77, 0x88})
+			panicOn(err)
+			_, err = io.Copy(pre2, bytes.NewBuffer(cur))
+			panicOn(err)
+
+			// new pre2path file is ready, summarize
+			// it and push it to the remotePath.
+
+			// the data is attached to the local2 Chunks .Data element.
+			// We had to read it in, so might as well keep it until we
+			// know we want to discard it, which the GetPlan() below will do
+			// if we tell it too.
+			localPrecis2, local2, err := SummarizeFileInCDCHashes(host, pre2path, true, true)
+			panicOn(err)
+
+			// generate a plan to update the remote server, based on
+			// the diff that we just made.
+
+			bs := NewBlobStore()
+
+			plan.ClearData()
+			cv.So(plan.DataPresent(), cv.ShouldEqual, 0)
+			remoteWantsUpdate := plan
+
+			dropPlanData := true
+			plan2 := bs.GetPlanToUpdateFromGoal(remoteWantsUpdate, local2, dropPlanData, false)
+
+			vv("plan2 = '%v'", plan2)
+			// verify minimal changes being sent
 			if allZeros {
-				cv.So(plan.DataPresent(), cv.ShouldEqual, 0) // linux
+				if runtime.GOOS == "darwin" {
+					cv.So(plan2.DataChunkCount(), cv.ShouldEqual, 1)
+					cv.So(plan2.DataPresent(), cv.ShouldEqual, 16384)
+				} else {
+					cv.So(plan2.DataChunkCount(), cv.ShouldEqual, 1)
+					//cv.So(plan2.DataChunkCount(), cv.ShouldEqual, 2)
+					cv.So(plan2.DataPresent(), cv.ShouldEqual, 16384)
+					//cv.So(plan2.DataPresent(), cv.ShouldEqual, 147458)
+				}
+
+				vv("out of %v chunks, in a %v byte long file, these were updated: '%v'",
+					len(plan2.Chunks), plan2.FileSize, plan2.DataFilter())
+
 			} else {
-				cv.So(plan.DataPresent(), cv.ShouldEqual, 524288) // linux
-			}
-		}
+				// random
+				if runtime.GOOS == "darwin" {
+					cv.So(plan2.DataChunkCount(), cv.ShouldEqual, 1) // darwin
+				} else {
+					cv.So(plan2.DataChunkCount(), cv.ShouldEqual, 2) // linux
+				}
 
-		//cv.So(plan.DataPresent(), cv.ShouldEqual, 1048576)
-		cv.So(plan.FileSize, cv.ShouldEqual, 1048576)
+				vv("out of %v chunks, in a %v byte long file, these were updated: '%v'",
+					len(plan2.Chunks), plan2.FileSize, plan2.DataFilter())
 
-		err = UpdateLocalWithRemoteDiffs(local.Path, localMap, plan, senderDeltas.SenderPrecis)
-		panicOn(err)
-
-		if !fileExists(local.Path) {
-			panic("file should have been written locally now!")
-		}
-		difflen := compareFilesDiffLen(local.Path, remotePath)
-		cv.So(difflen, cv.ShouldEqual, 0)
-
-		// ==============================
-		// ==============================
-		//
-		// now repeat a second time, and we should get
-		// no Data segments transfered.
-		//
-		// ==============================
-		// ==============================
-
-		vv("========>  second time! now no data expected")
-
-		// update the localState, as if we didn't know it already.
-		//localPrecis, local, err = SummarizeFileInCDCHashes(host, localPath, true, true)
-		localPrecis, local, err = GetHashesOneByOne(host, localPath)
-		panicOn(err)
-
-		clearLocal := local.CloneWithClearData()
-
-		//  get diffs from what we have.
-		light = &LightRequest{
-			SenderPath:   remotePath,
-			ReaderPrecis: localPrecis,
-			ReaderChunks: clearLocal,
-		}
-
-		senderDeltas = &HeavyPlan{} // response
-
-		err = cli.Call("RsyncNode.RequestLatest", light, senderDeltas, nil)
-		panicOn(err) // reading body msgp: attempted to decode type "ext" with method for "map"
-
-		//vv("senderDeltas = '%v'", senderDeltas)
-
-		plan = senderDeltas.SenderPlan // the plan follow remote template, our target.
-		// why darwin and linux different?
-		if runtime.GOOS == "darwin" {
-			cv.So(plan.DataPresent(), cv.ShouldEqual, 0) // darwin
-		} else {
-			if allZeros {
-				cv.So(plan.DataPresent(), cv.ShouldEqual, 0) // linux
-			} else {
-				cv.So(plan.DataPresent(), cv.ShouldEqual, 2160) // linux
-			}
-		}
-
-		// ==============================
-		// ==============================
-		//
-		// third time: pre-pend 2 bytes, and
-		// tell server we want them to sync
-		// to us.
-		//
-		// ==============================
-		// ==============================
-		cur, err := os.ReadFile(localPath)
-		panicOn(err)
-
-		pre2path := remotePath + ".pre2"
-		pre2, err := os.Create(pre2path)
-		panicOn(err)
-
-		_, err = pre2.Write([]byte{0x77, 0x88})
-		panicOn(err)
-		_, err = io.Copy(pre2, bytes.NewBuffer(cur))
-		panicOn(err)
-
-		// new pre2path file is ready, summarize
-		// it and push it to the remotePath.
-
-		// the data is attached to the local2 Chunks .Data element.
-		// We had to read it in, so might as well keep it until we
-		// know we want to discard it, which the GetPlan() below will do
-		// if we tell it too.
-		localPrecis2, local2, err := SummarizeFileInCDCHashes(host, pre2path, true, true)
-		panicOn(err)
-
-		// generate a plan to update the remote server, based on
-		// the diff that we just made.
-
-		bs := NewBlobStore()
-
-		plan.ClearData()
-		cv.So(plan.DataPresent(), cv.ShouldEqual, 0)
-		remoteWantsUpdate := plan
-
-		dropPlanData := true
-		plan2 := bs.GetPlanToUpdateFromGoal(remoteWantsUpdate, local2, dropPlanData, false)
-
-		vv("plan2 = '%v'", plan2)
-		// verify minimal changes being sent
-		if allZeros {
-			if runtime.GOOS == "darwin" {
-				cv.So(plan2.DataChunkCount(), cv.ShouldEqual, 1)
-				cv.So(plan2.DataPresent(), cv.ShouldEqual, 16384)
-			} else {
-				cv.So(plan2.DataChunkCount(), cv.ShouldEqual, 1)
-				//cv.So(plan2.DataChunkCount(), cv.ShouldEqual, 2)
-				cv.So(plan2.DataPresent(), cv.ShouldEqual, 16384)
-				//cv.So(plan2.DataPresent(), cv.ShouldEqual, 147458)
+				// this varies because the data is random:
+				//cv.So(plan2.DataPresent(), cv.ShouldEqual, 11796)
 			}
 
-			vv("out of %v chunks, in a %v byte long file, these were updated: '%v'",
-				len(plan2.Chunks), plan2.FileSize, plan2.DataFilter())
-
-		} else {
-			// random
-			if runtime.GOOS == "darwin" {
-				cv.So(plan2.DataChunkCount(), cv.ShouldEqual, 1) // darwin
-			} else {
-				cv.So(plan2.DataChunkCount(), cv.ShouldEqual, 2) // linux
+			pushMe := &HeavyPlan{
+				SenderPath:   remotePath,
+				SenderPrecis: localPrecis2,
+				SenderPlan:   plan2,
 			}
+			_ = pushMe
 
-			vv("out of %v chunks, in a %v byte long file, these were updated: '%v'",
-				len(plan2.Chunks), plan2.FileSize, plan2.DataFilter())
+			gotBack := &HeavyPlan{} // they might update us too... :) ignore for now.
+			err = cli.Call("RsyncNode.AcceptHeavy", pushMe, gotBack, nil)
+			panicOn(err)
 
-			// this varies because the data is random:
-			//cv.So(plan2.DataPresent(), cv.ShouldEqual, 11796)
-		}
+			// confirm it happened.
+			difflen = compareFilesDiffLen(pre2path, remotePath)
+			cv.So(difflen, cv.ShouldEqual, 0)
 
-		pushMe := &HeavyPlan{
-			SenderPath:   remotePath,
-			SenderPrecis: localPrecis2,
-			SenderPlan:   plan2,
-		}
-		_ = pushMe
-
-		gotBack := &HeavyPlan{} // they might update us too... :) ignore for now.
-		err = cli.Call("RsyncNode.AcceptHeavy", pushMe, gotBack, nil)
-		panicOn(err)
-
-		// confirm it happened.
-		difflen = compareFilesDiffLen(pre2path, remotePath)
-		cv.So(difflen, cv.ShouldEqual, 0)
-
+		} // end j over allZeros/not.
 	})
 }
 
