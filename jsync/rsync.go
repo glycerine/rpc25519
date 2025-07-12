@@ -876,12 +876,14 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 			}
 		}
 		if !found {
-			// no span contained prevcut???
+			panic(fmt.Sprintf("no span contained prevcut='%v'??? spans='%v'", prevcut, spans))
 			return false
 		}
 		if curSpan.Beg < cut && cut <= curSpan.Endx {
 			// good: curSpan holds both prevcut and cut
 		} else {
+			vv("bad: curSpan holds prevcut(%v) but not cut(%v). curSpan='%v'", prevcut, cut, curSpan)
+			panic("can this be fixed?") // may not always be fixable.
 			return false
 		}
 		dbeg = prevcut
@@ -897,7 +899,7 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 			_, err = io.ReadFull(fd, data[:dsz])
 			panicOn(err)
 		}
-
+		// repeat the check that the data is usable.
 		return prevcut >= dbeg && cut <= dendx
 	}
 
@@ -954,7 +956,7 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 		//fmt.Printf("[%03d]Summarize hsh = %v\n", i, hsh)
 		chunk := &Chunk{
 			Beg:  prevcut,
-			Endx: cut, // cuts[i],
+			Endx: cut,
 			Cry:  hsh,
 		}
 		if keepData {
