@@ -488,78 +488,126 @@ func Test302_incremental_chunker_matches_batch_bigger(t *testing.T) {
 
 	return // we don't want to check in path, very big file for testing.
 
-	cv.Convey("the new incremental GetHashesOneByOne should return the same chunks as the earlier batch version SummarizeFileInCDCHashes", t, func() {
+	//cv.Convey("the new incremental GetHashesOneByOne should return the same chunks as the earlier batch version SummarizeFileInCDCHashes", t, func() {
 
-		host := ""
-		//path := "Ubuntu_24.04_VB_LinuxVMImages.COM.vdi.rog.long"
-		path := "Ubuntu_24.04_VB_LinuxVMImages.COM.vdi.aorus.short"
+	host := ""
+	//path := "Ubuntu_24.04_VB_LinuxVMImages.COM.vdi.rog.long"
+	path := "Ubuntu_24.04_VB_LinuxVMImages.COM.vdi"
+	//path := "Ubuntu_24.04_VB_LinuxVMImages.COM.vdi.aorus.short"
 
-		show := func(chunks *Chunks, label string, n int) {
-			fmt.Printf("\n%v\n", label)
-			for i := range n {
-				chnk := chunks.Chunks[i]
-				beg := chnk.Beg
-				endx := chnk.Endx
-				fmt.Printf("[%03d] Beg: %v,  Endx: %v\n", i, beg, endx)
+	show := func(chunks *Chunks, label string, i int) {
+		fmt.Printf("\n%v\n", label)
+		//for i := range n {
+		chnk := chunks.Chunks[i]
+		beg := chnk.Beg
+		endx := chnk.Endx
+		fmt.Printf("[%03d] Beg: %v,  Endx: %v  Cry: %v\n", i, beg, endx, chnk.Cry)
+		//}
+	}
+
+	// verify precis alone matches the others
+	precisAlone, err := GetPrecis(host, path)
+
+	vv("starting on one-at-a-time...")
+	t1 := time.Now()
+	precis1, chunks1, err := GetHashesOneByOne(host, path)
+	panicOn(err)
+	n1 := len(chunks1.Chunks)
+	vv("one-at-a-time n2 = %v; took %v", n1, time.Since(t1))
+
+	t0 := time.Now()
+	precis0, chunks0, err := SummarizeFileInCDCHashes(host, path, true, false)
+	panicOn(err)
+	n0 := len(chunks0.Chunks)
+	vv("full-file at once n0 = %v; took %v", n0, time.Since(t0))
+
+	if !precisAlone.Equal(precis0) {
+		panic(fmt.Sprintf("precisAlone (%v) != precis0 (%v)", precisAlone, precis0))
+	}
+
+	if !precisAlone.Equal(precis1) {
+		panic(fmt.Sprintf("precisAlone (%v) != precis1 (%v)", precisAlone, precis1))
+	}
+
+	var x string
+	// j is index for chunks1; i is index for chunks0
+	j := 0
+	unwrittenCount := 0
+	dataSame := 0
+	dataSameBytes := 0
+loopi:
+	for i := 0; i < len(chunks0.Chunks); i++ {
+		chnk := chunks0.Chunks[i]
+		beg := chnk.Beg
+		endx := chnk.Endx
+
+		if chnk.Cry == "UNWRIT;" {
+			unwrittenCount++
+			j++
+			continue
+		}
+
+		if j >= len(chunks1.Chunks) {
+			vv("end of available j over chunks1")
+			break
+		}
+		chnk1 := chunks1.Chunks[j]
+		beg1 := chnk1.Beg
+		if beg1 != beg {
+			x = fmt.Sprintf("<< vs incr.Beg: %v ; incr Beg DIFFERS! on i = %v", beg1, i)
+			vv(x)
+			show(chunks0, "chunks0   full file, Cutpoints on it.", i)
+			show(chunks1, "chunks1  one at a time.", j)
+			panic("beg mismatch")
+		}
+		endx1 := chunks1.Chunks[i].Endx
+		if endx1 != endx {
+			all0, all0max := allZeroChunk(chunks1.Chunks[i], path, chnk)
+			if endx1 < endx && all0max {
+				// skip past all the zero chunks and keep comparing
+				j0 := j
+				for k := j + 1; k < len(chunks1.Chunks); k++ {
+					if chunks1.Chunks[k].Endx < endx {
+						j = k
+					} else {
+						vv("jumping j past the RLE0 %v -> %v", j0, j)
+						continue loopi
+					}
+				}
 			}
+			isAllZero1 := fmt.Sprintf("isAllZero1 = %v", all0)
+
+			x += fmt.Sprintf(" << vs incr.Endx: %v ; incr Endx DIFFERS! on i = %v.  chunks0 has '%v'; chunks1 has '%v'\n %v", endx1, i, chunks0.Chunks[i], chunks1.Chunks[i], isAllZero1)
+			vv(x)
+			panic("endx mismatch")
 		}
-
-		// verify precis alone matches the others
-		precisAlone, err := GetPrecis(host, path)
-
-		vv("starting on one-at-a-time...")
-		t1 := time.Now()
-		precis1, chunks1, err := GetHashesOneByOne(host, path)
-		panicOn(err)
-		n1 := len(chunks1.Chunks)
-		vv("one-at-a-time n2 = %v; took %v", n1, time.Since(t1))
-
-		t0 := time.Now()
-		precis0, chunks0, err := SummarizeFileInCDCHashes(host, path, true, false)
-		panicOn(err)
-		n0 := len(chunks0.Chunks)
-		vv("full-file at once n0 = %v; took %v", n0, time.Since(t0))
-
-		if !precisAlone.Equal(precis0) {
-			panic(fmt.Sprintf("precisAlone (%v) != precis0 (%v)", precisAlone, precis0))
+		// INVAR: beg and endx match
+		if chnk.Cry == chnk1.Cry {
+			dataSame++
+			dataSameBytes += int(endx - beg)
 		}
+		j++
+	}
+	if n1 != n0-unwrittenCount {
+		t.Fatalf("error: Lightly got %v, but batch got %v", n1, n0)
+	}
+	vv("dataSame = %v; dataSameBytes = %v out of %v", dataSame, dataSameBytes, precis0.FileSize)
 
-		if !precisAlone.Equal(precis1) {
-			panic(fmt.Sprintf("precisAlone (%v) != precis1 (%v)", precisAlone, precis1))
-		}
+	_ = precis0
+	_ = precis1
+	//cv.So(precis0.FileCry, cv.ShouldEqual, precis1.FileCry)
+	if precis0.FileCry != precis1.FileCry {
+		vv("precis0 = '%#v'", precis0)
+		vv("precis1 = '%#v'", precis1)
+		panic(fmt.Sprintf("precis0.FileCry != precis1.FileCry"))
+	}
 
-		var x string
-		for i, chnk := range chunks0.Chunks {
-			beg := chnk.Beg
-			endx := chnk.Endx
-
-			beg1 := chunks1.Chunks[i].Beg
-			if beg1 != beg {
-				x = fmt.Sprintf("<< vs incr.Beg: %v ; incr Beg DIFFERS! on i = %v", beg1, i)
-				vv(x)
-				show(chunks0, "chunks0   full file, Cutpoints on it.", i+1)
-				show(chunks1, "chunks1  one at a time.", i+1)
-				panic("beg mismatch")
-			}
-			endx1 := chunks1.Chunks[i].Endx
-			if endx1 != endx {
-				x += fmt.Sprintf(" << vs incr.Endx: %v ; incr Endx DIFFERS! on i = %v.  chunks0 has '%v'; chunks1 has '%v'\n", endx1, i, chunks0.Chunks[i], chunks1.Chunks[i])
-				vv(x)
-				panic("endx mismatch")
-			}
-		}
-		if n1 != n0 {
-			t.Fatalf("error: Lightly got %v, but batch got %v", n1, n0)
-		}
-
-		_ = precis0
-		_ = precis1
-		cv.So(precis0.FileCry, cv.ShouldEqual, precis1.FileCry)
-
+	if false {
 		vv("precis1 = '%#v'", precis1)
 		vv("precis0 = '%#v'", precis0)
 		cv.So(precis0, cv.ShouldResemble, precis1)
-	})
+	}
+	// })
 }
 
 // efficient on big files with small deltas
@@ -974,4 +1022,24 @@ func Test888_rle_zeros_encoded(t *testing.T) {
 		difflen := compareFilesDiffLen(localPathFinal, remotePath)
 		cv.So(difflen, cv.ShouldEqual, 0)
 	})
+}
+
+// debug/test print helper
+func allZeroChunk(chnk1 *Chunk, path string, chnk *Chunk) (all0, all0max bool) {
+	fd, err := os.Open(path)
+	panicOn(err)
+	defer fd.Close()
+
+	_, err = fd.Seek(chnk1.Beg, 0)
+	panicOn(err)
+	sz1 := chnk1.Endx - chnk1.Beg
+	sz0 := chnk.Endx - chnk.Beg
+	sz := max(sz0, sz1)
+	slc := make([]byte, sz)
+	_, err = io.ReadFull(fd, slc)
+	panicOn(err)
+	all0 = allZero(slc[:sz1])
+	all0max = allZero(slc[:sz])
+	vv("allZeroChunk %v for size %v chnk1.Beg(%v):chnk1.Endx(%v) of path '%v'; all0max = %v for the max sz (chnk is %v:%v)", all0, sz1, chnk1.Beg, chnk1.Endx, path, all0max, chnk.Beg, chnk.Endx)
+	return
 }

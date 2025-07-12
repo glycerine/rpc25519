@@ -1141,7 +1141,21 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 
 	k := 0 // chunk count
 	addChunk := func(slc []byte, beg int64) {
-		hsh := hash.Blake3OfBytesString(slc)
+		var hsh string
+		if allZero(slc) {
+			n := len(chunks.Chunks)
+			if n > 0 {
+				if chunks.Chunks[n-1].Cry == "RLE0;" {
+					// merge adjacent 0 runs
+					chunks.Chunks[n-1].Endx += int64(len(slc))
+					h.Write(slc)
+					return
+				}
+			}
+			hsh = "RLE0;"
+		} else {
+			hsh = hash.Blake3OfBytesString(slc)
+		}
 		//fmt.Printf("[%03d]GetHashes hsh = %v\n", k, hsh)
 		k++
 		chunk := &Chunk{
@@ -1498,4 +1512,13 @@ func UpdateLocalFileWithRemoteDiffs(
 	panicOn(err)
 
 	return
+}
+
+func allZero(b []byte) bool {
+	for i := range b {
+		if b[i] != 0 {
+			return false
+		}
+	}
+	return true
 }
