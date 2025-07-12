@@ -90,7 +90,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		select {
 
 		case frag0 := <-ckt.Reads:
-			//vv("%v: (ckt '%v') (Giver) saw read frag0:'%v'", name, ckt.Name, frag0)
+			vv("%v: (ckt '%v') (Giver) saw read frag0:'%v'", name, ckt.Name, frag0)
 
 			//vv("frag0 = '%v'", frag0)
 			switch frag0.FragOp {
