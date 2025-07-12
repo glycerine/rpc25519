@@ -504,11 +504,13 @@ takerForSelectLoop:
 								// end up with a file still under
 								// 32MB on APFS; e.g. below
 								// the PunchBelowBytes threshold.
-								// But this does help in some cases.
-								if syncReq.GiverFileSize < sparsified.PunchBelowBytes {
-									_, err = sparsified.Fallocate(newversFd, sparsified.FALLOC_FL_PUNCH_HOLE, startPos, n)
-									panicOn(err)
-								}
+								// But this does help in some
+								// cases on APFS. We just do it always
+								// now to do the best sparseness we can.
+								// if syncReq.GiverFileSize < sparsified.PunchBelowBytes {
+								_, err = sparsified.Fallocate(newversFd, sparsified.FALLOC_FL_PUNCH_HOLE, startPos, n)
+								panicOn(err)
+								//}
 
 							}
 							if wings != nil && wings.Post != nil {
