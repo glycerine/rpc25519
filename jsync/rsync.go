@@ -169,9 +169,7 @@ func UpdateLocalWithRemoteDiffs(
 	// compute the full file hash/checksum as we go
 	h := blake3.New(64, nil)
 
-	//vv("empty h hash = '%v'", hash.SumToString(h))
-
-	vv("remote = '%v'", remote)
+	//vv("remote = '%v'", remote)
 
 	// remote gives the plan of what to create
 	for i, chunk := range remote.Chunks {
@@ -179,7 +177,7 @@ func UpdateLocalWithRemoteDiffs(
 
 		// handle "RLE0;" case, run-length-encoded zeros.
 		if chunk.Cry == "RLE0;" {
-			vv("we see RLE0") // not seen.
+			vv("we see RLE0")
 			// can we turn it into a sparse hole?
 			span, wings := sparsified.AlignedSparseSpan(int64(chunk.Beg), int64(chunk.Endx))
 			if span != nil {
@@ -240,13 +238,10 @@ func UpdateLocalWithRemoteDiffs(
 				panic(fmt.Sprintf("lc.Endx = %v, lc.Beg = %v, but lc.Data len = %v", chunk.Endx, chunk.Beg, wb))
 			}
 			h.Write(chunk.Data)
-			//vv("added to h %v bytes of chunk.Data; total = j = %v; hash is now '%v'; first 10 bytes of chunk = '%v'", len(chunk.Data), j, hash.SumToString(h), string(chunk.Data[:10]))
-
 		}
 	}
 	sum := hash.SumToString(h)
 	if sum != remote.FileCry {
-		// firing!
 		err = fmt.Errorf("checksum mismatch error A! reconstructed='%v'; expected='%v'; remote path = '%v'", sum, remote.FileCry, remote.Path)
 		panic(err)
 		return err
