@@ -268,7 +268,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				// without this for our zero1g test file.
 				// Yes: using RLE0 saves a ton of time transporting zeros.
 				if !useRLE0 && syncReq.TakerFileSize == 0 {
-
+					panic("not in use right, since always useRLE0 now?")
 					err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0, syncReq)
 
 					//vv("giver sent whole file. done (wait for FIN) -> '%v'", syncReq.TakerPath)
@@ -350,6 +350,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				continue
 
 			case OpRsync_ToGiverNeedFullFile2:
+				panic("no longer used, right?")
 				// We no long use this (assuming useRLE0 = true).
 				// We chunk all files now to get the RLE0 benefits.
 
