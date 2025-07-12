@@ -821,21 +821,24 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 
 	haveSpans := false
 	var nspan int
-	var nextSpan sparsified.SparseSpan
+	var curSpan sparsified.SparseSpan
+	curSpanIndex := -1
 	if spans != nil {
 		nspan = len(spans.Slc)
 		if nspan > 0 {
 			haveSpans = true
-			nextSpan = spans.Slc[0]
+			curSpan = spans.Slc[0]
+			curSpanIndex = 0
 		}
 	}
 	if haveSpans &&
-		!nextSpan.IsHole &&
-		!nextSpan.IsUnwrittenPrealloc {
+		!curSpan.IsHole &&
+		!curSpan.IsUnwrittenPrealloc {
+
 		dbeg = 0
-		dendx = nextSpan.Endx
-		if dendx > dataMaxSz {
-			dendx = dataMaxSz
+		dendx = curSpan.Endx
+		if dendx-dbeg > dataMaxSz {
+			dendx = dbeg + dataMaxSz
 		}
 		dsz = dendx - dbeg
 		if dsz > 0 {
@@ -845,12 +848,60 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 			panicOn(err)
 		}
 		// INVAR: data buffers the first dsz bytes
-		// from the first span.
+		// from the first span. but dsz could == 0.
 	}
 
-	var prev int64
+	// helper to read more into data when it runs out.
+	fillDataForChunk := func(prevcut, cut int64) bool {
+		if !haveSpans {
+			return false
+		}
+		// We know this chunk is in a dense data section of the file.
+		// look for the next span that contains prevcut.
+		// Look even in curSpanIndex, since we might well
+		// not have exhausted it yet.
+		found := false
+		begi := curSpanIndex
+		if begi < 0 {
+			begi = 0
+		}
+		for i := begi; i < nspan; i++ {
+			if spans.Slc[i].Beg <= prevcut &&
+				prevcut < spans.Slc[i].Endx {
+				found = true
+				curSpanIndex = i
+				curSpan = spans.Slc[i]
+				break
+			}
+		}
+		if !found {
+			// no span contained prevcut???
+			return false
+		}
+		if curSpan.Beg < cut && cut <= curSpan.Endx {
+			// good: curSpan holds both prevcut and cut
+		} else {
+			return false
+		}
+		dbeg = prevcut
+		dendx = curSpan.Endx
+		if dendx-dbeg > dataMaxSz {
+			dendx = dbeg + dataMaxSz
+		}
+		dsz = dendx - dbeg
+		if dsz > 0 {
+			_, err = fd.Seek(dbeg, 0)
+			panicOn(err)
+			_, err = io.ReadFull(fd, data[:dsz])
+			panicOn(err)
+		}
+
+		return prevcut >= dbeg && cut <= dendx
+	}
+
+	var prevcut int64
 	var hsh string
-	for i, c := range cuts {
+	for i, cut := range cuts {
 
 		var slc []byte
 		switch {
@@ -863,41 +914,52 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 			vv("saw UNWRIT;") // not seen 710 test
 		default:
 			// this chunk in file is filepos [prev, c).
+			if cut <= prevcut {
+				panic(fmt.Sprintf("bad cuts: cut(%v) <= prevcut(%v)", cut, prevcut))
+			}
+			// INVAR: prev < cut
 
 			// use the data buffer if we can
-			if prev >= dbeg && c <= dendx {
+			if prevcut >= dbeg && cut <= dendx {
 				// can use data. get coordinates to index data.
-				b := prev - dbeg // always >= 0
-				sz := c - prev
+				b := prevcut - dbeg // always >= 0
+				sz := cut - prevcut
 				slc = data[b:(b + sz)]
 				hsh = hash.Blake3OfBytesString(slc)
 			} else {
-				// data is insufficient/ not overlapping this chunk
-			}
-			// fallback to manually reading from file.
-			fd.Seek(prev, 0)
-			sz := c - prev
-			_, err := io.ReadFull(fd, data[:sz])
-			panicOn(err)
-			// update data trackers.
-			dbeg = prev
-			dendx = prev + sz
-			dsz = sz
+				// data is insufficient/ not overlapping this chunk.
+				if fillDataForChunk(prevcut, cut) {
+					b := prevcut - dbeg // always >= 0
+					sz := cut - prevcut
+					slc = data[b:(b + sz)]
+					hsh = hash.Blake3OfBytesString(slc)
+				} else {
+					// fallback to manually reading from file.
+					fd.Seek(prevcut, 0)
+					sz := cut - prevcut
+					_, err := io.ReadFull(fd, data[:sz])
+					panicOn(err)
+					// update data trackers.
+					dbeg = prevcut
+					dendx = prevcut + sz
+					dsz = sz
 
-			slc = data[:sz]
-			hsh = hash.Blake3OfBytesString(slc)
+					slc = data[:sz]
+					hsh = hash.Blake3OfBytesString(slc)
+				}
+			}
 		}
 		//fmt.Printf("[%03d]Summarize hsh = %v\n", i, hsh)
 		chunk := &Chunk{
-			Beg:  prev,
-			Endx: c, // cuts[i],
+			Beg:  prevcut,
+			Endx: cut, // cuts[i],
 			Cry:  hsh,
 		}
 		if keepData {
 			chunk.Data = append([]byte{}, slc...)
 		}
 		chunks.Chunks = append(chunks.Chunks, chunk)
-		prev = c
+		prevcut = cut
 	}
 	return
 }
