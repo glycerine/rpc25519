@@ -121,8 +121,9 @@ nextSpan:
 			preun = append(preun, false)
 
 		case span.IsUnwrittenPrealloc:
+			vv("UNWRIT to be: marking cut at endx=%v as preun[%v] = true", endx, j)
 			cuts = append(cuts, endx)
-			allzero = append(allzero, true)
+			allzero = append(allzero, false)
 			preun = append(preun, true)
 
 		default: // regular data

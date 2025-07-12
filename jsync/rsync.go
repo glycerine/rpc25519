@@ -171,6 +171,8 @@ func UpdateLocalWithRemoteDiffs(
 
 	//vv("empty h hash = '%v'", hash.SumToString(h))
 
+	vv("remote = '%v'", remote)
+
 	// remote gives the plan of what to create
 	for i, chunk := range remote.Chunks {
 		_ = i
@@ -197,6 +199,10 @@ func UpdateLocalWithRemoteDiffs(
 				j += wb
 				h.Write(zeros4k[:rem])
 			}
+			continue
+		} else if chunk.Cry == "UNWRIT;" {
+			vv("skipping UNWRIT;")
+			// ignore for now?
 			continue
 		}
 
@@ -495,7 +501,7 @@ func (s *BlobStore) GetPlanToUpdateFromGoal(updateme, goal *Chunks, dropGoalData
 	for i, c := range updateme.Chunks {
 		_ = i
 		//vv("i=%v, adding to updateme_map: '%v'", i, c)
-		if c.Cry == "RLE0;" {
+		if c.Cry == "RLE0;" || c.Cry == "UNWRIT;" {
 			// omit -- update: ?? do we need to transmit for sparseness TODO?
 		} else {
 			updatememap[c.Cry] = c
@@ -510,7 +516,7 @@ func (s *BlobStore) GetPlanToUpdateFromGoal(updateme, goal *Chunks, dropGoalData
 				panic("the goal passed to usePlaceHolders should have no .Data on it!")
 			}
 			//vv("checking for goal.Chunk c = '%v'", c)
-			if c.Cry == "RLE0;" {
+			if c.Cry == "RLE0;" || c.Cry == "UNWRIT;" {
 				// other side never needs RLE0; its just all 0. // update TODO RLE0->sparse might need to transmit?
 			} else {
 				_, ok := updatememap[c.Cry]
@@ -535,7 +541,7 @@ func (s *BlobStore) GetPlanToUpdateFromGoal(updateme, goal *Chunks, dropGoalData
 	// the goal file layout is the template for the plan
 	for _, c := range goal.Chunks {
 		var ok bool
-		if c.Cry == "RLE0;" {
+		if c.Cry == "RLE0;" || c.Cry == "UNWRIT;" {
 			ok = true
 		} else {
 			_, ok = updatememap[c.Cry]
@@ -827,12 +833,11 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 			vv("saw RLE0;")
 		case preun[i]:
 			// skip for now?
-			prev = c
-			continue // almost surely the last but let loop decide
-
+			//prev = c
+			//continue // almost surely the last but let loop decide
 			// pre-allocated yet unwritten. logical zeros.
 			hsh = "UNWRIT;"
-			vv("saw UNWRIT;")
+			vv("saw UNWRIT;") // not seen 710 test
 		default:
 			fd.Seek(prev, 0)
 			sz := c - prev
