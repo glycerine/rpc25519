@@ -633,7 +633,7 @@ func (s *SyncService) giverSendsWholeFile(
 		syncReq,
 		goalPrecis,
 		true,
-		func(frag *rpc.Fragment) {
+		func(frag *rpc.Fragment, blake3hash *myblake3.Blake3) {
 			frag.SetUserArg("readFile", giverPath)
 			frag.SetUserArg("writeFile", takerPath)
 			//frag.SetUserArg("blake3", sumstring)
@@ -642,6 +642,9 @@ func (s *SyncService) giverSendsWholeFile(
 			frag.SetUserArg("mode", mode)
 
 			frag.SetUserArg("modTime", fi.ModTime().Format(time.RFC3339Nano))
+
+			clientTotSum := blake3hash.SumString()
+			frag.SetUserArg("clientTotalBlake3sum", clientTotSum)
 		},
 	)
 
@@ -941,7 +944,7 @@ func (s *SyncService) packAndSendChunksJustInTime(
 	syncReq *RequestToSyncPath,
 	goalPrecis *FilePrecis,
 	sendDataWithoutOneByteMarkers bool,
-	lastFragCallBack func(f *rpc.Fragment),
+	lastFragCallBack func(f *rpc.Fragment, blake3hash *myblake3.Blake3),
 ) (err error) {
 
 	//vv("top of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; len(oneByteMarkedPlan.Chunks) = %v", oneByteMarkedPlan.DataPresent(), len(oneByteMarkedPlan.Chunks))
@@ -954,6 +957,11 @@ func (s *SyncService) packAndSendChunksJustInTime(
 	//defer func() {
 	//vv("end of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; bytesFromDisk = %v", oneByteMarkedPlan.DataPresent(), bytesFromDisk)
 	//}()
+
+	var blake3hash *myblake3.Blake3
+	if lastFragCallBack != nil {
+		blake3hash = myblake3.NewBlake3()
+	}
 
 	fd, err := os.Open(path)
 	panicOn(err)
@@ -1028,16 +1036,36 @@ func (s *SyncService) packAndSendChunksJustInTime(
 
 				amt := next.Endx - next.Beg
 				letgo.Data = make([]byte, amt)
-				_, err = io.ReadFull(fd, letgo.Data) // inf loop?
+				_, err = io.ReadFull(fd, letgo.Data)
 				panicOn(err)
 				bytesFromDisk += amt
+
+				if lastFragCallBack != nil {
+					blake3hash.Write(letgo.Data)
+				}
+			} else {
+				// RLE0; runs might need to be hashed.
+				if lastFragCallBack != nil {
+					if next.Cry == "RLE0;" {
+						// need to add zeros to the hash
+						left := next.Endx - next.Beg
+						for left > 0 {
+							var lim int64 = 4096
+							if left < 4096 {
+								lim = left
+							}
+							blake3hash.Write(zeros4k[:lim])
+							left -= lim
+						}
+					}
+				}
 			}
 			uses = letgo.Msgsize()
 		}
 		if last {
 			f.FragOp = opLast // OpRsync_HeavyDiffChunksLast
 			if lastFragCallBack != nil {
-				lastFragCallBack(f)
+				lastFragCallBack(f, blake3hash)
 			}
 		} else {
 			f.FragOp = opMore // OpRsync_HeavyDiffChunksEnclosed
