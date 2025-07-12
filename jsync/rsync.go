@@ -805,7 +805,49 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 	}
 	//vv("cuts = '%#v'", cuts)
 
-	data := make([]byte, cfg.MaxSize)
+	dataMaxSz := int64(1 << 20) // 1 MB
+	cfgmax := int64(cfg.MaxSize)
+	if cfgmax > dataMaxSz {
+		dataMaxSz = cfgmax
+	}
+	data := make([]byte, dataMaxSz)
+	// INVAR: data is big enough to hold
+	// our largest possible chunk.
+
+	// dsz == dendx-dbeg
+	var dsz int64   // data holds this many file bytes.
+	var dbeg int64  // file coordinates of data[0]
+	var dendx int64 // file coordinates of data[datasz]
+
+	haveSpans := false
+	var nspan int
+	var nextSpan sparsified.SparseSpan
+	if spans != nil {
+		nspan = len(spans.Slc)
+		if nspan > 0 {
+			haveSpans = true
+			nextSpan = spans.Slc[0]
+		}
+	}
+	if haveSpans &&
+		!nextSpan.IsHole &&
+		!nextSpan.IsUnwrittenPrealloc {
+		dbeg = 0
+		dendx = nextSpan.Endx
+		if dendx > dataMaxSz {
+			dendx = dataMaxSz
+		}
+		dsz = dendx - dbeg
+		if dsz > 0 {
+			_, err = fd.Seek(dbeg, 0)
+			panicOn(err)
+			_, err = io.ReadFull(fd, data[:dsz])
+			panicOn(err)
+		}
+		// INVAR: data buffers the first dsz bytes
+		// from the first span.
+	}
+
 	var prev int64
 	var hsh string
 	for i, c := range cuts {
@@ -816,17 +858,32 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 			hsh = "RLE0;"
 			//vv("saw RLE0;")
 		case preun[i]:
-			// skip for now?
-			//prev = c
-			//continue // almost surely the last but let loop decide
 			// pre-allocated yet unwritten. logical zeros.
 			hsh = "UNWRIT;"
 			vv("saw UNWRIT;") // not seen 710 test
 		default:
+			// this chunk in file is filepos [prev, c).
+
+			// use the data buffer if we can
+			if prev >= dbeg && c <= dendx {
+				// can use data. get coordinates to index data.
+				b := prev - dbeg // always >= 0
+				sz := c - prev
+				slc = data[b:(b + sz)]
+				hsh = hash.Blake3OfBytesString(slc)
+			} else {
+				// data is insufficient/ not overlapping this chunk
+			}
+			// fallback to manually reading from file.
 			fd.Seek(prev, 0)
 			sz := c - prev
 			_, err := io.ReadFull(fd, data[:sz])
 			panicOn(err)
+			// update data trackers.
+			dbeg = prev
+			dendx = prev + sz
+			dsz = sz
+
 			slc = data[:sz]
 			hsh = hash.Blake3OfBytesString(slc)
 		}
