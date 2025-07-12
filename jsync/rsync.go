@@ -795,7 +795,6 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 
 	cuts, allzero, preun, spans := cdc.CutpointsAndAllZero(fd)
 
-	_ = spans
 	//cutsOrig := cdc.Cutpoints(data2, 0)
 
 	if len(cuts) == 0 {
