@@ -182,14 +182,12 @@ nextSpan:
 					}
 					isAllZero := allZero(data[prevcut:cut])
 					// can we coalesce two RLE0 into one bigger one?
-					if isAllZero {
-						last := len(cuts) - 1
-						if last >= 0 {
-							if allzero[last] && !preun[last] {
-								vv("yes: coalesce/extend cuts[last] from %v -> %v", cuts[last], nextcut)
-								cuts[last] = nextcut
-							}
-						}
+					last := len(cuts) - 1
+					if isAllZero && last >= 0 &&
+						allzero[last] && !preun[last] {
+
+						vv("yes: coalesce/extend cuts[last] from %v -> %v", cuts[last], nextcut)
+						cuts[last] = nextcut
 					} else {
 						cuts = append(cuts, nextcut)
 						preun = append(preun, false)
