@@ -432,6 +432,11 @@ takerForSelectLoop:
 					err = newversFd.Truncate(int64(syncReq.GiverFileSize))
 					panicOn(err)
 
+					newversFd.Sync()
+					spans, err := sparsified.FindSparseRegions(newversFd)
+					panicOn(err)
+					vv("debug sparse spans after first Truncate = '%v'", spans)
+
 					//vv("taker created file '%v'", tmp)
 					//newversBufio = bufio.NewWriterSize(newversFd, rpc.UserMaxPayload)
 					// remember to Flush and Close!
@@ -459,7 +464,7 @@ takerForSelectLoop:
 				for _, chunk := range chunks.Chunks {
 
 					if len(chunk.Data) == 0 {
-						vv("the data is local")
+						vv("len(chunk.Data) == 0 => the data is local, or RLE0; .Cry = '%v'", chunk.Cry)
 
 						if chunk.Cry == "RLE0;" {
 							span, wings := sparsified.AlignedSparseSpan(int64(chunk.Beg), int64(chunk.Endx))
@@ -477,13 +482,15 @@ takerForSelectLoop:
 								h.Write(zeros4k[:n])
 							}
 							if span != nil {
+								startPos := curpos(newversFd)
 								n := span.Endx - span.Beg
-								vv("applying sparse span of len %v", n)
+								vv("applying sparse span of len %v; curpos = %v", n, startPos)
 								ns := n / 4096                // len(zeros4k)
 								rem := n % 4096               // len(zeros4k)
 								_, err = newversFd.Seek(n, 1) // 1=> relative to current offset
 								panicOn(err)
-								// hasher update
+								vv("after Seek(n=%v,1): curpos = %v", n, curpos(newversFd))
+								// hasher update only. not to disk.
 								for range ns {
 									//wb, err := newversFd.Write(zeros4k)
 									//panicOn(err)
@@ -493,6 +500,16 @@ takerForSelectLoop:
 								if rem != 0 {
 									panic(fmt.Sprintf("span must be 4k aligned: rem=%v", rem))
 								}
+								// probably won't work here if we
+								// write anything else after it and
+								// end up with a file still under
+								// 32MB on APFS; e.g. below
+								// the PunchBelowBytes threshold
+								if syncReq.GiverFileSize < sparsified.PunchBelowBytes {
+									_, err = sparsified.Fallocate(newversFd, sparsified.FALLOC_FL_PUNCH_HOLE, startPos, n)
+									panicOn(err)
+								}
+
 							}
 							if wings != nil && wings.Post != nil {
 								n := wings.Post.Endx - wings.Post.Beg
@@ -547,7 +564,7 @@ takerForSelectLoop:
 						//vv("number sparse holes seen = %v", len(sparse))
 					} else {
 						// INVAR: len(chunk.Data) > 0
-						vv("the data is not local, len(chunk.Data) > 0; writing at ", curpos(newversFd))
+						vv("the data is not local, len(chunk.Data) = %v > 0; writing at %v", len(chunk.Data), curpos(newversFd))
 
 						//wb, err := newversBufio.Write(chunk.Data)
 						wb, err := newversFd.Write(chunk.Data)
@@ -593,6 +610,13 @@ takerForSelectLoop:
 				// 	_, err = sparsified.Fallocate(newversFd, sparsified.FALLOC_FL_PUNCH_HOLE, span.Beg, sz)
 				// 	panicOn(err)
 				// }
+
+				// debug, is it sparse before we rename it?
+				newversFd.Sync()
+				spans, err := sparsified.FindSparseRegions(newversFd)
+				panicOn(err)
+				vv("debug sparse spans = '%v'", spans)
+
 				newversFd.Close()
 
 				// if TakerTempDir is set we are
