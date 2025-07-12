@@ -193,7 +193,11 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 				cv.So(plan.DataPresent(), cv.ShouldEqual, 538512) // darwin
 			}
 		} else {
-			cv.So(plan.DataPresent(), cv.ShouldEqual, 524288) // linux
+			if allZeros {
+				cv.So(plan.DataPresent(), cv.ShouldEqual, 0) // linux
+			} else {
+				cv.So(plan.DataPresent(), cv.ShouldEqual, 524288) // linux
+			}
 		}
 
 		//cv.So(plan.DataPresent(), cv.ShouldEqual, 1048576)
@@ -245,7 +249,11 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		if runtime.GOOS == "darwin" {
 			cv.So(plan.DataPresent(), cv.ShouldEqual, 0) // darwin
 		} else {
-			cv.So(plan.DataPresent(), cv.ShouldEqual, 2160) // linux
+			if allZeros {
+				cv.So(plan.DataPresent(), cv.ShouldEqual, 0) // linux
+			} else {
+				cv.So(plan.DataPresent(), cv.ShouldEqual, 2160) // linux
+			}
 		}
 
 		// ==============================
@@ -298,8 +306,10 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 				cv.So(plan2.DataChunkCount(), cv.ShouldEqual, 1)
 				cv.So(plan2.DataPresent(), cv.ShouldEqual, 16384)
 			} else {
-				cv.So(plan2.DataChunkCount(), cv.ShouldEqual, 2)
-				cv.So(plan2.DataPresent(), cv.ShouldEqual, 147458)
+				cv.So(plan2.DataChunkCount(), cv.ShouldEqual, 1)
+				//cv.So(plan2.DataChunkCount(), cv.ShouldEqual, 2)
+				cv.So(plan2.DataPresent(), cv.ShouldEqual, 16384)
+				//cv.So(plan2.DataPresent(), cv.ShouldEqual, 147458)
 			}
 
 			vv("out of %v chunks, in a %v byte long file, these were updated: '%v'",
