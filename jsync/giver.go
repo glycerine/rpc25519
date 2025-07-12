@@ -572,7 +572,7 @@ func (s *SyncService) giverSendsWholeFile(
 	syncReq *RequestToSyncPath,
 
 ) error {
-
+	panic("who is calling, we want to use RLE0 instead")
 	//vv("giverSendsWholeFile(giverPath='%v', takerPath='%v')", giverPath, takerPath)
 	t0 := time.Now()
 
