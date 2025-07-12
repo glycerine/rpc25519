@@ -805,6 +805,13 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 
 	cutsOrig := cdc.Cutpoints(data2, 0)
 
+	vv("cuts[105:] = '%#v'", cuts[105:])
+	vv("cutsOrig[105:] = '%#v'", cutsOrig[105:])
+
+	// first difference at 106
+	//rsync.go:808 2025-07-11 18:46:27.494 -0500 CDT cuts[105:] = '[]int64{1047773, 1048576, 1048578, 1052672}'
+	//rsync.go:809 2025-07-11 18:46:27.494 -0500 CDT cutsOrig[105:] = '[]int64{1047773, 1048578}'
+
 	// begin assert same as before
 	for i := range cuts {
 		if cuts[i] != cutsOrig[i] {
@@ -827,7 +834,7 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 	//emptyAllZero := (len(allzero) == 0)
 	//vv("cuts = '%#v'", cuts)
 
-	incrHash := blake3.New(64, nil)
+	//incrHash := blake3.New(64, nil)
 
 	//vv("empty incrHash = '%v'", hash.SumToString(incrHash))
 
@@ -859,7 +866,7 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 			if 0 != bytes.Compare(slc, slc2) {
 				panic("slices chosen differ!") // not seen
 			}
-			incrHash.Write(slc)
+			//incrHash.Write(slc)
 			//vv("after cut i = %v; len(slc)=%v, incrHash = '%v'; first 10 bytes of slc added = '%v'", i, len(slc), hash.SumToString(incrHash), string(slc[:10]))
 		}
 		//fmt.Printf("[%03d]Summarize hsh = %v\n", i, hsh)
