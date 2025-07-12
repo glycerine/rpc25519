@@ -182,7 +182,9 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 		localMap := getCryMap(local) // pre-index them for the update.
 
 		// had to do a full file transfer for missing file.
-		cv.So(plan.DataPresent(), cv.ShouldEqual, 1048576)
+		// 1048576 -> 538512 b/c much more aggressive RLE0;
+		cv.So(plan.DataPresent(), cv.ShouldEqual, 538512)
+		//cv.So(plan.DataPresent(), cv.ShouldEqual, 1048576)
 		cv.So(plan.FileSize, cv.ShouldEqual, 1048576)
 
 		err = UpdateLocalWithRemoteDiffs(local.Path, localMap, plan, senderDeltas.SenderPrecis)

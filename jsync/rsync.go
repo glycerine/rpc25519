@@ -825,7 +825,7 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 		switch {
 		case allzero[i]:
 			hsh = "RLE0;"
-			vv("saw RLE0;")
+			//vv("saw RLE0;")
 		case preun[i]:
 			// skip for now?
 			//prev = c
