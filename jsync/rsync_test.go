@@ -113,6 +113,7 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 				// slc is already ready with all 0.
 			} else {
 				generator.Read(slc)
+				vv("first 10 of slc random = '%v'", string(slc[:10]))
 			}
 			for range N {
 				_, err = testfd.Write(slc)
