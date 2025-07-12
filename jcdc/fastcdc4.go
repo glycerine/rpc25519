@@ -186,7 +186,7 @@ nextSpan:
 					if isAllZero && last >= 0 &&
 						allzero[last] && !preun[last] {
 
-						vv("yes: coalesce/extend cuts[last] from %v -> %v", cuts[last], nextcut)
+						//vv("yes: coalesce/extend cuts[last] from %v -> %v", cuts[last], nextcut)
 						cuts[last] = nextcut
 					} else {
 						cuts = append(cuts, nextcut)
