@@ -886,6 +886,7 @@ func (s *SyncService) packAndSendChunksJustInTime(
 ) (err error) {
 
 	//vv("top of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; len(oneByteMarkedPlan.Chunks) = %v", oneByteMarkedPlan.DataPresent(), len(oneByteMarkedPlan.Chunks))
+	vv("top of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; len(oneByteMarkedPlan.Chunks) = %v; oneByteMarkedPlan.Chunks = '%v'", oneByteMarkedPlan.DataPresent(), len(oneByteMarkedPlan.Chunks), oneByteMarkedPlan.String())
 
 	t0 := time.Now()
 	var bytesFromDisk int64

@@ -459,7 +459,7 @@ takerForSelectLoop:
 				for _, chunk := range chunks.Chunks {
 
 					if len(chunk.Data) == 0 {
-						// the data is local
+						vv("the data is local")
 
 						if chunk.Cry == "RLE0;" {
 							span, wings := sparsified.AlignedSparseSpan(int64(chunk.Beg), int64(chunk.Endx))
@@ -547,6 +547,8 @@ takerForSelectLoop:
 						//vv("number sparse holes seen = %v", len(sparse))
 					} else {
 						// INVAR: len(chunk.Data) > 0
+						vv("the data is not local, len(chunk.Data) > 0; writing at ", curpos(newversFd))
+
 						//wb, err := newversBufio.Write(chunk.Data)
 						wb, err := newversFd.Write(chunk.Data)
 						panicOn(err)
@@ -1162,4 +1164,11 @@ func (s *SyncService) takeSymlink(syncReq *RequestToSyncPath, localPathToWrite s
 	//  second element."
 	//
 	updateLinkModTime(localPathToWrite, syncReq.GiverModTime)
+}
+
+// get current position in file fd.
+func curpos(fd *os.File) int64 {
+	pos, err := fd.Seek(0, io.SeekCurrent)
+	panicOn(err)
+	return int64(pos)
 }
