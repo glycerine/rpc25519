@@ -90,29 +90,21 @@ func (c *FastCDC_Plakar) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero
 	spans, err = sparsified.FindSparseRegions(fd)
 	panicOn(err)
 	//vv("spans = '%v'", spans)
-	nslc := len(spans.Slc)
-	if spans == nil || nslc == 0 {
+	if spans == nil || len(spans.Slc) == 0 {
 		// empty file
 		return
 	}
 
-	//maxEndx := spans.Slc[nslc-1].Endx
-	//vv("maxEndx = %v", maxEndx)
-
 	// how far we have read in the file.
 	var offset int64
 
-	// most recently found cut.
-	//var cutpoint int
-
-	// new, loop over sparse/dense spans
+	// loop over sparse/dense spans
 nextSpan:
 	for j, span := range spans.Slc {
 		_ = j
 		//vv("on j = %v; offset = %v; span = '%v'", j, offset, span.String())
 		beg := span.Beg
 		endx := span.Endx
-		//spansz := endx - beg
 
 		switch {
 		case span.IsHole:
@@ -222,7 +214,6 @@ func allZero(b []byte) bool {
 	return true
 }
 
-// TODO: add full zero run detection
 func (c *FastCDC_Plakar) Cutpoints(data []byte, maxPoints int) (cuts []int64) {
 
 	// not yet inlined! just calls Algorithm().
