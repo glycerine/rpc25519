@@ -93,7 +93,7 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 			switch j {
 			case 0:
 				allZeros = true
-			case 1:
+			default:
 				allZeros = false // random data
 			}
 
@@ -381,6 +381,9 @@ func Test300_incremental_chunker_matches_batch(t *testing.T) {
 		//rsync_test.go:354 2025-01-23 20:27:05.581 -0600 CST n2 = 178001; took 3.81s
 		// read whole file at once:
 		//rsync_test.go:365 2025-01-23 20:27:15.265 -0600 CST n0 = 178001; took 5.53s
+		// 2025-July-12: update: after re-writing to use data 1M buffer,
+		// whole file at once is faster: 2.921026401s
+		// vs one-at-a-time: 3.163196976s
 
 		testfd, err := os.Create(path)
 		panicOn(err)

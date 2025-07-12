@@ -841,7 +841,7 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 		}
 		dsz = dendx - dbeg
 		if dsz > 0 {
-			vv("1st data fill [dbeg, dendx) of size %v: [%v, %v)", dsz, dbeg, dendx)
+			//vv("1st data fill [dbeg, dendx) of size %v: [%v, %v)", dsz, dbeg, dendx)
 			_, err = fd.Seek(dbeg, 0)
 			panicOn(err)
 			_, err = io.ReadFull(fd, data[:dsz])
@@ -892,7 +892,7 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 		}
 		dsz = dendx - dbeg
 		if dsz > 0 {
-			vv("subsequent data fill [dbeg, dendx) of size %v: [%v, %v)", dsz, dbeg, dendx)
+			//vv("subsequent data fill [dbeg, dendx) of size %v: [%v, %v)", dsz, dbeg, dendx)
 			_, err = fd.Seek(dbeg, 0)
 			panicOn(err)
 			_, err = io.ReadFull(fd, data[:dsz])
