@@ -198,7 +198,7 @@ takerForSelectLoop:
 	for {
 		select {
 		case frag := <-ckt.Reads:
-			vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
+			//vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
 			_ = frag
 			switch frag.FragOp {
 
@@ -432,10 +432,9 @@ takerForSelectLoop:
 					err = newversFd.Truncate(int64(syncReq.GiverFileSize))
 					panicOn(err)
 
-					newversFd.Sync()
-					spans, err := sparsified.FindSparseRegions(newversFd)
-					panicOn(err)
-					vv("debug sparse spans after first Truncate = '%v'", spans)
+					//spans, err := sparsified.FindSparseRegions(newversFd)
+					//panicOn(err)
+					//vv("debug sparse spans after first Truncate = '%v'", spans)
 
 					//vv("taker created file '%v'", tmp)
 					//newversBufio = bufio.NewWriterSize(newversFd, rpc.UserMaxPayload)
@@ -504,7 +503,8 @@ takerForSelectLoop:
 								// write anything else after it and
 								// end up with a file still under
 								// 32MB on APFS; e.g. below
-								// the PunchBelowBytes threshold
+								// the PunchBelowBytes threshold.
+								// But this does help in some cases.
 								if syncReq.GiverFileSize < sparsified.PunchBelowBytes {
 									_, err = sparsified.Fallocate(newversFd, sparsified.FALLOC_FL_PUNCH_HOLE, startPos, n)
 									panicOn(err)
@@ -612,10 +612,9 @@ takerForSelectLoop:
 				// }
 
 				// debug, is it sparse before we rename it?
-				newversFd.Sync()
 				spans, err := sparsified.FindSparseRegions(newversFd)
 				panicOn(err)
-				vv("debug sparse spans = '%v'", spans)
+				vv("debug sparse spans just before newversFd.Close() = '%v'", spans)
 
 				newversFd.Close()
 
