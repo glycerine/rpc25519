@@ -77,6 +77,8 @@ ATTR_FILE_VALIDMASK                     = 0x37ff
 //#define F_PREALLOCATE   42              /* Preallocate storage */
 //#define F_SETSIZE       43              /* Truncate a file. Equivalent to calling truncate(2) */
 
+//#define F_GETPATH       50              /* return the full path of the fd */
+
 // =========================================
 // =========================================
 // collapse-range

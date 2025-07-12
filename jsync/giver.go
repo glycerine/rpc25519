@@ -90,7 +90,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		select {
 
 		case frag0 := <-ckt.Reads:
-			//vv("%v: (ckt '%v') (Giver) saw read frag0:'%v'", name, ckt.Name, frag0)
+			vv("%v: (ckt '%v') (Giver) saw read frag0:'%v'", name, ckt.Name, frag0)
 
 			//vv("frag0 = '%v'", frag0)
 			switch frag0.FragOp {
@@ -618,7 +618,7 @@ upload:
 		send := buf[:nr] // can be empty
 		tot += nr
 
-		// save an cpu by skipping the extra hashing now.
+		// save on cpu by skipping the extra hashing now.
 		//sumstring := myblake3.Blake3OfBytesString(send)
 		//vv("i=%v, len=%v, sumstring = '%v'", i, nr, sumstring)
 		//blake3hash.Write(send)

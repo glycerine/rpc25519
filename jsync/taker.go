@@ -198,7 +198,7 @@ takerForSelectLoop:
 	for {
 		select {
 		case frag := <-ckt.Reads:
-			//vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
+			vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
 			_ = frag
 			switch frag.FragOp {
 
@@ -483,7 +483,7 @@ takerForSelectLoop:
 							if span != nil {
 								startPos := curpos(newversFd)
 								n := span.Endx - span.Beg
-								//vv("applying sparse span of len %v; curpos = %v", n, startPos)
+								vv("applying sparse span of len %v; curpos = %v", n, startPos)
 								ns := n / 4096                // len(zeros4k)
 								rem := n % 4096               // len(zeros4k)
 								_, err = newversFd.Seek(n, 1) // 1=> relative to current offset
