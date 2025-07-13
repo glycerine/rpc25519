@@ -576,6 +576,12 @@ func (s *SyncService) giverSendsWholeFile(
 ) error {
 	// convertedDirToFile_giveFile calls us from dirgiver.go.
 
+	// can we just do this? would be so nice.
+	// this will use OpRsync_HeavyDiffChunksLast
+	// which will hit the existing sparse support
+	// on the taker.go side.
+	return s.giverSendsPlanAndDataUpdates(&Chunks{Path: takerPath}, ckt, giverPath, bt, frag0, syncReq)
+
 	//vv("giverSendsWholeFile(giverPath='%v', takerPath='%v')", giverPath, takerPath)
 	t0 := time.Now()
 
@@ -611,11 +617,13 @@ func (s *SyncService) giverSendsWholeFile(
 		goalPrecis, local, err = GetHashesOneByOne(rpc.Hostname, localPath)
 	}
 	panicOn(err)
+
 	// above func call into SummarizeBytesInCDCHashes
 	// with keepData = false, so chunk.Data will be nil.
 
-	// don't think we need all this stuff from
-	// giverSendsPlanAndDataUpdates
+	// to use OpRsync_HeavyDiffChunksLast,
+	// the others (giverSendsPlanAndDataUpdates) send
+	// OpRsync_SenderPlanEnclosed first.
 
 	// Now stream the heavy chunks. Since our max message
 	// is typically about 1MB, we'll pack lots of
@@ -625,6 +633,10 @@ func (s *SyncService) giverSendsWholeFile(
 	return s.packAndSendChunksJustInTime(
 		local,
 		frag0.FragSubject,
+		// these already have sparse file support in taker.go...
+		// OpRsync_HeavyDiffChunksLast
+		// OpRsync_HeavyDiffChunksEnclosed
+		// while these hit todisk.go which does not (yet):
 		OpRsync_HereIsFullFileEnd5,
 		OpRsync_HereIsFullFileMore4,
 		ckt,

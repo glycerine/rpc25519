@@ -98,7 +98,7 @@ func (s *FileToDiskState) WriteOneMsgToFile(req *rpc.Message, last bool) (err er
 	s.PartsSeen[part] = true
 
 	// can be slow. we see its working, time to optimize/speed up.
-	s.Blake3hash.Write(req.JobSerz)
+	//s.Blake3hash.Write(req.JobSerz)
 	//serverSum := blake3OfBytesString(req.JobSerz)
 	//clientSum := req.HDR.Args["blake3"]
 
