@@ -666,8 +666,8 @@ takerForSelectLoop:
 				// wait for ack back FIN
 
 			case OpRsync_SenderPlanEnclosed:
-				//vv("stream of heavy diffs arriving! : %v", frag.String())
-
+				//vv("OpRsync_SenderPlanEnclosed: stream of heavy diffs arriving! : %v", frag.String())
+				vv("OpRsync_SenderPlanEnclosed: localPathToWrite='%v'", localPathToWrite)
 				senderPlan = &SenderPlan{} // response
 				_, err := senderPlan.UnmarshalMsg(frag.Payload)
 				panicOn(err)
