@@ -431,6 +431,7 @@ takerForSelectLoop:
 					vv("make sparse if possible! truncating to %v our tmp file '%v' on newversFd", syncReq.GiverFileSize, tmp)
 					err = newversFd.Truncate(int64(syncReq.GiverFileSize))
 					panicOn(err)
+					//newversFd.Sync() // does this help keep the sparseness? nope.
 
 					// for debugging sparse hole issues:
 					//spans, err := sparsified.FindSparseRegions(newversFd)
@@ -485,11 +486,13 @@ takerForSelectLoop:
 								startPos := curpos(newversFd)
 								n := span.Endx - span.Beg
 								vv("applying sparse span of len %v; curpos = %v", n, startPos)
-								ns := n / 4096                // len(zeros4k)
-								rem := n % 4096               // len(zeros4k)
-								_, err = newversFd.Seek(n, 1) // 1=> relative to current offset
+								ns := n / 4096  // len(zeros4k)
+								rem := n % 4096 // len(zeros4k)
+								//_, err = newversFd.Seek(n, 1) // 1=> relative to current offset
+								_, err = newversFd.Seek(span.Endx, 0)
 								panicOn(err)
 								//vv("after Seek(n=%v,1): curpos = %v", n, curpos(newversFd))
+								vv("after Seek(span.Endx=%v,0): curpos = %v", span.Endx, curpos(newversFd))
 								// hasher update only. not to disk.
 								for range ns {
 									//wb, err := newversFd.Write(zeros4k)
@@ -616,9 +619,10 @@ takerForSelectLoop:
 
 				// debug, is it sparse before we rename it?
 				// only with the hole punching above.
-				//spans, err := sparsified.FindSparseRegions(newversFd)
-				//panicOn(err)
-				//vv("debug sparse spans just before newversFd.Close() = '%v'", spans)
+				//newversFd.Sync() // ARG! this turns sparse into non-sparse
+				spans, err := sparsified.FindSparseRegions(newversFd)
+				panicOn(err)
+				vv("debug sparse spans just before newversFd.Close() = '%v'", spans)
 
 				newversFd.Close()
 
@@ -630,18 +634,26 @@ takerForSelectLoop:
 				if syncReq.TakerTempDir == "" {
 					err = os.Rename(tmp, localPathToWrite)
 					panicOn(err)
-					//vv("synced to disk: localPathToWrite='%v' -> renamed to '%v'", tmp, localPathToWrite)
+					vv("synced to disk: localPathToWrite='%v' -> renamed to '%v'", tmp, localPathToWrite)
+
+					renamedFd, err := os.Open(localPathToWrite)
+					panicOn(err)
+					spans, err := sparsified.FindSparseRegions(renamedFd)
+					panicOn(err)
+					vv("debug sparse spans after rename to '%v' => '%v'", localPathToWrite, spans)
+					renamedFd.Close()
+
 				} else {
 					// need to hard link it.
 					if localPathToWrite != localPathToRead {
 						if !fileExists(localPathToWrite) {
-							//vv("hard linking 3 '%v' <- '%v'", localPathToRead, localPathToWrite)
+							vv("hard linking 3 '%v' <- '%v'", localPathToRead, localPathToWrite)
 							panicOn(os.Link(localPathToRead, localPathToWrite))
 						}
 					}
 				}
 
-				// restore mode, modtime
+				vv("restore mode, modtime on localPathToWrite='%v'", localPathToWrite)
 				mode := goalPrecis.FileMode
 				if mode == 0 {
 					// unknown mode or new file, give sane default
