@@ -150,7 +150,7 @@ func (s *SparseSpan) String() string {
 		extra = fmt.Sprintf(", and %v bytes", x)
 	}
 	return fmt.Sprintf("SparseSpan{IsHole:%v, Pre:%v, Beg:%v, Endx: %v} (%v pages of 4KB%v)",
-		s.IsHole, s.IsUnwrittenPrealloc, s.Beg, s.Endx, (s.Endx-s.Beg)/4096, extra)
+		s.IsHole, s.IsUnwrittenPrealloc, formatUnder(s.Beg), formatUnder(s.Endx), formatUnder((s.Endx-s.Beg)/4096), extra)
 }
 
 // if file already exists we return nil, error.
