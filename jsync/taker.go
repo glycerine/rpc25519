@@ -1106,23 +1106,24 @@ takerForSelectLoop:
 				// did not have it; but now we
 				// still do the chunking to take advantage
 				// of RLE0 compresion, which can be substantial.
-				if !existsFile && !useRLE0 {
-					// not present
+				// comment out since RLE0 now always desired.
+				// if !existsFile && !useRLE0 {
+				// 	// not present
 
-					//vv("not present: must request the "+
-					//	"full file for syncReq.TakerPath='%v'",
-					//	syncReq.TakerPath)
+				// 	//vv("not present: must request the "+
+				// 	//	"full file for syncReq.TakerPath='%v'",
+				// 	//	syncReq.TakerPath)
 
-					fullReq := myPeer.NewFragment()
-					fullReq.FragOp = OpRsync_ToGiverNeedFullFile2
+				// 	fullReq := myPeer.NewFragment()
+				// 	fullReq.FragOp = OpRsync_ToGiverNeedFullFile2
 
-					bt.bsend += fullReq.Msgsize()
-					err := ckt.SendOneWay(fullReq, 0, 0)
-					panicOn(err)
-					frag = nil
-					fullReq = nil
-					continue
-				}
+				// 	bt.bsend += fullReq.Msgsize()
+				// 	err := ckt.SendOneWay(fullReq, 0, 0)
+				// 	panicOn(err)
+				// 	frag = nil
+				// 	fullReq = nil
+				// 	continue
+				// }
 			} // end switch FragOp
 
 		case fragerr := <-ckt.Errors:

@@ -209,7 +209,7 @@ type SyncService struct {
 
 const (
 	OpRsync_RequestRemoteToTake            = 1  // to taker
-	OpRsync_ToGiverNeedFullFile2           = 2  // ... to Giver
+	OpRsync_ToGiverNeedFullFile2           = 2  // ... to Giver (no longer used, since we want RLE0/sparseness scanning always to save space)
 	OpRsync_HereIsFullFileBegin3           = 3  // to taker
 	OpRsync_HereIsFullFileMore4            = 4  // to taker
 	OpRsync_HereIsFullFileEnd5             = 5  // to taker

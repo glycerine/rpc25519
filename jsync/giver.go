@@ -8,7 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
+	//"strconv"
 	"strings"
 	//"sync"
 	"time"
@@ -267,14 +267,15 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				// BUT! we want to apply RLE0 even in this case. So try
 				// without this for our zero1g test file.
 				// Yes: using RLE0 saves a ton of time transporting zeros.
-				if !useRLE0 && syncReq.TakerFileSize == 0 {
-					panic("not in use right, since always useRLE0 now?")
-					err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0, syncReq)
+				// comment out b/c we always want RLE0 now.
+				// if !useRLE0 && syncReq.TakerFileSize == 0 {
+				// 	panic("not in use right, since always useRLE0 now?")
+				// 	err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0, syncReq)
 
-					//vv("giver sent whole file. done (wait for FIN) -> '%v'", syncReq.TakerPath)
-					frag0 = nil // GC early.
-					continue    // wait for FIN ack back.
-				}
+				// 	//vv("giver sent whole file. done (wait for FIN) -> '%v'", syncReq.TakerPath)
+				// 	frag0 = nil // GC early.
+				// 	continue    // wait for FIN ack back.
+				// }
 
 				// 2. else: scan our "remote path". updated not needed? ack back FIN
 				if !s.remoteGiverAreDiffChunksNeeded(syncReq, ckt, bt, frag0) {
@@ -350,7 +351,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				continue
 
 			case OpRsync_ToGiverNeedFullFile2:
-				panic("no longer used, right?")
+				panic("OpRsync_ToGiverNeedFullFile2 no longer used, right?")
 				// We no long use this (assuming useRLE0 = true).
 				// We chunk all files now to get the RLE0 benefits.
 
@@ -360,11 +361,12 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				// this is the upload streaming protocol. We send the data.
 				//vv("giver sees OpRsync_ToGiverNeedFullFile2")
 
-				err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0, syncReq)
+				// per the panic above, no longer used. comment out.
+				// err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0, syncReq)
 
-				// wait for FIN ack back.
-				frag0 = nil // GC early.
-				continue
+				// // wait for FIN ack back.
+				// frag0 = nil // GC early.
+				// continue
 			} // end switch frag0.FragOp
 
 		case fragerr := <-ckt.Errors:
@@ -565,6 +567,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	)
 }
 
+/* to be deleted...
 func (s *SyncService) giverSendsWholeFile(
 	giverPath string,
 	takerPath string,
@@ -697,6 +700,7 @@ upload:
 	// 	elap, tot, rate, nparts, giverPath, takerPath)
 	return nil
 }
+*/
 
 func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 	syncReq *RequestToSyncPath, // from "local" (not actually local)
