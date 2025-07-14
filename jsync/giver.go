@@ -90,7 +90,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 		select {
 
 		case frag0 := <-ckt.Reads:
-			vv("%v: (ckt '%v') (Giver) saw read frag0:'%v'", name, ckt.Name, frag0)
+			//vv("%v: (ckt '%v') (Giver) saw read frag0:'%v'", name, ckt.Name, frag0)
 
 			//vv("frag0 = '%v'", frag0)
 			switch frag0.FragOp {
@@ -264,18 +264,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				// after moreLoop, we get here:
 
 				// 1. if local has nothing, send full stream. stop.
-				// BUT! we want to apply RLE0 even in this case. So try
-				// without this for our zero1g test file.
-				// Yes: using RLE0 saves a ton of time transporting zeros.
-				// comment out b/c we always want RLE0 now.
-				// if !useRLE0 && syncReq.TakerFileSize == 0 {
-				// 	panic("not in use right, since always useRLE0 now?")
-				// 	err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0, syncReq)
-
-				// 	//vv("giver sent whole file. done (wait for FIN) -> '%v'", syncReq.TakerPath)
-				// 	frag0 = nil // GC early.
-				// 	continue    // wait for FIN ack back.
-				// }
+				// BUT! we want to apply RLE0 even in this case.
 
 				// 2. else: scan our "remote path". updated not needed? ack back FIN
 				if !s.remoteGiverAreDiffChunksNeeded(syncReq, ckt, bt, frag0) {
@@ -351,22 +340,9 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				continue
 
 			case OpRsync_ToGiverNeedFullFile2:
-				panic("OpRsync_ToGiverNeedFullFile2 no longer used, right?")
+				panic("OpRsync_ToGiverNeedFullFile2 no longer used, b/c we want RLE0 compression support")
 				// We no long use this (assuming useRLE0 = true).
 				// We chunk all files now to get the RLE0 benefits.
-
-				// Keep it around since it may be useful
-				// in the future.
-
-				// this is the upload streaming protocol. We send the data.
-				//vv("giver sees OpRsync_ToGiverNeedFullFile2")
-
-				// per the panic above, no longer used. comment out.
-				// err0 = s.giverSendsWholeFile(syncReq.GiverPath, syncReq.TakerPath, ckt, bt, frag0, syncReq)
-
-				// // wait for FIN ack back.
-				// frag0 = nil // GC early.
-				// continue
 			} // end switch frag0.FragOp
 
 		case fragerr := <-ckt.Errors:
@@ -566,141 +542,6 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 		nil,
 	)
 }
-
-/* to be deleted...
-func (s *SyncService) giverSendsWholeFile(
-	giverPath string,
-	takerPath string,
-	ckt *rpc.Circuit,
-	bt *byteTracker,
-	frag0 *rpc.Fragment,
-	syncReq *RequestToSyncPath,
-
-) error {
-	// convertedDirToFile_giveFile calls us from dirgiver.go.
-
-	// can we just do this? would be so nice.
-	// this will use OpRsync_HeavyDiffChunksLast
-	// which will hit the existing sparse support
-	// on the taker.go side. Seems to work.
-	return s.giverSendsPlanAndDataUpdates(&Chunks{Path: takerPath}, ckt, giverPath, bt, frag0, syncReq)
-
-	// old bad non RLE0 aware code... to be deleted once we confirm above works.
-
-	//vv("giverSendsWholeFile(giverPath='%v', takerPath='%v')", giverPath, takerPath)
-	t0 := time.Now()
-
-	if !fileExists(giverPath) {
-		return s.giverReportFileNotFound(ckt, giverPath, bt, frag0)
-	}
-	fi, err := os.Stat(giverPath)
-
-	//vv("%v: (ckt '%v') (Giver) os.Stat(path) -> err = '%v'", name, ckt.Name, err)
-
-	panicOn(err)
-
-	pathsize := fi.Size()
-	quietProgress := false
-	if syncReq == nil || syncReq.UpdateProgress == nil {
-		//vv("no ability to report progress, don't try.")
-		quietProgress = true
-	}
-
-	r, err := os.Open(giverPath)
-	if err != nil {
-		panic(fmt.Sprintf("error reading path '%v': '%v'", giverPath, err))
-	}
-	defer r.Close()
-
-	blake3hash := myblake3.NewBlake3()
-
-	// much smoother progress display waiting for 1MB rather than 64MB
-	maxMessage := 1024 * 1024
-	//maxMessage := rpc25519.UserMaxPayload
-	//maxMessage := 1024
-	buf := make([]byte, maxMessage)
-	var tot int
-
-	var lastUpdate time.Time
-
-	var i int64
-upload:
-	for i = 0; true; i++ {
-
-		nr, err1 := r.Read(buf)
-		//vv("on read i=%v, got nr=%v, (maxMessage=%v), err='%v'", i, nr, maxMessage, err1)
-
-		send := buf[:nr] // can be empty
-		tot += nr
-
-		// save on cpu by skipping the extra hashing now.
-		//sumstring := myblake3.Blake3OfBytesString(send)
-		//vv("i=%v, len=%v, sumstring = '%v'", i, nr, sumstring)
-		//blake3hash.Write(send)
-
-		frag := ckt.LpbFrom.NewFragment()
-		frag.FragSubject = frag0.FragSubject
-		frag.FragPart = i
-		frag.SetUserArg("readFile", giverPath)
-		frag.SetUserArg("writeFile", takerPath)
-		//frag.SetUserArg("blake3", sumstring)
-
-		mode := strconv.FormatUint(uint64(fi.Mode()), 10)
-		frag.SetUserArg("mode", mode)
-
-		frag.SetUserArg("modTime", fi.ModTime().Format(time.RFC3339Nano))
-
-		switch i {
-		case 0:
-			frag.FragOp = OpRsync_HereIsFullFileBegin3
-		default:
-			frag.FragOp = OpRsync_HereIsFullFileMore4
-		}
-		if err1 == io.EOF {
-			// on last one set:
-			frag.FragOp = OpRsync_HereIsFullFileEnd5
-			clientTotSum := blake3hash.SumString()
-			frag.SetUserArg("clientTotalBlake3sum", clientTotSum)
-		}
-
-		// must copy! b/c send will be overwritten on next i.
-		frag.Payload = append([]byte{}, send...)
-
-		bt.bsend += len(frag.Payload)
-		err := ckt.SendOneWay(frag, 0, 0)
-		panicOn(err)
-
-		if err1 == io.EOF {
-			break upload
-		}
-
-		if !quietProgress {
-			if time.Since(lastUpdate) > time.Second {
-				lastUpdate = time.Now()
-				s.reportProgress(syncReq, giverPath, int64(pathsize), int64(tot), t0)
-			}
-		}
-	} // end for i
-	nparts := i
-
-	if !quietProgress {
-		s.reportProgress(syncReq, giverPath, int64(pathsize), int64(tot), t0)
-	}
-
-	elap := time.Since(t0)
-	mb := float64(tot) / float64(1<<20)
-	seconds := (float64(elap) / float64(time.Second))
-	rate := mb / seconds
-	_ = rate
-	_ = nparts
-
-	// alwaysPrintf("upload of rsync file done! elapsed: %v \n we "+
-	// 	"uploaded tot = %v bytes (=> %0.6f MB/sec) in %v parts\n"+
-	// 	"giverPath: '%v'\n->\ntakerPath: '%v'",
-	// 	elap, tot, rate, nparts, giverPath, takerPath)
-	return nil
-}
-*/
 
 func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 	syncReq *RequestToSyncPath, // from "local" (not actually local)

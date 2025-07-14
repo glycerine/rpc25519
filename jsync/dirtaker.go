@@ -121,7 +121,9 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				// a directory before that has now been
 				// converted to a just file, of course.
 				// Either way, dirgiver will now be
-				// calling giverSendsWholeFile to us.
+				// calling giverSendsWholeFile (update:
+				// giverSendsPlanAndDataUpdates for RLE0 support)
+				// to us.
 				// which means: OpRsync_HereIsFullFileBegin3,
 				// OpRsync_HereIsFullFileMore4, and
 				// OpRsync_HereIsFullFileEnd5. Let us

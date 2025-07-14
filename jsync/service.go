@@ -153,7 +153,11 @@ type SyncService struct {
 // giver -> 1 -> 34 ToGiverSizeMatchButCheckHash -> FIN (taker returns)
 // giver -> 1 -> 8 LightRequestEnclosed(giver) giverSendsPlanAndData.. file checksums already match, yay. -> ToTakerMetaUpdateAtLeast (taker) -> FIN (giver returns)
 // giver -> 1 -> 8 LightRequestEnclosed(giver) giverSendsPlanAndData -> 11,10,9 (taker) -> FileAllReadAck -> FIN (taker returns)
-// giver -> 1 -> 2 NeedFullFile2(giver) giverSendsWholeFile -> 11 (file not found via SenderPlanEnclosed.FileIsDeleted) (taker deletes file) -> FIN (giver returns)
+
+// old: giver -> 1 -> 2 NeedFullFile2(giver) giverSendsWholeFile -> 11 (file not found via SenderPlanEnclosed.FileIsDeleted) (taker deletes file) -> FIN (giver returns)
+// updated: giver -> 1 -> 2 NeedFullFile2(giver) giverSendsPlanAndDataUpdates for RLE0 support -> ... what here? todo: trace what happens after giverSendsPlanAndDataUpdates.
+
+// TODO: this next also needs update to replace giverSendsWholeFile with giverSendsPlanAndDataUpdates.
 // giver -> 1 -> 2 NeedFullFile2(giver) giverSendsWholeFile -> FullFileBegin3,FullFileMore4,FullFileEnd5 (taker) -> FileAllReadAck -> FIN (taker returns)
 //
 //
@@ -161,7 +165,7 @@ type SyncService struct {
 //
 //          12 (RequestRemoteToGive)
 //
-// taker -> 12 (RequestRemoteToGive) giverSendsWholeFile -> as above... -> FIN giver returns
+// taker -> 12 (RequestRemoteToGive) giverSendsWholeFile -> as above... -> FIN giver returns (TODO also replace giverSendsWholeFile with giverSendsPlanAndDataUpdates)
 // taker -> 12 remoteGiverAreDiffChunksNeeded -> 13 TellTakerToDelete (taker deletes file) -> FIN (giver returns)
 // taker -> 12 remoteGiverAreDiffChunksNeeded -> err same file(giver) -> FIN (taker returns)
 // taker -> 12 remoteGiverAreDiffChunksNeeded -> FileSizeModTimeMatch(taker) -> FIN (giver returns)

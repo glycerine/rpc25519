@@ -340,13 +340,8 @@ func (s *SyncService) convertedDirToFile_giveFile(
 	err := ckt.SendOneWay(tofile, 0, 0)
 	panicOn(err)
 
-	//vv("Q: is this the right takerPath to pass to giverSendsWholefile? reqDir.TopTakerDirFinal = '%v'", reqDir.TopTakerDirFinal)
-	//err = s.giverSendsWholeFile(path, reqDir.TopTakerDirFinal, ckt, bt, frag0, reqDir.SR)
-	//panicOn(err)
+	//vv("Q: is this the right takerPath to pass? reqDir.TopTakerDirFinal = '%v'", reqDir.TopTakerDirFinal)
 
-	// what we updated giverSendsWholeFile() to do in order
-	// to get RLE0/sparseness. Call direct so we might be able
-	// to delete giverSendsWholeFile now.
 	giverPath := path
 	takerPath := reqDir.TopTakerDirFinal
 	syncReq := reqDir.SR
