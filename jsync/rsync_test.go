@@ -303,7 +303,7 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 			dropPlanData := true
 			plan2 := bs.GetPlanToUpdateFromGoal(remoteWantsUpdate, local2, dropPlanData, false)
 
-			vv("plan2 = '%v'", plan2)
+			//vv("plan2 = '%v'", plan2)
 			// verify minimal changes being sent
 			if allZeros {
 				if runtime.GOOS == "darwin" {
@@ -806,7 +806,7 @@ func Test377_big_files_with_small_changes(t *testing.T) {
 		t5 := time.Now()
 		//err = UpdateLocalWithRemoteDiffs(localPath, localMap, plan, goalPrecis)
 
-		err = UpdateLocalFileWithRemoteDiffs(localPathFinal, localPath, localMap, plan, goalPrecis)
+		err = UpdateLocalFileWithRemoteDiffs_TestHelper(localPathFinal, localPath, localMap, plan, goalPrecis)
 		panicOn(err)
 
 		// localPathFinal has the file made to match remotePath.
@@ -1010,7 +1010,7 @@ func Test888_rle_zeros_encoded(t *testing.T) {
 		t5 := time.Now()
 		//err = UpdateLocalWithRemoteDiffs(localPath, localMap, plan, goalPrecis)
 
-		err = UpdateLocalFileWithRemoteDiffs(localPathFinal, localPath, localMap, plan, goalPrecis)
+		err = UpdateLocalFileWithRemoteDiffs_TestHelper(localPathFinal, localPath, localMap, plan, goalPrecis)
 		panicOn(err)
 
 		// localPathFinal has the file made to match remotePath.

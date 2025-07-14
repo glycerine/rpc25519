@@ -453,7 +453,7 @@ func Test777_big_files_with_small_changes(t *testing.T) {
 			t5 := time.Now()
 			//err = UpdateLocalWithRemoteDiffs(localPath, localMap, plan, goalPrecis)
 
-			err = UpdateLocalFileWithRemoteDiffs(localPathFinal, localPath, localMap, plan, goalPrecis)
+			err = UpdateLocalFileWithRemoteDiffs_TestHelper(localPathFinal, localPath, localMap, plan, goalPrecis)
 			panicOn(err)
 
 			// localPathFinal has the file made to match remotePath.
@@ -666,7 +666,7 @@ func Test788_rle_zeros_encoded(t *testing.T) {
 			t5 := time.Now()
 			//err = UpdateLocalWithRemoteDiffs(localPath, localMap, plan, goalPrecis)
 
-			err = UpdateLocalFileWithRemoteDiffs(localPathFinal, localPath, localMap, plan, goalPrecis)
+			err = UpdateLocalFileWithRemoteDiffs_TestHelper(localPathFinal, localPath, localMap, plan, goalPrecis)
 			panicOn(err)
 
 			// localPathFinal has the file made to match remotePath.

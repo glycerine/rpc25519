@@ -620,9 +620,9 @@ takerForSelectLoop:
 				// debug, is it sparse before we rename it?
 				// only with the hole punching above.
 				//newversFd.Sync() // ARG! this turns sparse into non-sparse
-				spans, err := sparsified.FindSparseRegions(newversFd)
-				panicOn(err)
-				vv("debug sparse spans just before newversFd.Close() = '%v'", spans)
+				//spans, err := sparsified.FindSparseRegions(newversFd)
+				//panicOn(err)
+				//vv("debug sparse spans just before newversFd.Close() = '%v'", spans)
 
 				newversFd.Close()
 
@@ -636,12 +636,13 @@ takerForSelectLoop:
 					panicOn(err)
 					vv("synced to disk: localPathToWrite='%v' -> renamed to '%v'", tmp, localPathToWrite)
 
-					renamedFd, err := os.Open(localPathToWrite)
-					panicOn(err)
-					spans, err := sparsified.FindSparseRegions(renamedFd)
-					panicOn(err)
-					vv("debug sparse spans after rename to '%v' => '%v'", localPathToWrite, spans)
-					renamedFd.Close()
+					// debug
+					//renamedFd, err := os.Open(localPathToWrite)
+					//panicOn(err)
+					//spans, err := sparsified.FindSparseRegions(renamedFd)
+					//panicOn(err)
+					//vv("debug sparse spans after rename to '%v' => '%v'", localPathToWrite, spans)
+					//renamedFd.Close()
 
 				} else {
 					// need to hard link it.

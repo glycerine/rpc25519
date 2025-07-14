@@ -177,7 +177,7 @@ func UpdateLocalWithRemoteDiffs(
 
 		// handle "RLE0;" case, run-length-encoded zeros.
 		if chunk.Cry == "RLE0;" {
-			vv("we see RLE0")
+			//vv("we see RLE0")
 			// can we turn it into a sparse hole?
 			span, wings := sparsified.AlignedSparseSpan(int64(chunk.Beg), int64(chunk.Endx))
 			if span != nil {
@@ -199,8 +199,8 @@ func UpdateLocalWithRemoteDiffs(
 			}
 			continue
 		} else if chunk.Cry == "UNWRIT;" {
-			vv("skipping UNWRIT;")
-			// ignore for now?
+			//vv("skipping UNWRIT;")
+			// ignore for now? TODO: pre-allocate?
 			continue
 		}
 
@@ -258,14 +258,14 @@ func UpdateLocalWithRemoteDiffs(
 	sparsify := false
 	sznew := int64(len(newvers))
 	if len(sparse) > 0 {
-		vv("UpdateLocalWithRemoteDiffs detected %v sparse holes", len(sparse))
+		//vv("UpdateLocalWithRemoteDiffs detected %v sparse holes", len(sparse))
 		sparsify = true
 		err = fd.Truncate(sznew)
 		if err != nil {
 			return fmt.Errorf("error failed to Truncate to max size (make sparse file) in UpdateLocalWithRemoteDiffs: '%v'", err)
 		}
 	} else {
-		vv("UpdateLocalWithRemoteDiffs detected NO sparse holes")
+		//vv("UpdateLocalWithRemoteDiffs detected NO sparse holes")
 	}
 
 	// Close just returns an error if called 2x. That is fine.
@@ -914,7 +914,7 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 		case preun[i]:
 			// pre-allocated yet unwritten. logical zeros.
 			hsh = "UNWRIT;"
-			vv("saw UNWRIT;") // not seen 710 test
+			//vv("saw UNWRIT;") // not seen 710 test. seen in 210.
 		default:
 			// this chunk in file is filepos [prev, c).
 			if cut <= prevcut {
@@ -1319,7 +1319,7 @@ func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 }
 
 // seems to be only called from rsync_test.go and rsync_simnet_test.go
-func UpdateLocalFileWithRemoteDiffs(
+func UpdateLocalFileWithRemoteDiffs_TestHelper(
 	localPathToWrite string,
 	localPathToRead string,
 
@@ -1476,15 +1476,15 @@ func UpdateLocalFileWithRemoteDiffs(
 				panic(fmt.Sprintf("lc.Endx = %v, lc.Beg = %v, but "+
 					"lc.Data len = %v", chunk.Endx, chunk.Beg, wb))
 			}
-			vv("writing to hash h len %v of chunk.Data; tot = j = %v", wb, j) // not seen
+			//vv("writing to hash h len %v of chunk.Data; tot = j = %v", wb, j) // not seen
 			h.Write(chunk.Data)
 		}
 	} // end for chunk over chunks.Chunks
 
 	if len(sparse) > 0 {
-		vv("UpdateLocalFileWithRemoteDiffs detected %v sparse holes, TODO: implement below... take out Bufio?", len(sparse))
+		//vv("UpdateLocalFileWithRemoteDiffs detected %v sparse holes, TODO: implement below... take out Bufio? We are only used in tests at this point, so let's not bother for now.", len(sparse))
 	} else {
-		vv("UpdateLocalFileWithRemoteDiffs detected NO sparse holes")
+		//vv("UpdateLocalFileWithRemoteDiffs detected NO sparse holes")
 	}
 
 	newversBufio.Flush() // must be before newversFd.Close()
