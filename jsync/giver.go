@@ -579,8 +579,10 @@ func (s *SyncService) giverSendsWholeFile(
 	// can we just do this? would be so nice.
 	// this will use OpRsync_HeavyDiffChunksLast
 	// which will hit the existing sparse support
-	// on the taker.go side.
+	// on the taker.go side. Seems to work.
 	return s.giverSendsPlanAndDataUpdates(&Chunks{Path: takerPath}, ckt, giverPath, bt, frag0, syncReq)
+
+	// old bad non RLE0 aware code... to be deleted once we confirm above works.
 
 	//vv("giverSendsWholeFile(giverPath='%v', takerPath='%v')", giverPath, takerPath)
 	t0 := time.Now()
@@ -600,71 +602,6 @@ func (s *SyncService) giverSendsWholeFile(
 		//vv("no ability to report progress, don't try.")
 		quietProgress = true
 	}
-
-	// to re-use code from giverSendsPlanAndDataUpdates
-	// if false {
-	// 	localPath := giverPath
-
-	// 	var goalPrecis *FilePrecis
-	// 	var local *Chunks
-
-	// 	if parallelChunking {
-	// 		// parallel version
-	// 		//vv("begin ChunkFile (parallel)")
-	// 		goalPrecis, local, err = ChunkFile(localPath)
-	// 	} else {
-	// 		// non-parallel version:
-	// 		//vv("begin GetHashesOneByOne")
-	// 		goalPrecis, local, err = GetHashesOneByOne(rpc.Hostname, localPath)
-	// 	}
-	// 	panicOn(err)
-
-	// 	// above func call into SummarizeBytesInCDCHashes
-	// 	// with keepData = false, so chunk.Data will be nil.
-
-	// 	// to use OpRsync_HeavyDiffChunksLast,
-	// 	// the others (giverSendsPlanAndDataUpdates) send
-	// 	// OpRsync_SenderPlanEnclosed first.
-
-	// 	// Now stream the heavy chunks. Since our max message
-	// 	// is typically about 1MB, we'll pack lots of
-	// 	// shunks into one message. Some of them will
-	// 	// have no attached Data, so will be very small.
-
-	// 	return s.packAndSendChunksJustInTime(
-	// 		local,
-	// 		frag0.FragSubject,
-	// 		// these already have sparse file support in taker.go...
-	// 		// OpRsync_HeavyDiffChunksLast
-	// 		// OpRsync_HeavyDiffChunksEnclosed
-	// 		// while these hit todisk.go which does not (yet):
-	// 		OpRsync_HereIsFullFileEnd5,
-	// 		OpRsync_HereIsFullFileMore4,
-	// 		ckt,
-	// 		bt,
-	// 		localPath,
-	// 		syncReq,
-	// 		goalPrecis,
-	// 		true,
-	// 		func(frag *rpc.Fragment, blake3hash *myblake3.Blake3) {
-	// 			frag.SetUserArg("readFile", giverPath)
-	// 			frag.SetUserArg("writeFile", takerPath)
-	// 			//frag.SetUserArg("blake3", sumstring)
-
-	// 			mode := strconv.FormatUint(uint64(fi.Mode()), 10)
-	// 			frag.SetUserArg("mode", mode)
-
-	// 			frag.SetUserArg("modTime", fi.ModTime().Format(time.RFC3339Nano))
-
-	// 			clientTotSum := blake3hash.SumString()
-	// 			frag.SetUserArg("clientTotalBlake3sum", clientTotSum)
-	// 		},
-	// 	)
-
-	// 	// end code from giverSendsPlanAndDataUpdates
-	// }
-
-	// old bad non RLE0 aware code...
 
 	r, err := os.Open(giverPath)
 	if err != nil {
