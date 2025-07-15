@@ -203,6 +203,7 @@ func (s *Server) runServerMain(
 	s.mut.Lock() // avoid data races
 	addrs := addr.Network() + "://" + addr.String()
 	s.boundAddressString = addrs
+	s.netAddr = addr
 	AliasRegister(addrs, addrs+" (server: "+s.name+")")
 	s.lsn = listener // allow shutdown
 	s.mut.Unlock()
@@ -1148,6 +1149,7 @@ type Server struct {
 	srvStarted atomic.Bool
 
 	boundAddressString string
+	netAddr            net.Addr
 
 	cfg        *Config
 	quicConfig *quic.Config
@@ -2283,6 +2285,10 @@ func (s *Server) Start() (serverAddr net.Addr, err error) {
 	select {
 	case serverAddr = <-boundCh:
 
+		s.mut.Lock()
+		s.netAddr = serverAddr
+		s.mut.Unlock()
+
 		// Important about the following, case <-time.After(10 * time.Second).
 		// The simnet not necessarily inititiazed yet,
 		// since that happens in runServerMain() just launched above.
@@ -2741,6 +2747,12 @@ func (s *Server) LocalAddr() string {
 	defer s.mut.Unlock()
 	//vv("Server.LocalAddr returning '%v'", s.boundAddressString)
 	return s.boundAddressString
+}
+
+func (s *Server) LocalNetAddr() net.Addr {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+	return s.netAddr
 }
 
 // RemoteAddr returns "" on the Server, because

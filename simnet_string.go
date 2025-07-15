@@ -10,7 +10,7 @@ import (
 )
 
 func (s *Simnet) showDNS() {
-	alwaysPrintf("simnet dns: %v", s.stringDNS)
+	alwaysPrintf("simnet dns: %v", s.stringDNS())
 }
 
 func (s *Simnet) stringDNS() (r string) {
