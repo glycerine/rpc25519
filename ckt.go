@@ -44,8 +44,12 @@ type Circuit struct {
 
 	Halt *idem.Halter
 
-	// racey! use ckt.Halt.ReqStop.CloseWithReason() and Reason() instead.
+	// racy! use ckt.Halt.ReqStop.CloseWithReason() and Reason() instead.
 	// CloseReasonErr error
+
+	// allow user frameworks to convey
+	// info through NewCircuitCh
+	UserAny any
 }
 
 func (ckt *Circuit) String() string {
@@ -777,9 +781,11 @@ func (lpb *LocalPeer) newCircuit(
 
 		// tell the remote which serviceName we are coming from;
 		// so the URL back can be correct.
-		msg.HDR.Args = map[string]string{
-			"#fromServiceName": lpb.PeerServiceName,
-			"#circuitName":     circuitName}
+		// Don't make a new map here since the firstFrag.Args
+		// may be carrying important information and a new
+		// map would lose that.
+		msg.HDR.Args["#fromServiceName"] = lpb.PeerServiceName
+		msg.HDR.Args["#circuitName"] = circuitName
 		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
 	}
 
