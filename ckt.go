@@ -387,12 +387,14 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 		RemoteServiceName: serviceName,
 	}
 	//vv("rpb = '%#v'", rpb)
-	s.Remotes.Set(peerID, rpb)
 
 	ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, true)
 	if err != nil {
 		return nil, nil, err
 	}
+	rpb.IncomingCkt = ckt
+	s.Remotes.Set(peerID, rpb)
+
 	return
 }
 
