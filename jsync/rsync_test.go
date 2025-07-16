@@ -896,7 +896,7 @@ func Test888_rle_zeros_encoded(t *testing.T) {
 	//keepData := false
 
 	//parallel := true // green, was using
-	parallel := false // red, hmm.
+	parallel := false
 
 	var localPrecis *FilePrecis
 	var wantsUpdate *Chunks
@@ -944,9 +944,8 @@ func Test888_rle_zeros_encoded(t *testing.T) {
 		goalPrecis, templateChunks, err = ChunkFile(remotePath)
 		// 2.4 sec.
 	} else {
-		goalPrecis, templateChunks, err = GetHashesOneByOne(host, remotePath)
-		//goalPrecis, templateChunks, err = SummarizeFileInCDCHashes(host, remotePath, wantsChunks, keepData)
-		// 11.1s, or 13.34s, so long!
+		//goalPrecis, templateChunks, err = GetHashesOneByOne(host, remotePath)
+		goalPrecis, templateChunks, err = SummarizeFileInCDCHashes(host, remotePath, false)
 	}
 
 	vv("templateChunks done after %v", time.Since(t2))
