@@ -234,7 +234,7 @@ func UpdateLocalWithRemoteDiffs(
 				alwaysPrintf("WARNING: UNWRIT at i = %v was not last=%v", i, last)
 				panic(fmt.Sprintf("UNWRIT at i = %v was not last=%v", i, last))
 			}
-			vv("have last UNWRIT chunk")
+			vv("have last UNWRIT chunk for path '%v'", path)
 
 			minsparse, err := sparsified.MinSparseHoleSize(fd)
 			panicOn(err)
