@@ -796,10 +796,10 @@ func (lpb *LocalPeer) newCircuit(
 		if firstFrag != nil {
 			// not sure this is working right yet.
 			vv("firstFrag != nil: '%v'", firstFrag)
-			us, ok := firstFrag.GetSysArg("userString")
+			us, ok := firstFrag.GetSysArg("UserString")
 			if ok {
-				msg.HDR.Args["#userString"] = us
-				vv("set #userString = '%v'", us)
+				msg.HDR.Args["#UserString"] = us
+				vv("set #UserString = '%v'", us)
 			}
 		}
 		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
@@ -1288,7 +1288,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		return err
 	}
 	if msg.HDR.Args != nil {
-		ckt.UserString = msg.HDR.Args["#userString"]
+		ckt.UserString = msg.HDR.Args["#UserString"]
 	}
 
 	rpb.IncomingCkt = ckt
