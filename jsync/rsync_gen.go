@@ -858,7 +858,7 @@ func (z *Chunks) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields17zgensym_9db0ba711f6a3e5a_18 = 6
+	const maxFields17zgensym_9db0ba711f6a3e5a_18 = 7
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields17zgensym_9db0ba711f6a3e5a_18 uint32
@@ -978,6 +978,12 @@ doneWithStruct17zgensym_9db0ba711f6a3e5a_18:
 			if err != nil {
 				return
 			}
+		case "PreAllocBeforeLast_zid06_boo":
+			found17zgensym_9db0ba711f6a3e5a_18[6] = true
+			z.PreAllocBeforeLast, err = dc.ReadBool()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -1001,16 +1007,16 @@ doneWithStruct17zgensym_9db0ba711f6a3e5a_18:
 }
 
 // fields of Chunks
-var decodeMsgFieldOrder17zgensym_9db0ba711f6a3e5a_18 = []string{"Chunks_zid00_slc", "Path_zid01_str", "FileSize_zid02_i64", "FileCry_zid03_str", "PreAllocUnwritBytes_zid04_i64", "PreAllocLargestSpan_zid05_i64"}
+var decodeMsgFieldOrder17zgensym_9db0ba711f6a3e5a_18 = []string{"Chunks_zid00_slc", "Path_zid01_str", "FileSize_zid02_i64", "FileCry_zid03_str", "PreAllocUnwritBytes_zid04_i64", "PreAllocLargestSpan_zid05_i64", "PreAllocBeforeLast_zid06_boo"}
 
-var decodeMsgFieldSkip17zgensym_9db0ba711f6a3e5a_18 = []bool{false, false, false, false, false, false}
+var decodeMsgFieldSkip17zgensym_9db0ba711f6a3e5a_18 = []bool{false, false, false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *Chunks) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 6
+		return 7
 	}
-	var fieldsInUse uint32 = 6
+	var fieldsInUse uint32 = 7
 	isempty[0] = (len(z.Chunks) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -1035,6 +1041,10 @@ func (z *Chunks) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[5] {
 		fieldsInUse--
 	}
+	isempty[6] = (!z.PreAllocBeforeLast) // bool, omitempty
+	if isempty[6] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -1046,7 +1056,7 @@ func (z *Chunks) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_9db0ba711f6a3e5a_20 [6]bool
+	var empty_zgensym_9db0ba711f6a3e5a_20 [7]bool
 	fieldsInUse_zgensym_9db0ba711f6a3e5a_21 := z.fieldsNotEmpty(empty_zgensym_9db0ba711f6a3e5a_20[:])
 
 	// map header
@@ -1152,6 +1162,18 @@ func (z *Chunks) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_9db0ba711f6a3e5a_20[6] {
+		// write "PreAllocBeforeLast_zid06_boo"
+		err = en.Append(0xbc, 0x50, 0x72, 0x65, 0x41, 0x6c, 0x6c, 0x6f, 0x63, 0x42, 0x65, 0x66, 0x6f, 0x72, 0x65, 0x4c, 0x61, 0x73, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x62, 0x6f, 0x6f)
+		if err != nil {
+			return err
+		}
+		err = en.WriteBool(z.PreAllocBeforeLast)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -1164,7 +1186,7 @@ func (z *Chunks) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [6]bool
+	var empty [7]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -1218,6 +1240,12 @@ func (z *Chunks) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendInt64(o, z.PreAllocLargestSpan)
 	}
 
+	if !empty[6] {
+		// string "PreAllocBeforeLast_zid06_boo"
+		o = append(o, 0xbc, 0x50, 0x72, 0x65, 0x41, 0x6c, 0x6c, 0x6f, 0x63, 0x42, 0x65, 0x66, 0x6f, 0x72, 0x65, 0x4c, 0x61, 0x73, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x62, 0x6f, 0x6f)
+		o = msgp.AppendBool(o, z.PreAllocBeforeLast)
+	}
+
 	return
 }
 
@@ -1236,7 +1264,7 @@ func (z *Chunks) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []b
 
 	var field []byte
 	_ = field
-	const maxFields22zgensym_9db0ba711f6a3e5a_23 = 6
+	const maxFields22zgensym_9db0ba711f6a3e5a_23 = 7
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields22zgensym_9db0ba711f6a3e5a_23 uint32
@@ -1368,6 +1396,13 @@ doneWithStruct22zgensym_9db0ba711f6a3e5a_23:
 			if err != nil {
 				return
 			}
+		case "PreAllocBeforeLast_zid06_boo":
+			found22zgensym_9db0ba711f6a3e5a_23[6] = true
+			z.PreAllocBeforeLast, bts, err = nbs.ReadBoolBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1391,9 +1426,9 @@ doneWithStruct22zgensym_9db0ba711f6a3e5a_23:
 }
 
 // fields of Chunks
-var unmarshalMsgFieldOrder22zgensym_9db0ba711f6a3e5a_23 = []string{"Chunks_zid00_slc", "Path_zid01_str", "FileSize_zid02_i64", "FileCry_zid03_str", "PreAllocUnwritBytes_zid04_i64", "PreAllocLargestSpan_zid05_i64"}
+var unmarshalMsgFieldOrder22zgensym_9db0ba711f6a3e5a_23 = []string{"Chunks_zid00_slc", "Path_zid01_str", "FileSize_zid02_i64", "FileCry_zid03_str", "PreAllocUnwritBytes_zid04_i64", "PreAllocLargestSpan_zid05_i64", "PreAllocBeforeLast_zid06_boo"}
 
-var unmarshalMsgFieldSkip22zgensym_9db0ba711f6a3e5a_23 = []bool{false, false, false, false, false, false}
+var unmarshalMsgFieldSkip22zgensym_9db0ba711f6a3e5a_23 = []bool{false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Chunks) Msgsize() (s int) {
@@ -1405,7 +1440,7 @@ func (z *Chunks) Msgsize() (s int) {
 			s += z.Chunks[zgensym_9db0ba711f6a3e5a_16].Msgsize()
 		}
 	}
-	s += 15 + msgp.StringPrefixSize + len(z.Path) + 19 + msgp.Int64Size + 18 + msgp.StringPrefixSize + len(z.FileCry) + 30 + msgp.Int64Size + 30 + msgp.Int64Size
+	s += 15 + msgp.StringPrefixSize + len(z.Path) + 19 + msgp.Int64Size + 18 + msgp.StringPrefixSize + len(z.FileCry) + 30 + msgp.Int64Size + 30 + msgp.Int64Size + 29 + msgp.BoolSize
 	return
 }
 func (z *Chunks) Gstring() (r string) {
@@ -1416,6 +1451,7 @@ func (z *Chunks) Gstring() (r string) {
 	r += fmt.Sprintf("            FileCry: \"%v\",\n", z.FileCry)
 	r += fmt.Sprintf("PreAllocUnwritBytes: %v,\n", z.PreAllocUnwritBytes)
 	r += fmt.Sprintf("PreAllocLargestSpan: %v,\n", z.PreAllocLargestSpan)
+	r += fmt.Sprintf(" PreAllocBeforeLast: %v,\n", z.PreAllocBeforeLast)
 	r += "}\n"
 	return
 }

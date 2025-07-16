@@ -86,6 +86,7 @@ type Chunks struct {
 	// and lives at the end of everything else.
 	PreAllocUnwritBytes int64 `zid:"4"`
 	PreAllocLargestSpan int64 `zid:"5"`
+	PreAllocBeforeLast  bool  `zid:"6"` // may be problematic on APFS
 }
 
 func NewChunks(path string) *Chunks {
@@ -178,9 +179,10 @@ func UpdateLocalWithRemoteDiffs(
 		return fmt.Errorf("error failed to create tmp file in UpdateLocalWithRemoteDiffs: '%v'", err)
 	}
 	sparsify := false
-	minsparse := sparsified.MinSparseHoleSize(fd)
-	if chunks.PreAllocLargestSpan >= minsparse {
-		vv("try to pre-allocate UNWRIT; from [%v:%v)", chunk.Beg, chunk.Endx)
+	minsparse, err := sparsified.MinSparseHoleSize(fd)
+	panicOn(err)
+	if remote.PreAllocLargestSpan >= minsparse {
+		vv("try to pre-allocate UNWRIT; for full file from [%v:%v)", 0, remote.FileSize)
 		_, err = sparsified.Fallocate(fd, sparsified.FALLOC_FL_KEEP_SIZE, 0, remote.FileSize)
 		panicOn(err)
 	}
@@ -925,6 +927,7 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 
 	var prevcut int64
 	var hsh string
+	last := len(cuts) - 1
 	for i, cut := range cuts {
 
 		var slc []byte
@@ -944,6 +947,9 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 			chunks.PreAllocUnwritBytes += sz
 			if sz > chunks.PreAllocLargestSpan {
 				chunks.PreAllocLargestSpan = sz
+			}
+			if i != last {
+				chunks.PreAllocBeforeLast = true
 			}
 		default:
 			// this chunk in file is filepos [prev, c).

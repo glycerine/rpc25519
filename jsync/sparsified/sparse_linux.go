@@ -346,7 +346,7 @@ func createSparseFileFromSparseSpans(path string, spans *SparseSpans, rng *prng)
 // _PC_MIN_HOLE_SIZE pathconf extension that Darwin does.
 //
 // Returns 4096 on ext4 and XFS, same as APFS/darwin on my laptop.
-func MinSparseHoleSize(fd *os.File) (val int, err error) {
+func MinSparseHoleSize(fd *os.File) (val int64, err error) {
 	if fd == nil {
 		return -1_000_000_000, fmt.Errorf("nil fd passed to MinSparseHoleSize")
 	}
@@ -356,7 +356,7 @@ func MinSparseHoleSize(fd *os.File) (val int, err error) {
 		return -1_000_000_000, err
 	}
 	stat := fi.Sys().(*syscall.Stat_t)
-	return int(stat.Blksize), nil
+	return stat.Blksize, nil
 }
 
 // FieMap asks for all spans back in one go, using

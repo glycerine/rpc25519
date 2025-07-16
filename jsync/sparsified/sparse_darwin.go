@@ -27,12 +27,16 @@ import (
 // minimum hole size but still reports holes."
 //
 // (Typically returns 4096 on my APFS mac Sonoma 14.0).
-func MinSparseHoleSize(fd *os.File) (val int, err error) {
+func MinSparseHoleSize(fd *os.File) (val int64, err error) {
 	if fd == nil {
 		return -1, fmt.Errorf("nil fd passed to MinSparseHoleSize")
 	}
 	const PC_MIN_HOLE_SIZE = 27
-	return unix.Fpathconf(int(fd.Fd()), PC_MIN_HOLE_SIZE)
+	v, err := unix.Fpathconf(int(fd.Fd()), PC_MIN_HOLE_SIZE)
+	if err != nil {
+		return -1, err
+	}
+	return int64(v), nil
 }
 
 const FALLOC_FL_PUNCH_HOLE = 99 // F_PUNCHHOLE = 99 // from sys/fcntl.h:319
