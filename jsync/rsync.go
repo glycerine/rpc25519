@@ -970,7 +970,7 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 			// pre-allocated yet unwritten. logical zeros.
 			hsh = "UNWRIT;"
 			sz := cut - prevcut
-			vv("see UNWRIT; of size %v, in path '%v'", sz, path)
+			vv("see UNWRIT; of size %v, in path '%v'; stack = \n%v", sz, path, stack())
 
 			// allow determination if we need to
 			// pre-allocate this file or not (if more
@@ -1047,9 +1047,15 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 
 // String pretty prints the Chunks.
 func (d *Chunks) String() (s string) {
-	s = fmt.Sprintf("\n&Chunks{ //(set of %v)\n     Path: \"%v\",\n"+
-		" FileSize: %v,\n  FileCry: \"%v\",\n   Chunks: []*Chunk{\n",
-		len(d.Chunks), d.Path, d.FileSize, d.FileCry)
+	s = fmt.Sprintf(`
+&Chunks{ //(set of %v)
+                Path: "%v",
+            FileSize: %v,
+             FileCry: "%v",
+ PreAllocUnwritBytes: %v,
+              Chunks: []*Chunk{
+`, len(d.Chunks), d.Path, d.FileSize, d.FileCry, d.PreAllocUnwritBytes)
+
 	for i, chunk := range d.Chunks {
 		s += fmt.Sprintf("// [%03d]\n", i) + chunk.String()
 	}
@@ -1141,6 +1147,11 @@ func (cs *Chunks) DataFilter() (r []*Chunk) {
 // of the three approaches tried; on my mac. Maybe this
 // is due to better overlapping of pipe-lined
 // disk I/O with computation.
+//
+// Does no sparse hole detection (that is
+// jcdc.CutpointsAndAllZero() only at the moment),
+// but does generate RLE0; for the zero-runs
+// it sees.
 func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, err error) {
 
 	//vv("GetHashesOneByOne top")

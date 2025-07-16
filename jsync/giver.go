@@ -446,20 +446,27 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	} else {
 		// non-parallel version:
 		//vv("begin GetHashesOneByOne")
-		goalPrecis, local, err = GetHashesOneByOne(rpc.Hostname, localPath)
+		//goalPrecis, local, err = GetHashesOneByOne(rpc.Hostname, localPath)
+		goalPrecis, local, err = SummarizeFileInCDCHashes(rpc.Hostname, localPath, false)
 		// no data, just chunks. read data directly from file below.
 		//vv("end GetHashesOneByOne. elap = %v", time.Since(t1))
 	}
 	panicOn(err)
-	//vv("end ChunkFile. elap = %v", time.Since(t1))
+	vv("end ChunkFile. elap = %v; local = '%v'", time.Since(t1), local)
+	// have UNWRIT here; and PreAllocUnwritBytes
 
 	// are the whole file checksums the same? we can
 	// avoid sending back a whole lotta chunks of nothing
 	// in this case. A file touch will do this/test this.
 	//vv("remoteWantsUpdate = %p", remoteWantsUpdate) // can be nil now.
 	//vv("goalPrecis = %p", goalPrecis)
-	if remoteWantsUpdate.FileCry == goalPrecis.FileCry {
-		//vv("we can save on sending chunks! remoteWantsUpdate.FileCry == goalPrecis.FileCry = '%v'. sending back OpRsync_ToTakerMetaUpdateAtLeast", remoteWantsUpdate.FileCry)
+
+	// Avoid short circuiting if we have
+	// UNWRIT; pre-allocated spans, so we can
+	// try to re-create them on the other side.
+	if local.PreAllocUnwritBytes == 0 &&
+		remoteWantsUpdate.FileCry == goalPrecis.FileCry {
+		vv("we can save on sending chunks! remoteWantsUpdate.FileCry == goalPrecis.FileCry = '%v'. sending back OpRsync_ToTakerMetaUpdateAtLeast", remoteWantsUpdate.FileCry)
 
 		updateMeta := ckt.LpbFrom.NewFragment()
 		updateMeta.FragOp = OpRsync_ToTakerMetaUpdateAtLeast
@@ -491,9 +498,11 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	// send it over the wire. This helps keep memory footprint low.
 	placeholderPlan := bs.GetPlanToUpdateFromGoal(remoteWantsUpdate, local, dropPlanData, usePlaceHolders)
 
+	vv("placeholderPlan = '%v'", placeholderPlan)
+
 	chunksWithDataN := placeholderPlan.DataPresent()
 	_ = chunksWithDataN
-	//vv("placeholderPlan.DataPresent() = '%v'", chunksWithDataN)
+	vv("placeholderPlan.DataPresent() = '%v'", chunksWithDataN)
 
 	// can we just skip the lightPlan?
 	// Mostly! Turns out it did not need any Chunks!
@@ -742,7 +751,7 @@ func (s *SyncService) packAndSendChunksJustInTime(
 ) (err error) {
 
 	//vv("top of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; len(oneByteMarkedPlan.Chunks) = %v", oneByteMarkedPlan.DataPresent(), len(oneByteMarkedPlan.Chunks))
-	//vv("top of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; len(oneByteMarkedPlan.Chunks) = %v; oneByteMarkedPlan.Chunks = '%v'", oneByteMarkedPlan.DataPresent(), len(oneByteMarkedPlan.Chunks), oneByteMarkedPlan.String())
+	vv("top of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; len(oneByteMarkedPlan.Chunks) = %v; oneByteMarkedPlan.Chunks = '%v'", oneByteMarkedPlan.DataPresent(), len(oneByteMarkedPlan.Chunks), oneByteMarkedPlan.String())
 
 	t0 := time.Now()
 	var bytesFromDisk int64

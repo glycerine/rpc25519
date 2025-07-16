@@ -110,7 +110,7 @@ func ChunkFile2(
 		return SummarizeBytesInCDCHashes(host, path, fd, fi.ModTime(), false, statsz)
 	}
 	sz := statsz
-	//vv("file is not empty")
+	vv("file is not empty; and not sparse and not prealloc; disksz=%v; statsz=%v", disksz, statsz)
 	cdcCfg := Default_CDC_Config
 	mincut := int(cdcCfg.MinSize) // filter for this mincut on 2nd pass.
 	mincutCand := mincut
