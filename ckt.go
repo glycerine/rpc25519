@@ -49,7 +49,9 @@ type Circuit struct {
 
 	// allow user frameworks to convey
 	// info through NewCircuitCh
-	UserAny any
+	UserString string
+
+	FirstFrag *Fragment
 }
 
 func (ckt *Circuit) String() string {
@@ -65,6 +67,8 @@ func (ckt *Circuit) String() string {
 
     // LocalCircuitURL: "%v",
     // RemoteCircuitURL: "%v",
+
+    FirstFrag: %v
 }`, ckt.Name,
 		ckt.CircuitID,
 		ckt.LocalPeerID,
@@ -73,6 +77,7 @@ func (ckt *Circuit) String() string {
 		ckt.RemoteServiceName,
 		ckt.LocalCircuitURL(),
 		ckt.RemoteCircuitURL(),
+		ckt.FirstFrag,
 	)
 }
 
@@ -371,6 +376,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 		return nil, nil, fmt.Errorf("NewCircuitToPeerURL could not "+
 			"parse peerURL: '%v': '%v'", peerURL, err)
 	}
+
 	if frag == nil {
 		frag = s.NewFragment()
 	}
@@ -745,6 +751,7 @@ func (lpb *LocalPeer) newCircuit(
 		Errors:            errors,
 		Context:           ctx2,
 		Canc:              canc2,
+		FirstFrag:         firstFrag,
 	}
 	ckt.Halt = idem.NewHalterNamed(fmt.Sprintf("Circuit(%v %p)", circuitName, ckt))
 	if ckt.CircuitID == "" {
@@ -786,6 +793,15 @@ func (lpb *LocalPeer) newCircuit(
 		// map would lose that.
 		msg.HDR.Args["#fromServiceName"] = lpb.PeerServiceName
 		msg.HDR.Args["#circuitName"] = circuitName
+		if firstFrag != nil {
+			// not sure this is working right yet.
+			vv("firstFrag != nil: '%v'", firstFrag)
+			us, ok := firstFrag.GetSysArg("userString")
+			if ok {
+				msg.HDR.Args["#userString"] = us
+				vv("set #userString = '%v'", us)
+			}
+		}
 		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
 	}
 
@@ -1271,6 +1287,9 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 	if err != nil {
 		return err
 	}
+	if msg.HDR.Args != nil {
+		ckt.UserString = msg.HDR.Args["#userString"]
+	}
 
 	rpb.IncomingCkt = ckt
 
@@ -1278,6 +1297,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 	rpb.PeerURL = ckt.RemoteCircuitURL()
 
 	asFrag := ckt.ConvertMessageToFragment(msg)
+	ckt.FirstFrag = asFrag
 
 	if isUpdatedPeerID {
 		// let the remote know that the old peer disappeared
