@@ -795,11 +795,11 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args["#circuitName"] = circuitName
 		if firstFrag != nil {
 			// not sure this is working right yet.
-			vv("firstFrag != nil: '%v'", firstFrag)
+			//vv("firstFrag != nil: '%v'", firstFrag)
 			us, ok := firstFrag.GetSysArg("UserString")
 			if ok {
 				msg.HDR.Args["#UserString"] = us
-				vv("set #UserString = '%v'", us)
+				//vv("set #UserString = '%v'", us)
 			}
 		}
 		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
