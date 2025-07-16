@@ -620,7 +620,10 @@ func showEachSegment(i int, cs []*Chunk) {
 	fmt.Printf("job/segment i = %v\n", i)
 	for j, c := range cs {
 		cry := c.Cry
-		if cry != "RLE0;" {
+		switch cry {
+		case "RLE0;":
+		case "UNWRIT;":
+		default:
 			cry = c.Cry[11:20]
 		}
 		fmt.Printf("  %03d  Chunk:[Beg:%6d : Endx:%6d ) (len %6d) %v\n",

@@ -196,7 +196,7 @@ func Test710_client_gets_new_file_over_rsync_twice(t *testing.T) {
 			// We had to read it in, so might as well keep it until we
 			// know we want to discard it, which the GetPlan() below will do
 			// if we tell it too.
-			localPrecis2, local2, err := SummarizeFileInCDCHashes(host, pre2path, true, true)
+			localPrecis2, local2, err := SummarizeFileInCDCHashes(host, pre2path, true)
 			panicOn(err)
 
 			// generate a plan to update the remote server, based on

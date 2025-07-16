@@ -234,7 +234,7 @@ func UpdateLocalWithRemoteDiffs(
 				alwaysPrintf("WARNING: UNWRIT at i = %v was not last=%v", i, last)
 				panic(fmt.Sprintf("UNWRIT at i = %v was not last=%v", i, last))
 			}
-			vv("have last UNWRIT chunk for path '%v'", path)
+			vv("have last UNWRIT chunk for tmp path '%v'", tmp)
 
 			minsparse, err := sparsified.MinSparseHoleSize(fd)
 			panicOn(err)
@@ -658,7 +658,7 @@ func (s *RsyncNode) RequestLatest(
 	// they need file (parts at least).
 	remote := req.ReaderChunks
 
-	localPrecis, local, err := SummarizeFileInCDCHashes(s.Host, req.SenderPath, true, true)
+	localPrecis, local, err := SummarizeFileInCDCHashes(s.Host, req.SenderPath, true)
 
 	//if err != nil {
 	//vv("mid RequestLatest(); err = '%v'", err)
@@ -712,7 +712,7 @@ func (s *RsyncNode) AcceptHeavy(
 	plan := req.SenderPlan
 	senderPrecis := req.SenderPrecis
 
-	localPrecis, local, err := SummarizeFileInCDCHashes(s.Host, req.SenderPath, true, true)
+	localPrecis, local, err := SummarizeFileInCDCHashes(s.Host, req.SenderPath, true)
 	_ = localPrecis
 
 	localMap := getCryMap(local) // pre-index them for the update.
@@ -743,15 +743,13 @@ func (h *FilePrecis) String() string {
 // SummarizeFileInCDCHashes summarizes path in the
 // returned precis. The host should be the local
 // host identifier, such as rpc25519.Hostname.
-// If wantChunks is false, the returned chunks will be nil,
-// and we will not bother to scan path; just return
-// the precis. If keepData is false and wantChunks is
-// true, the file will be scanned but the actual
-// Data field in the chunks will be nil and not returned.
+// If keepData is false, the file will be
+// scanned but the actual Data fields in the
+// chunks will be nil.
 //
 // For files under 1GB, LightlySummarize will call us.
 // So do not recurse into LightlySummarize in here.
-func SummarizeFileInCDCHashes(host, path string, wantChunks, keepData bool) (precis *FilePrecis, chunks *Chunks, err error) {
+func SummarizeFileInCDCHashes(host, path string, keepData bool) (precis *FilePrecis, chunks *Chunks, err error) {
 
 	if !fileExists(path) {
 		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, keepData, 0)
@@ -775,9 +773,17 @@ func SummarizeFileInCDCHashes(host, path string, wantChunks, keepData bool) (pre
 	}
 
 	modTime := fi.ModTime()
-	if wantChunks {
-		//precis, chunks, err = SummarizeBytesInCDCHashes(host, path, data, modTime, keepData, false)
-		precis, chunks, err = SummarizeBytesInCDCHashes(host, path, fd, modTime, keepData, fi.Size())
+	//if wantChunks {
+	//precis, chunks, err = SummarizeBytesInCDCHashes(host, path, data, modTime, keepData, false)
+	precis, chunks, err = SummarizeBytesInCDCHashes(host, path, fd, modTime, keepData, fi.Size())
+	if err != nil {
+		return nil, nil, fmt.Errorf("rsync.go error from SummarizeBytesInCDCHashes() on  path '%v': '%v'", path, err)
+	}
+	//}
+	//vv("wantChunks=%v; path = '%v'; fi = '%#v'; precis = '%#v'", wantChunks, path, fi, precis)
+	// precis can be nil here when !wantChunks
+	if precis == nil {
+		return
 	}
 	precis.FileMode = uint32(fi.Mode())
 	precis.ModTime = modTime

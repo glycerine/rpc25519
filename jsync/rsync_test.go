@@ -30,7 +30,7 @@ func Test201_rsync_style_chunking_and_hash_generation(t *testing.T) {
 
 		// SummarizeFile... rather than SummarizeBytes...
 		// so we can manually confirm owner name is present. Yes.
-		a, achunks, err := SummarizeFileInCDCHashes(host, path, true, true)
+		a, achunks, err := SummarizeFileInCDCHashes(host, path, true)
 
 		cv.So(a.FileOwner != "", cv.ShouldBeTrue)
 
@@ -288,7 +288,7 @@ func Test210_client_gets_new_file_over_rsync_twice(t *testing.T) {
 			// We had to read it in, so might as well keep it until we
 			// know we want to discard it, which the GetPlan() below will do
 			// if we tell it too.
-			localPrecis2, local2, err := SummarizeFileInCDCHashes(host, pre2path, true, true)
+			localPrecis2, local2, err := SummarizeFileInCDCHashes(host, pre2path, true)
 			panicOn(err)
 
 			// generate a plan to update the remote server, based on
@@ -439,7 +439,7 @@ func Test300_incremental_chunker_matches_batch(t *testing.T) {
 		}
 
 		t0 := time.Now()
-		precis0, chunks0, err := SummarizeFileInCDCHashes(host, path, true, false)
+		precis0, chunks0, err := SummarizeFileInCDCHashes(host, path, false)
 		panicOn(err)
 		n0 := len(chunks0.Chunks)
 		vv("full-file at once n0 = %v; took %v", n0, time.Since(t0))
@@ -516,7 +516,7 @@ func Test302_incremental_chunker_matches_batch_bigger(t *testing.T) {
 	vv("one-at-a-time n2 = %v; took %v", n1, time.Since(t1))
 
 	t0 := time.Now()
-	precis0, chunks0, err := SummarizeFileInCDCHashes(host, path, true, false)
+	precis0, chunks0, err := SummarizeFileInCDCHashes(host, path, false)
 	panicOn(err)
 	n0 := len(chunks0.Chunks)
 	vv("full-file at once n0 = %v; took %v", n0, time.Since(t0))
@@ -823,205 +823,208 @@ func Test377_big_files_with_small_changes(t *testing.T) {
 
 func Test888_rle_zeros_encoded(t *testing.T) {
 
-	cv.Convey("using our rsync-like-protocol, all zero files should be efficiently run-length-encoded. Can we get an all zero 10MB file down to one chunk?", t, func() {
+	//cv.Convey("using our rsync-like-protocol, all zero files should be efficiently run-length-encoded. Can we get an all zero 10MB file down to one chunk?", t, func() {
 
-		remotePath := "10mb.zeros"
-		vv("template (goal) remotePath='%v'", remotePath)
+	remotePath := "10mb.zeros"
+	vv("template (goal) remotePath='%v'", remotePath)
 
-		testfd, err := os.Create(remotePath)
+	testfd, err := os.Create(remotePath)
+	panicOn(err)
+	slc := make([]byte, 1<<20) // 1 MB slice
+	N := 10
+	for range N {
+		_, err = testfd.Write(slc)
 		panicOn(err)
-		slc := make([]byte, 1<<20) // 1 MB slice
-		N := 10
-		for range N {
-			_, err = testfd.Write(slc)
-			panicOn(err)
-		}
-		testfd.Close()
+	}
+	testfd.Close()
 
-		localPath := remotePath + ".local"
-		vv("adjust local to be like remote: localPath = '%v'", localPath)
+	localPath := remotePath + ".local"
+	vv("adjust local to be like remote: localPath = '%v'", localPath)
 
-		// after update, leave final local in:
-		localPathFinal := remotePath + ".final"
+	// after update, leave final local in:
+	localPathFinal := remotePath + ".final"
 
-		// delete any old leftover test file from before.
-		os.Remove(localPath)
-		os.Remove(localPathFinal)
+	// delete any old leftover test file from before.
+	os.Remove(localPath)
+	os.Remove(localPathFinal)
 
-		in, err := os.Open(remotePath)
+	in, err := os.Open(remotePath)
+	panicOn(err)
+
+	out, err := os.Create(localPath)
+	panicOn(err)
+	fmt.Fprintf(out, "hello world!")
+	_, err = io.Copy(out, in)
+	panicOn(err)
+	out.Close()
+	in.Close()
+
+	// set up a server and a client.
+
+	cfg := rpc.NewConfig()
+	cfg.TCPonly_no_TLS = true
+	cfg.CompressionOff = true
+
+	cfg.ServerAddr = "127.0.0.1:0"
+	srv := rpc.NewServer("srv_rsync_test888", cfg)
+
+	serverAddr, err := srv.Start()
+	panicOn(err)
+	defer srv.Close()
+
+	// about 4 seconds to copy.
+	vv("copy done. server Start() returned serverAddr = '%v'", serverAddr)
+
+	srvRsyncNode := &RsyncNode{}
+	panicOn(srv.Register(srvRsyncNode))
+
+	cfg.ClientDialToHostPort = serverAddr.String()
+	cli, err := rpc.NewClient("cli_rsync_test888", cfg)
+	panicOn(err)
+	err = cli.Start()
+	panicOn(err)
+
+	defer cli.Close()
+
+	// summarize our local file contents (empty here, but in general).
+	host := "localhost"
+	_ = host
+
+	t0 := time.Now()
+
+	//wantsChunks := true
+	//keepData := false
+
+	parallel := false
+
+	var localPrecis *FilePrecis
+	var wantsUpdate *Chunks
+
+	// only parallel has the RLE0; impl to start.
+	if parallel {
+		fmt.Printf("first ChunkFile: \n")
+		localPrecis, wantsUpdate, err = ChunkFile(localPath)
 		panicOn(err)
-
-		out, err := os.Create(localPath)
+		// 2.5 sec.
+	} else {
+		//localPrecis, wantsUpdate, err = GetHashesOneByOne(host, localPath)
+		const keepData = false
+		localPrecis, wantsUpdate, err = SummarizeFileInCDCHashes(host, localPath, keepData)
 		panicOn(err)
-		fmt.Fprintf(out, "hello world!")
-		_, err = io.Copy(out, in)
-		panicOn(err)
-		out.Close()
-		in.Close()
+		// 14.335789s
+	}
+	//if false {
+	//	// debug
+	//	_, debugser, _ := GetHashesOneByOne(host, localPath) // debug todo remove
+	//	vv("for reference, here are the serial cuts: ")
+	//	showEachSegment(0, debugser.Chunks)
 
-		// set up a server and a client.
+	vv("parallel chunks: ")
+	showEachSegment(0, wantsUpdate.Chunks)
 
-		cfg := rpc.NewConfig()
-		cfg.TCPonly_no_TLS = true
-		cfg.CompressionOff = true
+	nchunk := len(wantsUpdate.Chunks)
+	if nchunk != 2 {
+		t.Fatalf("ideally we can compress all 10MB of zeros to 2 chunks... with coalescing; not %v", nchunk) // not 73
+	}
 
-		cfg.ServerAddr = "127.0.0.1:0"
-		srv := rpc.NewServer("srv_rsync_test888", cfg)
+	//}
+	vv("elap first SummarizeFileInCDCHashes = '%v'", time.Since(t0))
+	_ = localPrecis
 
-		serverAddr, err := srv.Start()
-		panicOn(err)
-		defer srv.Close()
+	localMap := getCryMap(wantsUpdate) // pre-index them for the update.
 
-		// about 4 seconds to copy.
-		vv("copy done. server Start() returned serverAddr = '%v'", serverAddr)
+	t2 := time.Now()
 
-		srvRsyncNode := &RsyncNode{}
-		panicOn(srv.Register(srvRsyncNode))
+	//goalPrecis, templateChunks, err := GetHashesOneByOne(rpc.Hostname, remotePath) // no data, just chunks. read data directly from file below.
 
-		cfg.ClientDialToHostPort = serverAddr.String()
-		cli, err := rpc.NewClient("cli_rsync_test888", cfg)
-		panicOn(err)
-		err = cli.Start()
-		panicOn(err)
+	var goalPrecis *FilePrecis
+	var templateChunks *Chunks
 
-		defer cli.Close()
+	if parallel {
+		fmt.Printf("second ChunkFile: \n")
+		goalPrecis, templateChunks, err = ChunkFile(remotePath)
+		// 2.4 sec.
+	} else {
+		goalPrecis, templateChunks, err = GetHashesOneByOne(host, remotePath)
+		//goalPrecis, templateChunks, err = SummarizeFileInCDCHashes(host, remotePath, wantsChunks, keepData)
+		// 11.1s, or 13.34s, so long!
+	}
 
-		// summarize our local file contents (empty here, but in general).
-		host := "localhost"
-		_ = host
+	vv("templateChunks done after %v", time.Since(t2))
 
-		t0 := time.Now()
+	_ = goalPrecis
 
-		//wantsChunks := true
-		//keepData := false
+	const dropPlanData = true // ignored when usePlaceHolders is true.
+	const usePlaceHolders = true
 
-		parallel := true
+	// new: placeholderPlan has a single data byte in Chunk.Data
+	// to flag us to read the actual data from disk and then
+	// send it over the wire. This helps keep memory footprint low.
 
-		var localPrecis *FilePrecis
-		var wantsUpdate *Chunks
+	t3 := time.Now()
+	bs := NewBlobStore() // make persistent state, at some point.
+	oneByteMarkedPlan := bs.GetPlanToUpdateFromGoal(wantsUpdate, templateChunks, dropPlanData, usePlaceHolders)
 
-		// only parallel has the RLE0; impl to start.
-		if parallel {
-			fmt.Printf("first ChunkFile: \n")
-			localPrecis, wantsUpdate, err = ChunkFile(localPath)
-			panicOn(err)
-			// 2.5 sec.
-		} else {
-			localPrecis, wantsUpdate, err = GetHashesOneByOne(host, localPath)
-			//localPrecis, wantsUpdate, err = SummarizeFileInCDCHashes(host, localPath, wantsChunks, keepData)
-			panicOn(err)
-			// 14.335789s
-		}
-		//if false {
-		//	// debug
-		//	_, debugser, _ := GetHashesOneByOne(host, localPath) // debug todo remove
-		//	vv("for reference, here are the serial cuts: ")
-		//	showEachSegment(0, debugser.Chunks)
+	//if oneByteMarkedPlan.DataChunkCount() != 2 {
+	//	t.Fatalf("oneByteMarkedPlan.DataChunkCount() = %v, why not 2 ??", oneByteMarkedPlan.DataChunkCount())
+	//}
 
-		vv("parallel chunks: ")
-		showEachSegment(0, wantsUpdate.Chunks)
+	// 360ms. plan.DataChunkCount 2 out of 664047; DataPresent() = 75_740 bytes
+	// parallel: 27486 count, arg.
+	vv("elap to GetPlanToUpdateFromGoal = '%v'; plan.DataChunkCount()= %v out of %v;  oneByteMarkedPlan.DataPresent() = %v bytes", time.Since(t3), oneByteMarkedPlan.DataChunkCount(), len(oneByteMarkedPlan.Chunks), oneByteMarkedPlan.DataPresent())
 
-		nchunk := len(wantsUpdate.Chunks)
-		if nchunk != 2 {
-			t.Fatalf("ideally we can compress all 10MB of zeros to 2 chunks... with coalescing; not %v", nchunk) // not 73
-		}
+	// get rid of the 1 byte place holders; fill in
+	// with live data
 
+	// from giver.go:801
+
+	var bytesFromDisk int64
+	t4 := time.Now()
+	fd, err := os.Open(remotePath)
+	panicOn(err)
+	n := len(oneByteMarkedPlan.Chunks)
+	for i := 0; i < n; i++ {
+		//if i%10000 == 0 {
+		//vv("on chunk %v of of %v", i, n)
 		//}
-		vv("elap first SummarizeFileInCDCHashes = '%v'", time.Since(t0))
-		_ = localPrecis
+		next := oneByteMarkedPlan.Chunks[i]
+		if len(next.Data) > 0 {
+			// we have our 1 byte flag.
+			// need to read it from file
+			_, err := fd.Seek(int64(next.Beg), 0)
+			panicOn(err)
 
-		localMap := getCryMap(wantsUpdate) // pre-index them for the update.
-
-		t2 := time.Now()
-
-		//goalPrecis, templateChunks, err := GetHashesOneByOne(rpc.Hostname, remotePath) // no data, just chunks. read data directly from file below.
-
-		var goalPrecis *FilePrecis
-		var templateChunks *Chunks
-
-		if parallel {
-			fmt.Printf("second ChunkFile: \n")
-			goalPrecis, templateChunks, err = ChunkFile(remotePath)
-			// 2.4 sec.
-		} else {
-			goalPrecis, templateChunks, err = GetHashesOneByOne(host, remotePath)
-			//goalPrecis, templateChunks, err = SummarizeFileInCDCHashes(host, remotePath, wantsChunks, keepData)
-			// 11.1s, or 13.34s, so long!
+			amt := next.Endx - next.Beg
+			next.Data = make([]byte, amt)
+			_, err = io.ReadFull(fd, next.Data)
+			panicOn(err)
+			bytesFromDisk += amt
 		}
+	}
+	vv("bytesFromDisk = %v bytes, deltas from remote template file (want this to be as small as possible). elap = %v", bytesFromDisk, time.Since(t4))
 
-		vv("templateChunks done after %v", time.Since(t2))
+	plan := oneByteMarkedPlan
+	// see the
+	// case OpRsync_HeavyDiffChunksEnclosed
+	// handling in taker.go
 
-		_ = goalPrecis
+	t5 := time.Now()
+	//err = UpdateLocalWithRemoteDiffs(localPath, localMap, plan, goalPrecis)
 
-		const dropPlanData = true // ignored when usePlaceHolders is true.
-		const usePlaceHolders = true
+	err = UpdateLocalFileWithRemoteDiffs_TestHelper(localPathFinal, localPath, localMap, plan, goalPrecis)
+	panicOn(err)
 
-		// new: placeholderPlan has a single data byte in Chunk.Data
-		// to flag us to read the actual data from disk and then
-		// send it over the wire. This helps keep memory footprint low.
+	// localPathFinal has the file made to match remotePath.
+	// normally we would now rename localPathFinal onto localPath,
+	// and be done.
 
-		t3 := time.Now()
-		bs := NewBlobStore() // make persistent state, at some point.
-		oneByteMarkedPlan := bs.GetPlanToUpdateFromGoal(wantsUpdate, templateChunks, dropPlanData, usePlaceHolders)
+	vv("elap to UpdateLocalWithRemoteDiffs = '%v'", time.Since(t5))
 
-		//if oneByteMarkedPlan.DataChunkCount() != 2 {
-		//	t.Fatalf("oneByteMarkedPlan.DataChunkCount() = %v, why not 2 ??", oneByteMarkedPlan.DataChunkCount())
-		//}
-
-		// 360ms. plan.DataChunkCount 2 out of 664047; DataPresent() = 75_740 bytes
-		// parallel: 27486 count, arg.
-		vv("elap to GetPlanToUpdateFromGoal = '%v'; plan.DataChunkCount()= %v out of %v;  oneByteMarkedPlan.DataPresent() = %v bytes", time.Since(t3), oneByteMarkedPlan.DataChunkCount(), len(oneByteMarkedPlan.Chunks), oneByteMarkedPlan.DataPresent())
-
-		// get rid of the 1 byte place holders; fill in
-		// with live data
-
-		// from giver.go:801
-
-		var bytesFromDisk int64
-		t4 := time.Now()
-		fd, err := os.Open(remotePath)
-		panicOn(err)
-		n := len(oneByteMarkedPlan.Chunks)
-		for i := 0; i < n; i++ {
-			//if i%10000 == 0 {
-			//vv("on chunk %v of of %v", i, n)
-			//}
-			next := oneByteMarkedPlan.Chunks[i]
-			if len(next.Data) > 0 {
-				// we have our 1 byte flag.
-				// need to read it from file
-				_, err := fd.Seek(int64(next.Beg), 0)
-				panicOn(err)
-
-				amt := next.Endx - next.Beg
-				next.Data = make([]byte, amt)
-				_, err = io.ReadFull(fd, next.Data)
-				panicOn(err)
-				bytesFromDisk += amt
-			}
-		}
-		vv("bytesFromDisk = %v bytes, deltas from remote template file (want this to be as small as possible). elap = %v", bytesFromDisk, time.Since(t4))
-
-		plan := oneByteMarkedPlan
-		// see the
-		// case OpRsync_HeavyDiffChunksEnclosed
-		// handling in taker.go
-
-		t5 := time.Now()
-		//err = UpdateLocalWithRemoteDiffs(localPath, localMap, plan, goalPrecis)
-
-		err = UpdateLocalFileWithRemoteDiffs_TestHelper(localPathFinal, localPath, localMap, plan, goalPrecis)
-		panicOn(err)
-
-		// localPathFinal has the file made to match remotePath.
-		// normally we would now rename localPathFinal onto localPath,
-		// and be done.
-
-		vv("elap to UpdateLocalWithRemoteDiffs = '%v'", time.Since(t5))
-
-		difflen := compareFilesDiffLen(localPathFinal, remotePath)
-		cv.So(difflen, cv.ShouldEqual, 0)
-	})
+	difflen := compareFilesDiffLen(localPathFinal, remotePath)
+	if difflen != 0 {
+		panic(fmt.Sprintf("expected difflen(%v) to be 0.", difflen))
+	}
+	// })
 }
 
 // debug/test print helper
