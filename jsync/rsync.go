@@ -182,7 +182,7 @@ func UpdateLocalWithRemoteDiffs(
 	minsparse, err := sparsified.MinSparseHoleSize(fd)
 	panicOn(err)
 	if remote.PreAllocLargestSpan >= minsparse {
-		vv("try to pre-allocate UNWRIT; for full file from [%v:%v)", 0, remote.FileSize)
+		vv("try to pre-allocate UNWRIT; for full file from [%v:%v)", 0, remote.FileSize) // not seen.
 		_, err = sparsified.Fallocate(fd, sparsified.FALLOC_FL_KEEP_SIZE, 0, remote.FileSize)
 		panicOn(err)
 	}
@@ -519,9 +519,12 @@ func (s *BlobStore) GetPlanToUpdateFromGoal(updateme, goal *Chunks, dropGoalData
 	for i, c := range updateme.Chunks {
 		_ = i
 		//vv("i=%v, adding to updateme_map: '%v'", i, c)
-		if c.Cry == "RLE0;" || c.Cry == "UNWRIT;" {
+		switch {
+		case c.Cry == "RLE0;":
 			// omit -- update: ?? do we need to transmit for sparseness TODO?
-		} else {
+		case c.Cry == "UNWRIT;":
+			updatememap[c.Cry] = c
+		default:
 			updatememap[c.Cry] = c
 		}
 	}
@@ -534,9 +537,12 @@ func (s *BlobStore) GetPlanToUpdateFromGoal(updateme, goal *Chunks, dropGoalData
 				panic("the goal passed to usePlaceHolders should have no .Data on it!")
 			}
 			//vv("checking for goal.Chunk c = '%v'", c)
-			if c.Cry == "RLE0;" || c.Cry == "UNWRIT;" {
+			switch {
+			case c.Cry == "RLE0;":
+			case c.Cry == "UNWRIT;":
+			default:
 				// other side never needs RLE0; its just all 0. // update TODO RLE0->sparse might need to transmit?
-			} else {
+
 				_, ok := updatememap[c.Cry]
 				if !ok {
 					// other side needs this.
@@ -559,9 +565,12 @@ func (s *BlobStore) GetPlanToUpdateFromGoal(updateme, goal *Chunks, dropGoalData
 	// the goal file layout is the template for the plan
 	for _, c := range goal.Chunks {
 		var ok bool
-		if c.Cry == "RLE0;" || c.Cry == "UNWRIT;" {
+		switch {
+		case c.Cry == "RLE0;":
 			ok = true
-		} else {
+		case c.Cry == "UNWRIT;":
+			ok = true
+		default:
 			_, ok = updatememap[c.Cry]
 		}
 
