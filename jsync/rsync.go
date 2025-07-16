@@ -971,10 +971,19 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 			hsh = "UNWRIT;"
 			sz := cut - prevcut
 			vv("see UNWRIT; of size %v, in path '%v'", sz, path)
+
 			// allow determination if we need to
 			// pre-allocate this file or not (if more
 			// than min sparse block size). Raft logs, WALs and
 			// Seaweedfs blocks may commonly be pre-allocated.
+
+			// Skip typical APFS trailing less than
+			// a page though.
+			if sz < 4096 && i == last {
+				// don't bother with these APFS trailing
+				// partial blocks.
+				continue
+			}
 			chunks.PreAllocUnwritBytes += sz
 			if sz > chunks.PreAllocLargestSpan {
 				chunks.PreAllocLargestSpan = sz

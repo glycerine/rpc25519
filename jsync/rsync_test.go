@@ -895,7 +895,8 @@ func Test888_rle_zeros_encoded(t *testing.T) {
 	//wantsChunks := true
 	//keepData := false
 
-	parallel := false
+	//parallel := true // green, was using
+	parallel := false // red, hmm.
 
 	var localPrecis *FilePrecis
 	var wantsUpdate *Chunks
@@ -908,12 +909,10 @@ func Test888_rle_zeros_encoded(t *testing.T) {
 		// 2.5 sec.
 	} else {
 		//localPrecis, wantsUpdate, err = GetHashesOneByOne(host, localPath)
-		const keepData = false
-		localPrecis, wantsUpdate, err = SummarizeFileInCDCHashes(host, localPath, keepData)
+		localPrecis, wantsUpdate, err = SummarizeFileInCDCHashes(host, localPath, false)
 		panicOn(err)
 		// 14.335789s
 	}
-	//if false {
 	//	// debug
 	//	_, debugser, _ := GetHashesOneByOne(host, localPath) // debug todo remove
 	//	vv("for reference, here are the serial cuts: ")
