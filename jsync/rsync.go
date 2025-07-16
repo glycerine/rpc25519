@@ -224,6 +224,7 @@ func UpdateLocalWithRemoteDiffs(
 			}
 			continue
 		} else if chunk.Cry == "UNWRIT;" {
+
 			// new strategy not here: if we have
 			// any pre-allocated unwritten, allocate
 			// the full file, fully, once up front,
@@ -233,7 +234,16 @@ func UpdateLocalWithRemoteDiffs(
 				alwaysPrintf("WARNING: UNWRIT at i = %v was not last=%v", i, last)
 				panic(fmt.Sprintf("UNWRIT at i = %v was not last=%v", i, last))
 			}
-			continue
+			vv("have last UNWRIT chunk")
+
+			minsparse, err := sparsified.MinSparseHoleSize(fd)
+			panicOn(err)
+			if remote.PreAllocLargestSpan >= minsparse {
+				vv("try to pre-allocate UNWRIT; for full file from [%v:%v)", 0, remote.FileSize) // not seen.
+				_, err = sparsified.Fallocate(fd, sparsified.FALLOC_FL_KEEP_SIZE, 0, remote.FileSize)
+				panicOn(err)
+			}
+			continue // no hashing needed for unwritten prealloc.
 		}
 
 		if len(chunk.Data) == 0 {
@@ -954,16 +964,18 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 			// pre-allocated yet unwritten. logical zeros.
 			hsh = "UNWRIT;"
 			sz := cut - prevcut
-			vv("see UNWRIT; of size %v", sz)
+			vv("see UNWRIT; of size %v, in path '%v'", sz, path)
 			// allow determination if we need to
 			// pre-allocate this file or not (if more
-			// than min sparse block size). WALs and
+			// than min sparse block size). Raft logs, WALs and
 			// Seaweedfs blocks may commonly be pre-allocated.
 			chunks.PreAllocUnwritBytes += sz
 			if sz > chunks.PreAllocLargestSpan {
 				chunks.PreAllocLargestSpan = sz
+				vv("setting chunks.PreAllocLargestSpan='%v' in path '%v'", sz, path)
 			}
 			if i != last {
+				vv("setting chunks.PreAllocBeforeLast = true for path '%v'", path)
 				chunks.PreAllocBeforeLast = true
 			}
 		default:
