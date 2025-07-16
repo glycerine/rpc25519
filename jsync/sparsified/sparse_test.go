@@ -375,7 +375,7 @@ func Test008_pre_allocated_file(t *testing.T) {
 	//vv("done with createSparseFileFromSparseSpans()")
 	defer fd.Close()
 
-	isSparse, disksz, statsz, err := SparseFileSize(fd)
+	isSparse, disksz, statsz, _, err := SparseFileSize(fd)
 	panicOn(err) // no such device or address [recovered, repanicked]
 	_, _, _ = isSparse, disksz, statsz
 	//vv("SparseFileSize returned: isSparse=%v; disksz=%v; statsz=%v; err=%v", isSparse, disksz, statsz, err)
@@ -464,7 +464,7 @@ func Test010_pre_allocated_file_some_data(t *testing.T) {
 	//vv("done with createSparseFileFromSparseSpans()")
 	defer fd.Close()
 
-	isSparse, disksz, statsz, err := SparseFileSize(fd)
+	isSparse, disksz, statsz, _, err := SparseFileSize(fd)
 	panicOn(err) // no such device or address [recovered, repanicked]
 	_, _, _ = isSparse, disksz, statsz
 

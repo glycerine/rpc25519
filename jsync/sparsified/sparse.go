@@ -251,9 +251,8 @@ func IsSparseFile(fd *os.File) (isSparse bool, err error) {
 // When copying a file that has pre-allocation, client code
 // should decide if it wants to replicate the pre-allocation
 // or not; we do nothing here about it.
-func SparseFileSize(fd *os.File) (isSparse bool, diskBytesInUse, statSize int64, err error) {
+func SparseFileSize(fd *os.File) (isSparse bool, diskBytesInUse, statSize int64, fi os.FileInfo, err error) {
 
-	var fi os.FileInfo
 	fi, err = fd.Stat()
 	if err != nil {
 		//vv("fd.Stat err = '%v'", err)
@@ -343,8 +342,9 @@ func SparseFileSize(fd *os.File) (isSparse bool, diskBytesInUse, statSize int64,
 func FindSparseRegions(f *os.File) (spans *SparseSpans, err error) {
 	spans = &SparseSpans{}
 
-	isSparse, disksz, statsz, err := SparseFileSize(f)
+	isSparse, disksz, statsz, fi, err := SparseFileSize(f)
 	panicOn(err)
+	_ = fi
 	fileSize := statsz
 	_ = disksz
 	//vv("isSparse = %v; statsz = %v; disksz = %v", isSparse, statsz, disksz)
@@ -569,13 +569,13 @@ func SparseDiff(srcpath, destpath string) (err error) {
 		return fmt.Errorf("SparseDiff error: could not open destpath '%v': '%v'", destpath, err)
 	}
 
-	isSparse0, disksz0, statsz0, err0 := SparseFileSize(src)
+	isSparse0, disksz0, statsz0, _, err0 := SparseFileSize(src)
 	panicOn(err0)
 	if err0 != nil {
 		return fmt.Errorf("SparseDiff error from SparseFileSize(srcpath='%v'): '%v'", srcpath, err0)
 	}
 
-	isSparse1, disksz1, statsz1, err1 := SparseFileSize(dest)
+	isSparse1, disksz1, statsz1, _, err1 := SparseFileSize(dest)
 	panicOn(err1)
 	if err1 != nil {
 		return fmt.Errorf("SparseDiff error from SparseFileSize(destpath='%v'): '%v'", destpath, err1)
@@ -721,7 +721,7 @@ func CopySparseFile(srcpath, destpath string) (err error) {
 	}
 	defer dest.Close()
 
-	isSparse0, disksz0, statsz0, err0 := SparseFileSize(src)
+	isSparse0, disksz0, statsz0, _, err0 := SparseFileSize(src)
 	panicOn(err0)
 	//vv("isSparse0 = %v; statsz0 = %v; disksz0 = %v; srcpath='%v'", isSparse0, statsz0, disksz0, srcpath)
 

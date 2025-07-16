@@ -14,6 +14,7 @@ import (
 	bytes0 "github.com/glycerine/rpc25519/bytes"
 	"github.com/glycerine/rpc25519/hash"
 	"github.com/glycerine/rpc25519/jcdc"
+	"github.com/glycerine/rpc25519/jsync/sparsified"
 )
 
 // job delegates file chunkinging duties
@@ -87,17 +88,28 @@ func ChunkFile2(
 	}
 	defer fd.Close()
 
-	fi, err := fd.Stat()
+	isSparse, disksz, statsz, fi, err := sparsified.SparseFileSize(fd)
 	if err != nil {
 		//vv("path did not stat: '%v': '%v'", path, err)
 		err0 = err
 		return
 	}
-	sz := fi.Size()
-	if sz == 0 {
+	if statsz == 0 && disksz == 0 {
 		//vv("path is empty! '%v'", path)
 		return SummarizeBytesInCDCHashes(host, path, nil, fi.ModTime(), false, 0)
 	}
+	diff := disksz - statsz
+	if diff < 0 {
+		diff = -diff
+	}
+	if isSparse || diff >= 4096 {
+		// we have either sparse holes or preallocated space.
+		// (disksz > statsz by more than a page => pre-allocated).
+		// (disksz < statsz by more than a page => sparse holes).
+		// Do a full serial scan and sparse analysis.
+		return SummarizeBytesInCDCHashes(host, path, fd, fi.ModTime(), false, statsz)
+	}
+	sz := statsz
 	//vv("file is not empty")
 	cdcCfg := Default_CDC_Config
 	mincut := int(cdcCfg.MinSize) // filter for this mincut on 2nd pass.

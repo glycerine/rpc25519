@@ -782,6 +782,8 @@ func SummarizeFileInCDCHashes(host, path string, wantChunks, keepData bool) (pre
 func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time, keepData bool, fileStatSz int64) (
 	precis *FilePrecis, chunks *Chunks, err error) {
 
+	vv("top SummarizeBytesInCDCHashes for path = '%v'", path)
+
 	// These two different chunking approaches,
 	// Jcdc and FastCDC, need very different
 	// parameter min/max/target settings in
@@ -813,6 +815,10 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 	chunks.FileCry = precis.FileCry
 
 	if fd == nil {
+		vv("fd == nil, return early for path = '%v'", path)
+		if path == "g" {
+			panic("where g?")
+		}
 		return
 	}
 
@@ -822,10 +828,10 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 
 	if len(cuts) == 0 {
 		// okay, is truly an empty file
-		//vv("empty file, return early after CutpointsAndAllZero")
+		vv("empty file, return early after CutpointsAndAllZero")
 		return
 	}
-	//vv("cuts = '%#v'", cuts)
+	vv("cuts = '%#v'; preun = '%#v'", cuts, preun)
 
 	dataMaxSz := int64(1 << 20) // 1 MB
 	cfgmax := int64(cfg.MaxSize)
@@ -938,12 +944,12 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 		case preun[i]:
 			// pre-allocated yet unwritten. logical zeros.
 			hsh = "UNWRIT;"
-			//vv("saw UNWRIT;") // not seen 710 test. seen in 210.
+			sz := cut - prevcut
+			vv("see UNWRIT; of size %v", sz)
 			// allow determination if we need to
 			// pre-allocate this file or not (if more
 			// than min sparse block size). WALs and
 			// Seaweedfs blocks may commonly be pre-allocated.
-			sz := cut - prevcut
 			chunks.PreAllocUnwritBytes += sz
 			if sz > chunks.PreAllocLargestSpan {
 				chunks.PreAllocLargestSpan = sz

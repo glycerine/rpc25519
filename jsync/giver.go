@@ -69,7 +69,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 			}
 			if r != rpc.ErrContextCancelled && r != rpc.ErrHaltRequested {
 				alwaysPrintf("giver sees abnormal shutdown panic: '%v'", r)
-				//panic(r)
+				panic(r)
 			} else {
 				//vv("Giver suppressing ErrContextCancelled or ErrHaltRequested, this is normal shutdown.")
 			}
