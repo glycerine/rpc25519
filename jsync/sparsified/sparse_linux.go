@@ -558,3 +558,12 @@ func FieMap(fd *os.File) (spans *SparseSpans, err error) {
 
 	return
 }
+
+// copy from darwin. does it work on linux?
+func MinSparseHoleSize(fd *os.File) (val int, err error) {
+	if fd == nil {
+		return -1, fmt.Errorf("nil fd passed to MinSparseHoleSize")
+	}
+	const PC_MIN_HOLE_SIZE = 27
+	return unix.Fpathconf(int(fd.Fd()), PC_MIN_HOLE_SIZE)
+}

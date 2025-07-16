@@ -78,6 +78,14 @@ type Chunks struct {
 	// Path's data chunks (e.g. the updated ones).
 	FileSize int64  `zid:"2"`
 	FileCry  string `zid:"3"` // the cryptographic hash of the whole file.
+
+	// If PreAllocUnwritBytes > MinSparseBlock (usually
+	// one page), then we have "real" pre-allocation and should
+	// do that once up front. Less than a page means
+	// its probably just APFS only doing full-size files,
+	// and lives at the end of everything else.
+	PreAllocUnwritBytes int64 `zid:"4"`
+	PreAllocLargestSpan int64 `zid:"5"`
 }
 
 func NewChunks(path string) *Chunks {
@@ -162,6 +170,20 @@ func UpdateLocalWithRemoteDiffs(
 		panic(fmt.Sprintf("remote was not a full plan for every byte! remote.FileSize=%v > remote.Last().Endx=%v", remote.FileSize, remote.Last().Endx))
 	}
 
+	var fd *os.File
+	rnd := cryRandBytesBase64(16)
+	tmp := localPathToWrite + "_accept_plan_tmp_" + rnd
+	fd, err = os.Create(tmp)
+	if err != nil {
+		return fmt.Errorf("error failed to create tmp file in UpdateLocalWithRemoteDiffs: '%v'", err)
+	}
+	sparsify := false
+	minsparse := sparsified.MinSparseHoleSize(fd)
+	if chunks.PreAllocLargestSpan >= minsparse {
+		vv("try to pre-allocate UNWRIT; from [%v:%v)", chunk.Beg, chunk.Endx)
+		_, err = sparsified.Fallocate(fd, sparsified.FALLOC_FL_KEEP_SIZE, 0, remote.FileSize)
+		panicOn(err)
+	}
 	// assemble in memory first, later stream to disk.
 	newvers := make([]byte, remote.FileSize)
 	var j int64 // index to new version, how much we have written.
@@ -172,6 +194,7 @@ func UpdateLocalWithRemoteDiffs(
 	//vv("remote = '%v'", remote)
 
 	// remote gives the plan of what to create
+	last := len(remote.Chunks) - 1
 	for i, chunk := range remote.Chunks {
 		_ = i
 
@@ -199,8 +222,15 @@ func UpdateLocalWithRemoteDiffs(
 			}
 			continue
 		} else if chunk.Cry == "UNWRIT;" {
-			//vv("skipping UNWRIT;")
-			// ignore for now? TODO: pre-allocate?
+			// new strategy not here: if we have
+			// any pre-allocated unwritten, allocate
+			// the full file, fully, once up front,
+			// and then ignore any subsequent UNWRIT;
+			if i != last {
+				// at least on darwin, UNWRIT can only be last?
+				alwaysPrintf("WARNING: UNWRIT at i = %v was not last=%v", i, last)
+				panic(fmt.Sprintf("UNWRIT at i = %v was not last=%v", i, last))
+			}
 			continue
 		}
 
@@ -247,15 +277,6 @@ func UpdateLocalWithRemoteDiffs(
 		return err
 	}
 
-	var fd *os.File
-	rnd := cryRandBytesBase64(16)
-	tmp := localPathToWrite + "_accept_plan_tmp_" + rnd
-	fd, err = os.Create(tmp)
-	if err != nil {
-		return fmt.Errorf("error failed to create tmp file in UpdateLocalWithRemoteDiffs: '%v'", err)
-	}
-
-	sparsify := false
 	sznew := int64(len(newvers))
 	if len(sparse) > 0 {
 		//vv("UpdateLocalWithRemoteDiffs detected %v sparse holes", len(sparse))
@@ -915,6 +936,15 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 			// pre-allocated yet unwritten. logical zeros.
 			hsh = "UNWRIT;"
 			//vv("saw UNWRIT;") // not seen 710 test. seen in 210.
+			// allow determination if we need to
+			// pre-allocate this file or not (if more
+			// than min sparse block size). WALs and
+			// Seaweedfs blocks may commonly be pre-allocated.
+			sz := cut - prevcut
+			chunks.PreAllocUnwritBytes += sz
+			if sz > chunks.PreAllocLargestSpan {
+				chunks.PreAllocLargestSpan = sz
+			}
 		default:
 			// this chunk in file is filepos [prev, c).
 			if cut <= prevcut {
