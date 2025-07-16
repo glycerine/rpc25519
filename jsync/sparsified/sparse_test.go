@@ -550,3 +550,20 @@ func Test022_copy_GenerateSparseTestFiles(t *testing.T) {
 		panicOn(err)
 	}
 }
+
+// also 011 above.
+func Test023_MinSparseHoleSize(t *testing.T) {
+
+	path := "test.023.prealloc_file"
+	os.Remove(path)
+	defer os.Remove(path)
+	fd, err := os.Create(path)
+	panicOn(err)
+
+	minHole, err := MinSparseHoleSize(fd)
+	panicOn(err)
+	if minHole < 4096 {
+		panic(fmt.Sprintf("warning: minHole = %v < 4096; probably breaks alot of assumptions?", minHole))
+	}
+	vv("minHole = %v", minHole)
+}

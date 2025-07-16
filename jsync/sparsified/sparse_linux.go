@@ -348,12 +348,12 @@ func createSparseFileFromSparseSpans(path string, spans *SparseSpans, rng *prng)
 // Returns 4096 on ext4 and XFS, same as APFS/darwin on my laptop.
 func MinSparseHoleSize(fd *os.File) (val int, err error) {
 	if fd == nil {
-		return -1, fmt.Errorf("nil fd passed to MinSparseHoleSize")
+		return -1_000_000_000, fmt.Errorf("nil fd passed to MinSparseHoleSize")
 	}
 
 	fi, err := fd.Stat()
 	if err != nil {
-		return -1, err
+		return -1_000_000_000, err
 	}
 	stat := fi.Sys().(*syscall.Stat_t)
 	return int(stat.Blksize), nil
@@ -557,13 +557,4 @@ func FieMap(fd *os.File) (spans *SparseSpans, err error) {
 	}
 
 	return
-}
-
-// copy from darwin. does it work on linux?
-func MinSparseHoleSize(fd *os.File) (val int, err error) {
-	if fd == nil {
-		return -1, fmt.Errorf("nil fd passed to MinSparseHoleSize")
-	}
-	const PC_MIN_HOLE_SIZE = 27
-	return unix.Fpathconf(int(fd.Fd()), PC_MIN_HOLE_SIZE)
 }
