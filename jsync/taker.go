@@ -127,6 +127,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	buf := make([]byte, rpc.UserMaxPayload+10_000)
 	//var newversBufio *bufio.Writer // comment for sparse
 	var newversFd *os.File
+	var newversFdUnwritPreallocDone bool
 	var tmp string
 
 	j := 0 // index to new version, how much we have written.
@@ -445,7 +446,7 @@ takerForSelectLoop:
 							// try not to fail just because disk is fragmented or no pre-allocation support. Just warn.
 							alwaysPrintf("warning: could not pre-allocate space same as origin for path (tmp='%v'; final='%v') of size bytes: %v; err = '%v'. Likely filesystem does not support pre-allocation, or target disk is too fragmented.", tmp, localPathToWrite, formatUnder(chunks.PreAllocUnwritEndx), err)
 						}
-
+						newversFdUnwritPreallocDone = true
 					}
 
 					// for debugging sparse hole issues:
@@ -542,17 +543,22 @@ takerForSelectLoop:
 						} else if chunk.Cry == "UNWRIT;" {
 							// moved to above now: not working though.
 
-							_, err = newversFd.Seek(chunk.Beg, 0)
-							panicOn(err)
-							// always start from 0, since otherwise
-							// APFS complains.
-							sz := chunk.Beg
-							_, err = sparsified.Fallocate(newversFd, sparsified.FALLOC_FL_KEEP_SIZE, 0, chunk.Endx)
-							if err != nil {
-								// try not to fail just because disk is fragmented or no pre-allocation support. Just warn.
-								alwaysPrintf("warning: could not pre-allocate space same as origin for path (tmp='%v'; final='%v') of size bytes: %v; err = '%v'. Likely filesystem does not support pre-allocation, or target disk is too fragmented.", tmp, localPathToWrite, formatUnder(sz), err)
+							// try to do only once, and hopefully
+							// get above working so pre-alloc
+							// happens before other writes.
+							if !newversFdUnwritPreallocDone {
+								newversFdUnwritPreallocDone = true
+								_, err = newversFd.Seek(chunk.Beg, 0)
+								panicOn(err)
+								// always start from 0, since otherwise
+								// APFS complains.
+								sz := chunk.Endx - chunk.Beg
+								_, err = sparsified.Fallocate(newversFd, sparsified.FALLOC_FL_KEEP_SIZE, chunk.Beg, sz)
+								if err != nil {
+									// try not to fail just because disk is fragmented or no pre-allocation support. Just warn.
+									alwaysPrintf("warning: could not pre-allocate space same as origin for path (tmp='%v'; final='%v') of size bytes: %v; err = '%v'. Likely filesystem does not support pre-allocation, or target disk is too fragmented.", tmp, localPathToWrite, formatUnder(sz), err)
+								}
 							}
-
 						} else {
 							lc, ok := localMap[chunk.Cry]
 							if !ok {
