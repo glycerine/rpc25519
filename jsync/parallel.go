@@ -108,7 +108,7 @@ func ChunkFile2(
 		diff = -diff
 	}
 	if sum.IsSparse || diff >= 4096 {
-		// we have either sparse holes or preallocated space.
+		vv("we have either sparse holes or preallocated space: '%v'", path)
 		// (disksz > statsz by more than a page => pre-allocated).
 		// (disksz < statsz by more than a page => sparse holes).
 		// Do a full serial scan and sparse analysis.
@@ -168,6 +168,9 @@ func ChunkFile2(
 	chunks0 = NewChunks(path)
 	chunks0.FileSize = precis.FileSize
 	chunks0.FileCry = precis.FileCry
+
+	chunks0.PreAllocUnwritBeg = precis.PreAllocUnwritBeg
+	chunks0.PreAllocUnwritEndx = precis.PreAllocUnwritEndx
 
 	// segment is the size in bytes that one goroutine
 	// reads from disk and hashes.

@@ -431,7 +431,6 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	// local describes the local file in Chunks.
 	// We send it to Taker so they know how
 	// to assemble the updated file.
-	const wantChunks = true
 	const keepData = false
 
 	t1 := time.Now()
@@ -464,7 +463,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	// Avoid short circuiting if we have
 	// UNWRIT; pre-allocated spans, so we can
 	// try to re-create them on the other side.
-	if local.PreAllocUnwritBytes == 0 &&
+	if local.PreAllocUnwritEndx == 0 &&
 		remoteWantsUpdate.FileCry == goalPrecis.FileCry {
 		//vv("we can save on sending chunks! remoteWantsUpdate.FileCry == goalPrecis.FileCry = '%v'. sending back OpRsync_ToTakerMetaUpdateAtLeast", remoteWantsUpdate.FileCry)
 

@@ -435,6 +435,7 @@ takerForSelectLoop:
 
 					// just do one prealloc if any of the space is unwrit.
 					if chunks.PreAllocUnwritEndx > 0 {
+						vv("PreAllocUnwritEndx(%v) > 0 on path '%v'", chunks.PreAllocUnwritEndx, newversFd.Name()) // not seen
 						_, err = newversFd.Seek(0, 0)
 						panicOn(err)
 						// always start from 0, since otherwise

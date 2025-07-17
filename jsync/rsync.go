@@ -84,11 +84,10 @@ type Chunks struct {
 	// do that once up front. Less than a page means
 	// its probably just APFS only doing full-size files,
 	// and lives at the end of everything else.
-	PreAllocUnwritBegin int64 `zid:"4"`
+	PreAllocUnwritBeg   int64 `zid:"4"`
 	PreAllocUnwritEndx  int64 `zid:"5"`
-	PreAllocUnwritBytes int64 `zid:"6"`
-	PreAllocLargestSpan int64 `zid:"7"`
-	PreAllocBeforeLast  bool  `zid:"8"` // may be problematic on APFS
+	PreAllocLargestSpan int64 `zid:"6"`
+	PreAllocBeforeLast  bool  `zid:"7"` // may be problematic on APFS
 }
 
 func NewChunks(path string) *Chunks {
@@ -183,7 +182,7 @@ func UpdateLocalWithRemoteDiffs(
 	sparsify := false
 	minsparse, err := sparsified.MinSparseHoleSize(fd)
 	panicOn(err)
-	if remote.PreAllocLargestSpan >= minsparse {
+	if remote.PreAllocUnwritEndx-remote.PreAllocUnwritBeg >= minsparse {
 		vv("try to pre-allocate UNWRIT; for full file from [%v:%v)", 0, remote.FileSize) // not seen.
 		_, err = sparsified.Fallocate(fd, sparsified.FALLOC_FL_KEEP_SIZE, 0, remote.FileSize)
 		panicOn(err)
@@ -240,7 +239,7 @@ func UpdateLocalWithRemoteDiffs(
 
 			minsparse, err := sparsified.MinSparseHoleSize(fd)
 			panicOn(err)
-			if remote.PreAllocLargestSpan >= minsparse {
+			if remote.PreAllocUnwritEndx-remote.PreAllocUnwritBeg >= minsparse {
 				vv("try to pre-allocate UNWRIT; for full file from [%v:%v)", 0, remote.FileSize) // not seen.
 				_, err = sparsified.Fallocate(fd, sparsified.FALLOC_FL_KEEP_SIZE, 0, remote.FileSize)
 				panicOn(err)
@@ -394,9 +393,9 @@ type FilePrecis struct {
 
 	FileCry string `zid:"14"`
 
-	IsSparse            bool  `zid:"15"` // at least one hole.
-	PreAllocUnwritBegin int64 `zid:"16"`
-	PreAllocUnwritEndx  int64 `zid:"17"`
+	IsSparse           bool  `zid:"15"` // at least one hole.
+	PreAllocUnwritBeg  int64 `zid:"16"`
+	PreAllocUnwritEndx int64 `zid:"17"`
 
 	// ChunkerName is e.g.
 	// "fastcdc-Stadia-Google-64bit-arbitrary-regression-jea"
@@ -459,7 +458,7 @@ func (a *FilePrecis) Equal(b *FilePrecis) bool {
 	if a.IsSparse != b.IsSparse {
 		return false
 	}
-	if a.PreAllocUnwritBegin != b.PreAllocUnwritBegin {
+	if a.PreAllocUnwritBeg != b.PreAllocUnwritBeg {
 		return false
 	}
 	if a.PreAllocUnwritEndx != b.PreAllocUnwritEndx {
@@ -585,6 +584,11 @@ func (s *BlobStore) GetPlanToUpdateFromGoal(updateme, goal *Chunks, dropGoalData
 	plan = NewChunks(updateme.Path)
 	plan.FileSize = goal.FileSize
 	plan.FileCry = goal.FileCry
+
+	plan.PreAllocUnwritBeg = goal.PreAllocUnwritBeg
+	plan.PreAllocUnwritEndx = goal.PreAllocUnwritEndx
+	plan.PreAllocLargestSpan = goal.PreAllocLargestSpan
+	plan.PreAllocBeforeLast = goal.PreAllocBeforeLast
 
 	var p []*Chunk
 
@@ -855,7 +859,7 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 	}
 	if sum != nil {
 		precis.IsSparse = sum.IsSparse
-		precis.PreAllocUnwritBegin = sum.UnwritBegin
+		precis.PreAllocUnwritBeg = sum.UnwritBegin
 		precis.PreAllocUnwritEndx = sum.UnwritEndx
 	}
 
@@ -871,11 +875,11 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 	chunks.FileSize = precis.FileSize
 	chunks.FileCry = precis.FileCry
 
-	chunks.PreAllocUnwritBegin = precis.PreAllocUnwritBegin
+	chunks.PreAllocUnwritBeg = precis.PreAllocUnwritBeg
 	chunks.PreAllocUnwritEndx = precis.PreAllocUnwritEndx
 
 	if chunks.PreAllocUnwritEndx > 0 {
-		vv("PreAllocUnwritEndx = %v on path '%v'", chunks.PreAllocUnwritEndx, path)
+		vv("PreAllocUnwritEndx gt zero = %v on path '%v'", chunks.PreAllocUnwritEndx, path)
 	}
 
 	if fd == nil {
@@ -1023,10 +1027,11 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 				// partial blocks.
 				continue
 			}
-			chunks.PreAllocUnwritBytes += sz
 			if sz > chunks.PreAllocLargestSpan {
 				chunks.PreAllocLargestSpan = sz
-				vv("setting chunks.PreAllocLargestSpan='%v' in path '%v'", sz, path)
+				vv("setting chunks.PreAllocLargestSpan='%v' in path '%v' to Endx=cut=%v", sz, path, cut)
+				chunks.PreAllocUnwritBeg = prevcut
+				chunks.PreAllocUnwritEndx = cut
 			}
 			if i != last {
 				vv("setting chunks.PreAllocBeforeLast = true for path '%v'", path)
@@ -1091,9 +1096,9 @@ func (d *Chunks) String() (s string) {
                 Path: "%v",
             FileSize: %v,
              FileCry: "%v",
- PreAllocUnwritBytes: %v,
+  PreAllocUnwritEndx: %v,
               Chunks: []*Chunk{
-`, len(d.Chunks), d.Path, d.FileSize, d.FileCry, d.PreAllocUnwritBytes)
+`, len(d.Chunks), d.Path, d.FileSize, d.FileCry, d.PreAllocUnwritEndx)
 
 	for i, chunk := range d.Chunks {
 		s += fmt.Sprintf("// [%03d]\n", i) + chunk.String()
@@ -1166,7 +1171,9 @@ func (cs *Chunks) CloneWithNoChunks() (r *Chunks) {
 	r = NewChunks(cs.Path)
 	r.FileSize = cs.FileSize
 	r.FileCry = cs.FileCry
-	r.PreAllocUnwritBytes = cs.PreAllocUnwritBytes
+
+	r.PreAllocUnwritBeg = cs.PreAllocUnwritBeg
+	r.PreAllocUnwritEndx = cs.PreAllocUnwritEndx
 	r.PreAllocLargestSpan = cs.PreAllocLargestSpan
 	r.PreAllocBeforeLast = cs.PreAllocBeforeLast
 	return
