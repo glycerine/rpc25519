@@ -311,7 +311,7 @@ func mode2string(mode uint32) string {
 // StackOverflow suggestion above/what Mozilla does to "fake it".
 func Fallocate(fd *os.File, mode uint32, off int64, length int64) (allocated int64, err error) {
 
-	vv("top of fallocate(mode = %v (%v), off = %v, length = %v) for path '%v'\n\n stack = \n%v\n", mode, mode2string(mode), off, length, fd.Name(), stack())
+	vv("top of fallocate(mode = %v (%v), off = %v, length = %v) for path '%v'", mode, mode2string(mode), off, length, fd.Name())
 
 	if mode == 0 {
 		fd.Seek(off, 0)

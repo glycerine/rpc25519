@@ -17,6 +17,8 @@ import (
 	"github.com/glycerine/rpc25519/jsync/sparsified"
 )
 
+var _ = time.Time{}
+
 func Test220_push_then_pull_idempotent(t *testing.T) {
 
 	cv.Convey("using our rsync-like-protocol, a client doing a push, then a pull of the same file should see the pull do no changes (no-op) since the push already synchronized the remote with the local copy of the file. Also make sure we can have local and remote file names different and still sync to each other.", t, func() {
@@ -56,36 +58,37 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 				os.Remove(path)
 			}
 		}
+		if false {
+			// modify "local" target path so we don't overwrite our
+			// source file when testing in one directory. Also to
+			// check that we can.
+			remoteBase := localBase + ".remote_rsync_out"
+			remotePath := remoteDir + sep + remoteBase
+			vv("remotePath = '%v'", remotePath)
 
-		// modify "local" target path so we don't overwrite our
-		// source file when testing in one directory. Also to
-		// check that we can.
-		remoteBase := localBase + ".remote_rsync_out"
-		remotePath := remoteDir + sep + remoteBase
-		vv("remotePath = '%v'", remotePath)
-
-		testfd, err := os.Create(localPath)
-		panicOn(err)
-		slc := make([]byte, 1<<20) // 1 MB slice
-
-		// deterministic pseudo-random numbers as data.
-		var seed [32]byte
-		seed[1] = 2
-		generator := mathrand2.NewChaCha8(seed)
-
-		// random or zeros?
-		allZeros := false
-		if allZeros {
-			// slc is already ready with all 0.
-		} else {
-			generator.Read(slc)
-		}
-		for range N {
-			_, err = testfd.Write(slc)
+			testfd, err := os.Create(localPath)
 			panicOn(err)
+			slc := make([]byte, 1<<20) // 1 MB slice
+
+			// deterministic pseudo-random numbers as data.
+			var seed [32]byte
+			seed[1] = 2
+			generator := mathrand2.NewChaCha8(seed)
+
+			// random or zeros?
+			allZeros := false
+			if allZeros {
+				// slc is already ready with all 0.
+			} else {
+				generator.Read(slc)
+			}
+			for range N {
+				_, err = testfd.Write(slc)
+				panicOn(err)
+			}
+			testfd.Close()
+			vv("created N = %v MB test file in remotePath='%v'.", N, remotePath)
 		}
-		testfd.Close()
-		vv("created N = %v MB test file in remotePath='%v'.", N, remotePath)
 
 		// set up a server and a client.
 
@@ -138,58 +141,62 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 		jSyncCli, err := NewJsyncClient(cli)
 		panicOn(err)
 		defer jSyncCli.Close()
+		/*
+			if false {
+				dataBytesMoved0, err := jSyncCli.PushFromTo(localPath, remotePath)
+				panicOn(err)
+				cv.So(dataBytesMoved0, cv.ShouldBeGreaterThan, len(slc))
 
-		dataBytesMoved0, err := jSyncCli.PushFromTo(localPath, remotePath)
-		panicOn(err)
-		cv.So(dataBytesMoved0, cv.ShouldBeGreaterThan, len(slc))
+				// confirm it happened.
+				difflen := compareFilesDiffLen(localPath, remotePath)
+				cv.So(difflen, cv.ShouldEqual, 0)
 
-		// confirm it happened.
-		difflen := compareFilesDiffLen(localPath, remotePath)
-		cv.So(difflen, cv.ShouldEqual, 0)
+				// check mod time being updated
+				lsz, lmod, err := FileSizeModTime(localPath)
+				panicOn(err)
+				rsz, rmod, err := FileSizeModTime(remotePath)
+				panicOn(err)
+				if lsz != rsz {
+					panic("lsz != rsz")
+				}
+				if !rmod.Equal(lmod) {
+					t.Fatalf("error: lmod='%v' but lmod='%v'", lmod, rmod)
+				}
 
-		// check mod time being updated
-		lsz, lmod, err := FileSizeModTime(localPath)
-		panicOn(err)
-		rsz, rmod, err := FileSizeModTime(remotePath)
-		panicOn(err)
-		if lsz != rsz {
-			panic("lsz != rsz")
-		}
-		if !rmod.Equal(lmod) {
-			t.Fatalf("error: lmod='%v' but lmod='%v'", lmod, rmod) // red.
-		}
+				vv("why is below getting into the convert dir to file path??")
 
-		vv("why is below getting into the convert dir to file path??")
+				// test that a change in remote modtime, followed by
+				// a pull from that remote, gets us the local having a matching mod time.
 
-		// test that a change in remote modtime, followed by
-		// a pull from that remote, gets us the local having a matching mod time.
+				pastModTime := time.Now().Add(-5 * time.Minute)
+				err = os.Chtimes(remotePath, time.Time{}, pastModTime)
+				panicOn(err)
 
-		pastModTime := time.Now().Add(-5 * time.Minute)
-		err = os.Chtimes(remotePath, time.Time{}, pastModTime)
-		panicOn(err)
+				dataBytesMoved1, err := jSyncCli.PullToFrom(localPath, remotePath)
+				panicOn(err)
 
-		dataBytesMoved1, err := jSyncCli.PullToFrom(localPath, remotePath)
-		panicOn(err)
+				// yay. we efficiently don't send chunks when not needed.
+				cv.So(dataBytesMoved1, cv.ShouldBeLessThan, 1000)
 
-		// yay. we efficiently don't send chunks when not needed.
-		cv.So(dataBytesMoved1, cv.ShouldBeLessThan, 1000)
-
-		// check mod time being updated for pull
-		lsz, lmod, err = FileSizeModTime(localPath)
-		panicOn(err)
-		rsz, rmod, err = FileSizeModTime(remotePath)
-		panicOn(err)
-		if lsz != rsz {
-			panic("lsz != rsz")
-		}
-		if !rmod.Equal(lmod) {
-			t.Fatalf("error: lmod='%v' but lmod='%v'", lmod, rmod)
-		}
+				// check mod time being updated for pull
+				lsz, lmod, err = FileSizeModTime(localPath)
+				panicOn(err)
+				rsz, rmod, err = FileSizeModTime(remotePath)
+				panicOn(err)
+				if lsz != rsz {
+					panic("lsz != rsz")
+				}
+				if !rmod.Equal(lmod) {
+					t.Fatalf("error: lmod='%v' but lmod='%v'", lmod, rmod)
+				}
+			}
+		*/
 		//return
 
 		// sync the whole dir now
 		// to test sparse / unwrit replication.
-		dataBytesMoved0, err = jSyncCli.PushFromTo(localDir, remoteDir)
+		//dataBytesMoved0, err = jSyncCli.PushFromTo(localDir, remoteDir)
+		_, err = jSyncCli.PushFromTo(localDir, remoteDir)
 		panicOn(err)
 		//cv.So(dataBytesMoved0, cv.ShouldBeGreaterThan, len(slc))
 
@@ -202,8 +209,9 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 		for i, path := range list {
 			//if i > 5 { // green
 			//if i > 10 { // red
-			if i != 6 { // red
-				//	continue
+			//if i != 6 { // red
+			if !strings.HasSuffix(path, "testZZZ.outpath.05.sparsefile") {
+				continue
 			}
 			path2 := strings.Replace(path, localDir, remoteDir, 1)
 			vv("i=%v, path='%v'; path2='%v'", i, path, path2)

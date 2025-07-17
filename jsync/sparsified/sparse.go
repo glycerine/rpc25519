@@ -286,10 +286,11 @@ func SparseFileSize(fd *os.File) (sum *SparseSum, err error) {
 	// we do have to seek for a hole to see if it is sparse at all.
 	var holeBeg int64
 	holeBeg, err = unix.Seek(int(fd.Fd()), 0, unix.SEEK_HOLE)
+	vv("err = %v, holeBeg = %v", err, holeBeg)
 	if err != nil {
 		if err == syscall.ENXIO { // No holes (all data till end)
 			// not sparse
-			//vv("not sparse, no hole found")
+			vv("not sparse, no hole found")
 			err = nil
 
 			////vv("special extra check for pre-allocated file... diskBytesInUse = %v", diskBytesInUse)
@@ -308,7 +309,24 @@ func SparseFileSize(fd *os.File) (sum *SparseSum, err error) {
 	}
 	////vv("holeBeg = %v", holeBeg)
 	if holeBeg >= sum.StatSize {
-		// not sparse.
+		// man lseek on darwin:
+		// "Each file is presented as having a zero-size
+		// virtual hole at the very end of
+		// the file.  The existence of a hole at the end
+		// of every data region allows
+		// for easy programming and also provides
+		// compatibility to the original
+		// implementation in Solaris.  It also causes
+		// the current file size (i.e.,
+		// end-of-file offset) to be returned to
+		// indicate that there are no more
+		// holes past the supplied offset.
+		// Applications should use
+		// fpathconf(_PC_MIN_HOLE_SIZE) or pathconf(_PC_MIN_HOLE_SIZE)
+		// to determine if a file system supports
+		// SEEK_HOLE.  See pathconf(2)."
+
+		vv("not sparse; first hole(%v) >= size of file(%v); for '%v'", holeBeg, sum.StatSize, fd.Name())
 		// A subtle case: for a 369 byte file, APFS will
 		// report a hole at position 369
 		// because the rest of rh 4K block is technically empty
@@ -316,7 +334,7 @@ func SparseFileSize(fd *os.File) (sum *SparseSum, err error) {
 		// that a sparse file. See Test007 in sparse_test.go.
 		return
 	}
-	////vv("have holeBeg = %v < statSz = %v", holeBeg, statSz)
+	vv("finding IsSparse=true b/c have holeBeg = %v < statSz = %v; for fd='%v'", holeBeg, sum.StatSize, fd.Name()) // sparse.go:319 [goID 24] 2025-07-17 06:16:27.103 -0500 CDT have holeBeg = 0 < statSz = 4096; for fd='/Users/jaten/rpc25519/jsync/remote_srv_dir_test220/testZZZ.outpath.05.sparsefile_accept_plan_tmp_rr5exvIVveuJ63uD_nHdGutE'
 	sum.IsSparse = true
 
 	//if diskBytesInUse > statSize {
@@ -370,7 +388,7 @@ func FindSparseRegions(fd *os.File) (sum *SparseSum, spans *SparseSpans, err err
 	spans = &SparseSpans{}
 	unwritIndex := -1
 
-	//vv("isSparse = %v; statsz = %v; disksz = %v", isSparse, statsz, disksz)
+	vv("sum = '%#v'", sum)
 
 	// maybe todo: get fiemap working?
 	// https://github.com/longhorn/sparse-tools/blob/master/sparse/fiemap.go
@@ -388,8 +406,18 @@ func FindSparseRegions(fd *os.File) (sum *SparseSum, spans *SparseSpans, err err
 	// non-fiemap workaround: only handles pre-allocation
 	// at the first and second segment, but is portable to darwin.
 	if disksz > statsz {
-		// we have pre-allocated some of the file.
-		if !sum.IsSparse {
+		vv("we have pre-allocated some of the file. disksz(%v) > statsz(%v). sum.IsSparse=%v", disksz, statsz, sum.IsSparse)
+
+		// why this is sparse check?? we have an example where it makes no sense
+		//
+		// sparse.go:373 2025-07-17 05:50:50.736 -0500 CDT sum = '&sparsified.SparseSum{IsSparse:true, DiskSize:67108864, StatSize:4096, FI:(*os.fileStat)(0xc0257f0820), UnwritBegin:0, UnwritEndx:0}'
+		//
+		// taker.go:458 [goID 122] 2025-07-17 05:50:50.74 -0500 CDT path = '/Users/jaten/rpc25519/jsync/remote_srv_dir_test220/testZZZ.outpath.05.sparsefile_accept_plan_tmp_u6X7h4qDVXVPES4jCYnhMQ5A'; debug sparse spans after first pre-alloc; sum='&sparsified.SparseSum{IsSparse:true, DiskSize:67108864, StatSize:4096, FI:(*os.fileStat)(0xc0257f0820), UnwritBegin:0, UnwritEndx:0}'
+		// spans= 'SparseSpans{
+		//[00] SparseSpan{IsHole:true, Pre:false, Beg:0, Endx: 4_096} (1 pages of 4KB)
+		//}
+		// but moreover: why is IsSparse true when no holes?
+		if true { // !sum.IsSparse {
 			if statsz > 0 {
 				spans.Slc = append(spans.Slc, SparseSpan{
 					Beg:  0,
@@ -409,7 +437,7 @@ func FindSparseRegions(fd *os.File) (sum *SparseSum, spans *SparseSpans, err err
 			}
 			return
 		}
-	}
+	} // end if disksz > statsz
 
 	if !sum.IsSparse {
 		spans.Slc = append(spans.Slc, SparseSpan{

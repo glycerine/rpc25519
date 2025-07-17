@@ -430,12 +430,15 @@ takerForSelectLoop:
 					panicOn(err)
 
 					vv("make sparse if possible! truncating to %v our tmp file '%v' on newversFd", syncReq.GiverFileSize, tmp)
-					err = newversFd.Truncate(int64(syncReq.GiverFileSize))
-					panicOn(err)
-					newversFd.Sync() // does this help keep the sparseness? nope.
+					if chunks.PreAllocUnwritEndx == 0 {
+						err = newversFd.Truncate(int64(syncReq.GiverFileSize))
+						panicOn(err)
+						newversFd.Sync() // does this help keep the sparseness? nope.
+					}
 
 					// just do one prealloc if any of the space is unwrit.
 					if chunks.PreAllocUnwritEndx > 0 {
+						vv("have pre-alloc; tmp = '%v'", tmp)
 						curpos, err := newversFd.Seek(0, io.SeekCurrent)
 						panicOn(err)
 

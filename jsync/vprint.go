@@ -50,6 +50,7 @@ const rfc3339MsecTz0 = "2006-01-02T15:04:05.000Z07:00"
 
 var myPid = os.Getpid()
 var showPid bool
+var showGoro bool = true
 
 func pp(format string, a ...interface{}) {
 	if verboseVerbose {
@@ -75,7 +76,9 @@ var tsPrintfMut sync.Mutex
 // time-stamped printf
 func tsPrintf(format string, a ...interface{}) {
 	tsPrintfMut.Lock()
-	if showPid {
+	if showGoro {
+		printf("\n%s [goID %v] %s ", fileLine(3), GoroNumber(), ts())
+	} else if showPid {
 		printf("\n%s [pid %v] %s ", fileLine(3), myPid, ts())
 	} else {
 		printf("\n%s %s ", fileLine(3), ts())

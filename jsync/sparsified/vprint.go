@@ -53,6 +53,7 @@ const rfc3339MsecTz0 = "2006-01-02T15:04:05.000Z07:00"
 
 var myPid = os.Getpid()
 var showPid bool
+var showGoro bool = true
 
 func pp(format string, a ...interface{}) {
 	if verboseVerbose {
@@ -80,7 +81,9 @@ var tsPrintfMut sync.Mutex
 // time-stamped printf
 func tsPrintf(format string, a ...interface{}) {
 	tsPrintfMut.Lock()
-	if showPid {
+	if showGoro {
+		printf("\n%s [goID %v] %s ", fileLine(3), GoroNumber(), ts())
+	} else if showPid {
 		printf("\n%s [pid %v] %s ", fileLine(3), myPid, ts())
 	} else {
 		printf("\n%s %s ", fileLine(3), ts())
@@ -252,4 +255,20 @@ func panicOn(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+// GoroNumber returns the calling goroutine's number.
+func GoroNumber() int {
+	buf := make([]byte, 48)
+	nw := runtime.Stack(buf, false) // false => just us, no other goro.
+	buf = buf[:nw]
+
+	// prefix "goroutine " is len 10.
+	i := 10
+	for buf[i] != ' ' && i < 30 {
+		i++
+	}
+	n, err := strconv.Atoi(string(buf[10:i]))
+	panicOn(err)
+	return n
 }
