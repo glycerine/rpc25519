@@ -4,7 +4,8 @@ import (
 	//"bytes"
 	//cryrand "crypto/rand"
 	"fmt"
-	//"path/filepath"
+	"path/filepath"
+	"strings"
 	//"io"
 	mathrand2 "math/rand/v2"
 	"os"
@@ -13,6 +14,7 @@ import (
 
 	cv "github.com/glycerine/goconvey/convey"
 	rpc "github.com/glycerine/rpc25519"
+	"github.com/glycerine/rpc25519/jsync/sparsified"
 )
 
 func Test220_push_then_pull_idempotent(t *testing.T) {
@@ -39,6 +41,9 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 		localBase := fmt.Sprintf("test220_chacha_%vmb.dat", N)
 		localPath := localDir + localBase
 		vv("localPath = '%v'", localPath)
+
+		// and write the sparse and pre-alloc test suite in
+		sparsified.MustGenerateSparseTestFiles(localDir, 0, 0)
 
 		// modify "local" target path so we don't overwrite our
 		// source file when testing in one directory. Also to
@@ -167,6 +172,26 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 		}
 		if !rmod.Equal(lmod) {
 			t.Fatalf("error: lmod='%v' but lmod='%v'", lmod, rmod)
+		}
+
+		// sync the whole dir now
+		// to test sparse / unwrit replication.
+		dataBytesMoved0, err = jSyncCli.PushFromTo(localDir, remoteDir)
+		panicOn(err)
+		cv.So(dataBytesMoved0, cv.ShouldBeGreaterThan, len(slc))
+
+		// compare the sparse files to their original
+
+		list, err := filepath.Glob(localDir + "/*")
+		panicOn(err)
+
+		//vv("list = '%#v'", list)
+		for i, path := range list {
+			path2 := strings.Replace(path, localDir, remoteDir, 1)
+			vv("i=%v, path='%v'; path2='%v'", i, path, path2)
+
+			err = sparsified.SparseDiff(path, path2)
+			panicOn(err)
 		}
 
 	})

@@ -578,7 +578,7 @@ takerForSelectLoop:
 						//vv("number sparse holes seen = %v", len(sparse))
 					} else {
 						// INVAR: len(chunk.Data) > 0
-						vv("the data is not local, len(chunk.Data) = %v > 0; writing at %v", len(chunk.Data), curpos(newversFd))
+						//vv("the data is not local, len(chunk.Data) = %v > 0; writing at %v", len(chunk.Data), curpos(newversFd))
 
 						//wb, err := newversBufio.Write(chunk.Data)
 						wb, err := newversFd.Write(chunk.Data)
