@@ -282,7 +282,7 @@ func SparseFileSize(fd *os.File) (sum *SparseSum, err error) {
 	// use to compute actual in-use space is 512.
 	sum.DiskSize = stat.Blocks * 512
 
-	vv("about to SEEK_HOLE")
+	//vv("about to SEEK_HOLE")
 	// we do have to seek for a hole to see if it is sparse at all.
 	var holeBeg int64
 	holeBeg, err = unix.Seek(int(fd.Fd()), 0, unix.SEEK_HOLE)

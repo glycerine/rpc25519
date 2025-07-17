@@ -524,7 +524,11 @@ takerForSelectLoop:
 								j += wb
 								h.Write(zeros4k[:n])
 							}
-
+						} else if chunk.Cry == "UNWRIT;" {
+							_, err = newversFd.Seek(chunk.Beg, 0)
+							panicOn(err)
+							_, err = sparsified.Fallocate(newversFd, sparsified.FALLOC_FL_KEEP_SIZE, chunk.Beg, chunk.Endx-chunk.Beg)
+							panicOn(err)
 						} else {
 							lc, ok := localMap[chunk.Cry]
 							if !ok {
@@ -565,7 +569,7 @@ takerForSelectLoop:
 									"lc.Data len = %v", lc.Endx, lc.Beg, wb))
 							} // panic: lc.Endx = 2992124, lc.Beg = 2914998, but lc.Data len = 0
 							h.Write(data) // update checksum
-						} // end else not RLE0;
+						} // end else not RLE0; and not UNWRIT;
 
 						//vv("number sparse holes seen = %v", len(sparse))
 					} else {
@@ -705,7 +709,7 @@ takerForSelectLoop:
 				plan = senderPlan.SenderChunksNoSlice
 				goalPrecis = senderPlan.SenderPrecis
 
-				vv("plan = '%v'", plan)
+				//vv("plan = '%v'", plan)
 
 				if plan.FileSize == 0 { // ? && syncReq.TakerTempDir == "" ??
 					//vv("plan.FileSize == 0 => truncate to zero localPathToWrite='%v'", localPathToWrite)
