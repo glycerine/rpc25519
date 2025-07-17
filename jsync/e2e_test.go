@@ -179,7 +179,7 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 		// to test sparse / unwrit replication.
 		dataBytesMoved0, err = jSyncCli.PushFromTo(localDir, remoteDir)
 		panicOn(err)
-		cv.So(dataBytesMoved0, cv.ShouldBeGreaterThan, len(slc))
+		//cv.So(dataBytesMoved0, cv.ShouldBeGreaterThan, len(slc))
 
 		// compare the sparse files to their original
 

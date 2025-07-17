@@ -876,6 +876,10 @@ func (s *SyncService) packAndSendChunksJustInTime(
 			Chunks: pack,
 			Path:   path,
 		}
+		if i == 0 {
+			chnks.PreAllocUnwritBeg = oneByteMarkedPlan.PreAllocUnwritBeg
+			chnks.PreAllocUnwritEndx = oneByteMarkedPlan.PreAllocUnwritEndx
+		}
 		bts, err := chnks.MarshalMsg(nil)
 		panicOn(err)
 		f.Payload = bts
