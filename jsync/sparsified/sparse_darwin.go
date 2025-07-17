@@ -311,7 +311,7 @@ func mode2string(mode uint32) string {
 // StackOverflow suggestion above/what Mozilla does to "fake it".
 func Fallocate(fd *os.File, mode uint32, off int64, length int64) (allocated int64, err error) {
 
-	vv("top of fallocate(mode = %v (%v), off = %v, length = %v) for path '%v'", mode, mode2string(mode), off, length, fd.Name())
+	//vv("top of fallocate(mode = %v (%v), off = %v, length = %v) for path '%v'", mode, mode2string(mode), off, length, fd.Name())
 
 	if mode == 0 {
 		fd.Seek(off, 0)
@@ -342,7 +342,7 @@ func Fallocate(fd *os.File, mode uint32, off int64, length int64) (allocated int
 		// 0x1b == 27
 		// 0x1b on too big => 'file too large'.
 
-		vv("err = '%v'/'%#v'; allocated='%v'; length=%v; off=%v; mode=%v", err, err, allocated, length, off, mode)
+		//vv("err = '%v'/'%#v'; allocated='%v'; length=%v; off=%v; mode=%v", err, err, allocated, length, off, mode)
 
 		if err != nil {
 			if err.Error() == "file too large" {

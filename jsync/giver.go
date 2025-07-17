@@ -451,7 +451,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 		//vv("end GetHashesOneByOne. elap = %v", time.Since(t1))
 	}
 	panicOn(err)
-	vv("end ChunkFile. elap = %v; local = '%v'; \n goalPrecis = '%v'", time.Since(t1), local, goalPrecis)
+	//vv("end ChunkFile. elap = %v; local = '%v'; \n goalPrecis = '%v'", time.Since(t1), local, goalPrecis)
 	// have UNWRIT here; and PreAllocUnwritBytes
 
 	// are the whole file checksums the same? we can

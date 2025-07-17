@@ -827,7 +827,7 @@ func SummarizeFileInCDCHashes(host, path string, keepData bool) (precis *FilePre
 func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time, keepData bool, fileStatSz int64) (
 	precis *FilePrecis, chunks *Chunks, err error) {
 
-	vv("top SummarizeBytesInCDCHashes for path = '%v'", path)
+	//vv("top SummarizeBytesInCDCHashes for path = '%v'", path)
 
 	// These two different chunking approaches,
 	// Jcdc and FastCDC, need very different
@@ -878,15 +878,12 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 	chunks.PreAllocUnwritBeg = precis.PreAllocUnwritBeg
 	chunks.PreAllocUnwritEndx = precis.PreAllocUnwritEndx
 
-	if chunks.PreAllocUnwritEndx > 0 {
-		vv("PreAllocUnwritEndx gt zero = %v on path '%v'", chunks.PreAllocUnwritEndx, path)
-	}
+	//if chunks.PreAllocUnwritEndx > 0 {
+	//vv("PreAllocUnwritEndx gt zero = %v on path '%v'", chunks.PreAllocUnwritEndx, path)
+	//}
 
 	if fd == nil {
-		vv("fd == nil, return early for path = '%v'", path)
-		if path == "g" {
-			panic("where g?")
-		}
+		//vv("fd == nil, return early for path = '%v'", path)
 		return
 	}
 
@@ -896,10 +893,10 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 
 	if len(cuts) == 0 {
 		// okay, is truly an empty file
-		vv("empty file, return early after CutpointsAndAllZero")
+		//vv("empty file, return early after CutpointsAndAllZero")
 		return
 	}
-	vv("cuts = '%#v'; preun = '%#v'", cuts, preun)
+	//vv("cuts = '%#v'; preun = '%#v'", cuts, preun)
 
 	dataMaxSz := int64(1 << 20) // 1 MB
 	cfgmax := int64(cfg.MaxSize)
@@ -978,7 +975,7 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 		if curSpan.Beg < cut && cut <= curSpan.Endx {
 			// good: curSpan holds both prevcut and cut
 		} else {
-			vv("bad: curSpan holds prevcut(%v) but not cut(%v). curSpan='%v'", prevcut, cut, curSpan)
+			alwaysPrintf("bad: curSpan holds prevcut(%v) but not cut(%v). curSpan='%v'", prevcut, cut, curSpan)
 			panic("can this be fixed?") // may not always be fixable.
 			return false
 		}
@@ -1029,12 +1026,12 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 			}
 			if sz > chunks.PreAllocLargestSpan {
 				chunks.PreAllocLargestSpan = sz
-				vv("setting chunks.PreAllocLargestSpan='%v' in path '%v' to Endx=cut=%v", sz, path, cut)
+				//vv("setting chunks.PreAllocLargestSpan='%v' in path '%v' to Endx=cut=%v", sz, path, cut)
 				chunks.PreAllocUnwritBeg = prevcut
 				chunks.PreAllocUnwritEndx = cut
 			}
 			if i != last {
-				vv("setting chunks.PreAllocBeforeLast = true for path '%v'", path)
+				//vv("setting chunks.PreAllocBeforeLast = true for path '%v'", path)
 				chunks.PreAllocBeforeLast = true
 			}
 		default:

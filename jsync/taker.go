@@ -677,7 +677,7 @@ takerForSelectLoop:
 				if syncReq.TakerTempDir == "" {
 					err = os.Rename(tmp, localPathToWrite)
 					panicOn(err)
-					vv("synced to disk: localPathToWrite='%v' -> renamed to '%v'", tmp, localPathToWrite)
+					//vv("synced to disk: localPathToWrite='%v' -> renamed to '%v'", tmp, localPathToWrite)
 
 					// debug
 					//renamedFd, err := os.Open(localPathToWrite)
@@ -697,7 +697,7 @@ takerForSelectLoop:
 					}
 				}
 
-				vv("restore mode, modtime on localPathToWrite='%v'", localPathToWrite)
+				//vv("restore mode, modtime on localPathToWrite='%v'", localPathToWrite)
 				mode := goalPrecis.FileMode
 				if mode == 0 {
 					// unknown mode or new file, give sane default
