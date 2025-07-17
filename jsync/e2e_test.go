@@ -173,6 +173,7 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 		if !rmod.Equal(lmod) {
 			t.Fatalf("error: lmod='%v' but lmod='%v'", lmod, rmod)
 		}
+		//return
 
 		// sync the whole dir now
 		// to test sparse / unwrit replication.

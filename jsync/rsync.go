@@ -85,9 +85,10 @@ type Chunks struct {
 	// its probably just APFS only doing full-size files,
 	// and lives at the end of everything else.
 	PreAllocUnwritBegin int64 `zid:"4"`
-	PreAllocUnwritBytes int64 `zid:"5"`
-	PreAllocLargestSpan int64 `zid:"6"`
-	PreAllocBeforeLast  bool  `zid:"7"` // may be problematic on APFS
+	PreAllocUnwritEndx  int64 `zid:"5"`
+	PreAllocUnwritBytes int64 `zid:"6"`
+	PreAllocLargestSpan int64 `zid:"7"`
+	PreAllocBeforeLast  bool  `zid:"8"` // may be problematic on APFS
 }
 
 func NewChunks(path string) *Chunks {
@@ -869,6 +870,13 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 	chunks = NewChunks(path)
 	chunks.FileSize = precis.FileSize
 	chunks.FileCry = precis.FileCry
+
+	chunks.PreAllocUnwritBegin = precis.PreAllocUnwritBegin
+	chunks.PreAllocUnwritEndx = precis.PreAllocUnwritEndx
+
+	if chunks.PreAllocUnwritEndx > 0 {
+		vv("PreAllocUnwritEndx = %v on path '%v'", chunks.PreAllocUnwritEndx, path)
+	}
 
 	if fd == nil {
 		vv("fd == nil, return early for path = '%v'", path)
