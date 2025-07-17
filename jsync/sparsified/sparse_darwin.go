@@ -290,6 +290,20 @@ const F_ALLOCATEPERSIST = 0x8
 
 var fcntl64Syscall uintptr = unix.SYS_FCNTL
 
+func mode2string(mode uint32) string {
+	switch mode {
+	case 0:
+		return "0"
+	case FALLOC_FL_KEEP_SIZE:
+		return "FALLOC_FL_KEEP_SIZE"
+	case FALLOC_FL_INSERT_RANGE:
+		return "FALLOC_FL_INSERT_RANGE"
+	case FALLOC_FL_PUNCH_HOLE:
+		return "FALLOC_FL_PUNCH_HOLE"
+	}
+	return fmt.Sprintf("%v", mode)
+}
+
 // The fallocate Linux syscall does not exist on Darwin/MacOS,
 // so our fallocate(FALLOC_FL_INSERT_RANGE) needs to be emulated here.
 // We try to emulate it with a fcntl(2) call, which
@@ -297,7 +311,7 @@ var fcntl64Syscall uintptr = unix.SYS_FCNTL
 // StackOverflow suggestion above/what Mozilla does to "fake it".
 func Fallocate(fd *os.File, mode uint32, off int64, length int64) (allocated int64, err error) {
 
-	vv("top of fallocate(mode = %v, off = %v, length = %v) for path '%v'\n\n stack = \n%v\n", mode, off, length, fd.Name(), stack())
+	vv("top of fallocate(mode = %v (%v), off = %v, length = %v) for path '%v'\n\n stack = \n%v\n", mode, mode2string(mode), off, length, fd.Name(), stack())
 
 	if mode == 0 {
 		fd.Seek(off, 0)

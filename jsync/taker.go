@@ -441,7 +441,7 @@ takerForSelectLoop:
 						panicOn(err)
 						// always start from 0, since otherwise
 						// APFS complains.
-						_, err = sparsified.Fallocate(newversFd, sparsified.FALLOC_FL_KEEP_SIZE, 0, chunks.PreAllocUnwritEndx)
+						_, err = sparsified.Fallocate(newversFd, sparsified.FALLOC_FL_KEEP_SIZE, 0, chunks.PreAllocUnwritEndx) // seen in 220 test, making this call: sparse_darwin.go:300 2025-07-16 23:14:30.896 -0500 CDT top of fallocate(mode = 43, off = 0, length = 67108864) for path '/Users/jaten/rpc25519/jsync/remote_srv_dir_test220/testZZZ.outpath.04.sparsefile_accept_plan_tmp_RzcPeYhKUg6hx0Tftk1lkRPB'
 						if err != nil {
 							// try not to fail just because disk is fragmented or no pre-allocation support. Just warn.
 							alwaysPrintf("warning: could not pre-allocate space same as origin for path (tmp='%v'; final='%v') of size bytes: %v; err = '%v'. Likely filesystem does not support pre-allocation, or target disk is too fragmented.", tmp, localPathToWrite, formatUnder(chunks.PreAllocUnwritEndx), err)

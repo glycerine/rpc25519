@@ -45,6 +45,18 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 		// and write the sparse and pre-alloc test suite in
 		sparsified.MustGenerateSparseTestFiles(localDir, 0, 0)
 
+		list, err := filepath.Glob(localDir + "/*")
+		panicOn(err)
+
+		//vv("list = '%#v'", list)
+		for i, path := range list {
+			//if i > 5 { // green
+			//if i > 10 { // red
+			if i != 5 { // red
+				os.Remove(path)
+			}
+		}
+
 		// modify "local" target path so we don't overwrite our
 		// source file when testing in one directory. Also to
 		// check that we can.
@@ -183,11 +195,16 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 
 		// compare the sparse files to their original
 
-		list, err := filepath.Glob(localDir + "/*")
-		panicOn(err)
+		// list, err := filepath.Glob(localDir + "/*")
+		// panicOn(err)
 
 		//vv("list = '%#v'", list)
 		for i, path := range list {
+			//if i > 5 { // green
+			//if i > 10 { // red
+			if i != 6 { // red
+				//	continue
+			}
 			path2 := strings.Replace(path, localDir, remoteDir, 1)
 			vv("i=%v, path='%v'; path2='%v'", i, path, path2)
 
