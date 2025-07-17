@@ -297,7 +297,7 @@ var fcntl64Syscall uintptr = unix.SYS_FCNTL
 // StackOverflow suggestion above/what Mozilla does to "fake it".
 func Fallocate(fd *os.File, mode uint32, off int64, length int64) (allocated int64, err error) {
 
-	vv("top of fallocate(mode = %v, off = %v, length = %v)", mode, off, length)
+	vv("top of fallocate(mode = %v, off = %v, length = %v) for path '%v'\n\n stack = \n%v\n", mode, off, length, fd.Name(), stack())
 
 	if mode == 0 {
 		fd.Seek(off, 0)

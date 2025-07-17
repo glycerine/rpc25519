@@ -436,7 +436,7 @@ takerForSelectLoop:
 
 					// just do one prealloc if any of the space is unwrit.
 					if chunks.PreAllocUnwritEndx > 0 {
-						vv("PreAllocUnwritEndx(%v) > 0 on path '%v'", chunks.PreAllocUnwritEndx, newversFd.Name()) // not seen
+						vv("PreAllocUnwritEndx(%v) > 0 on path '%v'", chunks.PreAllocUnwritEndx, newversFd.Name()) // now seen in test 220
 						_, err = newversFd.Seek(0, 0)
 						panicOn(err)
 						// always start from 0, since otherwise
@@ -553,6 +553,7 @@ takerForSelectLoop:
 								// always start from 0, since otherwise
 								// APFS complains.
 								sz := chunk.Endx - chunk.Beg
+								vv("about to Fallocate beg=%v, sz=%v, path='%v'", chunk.Beg, sz, newversFd.Name())
 								_, err = sparsified.Fallocate(newversFd, sparsified.FALLOC_FL_KEEP_SIZE, chunk.Beg, sz)
 								if err != nil {
 									// try not to fail just because disk is fragmented or no pre-allocation support. Just warn.
