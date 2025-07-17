@@ -262,8 +262,8 @@ type SparseSum struct {
 // or not; we do nothing here about it.
 func SparseFileSize(fd *os.File) (sum *SparseSum, err error) {
 
-	fi, err := fd.Stat()
-	panicOn(err)
+	var fi os.FileInfo
+	fi, err = fd.Stat()
 	if err != nil {
 		//vv("fd.Stat err = '%v'", err)
 		return
@@ -271,8 +271,8 @@ func SparseFileSize(fd *os.File) (sum *SparseSum, err error) {
 
 	sum = &SparseSum{
 		FI: fi,
-		//	UnwritBegin    int64
-		//	UnwritEndx     int64
+		//UnwritBegin:, // not there indicated by Endx == 0
+		//UnwritEndx: ,
 	}
 	stat := fi.Sys().(*syscall.Stat_t)
 	sum.StatSize = stat.Size
@@ -351,25 +351,6 @@ func SparseFileSize(fd *os.File) (sum *SparseSum, err error) {
 	// Thus we do NOT assert this always holds:
 	//panic(fmt.Sprintf("diskBytesInUse=%v > statSize=%v; we assumed this was impossible!", diskBytesInUse, statSize))
 	//}
-
-	/*
-		// FindSparseRegions calls us, so this can
-		// infinite loop.
-		if !noSparseRegion {
-			var spans *SparseSpans
-			var unwritIndex int
-			spans, unwritIndex, err = FindSparseRegions(fd)
-			if err != nil {
-				return
-			}
-
-			// report first unwritten preallocated region.
-			if unwritIndex >= 0 {
-				sum.UnwritBegin = spans.Slc[unwritIndex].Beg
-				sum.UnwritEndx = spans.Slc[unwritIndex].Endx
-			}
-		}
-	*/
 	return
 }
 
@@ -379,7 +360,6 @@ func SparseFileSize(fd *os.File) (sum *SparseSum, err error) {
 func FindSparseRegions(fd *os.File) (sum *SparseSum, spans *SparseSpans, err error) {
 
 	sum, err = SparseFileSize(fd)
-	panicOn(err)
 	if err != nil {
 		return
 	}
@@ -617,7 +597,6 @@ func SparseDiff(srcpath, destpath string) (err error) {
 		return fmt.Errorf("SparseDiff error: could not open destpath '%v': '%v'", destpath, err)
 	}
 
-	//isSparse0, disksz0, statsz0, _, err0 := SparseFileSize(src)
 	sum0, err0 := SparseFileSize(src)
 	panicOn(err0)
 	if err0 != nil {
@@ -627,7 +606,6 @@ func SparseDiff(srcpath, destpath string) (err error) {
 	disksz0 := sum0.DiskSize
 	statsz0 := sum0.StatSize
 
-	//isSparse1, disksz1, statsz1, _, err1 := SparseFileSize(dest)
 	sum1, err1 := SparseFileSize(dest)
 	panicOn(err1)
 	if err1 != nil {
