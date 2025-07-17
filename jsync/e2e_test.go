@@ -42,7 +42,7 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 		N := 1
 		localBase := fmt.Sprintf("test220_chacha_%vmb.dat", N)
 		localPath := localDir + localBase
-		vv("localPath = '%v'", localPath)
+		//vv("localPath = '%v'", localPath)
 
 		// and write the sparse and pre-alloc test suite in
 		sparsified.MustGenerateSparseTestFiles(localDir, 0, 0)
@@ -50,14 +50,14 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 		list, err := filepath.Glob(localDir + "/*")
 		panicOn(err)
 
-		vv("done with MustGenerateSparseTestFiles, list = '%#v'", list)
+		//vv("done with MustGenerateSparseTestFiles, list = '%#v'", list)
 
 		// modify "local" target path so we don't overwrite our
 		// source file when testing in one directory. Also to
 		// check that we can.
 		remoteBase := localBase + ".remote_rsync_out"
 		remotePath := remoteDir + sep + remoteBase
-		vv("remotePath = '%v'", remotePath)
+		//vv("remotePath = '%v'", remotePath)
 
 		testfd, err := os.Create(localPath)
 		panicOn(err)
@@ -80,7 +80,7 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 			panicOn(err)
 		}
 		testfd.Close()
-		vv("created N = %v MB test file in remotePath='%v'.", N, remotePath)
+		//vv("created N = %v MB test file in remotePath='%v'.", N, remotePath)
 
 		// set up a server and a client.
 
@@ -105,9 +105,9 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 		defer srv.Close()
 
 		srvDataDir := srv.DataDir()
+		_ = srvDataDir
 
-		vv("server Start() returned serverAddr = '%v'; wd = '%v'; srv.DataDir() = '%v'",
-			serverAddr, srv.ServerStartingDir(), srvDataDir)
+		//vv("server Start() returned serverAddr = '%v'; wd = '%v'; srv.DataDir() = '%v'", serverAddr, srv.ServerStartingDir(), srvDataDir)
 
 		// JsyncServer and JsyncClient are re-prefixed to
 		// tell them apart from "actual" rsync. Jsync is ours.
@@ -123,8 +123,7 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 		err = cli.Start()
 		panicOn(err)
 
-		vv("client Start() coming from cli.LocalAddr = '%v'; wd = '%v'",
-			cli.LocalAddr(), cli.ClientStartingDir())
+		//vv("client Start() coming from cli.LocalAddr = '%v'; wd = '%v'", cli.LocalAddr(), cli.ClientStartingDir())
 
 		defer cli.Close()
 
@@ -153,8 +152,6 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 		if !rmod.Equal(lmod) {
 			t.Fatalf("error: lmod='%v' but lmod='%v'", lmod, rmod)
 		}
-
-		vv("why is below getting into the convert dir to file path??")
 
 		// test that a change in remote modtime, followed by
 		// a pull from that remote, gets us the local having a matching mod time.
@@ -196,9 +193,9 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 
 		//vv("list = '%#v'", list)
 		for i, path := range list {
-
+			_ = i
 			path2 := strings.Replace(path, localDir, remoteDir, 1)
-			vv("i=%v, path='%v'; path2='%v'", i, path, path2)
+			//vv("i=%v, path='%v'; path2='%v'", i, path, path2)
 
 			err = sparsified.SparseDiff(path, path2)
 			panicOn(err)

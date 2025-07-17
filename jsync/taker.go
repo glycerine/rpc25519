@@ -516,7 +516,7 @@ takerForSelectLoop:
 								_, err = newversFd.Seek(span.Endx, 0)
 								panicOn(err)
 								//vv("after Seek(n=%v,1): curpos = %v", n, curpos(newversFd))
-								vv("after Seek(span.Endx=%v,0): curpos = %v", span.Endx, curpos(newversFd))
+								//vv("after Seek(span.Endx=%v,0): curpos = %v", span.Endx, curpos(newversFd))
 								// hasher update only. not to disk.
 								for range ns {
 									//wb, err := newversFd.Write(zeros4k)
@@ -549,19 +549,20 @@ takerForSelectLoop:
 								h.Write(zeros4k[:n])
 							}
 						} else if chunk.Cry == "UNWRIT;" {
-							// moved to above now: not working though.
+							// moved to above now.
 
 							// try to do only once, and hopefully
 							// get above working so pre-alloc
 							// happens before other writes.
 							if !newversFdUnwritPreallocDone {
+								panic("want it always above now! transmit enough that we can always just pre-allocate once before writing anything else")
 								newversFdUnwritPreallocDone = true
 								_, err = newversFd.Seek(chunk.Beg, 0)
 								panicOn(err)
 								// always start from 0, since otherwise
 								// APFS complains.
 								sz := chunk.Endx - chunk.Beg
-								vv("about to Fallocate beg=%v, sz=%v, path='%v'", chunk.Beg, sz, newversFd.Name())
+								vv("middle UNWRIT; about to Fallocate beg=%v, sz=%v, path='%v'", chunk.Beg, sz, newversFd.Name())
 								_, err = sparsified.Fallocate(newversFd, sparsified.FALLOC_FL_KEEP_SIZE, chunk.Beg, sz)
 								if err != nil {
 									// try not to fail just because disk is fragmented or no pre-allocation support. Just warn.
