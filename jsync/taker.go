@@ -705,6 +705,8 @@ takerForSelectLoop:
 				plan = senderPlan.SenderChunksNoSlice
 				goalPrecis = senderPlan.SenderPrecis
 
+				vv("plan = '%v'", plan)
+
 				if plan.FileSize == 0 { // ? && syncReq.TakerTempDir == "" ??
 					//vv("plan.FileSize == 0 => truncate to zero localPathToWrite='%v'", localPathToWrite)
 					err = truncateFileToZero(localPathToWrite)

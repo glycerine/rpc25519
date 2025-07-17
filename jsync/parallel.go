@@ -88,7 +88,12 @@ func ChunkFile2(
 	}
 	defer fd.Close()
 
-	isSparse, disksz, statsz, fi, err := sparsified.SparseFileSize(fd)
+	//isSparse, disksz, statsz, fi, err := sparsified.SparseFileSize(fd)
+	sum, err := sparsified.SparseFileSize(fd)
+	disksz := sum.DiskSize
+	statsz := sum.StatSize
+	fi := sum.FI
+
 	if err != nil {
 		//vv("path did not stat: '%v': '%v'", path, err)
 		err0 = err
@@ -102,7 +107,7 @@ func ChunkFile2(
 	if diff < 0 {
 		diff = -diff
 	}
-	if isSparse || diff >= 4096 {
+	if sum.IsSparse || diff >= 4096 {
 		// we have either sparse holes or preallocated space.
 		// (disksz > statsz by more than a page => pre-allocated).
 		// (disksz < statsz by more than a page => sparse holes).

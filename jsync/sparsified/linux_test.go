@@ -49,7 +49,7 @@ func Test016_FieMapLinux_compared_lseek(t *testing.T) {
 		fd, err = createSparseFileFromSparseSpans(path, spec, nil)
 		panicOn(err)
 
-		spansRead, err := FindSparseRegions(fd)
+		_, spansRead, err := FindSparseRegions(fd)
 		panicOn(err)
 		////vv("spansRead = '%v'", spansRead)
 		if spansRead.Equal(spec) {
@@ -107,7 +107,7 @@ func Test017_FieMapLinux_preallocated(t *testing.T) {
 	_, _, _ = isSparse, disksz, statsz
 	//vv("SparseFileSize returned: isSparse=%v; disksz=%v; statsz=%v; err=%v", isSparse, disksz, statsz, err)
 
-	spansRead, err := FindSparseRegions(fd)
+	_, spansRead, err := FindSparseRegions(fd)
 	panicOn(err)
 	//vv("spansRead = '%v'", spansRead)
 	if spansRead.Equal(spec) {
@@ -163,7 +163,7 @@ func Test018_FieMapLinux_preallocated2(t *testing.T) {
 	_, _, _ = isSparse, disksz, statsz
 	//vv("SparseFileSize returned: isSparse=%v; disksz=%v; statsz=%v; err=%v", isSparse, disksz, statsz, err)
 
-	spansRead, err := FindSparseRegions(fd)
+	_, spansRead, err := FindSparseRegions(fd)
 	panicOn(err)
 	//vv("spansRead = '%v'", spansRead)
 	if spansRead.Equal(spec) {

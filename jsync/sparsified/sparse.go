@@ -234,6 +234,15 @@ func IsSparseFile(fd *os.File) (isSparse bool, err error) {
 	return actual < apparent, nil
 }
 
+type SparseSum struct {
+	IsSparse    bool
+	DiskSize    int64 // bytes actually in use, including pre-allocation
+	StatSize    int64 // what stat/ls reports
+	FI          os.FileInfo
+	UnwritBegin int64
+	UnwritEndx  int64
+}
+
 // SparseFileSize returns isSparse true if the
 // file fd has at least one sparse "hole" in it.
 //
@@ -251,21 +260,26 @@ func IsSparseFile(fd *os.File) (isSparse bool, err error) {
 // When copying a file that has pre-allocation, client code
 // should decide if it wants to replicate the pre-allocation
 // or not; we do nothing here about it.
-func SparseFileSize(fd *os.File) (isSparse bool, diskBytesInUse, statSize int64, fi os.FileInfo, err error) {
+func SparseFileSize(fd *os.File) (sum *SparseSum, err error) {
 
-	fi, err = fd.Stat()
+	fi, err := fd.Stat()
 	if err != nil {
 		//vv("fd.Stat err = '%v'", err)
 		return
 	}
 
+	sum = &SparseSum{
+		FI: fi,
+		//	UnwritBegin    int64
+		//	UnwritEndx     int64
+	}
 	stat := fi.Sys().(*syscall.Stat_t)
-	statSize = stat.Size
+	sum.StatSize = stat.Size
 
 	// the Go fd.Stat() API is tricky here: int64(stat.Blksize),
 	// says 4096 (e.g. on darwin APFS), but the multiplier to
 	// use to compute actual in-use space is 512.
-	diskBytesInUse = stat.Blocks * 512
+	sum.DiskSize = stat.Blocks * 512
 
 	// we do have to seek for a hole to see if it is sparse at all.
 	var holeBeg int64
@@ -291,7 +305,7 @@ func SparseFileSize(fd *os.File) (isSparse bool, diskBytesInUse, statSize int64,
 		return
 	}
 	////vv("holeBeg = %v", holeBeg)
-	if holeBeg >= statSize {
+	if holeBeg >= sum.StatSize {
 		// not sparse.
 		// A subtle case: for a 369 byte file, APFS will
 		// report a hole at position 369
@@ -301,7 +315,7 @@ func SparseFileSize(fd *os.File) (isSparse bool, diskBytesInUse, statSize int64,
 		return
 	}
 	////vv("have holeBeg = %v < statSz = %v", holeBeg, statSz)
-	isSparse = true
+	sum.IsSparse = true
 
 	//if diskBytesInUse > statSize {
 	// actually pre-allocation of blocks can make this true, right?
@@ -335,18 +349,44 @@ func SparseFileSize(fd *os.File) (isSparse bool, diskBytesInUse, statSize int64,
 	// Thus we do NOT assert this always holds:
 	//panic(fmt.Sprintf("diskBytesInUse=%v > statSize=%v; we assumed this was impossible!", diskBytesInUse, statSize))
 	//}
+
+	/*
+		// FindSparseRegions calls us, so this can
+		// infinite loop.
+		if !noSparseRegion {
+			var spans *SparseSpans
+			var unwritIndex int
+			spans, unwritIndex, err = FindSparseRegions(fd)
+			if err != nil {
+				return
+			}
+
+			// report first unwritten preallocated region.
+			if unwritIndex >= 0 {
+				sum.UnwritBegin = spans.Slc[unwritIndex].Beg
+				sum.UnwritEndx = spans.Slc[unwritIndex].Endx
+			}
+		}
+	*/
 	return
 }
 
 // FindSparseRegions finds data and hole regions in a sparse file.
-func FindSparseRegions(f *os.File) (spans *SparseSpans, err error) {
-	spans = &SparseSpans{}
+// If unwritIndex >= 0, then it refers to the first
+// unwritten/pre-allocated region >= 4096 bytes in the file.
+func FindSparseRegions(fd *os.File) (sum *SparseSum, spans *SparseSpans, err error) {
 
-	isSparse, disksz, statsz, fi, err := SparseFileSize(f)
-	panicOn(err)
-	_ = fi
+	sum, err = SparseFileSize(fd)
+	if err != nil {
+		return
+	}
+	statsz := sum.StatSize
+	disksz := sum.DiskSize
 	fileSize := statsz
-	_ = disksz
+
+	spans = &SparseSpans{}
+	unwritIndex := -1
+
 	//vv("isSparse = %v; statsz = %v; disksz = %v", isSparse, statsz, disksz)
 
 	// maybe todo: get fiemap working?
@@ -364,11 +404,9 @@ func FindSparseRegions(f *os.File) (spans *SparseSpans, err error) {
 
 	// non-fiemap workaround: only handles pre-allocation
 	// at the first and second segment, but is portable to darwin.
-	// plus fiemap is pretty lame about fully pre-alloced files anyway,
-	// giving an error rather than useful info.
 	if disksz > statsz {
 		// we have pre-allocated some of the file.
-		if !isSparse {
+		if !sum.IsSparse {
 			if statsz > 0 {
 				spans.Slc = append(spans.Slc, SparseSpan{
 					Beg:  0,
@@ -380,11 +418,17 @@ func FindSparseRegions(f *os.File) (spans *SparseSpans, err error) {
 				Beg:                 statsz,
 				Endx:                disksz,
 			})
+			if disksz >= 4096+statsz && unwritIndex < 0 {
+				// report first unwrit if any
+				unwritIndex = len(spans.Slc) - 1
+				sum.UnwritBegin = statsz
+				sum.UnwritEndx = disksz
+			}
 			return
 		}
 	}
 
-	if !isSparse {
+	if !sum.IsSparse {
 		spans.Slc = append(spans.Slc, SparseSpan{
 			IsHole: false,
 			Beg:    0,
@@ -394,7 +438,7 @@ func FindSparseRegions(f *os.File) (spans *SparseSpans, err error) {
 	}
 	//vv("FindSparseRegions has isSparse=true from SparseFileSize() for '%v'", f.Name())
 
-	fd := int(f.Fd())
+	fdint := int(fd.Fd())
 
 	var dataBeg int64
 	var holeBeg int64
@@ -402,7 +446,7 @@ func FindSparseRegions(f *os.File) (spans *SparseSpans, err error) {
 
 	for offset < fileSize {
 		// Seek to the next data region
-		dataBeg, err = unix.Seek(int(f.Fd()), offset, unix.SEEK_DATA) // ok on darwin, not linux
+		dataBeg, err = unix.Seek(fdint, offset, unix.SEEK_DATA) // ok on darwin, not linux
 		//dataBeg, err = f.Seek(offset, unix.SEEK_DATA)
 		// on totally sparse file: err == 0x6 / syscall.Errno, dataBeg = -1
 		//vv("for loop: offset=%v < fileSize=%v, Seek(offset, SEEK_DATA) gave err = '%v'/%T; dataBeg='%v'", offset, fileSize, err, err, dataBeg)
@@ -421,7 +465,7 @@ func FindSparseRegions(f *os.File) (spans *SparseSpans, err error) {
 				err = nil
 				return
 			}
-			err = fmt.Errorf("error: failed to seek data from offset %v: '%v' for path '%v'", offset, err, f.Name())
+			err = fmt.Errorf("error: failed to seek data from offset %v: '%v' for path '%v'", offset, err, fd.Name())
 			return
 		}
 
@@ -439,7 +483,7 @@ func FindSparseRegions(f *os.File) (spans *SparseSpans, err error) {
 
 		// Now we are at a data region. Find the end of this data region.
 		////vv("unix.SEEK_HOLE = %v", unix.SEEK_HOLE) // unix.SEEK_HOLE = 4 on linux
-		holeBeg, err = unix.Seek(fd, dataBeg, unix.SEEK_HOLE)
+		holeBeg, err = unix.Seek(fdint, dataBeg, unix.SEEK_HOLE)
 		if err != nil {
 			if err == syscall.ENXIO { // No more holes (all data till end)
 				spans.Slc = append(spans.Slc, SparseSpan{
@@ -450,7 +494,7 @@ func FindSparseRegions(f *os.File) (spans *SparseSpans, err error) {
 				err = nil
 				return
 			}
-			err = fmt.Errorf("error: failed to seek data from offset %v: '%v' for path '%v'", dataBeg, err, f.Name())
+			err = fmt.Errorf("error: failed to seek data from offset %v: '%v' for path '%v'", dataBeg, err, fd.Name())
 			return
 		}
 
@@ -494,7 +538,8 @@ func demoAPFS() {
 	}
 	defer f_read.Close()
 
-	spans, err := FindSparseRegions(f_read)
+	sum, spans, err := FindSparseRegions(f_read)
+	_ = sum
 	panicOn(err)
 
 	fmt.Printf("spans:\n")
@@ -569,17 +614,25 @@ func SparseDiff(srcpath, destpath string) (err error) {
 		return fmt.Errorf("SparseDiff error: could not open destpath '%v': '%v'", destpath, err)
 	}
 
-	isSparse0, disksz0, statsz0, _, err0 := SparseFileSize(src)
+	//isSparse0, disksz0, statsz0, _, err0 := SparseFileSize(src)
+	sum0, err0 := SparseFileSize(src)
 	panicOn(err0)
 	if err0 != nil {
 		return fmt.Errorf("SparseDiff error from SparseFileSize(srcpath='%v'): '%v'", srcpath, err0)
 	}
+	isSparse0 := sum0.IsSparse
+	disksz0 := sum0.DiskSize
+	statsz0 := sum0.StatSize
 
-	isSparse1, disksz1, statsz1, _, err1 := SparseFileSize(dest)
+	//isSparse1, disksz1, statsz1, _, err1 := SparseFileSize(dest)
+	sum1, err1 := SparseFileSize(dest)
 	panicOn(err1)
 	if err1 != nil {
 		return fmt.Errorf("SparseDiff error from SparseFileSize(destpath='%v'): '%v'", destpath, err1)
 	}
+	isSparse1 := sum1.IsSparse
+	disksz1 := sum1.DiskSize
+	statsz1 := sum1.StatSize
 
 	// check the basic outlines match.
 	if isSparse0 != isSparse1 {
@@ -721,13 +774,17 @@ func CopySparseFile(srcpath, destpath string) (err error) {
 	}
 	defer dest.Close()
 
-	isSparse0, disksz0, statsz0, _, err0 := SparseFileSize(src)
+	sum0, err0 := SparseFileSize(src)
 	panicOn(err0)
 	//vv("isSparse0 = %v; statsz0 = %v; disksz0 = %v; srcpath='%v'", isSparse0, statsz0, disksz0, srcpath)
 
 	if err0 != nil {
 		return fmt.Errorf("error in CopySparseFile: error from SparseFileSize(srcpath='%v'): '%v'", srcpath, err0)
 	}
+	isSparse0 := sum0.IsSparse
+	disksz0 := sum0.DiskSize
+	statsz0 := sum0.StatSize
+
 	// sanity check
 	if disksz0 < 0 || statsz0 < 0 {
 		panic(fmt.Sprintf("disksz0 = %v; statsz0 = %v; neither should be negative", disksz0, statsz0))

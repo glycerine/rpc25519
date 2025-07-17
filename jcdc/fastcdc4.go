@@ -87,7 +87,7 @@ func (c *FastCDC_Plakar) CutpointsAndAllZero(fd *os.File) (cuts []int64, allzero
 	_, err := fd.Seek(0, 0)
 	panicOn(err)
 
-	spans, err = sparsified.FindSparseRegions(fd)
+	_, spans, err = sparsified.FindSparseRegions(fd)
 	panicOn(err)
 	//vv("spans = '%v'", spans)
 	if spans == nil || len(spans.Slc) == 0 {

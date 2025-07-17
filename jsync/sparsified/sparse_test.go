@@ -271,7 +271,7 @@ func Test005_apfs(t *testing.T) {
 		fd, err = createSparseFileFromSparseSpans(path, spec, nil)
 		panicOn(err)
 
-		spansRead, err := FindSparseRegions(fd)
+		_, spansRead, err := FindSparseRegions(fd)
 		panicOn(err)
 		fd.Close()
 		////vv("spansRead = '%v'", spansRead)
@@ -311,7 +311,7 @@ func Test006_darwin_mixed_sparse_file(t *testing.T) {
 	panicOn(err)
 
 	//vv("done with createSparseFileFromSparseSpans, on to FindSparseRegions")
-	spansRead, err := FindSparseRegions(fd)
+	_, spansRead, err := FindSparseRegions(fd)
 	panicOn(err)
 	//vv("spansRead = '%v'", spansRead)
 	if spansRead.Equal(spec) {
@@ -341,7 +341,7 @@ func Test007_small_file_not_sparse_file(t *testing.T) {
 	panicOn(err)
 
 	//vv("done with createSparseFileFromSparseSpans, on to FindSparseRegions")
-	spansRead, err := FindSparseRegions(fd)
+	_, spansRead, err := FindSparseRegions(fd)
 	panicOn(err)
 	//vv("spansRead = '%v'", spansRead)
 	if spansRead.Equal(spec) {
@@ -375,12 +375,12 @@ func Test008_pre_allocated_file(t *testing.T) {
 	//vv("done with createSparseFileFromSparseSpans()")
 	defer fd.Close()
 
-	isSparse, disksz, statsz, _, err := SparseFileSize(fd)
+	_, err = SparseFileSize(fd)
 	panicOn(err) // no such device or address [recovered, repanicked]
-	_, _, _ = isSparse, disksz, statsz
+
 	//vv("SparseFileSize returned: isSparse=%v; disksz=%v; statsz=%v; err=%v", isSparse, disksz, statsz, err)
 
-	spansRead, err := FindSparseRegions(fd)
+	_, spansRead, err := FindSparseRegions(fd)
 	panicOn(err)
 	//vv("spansRead = '%v'", spansRead)
 	if spansRead.Equal(spec) {
@@ -464,13 +464,12 @@ func Test010_pre_allocated_file_some_data(t *testing.T) {
 	//vv("done with createSparseFileFromSparseSpans()")
 	defer fd.Close()
 
-	isSparse, disksz, statsz, _, err := SparseFileSize(fd)
+	_, err = SparseFileSize(fd)
 	panicOn(err) // no such device or address [recovered, repanicked]
-	_, _, _ = isSparse, disksz, statsz
 
 	//vv("SparseFileSize returned: isSparse=%v; disksz=%v; statsz=%v; err=%v", isSparse, disksz, statsz, err)
 
-	spansRead, err := FindSparseRegions(fd)
+	_, spansRead, err := FindSparseRegions(fd)
 	panicOn(err)
 	//vv("spansRead = '%v'", spansRead)
 	if spansRead.Equal(spec) {

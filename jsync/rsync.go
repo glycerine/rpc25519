@@ -84,9 +84,10 @@ type Chunks struct {
 	// do that once up front. Less than a page means
 	// its probably just APFS only doing full-size files,
 	// and lives at the end of everything else.
-	PreAllocUnwritBytes int64 `zid:"4"`
-	PreAllocLargestSpan int64 `zid:"5"`
-	PreAllocBeforeLast  bool  `zid:"6"` // may be problematic on APFS
+	PreAllocUnwritBegin int64 `zid:"4"`
+	PreAllocUnwritBytes int64 `zid:"5"`
+	PreAllocLargestSpan int64 `zid:"6"`
+	PreAllocBeforeLast  bool  `zid:"7"` // may be problematic on APFS
 }
 
 func NewChunks(path string) *Chunks {
@@ -392,14 +393,18 @@ type FilePrecis struct {
 
 	FileCry string `zid:"14"`
 
+	IsSparse            bool  `zid:"15"` // at least one hole.
+	PreAllocUnwritBegin int64 `zid:"16"`
+	PreAllocUnwritEndx  int64 `zid:"17"`
+
 	// ChunkerName is e.g.
 	// "fastcdc-Stadia-Google-64bit-arbitrary-regression-jea"
 	//   or "ultracdc-glycerine-golang-implementation".
 	// It should encapsulate any settings and
 	// implementation version needed to allow it to be
 	// reproduced exactly.
-	ChunkerName string           `zid:"15"`
-	CDC_Config  *jcdc.CDC_Config `zid:"16"`
+	ChunkerName string           `zid:"18"`
+	CDC_Config  *jcdc.CDC_Config `zid:"19"`
 
 	// keep these separate so we don't
 	// send all the data all the time.
@@ -450,6 +455,15 @@ func (a *FilePrecis) Equal(b *FilePrecis) bool {
 	if a.FileCry != b.FileCry {
 		return false
 	}
+	if a.IsSparse != b.IsSparse {
+		return false
+	}
+	if a.PreAllocUnwritBegin != b.PreAllocUnwritBegin {
+		return false
+	}
+	if a.PreAllocUnwritEndx != b.PreAllocUnwritEndx {
+		return false
+	}
 	if a.ChunkerName != b.ChunkerName {
 		return false
 	}
@@ -461,6 +475,7 @@ func (a *FilePrecis) Equal(b *FilePrecis) bool {
 	}
 	if a.CDC_Config == nil && b.CDC_Config == nil {
 		return true
+
 	} else {
 		if a.CDC_Config.MinSize != b.CDC_Config.MinSize {
 			return false
@@ -814,17 +829,25 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 	// parameter min/max/target settings in
 	// order to give good chunking.
 
+	sum, spansRead, err := sparsified.FindSparseRegions(fd)
+	//sum, err := sparsified.SparseFileSize(fd)
+	_ = spansRead
+	panicOn(err)
+
 	cfg := Default_CDC_Config
 	cdc := jcdc.GetCutpointer(Default_CDC, cfg)
 
 	precis = &FilePrecis{
-		Host:        host,
-		Path:        path,
-		FileSize:    fileStatSz, // len(data),
-		ModTime:     modTime,
-		ChunkerName: cdc.Name(),
-		CDC_Config:  cdc.Config(),
-		HashName:    "blake3.33B",
+		Host:                host,
+		Path:                path,
+		FileSize:            fileStatSz, // len(data),
+		ModTime:             modTime,
+		ChunkerName:         cdc.Name(),
+		CDC_Config:          cdc.Config(),
+		HashName:            "blake3.33B",
+		IsSparse:            sum.IsSparse,
+		PreAllocUnwritBegin: sum.UnwritBegin,
+		PreAllocUnwritEndx:  sum.UnwritEndx,
 	}
 
 	if fd == nil || fileStatSz == 0 {
@@ -1127,6 +1150,9 @@ func (cs *Chunks) CloneWithNoChunks() (r *Chunks) {
 	r = NewChunks(cs.Path)
 	r.FileSize = cs.FileSize
 	r.FileCry = cs.FileCry
+	r.PreAllocUnwritBytes = cs.PreAllocUnwritBytes
+	r.PreAllocLargestSpan = cs.PreAllocLargestSpan
+	r.PreAllocBeforeLast = cs.PreAllocBeforeLast
 	return
 }
 
