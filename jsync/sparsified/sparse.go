@@ -309,6 +309,8 @@ func SparseFileSize(fd *os.File) (sum *SparseSum, err error) {
 	}
 	////vv("holeBeg = %v", holeBeg)
 	if holeBeg >= sum.StatSize {
+		// not sparse.
+
 		// man lseek on darwin:
 		// "Each file is presented as having a zero-size
 		// virtual hole at the very end of
@@ -388,7 +390,7 @@ func FindSparseRegions(fd *os.File) (sum *SparseSum, spans *SparseSpans, err err
 	spans = &SparseSpans{}
 	unwritIndex := -1
 
-	vv("sum = '%#v'", sum)
+	//vv("sum = '%#v'", sum)
 
 	// maybe todo: get fiemap working?
 	// https://github.com/longhorn/sparse-tools/blob/master/sparse/fiemap.go
