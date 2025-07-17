@@ -48,7 +48,7 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 		list, err := filepath.Glob(localDir + "/*")
 		panicOn(err)
 
-		//vv("list = '%#v'", list)
+		vv("done with MustGenerateSparseTestFiles, list = '%#v'", list)
 		for i, path := range list {
 			//if i > 5 { // green
 			//if i > 10 { // red

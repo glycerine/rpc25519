@@ -1013,7 +1013,7 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 			// pre-allocated yet unwritten. logical zeros.
 			hsh = "UNWRIT;"
 			sz := cut - prevcut
-			vv("see UNWRIT; of size %v, in path '%v'; stack = \n%v", sz, path, stack())
+			vv("see UNWRIT; of size %v [beg=%v:endx=%v), in path '%v'; stack = \n%v", sz, prevcut, cut, path, stack())
 
 			// allow determination if we need to
 			// pre-allocate this file or not (if more

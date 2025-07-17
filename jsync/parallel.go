@@ -108,7 +108,7 @@ func ChunkFile2(
 		diff = -diff
 	}
 	if sum.IsSparse || diff >= 4096 {
-		vv("we have either sparse holes or preallocated space: '%v'", path)
+		vv("we have either sparse holes or preallocated space: '%v'; isSparse=%v; diff between disksz and statsz = %v", path, sum.IsSparse, diff)
 		// (disksz > statsz by more than a page => pre-allocated).
 		// (disksz < statsz by more than a page => sparse holes).
 		// Do a full serial scan and sparse analysis.

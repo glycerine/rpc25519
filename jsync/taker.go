@@ -432,11 +432,14 @@ takerForSelectLoop:
 					vv("make sparse if possible! truncating to %v our tmp file '%v' on newversFd", syncReq.GiverFileSize, tmp)
 					err = newversFd.Truncate(int64(syncReq.GiverFileSize))
 					panicOn(err)
-					//newversFd.Sync() // does this help keep the sparseness? nope.
+					newversFd.Sync() // does this help keep the sparseness? nope.
 
 					// just do one prealloc if any of the space is unwrit.
 					if chunks.PreAllocUnwritEndx > 0 {
-						vv("PreAllocUnwritEndx(%v) > 0 on path '%v'", chunks.PreAllocUnwritEndx, newversFd.Name()) // now seen in test 220
+						curpos, err := newversFd.Seek(0, io.SeekCurrent)
+						panicOn(err)
+
+						vv("PreAllocUnwritEndx(%v) > 0 on path '%v'; curpos=%v", chunks.PreAllocUnwritEndx, newversFd.Name(), curpos) // now seen in test 220
 						_, err = newversFd.Seek(0, 0)
 						panicOn(err)
 						// always start from 0, since otherwise
@@ -446,13 +449,15 @@ takerForSelectLoop:
 							// try not to fail just because disk is fragmented or no pre-allocation support. Just warn.
 							alwaysPrintf("warning: could not pre-allocate space same as origin for path (tmp='%v'; final='%v') of size bytes: %v; err = '%v'. Likely filesystem does not support pre-allocation, or target disk is too fragmented.", tmp, localPathToWrite, formatUnder(chunks.PreAllocUnwritEndx), err)
 						}
+						newversFd.Sync() // does this help?
 						newversFdUnwritPreallocDone = true
-					}
 
-					// for debugging sparse hole issues:
-					//spans, err := sparsified.FindSparseRegions(newversFd)
-					//panicOn(err)
-					//vv("debug sparse spans after first Truncate = '%v'", spans)
+						// for debugging sparse hole issues:
+						sum, spans, err := sparsified.FindSparseRegions(newversFd)
+						panicOn(err)
+						vv("path = '%v'; debug sparse spans after first pre-alloc; sum='%#v' \n spans= '%v'", newversFd.Name(), sum, spans)
+
+					}
 
 					//vv("taker created file '%v'", tmp)
 					//newversBufio = bufio.NewWriterSize(newversFd, rpc.UserMaxPayload)
@@ -479,6 +484,7 @@ takerForSelectLoop:
 
 				// remote gives the plan of what to create
 				for _, chunk := range chunks.Chunks {
+					vv("processing chunk = '%v' of newversFd '%v'", chunk, newversFd.Name())
 
 					if len(chunk.Data) == 0 {
 						//vv("len(chunk.Data) == 0 => the data is local, or RLE0; .Cry = '%v'", chunk.Cry)
