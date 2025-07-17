@@ -829,25 +829,33 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 	// parameter min/max/target settings in
 	// order to give good chunking.
 
-	sum, spansRead, err := sparsified.FindSparseRegions(fd)
-	//sum, err := sparsified.SparseFileSize(fd)
+	var sum *sparsified.SparseSum
+	var spansRead *sparsified.SparseSpans
+	if fd != nil {
+		sum, spansRead, err = sparsified.FindSparseRegions(fd)
+		if err != nil {
+			// probably empty file
+			panicOn(err)
+		}
+	}
 	_ = spansRead
-	panicOn(err)
 
 	cfg := Default_CDC_Config
 	cdc := jcdc.GetCutpointer(Default_CDC, cfg)
 
 	precis = &FilePrecis{
-		Host:                host,
-		Path:                path,
-		FileSize:            fileStatSz, // len(data),
-		ModTime:             modTime,
-		ChunkerName:         cdc.Name(),
-		CDC_Config:          cdc.Config(),
-		HashName:            "blake3.33B",
-		IsSparse:            sum.IsSparse,
-		PreAllocUnwritBegin: sum.UnwritBegin,
-		PreAllocUnwritEndx:  sum.UnwritEndx,
+		Host:        host,
+		Path:        path,
+		FileSize:    fileStatSz, // len(data),
+		ModTime:     modTime,
+		ChunkerName: cdc.Name(),
+		CDC_Config:  cdc.Config(),
+		HashName:    "blake3.33B",
+	}
+	if sum != nil {
+		precis.IsSparse = sum.IsSparse
+		precis.PreAllocUnwritBegin = sum.UnwritBegin
+		precis.PreAllocUnwritEndx = sum.UnwritEndx
 	}
 
 	if fd == nil || fileStatSz == 0 {
