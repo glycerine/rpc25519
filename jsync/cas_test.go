@@ -13,7 +13,8 @@ func TestManualMarshalUnmarshalCASIndexEntry(t *testing.T) {
 	hasher := hash.NewBlake3()
 	hasher.Write([]byte("hello"))
 	b3 := hasher.SumString()
-	v := NewCASIndexEntry(b3, 9223372036854775679, 128, 77)
+	sz := int32(128)
+	v := NewCASIndexEntry(b3, 9223372036854775679, sz, 77, sz)
 	// v := CASIndexEntry{
 	// 	Endx: 9223372036854775807,
 	// }

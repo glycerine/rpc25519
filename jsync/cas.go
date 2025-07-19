@@ -475,6 +475,7 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 
 		// compress
 		var flags int32
+		ulen := int32(len(by)) // uncompressed length.
 		s2by := by
 		if s.useS2comprssion {
 			flags = flags | 1
@@ -487,7 +488,7 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 		// create index entry
 		beg := curpos(s.fdData)
 		endx := beg + int64(sz)
-		e := NewCASIndexEntry(b3, beg, sz, flags)
+		e := NewCASIndexEntry(b3, beg, sz, flags, ulen)
 
 		// store data to memory (uncompressed)
 		s.addToMapData(b3, by) // makes copy of by
@@ -625,6 +626,9 @@ type CASIndexEntry struct {
 	// (compressed byte size if compression used)
 	Clen int32
 
+	// Ulen gives the uncompressed length of the chunk.
+	Ulen int32
+
 	// Flags
 	// bit 0: Flags % 2 == 1 means chunk is compressed with s2.Encode
 	Flags int32
@@ -647,11 +651,11 @@ func (a *CASIndexEntry) Equal(b *CASIndexEntry) bool {
 }
 
 func (s *CASIndexEntry) String() string {
-	return fmt.Sprintf(`CASIndexEntry{Beg:%v, Clen:%v, Flags:%v, Blake3:"%v"}
-`, s.Beg, s.Clen, s.Flags, s.Blake3)
+	return fmt.Sprintf(`CASIndexEntry{Beg:%v, Clen:%v, Ulen:%v, Flags:%v, Blake3:"%v"}
+`, s.Beg, s.Clen, s.Ulen, s.Flags, s.Blake3)
 }
 
-func NewCASIndexEntry(blake3str string, beg int64, length, flags int32) (r *CASIndexEntry) {
+func NewCASIndexEntry(blake3str string, beg int64, length, flags, ulen int32) (r *CASIndexEntry) {
 	n := len(blake3str)
 	// len is 55, so 0-byte terminated always too--
 	// which should make the int64 8-byte aligned as well.
@@ -663,6 +667,7 @@ func NewCASIndexEntry(blake3str string, beg int64, length, flags int32) (r *CASI
 		Blake3: blake3str,
 		Beg:    beg,
 		Clen:   length,
+		Ulen:   ulen,
 		Flags:  flags,
 	}
 	return
