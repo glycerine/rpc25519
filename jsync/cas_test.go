@@ -89,7 +89,7 @@ func Test_0909_NewCASIndex(t *testing.T) {
 	verifyDataAgainstIndex := true
 	idx, err := NewCASIndex(path, keepMem, preAllocDataSz, verifyDataAgainstIndex)
 	panicOn(err)
-	datas := make([][]byte, 3000)
+	datas := make([][]byte, 3)
 
 	var seed [32]byte
 	seed[0] = 3

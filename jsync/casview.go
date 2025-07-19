@@ -22,7 +22,7 @@ func (s *CASIndex) displayData() (err error) {
 	for i := int64(0); ; i++ {
 		nr, err = io.ReadFull(s.fdData, s.workbuf[:64])
 		_ = nr
-		vv("i=%v; nr=%v", i, nr)
+		//vv("i=%v; nr=%v", i, nr)
 		switch err {
 		case io.EOF:
 			err = nil
@@ -38,7 +38,7 @@ func (s *CASIndex) displayData() (err error) {
 			panicOn(err)
 			foundDataEntries++
 			e.Beg = beg
-			fmt.Printf("[%04d] %v\n", i, e)
+			fmt.Printf("casview [%04d] %v", i, e)
 			//vv("read back from path '%v' gives e = '%v'", s.path, e)
 
 			endx := e.Endx

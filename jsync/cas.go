@@ -223,6 +223,8 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 // index size bytes on disk, but do check entries.
 func (s *CASIndex) verifyDataAgainstIndex(indexSz int64) (err error) {
 
+	panicOn(s.displayData())
+
 	var foundDataEntries int64
 
 	defer func() {
