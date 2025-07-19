@@ -240,7 +240,7 @@ func (s *CASIndex) loadDataAndIndex() (err error) {
 	}
 }
 
-func (s *CASIndex) Append(data [][]byte) (err error) {
+func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 	for _, by := range data {
 		if len(by) == 0 {
 			panic("dont try to Append an empty []byte")
@@ -256,6 +256,7 @@ func (s *CASIndex) Append(data [][]byte) (err error) {
 			vv("already have b3='%v' so ignoring", b3)
 			continue
 		}
+		newCount++
 
 		// create index entry
 		beg := curpos(s.fdData)
@@ -323,7 +324,7 @@ func (s *CASIndex) Append(data [][]byte) (err error) {
 	err2 := s.fdIndex.Sync()
 	panicOn(err)
 	panicOn(err2)
-	return nil
+	return
 }
 
 func (s *CASIndex) addToMapData(b3 string, data []byte) {

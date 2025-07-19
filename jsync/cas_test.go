@@ -89,6 +89,7 @@ func Test_0909_NewCASIndex(t *testing.T) {
 		rng.cha8.Read(datas[i])
 	}
 
-	err = idx.Append(datas)
+	newCount, err := idx.Append(datas)
 	panicOn(err)
+	vv("saw newCount = %v", newCount)
 }
