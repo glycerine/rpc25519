@@ -267,7 +267,7 @@ iloop:
 		nr, err = io.ReadFull(s.fdData, s.workbuf[unused:])
 		totr += nr
 		_ = totr
-		//vv("i=%v; nr=%v; totr=%v", i, nr, totr)
+		vv("i=%v; nr=%v; totr=%v", i, nr, totr)
 		switch err {
 		default:
 			panicOn(err)
@@ -278,6 +278,7 @@ iloop:
 		case io.ErrUnexpectedEOF:
 			// fewer than 1MB - unused bytes read, okay
 			// to use s.workbuf[:unused+nr)
+			vv("setting doneAfterThisRead true")
 			doneAfterThisRead = true
 			fallthrough
 		case nil:
@@ -300,9 +301,10 @@ iloop:
 				if avail < consumed+64+sz {
 					// we have a torn read, read again if we can
 					if doneAfterThisRead {
-						panic(fmt.Sprintf("torn read not recoverable. avail=%v < 64+sz(%v). corrupt/truncated data file path = '%v'?? datapos=%v", avail, sz, s.path, datapos))
+						panic(fmt.Sprintf("e.Endx=%v; e.Beg=%v; sz=%v; torn read not recoverable. avail=%v < 64+sz(%v). corrupt/truncated data file path = '%v'?? datapos=%v", e.Endx, e.Beg, sz, avail, sz, s.path, datapos))
+						// panic: torn read not recoverable. avail=371181 < 64+sz(7298425571257963174). corrupt/truncated data file path = 'test0909_cas_data'?? datapos=0
+						// panic: bad: indexSz(192000)/64=3000 != foundDataEntries(1) [recovered, repanicked]
 					} else {
-						unused = avail - consumed
 						copy(s.workbuf[:unused], s.workbuf[consumed:avail])
 						continue iloop
 					}
@@ -314,6 +316,8 @@ iloop:
 				// so we don't want to make an extra copy here.
 				data := s.workbuf[consumed : consumed+sz]
 				consumed += sz
+				unused = avail - consumed
+
 				beg = e.Endx // make beg ready to read next header
 
 				foundDataEntries++
@@ -332,6 +336,11 @@ iloop:
 				}
 				s.addToMapData(e.Blake3, data)
 			} // end for avail > consumed+64
+			if consumed < avail {
+				unused = avail - consumed
+				vv("consumed(%v) < avail(%v), so transferring unused tail(%v) to beginning...", consumed, avail, unused)
+				copy(s.workbuf[:unused], s.workbuf[consumed:avail])
+			}
 		} // end switch err
 	} // for i
 	return nil
