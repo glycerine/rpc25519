@@ -21,16 +21,25 @@ import (
 // through the full data, allowing lazy
 // data loading.
 type CASIndex struct {
+	mut sync.Mutex
+
 	path      string
 	pathIndex string
 
 	// must keep index in memory
 	index sync.Map // blake3 -> CASIndexEntry
 
-	// can reload daa from fdData if need be,
-	// so can be trimmed.
+	// can reload data from fdData if need be,
+	// so mapData can (and will) be trimmed when
+	// we add more than maxBlobs.
 	mapData           sync.Map // blake3 -> []byte data
 	mapDataTotalBytes int64
+	maxBlobs          int64
+	nBlob             int64 // len(mapData) is kept <= maxBlobs
+
+	// memkeys for the data that is in memory rather than
+	// just on disk.
+	memkeys []string
 
 	hasher  *hash.Blake3
 	workbuf []byte
@@ -38,14 +47,23 @@ type CASIndex struct {
 
 	fdData  *os.File
 	fdIndex *os.File
+
+	// for random cache evictions
+	rng *prng
 }
 
-func NewCASIndex(path string) (s *CASIndex, err error) {
+func NewCASIndex(path string, maxBlobs int64) (s *CASIndex, err error) {
+	if maxBlobs <= 0 {
+		panic(fmt.Sprintf("maxBlobs(%v) must be positive", maxBlobs))
+	}
+	var seed [32]byte
 	s = &CASIndex{
+		maxBlobs:  maxBlobs,
 		path:      path,
 		pathIndex: path + ".index",
 		workbuf:   make([]byte, 1<<20),
 		hasher:    hash.NewBlake3(),
+		rng:       newPRNG(seed),
 	}
 	s.fdData, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
 	panicOn(err)
@@ -161,6 +179,8 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 }
 
 func (s *CASIndex) loadDataAndIndex() (err error) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
 
 	var indexSz int64
 	indexSz, err = s.loadIndex()
@@ -251,6 +271,9 @@ func (s *CASIndex) loadDataAndIndex() (err error) {
 }
 
 func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
 	for _, by := range data {
 		if len(by) == 0 {
 			panic("dont try to Append an empty []byte")
@@ -338,16 +361,42 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 }
 
 func (s *CASIndex) addToMapData(b3 string, data []byte) {
-	s.mapDataTotalBytes += int64(len(data))
-	actual, loaded := s.mapData.LoadOrStore(b3, data)
+	previous, already := s.mapData.LoadOrStore(b3, data)
 	// basic sanity, can be commented once working.
-	if !loaded {
-		dataPrev, ok := actual.([]byte)
+	if already {
+		dataPrev, ok := previous.([]byte)
 		if !ok {
-			panic(fmt.Sprintf("only []byte should be stored in m, not %T", actual))
+			panic(fmt.Sprintf("only []byte should be stored in m, not %T", previous))
 		}
 		if 0 != bytes.Compare(data, dataPrev) {
 			panic(fmt.Sprintf("data(len %v) != dataPrev(len %v), bad hashing somewhere?", len(data), len(dataPrev)))
+		}
+
+		// no change in stored data, so no eviction needed.
+		return
+	}
+	// we added new data
+	s.mapDataTotalBytes += int64(len(data))
+	if s.nBlob == s.maxBlobs {
+		// our in memory cache is over its limit,
+		// so also do a random eviction.
+		evict := s.rng.pseudoRandNonNegInt64() % s.nBlob
+		victim := s.memkeys[evict]
+		// since b3 is new, it cannot be in s.memkeys yet,
+		// so we will never evict the key we just added.
+		old, present := s.mapData.LoadAndDelete(victim)
+		if !present {
+			panic("logic error")
+		}
+		s.mapDataTotalBytes -= int64(len(old.([]byte)))
+		// replace the deleted key with the newly added one.
+		s.memkeys[evict] = b3
+	} else {
+		s.nBlob++
+		s.memkeys = append(s.memkeys, b3)
+		// assert len(s.memkeys) == s.nBlob
+		if int64(len(s.memkeys)) != s.nBlob {
+			panic(fmt.Sprintf("expected s.nBlob(%v) == len(s.memkeys) == %v", s.nBlob, len(s.memkeys)))
 		}
 	}
 }

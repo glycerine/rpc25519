@@ -77,7 +77,7 @@ func BenchmarkUnmarshalCASIndexEntry(b *testing.B) {
 
 func Test_0909_NewCASIndex(t *testing.T) {
 	path := "test0909_cas_data"
-	idx, err := NewCASIndex(path)
+	idx, err := NewCASIndex(path, 4)
 	panicOn(err)
 	datas := make([][]byte, 3)
 
