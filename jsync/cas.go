@@ -121,20 +121,16 @@ func NewCASIndex(path string, maxMemBlob, preAllocSz int64, verifyData bool) (s 
 // called as part of NewCASIndex so no locking needed.
 func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 
-	if len(s.workbuf) != 1<<20 {
-		panic(fmt.Sprintf("where did s.workbuf shrink? is now %v; should always be 1<<20", len(s.workbuf)))
-	}
-
 	// just seek to end for appending for now.
 	// later TODO: read fdIndex and check it matches fdData.
 	// For now we just confirm it is the right size.
 
-	cur := curpos(s.fdIndex) // TODO comment this and the if cur != 0
-	if cur != 0 {
-		// arg, can we be efficient and not have to syscall Seek?
-		panic(fmt.Sprintf("try to leave s.fdIndex curpos at 0 (not %v) when calling loadIndex on path='%v'", cur, s.pathIndex))
-	}
-	//s.fdIndex.Seek(0, 0)
+	// cur := curpos(s.fdIndex)
+	// if cur != 0 {
+	// 	// arg, can we be efficient and not have to syscall Seek?
+	// 	panic(fmt.Sprintf("try to leave s.fdIndex curpos at 0 (not %v) when calling loadIndex on path='%v'", cur, s.pathIndex))
+	// }
+	s.fdIndex.Seek(0, 0)
 	//vv("good: curpos = %v for fdIndex", cur)
 	fi, err := s.fdIndex.Stat()
 	panicOn(err)
@@ -242,10 +238,6 @@ func (s *CASIndex) verifyDataAgainstIndex(indexSz int64) (err error) {
 	_, err = s.fdData.Seek(0, 0)
 	panicOn(err)
 	var beg int64
-
-	if len(s.workbuf) != 1<<20 {
-		panic(fmt.Sprintf("where did s.workbuf shrink? is now %v; should always be 1<<20", len(s.workbuf)))
-	}
 
 	fi, err := s.fdData.Stat()
 	panicOn(err)
@@ -419,6 +411,12 @@ func (s *CASIndex) Get(b3 string) (data []byte, ok bool) {
 func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
+
+	// make sure we are appending to the ends of the files.
+	_, err = s.fdIndex.Seek(0, 2)
+	panicOn(err)
+	_, err = s.fdData.Seek(0, 2)
+	panicOn(err)
 
 	for _, by := range data {
 		if len(by) == 0 {

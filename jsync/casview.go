@@ -77,14 +77,6 @@ func (s *CASIndex) diagnosticDisplayIndex() (err error) {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 
-	if len(s.workbuf) != 1<<20 {
-		panic(fmt.Sprintf("where did s.workbuf shrink? is now %v; should always be 1<<20", len(s.workbuf)))
-	}
-
-	// just seek to end for appending for now.
-	// later TODO: read fdIndex and check it matches fdData.
-	// For now we just confirm it is the right size.
-
 	_, err = s.fdIndex.Seek(0, 0)
 	panicOn(err)
 	//vv("good: curpos = %v for fdIndex", cur)
