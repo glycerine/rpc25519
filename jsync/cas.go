@@ -1,7 +1,9 @@
 package jsync
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"sync"
 	//"github.com/glycerine/greenpack/msgp"
@@ -43,7 +45,7 @@ func NewCASIndex(path string) (s *CASIndex, err error) {
 
 func (s *CASIndex) loadDataAndIndex() {
 	for {
-		nr, err := io.ReadFull(fd.Data, s.workbuf[:64])
+		nr, err := io.ReadFull(s.fdData, s.workbuf[:64])
 		_ = nr
 		switch err {
 		case io.EOF:
@@ -75,22 +77,28 @@ func (s *CASIndex) Append(data [][]byte) (err error) {
 			continue
 		}
 
+		// create index entry
+		beg := curpos(s.fdData)
+		endx := beg + int64(len(by)) + 64
+		e := NewCASIndexEntry(b3, endx)
+
 		// store data to memory
 		s.addToMapData(b3, by)
 
-		beg := curpos(s.fdData)
-		endx := beg + len(by) + 64
-		e := NewCASIndexEntry(b3, endx)
-
 		// write new index entry to memory
-		//endx := curpos(s.fdData)
+
+		// sanity check
+		endx2 := curpos(s.fdData)
+		if endx2 != endx {
+			panic(fmt.Sprintf("endx2(%v) != endx(%v): bad computation", endx2, endx))
+		}
 		e.Beg = beg
 		s.index.LoadOrStore(b3, e)
 
 		// write new index entry to disk.
 		// flush workbuf first if we are out
 		// of workbuf space...
-		if len(s.workbuf)-s.w < 64 {
+		if int64(len(s.workbuf))-s.w < 64 {
 			_, err = s.fdIndex.Write(s.workbuf[:s.w])
 			panicOn(err)
 			if err != nil {
@@ -138,7 +146,7 @@ func (s *CASIndex) Append(data [][]byte) (err error) {
 }
 
 func (s *CASIndex) addToMapData(b3 string, data []byte) {
-	s.mapDataTotalBytes += len(data)
+	s.mapDataTotalBytes += int64(len(data))
 	actual, loaded := s.mapData.LoadOrStore(b3, data)
 	// basic sanity, can be commented once working.
 	if !loaded {
@@ -146,8 +154,8 @@ func (s *CASIndex) addToMapData(b3 string, data []byte) {
 		if !ok {
 			panic(fmt.Sprintf("only []byte should be stored in m, not %T", actual))
 		}
-		if 0 != bytes.Compare(data, data2) {
-			panic(fmt.Sprintf("data(len %v) != data2(len %v), bad hashing somewhere?", len(data), len(data2)))
+		if 0 != bytes.Compare(data, dataPrev) {
+			panic(fmt.Sprintf("data(len %v) != dataPrev(len %v), bad hashing somewhere?", len(data), len(dataPrev)))
 		}
 	}
 }
