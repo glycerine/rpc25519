@@ -426,6 +426,10 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 // we assume exclusive access to s.
 func (s *CASIndex) addToMapData(b3 string, data []byte) {
 
+	defer func() {
+		vv("at end of addToMapData, s.nBlob=%v", s.nBlob)
+	}()
+
 	var previous any
 	previous, already := s.mapData.LoadOrStore(b3, data)
 	// basic sanity, can be commented once working.
@@ -448,6 +452,7 @@ func (s *CASIndex) addToMapData(b3 string, data []byte) {
 		// so also do a random eviction.
 		evict := s.rng.pseudoRandNonNegInt64() % s.nBlob
 		victim := s.memkeys[evict]
+		vv("evicting %v => victim key = '%v'", evict, victim)
 		// since b3 is new, it cannot be in s.memkeys yet,
 		// so we will never evict the key we just added.
 		old, present := s.mapData.LoadAndDelete(victim)
