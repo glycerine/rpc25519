@@ -12,20 +12,6 @@ import (
 	"github.com/klauspost/compress/s2"
 )
 
-// 	de_s2      *s2.Reader = s2.NewReader(nil)
-//	decompBuf := bytes.NewBuffer(message)
-//	de_s2.Reset(decompBuf)
-
-// 	out := bytes.NewBuffer(decomp.decompSlice[:0])
-//  n, err := io.Copy(out, de_s2)
-//
-// 	com_s2     *s2.Writer = s2.NewWriter(nil) // dst io.Writer
-//  out := bytes.NewBuffer(p.compSlice[:0])
-//	c.Reset(out)
-// 	compBuf := bytes.NewBuffer(bytesMsg)
-//	_, err := io.Copy(com_s2, compBuf)
-// 	panicOn(com_s2.Close())
-
 // CASIndex and CASIndexEntry provide a very
 // simple Content-Addressable-Store backed
 // by two files on disk. The data file is
@@ -48,7 +34,9 @@ type CASIndex struct {
 	// can reload data from fdData if need be,
 	// so mapData can (and will) be trimmed when
 	// we add more than maxBlobs.
-	mapData           sync.Map // blake3 -> []byte data (uncompressed)
+	// mapData holds uncompressed data in memory.
+	// data on disk is always s2.Encode() compressed.
+	mapData           sync.Map // blake3 -> []byte data
 	mapDataTotalBytes int64
 	maxMemBlob        int64
 	nMemBlob          int64 // len(mapData) is kept <= maxMemBlob
@@ -73,14 +61,6 @@ type CASIndex struct {
 
 	// for random cache evictions
 	rng *prng
-
-	// default to true, using s2 compression.
-	// Note that only the disk []byte is compressed;
-	// the mapData returns uncompressed []byte.
-	// The Clen will reflect the compressed size
-	// when compression is used, otherwise
-	// it is the uncompressed size.
-	useS2compression bool
 }
 
 // maxMemBlob is a count of blobs to cache.
@@ -95,13 +75,12 @@ func NewCASIndex(path string, maxMemBlob, preAllocSz int64, verifyData bool) (s 
 	}
 	var seed [32]byte
 	s = &CASIndex{
-		preAllocSz:       preAllocSz,
-		maxMemBlob:       maxMemBlob,
-		hasher:           hash.NewBlake3(),
-		rng:              newPRNG(seed),
-		path:             path,
-		pathIndex:        path + ".index",
-		useS2compression: true,
+		preAllocSz: preAllocSz,
+		maxMemBlob: maxMemBlob,
+		hasher:     hash.NewBlake3(),
+		rng:        newPRNG(seed),
+		path:       path,
+		pathIndex:  path + ".index",
 
 		workbuf: make([]byte, 1<<20),
 		// exercise the "unused" logic, but always
@@ -415,15 +394,11 @@ func (s *CASIndex) Get(b3 string) (data []byte, ok bool) {
 		}
 		// everything after the header is our data payload.
 
-		if s.useS2compression {
-			// s2 compressed
-			data, err = s2.Decode(nil, s.workbuf[64:sz])
-			panicOn(err)
-			//vv("doing s2 decompression: %v -> %v", sz-64, data)
-		} else {
-			// uncompressed
-			data = s.workbuf[64:sz]
-		}
+		// on disk data is s2 compressed; always.
+		data, err = s2.Decode(nil, s.workbuf[64:sz])
+		panicOn(err)
+		//vv("doing s2 decompression: %v -> %v", sz-64, data)
+
 		if e.Ulen != int32(len(data)) {
 			panic(fmt.Sprintf("Get sees wrong size Ulen=%v but len uncompressed data = %v", e.Ulen, len(data)))
 		}
@@ -475,22 +450,18 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 		newCount++
 		s.nKnownBlob++
 
-		// compress
-		var flags int32
+		// s2 compress, always.
 		ulen := int32(len(by)) // uncompressed length.
-		s2by := by
-		if s.useS2compression {
-			flags = flags | 1
-			s2by = s2.Encode(nil, by)
-			//vv("s2.Encode: input len %v -> %v", len(by), len(s2by))
-			// (by still has the uncompressed data).
-		}
-		sz := int32(len(s2by)) + 64
+		s2by := s2.Encode(nil, by)
+		//vv("s2.Encode: input len %v -> %v", len(by), len(s2by))
+		// (the by slice still has the uncompressed data).
+
+		clen := int32(len(s2by)) + 64
 
 		// create index entry
 		beg := curpos(s.fdData)
-		endx := beg + int64(sz)
-		e := NewCASIndexEntry(b3, beg, sz, ulen)
+		endx := beg + int64(clen)
+		e := NewCASIndexEntry(b3, beg, clen, ulen)
 
 		// store data to memory (uncompressed)
 		s.addToMapData(b3, by) // makes copy of by
@@ -621,14 +592,21 @@ type CASIndexEntry struct {
 	// hash of the data blob we are indexing.
 	Blake3 string
 
-	// where the block starts in the file (not marshalled)
+	// Beg gives the byte offset of the start of
+	// the block in the file (it is not marshalled to disk
+	// but recreated from the file read-offset when read).
 	Beg int64
 
-	// Clen is the length of the chunk
-	// (compressed byte size if compression used)
+	// Clen is the compressed length (in bytes) of the chunk.
+	// This is the size on disk.
+	//
+	// Chunks from fastcdc4 are maximum 64KB at
+	// the moment, so an int32 with 2GB range is
+	// more than sufficient.
 	Clen int32
 
-	// Ulen gives the uncompressed length of the chunk.
+	// Ulen gives the uncompressed length of the chunk (in bytes).
+	// This is the size in memory.
 	Ulen int32
 }
 
@@ -653,7 +631,7 @@ func (s *CASIndexEntry) String() string {
 `, s.Beg, s.Clen, s.Ulen, s.Blake3)
 }
 
-func NewCASIndexEntry(blake3str string, beg int64, clength, ulen int32) (r *CASIndexEntry) {
+func NewCASIndexEntry(blake3str string, beg int64, clen, ulen int32) (r *CASIndexEntry) {
 	n := len(blake3str)
 	// len is 55, so 0-byte terminated always too--
 	// which should make the int64 8-byte aligned as well.
@@ -664,7 +642,7 @@ func NewCASIndexEntry(blake3str string, beg int64, clength, ulen int32) (r *CASI
 	r = &CASIndexEntry{
 		Blake3: blake3str,
 		Beg:    beg,
-		Clen:   clength,
+		Clen:   clen,
 		Ulen:   ulen,
 	}
 	return
