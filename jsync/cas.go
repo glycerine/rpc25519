@@ -34,8 +34,13 @@ type CASIndex struct {
 	// we add more than maxBlobs.
 	mapData           sync.Map // blake3 -> []byte data
 	mapDataTotalBytes int64
-	maxBlobs          int64
-	nBlob             int64 // len(mapData) is kept <= maxBlobs
+	maxMemBlob        int64
+	nMemBlob          int64 // len(mapData) is kept <= maxMemBlob
+
+	// len(index), total number of known blobs
+	// (in memory in index, and same on disk
+	// in data path or index path).
+	nKnownBlob int64
 
 	// memkeys for the data that is in memory rather than
 	// just on disk.
@@ -52,18 +57,18 @@ type CASIndex struct {
 	rng *prng
 }
 
-func NewCASIndex(path string, maxBlobs int64) (s *CASIndex, err error) {
-	if maxBlobs <= 0 {
-		panic(fmt.Sprintf("maxBlobs(%v) must be positive", maxBlobs))
+func NewCASIndex(path string, maxMemBlob int64) (s *CASIndex, err error) {
+	if maxMemBlob <= 0 {
+		panic(fmt.Sprintf("maxMemBlob(%v) must be positive", maxMemBlob))
 	}
 	var seed [32]byte
 	s = &CASIndex{
-		maxBlobs:  maxBlobs,
-		path:      path,
-		pathIndex: path + ".index",
-		workbuf:   make([]byte, 1<<20),
-		hasher:    hash.NewBlake3(),
-		rng:       newPRNG(seed),
+		maxMemBlob: maxMemBlob,
+		path:       path,
+		pathIndex:  path + ".index",
+		workbuf:    make([]byte, 1<<20),
+		hasher:     hash.NewBlake3(),
+		rng:        newPRNG(seed),
 	}
 	s.fdData, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
 	panicOn(err)
@@ -163,6 +168,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 				_, err = e.ManualUnmarshalMsg(buf[j*64 : j*64+64])
 				panicOn(err)
 				foundEntries++
+				s.nKnownBlob++
 				e.Beg = beg
 				//vv("read back from index path '%v' gives e = '%#v'", s.pathIndex, e)
 				endx := e.Endx
@@ -427,7 +433,7 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 func (s *CASIndex) addToMapData(b3 string, data []byte) {
 
 	defer func() {
-		vv("at end of addToMapData, s.nBlob=%v", s.nBlob)
+		vv("at end of addToMapData, s.nMemBlob=%v", s.nMemBlob)
 	}()
 
 	var previous any
@@ -447,10 +453,10 @@ func (s *CASIndex) addToMapData(b3 string, data []byte) {
 	}
 	// we added new data
 	s.mapDataTotalBytes += int64(len(data))
-	if s.nBlob == s.maxBlobs {
+	if s.nMemBlob == s.maxMemBlob {
 		// our in memory cache is over its limit,
 		// so also do a random eviction.
-		evict := s.rng.pseudoRandNonNegInt64() % s.nBlob
+		evict := s.rng.pseudoRandNonNegInt64() % s.nMemBlob
 		victim := s.memkeys[evict]
 		vv("evicting %v => victim key = '%v'", evict, victim)
 		// since b3 is new, it cannot be in s.memkeys yet,
@@ -463,11 +469,11 @@ func (s *CASIndex) addToMapData(b3 string, data []byte) {
 		// replace the deleted key with the newly added one.
 		s.memkeys[evict] = b3
 	} else {
-		s.nBlob++
+		s.nMemBlob++
 		s.memkeys = append(s.memkeys, b3)
-		// assert len(s.memkeys) == s.nBlob
-		if int64(len(s.memkeys)) != s.nBlob {
-			panic(fmt.Sprintf("expected s.nBlob(%v) == len(s.memkeys) == %v", s.nBlob, len(s.memkeys)))
+		// assert len(s.memkeys) == s.nMemBlob
+		if int64(len(s.memkeys)) != s.nMemBlob {
+			panic(fmt.Sprintf("expected s.nMemBlob(%v) == len(s.memkeys) == %v", s.nMemBlob, len(s.memkeys)))
 		}
 	}
 }
@@ -578,4 +584,8 @@ func (z *CASIndexEntry) ManualUnmarshalMsg(b []byte) (o []byte, err error) {
 // ManualMsgsize
 func (z *CASIndexEntry) ManualMsgsize() (s int) {
 	return 64
+}
+
+func (s *CASIndex) TotMem() (nTot, nMem int64) {
+	return s.nKnownBlob, s.nMemBlob
 }
