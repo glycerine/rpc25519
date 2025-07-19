@@ -11,10 +11,11 @@ func TestManualMarshalUnmarshalCASIndex(t *testing.T) {
 	hasher := hash.NewBlake3()
 	hasher.Write([]byte("hello"))
 	b3 := hasher.SumString()
-	v := CASIndex{
-		Offset: 9223372036854775807,
-	}
-	copy(v.Blake3[:], []byte(b3))
+	v := NewCASIndex(b3, 9223372036854775807)
+	// v := CASIndex{
+	// 	Offset: 9223372036854775807,
+	// }
+	// copy(v.Blake3[:], []byte(b3))
 	bts, err := v.ManualMarshalMsg(nil)
 	if err != nil {
 		t.Fatal(err)

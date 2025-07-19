@@ -13,8 +13,9 @@ type CASIndex struct {
 
 func NewCASIndex(blake3 string, offset int64) (r CASIndex) {
 	n := len(blake3)
-	// we think this is 55, but 56 is okay too.
-	vv("n = %v")
+	// len is 55, so 0-byte terminated always too--
+	// which should make the int64 8-byte aligned as well.
+	//vv("n = %v", n) // n = 55
 	if n > 56 {
 		panic(fmt.Sprintf("blake3 string must be < 56 bytes: %v", n))
 	}
@@ -25,7 +26,10 @@ func NewCASIndex(blake3 string, offset int64) (r CASIndex) {
 
 var zero64 [64]byte
 
-// MarshalMsg implements msgp.Marshaler
+// ManualMarshalMsg is adapted from msgp but does NOT
+// provide greenpack / msgpack serz. Instead it is
+// custom, manual serization of the two fields so
+// that they exactly fit into a single 64-byte cache line.
 func (z *CASIndex) ManualMarshalMsg(b []byte) (o []byte, err error) {
 
 	o = msgp.Require(b, 64)
@@ -46,7 +50,10 @@ func (z *CASIndex) ManualMarshalMsg(b []byte) (o []byte, err error) {
 	return
 }
 
-// ManualUnmarshalMsg
+// ManualUnmarshalMsg is adapted from msgp but does NOT
+// provide greenpack / msgpack serz. Instead it is
+// custom, manual serization of the two fields so
+// that they exactly fit into a single 64-byte cache line.
 func (z *CASIndex) ManualUnmarshalMsg(b []byte) (o []byte, err error) {
 
 	copy(z.Blake3[:56], b[:56])
