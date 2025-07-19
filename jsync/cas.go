@@ -74,13 +74,16 @@ func NewCASIndex(path string, maxMemBlob, preAllocSz int64, verifyData bool) (s 
 	s = &CASIndex{
 		preAllocSz: preAllocSz,
 		maxMemBlob: maxMemBlob,
+		hasher:     hash.NewBlake3(),
+		rng:        newPRNG(seed),
 		path:       path,
 		pathIndex:  path + ".index",
-		workbuf:    make([]byte, 1<<20),
-		// technically workbuf must be at least cdc MaxSize(64*1024) + 64
-		//workbuf: make([]byte, 64*3), // exercise the unused logic, but should be multiple of 64
-		hasher: hash.NewBlake3(),
-		rng:    newPRNG(seed),
+
+		workbuf: make([]byte, 1<<20),
+		// exercise the "unused" logic, but always
+		// must be a multiple of 64.
+		//workbuf: make([]byte, 128*1024),
+
 	}
 	isNew := !fileExists(path)
 	s.fdData, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
@@ -114,8 +117,12 @@ func NewCASIndex(path string, maxMemBlob, preAllocSz int64, verifyData bool) (s 
 		panicOn(err)
 		alwaysPrintf("good: no error from verifyDataAgainstIndex")
 	}
-	// lazy:
+	// can also be lazy and just skip reading data for fast start.
 
+	// sanity check our workbuf is big enough
+	if len(s.workbuf) < 128*1024 {
+		panic(fmt.Sprintf("s.workbuf must be at least 128K, preferrably 1MB"))
+	}
 	return
 }
 
@@ -178,7 +185,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 			buf := s.workbuf[:nr]
 			rem2 := nr % 64
 			if rem2 != 0 {
-				panic(fmt.Sprintf("loadIndex error: how do deal with torn read nr = %v; (rem2=%v) at curpos now %v of path '%v'?", nr, rem2, curpos(s.fdIndex), s.pathIndex))
+				panic(fmt.Sprintf("loadIndex error: how do deal with torn read nr = %v; (rem2=%v) at curpos now %v of path '%v'? We can only read in multiples of 64 since our index is constructed of 64 byte records.", nr, rem2, curpos(s.fdIndex), s.pathIndex))
 			}
 
 			nentry := nr / 64
