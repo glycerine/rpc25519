@@ -77,8 +77,10 @@ func NewCASIndex(path string, maxMemBlob, preAllocSz int64, verifyData bool) (s 
 		path:       path,
 		pathIndex:  path + ".index",
 		workbuf:    make([]byte, 1<<20),
-		hasher:     hash.NewBlake3(),
-		rng:        newPRNG(seed),
+		// technically workbuf must be at least cdc MaxSize(64*1024) + 64
+		//workbuf: make([]byte, 64*3), // exercise the unused logic, but should be multiple of 64
+		hasher: hash.NewBlake3(),
+		rng:    newPRNG(seed),
 	}
 	isNew := !fileExists(path)
 	s.fdData, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
@@ -120,18 +122,9 @@ func NewCASIndex(path string, maxMemBlob, preAllocSz int64, verifyData bool) (s 
 // indexSz is the byte size of the pathIndex file.
 // called as part of NewCASIndex so no locking needed.
 func (s *CASIndex) loadIndex() (indexSz int64, err error) {
+	//vv("top of loadIndex")
 
-	// just seek to end for appending for now.
-	// later TODO: read fdIndex and check it matches fdData.
-	// For now we just confirm it is the right size.
-
-	// cur := curpos(s.fdIndex)
-	// if cur != 0 {
-	// 	// arg, can we be efficient and not have to syscall Seek?
-	// 	panic(fmt.Sprintf("try to leave s.fdIndex curpos at 0 (not %v) when calling loadIndex on path='%v'", cur, s.pathIndex))
-	// }
 	s.fdIndex.Seek(0, 0)
-	//vv("good: curpos = %v for fdIndex", cur)
 	fi, err := s.fdIndex.Stat()
 	panicOn(err)
 	indexSz = fi.Size()
@@ -148,8 +141,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 		//vv("loadIndex good: indexSz(%v)/64 == foundIndexEntries(%v); s.nKnownBlob=%v", indexSz, foundIndexEntries, s.nKnownBlob)
 	}()
 
-	beg := int64(0) // curpos(s.fdIndex)
-	//vv("top of loadIndex: beg = %v", beg)
+	var beg int64
 	var nr int
 	var doneAfterThisRead bool
 	for i := int64(0); !doneAfterThisRead; i++ {
@@ -172,7 +164,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 			doneAfterThisRead = true
 			rem := nr % 64
 			if rem != 0 {
-				panic(fmt.Sprintf("how do deal with torn read (rem=%v) at pos %v of path '%v'?", rem, curpos(s.fdIndex), s.pathIndex))
+				panic(fmt.Sprintf("how do deal with torn read (rem=%v) at pos %v of path '%v'? nr=%v, len(s.workbuf)=%v", rem, curpos(s.fdIndex), s.pathIndex, nr, len(s.workbuf)))
 			}
 			err = nil
 			fallthrough
@@ -186,7 +178,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 			buf := s.workbuf[:nr]
 			rem2 := nr % 64
 			if rem2 != 0 {
-				panic(fmt.Sprintf("loadIndex error: how do deal with torn read nr = %v; (rem2=%v) at pos %v of path '%v'?", nr, rem2, curpos(s.fdIndex), s.pathIndex))
+				panic(fmt.Sprintf("loadIndex error: how do deal with torn read nr = %v; (rem2=%v) at curpos now %v of path '%v'?", nr, rem2, curpos(s.fdIndex), s.pathIndex))
 			}
 
 			nentry := nr / 64
@@ -302,7 +294,7 @@ iloop:
 						// panic: bad: indexSz(192000)/64=3000 != foundDataEntries(1) [recovered, repanicked]
 					} else {
 						unused = avail - consumed
-						vv("unused(%v) = avail(%v) - consumed(%v)", unused, avail, consumed)
+						//vv("unused(%v) = avail(%v) - consumed(%v)", unused, avail, consumed)
 						copy(s.workbuf[:unused], s.workbuf[consumed:avail])
 						continue iloop
 					}
@@ -338,7 +330,7 @@ iloop:
 			} // end for avail > consumed+64
 			if consumed < avail {
 				unused = avail - consumed
-				vv("consumed(%v) < avail(%v), so transferring unused tail(%v) to beginning...", consumed, avail, unused)
+				//vv("consumed(%v) < avail(%v), so transferring unused tail(%v) to beginning...", consumed, avail, unused)
 				copy(s.workbuf[:unused], s.workbuf[consumed:avail])
 			}
 		} // end switch err
