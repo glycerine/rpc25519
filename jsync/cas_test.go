@@ -1,7 +1,7 @@
 package jsync
 
 import (
-	"bytes"
+	//"bytes"
 	"testing"
 	//"github.com/glycerine/greenpack/msgp"
 	"github.com/glycerine/rpc25519/hash"
@@ -34,7 +34,8 @@ func TestManualMarshalUnmarshalCASIndexEntry(t *testing.T) {
 	if v2.Endx != v.Endx {
 		panic("different")
 	}
-	if 0 != bytes.Compare(v2.Blake3[:], v.Blake3[:]) {
+	//if 0 != bytes.Compare(v2.Blake3[:], v.Blake3[:]) {
+	if v2.Blake3 != v.Blake3 {
 		panic("different")
 	}
 }
@@ -72,4 +73,21 @@ func BenchmarkUnmarshalCASIndexEntry(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
+}
+
+func Test_0909_NewCASIndex(t *testing.T) {
+	path := "test0909_cas_data"
+	idx, err := NewCASIndex(path)
+	panicOn(err)
+	datas := make([][]byte, 3)
+
+	var seed [32]byte
+	rng := newPRNG(seed)
+	for i := range datas {
+		datas[i] = make([]byte, 20)
+		rng.cha8.Read(datas[i])
+	}
+
+	err = idx.Append(datas)
+	panicOn(err)
 }

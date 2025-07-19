@@ -62,32 +62,36 @@ func (s *CASIndex) loadDataAndIndex() {
 	}()
 
 	beg := curpos(s.fdData)
-	for {
+	vv("top of loadDataAndIndex: beg = %v", beg)
+	for i := int64(0); ; i++ {
 		nr, err := io.ReadFull(s.fdData, s.workbuf[:64])
 		_ = nr
+		vv("i=%v; nr=%v", i, nr)
 		switch err {
 		case io.EOF:
-			// no bytes read
+			vv("no bytes read on first io.ReadFull(s.fdData) for header")
 			return
 		case io.ErrUnexpectedEOF:
 			// fewer than 64 bytes read
 			panic(fmt.Sprintf("ErrUnexpectedEOF after nr=%v, corrupted path? path='%v'", nr, s.path))
 		case nil:
-			foundEntries++
 			// full 64 bytes read into s.workbuf[:64]
 			e := &CASIndexEntry{}
 			_, err = e.ManualUnmarshalMsg(s.workbuf[:64])
 			panicOn(err)
+			foundEntries++
 			e.Beg = beg
+			vv("read back from path '%v' gives e = '%#v'", s.path, e)
 
 			endx := e.Endx
-			sz := endx - beg
+			sz := endx - beg - 64
 			var nr2 int
 			nr2, err = io.ReadFull(s.fdData, s.workbuf[:sz])
+			vv("inner read of data: sz=%v; endx=%v; beg=%v; nr2=%v; err = '%v'", sz, endx, beg, nr2, err)
 			_ = nr2
 			switch err {
 			case io.EOF:
-				// no data bytes read
+				vv("no data bytes read io.EOF for data ")
 				return
 			case io.ErrUnexpectedEOF:
 				// fewer than sz data bytes read
@@ -141,6 +145,7 @@ func (s *CASIndex) Append(data [][]byte) (err error) {
 		// write new index entry to memory
 		e.Beg = beg
 		s.index.LoadOrStore(b3, e)
+		vv("writing to disk e = '%#v'", e)
 
 		// write new index entry to disk.
 		// flush workbuf first if we are out
@@ -214,7 +219,8 @@ func (s *CASIndex) addToMapData(b3 string, data []byte) {
 }
 
 type CASIndexEntry struct {
-	Blake3 [56]byte
+	//Blake3 [56]byte
+	Blake3 string
 
 	Beg int64 // not serialized on disk. computed after read.
 
@@ -230,15 +236,16 @@ type CASIndexEntry struct {
 	Endx int64
 }
 
-func NewCASIndexEntry(blake3 string, endx int64) (r CASIndexEntry) {
-	n := len(blake3)
+func NewCASIndexEntry(blake3str string, endx int64) (r CASIndexEntry) {
+	n := len(blake3str)
 	// len is 55, so 0-byte terminated always too--
 	// which should make the int64 8-byte aligned as well.
 	//vv("n = %v", n) // n = 55
 	if n > 56 {
 		panic(fmt.Sprintf("blake3 string must be <= 56 bytes: %v", n))
 	}
-	copy(r.Blake3[:], []byte(blake3[:n]))
+	//copy(r.Blake3[:], []byte(blake3str[:n]))
+	r.Blake3 = blake3str
 	r.Endx = endx
 	return
 }
@@ -277,7 +284,8 @@ func (z *CASIndexEntry) ManualMarshalMsg(b []byte) (o []byte, err error) {
 // that they exactly fit into a single 64-byte cache line.
 func (z *CASIndexEntry) ManualUnmarshalMsg(b []byte) (o []byte, err error) {
 
-	copy(z.Blake3[:56], b[:56])
+	z.Blake3 = string(b[:55])
+	//copy(z.Blake3[:56], b[:56])
 	z.Endx = (int64(b[56]) << 56) | (int64(b[57]) << 48) |
 		(int64(b[58]) << 40) | (int64(b[59]) << 32) |
 		(int64(b[60]) << 24) | (int64(b[61]) << 16) |
