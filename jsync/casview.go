@@ -1,16 +1,11 @@
 package jsync
 
 import (
-	//"bytes"
 	"fmt"
 	"io"
-	//"os"
-	//"sync"
-	//"github.com/glycerine/greenpack/msgp"
-	//"github.com/glycerine/rpc25519/hash"
 )
 
-// diagnostics
+// diagnostic helpers to dump the data or index files.
 func (s *CASIndex) diagnosticDisplayData() (err error) {
 	// grab exclusive s.fdIndex and s.workbuf access
 	s.mut.Lock()
