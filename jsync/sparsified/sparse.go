@@ -820,7 +820,7 @@ func CopySparseFile(srcpath, destpath string) (err error) {
 		// and pre-allocated unwritten regions are deferred until
 		// we have an actual use case at hand.
 		//
-		// Normally a user using pre-allocation would loathe
+		// Normally a user using pre-allocation would be loathe
 		// to have any sparsity in their file, because the point
 		// of pre-allocation is to make appends super-fast,
 		// avoid disk fragmentation, and hopefully almost
