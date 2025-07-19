@@ -85,15 +85,16 @@ func Test_0909_NewCASIndex(t *testing.T) {
 	os.Remove(pathIndex)
 
 	preAllocDataSz := int64(128 << 20)
-	idx, err := NewCASIndex(path, 2, preAllocDataSz)
+	idx, err := NewCASIndex(path, 400, preAllocDataSz)
 	panicOn(err)
-	datas := make([][]byte, 3)
+	datas := make([][]byte, 300)
 
 	var seed [32]byte
 	seed[0] = 3
 	rng := newPRNG(seed)
 	var keys []string
 	var lens []int
+	uniqkey := make(map[string]int)
 	for i := range datas {
 		// random size in [20, 100]
 		sz := 20 + rng.pseudoRandNonNegInt64()%81
@@ -103,21 +104,28 @@ func Test_0909_NewCASIndex(t *testing.T) {
 		// easy to expect and verify data during Get()
 		datas[i][0] = byte(i)
 		key := hash.Blake3OfBytesString(datas[i])
+		prev, ok := uniqkey[key]
+		if ok {
+			vv("key '%v' not unique. %v same as %v", key, len(uniqkey), prev)
+		}
+		uniqkey[key] = len(uniqkey)
+
 		keys = append(keys, key)
 		lens = append(lens, int(sz))
 	}
 
 	newCount, err := idx.Append(datas)
 	panicOn(err)
-	vv("saw newCount = %v", newCount)
+	_ = newCount
+	//vv("saw newCount = %v", newCount)
 
 	nTot, nMem := idx.TotMem()
-	vv("nTot=%v; nMem=%v", nTot, nMem)
-	if nTot != int64(len(keys)) {
-		panic(fmt.Sprintf("missing some key(s): nTot=%v but len(keys)=%v", nTot, len(keys))) // panic: missing some key(s): nTot=15 but len(keys)=3 [recovered, repanicked]
+	vv("nTot=%v; nMem=%v; len uniqkey='%v'", nTot, nMem, len(uniqkey))
+	if nTot != int64(len(uniqkey)) {
+		panic(fmt.Sprintf("missing some key(s): nTot=%v but len(uniqkeys)=%v", nTot, len(uniqkey)))
 	}
 	for j, key := range keys {
-		vv("confirm j=%v; key='%v'", j, key)
+		//vv("confirm j=%v; key='%v'", j, key)
 		data, ok := idx.Get(key)
 		if !ok {
 			panic(fmt.Sprintf("stored key '%v' but now its gone", key))

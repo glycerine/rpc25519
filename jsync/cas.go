@@ -99,6 +99,8 @@ func NewCASIndex(path string, maxMemBlob, preAllocSz int64) (s *CASIndex, err er
 	// eager:
 	err = s.verifyDataAgainstIndex(indexSz) // assumes loadIndex already called.
 	panicOn(err)
+	//vv("good: no error from verifyDataAgainstIndex")
+
 	// lazy:
 
 	return
@@ -122,7 +124,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 		panic(fmt.Sprintf("try to leave s.fdIndex curpos at 0 (not %v) when calling loadIndex on path='%v'", cur, s.pathIndex))
 	}
 	//s.fdIndex.Seek(0, 0)
-	vv("good: curpos = %v for fdIndex", cur)
+	//vv("good: curpos = %v for fdIndex", cur)
 	fi, err := s.fdIndex.Stat()
 	panicOn(err)
 	indexSz = fi.Size()
@@ -136,7 +138,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 		if indexSz/64 != foundIndexEntries {
 			panic(fmt.Sprintf("loadIndex bad: indexSz(%v)/64=%v != foundIndexEntries(%v)", indexSz, indexSz/64, foundIndexEntries))
 		}
-		vv("loadIndex good: indexSz(%v)/64 == foundIndexEntries(%v); s.nKnownBlob=%v", indexSz, foundIndexEntries, s.nKnownBlob)
+		//vv("loadIndex good: indexSz(%v)/64 == foundIndexEntries(%v); s.nKnownBlob=%v", indexSz, foundIndexEntries, s.nKnownBlob)
 	}()
 
 	beg := int64(0) // curpos(s.fdIndex)
@@ -148,14 +150,14 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 		// read a batch of up to 1MB/64 == 16384 entries at once
 		nr, err = io.ReadFull(s.fdIndex, s.workbuf)
 		_ = nr
-		vv("loadIndex loop: i=%v; nr=%v; len(s.workbuf)=%v; pathIndex='%v'; indexSz = %v", i, nr, len(s.workbuf), s.pathIndex, indexSz)
+		//vv("loadIndex loop: i=%v; nr=%v; len(s.workbuf)=%v; pathIndex='%v'; indexSz = %v", i, nr, len(s.workbuf), s.pathIndex, indexSz)
 		switch err {
 		case io.EOF:
-			vv("no bytes read on first io.ReadFull(s.fdIndex)")
+			//vv("no bytes read on first io.ReadFull(s.fdIndex)")
 			err = nil
 			return
 		case io.ErrUnexpectedEOF:
-			vv("nr=%v fewer than 1MB bytes read, typical last read.", nr)
+			//vv("nr=%v fewer than 1MB bytes read, typical last read.", nr)
 			if nr == 0 {
 				err = nil
 				return
@@ -168,7 +170,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 			err = nil
 			fallthrough
 		case nil:
-			vv("err == nil case; nr=%v; doneAfterThisRead=%v", nr, doneAfterThisRead)
+			//vv("err == nil case; nr=%v; doneAfterThisRead=%v", nr, doneAfterThisRead)
 			// full 1MB bytes read into s.workbuf, or
 			// fallthough from shorter read.
 			if nr == 0 {
@@ -181,7 +183,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 			}
 
 			nentry := nr / 64
-			vv("netry = %v", nentry)
+			//vv("netry = %v", nentry)
 			es := make([]CASIndexEntry, nentry)
 			for j := range es {
 				e := &es[j]
@@ -197,7 +199,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 				if already {
 					panic(fmt.Sprintf("initial load of index '%v' sees duplicated entry! bad, should not happen! entry='%#v' at j=%v; i = %v", s.pathIndex, e, j, i))
 				}
-				vv("added to s.index e = '%v'", e)
+				//vv("added to s.index e = '%v'", e)
 			}
 			s.nKnownBlob += int64(nentry)
 		}
@@ -218,7 +220,7 @@ func (s *CASIndex) verifyDataAgainstIndex(indexSz int64) (err error) {
 			if indexSz/64 != foundDataEntries {
 				panic(fmt.Sprintf("bad: indexSz(%v)/64=%v != foundDataEntries(%v)", indexSz, indexSz/64, foundDataEntries))
 			}
-			vv("good: indexSz(%v)/64 == foundDataEntries(%v)", indexSz, foundDataEntries)
+			//vv("good: indexSz(%v)/64 == foundDataEntries(%v)", indexSz, foundDataEntries)
 		}
 	}()
 
@@ -236,7 +238,7 @@ func (s *CASIndex) verifyDataAgainstIndex(indexSz int64) (err error) {
 	panicOn(err)
 	dataSz := fi.Size()
 	if dataSz == 0 {
-		vv("warning: empty data path '%v'", s.path)
+		//vv("warning: empty data path '%v'", s.path)
 		return
 	}
 
@@ -255,13 +257,13 @@ iloop:
 		nr, err = io.ReadFull(s.fdData, s.workbuf[unused:])
 		totr += nr
 		_ = totr
-		vv("i=%v; nr=%v; totr=%v", i, nr, totr)
+		//vv("i=%v; nr=%v; totr=%v", i, nr, totr)
 		switch err {
 		default:
 			panicOn(err)
 		case io.EOF:
 			err = nil
-			vv("no bytes read on i=%v io.ReadFull(s.fdData) read of header; must be done.", i)
+			//vv("no bytes read on i=%v io.ReadFull(s.fdData) read of header; must be done.", i)
 			return
 		case io.ErrUnexpectedEOF:
 			// fewer than 1MB - unused bytes read, okay
@@ -307,7 +309,7 @@ iloop:
 				foundDataEntries++
 
 				// check against index:
-				vv("read back from path '%v' gives e = '%#v'", s.path, e)
+				//vv("read back from path '%v' gives e = '%#v'", s.path, e)
 				prior, already := s.index.LoadOrStore(e.Blake3, e)
 				// assert our data path and indexPath are in sync;
 				// and thus index should already have it every time.
@@ -355,7 +357,7 @@ func (s *CASIndex) Get(b3 string) (data []byte, ok bool) {
 	var nr int
 	nr, err = io.ReadFull(s.fdData, s.workbuf[:sz])
 	_ = nr
-	vv("nr=%v; sz = %v", nr, sz)
+	//vv("nr=%v; sz = %v", nr, sz)
 	switch err {
 	case io.EOF:
 		panic(fmt.Sprintf("error corrupt path? could not load dataPath '%v' at [%v, %v) of size %v: got EOF", s.path, e.Beg, e.Endx, sz))
@@ -401,9 +403,16 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 		b3 := s.hasher.SumString()
 
 		// dedup, don't write if already present.
-		_, already := s.mapData.Load(b3)
-		if already {
-			vv("already have b3='%v' so ignoring", b3)
+		_, alreadyData := s.mapData.Load(b3)
+
+		// assert that s.index agrees.
+		_, alreadyIndex := s.index.Load(b3)
+		if alreadyIndex != alreadyData {
+			panic(fmt.Sprintf("alreadyIndex:'%v' but already:'%v' for data true. b3='%v'", alreadyIndex, alreadyData, b3))
+		}
+
+		if alreadyData {
+			//vv("already have b3='%v' so ignoring", b3)
 			continue
 		}
 		newCount++
@@ -415,12 +424,12 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 		e := NewCASIndexEntry(b3, endx)
 
 		// store data to memory
-		s.addToMapData(b3, by)
+		s.addToMapData(b3, by) // makes copy of by.
 
 		// write new index entry to memory
 		e.Beg = beg
 		s.index.LoadOrStore(b3, e)
-		vv("writing to disk e = '%#v'", e)
+		//vv("writing to disk e = '%#v'", e)
 
 		// write new index entry to disk.
 		// flush workbuf first if we are out
@@ -476,15 +485,16 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 	panicOn(err)
 	panicOn(err2)
 	return
-}
+
+} // end Append
 
 // mut should be held or can be called during NewCASIndex.
 // we assume exclusive access to s.
 func (s *CASIndex) addToMapData(b3 string, data []byte) {
 
-	defer func() {
-		vv("at end of addToMapData, s.nMemBlob=%v", s.nMemBlob)
-	}()
+	//defer func() {
+	//	vv("at end of addToMapData, s.nMemBlob=%v", s.nMemBlob)
+	//}()
 	if s.maxMemBlob == 0 {
 		// mostly for testing, never cache anything.
 		return
@@ -507,7 +517,7 @@ func (s *CASIndex) addToMapData(b3 string, data []byte) {
 		return
 	}
 	// we added new data
-	vv("first time mapData store under key b3='%v' of data='%v'", b3, string(data))
+	//vv("first time mapData store under key b3='%v' of data='%v'", b3, string(data))
 	s.mapDataTotalBytes += int64(len(data))
 	if s.nMemBlob == s.maxMemBlob {
 		// our in memory cache is over its limit,
@@ -525,7 +535,7 @@ func (s *CASIndex) addToMapData(b3 string, data []byte) {
 		// replace the deleted key with the newly added one.
 		s.memkeys[evict] = b3
 	} else {
-		s.nMemBlob++
+		s.nMemBlob++ // want this to be the only place we increment
 		s.memkeys = append(s.memkeys, b3)
 		// assert len(s.memkeys) == s.nMemBlob
 		if int64(len(s.memkeys)) != s.nMemBlob {
