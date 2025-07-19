@@ -75,11 +75,11 @@ func NewCASIndex(path string, maxMemBlob int64) (s *CASIndex, err error) {
 	s.fdIndex, err = os.OpenFile(s.pathIndex, os.O_RDWR|os.O_CREATE, 0644)
 	panicOn(err)
 	// eager:
-	err = s.loadDataAndIndex()
-	panicOn(err)
-	// lazy:
-	//err = s.loadIndex()
+	//err = s.loadDataAndIndex()
 	//panicOn(err)
+	// lazy:
+	_, err = s.loadIndex()
+	panicOn(err)
 
 	return
 }
@@ -272,11 +272,6 @@ func (s *CASIndex) loadDataAndIndex() (err error) {
 				panic(fmt.Sprintf("sanity check failed, curpos(s.fdData)=%v != beg(%v)", cur, beg))
 			}
 
-			// TODO: also read path.index and
-			// a) compare same, to detect a short write or corruption
-			// b) verify the index entry matches
-			//    what is in full path data storage.
-			// c) check again our offset endx is correct.
 		default:
 			panicOn(err)
 		}

@@ -2,6 +2,7 @@ package jsync
 
 import (
 	"fmt"
+	"os"
 	//"bytes"
 	"testing"
 	//"github.com/glycerine/greenpack/msgp"
@@ -78,6 +79,11 @@ func BenchmarkUnmarshalCASIndexEntry(b *testing.B) {
 
 func Test_0909_NewCASIndex(t *testing.T) {
 	path := "test0909_cas_data"
+	pathIndex := path + ".index"
+
+	os.Remove(path)
+	os.Remove(pathIndex)
+
 	idx, err := NewCASIndex(path, 4)
 	panicOn(err)
 	datas := make([][]byte, 3)
