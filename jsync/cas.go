@@ -74,7 +74,12 @@ type CASIndex struct {
 	// for random cache evictions
 	rng *prng
 
-	// default to true, using s2 compression
+	// default to true, using s2 compression.
+	// Note that only the disk []byte is compressed;
+	// the mapData returns uncompressed []byte.
+	// The Clen will reflect the compressed size
+	// when compression is used, otherwise
+	// it is the uncompressed size.
 	useS2comprssion bool
 }
 
@@ -217,7 +222,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 				foundIndexEntries++
 				e.Beg = beg
 				//vv("read back from index path '%v' gives e = '%#v'", s.pathIndex, e)
-				endx := beg + int64(e.Len)
+				endx := beg + int64(e.Clen)
 				//sz := endx - beg - 64 // data payload size (but only in fdData, not in fdIndex)
 				beg = endx
 				_, already := s.index.LoadOrStore(e.Blake3, e)
@@ -309,8 +314,8 @@ iloop:
 				panicOn(err)
 				e.Beg = beg
 				//vv("at datapos(%v) + consumed(%v), we read in e = '%v'", datapos, consumed, e)
-				endx := beg + int64(e.Len)
-				sz := int64(e.Len - 64)
+				endx := beg + int64(e.Clen)
+				sz := int64(e.Clen - 64)
 				if avail < consumed+64+sz {
 					// we have a torn read, read again if we can
 					if doneAfterThisRead {
@@ -383,7 +388,7 @@ func (s *CASIndex) Get(b3 string) (data []byte, ok bool) {
 	e := entry.(*CASIndexEntry)
 	_, err := s.fdData.Seek(e.Beg, 0)
 	panicOn(err)
-	sz := e.Len
+	sz := e.Clen
 	if sz <= 64 {
 		panic(fmt.Sprintf("sz must be > 64 to store header plus at least 1 bytes of data; sz = %v", sz))
 	}
@@ -394,7 +399,7 @@ func (s *CASIndex) Get(b3 string) (data []byte, ok bool) {
 	//vv("nr=%v; sz = %v", nr, sz)
 	switch err {
 	case io.EOF:
-		panic(fmt.Sprintf("error corrupt path? could not load dataPath '%v' at [%v, %v) of size %v: got EOF", s.path, e.Beg, e.Beg+int64(e.Len), sz))
+		panic(fmt.Sprintf("error corrupt path? could not load dataPath '%v' at [%v, %v) of size %v: got EOF", s.path, e.Beg, e.Beg+int64(e.Clen), sz))
 		return
 	case io.ErrUnexpectedEOF:
 		// fewer than sz (header + blob) bytes read
@@ -406,16 +411,16 @@ func (s *CASIndex) Get(b3 string) (data []byte, ok bool) {
 		_, err = e2.ManualUnmarshalMsg(s.workbuf[:64])
 		panicOn(err)
 		if !e2.Equal(e) {
-			err = fmt.Errorf("error data path '%v' out of correspondence with in memory index entry; at data path [%v, %v) for blake3 hash key '%v'; e2='%v'; e='%v'", s.path, e.Beg, e.Beg+int64(e.Len), e.Blake3, e2, e)
+			err = fmt.Errorf("error data path '%v' out of correspondence with in memory index entry; at data path [%v, %v) for blake3 hash key '%v'; e2='%v'; e='%v'", s.path, e.Beg, e.Beg+int64(e.Clen), e.Blake3, e2, e)
 		}
 		// everything after the header is our data payload.
 
-		vv("e.Flags = %v; e.Flags%%2 = %v", e.Flags, e.Flags%2)
+		//vv("e.Flags = %v; e.Flags%%2 = %v", e.Flags, e.Flags%2)
 		if e.Flags%2 == 1 {
 			// s2 compressed
 			data, err = s2.Decode(nil, s.workbuf[64:sz])
 			panicOn(err)
-			vv("doing s2 decompression: %v -> %v", sz-64, data)
+			//vv("doing s2 decompression: %v -> %v", sz-64, data)
 		} else {
 			// uncompressed
 			data = s.workbuf[64:sz]
@@ -427,7 +432,7 @@ func (s *CASIndex) Get(b3 string) (data []byte, ok bool) {
 		return
 
 	default:
-		panic(fmt.Sprintf("should be impossible; err = '%v' on Get from data path '%v' at [%v, %v); nr=%v, sz = %v", err, s.path, e.Beg, e.Beg+int64(e.Len), nr, sz))
+		panic(fmt.Sprintf("should be impossible; err = '%v' on Get from data path '%v' at [%v, %v); nr=%v, sz = %v", err, s.path, e.Beg, e.Beg+int64(e.Clen), nr, sz))
 	}
 
 	return
@@ -474,8 +479,8 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 		if s.useS2comprssion {
 			flags = flags | 1
 			s2by = s2.Encode(nil, by)
-			vv("doing s2.Encode: input len %v -> %v", len(by), len(s2by))
-			// by is still the uncompressed data.
+			//vv("s2.Encode: input len %v -> %v", len(by), len(s2by))
+			// (by still has the uncompressed data).
 		}
 		sz := int32(len(s2by)) + 64
 
@@ -616,9 +621,9 @@ type CASIndexEntry struct {
 	// where the block starts in the file (not marshalled)
 	Beg int64
 
-	// Len is the length of the chunk
+	// Clen is the length of the chunk
 	// (compressed byte size if compression used)
-	Len int32
+	Clen int32
 
 	// Flags
 	// bit 0: Flags % 2 == 1 means chunk is compressed with s2.Encode
@@ -632,7 +637,7 @@ func (a *CASIndexEntry) Equal(b *CASIndexEntry) bool {
 	if a.Beg != b.Beg {
 		return false
 	}
-	if a.Len != b.Len {
+	if a.Clen != b.Clen {
 		return false
 	}
 	if a.Flags != b.Flags {
@@ -642,8 +647,8 @@ func (a *CASIndexEntry) Equal(b *CASIndexEntry) bool {
 }
 
 func (s *CASIndexEntry) String() string {
-	return fmt.Sprintf(`CASIndexEntry{Beg:%v, Len:%v, Flags:%v, Blake3:"%v"}
-`, s.Beg, s.Len, s.Flags, s.Blake3)
+	return fmt.Sprintf(`CASIndexEntry{Beg:%v, Clen:%v, Flags:%v, Blake3:"%v"}
+`, s.Beg, s.Clen, s.Flags, s.Blake3)
 }
 
 func NewCASIndexEntry(blake3str string, beg int64, length, flags int32) (r *CASIndexEntry) {
@@ -657,7 +662,7 @@ func NewCASIndexEntry(blake3str string, beg int64, length, flags int32) (r *CASI
 	r = &CASIndexEntry{
 		Blake3: blake3str,
 		Beg:    beg,
-		Len:    length,
+		Clen:   length,
 		Flags:  flags,
 	}
 	return
@@ -679,7 +684,7 @@ func (z *CASIndexEntry) ManualMarshalMsg(b []byte) (o []byte, err error) {
 	o[0] = '\n' // unused for info, so make file more readable.
 	copy(o[1:56], []byte(z.Blake3[:55]))
 
-	fromInt32(z.Len, o[56:60])
+	fromInt32(z.Clen, o[56:60])
 	fromInt32(z.Flags, o[60:64])
 	//i := z.Endx
 	//fromInt64(i, o[56:64])
@@ -702,7 +707,7 @@ func (z *CASIndexEntry) ManualMarshalMsg(b []byte) (o []byte, err error) {
 func (z *CASIndexEntry) ManualUnmarshalMsg(b []byte) (o []byte, err error) {
 
 	z.Blake3 = string(b[1:56])
-	z.Len = toInt32(b[56:60])
+	z.Clen = toInt32(b[56:60])
 	z.Flags = toInt32(b[60:64])
 	//z.Endx = toInt64(b[56:64])
 	// (int64(b[56]) << 56) | (int64(b[57]) << 48) |

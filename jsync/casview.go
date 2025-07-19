@@ -39,7 +39,7 @@ func (s *CASIndex) diagnosticDisplayData() (err error) {
 			fmt.Printf("casview data [%04d] %v", i, e)
 			//vv("read back from path '%v' gives e = '%v'", s.path, e)
 
-			endx := beg + int64(e.Len)
+			endx := beg + int64(e.Clen)
 			sz := endx - beg - 64
 			var nr2 int
 			nr2, err = io.ReadFull(s.fdData, s.workbuf[:sz])
@@ -141,8 +141,7 @@ func (s *CASIndex) diagnosticDisplayIndex() (err error) {
 				foundIndexEntries++
 				e.Beg = beg
 				//vv("read back from index path '%v' gives e = '%#v'", s.pathIndex, e)
-				endx := beg + int64(e.Len) //e.Endx
-				//sz := endx - beg - 64 // data payload size (but only in fdData, not in fdIndex)
+				endx := beg + int64(e.Clen)
 				beg = endx
 
 				fmt.Printf("casview index [%04d] %v", i, e)

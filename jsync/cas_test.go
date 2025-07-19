@@ -33,7 +33,7 @@ func TestManualMarshalUnmarshalCASIndexEntry(t *testing.T) {
 	if len(left) > 0 {
 		t.Errorf("%d bytes left over after UnmarshalMsg(): %q", len(left), left)
 	}
-	if v2.Len != v.Len {
+	if v2.Clen != v.Clen {
 		panic("different")
 	}
 	if v2.Flags != v.Flags {
