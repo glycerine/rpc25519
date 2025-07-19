@@ -177,7 +177,8 @@ func (s *CASIndex) loadDataAndIndex() (err error) {
 		vv("i=%v; nr=%v", i, nr)
 		switch err {
 		case io.EOF:
-			vv("no bytes read on first io.ReadFull(s.fdData) for header")
+			err = nil
+			vv("no bytes read on i=%v io.ReadFull(s.fdData) read of header; must be done.", i)
 			return
 		case io.ErrUnexpectedEOF:
 			// fewer than 64 bytes read
