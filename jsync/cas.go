@@ -39,11 +39,99 @@ func NewCASIndex(path string) (s *CASIndex, err error) {
 	panicOn(err)
 	s.fdIndex, err = os.OpenFile(path+".index", os.O_RDWR|os.O_CREATE, 0644)
 	panicOn(err)
-	s.loadDataAndIndex()
+	// eager:
+	err = s.loadDataAndIndex()
+	panicOn(err)
+	// lazy:
+	//err = s.loadIndex()
+	//panicOn(err)
+
 	return
 }
 
-func (s *CASIndex) loadDataAndIndex() {
+func (s *CASIndex) loadIndex() error {
+
+	// just seek to end for appending for now.
+	// later TODO: read fdIndex and check it matches fdData.
+	// For now we just confirm it is the right size.
+	s.fdIndex.Seek(0, 0)
+	fi, err := s.fdIndex.Stat()
+	panicOn(err)
+	indexSz := fi.Size()
+	var foundEntries int64
+
+	defer func() {
+		if indexSz/64 != foundEntries {
+			panic(fmt.Sprintf("loadIndex bad: indexSz(%v)/64=%v != foundEntries(%v)", indexSz, indexSz/64, foundEntries))
+		}
+		vv("loadIndex good: indexSz(%v)/64 == foundEntries(%v)", indexSz, foundEntries)
+	}()
+
+	beg := int64(0) // curpos(s.fdIndex)
+	//vv("top of loadIndex: beg = %v", beg)
+	for i := int64(0); ; i++ {
+
+		// read a batch of up to 1MB/64 == 16384 entries at once
+		nr, err := io.ReadFull(s.fdIndex, s.workbuf)
+		_ = nr
+		vv("loadIndex loop: i=%v; nr=%v", i, nr)
+		switch err {
+		case io.EOF:
+			vv("no bytes read on first io.ReadFull(s.fdIndex)")
+			return nil
+		case io.ErrUnexpectedEOF:
+			// fewer than 1MB bytes read, typical last read.
+			if nr == 0 {
+				return nil
+			}
+			rem := nr % 64
+			if rem != 0 {
+				panic(fmt.Sprintf("how do deal with torn read (rem=%v) at pos %v of path '%v'?", rem, curpos(s.fdIndex), s.path+".index"))
+			}
+			err = nil
+			fallthrough
+		case nil:
+			// full 1MB bytes read into s.workbuf, or
+			// fallthough from shorter read.
+			if nr == 0 {
+				panic("logic error, should never happen nr == 0 here")
+			}
+			buf := s.workbuf[:nr]
+			rem2 := nr % 64
+			if rem2 != 0 {
+				panic(fmt.Sprintf("loadIndex error: how do deal with torn read nr = %v; (rem2=%v) at pos %v of path '%v'?", nr, rem2, curpos(s.fdIndex), s.path+".index"))
+			}
+
+			nentry := nr / 64
+
+			es := make([]CASIndexEntry, nentry)
+			for j := range es {
+				e := &es[j]
+				_, err = e.ManualUnmarshalMsg(buf[j*64 : j*64+64])
+				panicOn(err)
+				foundEntries++
+				e.Beg = beg
+				//vv("read back from index path '%v' gives e = '%#v'", s.path+".index", e)
+				endx := e.Endx
+				//sz := endx - beg - 64 // data payload size (but only in fdData, not in fdIndex)
+				beg = endx
+				_, already := s.index.LoadOrStore(e.Blake3, e)
+				if already {
+					panic(fmt.Sprintf("initial load of index '%v' sees duplicated entry! bad, should not happen! entry='%#v' at j=%v; i = %v", s.path+".index", e, j, i))
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (s *CASIndex) loadDataAndIndex() (err error) {
+
+	err = s.loadIndex()
+	panicOn(err)
+	if err != nil {
+		return
+	}
 
 	// just seek to end for appending for now.
 	// later TODO: read fdIndex and check it matches fdData.
@@ -63,8 +151,9 @@ func (s *CASIndex) loadDataAndIndex() {
 
 	beg := curpos(s.fdData)
 	vv("top of loadDataAndIndex: beg = %v", beg)
+	var nr int
 	for i := int64(0); ; i++ {
-		nr, err := io.ReadFull(s.fdData, s.workbuf[:64])
+		nr, err = io.ReadFull(s.fdData, s.workbuf[:64])
 		_ = nr
 		vv("i=%v; nr=%v", i, nr)
 		switch err {
@@ -82,6 +171,7 @@ func (s *CASIndex) loadDataAndIndex() {
 			foundEntries++
 			e.Beg = beg
 			vv("read back from path '%v' gives e = '%#v'", s.path, e)
+			s.index.LoadOrStore(e.Blake3, e)
 
 			endx := e.Endx
 			sz := endx - beg - 64
@@ -101,7 +191,8 @@ func (s *CASIndex) loadDataAndIndex() {
 				data := s.workbuf[:sz]
 				b3 := string(e.Blake3[:55])
 				s.addToMapData(b3, data)
-				s.index.LoadOrStore(b3, e)
+			default:
+				panicOn(err)
 			}
 			beg = endx
 			cur := curpos(s.fdData)
@@ -114,6 +205,8 @@ func (s *CASIndex) loadDataAndIndex() {
 			// b) verify the index entry matches
 			//    what is in full path data storage.
 			// c) check again our offset endx is correct.
+		default:
+			panicOn(err)
 		}
 	}
 }
