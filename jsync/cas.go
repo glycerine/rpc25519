@@ -34,7 +34,7 @@ func NewCASIndex(path string) (s *CASIndex, err error) {
 	s = &CASIndex{
 		path:      path,
 		pathIndex: path + ".index",
-		workbuf:   make([]byte, 0, 1<<20),
+		workbuf:   make([]byte, 1<<20),
 		hasher:    hash.NewBlake3(),
 	}
 	s.fdData, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
@@ -54,6 +54,10 @@ func NewCASIndex(path string) (s *CASIndex, err error) {
 // indexSz is the byte size of the pathIndex file.
 func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 
+	if len(s.workbuf) != 1<<20 {
+		panic(fmt.Sprintf("where did s.workbuf shrink? is now %v; should always be 1<<20", len(s.workbuf)))
+	}
+
 	// just seek to end for appending for now.
 	// later TODO: read fdIndex and check it matches fdData.
 	// For now we just confirm it is the right size.
@@ -64,6 +68,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 		panic(fmt.Sprintf("try to leave s.fdIndex curpos at 0 (not %v) when calling loadIndex on path='%v'", cur, s.pathIndex))
 	}
 	//s.fdIndex.Seek(0, 0)
+	vv("good: curpos = %v for fdIndex", cur)
 	fi, err := s.fdIndex.Stat()
 	panicOn(err)
 	indexSz = fi.Size()
@@ -88,7 +93,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 		// read a batch of up to 1MB/64 == 16384 entries at once
 		nr, err = io.ReadFull(s.fdIndex, s.workbuf)
 		_ = nr
-		vv("loadIndex loop: i=%v; nr=%v; len(s.workbuf)=%v; pathIndex='%v'; indexSz = %v", i, nr, len(s.workbuf), s.pathIndex, indexSz)
+		vv("loadIndex loop: i=%v; nr=%v; len(s.workbuf)=%v; pathIndex='%v'; indexSz = %v; len(s.workbuf)=%v", i, nr, len(s.workbuf), s.pathIndex, indexSz, len(s.workbuf))
 		switch err {
 		case io.EOF:
 			vv("no bytes read on first io.ReadFull(s.fdIndex)")
