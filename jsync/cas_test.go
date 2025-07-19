@@ -86,8 +86,10 @@ func Test_0909_NewCASIndex(t *testing.T) {
 
 	preAllocDataSz := int64(128 << 20)
 	keepMem := int64(400)
-	idx, err := NewCASIndex(path, keepMem, preAllocDataSz)
+	verifyDataAgainstIndex := true
+	idx, err := NewCASIndex(path, keepMem, preAllocDataSz, verifyDataAgainstIndex)
 	panicOn(err)
+	defer idx.Close()
 	datas := make([][]byte, 3000)
 
 	var seed [32]byte

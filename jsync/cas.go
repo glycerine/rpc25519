@@ -63,7 +63,10 @@ type CASIndex struct {
 // maxMemBlob is a count of blobs to cache.
 // preAllocSz is the bytes to pre-allocate when
 // path is new.
-func NewCASIndex(path string, maxMemBlob, preAllocSz int64) (s *CASIndex, err error) {
+// If verifyData, we load the full data file and
+// check it against the index. Otherwise we only
+// load the index.
+func NewCASIndex(path string, maxMemBlob, preAllocSz int64, verifyData bool) (s *CASIndex, err error) {
 	if maxMemBlob < 0 {
 		panic(fmt.Sprintf("maxMemBlob(%v) must be >= 0", maxMemBlob))
 	}
@@ -85,22 +88,29 @@ func NewCASIndex(path string, maxMemBlob, preAllocSz int64) (s *CASIndex, err er
 
 	if isNew && preAllocSz > 0 {
 		_, err = sparsified.Fallocate(s.fdData, sparsified.FALLOC_FL_KEEP_SIZE, 0, preAllocSz)
+		panicOn(err)
+		err = s.fdData.Sync()
+		panicOn(err)
+
 		// target of 8K / 64 = 128, so we expect
 		// our index to be about 1/128 of the data.
 		// If data prealloc is 8GB, then index prealloc will be 64MB.
 		preAllocIndexSz := preAllocSz / 128
 		_, err = sparsified.Fallocate(s.fdIndex, sparsified.FALLOC_FL_KEEP_SIZE, 0, preAllocIndexSz)
+		panicOn(err)
+		err = s.fdIndex.Sync()
+		panicOn(err)
 	}
 
 	var indexSz int64
 	indexSz, err = s.loadIndex()
 	panicOn(err)
 
-	// eager:
-	err = s.verifyDataAgainstIndex(indexSz) // assumes loadIndex already called.
-	panicOn(err)
-	//vv("good: no error from verifyDataAgainstIndex")
-
+	if verifyData {
+		err = s.verifyDataAgainstIndex(indexSz) // assumes loadIndex already called.
+		panicOn(err)
+		alwaysPrintf("good: no error from verifyDataAgainstIndex")
+	}
 	// lazy:
 
 	return
@@ -656,4 +666,16 @@ func (z *CASIndexEntry) ManualMsgsize() (s int) {
 
 func (s *CASIndex) TotMem() (nTot, nMem int64) {
 	return s.nKnownBlob, s.nMemBlob
+}
+
+func (s *CASIndex) Close() error {
+	err := s.fdData.Close()
+	err2 := s.fdIndex.Close()
+	if err != nil {
+		return err
+	}
+	if err2 != nil {
+		return err2
+	}
+	return nil
 }
