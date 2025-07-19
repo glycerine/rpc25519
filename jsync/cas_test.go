@@ -89,7 +89,6 @@ func Test_0909_NewCASIndex(t *testing.T) {
 	verifyDataAgainstIndex := true
 	idx, err := NewCASIndex(path, keepMem, preAllocDataSz, verifyDataAgainstIndex)
 	panicOn(err)
-	defer idx.Close()
 	datas := make([][]byte, 3000)
 
 	var seed [32]byte
@@ -163,5 +162,12 @@ func Test_0909_NewCASIndex(t *testing.T) {
 			panic(fmt.Sprintf("key '%v' with last byte incremented should not be present; got data[0] = '%v' with len(data)=%v", key, data[0], len(data)))
 		}
 	}
+
+	// close and re-open
+	idx.Close()
+
+	idx, err = NewCASIndex(path, keepMem, preAllocDataSz, verifyDataAgainstIndex)
+	panicOn(err)
+	defer idx.Close()
 
 }
