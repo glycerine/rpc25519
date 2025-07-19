@@ -58,8 +58,8 @@ type CASIndex struct {
 }
 
 func NewCASIndex(path string, maxMemBlob int64) (s *CASIndex, err error) {
-	if maxMemBlob <= 0 {
-		panic(fmt.Sprintf("maxMemBlob(%v) must be positive", maxMemBlob))
+	if maxMemBlob < 0 {
+		panic(fmt.Sprintf("maxMemBlob(%v) must be >= 0", maxMemBlob))
 	}
 	var seed [32]byte
 	s = &CASIndex{
@@ -438,7 +438,10 @@ func (s *CASIndex) addToMapData(b3 string, data []byte) {
 	defer func() {
 		vv("at end of addToMapData, s.nMemBlob=%v", s.nMemBlob)
 	}()
-
+	if s.maxMemBlob == 0 {
+		// mostly for testing, never cache anything.
+		return
+	}
 	mycp := append([]byte{}, data...)
 
 	var previous any

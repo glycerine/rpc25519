@@ -84,7 +84,7 @@ func Test_0909_NewCASIndex(t *testing.T) {
 	os.Remove(path)
 	os.Remove(pathIndex)
 
-	idx, err := NewCASIndex(path, 4)
+	idx, err := NewCASIndex(path, 2)
 	panicOn(err)
 	datas := make([][]byte, 3)
 
