@@ -80,6 +80,7 @@ func (s *CASIndex) loadDataAndIndex() {
 				data := s.workbuf[:sz]
 				b3 := string(e.Blake3[:55])
 				s.addToMapData(b3, data)
+				s.index.LoadOrStore(b3, e)
 			}
 			beg = endx
 			cur := curpos(s.fdData)
