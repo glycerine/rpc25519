@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 	"sync"
-	//"github.com/glycerine/greenpack/msgp"
+
 	"github.com/glycerine/rpc25519/hash"
 	"github.com/glycerine/rpc25519/jsync/sparsified"
 )
@@ -198,7 +198,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 				foundIndexEntries++
 				e.Beg = beg
 				//vv("read back from index path '%v' gives e = '%#v'", s.pathIndex, e)
-				endx := e.Endx
+				endx := beg + int64(e.Len)
 				//sz := endx - beg - 64 // data payload size (but only in fdData, not in fdIndex)
 				beg = endx
 				_, already := s.index.LoadOrStore(e.Blake3, e)
@@ -246,8 +246,6 @@ func (s *CASIndex) verifyDataAgainstIndex(indexSz int64) (err error) {
 		return
 	}
 
-	// TODO: read a full s.workbuf and process it all at once;
-	// but only if using this for prod.
 	var nr int
 	var totr int
 	var unused int64
@@ -292,13 +290,12 @@ iloop:
 				panicOn(err)
 				e.Beg = beg
 				//vv("at datapos(%v) + consumed(%v), we read in e = '%v'", datapos, consumed, e)
-				sz := e.Endx - e.Beg - 64
+				endx := beg + int64(e.Len)
+				sz := int64(e.Len - 64)
 				if avail < consumed+64+sz {
 					// we have a torn read, read again if we can
 					if doneAfterThisRead {
-						panic(fmt.Sprintf("e.Endx=%v; e.Beg=%v; sz=%v; torn read not recoverable. avail=%v < 64+sz(%v). corrupt/truncated data file path = '%v'?? datapos=%v", e.Endx, e.Beg, sz, avail, sz, s.path, datapos))
-						// panic: torn read not recoverable. avail=371181 < 64+sz(7298425571257963174). corrupt/truncated data file path = 'test0909_cas_data'?? datapos=0
-						// panic: bad: indexSz(192000)/64=3000 != foundDataEntries(1) [recovered, repanicked]
+						panic(fmt.Sprintf("endx=%v; e.Beg=%v; sz=%v; torn read not recoverable. avail=%v < 64+sz(%v). corrupt/truncated data file path = '%v'?? datapos=%v", endx, e.Beg, sz, avail, sz, s.path, datapos))
 					} else {
 						unused = avail - consumed
 						//vv("unused(%v) = avail(%v) - consumed(%v)", unused, avail, consumed)
@@ -317,7 +314,7 @@ iloop:
 				unused = avail - consumed
 
 				//vv("updating beg %v -> %v", beg, e.Endx)
-				beg = e.Endx // make beg ready to read next header
+				beg = endx // make beg ready to read next header
 
 				foundDataEntries++
 
@@ -367,7 +364,7 @@ func (s *CASIndex) Get(b3 string) (data []byte, ok bool) {
 	e := entry.(*CASIndexEntry)
 	_, err := s.fdData.Seek(e.Beg, 0)
 	panicOn(err)
-	sz := e.Endx - e.Beg
+	sz := e.Len
 	if sz <= 64 {
 		panic(fmt.Sprintf("sz must be > 64 to store header plus at least 1 bytes of data; sz = %v", sz))
 	}
@@ -378,7 +375,7 @@ func (s *CASIndex) Get(b3 string) (data []byte, ok bool) {
 	//vv("nr=%v; sz = %v", nr, sz)
 	switch err {
 	case io.EOF:
-		panic(fmt.Sprintf("error corrupt path? could not load dataPath '%v' at [%v, %v) of size %v: got EOF", s.path, e.Beg, e.Endx, sz))
+		panic(fmt.Sprintf("error corrupt path? could not load dataPath '%v' at [%v, %v) of size %v: got EOF", s.path, e.Beg, e.Beg+int64(e.Len), sz))
 		return
 	case io.ErrUnexpectedEOF:
 		// fewer than sz (header + blob) bytes read
@@ -390,7 +387,7 @@ func (s *CASIndex) Get(b3 string) (data []byte, ok bool) {
 		_, err = e2.ManualUnmarshalMsg(s.workbuf[:64])
 		panicOn(err)
 		if !e2.Equal(e) {
-			err = fmt.Errorf("error data path '%v' out of correspondence with in memory index entry; at data path [%v, %v) for blake3 hash key '%v'; e2='%v'; e='%v'", s.path, e.Beg, e.Endx, e.Blake3, e2, e)
+			err = fmt.Errorf("error data path '%v' out of correspondence with in memory index entry; at data path [%v, %v) for blake3 hash key '%v'; e2='%v'; e='%v'", s.path, e.Beg, e.Beg+int64(e.Len), e.Blake3, e2, e)
 		}
 		// everything after the header is our data payload.
 		data = s.workbuf[64:sz]
@@ -401,7 +398,7 @@ func (s *CASIndex) Get(b3 string) (data []byte, ok bool) {
 		return
 
 	default:
-		panic(fmt.Sprintf("should be impossible; err = '%v' on Get from data path '%v' at [%v, %v); nr=%v, sz = %v", err, s.path, e.Beg, e.Endx, nr, sz))
+		panic(fmt.Sprintf("should be impossible; err = '%v' on Get from data path '%v' at [%v, %v); nr=%v, sz = %v", err, s.path, e.Beg, e.Beg+int64(e.Len), nr, sz))
 	}
 
 	return
@@ -445,7 +442,9 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 		// create index entry
 		beg := curpos(s.fdData)
 		endx := beg + int64(len(by)) + 64
-		e := NewCASIndexEntry(b3, endx)
+		sz := int32(len(by)) + 64
+		var flags int32
+		e := NewCASIndexEntry(b3, beg, sz, flags)
 
 		// store data to memory
 		s.addToMapData(b3, by) // makes copy of by.
@@ -576,24 +575,14 @@ type CASIndexEntry struct {
 	// hash of the data blob we are indexing.
 	Blake3 string
 
-	// Beg is where the (header + blob) start
-	// in the data file. For space efficiency,
-	// Beg is not serialized on disk, but rather
-	// computed after read, since it is just the
-	// previous entry's Endx, or 0 if there is
-	// no previous entry.
+	// where the block starts in the file (not marshalled)
 	Beg int64
 
-	// The first CAS starts at byte offset 0.
-	// The next CAS starts at the Endx of the first.
-	// so we really only need to store the endx of
-	// each entry, since the prior one tells us the
-	// beginning file position offset in bytes already.
-	// Sure we need to read two entries. We would
-	// probably read them anyway, and it seems
-	// worth it to fit in a cache line and
-	// not store redundant offsets in the index file.
-	Endx int64
+	// Len is the length of the chunk
+	Len int32
+
+	// Flags bit 1 means the chunk is compressed with s2.
+	Flags int32
 }
 
 func (a *CASIndexEntry) Equal(b *CASIndexEntry) bool {
@@ -603,18 +592,21 @@ func (a *CASIndexEntry) Equal(b *CASIndexEntry) bool {
 	if a.Beg != b.Beg {
 		return false
 	}
-	if a.Endx != b.Endx {
+	if a.Len != b.Len {
+		return false
+	}
+	if a.Flags != b.Flags {
 		return false
 	}
 	return true
 }
 
 func (s *CASIndexEntry) String() string {
-	return fmt.Sprintf(`CASIndexEntry{Beg:%v, Endx:%v, Blake3:"%v"}
-`, s.Beg, s.Endx, s.Blake3)
+	return fmt.Sprintf(`CASIndexEntry{Beg:%v, Len:%v, Flags:%v, Blake3:"%v"}
+`, s.Beg, s.Len, s.Flags, s.Blake3)
 }
 
-func NewCASIndexEntry(blake3str string, endx int64) (r *CASIndexEntry) {
+func NewCASIndexEntry(blake3str string, beg int64, length, flags int32) (r *CASIndexEntry) {
 	n := len(blake3str)
 	// len is 55, so 0-byte terminated always too--
 	// which should make the int64 8-byte aligned as well.
@@ -622,10 +614,11 @@ func NewCASIndexEntry(blake3str string, endx int64) (r *CASIndexEntry) {
 	if n > 56 {
 		panic(fmt.Sprintf("blake3 string must be <= 56 bytes: %v", n))
 	}
-	//copy(r.Blake3[:], []byte(blake3str[:n]))
 	r = &CASIndexEntry{
 		Blake3: blake3str,
-		Endx:   endx,
+		Beg:    beg,
+		Len:    length,
+		Flags:  flags,
 	}
 	return
 }
@@ -645,15 +638,19 @@ func (z *CASIndexEntry) ManualMarshalMsg(b []byte) (o []byte, err error) {
 	//o = append(o, zero64[:]...)
 	o[0] = '\n' // unused for info, so make file more readable.
 	copy(o[1:56], []byte(z.Blake3[:55]))
-	i := z.Endx
-	o[56] = byte(i >> 56)
-	o[57] = byte(i >> 48)
-	o[58] = byte(i >> 40)
-	o[59] = byte(i >> 32)
-	o[60] = byte(i >> 24)
-	o[61] = byte(i >> 16)
-	o[62] = byte(i >> 8)
-	o[63] = byte(i)
+
+	fromInt32(z.Len, o[56:60])
+	fromInt32(z.Flags, o[60:64])
+	//i := z.Endx
+	//fromInt64(i, o[56:64])
+	// o[56] = byte(i >> 56)
+	// o[57] = byte(i >> 48)
+	// o[58] = byte(i >> 40)
+	// o[59] = byte(i >> 32)
+	// o[60] = byte(i >> 24)
+	// o[61] = byte(i >> 16)
+	// o[62] = byte(i >> 8)
+	// o[63] = byte(i)
 
 	return
 }
@@ -665,12 +662,55 @@ func (z *CASIndexEntry) ManualMarshalMsg(b []byte) (o []byte, err error) {
 func (z *CASIndexEntry) ManualUnmarshalMsg(b []byte) (o []byte, err error) {
 
 	z.Blake3 = string(b[1:56])
-	//copy(z.Blake3[:56], b[:56])
-	z.Endx = (int64(b[56]) << 56) | (int64(b[57]) << 48) |
-		(int64(b[58]) << 40) | (int64(b[59]) << 32) |
-		(int64(b[60]) << 24) | (int64(b[61]) << 16) |
-		(int64(b[62]) << 8) | (int64(b[63]))
+	z.Len = toInt32(b[56:60])
+	z.Flags = toInt32(b[60:64])
+	//z.Endx = toInt64(b[56:64])
+	// (int64(b[56]) << 56) | (int64(b[57]) << 48) |
+	// 	(int64(b[58]) << 40) | (int64(b[59]) << 32) |
+	// 	(int64(b[60]) << 24) | (int64(b[61]) << 16) |
+	// 	(int64(b[62]) << 8) | (int64(b[63]))
 	return b[64:], nil
+}
+
+func toInt64(b []byte) int64 {
+	return (int64(b[0]) << 56) | (int64(b[1]) << 48) |
+		(int64(b[2]) << 40) | (int64(b[3]) << 32) |
+		(int64(b[4]) << 24) | (int64(b[5]) << 16) |
+		(int64(b[6]) << 8) | (int64(b[7]))
+}
+
+func fromInt64(i int64, o []byte) {
+	o[0] = byte(i >> 56)
+	o[1] = byte(i >> 48)
+	o[2] = byte(i >> 40)
+	o[3] = byte(i >> 32)
+	o[4] = byte(i >> 24)
+	o[5] = byte(i >> 16)
+	o[6] = byte(i >> 8)
+	o[7] = byte(i)
+}
+
+func toInt32(b []byte) int32 {
+	return (int32(b[0]) << 24) | (int32(b[1]) << 16) |
+		(int32(b[2]) << 8) | (int32(b[3]))
+}
+func toUint32(b []byte) uint32 {
+	return (uint32(b[0]) << 24) | (uint32(b[1]) << 16) |
+		(uint32(b[2]) << 8) | (uint32(b[3]))
+}
+
+func fromInt32(i int32, o []byte) {
+	o[0] = byte(i >> 24)
+	o[1] = byte(i >> 16)
+	o[2] = byte(i >> 8)
+	o[3] = byte(i)
+}
+
+func fromUint32(i uint32, o []byte) {
+	o[0] = byte(i >> 24)
+	o[1] = byte(i >> 16)
+	o[2] = byte(i >> 8)
+	o[3] = byte(i)
 }
 
 // ManualMsgsize
