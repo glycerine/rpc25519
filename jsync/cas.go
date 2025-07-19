@@ -285,7 +285,7 @@ func (z *CASIndexEntry) ManualMarshalMsg(b []byte) (o []byte, err error) {
 // that they exactly fit into a single 64-byte cache line.
 func (z *CASIndexEntry) ManualUnmarshalMsg(b []byte) (o []byte, err error) {
 
-	z.Blake3 = string(b[:55])
+	z.Blake3 = string(b[1:56])
 	//copy(z.Blake3[:56], b[:56])
 	z.Endx = (int64(b[56]) << 56) | (int64(b[57]) << 48) |
 		(int64(b[58]) << 40) | (int64(b[59]) << 32) |
