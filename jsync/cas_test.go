@@ -110,6 +110,7 @@ func Test_0909_NewCASIndex(t *testing.T) {
 		panic(fmt.Sprintf("missing some key(s): nTot=%v but len(keys)=%v", nTot, len(keys))) // panic: missing some key(s): nTot=15 but len(keys)=3 [recovered, repanicked]
 	}
 	for j, key := range keys {
+		vv("confirm j=%v; key='%v'", j, key)
 		data, ok := idx.Get(key)
 		if !ok {
 			panic(fmt.Sprintf("stored key '%v' but now its gone", key))

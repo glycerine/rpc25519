@@ -254,8 +254,7 @@ func (s *CASIndex) loadDataAndIndex() (err error) {
 			case nil:
 				// sz bytes were just read into s.workbuf[:sz]
 				data := s.workbuf[:sz]
-				b3 := string(e.Blake3[:55])
-				s.addToMapData(b3, data)
+				s.addToMapData(e.Blake3, data)
 			default:
 				panicOn(err)
 			}
@@ -446,7 +445,7 @@ func (s *CASIndex) addToMapData(b3 string, data []byte) {
 			panic(fmt.Sprintf("only []byte should be stored in m, not %T", previous))
 		}
 		if 0 != bytes.Compare(data, dataPrev) {
-			panic(fmt.Sprintf("data('%v') with len %v != dataPrev('%v') with len %v; bad hashing somewhere?", string(data), len(data), string(dataPrev), len(dataPrev)))
+			panic(fmt.Sprintf("b3=key='%v'; data('%v') with len %v != dataPrev('%v') with len %v; bad hashing somewhere?", b3, string(data), len(data), string(dataPrev), len(dataPrev)))
 		}
 
 		// no change in stored data, so no eviction needed.
