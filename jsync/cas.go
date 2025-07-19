@@ -49,15 +49,22 @@ func NewCASIndex(path string) (s *CASIndex, err error) {
 	return
 }
 
-func (s *CASIndex) loadIndex() error {
+// indexSz is the byte size of the path+".index" file.
+func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 
 	// just seek to end for appending for now.
 	// later TODO: read fdIndex and check it matches fdData.
 	// For now we just confirm it is the right size.
-	s.fdIndex.Seek(0, 0)
+
+	cur := curpos(s.fdIndex) // TODO comment this and the if cur != 0
+	if cur != 0 {
+		// arg, can we be efficient and not have to syscall Seek?
+		panic(fmt.Sprintf("try to leave s.fdIndex curpos at 0 (not %v) when calling loadIndex on path='%v'", cur, s.path+".index"))
+	}
+	//s.fdIndex.Seek(0, 0)
 	fi, err := s.fdIndex.Stat()
 	panicOn(err)
-	indexSz := fi.Size()
+	indexSz = fi.Size()
 	var foundEntries int64
 
 	defer func() {
@@ -69,20 +76,23 @@ func (s *CASIndex) loadIndex() error {
 
 	beg := int64(0) // curpos(s.fdIndex)
 	//vv("top of loadIndex: beg = %v", beg)
+	var nr int
 	for i := int64(0); ; i++ {
 
 		// read a batch of up to 1MB/64 == 16384 entries at once
-		nr, err := io.ReadFull(s.fdIndex, s.workbuf)
+		nr, err = io.ReadFull(s.fdIndex, s.workbuf)
 		_ = nr
 		vv("loadIndex loop: i=%v; nr=%v", i, nr)
 		switch err {
 		case io.EOF:
 			vv("no bytes read on first io.ReadFull(s.fdIndex)")
-			return nil
+			err = nil
+			return
 		case io.ErrUnexpectedEOF:
 			// fewer than 1MB bytes read, typical last read.
 			if nr == 0 {
-				return nil
+				err = nil
+				return
 			}
 			rem := nr % 64
 			if rem != 0 {
@@ -122,24 +132,18 @@ func (s *CASIndex) loadIndex() error {
 			}
 		}
 	}
-	return nil
+	return
 }
 
 func (s *CASIndex) loadDataAndIndex() (err error) {
 
-	err = s.loadIndex()
+	var indexSz int64
+	indexSz, err = s.loadIndex()
 	panicOn(err)
 	if err != nil {
 		return
 	}
 
-	// just seek to end for appending for now.
-	// later TODO: read fdIndex and check it matches fdData.
-	// For now we just confirm it is the right size.
-	s.fdIndex.Seek(0, 2)
-	fi, err := s.fdIndex.Stat()
-	panicOn(err)
-	indexSz := fi.Size()
 	var foundEntries int64
 
 	defer func() {
