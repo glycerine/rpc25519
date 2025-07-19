@@ -223,7 +223,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 // index size bytes on disk, but do check entries.
 func (s *CASIndex) verifyDataAgainstIndex(indexSz int64) (err error) {
 
-	panicOn(s.displayData())
+	//panicOn(s.diagnosticDisplayData())
 
 	var foundDataEntries int64
 
@@ -269,7 +269,7 @@ iloop:
 		nr, err = io.ReadFull(s.fdData, s.workbuf[unused:])
 		totr += nr
 		_ = totr
-		vv("i=%v; unused=%v; nr=%v; totr=%v", i, unused, nr, totr)
+		//vv("i=%v; unused=%v; nr=%v; totr=%v", i, unused, nr, totr)
 		switch err {
 		default:
 			panicOn(err)
@@ -280,7 +280,7 @@ iloop:
 		case io.ErrUnexpectedEOF:
 			// fewer than 1MB - unused bytes read, okay
 			// to use s.workbuf[:unused+nr)
-			vv("setting doneAfterThisRead true")
+			//vv("setting doneAfterThisRead true")
 			doneAfterThisRead = true
 			fallthrough
 		case nil:
@@ -299,7 +299,7 @@ iloop:
 				_, err = e.ManualUnmarshalMsg(s.workbuf[consumed : consumed+64])
 				panicOn(err)
 				e.Beg = beg
-				vv("at datapos(%v) + consumed(%v), we read in e = '%v'", datapos, consumed, e)
+				//vv("at datapos(%v) + consumed(%v), we read in e = '%v'", datapos, consumed, e)
 				sz := e.Endx - e.Beg - 64
 				if avail < consumed+64+sz {
 					// we have a torn read, read again if we can
@@ -320,11 +320,11 @@ iloop:
 				// s.addToDataMap will make a copy of data,
 				// so we don't want to make an extra copy here.
 				data := s.workbuf[consumed : consumed+sz]
-				vv("data = '%v'", string(data))
+				//vv("data = '%v'", string(data))
 				consumed += sz
 				unused = avail - consumed
 
-				vv("updating beg %v -> %v", beg, e.Endx)
+				//vv("updating beg %v -> %v", beg, e.Endx)
 				beg = e.Endx // make beg ready to read next header
 
 				foundDataEntries++

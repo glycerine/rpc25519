@@ -11,7 +11,7 @@ import (
 )
 
 // diagnostics
-func (s *CASIndex) displayData() (err error) {
+func (s *CASIndex) diagnosticDisplayData() (err error) {
 
 	var foundDataEntries int64
 
