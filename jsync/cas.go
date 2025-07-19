@@ -269,7 +269,7 @@ iloop:
 		nr, err = io.ReadFull(s.fdData, s.workbuf[unused:])
 		totr += nr
 		_ = totr
-		vv("i=%v; nr=%v; totr=%v", i, nr, totr)
+		vv("i=%v; unused=%v; nr=%v; totr=%v", i, unused, nr, totr)
 		switch err {
 		default:
 			panicOn(err)
@@ -299,7 +299,8 @@ iloop:
 				_, err = e.ManualUnmarshalMsg(s.workbuf[consumed : consumed+64])
 				panicOn(err)
 				e.Beg = beg
-				sz := e.Endx - e.Beg
+				vv("at datapos(%v) + consumed(%v), we read in e = '%v'", datapos, consumed, e)
+				sz := e.Endx - e.Beg - 64
 				if avail < consumed+64+sz {
 					// we have a torn read, read again if we can
 					if doneAfterThisRead {
@@ -307,6 +308,8 @@ iloop:
 						// panic: torn read not recoverable. avail=371181 < 64+sz(7298425571257963174). corrupt/truncated data file path = 'test0909_cas_data'?? datapos=0
 						// panic: bad: indexSz(192000)/64=3000 != foundDataEntries(1) [recovered, repanicked]
 					} else {
+						unused = avail - consumed
+						vv("unused(%v) = avail(%v) - consumed(%v)", unused, avail, consumed)
 						copy(s.workbuf[:unused], s.workbuf[consumed:avail])
 						continue iloop
 					}
@@ -317,9 +320,11 @@ iloop:
 				// s.addToDataMap will make a copy of data,
 				// so we don't want to make an extra copy here.
 				data := s.workbuf[consumed : consumed+sz]
+				vv("data = '%v'", string(data))
 				consumed += sz
 				unused = avail - consumed
 
+				vv("updating beg %v -> %v", beg, e.Endx)
 				beg = e.Endx // make beg ready to read next header
 
 				foundDataEntries++

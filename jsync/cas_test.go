@@ -164,7 +164,10 @@ func Test_0909_NewCASIndex(t *testing.T) {
 	}
 
 	// close and re-open
-	idx.Close()
+	err = idx.Close()
+	panicOn(err)
+
+	vv("idx.Close() done. About to re-open path '%v'", path)
 
 	idx, err = NewCASIndex(path, keepMem, preAllocDataSz, verifyDataAgainstIndex)
 	panicOn(err)
