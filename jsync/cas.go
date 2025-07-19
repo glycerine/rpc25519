@@ -243,67 +243,86 @@ func (s *CASIndex) verifyDataAgainstIndex(indexSz int64) (err error) {
 	// TODO: read a full s.workbuf and process it all at once;
 	// but only if using this for prod.
 	var nr int
-	for i := int64(0); ; i++ {
-		nr, err = io.ReadFull(s.fdData, s.workbuf[:64])
-		_ = nr
-		vv("i=%v; nr=%v", i, nr)
+	var totr int
+	var unused int64
+	var consumed int64
+	var doneAfterThisRead bool
+iloop:
+	for i := int64(0); !doneAfterThisRead; i++ {
+		// try to read a bunch of records en-mass, to avoid
+		// too many syscalls.
+		datapos := curpos(s.fdData)
+		nr, err = io.ReadFull(s.fdData, s.workbuf[unused:])
+		totr += nr
+		_ = totr
+		vv("i=%v; nr=%v; totr=%v", i, nr, totr)
 		switch err {
+		default:
+			panicOn(err)
 		case io.EOF:
 			err = nil
 			vv("no bytes read on i=%v io.ReadFull(s.fdData) read of header; must be done.", i)
 			return
 		case io.ErrUnexpectedEOF:
-			// fewer than 64 bytes read
-			panic(fmt.Sprintf("ErrUnexpectedEOF after nr=%v, corrupted path? path='%v'", nr, s.path))
+			// fewer than 1MB - unused bytes read, okay
+			// to use s.workbuf[:unused+nr)
+			doneAfterThisRead = true
+			fallthrough
 		case nil:
-			// full 64 bytes read into s.workbuf[:64]
-			e := &CASIndexEntry{}
-			_, err = e.ManualUnmarshalMsg(s.workbuf[:64])
-			panicOn(err)
-			foundDataEntries++
-			e.Beg = beg
-			vv("read back from path '%v' gives e = '%#v'", s.path, e)
-			prior, already := s.index.LoadOrStore(e.Blake3, e)
-			// assert our data path and indexPath are in sync;
-			// and thus index should already have it every time.
-			if !already {
-				panic(fmt.Sprintf("s.index was missing '%v' seen in path '%v': why was it not in the pathIndex '%v'", e, s.path, s.pathIndex))
-			}
-			first := prior.(*CASIndexEntry)
-			if !e.Equal(first) {
-				panic(fmt.Sprintf("data path '%v' has different CASIndexEntry that indexPath '%v' at i=%v; e(%v) != first(%v)", s.path, s.pathIndex, i, e, first))
-			}
+			// full 1MB - unused bytes read into s.workbuf,
+			// okay to use s.workbuf[:unused+nr]
 
-			endx := e.Endx
-			sz := endx - beg - 64
-			var nr2 int
-			nr2, err = io.ReadFull(s.fdData, s.workbuf[:sz])
-			vv("inner read of data: sz=%v; endx=%v; beg=%v; nr2=%v; err = '%v'", sz, endx, beg, nr2, err)
-			_ = nr2
-			switch err {
-			case io.EOF:
-				vv("no data bytes read io.EOF for data ")
-				return
-			case io.ErrUnexpectedEOF:
-				// fewer than sz data bytes read
-				panic(fmt.Sprintf("ErrUnexpectedEOF after nr2=%v, corrupted path? path='%v'", nr2, s.path))
-			case nil:
-				// sz bytes were just read into s.workbuf[:sz]
-				data := s.workbuf[:sz]
-				s.addToMapData(e.Blake3, data)
-			default:
+			// two indexes into s.workbuf
+			avail := unused + int64(nr)
+			consumed = 0
+
+			if avail < 64 {
+				panic(fmt.Sprintf("len(avail)=%v, not enough for an index entry even. data path='%v'; totr=%v; dataSz=%v", avail, s.path, totr, dataSz))
+			}
+			for avail > consumed+64 {
+				e := &CASIndexEntry{}
+				_, err = e.ManualUnmarshalMsg(s.workbuf[consumed : consumed+64])
 				panicOn(err)
-			}
-			beg = endx
-			cur := curpos(s.fdData)
-			if cur != beg {
-				panic(fmt.Sprintf("sanity check failed, curpos(s.fdData)=%v != beg(%v)", cur, beg))
-			}
+				e.Beg = beg
+				sz := e.Endx - e.Beg
+				if avail < consumed+64+sz {
+					// we have a torn read, read again if we can
+					if doneAfterThisRead {
+						panic(fmt.Sprintf("torn read not recoverable. avail=%v < 64+sz(%v). corrupt/truncated data file path = '%v'?? datapos=%v", avail, sz, s.path, datapos))
+					} else {
+						unused = avail - consumed
+						copy(s.workbuf[:unused], s.workbuf[consumed:avail])
+						continue iloop
+					}
+				}
+				// INVAR: avail >= consumed + 64 + sz so we can
+				// process both header and data together now.
+				consumed += 64
+				// s.addToDataMap will make a copy of data,
+				// so we don't want to make an extra copy here.
+				data := s.workbuf[consumed : consumed+sz]
+				consumed += sz
+				beg = e.Endx // make beg ready to read next header
 
-		default:
-			panicOn(err)
-		}
-	}
+				foundDataEntries++
+
+				// check against index:
+				vv("read back from path '%v' gives e = '%#v'", s.path, e)
+				prior, already := s.index.LoadOrStore(e.Blake3, e)
+				// assert our data path and indexPath are in sync;
+				// and thus index should already have it every time.
+				if !already {
+					panic(fmt.Sprintf("s.index was missing '%v' seen in path '%v': why was it not in the pathIndex '%v'", e, s.path, s.pathIndex))
+				}
+				first := prior.(*CASIndexEntry)
+				if !e.Equal(first) {
+					panic(fmt.Sprintf("data path '%v' has different CASIndexEntry that indexPath '%v' at i=%v; e(%v) != first(%v)", s.path, s.pathIndex, i, e, first))
+				}
+				s.addToMapData(e.Blake3, data)
+			} // end for avail > consumed+64
+		} // end switch err
+	} // for i
+	return nil
 }
 
 func (s *CASIndex) Get(b3 string) (data []byte, ok bool) {
