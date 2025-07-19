@@ -110,13 +110,13 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 		vv("warning: empty index path '%v'", s.pathIndex)
 		return
 	}
-	var foundEntries int64
+	var foundIndexEntries int64
 
 	defer func() {
-		if indexSz/64 != foundEntries {
-			panic(fmt.Sprintf("loadIndex bad: indexSz(%v)/64=%v != foundEntries(%v)", indexSz, indexSz/64, foundEntries))
+		if indexSz/64 != foundIndexEntries {
+			panic(fmt.Sprintf("loadIndex bad: indexSz(%v)/64=%v != foundIndexEntries(%v)", indexSz, indexSz/64, foundIndexEntries))
 		}
-		vv("loadIndex good: indexSz(%v)/64 == foundEntries(%v); s.nKnownBlob=%v", indexSz, foundEntries, s.nKnownBlob)
+		vv("loadIndex good: indexSz(%v)/64 == foundIndexEntries(%v); s.nKnownBlob=%v", indexSz, foundIndexEntries, s.nKnownBlob)
 	}()
 
 	beg := int64(0) // curpos(s.fdIndex)
@@ -167,7 +167,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 				e := &es[j]
 				_, err = e.ManualUnmarshalMsg(buf[j*64 : j*64+64])
 				panicOn(err)
-				foundEntries++
+				foundIndexEntries++
 				e.Beg = beg
 				//vv("read back from index path '%v' gives e = '%#v'", s.pathIndex, e)
 				endx := e.Endx
@@ -195,17 +195,25 @@ func (s *CASIndex) loadDataAndIndex() (err error) {
 		return
 	}
 
-	var foundEntries int64
+	var foundDataEntries int64
 
 	defer func() {
-		if indexSz/64 != foundEntries {
-			panic(fmt.Sprintf("bad: indexSz(%v)/64=%v != foundEntries(%v)", indexSz, indexSz/64, foundEntries))
+		if indexSz/64 != foundDataEntries {
+			panic(fmt.Sprintf("bad: indexSz(%v)/64=%v != foundDataEntries(%v)", indexSz, indexSz/64, foundDataEntries))
 		}
-		vv("good: indexSz(%v)/64 == foundEntries(%v)", indexSz, foundEntries)
+		vv("good: indexSz(%v)/64 == foundDataEntries(%v)", indexSz, foundDataEntries)
 	}()
 
+	// load of data... only for debugging? should not also
+	// do in prod...
 	beg := curpos(s.fdData)
 	vv("top of loadDataAndIndex: beg = %v", beg)
+	if beg != 0 {
+		panic(fmt.Sprintf("curpose = beg=%v of fdData, but expected 0", beg))
+	}
+
+	// TODO: read a full s.workbuf and process it all at once;
+	// but only if using this for prod.
 	var nr int
 	for i := int64(0); ; i++ {
 		nr, err = io.ReadFull(s.fdData, s.workbuf[:64])
@@ -224,7 +232,7 @@ func (s *CASIndex) loadDataAndIndex() (err error) {
 			e := &CASIndexEntry{}
 			_, err = e.ManualUnmarshalMsg(s.workbuf[:64])
 			panicOn(err)
-			foundEntries++
+			foundDataEntries++
 			e.Beg = beg
 			vv("read back from path '%v' gives e = '%#v'", s.path, e)
 			prior, already := s.index.LoadOrStore(e.Blake3, e)
@@ -436,8 +444,10 @@ func (s *CASIndex) addToMapData(b3 string, data []byte) {
 		vv("at end of addToMapData, s.nMemBlob=%v", s.nMemBlob)
 	}()
 
+	mycp := append([]byte{}, data...)
+
 	var previous any
-	previous, already := s.mapData.LoadOrStore(b3, data)
+	previous, already := s.mapData.LoadOrStore(b3, mycp)
 	// basic sanity, can be commented once working.
 	if already {
 		dataPrev, ok := previous.([]byte)
@@ -452,6 +462,7 @@ func (s *CASIndex) addToMapData(b3 string, data []byte) {
 		return
 	}
 	// we added new data
+	vv("first time mapData store under key b3='%v' of data='%v'", b3, string(data))
 	s.mapDataTotalBytes += int64(len(data))
 	if s.nMemBlob == s.maxMemBlob {
 		// our in memory cache is over its limit,
