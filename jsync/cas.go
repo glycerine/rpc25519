@@ -107,6 +107,7 @@ func NewCASIndex(path string, maxMemBlob, preAllocSz int64, verifyData bool) (s 
 	panicOn(err)
 
 	if verifyData {
+		// grabs locks. fine b/c we don't have them.
 		err = s.verifyDataAgainstIndex(indexSz) // assumes loadIndex already called.
 		panicOn(err)
 		alwaysPrintf("good: no error from verifyDataAgainstIndex")

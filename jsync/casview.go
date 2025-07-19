@@ -12,6 +12,9 @@ import (
 
 // diagnostics
 func (s *CASIndex) diagnosticDisplayData() (err error) {
+	// grab exclusive s.fdIndex and s.workbuf access
+	s.mut.Lock()
+	defer s.mut.Unlock()
 
 	var foundDataEntries int64
 
@@ -38,7 +41,7 @@ func (s *CASIndex) diagnosticDisplayData() (err error) {
 			panicOn(err)
 			foundDataEntries++
 			e.Beg = beg
-			fmt.Printf("casview [%04d] %v", i, e)
+			fmt.Printf("casview data [%04d] %v", i, e)
 			//vv("read back from path '%v' gives e = '%v'", s.path, e)
 
 			endx := e.Endx
@@ -72,4 +75,92 @@ func (s *CASIndex) diagnosticDisplayData() (err error) {
 			panicOn(err)
 		}
 	}
+}
+
+func (s *CASIndex) diagnosticDisplayIndex() (err error) {
+	// grab exclusive s.fdIndex and s.workbuf access
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
+	if len(s.workbuf) != 1<<20 {
+		panic(fmt.Sprintf("where did s.workbuf shrink? is now %v; should always be 1<<20", len(s.workbuf)))
+	}
+
+	// just seek to end for appending for now.
+	// later TODO: read fdIndex and check it matches fdData.
+	// For now we just confirm it is the right size.
+
+	_, err = s.fdIndex.Seek(0, 0)
+	panicOn(err)
+	//vv("good: curpos = %v for fdIndex", cur)
+	fi, err := s.fdIndex.Stat()
+	panicOn(err)
+	indexSz := fi.Size()
+	if indexSz == 0 {
+		vv("warning: empty index path '%v'", s.pathIndex)
+		return
+	}
+
+	var foundIndexEntries int64
+
+	beg := int64(0)
+	//vv("top of diagnosticDisplayIndex")
+	var nr int
+	var doneAfterThisRead bool
+	for i := int64(0); !doneAfterThisRead; i++ {
+
+		// read a batch of up to 1MB/64 == 16384 entries at once
+		nr, err = io.ReadFull(s.fdIndex, s.workbuf)
+		_ = nr
+		//vv("loadIndex loop: i=%v; nr=%v; len(s.workbuf)=%v; pathIndex='%v'; indexSz = %v", i, nr, len(s.workbuf), s.pathIndex, indexSz)
+		switch err {
+		case io.EOF:
+			//vv("no bytes read on first io.ReadFull(s.fdIndex)")
+			err = nil
+			return
+		case io.ErrUnexpectedEOF:
+			//vv("nr=%v fewer than 1MB bytes read, typical last read.", nr)
+			if nr == 0 {
+				err = nil
+				return
+			}
+			doneAfterThisRead = true
+			rem := nr % 64
+			if rem != 0 {
+				panic(fmt.Sprintf("how do deal with torn read (rem=%v) at pos %v of path '%v'?", rem, curpos(s.fdIndex), s.pathIndex))
+			}
+			err = nil
+			fallthrough
+		case nil:
+			//vv("err == nil case; nr=%v; doneAfterThisRead=%v", nr, doneAfterThisRead)
+			// full 1MB bytes read into s.workbuf, or
+			// fallthough from shorter read.
+			if nr == 0 {
+				panic("logic error, should never happen nr == 0 here")
+			}
+			buf := s.workbuf[:nr]
+			rem2 := nr % 64
+			if rem2 != 0 {
+				panic(fmt.Sprintf("diagnosticDisplayIndex error: how do deal with torn read nr = %v; (rem2=%v) at pos %v of path '%v'?", nr, rem2, curpos(s.fdIndex), s.pathIndex))
+			}
+
+			nentry := nr / 64
+			//vv("netry = %v", nentry)
+			es := make([]CASIndexEntry, nentry)
+			for j := range es {
+				e := &es[j]
+				_, err = e.ManualUnmarshalMsg(buf[j*64 : j*64+64])
+				panicOn(err)
+				foundIndexEntries++
+				e.Beg = beg
+				//vv("read back from index path '%v' gives e = '%#v'", s.pathIndex, e)
+				endx := e.Endx
+				//sz := endx - beg - 64 // data payload size (but only in fdData, not in fdIndex)
+				beg = endx
+
+				fmt.Printf("casview index [%04d] %v", i, e)
+			}
+		}
+	}
+	return
 }
