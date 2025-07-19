@@ -82,10 +82,12 @@ func Test_0909_NewCASIndex(t *testing.T) {
 	datas := make([][]byte, 3)
 
 	var seed [32]byte
-	seed[0] = 1
+	seed[0] = 3
 	rng := newPRNG(seed)
 	for i := range datas {
-		datas[i] = make([]byte, 20)
+		// random size in [20, 100]
+		sz := 20 + rng.pseudoRandNonNegInt64()%81
+		datas[i] = make([]byte, sz)
 		rng.cha8.Read(datas[i])
 	}
 
