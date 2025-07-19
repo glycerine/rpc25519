@@ -10,6 +10,16 @@ import (
 	"github.com/glycerine/rpc25519/hash"
 )
 
+// CASIndex and CASIndexEntry provide a very
+// simple Content-Addressable-Store backed
+// by two files on disk. The data file is
+// in path, and includes the blobs of data.
+// The pathIndex for the index just includes
+// the hashes and location of the blobs in
+// the data file, so that it can be loaded
+// into memory without having to scan
+// through the full data, allowing lazy
+// data loading.
 type CASIndex struct {
 	path      string
 	pathIndex string
@@ -342,11 +352,21 @@ func (s *CASIndex) addToMapData(b3 string, data []byte) {
 	}
 }
 
+// CASIndexEntry is the in memory index entry
+// for the CASIndex Content-Addressable-Store.
 type CASIndexEntry struct {
-	//Blake3 [56]byte
+
+	// Blake3 gives the 55-byte long blake3 cryptographic
+	// hash of the data blob we are indexing.
 	Blake3 string
 
-	Beg int64 // not serialized on disk. computed after read.
+	// Beg is where the (header + blob) start
+	// in the data file. For space efficiency,
+	// Beg is not serialized on disk, but rather
+	// computed after read, since it is just the
+	// previous entry's Endx, or 0 if there is
+	// no previous entry.
+	Beg int64
 
 	// The first CAS starts at byte offset 0.
 	// The next CAS starts at the Endx of the first.
