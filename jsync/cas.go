@@ -37,7 +37,7 @@ type CASIndex struct {
 	maxMemBlob        int64
 	nMemBlob          int64 // len(mapData) is kept <= maxMemBlob
 
-	// len(index), total number of known blobs
+	// nKnownBlob == len(index), total number of known blobs
 	// (in memory in index, and same on disk
 	// in data path or index path).
 	nKnownBlob int64
@@ -116,7 +116,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 		if indexSz/64 != foundEntries {
 			panic(fmt.Sprintf("loadIndex bad: indexSz(%v)/64=%v != foundEntries(%v)", indexSz, indexSz/64, foundEntries))
 		}
-		vv("loadIndex good: indexSz(%v)/64 == foundEntries(%v)", indexSz, foundEntries)
+		vv("loadIndex good: indexSz(%v)/64 == foundEntries(%v); s.nKnownBlob=%v", indexSz, foundEntries, s.nKnownBlob)
 	}()
 
 	beg := int64(0) // curpos(s.fdIndex)
@@ -168,7 +168,6 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 				_, err = e.ManualUnmarshalMsg(buf[j*64 : j*64+64])
 				panicOn(err)
 				foundEntries++
-				s.nKnownBlob++
 				e.Beg = beg
 				//vv("read back from index path '%v' gives e = '%#v'", s.pathIndex, e)
 				endx := e.Endx
@@ -180,6 +179,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 				}
 				vv("added to s.index e = '%v'", e)
 			}
+			s.nKnownBlob += int64(nentry)
 		}
 	}
 	return
@@ -324,7 +324,7 @@ func (s *CASIndex) Get(b3 string) (data []byte, ok bool) {
 			err = fmt.Errorf("error data path '%v' out of correspondence with in memory index entry; at data path [%v, %v) for blake3 hash key '%v'; e2='%v'; e='%v'", s.path, e.Beg, e.Endx, e.Blake3, e2, e)
 		}
 		// everything after the header is our data payload.
-		data = s.workbuf[64:]
+		data = s.workbuf[64:sz]
 		ok = true
 
 		// cache it
@@ -358,6 +358,7 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 			continue
 		}
 		newCount++
+		s.nKnownBlob++
 
 		// create index entry
 		beg := curpos(s.fdData)
@@ -445,7 +446,7 @@ func (s *CASIndex) addToMapData(b3 string, data []byte) {
 			panic(fmt.Sprintf("only []byte should be stored in m, not %T", previous))
 		}
 		if 0 != bytes.Compare(data, dataPrev) {
-			panic(fmt.Sprintf("data(len %v) != dataPrev(len %v), bad hashing somewhere?", len(data), len(dataPrev)))
+			panic(fmt.Sprintf("data('%v') with len %v != dataPrev('%v') with len %v; bad hashing somewhere?", string(data), len(data), string(dataPrev), len(dataPrev)))
 		}
 
 		// no change in stored data, so no eviction needed.
@@ -524,7 +525,7 @@ func (s *CASIndexEntry) String() string {
 `, s.Beg, s.Endx, s.Blake3)
 }
 
-func NewCASIndexEntry(blake3str string, endx int64) (r CASIndexEntry) {
+func NewCASIndexEntry(blake3str string, endx int64) (r *CASIndexEntry) {
 	n := len(blake3str)
 	// len is 55, so 0-byte terminated always too--
 	// which should make the int64 8-byte aligned as well.
@@ -533,8 +534,10 @@ func NewCASIndexEntry(blake3str string, endx int64) (r CASIndexEntry) {
 		panic(fmt.Sprintf("blake3 string must be <= 56 bytes: %v", n))
 	}
 	//copy(r.Blake3[:], []byte(blake3str[:n]))
-	r.Blake3 = blake3str
-	r.Endx = endx
+	r = &CASIndexEntry{
+		Blake3: blake3str,
+		Endx:   endx,
+	}
 	return
 }
 
