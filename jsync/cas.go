@@ -8,6 +8,7 @@ import (
 	"sync"
 	//"github.com/glycerine/greenpack/msgp"
 	"github.com/glycerine/rpc25519/hash"
+	"github.com/glycerine/rpc25519/jsync/sparsified"
 )
 
 // CASIndex and CASIndexEntry provide a very
@@ -37,6 +38,8 @@ type CASIndex struct {
 	maxMemBlob        int64
 	nMemBlob          int64 // len(mapData) is kept <= maxMemBlob
 
+	preAllocSz int64
+
 	// nKnownBlob == len(index), total number of known blobs
 	// (in memory in index, and same on disk
 	// in data path or index path).
@@ -57,12 +60,16 @@ type CASIndex struct {
 	rng *prng
 }
 
-func NewCASIndex(path string, maxMemBlob int64) (s *CASIndex, err error) {
+// maxMemBlob is a count of blobs to cache.
+// preAllocSz is the bytes to pre-allocate when
+// path is new.
+func NewCASIndex(path string, maxMemBlob, preAllocSz int64) (s *CASIndex, err error) {
 	if maxMemBlob < 0 {
 		panic(fmt.Sprintf("maxMemBlob(%v) must be >= 0", maxMemBlob))
 	}
 	var seed [32]byte
 	s = &CASIndex{
+		preAllocSz: preAllocSz,
 		maxMemBlob: maxMemBlob,
 		path:       path,
 		pathIndex:  path + ".index",
@@ -70,10 +77,21 @@ func NewCASIndex(path string, maxMemBlob int64) (s *CASIndex, err error) {
 		hasher:     hash.NewBlake3(),
 		rng:        newPRNG(seed),
 	}
+	isNew := !fileExists(path)
 	s.fdData, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
 	panicOn(err)
 	s.fdIndex, err = os.OpenFile(s.pathIndex, os.O_RDWR|os.O_CREATE, 0644)
 	panicOn(err)
+
+	if isNew && preAllocSz > 0 {
+		_, err = sparsified.Fallocate(s.fdData, sparsified.FALLOC_FL_KEEP_SIZE, 0, preAllocSz)
+		// target of 8K / 64 = 128, so we expect
+		// our index to be about 1/128 of the data.
+		// If data prealloc is 8GB, then index prealloc will be 64MB.
+		preAllocIndexSz := preAllocSz / 128
+		_, err = sparsified.Fallocate(s.fdIndex, sparsified.FALLOC_FL_KEEP_SIZE, 0, preAllocIndexSz)
+	}
+
 	// eager:
 	//err = s.loadDataAndIndex()
 	//panicOn(err)
