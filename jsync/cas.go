@@ -191,7 +191,16 @@ func (s *CASIndex) loadDataAndIndex() (err error) {
 			foundEntries++
 			e.Beg = beg
 			vv("read back from path '%v' gives e = '%#v'", s.path, e)
-			s.index.LoadOrStore(e.Blake3, e)
+			prior, already := s.index.LoadOrStore(e.Blake3, e)
+			// assert our data path and indexPath are in sync;
+			// and thus index should already have it every time.
+			if !already {
+				panic(fmt.Sprintf("s.index was missing '%v' seen in path '%v': why was it not in the pathIndex '%v'", e, s.path, s.pathIndex))
+			}
+			first := prior.(*CASIndexEntry)
+			if !e.Equal(first) {
+				panic(fmt.Sprintf("data path '%v' has different CASIndexEntry that indexPath '%v' at i=%v; e(%v) != first(%v)", s.path, s.pathIndex, i, e, first))
+			}
 
 			endx := e.Endx
 			sz := endx - beg - 64
@@ -348,6 +357,19 @@ type CASIndexEntry struct {
 	// worth it to fit in a cache line and
 	// not store redundant offsets in the index file.
 	Endx int64
+}
+
+func (a *CASIndexEntry) Equal(b *CASIndexEntry) bool {
+	if a.Blake3 != b.Blake3 {
+		return false
+	}
+	if a.Beg != b.Beg {
+		return false
+	}
+	if a.Endx != b.Endx {
+		return false
+	}
+	return true
 }
 
 func (s *CASIndexEntry) String() string {
