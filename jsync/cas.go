@@ -45,6 +45,22 @@ func NewCASIndex(path string) (s *CASIndex, err error) {
 
 func (s *CASIndex) loadDataAndIndex() {
 
+	// just seek to end for appending for now.
+	// later TODO: read fdIndex and check it matches fdData.
+	// For now we just confirm it is the right size.
+	s.fdIndex.Seek(0, 2)
+	fi, err := s.fdIndex.Stat()
+	panicOn(err)
+	indexSz := fi.Size()
+	var foundEntries int64
+
+	defer func() {
+		if indexSz/64 != foundEntries {
+			panic(fmt.Sprintf("bad: indexSz(%v)/64=%v != foundEntries(%v)", indexSz, indexSz/64, foundEntries))
+		}
+		vv("good: indexSz(%v)/64 == foundEntries(%v)", indexSz, foundEntries)
+	}()
+
 	beg := curpos(s.fdData)
 	for {
 		nr, err := io.ReadFull(s.fdData, s.workbuf[:64])
@@ -57,6 +73,7 @@ func (s *CASIndex) loadDataAndIndex() {
 			// fewer than 64 bytes read
 			panic(fmt.Sprintf("ErrUnexpectedEOF after nr=%v, corrupted path? path='%v'", nr, s.path))
 		case nil:
+			foundEntries++
 			// full 64 bytes read into s.workbuf[:64]
 			e := &CASIndexEntry{}
 			_, err = e.ManualUnmarshalMsg(s.workbuf[:64])
