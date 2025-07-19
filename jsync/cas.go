@@ -92,12 +92,14 @@ func NewCASIndex(path string, maxMemBlob, preAllocSz int64) (s *CASIndex, err er
 		_, err = sparsified.Fallocate(s.fdIndex, sparsified.FALLOC_FL_KEEP_SIZE, 0, preAllocIndexSz)
 	}
 
-	// eager:
-	//err = s.loadDataAndIndex()
-	//panicOn(err)
-	// lazy:
-	_, err = s.loadIndex()
+	var indexSz int64
+	indexSz, err = s.loadIndex()
 	panicOn(err)
+
+	// eager:
+	err = s.verifyDataAgainstIndex(indexSz) // assumes loadIndex already called.
+	panicOn(err)
+	// lazy:
 
 	return
 }
@@ -204,30 +206,38 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 }
 
 // called as part of NewCASIndex so no locking needed.
-func (s *CASIndex) loadDataAndIndex() (err error) {
-
-	var indexSz int64
-	indexSz, err = s.loadIndex()
-	panicOn(err)
-	if err != nil {
-		return
-	}
+// Assumes that loadIndex has already been called.
+// indexSz < 0 means don't compare against total
+// index size bytes on disk, but do check entries.
+func (s *CASIndex) verifyDataAgainstIndex(indexSz int64) (err error) {
 
 	var foundDataEntries int64
 
 	defer func() {
-		if indexSz/64 != foundDataEntries {
-			panic(fmt.Sprintf("bad: indexSz(%v)/64=%v != foundDataEntries(%v)", indexSz, indexSz/64, foundDataEntries))
+		if indexSz >= 0 {
+			if indexSz/64 != foundDataEntries {
+				panic(fmt.Sprintf("bad: indexSz(%v)/64=%v != foundDataEntries(%v)", indexSz, indexSz/64, foundDataEntries))
+			}
+			vv("good: indexSz(%v)/64 == foundDataEntries(%v)", indexSz, foundDataEntries)
 		}
-		vv("good: indexSz(%v)/64 == foundDataEntries(%v)", indexSz, foundDataEntries)
 	}()
 
-	// load of data... only for debugging? should not also
-	// do in prod...
-	beg := curpos(s.fdData)
-	vv("top of loadDataAndIndex: beg = %v", beg)
-	if beg != 0 {
-		panic(fmt.Sprintf("curpose = beg=%v of fdData, but expected 0", beg))
+	// load of data... for verifying against index.
+	// would skip in prod unless trying to detect corruption.
+	_, err = s.fdData.Seek(0, 0)
+	panicOn(err)
+	var beg int64
+
+	if len(s.workbuf) != 1<<20 {
+		panic(fmt.Sprintf("where did s.workbuf shrink? is now %v; should always be 1<<20", len(s.workbuf)))
+	}
+
+	fi, err := s.fdData.Stat()
+	panicOn(err)
+	dataSz := fi.Size()
+	if dataSz == 0 {
+		vv("warning: empty data path '%v'", s.path)
+		return
 	}
 
 	// TODO: read a full s.workbuf and process it all at once;
