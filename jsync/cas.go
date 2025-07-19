@@ -44,19 +44,54 @@ func NewCASIndex(path string) (s *CASIndex, err error) {
 }
 
 func (s *CASIndex) loadDataAndIndex() {
+
+	beg := curpos(s.fdData)
 	for {
 		nr, err := io.ReadFull(s.fdData, s.workbuf[:64])
 		_ = nr
 		switch err {
 		case io.EOF:
 			// no bytes read
+			return
 		case io.ErrUnexpectedEOF:
 			// fewer than 64 bytes read
+			panic(fmt.Sprintf("ErrUnexpectedEOF after nr=%v, corrupted path? path='%v'", nr, s.path))
 		case nil:
 			// full 64 bytes read into s.workbuf[:64]
-			v := &CASIndexEntry{}
-			_, err = v.ManualUnmarshalMsg(s.workbuf[:64])
+			e := &CASIndexEntry{}
+			_, err = e.ManualUnmarshalMsg(s.workbuf[:64])
 			panicOn(err)
+			e.Beg = beg
+
+			endx := e.Endx
+			sz := endx - beg
+			var nr2 int
+			nr2, err = io.ReadFull(s.fdData, s.workbuf[:sz])
+			_ = nr2
+			switch err {
+			case io.EOF:
+				// no data bytes read
+				return
+			case io.ErrUnexpectedEOF:
+				// fewer than sz data bytes read
+				panic(fmt.Sprintf("ErrUnexpectedEOF after nr2=%v, corrupted path? path='%v'", nr2, s.path))
+			case nil:
+				// sz bytes were just read into s.workbuf[:sz]
+				data := s.workbuf[:sz]
+				b3 := string(e.Blake3[:55])
+				s.addToMapData(b3, data)
+			}
+			beg = endx
+			cur := curpos(s.fdData)
+			if cur != beg {
+				panic(fmt.Sprintf("sanity check failed, curpos(s.fdData)=%v != beg(%v)", cur, beg))
+			}
+
+			// TODO: also read path.index and
+			// a) compare same, to detect a short write or corruption
+			// b) verify the index entry matches
+			//    what is in full path data storage.
+			// c) check again our offset endx is correct.
 		}
 	}
 }
@@ -86,12 +121,6 @@ func (s *CASIndex) Append(data [][]byte) (err error) {
 		s.addToMapData(b3, by)
 
 		// write new index entry to memory
-
-		// sanity check
-		endx2 := curpos(s.fdData)
-		if endx2 != endx {
-			panic(fmt.Sprintf("endx2(%v) != endx(%v): bad computation", endx2, endx))
-		}
 		e.Beg = beg
 		s.index.LoadOrStore(b3, e)
 
@@ -127,6 +156,12 @@ func (s *CASIndex) Append(data [][]byte) (err error) {
 		panicOn(err)
 		if err != nil {
 			return
+		}
+
+		// sanity check
+		endx2 := curpos(s.fdData)
+		if endx2 != endx {
+			panic(fmt.Sprintf("endx2(%v) != endx(%v): bad computation of endx", endx2, endx))
 		}
 	}
 	// flush any remaining index to disk
