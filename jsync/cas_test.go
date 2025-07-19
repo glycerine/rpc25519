@@ -13,10 +13,11 @@ func TestManualMarshalUnmarshalCASIndex(t *testing.T) {
 	b3 := hasher.SumString()
 	v := NewCASIndex(b3, 9223372036854775807)
 	// v := CASIndex{
-	// 	Offset: 9223372036854775807,
+	// 	Endx: 9223372036854775807,
 	// }
 	// copy(v.Blake3[:], []byte(b3))
-	bts, err := v.ManualMarshalMsg(nil)
+	buf := make([]byte, 64)
+	bts, err := v.ManualMarshalMsg(buf[:0])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,7 +31,7 @@ func TestManualMarshalUnmarshalCASIndex(t *testing.T) {
 	if len(left) > 0 {
 		t.Errorf("%d bytes left over after UnmarshalMsg(): %q", len(left), left)
 	}
-	if v2.Offset != v.Offset {
+	if v2.Endx != v.Endx {
 		panic("different")
 	}
 	if 0 != bytes.Compare(v2.Blake3[:], v.Blake3[:]) {
