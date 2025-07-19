@@ -102,11 +102,21 @@ func Test_0909_NewCASIndex(t *testing.T) {
 		//rng.cha8.Read(datas[i])
 
 		// easy to expect and verify data during Get()
+		// fill in the full i to allow testing of
+		// big batches with all keys unique.
 		datas[i][0] = byte(i)
+		datas[i][1] = byte(i >> 8)
+		datas[i][2] = byte(i >> 16)
+		datas[i][3] = byte(i >> 24)
+		datas[i][4] = byte(i >> 32)
+		datas[i][5] = byte(i >> 40)
+		datas[i][6] = byte(i >> 48)
+		datas[i][7] = byte(i >> 56)
+
 		key := hash.Blake3OfBytesString(datas[i])
 		prev, ok := uniqkey[key]
 		if ok {
-			vv("key '%v' not unique. %v same as %v", key, len(uniqkey), prev)
+			vv("key '%v' not unique. %v same as %v. cur datas[i]='%v' while datas[prev]='%v'", key, len(uniqkey), prev, string(datas[i]), string(datas[prev]))
 		}
 		uniqkey[key] = len(uniqkey)
 
