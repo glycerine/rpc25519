@@ -9,7 +9,22 @@ import (
 
 	"github.com/glycerine/rpc25519/hash"
 	"github.com/glycerine/rpc25519/jsync/sparsified"
+	"github.com/klauspost/compress/s2"
 )
+
+// 	de_s2      *s2.Reader = s2.NewReader(nil)
+//	decompBuf := bytes.NewBuffer(message)
+//	de_s2.Reset(decompBuf)
+
+// 	out := bytes.NewBuffer(decomp.decompSlice[:0])
+//  n, err := io.Copy(out, de_s2)
+//
+// 	com_s2     *s2.Writer = s2.NewWriter(nil) // dst io.Writer
+//  out := bytes.NewBuffer(p.compSlice[:0])
+//	c.Reset(out)
+// 	compBuf := bytes.NewBuffer(bytesMsg)
+//	_, err := io.Copy(com_s2, compBuf)
+// 	panicOn(com_s2.Close())
 
 // CASIndex and CASIndexEntry provide a very
 // simple Content-Addressable-Store backed
@@ -33,7 +48,7 @@ type CASIndex struct {
 	// can reload data from fdData if need be,
 	// so mapData can (and will) be trimmed when
 	// we add more than maxBlobs.
-	mapData           sync.Map // blake3 -> []byte data
+	mapData           sync.Map // blake3 -> []byte data (uncompressed)
 	mapDataTotalBytes int64
 	maxMemBlob        int64
 	nMemBlob          int64 // len(mapData) is kept <= maxMemBlob
@@ -58,6 +73,9 @@ type CASIndex struct {
 
 	// for random cache evictions
 	rng *prng
+
+	// default to true, using s2 compression
+	useS2comprssion bool
 }
 
 // maxMemBlob is a count of blobs to cache.
@@ -72,12 +90,13 @@ func NewCASIndex(path string, maxMemBlob, preAllocSz int64, verifyData bool) (s 
 	}
 	var seed [32]byte
 	s = &CASIndex{
-		preAllocSz: preAllocSz,
-		maxMemBlob: maxMemBlob,
-		hasher:     hash.NewBlake3(),
-		rng:        newPRNG(seed),
-		path:       path,
-		pathIndex:  path + ".index",
+		preAllocSz:      preAllocSz,
+		maxMemBlob:      maxMemBlob,
+		hasher:          hash.NewBlake3(),
+		rng:             newPRNG(seed),
+		path:            path,
+		pathIndex:       path + ".index",
+		useS2comprssion: true,
 
 		workbuf: make([]byte, 1<<20),
 		// exercise the "unused" logic, but always
@@ -219,7 +238,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 // index size bytes on disk, but do check entries.
 func (s *CASIndex) verifyDataAgainstIndex(indexSz int64) (err error) {
 
-	//panicOn(s.diagnosticDisplayData())
+	panicOn(s.diagnosticDisplayData())
 
 	var foundDataEntries int64
 
@@ -390,10 +409,20 @@ func (s *CASIndex) Get(b3 string) (data []byte, ok bool) {
 			err = fmt.Errorf("error data path '%v' out of correspondence with in memory index entry; at data path [%v, %v) for blake3 hash key '%v'; e2='%v'; e='%v'", s.path, e.Beg, e.Beg+int64(e.Len), e.Blake3, e2, e)
 		}
 		// everything after the header is our data payload.
-		data = s.workbuf[64:sz]
+
+		vv("e.Flags = %v; e.Flags%%2 = %v", e.Flags, e.Flags%2)
+		if e.Flags%2 == 1 {
+			// s2 compressed
+			data, err = s2.Decode(nil, s.workbuf[64:sz])
+			panicOn(err)
+			vv("doing s2 decompression: %v -> %v", sz-64, data)
+		} else {
+			// uncompressed
+			data = s.workbuf[64:sz]
+		}
 		ok = true
 
-		// cache it
+		// cache it (uncompressed)
 		s.addToMapData(e.Blake3, data)
 		return
 
@@ -439,15 +468,24 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 		newCount++
 		s.nKnownBlob++
 
+		// compress
+		var flags int32
+		s2by := by
+		if s.useS2comprssion {
+			flags = flags | 1
+			s2by = s2.Encode(nil, by)
+			vv("doing s2.Encode: input len %v -> %v", len(by), len(s2by))
+			// by is still the uncompressed data.
+		}
+		sz := int32(len(s2by)) + 64
+
 		// create index entry
 		beg := curpos(s.fdData)
-		endx := beg + int64(len(by)) + 64
-		sz := int32(len(by)) + 64
-		var flags int32
+		endx := beg + int64(sz)
 		e := NewCASIndexEntry(b3, beg, sz, flags)
 
-		// store data to memory
-		s.addToMapData(b3, by) // makes copy of by.
+		// store data to memory (uncompressed)
+		s.addToMapData(b3, by) // makes copy of by
 
 		// write new index entry to memory
 		e.Beg = beg
@@ -481,8 +519,8 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 		if err != nil {
 			return
 		}
-		// b) write actual data by.
-		_, err = s.fdData.Write(by)
+		// b) write actual data
+		_, err = s.fdData.Write(s2by)
 		panicOn(err)
 		if err != nil {
 			return
@@ -579,9 +617,11 @@ type CASIndexEntry struct {
 	Beg int64
 
 	// Len is the length of the chunk
+	// (compressed byte size if compression used)
 	Len int32
 
-	// Flags bit 1 means the chunk is compressed with s2.
+	// Flags
+	// bit 0: Flags % 2 == 1 means chunk is compressed with s2.Encode
 	Flags int32
 }
 
