@@ -131,6 +131,7 @@ func (s *CASIndex) Append(data [][]byte) (err error) {
 		// dedup, don't write if already present.
 		_, already := s.mapData.Load(b3)
 		if already {
+			vv("already have b3='%v' so ignoring", b3)
 			continue
 		}
 
@@ -263,8 +264,8 @@ func (z *CASIndexEntry) ManualMarshalMsg(b []byte) (o []byte, err error) {
 	//vv("len(o) = %v; cap(o) = %v", len(o), cap(o))
 	o = b[:64]
 	//o = append(o, zero64[:]...)
-	copy(o, []byte(z.Blake3[:]))
-
+	o[0] = '\n' // unused for info, so make file more readable.
+	copy(o[1:56], []byte(z.Blake3[:55]))
 	i := z.Endx
 	o[56] = byte(i >> 56)
 	o[57] = byte(i >> 48)
