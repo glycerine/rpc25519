@@ -2,11 +2,157 @@ package jsync
 
 import (
 	"fmt"
+	"os"
+	"sync"
 	//"github.com/glycerine/greenpack/msgp"
-	// "github.com/glycerine/rpc25519/hash"
+	"github.com/glycerine/rpc25519/hash"
 )
 
 type CASIndex struct {
+	path string
+
+	// must keep index in memory
+	index sync.Map // blake3 -> CASIndexEntry
+
+	// can reload daa from fdData if need be,
+	// so can be trimmed.
+	mapData           sync.Map // blake3 -> []byte data
+	mapDataTotalBytes int64
+
+	hasher  *hash.Blake3
+	workbuf []byte
+	w       int64 // how much of workbuf used?
+
+	fdData  *os.File
+	fdIndex *os.File
+}
+
+func NewCASIndex(path string) (s *CASIndex, err error) {
+	s = &CASIndex{
+		path:    path,
+		workbuf: make([]byte, 0, 1<<20),
+		hasher:  hash.NewBlake3(),
+	}
+	s.fdData, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
+	panicOn(err)
+	s.fdIndex, err = os.OpenFile(path+".index", os.O_RDWR|os.O_CREATE, 0644)
+	panicOn(err)
+	s.loadDataAndIndex()
+	return
+}
+
+func (s *CASIndex) loadDataAndIndex() {
+	for {
+		nr, err := io.ReadFull(fd.Data, s.workbuf[:64])
+		_ = nr
+		switch err {
+		case io.EOF:
+			// no bytes read
+		case io.ErrUnexpectedEOF:
+			// fewer than 64 bytes read
+		case nil:
+			// full 64 bytes read into s.workbuf[:64]
+			v := &CASIndexEntry{}
+			_, err = v.ManualUnmarshalMsg(s.workbuf[:64])
+			panicOn(err)
+		}
+	}
+}
+
+func (s *CASIndex) Append(data [][]byte) (err error) {
+	for _, by := range data {
+		if len(by) == 0 {
+			panic("dont try to Append an empty []byte")
+			continue
+		}
+		s.hasher.Reset()
+		s.hasher.Write(by)
+		b3 := s.hasher.SumString()
+
+		// dedup, don't write if already present.
+		_, already := s.mapData.Load(b3)
+		if already {
+			continue
+		}
+
+		// store data to memory
+		s.addToMapData(b3, by)
+
+		beg := curpos(s.fdData)
+		endx := beg + len(by) + 64
+		e := NewCASIndexEntry(b3, endx)
+
+		// write new index entry to memory
+		//endx := curpos(s.fdData)
+		e.Beg = beg
+		s.index.LoadOrStore(b3, e)
+
+		// write new index entry to disk.
+		// flush workbuf first if we are out
+		// of workbuf space...
+		if len(s.workbuf)-s.w < 64 {
+			_, err = s.fdIndex.Write(s.workbuf[:s.w])
+			panicOn(err)
+			if err != nil {
+				return
+			}
+			s.w = 0
+		}
+
+		var ebts []byte
+		ebts, err = e.ManualMarshalMsg(s.workbuf[s.w:s.w])
+		panicOn(err)
+		if err != nil {
+			return
+		}
+		s.w += 64
+
+		// store data to disk.
+		// a) write 64 byte header first
+		_, err = s.fdData.Write(ebts)
+		panicOn(err)
+		if err != nil {
+			return
+		}
+		// b) write actual data by.
+		_, err = s.fdData.Write(by)
+		panicOn(err)
+		if err != nil {
+			return
+		}
+	}
+	// flush any remaining index to disk
+	if s.w > 0 {
+		_, err = s.fdIndex.Write(s.workbuf[:s.w])
+		panicOn(err)
+		if err != nil {
+			return
+		}
+		s.w = 0
+	}
+	err = s.fdData.Sync()
+	err2 := s.fdIndex.Sync()
+	panicOn(err)
+	panicOn(err2)
+	return nil
+}
+
+func (s *CASIndex) addToMapData(b3 string, data []byte) {
+	s.mapDataTotalBytes += len(data)
+	actual, loaded := s.mapData.LoadOrStore(b3, data)
+	// basic sanity, can be commented once working.
+	if !loaded {
+		dataPrev, ok := actual.([]byte)
+		if !ok {
+			panic(fmt.Sprintf("only []byte should be stored in m, not %T", actual))
+		}
+		if 0 != bytes.Compare(data, data2) {
+			panic(fmt.Sprintf("data(len %v) != data2(len %v), bad hashing somewhere?", len(data), len(data2)))
+		}
+	}
+}
+
+type CASIndexEntry struct {
 	Blake3 [56]byte
 
 	Beg int64 // not serialized on disk. computed after read.
@@ -23,7 +169,7 @@ type CASIndex struct {
 	Endx int64
 }
 
-func NewCASIndex(blake3 string, endx int64) (r CASIndex) {
+func NewCASIndexEntry(blake3 string, endx int64) (r CASIndexEntry) {
 	n := len(blake3)
 	// len is 55, so 0-byte terminated always too--
 	// which should make the int64 8-byte aligned as well.
@@ -36,13 +182,11 @@ func NewCASIndex(blake3 string, endx int64) (r CASIndex) {
 	return
 }
 
-var zero64 [64]byte
-
 // ManualMarshalMsg is adapted from msgp but does NOT
 // provide greenpack / msgpack serz. Instead it is
 // custom, manual serization of the two fields so
 // that they exactly fit into a single 64-byte cache line.
-func (z *CASIndex) ManualMarshalMsg(b []byte) (o []byte, err error) {
+func (z *CASIndexEntry) ManualMarshalMsg(b []byte) (o []byte, err error) {
 
 	if cap(b) < 64 {
 		panic("ManualMarshalMsg must have b with cap >= 64")
@@ -70,7 +214,7 @@ func (z *CASIndex) ManualMarshalMsg(b []byte) (o []byte, err error) {
 // provide greenpack / msgpack serz. Instead it is
 // custom, manual serization of the two fields so
 // that they exactly fit into a single 64-byte cache line.
-func (z *CASIndex) ManualUnmarshalMsg(b []byte) (o []byte, err error) {
+func (z *CASIndexEntry) ManualUnmarshalMsg(b []byte) (o []byte, err error) {
 
 	copy(z.Blake3[:56], b[:56])
 	z.Endx = (int64(b[56]) << 56) | (int64(b[57]) << 48) |
@@ -81,6 +225,6 @@ func (z *CASIndex) ManualUnmarshalMsg(b []byte) (o []byte, err error) {
 }
 
 // ManualMsgsize
-func (z *CASIndex) ManualMsgsize() (s int) {
+func (z *CASIndexEntry) ManualMsgsize() (s int) {
 	return 64
 }

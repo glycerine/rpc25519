@@ -7,12 +7,12 @@ import (
 	"github.com/glycerine/rpc25519/hash"
 )
 
-func TestManualMarshalUnmarshalCASIndex(t *testing.T) {
+func TestManualMarshalUnmarshalCASIndexEntry(t *testing.T) {
 	hasher := hash.NewBlake3()
 	hasher.Write([]byte("hello"))
 	b3 := hasher.SumString()
-	v := NewCASIndex(b3, 9223372036854775807)
-	// v := CASIndex{
+	v := NewCASIndexEntry(b3, 9223372036854775807)
+	// v := CASIndexEntry{
 	// 	Endx: 9223372036854775807,
 	// }
 	// copy(v.Blake3[:], []byte(b3))
@@ -23,7 +23,7 @@ func TestManualMarshalUnmarshalCASIndex(t *testing.T) {
 	}
 	vv("len bts for CAS is '%v'", len(bts))
 
-	v2 := CASIndex{}
+	v2 := CASIndexEntry{}
 	left, err := v2.ManualUnmarshalMsg(bts)
 	if err != nil {
 		t.Fatal(err)
@@ -39,8 +39,8 @@ func TestManualMarshalUnmarshalCASIndex(t *testing.T) {
 	}
 }
 
-func BenchmarkManualMarshalMsgCASIndex(b *testing.B) {
-	v := CASIndex{}
+func BenchmarkManualMarshalMsgCASIndexEntry(b *testing.B) {
+	v := CASIndexEntry{}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -48,8 +48,8 @@ func BenchmarkManualMarshalMsgCASIndex(b *testing.B) {
 	}
 }
 
-func BenchmarkAppendMsgCASIndex(b *testing.B) {
-	v := CASIndex{}
+func BenchmarkAppendMsgCASIndexEntry(b *testing.B) {
+	v := CASIndexEntry{}
 	bts := make([]byte, 0, v.ManualMsgsize())
 	bts, _ = v.ManualMarshalMsg(bts[0:0])
 	b.SetBytes(int64(len(bts)))
@@ -60,8 +60,8 @@ func BenchmarkAppendMsgCASIndex(b *testing.B) {
 	}
 }
 
-func BenchmarkUnmarshalCASIndex(b *testing.B) {
-	v := CASIndex{}
+func BenchmarkUnmarshalCASIndexEntry(b *testing.B) {
+	v := CASIndexEntry{}
 	bts, _ := v.ManualMarshalMsg(nil)
 	b.ReportAllocs()
 	b.SetBytes(int64(len(bts)))
