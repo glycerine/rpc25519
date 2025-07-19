@@ -27,7 +27,7 @@ type CASIndex struct {
 	pathIndex string
 
 	// must keep index in memory
-	index sync.Map // blake3 -> CASIndexEntry
+	index sync.Map // blake3 -> *CASIndexEntry
 
 	// can reload data from fdData if need be,
 	// so mapData can (and will) be trimmed when
@@ -80,6 +80,7 @@ func NewCASIndex(path string, maxBlobs int64) (s *CASIndex, err error) {
 }
 
 // indexSz is the byte size of the pathIndex file.
+// called as part of NewCASIndex so no locking needed.
 func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 
 	if len(s.workbuf) != 1<<20 {
@@ -178,9 +179,8 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 	return
 }
 
+// called as part of NewCASIndex so no locking needed.
 func (s *CASIndex) loadDataAndIndex() (err error) {
-	s.mut.Lock()
-	defer s.mut.Unlock()
 
 	var indexSz int64
 	indexSz, err = s.loadIndex()
@@ -268,6 +268,68 @@ func (s *CASIndex) loadDataAndIndex() (err error) {
 			panicOn(err)
 		}
 	}
+}
+
+func (s *CASIndex) Get(b3 string) (data []byte, ok bool) {
+	// get the index, do we have it at all?
+	entry, have := s.index.Load(b3)
+	if !have {
+		return // nope
+	}
+	// we have data. is it in memory, or only on disk?
+	by, already := s.mapData.Load(b3)
+	if already {
+		// mapData cache hit. its in memory, just serve it.
+		ok = true
+		data = by.([]byte)
+	}
+	// INVAR: have to go to disk to get it.
+
+	// lock so we have exclusive access to fdData
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
+	e := entry.(*CASIndexEntry)
+	_, err := s.fdData.Seek(e.Beg, 0)
+	panicOn(err)
+	sz := e.Endx - e.Beg
+	if sz <= 64 {
+		panic(fmt.Sprintf("sz must be > 64 to store header plus at least 1 bytes of data; sz = %v", sz))
+	}
+
+	var nr int
+	nr, err = io.ReadFull(s.fdData, s.workbuf[:sz])
+	_ = nr
+	vv("nr=%v; sz = %v", nr, sz)
+	switch err {
+	case io.EOF:
+		panic(fmt.Sprintf("error corrupt path? could not load dataPath '%v' at [%v, %v) of size %v: got EOF", s.path, e.Beg, e.Endx, sz))
+		return
+	case io.ErrUnexpectedEOF:
+		// fewer than sz (header + blob) bytes read
+		panic(fmt.Sprintf("ErrUnexpectedEOF after nr=%v, trying to read sz = %v at pos %v, corrupted path? path='%v'", nr, sz, e.Beg, s.path))
+	case nil:
+		// full sz bytes read into s.workbuf[:sz]
+		// confirm the header matches (in first 64 bytes)
+		e2 := &CASIndexEntry{}
+		_, err = e2.ManualUnmarshalMsg(s.workbuf[:64])
+		panicOn(err)
+		if !e2.Equal(e) {
+			err = fmt.Errorf("error data path '%v' out of correspondence with in memory index entry; at data path [%v, %v) for blake3 hash key '%v'; e2='%v'; e='%v'", s.path, e.Beg, e.Endx, e.Blake3, e2, e)
+		}
+		// everything after the header is our data payload.
+		data = s.workbuf[64:]
+		ok = true
+
+		// cache it
+		s.addToMapData(e.Blake3, data)
+		return
+
+	default:
+		panic(fmt.Sprintf("should be impossible; err = '%v' on Get from data path '%v' at [%v, %v); nr=%v, sz = %v", err, s.path, e.Beg, e.Endx, nr, sz))
+	}
+
+	return
 }
 
 func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
@@ -360,7 +422,11 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 	return
 }
 
+// mut should be held or can be called during NewCASIndex.
+// we assume exclusive access to s.
 func (s *CASIndex) addToMapData(b3 string, data []byte) {
+
+	var previous any
 	previous, already := s.mapData.LoadOrStore(b3, data)
 	// basic sanity, can be commented once working.
 	if already {
