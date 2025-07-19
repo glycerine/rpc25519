@@ -11,7 +11,8 @@ import (
 )
 
 type CASIndex struct {
-	path string
+	path      string
+	pathIndex string
 
 	// must keep index in memory
 	index sync.Map // blake3 -> CASIndexEntry
@@ -31,13 +32,14 @@ type CASIndex struct {
 
 func NewCASIndex(path string) (s *CASIndex, err error) {
 	s = &CASIndex{
-		path:    path,
-		workbuf: make([]byte, 0, 1<<20),
-		hasher:  hash.NewBlake3(),
+		path:      path,
+		pathIndex: path + ".index",
+		workbuf:   make([]byte, 0, 1<<20),
+		hasher:    hash.NewBlake3(),
 	}
 	s.fdData, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
 	panicOn(err)
-	s.fdIndex, err = os.OpenFile(path+".index", os.O_RDWR|os.O_CREATE, 0644)
+	s.fdIndex, err = os.OpenFile(s.pathIndex, os.O_RDWR|os.O_CREATE, 0644)
 	panicOn(err)
 	// eager:
 	err = s.loadDataAndIndex()
@@ -49,7 +51,7 @@ func NewCASIndex(path string) (s *CASIndex, err error) {
 	return
 }
 
-// indexSz is the byte size of the path+".index" file.
+// indexSz is the byte size of the pathIndex file.
 func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 
 	// just seek to end for appending for now.
@@ -59,12 +61,16 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 	cur := curpos(s.fdIndex) // TODO comment this and the if cur != 0
 	if cur != 0 {
 		// arg, can we be efficient and not have to syscall Seek?
-		panic(fmt.Sprintf("try to leave s.fdIndex curpos at 0 (not %v) when calling loadIndex on path='%v'", cur, s.path+".index"))
+		panic(fmt.Sprintf("try to leave s.fdIndex curpos at 0 (not %v) when calling loadIndex on path='%v'", cur, s.pathIndex))
 	}
 	//s.fdIndex.Seek(0, 0)
 	fi, err := s.fdIndex.Stat()
 	panicOn(err)
 	indexSz = fi.Size()
+	if indexSz == 0 {
+		vv("warning: empty index path '%v'", s.pathIndex)
+		return
+	}
 	var foundEntries int64
 
 	defer func() {
@@ -82,7 +88,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 		// read a batch of up to 1MB/64 == 16384 entries at once
 		nr, err = io.ReadFull(s.fdIndex, s.workbuf)
 		_ = nr
-		vv("loadIndex loop: i=%v; nr=%v", i, nr)
+		vv("loadIndex loop: i=%v; nr=%v; len(s.workbuf)=%v; pathIndex='%v'; indexSz = %v", i, nr, len(s.workbuf), s.pathIndex, indexSz)
 		switch err {
 		case io.EOF:
 			vv("no bytes read on first io.ReadFull(s.fdIndex)")
@@ -96,7 +102,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 			}
 			rem := nr % 64
 			if rem != 0 {
-				panic(fmt.Sprintf("how do deal with torn read (rem=%v) at pos %v of path '%v'?", rem, curpos(s.fdIndex), s.path+".index"))
+				panic(fmt.Sprintf("how do deal with torn read (rem=%v) at pos %v of path '%v'?", rem, curpos(s.fdIndex), s.pathIndex))
 			}
 			err = nil
 			fallthrough
@@ -109,7 +115,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 			buf := s.workbuf[:nr]
 			rem2 := nr % 64
 			if rem2 != 0 {
-				panic(fmt.Sprintf("loadIndex error: how do deal with torn read nr = %v; (rem2=%v) at pos %v of path '%v'?", nr, rem2, curpos(s.fdIndex), s.path+".index"))
+				panic(fmt.Sprintf("loadIndex error: how do deal with torn read nr = %v; (rem2=%v) at pos %v of path '%v'?", nr, rem2, curpos(s.fdIndex), s.pathIndex))
 			}
 
 			nentry := nr / 64
@@ -121,13 +127,13 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 				panicOn(err)
 				foundEntries++
 				e.Beg = beg
-				//vv("read back from index path '%v' gives e = '%#v'", s.path+".index", e)
+				//vv("read back from index path '%v' gives e = '%#v'", s.pathIndex, e)
 				endx := e.Endx
 				//sz := endx - beg - 64 // data payload size (but only in fdData, not in fdIndex)
 				beg = endx
 				_, already := s.index.LoadOrStore(e.Blake3, e)
 				if already {
-					panic(fmt.Sprintf("initial load of index '%v' sees duplicated entry! bad, should not happen! entry='%#v' at j=%v; i = %v", s.path+".index", e, j, i))
+					panic(fmt.Sprintf("initial load of index '%v' sees duplicated entry! bad, should not happen! entry='%#v' at j=%v; i = %v", s.pathIndex, e, j, i))
 				}
 			}
 		}
