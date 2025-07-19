@@ -14,7 +14,7 @@ func TestManualMarshalUnmarshalCASIndexEntry(t *testing.T) {
 	hasher.Write([]byte("hello"))
 	b3 := hasher.SumString()
 	sz := int32(128)
-	v := NewCASIndexEntry(b3, 9223372036854775679, sz, 77, sz)
+	v := NewCASIndexEntry(b3, 9223372036854775679, sz, sz)
 	// v := CASIndexEntry{
 	// 	Endx: 9223372036854775807,
 	// }
@@ -37,7 +37,7 @@ func TestManualMarshalUnmarshalCASIndexEntry(t *testing.T) {
 	if v2.Clen != v.Clen {
 		panic("different")
 	}
-	if v2.Flags != v.Flags {
+	if v2.Ulen != v.Ulen {
 		panic("different")
 	}
 	//if 0 != bytes.Compare(v2.Blake3[:], v.Blake3[:]) {

@@ -80,7 +80,7 @@ type CASIndex struct {
 	// The Clen will reflect the compressed size
 	// when compression is used, otherwise
 	// it is the uncompressed size.
-	useS2comprssion bool
+	useS2compression bool
 }
 
 // maxMemBlob is a count of blobs to cache.
@@ -95,13 +95,13 @@ func NewCASIndex(path string, maxMemBlob, preAllocSz int64, verifyData bool) (s 
 	}
 	var seed [32]byte
 	s = &CASIndex{
-		preAllocSz:      preAllocSz,
-		maxMemBlob:      maxMemBlob,
-		hasher:          hash.NewBlake3(),
-		rng:             newPRNG(seed),
-		path:            path,
-		pathIndex:       path + ".index",
-		useS2comprssion: true,
+		preAllocSz:       preAllocSz,
+		maxMemBlob:       maxMemBlob,
+		hasher:           hash.NewBlake3(),
+		rng:              newPRNG(seed),
+		path:             path,
+		pathIndex:        path + ".index",
+		useS2compression: true,
 
 		workbuf: make([]byte, 1<<20),
 		// exercise the "unused" logic, but always
@@ -415,8 +415,7 @@ func (s *CASIndex) Get(b3 string) (data []byte, ok bool) {
 		}
 		// everything after the header is our data payload.
 
-		//vv("e.Flags = %v; e.Flags%%2 = %v", e.Flags, e.Flags%2)
-		if e.Flags%2 == 1 {
+		if s.useS2compression {
 			// s2 compressed
 			data, err = s2.Decode(nil, s.workbuf[64:sz])
 			panicOn(err)
@@ -424,6 +423,9 @@ func (s *CASIndex) Get(b3 string) (data []byte, ok bool) {
 		} else {
 			// uncompressed
 			data = s.workbuf[64:sz]
+		}
+		if e.Ulen != int32(len(data)) {
+			panic(fmt.Sprintf("Get sees wrong size Ulen=%v but len uncompressed data = %v", e.Ulen, len(data)))
 		}
 		ok = true
 
@@ -477,7 +479,7 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 		var flags int32
 		ulen := int32(len(by)) // uncompressed length.
 		s2by := by
-		if s.useS2comprssion {
+		if s.useS2compression {
 			flags = flags | 1
 			s2by = s2.Encode(nil, by)
 			//vv("s2.Encode: input len %v -> %v", len(by), len(s2by))
@@ -488,7 +490,7 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 		// create index entry
 		beg := curpos(s.fdData)
 		endx := beg + int64(sz)
-		e := NewCASIndexEntry(b3, beg, sz, flags, ulen)
+		e := NewCASIndexEntry(b3, beg, sz, ulen)
 
 		// store data to memory (uncompressed)
 		s.addToMapData(b3, by) // makes copy of by
@@ -628,10 +630,6 @@ type CASIndexEntry struct {
 
 	// Ulen gives the uncompressed length of the chunk.
 	Ulen int32
-
-	// Flags
-	// bit 0: Flags % 2 == 1 means chunk is compressed with s2.Encode
-	Flags int32
 }
 
 func (a *CASIndexEntry) Equal(b *CASIndexEntry) bool {
@@ -644,18 +642,18 @@ func (a *CASIndexEntry) Equal(b *CASIndexEntry) bool {
 	if a.Clen != b.Clen {
 		return false
 	}
-	if a.Flags != b.Flags {
+	if a.Ulen != b.Ulen {
 		return false
 	}
 	return true
 }
 
 func (s *CASIndexEntry) String() string {
-	return fmt.Sprintf(`CASIndexEntry{Beg:%v, Clen:%v, Ulen:%v, Flags:%v, Blake3:"%v"}
-`, s.Beg, s.Clen, s.Ulen, s.Flags, s.Blake3)
+	return fmt.Sprintf(`CASIndexEntry{Beg:%v, Clen:%v, Ulen:%v, Blake3:"%v"}
+`, s.Beg, s.Clen, s.Ulen, s.Blake3)
 }
 
-func NewCASIndexEntry(blake3str string, beg int64, length, flags, ulen int32) (r *CASIndexEntry) {
+func NewCASIndexEntry(blake3str string, beg int64, clength, ulen int32) (r *CASIndexEntry) {
 	n := len(blake3str)
 	// len is 55, so 0-byte terminated always too--
 	// which should make the int64 8-byte aligned as well.
@@ -666,9 +664,8 @@ func NewCASIndexEntry(blake3str string, beg int64, length, flags, ulen int32) (r
 	r = &CASIndexEntry{
 		Blake3: blake3str,
 		Beg:    beg,
-		Clen:   length,
+		Clen:   clength,
 		Ulen:   ulen,
-		Flags:  flags,
 	}
 	return
 }
@@ -690,7 +687,7 @@ func (z *CASIndexEntry) ManualMarshalMsg(b []byte) (o []byte, err error) {
 	copy(o[1:56], []byte(z.Blake3[:55]))
 
 	fromInt32(z.Clen, o[56:60])
-	fromInt32(z.Flags, o[60:64])
+	fromInt32(z.Ulen, o[60:64])
 	//i := z.Endx
 	//fromInt64(i, o[56:64])
 	// o[56] = byte(i >> 56)
@@ -713,12 +710,8 @@ func (z *CASIndexEntry) ManualUnmarshalMsg(b []byte) (o []byte, err error) {
 
 	z.Blake3 = string(b[1:56])
 	z.Clen = toInt32(b[56:60])
-	z.Flags = toInt32(b[60:64])
+	z.Ulen = toInt32(b[60:64])
 	//z.Endx = toInt64(b[56:64])
-	// (int64(b[56]) << 56) | (int64(b[57]) << 48) |
-	// 	(int64(b[58]) << 40) | (int64(b[59]) << 32) |
-	// 	(int64(b[60]) << 24) | (int64(b[61]) << 16) |
-	// 	(int64(b[62]) << 8) | (int64(b[63]))
 	return b[64:], nil
 }
 
