@@ -88,10 +88,14 @@ func Test_0909_NewCASIndex(t *testing.T) {
 	os.Remove(path)
 	os.Remove(pathIndex)
 
-	preAllocDataSz := int64(128 << 20)
-	keepMem := int64(400)
-	verifyDataAgainstIndex := true
-	idx, err := NewCASIndex(path, keepMem, preAllocDataSz, verifyDataAgainstIndex)
+	cfg := &CASIndexConfig{
+		Path:       path,
+		MaxMemBlob: int64(400),
+		PreAllocSz: int64(128 << 20),
+		VerifyData: true,
+	}
+
+	idx, err := NewCASIndex(cfg)
 	panicOn(err)
 	datas := make([][]byte, 30)
 
@@ -136,8 +140,8 @@ func Test_0909_NewCASIndex(t *testing.T) {
 	//vv("saw newCount = %v", newCount)
 
 	nTot, nMem := idx.TotMem()
-	if nTot > keepMem && nMem != keepMem {
-		panic(fmt.Sprintf("why is not nMem(%v) at the full keepMem(%v)??", nMem, keepMem))
+	if nTot > cfg.MaxMemBlob && nMem != cfg.MaxMemBlob {
+		panic(fmt.Sprintf("why is not nMem(%v) at the full cfg.MaxMemBlob(%v)??", nMem, cfg.MaxMemBlob))
 	}
 	//vv("nTot=%v; nMem=%v; len uniqkey='%v'", nTot, nMem, len(uniqkey))
 	if nTot != int64(len(uniqkey)) {
@@ -173,7 +177,7 @@ func Test_0909_NewCASIndex(t *testing.T) {
 
 	vv("idx.Close() done. About to re-open path '%v'", path)
 
-	idx, err = NewCASIndex(path, keepMem, preAllocDataSz, verifyDataAgainstIndex)
+	idx, err = NewCASIndex(cfg)
 	panicOn(err)
 	defer idx.Close()
 
