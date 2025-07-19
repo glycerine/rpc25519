@@ -85,9 +85,10 @@ func Test_0909_NewCASIndex(t *testing.T) {
 	os.Remove(pathIndex)
 
 	preAllocDataSz := int64(128 << 20)
-	idx, err := NewCASIndex(path, 400, preAllocDataSz)
+	keepMem := int64(400)
+	idx, err := NewCASIndex(path, keepMem, preAllocDataSz)
 	panicOn(err)
-	datas := make([][]byte, 300)
+	datas := make([][]byte, 3000)
 
 	var seed [32]byte
 	seed[0] = 3
@@ -130,7 +131,10 @@ func Test_0909_NewCASIndex(t *testing.T) {
 	//vv("saw newCount = %v", newCount)
 
 	nTot, nMem := idx.TotMem()
-	vv("nTot=%v; nMem=%v; len uniqkey='%v'", nTot, nMem, len(uniqkey))
+	if nTot > keepMem && nMem != keepMem {
+		panic(fmt.Sprintf("why is not nMem(%v) at the full keepMem(%v)??", nMem, keepMem))
+	}
+	//vv("nTot=%v; nMem=%v; len uniqkey='%v'", nTot, nMem, len(uniqkey))
 	if nTot != int64(len(uniqkey)) {
 		panic(fmt.Sprintf("missing some key(s): nTot=%v but len(uniqkeys)=%v", nTot, len(uniqkey)))
 	}

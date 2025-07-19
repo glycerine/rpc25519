@@ -524,7 +524,7 @@ func (s *CASIndex) addToMapData(b3 string, data []byte) {
 		// so also do a random eviction.
 		evict := s.rng.pseudoRandNonNegInt64() % s.nMemBlob
 		victim := s.memkeys[evict]
-		vv("evicting %v => victim key = '%v'", evict, victim)
+		//vv("evicting %v => victim key = '%v'", evict, victim)
 		// since b3 is new, it cannot be in s.memkeys yet,
 		// so we will never evict the key we just added.
 		old, present := s.mapData.LoadAndDelete(victim)
