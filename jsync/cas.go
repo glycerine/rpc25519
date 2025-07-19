@@ -88,23 +88,25 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 	beg := int64(0) // curpos(s.fdIndex)
 	//vv("top of loadIndex: beg = %v", beg)
 	var nr int
-	for i := int64(0); ; i++ {
+	var doneAfterThisRead bool
+	for i := int64(0); !doneAfterThisRead; i++ {
 
 		// read a batch of up to 1MB/64 == 16384 entries at once
 		nr, err = io.ReadFull(s.fdIndex, s.workbuf)
 		_ = nr
-		vv("loadIndex loop: i=%v; nr=%v; len(s.workbuf)=%v; pathIndex='%v'; indexSz = %v; len(s.workbuf)=%v", i, nr, len(s.workbuf), s.pathIndex, indexSz, len(s.workbuf))
+		vv("loadIndex loop: i=%v; nr=%v; len(s.workbuf)=%v; pathIndex='%v'; indexSz = %v", i, nr, len(s.workbuf), s.pathIndex, indexSz)
 		switch err {
 		case io.EOF:
 			vv("no bytes read on first io.ReadFull(s.fdIndex)")
 			err = nil
 			return
 		case io.ErrUnexpectedEOF:
-			// fewer than 1MB bytes read, typical last read.
+			vv("nr=%v fewer than 1MB bytes read, typical last read.", nr)
 			if nr == 0 {
 				err = nil
 				return
 			}
+			doneAfterThisRead = true
 			rem := nr % 64
 			if rem != 0 {
 				panic(fmt.Sprintf("how do deal with torn read (rem=%v) at pos %v of path '%v'?", rem, curpos(s.fdIndex), s.pathIndex))
@@ -112,6 +114,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 			err = nil
 			fallthrough
 		case nil:
+			vv("err == nil case; nr=%v; doneAfterThisRead=%v", nr, doneAfterThisRead)
 			// full 1MB bytes read into s.workbuf, or
 			// fallthough from shorter read.
 			if nr == 0 {
@@ -124,7 +127,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 			}
 
 			nentry := nr / 64
-
+			vv("netry = %v", nentry)
 			es := make([]CASIndexEntry, nentry)
 			for j := range es {
 				e := &es[j]
@@ -140,6 +143,7 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 				if already {
 					panic(fmt.Sprintf("initial load of index '%v' sees duplicated entry! bad, should not happen! entry='%#v' at j=%v; i = %v", s.pathIndex, e, j, i))
 				}
+				vv("added to s.index e = '%v'", e)
 			}
 		}
 	}
@@ -343,6 +347,11 @@ type CASIndexEntry struct {
 	// worth it to fit in a cache line and
 	// not store redundant offsets in the index file.
 	Endx int64
+}
+
+func (s *CASIndexEntry) String() string {
+	return fmt.Sprintf(`CASIndexEntry{Beg:%v, Endx:%v, Blake3:"%v"}
+`, s.Beg, s.Endx, s.Blake3)
 }
 
 func NewCASIndexEntry(blake3str string, endx int64) (r CASIndexEntry) {
