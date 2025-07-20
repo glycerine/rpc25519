@@ -15,13 +15,25 @@ import (
 // CASIndex and CASIndexEntry provide a very
 // simple Content-Addressable-Store backed
 // by two files on disk. The data file is
-// in path, and includes the blobs of data.
+// specified by cfg.Path, and it holds
+// the (compressed) chunks (blobs) of data.
+//
 // The pathIndex for the index just includes
 // the hashes and location of the blobs in
 // the data file, so that it can be loaded
 // into memory without having to scan
 // through the full data, allowing lazy
 // data loading.
+//
+// The mapData acts as a memory cache for
+// disk chunks, and the MaxMemBlob controls how
+// many chunks (blobs) are kept in memory.
+// Random eviction is used when the memory
+// cache count is maxed out.
+//
+// A complete index of disk is retained in
+// memory using a sync.Map. The Get and
+// Append methods are goroutine safe.
 type CASIndex struct {
 	mut sync.Mutex
 
@@ -364,6 +376,7 @@ func (s *CASIndex) Get(b3 string) (data []byte, ok bool) {
 		// mapData cache hit. its in memory, just serve it.
 		ok = true
 		data = by.([]byte)
+		return
 	}
 	// INVAR: have to go to disk to get it.
 
