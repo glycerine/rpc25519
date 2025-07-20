@@ -168,6 +168,8 @@ func (s *CASIndex) loadIndex() (indexSz int64, err error) {
 			panic(fmt.Sprintf("loadIndex bad: indexSz(%v)/64=%v != foundIndexEntries(%v)", indexSz, indexSz/64, foundIndexEntries))
 		}
 		//vv("loadIndex good: indexSz(%v)/64 == foundIndexEntries(%v); s.nKnownBlob=%v", indexSz, foundIndexEntries, s.nKnownBlob)
+
+		//panicOn(s.diagnosticDisplayIndex())
 	}()
 
 	var beg int64
@@ -473,9 +475,10 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 		// s2 compress, always.
 		ulen := int32(len(by)) // uncompressed length.
 		s2by := s2.Encode(nil, by)
-		//vv("s2.Encode: input len %v -> %v", len(by), len(s2by))
+		//if len(s2by) > len(by) { // does happen
+		//	vv("grew by %v! s2.Encode: input len %v -> %v", len(by), len(s2by))
 		// (the by slice still has the uncompressed data).
-
+		//}
 		clen := int32(len(s2by)) + 64
 
 		// create index entry
@@ -677,26 +680,13 @@ func (z *CASIndexEntry) ManualMarshalMsg(b []byte) (o []byte, err error) {
 	if cap(b) < 64 {
 		panic("ManualMarshalMsg must have b with cap >= 64")
 	}
-	//o = msgp.Require(b, 64)
 	//vv("len(o) = %v; cap(o) = %v", len(o), cap(o))
 	o = b[:64]
-	//o = append(o, zero64[:]...)
 	o[0] = '\n' // unused for info, so make file more readable.
 	copy(o[1:56], []byte(z.Blake3[:55]))
 
 	fromInt32(z.Clen, o[56:60])
 	fromInt32(z.Ulen, o[60:64])
-	//i := z.Endx
-	//fromInt64(i, o[56:64])
-	// o[56] = byte(i >> 56)
-	// o[57] = byte(i >> 48)
-	// o[58] = byte(i >> 40)
-	// o[59] = byte(i >> 32)
-	// o[60] = byte(i >> 24)
-	// o[61] = byte(i >> 16)
-	// o[62] = byte(i >> 8)
-	// o[63] = byte(i)
-
 	return
 }
 
@@ -709,7 +699,6 @@ func (z *CASIndexEntry) ManualUnmarshalMsg(b []byte) (o []byte, err error) {
 	z.Blake3 = string(b[1:56])
 	z.Clen = toInt32(b[56:60])
 	z.Ulen = toInt32(b[60:64])
-	//z.Endx = toInt64(b[56:64])
 	return b[64:], nil
 }
 
