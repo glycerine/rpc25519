@@ -258,7 +258,8 @@ func (s *CASIndex) verifyDataAgainstIndex(indexSz int64) (err error) {
 
 	// load of data... for verifying against index.
 	// would skip in prod unless trying to detect corruption.
-	_, err = s.fdData.Seek(0, 0)
+	var datapos int64
+	datapos, err = s.fdData.Seek(0, 0)
 	panicOn(err)
 	var beg int64
 
@@ -279,7 +280,6 @@ iloop:
 	for i := int64(0); !doneAfterThisRead; i++ {
 		// try to read a bunch of records en-mass, to avoid
 		// too many syscalls.
-		datapos := curpos(s.fdData)
 		nr, err = io.ReadFull(s.fdData, s.workbuf[unused:])
 		totr += nr
 		_ = totr
@@ -362,16 +362,19 @@ iloop:
 				copy(s.workbuf[:unused], s.workbuf[consumed:avail])
 			}
 		} // end switch err
+		datapos += int64(nr)
 	} // for i
 	return nil
 }
 
 func (s *CASIndex) Get(b3 string) (data []byte, ok bool) {
+
 	// get the index, do we have it at all?
 	entry, have := s.index.Load(b3)
 	if !have {
 		return // nope
 	}
+
 	// we have data. is it in memory, or only on disk?
 	by, already := s.mapData.Load(b3)
 	if already {
@@ -508,6 +511,13 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 			s.w = 0
 		}
 
+		// notice that this next call is buffering writes
+		// to s.fdIndex into s.workbuf which then
+		// get flushed to disk either just above
+		// or at the end of the loop below. This
+		// compacts many small writes to the on
+		// disk index into larger 1MB writes.
+
 		var ebts []byte
 		ebts, err = e.ManualMarshalMsg(s.workbuf[s.w:s.w])
 		panicOn(err)
@@ -516,7 +526,9 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 		}
 		s.w += 64
 
-		// store data to disk.
+		// store data to disk. Cannot use s.workbuf since
+		// that is only for the index additions.
+
 		// a) write 64 byte header first
 		var nw int
 		nw, err = s.fdData.Write(ebts)
@@ -533,13 +545,15 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 			return
 		}
 
-		// sanity check
-		endx2 := curpos(s.fdData)
-		if endx2 != endx {
-			panic(fmt.Sprintf("endx2(%v) != endx(%v): bad computation of endx", endx2, endx))
-		}
-		if beg != endx2 {
-			panic(fmt.Sprintf("beg(%v) != endx2(%v): updates were not sufficient", beg, endx2))
+		// sanity checks
+		if false { // move to prod mode
+			endx2 := curpos(s.fdData)
+			if endx2 != endx {
+				panic(fmt.Sprintf("endx2(%v) != endx(%v): bad computation of endx", endx2, endx))
+			}
+			if beg != endx2 {
+				panic(fmt.Sprintf("beg(%v) != endx2(%v): updates were not sufficient", beg, endx2))
+			}
 		}
 	}
 	// flush any remaining index to disk
@@ -574,18 +588,20 @@ func (s *CASIndex) addToMapData(b3 string, data []byte) {
 
 	var previous any
 	previous, already := s.mapData.LoadOrStore(b3, mycp)
-	// basic sanity, can be commented once working.
-	if already {
-		dataPrev, ok := previous.([]byte)
-		if !ok {
-			panic(fmt.Sprintf("only []byte should be stored in m, not %T", previous))
-		}
-		if 0 != bytes.Compare(data, dataPrev) {
-			panic(fmt.Sprintf("b3=key='%v'; data('%v') with len %v != dataPrev('%v') with len %v; bad hashing somewhere?", b3, string(data), len(data), string(dataPrev), len(dataPrev)))
-		}
+	if false {
+		// basic sanity, can be commented once working.
+		if already {
+			dataPrev, ok := previous.([]byte)
+			if !ok {
+				panic(fmt.Sprintf("only []byte should be stored in m, not %T", previous))
+			}
+			if 0 != bytes.Compare(data, dataPrev) {
+				panic(fmt.Sprintf("b3=key='%v'; data('%v') with len %v != dataPrev('%v') with len %v; bad hashing somewhere?", b3, string(data), len(data), string(dataPrev), len(dataPrev)))
+			}
 
-		// no change in stored data, so no eviction needed.
-		return
+			// no change in stored data, so no eviction needed.
+			return
+		}
 	}
 	// we added new data
 	//vv("first time mapData store under key b3='%v' of data='%v'", b3, string(data))
