@@ -139,7 +139,7 @@ func Test_0909_NewCASIndex(t *testing.T) {
 	_ = newCount
 	//vv("saw newCount = %v", newCount)
 
-	nTot, nMem := idx.TotMem()
+	nTot, nMem := idx.CountKnownBlobAndInMem()
 	if nTot > cfg.MaxMemBlob && nMem != cfg.MaxMemBlob {
 		panic(fmt.Sprintf("why is not nMem(%v) at the full cfg.MaxMemBlob(%v)??", nMem, cfg.MaxMemBlob))
 	}
@@ -181,4 +181,8 @@ func Test_0909_NewCASIndex(t *testing.T) {
 	panicOn(err)
 	defer idx.Close()
 
+	nTot2, _ := idx.CountKnownBlobAndInMem()
+	if nTot2 != nTot {
+		panic("re-open changed total blob count")
+	}
 }

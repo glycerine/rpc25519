@@ -444,7 +444,9 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 	// make sure we are appending to the ends of the files.
 	_, err = s.fdIndex.Seek(0, 2)
 	panicOn(err)
-	_, err = s.fdData.Seek(0, 2)
+
+	var beg int64
+	beg, err = s.fdData.Seek(0, 2)
 	panicOn(err)
 
 	for _, by := range data {
@@ -475,14 +477,14 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 		// s2 compress, always.
 		ulen := int32(len(by)) // uncompressed length.
 		s2by := s2.Encode(nil, by)
-		//if len(s2by) > len(by) { // does happen
-		//	vv("grew by %v! s2.Encode: input len %v -> %v", len(by), len(s2by))
-		// (the by slice still has the uncompressed data).
-		//}
+		// by: still uncompressed
 		clen := int32(len(s2by)) + 64
 
 		// create index entry
-		beg := curpos(s.fdData)
+
+		//use above Seek to end + updates instead
+		//of this to avoid a syscall: beg := curpos(s.fdData)
+
 		endx := beg + int64(clen)
 		e := NewCASIndexEntry(b3, beg, clen, ulen)
 
@@ -516,13 +518,16 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 
 		// store data to disk.
 		// a) write 64 byte header first
-		_, err = s.fdData.Write(ebts)
+		var nw int
+		nw, err = s.fdData.Write(ebts)
+		beg += int64(nw)
 		panicOn(err)
 		if err != nil {
 			return
 		}
 		// b) write actual data
-		_, err = s.fdData.Write(s2by)
+		nw, err = s.fdData.Write(s2by)
+		beg += int64(nw)
 		panicOn(err)
 		if err != nil {
 			return
@@ -532,6 +537,9 @@ func (s *CASIndex) Append(data [][]byte) (newCount int64, err error) {
 		endx2 := curpos(s.fdData)
 		if endx2 != endx {
 			panic(fmt.Sprintf("endx2(%v) != endx(%v): bad computation of endx", endx2, endx))
+		}
+		if beg != endx2 {
+			panic(fmt.Sprintf("beg(%v) != endx2(%v): updates were not sufficient", beg, endx2))
 		}
 	}
 	// flush any remaining index to disk
@@ -748,7 +756,7 @@ func (z *CASIndexEntry) ManualMsgsize() (s int) {
 	return 64
 }
 
-func (s *CASIndex) TotMem() (nTot, nMem int64) {
+func (s *CASIndex) CountKnownBlobAndInMem() (nKnownBlob, nMem int64) {
 	return s.nKnownBlob, s.nMemBlob
 }
 
