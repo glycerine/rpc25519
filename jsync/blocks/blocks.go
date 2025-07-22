@@ -1,5 +1,7 @@
 package block
 
+//go:generate greenpack
+
 type ServerBlock struct {
 	// where is encrypted data stored.
 	VolumeID string `zid:"0"`
