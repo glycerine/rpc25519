@@ -1,4 +1,4 @@
-package blackbox
+package block
 
 type ServerOpaqueBlob struct {
 	VolumeID string
