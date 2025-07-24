@@ -123,7 +123,7 @@ func (s *scenario) rngTieBreaker() int {
 // clarifies the scenario being simulated.
 //
 // FAULTY_ISOLATED models network card problems
-// alongside network switch problem.
+// alongside network switch problems.
 //
 // HEALTHY means the network and card are
 // fully operational with respect to this circuit.

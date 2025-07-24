@@ -4,6 +4,7 @@ package block
 
 type ServerBlock struct {
 	// where is encrypted data stored.
+	// So we can store in a map in RAM.
 	VolumeID string `zid:"0"`
 	Beg      int64  `zid:"1"` // where in volume does ServerData start.
 	Endx     int64  `zid:"2"` // Beg + len(ServerData)
