@@ -702,7 +702,10 @@ takerForSelectLoop:
 				}
 
 				//vv("restore mode, modtime on localPathToWrite='%v'", localPathToWrite)
-				mode := goalPrecis.FileMode
+				if goalPrecis == nil {
+					panic("why is goalPrecis nil? hit on e2e_test 220")
+				}
+				mode := goalPrecis.FileMode // panic here nil
 				if mode == 0 {
 					// unknown mode or new file, give sane default
 					mode = 0600
