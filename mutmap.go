@@ -1,6 +1,7 @@
 package rpc25519
 
 import (
+	"fmt"
 	"sync"
 )
 
@@ -49,6 +50,16 @@ func (m *Mutexmap[K, V]) GetKeySlice() (slc []K) {
 	m.mut.RLock()
 	for k, _ := range m.m {
 		slc = append(slc, k)
+	}
+	m.mut.RUnlock()
+	return
+}
+
+func (m *Mutexmap[K, V]) String() (r string) {
+	m.mut.RLock()
+	r = fmt.Sprintf("Mutexmap of len(%v):\n", len(m.m))
+	for k, v := range m.m {
+		r += fmt.Sprintf("key['%v'] -> val:'%v'\n", k, v)
 	}
 	m.mut.RUnlock()
 	return
