@@ -403,7 +403,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 		return nil, nil, err
 	}
 	rpb.IncomingCkt = ckt
-	s.Remotes.Set(peerID, rpb)
+	s.Remotes.Set(peerID, rpb) // arg. _was_ only called this once. need to symmetrically set on the remote side too. addedckt.go:808 for that.
 
 	return
 }
@@ -803,6 +803,9 @@ func (lpb *LocalPeer) newCircuit(
 			}
 		}
 		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
+	} else {
+		// update "the remote's remote" list: symmetric to ckt.go:406
+		lpb.Remotes.Set(rpb.PeerID, rpb)
 	}
 
 	return
