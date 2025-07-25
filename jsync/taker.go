@@ -681,7 +681,7 @@ takerForSelectLoop:
 				if syncReq.TakerTempDir == "" {
 					err = os.Rename(tmp, localPathToWrite)
 					panicOn(err)
-					//vv("synced to disk: localPathToWrite='%v' -> renamed to '%v'", tmp, localPathToWrite)
+					vv("synced to disk: localPathToWrite='%v' -> renamed to '%v'", tmp, localPathToWrite)
 
 					// debug
 					//renamedFd, err := os.Open(localPathToWrite)
@@ -701,20 +701,23 @@ takerForSelectLoop:
 					}
 				}
 
-				//vv("restore mode, modtime on localPathToWrite='%v'", localPathToWrite)
+				vv("restore mode, modtime on localPathToWrite='%v'", localPathToWrite)
 				if goalPrecis == nil {
-					panic("why is goalPrecis nil? hit on e2e_test 220")
-				}
-				mode := goalPrecis.FileMode // panic here nil
-				if mode == 0 {
-					// unknown mode or new file, give sane default
-					mode = 0600
-				}
-				err = os.Chmod(localPathToWrite, fs.FileMode(mode))
-				panicOn(err)
+					panic(fmt.Sprintf("why is goalPrecis nil? hit on e2e_test 220; localPathToWrite='%v'", localPathToWrite))
 
-				err = os.Chtimes(localPathToWrite, time.Time{}, goalPrecis.ModTime)
-				panicOn(err)
+				} else {
+
+					mode := goalPrecis.FileMode // panic here nil
+					if mode == 0 {
+						// unknown mode or new file, give sane default
+						mode = 0600
+					}
+					err = os.Chmod(localPathToWrite, fs.FileMode(mode))
+					panicOn(err)
+
+					err = os.Chtimes(localPathToWrite, time.Time{}, goalPrecis.ModTime)
+					panicOn(err)
+				}
 
 				//vv("ack back file fully received! set Chtimes -> goalPrecis.ModTime='%v'", goalPrecis.ModTime)
 				// needed? we'll probably be racing against shut down here.
@@ -730,7 +733,7 @@ takerForSelectLoop:
 				// wait for ack back FIN
 
 			case OpRsync_SenderPlanEnclosed:
-				//vv("OpRsync_SenderPlanEnclosed: stream of heavy diffs arriving! : %v", frag.String())
+				vv("OpRsync_SenderPlanEnclosed: stream of heavy diffs arriving! : %v", frag.String())
 				//vv("OpRsync_SenderPlanEnclosed: localPathToWrite='%v'", localPathToWrite)
 				senderPlan = &SenderPlan{} // response
 				_, err := senderPlan.UnmarshalMsg(frag.Payload)
@@ -755,7 +758,13 @@ takerForSelectLoop:
 				plan = senderPlan.SenderChunksNoSlice
 				goalPrecis = senderPlan.SenderPrecis
 
-				//vv("plan = '%v'", plan)
+				if senderPlan.SenderChunksNoSlice == nil {
+					vv("plan = nil b/c senderPlan = '%v'", senderPlan)
+				}
+
+				if senderPlan.SenderPrecis == nil { // debug 220 hang
+					vv("when senderPlan.SenderPrecis == nil, plan = '%v'", plan)
+				}
 
 				if plan.FileSize == 0 { // ? && syncReq.TakerTempDir == "" ??
 					//vv("plan.FileSize == 0 => truncate to zero localPathToWrite='%v'", localPathToWrite)

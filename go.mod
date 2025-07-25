@@ -29,7 +29,7 @@ require (
 	golang.org/x/term v0.29.0
 )
 
-//replace github.com/glycerine/idem => /Users/jaten/go/src/github.com/glycerine/idem
+replace github.com/glycerine/idem => /Users/jaten/go/src/github.com/glycerine/idem
 
 require (
 	4d63.com/embedfiles v0.0.0-20190311033909-995e0740726f // indirect

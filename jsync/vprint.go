@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"4d63.com/tz"
+	rpc "github.com/glycerine/rpc25519"
 )
 
 // for tons of debug output
@@ -75,7 +76,8 @@ var tsPrintfMut sync.Mutex
 
 // time-stamped printf
 func tsPrintf(format string, a ...interface{}) {
-	tsPrintfMut.Lock()
+	rpc.TsPrintfMut.Lock()
+	//tsPrintfMut.Lock()
 	if showGoro {
 		printf("\n%s [goID %v] %s ", fileLine(3), GoroNumber(), ts())
 	} else if showPid {
@@ -84,7 +86,8 @@ func tsPrintf(format string, a ...interface{}) {
 		printf("\n%s %s ", fileLine(3), ts())
 	}
 	printf(format+"\n", a...)
-	tsPrintfMut.Unlock()
+	//tsPrintfMut.Unlock()
+	rpc.TsPrintfMut.Unlock()
 }
 
 // get timestamp for logging purposes

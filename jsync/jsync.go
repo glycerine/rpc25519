@@ -273,7 +273,7 @@ jobDone:
 		select {
 		case prog := <-req.UpdateProgress:
 
-			fmt.Printf("progress: %30v %8v %8v\n", prog.Path, prog.Latest, prog.Total)
+			fmt.Printf("jsync.go:276 progress: %30v %8v %8v\n", prog.Path, prog.Latest, prog.Total)
 			continue
 		case <-req.Done.Chan:
 			break jobDone
@@ -333,7 +333,7 @@ jobDone:
 	for {
 		select { // hung here on 220
 		case prog := <-req.UpdateProgress:
-			fmt.Printf("progress: %30v %8v %8v\n", prog.Path, prog.Latest, prog.Total)
+			fmt.Printf("jsync.go:336 progress: %30v %8v %8v\n", prog.Path, prog.Latest, prog.Total) // this is what 220 reports out...
 			continue
 		case <-req.Done.Chan:
 			break jobDone

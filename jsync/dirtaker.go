@@ -268,17 +268,20 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					//wgIndivFileCheck.Add(ngoro)
 
 					for i := range ngoro {
-						goroHalt := idem.NewHalter()
+						goroHalt := idem.NewHalterNamed(fmt.Sprintf("goroHalt i = %v", i))
 						haltIndivFileCheck.AddChild(goroHalt)
 
 						go func(i int, reqDir *RequestToSyncDir,
 							fileUpdateCh chan *File,
 							needUpdate *rpc.Mutexmap[string, *File]) {
 
+							//vv("26 starting dirtaker task goro %v", GoroNumber()) // these 26-er goro (8 of them) were matched up on the 220 hang...so they are not the problem, we think
 							defer func() {
+								//vv("26 ending dirtaker task goro %v", GoroNumber())
 								//wgIndivFileCheck.Done()
 								//haltIndivFileCheck.ReqStop.Close()
 								//haltIndivFileCheck.Done.Close()
+
 								r := recover()
 								if r != nil {
 									err := fmt.Errorf("DirTake worker for file indiv file check 26 (OpRsync_GiverSendsTopDirListing) saw panic: '%v'", r)
@@ -288,6 +291,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 									haltIndivFileCheck.ReqStop.CloseWithReason(err)
 									alwaysPrintf("dirtaker panic caught: '%v'", err.Error())
 								} else {
+									// added but did not fix 220 hang
+									//haltIndivFileCheck.ReqStop.Close()
 									goroHalt.ReqStop.Close()
 								}
 								goroHalt.Done.Close()
@@ -685,9 +690,10 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 	_ = t0
 	nn := needUpdate.GetN()
 	_ = nn
-	//vv("top dirTakerRequestIndivFiles() with %v files needing updates.", nn)
+	vv("top dirTakerRequestIndivFiles() with %v files needing updates.", nn)
 
 	batchHalt := idem.NewHalter()
+	vv("batchHalt = %p", batchHalt)
 	// if we return early, this will shut down the
 	// worker pool, since they have each have
 	// a goroHalt that is added as a child.
@@ -700,6 +706,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 
 	//wgjobs := &sync.WaitGroup{}
 	//wgjobs.Add(len(updateMap))
+	vv("adding len(updateMap)=%v via batchHalt.ReqStop.TaskAdd", len(updateMap)) // adding 16 here
 	batchHalt.ReqStop.TaskAdd(len(updateMap))
 
 	fileCh := make(chan *File) // do not buffer, giving work.
@@ -716,26 +723,27 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 		// We are similar to rsync, within 2x the time
 		// rsync: 1.6s vs jcp 2.8s to restore linux/Documentation
 		// over LAN.
-		//func(file *File, goroHalt *idem.Halter, bt *byteTracker, w int) {
 		go func(fileCh chan *File, goroHalt *idem.Halter, bt *byteTracker, w int) {
 			defer func() {
 
 				// other side ctrl-c will give us a panic here
 				r := recover()
-				if r != nil {
+				if r != nil { // is this stopping us from seeing a segfault?
 					alwaysPrintf("dirTakerRequestIndivFiles() supressing panic: '%v':\nstack:\n%v\n", r, stack())
 					err := fmt.Errorf("dirTakerRequestIndivFiles saw error: '%v'", r)
 					goroHalt.ReqStop.CloseWithReason(err)
 					// also stop the whole batch.
 					// At least for now, sane debugging.
 					batchHalt.ReqStop.CloseWithReason(err)
+					vv("re-throw panic: '%v'", r)
+					panic(r)
 				} else {
 					goroHalt.ReqStop.Close()
 				}
-				//vv("dirTakerRequestIndivFiles: dirtaker worker w=%v done.", w)
+				vv("dirTakerRequestIndivFiles: dirtaker worker w=%v done.", w)
 				goroHalt.Done.Close()
 			}()
-			//vv("top of dirTakerRequestIndivFiles: dirtaker worker w=%v.", w)
+			vv("top of dirTakerRequestIndivFiles: dirtaker worker w=%v.", w)
 
 			var file *File
 			var t1 time.Time
@@ -896,7 +904,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				panicOn(errg)
 				left := batchHalt.ReqStop.TaskDone()
 				_ = left
-				//vv("dirtaker worker: back from s.Taker(), and TaskDone left=%v; errg='%v'", left, errg)
+				vv("dirtaker worker: back from s.Taker(), and batchHalt=%p .TaskDone left=%v; errg='%v'", batchHalt, left, errg)
 				// does its own SR == nil check.
 				reqDir.SR.ReportProgress(
 					"done : "+filepath.Base(giverPath), file.Size, file.Size, t1)
@@ -934,7 +942,10 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 		}
 	} // end range needUpdate
 
-	err0 = batchHalt.ReqStop.TaskWait(done)
+	vv("about to wait on batchHalt(%p).ReqStop with done= %p", batchHalt, done) // done not nil
+	// primary reason for hang seems to be that the not
+	// all batch tasks tasks that we are waiting on have been closed.
+	err0 = batchHalt.ReqStop.TaskWait(done) // hung 220 here on halter.go:718
 	//vv("batchHalt.ReqStop.TaskWait returned, err0 = '%v'", err0)
 
 	batchHalt.StopTreeAndWaitTilDone(0, done, nil)

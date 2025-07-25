@@ -147,8 +147,8 @@ func (pb *LocalPeer) peerbackPump() {
 
 	done := pb.Ctx.Done()
 	for {
-		//vv("%v %p: pump loop top of select. pb.handleChansNewCircuit = %p", name, pb, pb.TellPumpNewCircuit)
-		select { // jsync 220 hung here?
+		vv("%v %p: pump loop top of select. pb.handleChansNewCircuit = %p", name, pb, pb.TellPumpNewCircuit)
+		select { // jsync 220 hung here, goro 36,50,8,86,48. all from ckt.go:551 in peerAPI.newLocalPeer().
 		case <-pb.Halt.ReqStop.Chan:
 			//vv("%v %p: pump loop pb.Halt.ReqStop.Chan shutdown received; pb = %p", name, pb, pb)
 			return
@@ -286,12 +286,14 @@ func (pb *LocalPeer) TellRemoteWeShutdown(rem *RemotePeer) {
 	// -2 version => almost no blocking; err below if cannot send in 1 msec.
 	err, queueSendCh := pb.U.SendOneWayMessage(ctxB, shut, -2)
 	if err == ErrAntiDeadlockMustQueue {
-		go closeCktInBackgroundToAvoidDeadlock(queueSendCh, shut, pb.Halt)
+		vv("err == ErrAntiDeadlockMustQueue, closing in background goro")  // not seen on one hung run of jsync 220 e2e_test.go
+		go closeCktInBackgroundToAvoidDeadlock(queueSendCh, shut, pb.Halt) // seen
 	}
 }
 
 func closeCktInBackgroundToAvoidDeadlock(queueSendCh chan *Message, msg *Message, halt *idem.Halter) {
-	//vv("ErrAntiDeadlockMustQueue seen, closing ckt in background.")
+	vv("top closeCktInBackgroundToAvoidDeadlock b/c ErrAntiDeadlockMustQueue seen, closing ckt in background.")
+	defer vv("end closeCktInBackgroundToAvoidDeadlock b/c ErrAntiDeadlockMustQueue seen, closing ckt in background.")
 	select {
 	case queueSendCh <- msg:
 	case <-halt.ReqStop.Chan:

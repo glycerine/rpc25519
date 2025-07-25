@@ -187,7 +187,7 @@ func Test220_push_then_pull_idempotent(t *testing.T) {
 		// sync the whole dir now
 		// to test sparse / unwrit replication.
 		//dataBytesMoved0, err = jSyncCli.PushFromTo(localDir, remoteDir)
-		_, err = jSyncCli.PushFromTo(localDir, remoteDir)
+		_, err = jSyncCli.PushFromTo(localDir, remoteDir) // intermittent deadlock on shutdown here?
 		panicOn(err)
 		//cv.So(dataBytesMoved0, cv.ShouldBeGreaterThan, len(slc))
 
