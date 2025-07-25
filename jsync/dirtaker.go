@@ -740,7 +740,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 			var file *File
 			var t1 time.Time
 			for {
-				select {
+				select { // hung here jsync 220
 				case file = <-fileCh:
 					//vv("dirtaker worker got file!")
 					t1 = time.Now()

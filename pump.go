@@ -148,7 +148,7 @@ func (pb *LocalPeer) peerbackPump() {
 	done := pb.Ctx.Done()
 	for {
 		//vv("%v %p: pump loop top of select. pb.handleChansNewCircuit = %p", name, pb, pb.TellPumpNewCircuit)
-		select {
+		select { // jsync 220 hung here?
 		case <-pb.Halt.ReqStop.Chan:
 			//vv("%v %p: pump loop pb.Halt.ReqStop.Chan shutdown received; pb = %p", name, pb, pb)
 			return
@@ -212,7 +212,7 @@ func (pb *LocalPeer) peerbackPump() {
 
 			frag := ckt.ConvertMessageToFragment(msg)
 			//vv("got frag = '%v'", frag)
-			select { // hung here on shutdown... try adding this first case
+			select { // was hung here on shutdown... try adding this first case
 			case ckt2 := <-pb.HandleCircuitClose:
 				//vv("%v pump: ckt2 := <-pb.HandleCircuitClose: for ckt2='%v'", name, ckt2.Name)
 				cleanupCkt(ckt2, true)
