@@ -57,11 +57,19 @@ func (m *Mutexmap[K, V]) GetKeySlice() (slc []K) {
 
 func (m *Mutexmap[K, V]) String() (r string) {
 	m.mut.RLock()
-	r = fmt.Sprintf("Mutexmap of len(%v):\n", len(m.m))
+	i := 0
 	for k, v := range m.m {
+		if i == 0 {
+			r = fmt.Sprintf("Mutexmap[%T, %T] of len(%v):\n", k, v, len(m.m))
+		}
 		r += fmt.Sprintf("key['%v'] -> val:'%v'\n", k, v)
+		i++
 	}
-	r += "\n"
+	if len(m.m) == 0 {
+		r = "Mutexmap of len(0):\n"
+	} else {
+		r += "\n"
+	}
 	m.mut.RUnlock()
 	return
 }
