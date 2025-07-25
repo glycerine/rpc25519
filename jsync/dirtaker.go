@@ -690,7 +690,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 	_ = t0
 	nn := needUpdate.GetN()
 	_ = nn
-	vv("top dirTakerRequestIndivFiles() with %v files needing updates.", nn)
+	vv("top dirTakerRequestIndivFiles() with %v files needing updates. needUpdate='%v'", nn, needUpdate)
 
 	batchHalt := idem.NewHalter()
 	vv("batchHalt = %p", batchHalt)
@@ -735,8 +735,8 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 					// also stop the whole batch.
 					// At least for now, sane debugging.
 					batchHalt.ReqStop.CloseWithReason(err)
-					vv("re-throw panic: '%v'", r)
-					panic(r)
+					vv("debug this panic! '%v'", r) // why is goalPrecis nil? hit on e2e_test 220; localPathToWrite='/Users/jaten/rpc25519/jsync/remote_srv_dir_test220/testZZZ.outpath.08.sparsefile'':
+					os.Exit(1)
 				} else {
 					goroHalt.ReqStop.Close()
 				}

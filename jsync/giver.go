@@ -508,6 +508,9 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	// We send them afterwards, in packAndSendChunksJustInTime().
 	lightPlan := placeholderPlan.CloneWithNoChunks()
 
+	if goalPrecis == nil {
+		panic(fmt.Sprintf("why is goalPrecis nil here?? causes problems over at taker.go:754 and following"))
+	}
 	splan := SenderPlan{
 		SenderPath:          localPath,
 		SenderPrecis:        goalPrecis,

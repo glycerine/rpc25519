@@ -703,8 +703,7 @@ takerForSelectLoop:
 
 				vv("restore mode, modtime on localPathToWrite='%v'", localPathToWrite)
 				if goalPrecis == nil {
-					panic(fmt.Sprintf("why is goalPrecis nil? hit on e2e_test 220; localPathToWrite='%v'", localPathToWrite))
-
+					vv("why is goalPrecis nil? hit on e2e_test 220; localPathToWrite='%v'", localPathToWrite)
 				} else {
 
 					mode := goalPrecis.FileMode // panic here nil
@@ -739,9 +738,10 @@ takerForSelectLoop:
 				_, err := senderPlan.UnmarshalMsg(frag.Payload)
 				panicOn(err)
 				bt.bread += len(frag.Payload)
+				vv("OpRsync_SenderPlanEnclosed: senderPlan= '%#v'", senderPlan)
 
-				if senderPlan.FileIsDeleted {
-					//vv("senderPlan.FileIsDeleted true, deleting path '%v'", localPathToWrite)
+				if senderPlan.FileIsDeleted { // from giver.go:386 (:379)
+					vv("senderPlan.FileIsDeleted true, deleting path '%v'", localPathToWrite)
 					if syncReq.DryRun {
 						alwaysPrintf("dry: would remove '%v' since senderPlan.FileIsDeleted", localPathToWrite)
 					} else {
@@ -751,19 +751,24 @@ takerForSelectLoop:
 					frag = nil
 					continue // wait for other side to close
 				}
+				// versus giver.go:519 which should have
+				// SenderPath, SenderPrecis, and SenderChunksNoSlice.
 
 				// plan has no actual Data, just ranges+hashes of the goal file.
 				// actually now it does not even have chunks; they were
 				// too big and redundant anyway.
+
 				plan = senderPlan.SenderChunksNoSlice
 				goalPrecis = senderPlan.SenderPrecis
 
 				if senderPlan.SenderChunksNoSlice == nil {
 					vv("plan = nil b/c senderPlan = '%v'", senderPlan)
+					continue
 				}
 
 				if senderPlan.SenderPrecis == nil { // debug 220 hang
 					vv("when senderPlan.SenderPrecis == nil, plan = '%v'", plan)
+					continue
 				}
 
 				if plan.FileSize == 0 { // ? && syncReq.TakerTempDir == "" ??
