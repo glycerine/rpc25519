@@ -20,7 +20,7 @@ import (
 var _ = time.Time{}
 
 func Test220_push_then_pull_idempotent(t *testing.T) {
-
+	//return: all other tests are green
 	cv.Convey("using our rsync-like-protocol, a client doing a push, then a pull of the same file should see the pull do no changes (no-op) since the push already synchronized the remote with the local copy of the file. Also make sure we can have local and remote file names different and still sync to each other.", t, func() {
 
 		// set up two isolated test dirs, so we can
