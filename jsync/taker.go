@@ -647,11 +647,14 @@ takerForSelectLoop:
 				// INVAR: we have seen all the chunks
 				// but we still use the meta info on frag below.
 				sum := myblake3.SumToString(h)
-				if sum != plan.FileCry {
-					err = fmt.Errorf("checksum mismatch error! reconstructed='%v'; expected='%v'; plan path = ''%v'", sum, plan.FileCry, plan.Path)
-					panic(err)
+				if plan == nil {
+					vv("WARNING: not comparing final checksum b/c plan == nil!")
+				} else {
+					if sum != plan.FileCry {
+						err = fmt.Errorf("checksum mismatch error! reconstructed='%v'; expected='%v'; plan path = ''%v'", sum, plan.FileCry, plan.Path) // firing on Test220_push_then_pull_idempotent
+						panic(err)
+					}
 				}
-
 				//newversBufio.Flush() // must be before newversFd.Close()
 
 				// vv("total number sparse holes seen = %v", len(totsparse))
