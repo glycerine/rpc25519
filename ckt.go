@@ -818,7 +818,7 @@ func (h *Circuit) Close(reason error) {
 	// set reason atomically.
 	h.Halt.ReqStop.CloseWithReason(reason)
 
-	select {
+	select { // stalled here on shutdown, 401 membr test in tube.
 	case h.LpbFrom.HandleCircuitClose <- h:
 	case <-h.LpbFrom.Halt.ReqStop.Chan:
 	}

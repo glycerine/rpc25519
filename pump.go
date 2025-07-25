@@ -212,7 +212,11 @@ func (pb *LocalPeer) peerbackPump() {
 
 			frag := ckt.ConvertMessageToFragment(msg)
 			//vv("got frag = '%v'", frag)
-			select {
+			select { // hung here on shutdown... try adding this first case
+			case ckt2 := <-pb.HandleCircuitClose:
+				//vv("%v pump: ckt2 := <-pb.HandleCircuitClose: for ckt2='%v'", name, ckt2.Name)
+				cleanupCkt(ckt2, true)
+
 			case ckt.Reads <- frag: // server should be hung here, if peer code not servicing
 			case <-ckt.Halt.ReqStop.Chan:
 				cleanupCkt(ckt, true)
