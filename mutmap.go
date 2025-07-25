@@ -61,6 +61,7 @@ func (m *Mutexmap[K, V]) String() (r string) {
 	for k, v := range m.m {
 		r += fmt.Sprintf("key['%v'] -> val:'%v'\n", k, v)
 	}
+	r += "\n"
 	m.mut.RUnlock()
 	return
 }
