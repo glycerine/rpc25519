@@ -70,9 +70,9 @@ func (ckt *Circuit) String() string {
 
     FirstFrag: %v
 }`, ckt.Name,
-		ckt.CircuitID,
-		ckt.LocalPeerID,
-		ckt.RemotePeerID,
+		AliasDecode(ckt.CircuitID),
+		AliasDecode(ckt.LocalPeerID),
+		AliasDecode(ckt.RemotePeerID),
 		ckt.LocalServiceName,
 		ckt.RemoteServiceName,
 		ckt.LocalCircuitURL(),
