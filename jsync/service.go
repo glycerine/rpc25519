@@ -624,7 +624,7 @@ func (s *SyncService) Start(
 
 	for {
 		//vv("%v: top of select", name)
-		select { // 220 hung here
+		select { // 220 hung here and 440 hung intermit
 		case <-done0:
 			//vv("%v: done0! cause: '%v'", name, context.Cause(ctx0)) // context cancelled
 			return rpc.ErrContextCancelled

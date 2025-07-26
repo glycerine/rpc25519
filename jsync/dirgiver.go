@@ -105,7 +105,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	}(reqDir)
 
 	for {
-		select { // hung 220 e2e_test here intermit
+		select { // hung 220 e2e_test here intermit, and 440 dir_test intermit.
 
 		case frag0 := <-ckt.Reads:
 			//vv("%v: (ckt '%v') (DirGiver) saw read frag0:'%v'", name, ckt.Name, frag0)

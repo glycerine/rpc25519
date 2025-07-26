@@ -331,7 +331,7 @@ func (s *jsyncU) DirPushFromTo(fromLocalDir, toRemoteDir string, cli rpc.Univers
 	s.reqs <- req
 jobDone:
 	for {
-		select { // hung here on 220
+		select { // hung here on 220 and 440
 		case prog := <-req.UpdateProgress:
 			fmt.Printf("jsync.go:336 progress: %30v %8v %8v\n", prog.Path, prog.Latest, prog.Total) // this is what 220 reports out...
 			continue

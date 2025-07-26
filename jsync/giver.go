@@ -56,7 +56,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 		// suppress context cancelled shutdowns, and network errors
 		if r := recover(); r != nil {
-			//vv("giver sees panic: '%v'", r)
+			vv("giver sees panic: '%v'", r)
 			switch x := r.(type) {
 			case error:
 				xerr := x.Error()
@@ -543,7 +543,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 
 	// Now stream the heavy chunks. Since our max message
 	// is typically about 1MB, we'll pack lots of
-	// shunks into one message. Some of them will
+	// chunks into one message. Some of them will
 	// have no attached Data, so will be very small.
 
 	// make this a reusable routine so
@@ -764,7 +764,7 @@ func (s *SyncService) packAndSendChunksJustInTime(
 	lastFragCallBack func(f *rpc.Fragment, blake3hash *myblake3.Blake3),
 ) (err error) {
 
-	//vv("top of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; len(oneByteMarkedPlan.Chunks) = %v", oneByteMarkedPlan.DataPresent(), len(oneByteMarkedPlan.Chunks))
+	vv("top of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; len(oneByteMarkedPlan.Chunks) = %v", oneByteMarkedPlan.DataPresent(), len(oneByteMarkedPlan.Chunks))
 	//vv("top of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = %v; len(oneByteMarkedPlan.Chunks) = %v; oneByteMarkedPlan.Chunks = '%v'", oneByteMarkedPlan.DataPresent(), len(oneByteMarkedPlan.Chunks), oneByteMarkedPlan.String())
 
 	t0 := time.Now()

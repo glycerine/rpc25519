@@ -84,7 +84,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 		// suppress context cancelled shutdowns
 		if r := recover(); r != nil {
-			//vv("dirtaker sees panic: '%v'", r)
+			vv("dirtaker sees panic: '%v'", r)
 			switch x := r.(type) {
 			case error:
 				xerr := x.Error()
@@ -748,7 +748,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 			var file *File
 			var t1 time.Time
 			for {
-				select { // hung here jsync 220
+				select { // hung here jsync 220 and 440
 				case file = <-fileCh:
 					//vv("dirtaker worker got file!")
 					t1 = time.Now()
@@ -759,6 +759,10 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 
 				case <-goroHalt.ReqStop.Chan:
 					//vv("worker w=%v exit on goroHalt.ReqStop.Chan: '%v'", w, goroHalt.ReqStop.Reason1())
+					return
+				case <-batchHalt.ReqStop.Chan:
+					// added but does not prevent the intermmittent logical race that can give a hang here on 440 dir_test and 220 e2e_test.
+					vv("worker w=%v exit on batchHalt.ReqStop.Chan: '%v'", w, batchHalt.ReqStop.Reason1())
 					return
 				}
 
@@ -956,7 +960,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 	vv("about to wait on batchHalt(%p).ReqStop with done= %p", batchHalt, done) // done not nil
 	// primary reason for hang seems to be that the not
 	// all batch tasks tasks that we are waiting on have been closed.
-	err0 = batchHalt.ReqStop.TaskWait(done) // hung 220 here on halter.go:718
+	err0 = batchHalt.ReqStop.TaskWait(done) // hung 220 here on halter.go:718 and 440
 	//vv("batchHalt.ReqStop.TaskWait returned, err0 = '%v'", err0)
 
 	batchHalt.StopTreeAndWaitTilDone(0, done, nil)

@@ -83,7 +83,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 		// suppress context cancelled shutdowns
 		if r := recover(); r != nil {
-			//vv("taker sees panic: '%v'", r)
+			vv("taker sees panic: '%v'", r)
 			switch x := r.(type) {
 			case error:
 				xerr := x.Error()
