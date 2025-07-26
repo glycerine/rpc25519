@@ -56,7 +56,7 @@ var ErrNeedDirTaker = fmt.Errorf("DirTaker needed: giver has directory where tak
 // shutdown tree.
 func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncReq *RequestToSyncPath) (err0 error) {
 
-	vv("SyncService.Taker top")
+	//vv("SyncService.Taker top")
 
 	name := myPeer.PeerServiceName
 	_ = name // used when logging is on.
@@ -64,7 +64,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	bt := &byteTracker{}
 
 	defer func(syncReq *RequestToSyncPath) {
-		vv("%v: (ckt '%v') defer running! finishing Taker; syncReq=%p; err0='%v'", name, ckt.Name, syncReq, err0)
+		//vv("%v: (ckt '%v') defer running! finishing Taker; syncReq=%p; err0='%v'", name, ckt.Name, syncReq, err0)
 		//vv("bt = '%#v'", bt)
 
 		// only close Done for local (client, typically) if we were started locally.
@@ -83,7 +83,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 		// suppress context cancelled shutdowns
 		if r := recover(); r != nil {
-			vv("taker sees panic: '%v'", r)
+			//vv("taker sees panic: '%v'", r)
 			switch x := r.(type) {
 			case error:
 				xerr := x.Error()
@@ -210,7 +210,7 @@ takerForSelectLoop:
 				return ErrNeedDirTaker
 
 			case OpRsync_AckBackFIN_ToTaker:
-				vv("%v: (ckt '%v') (Taker) sees OpRsync_AckBackFIN_ToTaker. returning.", name, ckt.Name)
+				//vv("%v: (ckt '%v') (Taker) sees OpRsync_AckBackFIN_ToTaker. returning.", name, ckt.Name)
 				return
 
 			case OpRsync_LazyTakerNoLuck_ChunksRequired:
@@ -562,7 +562,7 @@ takerForSelectLoop:
 								// always start from 0, since otherwise
 								// APFS complains.
 								sz := chunk.Endx - chunk.Beg
-								vv("middle UNWRIT; about to Fallocate beg=%v, sz=%v, path='%v'", chunk.Beg, sz, newversFd.Name())
+								//vv("middle UNWRIT; about to Fallocate beg=%v, sz=%v, path='%v'", chunk.Beg, sz, newversFd.Name())
 								_, err = sparsified.Fallocate(newversFd, sparsified.FALLOC_FL_KEEP_SIZE, chunk.Beg, sz)
 								if err != nil {
 									// try not to fail just because disk is fragmented or no pre-allocation support. Just warn.
@@ -681,7 +681,7 @@ takerForSelectLoop:
 				if syncReq.TakerTempDir == "" {
 					err = os.Rename(tmp, localPathToWrite)
 					panicOn(err)
-					vv("synced to disk: localPathToWrite='%v' -> renamed to '%v'", tmp, localPathToWrite)
+					//vv("synced to disk: localPathToWrite='%v' -> renamed to '%v'", tmp, localPathToWrite)
 
 					// debug
 					//renamedFd, err := os.Open(localPathToWrite)
@@ -701,7 +701,7 @@ takerForSelectLoop:
 					}
 				}
 
-				vv("restore mode, modtime on localPathToWrite='%v'", localPathToWrite)
+				//vv("restore mode, modtime on localPathToWrite='%v'", localPathToWrite)
 				if goalPrecis == nil {
 					vv("why is goalPrecis nil? hit on e2e_test 220; localPathToWrite='%v'", localPathToWrite)
 				} else {
@@ -732,20 +732,20 @@ takerForSelectLoop:
 				// wait for ack back FIN
 
 			case OpRsync_SenderPlanEnclosed:
-				vv("OpRsync_SenderPlanEnclosed: stream of heavy diffs arriving! : %v", frag.String())
+				//vv("OpRsync_SenderPlanEnclosed: stream of heavy diffs arriving! : %v", frag.String())
 				//vv("OpRsync_SenderPlanEnclosed: localPathToWrite='%v'", localPathToWrite)
 				senderPlan = &SenderPlan{} // response
 				_, err := senderPlan.UnmarshalMsg(frag.Payload)
 				panicOn(err)
 				bt.bread += len(frag.Payload)
-				vv("OpRsync_SenderPlanEnclosed: senderPlan.FileIsDeleted = '%v'", senderPlan.FileIsDeleted)
-				vv("OpRsync_SenderPlanEnclosed: senderPlanSenderPrecis.PathAbsent = '%v'", senderPlan.SenderPrecis.PathAbsent)
-				vv("OpRsync_SenderPlanEnclosed: senderPlan= '%#v'", senderPlan)
+				//vv("OpRsync_SenderPlanEnclosed: senderPlan.FileIsDeleted = '%v'", senderPlan.FileIsDeleted)
+				//vv("OpRsync_SenderPlanEnclosed: senderPlanSenderPrecis.PathAbsent = '%v'", senderPlan.SenderPrecis.PathAbsent)
+				//vv("OpRsync_SenderPlanEnclosed: senderPlan= '%#v'", senderPlan)
 
 				absentOnSender := senderPlan.SenderPrecis.PathAbsent
 
 				if absentOnSender || senderPlan.FileIsDeleted { // from giver.go:386 (:379)
-					vv("absentOnSender = %v; senderPlan.FileIsDeleted = %v; deleting path '%v'", absentOnSender, senderPlan.FileIsDeleted, localPathToWrite) // not seen 440 green nor red.
+					//vv("absentOnSender = %v; senderPlan.FileIsDeleted = %v; deleting path '%v'", absentOnSender, senderPlan.FileIsDeleted, localPathToWrite) // not seen 440 green nor red.
 					if syncReq.DryRun {
 						alwaysPrintf("dry: would remove '%v' since senderPlan.FileIsDeleted", localPathToWrite)
 					} else {
@@ -766,13 +766,13 @@ takerForSelectLoop:
 				goalPrecis = senderPlan.SenderPrecis
 
 				if senderPlan.SenderChunksNoSlice == nil {
-					vv("plan = nil b/c senderPlan = '%v' should we be deleting any local path?? ", senderPlan)
+					//vv("plan = nil b/c senderPlan = '%v' should we be deleting any local path?? ", senderPlan)
 					panic("What to do here?")
 					//continue
 				}
 
 				if senderPlan.SenderPrecis == nil { // debug 220 hang
-					vv("when senderPlan.SenderPrecis == nil, plan = '%v'", plan)
+					//vv("when senderPlan.SenderPrecis == nil, plan = '%v'", plan)
 					//continue
 					panic("what do do here?")
 				}
@@ -816,7 +816,7 @@ takerForSelectLoop:
 					panic("plan == nil should have been addressed above!")
 				}
 				// else we have the senderPlan, goalPrecis, and plan.
-				vv("end of OpRsync_SenderPlanEnclosed, now wait for 9,10 (OpRsync_HeavyDiffChunksLast==10 at least); goalPrecis.Path='%v'", goalPrecis.Path)
+				//vv("end of OpRsync_SenderPlanEnclosed, now wait for 9,10 (OpRsync_HeavyDiffChunksLast==10 at least); goalPrecis.Path='%v'", goalPrecis.Path)
 
 			case OpRsync_HereIsFullFileBegin3, OpRsync_HereIsFullFileMore4, OpRsync_HereIsFullFileEnd5:
 				if disk == nil {

@@ -215,7 +215,13 @@ func (pb *LocalPeer) peerbackPump() {
 
 			frag := ckt.ConvertMessageToFragment(msg)
 			//vv("got frag = '%v'", frag)
-			select { // was hung here on shutdown... try adding this first case... but this might be making the pump exit too early?? yep. causes drop of fragment we need in jysnc dir_test 440 test; probably 220 jsync/e2e_test.go too.
+			select {
+			// was hung here on shutdown... tried adding this first case...
+			// BUT VERY BAD: this makes the pump exit too early!
+			// causes drop/loss of fragment we need in jysnc
+			// dir_test 440 test; and 220 jsync/e2e_test.go too,
+			// when the ckt shutdown races with the message send;
+			// On frag.FragOp == OpRsync_AckBackFIN_ToTaker
 			//case ckt2 := <-pb.HandleCircuitClose:
 			//	vv("%v pump: ckt2 := <-pb.HandleCircuitClose: for ckt2='%v'", name, ckt2.Name)
 			//cleanupCkt(ckt2, true)

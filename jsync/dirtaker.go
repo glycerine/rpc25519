@@ -84,7 +84,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 		// suppress context cancelled shutdowns
 		if r := recover(); r != nil {
-			vv("dirtaker sees panic: '%v'", r)
+			//vv("dirtaker sees panic: '%v'", r)
 			switch x := r.(type) {
 			case error:
 				xerr := x.Error()
@@ -149,7 +149,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					if sr.DryRun {
 						alwaysPrintf("dry: would os.RemoveAll('%v')", sr.TakerPath)
 					} else {
-						vv("about to os.RemoveAll(sr.Takerpath='%v')", sr.TakerPath)
+						//vv("about to os.RemoveAll(sr.Takerpath='%v')", sr.TakerPath)
 						err = os.RemoveAll(sr.TakerPath)
 						panicOn(err)
 					}
@@ -235,7 +235,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				panicOn(err)
 
 			case OpRsync_GiverSendsTopDirListing: // 26, all-one-pass version
-				vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
+				//vv("%v: (ckt '%v') (DirTaker) sees %v.", rpc.FragOpDecode(frag.FragOp), name, ckt.Name)
 				// Getting this means here is the starting dir tree from giver.
 				// now all in one pass, as PackOfFiles
 
@@ -381,7 +381,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					}
 				}
 				if pof.IsLast {
-					vv("pof.IsLast seen")
+					//vv("pof.IsLast seen")
 
 					// okay, now that all regular files have bee
 					// sent on fileUpdateCh, we can allow the
@@ -565,7 +565,7 @@ func (s *SyncService) takeOneFile(f *File, reqDir *RequestToSyncDir, needUpdate,
 	// subtract from taker starting set, so
 	// we can determine what to delete at the
 	// end on the taker side.
-	vv("takeOneFile sees f.Path = '%v'; useTempDir = %v", f.Path, useTempDir)
+	//vv("takeOneFile sees f.Path = '%v'; useTempDir = %v", f.Path, useTempDir)
 	takerCatalog.Del(f.Path)
 
 	tdir := reqDir.TopTakerDirTemp
