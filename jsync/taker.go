@@ -210,7 +210,7 @@ takerForSelectLoop:
 				return ErrNeedDirTaker
 
 			case OpRsync_AckBackFIN_ToTaker:
-				//vv("%v: (ckt '%v') (Taker) sees OpRsync_AckBackFIN_ToTaker. returning.", name, ckt.Name)
+				vv("%v: (ckt '%v') (Taker) sees OpRsync_AckBackFIN_ToTaker. returning.", name, ckt.Name)
 				return
 
 			case OpRsync_LazyTakerNoLuck_ChunksRequired:
@@ -1224,9 +1224,9 @@ takerForSelectLoop:
 		case <-done0:
 			////vv("%v: (ckt '%v') done0! reason: '%v'", name, ckt.Name, context.Cause(ctx0))
 			return
-			//case <-s.halt.ReqStop.Chan:
-			//zz("%v: (ckt '%v') top func halt.ReqStop seen", name, ckt.Name)
-			//	return
+			//case <-s.halt.ReqStop.Chan: // TODO: why is this commented? seems desirable.
+		//zz("%v: (ckt '%v') top func s.halt.ReqStop seen", name, ckt.Name)
+		//	return
 		case <-ckt.Halt.ReqStop.Chan:
 			//vv("%v: (ckt '%v') (Taker) ckt halt requested.", name, ckt.Name)
 			return

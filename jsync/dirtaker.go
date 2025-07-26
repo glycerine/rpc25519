@@ -697,7 +697,10 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 	// if we return early, this will shut down the
 	// worker pool, since they have each have
 	// a goroHalt that is added as a child.
+	//defer func() {
+	//	vv("dirTakerRequestIndivFiles, so doing batchHalt.ReqStop.Close()")
 	defer batchHalt.ReqStop.Close()
+	//}()
 
 	//var totalFileBytes int64
 
@@ -706,7 +709,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 
 	//wgjobs := &sync.WaitGroup{}
 	//wgjobs.Add(len(updateMap))
-	vv("adding len(updateMap)=%v via batchHalt.ReqStop.TaskAdd", len(updateMap)) // adding 16 here
+	//vv("adding len(updateMap)=%v via batchHalt.ReqStop.TaskAdd", len(updateMap)) // adding 16 here (adding 2 for 440)
 	batchHalt.ReqStop.TaskAdd(len(updateMap))
 
 	fileCh := make(chan *File) // do not buffer, giving work.
@@ -752,7 +755,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 			for {
 				select { // hung here jsync 220 and 440
 				case file = <-fileCh:
-					//vv("dirtaker worker got file!")
+					//vv("dirtaker worker got file! path='%v'", file.Path) // 440 saw both even when hung!
 					t1 = time.Now()
 
 					// does its own SR == nil check.
@@ -764,7 +767,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 					return
 				case <-batchHalt.ReqStop.Chan:
 					// added but does not prevent the intermmittent logical race that can give a hang here on 440 dir_test and 220 e2e_test.
-					vv("worker w=%v exit on batchHalt.ReqStop.Chan: '%v'", w, batchHalt.ReqStop.Reason1())
+					//vv("worker w=%v exit on batchHalt.ReqStop.Chan: '%v'", w, batchHalt.ReqStop.Reason1())
 					return
 				}
 
@@ -916,7 +919,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				}()
 
 				//vv("dirtaker worker: about to call s.Taker()")
-				errg := s.Taker(ctx2, ckt2, myPeer, syncReq)
+				errg := s.Taker(ctx2, ckt2, myPeer, syncReq) // hung here 440
 				//vv("dirtaker worker: got from Taker errg = '%v'", errg)
 				panicOn(errg)
 				left := batchHalt.ReqStop.TaskDone()
@@ -946,8 +949,9 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 
 		//}
 
-		select { // hung here
+		select {
 		case fileCh <- file:
+			//vv("updateMap loop has sent off path='%v' to fileCh", path)
 			// and do another, until all updateMap files are done.
 		case <-done:
 			return

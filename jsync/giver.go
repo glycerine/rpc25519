@@ -215,7 +215,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				continue // wait for FIN or chunks.
 
 			case OpRsync_AckBackFIN_ToGiver:
-				//vv("%v: (ckt '%v') (Giver) sees OpRsync_AckBackFIN_ToGiver. returning.", name, ckt.Name)
+				vv("%v: (ckt '%v') (Giver) sees OpRsync_AckBackFIN_ToGiver. returning.", name, ckt.Name)
 				return
 
 			case OpRsync_RequestRemoteToGive: // FragOp 12
@@ -268,7 +268,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 
 				// 2. else: scan our "remote path". updated not needed? ack back FIN
 				if !s.remoteGiverAreDiffChunksNeeded(syncReq, ckt, bt, frag0) {
-					//vv("giver sees no update needed. done (wait for FIN)")
+					vv("giver sees no update needed. done. ackBackFINToTaker and (wait for FIN)")
 					s.ackBackFINToTaker(ckt, frag0)
 					frag0 = nil // GC early.
 					continue    // wait for other side to close
@@ -322,13 +322,14 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					syncReq.SizeModTimeMatch = true
 				}
 				// this is also an Op specific ack back.
+				vv("OpRsync_FileSizeModTimeMatch -> ackBackFINToTaker")
 				s.ackBackFINToTaker(ckt, frag0) // probably not needed, but exercise it.
 				// wait for other side to close on FIN.
 				frag0 = nil // GC early.
 				continue
 
 			case OpRsync_FileAllReadAckToGiver:
-				//vv("Giver sees OpRsync_FileAllReadAckToGiver for '%v'", syncReq.GiverPath)
+				vv("Giver sees OpRsync_FileAllReadAckToGiver for '%v'; about to ackBackFINToTaker", syncReq.GiverPath) // giver.go:332 [goID 114] 2025-07-26 12:56:33.833 -0500 CDT Giver sees OpRsync_FileAllReadAckToGiver for '/Users/jaten/go/src/github.com/glycerine/rpc25519/jsync/local_cli_dir_test440/test440_000kb.dat'; about to ackBackFINToTaker (and same for 001kb.dat the other file).
 
 				syncReq.GiverFullFileBlake3, _ = frag0.GetUserArg("clientTotalBlake3sum")
 				syncReq.TakerFullFileBlake3, _ = frag0.GetUserArg("serverTotalBlake3sum")

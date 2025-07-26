@@ -1,0 +1,616 @@
+-*- mode: compilation; default-directory: "~/rpc25519/jsync/" -*-
+Compilation started at Sat Jul 26 19:04:48
+
+GOTRACEBACK=all GOEXPERIMENT=synctest go test -v  -run Test440_directory_sync
+faketime = true
+faketime = true
+=== RUN   Test440_directory_sync
+
+dir_test.go:47 [goID 9] 2025-07-26 13:04:49.617 -0500 CDT localPath = '/Users/jaten/rpc25519/jsync/local_cli_dir_test440/test440_000kb.dat'
+
+dir_test.go:70 [goID 9] 2025-07-26 13:04:49.618 -0500 CDT created 1 KB test file in localPath='/Users/jaten/rpc25519/jsync/local_cli_dir_test440/test440_000kb.dat'.
+
+dir_test.go:47 [goID 9] 2025-07-26 13:04:49.618 -0500 CDT localPath = '/Users/jaten/rpc25519/jsync/local_cli_dir_test440/test440_001kb.dat'
+
+dir_test.go:70 [goID 9] 2025-07-26 13:04:49.618 -0500 CDT created 1 KB test file in localPath='/Users/jaten/rpc25519/jsync/local_cli_dir_test440/test440_001kb.dat'.
+
+dir_test.go:74 [goID 9] 2025-07-26 13:04:49.618 -0500 CDT two dirs and two files local setup done
+
+dir_test.go:98 [goID 9] 2025-07-26 13:04:49.619 -0500 CDT server Start() returned serverAddr = '127.0.0.1:50195'; wd = '/Users/jaten/rpc25519/jsync'; srv.DataDir() = '/Users/jaten/.local/share/rpc25519'
+
+halter.go:322 2025-07-26 18:04:49.619 +0000 UTC Halter(0xc000042d80).AddChild(0xc000043000)  h.ReqStop=0xc0000223c0  child.ReqStop=0xc000022820; caller:ckt.go:546
+
+pump.go:150 [goID 12] 2025-07-26 18:04:49.640750000 +0000 UTC jsync_server 0xc00026e2c0: pump loop top of select. pb.handleChansNewCircuit = 0xc000034770
+
+cli.go:211 [goID 19] 2025-07-26 18:04:49.647160000 +0000 UTC connected to server 127.0.0.1:50195
+
+dir_test.go:115 [goID 9] 2025-07-26 13:04:49.648 -0500 CDT client Start() coming from cli.LocalAddr = 'tcp://127.0.0.1:50196'; wd = '/Users/jaten/rpc25519/jsync'
+
+halter.go:322 2025-07-26 18:04:49.648 +0000 UTC Halter(0xc0004a4000).AddChild(0xc0008200c0)  h.ReqStop=0xc0004a2050  child.ReqStop=0xc00081e140; caller:ckt.go:546
+
+pump.go:150 [goID 50] 2025-07-26 18:04:49.650194000 +0000 UTC jsync_client 0xc000828000: pump loop top of select. pb.handleChansNewCircuit = 0xc00081c150
+
+halter.go:322 2025-07-26 18:04:49.662 +0000 UTC Halter(0xc0008200c0).AddChild(0xc0004a41c0)  h.ReqStop=0xc00081e140  child.ReqStop=0xc0004a2460; caller:pump.go:164
+
+pump.go:150 [goID 50] 2025-07-26 18:04:49.663052000 +0000 UTC jsync_client 0xc000828000: pump loop top of select. pb.handleChansNewCircuit = 0xc00081c150
+
+halter.go:322 2025-07-26 18:04:49.663 +0000 UTC Halter(0xc000042d80).AddChild(0xc000042d40)  h.ReqStop=0xc0000223c0  child.ReqStop=0xc000420190; caller:ckt.go:546
+
+pump.go:150 [goID 52] 2025-07-26 18:04:49.664784000 +0000 UTC jsync_server 0xc00026e210: pump loop top of select. pb.handleChansNewCircuit = 0xc000492310
+
+halter.go:322 2025-07-26 18:04:49.664 +0000 UTC Halter(0xc000042d40).AddChild(0xc000820100)  h.ReqStop=0xc000420190  child.ReqStop=0xc00081e2d0; caller:pump.go:164
+
+pump.go:150 [goID 52] 2025-07-26 18:04:49.664847000 +0000 UTC jsync_server 0xc00026e210: pump loop top of select. pb.handleChansNewCircuit = 0xc000492310
+
+pump.go:150 [goID 50] 2025-07-26 18:04:49.685154000 +0000 UTC jsync_client 0xc000828000: pump loop top of select. pb.handleChansNewCircuit = 0xc00081c150
+
+pump.go:150 [goID 52] 2025-07-26 18:04:49.685494000 +0000 UTC jsync_server 0xc00026e210: pump loop top of select. pb.handleChansNewCircuit = 0xc000492310
+
+dirtaker.go:238 [goID 22] 2025-07-26 13:04:49.689 -0500 CDT 26 (OpRsync_GiverSendsTopDirListing): (ckt 'jsync_server') (DirTaker) sees rsync remote takes dir.
+
+halter.go:703 2025-07-26 18:04:49.689 +0000 UTC taskCount is now 1
+
+halter.go:322 2025-07-26 18:04:49.689 +0000 UTC Halter(0xc000042e40).AddChild(0xc0004a4200)  h.ReqStop=0xc0004202d0  child.ReqStop=0xc0004a2550; caller:dirtaker.go:272
+
+halter.go:322 2025-07-26 18:04:49.689 +0000 UTC Halter(0xc000042e40).AddChild(0xc0004a4280)  h.ReqStop=0xc0004202d0  child.ReqStop=0xc0004a25f0; caller:dirtaker.go:272
+
+halter.go:322 2025-07-26 18:04:49.689 +0000 UTC Halter(0xc000042e40).AddChild(0xc0004a4300)  h.ReqStop=0xc0004202d0  child.ReqStop=0xc0004a2690; caller:dirtaker.go:272
+
+halter.go:322 2025-07-26 18:04:49.689 +0000 UTC Halter(0xc000042e40).AddChild(0xc0004a4380)  h.ReqStop=0xc0004202d0  child.ReqStop=0xc0004a2730; caller:dirtaker.go:272
+
+halter.go:322 2025-07-26 18:04:49.689 +0000 UTC Halter(0xc000042e40).AddChild(0xc0004a4400)  h.ReqStop=0xc0004202d0  child.ReqStop=0xc0004a27d0; caller:dirtaker.go:272
+
+halter.go:322 2025-07-26 18:04:49.714 +0000 UTC Halter(0xc000042e40).AddChild(0xc0004a4500)  h.ReqStop=0xc0004202d0  child.ReqStop=0xc0004a2870; caller:dirtaker.go:272
+
+halter.go:322 2025-07-26 18:04:49.714 +0000 UTC Halter(0xc000042e40).AddChild(0xc0004a4580)  h.ReqStop=0xc0004202d0  child.ReqStop=0xc0004a2910; caller:dirtaker.go:272
+
+halter.go:322 2025-07-26 18:04:49.714 +0000 UTC Halter(0xc000042e40).AddChild(0xc0004a4600)  h.ReqStop=0xc0004202d0  child.ReqStop=0xc0004a29b0; caller:dirtaker.go:272
+
+halter.go:703 2025-07-26 18:04:49.714 +0000 UTC taskCount is now 2
+
+halter.go:703 2025-07-26 18:04:49.714 +0000 UTC taskCount is now 3
+
+dirtaker.go:384 [goID 22] 2025-07-26 13:04:49.714 -0500 CDT pof.IsLast seen
+
+halter.go:703 2025-07-26 18:04:49.714 +0000 UTC taskCount is now 2
+
+dirtaker.go:568 [goID 23] 2025-07-26 13:04:49.715 -0500 CDT takeOneFile sees f.Path = 'test440_000kb.dat'; useTempDir = false
+
+dirtaker.go:568 [goID 24] 2025-07-26 13:04:49.715 -0500 CDT takeOneFile sees f.Path = 'test440_001kb.dat'; useTempDir = false
+
+halter.go:703 2025-07-26 18:04:49.715 +0000 UTC taskCount is now 1
+
+halter.go:692 2025-07-26 18:04:49.744 +0000 UTC taskCount is now 0, closing ourselves/all children.
+
+dirtaker.go:693 [goID 22] 2025-07-26 13:04:49.745 -0500 CDT top dirTakerRequestIndivFiles() with 2 files needing updates. needUpdate='Mutexmap[string, *jsync.File] of len(2):
+key['test440_000kb.dat'] -> val:'&{test440_000kb.dat 1024 384 0 2025-07-26 18:04:49.617878949 +0000 UTC  0}'
+key['test440_001kb.dat'] -> val:'&{test440_001kb.dat 1024 384 0 2025-07-26 18:04:49.618105802 +0000 UTC  1}'
+
+'
+
+dirtaker.go:696 [goID 22] 2025-07-26 13:04:49.745 -0500 CDT batchHalt = 0xc000820140
+
+halter.go:703 2025-07-26 18:04:49.745 +0000 UTC taskCount is now 2
+
+halter.go:322 2025-07-26 18:04:49.745 +0000 UTC Halter(0xc000820140).AddChild(0xc000820180)  h.ReqStop=0xc00081e410  child.ReqStop=0xc00081e4b0; caller:dirtaker.go:721
+
+halter.go:322 2025-07-26 18:04:49.745 +0000 UTC Halter(0xc000820140).AddChild(0xc000820200)  h.ReqStop=0xc00081e410  child.ReqStop=0xc00081e550; caller:dirtaker.go:721
+
+dirtaker.go:730 [goID 44] 2025-07-26 13:04:49.745 -0500 CDT 999999 starting: background batch goro 44 maps go goroHalt = 0xc000820180
+
+halter.go:322 2025-07-26 18:04:49.771 +0000 UTC Halter(0xc000820140).AddChild(0xc0004a4680)  h.ReqStop=0xc00081e410  child.ReqStop=0xc0004a2b40; caller:dirtaker.go:721
+
+dirtaker.go:751 [goID 44] 2025-07-26 13:04:49.771 -0500 CDT top of dirTakerRequestIndivFiles: dirtaker worker w=0.
+
+halter.go:322 2025-07-26 18:04:49.771 +0000 UTC Halter(0xc000820140).AddChild(0xc0004a4700)  h.ReqStop=0xc00081e410  child.ReqStop=0xc0004a2be0; caller:dirtaker.go:721
+
+dirtaker.go:730 [goID 95] 2025-07-26 13:04:49.771 -0500 CDT 999999 starting: background batch goro 95 maps go goroHalt = 0xc000820200
+
+halter.go:322 2025-07-26 18:04:49.771 +0000 UTC Halter(0xc000820140).AddChild(0xc000820280)  h.ReqStop=0xc00081e410  child.ReqStop=0xc00081e5f0; caller:dirtaker.go:721
+
+halter.go:322 2025-07-26 18:04:49.798 +0000 UTC Halter(0xc000820140).AddChild(0xc0008203c0)  h.ReqStop=0xc00081e410  child.ReqStop=0xc00081e690; caller:dirtaker.go:721
+
+dirtaker.go:751 [goID 95] 2025-07-26 13:04:49.772 -0500 CDT top of dirTakerRequestIndivFiles: dirtaker worker w=1.
+
+halter.go:322 2025-07-26 18:04:49.798 +0000 UTC Halter(0xc000820140).AddChild(0xc000432240)  h.ReqStop=0xc00081e410  child.ReqStop=0xc000022690; caller:dirtaker.go:721
+
+dirtaker.go:730 [goID 31] 2025-07-26 13:04:49.798 -0500 CDT 999999 starting: background batch goro 31 maps go goroHalt = 0xc0004a4680
+
+halter.go:322 2025-07-26 18:04:49.798 +0000 UTC 
+dirtaker.go:730 [goID 71] 2025-07-26 13:04:49.798 -0500 CDT 999999 starting: background batch goro 71 maps go goroHalt = 0xc000432240
+Halter(0xc000820140).AddChild(0xc000432300)  h.ReqStop=0xc00081e410  child.ReqStop=0xc0000228c0; caller:dirtaker.go:721
+
+dirtaker.go:751 [goID 71] 2025-07-26 13:04:49.798 -0500 CDT top of dirTakerRequestIndivFiles: dirtaker worker w=6.
+
+halter.go:322 2025-07-26 18:04:49.799 +0000 UTC Halter(0xc000042d40).AddChild(0xc000820400)  h.ReqStop=0xc000420190  child.ReqStop=0xc00081e7d0; caller:pump.go:164
+
+dirtaker.go:751 [goID 31] 2025-07-26 13:04:49.828 -0500 CDT top of dirTakerRequestIndivFiles: dirtaker worker w=2.
+
+halter.go:322 2025-07-26 18:04:49.828 +0000 UTC Halter(0xc0008200c0).AddChild(0xc01e968040)  h.ReqStop=0xc00081e140  child.ReqStop=0xc01e96c140; caller:pump.go:164
+
+dirtaker.go:966 [goID 22] 2025-07-26 13:04:49.828 -0500 CDT about to wait on batchHalt(0xc000820140).ReqStop with done= 0xc0004925b0
+
+pump.go:150 [goID 50] 2025-07-26 18:04:49.828708000 +0000 UTC jsync_client 0xc000828000: pump loop top of select. pb.handleChansNewCircuit = 0xc00081c150
+
+dirtaker.go:730 [goID 46] 2025-07-26 13:04:49.828 -0500 CDT 999999 starting: background batch goro 46 maps go goroHalt = 0xc000820280
+
+dirtaker.go:751 [goID 46] 2025-07-26 13:04:49.828 -0500 CDT top of dirTakerRequestIndivFiles: dirtaker worker w=4.
+
+dirtaker.go:730 [goID 70] 2025-07-26 13:04:49.828 -0500 CDT 999999 starting: background batch goro 70 maps go goroHalt = 0xc0008203c0
+
+dirtaker.go:751 [goID 70] 2025-07-26 13:04:49.853 -0500 CDT top of dirTakerRequestIndivFiles: dirtaker worker w=5.
+
+dirtaker.go:730 [goID 45] 2025-07-26 13:04:49.853 -0500 CDT 999999 starting: background batch goro 45 maps go goroHalt = 0xc0004a4700
+
+dirtaker.go:730 [goID 32] 2025-07-26 13:04:49.853 -0500 CDT 999999 starting: background batch goro 32 maps go goroHalt = 0xc000432300
+
+giver.go:462 [goID 54] 2025-07-26 13:04:49.853 -0500 CDT remoteWantsUpdate = 0x0
+
+pump.go:150 [goID 52] 2025-07-26 18:04:49.853936000 +0000 UTC jsync_server 0xc00026e210: pump loop top of select. pb.handleChansNewCircuit = 0xc000492310
+
+dirtaker.go:751 [goID 45] 2025-07-26 13:04:49.853 -0500 CDT top of dirTakerRequestIndivFiles: dirtaker worker w=3.
+
+dirtaker.go:751 [goID 32] 2025-07-26 13:04:49.854 -0500 CDT top of dirTakerRequestIndivFiles: dirtaker worker w=7.
+
+halter.go:322 2025-07-26 18:04:49.854 +0000 UTC Halter(0xc000042d40).AddChild(0xc0004a4780)  h.ReqStop=0xc000420190  child.ReqStop=0xc0004a2d20; caller:pump.go:164
+
+halter.go:322 2025-07-26 18:04:49.883 +0000 UTC Halter(0xc0008200c0).AddChild(0xc000432340)  h.ReqStop=0xc00081e140  child.ReqStop=0xc000022a00; caller:pump.go:164
+
+giver.go:463 [goID 54] 2025-07-26 13:04:49.854 -0500 CDT goalPrecis = {
+    "CallID": "",
+    "IsFromSender": false,
+    "Created": "0001-01-01T00:00:00Z",
+    "Host": "hostCID-RXWQxR8H9H4ve13GTidKw--_1tA=:jbook.chimera-bass.ts.net",
+    "Path": "/Users/jaten/rpc25519/jsync/local_cli_dir_test440/test440_000kb.dat",
+    "ModTime": "2025-07-26T18:04:49.617878949Z",
+    "FileSize": 1024,
+    "FileMode": 384,
+    "FileOwner": "",
+    "FileOwnerID": 0,
+    "FileGroup": "",
+    "FileGroupID": 0,
+    "FileMeta": null,
+    "HashName": "blake3.33B",
+    "FileCry": "blake3.33B-Mb4xsAoMMw8NbxeQMp_hIm6W56MexTt3x0xR8xMBmY5_",
+    "IsSparse": false,
+    "PreAllocUnwritBeg": 0,
+    "PreAllocUnwritEndx": 0,
+    "ChunkerName": "fastcdc-plakar-go-cdc-chunkers",
+    "CDC_Config": {
+        "MinSize": 4096,
+        "TargetSize": 8192,
+        "MaxSize": 16384
+    },
+    "PathAbsent": false
+}
+
+giver.go:462 [goID 72] 2025-07-26 13:04:49.911 -0500 CDT remoteWantsUpdate = 0x0
+
+giver.go:463 [goID 72] 2025-07-26 13:04:49.911 -0500 CDT goalPrecis = {
+    "CallID": "",
+    "IsFromSender": false,
+    "Created": "0001-01-01T00:00:00Z",
+    "Host": "hostCID-RXWQxR8H9H4ve13GTidKw--_1tA=:jbook.chimera-bass.ts.net",
+    "Path": "/Users/jaten/rpc25519/jsync/local_cli_dir_test440/test440_001kb.dat",
+    "ModTime": "2025-07-26T18:04:49.618105802Z",
+    "FileSize": 1024,
+    "FileMode": 384,
+    "FileOwner": "",
+    "FileOwnerID": 0,
+    "FileGroup": "",
+    "FileGroupID": 0,
+    "FileMeta": null,
+    "HashName": "blake3.33B",
+    "FileCry": "blake3.33B-PTCzKa3-LYsWx0oARKRIJhv7tli2yO6eG5bDYTQ1_P1_",
+    "IsSparse": false,
+    "PreAllocUnwritBeg": 0,
+    "PreAllocUnwritEndx": 0,
+    "ChunkerName": "fastcdc-plakar-go-cdc-chunkers",
+    "CDC_Config": {
+        "MinSize": 4096,
+        "TargetSize": 8192,
+        "MaxSize": 16384
+    },
+    "PathAbsent": false
+}
+
+pump.go:150 [goID 52] 2025-07-26 18:04:49.937044000 +0000 UTC jsync_server 0xc00026e210: pump loop top of select. pb.handleChansNewCircuit = 0xc000492310
+
+pump.go:150 [goID 50] 2025-07-26 18:04:49.937170000 +0000 UTC jsync_client 0xc000828000: pump loop top of select. pb.handleChansNewCircuit = 0xc00081c150
+
+giver.go:768 [goID 54] 2025-07-26 13:04:49.937 -0500 CDT top of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = 1; len(oneByteMarkedPlan.Chunks) = 1
+
+giver.go:768 [goID 72] 2025-07-26 13:04:49.937 -0500 CDT top of packAndSendChunksJustInTime; oneByteMarkedPlan.DataPresent = 1; len(oneByteMarkedPlan.Chunks) = 1
+
+pump.go:150 [goID 52] 2025-07-26 18:04:49.937652000 +0000 UTC jsync_server 0xc00026e210: pump loop top of select. pb.handleChansNewCircuit = 0xc000492310
+
+pump.go:150 [goID 52] 2025-07-26 18:04:49.937770000 +0000 UTC jsync_server 0xc00026e210: pump loop top of select. pb.handleChansNewCircuit = 0xc000492310
+jsync.go:336 progress: /Users/jaten/rpc25519/jsync/local_cli_dir_test440/test440_001kb.dat     1024     1024
+jsync.go:336 progress: /Users/jaten/rpc25519/jsync/local_cli_dir_test440/test440_000kb.dat     1024     1024
+
+taker.go:735 [goID 44] 2025-07-26 13:04:49.937 -0500 CDT OpRsync_SenderPlanEnclosed: stream of heavy diffs arriving! : &rpc25519.Fragment{
+    "Created": 2025-07-26T18:04:49.911Z,
+    "FromPeerID": "dI7NOkMI_QlXuPtontvTLwQCOK00 (jsync_client)",
+    "ToPeerID": "YaNjHSafFQ8ck166UTpoDFs0ycAQ (jsync_server)",
+    "CircuitID": "hoT6EUk573TM3xnhklwSk-nqEuf2 (rsync remote gives)",
+    "Serial": 8,
+    "ServiceName": "jsync_server",
+    "Typ": CallPeerTraffic,
+    "FragOp": 11 (OpRsync_SenderPlanEnclosed),
+    "FragSubject": "/Users/jaten/rpc25519/jsync/local_cli_dir_test440/test440_000kb.dat",
+    "FragPart": 0,
+    "Args": map[string]string{"#fromServiceName":"jsync_client"},
+    "Payload": (len 813 bytes),
+    "Err": "",
+}
+
+taker.go:741 [goID 44] 2025-07-26 13:04:49.962 -0500 CDT OpRsync_SenderPlanEnclosed: senderPlan.FileIsDeleted = 'false'
+
+taker.go:735 [goID 95] 2025-07-26 13:04:49.992 -0500 CDT OpRsync_SenderPlanEnclosed: stream of heavy diffs arriving! : &rpc25519.Fragment{
+    "Created": 2025-07-26T18:04:49.937Z,
+    "FromPeerID": "dI7NOkMI_QlXuPtontvTLwQCOK00 (jsync_client)",
+    "ToPeerID": "YaNjHSafFQ8ck166UTpoDFs0ycAQ (jsync_server)",
+    "CircuitID": "h9bAPCYauKaKZHehlBBiL6sCzAJd (rsync remote gives)",
+    "Serial": 9,
+    "ServiceName": "jsync_server",
+    "Typ": CallPeerTraffic,
+    "FragOp": 11 (OpRsync_SenderPlanEnclosed),
+    "FragSubject": "/Users/jaten/rpc25519/jsync/local_cli_dir_test440/test440_001kb.dat",
+    "FragPart": 0,
+    "Args": map[string]string{"#fromServiceName":"jsync_client"},
+    "Payload": (len 813 bytes),
+    "Err": "",
+}
+
+taker.go:741 [goID 95] 2025-07-26 13:04:49.992 -0500 CDT OpRsync_SenderPlanEnclosed: senderPlan.FileIsDeleted = 'false'
+
+taker.go:742 [goID 95] 2025-07-26 13:04:49.992 -0500 CDT OpRsync_SenderPlanEnclosed: senderPlanSenderPrecis.PathAbsent = 'false'
+
+taker.go:743 [goID 95] 2025-07-26 13:04:49.992 -0500 CDT OpRsync_SenderPlanEnclosed: senderPlan= '&jsync.SenderPlan{SenderPath:"/Users/jaten/rpc25519/jsync/local_cli_dir_test440/test440_001kb.dat", SenderPrecis:(*jsync.FilePrecis)(0xc0005127e0), SenderChunksNoSlice:(*jsync.Chunks)(0xc00008ef00), FileIsDeleted:false}'
+
+taker.go:819 [goID 95] 2025-07-26 13:04:50.017 -0500 CDT end of OpRsync_SenderPlanEnclosed, now wait for 9,10 (OpRsync_HeavyDiffChunksLast==10 at least); goalPrecis.Path='/Users/jaten/rpc25519/jsync/local_cli_dir_test440/test440_001kb.dat'
+
+taker.go:742 [goID 44] 2025-07-26 13:04:50.017 -0500 CDT OpRsync_SenderPlanEnclosed: senderPlanSenderPrecis.PathAbsent = 'false'
+
+taker.go:743 [goID 44] 2025-07-26 13:04:50.017 -0500 CDT OpRsync_SenderPlanEnclosed: senderPlan= '&jsync.SenderPlan{SenderPath:"/Users/jaten/rpc25519/jsync/local_cli_dir_test440/test440_000kb.dat", SenderPrecis:(*jsync.FilePrecis)(0xc000377560), SenderChunksNoSlice:(*jsync.Chunks)(0xc000401aa0), FileIsDeleted:false}'
+
+taker.go:819 [goID 44] 2025-07-26 13:04:50.018 -0500 CDT end of OpRsync_SenderPlanEnclosed, now wait for 9,10 (OpRsync_HeavyDiffChunksLast==10 at least); goalPrecis.Path='/Users/jaten/rpc25519/jsync/local_cli_dir_test440/test440_000kb.dat'
+
+pump.go:150 [goID 52] 2025-07-26 18:04:50.048047000 +0000 UTC jsync_server 0xc00026e210: pump loop top of select. pb.handleChansNewCircuit = 0xc000492310
+
+pump.go:150 [goID 52] 2025-07-26 18:04:50.048146000 +0000 UTC jsync_server 0xc00026e210: pump loop top of select. pb.handleChansNewCircuit = 0xc000492310
+
+taker.go:684 [goID 44] 2025-07-26 13:04:50.05 -0500 CDT synced to disk: localPathToWrite='/Users/jaten/rpc25519/jsync/remote_srv_dir_test440/test440_000kb.dat_accept_plan_tmp_7dct3-5Kd1aHhbeCoZUKBmtd' -> renamed to '/Users/jaten/rpc25519/jsync/remote_srv_dir_test440/test440_000kb.dat'
+
+taker.go:704 [goID 44] 2025-07-26 13:04:50.05 -0500 CDT restore mode, modtime on localPathToWrite='/Users/jaten/rpc25519/jsync/remote_srv_dir_test440/test440_000kb.dat'
+
+taker.go:684 [goID 95] 2025-07-26 13:04:50.05 -0500 CDT synced to disk: localPathToWrite='/Users/jaten/rpc25519/jsync/remote_srv_dir_test440/test440_001kb.dat_accept_plan_tmp_iN8Ip1xfOQZIa0KR6ShDTlgT' -> renamed to '/Users/jaten/rpc25519/jsync/remote_srv_dir_test440/test440_001kb.dat'
+
+taker.go:704 [goID 95] 2025-07-26 13:04:50.074 -0500 CDT restore mode, modtime on localPathToWrite='/Users/jaten/rpc25519/jsync/remote_srv_dir_test440/test440_001kb.dat'
+
+pump.go:150 [goID 50] 2025-07-26 18:04:50.074672000 +0000 UTC jsync_client 0xc000828000: pump loop top of select. pb.handleChansNewCircuit = 0xc00081c150
+
+giver.go:332 [goID 54] 2025-07-26 13:04:50.074 -0500 CDT Giver sees OpRsync_FileAllReadAckToGiver for '/Users/jaten/rpc25519/jsync/local_cli_dir_test440/test440_000kb.dat'; about to ackBackFINToTaker
+
+pump.go:150 [goID 52] 2025-07-26 18:04:50.075392000 +0000 UTC jsync_server 0xc00026e210: pump loop top of select. pb.handleChansNewCircuit = 0xc000492310
+
+pump.go:150 [goID 50] 2025-07-26 18:04:50.075461000 +0000 UTC jsync_client 0xc000828000: pump loop top of select. pb.handleChansNewCircuit = 0xc00081c150
+
+giver.go:332 [goID 72] 2025-07-26 13:04:50.103 -0500 CDT Giver sees OpRsync_FileAllReadAckToGiver for '/Users/jaten/rpc25519/jsync/local_cli_dir_test440/test440_001kb.dat'; about to ackBackFINToTaker
+
+taker.go:213 [goID 44] 2025-07-26 13:04:50.103 -0500 CDT jsync_server: (ckt 'rsync remote gives') (Taker) sees OpRsync_AckBackFIN_ToTaker. returning.
+
+halter.go:703 2025-07-26 18:04:50.104 +0000 UTC taskCount is now 1
+
+dirtaker.go:927 [goID 44] 2025-07-26 13:04:50.104 -0500 CDT dirtaker worker: back from s.Taker(), and batchHalt=0xc000820140 .TaskDone left=1; errg='<nil>'
+
+pump.go:150 [goID 52] 2025-07-26 18:04:50.104399000 +0000 UTC jsync_server 0xc00026e210: pump loop top of select. pb.handleChansNewCircuit = 0xc000492310
+
+pump.go:150 [goID 50] 2025-07-26 18:04:50.104646000 +0000 UTC jsync_client 0xc000828000: pump loop top of select. pb.handleChansNewCircuit = 0xc00081c150
+
+pump.go:150 [goID 50] 2025-07-26 18:04:50.104725000 +0000 UTC jsync_client 0xc000828000: pump loop top of select. pb.handleChansNewCircuit = 0xc00081c150
+
+halter.go:727 2025-07-26 18:04:50.83 +0000 UTC TaskWait chan 0xc00081e410 stalled on goro 22 stalled, c.taskCount = 1
+
+halter.go:727 2025-07-26 18:04:51.831 +0000 UTC TaskWait chan 0xc00081e410 stalled on goro 22 stalled, c.taskCount = 1
+
+halter.go:727 2025-07-26 18:04:52.833 +0000 UTC TaskWait chan 0xc00081e410 stalled on goro 22 stalled, c.taskCount = 1
+
+halter.go:727 2025-07-26 18:04:53.834 +0000 UTC TaskWait chan 0xc00081e410 stalled on goro 22 stalled, c.taskCount = 1
+
+halter.go:727 2025-07-26 18:04:54.836 +0000 UTC TaskWait chan 0xc00081e410 stalled on goro 22 stalled, c.taskCount = 1
+
+2025-07-26 18:04:55.006 +0000 UTC SIGQUIT: quit after filtering.
+filterstacks.go filtered stacks:
+
+goroutine 8 [running]:
+github.com/glycerine/rpc25519.init.1.func1()
+	/Users/jaten/rpc25519/filterstacks.go:26 +0x325
+created by github.com/glycerine/rpc25519.init.1 in goroutine 1
+	/Users/jaten/rpc25519/filterstacks.go:21 +0x7f
+
+goroutine 1 [chan receive]:
+testing.(*T).Run(0xc00039a540, {0x10a42f0b2?, 0xc00019fb30?}, 0x10a700b68)
+	/usr/local/go1.25rc2/src/testing/testing.go:2005 +0x485
+testing.runTests.func1(0xc00039a540)
+	/usr/local/go1.25rc2/src/testing/testing.go:2477 +0x37
+testing.tRunner(0xc00039a540, 0xc00019fc70)
+	/usr/local/go1.25rc2/src/testing/testing.go:1934 +0xea
+testing.runTests(0xc0000101f8, {0x10ab73ee0, 0x3e, 0x3e}, {0x7?, 0xc000042c00?, 0x10abcd680?})
+	/usr/local/go1.25rc2/src/testing/testing.go:2475 +0x4b4
+testing.(*M).Run(0xc0000d6a00)
+	/usr/local/go1.25rc2/src/testing/testing.go:2337 +0x63a
+main.main()
+	_testmain.go:353 +0x9b
+
+goroutine 7 [syscall]:
+os/signal.signal_recv()
+	/usr/local/go1.25rc2/src/runtime/sigqueue.go:149 +0x25
+os/signal.loop()
+	/usr/local/go1.25rc2/src/os/signal/signal_unix.go:23 +0x13
+created by os/signal.Notify.func1.1 in goroutine 1
+	/usr/local/go1.25rc2/src/os/signal/signal.go:152 +0x1f
+
+goroutine 9 [select]:
+github.com/glycerine/rpc25519/jsync.(*jsyncU).DirPushFromTo(0xc000820080, {0xc0000287c0, 0x32}, {0xc000028800, 0x33}, {0x10a713700, 0xc00049c008})
+	/Users/jaten/rpc25519/jsync/jsync.go:334 +0x3c5
+github.com/glycerine/rpc25519/jsync.(*jsyncU).PushFromTo(0xc000820080, {0xc0000287c0, 0x32}, {0xc000028800, 0x33})
+	/Users/jaten/rpc25519/jsync/jsync.go:214 +0x59c
+github.com/glycerine/rpc25519/jsync.Test440_directory_sync.func1()
+	/Users/jaten/rpc25519/jsync/dir_test.go:127 +0x845
+github.com/glycerine/goconvey/convey.discover.parseAction.func1({0x10a459443?, 0xc0000d39b0?})
+	/Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/discovery.go:80 +0x13
+github.com/glycerine/goconvey/convey.(*context).conveyInner(0xc00008e180, {0x10a459443?, 0x14d753aa6661362?}, 0xc000038cb0)
+	/Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/context.go:264 +0x132
+github.com/glycerine/goconvey/convey.rootConvey.func1()
+	/Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/context.go:113 +0xca
+github.com/jtolds/gls.(*ContextManager).SetValues.func1(0x0)
+	/Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/context.go:97 +0x47b
+github.com/jtolds/gls.EnsureGoroutineId.func1()
+	/Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/gid.go:24 +0x1b
+github.com/jtolds/gls._m(0x10a689f20?, 0xc000063d01?)
+	/Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/stack_tags.go:108 +0x1b
+github.com/jtolds/gls.github_com_jtolds_gls_markS(0x10a6b9b20?, 0xc0000d38f0?)
+	/Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/stack_tags.go:56 +0x13
+github.com/jtolds/gls.addStackTag(...)
+	/Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/stack_tags.go:49
+github.com/jtolds/gls.EnsureGoroutineId(0xc0000d3920)
+	/Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/gid.go:24 +0xbd
+github.com/jtolds/gls.(*ContextManager).SetValues(0xc000038730, 0xc0000d38c0, 0xc000080920)
+	/Users/jaten/go/pkg/mod/github.com/jtolds/gls@v4.20.0+incompatible/context.go:63 +0x15d
+github.com/glycerine/goconvey/convey.rootConvey({0xc000063f30?, 0x10a5fabc0?, 0x10a704510?})
+	/Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/context.go:108 +0x20b
+github.com/glycerine/goconvey/convey.Convey({0xc000063f30, 0x3, 0x3})
+	/Users/jaten/go/pkg/mod/github.com/glycerine/goconvey@v0.0.0-20190410193231-58a59202ab31/convey/doc.go:73 +0x85
+github.com/glycerine/rpc25519/jsync.Test440_directory_sync(0xc00039a700)
+	/Users/jaten/rpc25519/jsync/dir_test.go:20 +0x9d
+testing.tRunner(0xc00039a700, 0x10a700b68)
+	/usr/local/go1.25rc2/src/testing/testing.go:1934 +0xea
+created by testing.(*T).Run in goroutine 1
+	/usr/local/go1.25rc2/src/testing/testing.go:1997 +0x465
+
+goroutine 10 [IO wait]:
+internal/poll.runtime_pollWait(0x10af62000, 0x72)
+	/usr/local/go1.25rc2/src/runtime/netpoll.go:351 +0x85
+internal/poll.(*pollDesc).wait(0xc000386600?, 0x109d76545?, 0x0)
+	/usr/local/go1.25rc2/src/internal/poll/fd_poll_runtime.go:84 +0x27
+internal/poll.(*pollDesc).waitRead(...)
+	/usr/local/go1.25rc2/src/internal/poll/fd_poll_runtime.go:89
+internal/poll.(*FD).Accept(0xc000386600)
+	/usr/local/go1.25rc2/src/internal/poll/fd_unix.go:613 +0x28c
+net.(*netFD).accept(0xc000386600)
+	/usr/local/go1.25rc2/src/net/fd_unix.go:161 +0x29
+net.(*TCPListener).accept(0xc000042f00)
+	/usr/local/go1.25rc2/src/net/tcpsock_posix.go:159 +0x1b
+net.(*TCPListener).Accept(0xc000042f00)
+	/usr/local/go1.25rc2/src/net/tcpsock.go:380 +0x30
+crypto/tls.(*listener).Accept(0xc000010618)
+	/usr/local/go1.25rc2/src/crypto/tls/tls.go:79 +0x24
+github.com/glycerine/rpc25519.(*Server).runServerMain(0xc00039a700?, {0x10a425874, 0xb}, 0x0, {0x0, 0x0}, 0xc000398a10)
+	/Users/jaten/rpc25519/srv.go:219 +0xc3e
+created by github.com/glycerine/rpc25519.(*Server).Start in goroutine 9
+	/Users/jaten/rpc25519/srv.go:2283 +0x3da
+
+goroutine 12 [select]:
+github.com/glycerine/rpc25519.(*LocalPeer).peerbackPump(0xc00026e2c0)
+	/Users/jaten/rpc25519/pump.go:151 +0x374
+created by github.com/glycerine/rpc25519.(*peerAPI).newLocalPeer in goroutine 9
+	/Users/jaten/rpc25519/ckt.go:551 +0x4f6
+
+goroutine 18 [select]:
+github.com/glycerine/rpc25519/jsync.(*SyncService).Start(0xc000042f80, 0xc00026e2c0, {0x10a70d860, 0xc000022780}, 0xc000398fc0)
+	/Users/jaten/rpc25519/jsync/service.go:632 +0x1d4
+github.com/glycerine/rpc25519.(*peerAPI).unlockedStartLocalPeer.func1()
+	/Users/jaten/rpc25519/ckt.go:1020 +0x78
+created by github.com/glycerine/rpc25519.(*peerAPI).unlockedStartLocalPeer in goroutine 9
+	/Users/jaten/rpc25519/ckt.go:1018 +0x3a5
+
+goroutine 19 [IO wait]:
+internal/poll.runtime_pollWait(0x10af61e00, 0x72)
+	/usr/local/go1.25rc2/src/runtime/netpoll.go:351 +0x85
+internal/poll.(*pollDesc).wait(0xc0004b8200?, 0xc00046ea80?, 0x0)
+	/usr/local/go1.25rc2/src/internal/poll/fd_poll_runtime.go:84 +0x27
+internal/poll.(*pollDesc).waitRead(...)
+	/usr/local/go1.25rc2/src/internal/poll/fd_poll_runtime.go:89
+internal/poll.(*FD).Read(0xc0004b8200, {0xc00046ea80, 0xa80, 0xa80})
+	/usr/local/go1.25rc2/src/internal/poll/fd_unix.go:165 +0x279
+net.(*netFD).Read(0xc0004b8200, {0xc00046ea80?, 0x1c?, 0xc0003b15c0?})
+	/usr/local/go1.25rc2/src/net/fd_posix.go:68 +0x25
+net.(*conn).Read(0xc00041c000, {0xc00046ea80?, 0x10acc9170?, 0x10acc05c0?})
+	/usr/local/go1.25rc2/src/net/net.go:196 +0x45
+crypto/tls.(*atLeastReader).Read(0xc000010660, {0xc00046ea80?, 0x1000000001?, 0x2?})
+	/usr/local/go1.25rc2/src/crypto/tls/conn.go:816 +0x3b
+bytes.(*Buffer).ReadFrom(0xc00041e2a8, {0x10a708620, 0xc000010660})
+	/usr/local/go1.25rc2/src/bytes/buffer.go:217 +0x98
+crypto/tls.(*Conn).readFromUntil(0xc00041e008, {0x10b1160b8, 0xc00041c000}, 0x109d9afb4?)
+	/usr/local/go1.25rc2/src/crypto/tls/conn.go:838 +0xde
+crypto/tls.(*Conn).readRecordOrCCS(0xc00041e008, 0x0)
+	/usr/local/go1.25rc2/src/crypto/tls/conn.go:627 +0x3db
+crypto/tls.(*Conn).readRecord(...)
+	/usr/local/go1.25rc2/src/crypto/tls/conn.go:589
+crypto/tls.(*Conn).Read(0xc00041e008, {0xc00048e228, 0x8, 0x0?})
+	/usr/local/go1.25rc2/src/crypto/tls/conn.go:1392 +0x145
+github.com/glycerine/rpc25519.readFull({0x10a70da58, 0xc00041e008}, {0xc00048e228, 0x8, 0x8})
+	/Users/jaten/rpc25519/common.go:391 +0xb2
+github.com/glycerine/rpc25519.(*workspace).readMessage(0xc0004821a0, {0x10a70da58, 0xc00041e008})
+	/Users/jaten/rpc25519/common.go:193 +0x45
+github.com/glycerine/rpc25519.(*blabber).readMessage(0x10ab642d0?, {0x10a70da58?, 0xc00041e008?})
+	/Users/jaten/rpc25519/chacha.go:292 +0x45
+github.com/glycerine/rpc25519.(*Client).runReadLoop(0xc00049c008, {0x10a710ae8, 0xc00041e008}, 0xc00042e108)
+	/Users/jaten/rpc25519/cli.go:370 +0x295
+github.com/glycerine/rpc25519.(*Client).runClientMain(0xc00049c008, {0xc00048e010, 0xf}, 0x0, {0x0, 0x0})
+	/Users/jaten/rpc25519/cli.go:248 +0xcf0
+created by github.com/glycerine/rpc25519.(*Client).Start in goroutine 9
+	/Users/jaten/rpc25519/cli.go:1677 +0x18f
+
+goroutine 66 [select]:
+github.com/glycerine/rpc25519.(*rwPair).runSendLoop(0xc000126008, {0x10a710ae8, 0xc0004de008})
+	/Users/jaten/rpc25519/srv.go:499 +0x4ef
+created by github.com/glycerine/rpc25519.(*Server).serveConn in goroutine 20
+	/Users/jaten/rpc25519/srv.go:362 +0x255
+
+goroutine 34 [select]:
+github.com/glycerine/rpc25519.(*Client).runSendLoop(0xc00049c008, {0x10a710ae8, 0xc00041e008}, 0xc00042e108)
+	/Users/jaten/rpc25519/cli.go:604 +0x574
+created by github.com/glycerine/rpc25519.(*Client).runClientMain in goroutine 19
+	/Users/jaten/rpc25519/cli.go:247 +0xccc
+
+goroutine 50 [select]:
+github.com/glycerine/rpc25519.(*LocalPeer).peerbackPump(0xc000828000)
+	/Users/jaten/rpc25519/pump.go:151 +0x374
+created by github.com/glycerine/rpc25519.(*peerAPI).newLocalPeer in goroutine 9
+	/Users/jaten/rpc25519/ckt.go:551 +0x4f6
+
+goroutine 51 [select]:
+github.com/glycerine/rpc25519/jsync.(*SyncService).Start(0xc000820040, 0xc000828000, {0x10a70d860, 0xc00081e0a0}, 0xc000824000)
+	/Users/jaten/rpc25519/jsync/service.go:632 +0x1d4
+github.com/glycerine/rpc25519.(*peerAPI).unlockedStartLocalPeer.func1()
+	/Users/jaten/rpc25519/ckt.go:1020 +0x78
+created by github.com/glycerine/rpc25519.(*peerAPI).unlockedStartLocalPeer in goroutine 9
+	/Users/jaten/rpc25519/ckt.go:1018 +0x3a5
+
+goroutine 67 [IO wait]:
+internal/poll.runtime_pollWait(0x10af61c00, 0x72)
+	/usr/local/go1.25rc2/src/runtime/netpoll.go:351 +0x85
+internal/poll.(*pollDesc).wait(0xc0004b8280?, 0xc000458000?, 0x0)
+	/usr/local/go1.25rc2/src/internal/poll/fd_poll_runtime.go:84 +0x27
+internal/poll.(*pollDesc).waitRead(...)
+	/usr/local/go1.25rc2/src/internal/poll/fd_poll_runtime.go:89
+internal/poll.(*FD).Read(0xc0004b8280, {0xc000458000, 0x800, 0x800})
+	/usr/local/go1.25rc2/src/internal/poll/fd_unix.go:165 +0x279
+net.(*netFD).Read(0xc0004b8280, {0xc000458000?, 0x1c?, 0xc0004b39d0?})
+	/usr/local/go1.25rc2/src/net/fd_posix.go:68 +0x25
+net.(*conn).Read(0xc0004b4048, {0xc000458000?, 0x10b115488?, 0x10acc0108?})
+	/usr/local/go1.25rc2/src/net/net.go:196 +0x45
+crypto/tls.(*atLeastReader).Read(0xc000430108, {0xc000458000?, 0xd00000001?, 0x2?})
+	/usr/local/go1.25rc2/src/crypto/tls/conn.go:816 +0x3b
+bytes.(*Buffer).ReadFrom(0xc0004de2a8, {0x10a708620, 0xc000430108})
+	/usr/local/go1.25rc2/src/bytes/buffer.go:217 +0x98
+crypto/tls.(*Conn).readFromUntil(0xc0004de008, {0x10b1160b8, 0xc0004b4048}, 0x109d9afb4?)
+	/usr/local/go1.25rc2/src/crypto/tls/conn.go:838 +0xde
+crypto/tls.(*Conn).readRecordOrCCS(0xc0004de008, 0x0)
+	/usr/local/go1.25rc2/src/crypto/tls/conn.go:627 +0x3db
+crypto/tls.(*Conn).readRecord(...)
+	/usr/local/go1.25rc2/src/crypto/tls/conn.go:589
+crypto/tls.(*Conn).Read(0xc0004de008, {0xc00042a018, 0x8, 0x0?})
+	/usr/local/go1.25rc2/src/crypto/tls/conn.go:1392 +0x145
+github.com/glycerine/rpc25519.readFull({0x10a70da58, 0xc0004de008}, {0xc00042a018, 0x8, 0x8})
+	/Users/jaten/rpc25519/common.go:391 +0xb2
+github.com/glycerine/rpc25519.(*workspace).readMessage(0xc00047e000, {0x10a70da58, 0xc0004de008})
+	/Users/jaten/rpc25519/common.go:193 +0x45
+github.com/glycerine/rpc25519.(*blabber).readMessage(0x10ab64b70?, {0x10a70da58?, 0xc0004de008?})
+	/Users/jaten/rpc25519/chacha.go:292 +0x45
+github.com/glycerine/rpc25519.(*rwPair).runReadLoop(0xc000126008, {0x10a710ae8, 0xc0004de008})
+	/Users/jaten/rpc25519/srv.go:583 +0x33d
+created by github.com/glycerine/rpc25519.(*Server).serveConn in goroutine 20
+	/Users/jaten/rpc25519/srv.go:363 +0x2bf
+
+goroutine 43 [select]:
+github.com/glycerine/rpc25519/jsync.(*SyncService).DirGiver(0xc000820040, {0x10a70d860, 0xc00081e0a0}, 0xc000270000, 0xc000828000, 0xc000386000)
+	/Users/jaten/rpc25519/jsync/dirgiver.go:108 +0x22c
+created by github.com/glycerine/rpc25519/jsync.(*SyncService).Start in goroutine 51
+	/Users/jaten/rpc25519/jsync/service.go:826 +0x869
+
+goroutine 52 [select]:
+github.com/glycerine/rpc25519.(*LocalPeer).peerbackPump(0xc00026e210)
+	/Users/jaten/rpc25519/pump.go:151 +0x374
+created by github.com/glycerine/rpc25519.(*peerAPI).newLocalPeer in goroutine 67
+	/Users/jaten/rpc25519/ckt.go:551 +0x4f6
+
+goroutine 53 [select]:
+github.com/glycerine/rpc25519/jsync.(*SyncService).Start(0xc000042f80, 0xc00026e210, {0x10a70d860, 0xc0004200f0}, 0xc000398620)
+	/Users/jaten/rpc25519/jsync/service.go:632 +0x1d4
+github.com/glycerine/rpc25519.(*peerAPI).unlockedStartLocalPeer.func1()
+	/Users/jaten/rpc25519/ckt.go:1020 +0x78
+created by github.com/glycerine/rpc25519.(*peerAPI).unlockedStartLocalPeer in goroutine 67
+	/Users/jaten/rpc25519/ckt.go:1018 +0x3a5
+
+goroutine 22 [select]:
+github.com/glycerine/idem.(*IdemCloseChan).TaskWait(0xc00081e410, 0xc0004925b0)
+	/Users/jaten/go/src/github.com/glycerine/idem/halter.go:719 +0xa6
+github.com/glycerine/rpc25519/jsync.(*SyncService).dirTakerRequestIndivFiles(0xc000042f80, 0xc00026e210, 0xc0000806a0, 0xc0004b8000, 0xc01a40e000, 0xc0004925b0, 0xc00081c3f0, 0xc01db41c18, 0x0)
+	/Users/jaten/rpc25519/jsync/dirtaker.go:969 +0x89e
+github.com/glycerine/rpc25519/jsync.(*SyncService).DirTaker(0xc000042f80, {0x10a70d860, 0xc0004200f0}, 0xc01a40e000, 0xc00026e210, 0x0)
+	/Users/jaten/rpc25519/jsync/dirtaker.go:413 +0xa71
+created by github.com/glycerine/rpc25519/jsync.(*SyncService).Start in goroutine 53
+	/Users/jaten/rpc25519/jsync/service.go:657 +0x39e
+
+goroutine 95 [select]:
+github.com/glycerine/rpc25519/jsync.(*SyncService).Taker(0xc000042f80, {0x10a70d860, 0xc0004a2c80}, 0xc01db54000, 0xc00026e210, 0xc00083a1a0)
+	/Users/jaten/rpc25519/jsync/taker.go:200 +0x4ef
+github.com/glycerine/rpc25519/jsync.(*SyncService).dirTakerRequestIndivFiles.func1(0xc024c3e1c0, 0xc000820200, 0xc00042a220, 0x1)
+	/Users/jaten/rpc25519/jsync/dirtaker.go:922 +0xc45
+created by github.com/glycerine/rpc25519/jsync.(*SyncService).dirTakerRequestIndivFiles in goroutine 22
+	/Users/jaten/rpc25519/jsync/dirtaker.go:729 +0x308
+
+goroutine 44 [select]:
+github.com/glycerine/rpc25519/jsync.(*SyncService).dirTakerRequestIndivFiles.func1(0xc024c3e1c0, 0xc000820180, 0xc000902130, 0x0)
+	/Users/jaten/rpc25519/jsync/dirtaker.go:756 +0x285
+created by github.com/glycerine/rpc25519/jsync.(*SyncService).dirTakerRequestIndivFiles in goroutine 22
+	/Users/jaten/rpc25519/jsync/dirtaker.go:729 +0x308
+
+goroutine 70 [select]:
+github.com/glycerine/rpc25519/jsync.(*SyncService).dirTakerRequestIndivFiles.func1(0xc024c3e1c0, 0xc0008203c0, 0xc00048e4c0, 0x5)
+	/Users/jaten/rpc25519/jsync/dirtaker.go:756 +0x285
+created by github.com/glycerine/rpc25519/jsync.(*SyncService).dirTakerRequestIndivFiles in goroutine 22
+	/Users/jaten/rpc25519/jsync/dirtaker.go:729 +0x308
+
+goroutine 71 [select]:
+github.com/glycerine/rpc25519/jsync.(*SyncService).dirTakerRequestIndivFiles.func1(0xc024c3e1c0, 0xc000432240, 0xc00048e510, 0x6)
+	/Users/jaten/rpc25519/jsync/dirtaker.go:756 +0x285
+created by github.com/glycerine/rpc25519/jsync.(*SyncService).dirTakerRequestIndivFiles in goroutine 22
+	/Users/jaten/rpc25519/jsync/dirtaker.go:729 +0x308
+
+goroutine 72 [select]:
+github.com/glycerine/rpc25519/jsync.(*SyncService).Giver(0xc000820040, {0x10a70d860?, 0xc00081e0a0?}, 0xc01db36300, 0xc000828000, 0x0)
+	/Users/jaten/rpc25519/jsync/giver.go:90 +0x245
+created by github.com/glycerine/rpc25519/jsync.(*SyncService).Start in goroutine 51
+	/Users/jaten/rpc25519/jsync/service.go:654 +0x455
+
+goroutine 31 [select]:
+github.com/glycerine/rpc25519/jsync.(*SyncService).dirTakerRequestIndivFiles.func1(0xc024c3e1c0, 0xc0004a4680, 0xc000012b10, 0x2)
+	/Users/jaten/rpc25519/jsync/dirtaker.go:756 +0x285
+created by github.com/glycerine/rpc25519/jsync.(*SyncService).dirTakerRequestIndivFiles in goroutine 22
+	/Users/jaten/rpc25519/jsync/dirtaker.go:729 +0x308
+
+goroutine 45 [select]:
+github.com/glycerine/rpc25519/jsync.(*SyncService).dirTakerRequestIndivFiles.func1(0xc024c3e1c0, 0xc0004a4700, 0xc000902180, 0x3)
+	/Users/jaten/rpc25519/jsync/dirtaker.go:756 +0x285
+created by github.com/glycerine/rpc25519/jsync.(*SyncService).dirTakerRequestIndivFiles in goroutine 22
+	/Users/jaten/rpc25519/jsync/dirtaker.go:729 +0x308
+
+goroutine 46 [select]:
+github.com/glycerine/rpc25519/jsync.(*SyncService).dirTakerRequestIndivFiles.func1(0xc024c3e1c0, 0xc000820280, 0xc0009021d0, 0x4)
+	/Users/jaten/rpc25519/jsync/dirtaker.go:756 +0x285
+created by github.com/glycerine/rpc25519/jsync.(*SyncService).dirTakerRequestIndivFiles in goroutine 22
+	/Users/jaten/rpc25519/jsync/dirtaker.go:729 +0x308
+
+goroutine 32 [select]:
+github.com/glycerine/rpc25519/jsync.(*SyncService).dirTakerRequestIndivFiles.func1(0xc024c3e1c0, 0xc000432300, 0xc000012b80, 0x7)
+	/Users/jaten/rpc25519/jsync/dirtaker.go:756 +0x285
+created by github.com/glycerine/rpc25519/jsync.(*SyncService).dirTakerRequestIndivFiles in goroutine 22
+	/Users/jaten/rpc25519/jsync/dirtaker.go:729 +0x308
+exit status 1
+FAIL	github.com/glycerine/rpc25519/jsync	6.127s
+
+Compilation exited abnormally with code 1 at Sat Jul 26 19:04:55
