@@ -329,7 +329,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				continue
 
 			case OpRsync_FileAllReadAckToGiver:
-				vv("Giver sees OpRsync_FileAllReadAckToGiver for '%v'; about to ackBackFINToTaker", syncReq.GiverPath) // giver.go:332 [goID 114] 2025-07-26 12:56:33.833 -0500 CDT Giver sees OpRsync_FileAllReadAckToGiver for '/Users/jaten/go/src/github.com/glycerine/rpc25519/jsync/local_cli_dir_test440/test440_000kb.dat'; about to ackBackFINToTaker (and same for 001kb.dat the other file).
+				vv("Giver sees OpRsync_FileAllReadAckToGiver for '%v'; about to ackBackFINToTaker", syncReq.GiverPath) // giver.go:332 [goID 114] 2025-07-26 12:56:33.833 -0500 CDT Giver sees OpRsync_FileAllReadAckToGiver for '/Users/jaten/go/src/github.com/glycerine/rpc25519/jsync/local_cli_dir_test440/test440_000kb.dat'; about to ackBackFINToTaker (and same for 001kb.dat the other file). // BUT! SOME red 440 seen only once.
 
 				syncReq.GiverFullFileBlake3, _ = frag0.GetUserArg("clientTotalBlake3sum")
 				syncReq.TakerFullFileBlake3, _ = frag0.GetUserArg("serverTotalBlake3sum")

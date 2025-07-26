@@ -56,7 +56,7 @@ var ErrNeedDirTaker = fmt.Errorf("DirTaker needed: giver has directory where tak
 // shutdown tree.
 func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.LocalPeer, syncReq *RequestToSyncPath) (err0 error) {
 
-	//vv("SyncService.Taker top")
+	vv("SyncService.Taker top")
 
 	name := myPeer.PeerServiceName
 	_ = name // used when logging is on.
@@ -64,7 +64,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	bt := &byteTracker{}
 
 	defer func(syncReq *RequestToSyncPath) {
-		//vv("%v: (ckt '%v') defer running! finishing Taker; syncReq=%p; err0='%v'", name, ckt.Name, syncReq, err0)
+		vv("%v: (ckt '%v') defer running! finishing Taker; syncReq=%p; err0='%v'", name, ckt.Name, syncReq, err0)
 		//vv("bt = '%#v'", bt)
 
 		// only close Done for local (client, typically) if we were started locally.
@@ -197,7 +197,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	// this is the Taker side
 takerForSelectLoop:
 	for {
-		select { // hung here on jsync 220, 4x
+		select { // hung here on jsync 220, 4x. hung here on 440.
 		case frag := <-ckt.Reads:
 			//vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
 			_ = frag
