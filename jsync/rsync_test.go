@@ -482,8 +482,8 @@ func Test300_incremental_chunker_matches_batch(t *testing.T) {
 		_ = precis1
 		cv.So(precis0.FileCry, cv.ShouldEqual, precis1.FileCry)
 
-		vv("precis1 = '%#v'", precis1)
-		vv("precis0 = '%#v'", precis0)
+		//vv("precis1 = '%#v'", precis1)
+		//vv("precis0 = '%#v'", precis0)
 		cv.So(precis0, cv.ShouldResemble, precis1)
 	})
 }
