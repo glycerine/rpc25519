@@ -339,10 +339,10 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				frag0 = nil // GC early.
 				continue
 
-			case OpRsync_ToGiverNeedFullFile2:
-				panic("OpRsync_ToGiverNeedFullFile2 no longer used, b/c we want RLE0 compression support")
-				// We no long use this (assuming useRLE0 = true).
-				// We chunk all files now to get the RLE0 benefits.
+				// case OpRsync_ToGiverNeedFullFile2:
+				// 	panic("OpRsync_ToGiverNeedFullFile2 no longer used, b/c we want RLE0 compression support")
+				// 	// We no long use this (assuming useRLE0 = true).
+				// 	// We chunk all files now to get the RLE0 benefits.
 			} // end switch frag0.FragOp
 
 		case fragerr := <-ckt.Errors:
@@ -424,9 +424,10 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	//vv("remoteWantsUpdate DataPresent = %v; should be 0", remoteWantsUpdate.DataPresent())
 
 	// reply with these
-	//OpRsync_SenderPlanEnclosed
-	//OpRsync_HeavyDiffChunksEnclosed
-	//OpRsync_HeavyDiffChunksLast
+	// (maybe) OpRsync_ToTakerMetaUpdateAtLeast(14) (that's all)
+	//OpRsync_SenderPlanEnclosed(11)
+	//OpRsync_HeavyDiffChunksEnclosed(9)
+	//OpRsync_HeavyDiffChunksLast(10)
 
 	// local describes the local file in Chunks.
 	// We send it to Taker so they know how
@@ -468,7 +469,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 		//vv("we can save on sending chunks! remoteWantsUpdate.FileCry == goalPrecis.FileCry = '%v'. sending back OpRsync_ToTakerMetaUpdateAtLeast", remoteWantsUpdate.FileCry)
 
 		updateMeta := ckt.LpbFrom.NewFragment()
-		updateMeta.FragOp = OpRsync_ToTakerMetaUpdateAtLeast
+		updateMeta.FragOp = OpRsync_ToTakerMetaUpdateAtLeast // 14
 		updateMeta.FragSubject = frag0.FragSubject
 
 		bts, err := goalPrecis.MarshalMsg(nil)
@@ -509,7 +510,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	lightPlan := placeholderPlan.CloneWithNoChunks()
 
 	if goalPrecis == nil {
-		panic(fmt.Sprintf("why is goalPrecis nil here?? causes problems over at taker.go:754 and following"))
+		panic(fmt.Sprintf("why is goalPrecis nil here?? would cause problems over at taker.go:754 and following")) // not seen?
 	}
 	splan := SenderPlan{
 		SenderPath:          localPath,
@@ -519,7 +520,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 
 	pf := ckt.LpbFrom.NewFragment()
 	pf.FragSubject = frag0.FragSubject
-	pf.FragOp = OpRsync_SenderPlanEnclosed
+	pf.FragOp = OpRsync_SenderPlanEnclosed // 11
 
 	bts, err := splan.MarshalMsg(nil)
 	panicOn(err)
@@ -542,8 +543,8 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	return s.packAndSendChunksJustInTime(
 		placeholderPlan,
 		frag0.FragSubject,
-		OpRsync_HeavyDiffChunksLast,
-		OpRsync_HeavyDiffChunksEnclosed,
+		OpRsync_HeavyDiffChunksLast,     // 10
+		OpRsync_HeavyDiffChunksEnclosed, // 9
 		ckt,
 		bt,
 		placeholderPlan.Path,
@@ -571,7 +572,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 	if !fileExists(syncReq.GiverPath) {
 		//vv("path '%v' does not exist on Giver: tell Taker to delete their file.", syncReq.GiverPath)
 		rm := ckt.LpbFrom.NewFragment()
-		rm.FragOp = OpRsync_TellTakerToDelete
+		rm.FragOp = OpRsync_TellTakerToDelete // 13
 
 		bt.bsend += rm.Msgsize()
 		err := ckt.SendOneWay(rm, 0, 0)

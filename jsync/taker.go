@@ -197,7 +197,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	// this is the Taker side
 takerForSelectLoop:
 	for {
-		select { // hung here on jsync 220
+		select { // hung here on jsync 220, 4x
 		case frag := <-ckt.Reads:
 			//vv("%v: (ckt %v) (Taker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
 			_ = frag
@@ -393,8 +393,8 @@ takerForSelectLoop:
 				frag = nil
 				continue // wait for FIN.
 
-			case OpRsync_ToGiverNeedFullFile2:
-				panic("OpRsync_ToGiverNeedFullFile2 not expected in Taker!")
+			//case OpRsync_ToGiverNeedFullFile2:
+			//	panic("OpRsync_ToGiverNeedFullFile2 not expected in Taker!")
 
 			case OpRsync_HeavyDiffChunksEnclosed, OpRsync_HeavyDiffChunksLast:
 				//vv("stream of heavy diffs arriving! : %v", frag.String())
@@ -890,7 +890,7 @@ takerForSelectLoop:
 				ackAll = nil
 				continue // wait for fin ack back.
 
-			case OpRsync_RequestRemoteToTake, OpRsync_ToGiverSizeMatchButCheckHashAck:
+			case OpRsync_RequestRemoteToTake, OpRsync_ToGiverSizeMatchButCheckHashAck: // 1, 35
 
 				if frag.FragOp == OpRsync_ToGiverSizeMatchButCheckHashAck {
 					b3sumGiver, ok := frag.GetUserArg("giverFullFileBlake3sum")

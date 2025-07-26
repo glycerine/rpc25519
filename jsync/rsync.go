@@ -824,26 +824,13 @@ func SummarizeFileInCDCHashes(host, path string, keepData bool) (precis *FilePre
 // host identifier, such as rpc25519.Hostname.
 // If keepData is false, the returned chunks will
 // have nil Data.
+//
+// when can returned precis be nil? never, but if err !=nil
+// it might be suspect?
 func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time, keepData bool, fileStatSz int64) (
 	precis *FilePrecis, chunks *Chunks, err error) {
 
 	//vv("top SummarizeBytesInCDCHashes for path = '%v'", path)
-
-	// These two different chunking approaches,
-	// Jcdc and FastCDC, need very different
-	// parameter min/max/target settings in
-	// order to give good chunking.
-
-	var sum *sparsified.SparseSum
-	var spansRead *sparsified.SparseSpans
-	if fd != nil {
-		sum, spansRead, err = sparsified.FindSparseRegions(fd)
-		if err != nil {
-			// probably empty file
-			panicOn(err)
-		}
-	}
-	_ = spansRead
 
 	cfg := Default_CDC_Config
 	cdc := jcdc.GetCutpointer(Default_CDC, cfg)
@@ -857,18 +844,37 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 		CDC_Config:  cdc.Config(),
 		HashName:    "blake3.33B",
 	}
+
+	var sum *sparsified.SparseSum
+	var spansRead *sparsified.SparseSpans
+	if fd != nil {
+		sum, spansRead, err = sparsified.FindSparseRegions(fd)
+		if err != nil {
+			// probably empty file
+			panicOn(err)
+			precis.FileCry = hash.Blake3OfBytesString([]byte{})
+			vv("path '%v' on FindSparseRegions gave err '%v'; fd = %p; fileStatSz = %v; returning precis.FileCry = '%v'; returning nil chunks!", path, err, fd, fileStatSz, precis.FileCry)
+			return
+		}
+	}
+	_ = spansRead
+
 	if sum != nil {
 		precis.IsSparse = sum.IsSparse
 		precis.PreAllocUnwritBeg = sum.UnwritBegin
 		precis.PreAllocUnwritEndx = sum.UnwritEndx
 	}
 
-	if fd == nil || fileStatSz == 0 {
+	if fd == nil || fileStatSz <= 0 {
 		precis.FileCry = hash.Blake3OfBytesString([]byte{})
 		//vv("path '%v' is empty or nil fd passed; fd = %p; fileStatSz = %v; returning precis.FileCry = '%v'", path, fd, fileStatSz, precis.FileCry)
 	} else {
+		// INVAR: fd != nil && fileStatSz > 0
 		precis.FileCry, err = hash.Blake3OfFile(path)
 		panicOn(err)
+		if err != nil {
+			return
+		}
 	}
 
 	chunks = NewChunks(path)
@@ -1084,7 +1090,7 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 		prevcut = cut
 	}
 	return
-}
+} // end SummarizeBytesInCDCHashes
 
 // String pretty prints the Chunks.
 func (d *Chunks) String() (s string) {
@@ -1198,6 +1204,8 @@ func (cs *Chunks) DataFilter() (r []*Chunk) {
 // jcdc.CutpointsAndAllZero() only at the moment),
 // but does generate RLE0; for the zero-runs
 // it sees.
+//
+// When can returned precis be nil?
 func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, err error) {
 
 	//vv("GetHashesOneByOne top")

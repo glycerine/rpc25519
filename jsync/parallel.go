@@ -44,6 +44,8 @@ type job struct {
 // ChunkFile uses multiple parallel goroutines to read and
 // chunk.
 // See ChunkFile2 to control the details.
+//
+// When can returned precis be nil?
 func ChunkFile(path string) (precis *FilePrecis, chunks *Chunks, err error) {
 	precis, chunks, err = ChunkFile2(rpc.Hostname, path, 0, 0)
 	return

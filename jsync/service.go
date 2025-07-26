@@ -154,8 +154,9 @@ type SyncService struct {
 // giver -> 1 -> 8 LightRequestEnclosed(giver) giverSendsPlanAndData.. file checksums already match, yay. -> ToTakerMetaUpdateAtLeast (taker) -> FIN (giver returns)
 // giver -> 1 -> 8 LightRequestEnclosed(giver) giverSendsPlanAndData -> 11,10,9 (taker) -> FileAllReadAck -> FIN (taker returns)
 
-// old: giver -> 1 -> 2 NeedFullFile2(giver) giverSendsWholeFile -> 11 (file not found via SenderPlanEnclosed.FileIsDeleted) (taker deletes file) -> FIN (giver returns)
-// updated: giver -> 1 -> 2 NeedFullFile2(giver) giverSendsPlanAndDataUpdates for RLE0 support -> ... what here? todo: trace what happens after giverSendsPlanAndDataUpdates.
+// old (without RLE0 support b/c giverSendsWholeFile lacks it): giver -> 1 -> 2 NeedFullFile2(giver) giverSendsWholeFile -> 11 (file not found via SenderPlanEnclosed.FileIsDeleted) (taker deletes file) -> FIN (giver returns)
+
+// updated: giver -> 1 -> 2 NeedFullFile2(giver) giverSendsPlanAndDataUpdates for RLE0 support -> ... what here? TODO: trace what happens after giverSendsPlanAndDataUpdates.
 
 // TODO: this next also needs update to replace giverSendsWholeFile with giverSendsPlanAndDataUpdates.
 // giver -> 1 -> 2 NeedFullFile2(giver) giverSendsWholeFile -> FullFileBegin3,FullFileMore4,FullFileEnd5 (taker) -> FileAllReadAck -> FIN (taker returns)
@@ -212,8 +213,8 @@ type SyncService struct {
 // made it slower (on darwin at least).
 
 const (
-	OpRsync_RequestRemoteToTake            = 1  // to taker
-	OpRsync_ToGiverNeedFullFile2           = 2  // ... to Giver (no longer used, since we want RLE0/sparseness scanning always to save space)
+	OpRsync_RequestRemoteToTake = 1 // to taker
+	//OpRsync_ToGiverNeedFullFile2           = 2  // ... to Giver (no longer used, since we want RLE0/sparseness scanning always to save space)
 	OpRsync_HereIsFullFileBegin3           = 3  // to taker
 	OpRsync_HereIsFullFileMore4            = 4  // to taker
 	OpRsync_HereIsFullFileEnd5             = 5  // to taker
@@ -271,7 +272,7 @@ var once sync.Once
 func AliasRsyncOps() {
 	rpc.FragOpRegister(OpRsync_RequestRemoteToTake, "OpRsync_RequestRemoteToTake")
 	rpc.FragOpRegister(OpRsync_RequestRemoteToGive, "OpRsync_RequestRemoteToGive")
-	rpc.FragOpRegister(OpRsync_ToGiverNeedFullFile2, "OpRsync_ToGiverNeedFullFile2")
+	//deleted: rpc.FragOpRegister(OpRsync_ToGiverNeedFullFile2, "OpRsync_ToGiverNeedFullFile2")
 	rpc.FragOpRegister(OpRsync_HereIsFullFileBegin3, "OpRsync_HereIsFullFileBegin3")
 	rpc.FragOpRegister(OpRsync_HereIsFullFileMore4, "OpRsync_HereIsFullFileMore4")
 	rpc.FragOpRegister(OpRsync_HereIsFullFileEnd5, "OpRsync_HereIsFullFileEnd5")
@@ -727,6 +728,8 @@ func (s *SyncService) Start(
 				bts, err := reqDir.MarshalMsg(nil)
 				panicOn(err)
 				pulldir := myPeer.NewFragment()
+				// TODO: could/should we use the newer one-pass 23 here instead?
+				// i.e.    23 == OpRsync_DirSyncBeginReplyFromTaker // 23
 				pulldir.FragOp = OpRsync_TakerRequestsDirSyncBegin // 21
 				pulldir.Payload = bts
 				pulldir.FromPeerID = myPeer.PeerID

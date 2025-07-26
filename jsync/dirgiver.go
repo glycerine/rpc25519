@@ -191,7 +191,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				panicOn(err)
 				bt.bsend += len(bts)
 
-			case OpRsync_DirSyncBeginReplyFromTaker: // new one-pass version 23
+			case OpRsync_DirSyncBeginReplyFromTaker: // new one-pass version 23 but 21 is still in use! by service.go:659 for fundamental start off serviceReq!
 
 				reqDir2 := &RequestToSyncDir{}
 				_, err0 = reqDir2.UnmarshalMsg(frag0.Payload)
