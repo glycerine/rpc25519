@@ -81,6 +81,11 @@ func ChunkFile2(
 		if precis.FileSize > 0 && chunks0 == nil {
 			panic(fmt.Sprintf("assertion error: chunks0 should never be nil when FileSize > 0; precis='%#v'", precis))
 		}
+		if chunks0 == nil {
+			// prints for path that does not exist; on
+			// Test204_rsync_ChunkFile_on_size_0_four_cases
+			//vv("parallel ChunkFile2(path='%v') has nil chunks for precis '%#v'", path, precis)
+		}
 	}()
 
 	fi, err := os.Stat(path)

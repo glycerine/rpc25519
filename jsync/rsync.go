@@ -774,8 +774,20 @@ func (h *FilePrecis) String() string {
 // For files under 1GB, LightlySummarize will call us.
 // So do not recurse into LightlySummarize in here.
 //
-// When can precis be returned nil?
+// When can precis be returned nil? never. But chunks
+// will be nil if the file does not exist.
+// If no such path, precis.PathAbsent will be true.
 func SummarizeFileInCDCHashes(host, path string, keepData bool) (precis *FilePrecis, chunks *Chunks, err error) {
+
+	defer func() {
+		if precis.FileSize > 0 && chunks == nil {
+			panic(fmt.Sprintf("assertion error: chunks should never be nil when FileSize > 0; precis='%#v'", precis))
+		}
+		if chunks == nil {
+			// prints for path that does not exist; on Test206
+			//vv("SummarizeFileInCDCHashes(path='%v') has nil chunks for precis '%#v'", path, precis)
+		}
+	}()
 
 	fi, err := os.Stat(path)
 	if err != nil {
@@ -1236,6 +1248,10 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 	defer func() {
 		if precis.FileSize > 0 && chunks == nil {
 			panic(fmt.Sprintf("assertion error: chunks should never be nil when FileSize > 0; precis='%#v'", precis))
+		}
+		if chunks == nil {
+			// prints for path that does not exist; on Test205
+			//vv("GetHashesOneByOne(path='%v') has nil chunks for precis '%#v'", path, precis)
 		}
 	}()
 
