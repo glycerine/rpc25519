@@ -458,14 +458,14 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	// are the whole file checksums the same? we can
 	// avoid sending back a whole lotta chunks of nothing
 	// in this case. A file touch will do this/test this.
-	//vv("remoteWantsUpdate = %p", remoteWantsUpdate) // can be nil now.
-	vv("goalPrecis = %v", goalPrecis)
+	vv("remoteWantsUpdate = %p", remoteWantsUpdate) // can be nil now. nil 440
+	vv("goalPrecis = %v", goalPrecis)               // fine 440
 
 	// Avoid short circuiting if we have
 	// UNWRIT; pre-allocated spans, so we can
 	// try to re-create them on the other side.
 	if local.PreAllocUnwritEndx == 0 &&
-		remoteWantsUpdate.FileCry == goalPrecis.FileCry {
+		remoteWantsUpdate.FileCry == goalPrecis.FileCry { // segfault 440
 		//vv("we can save on sending chunks! remoteWantsUpdate.FileCry == goalPrecis.FileCry = '%v'. sending back OpRsync_ToTakerMetaUpdateAtLeast", remoteWantsUpdate.FileCry)
 
 		updateMeta := ckt.LpbFrom.NewFragment()
