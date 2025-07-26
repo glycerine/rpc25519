@@ -151,10 +151,15 @@ type SyncService struct {
 // giver -> 1 -> err same file (giver returns)
 // giver -> 1 -> 7 FileSizeModTimeMatch -> FIN (taker returns)
 // giver -> 1 -> 34 ToGiverSizeMatchButCheckHash -> FIN (taker returns)
-// giver -> 1 -> 8 LightRequestEnclosed(giver) giverSendsPlanAndData.. file checksums already match, yay. -> ToTakerMetaUpdateAtLeast (taker) -> FIN (giver returns)
+// giver -> 1 -> 8 LightRequestEnclosed(giver) giverSendsPlanAndData.. file checksums already match, yay. -> ToTakerMetaUpdateAtLeast(14) (taker) -> FIN (giver returns)
+
 // giver -> 1 -> 8 LightRequestEnclosed(giver) giverSendsPlanAndData -> 11,10,9 (taker) -> FileAllReadAck -> FIN (taker returns)
 
+// giver -> 1 -> 8 LightRequestEnclosed(giver) giverSendsPlanAndData -> 11,10,9 (taker) if file absent or deleted -> FIN (giver returns)
+
 // old (without RLE0 support b/c giverSendsWholeFile lacks it): giver -> 1 -> 2 NeedFullFile2(giver) giverSendsWholeFile -> 11 (file not found via SenderPlanEnclosed.FileIsDeleted) (taker deletes file) -> FIN (giver returns)
+
+// giver -> 1 -> 8 LightRequestEnclosed(giver) giverSendsPlanAndData ->
 
 // updated: giver -> 1 -> 2 NeedFullFile2(giver) giverSendsPlanAndDataUpdates for RLE0 support -> ... what here? TODO: trace what happens after giverSendsPlanAndDataUpdates.
 

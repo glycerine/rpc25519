@@ -738,10 +738,14 @@ takerForSelectLoop:
 				_, err := senderPlan.UnmarshalMsg(frag.Payload)
 				panicOn(err)
 				bt.bread += len(frag.Payload)
+				vv("OpRsync_SenderPlanEnclosed: senderPlan.FileIsDeleted = '%v'", senderPlan.FileIsDeleted)
+				vv("OpRsync_SenderPlanEnclosed: senderPlanSenderPrecis.PathAbsent = '%v'", senderPlan.SenderPrecis.PathAbsent)
 				vv("OpRsync_SenderPlanEnclosed: senderPlan= '%#v'", senderPlan)
 
-				if senderPlan.FileIsDeleted { // from giver.go:386 (:379)
-					vv("senderPlan.FileIsDeleted true, deleting path '%v'", localPathToWrite)
+				absentOnSender := senderPlan.SenderPrecis.PathAbsent
+
+				if absentOnSender || senderPlan.FileIsDeleted { // from giver.go:386 (:379)
+					vv("absentOnSender = %v; senderPlan.FileIsDeleted = %v; deleting path '%v'", absentOnSender, senderPlan.FileIsDeleted, localPathToWrite) // not seen 440 green nor red.
 					if syncReq.DryRun {
 						alwaysPrintf("dry: would remove '%v' since senderPlan.FileIsDeleted", localPathToWrite)
 					} else {
@@ -762,13 +766,15 @@ takerForSelectLoop:
 				goalPrecis = senderPlan.SenderPrecis
 
 				if senderPlan.SenderChunksNoSlice == nil {
-					vv("plan = nil b/c senderPlan = '%v'", senderPlan)
-					continue
+					vv("plan = nil b/c senderPlan = '%v' should we be deleting any local path?? ", senderPlan)
+					panic("What to do here?")
+					//continue
 				}
 
 				if senderPlan.SenderPrecis == nil { // debug 220 hang
 					vv("when senderPlan.SenderPrecis == nil, plan = '%v'", plan)
-					continue
+					//continue
+					panic("what do do here?")
 				}
 
 				if plan.FileSize == 0 { // ? && syncReq.TakerTempDir == "" ??
@@ -805,8 +811,12 @@ takerForSelectLoop:
 
 					frag = nil
 					continue // wait for FIN
-
+				} //end if  plan.FileSize == 0
+				if plan == nil {
+					panic("plan == nil should have been addressed above!")
 				}
+				// else we have the senderPlan, goalPrecis, and plan.
+				vv("end of OpRsync_SenderPlanEnclosed, now wait for 9,10 (OpRsync_HeavyDiffChunksLast==10 at least); goalPrecis.Path='%v'", goalPrecis.Path)
 
 			case OpRsync_HereIsFullFileBegin3, OpRsync_HereIsFullFileMore4, OpRsync_HereIsFullFileEnd5:
 				if disk == nil {

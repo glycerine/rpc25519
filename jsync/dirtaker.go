@@ -724,7 +724,9 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 		// rsync: 1.6s vs jcp 2.8s to restore linux/Documentation
 		// over LAN.
 		go func(fileCh chan *File, goroHalt *idem.Halter, bt *byteTracker, w int) {
+			vv("999999 starting: background batch goro %v maps go goroHalt = %p", GoroNumber(), goroHalt)
 			defer func() {
+				vv("999999 exiting: background batch goro %v maps go goroHalt = %p", GoroNumber(), goroHalt) // not seen!!! none were seen.
 
 				// other side ctrl-c will give us a panic here
 				r := recover()

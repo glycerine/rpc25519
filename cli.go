@@ -2727,7 +2727,8 @@ func (c *Client) NewTimer(dur time.Duration) (ti *SimTimer) {
 	if !c.cfg.UseSimNet {
 		ti.gotimer = time.NewTimer(dur)
 		ti.C = ti.gotimer.C
-		vv("no simnet, Client made time.NewTimer(dur=%v)\n stack=%v\n", dur, stack())
+		//vv("no simnet, Client made time.NewTimer(dur=%v)\n stack=%v\n", dur, stack())
+		//vv("no simnet, Client made time.NewTimer(dur=%v)", dur)
 		return
 	}
 	ti.simnet = c.simnet
