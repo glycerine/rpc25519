@@ -1223,7 +1223,8 @@ func (cs *Chunks) DataFilter() (r []*Chunk) {
 // but does generate RLE0; for the zero-runs
 // it sees.
 //
-// When can returned precis be nil?
+// When can returned precis be nil? never.
+// But chunks can be nil if file is empty or non-existent (precis.PathAbsent true)
 func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, err error) {
 
 	//vv("GetHashesOneByOne top")

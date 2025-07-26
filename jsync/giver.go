@@ -459,7 +459,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	// avoid sending back a whole lotta chunks of nothing
 	// in this case. A file touch will do this/test this.
 	//vv("remoteWantsUpdate = %p", remoteWantsUpdate) // can be nil now.
-	//vv("goalPrecis = %p", goalPrecis)
+	vv("goalPrecis = %v", goalPrecis)
 
 	// Avoid short circuiting if we have
 	// UNWRIT; pre-allocated spans, so we can

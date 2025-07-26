@@ -822,23 +822,29 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				const K = 5000 // how many we keep in first message
 				extraComing := false
 
-				if len(syncReq.Chunks.Chunks) > K ||
-					syncReq.Msgsize() > rpc.UserMaxPayload-10_000 {
+				if !precis.PathAbsent && precis.FileSize > 0 {
+					if syncReq.Chunks != nil {
+						panic(fmt.Sprintf("assertion error: we should have chunks for an existing path; precis='%v'", precis))
+					}
 
-					// must send chunks separately
-					extraComing = true
-					syncReq.MoreChunksComming = true
-					//vv("set syncReq.MoreChunksComming = true")
-					origChunks = syncReq.Chunks.Chunks
+					if len(syncReq.Chunks.Chunks) > K || // panic 440 syncReq.Chunks == nil
+						syncReq.Msgsize() > rpc.UserMaxPayload-10_000 {
 
-					// truncate down the initial Message,
-					syncReq.Chunks.Chunks = syncReq.Chunks.Chunks[:K]
+						// must send chunks separately
+						extraComing = true
+						syncReq.MoreChunksComming = true
+						//vv("set syncReq.MoreChunksComming = true")
+						origChunks = syncReq.Chunks.Chunks
 
-					upperBound := syncReq.Msgsize()
-					if upperBound > rpc.UserMaxPayload-10_000 {
-						panic(fmt.Sprintf("upperBound = %v > %v = "+
-							"rpc.UserMaxPayload-10_000 even after splitting at K=%v",
-							upperBound, rpc.UserMaxPayload-10_000, K))
+						// truncate down the initial Message,
+						syncReq.Chunks.Chunks = syncReq.Chunks.Chunks[:K]
+
+						upperBound := syncReq.Msgsize()
+						if upperBound > rpc.UserMaxPayload-10_000 {
+							panic(fmt.Sprintf("upperBound = %v > %v = "+
+								"rpc.UserMaxPayload-10_000 even after splitting at K=%v",
+								upperBound, rpc.UserMaxPayload-10_000, K))
+						}
 					}
 				}
 				data, err := syncReq.MarshalMsg(nil)
