@@ -406,6 +406,10 @@ type FilePrecis struct {
 	ChunkerName string           `zid:"18"`
 	CDC_Config  *jcdc.CDC_Config `zid:"19"`
 
+	// if the path does not actually exist on this
+	// side, then set this flag to indicate this fact.
+	PathAbsent bool `zid:"20"`
+
 	// keep these separate so we don't
 	// send all the data all the time.
 	//Chunks *Chunks
@@ -773,8 +777,9 @@ func (h *FilePrecis) String() string {
 // When can precis be returned nil?
 func SummarizeFileInCDCHashes(host, path string, keepData bool) (precis *FilePrecis, chunks *Chunks, err error) {
 
-	if !fileExists(path) {
-		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, keepData, 0)
+	fi, err := os.Stat(path)
+	if err != nil {
+		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, keepData, nil)
 	}
 
 	// file system details fill in:
@@ -789,15 +794,15 @@ func SummarizeFileInCDCHashes(host, path string, keepData bool) (precis *FilePre
 	}
 	defer fd.Close()
 
-	fi, err := fd.Stat() // os.Stat(path)
-	if err != nil {
-		return nil, nil, fmt.Errorf("rsync.go error on os.Stat() of '%v': '%v'", path, err)
-	}
+	// fi, err := fd.Stat() // os.Stat(path)
+	// if err != nil {
+	// 	return nil, nil, fmt.Errorf("rsync.go error on os.Stat() of '%v': '%v'", path, err)
+	// }
 
 	modTime := fi.ModTime()
 	//if wantChunks {
 	//precis, chunks, err = SummarizeBytesInCDCHashes(host, path, data, modTime, keepData, false)
-	precis, chunks, err = SummarizeBytesInCDCHashes(host, path, fd, modTime, keepData, fi.Size())
+	precis, chunks, err = SummarizeBytesInCDCHashes(host, path, fd, modTime, keepData, fi)
 	if err != nil {
 		return nil, nil, fmt.Errorf("rsync.go error from SummarizeBytesInCDCHashes() on  path '%v': '%v'", path, err)
 	}
@@ -827,9 +832,10 @@ func SummarizeFileInCDCHashes(host, path string, keepData bool) (precis *FilePre
 // If keepData is false, the returned chunks will
 // have nil Data.
 //
-// when can returned precis be nil? never, but if err !=nil
-// it might be suspect on the file missing/empty situations.
-func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time, keepData bool, fileStatSz int64) (
+// when can returned precis be nil? never. If file
+// is missing then precis.PathAbsent will be true.
+// Callers should pass fi == nil when file is absent.
+func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time, keepData bool, fi os.FileInfo) (
 	precis *FilePrecis, chunks *Chunks, err error) {
 
 	//vv("top SummarizeBytesInCDCHashes for path = '%v'", path)
@@ -838,22 +844,32 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 	cdc := jcdc.GetCutpointer(Default_CDC, cfg)
 
 	precis = &FilePrecis{
-		Host:        host,
-		Path:        path,
-		FileSize:    fileStatSz, // len(data),
+		Host: host,
+		Path: path,
+		//FileSize:    fileStatSz, // len(data),
 		ModTime:     modTime,
 		ChunkerName: cdc.Name(),
 		CDC_Config:  cdc.Config(),
 		HashName:    "blake3.33B",
 	}
 
+	if fi == nil {
+		// default: precis.FileSize = 0
+		// assume this means path does not exist...
+		precis.PathAbsent = true
+		precis.FileCry = hash.Blake3OfBytesString([]byte{})
+		return
+	}
+	fileStatSz := fi.Size() // int64
+	precis.FileSize = fileStatSz
+
 	var sum *sparsified.SparseSum
 	var spansRead *sparsified.SparseSpans
 	if fd != nil {
 		sum, spansRead, err = sparsified.FindSparseRegions(fd)
 		if err != nil {
-			// probably empty file
 			panicOn(err)
+			// empty file?
 			precis.FileCry = hash.Blake3OfBytesString([]byte{})
 			vv("path '%v' on FindSparseRegions gave err '%v'; fd = %p; fileStatSz = %v; returning precis.FileCry = '%v'; returning nil chunks!", path, err, fd, fileStatSz, precis.FileCry)
 			return
@@ -1211,8 +1227,9 @@ func (cs *Chunks) DataFilter() (r []*Chunk) {
 func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, err error) {
 
 	//vv("GetHashesOneByOne top")
-	if !fileExists(path) {
-		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false, 0)
+	fi, err := os.Stat(path)
+	if err != nil {
+		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false, nil)
 	}
 
 	// These two different chunking approaches,
@@ -1225,10 +1242,9 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 
 	//vv("GetHashesOneByOne() using cdc = '%v'", cdc.Name())
 
-	sz64, modTime, err := FileSizeModTime(path)
-	if err != nil {
-		return nil, nil, err
-	}
+	sz64 := fi.Size()
+	modTime := fi.ModTime()
+
 	//sz := int(sz64)
 	//vv("sz = %v", sz)
 
@@ -1245,11 +1261,6 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 	chunks = NewChunks(path)
 	chunks.FileSize = precis.FileSize
 
-	var fi os.FileInfo
-	fi, err = os.Stat(path)
-	if err != nil {
-		return
-	}
 	precis.FileMode = uint32(fi.Mode())
 	precis.ModTime = modTime
 
@@ -1415,17 +1426,17 @@ func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, e
 // no Chunks needed (but you do want the whole file's FileCry checksum).
 func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 
-	if !fileExists(path) {
-		precis, _, err = SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false, 0)
+	fi, err := os.Stat(path)
+	if err != nil {
+		precis, _, err = SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false, nil)
 		return
 	}
 
 	cdc := jcdc.GetCutpointer(Default_CDC, Default_CDC_Config)
 
-	sz64, modTime, err := FileSizeModTime(path)
-	if err != nil {
-		return nil, err
-	}
+	sz64 := fi.Size()
+	modTime := fi.ModTime()
+
 	//sz := int(sz64)
 	//vv("sz = %v", sz)
 
@@ -1440,11 +1451,6 @@ func GetPrecis(host, path string) (precis *FilePrecis, err error) {
 		HashName:    "blake3.33B",
 	}
 
-	var fi os.FileInfo
-	fi, err = os.Stat(path)
-	if err != nil {
-		return nil, err
-	}
 	precis.FileMode = uint32(fi.Mode())
 	precis.ModTime = modTime
 

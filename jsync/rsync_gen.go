@@ -1507,7 +1507,7 @@ func (z *FilePrecis) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields25zgensym_9db0ba711f6a3e5a_26 = 20
+	const maxFields25zgensym_9db0ba711f6a3e5a_26 = 21
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields25zgensym_9db0ba711f6a3e5a_26 uint32
@@ -1699,6 +1699,12 @@ doneWithStruct25zgensym_9db0ba711f6a3e5a_26:
 					return
 				}
 			}
+		case "PathAbsent_zid20_boo":
+			found25zgensym_9db0ba711f6a3e5a_26[20] = true
+			z.PathAbsent, err = dc.ReadBool()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -1722,16 +1728,16 @@ doneWithStruct25zgensym_9db0ba711f6a3e5a_26:
 }
 
 // fields of FilePrecis
-var decodeMsgFieldOrder25zgensym_9db0ba711f6a3e5a_26 = []string{"CallID_zid00_str", "IsFromSender_zid01_boo", "Created_zid02_tim", "Host_zid03_str", "Path_zid04_str", "ModTime_zid05_tim", "FileSize_zid06_i64", "FileMode_zid07_u32", "FileOwner_zid08_str", "FileOwnerID_zid09_u32", "FileGroup_zid10_str", "FileGroupID_zid11_u32", "FileMeta_zid12_bin", "HashName_zid13_str", "FileCry_zid14_str", "IsSparse_zid15_boo", "PreAllocUnwritBeg_zid16_i64", "PreAllocUnwritEndx_zid17_i64", "ChunkerName_zid18_str", "CDC_Config_zid19_ptr"}
+var decodeMsgFieldOrder25zgensym_9db0ba711f6a3e5a_26 = []string{"CallID_zid00_str", "IsFromSender_zid01_boo", "Created_zid02_tim", "Host_zid03_str", "Path_zid04_str", "ModTime_zid05_tim", "FileSize_zid06_i64", "FileMode_zid07_u32", "FileOwner_zid08_str", "FileOwnerID_zid09_u32", "FileGroup_zid10_str", "FileGroupID_zid11_u32", "FileMeta_zid12_bin", "HashName_zid13_str", "FileCry_zid14_str", "IsSparse_zid15_boo", "PreAllocUnwritBeg_zid16_i64", "PreAllocUnwritEndx_zid17_i64", "ChunkerName_zid18_str", "CDC_Config_zid19_ptr", "PathAbsent_zid20_boo"}
 
-var decodeMsgFieldSkip25zgensym_9db0ba711f6a3e5a_26 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
+var decodeMsgFieldSkip25zgensym_9db0ba711f6a3e5a_26 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *FilePrecis) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 20
+		return 21
 	}
-	var fieldsInUse uint32 = 20
+	var fieldsInUse uint32 = 21
 	isempty[0] = (len(z.CallID) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -1812,6 +1818,10 @@ func (z *FilePrecis) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[19] {
 		fieldsInUse--
 	}
+	isempty[20] = (!z.PathAbsent) // bool, omitempty
+	if isempty[20] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -1823,7 +1833,7 @@ func (z *FilePrecis) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_9db0ba711f6a3e5a_27 [20]bool
+	var empty_zgensym_9db0ba711f6a3e5a_27 [21]bool
 	fieldsInUse_zgensym_9db0ba711f6a3e5a_28 := z.fieldsNotEmpty(empty_zgensym_9db0ba711f6a3e5a_27[:])
 
 	// map header
@@ -2091,6 +2101,18 @@ func (z *FilePrecis) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_9db0ba711f6a3e5a_27[20] {
+		// write "PathAbsent_zid20_boo"
+		err = en.Append(0xb4, 0x50, 0x61, 0x74, 0x68, 0x41, 0x62, 0x73, 0x65, 0x6e, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x32, 0x30, 0x5f, 0x62, 0x6f, 0x6f)
+		if err != nil {
+			return err
+		}
+		err = en.WriteBool(z.PathAbsent)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -2103,7 +2125,7 @@ func (z *FilePrecis) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [20]bool
+	var empty [21]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -2238,6 +2260,12 @@ func (z *FilePrecis) MarshalMsg(b []byte) (o []byte, err error) {
 		}
 	}
 
+	if !empty[20] {
+		// string "PathAbsent_zid20_boo"
+		o = append(o, 0xb4, 0x50, 0x61, 0x74, 0x68, 0x41, 0x62, 0x73, 0x65, 0x6e, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x32, 0x30, 0x5f, 0x62, 0x6f, 0x6f)
+		o = msgp.AppendBool(o, z.PathAbsent)
+	}
+
 	return
 }
 
@@ -2256,7 +2284,7 @@ func (z *FilePrecis) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o
 
 	var field []byte
 	_ = field
-	const maxFields29zgensym_9db0ba711f6a3e5a_30 = 20
+	const maxFields29zgensym_9db0ba711f6a3e5a_30 = 21
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields29zgensym_9db0ba711f6a3e5a_30 uint32
@@ -2479,6 +2507,13 @@ doneWithStruct29zgensym_9db0ba711f6a3e5a_30:
 					}
 				}
 			}
+		case "PathAbsent_zid20_boo":
+			found29zgensym_9db0ba711f6a3e5a_30[20] = true
+			z.PathAbsent, bts, err = nbs.ReadBoolBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -2502,9 +2537,9 @@ doneWithStruct29zgensym_9db0ba711f6a3e5a_30:
 }
 
 // fields of FilePrecis
-var unmarshalMsgFieldOrder29zgensym_9db0ba711f6a3e5a_30 = []string{"CallID_zid00_str", "IsFromSender_zid01_boo", "Created_zid02_tim", "Host_zid03_str", "Path_zid04_str", "ModTime_zid05_tim", "FileSize_zid06_i64", "FileMode_zid07_u32", "FileOwner_zid08_str", "FileOwnerID_zid09_u32", "FileGroup_zid10_str", "FileGroupID_zid11_u32", "FileMeta_zid12_bin", "HashName_zid13_str", "FileCry_zid14_str", "IsSparse_zid15_boo", "PreAllocUnwritBeg_zid16_i64", "PreAllocUnwritEndx_zid17_i64", "ChunkerName_zid18_str", "CDC_Config_zid19_ptr"}
+var unmarshalMsgFieldOrder29zgensym_9db0ba711f6a3e5a_30 = []string{"CallID_zid00_str", "IsFromSender_zid01_boo", "Created_zid02_tim", "Host_zid03_str", "Path_zid04_str", "ModTime_zid05_tim", "FileSize_zid06_i64", "FileMode_zid07_u32", "FileOwner_zid08_str", "FileOwnerID_zid09_u32", "FileGroup_zid10_str", "FileGroupID_zid11_u32", "FileMeta_zid12_bin", "HashName_zid13_str", "FileCry_zid14_str", "IsSparse_zid15_boo", "PreAllocUnwritBeg_zid16_i64", "PreAllocUnwritEndx_zid17_i64", "ChunkerName_zid18_str", "CDC_Config_zid19_ptr", "PathAbsent_zid20_boo"}
 
-var unmarshalMsgFieldSkip29zgensym_9db0ba711f6a3e5a_30 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
+var unmarshalMsgFieldSkip29zgensym_9db0ba711f6a3e5a_30 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *FilePrecis) Msgsize() (s int) {
@@ -2514,6 +2549,7 @@ func (z *FilePrecis) Msgsize() (s int) {
 	} else {
 		s += z.CDC_Config.Msgsize()
 	}
+	s += 21 + msgp.BoolSize
 	return
 }
 func (z *FilePrecis) Gstring() (r string) {
@@ -2538,6 +2574,7 @@ func (z *FilePrecis) Gstring() (r string) {
 	r += fmt.Sprintf("PreAllocUnwritEndx: %v,\n", z.PreAllocUnwritEndx)
 	r += fmt.Sprintf("       ChunkerName: \"%v\",\n", z.ChunkerName)
 	r += fmt.Sprintf("        CDC_Config: %v,\n", z.CDC_Config)
+	r += fmt.Sprintf("        PathAbsent: %v,\n", z.PathAbsent)
 	r += "}\n"
 	return
 }

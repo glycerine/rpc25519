@@ -76,9 +76,12 @@ func ChunkFile2(
 	//vv("ChunkFile2 returning; err0 = '%v'; len chunks0.Chunks = %v", err0, len(chunks0.Chunks))
 	//}()
 	// must handle non-existant files without error.
-	if !fileExists(path) {
-		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false, 0)
+
+	fi, err := os.Stat(path)
+	if err != nil {
+		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false, nil)
 	}
+
 	//vv("file exists")
 	t0 := time.Now()
 	_ = t0
@@ -94,7 +97,7 @@ func ChunkFile2(
 	sum, err := sparsified.SparseFileSize(fd)
 	disksz := sum.DiskSize
 	statsz := sum.StatSize
-	fi := sum.FI
+	//fi := sum.FI
 
 	if err != nil {
 		//vv("path did not stat: '%v': '%v'", path, err)
@@ -103,7 +106,7 @@ func ChunkFile2(
 	}
 	if statsz == 0 && disksz == 0 {
 		//vv("path is empty! '%v'", path)
-		return SummarizeBytesInCDCHashes(host, path, nil, fi.ModTime(), false, 0)
+		return SummarizeBytesInCDCHashes(host, path, nil, fi.ModTime(), false, fi)
 	}
 	diff := disksz - statsz
 	if diff < 0 {
@@ -114,7 +117,7 @@ func ChunkFile2(
 		// (disksz > statsz by more than a page => pre-allocated).
 		// (disksz < statsz by more than a page => sparse holes).
 		// Do a full serial scan and sparse analysis.
-		return SummarizeBytesInCDCHashes(host, path, fd, fi.ModTime(), false, statsz)
+		return SummarizeBytesInCDCHashes(host, path, fd, fi.ModTime(), false, fi)
 	}
 	sz := statsz
 	//vv("file is not empty; and not sparse and not prealloc; disksz=%v; statsz=%v", disksz, statsz)

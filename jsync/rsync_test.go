@@ -51,7 +51,10 @@ func Test201_rsync_style_chunking_and_hash_generation(t *testing.T) {
 		_, err = fd2.Write(data2)
 		panicOn(err)
 		fd2.Sync()
-		_, bchunks, err := SummarizeBytesInCDCHashes(host, path2, fd2, modTime, true, int64(len(data2)))
+		fi2, err2 := fd2.Stat()
+		panicOn(err2)
+		//_, bchunks, err := SummarizeBytesInCDCHashes(host, path2, fd2, modTime, true, int64(len(data2)))
+		_, bchunks, err := SummarizeBytesInCDCHashes(host, path2, fd2, modTime, true, fi2)
 		panicOn(err)
 
 		onlyA, onlyB, both := Diff(achunks, bchunks)
@@ -71,8 +74,8 @@ func Test201_rsync_style_chunking_and_hash_generation(t *testing.T) {
 		_, err = fd3.Write(data3)
 		panicOn(err)
 		fd3.Sync()
-
-		_, bchunks, err = SummarizeBytesInCDCHashes(host, path3, fd3, modTime, true, int64(len(data3)))
+		fi3, err3 := fd3.Stat()
+		_, bchunks, err = SummarizeBytesInCDCHashes(host, path3, fd3, modTime, true, fi3)
 		panicOn(err)
 
 		onlyA, onlyB, both = Diff(achunks, bchunks)
@@ -1083,57 +1086,69 @@ func Test203_rsync_SummarizeBytesInCDCHashes_on_size_0_four_cases(t *testing.T) 
 		const keepDataNO = false
 		for i, path := range list {
 			_ = i
-			statsz, modTime, err := FileSizeModTime(path)
+
+			fi, err := os.Stat(path)
 			panicOn(err)
+			statsz, modTime := fi.Size(), fi.ModTime()
+			_ = statsz
+
 			fd, err := os.Open(path)
 			panicOn(err)
-			precis, chunks, err := SummarizeBytesInCDCHashes(host, path, fd, modTime, keepDataNO, statsz) // int64(len(data2)))
+			precis, chunks, err := SummarizeBytesInCDCHashes(host, path, fd, modTime, keepDataNO, fi) // int64(len(data2)))
 			panicOn(err)
 			_ = chunks
 			if precis == nil {
 				panic(fmt.Sprintf("i=%v had nil precis for path '%v'", i, path))
 			}
+			vv("on i=%v, got precis = '%v'", i, precis)
 		}
 
 		// test non-existent file
 		path := "test203_file_path_that_does_not_exist"
 		os.Remove(path)
-		precis, chunks, err := SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, keepDataNO, 0) // int64(len(data2)))
+		fi, _ := os.Stat(path)
+		if fi != nil {
+			panic(fmt.Sprintf("expected nil fi back from os.Stat(nonexistent_path); got = '%#v'", fi))
+		}
+		precis, chunks, err := SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, keepDataNO, fi) // int64(len(data2)))
 		_ = chunks
 		panicOn(err)
 		if precis == nil {
 			panic(fmt.Sprintf("non-existent file got nil precis back. for path '%v'", path))
 		}
+		if !precis.PathAbsent {
+			panic(fmt.Sprintf("non-existent file must have precis.PathAbsent flag set! for path '%v'", path))
+		}
 		// currently getting a precis for a non-existent file.
 		// Is that really what we want?
 		//vv("on non-existent file, got precis = '%v'", precis)
 		/*
-		rsync_test.go:1107 [goID 20] 2025-07-26 06:56:10.935 -0500 CDT on non-existent file, got precis = '{
-		    "CallID": "",
-		    "IsFromSender": false,
-		    "Created": "0001-01-01T00:00:00Z",
-		    "Host": "localhost",
-		    "Path": "test203_file_path_that_does_not_exist",
-		    "ModTime": "0001-01-01T00:00:00Z",
-		    "FileSize": 0,
-		    "FileMode": 0,
-		    "FileOwner": "",
-		    "FileOwnerID": 0,
-		    "FileGroup": "",
-		    "FileGroupID": 0,
-		    "FileMeta": null,
-		    "HashName": "blake3.33B",
-		    "FileCry": "blake3.33B-rxNJufX5oaagQE3qNtzJSZvLJcmtwRK3zJqTyuQfMmLg",
-		    "IsSparse": false,
-		    "PreAllocUnwritBeg": 0,
-		    "PreAllocUnwritEndx": 0,
-		    "ChunkerName": "fastcdc-plakar-go-cdc-chunkers",
-		    "CDC_Config": {
-		        "MinSize": 4096,
-		        "TargetSize": 8192,
-		        "MaxSize": 16384
-		    }
-		}
+			rsync_test.go:1107 [goID 20] 2025-07-26 06:56:10.935 -0500 CDT on non-existent file, got precis = '{
+			    "CallID": "",
+			    "IsFromSender": false,
+			    "Created": "0001-01-01T00:00:00Z",
+			    "Host": "localhost",
+			    "Path": "test203_file_path_that_does_not_exist",
+			    "ModTime": "0001-01-01T00:00:00Z",
+			    "FileSize": 0,
+			    "FileMode": 0,
+			    "FileOwner": "",
+			    "FileOwnerID": 0,
+			    "FileGroup": "",
+			    "FileGroupID": 0,
+			    "FileMeta": null,
+			    "HashName": "blake3.33B",
+			    "FileCry": "blake3.33B-rxNJufX5oaagQE3qNtzJSZvLJcmtwRK3zJqTyuQfMmLg",
+			    "IsSparse": false,
+			    "PreAllocUnwritBeg": 0,
+			    "PreAllocUnwritEndx": 0,
+			    "ChunkerName": "fastcdc-plakar-go-cdc-chunkers",
+			    "CDC_Config": {
+			        "MinSize": 4096,
+			        "TargetSize": 8192,
+			        "MaxSize": 16384
+			    }
+			}
 		*/
 	})
 }
