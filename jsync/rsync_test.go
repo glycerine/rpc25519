@@ -1277,7 +1277,7 @@ func Test205_rsync_GetHashesOneByOne_on_size_0_four_cases(t *testing.T) {
 		if precis == nil {
 			panic(fmt.Sprintf("i=%v had nil precis for path '%v'", i, path))
 		}
-		vv("on i=%v, got precis = '%v'", i, precis)
+		//vv("on i=%v, got precis = '%v'", i, precis)
 	}
 
 	// test non-existent file

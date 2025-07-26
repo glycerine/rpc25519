@@ -97,7 +97,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 			}
 			if r != rpc.ErrContextCancelled && r != rpc.ErrHaltRequested {
 				alwaysPrintf("dirgiver sees abnormal shutdown panic: '%v'", r)
-				panic(r) // TODO comment back out
+				//panic(r)
 			} else {
 				//vv("DirGiver suppressing rpc.ErrContextCancelled or ErrHaltRequested, this is normal shutdown.")
 			}
@@ -105,7 +105,7 @@ func (s *SyncService) DirGiver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 	}(reqDir)
 
 	for {
-		select { // hung 220 e2e_test here intermit, and 440 dir_test intermit.
+		select {
 
 		case frag0 := <-ckt.Reads:
 			//vv("%v: (ckt '%v') (DirGiver) saw read frag0:'%v'", name, ckt.Name, frag0)

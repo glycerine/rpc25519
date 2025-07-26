@@ -106,7 +106,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 
 	// this is the DirTaker side
 	for {
-		select { // local dir take hung here??
+		select {
 		case frag := <-ckt.Reads:
 			//vv("%v: (ckt %v) (DirTaker) ckt.Reads sees frag:'%s'", name, ckt.Name, frag)
 			_ = frag
@@ -389,8 +389,8 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					// artifical 1 floor.
 					at := haltIndivFileCheck.ReqStop.TaskDone()
 					_ = at
-					//vv("taskDone returned %v", at)                   // 18 left
-					why := haltIndivFileCheck.ReqStop.TaskWait(done) // hung here
+					//vv("taskDone returned %v", at)
+					why := haltIndivFileCheck.ReqStop.TaskWait(done)
 					_ = why
 					//vv("haltIndivFileCheck.ReqStop.TaskWait() why='%v'", why)
 					haltIndivFileCheck.StopTreeAndWaitTilDone(0, done, nil)
@@ -753,9 +753,9 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 			var file *File
 			var t1 time.Time
 			for {
-				select { // hung here jsync 220 and 440
+				select {
 				case file = <-fileCh:
-					//vv("dirtaker worker got file! path='%v'", file.Path) // 440 saw both even when hung!
+					//vv("dirtaker worker got file! path='%v'", file.Path)
 					t1 = time.Now()
 
 					// does its own SR == nil check.
@@ -919,7 +919,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				}()
 
 				//vv("dirtaker worker: about to call s.Taker()")
-				errg := s.Taker(ctx2, ckt2, myPeer, syncReq) // hung here 440
+				errg := s.Taker(ctx2, ckt2, myPeer, syncReq)
 				//vv("dirtaker worker: got from Taker errg = '%v'", errg)
 				panicOn(errg)
 				left := batchHalt.ReqStop.TaskDone()
@@ -966,7 +966,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 	//vv("about to wait on batchHalt(%p).ReqStop with done= %p", batchHalt, done) // done not nil
 	// primary reason for hang seems to be that the not
 	// all batch tasks tasks that we are waiting on have been closed.
-	err0 = batchHalt.ReqStop.TaskWait(done) // hung 220 here on halter.go:718 and 440
+	err0 = batchHalt.ReqStop.TaskWait(done)
 	//vv("batchHalt.ReqStop.TaskWait returned, err0 = '%v'", err0)
 
 	batchHalt.StopTreeAndWaitTilDone(0, done, nil)
