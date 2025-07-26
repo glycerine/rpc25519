@@ -20,7 +20,7 @@ import (
 var _ = time.Time{}
 
 func Test220_push_then_pull_idempotent(t *testing.T) {
-	return
+	//return
 	// intermittent hangs race or not, even only under realtime.
 	//if faketime {
 	//	t.Skip("think this is not setup for synctest atm.")
