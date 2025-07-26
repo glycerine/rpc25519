@@ -148,7 +148,7 @@ func (pb *LocalPeer) peerbackPump() {
 	done := pb.Ctx.Done()
 	for {
 		//vv("%v %p: pump loop top of select. pb.handleChansNewCircuit = %p", name, pb, pb.TellPumpNewCircuit)
-		select { // jsync 220 hung here, goro 36,50,8,86,48. all from ckt.go:551 in peerAPI.newLocalPeer().
+		select {
 		case <-pb.Halt.ReqStop.Chan:
 			//vv("%v %p: pump loop pb.Halt.ReqStop.Chan shutdown received; pb = %p", name, pb, pb)
 			return
@@ -221,7 +221,8 @@ func (pb *LocalPeer) peerbackPump() {
 			// causes drop/loss of fragment we need in jysnc
 			// dir_test 440 test; and 220 jsync/e2e_test.go too,
 			// when the ckt shutdown races with the message send;
-			// On frag.FragOp == OpRsync_AckBackFIN_ToTaker
+			// This was on frag.FragOp == OpRsync_AckBackFIN_ToTaker.
+			// SO BIG WARNING: DO NOT ADD THIS CASE:
 			//case ckt2 := <-pb.HandleCircuitClose:
 			//	vv("%v pump: ckt2 := <-pb.HandleCircuitClose: for ckt2='%v'", name, ckt2.Name)
 			//cleanupCkt(ckt2, true)
