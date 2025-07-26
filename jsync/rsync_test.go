@@ -1302,3 +1302,76 @@ func Test205_rsync_GetHashesOneByOne_on_size_0_four_cases(t *testing.T) {
 	//vv("on non-existent file, got precis = '%v'", precis)
 
 }
+
+// same test as 203-205 but for SummarizeFileInCDCHashes
+func Test206_rsync_SummarizeFileInCDCHashes_on_size_0_four_cases(t *testing.T) {
+
+	//cv.Convey("SummarizeFileInCDCHashes() should generate a precis even in these 4 corner cases: when there is no file, the file is regular but empty, a fully sparse big file with 0 bytes, and a statsize 0 file that has pre-allocated a bunch of space", t, func() {
+
+	// set up two isolated test dirs, so we can
+	// be sure exactly what is changing by inspection.
+
+	cwd, err := os.Getwd()
+	panicOn(err)
+	_ = cwd
+
+	localDir := cwd + sep + "local_cli_dir_test206/"
+	//remoteDir := cwd + sep + "remote_srv_dir_test206/"
+	// remove any old leftover test files first.
+	os.RemoveAll(localDir)
+	//os.RemoveAll(remoteDir)
+	os.MkdirAll(localDir, 0755)
+	//os.MkdirAll(remoteDir, 0755)
+
+	// write the sparse and pre-alloc test suite to localDir
+	sparsified.MustGenerateSparseTestFiles(localDir, 0, 0)
+
+	list, err := filepath.Glob(localDir + "/*")
+	panicOn(err)
+
+	//vv("done with MustGenerateSparseTestFiles, list = '%#v'", list)
+
+	//vv("list = '%#v'", list)
+	host := "localhost"
+	const keepDataNO = false
+	for i, path := range list {
+		_ = i
+
+		//fi, err := os.Stat(path)
+		//panicOn(err)
+		//statsz, modTime := fi.Size(), fi.ModTime()
+		//_ = statsz
+
+		//fd, err := os.Open(path)
+		//panicOn(err)
+
+		precis, chunks, err := SummarizeFileInCDCHashes(host, path, keepDataNO)
+		panicOn(err)
+		_ = chunks
+		if precis == nil {
+			panic(fmt.Sprintf("i=%v had nil precis for path '%v'", i, path))
+		}
+		vv("on i=%v, got precis = '%v'", i, precis)
+	}
+
+	// test non-existent file
+	path := "test206_file_path_that_does_not_exist"
+	os.Remove(path)
+	fi, _ := os.Stat(path)
+	if fi != nil {
+		panic(fmt.Sprintf("expected nil fi back from os.Stat(nonexistent_path); got = '%#v'", fi))
+	}
+	precis, chunks, err := SummarizeFileInCDCHashes(host, path, keepDataNO)
+	_ = chunks
+	panicOn(err)
+	if precis == nil {
+		panic(fmt.Sprintf("non-existent file got nil precis back. for path '%v'", path))
+	}
+	if !precis.PathAbsent {
+		panic(fmt.Sprintf("non-existent file must have precis.PathAbsent flag set! for path '%v'", path))
+	}
+	// currently getting a precis for a non-existent file.
+	// Is that really what we want?
+	//vv("on non-existent file, got precis = '%v'", precis)
+
+}
