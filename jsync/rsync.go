@@ -839,6 +839,11 @@ func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time
 	precis *FilePrecis, chunks *Chunks, err error) {
 
 	//vv("top SummarizeBytesInCDCHashes for path = '%v'", path)
+	defer func() {
+		if precis.FileSize > 0 && chunks == nil {
+			panic(fmt.Sprintf("assertion error: chunks should never be nil when FileSize > 0; precis='%#v'", precis))
+		}
+	}()
 
 	cfg := Default_CDC_Config
 	cdc := jcdc.GetCutpointer(Default_CDC, cfg)
@@ -1224,8 +1229,15 @@ func (cs *Chunks) DataFilter() (r []*Chunk) {
 // it sees.
 //
 // When can returned precis be nil? never.
-// But chunks can be nil if file is empty or non-existent (precis.PathAbsent true)
+// But chunks can be nil if FileSize == 0 (is empty or
+// non-existent so precis.PathAbsent==true).
 func GetHashesOneByOne(host, path string) (precis *FilePrecis, chunks *Chunks, err error) {
+
+	defer func() {
+		if precis.FileSize > 0 && chunks == nil {
+			panic(fmt.Sprintf("assertion error: chunks should never be nil when FileSize > 0; precis='%#v'", precis))
+		}
+	}()
 
 	//vv("GetHashesOneByOne top")
 	fi, err := os.Stat(path)

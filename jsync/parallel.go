@@ -77,6 +77,12 @@ func ChunkFile2(
 	//}()
 	// must handle non-existant files without error.
 
+	defer func() {
+		if precis.FileSize > 0 && chunks0 == nil {
+			panic(fmt.Sprintf("assertion error: chunks0 should never be nil when FileSize > 0; precis='%#v'", precis))
+		}
+	}()
+
 	fi, err := os.Stat(path)
 	if err != nil {
 		return SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, false, nil)
