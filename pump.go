@@ -147,10 +147,10 @@ func (pb *LocalPeer) peerbackPump() {
 
 	done := pb.Ctx.Done()
 	for {
-		vv("%v %p: pump loop top of select. pb.handleChansNewCircuit = %p", name, pb, pb.TellPumpNewCircuit)
+		//vv("%v %p: pump loop top of select. pb.handleChansNewCircuit = %p", name, pb, pb.TellPumpNewCircuit)
 		select { // jsync 220 hung here, goro 36,50,8,86,48. all from ckt.go:551 in peerAPI.newLocalPeer().
 		case <-pb.Halt.ReqStop.Chan:
-			//vv("%v %p: pump loop pb.Halt.ReqStop.Chan shutdown received; pb = %p", name, pb, pb)
+			vv("%v %p: pump loop pb.Halt.ReqStop.Chan shutdown received; pb = %p", name, pb, pb)
 			return
 
 		case query := <-pb.QueryCh:
@@ -188,6 +188,9 @@ func (pb *LocalPeer) peerbackPump() {
 			callID := msg.HDR.CallID
 			ckt, ok := m[callID]
 			//vv("pump %v: sees readsIn msg, ckt ok=%v", name, ok)
+			if msg.HDR.FragOp == 15 {
+				vv("pump %v: sees FragOp==OpRsync_AckBackFIN_ToTaker, readsIn msg, ckt ok=%v", name, ok)
+			}
 			if !ok {
 				// we expect the ckt close ack-back to be dropped if we initiated it.
 				//alwaysPrintf("%v: arg. no circuit avail for callID = '%v'/Typ:'%v';"+
@@ -201,29 +204,33 @@ func (pb *LocalPeer) peerbackPump() {
 				}
 				continue
 			}
-			//vv("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
+			vv("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
 
 			if msg.HDR.Typ == CallPeerEndCircuit {
-				//vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg)
+				vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg)
 				cleanupCkt(ckt, false)
 				//zz("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg. back from cleanupCkt, about to continue: '%v'", name, ckt.Name, msg)
 				continue
 			}
 
 			frag := ckt.ConvertMessageToFragment(msg)
-			//vv("got frag = '%v'", frag)
-			select { // was hung here on shutdown... try adding this first case
-			case ckt2 := <-pb.HandleCircuitClose:
-				//vv("%v pump: ckt2 := <-pb.HandleCircuitClose: for ckt2='%v'", name, ckt2.Name)
-				cleanupCkt(ckt2, true)
+			vv("got frag = '%v'", frag)
+			select { // was hung here on shutdown... try adding this first case... but this might be making the pump exit too early?? yep. causes drop of fragment we need in jysnc dir_test 440 test; probably 220 jsync/e2e_test.go too.
+			//case ckt2 := <-pb.HandleCircuitClose:
+			//	vv("%v pump: ckt2 := <-pb.HandleCircuitClose: for ckt2='%v'", name, ckt2.Name)
+			//cleanupCkt(ckt2, true)
 
 			case ckt.Reads <- frag: // server should be hung here, if peer code not servicing
+				vv("pump sent frag on ckt! ckt='%v'; frag='%v'", ckt, frag)
 			case <-ckt.Halt.ReqStop.Chan:
+				vv("<-ckt.Halt.ReqStop.Chan:")
 				cleanupCkt(ckt, true)
 				continue
 			case <-pb.Halt.ReqStop.Chan:
+				vv("<-pb.Halt.ReqStop.Chan:")
 				return
 			case <-done:
+				vv("<-done:")
 				return
 			}
 		case msgerr := <-pb.ErrorsIn:
