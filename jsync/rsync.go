@@ -705,7 +705,14 @@ func (s *RsyncNode) RequestLatest(
 
 	bs := NewBlobStore() // make persistent state, at some point.
 
-	// do we need to handle remote == nil here?
+	// do we need to handle remote == nil here? yes, for Test710_client_gets_new_file_over_rsync_twice, so copy what giver.go:496 does:
+	if remote == nil {
+		remote = &Chunks{
+			// do we want req.SenderPath or
+			// req.ReaderPrecis.Path ? I this the req.ReaderPrecis.Path
+			Path: req.ReaderPrecis.Path,
+		}
+	}
 
 	drop2ndData := true // local is in 2nd position here, drop unneeded data.
 	plan := bs.GetPlanToUpdateFromGoal(remote, local, drop2ndData, false)
