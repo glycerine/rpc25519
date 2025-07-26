@@ -781,6 +781,11 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 						takerFinalPath)
 				}
 				panicOn(err)
+				if chunks == nil && !precis.PathAbsent {
+					vv("chunks is nil, but precis.PathAbsent=false; precis = '%#v'", precis)
+					panic("should be impossible to have existing file with chunks nil, we hope/want/make it so!")
+				}
+				// INVAR: above assert means: (chunks==nil only on absent path).
 
 				frag := myPeer.NewFragment()
 				frag.FragOp = OpRsync_RequestRemoteToGive // 12

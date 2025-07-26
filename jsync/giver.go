@@ -464,8 +464,11 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	// Avoid short circuiting if we have
 	// UNWRIT; pre-allocated spans, so we can
 	// try to re-create them on the other side.
+	//
+	// NB remoteWantsUpdate is nil when file absent.
 	if local.PreAllocUnwritEndx == 0 &&
-		remoteWantsUpdate.FileCry == goalPrecis.FileCry { // segfault 440
+		(remoteWantsUpdate != nil &&
+			remoteWantsUpdate.FileCry == goalPrecis.FileCry) { // was segfault 440
 		//vv("we can save on sending chunks! remoteWantsUpdate.FileCry == goalPrecis.FileCry = '%v'. sending back OpRsync_ToTakerMetaUpdateAtLeast", remoteWantsUpdate.FileCry)
 
 		updateMeta := ckt.LpbFrom.NewFragment()
@@ -489,6 +492,15 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	const dropPlanData = true // only send what they need.
 	const usePlaceHolders = true
 
+	if remoteWantsUpdate == nil {
+		// absent file on remote, try to get GetPlanToUpdateFromGoal
+		// to give us "everything" locally because Chunks.Chunks is empty...
+		// this makes 440 dir_test green.
+		remoteWantsUpdate = &Chunks{
+			Path: syncReq.TakerPath,
+		}
+	}
+
 	// old: heavyPlan has all the data diff chunks we want to send;
 	// right after sending the light plan. By streaming
 	// them separately, we keep the message sizes reasonable.
@@ -497,7 +509,6 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	// to flag us to read the actual data from disk and then
 	// send it over the wire. This helps keep memory footprint low.
 	placeholderPlan := bs.GetPlanToUpdateFromGoal(remoteWantsUpdate, local, dropPlanData, usePlaceHolders)
-
 	//vv("placeholderPlan = '%v'", placeholderPlan)
 
 	chunksWithDataN := placeholderPlan.DataPresent()

@@ -571,11 +571,11 @@ takerForSelectLoop:
 							}
 						} else {
 							lc, ok := localMap[chunk.Cry]
-							if !ok {
-								panic(fmt.Sprintf("rsync algo failed, "+
-									"the needed data is not "+
+							if !ok { // or red 440 from this or rsync.go:1622
+								panic(fmt.Sprintf("taker.go:575 rsync algo failed, "+
+									"the needed data (localPathToWrite='%v') is not "+
 									"available locally: '%v'; len(localMap)=%v",
-									chunk, len(localMap)))
+									localPathToWrite, chunk, len(localMap)))
 							}
 							// data is typically nil!
 							// localMap should have only hashes.

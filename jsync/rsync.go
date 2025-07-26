@@ -252,8 +252,7 @@ func UpdateLocalWithRemoteDiffs(
 			//vv("the data is local") // not seen
 			lc, ok := localMap[chunk.Cry]
 			if !ok {
-				panic(fmt.Sprintf("rsync algo failed, the needed data is not "+
-					"available locally: '%v'; len(localMap) = %v", chunk, len(localMap))) // it was not this one, but further down at 220
+				panic(fmt.Sprintf("rsync.go:255 rsync algo failed, the needed data is not available locally: '%v'; path='%v'; len(localMap) = %v", chunk, remote.Path, len(localMap))) // it was not this one, but further down at 220
 			}
 
 			// TODO: preserve/detect sparseness from local data too.
@@ -542,6 +541,8 @@ func (s *BlobStore) GetPlanToUpdateFromGoal(updateme, goal *Chunks, dropGoalData
 
 	//vv("top of GetPlan: len(updateme.Chunks)=%v", len(updateme.Chunks))
 	//vv("top of GetPlan: len(goal.Chunks)=%v", len(goal.Chunks))
+
+	// deal with absent paths by... setting placeholderPlan = local? try it.
 
 	// index the updateme
 	updatememap := make(map[string]*Chunk)
@@ -1605,11 +1606,11 @@ func UpdateLocalFileWithRemoteDiffs_TestHelper(
 		if len(chunk.Data) == 0 {
 			// the data is local
 			lc, ok := localMap[chunk.Cry]
-			if !ok {
-				panic(fmt.Sprintf("rsync algo failed, "+
-					"the needed data is not "+
+			if !ok { // 440 red from this or taker.go:576
+				panic(fmt.Sprintf("rsync.go:1623 rsync algo failed, "+
+					"the needed data (for path='%v') is not "+
 					"available locally: '%v'; len(localMap)=%v",
-					chunk, len(localMap)))
+					remote.Path, chunk, len(localMap)))
 			}
 			// data is typically nil!
 			// localMap should have only hashes.
