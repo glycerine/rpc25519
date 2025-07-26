@@ -705,6 +705,8 @@ func (s *RsyncNode) RequestLatest(
 
 	bs := NewBlobStore() // make persistent state, at some point.
 
+	// do we need to handle remote == nil here?
+
 	drop2ndData := true // local is in 2nd position here, drop unneeded data.
 	plan := bs.GetPlanToUpdateFromGoal(remote, local, drop2ndData, false)
 
@@ -720,8 +722,10 @@ func (s *RsyncNode) RequestLatest(
 
 func getCryMap(cs *Chunks) (m map[string]*Chunk) {
 	m = make(map[string]*Chunk)
-	for _, c := range cs.Chunks {
-		m[c.Cry] = c
+	if cs != nil {
+		for _, c := range cs.Chunks {
+			m[c.Cry] = c
+		}
 	}
 	return
 }

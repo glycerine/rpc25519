@@ -1120,19 +1120,19 @@ takerForSelectLoop:
 				}
 				panicOn(err)
 
-				if len(local.Chunks) == 0 {
-					// empty or non-existant file
-				}
-
 				light := LightRequest{
 					SenderPath:   syncReq.TakerPath,
 					ReaderPrecis: precis,
 					//ReaderChunks: local, // too large from a 3GB file. Send after.
-					ReaderChunks: &Chunks{
+				}
+				if local == nil || len(local.Chunks) == 0 {
+					// non-existant file or zero-length
+				} else {
+					light.ReaderChunks = &Chunks{
 						Path:     local.Path,
 						FileSize: local.FileSize,
 						FileCry:  local.FileCry,
-					},
+					}
 				}
 
 				//vv("precis = '%v'", precis)
