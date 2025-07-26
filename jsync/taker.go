@@ -22,7 +22,7 @@ import (
 	"github.com/glycerine/rpc25519/jsync/sparsified"
 )
 
-const useRLE0 = true
+//const useRLE0 = true // always true now.
 
 var ErrNeedDirTaker = fmt.Errorf("DirTaker needed: giver has directory where taker has file")
 
@@ -819,6 +819,7 @@ takerForSelectLoop:
 				//vv("end of OpRsync_SenderPlanEnclosed, now wait for 9,10 (OpRsync_HeavyDiffChunksLast==10 at least); goalPrecis.Path='%v'", goalPrecis.Path)
 
 			case OpRsync_HereIsFullFileBegin3, OpRsync_HereIsFullFileMore4, OpRsync_HereIsFullFileEnd5:
+				panic("no where sent, so we can delete these 3 Ops, right?")
 				if disk == nil {
 					//vv("HereIsFullFile: creating disk file localPathToWrite = '%v'", localPathToWrite)
 					disk = NewFileToDiskState(localPathToWrite)

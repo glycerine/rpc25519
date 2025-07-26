@@ -153,15 +153,9 @@ type SyncService struct {
 // giver -> 1 -> 34 ToGiverSizeMatchButCheckHash -> FIN (taker returns)
 // giver -> 1 -> 8 LightRequestEnclosed(giver) giverSendsPlanAndData.. file checksums already match, yay. -> ToTakerMetaUpdateAtLeast(14) (taker) -> FIN (giver returns)
 
-// giver -> 1 -> 8 LightRequestEnclosed(giver) giverSendsPlanAndData -> 11,10,9 (taker) -> FileAllReadAckToGiver (giver) -> FIN (taker returns)
+// giver -> 1 -> 8 LightRequestEnclosed(giver) giverSendsPlanAndDataUpdates for RLE0 support  -> 11,10,9 (taker) -> FileAllReadAckToGiver (giver) -> AckBackFIN_ToTaker (taker) -> FIN (giver returns)
 
 // giver -> 1 -> 8 LightRequestEnclosed(giver) giverSendsPlanAndData -> 11,10,9 (taker) if file absent or deleted -> FIN (giver returns)
-
-// old (without RLE0 support b/c giverSendsWholeFile lacks it): giver -> 1 -> 2 NeedFullFile2(giver) giverSendsWholeFile -> 11 (file not found via SenderPlanEnclosed.FileIsDeleted) (taker deletes file) -> FIN (giver returns)
-
-// giver -> 1 -> 8 LightRequestEnclosed(giver) giverSendsPlanAndData ->
-
-// updated: giver -> 1 -> 2 NeedFullFile2(giver) giverSendsPlanAndDataUpdates for RLE0 support -> ... what here? TODO: trace what happens after giverSendsPlanAndDataUpdates.
 
 // TODO: this next also needs update to replace giverSendsWholeFile with giverSendsPlanAndDataUpdates.
 // giver -> 1 -> 2 NeedFullFile2(giver) giverSendsWholeFile -> FullFileBegin3,FullFileMore4,FullFileEnd5 (taker) -> FileAllReadAck -> FIN (taker returns)
@@ -220,9 +214,11 @@ type SyncService struct {
 const (
 	OpRsync_RequestRemoteToTake = 1 // to taker
 	//OpRsync_ToGiverNeedFullFile2           = 2  // ... to Giver (no longer used, since we want RLE0/sparseness scanning always to save space)
-	OpRsync_HereIsFullFileBegin3           = 3  // to taker
-	OpRsync_HereIsFullFileMore4            = 4  // to taker
-	OpRsync_HereIsFullFileEnd5             = 5  // to taker
+	// can we get rid of these next 3,4,5 too then?
+	OpRsync_HereIsFullFileBegin3 = 3 // to taker
+	OpRsync_HereIsFullFileMore4  = 4 // to taker
+	OpRsync_HereIsFullFileEnd5   = 5 // to taker
+
 	OpRsync_FileAllReadAckToGiver          = 6  // ... to Giver -> exit when recv.
 	OpRsync_FileSizeModTimeMatch           = 7  // to taker -> exit when recv.
 	OpRsync_LightRequestEnclosed           = 8  // ... to Giver (if needs more Chunk space, use 17/18 to follow up)
