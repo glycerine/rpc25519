@@ -11,7 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
+	//"strconv"
 	"strings"
 	//"sync"
 	"time"
@@ -109,7 +109,7 @@ func (s *SyncService) Taker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 	lastUpdate := t0
 	_ = lastUpdate
 
-	var disk *FileToDiskState
+	//var disk *FileToDiskState
 
 	var goalPrecis *FilePrecis
 	var local *Chunks
@@ -818,88 +818,90 @@ takerForSelectLoop:
 				// else we have the senderPlan, goalPrecis, and plan.
 				//vv("end of OpRsync_SenderPlanEnclosed, now wait for 9,10 (OpRsync_HeavyDiffChunksLast==10 at least); goalPrecis.Path='%v'", goalPrecis.Path)
 
-			case OpRsync_HereIsFullFileBegin3, OpRsync_HereIsFullFileMore4, OpRsync_HereIsFullFileEnd5:
-				panic("no where sent, so we can delete these 3 Ops, right?")
-				if disk == nil {
-					//vv("HereIsFullFile: creating disk file localPathToWrite = '%v'", localPathToWrite)
-					disk = NewFileToDiskState(localPathToWrite)
-					disk.T0 = time.Now()
-				}
-				isLast := (frag.FragOp == OpRsync_HereIsFullFileEnd5)
-				//vv("isLast = %v; frag.FragPart = %v", isLast, frag.FragPart)
-
-				req := ckt.ConvertFragmentToMessage(frag)
-				err := disk.WriteOneMsgToFile(req, isLast)
-
-				//vv("%v: (ckt %v) (Taker) disk.WriteOneMsgToFile() -> err = '%v'", name, ckt.Name, err)
-				panicOn(err)
-
-				if !isLast {
-					frag = nil // gc early.
-					req = nil  // gc early.
-					continue takerForSelectLoop
-				}
-				// INVAR: on last, finish up.
-				totSum := disk.Blake3hash.SumString()
-
-				clientTotalBlake3sum, ok := frag.GetUserArg("clientTotalBlake3sum")
-				//vv("responder rsyncd ReceiveFileInParts sees last set!"+
-				//	" clientTotalBlake3sum='%v'", clientTotalBlake3sum)
-				//vv("bytesWrit=%v; \nserver totSum='%v'", disk.BytesWrit, totSum)
-				if ok && clientTotalBlake3sum != totSum {
-					panic("blake3 checksums disagree!")
-				}
-
-				elap := time.Since(disk.T0)
-				mb := float64(disk.BytesWrit) / float64(1<<20)
-				seconds := (float64(elap) / float64(time.Second))
-				rate := mb / seconds
-
-				// match the mode/mod time of the source.
-				if !syncReq.TakerStartsEmpty {
-					mode := syncReq.GiverFileMode
-					if mode == 0 {
-						mode = 0600
+				/* not in use, to be deleted.
+				case OpRsync_HereIsFullFileBegin3, OpRsync_HereIsFullFileMore4, OpRsync_HereIsFullFileEnd5:
+					panic("no where sent, so we can delete these 3 Ops, right?")
+					if disk == nil {
+						//vv("HereIsFullFile: creating disk file localPathToWrite = '%v'", localPathToWrite)
+						disk = NewFileToDiskState(localPathToWrite)
+						disk.T0 = time.Now()
 					}
-					err = os.Chmod(localPathToWrite, fs.FileMode(mode))
+					isLast := (frag.FragOp == OpRsync_HereIsFullFileEnd5)
+					//vv("isLast = %v; frag.FragPart = %v", isLast, frag.FragPart)
+
+					req := ckt.ConvertFragmentToMessage(frag)
+					err := disk.WriteOneMsgToFile(req, isLast)
+
+					//vv("%v: (ckt %v) (Taker) disk.WriteOneMsgToFile() -> err = '%v'", name, ckt.Name, err)
 					panicOn(err)
 
-					err = os.Chtimes(localPathToWrite, time.Time{}, syncReq.GiverModTime)
-					panicOn(err)
-				} else {
-					// try to use what the remote told us.
-					modeString, ok := frag.GetUserArg("mode")
-					if ok {
-						mode, err := strconv.ParseUint(modeString, 10, 32)
+					if !isLast {
+						frag = nil // gc early.
+						req = nil  // gc early.
+						continue takerForSelectLoop
+					}
+					// INVAR: on last, finish up.
+					totSum := disk.Blake3hash.SumString()
+
+					clientTotalBlake3sum, ok := frag.GetUserArg("clientTotalBlake3sum")
+					//vv("responder rsyncd ReceiveFileInParts sees last set!"+
+					//	" clientTotalBlake3sum='%v'", clientTotalBlake3sum)
+					//vv("bytesWrit=%v; \nserver totSum='%v'", disk.BytesWrit, totSum)
+					if ok && clientTotalBlake3sum != totSum {
+						panic("blake3 checksums disagree!")
+					}
+
+					elap := time.Since(disk.T0)
+					mb := float64(disk.BytesWrit) / float64(1<<20)
+					seconds := (float64(elap) / float64(time.Second))
+					rate := mb / seconds
+
+					// match the mode/mod time of the source.
+					if !syncReq.TakerStartsEmpty {
+						mode := syncReq.GiverFileMode
+						if mode == 0 {
+							mode = 0600
+						}
 						err = os.Chmod(localPathToWrite, fs.FileMode(mode))
 						panicOn(err)
-					}
-					modTimeString, ok := frag.GetUserArg("modTime")
-					if ok {
-						modTime, err := time.Parse(time.RFC3339Nano, modTimeString)
+
+						err = os.Chtimes(localPathToWrite, time.Time{}, syncReq.GiverModTime)
 						panicOn(err)
-						err = os.Chtimes(localPathToWrite, time.Time{}, modTime)
-						panicOn(err)
+					} else {
+						// try to use what the remote told us.
+						modeString, ok := frag.GetUserArg("mode")
+						if ok {
+							mode, err := strconv.ParseUint(modeString, 10, 32)
+							err = os.Chmod(localPathToWrite, fs.FileMode(mode))
+							panicOn(err)
+						}
+						modTimeString, ok := frag.GetUserArg("modTime")
+						if ok {
+							modTime, err := time.Parse(time.RFC3339Nano, modTimeString)
+							panicOn(err)
+							err = os.Chtimes(localPathToWrite, time.Time{}, modTime)
+							panicOn(err)
+						}
 					}
-				}
 
-				ackAll := myPeer.NewFragment()
-				ackAll.FragSubject = frag.FragSubject
-				ackAll.FragOp = OpRsync_FileAllReadAckToGiver
-				ackAll.FragPart = int64(bt.bsend + bt.bread)
-				ackAll.SetUserArg("serverTotalBlake3sum", totSum)
-				ackAll.SetUserArg("clientTotalBlake3sum", clientTotalBlake3sum)
+					ackAll := myPeer.NewFragment()
+					ackAll.FragSubject = frag.FragSubject
+					ackAll.FragOp = OpRsync_FileAllReadAckToGiver
+					ackAll.FragPart = int64(bt.bsend + bt.bread)
+					ackAll.SetUserArg("serverTotalBlake3sum", totSum)
+					ackAll.SetUserArg("clientTotalBlake3sum", clientTotalBlake3sum)
 
-				// finally reply to the original caller.
-				ackAll.Payload = []byte(fmt.Sprintf("got upcall at '%v' => "+
-					"elap = %v\n (while mb=%v) => %v MB/sec. ; \n bytesWrit=%v;",
-					disk.T0, elap, mb, rate, disk.BytesWrit))
+					// finally reply to the original caller.
+					ackAll.Payload = []byte(fmt.Sprintf("got upcall at '%v' => "+
+						"elap = %v\n (while mb=%v) => %v MB/sec. ; \n bytesWrit=%v;",
+						disk.T0, elap, mb, rate, disk.BytesWrit))
 
-				bt.bsend += ackAll.Msgsize()
-				err = ckt.SendOneWay(ackAll, 0, 0)
-				frag = nil
-				ackAll = nil
-				continue // wait for fin ack back.
+					bt.bsend += ackAll.Msgsize()
+					err = ckt.SendOneWay(ackAll, 0, 0)
+					frag = nil
+					ackAll = nil
+					continue // wait for fin ack back.
+				*/
 
 			case OpRsync_RequestRemoteToTake, OpRsync_ToGiverSizeMatchButCheckHashAck: // 1, 35
 

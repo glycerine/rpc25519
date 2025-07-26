@@ -150,7 +150,7 @@ func (pb *LocalPeer) peerbackPump() {
 		//vv("%v %p: pump loop top of select. pb.handleChansNewCircuit = %p", name, pb, pb.TellPumpNewCircuit)
 		select { // jsync 220 hung here, goro 36,50,8,86,48. all from ckt.go:551 in peerAPI.newLocalPeer().
 		case <-pb.Halt.ReqStop.Chan:
-			vv("%v %p: pump loop pb.Halt.ReqStop.Chan shutdown received; pb = %p", name, pb, pb)
+			//vv("%v %p: pump loop pb.Halt.ReqStop.Chan shutdown received; pb = %p", name, pb, pb)
 			return
 
 		case query := <-pb.QueryCh:

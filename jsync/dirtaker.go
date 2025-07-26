@@ -690,10 +690,10 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 	_ = t0
 	nn := needUpdate.GetN()
 	_ = nn
-	vv("top dirTakerRequestIndivFiles() with %v files needing updates. needUpdate='%v'", nn, needUpdate)
+	//vv("top dirTakerRequestIndivFiles() with %v files needing updates. needUpdate='%v'", nn, needUpdate)
 
 	batchHalt := idem.NewHalter()
-	vv("batchHalt = %p", batchHalt)
+	//vv("batchHalt = %p", batchHalt)
 	// if we return early, this will shut down the
 	// worker pool, since they have each have
 	// a goroHalt that is added as a child.
@@ -727,9 +727,9 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 		// rsync: 1.6s vs jcp 2.8s to restore linux/Documentation
 		// over LAN.
 		go func(fileCh chan *File, goroHalt *idem.Halter, bt *byteTracker, w int) {
-			vv("999999 starting: background batch goro %v maps go goroHalt = %p", GoroNumber(), goroHalt)
+			//vv("999999 starting: background batch goro %v maps go goroHalt = %p", GoroNumber(), goroHalt)
 			defer func() {
-				vv("999999 exiting: background batch goro %v maps go goroHalt = %p", GoroNumber(), goroHalt) // not seen!!! none were seen.
+				//vv("999999 exiting: background batch goro %v maps go goroHalt = %p", GoroNumber(), goroHalt) // not seen!!! none were seen.
 
 				// other side ctrl-c will give us a panic here
 				r := recover()
@@ -740,15 +740,15 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 					// also stop the whole batch.
 					// At least for now, sane debugging.
 					batchHalt.ReqStop.CloseWithReason(err)
-					vv("debug this panic! '%v'", r) // why is goalPrecis nil? hit on e2e_test 220; localPathToWrite='/Users/jaten/rpc25519/jsync/remote_srv_dir_test220/testZZZ.outpath.08.sparsefile'':
-					os.Exit(1)
+					//vv("debug this panic: '%v'", r)
+					//os.Exit(1)
 				} else {
 					goroHalt.ReqStop.Close()
 				}
-				vv("dirTakerRequestIndivFiles: dirtaker worker w=%v done.", w)
+				//vv("dirTakerRequestIndivFiles: dirtaker worker w=%v done.", w)
 				goroHalt.Done.Close()
 			}()
-			vv("top of dirTakerRequestIndivFiles: dirtaker worker w=%v.", w)
+			//vv("top of dirTakerRequestIndivFiles: dirtaker worker w=%v.", w)
 
 			var file *File
 			var t1 time.Time
@@ -791,7 +791,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				}
 				panicOn(err)
 				if chunks == nil && !precis.PathAbsent {
-					vv("chunks is nil, but precis.PathAbsent=false; precis = '%#v'", precis)
+					//vv("chunks is nil, but precis.PathAbsent=false; precis = '%#v'", precis)
 					panic("should be impossible to have existing file with chunks nil, we hope/want/make it so!")
 				}
 				// INVAR: above assert means: (chunks==nil only on absent path).
@@ -924,7 +924,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				panicOn(errg)
 				left := batchHalt.ReqStop.TaskDone()
 				_ = left
-				vv("dirtaker worker: back from s.Taker(), and batchHalt=%p .TaskDone left=%v; errg='%v'", batchHalt, left, errg)
+				//vv("dirtaker worker: back from s.Taker(), and batchHalt=%p .TaskDone left=%v; errg='%v'", batchHalt, left, errg)
 				// does its own SR == nil check.
 				reqDir.SR.ReportProgress(
 					"done : "+filepath.Base(giverPath), file.Size, file.Size, t1)
@@ -963,7 +963,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 		}
 	} // end range needUpdate
 
-	vv("about to wait on batchHalt(%p).ReqStop with done= %p", batchHalt, done) // done not nil
+	//vv("about to wait on batchHalt(%p).ReqStop with done= %p", batchHalt, done) // done not nil
 	// primary reason for hang seems to be that the not
 	// all batch tasks tasks that we are waiting on have been closed.
 	err0 = batchHalt.ReqStop.TaskWait(done) // hung 220 here on halter.go:718 and 440

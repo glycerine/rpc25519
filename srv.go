@@ -2105,7 +2105,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		case sendCh <- msg:
 			return nil, nil
 		case <-haltCh:
-			vv("errWriteDur == -2: shutting down on haltCh = %p", haltCh)
+			//vv("errWriteDur == -2: shutting down on haltCh = %p", haltCh)
 			return ErrShutdown(), nil
 		case <-ctx.Done():
 			return ErrContextCancelled, nil

@@ -215,9 +215,9 @@ const (
 	OpRsync_RequestRemoteToTake = 1 // to taker
 	//OpRsync_ToGiverNeedFullFile2           = 2  // ... to Giver (no longer used, since we want RLE0/sparseness scanning always to save space)
 	// can we get rid of these next 3,4,5 too then?
-	OpRsync_HereIsFullFileBegin3 = 3 // to taker
-	OpRsync_HereIsFullFileMore4  = 4 // to taker
-	OpRsync_HereIsFullFileEnd5   = 5 // to taker
+	//OpRsync_HereIsFullFileBegin3 = 3 // to taker
+	//OpRsync_HereIsFullFileMore4  = 4 // to taker
+	//OpRsync_HereIsFullFileEnd5   = 5 // to taker
 
 	OpRsync_FileAllReadAckToGiver          = 6  // ... to Giver -> exit when recv.
 	OpRsync_FileSizeModTimeMatch           = 7  // to taker -> exit when recv.
@@ -274,9 +274,9 @@ func AliasRsyncOps() {
 	rpc.FragOpRegister(OpRsync_RequestRemoteToTake, "OpRsync_RequestRemoteToTake")
 	rpc.FragOpRegister(OpRsync_RequestRemoteToGive, "OpRsync_RequestRemoteToGive")
 	//deleted: rpc.FragOpRegister(OpRsync_ToGiverNeedFullFile2, "OpRsync_ToGiverNeedFullFile2")
-	rpc.FragOpRegister(OpRsync_HereIsFullFileBegin3, "OpRsync_HereIsFullFileBegin3")
-	rpc.FragOpRegister(OpRsync_HereIsFullFileMore4, "OpRsync_HereIsFullFileMore4")
-	rpc.FragOpRegister(OpRsync_HereIsFullFileEnd5, "OpRsync_HereIsFullFileEnd5")
+	//rpc.FragOpRegister(OpRsync_HereIsFullFileBegin3, "OpRsync_HereIsFullFileBegin3")
+	//rpc.FragOpRegister(OpRsync_HereIsFullFileMore4, "OpRsync_HereIsFullFileMore4")
+	//rpc.FragOpRegister(OpRsync_HereIsFullFileEnd5, "OpRsync_HereIsFullFileEnd5")
 	rpc.FragOpRegister(OpRsync_FileAllReadAckToGiver, "OpRsync_FileAllReadAckToGiver")
 	rpc.FragOpRegister(OpRsync_FileSizeModTimeMatch, "OpRsync_FileSizeModTimeMatch")
 	rpc.FragOpRegister(OpRsync_LightRequestEnclosed, "OpRsync_LightRequestEnclosed")
