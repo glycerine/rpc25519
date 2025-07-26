@@ -7,6 +7,7 @@ import (
 	"io"
 	mathrand2 "math/rand/v2"
 	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -14,6 +15,8 @@ import (
 	cv "github.com/glycerine/goconvey/convey"
 	rpc "github.com/glycerine/rpc25519"
 	//"github.com/glycerine/rpc25519/hash"
+
+	"github.com/glycerine/rpc25519/jsync/sparsified"
 )
 
 func Test201_rsync_style_chunking_and_hash_generation(t *testing.T) {
@@ -1043,4 +1046,94 @@ func allZeroChunk(chnk1 *Chunk, path string, chnk *Chunk) (all0, all0max bool) {
 	all0max = allZero(slc[:sz])
 	vv("allZeroChunk %v for size %v chnk1.Beg(%v):chnk1.Endx(%v) of path '%v'; all0max = %v for the max sz (chnk is %v:%v)", all0, sz1, chnk1.Beg, chnk1.Endx, path, all0max, chnk.Beg, chnk.Endx)
 	return
+}
+
+// 203 check returned precis is right on SummarizeBytesInCDCHashes on
+// empty file, non-existance file, fully-sparse file (0 stat size)
+// or fully pre-allocated but otherwise empty files.
+func Test203_rsync_SummarizeBytesInCDCHashes_on_size_0_four_cases(t *testing.T) {
+
+	cv.Convey("SummarizeBytesInCDCHashes() should generate a precis even in these 4 corner cases: when there is no file, the file is regular but empty, a fully sparse big file with 0 bytes, and a statsize 0 file that has pre-allocated a bunch of space", t, func() {
+
+		// set up two isolated test dirs, so we can
+		// be sure exactly what is changing by inspection.
+
+		cwd, err := os.Getwd()
+		panicOn(err)
+		_ = cwd
+
+		localDir := cwd + sep + "local_cli_dir_test203/"
+		//remoteDir := cwd + sep + "remote_srv_dir_test203/"
+		// remove any old leftover test files first.
+		os.RemoveAll(localDir)
+		//os.RemoveAll(remoteDir)
+		os.MkdirAll(localDir, 0755)
+		//os.MkdirAll(remoteDir, 0755)
+
+		// write the sparse and pre-alloc test suite to localDir
+		sparsified.MustGenerateSparseTestFiles(localDir, 0, 0)
+
+		list, err := filepath.Glob(localDir + "/*")
+		panicOn(err)
+
+		//vv("done with MustGenerateSparseTestFiles, list = '%#v'", list)
+
+		//vv("list = '%#v'", list)
+		host := "localhost"
+		const keepDataNO = false
+		for i, path := range list {
+			_ = i
+			statsz, modTime, err := FileSizeModTime(path)
+			panicOn(err)
+			fd, err := os.Open(path)
+			panicOn(err)
+			precis, chunks, err := SummarizeBytesInCDCHashes(host, path, fd, modTime, keepDataNO, statsz) // int64(len(data2)))
+			panicOn(err)
+			_ = chunks
+			if precis == nil {
+				panic(fmt.Sprintf("i=%v had nil precis for path '%v'", i, path))
+			}
+		}
+
+		// test non-existent file
+		path := "test203_file_path_that_does_not_exist"
+		os.Remove(path)
+		precis, chunks, err := SummarizeBytesInCDCHashes(host, path, nil, time.Time{}, keepDataNO, 0) // int64(len(data2)))
+		_ = chunks
+		panicOn(err)
+		if precis == nil {
+			panic(fmt.Sprintf("non-existent file got nil precis back. for path '%v'", path))
+		}
+		// currently getting a precis for a non-existent file.
+		// Is that really what we want?
+		//vv("on non-existent file, got precis = '%v'", precis)
+		/*
+		rsync_test.go:1107 [goID 20] 2025-07-26 06:56:10.935 -0500 CDT on non-existent file, got precis = '{
+		    "CallID": "",
+		    "IsFromSender": false,
+		    "Created": "0001-01-01T00:00:00Z",
+		    "Host": "localhost",
+		    "Path": "test203_file_path_that_does_not_exist",
+		    "ModTime": "0001-01-01T00:00:00Z",
+		    "FileSize": 0,
+		    "FileMode": 0,
+		    "FileOwner": "",
+		    "FileOwnerID": 0,
+		    "FileGroup": "",
+		    "FileGroupID": 0,
+		    "FileMeta": null,
+		    "HashName": "blake3.33B",
+		    "FileCry": "blake3.33B-rxNJufX5oaagQE3qNtzJSZvLJcmtwRK3zJqTyuQfMmLg",
+		    "IsSparse": false,
+		    "PreAllocUnwritBeg": 0,
+		    "PreAllocUnwritEndx": 0,
+		    "ChunkerName": "fastcdc-plakar-go-cdc-chunkers",
+		    "CDC_Config": {
+		        "MinSize": 4096,
+		        "TargetSize": 8192,
+		        "MaxSize": 16384
+		    }
+		}
+		*/
+	})
 }

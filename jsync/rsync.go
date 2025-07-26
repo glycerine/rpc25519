@@ -769,6 +769,8 @@ func (h *FilePrecis) String() string {
 //
 // For files under 1GB, LightlySummarize will call us.
 // So do not recurse into LightlySummarize in here.
+//
+// When can precis be returned nil?
 func SummarizeFileInCDCHashes(host, path string, keepData bool) (precis *FilePrecis, chunks *Chunks, err error) {
 
 	if !fileExists(path) {
@@ -826,7 +828,7 @@ func SummarizeFileInCDCHashes(host, path string, keepData bool) (precis *FilePre
 // have nil Data.
 //
 // when can returned precis be nil? never, but if err !=nil
-// it might be suspect?
+// it might be suspect on the file missing/empty situations.
 func SummarizeBytesInCDCHashes(host, path string, fd *os.File, modTime time.Time, keepData bool, fileStatSz int64) (
 	precis *FilePrecis, chunks *Chunks, err error) {
 
