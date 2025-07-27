@@ -215,6 +215,12 @@ func (pb *LocalPeer) peerbackPump() {
 
 			frag := ckt.ConvertMessageToFragment(msg)
 			//vv("got frag = '%v'", frag)
+
+		wait5MoreSecondsBeforeCktShutdown:
+			var delayedShutCtkTimeout *SimTimer
+			var delayedShutCtkTimeoutC <-chan time.Time // nil typically
+			var ckt5s []*Circuit
+			var doReturn bool
 			select {
 			// was hung here on shutdown... tried adding this first case...
 			// BUT VERY BAD: this makes the pump exit too early!
@@ -227,17 +233,59 @@ func (pb *LocalPeer) peerbackPump() {
 			//	vv("%v pump: ckt2 := <-pb.HandleCircuitClose: for ckt2='%v'", name, ckt2.Name)
 			//cleanupCkt(ckt2, true)
 
+			// BUT we don't want to hang forever on ckt shutdown!
+			// So try to pass the frag for another 5 seconds...
+			// Any subsequent <-pb.HandleCircuitClose
+			// will also get shutdown after the single
+			// 5 seconds of additional time/attemp to
+			// pass on the (likely AckBackFIN_ToTaker) frag.
+			// Sigh: shutdown logical races are a pain.
+			case <-delayedShutCtkTimeoutC: // nil unless len(ckt5s)>0
+				// do the cleanup below
+			case ckt5 := <-pb.HandleCircuitClose:
+				// give 5 more seconds of trying to send on
+				// case ckt.Reads <- frag below until
+				// we actually do shutdown the ckt5
+				//if ckt5 == ckt  // cannot do this, red 220 jsync test!
+				// So actually they are different circuits(!)
+				ckt5s = append(ckt5s, ckt5)
+				if delayedShutCtkTimeout == nil { // only one 5s delay
+					delayedShutCtkTimeout = pb.U.NewTimer(time.Second * 5)
+					if delayedShutCtkTimeout == nil {
+						// shutting down fully
+						doReturn = true
+					} else {
+						delayedShutCtkTimeoutC = delayedShutCtkTimeout.C
+						// try our select again, this time only
+						// waiting for 5 seconds. We don't do this
+						// universally to allow proper backpressure.
+						goto wait5MoreSecondsBeforeCktShutdown
+					}
+				}
 			case ckt.Reads <- frag: // server should be hung here, if peer code not servicing
 				//vv("pump sent frag on ckt! ckt='%v'; frag='%v'", ckt, frag)
 			case <-ckt.Halt.ReqStop.Chan:
 				//vv("<-ckt.Halt.ReqStop.Chan:")
 				cleanupCkt(ckt, true)
-				continue
+				//continue // cleanup any delayedShutCtkTimeout below
 			case <-pb.Halt.ReqStop.Chan:
 				//vv("<-pb.Halt.ReqStop.Chan:")
-				return
+				doReturn = true
 			case <-done:
 				//vv("<-done:")
+				doReturn = true
+			}
+			// "continue"/cleanup
+			if delayedShutCtkTimeout != nil {
+				delayedShutCtkTimeout.Discard()
+				delayedShutCtkTimeout = nil
+			}
+			for len(ckt5s) > 0 {
+				ckt5 := ckt5s[0]
+				ckt5s = ckt5s[1:]
+				cleanupCkt(ckt5, true)
+			}
+			if doReturn {
 				return
 			}
 		case msgerr := <-pb.ErrorsIn:
