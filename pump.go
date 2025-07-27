@@ -261,6 +261,10 @@ func (pb *LocalPeer) peerbackPump() {
 						// universally to allow proper backpressure.
 						goto wait5MoreSecondsBeforeCktShutdown
 					}
+				} else {
+					// handle several case ckt5 := <-pb.HandleCircuitClose
+					// in a row before our first 5 seconds are up.
+					goto wait5MoreSecondsBeforeCktShutdown
 				}
 			case ckt.Reads <- frag: // server should be hung here, if peer code not servicing
 				//vv("pump sent frag on ckt! ckt='%v'; frag='%v'", ckt, frag)
