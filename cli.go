@@ -2825,7 +2825,11 @@ func (ti *SimTimer) Discard() (wasArmed bool) {
 }
 
 func (c *Config) String() (r string) {
-	r = "&Config{\n"
+	return fmt.Sprintf("&Config{\n%v}", c.StringBody())
+}
+
+func (c *Config) StringBody() (r string) {
+
 	r += fmt.Sprintf("       QuietTestMode: %v,\n", c.QuietTestMode)
 	r += fmt.Sprintf("          ServerAddr: \"%v\",\n", c.ServerAddr)
 	r += fmt.Sprintf("      ClientHostPort: \"%v\",\n", c.ClientHostPort)
@@ -2838,15 +2842,14 @@ func (c *Config) String() (r string) {
 	r += fmt.Sprintf("   ClientKeyPairName: \"%v\",\n", c.ClientKeyPairName)
 	r += fmt.Sprintf("   ServerKeyPairName: \"%v\",\n", c.ServerKeyPairName)
 	r += fmt.Sprintf("    PreSharedKeyPath: \"%v\",\n", c.PreSharedKeyPath)
-	r += fmt.Sprintf("      ConnectTimeout: %v,\n", c.ConnectTimeout)
-	r += fmt.Sprintf(" ServerSendKeepAlive: %v,\n", c.ServerSendKeepAlive)
-	r += fmt.Sprintf(" ClientSendKeepAlive: %v,\n", c.ClientSendKeepAlive)
+	r += fmt.Sprintf("      ConnectTimeout: (dur \"%v\"),\n", c.ConnectTimeout)
+	r += fmt.Sprintf(" ServerSendKeepAlive: (dur \"%v\"),\n", c.ServerSendKeepAlive)
+	r += fmt.Sprintf(" ClientSendKeepAlive: (dur \"%v\"),\n", c.ClientSendKeepAlive)
 	r += fmt.Sprintf("        CompressAlgo: \"%v\",\n", c.CompressAlgo)
 	r += fmt.Sprintf("      CompressionOff: %v,\n", c.CompressionOff)
 	r += fmt.Sprintf(" HTTPConnectRequired: %v,\n", c.HTTPConnectRequired)
-	r += fmt.Sprintf("           UseSimNet: %v,\n", c.UseSimNet)
 	r += fmt.Sprintf("ServerAutoCreateClientsToDialOtherServers: %v,\n", c.ServerAutoCreateClientsToDialOtherServers)
-	r += "}"
+	r += fmt.Sprintf("           UseSimNet: %v,\n", c.UseSimNet)
 	return
 }
 
