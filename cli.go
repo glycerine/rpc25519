@@ -1061,7 +1061,17 @@ type Config struct {
 	// UseSimNet uses channels all in one
 	// process, rather than network calls.
 	// Client and Server must be in the same process.
-	UseSimNet    bool
+	UseSimNet bool
+
+	// SimNetConfig is only used for testing; and
+	// advanced testing at that. There is only a
+	// single option in it: BarrierOff. In concurrency
+	// tests that do not want to be reproducible,
+	// this can be used to check more interleavings.
+	// SimNetConfig is not zygo s-expression
+	// serialied, since tests can more simply
+	// configure it and do not need the zygo
+	// s-expression support at all to do so.
 	SimNetConfig SimNetConfig
 
 	// point so that the shallow copy of
