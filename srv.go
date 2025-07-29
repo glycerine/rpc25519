@@ -1915,10 +1915,13 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 
 	if !ok {
 		if !s.cfg.ServerAutoCreateClientsToDialOtherServers {
-			alwaysPrintf("yikes! Server did not find destAddr '%v' in remote2pair", destAddr)
+			//alwaysPrintf("yikes! Server did not find destAddr '%v' in remote2pair: '%v'", destAddr, remote2pair)
 		}
+		alwaysPrintf("yikes! Server did not find destAddr '%v' in remote2pair: '%v'", destAddr, s.remote2pair.GetKeySlice())
+
 		return nil, nil, "", "", false
 	}
+	vv("ok true in Server.destAddrToSendCh(destAddr='%v')", destAddr)
 	// INVAR: ok is true
 	haltCh = s.halt.ReqStop.Chan
 	from = local(pair.Conn)
@@ -1986,10 +1989,6 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		}
 		s.halt.AddChild(cli.halt)
 
-		s.mut.Lock()
-		s.autoClients = append(s.autoClients, cli)
-		s.mut.Unlock()
-
 		// does it matter than the net.Conn / rwPair is
 		// running on a client instead of from the server?
 		// as long as the registry for PeerServiceFunc is
@@ -2012,6 +2011,10 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			}
 			return
 		}
+
+		s.mut.Lock()
+		s.autoClients = append(s.autoClients, cli)
+		s.mut.Unlock()
 
 		key := remote(cli.conn)
 		p := &rwPair{
@@ -2069,7 +2072,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 	sendCh, haltCh, to, from, ok := s.destAddrToSendCh(destAddr)
 	if !ok {
 		// srv_test.go:651
-		//vv("could not find destAddr='%v' in from our s.destAddrToSendCh() call. stack=\n%v", destAddr, stack())
+		vv("could not find destAddr='%v' in from our s.destAddrToSendCh() call.", destAddr)
 		return ErrNetConnectionNotFound, nil
 	}
 	if to != destAddr {

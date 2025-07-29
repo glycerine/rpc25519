@@ -208,7 +208,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	}
 
 	if !c.cfg.QuietTestMode {
-		alwaysPrintf("connected to server %s", serverAddr)
+		alwaysPrintf("connected to server '%s'", serverAddr)
 	}
 
 	// possible to check host keys for TOFU like SSH does,
