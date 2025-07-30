@@ -483,8 +483,15 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 		return fmt.Errorf("frag cannot be nil")
 	}
 	frag.CircuitID = ckt.CircuitID
+
 	frag.FromPeerID = ckt.LocalPeerID
+	if frag.FromPeerName == "" {
+		frag.FromPeerName = ckt.LocalPeerName
+	}
 	frag.ToPeerID = ckt.RemotePeerID
+	if frag.ToPeerName == "" {
+		frag.ToPeerName = ckt.RemotePeerName
+	}
 
 	//vv("sending frag='%v'", frag)
 	msg := ckt.ConvertFragmentToMessage(frag)
