@@ -345,7 +345,9 @@ func (s *LocalPeer) Close() {
 func (s *LocalPeer) NewFragment() (f *Fragment) {
 	s.peerLocalFragMut.Lock()
 	defer s.peerLocalFragMut.Unlock()
-	return s.U.newFragment()
+	f = s.U.newFragment()
+	f.FromPeerName = s.PeerName
+	return
 }
 
 func (s *LocalPeer) FreeFragment(f *Fragment) {
