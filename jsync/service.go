@@ -541,7 +541,7 @@ func RunRsyncService(
 	ctx, canc = context.WithCancel(context.Background())
 
 	if !lazyStartPeer {
-		lpb, err = u.StartLocalPeer(ctx, serviceName, nil)
+		lpb, err = u.StartLocalPeer(ctx, serviceName, nil, "")
 		panicOn(err)
 	}
 
