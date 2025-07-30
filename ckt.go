@@ -68,6 +68,7 @@ func (ckt *Circuit) String() string {
     // LocalCircuitURL: "%v",
     // RemoteCircuitURL: "%v",
 
+   UserString: "%v",
     FirstFrag: %v
 }`, ckt.Name,
 		AliasDecode(ckt.CircuitID),
@@ -77,6 +78,7 @@ func (ckt *Circuit) String() string {
 		ckt.RemoteServiceName,
 		ckt.LocalCircuitURL(),
 		ckt.RemoteCircuitURL(),
+		ckt.UserString,
 		ckt.FirstFrag,
 	)
 }
