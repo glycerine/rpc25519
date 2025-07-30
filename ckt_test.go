@@ -503,11 +503,11 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		defer j.cleanup()
 
 		ctx := context.Background()
-		cli_lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil)
+		cli_lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil, "")
 		panicOn(err)
 		defer cli_lpb.Close()
 
-		srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil)
+		srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil, "")
 		panicOn(err)
 		defer srv_lpb.Close()
 

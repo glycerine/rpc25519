@@ -2819,9 +2819,11 @@ func (s *Client) StartLocalPeer(
 	ctx context.Context,
 	peerServiceName string,
 	requestedCircuit *Message,
+	localPeerName string,
+
 ) (lpb *LocalPeer, err error) {
 
-	return s.PeerAPI.StartLocalPeer(ctx, peerServiceName, requestedCircuit)
+	return s.PeerAPI.StartLocalPeer(ctx, peerServiceName, requestedCircuit, localPeerName)
 }
 
 // StartLoalPeer creates and returns a local Peer,
@@ -2836,9 +2838,11 @@ func (s *Server) StartLocalPeer(
 	ctx context.Context,
 	peerServiceName string,
 	requestedCircuit *Message,
+	localPeerName string,
+
 ) (lpb *LocalPeer, err error) {
 
-	return s.PeerAPI.StartLocalPeer(ctx, peerServiceName, requestedCircuit)
+	return s.PeerAPI.StartLocalPeer(ctx, peerServiceName, requestedCircuit, localPeerName)
 }
 
 // StartRemotePeer bootstraps a remote Peer without

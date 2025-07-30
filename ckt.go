@@ -28,8 +28,11 @@ type Circuit struct {
 	LpbFrom *LocalPeer
 	RpbTo   *RemotePeer
 
-	LocalPeerID  string
-	RemotePeerID string
+	LocalPeerID   string
+	LocalPeerName string
+
+	RemotePeerID   string
+	RemotePeerName string
 
 	LocalServiceName  string
 	RemoteServiceName string
@@ -277,6 +280,7 @@ func (f *Fragment) String() string {
 type RemotePeer struct {
 	LocalPeer         *LocalPeer
 	PeerID            string
+	PeerName          string // map to ckt.RemotePeerName
 	NetAddr           string
 	RemoteServiceName string
 	PeerURL           string
@@ -296,6 +300,7 @@ type LocalPeer struct {
 	Ctx             context.Context
 	Canc            context.CancelCauseFunc
 	PeerID          string
+	PeerName        string
 	U               UniversalCliSrv
 	NewCircuitCh    chan *Circuit
 	ReadsIn         chan *Message
@@ -386,7 +391,9 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 		frag = s.NewFragment()
 	}
 	frag.FromPeerID = s.PeerID
+	frag.FromPeerName = s.PeerName
 	frag.ToPeerID = peerID
+	//frag.ToPeerName = ?unknown?maybe
 
 	// circuitID will be empty, want to create a new CallID.
 	// allow joining a extant circuit? let's not for now.
@@ -396,8 +403,9 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	frag.ServiceName = serviceName
 
 	rpb := &RemotePeer{
-		LocalPeer:         s,
-		PeerID:            peerID,
+		LocalPeer: s,
+		PeerID:    peerID,
+		//PeerName:        // unknown?
 		NetAddr:           netAddr,
 		RemoteServiceName: serviceName,
 	}
@@ -519,7 +527,7 @@ func (peerAPI *peerAPI) newLocalPeer(
 	newCircuitCh chan *Circuit,
 	peerServiceName,
 	netAddr string,
-
+	peerName string,
 ) (pb *LocalPeer) {
 
 	pb = &LocalPeer{
@@ -529,6 +537,7 @@ func (peerAPI *peerAPI) newLocalPeer(
 		Ctx:             ctx,
 		Canc:            cancelFunc,
 		PeerID:          peerID,
+		PeerName:        peerName,
 		U:               u,
 		NewCircuitCh:    newCircuitCh,
 		ReadsIn:         make(chan *Message, 1),
@@ -644,8 +653,14 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 	if msg.HDR.ToPeerID == "" {
 		msg.HDR.ToPeerID = ckt.RemotePeerID
 	}
+	if msg.HDR.ToPeerName == "" {
+		msg.HDR.ToPeerName = ckt.RemotePeerName
+	}
 	if msg.HDR.FromPeerID == "" {
 		msg.HDR.FromPeerID = ckt.LocalPeerID
+	}
+	if msg.HDR.FromPeerName == "" {
+		msg.HDR.FromPeerName = ckt.LocalPeerName
 	}
 	if msg.HDR.CallID == "" {
 		msg.HDR.CallID = ckt.CircuitID
@@ -757,7 +772,9 @@ func (lpb *LocalPeer) newCircuit(
 		RpbTo:             rpb,
 		CircuitID:         cID,
 		LocalPeerID:       lpb.PeerID,
+		LocalPeerName:     lpb.PeerName,
 		RemotePeerID:      rpb.PeerID,
+		RemotePeerName:    rpb.PeerName,
 		Reads:             reads,
 		Errors:            errors,
 		Context:           ctx2,
@@ -792,7 +809,9 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Typ = CallPeerStartCircuit
 		msg.HDR.Created = time.Now()
 		msg.HDR.FromPeerID = lpb.PeerID
+		msg.HDR.FromPeerName = lpb.PeerName
 		msg.HDR.ToPeerID = rpb.PeerID
+		msg.HDR.ToPeerName = rpb.PeerName
 		msg.HDR.CallID = ckt.CircuitID
 		msg.HDR.Serial = issueSerial()
 		msg.HDR.ServiceName = ckt.RemoteServiceName
@@ -980,13 +999,14 @@ func (p *peerAPI) StartLocalPeer(
 	ctx context.Context,
 	peerServiceName string,
 	requestedCircuit *Message,
+	peerName string,
 
 ) (lpb *LocalPeer, err error) {
 
 	p.mut.Lock()
 	defer p.mut.Unlock()
 
-	return p.unlockedStartLocalPeer(ctx, peerServiceName, requestedCircuit, false, nil, "")
+	return p.unlockedStartLocalPeer(ctx, peerServiceName, requestedCircuit, false, nil, "", peerName)
 }
 
 func (p *peerAPI) unlockedStartLocalPeer(
@@ -996,6 +1016,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	isUpdatedPeerID bool,
 	sendCh chan *Message,
 	pleaseAssignNewPeerID string,
+	peerName string,
 
 ) (lpb *LocalPeer, err error) {
 
@@ -1017,7 +1038,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 
 	localAddr := p.u.LocalAddr()
 	//vv("unlockedStartLocalPeer: localAddr = '%v'", localAddr)
-	lpb = p.newLocalPeer(ctx1, canc1, p.u, localPeerID, newCircuitCh, peerServiceName, localAddr)
+	lpb = p.newLocalPeer(ctx1, canc1, p.u, localPeerID, newCircuitCh, peerServiceName, localAddr, peerName)
 
 	knownLocalPeer.mut.Lock()
 	if knownLocalPeer.active == nil {
@@ -1240,7 +1261,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		// spin one up!
 		//vv("needNew true! spinning up a peer for peerServicename '%v'", peerServiceName)
 		//lpb2, localPeerURL, localPeerID, err := s.StartLocalPeer(ctx, peerServiceName, msg)
-		lpb2, err := s.unlockedStartLocalPeer(ctx, peerServiceName, msg, isUpdatedPeerID, sendCh, pleaseAssignNewRemotePeerID)
+		lpb2, err := s.unlockedStartLocalPeer(ctx, peerServiceName, msg, isUpdatedPeerID, sendCh, pleaseAssignNewRemotePeerID, "")
 		if err != nil {
 			// we are probably shutting down; Test408 gets here with
 			// "rpc25519 error: halt requested".
@@ -1265,6 +1286,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 			ack := NewMessage()
 			ack.HDR.CallID = msg.HDR.CallID
 			ack.HDR.FromPeerID = lpb.PeerID
+			ack.HDR.FromPeerName = lpb.PeerName
 			ack.HDR.Typ = CallOneWay // not peer/ckt traffic yet, only bootstrapping peer
 
 			ack.HDR.Args = map[string]string{
@@ -1286,6 +1308,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 	rpb := &RemotePeer{
 		LocalPeer: lpb,
 		PeerID:    msg.HDR.FromPeerID,
+		PeerName:  msg.HDR.FromPeerName,
 		NetAddr:   msg.HDR.From,
 	}
 	circuitName := ""
@@ -1374,12 +1397,12 @@ func (s *peerAPI) replyHelper(isCli bool, msg *Message, ctx context.Context, sen
 //
 // Note: we should only return an error if the shutdown request was received,
 // which will kill the readLoop and connection.
-func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
+func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message, localPeerName string) error {
 
 	////vv("top of bootstrapPeerService(): isCli=%v; msg.HDR='%v'", isCli, msg.HDR.String())
 
 	// starts its own goroutine or return with an error (both quickly).
-	lpb, err := s.StartLocalPeer(ctx, msg.HDR.ServiceName, msg)
+	lpb, err := s.StartLocalPeer(ctx, msg.HDR.ServiceName, msg, localPeerName)
 	localPeerURL := lpb.URL()
 	localPeerID := lpb.PeerID
 

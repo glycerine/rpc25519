@@ -2090,7 +2090,7 @@ type UniversalCliSrv interface {
 	GetConfig() *Config
 	RegisterPeerServiceFunc(peerServiceName string, psf PeerServiceFunc) error
 
-	StartLocalPeer(ctx context.Context, peerServiceName string, requestedCircuit *Message) (lpb *LocalPeer, err error)
+	StartLocalPeer(ctx context.Context, peerServiceName string, requestedCircuit *Message, localPeerName string) (lpb *LocalPeer, err error)
 
 	StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string, waitUpTo time.Duration) (remotePeerURL, RemotePeerID string, err error)
 

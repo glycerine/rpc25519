@@ -346,6 +346,7 @@ func (pb *LocalPeer) TellRemoteWeShutdown(rem *RemotePeer) {
 
 	shut.HDR.To = rem.NetAddr
 	shut.HDR.ToPeerID = rem.PeerID
+	shut.HDR.ToPeerName = rem.PeerName
 	shut.HDR.Serial = issueSerial()
 	shut.HDR.ServiceName = rem.RemoteServiceName
 

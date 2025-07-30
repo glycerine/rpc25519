@@ -64,8 +64,9 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 
 	peerID := pleaseAssignNewRemotePeerID
 	rpb := &RemotePeer{
-		LocalPeer:         lpb,
-		PeerID:            peerID,
+		LocalPeer: lpb,
+		PeerID:    peerID,
+		//PeerName:         ? unknown as of yet ? not sure.
 		NetAddr:           remoteAddr, //netAddr,
 		RemoteServiceName: remotePeerServiceName,
 	}
