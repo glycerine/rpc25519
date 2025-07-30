@@ -1921,7 +1921,7 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 
 		return nil, nil, "", "", false
 	}
-	vv("ok true in Server.destAddrToSendCh(destAddr='%v')", destAddr)
+	//vv("ok true in Server.destAddrToSendCh(destAddr='%v')", destAddr)
 	// INVAR: ok is true
 	haltCh = s.halt.ReqStop.Chan
 	from = local(pair.Conn)

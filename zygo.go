@@ -18,6 +18,10 @@ func (c *Config) SexpString(ps *zygo.PrintState) (r string) {
 	return fmt.Sprintf("(rpc25519_Config\n%v)", c.StringBody())
 }
 
+func (c *Config) ShortSexpString(ps *zygo.PrintState) (r string) {
+	return fmt.Sprintf("(rpc25519_Config\n%v)", c.ShortStringBody())
+}
+
 // need only be called once before load/SexpString is used.
 func RegisterConfigZygoConstructor(env *zygo.Zlisp) {
 	if env != nil {

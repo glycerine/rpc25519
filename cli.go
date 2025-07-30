@@ -2863,6 +2863,79 @@ func (c *Config) StringBody() (r string) {
 	return
 }
 
+// ShortStringBody elides zero-value defaults.
+func (c *Config) ShortStringBody() string {
+	var parts []string
+
+	if c.QuietTestMode {
+		parts = append(parts, fmt.Sprintf("       QuietTestMode: %v", c.QuietTestMode))
+	}
+	if c.ServerAddr != "" {
+		parts = append(parts, fmt.Sprintf("          ServerAddr: \"%v\"", c.ServerAddr))
+	}
+	if c.ClientHostPort != "" {
+		parts = append(parts, fmt.Sprintf("      ClientHostPort: \"%v\"", c.ClientHostPort))
+	}
+	if c.ClientDialToHostPort != "" {
+		parts = append(parts, fmt.Sprintf("ClientDialToHostPort: \"%v\"", c.ClientDialToHostPort))
+	}
+	if c.TCPonly_no_TLS {
+		parts = append(parts, fmt.Sprintf("      TCPonly_no_TLS: %v", c.TCPonly_no_TLS))
+	}
+	if c.UseQUIC {
+		parts = append(parts, fmt.Sprintf("             UseQUIC: %v", c.UseQUIC))
+	}
+	if c.NoSharePortQUIC {
+		parts = append(parts, fmt.Sprintf("     NoSharePortQUIC: %v", c.NoSharePortQUIC))
+	}
+	if c.CertPath != "" {
+		parts = append(parts, fmt.Sprintf("            CertPath: \"%v\"", c.CertPath))
+	}
+	if c.SkipVerifyKeys {
+		parts = append(parts, fmt.Sprintf("      SkipVerifyKeys: %v", c.SkipVerifyKeys))
+	}
+	if c.ClientKeyPairName != "" {
+		parts = append(parts, fmt.Sprintf("   ClientKeyPairName: \"%v\"", c.ClientKeyPairName))
+	}
+	if c.ServerKeyPairName != "" {
+		parts = append(parts, fmt.Sprintf("   ServerKeyPairName: \"%v\"", c.ServerKeyPairName))
+	}
+	if c.PreSharedKeyPath != "" {
+		parts = append(parts, fmt.Sprintf("    PreSharedKeyPath: \"%v\"", c.PreSharedKeyPath))
+	}
+	if c.ConnectTimeout != 0 {
+		parts = append(parts, fmt.Sprintf("      ConnectTimeout: (dur \"%v\")", c.ConnectTimeout))
+	}
+	if c.ServerSendKeepAlive != 0 {
+		parts = append(parts, fmt.Sprintf(" ServerSendKeepAlive: (dur \"%v\")", c.ServerSendKeepAlive))
+	}
+	if c.ClientSendKeepAlive != 0 {
+		parts = append(parts, fmt.Sprintf(" ClientSendKeepAlive: (dur \"%v\")", c.ClientSendKeepAlive))
+	}
+	if c.CompressAlgo != "" {
+		parts = append(parts, fmt.Sprintf("        CompressAlgo: \"%v\"", c.CompressAlgo))
+	}
+	if c.CompressionOff {
+		parts = append(parts, fmt.Sprintf("      CompressionOff: %v", c.CompressionOff))
+	}
+	if c.HTTPConnectRequired {
+		parts = append(parts, fmt.Sprintf(" HTTPConnectRequired: %v", c.HTTPConnectRequired))
+	}
+	if c.ServerAutoCreateClientsToDialOtherServers {
+		parts = append(parts, fmt.Sprintf("ServerAutoCreateClientsToDialOtherServers: %v", c.ServerAutoCreateClientsToDialOtherServers))
+	}
+	if c.UseSimNet {
+		parts = append(parts, fmt.Sprintf("           UseSimNet: %v", c.UseSimNet))
+	}
+
+	if len(parts) == 0 {
+		return ""
+	}
+
+	// Join with ",\n" and add a trailing ",\n" to match the original format.
+	return strings.Join(parts, ",\n") + ",\n"
+}
+
 /*
 func (ti *SimTimer) Reset(dur time.Duration) (wasArmed bool) {
 	if ti.simnet == nil {
