@@ -345,30 +345,30 @@ type HDR struct {
 	From    string    `zid:"1"` // originator host:port address.
 	To      string    `zid:"2"` // destination host:port address.
 
-	ServiceName string `zid:"11"` // registered name to call.
+	ServiceName string `zid:"3"` // registered name to call.
 
 	// arguments/parameters for the call. should be short to keep the HDR small.
 	// big stuff should be serialized in JobSerz.
-	Args map[string]string `zid:"12"`
+	Args map[string]string `zid:"4"`
 
-	Subject string   `zid:"3"` // in net/rpc, the "Service.Method" ServiceName
-	Seqno   uint64   `zid:"4"` // user (client) set sequence number for each call (same on response).
-	Typ     CallType `zid:"5"` // see constants above.
-	CallID  string   `zid:"6"` // 20 bytes pseudo random base-64 coded string (same on response).
-	Serial  int64    `zid:"7"` // system serial number
+	Subject string   `zid:"5"` // in net/rpc, the "Service.Method" ServiceName
+	Seqno   uint64   `zid:"6"` // user (client) set sequence number for each call (same on response).
+	Typ     CallType `zid:"7"` // see constants above.
+	CallID  string   `zid:"8"` // 20 bytes pseudo random base-64 coded string (same on response).
+	Serial  int64    `zid:"9"` // system serial number
 
-	LocalRecvTm time.Time `zid:"8"`
+	LocalRecvTm time.Time `zid:"10"`
 
 	// allow standard []byte oriented message to cancel too.
 	Ctx context.Context `msg:"-"`
 
 	// Deadline is optional, but if it is set on the client,
 	// the server side context.Context will honor it.
-	Deadline time.Time `zid:"9"` // if non-zero, set this deadline in the remote Ctx
+	Deadline time.Time `zid:"11"` // if non-zero, set this deadline in the remote Ctx
 
 	// The CallID will be identical on
 	// all parts of the same stream.
-	StreamPart int64 `zid:"10"`
+	StreamPart int64 `zid:"12"`
 
 	// NoSystemCompression turns off any usual
 	// compression that the rpc25519 system
@@ -395,8 +395,12 @@ type HDR struct {
 	// allowing client/server symmetry when
 	// implementing complex stateful protocols.
 	ToPeerID   string `zid:"14"`
-	FromPeerID string `zid:"15"`
-	FragOp     int    `zid:"16"`
+	ToPeerName string `zid:"15"`
+
+	FromPeerID   string `zid:"16"`
+	FromPeerName string `zid:"17"`
+
+	FragOp int `zid:"18"`
 
 	// streamCh is internal; used for client -> server streaming on CallUploadBegin
 	streamCh chan *Message `msg:"-" json:"-"`

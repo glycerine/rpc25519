@@ -130,26 +130,29 @@ func NewFragment() (frag *Fragment) {
 // and CircuitID.
 type Fragment struct {
 	// system metadata
-	FromPeerID  string   `zid:"0"` // who sent us this Fragment.
-	ToPeerID    string   `zid:"1"`
-	CircuitID   string   `zid:"2"` // maps to Message.HDR.CallID.
-	Serial      int64    `zid:"3"`
-	Typ         CallType `zid:"4"` // one of the CallPeer CallTypes of hdr.go
-	ServiceName string   `zid:"5"` // the registered PeerServiceName.
+	FromPeerID   string `zid:"0"` // who sent us this Fragment.
+	FromPeerName string `zid:"1"`
+	ToPeerID     string `zid:"2"`
+	ToPeerName   string `zid:"3"`
+
+	CircuitID   string   `zid:"4"` // maps to Message.HDR.CallID.
+	Serial      int64    `zid:"5"`
+	Typ         CallType `zid:"6"` // one of the CallPeer CallTypes of hdr.go
+	ServiceName string   `zid:"7"` // the registered PeerServiceName.
 
 	// user supplied data
-	FragOp      int    `zid:"6"`
-	FragSubject string `zid:"7"`
-	FragPart    int64  `zid:"8"`
+	FragOp      int    `zid:"8"`
+	FragSubject string `zid:"9"`
+	FragPart    int64  `zid:"10"`
 
 	// Args whose keys start with '#' are reserved for the system.
 	// Use frag.SetUserArg() to set Args safely. This will auto-
 	// allocate the map if need be; for efficiency it is nil
 	// by default as it may not always be in use.
-	Args    map[string]string `zid:"9"`
-	Payload []byte            `zid:"10"`
-	Err     string            `zid:"11"` // distinguished field for error messages.
-	Created time.Time         `zid:"12"` // from Message.HDR.Created
+	Args    map[string]string `zid:"11"`
+	Payload []byte            `zid:"12"`
+	Err     string            `zid:"13"` // distinguished field for error messages.
+	Created time.Time         `zid:"14"` // from Message.HDR.Created
 }
 
 // SetUserArg should be used in user code to set
@@ -558,13 +561,15 @@ func (peerAPI *peerAPI) newLocalPeer(
 // incoming
 func (ckt *Circuit) ConvertMessageToFragment(msg *Message) (frag *Fragment) {
 	frag = &Fragment{
-		Created:     msg.HDR.Created,
-		FromPeerID:  msg.HDR.FromPeerID,
-		ToPeerID:    msg.HDR.ToPeerID,
-		CircuitID:   msg.HDR.CallID,
-		Serial:      msg.HDR.Serial,
-		Typ:         msg.HDR.Typ,
-		ServiceName: msg.HDR.ServiceName,
+		Created:      msg.HDR.Created,
+		FromPeerID:   msg.HDR.FromPeerID,
+		FromPeerName: msg.HDR.FromPeerName,
+		ToPeerID:     msg.HDR.ToPeerID,
+		ToPeerName:   msg.HDR.ToPeerName,
+		CircuitID:    msg.HDR.CallID,
+		Serial:       msg.HDR.Serial,
+		Typ:          msg.HDR.Typ,
+		ServiceName:  msg.HDR.ServiceName,
 
 		FragOp:      msg.HDR.FragOp,
 		FragSubject: msg.HDR.Subject,
@@ -583,7 +588,11 @@ func (frag *Fragment) ToMessage() (msg *Message) {
 	msg.HDR.Created = time.Now()
 
 	msg.HDR.FromPeerID = frag.FromPeerID
+	msg.HDR.FromPeerName = frag.FromPeerName
+
 	msg.HDR.ToPeerID = frag.ToPeerID
+	msg.HDR.ToPeerName = frag.ToPeerName
+
 	msg.HDR.CallID = frag.CircuitID
 	if frag.Serial == 0 {
 		msg.HDR.Serial = issueSerial()

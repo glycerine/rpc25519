@@ -1917,7 +1917,7 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 		if !s.cfg.ServerAutoCreateClientsToDialOtherServers {
 			//alwaysPrintf("yikes! Server did not find destAddr '%v' in remote2pair: '%v'", destAddr, remote2pair)
 		}
-		alwaysPrintf("yikes! Server did not find destAddr '%v' in remote2pair: '%v'", destAddr, s.remote2pair.GetKeySlice())
+		//alwaysPrintf("yikes! Server did not find destAddr '%v' in remote2pair: '%v'", destAddr, s.remote2pair.GetKeySlice())
 
 		return nil, nil, "", "", false
 	}
@@ -2072,7 +2072,7 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 	sendCh, haltCh, to, from, ok := s.destAddrToSendCh(destAddr)
 	if !ok {
 		// srv_test.go:651
-		vv("could not find destAddr='%v' in from our s.destAddrToSendCh() call.", destAddr)
+		//vv("could not find destAddr='%v' in from our s.destAddrToSendCh() call.", destAddr)
 		return ErrNetConnectionNotFound, nil
 	}
 	if to != destAddr {
