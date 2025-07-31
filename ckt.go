@@ -1225,6 +1225,11 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 
 	knownLocalPeer, ok := s.localServiceNameMap.Get(peerServiceName)
 	if !ok {
+		// moved out from replyHelper since did not apply
+		// to the other use at ckt.go:1302
+		// Re-use same msg in error reply:
+		msg.HDR.From, msg.HDR.To = msg.HDR.To, msg.HDR.From
+		msg.HDR.FromPeerID, msg.HDR.ToPeerID = msg.HDR.ToPeerID, msg.HDR.FromPeerID
 		msg.HDR.Typ = CallPeerError
 		msg.JobErrs = fmt.Sprintf("no local peerServiceName '%v' available", peerServiceName)
 		msg.JobSerz = nil
@@ -1293,6 +1298,10 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		if msg.HDR.FromPeerID == "" && msg.HDR.Typ == CallPeerStart {
 			//vv("bootstrap sees no remote FromPeerID, sending callID ack")
 			ack := NewMessage()
+
+			ack.HDR.From = msg.HDR.To
+			ack.HDR.To = msg.HDR.From
+
 			ack.HDR.CallID = msg.HDR.CallID
 			ack.HDR.FromPeerID = lpb.PeerID
 			ack.HDR.FromPeerName = lpb.PeerName
@@ -1376,10 +1385,9 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 // code more compact.
 func (s *peerAPI) replyHelper(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
 
-	// reply with the same msg; save an allocation.
-	msg.HDR.From, msg.HDR.To = msg.HDR.To, msg.HDR.From
-
-	msg.HDR.FromPeerID, msg.HDR.ToPeerID = msg.HDR.ToPeerID, msg.HDR.FromPeerID
+	// assume these are correctly set not:
+	//msg.HDR.From, msg.HDR.To
+	//msg.HDR.FromPeerID, msg.HDR.ToPeerID
 
 	// but update the essentials
 	msg.HDR.Serial = issueSerial()
