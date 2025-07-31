@@ -779,6 +779,25 @@ func (lpb *LocalPeer) OpenCircuitCount() int {
 	}
 }
 
+// newCircuit sends either:
+//
+// CallPeerStartCircuit; or
+// CallPeerStartCircuitAtMostOne
+//
+// to the remote if tellRemote == true.
+//
+// newCircuit is called by:
+// a) ckt2.go:77 StartRemotePeerAndGetCircuit (tellRemote=false)
+// -- here newCircuit is used to add the ckt to the local peer.
+// -- by-the-by this sends to the remote CallPeerStartCircuitTakeToID.
+//
+// b) NewCircuitToPeerURL at ckt.go:440 (tellRemote=true)
+//
+// c) NewCircuit at ckt.go:738 (tellRemote=true)
+//
+// provideRemoteOnNewCircuitCh at ckt.go:1409 (tellRemote=false)
+// -- which is called by bootstrapCircuit,
+// -- which is called directly by readLoops on cli and srv.
 func (lpb *LocalPeer) newCircuit(
 	circuitName string,
 	rpb *RemotePeer,
@@ -1233,7 +1252,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 // CallPeerStart: starts a new remote service instance.
 // CallPeerStartCircuit: used by NewCircuitToPeerURL to tellRemote
 // CallPeerStartCircuitTakeToID: from StartRemotePeerAndGetCircuit ckt2.go
-// CallPeerStartCircuitAtMostOne: get a circuit from existing peer (start at most one peer).
+// CallPeerStartCircuitAtMostOne: get a circuit from existing peer (start at most one peer). Used when PeerID is empty in NewCircuitToPeerURL (we are trying this approach--may not work--to be seen)
 //
 // The goal of bootstrapCircuit is to enable the user
 // peer code to interact with circuits and remote peers.
