@@ -800,8 +800,8 @@ func (lpb *LocalPeer) OpenCircuitCount() int {
 // ---- atMostOne is always false in the newCircuit() call.
 // ---- which means goto (d) on the remote
 //
-// d) readLoops on cli and srv call bootstrapCircuit ckt.go:1283
-// -- which calls provideRemoteOnNewCircuitCh :1411 at ckt.go:1137
+// d) readLoops on cli and srv call bootstrapCircuit ckt.go:1315
+// -- which calls provideRemoteOnNewCircuitCh :1443 at ckt.go:1440
 // ----- which calls newCircuit(tellRemote=false) at ckt.go:1420
 //
 // when we, newCircuit(), are invoked with tellRemote=true
@@ -1440,7 +1440,11 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	return lpb.provideRemoteOnNewCircuitCh(isCli, msg, ctx, sendCh, isUpdatedPeerID)
 }
 
+// called just above :1440 by bootstrapCircuit; for remotes.
+// called by unlockedStartLocalPeer :1115 at :1169; for locals.
 func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message, isUpdatedPeerID bool) error {
+
+	vv("top lpb.provideRemoteOnNewCircuitCh()")
 	rpb := &RemotePeer{
 		LocalPeer: lpb,
 		PeerID:    msg.HDR.FromPeerID,
