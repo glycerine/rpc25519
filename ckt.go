@@ -1320,7 +1320,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 //			    ...
 //
 // .
-func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
+func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) (err error) {
 	//vv("isCli=%v, bootstrapCircuit called with msg='%v'; JobSerz='%v'", isCli, msg.String(), string(msg.JobSerz))
 
 	// find the localPeerback corresponding to the ToPeerID
@@ -1329,6 +1329,41 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 
 	s.mut.Lock()
 	defer s.mut.Unlock()
+
+	var lpb *LocalPeer // up here so defer can read it.
+
+	if msg.HDR.Args != nil && len(msg.HDR.Args) > 0 {
+		responseID, ok := msg.HDR.Args["RemotePeerID_ready_responseCallID"]
+		if ok {
+			defer func() {
+				respmsg := NewMessage()
+				respmsg.HDR.CallID = responseID // allow rendezvous with ckt2.
+				respmsg.HDR.From = msg.HDR.To
+				respmsg.HDR.To = msg.HDR.From
+				respmsg.HDR.ToPeerID = msg.HDR.FromPeerID
+				respmsg.HDR.Subject = "RemotePeerID_ready_responseCallID"
+				respmsg.HDR.ServiceName = msg.HDR.ServiceName
+
+				if err != nil {
+					respmsg.JobErrs = fmt.Sprintf("bootstrapCircuit got error: '%v'", err.Error())
+				} else {
+					if lpb == nil {
+						respmsg.JobErrs = fmt.Sprintf("bootstrapCircuit saw nil lpb for peerServiceName: '%v'", msg.HDR.ServiceName)
+					} else {
+						respmsg.HDR.FromPeerID = lpb.PeerID
+						respmsg.HDR.FromPeerName = lpb.PeerName
+						respmsg.HDR.Args = map[string]string{
+							"#peerURL":         lpb.URL(),
+							"#peerID":          lpb.PeerID,
+							"#fromServiceName": lpb.PeerServiceName}
+					}
+				}
+
+				s.replyHelper(isCli, respmsg, ctx, sendCh)
+
+			}() // end defer func
+		} // end if ok, we are doing "RemotePeerID_ready_responseCallID"
+	} // end if len(msg.HDR.Args) > 0
 
 	knownLocalPeer, ok := s.localServiceNameMap.Get(peerServiceName)
 	if !ok {
@@ -1363,7 +1398,6 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	pleaseAssignNewRemotePeerID, assignReqSeen := msg.HDR.Args["#pleaseAssignNewPeerID"]
 
 	var isUpdatedPeerID bool
-	var lpb *LocalPeer
 
 	switch {
 	case msg.HDR.Typ == CallPeerStartCircuitTakeToID:
