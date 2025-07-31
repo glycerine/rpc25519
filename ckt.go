@@ -59,20 +59,20 @@ type Circuit struct {
 
 func (ckt *Circuit) String() string {
 	return fmt.Sprintf(`&Circuit{
-	Name: "%v",
-	CircuitID: "%v",
+          Name: "%v",
+     CircuitID: "%v",
 
-	LocalPeerID: "%v" %v,
-    LocalPeerName: "%v",
+   LocalPeerID: "%v" %v,
+ LocalPeerName: "%v",
 
-	RemotePeerID: "%v" %v,
-    RemotePeerName: "%v",
+  RemotePeerID: "%v" %v,
+RemotePeerName: "%v",
 
-	LocalServiceName: "%v",
-	RemoteServiceName: "%v",
+ LocalServiceName: "%v",
+RemoteServiceName: "%v",
 
-    // LocalCircuitURL: "%v",
-    // RemoteCircuitURL: "%v",
+ // LocalCircuitURL: "%v",
+ // RemoteCircuitURL: "%v",
 
    UserString: "%v",
     FirstFrag: %v
