@@ -863,56 +863,84 @@ func (lpb *LocalPeer) newCircuit(
 	}
 	vv("tellRemote = %v", tellRemote)
 	vv("firstFrag = %v", firstFrag)
-	if tellRemote {
-		// we were called by NewCircuitToPeerURL
-		var msg *Message
-		if firstFrag != nil {
-			msg = firstFrag.ToMessage()
-		} else {
-			msg = NewMessage()
-		}
-		msg.HDR.To = rpb.NetAddr
-		//vv("rpb.NetAddr = '%v'", rpb.NetAddr)
-		msg.HDR.From = lpb.NetAddr
-		if atMostOnePeer {
-			msg.HDR.Typ = CallPeerStartCircuitAtMostOne
-		} else {
-			msg.HDR.Typ = CallPeerStartCircuit
-		}
-		msg.HDR.Created = time.Now()
-		msg.HDR.FromPeerID = lpb.PeerID
-		msg.HDR.FromPeerName = lpb.PeerName
-		if firstFrag == nil {
-			// let the firstFragSet set above in ToMessage().
-			msg.HDR.ToPeerID = rpb.PeerID
-			msg.HDR.ToPeerName = rpb.PeerName // almost sure empty but try.
-		}
-		msg.HDR.CallID = ckt.CircuitID
-		msg.HDR.Serial = issueSerial()
-		msg.HDR.ServiceName = ckt.RemoteServiceName
 
-		// tell the remote which serviceName we are coming from;
-		// so the URL back can be correct.
-		// Don't make a new map here since the firstFrag.Args
-		// may be carrying important information and a new
-		// map would lose that.
-		msg.HDR.Args["#fromServiceName"] = lpb.PeerServiceName
-		msg.HDR.Args["#circuitName"] = circuitName
-		if firstFrag != nil {
-			// not sure this is working right yet.
-			//vv("firstFrag != nil: '%v'", firstFrag)
-			us, ok := firstFrag.GetSysArg("UserString")
-			if ok {
-				msg.HDR.Args["#UserString"] = us
-				//vv("set #UserString = '%v'", us)
-			}
-		}
-		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
-	} else {
+	if !tellRemote {
 		// update "the remote's remote" list: symmetric to ckt.go:406
 		lpb.Remotes.Set(rpb.PeerID, rpb)
 	}
 
+	if tellRemote {
+		// we were called by NewCircuitToPeerURL
+		var typ CallType
+		if atMostOnePeer {
+			typ = CallPeerStartCircuitAtMostOne
+		} else {
+			typ = CallPeerStartCircuit
+		}
+		err = lpb.newCircuitHelperTellRemote(ctx2, ckt, rpb, firstFrag, typ, errWriteDur)
+	} else {
+		if atMostOnePeer {
+			// INVAR: atMostOnePeer true, tellRemote false.
+
+			// We are on the remote side vs the initiator, and the
+			// initiator still needs to find out the
+			// final RemotePeerID, so we send a
+			// response with HDR.Typ=CallPeerStartCircuitAtMostOneFinish.
+			err = lpb.newCircuitHelperTellRemote(ctx2, ckt, rpb, firstFrag, CallPeerStartCircuitAtMostOneFinish, errWriteDur)
+		}
+	}
+
+	return
+}
+
+func (lpb *LocalPeer) newCircuitHelperTellRemote(
+	ctx2 context.Context,
+	ckt *Circuit,
+	rpb *RemotePeer,
+	firstFrag *Fragment,
+	typ CallType,
+	errWriteDur time.Duration,
+
+) (err error) {
+	var msg *Message
+	if firstFrag != nil {
+		msg = firstFrag.ToMessage()
+	} else {
+		msg = NewMessage()
+	}
+	msg.HDR.To = rpb.NetAddr
+	//vv("rpb.NetAddr = '%v'", rpb.NetAddr)
+	msg.HDR.From = lpb.NetAddr
+	msg.HDR.Typ = typ
+	msg.HDR.Created = time.Now()
+	msg.HDR.FromPeerID = lpb.PeerID
+	msg.HDR.FromPeerName = lpb.PeerName
+	if firstFrag == nil {
+		// let the firstFragSet set above in ToMessage().
+		msg.HDR.ToPeerID = rpb.PeerID
+		msg.HDR.ToPeerName = rpb.PeerName // almost sure empty but try.
+	}
+	msg.HDR.CallID = ckt.CircuitID
+	msg.HDR.Serial = issueSerial()
+	msg.HDR.ServiceName = ckt.RemoteServiceName
+
+	// tell the remote which serviceName we are coming from;
+	// so the URL back can be correct.
+	// Don't make a new map here since the firstFrag.Args
+	// may be carrying important information and a new
+	// map would lose that.
+	msg.HDR.Args["#fromServiceName"] = lpb.PeerServiceName
+	msg.HDR.Args["#circuitName"] = ckt.Name
+	if firstFrag != nil {
+		// not sure this is working right yet.
+		//vv("firstFrag != nil: '%v'", firstFrag)
+		us, ok := firstFrag.GetSysArg("UserString")
+		if ok {
+			msg.HDR.Args["#UserString"] = us
+			//vv("set #UserString = '%v'", us)
+		}
+	}
+	err, _ = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
 	return
 }
 
