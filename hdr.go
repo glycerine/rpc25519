@@ -93,6 +93,8 @@ func (ct CallType) String() string {
 		return "CallPeerStart"
 	case CallPeerStartCircuit:
 		return "CallPeerStartCircuit"
+	case CallPeerStartCircuitAtMostOne:
+		return "CallPeerStartCircuitAtMostOne"
 	case CallPeerTraffic:
 		return "CallPeerTraffic"
 	case CallPeerError:
