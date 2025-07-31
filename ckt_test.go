@@ -907,7 +907,11 @@ func Test410_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) {
 	}
 	reply := &AtMostOnePeerNewCircuitRPCReply{}
 	client := cli_lpb.U.GetClient()
-	err = client.Call("AtMostOnePeer.NewCircuit", input, reply, nil)
+
+	// to cancel if desired.
+	ctx, canc := context.WithCancelCause(context.Background())
+	defer canc(nil)
+	err = client.Call("AtMostOnePeer.NewCircuit", input, reply, ctx)
 	panicOn(err)
 
 	if reply.RemotePeerID == "" {
