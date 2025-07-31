@@ -2129,6 +2129,9 @@ type UniversalCliSrv interface {
 
 	NewTimer(dur time.Duration) (ti *SimTimer)
 	Sleep(dur time.Duration)
+
+	GetServer() *Server
+	GetClient() *Client
 }
 
 type PingStat struct {

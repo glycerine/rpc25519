@@ -2994,3 +2994,16 @@ func (s *Server) AutoClients() (list []*Client, isServer bool) {
 func (c *Client) AutoClients() (list []*Client, isServer bool) {
 	return
 }
+
+func (s *Server) GetServer() *Server {
+	return s
+}
+func (s *Client) GetServer() *Server {
+	return nil
+}
+func (s *Server) GetClient() *Client {
+	return nil
+}
+func (s *Client) GetClient() *Client {
+	return s
+}
