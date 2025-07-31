@@ -1684,12 +1684,76 @@ func (a *Fragment) Compare(b *Fragment) int {
 	return 0
 }
 
-// always registered under all Servers under
-// "#mostOnePeerNewCircuitHelper2Func"
-// to help with circuit boot up; when we
-// don't know the remote PeerID yet.
-func (s *Server) mostOnePeerNewCircuit2Func(req *Message, reply *Message) error {
+type AtMostOnePeerNewCircuitRPCReq struct {
+	CircuitName string    `zid:"0"`
+	PeerURL     string    `zid:"1"`
+	FirstFrag   *Fragment `zid:"2"` // optional
+}
 
-	//reply.JobSerz = append(req.JobSerz, []byte(fmt.Sprintf("\n with time customEcho sees this: '%v'", time.Now()))...)
+type AtMostOnePeerNewCircuitRPCReply struct {
+	// a Circuit, the data parts
+	LocalPeerID   string `zid:"0"`
+	LocalPeerName string `zid:"1"`
+
+	RemotePeerID   string `zid:"2"`
+	RemotePeerName string `zid:"3"`
+
+	LocalServiceName  string `zid:"4"`
+	RemoteServiceName string `zid:"5"`
+
+	CircuitID   string `zid:"6"` // aka Message.HDR.CallID
+	CircuitName string `zid:"7"`
+	UserString  string `zid:"8"`
+
+	FirstFrag *Fragment `zid:"9"`
+}
+
+// AtMostOnePeer
+// always registered under all Servers under
+// the net/rpc style with the AtMostOnePeer
+// instance Server.atMost1.
+type AtMostOnePeer struct {
+	srv *Server
+
+	Placeholder int `zid:"0"` // force greenpack serz.
+}
+
+// NewCircuit helps with circuit boot up; when we
+// don't know the remote PeerID yet.
+func (s *AtMostOnePeer) NewCircuit(ctx context.Context, input *AtMostOnePeerNewCircuitRPCReq, reply *AtMostOnePeerNewCircuitRPCReply) error {
+
+	vv("top AtMostOnePeer.NewCircuit. input='%#v'", input)
+	//input
+	//CircuitName string    `zid:"0"`
+	//PeerURL     string    `zid:"1"`
+	//FirstFrag   *Fragment `zid:"2"` // optional
+
+	reply = &AtMostOnePeerNewCircuitRPCReply{
+		// a Circuit, the data parts
+		// LocalPeerID   string `zid:"0"`
+		// LocalPeerName string `zid:"1"`
+
+		// RemotePeerID   string `zid:"2"`
+		// RemotePeerName string `zid:"3"`
+
+		// LocalServiceName  string `zid:"4"`
+		// RemoteServiceName string `zid:"5"`
+
+		// CircuitID   string `zid:"6"` // aka Message.HDR.CallID
+		// CircuitName string `zid:"7"`
+		// UserString  string `zid:"8"`
+
+		// FirstFrag *Fragment `zid:"9"`
+	}
+
 	return nil
 }
+
+/*
+	bts, err := most.MarshalMsg(nil)
+	panicOn(err)
+	reply.JobSerz = bts
+
+	_, err := input.UnmarshalMsg(req.JobSerz)
+	panicOn(err)
+*/

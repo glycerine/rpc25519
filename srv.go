@@ -1220,6 +1220,8 @@ type Server struct {
 
 	// protect with mut to avoid data races.
 	autoClients []*Client
+
+	atMost1 *AtMostOnePeer
 }
 
 type ServerClient struct {
@@ -2200,7 +2202,9 @@ func NewServer(name string, config *Config) *Server {
 	}
 	// built in helper for circuit setup/boot up when
 	// we don't know the remotes PeerID.
-	s.callme2map.Set("#mostOnePeerNewCircuitHelper2Func", s.mostOnePeerNewCircuit2Func)
+	s.atMost1 = &AtMostOnePeer{srv: s}
+	s.Register(s.atMost1) // register net/rpc style.
+	//s.callme2map.Set("#mostOnePeerNewCircuitHelper2Func", s.mostOnePeerNewCircuit2Func)
 
 	s.halt = idem.NewHalterNamed(fmt.Sprintf("Server(%v %p)", name, s))
 
