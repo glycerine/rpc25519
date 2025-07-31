@@ -850,3 +850,48 @@ func drain(ch chan *Fragment) {
 		}
 	}
 }
+
+func Test410_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) {
+
+	if faketime {
+		t.Skip("skip under synctest, net calls will never settle.")
+		return
+	}
+	if _, rr := os.LookupEnv("RUNNING_UNDER_RR"); rr {
+		t.Skip("flaky under rr chaos")
+	}
+
+	// empty PeerID in URL means we use
+	//CallPeerStartCircuitAtMostOne       CallType = 115
+	//CallPeerStartCircuitAtMostOneFinish CallType = 116
+	// and we need to verify that we eventually
+	// get back a proper ckt with RemotePeerID set.
+
+	j := newTestJunk3("emptyPeerID_410")
+	defer j.cleanup()
+
+	ctx := context.Background()
+	cli_lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil, "")
+	panicOn(err)
+	defer cli_lpb.Close()
+
+	srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil, "")
+	panicOn(err)
+	defer srv_lpb.Close()
+
+	// either should be able to initiate without knowing
+	// the remote's full URL.
+
+	netAddr, serviceName, peerID, cktID, err := ParsePeerURL(srv_lpb.URL())
+	panicOn(err)
+	_ = peerID
+	_ = cktID
+
+	url := netAddr + sep + string(serviceName)
+	vv("url in use: '%v'", url)
+	cktName := "ckt-410"
+	ckt, ctx, err := cli_lpb.NewCircuitToPeerURL(cktName, url, nil, 0)
+	panicOn(err)
+	_ = ctx
+	vv("ckt='%v'", ckt)
+}
