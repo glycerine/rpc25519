@@ -391,7 +391,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 
 	netAddr, serviceName, peerID, circuitID, err := ParsePeerURL(peerURL)
 
-	vv("netAddr from ParsePeerURL = '%v' (peerURL = '%v'; peerID='%v'; serviceName='%v');", netAddr, peerURL, peerID, serviceName)
+	vv("NewCircuitToPeerURL: netAddr from ParsePeerURL = '%v' (peerURL = '%v'; peerID='%v'; serviceName='%v');", netAddr, peerURL, peerID, serviceName)
 
 	panicOn(err)
 	if err != nil {

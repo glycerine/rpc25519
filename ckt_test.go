@@ -854,16 +854,19 @@ func drain(ch chan *Fragment) {
 func Test410_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) {
 
 	if faketime {
-		t.Skip("skip under synctest, net calls will never settle.")
-		return
+		//	t.Skip("skip under synctest, net calls will never settle.")
+		//	return
 	}
-	if _, rr := os.LookupEnv("RUNNING_UNDER_RR"); rr {
-		t.Skip("flaky under rr chaos")
-	}
+	//if _, rr := os.LookupEnv("RUNNING_UNDER_RR"); rr {
+	//	t.Skip("flaky under rr chaos")
+	//}
 
 	// empty PeerID in URL means we use
-	//CallPeerStartCircuitAtMostOne       CallType = 115
-	//CallPeerStartCircuitAtMostOneFinish CallType = 116
+	//
+	// CallPeerStartCircuitAtMostOne       CallType = 115
+	// and
+	// CallPeerStartCircuitAtMostOneFinish CallType = 116
+	//
 	// and we need to verify that we eventually
 	// get back a proper ckt with RemotePeerID set.
 
@@ -893,5 +896,8 @@ func Test410_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) {
 	ckt, ctx, err := cli_lpb.NewCircuitToPeerURL(cktName, url, nil, 0)
 	panicOn(err)
 	_ = ctx
-	vv("ckt='%v'", ckt)
+	if ckt.RemotePeerID == "" {
+		vv("ckt='%v'", ckt)
+		panic("ckg.RemotePeerID should not be empty")
+	}
 }
