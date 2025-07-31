@@ -1683,3 +1683,13 @@ func (a *Fragment) Compare(b *Fragment) int {
 	// way, way overkill here anyway.
 	return 0
 }
+
+// always registered under all Servers under
+// "#mostOnePeerNewCircuitHelper2Func"
+// to help with circuit boot up; when we
+// don't know the remote PeerID yet.
+func (s *Server) mostOnePeerNewCircuit2Func(req *Message, reply *Message) error {
+
+	//reply.JobSerz = append(req.JobSerz, []byte(fmt.Sprintf("\n with time customEcho sees this: '%v'", time.Now()))...)
+	return nil
+}

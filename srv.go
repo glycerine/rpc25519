@@ -2198,6 +2198,10 @@ func NewServer(name string, config *Config) *Server {
 
 		unNAT: NewMutexmap[string, string](),
 	}
+	// built in helper for circuit setup/boot up when
+	// we don't know the remotes PeerID.
+	s.callme2map.Set("#mostOnePeerNewCircuitHelper2Func", s.mostOnePeerNewCircuit2Func)
+
 	s.halt = idem.NewHalterNamed(fmt.Sprintf("Server(%v %p)", name, s))
 
 	s.notifies = newNotifies(notClient, s)
