@@ -24,12 +24,13 @@ func (p *peerAPI) StartRemotePeerAndGetCircuitWaitForAck(lpb *LocalPeer, circuit
 	return p.implStartRemotePeerAndGetCircuit(true, lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur)
 }
 
-func (p *peerAPI) implStartRemotePeerAndGetCircuit(waitForAck bool, lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration) (ckt *Circuit, err error) {
+func (p *peerAPI) implStartRemotePeerAndGetCircuit(waitForAck bool, lpb *LocalPeer, circuitName string, firstFrag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration) (ckt *Circuit, err error) {
 
 	if lpb.Halt.ReqStop.IsClosed() {
 		return nil, ErrHaltRequested
 	}
 
+	frag := p.u.newFragment()
 	circuitID := NewCallID(circuitName)
 	frag.CircuitID = circuitID
 	frag.Typ = CallPeerStartCircuitTakeToID
@@ -99,7 +100,7 @@ func (p *peerAPI) implStartRemotePeerAndGetCircuit(waitForAck bool, lpb *LocalPe
 	}
 
 	// set and send frag, our firstFrag, here.
-	ckt, ctx, err = lpb.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, false, false)
+	ckt, ctx, err = lpb.newCircuit(circuitName, rpb, circuitID, firstFrag, errWriteDur, false, false)
 	if err != nil {
 		return nil, err
 	}

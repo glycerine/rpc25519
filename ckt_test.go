@@ -890,14 +890,18 @@ func Test410_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) {
 	_ = peerID
 	_ = cktID
 
-	url := netAddr + sep + string(serviceName)
+	url := netAddr + sep + serviceName
 	vv("url in use: '%v'", url)
 	cktName := "ckt-410"
+	_ = cktName
+	//ckt, ctx, err := cli_lpb.NewCircuitToPeerURL(cktName, url, nil, 0)
 
-	ckt, ctx, err := cli_lpb.NewCircuitToPeerURL(cktName, url, nil, 0)
+	ckt, err := cli_lpb.U.StartRemotePeerAndGetCircuit(cli_lpb, cktName, nil, serviceName, netAddr, 0)
+
 	panicOn(err)
 	_ = ctx
 
+	vv("ctk = '%v'", ckt)
 	/*
 		input := &AtMostOnePeerNewCircuitRPCReq{
 			CircuitName: cktName,
