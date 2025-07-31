@@ -62,8 +62,8 @@ func (ckt *Circuit) String() string {
 	Name: "%v",
 	CircuitID: "%v",
 
-	LocalPeerID: "%v",
-	RemotePeerID: "%v",
+	LocalPeerID: "%v" %v,
+	RemotePeerID: "%v" %v,
 
 	LocalServiceName: "%v",
 	RemoteServiceName: "%v",
@@ -75,8 +75,8 @@ func (ckt *Circuit) String() string {
     FirstFrag: %v
 }`, ckt.Name,
 		AliasDecode(ckt.CircuitID),
-		AliasDecode(ckt.LocalPeerID),
-		AliasDecode(ckt.RemotePeerID),
+		ckt.LocalPeerID, AliasDecode(ckt.LocalPeerID),
+		ckt.RemotePeerID, AliasDecode(ckt.RemotePeerID),
 		ckt.LocalServiceName,
 		ckt.RemoteServiceName,
 		ckt.LocalCircuitURL(),
