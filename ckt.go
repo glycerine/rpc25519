@@ -789,15 +789,22 @@ func (lpb *LocalPeer) OpenCircuitCount() int {
 // newCircuit is called by:
 // a) ckt2.go:77 StartRemotePeerAndGetCircuit (tellRemote=false)
 // -- here newCircuit is used to add the ckt to the local peer.
-// -- by-the-by this sends to the remote CallPeerStartCircuitTakeToID.
+// ---- then sends CallPeerStartCircuitTakeToID. to the remote
+// ---- which means goto d) below on the remote side.
 //
-// b) NewCircuitToPeerURL at ckt.go:440 (tellRemote=true)
+// b) NewCircuitToPeerURL calls newCircuit(tellRemote=true) at ckt.go:440
 //
-// c) NewCircuit at ckt.go:738 (tellRemote=true)
+// c) NewCircuit calls newCircuit(tellRemote=true) at ckt.go:738
 //
-// provideRemoteOnNewCircuitCh at ckt.go:1409 (tellRemote=false)
-// -- which is called by bootstrapCircuit,
-// -- which is called directly by readLoops on cli and srv.
+// d) readLoops on cli and srv call bootstrapCircuit
+// -- which calls provideRemoteOnNewCircuitCh() at ckt.go:1137
+// ----- which calls newCircuit(tellRemote=false) at ckt.go:1420
+//
+// when we newCircuit are invoked with tellRemote=true
+// from b) or c), we send to the remote either
+// -- CallPeerStartCircuit; or
+// -- CallPeerStartCircuitAtMostOne
+// .
 func (lpb *LocalPeer) newCircuit(
 	circuitName string,
 	rpb *RemotePeer,
