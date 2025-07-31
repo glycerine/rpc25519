@@ -510,22 +510,24 @@ func (a *HDR) Equal(b *HDR) bool {
 func (m *HDR) String() string {
 	//return m.Pretty()
 	return fmt.Sprintf(`&rpc25519.HDR{
-    "Created": %q,
-    "From": %q,
-    "To": %q,
-    "ServiceName": %q,
-    "Args": %#v,
-    "Subject": %q,
-    "Seqno": %v,
-    "Typ": %s,
-    "CallID": %q,
-    "Serial": %v,
-    "LocalRecvTm": "%s",
-    "Deadline": "%s",
-    "FromPeerID": "%v",
-    "ToPeerID": "%v",
-    "StreamPart": %v,
-    "FragOp": %v,
+         Created: %q
+            From: %q
+              To: %q
+     ServiceName: %q
+            Args: %#v
+         Subject: %q
+           Seqno: %v
+             Typ: %s
+          CallID: %q
+          Serial: %v
+     LocalRecvTm: %s
+        Deadline: %s
+      FromPeerID: "%v"
+    FromPeerName: "%v"
+        ToPeerID: "%v"
+      ToPeerName: "%v"
+      StreamPart: %v
+          FragOp: %v
 }`,
 		m.Created,
 		AliasDecode(m.From),
@@ -540,7 +542,9 @@ func (m *HDR) String() string {
 		m.LocalRecvTm,
 		m.Deadline,
 		AliasDecode(m.FromPeerID),
+		m.FromPeerName,
 		AliasDecode(m.ToPeerID),
+		m.ToPeerName,
 		m.StreamPart,
 		FragOpDecode(m.FragOp),
 	)

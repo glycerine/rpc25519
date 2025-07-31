@@ -631,7 +631,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			// simnet shutdown can cause this
 			continue
 		}
-		//vv("srv read loop sees req = '%v'", req.String()) // not seen 040
+		vv("srv read loop sees req = '%v'", req.String())
 
 		if req.HDR.From != "" {
 			s.Server.unNAT.Set(req.HDR.From, remoteAddr)

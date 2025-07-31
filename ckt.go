@@ -829,7 +829,10 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.FromPeerID = lpb.PeerID
 		msg.HDR.FromPeerName = lpb.PeerName
 		msg.HDR.ToPeerID = rpb.PeerID
-		msg.HDR.ToPeerName = rpb.PeerName
+		// let the firstFragSet ToPeerName above in ToMessage().
+		if firstFrag == nil {
+			msg.HDR.ToPeerName = rpb.PeerName // almost sure empty but try.
+		}
 		msg.HDR.CallID = ckt.CircuitID
 		msg.HDR.Serial = issueSerial()
 		msg.HDR.ServiceName = ckt.RemoteServiceName
