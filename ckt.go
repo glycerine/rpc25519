@@ -63,7 +63,10 @@ func (ckt *Circuit) String() string {
 	CircuitID: "%v",
 
 	LocalPeerID: "%v" %v,
+    LocalPeerName: "%v",
+
 	RemotePeerID: "%v" %v,
+    RemotePeerName: "%v",
 
 	LocalServiceName: "%v",
 	RemoteServiceName: "%v",
@@ -76,7 +79,9 @@ func (ckt *Circuit) String() string {
 }`, ckt.Name,
 		AliasDecode(ckt.CircuitID),
 		ckt.LocalPeerID, AliasDecode(ckt.LocalPeerID),
+		ckt.LocalPeerName,
 		ckt.RemotePeerID, AliasDecode(ckt.RemotePeerID),
+		ckt.RemotePeerName,
 		ckt.LocalServiceName,
 		ckt.RemoteServiceName,
 		ckt.LocalCircuitURL(),
@@ -221,7 +226,9 @@ func (f *Fragment) String() string {
 	return fmt.Sprintf(`&rpc25519.Fragment{
     "Created": %v,
     "FromPeerID": %q %v,
+    "FromPeerName": "%v",
     "ToPeerID": %q %v,
+    "ToPeerName": "%v",
     "CircuitID": %q,
     "Serial": %v,
     "ServiceName": %q,
@@ -235,7 +242,9 @@ func (f *Fragment) String() string {
 }`,
 		f.Created.Format(rfc3339MsecTz0),
 		f.FromPeerID, AliasDecode(f.FromPeerID),
+		f.FromPeerName,
 		f.ToPeerID, AliasDecode(f.ToPeerID),
+		f.ToPeerName,
 		AliasDecode(f.CircuitID),
 		f.Serial,
 		f.ServiceName,
