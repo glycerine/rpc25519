@@ -438,7 +438,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		// anyway. This is like the Client acting like
 		// a server and starting up a peer service.
 		switch msg.HDR.Typ {
-		case CallPeerStart, CallPeerStartCircuit, CallPeerStartCircuitTakeToID:
+		case CallPeerStart, CallPeerStartCircuit, CallPeerStartCircuitTakeToID, CallPeerStartCircuitAtMostOne:
 
 			// Why this is not in its own goroutine? Backpressure.
 			// It is important to provide back pressure

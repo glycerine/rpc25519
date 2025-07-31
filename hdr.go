@@ -65,10 +65,13 @@ const (
 	CallPeerStart                CallType = 112
 	CallPeerStartCircuit         CallType = 113
 	CallPeerStartCircuitTakeToID CallType = 114
-	CallPeerTraffic              CallType = 115
-	CallPeerError                CallType = 116
-	CallPeerFromIsShutdown       CallType = 117
-	CallPeerEndCircuit           CallType = 118
+
+	// do not start a second peer, create ckt with existing.
+	CallPeerStartCircuitAtMostOne CallType = 115
+	CallPeerTraffic               CallType = 116
+	CallPeerError                 CallType = 117
+	CallPeerFromIsShutdown        CallType = 118
+	CallPeerEndCircuit            CallType = 119
 )
 
 func (ct CallType) String() string {

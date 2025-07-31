@@ -534,8 +534,8 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 		if got, want := j.clis.getAllReads(), 0; got != want {
 			t.Fatalf("error: expected %v reads to start, client got: %v", want, got)
 		}
-		// setting up the circuit means the server got a CallPeerStartCircuit frag.
-		// to start with
+		// setting up the circuit means the server got a
+		// CallPeerStartCircuit frag to start with
 		if got, want := j.srvs.getAllReads(), 1; got != want {
 			t.Fatalf("error: expected %v reads to start, server got: %v", want, got)
 		}

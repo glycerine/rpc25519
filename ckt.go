@@ -372,11 +372,17 @@ func (s *LocalPeer) FreeFragment(f *Fragment) {
 // outside of that goroutine, you'll need to manually do NewCircuitCh <- ckt
 // to tell the PeerServiceFunc goroutine about it (it will get it on
 // its newCircuitCh channel).
+//
+// an empty PeerID in the peerURL we use, as
+// a convention, to request visiting an existing
+// peer service func instance (but we spin
+// one -- the first one -- up if need be).
 func (s *LocalPeer) NewCircuitToPeerURL(
 	circuitName string,
 	peerURL string,
 	frag *Fragment,
 	errWriteDur time.Duration,
+
 ) (ckt *Circuit, ctx context.Context, err error) {
 
 	if s.Halt.ReqStop.IsClosed() {
@@ -385,17 +391,26 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 
 	netAddr, serviceName, peerID, circuitID, err := ParsePeerURL(peerURL)
 
-	//vv("netAddr from ParsePeerURL = '%v' (peerURL = '%v');", netAddr, peerURL)
+	vv("netAddr from ParsePeerURL = '%v' (peerURL = '%v'; peerID='%v'; serviceName='%v');", netAddr, peerURL, peerID, serviceName)
+
+	panicOn(err)
+	if err != nil {
+		return nil, nil, fmt.Errorf("NewCircuitToPeerURL could not "+
+			"parse peerURL: '%v': '%v'", peerURL, err)
+	}
+	atMostOnePeer := false
+	if peerID == "" {
+		// convention: empty peerID => start peer only,
+		// if there is none; otherwise prefer the
+		// existing single peer.
+		atMostOnePeer = true
+	}
 
 	if circuitID != "" {
 		panic(fmt.Sprintf("NewCircuitToPeerURL() use error: peerURL "+
 			"should not have a circuitID "+
 			"in it, as we don't support that below (yet atm): '%v'",
 			peerURL))
-	}
-	if err != nil {
-		return nil, nil, fmt.Errorf("NewCircuitToPeerURL could not "+
-			"parse peerURL: '%v': '%v'", peerURL, err)
 	}
 
 	if frag == nil {
@@ -422,7 +437,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	}
 	//vv("rpb = '%#v'", rpb)
 
-	ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, true)
+	ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, true, atMostOnePeer)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -720,7 +735,7 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 // When select{}-ing on ckt.Reads and ckt.Errors, always also
 // select on ctx.Done() and in order to shutdown gracefully.
 func (origCkt *Circuit) NewCircuit(circuitName string, firstFrag *Fragment) (ckt *Circuit, ctx2 context.Context, err error) {
-	return origCkt.RpbTo.LocalPeer.newCircuit(circuitName, origCkt.RpbTo, "", firstFrag, -1, true)
+	return origCkt.RpbTo.LocalPeer.newCircuit(circuitName, origCkt.RpbTo, "", firstFrag, -1, true, false)
 }
 
 // IsClosed returns true if the LocalPeer is shutting down
@@ -770,7 +785,10 @@ func (lpb *LocalPeer) newCircuit(
 	cID string,
 	firstFrag *Fragment,
 	errWriteDur time.Duration,
-	tellRemote bool, // send new circuit to remote?
+
+	// send new circuit to remote? true from NewCircuitToPeerURL
+	tellRemote bool,
+	atMostOnePeer bool,
 
 ) (ckt *Circuit, ctx2 context.Context, err error) {
 
@@ -813,8 +831,10 @@ func (lpb *LocalPeer) newCircuit(
 	case <-lpb.Halt.ReqStop.Chan:
 		return nil, nil, ErrHaltRequested
 	}
-	//vv("tellRemote = %v", tellRemote)
+	vv("tellRemote = %v", tellRemote)
+	vv("firstFrag = %v", firstFrag)
 	if tellRemote {
+		// we were called by NewCircuitToPeerURL
 		var msg *Message
 		if firstFrag != nil {
 			msg = firstFrag.ToMessage()
@@ -824,13 +844,17 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.To = rpb.NetAddr
 		//vv("rpb.NetAddr = '%v'", rpb.NetAddr)
 		msg.HDR.From = lpb.NetAddr
-		msg.HDR.Typ = CallPeerStartCircuit
+		if atMostOnePeer {
+			msg.HDR.Typ = CallPeerStartCircuitAtMostOne
+		} else {
+			msg.HDR.Typ = CallPeerStartCircuit
+		}
 		msg.HDR.Created = time.Now()
 		msg.HDR.FromPeerID = lpb.PeerID
 		msg.HDR.FromPeerName = lpb.PeerName
-		msg.HDR.ToPeerID = rpb.PeerID
-		// let the firstFragSet ToPeerName above in ToMessage().
 		if firstFrag == nil {
+			// let the firstFragSet set above in ToMessage().
+			msg.HDR.ToPeerID = rpb.PeerID
 			msg.HDR.ToPeerName = rpb.PeerName // almost sure empty but try.
 		}
 		msg.HDR.CallID = ckt.CircuitID
@@ -1206,6 +1230,11 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 // The Client/Server readLoops call us directly when
 // they see a CallPeerStart, CallPeerStartCircuit, or CallPeerStartCircuitTakeToID.
 //
+// CallPeerStart: starts a new remote service instance.
+// CallPeerStartCircuit: used by NewCircuitToPeerURL to tellRemote
+// CallPeerStartCircuitTakeToID: from StartRemotePeerAndGetCircuit ckt2.go
+// CallPeerStartCircuitAtMostOne: get a circuit from existing peer (start at most one peer).
+//
 // The goal of bootstrapCircuit is to enable the user
 // peer code to interact with circuits and remote peers.
 // We want this user PeerImpl.Start() code to work now:
@@ -1237,16 +1266,24 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 
 	knownLocalPeer, ok := s.localServiceNameMap.Get(peerServiceName)
 	if !ok {
-		// moved out from replyHelper since did not apply
-		// to the other use at ckt.go:1302
-		// Re-use same msg in error reply:
-		msg.HDR.From, msg.HDR.To = msg.HDR.To, msg.HDR.From
-		msg.HDR.FromPeerID, msg.HDR.ToPeerID = msg.HDR.ToPeerID, msg.HDR.FromPeerID
-		msg.HDR.Typ = CallPeerError
-		msg.JobErrs = fmt.Sprintf("no local peerServiceName '%v' available", peerServiceName)
-		msg.JobSerz = nil
+		msgerr := NewMessage()
+		msgerr.HDR.Created = time.Now()
+		msgerr.HDR.From = msg.HDR.To
+		msgerr.HDR.To = msg.HDR.From
+		msgerr.HDR.ServiceName = msg.HDR.ServiceName
+		msgerr.HDR.Subject = msg.HDR.Subject
+		msgerr.HDR.Seqno = msg.HDR.Seqno
+		msgerr.HDR.Typ = CallPeerError
+		msgerr.HDR.CallID = msg.HDR.CallID
+		msgerr.HDR.Serial = issueSerial()
+		msgerr.HDR.ToPeerID = msg.HDR.FromPeerID
+		msgerr.HDR.ToPeerName = msg.HDR.FromPeerName
+		msgerr.HDR.FromPeerID = msg.HDR.ToPeerID
+		msgerr.HDR.FromPeerName = msg.HDR.ToPeerName
+
+		msgerr.JobErrs = fmt.Sprintf("no local peerServiceName '%v' available at '%v'", peerServiceName, msgerr.HDR.From)
 		//vv("bootstrapCircuit returning early: '%v'", msg.JobErrs)
-		return s.replyHelper(isCli, msg, ctx, sendCh)
+		return s.replyHelper(isCli, msgerr, ctx, sendCh)
 	}
 	//vv("good: bootstrapCircuit found registered peerServiceName: '%v'", peerServiceName)
 
@@ -1257,28 +1294,38 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		needNew = true
 	}
 
-	pleaseAssignNewRemotePeerID, assignReqOk := msg.HDR.Args["#pleaseAssignNewPeerID"]
+	pleaseAssignNewRemotePeerID, assignReqSeen := msg.HDR.Args["#pleaseAssignNewPeerID"]
 
-	if msg.HDR.Typ == CallPeerStartCircuitTakeToID {
+	var isUpdatedPeerID bool
+	var lpb *LocalPeer
+
+	switch {
+	case msg.HDR.Typ == CallPeerStartCircuitTakeToID:
+		if !assignReqSeen {
+			panic("CallPeerStartCircuitTakeToID must set #pleaseAssignNewPeerID")
+		}
 		if msg.HDR.ToPeerID != pleaseAssignNewRemotePeerID {
 			panic("inconsistent internal logic! should have msg.HDR.ToPeerID == pleaseAssignNewRemotePeerID")
 		}
 		pleaseAssignNewRemotePeerID = msg.HDR.ToPeerID
-		assignReqOk = true
-	}
-
-	var lpb *LocalPeer
-
-	isUpdatedPeerID := false
-	if localPeerID == "" || assignReqOk {
 		needNew = true
-	} else {
+	case localPeerID != "":
 		var ok bool
 		lpb, ok = knownLocalPeer.active.Get(localPeerID)
 		if !ok {
 			// start a new instance
-			isUpdatedPeerID = true
+			isUpdatedPeerID = true // localPeerID was no good/died.
 			needNew = true
+		}
+	case msg.HDR.Typ == CallPeerStartCircuitAtMostOne:
+		switch knownLocalPeer.active.Len() {
+		case 0:
+			needNew = true
+		case 1:
+			lpb = knownLocalPeer.active.GetValSlice()[0]
+			needNew = false // just for emphasis
+		default:
+			panic(fmt.Sprintf("more than 1 started peer service '%v' so which one?", peerServiceName))
 		}
 	}
 	knownLocalPeer.mut.Unlock()
@@ -1294,7 +1341,8 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 			return err
 		}
 		lpb = lpb2
-		// unlockedStartLocalPeer already called provideRemoteOnNewCircuitCh.
+		// unlockedStartLocalPeer already called provideRemoteOnNewCircuitCh,
+		// so no need to do it again below.
 
 		// Test400: if we were bootstrapped without a remote local peer, just
 		// with a callID, they are waiting for an ack.
@@ -1308,7 +1356,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		// should? not be needed? for CallPeerStartCircuitTakeToID or CallPeerStartCircuit?
 		// only for CallPeerStart... like Test400 without a remote peer yet...
 		if msg.HDR.FromPeerID == "" && msg.HDR.Typ == CallPeerStart {
-			//vv("bootstrap sees no remote FromPeerID, sending callID ack")
+			vv("bootstrap sees no remote FromPeerID, sending callID ack")
 			ack := NewMessage()
 
 			ack.HDR.From = msg.HDR.To
@@ -1350,7 +1398,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		circuitName = msg.HDR.Args["#circuitName"]
 	}
 
-	ckt, ctx2, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, nil, -1, false)
+	ckt, ctx2, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, nil, -1, false, false)
 	if err != nil {
 		return err
 	}

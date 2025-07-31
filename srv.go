@@ -647,7 +647,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			s.lastPingReceivedTmu.Store(time.Now().UnixNano())
 			continue
 
-		case CallPeerStart, CallPeerStartCircuit, CallPeerStartCircuitTakeToID:
+		case CallPeerStart, CallPeerStartCircuit, CallPeerStartCircuitTakeToID, CallPeerStartCircuitAtMostOne:
 
 			// Why this is not in its own goroutine? Backpressure.
 			// It is important to provide back pressure
