@@ -1945,6 +1945,8 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 		// Since this can race with the original reply,
 		// we've enlarged the DoneCh channel buffer
 		// to be size 2 now, in the NewMessage() implementation.
+		// Update: above is out of date, now that
+		// we use loquet with an idempotent close.
 		cancelReq := &Message{DoneCh: req.DoneCh}
 		cancelReq.HDR = req.HDR
 		cancelReq.HDR.Typ = CallCancelPrevious

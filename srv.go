@@ -799,7 +799,7 @@ func newNotifies(isCli bool, u UniversalCliSrv) *notifies {
 	}
 }
 
-// For Peer/Object systems, ToPeerID get priority over CallID
+// For Peer/Object systems, ToPeerID gets priority over CallID
 // to allow such systems to implement custom message
 // types. An example is the Fragment/Peer/Circuit system.
 func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Context, msg *Message) (done bool) {

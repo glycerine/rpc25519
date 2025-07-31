@@ -988,7 +988,7 @@ func (z *AtMostOnePeerNewCircuitRPCReq) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields12zgensym_f64305401993a07f_13 = 3
+	const maxFields12zgensym_f64305401993a07f_13 = 4
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields12zgensym_f64305401993a07f_13 uint32
@@ -1043,14 +1043,20 @@ doneWithStruct12zgensym_f64305401993a07f_13:
 			if err != nil {
 				return
 			}
-		case "PeerURL_zid01_str":
+		case "NetAddr_zid01_str":
 			found12zgensym_f64305401993a07f_13[1] = true
-			z.PeerURL, err = dc.ReadString()
+			z.NetAddr, err = dc.ReadString()
 			if err != nil {
 				return
 			}
-		case "FirstFrag_zid02_ptr":
+		case "ServiceName_zid02_str":
 			found12zgensym_f64305401993a07f_13[2] = true
+			z.ServiceName, err = dc.ReadString()
+			if err != nil {
+				return
+			}
+		case "FirstFrag_zid03_ptr":
+			found12zgensym_f64305401993a07f_13[3] = true
 			if dc.IsNil() {
 				err = dc.ReadNil()
 				if err != nil {
@@ -1101,26 +1107,30 @@ doneWithStruct12zgensym_f64305401993a07f_13:
 }
 
 // fields of AtMostOnePeerNewCircuitRPCReq
-var decodeMsgFieldOrder12zgensym_f64305401993a07f_13 = []string{"CircuitName_zid00_str", "PeerURL_zid01_str", "FirstFrag_zid02_ptr"}
+var decodeMsgFieldOrder12zgensym_f64305401993a07f_13 = []string{"CircuitName_zid00_str", "NetAddr_zid01_str", "ServiceName_zid02_str", "FirstFrag_zid03_ptr"}
 
-var decodeMsgFieldSkip12zgensym_f64305401993a07f_13 = []bool{false, false, false}
+var decodeMsgFieldSkip12zgensym_f64305401993a07f_13 = []bool{false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *AtMostOnePeerNewCircuitRPCReq) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 3
+		return 4
 	}
-	var fieldsInUse uint32 = 3
+	var fieldsInUse uint32 = 4
 	isempty[0] = (len(z.CircuitName) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
 	}
-	isempty[1] = (len(z.PeerURL) == 0) // string, omitempty
+	isempty[1] = (len(z.NetAddr) == 0) // string, omitempty
 	if isempty[1] {
 		fieldsInUse--
 	}
-	isempty[2] = (z.FirstFrag == nil) // pointer, omitempty
+	isempty[2] = (len(z.ServiceName) == 0) // string, omitempty
 	if isempty[2] {
+		fieldsInUse--
+	}
+	isempty[3] = (z.FirstFrag == nil) // pointer, omitempty
+	if isempty[3] {
 		fieldsInUse--
 	}
 
@@ -1134,7 +1144,7 @@ func (z *AtMostOnePeerNewCircuitRPCReq) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_f64305401993a07f_14 [3]bool
+	var empty_zgensym_f64305401993a07f_14 [4]bool
 	fieldsInUse_zgensym_f64305401993a07f_15 := z.fieldsNotEmpty(empty_zgensym_f64305401993a07f_14[:])
 
 	// map header
@@ -1166,20 +1176,32 @@ func (z *AtMostOnePeerNewCircuitRPCReq) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_f64305401993a07f_14[1] {
-		// write "PeerURL_zid01_str"
-		err = en.Append(0xb1, 0x50, 0x65, 0x65, 0x72, 0x55, 0x52, 0x4c, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x73, 0x74, 0x72)
+		// write "NetAddr_zid01_str"
+		err = en.Append(0xb1, 0x4e, 0x65, 0x74, 0x41, 0x64, 0x64, 0x72, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
-		err = en.WriteString(z.PeerURL)
+		err = en.WriteString(z.NetAddr)
 		if err != nil {
 			return
 		}
 	}
 
 	if !empty_zgensym_f64305401993a07f_14[2] {
-		// write "FirstFrag_zid02_ptr"
-		err = en.Append(0xb3, 0x46, 0x69, 0x72, 0x73, 0x74, 0x46, 0x72, 0x61, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x70, 0x74, 0x72)
+		// write "ServiceName_zid02_str"
+		err = en.Append(0xb5, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x73, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		err = en.WriteString(z.ServiceName)
+		if err != nil {
+			return
+		}
+	}
+
+	if !empty_zgensym_f64305401993a07f_14[3] {
+		// write "FirstFrag_zid03_ptr"
+		err = en.Append(0xb3, 0x46, 0x69, 0x72, 0x73, 0x74, 0x46, 0x72, 0x61, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x70, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
@@ -1210,7 +1232,7 @@ func (z *AtMostOnePeerNewCircuitRPCReq) MarshalMsg(b []byte) (o []byte, err erro
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [3]bool
+	var empty [4]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -1221,14 +1243,20 @@ func (z *AtMostOnePeerNewCircuitRPCReq) MarshalMsg(b []byte) (o []byte, err erro
 	}
 
 	if !empty[1] {
-		// string "PeerURL_zid01_str"
-		o = append(o, 0xb1, 0x50, 0x65, 0x65, 0x72, 0x55, 0x52, 0x4c, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x73, 0x74, 0x72)
-		o = msgp.AppendString(o, z.PeerURL)
+		// string "NetAddr_zid01_str"
+		o = append(o, 0xb1, 0x4e, 0x65, 0x74, 0x41, 0x64, 0x64, 0x72, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x31, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.NetAddr)
 	}
 
 	if !empty[2] {
-		// string "FirstFrag_zid02_ptr"
-		o = append(o, 0xb3, 0x46, 0x69, 0x72, 0x73, 0x74, 0x46, 0x72, 0x61, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x70, 0x74, 0x72)
+		// string "ServiceName_zid02_str"
+		o = append(o, 0xb5, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.ServiceName)
+	}
+
+	if !empty[3] {
+		// string "FirstFrag_zid03_ptr"
+		o = append(o, 0xb3, 0x46, 0x69, 0x72, 0x73, 0x74, 0x46, 0x72, 0x61, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x70, 0x74, 0x72)
 		// marshalGen.gPtr()
 
 		if z.FirstFrag == nil {
@@ -1261,7 +1289,7 @@ func (z *AtMostOnePeerNewCircuitRPCReq) UnmarshalMsgWithCfg(bts []byte, cfg *msg
 
 	var field []byte
 	_ = field
-	const maxFields16zgensym_f64305401993a07f_17 = 3
+	const maxFields16zgensym_f64305401993a07f_17 = 4
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields16zgensym_f64305401993a07f_17 uint32
@@ -1318,15 +1346,22 @@ doneWithStruct16zgensym_f64305401993a07f_17:
 			if err != nil {
 				return
 			}
-		case "PeerURL_zid01_str":
+		case "NetAddr_zid01_str":
 			found16zgensym_f64305401993a07f_17[1] = true
-			z.PeerURL, bts, err = nbs.ReadStringBytes(bts)
+			z.NetAddr, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "FirstFrag_zid02_ptr":
+		case "ServiceName_zid02_str":
 			found16zgensym_f64305401993a07f_17[2] = true
+			z.ServiceName, bts, err = nbs.ReadStringBytes(bts)
+
+			if err != nil {
+				return
+			}
+		case "FirstFrag_zid03_ptr":
+			found16zgensym_f64305401993a07f_17[3] = true
 			// unmarshalGen.gPtr(): we have a BaseElem.
 
 			// unmarshalGen.gPtr(): we have an IDENT:
@@ -1378,13 +1413,13 @@ doneWithStruct16zgensym_f64305401993a07f_17:
 }
 
 // fields of AtMostOnePeerNewCircuitRPCReq
-var unmarshalMsgFieldOrder16zgensym_f64305401993a07f_17 = []string{"CircuitName_zid00_str", "PeerURL_zid01_str", "FirstFrag_zid02_ptr"}
+var unmarshalMsgFieldOrder16zgensym_f64305401993a07f_17 = []string{"CircuitName_zid00_str", "NetAddr_zid01_str", "ServiceName_zid02_str", "FirstFrag_zid03_ptr"}
 
-var unmarshalMsgFieldSkip16zgensym_f64305401993a07f_17 = []bool{false, false, false}
+var unmarshalMsgFieldSkip16zgensym_f64305401993a07f_17 = []bool{false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *AtMostOnePeerNewCircuitRPCReq) Msgsize() (s int) {
-	s = 1 + 22 + msgp.StringPrefixSize + len(z.CircuitName) + 18 + msgp.StringPrefixSize + len(z.PeerURL) + 20
+	s = 1 + 22 + msgp.StringPrefixSize + len(z.CircuitName) + 18 + msgp.StringPrefixSize + len(z.NetAddr) + 22 + msgp.StringPrefixSize + len(z.ServiceName) + 20
 	if z.FirstFrag == nil {
 		s += msgp.NilSize
 	} else {
@@ -1395,7 +1430,8 @@ func (z *AtMostOnePeerNewCircuitRPCReq) Msgsize() (s int) {
 func (z *AtMostOnePeerNewCircuitRPCReq) Gstring() (r string) {
 	r = "&AtMostOnePeerNewCircuitRPCReq{\n"
 	r += fmt.Sprintf("CircuitName: \"%v\",\n", z.CircuitName)
-	r += fmt.Sprintf("    PeerURL: \"%v\",\n", z.PeerURL)
+	r += fmt.Sprintf("    NetAddr: \"%v\",\n", z.NetAddr)
+	r += fmt.Sprintf("ServiceName: \"%v\",\n", z.ServiceName)
 	r += fmt.Sprintf("  FirstFrag: %v,\n", z.FirstFrag)
 	r += "}\n"
 	return

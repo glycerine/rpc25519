@@ -2,8 +2,8 @@ package rpc25519
 
 import (
 	"fmt"
+	"github.com/glycerine/idem"
 	"time"
-	//"github.com/glycerine/idem"
 )
 
 // StartRemotePeerAndGetCircuit is a combining/compression of
@@ -13,10 +13,22 @@ import (
 // circuit, to save a 2nd round trip!
 func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration) (ckt *Circuit, err error) {
 
+	return p.implStartRemotePeerAndGetCircuit(false, lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur)
+}
+
+// StartRemotePeerAndGetCircuitWaitForAck is the
+// same as StartRemotePeerAndGetCircuitWait but it
+// also waits for an ack back from the remote peer.
+func (p *peerAPI) StartRemotePeerAndGetCircuitWaitForAck(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration) (ckt *Circuit, err error) {
+
+	return p.implStartRemotePeerAndGetCircuit(true, lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur)
+}
+
+func (p *peerAPI) implStartRemotePeerAndGetCircuit(waitForAck bool, lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration) (ckt *Circuit, err error) {
+
 	if lpb.Halt.ReqStop.IsClosed() {
 		return nil, ErrHaltRequested
 	}
-	ctx := lpb.Ctx
 
 	circuitID := NewCallID(circuitName)
 	frag.CircuitID = circuitID
@@ -57,6 +69,7 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 
 	// this effectively is all that happens to set
 	// up the circuit.
+	ctx := lpb.Ctx
 	err, _ = p.u.SendOneWayMessage(ctx, msg, errWriteDur)
 	if err != nil {
 		return nil, fmt.Errorf("error requesting CallPeerStartCircuit from remote: '%v'", err)
@@ -70,14 +83,62 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 		NetAddr:           remoteAddr, //netAddr,
 		RemoteServiceName: remotePeerServiceName,
 	}
+
+	// allows pump.go to tell remotes we have shutdown
 	lpb.Remotes.Set(peerID, rpb)
 
-	// we want to be setting/sending firstFrag (frag) here, right?
-	// we were not before...
-	ckt, _, err = lpb.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, false, false)
-	//ckt, _, err = lpb.newCircuit(circuitName, rpb, circuitID, nil, errWriteDur, false)
+	var responseCh chan *Message
+	var hhalt *idem.Halter
+	if waitForAck {
+		responseCh = make(chan *Message, 10)
+		responseID := NewCallID("responseCallID for " + circuitID + " in StartRemotePeerAndGetCircuit")
+		frag.SetSysArg("RemotePeerID_ready_responseCallID", responseID)
+		p.u.GetReadsForCallID(responseCh, responseID)
+		hhalt = p.u.GetHostHalter()
+		defer p.u.UnregisterChannel(responseID, CallIDReadMap)
+	}
+
+	// set and send frag, our firstFrag, here.
+	ckt, ctx, err = lpb.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, false, false)
 	if err != nil {
 		return nil, err
+	}
+	if waitForAck {
+		select {
+		case responseMsg := <-responseCh:
+			if responseMsg.LocalErr != nil {
+				err = responseMsg.LocalErr
+				return
+			}
+			if responseMsg.JobErrs != "" {
+				err = fmt.Errorf("error on responseMsg := <-responseCh: response.JobErrs = '%v'", responseMsg.JobErrs)
+				return
+			}
+			// this is the a minor point of the WaitForAck, (1)
+			// since we already likely have the name elsewhere,
+			// like the a peer-naming config file.
+			rpb.PeerName = responseMsg.HDR.FromPeerName
+
+			if responseMsg.HDR.FromPeerID == "" {
+				panic(fmt.Sprintf("responseMsg.FromPeerID was empty string; should never happen! responseMsg = '%v'", responseMsg))
+			}
+			if responseMsg.HDR.FromPeerID != peerID {
+				// this is the whole point of the WaitForAck (2),
+				// to get an accurate rpb.PeerID if the
+				// peer was already running and had
+				// already assigned a PeerID to itself.
+				rpb.PeerID = responseMsg.HDR.FromPeerID
+
+				lpb.Remotes.Set(rpb.PeerID, rpb)
+				lpb.Remotes.Del(peerID)
+			}
+		case <-ckt.Context.Done():
+			return nil, ErrContextCancelled
+		case <-lpb.Ctx.Done():
+			return nil, ErrContextCancelled
+		case <-hhalt.ReqStop.Chan:
+			return nil, ErrHaltRequested
+		}
 	}
 	return
 }

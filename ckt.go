@@ -400,6 +400,13 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	}
 	atMostOnePeer := false
 	if peerID == "" {
+		/*
+			return s.netRpcHelperNewCircuitToPeerURL(
+				circuitName,
+				netAddr, serviceName,
+				frag,
+				errWriteDur)
+		*/
 		// convention: empty peerID => start peer only,
 		// if there is none; otherwise prefer the
 		// existing single peer.
@@ -800,7 +807,8 @@ func (lpb *LocalPeer) OpenCircuitCount() int {
 // ---- atMostOne is always false in the newCircuit() call.
 // ---- which means goto (d) on the remote
 //
-// d) readLoops on cli and srv call bootstrapCircuit ckt.go:1315
+// d) readLoops on cli and srv call
+// bootstrapCircuit ckt.go:1315
 // -- which calls provideRemoteOnNewCircuitCh :1443 at ckt.go:1440
 // ----- which calls newCircuit(tellRemote=false) at ckt.go:1420
 //
@@ -954,7 +962,7 @@ func (h *Circuit) Close(reason error) {
 	// set reason atomically.
 	h.Halt.ReqStop.CloseWithReason(reason)
 
-	select { // stalled here on shutdown, 401 membr test in tube.
+	select {
 	case h.LpbFrom.HandleCircuitClose <- h:
 	case <-h.LpbFrom.Halt.ReqStop.Chan:
 	}
@@ -1368,6 +1376,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		pleaseAssignNewRemotePeerID = msg.HDR.ToPeerID
 		needNew = true
 	case localPeerID != "":
+		// localPeerID is just msg.HDR.ToPeerID
 		var ok bool
 		lpb, ok = knownLocalPeer.active.Get(localPeerID)
 		if !ok {
@@ -1686,8 +1695,9 @@ func (a *Fragment) Compare(b *Fragment) int {
 
 type AtMostOnePeerNewCircuitRPCReq struct {
 	CircuitName string    `zid:"0"`
-	PeerURL     string    `zid:"1"`
-	FirstFrag   *Fragment `zid:"2"` // optional
+	NetAddr     string    `zid:"1"`
+	ServiceName string    `zid:"2"`
+	FirstFrag   *Fragment `zid:"3"` // optional
 }
 
 type AtMostOnePeerNewCircuitRPCReply struct {
@@ -1757,3 +1767,33 @@ func (s *AtMostOnePeer) NewCircuit(ctx context.Context, input *AtMostOnePeerNewC
 	_, err := input.UnmarshalMsg(req.JobSerz)
 	panicOn(err)
 */
+
+func (s *LocalPeer) netRpcHelperNewCircuitToPeerURL(
+	cktName string,
+	netAddr string,
+	serviceName string,
+	frag *Fragment,
+	errWriteDur time.Duration,
+
+) (ckt *Circuit, ctx context.Context, err error) {
+
+	input := &AtMostOnePeerNewCircuitRPCReq{
+		CircuitName: cktName,
+		NetAddr:     netAddr,
+		ServiceName: serviceName,
+		FirstFrag:   frag,
+	}
+	reply := &AtMostOnePeerNewCircuitRPCReply{}
+	client := s.U.GetClient()
+	if client == nil {
+		panic("TODO get working on Server via the auto-clis")
+	}
+
+	ctx, canc := context.WithTimeout(context.Background(), errWriteDur)
+	defer canc()
+	err = client.Call("AtMostOnePeer.NewCircuit", input, reply, ctx)
+	panicOn(err) // cancelled??
+
+	ckt = &Circuit{}
+	return
+}
