@@ -779,31 +779,35 @@ func (lpb *LocalPeer) OpenCircuitCount() int {
 	}
 }
 
-// newCircuit sends either:
-//
-// CallPeerStartCircuit; or
-// CallPeerStartCircuitAtMostOne
-//
-// to the remote if tellRemote == true.
-//
+// newCircuit
+// always adds a circuit to the peer on the side it
+// is called on. It does this with
+// lpb.TellPumpNewCircuit <- ckt
+// .
+// .
+// .
 // newCircuit is called by:
-// a) ckt2.go:77 StartRemotePeerAndGetCircuit (tellRemote=false)
+// a) ckt2.go:77 StartRemotePeerAndGetCircuit (tellRemote=false, atMost=false)
 // -- here newCircuit is used to add the ckt to the local peer.
-// ---- then sends CallPeerStartCircuitTakeToID. to the remote
-// ---- which means goto d) below on the remote side.
+// ---- then sends CallPeerStartCircuitTakeToID to the remote
+// ---- which means goto (d) below on the remote side.
 //
 // b) NewCircuitToPeerURL calls newCircuit(tellRemote=true) at ckt.go:440
+// ---- it sets atMostOne true if the PeerID in the URL is blank.
+// ---- which means goto (d) on the remote
 //
 // c) NewCircuit calls newCircuit(tellRemote=true) at ckt.go:738
+// ---- atMostOne is always false in the newCircuit() call.
+// ---- which means goto (d) on the remote
 //
-// d) readLoops on cli and srv call bootstrapCircuit
-// -- which calls provideRemoteOnNewCircuitCh() at ckt.go:1137
+// d) readLoops on cli and srv call bootstrapCircuit ckt.go:1283
+// -- which calls provideRemoteOnNewCircuitCh :1411 at ckt.go:1137
 // ----- which calls newCircuit(tellRemote=false) at ckt.go:1420
 //
-// when we newCircuit are invoked with tellRemote=true
+// when we, newCircuit(), are invoked with tellRemote=true
 // from b) or c), we send to the remote either
 // -- CallPeerStartCircuit; or
-// -- CallPeerStartCircuitAtMostOne
+// -- CallPeerStartCircuitAtMostOne if atMostOnePeer (CallPeerStartCircuitAtMostOne was sent from (b) above).
 // .
 func (lpb *LocalPeer) newCircuit(
 	circuitName string,
@@ -1083,7 +1087,7 @@ func (p *peerAPI) StartLocalPeer(
 func (p *peerAPI) unlockedStartLocalPeer(
 	ctx context.Context,
 	peerServiceName string,
-	requestedCircuit *Message,
+	requestedCircuitMsg *Message,
 	isUpdatedPeerID bool,
 	sendCh chan *Message,
 	pleaseAssignNewPeerID string,
@@ -1133,8 +1137,8 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	//localPeerURL := lpb.URL()
 	//vv("unlockedStartLocalPeer: lpb.URL() = '%v'; peerServiceName='%v', isUpdatedPeerID='%v'; pleaseAssignNewPeerID='%v'; \nstack=%v\n", lpb.URL(), peerServiceName, isUpdatedPeerID, pleaseAssignNewPeerID, stack())
 
-	if requestedCircuit != nil {
-		return lpb, lpb.provideRemoteOnNewCircuitCh(p.isCli, requestedCircuit, ctx1, sendCh, isUpdatedPeerID)
+	if requestedCircuitMsg != nil {
+		return lpb, lpb.provideRemoteOnNewCircuitCh(p.isCli, requestedCircuitMsg, ctx1, sendCh, isUpdatedPeerID)
 	}
 
 	return lpb, nil
@@ -1424,7 +1428,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		circuitName = msg.HDR.Args["#circuitName"]
 	}
 
-	ckt, ctx2, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, nil, -1, false, false)
+	ckt, ctx2, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, nil, -1, false, msg.HDR.Typ == CallPeerStartCircuitAtMostOne)
 	if err != nil {
 		return err
 	}
