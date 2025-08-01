@@ -94,8 +94,8 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 
 	// set firstFrag. send frag (but only if tellRemote true).
 	ckt, ctx, err = lpb.newCircuit(circuitName, rpb, circuitID, firstFrag, errWriteDur, false, false)
-	vv("back from lpb.newCircuit; responseCh = %p", responseCh)    // seen, not nil
-	defer vv("defered print running StartRemotePeerAndGetCircuit") // not seen
+	vv("back from lpb.newCircuit; waitForAck=%v, responseCh = %p", waitForAck, responseCh) // seen, nil!
+	defer vv("defered print running StartRemotePeerAndGetCircuit")                         // not seen
 	if err != nil {
 		return nil, err
 	}
