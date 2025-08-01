@@ -506,11 +506,11 @@ func Test419_lots_of_send_and_read(t *testing.T) {
 		defer j.cleanup()
 
 		ctx := context.Background()
-		cli_lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil, "")
+		cli_lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil, "cli_lpb_name")
 		panicOn(err)
 		defer cli_lpb.Close()
 
-		srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil, "")
+		srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil, "srv_lpb_name")
 		panicOn(err)
 		defer srv_lpb.Close()
 
@@ -846,10 +846,11 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 
 	// empty ToPeerID in URL means we use
 	//
-	// CallPeerStartCircuitAtMostOne       CallType = 115
-	// and
-	// CallPeerStartCircuitAtMostOneFinish CallType = 116
+	// CallPeerStartCircuitAtMostOne       CallType = 116
+	// and all ckt are now acked with
+	// CallPeerCircuitEstablishedAck       CallType = 114
 	//
+
 	// and we need to verify that we eventually
 	// get back a proper ckt with RemotePeerID set.
 	// The "make up a CallID and ask the new remote to
@@ -875,7 +876,8 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 
 	ctx := context.Background()
 
-	cli_lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil, "")
+	cliPeerName := "cliPeerName_410"
+	cli_lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil, cliPeerName)
 	panicOn(err)
 	defer cli_lpb.Close()
 
@@ -918,7 +920,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	panicOn(err)
 	_ = ctx
 
-	vv("ctk = '%v'", ckt)
+	vv("ckt = '%v'", ckt)
 	/*
 		input := &AtMostOnePeerNewCircuitRPCReq{
 			CircuitName: cktName,
@@ -939,4 +941,16 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		panic("ckt.RemotePeerID should not be empty")
 	}
 
+	// now ask for the same peer as before to respond,
+	// supposing its a freshly booted remote node whose
+	// address we have, but we do not have its PeerID yet.x
+
+	cktName2 := "ckt-410-2nd" // what to call our new circuit
+	ckt2, err := j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb, cktName2, nil, serviceName, netAddr, 0)
+
+	// we want that the remote PeerID is the same as the one
+	// we started originally/first time.
+	if ckt2.RemotePeerID != ckt.RemotePeerID {
+		panic(fmt.Sprintf("wanted ckt.RemotePeerID='%v', got ckt2.RemotePeerID='%v'", ckt.RemotePeerID, ckt2.RemotePeerID))
+	}
 }

@@ -6,6 +6,21 @@ import (
 	"time"
 )
 
+// PreferExtantRemotePeerGetCircuit is the
+// same as StartRemotePeerAndGetCircuit but it
+// tries to avoid starting a new peer because
+// it assumes one is already running from
+// server/process bootup, and it just needs
+// to discover it by the remotepeerServiceName.
+// It will start one if there is not an existing
+// peer, but otherwise it will talk to the
+// extant peer on the remote.
+func (p *peerAPI) PreferExtantRemotePeerGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration) (ckt *Circuit, err error) {
+	waitForAck := true
+	preferExtant := true
+	return p.implRemotePeerAndGetCircuit(lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, preferExtant)
+}
+
 // StartRemotePeerAndGetCircuit is a combining/compression of
 // StartRemotePeer and NewCircuitToPeerURL together into one
 // compact roundtrip.
@@ -14,6 +29,11 @@ import (
 //
 // waitForAck true => wait for an ack back from the remote peer.
 func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, waitForAck bool) (ckt *Circuit, err error) {
+
+	return p.implRemotePeerAndGetCircuit(lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, false)
+}
+
+func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, waitForAck bool, preferExtant bool) (ckt *Circuit, err error) {
 
 	if lpb.Halt.ReqStop.IsClosed() {
 		return nil, ErrHaltRequested
@@ -30,7 +50,11 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 		frag = p.u.newFragment()
 	}
 	frag.CircuitID = circuitID
-	frag.Typ = CallPeerStartCircuitTakeToID
+	if preferExtant {
+		frag.Typ = CallPeerStartCircuitAtMostOne
+	} else {
+		frag.Typ = CallPeerStartCircuitTakeToID
+	}
 
 	frag.ServiceName = remotePeerServiceName
 	frag.SetSysArg("fromServiceName", lpb.PeerServiceName)
