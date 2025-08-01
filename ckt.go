@@ -818,7 +818,7 @@ func (lpb *LocalPeer) newCircuit(
 
 ) (ckt *Circuit, ctx2 context.Context, err error) {
 
-	vv("newCircuit() called. onRemoteSide = %v", onRemoteSide) // 410: seen 2x but both false.
+	vv("newCircuit() called. onRemoteSide = %v; stack = '%v'", onRemoteSide, stack()) // 410: seen 2x but both false.
 
 	if lpb.Halt.ReqStop.IsClosed() {
 		return nil, nil, ErrHaltRequested
@@ -1114,9 +1114,11 @@ func (p *peerAPI) StartLocalPeer(
 	p.mut.Lock()
 	defer p.mut.Unlock()
 
-	return p.unlockedStartLocalPeer(ctx, peerServiceName, requestedCircuit, false, nil, "", peerName)
+	return p.unlockedStartLocalPeer(ctx, peerServiceName, requestedCircuit, false, nil, "", peerName, onOriginLocalSide)
 }
 
+// called by StartLocalPeer ckt.go:1117 just above. onRemote=false/onOriginLocalSide
+// called by bootstrapCircuit ckt.go:1431 below. onRemote=true/onRemote2ndSide
 func (p *peerAPI) unlockedStartLocalPeer(
 	ctx context.Context,
 	peerServiceName string,
@@ -1125,6 +1127,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	sendCh chan *Message,
 	pleaseAssignNewPeerID string,
 	peerName string,
+	onRemoteSide onRemoteSideVal,
 
 ) (lpb *LocalPeer, err error) {
 
@@ -1171,7 +1174,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	//vv("unlockedStartLocalPeer: lpb.URL() = '%v'; peerServiceName='%v', isUpdatedPeerID='%v'; pleaseAssignNewPeerID='%v'; \nstack=%v\n", lpb.URL(), peerServiceName, isUpdatedPeerID, pleaseAssignNewPeerID, stack())
 
 	if requestedCircuit != nil {
-		return lpb, lpb.provideRemoteOnNewCircuitCh(p.isCli, requestedCircuit, ctx1, sendCh, isUpdatedPeerID, onOriginLocalSide)
+		return lpb, lpb.provideRemoteOnNewCircuitCh(p.isCli, requestedCircuit, ctx1, sendCh, isUpdatedPeerID, onRemoteSide)
 	}
 
 	return lpb, nil
@@ -1426,7 +1429,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		// spin one up!
 		//vv("needNewLocalPeer true! spinning up a peer for peerServicename '%v'", peerServiceName)
 		//lpb2, localPeerURL, localPeerID, err := s.StartLocalPeer(ctx, peerServiceName, msg)
-		lpb2, err := s.unlockedStartLocalPeer(ctx, peerServiceName, msg, isUpdatedPeerID, sendCh, pleaseAssignNewRemotePeerID, "")
+		lpb2, err := s.unlockedStartLocalPeer(ctx, peerServiceName, msg, isUpdatedPeerID, sendCh, pleaseAssignNewRemotePeerID, "", onRemote2ndSide)
 		if err != nil {
 			// we are probably shutting down; Test408 gets here with
 			// "rpc25519 error: halt requested".
