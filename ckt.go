@@ -215,6 +215,9 @@ func (f *Fragment) SetSysArg(key, val string) {
 // should use GetUserArg instead. This avoids
 // collisions between user and system keys.
 func (f *Fragment) GetSysArg(key string) (val string, ok bool) {
+	if f == nil {
+		return
+	}
 	if key == "" || f.Args == nil {
 		return "", false
 	}
@@ -884,6 +887,7 @@ func (lpb *LocalPeer) newCircuit(
 		// may be carrying important information and a new
 		// map would lose that.
 		msg.HDR.Args["#fromServiceName"] = lpb.PeerServiceName
+		msg.HDR.Args["#toServiceName"] = rpb.RemoteServiceName
 		msg.HDR.Args["#circuitName"] = circuitName
 		if firstFrag != nil {
 			// not sure this is working right yet.
@@ -923,8 +927,9 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Serial = issueSerial()
 		msg.HDR.ServiceName = ckt.RemoteServiceName
 		msg.HDR.Args["#fromServiceName"] = lpb.PeerServiceName
+		msg.HDR.Args["#toServiceName"] = rpb.RemoteServiceName
 		msg.HDR.Args["#circuitName"] = circuitName
-
+		msg.HDR.Args["#fragRPCtoken"], _ = firstFrag.GetSysArg("#fragRPCtoken") // ok even if firstFrag is nil or key missing: just returns empty string.
 		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
 	}
 
