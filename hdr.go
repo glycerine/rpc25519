@@ -62,13 +62,26 @@ const (
 
 	// try to keep all peer traffic isolated
 	// and only using these:
-	CallPeerStart                CallType = 112
-	CallPeerStartCircuit         CallType = 113
-	CallPeerStartCircuitTakeToID CallType = 114
-	CallPeerTraffic              CallType = 115
-	CallPeerError                CallType = 116
-	CallPeerFromIsShutdown       CallType = 117
-	CallPeerEndCircuit           CallType = 118
+	CallPeerStart        CallType = 112
+	CallPeerStartCircuit CallType = 113
+
+	// CallPeerCircuitEstablishedAck is sent to
+	// ack all circuit creation so as to make fragRPC possible;
+	// it was added later and is off the critical path so
+	// most frag/ckt operations need not stall waiting for it.
+	// But and RPC style frag op which wants to wait
+	// for confirmation that the newly requested
+	// circuit has been made, can wait.
+	CallPeerCircuitEstablishedAck CallType = 114
+	CallPeerStartCircuitTakeToID  CallType = 115
+
+	// do not start a second peer, create ckt with existing.
+	CallPeerStartCircuitAtMostOne CallType = 116
+
+	CallPeerTraffic        CallType = 117
+	CallPeerError          CallType = 118
+	CallPeerFromIsShutdown CallType = 119
+	CallPeerEndCircuit     CallType = 120
 )
 
 func (ct CallType) String() string {
@@ -90,6 +103,11 @@ func (ct CallType) String() string {
 		return "CallPeerStart"
 	case CallPeerStartCircuit:
 		return "CallPeerStartCircuit"
+	case CallPeerStartCircuitAtMostOne:
+		return "CallPeerStartCircuitAtMostOne"
+	case CallPeerCircuitEstablishedAck:
+		return "CallPeerCircuitEstablishedAck"
+
 	case CallPeerTraffic:
 		return "CallPeerTraffic"
 	case CallPeerError:
@@ -510,22 +528,24 @@ func (a *HDR) Equal(b *HDR) bool {
 func (m *HDR) String() string {
 	//return m.Pretty()
 	return fmt.Sprintf(`&rpc25519.HDR{
-    "Created": %q,
-    "From": %q,
-    "To": %q,
-    "ServiceName": %q,
-    "Args": %#v,
-    "Subject": %q,
-    "Seqno": %v,
-    "Typ": %s,
-    "CallID": %q,
-    "Serial": %v,
-    "LocalRecvTm": "%s",
-    "Deadline": "%s",
-    "FromPeerID": "%v",
-    "ToPeerID": "%v",
-    "StreamPart": %v,
-    "FragOp": %v,
+         Created: %q
+            From: %q
+              To: %q
+     ServiceName: %q
+            Args: %#v
+         Subject: %q
+           Seqno: %v
+             Typ: %s
+          CallID: %q
+          Serial: %v
+     LocalRecvTm: %s
+        Deadline: %s
+      FromPeerID: "%v"
+    FromPeerName: "%v"
+        ToPeerID: "%v"
+      ToPeerName: "%v"
+      StreamPart: %v
+          FragOp: %v
 }`,
 		m.Created,
 		AliasDecode(m.From),
@@ -540,7 +560,9 @@ func (m *HDR) String() string {
 		m.LocalRecvTm,
 		m.Deadline,
 		AliasDecode(m.FromPeerID),
+		m.FromPeerName,
 		AliasDecode(m.ToPeerID),
+		m.ToPeerName,
 		m.StreamPart,
 		FragOpDecode(m.FragOp),
 	)
