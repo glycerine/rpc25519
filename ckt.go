@@ -888,20 +888,11 @@ func (lpb *LocalPeer) newCircuit(
 		// so the URL back can be correct.
 		// Don't make a new HDR.Args map here since the firstFrag.Args
 		// may be carrying important information and a new
-		// map would lose that.
+		// map would lose that; like #fragRPCtoken and #UserString
 		msg.HDR.Args["#fromServiceName"] = lpb.PeerServiceName
 		msg.HDR.Args["#toServiceName"] = rpb.RemoteServiceName
 		msg.HDR.Args["#circuitName"] = circuitName
-		// should be redundant now, already in firstFrag!
-		// if firstFrag != nil {
-		// 	// seems to be working...
-		// 	//vv("firstFrag != nil: '%v'", firstFrag)
-		// 	us, ok := firstFrag.GetSysArg("UserString")
-		// 	if ok {
-		// 		msg.HDR.Args["#UserString"] = us
-		// 		//vv("set #UserString = '%v'", us)
-		// 	}
-		// }
+
 		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
 		if err != nil {
 			alwaysPrintf("arg: tried to tell remote, but: err='%v'", err)
@@ -912,17 +903,23 @@ func (lpb *LocalPeer) newCircuit(
 	}
 
 	if isRemoteSide {
-		vv("onRemoteSide, sending CallPeerCircuitEstablishedAck; lpb='%#v'", lpb) // not seen 410
-		// complete a round trip for ckt establishment
-		// (off the critical path typically) by
+		//vv("onRemoteSide, sending CallPeerCircuitEstablishedAck; lpb='%#v'", lpb)
+
+		// complete a round trip for ckt establishment by
 		// sending back CallPeerCircuitEstablishedAck here,
 		// for clients who want to wait for an ack back
-		// that a circuit has been established.
+		// that a circuit has been established. The cannonical
+		// use is to contact an extant peer whose PeerID they
+		// don't know yet; but they know it is up and running.
+
+		// That wait is off the critical path, typically, since
+		// most peers won't do what ckt2 does (when waitForAck true)
+		// and establish a fragRPCtoken to wait for, and then wait for it.
 
 		// note: we expect tellRemote to (always) be false, and
 		// even when it is false, onRemoteSide will not
-		// always be true, as ckt2.go shows. So onRemoteSide
-		// and tellRemote cannot be the same flag.
+		// always be true, as ckt2.go shows. So, this is why
+		// onRemoteSide and tellRemote cannot be the same flag.
 
 		var msg *Message
 		if firstFrag != nil {
@@ -1762,7 +1759,7 @@ func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context
 			vv("good: about to notify ch=%p about token '%v'", ch, token) //410 not seen
 			select {
 			case ch <- msg:
-				vv("good: notification of ch=%p about token '%v' sent")
+				vv("good: notification of ch=%p about token '%v' sent", ch, token)
 			case <-ctx.Done():
 			case <-s.u.GetHostHalter().ReqStop.Chan:
 				return ErrHaltRequested
