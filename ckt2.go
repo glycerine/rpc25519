@@ -53,7 +53,7 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 		vv("waitForAck true in StartRemotePeerAndGetCircuit") // seen
 		responseCh = make(chan *Message, 10)
 		responseID := NewCallID("responseCallID for cktID(" + circuitID + ") in StartRemotePeerAndGetCircuit")
-		vv("responseID = '%v'; alias='%v'", responseID, AliasDecode(responseID))
+		vv("responseID = '%v'; alias='%v'; responseCh=%p", responseID, AliasDecode(responseID), responseCh)
 		frag.SetSysArg("fragRPCtoken", responseID)
 		p.u.GetReadsForCallID(responseCh, responseID)
 		// verify retreivable
@@ -103,7 +103,7 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 	lpb.Remotes.Set(peerID, rpb)
 
 	// set firstFrag here
-	ckt, _, err = lpb.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, false, onOriginLocalSide)
+	ckt, _, err = lpb.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, false, onOriginLocalSide, nil)
 	if err != nil {
 		return nil, err
 	}

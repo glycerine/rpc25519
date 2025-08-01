@@ -422,7 +422,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	}
 	//vv("rpb = '%#v'", rpb)
 
-	ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, true, onOriginLocalSide)
+	ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, true, onOriginLocalSide, nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -587,6 +587,10 @@ func (peerAPI *peerAPI) newLocalPeer(
 
 // incoming
 func (ckt *Circuit) ConvertMessageToFragment(msg *Message) (frag *Fragment) {
+	return convertMessageToFragment(msg)
+}
+
+func convertMessageToFragment(msg *Message) (frag *Fragment) {
 	frag = &Fragment{
 		Created:      msg.HDR.Created,
 		FromPeerID:   msg.HDR.FromPeerID,
@@ -720,7 +724,7 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 // When select{}-ing on ckt.Reads and ckt.Errors, always also
 // select on ctx.Done() and in order to shutdown gracefully.
 func (origCkt *Circuit) NewCircuit(circuitName string, firstFrag *Fragment) (ckt *Circuit, ctx2 context.Context, err error) {
-	return origCkt.RpbTo.LocalPeer.newCircuit(circuitName, origCkt.RpbTo, "", firstFrag, -1, true, onOriginLocalSide)
+	return origCkt.RpbTo.LocalPeer.newCircuit(circuitName, origCkt.RpbTo, "", firstFrag, -1, true, onOriginLocalSide, nil)
 }
 
 // IsClosed returns true if the LocalPeer is shutting down
@@ -814,11 +818,13 @@ func (lpb *LocalPeer) newCircuit(
 	firstFrag *Fragment,
 	errWriteDur time.Duration,
 	tellRemote bool, // send new circuit to remote?
-	onRemoteSide onRemoteSideVal,
+	isRemoteSide onRemoteSideVal,
+	// we can probably delete remoteInitiatingMsg as firstFrag does that now?
+	remoteInitatingMsg *Message, // to respond with #fragRPCtoken, if isRemoteSide
 
 ) (ckt *Circuit, ctx2 context.Context, err error) {
 
-	vv("newCircuit() called. onRemoteSide = %v; stack = '%v'", onRemoteSide, stack()) // 410: seen 2x but both false.
+	vv("newCircuit() called. isRemoteSide = %v;", isRemoteSide)
 
 	if lpb.Halt.ReqStop.IsClosed() {
 		return nil, nil, ErrHaltRequested
@@ -888,15 +894,16 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args["#fromServiceName"] = lpb.PeerServiceName
 		msg.HDR.Args["#toServiceName"] = rpb.RemoteServiceName
 		msg.HDR.Args["#circuitName"] = circuitName
-		if firstFrag != nil {
-			// seems to be working...
-			//vv("firstFrag != nil: '%v'", firstFrag)
-			us, ok := firstFrag.GetSysArg("UserString")
-			if ok {
-				msg.HDR.Args["#UserString"] = us
-				//vv("set #UserString = '%v'", us)
-			}
-		}
+		// should be redundant now, already in firstFrag!
+		// if firstFrag != nil {
+		// 	// seems to be working...
+		// 	//vv("firstFrag != nil: '%v'", firstFrag)
+		// 	us, ok := firstFrag.GetSysArg("UserString")
+		// 	if ok {
+		// 		msg.HDR.Args["#UserString"] = us
+		// 		//vv("set #UserString = '%v'", us)
+		// 	}
+		// }
 		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
 		if err != nil {
 			alwaysPrintf("arg: tried to tell remote, but: err='%v'", err)
@@ -906,8 +913,8 @@ func (lpb *LocalPeer) newCircuit(
 		lpb.Remotes.Set(rpb.PeerID, rpb)
 	}
 
-	if onRemoteSide {
-		vv("onRemoteSide, sending CallPeerCircuitEstablishedAck; lpb='%v'", lpb) // not seen 410
+	if isRemoteSide {
+		vv("onRemoteSide, sending CallPeerCircuitEstablishedAck; lpb='%#v'", lpb) // not seen 410
 		// complete a round trip for ckt establishment
 		// (off the critical path typically) by
 		// sending back CallPeerCircuitEstablishedAck here,
@@ -1127,7 +1134,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	sendCh chan *Message,
 	pleaseAssignNewPeerID string,
 	peerName string,
-	onRemoteSide onRemoteSideVal,
+	isRemoteSide onRemoteSideVal,
 
 ) (lpb *LocalPeer, err error) {
 
@@ -1174,7 +1181,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	//vv("unlockedStartLocalPeer: lpb.URL() = '%v'; peerServiceName='%v', isUpdatedPeerID='%v'; pleaseAssignNewPeerID='%v'; \nstack=%v\n", lpb.URL(), peerServiceName, isUpdatedPeerID, pleaseAssignNewPeerID, stack())
 
 	if requestedCircuit != nil {
-		return lpb, lpb.provideRemoteOnNewCircuitCh(p.isCli, requestedCircuit, ctx1, sendCh, isUpdatedPeerID, onRemoteSide)
+		return lpb, lpb.provideRemoteOnNewCircuitCh(p.isCli, requestedCircuit, ctx1, sendCh, isUpdatedPeerID, isRemoteSide)
 	}
 
 	return lpb, nil
@@ -1465,6 +1472,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 				"#peerURL":         lpb.URL(),
 				"#peerID":          lpb.PeerID,
 				"#fromServiceName": lpb.PeerServiceName,
+				//"#fragRPCtoken": msg.HDR.Args["#fragRPCtoken"] // but only CallPeerStartCircuitTakeToID atm, so here maybe not.
 			}
 
 			//ack.HDR.ServiceName = msg.HDR.ServiceName? or
@@ -1481,7 +1489,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	return lpb.provideRemoteOnNewCircuitCh(isCli, msg, ctx, sendCh, isUpdatedPeerID, onRemote2ndSide)
 }
 
-func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message, isUpdatedPeerID bool, onRemoteSide onRemoteSideVal) error {
+func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message, isUpdatedPeerID bool, isRemoteSide onRemoteSideVal) error {
 	rpb := &RemotePeer{
 		LocalPeer: lpb,
 		PeerID:    msg.HDR.FromPeerID,
@@ -1500,7 +1508,16 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		//RemoteServiceName: msg.HDR.ServiceName,
 	}
 
-	ckt, ctx2, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, nil, -1, false, onRemoteSide)
+	asFrag := convertMessageToFragment(msg)
+	if isUpdatedPeerID {
+		// let the remote know that the old peer disappeared
+		// and we are the updated version/taking over.
+		asFrag.SetSysArg("oldPeerID", msg.HDR.ToPeerID)
+		asFrag.SetSysArg("newPeerID", lpb.PeerID)
+		asFrag.SetSysArg("newPeerURL", lpb.URL())
+	}
+
+	ckt, ctx2, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, asFrag, -1, false, isRemoteSide, msg)
 	if err != nil {
 		return err
 	}
@@ -1513,16 +1530,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 	_ = ckt.LocalCircuitURL() // Keep the call but avoid unused variable
 	rpb.PeerURL = ckt.RemoteCircuitURL()
 
-	asFrag := ckt.ConvertMessageToFragment(msg)
-	ckt.FirstFrag = asFrag
-
-	if isUpdatedPeerID {
-		// let the remote know that the old peer disappeared
-		// and we are the updated version/taking over.
-		asFrag.SetSysArg("oldPeerID", msg.HDR.ToPeerID)
-		asFrag.SetSysArg("newPeerID", lpb.PeerID)
-		asFrag.SetSysArg("newPeerURL", lpb.URL())
-	}
+	// set inside newCircuit now: ckt.FirstFrag = asFrag
 
 	// now we go directly to the NewCircuitCh, so user
 	// does not need a second step to call IncommingCircuit!
@@ -1748,19 +1756,21 @@ func (a *Fragment) Compare(b *Fragment) int {
 // peers on the same machine, and tell the
 // caller about them. For now we start simple.
 func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
-	vv("gotCircuitEstablishedAck seen. isCli=%v; msg='%v'", isCli, msg) // not seen in 410, but seen 19x in jsync tests. 5x in regular rpc25519 tests.
+	vv("gotCircuitEstablishedAck seen. isCli=%v; msg='%v'", isCli, msg) // seen 1x in 410, isCli = true
 	token, ok := msg.HDR.Args["#fragRPCtoken"]
 	if ok {
 		ch := s.u.GetChanInterestedInCallID(token)
 		if ch != nil {
+			vv("good: about to notify ch=%p about token '%v'", ch, token) //410 not seen
 			select {
 			case ch <- msg:
+				vv("good: notification of ch=%p about token '%v' sent")
 			case <-ctx.Done():
 			case <-s.u.GetHostHalter().ReqStop.Chan:
 				return ErrHaltRequested
 			}
 		} else {
-			vv("drat! GetChanInterestedInCallID found no chan for #fragRPCtoken = '%v'", token)
+			vv("drat! GetChanInterestedInCallID found no chan for #fragRPCtoken = '%v'", token) // not seen
 		}
 	}
 	return nil
