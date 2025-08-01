@@ -1393,58 +1393,104 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	}
 	vv("good: bootstrapCircuit found registered peerServiceName: '%v'", peerServiceName)
 
-	needNew := false
-	knownLocalPeer.mut.Lock()
-	if knownLocalPeer.active == nil {
-		knownLocalPeer.active = NewMutexmap[string, *LocalPeer]()
-		needNew = true
-	}
-
 	pleaseAssignNewRemotePeerID, assignReqSeen := msg.HDR.Args["#pleaseAssignNewPeerID"]
 
 	var isUpdatedPeerID bool
 
-	switch {
-	case msg.HDR.Typ == CallPeerStartCircuitTakeToID:
-		if !assignReqSeen {
-			panic("CallPeerStartCircuitTakeToID must set #pleaseAssignNewPeerID")
-		}
-		if msg.HDR.ToPeerID != pleaseAssignNewRemotePeerID {
-			panic("inconsistent internal logic! should have msg.HDR.ToPeerID == pleaseAssignNewRemotePeerID")
-		}
-		pleaseAssignNewRemotePeerID = msg.HDR.ToPeerID
-		needNew = true
-	case localPeerID != "":
-		// localPeerID is just msg.HDR.ToPeerID
-		var ok bool
-		lpb, ok = knownLocalPeer.active.Get(localPeerID)
-		if !ok {
-			// start a new instance
-			isUpdatedPeerID = true // localPeerID was no good/died.
-			needNew = true
-		}
-	case msg.HDR.Typ == CallPeerStartCircuitAtMostOne:
+	needNewLocalPeer := false
+	knownLocalPeer.mut.Lock()
+	if knownLocalPeer.active == nil {
+		knownLocalPeer.active = NewMutexmap[string, *LocalPeer]()
+		needNewLocalPeer = true
+		// INVAR: lpb set, or needNewLocalPeer true.
+	} else {
 
-		// how many such peerServiceName are available (alreaady started?)
-		availLpb := knownLocalPeer.active.Len()
-		vv("we see msg.HDR.Typ == CallPeerStartCircuitAtMostOne with availLpb count = %v under peerServiceName '%v'", availLpb, peerServiceName)
-		switch availLpb {
-		case 0:
-			needNew = true
-		case 1:
-			lpb = knownLocalPeer.active.GetValSlice()[0]
-			needNew = false // just for emphasis
-			vv("good, one existant peerServiceName='%v' lpb=%p lpb.PeerName='%v'; lpb.PeerID='%v'; when CallPeerStartCircuitAtMostOne requested.", peerServiceName, lpb, lpb.PeerName, lpb.PeerID)
+		switch {
+		case msg.HDR.Typ == CallPeerStartCircuitTakeToID:
+			// want new peer, do not want to re-use existing peer.
+			if !assignReqSeen {
+				panic("CallPeerStartCircuitTakeToID must set #pleaseAssignNewPeerID")
+			}
+			if msg.HDR.ToPeerID != pleaseAssignNewRemotePeerID {
+				panic("inconsistent internal logic! should have msg.HDR.ToPeerID == pleaseAssignNewRemotePeerID")
+			}
+			pleaseAssignNewRemotePeerID = msg.HDR.ToPeerID
+			needNewLocalPeer = true // (and lpb nil)
+			// INVAR: lpb set, or needNewLocalPeer true.
+		case localPeerID != "":
+			// localPeerID is just msg.HDR.ToPeerID
+
+			// want existing peer (unless it has died, in which case start a new).
+			var ok bool
+			lpb, ok = knownLocalPeer.active.Get(localPeerID)
+			if !ok {
+				// start a new instance
+				isUpdatedPeerID = true // localPeerID was no good/died.
+				needNewLocalPeer = true
+			} else {
+				// re-use the existing peer
+				if lpb == nil {
+					panic("not allowed to store nil in knownLocalPeer.active")
+				}
+				// lpb is set (not nil).
+			}
+			// INVAR: lpb set, or needNewLocalPeer true.
+		case msg.HDR.Typ == CallPeerStartCircuitAtMostOne:
+
+			// CallPeerStartCircuitAtMostOne is set
+			// when msg.HDR.ToPeerID is empty because the
+			// URL did not know the remote PeerID to contact.
+			//
+			// TODO BUT: I thought we were going to do
+			// CallPeerStartCircuitTakeToID for fragRPC???
+
+			// how many such peerServiceName are available (already started?)
+			availLpb := knownLocalPeer.active.Len()
+			vv("we see msg.HDR.Typ == CallPeerStartCircuitAtMostOne with availLpb count = %v under peerServiceName '%v'", availLpb, peerServiceName)
+			switch availLpb {
+			case 0:
+				needNewLocalPeer = true
+			case 1:
+				lpb = knownLocalPeer.active.GetValSlice()[0]
+				if lpb == nil {
+					panic("not allowed to store nil lpb in knownLocalPeer!")
+				}
+				needNewLocalPeer = false // just for emphasis
+				vv("good, one existant peerServiceName='%v' lpb=%p lpb.PeerName='%v'; lpb.PeerID='%v'; when CallPeerStartCircuitAtMostOne requested.", peerServiceName, lpb, lpb.PeerName, lpb.PeerID)
+			default:
+				panic(fmt.Sprintf("more than 1 started peer service '%v' so which one?", peerServiceName))
+			}
+			// INVAR: lpb set, or needNewLocalPeer true.
 		default:
-			panic(fmt.Sprintf("more than 1 started peer service '%v' so which one?", peerServiceName))
+			// msg.HDR.Typ != CallPeerStartCircuitTakeToID;
+			// msg.HDR.ToPeerID == "" (localPeerID == "")
+			// msg.HDR.Typ != CallPeerStartCircuitAtMostOne
+
+			vv("default; msg.HDR.Typ = '%v'", msg.HDR.Typ)
+			// typically just CallPeerStartCircuit; but
+			// could be CallPeerStart too --
+			// as we, bootstrapCircuit(), are called by srv/cli
+			// read loops for these 4 HDR.Typ:
+			// CallPeerStart
+			// CallPeerStartCircuit
+			// CallPeerStartCircuitTakeToID (ruled out)
+			// CallPeerStartCircuitAtMostOne (ruled out).
+
+			lpb = knownLocalPeer.active.GetValSlice()[0]
+			if lpb == nil {
+				panic("not allowed to store nil lpb in knownLocalPeer!")
+			}
+			// INVAR: lpb set, or needNewLocalPeer true.
 		}
+		// INVAR: lpb set, or needNewLocalPeer true.
 	}
+	// INVAR: lpb set, or needNewLocalPeer true.
 	knownLocalPeer.mut.Unlock()
 
-	vv("needNew = %v", needNew)
-	if needNew {
+	vv("needNewLocalPeer = %v", needNewLocalPeer)
+	if needNewLocalPeer {
 		// spin one up!
-		vv("needNew true! spinning up a peer for peerServicename '%v'", peerServiceName)
+		vv("needNewLocalPeer true! spinning up a peer for peerServicename '%v'", peerServiceName)
 		//lpb2, localPeerURL, localPeerID, err := s.StartLocalPeer(ctx, peerServiceName, msg)
 		lpb2, err := s.unlockedStartLocalPeer(ctx, peerServiceName, msg, isUpdatedPeerID, sendCh, pleaseAssignNewRemotePeerID, "")
 		if err != nil {
@@ -1489,10 +1535,11 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 			return s.replyHelper(isCli, ack, ctx, sendCh)
 		}
 		return nil
-	} // end if needNew
+	} // end if needNewLocalPeer
 
 	if lpb == nil {
 		vv("why is lpb nil here?")
+		panic("should never happen now")
 	}
 
 	vv("last line of bootstrapCircuit(): return lpb.provideRemoteOnNewCircuitCh(); lpb=%p", lpb)
@@ -1503,7 +1550,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 // called by unlockedStartLocalPeer :1115 at :1169; for locals.
 func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message, isUpdatedPeerID bool) error {
 
-	vv("top lpb.provideRemoteOnNewCircuitCh(); lpb=%p")
+	vv("top lpb.provideRemoteOnNewCircuitCh(); lpb=%p", lpb)
 	rpb := &RemotePeer{
 		LocalPeer: lpb,
 		PeerID:    msg.HDR.FromPeerID,
