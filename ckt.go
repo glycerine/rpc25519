@@ -890,7 +890,7 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args["#toServiceName"] = rpb.RemoteServiceName
 		msg.HDR.Args["#circuitName"] = circuitName
 		if firstFrag != nil {
-			// not sure this is working right yet.
+			// seems to be working...
 			//vv("firstFrag != nil: '%v'", firstFrag)
 			us, ok := firstFrag.GetSysArg("UserString")
 			if ok {
@@ -914,6 +914,11 @@ func (lpb *LocalPeer) newCircuit(
 		// for clients who want to wait for an ack back
 		// that a circuit has been established.
 
+		// note: we expect tellRemote to (always) be false, and
+		// even when it is false, onRemoteSide will not
+		// always be true, as ckt2.go shows. So onRemoteSide
+		// and tellRemote cannot be the same flag.
+
 		msg := NewMessage()
 		msg.HDR.To = rpb.NetAddr
 		msg.HDR.From = lpb.NetAddr
@@ -929,8 +934,13 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args["#fromServiceName"] = lpb.PeerServiceName
 		msg.HDR.Args["#toServiceName"] = rpb.RemoteServiceName
 		msg.HDR.Args["#circuitName"] = circuitName
-		msg.HDR.Args["#fragRPCtoken"], _ = firstFrag.GetSysArg("#fragRPCtoken") // ok even if firstFrag is nil or key missing: just returns empty string.
-		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
+		if firstFrag != nil {
+			token, ok := firstFrag.GetSysArg("#fragRPCtoken")
+			if ok {
+				msg.HDR.Args["#fragRPCtoken"] = token
+			}
+		}
+		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, -1)
 	}
 
 	return
