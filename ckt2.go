@@ -72,10 +72,8 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 	}
 	lpb.Remotes.Set(peerID, rpb)
 
-	// we want to be setting/sending firstFrag (frag) here, right?
-	// we were not before...
-	ckt, _, err = lpb.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, false)
-	//ckt, _, err = lpb.newCircuit(circuitName, rpb, circuitID, nil, errWriteDur, false)
+	// set firstFrag (frag) here
+	ckt, _, err = lpb.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, false, OnOriginLocalSide)
 	if err != nil {
 		return nil, err
 	}

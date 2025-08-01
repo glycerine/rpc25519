@@ -422,7 +422,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	}
 	//vv("rpb = '%#v'", rpb)
 
-	ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, true)
+	ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, true, OnOriginLocalSide)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -720,7 +720,7 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 // When select{}-ing on ckt.Reads and ckt.Errors, always also
 // select on ctx.Done() and in order to shutdown gracefully.
 func (origCkt *Circuit) NewCircuit(circuitName string, firstFrag *Fragment) (ckt *Circuit, ctx2 context.Context, err error) {
-	return origCkt.RpbTo.LocalPeer.newCircuit(circuitName, origCkt.RpbTo, "", firstFrag, -1, true)
+	return origCkt.RpbTo.LocalPeer.newCircuit(circuitName, origCkt.RpbTo, "", firstFrag, -1, true, OnOriginLocalSide)
 }
 
 // IsClosed returns true if the LocalPeer is shutting down
@@ -764,6 +764,49 @@ func (lpb *LocalPeer) OpenCircuitCount() int {
 	}
 }
 
+// flag values for onRemoteSide argument to newCircuit().
+type onRemoteSideVal bool
+
+const (
+	OnRemote2ndSide   onRemoteSideVal = true
+	OnOriginLocalSide onRemoteSideVal = false
+)
+
+// newCircuit always adds a circuit to the peer on the side it
+// is called on. It does this with lpb.TellPumpNewCircuit <- ckt;
+//
+// Does tellRemote==false guarantee we are on the remote side?
+// (tellRemote==true means we always tell the other side
+// about the new circuit, but does the converse hold?)
+// No, (a) below gives an example that violates that conjecture.
+// So therefore we must add a flag: onRemoteSide to distinguish.
+//
+// (this was line ~ 795 when the line numbers below were written).
+//
+// newCircuit is called by:
+// a) ckt2.go:77 StartRemotePeerAndGetCircuit (tellRemote=false, atMost=false)
+// -- here newCircuit is used to add the ckt to the local peer.
+// ---- and just previously it sent CallPeerStartCircuitTakeToID to the remote
+// ---- which means goto (d) below on the remote side.
+//
+// b) NewCircuitToPeerURL calls newCircuit(tellRemote=true) at ckt.go:447
+// ---- it sets atMostOne true if the PeerID in the URL is blank.
+// ---- which means goto (d) on the remote
+//
+// c) NewCircuit calls newCircuit(tellRemote=true) at ckt.go:745
+// ---- atMostOne is always false in the newCircuit() call.
+// ---- which means goto (d) on the remote
+//
+// d) readLoops on cli and srv call
+// bootstrapCircuit ckt.go:1331 (:1258)
+// -- which calls provideRemoteOnNewCircuitCh :1555 at ckt.go:1550 (:1379)
+// ----- which calls newCircuit(tellRemote=false) at ckt.go:1573 (:)
+//
+// when we, newCircuit(), are invoked with tellRemote=true
+// from b) or c), we send to the remote either
+// -- CallPeerStartCircuit; or
+// -- CallPeerStartCircuitAtMostOne if atMostOnePeer (CallPeerStartCircuitAtMostOne was sent from (b) above).
+// .
 func (lpb *LocalPeer) newCircuit(
 	circuitName string,
 	rpb *RemotePeer,
@@ -771,6 +814,7 @@ func (lpb *LocalPeer) newCircuit(
 	firstFrag *Fragment,
 	errWriteDur time.Duration,
 	tellRemote bool, // send new circuit to remote?
+	onRemoteSide onRemoteSideVal,
 
 ) (ckt *Circuit, ctx2 context.Context, err error) {
 
@@ -836,7 +880,7 @@ func (lpb *LocalPeer) newCircuit(
 
 		// tell the remote which serviceName we are coming from;
 		// so the URL back can be correct.
-		// Don't make a new map here since the firstFrag.Args
+		// Don't make a new HDR.Args map here since the firstFrag.Args
 		// may be carrying important information and a new
 		// map would lose that.
 		msg.HDR.Args["#fromServiceName"] = lpb.PeerServiceName
@@ -1081,7 +1125,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	//vv("unlockedStartLocalPeer: lpb.URL() = '%v'; peerServiceName='%v', isUpdatedPeerID='%v'; pleaseAssignNewPeerID='%v'; \nstack=%v\n", lpb.URL(), peerServiceName, isUpdatedPeerID, pleaseAssignNewPeerID, stack())
 
 	if requestedCircuit != nil {
-		return lpb, lpb.provideRemoteOnNewCircuitCh(p.isCli, requestedCircuit, ctx1, sendCh, isUpdatedPeerID)
+		return lpb, lpb.provideRemoteOnNewCircuitCh(p.isCli, requestedCircuit, ctx1, sendCh, isUpdatedPeerID, OnOriginLocalSide)
 	}
 
 	return lpb, nil
@@ -1200,8 +1244,12 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 
 // bootstrapCircuit: handle CallPeerStartCircuit
 //
-// The Client/Server readLoops call us directly when
-// they see a CallPeerStart, CallPeerStartCircuit, or CallPeerStartCircuitTakeToID.
+// The Client/Server readLoops call us directly when they
+// (who are our only callers) see one of:
+// CallPeerStart
+// CallPeerStartCircuit
+// CallPeerStartCircuitTakeToID
+// CallPeerStartCircuitAtMostOne
 //
 // The goal of bootstrapCircuit is to enable the user
 // peer code to interact with circuits and remote peers.
@@ -1328,10 +1376,10 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		return nil
 	}
 
-	return lpb.provideRemoteOnNewCircuitCh(isCli, msg, ctx, sendCh, isUpdatedPeerID)
+	return lpb.provideRemoteOnNewCircuitCh(isCli, msg, ctx, sendCh, isUpdatedPeerID, OnRemote2ndSide)
 }
 
-func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message, isUpdatedPeerID bool) error {
+func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message, isUpdatedPeerID bool, onRemoteSide onRemoteSideVal) error {
 	rpb := &RemotePeer{
 		LocalPeer: lpb,
 		PeerID:    msg.HDR.FromPeerID,
@@ -1347,7 +1395,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		circuitName = msg.HDR.Args["#circuitName"]
 	}
 
-	ckt, ctx2, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, nil, -1, false)
+	ckt, ctx2, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, nil, -1, false, onRemoteSide)
 	if err != nil {
 		return err
 	}
@@ -1577,6 +1625,6 @@ func (a *Fragment) Compare(b *Fragment) int {
 // Only return an error here if it is a shutdown request;
 // it will shutdown the callers read loop.
 func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
-
+	vv("gotCircuitEstablishedAck seen. msg='%v'", msg)
 	return nil
 }
