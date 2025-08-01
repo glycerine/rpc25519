@@ -895,9 +895,37 @@ func (lpb *LocalPeer) newCircuit(
 			}
 		}
 		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
+		if err != nil {
+			alwaysPrintf("arg: tried to tell remote, but: err='%v'", err)
+		}
 	} else {
 		// update "the remote's remote" list: symmetric to ckt.go:406
 		lpb.Remotes.Set(rpb.PeerID, rpb)
+	}
+
+	if onRemoteSide {
+		// complete a round trip for ckt establishment
+		// (off the critical path typically) by
+		// sending back CallPeerCircuitEstablishedAck here,
+		// for clients who want to wait for an ack back
+		// that a circuit has been established.
+
+		msg := NewMessage()
+		msg.HDR.To = rpb.NetAddr
+		msg.HDR.From = lpb.NetAddr
+		msg.HDR.Typ = CallPeerCircuitEstablishedAck
+		msg.HDR.Created = time.Now()
+		msg.HDR.FromPeerID = lpb.PeerID
+		msg.HDR.FromPeerName = lpb.PeerName
+		msg.HDR.ToPeerID = rpb.PeerID
+		msg.HDR.ToPeerName = rpb.PeerName
+		msg.HDR.CallID = ckt.CircuitID
+		msg.HDR.Serial = issueSerial()
+		msg.HDR.ServiceName = ckt.RemoteServiceName
+		msg.HDR.Args["#fromServiceName"] = lpb.PeerServiceName
+		msg.HDR.Args["#circuitName"] = circuitName
+
+		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
 	}
 
 	return
@@ -1625,6 +1653,6 @@ func (a *Fragment) Compare(b *Fragment) int {
 // Only return an error here if it is a shutdown request;
 // it will shutdown the callers read loop.
 func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
-	vv("gotCircuitEstablishedAck seen. msg='%v'", msg)
+	vv("gotCircuitEstablishedAck seen. msg='%v'", msg) // good, seen 19x in jsync tests. 5x in regular rpc25519 tests.
 	return nil
 }
