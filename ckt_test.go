@@ -246,7 +246,7 @@ func (s *countService) incrementSends(cktName string) (tot int) {
 
 func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuitCh <-chan *Circuit) (err0 error) {
 
-	name := myPeer.PeerServiceName
+	name := fmt.Sprintf("%v-%v", myPeer.PeerServiceName, cryptoRandPositiveInt64())
 	_ = name // used when logging is on.
 
 	defer func() {
@@ -264,7 +264,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 	done0 := ctx0.Done()
 
 	for {
-		////vv("%v: top of select", name)
+		vv("%v: top of select", name)
 		select {
 		case <-done0:
 			////vv("%v: done0! cause: '%v'", name, context.Cause(ctx0))

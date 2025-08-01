@@ -822,7 +822,7 @@ func (lpb *LocalPeer) newCircuit(
 
 ) (ckt *Circuit, ctx2 context.Context, err error) {
 
-	vv("newCircuit() called. isRemoteSide = %v;", isRemoteSide)
+	vv("newCircuit() called. isRemoteSide = %v; stack = \n%v", isRemoteSide, stack())
 
 	if lpb.Halt.ReqStop.IsClosed() {
 		return nil, nil, ErrHaltRequested

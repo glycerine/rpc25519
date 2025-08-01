@@ -166,7 +166,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 		waitCh = time.After(errWriteDur)
 	}
 	if waitForAck {
-		select {
+		select { // server->client 410 hung here.
 		case <-waitCh:
 			return nil, ErrTimeout
 		case responseMsg := <-responseCh:
