@@ -147,8 +147,8 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 	rpb := &RemotePeer{
 		LocalPeer: lpb,
 		PeerID:    pleaseAssignNewRemotePeerID,
-		//PeerName:         ? unknown as of yet ? not sure.
-		NetAddr:           remoteAddr, //netAddr,
+		//PeerName:         unknown as of yet
+		NetAddr:           remoteAddr,
 		RemoteServiceName: remotePeerServiceName,
 	}
 	if pleaseAssignNewRemotePeerID != "" {
@@ -161,10 +161,14 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 		return nil, err
 	}
 
+	var waitCh <-chan time.Time
+	if errWriteDur > 0 {
+		waitCh = time.After(errWriteDur)
+	}
 	if waitForAck {
-		select { // 410 hung here
-		case <-time.After(10 * time.Second): // DEBUG TODO remove this.
-			panic("did not get response in 10 seconds")
+		select {
+		case <-waitCh:
+			return nil, ErrTimeout
 		case responseMsg := <-responseCh:
 			vv("got responseMsg! yay! = '%v'", responseMsg)
 			if responseMsg.LocalErr != nil {
