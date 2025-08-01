@@ -1397,7 +1397,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 			// On its own, localPeerID == "" can also be seen when
 			// CallPeerStartCircuitAtMostOne. Nonetheless, if peer re-use
 			// is viable, we have already set lpb above based on
-			// peerServiceName matching alone, so we won't get in here.
+			// peerServiceName matching alone, so we won't get in here
 			// (as lpb != nil && !needNewLocalPeer in that case).
 			needNewLocalPeer = true
 
@@ -1405,7 +1405,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 			var ok bool
 			lpb, ok = knownLocalPeer.active.Get(localPeerID)
 			if !ok {
-				// start a new instance
+				// have to start a new instance
 				isUpdatedPeerID = true
 				needNewLocalPeer = true
 			} else {
@@ -1458,10 +1458,15 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 			ack.HDR.Args = map[string]string{
 				"#peerURL":         lpb.URL(),
 				"#peerID":          lpb.PeerID,
-				"#fromServiceName": lpb.PeerServiceName}
+				"#fromServiceName": lpb.PeerServiceName,
+			}
 
-			//ack.HDR.ToPeerID = "" // no remote peer expected!
-			//ack.HDR.ServiceName =
+			//ack.HDR.ServiceName = msg.HDR.ServiceName? or
+			//ack.HDR.ServiceName = lpb.PeerServiceName ?
+			// these might be best effort/empty... b/c of bootstrapping/CallOneWay
+			ack.HDR.ToPeerID = msg.HDR.FromPeerID
+			ack.HDR.ToPeerName = msg.HDR.FromPeerName
+
 			return s.replyHelper(isCli, ack, ctx, sendCh)
 		}
 		return nil
@@ -1484,6 +1489,9 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		//	AliasRegister(rpb.PeerID, rpb.PeerID+" ("+rpb.RemoteServiceName+")")
 		//}
 		circuitName = msg.HDR.Args["#circuitName"]
+	} else {
+		// is this accurate or is it our service name and not theirs?
+		//RemoteServiceName: msg.HDR.ServiceName,
 	}
 
 	ckt, ctx2, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, nil, -1, false, onRemoteSide)
@@ -1734,7 +1742,7 @@ func (a *Fragment) Compare(b *Fragment) int {
 // peers on the same machine, and tell the
 // caller about them. For now we start simple.
 func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
-	vv("gotCircuitEstablishedAck seen. msg='%v'", msg) // good, seen 19x in jsync tests. 5x in regular rpc25519 tests.
+	//vv("gotCircuitEstablishedAck seen. msg='%v'", msg) // good, seen 19x in jsync tests. 5x in regular rpc25519 tests.
 	token, ok := msg.HDR.Args["#fragRPCtoken"]
 	if ok {
 		ch := s.u.GetChanInterestedInCallID(token)
