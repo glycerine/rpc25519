@@ -647,7 +647,8 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			s.lastPingReceivedTmu.Store(time.Now().UnixNano())
 			continue
 
-		case CallPeerStart, CallPeerStartCircuit, CallPeerStartCircuitTakeToID:
+		case CallPeerStart, CallPeerStartCircuit, CallPeerStartCircuitTakeToID,
+			CallPeerStartCircuitAtMostOne:
 
 			// Why this is not in its own goroutine? Backpressure.
 			// It is important to provide back pressure
@@ -660,6 +661,13 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			// SendOneWayMessage in srv.go.
 
 			err := s.Server.PeerAPI.bootstrapCircuit(notClient, req, ctx, s.SendCh)
+			if err != nil {
+				// only error is on shutdown request received.
+				return
+			}
+			continue
+		case CallPeerCircuitEstablishedAck:
+			err := s.Server.PeerAPI.gotCircuitEstablishedAck(notClient, req, ctx, s.SendCh)
 			if err != nil {
 				// only error is on shutdown request received.
 				return
@@ -2985,4 +2993,17 @@ func (s *Server) AutoClients() (list []*Client, isServer bool) {
 
 func (c *Client) AutoClients() (list []*Client, isServer bool) {
 	return
+}
+
+func (s *Server) GetServer() *Server {
+	return s
+}
+func (s *Client) GetServer() *Server {
+	return nil
+}
+func (s *Server) GetClient() *Client {
+	return nil
+}
+func (s *Client) GetClient() *Client {
+	return s
 }

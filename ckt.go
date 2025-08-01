@@ -1570,3 +1570,13 @@ func (a *Fragment) Compare(b *Fragment) int {
 	// way, way overkill here anyway.
 	return 0
 }
+
+// CallPeerCircuitEstablishedAck seen.
+// This is called directly by srv/cli readLoop: an ack
+// of a circuit setup has been received.
+// Only return an error here if it is a shutdown request;
+// it will shutdown the callers read loop.
+func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
+
+	return nil
+}

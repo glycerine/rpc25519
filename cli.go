@@ -438,7 +438,8 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		// anyway. This is like the Client acting like
 		// a server and starting up a peer service.
 		switch msg.HDR.Typ {
-		case CallPeerStart, CallPeerStartCircuit, CallPeerStartCircuitTakeToID:
+		case CallPeerStart, CallPeerStartCircuit, CallPeerStartCircuitTakeToID,
+			CallPeerStartCircuitAtMostOne:
 
 			// Why this is not in its own goroutine? Backpressure.
 			// It is important to provide back pressure
@@ -454,6 +455,13 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			if err != nil {
 				// only error is on shutdown request received.
 				//vv("cli c.PeerAPI.bootstrapCircuit returned err = '%v'", err)
+				return
+			}
+			continue
+		case CallPeerCircuitEstablishedAck:
+			err := c.PeerAPI.gotCircuitEstablishedAck(yesIsClient, msg, ctx, c.oneWayCh)
+			if err != nil {
+				// only error is on shutdown request received.
 				return
 			}
 			continue
