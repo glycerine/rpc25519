@@ -103,7 +103,7 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 	lpb.Remotes.Set(peerID, rpb)
 
 	// set firstFrag here
-	ckt, _, err = lpb.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, false, onOriginLocalSide, nil)
+	ckt, _, err = lpb.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, false, onOriginLocalSide)
 	if err != nil {
 		return nil, err
 	}

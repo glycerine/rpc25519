@@ -422,7 +422,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	}
 	//vv("rpb = '%#v'", rpb)
 
-	ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, true, onOriginLocalSide, nil)
+	ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, true, onOriginLocalSide)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -724,7 +724,7 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 // When select{}-ing on ckt.Reads and ckt.Errors, always also
 // select on ctx.Done() and in order to shutdown gracefully.
 func (origCkt *Circuit) NewCircuit(circuitName string, firstFrag *Fragment) (ckt *Circuit, ctx2 context.Context, err error) {
-	return origCkt.RpbTo.LocalPeer.newCircuit(circuitName, origCkt.RpbTo, "", firstFrag, -1, true, onOriginLocalSide, nil)
+	return origCkt.RpbTo.LocalPeer.newCircuit(circuitName, origCkt.RpbTo, "", firstFrag, -1, true, onOriginLocalSide)
 }
 
 // IsClosed returns true if the LocalPeer is shutting down
@@ -819,8 +819,6 @@ func (lpb *LocalPeer) newCircuit(
 	errWriteDur time.Duration,
 	tellRemote bool, // send new circuit to remote?
 	isRemoteSide onRemoteSideVal,
-	// we can probably delete remoteInitiatingMsg as firstFrag does that now?
-	remoteInitatingMsg *Message, // to respond with #fragRPCtoken, if isRemoteSide
 
 ) (ckt *Circuit, ctx2 context.Context, err error) {
 
@@ -1517,7 +1515,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		asFrag.SetSysArg("newPeerURL", lpb.URL())
 	}
 
-	ckt, ctx2, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, asFrag, -1, false, isRemoteSide, msg)
+	ckt, ctx2, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, asFrag, -1, false, isRemoteSide)
 	if err != nil {
 		return err
 	}
