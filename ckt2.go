@@ -45,7 +45,8 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 	if waitForAck {
 		vv("waitForAck true in StartRemotePeerAndGetCircuit") // seen
 		responseCh = make(chan *Message, 10)
-		responseID := NewCallID("responseCallID for " + circuitID + " in StartRemotePeerAndGetCircuit")
+		responseID := NewCallID("responseCallID for cktID(" + circuitID + ") in StartRemotePeerAndGetCircuit")
+		vv("responseID = '%v'; alias='%v'", responseID, AliasDecode(responseID))
 		frag.SetSysArg("RemotePeerID_ready_responseCallID", responseID)
 		p.u.GetReadsForCallID(responseCh, responseID)
 		hhalt = p.u.GetHostHalter()
@@ -99,7 +100,7 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 		return nil, err
 	}
 	if waitForAck {
-		select {
+		select { // 410 hung here
 		case responseMsg := <-responseCh:
 			if responseMsg.LocalErr != nil {
 				err = responseMsg.LocalErr

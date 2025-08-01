@@ -12,9 +12,12 @@ import (
 	"github.com/glycerine/idem"
 )
 
+// simplify ckt_test with a simple echo peer
+// so we can test RPC style comms on circuits.
+
 var _ = fmt.Sprintf
 
-type testJunk3 struct {
+type testFragRPC struct {
 	name string
 	cfg  *Config
 	srv  *Server
@@ -23,18 +26,18 @@ type testJunk3 struct {
 	cliServiceName string
 	srvServiceName string
 
-	clis *countService
-	srvs *countService
+	clis *fragRPCservice
+	srvs *fragRPCservice
 }
 
-func (j *testJunk3) cleanup() {
+func (j *testFragRPC) cleanup() {
 	j.cli.Close()
 	j.srv.Close()
 }
 
-func newTestJunk3(name string) (j *testJunk3) {
+func newTestFragRPC(name string) (j *testFragRPC) {
 
-	j = &testJunk3{
+	j = &testFragRPC{
 		name:           name,
 		cliServiceName: "cli_" + name,
 		srvServiceName: "srv_" + name,
@@ -55,8 +58,8 @@ func newTestJunk3(name string) (j *testJunk3) {
 	err = cli.Start()
 	panicOn(err)
 
-	j.clis = newcountService()
-	j.srvs = newcountService()
+	j.clis = newfragRPCservice()
+	j.srvs = newfragRPCservice()
 
 	err = cli.PeerAPI.RegisterPeerServiceFunc(j.cliServiceName, j.clis.start)
 	panicOn(err)
@@ -71,7 +74,7 @@ func newTestJunk3(name string) (j *testJunk3) {
 	return j
 }
 
-type counts struct {
+type countsFragRPC struct {
 	sends int
 	reads int
 
@@ -79,11 +82,11 @@ type counts struct {
 	sendErrors int
 }
 
-type countService struct {
+type fragRPCservice struct {
 	halt *idem.Halter
 
 	// key is circuit name
-	stats *Mutexmap[string, *counts]
+	stats *Mutexmap[string, *countsFragRPC]
 
 	// keep a record of all reads, so test can assert on history at the end.
 	readch chan *Fragment
@@ -126,10 +129,10 @@ type countService struct {
 	active_side_ckt_saw_remote_shutdown chan *Fragment
 }
 
-func newcountService() *countService {
-	return &countService{
-		halt:   idem.NewHalterNamed("countService"),
-		stats:  NewMutexmap[string, *counts](),
+func newfragRPCservice() *fragRPCservice {
+	return &fragRPCservice{
+		halt:   idem.NewHalterNamed("fragRPCservice"),
+		stats:  NewMutexmap[string, *countsFragRPC](),
 		readch: make(chan *Fragment, 1000),
 		sendch: make(chan *Fragment, 1000),
 
@@ -162,31 +165,31 @@ func newcountService() *countService {
 	}
 }
 
-func (s *countService) reset() {
+func (s *fragRPCservice) reset() {
 	s.stats.Clear()
 }
-func (s *countService) getAllReads() (n int) {
+func (s *fragRPCservice) getAllReads() (n int) {
 	countsSlice := s.stats.GetValSlice()
 	for _, count := range countsSlice {
 		n += count.reads
 	}
 	return
 }
-func (s *countService) getAllReadErrors() (n int) {
+func (s *fragRPCservice) getAllReadErrors() (n int) {
 	countsSlice := s.stats.GetValSlice()
 	for _, count := range countsSlice {
 		n += count.readErrors
 	}
 	return
 }
-func (s *countService) getAllSends() (n int) {
+func (s *fragRPCservice) getAllSends() (n int) {
 	countsSlice := s.stats.GetValSlice()
 	for _, count := range countsSlice {
 		n += count.sends
 	}
 	return
 }
-func (s *countService) getAllSendErrors() (n int) {
+func (s *fragRPCservice) getAllSendErrors() (n int) {
 	countsSlice := s.stats.GetValSlice()
 	for _, count := range countsSlice {
 		n += count.sendErrors
@@ -194,11 +197,11 @@ func (s *countService) getAllSendErrors() (n int) {
 	return
 }
 
-func (s *countService) incrementReadErrors(cktName string) (tot int) {
-	s.stats.Update(func(stats map[string]*counts) {
+func (s *fragRPCservice) incrementReadErrors(cktName string) (tot int) {
+	s.stats.Update(func(stats map[string]*countsFragRPC) {
 		c, ok := stats[cktName]
 		if !ok {
-			c = &counts{}
+			c = &countsFragRPC{}
 			stats[cktName] = c
 		}
 		c.sendErrors++
@@ -206,11 +209,11 @@ func (s *countService) incrementReadErrors(cktName string) (tot int) {
 	})
 	return
 }
-func (s *countService) incrementSendErrors(cktName string) (tot int) {
-	s.stats.Update(func(stats map[string]*counts) {
+func (s *fragRPCservice) incrementSendErrors(cktName string) (tot int) {
+	s.stats.Update(func(stats map[string]*countsFragRPC) {
 		c, ok := stats[cktName]
 		if !ok {
-			c = &counts{}
+			c = &countsFragRPC{}
 			stats[cktName] = c
 		}
 		c.readErrors++
@@ -219,11 +222,11 @@ func (s *countService) incrementSendErrors(cktName string) (tot int) {
 	return
 }
 
-func (s *countService) incrementReads(cktName string) (tot int) {
-	s.stats.Update(func(stats map[string]*counts) {
+func (s *fragRPCservice) incrementReads(cktName string) (tot int) {
+	s.stats.Update(func(stats map[string]*countsFragRPC) {
 		c, ok := stats[cktName]
 		if !ok {
-			c = &counts{}
+			c = &countsFragRPC{}
 			stats[cktName] = c
 		}
 		c.reads++
@@ -231,11 +234,11 @@ func (s *countService) incrementReads(cktName string) (tot int) {
 	})
 	return
 }
-func (s *countService) incrementSends(cktName string) (tot int) {
-	s.stats.Update(func(stats map[string]*counts) {
+func (s *fragRPCservice) incrementSends(cktName string) (tot int) {
+	s.stats.Update(func(stats map[string]*countsFragRPC) {
 		c, ok := stats[cktName]
 		if !ok {
-			c = &counts{}
+			c = &countsFragRPC{}
 			stats[cktName] = c
 		}
 		c.sends++
@@ -244,7 +247,7 @@ func (s *countService) incrementSends(cktName string) (tot int) {
 	return
 }
 
-func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuitCh <-chan *Circuit) (err0 error) {
+func (s *fragRPCservice) start(myPeer *LocalPeer, ctx0 context.Context, newCircuitCh <-chan *Circuit) (err0 error) {
 
 	name := myPeer.PeerServiceName
 	_ = name // used when logging is on.
@@ -383,7 +386,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 			go passiveSide(rckt)
 
 		case remoteURL := <-s.startCircuitWith:
-			//vv("%v: requested startCircuitWith: '%v'", name, remoteURL)
+			vv("%v: requested startCircuitWith: '%v'", name, remoteURL)
 			ckt, _, err := myPeer.NewCircuitToPeerURL(fmt.Sprintf("cicuit-init-by:%v:%v", name, s.nextCktNo), remoteURL, nil, 0)
 			s.nextCktNo++
 			//panicOn(err)
@@ -487,11 +490,11 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 	return nil
 }
 
-func Test409_lots_of_send_and_read(t *testing.T) {
+func Test419_lots_of_send_and_read(t *testing.T) {
 
 	if faketime {
-		t.Skip("skip under synctest, net calls will never settle.")
-		return
+		//t.Skip("skip under synctest, net calls will never settle.")
+		//return
 	}
 	if _, rr := os.LookupEnv("RUNNING_UNDER_RR"); rr {
 		t.Skip("flaky under rr chaos")
@@ -499,7 +502,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 
 	cv.Convey("many sends and reads between peers", t, func() {
 
-		j := newTestJunk3("manysend_409")
+		j := newTestFragRPC("manysend_419")
 		defer j.cleanup()
 
 		ctx := context.Background()
@@ -839,14 +842,103 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 
 }
 
-// drain is a helper to prep for the next part of the test.
-// drain helps prevents races by emptying a channel's buffer.
-func drain(ch chan *Fragment) {
-	for {
-		select {
-		case <-ch:
-		default:
-			return
-		}
+func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) {
+
+	if faketime {
+		//	t.Skip("skip under synctest, net calls will never settle.")
+		//	return
 	}
+	//if _, rr := os.LookupEnv("RUNNING_UNDER_RR"); rr {
+	//	t.Skip("flaky under rr chaos")
+	//}
+
+	// empty PeerID in URL means we use
+	//
+	// CallPeerStartCircuitAtMostOne       CallType = 115
+	// and
+	// CallPeerStartCircuitAtMostOneFinish CallType = 116
+	//
+	// and we need to verify that we eventually
+	// get back a proper ckt with RemotePeerID set.
+	// The "make up a CallID and ask the new remote to
+	// adopt it" does not work when the remote is
+	// already up and we only want a new circuit
+	// from it. Why hasn't it told us of its
+	// peerID already though? i.e. when a client
+	// and server link up? b/c could have started after/
+	// we don't want to broadcast uninteresting
+	// service up/downs to everybody. So when
+	// a client and server connect, they could
+	// "register interest" in a set of services...
+	// Ugh. too complicated.
+
+	j := newTestFragRPC("emptyPeerID_410")
+	defer j.cleanup()
+
+	ctx := context.Background()
+
+	cli_lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil, "")
+	panicOn(err)
+	defer cli_lpb.Close()
+
+	/*
+			srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil, "")
+			panicOn(err)
+			defer srv_lpb.Close()
+
+		// either should be able to initiate without knowing
+		// the remote's full URL.
+
+		netAddr, serviceName, peerID, cktID, err := ParsePeerURL(srv_lpb.URL())
+		panicOn(err)
+		_ = peerID
+		_ = cktID
+		vv("serviceName = '%v'", serviceName)
+		vv("netAddr = '%v'", netAddr)
+		vv("peerID = '%v'", peerID)
+		vv("cktID = '%v'", cktID)
+
+		url := netAddr + sep + serviceName
+		vv("url in use: '%v'", url) // tcp://127.0.0.1:62066/srv_emptyPeerID_410
+	*/
+
+	netAddr := "tcp://" + j.cfg.ClientDialToHostPort
+
+	serviceName := "srv_emptyPeerID_410"
+	url := netAddr + sep + serviceName
+	vv("url constructed = '%v'", url)
+
+	cktName := "ckt-410" // what to call our new circuit
+	_ = cktName
+	//ckt, ctx, err := cli_lpb.NewCircuitToPeerURL(cktName, url, nil, 0)
+
+	wait := true
+	//	ckt, err := cli_lpb.U.StartRemotePeerAndGetCircuit(cli_lpb, cktName, nil, serviceName, netAddr, 0, wait)
+
+	ckt, err := j.cli.PeerAPI.StartRemotePeerAndGetCircuit(cli_lpb, cktName, nil, serviceName, netAddr, 0, wait)
+
+	panicOn(err)
+	_ = ctx
+
+	vv("ctk = '%v'", ckt)
+	/*
+		input := &AtMostOnePeerNewCircuitRPCReq{
+			CircuitName: cktName,
+			PeerURL:     url,
+			FirstFrag:   nil,
+		}
+		reply := &AtMostOnePeerNewCircuitRPCReply{}
+		client := cli_lpb.U.GetClient()
+
+		// to cancel if desired.
+		ctx, canc := context.WithCancelCause(context.Background())
+		defer canc(nil)
+		err = client.Call("AtMostOnePeer.NewCircuit", input, reply, ctx)
+		panicOn(err)
+	*/
+	if ckt.RemotePeerID == "" {
+		vv("ckt='%v'", ckt)
+		panic("ckt.RemotePeerID should not be empty")
+	}
+
 }

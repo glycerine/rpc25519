@@ -576,7 +576,8 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		// partial reads which are then difficult to
 		// recover from, because we have not tracked
 		// how much of the rest of the incoming
-		// stream needs to be discarded!
+		// stream needs to be discarded (how much/what was discarded/
+		// where is the next good message boundary to start from??).
 		// So: always read without a timeout. Update:
 		// we've eliminated the readTimeout parameter all together
 		// to disallow it.
