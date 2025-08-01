@@ -818,6 +818,8 @@ func (lpb *LocalPeer) newCircuit(
 
 ) (ckt *Circuit, ctx2 context.Context, err error) {
 
+	vv("newCircuit() called. onRemoteSide = %v", onRemoteSide) // 410: seen 2x but both false.
+
 	if lpb.Halt.ReqStop.IsClosed() {
 		return nil, nil, ErrHaltRequested
 	}
@@ -905,6 +907,7 @@ func (lpb *LocalPeer) newCircuit(
 	}
 
 	if onRemoteSide {
+		vv("onRemoteSide, sending CallPeerCircuitEstablishedAck; lpb='%v'", lpb) // not seen 410
 		// complete a round trip for ckt establishment
 		// (off the critical path typically) by
 		// sending back CallPeerCircuitEstablishedAck here,
@@ -1742,7 +1745,7 @@ func (a *Fragment) Compare(b *Fragment) int {
 // peers on the same machine, and tell the
 // caller about them. For now we start simple.
 func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
-	//vv("gotCircuitEstablishedAck seen. msg='%v'", msg) // good, seen 19x in jsync tests. 5x in regular rpc25519 tests.
+	vv("gotCircuitEstablishedAck seen. isCli=%v; msg='%v'", isCli, msg) // not seen in 410, but seen 19x in jsync tests. 5x in regular rpc25519 tests.
 	token, ok := msg.HDR.Args["#fragRPCtoken"]
 	if ok {
 		ch := s.u.GetChanInterestedInCallID(token)
@@ -1753,6 +1756,8 @@ func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context
 			case <-s.u.GetHostHalter().ReqStop.Chan:
 				return ErrHaltRequested
 			}
+		} else {
+			vv("drat! GetChanInterestedInCallID found no chan for #fragRPCtoken = '%v'", token)
 		}
 	}
 	return nil

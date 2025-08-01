@@ -11,14 +11,24 @@ import (
 // compact roundtrip.
 // We actually want, when we start a remote peer, to also get a
 // circuit, to save a 2nd round trip!
+//
+// waitForAck true => wait for an ack back from the remote peer.
 func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, waitForAck bool) (ckt *Circuit, err error) {
 
 	if lpb.Halt.ReqStop.IsClosed() {
 		return nil, ErrHaltRequested
 	}
-	ctx := lpb.Ctx
+
+	//firstFrag := frag
+	// this next looks to be the line that causes the jsync tests
+	// to hang? yep! don't do this! somehow
+	// destroys the info that tests like 440 wait for.
+	// frag = p.u.newFragment()
 
 	circuitID := NewCallID(circuitName)
+	if frag == nil {
+		frag = p.u.newFragment()
+	}
 	frag.CircuitID = circuitID
 	frag.Typ = CallPeerStartCircuitTakeToID
 
@@ -46,6 +56,11 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 		vv("responseID = '%v'; alias='%v'", responseID, AliasDecode(responseID))
 		frag.SetSysArg("fragRPCtoken", responseID)
 		p.u.GetReadsForCallID(responseCh, responseID)
+		// verify retreivable
+		ch2 := p.u.GetChanInterestedInCallID(responseID)
+		if ch2 != responseCh {
+			panic("GetChanInterestedInCallID borked")
+		}
 		hhalt = p.u.GetHostHalter()
 		defer p.u.UnregisterChannel(responseID, CallIDReadMap)
 	}
@@ -67,10 +82,11 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 		}
 	}
 
-	//vv("StartRemotePeerAndGetCircuit(): msg.HDR='%v'", msg.HDR.String()) // "Typ":
+	vv("StartRemotePeerAndGetCircuit(): msg.HDR='%v'", msg.HDR.String()) // seen 410
 
 	// this effectively is all that happens to set
 	// up the circuit.
+	ctx := lpb.Ctx
 	err, _ = p.u.SendOneWayMessage(ctx, msg, errWriteDur)
 	if err != nil {
 		return nil, fmt.Errorf("error requesting CallPeerStartCircuit from remote: '%v'", err)
@@ -86,7 +102,7 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 	}
 	lpb.Remotes.Set(peerID, rpb)
 
-	// set firstFrag (frag) here
+	// set firstFrag here
 	ckt, _, err = lpb.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, false, onOriginLocalSide)
 	if err != nil {
 		return nil, err
