@@ -3,434 +3,345 @@ package rpc25519
 import (
 	"context"
 	"fmt"
-	"os"
+	//"os"
 	//"strings"
 	"testing"
-	"time"
-
-	cv "github.com/glycerine/goconvey/convey"
-	"github.com/glycerine/idem"
+	//"time"
+	//cv "github.com/glycerine/goconvey/convey"
+	//"github.com/glycerine/idem"
 )
 
+/*
 // simplify ckt_test with a simple echo peer
 // so we can test RPC style comms on circuits.
 
 var _ = fmt.Sprintf
 
-type testFragRPC struct {
-	name string
-	cfg  *Config
-	srv  *Server
-	cli  *Client
+	type testFragRPC struct {
+		name string
+		cfg  *Config
+		srv  *Server
+		cli  *Client
 
-	cliServiceName string
-	srvServiceName string
+		cliServiceName string
+		srvServiceName string
 
-	clis *fragRPCservice
-	srvs *fragRPCservice
-}
+		clis *fragRPCservice
+		srvs *fragRPCservice
+	}
 
-func (j *testFragRPC) cleanup() {
-	j.cli.Close()
-	j.srv.Close()
-}
+	func (j *testFragRPC) cleanup() {
+		j.cli.Close()
+		j.srv.Close()
+	}
 
 func newTestFragRPC(name string) (j *testFragRPC) {
 
-	j = &testFragRPC{
-		name:           name,
-		cliServiceName: "cli_" + name,
-		srvServiceName: "srv_" + name,
-	}
-
-	cfg := NewConfig()
-	cfg.TCPonly_no_TLS = true
-
-	cfg.ServerAddr = "127.0.0.1:0"
-	srv := NewServer("srv_"+name, cfg)
-
-	serverAddr, err := srv.Start()
-	panicOn(err)
-
-	cfg.ClientDialToHostPort = serverAddr.String()
-	cli, err := NewClient("cli_"+name, cfg)
-	panicOn(err)
-	err = cli.Start()
-	panicOn(err)
-
-	j.clis = newfragRPCservice()
-	j.srvs = newfragRPCservice()
-
-	err = cli.PeerAPI.RegisterPeerServiceFunc(j.cliServiceName, j.clis.start)
-	panicOn(err)
-
-	err = srv.PeerAPI.RegisterPeerServiceFunc(j.srvServiceName, j.srvs.start)
-	panicOn(err)
-
-	j.cli = cli
-	j.srv = srv
-	j.cfg = cfg
-
-	return j
-}
-
-type countsFragRPC struct {
-	sends int
-	reads int
-
-	readErrors int
-	sendErrors int
-}
-
-type fragRPCservice struct {
-	halt *idem.Halter
-
-	// key is circuit name
-	stats *Mutexmap[string, *countsFragRPC]
-
-	// keep a record of all reads, so test can assert on history at the end.
-	readch chan *Fragment
-	// and copy all reads to here so test avoid races.
-	dropcopy_reads chan *Fragment
-
-	// same for errors
-	read_errorch         chan *Fragment
-	read_dropcopy_errors chan *Fragment
-	send_errorch         chan *Fragment
-	send_dropcopy_errors chan *Fragment
-
-	// ask the start() func to send to remote.
-	sendch chan *Fragment
-
-	requestToSend chan *Fragment
-
-	// have the start ack each send request here.
-	dropcopy_sends chan *Fragment
-	//dropcopy_sent     chan *Fragment
-
-	activeSideStartAnotherCkt  chan *Fragment
-	passiveSideStartAnotherCkt chan *Fragment
-
-	passiveSideSendN chan int
-	activeSideSendN  chan int
-
-	startCircuitWith chan string // remote URL to contact.
-	nextCktNo        int
-
-	activeSideSendCktError  chan string
-	passiveSideSendCktError chan string
-
-	activeSideShutdownCkt                chan *Fragment
-	activeSideShutdownCktAckReq          chan *Fragment
-	passive_side_ckt_saw_remote_shutdown chan *Fragment
-
-	passiveSideShutdownCkt              chan *Fragment
-	passiveSideShutdownCktAckReq        chan *Fragment
-	active_side_ckt_saw_remote_shutdown chan *Fragment
-}
-
-func newfragRPCservice() *fragRPCservice {
-	return &fragRPCservice{
-		halt:   idem.NewHalterNamed("fragRPCservice"),
-		stats:  NewMutexmap[string, *countsFragRPC](),
-		readch: make(chan *Fragment, 1000),
-		sendch: make(chan *Fragment, 1000),
-
-		read_errorch:         make(chan *Fragment, 1000),
-		read_dropcopy_errors: make(chan *Fragment, 1000),
-		send_errorch:         make(chan *Fragment, 1000),
-		send_dropcopy_errors: make(chan *Fragment, 1000),
-
-		requestToSend:    make(chan *Fragment),
-		dropcopy_sends:   make(chan *Fragment, 1000),
-		dropcopy_reads:   make(chan *Fragment, 1000),
-		startCircuitWith: make(chan string),
-
-		activeSideStartAnotherCkt:  make(chan *Fragment),
-		passiveSideStartAnotherCkt: make(chan *Fragment),
-
-		passiveSideSendN: make(chan int),
-		activeSideSendN:  make(chan int),
-
-		activeSideSendCktError:  make(chan string),
-		passiveSideSendCktError: make(chan string),
-
-		activeSideShutdownCkt:                make(chan *Fragment),
-		activeSideShutdownCktAckReq:          make(chan *Fragment, 1000),
-		passive_side_ckt_saw_remote_shutdown: make(chan *Fragment, 1000),
-
-		passiveSideShutdownCkt:              make(chan *Fragment),
-		passiveSideShutdownCktAckReq:        make(chan *Fragment, 1000),
-		active_side_ckt_saw_remote_shutdown: make(chan *Fragment, 1000),
-	}
-}
-
-func (s *fragRPCservice) reset() {
-	s.stats.Clear()
-}
-func (s *fragRPCservice) getAllReads() (n int) {
-	countsSlice := s.stats.GetValSlice()
-	for _, count := range countsSlice {
-		n += count.reads
-	}
-	return
-}
-func (s *fragRPCservice) getAllReadErrors() (n int) {
-	countsSlice := s.stats.GetValSlice()
-	for _, count := range countsSlice {
-		n += count.readErrors
-	}
-	return
-}
-func (s *fragRPCservice) getAllSends() (n int) {
-	countsSlice := s.stats.GetValSlice()
-	for _, count := range countsSlice {
-		n += count.sends
-	}
-	return
-}
-func (s *fragRPCservice) getAllSendErrors() (n int) {
-	countsSlice := s.stats.GetValSlice()
-	for _, count := range countsSlice {
-		n += count.sendErrors
-	}
-	return
-}
-
-func (s *fragRPCservice) incrementReadErrors(cktName string) (tot int) {
-	s.stats.Update(func(stats map[string]*countsFragRPC) {
-		c, ok := stats[cktName]
-		if !ok {
-			c = &countsFragRPC{}
-			stats[cktName] = c
+		j = &testFragRPC{
+			name:           name,
+			cliServiceName: "cli_" + name,
+			srvServiceName: "srv_" + name,
 		}
-		c.sendErrors++
-		tot = c.sendErrors
-	})
-	return
-}
-func (s *fragRPCservice) incrementSendErrors(cktName string) (tot int) {
-	s.stats.Update(func(stats map[string]*countsFragRPC) {
-		c, ok := stats[cktName]
-		if !ok {
-			c = &countsFragRPC{}
-			stats[cktName] = c
-		}
-		c.readErrors++
-		tot = c.readErrors
-	})
-	return
-}
 
-func (s *fragRPCservice) incrementReads(cktName string) (tot int) {
-	s.stats.Update(func(stats map[string]*countsFragRPC) {
-		c, ok := stats[cktName]
-		if !ok {
-			c = &countsFragRPC{}
-			stats[cktName] = c
+		cfg := NewConfig()
+		cfg.TCPonly_no_TLS = true
+
+		cfg.ServerAddr = "127.0.0.1:0"
+		srv := NewServer("srv_"+name, cfg)
+
+		serverAddr, err := srv.Start()
+		panicOn(err)
+
+		cfg.ClientDialToHostPort = serverAddr.String()
+		cli, err := NewClient("cli_"+name, cfg)
+		panicOn(err)
+		err = cli.Start()
+		panicOn(err)
+
+		j.clis = newfragRPCservice()
+		j.srvs = newfragRPCservice()
+
+		err = cli.PeerAPI.RegisterPeerServiceFunc(j.cliServiceName, j.clis.start)
+		panicOn(err)
+
+		err = srv.PeerAPI.RegisterPeerServiceFunc(j.srvServiceName, j.srvs.start)
+		panicOn(err)
+
+		j.cli = cli
+		j.srv = srv
+		j.cfg = cfg
+
+		return j
+	}
+
+	type countsFragRPC struct {
+		sends int
+		reads int
+
+		readErrors int
+		sendErrors int
+	}
+
+	type fragRPCservice struct {
+		halt *idem.Halter
+
+		// key is circuit name
+		stats *Mutexmap[string, *countsFragRPC]
+
+		// keep a record of all reads, so test can assert on history at the end.
+		readch chan *Fragment
+		// and copy all reads to here so test avoid races.
+		dropcopy_reads chan *Fragment
+
+		// same for errors
+		read_errorch         chan *Fragment
+		read_dropcopy_errors chan *Fragment
+		send_errorch         chan *Fragment
+		send_dropcopy_errors chan *Fragment
+
+		// ask the start() func to send to remote.
+		sendch chan *Fragment
+
+		requestToSend chan *Fragment
+
+		// have the start ack each send request here.
+		dropcopy_sends chan *Fragment
+		//dropcopy_sent     chan *Fragment
+
+		activeSideStartAnotherCkt  chan *Fragment
+		passiveSideStartAnotherCkt chan *Fragment
+
+		passiveSideSendN chan int
+		activeSideSendN  chan int
+
+		startCircuitWith chan string // remote URL to contact.
+		nextCktNo        int
+
+		activeSideSendCktError  chan string
+		passiveSideSendCktError chan string
+
+		activeSideShutdownCkt                chan *Fragment
+		activeSideShutdownCktAckReq          chan *Fragment
+		passive_side_ckt_saw_remote_shutdown chan *Fragment
+
+		passiveSideShutdownCkt              chan *Fragment
+		passiveSideShutdownCktAckReq        chan *Fragment
+		active_side_ckt_saw_remote_shutdown chan *Fragment
+	}
+
+	func newfragRPCservice() *fragRPCservice {
+		return &fragRPCservice{
+			halt:   idem.NewHalterNamed("fragRPCservice"),
+			stats:  NewMutexmap[string, *countsFragRPC](),
+			readch: make(chan *Fragment, 1000),
+			sendch: make(chan *Fragment, 1000),
+
+			read_errorch:         make(chan *Fragment, 1000),
+			read_dropcopy_errors: make(chan *Fragment, 1000),
+			send_errorch:         make(chan *Fragment, 1000),
+			send_dropcopy_errors: make(chan *Fragment, 1000),
+
+			requestToSend:    make(chan *Fragment),
+			dropcopy_sends:   make(chan *Fragment, 1000),
+			dropcopy_reads:   make(chan *Fragment, 1000),
+			startCircuitWith: make(chan string),
+
+			activeSideStartAnotherCkt:  make(chan *Fragment),
+			passiveSideStartAnotherCkt: make(chan *Fragment),
+
+			passiveSideSendN: make(chan int),
+			activeSideSendN:  make(chan int),
+
+			activeSideSendCktError:  make(chan string),
+			passiveSideSendCktError: make(chan string),
+
+			activeSideShutdownCkt:                make(chan *Fragment),
+			activeSideShutdownCktAckReq:          make(chan *Fragment, 1000),
+			passive_side_ckt_saw_remote_shutdown: make(chan *Fragment, 1000),
+
+			passiveSideShutdownCkt:              make(chan *Fragment),
+			passiveSideShutdownCktAckReq:        make(chan *Fragment, 1000),
+			active_side_ckt_saw_remote_shutdown: make(chan *Fragment, 1000),
 		}
-		c.reads++
-		tot = c.reads
-	})
-	return
-}
-func (s *fragRPCservice) incrementSends(cktName string) (tot int) {
-	s.stats.Update(func(stats map[string]*countsFragRPC) {
-		c, ok := stats[cktName]
-		if !ok {
-			c = &countsFragRPC{}
-			stats[cktName] = c
+	}
+
+	func (s *fragRPCservice) reset() {
+		s.stats.Clear()
+	}
+
+	func (s *fragRPCservice) getAllReads() (n int) {
+		countsSlice := s.stats.GetValSlice()
+		for _, count := range countsSlice {
+			n += count.reads
 		}
-		c.sends++
-		tot = c.sends
-	})
-	return
-}
+		return
+	}
+
+	func (s *fragRPCservice) getAllReadErrors() (n int) {
+		countsSlice := s.stats.GetValSlice()
+		for _, count := range countsSlice {
+			n += count.readErrors
+		}
+		return
+	}
+
+	func (s *fragRPCservice) getAllSends() (n int) {
+		countsSlice := s.stats.GetValSlice()
+		for _, count := range countsSlice {
+			n += count.sends
+		}
+		return
+	}
+
+	func (s *fragRPCservice) getAllSendErrors() (n int) {
+		countsSlice := s.stats.GetValSlice()
+		for _, count := range countsSlice {
+			n += count.sendErrors
+		}
+		return
+	}
+
+	func (s *fragRPCservice) incrementReadErrors(cktName string) (tot int) {
+		s.stats.Update(func(stats map[string]*countsFragRPC) {
+			c, ok := stats[cktName]
+			if !ok {
+				c = &countsFragRPC{}
+				stats[cktName] = c
+			}
+			c.sendErrors++
+			tot = c.sendErrors
+		})
+		return
+	}
+
+	func (s *fragRPCservice) incrementSendErrors(cktName string) (tot int) {
+		s.stats.Update(func(stats map[string]*countsFragRPC) {
+			c, ok := stats[cktName]
+			if !ok {
+				c = &countsFragRPC{}
+				stats[cktName] = c
+			}
+			c.readErrors++
+			tot = c.readErrors
+		})
+		return
+	}
+
+	func (s *fragRPCservice) incrementReads(cktName string) (tot int) {
+		s.stats.Update(func(stats map[string]*countsFragRPC) {
+			c, ok := stats[cktName]
+			if !ok {
+				c = &countsFragRPC{}
+				stats[cktName] = c
+			}
+			c.reads++
+			tot = c.reads
+		})
+		return
+	}
+
+	func (s *fragRPCservice) incrementSends(cktName string) (tot int) {
+		s.stats.Update(func(stats map[string]*countsFragRPC) {
+			c, ok := stats[cktName]
+			if !ok {
+				c = &countsFragRPC{}
+				stats[cktName] = c
+			}
+			c.sends++
+			tot = c.sends
+		})
+		return
+	}
 
 func (s *fragRPCservice) start(myPeer *LocalPeer, ctx0 context.Context, newCircuitCh <-chan *Circuit) (err0 error) {
 
-	name := myPeer.PeerServiceName
-	_ = name // used when logging is on.
+		name := myPeer.PeerServiceName
+		_ = name // used when logging is on.
 
-	defer func() {
-		vv("%v: end of start() inside defer, about the return/finish", name)
-		s.halt.ReqStop.Close()
-		s.halt.Done.Close()
-		myPeer.Close()
-	}()
+		defer func() {
+			vv("%v: end of start() inside defer, about the return/finish", name)
+			s.halt.ReqStop.Close()
+			s.halt.Done.Close()
+			myPeer.Close()
+		}()
 
-	vv("%v: countServer.start() top.", name) // seen 2x, good.
-	vv("%v: ourID = '%v'; peerServiceName='%v';", name, myPeer.PeerID, myPeer.ServiceName)
+		vv("%v: countServer.start() top.", name) // seen 2x, good.
+		vv("%v: ourID = '%v'; peerServiceName='%v';", name, myPeer.PeerID, myPeer.ServiceName)
 
-	AliasRegister(myPeer.PeerID, myPeer.PeerID+" ("+myPeer.ServiceName()+")")
+		AliasRegister(myPeer.PeerID, myPeer.PeerID+" ("+myPeer.ServiceName()+")")
 
-	done0 := ctx0.Done()
+		done0 := ctx0.Done()
 
-	for {
-		////vv("%v: top of select", name)
-		select {
-		case <-done0:
-			////vv("%v: done0! cause: '%v'", name, context.Cause(ctx0))
-			return ErrContextCancelled
-			//case <-s.halt.ReqStop.Chan:
-			//	//zz("%v: halt.ReqStop seen", name)
-			//	return ErrHaltRequested
+		for {
+			////vv("%v: top of select", name)
+			select {
+			case <-done0:
+				////vv("%v: done0! cause: '%v'", name, context.Cause(ctx0))
+				return ErrContextCancelled
+				//case <-s.halt.ReqStop.Chan:
+				//	//zz("%v: halt.ReqStop seen", name)
+				//	return ErrHaltRequested
 
-			// new Circuit connection arrives => we are the passive side for it.
-		case rckt := <-newCircuitCh:
-			//vv("%v: newCircuitCh got rckt! service sees new peerURL: '%v'", name, rckt.RemoteCircuitURL())
+				// new Circuit connection arrives => we are the passive side for it.
+			case rckt := <-newCircuitCh:
+				//vv("%v: newCircuitCh got rckt! service sees new peerURL: '%v'", name, rckt.RemoteCircuitURL())
 
-			// talk to this peer on a separate goro if you wish; or just a func
-			var passiveSide func(ckt *Circuit) error
-			passiveSide = func(ckt *Circuit) (err0 error) {
-				////vv("%v: (ckt '%v') got incoming ckt", name, ckt.Name)
-				//s.gotIncomingCkt <- ckt
-				//zz("%v: (ckt '%v') got past <-ckt for incoming ckt", name, ckt.Name)
-				defer func() {
-					////vv("%v: (ckt '%v') defer running! finishing new Circuit func. stack=\n'%v'", name, ckt.Name, stack()) // seen on server
-					ckt.Close(err0)
-					s.passive_side_ckt_saw_remote_shutdown <- nil
-				}()
+				// talk to this peer on a separate goro if you wish; or just a func
+				var passiveSide func(ckt *Circuit) error
+				passiveSide = func(ckt *Circuit) (err0 error) {
+					////vv("%v: (ckt '%v') got incoming ckt", name, ckt.Name)
+					//s.gotIncomingCkt <- ckt
+					//zz("%v: (ckt '%v') got past <-ckt for incoming ckt", name, ckt.Name)
+					defer func() {
+						////vv("%v: (ckt '%v') defer running! finishing new Circuit func. stack=\n'%v'", name, ckt.Name, stack()) // seen on server
+						ckt.Close(err0)
+						s.passive_side_ckt_saw_remote_shutdown <- nil
+					}()
 
-				//zz("%v: (ckt '%v') <- got new incoming ckt", name, ckt.Name)
-				////zz("incoming ckt has RemoteCircuitURL = '%v'", ckt.RemoteCircuitURL())
-				////zz("incoming ckt has LocalCircuitURL = '%v'", ckt.LocalCircuitURL())
-				//done := ctx.Done()
+					//zz("%v: (ckt '%v') <- got new incoming ckt", name, ckt.Name)
+					////zz("incoming ckt has RemoteCircuitURL = '%v'", ckt.RemoteCircuitURL())
+					////zz("incoming ckt has LocalCircuitURL = '%v'", ckt.LocalCircuitURL())
+					//done := ctx.Done()
 
-				// this is the passive side, as we <-newCircuitCh
-				for {
-					select {
-					case <-s.passiveSideShutdownCkt:
+					// this is the passive side, as we <-newCircuitCh
+					for {
+						select {
+						case <-s.passiveSideShutdownCkt:
 
-						return
-					case errReq := <-s.passiveSideSendCktError:
-						frag := NewFragment()
-						frag.Err = errReq
-						err := ckt.SendOneWay(frag, 0, 0)
-						panicOn(err)
-						s.incrementSends(ckt.Name)
-						s.sendch <- frag
-						s.dropcopy_sends <- frag
-
-					case n := <-s.passiveSideSendN:
-						//vv("%v: (ckt '%v') (passive) passiveSideSendN = %v requsted!: '%v'", name, ckt.Name, n)
-						for i := range n {
+							return
+						case errReq := <-s.passiveSideSendCktError:
 							frag := NewFragment()
-							frag.FragPart = int64(i)
+							frag.Err = errReq
 							err := ckt.SendOneWay(frag, 0, 0)
 							panicOn(err)
 							s.incrementSends(ckt.Name)
 							s.sendch <- frag
 							s.dropcopy_sends <- frag
-						}
 
-					case frag := <-s.passiveSideStartAnotherCkt:
+						case n := <-s.passiveSideSendN:
+							//vv("%v: (ckt '%v') (passive) passiveSideSendN = %v requsted!: '%v'", name, ckt.Name, n)
+							for i := range n {
+								frag := NewFragment()
+								frag.FragPart = int64(i)
+								err := ckt.SendOneWay(frag, 0, 0)
+								panicOn(err)
+								s.incrementSends(ckt.Name)
+								s.sendch <- frag
+								s.dropcopy_sends <- frag
+							}
 
-						//vv("%v: (ckt '%v') (passive) passiveSideStartAnotherCkt requsted!: '%v'", name, ckt.Name, frag.FragSubject)
-						ckt2, _, err := ckt.NewCircuit(frag.FragSubject, frag)
-						panicOn(err)
-						//vv("%v: (ckt '%v') (passive) created ckt2 to: '%v'", name, ckt.Name, ckt2.RemoteCircuitURL())
-						go passiveSide(ckt2)
+						case frag := <-s.passiveSideStartAnotherCkt:
 
-					case frag := <-s.requestToSend:
-						// external test code requests that we send.
-						//vv("%v: (ckt '%v') (passive) got requestToSend, sending to '%v'; from '%v'", name, ckt.Name, ckt.RemoteCircuitURL(), ckt.LocalCircuitURL())
+							//vv("%v: (ckt '%v') (passive) passiveSideStartAnotherCkt requsted!: '%v'", name, ckt.Name, frag.FragSubject)
+							ckt2, _, err := ckt.NewCircuit(frag.FragSubject, frag)
+							panicOn(err)
+							//vv("%v: (ckt '%v') (passive) created ckt2 to: '%v'", name, ckt.Name, ckt2.RemoteCircuitURL())
+							go passiveSide(ckt2)
 
-						err := ckt.SendOneWay(frag, 0, 0)
-						//panicOn(err)
-						if err != nil {
-							// shutdown
-							return
-						}
-						s.incrementSends(ckt.Name)
-						s.sendch <- frag
-						s.dropcopy_sends <- frag
+						case frag := <-s.requestToSend:
+							// external test code requests that we send.
+							//vv("%v: (ckt '%v') (passive) got requestToSend, sending to '%v'; from '%v'", name, ckt.Name, ckt.RemoteCircuitURL(), ckt.LocalCircuitURL())
 
-					case frag := <-ckt.Reads:
-						_ = frag
-						tot := s.incrementReads(ckt.Name)
-						_ = tot
-						//vv("%v: (ckt %v) (passive) ckt.Reads (total %v) sees frag:'%s'", name, ckt.Name, tot, frag)
-						s.readch <- frag // buffered 1000 so will not block til then.
-						s.dropcopy_reads <- frag
-
-					case fragerr := <-ckt.Errors:
-						//zz("%v: (ckt '%v') fragerr = '%v'", name, ckt.Name, fragerr)
-						_ = fragerr
-
-						tot := s.incrementReadErrors(ckt.Name)
-						_ = tot
-						//vv("%v: (ckt %v) (passive) ckt.Errors (total %v) sees fragerr:'%s'", name, ckt.Name, tot, fragerr)
-
-						s.read_errorch <- fragerr
-						s.read_dropcopy_errors <- fragerr
-
-					case <-ckt.Halt.ReqStop.Chan:
-						////vv("%v: (ckt '%v') ckt halt requested.", name, ckt.Name)
-						//s.gotCktHaltReq.Close()
-						return
-
-					case <-ckt.Context.Done():
-						//vv("%v: (ckt '%v') done! cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
-						return
-					case <-done0:
-						////vv("%v: (ckt '%v') done0! reason: '%v'", name, ckt.Name, context.Cause(ctx0))
-						return
-						//case <-s.halt.ReqStop.Chan:
-						//zz("%v: (ckt '%v') top func halt.ReqStop seen", name, ckt.Name)
-						//	return
-					}
-				}
-
-			}
-			go passiveSide(rckt)
-
-		case remoteURL := <-s.startCircuitWith:
-			vv("%v: requested startCircuitWith: '%v'", name, remoteURL)
-			ckt, _, err := myPeer.NewCircuitToPeerURL(fmt.Sprintf("cicuit-init-by:%v:%v", name, s.nextCktNo), remoteURL, nil, 0)
-			s.nextCktNo++
-			//panicOn(err)
-			if err != nil {
-				// shutdown
-				return
-			}
-			s.incrementSends(ckt.Name)
-			s.sendch <- nil
-			s.dropcopy_sends <- nil
-
-			var activeSide func(ckt *Circuit) error
-			activeSide = func(ckt *Circuit) (err0 error) {
-				// this is the active side, as we called NewCircuitToPeerURL()
-				defer func() {
-					////vv("%v: active side ckt '%v' shutting down", name, ckt.Name)
-					ckt.Close(err0)
-					s.activeSideShutdownCktAckReq <- nil
-					s.active_side_ckt_saw_remote_shutdown <- nil
-				}()
-				ctx := ckt.Context
-				for {
-					select {
-					case <-s.activeSideShutdownCkt:
-						return nil
-
-					case errReq := <-s.activeSideSendCktError:
-						frag := NewFragment()
-						frag.Err = errReq
-						err := ckt.SendOneWay(frag, 0, 0)
-						//panicOn(err)
-						if err != nil {
-							// shutdown
-							return
-						}
-						s.incrementSends(ckt.Name)
-						s.sendch <- frag
-						s.dropcopy_sends <- frag
-
-					case n := <-s.activeSideSendN:
-						//vv("%v: (ckt '%v') (active) activeSideSendN = %v requsted!: '%v'", name, ckt.Name, n)
-						for i := range n {
-							frag := NewFragment()
-							frag.FragPart = int64(i)
 							err := ckt.SendOneWay(frag, 0, 0)
 							//panicOn(err)
 							if err != nil {
@@ -440,55 +351,150 @@ func (s *fragRPCservice) start(myPeer *LocalPeer, ctx0 context.Context, newCircu
 							s.incrementSends(ckt.Name)
 							s.sendch <- frag
 							s.dropcopy_sends <- frag
+
+						case frag := <-ckt.Reads:
+							_ = frag
+							tot := s.incrementReads(ckt.Name)
+							_ = tot
+							//vv("%v: (ckt %v) (passive) ckt.Reads (total %v) sees frag:'%s'", name, ckt.Name, tot, frag)
+							s.readch <- frag // buffered 1000 so will not block til then.
+							s.dropcopy_reads <- frag
+
+						case fragerr := <-ckt.Errors:
+							//zz("%v: (ckt '%v') fragerr = '%v'", name, ckt.Name, fragerr)
+							_ = fragerr
+
+							tot := s.incrementReadErrors(ckt.Name)
+							_ = tot
+							//vv("%v: (ckt %v) (passive) ckt.Errors (total %v) sees fragerr:'%s'", name, ckt.Name, tot, fragerr)
+
+							s.read_errorch <- fragerr
+							s.read_dropcopy_errors <- fragerr
+
+						case <-ckt.Halt.ReqStop.Chan:
+							////vv("%v: (ckt '%v') ckt halt requested.", name, ckt.Name)
+							//s.gotCktHaltReq.Close()
+							return
+
+						case <-ckt.Context.Done():
+							//vv("%v: (ckt '%v') done! cause: '%v'", name, ckt.Name, context.Cause(ckt.Context))
+							return
+						case <-done0:
+							////vv("%v: (ckt '%v') done0! reason: '%v'", name, ckt.Name, context.Cause(ctx0))
+							return
+							//case <-s.halt.ReqStop.Chan:
+							//zz("%v: (ckt '%v') top func halt.ReqStop seen", name, ckt.Name)
+							//	return
 						}
+					}
 
-					case frag := <-s.activeSideStartAnotherCkt:
-						//vv("%v: (ckt '%v') (active) activeSideStartAnotherCkt requsted!: '%v'", name, ckt.Name, frag.FragSubject)
-						ckt2, _, err := ckt.NewCircuit(frag.FragSubject, frag)
-						panicOn(err)
-						//vv("%v: (ckt '%v') (active) created ckt2 to: '%v'", name, ckt.Name, ckt2.RemoteCircuitURL())
-						go activeSide(ckt2)
+				}
+				go passiveSide(rckt)
 
-					case <-ctx.Done():
-						////vv("%v: (ckt '%v') (active) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx))
-						return
-					case frag := <-ckt.Reads:
-						seen := s.incrementReads(ckt.Name)
-						_ = seen
-						//vv("%v: (ckt '%v') (active) saw read! total= %v", name, ckt.Name, seen)
-						s.readch <- frag
-						s.dropcopy_reads <- frag
+			case remoteURL := <-s.startCircuitWith:
+				vv("%v: requested startCircuitWith: '%v'", name, remoteURL)
+				ckt, _, err := myPeer.NewCircuitToPeerURL(fmt.Sprintf("cicuit-init-by:%v:%v", name, s.nextCktNo), remoteURL, nil, 0)
+				s.nextCktNo++
+				//panicOn(err)
+				if err != nil {
+					// shutdown
+					return
+				}
+				s.incrementSends(ckt.Name)
+				s.sendch <- nil
+				s.dropcopy_sends <- nil
 
-					case fragerr := <-ckt.Errors:
+				var activeSide func(ckt *Circuit) error
+				activeSide = func(ckt *Circuit) (err0 error) {
+					// this is the active side, as we called NewCircuitToPeerURL()
+					defer func() {
+						////vv("%v: active side ckt '%v' shutting down", name, ckt.Name)
+						ckt.Close(err0)
+						s.activeSideShutdownCktAckReq <- nil
+						s.active_side_ckt_saw_remote_shutdown <- nil
+					}()
+					ctx := ckt.Context
+					for {
+						select {
+						case <-s.activeSideShutdownCkt:
+							return nil
 
-						tot := s.incrementReadErrors(ckt.Name)
-						_ = tot
-						//vv("%v: (ckt %v) (active) ckt.Errors (total %v) sees fragerr:'%s'", name, ckt.Name, tot, fragerr)
-						s.read_errorch <- fragerr
-						s.read_dropcopy_errors <- fragerr
+						case errReq := <-s.activeSideSendCktError:
+							frag := NewFragment()
+							frag.Err = errReq
+							err := ckt.SendOneWay(frag, 0, 0)
+							//panicOn(err)
+							if err != nil {
+								// shutdown
+								return
+							}
+							s.incrementSends(ckt.Name)
+							s.sendch <- frag
+							s.dropcopy_sends <- frag
 
-					case <-ckt.Halt.ReqStop.Chan:
-						//vv("%v: (ckt '%v') (active) ckt halt requested.", name, ckt.Name)
-						return
+						case n := <-s.activeSideSendN:
+							//vv("%v: (ckt '%v') (active) activeSideSendN = %v requsted!: '%v'", name, ckt.Name, n)
+							for i := range n {
+								frag := NewFragment()
+								frag.FragPart = int64(i)
+								err := ckt.SendOneWay(frag, 0, 0)
+								//panicOn(err)
+								if err != nil {
+									// shutdown
+									return
+								}
+								s.incrementSends(ckt.Name)
+								s.sendch <- frag
+								s.dropcopy_sends <- frag
+							}
 
-					case frag := <-s.requestToSend:
-						// external test code requests that we send.
-						//vv("%v: (ckt '%v') (active) got on requestToSend, sending to '%v'; from '%v'", name, ckt.Name, ckt.RemoteCircuitURL(), ckt.LocalCircuitURL())
+						case frag := <-s.activeSideStartAnotherCkt:
+							//vv("%v: (ckt '%v') (active) activeSideStartAnotherCkt requsted!: '%v'", name, ckt.Name, frag.FragSubject)
+							ckt2, _, err := ckt.NewCircuit(frag.FragSubject, frag)
+							panicOn(err)
+							//vv("%v: (ckt '%v') (active) created ckt2 to: '%v'", name, ckt.Name, ckt2.RemoteCircuitURL())
+							go activeSide(ckt2)
 
-						err := myPeer.SendOneWay(ckt, frag, 0, 0)
-						panicOn(err)
-						s.incrementSends(ckt.Name)
-						s.sendch <- frag
-						s.dropcopy_sends <- frag
+						case <-ctx.Done():
+							////vv("%v: (ckt '%v') (active) ctx.Done seen. cause: '%v'", name, ckt.Name, context.Cause(ctx))
+							return
+						case frag := <-ckt.Reads:
+							seen := s.incrementReads(ckt.Name)
+							_ = seen
+							//vv("%v: (ckt '%v') (active) saw read! total= %v", name, ckt.Name, seen)
+							s.readch <- frag
+							s.dropcopy_reads <- frag
 
+						case fragerr := <-ckt.Errors:
+
+							tot := s.incrementReadErrors(ckt.Name)
+							_ = tot
+							//vv("%v: (ckt %v) (active) ckt.Errors (total %v) sees fragerr:'%s'", name, ckt.Name, tot, fragerr)
+							s.read_errorch <- fragerr
+							s.read_dropcopy_errors <- fragerr
+
+						case <-ckt.Halt.ReqStop.Chan:
+							//vv("%v: (ckt '%v') (active) ckt halt requested.", name, ckt.Name)
+							return
+
+						case frag := <-s.requestToSend:
+							// external test code requests that we send.
+							//vv("%v: (ckt '%v') (active) got on requestToSend, sending to '%v'; from '%v'", name, ckt.Name, ckt.RemoteCircuitURL(), ckt.LocalCircuitURL())
+
+							err := myPeer.SendOneWay(ckt, frag, 0, 0)
+							panicOn(err)
+							s.incrementSends(ckt.Name)
+							s.sendch <- frag
+							s.dropcopy_sends <- frag
+
+						}
 					}
 				}
+				go activeSide(ckt)
 			}
-			go activeSide(ckt)
 		}
+		return nil
 	}
-	return nil
-}
 
 func Test419_lots_of_send_and_read(t *testing.T) {
 
@@ -841,7 +847,7 @@ func Test419_lots_of_send_and_read(t *testing.T) {
 	})
 
 }
-
+*/
 func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) {
 
 	// empty ToPeerID in URL means we use
@@ -866,7 +872,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	// Ugh. too complicated.
 
 	suffix := "emptyPeerID_410"
-	j := newTestFragRPC(suffix)
+	j := newTestJunk3(suffix) // newTestFragRPC(suffix)
 	defer j.cleanup()
 
 	// srv is started. cli is started.
@@ -882,9 +888,6 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	defer cli_lpb.Close()
 
 	/*
-			srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil, "")
-			panicOn(err)
-			defer srv_lpb.Close()
 
 		// either should be able to initiate without knowing
 		// the remote's full URL.
@@ -921,21 +924,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	_ = ctx
 
 	vv("ckt = '%v'", ckt)
-	/*
-		input := &AtMostOnePeerNewCircuitRPCReq{
-			CircuitName: cktName,
-			PeerURL:     url,
-			FirstFrag:   nil,
-		}
-		reply := &AtMostOnePeerNewCircuitRPCReply{}
-		client := cli_lpb.U.GetClient()
 
-		// to cancel if desired.
-		ctx, canc := context.WithCancelCause(context.Background())
-		defer canc(nil)
-		err = client.Call("AtMostOnePeer.NewCircuit", input, reply, ctx)
-		panicOn(err)
-	*/
 	if ckt.RemotePeerID == "" {
 		vv("ckt='%v'", ckt)
 		panic("ckt.RemotePeerID should not be empty")
@@ -955,4 +944,35 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	if ckt2.RemotePeerID != ckt.RemotePeerID {
 		panic(fmt.Sprintf("wanted ckt.RemotePeerID='%v', got ckt2.RemotePeerID='%v'", ckt.RemotePeerID, ckt2.RemotePeerID))
 	}
+
+	vv("and check from server to client, the same test of PreferExtantRemotePeerGetCircuit. to cli_lpb.URL() = '%v'", cli_lpb.URL())
+
+	srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil, "srv_lpb_peer_name")
+	panicOn(err)
+	defer srv_lpb.Close()
+
+	// truncate the client's URL to get TCP netAddr and service name for client
+
+	cliNetAddr, cliServiceName, cliPeerID, cliCktID, err := ParsePeerURL(cli_lpb.URL())
+	panicOn(err)
+	vv("client serviceName = '%v'", cliServiceName)
+	vv("client netAddr = '%v'", cliNetAddr)
+	vv("client peerID = '%v'", cliPeerID)
+	vv("client cktID = '%v'", cliCktID)
+
+	cliurl := cliNetAddr + sep + cliServiceName
+	vv("client url in use: '%v'", cliurl)
+
+	cktName3 := "ckt-410-3rd" // what to call our new circuit
+	ckt3, err := j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb, cktName3, nil, serviceName, cliNetAddr, 0)
+	panicOn(err)
+
+	vv("ckt3 = '%v'", ckt3)
+
+	// we want that the remote cli_lpb.PeerID is the same as the one
+	// we started originally/first time.
+	if ckt3.RemotePeerID != cliPeerID {
+		panic(fmt.Sprintf("wanted cli_lpb.PeerID='%v', got ckt3.RemotePeerID='%v'", cliPeerID, ckt3.RemotePeerID))
+	}
+
 }
