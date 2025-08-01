@@ -62,17 +62,26 @@ const (
 
 	// try to keep all peer traffic isolated
 	// and only using these:
-	CallPeerStart                CallType = 112
-	CallPeerStartCircuit         CallType = 113
-	CallPeerStartCircuitTakeToID CallType = 114
+	CallPeerStart        CallType = 112
+	CallPeerStartCircuit CallType = 113
+
+	// CallPeerCircuitEstablishedAck is sent to
+	// ack all circuit creation so as to make fragRPC possible;
+	// it was added later and is off the critical path so
+	// most frag/ckt operations need not stall waiting for it.
+	// But and RPC style frag op which wants to wait
+	// for confirmation that the newly requested
+	// circuit has been made, can wait.
+	CallPeerCircuitEstablishedAck CallType = 114
+	CallPeerStartCircuitTakeToID  CallType = 115
 
 	// do not start a second peer, create ckt with existing.
-	CallPeerStartCircuitAtMostOne       CallType = 115
-	CallPeerStartCircuitAtMostOneFinish CallType = 116
-	CallPeerTraffic                     CallType = 117
-	CallPeerError                       CallType = 118
-	CallPeerFromIsShutdown              CallType = 119
-	CallPeerEndCircuit                  CallType = 120
+	CallPeerStartCircuitAtMostOne CallType = 116
+
+	CallPeerTraffic        CallType = 117
+	CallPeerError          CallType = 118
+	CallPeerFromIsShutdown CallType = 119
+	CallPeerEndCircuit     CallType = 120
 )
 
 func (ct CallType) String() string {
@@ -96,8 +105,8 @@ func (ct CallType) String() string {
 		return "CallPeerStartCircuit"
 	case CallPeerStartCircuitAtMostOne:
 		return "CallPeerStartCircuitAtMostOne"
-	case CallPeerStartCircuitAtMostOneFinish:
-		return "CallPeerStartCircuitAtMostOneFinish"
+	case CallPeerCircuitEstablishedAck:
+		return "CallPeerCircuitEstablishedAck"
 
 	case CallPeerTraffic:
 		return "CallPeerTraffic"

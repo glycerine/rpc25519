@@ -430,7 +430,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 		msg.HDR.LocalRecvTm = now
 
 		seqno := msg.HDR.Seqno
-		vv("client %v (cliLocalAddr='%v') received message with seqno=%v, msg.HDR='%v'", c.name, cliLocalAddr, seqno, msg.HDR.String())
+		//vv("client %v (cliLocalAddr='%v') received message with seqno=%v, msg.HDR='%v'", c.name, cliLocalAddr, seqno, msg.HDR.String())
 
 		// special case to bootstrap up a peer by remote
 		// request, since no other way to register stuff

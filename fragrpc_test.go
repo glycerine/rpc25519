@@ -844,15 +844,7 @@ func Test419_lots_of_send_and_read(t *testing.T) {
 
 func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) {
 
-	if faketime {
-		//	t.Skip("skip under synctest, net calls will never settle.")
-		//	return
-	}
-	//if _, rr := os.LookupEnv("RUNNING_UNDER_RR"); rr {
-	//	t.Skip("flaky under rr chaos")
-	//}
-
-	// empty PeerID in URL means we use
+	// empty ToPeerID in URL means we use
 	//
 	// CallPeerStartCircuitAtMostOne       CallType = 115
 	// and
@@ -872,8 +864,14 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	// "register interest" in a set of services...
 	// Ugh. too complicated.
 
-	j := newTestFragRPC("emptyPeerID_410")
+	suffix := "emptyPeerID_410"
+	j := newTestFragRPC(suffix)
 	defer j.cleanup()
+
+	// srv is started. cli is started.
+	// "cli_" + suffix peerServiceFunc has been registered at client (j.cliServiceName)
+	// "srv_" + suffix peerServiceFunc has been registered at server (j.srvServiceName)
+	// No peers have been started yet.
 
 	ctx := context.Background()
 
@@ -904,7 +902,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 
 	netAddr := "tcp://" + j.cfg.ClientDialToHostPort
 
-	serviceName := "srv_emptyPeerID_410"
+	serviceName := "srv_" + suffix
 	url := netAddr + sep + serviceName
 	vv("url constructed = '%v'", url)
 

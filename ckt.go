@@ -890,19 +890,23 @@ func (lpb *LocalPeer) newCircuit(
 		err = lpb.newCircuitHelperTellRemote(ctx2, ckt, rpb, firstFrag, typ, errWriteDur)
 	} else {
 		if atMostOnePeer {
-			// INVAR: atMostOnePeer true, tellRemote false.
+			vv("INVAR: atMostOnePeer true, tellRemote false.")
 
 			// We are on the remote side vs the initiator, and the
 			// initiator still needs to find out the
 			// final RemotePeerID, so we send a
-			// response with HDR.Typ=CallPeerStartCircuitAtMostOneFinish.
-			err = lpb.newCircuitHelperTellRemote(ctx2, ckt, rpb, firstFrag, CallPeerStartCircuitAtMostOneFinish, errWriteDur)
+			// response with HDR.Typ=CallPeerCircuitEstablishedAck.
+			err = lpb.newCircuitHelperTellRemote(ctx2, ckt, rpb, firstFrag, CallPeerCircuitEstablishedAck, errWriteDur)
 		}
 	}
 
 	return
 }
 
+// helper to set up a msg from us (lpb) and call
+// lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
+// with msg.HDR.Typ set to typ. provides ckt details
+// during bootstrap when a ckt is not yet up.
 func (lpb *LocalPeer) newCircuitHelperTellRemote(
 	ctx2 context.Context,
 	ckt *Circuit,
