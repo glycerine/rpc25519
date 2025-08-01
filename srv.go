@@ -2711,6 +2711,12 @@ func (s *Server) GetReadsForCallID(ch chan *Message, callID string) {
 	//vv("Server s.notifies.notifyOnReadCallIDMap[%v] = %p", callID, ch)
 }
 
+func (s *Server) GetChanInterestedInCallID(callID string) (ch chan *Message) {
+	//vv("Server.GetChanInterestedInCallID(callID='%v') called!", callID)
+	ch, _ = s.notifies.notifyOnReadCallIDMap.get(callID)
+	return
+}
+
 func (s *Server) GetErrorsForCallID(ch chan *Message, callID string) {
 	//vv("GetReads called! stack='\n\n%v\n'", stack())
 	if cap(ch) == 0 {

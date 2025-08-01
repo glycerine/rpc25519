@@ -215,9 +215,6 @@ func (f *Fragment) SetSysArg(key, val string) {
 // should use GetUserArg instead. This avoids
 // collisions between user and system keys.
 func (f *Fragment) GetSysArg(key string) (val string, ok bool) {
-	if f == nil {
-		return
-	}
 	if key == "" || f.Args == nil {
 		return "", false
 	}
@@ -919,7 +916,12 @@ func (lpb *LocalPeer) newCircuit(
 		// always be true, as ckt2.go shows. So onRemoteSide
 		// and tellRemote cannot be the same flag.
 
-		msg := NewMessage()
+		var msg *Message
+		if firstFrag != nil {
+			msg = firstFrag.ToMessage()
+		} else {
+			msg = NewMessage()
+		}
 		msg.HDR.To = rpb.NetAddr
 		msg.HDR.From = lpb.NetAddr
 		msg.HDR.Typ = CallPeerCircuitEstablishedAck
@@ -934,12 +936,10 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args["#fromServiceName"] = lpb.PeerServiceName
 		msg.HDR.Args["#toServiceName"] = rpb.RemoteServiceName
 		msg.HDR.Args["#circuitName"] = circuitName
-		if firstFrag != nil {
-			token, ok := firstFrag.GetSysArg("#fragRPCtoken")
-			if ok {
-				msg.HDR.Args["#fragRPCtoken"] = token
-			}
-		}
+		// No need to explicity set the
+		// msg.HDR.Args["#fragRPCtoken"] as it was
+		// copied above in firstFrag.ToMessage()
+
 		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, -1)
 	}
 
@@ -1667,7 +1667,36 @@ func (a *Fragment) Compare(b *Fragment) int {
 // of a circuit setup has been received.
 // Only return an error here if it is a shutdown request;
 // it will shutdown the callers read loop.
+//
+// It may seem like this does not allow end-to-end
+// contact with an existing peer, and you are
+// correct in that surmise. However for the
+// remote side address an existing peer, it
+// needs to discover its PeerID, and this
+// callback gives exactly that needed
+// information: the answering msg.HDR.FromPeerID.
+// Thus we provide an essential means of setting
+// up contact with an already running peer.
+//
+// A more complex alternative means would be
+// to start a remote whole separate "service discovery
+// peer service" that is always a new peer, but
+// itself can survey the existing other
+// peers on the same machine, and tell the
+// caller about them. For now we start simple.
 func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
 	vv("gotCircuitEstablishedAck seen. msg='%v'", msg) // good, seen 19x in jsync tests. 5x in regular rpc25519 tests.
+	token, ok := msg.HDR.Args["#fragRPCtoken"]
+	if ok {
+		ch := s.u.GetChanInterestedInCallID(token)
+		if ch != nil {
+			select {
+			case ch <- msg:
+			case <-ctx.Done():
+			case <-s.u.GetHostHalter().ReqStop.Chan:
+				return ErrHaltRequested
+			}
+		}
+	}
 	return nil
 }

@@ -1568,6 +1568,12 @@ func (c *Client) GetReadsForCallID(ch chan *Message, callID string) {
 	c.notifies.notifyOnReadCallIDMap.set(callID, ch)
 }
 
+func (c *Client) GetChanInterestedInCallID(callID string) (ch chan *Message) {
+	//vv("Client.GetChanInterestedInCallID(callID='%v') called!", callID)
+	ch, _ = c.notifies.notifyOnReadCallIDMap.get(callID)
+	return
+}
+
 func (c *Client) GetErrorsForCallID(ch chan *Message, callID string) {
 	//vv("GetReads called! stack='\n\n%v\n'", stack())
 	if cap(ch) == 0 {
@@ -2108,6 +2114,7 @@ type UniversalCliSrv interface {
 
 	GetReadsForCallID(ch chan *Message, callID string)
 	GetErrorsForCallID(ch chan *Message, callID string)
+	GetChanInterestedInCallID(callID string) chan *Message
 
 	// for Peer/Object systems; ToPeerID gets priority over CallID
 	// to allow such systems to implement custom message
