@@ -2110,6 +2110,8 @@ type UniversalCliSrv interface {
 
 	StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, remoteAddr string, waitUpTo time.Duration, waitForAck bool) (ckt *Circuit, err error)
 
+	PreferExtantRemotePeerGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, remoteAddr string, waitUpTo time.Duration) (ckt *Circuit, err error)
+
 	SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (error, chan *Message)
 
 	GetReadsForCallID(ch chan *Message, callID string)

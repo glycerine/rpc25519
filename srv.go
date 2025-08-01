@@ -2931,6 +2931,66 @@ func (s *Server) StartRemotePeerAndGetCircuit(
 		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, waitForAck)
 }
 
+// PreferExtantRemotePeerGetCircuit is similar
+// to StartRemotePeerAndGetCircuit, but we
+// try to avoid starting a new peer because
+// we assume that one is already running from
+// server/process bootup. We just need
+// to discover it by searching for the remotePeerServiceName.
+//
+// We will start one if there is not an existing
+// peer, but otherwise we will talk to the
+// extant peer on the remote. We always
+// wait to hear from remote before returning,
+// as as to supply the correct RemotePeerID
+// (similar to using WaitForAck true
+// in StartRemotePeerAndGetCircuit).
+//
+// This call is a part of the UniversalCliSrv interface.
+func (s *Server) PreferExtantRemotePeerGetCircuit(
+	lpb *LocalPeer,
+	circuitName string,
+	frag *Fragment,
+	peerServiceName,
+	remoteAddr string,
+	waitUpTo time.Duration,
+
+) (ckt *Circuit, err error) {
+
+	return s.PeerAPI.PreferExtantRemotePeerGetCircuit(
+		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo)
+}
+
+// PreferExtantRemotePeerGetCircuit is similar
+// to StartRemotePeerAndGetCircuit, but we
+// try to avoid starting a new peer because
+// we assume that one is already running from
+// server/process bootup. We just need
+// to discover it by searching for the remotePeerServiceName.
+//
+// We will start one if there is not an existing
+// peer, but otherwise we will talk to the
+// extant peer on the remote. We always
+// wait to hear from remote before returning,
+// as as to supply the correct RemotePeerID
+// (similar to using WaitForAck true
+// in StartRemotePeerAndGetCircuit).
+//
+// This call is a part of the UniversalCliSrv interface.
+func (s *Client) PreferExtantRemotePeerGetCircuit(
+	lpb *LocalPeer,
+	circuitName string,
+	frag *Fragment,
+	peerServiceName,
+	remoteAddr string,
+	waitUpTo time.Duration,
+
+) (ckt *Circuit, err error) {
+
+	return s.PeerAPI.PreferExtantRemotePeerGetCircuit(
+		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo)
+}
+
 // GetConfig returns the Server's Config.
 // It is a part of the UniversalCliSrv interface.
 func (s *Server) GetConfig() *Config {

@@ -6,15 +6,20 @@ import (
 	"time"
 )
 
-// PreferExtantRemotePeerGetCircuit is the
-// same as StartRemotePeerAndGetCircuit but it
-// tries to avoid starting a new peer because
-// it assumes one is already running from
-// server/process bootup, and it just needs
-// to discover it by the remotepeerServiceName.
-// It will start one if there is not an existing
-// peer, but otherwise it will talk to the
-// extant peer on the remote.
+// PreferExtantRemotePeerGetCircuit is similar
+// to StartRemotePeerAndGetCircuit, but we
+// try to avoid starting a new peer because
+// we assume that one is already running from
+// server/process bootup. We just need
+// to discover it by searching for the remotePeerServiceName.
+//
+// We will start one if there is not an existing
+// peer, but otherwise we will talk to the
+// extant peer on the remote. We always
+// wait to hear from remote before returning,
+// as as to supply the correct RemotePeerID
+// (similar to using WaitForAck true
+// in StartRemotePeerAndGetCircuit).
 func (p *peerAPI) PreferExtantRemotePeerGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration) (ckt *Circuit, err error) {
 	waitForAck := true
 	preferExtant := true
@@ -57,13 +62,35 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 
 	var pleaseAssignNewRemotePeerID string
 	if preferExtant {
+		// leave pleaseAssignNewRemotePeerID as empty string
 		frag.Typ = CallPeerStartCircuitAtMostOne
 	} else {
 		frag.Typ = CallPeerStartCircuitTakeToID
 
-		// we can make up a PeerID for them because
+		// For CallPeerStartCircuitTakeToID we can
+		// reliably make up a PeerID for them because
 		// they aren't live yet anyhow, and save it locally,
 		// and just have the remote side adopt it!
+
+		// We *could* do this (make up a PeerID, and
+		// set pleaseAssignNewPeerID on the frag) for
+		// CallPeerStartCircuitAtMostOne calls too,
+		// but then the logging gets confusing because
+		// we have to understand which is the "guess" and
+		// which is the final RemotePeerID. We have
+		// to update to our final one when it arrives.
+		//
+		// That is, the made-up RemotePeerID guess will be correct
+		// only if CallPeerStartCircuitAtMostOne
+		// was forced to spin up a new PeerID
+		// on the remote because there was not an extant one.
+		//
+		// But otherwise (99.9% of the time we expect) the
+		// guess would just be wrong and thus confusing
+		// in the logs. Better to log an empty RemotePeerID
+		// such that we can know it is not realiably known
+		// until the CallPeerCircuitEstablishedAck comes
+		// back and confirms it for us.
 
 		pleaseAssignNewRemotePeerID = NewCallID(remotePeerServiceName)
 		frag.ToPeerID = pleaseAssignNewRemotePeerID
@@ -117,15 +144,16 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 		return nil, fmt.Errorf("error requesting CallPeerStartCircuit from remote: '%v'", err)
 	}
 
-	peerID := pleaseAssignNewRemotePeerID
 	rpb := &RemotePeer{
 		LocalPeer: lpb,
-		PeerID:    peerID,
+		PeerID:    pleaseAssignNewRemotePeerID,
 		//PeerName:         ? unknown as of yet ? not sure.
 		NetAddr:           remoteAddr, //netAddr,
 		RemoteServiceName: remotePeerServiceName,
 	}
-	lpb.Remotes.Set(peerID, rpb)
+	if pleaseAssignNewRemotePeerID != "" {
+		lpb.Remotes.Set(pleaseAssignNewRemotePeerID, rpb)
+	}
 
 	// set firstFrag here
 	ckt, _, err = lpb.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, false, onOriginLocalSide)
@@ -155,16 +183,20 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 			if responseMsg.HDR.FromPeerID == "" {
 				panic(fmt.Sprintf("responseMsg.FromPeerID was empty string; should never happen! responseMsg = '%v'", responseMsg))
 			}
-			if responseMsg.HDR.FromPeerID != peerID {
+			if responseMsg.HDR.FromPeerID != pleaseAssignNewRemotePeerID {
 				// this is the whole point of the WaitForAck (2),
 				// to get an accurate rpb.PeerID if the
 				// peer was already running and had
 				// already assigned a PeerID to itself.
 				vv("setting actual PeerID from guess '%v' -> actual '%v'", rpb.PeerID, responseMsg.HDR.FromPeerID)
 				rpb.PeerID = responseMsg.HDR.FromPeerID
+				rpb.PeerName = responseMsg.HDR.FromPeerName
 				ckt.RemotePeerID = responseMsg.HDR.FromPeerID
+				ckt.RemotePeerName = responseMsg.HDR.FromPeerName
 
-				lpb.Remotes.Del(peerID)
+				if pleaseAssignNewRemotePeerID != "" {
+					lpb.Remotes.Del(pleaseAssignNewRemotePeerID)
+				}
 				lpb.Remotes.Set(rpb.PeerID, rpb)
 			}
 		case <-ckt.Context.Done():
