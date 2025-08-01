@@ -250,14 +250,14 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 	_ = name // used when logging is on.
 
 	defer func() {
-		//vv("%v: end of start() inside defer, about the return/finish", name)
+		vv("%v: end of start() inside defer, about the return/finish", name)
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
 		myPeer.Close()
 	}()
 
-	////vv("%v: start() top.", name)
-	//zz("%v: ourID = '%v'; peerServiceName='%v';", name, myPeer.ID(), myPeer.ServiceName())
+	vv("%v: countServer.start() top.", name) // seen 3x, good.
+	vv("%v: ourID = '%v'; peerServiceName='%v';", name, myPeer.PeerID, myPeer.ServiceName)
 
 	AliasRegister(myPeer.PeerID, myPeer.PeerID+" ("+myPeer.ServiceName()+")")
 
@@ -874,29 +874,46 @@ func Test410_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) {
 	defer j.cleanup()
 
 	ctx := context.Background()
+
 	cli_lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil, "")
 	panicOn(err)
 	defer cli_lpb.Close()
 
-	srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil, "")
-	panicOn(err)
-	defer srv_lpb.Close()
+	/*
+			srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil, "")
+			panicOn(err)
+			defer srv_lpb.Close()
 
-	// either should be able to initiate without knowing
-	// the remote's full URL.
+		// either should be able to initiate without knowing
+		// the remote's full URL.
 
-	netAddr, serviceName, peerID, cktID, err := ParsePeerURL(srv_lpb.URL())
-	panicOn(err)
-	_ = peerID
-	_ = cktID
+		netAddr, serviceName, peerID, cktID, err := ParsePeerURL(srv_lpb.URL())
+		panicOn(err)
+		_ = peerID
+		_ = cktID
+		vv("serviceName = '%v'", serviceName)
+		vv("netAddr = '%v'", netAddr)
+		vv("peerID = '%v'", peerID)
+		vv("cktID = '%v'", cktID)
 
+		url := netAddr + sep + serviceName
+		vv("url in use: '%v'", url) // tcp://127.0.0.1:62066/srv_emptyPeerID_410
+	*/
+
+	netAddr := "tcp://" + j.cfg.ClientDialToHostPort
+
+	serviceName := "srv_emptyPeerID_410"
 	url := netAddr + sep + serviceName
-	vv("url in use: '%v'", url)
-	cktName := "ckt-410"
+	vv("url constructed = '%v'", url)
+
+	cktName := "ckt-410" // what to call our new circuit
 	_ = cktName
 	//ckt, ctx, err := cli_lpb.NewCircuitToPeerURL(cktName, url, nil, 0)
 
-	ckt, err := cli_lpb.U.StartRemotePeerAndGetCircuit(cli_lpb, cktName, nil, serviceName, netAddr, 0)
+	wait := true
+	//	ckt, err := cli_lpb.U.StartRemotePeerAndGetCircuit(cli_lpb, cktName, nil, serviceName, netAddr, 0, wait)
+
+	ckt, err := j.cli.PeerAPI.StartRemotePeerAndGetCircuit(cli_lpb, cktName, nil, serviceName, netAddr, 0, wait)
 
 	panicOn(err)
 	_ = ctx

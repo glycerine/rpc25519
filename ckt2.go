@@ -11,20 +11,11 @@ import (
 // compact roundtrip.
 // We actually want, when we start a remote peer, to also get a
 // circuit, to save a 2nd round trip!
-func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration) (ckt *Circuit, err error) {
+//
+// waitForAck true => wait for an ack back from the remote peer.
+func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, firstFrag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, waitForAck bool) (ckt *Circuit, err error) {
 
-	return p.implStartRemotePeerAndGetCircuit(false, lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur)
-}
-
-// StartRemotePeerAndGetCircuitWaitForAck is the
-// same as StartRemotePeerAndGetCircuitWait but it
-// also waits for an ack back from the remote peer.
-func (p *peerAPI) StartRemotePeerAndGetCircuitWaitForAck(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration) (ckt *Circuit, err error) {
-
-	return p.implStartRemotePeerAndGetCircuit(true, lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur)
-}
-
-func (p *peerAPI) implStartRemotePeerAndGetCircuit(waitForAck bool, lpb *LocalPeer, circuitName string, firstFrag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration) (ckt *Circuit, err error) {
+	vv("top StartRemotePeerAndGetCircuit(%v)", circuitName) // seen 410
 
 	if lpb.Halt.ReqStop.IsClosed() {
 		return nil, ErrHaltRequested
@@ -49,6 +40,18 @@ func (p *peerAPI) implStartRemotePeerAndGetCircuit(waitForAck bool, lpb *LocalPe
 	frag.SetSysArg("pleaseAssignNewPeerID", pleaseAssignNewRemotePeerID)
 	//AliasRegister(frag.ToPeerID, frag.ToPeerID+" ("+remotePeerServiceName+")")
 
+	var responseCh chan *Message
+	var hhalt *idem.Halter
+	if waitForAck {
+		vv("waitForAck true in StartRemotePeerAndGetCircuit") // seen
+		responseCh = make(chan *Message, 10)
+		responseID := NewCallID("responseCallID for " + circuitID + " in StartRemotePeerAndGetCircuit")
+		frag.SetSysArg("RemotePeerID_ready_responseCallID", responseID)
+		p.u.GetReadsForCallID(responseCh, responseID)
+		hhalt = p.u.GetHostHalter()
+		defer p.u.UnregisterChannel(responseID, CallIDReadMap)
+	}
+
 	msg := frag.ToMessage()
 
 	msg.HDR.Created = time.Now()
@@ -66,7 +69,7 @@ func (p *peerAPI) implStartRemotePeerAndGetCircuit(waitForAck bool, lpb *LocalPe
 		}
 	}
 
-	//vv("StartRemotePeerAndGetCircuit(): msg.HDR='%v'", msg.HDR.String()) // "Typ":
+	vv("StartRemotePeerAndGetCircuit(): msg.HDR='%v'", msg.HDR.String()) // seen 410
 
 	// this effectively is all that happens to set
 	// up the circuit.
@@ -88,19 +91,10 @@ func (p *peerAPI) implStartRemotePeerAndGetCircuit(waitForAck bool, lpb *LocalPe
 	// allows pump.go to tell remotes we have shutdown
 	lpb.Remotes.Set(peerID, rpb)
 
-	var responseCh chan *Message
-	var hhalt *idem.Halter
-	if waitForAck {
-		responseCh = make(chan *Message, 10)
-		responseID := NewCallID("responseCallID for " + circuitID + " in StartRemotePeerAndGetCircuit")
-		frag.SetSysArg("RemotePeerID_ready_responseCallID", responseID)
-		p.u.GetReadsForCallID(responseCh, responseID)
-		hhalt = p.u.GetHostHalter()
-		defer p.u.UnregisterChannel(responseID, CallIDReadMap)
-	}
-
-	// set and send frag, our firstFrag, here.
+	// set firstFrag. send frag (but only if tellRemote true).
 	ckt, ctx, err = lpb.newCircuit(circuitName, rpb, circuitID, firstFrag, errWriteDur, false, false)
+	vv("back from lpb.newCircuit; responseCh = %p", responseCh)    // seen, not nil
+	defer vv("defered print running StartRemotePeerAndGetCircuit") // not seen
 	if err != nil {
 		return nil, err
 	}

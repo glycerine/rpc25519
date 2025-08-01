@@ -267,7 +267,7 @@ func (pb *LocalPeer) peerbackPump() {
 					goto wait5MoreSecondsBeforeCktShutdown
 				}
 			case ckt.Reads <- frag: // server should be hung here, if peer code not servicing
-				//vv("pump sent frag on ckt! ckt='%v'; frag='%v'", ckt, frag)
+				vv("pump sent frag on ckt! ckt='%v'; frag='%v'", ckt, frag)
 			case <-ckt.Halt.ReqStop.Chan:
 				//vv("<-ckt.Halt.ReqStop.Chan:")
 				cleanupCkt(ckt, true)

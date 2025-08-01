@@ -830,6 +830,8 @@ func (lpb *LocalPeer) newCircuit(
 
 ) (ckt *Circuit, ctx2 context.Context, err error) {
 
+	vv("top of LocalPeer.newCircuit(circuitName = '%v')", circuitName)
+
 	if lpb.Halt.ReqStop.IsClosed() {
 		return nil, nil, ErrHaltRequested
 	}
@@ -1158,8 +1160,9 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	knownLocalPeer.active.Set(localPeerID, lpb)
 	knownLocalPeer.mut.Unlock()
 
+	vv("launching new peerServiceFunc invocation for '%v'; stack=\n%v", peerServiceName, stack())
+
 	go func() {
-		//vv("launching new peerServiceFunc invocation for '%v'", peerServiceName)
 		err := knownLocalPeer.peerServiceFunc(lpb, ctx1, newCircuitCh)
 
 		//vv("peerServiceFunc has returned: '%v'; clean up the lbp!", peerServiceName)
@@ -1173,6 +1176,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	//localPeerURL := lpb.URL()
 	//vv("unlockedStartLocalPeer: lpb.URL() = '%v'; peerServiceName='%v', isUpdatedPeerID='%v'; pleaseAssignNewPeerID='%v'; \nstack=%v\n", lpb.URL(), peerServiceName, isUpdatedPeerID, pleaseAssignNewPeerID, stack())
 
+	vv("requestedCircuitMsg = '%v'", requestedCircuitMsg) // seen 3x: nil,nil, msg.
 	if requestedCircuitMsg != nil {
 		return lpb, lpb.provideRemoteOnNewCircuitCh(p.isCli, requestedCircuitMsg, ctx1, sendCh, isUpdatedPeerID)
 	}
@@ -1321,7 +1325,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 //
 // .
 func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) (err error) {
-	//vv("isCli=%v, bootstrapCircuit called with msg='%v'; JobSerz='%v'", isCli, msg.String(), string(msg.JobSerz))
+	vv("isCli=%v, bootstrapCircuit called with msg='%v'; JobSerz='%v'", isCli, msg.String(), string(msg.JobSerz))
 
 	// find the localPeerback corresponding to the ToPeerID
 	localPeerID := msg.HDR.ToPeerID
@@ -1336,6 +1340,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		responseID, ok := msg.HDR.Args["RemotePeerID_ready_responseCallID"]
 		if ok {
 			defer func() {
+				vv("defer send RemotePeerID_ready_responseCallID") //not seen
 				respmsg := NewMessage()
 				respmsg.HDR.CallID = responseID // allow rendezvous with ckt2.
 				respmsg.HDR.From = msg.HDR.To
@@ -1433,7 +1438,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 
 	if needNew {
 		// spin one up!
-		//vv("needNew true! spinning up a peer for peerServicename '%v'", peerServiceName)
+		vv("needNew true! spinning up a peer for peerServicename '%v'", peerServiceName)
 		//lpb2, localPeerURL, localPeerID, err := s.StartLocalPeer(ctx, peerServiceName, msg)
 		lpb2, err := s.unlockedStartLocalPeer(ctx, peerServiceName, msg, isUpdatedPeerID, sendCh, pleaseAssignNewRemotePeerID, "")
 		if err != nil {
