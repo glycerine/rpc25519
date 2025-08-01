@@ -489,10 +489,13 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 
 func Test409_lots_of_send_and_read(t *testing.T) {
 
-	if faketime {
-		t.Skip("skip under synctest, net calls will never settle.")
-		return
-	}
+	// Why was this here?
+	// It is fine. No network calls required.
+	// if faketime {
+	// t.Skip("skip under synctest, net calls will never settle.")
+	// return
+	// }
+
 	if _, rr := os.LookupEnv("RUNNING_UNDER_RR"); rr {
 		t.Skip("flaky under rr chaos")
 	}
