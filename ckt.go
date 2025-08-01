@@ -1374,12 +1374,14 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		// INVAR: lpb set, or needNewLocalPeer true.
 	case CallPeerStartCircuitAtMostOne:
 		if noPriorPeers {
+			vv("CallPeerStartCircuitAtMostOne handling: no prior peers, will start new")
 			// cannot re-connect with existing, must make new peer.
 		} else {
+			vv("CallPeerStartCircuitAtMostOne handling: try to find extant")
 			// try to find an existing local peer
 
 			availLpb := knownLocalPeer.active.Len()
-			vv("we see msg.HDR.Typ == CallPeerStartCircuitAtMostOne with availLpb count = %v under peerServiceName '%v'", availLpb, peerServiceName)
+			vv("we see msg.HDR.Typ == CallPeerStartCircuitAtMostOne with availLpb count = %v under peerServiceName '%v'", availLpb, peerServiceName) // seen 410
 			switch availLpb {
 			case 0:
 				panic("should be imposible, since !noPriorPeers")
@@ -1429,7 +1431,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 
 	if needNewLocalPeer {
 		// spin one up!
-		//vv("needNewLocalPeer true! spinning up a peer for peerServicename '%v'", peerServiceName)
+		vv("needNewLocalPeer true! spinning up a peer for peerServicename '%v'; Typ='%v'", peerServiceName, msg.HDR.Typ)
 		//lpb2, localPeerURL, localPeerID, err := s.StartLocalPeer(ctx, peerServiceName, msg)
 		lpb2, err := s.unlockedStartLocalPeer(ctx, peerServiceName, msg, isUpdatedPeerID, sendCh, pleaseAssignNewRemotePeerID, "", onRemote2ndSide)
 		if err != nil {
@@ -1481,6 +1483,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		return nil
 	}
 
+	vv("bootstrapCircuit ending, about to call lpb.provideRemoteOnNewCircuitCh '%v'; Typ='%v'; isUpdatedPeerID=%v", peerServiceName, msg.HDR.Typ, isUpdatedPeerID)
 	return lpb.provideRemoteOnNewCircuitCh(isCli, msg, ctx, sendCh, isUpdatedPeerID, onRemote2ndSide)
 }
 

@@ -50,25 +50,26 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 		frag = p.u.newFragment()
 	}
 	frag.CircuitID = circuitID
-	if preferExtant {
-		frag.Typ = CallPeerStartCircuitAtMostOne
-	} else {
-		frag.Typ = CallPeerStartCircuitTakeToID
-	}
-
 	frag.ServiceName = remotePeerServiceName
 	frag.SetSysArg("fromServiceName", lpb.PeerServiceName)
 	frag.SetSysArg("circuitName", circuitName)
 	frag.FromPeerID = lpb.PeerID
 
-	// we can make up a PeerID for them because
-	// they aren't live yet anyhow, and save it locally,
-	// and just have the remote side adopt it!
+	var pleaseAssignNewRemotePeerID string
+	if preferExtant {
+		frag.Typ = CallPeerStartCircuitAtMostOne
+	} else {
+		frag.Typ = CallPeerStartCircuitTakeToID
 
-	pleaseAssignNewRemotePeerID := NewCallID(remotePeerServiceName)
-	frag.ToPeerID = pleaseAssignNewRemotePeerID
-	frag.SetSysArg("pleaseAssignNewPeerID", pleaseAssignNewRemotePeerID)
-	//AliasRegister(frag.ToPeerID, frag.ToPeerID+" ("+remotePeerServiceName+")")
+		// we can make up a PeerID for them because
+		// they aren't live yet anyhow, and save it locally,
+		// and just have the remote side adopt it!
+
+		pleaseAssignNewRemotePeerID = NewCallID(remotePeerServiceName)
+		frag.ToPeerID = pleaseAssignNewRemotePeerID
+		frag.SetSysArg("pleaseAssignNewPeerID", pleaseAssignNewRemotePeerID)
+		//AliasRegister(frag.ToPeerID, frag.ToPeerID+" ("+remotePeerServiceName+")")
+	}
 
 	var responseCh chan *Message
 	var hhalt *idem.Halter
@@ -159,7 +160,9 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 				// to get an accurate rpb.PeerID if the
 				// peer was already running and had
 				// already assigned a PeerID to itself.
+				vv("setting actual PeerID from guess '%v' -> actual '%v'", rpb.PeerID, responseMsg.HDR.FromPeerID)
 				rpb.PeerID = responseMsg.HDR.FromPeerID
+				ckt.RemotePeerID = responseMsg.HDR.FromPeerID
 
 				lpb.Remotes.Del(peerID)
 				lpb.Remotes.Set(rpb.PeerID, rpb)

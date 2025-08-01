@@ -948,6 +948,8 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	cktName2 := "ckt-410-2nd" // what to call our new circuit
 	ckt2, err := j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb, cktName2, nil, serviceName, netAddr, 0)
 
+	vv("ckt2 = '%v'", ckt2)
+
 	// we want that the remote PeerID is the same as the one
 	// we started originally/first time.
 	if ckt2.RemotePeerID != ckt.RemotePeerID {
