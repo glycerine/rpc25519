@@ -2,8 +2,8 @@ package rpc25519
 
 import (
 	"fmt"
+	"github.com/glycerine/idem"
 	"time"
-	//"github.com/glycerine/idem"
 )
 
 // StartRemotePeerAndGetCircuit is a combining/compression of
@@ -11,7 +11,7 @@ import (
 // compact roundtrip.
 // We actually want, when we start a remote peer, to also get a
 // circuit, to save a 2nd round trip!
-func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration) (ckt *Circuit, err error) {
+func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, waitForAck bool) (ckt *Circuit, err error) {
 
 	if lpb.Halt.ReqStop.IsClosed() {
 		return nil, ErrHaltRequested
@@ -35,6 +35,20 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 	frag.ToPeerID = pleaseAssignNewRemotePeerID
 	frag.SetSysArg("pleaseAssignNewPeerID", pleaseAssignNewRemotePeerID)
 	//AliasRegister(frag.ToPeerID, frag.ToPeerID+" ("+remotePeerServiceName+")")
+
+	var responseCh chan *Message
+	var hhalt *idem.Halter
+	_ = hhalt
+	if waitForAck {
+		vv("waitForAck true in StartRemotePeerAndGetCircuit") // seen
+		responseCh = make(chan *Message, 10)
+		responseID := NewCallID("responseCallID for cktID(" + circuitID + ") in StartRemotePeerAndGetCircuit")
+		vv("responseID = '%v'; alias='%v'", responseID, AliasDecode(responseID))
+		frag.SetSysArg("fragRPCtoken", responseID)
+		p.u.GetReadsForCallID(responseCh, responseID)
+		hhalt = p.u.GetHostHalter()
+		defer p.u.UnregisterChannel(responseID, CallIDReadMap)
+	}
 
 	msg := frag.ToMessage()
 
@@ -76,6 +90,47 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 	ckt, _, err = lpb.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, false, onOriginLocalSide)
 	if err != nil {
 		return nil, err
+	}
+
+	if waitForAck {
+		select { // 410 hung here
+		case <-time.After(10 * time.Second): // DEBUG TODO remove this.
+			panic("did not get response in 10 seconds")
+		case responseMsg := <-responseCh:
+			vv("got responseMsg! yay! = '%v'", responseMsg)
+			if responseMsg.LocalErr != nil {
+				err = responseMsg.LocalErr
+				return
+			}
+			if responseMsg.JobErrs != "" {
+				err = fmt.Errorf("error on responseMsg := <-responseCh: response.JobErrs = '%v'", responseMsg.JobErrs)
+				return
+			}
+			// this is the a minor point of the WaitForAck, (1)
+			// since we already likely have the name elsewhere,
+			// like the a peer-naming config file.
+			rpb.PeerName = responseMsg.HDR.FromPeerName
+
+			if responseMsg.HDR.FromPeerID == "" {
+				panic(fmt.Sprintf("responseMsg.FromPeerID was empty string; should never happen! responseMsg = '%v'", responseMsg))
+			}
+			if responseMsg.HDR.FromPeerID != peerID {
+				// this is the whole point of the WaitForAck (2),
+				// to get an accurate rpb.PeerID if the
+				// peer was already running and had
+				// already assigned a PeerID to itself.
+				rpb.PeerID = responseMsg.HDR.FromPeerID
+
+				lpb.Remotes.Del(peerID)
+				lpb.Remotes.Set(rpb.PeerID, rpb)
+			}
+		case <-ckt.Context.Done():
+			return nil, ErrContextCancelled
+		case <-lpb.Ctx.Done():
+			return nil, ErrContextCancelled
+		case <-hhalt.ReqStop.Chan:
+			return nil, ErrHaltRequested
+		}
 	}
 	return
 }

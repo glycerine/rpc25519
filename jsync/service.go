@@ -732,7 +732,7 @@ func (s *SyncService) Start(
 
 				ckt, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
 					pulldir, syncReq.ToRemotePeerServiceName,
-					syncReq.ToRemoteNetAddr, 0)
+					syncReq.ToRemoteNetAddr, 0, false)
 				panicOn(err)
 
 				// local takes from remote. the remote gives us the update.
@@ -803,7 +803,7 @@ func (s *SyncService) Start(
 
 				ckt, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
 					pushdir, syncReq.ToRemotePeerServiceName,
-					syncReq.ToRemoteNetAddr, 0)
+					syncReq.ToRemoteNetAddr, 0, false)
 				panicOn(err)
 
 				// local pushes to remote.
@@ -946,7 +946,7 @@ func (s *SyncService) Start(
 			frag.Payload = data
 
 			ckt, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
-				frag, syncReq.ToRemotePeerServiceName, syncReq.ToRemoteNetAddr, 0)
+				frag, syncReq.ToRemotePeerServiceName, syncReq.ToRemoteNetAddr, 0, false)
 
 			panicOn(err)
 			if syncReq.RemoteTakes {

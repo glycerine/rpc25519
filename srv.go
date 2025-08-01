@@ -2904,10 +2904,12 @@ func (s *Client) StartRemotePeerAndGetCircuit(
 	peerServiceName,
 	remoteAddr string,
 	waitUpTo time.Duration,
+	waitForAck bool,
+
 ) (ckt *Circuit, err error) {
 
 	return s.PeerAPI.StartRemotePeerAndGetCircuit(
-		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo)
+		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, waitForAck)
 }
 
 // StartRemotePeerAndGetCircuit is the main way to bootstrap
@@ -2921,10 +2923,12 @@ func (s *Server) StartRemotePeerAndGetCircuit(
 	peerServiceName,
 	remoteAddr string,
 	waitUpTo time.Duration,
+	waitForAck bool,
+
 ) (ckt *Circuit, err error) {
 
 	return s.PeerAPI.StartRemotePeerAndGetCircuit(
-		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo)
+		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, waitForAck)
 }
 
 // GetConfig returns the Server's Config.

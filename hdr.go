@@ -451,7 +451,7 @@ func NewCallID(name string) (cid string) {
 	chacha8rand.Read(pseudo[:])
 	chacha8randMut.Unlock()
 	cid = cristalbase64.URLEncoding.EncodeToString(pseudo[:])
-	if name != "" { // trad CallID won't have.
+	if name != "" { // traditional CallID won't have.
 		AliasRegister(cid, cid+" ("+name+")")
 	}
 	return
