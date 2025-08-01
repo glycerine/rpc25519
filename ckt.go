@@ -422,7 +422,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	}
 	//vv("rpb = '%#v'", rpb)
 
-	ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, true, OnOriginLocalSide)
+	ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, true, onOriginLocalSide)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -720,7 +720,7 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 // When select{}-ing on ckt.Reads and ckt.Errors, always also
 // select on ctx.Done() and in order to shutdown gracefully.
 func (origCkt *Circuit) NewCircuit(circuitName string, firstFrag *Fragment) (ckt *Circuit, ctx2 context.Context, err error) {
-	return origCkt.RpbTo.LocalPeer.newCircuit(circuitName, origCkt.RpbTo, "", firstFrag, -1, true, OnOriginLocalSide)
+	return origCkt.RpbTo.LocalPeer.newCircuit(circuitName, origCkt.RpbTo, "", firstFrag, -1, true, onOriginLocalSide)
 }
 
 // IsClosed returns true if the LocalPeer is shutting down
@@ -768,8 +768,8 @@ func (lpb *LocalPeer) OpenCircuitCount() int {
 type onRemoteSideVal bool
 
 const (
-	OnRemote2ndSide   onRemoteSideVal = true
-	OnOriginLocalSide onRemoteSideVal = false
+	onRemote2ndSide   onRemoteSideVal = true
+	onOriginLocalSide onRemoteSideVal = false
 )
 
 // newCircuit always adds a circuit to the peer on the side it
@@ -1125,7 +1125,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	//vv("unlockedStartLocalPeer: lpb.URL() = '%v'; peerServiceName='%v', isUpdatedPeerID='%v'; pleaseAssignNewPeerID='%v'; \nstack=%v\n", lpb.URL(), peerServiceName, isUpdatedPeerID, pleaseAssignNewPeerID, stack())
 
 	if requestedCircuit != nil {
-		return lpb, lpb.provideRemoteOnNewCircuitCh(p.isCli, requestedCircuit, ctx1, sendCh, isUpdatedPeerID, OnOriginLocalSide)
+		return lpb, lpb.provideRemoteOnNewCircuitCh(p.isCli, requestedCircuit, ctx1, sendCh, isUpdatedPeerID, onOriginLocalSide)
 	}
 
 	return lpb, nil
@@ -1376,7 +1376,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		return nil
 	}
 
-	return lpb.provideRemoteOnNewCircuitCh(isCli, msg, ctx, sendCh, isUpdatedPeerID, OnRemote2ndSide)
+	return lpb.provideRemoteOnNewCircuitCh(isCli, msg, ctx, sendCh, isUpdatedPeerID, onRemote2ndSide)
 }
 
 func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message, isUpdatedPeerID bool, onRemoteSide onRemoteSideVal) error {
