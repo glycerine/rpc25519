@@ -1338,42 +1338,90 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	}
 	//vv("good: bootstrapCircuit found registered peerServiceName: '%v'", peerServiceName)
 
-	needNew := false
+	needNewLocalPeer := false
+	var noPriorPeers bool
 	knownLocalPeer.mut.Lock()
 	if knownLocalPeer.active == nil {
+		noPriorPeers = true
 		knownLocalPeer.active = NewMutexmap[string, *LocalPeer]()
-		needNew = true
+		needNewLocalPeer = true
 	}
 
 	pleaseAssignNewRemotePeerID, assignReqOk := msg.HDR.Args["#pleaseAssignNewPeerID"]
 
-	if msg.HDR.Typ == CallPeerStartCircuitTakeToID {
+	var lpb *LocalPeer
+	isUpdatedPeerID := false
+
+	switch msg.HDR.Typ {
+	case CallPeerStartCircuitTakeToID:
+		if !assignReqOk {
+			panic(fmt.Sprintf("internal consistency error: all CallPeerStartCircuitTakeToID messages must have the HDR.Args['#pleaseAssignNewPeerID'] set too."))
+		}
 		if msg.HDR.ToPeerID != pleaseAssignNewRemotePeerID {
 			panic("inconsistent internal logic! should have msg.HDR.ToPeerID == pleaseAssignNewRemotePeerID")
 		}
 		pleaseAssignNewRemotePeerID = msg.HDR.ToPeerID
 		assignReqOk = true
-	}
+		needNewLocalPeer = true
+		// INVAR: lpb set, or needNewLocalPeer true.
+	case CallPeerStartCircuitAtMostOne:
+		if noPriorPeers {
+			// cannot re-connect with existing, must make new peer.
+		} else {
+			// try to find an existing local peer
 
-	var lpb *LocalPeer
-
-	isUpdatedPeerID := false
-	if localPeerID == "" || assignReqOk {
-		needNew = true
-	} else {
-		var ok bool
-		lpb, ok = knownLocalPeer.active.Get(localPeerID)
-		if !ok {
-			// start a new instance
-			isUpdatedPeerID = true
-			needNew = true
+			availLpb := knownLocalPeer.active.Len()
+			vv("we see msg.HDR.Typ == CallPeerStartCircuitAtMostOne with availLpb count = %v under peerServiceName '%v'", availLpb, peerServiceName)
+			switch availLpb {
+			case 0:
+				panic("should be imposible, since !noPriorPeers")
+			case 1:
+				lpb = knownLocalPeer.active.GetValSlice()[0]
+				if lpb == nil {
+					panic("not allowed to store nil lpb in knownLocalPeer!")
+				}
+				needNewLocalPeer = false // just for emphasis
+				vv("good, one existant peerServiceName='%v' lpb=%p lpb.PeerName='%v'; lpb.PeerID='%v'; when CallPeerStartCircuitAtMostOne requested.", peerServiceName, lpb, lpb.PeerName, lpb.PeerID)
+			default:
+				panic(fmt.Sprintf("more than 1 started peer service '%v' so which one? we could a random one...but thats bad for determinism.", peerServiceName))
+			}
+			// INVAR: lpb set, or needNewLocalPeer true.
 		}
 	}
+
+	if lpb == nil && !needNewLocalPeer {
+		// CallPeerStartCircuitAtMostOne above did not find existing peer.
+		// We have not seen anything yet that forces us to make a new peer.
+
+		if localPeerID == "" {
+			// On its own, localPeerID == "" can also be seen when
+			// CallPeerStartCircuitAtMostOne. Nonetheless, if peer re-use
+			// is viable, we have already set lpb above based on
+			// peerServiceName matching alone, so we won't get in here.
+			// (as lpb != nil && !needNewLocalPeer in that case).
+			needNewLocalPeer = true
+
+		} else {
+			var ok bool
+			lpb, ok = knownLocalPeer.active.Get(localPeerID)
+			if !ok {
+				// start a new instance
+				isUpdatedPeerID = true
+				needNewLocalPeer = true
+			} else {
+				// good, lpb should be set.
+				if lpb == nil {
+					panic("internal logic error: never store nil in knownLocalPeer.active map")
+				}
+			}
+		}
+	}
+	// INVAR: lpb set, or needNewLocalPeer true.
 	knownLocalPeer.mut.Unlock()
 
-	if needNew {
+	if needNewLocalPeer {
 		// spin one up!
-		//vv("needNew true! spinning up a peer for peerServicename '%v'", peerServiceName)
+		//vv("needNewLocalPeer true! spinning up a peer for peerServicename '%v'", peerServiceName)
 		//lpb2, localPeerURL, localPeerID, err := s.StartLocalPeer(ctx, peerServiceName, msg)
 		lpb2, err := s.unlockedStartLocalPeer(ctx, peerServiceName, msg, isUpdatedPeerID, sendCh, pleaseAssignNewRemotePeerID, "")
 		if err != nil {
@@ -1677,6 +1725,7 @@ func (a *Fragment) Compare(b *Fragment) int {
 // information: the answering msg.HDR.FromPeerID.
 // Thus we provide an essential means of setting
 // up contact with an already running peer.
+// Especially combined with Typ=CallPeerStartCircuitAtMostOne.
 //
 // A more complex alternative means would be
 // to start a remote whole separate "service discovery
