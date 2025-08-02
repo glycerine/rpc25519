@@ -250,3 +250,8 @@ func (s *LocalPeer) PreferExtantRemotePeerGetCircuit(circuitName string, frag *F
 	preferExtant := true
 	return s.PeerAPI.implRemotePeerAndGetCircuit(s, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, preferExtant)
 }
+
+func (s *LocalPeer) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, waitForAck bool) (ckt *Circuit, err error) {
+
+	return s.PeerAPI.implRemotePeerAndGetCircuit(lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, false)
+}
