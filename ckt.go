@@ -1356,36 +1356,17 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 
 		//vv("bootstrapCircuit returning early (isCli=%v): '%v'", isCli, msg.JobErrs)
 
-		// having this be CallPeerError is creating a hang
+		// having this be CallPeerError was creating a hang
 		// at the remote (client in 410 part 2 fragrpc_test);
 		// because the peerServiceFunc there does not know
 		// there is a circuit to service yet... inherently
-		// a formula for a deadlocked peer pump, so just leave it out:
-		//
-		// if false {
-		// 	msg.HDR.Typ = CallPeerError
-		// 	if msg.HDR.ToPeerID == "" {
-		// 		// hmm. msg.HDR.CallID is what
-		// 		// notifies.handleReply_to_CallID_ToPeerID will
-		// 		// match on in this case.
-		// 		//vv("warning, msg.HDR.ToPeerID is empty; in error: '%v'", msg.JobErrs)
-		// 		// maybe we should... figure out something
-		// 		// that will not result in the error begin dropped
-		// 		// on the other end.
-		// 	}
-		// 	// avoid data race, clone msg first
-		// 	msg2 := &Message{
-		// 		HDR:     msg.HDR,
-		// 		JobErrs: msg.JobErrs,
-		// 	}
-		// 	_ = s.replyHelper(isCli, msg, ctx, sendCh)
-		// 	//vv("1st msg.HDR.Serial = %v", msg.HDR.Serial)
-		// 	msg = msg2
-		// }
+		// a formula for a deadlocked peer pump, so just
+		// leave that out and only report an error under
+		// Typ CallPeerCircuitEstablishedAck.
 
-		// send second error message with the Typ
-		// always expected on the happy path, to let
-		// the #fragRPCtoken machinery pick up on it.
+		// CallPeerCircuitEstablishedAck is the
+		// always expected on the happy path, since
+		// the #fragRPCtoken machinery needs it.
 		// Cf 410 fragrpc_test checks for this error.
 		msg.HDR.Typ = CallPeerCircuitEstablishedAck
 		return s.replyHelper(isCli, msg, ctx, sendCh)
