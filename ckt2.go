@@ -18,8 +18,9 @@ import (
 // extant peer on the remote. We always
 // wait to hear from remote before returning,
 // as as to supply the correct RemotePeerID
-// (similar to using WaitForAck true
-// in StartRemotePeerAndGetCircuit).
+// or an error. This is similar to using
+// WaitForAck=true in a call to the
+// sibling method StartRemotePeerAndGetCircuit.
 func (p *peerAPI) PreferExtantRemotePeerGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration) (ckt *Circuit, err error) {
 	waitForAck := true
 	preferExtant := true
@@ -29,10 +30,19 @@ func (p *peerAPI) PreferExtantRemotePeerGetCircuit(lpb *LocalPeer, circuitName s
 // StartRemotePeerAndGetCircuit is a combining/compression of
 // StartRemotePeer and NewCircuitToPeerURL together into one
 // compact roundtrip.
-// We actually want, when we start a remote peer, to also get a
-// circuit, to save a 2nd round trip!
 //
-// waitForAck true => wait for an ack back from the remote peer.
+// Typically when we start a remote peer we
+// also want to get a circuit, to save a 2nd
+// network round trip. This call provides that.
+//
+// When waitForAck is true we wait for an ack back
+// (or an error) from the remote peer -- just
+// like PreferExtantRemotePeerGetCircuit
+// always does. One possible error is that
+// the requested remotePeerServiceName is
+// not registered -- perhaps because of a
+// typo in the name -- or we may
+// be talking to the wrong host.
 func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, waitForAck bool) (ckt *Circuit, err error) {
 
 	return p.implRemotePeerAndGetCircuit(lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, false)
@@ -44,10 +54,9 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 		return nil, ErrHaltRequested
 	}
 
-	//firstFrag := frag
 	// this next looks to be the line that causes the jsync tests
 	// to hang? yep! don't do this! somehow
-	// destroys the info that tests like 440 wait for.
+	// destroys the info that tests like jsync/440 wait for.
 	// frag = p.u.newFragment()
 
 	circuitID := NewCallID(circuitName)
