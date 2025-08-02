@@ -2711,9 +2711,10 @@ func (s *Server) GetReadsForCallID(ch chan *Message, callID string) {
 	//vv("Server s.notifies.notifyOnReadCallIDMap[%v] = %p", callID, ch)
 }
 
-func (s *Server) GetChanInterestedInCallID(callID string) (ch chan *Message) {
+func (s *Server) GetChanInterestedInCallID(callID string) (ch, errCh chan *Message) {
 	//vv("Server.GetChanInterestedInCallID(callID='%v') called!", callID)
 	ch, _ = s.notifies.notifyOnReadCallIDMap.get(callID)
+	errCh, _ = s.notifies.notifyOnErrorCallIDMap.get(callID)
 	return
 }
 

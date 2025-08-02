@@ -99,22 +99,22 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 	}
 
 	var responseCh chan *Message
+	var responseErrCh chan *Message
 	var hhalt *idem.Halter
 	_ = hhalt
 	if waitForAck {
 		vv("waitForAck true in StartRemotePeerAndGetCircuit") // seen
 		responseCh = make(chan *Message, 10)
+		responseErrCh = make(chan *Message, 10)
 		responseID := NewCallID("responseCallID for cktID(" + circuitID + ") in StartRemotePeerAndGetCircuit")
 		vv("responseID = '%v'; alias='%v'; responseCh=%p", responseID, AliasDecode(responseID), responseCh)
 		frag.SetSysArg("fragRPCtoken", responseID)
 		p.u.GetReadsForCallID(responseCh, responseID)
-		// verify retreivable
-		ch2 := p.u.GetChanInterestedInCallID(responseID)
-		if ch2 != responseCh {
-			panic("GetChanInterestedInCallID borked")
-		}
+		p.u.GetErrorsForCallID(responseErrCh, responseID)
+
 		hhalt = p.u.GetHostHalter()
 		defer p.u.UnregisterChannel(responseID, CallIDReadMap)
+		defer p.u.UnregisterChannel(responseID, CallIDErrorMap)
 	}
 
 	msg := frag.ToMessage()
@@ -134,7 +134,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 		}
 	}
 
-	vv("in implRemotePeerAndGetCircuit(waitForAck='%v', preferExtant'%v'): msg.HDR='%v'", waitForAck, preferExtant, msg.HDR.String())
+	vv("in implRemotePeerAndGetCircuit(waitForAck='%v', preferExtant='%v'): msg.HDR='%v'", waitForAck, preferExtant, msg.HDR.String())
 
 	// this effectively is all that happens to set
 	// up the circuit.
@@ -169,6 +169,10 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 		select { // server->client 410 hung here.
 		case <-waitCh:
 			return nil, ErrTimeout
+
+		case errMsg := <-responseErrCh:
+			vv("got errMsg = '%v'", errMsg)
+			return nil, fmt.Errorf("error sending '%v' to remote: %v", frag.Typ, errMsg.JobErrs)
 		case responseMsg := <-responseCh:
 			vv("got responseMsg! yay! = '%v'", responseMsg)
 			if responseMsg.LocalErr != nil {

@@ -1341,10 +1341,10 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		msg.HDR.Typ = CallPeerError
 		msg.JobErrs = fmt.Sprintf("no local peerServiceName '%v' available", peerServiceName)
 		msg.JobSerz = nil
-		//vv("bootstrapCircuit returning early: '%v'", msg.JobErrs)
+		vv("bootstrapCircuit returning early: '%v'", msg.JobErrs)
 		return s.replyHelper(isCli, msg, ctx, sendCh)
 	}
-	//vv("good: bootstrapCircuit found registered peerServiceName: '%v'", peerServiceName)
+	vv("good: bootstrapCircuit found registered peerServiceName: '%v'", peerServiceName)
 
 	needNewLocalPeer := false
 	var noPriorPeers bool
@@ -1757,19 +1757,45 @@ func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context
 	vv("gotCircuitEstablishedAck seen. isCli=%v; msg='%v'", isCli, msg) // seen 1x in 410, isCli = true
 	token, ok := msg.HDR.Args["#fragRPCtoken"]
 	if ok {
-		ch := s.u.GetChanInterestedInCallID(token)
-		if ch != nil {
-			vv("good: about to notify ch=%p about token '%v'", ch, token) //410 not seen
-			select {
-			case ch <- msg:
-				vv("good: notification of ch=%p about token '%v' sent", ch, token)
-			case <-ctx.Done():
-			case <-s.u.GetHostHalter().ReqStop.Chan:
-				return ErrHaltRequested
-			}
-		} else {
-			vv("drat! GetChanInterestedInCallID found no chan for #fragRPCtoken = '%v'", token) // not seen
+		chGood, chErr := s.u.GetChanInterestedInCallID(token)
+		if chGood == nil && chErr == nil {
+			vv("nobody interested in fragRPC token '%v', dropping: '%v'", token, msg)
+			return nil
 		}
+
+		if msg.JobErrs == "" {
+			if chGood != nil {
+				// happy path
+				vv("good: about to notify ch=%p about token '%v'", chGood, token)
+				select {
+				case chGood <- msg:
+					vv("good: notification of ch=%p about token '%v' sent", chGood, token)
+				case <-ctx.Done():
+				case <-s.u.GetHostHalter().ReqStop.Chan:
+					return ErrHaltRequested
+				}
+			} else {
+				vv("dropping msg GetChanInterestedInCallID found no happy chan for #fragRPCtoken = '%v'", token)
+				return nil
+			}
+		}
+
+		// have msg.JobErrs
+		if chErr == nil {
+			if chGood != nil {
+				vv("warning: delivering error on chGood, no separate error registration found.")
+				chErr = chGood
+			}
+		}
+		vv("about to notify chErr=%p about error re token '%v'", chErr, token)
+		select {
+		case chErr <- msg:
+			vv("good: chErr notification of ch=%p about token '%v' sent", chErr, token)
+		case <-ctx.Done():
+		case <-s.u.GetHostHalter().ReqStop.Chan:
+			return ErrHaltRequested
+		}
+
 	}
 	return nil
 }

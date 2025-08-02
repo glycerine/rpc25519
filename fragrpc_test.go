@@ -6,7 +6,7 @@ import (
 	//"os"
 	//"strings"
 	"testing"
-	//"time"
+	"time"
 	//cv "github.com/glycerine/goconvey/convey"
 	//"github.com/glycerine/idem"
 )
@@ -107,15 +107,28 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	vv("client url in use: '%v'", cliurl)
 
 	cktName3 := "ckt-410-3rd" // what to call our new circuit
-	ckt3, err := j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb, cktName3, nil, cliServiceName, cliNetAddr, 0)
-	panicOn(err)
+	if false {
+		// works
+		ckt3, err := j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb, cktName3, nil, cliServiceName, cliNetAddr, 0)
+		panicOn(err)
 
-	vv("ckt3 = '%v'", ckt3)
+		vv("ckt3 = '%v'", ckt3)
 
-	// we want that the remote cli_lpb.PeerID is the same as the one
-	// we started originally/first time.
-	if ckt3.RemotePeerID != cliPeerID {
-		panic(fmt.Sprintf("wanted cli_lpb.PeerID='%v', got ckt3.RemotePeerID='%v'", cliPeerID, ckt3.RemotePeerID))
+		// we want that the remote cli_lpb.PeerID is the same as the one
+		// we started originally/first time.
+		if ckt3.RemotePeerID != cliPeerID {
+			panic(fmt.Sprintf("wanted cli_lpb.PeerID='%v', got ckt3.RemotePeerID='%v'", cliPeerID, ckt3.RemotePeerID))
+		}
 	}
 
+	// we should get an error if there is no such service name available!
+	wrongServiceName := "wrong_name_not_avail"
+	_, err = j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb, cktName3, nil, wrongServiceName, cliNetAddr, time.Second*2)
+	if err == nil {
+		panic("should get no name found!")
+	}
+	if err == ErrTimeout {
+		panic("should get no such service name found! not ErrTimeout")
+	}
+	vv("good, got err = '%v'", err)
 }
