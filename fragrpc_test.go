@@ -136,8 +136,8 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	if err == nil {
 		panic("wanted limit 1 error!")
 	}
-	if !strings.Contains(err.Error(), "already at cfg.ServiceLimit") {
-		panic(fmt.Sprintf("did not see 'already at cfg.ServiceLimit' in error: '%v'", err))
+	if !strings.Contains(err.Error(), "already at cfg.LimitedServiceMax") {
+		panic(fmt.Sprintf("did not see 'already at cfg.LimitedServiceMax' in error: '%v'", err))
 	}
 
 	// get the currently up peer instead:
@@ -203,10 +203,10 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		panic("wanted nil ckt5")
 	}
 	if err == nil {
-		panic("wanted rejection over ServiceLimit")
+		panic("wanted rejection over cfg.LimitedServiceMax")
 	}
-	if !strings.Contains(err.Error(), "already at cfg.ServiceLimit") {
-		panic(fmt.Sprintf("did not see 'already at cfg.ServiceLimit' in error: '%v'", err))
+	if !strings.Contains(err.Error(), "already at cfg.LimitedServiceMax") {
+		panic(fmt.Sprintf("did not see 'already at cfg.LimitedServiceMax' in error: '%v'", err))
 	}
 	//vv("good 5, got err = '%v'", err)
 
@@ -219,10 +219,10 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 			panic(fmt.Sprintf("wanted nil ckt6; got '%v'", ckt6))
 		}
 		if err == nil {
-			panic("wanted rejection over ServiceLimit")
+			panic("wanted rejection over cfg.LimitedServiceMax")
 		}
-		if !strings.Contains(err.Error(), "already at cfg.ServiceLimit") {
-			panic(fmt.Sprintf("did not see 'already at cfg.ServiceLimit' in error: '%v'", err))
+		if !strings.Contains(err.Error(), "already at cfg.LimitedServiceMax") {
+			panic(fmt.Sprintf("did not see 'already at cfg.LimitedServiceMax' in error: '%v'", err))
 		}
 		//vv("good 6, got err = '%v'", err)
 	}

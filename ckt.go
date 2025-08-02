@@ -1167,7 +1167,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 			if ncur >= lim {
 				// at limit, reject making another
 				knownLocalPeer.mut.Unlock()
-				return nil, fmt.Errorf("peerServiceName '%v' already at cfg.ServiceLimit = %v, refusing to make another", peerServiceName, lim)
+				return nil, fmt.Errorf("peerServiceName '%v' is listed in cfg.LimitedServiceNames and is already at cfg.LimitedServiceMax = %v, refusing to make another. Method lpb.PeerAPI.GetLocalPeers(peerServiceName) will list them.", peerServiceName, lim)
 			}
 		}
 		knownLocalPeer.mut.Unlock()
@@ -1402,6 +1402,8 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	var curServiceCount int
 	needNewLocalPeer := false
 	var noPriorPeers bool
+	var extantPeerIDs []string
+
 	knownLocalPeer.mut.Lock()
 	if knownLocalPeer.active == nil {
 		noPriorPeers = true
@@ -1409,6 +1411,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		needNewLocalPeer = true
 	} else {
 		curServiceCount = knownLocalPeer.active.Len()
+		extantPeerIDs = knownLocalPeer.active.GetKeySlice()
 	}
 
 	pleaseAssignNewRemotePeerID, assignReqOk := msg.HDR.Args["#pleaseAssignNewPeerID"]
@@ -1491,8 +1494,12 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	//vv("needNewLocalPeer=%v, curServiceCount(%v); cfg.ServiceLimit(%v)", needNewLocalPeer, curServiceCount, lim)
 	if needNewLocalPeer {
 		if lim > 0 && curServiceCount >= lim {
-			// at limit, reject making another
-			return s.rejectWith(fmt.Sprintf("peerServiceName '%v' already at cfg.ServiceLimit = %v", peerServiceName, lim), isCli, msg, ctx, sendCh)
+			// at limit, reject making another. But tell
+			// them who it is
+			msg.HDR.Args["#LimitedServiceMax"] = fmt.Sprintf("%v", lim)
+			msg.HDR.Args["#LimitedServiceName"] = peerServiceName
+			msg.HDR.Args["#LimitedExistingPeerIDs_comma_sep"] = strings.Join(extantPeerIDs, ",")
+			return s.rejectWith(fmt.Sprintf("peerServiceName '%v' is listed in cfg.LimitedServiceNames and is already at cfg.LimitedServiceMax = %v", peerServiceName, lim), isCli, msg, ctx, sendCh)
 		}
 		// spin one up!
 		//vv("needNewLocalPeer true! spinning up a peer for peerServicename '%v'; Typ='%v'", peerServiceName, msg.HDR.Typ)
