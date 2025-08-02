@@ -1338,11 +1338,32 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		// Re-use same msg in error reply:
 		msg.HDR.From, msg.HDR.To = msg.HDR.To, msg.HDR.From
 		msg.HDR.FromPeerID, msg.HDR.ToPeerID = msg.HDR.ToPeerID, msg.HDR.FromPeerID
-		msg.HDR.Typ = CallPeerError
 		msg.JobErrs = fmt.Sprintf("no local peerServiceName '%v' available", peerServiceName)
+		msg.HDR.Typ = CallPeerError
+		if msg.HDR.ToPeerID == "" {
+			// hmm. msg.HDR.CallID is what
+			// notifies.handleReply_to_CallID_ToPeerID will
+			// match on in this case.
+			vv("warning, msg.HDR.ToPeerID is empty; in error: '%v'", msg.JobErrs)
+			// maybe we should... figure out something
+			// that will not result in the error begin dropped
+			// on the other end.
+		}
 		msg.JobSerz = nil
+		fromService, ok := msg.HDR.Args["#fromServiceName"]
+		if ok {
+			msg.HDR.Args["#toServiceName"] = fromService
+			delete(msg.HDR.Args, "#fromServiceName")
+		}
 		vv("bootstrapCircuit returning early: '%v'", msg.JobErrs)
+		_ = s.replyHelper(isCli, msg, ctx, sendCh)
+
+		// send second error message with the Typ
+		// always expected on the happy path, to let
+		// the #fragRPCtoken machinery pick up on it.
+		msg.HDR.Typ = CallPeerCircuitEstablishedAck
 		return s.replyHelper(isCli, msg, ctx, sendCh)
+
 	}
 	vv("good: bootstrapCircuit found registered peerServiceName: '%v'", peerServiceName)
 
@@ -1543,7 +1564,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		//vv("ctx2 cancelled, cause: '%v'", context.Cause(ctx2))
 		return ErrContextCancelled
 	case <-lpb.Halt.ReqStop.Chan:
-		return ErrHaltRequested
+		return ErrHaltRequested // ErrShutdown() ?
 	}
 
 	return nil
@@ -1568,6 +1589,8 @@ func (s *peerAPI) replyHelper(isCli bool, msg *Message, ctx context.Context, sen
 	select {
 	case sendCh <- msg:
 	case <-ctx.Done():
+		return nil // ErrShutdown() but that would shut down whole client.
+	case <-s.u.GetHostHalter().ReqStop.Chan:
 		return ErrShutdown()
 	}
 	return nil // error means shut down the client.
