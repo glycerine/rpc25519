@@ -88,7 +88,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		cktName2 := "ckt-410-2nd" // what to call our new circuit
 		ckt2, err := j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb, cktName2, nil, j.srvServiceName, netAddr, 0)
 		panicOn(err)
-		vv("ckt2 = '%v'", ckt2)
+		//vv("ckt2 = '%v'", ckt2)
 
 		// we want that the remote PeerID is the same as the one
 		// we started originally/first time.
@@ -207,11 +207,11 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	if !strings.Contains(err.Error(), "already at cfg.ServiceLimit") {
 		panic(fmt.Sprintf("did not see 'already at cfg.ServiceLimit' in error: '%v'", err))
 	}
-	vv("good 5, got err = '%v'", err)
+	//vv("good 5, got err = '%v'", err)
 
 	if true {
 		// client -> server
-		vv("ServiceLimit enforced client to server too ==========")
+		//vv("ServiceLimit enforced client to server too ==========")
 		ckt6, err := j.cli.PeerAPI.StartRemotePeerAndGetCircuit(cli_lpb, cktName3+"_over_1_limit", nil, j.srvServiceName, netAddr, 0, true)
 
 		if ckt6 != nil {
@@ -223,6 +223,6 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		if !strings.Contains(err.Error(), "already at cfg.ServiceLimit") {
 			panic(fmt.Sprintf("did not see 'already at cfg.ServiceLimit' in error: '%v'", err))
 		}
-		vv("good 6, got err = '%v'", err)
+		//vv("good 6, got err = '%v'", err)
 	}
 }

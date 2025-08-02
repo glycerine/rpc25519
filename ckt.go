@@ -1485,7 +1485,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	knownLocalPeer.mut.Unlock()
 
 	cfg := s.u.GetConfig()
-	vv("needNewLocalPeer=%v, curServiceCount(%v); cfg.ServiceLimit(%v)", needNewLocalPeer, curServiceCount, cfg.ServiceLimit)
+	//vv("needNewLocalPeer=%v, curServiceCount(%v); cfg.ServiceLimit(%v)", needNewLocalPeer, curServiceCount, cfg.ServiceLimit)
 	if needNewLocalPeer {
 		if cfg.ServiceLimit > 0 && curServiceCount >= cfg.ServiceLimit {
 			// at limit, reject making another
