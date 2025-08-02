@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	//"os"
-	//"strings"
+	"strings"
 	"testing"
 	"time"
 	//cv "github.com/glycerine/goconvey/convey"
@@ -28,7 +28,10 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	// from it.
 
 	suffix := "emptyPeerID_410"
-	j := newTestJunk3(suffix)
+	cfg := NewConfig()
+	cfg.ServiceLimit = 1
+
+	j := newTestJunk3(suffix, cfg)
 	defer j.cleanup()
 
 	// srv is started. cli is started.
@@ -51,10 +54,11 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	part1, part2, part3, part4 := true, true, true, true
 
 	netAddr := "tcp://" + j.cfg.ClientDialToHostPort
-	if part1 { // focus on server -> client for a moment TODO remove
+	if part1 { // focus on server -> client for a moment
 
-		serviceName := "srv_" + suffix
-		url := netAddr + sep + serviceName
+		//serviceName := "srv_" + suffix
+		//url := netAddr + sep + serviceName
+		url := netAddr + sep + j.srvServiceName
 		_ = url
 		//vv("url constructed = '%v'", url)
 
@@ -65,7 +69,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		wait := true
 		//	ckt, err := cli_lpb.U.StartRemotePeerAndGetCircuit(cli_lpb, cktName, nil, serviceName, netAddr, 0, wait)
 
-		ckt, err := j.cli.PeerAPI.StartRemotePeerAndGetCircuit(cli_lpb, cktName, nil, serviceName, netAddr, 0, wait)
+		ckt, err := j.cli.PeerAPI.StartRemotePeerAndGetCircuit(cli_lpb, cktName, nil, j.srvServiceName, netAddr, 0, wait)
 
 		panicOn(err)
 		_ = ctx
@@ -82,9 +86,9 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		// address we have, but we do not have its PeerID yet.x
 
 		cktName2 := "ckt-410-2nd" // what to call our new circuit
-		ckt2, err := j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb, cktName2, nil, serviceName, netAddr, 0)
+		ckt2, err := j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb, cktName2, nil, j.srvServiceName, netAddr, 0)
 		panicOn(err)
-		//vv("ckt2 = '%v'", ckt2)
+		vv("ckt2 = '%v'", ckt2)
 
 		// we want that the remote PeerID is the same as the one
 		// we started originally/first time.
@@ -125,14 +129,30 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 
 	//vv("and check from server to client, the same test of PreferExtantRemotePeerGetCircuit. to cli_lpb.URL() = '%v'", cli_lpb.URL())
 
+	// already started above, will hit limit of 1 if we do it again.
+	// verify that we can an error if we try:
 	srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil, "srv_lpb_peer_name")
-	panicOn(err)
-	defer srv_lpb.Close()
+	if err == nil {
+		panic("wanted limit 1 error!")
+	}
+	if !strings.Contains(err.Error(), "already at cfg.ServiceLimit") {
+		panic(fmt.Sprintf("did not see 'already at cfg.ServiceLimit' in error: '%v'", err))
+	}
+
+	// get the currently up peer instead:
+	srv_lpbs := j.srv.PeerAPI.GetLocalPeers(j.srvServiceName)
+	if len(srv_lpbs) != 1 {
+		panic(fmt.Sprintf("should only be 1, not %v", len(srv_lpbs)))
+	}
+	srv_lpb = srv_lpbs[0]
 
 	// truncate the client's URL to get TCP netAddr and service name for client
 
 	cliNetAddr, cliServiceName, cliPeerID, cliCktID, err := ParsePeerURL(cli_lpb.URL())
 	panicOn(err)
+	if cliServiceName != j.cliServiceName {
+		panic("huh?")
+	}
 	_ = cliCktID
 	//vv("client serviceName = '%v'", cliServiceName)
 	//vv("client netAddr = '%v'", cliNetAddr)
@@ -171,5 +191,38 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 			panic("should get no such service name found! not ErrTimeout")
 		}
 		//vv("good, got err = '%v'", err)
+	}
+
+	// verify ServiceLimit rejects more than 1 instance of a peer service name
+
+	// server -> client
+	ckt5, err := j.srv.PeerAPI.StartRemotePeerAndGetCircuit(srv_lpb, cktName3+"_over_1_limit", nil, cliServiceName, cliNetAddr, 0, true)
+
+	if ckt5 != nil {
+		panic("wanted nil ckt5")
+	}
+	if err == nil {
+		panic("wanted rejection over ServiceLimit")
+	}
+	if !strings.Contains(err.Error(), "already at cfg.ServiceLimit") {
+		panic(fmt.Sprintf("did not see 'already at cfg.ServiceLimit' in error: '%v'", err))
+	}
+	vv("good 5, got err = '%v'", err)
+
+	if true {
+		// client -> server
+		vv("ServiceLimit enforced client to server too ==========")
+		ckt6, err := j.cli.PeerAPI.StartRemotePeerAndGetCircuit(cli_lpb, cktName3+"_over_1_limit", nil, j.srvServiceName, netAddr, 0, true)
+
+		if ckt6 != nil {
+			panic(fmt.Sprintf("wanted nil ckt6; got '%v'", ckt6))
+		}
+		if err == nil {
+			panic("wanted rejection over ServiceLimit")
+		}
+		if !strings.Contains(err.Error(), "already at cfg.ServiceLimit") {
+			panic(fmt.Sprintf("did not see 'already at cfg.ServiceLimit' in error: '%v'", err))
+		}
+		vv("good 6, got err = '%v'", err)
 	}
 }

@@ -32,7 +32,7 @@ func (j *testJunk3) cleanup() {
 	j.srv.Close()
 }
 
-func newTestJunk3(name string) (j *testJunk3) {
+func newTestJunk3(name string, cfg *Config) (j *testJunk3) {
 
 	j = &testJunk3{
 		name:           name,
@@ -40,7 +40,9 @@ func newTestJunk3(name string) (j *testJunk3) {
 		srvServiceName: "srv_" + name,
 	}
 
-	cfg := NewConfig()
+	if cfg == nil {
+		cfg = NewConfig()
+	}
 	cfg.TCPonly_no_TLS = true
 	cfg.QuietTestMode = true
 
@@ -501,7 +503,7 @@ func Test409_lots_of_send_and_read(t *testing.T) {
 
 	cv.Convey("many sends and reads between peers", t, func() {
 
-		j := newTestJunk3("manysend_409")
+		j := newTestJunk3("manysend_409", nil)
 		defer j.cleanup()
 
 		ctx := context.Background()

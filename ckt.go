@@ -1157,6 +1157,21 @@ func (p *peerAPI) unlockedStartLocalPeer(
 		return nil, fmt.Errorf("no local peerServiceName '%v' available", peerServiceName)
 	}
 
+	// enfoce cfg.ServiceLimit
+	cfg := p.u.GetConfig()
+	if cfg.ServiceLimit > 0 {
+		knownLocalPeer.mut.Lock()
+		if knownLocalPeer.active != nil {
+			ncur := knownLocalPeer.active.Len()
+			if ncur >= cfg.ServiceLimit {
+				// at limit, reject making another
+				knownLocalPeer.mut.Unlock()
+				return nil, fmt.Errorf("peerServiceName '%v' already at cfg.ServiceLimit = %v, refusing to make another", peerServiceName, cfg.ServiceLimit)
+			}
+		}
+		knownLocalPeer.mut.Unlock()
+	}
+
 	newCircuitCh := make(chan *Circuit, 1) // must be buffered >= 1, see below.
 	ctx1, canc1 := context.WithCancelCause(ctx)
 
@@ -1199,6 +1214,27 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	}
 
 	return lpb, nil
+}
+
+// retreive all local peer(s) under peerServiceName,
+// without starting a new one.
+func (p *peerAPI) GetLocalPeers(
+	peerServiceName string,
+) (lpbs []*LocalPeer) {
+
+	knownLocalPeer, ok := p.localServiceNameMap.Get(peerServiceName)
+	if !ok {
+		return nil
+	}
+	knownLocalPeer.mut.Lock()
+	if knownLocalPeer.active == nil {
+
+		knownLocalPeer.mut.Unlock()
+		return nil
+	}
+	lpbs = knownLocalPeer.active.GetValSlice()
+	knownLocalPeer.mut.Unlock()
+	return
 }
 
 // StartRemotePeer boots up a peer a remote node.
@@ -1358,40 +1394,11 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 
 	knownLocalPeer, ok := s.localServiceNameMap.Get(peerServiceName)
 	if !ok {
-		// moved out from replyHelper since did not apply
-		// to the other use at ckt.go:1302
-		// Re-use same msg in error reply:
-		msg.HDR.From, msg.HDR.To = msg.HDR.To, msg.HDR.From
-		msg.HDR.FromPeerID, msg.HDR.ToPeerID = msg.HDR.ToPeerID, msg.HDR.FromPeerID
-		msg.HDR.FromPeerName, msg.HDR.ToPeerName = msg.HDR.ToPeerName, msg.HDR.FromPeerName
-		msg.HDR.FromServiceName, msg.HDR.ToServiceName = msg.HDR.ToServiceName, msg.HDR.FromServiceName
-		msg.JobErrs = fmt.Sprintf("no local peerServiceName '%v' available", peerServiceName)
-		msg.JobSerz = nil
-		fromService, ok := msg.HDR.Args["#fromServiceName"]
-		if ok {
-			msg.HDR.Args["#toServiceName"] = fromService
-			delete(msg.HDR.Args, "#fromServiceName")
-		}
-
-		//vv("bootstrapCircuit returning early (isCli=%v): '%v'", isCli, msg.JobErrs)
-
-		// having this be CallPeerError was creating a hang
-		// at the remote (client in 410 part 2 fragrpc_test);
-		// because the peerServiceFunc there does not know
-		// there is a circuit to service yet... inherently
-		// a formula for a deadlocked peer pump, so just
-		// leave that out and only report an error under
-		// Typ CallPeerCircuitEstablishedAck.
-
-		// CallPeerCircuitEstablishedAck is the
-		// always expected on the happy path, since
-		// the #fragRPCtoken machinery needs it.
-		// Cf 410 fragrpc_test checks for this error.
-		msg.HDR.Typ = CallPeerCircuitEstablishedAck
-		return s.replyHelper(isCli, msg, ctx, sendCh)
+		return s.rejectWith(fmt.Sprintf("no local peerServiceName '%v' available", peerServiceName), isCli, msg, ctx, sendCh)
 	}
 	//vv("good: bootstrapCircuit found registered peerServiceName: '%v'", peerServiceName)
 
+	var curServiceCount int
 	needNewLocalPeer := false
 	var noPriorPeers bool
 	knownLocalPeer.mut.Lock()
@@ -1399,6 +1406,8 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		noPriorPeers = true
 		knownLocalPeer.active = NewMutexmap[string, *LocalPeer]()
 		needNewLocalPeer = true
+	} else {
+		curServiceCount = knownLocalPeer.active.Len()
 	}
 
 	pleaseAssignNewRemotePeerID, assignReqOk := msg.HDR.Args["#pleaseAssignNewPeerID"]
@@ -1422,13 +1431,13 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		if noPriorPeers {
 			//vv("CallPeerStartCircuitAtMostOne handling: no prior peers, will start new")
 			// cannot re-connect with existing, must make new peer.
+			// needNewLocalPeer = true was set above.
 		} else {
 			//vv("CallPeerStartCircuitAtMostOne handling: try to find extant")
 			// try to find an existing local peer
 
-			availLpb := knownLocalPeer.active.Len()
-			//vv("we see msg.HDR.Typ == CallPeerStartCircuitAtMostOne with availLpb count = %v under peerServiceName '%v'", availLpb, peerServiceName) // seen 410
-			switch availLpb {
+			//vv("we see msg.HDR.Typ == CallPeerStartCircuitAtMostOne with availLpb count = %v under peerServiceName '%v'", curServiceCount, peerServiceName) // seen 410
+			switch curServiceCount {
 			case 0:
 				panic("should be imposible, since !noPriorPeers")
 			case 1:
@@ -1439,7 +1448,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 				needNewLocalPeer = false // just for emphasis
 				//vv("good, one existant peerServiceName='%v' lpb=%p lpb.PeerName='%v'; lpb.PeerID='%v'; when CallPeerStartCircuitAtMostOne requested.", peerServiceName, lpb, lpb.PeerName, lpb.PeerID)
 			default:
-				panic(fmt.Sprintf("more than 1 started peer service '%v' so which one? we could a random one...but thats bad for determinism.", peerServiceName))
+				panic(fmt.Sprintf("more than 1 started peer service(%v) '%v' so which one? we could a random one...but thats bad for determinism.", curServiceCount, peerServiceName))
 			}
 			// INVAR: lpb set, or needNewLocalPeer true.
 		}
@@ -1475,7 +1484,13 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	// INVAR: lpb set, or needNewLocalPeer true.
 	knownLocalPeer.mut.Unlock()
 
+	cfg := s.u.GetConfig()
+	vv("needNewLocalPeer=%v, curServiceCount(%v); cfg.ServiceLimit(%v)", needNewLocalPeer, curServiceCount, cfg.ServiceLimit)
 	if needNewLocalPeer {
+		if cfg.ServiceLimit > 0 && curServiceCount >= cfg.ServiceLimit {
+			// at limit, reject making another
+			return s.rejectWith(fmt.Sprintf("peerServiceName '%v' already at cfg.ServiceLimit = %v", peerServiceName, cfg.ServiceLimit), isCli, msg, ctx, sendCh)
+		}
 		// spin one up!
 		//vv("needNewLocalPeer true! spinning up a peer for peerServicename '%v'; Typ='%v'", peerServiceName, msg.HDR.Typ)
 		//lpb2, localPeerURL, localPeerID, err := s.StartLocalPeer(ctx, peerServiceName, msg)
@@ -1594,6 +1609,41 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 	}
 
 	return nil
+}
+
+// helper for bootstapCircuit rejects
+func (s *peerAPI) rejectWith(errString string, isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
+	// moved out from replyHelper since did not apply
+	// to the other use at ckt.go:1302
+	// Re-use same msg in error reply:
+	msg.HDR.From, msg.HDR.To = msg.HDR.To, msg.HDR.From
+	msg.HDR.FromPeerID, msg.HDR.ToPeerID = msg.HDR.ToPeerID, msg.HDR.FromPeerID
+	msg.HDR.FromPeerName, msg.HDR.ToPeerName = msg.HDR.ToPeerName, msg.HDR.FromPeerName
+	msg.HDR.FromServiceName, msg.HDR.ToServiceName = msg.HDR.ToServiceName, msg.HDR.FromServiceName
+	msg.JobErrs = errString
+	msg.JobSerz = nil
+	fromService, ok := msg.HDR.Args["#fromServiceName"]
+	if ok {
+		msg.HDR.Args["#toServiceName"] = fromService
+		delete(msg.HDR.Args, "#fromServiceName")
+	}
+
+	//vv("bootstrapCircuit returning early (isCli=%v): '%v'", isCli, msg.JobErrs)
+
+	// having this be CallPeerError was creating a hang
+	// at the remote (client in 410 part 2 fragrpc_test);
+	// because the peerServiceFunc there does not know
+	// there is a circuit to service yet... inherently
+	// a formula for a deadlocked peer pump, so just
+	// leave that out and only report an error under
+	// Typ CallPeerCircuitEstablishedAck.
+
+	// CallPeerCircuitEstablishedAck is the
+	// always expected on the happy path, since
+	// the #fragRPCtoken machinery needs it.
+	// Cf 410 fragrpc_test checks for this error.
+	msg.HDR.Typ = CallPeerCircuitEstablishedAck
+	return s.replyHelper(isCli, msg, ctx, sendCh)
 }
 
 // replyHelper helps bootstrapCircuit with replying, keeping its

@@ -57,6 +57,7 @@ func Test060_load_config(t *testing.T) {
 	// verify all the fields get restored
 
 	all := `(rpc25519_Config
+        ServiceLimit: 1,
        QuietTestMode: true,
           ServerAddr: "server:5819",
       ClientHostPort: "client:9422",

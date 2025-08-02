@@ -1086,6 +1086,14 @@ type Config struct {
 	// Config will preserve and share the
 	// one singleSimnet.
 	simnetRendezvous *simnetRendezvous
+
+	// detect/prevent more than a single
+	// or any integer limit to services
+	// under a given (Peer)ServiceName,
+	// to catch issues around starting
+	// redundant services by mistake.
+	// ServiceLimit of 0 means no limit.
+	ServiceLimit int
 }
 
 func (cfg *Config) GetSimnet() *Simnet {
@@ -2859,6 +2867,7 @@ func (c *Config) String() (r string) {
 
 func (c *Config) StringBody() (r string) {
 
+	r += fmt.Sprintf("        ServiceLimit: %v,\n", c.ServiceLimit)
 	r += fmt.Sprintf("       QuietTestMode: %v,\n", c.QuietTestMode)
 	r += fmt.Sprintf("          ServerAddr: \"%v\",\n", c.ServerAddr)
 	r += fmt.Sprintf("      ClientHostPort: \"%v\",\n", c.ClientHostPort)
