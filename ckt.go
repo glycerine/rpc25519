@@ -1793,6 +1793,12 @@ func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context
 			//vv("nobody interested in fragRPC token '%v', dropping: '%v'", token, msg)
 			return nil
 		}
+		if chGood != nil && cap(chGood) == 0 {
+			panic("chGood done channel is unbuffered")
+		}
+		if chErr != nil && cap(chErr) == 0 {
+			panic("chErr done channel is unbuffered")
+		}
 
 		if msg.JobErrs == "" {
 			if chGood != nil {
@@ -1804,6 +1810,8 @@ func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context
 				case <-ctx.Done():
 				case <-s.u.GetHostHalter().ReqStop.Chan:
 					return ErrHaltRequested
+				default:
+					panic(fmt.Sprintf("error: out of space in chGood to report gotCircuitEstablishedAck (these chan really must be buffered): len(chGood)=%v, cap(chGood)=%v; msg='%v'", len(chGood), cap(chGood), msg))
 				}
 			} else {
 				//vv("dropping msg GetChanInterestedInCallID found no happy chan for #fragRPCtoken = '%v'", token)
@@ -1814,7 +1822,7 @@ func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context
 		// have msg.JobErrs
 		if chErr == nil {
 			if chGood != nil {
-				//vv("warning: delivering error on chGood, no separate error registration found.")
+				alwaysPrintf("warning: delivering error on chGood, no separate error registration found.")
 				chErr = chGood
 			}
 		}
@@ -1825,6 +1833,8 @@ func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context
 		case <-ctx.Done():
 		case <-s.u.GetHostHalter().ReqStop.Chan:
 			return ErrHaltRequested
+		default:
+			panic(fmt.Sprintf("error: out of space in chErr to report gotCircuitEstablishedAck (these chan really must be buffered): len(chErr)=%v, cap(chErr)=%v; msg='%v'", len(chErr), cap(chErr), msg))
 		}
 
 	}
