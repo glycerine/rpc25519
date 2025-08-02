@@ -2848,6 +2848,13 @@ func (s *Client) StartLocalPeer(
 	return s.PeerAPI.StartLocalPeer(ctx, peerServiceName, requestedCircuit, localPeerName)
 }
 
+func (s *Client) GetLocalPeers(peerServiceName string) (lpbs []*LocalPeer) {
+	return s.PeerAPI.GetLocalPeers(peerServiceName)
+}
+func (s *Server) GetLocalPeers(peerServiceName string) (lpbs []*LocalPeer) {
+	return s.PeerAPI.GetLocalPeers(peerServiceName)
+}
+
 // StartLoalPeer creates and returns a local Peer,
 // optionally establishing the Circuit in accordance
 // with the requestedCircuit Message. Primarily

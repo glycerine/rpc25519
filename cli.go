@@ -2116,6 +2116,8 @@ type UniversalCliSrv interface {
 
 	StartLocalPeer(ctx context.Context, peerServiceName string, requestedCircuit *Message, localPeerName string) (lpb *LocalPeer, err error)
 
+	GetLocalPeers(peerServiceName string) (lpbs []*LocalPeer)
+
 	StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string, waitUpTo time.Duration) (remotePeerURL, RemotePeerID string, err error)
 
 	StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, remoteAddr string, waitUpTo time.Duration, waitForAck bool) (ckt *Circuit, err error)
