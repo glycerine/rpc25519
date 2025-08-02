@@ -822,7 +822,7 @@ func (lpb *LocalPeer) newCircuit(
 
 ) (ckt *Circuit, ctx2 context.Context, err error) {
 
-	vv("newCircuit() called. isRemoteSide = %v", isRemoteSide) //, stack())
+	//vv("newCircuit() called. isRemoteSide = %v", isRemoteSide) //, stack())
 
 	if lpb.Halt.ReqStop.IsClosed() {
 		return nil, nil, ErrHaltRequested
@@ -1325,11 +1325,11 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) (err0 error) {
 	//vv("isCli=%v, bootstrapCircuit called with msg='%v'; JobSerz='%v'", isCli, msg.String(), string(msg.JobSerz))
 
-	defer func() {
-		if err0 != nil {
-			vv("arg: bootstrapCircuit returning err0='%v'; this will shutdown the conn", err0) // not seen 410. good.
-		}
-	}()
+	// defer func() {
+	// 	if err0 != nil {
+	// 		vv("arg: bootstrapCircuit returning err0='%v'; this will shutdown the conn", err0) // not seen 410. good.
+	// 	}
+	// }()
 
 	// find the localPeerback corresponding to the ToPeerID
 	localPeerID := msg.HDR.ToPeerID
@@ -1354,32 +1354,34 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 			delete(msg.HDR.Args, "#fromServiceName")
 		}
 
-		vv("bootstrapCircuit returning early (isCli=%v): '%v'", isCli, msg.JobErrs)
+		//vv("bootstrapCircuit returning early (isCli=%v): '%v'", isCli, msg.JobErrs)
 
 		// having this be CallPeerError is creating a hang
 		// at the remote (client in 410 part 2 fragrpc_test);
 		// because the peerServiceFunc there does not know
-		// there is a circuit to service yet... leave it out?
-		if false {
-			msg.HDR.Typ = CallPeerError
-			if msg.HDR.ToPeerID == "" {
-				// hmm. msg.HDR.CallID is what
-				// notifies.handleReply_to_CallID_ToPeerID will
-				// match on in this case.
-				vv("warning, msg.HDR.ToPeerID is empty; in error: '%v'", msg.JobErrs)
-				// maybe we should... figure out something
-				// that will not result in the error begin dropped
-				// on the other end.
-			}
-			// avoid data race, clone msg first
-			msg2 := &Message{
-				HDR:     msg.HDR,
-				JobErrs: msg.JobErrs,
-			}
-			_ = s.replyHelper(isCli, msg, ctx, sendCh)
-			vv("1st msg.HDR.Serial = %v", msg.HDR.Serial)
-			msg = msg2
-		}
+		// there is a circuit to service yet... inherently
+		// a formula for a deadlocked peer pump, so just leave it out:
+		//
+		// if false {
+		// 	msg.HDR.Typ = CallPeerError
+		// 	if msg.HDR.ToPeerID == "" {
+		// 		// hmm. msg.HDR.CallID is what
+		// 		// notifies.handleReply_to_CallID_ToPeerID will
+		// 		// match on in this case.
+		// 		//vv("warning, msg.HDR.ToPeerID is empty; in error: '%v'", msg.JobErrs)
+		// 		// maybe we should... figure out something
+		// 		// that will not result in the error begin dropped
+		// 		// on the other end.
+		// 	}
+		// 	// avoid data race, clone msg first
+		// 	msg2 := &Message{
+		// 		HDR:     msg.HDR,
+		// 		JobErrs: msg.JobErrs,
+		// 	}
+		// 	_ = s.replyHelper(isCli, msg, ctx, sendCh)
+		// 	//vv("1st msg.HDR.Serial = %v", msg.HDR.Serial)
+		// 	msg = msg2
+		// }
 
 		// send second error message with the Typ
 		// always expected on the happy path, to let
@@ -1388,7 +1390,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		msg.HDR.Typ = CallPeerCircuitEstablishedAck
 		return s.replyHelper(isCli, msg, ctx, sendCh)
 	}
-	vv("good: bootstrapCircuit found registered peerServiceName: '%v'", peerServiceName)
+	//vv("good: bootstrapCircuit found registered peerServiceName: '%v'", peerServiceName)
 
 	needNewLocalPeer := false
 	var noPriorPeers bool
@@ -1418,14 +1420,14 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		// INVAR: lpb set, or needNewLocalPeer true.
 	case CallPeerStartCircuitAtMostOne:
 		if noPriorPeers {
-			vv("CallPeerStartCircuitAtMostOne handling: no prior peers, will start new")
+			//vv("CallPeerStartCircuitAtMostOne handling: no prior peers, will start new")
 			// cannot re-connect with existing, must make new peer.
 		} else {
-			vv("CallPeerStartCircuitAtMostOne handling: try to find extant")
+			//vv("CallPeerStartCircuitAtMostOne handling: try to find extant")
 			// try to find an existing local peer
 
 			availLpb := knownLocalPeer.active.Len()
-			vv("we see msg.HDR.Typ == CallPeerStartCircuitAtMostOne with availLpb count = %v under peerServiceName '%v'", availLpb, peerServiceName) // seen 410
+			//vv("we see msg.HDR.Typ == CallPeerStartCircuitAtMostOne with availLpb count = %v under peerServiceName '%v'", availLpb, peerServiceName) // seen 410
 			switch availLpb {
 			case 0:
 				panic("should be imposible, since !noPriorPeers")
@@ -1435,7 +1437,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 					panic("not allowed to store nil lpb in knownLocalPeer!")
 				}
 				needNewLocalPeer = false // just for emphasis
-				vv("good, one existant peerServiceName='%v' lpb=%p lpb.PeerName='%v'; lpb.PeerID='%v'; when CallPeerStartCircuitAtMostOne requested.", peerServiceName, lpb, lpb.PeerName, lpb.PeerID)
+				//vv("good, one existant peerServiceName='%v' lpb=%p lpb.PeerName='%v'; lpb.PeerID='%v'; when CallPeerStartCircuitAtMostOne requested.", peerServiceName, lpb, lpb.PeerName, lpb.PeerID)
 			default:
 				panic(fmt.Sprintf("more than 1 started peer service '%v' so which one? we could a random one...but thats bad for determinism.", peerServiceName))
 			}
@@ -1475,7 +1477,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 
 	if needNewLocalPeer {
 		// spin one up!
-		vv("needNewLocalPeer true! spinning up a peer for peerServicename '%v'; Typ='%v'", peerServiceName, msg.HDR.Typ)
+		//vv("needNewLocalPeer true! spinning up a peer for peerServicename '%v'; Typ='%v'", peerServiceName, msg.HDR.Typ)
 		//lpb2, localPeerURL, localPeerID, err := s.StartLocalPeer(ctx, peerServiceName, msg)
 		lpb2, err := s.unlockedStartLocalPeer(ctx, peerServiceName, msg, isUpdatedPeerID, sendCh, pleaseAssignNewRemotePeerID, "", onRemote2ndSide)
 		if err != nil {
@@ -1527,7 +1529,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		return nil
 	}
 
-	vv("bootstrapCircuit ending, about to call lpb.provideRemoteOnNewCircuitCh '%v'; Typ='%v'; isUpdatedPeerID=%v", peerServiceName, msg.HDR.Typ, isUpdatedPeerID)
+	//vv("bootstrapCircuit ending, about to call lpb.provideRemoteOnNewCircuitCh '%v'; Typ='%v'; isUpdatedPeerID=%v", peerServiceName, msg.HDR.Typ, isUpdatedPeerID)
 	return lpb.provideRemoteOnNewCircuitCh(isCli, msg, ctx, sendCh, isUpdatedPeerID, onRemote2ndSide)
 }
 

@@ -41,7 +41,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	ctx := context.Background()
 
 	cliPeerName := "cliPeerName_410"
-	vv("starting client peer service '%v'", j.cliServiceName)
+	//vv("starting client peer service '%v'", j.cliServiceName)
 	cli_lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil, cliPeerName)
 	panicOn(err)
 	defer cli_lpb.Close()
@@ -108,10 +108,10 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		if err == ErrTimeout {
 			panic("should get no such service name found! not ErrTimeout")
 		}
-		vv("server no-such-service checked: good, got err = '%v'", err)
+		//vv("server no-such-service checked: good, got err = '%v'", err)
 		// cli_emptyPeerID_410 ckt.Name is not handling Errors!
 		if ckt4 != nil {
-			vv("ckt4 = %#v", ckt4)
+			alwaysPrintf("ckt4 = %#v", ckt4)
 			panic("ckt4 should be nil")
 		}
 	}

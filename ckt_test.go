@@ -42,6 +42,7 @@ func newTestJunk3(name string) (j *testJunk3) {
 
 	cfg := NewConfig()
 	cfg.TCPonly_no_TLS = true
+	cfg.QuietTestMode = true
 
 	cfg.ServerAddr = "127.0.0.1:0"
 	srv := NewServer("srv_"+name, cfg)
@@ -264,14 +265,10 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 	done0 := ctx0.Done()
 
 	for {
-		vv("%v: top of select, myPeer.ServiceName='%v'", name, myPeer.ServiceName())
+		//vv("%v: top of select, myPeer.ServiceName='%v'", name, myPeer.ServiceName())
 		select {
-		/*
-			case errmsg := <-ckt.Errors:
-				vv("%v: ckt.Errors got errmsg; myPeer.ServiceName='%v'; errmsg='%v'", name, myPeer.ServiceName(), errmsg)
-		*/
 		case <-done0:
-			vv("%v: done0! cause: '%v'", name, context.Cause(ctx0))
+			//vv("%v: done0! cause: '%v'", name, context.Cause(ctx0))
 			return ErrContextCancelled
 			//case <-s.halt.ReqStop.Chan:
 			//	//zz("%v: halt.ReqStop seen", name)
@@ -279,7 +276,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 
 			// new Circuit connection arrives => we are the passive side for it.
 		case rckt := <-newCircuitCh:
-			vv("%v: newCircuitCh got rckt! service sees new peerURL: '%v'", name, rckt.RemoteCircuitURL()) // not seen 410
+			//vv("%v: newCircuitCh got rckt! service sees new peerURL: '%v'", name, rckt.RemoteCircuitURL()) // not seen 410
 
 			// talk to this peer on a separate goro if you wish; or just a func
 			var passiveSide func(ckt *Circuit) error
@@ -356,7 +353,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						s.dropcopy_reads <- frag
 
 					case fragerr := <-ckt.Errors:
-						vv("%v: (ckt '%v') fragerr = '%v'", name, ckt.Name, fragerr) // not seen 410
+						//vv("%v: (ckt '%v') fragerr = '%v'", name, ckt.Name, fragerr) // not seen 410
 						_ = fragerr
 
 						tot := s.incrementReadErrors(ckt.Name)
@@ -387,7 +384,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 			go passiveSide(rckt)
 
 		case remoteURL := <-s.startCircuitWith:
-			vv("%v: requested startCircuitWith: '%v'", name, remoteURL) // not seen 410
+			//vv("%v: requested startCircuitWith: '%v'", name, remoteURL) // not seen 410
 			ckt, _, err := myPeer.NewCircuitToPeerURL(fmt.Sprintf("cicuit-init-by:%v:%v", name, s.nextCktNo), remoteURL, nil, 0)
 			s.nextCktNo++
 			//panicOn(err)
@@ -410,7 +407,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 				}()
 				ctx := ckt.Context
 				for {
-					vv("top of active side select") // not seen 410
+					//vv("top of active side select") // not seen 410
 					select {
 					case <-s.activeSideShutdownCkt:
 						return nil
@@ -465,7 +462,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 
 						tot := s.incrementReadErrors(ckt.Name)
 						_ = tot
-						vv("%v: (ckt %v) (active) ckt.Errors (total %v) sees fragerr:'%s'", name, ckt.Name, tot, fragerr)
+						//vv("%v: (ckt %v) (active) ckt.Errors (total %v) sees fragerr:'%s'", name, ckt.Name, tot, fragerr)
 						s.read_errorch <- fragerr
 						s.read_dropcopy_errors <- fragerr
 

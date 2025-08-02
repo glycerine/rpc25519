@@ -104,11 +104,11 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 	var hhalt *idem.Halter
 	_ = hhalt
 	if waitForAck {
-		vv("waitForAck true in StartRemotePeerAndGetCircuit") // seen
+		//vv("waitForAck true in StartRemotePeerAndGetCircuit") // seen
 		responseCh = make(chan *Message, 10)
 		responseErrCh = make(chan *Message, 10)
 		responseID := NewCallID("responseCallID for cktID(" + circuitID + ") in StartRemotePeerAndGetCircuit")
-		vv("responseID = '%v'; alias='%v'; responseCh=%p", responseID, AliasDecode(responseID), responseCh)
+		//vv("responseID = '%v'; alias='%v'; responseCh=%p", responseID, AliasDecode(responseID), responseCh)
 		frag.SetSysArg("fragRPCtoken", responseID)
 		p.u.GetReadsForCallID(responseCh, responseID)
 		p.u.GetErrorsForCallID(responseErrCh, responseID)
@@ -135,7 +135,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 		}
 	}
 
-	vv("in implRemotePeerAndGetCircuit(waitForAck='%v', preferExtant='%v'): msg='%v'", waitForAck, preferExtant, msg)
+	//vv("in implRemotePeerAndGetCircuit(waitForAck='%v', preferExtant='%v'): msg='%v'", waitForAck, preferExtant, msg)
 
 	// this effectively is all that happens to set
 	// up the circuit.
@@ -172,10 +172,10 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 			return nil, ErrTimeout
 
 		case errMsg := <-responseErrCh:
-			vv("got errMsg = '%v'", errMsg)
+			//vv("got errMsg = '%v'", errMsg)
 			return nil, fmt.Errorf("error sending '%v' to remote: %v", frag.Typ, errMsg.JobErrs)
 		case responseMsg := <-responseCh:
-			vv("got responseMsg! yay! = '%v'", responseMsg)
+			//vv("got responseMsg! yay! = '%v'", responseMsg)
 			if responseMsg.LocalErr != nil {
 				err = responseMsg.LocalErr
 				return
@@ -197,7 +197,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 				// to get an accurate rpb.PeerID if the
 				// peer was already running and had
 				// already assigned a PeerID to itself.
-				vv("setting actual PeerID from guess '%v' -> actual '%v'", rpb.PeerID, responseMsg.HDR.FromPeerID)
+				//vv("setting actual PeerID from guess '%v' -> actual '%v'", rpb.PeerID, responseMsg.HDR.FromPeerID)
 				rpb.PeerID = responseMsg.HDR.FromPeerID
 				rpb.PeerName = responseMsg.HDR.FromPeerName
 				ckt.RemotePeerID = responseMsg.HDR.FromPeerID
