@@ -1157,16 +1157,17 @@ func (p *peerAPI) unlockedStartLocalPeer(
 		return nil, fmt.Errorf("no local peerServiceName '%v' available", peerServiceName)
 	}
 
-	// enfoce cfg.ServiceLimit
+	// enforce cfg.ServiceLimit
 	cfg := p.u.GetConfig()
-	if cfg.ServiceLimit > 0 {
+	lim := cfg.GetLimitMax(peerServiceName)
+	if lim > 0 {
 		knownLocalPeer.mut.Lock()
 		if knownLocalPeer.active != nil {
 			ncur := knownLocalPeer.active.Len()
-			if ncur >= cfg.ServiceLimit {
+			if ncur >= lim {
 				// at limit, reject making another
 				knownLocalPeer.mut.Unlock()
-				return nil, fmt.Errorf("peerServiceName '%v' already at cfg.ServiceLimit = %v, refusing to make another", peerServiceName, cfg.ServiceLimit)
+				return nil, fmt.Errorf("peerServiceName '%v' already at cfg.ServiceLimit = %v, refusing to make another", peerServiceName, lim)
 			}
 		}
 		knownLocalPeer.mut.Unlock()
@@ -1485,11 +1486,13 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	knownLocalPeer.mut.Unlock()
 
 	cfg := s.u.GetConfig()
+	lim := cfg.GetLimitMax(peerServiceName)
+
 	//vv("needNewLocalPeer=%v, curServiceCount(%v); cfg.ServiceLimit(%v)", needNewLocalPeer, curServiceCount, cfg.ServiceLimit)
 	if needNewLocalPeer {
-		if cfg.ServiceLimit > 0 && curServiceCount >= cfg.ServiceLimit {
+		if lim > 0 && curServiceCount >= lim {
 			// at limit, reject making another
-			return s.rejectWith(fmt.Sprintf("peerServiceName '%v' already at cfg.ServiceLimit = %v", peerServiceName, cfg.ServiceLimit), isCli, msg, ctx, sendCh)
+			return s.rejectWith(fmt.Sprintf("peerServiceName '%v' already at cfg.ServiceLimit = %v", peerServiceName, lim), isCli, msg, ctx, sendCh)
 		}
 		// spin one up!
 		//vv("needNewLocalPeer true! spinning up a peer for peerServicename '%v'; Typ='%v'", peerServiceName, msg.HDR.Typ)

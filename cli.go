@@ -1087,13 +1087,44 @@ type Config struct {
 	// one singleSimnet.
 	simnetRendezvous *simnetRendezvous
 
-	// detect/prevent more than a single
-	// or any integer limit to services
-	// under a given (Peer)ServiceName,
+	// LimitedServiceNames and LimitedServiceMax
+	// can prevent more than a single
+	// instance under a (Peer)ServiceName from
+	// being started.
+	//
+	// Actually the limit can be higher
+	// than 1 if desired. This enables us
 	// to catch issues around starting
 	// redundant services by mistake.
-	// ServiceLimit of 0 means no limit.
-	ServiceLimit int
+	//
+	// ServiceLimitMax of 0 means no limit.
+	//
+	// Only those listed in LimitedServiceNames
+	// have the corresponding LimitedServiceMax
+	// imposed. We use parallel slices instead
+	// of a map to avoid non-deterministic output.
+	LimitedServiceNames []string
+	LimitedServiceMax   []int
+}
+
+func (cfg *Config) GetLimitMax(peerServiceName string) int {
+
+	nName := len(cfg.LimitedServiceNames)
+	nLim := len(cfg.LimitedServiceMax)
+	// sanity check
+	if nName != nLim {
+		panic(fmt.Sprintf("bad Config! len(cfg.LimitedServiceNames)=%v but len(cfg.LimitedServiceMax)=%v; cfg = '%v'", nName, nLim, cfg))
+	}
+	if nName == 0 {
+		return 0
+	}
+	for i, name := range cfg.LimitedServiceNames {
+		if name == peerServiceName {
+			return cfg.LimitedServiceMax[i]
+		}
+	}
+	// name not found, means no limit
+	return 0
 }
 
 func (cfg *Config) GetSimnet() *Simnet {
@@ -2869,7 +2900,27 @@ func (c *Config) String() (r string) {
 
 func (c *Config) StringBody() (r string) {
 
-	r += fmt.Sprintf("        ServiceLimit: %v,\n", c.ServiceLimit)
+	nName := len(c.LimitedServiceNames)
+	nLim := len(c.LimitedServiceMax)
+	// sanity check
+	if nName != nLim {
+		panic(fmt.Sprintf("bad Config! len(cfg.LimitedServiceNames)=%v but len(cfg.LimitedServiceMax)=%v", nName, nLim))
+	}
+	var limNames, limMax string
+	for i, name := range c.LimitedServiceNames {
+		if i > 0 {
+			limNames += ", "
+		}
+		limNames += fmt.Sprintf(`"%v"`, name)
+	}
+	for i, lim := range c.LimitedServiceMax {
+		if i > 0 {
+			limMax += ", "
+		}
+		limMax += fmt.Sprintf(`%v`, lim)
+	}
+	r += fmt.Sprintf(" LimitedServiceNames: [%v],\n", limNames)
+	r += fmt.Sprintf("   LimitedServiceMax: [%v],\n", limMax)
 	r += fmt.Sprintf("       QuietTestMode: %v,\n", c.QuietTestMode)
 	r += fmt.Sprintf("          ServerAddr: \"%v\",\n", c.ServerAddr)
 	r += fmt.Sprintf("      ClientHostPort: \"%v\",\n", c.ClientHostPort)
@@ -2897,6 +2948,29 @@ func (c *Config) StringBody() (r string) {
 func (c *Config) ShortStringBody() string {
 	var parts []string
 
+	nName := len(c.LimitedServiceNames)
+	nLim := len(c.LimitedServiceMax)
+	// sanity check
+	if nName != nLim {
+		panic(fmt.Sprintf("bad Config! len(cfg.LimitedServiceNames)=%v but len(cfg.LimitedServiceMax)=%v", nName, nLim))
+	}
+	if nLim > 0 {
+		var limNames, limMax string
+		for i, name := range c.LimitedServiceNames {
+			if i > 0 {
+				limNames += ", "
+			}
+			limNames += fmt.Sprintf(`"%v"`, name)
+		}
+		for i, lim := range c.LimitedServiceMax {
+			if i > 0 {
+				limMax += ", "
+			}
+			limMax += fmt.Sprintf(`%v`, lim)
+		}
+		parts = append(parts, fmt.Sprintf(" LimitedServiceNames: [%v]", limNames))
+		parts = append(parts, fmt.Sprintf("   LimitedServiceMax: [%v]", limMax))
+	}
 	if c.QuietTestMode {
 		parts = append(parts, fmt.Sprintf("       QuietTestMode: %v", c.QuietTestMode))
 	}

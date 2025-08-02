@@ -29,7 +29,8 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 
 	suffix := "emptyPeerID_410"
 	cfg := NewConfig()
-	cfg.ServiceLimit = 1
+	cfg.LimitedServiceNames = []string{"cli_" + suffix, "srv_" + suffix}
+	cfg.LimitedServiceMax = []int{1, 1}
 
 	j := newTestJunk3(suffix, cfg)
 	defer j.cleanup()
