@@ -46,8 +46,9 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	panicOn(err)
 	defer cli_lpb.Close()
 
-	// part2 on makes part3 hang.
-	part1, part2, part3, part4 := false, true, true, false
+	// 2,3 only: part2 on makes part3 hang. fixed by omitting the CallPeerError error.
+	//part1, part2, part3, part4 := false, true, true, false
+	part1, part2, part3, part4 := true, true, true, true
 
 	netAddr := "tcp://" + j.cfg.ClientDialToHostPort
 	if part1 { // focus on server -> client for a moment TODO remove
