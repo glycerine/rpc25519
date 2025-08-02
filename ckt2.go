@@ -135,7 +135,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 		}
 	}
 
-	vv("in implRemotePeerAndGetCircuit(waitForAck='%v', preferExtant='%v'): msg.HDR='%v'", waitForAck, preferExtant, msg.HDR.String())
+	vv("in implRemotePeerAndGetCircuit(waitForAck='%v', preferExtant='%v'): msg='%v'", waitForAck, preferExtant, msg)
 
 	// this effectively is all that happens to set
 	// up the circuit.

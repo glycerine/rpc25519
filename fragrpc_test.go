@@ -43,6 +43,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	panicOn(err)
 	defer cli_lpb.Close()
 
+	// part2 on makes part3 hang.
 	part1, part2, part3, part4 := false, true, true, false
 
 	netAddr := "tcp://" + j.cfg.ClientDialToHostPort
@@ -102,12 +103,16 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		if err == ErrTimeout {
 			panic("should get no such service name found! not ErrTimeout")
 		}
-		//vv("server no-such-service checked: good, got err = '%v'", err)
+		vv("server no-such-service checked: good, got err = '%v'", err)
+		select {}
 	}
 
 	// ============================
 	// good, client to server works.
-	// Now check the other way around.
+	// Now check the other way around: server -to-> client
+	//
+	// This also verifies that our last error
+	// did not accidentally take down the whole client!
 
 	//vv("and check from server to client, the same test of PreferExtantRemotePeerGetCircuit. to cli_lpb.URL() = '%v'", cli_lpb.URL())
 

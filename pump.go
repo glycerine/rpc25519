@@ -298,13 +298,14 @@ func (pb *LocalPeer) peerbackPump() {
 
 			callID := msgerr.HDR.CallID
 			ckt, ok := m[callID]
-			//vv("pump %v: ckt ok=%v on errorsIn", name, ok)
+			vv("pump %v: ckt ok=%v on errorsIn", name, ok)
 			if !ok {
 				//vv("%v: arg. no ckt avail for callID = '%v' on msgerr", name, callID)
 				continue
 			}
-			////zz("pump %v: (ckt %v) sees msgerr='%v'", name, ckt.Name, msgerr)
+			vv("pump %v: (ckt %v) sees msgerr='%v'", name, ckt.Name, msgerr)
 
+			vv("pump %v: ckt.Errors = %p", name, ckt.Errors)
 			// these are on ReadsIn above, not ErrorsIn, per handleReply_to_CallID_ToPeerID.
 			// if msgerr.HDR.Typ == CallPeerEndCircuit {
 			// 	////zz("pump %v: (ckt %v) sees msgerr CallPeerEndCircuit in msgerr: '%v'", name, ckt.Name, msgerr)
@@ -313,7 +314,7 @@ func (pb *LocalPeer) peerbackPump() {
 			// }
 
 			fragerr := ckt.ConvertMessageToFragment(msgerr)
-			select {
+			select { // 410 hung here!
 			case ckt.Errors <- fragerr:
 			case <-ckt.Halt.ReqStop.Chan:
 				cleanupCkt(ckt, true)

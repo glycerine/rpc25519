@@ -1321,8 +1321,14 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 //			    ...
 //
 // .
-func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
+func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) (err0 error) {
 	//vv("isCli=%v, bootstrapCircuit called with msg='%v'; JobSerz='%v'", isCli, msg.String(), string(msg.JobSerz))
+
+	defer func() {
+		if err0 != nil {
+			vv("arg: bootstrapCircuit returning err0='%v'; this will shutdown the conn", err0) // not seen 410. good.
+		}
+	}()
 
 	// find the localPeerback corresponding to the ToPeerID
 	localPeerID := msg.HDR.ToPeerID
@@ -1577,7 +1583,9 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 }
 
 // replyHelper helps bootstrapCircuit with replying, keeping its
-// code more compact.
+// code more compact. Only return errors here that
+// should shut down the whole client/connection; like
+// host-shutdown errors.
 func (s *peerAPI) replyHelper(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
 
 	// assume these are correctly set not:
