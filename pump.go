@@ -159,7 +159,7 @@ func (pb *LocalPeer) peerbackPump() {
 			close(query.Ready)
 
 		case ckt := <-pb.TellPumpNewCircuit:
-			//vv("%v pump: ckt := <-pb.TellPumpNewCircuit: for ckt='%v'", name, ckt.Name)
+			vv("%v pump: ckt := <-pb.TellPumpNewCircuit: for ckt=%p/'%v'", name, ckt, ckt.Name)
 			m[ckt.CircuitID] = ckt
 			pb.Halt.AddChild(ckt.Halt)
 
@@ -207,7 +207,7 @@ func (pb *LocalPeer) peerbackPump() {
 			//vv("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
 
 			if msg.HDR.Typ == CallPeerEndCircuit {
-				//vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg)
+				vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg)
 				cleanupCkt(ckt, false)
 				//zz("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg. back from cleanupCkt, about to continue: '%v'", name, ckt.Name, msg)
 				continue
@@ -295,6 +295,7 @@ func (pb *LocalPeer) peerbackPump() {
 		case msgerr := <-pb.ErrorsIn:
 			// per srv.go:670 handleReply_to_CallID_ToPeerID()
 			// CallError, CallPeerError get here.
+			// Problem is, if there is no peer to handle them?
 
 			callID := msgerr.HDR.CallID
 			ckt, ok := m[callID]
@@ -305,7 +306,7 @@ func (pb *LocalPeer) peerbackPump() {
 			}
 			vv("pump %v: (ckt %v) sees msgerr='%v'", name, ckt.Name, msgerr)
 
-			vv("pump %v: ckt.Errors = %p", name, ckt.Errors)
+			vv("pump %v: ckt=%p ckt.Errors = %p; msgerr = '%v'; ckt.Errors=%p", name, ckt, ckt.Errors, ckt.Errors, msgerr)
 			// these are on ReadsIn above, not ErrorsIn, per handleReply_to_CallID_ToPeerID.
 			// if msgerr.HDR.Typ == CallPeerEndCircuit {
 			// 	////zz("pump %v: (ckt %v) sees msgerr CallPeerEndCircuit in msgerr: '%v'", name, ckt.Name, msgerr)
@@ -314,7 +315,7 @@ func (pb *LocalPeer) peerbackPump() {
 			// }
 
 			fragerr := ckt.ConvertMessageToFragment(msgerr)
-			select { // 410 hung here!
+			select { // 410 hung here! intermit. may be a race to shutdown?
 			case ckt.Errors <- fragerr:
 			case <-ckt.Halt.ReqStop.Chan:
 				cleanupCkt(ckt, true)
@@ -324,6 +325,7 @@ func (pb *LocalPeer) peerbackPump() {
 			case <-done:
 				return
 			}
+			vv("past the fragerr delivery")
 		}
 	}
 }

@@ -33,12 +33,15 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 
 	// srv is started. cli is started.
 	// "cli_" + suffix peerServiceFunc has been registered at client (j.cliServiceName)
+	// (cli_emptyPeerID_410)
 	// "srv_" + suffix peerServiceFunc has been registered at server (j.srvServiceName)
+	// (srv_emptyPeerID_410)
 	// No peers have been started yet.
 
 	ctx := context.Background()
 
 	cliPeerName := "cliPeerName_410"
+	vv("starting client peer service '%v'", j.cliServiceName)
 	cli_lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil, cliPeerName)
 	panicOn(err)
 	defer cli_lpb.Close()
@@ -79,7 +82,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 
 		cktName2 := "ckt-410-2nd" // what to call our new circuit
 		ckt2, err := j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb, cktName2, nil, serviceName, netAddr, 0)
-
+		panicOn(err)
 		//vv("ckt2 = '%v'", ckt2)
 
 		// we want that the remote PeerID is the same as the one
@@ -95,8 +98,9 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 
 		// we should get an error if there is no such service name available!
 		wrongServiceNameSrv := "service_name_not_avail_on_server"
-		cktName4 := "will_never_be_used"
-		_, err = j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb, cktName4, nil, wrongServiceNameSrv, netAddr, time.Second*2)
+		cktName4 := "cli_cktname_will_never_be_used"
+		var ckt4 *Circuit
+		ckt4, err = j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb, cktName4, nil, wrongServiceNameSrv, netAddr, time.Second*2)
 		if err == nil {
 			panic("should get no name found!")
 		}
@@ -104,7 +108,11 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 			panic("should get no such service name found! not ErrTimeout")
 		}
 		vv("server no-such-service checked: good, got err = '%v'", err)
-		select {}
+		// cli_emptyPeerID_410 ckt.Name is not handling Errors!
+		if ckt4 != nil {
+			vv("ckt4 = %#v", ckt4)
+			panic("ckt4 should be nil")
+		}
 	}
 
 	// ============================

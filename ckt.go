@@ -857,6 +857,7 @@ func (lpb *LocalPeer) newCircuit(
 
 	//lpb.Halt.AddChild(ckt.Halt) // no worries: pump will do this.
 
+	//vv("newCircuit is telling pump about ckt=%p", ckt) // , ckt.Errors) //, stack())
 	select {
 	case lpb.TellPumpNewCircuit <- ckt:
 
@@ -1346,36 +1347,46 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		msg.HDR.FromPeerID, msg.HDR.ToPeerID = msg.HDR.ToPeerID, msg.HDR.FromPeerID
 		msg.HDR.FromPeerName, msg.HDR.ToPeerName = msg.HDR.ToPeerName, msg.HDR.FromPeerName
 		msg.JobErrs = fmt.Sprintf("no local peerServiceName '%v' available", peerServiceName)
-		msg.HDR.Typ = CallPeerError
-		if msg.HDR.ToPeerID == "" {
-			// hmm. msg.HDR.CallID is what
-			// notifies.handleReply_to_CallID_ToPeerID will
-			// match on in this case.
-			vv("warning, msg.HDR.ToPeerID is empty; in error: '%v'", msg.JobErrs)
-			// maybe we should... figure out something
-			// that will not result in the error begin dropped
-			// on the other end.
-		}
 		msg.JobSerz = nil
 		fromService, ok := msg.HDR.Args["#fromServiceName"]
 		if ok {
 			msg.HDR.Args["#toServiceName"] = fromService
 			delete(msg.HDR.Args, "#fromServiceName")
 		}
-		// avoid data race, clone msg first
-		msg2 := &Message{
-			HDR:     msg.HDR,
-			JobErrs: msg.JobErrs,
-		}
+
 		vv("bootstrapCircuit returning early (isCli=%v): '%v'", isCli, msg.JobErrs)
-		_ = s.replyHelper(isCli, msg, ctx, sendCh)
+
+		// having this be CallPeerError is creating a hang
+		// at the remote (client in 410 part 2 fragrpc_test);
+		// because the peerServiceFunc there does not know
+		// there is a circuit to service yet... leave it out?
+		if false {
+			msg.HDR.Typ = CallPeerError
+			if msg.HDR.ToPeerID == "" {
+				// hmm. msg.HDR.CallID is what
+				// notifies.handleReply_to_CallID_ToPeerID will
+				// match on in this case.
+				vv("warning, msg.HDR.ToPeerID is empty; in error: '%v'", msg.JobErrs)
+				// maybe we should... figure out something
+				// that will not result in the error begin dropped
+				// on the other end.
+			}
+			// avoid data race, clone msg first
+			msg2 := &Message{
+				HDR:     msg.HDR,
+				JobErrs: msg.JobErrs,
+			}
+			_ = s.replyHelper(isCli, msg, ctx, sendCh)
+			vv("1st msg.HDR.Serial = %v", msg.HDR.Serial)
+			msg = msg2
+		}
 
 		// send second error message with the Typ
 		// always expected on the happy path, to let
 		// the #fragRPCtoken machinery pick up on it.
 		// Cf 410 fragrpc_test checks for this error.
-		msg2.HDR.Typ = CallPeerCircuitEstablishedAck
-		return s.replyHelper(isCli, msg2, ctx, sendCh)
+		msg.HDR.Typ = CallPeerCircuitEstablishedAck
+		return s.replyHelper(isCli, msg, ctx, sendCh)
 	}
 	vv("good: bootstrapCircuit found registered peerServiceName: '%v'", peerServiceName)
 
