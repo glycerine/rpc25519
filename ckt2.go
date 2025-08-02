@@ -59,6 +59,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 	frag.SetSysArg("fromServiceName", lpb.PeerServiceName)
 	frag.SetSysArg("circuitName", circuitName)
 	frag.FromPeerID = lpb.PeerID
+	frag.FromPeerName = lpb.PeerName
 
 	var pleaseAssignNewRemotePeerID string
 	if preferExtant {

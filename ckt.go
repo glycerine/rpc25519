@@ -1338,6 +1338,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		// Re-use same msg in error reply:
 		msg.HDR.From, msg.HDR.To = msg.HDR.To, msg.HDR.From
 		msg.HDR.FromPeerID, msg.HDR.ToPeerID = msg.HDR.ToPeerID, msg.HDR.FromPeerID
+		msg.HDR.FromPeerName, msg.HDR.ToPeerName = msg.HDR.ToPeerName, msg.HDR.FromPeerName
 		msg.JobErrs = fmt.Sprintf("no local peerServiceName '%v' available", peerServiceName)
 		msg.HDR.Typ = CallPeerError
 		if msg.HDR.ToPeerID == "" {

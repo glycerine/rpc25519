@@ -43,12 +43,15 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	panicOn(err)
 	defer cli_lpb.Close()
 
-	if false { // focus on server -> client for a moment TODO remove
-		netAddr := "tcp://" + j.cfg.ClientDialToHostPort
+	part1, part2, part3, part4 := false, true, true, false
+
+	netAddr := "tcp://" + j.cfg.ClientDialToHostPort
+	if part1 { // focus on server -> client for a moment TODO remove
 
 		serviceName := "srv_" + suffix
 		url := netAddr + sep + serviceName
-		vv("url constructed = '%v'", url)
+		_ = url
+		//vv("url constructed = '%v'", url)
 
 		cktName := "ckt-410" // what to call our new circuit
 		_ = cktName
@@ -62,10 +65,10 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		panicOn(err)
 		_ = ctx
 
-		vv("ckt = '%v'", ckt)
+		//vv("ckt = '%v'", ckt)
 
 		if ckt.RemotePeerID == "" {
-			vv("ckt='%v'", ckt)
+			//vv("ckt='%v'", ckt)
 			panic("ckt.RemotePeerID should not be empty")
 		}
 
@@ -76,7 +79,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		cktName2 := "ckt-410-2nd" // what to call our new circuit
 		ckt2, err := j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb, cktName2, nil, serviceName, netAddr, 0)
 
-		vv("ckt2 = '%v'", ckt2)
+		//vv("ckt2 = '%v'", ckt2)
 
 		// we want that the remote PeerID is the same as the one
 		// we started originally/first time.
@@ -84,11 +87,29 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 			panic(fmt.Sprintf("wanted ckt.RemotePeerID='%v', got ckt2.RemotePeerID='%v'", ckt.RemotePeerID, ckt2.RemotePeerID))
 		}
 	}
+
+	if part2 {
+		// we should get error back from server if
+		// no such peer service name available.
+
+		// we should get an error if there is no such service name available!
+		wrongServiceNameSrv := "service_name_not_avail_on_server"
+		cktName4 := "will_never_be_used"
+		_, err = j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb, cktName4, nil, wrongServiceNameSrv, netAddr, time.Second*2)
+		if err == nil {
+			panic("should get no name found!")
+		}
+		if err == ErrTimeout {
+			panic("should get no such service name found! not ErrTimeout")
+		}
+		//vv("server no-such-service checked: good, got err = '%v'", err)
+	}
+
 	// ============================
 	// good, client to server works.
 	// Now check the other way around.
 
-	vv("and check from server to client, the same test of PreferExtantRemotePeerGetCircuit. to cli_lpb.URL() = '%v'", cli_lpb.URL())
+	//vv("and check from server to client, the same test of PreferExtantRemotePeerGetCircuit. to cli_lpb.URL() = '%v'", cli_lpb.URL())
 
 	srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil, "srv_lpb_peer_name")
 	panicOn(err)
@@ -98,21 +119,24 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 
 	cliNetAddr, cliServiceName, cliPeerID, cliCktID, err := ParsePeerURL(cli_lpb.URL())
 	panicOn(err)
-	vv("client serviceName = '%v'", cliServiceName)
-	vv("client netAddr = '%v'", cliNetAddr)
-	vv("client peerID = '%v'", cliPeerID)
-	vv("client cktID = '%v'", cliCktID)
+	_ = cliCktID
+	//vv("client serviceName = '%v'", cliServiceName)
+	//vv("client netAddr = '%v'", cliNetAddr)
+	//vv("client peerID = '%v'", cliPeerID)
+	//vv("client cktID = '%v'", cliCktID)
 
 	cliurl := cliNetAddr + sep + cliServiceName
-	vv("client url in use: '%v'", cliurl)
+	_ = cliurl
+	//vv("client url in use: '%v'", cliurl)
 
 	cktName3 := "ckt-410-3rd" // what to call our new circuit
-	if false {
-		// works
+	if part3 {
+		// works. but now hung? works on its own; crosstalk between test parts...
+		// maybe the error test above is taking down the service?
 		ckt3, err := j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb, cktName3, nil, cliServiceName, cliNetAddr, 0)
 		panicOn(err)
 
-		vv("ckt3 = '%v'", ckt3)
+		//vv("ckt3 = '%v'", ckt3)
 
 		// we want that the remote cli_lpb.PeerID is the same as the one
 		// we started originally/first time.
@@ -121,14 +145,17 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		}
 	}
 
-	// we should get an error if there is no such service name available!
-	wrongServiceName := "service_name_not_avail_on_client"
-	_, err = j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb, cktName3, nil, wrongServiceName, cliNetAddr, time.Second*2)
-	if err == nil {
-		panic("should get no name found!")
+	if part4 {
+		// works
+		// we should get an error if there is no such service name available!
+		wrongServiceName := "service_name_not_avail_on_client"
+		_, err = j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb, cktName3, nil, wrongServiceName, cliNetAddr, time.Second*2)
+		if err == nil {
+			panic("should get no name found!")
+		}
+		if err == ErrTimeout {
+			panic("should get no such service name found! not ErrTimeout")
+		}
+		//vv("good, got err = '%v'", err)
 	}
-	if err == ErrTimeout {
-		panic("should get no such service name found! not ErrTimeout")
-	}
-	vv("good, got err = '%v'", err)
 }
