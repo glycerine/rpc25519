@@ -512,7 +512,7 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 		frag.FromPeerServiceName = ckt.LocalServiceName
 	}
 
-	//vv("sending frag='%v'", frag)
+	//vv("sending frag='%v' to (if To empty, send to:) ckt.RpbTo.NetAddr='%v'", frag, ckt.RpbTo.NetAddr)
 	msg := ckt.ConvertFragmentToMessage(frag)
 	if keepFragIfPositive <= 0 {
 		s.FreeFragment(frag)
@@ -1488,7 +1488,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	cfg := s.u.GetConfig()
 	lim := cfg.GetLimitMax(peerServiceName)
 
-	//vv("needNewLocalPeer=%v, curServiceCount(%v); cfg.ServiceLimit(%v)", needNewLocalPeer, curServiceCount, cfg.ServiceLimit)
+	//vv("needNewLocalPeer=%v, curServiceCount(%v); cfg.ServiceLimit(%v)", needNewLocalPeer, curServiceCount, lim)
 	if needNewLocalPeer {
 		if lim > 0 && curServiceCount >= lim {
 			// at limit, reject making another

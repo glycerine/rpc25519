@@ -145,7 +145,10 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 	// instead of just the netAddr part
 	netAddr, _, _, _, err := ParsePeerURL(remoteAddr)
 	panicOn(err)
+	//vv("got netAddr = '%v' from remoteAddr = '%v'", netAddr, remoteAddr)
 	msg.HDR.To = netAddr
+	// was: (no ParsePeerURL prior):
+	//msg.HDR.To = remoteAddr
 
 	// server will return "" because many possible clients,
 	// but this can still help out the user on the client
@@ -158,7 +161,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 		}
 	}
 
-	//vv("in implRemotePeerAndGetCircuit(waitForAck='%v', preferExtant='%v'): msg='%v'", waitForAck, preferExtant, msg)
+	//vv("in implRemotePeerAndGetCircuit(waitForAck='%v', preferExtant='%v'): remoteAddr() -> r='%v'; msg='%v'", waitForAck, preferExtant, r, msg)
 
 	// this effectively is all that happens to set
 	// up the circuit.
@@ -172,7 +175,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 		LocalPeer: lpb,
 		PeerID:    pleaseAssignNewRemotePeerID,
 		//PeerName:         unknown as of yet
-		NetAddr:           remoteAddr,
+		NetAddr:           netAddr,
 		RemoteServiceName: remotePeerServiceName,
 	}
 	if pleaseAssignNewRemotePeerID != "" {
@@ -240,4 +243,10 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 		}
 	}
 	return
+}
+
+func (s *LocalPeer) PreferExtantRemotePeerGetCircuit(circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration) (ckt *Circuit, err error) {
+	waitForAck := true
+	preferExtant := true
+	return s.PeerAPI.implRemotePeerAndGetCircuit(s, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, preferExtant)
 }
