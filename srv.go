@@ -812,7 +812,7 @@ func newNotifies(isCli bool, u UniversalCliSrv) *notifies {
 // types. An example is the Fragment/Peer/Circuit system.
 func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Context, msg *Message) (done bool) {
 
-	vv("handleReply_to_CallID_ToPeerID(isCli=%v) msg='%v'", isCli, msg)
+	//vv("handleReply_to_CallID_ToPeerID(isCli=%v) msg='%v'", isCli, msg)
 	switch msg.HDR.Typ {
 	case CallError, CallPeerError:
 		// not CallPeerFromIsShutdown, since the pump is handling it on ReadsIn
@@ -823,11 +823,11 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 		if msg.HDR.ToPeerID != "" {
 
 			wantsErrObj, ok := c.notifyOnErrorToPeerIDMap.get(msg.HDR.ToPeerID)
-			vv("ok = %v on c.notifyOnErrorToPeerIDMap.get(msg.HDR.ToPeerID='%v')", ok, msg.HDR.ToPeerID)
+			//vv("ok = %v on c.notifyOnErrorToPeerIDMap.get(msg.HDR.ToPeerID='%v')", ok, msg.HDR.ToPeerID)
 			if ok {
 				select {
 				case wantsErrObj <- msg:
-					vv("notified a channel! %p for ToPeerID '%v'; was sent msg='%v'", wantsErrObj, msg.HDR.ToPeerID, msg)
+					//vv("notified a channel! %p for ToPeerID '%v'; was sent msg='%v'", wantsErrObj, msg.HDR.ToPeerID, msg)
 
 				case <-ctx.Done():
 					// think we want backpressure and to make sure the peer goro keep up.
@@ -840,7 +840,7 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 		}
 
 		wantsErr, ok := c.notifyOnErrorCallIDMap.get(msg.HDR.CallID)
-		vv("ok = %v on c.notifyOnErrorToCallIDMap.get(msg.HDR.CallID='%v')", ok, msg.HDR.CallID)
+		//vv("ok = %v on c.notifyOnErrorToCallIDMap.get(msg.HDR.CallID='%v')", ok, msg.HDR.CallID)
 		if ok {
 			select {
 			case wantsErr <- msg:

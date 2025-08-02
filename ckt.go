@@ -822,7 +822,7 @@ func (lpb *LocalPeer) newCircuit(
 
 ) (ckt *Circuit, ctx2 context.Context, err error) {
 
-	vv("newCircuit() called. isRemoteSide = %v; stack = \n%v", isRemoteSide, stack())
+	vv("newCircuit() called. isRemoteSide = %v", isRemoteSide) //, stack())
 
 	if lpb.Halt.ReqStop.IsClosed() {
 		return nil, nil, ErrHaltRequested
@@ -1355,15 +1355,20 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 			msg.HDR.Args["#toServiceName"] = fromService
 			delete(msg.HDR.Args, "#fromServiceName")
 		}
-		vv("bootstrapCircuit returning early: '%v'", msg.JobErrs)
+		// avoid data race, clone msg first
+		msg2 := &Message{
+			HDR:     msg.HDR,
+			JobErrs: msg.JobErrs,
+		}
+		vv("bootstrapCircuit returning early (isCli=%v): '%v'", isCli, msg.JobErrs)
 		_ = s.replyHelper(isCli, msg, ctx, sendCh)
 
 		// send second error message with the Typ
 		// always expected on the happy path, to let
 		// the #fragRPCtoken machinery pick up on it.
-		msg.HDR.Typ = CallPeerCircuitEstablishedAck
-		return s.replyHelper(isCli, msg, ctx, sendCh)
-
+		// Cf 410 fragrpc_test checks for this error.
+		msg2.HDR.Typ = CallPeerCircuitEstablishedAck
+		return s.replyHelper(isCli, msg2, ctx, sendCh)
 	}
 	vv("good: bootstrapCircuit found registered peerServiceName: '%v'", peerServiceName)
 
@@ -1777,28 +1782,28 @@ func (a *Fragment) Compare(b *Fragment) int {
 // peers on the same machine, and tell the
 // caller about them. For now we start simple.
 func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message) error {
-	vv("gotCircuitEstablishedAck seen. isCli=%v; msg='%v'", isCli, msg) // seen 1x in 410, isCli = true
+	//vv("gotCircuitEstablishedAck seen. isCli=%v; msg='%v'", isCli, msg) // seen 1x in 410, isCli = true
 	token, ok := msg.HDR.Args["#fragRPCtoken"]
 	if ok {
 		chGood, chErr := s.u.GetChanInterestedInCallID(token)
 		if chGood == nil && chErr == nil {
-			vv("nobody interested in fragRPC token '%v', dropping: '%v'", token, msg)
+			//vv("nobody interested in fragRPC token '%v', dropping: '%v'", token, msg)
 			return nil
 		}
 
 		if msg.JobErrs == "" {
 			if chGood != nil {
 				// happy path
-				vv("good: about to notify ch=%p about token '%v'", chGood, token)
+				//vv("good: about to notify ch=%p about token '%v'", chGood, token)
 				select {
 				case chGood <- msg:
-					vv("good: notification of ch=%p about token '%v' sent", chGood, token)
+					//vv("good: notification of ch=%p about token '%v' sent", chGood, token)
 				case <-ctx.Done():
 				case <-s.u.GetHostHalter().ReqStop.Chan:
 					return ErrHaltRequested
 				}
 			} else {
-				vv("dropping msg GetChanInterestedInCallID found no happy chan for #fragRPCtoken = '%v'", token)
+				//vv("dropping msg GetChanInterestedInCallID found no happy chan for #fragRPCtoken = '%v'", token)
 				return nil
 			}
 		}
@@ -1806,14 +1811,14 @@ func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context
 		// have msg.JobErrs
 		if chErr == nil {
 			if chGood != nil {
-				vv("warning: delivering error on chGood, no separate error registration found.")
+				//vv("warning: delivering error on chGood, no separate error registration found.")
 				chErr = chGood
 			}
 		}
-		vv("about to notify chErr=%p about error re token '%v'", chErr, token)
+		//vv("about to notify chErr=%p about error re token '%v'", chErr, token)
 		select {
 		case chErr <- msg:
-			vv("good: chErr notification of ch=%p about token '%v' sent", chErr, token)
+			//vv("good: chErr notification of ch=%p about token '%v' sent", chErr, token)
 		case <-ctx.Done():
 		case <-s.u.GetHostHalter().ReqStop.Chan:
 			return ErrHaltRequested

@@ -122,7 +122,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	}
 
 	// we should get an error if there is no such service name available!
-	wrongServiceName := "wrong_name_not_avail"
+	wrongServiceName := "service_name_not_avail_on_client"
 	_, err = j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb, cktName3, nil, wrongServiceName, cliNetAddr, time.Second*2)
 	if err == nil {
 		panic("should get no name found!")

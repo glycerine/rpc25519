@@ -270,7 +270,7 @@ func NewMessage() *Message {
 
 // String returns a string representation of msg.
 func (msg *Message) String() string {
-	return fmt.Sprintf("&Message{HDR:%v, LocalErr:'%v', len %v JobSerz}", msg.HDR.String(), msg.LocalErr, len(msg.JobSerz))
+	return fmt.Sprintf("&Message{HDR:%v, LocalErr:'%v',\n len %v JobSerz\n JobErrs: '%v'}", msg.HDR.String(), msg.LocalErr, len(msg.JobSerz), msg.JobErrs)
 }
 
 // NewMessageFromBytes calls NewMessage() and sets by as the JobSerz field.
