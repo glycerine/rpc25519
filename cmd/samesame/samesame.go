@@ -73,7 +73,7 @@ func main() {
 		//defer cli.Close()
 
 		req := rpc25519.NewMessage()
-		req.HDR.ServiceName = serviceName
+		req.HDR.ToServiceName = serviceName
 		req.JobSerz = []byte("client says hello and requests this be echoed back with a timestamp!")
 
 		reply, err := cli.SendAndGetReply(req, nil, 0)

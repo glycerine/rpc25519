@@ -136,6 +136,18 @@ func (m *Mutexmap[K, V]) GetMapReset() (mm map[K]V) {
 	return
 }
 
+// GetMapCloneAtomic atomically returns a clone
+// of the map, giving a consistent snapshot.
+func (m *Mutexmap[K, V]) GetMapCloneAtomic() (mm map[K]V) {
+	m.mut.Lock()
+	mm = make(map[K]V)
+	for k, v := range m.m {
+		mm[k] = v
+	}
+	m.mut.Unlock()
+	return
+}
+
 // Reset discards map contents, allocating it anew.
 func (m *Mutexmap[K, V]) Reset() {
 	m.mut.Lock()

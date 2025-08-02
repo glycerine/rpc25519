@@ -1403,6 +1403,8 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	needNewLocalPeer := false
 	var noPriorPeers bool
 	var extantPeerIDs []string
+	var extantPeerIDsURL0 string
+	var lpbsClone map[string]*LocalPeer
 
 	knownLocalPeer.mut.Lock()
 	if knownLocalPeer.active == nil {
@@ -1410,8 +1412,18 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		knownLocalPeer.active = NewMutexmap[string, *LocalPeer]()
 		needNewLocalPeer = true
 	} else {
-		curServiceCount = knownLocalPeer.active.Len()
-		extantPeerIDs = knownLocalPeer.active.GetKeySlice()
+		lpbsClone = knownLocalPeer.active.GetMapCloneAtomic()
+		curServiceCount = len(lpbsClone)
+		if curServiceCount > 0 {
+			i := 0
+			for k, v := range lpbsClone {
+				extantPeerIDs = append(extantPeerIDs, k)
+				if i == 0 {
+					extantPeerIDsURL0 = v.URL() // give the user a full URL on error
+				}
+				i++
+			}
+		}
 	}
 
 	pleaseAssignNewRemotePeerID, assignReqOk := msg.HDR.Args["#pleaseAssignNewPeerID"]
@@ -1497,8 +1509,11 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 			// at limit, reject making another. But tell
 			// them who it is
 			msg.HDR.Args["#LimitedServiceMax"] = fmt.Sprintf("%v", lim)
+			msg.HDR.Args["#LimitedServiceCurrentCount"] = fmt.Sprintf("%v", curServiceCount)
 			msg.HDR.Args["#LimitedServiceName"] = peerServiceName
 			msg.HDR.Args["#LimitedExistingPeerIDs_comma_sep"] = strings.Join(extantPeerIDs, ",")
+			msg.HDR.Args["#LimitedExistingPeerID_first"] = extantPeerIDs[0]
+			msg.HDR.Args["#LimitedExistingPeerID_first_url"] = extantPeerIDsURL0
 			return s.rejectWith(fmt.Sprintf("peerServiceName '%v' is listed in cfg.LimitedServiceNames and is already at cfg.LimitedServiceMax = %v", peerServiceName, lim), isCli, msg, ctx, sendCh)
 		}
 		// spin one up!
