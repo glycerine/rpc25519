@@ -21,6 +21,10 @@ import (
 // or an error. This is similar to using
 // WaitForAck=true in a call to the
 // sibling method StartRemotePeerAndGetCircuit.
+//
+// remoteAddr only needs to provide
+// "tcp://host:port" but we will trim
+// it down if it is a longer URL.
 func (p *peerAPI) PreferExtantRemotePeerGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration) (ckt *Circuit, err error) {
 	waitForAck := true
 	preferExtant := true
@@ -43,6 +47,10 @@ func (p *peerAPI) PreferExtantRemotePeerGetCircuit(lpb *LocalPeer, circuitName s
 // not registered -- perhaps because of a
 // typo in the name -- or we may
 // be talking to the wrong host.
+//
+// remoteAddr only needs to provide
+// "tcp://host:port" but we will trim
+// it down if it is a longer URL.
 func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, waitForAck bool) (ckt *Circuit, err error) {
 
 	return p.implRemotePeerAndGetCircuit(lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, false)
@@ -132,7 +140,12 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 
 	msg.HDR.Created = time.Now()
 	msg.HDR.From = p.u.LocalAddr()
-	msg.HDR.To = remoteAddr
+
+	// fix up if remoteAddr happens to be a full/partial URL
+	// instead of just the netAddr part
+	netAddr, _, _, _, err := ParsePeerURL(remoteAddr)
+	panicOn(err)
+	msg.HDR.To = netAddr
 
 	// server will return "" because many possible clients,
 	// but this can still help out the user on the client
