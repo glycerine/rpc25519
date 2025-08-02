@@ -971,7 +971,7 @@ func (s *Server) processWork(job *job) {
 	req.HDR.Nc = conn
 
 	if req.HDR.Typ == CallNetRPC {
-		//vv("have IsNetRPC call: '%v'", req.HDR.ServiceName)
+		//vv("have IsNetRPC call: '%v'", req.HDR.ToServiceName)
 		err := pair.callBridgeNetRpc(req, job)
 		if err != nil {
 			alwaysPrintf("callBridgeNetRpc errored out: '%v'", err)
@@ -981,39 +981,39 @@ func (s *Server) processWork(job *job) {
 
 	switch req.HDR.Typ {
 	case CallRPC:
-		back, ok := s.callme2map.Get(req.HDR.ServiceName)
+		back, ok := s.callme2map.Get(req.HDR.ToServiceName)
 		if ok {
 			callme2 = back
 			foundCallback2 = true
 		} else {
-			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallRPC begin received but no server side upcall registered for req.HDR.ServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ServiceName, req.HDR.CallID))
+			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallRPC begin received but no server side upcall registered for req.HDR.ServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ToServiceName, req.HDR.CallID))
 			return
 		}
 	case CallRequestBistreaming:
-		back, ok := s.callmeBistreamMap.Get(req.HDR.ServiceName)
+		back, ok := s.callmeBistreamMap.Get(req.HDR.ToServiceName)
 		if ok {
 			callmeBi = back
 			foundBistream = true
 			//vv("foundBistream true!")
 		} else {
-			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallRequestBistreaming received but no server side upcall registered for req.HDR.ServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ServiceName, req.HDR.CallID))
+			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallRequestBistreaming received but no server side upcall registered for req.HDR.ToServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ToServiceName, req.HDR.CallID))
 			return
 		}
 	case CallRequestDownload:
-		back, ok := s.callmeServerSendsDownloadMap.Get(req.HDR.ServiceName)
+		back, ok := s.callmeServerSendsDownloadMap.Get(req.HDR.ToServiceName)
 		if ok {
 			callmeServerSendsDownloadFunc = back
 			foundServerSendsDownload = true
 		} else {
-			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallRequestDownload received but no server side upcall registered for req.HDR.ServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ServiceName, req.HDR.CallID))
+			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallRequestDownload received but no server side upcall registered for req.HDR.ToServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ToServiceName, req.HDR.CallID))
 			return
 		}
 	case CallUploadBegin:
-		uploader, ok := s.callmeUploadReaderMap.Get(req.HDR.ServiceName)
+		uploader, ok := s.callmeUploadReaderMap.Get(req.HDR.ToServiceName)
 		if !ok {
 			// nothing to do
 			// send back a CallError
-			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallUploadBegin stream begin received but no registered stream upload reader available on the server. req.HDR.ServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ServiceName, req.HDR.CallID))
+			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallUploadBegin stream begin received but no registered stream upload reader available on the server. req.HDR.ToServiceName='%v'; req.HDR.CallID='%v'", req.HDR.ToServiceName, req.HDR.CallID))
 			return
 		}
 		foundUploader = true
@@ -1023,12 +1023,12 @@ func (s *Server) processWork(job *job) {
 		panic("cannot see these here, must for FIFO of the stream be called from the readloop")
 
 	case CallOneWay:
-		back, ok := s.callme1map.Get(req.HDR.ServiceName)
+		back, ok := s.callme1map.Get(req.HDR.ToServiceName)
 		if ok {
 			callme1 = back
 			foundCallback1 = true
 		} else {
-			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallOneWay received but no server side callme1map upcall registered for ServiceName='%v'; from req.HDR='%v'", req.HDR.ServiceName, req.HDR.String()))
+			s.respondToReqWithError(req, job, fmt.Sprintf("error! CallOneWay received but no server side callme1map upcall registered for HDR.ToServiceName='%v'; from req.HDR='%v'", req.HDR.ToServiceName, req.HDR.String()))
 			return
 		}
 	}
@@ -1065,7 +1065,7 @@ func (s *Server) processWork(job *job) {
 	// enforce these are the same.
 	replySeqno := req.HDR.Seqno
 	reqCallID := req.HDR.CallID
-	serviceName := req.HDR.ServiceName
+	serviceName := req.HDR.ToServiceName
 
 	// allow user to change Subject
 	reply.HDR.Subject = req.HDR.Subject
@@ -1118,7 +1118,8 @@ func (s *Server) processWork(job *job) {
 	reply.HDR.Seqno = replySeqno
 	reply.HDR.Typ = CallRPCReply
 	reply.HDR.Deadline = deadline
-	reply.HDR.ServiceName = serviceName
+	reply.HDR.ToServiceName = serviceName
+	reply.HDR.FromServiceName = serviceName
 
 	//vv("2way about to send its reply: '%#v'", reply)
 
@@ -1334,7 +1335,7 @@ func (s *Server) FreeMessage(msg *Message) {
 
 // like net_server.go NetServer.ServeCodec
 func (p *rwPair) callBridgeNetRpc(reqMsg *Message, job *job) error {
-	//vv("bridge called! subject: '%v'", reqMsg.HDR.ServiceName)
+	//vv("bridge called! subject: '%v'", reqMsg.HDR.ToServiceName)
 
 	p.encBuf.Reset()
 	p.encBufWriter.Reset(&p.encBuf)
@@ -1443,8 +1444,9 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 	msg.HDR.Serial = issueSerial()
 	msg.HDR.From = job.pair.from
 	msg.HDR.To = job.pair.to
-	msg.HDR.ServiceName = reqMsg.HDR.ServiceName // echo back
-	msg.HDR.Subject = reqMsg.HDR.Subject         // echo back
+	msg.HDR.ToServiceName = reqMsg.HDR.FromServiceName
+	msg.HDR.FromServiceName = reqMsg.HDR.ToServiceName
+	msg.HDR.Subject = reqMsg.HDR.Subject // echo back
 	msg.HDR.Typ = CallRPCReply
 	msg.HDR.Seqno = reqMsg.HDR.Seqno       // echo back
 	msg.HDR.CallID = reqMsg.HDR.CallID     // echo back
@@ -2603,7 +2605,8 @@ func (s *Server) newServerSendDownloadHelper(ctx context.Context, job *job) *ser
 	req := job.req
 
 	msg.HDR.Subject = req.HDR.Subject
-	msg.HDR.ServiceName = req.HDR.ServiceName
+	msg.HDR.ToServiceName = req.HDR.FromServiceName
+	msg.HDR.FromServiceName = req.HDR.ToServiceName
 	msg.HDR.To = req.HDR.From
 	msg.HDR.From = req.HDR.To
 	msg.HDR.Seqno = req.HDR.Seqno
@@ -2642,7 +2645,8 @@ func (s *serverSendDownloadHelper) sendDownloadPart(ctx context.Context, msg *Me
 	msg.HDR.Created = time.Now()
 	msg.HDR.From = s.template.HDR.To
 	msg.HDR.To = s.template.HDR.From
-	msg.HDR.ServiceName = s.template.HDR.ServiceName
+	msg.HDR.ToServiceName = s.template.HDR.ToServiceName
+	msg.HDR.FromServiceName = s.template.HDR.FromServiceName
 	// Args kept
 	msg.HDR.Subject = s.template.HDR.Subject
 	msg.HDR.Seqno = s.template.HDR.Seqno

@@ -1373,7 +1373,7 @@ func (c *Client) send(call *Call, octx context.Context) {
 	//vv("cli c.request.Seq = %v; request='%#v'", c.request.Seq, c.request)
 
 	req := NewMessage()
-	req.HDR.ServiceName = call.ServiceMethod
+	req.HDR.ToServiceName = call.ServiceMethod
 	req.HDR.Typ = CallNetRPC
 
 	by := c.encBuf.Bytes()
@@ -1908,7 +1908,7 @@ func (c *Client) SendAndGetReply(req *Message, cancelJobCh <-chan struct{}, errW
 		req.HDR.Typ = CallRPC
 	}
 	if req.HDR.CallID == "" {
-		req.HDR.CallID = NewCallID(req.HDR.ServiceName)
+		req.HDR.CallID = NewCallID(req.HDR.ToServiceName)
 		// let loop assign Seqno.
 	}
 
@@ -2048,7 +2048,7 @@ func (c *Client) UploadBegin(
 ) (strm *Uploader, err error) {
 
 	msg.HDR.Typ = CallUploadBegin
-	msg.HDR.ServiceName = serviceName
+	msg.HDR.ToServiceName = serviceName
 	msg.HDR.StreamPart = 0
 	cancelJobCh := ctx.Done()
 	seqno := c.nextSeqno()
@@ -2085,7 +2085,8 @@ func (s *Uploader) UploadMore(ctx context.Context, msg *Message, last bool, errW
 	} else {
 		msg.HDR.Typ = CallUploadMore
 	}
-	msg.HDR.ServiceName = s.name
+	msg.HDR.ToServiceName = s.name   // ? not sure
+	msg.HDR.FromServiceName = s.name //  ? not sure
 	msg.HDR.StreamPart = s.next
 	msg.HDR.CallID = s.callID
 	msg.HDR.Seqno = s.seqno
@@ -2258,7 +2259,7 @@ func (c *Client) OneWaySend(msg *Message, cancelJobCh <-chan struct{}, errWriteD
 		msg.HDR.Typ = CallOneWay
 	}
 	if msg.HDR.CallID == "" {
-		msg.HDR.CallID = NewCallID(msg.HDR.ServiceName)
+		msg.HDR.CallID = NewCallID(msg.HDR.ToServiceName)
 	}
 
 	// allow msg.CallID to not be empty; in case we get a reply.
@@ -2481,7 +2482,7 @@ func (s *Downloader) Seqno() uint64 {
 // cancel any outstanding call
 func (s *Downloader) Close() {
 	req := NewMessage()
-	req.HDR.ServiceName = s.name
+	req.HDR.ToServiceName = s.name
 	req.HDR.Typ = CallCancelPrevious
 	req.HDR.CallID = s.callID
 	req.HDR.Seqno = s.seqno
@@ -2530,7 +2531,7 @@ func (b *Downloader) BeginDownload(ctx context.Context, path string) (err error)
 	req.HDR.Created = time.Now()
 	req.HDR.To = to
 	req.HDR.From = from
-	req.HDR.ServiceName = b.name
+	req.HDR.ToServiceName = b.name
 	req.HDR.StreamPart = 0
 	req.HDR.Typ = CallRequestDownload
 	req.HDR.Seqno = b.seqno
@@ -2608,7 +2609,7 @@ func (s *Bistreamer) UploadMore(ctx context.Context, msg *Message, last bool, er
 	} else {
 		msg.HDR.Typ = CallUploadMore
 	}
-	msg.HDR.ServiceName = s.name
+	msg.HDR.ToServiceName = s.name
 	msg.HDR.StreamPart = s.next
 	msg.HDR.CallID = s.callID
 	msg.HDR.Seqno = s.seqno
@@ -2649,7 +2650,7 @@ func (c *Client) RequestBistreaming(ctx context.Context, bistreamerName string, 
 func (b *Bistreamer) Close() {
 	//vv("Bistreamer.Close() called.")
 	req := NewMessage()
-	req.HDR.ServiceName = b.name
+	req.HDR.ToServiceName = b.name
 	req.HDR.Typ = CallCancelPrevious
 	req.HDR.CallID = b.callID
 	req.HDR.Seqno = b.seqno
@@ -2673,7 +2674,7 @@ func (b *Bistreamer) Begin(ctx context.Context, req *Message) (err error) {
 
 	req.HDR.To = to
 	req.HDR.From = from
-	req.HDR.ServiceName = b.name
+	req.HDR.ToServiceName = b.name
 	req.HDR.StreamPart = 0
 	req.HDR.Typ = CallRequestBistreaming
 	req.HDR.Seqno = b.seqno

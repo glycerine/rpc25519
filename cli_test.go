@@ -1006,7 +1006,7 @@ func Test040_remote_cancel_by_context(t *testing.T) {
 		ctx41, cancelFunc41 := context.WithCancel(context.Background())
 		req := NewMessage()
 		req.HDR.Typ = CallRPC
-		req.HDR.ServiceName = serviceName041
+		req.HDR.ToServiceName = serviceName041
 		var reply41 *Message
 
 		go func() {
@@ -1089,7 +1089,7 @@ func Test045_upload(t *testing.T) {
 		req := NewMessage()
 		filename := "streams.all.together.txt"
 		os.Remove(filename + ".servergot")
-		req.HDR.ServiceName = uploaderName
+		req.HDR.ToServiceName = uploaderName
 		req.HDR.Args = map[string]string{"readFile": filename}
 		req.JobSerz = []byte("a=c(0")
 

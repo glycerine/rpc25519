@@ -143,7 +143,6 @@ func (s *syncer) Start(
 						outFrag := myPeer.NewFragment()
 						outFrag.Payload = frag.Payload
 						outFrag.FragSubject = "echo reply"
-						outFrag.ServiceName = myPeer.ServiceName()
 						//zz("%v: (ckt '%v') sending 'echo reply'='%v'", s.name, ckt.Name, frag)
 						err := ckt.SendOneWay(outFrag, 0, 0)
 						_ = err // context cancel normal on shutdown, don't freak.

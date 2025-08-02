@@ -133,7 +133,7 @@ func preventRaceByDoingPriorClientToServerRoundTrip(cli *Client, srv *Server) {
 	srv.Register2Func(serviceName, customEcho)
 
 	req := NewMessage()
-	req.HDR.ServiceName = serviceName
+	req.HDR.ToServiceName = serviceName
 	req.JobSerz = []byte("Hello from client!")
 
 	reply, err := cli.SendAndGetReply(req, nil, 0)

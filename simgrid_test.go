@@ -404,7 +404,6 @@ func (s *node2) Start(
 							outFrag := lpb.NewFragment()
 							outFrag.Payload = frag.Payload
 							outFrag.FragSubject = "start reply"
-							outFrag.ServiceName = lpb.ServiceName()
 							err := ckt.SendOneWay(outFrag, 0, 0)
 							if err != nil {
 								// typically a normal shutdown, don't freak.

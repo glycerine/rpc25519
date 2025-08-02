@@ -363,30 +363,31 @@ type HDR struct {
 	From    string    `zid:"1"` // originator host:port address.
 	To      string    `zid:"2"` // destination host:port address.
 
-	ServiceName string `zid:"3"` // registered name to call.
+	ToServiceName   string `zid:"3"` // registered name to call. (orig ServiceName)
+	FromServiceName string `zid:"4"` // new
 
 	// arguments/parameters for the call. should be short to keep the HDR small.
 	// big stuff should be serialized in JobSerz.
-	Args map[string]string `zid:"4"`
+	Args map[string]string `zid:"5"`
 
-	Subject string   `zid:"5"` // in net/rpc, the "Service.Method" ServiceName
-	Seqno   uint64   `zid:"6"` // user (client) set sequence number for each call (same on response).
-	Typ     CallType `zid:"7"` // see constants above.
-	CallID  string   `zid:"8"` // 20 bytes pseudo random base-64 coded string (same on response).
-	Serial  int64    `zid:"9"` // system serial number
+	Subject string   `zid:"6"`  // in net/rpc, the "Service.Method" ServiceName
+	Seqno   uint64   `zid:"7"`  // user (client) set sequence number for each call (same on response).
+	Typ     CallType `zid:"8"`  // see constants above.
+	CallID  string   `zid:"9"`  // 20 bytes pseudo random base-64 coded string (same on response).
+	Serial  int64    `zid:"10"` // system serial number
 
-	LocalRecvTm time.Time `zid:"10"`
+	LocalRecvTm time.Time `zid:"11"`
 
 	// allow standard []byte oriented message to cancel too.
 	Ctx context.Context `msg:"-"`
 
 	// Deadline is optional, but if it is set on the client,
 	// the server side context.Context will honor it.
-	Deadline time.Time `zid:"11"` // if non-zero, set this deadline in the remote Ctx
+	Deadline time.Time `zid:"12"` // if non-zero, set this deadline in the remote Ctx
 
 	// The CallID will be identical on
 	// all parts of the same stream.
-	StreamPart int64 `zid:"12"`
+	StreamPart int64 `zid:"13"`
 
 	// NoSystemCompression turns off any usual
 	// compression that the rpc25519 system
@@ -407,18 +408,18 @@ type HDR struct {
 	// this flag will not affect the usual
 	// compression-matching in responses.
 	// For those purposes, it is ignored.
-	NoSystemCompression bool `zid:"13"`
+	NoSystemCompression bool `zid:"14"`
 
 	// ToPeerID and FromPeerID help maintain stateful sub-calls
 	// allowing client/server symmetry when
 	// implementing complex stateful protocols.
-	ToPeerID   string `zid:"14"`
-	ToPeerName string `zid:"15"`
+	ToPeerID   string `zid:"15"`
+	ToPeerName string `zid:"16"`
 
-	FromPeerID   string `zid:"16"`
-	FromPeerName string `zid:"17"`
+	FromPeerID   string `zid:"17"`
+	FromPeerName string `zid:"18"`
 
-	FragOp int `zid:"18"`
+	FragOp int `zid:"19"`
 
 	// streamCh is internal; used for client -> server streaming on CallUploadBegin
 	streamCh chan *Message `msg:"-" json:"-"`
@@ -432,14 +433,14 @@ func NewHDR(from, to, serviceName string, typ CallType, streamPart int64) (m *HD
 	callID := NewCallID(serviceName)
 
 	m = &HDR{
-		Created:     t0,
-		From:        from,
-		To:          to,
-		ServiceName: serviceName,
-		Typ:         typ,
-		CallID:      callID,
-		Serial:      serial,
-		StreamPart:  streamPart,
+		Created:       t0,
+		From:          from,
+		To:            to,
+		ToServiceName: serviceName,
+		Typ:           typ,
+		CallID:        callID,
+		Serial:        serial,
+		StreamPart:    streamPart,
 	}
 
 	return
@@ -478,10 +479,10 @@ func newHDRwithoutCallID(from, to, serviceName string, typ CallType, streamPart 
 	serial := issueSerial()
 
 	m = &HDR{
-		Created:     t0,
-		From:        from,
-		To:          to,
-		ServiceName: serviceName,
+		Created:       t0,
+		From:          from,
+		To:            to,
+		ToServiceName: serviceName,
 		//Subject: subject,
 		Typ: typ,
 		//CallID:  rness,
@@ -515,7 +516,8 @@ func (a *HDR) Equal(b *HDR) bool {
 		a.From == b.From &&
 		a.To == b.To &&
 		a.Serial == b.Serial &&
-		a.ServiceName == b.ServiceName &&
+		a.ToServiceName == b.ToServiceName &&
+		a.FromServiceName == b.FromServiceName &&
 		a.Subject == b.Subject &&
 		a.Typ == b.Typ &&
 		a.CallID == b.CallID &&
@@ -531,7 +533,6 @@ func (m *HDR) String() string {
          Created: %q
             From: %q
               To: %q
-     ServiceName: %q
             Args: %#v
          Subject: %q
            Seqno: %v
@@ -542,15 +543,16 @@ func (m *HDR) String() string {
         Deadline: %s
       FromPeerID: "%v"
     FromPeerName: "%v"
+ FromServiceName: "%v"
         ToPeerID: "%v"
       ToPeerName: "%v"
+   ToServiceName: "%v"
       StreamPart: %v
           FragOp: %v
 }`,
 		m.Created,
 		AliasDecode(m.From),
 		AliasDecode(m.To),
-		m.ServiceName,
 		m.Args,
 		m.Subject,
 		m.Seqno,
@@ -561,8 +563,10 @@ func (m *HDR) String() string {
 		m.Deadline,
 		AliasDecode(m.FromPeerID),
 		m.FromPeerName,
+		m.FromServiceName,
 		AliasDecode(m.ToPeerID),
 		m.ToPeerName,
+		m.ToServiceName,
 		m.StreamPart,
 		FragOpDecode(m.FragOp),
 	)

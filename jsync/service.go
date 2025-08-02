@@ -724,7 +724,8 @@ func (s *SyncService) Start(
 				pulldir.FragOp = OpRsync_TakerRequestsDirSyncBegin // 21
 				pulldir.Payload = bts
 				pulldir.FromPeerID = myPeer.PeerID
-				pulldir.ServiceName = syncReq.ToRemotePeerServiceName
+				pulldir.ToPeerServiceName = syncReq.ToRemotePeerServiceName
+				pulldir.FromPeerServiceName = fileLine(1) + "-not_sure_pulldir.FromServiceName"
 				pulldir.SetUserArg("targetTakerTopTempDir", targetTakerTopTempDir)
 				pulldir.SetUserArg("targetTakerTopTempDirID", tmpDirID)
 
@@ -824,7 +825,8 @@ func (s *SyncService) Start(
 
 			frag := myPeer.NewFragment()
 			frag.FromPeerID = myPeer.PeerID
-			frag.ServiceName = syncReq.ToRemotePeerServiceName
+			frag.ToPeerServiceName = syncReq.ToRemotePeerServiceName
+			frag.FromPeerServiceName = fileLine(1) + "-not_sure_frag"
 
 			if syncReq.RemoteTakes {
 				// (first implemented)

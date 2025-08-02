@@ -64,7 +64,8 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 		defer cli.Close()
 
 		req := NewMessage()
-		req.HDR.ServiceName = serviceName
+		req.HDR.ToServiceName = serviceName
+		req.HDR.FromServiceName = serviceName // symmetric, right?
 		req.JobSerz = []byte("Hello from client!")
 
 		vv("about to call cli.SendAndGetReply") // seen at 00:00:00.000200023
@@ -121,7 +122,8 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 		// We won't even see any network activity if
 		// we send the exact same req again.
 		req2 := NewMessage()
-		req2.HDR.ServiceName = serviceName
+		req2.HDR.ToServiceName = serviceName
+		req2.HDR.FromServiceName = serviceName // symmetric, right?
 		req2.JobSerz = []byte("Hello from client! 2nd time.")
 
 		reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
@@ -145,7 +147,8 @@ func Test701_simnetonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 		//vv("server un-partitioned, try cli call 3rd time.")
 		vv("server un-partitioned, try cli call 3rd time. net: %v", simnet.GetSimnetSnapshot())
 		req3 := NewMessage()
-		req3.HDR.ServiceName = serviceName
+		req3.HDR.ToServiceName = serviceName
+		req3.HDR.FromServiceName = serviceName
 		req3.JobSerz = []byte("Hello from client! 3rd time.")
 
 		reply3, err := cli.SendAndGetReply(req3, nil, waitFor)
@@ -452,7 +455,8 @@ func Test740_simnetonly_remote_cancel_by_context(t *testing.T) {
 			ctx741, cancelFunc741 := context.WithCancel(context.Background())
 			req := NewMessage()
 			req.HDR.Typ = CallRPC
-			req.HDR.ServiceName = serviceName741
+			req.HDR.ToServiceName = serviceName741
+			req.HDR.FromServiceName = serviceName741
 			var reply741 *Message
 
 			go func() {
@@ -538,7 +542,8 @@ func Test745_simnetonly_upload(t *testing.T) {
 			req := NewMessage()
 			filename := "streams.all.together.txt"
 			os.Remove(filename + ".servergot")
-			req.HDR.ServiceName = uploaderName
+			req.HDR.ToServiceName = uploaderName
+			req.HDR.FromServiceName = uploaderName
 			req.HDR.Args = map[string]string{"readFile": filename}
 			req.JobSerz = []byte("a=c(0")
 
@@ -1156,7 +1161,8 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 			//vv("simnet after cliDropsSends %v", simnet.GetSimnetSnapshot())
 
 			req := NewMessage()
-			req.HDR.ServiceName = serviceName
+			req.HDR.ToServiceName = serviceName
+			req.HDR.FromServiceName = serviceName
 			req.JobSerz = []byte("Hello from client!")
 			waitFor := time.Second
 			reply, err := cli.SendAndGetReply(req, nil, waitFor)
@@ -1197,7 +1203,8 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 			//vv("after cli repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
 
 			req2 := NewMessage()
-			req2.HDR.ServiceName = serviceName
+			req2.HDR.ToServiceName = serviceName
+			req2.HDR.FromServiceName = serviceName
 			req2.JobSerz = []byte("Hello from client! 2nd time.")
 
 			reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
@@ -1231,7 +1238,8 @@ func Test772_simnetonly_server_dropped_sends(t *testing.T) {
 			//vv("simnet after serverDropsSends %v", simnet.GetSimnetSnapshot())
 
 			req := NewMessage()
-			req.HDR.ServiceName = serviceName
+			req.HDR.ToServiceName = serviceName
+			req.HDR.FromServiceName = serviceName
 			req.JobSerz = []byte("Hello from client!")
 			waitFor := time.Second
 			reply, err := cli.SendAndGetReply(req, nil, waitFor)
@@ -1272,7 +1280,8 @@ func Test772_simnetonly_server_dropped_sends(t *testing.T) {
 			//vv("after srv repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
 
 			req2 := NewMessage()
-			req2.HDR.ServiceName = serviceName
+			req2.HDR.ToServiceName = serviceName
+			req2.HDR.FromServiceName = serviceName
 			req2.JobSerz = []byte("Hello from client! 2nd time.")
 
 			reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
@@ -1474,7 +1483,8 @@ func Test781_simnetonly_client_isolated(t *testing.T) {
 			vv("after simt.AlterClient(ISOLATE): %v", simnet.GetSimnetSnapshot())
 
 			req := NewMessage()
-			req.HDR.ServiceName = serviceName
+			req.HDR.ToServiceName = serviceName
+			req.HDR.FromServiceName = serviceName
 			req.JobSerz = []byte("Hello from client!")
 			waitFor := time.Second
 			reply, err := cli.SendAndGetReply(req, nil, waitFor)
@@ -1517,7 +1527,8 @@ func Test781_simnetonly_client_isolated(t *testing.T) {
 			vv("after cli repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
 
 			req2 := NewMessage()
-			req2.HDR.ServiceName = serviceName
+			req2.HDR.ToServiceName = serviceName
+			req2.HDR.FromServiceName = serviceName
 			req2.JobSerz = []byte("Hello from client! 2nd time.")
 
 			reply2, err := cli.SendAndGetReply(req2, nil, waitFor)
@@ -1553,7 +1564,8 @@ func Test782_simnetonly_server_isolated(t *testing.T) {
 			//vv("after simt.AlterServer(ISOLATE): %v", simnet.GetSimnetSnapshot().ShortString())
 
 			req := NewMessage()
-			req.HDR.ServiceName = serviceName
+			req.HDR.ToServiceName = serviceName
+			req.HDR.FromServiceName = serviceName
 			req.JobSerz = []byte("Hello from client!")
 			waitFor := time.Second
 			reply, err := cli.SendAndGetReply(req, nil, waitFor)
@@ -1596,7 +1608,8 @@ func Test782_simnetonly_server_isolated(t *testing.T) {
 			vv("after srv repaired, re-attempt cli call with: %v", simnet.GetSimnetSnapshot())
 
 			req2 := NewMessage()
-			req2.HDR.ServiceName = serviceName
+			req2.HDR.ToServiceName = serviceName
+			req2.HDR.FromServiceName = serviceName
 			req2.JobSerz = []byte("Hello from client! 2nd time.")
 
 			reply2, err := cli.SendAndGetReply(req2, nil, waitFor)

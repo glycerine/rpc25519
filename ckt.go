@@ -138,29 +138,30 @@ func NewFragment() (frag *Fragment) {
 // and CircuitID.
 type Fragment struct {
 	// system metadata
-	FromPeerID   string `zid:"0"` // who sent us this Fragment.
-	FromPeerName string `zid:"1"`
-	ToPeerID     string `zid:"2"`
-	ToPeerName   string `zid:"3"`
+	FromPeerID          string `zid:"0"` // who sent us this Fragment.
+	FromPeerName        string `zid:"1"`
+	FromPeerServiceName string `zid:"2"` // from registered PeerServiceName.
+	ToPeerID            string `zid:"3"`
+	ToPeerName          string `zid:"4"`
+	ToPeerServiceName   string `zid:"5"` // was ServiceName.
 
-	CircuitID   string   `zid:"4"` // maps to Message.HDR.CallID.
-	Serial      int64    `zid:"5"`
-	Typ         CallType `zid:"6"` // one of the CallPeer CallTypes of hdr.go
-	ServiceName string   `zid:"7"` // the registered PeerServiceName.
+	CircuitID string   `zid:"6"` // maps to Message.HDR.CallID.
+	Serial    int64    `zid:"7"`
+	Typ       CallType `zid:"8"` // one of the CallPeer CallTypes of hdr.go
 
 	// user supplied data
-	FragOp      int    `zid:"8"`
-	FragSubject string `zid:"9"`
-	FragPart    int64  `zid:"10"`
+	FragOp      int    `zid:"9"`
+	FragSubject string `zid:"10"`
+	FragPart    int64  `zid:"11"`
 
 	// Args whose keys start with '#' are reserved for the system.
 	// Use frag.SetUserArg() to set Args safely. This will auto-
 	// allocate the map if need be; for efficiency it is nil
 	// by default as it may not always be in use.
-	Args    map[string]string `zid:"11"`
-	Payload []byte            `zid:"12"`
-	Err     string            `zid:"13"` // distinguished field for error messages.
-	Created time.Time         `zid:"14"` // from Message.HDR.Created
+	Args    map[string]string `zid:"12"`
+	Payload []byte            `zid:"13"`
+	Err     string            `zid:"14"` // distinguished field for error messages.
+	Created time.Time         `zid:"15"` // from Message.HDR.Created
 }
 
 // SetUserArg should be used in user code to set
@@ -227,11 +228,12 @@ func (f *Fragment) String() string {
     "Created": %v,
     "FromPeerID": %q %v,
     "FromPeerName": "%v",
+    "FromPeerServiceName": "%v",
     "ToPeerID": %q %v,
     "ToPeerName": "%v",
+    "ToPeerServiceName": "%v",
     "CircuitID": %q,
     "Serial": %v,
-    "ServiceName": %q,
     "Typ": %s,
     "FragOp": %v,
     "FragSubject": %q,
@@ -243,11 +245,12 @@ func (f *Fragment) String() string {
 		f.Created.Format(rfc3339MsecTz0),
 		f.FromPeerID, AliasDecode(f.FromPeerID),
 		f.FromPeerName,
+		f.FromPeerServiceName,
 		f.ToPeerID, AliasDecode(f.ToPeerID),
 		f.ToPeerName,
+		f.ToPeerServiceName,
 		AliasDecode(f.CircuitID),
 		f.Serial,
-		f.ServiceName,
 		f.Typ,
 		FragOpDecode(f.FragOp),
 		f.FragSubject,
@@ -411,7 +414,8 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	// Its just much simpler to start with.
 	circuitID = NewCallID(serviceName)
 	frag.CircuitID = circuitID
-	frag.ServiceName = serviceName
+	frag.ToPeerServiceName = serviceName
+	frag.FromPeerServiceName = s.PeerServiceName
 
 	rpb := &RemotePeer{
 		LocalPeer: s,
@@ -500,6 +504,12 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 	frag.ToPeerID = ckt.RemotePeerID
 	if frag.ToPeerName == "" {
 		frag.ToPeerName = ckt.RemotePeerName
+	}
+	if frag.ToPeerServiceName == "" {
+		frag.ToPeerServiceName = ckt.RemoteServiceName
+	}
+	if frag.FromPeerServiceName == "" {
+		frag.FromPeerServiceName = ckt.LocalServiceName
 	}
 
 	//vv("sending frag='%v'", frag)
@@ -592,15 +602,16 @@ func (ckt *Circuit) ConvertMessageToFragment(msg *Message) (frag *Fragment) {
 
 func convertMessageToFragment(msg *Message) (frag *Fragment) {
 	frag = &Fragment{
-		Created:      msg.HDR.Created,
-		FromPeerID:   msg.HDR.FromPeerID,
-		FromPeerName: msg.HDR.FromPeerName,
-		ToPeerID:     msg.HDR.ToPeerID,
-		ToPeerName:   msg.HDR.ToPeerName,
-		CircuitID:    msg.HDR.CallID,
-		Serial:       msg.HDR.Serial,
-		Typ:          msg.HDR.Typ,
-		ServiceName:  msg.HDR.ServiceName,
+		Created:             msg.HDR.Created,
+		FromPeerID:          msg.HDR.FromPeerID,
+		FromPeerName:        msg.HDR.FromPeerName,
+		FromPeerServiceName: msg.HDR.FromServiceName,
+		ToPeerID:            msg.HDR.ToPeerID,
+		ToPeerName:          msg.HDR.ToPeerName,
+		ToPeerServiceName:   msg.HDR.ToServiceName,
+		CircuitID:           msg.HDR.CallID,
+		Serial:              msg.HDR.Serial,
+		Typ:                 msg.HDR.Typ,
 
 		FragOp:      msg.HDR.FragOp,
 		FragSubject: msg.HDR.Subject,
@@ -620,9 +631,11 @@ func (frag *Fragment) ToMessage() (msg *Message) {
 
 	msg.HDR.FromPeerID = frag.FromPeerID
 	msg.HDR.FromPeerName = frag.FromPeerName
+	msg.HDR.FromServiceName = frag.FromPeerServiceName
 
 	msg.HDR.ToPeerID = frag.ToPeerID
 	msg.HDR.ToPeerName = frag.ToPeerName
+	msg.HDR.ToServiceName = frag.ToPeerServiceName
 
 	msg.HDR.CallID = frag.CircuitID
 	if frag.Serial == 0 {
@@ -636,7 +649,6 @@ func (frag *Fragment) ToMessage() (msg *Message) {
 	} else {
 		msg.HDR.Typ = frag.Typ
 	}
-	msg.HDR.ServiceName = frag.ServiceName
 
 	msg.HDR.FragOp = frag.FragOp
 	msg.HDR.Subject = frag.FragSubject
@@ -678,11 +690,17 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 	if msg.HDR.ToPeerName == "" {
 		msg.HDR.ToPeerName = ckt.RemotePeerName
 	}
+	if msg.HDR.ToServiceName == "" { // was HDR.ServiceName
+		msg.HDR.ToServiceName = ckt.RemoteServiceName
+	}
 	if msg.HDR.FromPeerID == "" {
 		msg.HDR.FromPeerID = ckt.LocalPeerID
 	}
 	if msg.HDR.FromPeerName == "" {
 		msg.HDR.FromPeerName = ckt.LocalPeerName
+	}
+	if msg.HDR.FromServiceName == "" {
+		msg.HDR.FromServiceName = ckt.LocalServiceName
 	}
 	if msg.HDR.CallID == "" {
 		msg.HDR.CallID = ckt.CircuitID
@@ -693,9 +711,6 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 	}
 	if msg.HDR.From == "" {
 		msg.HDR.From = ckt.LpbFrom.NetAddr
-	}
-	if msg.HDR.ServiceName == "" {
-		msg.HDR.ServiceName = ckt.RemoteServiceName
 	}
 	if msg.HDR.Args == nil {
 		msg.HDR.Args = make(map[string]string)
@@ -879,11 +894,13 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Created = time.Now()
 		msg.HDR.FromPeerID = lpb.PeerID
 		msg.HDR.FromPeerName = lpb.PeerName
+		msg.HDR.FromServiceName = lpb.PeerServiceName
 		msg.HDR.ToPeerID = rpb.PeerID
 		msg.HDR.ToPeerName = rpb.PeerName
+		msg.HDR.ToServiceName = rpb.RemoteServiceName
+
 		msg.HDR.CallID = ckt.CircuitID
 		msg.HDR.Serial = issueSerial()
-		msg.HDR.ServiceName = ckt.RemoteServiceName
 
 		// tell the remote which serviceName we are coming from;
 		// so the URL back can be correct.
@@ -934,11 +951,12 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Created = time.Now()
 		msg.HDR.FromPeerID = lpb.PeerID
 		msg.HDR.FromPeerName = lpb.PeerName
+		msg.HDR.FromServiceName = lpb.PeerServiceName
 		msg.HDR.ToPeerID = rpb.PeerID
 		msg.HDR.ToPeerName = rpb.PeerName
+		msg.HDR.ToServiceName = rpb.RemoteServiceName
 		msg.HDR.CallID = ckt.CircuitID
 		msg.HDR.Serial = issueSerial()
-		msg.HDR.ServiceName = ckt.RemoteServiceName
 		msg.HDR.Args["#fromServiceName"] = lpb.PeerServiceName
 		msg.HDR.Args["#toServiceName"] = rpb.RemoteServiceName
 		msg.HDR.Args["#circuitName"] = circuitName
@@ -1215,7 +1233,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 	}
 
 	hdr := NewHDR(p.u.LocalAddr(), remoteAddr, peerServiceName, CallPeerStart, 0)
-	//hdr.ServiceName = peerServiceName
+	//hdr.ToServiceName = peerServiceName
 	//callID := NewCallID()
 	//hdr.CallID = callID
 	msg.HDR = *hdr
@@ -1333,7 +1351,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 
 	// find the localPeerback corresponding to the ToPeerID
 	localPeerID := msg.HDR.ToPeerID
-	peerServiceName := msg.HDR.ServiceName
+	peerServiceName := msg.HDR.ToServiceName
 
 	s.mut.Lock()
 	defer s.mut.Unlock()
@@ -1346,6 +1364,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		msg.HDR.From, msg.HDR.To = msg.HDR.To, msg.HDR.From
 		msg.HDR.FromPeerID, msg.HDR.ToPeerID = msg.HDR.ToPeerID, msg.HDR.FromPeerID
 		msg.HDR.FromPeerName, msg.HDR.ToPeerName = msg.HDR.ToPeerName, msg.HDR.FromPeerName
+		msg.HDR.FromServiceName, msg.HDR.ToServiceName = msg.HDR.ToServiceName, msg.HDR.FromServiceName
 		msg.JobErrs = fmt.Sprintf("no local peerServiceName '%v' available", peerServiceName)
 		msg.JobSerz = nil
 		fromService, ok := msg.HDR.Args["#fromServiceName"]
@@ -1499,8 +1518,8 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 				//"#fragRPCtoken": msg.HDR.Args["#fragRPCtoken"] // but only CallPeerStartCircuitTakeToID atm, so here maybe not.
 			}
 
-			//ack.HDR.ServiceName = msg.HDR.ServiceName? or
-			//ack.HDR.ServiceName = lpb.PeerServiceName ?
+			ack.HDR.ToServiceName = msg.HDR.FromServiceName
+			ack.HDR.FromServiceName = lpb.PeerServiceName
 			// these might be best effort/empty... b/c of bootstrapping/CallOneWay
 			ack.HDR.ToPeerID = msg.HDR.FromPeerID
 			ack.HDR.ToPeerName = msg.HDR.FromPeerName
@@ -1522,15 +1541,16 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		NetAddr:   msg.HDR.From,
 	}
 	circuitName := ""
+	gotServiceName := false
 	if msg.HDR.Args != nil {
-		rpb.RemoteServiceName = msg.HDR.Args["#fromServiceName"]
+		rpb.RemoteServiceName, gotServiceName = msg.HDR.Args["#fromServiceName"]
 		//if rpb.RemoteServiceName != "" && rpb.PeerID != "" {
 		//	AliasRegister(rpb.PeerID, rpb.PeerID+" ("+rpb.RemoteServiceName+")")
 		//}
 		circuitName = msg.HDR.Args["#circuitName"]
-	} else {
-		// is this accurate or is it our service name and not theirs?
-		//RemoteServiceName: msg.HDR.ServiceName,
+	}
+	if !gotServiceName {
+		rpb.RemoteServiceName = msg.HDR.FromServiceName
 	}
 
 	asFrag := convertMessageToFragment(msg)
@@ -1618,7 +1638,7 @@ func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Con
 	////vv("top of bootstrapPeerService(): isCli=%v; msg.HDR='%v'", isCli, msg.HDR.String())
 
 	// starts its own goroutine or return with an error (both quickly).
-	lpb, err := s.StartLocalPeer(ctx, msg.HDR.ServiceName, msg, localPeerName)
+	lpb, err := s.StartLocalPeer(ctx, msg.HDR.ToServiceName, msg, localPeerName)
 	localPeerURL := lpb.URL()
 	localPeerID := lpb.PeerID
 
@@ -1642,8 +1662,12 @@ func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Con
 		msg.HDR.Args = map[string]string{
 			"#peerURL":         localPeerURL,
 			"#peerID":          localPeerID,
-			"#fromServiceName": msg.HDR.ServiceName}
+			"#fromServiceName": msg.HDR.ToServiceName,
+			"#toServiceName":   msg.HDR.FromServiceName,
+		}
 	}
+	msg.HDR.FromServiceName, msg.HDR.ToServiceName = msg.HDR.ToServiceName, msg.HDR.FromServiceName
+
 	msg.HDR.FromPeerID = localPeerID
 
 	select {
@@ -1702,10 +1726,16 @@ func (a *Fragment) Compare(b *Fragment) int {
 	if a.Serial > b.Serial {
 		return 1
 	}
-	if a.ServiceName < b.ServiceName {
+	if a.ToPeerServiceName < b.ToPeerServiceName {
 		return -1
 	}
-	if a.ServiceName > b.ServiceName {
+	if a.ToPeerServiceName > b.ToPeerServiceName {
+		return 1
+	}
+	if a.FromPeerServiceName < b.FromPeerServiceName {
+		return -1
+	}
+	if a.FromPeerServiceName > b.FromPeerServiceName {
 		return 1
 	}
 

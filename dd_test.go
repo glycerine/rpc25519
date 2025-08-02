@@ -49,7 +49,7 @@ func Test1001_simnetonly_drop_prob(t *testing.T) {
 			waitFor := 200 * time.Millisecond
 			for range nmsg {
 				req := NewMessage()
-				req.HDR.ServiceName = serviceName
+				req.HDR.ToServiceName = serviceName
 				req.JobSerz = []byte("Hello from client!")
 				_, err := cli.SendAndGetReply(req, nil, waitFor)
 				if err == nil {
@@ -106,7 +106,7 @@ func Test1002_simnetonly_deaf_prob_tests(t *testing.T) {
 		waitFor := 100 * time.Millisecond
 		for range nmsg {
 			req := NewMessage()
-			req.HDR.ServiceName = serviceName
+			req.HDR.ToServiceName = serviceName
 			req.JobSerz = []byte("Hello from client!")
 			_, err := cli.SendAndGetReply(req, nil, waitFor)
 			if err == nil {

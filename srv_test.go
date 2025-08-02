@@ -46,7 +46,8 @@ func Test001_RoundTrip_SendAndGetReply_TCP(t *testing.T) {
 		defer cli.Close()
 
 		req := NewMessage()
-		req.HDR.ServiceName = serviceName
+		req.HDR.ToServiceName = serviceName
+		req.HDR.FromServiceName = serviceName
 		req.JobSerz = []byte("Hello from client!")
 
 		reply, err := cli.SendAndGetReply(req, nil, 0)
@@ -99,7 +100,8 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 		defer cli.Close()
 
 		req := NewMessage()
-		req.HDR.ServiceName = serviceName
+		req.HDR.ToServiceName = serviceName
+		req.HDR.FromServiceName = serviceName
 		req.JobSerz = []byte("Hello from client!")
 
 		reply, err := cli.SendAndGetReply(req, nil, 0)
@@ -109,7 +111,8 @@ func Test002_RoundTrip_SendAndGetReply_TLS(t *testing.T) {
 
 		srv.Register1Func("oneWayStreet", oneWayStreet)
 		req = NewMessage()
-		req.HDR.ServiceName = "oneWayStreet"
+		req.HDR.ToServiceName = "oneWayStreet"
+		req.HDR.FromServiceName = "oneWayStreet"
 		req.JobSerz = []byte("One-way Hello from client!")
 
 		err = cli.OneWaySend(req, nil, 0)
@@ -198,7 +201,8 @@ func Test003_client_notification_callbacks(t *testing.T) {
 
 		for i := 0; i < 3; i++ {
 			req := NewMessage()
-			req.HDR.ServiceName = serviceName
+			req.HDR.ToServiceName = serviceName
+			req.HDR.FromServiceName = serviceName
 			req.JobSerz = []byte("Hello from client!")
 
 			reply, err := cli.SendAndGetReply(req, nil, 0)
@@ -343,7 +347,8 @@ func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 		defer cli.Close()
 
 		req := NewMessage()
-		req.HDR.ServiceName = serviceName
+		req.HDR.ToServiceName = serviceName
+		req.HDR.FromServiceName = serviceName
 		req.JobSerz = []byte("Hello from client!")
 
 		reply, err := cli.SendAndGetReply(req, nil, 0)
@@ -353,7 +358,8 @@ func Test005_RoundTrip_SendAndGetReply_QUIC(t *testing.T) {
 
 		srv.Register1Func("oneWayStreet", oneWayStreet)
 		req = NewMessage()
-		req.HDR.ServiceName = "oneWayStreet"
+		req.HDR.ToServiceName = "oneWayStreet"
+		req.HDR.FromServiceName = "oneWayStreet"
 
 		req.JobSerz = []byte("One-way Hello from client!")
 
@@ -431,7 +437,8 @@ func Test011_PreSharedKey_over_TCP(t *testing.T) {
 		defer cli.Close()
 
 		req := NewMessage()
-		req.HDR.ServiceName = serviceName
+		req.HDR.ToServiceName = serviceName
+		req.HDR.FromServiceName = serviceName
 		req.JobSerz = []byte("Hello from client!")
 
 		reply, err := cli.SendAndGetReply(req, nil, 0)
@@ -487,7 +494,8 @@ func Test012_PreSharedKey_must_agree(t *testing.T) {
 		defer cli.Close()
 
 		req := NewMessage()
-		req.HDR.ServiceName = serviceName
+		req.HDR.ToServiceName = serviceName
+		req.HDR.FromServiceName = serviceName
 		req.JobSerz = []byte("Hello from client!")
 
 		reply, err := cli.SendAndGetReply(req, nil, 0)
@@ -850,7 +858,8 @@ func Test016_WithPreSharedKey_inner_handshake_must_be_properly_signed(t *testing
 			// applied. We must create a new quic stream to test the inside crypto.
 
 			req := NewMessage()
-			req.HDR.ServiceName = serviceName
+			req.HDR.ToServiceName = serviceName
+			req.HDR.FromServiceName = serviceName
 			req.JobSerz = []byte("Hello from client!")
 
 			reply, err := cli.SendAndGetReply(req, nil, 0)
@@ -900,7 +909,8 @@ func Test030_RoundTrip_SendAndGetReply_then_JSON(t *testing.T) {
 		defer cli.Close()
 
 		req := NewMessage()
-		req.HDR.ServiceName = serviceName
+		req.HDR.ToServiceName = serviceName
+		req.HDR.FromServiceName = serviceName
 		req.JobSerz = []byte("Hello from client!")
 
 		reply, err := cli.SendAndGetReply(req, nil, 0)

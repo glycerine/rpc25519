@@ -361,7 +361,8 @@ func (pb *LocalPeer) TellRemoteWeShutdown(rem *RemotePeer) {
 	shut.HDR.ToPeerID = rem.PeerID
 	shut.HDR.ToPeerName = rem.PeerName
 	shut.HDR.Serial = issueSerial()
-	shut.HDR.ServiceName = rem.RemoteServiceName
+	shut.HDR.ToServiceName = rem.RemoteServiceName
+	shut.HDR.FromServiceName = pb.PeerServiceName
 
 	// -2 version => almost no blocking; err below if cannot send in 1 msec.
 	err, queueSendCh := pb.U.SendOneWayMessage(ctxB, shut, -2)

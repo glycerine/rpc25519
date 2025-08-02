@@ -267,7 +267,6 @@ func (s *node) Start(
 							outFrag := myPeer.NewFragment()
 							outFrag.Payload = frag.Payload
 							outFrag.FragSubject = "start reply"
-							outFrag.ServiceName = myPeer.ServiceName()
 							err := ckt.SendOneWay(outFrag, 0, 0)
 							if err != nil {
 								if err == ErrShutdown2 {

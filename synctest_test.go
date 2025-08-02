@@ -95,7 +95,8 @@ func Test801_synctestonly_RoundTrip_SendAndGetReply_SimNet(t *testing.T) {
 			defer cli.Close()
 
 			req := NewMessage()
-			req.HDR.ServiceName = serviceName
+			req.HDR.ToServiceName = serviceName
+			req.HDR.FromServiceName = serviceName
 			req.JobSerz = []byte("Hello from client!")
 
 			reply, err := cli.SendAndGetReply(req, nil, 0)
@@ -359,7 +360,8 @@ func Test840_synctestonly_remote_cancel_by_context(t *testing.T) {
 			ctx41, cancelFunc41 := context.WithCancel(context.Background())
 			req := NewMessage()
 			req.HDR.Typ = CallRPC
-			req.HDR.ServiceName = serviceName041
+			req.HDR.ToServiceName = serviceName041
+			req.HDR.FromServiceName = serviceName041
 			var reply41 *Message
 
 			go func() {
@@ -441,7 +443,8 @@ func Test845_synctestonly_simnet_upload(t *testing.T) {
 			req := NewMessage()
 			filename := "streams.all.together.txt"
 			os.Remove(filename + ".servergot")
-			req.HDR.ServiceName = uploaderName
+			req.HDR.ToServiceName = uploaderName
+			req.HDR.FromServiceName = uploaderName
 			req.HDR.Args = map[string]string{"readFile": filename}
 			req.JobSerz = []byte("a=c(0")
 
