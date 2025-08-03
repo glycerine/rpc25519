@@ -1167,7 +1167,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 			if ncur >= lim {
 				// at limit, reject making another
 				knownLocalPeer.mut.Unlock()
-				return nil, fmt.Errorf("peerServiceName '%v' is listed in cfg.LimitedServiceNames and is already at cfg.LimitedServiceMax = %v, refusing to make another. Method lpb.PeerAPI.GetLocalPeers(peerServiceName) will list them.", peerServiceName, lim)
+				return nil, fmt.Errorf("unlockedStartLocalPeer error: peerServiceName '%v' is listed in cfg.LimitedServiceNames and is already at cfg.LimitedServiceMax = %v, (ncur=%v) refusing to make another. Method lpb.PeerAPI.GetLocalPeers(peerServiceName) will list them.", peerServiceName, lim, ncur)
 			}
 		}
 		knownLocalPeer.mut.Unlock()
@@ -1514,7 +1514,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 			msg.HDR.Args["#LimitedExistingPeerIDs_comma_sep"] = strings.Join(extantPeerIDs, ",")
 			msg.HDR.Args["#LimitedExistingPeerID_first"] = extantPeerIDs[0]
 			msg.HDR.Args["#LimitedExistingPeerID_first_url"] = extantPeerIDsURL0
-			return s.rejectWith(fmt.Sprintf("peerServiceName '%v' is listed in cfg.LimitedServiceNames and is already at cfg.LimitedServiceMax = %v", peerServiceName, lim), isCli, msg, ctx, sendCh)
+			return s.rejectWith(fmt.Sprintf("bootstrapCircuit error: peerServiceName '%v' is listed in cfg.LimitedServiceNames and is already at cfg.LimitedServiceMax = %v (curServiceCount = %v)", peerServiceName, lim, curServiceCount), isCli, msg, ctx, sendCh)
 		}
 		// spin one up!
 		//vv("needNewLocalPeer true! spinning up a peer for peerServicename '%v'; Typ='%v'", peerServiceName, msg.HDR.Typ)

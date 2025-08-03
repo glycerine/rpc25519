@@ -2921,7 +2921,7 @@ func (s *Client) StartRemotePeerAndGetCircuit(
 	waitUpTo time.Duration,
 	waitForAck bool,
 
-) (ckt *Circuit, err error) {
+) (ckt *Circuit, ackMsg *Message, err error) {
 
 	return s.PeerAPI.StartRemotePeerAndGetCircuit(
 		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, waitForAck)
@@ -2940,7 +2940,7 @@ func (s *Server) StartRemotePeerAndGetCircuit(
 	waitUpTo time.Duration,
 	waitForAck bool,
 
-) (ckt *Circuit, err error) {
+) (ckt *Circuit, ackMsg *Message, err error) {
 
 	return s.PeerAPI.StartRemotePeerAndGetCircuit(
 		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, waitForAck)
@@ -2970,7 +2970,7 @@ func (s *Server) PreferExtantRemotePeerGetCircuit(
 	remoteAddr string,
 	waitUpTo time.Duration,
 
-) (ckt *Circuit, err error) {
+) (ckt *Circuit, ackMsg *Message, err error) {
 
 	return s.PeerAPI.PreferExtantRemotePeerGetCircuit(
 		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo)
@@ -3000,7 +3000,7 @@ func (s *Client) PreferExtantRemotePeerGetCircuit(
 	remoteAddr string,
 	waitUpTo time.Duration,
 
-) (ckt *Circuit, err error) {
+) (ckt *Circuit, ackMsg *Message, err error) {
 
 	return s.PeerAPI.PreferExtantRemotePeerGetCircuit(
 		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo)

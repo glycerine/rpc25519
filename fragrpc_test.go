@@ -54,6 +54,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	//part1, part2, part3, part4 := false, true, true, false
 	part1, part2, part3, part4 := true, true, true, true
 
+	var ackMsg *Message
 	netAddr := "tcp://" + j.cfg.ClientDialToHostPort
 	if part1 { // focus on server -> client for a moment
 
@@ -70,8 +71,8 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		wait := true
 		//	ckt, err := cli_lpb.U.StartRemotePeerAndGetCircuit(cli_lpb, cktName, nil, serviceName, netAddr, 0, wait)
 
-		ckt, err := j.cli.PeerAPI.StartRemotePeerAndGetCircuit(cli_lpb, cktName, nil, j.srvServiceName, netAddr, 0, wait)
-
+		ckt, ackMsg, err := j.cli.PeerAPI.StartRemotePeerAndGetCircuit(cli_lpb, cktName, nil, j.srvServiceName, netAddr, 0, wait)
+		_ = ackMsg
 		panicOn(err)
 		_ = ctx
 
@@ -87,7 +88,8 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		// address we have, but we do not have its PeerID yet.x
 
 		cktName2 := "ckt-410-2nd" // what to call our new circuit
-		ckt2, err := j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb, cktName2, nil, j.srvServiceName, netAddr, 0)
+		ckt2, ackMsg, err := j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb, cktName2, nil, j.srvServiceName, netAddr, 0)
+		_ = ackMsg
 		panicOn(err)
 		//vv("ckt2 = '%v'", ckt2)
 
@@ -106,7 +108,8 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		wrongServiceNameSrv := "service_name_not_avail_on_server"
 		cktName4 := "cli_cktname_will_never_be_used"
 		var ckt4 *Circuit
-		ckt4, err = j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb, cktName4, nil, wrongServiceNameSrv, netAddr, time.Second*2)
+		ckt4, ackMsg, err = j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb, cktName4, nil, wrongServiceNameSrv, netAddr, time.Second*2)
+		_ = ackMsg
 		if err == nil {
 			panic("should get no name found!")
 		}
@@ -166,9 +169,9 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 
 	cktName3 := "ckt-410-3rd" // what to call our new circuit
 	if part3 {
-		// works. but now hung? works on its own; crosstalk between test parts...
-		// maybe the error test above is taking down the service?
-		ckt3, err := j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb, cktName3, nil, cliServiceName, cliNetAddr, 0)
+		// works
+		ckt3, ackMsg, err := j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb, cktName3, nil, cliServiceName, cliNetAddr, 0)
+		_ = ackMsg
 		panicOn(err)
 
 		//vv("ckt3 = '%v'", ckt3)
@@ -184,7 +187,8 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		// works
 		// we should get an error if there is no such service name available!
 		wrongServiceName := "service_name_not_avail_on_client"
-		_, err = j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb, cktName3, nil, wrongServiceName, cliNetAddr, time.Second*2)
+		_, ackMsg, err = j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb, cktName3, nil, wrongServiceName, cliNetAddr, time.Second*2)
+		_ = ackMsg
 		if err == nil {
 			panic("should get no name found!")
 		}
@@ -197,7 +201,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	// verify ServiceLimit rejects more than 1 instance of a peer service name
 
 	// server -> client
-	ckt5, err := j.srv.PeerAPI.StartRemotePeerAndGetCircuit(srv_lpb, cktName3+"_over_1_limit", nil, cliServiceName, cliNetAddr, 0, true)
+	ckt5, ackMsg, err := j.srv.PeerAPI.StartRemotePeerAndGetCircuit(srv_lpb, cktName3+"_over_1_limit", nil, cliServiceName, cliNetAddr, 0, true)
 
 	if ckt5 != nil {
 		panic("wanted nil ckt5")
@@ -208,13 +212,19 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	if !strings.Contains(err.Error(), "already at cfg.LimitedServiceMax") {
 		panic(fmt.Sprintf("did not see 'already at cfg.LimitedServiceMax' in error: '%v'", err))
 	}
-	//vv("good 5, got err = '%v'", err)
+	//vv("good 5, got err = '%v'; ackMsg = '%v'", err, ackMsg)
+
+	url, ok := ackMsg.HDR.Args["#LimitedExistingPeerID_first_url"]
+	if !ok || url == "" {
+		panic(`wanted "#LimitedExistingPeerID_first_url" back`)
+	}
+	//vv("good 5, got first url of extant peer = '%v'", url)
 
 	if true {
 		// client -> server
 		//vv("ServiceLimit enforced client to server too ==========")
-		ckt6, err := j.cli.PeerAPI.StartRemotePeerAndGetCircuit(cli_lpb, cktName3+"_over_1_limit", nil, j.srvServiceName, netAddr, 0, true)
-
+		ckt6, ackMsg, err := j.cli.PeerAPI.StartRemotePeerAndGetCircuit(cli_lpb, cktName3+"_over_1_limit", nil, j.srvServiceName, netAddr, 0, true)
+		_ = ackMsg
 		if ckt6 != nil {
 			panic(fmt.Sprintf("wanted nil ckt6; got '%v'", ckt6))
 		}

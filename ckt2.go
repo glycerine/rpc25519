@@ -25,7 +25,7 @@ import (
 // remoteAddr only needs to provide
 // "tcp://host:port" but we will trim
 // it down if it is a longer URL.
-func (p *peerAPI) PreferExtantRemotePeerGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration) (ckt *Circuit, err error) {
+func (p *peerAPI) PreferExtantRemotePeerGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration) (ckt *Circuit, ackMsg *Message, err error) {
 	waitForAck := true
 	preferExtant := true
 	return p.implRemotePeerAndGetCircuit(lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, preferExtant)
@@ -51,15 +51,15 @@ func (p *peerAPI) PreferExtantRemotePeerGetCircuit(lpb *LocalPeer, circuitName s
 // remoteAddr only needs to provide
 // "tcp://host:port" but we will trim
 // it down if it is a longer URL.
-func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, waitForAck bool) (ckt *Circuit, err error) {
+func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, waitForAck bool) (ckt *Circuit, ackMsg *Message, err error) {
 
 	return p.implRemotePeerAndGetCircuit(lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, false)
 }
 
-func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, waitForAck bool, preferExtant bool) (ckt *Circuit, err error) {
+func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, waitForAck bool, preferExtant bool) (ckt *Circuit, ackMsg *Message, err error) {
 
 	if lpb.Halt.ReqStop.IsClosed() {
-		return nil, ErrHaltRequested
+		return nil, nil, ErrHaltRequested
 	}
 
 	// this next looks to be the line that causes the jsync tests
@@ -157,7 +157,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 	if r != "" {
 		// we are on the client
 		if r != remoteAddr {
-			return nil, fmt.Errorf("client peer error on StartRemotePeer: remoteAddr should be '%v' (that we are connected to), rather than the '%v' which was requested. Otherwise your request will fail.", r, remoteAddr)
+			return nil, nil, fmt.Errorf("client peer error on StartRemotePeer: remoteAddr should be '%v' (that we are connected to), rather than the '%v' which was requested. Otherwise your request will fail.", r, remoteAddr)
 		}
 	}
 
@@ -168,7 +168,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 	ctx := lpb.Ctx
 	err, _ = p.u.SendOneWayMessage(ctx, msg, errWriteDur)
 	if err != nil {
-		return nil, fmt.Errorf("error requesting CallPeerStartCircuit from remote: '%v'", err)
+		return nil, nil, fmt.Errorf("error requesting CallPeerStartCircuit from remote: '%v'", err)
 	}
 
 	rpb := &RemotePeer{
@@ -185,49 +185,51 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 	// set firstFrag here
 	ckt, _, err = lpb.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, false, onOriginLocalSide)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	var waitCh <-chan time.Time
+	var timeoutCh <-chan time.Time
 	if errWriteDur > 0 {
-		waitCh = time.After(errWriteDur)
+		timeoutCh = time.After(errWriteDur)
 	}
 	if waitForAck {
-		select { // server->client 410 hung here.
-		case <-waitCh:
-			return nil, ErrTimeout
+		select {
+		case <-timeoutCh:
+			return nil, nil, ErrTimeout
 
 		case errMsg := <-responseErrCh:
+			// errMsg is still our ackMsg with
+			// "#LimitedExistingPeerID_first_url" details, so return it.
 			//vv("got errMsg = '%v'", errMsg)
-			return nil, fmt.Errorf("error sending '%v' to remote: %v", frag.Typ, errMsg.JobErrs)
-		case responseMsg := <-responseCh:
-			//vv("got responseMsg! yay! = '%v'", responseMsg)
-			if responseMsg.LocalErr != nil {
-				err = responseMsg.LocalErr
+			return nil, errMsg, fmt.Errorf("error sending '%v' to remote: %v", frag.Typ, errMsg.JobErrs)
+		case ackMsg = <-responseCh:
+			//vv("got ackMsg! yay! = '%v'", ackMsg)
+			if ackMsg.LocalErr != nil {
+				err = ackMsg.LocalErr
 				return
 			}
-			if responseMsg.JobErrs != "" {
-				err = fmt.Errorf("error on responseMsg := <-responseCh: response.JobErrs = '%v'", responseMsg.JobErrs)
+			if ackMsg.JobErrs != "" {
+				err = fmt.Errorf("error on ackMsg := <-responseCh: response.JobErrs = '%v'", ackMsg.JobErrs)
 				return
 			}
 			// this is the a minor point of the WaitForAck, (1)
 			// since we already likely have the name elsewhere,
 			// like the a peer-naming config file.
-			rpb.PeerName = responseMsg.HDR.FromPeerName
+			rpb.PeerName = ackMsg.HDR.FromPeerName
 
-			if responseMsg.HDR.FromPeerID == "" {
-				panic(fmt.Sprintf("responseMsg.FromPeerID was empty string; should never happen! responseMsg = '%v'", responseMsg))
+			if ackMsg.HDR.FromPeerID == "" {
+				panic(fmt.Sprintf("ackMsg.FromPeerID was empty string; should never happen! ackMsg = '%v'", ackMsg))
 			}
-			if responseMsg.HDR.FromPeerID != pleaseAssignNewRemotePeerID {
+			if ackMsg.HDR.FromPeerID != pleaseAssignNewRemotePeerID {
 				// this is the whole point of the WaitForAck (2),
 				// to get an accurate rpb.PeerID if the
 				// peer was already running and had
 				// already assigned a PeerID to itself.
-				//vv("setting actual PeerID from guess '%v' -> actual '%v'", rpb.PeerID, responseMsg.HDR.FromPeerID)
-				rpb.PeerID = responseMsg.HDR.FromPeerID
-				rpb.PeerName = responseMsg.HDR.FromPeerName
-				ckt.RemotePeerID = responseMsg.HDR.FromPeerID
-				ckt.RemotePeerName = responseMsg.HDR.FromPeerName
+				//vv("setting actual PeerID from guess '%v' -> actual '%v'", rpb.PeerID, ackMsg.HDR.FromPeerID)
+				rpb.PeerID = ackMsg.HDR.FromPeerID
+				rpb.PeerName = ackMsg.HDR.FromPeerName
+				ckt.RemotePeerID = ackMsg.HDR.FromPeerID
+				ckt.RemotePeerName = ackMsg.HDR.FromPeerName
 
 				if pleaseAssignNewRemotePeerID != "" {
 					lpb.Remotes.Del(pleaseAssignNewRemotePeerID)
@@ -235,23 +237,23 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 				lpb.Remotes.Set(rpb.PeerID, rpb)
 			}
 		case <-ckt.Context.Done():
-			return nil, ErrContextCancelled
+			return nil, nil, ErrContextCancelled
 		case <-lpb.Ctx.Done():
-			return nil, ErrContextCancelled
+			return nil, nil, ErrContextCancelled
 		case <-hhalt.ReqStop.Chan:
-			return nil, ErrHaltRequested
+			return nil, nil, ErrHaltRequested
 		}
 	}
 	return
 }
 
-func (s *LocalPeer) PreferExtantRemotePeerGetCircuit(circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration) (ckt *Circuit, err error) {
+func (s *LocalPeer) PreferExtantRemotePeerGetCircuit(circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration) (ckt *Circuit, ackMsg *Message, err error) {
 	waitForAck := true
 	preferExtant := true
 	return s.PeerAPI.implRemotePeerAndGetCircuit(s, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, preferExtant)
 }
 
-func (s *LocalPeer) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, waitForAck bool) (ckt *Circuit, err error) {
+func (s *LocalPeer) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, waitForAck bool) (ckt *Circuit, ackMsg *Message, err error) {
 
 	return s.PeerAPI.implRemotePeerAndGetCircuit(lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, false)
 }
