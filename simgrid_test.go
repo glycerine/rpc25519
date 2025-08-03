@@ -18,12 +18,12 @@ func Test702_simnet_grid_peer_to_peer_works(t *testing.T) {
 	var m0, m1 runtime.MemStats
 	runtime.ReadMemStats(&m0)
 	// regular, no wasm: m0 Alloc:2349128 HeapSys:7897088
-	vv("m0 Alloc:%v HeapSys:%v", int(m0.Alloc), int(m0.HeapSys))
+	//vv("m0 Alloc:%v HeapSys:%v", int(m0.Alloc), int(m0.HeapSys))
 	defer func() {
 		runtime.ReadMemStats(&m1)
 		// regular, no wasm: m0 Alloc:1837775728 HeapSys:1844772864
-		vv("m1 Alloc:%v HeapSys:%v", int(m1.Alloc), int(m1.HeapSys))
-		vv("diff Alloc:%v MB HeapSys:%v MB", int(m1.Alloc-m0.Alloc)/(1<<20), int(m1.HeapSys-m0.HeapSys)/(1<<20))
+		//vv("m1 Alloc:%v HeapSys:%v", int(m1.Alloc), int(m1.HeapSys))
+		//vv("diff Alloc:%v MB HeapSys:%v MB", int(m1.Alloc-m0.Alloc)/(1<<20), int(m1.HeapSys-m0.HeapSys)/(1<<20))
 		// non wasm: diff Alloc:1750 MB HeapSys:1751 MB
 	}()
 
@@ -184,7 +184,7 @@ func newSimGrid(cfg *simGridConfig, nodes []*simGridNode) *simGrid {
 }
 
 func (s *simGrid) Start() {
-	vv("simGrid.Start on goro %v", GoroNumber())
+	//vv("simGrid.Start on goro %v", GoroNumber())
 	for i, n := range s.Nodes {
 		_ = i
 		err := n.Start(s) // Server.Start()
@@ -194,7 +194,7 @@ func (s *simGrid) Start() {
 			if s.net == nil && faketime {
 				panic("nil simnet from GetSimnet() arg")
 			}
-			vv("faketime = %v; simGrid.net = %p", faketime, s.net)
+			//vv("faketime = %v; simGrid.net = %p", faketime, s.net)
 		}
 	}
 
@@ -335,7 +335,7 @@ func (s *node2) Start(
 				sends++
 				if sends%2000 == 0 {
 					// show some progress
-					vv("%v send to %v", me, AliasDecode(ckt.key))
+					//vv("%v send to %v", me, AliasDecode(ckt.key))
 				}
 			}
 			if s.loadDone(me, sends, 0) {
@@ -343,7 +343,7 @@ func (s *node2) Start(
 			}
 			ti := lpb.U.NewTimer(s.load.sendEvery)
 			if ti == nil {
-				vv("NewTimer nil, presummably shutting down...")
+				//vv("NewTimer nil, presummably shutting down...")
 				return // rather than derefer the nil pointer below.
 			}
 			s.timeToSendLoadTimer = ti
@@ -586,7 +586,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 			}
 
 			snap := c.net.GetSimnetSnapshot()
-			vv("snap.Xfinorder len = '%v'; Xhash='%v'", len(snap.Xfinorder), snap.Xhash) // 53343
+			//vv("snap.Xfinorder len = '%v'; Xhash='%v'", len(snap.Xfinorder), snap.Xhash) // 53343
 			snap.ToFile(xorderPath)
 		}) // end bubbleOrNot
 	} // end loadtest func definition

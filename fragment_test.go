@@ -151,10 +151,10 @@ func Test401_PeerURL_parsing(t *testing.T) {
 		netAddr, serviceName, peerID, circuitID, err := ParsePeerURL(peerURL)
 		panicOn(err)
 
-		vv("%v -> netAddr = '%v'", peerURL, netAddr)
-		vv("%v -> serviceName = '%v'", peerURL, serviceName)
-		vv("%v -> peerID = '%v'", peerURL, peerID)
-		vv("%v -> circuitID = '%v'", peerURL, circuitID)
+		//vv("%v -> netAddr = '%v'", peerURL, netAddr)
+		//vv("%v -> serviceName = '%v'", peerURL, serviceName)
+		//vv("%v -> peerID = '%v'", peerURL, peerID)
+		//vv("%v -> circuitID = '%v'", peerURL, circuitID)
 
 		cv.So(netAddr, cv.ShouldEqual, "tcp://x.x.x.x:5023")
 		cv.So(serviceName, cv.ShouldEqual, "serviceName")

@@ -154,9 +154,9 @@ func Test022_encryptWithPubKey(t *testing.T) {
 			panic(err)
 		}
 
-		vv("plaintext = '%s'", plaintext)
-		vv("ciphertext = '%x'", ciphertext)
-		vv("decryptedMessage = '%s'", decryptedMessage)
+		//vv("plaintext = '%s'", plaintext)
+		//vv("ciphertext = '%x'", ciphertext)
+		//vv("decryptedMessage = '%s'", decryptedMessage)
 
 		cv.So(!bytes.Equal(ciphertext, plaintext), cv.ShouldBeTrue)
 		cv.So(bytes.Equal(plaintext, decryptedMessage), cv.ShouldBeTrue)

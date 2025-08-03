@@ -62,13 +62,13 @@ func Test1001_simnetonly_drop_prob(t *testing.T) {
 				}
 			}
 			pctDropped := 1 - (float64(got))/float64(nmsg)
-			vv("nmsg = %v; got=%v; pctDropped=%0.5f; goterr=%v", nmsg, got, pctDropped, goterr)
+			//vv("nmsg = %v; got=%v; pctDropped=%0.5f; goterr=%v", nmsg, got, pctDropped, goterr)
 			//vv("cli attemptedSend = %v; droppedSendDueToProb = %v", conn.attemptedSend, conn.droppedSendDueToProb)
 			diff := math.Abs(pctDropped - dropPct)
 			if diff >= 0.05 {
 				panic(fmt.Sprintf("diff = %0.5f >= 0.05", diff))
 			}
-			vv("good, diff = %0.5f < 0.05", diff)
+			//vv("good, diff = %0.5f < 0.05", diff)
 		})
 	}
 }
@@ -119,12 +119,12 @@ func Test1002_simnetonly_deaf_prob_tests(t *testing.T) {
 			}
 		}
 		obsPctDeaf := 1 - (float64(got))/float64(nmsg)
-		vv("nmsg = %v; got=%v; obsPctDeaf=%0.5f; goterr=%v; requested/expected deafPct:%0.5f", nmsg, got, obsPctDeaf, goterr, deafPct)
+		//vv("nmsg = %v; got=%v; obsPctDeaf=%0.5f; goterr=%v; requested/expected deafPct:%0.5f", nmsg, got, obsPctDeaf, goterr, deafPct)
 
 		diff := math.Abs(obsPctDeaf - deafPct)
 		if diff >= 0.05 {
 			panic(fmt.Sprintf("diff = %0.5f >= 0.05", diff))
 		}
-		vv("good, diff = %0.5f < 0.05", diff)
+		//vv("good, diff = %0.5f < 0.05", diff)
 	})
 }

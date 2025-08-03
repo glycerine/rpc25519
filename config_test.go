@@ -51,5 +51,6 @@ func Test999_config_dir(t *testing.T) {
 func Test998_server_data_dir(t *testing.T) {
 	dir, err := GetServerDataDir()
 	panicOn(err)
-	vv("server's GetServerDataDir() = '%v'", dir)
+	_ = dir
+	//vv("server's GetServerDataDir() = '%v'", dir)
 }

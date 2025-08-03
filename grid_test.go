@@ -59,9 +59,10 @@ func Test202_grid_peer_to_peer_works(t *testing.T) {
 	defer c.Close()
 
 	for i, g := range nodes {
+		_ = i
 		select {
 		case <-g.node.peersNeededSeen.Chan:
-			vv("i=%v all peer connections need have been seen(%v) by '%v': '%#v'", i, g.node.peersNeeded, g.node.name, g.node.seen.GetKeySlice())
+			//vv("i=%v all peer connections need have been seen(%v) by '%v': '%#v'", i, g.node.peersNeeded, g.node.name, g.node.seen.GetKeySlice())
 		}
 	}
 }
@@ -186,7 +187,7 @@ func (s *gridNode) Start() error {
 	panicOn(err)
 
 	cfg.ClientDialToHostPort = serverAddr.String()
-	vv("serverAddr = '%#v' -> '%v'", serverAddr, cfg.ClientDialToHostPort)
+	//vv("serverAddr = '%#v' -> '%v'", serverAddr, cfg.ClientDialToHostPort)
 
 	s.node = newNode(s.srv, s.name, s.cfg)
 
@@ -199,7 +200,7 @@ func (s *gridNode) Start() error {
 	s.URL = s.lpb.URL()
 	s.PeerID = s.lpb.PeerID
 
-	vv("gridNode.Start() started '%v' as 'grid' with url = '%v'", s.name, s.URL)
+	//vv("gridNode.Start() started '%v' as 'grid' with url = '%v'", s.name, s.URL)
 
 	return nil
 }

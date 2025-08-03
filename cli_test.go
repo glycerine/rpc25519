@@ -1421,8 +1421,8 @@ func Test100_BlakeHashesAgree(t *testing.T) {
 		a := blake3OfBytesString(data)
 		b := h.Hash32(data)
 		c := myblake3.Blake3OfBytesString(data)
-		vv(`blake3OfBytesString("hello world!") = '%v'`, a)
-		vv(`myblake3.Hash32("hello world!")     = '%v'`, b)
+		//vv(`blake3OfBytesString("hello world!") = '%v'`, a)
+		//vv(`myblake3.Hash32("hello world!")     = '%v'`, b)
 		if a != b {
 			panic("a != b, hashes are different!")
 		}
