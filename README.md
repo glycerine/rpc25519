@@ -1,6 +1,22 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
+* Recent News (2025 Aug 03): v1.25.11 canonical peers
+
+The peer/circuit/fragment API now provides the
+PreferExtantRemotePeerGetCircuit method (ckt2.go)
+and Config settings LimitedServiceNames and
+LimitedServiceMax to facilitate consistent
+contact with at a limited count of peer implementations
+of a service on a remote host, and an error
+response if attempts are made to exceed
+the configured limits.
+
+For example, this makes it easier to spin up at 
+most one peer service in a process/host, and
+ensure that all peers are talking to that
+canonical peer for a given service.
+
 * Recent News (2025 May 30): v1.21.55 simnet network simulator features!
 
 The latest internal simnet can now model asymmetric and
