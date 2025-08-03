@@ -1127,6 +1127,26 @@ func (cfg *Config) GetLimitMax(peerServiceName string) int {
 	return 0
 }
 
+func (cfg *Config) UpdateLimitMax(peerServiceName string, newLimit int) (indexUpdated int) {
+
+	nName := len(cfg.LimitedServiceNames)
+	nLim := len(cfg.LimitedServiceMax)
+	// sanity check
+	if nName != nLim {
+		panic(fmt.Sprintf("bad Config! len(cfg.LimitedServiceNames)=%v but len(cfg.LimitedServiceMax)=%v; cfg = '%v'", nName, nLim, cfg))
+	}
+	for i, name := range cfg.LimitedServiceNames {
+		if name == peerServiceName {
+			cfg.LimitedServiceMax[i] = newLimit
+			return i
+		}
+	}
+	// not already there, so append it.
+	cfg.LimitedServiceNames = append(cfg.LimitedServiceNames, peerServiceName)
+	cfg.LimitedServiceMax = append(cfg.LimitedServiceMax, newLimit)
+	return len(cfg.LimitedServiceNames) - 1
+}
+
 func (cfg *Config) GetSimnet() *Simnet {
 	if !cfg.UseSimNet {
 		return nil
