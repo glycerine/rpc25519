@@ -102,7 +102,8 @@ func Test017_FieMapLinux_preallocated(t *testing.T) {
 	//vv("done with createSparseFileFromSparseSpans()")
 	defer fd.Close()
 
-	isSparse, disksz, statsz, err := SparseFileSize(fd)
+	sum, err := SparseFileSize(fd)
+	isSparse, disksz, statsz := sum.IsSparse, sum.DiskSize, sum.StatSize
 	panicOn(err) // no such device or address [recovered, repanicked]
 	_, _, _ = isSparse, disksz, statsz
 	//vv("SparseFileSize returned: isSparse=%v; disksz=%v; statsz=%v; err=%v", isSparse, disksz, statsz, err)
@@ -158,7 +159,8 @@ func Test018_FieMapLinux_preallocated2(t *testing.T) {
 	//vv("done with createSparseFileFromSparseSpans()")
 	defer fd.Close()
 
-	isSparse, disksz, statsz, err := SparseFileSize(fd)
+	sum, err := SparseFileSize(fd)
+	isSparse, disksz, statsz := sum.IsSparse, sum.DiskSize, sum.StatSize
 	panicOn(err) // no such device or address [recovered, repanicked]
 	_, _, _ = isSparse, disksz, statsz
 	//vv("SparseFileSize returned: isSparse=%v; disksz=%v; statsz=%v; err=%v", isSparse, disksz, statsz, err)
