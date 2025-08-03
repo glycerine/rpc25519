@@ -1,7 +1,7 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
-* Recent News (2025 Aug 03): v1.25.11 canonical peers
+* Recent News (2025 Aug 03): v1.25.14 canonical peers
 
 The peer/circuit/fragment API now provides the
 PreferExtantRemotePeerGetCircuit method (ckt2.go)
@@ -16,6 +16,13 @@ For example, this makes it easier to spin up at
 most one peer service in a process/host, and
 ensure that all peers are talking to that
 canonical peer for a given service.
+
+Config settings can now be saved/read back from disk
+using the convenient zygo s-expression format. See
+the https://github.com/glycerine/zygomys/wiki/Language 
+zygomys language wiki for full details. The zygo_test.go
+file shows what these look like in practice;
+https://github.com/glycerine/rpc25519/blob/master/zygo_test.go#L59
 
 * Recent News (2025 May 30): v1.21.55 simnet network simulator features!
 
