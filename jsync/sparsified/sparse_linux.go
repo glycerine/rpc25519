@@ -376,7 +376,9 @@ func FieMap(fd *os.File) (spans *SparseSpans, err error) {
 
 	return FieMap2(fd)
 
-	isSparse, disksz, statsz, err := SparseFileSize(fd)
+	sum, err := SparseFileSize(fd)
+	isSparse, disksz, statsz := sum.IsSparse, sum.DiskSize, sum.StatSize
+
 	if err != nil {
 		return nil, err
 	}

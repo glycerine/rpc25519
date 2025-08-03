@@ -46,7 +46,8 @@ func FieMap2(fd *os.File) (spans *SparseSpans, err error) {
 	// juse uses 18446744073709551615 as the
 	// max size in the ioctl FIE_MAP call. We could
 	// do the same... TODO?
-	isSparse, disksz, statsz, err := SparseFileSize(fd)
+	sum, err := SparseFileSize(fd)
+	isSparse, disksz, statsz := sum.IsSparse, sum.DiskSize, sum.StatSize
 	if err != nil {
 		return nil, err
 	}
