@@ -3,7 +3,9 @@ package rpc25519
 import (
 	cryrand "crypto/rand"
 	"encoding/binary"
+	"fmt"
 	"math"
+	"math/bits"
 )
 
 // returns r > 0
@@ -32,7 +34,7 @@ func cryptoRandNonNegInt64() (r int64) {
 	return r
 }
 
-// returns r in negative and positive range of int64
+// returns r in the full negative and positive range of int64
 func cryptoRandInt64() (r int64) {
 	b := make([]byte, 8)
 	_, err := cryrand.Read(b)
@@ -40,5 +42,141 @@ func cryptoRandInt64() (r int64) {
 		panic(err)
 	}
 	r = int64(binary.LittleEndian.Uint64(b))
+	return r
+}
+
+// return r in [0, nChoices] and avoid the inherent
+// bias in modulo that starves the numbers in
+// the region between the divisor and originally
+// generated maximum number.
+//
+// nChoices must be > 1 or what
+// is the point? (this would always return the value 0, just
+// a single choice!) We panic if that is requested.
+//
+// If nChoices is MaxInt64 then
+// we just return cryptoRandInt64(). No
+// sampling + rejecting required.
+//
+// We use a bitmask + rejection approach; rejecting
+// if our draw happens to fall between nChoices and
+// (2^k)-1 where 2^k is the next highest power
+// of 2 the occurs > nChoices. This gives
+// an un-biased random number.
+func cryptoRandNonNegInt64Range(nChoices int64) (r int64) {
+	if nChoices <= 1 {
+		panic(fmt.Sprintf("nChoices must be in [2, MaxInt64]; we see %v", nChoices))
+	}
+	if nChoices == math.MaxInt64 {
+		return cryptoRandInt64()
+	}
+
+	mask := (int64(1) << bits.Len64(uint64(nChoices-1))) - 1
+
+	b := make([]byte, 8)
+
+	for {
+		_, err := cryrand.Read(b)
+		if err != nil {
+			panic(err)
+		}
+		r = int64(binary.LittleEndian.Uint64(b))
+		if r < 0 {
+			// there is 1 more negative integer than
+			// positive integers in 2's complement
+			// representation on integers, so the probability
+			// is exactly 1/2 of entering here.
+			//
+			// Does this not bias
+			// against 0 though? Yep.
+			//
+			// Without this next check,
+			// 0 has probability 1/2^64. Whereas
+			// every other positive integer has
+			// probability 2/2^64... So
+			// without this next line we are
+			// (very subtlely) biased against zero.
+			// To correct that, we
+			// give 0 one more chance by
+			// letting it have the last negative
+			// number too, which we never
+			// want to return anyway.
+			if r == math.MinInt64 {
+				return 0
+			}
+			r = -r
+		}
+		attempt := r & mask
+		if attempt < nChoices {
+			return attempt
+		}
+		// reject too large and try again.
+	}
+	panic("never reached")
+	return r
+}
+
+// cryptoRandInt64RangePosOrNeg
+// returns r in [-largestPositiveChoice, largestPositiveChoice]
+// and avoids the inherent bias in modulo (when
+// largestPositiveChoice is not a perfect power of 2).
+//
+// largestPositiveChoice must be > 0.
+// Uses bitmask + rejection approach.
+//
+// This will never return math.MinInt64, even
+// if largestPositiveChoice is math.MaxInt64;
+// since math.MinInt64 is greater in
+// absolute value than math.MaxInt64.
+// Returning 0 is always a posibility, and
+// there are always an odd number of
+// possible returned r values.
+func cryptoRandInt64RangePosOrNeg(largestPositiveChoice int64) (r int64) {
+	if largestPositiveChoice < 1 {
+		panic(fmt.Sprintf("error in cryptoRandInt64RangePosOrNeg(): largestPositiveChoice must be in [1, MaxInt64]; we see %v", largestPositiveChoice))
+	}
+	if largestPositiveChoice == math.MaxInt64 {
+		r = cryptoRandInt64()
+		for r == math.MinInt64 {
+			// too big in absolute value, try again.
+			r = cryptoRandInt64()
+		}
+		return
+	}
+	// INVAR: largestPositiveChoice < math.MaxInt64
+
+	// Suppose largestPositiveChoice = 1,
+	// then we want to choose from [-1, 0, 1], and
+	// our nChoices = 3, or 1 + (1 << 1) == 1 + 2 == 3.
+	//   and return -1 + r
+	// Suppose largestPositiveChoice = 2,
+	// then we want to choose from [-2,-1,0,1,2], and
+	// our nChoices = 5, or 1 + (2 << 1) == 1 + 4 == 5.
+	//   and return -2 + r
+	if largestPositiveChoice < (math.MaxInt64 >> 1) {
+		r = cryptoRandNonNegInt64Range(1 + (largestPositiveChoice << 1))
+		return -largestPositiveChoice + r
+	}
+	// INVAR: largestPositiveChoice in [math.MaxInt64/2, math.MaxInt64]
+
+	b := make([]byte, 8)
+	for {
+		_, err := cryrand.Read(b)
+		if err != nil {
+			panic(err)
+		}
+		r = int64(binary.LittleEndian.Uint64(b))
+		if r < -largestPositiveChoice {
+			// reject: too large in magnitude, try again.
+			continue
+		}
+		if r > largestPositiveChoice {
+			// reject: too large in magnitude, try again.
+			continue
+		}
+		return r // only ever exit loop here.
+	}
+
+	panic("never reached")
 	return r
 }

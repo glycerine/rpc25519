@@ -18,7 +18,7 @@ require (
 	github.com/glycerine/parallelwalk v0.3.1
 	github.com/glycerine/rbtree v0.2.1
 	github.com/glycerine/restic-chunker-mod v0.5.0
-	github.com/glycerine/zygomys/v9 v9.0.9
+	github.com/glycerine/zygomys/v9 v9.1.0
 	github.com/goccy/go-json v0.10.3
 	github.com/klauspost/compress v1.17.11
 	github.com/klauspost/cpuid/v2 v2.0.9
