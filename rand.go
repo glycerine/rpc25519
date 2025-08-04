@@ -45,6 +45,16 @@ func cryptoRandInt64() (r int64) {
 	return r
 }
 
+func cryptoRandBool() (b bool) {
+	by := make([]byte, 1)
+	_, err := cryrand.Read(by)
+	if err != nil {
+		panic(err)
+	}
+	b = (by[0]%2 == 0)
+	return
+}
+
 // return r in [0, nChoices] and avoid the inherent
 // bias in modulo that starves the numbers in
 // the region between the divisor and originally
