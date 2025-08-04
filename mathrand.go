@@ -118,7 +118,7 @@ func (rng *prng) pseudoRandNonNegInt64Range(nChoices int64) (r int64) {
 			// every other positive integer has
 			// probability 2/2^64... So
 			// without this next line we are
-			// (very subtlely) biased against zero.
+			// (very subtly) biased against zero.
 			// To correct that, we
 			// give 0 one more chance by
 			// letting it have the last negative
