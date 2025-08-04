@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
-	"math/bits"
 )
 
 // returns r > 0
@@ -29,6 +28,9 @@ func cryptoRandNonNegInt64() (r int64) {
 	}
 	r = int64(binary.LittleEndian.Uint64(b))
 	if r < 0 {
+		if r == math.MinInt64 {
+			return 0
+		}
 		r = -r
 	}
 	return r
@@ -68,20 +70,23 @@ func cryptoRandBool() (b bool) {
 // we just return cryptoRandInt64(). No
 // sampling + rejecting required.
 //
-// We use a bitmask + rejection approach; rejecting
-// if our draw happens to fall between nChoices and
-// (2^k)-1 where 2^k is the next highest power
-// of 2 the occurs > nChoices. This gives
-// an un-biased random number.
+// Otherwise we use a rejection sampling
+// approach to get an un-biased random number.
 func cryptoRandNonNegInt64Range(nChoices int64) (r int64) {
 	if nChoices <= 1 {
 		panic(fmt.Sprintf("nChoices must be in [2, MaxInt64]; we see %v", nChoices))
 	}
 	if nChoices == math.MaxInt64 {
-		return cryptoRandInt64()
+		return cryptoRandNonNegInt64()
 	}
 
-	mask := (int64(1) << bits.Len64(uint64(nChoices-1))) - 1
+	// compute the last valid acceptable value,
+	// possibly leaving a small window at the top of the
+	// int64 range that will require drawing again.
+	// we will accept all values <= redrawAbove and
+	// modulo them by nChoices.
+	redrawAbove := math.MaxInt64 - (((math.MaxInt64 % nChoices) + 1) % nChoices)
+	// INVAR: redrawAbove % nChoices == (nChoices - 1).
 
 	b := make([]byte, 8)
 
@@ -116,11 +121,10 @@ func cryptoRandNonNegInt64Range(nChoices int64) (r int64) {
 			}
 			r = -r
 		}
-		attempt := r & mask
-		if attempt < nChoices {
-			return attempt
+		if r > redrawAbove {
+			continue
 		}
-		// reject too large and try again.
+		return r % nChoices
 	}
 	panic("never reached")
 	return r
@@ -132,7 +136,7 @@ func cryptoRandNonNegInt64Range(nChoices int64) (r int64) {
 // largestPositiveChoice is not a perfect power of 2).
 //
 // largestPositiveChoice must be > 0.
-// Uses bitmask + rejection approach.
+// Uses rejection sampling approach.
 //
 // This will never return math.MinInt64, even
 // if largestPositiveChoice is math.MaxInt64;
@@ -154,6 +158,8 @@ func cryptoRandInt64RangePosOrNeg(largestPositiveChoice int64) (r int64) {
 		return
 	}
 	// INVAR: largestPositiveChoice < math.MaxInt64
+
+	// handle largestPositiveChoice < math.MaxInt64/2
 
 	// Suppose largestPositiveChoice = 1,
 	// then we want to choose from [-1, 0, 1], and

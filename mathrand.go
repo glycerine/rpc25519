@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
-	"math/bits"
 	mathrand2 "math/rand/v2"
 	"sync"
 )
@@ -32,6 +31,9 @@ func (rng *prng) pseudoRandNonNegInt64() (r int64) {
 	rng.cha8.Read(b)
 	r = int64(binary.LittleEndian.Uint64(b))
 	if r < 0 {
+		if r == math.MinInt64 {
+			return 0
+		}
 		r = -r
 	}
 	return r
@@ -97,7 +99,13 @@ func (rng *prng) pseudoRandNonNegInt64Range(nChoices int64) (r int64) {
 	rng.mut.Lock()
 	defer rng.mut.Unlock()
 
-	mask := (int64(1) << bits.Len64(uint64(nChoices-1))) - 1
+	// compute the last valid acceptable value,
+	// possibly leaving a small window at the top of the
+	// int64 range that will require drawing again.
+	// we will accept all values <= redrawAbove and
+	// modulo them by nChoices.
+	redrawAbove := math.MaxInt64 - (((math.MaxInt64 % nChoices) + 1) % nChoices)
+	// INVAR: redrawAbove % nChoices == (nChoices - 1).
 
 	b := make([]byte, 8)
 
@@ -129,11 +137,10 @@ func (rng *prng) pseudoRandNonNegInt64Range(nChoices int64) (r int64) {
 			}
 			r = -r
 		}
-		attempt := r & mask
-		if attempt < nChoices {
-			return attempt
+		if r > redrawAbove {
+			continue
 		}
-		// reject too large and try again.
+		return r % nChoices
 	}
 	return r
 }
