@@ -88,9 +88,6 @@ func (rng *prng) pseudoRandBool() (b bool) {
 // of 2 the occurs > nChoices. This gives
 // an un-biased random number.
 func (rng *prng) pseudoRandNonNegInt64Range(nChoices int64) (r int64) {
-	if nChoices <= 1 {
-		panic(fmt.Sprintf("nChoices must be in [2, MaxInt64]; we see %v", nChoices))
-	}
 	rng.mut.Lock()
 	defer rng.mut.Unlock()
 
@@ -99,6 +96,9 @@ func (rng *prng) pseudoRandNonNegInt64Range(nChoices int64) (r int64) {
 }
 
 func chachaRandNonNegInt64Range(cha8 *mathrand2.ChaCha8, nChoices int64) (r int64) {
+	if nChoices <= 1 {
+		panic(fmt.Sprintf("nChoices must be in [2, MaxInt64]; we see %v", nChoices))
+	}
 
 	b := make([]byte, 8)
 	if nChoices == math.MaxInt64 {
