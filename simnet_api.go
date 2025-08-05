@@ -56,6 +56,13 @@ type scenario struct {
 	who     int
 }
 
+// scenario.rng changes:
+// 1) when probabilistic dropped messages are dropped.
+// 2) when probabilistic deaf reads are deaf.
+// 3) send arrival time (how much delay there was in the network);
+// within the bounds of minHop and maxHop
+// scenario.tick controls:
+// _ duration of time between network events
 func NewScenario(tick, minHop, maxHop time.Duration, seed [32]byte) *scenario {
 	s := &scenario{
 		seed:    seed,
@@ -75,12 +82,11 @@ func (s *scenario) rngHop() (hop time.Duration) {
 		return s.minHop
 	}
 	vary := s.maxHop - s.minHop
-	r := s.rng.Uint64()
-	r = r % uint64(vary)
-	if r < 0 {
-		r = -r
-	}
-	r += uint64(s.minHop)
+
+	// get un-biased uniform pseudo random number in [0, vary)
+	r := chachaRandNonNegInt64Range(s.chacha, int64(vary))
+
+	r += int64(s.minHop)
 	hop = time.Duration(r)
 	return
 }

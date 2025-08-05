@@ -2486,7 +2486,13 @@ func (s *Simnet) scheduler() {
 			}
 			s.tickLogicalClocks()
 
-			s.distributeMEQ(now, i)
+			_, restartNewScenario := s.distributeMEQ(now, i)
+			if restartNewScenario {
+				vv("restartNewScenario: scenario applied: '%#v'", s.scenario)
+				// what else needs resetting/doing here?
+				//i = 0
+				//continue restartI
+			}
 			// end case wakeup <-s.haveNextTimer
 
 		case batch := <-s.submitBatchCh:
@@ -2609,7 +2615,7 @@ func (s *Simnet) scheduler() {
 	}
 }
 
-func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int) {
+func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScenario bool) {
 	//vv("i=%v, top distributeMEQ", i)
 	// meq is trying for
 	// more deterministic event ordering. we have
@@ -2690,9 +2696,9 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int) {
 		case SCENARIO:
 			s.finishScenario()
 			s.initScenario(op.scen)
-			i = 0
-			panic("TODO, impossible to restart network???")
-			//continue restartI
+			//panic("TODO, impossible to restart network??? - wait why?")
+			restartNewScenario = true
+			return
 
 		case FAULT_CKT:
 			s.injectCircuitFault(op, true)

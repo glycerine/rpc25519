@@ -91,13 +91,29 @@ func (rng *prng) pseudoRandNonNegInt64Range(nChoices int64) (r int64) {
 	if nChoices <= 1 {
 		panic(fmt.Sprintf("nChoices must be in [2, MaxInt64]; we see %v", nChoices))
 	}
-
-	if nChoices == math.MaxInt64 {
-		return rng.pseudoRandNonNegInt64()
-	}
-
 	rng.mut.Lock()
 	defer rng.mut.Unlock()
+
+	r = chachaRandNonNegInt64Range(rng.cha8, nChoices)
+	return
+}
+
+func chachaRandNonNegInt64Range(cha8 *mathrand2.ChaCha8, nChoices int64) (r int64) {
+
+	b := make([]byte, 8)
+	if nChoices == math.MaxInt64 {
+		//inlined rng.pseudoRandNonNegInt64():
+
+		cha8.Read(b)
+		r = int64(binary.LittleEndian.Uint64(b))
+		if r < 0 {
+			if r == math.MinInt64 {
+				return 0
+			}
+			r = -r
+		}
+		return r
+	}
 
 	// compute the last valid acceptable value,
 	// possibly leaving a small window at the top of the
@@ -107,10 +123,8 @@ func (rng *prng) pseudoRandNonNegInt64Range(nChoices int64) (r int64) {
 	redrawAbove := math.MaxInt64 - (((math.MaxInt64 % nChoices) + 1) % nChoices)
 	// INVAR: redrawAbove % nChoices == (nChoices - 1).
 
-	b := make([]byte, 8)
-
 	for {
-		rng.cha8.Read(b)
+		cha8.Read(b)
 		r = int64(binary.LittleEndian.Uint64(b))
 		if r < 0 {
 			// there is 1 more negative integer than
