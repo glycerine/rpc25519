@@ -916,7 +916,12 @@ func (lpb *LocalPeer) newCircuit(
 			alwaysPrintf("arg: tried to tell remote, but: err='%v'", err)
 		}
 	} else {
+		// !tellRemote
 		// update "the remote's remote" list: symmetric to ckt.go:406
+
+		// also, this seems to be needed... makes 401 membership_test green.
+		rpb.IncomingCkt = ckt
+
 		lpb.Remotes.Set(rpb.PeerID, rpb)
 	}
 
