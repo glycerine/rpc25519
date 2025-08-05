@@ -920,6 +920,11 @@ func (lpb *LocalPeer) newCircuit(
 		// update "the remote's remote" list: symmetric to ckt.go:406
 
 		// also, this seems to be needed... makes 401 membership_test green.
+		// Just add a check in case something else was already there;
+		// assert nothing already there:
+		if rpb.IncomingCkt != nil && ckt != rpb.IncomingCkt {
+			panic(fmt.Sprintf("hmm... are we blowing away a circuit setting on IncomingCkt that we need??? rpb.IncomingCkt = '%v'; new ckt = '%v'", rpb.IncomingCkt, ckt))
+		}
 		rpb.IncomingCkt = ckt
 
 		lpb.Remotes.Set(rpb.PeerID, rpb)
