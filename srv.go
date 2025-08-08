@@ -2920,11 +2920,12 @@ func (s *Client) StartRemotePeerAndGetCircuit(
 	remoteAddr string,
 	waitUpTo time.Duration,
 	waitForAck bool,
+	autoSendNewCircuitCh chan *Circuit,
 
 ) (ckt *Circuit, ackMsg *Message, err error) {
 
 	return s.PeerAPI.StartRemotePeerAndGetCircuit(
-		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, waitForAck)
+		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh)
 }
 
 // StartRemotePeerAndGetCircuit is the main way to bootstrap
@@ -2939,11 +2940,11 @@ func (s *Server) StartRemotePeerAndGetCircuit(
 	remoteAddr string,
 	waitUpTo time.Duration,
 	waitForAck bool,
-
+	autoSendNewCircuitCh chan *Circuit,
 ) (ckt *Circuit, ackMsg *Message, err error) {
 
 	return s.PeerAPI.StartRemotePeerAndGetCircuit(
-		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, waitForAck)
+		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh)
 }
 
 // PreferExtantRemotePeerGetCircuit is similar
