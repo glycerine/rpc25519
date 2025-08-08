@@ -41,7 +41,10 @@ func NewRpcConfigFromSexpString(sexp string, env *zygo.Zlisp) (cfg *Config, err 
 
 	if env == nil {
 		env = zygo.NewZlisp()
-		env.StandardSetup()
+		env.ImportBaseTypes()
+		env.ImportEval()
+		env.ImportTime()
+		env.ImportMinimalBuilder() // :, comma, raw64
 		RegisterConfigZygoConstructor(env)
 		defer env.Close()
 	}
@@ -59,7 +62,11 @@ func NewRpcConfigFromSexpString(sexp string, env *zygo.Zlisp) (cfg *Config, err 
 // test helper
 func newConfigReadingZygoEnv() (env *zygo.Zlisp) {
 	env = zygo.NewZlisp()
-	env.StandardSetup()
+	env.ImportBaseTypes()
+	env.ImportEval()
+	env.ImportTime()
+	env.ImportMinimalBuilder() // :, comma, raw64
+
 	RegisterConfigZygoConstructor(env)
 	return
 }
