@@ -25,10 +25,28 @@ import (
 // remoteAddr only needs to provide
 // "tcp://host:port" but we will trim
 // it down if it is a longer URL.
-func (p *peerAPI) PreferExtantRemotePeerGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration) (ckt *Circuit, ackMsg *Message, err error) {
+//
+// If autoSendNewCircuitCh != nil, then we automatically
+// send to autoSendNewCircuitCh <- ckt if get
+// a circuit back without error.
+func (p *peerAPI) PreferExtantRemotePeerGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, autoSendNewCircuitCh chan *Circuit) (ckt *Circuit, ackMsg *Message, err error) {
+
 	waitForAck := true
 	preferExtant := true
-	return p.implRemotePeerAndGetCircuit(lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, preferExtant)
+
+	ckt, ackMsg, err = p.implRemotePeerAndGetCircuit(lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, preferExtant)
+
+	if err != nil && ckt != nil && autoSendNewCircuitCh != nil {
+		// automatically send along the new ckt
+		select {
+		case autoSendNewCircuitCh <- ckt:
+
+		case <-ckt.Halt.ReqStop.Chan:
+		case <-ckt.Context.Done():
+		case <-p.u.GetHostHalter().ReqStop.Chan:
+		}
+	}
+	return
 }
 
 // StartRemotePeerAndGetCircuit is a combining/compression of

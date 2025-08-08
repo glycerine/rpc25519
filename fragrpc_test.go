@@ -88,7 +88,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		// address we have, but we do not have its PeerID yet.x
 
 		cktName2 := "ckt-410-2nd" // what to call our new circuit
-		ckt2, ackMsg, err := j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb, cktName2, nil, j.srvServiceName, netAddr, 0)
+		ckt2, ackMsg, err := j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb, cktName2, nil, j.srvServiceName, netAddr, 0, nil)
 		_ = ackMsg
 		panicOn(err)
 		//vv("ckt2 = '%v'", ckt2)
@@ -108,7 +108,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		wrongServiceNameSrv := "service_name_not_avail_on_server"
 		cktName4 := "cli_cktname_will_never_be_used"
 		var ckt4 *Circuit
-		ckt4, ackMsg, err = j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb, cktName4, nil, wrongServiceNameSrv, netAddr, time.Second*2)
+		ckt4, ackMsg, err = j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb, cktName4, nil, wrongServiceNameSrv, netAddr, time.Second*2, nil)
 		_ = ackMsg
 		if err == nil {
 			panic("should get no name found!")
@@ -170,7 +170,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	cktName3 := "ckt-410-3rd" // what to call our new circuit
 	if part3 {
 		// works
-		ckt3, ackMsg, err := j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb, cktName3, nil, cliServiceName, cliNetAddr, 0)
+		ckt3, ackMsg, err := j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb, cktName3, nil, cliServiceName, cliNetAddr, 0, nil)
 		_ = ackMsg
 		panicOn(err)
 
@@ -187,7 +187,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		// works
 		// we should get an error if there is no such service name available!
 		wrongServiceName := "service_name_not_avail_on_client"
-		_, ackMsg, err = j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb, cktName3, nil, wrongServiceName, cliNetAddr, time.Second*2)
+		_, ackMsg, err = j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb, cktName3, nil, wrongServiceName, cliNetAddr, time.Second*2, nil)
 		_ = ackMsg
 		if err == nil {
 			panic("should get no name found!")
