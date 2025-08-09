@@ -3124,6 +3124,10 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	req.ScenarioMinHop = s.scenario.minHop
 	req.ScenarioMaxHop = s.scenario.maxHop
 	req.Peermap = make(map[string]*SimnetPeerStatus)
+	req.DNS = make(map[string]string)
+	for k, v := range s.dns {
+		req.DNS[k] = v.name
+	}
 
 	req.Xcountsn = s.nextMopSn
 	req.Xfinorder = append([]int64{}, s.xfinorder...)

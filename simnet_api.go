@@ -918,6 +918,7 @@ type SimnetSnapshot struct {
 	Cfg                SimNetConfig
 	PeerConnCount      int
 	LoneCliConnCount   int
+	DNS                map[string]string // srvnode.name:simnode.name
 
 	// mop creation/finish data.
 	Xcountsn  int64       // number of mop issued
