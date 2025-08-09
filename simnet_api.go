@@ -896,14 +896,15 @@ type SimnetConnSummary struct {
 // SimnetPeerStatus is a part of a SimnetSnapshot.
 // It describes a single peer server, or a lone client.
 type SimnetPeerStatus struct {
-	Name         string
-	Conn         []*SimnetConnSummary
-	Connmap      map[string]*SimnetConnSummary
-	ServerState  Faultstate
-	Poweroff     bool
-	LC           int64
-	ServerBaseID string
-	IsLoneCli    bool // and not really a peer server with auto-cli
+	Name          string
+	Conn          []*SimnetConnSummary
+	ConnmapOrigin map[string]*SimnetConnSummary
+	ConnmapTarget map[string]*SimnetConnSummary
+	ServerState   Faultstate
+	Poweroff      bool
+	LC            int64
+	ServerBaseID  string
+	IsLoneCli     bool // and not really a peer server with auto-cli
 }
 
 // SimnetSnapshot is returned by

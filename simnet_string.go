@@ -3,6 +3,7 @@ package rpc25519
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	cristalbase64 "github.com/cristalhq/base64"
@@ -619,4 +620,71 @@ func (z *SimnetSnapshot) LongString() (r string) {
 	}
 	//r += "}\n"
 	return
+}
+
+// active (initiators) are the auto-cli
+func (s *SimnetSnapshot) ServerMatrixString() (r string) {
+	// column headers
+	leadin := "              "
+	r = "\nServerMatrix:\n" + leadin
+	for j, spsJ := range s.Peer {
+		_ = j
+		r += fmt.Sprintf("%11s", spsJ.Name)
+	}
+	r += "\n" + leadin
+	for range s.Peer {
+		r += " __________"
+	}
+	r += "\n"
+	for i, spsI := range s.Peer {
+		r += fmt.Sprintf("%02d %-11s: ", i, spsI.Name)
+
+		m := make(map[string]string)
+		for j, conn := range spsI.Conn {
+			//o := extractFromAutoCli(conn.Origin)
+			t := extractFromAutoCli(conn.Target)
+			var sym string
+			if strings.Contains(conn.Origin, "auto-cli") {
+				sym = "   ->      "
+			} else if strings.Contains(conn.Target, "auto-cli") {
+				sym = "   <-      "
+			} else {
+				sym = conn.Target
+			}
+			m[t] = sym
+			_ = j
+			//r += fmt.Sprintf(" '%v' -> '%v' ", conn.Origin, conn.Target)
+			/*
+				_, ok := spsI.Connmap[spsJ.Name]
+				if ok {
+					r += "   yes     "
+				} else {
+					r += "   ---     "
+				}
+			*/
+		}
+		for j, spsJ := range s.Peer {
+			_ = j
+			sym, ok := m[spsJ.Name]
+			if ok {
+				r += sym
+			} else {
+				r += "           "
+			}
+		}
+		r += "\n"
+	}
+	return
+}
+
+func extractFromAutoCli(name string) string {
+	if !strings.Contains(name, "auto-cli-from-") {
+		return name
+	}
+	from := name[len("auto-cli-from-"):]
+	x := strings.Index(from, "-to-")
+	if x < 0 {
+		panic(fmt.Sprintf("mal-formed auto-cli name, did not have -to- part: '%v'", name))
+	}
+	return from[:x]
 }

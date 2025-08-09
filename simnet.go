@@ -659,7 +659,7 @@ func (s *Simnet) newSimnodeClient(name, serverBaseID string) (simnode *simnode) 
 	return
 }
 
-func (s *Simnet) newCircuitserver(name, serverBaseID string) (simnode *simnode) {
+func (s *Simnet) newCircuitServer(name, serverBaseID string) (simnode *simnode) {
 	simnode = s.newSimnode(name, serverBaseID)
 	simnode.isCli = false
 	// buffer so servers don't have to be up to get them.
@@ -679,7 +679,7 @@ func (s *Simnet) handleServerRegistration(op *mop) {
 	// 	isCli:   false,
 	// }
 
-	srvnode := s.newCircuitserver(reg.server.name, reg.serverBaseID)
+	srvnode := s.newCircuitServer(reg.server.name, reg.serverBaseID)
 	srvnode.allnode[srvnode] = true
 	srvnode.netAddr = reg.srvNetAddr
 	s.circuits.set(srvnode, newDmap[*simnode, *simconn]())
@@ -720,7 +720,7 @@ func (s *Simnet) handleServerRegistration(op *mop) {
 
 	//vv("end of handleServerRegistration, about to close(reg.done). srvreg is %v", reg)
 
-	// channel made by newCircuitserver() above.
+	// channel made by newCircuitServer() above.
 	reg.tellServerNewConnCh = srvnode.tellServerNewConnCh
 	s.fin(op)
 	close(reg.proceed)
@@ -3168,12 +3168,13 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	for _, srvnode := range valNameSort(s.servers) {
 		delete(alone, srvnode)
 		sps := &SimnetPeerStatus{
-			Name:         srvnode.name,
-			ServerState:  srvnode.state,
-			Poweroff:     srvnode.powerOff,
-			LC:           srvnode.lc,
-			ServerBaseID: srvnode.serverBaseID,
-			Connmap:      make(map[string]*SimnetConnSummary),
+			Name:          srvnode.name,
+			ServerState:   srvnode.state,
+			Poweroff:      srvnode.powerOff,
+			LC:            srvnode.lc,
+			ServerBaseID:  srvnode.serverBaseID,
+			ConnmapOrigin: make(map[string]*SimnetConnSummary),
+			ConnmapTarget: make(map[string]*SimnetConnSummary),
 		}
 		req.Peer = append(req.Peer, sps)
 		req.Peermap[srvnode.name] = sps
@@ -3209,8 +3210,8 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 					TimerQ:       origin.timerQ.deepclone(),
 				}
 				sps.Conn = append(sps.Conn, connsum)
-				sps.Connmap[origin.name] = connsum
-				//vv("sps.Connmap['%v'] set", origin.name)
+				sps.ConnmapOrigin[origin.name] = connsum
+				sps.ConnmapTarget[target.name] = connsum
 			}
 		}
 		if len(alone) > 0 {
@@ -3261,14 +3262,15 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 				// not really a peer but meh. not worth its
 				// own separate struct.
 				sps := &SimnetPeerStatus{
-					Name:         origin.name,
-					ServerState:  origin.state,
-					Poweroff:     origin.powerOff,
-					LC:           origin.lc,
-					ServerBaseID: origin.serverBaseID,
-					Conn:         []*SimnetConnSummary{connsum},
-					Connmap:      map[string]*SimnetConnSummary{origin.name: connsum},
-					IsLoneCli:    true,
+					Name:          origin.name,
+					ServerState:   origin.state,
+					Poweroff:      origin.powerOff,
+					LC:            origin.lc,
+					ServerBaseID:  origin.serverBaseID,
+					Conn:          []*SimnetConnSummary{connsum},
+					ConnmapOrigin: map[string]*SimnetConnSummary{origin.name: connsum},
+					ConnmapTarget: map[string]*SimnetConnSummary{target.name: connsum},
+					IsLoneCli:     true,
 				}
 				_, impos := req.LoneCli[origin.name]
 				if impos {

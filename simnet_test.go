@@ -1176,7 +1176,7 @@ func Test771_simnetonly_client_dropped_sends(t *testing.T) {
 			stat := simnet.GetSimnetSnapshot()
 
 			sps := stat.Peermap[srvname]
-			sconn := sps.Connmap[srvname]
+			sconn := sps.ConnmapOrigin[srvname]
 			cconn := stat.LoneCli[cliname].Conn[0]
 
 			//vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
@@ -1253,7 +1253,7 @@ func Test772_simnetonly_server_dropped_sends(t *testing.T) {
 			stat := simnet.GetSimnetSnapshot()
 
 			sps := stat.Peermap[srvname]
-			sconn := sps.Connmap[srvname]
+			sconn := sps.ConnmapOrigin[srvname]
 			cconn := stat.LoneCli[cliname].Conn[0]
 
 			//vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
@@ -1498,7 +1498,7 @@ func Test781_simnetonly_client_isolated(t *testing.T) {
 			stat := simnet.GetSimnetSnapshot()
 
 			sps := stat.Peermap[srvname]
-			sconn := sps.Connmap[srvname]
+			sconn := sps.ConnmapOrigin[srvname]
 			cconn := stat.LoneCli[cliname].Conn[0]
 
 			//vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
@@ -1579,7 +1579,7 @@ func Test782_simnetonly_server_isolated(t *testing.T) {
 			stat := simnet.GetSimnetSnapshot()
 
 			sps := stat.Peermap[srvname]
-			sconn := sps.Connmap[srvname]
+			sconn := sps.ConnmapOrigin[srvname]
 			cconn := stat.LoneCli[cliname].Conn[0]
 
 			//vv("stat.Peermap = '%v'; cconn = '%v", stat.Peermap, cconn)
