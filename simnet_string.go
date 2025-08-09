@@ -622,7 +622,7 @@ func (z *SimnetSnapshot) LongString() (r string) {
 	return
 }
 
-// ServerMatrix summarizes the peer-to-peer
+// PeerMatrix summarizes the peer-to-peer
 // network connections that are established.
 //
 // The upper-right-triangle shows the
@@ -632,50 +632,34 @@ func (z *SimnetSnapshot) LongString() (r string) {
 // servers at peers.
 //
 // The matrix is always square.
-type ServerMatrix struct {
+type PeerMatrix struct {
 	NumPeer   int
 	PeerNames []string // sorted
 	Sparse    map[string]map[string]string
 }
 
-func NewServerMatrix() *ServerMatrix {
-	return &ServerMatrix{
+func NewPeerMatrix() *PeerMatrix {
+	return &PeerMatrix{
 		Sparse: make(map[string]map[string]string),
 	}
 }
 
-func (s *SimnetSnapshot) ServerMatrixString() (
-	r string,
-	matrix *ServerMatrix,
-) {
+func (s *SimnetSnapshot) PeerMatrix() (matrix *PeerMatrix) {
 
-	matrix = NewServerMatrix()
-
-	// column headers
-	leadin := "              "
-	r = "\nServerMatrix:\n" + leadin
+	matrix = NewPeerMatrix()
 	if len(s.Peer) == 0 {
-		r = "(empty matrix, no peers)"
 		return
 	}
 	matrix.NumPeer = len(s.Peer)
 
-	for j, spsJ := range s.Peer {
-		_ = j
-		r += fmt.Sprintf("%11s", spsJ.Name)
+	for _, spsJ := range s.Peer {
 		matrix.Sparse[spsJ.Name] = make(map[string]string)
 		matrix.PeerNames = append(matrix.PeerNames, spsJ.Name)
 	}
 	sort.Strings(matrix.PeerNames)
-	r += "\n" + leadin
-	for range s.Peer {
-		r += " ----------"
-	}
-	r += "\n"
-	// done with header
-	for i, spsI := range s.Peer {
-		r += fmt.Sprintf("%02d %-11s: ", i, spsI.Name)
 
+	// done with header
+	for _, spsI := range s.Peer {
 		targetMap := make(map[string]string)
 		for _, conn := range spsI.Conn {
 			o := extractFromAutoCli(conn.Origin)
@@ -695,15 +679,6 @@ func (s *SimnetSnapshot) ServerMatrixString() (
 			targetMap[t] = sym
 			matrix.Sparse[o][t] = sym
 		}
-		for _, spsJ := range s.Peer {
-			sym, ok := targetMap[spsJ.Name]
-			if ok {
-				r += sym
-			} else {
-				r += "           "
-			}
-		}
-		r += "\n"
 	}
 	return
 }
@@ -720,10 +695,10 @@ func extractFromAutoCli(name string) string {
 	return from[:x]
 }
 
-func (s *ServerMatrix) String() (r string) {
+func (s *PeerMatrix) String() (r string) {
 	// column headers
 	leadin := "              "
-	r = "\nServerMatrix:\n" + leadin
+	r = "\nPeerMatrix:\n" + leadin
 	if s.NumPeer == 0 {
 		r = "(empty matrix, no peers)"
 		return
