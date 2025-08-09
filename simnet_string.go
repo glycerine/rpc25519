@@ -635,7 +635,13 @@ func (z *SimnetSnapshot) LongString() (r string) {
 type PeerMatrix struct {
 	NumPeer   int
 	PeerNames []string // sorted
-	Sparse    map[string]map[string]string
+
+	// UpRightTriCount tells us how many
+	// connections exist in the upper right triangle?
+	// Same as the number of " <- " arrows observered.
+	UpRightTriCount int
+
+	Sparse map[string]map[string]string
 }
 
 func NewPeerMatrix() *PeerMatrix {
@@ -673,6 +679,7 @@ func (s *SimnetSnapshot) PeerMatrix() (matrix *PeerMatrix) {
 				sym = "   ->      "
 			} else if strings.Contains(conn.Target, "auto-cli") {
 				sym = "   <-      "
+				matrix.UpRightTriCount++
 			} else {
 				sym = fmt.Sprintf("[%v]", conn.Target)
 			}
