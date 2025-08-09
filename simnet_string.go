@@ -622,26 +622,67 @@ func (z *SimnetSnapshot) LongString() (r string) {
 	return
 }
 
-// active (initiators) are the auto-cli
-func (s *SimnetSnapshot) ServerMatrixString() (r string) {
+// ServerMatrix summarizes the peer-to-peer
+// network connections that are established.
+//
+// The upper-right-triangle shows the
+// active (initiators), which are the auto-cli.
+//
+// The lower-left-triangle shows the passive
+// servers at peers.
+//
+// The matrix is always square.
+type ServerMatrix struct {
+	NumPeer   int
+	PeerNames []string // sorted
+	Sparse    map[string]map[string]string
+}
+
+func NewServerMatrix() *ServerMatrix {
+	return &ServerMatrix{
+		Sparse: make(map[string]map[string]string),
+	}
+}
+
+func (s *SimnetSnapshot) ServerMatrixString() (
+	r string,
+	matrix *ServerMatrix,
+) {
+
+	matrix = NewServerMatrix()
+
 	// column headers
 	leadin := "              "
 	r = "\nServerMatrix:\n" + leadin
+	if len(s.Peer) == 0 {
+		r = "(empty matrix, no peers)"
+		return
+	}
+	matrix.NumPeer = len(s.Peer)
+
 	for j, spsJ := range s.Peer {
 		_ = j
 		r += fmt.Sprintf("%11s", spsJ.Name)
+		matrix.Sparse[spsJ.Name] = make(map[string]string)
+		matrix.PeerNames = append(matrix.PeerNames, spsJ.Name)
 	}
+	sort.Strings(matrix.PeerNames)
 	r += "\n" + leadin
 	for range s.Peer {
-		r += " __________"
+		r += " ----------"
 	}
 	r += "\n"
+	// done with header
 	for i, spsI := range s.Peer {
 		r += fmt.Sprintf("%02d %-11s: ", i, spsI.Name)
 
-		m := make(map[string]string)
-		for j, conn := range spsI.Conn {
-			//o := extractFromAutoCli(conn.Origin)
+		targetMap := make(map[string]string)
+		for _, conn := range spsI.Conn {
+			o := extractFromAutoCli(conn.Origin)
+			// just sanity check
+			if o != spsI.Name {
+				panic(fmt.Sprintf("o='%v' but spsI.Name='%v'", o, spsI.Name))
+			}
 			t := extractFromAutoCli(conn.Target)
 			var sym string
 			if strings.Contains(conn.Origin, "auto-cli") {
@@ -649,23 +690,13 @@ func (s *SimnetSnapshot) ServerMatrixString() (r string) {
 			} else if strings.Contains(conn.Target, "auto-cli") {
 				sym = "   <-      "
 			} else {
-				sym = conn.Target
+				sym = fmt.Sprintf("[%v]", conn.Target)
 			}
-			m[t] = sym
-			_ = j
-			//r += fmt.Sprintf(" '%v' -> '%v' ", conn.Origin, conn.Target)
-			/*
-				_, ok := spsI.Connmap[spsJ.Name]
-				if ok {
-					r += "   yes     "
-				} else {
-					r += "   ---     "
-				}
-			*/
+			targetMap[t] = sym
+			matrix.Sparse[o][t] = sym
 		}
-		for j, spsJ := range s.Peer {
-			_ = j
-			sym, ok := m[spsJ.Name]
+		for _, spsJ := range s.Peer {
+			sym, ok := targetMap[spsJ.Name]
 			if ok {
 				r += sym
 			} else {
@@ -687,4 +718,38 @@ func extractFromAutoCli(name string) string {
 		panic(fmt.Sprintf("mal-formed auto-cli name, did not have -to- part: '%v'", name))
 	}
 	return from[:x]
+}
+
+func (s *ServerMatrix) String() (r string) {
+	// column headers
+	leadin := "              "
+	r = "\nServerMatrix:\n" + leadin
+	if s.NumPeer == 0 {
+		r = "(empty matrix, no peers)"
+		return
+	}
+
+	for _, name := range s.PeerNames {
+		r += fmt.Sprintf("%11s", name)
+	}
+	r += "\n" + leadin
+	for range s.PeerNames {
+		r += " ----------"
+	}
+	r += "\n"
+	// done with header
+	for i, namei := range s.PeerNames {
+		r += fmt.Sprintf("%02d %-11s: ", i, namei)
+
+		for _, namej := range s.PeerNames {
+			sym, ok := s.Sparse[namei][namej]
+			if ok {
+				r += sym
+			} else {
+				r += "           "
+			}
+		}
+		r += "\n"
+	}
+	return
 }
