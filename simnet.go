@@ -181,7 +181,7 @@ func (op *mop) whence() string {
 // increase determinism by processing
 // the meq in priority order, after
 // giving each mop a different priority.
-// note: keeping the priority numbers as 100 x the mopking
+// note: keeping the priority numbers as 100 x the mopkind
 // just makes it easy to be sure we have not
 // missed a priority if we add a new mopkind.
 func (s *mop) priority() int64 {
