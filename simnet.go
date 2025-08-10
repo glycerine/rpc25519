@@ -1244,6 +1244,10 @@ func (s *Simnet) shutdownSimnode(simnode *simnode) (undo Alteration) {
 	// that eventually delivers messages from a server after several
 	// power cycles.
 
+	// Do not we need to close all the circuits too, so the
+	// other side gets a shutdown/reset if the network is up
+	// between them...?
+
 	//vv("handleAlterCircuit: end SHUTDOWN, simnode is now: %v", simnode)
 	return
 }
