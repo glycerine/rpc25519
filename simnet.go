@@ -143,14 +143,15 @@ type mop struct {
 	srvReg  *serverRegistration
 	snapReq *SimnetSnapshot
 
-	scen       *scenario
-	cktFault   *circuitFault
-	hostFault  *hostFault
-	repairCkt  *circuitRepair
-	repairHost *hostRepair
-	alterHost  *simnodeAlteration
-	alterNode  *simnodeAlteration
-	batch      *SimnetBatch
+	scen         *scenario
+	cktFault     *circuitFault
+	hostFault    *hostFault
+	repairCkt    *circuitRepair
+	repairHost   *hostRepair
+	alterHost    *simnodeAlteration
+	alterNode    *simnodeAlteration
+	batch        *SimnetBatch
+	closeSimnode *closeSimnode
 }
 
 func (op *mop) whence() string {
@@ -173,6 +174,7 @@ func (op *mop) whence() string {
 		return op.timerFileLine
 	case TIMER_DISCARD:
 		return op.timerFileLine
+	case CLOSE_SIMNODE:
 	case SNAPSHOT:
 	}
 	return op.where
@@ -219,9 +221,10 @@ func (s *mop) priority() int64 {
 		return 1300
 	case TIMER_DISCARD:
 		return 1400
-
-	case SNAPSHOT:
+	case CLOSE_SIMNODE:
 		return 1500
+	case SNAPSHOT:
+		return 1600
 	}
 	panic(fmt.Sprintf("mop kind '%v' needs priority", int(s.kind)))
 }
@@ -273,10 +276,8 @@ func (s *mop) tm() time.Time {
 		return s.reqtm
 	case ALTER_NODE:
 		return s.reqtm
-	case PROCEED:
-		return s.completeTm
-	case TIMER_FIRES:
-		return s.completeTm
+	case CLOSE_SIMNODE:
+		return s.reqtm
 	}
 	panic(fmt.Sprintf("mop kind '%v' needs tm", int(s.kind)))
 }
@@ -555,6 +556,7 @@ type Simnet struct {
 	repairHostCh         chan *hostRepair
 
 	simnetSnapshotRequestCh chan *SimnetSnapshot
+	simnetCloseNodeCh       chan *closeSimnode
 
 	newScenarioCh chan *scenario
 	nextTimer     *time.Timer
@@ -724,19 +726,6 @@ func (s *Simnet) handleServerRegistration(op *mop) {
 	reg.tellServerNewConnCh = srvnode.tellServerNewConnCh
 	s.fin(op)
 	close(reg.proceed)
-	if false {
-		now := time.Now()
-		closer := &mop{
-			completeTm: userMaskTime(now, reg.who), // what tm() refers to.
-			kind:       PROCEED,
-			//proceedMop:  reg,
-			sn:      s.simnetNextMopSn(),
-			proceed: reg.proceed,
-			reqtm:   reg.reqtm,
-			who:     reg.who,
-		}
-		s.add2meq(closer, -1)
-	}
 }
 
 func (s *Simnet) handleClientRegistration(regop *mop) {
@@ -857,6 +846,7 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 
 		scenario:                scen,
 		simnetSnapshotRequestCh: make(chan *SimnetSnapshot),
+		simnetCloseNodeCh:       make(chan *closeSimnode),
 		dns:                     make(map[string]*simnode),
 		node2server:             make(map[*simnode]*simnode),
 
@@ -964,10 +954,11 @@ const (
 	TIMER         mopkind = 13
 	TIMER_DISCARD mopkind = 14
 
+	// remove simnode from system, it has shutdown for real.
+	CLOSE_SIMNODE mopkind = 15
+
 	// report a snapshot of the entire network/state.
-	SNAPSHOT    mopkind = 15
-	PROCEED     mopkind = 16 // not currently used.
-	TIMER_FIRES mopkind = 17 // not currently used.
+	SNAPSHOT mopkind = 16
 )
 
 func enforceTickDur(tick time.Duration) time.Duration {
@@ -1735,51 +1726,6 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	//vv("handleSend SEND send = %v", send)
 	////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvnode.preArrQ)
 
-	if false { // we put back in the above close(proceed) for now
-		// Do we need to s.nextUniqTm() when we close(send.proceed)?
-		// I think we do want to queue up the send.proceed into
-		// the meq and do it at a unique time we just assigned to
-		// send.completeTm.
-		closer := &mop{
-			// completeTm is what tm() refers to for PROCEED.
-			completeTm: userMaskTime(send.completeTm, send.who),
-			kind:       PROCEED,
-			proceedMop: send,
-			sn:         s.simnetNextMopSn(),
-			proceed:    send.proceed,
-			reqtm:      now,
-			who:        send.who,
-		}
-		s.add2meq(closer, -1)
-	}
-	// delta := s.dispatch(send.target, now, limit, loopi) // needed?
-	// changed += delta
-	// limit -= delta
-
-	// just this? no, the meq is what called us.
-	// s.add2meq(send, -1)
-
-	if false {
-		// allow delivery between scheduling quantum...?
-		// copied from dispatchSendsReads but not deployed
-		// dur := send.arrivalTm.Sub(now)
-		// pending := s.newTimerCreateMop(simnode.isCli)
-		// pending.origin = simnode
-		// pending.timerDur = dur
-		// pending.initTm = now
-		// pending.completeTm = now.Add(dur)
-		// pending.timerFileLine = fileLine(1)
-		// pending.internalPendingTimer = true
-		// send.internalPendingTimerForSend = pending
-
-		// vv("dur=%v, queue new timer (sn:%v) for delivery of send in that has not happened (arrivalTm: %v): '%v'", dur, pending.sn, nice9(send.arrivalTm), send)
-		// s.handleTimer(pending)
-
-		//changes++
-		//limit--
-		//return
-	}
-
 	return
 }
 
@@ -1911,22 +1857,6 @@ func (s *Simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 				// this was our own, just discard!
 			} else {
 				// user timer
-
-				if false {
-					// deliver with the meq
-					closer := &mop{
-						// completeTm is what tm() refers to for PROCEED.
-						completeTm: userMaskTime(timer.completeTm, timer.who),
-						kind:       TIMER_FIRES,
-						proceedMop: timer,
-						sn:         s.simnetNextMopSn(),
-						//proceed:    send.proceed,
-						reqtm: timer.reqtm,
-						who:   timer.who,
-					}
-					s.add2meq(closer, loopi)
-					continue
-				}
 
 				tC := timer.timerC.Value()
 				if tC == nil {
@@ -2572,6 +2502,10 @@ func (s *Simnet) scheduler() {
 			//s.handleSimnetSnapshotRequest(snapReq, now, i)
 			s.add2meq(s.newSnapReqMop(snapReq), i)
 
+		case closeSimnodeReq := <-s.simnetCloseNodeCh:
+			//vv("i=%v simnetCloseNodeCh -> closeNodeReq", i)
+			s.add2meq(s.newCloseSimnodeMop(closeSimnodeReq), i)
+
 		case <-s.halt.ReqStop.Chan:
 			//vv("i=%v <-s.halt.ReqStop.Chan", i)
 			bb := time.Since(s.bigbang)
@@ -2651,25 +2585,25 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		who[op.who] = true
 
 		switch op.kind {
-		case PROCEED: // not currently used.
-			vv("PROCEED releasing op.completeTm = %v", op.completeTm)
-			s.fin(op)
+		case CLOSE_SIMNODE:
+			vv("CLOSE_SIMNODE op.reqtm = %v", op.reqtm)
+			s.handleCloseSimnode(op)
 			close(op.proceed)
 
-		case TIMER_FIRES: // not currently used.
-			vv("TIMER_FIRES: %v", op)
-			tC := op.proceedMop.timerC.Value()
-			if tC != nil {
-				select {
-				//case op.proceedMop.timerC <- now: // might need to make buffered?
-				case *tC <- now: // might need to make buffered?
-					vv("TIMER_FIRES delivered to timer: %v", op.proceedMop)
-				case <-s.halt.ReqStop.Chan:
-					vv("i=%v <-s.halt.ReqStop.Chan", i)
-					return
-				}
-			}
-			// let op be GC-ed.
+		// case TIMER_FIRES: // not currently used.
+		// 	vv("TIMER_FIRES: %v", op)
+		// 	tC := op.proceedMop.timerC.Value()
+		// 	if tC != nil {
+		// 		select {
+		// 		//case op.proceedMop.timerC <- now: // might need to make buffered?
+		// 		case *tC <- now: // might need to make buffered?
+		// 			vv("TIMER_FIRES delivered to timer: %v", op.proceedMop)
+		// 		case <-s.halt.ReqStop.Chan:
+		// 			vv("i=%v <-s.halt.ReqStop.Chan", i)
+		// 			return
+		// 		}
+		// 	}
+		// 	// let op be GC-ed.
 
 		case TIMER:
 			//vv("i=%v, meq sees timer='%v'", i, op)
@@ -3283,6 +3217,10 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	// end handleSimnetSnapshotRequest
 }
 
+func (s *Simnet) handleCloseSimnode(clop *mop) {
+
+}
+
 func (s *Simnet) newClientRegMop(clireg *clientRegistration) (op *mop) {
 	op = &mop{
 		cliReg:    clireg,
@@ -3402,6 +3340,19 @@ func (s *Simnet) newRepairHostMop(hostRepair *hostRepair) (op *mop) {
 		proceed:    hostRepair.proceed,
 		who:        hostRepair.who,
 		reqtm:      hostRepair.reqtm,
+	}
+	return
+}
+
+func (s *Simnet) newCloseSimnodeMop(closeSimnodeReq *closeSimnode) (op *mop) {
+	op = &mop{
+		closeSimnode: closeSimnodeReq,
+		sn:           s.simnetNextMopSn(),
+		kind:         CLOSE_SIMNODE,
+		proceed:      closeSimnodeReq.proceed,
+		who:          closeSimnodeReq.who,
+		reqtm:        closeSimnodeReq.reqtm,
+		where:        closeSimnodeReq.where,
 	}
 	return
 }

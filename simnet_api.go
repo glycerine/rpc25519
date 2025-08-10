@@ -793,6 +793,27 @@ func (s *Simnet) newHostFault(hostName string, dd DropDeafSpec, deliverDroppedSe
 	}
 }
 
+type closeSimnode struct {
+	simnodeName string
+
+	sn      int64
+	proceed chan struct{}
+	reqtm   time.Time
+	err     error
+	who     int
+	where   string
+}
+
+func (s *Simnet) newCloseSimnode(simnodeName string) *closeSimnode {
+	return &closeSimnode{
+		simnodeName: simnodeName,
+		sn:          s.simnetNextMopSn(),
+		proceed:     make(chan struct{}),
+		reqtm:       time.Now(),
+		who:         goID(),
+	}
+}
+
 type circuitRepair struct {
 	originName string
 	targetName string
@@ -1136,4 +1157,22 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	}
 	fmt.Fprintf(fd, "%v\n", snap.Xhash)
 	//vv("path = '%v' for %v/ nw=%v; out='%v'", path, len(snap.Xorder), nw, fd.Name())
+}
+
+func (s *Simnet) CloseSimnode(simnodeName string) (err error) {
+
+	cl := s.newCloseSimnode(simnodeName)
+	select {
+	case s.simnetCloseNodeCh <- cl:
+		//vv("sent cl on Ch; about to wait on proceed goro = %v", GoroNumber())
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	select {
+	case <-cl.proceed:
+		err = cl.err
+	case <-s.halt.ReqStop.Chan:
+		return
+	}
+	return
 }
