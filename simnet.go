@@ -2346,7 +2346,7 @@ func (s *Simnet) scheduler() {
 
 		// let goroutines get blocked waiting on the select arms below.
 		if faketime && s.barrier {
-			synctestWait_LetAllOtherGoroFinish() // 1st barrier // already here?? two goro: 26(group 23), goro 131(group 23)
+			synctestWait_LetAllOtherGoroFinish() // 1st barrier
 		}
 		//vv("i=%v, about to select", i)
 		preSelectTm := now
@@ -2586,7 +2586,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 
 		switch op.kind {
 		case CLOSE_SIMNODE:
-			vv("CLOSE_SIMNODE op.reqtm = %v", op.reqtm)
+			//vv("CLOSE_SIMNODE '%v'", op.closeSimnode.simnodeName)
 			s.handleCloseSimnode(op)
 
 		// case TIMER_FIRES: // not currently used.
@@ -3218,6 +3218,7 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 
 // PRE: alter host to SHUTDOWN already done.
 func (s *Simnet) handleCloseSimnode(clop *mop) {
+	vv("CLOSE_SIMNODE '%v'", clop.closeSimnode.simnodeName)
 
 	defer func() {
 		s.fin(clop)
