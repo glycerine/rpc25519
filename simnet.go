@@ -2588,7 +2588,6 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		case CLOSE_SIMNODE:
 			vv("CLOSE_SIMNODE op.reqtm = %v", op.reqtm)
 			s.handleCloseSimnode(op)
-			close(op.proceed)
 
 		// case TIMER_FIRES: // not currently used.
 		// 	vv("TIMER_FIRES: %v", op)
@@ -3217,8 +3216,41 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	// end handleSimnetSnapshotRequest
 }
 
+// PRE: alter host to SHUTDOWN already done.
 func (s *Simnet) handleCloseSimnode(clop *mop) {
 
+	defer func() {
+		s.fin(clop)
+		close(clop.proceed)
+	}()
+
+	req := clop.closeSimnode
+	target := req.simnodeName
+
+	node, ok := s.dns[target]
+	if !ok {
+		req.err = fmt.Errorf("simnodeName not found: '%v'; dns is '%#v'", target, s.dns)
+		return
+	}
+
+	// PRE: host has been SHUTDOWN.
+
+	others, ok := s.circuits.get2(node)
+	_ = others
+	if ok {
+		// close all simconn
+		//for rem, conn := range others.all() {
+		//?? seems external...clonn.Close()
+		//}
+	}
+	s.circuits.delkey(node)
+	delete(s.node2server, node)
+	delete(s.dns, target)
+	delete(s.servers, node.serverBaseID)
+	delete(s.allnodes, node)
+	delete(s.orphans, node)
+
+	// set req.err if need be
 }
 
 func (s *Simnet) newClientRegMop(clireg *clientRegistration) (op *mop) {

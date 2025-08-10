@@ -1159,7 +1159,18 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	//vv("path = '%v' for %v/ nw=%v; out='%v'", path, len(snap.Xorder), nw, fd.Name())
 }
 
+// how is this different from AlterHost with SHUTDOWN ?
+// this is meant to permanently remove all trace of
+// the simnode from the simnet. SHUTDOWN can be reversed
+// with another AlterHost. After CloseSimnode, you
+// have to re-register the client/server to rejoin
+// the simnet.
 func (s *Simnet) CloseSimnode(simnodeName string) (err error) {
+
+	_, err = s.AlterHost(simnodeName, SHUTDOWN)
+	if err != nil {
+		return
+	}
 
 	cl := s.newCloseSimnode(simnodeName)
 	select {
