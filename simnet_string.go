@@ -655,6 +655,17 @@ func (s *SimnetSnapshot) PeerMatrix() (matrix *PeerMatrix) {
 		return
 	}
 	matrix.NumPeer = len(s.Peer)
+	if false {
+		// debug stuff
+		vv("len(s.DNS)=%v", len(s.DNS))
+		vv("len(s.Peer)=%v", len(s.Peer))
+		vv("len(s.Peermap)=%v", len(s.Peermap))
+		vv("len(s.LoneCli)=%v", len(s.LoneCli))
+		vv("PeerConnCount = %v", s.PeerConnCount)
+		vv("LoneCliConnCount = %v", s.LoneCliConnCount)
+		// DNS srvnode.name:simnode.name
+		vv("DNS = '%#v", s.DNS)
+	}
 
 	for _, spsJ := range s.Peer {
 		matrix.Sparse[spsJ.Name] = make(map[string]string)
@@ -677,6 +688,7 @@ func (s *SimnetSnapshot) PeerMatrix() (matrix *PeerMatrix) {
 				sym = "   ->      "
 			} else if strings.Contains(conn.Target, "auto-cli") {
 				sym = "   <-      "
+				//vv("incrementing UpRightTri %v -> %v, due to conn: '%v' from o='%v' to t='%v'", matrix.UpRightTriCount, matrix.UpRightTriCount+1, conn, o, t)
 				matrix.UpRightTriCount++
 			} else {
 				sym = fmt.Sprintf("[%v]", conn.Target)
