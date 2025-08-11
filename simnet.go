@@ -81,6 +81,13 @@ type mop struct {
 	// so we can cleanup the timers from dropped sends.
 	internalPendingTimerForSend *mop
 
+	// Possible TODO: use the go 1.24 weak pointers to dispose of timers?
+	// We would have to periodically try to clean up our timer mop(s)
+	// that have fired by checking if the weak.Pointer.Value() == nil,
+	// meaning the GC has disposed of it--which tells us that the
+	// client code no longer has the timer and we the simnet can
+	// also dispose of it.
+
 	// is this our single grid step timer?
 	// There should only ever be one
 	// timer with this flag true.

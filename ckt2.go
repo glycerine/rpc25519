@@ -106,6 +106,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 	frag.ToPeerServiceName = remotePeerServiceName
 	frag.FromPeerServiceName = lpb.PeerServiceName
 	frag.SetSysArg("fromServiceName", lpb.PeerServiceName)
+	frag.SetSysArg("fromBaseServerName", lpb.BaseServerName)
 	frag.SetSysArg("circuitName", circuitName)
 	frag.FromPeerID = lpb.PeerID
 	frag.FromPeerName = lpb.PeerName

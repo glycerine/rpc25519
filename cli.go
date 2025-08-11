@@ -914,6 +914,10 @@ type Config struct {
 	// when creating their connection.
 	serverBaseID string
 
+	// name of server creating the auto-cli; or
+	// just the server name, if not an auto-cli.
+	BaseServerName string
+
 	// if cli starts first, we can try to recover
 	// later if server joins and wants to know who
 	// its auto-cli are...
@@ -1722,7 +1726,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 	c.keepAliveMsg.HDR.Typ = CallKeepAlive
 	c.keepAliveMsg.HDR.Subject = c.epochV.EpochTieBreaker
 
-	c.PeerAPI = newPeerAPI(c, yesIsClient, cfg.UseSimNet)
+	c.PeerAPI = newPeerAPI(c, yesIsClient, cfg.UseSimNet, cfg.BaseServerName)
 	c.encBufWriter = bufio.NewWriter(&c.encBuf)
 	c.codec = &greenpackClientCodec{
 		cli:          c,

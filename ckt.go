@@ -111,6 +111,14 @@ func (ckt *Circuit) RemoteCircuitURL() string {
 		ckt.CircuitID
 }
 
+func (ckt *Circuit) LocalBaseServerName() string {
+	return ckt.LpbFrom.BaseServerName
+}
+
+func (ckt *Circuit) RemoteBaseServerName() string {
+	return ckt.RpbTo.BaseServerName
+}
+
 func (ckt *Circuit) IsClosed() bool {
 	return ckt.Halt.ReqStop.IsClosed()
 }
@@ -296,6 +304,7 @@ type RemotePeer struct {
 	NetAddr           string
 	RemoteServiceName string
 	PeerURL           string
+	BaseServerName    string   // for auto-cli, what is base server?
 	IncomingCkt       *Circuit // first one to arrive
 }
 
@@ -308,6 +317,7 @@ type LocalPeer struct {
 	Halt            *idem.Halter
 	NetAddr         string
 	PeerServiceName string
+	BaseServerName  string // for auto-cli, what is base server?
 	PeerAPI         *peerAPI
 	Ctx             context.Context
 	Canc            context.CancelCauseFunc
@@ -423,6 +433,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 		//PeerName:        // unknown?
 		NetAddr:           netAddr,
 		RemoteServiceName: serviceName,
+		//BaseServerName:   what on remote? s.BaseServerName,
 	}
 	//vv("rpb = '%#v'", rpb)
 
@@ -566,6 +577,7 @@ func (peerAPI *peerAPI) newLocalPeer(
 		Canc:            cancelFunc,
 		PeerID:          peerID,
 		PeerName:        peerName,
+		BaseServerName:  peerAPI.baseServerName,
 		U:               u,
 		NewCircuitCh:    newCircuitCh,
 		ReadsIn:         make(chan *Message, 1),
@@ -716,6 +728,7 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 		msg.HDR.Args = make(map[string]string)
 	}
 	msg.HDR.Args["#fromServiceName"] = ckt.LocalServiceName
+	msg.HDR.Args["#fromBaseServerName"] = ckt.LpbFrom.BaseServerName
 
 	return
 }
@@ -910,6 +923,7 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args["#fromServiceName"] = lpb.PeerServiceName
 		msg.HDR.Args["#toServiceName"] = rpb.RemoteServiceName
 		msg.HDR.Args["#circuitName"] = circuitName
+		msg.HDR.Args["#fromBaseServerName"] = lpb.BaseServerName
 
 		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
 		if err != nil {
@@ -968,6 +982,7 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.CallID = ckt.CircuitID
 		msg.HDR.Serial = issueSerial()
 		msg.HDR.Args["#fromServiceName"] = lpb.PeerServiceName
+		msg.HDR.Args["#fromBaseServerName"] = lpb.BaseServerName
 		msg.HDR.Args["#toServiceName"] = rpb.RemoteServiceName
 		msg.HDR.Args["#circuitName"] = circuitName
 		// No need to explicity set the
@@ -1046,14 +1061,17 @@ type peerAPI struct {
 	// each new connection, but the frag will
 	// still get sent to a server peer.
 	isCli bool
+
+	baseServerName string
 }
 
-func newPeerAPI(u UniversalCliSrv, isCli, isSim bool) *peerAPI {
+func newPeerAPI(u UniversalCliSrv, isCli, isSim bool, baseServerName string) *peerAPI {
 	return &peerAPI{
 		u:                   u,
 		localServiceNameMap: NewMutexmap[string, *knownLocalPeer](),
 		isCli:               isCli,
 		isSim:               isSim,
+		baseServerName:      baseServerName,
 	}
 }
 
@@ -1562,9 +1580,10 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 			ack.HDR.Typ = CallOneWay // not peer/ckt traffic yet, only bootstrapping peer
 
 			ack.HDR.Args = map[string]string{
-				"#peerURL":         lpb.URL(),
-				"#peerID":          lpb.PeerID,
-				"#fromServiceName": lpb.PeerServiceName,
+				"#peerURL":            lpb.URL(),
+				"#peerID":             lpb.PeerID,
+				"#fromServiceName":    lpb.PeerServiceName,
+				"#fromBaseServerName": lpb.BaseServerName,
 				//"#fragRPCtoken": msg.HDR.Args["#fragRPCtoken"] // but only CallPeerStartCircuitTakeToID atm, so here maybe not.
 			}
 
@@ -1598,6 +1617,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		//	AliasRegister(rpb.PeerID, rpb.PeerID+" ("+rpb.RemoteServiceName+")")
 		//}
 		circuitName = msg.HDR.Args["#circuitName"]
+		rpb.BaseServerName = msg.HDR.Args["#fromBaseServerName"]
 	}
 	if !gotServiceName {
 		rpb.RemoteServiceName = msg.HDR.FromServiceName
@@ -1661,6 +1681,11 @@ func (s *peerAPI) rejectWith(errString string, isCli bool, msg *Message, ctx con
 	if ok {
 		msg.HDR.Args["#toServiceName"] = fromService
 		delete(msg.HDR.Args, "#fromServiceName")
+	}
+	fromServiceBaseServerName, ok := msg.HDR.Args["#fromBaseServerName"]
+	if ok {
+		msg.HDR.Args["#toBaseServerName"] = fromServiceBaseServerName
+		delete(msg.HDR.Args, "#fromBaseServerName")
 	}
 
 	//vv("bootstrapCircuit returning early (isCli=%v): '%v'", isCli, msg.JobErrs)
@@ -1745,10 +1770,11 @@ func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Con
 		msg.HDR.Typ = CallPeerTraffic
 		// tell them our peerID, this is the critical desired info.
 		msg.HDR.Args = map[string]string{
-			"#peerURL":         localPeerURL,
-			"#peerID":          localPeerID,
-			"#fromServiceName": msg.HDR.ToServiceName,
-			"#toServiceName":   msg.HDR.FromServiceName,
+			"#peerURL":            localPeerURL,
+			"#peerID":             localPeerID,
+			"#fromServiceName":    msg.HDR.ToServiceName,
+			"#fromBaseServerName": lpb.BaseServerName,
+			"#toServiceName":      msg.HDR.FromServiceName,
 		}
 	}
 	msg.HDR.FromServiceName, msg.HDR.ToServiceName = msg.HDR.ToServiceName, msg.HDR.FromServiceName

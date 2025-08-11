@@ -1994,6 +1994,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		cliName := auto_cli_recognition_prefix + s.name + "-to-" + dest
 		ccfg := *s.cfg
 		ccfg.ClientDialToHostPort = dest
+		ccfg.BaseServerName = s.name
 		// uses same serverBaseID so simnet can group same host simnodes.
 		cli, err2 := NewClient(cliName, &ccfg)
 		panicOn(err2)
@@ -2222,7 +2223,7 @@ func NewServer(name string, config *Config) *Server {
 		//} else {
 		//	alwaysPrintf("warning: nil cfg, so useSimNet off.")
 	}
-	s.PeerAPI = newPeerAPI(s, notClient, useSimNet)
+	s.PeerAPI = newPeerAPI(s, notClient, useSimNet, name)
 	return s
 }
 
