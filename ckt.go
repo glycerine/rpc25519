@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 	"sync"
@@ -117,6 +118,24 @@ func (ckt *Circuit) LocalBaseServerName() string {
 
 func (ckt *Circuit) RemoteBaseServerName() string {
 	return ckt.RpbTo.BaseServerName
+}
+
+// RemoteBaseServerNameURL is like RemoteCircuitURL,
+// but uses the BaseServerName instead of
+// any auto-cli name for the host name. It tries
+// to keep the port if that is a part of RpbTo.NetAddr.
+func (ckt *Circuit) RemoteBaseServerNameURL() string {
+	u, err := url.Parse(ckt.RpbTo.NetAddr)
+	panicOn(err)
+	host := ckt.RpbTo.BaseServerName
+	port := u.Port()
+	if port != "" {
+		host = net.JoinHostPort(host, port)
+	}
+	return u.Scheme + "://" + host + "/" +
+		ckt.RemoteServiceName + "/" +
+		ckt.RemotePeerID + "/" +
+		ckt.CircuitID
 }
 
 func (ckt *Circuit) IsClosed() bool {
