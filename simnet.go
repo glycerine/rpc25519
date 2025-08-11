@@ -6,6 +6,7 @@ package rpc25519
 import (
 	"fmt"
 	"math"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -879,6 +880,12 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 	s.nextTimer.Stop()
 	s.halt = idem.NewHalterNamed(fmt.Sprintf("simnet %p", s))
 	s.halt.AddChild(srv.halt)
+
+	if faketime && s.barrier {
+		// does not prevent lots of system threads, but
+		// should keep to just a single user goroutine thread.
+		runtime.GOMAXPROCS(1)
+	}
 
 	cfg.simnetRendezvous.singleSimnet = s
 	//vv("newSimNetOnServer: assigned to singleSimnet, releasing lock by  goro = %v", GoroNumber())
