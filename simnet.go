@@ -1730,7 +1730,14 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	// note that read matching time will be unique based on
 	// send arrival time.
 
-	probDrop := s.circuits.get(send.origin).get(send.target).dropSend
+	// cktOrigin can be nil now with shutdowns
+	var probDrop float64
+	cktOrigin := s.circuits.get(send.origin)
+	if cktOrigin == nil {
+		probDrop = 0 // a guess. not sure. is this the last close/RST though?
+	} else {
+		probDrop = cktOrigin.get(send.target).dropSend
+	}
 	if !s.statewiseConnected(send.origin, send.target) ||
 		probDrop >= 1 { // s.localDropSend(send) {
 
