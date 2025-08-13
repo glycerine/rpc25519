@@ -1,6 +1,7 @@
 package rpc25519
 
 import (
+	"context"
 	"fmt"
 	"github.com/glycerine/idem"
 	"time"
@@ -29,12 +30,12 @@ import (
 // If autoSendNewCircuitCh != nil, then we automatically
 // send to autoSendNewCircuitCh <- ckt if get
 // a circuit back without error.
-func (p *peerAPI) PreferExtantRemotePeerGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, autoSendNewCircuitCh chan *Circuit) (ckt *Circuit, ackMsg *Message, err error) {
+func (p *peerAPI) PreferExtantRemotePeerGetCircuit(callCtx context.Context, lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, autoSendNewCircuitCh chan *Circuit) (ckt *Circuit, ackMsg *Message, err error) {
 
 	waitForAck := true
 	preferExtant := true
 
-	ckt, ackMsg, err = p.implRemotePeerAndGetCircuit(lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, preferExtant)
+	ckt, ackMsg, err = p.implRemotePeerAndGetCircuit(callCtx, lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, preferExtant)
 
 	if err != nil && ckt != nil && autoSendNewCircuitCh != nil {
 		// automatically send along the new ckt
@@ -43,6 +44,8 @@ func (p *peerAPI) PreferExtantRemotePeerGetCircuit(lpb *LocalPeer, circuitName s
 
 		case <-ckt.Halt.ReqStop.Chan:
 		case <-ckt.Context.Done():
+		case <-lpb.Ctx.Done():
+		case <-callCtx.Done():
 		case <-p.u.GetHostHalter().ReqStop.Chan:
 		}
 	}
@@ -71,7 +74,7 @@ func (p *peerAPI) PreferExtantRemotePeerGetCircuit(lpb *LocalPeer, circuitName s
 // it down if it is a longer URL.
 func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, waitForAck bool, autoSendNewCircuitCh chan *Circuit) (ckt *Circuit, ackMsg *Message, err error) {
 
-	ckt, ackMsg, err = p.implRemotePeerAndGetCircuit(lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, false)
+	ckt, ackMsg, err = p.implRemotePeerAndGetCircuit(lpb.Ctx, lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, false)
 
 	if err != nil && ckt != nil && autoSendNewCircuitCh != nil {
 		// automatically send along the new ckt
@@ -80,6 +83,7 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 
 		case <-ckt.Halt.ReqStop.Chan:
 		case <-ckt.Context.Done():
+		case <-lpb.Ctx.Done():
 		case <-p.u.GetHostHalter().ReqStop.Chan:
 		}
 	}
@@ -87,7 +91,7 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 	return
 }
 
-func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, waitForAck bool, preferExtant bool) (ckt *Circuit, ackMsg *Message, err error) {
+func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, waitForAck bool, preferExtant bool) (ckt *Circuit, ackMsg *Message, err error) {
 
 	if lpb.Halt.ReqStop.IsClosed() {
 		return nil, nil, ErrHaltRequested
@@ -274,16 +278,19 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string
 			return nil, nil, ErrContextCancelled
 		case <-hhalt.ReqStop.Chan:
 			return nil, nil, ErrHaltRequested
+
+		case <-callCtx.Done():
+			return nil, nil, ErrContextCancelled
 		}
 	}
 	return
 }
 
-func (s *LocalPeer) PreferExtantRemotePeerGetCircuit(circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, autoSendNewCircuitCh chan *Circuit) (ckt *Circuit, ackMsg *Message, err error) {
+func (s *LocalPeer) PreferExtantRemotePeerGetCircuit(callCtx context.Context, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, autoSendNewCircuitCh chan *Circuit) (ckt *Circuit, ackMsg *Message, err error) {
 	waitForAck := true
 	preferExtant := true
 
-	ckt, ackMsg, err = s.PeerAPI.implRemotePeerAndGetCircuit(s, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, preferExtant)
+	ckt, ackMsg, err = s.PeerAPI.implRemotePeerAndGetCircuit(callCtx, s, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, preferExtant)
 
 	if err != nil && ckt != nil && autoSendNewCircuitCh != nil {
 		// automatically send along the new ckt
@@ -293,6 +300,7 @@ func (s *LocalPeer) PreferExtantRemotePeerGetCircuit(circuitName string, frag *F
 		case <-ckt.Halt.ReqStop.Chan:
 		case <-ckt.Context.Done():
 		case <-s.Halt.ReqStop.Chan:
+		case <-callCtx.Done():
 		}
 	}
 	return
@@ -300,7 +308,7 @@ func (s *LocalPeer) PreferExtantRemotePeerGetCircuit(circuitName string, frag *F
 
 func (s *LocalPeer) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remoteAddr string, errWriteDur time.Duration, waitForAck bool, autoSendNewCircuitCh chan *Circuit) (ckt *Circuit, ackMsg *Message, err error) {
 
-	ckt, ackMsg, err = s.PeerAPI.implRemotePeerAndGetCircuit(lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, false)
+	ckt, ackMsg, err = s.PeerAPI.implRemotePeerAndGetCircuit(s.Ctx, lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, false)
 
 	if err != nil && ckt != nil && autoSendNewCircuitCh != nil {
 		// automatically send along the new ckt
@@ -310,6 +318,7 @@ func (s *LocalPeer) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName str
 		case <-ckt.Halt.ReqStop.Chan:
 		case <-ckt.Context.Done():
 		case <-s.Halt.ReqStop.Chan:
+		case <-s.Ctx.Done():
 		}
 	}
 

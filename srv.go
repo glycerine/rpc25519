@@ -2964,6 +2964,7 @@ func (s *Server) StartRemotePeerAndGetCircuit(
 //
 // This call is a part of the UniversalCliSrv interface.
 func (s *Server) PreferExtantRemotePeerGetCircuit(
+	callCtx context.Context,
 	lpb *LocalPeer,
 	circuitName string,
 	frag *Fragment,
@@ -2975,7 +2976,7 @@ func (s *Server) PreferExtantRemotePeerGetCircuit(
 ) (ckt *Circuit, ackMsg *Message, err error) {
 
 	return s.PeerAPI.PreferExtantRemotePeerGetCircuit(
-		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, autoSendNewCircuitCh)
+		callCtx, lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, autoSendNewCircuitCh)
 }
 
 // PreferExtantRemotePeerGetCircuit is similar
@@ -2995,6 +2996,7 @@ func (s *Server) PreferExtantRemotePeerGetCircuit(
 //
 // This call is a part of the UniversalCliSrv interface.
 func (s *Client) PreferExtantRemotePeerGetCircuit(
+	callCtx context.Context,
 	lpb *LocalPeer,
 	circuitName string,
 	frag *Fragment,
@@ -3006,7 +3008,7 @@ func (s *Client) PreferExtantRemotePeerGetCircuit(
 ) (ckt *Circuit, ackMsg *Message, err error) {
 
 	return s.PeerAPI.PreferExtantRemotePeerGetCircuit(
-		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, autoSendNewCircuitCh)
+		callCtx, lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, autoSendNewCircuitCh)
 }
 
 // GetConfig returns the Server's Config.
