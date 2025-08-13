@@ -166,7 +166,7 @@ const (
 
 	// If a (deaf/drop) fault is applied to an ISOLATED circuit,
 	// then the circuit is marked FAULTY_ISOLATED.
-	// if a reapir removes the last fault, we change it back to ISOLATED.
+	// if a repair removes the last fault, we change it back to ISOLATED.
 	FAULTY_ISOLATED Faultstate = 3
 )
 
