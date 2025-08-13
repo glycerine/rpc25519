@@ -1185,8 +1185,17 @@ func (p *peerAPI) StartLocalPeer(
 	return p.unlockedStartLocalPeer(ctx, peerServiceName, requestedCircuit, false, nil, "", peerName, onOriginLocalSide)
 }
 
-// called by StartLocalPeer ckt.go:1117 just above. onRemote=false/onOriginLocalSide
-// called by bootstrapCircuit ckt.go:1431 below. onRemote=true/onRemote2ndSide
+// PRE: p.mut must be held by caller (and released when
+// we return), where p = peerAPI; ourselves. This
+// pre-condition insures that we don't go over the
+// copy limit for this peerServiceName when
+// limits are in force -- which enables rendezvous
+// without talking to say two different instances
+// by mistake.
+//
+// unlockedStartLocalPeer is
+// called by StartLocalPeer ckt.go:1185 just above. onRemote=false/onOriginLocalSide
+// called by bootstrapCircuit ckt.go:1581 below. onRemote=true/onRemote2ndSide
 func (p *peerAPI) unlockedStartLocalPeer(
 	ctx context.Context,
 	peerServiceName string,
@@ -1217,6 +1226,9 @@ func (p *peerAPI) unlockedStartLocalPeer(
 				return nil, fmt.Errorf("unlockedStartLocalPeer error: peerServiceName '%v' is listed in cfg.LimitedServiceNames and is already at cfg.LimitedServiceMax = %v, (ncur=%v) refusing to make another. Method lpb.PeerAPI.GetLocalPeers(peerServiceName) will list them.", peerServiceName, lim, ncur)
 			}
 		}
+		// we still hold p.mut so there cannot be a
+		// logical race to start another of this name
+		// at this Client/Server.
 		knownLocalPeer.mut.Unlock()
 	}
 
@@ -1554,7 +1566,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	if needNewLocalPeer {
 		if lim > 0 && curServiceCount >= lim {
 			// at limit, reject making another. But tell
-			// them who it is
+			// them who it is -- so they can find/use us.
 			msg.HDR.Args["#LimitedServiceMax"] = fmt.Sprintf("%v", lim)
 			msg.HDR.Args["#LimitedServiceCurrentCount"] = fmt.Sprintf("%v", curServiceCount)
 			msg.HDR.Args["#LimitedServiceName"] = peerServiceName
