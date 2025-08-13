@@ -879,7 +879,7 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	s.halt = idem.NewHalterNamed(fmt.Sprintf("simnet %p", s))
 	s.halt.AddChild(srv.halt)
 
-	if faketime && s.barrier && s.cfg.SimnetGOMAXPROCS > 0 {
+	if s.cfg.SimnetGOMAXPROCS > 0 {
 		runtime.GOMAXPROCS(s.cfg.SimnetGOMAXPROCS)
 	}
 

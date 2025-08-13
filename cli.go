@@ -1130,11 +1130,14 @@ type Config struct {
 
 	// Setting SimnetGOMAXPROCS == x > 0 means when the
 	// simnet is in use, it will call
-	// runtime.GOMAXPROCS(x) at startup when
-	// the barrier is on, to try and maximize
+	// runtime.GOMAXPROCS(x) at startup.
+	// Thus x can be 1 to try and maximize
 	// determinism by minimizing the threads employed
-	// for user code. The runtime unfortunately, will
-	// still spin up other threads.
+	// for user code, or some other number
+	// to try and get more randomized testing.
+	// (Recall however that runtime, unfortunately,
+	// will always still spin up other threads beyond
+	// the number of GOMAXPROCS).
 	SimnetGOMAXPROCS int
 
 	// point so that the shallow copy of
