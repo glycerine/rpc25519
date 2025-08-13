@@ -401,7 +401,6 @@ func (s *simconn) String() (r string) {
 	r = fmt.Sprintf(`
      simconn{
                 isCli: %v
-                  net: %v
               netAddr: %v
                 local: %v
                remote: %v
@@ -413,7 +412,6 @@ func (s *simconn) String() (r string) {
              dropSend: %0.2f (probability)
              nextRead: "%v"
 }`, s.isCli,
-		s.net.simNetCfg,
 		s.netAddr,
 		s.local.name,
 		s.remote.name,
@@ -426,13 +424,6 @@ func (s *simconn) String() (r string) {
 		string(s.nextRead),
 	)
 	return
-}
-
-func (s *SimNetConfig) String() string {
-	if s.BarrierOff {
-		return fmt.Sprintf(`SimNetConfig{ barrier is OFF}`)
-	}
-	return fmt.Sprintf(`SimNetConfig{ barrier is ON}`)
 }
 
 func (z *SimnetConnSummary) String() (r string) {

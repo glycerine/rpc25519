@@ -66,10 +66,9 @@ func (s *Server) runServerMain(
 
 	//vv("s.cfg.UseSimNet=%v", s.cfg.UseSimNet)
 	if s.cfg.UseSimNet {
-		simNetConfig := &s.cfg.SimNetConfig
 
 		// note this blocks until the server exits.
-		s.runSimNetServer(serverAddress, boundCh, simNetConfig)
+		s.runSimNetServer(serverAddress, boundCh)
 		if !s.cfg.QuietTestMode {
 			alwaysPrintf("runSimNetServer exited: %v", s.name)
 		}

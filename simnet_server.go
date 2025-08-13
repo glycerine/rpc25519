@@ -12,7 +12,7 @@ import (
 	"github.com/glycerine/idem"
 )
 
-func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNetConfig *SimNetConfig) {
+func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr) {
 	//vv("top of runSimnetServer, serverAddr = '%v'; name='%v'", serverAddr, s.name)
 	defer func() {
 		r := recover()
@@ -25,7 +25,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 		}
 	}()
 
-	simnet, serverNewConnCh, netAddr, err := s.bootAndRegisterSimNetServer(serverAddr, simNetConfig)
+	simnet, serverNewConnCh, netAddr, err := s.bootAndRegisterSimNetServer(serverAddr)
 	if err != nil {
 		return
 	}
@@ -78,7 +78,7 @@ func (s *Server) runSimNetServer(serverAddr string, boundCh chan net.Addr, simNe
 // This is used by runSimNetServer() above
 // and by Listen() below. Listen is a super thin
 // wrapper around it.
-func (s *Server) bootAndRegisterSimNetServer(serverAddr string, simNetConfig *SimNetConfig) (simnet *Simnet, serverNewConnCh chan *simconn, netAddr *SimNetAddr, err error) {
+func (s *Server) bootAndRegisterSimNetServer(serverAddr string) (simnet *Simnet, serverNewConnCh chan *simconn, netAddr *SimNetAddr, err error) {
 	//vv("top of runSimnetServer, serverAddr = '%v'; name='%v'", serverAddr, s.name)
 
 	// satisfy uConn interface; don't crash cli/tests that check
@@ -93,7 +93,7 @@ func (s *Server) bootAndRegisterSimNetServer(serverAddr string, simNetConfig *Si
 	// second and subsequent will get back
 	// the cfg.simnetRendezvous.singleSimnet
 	// per config shared simnet.
-	simnet = s.cfg.bootSimNetOnServer(simNetConfig, s)
+	simnet = s.cfg.bootSimNetOnServer(s)
 
 	// sets s.simnode, s.simnet, s.netAddr
 	serverNewConnCh, err = simnet.registerServer(s, netAddr)
@@ -494,7 +494,7 @@ func (s *Server) Listen(network, addr string) (lsn net.Listener, err error) {
 	// but it can continue even if the server is shutdown.
 
 	simnet, serverNewConnCh, netAddr, err :=
-		s.bootAndRegisterSimNetServer(s.name, &s.cfg.SimNetConfig)
+		s.bootAndRegisterSimNetServer(s.name)
 
 	_, _, _ = simnet, serverNewConnCh, netAddr
 	if err != nil {

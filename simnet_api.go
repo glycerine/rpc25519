@@ -170,57 +170,6 @@ const (
 	FAULTY_ISOLATED Faultstate = 3
 )
 
-// SimNetConfig provides control parameters.
-type SimNetConfig struct {
-
-	// The barrier is the synctest.Wait call
-	// the lets the caller resume only when
-	// all other goro are durably blocked.
-	// (All goroutines in the simulation are/
-	// must be in the same bubble with the simnet).
-	//
-	// The barrier can only be used (or not) if faketime
-	// is also used, so this option will have
-	// no effect unless the simnet is run
-	// in a synctest.Wait bubble (using synctest.Run
-	// or synctest.Test, the upcomming rename).
-	//
-	// Under faketime, BarrierOff true means
-	// the scheduler will not wait to know
-	// for sure that it is the only active goroutine
-	// when doing its scheduling steps, such as firing
-	// new timers and matching sends and reads.
-	//
-	// This introduces more non-determinism --
-	// which provides more test coverage --
-	// but the tradeoff is that those tests are
-	// not reliably repeatable, since the
-	// Go runtime's goroutine interleaving order is
-	// randomized. The scheduler might take more
-	// steps than otherwise to deliver a
-	// message or to fire a timer, since we
-	// the scheduler can wake alongside us
-	// and become active.
-	//
-	// At the moment this can't happen in our simulation
-	// because the simnet controls all
-	// timers in rpc25519 tests, and so (unless we missed
-	// a real time.Sleep which we tried to purge)
-	// only the scheduler calls time.Sleep.
-	// However future tests and user code
-	// might call Sleep... we want to use
-	// cli/srv.U.Sleep() instead for more
-	// deterministic, repeatable tests whenever possible.
-	BarrierOff bool
-}
-
-// NewSimNetConfig should be called
-// to get an initial SimNetConfig to
-// set parameters.
-func NewSimNetConfig() *SimNetConfig {
-	return &SimNetConfig{}
-}
-
 // simnet implements the workspace/blabber interface
 // so we can plug in
 // netsim and do comms via channels for testing/synctest
@@ -937,7 +886,7 @@ type SimnetSnapshot struct {
 	Loopi              int64
 	NetClosed          bool
 	GetSimnetStatusErr error
-	Cfg                SimNetConfig
+	Cfg                Config
 	PeerConnCount      int
 	LoneCliConnCount   int
 	DNS                map[string]string // srvnode.name:simnode.name

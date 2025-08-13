@@ -511,8 +511,7 @@ type Simnet struct {
 
 	meq *pq // the master event queue.
 
-	cfg       *Config
-	simNetCfg *SimNetConfig
+	cfg *Config
 
 	srv *Server
 	cli *Client
@@ -807,7 +806,7 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 }
 
 // idempotent, all servers do this, then register through the same path.
-func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *Simnet { // (tellServerNewConnCh chan *simconn) {
+func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewConnCh chan *simconn) {
 
 	//vv("%v newSimNetOnServer top, goro = %v", srv.name, GoroNumber())
 	cfg.simnetRendezvous.singleSimnetMut.Lock()
@@ -832,9 +831,8 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
 		xb3hash:        blake3.New(64, nil),
 		meq:            newMasterEventQueue("scheduler"),
-		barrier:        !simNetConfig.BarrierOff,
+		barrier:        !cfg.SimnetBarrierOff,
 		cfg:            cfg,
-		simNetCfg:      simNetConfig,
 		srv:            srv,
 		cliRegisterCh:  make(chan *clientRegistration),
 		srvRegisterCh:  make(chan *serverRegistration),
@@ -881,10 +879,8 @@ func (cfg *Config) bootSimNetOnServer(simNetConfig *SimNetConfig, srv *Server) *
 	s.halt = idem.NewHalterNamed(fmt.Sprintf("simnet %p", s))
 	s.halt.AddChild(srv.halt)
 
-	if faketime && s.barrier {
-		// does not prevent lots of system threads, but
-		// should keep to just a single user goroutine thread.
-		runtime.GOMAXPROCS(1)
+	if faketime && s.barrier && s.cfg.SimnetGOMAXPROCS > 0 {
+		runtime.GOMAXPROCS(s.cfg.SimnetGOMAXPROCS)
 	}
 
 	cfg.simnetRendezvous.singleSimnet = s
@@ -3075,7 +3071,6 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 
 	req.Asof = now
 	req.Loopi = loopi
-	req.Cfg = *s.simNetCfg
 	req.ScenarioNum = s.scenario.num
 	req.ScenarioSeed = s.scenario.seed
 	req.ScenarioTick = s.scenario.tick
