@@ -482,7 +482,6 @@ type Simnet struct {
 	xmut    sync.Mutex
 	xb3hash *blake3.Hasher
 
-	barrier bool
 	bigbang time.Time
 	//gridStepTimer *mop
 	who int
@@ -831,7 +830,6 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
 		xb3hash:        blake3.New(64, nil),
 		meq:            newMasterEventQueue("scheduler"),
-		barrier:        !cfg.SimnetBarrierOff,
 		cfg:            cfg,
 		srv:            srv,
 		cliRegisterCh:  make(chan *clientRegistration),
@@ -2240,11 +2238,7 @@ func (s *Simnet) tickLogicalClocks() {
 
 func (s *Simnet) Start() {
 	if !s.cfg.QuietTestMode {
-		if faketime {
-			alwaysPrintf("simnet.Start: faketime = %v; s.barrier=%v", faketime, s.barrier)
-		} else {
-			alwaysPrintf("simnet.Start: faketime = %v", faketime) // barrier is irrelevant
-		}
+		alwaysPrintf("simnet.Start: faketime = %v", faketime)
 	}
 	go s.scheduler()
 }
@@ -2366,7 +2360,7 @@ func (s *Simnet) scheduler() {
 		}
 
 		// let goroutines get blocked waiting on the select arms below.
-		if faketime && s.barrier {
+		if faketime {
 			synctestWait_LetAllOtherGoroFinish() // 1st barrier
 		}
 		//vv("i=%v, about to select", i)
@@ -2431,7 +2425,7 @@ func (s *Simnet) scheduler() {
 			// BUT, we still might get a tiny increase in
 			// determinism, and it should be fast anyway...
 			if slept {
-				if faketime && s.barrier {
+				if faketime {
 					synctestWait_LetAllOtherGoroFinish() // 2nd barrier
 				}
 			}

@@ -1075,59 +1075,6 @@ type Config struct {
 	// Client and Server must be in the same process.
 	UseSimNet bool
 
-	// SimNetConfig is only used for testing; and
-	// advanced testing at that. There is only a
-	// single option in it: BarrierOff. In concurrency
-	// tests that do not want to be reproducible,
-	// this can be used to check more interleavings.
-	// SimNetConfig is not zygo s-expression
-	// serialied, since tests can more simply
-	// configure it and do not need the zygo
-	// s-expression support at all to do so.
-	//SimNetConfig SimNetConfig
-
-	// SimnetBarrierOff description:
-	// The barrier under discussion here
-	// is the synctest.Wait call
-	// the lets the caller resume only when
-	// all other goro are durably blocked.
-	// (All goroutines in the simulation are/
-	// must be in the same bubble with the simnet).
-	//
-	// The barrier can only be used (or not) if faketime
-	// is also used, so this option will have
-	// no effect unless the simnet is run
-	// in a synctest.Wait bubble (using synctest.Run
-	// or synctest.Test, the upcomming rename).
-	//
-	// Under faketime, BarrierOff true means
-	// the scheduler will not wait to know
-	// for sure that it is the only active goroutine
-	// when doing its scheduling steps, such as firing
-	// new timers and matching sends and reads.
-	//
-	// This introduces more non-determinism --
-	// which provides more test coverage --
-	// but the tradeoff is that those tests are
-	// not reliably repeatable, since the
-	// Go runtime's goroutine interleaving order is
-	// randomized. The scheduler might take more
-	// steps than otherwise to deliver a
-	// message or to fire a timer, since we
-	// the scheduler can wake alongside us
-	// and become active.
-	//
-	// At the moment this can't happen in our simulation
-	// because the simnet controls all
-	// timers in rpc25519 tests, and so (unless we missed
-	// a real time.Sleep which we tried to purge)
-	// only the scheduler calls time.Sleep.
-	// However future tests and user code
-	// might call Sleep... we want to use
-	// cli/srv.U.Sleep() instead for more
-	// deterministic, repeatable tests whenever possible.
-	SimnetBarrierOff bool
-
 	// Setting SimnetGOMAXPROCS == x > 0 means when the
 	// simnet is in use, it will call
 	// runtime.GOMAXPROCS(x) at startup.
@@ -2998,7 +2945,6 @@ func (c *Config) StringBody() (r string) {
 		limMax += fmt.Sprintf(`%v`, lim)
 	}
 
-	r += fmt.Sprintf("    SimnetBarrierOff: %v,\n", c.SimnetBarrierOff)
 	r += fmt.Sprintf("    SimnetGOMAXPROCS: %v,\n", c.SimnetGOMAXPROCS)
 
 	r += fmt.Sprintf(" LimitedServiceNames: [%v],\n", limNames)
@@ -3035,9 +2981,6 @@ func (c *Config) ShortStringBody() string {
 	// sanity check
 	if nName != nLim {
 		panic(fmt.Sprintf("bad Config! len(cfg.LimitedServiceNames)=%v but len(cfg.LimitedServiceMax)=%v", nName, nLim))
-	}
-	if c.SimnetBarrierOff {
-		parts = append(parts, fmt.Sprintf("    SimnetBarrierOff: %v,\n", c.SimnetBarrierOff))
 	}
 	if c.SimnetGOMAXPROCS > 0 {
 		parts = append(parts, fmt.Sprintf("    SimnetGOMAXPROCS: %v,\n", c.SimnetGOMAXPROCS))

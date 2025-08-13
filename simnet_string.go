@@ -282,7 +282,6 @@ func (s *Simnet) String() (r string) {
 	}
 	r = "&simnet{\n"
 	r += fmt.Sprintf("   faketime: %v\n", faketime)
-	r += fmt.Sprintf("    barrier: %v\n", s.barrier)
 	r += fmt.Sprintf("   scenario: %v\n", s.scenario)
 	r += fmt.Sprintf("        cfg: %v\n", s.cfg)
 	//r += fmt.Sprintf("simNetCfg: %v\n", s.simNetCfg)
