@@ -37,11 +37,11 @@ func (p *peerAPI) PreferExtantRemotePeerGetCircuit(callCtx context.Context, lpb 
 
 	ckt, ackMsg, err = p.implRemotePeerAndGetCircuit(callCtx, lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, preferExtant)
 
-	if err != nil && ckt != nil && autoSendNewCircuitCh != nil {
+	if err == nil && ckt != nil && autoSendNewCircuitCh != nil {
 		// automatically send along the new ckt
 		select {
 		case autoSendNewCircuitCh <- ckt:
-
+			//vv("PreferExtantRemotePeerGetCircuit sent new ckt to '%v' on autoSendNewCircuitCh = %p", ckt.RemotePeerName, autoSendNewCircuitCh)
 		case <-ckt.Halt.ReqStop.Chan:
 		case <-ckt.Context.Done():
 		case <-lpb.Ctx.Done():
@@ -76,11 +76,11 @@ func (p *peerAPI) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName strin
 
 	ckt, ackMsg, err = p.implRemotePeerAndGetCircuit(lpb.Ctx, lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, false)
 
-	if err != nil && ckt != nil && autoSendNewCircuitCh != nil {
+	if err == nil && ckt != nil && autoSendNewCircuitCh != nil {
 		// automatically send along the new ckt
 		select {
 		case autoSendNewCircuitCh <- ckt:
-
+			//vv("peerAPI.StartRemotePeerAndGetCircuit sent new ckt to '%v' on autoSendNewCircuitCh = %p", ckt.RemotePeerName, autoSendNewCircuitCh)
 		case <-ckt.Halt.ReqStop.Chan:
 		case <-ckt.Context.Done():
 		case <-lpb.Ctx.Done():
@@ -292,11 +292,12 @@ func (s *LocalPeer) PreferExtantRemotePeerGetCircuit(callCtx context.Context, ci
 
 	ckt, ackMsg, err = s.PeerAPI.implRemotePeerAndGetCircuit(callCtx, s, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, preferExtant)
 
-	if err != nil && ckt != nil && autoSendNewCircuitCh != nil {
+	//vv("LocalPeer.PreferExtantRemotePeerGetCircuit back, have err='%v'; autoSendNewCircuitCh = %p; ckt='%v'", err, autoSendNewCircuitCh, ckt)
+	if err == nil && ckt != nil && autoSendNewCircuitCh != nil {
 		// automatically send along the new ckt
 		select {
 		case autoSendNewCircuitCh <- ckt:
-
+			//vv("LocalPeer.PreferExtantRemotePeerGetCircuit sent new ckt to '%v' on autoSendNewCircuitCh = %p", ckt.RemotePeerName, autoSendNewCircuitCh)
 		case <-ckt.Halt.ReqStop.Chan:
 		case <-ckt.Context.Done():
 		case <-s.Halt.ReqStop.Chan:
@@ -310,7 +311,7 @@ func (s *LocalPeer) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName str
 
 	ckt, ackMsg, err = s.PeerAPI.implRemotePeerAndGetCircuit(s.Ctx, lpb, circuitName, frag, remotePeerServiceName, remoteAddr, errWriteDur, waitForAck, false)
 
-	if err != nil && ckt != nil && autoSendNewCircuitCh != nil {
+	if err == nil && ckt != nil && autoSendNewCircuitCh != nil {
 		// automatically send along the new ckt
 		select {
 		case autoSendNewCircuitCh <- ckt:
