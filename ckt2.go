@@ -202,6 +202,9 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	// this effectively is all that happens to set
 	// up the circuit.
 	ctx := lpb.Ctx
+	if callCtx != nil {
+		ctx = callCtx
+	}
 	err, _ = p.u.SendOneWayMessage(ctx, msg, errWriteDur)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error requesting CallPeerStartCircuit from remote: '%v'", err)
