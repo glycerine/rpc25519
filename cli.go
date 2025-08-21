@@ -917,6 +917,8 @@ type Config struct {
 	// name of server creating the auto-cli; or
 	// just the server name, if not an auto-cli.
 	BaseServerName string
+	// similarly, the host:port for server making an auto-cli
+	BaseServerAddr string
 
 	// if cli starts first, we can try to recover
 	// later if server joins and wants to know who

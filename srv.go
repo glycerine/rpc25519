@@ -203,6 +203,7 @@ func (s *Server) runServerMain(
 	addrs := addr.Network() + "://" + addr.String()
 	s.boundAddressString = addrs
 	s.netAddr = addr
+	s.cfg.BaseServerAddr = addrs
 	AliasRegister(addrs, addrs+" (server: "+s.name+")")
 	s.lsn = listener // allow shutdown
 	s.mut.Unlock()
@@ -1994,6 +1995,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		ccfg := *s.cfg
 		ccfg.ClientDialToHostPort = dest
 		ccfg.BaseServerName = s.name
+		ccfg.BaseServerAddr = s.LocalNetAddr().String()
 		// uses same serverBaseID so simnet can group same host simnodes.
 		cli, err2 := NewClient(cliName, &ccfg)
 		panicOn(err2)

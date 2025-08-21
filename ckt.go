@@ -125,14 +125,26 @@ func (ckt *Circuit) RemoteBaseServerName() string {
 // any auto-cli name for the host name. It tries
 // to keep the port if that is a part of RpbTo.NetAddr.
 func (ckt *Circuit) RemoteBaseServerNameURL() string {
+
+	host := ckt.RpbTo.BaseServerName
 	u, err := url.Parse(ckt.RpbTo.NetAddr)
 	panicOn(err)
-	host := ckt.RpbTo.BaseServerName
 	port := u.Port()
 	if port != "" {
 		host = net.JoinHostPort(host, port)
 	}
 	return u.Scheme + "://" + host + "/" +
+		ckt.RemoteServiceName + "/" +
+		ckt.RemotePeerID + "/" +
+		ckt.CircuitID
+}
+
+func (ckt *Circuit) RemoteServerURL(serverNetAddr string) string {
+
+	if serverNetAddr == "" {
+		serverNetAddr = ckt.RpbTo.BaseServerAddr
+	}
+	return serverNetAddr + "/" +
 		ckt.RemoteServiceName + "/" +
 		ckt.RemotePeerID + "/" +
 		ckt.CircuitID
@@ -324,6 +336,7 @@ type RemotePeer struct {
 	RemoteServiceName string
 	PeerURL           string
 	BaseServerName    string   // for auto-cli, what is base server?
+	BaseServerAddr    string   // for auto-cli, what is base server addr?
 	IncomingCkt       *Circuit // first one to arrive
 }
 
@@ -361,6 +374,10 @@ type LocalPeer struct {
 	// been solved since then. is safe to leave in, but
 	// might be perf optimization to see if can do without now.
 	peerLocalFragMut sync.Mutex
+
+	// when servers create auto-cli, what was the
+	// corresponding base server address.
+	BaseServerAddr string
 }
 
 // ServiceName is the string used when we were registered/invoked.
@@ -586,6 +603,8 @@ func (peerAPI *peerAPI) newLocalPeer(
 	peerServiceName,
 	netAddr string,
 	peerName string,
+	baseServerAddr string,
+
 ) (pb *LocalPeer) {
 
 	pb = &LocalPeer{
@@ -606,6 +625,7 @@ func (peerAPI *peerAPI) newLocalPeer(
 		TellPumpNewCircuit: make(chan *Circuit),
 		HandleCircuitClose: make(chan *Circuit),
 		QueryCh:            make(chan *QueryLocalPeerPump),
+		BaseServerAddr:     baseServerAddr,
 	}
 	pb.Halt = idem.NewHalterNamed(fmt.Sprintf("LocalPeer(%v %p)", peerServiceName, pb))
 
@@ -748,6 +768,7 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 	}
 	msg.HDR.Args["#fromServiceName"] = ckt.LocalServiceName
 	msg.HDR.Args["#fromBaseServerName"] = ckt.LpbFrom.BaseServerName
+	msg.HDR.Args["#fromBaseServerAddr"] = ckt.LpbFrom.BaseServerAddr
 
 	return
 }
@@ -943,6 +964,7 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args["#toServiceName"] = rpb.RemoteServiceName
 		msg.HDR.Args["#circuitName"] = circuitName
 		msg.HDR.Args["#fromBaseServerName"] = lpb.BaseServerName
+		msg.HDR.Args["#fromBaseServerAddr"] = lpb.BaseServerAddr
 
 		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
 		if err != nil {
@@ -1002,6 +1024,7 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Serial = issueSerial()
 		msg.HDR.Args["#fromServiceName"] = lpb.PeerServiceName
 		msg.HDR.Args["#fromBaseServerName"] = lpb.BaseServerName
+		msg.HDR.Args["#fromBaseServerAddr"] = lpb.BaseServerAddr
 		msg.HDR.Args["#toServiceName"] = rpb.RemoteServiceName
 		msg.HDR.Args["#circuitName"] = circuitName
 		// No need to explicity set the
@@ -1245,7 +1268,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 
 	localAddr := p.u.LocalAddr()
 	//vv("unlockedStartLocalPeer: localAddr = '%v'", localAddr)
-	lpb = p.newLocalPeer(ctx1, canc1, p.u, localPeerID, newCircuitCh, peerServiceName, localAddr, peerName)
+	lpb = p.newLocalPeer(ctx1, canc1, p.u, localPeerID, newCircuitCh, peerServiceName, localAddr, peerName, cfg.BaseServerAddr)
 
 	knownLocalPeer.mut.Lock()
 	if knownLocalPeer.active == nil {
@@ -1615,6 +1638,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 				"#peerID":             lpb.PeerID,
 				"#fromServiceName":    lpb.PeerServiceName,
 				"#fromBaseServerName": lpb.BaseServerName,
+				"#fromBaseServerAddr": lpb.BaseServerAddr,
 				//"#fragRPCtoken": msg.HDR.Args["#fragRPCtoken"] // but only CallPeerStartCircuitTakeToID atm, so here maybe not.
 			}
 
@@ -1649,6 +1673,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		//}
 		circuitName = msg.HDR.Args["#circuitName"]
 		rpb.BaseServerName = msg.HDR.Args["#fromBaseServerName"]
+		rpb.BaseServerAddr = msg.HDR.Args["#fromBaseServerAddr"]
 	}
 	if !gotServiceName {
 		rpb.RemoteServiceName = msg.HDR.FromServiceName
@@ -1805,6 +1830,7 @@ func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Con
 			"#peerID":             localPeerID,
 			"#fromServiceName":    msg.HDR.ToServiceName,
 			"#fromBaseServerName": lpb.BaseServerName,
+			"#fromBaseServerAddr": lpb.BaseServerAddr,
 			"#toServiceName":      msg.HDR.FromServiceName,
 		}
 	}
