@@ -1729,7 +1729,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 	c.keepAliveMsg.HDR.Typ = CallKeepAlive
 	c.keepAliveMsg.HDR.Subject = c.epochV.EpochTieBreaker
 
-	c.PeerAPI = newPeerAPI(c, yesIsClient, cfg.UseSimNet, cfg.BaseServerName)
+	c.PeerAPI = newPeerAPI(c, yesIsClient, cfg.UseSimNet, cfg.BaseServerName, cfg.BaseServerAddr)
 	c.encBufWriter = bufio.NewWriter(&c.encBuf)
 	c.codec = &greenpackClientCodec{
 		cli:          c,

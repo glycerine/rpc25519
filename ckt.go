@@ -350,15 +350,19 @@ type LocalPeer struct {
 	NetAddr         string
 	PeerServiceName string
 	BaseServerName  string // for auto-cli, what is base server?
-	PeerAPI         *peerAPI
-	Ctx             context.Context
-	Canc            context.CancelCauseFunc
-	PeerID          string
-	PeerName        string
-	U               UniversalCliSrv
-	NewCircuitCh    chan *Circuit
-	ReadsIn         chan *Message
-	ErrorsIn        chan *Message
+	// when servers create auto-cli, what was the
+	// corresponding base server address.
+	BaseServerAddr string
+
+	PeerAPI      *peerAPI
+	Ctx          context.Context
+	Canc         context.CancelCauseFunc
+	PeerID       string
+	PeerName     string
+	U            UniversalCliSrv
+	NewCircuitCh chan *Circuit
+	ReadsIn      chan *Message
+	ErrorsIn     chan *Message
 
 	Remotes            *Mutexmap[string, *RemotePeer]
 	TellPumpNewCircuit chan *Circuit
@@ -374,10 +378,6 @@ type LocalPeer struct {
 	// been solved since then. is safe to leave in, but
 	// might be perf optimization to see if can do without now.
 	peerLocalFragMut sync.Mutex
-
-	// when servers create auto-cli, what was the
-	// corresponding base server address.
-	BaseServerAddr string
 }
 
 // ServiceName is the string used when we were registered/invoked.
@@ -607,6 +607,10 @@ func (peerAPI *peerAPI) newLocalPeer(
 
 ) (pb *LocalPeer) {
 
+	vv("newLocalPeer called with baseServerAddr='%v'; peerAPI.baseServerAddr = '%v'", baseServerAddr, peerAPI.baseServerAddr)
+	if baseServerAddr == "" {
+		baseServerAddr = peerAPI.baseServerAddr
+	}
 	pb = &LocalPeer{
 		NetAddr:         netAddr,
 		PeerServiceName: peerServiceName,
@@ -616,6 +620,7 @@ func (peerAPI *peerAPI) newLocalPeer(
 		PeerID:          peerID,
 		PeerName:        peerName,
 		BaseServerName:  peerAPI.baseServerName,
+		BaseServerAddr:  baseServerAddr,
 		U:               u,
 		NewCircuitCh:    newCircuitCh,
 		ReadsIn:         make(chan *Message, 1),
@@ -625,7 +630,6 @@ func (peerAPI *peerAPI) newLocalPeer(
 		TellPumpNewCircuit: make(chan *Circuit),
 		HandleCircuitClose: make(chan *Circuit),
 		QueryCh:            make(chan *QueryLocalPeerPump),
-		BaseServerAddr:     baseServerAddr,
 	}
 	pb.Halt = idem.NewHalterNamed(fmt.Sprintf("LocalPeer(%v %p)", peerServiceName, pb))
 
@@ -1105,15 +1109,17 @@ type peerAPI struct {
 	isCli bool
 
 	baseServerName string
+	baseServerAddr string
 }
 
-func newPeerAPI(u UniversalCliSrv, isCli, isSim bool, baseServerName string) *peerAPI {
+func newPeerAPI(u UniversalCliSrv, isCli, isSim bool, baseServerName, baseServerAddr string) *peerAPI {
 	return &peerAPI{
 		u:                   u,
 		localServiceNameMap: NewMutexmap[string, *knownLocalPeer](),
 		isCli:               isCli,
 		isSim:               isSim,
 		baseServerName:      baseServerName,
+		baseServerAddr:      baseServerAddr,
 	}
 }
 
@@ -1674,6 +1680,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		circuitName = msg.HDR.Args["#circuitName"]
 		rpb.BaseServerName = msg.HDR.Args["#fromBaseServerName"]
 		rpb.BaseServerAddr = msg.HDR.Args["#fromBaseServerAddr"]
+		vv("setting rpb.BaseServerAddr='%v'; rpb.BaseServerName = '%v'", rpb.BaseServerAddr, rpb.BaseServerName)
 	}
 	if !gotServiceName {
 		rpb.RemoteServiceName = msg.HDR.FromServiceName
@@ -1742,6 +1749,12 @@ func (s *peerAPI) rejectWith(errString string, isCli bool, msg *Message, ctx con
 	if ok {
 		msg.HDR.Args["#toBaseServerName"] = fromServiceBaseServerName
 		delete(msg.HDR.Args, "#fromBaseServerName")
+	}
+	// don't think we need the corresponding addr? TODO delete:
+	fromServiceBaseServerAddr, ok := msg.HDR.Args["#fromBaseServerAddr"]
+	if ok {
+		msg.HDR.Args["#toBaseServerAddr"] = fromServiceBaseServerAddr
+		delete(msg.HDR.Args, "#fromBaseServerAddr")
 	}
 
 	//vv("bootstrapCircuit returning early (isCli=%v): '%v'", isCli, msg.JobErrs)

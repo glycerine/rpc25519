@@ -204,6 +204,7 @@ func (s *Server) runServerMain(
 	s.boundAddressString = addrs
 	s.netAddr = addr
 	s.cfg.BaseServerAddr = addrs
+	//vv("server set s.cfg.BaseServerAddr='%v'", s.cfg.BaseServerAddr)
 	AliasRegister(addrs, addrs+" (server: "+s.name+")")
 	s.lsn = listener // allow shutdown
 	s.mut.Unlock()
@@ -1996,6 +1997,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		ccfg.ClientDialToHostPort = dest
 		ccfg.BaseServerName = s.name
 		ccfg.BaseServerAddr = s.LocalNetAddr().String()
+		//vv("auto cli setting ccfg.BaseServerAddr = '%v'", ccfg.BaseServerAddr)
 		// uses same serverBaseID so simnet can group same host simnodes.
 		cli, err2 := NewClient(cliName, &ccfg)
 		panicOn(err2)
@@ -2224,7 +2226,7 @@ func NewServer(name string, config *Config) *Server {
 		//} else {
 		//	alwaysPrintf("warning: nil cfg, so useSimNet off.")
 	}
-	s.PeerAPI = newPeerAPI(s, notClient, useSimNet, name)
+	s.PeerAPI = newPeerAPI(s, notClient, useSimNet, name, "")
 	return s
 }
 
