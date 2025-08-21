@@ -120,6 +120,14 @@ func (ckt *Circuit) RemoteBaseServerName() string {
 	return ckt.RpbTo.BaseServerName
 }
 
+func (ckt *Circuit) LocalBaseServerAddr() string {
+	return ckt.LpbFrom.BaseServerAddr
+}
+
+func (ckt *Circuit) RemoteBaseServerAddr() string {
+	return ckt.RpbTo.BaseServerAddr
+}
+
 // RemoteBaseServerNameURL is like RemoteCircuitURL,
 // but uses the BaseServerName instead of
 // any auto-cli name for the host name. It tries
