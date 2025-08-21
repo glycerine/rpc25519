@@ -615,7 +615,7 @@ func (peerAPI *peerAPI) newLocalPeer(
 
 ) (pb *LocalPeer) {
 
-	vv("newLocalPeer called with baseServerAddr='%v'; peerAPI.baseServerAddr = '%v'", baseServerAddr, peerAPI.baseServerAddr)
+	//vv("newLocalPeer called with baseServerAddr='%v'; peerAPI.baseServerAddr = '%v'", baseServerAddr, peerAPI.baseServerAddr)
 	if baseServerAddr == "" {
 		baseServerAddr = peerAPI.baseServerAddr
 	}
@@ -1688,7 +1688,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		circuitName = msg.HDR.Args["#circuitName"]
 		rpb.BaseServerName = msg.HDR.Args["#fromBaseServerName"]
 		rpb.BaseServerAddr = msg.HDR.Args["#fromBaseServerAddr"]
-		vv("setting rpb.BaseServerAddr='%v'; rpb.BaseServerName = '%v'", rpb.BaseServerAddr, rpb.BaseServerName)
+		//vv("setting rpb.BaseServerAddr='%v'; rpb.BaseServerName = '%v'", rpb.BaseServerAddr, rpb.BaseServerName)
 	}
 	if !gotServiceName {
 		rpb.RemoteServiceName = msg.HDR.FromServiceName
