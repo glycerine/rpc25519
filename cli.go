@@ -1243,6 +1243,9 @@ func NewConfig() *Config {
 		configBaseID:     NewCallID(""),
 		shared:           &sharedTransport{},
 		simnetRendezvous: &simnetRendezvous{},
+
+		// usually want this on so auto-clients work.
+		ServerAutoCreateClientsToDialOtherServers: true,
 	}
 }
 
