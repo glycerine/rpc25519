@@ -1974,6 +1974,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 	err, ch = sendOneWayMessage(s, ctx, msg, errWriteDur)
 	if err == ErrNetConnectionNotFound {
 		if !s.cfg.ServerAutoCreateClientsToDialOtherServers {
+			//vv("Server sendOneWayMessage got ErrNetConnectionNotFound and auto-dial out is OFF!")
 			return
 		}
 		if !s.cfg.QuietTestMode {

@@ -208,7 +208,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	}
 	err, _ = p.u.SendOneWayMessage(ctx, msg, errWriteDur)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error requesting CallPeerStartCircuit from remote: '%v'", err)
+		return nil, nil, fmt.Errorf("error requesting CallPeerStartCircuit from remote: '%v'; netAddr='%v'; remoteAddr='%v'", err, netAddr, remoteAddr)
 	}
 
 	rpb := &RemotePeer{
