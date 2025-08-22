@@ -496,7 +496,27 @@ func ParsePeerURL(peerURL string) (netAddr, serviceName, peerID, circuitID strin
 	var u *url.URL
 	u, err = url.Parse(peerURL)
 	if err != nil {
-		return
+		errs := err.Error()
+		if strings.Contains(errs,
+			"first path segment in URL cannot contain colon") &&
+			!strings.Contains(peerURL, "://") {
+
+			// it is common to hit this when the host:port
+			// was given in the config but without a scheme prefix.
+			//vv("guess that we meant tcp, so guess '%v' -> '%v'", peerURL, "tcp://"+peerURL)
+			//if faketime { // wait until we actually need it.
+			//	peerURL = "tcp://" + peerURL
+			//} else {
+			peerURL = "tcp://" + peerURL
+			//}
+			u, err = url.Parse(peerURL)
+			if err != nil {
+				// still no luck. surface the error.
+				return
+			}
+		} else {
+			return
+		}
 	}
 	netAddr = u.Scheme + "://" + u.Host
 	splt := strings.Split(u.Path, "/")
