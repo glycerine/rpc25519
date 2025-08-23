@@ -203,9 +203,9 @@ func (op *mop) String() string {
 
 	case READ:
 		if op.origin != nil && op.target != nil {
-			extra = fmt.Sprintf(" AT %v FROM %v (eof:%v; at %v)", op.origin.name, op.target.name, op.isEOF_RST, op.readFileLine)
+			extra = fmt.Sprintf(" AT[ %v ] FROM[ %v ](eof:%v; at %v)", op.origin.name, op.target.name, op.isEOF_RST, op.readFileLine)
 		} else {
-			extra = fmt.Sprintf(" AT nil FROM nil (eof:%v; at %v)", op.isEOF_RST, op.readFileLine)
+			extra = fmt.Sprintf(" AT[ nil ] FROM[ nil ](eof:%v; at %v)", op.isEOF_RST, op.readFileLine)
 		}
 	case ALTER_HOST:
 		extra += fmt.Sprintf(" alterHost{isHostAlter: %v; alter: %v}", op.alterHost.isHostAlter, op.alterHost.alter)
@@ -769,5 +769,20 @@ func ItemToSendOrigTarg(it rb.Iterator) (send, orig, targ string) {
 	p4 := strings.Index(send, " ](eof:")
 	orig = extractFromAutoCli(send[p1 : p1+p2])
 	targ = extractFromAutoCli(send[p3:p4])
+	return
+}
+
+func ItemToReadOrigTarg(it rb.Iterator) (read, orig, targ string) {
+	m := it.Item().(*mop)
+	if m.kind != READ {
+		return
+	}
+	read = m.String()
+	p1 := strings.Index(read, " AT[ ") + 5
+	p2 := strings.Index(read[p1:], " ] FROM[ ")
+	p3 := p1 + p2 + 9
+	p4 := strings.Index(read, " ](eof:")
+	orig = extractFromAutoCli(read[p1 : p1+p2])
+	targ = extractFromAutoCli(read[p3:p4])
 	return
 }
