@@ -160,7 +160,11 @@ func (op *mop) String() string {
 	if op.originCli {
 		who = "CLIENT"
 	}
-	who += fmt.Sprintf("(%v)", op.origin.name)
+	if op.origin != nil {
+		who += fmt.Sprintf("(%v)", op.origin.name)
+	} else {
+		who += "(origin nil)"
+	}
 	now := time.Now()
 	var ini, arr, complete string
 	if op.initTm.IsZero() {
@@ -197,10 +201,18 @@ func (op *mop) String() string {
 		extra = fmt.Sprintf(" FROM %v TO %v (eof:%v; nbyte:%v; at %v)", op.origin.name, op.target.name, op.isEOF_RST, nbyte, op.sendFileLine)
 
 	case READ:
-		extra = fmt.Sprintf(" AT %v FROM %v (eof:%v; at %v)", op.origin.name, op.target.name, op.isEOF_RST, op.readFileLine)
-
+		if op.origin != nil && op.target != nil {
+			extra = fmt.Sprintf(" AT %v FROM %v (eof:%v; at %v)", op.origin.name, op.target.name, op.isEOF_RST, op.readFileLine)
+		} else {
+			extra = fmt.Sprintf(" AT nil FROM nil (eof:%v; at %v)", op.isEOF_RST, op.readFileLine)
+		}
+	case ALTER_HOST:
+		extra += fmt.Sprintf(" alterHost{isHostAlter: %v; alter: %v}", op.alterHost.isHostAlter, op.alterHost.alter)
+	case ALTER_NODE:
+		extra += fmt.Sprintf(" alterNode{isHostAlter: %v; alter: %v}", op.alterNode.isHostAlter, op.alterNode.alter)
 	}
-	return fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, who:%v, msg.sn:%v%v}", who, op.kind, ini, arr, complete, op.sn, op.who, msgSerial, extra)
+	s := fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, who:%v, msg.sn:%v%v}", who, op.kind, ini, arr, complete, op.sn, op.who, msgSerial, extra)
+	return s
 }
 
 func (z *circuitFault) String() (r string) {

@@ -1501,7 +1501,7 @@ func (s *Simnet) unIsolateSimnode(simnode *simnode) (undo Alteration) {
 }
 
 func (s *Simnet) handleAlterCircuit(altop *mop, closeDone bool) (undo Alteration) {
-
+	vv("top handleAlterCircuit, altop=%v", altop)
 	var alt *simnodeAlteration
 	switch altop.kind {
 	case ALTER_NODE:
@@ -2487,7 +2487,7 @@ func (s *Simnet) scheduler() {
 			s.add2meq(s.newAlterNodeMop(alt), i)
 
 		case alt := <-s.alterHostCh:
-			//vv("i=%v alterHostCh ->  alt='%v'", i, alt)
+			vv("i=%v alterHostCh ->  alt='%v'", i, alt)
 			//s.handleAlterHost(op.alt)
 			s.add2meq(s.newAlterHostMop(alt), i)
 

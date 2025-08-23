@@ -57,7 +57,7 @@ func Test060_load_config(t *testing.T) {
 	// verify all the fields get restored
 
 	all := `(rpc25519_Config
-    SimnetGOMAXPROCS: 0,
+    SimnetGOMAXPROCS: 1,
  LimitedServiceNames: ["singleton"],
    LimitedServiceMax: [1],
        QuietTestMode: true,
