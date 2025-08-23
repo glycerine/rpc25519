@@ -208,7 +208,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	}
 
 	if !c.cfg.QuietTestMode {
-		alwaysPrintf("connected to server '%s'", serverAddr)
+		alwaysPrintf("connected to server '%s'; c.oneWayCh=%p; c.roundTripCh=%p; local(conn)=%v -> remote(conn)=%v", serverAddr, c.oneWayCh, c.roundTripCh, local(conn), remote(conn))
 	}
 
 	// possible to check host keys for TOFU like SSH does,
@@ -319,7 +319,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			// see a ts mutex deadlock under synctest on shutdown, comment out:
 			alwaysPrintf("cli runReadLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, stack())
 		} else {
-			//vv("cli runReadLoop defer/shutdown running.")
+			vv("cli runReadLoop defer/shutdown running. conn local '%v' -> '%v' remote", local(conn), remote(conn))
 		}
 		//}
 		//vv("client runReadLoop exiting, last err = '%v'", err)
@@ -508,12 +508,21 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 }
 
 func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
+
+	var gcMe []*autoCliInRwPair
 	defer func() {
 		r := recover()
 		if r != nil {
 			alwaysPrintf("cli runSendLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, allstacks())
 		} else {
-			//vv("cli runSendLoop defer/shutdown running.")
+			vv("cli runSendLoop defer/shutdown running. conn local '%v' -> '%v' remote", local(conn), remote(conn))
+		}
+
+		// we need to remove our c.oneWayCh from the
+		// Server.remote2pair / pair2remote channels
+		// used by the OneWaySend
+		for _, g := range gcMe {
+			g.srv.deletePair(g.pair)
 		}
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
@@ -610,6 +619,12 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 		}
 
 		select { // client send loop
+
+		case needGC := <-c.garbageCollectThisRwPairCh:
+			// when we go down, remove this auto-cli from
+			// server.remote2pair and pair2remote
+			gcMe = append(gcMe, needGC)
+
 		case <-pingWakeCh:
 			// check and send above.
 			continue
@@ -1270,6 +1285,8 @@ type Client struct {
 	name  string
 	creds *selfcert.Creds
 
+	garbageCollectThisRwPairCh chan *autoCliInRwPair
+
 	notifyOnRead []chan *Message
 	notifyOnce   map[uint64]*loquet.Chan[Message]
 
@@ -1712,8 +1729,11 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 	}
 	c.setDefaults(config)
 	c = &Client{
-		cfg:         cfg,
-		name:        name,
+		cfg:  cfg,
+		name: name,
+
+		garbageCollectThisRwPairCh: make(chan *autoCliInRwPair),
+
 		oneWayCh:    make(chan *Message), // not buffered! synchronous so we get back-pressure.
 		roundTripCh: make(chan *Message), // not buffered! synchronous so we get back-pressure.
 		connected:   make(chan error, 1),
@@ -2288,7 +2308,7 @@ func (cli *Client) destAddrToSendCh(destAddr string) (sendCh chan *Message, halt
 			return nil, nil, "", "", false
 		}
 	*/
-	//vv("cli okay with destAddr '%v' == to", destAddr)
+	vv("cli okay with destAddr '%v' == to; cli.oneWayCh=%p", destAddr, cli.oneWayCh)
 	haltCh = cli.halt.ReqStop.Chan
 	sendCh = cli.oneWayCh
 	ok = true
@@ -3109,3 +3129,13 @@ func (s *Server) ResetTimer(ti *SimTimer, dur time.Duration) bool {
 	return ti.Reset(dur)
 }
 */
+
+type autoCliInRwPair struct {
+	srv  *Server
+	key  string
+	pair *rwPair
+}
+
+func (cli *Client) garbageCollectThisRwPairOnShutdown(s *Server, key string, p *rwPair) {
+
+}

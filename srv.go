@@ -425,6 +425,7 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 
 func (s *rwPair) runSendLoop(conn net.Conn) {
 	defer func() {
+		vv("rwPair(%p) end of runSendLoop s.SendCh=%p; s.to='%v'", s, s.SendCh, s.to)
 		s.Server.deletePair(s)
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
@@ -432,7 +433,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 
 	sendLoopGoroNum := GoroNumber()
 	_ = sendLoopGoroNum
-	//vv("srv.go rwPair.runSendLoop(cli '%v' -> '%v' srv) sendLoopGoroNum = [%v] for pairID = '%v'", remote(conn), local(conn), sendLoopGoroNum, s.pairID)
+	vv("srv.go rwPair(%p).runSendLoop(cli '%v' -> '%v' srv) sendLoopGoroNum = [%v] for pairID = '%v'", s, remote(conn), local(conn), sendLoopGoroNum, s.pairID)
 
 	symkey := s.cfg.preSharedKey
 	if s.cfg.encryptPSK {
@@ -497,13 +498,14 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 			pingWakeCh = pingWakeTimer.C
 		}
 
+		vv("%v server runSendLoop about to wait on s.SendCh = %p ; local(conn)='%v'; remote(conn)='%v'", s.Server.name, s.SendCh, local(conn), remote(conn))
 		select {
 		case <-pingWakeCh:
 			// check and send above.
 			continue
 
 		case msg := <-s.SendCh:
-			//vv("srv %v (%v) sendLoop got from s.SendCh, sending msg.HDR = '%v'", s.Server.name, s.from, msg.HDR.String())
+			vv("srv %v (%v) sendLoop got from s.SendCh=%p, sending msg.HDR = '%v'", s.Server.name, s.from, s.SendCh, msg.HDR.String())
 
 			real, ok := s.Server.unNAT.Get(msg.HDR.To)
 			if ok && real != msg.HDR.To {
@@ -544,7 +546,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 
 	ctx, canc := context.WithCancel(context.Background())
 	defer func() {
-		//vv("rpc25519.Server: runReadLoop shutting down for local conn = '%v'", conn.LocalAddr())
+		vv("rpc25519.Server: runReadLoop shutting down for local conn = '%v'; remote='%v'", conn.LocalAddr(), remote(conn))
 		canc()
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
@@ -1697,8 +1699,6 @@ type rwPair struct {
 
 	halt *idem.Halter
 
-	allDone chan struct{}
-
 	// net/rpc api
 	greenCodec   *greenpackServerCodec
 	sending      sync.Mutex
@@ -1767,15 +1767,16 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 		encBufItself: &p.encBuf,
 	}
 
-	key := remote(conn)
+	key := remote(conn) // or p.to
 
 	s.mut.Lock() // want these two set together atomically.
 	s.remote2pair.Set(key, p)
 	s.pair2remote.Set(p, key)
 	s.mut.Unlock()
+	vv("made new rwPair=%p, with sendCh=%p for local(conn)='%v' -> remote(conn)='%v'", p, p.SendCh, p.from, p.to)
 
 	sc := newServerClient(key)
-	p.allDone = sc.GoneCh
+	//p.allDone = sc.GoneCh
 	select {
 	case s.RemoteConnectedCh <- sc:
 	default:
@@ -1791,12 +1792,9 @@ func (s *Server) deletePair(p *rwPair) {
 	if !ok {
 		return
 	}
+	vv("deleting pair: key='%v'; rwPair p.to = '%v'; isAutoCli=%v", key, p.to, p.isAutoCli)
 	s.pair2remote.Del(p)
 	s.remote2pair.Del(key)
-
-	// see srv_test 015 for example use.
-	close(p.allDone)
-	//vv("Server.deletePair() has closed allDone for pair '%v'", p)
 }
 
 var ErrNetConnectionNotFound = fmt.Errorf("error in SendMessage: net.Conn not found")
@@ -1911,7 +1909,8 @@ func (s *Server) SendMessage(callID, subject, destAddr string, data []byte, seqn
 // having to have the sendLoop do it again.
 func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh chan struct{}, to, from string, ok bool) {
 
-	pair, ok := s.remote2pair.Get(destAddr)
+	var pair *rwPair
+	pair, ok = s.remote2pair.Get(destAddr)
 	if !ok {
 		real, ok2 := s.unNAT.Get(destAddr)
 		if ok2 && real != destAddr {
@@ -1929,13 +1928,13 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 
 	if !ok {
 		if !s.cfg.ServerAutoCreateClientsToDialOtherServers {
-			//alwaysPrintf("yikes! Server did not find destAddr '%v' in remote2pair: '%v'", destAddr, remote2pair)
+			alwaysPrintf("yikes! Server did not find (and auto-cli off) destAddr '%v' in remote2pair: '%v'", destAddr, s.remote2pair.GetKeySlice())
+		} else {
+			alwaysPrintf("yikes! Server did not find destAddr (auto-cli on) '%v' in remote2pair: '%v'", destAddr, s.remote2pair.GetKeySlice())
 		}
-		//alwaysPrintf("yikes! Server did not find destAddr '%v' in remote2pair: '%v'", destAddr, s.remote2pair.GetKeySlice())
-
 		return nil, nil, "", "", false
 	}
-	//vv("ok true in Server.destAddrToSendCh(destAddr='%v')", destAddr)
+	vv("ok true in Server.destAddrToSendCh(destAddr='%v') -> sendCh=%p", destAddr, pair.SendCh)
 	// INVAR: ok is true
 	haltCh = s.halt.ReqStop.Chan
 	from = local(pair.Conn)
@@ -2048,6 +2047,13 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		s.pair2remote.Set(p, key)
 		s.mut.Unlock()
 
+		gcMe := &autoCliInRwPair{
+			srv:  s,
+			key:  key,
+			pair: p,
+		}
+		cli.garbageCollectThisRwPairCh <- gcMe
+
 		//vv("started auto-client ok. trying again... from:'%v'; to:'%v'", p.from, p.to)
 		err, ch = sendOneWayMessage(s, ctx, msg, errWriteDur)
 	}
@@ -2093,6 +2099,9 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		//vv("could not find destAddr='%v' in from our s.destAddrToSendCh() call.", destAddr)
 		return ErrNetConnectionNotFound, nil
 	}
+	if sendCh == nil {
+		panic("cannot have sendCh == nil here")
+	}
 	if to != destAddr {
 		// re-write the unNAT-ed (or re-NAT-ed!) addresses
 		// so that sendLoop does not have to.
@@ -2135,9 +2144,10 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 			return ErrAntiDeadlockMustQueue, sendCh
 		}
 	} else {
+		vv("sendOneWayMessage about to select on sendCh = %p", sendCh)
 		select {
 		case sendCh <- msg:
-
+			vv("sendOneWayMessage did send on sendCh = %p", sendCh)
 		case <-haltCh:
 			//vv("shutting down on haltCh = %p", haltCh)
 			return ErrShutdown(), nil
