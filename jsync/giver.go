@@ -123,7 +123,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 				ack.SetUserArg("giverFullFileBlake3sum", b3sumGiver)
 				ack.SetUserArg("takerFullFileBlake3sum", b3sumTaker)
 				bt.bsend += ack.Msgsize()
-				err = ckt.SendOneWay(ack, 0, 0)
+				_, err = ckt.SendOneWay(ack, 0, 0)
 				panicOn(err)
 				continue
 
@@ -151,7 +151,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 						"for '%v': '%v' on host '%v'",
 						syncReq.GiverPath, err.Error(), rpc.Hostname)
 					bt.bsend += notfound.Msgsize()
-					err = ckt.SendOneWay(notfound, 0, 0)
+					_, err = ckt.SendOneWay(notfound, 0, 0)
 					panicOn(err)
 					continue
 				}
@@ -167,7 +167,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					drat.FragOp = OpRsync_ToTakerDratGiverFileIsNowDir
 					drat.FragSubject = frag0.FragSubject
 					bt.bsend += drat.Msgsize()
-					err = ckt.SendOneWay(drat, 0, 0)
+					_, err = ckt.SendOneWay(drat, 0, 0)
 					panicOn(err)
 					// wait for ack back fin so we don't shut them
 					// down before they can get dirtaker started.
@@ -182,7 +182,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					ack.FragOp = OpRsync_FileSizeModTimeMatch
 
 					bt.bsend += ack.Msgsize()
-					err = ckt.SendOneWay(ack, 0, 0)
+					_, err = ckt.SendOneWay(ack, 0, 0)
 					panicOn(err)
 				} else {
 					// tell them they must send the chunks... if they want it.
@@ -208,7 +208,7 @@ func (s *SyncService) Giver(ctx0 context.Context, ckt *rpc.Circuit, myPeer *rpc.
 					//ack.Payload = frag0.Payload // send the syncReq back
 					ack.SetUserArg("giverFullFileBlake3sum", b3sumGiver)
 					bt.bsend += len(ack.Payload)
-					err = ckt.SendOneWay(ack, 0, 0)
+					_, err = ckt.SendOneWay(ack, 0, 0)
 					panicOn(err)
 				}
 				frag0 = nil
@@ -395,7 +395,7 @@ func (s *SyncService) giverReportFileNotFound(
 	pf.Payload = bts
 	bt.bsend += len(bts)
 
-	err = ckt.SendOneWay(pf, 0, 0)
+	_, err = ckt.SendOneWay(pf, 0, 0)
 	panicOn(err)
 	//return fmt.Errorf(report)
 	// let the other side close us down, so they hear about this,
@@ -479,7 +479,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 		bts, err := goalPrecis.MarshalMsg(nil)
 		panicOn(err)
 		updateMeta.Payload = bts
-		err = ckt.SendOneWay(updateMeta, 0, 0)
+		_, err = ckt.SendOneWay(updateMeta, 0, 0)
 		panicOn(err)
 		bt.bsend += len(bts)
 		return nil
@@ -539,7 +539,7 @@ func (s *SyncService) giverSendsPlanAndDataUpdates(
 	pf.Payload = bts
 	bt.bsend += len(bts)
 
-	err = ckt.SendOneWay(pf, 0, 0)
+	_, err = ckt.SendOneWay(pf, 0, 0)
 	panicOn(err)
 
 	// Now stream the heavy chunks. Since our max message
@@ -587,7 +587,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 		rm.FragOp = OpRsync_TellTakerToDelete // 13
 
 		bt.bsend += rm.Msgsize()
-		err := ckt.SendOneWay(rm, 0, 0)
+		_, err := ckt.SendOneWay(rm, 0, 0)
 		panicOn(err)
 		return false // all done
 	}
@@ -607,7 +607,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 		skip.Err = fmt.Sprintf("same host and dir detected! cowardly refusing to overwrite path with itself: '%v' on '%v' / Hostname '%v'", syncReq.GiverPath, syncReq.ToRemoteNetAddr, rpc.Hostname)
 		//vv(skip.Err)
 		bt.bsend += skip.Msgsize()
-		err = ckt.SendOneWay(skip, 0, 0)
+		_, err = ckt.SendOneWay(skip, 0, 0)
 		panicOn(err)
 		return false // all done
 	}
@@ -648,7 +648,7 @@ func (s *SyncService) remoteGiverAreDiffChunksNeeded(
 		ack.FragOp = OpRsync_FileSizeModTimeMatch
 
 		bt.bsend += ack.Msgsize()
-		err = ckt.SendOneWay(ack, 0, 0)
+		_, err = ckt.SendOneWay(ack, 0, 0)
 		panicOn(err)
 		return false // all done with this file.
 	} else {
@@ -733,7 +733,7 @@ func (s *SyncService) packAndSendChunksLimitedSize(
 		bts, err := chnks.MarshalMsg(nil)
 		panicOn(err)
 		f.Payload = bts
-		err = ckt.SendOneWay(f, 0, 0)
+		_, err = ckt.SendOneWay(f, 0, 0)
 		panicOn(err)
 		//vv("packAndSendChunksLimitedSize sent f = '%v'", f.String())
 		bt.bsend += len(bts)
@@ -900,7 +900,7 @@ func (s *SyncService) packAndSendChunksJustInTime(
 		bts, err := chnks.MarshalMsg(nil)
 		panicOn(err)
 		f.Payload = bts
-		err = ckt.SendOneWay(f, 0, 0)
+		_, err = ckt.SendOneWay(f, 0, 0)
 		panicOn(err)
 		bt.bsend += len(bts)
 

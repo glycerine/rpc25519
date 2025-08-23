@@ -230,7 +230,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 				bts, err := reqDir.MarshalMsg(nil)
 				panicOn(err)
 				tmpReady.Payload = bts
-				err = ckt.SendOneWay(tmpReady, 0, 0)
+				_, err = ckt.SendOneWay(tmpReady, 0, 0)
 				bt.bsend += len(bts)
 				panicOn(err)
 
@@ -502,7 +502,7 @@ func (s *SyncService) DirTaker(ctx0 context.Context, ckt *rpc.Circuit, myPeer *r
 					bts, err := reqDir.MarshalMsg(nil)
 					panicOn(err)
 					end.Payload = bts
-					err = ckt.SendOneWay(end, 0, 0)
+					_, err = ckt.SendOneWay(end, 0, 0)
 					bt.bsend += len(bts)
 					panicOn(err)
 					// wait for them to reply with 43
@@ -876,7 +876,7 @@ func (s *SyncService) dirTakerRequestIndivFiles(
 				frag.Payload = data
 				frag.SetUserArg("structType", "RequestToSyncPath")
 				cktName := rsyncRemoteGivesString // vs rsyncRemoteTakesString
-				ckt2, ctx2, err := ckt.NewCircuit(cktName, frag)
+				ckt2, ctx2, _, err := ckt.NewCircuit(cktName, frag)
 				panicOn(err)
 
 				if extraComing {

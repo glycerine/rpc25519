@@ -731,7 +731,7 @@ func (s *SyncService) Start(
 
 				cktName := rsyncRemoteGivesDirString //"rsync remote gives dir"
 
-				ckt, _, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
+				ckt, _, _, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
 					pulldir, syncReq.ToRemotePeerServiceName,
 					syncReq.ToRemoteNetAddr, 0, false, nil)
 				panicOn(err)
@@ -802,7 +802,7 @@ func (s *SyncService) Start(
 				pushdir.Payload = bts
 				cktName := rsyncRemoteTakesDirString // "rsync remote takes dir"
 
-				ckt, _, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
+				ckt, _, _, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
 					pushdir, syncReq.ToRemotePeerServiceName,
 					syncReq.ToRemoteNetAddr, 0, false, nil)
 				panicOn(err)
@@ -947,7 +947,7 @@ func (s *SyncService) Start(
 			}
 			frag.Payload = data
 
-			ckt, _, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
+			ckt, _, _, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
 				frag, syncReq.ToRemotePeerServiceName, syncReq.ToRemoteNetAddr, 0, false, nil)
 
 			panicOn(err)
@@ -992,7 +992,7 @@ func (s *SyncService) ackBackFINToTaker(ckt *rpc.Circuit, frag *rpc.Fragment) {
 	ack := ckt.LpbFrom.NewFragment()
 	ack.FragSubject = frag.FragSubject
 	ack.FragOp = OpRsync_AckBackFIN_ToTaker
-	err := ckt.SendOneWay(ack, 0, 0)
+	_, err := ckt.SendOneWay(ack, 0, 0)
 	//panicOn(err) races with shutdown, skip.
 	_ = err // rpc25519 error: context cancelled. Normal shutdown, don't panic.
 }
@@ -1001,7 +1001,7 @@ func (s *SyncService) ackBackFINToGiver(ckt *rpc.Circuit, frag *rpc.Fragment) {
 	ack := ckt.LpbFrom.NewFragment()
 	ack.FragSubject = frag.FragSubject
 	ack.FragOp = OpRsync_AckBackFIN_ToGiver
-	err := ckt.SendOneWay(ack, 0, 0)
+	_, err := ckt.SendOneWay(ack, 0, 0)
 	//panicOn(err) races with shutdown, skip.
 	_ = err // rpc25519 error: context cancelled. Normal shutdown. Don't panic.
 }
