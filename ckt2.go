@@ -195,6 +195,8 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 		// we are on the client
 		if r != remoteAddr {
 			err0 = fmt.Errorf("client peer error on StartRemotePeer: remoteAddr should be '%v' (that we are connected to), rather than the '%v' which was requested. Otherwise your request will fail.", r, remoteAddr)
+			ckt = nil
+			ackMsg = nil
 			return
 		}
 	}
@@ -210,6 +212,8 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	madeNewAutoCli, _, err = p.u.SendOneWayMessage(ctx, msg, errWriteDur)
 	if err != nil {
 		err0 = fmt.Errorf("error requesting CallPeerStartCircuit from remote: '%v'; netAddr='%v'; remoteAddr='%v'", err, netAddr, remoteAddr)
+		ckt = nil
+		ackMsg = nil
 		return
 	}
 
@@ -228,6 +232,8 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	ckt, _, madeNewAutoCli, err = lpb.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, false, onOriginLocalSide)
 	if err != nil {
 		err0 = err
+		ckt = nil
+		ackMsg = nil
 		return
 	}
 
@@ -246,6 +252,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 			//vv("got errMsg = '%v'", errMsg)
 			err0 = fmt.Errorf("error sending '%v' to remote: %v", frag.Typ, errMsg.JobErrs)
 			ackMsg = errMsg
+			ckt = nil
 			return
 		case ackMsg = <-responseCh:
 			//vv("got ackMsg! yay! = '%v'", ackMsg)
@@ -282,18 +289,13 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 				lpb.Remotes.Set(rpb.PeerID, rpb)
 			}
 		case <-ckt.Context.Done():
-			err0 = ErrContextCancelled
-			return
+			return nil, nil, madeNewAutoCli, ErrContextCancelled
 		case <-lpb.Ctx.Done():
-			err0 = ErrContextCancelled
-			return
+			return nil, nil, madeNewAutoCli, ErrContextCancelled
 		case <-hhalt.ReqStop.Chan:
-			err0 = ErrHaltRequested
-			return
-
+			return nil, nil, madeNewAutoCli, ErrHaltRequested
 		case <-callCtx.Done():
-			err0 = ErrContextCancelled
-			return
+			return nil, nil, madeNewAutoCli, ErrContextCancelled
 		}
 	}
 	return

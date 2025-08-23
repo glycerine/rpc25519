@@ -1523,9 +1523,10 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 
 	knownLocalPeer, ok := s.localServiceNameMap.Get(peerServiceName)
 	if !ok {
+		vv("could not find peerServiceName='%v'", peerServiceName)
 		return s.rejectWith(fmt.Sprintf("no local peerServiceName '%v' available", peerServiceName), isCli, msg, ctx, sendCh)
 	}
-	//vv("good: bootstrapCircuit found registered peerServiceName: '%v'", peerServiceName)
+	vv("good: bootstrapCircuit found registered peerServiceName: '%v'", peerServiceName)
 
 	var curServiceCount int
 	needNewLocalPeer := false

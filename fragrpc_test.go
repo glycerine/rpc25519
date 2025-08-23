@@ -108,7 +108,8 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		wrongServiceNameSrv := "service_name_not_avail_on_server"
 		cktName4 := "cli_cktname_will_never_be_used"
 		var ckt4 *Circuit
-		ckt4, ackMsg, _, err = j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb.Ctx, cli_lpb, cktName4, nil, wrongServiceNameSrv, netAddr, time.Second*2, nil)
+		var madeNewAutoCli bool
+		ckt4, ackMsg, madeNewAutoCli, err = j.cli.PeerAPI.PreferExtantRemotePeerGetCircuit(cli_lpb.Ctx, cli_lpb, cktName4, nil, wrongServiceNameSrv, netAddr, time.Second*2, nil)
 		_ = ackMsg
 		if err == nil {
 			panic("should get no name found!")
@@ -116,11 +117,11 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		if err == ErrTimeout {
 			panic("should get no such service name found! not ErrTimeout")
 		}
-		//vv("server no-such-service checked: good, got err = '%v'", err)
+		vv("server no-such-service checked: good, got err = '%v'; madeNewAutoCli='%v'", err, madeNewAutoCli)
 		// cli_emptyPeerID_410 ckt.Name is not handling Errors!
 		if ckt4 != nil {
-			alwaysPrintf("ckt4 = %#v", ckt4)
-			panic("ckt4 should be nil") // hitting
+			alwaysPrintf("ckt4(%p) = %#v", ckt4, ckt4)
+			panic("ckt4 should be nil")
 		}
 	}
 
