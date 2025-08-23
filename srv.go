@@ -878,12 +878,12 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 	if msg.HDR.ToPeerID != "" {
 
 		wantsToPeerID, ok := c.notifyOnReadToPeerIDMap.get(msg.HDR.ToPeerID)
-		vv("have ToPeerID msg = '%v'; ok='%v'; for '%v'", msg.HDR.String(), ok, msg.HDR.ToPeerID)
+		//vv("have ToPeerID msg = '%v'; ok='%v'; for '%v'", msg.HDR.String(), ok, msg.HDR.ToPeerID)
 		if ok {
 			// allow back pressure. Don't time out here.
 			select {
 			case wantsToPeerID <- msg:
-				vv("sent msg to wantsToPeerID=%p ; msg='%v'", wantsToPeerID, msg.HDR.String())
+				//vv("sent msg to wantsToPeerID=%p ; msg='%v'", wantsToPeerID, msg.HDR.String())
 			case <-ctx.Done():
 				return
 			case <-c.u.GetHostHalter().ReqStop.Chan: // ctx not enough
@@ -891,7 +891,7 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 			}
 			return true // only send to ToPeerID, priority over CallID.
 		} else {
-			vv("debug: no key for msg with msg.HDR.ToPeerID='%v', c.notifyOnReadToPeerIDMap.keys='%#v'", msg.HDR.ToPeerID, c.notifyOnReadToPeerIDMap.keys())
+			//vv("debug: no key for msg with msg.HDR.ToPeerID='%v', c.notifyOnReadToPeerIDMap.keys='%#v'", msg.HDR.ToPeerID, c.notifyOnReadToPeerIDMap.keys())
 		}
 	}
 
