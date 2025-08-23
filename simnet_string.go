@@ -8,6 +8,7 @@ import (
 
 	cristalbase64 "github.com/cristalhq/base64"
 	"github.com/glycerine/blake3"
+	rb "github.com/glycerine/rbtree"
 )
 
 func (s *Simnet) showDNS() {
@@ -198,7 +199,7 @@ func (op *mop) String() string {
 		if op.msg != nil {
 			nbyte = len(op.msg.JobSerz)
 		}
-		extra = fmt.Sprintf(" FROM %v TO %v (eof:%v; nbyte:%v; at %v)", op.origin.name, op.target.name, op.isEOF_RST, nbyte, op.sendFileLine)
+		extra = fmt.Sprintf(" FROM[ %v ] TO[ %v ](eof:%v; nbyte:%v; at %v)", op.origin.name, op.target.name, op.isEOF_RST, nbyte, op.sendFileLine)
 
 	case READ:
 		if op.origin != nil && op.target != nil {
@@ -745,5 +746,28 @@ func (s *PeerMatrix) String() (r string) {
 		}
 		r += "\n"
 	}
+	return
+}
+
+func ItemToMopString(it rb.Iterator) string {
+	return it.Item().(*mop).String()
+}
+
+// extract a SEND mop into full string, and extracted
+// and normalized origin and target strings --
+// for testing mostly. If not a SEND, all returns
+// will be empty strings.
+func ItemToSendOrigTarg(it rb.Iterator) (send, orig, targ string) {
+	m := it.Item().(*mop)
+	if m.kind != SEND {
+		return
+	}
+	send = m.String()
+	p1 := strings.Index(send, " FROM[ ") + 7
+	p2 := strings.Index(send[p1:], " ] TO[ ")
+	p3 := p1 + p2 + 7
+	p4 := strings.Index(send, " ](eof:")
+	orig = extractFromAutoCli(send[p1 : p1+p2])
+	targ = extractFromAutoCli(send[p3:p4])
 	return
 }

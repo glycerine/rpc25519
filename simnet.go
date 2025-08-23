@@ -447,6 +447,11 @@ func (s *Simnet) simnetNextMopSn() (sn int64) {
 	s.xmut.Lock()
 	defer s.xmut.Unlock()
 	sn = s.nextMopSn
+	if sn == 172 || sn == 174 {
+		verboseVerbose = true // pp() show up
+	} else {
+		verboseVerbose = false // pp() silent.
+	}
 	s.nextMopSn++
 	s.xissuetm = append(s.xissuetm, time.Now())
 	s.xfintm = append(s.xfintm, time.Time{})
@@ -1358,6 +1363,7 @@ func (s *Simnet) transferPreArrQ_to_droppedSendQ(simnode *simnode) {
 		send := it.Item().(*mop)
 		// not: simnode.droppedSendQ.add(send)
 		// but back on the origin:
+		//vv("transfer from '%v' -> '%v' send = %v", simnode.name, send.origin.name, send) // not seen, so not involved with the 055 weirdness
 		send.origin.droppedSendQ.add(send)
 	}
 	simnode.preArrQ.deleteAll()
@@ -1563,12 +1569,15 @@ func (s *Simnet) reverse(alt Alteration) (undo Alteration) {
 
 // alter all the auto-cli of a server and the server itself.
 func (s *Simnet) handleAlterHost(altop *mop) (undo Alteration) {
+	vv("top handleAlterHost altop='%v'", altop)
 
 	var alt *simnodeAlteration = altop.alterHost
 
 	node, ok := s.dns[alt.simnodeName]
 	if !ok {
 		alt.err = fmt.Errorf("error: handleAlterHost could not find simnodeName '%v' in dns: '%v'", alt.simnodeName, s.dns)
+		// drat: power on of previously poweroff and closed node gets here.
+		vv("early return on alt.err='%v'", alt.err)
 		return
 	}
 
@@ -1578,13 +1587,19 @@ func (s *Simnet) handleAlterHost(altop *mop) (undo Alteration) {
 	// note that s.locals(node) now returns a single
 	// node map for lone clients, so this works for them too.
 	const closeDone_NO = false
-	for node := range s.locals(node) { // includes srvnode itself
+	locals := s.locals(node) // includes srvnode itself map[*simnode]bool
+	nlocal := len(locals)
+	i := 0
+	for node := range locals {
 		alt.simnodeName = node.name
 		// notice that we reuse alt, but set the final undo
 		// based on the host level state seen in the above reverse.
 
+		vv("in range s.locals, i=%v out of %v, for altop='%v'", i, nlocal, altop)
 		_ = s.handleAlterCircuit(altop, closeDone_NO)
+		i++
 	}
+	vv("past range s.locals for altop='%v'", altop)
 	alt.undo = undo
 	s.fin(altop)
 	close(alt.proceed)
@@ -1685,7 +1700,12 @@ func (s *Simnet) localDropSend(send *mop) (isDropped bool, connAttemptedSend int
 }
 
 // ignores FAULTY, check that with localDropSend if need be.
-func (s *Simnet) statewiseConnected(origin, target *simnode) bool {
+func (s *Simnet) statewiseConnected(origin, target *simnode) (linked bool) {
+	defer func() {
+		if !linked {
+			pp("origin = '%v'; target = '%v'", origin, target)
+		}
+	}()
 	if origin.powerOff ||
 		target.powerOff {
 		return false
@@ -1737,7 +1757,7 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 
 		changed++
 		limit--
-		//vv("handleSend DROP SEND %v", send)
+		pp("send.origin='%v'; send.target='%v'; handleSend DROP SEND %v", send.origin.name, send.target.name, send) // seen 172,174
 		send.origin.droppedSendQ.add(send)
 		return
 	}
@@ -2300,10 +2320,10 @@ func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 // operations, or take a time step forward
 // if they are all blocked.
 func (s *Simnet) scheduler() {
-	//vv("scheduler is running on goro = %v", GoroNumber())
+	vv("scheduler is running on goro = %v", GoroNumber())
 
 	defer func() {
-		//vv("scheduler defer shutdown running on goro = %v", GoroNumber())
+		vv("scheduler defer shutdown running on goro = %v", GoroNumber())
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
 		r := recover()

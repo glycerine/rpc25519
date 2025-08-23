@@ -164,7 +164,14 @@ func issueSerial() (cur int64) {
 var myPID = int64(os.Getpid())
 
 var chacha8randMut sync.Mutex
-var chacha8rand *mathrand2.ChaCha8 = newCryrandSeededChaCha8()
+
+// var chacha8rand *mathrand2.ChaCha8 = newCryrandSeededChaCha8()
+var chacha8rand *mathrand2.ChaCha8 = newZeroSeededChaCha8()
+
+func newZeroSeededChaCha8() *mathrand2.ChaCha8 {
+	var seed [32]byte
+	return mathrand2.NewChaCha8(seed)
+}
 
 func newCryrandSeededChaCha8() *mathrand2.ChaCha8 {
 	var seed [32]byte
