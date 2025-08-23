@@ -1945,225 +1945,194 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 		return
 	}
 
-	readIt := simnode.readQ.Tree.Min()
-	preIt := simnode.preArrQ.Tree.Min()
-
 	// matching reads and sends
-	for {
-		if limit == 0 {
-			return
-		}
-		if readIt.Limit() {
-			// no reads, no point.
-			return
-		}
-		if preIt.Limit() {
-			// no sends to match with reads
-			return
-		}
-
-		read := readIt.Item().(*mop)
-		send := preIt.Item().(*mop)
-
-		if read.target != send.origin {
-			//vv("ignore sends not from this read's target: read.target='%v' != send.origin='%v'\n\n read='%v'\n\n send='%v'", read.target.name, send.origin.name, read, send)
-			continue
-		}
-
-		//vv("eval match: read = '%v'; connected = %v; s.localDeafRead(read)=%v", read, s.statewiseConnected(read.origin, read.target), s.localDeafRead(read))
-		//vv("eval match: send = '%v'; connected = %v; s.localDropSend(send)=%v", send, s.statewiseConnected(send.origin, send.target), s.localDropSend(send))
-
-		simnode.optionallyApplyChaos()
-
-		// TODO Q: should we wait to drop-or-not until arrival time comes?
-
-		var connAttemptedSend int64 // for logging below
-		var drop bool
-		// insist on !sendDropFilteringApplied, so we only
-		// call localDropSend once per send, and let
-		// them through if they've already survived
-		// one roll of the dice. localDropSend increments it.
-		if send.sendDropFilteringApplied {
-			// don't double filter! dispatchAll calls in here alot.
-		} else {
-			drop, connAttemptedSend = s.localDropSend(send)
-			_ = connAttemptedSend
-			if drop {
-				send.origin.droppedSendDueToProb++
+	// readIt = readIt.Next()
+	for readIt := simnode.readQ.Tree.Min(); !readIt.Limit(); {
+		// do the preIt and readIt Next manually in various places so
+		// we can advance and delete behind
+		for preIt := simnode.preArrQ.Tree.Min(); !preIt.Limit(); {
+			if limit == 0 {
+				return
 			}
-			connected := s.statewiseConnected(send.origin, send.target)
-			if !connected || drop {
+			read := readIt.Item().(*mop)
+			send := preIt.Item().(*mop)
 
-				//vv("dispatchReadsSends DROP SEND %v; drop=%v; send.origin.droppedSendDueToProb=%v, connected=%v", send, drop, send.origin.droppedSendDueToProb, connected)
-				// note that the dropee is stored on the send.origin
-				// in the droppedSendQ, which is never the same
-				// as simnode here which supplied from its preArrQ.
-				send.origin.droppedSendQ.add(send)
+			// We used to think of each simnode as being the endpoint
+			// for a single circuit, but that only applies to
+			// client simnodes; not server simnodes.
+			// So a server can be reading from many remote clients.
+			if read.target != send.origin {
+				//vv("ignore: at simnode='%v' the send.origin not from this read's target: read.target='%v' != send.origin='%v'\n\n read='%v'\n\n send='%v'", simnode.name, read.target.name, send.origin.name, read, send)
+				preIt = preIt.Next()
+				continue
+			}
+
+			//vv("eval match: read = '%v'; connected = %v; s.localDeafRead(read)=%v", read, s.statewiseConnected(read.origin, read.target), s.localDeafRead(read))
+			//vv("eval match: send = '%v'; connected = %v; s.localDropSend(send)=%v", send, s.statewiseConnected(send.origin, send.target), s.localDropSend(send))
+
+			simnode.optionallyApplyChaos()
+
+			// TODO Q: should we wait to drop-or-not until arrival time comes?
+
+			var connAttemptedSend int64 // for logging below
+			var drop bool
+			// insist on !sendDropFilteringApplied, so we only
+			// call localDropSend once per send, and let
+			// them through if they've already survived
+			// one roll of the dice. localDropSend increments it.
+			if send.sendDropFilteringApplied {
+				// don't double filter! dispatchAll calls in here alot.
+			} else {
+				drop, connAttemptedSend = s.localDropSend(send)
+				_ = connAttemptedSend
+				if drop {
+					send.origin.droppedSendDueToProb++
+				}
+				connected := s.statewiseConnected(send.origin, send.target)
+				if !connected || drop {
+
+					//vv("dispatchReadsSends DROP SEND %v; drop=%v; send.origin.droppedSendDueToProb=%v, connected=%v", send, drop, send.origin.droppedSendDueToProb, connected)
+					// note that the dropee is stored on the send.origin
+					// in the droppedSendQ, which is never the same
+					// as simnode here which supplied from its preArrQ.
+					send.origin.droppedSendQ.add(send)
+					delit := preIt
+					preIt = preIt.Next()
+					simnode.preArrQ.Tree.DeleteWithIterator(delit)
+					// cleanup the timer that scheduled this send, if any.
+					if send.internalPendingTimerForSend != nil {
+						send.origin.timerQ.del(send.internalPendingTimerForSend)
+						s.fin(send.internalPendingTimerForSend)
+					}
+					changes++
+					limit--
+					continue
+				}
+			} // end else !send.sendDropFilteringApplied
+
+			if send.arrivalTm.After(now) {
+				// send has not arrived yet.
+
+				// are we done? since preArrQ is ordered
+				// by arrivalTm, all subsequent pre-arrivals (sends)
+				// will have even more _greater_ arrivalTm;
+				// so no point in looking.
+				// But do we need to allow other reads
+				// to maybe match against the sends? yep, so:
+				break // not return
+			}
+			// INVAR: this send.arrivalTm <= now
+
+			//vv("send okay to deliver (below deaf read might drop it though): conn.attemptedSend=%v, send.sendAttempt=%v; send.sendDropFilteringApplied=%v", connAttemptedSend, send.sendAttempt, send.sendDropFilteringApplied)
+			// INVAR: send is okay to deliver wrt faults.
+
+			connectedR := s.statewiseConnected(read.origin, read.target)
+			if !connectedR || s.localDeafRead(read, send) {
+				//vv("dispatchReadsSends DEAF READ %v; connectedR=%v", read, connectedR)
+
+				// we actually have to drop _the send_ on a deaf read,
+				// otherwise the send is "auto-retried" until success.
+
+				// different, for read deaf -> send drop.
+				//vv("adding to deafReadQ the _send_ of a deaf read into the reader side deaf Q, and deleting it from the preArrQ: '%v'\n simnode.name: '%v'", send, simnode.name)
+				// simnode is the reader, so target of the send from
+				// retreived from its own preArrQ.
+				simnode.deafReadQ.add(send)
+
 				delit := preIt
 				preIt = preIt.Next()
 				simnode.preArrQ.Tree.DeleteWithIterator(delit)
 				// cleanup the timer that scheduled this send, if any.
 				if send.internalPendingTimerForSend != nil {
 					send.origin.timerQ.del(send.internalPendingTimerForSend)
-					s.fin(send.internalPendingTimerForSend)
 				}
+
+				//vv("node after adding deaf-read-send to the deafReadQ: '%v'", simnode)
 				changes++
 				limit--
 				continue
 			}
-		} // end else !send.sendDropFilteringApplied
 
-		if send.arrivalTm.After(now) {
-			// send has not arrived yet.
+			// Causality also demands that
+			// a read can complete (now) only after it was initiated;
+			// and so can be matched (now) only to a send already initiated.
 
-			// are we done? since preArrQ is ordered
-			// by arrivalTm, all subsequent pre-arrivals (sends)
-			// will have even more _greater_ arrivalTm;
-			// so no point in looking.
-
-			// super noisy!
-			//vv("dispatch: %v", simnode.net.schedulerReport())
-
-			// the send is still in the send queue.
-			// problem with a timer is we set a new one
-			// each time through here!?! we don't need 10 timers
-			// for each millisecond between now and delivery in 10msec.
-			// If we need a timer, we should be setting just
-			// one when it hits to preArrQ
-			// in handleSend. The only reason we would need a timer
-			// would be to deliver before a scheduling time quantum
-			// is up.
-
-			if false { // atgrs without this. 2025 June 07. 2b8022e.
-				// we must set a timer on its delivery then...
-				dur := send.arrivalTm.Sub(now)
-				pending := s.newTimerCreateMop(simnode.isCli)
-				pending.origin = simnode
-				pending.timerDur = dur
-				pending.initTm = now
-				pending.completeTm = now.Add(dur)
-				pending.timerFileLine = fileLine(1)
-				pending.internalPendingTimer = true
-				send.internalPendingTimerForSend = pending
-
-				vv("dur=%v, queue new timer (sn:%v) for delivery of send in that has not happened (arrivalTm: %v): '%v'", dur, pending.sn, nice9(send.arrivalTm), send)
-				s.handleTimer(pending)
-
-				changes++
-				limit--
+			// To keep from violating causality,
+			// during our chaos testing, we want
+			// to make sure that the read completion (now)
+			// cannot happen before the send initiation.
+			// Also forbid any reads that have not happened
+			// "yet" (now), should they get rearranged by chaos.
+			if now.Before(read.initTm) {
+				alwaysPrintf("rejecting delivery to read that has not happened: '%v'", read)
+				panic("how possible?")
+				return
 			}
-			return
-		}
-		// INVAR: this send.arrivalTm <= now
+			// INVAR: this read.initTm <= now
+			// INVAR: this send.arrivalTm <= now
+			changes++
+			limit--
 
-		//vv("send okay to deliver (below deaf read might drop it though): conn.attemptedSend=%v, send.sendAttempt=%v; send.sendDropFilteringApplied=%v", connAttemptedSend, send.sendAttempt, send.sendDropFilteringApplied)
-		// INVAR: send is okay to deliver wrt faults.
+			// INVAR: this send.arrivalTm <= now; good to deliver.
 
-		connectedR := s.statewiseConnected(read.origin, read.target)
-		if !connectedR || s.localDeafRead(read, send) {
-			//vv("dispatchReadsSends DEAF READ %v; connectedR=%v", read, connectedR)
+			// Since both have happened, they can be matched.
 
-			// why would we just skip past this read? It doesn't fail
-			// back to the client; its like a silent network problem.
-			// if it is flaky, it might work the next time.
-			// but should other reads get a chance? typically only
-			// one open at a time.
-			//readIt = readIt.Next()
+			// Service this read with this send.
 
-			// 2) but we actually have to drop _the send_ on a deaf read,
-			// otherwise the send is "auto-retried" until success.
+			read.msg = send.msg // safe b/c already copied in handleSend()
 
-			// classic, above, from send drop prob
-			//send.origin.droppedSendQ.add(send)
+			read.isEOF_RST = send.isEOF_RST // convey EOF/RST
+			if send.isEOF_RST {
+				//vv("copied EOF marker from send '%v' \n to read: '%v'", send, read)
+			}
 
-			// different, for read deaf -> send drop.
-			//vv("adding to deafReadQ the _send_ of a deaf read into the reader side deaf Q, and deleting it from the preArrQ: '%v'\n simnode.name: '%v'", send, simnode.name)
-			// simnode is the reader, so target of the send from
-			// retreived from its own preArrQ.
-			simnode.deafReadQ.add(send)
+			// advance our logical clock
+			simnode.lc = max(simnode.lc, send.originLC) + 1
+			////zz("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, simnode.lc, simnode.lc-read.originLC, read.sn)
 
+			// track clocks on either end for this send and read.
+			read.readerLC = simnode.lc
+			read.senderLC = send.senderLC
+			send.readerLC = simnode.lc
+			read.completeTm = now
+			read.arrivalTm = send.arrivalTm // easier diagnostics
+
+			// matchmaking
+			//vv("[1]matchmaking: \nsend '%v' -> \nread '%v' \nread.sn=%v, readAttempt=%v, read.lastP=%v, lastIsDeafTrueTm=%v", send, read, read.sn, read.readAttempt, read.lastP, nice(read.lastIsDeafTrueTm))
+			read.sendmop = send
+			send.readmop = read
+
+			// advance, and delete behind. on both.
 			delit := preIt
 			preIt = preIt.Next()
 			simnode.preArrQ.Tree.DeleteWithIterator(delit)
+
+			delit = readIt
+			readIt = readIt.Next()
+			simnode.readQ.Tree.DeleteWithIterator(delit)
+
 			// cleanup the timer that scheduled this send, if any.
 			if send.internalPendingTimerForSend != nil {
 				send.origin.timerQ.del(send.internalPendingTimerForSend)
 			}
 
-			//vv("node after adding deaf-read-send to the deafReadQ: '%v'", simnode)
-			changes++
-			limit--
+			s.fin(read)
+			close(read.proceed)
+			// send already closed in handleSend()
+
+			// we already advanced readIt so continue
+			// to skip the one just below.
+			if readIt.Limit() {
+				return
+			}
 			continue
-		}
-
-		// Causality also demands that
-		// a read can complete (now) only after it was initiated;
-		// and so can be matched (now) only to a send already initiated.
-
-		// To keep from violating causality,
-		// during our chaos testing, we want
-		// to make sure that the read completion (now)
-		// cannot happen before the send initiation.
-		// Also forbid any reads that have not happened
-		// "yet" (now), should they get rearranged by chaos.
-		if now.Before(read.initTm) {
-			alwaysPrintf("rejecting delivery to read that has not happened: '%v'", read)
-			panic("how possible?")
+		} // end for sends in preArrQ
+		if readIt.Limit() {
 			return
 		}
-		// INVAR: this read.initTm <= now
-		// INVAR: this send.arrivalTm <= now
-		changes++
-		limit--
-
-		// INVAR: this send.arrivalTm <= now; good to deliver.
-
-		// Since both have happened, they can be matched.
-
-		// Service this read with this send.
-
-		read.msg = send.msg // safe b/c already copied in handleSend()
-
-		read.isEOF_RST = send.isEOF_RST // convey EOF/RST
-		if send.isEOF_RST {
-			//vv("copied EOF marker from send '%v' \n to read: '%v'", send, read)
-		}
-
-		// advance our logical clock
-		simnode.lc = max(simnode.lc, send.originLC) + 1
-		////zz("servicing cli read: started LC %v -> serviced %v (waited: %v) read.sn=%v", read.originLC, simnode.lc, simnode.lc-read.originLC, read.sn)
-
-		// track clocks on either end for this send and read.
-		read.readerLC = simnode.lc
-		read.senderLC = send.senderLC
-		send.readerLC = simnode.lc
-		read.completeTm = now
-		read.arrivalTm = send.arrivalTm // easier diagnostics
-
-		// matchmaking
-		//vv("[1]matchmaking: \nsend '%v' -> \nread '%v' \nread.sn=%v, readAttempt=%v, read.lastP=%v, lastIsDeafTrueTm=%v", send, read, read.sn, read.readAttempt, read.lastP, nice(read.lastIsDeafTrueTm))
-		read.sendmop = send
-		send.readmop = read
-
-		// advance, and delete behind. on both.
-		delit := preIt
-		preIt = preIt.Next()
-		simnode.preArrQ.Tree.DeleteWithIterator(delit)
-
-		delit = readIt
 		readIt = readIt.Next()
-		simnode.readQ.Tree.DeleteWithIterator(delit)
-
-		// cleanup the timer that scheduled this send, if any.
-		if send.internalPendingTimerForSend != nil {
-			send.origin.timerQ.del(send.internalPendingTimerForSend)
-		}
-
-		s.fin(read)
-		close(read.proceed)
-		// send already closed in handleSend()
-
-	} // end for
+	} // end for reads in readQ
+	return
 }
 
 // dispatch delivers sends to reads, and fires timers.
