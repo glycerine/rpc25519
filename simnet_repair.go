@@ -188,6 +188,7 @@ func (s *Simnet) equilibrateReads(origin, target *simnode) {
 		origin.readQ.add(read)
 	}
 	for _, read := range addToDeafReadQ {
+		//pp("equilibrateReads adding '%v'", read)
 		origin.deafReadQ.add(read)
 	}
 }
@@ -472,7 +473,7 @@ func (s *Simnet) applyFaultsToReadQ(now time.Time, origin, target *simnode, deaf
 				//s.deaf(deafReadProb) { wrong! makes 1002 red, 50% deaf cli.
 				s.localDeafReadProb(read) >= 1 {
 
-				//vv("deaf fault enforced on read='%v'", read)
+				//pp("deaf fault enforced on read='%v'", read)
 				origin.deafReadQ.add(read) // this is defeaning all in 1002!
 
 				// advance readIt, and delete behind

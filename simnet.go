@@ -447,11 +447,6 @@ func (s *Simnet) simnetNextMopSn() (sn int64) {
 	s.xmut.Lock()
 	defer s.xmut.Unlock()
 	sn = s.nextMopSn
-	if sn == 172 || sn == 174 {
-		verboseVerbose = true // pp() show up
-	} else {
-		verboseVerbose = false // pp() silent.
-	}
 	s.nextMopSn++
 	s.xissuetm = append(s.xissuetm, time.Now())
 	s.xfintm = append(s.xfintm, time.Time{})
@@ -1313,6 +1308,7 @@ func (s *Simnet) transferReadsQ_to_deafReadsQ(simnode *simnode) {
 	it := simnode.readQ.Tree.Min()
 	for !it.Limit() {
 		read := it.Item().(*mop)
+		//vv("adding to deafReadQ = '%v'", read)
 		simnode.deafReadQ.add(read)
 		it = it.Next()
 	}
@@ -1701,11 +1697,7 @@ func (s *Simnet) localDropSend(send *mop) (isDropped bool, connAttemptedSend int
 
 // ignores FAULTY, check that with localDropSend if need be.
 func (s *Simnet) statewiseConnected(origin, target *simnode) (linked bool) {
-	defer func() {
-		if !linked {
-			pp("origin = '%v'; target = '%v'", origin, target)
-		}
-	}()
+
 	if origin.powerOff ||
 		target.powerOff {
 		return false
@@ -1757,12 +1749,12 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 
 		changed++
 		limit--
-		pp("send.origin='%v'; send.target='%v'; handleSend DROP SEND %v", send.origin.name, send.target.name, send) // seen 172,174
+		//vv("send.origin='%v'; send.target='%v'; handleSend DROP SEND %v", send.origin.name, send.target.name, send)
 		send.origin.droppedSendQ.add(send)
 		return
 	}
 	send.target.preArrQ.add(send)
-	//vv("handleSend SEND send = %v", send)
+	//vv("handleSend SEND added to preArrQ: for target='%v'; send = %v", send.target.name, send)
 	////zz("LC:%v  SEND TO %v %v    srvPreArrQ: '%v'", origin.lc, origin.name, send, s.srvnode.preArrQ)
 
 	return
@@ -1973,6 +1965,11 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 		read := readIt.Item().(*mop)
 		send := preIt.Item().(*mop)
 
+		if read.target != send.origin {
+			//vv("ignore sends not from this read's target: read.target='%v' != send.origin='%v'\n\n read='%v'\n\n send='%v'", read.target.name, send.origin.name, read, send)
+			continue
+		}
+
 		//vv("eval match: read = '%v'; connected = %v; s.localDeafRead(read)=%v", read, s.statewiseConnected(read.origin, read.target), s.localDeafRead(read))
 		//vv("eval match: send = '%v'; connected = %v; s.localDropSend(send)=%v", send, s.statewiseConnected(send.origin, send.target), s.localDropSend(send))
 
@@ -2080,7 +2077,7 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 			//send.origin.droppedSendQ.add(send)
 
 			// different, for read deaf -> send drop.
-			//vv("adding the _send_ of a deaf read into the reader side deaf Q, and deleting it from the preArrQ: '%v'\n node before: '%v'", send, simnode)
+			//vv("adding to deafReadQ the _send_ of a deaf read into the reader side deaf Q, and deleting it from the preArrQ: '%v'\n simnode.name: '%v'", send, simnode.name)
 			// simnode is the reader, so target of the send from
 			// retreived from its own preArrQ.
 			simnode.deafReadQ.add(send)
