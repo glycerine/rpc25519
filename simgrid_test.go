@@ -210,7 +210,7 @@ func (s *simGrid) Start() {
 			// conn to the existing server.
 
 			//vv("about to connect i=%v to j=%v", i, j)
-			ckt, _, err := n0.lpb.NewCircuitToPeerURL("grid-ckt", n1.URL, nil, 0)
+			ckt, _, _, err := n0.lpb.NewCircuitToPeerURL("grid-ckt", n1.URL, nil, 0)
 			panicOn(err)
 			n0.lpb.NewCircuitCh <- ckt
 			n0.ckts = append(n0.ckts, ckt)
@@ -404,7 +404,7 @@ func (s *node2) Start(
 							outFrag := lpb.NewFragment()
 							outFrag.Payload = frag.Payload
 							outFrag.FragSubject = "start reply"
-							err := ckt.SendOneWay(outFrag, 0, 0)
+							_, err := ckt.SendOneWay(outFrag, 0, 0)
 							if err != nil {
 								// typically a normal shutdown, don't freak.
 								if err == ErrShutdown2 {

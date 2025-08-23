@@ -59,6 +59,7 @@ func (s *Server) runServerMain(
 	//vv("runServerMain running")
 
 	defer func() {
+		vv("runServerMain defer s.halt=%p", s.halt)
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
 	}()
@@ -424,8 +425,9 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 }
 
 func (s *rwPair) runSendLoop(conn net.Conn) {
+	stopReason := ""
 	defer func() {
-		vv("rwPair(%p) end of runSendLoop s.SendCh=%p; s.to='%v'", s, s.SendCh, s.to)
+		vv("rwPair(%p) defer of runSendLoop s.SendCh=%p; stopReason='%v'; s.to='%v' s.halt=%p", s, s.SendCh, stopReason, s.to, s.halt)
 		s.Server.deletePair(s)
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
@@ -433,7 +435,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 
 	sendLoopGoroNum := GoroNumber()
 	_ = sendLoopGoroNum
-	vv("srv.go rwPair(%p).runSendLoop(cli '%v' -> '%v' srv) sendLoopGoroNum = [%v] for pairID = '%v'", s, remote(conn), local(conn), sendLoopGoroNum, s.pairID)
+	//vv("srv.go rwPair(%p).runSendLoop(cli '%v' -> '%v' srv) sendLoopGoroNum = [%v] for pairID = '%v'", s, remote(conn), local(conn), sendLoopGoroNum, s.pairID)
 
 	symkey := s.cfg.preSharedKey
 	if s.cfg.encryptPSK {
@@ -460,6 +462,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 		pingWakeTimer = s.Server.NewTimer(pingEvery)
 		if pingWakeTimer == nil {
 			// shutdown in progress
+			stopReason = fmt.Sprintf("pingWakeTimer nil 1")
 			return
 		}
 		//pingWakeTimer.Discard()
@@ -493,19 +496,20 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 			pingWakeTimer = s.Server.NewTimer(nextPingDur)
 			if pingWakeTimer == nil {
 				// shutdown in progress
+				stopReason = fmt.Sprintf("pingWakeTimer nil 2")
 				return
 			}
 			pingWakeCh = pingWakeTimer.C
 		}
 
-		vv("%v server runSendLoop about to wait on s.SendCh = %p ; local(conn)='%v'; remote(conn)='%v'", s.Server.name, s.SendCh, local(conn), remote(conn))
+		//vv("%v server runSendLoop about to wait on s.SendCh = %p ; local(conn)='%v'; remote(conn)='%v'", s.Server.name, s.SendCh, local(conn), remote(conn))
 		select {
 		case <-pingWakeCh:
 			// check and send above.
 			continue
 
 		case msg := <-s.SendCh:
-			vv("srv %v (%v) sendLoop got from s.SendCh=%p, sending msg.HDR = '%v'", s.Server.name, s.from, s.SendCh, msg.HDR.String())
+			//vv("srv %v (%v) sendLoop got from s.SendCh=%p, sending msg.HDR = '%v'", s.Server.name, s.from, s.SendCh, msg.HDR.String())
 
 			real, ok := s.Server.unNAT.Get(msg.HDR.To)
 			if ok && real != msg.HDR.To {
@@ -533,6 +537,7 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 				lastPing = time.Now() // no need for ping
 			}
 		case <-s.halt.ReqStop.Chan:
+			stopReason = fmt.Sprintf("rwPair s.halt.ReqStop.Chan, s.halt=%p", s.halt)
 			return
 		}
 	}
@@ -543,10 +548,10 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 	if s.Server.cfg.UseSimNet {
 
 	}
-
+	stopReason := ""
 	ctx, canc := context.WithCancel(context.Background())
 	defer func() {
-		vv("rpc25519.Server: runReadLoop shutting down for local conn = '%v'; remote='%v'", conn.LocalAddr(), remote(conn))
+		vv("rpc25519.Server: runReadLoop shutting down for local conn = '%v'; remote='%v'; s.halt=%p; stopReason='%v'", conn.LocalAddr(), remote(conn), s.halt, stopReason)
 		canc()
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
@@ -570,6 +575,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		select {
 		case <-s.halt.ReqStop.Chan:
 			//vv("s.halt.ReqStop.Chan requested!")
+			stopReason = fmt.Sprintf("s.halt.ReqStop.Chan requested s.halt=%p", s.halt)
 			return
 		default:
 		}
@@ -591,10 +597,11 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			// close of socket before read of full message.
 			// shutdown this connection or we'll just
 			// spin here at 500% cpu.
+			stopReason = fmt.Sprintf("err==io.EOF s.halt=%p", s.halt)
 			return
 		}
 		if err != nil {
-			//vv("srv read loop err = '%v'", err)
+			vv("srv read loop err = '%v'", err)
 			r := err.Error()
 			if strings.Contains(r, "remote error: tls: bad certificate") {
 				//vv("ignoring client connection with bad TLS cert.")
@@ -606,6 +613,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 				continue
 			}
 			if strings.Contains(r, "use of closed network connection") {
+				stopReason = fmt.Sprintf("use of closed network connection s.halt=%p", s.halt)
 				return // shutting down
 			}
 
@@ -616,22 +624,26 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 				// We should never see this because of our app level keep-alives.
 				// If we do, then it means the client really went down.
 				//vv("quic server read loop exiting on '%v'", err)
+				stopReason = fmt.Sprintf("timeout: no recent network s.halt=%p", s.halt)
 				return
 			}
 			if strings.Contains(r, "Application error 0x0 (remote)") {
 				// normal message from active client who knew they were
 				// closing down and politely let us know too. Otherwise
 				// we just have to time out.
+				stopReason = fmt.Sprintf("Application error 0x0 s.halt=%p", s.halt)
 				return
 			}
 
 			if !s.Server.cfg.QuietTestMode {
 				alwaysPrintf("ugh. error from remote %v: %v", conn.RemoteAddr(), err)
 			}
+			stopReason = fmt.Sprintf("some other error s.halt=%p ; err='%v'", s.halt, err)
 			return
 		}
 		if req == nil {
 			// simnet shutdown can cause this
+			stopReason = fmt.Sprintf("req=nil s.halt=%p", s.halt)
 			continue
 		}
 		//vv("srv read loop sees req = '%v'", req.String()) // not seen 040
@@ -666,6 +678,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			err := s.Server.PeerAPI.bootstrapCircuit(notClient, req, ctx, s.SendCh)
 			if err != nil {
 				// only error is on shutdown request received.
+				stopReason = fmt.Sprintf("bootstrapCircuit error s.halt=%p err='%v'", s.halt, err)
 				return
 			}
 			continue
@@ -673,6 +686,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			err := s.Server.PeerAPI.gotCircuitEstablishedAck(notClient, req, ctx, s.SendCh)
 			if err != nil {
 				// only error is on shutdown request received.
+				stopReason = fmt.Sprintf("gotCircuitEstablishedAck error s.halt=%p err='%v'", s.halt, err)
 				return
 			}
 			continue
@@ -689,6 +703,11 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		if req.HDR.Typ == CallPeerTraffic ||
 			req.HDR.Typ == CallPeerError {
 			// on shutdown we can get here. Don't freak.
+			// But! regular traffic too? seeing AE here
+			// after leader restarts as follower...
+			// just regular CallPeerTraffic ! why
+			// did not the notifies above get it?
+			stopReason = fmt.Sprintf("CallPeerTraffic|CallPeerError s.halt=%p ; req='%v'", s.halt, req)
 			return
 		}
 
@@ -859,18 +878,20 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 	if msg.HDR.ToPeerID != "" {
 
 		wantsToPeerID, ok := c.notifyOnReadToPeerIDMap.get(msg.HDR.ToPeerID)
-		//vv("have ToPeerID msg = '%v'; ok='%v'; for '%v'", msg.HDR.String(), ok, msg.HDR.ToPeerID)
+		vv("have ToPeerID msg = '%v'; ok='%v'; for '%v'", msg.HDR.String(), ok, msg.HDR.ToPeerID)
 		if ok {
 			// allow back pressure. Don't time out here.
 			select {
 			case wantsToPeerID <- msg:
-				//vv("sent msg to wantsToPeerID chan! %p", wantsToPeerID)
+				vv("sent msg to wantsToPeerID=%p ; msg='%v'", wantsToPeerID, msg.HDR.String())
 			case <-ctx.Done():
 				return
 			case <-c.u.GetHostHalter().ReqStop.Chan: // ctx not enough
 				return
 			}
 			return true // only send to ToPeerID, priority over CallID.
+		} else {
+			vv("debug: no key for msg with msg.HDR.ToPeerID='%v', c.notifyOnReadToPeerIDMap.keys='%#v'", msg.HDR.ToPeerID, c.notifyOnReadToPeerIDMap.keys())
 		}
 	}
 
@@ -1773,7 +1794,7 @@ func (s *Server) newRWPair(conn net.Conn) *rwPair {
 	s.remote2pair.Set(key, p)
 	s.pair2remote.Set(p, key)
 	s.mut.Unlock()
-	vv("made new rwPair=%p, with sendCh=%p for local(conn)='%v' -> remote(conn)='%v'", p, p.SendCh, p.from, p.to)
+	//vv("made new rwPair=%p, with sendCh=%p for local(conn)='%v' -> remote(conn)='%v'", p, p.SendCh, p.from, p.to)
 
 	sc := newServerClient(key)
 	//p.allDone = sc.GoneCh
@@ -1792,7 +1813,7 @@ func (s *Server) deletePair(p *rwPair) {
 	if !ok {
 		return
 	}
-	vv("deleting pair: key='%v'; rwPair p.to = '%v'; isAutoCli=%v", key, p.to, p.isAutoCli)
+	vv("deleting pair: key='%v'; rwPair p.from = '%v'; isAutoCli=%v; caller=%v", key, p.from, p.isAutoCli, fileLine(2))
 	s.pair2remote.Del(p)
 	s.remote2pair.Del(key)
 }
@@ -1930,11 +1951,11 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 		if !s.cfg.ServerAutoCreateClientsToDialOtherServers {
 			alwaysPrintf("yikes! Server did not find (and auto-cli off) destAddr '%v' in remote2pair: '%v'", destAddr, s.remote2pair.GetKeySlice())
 		} else {
-			alwaysPrintf("yikes! Server did not find destAddr (auto-cli on) '%v' in remote2pair: '%v'", destAddr, s.remote2pair.GetKeySlice())
+			//alwaysPrintf("yikes! Server did not find destAddr (auto-cli on) '%v' in remote2pair: '%v'", destAddr, s.remote2pair.GetKeySlice())
 		}
 		return nil, nil, "", "", false
 	}
-	vv("ok true in Server.destAddrToSendCh(destAddr='%v') -> sendCh=%p", destAddr, pair.SendCh)
+	//vv("ok true in Server.destAddrToSendCh(destAddr='%v') -> sendCh=%p", destAddr, pair.SendCh)
 	// INVAR: ok is true
 	haltCh = s.halt.ReqStop.Chan
 	from = local(pair.Conn)
@@ -1968,7 +1989,7 @@ const auto_cli_recognition_prefix = "auto-cli-from-"
 // the send loop becomes available. See pump.go and how
 // it calls closeCktInBackgroundToAvoidDeadlock() to avoid
 // deadlocks on circuit shutdown.
-func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (err error, ch chan *Message) {
+func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (madeNewAutoCli bool, ch chan *Message, err error) {
 
 	err, ch = sendOneWayMessage(s, ctx, msg, errWriteDur)
 	if err == ErrNetConnectionNotFound {
@@ -2030,6 +2051,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		}
 
 		s.mut.Lock()
+		madeNewAutoCli = true
 		s.autoClients = append(s.autoClients, cli)
 		s.mut.Unlock()
 
@@ -2144,10 +2166,10 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 			return ErrAntiDeadlockMustQueue, sendCh
 		}
 	} else {
-		vv("sendOneWayMessage about to select on sendCh = %p", sendCh)
+		//vv("sendOneWayMessage about to select on sendCh = %p", sendCh)
 		select {
 		case sendCh <- msg:
-			vv("sendOneWayMessage did send on sendCh = %p", sendCh)
+			//vv("sendOneWayMessage did send on sendCh = %p", sendCh)
 		case <-haltCh:
 			//vv("shutting down on haltCh = %p", haltCh)
 			return ErrShutdown(), nil
@@ -2370,6 +2392,7 @@ func (s *Server) Close() error {
 		}
 		s.cfg.shared.mut.Unlock()
 	}
+	vv("Server.Close() called; caller='%v'; s.halt=%p", fileLine(2), s.halt)
 	s.halt.ReqStop.Close()
 	s.mut.Lock() // avoid data race
 	if s.cfg.UseSimNet {
@@ -2901,7 +2924,7 @@ func (s *Client) StartRemotePeer(
 	peerServiceName,
 	remoteAddr string,
 	waitUpTo time.Duration,
-) (remotePeerURL, RemotePeerID string, err error) {
+) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, err error) {
 
 	return s.PeerAPI.StartRemotePeer(ctx, peerServiceName, remoteAddr, waitUpTo)
 }
@@ -2918,7 +2941,7 @@ func (s *Server) StartRemotePeer(
 	peerServiceName,
 	remoteAddr string,
 	waitUpTo time.Duration,
-) (remotePeerURL, RemotePeerID string, err error) {
+) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, err error) {
 
 	return s.PeerAPI.StartRemotePeer(ctx, peerServiceName, remoteAddr, waitUpTo)
 }
@@ -2937,7 +2960,7 @@ func (s *Client) StartRemotePeerAndGetCircuit(
 	waitForAck bool,
 	autoSendNewCircuitCh chan *Circuit,
 
-) (ckt *Circuit, ackMsg *Message, err error) {
+) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
 
 	return s.PeerAPI.StartRemotePeerAndGetCircuit(
 		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh)
@@ -2956,7 +2979,7 @@ func (s *Server) StartRemotePeerAndGetCircuit(
 	waitUpTo time.Duration,
 	waitForAck bool,
 	autoSendNewCircuitCh chan *Circuit,
-) (ckt *Circuit, ackMsg *Message, err error) {
+) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
 
 	return s.PeerAPI.StartRemotePeerAndGetCircuit(
 		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh)
@@ -2988,7 +3011,7 @@ func (s *Server) PreferExtantRemotePeerGetCircuit(
 	waitUpTo time.Duration,
 	autoSendNewCircuitCh chan *Circuit,
 
-) (ckt *Circuit, ackMsg *Message, err error) {
+) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
 
 	return s.PeerAPI.PreferExtantRemotePeerGetCircuit(
 		callCtx, lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, autoSendNewCircuitCh)
@@ -3020,7 +3043,7 @@ func (s *Client) PreferExtantRemotePeerGetCircuit(
 	waitUpTo time.Duration,
 	autoSendNewCircuitCh chan *Circuit,
 
-) (ckt *Circuit, ackMsg *Message, err error) {
+) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
 
 	return s.PeerAPI.PreferExtantRemotePeerGetCircuit(
 		callCtx, lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, autoSendNewCircuitCh)

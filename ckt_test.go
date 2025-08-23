@@ -306,7 +306,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 					case errReq := <-s.passiveSideSendCktError:
 						frag := NewFragment()
 						frag.Err = errReq
-						err := ckt.SendOneWay(frag, 0, 0)
+						_, err := ckt.SendOneWay(frag, 0, 0)
 						panicOn(err)
 						s.incrementSends(ckt.Name)
 						s.sendch <- frag
@@ -317,7 +317,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						for i := range n {
 							frag := NewFragment()
 							frag.FragPart = int64(i)
-							err := ckt.SendOneWay(frag, 0, 0)
+							_, err := ckt.SendOneWay(frag, 0, 0)
 							panicOn(err)
 							s.incrementSends(ckt.Name)
 							s.sendch <- frag
@@ -327,7 +327,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 					case frag := <-s.passiveSideStartAnotherCkt:
 
 						//vv("%v: (ckt '%v') (passive) passiveSideStartAnotherCkt requsted!: '%v'", name, ckt.Name, frag.FragSubject)
-						ckt2, _, err := ckt.NewCircuit(frag.FragSubject, frag)
+						ckt2, _, _, err := ckt.NewCircuit(frag.FragSubject, frag)
 						panicOn(err)
 						//vv("%v: (ckt '%v') (passive) created ckt2 to: '%v'", name, ckt.Name, ckt2.RemoteCircuitURL())
 						go passiveSide(ckt2)
@@ -336,7 +336,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						// external test code requests that we send.
 						//vv("%v: (ckt '%v') (passive) got requestToSend, sending to '%v'; from '%v'", name, ckt.Name, ckt.RemoteCircuitURL(), ckt.LocalCircuitURL())
 
-						err := ckt.SendOneWay(frag, 0, 0)
+						_, err := ckt.SendOneWay(frag, 0, 0)
 						//panicOn(err)
 						if err != nil {
 							// shutdown
@@ -387,7 +387,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 
 		case remoteURL := <-s.startCircuitWith:
 			//vv("%v: requested startCircuitWith: '%v'", name, remoteURL) // not seen 410
-			ckt, _, err := myPeer.NewCircuitToPeerURL(fmt.Sprintf("cicuit-init-by:%v:%v", name, s.nextCktNo), remoteURL, nil, 0)
+			ckt, _, _, err := myPeer.NewCircuitToPeerURL(fmt.Sprintf("cicuit-init-by:%v:%v", name, s.nextCktNo), remoteURL, nil, 0)
 			s.nextCktNo++
 			//panicOn(err)
 			if err != nil {
@@ -417,7 +417,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 					case errReq := <-s.activeSideSendCktError:
 						frag := NewFragment()
 						frag.Err = errReq
-						err := ckt.SendOneWay(frag, 0, 0)
+						_, err := ckt.SendOneWay(frag, 0, 0)
 						//panicOn(err)
 						if err != nil {
 							// shutdown
@@ -432,7 +432,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						for i := range n {
 							frag := NewFragment()
 							frag.FragPart = int64(i)
-							err := ckt.SendOneWay(frag, 0, 0)
+							_, err := ckt.SendOneWay(frag, 0, 0)
 							//panicOn(err)
 							if err != nil {
 								// shutdown
@@ -445,7 +445,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 
 					case frag := <-s.activeSideStartAnotherCkt:
 						//vv("%v: (ckt '%v') (active) activeSideStartAnotherCkt requsted!: '%v'", name, ckt.Name, frag.FragSubject)
-						ckt2, _, err := ckt.NewCircuit(frag.FragSubject, frag)
+						ckt2, _, _, err := ckt.NewCircuit(frag.FragSubject, frag)
 						panicOn(err)
 						//vv("%v: (ckt '%v') (active) created ckt2 to: '%v'", name, ckt.Name, ckt2.RemoteCircuitURL())
 						go activeSide(ckt2)
@@ -476,7 +476,7 @@ func (s *countService) start(myPeer *LocalPeer, ctx0 context.Context, newCircuit
 						// external test code requests that we send.
 						//vv("%v: (ckt '%v') (active) got on requestToSend, sending to '%v'; from '%v'", name, ckt.Name, ckt.RemoteCircuitURL(), ckt.LocalCircuitURL())
 
-						err := myPeer.SendOneWay(ckt, frag, 0, 0)
+						_, err := myPeer.SendOneWay(ckt, frag, 0, 0)
 						panicOn(err)
 						s.incrementSends(ckt.Name)
 						s.sendch <- frag

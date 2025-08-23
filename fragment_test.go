@@ -77,7 +77,7 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		// Arg. This was racing with the server actually getting
 		// the rwPair spun up, crashing 6% of the time.
 		// Thus we added a prior round-trip cli->srv->cli above.
-		peerURL_client, peerID_client, err := srv.PeerAPI.StartRemotePeer(
+		peerURL_client, peerID_client, _, err := srv.PeerAPI.StartRemotePeer(
 			ctx, cliServiceName, cliAddr, 50*time.Microsecond)
 
 		panicOn(err)
@@ -267,7 +267,7 @@ func Test403_new_circuit_from_existing_peer(t *testing.T) {
 
 		// This call starts the PeerImpl on the remote Client, from the server.
 
-		peerURL_client, peerID_client, err := srv.PeerAPI.StartRemotePeer(
+		peerURL_client, peerID_client, _, err := srv.PeerAPI.StartRemotePeer(
 			ctx, cliServiceName, cliAddr, 50*time.Microsecond)
 		panicOn(err)
 		vv("started remote with peerURL_client = '%v'; cliServiceName = '%v'; peerID_client = '%v'", peerURL_client, cliServiceName, peerID_client)

@@ -98,7 +98,8 @@ func (pb *LocalPeer) peerbackPump() {
 							"panic on system shutdown: '%v' %v", name, r, stack())
 					}
 				}()
-				err, queueSendCh := pb.U.SendOneWayMessage(pb.Ctx, msg, -2)
+				madeAutoCli, queueSendCh, err := pb.U.SendOneWayMessage(pb.Ctx, msg, -2)
+				_ = madeAutoCli
 				if err == ErrAntiDeadlockMustQueue {
 					go closeCktInBackgroundToAvoidDeadlock(queueSendCh, msg, pb.Halt)
 				}
@@ -365,7 +366,8 @@ func (pb *LocalPeer) TellRemoteWeShutdown(rem *RemotePeer) {
 	shut.HDR.FromServiceName = pb.PeerServiceName
 
 	// -2 version => almost no blocking; err below if cannot send in 1 msec.
-	err, queueSendCh := pb.U.SendOneWayMessage(ctxB, shut, -2)
+	madeNewAutoCli, queueSendCh, err := pb.U.SendOneWayMessage(ctxB, shut, -2)
+	_ = madeNewAutoCli
 	if err == ErrAntiDeadlockMustQueue {
 		//vv("err == ErrAntiDeadlockMustQueue, closing in background goro")
 		go closeCktInBackgroundToAvoidDeadlock(queueSendCh, shut, pb.Halt)

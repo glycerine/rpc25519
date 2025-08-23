@@ -434,10 +434,10 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	peerURL string,
 	frag *Fragment,
 	errWriteDur time.Duration,
-) (ckt *Circuit, ctx context.Context, err error) {
+) (ckt *Circuit, ctx context.Context, madeNewAutoCli bool, err error) {
 
 	if s.Halt.ReqStop.IsClosed() {
-		return nil, nil, ErrHaltRequested
+		return nil, nil, false, ErrHaltRequested
 	}
 
 	netAddr, serviceName, peerID, circuitID, err := ParsePeerURL(peerURL)
@@ -451,7 +451,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 			peerURL))
 	}
 	if err != nil {
-		return nil, nil, fmt.Errorf("NewCircuitToPeerURL could not "+
+		return nil, nil, false, fmt.Errorf("NewCircuitToPeerURL could not "+
 			"parse peerURL: '%v': '%v'", peerURL, err)
 	}
 
@@ -481,9 +481,9 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	}
 	//vv("rpb = '%#v'", rpb)
 
-	ckt, ctx, err = s.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, true, onOriginLocalSide)
+	ckt, ctx, madeNewAutoCli, err = s.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, true, onOriginLocalSide)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, madeNewAutoCli, err
 	}
 	rpb.IncomingCkt = ckt
 	s.Remotes.Set(peerID, rpb) // arg. _was_ only called this once. need to symmetrically set on the remote side too. addedckt.go:808 for that.
@@ -544,7 +544,7 @@ func ParsePeerURL(peerURL string) (netAddr, serviceName, peerID, circuitID strin
 	return
 }
 
-func (ckt *Circuit) SendOneWay(frag *Fragment, errWriteDur time.Duration, keepFragIfPositive int) error {
+func (ckt *Circuit) SendOneWay(frag *Fragment, errWriteDur time.Duration, keepFragIfPositive int) (madeNewAutoCli bool, err error) {
 	return ckt.LpbFrom.SendOneWay(ckt, frag, errWriteDur, keepFragIfPositive)
 }
 
@@ -554,21 +554,25 @@ func (ckt *Circuit) SendOneWay(frag *Fragment, errWriteDur time.Duration, keepFr
 // keepFragIfPositive > 0 means we will not recycle
 // this fragment. Applications can set this to send
 // the same fragment to many destinations.
-func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Duration, keepFragIfPositive int) (err error) {
+func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Duration, keepFragIfPositive int) (madeNewAutoCli bool, err error) {
 
 	// regular quick check if shutdown is requested.
 	select {
 	case <-s.Halt.ReqStop.Chan:
-		return ErrHaltRequested
+		err = ErrHaltRequested
+		return
 	case <-ckt.Context.Done():
-		return ErrContextCancelled
+		err = ErrContextCancelled
+		return
 	case <-s.Ctx.Done():
-		return ErrContextCancelled
+		err = ErrContextCancelled
+		return
 	default:
 	}
 
 	if frag == nil {
-		return fmt.Errorf("frag cannot be nil")
+		err = fmt.Errorf("frag cannot be nil")
+		return
 	}
 	frag.CircuitID = ckt.CircuitID
 
@@ -601,22 +605,26 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 		// share it between the origin frag and the new Message.
 	}
 
-	err, _ = s.U.SendOneWayMessage(s.Ctx, msg, errWriteDur)
+	madeNewAutoCli, _, err = s.U.SendOneWayMessage(s.Ctx, msg, errWriteDur)
 	if err != nil {
-		return err
+		return
 	}
 
 	if errWriteDur >= 0 {
 		// wait for sendloop to get message into OS buffers.
 		select {
 		case <-msg.DoneCh.WhenClosed():
-			return msg.LocalErr
+			err = msg.LocalErr
+			return
 		case <-s.Halt.ReqStop.Chan:
-			return ErrHaltRequested
+			err = ErrHaltRequested
+			return
 		case <-ckt.Context.Done():
-			return ErrContextCancelled
+			err = ErrContextCancelled
+			return
 		case <-s.Ctx.Done():
-			return ErrContextCancelled
+			err = ErrContextCancelled
+			return
 		}
 	}
 	return
@@ -823,7 +831,7 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 //
 // When select{}-ing on ckt.Reads and ckt.Errors, always also
 // select on ctx.Done() and in order to shutdown gracefully.
-func (origCkt *Circuit) NewCircuit(circuitName string, firstFrag *Fragment) (ckt *Circuit, ctx2 context.Context, err error) {
+func (origCkt *Circuit) NewCircuit(circuitName string, firstFrag *Fragment) (ckt *Circuit, ctx2 context.Context, madeNewAutoCli bool, err error) {
 	return origCkt.RpbTo.LocalPeer.newCircuit(circuitName, origCkt.RpbTo, "", firstFrag, -1, true, onOriginLocalSide)
 }
 
@@ -920,12 +928,12 @@ func (lpb *LocalPeer) newCircuit(
 	tellRemote bool, // send new circuit to remote?
 	isRemoteSide onRemoteSideVal,
 
-) (ckt *Circuit, ctx2 context.Context, err error) {
+) (ckt *Circuit, ctx2 context.Context, madeNewAutoCli bool, err error) {
 
 	//vv("newCircuit() called. isRemoteSide = %v", isRemoteSide) //, stack())
 
 	if lpb.Halt.ReqStop.IsClosed() {
-		return nil, nil, ErrHaltRequested
+		return nil, nil, false, ErrHaltRequested
 	}
 
 	var canc2 context.CancelCauseFunc
@@ -962,7 +970,7 @@ func (lpb *LocalPeer) newCircuit(
 	case lpb.TellPumpNewCircuit <- ckt:
 
 	case <-lpb.Halt.ReqStop.Chan:
-		return nil, nil, ErrHaltRequested
+		return nil, nil, false, ErrHaltRequested
 	}
 	//vv("tellRemote = %v", tellRemote)
 	if tellRemote {
@@ -998,7 +1006,7 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args["#fromBaseServerName"] = lpb.BaseServerName
 		msg.HDR.Args["#fromBaseServerAddr"] = lpb.BaseServerAddr
 
-		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
+		madeNewAutoCli, _, err = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
 		if err != nil {
 			alwaysPrintf("arg: tried to tell remote, but: err='%v'", err)
 		}
@@ -1063,7 +1071,7 @@ func (lpb *LocalPeer) newCircuit(
 		// msg.HDR.Args["#fragRPCtoken"] as it was
 		// copied above in firstFrag.ToMessage()
 
-		err, _ = lpb.U.SendOneWayMessage(ctx2, msg, -1)
+		madeNewAutoCli, _, err = lpb.U.SendOneWayMessage(ctx2, msg, -1)
 	}
 
 	return
@@ -1367,7 +1375,7 @@ func (p *peerAPI) GetLocalPeers(
 // to 50 times, pausing waitUpTo/50 after each.
 // If SendAndGetReply succeeds, then we immediately
 // cease polling and return the RemotePeerID.
-func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string, waitUpTo time.Duration) (remotePeerURL, RemotePeerID string, err error) {
+func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string, waitUpTo time.Duration) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, err error) {
 
 	// retry until deadline, if waitUpTo is > 0
 	deadline := time.Now().Add(waitUpTo)
@@ -1381,7 +1389,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 	if r != "" {
 		// we are on the client
 		if r != remoteAddr {
-			return "", "", fmt.Errorf("client peer error on StartRemotePeer: remoteAddr should be '%v' (that we are connected to), rather than the '%v' which was requested. Otherwise your request will fail.", r, remoteAddr)
+			return "", "", false, fmt.Errorf("client peer error on StartRemotePeer: remoteAddr should be '%v' (that we are connected to), rather than the '%v' which was requested. Otherwise your request will fail.", r, remoteAddr)
 		}
 	}
 
@@ -1405,8 +1413,12 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 	pollInterval := waitUpTo / 50
 	hhalt := p.u.GetHostHalter()
 
+	var madeNewAutoCli0 bool
 	for i := 0; i < 50; i++ {
-		err, _ = p.u.SendOneWayMessage(ctx, msg, 0)
+		madeNewAutoCli0, _, err = p.u.SendOneWayMessage(ctx, msg, 0)
+		if madeNewAutoCli0 {
+			madeNewAutoCli = true // latch and stick at true
+		}
 		if err == nil {
 			////vv("SendOneWayMessage retried %v times before succeess; pollInterval: %v",
 			//	i, pollInterval)
@@ -1425,7 +1437,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 			ti := p.u.NewTimer(dur)
 			if ti == nil {
 				// simnet shutdown
-				return "", "", ErrHaltRequested
+				return "", "", madeNewAutoCli, ErrHaltRequested
 			}
 			select {
 			case <-ti.C:
@@ -1445,24 +1457,24 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAd
 		//vv("got reply to CallPeerStart: '%v'", reply.String())
 	case <-ctx.Done():
 		//vv("ctx.Done() seen, cause: '%v'\n\n stack: '%v'", context.Cause(ctx), stack())
-		return "", "", ErrContextCancelled
+		return "", "", madeNewAutoCli, ErrContextCancelled
 	case <-hhalt.ReqStop.Chan:
-		return "", "", ErrHaltRequested
+		return "", "", madeNewAutoCli, ErrHaltRequested
 	}
 	var ok bool
 	RemotePeerID, ok = reply.HDR.Args["#peerID"]
 	if !ok {
-		return "", "", fmt.Errorf("remote '%v', peerServiceName '%v' did "+
+		return "", "", madeNewAutoCli, fmt.Errorf("remote '%v', peerServiceName '%v' did "+
 			"not respond with peerID in Args", remoteAddr, peerServiceName)
 	}
 	////vv("got RemotePeerID from Args[peerID]: '%v'", RemotePeerID)
 	remotePeerURL, ok = reply.HDR.Args["#peerURL"]
 	if !ok {
-		return "", "", fmt.Errorf("remote '%v', peerServiceName '%v' did "+
+		return "", "", madeNewAutoCli, fmt.Errorf("remote '%v', peerServiceName '%v' did "+
 			"not respond with peerURL in Args", remoteAddr, peerServiceName)
 	}
 	//vv("StartRemotePeer got remotePeerURL from Args[peerURL]: '%v'", remotePeerURL)
-	return remotePeerURL, RemotePeerID, nil
+	return remotePeerURL, RemotePeerID, madeNewAutoCli, nil
 }
 
 // bootstrapCircuit: handle CallPeerStartCircuit
@@ -1723,7 +1735,8 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		asFrag.SetSysArg("newPeerURL", lpb.URL())
 	}
 
-	ckt, ctx2, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, asFrag, -1, false, isRemoteSide)
+	ckt, ctx2, madeNewAutoCli, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, asFrag, -1, false, isRemoteSide)
+	_ = madeNewAutoCli // not sure if we need to surface or not
 	if err != nil {
 		return err
 	}

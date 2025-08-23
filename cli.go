@@ -57,7 +57,7 @@ var sep = string(os.PathSeparator)
 func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string) {
 
 	defer func() {
-		//vv("runClientMain defer: end for goro = %v", GoroNumber())
+		vv("runClientMain defer: end for goro = %v; closing c.halt=%p", GoroNumber(), c.halt)
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
 
@@ -319,10 +319,10 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			// see a ts mutex deadlock under synctest on shutdown, comment out:
 			alwaysPrintf("cli runReadLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, stack())
 		} else {
-			vv("cli runReadLoop defer/shutdown running. conn local '%v' -> '%v' remote", local(conn), remote(conn))
+			//vv("cli runReadLoop defer/shutdown running. conn local '%v' -> '%v' remote", local(conn), remote(conn))
 		}
 		//}
-		//vv("client runReadLoop exiting, last err = '%v'", err)
+		vv("client runReadLoop exiting, last err = '%v'; closing c.halt=%p", err, c.halt) // EOF from node_0 after bouncing back???
 		canc()
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
@@ -510,20 +510,23 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 
 	var gcMe []*autoCliInRwPair
+	var stopReason string
 	defer func() {
 		r := recover()
 		if r != nil {
 			alwaysPrintf("cli runSendLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, allstacks())
 		} else {
-			vv("cli runSendLoop defer/shutdown running. conn local '%v' -> '%v' remote", local(conn), remote(conn))
+			vv("cli runSendLoop defer/shutdown running. reason='%v'. conn local '%v' -> '%v' remote", stopReason, local(conn), remote(conn))
 		}
 
 		// we need to remove our c.oneWayCh from the
 		// Server.remote2pair / pair2remote channels
 		// used by the OneWaySend
-		for _, g := range gcMe {
+		for i, g := range gcMe {
+			vv("client sendLoop cleanup %v of %v: calling g.srv.deletePair on g=%p", i, len(gcMe), g)
 			g.srv.deletePair(g.pair)
 		}
+		vv("Client.runSendLoop defer closing c.halt=%p", c.halt)
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
 	}()
@@ -557,6 +560,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 		pingTimer = c.NewTimer(pingEvery)
 		if pingTimer == nil {
 			// simnet shutdown in progress
+			stopReason = "pingTimer==nil; simnet shutdown in progress"
 			return
 		}
 		pingWakeCh = pingTimer.C
@@ -613,6 +617,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 			pingTimer = c.NewTimer(nextPingDur)
 			if pingTimer == nil {
 				// simnet shutdown in progress
+				stopReason = "pingTimer==nil; simnet shutdown in progress"
 				return
 			}
 			pingWakeCh = pingTimer.C
@@ -629,6 +634,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 			// check and send above.
 			continue
 		case <-c.halt.ReqStop.Chan:
+			stopReason = fmt.Sprintf("c.halt.ReqStop.Chan; halt=%p", c.halt)
 			return
 		case msg := <-c.oneWayCh:
 
@@ -654,6 +660,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 				rr := err.Error()
 				if strings.Contains(rr, "use of closed network connection") ||
 					strings.Contains(rr, "connection reset by peer") {
+					stopReason = rr
 					return
 				}
 			} else {
@@ -694,6 +701,7 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 
 		}
 	}
+	stopReason = "fell off end of send loop"
 }
 
 // interface for goq
@@ -1744,7 +1752,7 @@ func NewClient(name string, config *Config) (c *Client, err error) {
 		pending: make(map[uint64]*Call),
 		epochV:  EpochVers{EpochTieBreaker: NewCallID("")},
 	}
-	c.halt = idem.NewHalterNamed(fmt.Sprintf("Client(%v %p)", name, c))
+	c.halt = idem.NewHalterNamed(fmt.Sprintf("Client(%v %p)", name, c)) // this halter is being closed quickly? 20 msec - 30 msec after made.
 
 	// share code with server for CallID and ToPeerID callbacks.
 	c.notifies = newNotifies(yesIsClient, c)
@@ -1805,7 +1813,7 @@ func (c *Client) Name() string {
 
 // Close shuts down the Client.
 func (c *Client) Close() error {
-	//vv("Client.Close() called.") // not seen in shutdown.
+	vv("Client.Close() called. c.halt=%p", c.halt)
 
 	// don't touch simnet directly here; racey. would need
 	// something like this to not race with simnet_client.go:18
@@ -2199,13 +2207,13 @@ type UniversalCliSrv interface {
 
 	GetLocalPeers(peerServiceName string) (lpbs []*LocalPeer)
 
-	StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string, waitUpTo time.Duration) (remotePeerURL, RemotePeerID string, err error)
+	StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string, waitUpTo time.Duration) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, err error)
 
-	StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, remoteAddr string, waitUpTo time.Duration, waitForAck bool, autoSendNewCircuitCh chan *Circuit) (ckt *Circuit, ackMsg *Message, err error)
+	StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, remoteAddr string, waitUpTo time.Duration, waitForAck bool, autoSendNewCircuitCh chan *Circuit) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error)
 
-	PreferExtantRemotePeerGetCircuit(callCtx context.Context, lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, remoteAddr string, waitUpTo time.Duration, autoSendNewCircuitCh chan *Circuit) (ckt *Circuit, ackMsg *Message, err error)
+	PreferExtantRemotePeerGetCircuit(callCtx context.Context, lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, remoteAddr string, waitUpTo time.Duration, autoSendNewCircuitCh chan *Circuit) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error)
 
-	SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (error, chan *Message)
+	SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (madeNewAutoCli bool, ch chan *Message, err error)
 
 	GetReadsForCallID(ch chan *Message, callID string)
 	GetErrorsForCallID(ch chan *Message, callID string)
@@ -2269,8 +2277,9 @@ var _ UniversalCliSrv = &Server{}
 // for symmetry: see srv.go for details, under the same func name.
 //
 // SendOneWayMessage only sets msg.HDR.From to its correct value.
-func (cli *Client) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (error, chan *Message) {
-	return sendOneWayMessage(cli, ctx, msg, errWriteDur)
+func (cli *Client) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (madeNewAutoCli bool, ch chan *Message, err error) {
+	err, ch = sendOneWayMessage(cli, ctx, msg, errWriteDur)
+	return
 }
 
 // implements the oneWaySender interface for symmetry with Server.

@@ -97,9 +97,10 @@ func (s *syncer2) Start(
 						outFrag.Payload = frag.Payload
 						outFrag.FragSubject = "echo reply"
 						//zz("%v: (ckt '%v') sending 'echo reply'='%v'", s.name, ckt.Name, frag)
-						err := ckt.SendOneWay(outFrag, 0, 0)
+						madeNewAutoCli, err := ckt.SendOneWay(outFrag, 0, 0)
 						// on shutdown this can error, e.g. context.Cancelled,
 						// so don't panic.
+						_ = madeNewAutoCli
 						if err != nil {
 							return
 						}
