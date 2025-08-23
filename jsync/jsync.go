@@ -72,7 +72,7 @@ func newJsyncU(u rpc.UniversalCliSrv, serviceName string, isCli bool) (j *jsyncU
 	err = u.RegisterPeerServiceFunc(serviceName, rsyncd.Start)
 
 	ctx := context.Background()
-	lpb, err := u.StartLocalPeer(ctx, serviceName, nil, "")
+	lpb, err := u.StartLocalPeer(ctx, serviceName, nil, "", false)
 	panicOn(err)
 	j.lpb = lpb
 

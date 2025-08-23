@@ -701,13 +701,14 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		}
 
 		if req.HDR.Typ == CallPeerTraffic ||
+			req.HDR.Typ == CallPeerTrafficWithServiceFallback ||
 			req.HDR.Typ == CallPeerError {
 			// on shutdown we can get here. Don't freak.
 			// But! regular traffic too? seeing AE here
 			// after leader restarts as follower...
 			// just regular CallPeerTraffic ! why
 			// did not the notifies above get it?
-			stopReason = fmt.Sprintf("CallPeerTraffic|CallPeerError s.halt=%p ; req='%v'", s.halt, req)
+			stopReason = fmt.Sprintf("CallPeerTraffic|CallPeerError|CallPeerTrafficWithServiceFallback s.halt=%p ; req='%v'", s.halt, req)
 			return
 		}
 
@@ -763,14 +764,14 @@ type notifies struct {
 	// channel send it got from the notifies map in the first place;
 	// while the pump wants to unregister a shutdown peerID chan.
 
-	// isCli must only be for debug logging, b/c might not be accurate!
-	//isCli bool
-
 	notifyOnReadCallIDMap  *mapIDtoChan
 	notifyOnErrorCallIDMap *mapIDtoChan
 
 	notifyOnReadToPeerIDMap  *mapIDtoChan
 	notifyOnErrorToPeerIDMap *mapIDtoChan
+
+	notifyOnReadToExtantPeerServiceName  *mapIDtoChan
+	notifyOnErrorToExtantPeerServiceName *mapIDtoChan
 
 	u UniversalCliSrv
 }
@@ -825,6 +826,10 @@ func newNotifies(isCli bool, u UniversalCliSrv) *notifies {
 
 		notifyOnReadToPeerIDMap:  newMapIDtoChan(),
 		notifyOnErrorToPeerIDMap: newMapIDtoChan(),
+
+		notifyOnReadToExtantPeerServiceName:  newMapIDtoChan(),
+		notifyOnErrorToExtantPeerServiceName: newMapIDtoChan(),
+
 		//isCli:                    isCli,
 	}
 }
@@ -2787,6 +2792,22 @@ func (s *Server) GetErrorsForToPeerID(ch chan *Message, objID string) {
 	s.notifies.notifyOnErrorToPeerIDMap.set(objID, ch)
 }
 
+func (s *Server) GetReadToExtantPeerServiceName(ch chan *Message, objID string) {
+	//vv("GetReadToExtantPeerServiceName called! stack='\n\n%v\n'", stack())
+	if cap(ch) == 0 {
+		panic("ch must be bufferred")
+	}
+	s.notifies.notifyOnReadToExtantPeerServiceName.set(objID, ch)
+}
+
+func (s *Server) GetErrorToExtantPeerServiceName(ch chan *Message, objID string) {
+	//vv("GetErrorToExtantPeerServiceName called! stack='\n\n%v\n'", stack())
+	if cap(ch) == 0 {
+		panic("ch must be bufferred")
+	}
+	s.notifies.notifyOnErrorToExtantPeerServiceName.set(objID, ch)
+}
+
 func (s *Server) UnregisterChannel(ID string, whichmap int) {
 
 	switch whichmap {
@@ -2799,6 +2820,12 @@ func (s *Server) UnregisterChannel(ID string, whichmap int) {
 		s.notifies.notifyOnReadToPeerIDMap.del(ID)
 	case ToPeerIDErrorMap:
 		s.notifies.notifyOnErrorToPeerIDMap.del(ID)
+
+	case ReadToExtantPeerServiceName:
+		s.notifies.notifyOnReadToExtantPeerServiceName.del(ID)
+	case ErrorToExtantPeerServiceName:
+		s.notifies.notifyOnErrorToExtantPeerServiceName.del(ID)
+
 	}
 }
 
@@ -2880,10 +2907,11 @@ func (s *Client) StartLocalPeer(
 	peerServiceName string,
 	requestedCircuit *Message,
 	localPeerName string,
+	preferExtant bool,
 
 ) (lpb *LocalPeer, err error) {
 
-	return s.PeerAPI.StartLocalPeer(ctx, peerServiceName, requestedCircuit, localPeerName)
+	return s.PeerAPI.StartLocalPeer(ctx, peerServiceName, requestedCircuit, localPeerName, preferExtant)
 }
 
 func (s *Client) GetLocalPeers(peerServiceName string) (lpbs []*LocalPeer) {
@@ -2906,10 +2934,11 @@ func (s *Server) StartLocalPeer(
 	peerServiceName string,
 	requestedCircuit *Message,
 	localPeerName string,
+	preferExtant bool,
 
 ) (lpb *LocalPeer, err error) {
 
-	return s.PeerAPI.StartLocalPeer(ctx, peerServiceName, requestedCircuit, localPeerName)
+	return s.PeerAPI.StartLocalPeer(ctx, peerServiceName, requestedCircuit, localPeerName, preferExtant)
 }
 
 // StartRemotePeer bootstraps a remote Peer without
@@ -2924,9 +2953,11 @@ func (s *Client) StartRemotePeer(
 	peerServiceName,
 	remoteAddr string,
 	waitUpTo time.Duration,
+	preferExtant bool,
+
 ) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, err error) {
 
-	return s.PeerAPI.StartRemotePeer(ctx, peerServiceName, remoteAddr, waitUpTo)
+	return s.PeerAPI.StartRemotePeer(ctx, peerServiceName, remoteAddr, waitUpTo, preferExtant)
 }
 
 // StartRemotePeer bootstraps a remote Peer without
@@ -2941,9 +2972,11 @@ func (s *Server) StartRemotePeer(
 	peerServiceName,
 	remoteAddr string,
 	waitUpTo time.Duration,
+	preferExtant bool,
+
 ) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, err error) {
 
-	return s.PeerAPI.StartRemotePeer(ctx, peerServiceName, remoteAddr, waitUpTo)
+	return s.PeerAPI.StartRemotePeer(ctx, peerServiceName, remoteAddr, waitUpTo, preferExtant)
 }
 
 // StartRemotePeerAndGetCircuit is the main way to bootstrap
@@ -2959,11 +2992,12 @@ func (s *Client) StartRemotePeerAndGetCircuit(
 	waitUpTo time.Duration,
 	waitForAck bool,
 	autoSendNewCircuitCh chan *Circuit,
+	preferExtant bool,
 
 ) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
 
 	return s.PeerAPI.StartRemotePeerAndGetCircuit(
-		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh)
+		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh, preferExtant)
 }
 
 // StartRemotePeerAndGetCircuit is the main way to bootstrap
@@ -2979,10 +3013,12 @@ func (s *Server) StartRemotePeerAndGetCircuit(
 	waitUpTo time.Duration,
 	waitForAck bool,
 	autoSendNewCircuitCh chan *Circuit,
+	preferExtant bool,
+
 ) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
 
 	return s.PeerAPI.StartRemotePeerAndGetCircuit(
-		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh)
+		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh, preferExtant)
 }
 
 // PreferExtantRemotePeerGetCircuit is similar

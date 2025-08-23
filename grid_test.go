@@ -194,7 +194,7 @@ func (s *gridNode) Start() error {
 	err = s.srv.PeerAPI.RegisterPeerServiceFunc("grid", s.node.Start)
 	panicOn(err)
 
-	s.lpb, err = s.srv.PeerAPI.StartLocalPeer(context.Background(), "grid", nil, "")
+	s.lpb, err = s.srv.PeerAPI.StartLocalPeer(context.Background(), "grid", nil, "", false)
 	panicOn(err)
 	s.node.lpb = s.lpb
 	s.URL = s.lpb.URL()

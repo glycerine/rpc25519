@@ -541,7 +541,7 @@ func RunRsyncService(
 	ctx, canc = context.WithCancel(context.Background())
 
 	if !lazyStartPeer {
-		lpb, err = u.StartLocalPeer(ctx, serviceName, nil, "")
+		lpb, err = u.StartLocalPeer(ctx, serviceName, nil, "", false)
 		panicOn(err)
 	}
 
@@ -733,7 +733,7 @@ func (s *SyncService) Start(
 
 				ckt, _, _, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
 					pulldir, syncReq.ToRemotePeerServiceName,
-					syncReq.ToRemoteNetAddr, 0, false, nil)
+					syncReq.ToRemoteNetAddr, 0, false, nil, false)
 				panicOn(err)
 
 				// local takes from remote. the remote gives us the update.
@@ -804,7 +804,7 @@ func (s *SyncService) Start(
 
 				ckt, _, _, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
 					pushdir, syncReq.ToRemotePeerServiceName,
-					syncReq.ToRemoteNetAddr, 0, false, nil)
+					syncReq.ToRemoteNetAddr, 0, false, nil, false)
 				panicOn(err)
 
 				// local pushes to remote.
@@ -948,7 +948,7 @@ func (s *SyncService) Start(
 			frag.Payload = data
 
 			ckt, _, _, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
-				frag, syncReq.ToRemotePeerServiceName, syncReq.ToRemoteNetAddr, 0, false, nil)
+				frag, syncReq.ToRemotePeerServiceName, syncReq.ToRemoteNetAddr, 0, false, nil, false)
 
 			panicOn(err)
 			if syncReq.RemoteTakes {

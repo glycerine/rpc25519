@@ -474,6 +474,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			//vv("client side (%v) notifies says we are NOT done after msg = '%v'", cliLocalAddr, msg.HDR.String())
 		}
 		if msg.HDR.Typ == CallPeerTraffic ||
+			msg.HDR.Typ == CallPeerTrafficWithServiceFallback ||
 			msg.HDR.Typ == CallPeerError {
 			// we can get here on shutdown, don't freak.
 			return
@@ -2203,13 +2204,13 @@ type UniversalCliSrv interface {
 	GetConfig() *Config
 	RegisterPeerServiceFunc(peerServiceName string, psf PeerServiceFunc) error
 
-	StartLocalPeer(ctx context.Context, peerServiceName string, requestedCircuit *Message, localPeerName string) (lpb *LocalPeer, err error)
+	StartLocalPeer(ctx context.Context, peerServiceName string, requestedCircuit *Message, localPeerName string, preferExtant bool) (lpb *LocalPeer, err error)
 
 	GetLocalPeers(peerServiceName string) (lpbs []*LocalPeer)
 
-	StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string, waitUpTo time.Duration) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, err error)
+	StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string, waitUpTo time.Duration, preferExtant bool) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, err error)
 
-	StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, remoteAddr string, waitUpTo time.Duration, waitForAck bool, autoSendNewCircuitCh chan *Circuit) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error)
+	StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, remoteAddr string, waitUpTo time.Duration, waitForAck bool, autoSendNewCircuitCh chan *Circuit, preferExtant bool) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error)
 
 	PreferExtantRemotePeerGetCircuit(callCtx context.Context, lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, remoteAddr string, waitUpTo time.Duration, autoSendNewCircuitCh chan *Circuit) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error)
 
@@ -2823,6 +2824,9 @@ const (
 	CallIDErrorMap   = 1
 	ToPeerIDReadMap  = 2
 	ToPeerIDErrorMap = 3
+
+	ReadToExtantPeerServiceName  = 4
+	ErrorToExtantPeerServiceName = 5
 )
 
 func (s *Client) UnregisterChannel(ID string, whichmap int) {
@@ -2836,6 +2840,10 @@ func (s *Client) UnregisterChannel(ID string, whichmap int) {
 		s.notifies.notifyOnReadToPeerIDMap.del(ID)
 	case ToPeerIDErrorMap:
 		s.notifies.notifyOnErrorToPeerIDMap.del(ID)
+	case ReadToExtantPeerServiceName:
+		s.notifies.notifyOnReadToExtantPeerServiceName.del(ID)
+	case ErrorToExtantPeerServiceName:
+		s.notifies.notifyOnErrorToExtantPeerServiceName.del(ID)
 	}
 }
 

@@ -78,10 +78,11 @@ const (
 	// do not start a second peer, create ckt with existing.
 	CallPeerStartCircuitAtMostOne CallType = 116
 
-	CallPeerTraffic        CallType = 117
-	CallPeerError          CallType = 118
-	CallPeerFromIsShutdown CallType = 119
-	CallPeerEndCircuit     CallType = 120
+	CallPeerTraffic                    CallType = 117
+	CallPeerError                      CallType = 118
+	CallPeerFromIsShutdown             CallType = 119
+	CallPeerEndCircuit                 CallType = 120
+	CallPeerTrafficWithServiceFallback CallType = 121
 )
 
 func (ct CallType) String() string {
@@ -118,6 +119,8 @@ func (ct CallType) String() string {
 		return "CallPeerEndCircuit"
 	case CallPeerStartCircuitTakeToID:
 		return "CallPeerStartCircuitTakeToID"
+	case CallPeerTrafficWithServiceFallback:
+		return "CallPeerTrafficWithServiceFallback"
 
 	case CallKeepAlive:
 		return "CallKeepAlive"

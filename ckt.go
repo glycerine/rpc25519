@@ -56,6 +56,10 @@ type Circuit struct {
 	UserString string
 
 	FirstFrag *Fragment
+
+	// send CallPeerTrafficServiceIfNoPeerID
+	// instead of just CallPeerTraffic.
+	PreferExtant bool
 }
 
 func (ckt *Circuit) String() string {
@@ -434,6 +438,7 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	peerURL string,
 	frag *Fragment,
 	errWriteDur time.Duration,
+
 ) (ckt *Circuit, ctx context.Context, madeNewAutoCli bool, err error) {
 
 	if s.Halt.ReqStop.IsClosed() {
@@ -481,7 +486,8 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	}
 	//vv("rpb = '%#v'", rpb)
 
-	ckt, ctx, madeNewAutoCli, err = s.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, true, onOriginLocalSide)
+	preferExtant := false // can we know?
+	ckt, ctx, madeNewAutoCli, err = s.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, true, onOriginLocalSide, preferExtant)
 	if err != nil {
 		return nil, nil, madeNewAutoCli, err
 	}
@@ -548,7 +554,7 @@ func (ckt *Circuit) SendOneWay(frag *Fragment, errWriteDur time.Duration, keepFr
 	return ckt.LpbFrom.SendOneWay(ckt, frag, errWriteDur, keepFragIfPositive)
 }
 
-// SendOneWayMessage sends a Frament on the given Circuit.
+// SendOneWay sends a Frament on the given Circuit.
 // We check for cancelled ckt and LocalPeer and return an error
 // rather than send if they are shutting down.
 // keepFragIfPositive > 0 means we will not recycle
@@ -832,7 +838,7 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 // When select{}-ing on ckt.Reads and ckt.Errors, always also
 // select on ctx.Done() and in order to shutdown gracefully.
 func (origCkt *Circuit) NewCircuit(circuitName string, firstFrag *Fragment) (ckt *Circuit, ctx2 context.Context, madeNewAutoCli bool, err error) {
-	return origCkt.RpbTo.LocalPeer.newCircuit(circuitName, origCkt.RpbTo, "", firstFrag, -1, true, onOriginLocalSide)
+	return origCkt.RpbTo.LocalPeer.newCircuit(circuitName, origCkt.RpbTo, "", firstFrag, -1, true, onOriginLocalSide, false)
 }
 
 // IsClosed returns true if the LocalPeer is shutting down
@@ -927,6 +933,7 @@ func (lpb *LocalPeer) newCircuit(
 	errWriteDur time.Duration,
 	tellRemote bool, // send new circuit to remote?
 	isRemoteSide onRemoteSideVal,
+	preferExtant bool,
 
 ) (ckt *Circuit, ctx2 context.Context, madeNewAutoCli bool, err error) {
 
@@ -956,6 +963,7 @@ func (lpb *LocalPeer) newCircuit(
 		Context:           ctx2,
 		Canc:              canc2,
 		FirstFrag:         firstFrag,
+		PreferExtant:      preferExtant,
 	}
 	ckt.Halt = idem.NewHalterNamed(fmt.Sprintf("Circuit(%v %p)", circuitName, ckt))
 	if ckt.CircuitID == "" {
@@ -1241,13 +1249,14 @@ func (p *peerAPI) StartLocalPeer(
 	peerServiceName string,
 	requestedCircuit *Message,
 	peerName string,
+	preferExtant bool,
 
 ) (lpb *LocalPeer, err error) {
 
 	p.mut.Lock()
 	defer p.mut.Unlock()
 
-	return p.unlockedStartLocalPeer(ctx, peerServiceName, requestedCircuit, false, nil, "", peerName, onOriginLocalSide)
+	return p.unlockedStartLocalPeer(ctx, peerServiceName, requestedCircuit, false, nil, "", peerName, onOriginLocalSide, preferExtant)
 }
 
 // PRE: p.mut must be held by caller (and released when
@@ -1270,6 +1279,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	pleaseAssignNewPeerID string,
 	peerName string,
 	isRemoteSide onRemoteSideVal,
+	preferExtant bool,
 
 ) (lpb *LocalPeer, err error) {
 
@@ -1335,7 +1345,7 @@ func (p *peerAPI) unlockedStartLocalPeer(
 	//vv("unlockedStartLocalPeer: lpb.URL() = '%v'; peerServiceName='%v', isUpdatedPeerID='%v'; pleaseAssignNewPeerID='%v'; \nstack=%v\n", lpb.URL(), peerServiceName, isUpdatedPeerID, pleaseAssignNewPeerID, stack())
 
 	if requestedCircuit != nil {
-		return lpb, lpb.provideRemoteOnNewCircuitCh(p.isCli, requestedCircuit, ctx1, sendCh, isUpdatedPeerID, isRemoteSide)
+		return lpb, lpb.provideRemoteOnNewCircuitCh(p.isCli, requestedCircuit, ctx1, sendCh, isUpdatedPeerID, isRemoteSide, preferExtant)
 	}
 
 	return lpb, nil
@@ -1375,7 +1385,7 @@ func (p *peerAPI) GetLocalPeers(
 // to 50 times, pausing waitUpTo/50 after each.
 // If SendAndGetReply succeeds, then we immediately
 // cease polling and return the RemotePeerID.
-func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string, waitUpTo time.Duration) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, err error) {
+func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string, waitUpTo time.Duration, preferExtant bool) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, err error) {
 
 	// retry until deadline, if waitUpTo is > 0
 	deadline := time.Now().Add(waitUpTo)
@@ -1559,6 +1569,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 
 	var lpb *LocalPeer
 	isUpdatedPeerID := false
+	preferExtant := false
 
 	switch msg.HDR.Typ {
 	case CallPeerStartCircuitTakeToID:
@@ -1573,6 +1584,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		needNewLocalPeer = true
 		// INVAR: lpb set, or needNewLocalPeer true.
 	case CallPeerStartCircuitAtMostOne:
+		preferExtant = true
 		if noPriorPeers {
 			//vv("CallPeerStartCircuitAtMostOne handling: no prior peers, will start new")
 			// cannot re-connect with existing, must make new peer.
@@ -1648,7 +1660,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 		// spin one up!
 		//vv("needNewLocalPeer true! spinning up a peer for peerServicename '%v'; Typ='%v'", peerServiceName, msg.HDR.Typ)
 		//lpb2, localPeerURL, localPeerID, err := s.StartLocalPeer(ctx, peerServiceName, msg)
-		lpb2, err := s.unlockedStartLocalPeer(ctx, peerServiceName, msg, isUpdatedPeerID, sendCh, pleaseAssignNewRemotePeerID, "", onRemote2ndSide)
+		lpb2, err := s.unlockedStartLocalPeer(ctx, peerServiceName, msg, isUpdatedPeerID, sendCh, pleaseAssignNewRemotePeerID, "", onRemote2ndSide, preferExtant)
 		if err != nil {
 			// we are probably shutting down; Test408 gets here with
 			// "rpc25519 error: halt requested".
@@ -1701,10 +1713,10 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	}
 
 	//vv("bootstrapCircuit ending, about to call lpb.provideRemoteOnNewCircuitCh '%v'; Typ='%v'; isUpdatedPeerID=%v", peerServiceName, msg.HDR.Typ, isUpdatedPeerID)
-	return lpb.provideRemoteOnNewCircuitCh(isCli, msg, ctx, sendCh, isUpdatedPeerID, onRemote2ndSide)
+	return lpb.provideRemoteOnNewCircuitCh(isCli, msg, ctx, sendCh, isUpdatedPeerID, onRemote2ndSide, preferExtant)
 }
 
-func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message, isUpdatedPeerID bool, isRemoteSide onRemoteSideVal) error {
+func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx context.Context, sendCh chan *Message, isUpdatedPeerID bool, isRemoteSide onRemoteSideVal, preferExtant bool) error {
 	rpb := &RemotePeer{
 		LocalPeer: lpb,
 		PeerID:    msg.HDR.FromPeerID,
@@ -1736,7 +1748,7 @@ func (lpb *LocalPeer) provideRemoteOnNewCircuitCh(isCli bool, msg *Message, ctx 
 		asFrag.SetSysArg("newPeerURL", lpb.URL())
 	}
 
-	ckt, ctx2, madeNewAutoCli, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, asFrag, -1, false, isRemoteSide)
+	ckt, ctx2, madeNewAutoCli, err := lpb.newCircuit(circuitName, rpb, msg.HDR.CallID, asFrag, -1, false, isRemoteSide, preferExtant)
 	_ = madeNewAutoCli // not sure if we need to surface or not
 	if err != nil {
 		return err
@@ -1858,8 +1870,13 @@ func (s *peerAPI) bootstrapPeerService(isCli bool, msg *Message, ctx context.Con
 
 	////vv("top of bootstrapPeerService(): isCli=%v; msg.HDR='%v'", isCli, msg.HDR.String())
 
+	preferExtant := false
+	if msg != nil && msg.HDR.Typ == CallPeerStartCircuitAtMostOne {
+		preferExtant = true
+	}
+
 	// starts its own goroutine or return with an error (both quickly).
-	lpb, err := s.StartLocalPeer(ctx, msg.HDR.ToServiceName, msg, localPeerName)
+	lpb, err := s.StartLocalPeer(ctx, msg.HDR.ToServiceName, msg, localPeerName, preferExtant)
 	localPeerURL := lpb.URL()
 	localPeerID := lpb.PeerID
 

@@ -46,7 +46,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 
 	cliPeerName := "cliPeerName_410"
 	//vv("starting client peer service '%v'", j.cliServiceName)
-	cli_lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil, cliPeerName)
+	cli_lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil, cliPeerName, false)
 	panicOn(err)
 	defer cli_lpb.Close()
 
@@ -71,7 +71,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		wait := true
 		//	ckt, err := cli_lpb.U.StartRemotePeerAndGetCircuit(cli_lpb, cktName, nil, serviceName, netAddr, 0, wait)
 
-		ckt, ackMsg, _, err := j.cli.PeerAPI.StartRemotePeerAndGetCircuit(cli_lpb, cktName, nil, j.srvServiceName, netAddr, 0, wait, nil)
+		ckt, ackMsg, _, err := j.cli.PeerAPI.StartRemotePeerAndGetCircuit(cli_lpb, cktName, nil, j.srvServiceName, netAddr, 0, wait, nil, false)
 		_ = ackMsg
 		panicOn(err)
 		_ = ctx
@@ -136,7 +136,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 
 	// already started above, will hit limit of 1 if we do it again.
 	// verify that we can an error if we try:
-	srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil, "srv_lpb_peer_name")
+	srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil, "srv_lpb_peer_name", false)
 	if err == nil {
 		panic("wanted limit 1 error!")
 	}
@@ -202,7 +202,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	// verify ServiceLimit rejects more than 1 instance of a peer service name
 
 	// server -> client
-	ckt5, ackMsg, _, err := j.srv.PeerAPI.StartRemotePeerAndGetCircuit(srv_lpb, cktName3+"_over_1_limit", nil, cliServiceName, cliNetAddr, 0, true, nil)
+	ckt5, ackMsg, _, err := j.srv.PeerAPI.StartRemotePeerAndGetCircuit(srv_lpb, cktName3+"_over_1_limit", nil, cliServiceName, cliNetAddr, 0, true, nil, false)
 
 	if ckt5 != nil {
 		panic("wanted nil ckt5")
@@ -224,7 +224,7 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 	if true {
 		// client -> server
 		//vv("ServiceLimit enforced client to server too ==========")
-		ckt6, ackMsg, _, err := j.cli.PeerAPI.StartRemotePeerAndGetCircuit(cli_lpb, cktName3+"_over_1_limit", nil, j.srvServiceName, netAddr, 0, true, nil)
+		ckt6, ackMsg, _, err := j.cli.PeerAPI.StartRemotePeerAndGetCircuit(cli_lpb, cktName3+"_over_1_limit", nil, j.srvServiceName, netAddr, 0, true, nil, false)
 		_ = ackMsg
 		if ckt6 != nil {
 			panic(fmt.Sprintf("wanted nil ckt6; got '%v'", ckt6))
