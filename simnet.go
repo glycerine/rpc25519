@@ -1946,7 +1946,6 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 	}
 
 	// matching reads and sends
-	// readIt = readIt.Next()
 	for readIt := simnode.readQ.Tree.Min(); !readIt.Limit(); {
 		// do the preIt and readIt Next manually in various places so
 		// we can advance and delete behind
@@ -1960,7 +1959,8 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 			// We used to think of each simnode as being the endpoint
 			// for a single circuit, but that only applies to
 			// client simnodes; not server simnodes.
-			// So a server can be reading from many remote clients.
+			// A server can be reading from many remote clients
+			// in its readQ.
 			if read.target != send.origin {
 				//vv("ignore: at simnode='%v' the send.origin not from this read's target: read.target='%v' != send.origin='%v'\n\n read='%v'\n\n send='%v'", simnode.name, read.target.name, send.origin.name, read, send)
 				preIt = preIt.Next()
@@ -1970,9 +1970,26 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 			//vv("eval match: read = '%v'; connected = %v; s.localDeafRead(read)=%v", read, s.statewiseConnected(read.origin, read.target), s.localDeafRead(read))
 			//vv("eval match: send = '%v'; connected = %v; s.localDropSend(send)=%v", send, s.statewiseConnected(send.origin, send.target), s.localDropSend(send))
 
-			simnode.optionallyApplyChaos()
+			//simnode.optionallyApplyChaos()
 
-			// TODO Q: should we wait to drop-or-not until arrival time comes?
+			// We wait to drop-or-not until arrival time.
+			// This allows changes to the network in
+			// the interim. So we first
+			// have to establish time-wise that the match
+			// can be made, and only then decide on drop or not.
+
+			if send.arrivalTm.After(now) {
+				// send has not arrived yet.
+
+				// are we done? since preArrQ is ordered
+				// by arrivalTm, all subsequent pre-arrivals (sends)
+				// will have even more _greater_ arrivalTm;
+				// so no point in looking.
+				// But do we need to allow other reads
+				// to maybe match against the sends? yep, so:
+				break // not return
+			}
+			// INVAR: this send.arrivalTm <= now
 
 			var connAttemptedSend int64 // for logging below
 			var drop bool
@@ -2009,19 +2026,6 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 					continue
 				}
 			} // end else !send.sendDropFilteringApplied
-
-			if send.arrivalTm.After(now) {
-				// send has not arrived yet.
-
-				// are we done? since preArrQ is ordered
-				// by arrivalTm, all subsequent pre-arrivals (sends)
-				// will have even more _greater_ arrivalTm;
-				// so no point in looking.
-				// But do we need to allow other reads
-				// to maybe match against the sends? yep, so:
-				break // not return
-			}
-			// INVAR: this send.arrivalTm <= now
 
 			//vv("send okay to deliver (below deaf read might drop it though): conn.attemptedSend=%v, send.sendAttempt=%v; send.sendDropFilteringApplied=%v", connAttemptedSend, send.sendAttempt, send.sendDropFilteringApplied)
 			// INVAR: send is okay to deliver wrt faults.
