@@ -1235,16 +1235,16 @@ func newPQcompleteTm(owner string) *pq {
 	}
 }
 
-func (s *Simnet) shutdownSimnode(simnode *simnode) (undo Alteration) {
-	if simnode.powerOff {
+func (s *Simnet) shutdownSimnode(target *simnode) (undo Alteration) {
+	if target.powerOff {
 		// no-op. already off.
 		return UNDEFINED
 	}
-	//vv("handleAlterCircuit: SHUTDOWN %v, going to powerOff true, in state %v", simnode.name, simnode.state)
-	simnode.powerOff = true
+	//vv("handleAlterCircuit: SHUTDOWN %v, going to powerOff true, in state %v", target.name, target.state)
+	target.powerOff = true
 	undo = POWERON
 
-	for _, node := range keyNameSort(s.locals(simnode)) {
+	for _, node := range keyNameSort(s.locals(target)) {
 		node.readQ.deleteAll()
 		node.preArrQ.deleteAll()
 		node.timerQ.deleteAll()
@@ -1262,21 +1262,26 @@ func (s *Simnet) shutdownSimnode(simnode *simnode) (undo Alteration) {
 			//node.cliConn.Close()
 			node.cliConn = nil
 
+			vv("deleting from s.node2server '%v'", node.name)
 			delete(s.node2server, node)
 			delete(s.dns, node.name)
 			delete(s.servers, node.serverBaseID)
 			delete(s.allnodes, node)
 			delete(s.orphans, node)
 
-			delete(simnode.allnode, node)
+			delete(target.allnode, node)
+		} else {
+			// server: only self left after reboot
+			node.allnode = map[*simnode]bool{node: true}
 		}
 		// no more circuits from this node
 		s.circuits.delkey(node)
 
 		vv("handleAlterCircuit: we just SHUTDOWN node: %v", node.name)
 	}
+	//s.node2server[target] = target
 
-	vv("handleAlterCircuit: end SHUTDOWN, simnode is now: %v", simnode)
+	vv("handleAlterCircuit: end SHUTDOWN, target is now: %v", target)
 	return
 }
 
