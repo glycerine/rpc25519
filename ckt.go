@@ -38,6 +38,9 @@ type Circuit struct {
 	LocalServiceName  string
 	RemoteServiceName string
 
+	LocalPeerServiceNameVersion  string
+	RemotePeerServiceNameVersion string
+
 	CircuitID string // aka Message.HDR.CallID
 	Context   context.Context
 	Canc      context.CancelCauseFunc
@@ -57,8 +60,19 @@ type Circuit struct {
 
 	FirstFrag *Fragment
 
-	// send CallPeerTrafficServiceIfNoPeerID
+	// send/support CallPeerTrafficWithServiceFallback
 	// instead of just CallPeerTraffic.
+	// We have to have registered the peerServiceName
+	// with the notifies for this fallback to
+	// work. The use case is to allow a
+	// peer to recover after reboot. It's
+	// random PeerID will have changed, but
+	// its peerServiceName can remain the same.
+	// Thus remote incoming fragments can still
+	// find the default (singleton; if extant) peer
+	// if they mark their circuits as PreferExtant.
+	// The madeNewAutoCli return bool can also
+	// convey when the PeerID will have changed.
 	PreferExtant bool
 }
 
@@ -76,6 +90,11 @@ RemotePeerName: "%v",
  LocalServiceName: "%v",
 RemoteServiceName: "%v",
 
+ LocalPeerServiceNameVersion: "%v",
+RemotePeerServiceNameVersion: "%v",
+
+     PreferExtant: %v,
+
  // LocalCircuitURL: "%v",
  // RemoteCircuitURL: "%v",
 
@@ -89,6 +108,9 @@ RemoteServiceName: "%v",
 		ckt.RemotePeerName,
 		ckt.LocalServiceName,
 		ckt.RemoteServiceName,
+		ckt.LocalPeerServiceNameVersion,
+		ckt.RemotePeerServiceNameVersion,
+		ckt.PreferExtant,
 		ckt.LocalCircuitURL(),
 		ckt.RemoteCircuitURL(),
 		ckt.UserString,
@@ -105,6 +127,7 @@ RemoteServiceName: "%v",
 func (ckt *Circuit) LocalCircuitURL() string {
 	return ckt.LpbFrom.NetAddr + "/" +
 		ckt.LocalServiceName + "/" +
+		// ckt.LocalPeerServiceNameVersion + "/" +
 		ckt.LocalPeerID + "/" +
 		ckt.CircuitID
 }
@@ -596,6 +619,9 @@ func (s *LocalPeer) SendOneWay(ckt *Circuit, frag *Fragment, errWriteDur time.Du
 	if frag.FromPeerServiceName == "" {
 		frag.FromPeerServiceName = ckt.LocalServiceName
 	}
+	if frag.FromPeerServiceNameVersion == "" {
+		frag.LocalPeerServiceNameVersion = ckt.LocalPeerServiceNameVersion
+	}
 
 	//vv("sending frag='%v' to (if To empty, send to:) ckt.RpbTo.NetAddr='%v'", frag, ckt.RpbTo.NetAddr)
 	msg := ckt.ConvertFragmentToMessage(frag)
@@ -799,6 +825,9 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 	if msg.HDR.FromServiceName == "" {
 		msg.HDR.FromServiceName = ckt.LocalServiceName
 	}
+	if msg.HDR.FromPeerServiceNameVersion == "" {
+		msg.HDR.FromPeerServiceNameVersion = ckt.LocalPeerServiceNameVersion
+	}
 	if msg.HDR.CallID == "" {
 		msg.HDR.CallID = ckt.CircuitID
 	}
@@ -813,6 +842,7 @@ func (ckt *Circuit) ConvertFragmentToMessage(frag *Fragment) (msg *Message) {
 		msg.HDR.Args = make(map[string]string)
 	}
 	msg.HDR.Args["#fromServiceName"] = ckt.LocalServiceName
+	msg.HDR.Args["#fromPeerServiceNameVersion"] = ckt.LocalPeerServiceNameVersion
 	msg.HDR.Args["#fromBaseServerName"] = ckt.LpbFrom.BaseServerName
 	msg.HDR.Args["#fromBaseServerAddr"] = ckt.LpbFrom.BaseServerAddr
 
@@ -948,22 +978,23 @@ func (lpb *LocalPeer) newCircuit(
 	reads := make(chan *Fragment)
 	errors := make(chan *Fragment)
 	ckt = &Circuit{
-		Name:              circuitName,
-		LocalServiceName:  lpb.PeerServiceName,
-		RemoteServiceName: rpb.RemoteServiceName,
-		LpbFrom:           lpb,
-		RpbTo:             rpb,
-		CircuitID:         cID,
-		LocalPeerID:       lpb.PeerID,
-		LocalPeerName:     lpb.PeerName,
-		RemotePeerID:      rpb.PeerID,
-		RemotePeerName:    rpb.PeerName,
-		Reads:             reads,
-		Errors:            errors,
-		Context:           ctx2,
-		Canc:              canc2,
-		FirstFrag:         firstFrag,
-		PreferExtant:      preferExtant,
+		Name:                        circuitName,
+		LocalServiceName:            lpb.PeerServiceName,
+		LocalPeerServiceNameVersion: lpb.PeerServiceNameVersion,
+		RemoteServiceName:           rpb.RemoteServiceName,
+		LpbFrom:                     lpb,
+		RpbTo:                       rpb,
+		CircuitID:                   cID,
+		LocalPeerID:                 lpb.PeerID,
+		LocalPeerName:               lpb.PeerName,
+		RemotePeerID:                rpb.PeerID,
+		RemotePeerName:              rpb.PeerName,
+		Reads:                       reads,
+		Errors:                      errors,
+		Context:                     ctx2,
+		Canc:                        canc2,
+		FirstFrag:                   firstFrag,
+		PreferExtant:                preferExtant,
 	}
 	ckt.Halt = idem.NewHalterNamed(fmt.Sprintf("Circuit(%v %p)", circuitName, ckt))
 	if ckt.CircuitID == "" {
