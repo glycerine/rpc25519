@@ -1961,6 +1961,15 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 			// client simnodes; not server simnodes.
 			// A server can be reading from many remote clients
 			// in its readQ.
+			// TODO: consider going back to using simnode per
+			// network endpoint, so we don't have to guess
+			// and double-loop scan. Everything in the
+			// readQ and preArrQ on the same simnode
+			// should always be potentially matchable.
+			// The current advantage is that reads are
+			// first-come first-served across all possible
+			// senders. I guess the queues should technically
+			// be associated with circuits instead of nodes...
 			if read.target != send.origin {
 				//vv("ignore: at simnode='%v' the send.origin not from this read's target: read.target='%v' != send.origin='%v'\n\n read='%v'\n\n send='%v'", simnode.name, read.target.name, send.origin.name, read, send)
 				preIt = preIt.Next()
