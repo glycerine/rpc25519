@@ -1244,19 +1244,39 @@ func (s *Simnet) shutdownSimnode(simnode *simnode) (undo Alteration) {
 	simnode.powerOff = true
 	undo = POWERON
 
-	simnode.readQ.deleteAll()
-	simnode.preArrQ.deleteAll()
-	simnode.timerQ.deleteAll()
-	simnode.deafReadQ.deleteAll()
-	// leave droppedSendQ, useful to simulate a slooow network
-	// that eventually delivers messages from a server after several
-	// power cycles.
+	for _, node := range keyNameSort(s.locals(simnode)) {
+		node.readQ.deleteAll()
+		node.preArrQ.deleteAll()
+		node.timerQ.deleteAll()
+		node.deafReadQ.deleteAll()
+		// leave droppedSendQ, useful to simulate a slooow network
+		// that eventually delivers messages from a server after several
+		// power cycles?
+		node.droppedSendQ.deleteAll()
+		if node.isCli && node.cliConn != nil {
+			// a peer should have forgotten all
+			// local clients after a reboot.
 
-	// Do not we need to close all the circuits too, so the
-	// other side gets a shutdown/reset if the network is up
-	// between them...?
+			// other side should not know they
+			// are sending their messages to a black hole.
+			//node.cliConn.Close()
+			node.cliConn = nil
 
-	//vv("handleAlterCircuit: end SHUTDOWN, simnode is now: %v", simnode)
+			delete(s.node2server, node)
+			delete(s.dns, node.name)
+			delete(s.servers, node.serverBaseID)
+			delete(s.allnodes, node)
+			delete(s.orphans, node)
+
+			delete(simnode.allnode, node)
+		}
+		// no more circuits from this node
+		s.circuits.delkey(node)
+
+		vv("handleAlterCircuit: we just SHUTDOWN node: %v", node.name)
+	}
+
+	vv("handleAlterCircuit: end SHUTDOWN, simnode is now: %v", simnode)
 	return
 }
 
@@ -1526,7 +1546,9 @@ func (s *Simnet) handleAlterCircuit(altop *mop, closeDone bool) (undo Alteration
 
 	simnode, ok := s.dns[alt.simnodeName]
 	if !ok {
-		alt.err = fmt.Errorf("error: handleAlterCircuit could not find simnodeName '%v' in dns: '%v'", alt.simnodeName, s.dns)
+		// happens commonly in crash/reboot scenarios. keep it short.
+		//alt.err = fmt.Errorf("error: handleAlterCircuit could not find simnodeName '%v' in dns: '%v'", alt.simnodeName, s.dns)
+		alt.err = fmt.Errorf("error: handleAlterCircuit could not find simnodeName '%v'", alt.simnodeName)
 		return
 	}
 
@@ -1603,7 +1625,12 @@ func (s *Simnet) handleAlterHost(altop *mop) (undo Alteration) {
 }
 
 func (s *Simnet) localDeafReadProb(read *mop) float64 {
-	return s.circuits.get(read.origin).get(read.target).deafRead
+	//return s.circuits.get(read.origin).get(read.target).deafRead
+	fromMap := s.circuits.get(read.origin)
+	if fromMap == nil {
+		return 1 // a dead endpoint is always deaf.
+	}
+	return fromMap.get(read.target).deafRead
 }
 
 // insight: deaf reads must create dropped sends for the sender.
@@ -1618,7 +1645,12 @@ func (s *Simnet) localDeafRead(read, send *mop) (isDeaf bool) {
 
 	// get the local (read) origin conn probability of deafness
 	// note: not the remote's deafness, only local.
-	conn := s.circuits.get(read.origin).get(read.target)
+	//conn := s.circuits.get(read.origin).get(read.target)
+	fromMap := s.circuits.get(read.origin)
+	if fromMap == nil {
+		return true // dead node always deaf
+	}
+	conn := fromMap.get(read.target)
 	prob := conn.deafRead
 
 	conn.attemptedRead++ // at least 1.
@@ -1670,7 +1702,15 @@ func (s *Simnet) dropped(prob float64) bool {
 func (s *Simnet) localDropSend(send *mop) (isDropped bool, connAttemptedSend int64) {
 	// get the local origin conn probability of drop
 
-	conn := s.circuits.get(send.origin).get(send.target)
+	// if send.origin has been terminated circuits will
+	// return nil, so we cannot just chain like this:
+	//conn := s.circuits.get(send.origin).get(send.target)
+	fromNodeMap := s.circuits.get(send.origin)
+	if fromNodeMap == nil {
+		isDropped = true // cannot send from dead node
+		return
+	}
+	conn := fromNodeMap.get(send.target)
 	prob := conn.dropSend
 
 	conn.attemptedSend++ // at least 1.
@@ -1740,7 +1780,8 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	var probDrop float64
 	cktOrigin := s.circuits.get(send.origin)
 	if cktOrigin == nil {
-		probDrop = 0 // a guess. not sure. is this the last close/RST though?
+		//probDrop = 0 // a guess. not sure. is this the last close/RST though?
+		probDrop = 1 // a better guess.
 	} else {
 		probDrop = cktOrigin.get(send.target).dropSend
 	}
@@ -1779,7 +1820,17 @@ func (s *Simnet) handleRead(read *mop, limit, loopi int64) (changed int64) {
 	origin := read.origin
 	read.originLC = origin.lc
 
-	probDeaf := s.circuits.get(read.origin).get(read.target).deafRead
+	//probDeaf := s.circuits.get(read.origin).get(read.target).deafRead
+	fromMap := s.circuits.get(read.origin)
+	if fromMap == nil {
+		// this read is from a simnode that has been crashed.
+		// probably just a logical race.
+		read.err = ErrShutdown()
+		s.fin(read)
+		close(read.proceed)
+		return
+	}
+	probDeaf := fromMap.get(read.target).deafRead
 	if !s.statewiseConnected(read.origin, read.target) ||
 		probDeaf >= 1 {
 

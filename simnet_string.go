@@ -208,9 +208,9 @@ func (op *mop) String() string {
 			extra = fmt.Sprintf(" AT[ nil ] FROM[ nil ](eof:%v; at %v)", op.isEOF_RST, op.readFileLine)
 		}
 	case ALTER_HOST:
-		extra += fmt.Sprintf(" alterHost{isHostAlter: %v; alter: %v}", op.alterHost.isHostAlter, op.alterHost.alter)
+		extra += fmt.Sprintf(" alterHost{isHostAlter: %v; alter: %v; name: %v}", op.alterHost.isHostAlter, op.alterHost.alter, op.alterHost.simnodeName)
 	case ALTER_NODE:
-		extra += fmt.Sprintf(" alterNode{isHostAlter: %v; alter: %v}", op.alterNode.isHostAlter, op.alterNode.alter)
+		extra += fmt.Sprintf(" alterNode{isHostAlter: %v; alter: %v; name: %v}", op.alterNode.isHostAlter, op.alterNode.alter, op.alterHost.simnodeName)
 	}
 	s := fmt.Sprintf("mop{%v %v init:%v, arr:%v, complete:%v op.sn:%v, who:%v, msg.sn:%v%v}", who, op.kind, ini, arr, complete, op.sn, op.who, msgSerial, extra)
 	return s
@@ -359,7 +359,7 @@ func (s *simnodeAlteration) String() (r string) {
 		return "(nil *simnodeAlteration)"
 	}
 	r = "&simnodeAlteration{\n"
-	r += fmt.Sprintf(" simnet: %v\n", s.simnet)
+	//r += fmt.Sprintf(" simnet: %v\n", s.simnet) // too noisy!
 	r += fmt.Sprintf("simnode: %v\n", s.simnodeName)
 	r += fmt.Sprintf("  alter: %v\n", s.alter)
 	r += "}\n"
