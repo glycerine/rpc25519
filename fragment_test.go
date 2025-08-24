@@ -78,13 +78,13 @@ func Test400_Fragments_riding_Circuits_API(t *testing.T) {
 		// the rwPair spun up, crashing 6% of the time.
 		// Thus we added a prior round-trip cli->srv->cli above.
 		peerURL_client, peerID_client, _, err := srv.PeerAPI.StartRemotePeer(
-			ctx, cliServiceName, cliAddr, 50*time.Microsecond, false)
+			ctx, cliServiceName, "", cliAddr, 50*time.Microsecond, false)
 
 		panicOn(err)
 		vv("started remote with peerURL_client = '%v'; cliServiceName = '%v'; peerID_client = '%v'", peerURL_client, cliServiceName, peerID_client)
 
 		// any number of known peers can be supplied, or none, to bootstrap.
-		lpb, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, nil, "", false)
+		lpb, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, "", nil, "", false)
 		panicOn(err)
 		defer lpb.Close()
 
@@ -208,7 +208,7 @@ func Test402_simpler_startup_peer_service_test(t *testing.T) {
 		cliAddr := cli.LocalAddr()
 		vv("cliAddr = '%v'", cliAddr)
 
-		lpb, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, nil, "", false)
+		lpb, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, "", nil, "", false)
 		panicOn(err)
 		peerURL_server, peerID_server := lpb.URL(), lpb.PeerID
 		vv("StartLocalPeer: on server peerURL_server = '%v'; peerID_server = '%v'", peerURL_server, peerID_server)
@@ -268,11 +268,11 @@ func Test403_new_circuit_from_existing_peer(t *testing.T) {
 		// This call starts the PeerImpl on the remote Client, from the server.
 
 		peerURL_client, peerID_client, _, err := srv.PeerAPI.StartRemotePeer(
-			ctx, cliServiceName, cliAddr, 50*time.Microsecond, false)
+			ctx, cliServiceName, "", cliAddr, 50*time.Microsecond, false)
 		panicOn(err)
 		vv("started remote with peerURL_client = '%v'; cliServiceName = '%v'; peerID_client = '%v'", peerURL_client, cliServiceName, peerID_client)
 
-		lpb, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, nil, "", false)
+		lpb, err := srv.PeerAPI.StartLocalPeer(ctx, srvServiceName, "", nil, "", false)
 		peerURL_server, peerID_server := lpb.URL(), lpb.PeerID
 		panicOn(err)
 		vv("srv.PeerAPI.StartLocalPeer() on server peerURL_server = '%v'; peerID_server = '%v'", peerURL_server, peerID_server)

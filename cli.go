@@ -1469,6 +1469,7 @@ func (c *Client) send(call *Call, octx context.Context) {
 
 	req := NewMessage()
 	req.HDR.ToServiceName = call.ServiceMethod
+	//req.HDR.ToPeerServiceNameVersion = ?
 	req.HDR.Typ = CallNetRPC
 
 	by := c.encBuf.Bytes()
@@ -2147,6 +2148,7 @@ func (c *Client) UploadBegin(
 
 	msg.HDR.Typ = CallUploadBegin
 	msg.HDR.ToServiceName = serviceName
+	// msg.HDR.ToPeerServiceNameVersion = ?
 	msg.HDR.StreamPart = 0
 	cancelJobCh := ctx.Done()
 	seqno := c.nextSeqno()
@@ -2183,8 +2185,10 @@ func (s *Uploader) UploadMore(ctx context.Context, msg *Message, last bool, errW
 	} else {
 		msg.HDR.Typ = CallUploadMore
 	}
-	msg.HDR.ToServiceName = s.name   // ? not sure
+	msg.HDR.ToServiceName = s.name // ? not sure
+	//msg.HDR.ToPeerServiceNameVersion = ?
 	msg.HDR.FromServiceName = s.name //  ? not sure
+	//msg.HDR.FromPeerServiceNameVersion = ?
 	msg.HDR.StreamPart = s.next
 	msg.HDR.CallID = s.callID
 	msg.HDR.Seqno = s.seqno
@@ -2204,15 +2208,15 @@ type UniversalCliSrv interface {
 	GetConfig() *Config
 	RegisterPeerServiceFunc(peerServiceName string, psf PeerServiceFunc) error
 
-	StartLocalPeer(ctx context.Context, peerServiceName string, requestedCircuit *Message, localPeerName string, preferExtant bool) (lpb *LocalPeer, err error)
+	StartLocalPeer(ctx context.Context, peerServiceName, peerServiceNameVersion string, requestedCircuit *Message, localPeerName string, preferExtant bool) (lpb *LocalPeer, err error)
 
 	GetLocalPeers(peerServiceName string) (lpbs []*LocalPeer)
 
-	StartRemotePeer(ctx context.Context, peerServiceName, remoteAddr string, waitUpTo time.Duration, preferExtant bool) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, err error)
+	StartRemotePeer(ctx context.Context, peerServiceName, peerServiceNameVersion, remoteAddr string, waitUpTo time.Duration, preferExtant bool) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, err error)
 
-	StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, remoteAddr string, waitUpTo time.Duration, waitForAck bool, autoSendNewCircuitCh chan *Circuit, preferExtant bool) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error)
+	StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, peerServiceNameVersion, remoteAddr string, waitUpTo time.Duration, waitForAck bool, autoSendNewCircuitCh chan *Circuit, preferExtant bool) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error)
 
-	PreferExtantRemotePeerGetCircuit(callCtx context.Context, lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, remoteAddr string, waitUpTo time.Duration, autoSendNewCircuitCh chan *Circuit) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error)
+	PreferExtantRemotePeerGetCircuit(callCtx context.Context, lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, peerServiceNameVersion, remoteAddr string, waitUpTo time.Duration, autoSendNewCircuitCh chan *Circuit) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error)
 
 	SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (madeNewAutoCli bool, ch chan *Message, err error)
 
@@ -2584,6 +2588,7 @@ func (s *Downloader) Seqno() uint64 {
 func (s *Downloader) Close() {
 	req := NewMessage()
 	req.HDR.ToServiceName = s.name
+	//req.HDR.ToPeerServiceNameVersion = ?
 	req.HDR.Typ = CallCancelPrevious
 	req.HDR.CallID = s.callID
 	req.HDR.Seqno = s.seqno
@@ -2633,6 +2638,7 @@ func (b *Downloader) BeginDownload(ctx context.Context, path string) (err error)
 	req.HDR.To = to
 	req.HDR.From = from
 	req.HDR.ToServiceName = b.name
+	//req.HDR.ToPeerServiceNameVersion = ?
 	req.HDR.StreamPart = 0
 	req.HDR.Typ = CallRequestDownload
 	req.HDR.Seqno = b.seqno
@@ -2711,6 +2717,7 @@ func (s *Bistreamer) UploadMore(ctx context.Context, msg *Message, last bool, er
 		msg.HDR.Typ = CallUploadMore
 	}
 	msg.HDR.ToServiceName = s.name
+	//msg.HDR.ToPeerServiceNameVersion = ?
 	msg.HDR.StreamPart = s.next
 	msg.HDR.CallID = s.callID
 	msg.HDR.Seqno = s.seqno
@@ -2752,6 +2759,7 @@ func (b *Bistreamer) Close() {
 	//vv("Bistreamer.Close() called.")
 	req := NewMessage()
 	req.HDR.ToServiceName = b.name
+	//req.HDR.ToPeerServiceNameVersion = ?
 	req.HDR.Typ = CallCancelPrevious
 	req.HDR.CallID = b.callID
 	req.HDR.Seqno = b.seqno
@@ -2776,6 +2784,7 @@ func (b *Bistreamer) Begin(ctx context.Context, req *Message) (err error) {
 	req.HDR.To = to
 	req.HDR.From = from
 	req.HDR.ToServiceName = b.name
+	//req.HDR.ToPeerServiceNameVersion = ?
 	req.HDR.StreamPart = 0
 	req.HDR.Typ = CallRequestBistreaming
 	req.HDR.Seqno = b.seqno

@@ -1095,6 +1095,7 @@ func (s *Server) processWork(job *job) {
 	replySeqno := req.HDR.Seqno
 	reqCallID := req.HDR.CallID
 	serviceName := req.HDR.ToServiceName
+	//serviceNameVersion := req.HDR.ToPeerServiceNameVersion
 
 	// allow user to change Subject
 	reply.HDR.Subject = req.HDR.Subject
@@ -1148,7 +1149,9 @@ func (s *Server) processWork(job *job) {
 	reply.HDR.Typ = CallRPCReply
 	reply.HDR.Deadline = deadline
 	reply.HDR.ToServiceName = serviceName
+	//reply.HDR.ToPeerServiceNameVersion = serviceNameVersion
 	reply.HDR.FromServiceName = serviceName
+	//reply.HDR.FromPeerServiceNameVersion = serviceNameVersion
 
 	//vv("2way about to send its reply: '%#v'", reply)
 
@@ -1473,8 +1476,12 @@ func (p *rwPair) sendResponse(reqMsg *Message, req *Request, reply Green, codec 
 	msg.HDR.Serial = issueSerial()
 	msg.HDR.From = job.pair.from
 	msg.HDR.To = job.pair.to
+
 	msg.HDR.ToServiceName = reqMsg.HDR.FromServiceName
+	msg.HDR.ToPeerServiceNameVersion = reqMsg.HDR.FromPeerServiceNameVersion
 	msg.HDR.FromServiceName = reqMsg.HDR.ToServiceName
+	msg.HDR.FromPeerServiceNameVersion = reqMsg.HDR.ToPeerServiceNameVersion
+
 	msg.HDR.Subject = reqMsg.HDR.Subject // echo back
 	msg.HDR.Typ = CallRPCReply
 	msg.HDR.Seqno = reqMsg.HDR.Seqno       // echo back
@@ -2649,7 +2656,9 @@ func (s *Server) newServerSendDownloadHelper(ctx context.Context, job *job) *ser
 
 	msg.HDR.Subject = req.HDR.Subject
 	msg.HDR.ToServiceName = req.HDR.FromServiceName
+	msg.HDR.ToPeerServiceNameVersion = req.HDR.FromPeerServiceNameVersion
 	msg.HDR.FromServiceName = req.HDR.ToServiceName
+	msg.HDR.FromPeerServiceNameVersion = req.HDR.ToPeerServiceNameVersion
 	msg.HDR.To = req.HDR.From
 	msg.HDR.From = req.HDR.To
 	msg.HDR.Seqno = req.HDR.Seqno
@@ -2689,7 +2698,9 @@ func (s *serverSendDownloadHelper) sendDownloadPart(ctx context.Context, msg *Me
 	msg.HDR.From = s.template.HDR.To
 	msg.HDR.To = s.template.HDR.From
 	msg.HDR.ToServiceName = s.template.HDR.ToServiceName
+	//msg.HDR.ToPeerServiceNameVersion = s.template.HDR.ToPeerServiceNameVersion
 	msg.HDR.FromServiceName = s.template.HDR.FromServiceName
+	//msg.HDR.FromPeerServiceNameVersion = s.template.HDR.FromPeerServiceNameVersion
 	// Args kept
 	msg.HDR.Subject = s.template.HDR.Subject
 	msg.HDR.Seqno = s.template.HDR.Seqno
@@ -2905,13 +2916,14 @@ func (s *Server) RegisterPeerServiceFunc(
 func (s *Client) StartLocalPeer(
 	ctx context.Context,
 	peerServiceName string,
+	peerServiceNameVersion string,
 	requestedCircuit *Message,
 	localPeerName string,
 	preferExtant bool,
 
 ) (lpb *LocalPeer, err error) {
 
-	return s.PeerAPI.StartLocalPeer(ctx, peerServiceName, requestedCircuit, localPeerName, preferExtant)
+	return s.PeerAPI.StartLocalPeer(ctx, peerServiceName, peerServiceNameVersion, requestedCircuit, localPeerName, preferExtant)
 }
 
 func (s *Client) GetLocalPeers(peerServiceName string) (lpbs []*LocalPeer) {
@@ -2932,13 +2944,14 @@ func (s *Server) GetLocalPeers(peerServiceName string) (lpbs []*LocalPeer) {
 func (s *Server) StartLocalPeer(
 	ctx context.Context,
 	peerServiceName string,
+	peerServiceNameVersion string,
 	requestedCircuit *Message,
 	localPeerName string,
 	preferExtant bool,
 
 ) (lpb *LocalPeer, err error) {
 
-	return s.PeerAPI.StartLocalPeer(ctx, peerServiceName, requestedCircuit, localPeerName, preferExtant)
+	return s.PeerAPI.StartLocalPeer(ctx, peerServiceName, peerServiceNameVersion, requestedCircuit, localPeerName, preferExtant)
 }
 
 // StartRemotePeer bootstraps a remote Peer without
@@ -2951,13 +2964,14 @@ func (s *Server) StartLocalPeer(
 func (s *Client) StartRemotePeer(
 	ctx context.Context,
 	peerServiceName,
+	peerServiceNameVersion,
 	remoteAddr string,
 	waitUpTo time.Duration,
 	preferExtant bool,
 
 ) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, err error) {
 
-	return s.PeerAPI.StartRemotePeer(ctx, peerServiceName, remoteAddr, waitUpTo, preferExtant)
+	return s.PeerAPI.StartRemotePeer(ctx, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, preferExtant)
 }
 
 // StartRemotePeer bootstraps a remote Peer without
@@ -2970,13 +2984,14 @@ func (s *Client) StartRemotePeer(
 func (s *Server) StartRemotePeer(
 	ctx context.Context,
 	peerServiceName,
+	peerServiceNameVersion,
 	remoteAddr string,
 	waitUpTo time.Duration,
 	preferExtant bool,
 
 ) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, err error) {
 
-	return s.PeerAPI.StartRemotePeer(ctx, peerServiceName, remoteAddr, waitUpTo, preferExtant)
+	return s.PeerAPI.StartRemotePeer(ctx, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, preferExtant)
 }
 
 // StartRemotePeerAndGetCircuit is the main way to bootstrap
@@ -2988,6 +3003,7 @@ func (s *Client) StartRemotePeerAndGetCircuit(
 	circuitName string,
 	frag *Fragment,
 	peerServiceName,
+	peerServiceNameVersion,
 	remoteAddr string,
 	waitUpTo time.Duration,
 	waitForAck bool,
@@ -2997,7 +3013,7 @@ func (s *Client) StartRemotePeerAndGetCircuit(
 ) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
 
 	return s.PeerAPI.StartRemotePeerAndGetCircuit(
-		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh, preferExtant)
+		lpb, circuitName, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh, preferExtant)
 }
 
 // StartRemotePeerAndGetCircuit is the main way to bootstrap
@@ -3009,6 +3025,7 @@ func (s *Server) StartRemotePeerAndGetCircuit(
 	circuitName string,
 	frag *Fragment,
 	peerServiceName,
+	peerServiceNameVersion,
 	remoteAddr string,
 	waitUpTo time.Duration,
 	waitForAck bool,
@@ -3018,7 +3035,7 @@ func (s *Server) StartRemotePeerAndGetCircuit(
 ) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
 
 	return s.PeerAPI.StartRemotePeerAndGetCircuit(
-		lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh, preferExtant)
+		lpb, circuitName, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh, preferExtant)
 }
 
 // PreferExtantRemotePeerGetCircuit is similar
@@ -3043,6 +3060,7 @@ func (s *Server) PreferExtantRemotePeerGetCircuit(
 	circuitName string,
 	frag *Fragment,
 	peerServiceName,
+	peerServiceNameVersion,
 	remoteAddr string,
 	waitUpTo time.Duration,
 	autoSendNewCircuitCh chan *Circuit,
@@ -3050,7 +3068,7 @@ func (s *Server) PreferExtantRemotePeerGetCircuit(
 ) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
 
 	return s.PeerAPI.PreferExtantRemotePeerGetCircuit(
-		callCtx, lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, autoSendNewCircuitCh)
+		callCtx, lpb, circuitName, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, autoSendNewCircuitCh)
 }
 
 // PreferExtantRemotePeerGetCircuit is similar
@@ -3075,6 +3093,7 @@ func (s *Client) PreferExtantRemotePeerGetCircuit(
 	circuitName string,
 	frag *Fragment,
 	peerServiceName,
+	peerServiceNameVersion,
 	remoteAddr string,
 	waitUpTo time.Duration,
 	autoSendNewCircuitCh chan *Circuit,
@@ -3082,7 +3101,7 @@ func (s *Client) PreferExtantRemotePeerGetCircuit(
 ) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
 
 	return s.PeerAPI.PreferExtantRemotePeerGetCircuit(
-		callCtx, lpb, circuitName, frag, peerServiceName, remoteAddr, waitUpTo, autoSendNewCircuitCh)
+		callCtx, lpb, circuitName, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, autoSendNewCircuitCh)
 }
 
 // GetConfig returns the Server's Config.

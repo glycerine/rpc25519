@@ -86,11 +86,11 @@ func Test408_multiple_circuits_open_and_close(t *testing.T) {
 		defer j.cleanup()
 
 		ctx := context.Background()
-		cli_lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, nil, "", false)
+		cli_lpb, err := j.cli.PeerAPI.StartLocalPeer(ctx, j.cliServiceName, "", nil, "", false)
 		panicOn(err)
 		defer cli_lpb.Close()
 
-		srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, nil, "", false)
+		srv_lpb, err := j.srv.PeerAPI.StartLocalPeer(ctx, j.srvServiceName, "", nil, "", false)
 		panicOn(err)
 		defer srv_lpb.Close()
 

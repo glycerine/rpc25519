@@ -373,31 +373,33 @@ type HDR struct {
 	From    string    `zid:"1"` // originator host:port address.
 	To      string    `zid:"2"` // destination host:port address.
 
-	ToServiceName   string `zid:"3"` // registered name to call. (orig ServiceName)
-	FromServiceName string `zid:"4"` // new
+	ToServiceName              string `zid:"3"` // registered name to call. (orig ServiceName)
+	ToPeerServiceNameVersion   string `zid:"4"` // new
+	FromServiceName            string `zid:"5"` // new
+	FromPeerServiceNameVersion string `zid:"6"` // new
 
 	// arguments/parameters for the call. should be short to keep the HDR small.
 	// big stuff should be serialized in JobSerz.
-	Args map[string]string `zid:"5"`
+	Args map[string]string `zid:"7"`
 
-	Subject string   `zid:"6"`  // in net/rpc, the "Service.Method" ServiceName
-	Seqno   uint64   `zid:"7"`  // user (client) set sequence number for each call (same on response).
-	Typ     CallType `zid:"8"`  // see constants above.
-	CallID  string   `zid:"9"`  // 20 bytes pseudo random base-64 coded string (same on response).
-	Serial  int64    `zid:"10"` // system serial number
+	Subject string   `zid:"8"`  // in net/rpc, the "Service.Method" ServiceName
+	Seqno   uint64   `zid:"9"`  // user (client) set sequence number for each call (same on response).
+	Typ     CallType `zid:"10"` // see constants above.
+	CallID  string   `zid:"11"` // 20 bytes pseudo random base-64 coded string (same on response).
+	Serial  int64    `zid:"12"` // system serial number
 
-	LocalRecvTm time.Time `zid:"11"`
+	LocalRecvTm time.Time `zid:"13"`
 
 	// allow standard []byte oriented message to cancel too.
 	Ctx context.Context `msg:"-"`
 
 	// Deadline is optional, but if it is set on the client,
 	// the server side context.Context will honor it.
-	Deadline time.Time `zid:"12"` // if non-zero, set this deadline in the remote Ctx
+	Deadline time.Time `zid:"14"` // if non-zero, set this deadline in the remote Ctx
 
 	// The CallID will be identical on
 	// all parts of the same stream.
-	StreamPart int64 `zid:"13"`
+	StreamPart int64 `zid:"15"`
 
 	// NoSystemCompression turns off any usual
 	// compression that the rpc25519 system
@@ -418,18 +420,18 @@ type HDR struct {
 	// this flag will not affect the usual
 	// compression-matching in responses.
 	// For those purposes, it is ignored.
-	NoSystemCompression bool `zid:"14"`
+	NoSystemCompression bool `zid:"16"`
 
 	// ToPeerID and FromPeerID help maintain stateful sub-calls
 	// allowing client/server symmetry when
 	// implementing complex stateful protocols.
-	ToPeerID   string `zid:"15"`
-	ToPeerName string `zid:"16"`
+	ToPeerID   string `zid:"17"`
+	ToPeerName string `zid:"18"`
 
-	FromPeerID   string `zid:"17"`
-	FromPeerName string `zid:"18"`
+	FromPeerID   string `zid:"19"`
+	FromPeerName string `zid:"20"`
 
-	FragOp int `zid:"19"`
+	FragOp int `zid:"21"`
 
 	// streamCh is internal; used for client -> server streaming on CallUploadBegin
 	streamCh chan *Message `msg:"-" json:"-"`
