@@ -4,8 +4,10 @@ rpc25519: ed25519 based RPC for Go/golang
 A new view of the peer framework: it
 is almost like having goroutines that can talk 
 to remote goroutines. In fact, that is fundamentally
-what it provides, over a persist circuit that
-can be thought of a "remote" Go channel.
+what it provides: communication over a persistent circuit
+can be thought of a sending and receiving over 
+a Go channel that happens to talk to a remote 
+Go process.
 
 * Recent News (2025 Aug 03): v1.25.14 canonical peers
 
