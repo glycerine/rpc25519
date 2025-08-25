@@ -3064,11 +3064,12 @@ func (s *Server) PreferExtantRemotePeerGetCircuit(
 	remoteAddr string,
 	waitUpTo time.Duration,
 	autoSendNewCircuitCh chan *Circuit,
+	waitForAck bool,
 
 ) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
 
 	return s.PeerAPI.PreferExtantRemotePeerGetCircuit(
-		callCtx, lpb, circuitName, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, autoSendNewCircuitCh)
+		callCtx, lpb, circuitName, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, autoSendNewCircuitCh, waitForAck)
 }
 
 // PreferExtantRemotePeerGetCircuit is similar
@@ -3097,11 +3098,12 @@ func (s *Client) PreferExtantRemotePeerGetCircuit(
 	remoteAddr string,
 	waitUpTo time.Duration,
 	autoSendNewCircuitCh chan *Circuit,
+	waitForAck bool,
 
 ) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
 
 	return s.PeerAPI.PreferExtantRemotePeerGetCircuit(
-		callCtx, lpb, circuitName, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, autoSendNewCircuitCh)
+		callCtx, lpb, circuitName, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, autoSendNewCircuitCh, waitForAck)
 }
 
 // GetConfig returns the Server's Config.

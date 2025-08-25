@@ -30,9 +30,8 @@ import (
 // If autoSendNewCircuitCh != nil, then we automatically
 // send to autoSendNewCircuitCh <- ckt if get
 // a circuit back without error.
-func (p *peerAPI) PreferExtantRemotePeerGetCircuit(callCtx context.Context, lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remotePeerServiceNameVersion, remoteAddr string, errWriteDur time.Duration, autoSendNewCircuitCh chan *Circuit) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
+func (p *peerAPI) PreferExtantRemotePeerGetCircuit(callCtx context.Context, lpb *LocalPeer, circuitName string, frag *Fragment, remotePeerServiceName, remotePeerServiceNameVersion, remoteAddr string, errWriteDur time.Duration, autoSendNewCircuitCh chan *Circuit, waitForAck bool) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
 
-	waitForAck := true
 	preferExtant := true
 
 	ckt, ackMsg, madeNewAutoCli, err = p.implRemotePeerAndGetCircuit(callCtx, lpb, circuitName, frag, remotePeerServiceName, remotePeerServiceNameVersion, remoteAddr, errWriteDur, waitForAck, preferExtant)
@@ -302,8 +301,8 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	return
 }
 
-func (s *LocalPeer) PreferExtantRemotePeerGetCircuit(callCtx context.Context, circuitName string, frag *Fragment, remotePeerServiceName, remotePeerServiceNameVersion, remoteAddr string, errWriteDur time.Duration, autoSendNewCircuitCh chan *Circuit) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
-	waitForAck := true
+func (s *LocalPeer) PreferExtantRemotePeerGetCircuit(callCtx context.Context, circuitName string, frag *Fragment, remotePeerServiceName, remotePeerServiceNameVersion, remoteAddr string, errWriteDur time.Duration, autoSendNewCircuitCh chan *Circuit, waitForAck bool) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
+
 	preferExtant := true
 
 	ckt, ackMsg, madeNewAutoCli, err = s.PeerAPI.implRemotePeerAndGetCircuit(callCtx, s, circuitName, frag, remotePeerServiceName, remotePeerServiceNameVersion, remoteAddr, errWriteDur, waitForAck, preferExtant)

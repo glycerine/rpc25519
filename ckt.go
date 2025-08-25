@@ -74,6 +74,10 @@ type Circuit struct {
 	// The madeNewAutoCli return bool can also
 	// convey when the PeerID will have changed.
 	PreferExtant bool
+
+	// report whether the creation of this circuit
+	// involved spinning up a new auto-client.
+	MadeNewAutoCli bool
 }
 
 func (ckt *Circuit) String() string {
@@ -1075,6 +1079,7 @@ func (lpb *LocalPeer) newCircuit(
 		msg.HDR.Args["#fromBaseServerAddr"] = lpb.BaseServerAddr
 
 		madeNewAutoCli, _, err = lpb.U.SendOneWayMessage(ctx2, msg, errWriteDur)
+		ckt.MadeNewAutoCli = madeNewAutoCli
 		if err != nil {
 			alwaysPrintf("arg: tried to tell remote, but: err='%v'", err)
 		}
@@ -1142,6 +1147,7 @@ func (lpb *LocalPeer) newCircuit(
 		// copied above in firstFrag.ToMessage()
 
 		madeNewAutoCli, _, err = lpb.U.SendOneWayMessage(ctx2, msg, -1)
+		ckt.MadeNewAutoCli = madeNewAutoCli
 	}
 
 	return

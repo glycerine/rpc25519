@@ -2216,7 +2216,7 @@ type UniversalCliSrv interface {
 
 	StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, peerServiceNameVersion, remoteAddr string, waitUpTo time.Duration, waitForAck bool, autoSendNewCircuitCh chan *Circuit, preferExtant bool) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error)
 
-	PreferExtantRemotePeerGetCircuit(callCtx context.Context, lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, peerServiceNameVersion, remoteAddr string, waitUpTo time.Duration, autoSendNewCircuitCh chan *Circuit) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error)
+	PreferExtantRemotePeerGetCircuit(callCtx context.Context, lpb *LocalPeer, circuitName string, frag *Fragment, peerServiceName, peerServiceNameVersion, remoteAddr string, waitUpTo time.Duration, autoSendNewCircuitCh chan *Circuit, waitForAck bool) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error)
 
 	SendOneWayMessage(ctx context.Context, msg *Message, errWriteDur time.Duration) (madeNewAutoCli bool, ch chan *Message, err error)
 
