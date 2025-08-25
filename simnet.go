@@ -1262,7 +1262,7 @@ func (s *Simnet) shutdownSimnode(target *simnode) (undo Alteration) {
 			//node.cliConn.Close()
 			node.cliConn = nil
 
-			vv("deleting from s.node2server '%v'", node.name)
+			//vv("deleting from s.node2server '%v'", node.name)
 			delete(s.node2server, node)
 			delete(s.dns, node.name)
 			delete(s.servers, node.serverBaseID)
@@ -1277,11 +1277,11 @@ func (s *Simnet) shutdownSimnode(target *simnode) (undo Alteration) {
 		// no more circuits from this node
 		s.circuits.delkey(node)
 
-		vv("handleAlterCircuit: we just SHUTDOWN node: %v", node.name)
+		//vv("handleAlterCircuit: we just SHUTDOWN node: %v", node.name)
 	}
 	//s.node2server[target] = target
 
-	vv("handleAlterCircuit: end SHUTDOWN, target is now: %v", target)
+	//vv("handleAlterCircuit: end SHUTDOWN, target is now: %v", target)
 	return
 }
 
@@ -1592,7 +1592,7 @@ func (s *Simnet) reverse(alt Alteration) (undo Alteration) {
 
 // alter all the auto-cli of a server and the server itself.
 func (s *Simnet) handleAlterHost(altop *mop) (undo Alteration) {
-	vv("top handleAlterHost altop='%v'", altop)
+	//vv("top handleAlterHost altop='%v'", altop)
 
 	var alt *simnodeAlteration = altop.alterHost
 
