@@ -9,13 +9,15 @@ import (
 	"strings"
 	"sync"
 
-	//"sync/atomic"
+	"sync/atomic"
 	"time"
 
 	"github.com/glycerine/idem"
 )
 
 //go:generate greenpack
+
+var nextCircuitSN int64
 
 // Circuit is a handle to the two-way,
 // asynchronous, communication channel
@@ -26,6 +28,8 @@ import (
 //
 //msgp:ignore Circuit
 type Circuit struct {
+	CircuitSN int64
+
 	LpbFrom *LocalPeer
 	RpbTo   *RemotePeer
 
@@ -82,6 +86,7 @@ type Circuit struct {
 
 func (ckt *Circuit) String() string {
 	return fmt.Sprintf(`&Circuit{
+     CircuitSN: %v,
           Name: "%v",
      CircuitID: "%v",
 
@@ -98,13 +103,14 @@ RemoteServiceName: "%v",
 RemotePeerServiceNameVersion: "%v",
 
      PreferExtant: %v,
+   MadeNewAutoCli: %v,
 
  // LocalCircuitURL: "%v",
  // RemoteCircuitURL: "%v",
 
    UserString: "%v",
     FirstFrag: %v
-}`, ckt.Name,
+}`, ckt.CircuitSN, ckt.Name,
 		AliasDecode(ckt.CircuitID),
 		ckt.LocalPeerID, AliasDecode(ckt.LocalPeerID),
 		ckt.LocalPeerName,
@@ -115,6 +121,7 @@ RemotePeerServiceNameVersion: "%v",
 		ckt.LocalPeerServiceNameVersion,
 		ckt.RemotePeerServiceNameVersion,
 		ckt.PreferExtant,
+		ckt.MadeNewAutoCli,
 		ckt.LocalCircuitURL(),
 		ckt.RemoteCircuitURL(),
 		ckt.UserString,
@@ -1008,6 +1015,7 @@ func (lpb *LocalPeer) newCircuit(
 	reads := make(chan *Fragment)
 	errors := make(chan *Fragment)
 	ckt = &Circuit{
+		CircuitSN:                    atomic.AddInt64(&nextCircuitSN, 1),
 		Name:                         circuitName,
 		LocalServiceName:             lpb.PeerServiceName,
 		LocalPeerServiceNameVersion:  lpb.PeerServiceNameVersion,
