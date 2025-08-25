@@ -9,9 +9,9 @@ import (
 
 const faketime bool = false
 
-func init() {
-	fmt.Printf("faketime = %v\n", faketime)
-}
+//func init() {
+//	fmt.Printf("faketime = %v\n", faketime)
+//}
 
 func synctestWait_LetAllOtherGoroFinish() {}
 

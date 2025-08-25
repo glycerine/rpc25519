@@ -2293,9 +2293,9 @@ func (s *Simnet) tickLogicalClocks() {
 }
 
 func (s *Simnet) Start() {
-	if !s.cfg.QuietTestMode {
-		alwaysPrintf("simnet.Start: faketime = %v", faketime)
-	}
+	//if !s.cfg.QuietTestMode {
+	//alwaysPrintf("simnet.Start: faketime = %v", faketime)
+	//}
 	go s.scheduler()
 }
 

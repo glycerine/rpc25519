@@ -14,9 +14,9 @@ import (
 
 const faketime bool = true
 
-func init() {
-	fmt.Printf("faketime = %v\n", faketime)
-}
+//func init() {
+//	fmt.Printf("faketime = %v\n", faketime)
+//}
 
 func bubbleOrNot(f func()) {
 	synctest.Run(f)

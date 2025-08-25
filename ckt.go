@@ -1039,6 +1039,10 @@ func (lpb *LocalPeer) newCircuit(
 	if ckt.CircuitID == "" {
 		ckt.CircuitID = NewCallID(circuitName)
 	}
+
+	//if ckt.CircuitSN == 7 {
+	//panic("where?")
+	//}
 	//AliasRegister(ckt.CircuitID, ckt.CircuitID+" ("+circuitName+")")
 
 	//lpb.Halt.AddChild(ckt.Halt) // no worries: pump will do this.
