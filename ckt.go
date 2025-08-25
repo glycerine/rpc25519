@@ -693,6 +693,10 @@ func (peerAPI *peerAPI) newLocalPeer(
 	//vv("newLocalPeer called with baseServerAddr='%v'; peerAPI.baseServerAddr = '%v'", baseServerAddr, peerAPI.baseServerAddr)
 	if baseServerAddr == "" {
 		baseServerAddr = peerAPI.baseServerAddr
+		if baseServerAddr == "" {
+			// fill for servers too... did not seem to work though.
+			baseServerAddr = netAddr
+		}
 	}
 	pb = &LocalPeer{
 		NetAddr:         netAddr,
