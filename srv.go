@@ -1825,7 +1825,7 @@ func (s *Server) deletePair(p *rwPair) {
 	if !ok {
 		return
 	}
-	vv("deleting pair: key='%v'; rwPair p.from = '%v'; isAutoCli=%v; caller=%v", key, p.from, p.isAutoCli, fileLine(2))
+	//vv("deleting pair: key='%v'; rwPair p.from = '%v'; isAutoCli=%v; caller=%v", key, p.from, p.isAutoCli, fileLine(2))
 	s.pair2remote.Del(p)
 	s.remote2pair.Del(key)
 }

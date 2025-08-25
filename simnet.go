@@ -1623,7 +1623,7 @@ func (s *Simnet) handleAlterHost(altop *mop) (undo Alteration) {
 		_ = s.handleAlterCircuit(altop, closeDone_NO)
 		i++
 	}
-	vv("past range s.locals for altop='%v'", altop)
+	//vv("past range s.locals for altop='%v'", altop)
 	alt.undo = undo
 	s.fin(altop)
 	close(alt.proceed)
@@ -1965,22 +1965,22 @@ func (s *Simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 					return
 					// inherently race wrt shutdown though, right?
 				default:
-					vv("arg! could not deliver timer? '%v'  requeue or what? ...assume this was just a shutdown race...", timer)
-					reQtimer = append(reQtimer, timer)
+					vv("arg! could not deliver timer? '%v'  requeue or what? methinks this mean the goroutine who made it is gone, as the runtime otherwise would wait to schedule us... (or could be a shutdown race...)", timer)
+					//reQtimer = append(reQtimer, timer)
 					// Q TODO: should we also? as client user might be
 					// long gone... could do:
 					//if timer.timerReseenCount > 10 {
 					// timer.timerCstrong = nil
 					//}
-					continue
+					//continue
 					//panic("why not deliverable? hopefully we never hit this and can just delete the backup attempt below")
 				}
-			}
+			} // end else
 		} else {
 			// INVAR: smallest timer > now
 			return
 		}
-	}
+	} // end for
 	return
 }
 
