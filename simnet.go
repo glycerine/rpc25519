@@ -1462,7 +1462,7 @@ func (s *Simnet) markFaulty(simnode *simnode) (was Faultstate) {
 	case ISOLATED:
 		simnode.state = FAULTY_ISOLATED
 	case HEALTHY:
-		vv("markFault going from HEALTHY to FAULTY")
+		//vv("markFault going from HEALTHY to FAULTY")
 		simnode.state = FAULTY
 	}
 	return
@@ -1475,7 +1475,7 @@ func (s *Simnet) markNotFaulty(simnode *simnode) (was Faultstate) {
 	case FAULTY_ISOLATED:
 		simnode.state = ISOLATED
 	case FAULTY:
-		vv("markNotFaulty going from FAULTY to HEALTHY")
+		//vv("markNotFaulty going from FAULTY to HEALTHY")
 		simnode.state = HEALTHY
 	case ISOLATED:
 		// no-op
@@ -1530,7 +1530,7 @@ func (s *Simnet) unIsolateSimnode(simnode *simnode) (undo Alteration) {
 }
 
 func (s *Simnet) handleAlterCircuit(altop *mop, closeDone bool) (undo Alteration) {
-	vv("top handleAlterCircuit, altop=%v", altop)
+	//vv("top handleAlterCircuit, altop=%v", altop)
 	var alt *simnodeAlteration
 	switch altop.kind {
 	case ALTER_NODE:
@@ -1594,7 +1594,7 @@ func (s *Simnet) reverse(alt Alteration) (undo Alteration) {
 
 // alter all the auto-cli of a server and the server itself.
 func (s *Simnet) handleAlterHost(altop *mop) (undo Alteration) {
-	vv("top handleAlterHost altop='%v'", altop)
+	//vv("top handleAlterHost altop='%v'", altop)
 
 	var alt *simnodeAlteration = altop.alterHost
 

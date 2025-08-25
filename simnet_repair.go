@@ -58,7 +58,7 @@ func (s *Simnet) injectCircuitFault(faultop *mop, closeProceed bool) (err error)
 	for rem, conn := range remotes.all() {
 		if target == nil || target == rem {
 			if fault.UpdateDeafReads {
-				vv("origin %v, setting conn.deafRead = %v", origin.name, fault.DeafReadsNewProb) // seen, good 1002.
+				//vv("origin %v, setting conn.deafRead = %v", origin.name, fault.DeafReadsNewProb) // seen, good 1002.
 				conn.deafRead = fault.DeafReadsNewProb
 			}
 			if fault.UpdateDropSends {
@@ -72,10 +72,10 @@ func (s *Simnet) injectCircuitFault(faultop *mop, closeProceed bool) (err error)
 	// doing the apply faults below and the
 	// equilibrate reads when defer runs.
 	if s.localCircuitFaultsPresent(origin, nil) {
-		vv("localCircuitFaultsPresent true")
+		//vv("localCircuitFaultsPresent true")
 		s.markFaulty(origin)
 	} else {
-		vv("localCircuitFaultsPresent false")
+		//vv("localCircuitFaultsPresent false")
 		s.markNotFaulty(origin)
 	}
 
@@ -403,10 +403,10 @@ func (conn *simconn) repair() (changed int) {
 // target is nil, we check all conn/circuits starting
 // at origin. otherwise just the conn from origin -> target.
 func (s *Simnet) localCircuitFaultsPresent(origin, target *simnode) (ans bool) {
-	vv("top localCircuitFaultsPresent")
-	defer func() {
-		vv("end localCircuitFaultsPresent, returning %v", ans)
-	}()
+	//vv("top localCircuitFaultsPresent")
+	//defer func() {
+	//	vv("end localCircuitFaultsPresent, returning %v", ans)
+	//}()
 	for rem, conn := range s.circuits.get(origin).all() {
 		if target == nil || target == rem {
 			if conn.deafRead > 0 {
