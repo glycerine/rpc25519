@@ -1961,7 +1961,7 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 
 	if !ok {
 		if !s.cfg.ServerAutoCreateClientsToDialOtherServers {
-			alwaysPrintf("yikes! Server did not find (and auto-cli off) destAddr '%v' in remote2pair: '%v'", destAddr, s.remote2pair.GetKeySlice())
+			//alwaysPrintf("yikes! Server did not find (and auto-cli off) destAddr '%v' in remote2pair: '%v'", destAddr, s.remote2pair.GetKeySlice())
 		} else {
 			//alwaysPrintf("yikes! Server did not find destAddr (auto-cli on) '%v' in remote2pair: '%v'", destAddr, s.remote2pair.GetKeySlice())
 		}
@@ -2055,7 +2055,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		if err2 != nil {
 			return
 		}
-		if cli == nil || cli.conn == nil {
+		if cli.IsDown() {
 			if !s.cfg.QuietTestMode {
 				alwaysPrintf("%v no cli.conn, assuming shutdown in progress...", s.name)
 			}

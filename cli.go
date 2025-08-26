@@ -116,7 +116,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		if c.cfg.UseSimNet {
 			panic("cannot have both TCPonly_no_TLS and UseSimNet true")
 		}
-		c.runClientTCP(serverAddr)
+		c.runClientTCP(serverAddr) // race write vs srv.go:2058 cli==nil
 		return
 	}
 
