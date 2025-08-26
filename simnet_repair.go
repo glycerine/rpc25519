@@ -226,7 +226,7 @@ func (s *Simnet) handleHostRepair(repairop *mop) (err error) {
 
 	var repair *hostRepair = repairop.repairHost
 
-	//vv("top of handleHostRepair; repair = '%v'", repair)
+	vv("top of handleHostRepair; repair = '%v'", repair)
 
 	defer func() {
 		if err != nil {
@@ -261,10 +261,11 @@ func (s *Simnet) handleHostRepair(repairop *mop) (err error) {
 	for node := range group {
 		cktRepair := s.newCircuitRepair(node.name, "",
 			repair.unIsolate, repair.powerOnIfOff, justOrigin, repair.deliverDroppedSends)
-		//vv("handleHostRepair about to call handleCircuitRepair with cktRepair='%v'", cktRepair)
+		//vv("handleHostRepair about to call handleCircuitRepair on node '%v' with cktRepair='%v'", node.name, cktRepair)
 		cktRepairOp := s.newRepairCktMop(cktRepair)
 		s.handleCircuitRepair(cktRepairOp, closeProceed_NO)
 	}
+
 	return
 }
 
@@ -328,6 +329,10 @@ func (s *Simnet) handleCircuitRepair(repairop *mop, closeProceed bool) (err erro
 			}
 		}
 	}
+	if repair.unIsolate {
+		//vv("in handleCircuitRepair about to unIsolate '%v'", origin.name)
+		s.unIsolateSimnode(origin)
+	}
 	return
 }
 
@@ -346,10 +351,10 @@ func (s *Simnet) handleCircuitRepair(repairop *mop, closeProceed bool) (err erro
 // If state is HEALTHY, this is a no-op.
 // If state is ISOLATED, this is a no-op.
 func (s *Simnet) repairAllCircuitFaults(simnode *simnode) {
-	//vv("top of repairAllCircuitFaults, simnode = '%v'; state = %v", simnode.name, simnode.state)
-	//defer func() {
-	//vv("end of repairAllCircuitFaults")
-	//}()
+	vv("top of repairAllCircuitFaults, simnode = '%v'; state = %v", simnode.name, simnode.state)
+	defer func() {
+		vv("end of repairAllCircuitFaults, simnode = '%v'; state = %v", simnode.name, simnode.state)
+	}()
 
 	switch simnode.state {
 	case HEALTHY:
