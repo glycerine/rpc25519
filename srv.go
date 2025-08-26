@@ -59,7 +59,7 @@ func (s *Server) runServerMain(
 	//vv("runServerMain running")
 
 	defer func() {
-		vv("runServerMain defer s.halt=%p", s.halt)
+		//vv("runServerMain defer s.halt=%p", s.halt)
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
 	}()
@@ -174,7 +174,7 @@ func (s *Server) runServerMain(
 		// a.IP is a net.IP
 		if a.IP.IsUnspecified() {
 			externalIP, extNetIP := ipaddr.GetExternalIP2() // e.g. 100.x.x.x
-			vv("have unspecified IP, trying to report a specific external: '%v'", externalIP)
+			alwaysPrintf("have unspecified IP, trying to report a specific external: '%v'", externalIP)
 			a.IP = extNetIP
 		}
 	default:
@@ -601,7 +601,7 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 			return
 		}
 		if err != nil {
-			vv("srv read loop err = '%v'", err)
+			//vv("srv read loop err = '%v'", err)
 			r := err.Error()
 			if strings.Contains(r, "remote error: tls: bad certificate") {
 				//vv("ignoring client connection with bad TLS cert.")
@@ -2404,7 +2404,7 @@ func (s *Server) Close() error {
 		}
 		s.cfg.shared.mut.Unlock()
 	}
-	vv("Server.Close() called; caller='%v'; s.halt=%p", fileLine(2), s.halt)
+	//vv("Server.Close() called; caller='%v'; s.halt=%p", fileLine(2), s.halt)
 	s.halt.ReqStop.Close()
 	s.mut.Lock() // avoid data race
 	if s.cfg.UseSimNet {

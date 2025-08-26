@@ -57,7 +57,7 @@ var sep = string(os.PathSeparator)
 func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string) {
 
 	defer func() {
-		vv("runClientMain defer: end for goro = %v; closing c.halt=%p", GoroNumber(), c.halt)
+		//vv("runClientMain defer: end for goro = %v; closing c.halt=%p", GoroNumber(), c.halt)
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
 
@@ -233,7 +233,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 			return
 		}
 		//for i := range good {
-		//	vv("accepted identity for server: '%v' (was new: %v)\n", good[i], wasNew)
+		//	//vv("accepted identity for server: '%v' (was new: %v)\n", good[i], wasNew)
 		//}
 	}
 
@@ -322,7 +322,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			//vv("cli runReadLoop defer/shutdown running. conn local '%v' -> '%v' remote", local(conn), remote(conn))
 		}
 		//}
-		vv("client runReadLoop exiting, last err = '%v'; closing c.halt=%p", err, c.halt) // EOF from node_0 after bouncing back???
+		//vv("client runReadLoop exiting, last err = '%v'; closing c.halt=%p", err, c.halt) // EOF from node_0 after bouncing back???
 		canc()
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
@@ -413,7 +413,7 @@ func (c *Client) runReadLoop(conn net.Conn, cpair *cliPairState) {
 			if err == io.EOF && msg == nil {
 				return
 			}
-			//vvv("ignore err = '%v'; msg = '%v'", err, msg)
+			//v//vv("ignore err = '%v'; msg = '%v'", err, msg)
 		}
 		if msg == nil {
 			continue
@@ -2295,7 +2295,7 @@ func (cli *Client) destAddrToSendCh(destAddr string) (sendCh chan *Message, halt
 	// for now, only the original client->sever conn is supported.
 
 	//defer func() {
-	//	vv("Client.destAddrToSendCh() returning ok = '%v'", ok)
+	//	//vv("Client.destAddrToSendCh() returning ok = '%v'", ok)
 	//}()
 
 	if cli.isQUIC {
@@ -2324,7 +2324,7 @@ func (cli *Client) destAddrToSendCh(destAddr string) (sendCh chan *Message, halt
 			return nil, nil, "", "", false
 		}
 	*/
-	vv("cli okay with destAddr '%v' == to; cli.oneWayCh=%p", destAddr, cli.oneWayCh)
+	//vv("cli okay with destAddr '%v' == to; cli.oneWayCh=%p", destAddr, cli.oneWayCh)
 	haltCh = cli.halt.ReqStop.Chan
 	sendCh = cli.oneWayCh
 	ok = true
