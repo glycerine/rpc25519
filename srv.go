@@ -426,8 +426,9 @@ func (s *Server) handleTLSConnection(conn *tls.Conn) {
 
 func (s *rwPair) runSendLoop(conn net.Conn) {
 	stopReason := ""
+	_ = stopReason
 	defer func() {
-		vv("rwPair(%p) defer of runSendLoop s.SendCh=%p; stopReason='%v'; s.to='%v' s.halt=%p", s, s.SendCh, stopReason, s.to, s.halt)
+		//vv("rwPair(%p) defer of runSendLoop s.SendCh=%p; stopReason='%v'; s.to='%v' s.halt=%p", s, s.SendCh, stopReason, s.to, s.halt)
 		s.Server.deletePair(s)
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
@@ -545,13 +546,12 @@ func (s *rwPair) runSendLoop(conn net.Conn) {
 
 func (s *rwPair) runReadLoop(conn net.Conn) {
 
-	if s.Server.cfg.UseSimNet {
-
-	}
+	//if s.Server.cfg.UseSimNet {}
 	stopReason := ""
+	_ = stopReason
 	ctx, canc := context.WithCancel(context.Background())
 	defer func() {
-		vv("rpc25519.Server: runReadLoop shutting down for local conn = '%v'; remote='%v'; s.halt=%p; stopReason='%v'", conn.LocalAddr(), remote(conn), s.halt, stopReason)
+		//vv("rpc25519.Server: runReadLoop shutting down for local conn = '%v'; remote='%v'; s.halt=%p; stopReason='%v'", conn.LocalAddr(), remote(conn), s.halt, stopReason)
 		canc()
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()

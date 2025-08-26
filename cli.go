@@ -512,22 +512,24 @@ func (c *Client) runSendLoop(conn net.Conn, cpair *cliPairState) {
 
 	var gcMe []*autoCliInRwPair
 	var stopReason string
+	_ = stopReason
 	defer func() {
 		r := recover()
 		if r != nil {
 			alwaysPrintf("cli runSendLoop defer/shutdown running. saw panic '%v'; stack=\n%v\n", r, allstacks())
 		} else {
-			vv("cli runSendLoop defer/shutdown running. reason='%v'. conn local '%v' -> '%v' remote", stopReason, local(conn), remote(conn))
+			//vv("cli runSendLoop defer/shutdown running. reason='%v'. conn local '%v' -> '%v' remote", stopReason, local(conn), remote(conn))
 		}
 
 		// we need to remove our c.oneWayCh from the
 		// Server.remote2pair / pair2remote channels
 		// used by the OneWaySend
 		for i, g := range gcMe {
-			vv("client sendLoop cleanup %v of %v: calling g.srv.deletePair on g=%p", i, len(gcMe), g)
+			_ = i
+			//vv("client sendLoop cleanup %v of %v: calling g.srv.deletePair on g=%p", i, len(gcMe), g)
 			g.srv.deletePair(g.pair)
 		}
-		vv("Client.runSendLoop defer closing c.halt=%p", c.halt)
+		//vv("Client.runSendLoop defer closing c.halt=%p", c.halt)
 		c.halt.ReqStop.Close()
 		c.halt.Done.Close()
 	}()
@@ -1815,7 +1817,7 @@ func (c *Client) Name() string {
 
 // Close shuts down the Client.
 func (c *Client) Close() error {
-	vv("Client.Close() called. c.halt=%p", c.halt)
+	//vv("Client.Close() called. c.halt=%p", c.halt)
 
 	// don't touch simnet directly here; racey. would need
 	// something like this to not race with simnet_client.go:18
