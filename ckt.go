@@ -1612,7 +1612,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	peerServiceName := msg.HDR.ToServiceName
 	peerServiceNameVersion := msg.HDR.ToPeerServiceNameVersion
 
-	s.mut.Lock() // deadlock! arg. other goro waiting for lpb.TellPumpNewCircuit... pump waiting to DiscardTimer after making pump.go:101 SendOneWayMessage -2 call... but simnet is blocked on the 1st barrier waiting to settle simnet.go:2422
+	s.mut.Lock()
 	defer s.mut.Unlock()
 
 	knownLocalPeer, ok := s.localServiceNameMap.Get(peerServiceName)
