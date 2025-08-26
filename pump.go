@@ -21,7 +21,7 @@ func prettyPrintCircuitMap(m map[string]*Circuit) (s string) {
 // background goro to read all PeerID *Messages and sort them
 // to all the circuits live in this peer.
 func (pb *LocalPeer) peerbackPump() {
-
+	countErrAntiDeadlockMustQueue := 0
 	defer func() {
 		//vv("%v LocalPeer.PeerbackPump all-finished; pb= %p", pb.PeerServiceName, pb) // 2x seen, "simgrid"
 		pb.Halt.ReqStop.Close()
@@ -101,6 +101,8 @@ func (pb *LocalPeer) peerbackPump() {
 				madeAutoCli, queueSendCh, err := pb.U.SendOneWayMessage(pb.Ctx, msg, -2)
 				_ = madeAutoCli
 				if err == ErrAntiDeadlockMustQueue {
+					countErrAntiDeadlockMustQueue++
+					//vv("ErrAntiDeadlockMustQueue count=%v", countErrAntiDeadlockMustQueue)
 					go closeCktInBackgroundToAvoidDeadlock(queueSendCh, msg, pb.Halt)
 				}
 			}()

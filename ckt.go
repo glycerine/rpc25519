@@ -1048,7 +1048,7 @@ func (lpb *LocalPeer) newCircuit(
 	//lpb.Halt.AddChild(ckt.Halt) // no worries: pump will do this.
 
 	//vv("newCircuit is telling pump about ckt=%p", ckt) // , ckt.Errors) //, stack())
-	select {
+	select { // blocked here
 	case lpb.TellPumpNewCircuit <- ckt:
 
 	case <-lpb.Halt.ReqStop.Chan:
@@ -1612,7 +1612,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 	peerServiceName := msg.HDR.ToServiceName
 	peerServiceNameVersion := msg.HDR.ToPeerServiceNameVersion
 
-	s.mut.Lock()
+	s.mut.Lock() // deadlock! arg. other goro waiting for lpb.TellPumpNewCircuit... pump waiting to DiscardTimer after making pump.go:101 SendOneWayMessage -2 call... but simnet is blocked on the 1st barrier waiting to settle simnet.go:2422
 	defer s.mut.Unlock()
 
 	knownLocalPeer, ok := s.localServiceNameMap.Get(peerServiceName)

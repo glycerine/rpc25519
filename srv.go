@@ -2153,17 +2153,23 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 	// a distributed deadlock where two senders both block
 	// their read loops trying to close circuits.
 	// pump.go and any caller using -1 is/must be prepared
-	// to queue a background close instead; we
-	// will give up after a millisecond to avoid the
-	// deadlock.
+	// to queue a background close instead on default.
 	if errWriteDur == -2 {
-
-		timeout := s.NewTimer(time.Millisecond)
-		if timeout == nil {
-			// happens on system shutdown
-			return ErrShutdown(), nil
-		}
-		defer timeout.Discard()
+		// turns out we can deadlock in a bubble
+		// by using a simnet timer OR a real timer here, because
+		// disposing of the timer can be blocked
+		// if the simnet is in the middle of a synctest.Wait,
+		// and our caller is holding a mutex... which is
+		// not supposed to be blocking but is...? on go1.24.3;
+		// might be better in go1.25.0.
+		//timeout := s.NewTimer(time.Millisecond)
+		//timeout := time.NewTimer(time.Millisecond)
+		//if timeout == nil {
+		// happens on system shutdown
+		//	return ErrShutdown(), nil
+		//}
+		// we can just let the GC get it in Go >= 1.23
+		//defer timeout.Discard()
 
 		select {
 		case sendCh <- msg:
@@ -2174,7 +2180,9 @@ func sendOneWayMessage(s oneWaySender, ctx context.Context, msg *Message, errWri
 		case <-ctx.Done():
 			return ErrContextCancelled, nil
 
-		case <-timeout.C:
+			// use default: now to avoid simnet/synctest
+			// deadlock, i.e. not: case <-timeout.C; for 402 membership_test
+		default:
 			return ErrAntiDeadlockMustQueue, sendCh
 		}
 	} else {
