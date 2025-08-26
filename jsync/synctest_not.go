@@ -3,7 +3,7 @@
 package jsync
 
 import (
-	"fmt"
+	//"fmt"
 	"testing"
 )
 

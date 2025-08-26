@@ -9,6 +9,24 @@ can be thought of a sending and receiving over
 a Go channel that happens to talk to a remote 
 Go process.
 
+The main example application of the 
+peer/circuit/fragment approach in this repo is an
+rsync clone (the code is in the jsync/ directory). 
+
+To demo to rsync-like protocol with jsrv and jcp:
+
+The cmd/jsrv provides a jsync server, and cmd/jcp is an
+rsync client. After `make` to install the
+example commands to ~/go/bin, then `selfy -k node -nopass` 
+should be run first to generate certs on one node; and then the
+~/.config/rpc25519/certs/ should be scp-ed up
+to the other node (in the same ~/.config/rpc25519/certs) 
+to set up the certificates. A simple transfer is then:
+
+~~~
+$ jcp some_file_or_dir remotehost:
+~~~
+
 * Recent News (2025 Aug 03): v1.25.14 canonical peers
 
 The peer/circuit/fragment API now provides the
