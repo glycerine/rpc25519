@@ -125,12 +125,12 @@ func (s *Simnet) injectCircuitFault(faultop *mop, closeProceed bool) (err error)
 // isolation state.
 func (s *Simnet) equilibrateReads(origin, target *simnode) {
 	//if target == nil {
-	//	vv("top equilibrateReads(origin='%v', target='nil')", origin.name)
+	//	//vv("top equilibrateReads(origin='%v', target='nil')", origin.name)
 	//} else {
-	//	vv("top equilibrateReads(origin='%v', target='%v')", origin.name, target.name)
+	//	//vv("top equilibrateReads(origin='%v', target='%v')", origin.name, target.name)
 	//}
 	//defer func() {
-	//	vv("end equilibrateReads, simnet = %v", s.qReport())
+	//	//vv("end equilibrateReads, simnet = %v", s.qReport())
 	//}()
 
 	var addToReadQ, addToDeafReadQ []*mop
@@ -226,7 +226,7 @@ func (s *Simnet) handleHostRepair(repairop *mop) (err error) {
 
 	var repair *hostRepair = repairop.repairHost
 
-	vv("top of handleHostRepair; repair = '%v'", repair)
+	//vv("top of handleHostRepair; repair = '%v'", repair)
 
 	defer func() {
 		if err != nil {
@@ -351,10 +351,10 @@ func (s *Simnet) handleCircuitRepair(repairop *mop, closeProceed bool) (err erro
 // If state is HEALTHY, this is a no-op.
 // If state is ISOLATED, this is a no-op.
 func (s *Simnet) repairAllCircuitFaults(simnode *simnode) {
-	vv("top of repairAllCircuitFaults, simnode = '%v'; state = %v", simnode.name, simnode.state)
-	defer func() {
-		vv("end of repairAllCircuitFaults, simnode = '%v'; state = %v", simnode.name, simnode.state)
-	}()
+	//vv("top of repairAllCircuitFaults, simnode = '%v'; state = %v", simnode.name, simnode.state)
+	//defer func() {
+	//	//vv("end of repairAllCircuitFaults, simnode = '%v'; state = %v", simnode.name, simnode.state)
+	//}()
 
 	switch simnode.state {
 	case HEALTHY:
@@ -410,7 +410,7 @@ func (conn *simconn) repair() (changed int) {
 func (s *Simnet) localCircuitFaultsPresent(origin, target *simnode) (ans bool) {
 	//vv("top localCircuitFaultsPresent")
 	//defer func() {
-	//	vv("end localCircuitFaultsPresent, returning %v", ans)
+	//	//vv("end localCircuitFaultsPresent, returning %v", ans)
 	//}()
 	for rem, conn := range s.circuits.get(origin).all() {
 		if target == nil || target == rem {
