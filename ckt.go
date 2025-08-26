@@ -207,6 +207,17 @@ func (ckt *Circuit) RemoteServerURL(serverNetAddr string) string {
 		ckt.CircuitID
 }
 
+func (ckt *Circuit) RemoteBaseServerNoCktURL(serverNetAddr string) string {
+
+	if serverNetAddr == "" {
+		serverNetAddr = ckt.RpbTo.BaseServerAddr
+	}
+	return serverNetAddr + "/" +
+		ckt.RemoteServiceName + "/" +
+		// ckt.RemotePeerServiceNameVersion + "/" +
+		ckt.RemotePeerID
+}
+
 func (ckt *Circuit) IsClosed() bool {
 	return ckt.Halt.ReqStop.IsClosed()
 }
