@@ -151,6 +151,14 @@ func (ckt *Circuit) RemoteCircuitURL() string {
 		ckt.CircuitID
 }
 
+// leave off the circuitID -- the last part -- compared to the above.
+func (ckt *Circuit) RemotePeerURL() string {
+	return ckt.RpbTo.NetAddr + "/" +
+		ckt.RemoteServiceName + "/" +
+		// ckt.RemotePeerServiceNameVersion + "/" +
+		ckt.RemotePeerID
+}
+
 func (ckt *Circuit) LocalBaseServerName() string {
 	return ckt.LpbFrom.BaseServerName
 }
