@@ -530,6 +530,16 @@ func (z *SimnetSnapshot) notAllHealthy() (long bool) {
 	return
 }
 
+func (z *SimnetSnapshot) HealthSummary() (r string) {
+	faults := z.notAllHealthy()
+	if faults {
+		r += "SimnetSnapshot{some faults}"
+	} else {
+		r += "SimnetSnapshot{all HEALTHY}"
+	}
+	return
+}
+
 // ShortString: if everything is healthy, just give a short
 // summary. Otherwise give the full snapshot.
 func (z *SimnetSnapshot) ShortString() (r string) {

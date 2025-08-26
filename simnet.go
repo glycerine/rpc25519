@@ -1594,7 +1594,7 @@ func (s *Simnet) reverse(alt Alteration) (undo Alteration) {
 
 // alter all the auto-cli of a server and the server itself.
 func (s *Simnet) handleAlterHost(altop *mop) (undo Alteration) {
-	//vv("top handleAlterHost altop='%v'", altop)
+	vv("top handleAlterHost altop='%v'", altop)
 
 	var alt *simnodeAlteration = altop.alterHost
 
