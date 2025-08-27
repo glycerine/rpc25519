@@ -2660,7 +2660,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		switch op.kind {
 		case CLOSE_SIMNODE:
 			//vv("CLOSE_SIMNODE '%v'", op.closeSimnode.simnodeName)
-			s.handleCloseSimnode(op)
+			s.handleCloseSimnode(op, now, i)
 
 		// case TIMER_FIRES: // not currently used.
 		// 	vv("TIMER_FIRES: %v", op)
@@ -3295,7 +3295,8 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 }
 
 // PRE: alter host to SHUTDOWN already done.
-func (s *Simnet) handleCloseSimnode(clop *mop) {
+// the api CloseSimnode() does this beforehand.
+func (s *Simnet) handleCloseSimnode(clop *mop, now time.Time, iloop int64) {
 	vv("CLOSE_SIMNODE '%v'", clop.closeSimnode.simnodeName)
 
 	defer func() {
@@ -3316,12 +3317,45 @@ func (s *Simnet) handleCloseSimnode(clop *mop) {
 
 	others, ok := s.circuits.get2(node)
 	_ = others
+
 	if ok {
 		// close all simconn
-		//for rem, conn := range others.all() {
-		//?? seems external...clonn.Close()
-		//}
+		for rem, conn := range others.all() {
+
+			// actually we just want to close
+			// the local without transmitting
+			// EOF to the remote, at least for now.
+			if false {
+				// conn.Close() is external,
+				// it does:
+				m := NewMessage()
+				m.EOF = true
+				//vv("Close sending EOF in msgWrite, on %v", s.local.name)
+				//conn.msgWrite(m, nil, 0)
+				// which does
+
+				send := s.newSendMop(m, false) // false for isCli (matters?)
+				send.origin = node
+				send.sendFileLine = fileLine(2)
+				send.target = rem
+				send.initTm = now
+				send.isEOF_RST = true
+				// s.net.msgSendCh <- send:
+				// which does
+				s.handleSend(send, 1, iloop)
+				// but I'm not even sure if that would
+				// work from here, though we are both internal.
+				// for now since the (if false) above is
+				// in place, just leave it.
+			}
+
+			// This is the important part. It
+			// will make the local Read return EOF, which should
+			// shutdown all read loops in the local xServer/Client.
+			conn.localClosed.Close()
+		} // range over all conn
 	}
+
 	s.circuits.delkey(node)
 	delete(s.node2server, node)
 	delete(s.dns, target)
