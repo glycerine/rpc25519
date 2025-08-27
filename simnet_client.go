@@ -43,6 +43,10 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string, doLoops bool)
 	select {
 	case <-registration.proceed:
 		//vv("client registration.proceed")
+		if registration.err != nil {
+			// only error is dialTo name not found at the moment.
+			return registration.err
+		}
 	case <-c.simnet.halt.ReqStop.Chan:
 		return
 	case <-c.halt.ReqStop.Chan:

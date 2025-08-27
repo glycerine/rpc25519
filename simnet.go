@@ -740,9 +740,15 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 
 	srvnode, ok := s.dns[reg.dialTo]
 	if !ok {
-		s.showDNS()
-		panic(fmt.Sprintf("cannot find server '%v', requested "+
-			"by client registration from '%v'", reg.dialTo, reg.client.name))
+		// node might simply be down at the moment,
+		// and fully closed and offline, out of the simnet.
+		//s.showDNS()
+		//panic(fmt.Sprintf("cannot find server '%v', requested "+
+		//	"by client registration from '%v'", reg.dialTo, reg.client.name))
+		reg.err = fmt.Errorf("client dialTo name not found: '%v'", reg.dialTo)
+		s.fin(regop)
+		close(reg.proceed)
+		return
 	}
 
 	clinode := s.newSimnodeClient(reg.client.name, reg.serverBaseID)

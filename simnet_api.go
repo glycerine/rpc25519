@@ -537,6 +537,7 @@ type clientRegistration struct {
 	simnode *simnode // our identity in the simnet (conn.local)
 	conn    *simconn // our connection to server (c2s)
 	who     int
+	err     error // report if dialTo name not found
 }
 
 // external, called by simnet_client.go to
