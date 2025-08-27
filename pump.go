@@ -207,8 +207,9 @@ func (pb *LocalPeer) peerbackPump() {
 				}
 				continue
 			}
-			//vv("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
-
+			if msg.HDR.FromPeerID == "node_0" {
+				vv("pump %v: (ckt %v) sees msg='%v'", name, ckt.Name, msg)
+			}
 			if msg.HDR.Typ == CallPeerEndCircuit {
 				//vv("pump %v: (ckt %v) sees msg CallPeerEndCircuit in msg: '%v'", name, ckt.Name, msg)
 				cleanupCkt(ckt, false)

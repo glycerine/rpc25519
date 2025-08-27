@@ -2,6 +2,8 @@ package rpc25519
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -710,6 +712,24 @@ func (s *SimnetSnapshot) PeerMatrix() (matrix *PeerMatrix) {
 			matrix.Sparse[o][t] = sym
 		}
 	}
+	return
+}
+
+func autoCliToBaseURL(url0 string) (url1, serverBaseName string) {
+
+	u, err := url.Parse(url0)
+	panicOn(err)
+	hostport := u.Host
+	host := u.Hostname()
+	serverBaseName = extractFromAutoCli(host)
+	port := u.Port()
+	if port != "" {
+		hostport = net.JoinHostPort(serverBaseName, port)
+	} else {
+		hostport = serverBaseName
+	}
+	u.Host = hostport
+	url1 = u.String() // re-assemble
 	return
 }
 

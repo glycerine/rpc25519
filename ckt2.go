@@ -236,6 +236,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 		ackMsg = nil
 		return
 	}
+	vv("madeNewAutoCli = %v", madeNewAutoCli)
 
 	var timeoutCh <-chan time.Time
 	if errWriteDur > 0 {
