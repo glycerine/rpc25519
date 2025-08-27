@@ -1978,10 +1978,18 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 			// to see if we can use the remote-client-initiated socket.
 			localNetAddr := s.LocalNetAddr()
 			localhost := localNetAddr.String()
-			autocliName := fromToAutoCliName(localhost, destServerBaseName)
-			synth := localNetAddr.Network() + "://" + autocliName
-			pair, ok = s.remote2pair.Get(synth)
-			vv("synth='%v' -> ok=%v; destAddr='%v' destServerBaseName='%v'; stack=\n%v", synth, ok, destAddr, destServerBaseName, stack()) // worked at least once 055
+			// notice that because we are looking at the
+			// remote name, it is reversed... althought actually
+			// we should check both b/c we don't care either way.
+			autocliName1 := fromToAutoCliName(localhost, destServerBaseName)
+			autocliName2 := fromToAutoCliName(destServerBaseName, localhost)
+			synth1 := localNetAddr.Network() + "://" + autocliName1
+			synth2 := localNetAddr.Network() + "://" + autocliName2
+			pair, ok = s.remote2pair.Get(synth1)
+			if !ok {
+				pair, ok = s.remote2pair.Get(synth2)
+			}
+			//vv("synth='%v' -> ok=%v; destAddr='%v' destServerBaseName='%v'; stack=\n%v", synth, ok, destAddr, destServerBaseName, stack()) // worked at least once 055
 		}
 	}
 
