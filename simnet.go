@@ -517,6 +517,19 @@ type Simnet struct {
 
 	node2server map[*simnode]*simnode
 
+	// Ugh. TODO: we might need per-client dns because in general
+	// it is impossible for a new auto-cli to know
+	// that its name will be unique? as a 2nd connection
+	// attempt may be made when in reality the first
+	// connection attempt succeeded but just has been
+	// slow to return. We don't want the simnode to
+	// enforce a unique name when the real network
+	// can only know what is locally unique, not
+	// globally. First we'll try adding random suffixes
+	// to the names externally. OR we could use
+	// internal unique names (append a long random string)
+	// and have separate display names that can
+	// have duplicates.
 	dns map[string]*simnode
 	//dns *dmap[string, *simnode]
 

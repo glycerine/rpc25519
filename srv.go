@@ -1966,6 +1966,7 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 		if destAddr1 != destAddr {
 			pair, ok = s.remote2pair.Get(destAddr1)
 		}
+		// is this inducing multiple same-named auto-cli? nope; not the problem
 		if !ok {
 			// Also needed to prevent making 2x auto-cli.
 			// Original motivation:
@@ -1977,10 +1978,10 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 			// to see if we can use the remote-client-initiated socket.
 			localNetAddr := s.LocalNetAddr()
 			localhost := localNetAddr.String()
-			autocliName := fromToAutoCliName(destServerBaseName, localhost)
+			autocliName := fromToAutoCliName(localhost, destServerBaseName)
 			synth := localNetAddr.Network() + "://" + autocliName
 			pair, ok = s.remote2pair.Get(synth)
-			//vv("synth='%v' -> ok=%v", synth, ok) // worked at least once 055
+			vv("synth='%v' -> ok=%v; destAddr='%v' destServerBaseName='%v'; stack=\n%v", synth, ok, destAddr, destServerBaseName, stack()) // worked at least once 055
 		}
 	}
 
@@ -1988,7 +1989,7 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 		if !s.cfg.ServerAutoCreateClientsToDialOtherServers {
 			alwaysPrintf("yikes! Server did not find (and auto-cli off) server='%v' destAddr='%v' in remote2pair: '%v'", s.name, destAddr, s.remote2pair.GetKeySlice())
 		} else {
-			alwaysPrintf("yikes! Server did not find destAddr (auto-cli on) server='%v'; destAddr='%v' in remote2pair: '%v'", s.name, destAddr, s.remote2pair.GetKeySlice())
+			alwaysPrintf("yikes! '%v' Server did not find destAddr (auto-cli on) destAddr='%v' in remote2pair: '%v'", s.name, destAddr, s.remote2pair.GetKeySlice())
 		}
 		return nil, nil, "", "", false
 	}
@@ -2061,6 +2062,7 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		ccfg.BaseServerName = s.name
 		ccfg.BaseServerAddr = s.LocalNetAddr().String()
 		//vv("auto cli setting ccfg.BaseServerAddr = '%v'", ccfg.BaseServerAddr)
+		vv("auto cliName = '%v'", cliName)
 		// uses same serverBaseID so simnet can group same host simnodes.
 		cli, err2 := NewClient(cliName, &ccfg)
 		panicOn(err2)
@@ -2084,17 +2086,6 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		err2 = cli.Start()
 		if err2 != nil {
 			return
-		}
-		// this was a cli.conn == nil check, but is it racy?
-		// why does not the err2 check suffice? we return an
-		// error now on shutdown, so this should not be needed.
-		if false {
-			if cli.IsDown() {
-				if !s.cfg.QuietTestMode {
-					alwaysPrintf("%v no cli.conn, to '%v' as cliName='%v' => assuming shutdown in progress...", s.name, dest, cliName)
-				}
-				return
-			}
 		}
 
 		s.mut.Lock()

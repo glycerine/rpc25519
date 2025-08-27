@@ -242,6 +242,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	if errWriteDur > 0 {
 		timeoutCh = time.After(errWriteDur)
 	}
+	vv("start waiting for ack")
 	if waitForAck {
 		select {
 		case <-timeoutCh:

@@ -641,7 +641,8 @@ func (s *Simnet) newCircuitAlteration(simnodeName string, alter Alteration, isHo
 		proceed:     make(chan struct{}),
 		reqtm:       time.Now(),
 		who:         goID(),
-		where:       fileLine(3),
+		//where:       fileLine(3),
+		where: fileLine(4),
 	}
 }
 
