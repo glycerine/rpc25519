@@ -3386,16 +3386,17 @@ func (s *Simnet) handleCloseSimnode(clop *mop, now time.Time, iloop int64) {
 				// shutdown all read loops in the local Server/Client.
 				conn.localClosed.Close()
 			} // range over all conn
-		}
+		} // end if ok we have circuits
 
 		s.circuits.delkey(node)
 		delete(s.node2server, node)
-		delete(s.dns, target)
+		delete(s.dns, node.name)
 		vv("handleCloseSimnode deleted target '%v' from dns", target)
 		delete(s.servers, node.serverBaseID)
 		delete(s.allnodes, node)
 		delete(s.orphans, node)
 	}
+	delete(s.dns, target)
 	// set req.err if need be
 }
 
