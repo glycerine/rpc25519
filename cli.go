@@ -1806,6 +1806,7 @@ func (c *Client) Start() (err error) {
 	select {
 	case err = <-c.connected:
 	case <-c.halt.ReqStop.Chan:
+		err = ErrShutdown()
 	}
 	return err
 }

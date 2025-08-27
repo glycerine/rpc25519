@@ -2085,11 +2085,15 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 		if err2 != nil {
 			return
 		}
-		if cli.IsDown() {
-			if !s.cfg.QuietTestMode {
-				alwaysPrintf("%v no cli.conn, assuming shutdown in progress...", s.name)
+		// this was a cli.conn == nil check, but is it racy?
+		// why does not the err2 check suffice??
+		if false {
+			if cli.IsDown() {
+				if !s.cfg.QuietTestMode {
+					alwaysPrintf("%v no cli.conn, to '%v' as cliName='%v' => assuming shutdown in progress...", s.name, dest, cliName)
+				}
+				return
 			}
-			return
 		}
 
 		s.mut.Lock()
