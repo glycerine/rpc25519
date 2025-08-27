@@ -746,6 +746,7 @@ func (s *Simnet) newHostFault(hostName string, dd DropDeafSpec, deliverDroppedSe
 type closeSimnode struct {
 	simnodeName              string
 	processCrashNotHostCrash bool
+	reason                   error
 
 	sn      int64
 	proceed chan struct{}
@@ -755,8 +756,9 @@ type closeSimnode struct {
 	where   string
 }
 
-func (s *Simnet) newCloseSimnode(simnodeName string) *closeSimnode {
+func (s *Simnet) newCloseSimnode(simnodeName string, reason error) *closeSimnode {
 	return &closeSimnode{
+		reason:      reason,
 		simnodeName: simnodeName,
 		sn:          s.simnetNextMopSn(),
 		proceed:     make(chan struct{}),
@@ -1116,7 +1118,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 // with another AlterHost. After CloseSimnode, you
 // have to re-register the client/server to rejoin
 // the simnet.
-func (s *Simnet) CloseSimnode(simnodeName string) (err error) {
+func (s *Simnet) CloseSimnode(simnodeName string, reason error) (err error) {
 
 	// do this inside so it is atomic and we don't race.
 	//	_, err = s.AlterHost(simnodeName, SHUTDOWN)
@@ -1124,7 +1126,7 @@ func (s *Simnet) CloseSimnode(simnodeName string) (err error) {
 	//		return
 	//	}
 
-	cl := s.newCloseSimnode(simnodeName)
+	cl := s.newCloseSimnode(simnodeName, reason)
 	select {
 	case s.simnetCloseNodeCh <- cl:
 		//vv("sent cl on Ch; about to wait on proceed goro = %v", GoroNumber())

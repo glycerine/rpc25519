@@ -476,6 +476,12 @@ func (s *LocalPeer) Close() {
 	//<-s.Halt.Done.Chan // hung here so often. just seems a bad idea.
 }
 
+func (s *LocalPeer) CloseWithReason(why error) {
+	s.Canc(fmt.Errorf("LocalPeer.CloseWithReason('%v') called. stack='%v'", why, stack()))
+	s.Halt.ReqStop.CloseWithReason(why)
+	//<-s.Halt.Done.Chan // hung here so often. just seems a bad idea.
+}
+
 func (s *LocalPeer) NewFragment() (f *Fragment) {
 	s.peerLocalFragMut.Lock()
 	defer s.peerLocalFragMut.Unlock()

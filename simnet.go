@@ -3320,7 +3320,7 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 // not have intermediate layer Server/Client read/send loops
 // still going on old goroutines.
 func (s *Simnet) handleCloseSimnode(clop *mop, now time.Time, iloop int64) {
-	vv("CLOSE_SIMNODE '%v'", clop.closeSimnode.simnodeName)
+	vv("CLOSE_SIMNODE '%v'; reason='%v'", clop.closeSimnode.simnodeName, clop.closeSimnode.reason)
 
 	defer func() {
 		s.fin(clop)
