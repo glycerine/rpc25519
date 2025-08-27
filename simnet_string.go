@@ -364,6 +364,7 @@ func (s *simnodeAlteration) String() (r string) {
 	//r += fmt.Sprintf(" simnet: %v\n", s.simnet) // too noisy!
 	r += fmt.Sprintf("simnode: %v\n", s.simnodeName)
 	r += fmt.Sprintf("  alter: %v\n", s.alter)
+	r += fmt.Sprintf("  where: %v\n", s.where)
 	r += "}\n"
 	return
 }

@@ -627,6 +627,8 @@ type simnodeAlteration struct {
 	proceed     chan struct{}
 	reqtm       time.Time
 	who         int
+
+	where string
 }
 
 func (s *Simnet) newCircuitAlteration(simnodeName string, alter Alteration, isHostAlter bool) *simnodeAlteration {
@@ -639,6 +641,7 @@ func (s *Simnet) newCircuitAlteration(simnodeName string, alter Alteration, isHo
 		proceed:     make(chan struct{}),
 		reqtm:       time.Now(),
 		who:         goID(),
+		where:       fileLine(3),
 	}
 }
 
@@ -676,6 +679,7 @@ func (s *Simnet) AlterCircuit(simnodeName string, alter Alteration, wholeHost bo
 func (s *Simnet) AlterHost(simnodeName string, alter Alteration) (undo Alteration, err error) {
 
 	alt := s.newCircuitAlteration(simnodeName, alter, true)
+
 	select {
 	case s.alterHostCh <- alt:
 		//vv("sent alt on alterHostCh; about to wait on proceed goro = %v", GoroNumber())
