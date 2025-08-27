@@ -1966,9 +1966,9 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 		if destAddr1 != destAddr {
 			pair, ok = s.remote2pair.Get(destAddr1)
 		}
-		// 055: hmm... prevents node_2 from reaching
-		// re-joining node_0 ? off for now.
 		if !ok {
+			// Also needed to prevent making 2x auto-cli.
+			// Original motivation:
 			// remedy: srv.go:1985 yikes! Server did not find destAddr (auto-cli on) server='srv_node_1'; destAddr='simnet://srv_node_0' in remote2pair: '[simnet://auto-cli-from-srv_node_0-to-srv_node_1 simnet://srv_node_2]'
 
 			// Example: if on server 'node_1' and trying
@@ -1980,7 +1980,7 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 			autocliName := fromToAutoCliName(destServerBaseName, localhost)
 			synth := localNetAddr.Network() + "://" + autocliName
 			pair, ok = s.remote2pair.Get(synth)
-			vv("synth='%v' -> ok=%v", synth, ok) // worked at least once 055
+			//vv("synth='%v' -> ok=%v", synth, ok) // worked at least once 055
 		}
 	}
 
