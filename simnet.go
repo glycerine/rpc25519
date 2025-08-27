@@ -1241,6 +1241,8 @@ func newPQcompleteTm(owner string) *pq {
 	}
 }
 
+// TODO: maybe unify with handleCloseSimnode?
+// This was originally designed to allow easy power back on.
 func (s *Simnet) shutdownSimnode(target *simnode) (undo Alteration) {
 	if target.powerOff {
 		// no-op. already off.
@@ -1281,6 +1283,17 @@ func (s *Simnet) shutdownSimnode(target *simnode) (undo Alteration) {
 			node.allnode = map[*simnode]bool{node: true}
 		}
 		// no more circuits from this node
+		others, ok := s.circuits.get2(node)
+		if ok {
+			for rem, conn := range others.all() {
+				_ = rem
+				// close all simconn
+
+				// Make the local Read return EOF, which should
+				// shutdown all read loops in the local Server/Client.
+				conn.localClosed.Close()
+			}
+		}
 		s.circuits.delkey(node)
 
 		//vv("handleAlterCircuit: we just SHUTDOWN node: %v", node.name)
@@ -3300,8 +3313,12 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	// end handleSimnetSnapshotRequest
 }
 
-// PRE: alter host to SHUTDOWN already done.
-// the api CloseSimnode() does this beforehand.
+// TODO: maybe unify with shutdownSimnode?
+// That was originally designed to allow easy power back on,
+// but we find we need to fully take down the node
+// in order to bring up its replacement cleanly and
+// not have intermediate layer Server/Client read/send loops
+// still going on old goroutines.
 func (s *Simnet) handleCloseSimnode(clop *mop, now time.Time, iloop int64) {
 	vv("CLOSE_SIMNODE '%v'", clop.closeSimnode.simnodeName)
 
@@ -3313,62 +3330,72 @@ func (s *Simnet) handleCloseSimnode(clop *mop, now time.Time, iloop int64) {
 	req := clop.closeSimnode
 	target := req.simnodeName
 
-	node, ok := s.dns[target]
+	node0, ok := s.dns[target]
 	if !ok {
 		req.err = fmt.Errorf("simnodeName not found: '%v'; dns is '%#v'", target, s.dns)
 		return
 	}
 
-	// PRE: host has been SHUTDOWN.
+	// the api CloseSimnode() no longer does SHUTDOWN
+	// because we got races that split that and this--
+	// so we do it for atomicity.
+	// note: would noop the shutdownSimnode:
+	node0.powerOff = true
+	// we do all the same now: defer s.shutdownSimnode(node0)
 
-	others, ok := s.circuits.get2(node)
-	_ = others
+	for _, node := range keyNameSort(s.locals(node0)) {
 
-	if ok {
-		// close all simconn
-		for rem, conn := range others.all() {
+		others, ok := s.circuits.get2(node)
+		_ = others
 
-			// actually we just want to close
-			// the local without transmitting
-			// EOF to the remote, at least for now.
-			if false {
-				// conn.Close() is external,
-				// it does:
-				m := NewMessage()
-				m.EOF = true
-				//vv("Close sending EOF in msgWrite, on %v", s.local.name)
-				//conn.msgWrite(m, nil, 0)
-				// which does
+		if ok {
+			// close all simconn
+			for rem, conn := range others.all() {
 
-				send := s.newSendMop(m, false) // false for isCli (matters?)
-				send.origin = node
-				send.sendFileLine = fileLine(2)
-				send.target = rem
-				send.initTm = now
-				send.isEOF_RST = true
-				// s.net.msgSendCh <- send:
-				// which does
-				s.handleSend(send, 1, iloop)
-				// but I'm not even sure if that would
-				// work from here, though we are both internal.
-				// for now since the (if false) above is
-				// in place, just leave it.
-			}
+				// actually we just want to close
+				// the local without transmitting
+				// EOF to the remote, at least for now.
+				if req.processCrashNotHostCrash {
+					// the host is up, so the
+					// kernel will send RST/EOF to
+					// remotes:
 
-			// This is the important part. It
-			// will make the local Read return EOF, which should
-			// shutdown all read loops in the local xServer/Client.
-			conn.localClosed.Close()
-		} // range over all conn
+					// conn.Close() is external,
+					// it does:
+					m := NewMessage()
+					m.EOF = true
+					//vv("Close sending EOF in msgWrite, on %v", s.local.name)
+					//conn.msgWrite(m, nil, 0)
+					// which does
+
+					send := s.newSendMop(m, false) // false for isCli (matters?)
+					send.origin = node
+					send.sendFileLine = fileLine(2)
+					send.target = rem
+					send.initTm = now
+					send.isEOF_RST = true
+					// s.net.msgSendCh <- send:
+					// which does
+					s.handleSend(send, -1, iloop)
+					// but I'm not even sure if the above will
+					// work from here, but try and see...
+				}
+
+				// This is the important part.
+				// Make the local Read return EOF, which should
+				// shutdown all read loops in the local Server/Client.
+				conn.localClosed.Close()
+			} // range over all conn
+		}
+
+		s.circuits.delkey(node)
+		delete(s.node2server, node)
+		delete(s.dns, target)
+		vv("handleCloseSimnode deleted target '%v' from dns", target)
+		delete(s.servers, node.serverBaseID)
+		delete(s.allnodes, node)
+		delete(s.orphans, node)
 	}
-
-	s.circuits.delkey(node)
-	delete(s.node2server, node)
-	delete(s.dns, target)
-	delete(s.servers, node.serverBaseID)
-	delete(s.allnodes, node)
-	delete(s.orphans, node)
-
 	// set req.err if need be
 }
 

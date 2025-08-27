@@ -744,7 +744,8 @@ func (s *Simnet) newHostFault(hostName string, dd DropDeafSpec, deliverDroppedSe
 }
 
 type closeSimnode struct {
-	simnodeName string
+	simnodeName              string
+	processCrashNotHostCrash bool
 
 	sn      int64
 	proceed chan struct{}
@@ -1117,10 +1118,11 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 // the simnet.
 func (s *Simnet) CloseSimnode(simnodeName string) (err error) {
 
-	_, err = s.AlterHost(simnodeName, SHUTDOWN)
-	if err != nil {
-		return
-	}
+	// do this inside so it is atomic and we don't race.
+	//	_, err = s.AlterHost(simnodeName, SHUTDOWN)
+	//	if err != nil {
+	//		return
+	//	}
 
 	cl := s.newCloseSimnode(simnodeName)
 	select {
