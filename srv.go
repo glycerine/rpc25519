@@ -2086,7 +2086,8 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			return
 		}
 		// this was a cli.conn == nil check, but is it racy?
-		// why does not the err2 check suffice??
+		// why does not the err2 check suffice? we return an
+		// error now on shutdown, so this should not be needed.
 		if false {
 			if cli.IsDown() {
 				if !s.cfg.QuietTestMode {
