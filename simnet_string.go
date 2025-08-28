@@ -719,7 +719,12 @@ func (s *SimnetSnapshot) PeerMatrix() (matrix *PeerMatrix) {
 func autoCliToBaseURL(url0 string) (url1, serverBaseName string) {
 
 	u, err := url.Parse(url0)
-	panicOn(err)
+	if err != nil {
+		// this is a problem actually. client should fix.
+		//return url0, ""
+		alwaysPrintf("could not parse url0='%v'", url0) // "://" in 401
+		panicOn(err)
+	}
 	hostport := u.Host
 	host := u.Hostname()
 	serverBaseName = extractFromAutoCli(host)

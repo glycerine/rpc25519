@@ -2393,10 +2393,10 @@ func (s *Simnet) scheduler() {
 	vv("scheduler is running on goro = %v", GoroNumber())
 
 	defer func() {
-		vv("scheduler defer shutdown running on goro = %v", GoroNumber())
+		r := recover()
+		vv("scheduler defer shutdown running on goro = %v; recover='%v'", GoroNumber(), r)
 		s.halt.ReqStop.Close()
 		s.halt.Done.Close()
-		r := recover()
 		if r != nil {
 			alwaysPrintf("scheduler panic-ing: %v", r)
 			//alwaysPrintf("scheduler panic-ing: %v", s.schedulerReport())
@@ -3404,13 +3404,13 @@ func (s *Simnet) handleCloseSimnode(clop *mop, now time.Time, iloop int64) {
 		s.circuits.delkey(node)
 		delete(s.node2server, node)
 		delete(s.dns, node.name)
-		vv("handleCloseSimnode deleted node.name '%v' from dns", node.name)
+		//vv("handleCloseSimnode deleted node.name '%v' from dns", node.name)
 		delete(s.servers, node.serverBaseID)
 		delete(s.allnodes, node)
 		delete(s.orphans, node)
 	}
 	delete(s.dns, target)
-	vv("handleCloseSimnode deleted target '%v' from dns", target)
+	//vv("handleCloseSimnode deleted target '%v' from dns", target)
 	// set req.err if need be
 }
 
