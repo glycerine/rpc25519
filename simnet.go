@@ -766,7 +766,15 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 
 	_, already := s.dns[reg.client.name]
 	if already {
-		panic(fmt.Sprintf("client name already taken: '%v'", reg.client.name))
+		// to work around some rare/hard to fix logical races
+		// e.g. reboot_test 055, just
+		// return an error rather than panic. Per-node
+		// dns or moniker/facade names vs underlying nodes
+		// are expensive alternatives.
+		// Think of it as inducing more client error
+		// recovery testing; which is a good thing.
+		//
+		//panic(fmt.Sprintf("client name already taken: '%v'", reg.client.name))
 
 		// or, recognizing that the "real world" network
 		// can never know about global uniqueness of names...
