@@ -206,8 +206,8 @@ func cryRand33B() string {
 	return cristalbase64.URLEncoding.EncodeToString(by[:])
 }
 
-func cryRand17B() string {
-	var by [17]byte
+func cryRand15B() string {
+	var by [15]byte // 16 and 17 get == signs. yuck.
 	_, err := cryrand.Read(by[:])
 	panicOn(err)
 	return cristalbase64.URLEncoding.EncodeToString(by[:])
