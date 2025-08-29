@@ -2202,7 +2202,9 @@ func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context
 				select {
 				case chGood <- msg:
 					//vv("good: notification of ch=%p about token '%v' sent", chGood, token)
+					return nil
 				case <-ctx.Done():
+					return nil
 				case <-s.u.GetHostHalter().ReqStop.Chan:
 					return ErrHaltRequested
 				default:
