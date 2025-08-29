@@ -230,7 +230,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	}
 
 	// set firstFrag here
-	ckt, _, madeNewAutoCli, err = lpb.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, false, onOriginLocalSide, preferExtant)
+	ckt, _, _, err = lpb.newCircuit(circuitName, rpb, circuitID, frag, errWriteDur, false, onOriginLocalSide, preferExtant)
 	if err != nil {
 		err0 = err
 		ckt = nil
