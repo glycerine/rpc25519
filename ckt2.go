@@ -105,6 +105,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	if frag == nil {
 		frag = p.u.newFragment()
 	}
+	frag.Created = time.Now()
 	frag.CircuitID = circuitID
 	frag.ToPeerServiceName = remotePeerServiceName
 	frag.FromPeerServiceName = lpb.PeerServiceName
@@ -242,7 +243,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	if errWriteDur > 0 {
 		timeoutCh = time.After(errWriteDur)
 	}
-	vv("start waiting for ack from netAddr='%v' remotePeerServiceName='%v'", netAddr, remotePeerServiceName)
+	vv("%v start waiting for ack at '%v' from netAddr='%v' remotePeerServiceName='%v'", lpb.PeerName, lpb.NetAddr, netAddr, remotePeerServiceName)
 	if waitForAck {
 		select {
 		case <-timeoutCh:
