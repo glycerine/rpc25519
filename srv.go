@@ -1997,7 +1997,7 @@ func (s *Server) destAddrToSendCh(destAddr string) (sendCh chan *Message, haltCh
 		if !s.cfg.ServerAutoCreateClientsToDialOtherServers {
 			alwaysPrintf("yikes! Server did not find (and auto-cli off) server='%v' destAddr='%v' in remote2pair: '%v'", s.name, destAddr, s.remote2pair.GetKeySlice())
 		} else {
-			alwaysPrintf("yikes! '%v' Server did not find destAddr (auto-cli on) destAddr='%v' in remote2pair: '%v'", s.name, destAddr, s.remote2pair.GetKeySlice())
+			alwaysPrintf("yikes! '%v' (%p)Server did not find destAddr (auto-cli on) destAddr='%v' in remote2pair: '%v'", s.name, s, destAddr, s.remote2pair.GetKeySlice())
 		}
 		return nil, nil, "", "", false
 	}
@@ -2051,9 +2051,9 @@ func (s *Server) SendOneWayMessage(ctx context.Context, msg *Message, errWriteDu
 			s.mut.Lock()
 			lenAutoCli := len(s.autoClients) + 1
 			s.mut.Unlock()
-			alwaysPrintf("%v server did not find destAddr (msg.HDR.To='%v') in "+
+			alwaysPrintf("%v server(%p) did not find destAddr (msg.HDR.To='%v') in "+
 				"remote2pair, but cfg.ServerAutoCreateClientsToDialOtherServers"+
-				" is true so spinning up new client... for a total of %v autoClients", s.name, msg.HDR.To, lenAutoCli)
+				" is true so spinning up new client... for a total of %v autoClients", s.name, s, msg.HDR.To, lenAutoCli)
 			//" is true so spinning up new client... full msg='%v'", msg.HDR.To, msg)
 		}
 		dest, err1 := ipaddr.StripNanomsgAddressPrefix(msg.HDR.To)

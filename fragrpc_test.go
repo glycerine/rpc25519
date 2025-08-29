@@ -173,6 +173,9 @@ func Test410_FragRPC_NewCircuitToPeerURL_with_empty_PeerID_in_URL(t *testing.T) 
 		// works
 		ckt3, ackMsg, _, err := j.srv.PeerAPI.PreferExtantRemotePeerGetCircuit(srv_lpb.Ctx, srv_lpb, cktName3, nil, cliServiceName, "", cliNetAddr, 0, nil, true)
 		_ = ackMsg
+		if err != nil {
+			vv("PreferExtantRemotePeerGetCircuit error = '%v'", err)
+		}
 		panicOn(err)
 
 		//vv("ckt3 = '%v'", ckt3)

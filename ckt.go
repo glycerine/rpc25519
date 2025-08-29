@@ -2212,6 +2212,7 @@ func (s *peerAPI) gotCircuitEstablishedAck(isCli bool, msg *Message, ctx context
 				//vv("dropping msg GetChanInterestedInCallID found no happy chan for #fragRPCtoken = '%v'", token)
 				return nil
 			}
+			return nil
 		}
 
 		// have msg.JobErrs

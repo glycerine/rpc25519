@@ -252,7 +252,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 			// errMsg is still our ackMsg with
 			// "#LimitedExistingPeerID_first_url" details, so return it.
 			//vv("got errMsg = '%v'", errMsg)
-			err0 = fmt.Errorf("error sending '%v' to remote: %v", frag.Typ, errMsg.JobErrs)
+			err0 = fmt.Errorf("responseErrCh in implRemotePeerAndGetCircuit sending to remote(frag.Typ='%v'; netAddr='%v'); errMsg.JobErrs='%v'; errMsg='%v'", frag.Typ, netAddr, errMsg.JobErrs, errMsg)
 			ackMsg = errMsg
 			ckt = nil
 			return

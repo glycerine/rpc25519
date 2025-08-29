@@ -764,14 +764,21 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 		return
 	}
 
+	_, already := s.dns[reg.client.name]
+	if already {
+		panic(fmt.Sprintf("client name already taken: '%v'", reg.client.name))
+
+		// or, recognizing that the "real world" network
+		// can never know about global uniqueness of names...
+		reg.err = fmt.Errorf("simnet handleClientRegistration error: client name already taken: '%v'", reg.client.name)
+		s.fin(regop)
+		close(reg.proceed)
+		return
+	}
+
 	clinode := s.newSimnodeClient(reg.client.name, reg.serverBaseID)
 	clinode.setNetAddrSameNetAs(reg.localHostPortStr, srvnode.netAddr)
 	s.allnodes[clinode] = true
-
-	_, already := s.dns[clinode.name]
-	if already {
-		panic(fmt.Sprintf("client name already taken: '%v'", clinode.name))
-	}
 	s.dns[clinode.name] = clinode
 
 	// add simnode to graph
