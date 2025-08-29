@@ -2020,7 +2020,7 @@ type oneWaySender interface {
 const auto_cli_recognition_prefix = "auto-cli-from-"
 
 func fromToAutoCliName(from, dest string) string {
-	return auto_cli_recognition_prefix + from + "-to-" + dest
+	return auto_cli_recognition_prefix + from + "-to-" + dest + "_" + cryRand17B()
 }
 
 // SendOneWayMessage is the same as SendMessage above except that it

@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+
+	cristalbase64 "github.com/cristalhq/base64"
 )
 
 // returns r > 0
@@ -195,4 +197,18 @@ func cryptoRandInt64RangePosOrNeg(largestPositiveChoice int64) (r int64) {
 
 	panic("never reached")
 	return r
+}
+
+func cryRand33B() string {
+	var by [33]byte
+	_, err := cryrand.Read(by[:])
+	panicOn(err)
+	return cristalbase64.URLEncoding.EncodeToString(by[:])
+}
+
+func cryRand17B() string {
+	var by [17]byte
+	_, err := cryrand.Read(by[:])
+	panicOn(err)
+	return cristalbase64.URLEncoding.EncodeToString(by[:])
 }

@@ -5,9 +5,13 @@ package rpc25519
 // stuff does not want these loops, so sets doLoops false.
 func (c *Client) runSimNetClient(localHostPort, serverAddr string, doLoops bool) (err error) {
 
-	//defer func() {
-	//	vv("runSimNetClient defer on exit running client = %p", c)
-	//}()
+	defer func() {
+		r := recover()
+		vv("runSimNetClient defer on exit running client = %p; r='%v'", c, r)
+		if r != nil {
+			panic(r)
+		}
+	}()
 
 	//netAddr := &SimNetAddr{network: "cli simnet@" + localHostPort}
 
@@ -22,7 +26,7 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string, doLoops bool)
 		panic("arg. client could not find cfg.simnetRendezvous.singleSimnet")
 	}
 
-	//vv("runSimNetClient c.simnet = %p, '%v', goro = %v", c.simnet, c.name, GoroNumber())
+	vv("runSimNetClient c.simnet = %p, '%v', goro = %v", c.simnet, c.name, GoroNumber())
 
 	// ignore serverAddr in favor of cfg.ClientDialToHostPort
 	// which tests actually set.
@@ -44,7 +48,9 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string, doLoops bool)
 	case <-registration.proceed:
 		//vv("client registration.proceed")
 		if registration.err != nil {
-			// only error is dialTo name not found at the moment.
+			// only error is dialTo name not found at the moment;
+			// OR client name already taken
+			vv("client registration failed with '%v'", registration.err)
 			return registration.err
 		}
 	case <-c.simnet.halt.ReqStop.Chan:

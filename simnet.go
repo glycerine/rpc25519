@@ -774,7 +774,8 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 		// Think of it as inducing more client error
 		// recovery testing; which is a good thing.
 		//
-		//panic(fmt.Sprintf("client name already taken: '%v'", reg.client.name))
+		vv("simnet: client name already taken: '%v'", reg.client.name)
+		panic(fmt.Sprintf("client name already taken: '%v'", reg.client.name))
 
 		// or, recognizing that the "real world" network
 		// can never know about global uniqueness of names...
