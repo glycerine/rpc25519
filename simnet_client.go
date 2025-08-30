@@ -7,7 +7,7 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string, doLoops bool)
 
 	defer func() {
 		r := recover()
-		vv("runSimNetClient defer on exit running client = %p; r='%v'", c, r)
+		//vv("runSimNetClient defer on exit running client = %p; r='%v'", c, r)
 		if r != nil {
 			panic(r)
 		}
