@@ -26,7 +26,7 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string, doLoops bool)
 		panic("arg. client could not find cfg.simnetRendezvous.singleSimnet")
 	}
 
-	vv("runSimNetClient c.simnet = %p, '%v', goro = %v", c.simnet, c.name, GoroNumber())
+	//vv("runSimNetClient c.simnet = %p, '%v', goro = %v", c.simnet, c.name, GoroNumber())
 
 	// ignore serverAddr in favor of cfg.ClientDialToHostPort
 	// which tests actually set.
@@ -50,7 +50,7 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string, doLoops bool)
 		if registration.err != nil {
 			// only error is dialTo name not found at the moment;
 			// OR client name already taken
-			vv("client registration failed with '%v'", registration.err)
+			//vv("client registration failed with '%v'", registration.err)
 
 			select {
 			case c.connected <- registration.err:

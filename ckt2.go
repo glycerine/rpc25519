@@ -237,13 +237,13 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 		ackMsg = nil
 		return
 	}
-	vv("madeNewAutoCli = %v", madeNewAutoCli)
+	//vv("madeNewAutoCli = %v", madeNewAutoCli)
 
 	var timeoutCh <-chan time.Time
 	if errWriteDur > 0 {
 		timeoutCh = time.After(errWriteDur)
 	}
-	vv("%v start waiting for ack at '%v' from netAddr='%v' remotePeerServiceName='%v'", lpb.PeerName, lpb.NetAddr, netAddr, remotePeerServiceName)
+	//vv("%v start waiting for ack at '%v' from netAddr='%v' remotePeerServiceName='%v'", lpb.PeerName, lpb.NetAddr, netAddr, remotePeerServiceName)
 	if waitForAck {
 		select {
 		case <-timeoutCh:
