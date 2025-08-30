@@ -52,6 +52,7 @@ var _ quic.Connection
 
 var sep = string(os.PathSeparator)
 
+// is run on its own goroutine.
 // eg. serverAddr = "localhost:8443"
 // serverAddr = "192.168.254.151:8443"
 func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string) {

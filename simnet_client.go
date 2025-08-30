@@ -39,9 +39,9 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string, doLoops bool)
 	select {
 	case c.simnet.cliRegisterCh <- registration:
 	case <-c.simnet.halt.ReqStop.Chan:
-		return
+		return ErrShutdown()
 	case <-c.halt.ReqStop.Chan:
-		return
+		return ErrShutdown()
 	}
 
 	select {
@@ -51,12 +51,18 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string, doLoops bool)
 			// only error is dialTo name not found at the moment;
 			// OR client name already taken
 			vv("client registration failed with '%v'", registration.err)
+
+			select {
+			case c.connected <- registration.err:
+			case <-c.halt.ReqStop.Chan:
+				return ErrShutdown()
+			}
 			return registration.err
 		}
 	case <-c.simnet.halt.ReqStop.Chan:
-		return
+		return ErrShutdown()
 	case <-c.halt.ReqStop.Chan:
-		return
+		return ErrShutdown()
 	}
 
 	//conn := c.cfg.simnetRendezvous.c2s
@@ -72,7 +78,7 @@ func (c *Client) runSimNetClient(localHostPort, serverAddr string, doLoops bool)
 	select {
 	case c.connected <- nil:
 	case <-c.halt.ReqStop.Chan:
-		return
+		return ErrShutdown()
 	}
 	if doLoops {
 		cpair := &cliPairState{}
