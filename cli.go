@@ -182,13 +182,20 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 	nconn, err := d.DialContext(ctx, "tcp", serverAddr)
 	if err != nil {
 		c.err = err
+		reportErr := fmt.Errorf("error: client local: '%v'/name='%v'"+
+			" failed to connect to server: '%v'",
+			c.cfg.ClientHostPort, c.name, err)
 		select {
-		case c.connected <- fmt.Errorf("error: client local: '%v' failed to "+
-			"connect to server: '%v'", c.cfg.ClientHostPort, err):
+		case c.connected <- reportErr:
+			//vv("sent on c.connected: reportErr = '%v'", reportErr)
 		case <-c.halt.ReqStop.Chan:
 			return
 		}
 		alwaysPrintf("error: client from '%v' failed to connect to server: %v", c.cfg.ClientHostPort, err)
+
+		//fmt.Printf("allstacks='%v'\n", allstacks())
+		//panic("where?")
+
 		return
 	}
 	c.isTLS = true
