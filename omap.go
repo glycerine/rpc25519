@@ -128,7 +128,7 @@ func (s *omap[K, V]) String() (r string) {
 }
 
 // delkey deletes a key from the omap, if present.
-// This is a constant O(1) time operation.
+// This is an O(log n) time operation.
 //
 // If found returns true, next has the
 // iterator following the deleted key.
@@ -416,7 +416,7 @@ func (s *omap[K, V]) allokv() iter.Seq2[K, *okv[K, V]] {
 }
 
 // get2 returns the val corresponding to key in
-// O(1) constant time per query. found will be
+// O(log n) time per query. found will be
 // false iff the key was not present.
 func (s *omap[K, V]) get2(key K) (val V, found bool) {
 	if isNil(key) {
@@ -447,7 +447,7 @@ func (s *omap[K, V]) get(key K) (val V) {
 }
 
 // getokv returns the okv[K,V] struct corresponding to key in
-// O(1) constant time per query. If the key is
+// O(log n) time per query. If the key is
 // found, the kv.it will point to it in the omap tree,
 // which can be used to walk the
 // tree in sorted order forwards or

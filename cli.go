@@ -191,7 +191,7 @@ func (c *Client) runClientMain(serverAddr string, tcp_only bool, certPath string
 		case <-c.halt.ReqStop.Chan:
 			return
 		}
-		alwaysPrintf("error: client from '%v' failed to connect to server: %v", c.cfg.ClientHostPort, err)
+		//alwaysPrintf("error: client from '%v' failed to connect to server: %v", c.cfg.ClientHostPort, err)
 
 		//fmt.Printf("allstacks='%v'\n", allstacks())
 		//panic("where?")
