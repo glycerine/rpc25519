@@ -886,6 +886,7 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 		//vv("have ToPeerID msg = '%v'; ok='%v'; for '%v'", msg.HDR.String(), ok, msg.HDR.ToPeerID)
 		if ok {
 			// allow back pressure. Don't time out here.
+			// Welp, then we hang sometimes, deadlocking our read loop.
 			select {
 			case wantsToPeerID <- msg:
 				//vv("sent msg to wantsToPeerID=%p ; msg='%v'", wantsToPeerID, msg.HDR.String())
@@ -893,6 +894,8 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 				return
 			case <-c.u.GetHostHalter().ReqStop.Chan: // ctx not enough
 				return
+			case <-time.After(5 * time.Second):
+				alwaysPrintf("deadlock prevention kicked in. dropping msg='%v'", msg)
 			}
 			return true // only send to ToPeerID, priority over CallID.
 		} else {
