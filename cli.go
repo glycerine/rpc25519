@@ -1666,12 +1666,12 @@ func (c *Client) GetErrorChForCallID(callID string) (ch chan *Message) {
 // It is similar to GetReadIncomingCh but for when ch
 // already exists and you do not want a new one.
 // It filters for CallID
-func (c *Client) GetReadsForCallID(ch chan *Message, callID string) {
+func (c *Client) GetReadsForCallID(pair *sgpair, callID string) {
 	//vv("GetReads called! stack='\n\n%v\n'", stack())
-	if cap(ch) == 0 {
-		panic("ch must be bufferred")
+	if cap(pair.send) == 0 {
+		panic("pair.send must be bufferred")
 	}
-	c.notifies.notifyOnReadCallIDMap.set(callID, ch)
+	c.notifies.notifyOnReadCallIDMap.set(callID, pair)
 }
 
 func (c *Client) GetChanInterestedInCallID(callID string) (ch, errCh chan *Message) {

@@ -749,7 +749,7 @@ func (pair *rwPair) handleIncomingMessage(ctx context.Context, req *Message, job
 
 	// Workers requesting jobs can keep calls open for
 	// minutes or hours or days; so we cannot just have
-	// just use this readLoop goroutine to process
+	// this readLoop goroutine to process
 	// call sequentially; we cannot block here: this
 	// has to be in a new goroutine.
 	go pair.Server.processWork(job)
@@ -780,23 +780,36 @@ type notifies struct {
 // See also mutmap.go, a later generic version.
 type mapIDtoChan struct {
 	mut sync.RWMutex
-	m   map[string]chan *Message
+	m   map[string]*sgpair
+}
+
+type sgpair struct {
+	send chan *Message
+	gone *idem.IdemCloseChan
+}
+
+func newSgpair(send chan *Message, gone *idem.IdemCloseChan) *sgpair {
+	return &sgpair{
+		send: send,
+		gone: gone,
+	}
 }
 
 func newMapIDtoChan() *mapIDtoChan {
 	return &mapIDtoChan{
-		m: make(map[string]chan *Message),
+		m: make(map[string]*sgpair),
 	}
 }
-func (m *mapIDtoChan) get(id string) (ch chan *Message, ok bool) {
+
+func (m *mapIDtoChan) get(id string) (pair *sgpair, ok bool) {
 	m.mut.RLock()
 	ch, ok = m.m[id]
 	m.mut.RUnlock()
 	return
 }
-func (m *mapIDtoChan) set(id string, ch chan *Message) {
+func (m *mapIDtoChan) set(id string, pair *sgpair) {
 	m.mut.Lock()
-	m.m[id] = ch
+	m.m[id] = pair
 	m.mut.Unlock()
 }
 func (m *mapIDtoChan) del(id string) {
@@ -887,6 +900,8 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 		if ok {
 			// allow back pressure. Don't time out here.
 			// Welp, then we hang sometimes, deadlocking our read loop.
+			// Really each wantsToPeerID must also come with a shutdown
+			// bail out chan to indicate they have gone away!
 			select {
 			case wantsToPeerID <- msg:
 				//vv("sent msg to wantsToPeerID=%p ; msg='%v'", wantsToPeerID, msg.HDR.String())
