@@ -731,7 +731,7 @@ func (s *SyncService) Start(
 
 				cktName := rsyncRemoteGivesDirString //"rsync remote gives dir"
 
-				ckt, _, _, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
+				ckt, _, _, _, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
 					pulldir, syncReq.ToRemotePeerServiceName, "",
 					syncReq.ToRemoteNetAddr, 0, false, nil, false)
 				panicOn(err)
@@ -802,7 +802,7 @@ func (s *SyncService) Start(
 				pushdir.Payload = bts
 				cktName := rsyncRemoteTakesDirString // "rsync remote takes dir"
 
-				ckt, _, _, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
+				ckt, _, _, _, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
 					pushdir, syncReq.ToRemotePeerServiceName, "",
 					syncReq.ToRemoteNetAddr, 0, false, nil, false)
 				panicOn(err)
@@ -947,7 +947,7 @@ func (s *SyncService) Start(
 			}
 			frag.Payload = data
 
-			ckt, _, _, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
+			ckt, _, _, _, err := s.U.StartRemotePeerAndGetCircuit(myPeer, cktName,
 				frag, syncReq.ToRemotePeerServiceName, "", syncReq.ToRemoteNetAddr, 0, false, nil, false)
 
 			panicOn(err)

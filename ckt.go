@@ -1492,7 +1492,7 @@ func (p *peerAPI) GetLocalPeers(
 // to 50 times, pausing waitUpTo/50 after each.
 // If SendAndGetReply succeeds, then we immediately
 // cease polling and return the RemotePeerID.
-func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, peerServiceNameVersion, remoteAddr string, waitUpTo time.Duration, preferExtant bool) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, err error) {
+func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, peerServiceNameVersion, remoteAddr string, waitUpTo time.Duration, preferExtant bool) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, onlyPossibleAddr string, err error) {
 
 	// retry until deadline, if waitUpTo is > 0
 	deadline := time.Now().Add(waitUpTo)
@@ -1506,7 +1506,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, peerServ
 	if r != "" {
 		// we are on the client
 		if r != remoteAddr {
-			return "", "", false, fmt.Errorf("client peer error on StartRemotePeer: remoteAddr should be '%v' (that we are connected to), rather than the '%v' which was requested. Otherwise your request will fail.", r, remoteAddr)
+			return "", "", false, r, fmt.Errorf("client peer error on StartRemotePeer: remoteAddr should be '%v' (that we are connected to), rather than the '%v' which was requested. Otherwise your request will fail.", r, remoteAddr)
 		}
 	}
 
@@ -1555,7 +1555,7 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, peerServ
 			ti := p.u.NewTimer(dur)
 			if ti == nil {
 				// simnet shutdown
-				return "", "", madeNewAutoCli, ErrHaltRequested
+				return "", "", madeNewAutoCli, "", ErrHaltRequested
 			}
 			select {
 			case <-ti.C:
@@ -1575,24 +1575,24 @@ func (p *peerAPI) StartRemotePeer(ctx context.Context, peerServiceName, peerServ
 		//vv("got reply to CallPeerStart: '%v'", reply.String())
 	case <-ctx.Done():
 		//vv("ctx.Done() seen, cause: '%v'\n\n stack: '%v'", context.Cause(ctx), stack())
-		return "", "", madeNewAutoCli, ErrContextCancelled
+		return "", "", madeNewAutoCli, "", ErrContextCancelled
 	case <-hhalt.ReqStop.Chan:
-		return "", "", madeNewAutoCli, ErrHaltRequested
+		return "", "", madeNewAutoCli, "", ErrHaltRequested
 	}
 	var ok bool
 	RemotePeerID, ok = reply.HDR.Args["#peerID"]
 	if !ok {
-		return "", "", madeNewAutoCli, fmt.Errorf("remote '%v', peerServiceName '%v' did "+
+		return "", "", madeNewAutoCli, "", fmt.Errorf("remote '%v', peerServiceName '%v' did "+
 			"not respond with peerID in Args", remoteAddr, peerServiceName)
 	}
 	////vv("got RemotePeerID from Args[peerID]: '%v'", RemotePeerID)
 	remotePeerURL, ok = reply.HDR.Args["#peerURL"]
 	if !ok {
-		return "", "", madeNewAutoCli, fmt.Errorf("remote '%v', peerServiceName '%v' did "+
+		return "", "", madeNewAutoCli, "", fmt.Errorf("remote '%v', peerServiceName '%v' did "+
 			"not respond with peerURL in Args", remoteAddr, peerServiceName)
 	}
 	//vv("StartRemotePeer got remotePeerURL from Args[peerURL]: '%v'", remotePeerURL)
-	return remotePeerURL, RemotePeerID, madeNewAutoCli, nil
+	return remotePeerURL, RemotePeerID, madeNewAutoCli, "", nil
 }
 
 // bootstrapCircuit: handle CallPeerStartCircuit

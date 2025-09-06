@@ -3016,7 +3016,7 @@ func (s *Client) StartRemotePeer(
 	waitUpTo time.Duration,
 	preferExtant bool,
 
-) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, err error) {
+) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, onlyPossibleAddr string, err error) {
 
 	return s.PeerAPI.StartRemotePeer(ctx, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, preferExtant)
 }
@@ -3036,7 +3036,7 @@ func (s *Server) StartRemotePeer(
 	waitUpTo time.Duration,
 	preferExtant bool,
 
-) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, err error) {
+) (remotePeerURL, RemotePeerID string, madeNewAutoCli bool, onlyPossibleAddr string, err error) {
 
 	return s.PeerAPI.StartRemotePeer(ctx, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, preferExtant)
 }
@@ -3057,7 +3057,7 @@ func (s *Client) StartRemotePeerAndGetCircuit(
 	autoSendNewCircuitCh chan *Circuit,
 	preferExtant bool,
 
-) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
+) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, onlyPossibleAddr string, err error) {
 
 	return s.PeerAPI.StartRemotePeerAndGetCircuit(
 		lpb, circuitName, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh, preferExtant)
@@ -3079,7 +3079,7 @@ func (s *Server) StartRemotePeerAndGetCircuit(
 	autoSendNewCircuitCh chan *Circuit,
 	preferExtant bool,
 
-) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
+) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, onlyPossibleAddr string, err error) {
 
 	return s.PeerAPI.StartRemotePeerAndGetCircuit(
 		lpb, circuitName, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, waitForAck, autoSendNewCircuitCh, preferExtant)
@@ -3113,7 +3113,7 @@ func (s *Server) PreferExtantRemotePeerGetCircuit(
 	autoSendNewCircuitCh chan *Circuit,
 	waitForAck bool,
 
-) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
+) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, onlyPossibleAddr string, err error) {
 
 	return s.PeerAPI.PreferExtantRemotePeerGetCircuit(
 		callCtx, lpb, circuitName, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, autoSendNewCircuitCh, waitForAck)
@@ -3147,7 +3147,7 @@ func (s *Client) PreferExtantRemotePeerGetCircuit(
 	autoSendNewCircuitCh chan *Circuit,
 	waitForAck bool,
 
-) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, err error) {
+) (ckt *Circuit, ackMsg *Message, madeNewAutoCli bool, onlyPossibleAddr string, err error) {
 
 	return s.PeerAPI.PreferExtantRemotePeerGetCircuit(
 		callCtx, lpb, circuitName, frag, peerServiceName, peerServiceNameVersion, remoteAddr, waitUpTo, autoSendNewCircuitCh, waitForAck)
