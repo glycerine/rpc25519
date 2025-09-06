@@ -194,7 +194,7 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	if r != "" {
 		// we are on the client
 		if r != remoteAddr {
-			err0 = fmt.Errorf("client peer error on implRemotePeerAndGetCircuit: remoteAddr should be '%v' (that we are connected to), rather than the '%v' which was requested. Otherwise your request will fail.", r, remoteAddr)
+			err0 = fmt.Errorf("client peer error on implRemotePeerAndGetCircuit: remoteAddr should be '%v' (that we are connected to), rather than the '%v' which was requested. Otherwise your request will fail. stack=\n%v\n", r, remoteAddr, stack())
 			ckt = nil
 			ackMsg = nil
 			onlyPossibleAddr = r
