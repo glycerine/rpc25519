@@ -165,9 +165,15 @@ var myPID = int64(os.Getpid())
 
 var chacha8randMut sync.Mutex
 
-var chacha8rand *mathrand2.ChaCha8 = newCryrandSeededChaCha8()
+var chacha8rand *mathrand2.ChaCha8
 
-//var chacha8rand *mathrand2.ChaCha8 = newZeroSeededChaCha8()
+func init() {
+	if faketime {
+		chacha8rand = newZeroSeededChaCha8()
+	} else {
+		chacha8rand = newCryrandSeededChaCha8()
+	}
+}
 
 func newZeroSeededChaCha8() *mathrand2.ChaCha8 {
 	var seed [32]byte
