@@ -1705,7 +1705,10 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 			//vv("we see msg.HDR.Typ == CallPeerStartCircuitAtMostOne with availLpb count = %v under peerServiceName '%v'", curServiceCount, peerServiceName) // seen 410
 			switch curServiceCount {
 			case 0:
-				panic("should be imposible, since !noPriorPeers")
+				// we did hit this: probably we had one but then it died;
+				// but we still had a map entry. don't freak out.
+				//panic("should be imposible, since !noPriorPeers")
+				fallthrough
 			case 1:
 				lpb = knownLocalPeer.active.GetValSlice()[0]
 				if lpb == nil {
