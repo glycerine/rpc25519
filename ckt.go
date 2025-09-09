@@ -1707,8 +1707,7 @@ func (s *peerAPI) bootstrapCircuit(isCli bool, msg *Message, ctx context.Context
 			case 0:
 				// we did hit this: probably we had one but then it died;
 				// but we still had a map entry. don't freak out.
-				//panic("should be imposible, since !noPriorPeers")
-				fallthrough
+				needNewLocalPeer = true
 			case 1:
 				lpb = knownLocalPeer.active.GetValSlice()[0]
 				if lpb == nil {
