@@ -564,7 +564,6 @@ func (s *LocalPeer) NewCircuitToPeerURL(
 	}
 	rpb.IncomingCkt = ckt
 	s.Remotes.Set(peerID, rpb) // arg. _was_ only called this once. need to symmetrically set on the remote side too. addedckt.go:808 for that.
-
 	return
 }
 
@@ -1132,6 +1131,11 @@ func (lpb *LocalPeer) newCircuit(
 		}
 		rpb.IncomingCkt = ckt
 
+		// rpb.PeerID can be "", the empty string.
+		// We figure it is better to save
+		// it at least under empty string for now, and try to
+		// fix later. although of course collisions and
+		// overwrites then become possible.
 		lpb.Remotes.Set(rpb.PeerID, rpb)
 	}
 
