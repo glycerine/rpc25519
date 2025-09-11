@@ -226,6 +226,19 @@ func (pb *LocalPeer) peerbackPump() {
 			var ckt5s []*Circuit
 			var doReturn bool
 			select {
+
+			// repeat this here (is also in the outer select)
+			// since it was the cause of a deadlock. maybe we
+			// can just accept the circuit and the continue,
+			// and maybe that will result in our desired
+			// recipient being able to receive?
+			case ckt2 := <-pb.TellPumpNewCircuit:
+				//vv("%v pump: ckt := <-pb.TellPumpNewCircuit: for ckt=%p/'%v'", name, ckt, ckt.Name)
+				m[ckt2.CircuitID] = ckt2
+				pb.Halt.AddChild(ckt2.Halt)
+				// and try again with the delivery, rather than drop it.
+				goto wait5MoreSecondsBeforeCktShutdown
+
 			// update: also deadlocked/hangs the newCircuit
 			// creation because pump gets stuck here.
 			// new 2025 Sept 11 try adding timeout:
