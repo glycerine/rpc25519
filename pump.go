@@ -226,6 +226,13 @@ func (pb *LocalPeer) peerbackPump() {
 			var ckt5s []*Circuit
 			var doReturn bool
 			select {
+			// update: also deadlocked/hangs the newCircuit
+			// creation because pump gets stuck here.
+			// new 2025 Sept 11 try adding timeout:
+			case <-time.After(time.Second * 2):
+				alwaysPrintf("warning: pump is dropping frag it could not deliver after 2 sec '%v'", frag)
+				continue
+
 			// was hung here on shutdown... tried adding this first case...
 			// BUT VERY BAD: this makes the pump exit too early!
 			// causes drop/loss of fragment we need in jysnc
