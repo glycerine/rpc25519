@@ -1418,7 +1418,8 @@ func (p *peerAPI) unlockedStartLocalPeer(
 		knownLocalPeer.mut.Unlock()
 	}
 
-	newCircuitCh := make(chan *Circuit, 1) // must be buffered >= 1, see below.
+	// made this from 1 -> 100 bufferred for tube.
+	newCircuitCh := make(chan *Circuit, 100) // must be buffered >= 1, see below.
 	ctx1, canc1 := context.WithCancelCause(ctx)
 
 	var localPeerID string
