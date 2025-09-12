@@ -1036,8 +1036,8 @@ func (lpb *LocalPeer) newCircuit(
 
 	var canc2 context.CancelCauseFunc
 	ctx2, canc2 = context.WithCancelCause(lpb.Ctx)
-	reads := make(chan *Fragment)
-	errors := make(chan *Fragment)
+	reads := make(chan *Fragment, 100)
+	errors := make(chan *Fragment, 100)
 	ckt = &Circuit{
 		CircuitSN:                    atomic.AddInt64(&nextCircuitSN, 1),
 		Name:                         circuitName,

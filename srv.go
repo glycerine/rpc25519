@@ -885,8 +885,21 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 		wantsToPeerID, ok := c.notifyOnReadToPeerIDMap.get(msg.HDR.ToPeerID)
 		//vv("have ToPeerID msg = '%v'; ok='%v'; for '%v'", msg.HDR.String(), ok, msg.HDR.ToPeerID)
 		if ok {
-			// allow back pressure. Don't time out here.
-			// Welp, then we hang sometimes, deadlocking our read loop.
+			// two attempts, 1 sec + 4 sec, instead of 5 sec,
+			// so we can warn alound about possible deadlock.
+
+			select {
+			case wantsToPeerID <- msg:
+				//vv("sent msg to wantsToPeerID=%p ; msg='%v'", wantsToPeerID, msg.HDR.String())
+				return true // only send to ToPeerID, priority over CallID.
+			case <-ctx.Done():
+				return
+			case <-c.u.GetHostHalter().ReqStop.Chan: // ctx not enough
+				return
+			case <-time.After(time.Second):
+				vv("warning: notifies sees difficult send/maybe hang: have ToPeerID msg = '%v'; for '%v'", msg.HDR.String(), msg.HDR.ToPeerID)
+			}
+
 			select {
 			case wantsToPeerID <- msg:
 				//vv("sent msg to wantsToPeerID=%p ; msg='%v'", wantsToPeerID, msg.HDR.String())
@@ -894,7 +907,7 @@ func (c *notifies) handleReply_to_CallID_ToPeerID(isCli bool, ctx context.Contex
 				return
 			case <-c.u.GetHostHalter().ReqStop.Chan: // ctx not enough
 				return
-			case <-time.After(5 * time.Second):
+			case <-time.After(4 * time.Second):
 				alwaysPrintf("deadlock prevention kicked in. dropping msg='%v'", msg)
 			}
 			return true // only send to ToPeerID, priority over CallID.
