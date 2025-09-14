@@ -592,7 +592,10 @@ func (s *rwPair) runReadLoop(conn net.Conn) {
 		req, err := w.readMessage(conn)
 		if err == io.EOF {
 			if !s.Server.cfg.QuietTestMode {
-				alwaysPrintf("server sees io.EOF from receiveMessage on conn '%v' -> '%v'", local(conn), remote(conn))
+				// pretty requent due to utilities connecting for
+				// a moment. so for now we will quit this disconnect
+				// report.
+				//alwaysPrintf("server sees io.EOF from receiveMessage on conn '%v' -> '%v'", local(conn), remote(conn))
 			}
 			// close of socket before read of full message.
 			// shutdown this connection or we'll just
