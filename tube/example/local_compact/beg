@@ -1,0 +1,5 @@
+tube tube.0.cfg &> log.0 &
+tube tube.1.cfg &> log.1 &
+tube tube.2.cfg &> log.2 &
+#tube tube.3.cfg &> log.3 &
+

@@ -34,7 +34,9 @@ require (
 
 require (
 	4d63.com/embedfiles v0.0.0-20190311033909-995e0740726f // indirect
+	github.com/anishathalye/porcupine v1.0.3 // indirect
 	github.com/glycerine/blake2b v0.0.0-20151022103502-3c8c640cd7be // indirect
+	github.com/glycerine/fisherexact v0.3.6 // indirect
 	github.com/glycerine/fwd v1.1.4-beta.jea // indirect
 	github.com/glycerine/liner v0.0.0-20160121172638-72909af234e0 // indirect
 	github.com/glycerine/one_tree_rwmut v1.0.0 // indirect

@@ -1,0 +1,7 @@
+#!/bin/bash
+
+nohup tube tube.0.cfg &> log.0 &
+nohup tube tube.1.cfg &> log.1 &
+nohup tube tube.2.cfg &> log.2 &
+#nohup tube tube.3.cfg &> log.3 &
+

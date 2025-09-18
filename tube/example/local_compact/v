@@ -1,0 +1,4 @@
+for i in `seq 0 5`; do
+  echo -n "node_$i : ";
+  tube -log tube.$i.cfg | grep s.state.CommitIndex || echo
+done

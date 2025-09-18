@@ -1,0 +1,4 @@
+#!/bin/bash
+
+for i in `ls -1 log.*`; do tail -1 $i; done
+

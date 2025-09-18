@@ -2,6 +2,8 @@
 4d63.com/embedfiles v0.0.0-20190311033909-995e0740726f/go.mod h1:HxEsUxoVZyRxsZML/S6e2xAuieFMlGO0756ncWx1aXE=
 4d63.com/tz v1.2.0 h1:EpJt060xY+M+M0Wj8btz+THdOJbSxj4i8jhVQP3Wr0U=
 4d63.com/tz v1.2.0/go.mod h1:SHGqVdL7hd2ZaX2T9uEiOZ/OFAUfCCLURdLPJsd8ZNs=
+github.com/anishathalye/porcupine v1.0.3 h1:0V+ZTHPjWUhYhiVaksoBFKfmBvoJrM3BXLQKGqPqiHM=
+github.com/anishathalye/porcupine v1.0.3/go.mod h1:WM0SsFjWNl2Y4BqHr/E/ll2yY1GY1jqn+W7Z/84Zoog=
 github.com/apoorvam/goterminal v0.0.0-20180523175556-614d345c47e5 h1:VYqcjykqpcq262cDxBAkAelSdg6HETkxgwzQRTS40Aw=
 github.com/apoorvam/goterminal v0.0.0-20180523175556-614d345c47e5/go.mod h1:E7x8aDc3AQzDKjEoIZCt+XYheHk2OkP+p2UgeNjecH8=
 github.com/caio/go-tdigest v3.1.0+incompatible h1:uoVMJ3Q5lXmVLCCqaMGHLBWnbGoN6Lpu7OAUPR60cds=
@@ -22,6 +24,8 @@ github.com/glycerine/blake2b v0.0.0-20151022103502-3c8c640cd7be h1:XBJdPGgA3qqhW
 github.com/glycerine/blake2b v0.0.0-20151022103502-3c8c640cd7be/go.mod h1:OSCrScrFAjcBObrulk6BEQlytA462OkG1UGB5NYj9kE=
 github.com/glycerine/blake3 v1.5.2 h1:lE+WPREJhqdWt5/va+byQccckYQwN41Uu/K+u3KRxdE=
 github.com/glycerine/blake3 v1.5.2/go.mod h1:c/clAKPeDtoJM2aRKbbXWCOtgra+AlmsTD9z6EH7iYo=
+github.com/glycerine/fisherexact v0.3.6 h1:HAm57EZGcbMcgw8zaBnuvq+pFZTHB3RkVHSztpurU6U=
+github.com/glycerine/fisherexact v0.3.6/go.mod h1:UL/Z/qAgHtK9JGIhOAHoIRujKd0oC0ElZd+OXPLONZE=
 github.com/glycerine/fwd v1.1.4-beta.jea h1:penEwsXMBPCMCH+iUj/HKRIuRzfESzLIk99OcttgqTU=
 github.com/glycerine/fwd v1.1.4-beta.jea/go.mod h1:N5KPZnp8z9AaPcR/9r5u2BcdqnlfcTcEGbX1In/yyIE=
 github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31 h1:gclg6gY70GLy3PbkQ1AERPfmLMMagS60DKF78eWwLn8=
