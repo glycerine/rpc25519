@@ -37,7 +37,7 @@ On Go 1.24.3 or Go 1.25, the synctest tests
 run with `GOEXPERIMENT=synctest go test -v`;
 or `GOEXPERIMENT=synctest go test -v -race`.
 
-* Earlier discussion of peer framework:
+* Recent News (2025 Aug 03): v1.25.14 canonical peers
 
 A new view of the peer framework: it
 is almost like having goroutines that can talk 
@@ -64,8 +64,6 @@ to set up the certificates. A simple transfer is then:
 ~~~
 $ jcp some_file_or_dir remotehost:
 ~~~
-
-* Recent News (2025 Aug 03): v1.25.14 canonical peers
 
 The peer/circuit/fragment API now provides the
 PreferExtantRemotePeerGetCircuit method (ckt2.go)
