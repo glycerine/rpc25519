@@ -19,7 +19,7 @@ as it provides a clean separation of membership
 and Raft log data; and is formally proven correct.
 
 Tube provides a basic sorted key/value store as its
-state machine, allowing arbitrary string keys to
+state machine, allowing arbitrary []byte or string keys to
 refer to arbitrary []byte slice values. Multiple
 key-value namespaces, each called a "table", are
 available. See the tube/cmd/tup utility for a 
