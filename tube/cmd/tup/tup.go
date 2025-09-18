@@ -14,8 +14,8 @@ import (
 
 	//rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/ipaddr"
-	"github.com/glycerine/zdb/tube"
-	"github.com/glycerine/zdb/tube/art"
+	"github.com/glycerine/rpc25519/tube"
+	"github.com/glycerine/rpc25519/tube/art"
 )
 
 var sep = string(os.PathSeparator)

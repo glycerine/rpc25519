@@ -31,7 +31,7 @@ import (
 	cristalbase64 "github.com/cristalhq/base64"
 	//rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/ipaddr"
-	"github.com/glycerine/zdb/tube"
+	"github.com/glycerine/rpc25519/tube"
 )
 
 var sep = string(os.PathSeparator)
