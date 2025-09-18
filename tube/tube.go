@@ -4,7 +4,7 @@ package tube
 //
 // A tube is a small raft, delightfully
 // used for floating down rivers on a sunny
-// summer's day.
+// summer's day in some parts of the world.
 //
 // Tube, this package, gives all of the core
 // Raft algorithm in a deliberately small,

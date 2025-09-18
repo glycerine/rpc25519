@@ -9,15 +9,14 @@ for distributed consensus (https://raft.github.io/).
 Raft is a better organized and more concretely 
 specified version of Multi-Paxos.
 
-From the Tube introduction in [tube.go](https://github.com/glycerine/rpc25519/blob/master/tube/tube.go#L5), the central implementation file:
+From the Tube introduction in [tube.go](https://github.com/glycerine/rpc25519/blob/master/tube/tube.go#L5), the central implementation file, the
+name Tube is midwestern shorthand for "innertube",
+as is referring the the sport of "tubing" which
+involves rafting down rivers.
 
 > A tube is a small raft, delightfully
 > used for floating down rivers on a sunny
-> summer's day.
->
-> Tube, this package, gives all of the core
-> Raft algorithm in a deliberately small,
-> compact form. 
+> summer's day in some parts of the world.
 
 Tube implements the Pre-voting and 
 Sticky-leader optimizations, and includes
