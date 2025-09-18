@@ -11,7 +11,7 @@ specified version of Multi-Paxos.
 
 From the Tube introduction in [tube.go](https://github.com/glycerine/rpc25519/blob/master/tube/tube.go#L5), the central implementation file, the
 name Tube is midwestern shorthand for "innertube",
-as is referring the the sport of "tubing" which
+and is referring the the sport of "tubing", which
 involves rafting down rivers.
 
 > A tube is a small raft, delightfully
