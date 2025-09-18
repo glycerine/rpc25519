@@ -11,6 +11,7 @@ specified version of Multi-Paxos.
 
 Tube implements the Pre-voting and 
 Sticky-leader optimizations, and includes
+core Raft (chapter 3 of Ongaro's 2014 Raft dissertation),
 membership changes (chapter 4), log compaction (chapter 5),
 and client-side interaction sessions for 
 linearizability (chapter 6). We use the
