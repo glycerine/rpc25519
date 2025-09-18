@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/glycerine/idem"
+	"net/url"
 	"time"
 )
 
@@ -194,11 +195,17 @@ func (p *peerAPI) implRemotePeerAndGetCircuit(callCtx context.Context, lpb *Loca
 	if r != "" {
 		// we are on the client
 		if r != remoteAddr {
-			err0 = fmt.Errorf("client peer error on implRemotePeerAndGetCircuit: remoteAddr should be '%v' (that we are connected to), rather than the '%v' which was requested. Otherwise your request will fail. stack=\n%v\n", r, remoteAddr, stack())
-			ckt = nil
-			ackMsg = nil
-			onlyPossibleAddr = r
-			return
+			if portsAgree(r, remoteAddr) {
+				// try it... we want to accept
+				// tcp://100.114.32.72:7000  and tcp://127.0.0.1:7000
+				// which are both local host port 7000.
+			} else {
+				err0 = fmt.Errorf("client peer error on implRemotePeerAndGetCircuit: remoteAddr should be '%v' (that we are connected to), rather than the '%v' which was requested. Otherwise your request will fail. stack=\n%v\n", r, remoteAddr, stack())
+				ckt = nil
+				ackMsg = nil
+				onlyPossibleAddr = r
+				return
+			}
 		}
 	}
 
@@ -343,4 +350,14 @@ func (s *LocalPeer) StartRemotePeerAndGetCircuit(lpb *LocalPeer, circuitName str
 	}
 
 	return
+}
+
+func portsAgree(rs, ts string) bool {
+	rp, err := url.Parse(rs)
+	panicOn(err)
+	tp, err := url.Parse(ts)
+	panicOn(err)
+	rport := rp.Port()
+	tport := tp.Port()
+	return rport == tport
 }
