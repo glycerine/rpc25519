@@ -1,7 +1,7 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
-* Recent News (2025 Sept 18): v1.29.0 includes Tube, our RAFT implementation.
+* Recent News (2025 Sept 18): v1.29.2 includes Tube, our RAFT implementation.
 
 The rpc25519/tube/ subdirectory contains a tested and working
 implementation of Deigo Ongaro's Raft algorithm
