@@ -5,14 +5,18 @@ rpc25519: ed25519 based RPC for Go/golang
 
 The rpc25519/tube/ subdirectory contains a tested and working
 implementation of Deigo Ongaro's Raft algorithm
-for distributed consensus (an better organized and
-concretely specified version of Multi Paxos). 
+for distributed consensus. Raft is a better organized and
+more concretely specified version of Multi-Paxos.
 
 Tube implements the Pre-voting and 
 Sticky-leader optimizations, and includes
 membership changes (chapter 4), log compaction (chapter 5),
 and client-side interaction sessions for 
-linearizability (chapter 6).
+linearizability (chapter 6). We use the
+Mongo-Raft-Reconfig algorithm for single-server-at-a-time
+membership changes ( https://arxiv.org/abs/2102.11960 ),
+as it provides a clean separation of membership
+and Raft log data; and is formally proven correct.
 
 Tube provides a basic sorted key/value store as its
 state machine, allowing arbitrary string keys to
