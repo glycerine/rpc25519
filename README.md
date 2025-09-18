@@ -3,11 +3,21 @@ rpc25519: ed25519 based RPC for Go/golang
 
 * Recent News (2025 Sept 18): v1.29.2 includes Tube, our RAFT implementation.
 
-The rpc25519/tube/ subdirectory contains a tested and working
-implementation of Deigo Ongaro's Raft algorithm
+The rpc25519/tube/ subdirectory contains Tube, 
+a tested and working implementation of Deigo Ongaro's Raft algorithm
 for distributed consensus (https://raft.github.io/). 
 Raft is a better organized and more concretely 
 specified version of Multi-Paxos.
+
+From the Tube introduction in [https://github.com/glycerine/rpc25519/blob/master/tube/tube.go#L5](tube.go), the central implementation file:
+
+> A tube is a small raft, delightfully
+> used for floating down rivers on a sunny
+> summer's day.
+>
+> Tube, this package, gives all of the core
+> Raft algorithm in a deliberately small,
+> compact form. 
 
 Tube implements the Pre-voting and 
 Sticky-leader optimizations, and includes
