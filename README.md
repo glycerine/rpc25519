@@ -5,8 +5,9 @@ rpc25519: ed25519 based RPC for Go/golang
 
 The rpc25519/tube/ subdirectory contains a tested and working
 implementation of Deigo Ongaro's Raft algorithm
-for distributed consensus. Raft is a better organized and
-more concretely specified version of Multi-Paxos.
+for distributed consensus (https://raft.github.io/). 
+Raft is a better organized and more concretely 
+specified version of Multi-Paxos.
 
 Tube implements the Pre-voting and 
 Sticky-leader optimizations, and includes
