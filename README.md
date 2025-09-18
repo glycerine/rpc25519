@@ -25,7 +25,17 @@ key-value namespaces, each called a "table", are
 available. See the tube/cmd/tup utility for a 
 sample client.
 
-Earlier discussion of peer framework:
+Testing uses the Go testing/synctest package
+(https://pkg.go.dev/testing/synctest) 
+and our own gosimnet network simulator
+(https://github.com/glycerine/gosimnet) whose
+implementation is embedded here in simnet.go.
+
+On Go 1.24.3 or Go 1.25, the synctest tests
+run with `GOEXPERIMENT=synctest go test -v`;
+or `GOEXPERIMENT=synctest go test -v -race`.
+
+* Earlier discussion of peer framework:
 
 A new view of the peer framework: it
 is almost like having goroutines that can talk 
