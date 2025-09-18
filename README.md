@@ -1,6 +1,28 @@
 rpc25519: ed25519 based RPC for Go/golang
 ==========
 
+* Recent News (2025 Sept 18): v1.29.0 includes Tube, our RAFT implementation.
+
+The rpc25519/tube/ subdirectory contains a tested and working
+implementation of Deigo Ongaro's Raft algorithm
+for distributed consensus (an better organized and
+concretely specified version of Multi Paxos). 
+
+Tube implements the Pre-voting and 
+Sticky-leader optimizations, and includes
+membership changes (chapter 4), log compaction (chapter 5),
+and client-side interaction sessions for 
+linearizability (chapter 6).
+
+Tube provides a basic sorted key/value store as its
+state machine, allowing arbitrary string keys to
+refer to arbitrary []byte slice values. Multiple
+key-value namespaces, each called a "table", are
+available. See the tube/cmd/tup utility for a 
+sample client.
+
+Earlier discussion of peer framework:
+
 A new view of the peer framework: it
 is almost like having goroutines that can talk 
 to remote goroutines. In fact, that is fundamentally
