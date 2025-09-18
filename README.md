@@ -9,7 +9,7 @@ for distributed consensus (https://raft.github.io/).
 Raft is a better organized and more concretely 
 specified version of Multi-Paxos.
 
-From the Tube introduction in [https://github.com/glycerine/rpc25519/blob/master/tube/tube.go#L5](tube.go), the central implementation file:
+From the Tube introduction in [tube.go](https://github.com/glycerine/rpc25519/blob/master/tube/tube.go#L5), the central implementation file:
 
 > A tube is a small raft, delightfully
 > used for floating down rivers on a sunny
