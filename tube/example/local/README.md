@@ -4,6 +4,27 @@ How to run a simple Tube RAFT cluster
 getting started
 ---------------
 
+Although Tube is a library, meant to be
+used in a host application, it has an example
+application also called tube. Tube provides
+a simple sorted key/value store which is
+made fault tolerant by operating under the RAFT.
+
+There is a small set of example utilities to
+manipulate the Tube cluster from the command
+line:
+
+* `tube` is the main replicated key/value store.
+
+* `tubels` shows the processes in the current cluster
+
+* `tubeadd node_1` adds a process to the cluster
+
+* `tuberm node_0` removes a process (node) from the cluster.
+
+* `tube -log tube.0.cfg` can be used to inspect the on-disk
+state and raft log of a node.
+
 We will run a simple 3 node cluster, with
 all three nodes on the same host. So we
 will end up starting three processes, and
