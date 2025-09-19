@@ -8,13 +8,12 @@ Although Tube is a library, meant to be
 used in a host application, it has an example
 application also called tube. Tube provides
 a simple sorted key/value store which is
-made fault tolerant by operating under the RAFT.
+made fault tolerant by operating under RAFT.
 
-There is a small set of example utilities to
-manipulate the Tube cluster from the command
-line:
+We also provide a small set of example/demo utilities to
+manipulate the Tube cluster from the command line:
 
-* `tube` is the main replicated key/value store.
+* `tube` is the main replicated key/value store example application.
 
 * `tubels` shows the processes in the current cluster
 
@@ -24,6 +23,8 @@ line:
 
 * `tube -log tube.0.cfg` can be used to inspect the on-disk
 state and raft log of a node.
+
+* `tuberm -e node_0` will erase the membership configuration of node_0
 
 We will run a simple 3 node cluster, with
 all three nodes on the same host. So we
