@@ -8,12 +8,12 @@ We will run a simple 3 node cluster, with
 all three nodes on the same host. So we
 will end up starting three processes, and
 then connect to them using `tup`, the tube
-updater CLI command for reading and write
+updater CLI command for reading and writing
 the key/value store.
 
 from this directory (rpc25519/tube/example/local):
 
-1. install the default tup config file to its default location.
+1. install the default tup config file to its default location (one time task).
 ~~~
 $ cd rpc25519/tube/example/local
 $ mkdir -p ~/.config/tube
@@ -27,9 +27,14 @@ $ make # installs selfy key creation tool (only run if selfy not already on hand
 $ selfy -k tube -nopass
 ~~~
 
+selfy generated tube.crt and placed it in ~/.config/rpc25519/certs/tube.crt
+
+It saved the private key to ~/.config/rpc25519/certs/tube.key
+
 3. Be sure that your $GOPATH/bin is on your $PATH, so
 that `go install` will leave `tube` in $GOPATH/bin/tube
-and thus it will be runnable.
+and thus it will be runnable. Edit and re-source your ~/.bashrc
+and its PATH settings if need be.
 
 4. run `make magic` which automates building and starting
 a three node cluster
