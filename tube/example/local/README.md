@@ -195,7 +195,8 @@ wrote: x <- 10 (in table 'base')
 wrote: y <- 12 (in table 'base')
 ~~~
 
-12. Read back all the keys in the current default table:
+12. Read back all the keys in the current default table by typing 
+a just a dash `-` and then pressing enter.
 
 ~~~
 [node_0 connected](table 'base') > -
