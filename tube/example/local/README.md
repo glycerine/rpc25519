@@ -34,6 +34,7 @@ and thus it will be runnable.
 4. run `make magic` which automates building and starting
 a three node cluster
 ~~~
+$ cd rpc25519/tube/example/local
 $ make magic
 ~~~
 

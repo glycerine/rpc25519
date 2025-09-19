@@ -9,6 +9,9 @@ for distributed consensus (https://raft.github.io/).
 Raft is a better organized and more concretely 
 specified version of Multi-Paxos.
 
+There is a getting started with Tube guide here:
+https://github.com/glycerine/rpc25519/blob/master/tube/example/local/README.md
+
 From the Tube introduction in [tube.go](https://github.com/glycerine/rpc25519/blob/master/tube/tube.go#L5), the central implementation file, the
 name Tube is midwestern shorthand for "innertube",
 and is referring the the sport of "tubing", which
