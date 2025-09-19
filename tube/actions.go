@@ -433,7 +433,7 @@ func (s *RaftState) kvstoreRangeScan(tktTable, tktKey, tktKeyEndx Key, descend b
 	return
 }
 
-func (s *RaftState) kvstoreRead(tktTable, tktKey Key) ([]byte, error) {
+func (s *RaftState) KVStoreRead(tktTable, tktKey Key) ([]byte, error) {
 	table, ok := s.KVstore.m[tktTable]
 	if !ok {
 		return nil, ErrKeyNotFound

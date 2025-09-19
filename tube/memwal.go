@@ -47,6 +47,8 @@ func (s *raftWriteAheadLog) saveRaftLogEntry_NODISK(entry *RaftLogEntry) (nw int
 	n := int64(len(s.raftLog))
 	if n > 0 {
 		lastIndex = s.raftLog[n-1].Index
+	} else {
+		lastIndex = s.logIndex.BaseC
 	}
 	if lastIndex+1 != entry.Index {
 		panic(fmt.Sprintf("incorrect entry.Index = %v vs "+

@@ -34,7 +34,7 @@ func Test301_raftStatePersistorSaveLoad(t *testing.T) {
 		state.kvstoreWrite("hello", "world", art.ByteSliceValue(Val("43")))
 
 		// check read back immediately...
-		v, err := state.kvstoreRead("hello", "world")
+		v, err := state.KVStoreRead("hello", "world")
 		panicOn(err)
 		if string(v) != "43" {
 			panic(fmt.Sprintf("want '43'; got '%v'", v))
@@ -55,7 +55,7 @@ func Test301_raftStatePersistorSaveLoad(t *testing.T) {
 		//	vv("st2.KVstore.m: key '%v' -> tree.Size='%v'", k, v.Tree.Size())
 		//}
 
-		v2, err2 := st2.kvstoreRead("hello", "world")
+		v2, err2 := st2.KVStoreRead("hello", "world")
 		panicOn(err2)
 		if got, want := string(v2), "43"; got != want {
 			panic(fmt.Sprintf("got = '%v'; want = '%v'", got, want))

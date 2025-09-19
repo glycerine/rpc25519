@@ -97,6 +97,9 @@ func (s *raftStatePersistor) sync() error {
 
 func (s *raftStatePersistor) save(state *RaftState) (nw int64, err error) {
 
+	if s == nil {
+		return
+	}
 	state.LastSaveTimestamp = time.Now()
 
 	if s.nodisk {

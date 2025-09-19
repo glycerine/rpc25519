@@ -124,7 +124,7 @@ func Test401_add_node(t *testing.T) {
 			// from a leader. but it doesn't know
 			//
 			vv("add node4, going from cluster size %v -> %v. this should now fail because node4 is a TUBE_CLIENT and not a TUBE_REPLICA !", numNodes, numNodes+1) // seen
-			memlistAfterAdd, _, err := node4.AddPeerIDToCluster(bkg, node4.name, node4.PeerID, node4.PeerServiceName, node4.BaseServerHostPort(), leaderURL, 0)
+			memlistAfterAdd, _, err := node4.AddPeerIDToCluster(bkg, false, node4.name, node4.PeerID, node4.PeerServiceName, node4.BaseServerHostPort(), leaderURL, 0)
 			if err == nil {
 				panic("wanted error! got nil")
 			}
@@ -180,7 +180,7 @@ func Test401_add_node(t *testing.T) {
 			}
 
 			vv("add node5, going from cluster size %v -> %v. this should work; node5 is a TUBE_REPLICA", numNodes, numNodes+1) // seen
-			memlistAfterAdd5, _, err := node5.AddPeerIDToCluster(bkg, node5.name, node5.PeerID, node5.PeerServiceName, node5.BaseServerHostPort(), leaderURL, 0)
+			memlistAfterAdd5, _, err := node5.AddPeerIDToCluster(bkg, false, node5.name, node5.PeerID, node5.PeerServiceName, node5.BaseServerHostPort(), leaderURL, 0)
 			panicOn(err)
 
 			_, present := memlistAfterAdd5.CktReplicaByName[node5.name]
@@ -347,7 +347,7 @@ func Test402_build_up_a_cluster_from_one_node(t *testing.T) {
 			newExpectedClusterSz := i + baseNodeCount
 			//vv("add node '%v', going -> cluster size %v", name1, newExpectedClusterSz)
 			// we automatically get a member list afterwards
-			memlistAfterAdd, _, err := node1.AddPeerIDToCluster(bkg, name1, node1.PeerID, node1.PeerServiceName, node1.BaseServerHostPort(), leaderURL, 0)
+			memlistAfterAdd, _, err := node1.AddPeerIDToCluster(bkg, false, name1, node1.PeerID, node1.PeerServiceName, node1.BaseServerHostPort(), leaderURL, 0)
 			panicOn(err)
 
 			_, present := memlistAfterAdd.CktReplicaByName[node1.name]
@@ -500,7 +500,7 @@ func Test403_reduce_a_cluster_down_to_one_node(t *testing.T) {
 			newExpectedClusterSz := i + baseNodeCount
 			vv("add node '%v', going to cluster size %v", name1, newExpectedClusterSz)
 			// we automatically get an Inspection and thus .CktReplicaByName for member list afterwards
-			inspAfterAdd, _, err := node1.AddPeerIDToCluster(bkg, name1, node1.PeerID, node1.PeerServiceName, node1.BaseServerHostPort(), leaderURL, 0)
+			inspAfterAdd, _, err := node1.AddPeerIDToCluster(bkg, false, name1, node1.PeerID, node1.PeerServiceName, node1.BaseServerHostPort(), leaderURL, 0)
 			panicOn(err)
 
 			// on addition, we should get back a committed

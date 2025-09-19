@@ -344,8 +344,9 @@ func main() {
 						// this is for replicas not clients.
 						// See cmd/tup/tup.go for client and session
 						// examples.
+						nonVoting := false
 						ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
-						memlistAfterAdd, stateSnapshot, err := node.AddPeerIDToCluster(ctx5sec, cfg.MyName, node.PeerID, node.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
+						memlistAfterAdd, stateSnapshot, err := node.AddPeerIDToCluster(ctx5sec, nonVoting, cfg.MyName, node.PeerID, node.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
 						canc5()
 						// can have network unavail at first. Yes freak since otherwise we won't be up!
 						//panicOn(err)

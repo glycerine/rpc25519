@@ -74,7 +74,7 @@ func Test059_new_node_joins_after_compaction(t *testing.T) {
 			actualLeaderURL := c.Nodes[0].URL
 
 			ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
-			memlistAfterAdd, stateSnapshot, err := node4.AddPeerIDToCluster(ctx5sec, node4.name, node4.PeerID, node4.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
+			memlistAfterAdd, stateSnapshot, err := node4.AddPeerIDToCluster(ctx5sec, false, node4.name, node4.PeerID, node4.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
 			canc5()
 			_ = memlistAfterAdd
 			_ = stateSnapshot

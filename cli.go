@@ -281,7 +281,7 @@ func (c *Client) runClientTCP(serverAddr string) {
 		return
 	}
 	defer conn.Close() // in runClientTCP() here.
-	//alwaysPrintf("connected to server %s", serverAddr)
+	alwaysPrintf("connected to server %s", serverAddr)
 
 	if c.cfg.HTTPConnectRequired {
 		io.WriteString(conn, "CONNECT "+DefaultRPCPath+" HTTP/1.0\n\n")

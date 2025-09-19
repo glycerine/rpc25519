@@ -28,11 +28,13 @@ type TubeRemoveConfig struct {
 	ContactName string // -c name of node to contact
 	Help        bool   // -h for help, false, show this help
 	//ForceName   string // -f force node to remove MC change
+	NonVotingShadowFollower bool // -shadow add as non-voting-follower ("shadow replica")
 }
 
 func (c *TubeRemoveConfig) SetFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.ContactName, "c", "", "name of node to contact (defaults to leader)")
 	fs.BoolVar(&c.Help, "h", false, "show this help")
+	fs.BoolVar(&c.NonVotingShadowFollower, "shadow", false, "add node as non-voting shadow follower replica")
 	//fs.StringVar(&c.ForceName, "f", "", "name of node to force add MC change")
 }
 
@@ -224,7 +226,13 @@ func main() {
 
 	vv("tupadd is doing AddPeerIDToCluster using leaderURL='%v'", leaderURL)
 	errWriteDur := time.Second * 20
-	memlistAfter, stateSnapshot, err := node.AddPeerIDToCluster(ctx, target, targetPeerID, tube.TUBE_REPLICA, "", leaderURL, errWriteDur)
+	peerServiceName := tube.TUBE_REPLICA
+	var nonVoting bool
+	if cmdCfg.NonVotingShadowFollower {
+		nonVoting = true
+	}
+	baseServerHostPort := ""
+	memlistAfter, stateSnapshot, err := node.AddPeerIDToCluster(ctx, nonVoting, target, targetPeerID, peerServiceName, baseServerHostPort, leaderURL, errWriteDur)
 	panicOn(err)
 
 	if target == cfg.MyName {

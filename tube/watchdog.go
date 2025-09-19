@@ -185,6 +185,7 @@ func (c *cktPlus) startWatchdog() {
 			tick.Stop() // do tick.Reset(refresh) once we first have a ckt
 		}
 		defer func() {
+			//vv("%v watchdog exiting; c='%v'", c.node.name, c)
 			tick.Stop()
 			c.perCktWatchdogHalt.RequestStop()
 			c.perCktWatchdogHalt.MarkDone()
@@ -250,7 +251,7 @@ func (c *cktPlus) startWatchdog() {
 				} else {
 					if dieOnConnectionRefused && refused(err) {
 						c.atomicConnRefused.Store(true)
-						alwaysPrintf("%v shutting down watchdog(%p) because connection refused: '%v'", s.name, c, err)
+						//alwaysPrintf("%v shutting down watchdog(%p) because connection refused: '%v'", s.name, c, err)
 						return
 					}
 				}
@@ -282,13 +283,13 @@ func (c *cktPlus) startWatchdog() {
 					lastSeen = externalLastSeenTm
 				}
 				if !recomputeIsUp() {
-					vv("%v (%p)startWatchdog: <-tick.C been %v so need reconnect to '%v'; lastSeen='%v'; externalLastSeenTm='%v'", s.me(), c, been, pack.addr, nice(lastSeen), nice(externalLastSeenTm))
+					//vv("%v (%p)startWatchdog: <-tick.C been %v so need reconnect to '%v'; lastSeen='%v'; externalLastSeenTm='%v'", s.me(), c, been, pack.addr, nice(lastSeen), nice(externalLastSeenTm))
 
 					now := time.Now()
 					beenSinceAttempt := now.Sub(lastReconnAttempt)
 					wait := refresh - beenSinceAttempt
 					if wait > 0 {
-						vv("%v watchdog avoid reconnect for another %v to avoid fast spin", s.name, wait)
+						//vv("%v watchdog avoid reconnect for another %v to avoid fast spin", s.name, wait)
 						tick.Reset(wait)
 						continue
 					}
@@ -310,15 +311,17 @@ func (c *cktPlus) startWatchdog() {
 					} else {
 						if dieOnConnectionRefused && refused(err) {
 							c.atomicConnRefused.Store(true)
-							alwaysPrintf("%v shutting down watchdog(%p) because connection refused: '%v'", s.name, c, err)
+							//alwaysPrintf("%v shutting down watchdog(%p) because connection refused: '%v'", s.name, c, err)
 							return
 						}
 					}
 					lastReconnAttempt = now
 				}
 			case <-c.perCktWatchdogHalt.ReqStop.Chan:
+				//alwaysPrintf("%v shutting down watchdog(%p) because <-c.perCktWatchdogHalt.ReqStop.Chan", s.name, c)
 				return
 			case <-s.Halt.ReqStop.Chan:
+				//alwaysPrintf("%v shutting down watchdog(%p) because <-s.Halt.ReqStop.Chan", s.name, c)
 				return
 			}
 		}
@@ -339,7 +342,7 @@ func (c *cktPlus) reconnect(pack *packReconnect, why string) (isUp bool, err err
 	addr := pack.addr
 
 	if addr == "" {
-		vv("%v empty address in pack! pack='%#v'", s.name, pack)
+		//vv("%v empty address in pack! pack='%#v'", s.name, pack)
 		return false, fmt.Errorf("skip reconnect with empty addr")
 	}
 
@@ -366,7 +369,7 @@ func (c *cktPlus) reconnect(pack *packReconnect, why string) (isUp bool, err err
 		// will crash the ckt2 PreferExtant call...
 		// does this mean we already have one in progress?
 		// maybe on another watchdog. Should we shutdown?
-		vv("%v pending addr ugh. do we have info in pack='%#v'", pack)
+		//vv("%v pending addr ugh. do we have info in pack='%#v'", pack)
 		return false, fmt.Errorf("skip reconnect with pending addr")
 	}
 

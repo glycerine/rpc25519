@@ -1642,15 +1642,18 @@ func (s *Simnet) reverse(alt Alteration) (undo Alteration) {
 
 // alter all the auto-cli of a server and the server itself.
 func (s *Simnet) handleAlterHost(altop *mop) (undo Alteration) {
-	vv("top handleAlterHost altop='%v'", altop)
+	//vv("top handleAlterHost altop='%v'", altop)
 
 	var alt *simnodeAlteration = altop.alterHost
 
 	node, ok := s.dns[alt.simnodeName]
 	if !ok {
 		alt.err = fmt.Errorf("error: handleAlterHost could not find simnodeName '%v' in dns: '%v'", alt.simnodeName, s.dns)
-		// drat: power on of previously poweroff and closed node gets here.
-		vv("early return on alt.err='%v'", alt.err)
+		// well huh: power on of previously poweroff and closed node gets here.
+		// but that is kind of expected with a powered off node.
+		// Because we want to power back on later with the same name,
+		// we have to clear out the dns when it goes offline.
+		//vv("early return on alt.err='%v'", alt.err)
 		return
 	}
 

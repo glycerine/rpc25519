@@ -5980,7 +5980,7 @@ func (z *Inspection) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields90zgensym_8df0a91a1f250219_91 = 22
+	const maxFields90zgensym_8df0a91a1f250219_91 = 23
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields90zgensym_8df0a91a1f250219_91 uint32
@@ -6428,6 +6428,35 @@ doneWithStruct90zgensym_8df0a91a1f250219_91:
 			if err != nil {
 				return
 			}
+		case "ShadowReplicas_zid21_ptr":
+			found90zgensym_8df0a91a1f250219_91[21] = true
+			if dc.IsNil() {
+				err = dc.ReadNil()
+				if err != nil {
+					return
+				}
+
+				if z.ShadowReplicas != nil {
+					dc.PushAlwaysNil()
+					err = z.ShadowReplicas.DecodeMsg(dc)
+					if err != nil {
+						return
+					}
+					dc.PopAlwaysNil()
+				}
+			} else {
+				// not Nil, we have something to read
+
+				if z.ShadowReplicas == nil {
+					z.ShadowReplicas = new(MemberConfig)
+				}
+				dc.DedupIndexEachPtr(z.ShadowReplicas)
+
+				err = z.ShadowReplicas.DecodeMsg(dc)
+				if err != nil {
+					return
+				}
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -6451,16 +6480,16 @@ doneWithStruct90zgensym_8df0a91a1f250219_91:
 }
 
 // fields of Inspection
-var decodeMsgFieldOrder90zgensym_8df0a91a1f250219_91 = []string{"CktReplica_zid00_map", "CktReplicaByName_zid01_map", "CktAll_zid02_map", "CktAllByName_zid03_map", "Peers_zid04_map", "WaitingAtLeader_zid05_map", "WaitingAtFollow_zid06_map", "Role_zid07_rct", "State_zid08_ptr", "CurrentLeaderName_zid09_str", "CurrentLeaderID_zid10_str", "CurrentLeaderURL_zid11_str", "ElectionCount_zid12_int", "LastLeaderActiveStepDown_zid13_tim", "Cfg_zid14_rct", "MC_zid15_ptr", "ResponderPeerID_zid16_str", "ResponderPeerURL_zid17_str", "ResponderName_zid18_str", "LastLogIndex_zid19_i64", "LastLogTerm_zid20_i64", ""}
+var decodeMsgFieldOrder90zgensym_8df0a91a1f250219_91 = []string{"CktReplica_zid00_map", "CktReplicaByName_zid01_map", "CktAll_zid02_map", "CktAllByName_zid03_map", "Peers_zid04_map", "WaitingAtLeader_zid05_map", "WaitingAtFollow_zid06_map", "Role_zid07_rct", "State_zid08_ptr", "CurrentLeaderName_zid09_str", "CurrentLeaderID_zid10_str", "CurrentLeaderURL_zid11_str", "ElectionCount_zid12_int", "LastLeaderActiveStepDown_zid13_tim", "Cfg_zid14_rct", "MC_zid15_ptr", "ResponderPeerID_zid16_str", "ResponderPeerURL_zid17_str", "ResponderName_zid18_str", "LastLogIndex_zid19_i64", "LastLogTerm_zid20_i64", "ShadowReplicas_zid21_ptr", ""}
 
-var decodeMsgFieldSkip90zgensym_8df0a91a1f250219_91 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
+var decodeMsgFieldSkip90zgensym_8df0a91a1f250219_91 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *Inspection) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 21
+		return 22
 	}
-	var fieldsInUse uint32 = 21
+	var fieldsInUse uint32 = 22
 	isempty[0] = (len(z.CktReplica) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -6545,6 +6574,10 @@ func (z *Inspection) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[20] {
 		fieldsInUse--
 	}
+	isempty[21] = (z.ShadowReplicas == nil) // pointer, omitempty
+	if isempty[21] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -6556,7 +6589,7 @@ func (z *Inspection) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_8df0a91a1f250219_100 [22]bool
+	var empty_zgensym_8df0a91a1f250219_100 [23]bool
 	fieldsInUse_zgensym_8df0a91a1f250219_101 := z.fieldsNotEmpty(empty_zgensym_8df0a91a1f250219_100[:])
 
 	// map header
@@ -6942,6 +6975,27 @@ func (z *Inspection) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_8df0a91a1f250219_100[21] {
+		// write "ShadowReplicas_zid21_ptr"
+		err = en.Append(0xb8, 0x53, 0x68, 0x61, 0x64, 0x6f, 0x77, 0x52, 0x65, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x32, 0x31, 0x5f, 0x70, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		// gPtr.encodeGen():
+
+		if z.ShadowReplicas == nil {
+			err = en.WriteNil()
+			if err != nil {
+				return
+			}
+		} else {
+			err = z.ShadowReplicas.EncodeMsg(en)
+			if err != nil {
+				return
+			}
+		}
+	}
+
 	return
 }
 
@@ -6954,7 +7008,7 @@ func (z *Inspection) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [22]bool
+	var empty [23]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -7170,6 +7224,23 @@ func (z *Inspection) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendInt64(o, z.LastLogTerm)
 	}
 
+	if !empty[21] {
+		// string "ShadowReplicas_zid21_ptr"
+		o = append(o, 0xb8, 0x53, 0x68, 0x61, 0x64, 0x6f, 0x77, 0x52, 0x65, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x32, 0x31, 0x5f, 0x70, 0x74, 0x72)
+		// marshalGen.gPtr()
+
+		if z.ShadowReplicas == nil {
+			o = msgp.AppendNil(o)
+		} else {
+			// hmm.. no en, no place to check en.DedupWriteIsDup(z)
+
+			o, err = z.ShadowReplicas.MarshalMsg(o) // not is.iface
+			if err != nil {
+				return
+			}
+		}
+	}
+
 	return
 }
 
@@ -7188,7 +7259,7 @@ func (z *Inspection) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o
 
 	var field []byte
 	_ = field
-	const maxFields102zgensym_8df0a91a1f250219_103 = 22
+	const maxFields102zgensym_8df0a91a1f250219_103 = 23
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields102zgensym_8df0a91a1f250219_103 uint32
@@ -7727,6 +7798,36 @@ doneWithStruct102zgensym_8df0a91a1f250219_103:
 			if err != nil {
 				return
 			}
+		case "ShadowReplicas_zid21_ptr":
+			found102zgensym_8df0a91a1f250219_103[21] = true
+			// unmarshalGen.gPtr(): we have a BaseElem.
+
+			// unmarshalGen.gPtr(): we have an IDENT:
+
+			if nbs.AlwaysNil {
+				if z.ShadowReplicas != nil {
+					z.ShadowReplicas.UnmarshalMsg(msgp.OnlyNilSlice)
+				}
+			} else {
+				// not nbs.AlwaysNil
+				if msgp.IsNil(bts) {
+					bts = bts[1:]
+					if nil != z.ShadowReplicas {
+						z.ShadowReplicas.UnmarshalMsg(msgp.OnlyNilSlice)
+					}
+				} else {
+					// not nbs.AlwaysNil and not IsNil(bts): have something to read
+
+					if z.ShadowReplicas == nil {
+						z.ShadowReplicas = new(MemberConfig)
+					}
+
+					bts, err = z.ShadowReplicas.UnmarshalMsg(bts)
+					if err != nil {
+						return
+					}
+				}
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -7750,9 +7851,9 @@ doneWithStruct102zgensym_8df0a91a1f250219_103:
 }
 
 // fields of Inspection
-var unmarshalMsgFieldOrder102zgensym_8df0a91a1f250219_103 = []string{"CktReplica_zid00_map", "CktReplicaByName_zid01_map", "CktAll_zid02_map", "CktAllByName_zid03_map", "Peers_zid04_map", "WaitingAtLeader_zid05_map", "WaitingAtFollow_zid06_map", "Role_zid07_rct", "State_zid08_ptr", "CurrentLeaderName_zid09_str", "CurrentLeaderID_zid10_str", "CurrentLeaderURL_zid11_str", "ElectionCount_zid12_int", "LastLeaderActiveStepDown_zid13_tim", "Cfg_zid14_rct", "MC_zid15_ptr", "ResponderPeerID_zid16_str", "ResponderPeerURL_zid17_str", "ResponderName_zid18_str", "LastLogIndex_zid19_i64", "LastLogTerm_zid20_i64", ""}
+var unmarshalMsgFieldOrder102zgensym_8df0a91a1f250219_103 = []string{"CktReplica_zid00_map", "CktReplicaByName_zid01_map", "CktAll_zid02_map", "CktAllByName_zid03_map", "Peers_zid04_map", "WaitingAtLeader_zid05_map", "WaitingAtFollow_zid06_map", "Role_zid07_rct", "State_zid08_ptr", "CurrentLeaderName_zid09_str", "CurrentLeaderID_zid10_str", "CurrentLeaderURL_zid11_str", "ElectionCount_zid12_int", "LastLeaderActiveStepDown_zid13_tim", "Cfg_zid14_rct", "MC_zid15_ptr", "ResponderPeerID_zid16_str", "ResponderPeerURL_zid17_str", "ResponderName_zid18_str", "LastLogIndex_zid19_i64", "LastLogTerm_zid20_i64", "ShadowReplicas_zid21_ptr", ""}
 
-var unmarshalMsgFieldSkip102zgensym_8df0a91a1f250219_103 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
+var unmarshalMsgFieldSkip102zgensym_8df0a91a1f250219_103 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Inspection) Msgsize() (s int) {
@@ -7839,7 +7940,12 @@ func (z *Inspection) Msgsize() (s int) {
 	} else {
 		s += z.MC.Msgsize()
 	}
-	s += 26 + msgp.StringPrefixSize + len(z.ResponderPeerID) + 27 + msgp.StringPrefixSize + len(z.ResponderPeerURL) + 24 + msgp.StringPrefixSize + len(z.ResponderName) + 23 + msgp.Int64Size + 22 + msgp.Int64Size
+	s += 26 + msgp.StringPrefixSize + len(z.ResponderPeerID) + 27 + msgp.StringPrefixSize + len(z.ResponderPeerURL) + 24 + msgp.StringPrefixSize + len(z.ResponderName) + 23 + msgp.Int64Size + 22 + msgp.Int64Size + 25
+	if z.ShadowReplicas == nil {
+		s += msgp.NilSize
+	} else {
+		s += z.ShadowReplicas.Msgsize()
+	}
 	return
 }
 func (z *Inspection) Gstring() (r string) {
@@ -7865,6 +7971,7 @@ func (z *Inspection) Gstring() (r string) {
 	r += fmt.Sprintf("           ResponderName: \"%v\",\n", z.ResponderName)
 	r += fmt.Sprintf("            LastLogIndex: %v,\n", z.LastLogIndex)
 	r += fmt.Sprintf("             LastLogTerm: %v,\n", z.LastLogTerm)
+	r += fmt.Sprintf("          ShadowReplicas: %v,\n", z.ShadowReplicas)
 	r += "}\n"
 	return
 }
@@ -9986,7 +10093,7 @@ func (z *PeerDetail) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields152zgensym_8df0a91a1f250219_153 = 6
+	const maxFields152zgensym_8df0a91a1f250219_153 = 7
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields152zgensym_8df0a91a1f250219_153 uint32
@@ -10071,6 +10178,12 @@ doneWithStruct152zgensym_8df0a91a1f250219_153:
 			if err != nil {
 				return
 			}
+		case "NonVoting_zid06_boo":
+			found152zgensym_8df0a91a1f250219_153[6] = true
+			z.NonVoting, err = dc.ReadBool()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -10094,16 +10207,16 @@ doneWithStruct152zgensym_8df0a91a1f250219_153:
 }
 
 // fields of PeerDetail
-var decodeMsgFieldOrder152zgensym_8df0a91a1f250219_153 = []string{"Name_zid00_str", "URL_zid01_str", "PeerID_zid02_str", "Addr_zid03_str", "PeerServiceName_zid04_str", "PeerServiceNameVersion_zid05_str"}
+var decodeMsgFieldOrder152zgensym_8df0a91a1f250219_153 = []string{"Name_zid00_str", "URL_zid01_str", "PeerID_zid02_str", "Addr_zid03_str", "PeerServiceName_zid04_str", "PeerServiceNameVersion_zid05_str", "NonVoting_zid06_boo"}
 
-var decodeMsgFieldSkip152zgensym_8df0a91a1f250219_153 = []bool{false, false, false, false, false, false}
+var decodeMsgFieldSkip152zgensym_8df0a91a1f250219_153 = []bool{false, false, false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *PeerDetail) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 6
+		return 7
 	}
-	var fieldsInUse uint32 = 6
+	var fieldsInUse uint32 = 7
 	isempty[0] = (len(z.Name) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -10128,6 +10241,10 @@ func (z *PeerDetail) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[5] {
 		fieldsInUse--
 	}
+	isempty[6] = (!z.NonVoting) // bool, omitempty
+	if isempty[6] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -10139,7 +10256,7 @@ func (z *PeerDetail) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_8df0a91a1f250219_154 [6]bool
+	var empty_zgensym_8df0a91a1f250219_154 [7]bool
 	fieldsInUse_zgensym_8df0a91a1f250219_155 := z.fieldsNotEmpty(empty_zgensym_8df0a91a1f250219_154[:])
 
 	// map header
@@ -10230,6 +10347,18 @@ func (z *PeerDetail) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_8df0a91a1f250219_154[6] {
+		// write "NonVoting_zid06_boo"
+		err = en.Append(0xb3, 0x4e, 0x6f, 0x6e, 0x56, 0x6f, 0x74, 0x69, 0x6e, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x62, 0x6f, 0x6f)
+		if err != nil {
+			return err
+		}
+		err = en.WriteBool(z.NonVoting)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -10242,7 +10371,7 @@ func (z *PeerDetail) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [6]bool
+	var empty [7]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -10282,6 +10411,12 @@ func (z *PeerDetail) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendString(o, z.PeerServiceNameVersion)
 	}
 
+	if !empty[6] {
+		// string "NonVoting_zid06_boo"
+		o = append(o, 0xb3, 0x4e, 0x6f, 0x6e, 0x56, 0x6f, 0x74, 0x69, 0x6e, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x62, 0x6f, 0x6f)
+		o = msgp.AppendBool(o, z.NonVoting)
+	}
+
 	return
 }
 
@@ -10300,7 +10435,7 @@ func (z *PeerDetail) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o
 
 	var field []byte
 	_ = field
-	const maxFields156zgensym_8df0a91a1f250219_157 = 6
+	const maxFields156zgensym_8df0a91a1f250219_157 = 7
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields156zgensym_8df0a91a1f250219_157 uint32
@@ -10392,6 +10527,13 @@ doneWithStruct156zgensym_8df0a91a1f250219_157:
 			if err != nil {
 				return
 			}
+		case "NonVoting_zid06_boo":
+			found156zgensym_8df0a91a1f250219_157[6] = true
+			z.NonVoting, bts, err = nbs.ReadBoolBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -10415,13 +10557,13 @@ doneWithStruct156zgensym_8df0a91a1f250219_157:
 }
 
 // fields of PeerDetail
-var unmarshalMsgFieldOrder156zgensym_8df0a91a1f250219_157 = []string{"Name_zid00_str", "URL_zid01_str", "PeerID_zid02_str", "Addr_zid03_str", "PeerServiceName_zid04_str", "PeerServiceNameVersion_zid05_str"}
+var unmarshalMsgFieldOrder156zgensym_8df0a91a1f250219_157 = []string{"Name_zid00_str", "URL_zid01_str", "PeerID_zid02_str", "Addr_zid03_str", "PeerServiceName_zid04_str", "PeerServiceNameVersion_zid05_str", "NonVoting_zid06_boo"}
 
-var unmarshalMsgFieldSkip156zgensym_8df0a91a1f250219_157 = []bool{false, false, false, false, false, false}
+var unmarshalMsgFieldSkip156zgensym_8df0a91a1f250219_157 = []bool{false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *PeerDetail) Msgsize() (s int) {
-	s = 1 + 15 + msgp.StringPrefixSize + len(z.Name) + 14 + msgp.StringPrefixSize + len(z.URL) + 17 + msgp.StringPrefixSize + len(z.PeerID) + 15 + msgp.StringPrefixSize + len(z.Addr) + 26 + msgp.StringPrefixSize + len(z.PeerServiceName) + 34 + msgp.StringPrefixSize + len(z.PeerServiceNameVersion)
+	s = 1 + 15 + msgp.StringPrefixSize + len(z.Name) + 14 + msgp.StringPrefixSize + len(z.URL) + 17 + msgp.StringPrefixSize + len(z.PeerID) + 15 + msgp.StringPrefixSize + len(z.Addr) + 26 + msgp.StringPrefixSize + len(z.PeerServiceName) + 34 + msgp.StringPrefixSize + len(z.PeerServiceNameVersion) + 20 + msgp.BoolSize
 	return
 }
 func (z *PeerDetail) Gstring() (r string) {
@@ -10432,6 +10574,7 @@ func (z *PeerDetail) Gstring() (r string) {
 	r += fmt.Sprintf("                  Addr: \"%v\",\n", z.Addr)
 	r += fmt.Sprintf("       PeerServiceName: \"%v\",\n", z.PeerServiceName)
 	r += fmt.Sprintf("PeerServiceNameVersion: \"%v\",\n", z.PeerServiceNameVersion)
+	r += fmt.Sprintf("             NonVoting: %v,\n", z.NonVoting)
 	r += "}\n"
 	return
 }
@@ -13676,7 +13819,7 @@ doneWithStruct198zgensym_8df0a91a1f250219_199:
 					return
 				}
 			}
-		case "FollowersNonVoting_zid19_ptr":
+		case "ShadowReplicas_zid19_ptr":
 			found198zgensym_8df0a91a1f250219_199[19] = true
 			if dc.IsNil() {
 				err = dc.ReadNil()
@@ -13684,9 +13827,9 @@ doneWithStruct198zgensym_8df0a91a1f250219_199:
 					return
 				}
 
-				if z.FollowersNonVoting != nil {
+				if z.ShadowReplicas != nil {
 					dc.PushAlwaysNil()
-					err = z.FollowersNonVoting.DecodeMsg(dc)
+					err = z.ShadowReplicas.DecodeMsg(dc)
 					if err != nil {
 						return
 					}
@@ -13695,12 +13838,12 @@ doneWithStruct198zgensym_8df0a91a1f250219_199:
 			} else {
 				// not Nil, we have something to read
 
-				if z.FollowersNonVoting == nil {
-					z.FollowersNonVoting = new(MemberConfig)
+				if z.ShadowReplicas == nil {
+					z.ShadowReplicas = new(MemberConfig)
 				}
-				dc.DedupIndexEachPtr(z.FollowersNonVoting)
+				dc.DedupIndexEachPtr(z.ShadowReplicas)
 
-				err = z.FollowersNonVoting.DecodeMsg(dc)
+				err = z.ShadowReplicas.DecodeMsg(dc)
 				if err != nil {
 					return
 				}
@@ -13797,7 +13940,7 @@ doneWithStruct198zgensym_8df0a91a1f250219_199:
 }
 
 // fields of RaftState
-var decodeMsgFieldOrder198zgensym_8df0a91a1f250219_199 = []string{"Serial_zid00_i64", "PeerName_zid01_str", "PeerServiceName_zid02_str", "PeerServiceNameVersion_zid03_str", "PeerID_zid04_str", "ClusterID_zid05_str", "CurrentTerm_zid06_i64", "VotedFor_zid07_str", "VotedForName_zid08_str", "HaveVoted_zid09_boo", "HaveVotedTerm_zid10_i64", "CommitIndex_zid11_i64", "CommitIndexEntryTerm_zid12_i64", "LastApplied_zid13_i64", "LastAppliedTerm_zid14_i64", "KVstore_zid15_ptr", "MC_zid16_ptr", "Known_zid17_ptr", "Observers_zid18_ptr", "FollowersNonVoting_zid19_ptr", "LastSaveTimestamp_zid20_tim", "CompactionDiscardedLastIndex_zid21_i64", "CompactionDiscardedLastTerm_zid22_i64", "SessTable_zid23_map"}
+var decodeMsgFieldOrder198zgensym_8df0a91a1f250219_199 = []string{"Serial_zid00_i64", "PeerName_zid01_str", "PeerServiceName_zid02_str", "PeerServiceNameVersion_zid03_str", "PeerID_zid04_str", "ClusterID_zid05_str", "CurrentTerm_zid06_i64", "VotedFor_zid07_str", "VotedForName_zid08_str", "HaveVoted_zid09_boo", "HaveVotedTerm_zid10_i64", "CommitIndex_zid11_i64", "CommitIndexEntryTerm_zid12_i64", "LastApplied_zid13_i64", "LastAppliedTerm_zid14_i64", "KVstore_zid15_ptr", "MC_zid16_ptr", "Known_zid17_ptr", "Observers_zid18_ptr", "ShadowReplicas_zid19_ptr", "LastSaveTimestamp_zid20_tim", "CompactionDiscardedLastIndex_zid21_i64", "CompactionDiscardedLastTerm_zid22_i64", "SessTable_zid23_map"}
 
 var decodeMsgFieldSkip198zgensym_8df0a91a1f250219_199 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
@@ -13883,7 +14026,7 @@ func (z *RaftState) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[18] {
 		fieldsInUse--
 	}
-	isempty[19] = (z.FollowersNonVoting == nil) // pointer, omitempty
+	isempty[19] = (z.ShadowReplicas == nil) // pointer, omitempty
 	if isempty[19] {
 		fieldsInUse--
 	}
@@ -14198,20 +14341,20 @@ func (z *RaftState) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_8df0a91a1f250219_201[19] {
-		// write "FollowersNonVoting_zid19_ptr"
-		err = en.Append(0xbc, 0x46, 0x6f, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x72, 0x73, 0x4e, 0x6f, 0x6e, 0x56, 0x6f, 0x74, 0x69, 0x6e, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x39, 0x5f, 0x70, 0x74, 0x72)
+		// write "ShadowReplicas_zid19_ptr"
+		err = en.Append(0xb8, 0x53, 0x68, 0x61, 0x64, 0x6f, 0x77, 0x52, 0x65, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x39, 0x5f, 0x70, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
 		// gPtr.encodeGen():
 
-		if z.FollowersNonVoting == nil {
+		if z.ShadowReplicas == nil {
 			err = en.WriteNil()
 			if err != nil {
 				return
 			}
 		} else {
-			err = z.FollowersNonVoting.EncodeMsg(en)
+			err = z.ShadowReplicas.EncodeMsg(en)
 			if err != nil {
 				return
 			}
@@ -14460,16 +14603,16 @@ func (z *RaftState) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[19] {
-		// string "FollowersNonVoting_zid19_ptr"
-		o = append(o, 0xbc, 0x46, 0x6f, 0x6c, 0x6c, 0x6f, 0x77, 0x65, 0x72, 0x73, 0x4e, 0x6f, 0x6e, 0x56, 0x6f, 0x74, 0x69, 0x6e, 0x67, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x39, 0x5f, 0x70, 0x74, 0x72)
+		// string "ShadowReplicas_zid19_ptr"
+		o = append(o, 0xb8, 0x53, 0x68, 0x61, 0x64, 0x6f, 0x77, 0x52, 0x65, 0x70, 0x6c, 0x69, 0x63, 0x61, 0x73, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x39, 0x5f, 0x70, 0x74, 0x72)
 		// marshalGen.gPtr()
 
-		if z.FollowersNonVoting == nil {
+		if z.ShadowReplicas == nil {
 			o = msgp.AppendNil(o)
 		} else {
 			// hmm.. no en, no place to check en.DedupWriteIsDup(z)
 
-			o, err = z.FollowersNonVoting.MarshalMsg(o) // not is.iface
+			o, err = z.ShadowReplicas.MarshalMsg(o) // not is.iface
 			if err != nil {
 				return
 			}
@@ -14808,31 +14951,31 @@ doneWithStruct203zgensym_8df0a91a1f250219_204:
 					}
 				}
 			}
-		case "FollowersNonVoting_zid19_ptr":
+		case "ShadowReplicas_zid19_ptr":
 			found203zgensym_8df0a91a1f250219_204[19] = true
 			// unmarshalGen.gPtr(): we have a BaseElem.
 
 			// unmarshalGen.gPtr(): we have an IDENT:
 
 			if nbs.AlwaysNil {
-				if z.FollowersNonVoting != nil {
-					z.FollowersNonVoting.UnmarshalMsg(msgp.OnlyNilSlice)
+				if z.ShadowReplicas != nil {
+					z.ShadowReplicas.UnmarshalMsg(msgp.OnlyNilSlice)
 				}
 			} else {
 				// not nbs.AlwaysNil
 				if msgp.IsNil(bts) {
 					bts = bts[1:]
-					if nil != z.FollowersNonVoting {
-						z.FollowersNonVoting.UnmarshalMsg(msgp.OnlyNilSlice)
+					if nil != z.ShadowReplicas {
+						z.ShadowReplicas.UnmarshalMsg(msgp.OnlyNilSlice)
 					}
 				} else {
 					// not nbs.AlwaysNil and not IsNil(bts): have something to read
 
-					if z.FollowersNonVoting == nil {
-						z.FollowersNonVoting = new(MemberConfig)
+					if z.ShadowReplicas == nil {
+						z.ShadowReplicas = new(MemberConfig)
 					}
 
-					bts, err = z.FollowersNonVoting.UnmarshalMsg(bts)
+					bts, err = z.ShadowReplicas.UnmarshalMsg(bts)
 					if err != nil {
 						return
 					}
@@ -14944,7 +15087,7 @@ doneWithStruct203zgensym_8df0a91a1f250219_204:
 }
 
 // fields of RaftState
-var unmarshalMsgFieldOrder203zgensym_8df0a91a1f250219_204 = []string{"Serial_zid00_i64", "PeerName_zid01_str", "PeerServiceName_zid02_str", "PeerServiceNameVersion_zid03_str", "PeerID_zid04_str", "ClusterID_zid05_str", "CurrentTerm_zid06_i64", "VotedFor_zid07_str", "VotedForName_zid08_str", "HaveVoted_zid09_boo", "HaveVotedTerm_zid10_i64", "CommitIndex_zid11_i64", "CommitIndexEntryTerm_zid12_i64", "LastApplied_zid13_i64", "LastAppliedTerm_zid14_i64", "KVstore_zid15_ptr", "MC_zid16_ptr", "Known_zid17_ptr", "Observers_zid18_ptr", "FollowersNonVoting_zid19_ptr", "LastSaveTimestamp_zid20_tim", "CompactionDiscardedLastIndex_zid21_i64", "CompactionDiscardedLastTerm_zid22_i64", "SessTable_zid23_map"}
+var unmarshalMsgFieldOrder203zgensym_8df0a91a1f250219_204 = []string{"Serial_zid00_i64", "PeerName_zid01_str", "PeerServiceName_zid02_str", "PeerServiceNameVersion_zid03_str", "PeerID_zid04_str", "ClusterID_zid05_str", "CurrentTerm_zid06_i64", "VotedFor_zid07_str", "VotedForName_zid08_str", "HaveVoted_zid09_boo", "HaveVotedTerm_zid10_i64", "CommitIndex_zid11_i64", "CommitIndexEntryTerm_zid12_i64", "LastApplied_zid13_i64", "LastAppliedTerm_zid14_i64", "KVstore_zid15_ptr", "MC_zid16_ptr", "Known_zid17_ptr", "Observers_zid18_ptr", "ShadowReplicas_zid19_ptr", "LastSaveTimestamp_zid20_tim", "CompactionDiscardedLastIndex_zid21_i64", "CompactionDiscardedLastTerm_zid22_i64", "SessTable_zid23_map"}
 
 var unmarshalMsgFieldSkip203zgensym_8df0a91a1f250219_204 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false}
 
@@ -14974,11 +15117,11 @@ func (z *RaftState) Msgsize() (s int) {
 	} else {
 		s += z.Observers.Msgsize()
 	}
-	s += 29
-	if z.FollowersNonVoting == nil {
+	s += 25
+	if z.ShadowReplicas == nil {
 		s += msgp.NilSize
 	} else {
-		s += z.FollowersNonVoting.Msgsize()
+		s += z.ShadowReplicas.Msgsize()
 	}
 	s += 28 + msgp.TimeSize + 40 + msgp.Int64Size + 39 + msgp.Int64Size + 20 + msgp.MapHeaderSize
 	if z.SessTable != nil {
@@ -15016,7 +15159,7 @@ func (z *RaftState) Gstring() (r string) {
 	r += fmt.Sprintf("                          MC: %v,\n", z.MC)
 	r += fmt.Sprintf("                       Known: %v,\n", z.Known)
 	r += fmt.Sprintf("                   Observers: %v,\n", z.Observers)
-	r += fmt.Sprintf("          FollowersNonVoting: %v,\n", z.FollowersNonVoting)
+	r += fmt.Sprintf("              ShadowReplicas: %v,\n", z.ShadowReplicas)
 	r += fmt.Sprintf("           LastSaveTimestamp: %v,\n", z.LastSaveTimestamp)
 	r += fmt.Sprintf("CompactionDiscardedLastIndex: %v,\n", z.CompactionDiscardedLastIndex)
 	r += fmt.Sprintf(" CompactionDiscardedLastTerm: %v,\n", z.CompactionDiscardedLastTerm)
@@ -18384,7 +18527,7 @@ func (z *Ticket) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields249zgensym_8df0a91a1f250219_250 = 59
+	const maxFields249zgensym_8df0a91a1f250219_250 = 61
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields249zgensym_8df0a91a1f250219_250 uint32
@@ -18945,6 +19088,18 @@ doneWithStruct249zgensym_8df0a91a1f250219_250:
 			if err != nil {
 				return
 			}
+		case "AddPeerServiceNameVersion_zid57_str":
+			found249zgensym_8df0a91a1f250219_250[57] = true
+			z.AddPeerServiceNameVersion, err = dc.ReadString()
+			if err != nil {
+				return
+			}
+		case "RemovePeerServiceNameVersion_zid58_str":
+			found249zgensym_8df0a91a1f250219_250[58] = true
+			z.RemovePeerServiceNameVersion, err = dc.ReadString()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -18968,16 +19123,16 @@ doneWithStruct249zgensym_8df0a91a1f250219_250:
 }
 
 // fields of Ticket
-var decodeMsgFieldOrder249zgensym_8df0a91a1f250219_250 = []string{"TSN_zid00_i64", "T0_zid01_tim", "Key_zid02_rct", "Val_zid03_rct", "FromID_zid04_str", "FromName_zid05_str", "ClusterID_zid06_str", "Errs_zid07_str", "TicketID_zid08_str", "Op_zid09_rct", "LogIndex_zid10_i64", "Term_zid11_i64", "Desc_zid12_str", "Committed_zid13_boo", "Applied_zid14_boo", "ClientAcked_zid15_boo", "AsOfLogIndex_zid16_i64", "LeaderID_zid17_str", "LeaderName_zid18_str", "LeaderURL_zid19_str", "LeaderStampSN_zid20_i64", "SessionID_zid21_str", "SessionSerial_zid22_i64", "Stage_zid23_str", "DoneClosedOnPeerID_zid24_str", "AddPeerName_zid25_str", "AddPeerID_zid26_str", "AddPeerServiceName_zid27_str", "AddPeerBaseServerHostPort_zid28_str", "RemovePeerName_zid29_str", "RemovePeerID_zid30_str", "RemovePeerServiceName_zid31_str", "RemovePeerBaseServerHostPort_zid32_str", "GuessLeaderURL_zid33_str", "Insp_zid34_ptr", "MC_zid35_ptr", "LeaderGotTicketTm_zid36_tim", "LeaderLocalReadGoodUntil_zid37_tim", "LeaderLocalReadAtTm_zid38_tim", "ClientLocalSubmitTm_zid39_tim", "ClientLocalResponseTm_zid40_tim", "ClientHighestLogIndexSeen_zid41_i64", "NewSessReq_zid42_ptr", "NewSessReply_zid43_ptr", "DupDetected_zid44_boo", "MinSessSerialWaiting_zid45_i64", "EndSessReq_SessionID_zid46_str", "Table_zid47_rct", "OldVal_zid48_rct", "CASwapped_zid49_boo", "CASRejectedBecauseCurVal_zid50_rct", "NewTableName_zid51_rct", "StateSnapshot_zid52_ptr", "KeyEndx_zid53_rct", "ScanDescend_zid54_boo", "KeyValRangeScan_zid55_ptr", "SessionLastKnownIndex_zid56_i64", "", ""}
+var decodeMsgFieldOrder249zgensym_8df0a91a1f250219_250 = []string{"TSN_zid00_i64", "T0_zid01_tim", "Key_zid02_rct", "Val_zid03_rct", "FromID_zid04_str", "FromName_zid05_str", "ClusterID_zid06_str", "Errs_zid07_str", "TicketID_zid08_str", "Op_zid09_rct", "LogIndex_zid10_i64", "Term_zid11_i64", "Desc_zid12_str", "Committed_zid13_boo", "Applied_zid14_boo", "ClientAcked_zid15_boo", "AsOfLogIndex_zid16_i64", "LeaderID_zid17_str", "LeaderName_zid18_str", "LeaderURL_zid19_str", "LeaderStampSN_zid20_i64", "SessionID_zid21_str", "SessionSerial_zid22_i64", "Stage_zid23_str", "DoneClosedOnPeerID_zid24_str", "AddPeerName_zid25_str", "AddPeerID_zid26_str", "AddPeerServiceName_zid27_str", "AddPeerBaseServerHostPort_zid28_str", "RemovePeerName_zid29_str", "RemovePeerID_zid30_str", "RemovePeerServiceName_zid31_str", "RemovePeerBaseServerHostPort_zid32_str", "GuessLeaderURL_zid33_str", "Insp_zid34_ptr", "MC_zid35_ptr", "LeaderGotTicketTm_zid36_tim", "LeaderLocalReadGoodUntil_zid37_tim", "LeaderLocalReadAtTm_zid38_tim", "ClientLocalSubmitTm_zid39_tim", "ClientLocalResponseTm_zid40_tim", "ClientHighestLogIndexSeen_zid41_i64", "NewSessReq_zid42_ptr", "NewSessReply_zid43_ptr", "DupDetected_zid44_boo", "MinSessSerialWaiting_zid45_i64", "EndSessReq_SessionID_zid46_str", "Table_zid47_rct", "OldVal_zid48_rct", "CASwapped_zid49_boo", "CASRejectedBecauseCurVal_zid50_rct", "NewTableName_zid51_rct", "StateSnapshot_zid52_ptr", "KeyEndx_zid53_rct", "ScanDescend_zid54_boo", "KeyValRangeScan_zid55_ptr", "SessionLastKnownIndex_zid56_i64", "AddPeerServiceNameVersion_zid57_str", "RemovePeerServiceNameVersion_zid58_str", "", ""}
 
-var decodeMsgFieldSkip249zgensym_8df0a91a1f250219_250 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
+var decodeMsgFieldSkip249zgensym_8df0a91a1f250219_250 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *Ticket) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 57
+		return 59
 	}
-	var fieldsInUse uint32 = 57
+	var fieldsInUse uint32 = 59
 	isempty[0] = (z.TSN == 0) // number, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -19206,6 +19361,14 @@ func (z *Ticket) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[56] {
 		fieldsInUse--
 	}
+	isempty[57] = (len(z.AddPeerServiceNameVersion) == 0) // string, omitempty
+	if isempty[57] {
+		fieldsInUse--
+	}
+	isempty[58] = (len(z.RemovePeerServiceNameVersion) == 0) // string, omitempty
+	if isempty[58] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -19217,7 +19380,7 @@ func (z *Ticket) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_8df0a91a1f250219_259 [59]bool
+	var empty_zgensym_8df0a91a1f250219_259 [61]bool
 	fieldsInUse_zgensym_8df0a91a1f250219_260 := z.fieldsNotEmpty(empty_zgensym_8df0a91a1f250219_259[:])
 
 	// map header
@@ -19974,6 +20137,30 @@ func (z *Ticket) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_8df0a91a1f250219_259[57] {
+		// write "AddPeerServiceNameVersion_zid57_str"
+		err = en.Append(0xd9, 0x23, 0x41, 0x64, 0x64, 0x50, 0x65, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x35, 0x37, 0x5f, 0x73, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		err = en.WriteString(z.AddPeerServiceNameVersion)
+		if err != nil {
+			return
+		}
+	}
+
+	if !empty_zgensym_8df0a91a1f250219_259[58] {
+		// write "RemovePeerServiceNameVersion_zid58_str"
+		err = en.Append(0xd9, 0x26, 0x52, 0x65, 0x6d, 0x6f, 0x76, 0x65, 0x50, 0x65, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x35, 0x38, 0x5f, 0x73, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		err = en.WriteString(z.RemovePeerServiceNameVersion)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -19986,7 +20173,7 @@ func (z *Ticket) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [59]bool
+	var empty [61]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -20398,6 +20585,18 @@ func (z *Ticket) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendInt64(o, z.SessionLastKnownIndex)
 	}
 
+	if !empty[57] {
+		// string "AddPeerServiceNameVersion_zid57_str"
+		o = append(o, 0xd9, 0x23, 0x41, 0x64, 0x64, 0x50, 0x65, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x35, 0x37, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.AddPeerServiceNameVersion)
+	}
+
+	if !empty[58] {
+		// string "RemovePeerServiceNameVersion_zid58_str"
+		o = append(o, 0xd9, 0x26, 0x52, 0x65, 0x6d, 0x6f, 0x76, 0x65, 0x50, 0x65, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x35, 0x38, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.RemovePeerServiceNameVersion)
+	}
+
 	return
 }
 
@@ -20416,7 +20615,7 @@ func (z *Ticket) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o []b
 
 	var field []byte
 	_ = field
-	const maxFields261zgensym_8df0a91a1f250219_262 = 59
+	const maxFields261zgensym_8df0a91a1f250219_262 = 61
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields261zgensym_8df0a91a1f250219_262 uint32
@@ -21065,6 +21264,20 @@ doneWithStruct261zgensym_8df0a91a1f250219_262:
 			if err != nil {
 				return
 			}
+		case "AddPeerServiceNameVersion_zid57_str":
+			found261zgensym_8df0a91a1f250219_262[57] = true
+			z.AddPeerServiceNameVersion, bts, err = nbs.ReadStringBytes(bts)
+
+			if err != nil {
+				return
+			}
+		case "RemovePeerServiceNameVersion_zid58_str":
+			found261zgensym_8df0a91a1f250219_262[58] = true
+			z.RemovePeerServiceNameVersion, bts, err = nbs.ReadStringBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -21088,9 +21301,9 @@ doneWithStruct261zgensym_8df0a91a1f250219_262:
 }
 
 // fields of Ticket
-var unmarshalMsgFieldOrder261zgensym_8df0a91a1f250219_262 = []string{"TSN_zid00_i64", "T0_zid01_tim", "Key_zid02_rct", "Val_zid03_rct", "FromID_zid04_str", "FromName_zid05_str", "ClusterID_zid06_str", "Errs_zid07_str", "TicketID_zid08_str", "Op_zid09_rct", "LogIndex_zid10_i64", "Term_zid11_i64", "Desc_zid12_str", "Committed_zid13_boo", "Applied_zid14_boo", "ClientAcked_zid15_boo", "AsOfLogIndex_zid16_i64", "LeaderID_zid17_str", "LeaderName_zid18_str", "LeaderURL_zid19_str", "LeaderStampSN_zid20_i64", "SessionID_zid21_str", "SessionSerial_zid22_i64", "Stage_zid23_str", "DoneClosedOnPeerID_zid24_str", "AddPeerName_zid25_str", "AddPeerID_zid26_str", "AddPeerServiceName_zid27_str", "AddPeerBaseServerHostPort_zid28_str", "RemovePeerName_zid29_str", "RemovePeerID_zid30_str", "RemovePeerServiceName_zid31_str", "RemovePeerBaseServerHostPort_zid32_str", "GuessLeaderURL_zid33_str", "Insp_zid34_ptr", "MC_zid35_ptr", "LeaderGotTicketTm_zid36_tim", "LeaderLocalReadGoodUntil_zid37_tim", "LeaderLocalReadAtTm_zid38_tim", "ClientLocalSubmitTm_zid39_tim", "ClientLocalResponseTm_zid40_tim", "ClientHighestLogIndexSeen_zid41_i64", "NewSessReq_zid42_ptr", "NewSessReply_zid43_ptr", "DupDetected_zid44_boo", "MinSessSerialWaiting_zid45_i64", "EndSessReq_SessionID_zid46_str", "Table_zid47_rct", "OldVal_zid48_rct", "CASwapped_zid49_boo", "CASRejectedBecauseCurVal_zid50_rct", "NewTableName_zid51_rct", "StateSnapshot_zid52_ptr", "KeyEndx_zid53_rct", "ScanDescend_zid54_boo", "KeyValRangeScan_zid55_ptr", "SessionLastKnownIndex_zid56_i64", "", ""}
+var unmarshalMsgFieldOrder261zgensym_8df0a91a1f250219_262 = []string{"TSN_zid00_i64", "T0_zid01_tim", "Key_zid02_rct", "Val_zid03_rct", "FromID_zid04_str", "FromName_zid05_str", "ClusterID_zid06_str", "Errs_zid07_str", "TicketID_zid08_str", "Op_zid09_rct", "LogIndex_zid10_i64", "Term_zid11_i64", "Desc_zid12_str", "Committed_zid13_boo", "Applied_zid14_boo", "ClientAcked_zid15_boo", "AsOfLogIndex_zid16_i64", "LeaderID_zid17_str", "LeaderName_zid18_str", "LeaderURL_zid19_str", "LeaderStampSN_zid20_i64", "SessionID_zid21_str", "SessionSerial_zid22_i64", "Stage_zid23_str", "DoneClosedOnPeerID_zid24_str", "AddPeerName_zid25_str", "AddPeerID_zid26_str", "AddPeerServiceName_zid27_str", "AddPeerBaseServerHostPort_zid28_str", "RemovePeerName_zid29_str", "RemovePeerID_zid30_str", "RemovePeerServiceName_zid31_str", "RemovePeerBaseServerHostPort_zid32_str", "GuessLeaderURL_zid33_str", "Insp_zid34_ptr", "MC_zid35_ptr", "LeaderGotTicketTm_zid36_tim", "LeaderLocalReadGoodUntil_zid37_tim", "LeaderLocalReadAtTm_zid38_tim", "ClientLocalSubmitTm_zid39_tim", "ClientLocalResponseTm_zid40_tim", "ClientHighestLogIndexSeen_zid41_i64", "NewSessReq_zid42_ptr", "NewSessReply_zid43_ptr", "DupDetected_zid44_boo", "MinSessSerialWaiting_zid45_i64", "EndSessReq_SessionID_zid46_str", "Table_zid47_rct", "OldVal_zid48_rct", "CASwapped_zid49_boo", "CASRejectedBecauseCurVal_zid50_rct", "NewTableName_zid51_rct", "StateSnapshot_zid52_ptr", "KeyEndx_zid53_rct", "ScanDescend_zid54_boo", "KeyValRangeScan_zid55_ptr", "SessionLastKnownIndex_zid56_i64", "AddPeerServiceNameVersion_zid57_str", "RemovePeerServiceNameVersion_zid58_str", "", ""}
 
-var unmarshalMsgFieldSkip261zgensym_8df0a91a1f250219_262 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
+var unmarshalMsgFieldSkip261zgensym_8df0a91a1f250219_262 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Ticket) Msgsize() (s int) {
@@ -21130,7 +21343,7 @@ func (z *Ticket) Msgsize() (s int) {
 	} else {
 		s += z.KeyValRangeScan.Msgsize()
 	}
-	s += 32 + msgp.Int64Size
+	s += 32 + msgp.Int64Size + 37 + msgp.StringPrefixSize + len(z.AddPeerServiceNameVersion) + 40 + msgp.StringPrefixSize + len(z.RemovePeerServiceNameVersion)
 	return
 }
 func (z *Ticket) Gstring() (r string) {
@@ -21192,6 +21405,8 @@ func (z *Ticket) Gstring() (r string) {
 	r += fmt.Sprintf("                 ScanDescend: %v,\n", z.ScanDescend)
 	r += fmt.Sprintf("             KeyValRangeScan: %v,\n", z.KeyValRangeScan)
 	r += fmt.Sprintf("       SessionLastKnownIndex: %v,\n", z.SessionLastKnownIndex)
+	r += fmt.Sprintf("   AddPeerServiceNameVersion: \"%v\",\n", z.AddPeerServiceNameVersion)
+	r += fmt.Sprintf("RemovePeerServiceNameVersion: \"%v\",\n", z.RemovePeerServiceNameVersion)
 	r += "}\n"
 	return
 }

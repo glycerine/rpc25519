@@ -330,9 +330,12 @@ const (
 	// observe membership changes only. get pushes on changes.
 	TUBE_OBS_MEMBERS string = "tube-obs-members"
 
-	// observe all traffic, but ignore votes/pre-votes.
+	// Update: use TUBE_REPLICA for non-voting shadows
+	// but have them marked differently.
+	// shadow replicas observe all traffic but are non-voting,
+	// so they ignore votes/pre-votes.
 	// ack back on AE so as to stay current.
-	TUBE_OBSERVER string = "tube-observer"
+	// TUBE_SHADOW string = "tube-shadow"
 )
 
 type RaftRole int
@@ -703,7 +706,7 @@ func (s *TubeNode) Start(
 
 	if !strings.HasPrefix(s.name, "tup") {
 		// for tup we expect nil MC, do not bark.
-		//alwaysPrintf("%v on start up, after onRestartRecoverPersistentRaftStateFromDisk(), our s.state.MC = %v", s.name, s.state.MC.Short()) // nil okay
+		//alwaysPrintf("%v on start up, after onRestartRecoverPersistentRaftStateFromDisk(), our s.state.MC = %v", s.name, s.state.MC.Short())
 	}
 
 	if s.cachedMinElectionTimeoutDur == 0 {
@@ -718,12 +721,19 @@ func (s *TubeNode) Start(
 		// modified s.state.MC if changed
 		changed := s.updateSelfAddressInMemberConfig(s.state.MC)
 		if changed {
-			s.state.MC.ConfigVersion++
-			s.state.MC.IsCommitted = false
-			if s.state.MC.PeerNames.Len() == 1 {
-				// it is just us (changed true means we are in it)
-				s.state.MC.IsCommitted = true
-			}
+			// ARG! This has a very bad side effect:
+			// by incrementing the version of our MC, we can no
+			// longer participate in elections/elect a leader
+			// among ourselves!?! since we are not _actually_
+			// changing the membership config, just the connection details,
+			// do NOT increment the version!
+			//s.state.MC.ConfigVersion++
+
+			//s.state.MC.IsCommitted = false
+			//if s.state.MC.PeerNames.Len() == 1 {
+			//	// it is just us (changed true means we are in it)
+			//	s.state.MC.IsCommitted = true
+			//}
 		}
 	}
 	// used to do...
@@ -848,7 +858,7 @@ func (s *TubeNode) Start(
 		// === test path ===
 
 		if s.state.MC == nil {
-			//vv("%v: under test. s.state.MC==nil; thus no resetElectionTimeout. iAmDesignatedLeader = %v; s.clusterSize()=%v; len(s.testBootstrapLogCh) = %v", s.me(), iAmDesignatedLeader, s.clusterSize(), len(s.testBootstrapLogCh))
+			//vv("%v: under test. s.state.MC==nil; thus no resetElectionTimeout; s.clusterSize()=%v; len(s.testBootstrapLogCh) = %v", s.me(), s.clusterSize(), len(s.testBootstrapLogCh)) // not seen 065
 		} else if s.cfg.testCluster.NoInitialLeaderTimeout {
 			// allow test to force a specific node to begin elections first
 			//vv("%v NoInitialLeaderTimeout true: no resetElectionTimeout", s.me())
@@ -942,7 +952,8 @@ func (s *TubeNode) Start(
 			}
 		}
 
-		if false && !s.cfg.isTest && i%5 == 0 {
+		//if false && !s.cfg.isTest && i%5 == 0 {
+		if false { // s.name == "node_0" {
 			// monitor liveness of prod processes
 			if s.PeerServiceName == TUBE_REPLICA &&
 				!strings.HasPrefix(s.name, "tup_") &&
@@ -1057,6 +1068,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			//vv("%v <-s.peerLeftCh, cktall gonePeerID: '%v'", s.name, alias(gonePeerID)) // not seen 031
 			cktP, ok := s.cktall[gonePeerID]
 			if ok {
+				//vv("%v <-s.peerLeftCh, cktall gone name: '%v'", s.name, cktP.PeerName)
 				s.deleteFromCktAll(cktP)
 				if cktP.ckt != nil {
 					cktP.ckt.Close(nil)
@@ -1076,7 +1088,8 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			//s.checkCoordOrFollowerFailed()
 
 		case tkt := <-s.writeReqCh:
-			// WRITE, DELETE_TABLE, MAKE_TABLE, RENAME_TABLE, CAS
+			// WRITE, DELETE_TABLE, MAKE_TABLE, RENAME_TABLE,
+			// CAS, ADD_SHADOW_NON_VOTING
 			// are all submitted here.
 			s.countWriteCh++
 			//s.ay("%v got ticket on %v <-s.writeReqCh: '%v'", s.me(), s.countWriteCh, tkt)
@@ -1091,13 +1104,14 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					continue // bail out, error happened.
 				}
 				//vv("%v writeReq redirected to leader, adding to Waiting, writeReqCh: '%v'", s.me(), tkt)
-				s.WaitingAtFollow[tkt.TicketID] = tkt
+				s.WaitingAtFollow.set(tkt.TicketID, tkt)
 				tkt.Stage += ":writeReqCh_add_WaitingAtFollow"
 				continue // follower does not replicate tickets.
 			}
 			// notice the continue just above means we are on the leader here.
 			tkt.Stage += ":writeReqCh_replicateTicket"
-			s.replicateTicket(tkt)
+			//s.replicateTicket(tkt)
+			s.commandSpecificLocalActionsThenReplicateTicket(tkt, "<-s.writeReqCh")
 
 		case tkt := <-s.newSessionRequestCh:
 			s.handleNewSessionRequestTicket(tkt)
@@ -1120,11 +1134,11 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				//vv("%v adding to Waiting, readReqCh: '%v'", s.me(), tkt)
 				tkt.Stage += ":after_redirectToLeader_add_WaitingAtFollow"
 
-				prior, already := s.WaitingAtFollow[tkt.TicketID]
+				prior, already := s.WaitingAtFollow.get2(tkt.TicketID)
 				if already {
 					panic(fmt.Sprintf("WAF already has prior='%v'; versus tkt='%v'", prior, tkt))
 				}
-				s.WaitingAtFollow[tkt.TicketID] = tkt
+				s.WaitingAtFollow.set(tkt.TicketID, tkt)
 				//vv("%v AFTER adding to WAF, at readReqCh: tkt='%v'", s.me(), tkt)
 				continue
 			}
@@ -1152,11 +1166,11 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				//vv("%v adding to Waiting, deleteKeyReqCh: '%v'", s.me(), tkt)
 				tkt.Stage += ":after_redirectToLeader_add_WaitingAtFollow"
 
-				prior, already := s.WaitingAtFollow[tkt.TicketID]
+				prior, already := s.WaitingAtFollow.get2(tkt.TicketID)
 				if already {
 					panic(fmt.Sprintf("WAF already has prior='%v'; versus tkt='%v'", prior, tkt))
 				}
-				s.WaitingAtFollow[tkt.TicketID] = tkt
+				s.WaitingAtFollow.set(tkt.TicketID, tkt)
 				//vv("%v AFTER adding to WAF, at deleteKeyReqCh: tkt='%v'", s.me(), tkt)
 				continue
 			}
@@ -1231,6 +1245,8 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					if cktP.ckt != nil {
 						cktP.ckt.Close(nil)
 					}
+					// need to do this too, right?
+					s.leaderName = ""
 				}
 			}
 			// here we are in <-s.electionTimeoutCh
@@ -1537,14 +1553,14 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				// This is the leader telling us again, in case
 				// we were an external client (not participating
 				// in Raft). So this is actually very common.
-				question, ok := s.WaitingAtFollow[answer.TicketID]
+				question, ok := s.WaitingAtFollow.get2(answer.TicketID)
 				//vv("%v sees LeaderToClientTicketAppliedMsg: ok=%v; answer='%v'\n question=%v'", s.me(), ok, answer, question)
 				if ok {
 					answer.Stage += ":LeaderToClientTicketApplied_answer_found"
 				} else {
 					//vv("%v drat! got answer, no question found. answer= %v;", s.me(), answer)
 					answer.Stage += ":LeaderToClientTicketApplied_answer_no_question_found"
-					q2, ok2 := s.WaitingAtLeader[answer.TicketID]
+					q2, ok2 := s.WaitingAtLeader.get2(answer.TicketID)
 					if ok2 {
 						answer.Stage += ":LeaderToClientTicketApplied_q2_match_in_WaitingAL"
 						question = q2
@@ -1647,9 +1663,11 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				// if we are not in the membership?
 				// we could move replica to observer and send observers
 				// the latest MC.
-				if s.isFollowerKaput() {
-					alwaysPrintf("%v isFollowerKaput() true, returing from TubeNode.Start()", s.me())
-					return
+				if false { // off for 065 shadow replicas
+					if s.isFollowerKaput() {
+						alwaysPrintf("%v isFollowerKaput() true, returing from TubeNode.Start()", s.me())
+						return
+					}
 				}
 
 			case AppendEntriesAckMsg:
@@ -2327,9 +2345,18 @@ type RaftState struct {
 	// so a follower can learn of its own removal from MC.
 	Observers *MemberConfig `zid:"18"`
 
-	// FollowersNonVoting are TUBE_REPLICA that see all
-	// appendEntries but do not vote.
-	FollowersNonVoting *MemberConfig `zid:"19"`
+	// ShadowReplicas are TUBE_REPLICA that see all
+	// appendEntries but do not vote or add to quorum;
+	// they are disjoint from s.state.MC, the current membership.
+	//
+	// ShadowReplicas be used to init/catch up/have at the
+	// ready new replicas, or just to monitor all traffic.
+	//
+	// tubeadd -shadow will add to s.state.ShadowReplicas
+	// rather than s.state.M using
+	// tkt.Op = ADD_SHADOW_NON_VOTING leading to
+	// a call to s.doAddShadow() on application after commit.
+	ShadowReplicas *MemberConfig `zid:"19"`
 
 	// raftStatePersistor saver.save() records its
 	// invocation time here before saving to disk.
@@ -2470,7 +2497,7 @@ func (s *RaftState) clone() (clon *RaftState) {
 	}
 	clon.Known = s.Known.Clone()
 	clon.Observers = s.Observers.Clone()
-	clon.FollowersNonVoting = s.FollowersNonVoting.Clone()
+	clon.ShadowReplicas = s.ShadowReplicas.Clone()
 	return
 }
 
@@ -2618,8 +2645,9 @@ type TubeNode struct {
 	// we were going wrong. Since clients may need
 	// to reconnect and get recent transactions
 	// anyway, this design serves that purpose too.
-	WaitingAtLeader map[string]*Ticket `msg:"-"`
-	WaitingAtFollow map[string]*Ticket `msg:"-"`
+	// (in TubeNode here).
+	WaitingAtLeader *imap `msg:"-"` // map[string]*Ticket
+	WaitingAtFollow *imap `msg:"-"` // map[string]*Ticket
 
 	tkthist  []*Ticket
 	tkthistQ *tkthistQ
@@ -2820,17 +2848,17 @@ func (s *TubeNode) waitingSummary() (sum string, totalTkt int) {
 
 func (s *TubeNode) waitingSummaryHelper(atLeader bool, tot *int) (sum string) {
 	var n int
-	var waiting map[string]*Ticket
+	var waiting *imap
 	if atLeader {
 		waiting = s.WaitingAtLeader
-		n = len(s.WaitingAtLeader)
+		n = s.WaitingAtLeader.Len()
 		if n == 0 {
 			return "(empty WaitingAtLeader)"
 		}
 		sum = "WaitingAtLeader: "
 	} else {
 		waiting = s.WaitingAtFollow
-		n = len(s.WaitingAtFollow)
+		n = s.WaitingAtFollow.Len()
 		if n == 0 {
 			return "(empty WaitingAtFollow)"
 		}
@@ -2839,7 +2867,7 @@ func (s *TubeNode) waitingSummaryHelper(atLeader bool, tot *int) (sum string) {
 	*tot += n
 	// sort into log order
 	var orderedTickets []*Ticket
-	for _, tkt := range waiting {
+	for _, tkt := range waiting.all() {
 		orderedTickets = append(orderedTickets, tkt)
 	}
 	sort.Sort(logOrder(orderedTickets))
@@ -2895,6 +2923,12 @@ func (s *TubeNode) me() string {
 	if s.state != nil && s.state.MC != nil {
 		membr, numMember = s.memberNewestShortString()
 	}
+	var shadow string
+	var numShadow int
+	if s.state != nil && s.state.ShadowReplicas != nil {
+		shadow, numShadow = s.shadowReplicasShortString()
+	}
+
 	var mcStall string
 	nMCstall := len(s.stalledMembershipConfigChangeTkt)
 	if nMCstall > 0 {
@@ -2907,7 +2941,39 @@ func (s *TubeNode) me() string {
 	if s.state != nil && s.state.MC != nil {
 		mcVers = s.state.MC.Vers()
 	}
-	return fmt.Sprintf("%v%v[term %v][ci %v][lli %v][%v lead] membr[%v]%v:{%v} %v%v%v\n===\n==\n= ", s.myid, s.role.String(), s.state.CurrentTerm, s.state.CommitIndex, s.lastLogIndex(), lead, numMember, mcVers, membr, waiting, awal, mcStall)
+	return fmt.Sprintf("%v%v[term %v][ci %v][lli %v][%v lead] membr[%v]%v:{%v} shadow[%v]{%v} %v%v%v\n===\n==\n= ", s.myid, s.role.String(), s.state.CurrentTerm, s.state.CommitIndex, s.lastLogIndex(), lead, numMember, mcVers, membr, numShadow, shadow, waiting, awal, mcStall)
+}
+
+func (s *TubeNode) shadowReplicasShortString() (membr string, numMember int) {
+	numMember = s.state.ShadowReplicas.PeerNames.Len()
+	i := 0
+	for peerName := range s.state.ShadowReplicas.PeerNames.all() {
+		if i > 0 {
+			membr += ", "
+		}
+		membr += peerName
+		up := "-" // down by default
+		if peerName == s.name {
+			up = "*"
+		} else {
+			cktP, ok := s.cktAllByName[peerName]
+			if ok {
+				if cktP.isPending() {
+					up = "p"
+				} else {
+					up = "+"
+					if s.role == LEADER {
+						if cktP.up() {
+							up = "*"
+						}
+					}
+				}
+			}
+		}
+		membr += up
+		i++
+	}
+	return
 }
 
 func (s *TubeNode) memberNewestShortString() (membr string, numMember int) {
@@ -2930,7 +2996,6 @@ func (s *TubeNode) memberNewestShortString() (membr string, numMember int) {
 				} else {
 					up = "+"
 					if s.role == LEADER {
-						//info, ok2 := s.peers[cktP.PeerID]
 						if cktP.up() {
 							up = "*"
 						}
@@ -3399,12 +3464,14 @@ func (cluster *TubeCluster) SimBoot(i int) {
 		panic(fmt.Sprintf("problem: simnet not preserved! simnet2=%p simnet=%p", simnet2, simnet))
 	}
 
+	//vv("old.MC = %v", old.state.MC)
+	//vv("old.ShadowReplicas = %v", old.state.ShadowReplicas)
 	//vv("len old.wal.raftLog = %v", len(old.wal.raftLog))
 	// give s2 the same memwal log from old:
 	s2.wal = old.wal
 	s2.state = old.state
 
-	alwaysPrintf("SimBoot is about to start node i=%v name='%v'", i, s2.name)
+	alwaysPrintf("SimBoot is about to start node i=%v name='%v'; MC='%v'", i, s2.name, s2.state.MC)
 	// starts server and local peer
 	err := s2.InitAndStart()
 	panicOn(err)
@@ -3638,8 +3705,8 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		ClusterID:       cfg.ClusterID,
 
 		// client Tickets that are waiting for logs to replicate.
-		WaitingAtLeader: make(map[string]*Ticket),
-		WaitingAtFollow: make(map[string]*Ticket),
+		WaitingAtLeader: newImap(),
+		WaitingAtFollow: newImap(),
 		tkthistQ:        newTkthistQ(),
 
 		cktall:       make(map[string]*cktPlus), // by PeerID
@@ -3781,9 +3848,9 @@ func (s *TubeNode) newRaftState() *RaftState {
 		// try to prevent seg fault in 401
 		// where Vote.MC was nil. Ugh, then ClusterSize() returns 0, so
 		// wait to init MC: s.NewMemberConfig("newRaftState", false),
-		Known:              s.NewMemberConfig("newRaftState"),
-		Observers:          s.NewMemberConfig("newRaftState"),
-		FollowersNonVoting: s.NewMemberConfig("newRaftState"),
+		Known:          s.NewMemberConfig("newRaftState"),
+		Observers:      s.NewMemberConfig("newRaftState"),
+		ShadowReplicas: s.NewMemberConfig("newRaftState"),
 	}
 	return a
 }
@@ -3906,6 +3973,7 @@ func panicAtCap[T any](ch chan T) chan T {
 }
 
 func (s *TubeNode) addInspectionToTicket(tkt *Ticket) {
+	//vv("%v addInspectionToTicket called by '%v'", s.name, fileLine(3)) // FinishTicket typically, or changeMembership earlier.
 	insp := newInspection()
 	insp.done = nil
 	s.inspectHandler(insp)
@@ -4022,9 +4090,10 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	// add ourselves too.
 	ins.CktAllByName[s.name] = s.URL
 
-	ins.WaitingAtLeader = s.cloneWaitingAtLeader()
-	ins.WaitingAtFollow = s.cloneWaitingAtFollow()
+	ins.WaitingAtLeader = s.cloneWaitingAtLeaderToMap()
+	ins.WaitingAtFollow = s.cloneWaitingAtFollowToMap()
 	ins.MC = s.state.MC.Clone() // in inspectHandler
+	ins.ShadowReplicas = s.state.ShadowReplicas.Clone()
 
 	if ins.done != nil {
 		close(ins.done)
@@ -4194,6 +4263,8 @@ type Inspection struct {
 	LastLogIndex int64 `zid:"19"`
 	LastLogTerm  int64 `zid:"20"`
 
+	ShadowReplicas *MemberConfig `zid:"21"`
+
 	Tkthist []*Ticket `msg:"-"`
 
 	// internal use only. tests/users call TubeNode.Inpsect()
@@ -4312,36 +4383,9 @@ type Ticket struct {
 
 	// with client retries this might be needed?
 	Done *idem.IdemCloseChan `msg:"-"`
-	//doneCh chan struct{}       // debug alternative.
 
 	LogIndex int64 `zid:"10"` // where we are logged to.
 	Term     int64 `zid:"11"` // where we are logged to.
-
-	// Important client interaction detail--when
-	// can you report an error back to the client!
-	//
-	// from https://thesquareplanet.com/blog/students-guide-to-raft/
-	// how do you know when a client operation has completed?
-	// In the case of no failures, this is simple – you just wait
-	// for the thing you put into the log to come back out
-	// (i.e., be passed to apply()). When that happens, you
-	// return the result to the client. However, what happens
-	// if there are failures?
-	//
-	// For example, you may have been the leader when the client
-	// initially contacted you, but someone else has since been
-	// elected, and the client request you put in the log has
-	// been discarded. Clearly you need to have the client try
-	// again, but how do you know when to tell them about the error?
-	//
-	//	One simple way to solve this problem is to record where
-	// in the Raft log the client’s operation appears when you
-	// insert it. Once the operation at that index is sent to
-	// apply(), you can tell whether or not the client's
-	// operation succeeded based on whether the operation
-	// that came up for that index is in fact the one you
-	// put there. If it isn't, a failure has happened and
-	// an error can be returned to the client.
 
 	// short description of transaction to make
 	// debugging easier. Optional but recommended.
@@ -4377,11 +4421,13 @@ type Ticket struct {
 	AddPeerName               string `zid:"25"`
 	AddPeerID                 string `zid:"26"`
 	AddPeerServiceName        string `zid:"27"`
+	AddPeerServiceNameVersion string `zid:"57"`
 	AddPeerBaseServerHostPort string `zid:"28"`
 
 	RemovePeerName               string `zid:"29"`
 	RemovePeerID                 string `zid:"30"`
 	RemovePeerServiceName        string `zid:"31"`
+	RemovePeerServiceNameVersion string `zid:"58"`
 	RemovePeerBaseServerHostPort string `zid:"32"`
 
 	// provided by SingleUpdateClusterMemberConfig to let
@@ -4476,6 +4522,8 @@ const (
 	DELETE_TABLE  TicketOp = 13
 	RENAME_TABLE  TicketOp = 14
 	READ_KEYRANGE TicketOp = 15
+
+	ADD_SHADOW_NON_VOTING TicketOp = 16 // through writeReqCh
 )
 
 func (t TicketOp) String() (r string) {
@@ -4512,6 +4560,8 @@ func (t TicketOp) String() (r string) {
 		return "RENAME_TABLE"
 	case READ_KEYRANGE:
 		return "READ_KEYRANGE"
+	case ADD_SHADOW_NON_VOTING:
+		return "ADD_SHADOW_NON_VOTING"
 	}
 	r = fmt.Sprintf("(unknown TicketOp: %v", int64(t))
 	panic(r)
@@ -4531,7 +4581,8 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 	//zz("caller = %v", fileLine(2))
 
 	if tkt.Op == MEMBERSHIP_SET_UPDATE ||
-		tkt.Op == MEMBERSHIP_BOOTSTRAP {
+		tkt.Op == MEMBERSHIP_BOOTSTRAP ||
+		tkt.Op == ADD_SHADOW_NON_VOTING {
 
 		if tkt.Insp == nil {
 			// ideally never needed, but just in case...
@@ -4542,7 +4593,7 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 	}
 
 	//vv("%v FinishTicket deleting from Waiting tkt='%v'", s.me(), tkt)
-	var waiting map[string]*Ticket
+	var waiting *imap
 	if calledOnLeader {
 		waiting = s.WaitingAtLeader
 
@@ -4555,7 +4606,7 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 		tkt.Stage += ":FinishTicket_calledOnFollow_delete_from_WAF"
 	}
 
-	prior, already := waiting[tkt.TicketID]
+	prior, already := waiting.get2(tkt.TicketID)
 	if already && prior != tkt {
 
 		prior.Stage += ":FinishTicket_am_prior_copy_from_tkt"
@@ -4592,7 +4643,7 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 			prior.Stage += ":FinishTicket_prior_Done_was_nil"
 		}
 	}
-	delete(waiting, tkt.TicketID)
+	waiting.del(tkt)
 
 	// I understand the double close now! (old sporadic, should now be fixed).
 	// Once on the apply at the peer who is both cluster member and client; and
@@ -4655,6 +4706,7 @@ RemovePeerBaseServerHostPort: "%v"`,
 	}
 	return fmt.Sprintf(`Ticket{
    --------  Ticket basics  ---------
+finishTicketCalled: %v,
           TicketID: %v,
                TSN: %v,
               Desc: %v (since T0: %v),
@@ -4663,6 +4715,9 @@ RemovePeerBaseServerHostPort: "%v"`,
                Key: "%v",
                Val: "%v",
                Err: %v,%v
+   --------  Ticket membership updates  ---------
+       AddPeerName: %v
+    RemovePeerName: %v
    --------  Ticket status  ---------
          Committed: %v,
            Applied: %v,
@@ -4687,7 +4742,8 @@ MinSessSerialWaiting: %v,
           IsClosed: %v,
 DoneClosedOnPeerID: "%v",
              Stage: %v,
-}`, rpc.AliasDecode(t.TicketID), t.TSN, t.Desc, lifetime,
+}`, t.finishTicketCalled,
+		rpc.AliasDecode(t.TicketID), t.TSN, t.Desc, lifetime,
 		t.T0.Format(RFC3339NanoNumericTZ0pad),
 		t.Op,
 		string(t.Key),
@@ -4696,6 +4752,8 @@ DoneClosedOnPeerID: "%v",
 		showExternalCluster(t.Val),
 		t.Err,
 		extra,
+		t.AddPeerName,
+		t.RemovePeerName,
 		t.Committed,
 		t.Applied,
 		t.ClientAcked,
@@ -4886,7 +4944,8 @@ func (s *TubeNode) resubmitStalledTickets() {
 	// _And_ from s.stalledMembershipConfigChangeTkt.
 	var resub []*Ticket
 	var both []*Ticket
-	for _, tkt := range s.WaitingAtLeader {
+	for _, tkt := range s.WaitingAtLeader.all() {
+		vv("appending to both tkt='%v'", tkt.Short())
 		both = append(both, tkt)
 	}
 	if len(s.stalledMembershipConfigChangeTkt) > 0 {
@@ -5022,7 +5081,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 				// effects: make others wait until it is commited.
 				// keep the queue used in sync with tube.go:2865 in
 				// resubmitStalledTickets().
-				s.WaitingAtLeader[tkt.TicketID] = tkt
+				s.WaitingAtLeader.set(tkt.TicketID, tkt)
 				//vv("%v stalled tkt '%v' until noop0 is done", s.me(), tkt.Desc)
 				tkt.Stage += "_stalled_into_WaitAtLeader_until_noop0"
 				return
@@ -5140,7 +5199,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 	if s.clusterSize() > 1 {
 		// add to Waiting. NB in replicateTicket(); we are leader.
 		//vv("%v wait for AppendEntries to complete; tkt='%v'", s.me(), tkt.Short())
-		s.WaitingAtLeader[tkt.TicketID] = tkt
+		s.WaitingAtLeader.set(tkt.TicketID, tkt)
 		tkt.Stage += "_normal_replication_added_to_WaitingAtLeader"
 	} else {
 		//vv("%v is singleton cluster in replicateTicket; no AppendEntries replication to wait for", s.me())
@@ -5611,7 +5670,7 @@ func (s *TubeNode) tallyPreVote(vote *Vote) {
 	// But that seems correct: we want node_5 out so
 	// it should not be able to win a pre-vote.
 	//
-	// mongo reconfig: is our config >= their config
+	// mongo reconfig: is our config >= their config. If not, exit.
 	if vote.MC != nil && vote.MC.VersionGT(s.state.MC) {
 		//vv("%v mongo ignore pre-vote from: '%v' since vote.MC(%v) > s.state.MC(%v); vote.VoteGranted=%v", s.me(), vote.FromPeerName, vote.MC.Short(), s.state.MC.Short(), vote.VoteGranted)
 		return
@@ -6026,7 +6085,7 @@ func (s *TubeNode) becomeLeader() {
 		noopTkt := s.NewTicket(desc, "", "", nil, s.PeerID, s.name, NOOP, -1, s.MyPeer.Ctx)
 		noopTkt.MC = s.state.MC.Clone()
 		s.initialNoop0Tkt = noopTkt
-		s.WaitingAtLeader[noopTkt.TicketID] = noopTkt
+		s.WaitingAtLeader.set(noopTkt.TicketID, noopTkt)
 
 		// note that replicateTicket takes care of setting
 		// noopTkt.MemberConfig, so we should not.
@@ -6035,15 +6094,17 @@ func (s *TubeNode) becomeLeader() {
 	}
 
 	// take over any WaitingAtFollow too
-	for k, v := range s.WaitingAtFollow {
+	for _, v := range s.WaitingAtFollow.all() {
 		v.Stage += ":transfer_WAF_to_WAL"
-		s.WaitingAtLeader[k] = v
+		s.WaitingAtLeader.set(v.TicketID, v)
 	}
-	s.WaitingAtFollow = make(map[string]*Ticket)
+	s.WaitingAtFollow = newImap() // make(map[string]*Ticket)
 
 	s.dispatchAwaitingLeaderTickets()
 
-	s.saver.save(s.state)
+	if s.saver != nil {
+		s.saver.save(s.state)
+	}
 }
 
 // if reject is returned, then
@@ -6321,14 +6382,15 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 
 	chatty802 := false
 	s.testAEchoices = nil
-	//if s.name == "node_4" { // seen. a ton. from leader node_0.
-	//	lli := s.wal.LastLogIndex()
-	//vv("%v: handleAppendEntries top; from '%v'; starting lli=%v; this ae='%v'", s.me(), ae.FromPeerName, lli, ae)
-	//	defer func() {
-	//		lli := s.wal.LastLogIndex()
-	//		//vv("%v: end handleAppendEntries from '%v'; ending lli=%v", s.me(), ae.FromPeerName, lli)
-	//	}()
-	//}
+	if false { // s.name == "node_2" { // TODO comment out
+		lli := s.wal.LastLogIndex()
+		vv("%v: handleAppendEntries top; from '%v'; starting lli=%v; this ae='%v'", s.me(), ae.FromPeerName, lli, ae)
+
+		defer func() {
+			lli := s.wal.LastLogIndex()
+			vv("%v: end handleAppendEntries from '%v'; ending lli=%v", s.me(), ae.FromPeerName, lli)
+		}()
+	}
 	//if !s.cfg.isTest {
 	//	vv("%v: handleAppendEntries top; from '%v'; ae=%v", s.me(), ae.FromPeerName, ae)
 	//}
@@ -6714,6 +6776,13 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		// tell leader we cannot do anything without
 		// getting a snapshot to transfer state.
 		if alsoGap {
+			//vv("%v alsoGap true!", s.me())
+			// BUT! this is not a snapshot gap need, just a
+			// a redo of the AE a little further back! so
+			// maybe this is overkill... but at the
+			// snapshots are very cheap with small state.
+			// TODO: revisit can we do better by requesting
+			// less with a finer comparison of rle Terms?
 			ack.NeedSnapshotGap = true
 		}
 
@@ -6930,7 +6999,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 				numOverwrote = 0
 				numTruncated = 0
 				numAppended = int64(len(entries))
-				// in handleAppendEntries here. desynced here?
+				// in handleAppendEntries here.
 				compactIndex, compactTerm, err := s.wal.overwriteEntries(keepCount, entries, false, s.state.CommitIndex, s.state.LastApplied)
 				panicOn(err)
 				s.state.setCompaction(compactIndex, compactTerm)
@@ -7124,8 +7193,8 @@ func (s *TubeNode) leaderSendsHeartbeats(immediately bool) {
 	}
 
 	if s.isRegularTest() {
-		if s.cfg.testNum == 57 {
-			//vv("%v \n-------->>>    leaderSendsHeartbeats() len(s.ckt)=%v; len(s.peers)=%v  <<<--------\n", s.me(), len(s.cktReplica), len(s.peers))
+		if false { // s.cfg.testNum == 65 {
+			vv("%v \n-------->>>    leaderSendsHeartbeats() len(s.ckt)=%v; len(s.peers)=%v  <<<--------\n", s.me(), len(s.cktReplica), len(s.peers))
 		}
 	}
 
@@ -7145,20 +7214,23 @@ func (s *TubeNode) leaderSendsHeartbeats(immediately bool) {
 				}
 			}
 		}
-		if s.state.FollowersNonVoting != nil {
-			for name := range s.state.FollowersNonVoting.PeerNames.all() {
+		if s.state.ShadowReplicas != nil {
+			for name := range s.state.ShadowReplicas.PeerNames.all() {
 				if name != s.name { // no need to contact self.
 					uncontactedMemberName[name] = true
 				}
 			}
 		}
 
-		// recently removed from MC peers are added
+		// nodes recently removed from MC peers are added
 		// to the Observers set with a small count of
 		// gcAfterHeartbeatCount, and thus we try to tell them
 		// about the new membership for a couple of
 		// heartbeats. This lets them know they can
-		// shut down if desired.
+		// shut down if desired, since they were
+		// deliberately removed from the MC and the
+		// lack of heartbeats coming to them in the
+		// near future is not due to leader failure.
 		for name, det := range s.state.Observers.PeerNames.all() {
 			if name == s.name {
 				continue
@@ -7175,7 +7247,7 @@ func (s *TubeNode) leaderSendsHeartbeats(immediately bool) {
 					}
 				}
 			} else {
-				// no circuit available to this observer currently.
+				//vv("%v no circuit available to this observer currently: '%v'", s.name, cktP.PeerName)
 				if name != s.name { // no need to contact self.
 					uncontactedMemberName[name] = true
 				}
@@ -7203,13 +7275,15 @@ func (s *TubeNode) leaderSendsHeartbeats(immediately bool) {
 
 	//for peerID, cktP := range sorted(s.cktReplica) {
 	for peerID, cktP := range sorted(s.cktall) {
+
+		delete(uncontactedMemberName, cktP.PeerName)
+
 		switch cktP.PeerServiceName {
-		case TUBE_REPLICA, TUBE_OBSERVER:
+		case TUBE_REPLICA: // should include shadows
 			// ok
 		default:
 			continue // can skip TUBE_CLIENT, TUBE_OBS_MEMBERS
 		}
-		delete(uncontactedMemberName, cktP.PeerName)
 
 		//vv("%v leaderSendsHeartbeats() to heartbeat to '%v'", s.me(), cktP.PeerName)
 		mcVersStale := false
@@ -7232,8 +7306,12 @@ func (s *TubeNode) leaderSendsHeartbeats(immediately bool) {
 			//panic(fmt.Sprintf("%v should have entry in s.peers for %v by now", s.me(), peer)) // hit this on test003, added an info entry
 			// could just be a test shutdown thing?
 		}
+
 		// send missing entries to followers who are behind.
-		//vv("%v is foll behind? foll='%v'; leaderLastLogIndex(%v) > (%v)foll.LargestCommonRaftIndex == %v", s.me(), cktP.PeerName, leaderLastLogIndex, foll.LargestCommonRaftIndex, leaderLastLogIndex > foll.LargestCommonRaftIndex)
+		if cktP.PeerName == "node_2" {
+			//vv("%v is foll behind? foll='%v'; leaderLastLogIndex(%v) > (%v)foll.LargestCommonRaftIndex == %v", s.me(), cktP.PeerName, leaderLastLogIndex, foll.LargestCommonRaftIndex, leaderLastLogIndex > foll.LargestCommonRaftIndex)
+		}
+
 		if leaderLastLogIndex > foll.LargestCommonRaftIndex {
 			s.sendAppendEntriesTo(peerID, cktP.PeerName, cktP.PeerServiceName, cktP.PeerServiceNameVersion, foll.LargestCommonRaftIndex+1, 0, nil)
 		} else {
@@ -7246,7 +7324,9 @@ func (s *TubeNode) leaderSendsHeartbeats(immediately bool) {
 			lastHeardDur := time.Now().Sub(foll.LastHeardAnything)
 
 			if mcVersStale || immediately || lastHeardDur > s.leaderBeatDur() {
-				//vv("%v leader trying to send AE heartbreat to '%v'", s.name, cktP.PeerName)
+				if false { // cktP.PeerName == "node_2" {
+					//vv("%v leader trying to send AE heartbreat to '%v'", s.name, cktP.PeerName)
+				}
 				s.sendAppendEntriesEmptyHeartbeat(peerID, cktP.PeerName, cktP.PeerServiceName, cktP.PeerServiceNameVersion)
 			}
 		}
@@ -7391,7 +7471,10 @@ func (s *TubeNode) bcastAppendEntries(es []*RaftLogEntry, prevLogIndex, prevLogT
 		//vv("%v bcastAppendEntries exit early: nobody else to send to", s.me())
 		return
 	}
-	//vv("%v bcastAppendEntries of es[0]='%v'", s.me(), es[0])
+	//vv("%v top bcastAppendEntries of es[0]='%v'", s.me(), es[0])
+	//defer func() {
+	//	vv("%v end bcastAppendEntries of es[0]='%v'", s.me(), es[0])
+	//}()
 
 	ae := s.newAE()
 	ae.PrevLogIndex = prevLogIndex
@@ -7409,7 +7492,6 @@ func (s *TubeNode) bcastAppendEntries(es []*RaftLogEntry, prevLogIndex, prevLogT
 
 	// chapter 4.1: (page 36)
 	// Only send AE to peers in our MC.
-	// TODO: include FollowersNonVoting
 	for peer, info := range sorted(s.peers) {
 		if peer == s.PeerID {
 			continue // skip self
@@ -7423,31 +7505,32 @@ func (s *TubeNode) bcastAppendEntries(es []*RaftLogEntry, prevLogIndex, prevLogT
 			// an election and not just designate a leader;
 			// tests from way back we don't really want to
 			// complicate or update.
-			if !s.cfg.isTest {
-				//vv("%v ugh. no MC ???...", s.me())
-				panic("fix this! must always have a MC")
-			}
-			// INVAR: is test
-		} else {
-			if !s.isFollowerNonVoting(info.PeerID,
-				info.PeerName, info.PeerServiceName) {
-
-				if s.skipBecauseNotReplicaMember(info.PeerID,
-					info.PeerName, info.PeerServiceName) {
-					continue
-				}
-			}
+			// Update: now it is time to update them if need be!
+			//if !s.cfg.isTest {
+			//vv("%v ugh. no MC ???...", s.me())
+			panic("fix this! must always have a MC")
+			//}
+		}
+		if s.state.ShadowReplicas == nil {
+			panic("fix this! must have ShadowReplicas, even if empty")
+		}
+		if s.skipAEBecauseNotReplica(info.PeerID,
+			info.PeerName, info.PeerServiceName) {
+			alwaysPrintf("%v skipping non MC replica: %v", s.me(), info.PeerName)
+			continue
 		}
 
-		// in bcastAppendEntries here, so use cktReplica
-		// TODO: are FollowersNonVoting in cktReplica?
-		cktP, ok := s.cktReplica[peer]
+		// in bcastAppendEntries here. We used to use cktReplica,
+		// but now we filter to only replicas and shows in the
+		// above skipAEBecauseNotReplica() filter and use cktall.
+		// (cktReplica lacks the shadow replicas).
+		cktP, ok := s.cktall[peer]
 		if !ok {
-			//vv("%v don't know how to contact '%v' to heartbeat. Assuming they are gone; trying others", s.me(), peer)
+			alwaysPrintf("%v don't know how to contact '%v' to heartbeat: not in cktReplica. Assuming they are gone; trying others", s.me(), info.PeerName)
 			continue
 		}
 		ckt := cktP.ckt
-		//vv("%v send AE to %v", s.me(), rpc.AliasDecode(peer))
+		//vv("%v send AE to %v", s.me(), cktP.PeerName)
 		// tricky to figure out which is the
 		// "last" send, so free manually below.
 		const willFreeOurselves = 1
@@ -7577,7 +7660,7 @@ func (s *TubeNode) logUpToDateAsOurs(rv *RequestVote) (ans bool) {
 		// Algorithm 1, page 6, line 26 of mongo paper:
 		s.state.MC.VersionGT(rv.MC) {
 
-		vv("%v logUpToDateAsOur fails: mongo condition: requestor is behind us. ourMC(%v) > rv.MC(%v)", s.me(), s.state.MC.Short(), rv.MC.Short())
+		//vv("%v logUpToDateAsOur fails: mongo condition: requestor (%v) is behind us. ourMC(%v) > rv.MC(%v)", s.me(), rv.FromPeerName, s.state.MC.Short(), rv.MC.Short())
 		return false
 	}
 	// Algorithm 1, page 6, line 27 of mongo paper:
@@ -7588,7 +7671,7 @@ func (s *TubeNode) logUpToDateAsOurs(rv *RequestVote) (ans bool) {
 	if rv.FromPeerName != s.name &&
 		rv.CandidatesTerm < s.state.CurrentTerm {
 
-		vv("%v logUpToDateAsOur fails mongo condition: requestor(%v) rv.CandidatesTerm(%v) <= our CurrentTerm(%v); is pre-vote: %v", s.me(), rv.FromPeerName, rv.CandidatesTerm, s.state.CurrentTerm, rv.IsPreVote)
+		//vv("%v logUpToDateAsOur fails mongo condition: requestor(%v) rv.CandidatesTerm(%v) <= our CurrentTerm(%v); is pre-vote: %v", s.me(), rv.FromPeerName, rv.CandidatesTerm, s.state.CurrentTerm, rv.IsPreVote)
 		return false
 	}
 
@@ -7609,7 +7692,7 @@ func (s *TubeNode) logUpToDateAsOurs(rv *RequestVote) (ans bool) {
 		return true // requestor is more up to date
 	}
 	if rv.LastLogTerm < ourLastLogTerm {
-		vv("requestor is behind us rv.LastLogTerm(%v) < ourLastLogTerm(%v)", rv.LastLogTerm, ourLastLogTerm)
+		//vv("requestor is behind us rv.LastLogTerm(%v) < ourLastLogTerm(%v)", rv.LastLogTerm, ourLastLogTerm)
 		return false // requestor is behind us.
 	}
 	// INVAR: terms are equal
@@ -7623,17 +7706,30 @@ func (s *TubeNode) logUpToDateAsOurs(rv *RequestVote) (ans bool) {
 	return false
 }
 
+// in tests, this was deleting our MC just after SimBoot.
 func (s *TubeNode) onRestartRecoverPersistentRaftStateFromDisk() (err error) {
+
+	//vv("%v top onRestartRecoverPersistent; MC='%v'", s.name, s.state.MC)
+	//defer func() {
+	//vv("%v end of onRestartRecoverPersistent; MC='%v'", s.name, s.state.MC)
+	//}()
 
 	var st *RaftState
 
-	if s.cfg.isTest && s.saver != nil {
+	var path string
+	// if we force s.cfg.NewRaftStatePersistor()
+	// below, without a disk, that is always empty state,
+	// which was causing 065 shadow_test to lose its MC.
+	// Do we need to give 065 an s.saver??
+	if s.cfg.isTest { // 065 why was this here???: && s.saver != nil {
+
+		//vv("%v isTest true, s.saver = %p)", s.name, s.saver)
 		// allow testSetupFirstRaftLogEntryBootstrapLog()
 		// to pre-inject wal and state.
 		st = s.state
 	} else {
-
-		path := s.GetPersistorPath()
+		path = s.GetPersistorPath()
+		//vv("%v creating new saver for path='%v'", s.name, path)
 		s.saver, st, err = s.cfg.NewRaftStatePersistor(path, s, false)
 		panicOn(err)
 		if err != nil {
@@ -7853,19 +7949,8 @@ func (e *RaftLogEntry) String() string {
 
 	}
 	ticketVal := "(ticket is nil)"
-	if e.node != nil && e.node.state != nil && e.node.wal != nil {
-		//rlog := e.node.wal.RaftLog
-
-		if e.Ticket != nil {
-			ticketVal = string(e.Ticket.Val)
-
-			// log compaction makes this reasoning trickier, comment for now.
-			// if len(rlog) > int(e.Ticket.LogIndex) {
-			// 	if e.committed != rlog[e.Ticket.LogIndex].committed {
-			// 		alwaysPrintf("logic bug? e.committed(%v) != rlog[e.Ticket.LogIndex].committed(%v)", e.committed, rlog[e.Ticket.LogIndex].committed)
-			// 	}
-			// }
-		}
+	if e.Ticket != nil {
+		ticketVal = string(e.Ticket.Val)
 	}
 	var extra string
 	if e.Ticket.Op == MEMBERSHIP_SET_UPDATE && e.Ticket.MC != nil {
@@ -7873,7 +7958,7 @@ func (e *RaftLogEntry) String() string {
 	}
 
 	return fmt.Sprintf(`
-[term: %v, i: %v, key:"%v", val:"%v", op:%v; committed:%v%v]
+[_term: %v, i: %v, key:"%v", val:"%v", op:%v; committed:%v%v]
 `, e.Term, e.Index, e.Ticket.Key, ticketVal, e.Ticket.Op, e.committed, extra)
 }
 
@@ -7932,8 +8017,9 @@ func (s *TubeNode) getRaftLogSummary() (begIdx, begTerm, endIdx, endTerm int64) 
 	return
 }
 
-// cluster membership and role checks
-func (s *TubeNode) skipBecauseNotReplicaMember(followerID, followerName, followerServiceName string) bool {
+// cluster membership and role checks: allow
+// both members and shadows to get AE.
+func (s *TubeNode) skipAEBecauseNotReplica(followerID, followerName, followerServiceName string) bool {
 
 	if followerServiceName == "" {
 		panic("must not have empty followerServiceName")
@@ -7950,14 +8036,19 @@ func (s *TubeNode) skipBecauseNotReplicaMember(followerID, followerName, followe
 	if s == nil || s.state == nil || s.state.MC == nil {
 		return false
 	}
+	_, isShadow := s.state.ShadowReplicas.PeerNames.get2(followerName)
+	if isShadow {
+		return false // allow shadows.
+	}
 	_, isMember := s.state.MC.PeerNames.get2(followerName)
 	if !isMember {
-		//vv("%v warning: not sending AE to replica that is not a current member '%v'; MC='%v'", s.me(), followerName, s.state.MC)
+		//vv("%v warning: not sending AE to replica that is not shadow and not a current member '%v'; MC='%v'", s.me(), followerName, s.state.MC)
 		return true
 	}
 	return false
 }
 
+/* we generalized the above instead.
 func (s *TubeNode) isFollowerNonVoting(followerID, followerName, followerServiceName string) bool {
 
 	if followerServiceName == "" {
@@ -7967,26 +8058,22 @@ func (s *TubeNode) isFollowerNonVoting(followerID, followerName, followerService
 		panic("must not have empty followerName")
 	}
 	if followerServiceName != TUBE_REPLICA {
-		//vv("warning: not sending AE to client '%v' (we only send AE to replicas)", followerName)
 		return false
 	}
 	// allow 020 etc election_tests to not need member config
-	if s.isTest() && s.state.FollowersNonVoting == nil {
+	if s.isTest() && s.state.ShadowReplicas == nil {
 		return false
 	}
 
 	if s == nil || s.state == nil ||
-		s.state.FollowersNonVoting == nil ||
-		s.state.FollowersNonVoting.PeerNames == nil {
+		s.state.ShadowReplicas == nil ||
+		s.state.ShadowReplicas.PeerNames == nil {
 		return false
 	}
-	_, isMember := s.state.FollowersNonVoting.PeerNames.get2(followerName)
-	if !isMember {
-		//vv("%v warning: not sending AE to replica that is not a current member '%v'; MC='%v'", s.me(), followerName, s.state.MC)
-		return false
-	}
-	return true
+	_, isShadow := s.state.ShadowReplicas.PeerNames.get2(followerName)
+	return isShadow
 }
+*/
 
 // used by leader
 // note
@@ -7996,7 +8083,7 @@ func (s *TubeNode) isFollowerNonVoting(followerID, followerName, followerService
 // no longer available due to compression.
 func (s *TubeNode) sendAppendEntriesTo(followerID, followerName, followerServiceName, followerServiceNameVersion string, beginIndex int64, numLimit int, ack *AppendEntriesAck) {
 
-	if s.skipBecauseNotReplicaMember(followerID,
+	if s.skipAEBecauseNotReplica(followerID,
 		followerName, followerServiceName) {
 		return
 	}
@@ -8099,9 +8186,10 @@ func (s *TubeNode) sendAppendEntriesTo(followerID, followerName, followerService
 	// is called by handleAppendEntriesAck
 	// and leaderSendsHeartbeats (both by leader),
 	// so I think this should be cktReplica not ckt.
-	cktP, ok := s.cktReplica[followerID]
+	//cktP, ok := s.cktReplica[followerID] // breaks shadows, we filter above.
+	cktP, ok := s.cktall[followerID] // we filter above, so okay.
 	if !ok {
-		//vv("%v don't know how to contact '%v' (%v) to send AE. Assuming they died.", s.me(), followerID, followerName)
+		vv("%v don't know how to contact '%v' (%v) to send AE. Assuming they died.", s.me(), followerID, followerName)
 		return
 	}
 	ckt := cktP.ckt
@@ -8267,15 +8355,10 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 		// follower log length that will let us commit something.
 		switch {
 		case ack.NeedSnapshotGap:
-			//vv("%v ack.NeedSnapshotGap true (but skipping for a moment to see if flooding stops!): ack='%v'", s.name, ack)
+			//vv("%v ack.NeedSnapshotGap true: ack='%v'", s.name, ack)
 
 			// follower has a gap in their log and needs
 			// the most recent snapshot to get caught up.
-			//ack.ConflictTerm1stIndex, ack.PeerCompactionDiscardedLastIndex
-
-			// this is flooding the followers with continuous snapshots!
-			// somehow the snapshot is not satisfying them? still happening
-			// to new joiner node_4.
 
 			// commenting totally breaks Test059_new_node_joins_after_compaction
 			s.handleRequestStateSnapshot(nil, ckt, fmt.Sprintf("case ack.NeedSnapshotGap in handleAppendEntriesAck(); ack from '%v'; ack.RejectReason='%v'; ack='%v'", ack.FromPeerName, ack.RejectReason, ack))
@@ -8291,6 +8374,7 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 			// really this should suffice, rather
 			// than all those heuristics below.
 			// with just one more trip we can be caught up.
+			//vv("%v ae ack sees rejected, calling sendAppendEntriesTo() for '%v'", s.me(), ack.FromPeerName)
 			s.sendAppendEntriesTo(ack.FromPeerID, ack.FromPeerName, ack.FromPeerServiceName, ack.FromPeerServiceNameVersion, ack.LargestCommonRaftIndex+1, 0, ack)
 			return
 
@@ -8644,6 +8728,11 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 	//  lastApplied should be just as persistent."
 
 	origLastApplied := s.state.LastApplied
+	defer func() {
+		if s.state.LastApplied > origLastApplied {
+			s.ifLostTicketTellClient(calledOnLeader)
+		}
+	}()
 	for ; s.state.LastApplied < s.state.CommitIndex; s.state.LastApplied++ {
 
 		if s.state.LastApplied >= n {
@@ -8701,7 +8790,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 			_, _ = s.setMC(tkt.MC, fmt.Sprintf("commitWhatWeCan on %v", s.name))
 			//vv("%v ignoredMemberConfigBecauseSuperceded=%v", s.name, ignoredMemberConfigBecauseSuperceded)
 			if tkt.Insp == nil {
-				//vv("%v is filling in tkt.Insp in commitWhatWeCan; tkt='%v'", s.me(), tkt.Desc)
+				vv("%v is filling in tkt.Insp in commitWhatWeCan; tkt='%v'", s.me(), tkt.Desc)
 				s.addInspectionToTicket(tkt)
 			}
 			if calledOnLeader {
@@ -8728,8 +8817,8 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 				tkt0 := s.initialNoop0Tkt
 				if calledOnLeader && tkt0 != nil {
 					if tkt.TicketID == tkt0.TicketID {
-						//vv("delete noop0 from WaitingAtLeader tkt.Serial='%v'", s.initialNoop0Tkt.Serial)
-						delete(s.WaitingAtLeader, s.initialNoop0Tkt.TicketID)
+						//vv("delete noop0 from WaitingAtLeader tkt.TSN='%v'; tkt.LogIndex=%v", s.initialNoop0Tkt.TSN, s.initialNoop0Tkt.LogIndex)
+						s.WaitingAtLeader.del(s.initialNoop0Tkt)
 						s.initialNoop0Tkt.Stage += ":initialNoop0_deleted_from_WaitingAtLeader_in_commitWhatWeCan"
 						//vv("%v leader initalNoopTkt has commited... free to do 2nd txn", s.me())
 						//tkt0.Done.Close() // does it happen elsewhere... FinishTicket below does this.
@@ -8752,6 +8841,10 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 					}
 				}
 			}
+
+		case ADD_SHADOW_NON_VOTING:
+			s.doAddShadow(tkt)
+			tkt.Applied = true
 
 		case WRITE:
 			s.state.kvstoreWrite(tkt.Table, tkt.Key, tkt.Val)
@@ -9028,7 +9121,7 @@ func (s *TubeNode) respondToClientTicketApplied(tkt *Ticket) {
 	if s.role != LEADER {
 		panic("should only be called on leader")
 	}
-	wtkt, ok := s.WaitingAtLeader[tkt.TicketID]
+	wtkt, ok := s.WaitingAtLeader.get2(tkt.TicketID)
 	//vv("%v respondToClientTicketApplied, is tkt local WaitingAtLeader: ok=%v; tkt='%v'", s.me(), ok, tkt)
 	if ok {
 		wtkt.Stage += ":respondToClientTicketApplied_ok_about_to_FinishTicket_true"
@@ -9118,7 +9211,7 @@ func (s *TubeNode) tellClientsImNotLeader() {
 		panic("should only be called by non-LEADER")
 	}
 
-	for _, tkt := range sorted(s.WaitingAtLeader) {
+	for _, tkt := range s.WaitingAtLeader.all() {
 		tkt.Stage += ":tellClientsImNotLeader_"
 
 		frag := s.newFrag()
@@ -9181,6 +9274,7 @@ func (a *AppendEntriesAck) String() string {
       LargestCommonRaftIndex: %v, (longest common prefix)
              ConflictTerm: %v,
      ConflictTerm1stIndex: %v,
+          NeedSnapshotGap: %v,
                    --- peer log info ---
   PeerLogCompactIndex: %v,
    PeerLogCompactTerm: %v,
@@ -9200,7 +9294,7 @@ func (a *AppendEntriesAck) String() string {
 SuppliedLeaderCommitIndex: %v,
 SuppliedLeaderCommitIndexEntryTerm: %v,
 }
-`, rpc.AliasDecode(a.ClusterID), a.FromPeerID, a.FromPeerName, a.FromPeerServiceName, rpc.AliasDecode(a.SuppliedLeader), a.SuppliedLeaderName, a.Term, a.Rejected, a.RejectReason, a.LogsMatchExactly, a.LargestCommonRaftIndex, a.ConflictTerm, a.ConflictTerm1stIndex, a.PeerLogCompactIndex, a.PeerLogCompactTerm, a.PeerLogFirstIndex, a.PeerLogFirstTerm, a.PeerLogLastIndex, a.PeerLogLastTerm, a.PeerLogTermsRLE, a.SuppliedLeaderTermsRLE, a.SuppliedCompactIndex, a.SuppliedCompactTerm, a.SuppliedPrevLogIndex, a.SuppliedPrevLogTerm, a.SuppliedEntriesIndexBeg, a.SuppliedEntriesIndexEnd, a.SuppliedLeaderCommitIndex, a.SuppliedLeaderCommitIndexEntryTerm)
+`, rpc.AliasDecode(a.ClusterID), a.FromPeerID, a.FromPeerName, a.FromPeerServiceName, rpc.AliasDecode(a.SuppliedLeader), a.SuppliedLeaderName, a.Term, a.Rejected, a.RejectReason, a.LogsMatchExactly, a.LargestCommonRaftIndex, a.ConflictTerm, a.ConflictTerm1stIndex, a.NeedSnapshotGap, a.PeerLogCompactIndex, a.PeerLogCompactTerm, a.PeerLogFirstIndex, a.PeerLogFirstTerm, a.PeerLogLastIndex, a.PeerLogLastTerm, a.PeerLogTermsRLE, a.SuppliedLeaderTermsRLE, a.SuppliedCompactIndex, a.SuppliedCompactTerm, a.SuppliedPrevLogIndex, a.SuppliedPrevLogTerm, a.SuppliedEntriesIndexBeg, a.SuppliedEntriesIndexEnd, a.SuppliedLeaderCommitIndex, a.SuppliedLeaderCommitIndexEntryTerm)
 }
 
 func (a *RaftLogEntry) Equal(b *RaftLogEntry) bool {
@@ -9228,17 +9322,19 @@ func (s *TubeNode) dispatchAwaitingLeaderTickets() {
 	}
 }
 func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
+
+	if question.Insp == nil {
+		//vv("%v using answer.Insp", s.me())
+		question.Insp = answer.Insp
+	}
+
 	switch question.Op {
 	case SESS_NEW:
 		// good, replaces nil with filled in session.
 		//vv("%v answerToQuestionTicket is setting question.NewSessReply(%v) = answer.NewSessReq(%v)", s.name, question.NewSessReply, answer.NewSessReq)
 		question.NewSessReply = answer.NewSessReq
 
-	case MEMBERSHIP_SET_UPDATE, MEMBERSHIP_BOOTSTRAP:
-		if question.Insp == nil {
-			//vv("%v using answer.Insp", s.me()) // 403 seen! so Insp is from leader
-			question.Insp = answer.Insp
-		}
+	case MEMBERSHIP_SET_UPDATE, MEMBERSHIP_BOOTSTRAP, ADD_SHADOW_NON_VOTING:
 		question.MC = answer.MC
 	case CAS:
 		question.CASwapped = answer.CASwapped
@@ -10069,7 +10165,7 @@ func (s *TubeNode) doReadKey(tkt *Ticket) {
 		tkt.Err = ErrKeyNotFound
 		return
 	}
-	tkt.Val, tkt.Err = s.state.kvstoreRead(tkt.Table, tkt.Key)
+	tkt.Val, tkt.Err = s.state.KVStoreRead(tkt.Table, tkt.Key)
 }
 
 func (s *TubeNode) doReadKeyRange(tkt *Ticket) {
@@ -10254,18 +10350,35 @@ func (s *TubeNode) leaderCanServeReadsLocally() (canServe bool, untilTm time.Tim
 func (s *TubeNode) preVoteOn() bool {
 	return true
 }
-func (s *TubeNode) cloneWaitingAtLeader() (r map[string]*Ticket) {
+
+func (s *TubeNode) cloneWaitingAtLeaderToMap() (r map[string]*Ticket) {
 	r = make(map[string]*Ticket)
-	for k, v := range s.WaitingAtLeader {
-		r[k] = v.clone()
+	for _, v := range s.WaitingAtLeader.all() {
+		r[v.TicketID] = v.clone()
 	}
 	return
 }
 
-func (s *TubeNode) cloneWaitingAtFollow() (r map[string]*Ticket) {
+func (s *TubeNode) cloneWaitingAtFollowToMap() (r map[string]*Ticket) {
 	r = make(map[string]*Ticket)
-	for k, v := range s.WaitingAtFollow {
-		r[k] = v.clone()
+	for _, v := range s.WaitingAtFollow.all() {
+		r[v.TicketID] = v.clone()
+	}
+	return
+}
+
+func (s *TubeNode) cloneWaitingAtLeader() (r *imap) {
+	r = newImap()
+	for _, tkt := range s.WaitingAtLeader.all() {
+		r.set(tkt.TicketID, tkt.clone())
+	}
+	return
+}
+
+func (s *TubeNode) cloneWaitingAtFollow() (r *imap) {
+	r = newImap()
+	for _, tkt := range s.WaitingAtFollow.all() {
+		r.set(tkt.TicketID, tkt.clone())
 	}
 	return
 }
@@ -10744,12 +10857,16 @@ func (s *TubeNode) BaseServerHostPort() (hp string) {
 	return
 }
 
-func (s *TubeNode) AddPeerIDToCluster(ctx context.Context, targetPeerName, targetPeerID, targetPeerServiceName, baseServerHostPort, leaderURL string, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
-	return s.SingleUpdateClusterMemberConfig(ctx, targetPeerName, targetPeerID, targetPeerServiceName, baseServerHostPort, leaderURL, true, errWriteDur)
+func (s *TubeNode) AddPeerIDToCluster(ctx context.Context, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, baseServerHostPort, leaderURL string, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
+
+	targetPeerServiceNameVersion := "" // placeholder/versioning of service code
+	return s.SingleUpdateClusterMemberConfig(ctx, nonVoting, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL, true, errWriteDur)
 }
 
 func (s *TubeNode) RemovePeerIDFromCluster(ctx context.Context, targetPeerName, targetPeerID, targetPeerServiceName, baseServerHostPort, leaderURL string, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
-	return s.SingleUpdateClusterMemberConfig(ctx, targetPeerName, targetPeerID, targetPeerServiceName, baseServerHostPort, leaderURL, false, errWriteDur)
+
+	targetPeerServiceNameVersion := ""
+	return s.SingleUpdateClusterMemberConfig(ctx, false, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL, false, errWriteDur)
 }
 
 // SingleUpdateClusterMemberConfig is an
@@ -10765,7 +10882,7 @@ func (s *TubeNode) RemovePeerIDFromCluster(ctx context.Context, targetPeerName, 
 // process always, to see it well tested.
 //
 // results in call to handleLocalModifyMembership inside.
-func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, targetPeerName, targetPeerID, targetPeerServiceName, baseServerHostPort, leaderURL string, addNotRemove bool, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
+func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL string, addNotRemove bool, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
 
 	//vv("%v top SingleUpdateClusterMemberConfig; leaderURL='%v'", s.me(), leaderURL)
 
@@ -10813,7 +10930,11 @@ func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, targetPe
 
 	desc := "SingleUpdateClusterMemberConfig() "
 	if addNotRemove {
-		desc += "ADD "
+		if nonVoting {
+			desc += "ADD NON-VOTING "
+		} else {
+			desc += "ADD "
+		}
 	} else {
 		desc += "REMOVE "
 	}
@@ -10827,11 +10948,13 @@ func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, targetPe
 		tkt.AddPeerName = targetPeerName
 		tkt.AddPeerID = targetPeerID
 		tkt.AddPeerServiceName = targetPeerServiceName
+		tkt.AddPeerServiceNameVersion = targetPeerServiceNameVersion
 		tkt.AddPeerBaseServerHostPort = baseServerHostPort
 	} else {
 		tkt.RemovePeerName = targetPeerName
 		tkt.RemovePeerID = targetPeerID
 		tkt.RemovePeerServiceName = targetPeerServiceName
+		tkt.RemovePeerServiceNameVersion = targetPeerServiceNameVersion
 		tkt.RemovePeerBaseServerHostPort = baseServerHostPort
 	}
 
@@ -10839,12 +10962,19 @@ func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, targetPe
 	if errWriteDur > 0 {
 		timeout = time.After(errWriteDur)
 	}
+
+	sendCh := s.singleUpdateMembershipReqCh
+	if nonVoting {
+		tkt.Op = ADD_SHADOW_NON_VOTING
+		sendCh = s.writeReqCh
+	}
+
 	//vv("%v SingleUpdateClusterMemberConfig sending on s.singleUpdateMembershipReqCh <- tkt='%v'", s.me(), tkt)
 	select {
 	case <-timeout:
 		err = ErrTimeOut
 		return
-	case s.singleUpdateMembershipReqCh <- tkt:
+	case sendCh <- tkt:
 		// results in a call to handleLocalModifyMembership,
 		// which will redirect to leader if we are not leader.
 		//vv("%v sent tkt on s.singleUpdateMembershipReqCh; tkt='%v'", s.me(), tkt.Short()) // 402 seen
@@ -11090,6 +11220,8 @@ type PeerDetail struct {
 	PeerServiceName        string `zid:"4"`
 	PeerServiceNameVersion string `zid:"5"`
 
+	NonVoting bool `zid:"6"`
+
 	gcAfterHeartbeatCount int
 }
 
@@ -11334,12 +11466,12 @@ func (s *MemberConfig) Len() int {
 func (s *MemberConfig) setNameDetail(name string, detail *PeerDetail, who *TubeNode) {
 
 	// track down bug of auto-cli wrong URL entry
-	if detail.URL == "simnet://auto-cli-from-srv_node_0-to-srv_node_1" {
-		panic("where?")
-	}
-	if strings.Contains(detail.URL, "auto-cli-from") {
-		panic("where2?")
-	}
+	//if detail.URL == "simnet://auto-cli-from-srv_node_0-to-srv_node_1" {
+	//	panic("where?")
+	//}
+	//if strings.Contains(detail.URL, "auto-cli-from") {
+	//	panic("where2?")
+	//}
 
 	// sanity check, where is future update from??
 	s.check(who)
@@ -11528,12 +11660,12 @@ func (s *TubeNode) handleLocalModifyMembership(tkt *Ticket) (onlyPossibleAddr st
 	}
 	if tkt.AddPeerName != "" {
 		if tkt.AddPeerServiceName != TUBE_REPLICA {
-			panic(fmt.Sprintf("MEMBERSHIP_SET_UPDATE AddPeerServiceName must be TUBE_REPLICA: '%v'", tkt))
+			panic(fmt.Sprintf("MEMBERSHIP_SET_UPDATE AddPeerServiceName must be TUBE_REPLICA: tkt='%v'", tkt))
 		}
 		baseServerHostPort = tkt.AddPeerBaseServerHostPort
 	} else {
 		if tkt.RemovePeerServiceName != TUBE_REPLICA {
-			panic(fmt.Sprintf("MEMBERSHIP_SET_UPDATE RemovePeerServiceName must be TUBE_REPLICA: '%v'", tkt))
+			panic(fmt.Sprintf("MEMBERSHIP_SET_UPDATE RemovePeerServiceName must be TUBE_REPLICA: tkt='%v'", tkt))
 		}
 		baseServerHostPort = tkt.RemovePeerBaseServerHostPort
 	}
@@ -11632,7 +11764,7 @@ func (s *TubeNode) handleLocalModifyMembership(tkt *Ticket) (onlyPossibleAddr st
 
 		//vv("%v: handleLocalModifyMembership redirected to leader, adding to WaitingAtFollow, tkt='%v'", s.me(), tkt)
 		//vv("%v am not leader but '%v'", s.name, s.role)
-		s.WaitingAtFollow[tkt.TicketID] = tkt
+		s.WaitingAtFollow.set(tkt.TicketID, tkt)
 		tkt.Stage += ":handleLocalModifyMembership_WaitingAtFollow"
 		return
 	}
@@ -11770,7 +11902,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 		}
 		//vv("%v: changeMembership redirected to leader, adding to Waiting, writeReqCh: '%v'", s.me(), tkt)
 		//vv("%v am not leader but '%v'", s.name, s.role)
-		s.WaitingAtFollow[tkt.TicketID] = tkt
+		s.WaitingAtFollow.set(tkt.TicketID, tkt)
 		tkt.Stage += ":changeMembership_WaitingAtFollow"
 		return
 	}
@@ -11946,6 +12078,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 				PeerID:                 cktP0.PeerID,
 				PeerServiceName:        ckt.RemoteServiceName,
 				PeerServiceNameVersion: ckt.RemotePeerServiceNameVersion,
+				NonVoting:              detail.NonVoting,
 			}
 			s.setAddrURL(det, cktP0)
 			newConfig.setNameDetail(peerName, det, s)
@@ -11960,6 +12093,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 		Addr:                   s.MyPeer.BaseServerAddr,
 		PeerServiceName:        s.MyPeer.PeerServiceName,
 		PeerServiceNameVersion: s.MyPeer.PeerServiceNameVersion,
+		//NonVoting:              s.NonVoting,
 	}
 	newConfig.setNameDetail(s.name, det, s)
 
@@ -12593,6 +12727,11 @@ func (s *TubeNode) connectToMC(origin string) {
 	sortedPeerNamesCached := s.state.MC.PeerNames.cached()
 	numNames := len(sortedPeerNamesCached)
 
+	// these are disjoint, as we enforce that.
+	shadows := s.state.ShadowReplicas.PeerNames.cached()
+	sortedPeerNamesCached = append(sortedPeerNamesCached, shadows...)
+	numNames += len(shadows)
+
 	// To avoid redundant loops, we (used to) only connect the
 	// upper-right triangle of the sorted peer name
 	// square grid matrix. By convention, we actively link
@@ -12896,19 +13035,29 @@ func (s *TubeNode) adjustCktReplicaForNewMembership() {
 		}
 		return // under test okay to have nil MC (020, 021...)
 	}
-
+	if s.state.ShadowReplicas == nil {
+		panic("must have s.state.ShadowReplicas, even if empty")
+	}
 	s.serviceMembershipObservers()
 
 	// toss any missing
 	keepName := make(map[string]*cktPlus)
 	var toss []string
 	for peerID, cktP := range s.cktReplica {
-		_, allowed := s.state.MC.PeerNames.get2(cktP.PeerName)
-		if allowed && cktP.PeerName != s.name {
+		_, allowed0 := s.state.MC.PeerNames.get2(cktP.PeerName)
+		if allowed0 && cktP.PeerName != s.name {
 			// (but don't add self to cktReplica)
 			keepName[cktP.PeerName] = cktP
 		} else {
-			toss = append(toss, peerID)
+			// also keep ShadowReplicas, as well as MC.
+			_, allowed1 := s.state.ShadowReplicas.PeerNames.get2(cktP.PeerName)
+			if allowed1 && cktP.PeerName != s.name {
+				// (but don't add self to cktReplica)
+				keepName[cktP.PeerName] = cktP
+			} else {
+				// not in MC or ShadowReplicas
+				toss = append(toss, peerID)
+			}
 		}
 	}
 	// We don't delete during map iteration, as we
@@ -12916,36 +13065,45 @@ func (s *TubeNode) adjustCktReplicaForNewMembership() {
 	for _, peerID := range toss {
 		delete(s.cktReplica, peerID)
 	}
-	// add any new
-	for peerName, det := range s.state.MC.PeerNames.all() {
-		if peerName == s.name {
-			// never want self in cktReplica
-			continue
+	// add any new, from either MC or ShadowReplicas
+	var group *MemberConfig
+	for k := range 2 {
+		switch k {
+		case 0:
+			group = s.state.MC
+		case 1:
+			group = s.state.ShadowReplicas
 		}
-		_, already := keepName[peerName]
-		if already {
-			continue
-		}
-		if det.PeerID == "" {
-			// happens on boot up... have to allow.
-			continue
-
-			panic(fmt.Sprintf("peerID missing for peerName '%v' in MC='%v'", peerName, s.state.MC))
-		}
-		// we need to add peerName, peerID, if available, to cktReplica
-		cktP, ok := s.cktall[det.PeerID]
-		if ok {
-			if cktP.PeerServiceName == TUBE_REPLICA {
-				s.cktReplica[det.PeerID] = cktP
-			} else {
-				err := fmt.Errorf("%v error: problem! we were asked to add a member '%v' to cktReplica, but cannot because it is not TUBE_REPLICA; PeerServiceName='%v'", s.me(), peerName, cktP.PeerServiceName)
-				panic(err)
+		for peerName, det := range group.PeerNames.all() {
+			if peerName == s.name {
+				// never want self in cktReplica
+				continue
 			}
-		} else {
-			//vv("%v warning: drat! we want to add a member '%v' to cktReplica, but no ckt available in cktall: '%v'", s.me(), peerName, s.showCktall())
+			_, already := keepName[peerName]
+			if already {
+				continue
+			}
+			if det.PeerID == "" {
+				// happens on boot up... have to allow.
+				continue
 
-			// we are inside adjustCktReplicaForNewMembership() here.
-			s.connectInBackgroundIfNoCircuitTo(peerName, "adjustCktReplicaForNewMembership") // call 4
+				panic(fmt.Sprintf("peerID missing for peerName '%v' in MC='%v'", peerName, s.state.MC))
+			}
+			// we need to add peerName, peerID, if available, to cktReplica
+			cktP, ok := s.cktall[det.PeerID]
+			if ok {
+				if cktP.PeerServiceName == TUBE_REPLICA {
+					s.cktReplica[det.PeerID] = cktP
+				} else {
+					err := fmt.Errorf("%v error: problem! we were asked to add a member '%v' to cktReplica, but cannot because it is not TUBE_REPLICA; PeerServiceName='%v'", s.me(), peerName, cktP.PeerServiceName)
+					panic(err)
+				}
+			} else {
+				//vv("%v warning: drat! we want to add a member '%v' to cktReplica, but no ckt available in cktall: '%v'", s.me(), peerName, s.showCktall())
+
+				// we are inside adjustCktReplicaForNewMembership() here.
+				s.connectInBackgroundIfNoCircuitTo(peerName, "adjustCktReplicaForNewMembership") // call 4
+			}
 		}
 	}
 }
@@ -13344,11 +13502,11 @@ func (s *TubeNode) handleNewSessionRequestTicket(tkt *Ticket) {
 		//vv("%v adding to WaitingAtFollow, newSessionRequestCh: '%v'", s.me(), tkt)
 		tkt.Stage += ":after_redirectToLeader_add_WaitingAtFollow"
 
-		prior, already := s.WaitingAtFollow[tkt.TicketID]
+		prior, already := s.WaitingAtFollow.get2(tkt.TicketID)
 		if already {
 			panic(fmt.Sprintf("WAF already has prior='%v'; versus tkt='%v'", prior, tkt))
 		}
-		s.WaitingAtFollow[tkt.TicketID] = tkt
+		s.WaitingAtFollow.set(tkt.TicketID, tkt)
 		//vv("%v AFTER adding to WAF, at newSessionRequestCh: tkt='%v'", s.me(), tkt)
 		return
 	}
@@ -14027,7 +14185,8 @@ func (s *TubeNode) newCktPlus(peerName, peerServiceName string) *cktPlus {
 }
 
 func (c *cktPlus) Close() {
-
+	// caller include :1244 in <-s.electionTimeoutCh:
+	//vv("%v cktPlus.Close called by stack=\n\n%v\n", c.node.me(), stack())
 	c.perCktWatchdogHalt.RequestStop()
 
 	c.latestCancFuncMut.Lock()
@@ -14157,8 +14316,15 @@ func peerNamesAsString(peers map[string]*RaftNodeInfo) (r string) {
 	return
 }
 
+// called on leader by case RedirectTicketToLeaderMsg,
+// by dispatchAwaitingLeaderTickets(),
+// and by resubmitStalledTickets().
+// Calls s.replicateTicket(tkt) at the end.
 func (s *TubeNode) commandSpecificLocalActionsThenReplicateTicket(tkt *Ticket, fromWhom string) {
 	//vv("%v top commandSpecificLocalActionsThenReplicateTicket; fromWhom='%v'; tkt='%v'", s.me(), fromWhom, tkt.Short())
+	if s.role != LEADER {
+		panic("only for leader; followers should not be calling here.")
+	}
 	switch tkt.Op {
 	case MEMBERSHIP_SET_UPDATE:
 		s.changeMembership(tkt)
@@ -14173,6 +14339,16 @@ func (s *TubeNode) commandSpecificLocalActionsThenReplicateTicket(tkt *Ticket, f
 			tkt.Stage += ":RedirectTicketToLeaderMsg_leaderServedLocalRead_false_calling_replicateTicket"
 			// fallthrough to replicateTicket
 		}
+
+	case ADD_SHADOW_NON_VOTING:
+		_, isMember := s.state.MC.PeerNames.get2(tkt.AddPeerName)
+		if isMember {
+			tkt.Err = fmt.Errorf("node is already in replica membership MC, so cannot use ADD_SHADOW_NON_VOTING to add them to ShadowReplica: '%v'", tkt.AddPeerName)
+			s.respondToClientTicketApplied(tkt)
+			s.FinishTicket(tkt, true)
+			return
+		}
+		// fallthrough to replicateTicket
 
 	case SESS_NEW:
 		s.leaderSideCreateNewSess(tkt)
@@ -14313,7 +14489,11 @@ func (s *TubeNode) isFollowerKaput() bool {
 		return false
 	}
 	_, weAreInCurConfig := s.state.MC.PeerNames.get2(s.name)
-	return !weAreInCurConfig
+	if weAreInCurConfig {
+		return false
+	}
+	_, weAreShadow := s.state.ShadowReplicas.PeerNames.get2(s.name)
+	return !weAreShadow
 }
 
 // called on leader election timeout on leader.
@@ -14431,7 +14611,7 @@ func (s *TubeNode) updateMCindex(commitIndex, commitIndexEntryTerm int64) {
 }
 
 func (s *TubeNode) handleRequestStateSnapshot(frag *rpc.Fragment, ckt *rpc.Circuit, caller string) {
-	//vv("%v top of handleRequestStateSnapshot(), caller='%v'", s.name, caller)
+	//vv("%v top of handleRequestStateSnapshot(), caller='%v' to '%v'", s.name, caller, ckt.RemotePeerName) // seen 065
 	fragEnc := s.newFrag()
 	fragEnc.FragOp = StateSnapshotEnclosed
 	fragEnc.FragSubject = "StateSnapshotEnclosed"
@@ -14468,10 +14648,16 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 	s.applyNewStateSnapshot(state2, caller)
 }
 
+// arg. this is fragile; we forgot to add ShadowReplicas
+// at first... why cannot we just apply the full thing,
+// instead of going field by field? maybe we were
+// just wanting to assert before to figure out
+// how stuff was getting lost, but we already fixed that.
+//
 // called when <-s.ApplyNewStateSnapshotCh; and when
 // above handleStateSnapshotEnclosed.
 func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
-	//vv("%v top of applyNewStateSnapshot; caller='%v'; will set s.state.CommitIndex from %v -> %v; ", s.me(), caller, s.state.CommitIndex, state2.CommitIndex)
+	//vv("%v top of applyNewStateSnapshot; caller='%v'; will set s.state.CommitIndex from %v -> %v; ", s.me(), caller, s.state.CommitIndex, state2.CommitIndex) // not seen 065
 
 	if state2.CommitIndex < s.state.CommitIndex {
 		panic(fmt.Sprintf("%v we should never be rolling back CommitIndex with state snapshots! state2.CommitIndex(%v) < s.state.CommitIndex(%v)", s.name, state2.CommitIndex, s.state.CommitIndex))
@@ -14497,6 +14683,9 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	}
 	if state2.MC != nil {
 		s.state.MC = state2.MC
+	}
+	if state2.ShadowReplicas != nil {
+		s.state.ShadowReplicas = state2.ShadowReplicas
 	}
 	if s.state.Known != nil {
 		s.state.Known = state2.Known
@@ -14681,6 +14870,86 @@ func (s *TubeNode) InjectEmptyMC(ctx context.Context, targetURL, nodeName string
 	emptyFrag.SetUserArg("target", nodeName)
 	_, _, _, err = s.getCircuitToLeader(ctx, targetURL, emptyFrag, false)
 	return
+}
+
+// ifLostTicketTellClient:
+// Important client interaction detail--when
+// can you report an error back to the client!
+//
+// from https://thesquareplanet.com/blog/students-guide-to-raft/
+// how do you know when a client operation has completed?
+// In the case of no failures, this is simple – you just wait
+// for the thing you put into the log to come back out
+// (i.e., be passed to apply()). When that happens, you
+// return the result to the client. However, what happens
+// if there are failures?
+//
+// For example, you may have been the leader when the client
+// initially contacted you, but someone else has since been
+// elected, and the client request you put in the log has
+// been discarded. Clearly you need to have the client try
+// again, but how do you know when to tell them about the error?
+//
+// One simple way to solve this problem is to record where
+// in the Raft log the client’s operation appears when you
+// insert it. Once the operation at that index is sent to
+// apply(), you can tell whether or not the client's
+// operation succeeded based on whether the operation
+// that came up for that index is in fact the one you
+// put there. If it isn't, a failure has happened and
+// an error can be returned to the client.
+func (s *TubeNode) ifLostTicketTellClient(calledOnLeader bool) {
+
+	var waiting *imap
+	if calledOnLeader {
+		waiting = s.WaitingAtLeader
+	} else {
+		waiting = s.WaitingAtFollow
+	}
+
+	// yeilds ascending tkt.LogIndex order
+	for _, tkt := range waiting.all() {
+
+		if tkt.LogIndex > s.state.LastApplied {
+			// all others will be higher LogIndex values.
+			return
+		}
+		// INVAR: tkt.LogIndex <= LastApplied
+
+		// compacted away?
+		baseC := s.wal.getCompactBase()
+		if tkt.LogIndex <= baseC {
+			panicf("internal logic problem: we still have a ticket in waiting (onLead: %v), but its index has been compacted away and we should have replied by now! tkt='%v'", calledOnLeader, tkt)
+		}
+		// INVAR: tkt.LogIndex > baseC
+		entry, err := s.wal.GetEntry(tkt.LogIndex)
+		if err != nil {
+			// not in log yet...?
+			continue
+		}
+		if entry.Ticket.TicketID != tkt.TicketID {
+			alwaysPrintf("at tkt.LogIndex=%v, (%v)entry.Ticket.TicketID != our waiting tkt.TicketID(%v), so return error to client", tkt.LogIndex, entry.Ticket.TicketID, tkt.TicketID)
+			tkt.Err = fmt.Errorf("leader fail/new leader election resulted in log truncation which caused this ticket to be lost. Client must resubmit request.")
+			tkt.Stage += ":truncated_wal_detected_in_newAppliesCanWeRespond"
+
+			s.respondToClientTicketApplied(tkt)
+			s.FinishTicket(tkt, calledOnLeader)
+		}
+	}
+}
+
+func (s *TubeNode) doAddShadow(tkt *Ticket) {
+	//vv("%v top of doAddShadow() tkt='%v'", s.me(), tkt.Short())
+	detail := &PeerDetail{
+		Name:                   tkt.AddPeerName,
+		PeerID:                 tkt.AddPeerID,
+		PeerServiceName:        tkt.AddPeerServiceName,
+		PeerServiceNameVersion: tkt.AddPeerServiceNameVersion,
+		Addr:                   tkt.AddPeerBaseServerHostPort,
+		//URL:                    tkt.AddPeerURL ??
+	}
+
+	s.state.ShadowReplicas.PeerNames.set(tkt.AddPeerName, detail)
 }
 
 /*

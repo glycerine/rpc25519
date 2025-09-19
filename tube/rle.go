@@ -393,7 +393,7 @@ func (leaderLog *TermsRLE) Extends(followerLog *TermsRLE) (extends bool, largest
 
 	//vv("top Extends(): followerLog = '%v', leaderLog='%v'", followerLog, leaderLog)
 	//defer func() {
-	//	vv("returning from Extends: extends=%v, largestCommonRaftIndex=%v", extends, largestCommonRaftIndex)
+	//	vv("returning from Extends: extends=%v, largestCommonRaftIndex=%v, needLeaderSnapshot=%v", extends, largestCommonRaftIndex, needLeaderSnapshot)
 	//}()
 
 	// Handle nil cases
@@ -447,6 +447,7 @@ func (leaderLog *TermsRLE) Extends(followerLog *TermsRLE) (extends bool, largest
 		// AE should be applying leaderLog from a snapshot
 		// since we cannot really compare what we
 		// cannot see from before leaderLog.BaseC.
+		//vv("hitting the NEED_LEADER_SNAPSHOT case ") // not seen! 065
 		return false, followerLog.BaseC, NEED_LEADER_SNAPSHOT
 	}
 

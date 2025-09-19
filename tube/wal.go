@@ -1272,3 +1272,7 @@ func (s *raftWriteAheadLog) installedSnapshot(state *RaftState) {
 	// also clear out the par log
 	s.parlog.truncate(0)
 }
+
+func (s *raftWriteAheadLog) getCompactBase() int64 {
+	return s.logIndex.BaseC
+}
