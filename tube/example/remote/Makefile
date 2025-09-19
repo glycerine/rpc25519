@@ -1,11 +1,11 @@
 .PHONY:beg clean kill build z one two magic
 
 beg:
-	cd ../cmd/tube; go install
-	cd ../cmd/tup; go install
-	cd ../cmd/tubels; go install
-	cd ../cmd/tuberm; go install
-	cd ../cmd/tubeadd; go install
+	cd ../../cmd/tube; go install
+	cd ../../cmd/tup; go install
+	cd ../../cmd/tubels; go install
+	cd ../../cmd/tuberm; go install
+	cd ../../cmd/tubeadd; go install
 	./beg
 	sleep 1
 	grep "remote\ URL" log.*
@@ -25,11 +25,11 @@ two:
 	nohup tube tube.2.cfg &> log.2 &
 
 build:
-	cd ../cmd/tube; go install
-	cd ../cmd/tup; go install
-	cd ../cmd/tubels; go install
-	cd ../cmd/tuberm; go install
-	cd ../cmd/tubeadd; go install
+	cd ../../cmd/tube; go install
+	cd ../../cmd/tup; go install
+	cd ../../cmd/tubels; go install
+	cd ../../cmd/tuberm; go install
+	cd ../../cmd/tubeadd; go install
 
 clean:
 	pkill -9 tube || true
