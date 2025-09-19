@@ -7947,6 +7947,9 @@ func (s *TubeNode) skipBecauseNotReplicaMember(followerID, followerName, followe
 		return false
 	}
 
+	if s == nil || s.state == nil || s.state.MC == nil {
+		return false
+	}
 	_, isMember := s.state.MC.PeerNames.get2(followerName)
 	if !isMember {
 		//vv("%v warning: not sending AE to replica that is not a current member '%v'; MC='%v'", s.me(), followerName, s.state.MC)
@@ -7972,6 +7975,11 @@ func (s *TubeNode) isFollowerNonVoting(followerID, followerName, followerService
 		return false
 	}
 
+	if s == nil || s.state == nil ||
+		s.state.FollowersNonVoting == nil ||
+		s.state.FollowersNonVoting.PeerNames == nil {
+		return false
+	}
 	_, isMember := s.state.FollowersNonVoting.PeerNames.get2(followerName)
 	if !isMember {
 		//vv("%v warning: not sending AE to replica that is not a current member '%v'; MC='%v'", s.me(), followerName, s.state.MC)
