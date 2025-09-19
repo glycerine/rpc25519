@@ -11982,7 +11982,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			if peerID == "" {
 				peerID = cktP.PeerID
 			} else {
-				if tkt.AddPeerID != cktP.PeerID {
+				if cktP.PeerID != "" && tkt.AddPeerID != cktP.PeerID {
 					panic(fmt.Sprintf("difference in opinion about peerID for '%v'; which is correct? cktP.PeerID='%v', but tkt.AddPeerID = '%v'. is one of them stale?", tkt.AddPeerName, cktP.PeerID, tkt.AddPeerID))
 				}
 			}
