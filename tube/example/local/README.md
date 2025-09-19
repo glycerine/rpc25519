@@ -190,7 +190,7 @@ then set `y` to have value `12`. Entering bang as the first character is how we 
 ~~~
 [node_0 connected](table 'base') > !x 10
 wrote: x <- 10 (in table 'base')
-[node_0 connected](table 'base') > !y 10
+[node_0 connected](table 'base') > !y 12
 wrote: y <- 12 (in table 'base')
 ~~~
 
