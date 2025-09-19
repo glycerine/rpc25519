@@ -163,8 +163,8 @@ keywords: cas, newtable, rmtable, use, mv, ls, show, del
 [node_0 connected](table 'base') > 
 ~~~
 
-11. At the up command prompt, set key x to have value 10 in the base table,
-then set y to have value 12.
+11. At the tup command prompt, set key `x` to have value `10` in the base table,
+then set `y` to have value `12`. Entering bang as the first character is how we write to a key. This deliberately requires the shift key to make it harder to accidentally write a key.
 
 ~~~
 [node_0 connected](table 'base') > !x 10
