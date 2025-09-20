@@ -14953,6 +14953,18 @@ func (s *TubeNode) doAddShadow(tkt *Ticket) {
 	s.state.ShadowReplicas.PeerNames.set(tkt.AddPeerName, detail)
 }
 
+func URLTrimCktID(url string) string {
+	if url == "" {
+		return ""
+	}
+	addr, service, peerID, _, err := rpc.ParsePeerURL(url)
+
+	if err != nil {
+		return url
+	}
+	return addr + "/" + service + "/" + peerID
+}
+
 /*
 Q: Can the PAR checks be integrated with the
 Pre-Vote of Raft? The Pre-Vote seems essential

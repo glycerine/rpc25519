@@ -191,6 +191,20 @@ func main() {
 	} else {
 		fmt.Printf("   -- newestMembership is nil.\n")
 	}
+	if insp.ShadowReplicas != nil &&
+		insp.ShadowReplicas.PeerNames != nil &&
+		insp.ShadowReplicas.PeerNames.Len() > 0 {
+
+		fmt.Printf("\nshadow replicas:\n")
+		for name, det := range insp.ShadowReplicas.PeerNames.All() {
+			url, ok := insp.CktAllByName[name]
+			if !ok {
+				url = det.Addr
+			}
+			fmt.Printf("  %v:   %v\n", name, tube.URLTrimCktID(url))
+			delete(seen, name)
+		}
+	}
 	if false { // usually dead, kind of irrelevant
 		if len(seen) > 0 {
 			fmt.Printf("   -- others in insp.CktAllByName:\n")
