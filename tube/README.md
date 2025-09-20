@@ -218,11 +218,22 @@ trade-off is enduring the same window of
 non-availability on leader crash:
 usually very much worth it.
 
-Protocol Aware Recovery (PAR) is half implemented;
+Protocol Aware Recovery (PAR)[1] is half implemented;
 the wal.go and par.go files have some
 mechanism, but recovery and online
 checks have not been fully completed.
-See too the notes at the end of this (tube.go) file.
+See too the notes at the end of this [tube.go](https://github.com/glycerine/rpc25519/blob/master/tube/tube.go) file.
+Without PAR, your replicated consensus system
+is still subject to global data loss from
+a single disk sector fault, so yes, you
+really want PAR. The lack of a storage
+fault model in Raft makes it vulnerable
+to such hazards.
+
+[1] https://www.usenix.org/conference/fast18/presentation/alagappan
+"Protocol-Aware Recovery for Consensus-Based Storage"
+Ramnatthan Alagappan and Aishwarya Ganesan; Eric Lee; Aws Albarghouthi; Vijay Chidambaram; Andrea C. Arpaci-Dusseau and Remzi H. Arpaci-Dusseau
+FAST Conference 2018 best paper award.
 
 ------
 Copyright (C) 2025 Jason E. Aten, Ph.D. All rights reserved.
