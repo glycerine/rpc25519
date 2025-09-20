@@ -33,11 +33,16 @@ as it provides a clean separation of membership
 and Raft log data; and is formally proven correct.
 
 Tube provides a basic sorted key/value store as its
-state machine, allowing arbitrary []byte or string keys to
+baseline/sample/example state machine (which may suffice
+for many use cases). User program defined replicated
+operations -- custom state machine actions for
+a user defined machine -- are
+planned but still TODO at the moment. The built in
+key/value store allows arbitrary []byte or string keys to
 refer to arbitrary []byte slice values. Multiple
 key-value namespaces, each called a "table", are
 available. See the tube/cmd/tup utility for a 
-sample client.
+sample client/client code.
 
 Testing uses the Go testing/synctest package
 (https://pkg.go.dev/testing/synctest) 
