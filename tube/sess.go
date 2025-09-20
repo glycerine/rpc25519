@@ -17,18 +17,7 @@ func (s *sessTableByExpiry) Clear() {
 }
 
 func (s *sessTableByExpiry) Delete(ste *SessionTableEntry) {
-
-	if ste.bySeenIter.Tree() == nil {
-		return // main thing we saw, probably Clone artifact.
-	}
-	// try to prevent
-	// panic: DeleteWithIterator called with iterator not from this tree.
-	byTree := ste.bySeenIter.Tree()
-	if byTree != s.tree {
-		alwaysPrintf("yuck! ste.bySeenIter from wrong rbtree %p vs s.tree=%p", byTree, s.tree)
-		return
-	}
-	s.tree.DeleteWithIterator(ste.bySeenIter)
+	s.tree.DeleteWithKey(ste)
 }
 
 func newSessTableByExpiry() *sessTableByExpiry {

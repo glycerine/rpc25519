@@ -292,7 +292,7 @@ import (
 
 	"github.com/glycerine/blake3"
 	"github.com/glycerine/idem"
-	rb "github.com/glycerine/rbtree"
+	//rb "github.com/glycerine/rbtree"
 	rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/tube/art"
 )
@@ -2806,16 +2806,15 @@ type TubeNode struct {
 
 	// Since we want consensus on when
 	// to delete, we have to update the
-	// session table by SESS_REFRESH and then
+	// session table by SESS_REFRESH
 	// and then we can purge those who
 	// have not been refreshed or have expired.
 	//
-	// NOTE/TODO: we must delete and re-add the
+	// NOTE: it might seem strange, but
+	// we must delete and re-add the
 	// entry every time we update the Expiry in
 	// order to get the tree to rebalance. Still
-	// only O(log N) each time. BUT we also have
-	// to update the ste.bySeenIter when we do so!
-	// since the iter will go stale when we delete it.
+	// only O(log N) each time.
 	sessByExpiry *sessTableByExpiry
 }
 
@@ -4837,8 +4836,6 @@ type SessionTableEntry struct {
 	SessionReplicatedEndxTm time.Time `zid:"4"`
 
 	SessRequestedInitialDur time.Duration `zid:"5"`
-
-	bySeenIter rb.Iterator
 }
 
 func (z *SessionTableEntry) String() (r string) {
@@ -4864,7 +4861,6 @@ func (s *SessionTableEntry) Clone() (r *SessionTableEntry) {
 		ticketID2tkt:            make(map[string]*Ticket),
 		SessRequestedInitialDur: s.SessRequestedInitialDur,
 		SessionReplicatedEndxTm: s.SessionReplicatedEndxTm,
-		bySeenIter:              s.bySeenIter,
 	}
 	for _, kv := range s.Serial2Ticket.cached() {
 		r.Serial2Ticket.set(kv.key, kv.val)
@@ -13568,11 +13564,9 @@ func (s *TubeNode) applyEndSess(tkt *Ticket, calledOnLeader bool) {
 }
 
 // called from commitWhatWeCan() when SESS_NEW applied;
-// after the session is committed (saved on a quorum of logs).
+// after the session is committed (present on a quorum of servers).
 func (s *TubeNode) applyNewSess(tkt *Ticket, calledOnLeader bool) {
-	//if !calledOnLeader {
-	//	return
-	//}
+
 	//vv("%v applying SESS_NEW '%v'", s.me(), tkt.NewSessReq)
 	sess := tkt.NewSessReq
 	if s.state.SessTable == nil {
@@ -13582,7 +13576,7 @@ func (s *TubeNode) applyNewSess(tkt *Ticket, calledOnLeader bool) {
 	if !already {
 		ste = newSessionTableEntry(sess.Clone()) // only call
 		s.state.SessTable[sess.SessionID] = ste
-		_, ste.bySeenIter = s.sessByExpiry.tree.InsertGetIt(ste)
+		s.sessByExpiry.tree.Insert(ste)
 	} else {
 		panic(fmt.Sprintf("%v: arg: already have SessionID='%v' in s.state.SessTable. This should not happen right? what about log replay?", s.me(), sess.SessionID))
 	}
@@ -13612,6 +13606,9 @@ func (s *TubeNode) garbageCollectOldSessions() {
 			tkt := s.NewTicket(desc, "", "", nil, s.PeerID, s.name, SESS_END, 0, s.MyPeer.Ctx)
 			tkt.EndSessReq_SessionID = id
 			s.replicateTicket(tkt)
+			// let applyEndSess() do the actual deletion,
+			// so that it happens in the correct serial order
+			// on all state machines.
 		} else {
 			break // since sessByExpiry is sorted, all others are later.
 		}
@@ -14792,13 +14789,11 @@ func (s *TubeNode) refreshSession(from time.Time, ste *SessionTableEntry) (refre
 	// we must delete and re-add the entry every
 	// time we update the sess.SessionEndxTm in
 	// order to get the s.sessByExpiry.tree to rebalance.
-	// Still only O(log N) each time. We also have
-	// to update the ste.bySeenIter when we do so,
-	// since the iter will go stale when we delete it.
+	// Still only O(log N) each time.
 	s.sessByExpiry.Delete(ste)
 	refreshTil = from.Add(ste.SessRequestedInitialDur)
 	ste.SessionEndxTm = refreshTil
-	_, ste.bySeenIter = s.sessByExpiry.tree.InsertGetIt(ste)
+	s.sessByExpiry.tree.Insert(ste)
 	return
 }
 
