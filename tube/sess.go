@@ -18,6 +18,9 @@ func (s *sessTableByExpiry) Clear() {
 
 func (s *sessTableByExpiry) Delete(ste *SessionTableEntry) {
 
+	if ste.bySeenIter.Tree() == nil {
+		return // main thing we saw, probably Clone artifact.
+	}
 	// try to prevent
 	// panic: DeleteWithIterator called with iterator not from this tree.
 	byTree := ste.bySeenIter.Tree()
