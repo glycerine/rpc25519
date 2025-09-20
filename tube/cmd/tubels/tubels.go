@@ -10,8 +10,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
-	//"path/filepath"
 	//"sort"
 	"time"
 
@@ -57,12 +57,16 @@ func main() {
 	}
 	verboseVerbose = cmdCfg.Verbose
 
-	// first connect, then run repl
+	// first connect
 	dir := tube.GetConfigDir()
 	pathCfg := dir + "/" + "tup.default.config"
 	if fileExists(pathCfg) {
 		//vv("using config file: '%v'", pathCfg)
 	} else {
+		dir := filepath.Dir(pathCfg)
+		if dir != "" {
+			os.MkdirAll(dir, 0777)
+		}
 		fd, err := os.Create(pathCfg)
 		panicOn(err)
 		cfg := &tube.TubeConfig{
@@ -71,7 +75,15 @@ func main() {
 		}
 		fmt.Fprintf(fd, "%v\n", cfg.SexpString(nil))
 		fd.Close()
-		fmt.Fprintf(os.Stderr, "tup error: no config file. Created one from template in '%v'. Please complete it.\n", pathCfg)
+		fmt.Fprintf(os.Stderr, `
+ -- tup error: no config file found at '%v'.
+ -- I have just created a starter config file and wrote it to
+%v
+ -- for your convenience. Please fill in at least the :port of your nodes.
+ -- An example can be found at
+https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad850c1/tube/example/local/tup.default.config
+
+`, pathCfg, pathCfg)
 		os.Exit(1)
 	}
 	by, err := os.ReadFile(pathCfg)
