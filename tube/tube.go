@@ -14988,9 +14988,9 @@ func (s *TubeNode) doAddShadow(tkt *Ticket) {
 }
 
 func (s *TubeNode) doRemoveShadow(tkt *Ticket) {
-	//vv("%v top of doRemoveShadow() tkt='%v'", s.me(), tkt.Short())
+	vv("%v top of doRemoveShadow() tkt='%v'", s.me(), tkt.Short())
 
-	s.state.ShadowReplicas.PeerNames.delkey(tkt.AddPeerName)
+	s.state.ShadowReplicas.PeerNames.delkey(tkt.RemovePeerName)
 }
 
 func URLTrimCktID(url string) string {
