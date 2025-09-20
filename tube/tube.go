@@ -11956,6 +11956,23 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	if s.state.MC == nil {
 		s.state.MC = s.NewMemberConfig("changeMembership")
 		// starts with IsCommitted == false
+	} else {
+		// keep MC and ShadowReplicas disjoint, so reject
+		// an addition of regular replica to MC
+		// if peer is already a shadow.
+		if tkt.AddPeerName != "" &&
+			s.state.ShadowReplicas != nil &&
+			s.state.ShadowReplicas.PeerNames != nil {
+			// only MEMBERSHIP_SET_UPDATE or MEMBERSHIP_BOOTSTRAP here
+			// (never ADD_SHADOW_NON_VOTING)
+			_, alreadyShadow := s.state.ShadowReplicas.PeerNames.get2(tkt.AddPeerName)
+			if alreadyShadow {
+				tkt.Err = fmt.Errorf("'%v' is already a shadow replica, cannot add as regular regular peer, as these sets must be disjoint. rejecting '%v'; error at leader '%v' in changeMembership().", tkt.AddPeerName, tkt.AddPeerName, s.name)
+				s.respondToClientTicketApplied(tkt)
+				s.FinishTicket(tkt, true)
+				return
+			}
+		}
 	}
 	curConfig := s.state.MC
 
@@ -12100,10 +12117,6 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 
 	switch {
 	case tkt.AddPeerName != "":
-		// send them current state from leader after the addition.
-		// Only thing is, we have not made the addition yet!
-		// Try moving this down to where the tkt.Insp gets set...
-		//tkt.StateSnapshot = s.getStateSnapshot()
 
 		_, already := curConfig.PeerNames.get2(tkt.AddPeerName)
 		if already {
