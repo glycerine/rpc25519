@@ -4481,6 +4481,8 @@ type Ticket struct {
 	// key range scan output
 	KeyValRangeScan *art.Tree `zid:"55"`
 
+	UserDefinedOpCode int64 `zid:"59"`
+
 	// where in tkthist we were entered locally.
 	localHistIndex int
 
@@ -4524,6 +4526,8 @@ const (
 
 	ADD_SHADOW_NON_VOTING    TicketOp = 16 // through writeReqCh
 	REMOVE_SHADOW_NON_VOTING          = 17
+
+	USER_DEFINED_FSM_OP = 18
 )
 
 func (t TicketOp) String() (r string) {
@@ -4564,6 +4568,8 @@ func (t TicketOp) String() (r string) {
 		return "ADD_SHADOW_NON_VOTING"
 	case REMOVE_SHADOW_NON_VOTING:
 		return "REMOVE_SHADOW_NON_VOTING"
+	case USER_DEFINED_FSM_OP:
+		return "USER_DEFINED_FSM_OP"
 	}
 	r = fmt.Sprintf("(unknown TicketOp: %v", int64(t))
 	panic(r)
@@ -4585,7 +4591,8 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 	if tkt.Op == MEMBERSHIP_SET_UPDATE ||
 		tkt.Op == MEMBERSHIP_BOOTSTRAP ||
 		tkt.Op == ADD_SHADOW_NON_VOTING ||
-		tkt.Op == REMOVE_SHADOW_NON_VOTING {
+		tkt.Op == REMOVE_SHADOW_NON_VOTING ||
+		tkt.Op == USER_DEFINED_FSM_OP {
 
 		if tkt.Insp == nil {
 			// ideally never needed, but just in case...
@@ -8851,6 +8858,10 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 			s.doRemoveShadow(tkt)
 			tkt.Applied = true
 
+		case USER_DEFINED_FSM_OP:
+			s.doApplyUserDefinedOp(tkt)
+			tkt.Applied = true
+
 		case WRITE:
 			s.state.kvstoreWrite(tkt.Table, tkt.Key, tkt.Val)
 			tkt.Applied = true
@@ -9340,7 +9351,8 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 		question.NewSessReply = answer.NewSessReq
 
 	case MEMBERSHIP_SET_UPDATE, MEMBERSHIP_BOOTSTRAP,
-		ADD_SHADOW_NON_VOTING, REMOVE_SHADOW_NON_VOTING:
+		ADD_SHADOW_NON_VOTING, REMOVE_SHADOW_NON_VOTING,
+		USER_DEFINED_FSM_OP:
 		question.MC = answer.MC
 	case CAS:
 		question.CASwapped = answer.CASwapped
@@ -14387,6 +14399,14 @@ func (s *TubeNode) commandSpecificLocalActionsThenReplicateTicket(tkt *Ticket, f
 		}
 	// fallthrough to replicateTicket
 
+	case USER_DEFINED_FSM_OP:
+		if err := s.doUserDefinedLegitCheck(tkt); err != nil {
+			tkt.Err = err
+			s.respondToClientTicketApplied(tkt)
+			s.FinishTicket(tkt, true)
+			return
+		}
+
 	case SESS_NEW:
 		s.leaderSideCreateNewSess(tkt)
 		// fallthrough to replicateTicket
@@ -14991,6 +15011,30 @@ func (s *TubeNode) doRemoveShadow(tkt *Ticket) {
 	//vv("%v top of doRemoveShadow() tkt='%v'", s.me(), tkt.Short())
 
 	s.state.ShadowReplicas.PeerNames.delkey(tkt.RemovePeerName)
+}
+
+// For user defined library operations we will need
+// MarshalMessage/UnmarshalMessage for serz of state.
+// Provide a way to define an op code an associated callback functions.
+// The op code to be stored in tkt.UserDefinedOpCode.
+// LegitCheckOp() to preliminary check against existing
+// leader state, and ApplyCommittedOp() once the
+// operation has been committed and is being applied.
+// How initiated in the first place? ReplicateOp() perhaps.
+// Internally, send the Ticket on s.writeReqCh.
+//
+// Also register a callback for when membership
+// changes, e.g. hermes protocol use case. Something like
+// RegisterMemberChangeCallback().
+func (s *TubeNode) doApplyUserDefinedOp(tkt *Ticket) {
+	//vv("%v top of doApplyUserDefinedOp() tkt='%v'", s.me(), tkt.Short())
+	_ = tkt.UserDefinedOpCode
+}
+
+func (s *TubeNode) doUserDefinedLegitCheck(tkt *Ticket) error {
+	//vv("%v top of doUserDefinedLegitCheck() tkt='%v'", s.me(), tkt.Short())
+	_ = tkt.UserDefinedOpCode
+	return nil
 }
 
 func URLTrimCktID(url string) string {
