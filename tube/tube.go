@@ -14948,8 +14948,8 @@ func (s *TubeNode) doAddShadow(tkt *Ticket) {
 }
 
 func URLTrimCktID(url string) string {
-	if url == "" {
-		return ""
+	if url == "" || url == "pending" {
+		return url
 	}
 	addr, service, peerID, _, err := rpc.ParsePeerURL(url)
 
