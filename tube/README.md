@@ -76,7 +76,7 @@ APIs are in admin.go. The Raft write ahead log
 is in wal.go. The nodes save their persistent
 state using persistor.go. A simple key-value
 store finite-state-machine is implemented
-whose actions and defined in actions.go.
+whose actions are defined in actions.go.
 
 We communicate log summaries within the cluster using
 a run-length-encoding of the term history
