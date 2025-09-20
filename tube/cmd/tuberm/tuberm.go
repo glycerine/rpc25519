@@ -272,20 +272,33 @@ func main() {
 
 	//errWriteDur := time.Second * 20
 	var errWriteDur time.Duration
-	memlistAfter, _, err := node.RemovePeerIDFromCluster(ctx, cmdCfg.NonVotingShadowFollower, target, targetPeerID, tube.TUBE_REPLICA, "", leaderURL, errWriteDur)
+	insp2, _, err := node.RemovePeerIDFromCluster(ctx, cmdCfg.NonVotingShadowFollower, target, targetPeerID, tube.TUBE_REPLICA, "", leaderURL, errWriteDur)
 	panicOn(err)
 
-	if memlistAfter == nil ||
-		memlistAfter.MC == nil ||
-		memlistAfter.MC.PeerNames == nil {
+	if insp2 == nil ||
+		insp2.MC == nil ||
+		insp2.MC.PeerNames == nil {
 		fmt.Printf("empty or nil membership from '%v'\n", leaderName)
 	} else {
-		if memlistAfter.MC.PeerNames.Len() == 0 {
-			fmt.Printf("membership after removing '%v': empty.\n", target)
+		// tuberm -shadow
+		if cmdCfg.NonVotingShadowFollower {
+			if insp2.ShadowReplicas.PeerNames.Len() == 0 {
+				fmt.Printf("shadow replicas after removing '%v': empty.\n", target)
+			} else {
+				fmt.Printf("remaining shadow replicas:\n")
+				for name, det := range insp2.ShadowReplicas.PeerNames.All() {
+					fmt.Printf("  %v:   %v\n", name, det.URL)
+				}
+			}
 		} else {
-			fmt.Printf("membership after removing '%v': (%v leader)\n", target, leaderName)
-			for name, det := range memlistAfter.MC.PeerNames.All() {
-				fmt.Printf("  %v:   %v\n", name, det.URL)
+			// tuberm
+			if insp2.MC.PeerNames.Len() == 0 {
+				fmt.Printf("membership after removing '%v': empty.\n", target)
+			} else {
+				fmt.Printf("membership after removing '%v': (%v leader)\n", target, leaderName)
+				for name, det := range insp2.MC.PeerNames.All() {
+					fmt.Printf("  %v:   %v\n", name, det.URL)
+				}
 			}
 		}
 	}
