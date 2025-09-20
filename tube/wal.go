@@ -95,7 +95,10 @@ func (s *TubeNode) DumpRaftWAL() error {
 
 		fmt.Printf("i=%03d %v {Term:%02d, Index:%02d, Ticket: %v, CurrentCommitIndex:%v, Ticket.Op='%v', tkt4=%v Ticket.Desc: %v}\n", i+1, nice9(e.Tm.In(gtz)), e.Term, e.Index, e.Ticket.TicketID, e.CurrentCommitIndex, e.Ticket.Op, e.Ticket.TicketID[:4], e.Ticket.Desc)
 	}
-	fmt.Printf("\ncurrent s.state.MC = %v\ns.state.CurrentTerm: %v   s.state.CommitIndex: %v   [logIndex.BaseC: %v; CompactTerm: %v]\n", s.state.MC.Short(), s.state.CurrentTerm, s.state.CommitIndex, wal.logIndex.BaseC, wal.logIndex.CompactTerm)
+	fmt.Printf("\n")
+	fmt.Printf("current s.state.MC = %v\n", s.state.MC.Short())
+	fmt.Printf("s.state.ShadowReplicas = %v\n", s.state.ShadowReplicas.Short())
+	fmt.Printf("s.state.CurrentTerm: %v   s.state.CommitIndex: %v   [logIndex.BaseC: %v; CompactTerm: %v]\n", s.state.CurrentTerm, s.state.CommitIndex, wal.logIndex.BaseC, wal.logIndex.CompactTerm)
 	return nil
 }
 
