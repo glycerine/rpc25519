@@ -256,4 +256,18 @@ func main() {
 			fmt.Printf("  %v:   %v\n", name, det.URL)
 		}
 	}
+	if memlistAfter.ShadowReplicas == nil ||
+		memlistAfter.ShadowReplicas.PeerNames == nil ||
+		memlistAfter.ShadowReplicas.PeerNames.Len() == 0 {
+
+	} else {
+		fmt.Printf("\nshadow replicas:\n")
+		for name, det := range memlistAfter.ShadowReplicas.PeerNames.All() {
+			url, ok := memlistAfter.CktAllByName[name]
+			if !ok {
+				url = det.Addr
+			}
+			fmt.Printf("  %v:   %v\n", name, tube.URLTrimCktID(url))
+		}
+	}
 }
