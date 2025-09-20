@@ -4864,6 +4864,7 @@ func (s *SessionTableEntry) Clone() (r *SessionTableEntry) {
 		ticketID2tkt:            make(map[string]*Ticket),
 		SessRequestedInitialDur: s.SessRequestedInitialDur,
 		SessionReplicatedEndxTm: s.SessionReplicatedEndxTm,
+		bySeenIter:              s.bySeenIter,
 	}
 	for _, kv := range s.Serial2Ticket.cached() {
 		r.Serial2Ticket.set(kv.key, kv.val)
