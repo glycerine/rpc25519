@@ -63,7 +63,7 @@ func Test065_shadow_replicas_get_wal_even_with_leader_change(t *testing.T) {
 
 			vv("remove node2 from cluster first then try again")
 
-			inspAfterRemove, stateSnapshot, err := node2.RemovePeerIDFromCluster(ctx, node2.name, node2.PeerID, node2.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
+			inspAfterRemove, stateSnapshot, err := node2.RemovePeerIDFromCluster(ctx, false, node2.name, node2.PeerID, node2.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
 			panicOn(err)
 			_, node2replica := inspAfterRemove.CktReplicaByName[node2.name]
 			if node2replica {

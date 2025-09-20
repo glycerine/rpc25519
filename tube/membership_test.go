@@ -253,7 +253,8 @@ func Test401_add_node(t *testing.T) {
 			vv("about to remove node_5 with leaderNode.RemovePeerIDFromCluster()")
 
 			//removeMe := node5.PeerID
-			memlistAfterRemove, _, err := leaderNode.RemovePeerIDFromCluster(bkg, node5.name, node5.PeerID, node5.PeerServiceName, node5.BaseServerHostPort(), leaderURL, 0)
+			const nonVoting bool = false
+			memlistAfterRemove, _, err := leaderNode.RemovePeerIDFromCluster(bkg, nonVoting, node5.name, node5.PeerID, node5.PeerServiceName, node5.BaseServerHostPort(), leaderURL, 0)
 			panicOn(err)
 			//vv("back from RemovePeerIDFromCluster(node5); memlistAfterRemove = '%v'", memlistAfterRemove) // seen
 
@@ -599,7 +600,8 @@ func Test403_reduce_a_cluster_down_to_one_node(t *testing.T) {
 			newExpectedClusterSz := i
 			vv("remove node '%v', going to cluster size %v", namei, newExpectedClusterSz)
 			// we automatically get a member list afterwards
-			memlistAfterRemove, _, err := node0.RemovePeerIDFromCluster(bkg, namei, nodes[i].PeerID, nodes[i].PeerServiceName, nodes[i].BaseServerHostPort(), leaderURL, 0)
+			const nonVoting bool = false
+			memlistAfterRemove, _, err := node0.RemovePeerIDFromCluster(bkg, nonVoting, namei, nodes[i].PeerID, nodes[i].PeerServiceName, nodes[i].BaseServerHostPort(), leaderURL, 0)
 			panicOn(err) // panic: Q1 unmet, mongoLeaderCanReconfig cannot reconfig on 'node_0': inCurrentConfigCount(1) < curMC.majority(2); curMC='[term:1; vers=5; idx:2_]{node_0,node_1}
 
 			_, present := memlistAfterRemove.CktReplicaByName[nodes[i].name]

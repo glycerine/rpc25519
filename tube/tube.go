@@ -1089,7 +1089,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 
 		case tkt := <-s.writeReqCh:
 			// WRITE, DELETE_TABLE, MAKE_TABLE, RENAME_TABLE,
-			// CAS, ADD_SHADOW_NON_VOTING
+			// CAS, ADD_SHADOW_NON_VOTING, REMOVE_SHADOW_NON_VOTING
 			// are all submitted here.
 			s.countWriteCh++
 			//s.ay("%v got ticket on %v <-s.writeReqCh: '%v'", s.me(), s.countWriteCh, tkt)
@@ -4522,7 +4522,8 @@ const (
 	RENAME_TABLE  TicketOp = 14
 	READ_KEYRANGE TicketOp = 15
 
-	ADD_SHADOW_NON_VOTING TicketOp = 16 // through writeReqCh
+	ADD_SHADOW_NON_VOTING    TicketOp = 16 // through writeReqCh
+	REMOVE_SHADOW_NON_VOTING          = 17
 )
 
 func (t TicketOp) String() (r string) {
@@ -4561,6 +4562,8 @@ func (t TicketOp) String() (r string) {
 		return "READ_KEYRANGE"
 	case ADD_SHADOW_NON_VOTING:
 		return "ADD_SHADOW_NON_VOTING"
+	case REMOVE_SHADOW_NON_VOTING:
+		return "REMOVE_SHADOW_NON_VOTING"
 	}
 	r = fmt.Sprintf("(unknown TicketOp: %v", int64(t))
 	panic(r)
@@ -4581,7 +4584,8 @@ func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
 
 	if tkt.Op == MEMBERSHIP_SET_UPDATE ||
 		tkt.Op == MEMBERSHIP_BOOTSTRAP ||
-		tkt.Op == ADD_SHADOW_NON_VOTING {
+		tkt.Op == ADD_SHADOW_NON_VOTING ||
+		tkt.Op == REMOVE_SHADOW_NON_VOTING {
 
 		if tkt.Insp == nil {
 			// ideally never needed, but just in case...
@@ -8843,6 +8847,10 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 			s.doAddShadow(tkt)
 			tkt.Applied = true
 
+		case REMOVE_SHADOW_NON_VOTING:
+			s.doRemoveShadow(tkt)
+			tkt.Applied = true
+
 		case WRITE:
 			s.state.kvstoreWrite(tkt.Table, tkt.Key, tkt.Val)
 			tkt.Applied = true
@@ -9331,7 +9339,8 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 		//vv("%v answerToQuestionTicket is setting question.NewSessReply(%v) = answer.NewSessReq(%v)", s.name, question.NewSessReply, answer.NewSessReq)
 		question.NewSessReply = answer.NewSessReq
 
-	case MEMBERSHIP_SET_UPDATE, MEMBERSHIP_BOOTSTRAP, ADD_SHADOW_NON_VOTING:
+	case MEMBERSHIP_SET_UPDATE, MEMBERSHIP_BOOTSTRAP,
+		ADD_SHADOW_NON_VOTING, REMOVE_SHADOW_NON_VOTING:
 		question.MC = answer.MC
 	case CAS:
 		question.CASwapped = answer.CASwapped
@@ -10860,10 +10869,10 @@ func (s *TubeNode) AddPeerIDToCluster(ctx context.Context, nonVoting bool, targe
 	return s.SingleUpdateClusterMemberConfig(ctx, nonVoting, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL, true, errWriteDur)
 }
 
-func (s *TubeNode) RemovePeerIDFromCluster(ctx context.Context, targetPeerName, targetPeerID, targetPeerServiceName, baseServerHostPort, leaderURL string, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
+func (s *TubeNode) RemovePeerIDFromCluster(ctx context.Context, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, baseServerHostPort, leaderURL string, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
 
 	targetPeerServiceNameVersion := ""
-	return s.SingleUpdateClusterMemberConfig(ctx, false, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL, false, errWriteDur)
+	return s.SingleUpdateClusterMemberConfig(ctx, nonVoting, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL, false, errWriteDur)
 }
 
 // SingleUpdateClusterMemberConfig is an
@@ -10933,7 +10942,11 @@ func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, nonVotin
 			desc += "ADD "
 		}
 	} else {
-		desc += "REMOVE "
+		if nonVoting {
+			desc += "REMOVE NON-VOTING "
+		} else {
+			desc += "REMOVE "
+		}
 	}
 	desc += fmt.Sprintf("%v", targetPeerName)
 
@@ -10962,7 +10975,11 @@ func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, nonVotin
 
 	sendCh := s.singleUpdateMembershipReqCh
 	if nonVoting {
-		tkt.Op = ADD_SHADOW_NON_VOTING
+		if addNotRemove {
+			tkt.Op = ADD_SHADOW_NON_VOTING
+		} else {
+			tkt.Op = REMOVE_SHADOW_NON_VOTING
+		}
 		sendCh = s.writeReqCh
 	}
 
@@ -11964,7 +11981,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			s.state.ShadowReplicas != nil &&
 			s.state.ShadowReplicas.PeerNames != nil {
 			// only MEMBERSHIP_SET_UPDATE or MEMBERSHIP_BOOTSTRAP here
-			// (never ADD_SHADOW_NON_VOTING)
+			// (never ADD_SHADOW_NON_VOTING/REMOVE_SHADOW_NON_VOTING)
 			_, alreadyShadow := s.state.ShadowReplicas.PeerNames.get2(tkt.AddPeerName)
 			if alreadyShadow {
 				tkt.Err = fmt.Errorf("'%v' is already a shadow replica, cannot add as regular regular peer, as these sets must be disjoint. rejecting '%v'; error at leader '%v' in changeMembership().", tkt.AddPeerName, tkt.AddPeerName, s.name)
@@ -14358,7 +14375,17 @@ func (s *TubeNode) commandSpecificLocalActionsThenReplicateTicket(tkt *Ticket, f
 			s.FinishTicket(tkt, true)
 			return
 		}
-		// fallthrough to replicateTicket
+	// fallthrough to replicateTicket
+
+	case REMOVE_SHADOW_NON_VOTING:
+		_, isShadow := s.state.ShadowReplicas.PeerNames.get2(tkt.RemovePeerName)
+		if !isShadow {
+			tkt.Err = fmt.Errorf("node is not in ShadowReplicas, so cannot use REMOVE_SHADOW_NON_VOTING to remove them: '%v'", tkt.RemovePeerName)
+			s.respondToClientTicketApplied(tkt)
+			s.FinishTicket(tkt, true)
+			return
+		}
+	// fallthrough to replicateTicket
 
 	case SESS_NEW:
 		s.leaderSideCreateNewSess(tkt)
@@ -14958,6 +14985,12 @@ func (s *TubeNode) doAddShadow(tkt *Ticket) {
 	}
 
 	s.state.ShadowReplicas.PeerNames.set(tkt.AddPeerName, detail)
+}
+
+func (s *TubeNode) doRemoveShadow(tkt *Ticket) {
+	//vv("%v top of doRemoveShadow() tkt='%v'", s.me(), tkt.Short())
+
+	s.state.ShadowReplicas.PeerNames.delkey(tkt.AddPeerName)
 }
 
 func URLTrimCktID(url string) string {

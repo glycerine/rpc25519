@@ -28,7 +28,8 @@ type TubeRemoveConfig struct {
 	ContactName string // -c name of node to contact
 	Help        bool   // -h for help, false, show this help
 	//ForceName   string // -f force node to remove MC change
-	WipeName string // -e wipe to empty MC
+	WipeName                string // -e wipe to empty MC
+	NonVotingShadowFollower bool   // -shadow remove shadow replica
 }
 
 func (c *TubeRemoveConfig) SetFlags(fs *flag.FlagSet) {
@@ -36,6 +37,7 @@ func (c *TubeRemoveConfig) SetFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.Help, "h", false, "show this help")
 	//fs.StringVar(&c.ForceName, "f", "", "name of node to force remove MC change")
 	fs.StringVar(&c.WipeName, "e", "", "name of node to force install empty MC")
+	fs.BoolVar(&c.NonVotingShadowFollower, "shadow", false, "remove this non-voting shadow follower replica")
 }
 
 func (c *TubeRemoveConfig) FinishConfig(fs *flag.FlagSet) (err error) {
@@ -228,14 +230,30 @@ func main() {
 	if newestMembership == nil {
 		panic("why is newestMembership nil?")
 	}
-	det, ok := newestMembership.PeerNames.Get2(target)
-	if !ok {
-		fmt.Printf("error: target not in current membership. target='%v'\n", target)
-		fmt.Printf("existing membership: (%v leader)\n", leaderName)
-		for name, det := range newestMembership.PeerNames.All() {
-			fmt.Printf("  %v:   %v\n", name, det.URL)
+	var det *tube.PeerDetail
+
+	if cmdCfg.NonVotingShadowFollower {
+		det, ok = insp.ShadowReplicas.PeerNames.Get2(target)
+		_ = det
+		if !ok {
+			fmt.Printf("error: target not currently a shadow replica. target='%v'\n", target)
+			fmt.Printf("existing shadows: (%v leader)\n", leaderName)
+			for name, det := range insp.ShadowReplicas.PeerNames.All() {
+				fmt.Printf("  %v:   %v\n", name, det.URL)
+			}
+			os.Exit(1)
 		}
-		os.Exit(1)
+	} else {
+		det, ok = newestMembership.PeerNames.Get2(target)
+		_ = det
+		if !ok {
+			fmt.Printf("error: target not in current membership. target='%v'\n", target)
+			fmt.Printf("existing membership: (%v leader)\n", leaderName)
+			for name, det := range newestMembership.PeerNames.All() {
+				fmt.Printf("  %v:   %v\n", name, det.URL)
+			}
+			os.Exit(1)
+		}
 	}
 	if false { // noisy, keep it simple.
 		fmt.Printf("before remove: existing membership: (%v leader)\n", leaderName)
@@ -254,7 +272,7 @@ func main() {
 
 	//errWriteDur := time.Second * 20
 	var errWriteDur time.Duration
-	memlistAfter, _, err := node.RemovePeerIDFromCluster(ctx, target, targetPeerID, tube.TUBE_REPLICA, "", leaderURL, errWriteDur)
+	memlistAfter, _, err := node.RemovePeerIDFromCluster(ctx, cmdCfg.NonVotingShadowFollower, target, targetPeerID, tube.TUBE_REPLICA, "", leaderURL, errWriteDur)
 	panicOn(err)
 
 	if memlistAfter == nil ||
