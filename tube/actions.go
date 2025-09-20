@@ -474,7 +474,7 @@ func (s *ArtTable) All() iter.Seq2[Key, Val] {
 }
 
 func (s *TubeNode) doDeleteKey(tkt *Ticket) {
-	vv("%v DELETE_KEY called on %v:%v", s.me(), tkt.Table, tkt.Key)
+	//vv("%v DELETE_KEY called on %v:%v", s.me(), tkt.Table, tkt.Key)
 	if s.state.KVstore != nil {
 		table, ok := s.state.KVstore.m[tkt.Table]
 		if ok {
@@ -509,7 +509,7 @@ func (s *TubeNode) doMakeTable(tkt *Ticket) {
 }
 
 func (s *TubeNode) doDeleteTable(tkt *Ticket) {
-	vv("%v doDeleteTable called on %v", s.me(), tkt.Table)
+	//vv("%v doDeleteTable called on %v", s.me(), tkt.Table)
 	if len(s.state.KVstore.m) == 0 || tkt.Table == "" {
 		return // noop
 	}
@@ -521,7 +521,7 @@ func (s *TubeNode) doDeleteTable(tkt *Ticket) {
 }
 
 func (s *TubeNode) doRenameTable(tkt *Ticket) {
-	vv("%v doRenameTable called on %v:%v", s.me(), tkt.Table, tkt.NewTableName)
+	//vv("%v doRenameTable called on %v:%v", s.me(), tkt.Table, tkt.NewTableName)
 
 	if len(s.state.KVstore.m) == 0 {
 		tkt.Err = ErrKeyNotFound
@@ -702,7 +702,7 @@ func (s *Session) Write(ctx context.Context, table, key Key, val Val, waitForDur
 	if ctx == nil {
 		ctx = s.ctx
 	}
-	vv("submitting write with s.SessionSerial = %v", s.SessionSerial)
+	//vv("submitting write with s.SessionSerial = %v", s.SessionSerial)
 	return s.cli.Write(ctx, table, key, val, waitForDur, s)
 }
 
