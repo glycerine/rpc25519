@@ -33,7 +33,7 @@ linearizability (chapter 6). We use the
 Mongo-Raft-Reconfig algorithm for single-server-at-a-time
 membership changes ( https://arxiv.org/abs/2102.11960 ),
 as it provides a clean separation of membership
-and Raft log data; and is formally proven correct.
+and Raft log data; and its safety has been formally proven.
 
 Tube provides a basic sorted key/value store as its
 baseline/sample/example state machine (which may suffice
