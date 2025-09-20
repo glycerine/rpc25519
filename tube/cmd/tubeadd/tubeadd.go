@@ -227,12 +227,8 @@ func main() {
 	vv("tupadd is doing AddPeerIDToCluster using leaderURL='%v'", leaderURL)
 	errWriteDur := time.Second * 20
 	peerServiceName := tube.TUBE_REPLICA
-	var nonVoting bool
-	if cmdCfg.NonVotingShadowFollower {
-		nonVoting = true
-	}
 	baseServerHostPort := ""
-	memlistAfter, stateSnapshot, err := node.AddPeerIDToCluster(ctx, nonVoting, target, targetPeerID, peerServiceName, baseServerHostPort, leaderURL, errWriteDur)
+	memlistAfter, stateSnapshot, err := node.AddPeerIDToCluster(ctx, cmdCfg.NonVotingShadowFollower, target, targetPeerID, peerServiceName, baseServerHostPort, leaderURL, errWriteDur)
 	panicOn(err)
 
 	if target == cfg.MyName {

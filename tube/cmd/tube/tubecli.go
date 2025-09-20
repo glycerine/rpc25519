@@ -42,7 +42,8 @@ type ConfigTubeCli struct {
 	FullConfig bool
 	ShowLog    bool
 
-	ShowStateArchive string // -a path
+	NonVotingShadowFollower bool   // -shadow add as non-voting-follower ("shadow replica")
+	ShowStateArchive        string // -a path
 
 	Help bool // -h for help, false, show this help
 
@@ -63,7 +64,7 @@ func (c *ConfigTubeCli) SetFlags(fs *flag.FlagSet) {
 	// profiling
 	fs.StringVar(&c.Cpuprofile, "cpuprofile", "", "write cpu profile to file")
 	fs.StringVar(&c.Memprofile, "memprofile", "", "write memory profile to this file")
-
+	fs.BoolVar(&c.NonVotingShadowFollower, "shadow", false, "add node as non-voting shadow follower replica")
 }
 
 func (c *ConfigTubeCli) FinishConfig(fs *flag.FlagSet) (err error) {
@@ -344,9 +345,9 @@ func main() {
 						// this is for replicas not clients.
 						// See cmd/tup/tup.go for client and session
 						// examples.
-						nonVoting := false
+
 						ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
-						memlistAfterAdd, stateSnapshot, err := node.AddPeerIDToCluster(ctx5sec, nonVoting, cfg.MyName, node.PeerID, node.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
+						memlistAfterAdd, stateSnapshot, err := node.AddPeerIDToCluster(ctx5sec, cmdCfg.NonVotingShadowFollower, cfg.MyName, node.PeerID, node.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
 						canc5()
 						// can have network unavail at first. Yes freak since otherwise we won't be up!
 						//panicOn(err)
