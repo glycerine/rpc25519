@@ -12340,8 +12340,7 @@ func (s *TubeNode) setMC(members *MemberConfig, caller string) (amInLatest, igno
 		panic("members cannot be nil")
 	}
 	if members.RaftLogIndex == 0 {
-		// won't be set when booting? should just be 1 then.
-		panic(fmt.Sprintf("RaftLogIndex was not set; is 0 on '%v'", members))
+		// the log may just legit be empty. Don't freak out.
 	}
 	if s.state.CommitIndex > 0 && s.state.CommitIndex > members.RaftLogIndex {
 		members.RaftLogIndex = s.state.CommitIndex
