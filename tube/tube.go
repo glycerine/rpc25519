@@ -2900,7 +2900,7 @@ func (s *TubeNode) me() string {
 	//	return s.name
 	//}
 
-	lead := s.leaderName // race read vs :6541
+	lead := s.leaderName
 	if lead == "" {
 		lead = "no"
 		if s.state.VotedFor != "" {
@@ -6538,7 +6538,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		}
 	}
 
-	s.leaderName = ae.LeaderName // race write vs :2903
+	s.leaderName = ae.LeaderName
 	s.leaderID = ae.LeaderID
 	s.leaderURL = ae.LeaderURL
 
