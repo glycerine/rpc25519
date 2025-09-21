@@ -1585,7 +1585,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				s.FinishTicket(question, false)
 
 			case RedirectTicketToLeaderMsg:
-				vv("%v RedirectTicketToLeaderMsg", s.me())
+				//vv("%v RedirectTicketToLeaderMsg", s.me())
 
 				tkt := &Ticket{}
 				_, err := tkt.UnmarshalMsg(frag.Payload)
@@ -8817,7 +8817,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 			//vv("%v ignoredMemberConfigBecauseSuperceded=%v", s.name, ignoredMemberConfigBecauseSuperceded)
 
 			if tkt.Insp == nil {
-				vv("%v is filling in tkt.Insp in commitWhatWeCan; tkt='%v'", s.me(), tkt.Desc)
+				//vv("%v is filling in tkt.Insp in commitWhatWeCan; tkt='%v'", s.me(), tkt.Desc)
 				s.addInspectionToTicket(tkt)
 			}
 			if calledOnLeader {
@@ -11942,10 +11942,10 @@ func (s *TubeNode) setupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntryBoo
 // Any new config installed (and not stalled) will start
 // with IsCommitted false.
 func (s *TubeNode) changeMembership(tkt *Ticket) {
-	vv("%v top of changeMembership(); tkt.Desc='%v'", s.me(), tkt.Desc)
+	//vv("%v top of changeMembership(); tkt.Desc='%v'", s.me(), tkt.Desc)
 
 	if tkt.finishTicketCalled {
-		vv("%v tkt.finishTicketCalled so exit changeMembership early; tkt.Desc='%v'", s.me(), tkt.Desc)
+		//vv("%v tkt.finishTicketCalled so exit changeMembership early; tkt.Desc='%v'", s.me(), tkt.Desc)
 		return
 	}
 
@@ -11957,10 +11957,10 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 
 	if s.redirectToLeader(tkt) {
 		if tkt.Err != nil {
-			vv("%v bail after redirectToLeader error in changeMembership(); tkt.Desc='%v' tkt.Err='%v'", s.me(), tkt.Desc, tkt.Err)
+			//vv("%v bail after redirectToLeader error in changeMembership(); tkt.Desc='%v' tkt.Err='%v'", s.me(), tkt.Desc, tkt.Err)
 			return // bail out, error happened.
 		}
-		vv("%v: changeMembership redirected to leader, adding to Waiting, writeReqCh: '%v'", s.me(), tkt)
+		//vv("%v: changeMembership redirected to leader, adding to Waiting, writeReqCh: '%v'", s.me(), tkt)
 		//vv("%v am not leader but '%v'", s.name, s.role)
 		s.WaitingAtFollow.set(tkt.TicketID, tkt)
 		tkt.Stage += ":changeMembership_WaitingAtFollow"
@@ -11970,7 +11970,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	if s.role != LEADER {
 		panic("changeMembership should only be called on leader")
 	}
-	vv("%v: changeMembership top (we are leader). tkt='%v'", s.me(), tkt.Short())
+	//vv("%v: changeMembership top (we are leader). tkt='%v'", s.me(), tkt.Short())
 
 	// too early to do an Inspection! ticket is
 	// not committed yet so we get stale MC
@@ -12034,7 +12034,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 					tkt.Err = fmt.Errorf("'%v' is already a shadow replica, cannot add as regular regular peer, as these sets must be disjoint. rejecting '%v'; error at leader '%v' in changeMembership().", tkt.AddPeerName, tkt.AddPeerName, s.name)
 					s.respondToClientTicketApplied(tkt)
 					s.FinishTicket(tkt, true)
-					vv("%v changeMembership alreadyShadow so tkt.Err='%v'", s.me(), tkt.Err)
+					//vv("%v changeMembership alreadyShadow so tkt.Err='%v'", s.me(), tkt.Err)
 					return
 				}
 			}
@@ -12291,15 +12291,15 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 		panic(fmt.Sprintf("one of AddPeerName or RemovePeerName must have been set. bad tkt = '%v'", tkt))
 	}
 	if tkt.Err != nil {
-		vv("%v erroring out in changeMembership b/c tkt.Err='%v'", s.me(), tkt.Err)
+		//vv("%v erroring out in changeMembership b/c tkt.Err='%v'", s.me(), tkt.Err)
 		s.replyToForwardedTicketWithError(tkt)
 		return
 	}
 	// INVAR: new config differs from cur config by
 	// exactly one (or zero; no change in) peers.
 
-	vv("%v good, in changeMembership, cur config = '%v'", s.me(), curConfig)
-	vv("vs new config = '%v'", newConfig)
+	//vv("%v good, in changeMembership, cur config = '%v'", s.me(), curConfig)
+	//vv("vs new config = '%v'", newConfig)
 
 	// double check that
 	memDiff := s.membershipDiffOldNew(curConfig, newConfig)
@@ -12325,7 +12325,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 
 	err := s.mongoLeaderCanReconfig(curConfig, newConfig, inCurrentConfigCount, inCurTermCount)
 	if err != nil {
-		vv("%v mongoLeaderCanReconfig gave err = '%v'", s.me(), err)
+		//vv("%v mongoLeaderCanReconfig gave err = '%v'", s.me(), err)
 
 		if time.Since(tkt.T0) > 10*time.Second {
 			tkt.Err = fmt.Errorf("%v timeout MC change attempts after 10 seconds; erro from mongoLeaderCanReconfig: %v", s.me(), err)
@@ -12333,7 +12333,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			return
 		}
 		s.stalledMembershipConfigChangeTkt = append(s.stalledMembershipConfigChangeTkt, tkt)
-		vv("%v mongo stall in changeMembership due to err='%v' tkt='%v'", s.me(), err, tkt.Short())
+		//vv("%v mongo stall in changeMembership due to err='%v' tkt='%v'", s.me(), err, tkt.Short())
 		for _, cktP0 := range mongoNeedSeen {
 			cktP0.stalledOnSeenTkt = append(cktP0.stalledOnSeenTkt, tkt)
 		}
@@ -12344,7 +12344,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	// conditions Q1,Q2,P1 of Algorithm 1 (page 6)
 	// of the Mongo paper; any older configs have been
 	// deactivated and a new/other leader cannot revive them.
-	vv("%v mongo logless commit observed", s.me())
+	//vv("%v mongo logless commit observed", s.me())
 
 	// We could do this to document the fact... but they are
 	// about to get replaced by newConfig which is not committed anyway.
@@ -12371,9 +12371,9 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 
 	// this does s.FinishTicket(tkt) only if WaitingAtLeader
 	s.respondToClientTicketApplied(tkt)
-	vv("%v mongo changeMembership done, back from respondToClientTicketApplied with tkt='%v'", s.me(), tkt)
+	//vv("%v mongo changeMembership done, back from respondToClientTicketApplied with tkt='%v'", s.me(), tkt)
 	s.FinishTicket(tkt, true)
-	vv("%v mongo FinishTicket done for tkt4=%v", s.me(), tkt.TicketID[:4])
+	//vv("%v mongo FinishTicket done for tkt4=%v", s.me(), tkt.TicketID[:4])
 
 	// 4. Append _new_ config to log, commit it using
 	//    a majority of the _new_ config.
@@ -14976,7 +14976,7 @@ func (s *TubeNode) refreshSession(from time.Time, ste *SessionTableEntry) (refre
 
 func (s *TubeNode) bootstrappedMembership(tkt *Ticket) bool {
 	// allow bootstrapping by handling ADD of self here.
-	vv("%v top bootstrappedMembership", s.name)
+	//vv("%v top bootstrappedMembership", s.name)
 
 	// we can be leader but not in membership and
 	// need to allow ourselves to be added back
@@ -14985,27 +14985,27 @@ func (s *TubeNode) bootstrappedMembership(tkt *Ticket) bool {
 	//	return false
 	//}
 	if s.PeerServiceName != TUBE_REPLICA {
-		vv("%v I am not a replica", s.me())
+		//vv("%v I am not a replica", s.me())
 		return false
 	}
 	if tkt.Op != MEMBERSHIP_SET_UPDATE {
-		vv("%v tkt.Op is not membership update", s.me())
+		//vv("%v tkt.Op is not membership update", s.me())
 		return false
 	}
 	if tkt.AddPeerName != s.name {
-		vv("%v not trying to add self to MC", s.me())
+		//vv("%v not trying to add self to MC", s.me())
 		return false
 	}
 	n := s.state.MC.PeerNames.Len()
 	//	if n > 1 {
 	if n > 0 {
-		vv("%v not just me; MC=%v", s.name, s.state.MC)
+		//vv("%v not just me; MC=%v", s.name, s.state.MC)
 		return false
 	}
 	if n == 1 {
 		_, justMe := s.state.MC.PeerNames.get2(s.name)
 		if !justMe {
-			vv("%v not just me 2; MC=%v", s.name, s.state.MC)
+			//vv("%v not just me 2; MC=%v", s.name, s.state.MC)
 			return false
 		}
 	}
@@ -15021,7 +15021,7 @@ func (s *TubeNode) bootstrappedMembership(tkt *Ticket) bool {
 	}
 	s.state.MC.setNameDetail(s.name, detail, s)
 	s.state.ShadowReplicas.PeerNames.delkey(s.name)
-	vv("%v bootstrapped rather than redirectToLeader. now MC='%v'", s.me(), s.state.MC)
+	//vv("%v bootstrapped rather than redirectToLeader. now MC='%v'", s.me(), s.state.MC)
 	if s.role != LEADER {
 		s.becomeLeader()
 	}
