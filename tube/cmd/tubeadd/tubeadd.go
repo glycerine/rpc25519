@@ -224,7 +224,7 @@ func main() {
 	}
 	targetPeerID := "" // allowed now
 
-	vv("tupadd is doing AddPeerIDToCluster using leaderURL='%v'", leaderURL)
+	vv("tubeadd is doing AddPeerIDToCluster using leaderURL='%v'", leaderURL)
 	errWriteDur := time.Second * 20
 	peerServiceName := tube.TUBE_REPLICA
 	baseServerHostPort := ""
@@ -246,12 +246,14 @@ func main() {
 		}
 	}
 
-	fmt.Printf("membership after adding '%v': (%v leader)\n", target, leaderName)
 	if memlistAfter == nil ||
 		memlistAfter.MC == nil ||
-		memlistAfter.MC.PeerNames == nil {
-		fmt.Printf("empty or nil membership from '%v'\n", leaderName)
+		memlistAfter.MC.PeerNames == nil ||
+		memlistAfter.MC.PeerNames.Len() == 0 {
+
+		//fmt.Printf("empty or nil membership from '%v'\n", leaderName)
 	} else {
+		fmt.Printf("membership after adding '%v': (%v leader)\n", target, leaderName)
 		for name, det := range memlistAfter.MC.PeerNames.All() {
 			fmt.Printf("  %v:   %v\n", name, det.URL)
 		}

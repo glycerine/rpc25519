@@ -300,6 +300,13 @@ func main() {
 					fmt.Printf("  %v:   %v\n", name, det.URL)
 				}
 			}
+			if insp2.ShadowReplicas != nil &&
+				insp2.ShadowReplicas.PeerNames.Len() > 0 {
+				fmt.Printf("shadow replicas:\n")
+				for name, det := range insp2.ShadowReplicas.PeerNames.All() {
+					fmt.Printf("  %v:   %v\n", name, det.URL)
+				}
+			}
 		}
 	}
 }

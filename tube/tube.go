@@ -11925,7 +11925,7 @@ func (s *TubeNode) setupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntryBoo
 // Any new config installed (and not stalled) will start
 // with IsCommitted false.
 func (s *TubeNode) changeMembership(tkt *Ticket) {
-	//vv("%v top of changeMembership(); tkt.Desc='%v'", s.me(), tkt.Desc)
+	vv("%v top of changeMembership(); tkt.Desc='%v'; stack=\n%v", s.me(), tkt.Desc, stack())
 
 	if tkt.finishTicketCalled {
 		return
@@ -12001,22 +12001,24 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 		s.state.MC = s.NewMemberConfig("changeMembership")
 		// starts with IsCommitted == false
 	} else {
-		// keep MC and ShadowReplicas disjoint, so reject
-		// an addition of regular replica to MC
-		// if peer is already a shadow.
-		if tkt.AddPeerName != "" &&
-			s.state.ShadowReplicas != nil &&
-			s.state.ShadowReplicas.PeerNames != nil {
-			// only MEMBERSHIP_SET_UPDATE or MEMBERSHIP_BOOTSTRAP here
-			// (never ADD_SHADOW_NON_VOTING/REMOVE_SHADOW_NON_VOTING)
-			_, alreadyShadow := s.state.ShadowReplicas.PeerNames.get2(tkt.AddPeerName)
-			if alreadyShadow {
-				tkt.Err = fmt.Errorf("'%v' is already a shadow replica, cannot add as regular regular peer, as these sets must be disjoint. rejecting '%v'; error at leader '%v' in changeMembership().", tkt.AddPeerName, tkt.AddPeerName, s.name)
-				s.respondToClientTicketApplied(tkt)
-				s.FinishTicket(tkt, true)
-				return
+		if false { // now we allow one-step transfer from shadow to MC.
+			// keep MC and ShadowReplicas disjoint, so reject
+			// an addition of regular replica to MC
+			// if peer is already a shadow.
+			if tkt.AddPeerName != "" &&
+				s.state.ShadowReplicas != nil &&
+				s.state.ShadowReplicas.PeerNames != nil {
+				// only MEMBERSHIP_SET_UPDATE or MEMBERSHIP_BOOTSTRAP here
+				// (never ADD_SHADOW_NON_VOTING/REMOVE_SHADOW_NON_VOTING)
+				_, alreadyShadow := s.state.ShadowReplicas.PeerNames.get2(tkt.AddPeerName)
+				if alreadyShadow {
+					tkt.Err = fmt.Errorf("'%v' is already a shadow replica, cannot add as regular regular peer, as these sets must be disjoint. rejecting '%v'; error at leader '%v' in changeMembership().", tkt.AddPeerName, tkt.AddPeerName, s.name)
+					s.respondToClientTicketApplied(tkt)
+					s.FinishTicket(tkt, true)
+					return
+				}
 			}
-		}
+		} // end if false
 	}
 	curConfig := s.state.MC
 
@@ -12142,18 +12144,20 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			newConfig.setNameDetail(peerName, det, s)
 		}
 	}
-	// update/add self
-	det := &PeerDetail{
-		Name:   s.name,
-		URL:    s.URL,
-		PeerID: s.PeerID,
-		//Addr:                   s.MyPeer.NetAddr,
-		Addr:                   s.MyPeer.BaseServerAddr,
-		PeerServiceName:        s.MyPeer.PeerServiceName,
-		PeerServiceNameVersion: s.MyPeer.PeerServiceNameVersion,
-		//NonVoting:              s.NonVoting,
+	if s.weAreMemberOfCurrentMC() {
+		// update/add self
+		det := &PeerDetail{
+			Name:   s.name,
+			URL:    s.URL,
+			PeerID: s.PeerID,
+			//Addr:                   s.MyPeer.NetAddr,
+			Addr:                   s.MyPeer.BaseServerAddr,
+			PeerServiceName:        s.MyPeer.PeerServiceName,
+			PeerServiceNameVersion: s.MyPeer.PeerServiceNameVersion,
+			//NonVoting:              s.NonVoting,
+		}
+		newConfig.setNameDetail(s.name, det, s)
 	}
-	newConfig.setNameDetail(s.name, det, s)
 
 	// DONE: we have updated newConfig set of curConfig members
 	// to the latest available Addr/PeerID/URL, but have
@@ -12173,7 +12177,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 		}
 
 		cktP, ok := s.cktAllByName[tkt.AddPeerName]
-		if ok {
+		if ok && cktP.ckt != nil {
 			peerID := tkt.AddPeerID
 			if peerID == "" {
 				peerID = cktP.PeerID
@@ -12192,19 +12196,36 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			newConfig.setNameDetail(tkt.AddPeerName, det, s)
 
 		} else {
-			target := tkt.AddPeerName
-			//vv("%v no existing connection to tkt.AddPeerName='%v', try to spin one up in background", s.me(), target)
-			cktP := s.newCktPlus(target, TUBE_REPLICA)
-			cktP.PeerBaseServerAddr = tkt.AddPeerBaseServerHostPort
-			//vv("%v calling startWatchdog in changeMembership on cktP=%p for '%v'", s.me(), cktP, cktP.PeerName)
-			cktP.startWatchdog()
 
-			det := &PeerDetail{
-				Name: target,
-				URL:  "pending",
-			}
-			newConfig.setNameDetail(target, det, s)
-			if target != s.name { // don't add self
+			target := tkt.AddPeerName
+			// can be adding self back from shadow to MC
+			if target == s.name {
+				// update/add self
+				det := &PeerDetail{
+					Name:   s.name,
+					URL:    s.URL,
+					PeerID: s.PeerID,
+					//Addr:                   s.MyPeer.NetAddr,
+					Addr:                   s.MyPeer.BaseServerAddr,
+					PeerServiceName:        s.MyPeer.PeerServiceName,
+					PeerServiceNameVersion: s.MyPeer.PeerServiceNameVersion,
+					//NonVoting:              s.NonVoting,
+				}
+				newConfig.setNameDetail(s.name, det, s)
+			} else {
+				//vv("%v no existing connection to tkt.AddPeerName='%v', try to spin one up in background", s.me(), target)
+				cktP := s.newCktPlus(target, TUBE_REPLICA)
+				cktP.PeerBaseServerAddr = tkt.AddPeerBaseServerHostPort
+				//vv("%v calling startWatchdog in changeMembership on cktP=%p for '%v'", s.me(), cktP, cktP.PeerName)
+				cktP.startWatchdog()
+
+				det := &PeerDetail{
+					Name: target,
+					URL:  "pending",
+				}
+				newConfig.setNameDetail(target, det, s)
+
+				// INVAR: target != s.name, from above.
 				s.cktAllByName[target] = cktP
 				// should s.cktall get it too? for now, no. We
 				// only put pending into cktAllByName and set cktall
@@ -12212,11 +12233,10 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 
 				s.connectInBackgroundIfNoCircuitTo(tkt.AddPeerName, "changeMembership") // call 2
 				//tkt.Err = fmt.Errorf("changeMembership error: AddPeerName '%v' not found in cktall: '%v'", tkt.AddPeerName, s.cktall)
-			} else {
-				panic(fmt.Sprintf("%v why are we trying to add self to cktAllByName??", s.name))
+
 			}
 		}
-	case tkt.RemovePeerID != "":
+	case tkt.RemovePeerName != "":
 		gonerDetail, already := curConfig.PeerNames.get2(tkt.RemovePeerName)
 		if !already {
 			alwaysPrintf("%v remove peer '%v' is a noop since it is already gone", s.me(), tkt.RemovePeerName)
@@ -12443,6 +12463,7 @@ func (s *TubeNode) setMC(members *MemberConfig, caller string) (amInLatest, igno
 	return
 }
 
+// and transfer out of shadows if adding to MC
 func (s *TubeNode) putRemovedReplicasIntoShadows(newMC *MemberConfig) {
 	if s.state == nil || s.state.MC == nil {
 		return
@@ -12458,6 +12479,9 @@ func (s *TubeNode) putRemovedReplicasIntoShadows(newMC *MemberConfig) {
 			} else {
 				panicf("should be impossible; why no detail if we just saw the name in diff='%v'", name)
 			}
+		} else {
+			// adding name to MC, so take out of Shadows automatically.
+			s.state.ShadowReplicas.PeerNames.delkey(name)
 		}
 	}
 }
