@@ -1585,7 +1585,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				s.FinishTicket(question, false)
 
 			case RedirectTicketToLeaderMsg:
-				//vv("%v RedirectTicketToLeaderMsg", s.me())
+				vv("%v RedirectTicketToLeaderMsg", s.me())
 
 				tkt := &Ticket{}
 				_, err := tkt.UnmarshalMsg(frag.Payload)
@@ -11925,7 +11925,7 @@ func (s *TubeNode) setupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntryBoo
 // Any new config installed (and not stalled) will start
 // with IsCommitted false.
 func (s *TubeNode) changeMembership(tkt *Ticket) {
-	vv("%v top of changeMembership(); tkt.Desc='%v'; stack=\n%v", s.me(), tkt.Desc, stack())
+	vv("%v top of changeMembership(); tkt.Desc='%v'", s.me(), tkt.Desc)
 
 	if tkt.finishTicketCalled {
 		return
@@ -14945,28 +14945,36 @@ func (s *TubeNode) refreshSession(from time.Time, ste *SessionTableEntry) (refre
 
 func (s *TubeNode) bootstrappedMembership(tkt *Ticket) bool {
 	// allow bootstrapping by handling ADD of self here.
+	vv("%v top bootstrappedMembership", s.name)
 
-	if s.role == LEADER {
-		return false
-	}
+	// we can be leader but not in membership and
+	// need to allow ourselves to be added back
+	// to the membership.
+	//if s.role == LEADER {
+	//	return false
+	//}
 	if s.PeerServiceName != TUBE_REPLICA {
+		vv("%v I am not a replica", s.me())
 		return false
 	}
 	if tkt.Op != MEMBERSHIP_SET_UPDATE {
+		vv("%v tkt.Op is not membership update", s.me())
 		return false
 	}
 	if tkt.AddPeerName != s.name {
+		vv("%v not trying to add self to MC", s.me())
 		return false
 	}
 	n := s.state.MC.PeerNames.Len()
 	//	if n > 1 {
 	if n > 0 {
-		// not just me
+		vv("%v not just me; MC=%v", s.name, s.state.MC)
 		return false
 	}
 	if n == 1 {
 		_, justMe := s.state.MC.PeerNames.get2(s.name)
 		if !justMe {
+			vv("%v not just me 2; MC=%v", s.name, s.state.MC)
 			return false
 		}
 	}
@@ -14981,8 +14989,11 @@ func (s *TubeNode) bootstrappedMembership(tkt *Ticket) bool {
 		PeerServiceNameVersion: s.MyPeer.PeerServiceNameVersion,
 	}
 	s.state.MC.setNameDetail(s.name, detail, s)
+	s.state.ShadowReplicas.PeerNames.delkey(s.name)
 	vv("%v bootstrapped rather than redirectToLeader. now MC='%v'", s.me(), s.state.MC)
-	s.becomeLeader()
+	if s.role != LEADER {
+		s.becomeLeader()
+	}
 
 	// this does s.FinishTicket(tkt) only if WaitingAtLeader
 	s.respondToClientTicketApplied(tkt)
