@@ -341,7 +341,10 @@ const (
 type RaftRole int
 
 const (
-	FOLLOWER  RaftRole = 1
+	// includes ShadowReplicas (always followers, they
+	// never vote and never hold elections).
+	FOLLOWER RaftRole = 1
+
 	CANDIDATE RaftRole = 2
 	LEADER    RaftRole = 3
 
@@ -1235,9 +1238,10 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			// our members.
 			//vv("%v <-s.electionTimeoutCh about to call s.connectToMC()", s.me())
 			if s.role != LEADER && s.leaderName != "" {
-				// assume they failed and we don't want
-				// lex sorting of ckt to keep the old one
-				// by mistake-- so definitely delete that ckt.
+				// heartbeats should have suppressed this,
+				// so if we are getting here it means
+				// we have not gotten a heartbeat in too long.
+				// Assume the leader failed... force a reconnection.
 				cktP, ok := s.cktAllByName[s.leaderName]
 				if ok {
 					//vv("%v assuming leader is down and definitely deleting our ckt to it. leaderName='%v'", s.me(), s.leaderName)
@@ -9396,6 +9400,16 @@ func (s *TubeNode) answerToQuestionTicket(answer, question *Ticket) {
 // The livelock on pre-voting we saw is hopefully avoided.
 func (s *TubeNode) beginPreVote() {
 
+	if s.amShadowReplica() {
+		//vv("%v in beginPreVote, amShadowReplica ture: do not start a pre-vote since I am a shadow replica.", s.me())
+		// since we use the election timer to maintain
+		// connectivity to the cluster, keep it going.
+		// Update: always done now by the <-s.electionTimeoutCh
+		// case so we don't need to do this again.
+		// s.resetElectionTimeout("in beginPrevote, amShadowReplica true")
+
+		return
+	}
 	if s.state != nil && s.state.MC != nil {
 		_, weOK := s.state.MC.PeerNames.get2(s.name)
 		if !weOK {
@@ -14840,6 +14854,20 @@ func (s *TubeNode) observerOnlyNow() bool {
 	}
 	alwaysPrintf("%v ABOUT TO RETURN(finish TubeNode.Start): since we are Observer only and not in the current MC='%v'", s.me(), s.state.MC.Short())
 	return true
+}
+
+func (s *TubeNode) amShadowReplica() bool {
+	if s.state == nil {
+		return false
+	}
+	if s.PeerServiceName != TUBE_REPLICA {
+		return false
+	}
+	if s.state.ShadowReplicas == nil {
+		return false
+	}
+	_, isShadow := s.state.ShadowReplicas.PeerNames.get2(s.name)
+	return isShadow
 }
 
 func (s *TubeNode) refreshSession(from time.Time, ste *SessionTableEntry) (refreshTil time.Time) {
