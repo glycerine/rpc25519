@@ -886,7 +886,7 @@ func (s *TubeNode) Start(
 
 			// on a previous shutdown sequence, we could
 			// have been left last in Observers; clear ourselves from that.
-			s.clearSelfFromObservers()
+			s.clearFromObservers(s.name)
 
 		} else {
 			// do not start election timeouts for
@@ -5176,7 +5176,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 	// log compaction: here in replicateTicket().
 	compactIndex, compactTerm := s.wal.maybeCompact(s.state.CommitIndex) // if compaction enabled.
 	s.state.setCompaction(compactIndex, compactTerm)
-	if true { // TODO restore: s.cfg.isTest {
+	if true {
 		s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
 	}
 	if tkt.Op == MEMBERSHIP_SET_UPDATE ||
@@ -8801,6 +8801,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 			// in commitWhatWeCan here.
 			_, _ = s.setMC(tkt.MC, fmt.Sprintf("commitWhatWeCan on %v", s.name))
 			//vv("%v ignoredMemberConfigBecauseSuperceded=%v", s.name, ignoredMemberConfigBecauseSuperceded)
+
 			if tkt.Insp == nil {
 				vv("%v is filling in tkt.Insp in commitWhatWeCan; tkt='%v'", s.me(), tkt.Desc)
 				s.addInspectionToTicket(tkt)
@@ -12231,8 +12232,16 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			//vv("%v error: removing peer not in membership: '%v'", s.me(), tkt.RemovePeerName)
 			break
 		}
-		gonerDetail.gcAfterHeartbeatCount = 3
-		s.state.Observers.PeerNames.set(gonerDetail.Name, gonerDetail)
+		// INVAR: already == true, gonerDetail != nil.
+		const removedNodesBecomeShadows = true
+		if removedNodesBecomeShadows {
+			// the s.setMC() below will add to ShadowReplicas,
+			// in preference to being a temporary observer;
+			// once all the other checks below have passed.
+		} else {
+			gonerDetail.gcAfterHeartbeatCount = 3
+			s.state.Observers.PeerNames.set(gonerDetail.Name, gonerDetail)
+		}
 		newConfig.delName(tkt.RemovePeerName, s)
 
 		// don't kill our connection to the departed,
@@ -12302,7 +12311,9 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	//s.state.MC.IsCommitted = true
 
 	tkt.Stage += ":mongo_logless_commit_observed_in_changeMembership"
+
 	// inside changeMembership
+	// side effect: removal from MC will add to ShadowReplicas
 	s.setMC(newConfig, fmt.Sprintf("changeMembership to newConfig '%v'", newConfig.Short()))
 
 	tkt.StateSnapshot = s.getStateSnapshot()
@@ -12418,6 +12429,11 @@ func (s *TubeNode) setMC(members *MemberConfig, caller string) (amInLatest, igno
 	descprov := fmt.Sprintf("setMC: %v", caller)
 	upd.addProv(descprov, s.name, upd.RaftLogIndex)
 
+	// put removed followers into shadows automatically?
+	if s.state.MC != nil {
+		s.putRemovedReplicasIntoShadows(members)
+	}
+
 	s.state.MC = upd // in setMC itself, do not call setMC recursviely.
 	s.saver.save(s.state)
 
@@ -12425,6 +12441,25 @@ func (s *TubeNode) setMC(members *MemberConfig, caller string) (amInLatest, igno
 
 	//vv("%v after adjustCktReplicaForNewMembership(); after setting s.state.MC = members(%v); caller='%v'", s.me(), members.Short(), fileLine(2)) // 403 only seen on node_0 leader
 	return
+}
+
+func (s *TubeNode) putRemovedReplicasIntoShadows(newMC *MemberConfig) {
+	if s.state == nil || s.state.MC == nil {
+		return
+	}
+	diff := s.membershipDiffOldNew(s.state.MC, newMC)
+	for name, action := range diff {
+		if action == "removed" {
+			// use the detail from s.state.MC for shadows
+			detail, ok := s.state.MC.PeerNames.get2(name)
+			if ok {
+				s.state.ShadowReplicas.PeerNames.set(name, detail)
+				s.clearFromObservers(name)
+			} else {
+				panicf("should be impossible; why no detail if we just saw the name in diff='%v'", name)
+			}
+		}
+	}
 }
 
 func showCktsDiff(diff map[string]string) (r string) {
@@ -14931,19 +14966,19 @@ func (s *TubeNode) bootstrappedMembership(tkt *Ticket) bool {
 	return true
 }
 
-func (s *TubeNode) clearSelfFromObservers() {
+func (s *TubeNode) clearFromObservers(name string) {
 	if s == nil || s.state == nil {
 		return
 	}
 	if s.state.Observers == nil {
-		s.state.Observers = s.NewMemberConfig("clearSelfFromObserverse")
+		s.state.Observers = s.NewMemberConfig("clearFromObserverse")
 		return
 	}
-	_, ok := s.state.Observers.PeerNames.get2(s.name)
+	_, ok := s.state.Observers.PeerNames.get2(name)
 	if !ok {
 		return
 	}
-	s.state.Observers.PeerNames.delkey(s.name)
+	s.state.Observers.PeerNames.delkey(name)
 }
 
 func (s *TubeNode) InjectEmptyMC(ctx context.Context, targetURL, nodeName string) (err error) {
@@ -15031,8 +15066,8 @@ func (s *TubeNode) doAddShadow(tkt *Ticket) {
 		Addr:                   tkt.AddPeerBaseServerHostPort,
 		//URL:                    tkt.AddPeerURL ??
 	}
-
 	s.state.ShadowReplicas.PeerNames.set(tkt.AddPeerName, detail)
+	s.clearFromObservers(tkt.AddPeerName)
 }
 
 func (s *TubeNode) doRemoveShadow(tkt *Ticket) {
