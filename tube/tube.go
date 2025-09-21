@@ -8287,7 +8287,10 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 		s.leaderURL = ""
 		s.lastLeaderActiveStepDown = time.Now()
 		s.becomeFollower(s.state.CurrentTerm, nil, SAVE_STATE)
-		return fmt.Errorf("cur MC committed without us, finish up by return from Start")
+		// stay on as shadow now.
+		return
+		// this will exit the node, shutting us down.
+		//return fmt.Errorf("cur MC committed without us, finish up by return from Start")
 	}
 
 	// Verify this is ours
@@ -10742,16 +10745,16 @@ func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderURL string, fir
 			if err == nil {
 				break
 			}
-			break // not working for tuberm:
+			//break // not working for tuberm:
 			if onlyPossibleAddr != "" {
-				//vv("%v substitute onlyPossibleAddr(%v) into netAddr(%v)", s.me(), onlyPossibleAddr, netAddr)
+				vv("%v substitute onlyPossibleAddr(%v) into netAddr(%v)", s.me(), onlyPossibleAddr, netAddr)
 				netAddr = onlyPossibleAddr
 				// retry once
 			}
 		}
 		//vv("%v getCircuitToLeader(netAddr='%v') back from PreferExtantRemotePeerGetCircuit: err='%v'", s.name, netAddr, err)
 		if err != nil {
-			err = fmt.Errorf("getCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL '%v' (netAddr='%v') gave err = '%v'", leaderURL, netAddr, err)
+			err = fmt.Errorf("getCircuitToLeader error: myPeer.NewCircuitToPeerURL to leaderURL '%v' (netAddr='%v') (onlyPossibleAddr='%v') gave err = '%v'; ", leaderURL, netAddr, onlyPossibleAddr, err)
 			return
 		}
 		// must manually tell the service goro

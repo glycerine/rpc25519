@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/glycerine/ipaddr"
-	//rpc "github.com/glycerine/rpc25519"
+	rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/tube"
 	//"github.com/glycerine/zygomys/zygo"
 )
@@ -98,6 +98,7 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 	myHost := ipaddr.GetExternalIP()
 	myPort := ipaddr.GetAvailPort()
 	cfg.RpcCfg.ServerAddr = fmt.Sprintf("%v:%v", myHost, myPort)
+	pp("will start server at '%v'", cfg.RpcCfg.ServerAddr)
 
 	// set up our config
 	const quiet = false
@@ -140,8 +141,12 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 	}
 
 	pp("leaderURL='%v'; addr='%v'", leaderURL, addr)
-	cli, err := node.StartClientOnly(ctx, addr)
-	if err != nil {
+	var cli *rpc.Client
+	//cli, err := node.StartClientOnly(ctx, addr)
+	err = node.InitAndStart()
+	panicOn(err)
+
+	if false { // err != nil {
 		pp("error on client attempt to connect to addr='%v': %v", addr, err)
 		if cli != nil {
 			cli.Close()
@@ -166,7 +171,8 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 			alwaysPrintf("could not contact anyone. last attempt to '%v' (addr: '%v') => err='%v'\n", name, addr, err)
 		}
 	}
-	defer cli.Close()
+	//defer cli.Close()
+	defer node.Close()
 
 	//err = node.UseLeaderURL(ctx, leaderURL)
 	//panicOn(err)

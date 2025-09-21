@@ -96,6 +96,7 @@ func main() {
 	myHost := ipaddr.GetExternalIP()
 	myPort := ipaddr.GetAvailPort()
 	cfg.RpcCfg.ServerAddr = fmt.Sprintf("%v:%v", myHost, myPort)
+	pp("will start server at '%v'", cfg.RpcCfg.ServerAddr)
 
 	// set up our config
 	const quiet = false
@@ -139,8 +140,12 @@ func main() {
 		}
 	}
 
-	cli, err := node.StartClientOnly(ctx, addr)
-	if err != nil {
+	var cli *rpc.Client
+	//cli, err := node.StartClientOnly(ctx, addr)
+	err = node.InitAndStart()
+	panicOn(err)
+
+	if false { // err != nil {
 		if cli != nil {
 			cli.Close()
 		}
@@ -163,7 +168,8 @@ func main() {
 		}
 		panicOn(err)
 	}
-	defer cli.Close()
+	//defer cli.Close()
+	defer node.Close()
 
 	if cmdCfg.WipeName != "" {
 		err = node.InjectEmptyMC(ctx, leaderURL, cmdCfg.WipeName)
