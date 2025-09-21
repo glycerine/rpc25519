@@ -3057,17 +3057,20 @@ type AppendEntries struct {
 	// but that was alot.
 	MC *MemberConfig `zid:"16"`
 
-	PeerID2LastHeard map[string]time.Time `zid:"17"`
+	// Send shadows too to try and keep them in sync with MC.
+	ShadowReplicas *MemberConfig `zid:"17"`
 
-	LeaderLLI int64 `zid:"18"` // leader last log index.
+	PeerID2LastHeard map[string]time.Time `zid:"18"`
+
+	LeaderLLI int64 `zid:"19"` // leader last log index.
 
 	// what is on disk/in the wal might be different
 	// from the leader's current Term; if noop0 has
 	// not committed yet.
-	LeaderLLT int64 `zid:"19"` // leader last log index term.
+	LeaderLLT int64 `zid:"20"` // leader last log index term.
 
-	LeaderCompactIndex int64 `zid:"20"`
-	LeaderCompactTerm  int64 `zid:"21"`
+	LeaderCompactIndex int64 `zid:"21"`
+	LeaderCompactTerm  int64 `zid:"22"`
 }
 
 func (ae *AppendEntries) clone() (p *AppendEntries) {
@@ -6347,6 +6350,10 @@ func (s *TubeNode) aeMemberConfigHelper(ae *AppendEntries, numNew int, ack *Appe
 		//vv("%v handleAE: updating config:\n old ID:'%v'\n new ID:'%v'\n membershipDiff='%v'\n text diff = '\n%v'\n old mem config=%v\n new mem config=%v\n", s.name, s.state.MC.MemberConfigID, ae.MC.MemberConfigID, diff, textDiff(s.state.MC.String(), ae.MC.String()), oldmc, aemc)
 	}
 
+	// actually adopt the update for ShadowReplicas
+	if ae.ShadowReplicas != nil {
+		s.state.ShadowReplicas = ae.ShadowReplicas
+	}
 	// actually adopt the update
 	_, ignored := s.setMC(ae.MC, "aeMemberConfigHelper")
 	if ignored {
@@ -7378,6 +7385,7 @@ func (s *TubeNode) newAE() (ae *AppendEntries) {
 		LogTermsRLE:                s.wal.getTermsRLE(),
 		AEID:                       rpc.NewCallID(""),
 		MC:                         s.state.MC.Clone(),
+		ShadowReplicas:             s.state.ShadowReplicas.Clone(),
 		PeerID2LastHeard:           make(map[string]time.Time),
 		LeaderCompactIndex:         s.wal.logIndex.BaseC,
 		LeaderCompactTerm:          s.wal.logIndex.CompactTerm,
@@ -10745,7 +10753,7 @@ func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderURL string, fir
 			if err == nil {
 				break
 			}
-			//break // not working for tuberm:
+			break // not working for tuberm:
 			if onlyPossibleAddr != "" {
 				vv("%v substitute onlyPossibleAddr(%v) into netAddr(%v)", s.me(), onlyPossibleAddr, netAddr)
 				netAddr = onlyPossibleAddr
@@ -11388,6 +11396,9 @@ func peerNamesUnion(peerNamesA, peerNamesB *omap[string, *PeerDetail]) (r *omap[
 
 func (mc *MemberConfig) majority() int {
 	tot := mc.PeerNames.Len()
+	if tot == 0 {
+		return 0
+	}
 	return (tot / 2) + 1
 }
 
@@ -11931,6 +11942,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	vv("%v top of changeMembership(); tkt.Desc='%v'", s.me(), tkt.Desc)
 
 	if tkt.finishTicketCalled {
+		vv("%v tkt.finishTicketCalled so exit changeMembership early; tkt.Desc='%v'", s.me(), tkt.Desc)
 		return
 	}
 
@@ -11942,9 +11954,10 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 
 	if s.redirectToLeader(tkt) {
 		if tkt.Err != nil {
+			vv("%v bail after redirectToLeader error in changeMembership(); tkt.Desc='%v' tkt.Err='%v'", s.me(), tkt.Desc, tkt.Err)
 			return // bail out, error happened.
 		}
-		//vv("%v: changeMembership redirected to leader, adding to Waiting, writeReqCh: '%v'", s.me(), tkt)
+		vv("%v: changeMembership redirected to leader, adding to Waiting, writeReqCh: '%v'", s.me(), tkt)
 		//vv("%v am not leader but '%v'", s.name, s.role)
 		s.WaitingAtFollow.set(tkt.TicketID, tkt)
 		tkt.Stage += ":changeMembership_WaitingAtFollow"
@@ -11954,7 +11967,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	if s.role != LEADER {
 		panic("changeMembership should only be called on leader")
 	}
-	//vv("%v: changeMembership top (we are leader). tkt='%v'", s.me(), tkt.Short())
+	vv("%v: changeMembership top (we are leader). tkt='%v'", s.me(), tkt.Short())
 
 	// too early to do an Inspection! ticket is
 	// not committed yet so we get stale MC
@@ -12018,6 +12031,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 					tkt.Err = fmt.Errorf("'%v' is already a shadow replica, cannot add as regular regular peer, as these sets must be disjoint. rejecting '%v'; error at leader '%v' in changeMembership().", tkt.AddPeerName, tkt.AddPeerName, s.name)
 					s.respondToClientTicketApplied(tkt)
 					s.FinishTicket(tkt, true)
+					vv("%v changeMembership alreadyShadow so tkt.Err='%v'", s.me(), tkt.Err)
 					return
 				}
 			}
@@ -12274,15 +12288,15 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 		panic(fmt.Sprintf("one of AddPeerName or RemovePeerName must have been set. bad tkt = '%v'", tkt))
 	}
 	if tkt.Err != nil {
-		//vv("%v erroring out in changeMembership b/c tkt.Err='%v'", s.me(), tkt.Err)
+		vv("%v erroring out in changeMembership b/c tkt.Err='%v'", s.me(), tkt.Err)
 		s.replyToForwardedTicketWithError(tkt)
 		return
 	}
 	// INVAR: new config differs from cur config by
 	// exactly one (or zero; no change in) peers.
 
-	//vv("%v good, in changeMembership, cur config = '%v'", s.me(), curConfig)
-	//vv("vs new config = '%v'", newConfig)
+	vv("%v good, in changeMembership, cur config = '%v'", s.me(), curConfig)
+	vv("vs new config = '%v'", newConfig)
 
 	// double check that
 	memDiff := s.membershipDiffOldNew(curConfig, newConfig)
@@ -12292,7 +12306,8 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	tkt.MC = newConfig
 	//vv("%v we set (%p)tkt.MemberConfig = newConfig(%p)", s.me(), tkt, newConfig)
 
-	tkt.Desc += fmt.Sprintf("; (new)tkt.MC = '%v'", tkt.MC.Short())
+	// too long list of repeats... every time we try it gets longer!
+	//tkt.Desc += fmt.Sprintf("; (new)tkt.MC = '%v'", tkt.MC.Short())
 
 	// mongo-raft-reconfig safety checks that current config has
 	// been "loglessly committed", which is the equivalent of
@@ -12307,7 +12322,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 
 	err := s.mongoLeaderCanReconfig(curConfig, newConfig, inCurrentConfigCount, inCurTermCount)
 	if err != nil {
-		//vv("%v mongoLeaderCanReconfig gave err = '%v'", s.me(), err)
+		vv("%v mongoLeaderCanReconfig gave err = '%v'", s.me(), err)
 
 		if time.Since(tkt.T0) > 10*time.Second {
 			tkt.Err = fmt.Errorf("%v timeout MC change attempts after 10 seconds; erro from mongoLeaderCanReconfig: %v", s.me(), err)
@@ -12315,7 +12330,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			return
 		}
 		s.stalledMembershipConfigChangeTkt = append(s.stalledMembershipConfigChangeTkt, tkt)
-		//vv("%v mongo stall in changeMembership due to err='%v' tkt='%v'", s.me(), err, tkt.Short())
+		vv("%v mongo stall in changeMembership due to err='%v' tkt='%v'", s.me(), err, tkt.Short())
 		for _, cktP0 := range mongoNeedSeen {
 			cktP0.stalledOnSeenTkt = append(cktP0.stalledOnSeenTkt, tkt)
 		}
@@ -12326,7 +12341,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	// conditions Q1,Q2,P1 of Algorithm 1 (page 6)
 	// of the Mongo paper; any older configs have been
 	// deactivated and a new/other leader cannot revive them.
-	//vv("%v mongo logless commit observed", s.me())
+	vv("%v mongo logless commit observed", s.me())
 
 	// We could do this to document the fact... but they are
 	// about to get replaced by newConfig which is not committed anyway.
@@ -12353,9 +12368,9 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 
 	// this does s.FinishTicket(tkt) only if WaitingAtLeader
 	s.respondToClientTicketApplied(tkt)
-	//vv("%v mongo changeMembership done, back from respondToClientTicketApplied with tkt='%v'", s.me(), tkt)
+	vv("%v mongo changeMembership done, back from respondToClientTicketApplied with tkt='%v'", s.me(), tkt)
 	s.FinishTicket(tkt, true)
-	//vv("%v mongo FinishTicket done for tkt4=%v", s.me(), tkt.TicketID[:4])
+	vv("%v mongo FinishTicket done for tkt4=%v", s.me(), tkt.TicketID[:4])
 
 	// 4. Append _new_ config to log, commit it using
 	//    a majority of the _new_ config.
@@ -12466,7 +12481,9 @@ func (s *TubeNode) setMC(members *MemberConfig, caller string) (amInLatest, igno
 	return
 }
 
-// and transfer out of shadows if adding to MC
+// and transfer out of shadows if adding to MC.
+// problem is: these don't get replicated to other
+// nodes, so these loose the shadow list if they take over.
 func (s *TubeNode) putRemovedReplicasIntoShadows(newMC *MemberConfig) {
 	if s.state == nil || s.state.MC == nil {
 		return
@@ -14582,6 +14599,12 @@ func quorumsOverlap(curMC, newMC *MemberConfig) bool {
 	need0 := curMC.majority()
 	need1 := newMC.majority()
 
+	// special case handling of transition to/from empty set.
+	// No waiting needed.
+	if need0 == 0 || need1 == 0 {
+		return true
+	}
+
 	curN := curMC.PeerNames.Len()
 	newN := newMC.PeerNames.Len()
 
@@ -14606,7 +14629,9 @@ func quorumsOverlap(curMC, newMC *MemberConfig) bool {
 	intersectionSz := len(intersection)
 	unionSz := curN + newN - intersectionSz
 
-	return (need0 + need1) > unionSz
+	ans := (need0 + need1) > unionSz
+	//vv("intersecionSz = %v; unionSz = %v; need0 = %v, need1 = %v; returning ans = (need0 + need1) > unionSz == %v", intersectionSz, unionSz, need0, need1, ans)
+	return ans
 }
 
 // used by tubecli.go to dump wal and show cur state.

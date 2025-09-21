@@ -198,10 +198,9 @@ func main() {
 		// 	host = net.JoinHostPort(host, port)
 		// }
 
-		cli2, err := node.StartClientOnly(ctx, host)
-		//cli, err := node.StartClientOnly(ctx, leaderURL)
-		panicOn(err)
-		defer cli2.Close()
+		//cli2, err := node.StartClientOnly(ctx, host)
+		//panicOn(err)
+		//defer cli2.Close()
 
 		newestMembership, insp, actualLeaderURL, leaderName, onlyPossibleAddr, err = node.GetPeerListFrom(ctx, host)
 		_ = insp

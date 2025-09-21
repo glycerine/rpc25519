@@ -202,10 +202,10 @@ func main() {
 		leaderURL = actualLeaderURL
 
 		// so I guess we must start another client.
-		cli.Close()
-		node.Close()
+		//cli.Close()
+		//node.Close()
 
-		node = tube.NewTubeNode(name, cfg)
+		//node = tube.NewTubeNode(name, cfg)
 
 		addr2, _, _, _, err := rpc.ParsePeerURL(leaderURL)
 		panicOn(err)
@@ -218,10 +218,9 @@ func main() {
 		// }
 
 		//vv("make cli2 to host='%v'", host)
-		cli2, err := node.StartClientOnly(ctx, host)
-		//cli, err := node.StartClientOnly(ctx, leaderURL)
-		panicOn(err)
-		defer cli2.Close()
+		//cli2, err := node.StartClientOnly(ctx, host)
+		//panicOn(err)
+		//defer cli2.Close()
 		// this makes it work, but we were not getting ack
 		// b/c the new leader didn't know how to contact us.
 		// It hit the dead letter.

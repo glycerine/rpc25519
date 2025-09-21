@@ -41,7 +41,7 @@ for many use cases). User program defined replicated
 operations -- custom state machine actions for
 a user defined machine -- are
 planned but still TODO at the moment. The built in
-key/value store allows arbitrary []byte or string keys to
+key/value store allows arbitrary string keys to
 refer to arbitrary []byte slice values. Multiple
 key-value namespaces, each called a "table", are
 available. See the tube/cmd/tup utility for a 
