@@ -81,12 +81,17 @@ func (s *TubeNode) DumpRaftWAL() error {
 	fmt.Printf("contents of disk raft wal '%v':\n", logPath)
 	if len(wal.raftLog) == 0 {
 		fmt.Printf("(empty disk Raft log)\n")
+
+		if s.state != nil && s.state.ShadowReplicas != nil {
+			fmt.Printf("s.state.ShadowReplicas = %v\n", s.state.ShadowReplicas.Short())
+		} else {
+			fmt.Printf("current s.state.ShadowReplicas = (not available)\n")
+		}
 		if s.state != nil && s.state.MC != nil {
 
-			//
-			fmt.Printf("\ncurrent s.state.MC = %v\ns.state.CurrentTerm: %v   s.state.CommitIndex: %v   ** len(wal.raftLog) == 0 => no way to know logIndex.BaseC/CompactTerm just from the (empty) log; state.CompactionDiscardedLastIndex=%v; state.CompactionDiscardedLastTerm = %v\n", s.state.MC.Short(), s.state.CurrentTerm, s.state.CommitIndex, s.state.CompactionDiscardedLastIndex, s.state.CompactionDiscardedLastTerm)
+			fmt.Printf("current s.state.MC = %v\ns.state.CurrentTerm: %v   s.state.CommitIndex: %v   ** len(wal.raftLog) == 0 => no way to know logIndex.BaseC/CompactTerm just from the (empty) log; state.CompactionDiscardedLastIndex=%v; state.CompactionDiscardedLastTerm = %v\n", s.state.MC.Short(), s.state.CurrentTerm, s.state.CommitIndex, s.state.CompactionDiscardedLastIndex, s.state.CompactionDiscardedLastTerm)
 		} else {
-			fmt.Printf("\ncurrent s.state.MC = (not available)\n")
+			fmt.Printf("current s.state.MC = (not available)\n")
 		}
 		return nil
 	}

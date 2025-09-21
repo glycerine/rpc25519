@@ -4191,7 +4191,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	// In redirectToLeader() bool here.
 	// Per Ch 4 on config changes, the leader might not
 	// actually officially be in the cluster during
-	// transitions. So use s.cktall not s.cktReplica here.
+	// transitions. So use s.cktall, not s.cktReplica here.
 	cktP, ok := s.cktall[s.leaderID]
 	if !ok {
 		alwaysPrintf("%v don't know how to contact '%v' (because not in cktall its s.leaderID='%v') to redirect to leader; for tkt '%v'. Assuming they died. s.cktall = '%#v'", s.me(), s.leaderName, s.leaderID, tkt.Short(), s.cktall)
