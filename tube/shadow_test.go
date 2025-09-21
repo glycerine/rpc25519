@@ -162,9 +162,11 @@ func Test065_shadow_replicas_get_wal_even_with_leader_change(t *testing.T) {
 
 			vv("done with 20 sec of sleep after node_0 back on.")
 
-			vv("node_0 is %v", c.Nodes[0].me())
-			vv("node_1 is %v", c.Nodes[1].me())
-			vv("node_2 is %v", c.Nodes[2].me())
+			// creates data races, watch out under -race.
+			// e.g. tube.go:2903 vs tube.go:6541
+			//vv("node_0 is %v", c.Nodes[0].me())
+			//vv("node_1 is %v", c.Nodes[1].me())
+			//vv("node_2 is %v", c.Nodes[2].me())
 
 			// actually either node_0 or node_1
 			// can become leader, since node_2 is shadow

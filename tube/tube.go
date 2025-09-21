@@ -2900,7 +2900,7 @@ func (s *TubeNode) me() string {
 	//	return s.name
 	//}
 
-	lead := s.leaderName
+	lead := s.leaderName // race read vs :6541
 	if lead == "" {
 		lead = "no"
 		if s.state.VotedFor != "" {
@@ -6538,7 +6538,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		}
 	}
 
-	s.leaderName = ae.LeaderName
+	s.leaderName = ae.LeaderName // race write vs :2903
 	s.leaderID = ae.LeaderID
 	s.leaderURL = ae.LeaderURL
 
@@ -14992,14 +14992,14 @@ func (s *TubeNode) bootstrappedMembership(tkt *Ticket) bool {
 		//vv("%v tkt.Op is not membership update", s.me())
 		return false
 	}
-	if tkt.AddPeerName != s.name {
-		//vv("%v not trying to add self to MC", s.me())
-		return false
-	}
 	n := s.state.MC.PeerNames.Len()
 	//	if n > 1 {
 	if n > 0 {
 		//vv("%v not just me; MC=%v", s.name, s.state.MC)
+		return false
+	}
+	if tkt.AddPeerName != s.name {
+		//vv("%v not trying to add self to MC", s.me())
 		return false
 	}
 	if n == 1 {
