@@ -8287,7 +8287,10 @@ func (s *TubeNode) handleAppendEntriesAck(ack *AppendEntriesAck, ckt *rpc.Circui
 	// for the newest MC to become committed.
 	if s.state != nil && s.state.MC != nil &&
 		!s.weAreMemberOfCurrentMC() &&
-		s.onLeaderIsCurrentMCcommitted() {
+		s.onLeaderIsCurrentMCcommitted() &&
+		// even as shadow we should stay leader if no other...
+		s.state.MC.PeerNames.Len() > 0 {
+
 		alwaysPrintf("%v leader sees it is not in current MC which has been committed: so stepping down. current s.state.MC='%v'", s.me(), s.state.MC)
 
 		s.leaderName = ""
