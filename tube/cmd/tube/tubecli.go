@@ -459,12 +459,20 @@ func WriteMemProfiles(fn string) {
 func showArchive(path string) (exitCode int) {
 	node := &tube.TubeNode{}
 	cfg := &tube.TubeConfig{}
-	_, state, err := cfg.NewRaftStatePersistor(path, node, true)
-	if err != nil {
-		fmt.Printf("tube -a show archive path='%v'; load error: %v\n", path, err)
+	if !fileExists(path) {
+		fmt.Printf("error: tube -a show archive path='%v'; path does not exist.\n", path)
 		return 1
 	}
-
+	//vv("using path = '%v'", path)
+	_, state, err := cfg.NewRaftStatePersistor(path, node, true)
+	if err != nil {
+		fmt.Printf("error: tube -a show archive path='%v'; load error: %v\n", path, err)
+		return 1
+	}
+	if state == nil {
+		fmt.Printf("(none) empty RaftState from path '%v'\n", path)
+		return 0
+	}
 	fmt.Printf("\nRaftState from path '%v':\n%v\n", path, state.Gstring())
 	if state.KVstore != nil {
 		fmt.Printf("KVstore: (len %v)\n", state.KVstore.Len())
