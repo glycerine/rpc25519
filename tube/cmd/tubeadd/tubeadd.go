@@ -118,7 +118,7 @@ func main() {
 
 	cfg.ClientProdConfigSaneOrPanic()
 
-	//vv("cfg = '%v'", cfg.ShortSexpString(nil))
+	pp("cfg = '%v'", cfg.ShortSexpString(nil))
 
 	//nodeID := rpc.NewCallID("")
 	name := cfg.MyName
@@ -162,8 +162,10 @@ func main() {
 		//mc, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
 
 		if err != nil {
+			pp("skip '%v' b/c err = '%v'", leaderName, err)
 			continue
 		}
+		pp("candidate leader = '%v', url = '%v", leaderName, leaderURL)
 		insps = append(insps, insp)
 		lastLeaderName = leaderName
 		lastLeaderURL = leaderURL
@@ -210,6 +212,7 @@ func main() {
 		}
 		lastLeaderName = leaderName
 		lastLeaderURL = leaderURL
+		pp("extra candidate leader = '%v', url = '%v", leaderName, leaderURL)
 		s := leaders[leaderName]
 		if s == nil {
 			leaders[leaderName] = &set{nodes: []string{name}}
@@ -250,12 +253,14 @@ func main() {
 				fmt.Printf("no leaders found and no cfg.InitialLeaderName; use -c to contact a specific node.\n")
 				os.Exit(1)
 			} else {
+				pp("based on cfg.InitialLeaderName we will try to contact '%v'", cfg.InitialLeaderName)
 				lastLeaderName = cfg.InitialLeaderName
 				addr := cfg.Node2Addr[lastLeaderName]
 				lastLeaderURL = tube.FixAddrPrefix(addr)
 			}
 		} else {
 			lastLeaderName = cmdCfg.ContactName
+			pp("based on -c we will try to contact '%v'", cmdCfg.ContactName)
 			addr := cfg.Node2Addr[lastLeaderName]
 			lastLeaderURL = tube.FixAddrPrefix(addr)
 		}
@@ -327,7 +332,8 @@ func main() {
 	targetPeerID := "" // allowed now
 
 	leaderURL = lastLeaderURL
-	pp("tubeadd is doing AddPeerIDToCluster using leaderURL='%v'", leaderURL)
+	pp("tubeadd is doing AddPeerIDToCluster using leaderName = '%v'; leaderURL='%v'", lastLeaderName, lastLeaderURL)
+
 	errWriteDur := time.Second * 20
 	peerServiceName := tube.TUBE_REPLICA
 	baseServerHostPort := ""
