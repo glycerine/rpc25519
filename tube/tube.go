@@ -4173,8 +4173,17 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 		s.leaderName = ""
 		s.leaderURL = ""
 	}
-	//const stashForLeader = false
-	const stashForLeader = true
+
+	// stashForLeader = false will be much easier
+	// to reason about, since tup hangs plus ctrl-c do not result
+	// in later addition of members once a leader is found.
+	const stashForLeader = false
+	// three red tests under stashForLeader = false that need fixing:
+	// red 059 compact_test.go
+	// red Test402_build_up_a_cluster_from_one_node membership_test.go
+	// read Test403_reduce_a_cluster_down_to_one_node
+
+	//const stashForLeader = true // needed atm for green tests.
 	if s.leaderID == "" {
 		if stashForLeader {
 			// save it until we do get a leader?
