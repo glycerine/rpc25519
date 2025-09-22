@@ -15482,10 +15482,12 @@ When the cluster halts, monitoring and alerts (triggered by the failing PAR chec
 
 Once a majority of servers are back online with consistent, non-corrupt logs, the Pre-Vote process will naturally succeed, a leader will be elected, and the cluster will automatically resume normal operation.
 */
+
 func (s *TubeNode) errorOutAwaitingLeaderTooLongTickets() {
 	if len(s.ticketsAwaitingLeader) == 0 {
 		return
 	}
+	vv("%v top errorOutAwaitingLeaderTooLongTickets()", s.me())
 	// TODO: possible optimization would be to use
 	// an imap.go tree indexed by deadline instead of
 	// a simple go map, to avoid a linear scan
@@ -15508,6 +15510,7 @@ func (s *TubeNode) errorOutAwaitingLeaderTooLongTickets() {
 			goner = append(goner, ticketID)
 		}
 	}
+	// delete from map while iterating is undefined, so cleanup after:
 	for _, ticketID := range goner {
 		delete(s.ticketsAwaitingLeader, ticketID)
 	}
