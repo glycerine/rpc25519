@@ -22,7 +22,8 @@ type set struct {
 // also contact them to try extra hard to
 // find a leader even if our static configuration
 // loaded from disk into cfg.Node2Addr is
-// unaware of them.
+// unaware of them. node_4 for example in our
+// example/local test rig.
 func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requireOnlyContact bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection, reallyLeader bool) {
 
 	// contact everyone, get their idea of who is leader
@@ -34,13 +35,24 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 	for name, addr := range cfg.Node2Addr {
 		url := FixAddrPrefix(addr)
 
-		ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
-		_, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx5sec, url)
-		//mc, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
-		canc5()
-		if err != nil {
-			//pp("skip '%v' b/c err = '%v'", leaderName, err)
-			continue
+		var err error
+		var insp *Inspection
+		var leaderURL, leaderName string
+		if name == node.name || name == cfg.MyName {
+			// inspect self
+			insp = node.Inspect()
+			leaderName = insp.CurrentLeaderName
+			leaderURL = insp.CurrentLeaderURL
+
+		} else {
+
+			ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
+			_, insp, leaderURL, leaderName, _, err = node.GetPeerListFrom(ctx5sec, url, name)
+			canc5()
+			if err != nil {
+				//pp("skip '%v' b/c err = '%v'", leaderName, err)
+				continue
+			}
 		}
 		if leaderName != "" {
 			pp("candidate leader = '%v', url = '%v", leaderName, leaderURL)
@@ -61,6 +73,9 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 	xtra := make(map[string]string)
 	for _, ins := range insps {
 		for name, url := range ins.CktAll {
+			if name == node.name || name == cfg.MyName {
+				continue // skip self, already done above.
+			}
 			_, skip := cfg.Node2Addr[name]
 			if skip {
 				// already contacted
@@ -87,7 +102,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 		}
 		//url = FixAddrPrefix(url)
 		ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
-		_, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx5sec, url)
+		_, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx5sec, url, name)
 		//mc, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
 		canc5()
 		if err != nil {

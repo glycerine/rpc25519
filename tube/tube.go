@@ -8170,7 +8170,7 @@ func (s *TubeNode) skipAEBecauseNotReplica(followerID, followerName, followerSer
 	if isMember {
 		return false
 	}
-	vv("%v warning: not sending AE to replica that is not shadow and not a current member '%v'; MC='%v'", s.me(), followerName, s.state.MC)
+	//vv("%v warning: not sending AE to replica that is not shadow and not a current member '%v'; MC='%v'", s.me(), followerName, s.state.MC)
 	return true
 }
 
@@ -10907,7 +10907,16 @@ func (s *TubeNode) UseLeaderURL(ctx context.Context, leaderURL string) (onlyPoss
 }
 
 // do inspection, get membership list. used by tup and tests.
-func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL string) (mc *MemberConfig, insp *Inspection, actualLeaderURL, leaderName string, onlyPossibleAddr string, err error) {
+func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL, leaderName string) (mc *MemberConfig, insp *Inspection, actualLeaderURL, actualLeaderName string, onlyPossibleAddr string, err error) {
+
+	_, _, peerID, _, err := rpc.ParsePeerURL(leaderURL)
+	panicOn(err)
+	if leaderName == s.name ||
+		leaderURL == s.URL ||
+		peerID == s.PeerID {
+
+		panic("ugh. self-circuit? TODO figure out self-circuit or what?")
+	}
 
 	var ckt *rpc.Circuit
 	ckt, onlyPossibleAddr, _, err = s.getCircuitToLeader(ctx, leaderURL, nil, false)
@@ -10916,7 +10925,7 @@ func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL string) (mc *M
 		//vv("%v GetPeerListFrom got error from getCircuitToLeader('%v') err='%v'; s.electionTimeoutCh='%p', s.nextElection in '%v'", s.me(), leaderURL, err, s.electionTimeoutCh, time.Until(s.nextElection))
 		return nil, nil, "", "", onlyPossibleAddr, err
 	}
-	//leaderName = ckt.RemotePeerName
+	//actualLeaderName = ckt.RemotePeerName
 
 	itkt := s.newRemoteInspectionTicket(ckt)
 	select {
@@ -10943,7 +10952,7 @@ func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL string) (mc *M
 		// correct the leaderName if we got it wrong:
 		//vv("%v orig leaderName (ckt.RemotePeerName) = '%v'; itkt.insp.CurrentLeaderName='%v'", s.name, leaderName, itkt.insp.CurrentLeaderName)
 		if itkt.insp.CurrentLeaderName != "" {
-			leaderName = itkt.insp.CurrentLeaderName
+			actualLeaderName = itkt.insp.CurrentLeaderName
 		}
 	case <-ctx.Done():
 		err = ctx.Err()
@@ -10954,7 +10963,7 @@ func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL string) (mc *M
 	}
 
 	return
-}
+} // end GetPeerListFrom
 
 type inspectionTicket struct {
 	insp    *Inspection
@@ -14074,7 +14083,12 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus) {
 	//}()
 
 	if ckt.RemotePeerName == s.name {
-		panic(fmt.Sprintf("%v huh? should be impossible: ckt.RemotePeerName==s.name; ckt='%v'", s.name, ckt))
+		// we might want to allow this to let in-process
+		// tubecli clients talk to the tube/replica sub-system,
+		// and helper.go creates it in its search to reach
+		// "everyone". but bah! we want to use a direct
+		// channel rather than a circuit in that case.
+		panic(fmt.Sprintf("%v huh? self-loop? use a channel! ckt.RemotePeerName==s.name; ckt='%v'", s.name, ckt))
 	}
 
 	// new replaces old can create an infinite restart loop.

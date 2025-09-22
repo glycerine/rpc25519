@@ -117,7 +117,7 @@ func main() {
 		greet = cfg.InitialLeaderName
 	}
 	addr, ok := cfg.Node2Addr[greet]
-	if !ok {
+	if greet == "" || !ok {
 		fmt.Fprintf(os.Stderr, "error: giving up, as no address! gotta have cfg.InitialLeaderName or -c name of node to contact (we use the names listed in the config file '%v' under Node2Addr).\n", pathCfg)
 		os.Exit(1)
 	} else {
@@ -158,7 +158,7 @@ func main() {
 	// Thus we try again below, consulting the noGood map.
 	//vv("back from node.UseLeaderURL(leaderURL='%v')", leaderURL)
 
-	newestMemberConfig, insp, actualLeaderURL, leaderName, onlyPossibleAddr, err := node.GetPeerListFrom(ctx, leaderURL)
+	newestMemberConfig, insp, actualLeaderURL, leaderName, onlyPossibleAddr, err := node.GetPeerListFrom(ctx, leaderURL, greet)
 	panicOn(err)
 	_ = insp
 	_ = newestMemberConfig
@@ -180,6 +180,7 @@ func main() {
 			}
 			pp("instead trying addr='%v'", addr)
 			leaderURL = tube.FixAddrPrefix(addr)
+			greet = name
 			_, err = node.UseLeaderURL(ctx, leaderURL)
 			if err == nil {
 				break
@@ -193,7 +194,7 @@ func main() {
 	}
 
 	// repeat this part from above, now the we have actual leader connection.
-	newestMemberConfig, insp, actualLeaderURL, leaderName, onlyPossibleAddr, err = node.GetPeerListFrom(ctx, leaderURL)
+	newestMemberConfig, insp, actualLeaderURL, leaderName, onlyPossibleAddr, err = node.GetPeerListFrom(ctx, leaderURL, greet)
 	panicOn(err)
 	_ = insp
 	_ = newestMemberConfig
