@@ -829,36 +829,6 @@ func (s *TubeNode) Start(
 
 		//vv("%v iAmReplicaInCurrentMC = %v; iAmDesignatedLeader = %v", s.me(), iAmReplicaInCurrentMC, iAmDesignatedLeader)
 
-		// moving away from designated leader to just elections
-		if s.state.MC == nil {
-			/*  moving away form designated leader to just elections
-			if false && iAmDesignatedLeader {
-				//vv("%v we are designated initial leader (no prior config in wal). Writing a bootstrap entry to wal before loading it.", s.name)
-
-				boot := s.NewFirstRaftLogEntryBootstrap()
-				boot.NewConfig = s.newMCfromAddr2Node()
-				boot.NewConfig.BootCount = s.cfg.ClusterSize // in Start()
-
-				// differentiate designated leader; fresh followers
-				// will have lower version 0.
-				boot.NewConfig.ConfigVersion = 1
-				// not sure we have quorum yet:
-				boot.NewConfig.IsCommitted = false
-
-				// this will start replicating the ticket too,
-				// (and that will stall on noop0 but meh, its
-				// going)... actually it doesn't stall on noop0? ...
-
-				_, ignored := s.setMC(boot.NewConfig, "Start_prod_desig_leader_no_config_on_disk")
-				if ignored {
-					panic("should not be ignored! fix some ConfigVersion problem")
-				}
-
-				// become leader below, if in prod.
-			} // end if iAmDesignatedLeader
-			*/
-		}
-
 	} // end if prod
 
 	// should we start our election timer now?
@@ -942,7 +912,7 @@ func (s *TubeNode) Start(
 	// just not fast enough.
 	if s.cfg.isTest && s.cfg.testNum != 802 {
 		// just calls s.adjustCktReplicaForNewMembership() if viable.
-		vv("%v starting circuits to MC = '%v'", s.name, s.state.MC)
+		//vv("%v starting circuits to MC = '%v'", s.name, s.state.MC)
 		s.connectToMC("test, top of main loop")
 	}
 
@@ -953,7 +923,7 @@ func (s *TubeNode) Start(
 	// (sent on in <-newCircuitCh handling below).
 	arrivingNetworkFrag := make(chan *fragCkt)
 
-	vv("%v about to enter for/select loop. nextElection timeout '%v'; MC=%v ; cfg.Node2Addr = '%v'", s.me(), time.Until(s.nextElection), s.state.MC, s.cfg.Node2Addr)
+	//vv("%v about to enter for/select loop. nextElection timeout '%v'; MC=%v ; cfg.Node2Addr = '%v'", s.me(), time.Until(s.nextElection), s.state.MC, s.cfg.Node2Addr)
 
 	var loopPrevBeg, loopCurBeg time.Time
 	for i := 0; ; i++ {
@@ -1241,7 +1211,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			s.errorOutAwaitingLeaderTooLongTickets()
 
 			if s.observerOnlyNow() {
-				vv("%v observerOnlyNow so exiting", s.me())
+				//vv("%v observerOnlyNow so exiting", s.me())
 				// try to get a single node cluster to shut itself
 				// down when removed from membership.
 				return
@@ -1825,9 +1795,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			// new Circuit connection arrives: a replica joins the cluster.
 		case ckt := <-newCircuitCh:
 			//s.ay("%v ckt := <-newCircuitCh, ckt = '%v'", s.me(), ckt)
-			if s.name == "node_4" {
-				vv("%v ckt := <-newCircuitCh, from ckt.RemotePeerName='%v'; ckt.RemotePeerID='%v'", s.me(), ckt.RemotePeerName, ckt.RemotePeerID) // not seen 059
-			}
+			//vv("%v ckt := <-newCircuitCh, from ckt.RemotePeerName='%v'; ckt.RemotePeerID='%v'", s.me(), ckt.RemotePeerName, ckt.RemotePeerID) // not seen 059
 			err := s.handleNewCircuit(ckt, done0, arrivingNetworkFrag, cktHasError, cktHasDied)
 			if err != nil {
 				return err
@@ -1859,9 +1827,8 @@ func (s *TubeNode) handleNewCircuit(
 	if ckt.RemotePeerID == "" {
 		panic(fmt.Sprintf("cannot have ckt.RemotePeerID empty: ckt='%v'", ckt))
 	}
-	if s.name == "node_4" {
-		vv("%v top handleNewCircuit ckt from '%v'", s.name, ckt.RemotePeerName)
-	}
+	//vv("%v top handleNewCircuit ckt from '%v'", s.name, ckt.RemotePeerName)
+
 	// below we work hard to distinguish
 	// replicas (that participate as Raft nodes)
 	// versus clients (that should _not_ be sent
@@ -4211,17 +4178,23 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	// To accomodate 402 and 403 membership_tests, we use
 	// the errWriteDur in the AddPeer call to decide how
 	// long to wait for a leader. If 0 then deadline will
-	// be zero (e.g. for command line clients), and they
-	// can choose to get eager errors when no leader is
-	// available. At least that is the idea. At the moment
-	// this is a little backwards from that design,
-	// but does get all green tests and the cli tubeadd
-	// responds immediately if no leader available,
-	// with just this simple rule of stashing only
-	// on no deadline, which the 402/403 membership
-	// tests invoke with errWriteDur == 0.
+	// be zero (as in 402/403 membership_test.go;
+	// but not for command line clients). The tests
+	// uses stashForLeader true as they traditionally
+	// did, and the tubeadd CLI eagerly errors out
+	// because it does use a deadline... which seems
+	// backwards from our original thought, but
+	// it works; at least for now:
+	// all green tests and the cli tubeadd
+	// responds immediately if no leader available.
+	// In the future maybe we want to reverse this,
+	// and have the CLI specify no deadline and
+	// the tests ask for a deadline to get leader
+	// stashing, but we re-use the errWriteDur
+	// in 3 places for tubeadd CLI processing,
+	// so we would need another parameter, ugh.
 	stashForLeader := tkt.WaitLeaderDeadline.IsZero()
-	vv("%v stashForLeader is %v; tkt.WaitLeaderDeadline='%v'", s.name, stashForLeader, nice9(tkt.WaitLeaderDeadline))
+	//vv("%v stashForLeader is %v; tkt.WaitLeaderDeadline='%v'", s.name, stashForLeader, nice9(tkt.WaitLeaderDeadline))
 	// three red tests under stashForLeader = false that need fixing:
 	// red 059 compact_test.go
 	// red Test402_build_up_a_cluster_from_one_node membership_test.go
@@ -4233,11 +4206,11 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 			// save it until we do get a leader?
 			s.ticketsAwaitingLeader[tkt.TicketID] = tkt
 			//s.Waiting[tkt.TicketID] = tkt
-			vv("%v no leader yet, saving ticket until then: '%v'", s.me(), tkt)
+			//vv("%v no leader yet, saving ticket until then: '%v'", s.me(), tkt)
 			tkt.Stage += fmt.Sprintf(":redirectToLeader(true,not_leader)_from_%v", fileLine(2))
 			return true
 		}
-		vv("%v stashForLeader is false, and s.leaderID is empty", s.me())
+		//vv("%v stashForLeader is false, and s.leaderID is empty", s.me())
 		// stashing for later leader made for a weird
 		// command line tubeadd experience/hang. better to eagerly error.
 
@@ -4292,13 +4265,13 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 			s.ticketsAwaitingLeader[tkt.TicketID] = tkt
 			//s.Waiting[tkt.TicketID] = tkt ?
 
-			vv("%v no leader yet, saving ticket until then: '%v'", s.me(), tkt)
+			//vv("%v no leader yet, saving ticket until then: '%v'", s.me(), tkt)
 			tkt.Stage += ":redirectToLeader(true,no_leader_yet)" // was (true,cannot_redirect_to_leader)
 			return true
 		}
 		// stashing for later leader made for a weird
 		// command line tubeadd experience/hang.
-		vv("%v stashForLeader is false, and no cktall for leader '%v'", s.me(), s.leaderName)
+		//vv("%v stashForLeader is false, and no cktall for leader '%v'", s.me(), s.leaderName)
 		tkt.Err = fmt.Errorf("hmm. no leader known to me (node '%v')", s.name)
 		//s.respondToClientTicketApplied(tkt)
 		s.replyToForwardedTicketWithError(tkt)
@@ -5064,7 +5037,7 @@ func (s *TubeNode) resubmitStalledTickets() {
 	var resub []*Ticket
 	var both []*Ticket
 	for _, tkt := range s.WaitingAtLeader.all() {
-		vv("appending to both tkt='%v'", tkt.Short())
+		//vv("appending to both tkt='%v'", tkt.Short())
 		both = append(both, tkt)
 	}
 	if len(s.stalledMembershipConfigChangeTkt) > 0 {
@@ -6529,7 +6502,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 
 	chatty802 := false
 	s.testAEchoices = nil
-	if false { // s.name == "node_2" { // TODO comment out
+	if false {
 		lli := s.wal.LastLogIndex()
 		vv("%v: handleAppendEntries top; from '%v'; starting lli=%v; this ae='%v'", s.me(), ae.FromPeerName, lli, ae)
 
@@ -6539,7 +6512,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		}()
 	}
 	//if !s.cfg.isTest {
-	//	vv("%v: handleAppendEntries top; from '%v'; ae=%v", s.me(), ae.FromPeerName, ae)
+	//	//vv("%v: handleAppendEntries top; from '%v'; ae=%v", s.me(), ae.FromPeerName, ae)
 	//}
 
 	// assert that we update s.state.CommitIndex promptly upon learning
@@ -6940,11 +6913,11 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 
 		s.host.choice(ack.RejectReason)
 		s.host.ackAE(ack, ae)
-		//if s.name == "node_4" {
+
 		// 059 compact_test gets here. The gap means
 		// we need a snapshot state transfer.
 		//vv("%v early AE return 3; alsoGap = %v; ack.ConflictTerm1stIndex=%v; ack.PeerCompactionDiscardedLastIndex=%v", s.name, alsoGap, ack.ConflictTerm1stIndex, ack.PeerCompactionDiscardedLastIndex) // 059: ack.ConflictTerm1stIndex = -1; ack.PeerCompactionDiscardedLastIndex=0
-		//}
+
 		return
 	}
 	// If this is a heartbeat, definitely reject so we get data.
@@ -7854,7 +7827,7 @@ func (s *TubeNode) logUpToDateAsOurs(rv *RequestVote) (ans bool) {
 	if rv.LastLogIndex >= ourLastLogIndex {
 		return true
 	}
-	vv("end false")
+	//vv("end false")
 	return false
 }
 
@@ -8199,33 +8172,6 @@ func (s *TubeNode) skipAEBecauseNotReplica(followerID, followerName, followerSer
 	}
 	return false
 }
-
-/* we generalized the above instead.
-func (s *TubeNode) isFollowerNonVoting(followerID, followerName, followerServiceName string) bool {
-
-	if followerServiceName == "" {
-		panic("must not have empty followerServiceName")
-	}
-	if followerName == "" {
-		panic("must not have empty followerName")
-	}
-	if followerServiceName != TUBE_REPLICA {
-		return false
-	}
-	// allow 020 etc election_tests to not need member config
-	if s.isTest() && s.state.ShadowReplicas == nil {
-		return false
-	}
-
-	if s == nil || s.state == nil ||
-		s.state.ShadowReplicas == nil ||
-		s.state.ShadowReplicas.PeerNames == nil {
-		return false
-	}
-	_, isShadow := s.state.ShadowReplicas.PeerNames.get2(followerName)
-	return isShadow
-}
-*/
 
 // used by leader
 // note
@@ -9485,7 +9431,7 @@ func (s *TubeNode) dispatchAwaitingLeaderTickets() {
 			//s.replicateTicket(tkt)
 			s.commandSpecificLocalActionsThenReplicateTicket(tkt, "dispatchAwaitingLeaderTickets")
 		} else {
-			vv("%v dispatchAwaitingLeaderTickets: follower sees ticket waiting for leader, calling redirectToLeader: '%v'", s.me(), tkt.TicketID)
+			//vv("%v dispatchAwaitingLeaderTickets: follower sees ticket waiting for leader, calling redirectToLeader: '%v'", s.me(), tkt.TicketID)
 			s.redirectToLeader(tkt)
 		}
 	}
@@ -10892,7 +10838,7 @@ func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderURL string, fir
 			}
 			break // not working for tuberm:
 			if onlyPossibleAddr != "" {
-				vv("%v substitute onlyPossibleAddr(%v) into netAddr(%v)", s.me(), onlyPossibleAddr, netAddr)
+				//vv("%v substitute onlyPossibleAddr(%v) into netAddr(%v)", s.me(), onlyPossibleAddr, netAddr)
 				netAddr = onlyPossibleAddr
 				// retry once
 			}
@@ -12082,7 +12028,7 @@ func (s *TubeNode) setupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntryBoo
 // Any new config installed (and not stalled) will start
 // with IsCommitted false.
 func (s *TubeNode) changeMembership(tkt *Ticket) {
-	vv("%v top of changeMembership(); tkt.Desc='%v'", s.me(), tkt.Desc)
+	//vv("%v top of changeMembership(); tkt.Desc='%v'", s.me(), tkt.Desc)
 
 	if tkt.finishTicketCalled {
 		//vv("%v tkt.finishTicketCalled so exit changeMembership early; tkt.Desc='%v'", s.me(), tkt.Desc)
@@ -12438,8 +12384,8 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	// INVAR: new config differs from cur config by
 	// exactly one (or zero; no change in) peers.
 
-	vv("%v good, in changeMembership, cur config = '%v'", s.me(), curConfig)
-	vv("vs new config = '%v'", newConfig)
+	//vv("%v good, in changeMembership, cur config = '%v'", s.me(), curConfig)
+	//vv("vs new config = '%v'", newConfig)
 
 	// double check that
 	memDiff := s.membershipDiffOldNew(curConfig, newConfig)
@@ -12484,7 +12430,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	// conditions Q1,Q2,P1 of Algorithm 1 (page 6)
 	// of the Mongo paper; any older configs have been
 	// deactivated and a new/other leader cannot revive them.
-	vv("%v mongo logless commit observed", s.me())
+	//vv("%v mongo logless commit observed", s.me())
 
 	// We could do this to document the fact... but they are
 	// about to get replaced by newConfig which is not committed anyway.
@@ -12511,7 +12457,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 
 	// this does s.FinishTicket(tkt) only if WaitingAtLeader
 	s.respondToClientTicketApplied(tkt)
-	vv("%v mongo changeMembership done, back from respondToClientTicketApplied with tkt='%v'", s.me(), tkt)
+	//vv("%v mongo changeMembership done, back from respondToClientTicketApplied with tkt='%v'", s.me(), tkt)
 	s.FinishTicket(tkt, true)
 	//vv("%v mongo FinishTicket done for tkt4=%v", s.me(), tkt.TicketID[:4])
 
@@ -12990,17 +12936,13 @@ func (s *TubeNode) connectToMC(origin string) {
 		//vv("%v connectToMC() returning early; sees empty MC", s.name)
 		return
 	}
-	if s.name == "node_4" {
-		vv("%v top connectToMC(); MC='%v'; keys of s.cktAllByName = '%v'", s.name, s.state.MC, keys(s.cktAllByName))
-	}
+	//vv("%v top connectToMC(); MC='%v'; keys of s.cktAllByName = '%v'", s.name, s.state.MC, keys(s.cktAllByName))
 
 	var backgroundConnCount int
 	_ = backgroundConnCount
-	defer func() {
-		if s.name == "node_4" {
-			vv("%v end of connectToMC(); backgroundConnCount=%v", s.me(), backgroundConnCount)
-		}
-	}()
+	//defer func() {
+	//	//vv("%v end of connectToMC(); backgroundConnCount=%v", s.me(), backgroundConnCount)
+	//}()
 
 	sortedPeerNamesCached := s.state.MC.PeerNames.cached()
 	numNames := len(sortedPeerNamesCached)
@@ -13018,37 +12960,7 @@ func (s *TubeNode) connectToMC(origin string) {
 	// triangle remains passive, accepting
 	// but not initiating connections.
 	var wantConnection []string
-	/* looks okay to delete this old commented stuff now.
-	sawMyself := false
-	for i := range sortedPeerNamesCached {
-		active := sortedPeerNamesCached[i].key
-		if active != s.name {
-			// preventing 059 node_4 from connecting, methinks. yep.
-			if s.name == "node_4" {
-				vv("%v not our row; numNames=%v", s.name, numNames)
-			}
-			continue // not our row. but what if we are not in the config?
-		} else {
-			sawMyself = true
-		}
-		// INVAR: we are on the one row that is ours;
-		// where we are the active initiator of
-		// grid connections.
 
-		// Drat: this "upper-triangle only" approach
-		// doesn't work when node_2 is leader
-		// and node_0 is down and we want the leader to
-		// detect this and try to reconnect. Which means
-		// we can easily end up with logical races where
-		// two nodes attempt to connect to each other
-		// in parallel and both succeed. Well just allow
-		// duplicate circuits for now because pruning
-		// is kinda dangerous and having an extra circuit
-		// should not hurt (methinks).
-
-		//for j := i + 1; j < numNames; j++ { // 055 node 0 ends up with no other conn to node_1, node_2. 402 green. 052 green
-
-	*/
 	// why does reaching out to more failed nodes
 	// cause our leader step down to not happen??? in 052 with this:
 	for j := range numNames { // node_0 has conn to node_2 at least! but makes 402 hang. why cannot node_1 reach node_0 once it comes back? b/c it does not try in upper triangle. So why cannot node_0 reach node_1 (or node_2 maybe--maybe it is that node_2 is finding node_0 but not vice-versa). but now 052 red. 402 hangs!?!
@@ -13060,7 +12972,7 @@ func (s *TubeNode) connectToMC(origin string) {
 		cktP, ok := s.cktAllByName[target]
 		_ = cktP
 		if !ok {
-			vv("%v sees no ckt to '%v', adding to wantConnection", s.me(), target)
+			//vv("%v sees no ckt to '%v', adding to wantConnection", s.me(), target)
 			wantConnection = append(wantConnection, target)
 
 			// this would be redundant with the below
@@ -13078,17 +12990,9 @@ func (s *TubeNode) connectToMC(origin string) {
 	//}
 	backgroundConnCount = len(wantConnection)
 	if backgroundConnCount > 0 {
-		vv("%v: in connectToMC() wantConnection (len %v) = '%#v'", s.me(), len(wantConnection), wantConnection)
+		//vv("%v: in connectToMC() wantConnection (len %v) = '%#v'", s.me(), len(wantConnection), wantConnection)
 	}
 
-	/*_ = sawMyself
-	if !sawMyself {
-		// non-members still needed to resolve liveness situations
-		// mentioned in the dissertation, so keep grid up even
-		// if we are not in the replica set.
-		//vv("%v I am not in the MC, so should I skip creating connection to the cluster? for now we proceed...", s.me())
-	}
-	*/
 	for _, peerName := range wantConnection {
 
 		// peerID might be empty. we try via url anyway.
@@ -13119,7 +13023,7 @@ func (s *TubeNode) connectInBackgroundIfNoCircuitTo(peerName, origin string) {
 	if peerName == s.name {
 		return // already connected to self.
 	}
-	vv("%v top connectInBackgroundIfNoCircuitTo '%v'", s.me(), peerName) // seen in 059
+	//vv("%v top connectInBackgroundIfNoCircuitTo '%v'", s.me(), peerName) // seen in 059
 
 	var url, peerID, netAddr string
 	detail, ok := s.state.MC.PeerNames.get2(peerName)
@@ -13132,7 +13036,7 @@ func (s *TubeNode) connectInBackgroundIfNoCircuitTo(peerName, origin string) {
 			panic("cannot have empty url")
 		}
 		if url == "boot.blank" {
-			vv("%v no way to connect to boot.blank... skipping background connect to peerName='%v'", s.me(), peerName) // 059 sees! arg. the culprit!
+			//vv("%v no way to connect to boot.blank... skipping background connect to peerName='%v'", s.me(), peerName) // 059 sees! arg. the culprit!
 			// SO: we need to update the details in
 			// s.state.MC.PeerNames when we get
 			// an actual connection made for the first time! thought
@@ -13145,13 +13049,13 @@ func (s *TubeNode) connectInBackgroundIfNoCircuitTo(peerName, origin string) {
 	if !okPeerNameInCktAllByName {
 		// notice that all we have is the peerName
 		cktP = s.newCktPlus(peerName, TUBE_REPLICA)
-		vv("%v calling startWatchdog in connectInBackgroundIfNoCircuitTo on cktP=%p for '%v'", s.me(), cktP, cktP.PeerName)
+		//vv("%v calling startWatchdog in connectInBackgroundIfNoCircuitTo on cktP=%p for '%v'", s.me(), cktP, cktP.PeerName)
 		cktP.startWatchdog()
 
 		//vv("%v set up isPending cktP for peerName = '%v'; cktP='%v'", s.name, peerName, cktP) // seen 055 for node_0 only though.
 		s.cktAllByName[peerName] = cktP
 	} else {
-		vv("%v ok = true, will connect in background below!", s.name)
+		//vv("%v ok = true, will connect in background below!", s.name)
 		//url = cktP.URL
 		netAddr = cktP.PeerBaseServerAddr
 		if netAddr == "" {
@@ -13181,7 +13085,7 @@ func (s *TubeNode) connectInBackgroundIfNoCircuitTo(peerName, origin string) {
 	if cktP.Addr == "" {
 		cktP.Addr = netAddr
 	}
-	vv("%v starting background connection to '%v' via url='%v'; where netAddr='%v'", s.name, peerName, url, netAddr) // 402 not seen, auto-cli reject above keeps everything 402 out. 055 seen both old and new leader, good. 059 not seen with stashLeader false
+	//vv("%v starting background connection to '%v' via url='%v'; where netAddr='%v'", s.name, peerName, url, netAddr) // 402 not seen, auto-cli reject above keeps everything 402 out. 055 seen both old and new leader, good. 059 not seen with stashLeader false
 	s.backgroundConnectToPeer(cktP, url, netAddr, from)
 
 }
@@ -13312,7 +13216,7 @@ func (s *TubeNode) serviceMembershipObservers() {
 // from cktReplica, and add in any new ones
 // we have cktall for (except ourselves of course).
 func (s *TubeNode) adjustCktReplicaForNewMembership() {
-	vv("%v top adjustCktReplicaForNewMembership()", s.name)
+	//vv("%v top adjustCktReplicaForNewMembership()", s.name)
 	if s.state.MC == nil {
 		if !s.isTest() {
 			panic("must have s.state.MC")
@@ -15207,7 +15111,7 @@ func (s *TubeNode) bootstrappedMembership(tkt *Ticket) bool {
 	}
 	s.state.MC.setNameDetail(s.name, detail, s)
 	s.state.ShadowReplicas.PeerNames.delkey(s.name)
-	vv("%v bootstrapped rather than redirectToLeader. now MC='%v'", s.me(), s.state.MC)
+	//vv("%v bootstrapped rather than redirectToLeader. now MC='%v'", s.me(), s.state.MC)
 	if s.role != LEADER {
 		s.becomeLeader()
 	}
@@ -15526,7 +15430,7 @@ func (s *TubeNode) errorOutAwaitingLeaderTooLongTickets() {
 	if len(s.ticketsAwaitingLeader) == 0 {
 		return
 	}
-	vv("%v top errorOutAwaitingLeaderTooLongTickets()", s.me())
+	//vv("%v top errorOutAwaitingLeaderTooLongTickets()", s.me())
 	// TODO: possible optimization would be to use
 	// an imap.go tree indexed by deadline instead of
 	// a simple go map, to avoid a linear scan
