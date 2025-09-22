@@ -580,6 +580,49 @@ type cktAndError struct {
 	fragerr *rpc.Fragment
 }
 
+func (s *TubeNode) newMCfromAddr2Node() (mc *MemberConfig) {
+
+	mc = s.NewMemberConfig("newMCfromAddr2Node")
+
+	// include self
+	detail := &PeerDetail{
+		Name:                   s.name,
+		URL:                    s.URL,
+		PeerID:                 s.PeerID,
+		Addr:                   s.MyPeer.BaseServerAddr,
+		PeerServiceName:        s.MyPeer.PeerServiceName,
+		PeerServiceNameVersion: s.MyPeer.PeerServiceNameVersion,
+	}
+	mc.setNameDetail(s.name, detail, s)
+
+	for name, addr := range s.cfg.Node2Addr {
+		// why don't we want ourselves in NewConfig.PeerName?
+		// because we just added ourselves above.
+		if name == "" {
+			panic(fmt.Sprintf("cannot have empty cfg.Node2Addr names (keys): cfg='%v", s.cfg))
+		}
+		addr = FixAddrPrefix(addr)
+		if name != s.name {
+			_, ok := mc.PeerNames.get2(name)
+			if ok {
+				panic(fmt.Sprintf("%v: double entry for peerName='%v' in the cfg Node2Addr: '%#v'", s.name, name, s.cfg.Node2Addr))
+			}
+			if addr == "" {
+				addr = "boot.blank"
+				alwaysPrintf("%v warning: s.cfg.Node2Addr had no address for name='%v'; using boot.blank", s.name, name)
+				panic(fmt.Sprintf("%v: no empty addresses allowed. fix the config for name='%v'", s.name, name))
+			}
+			detail2 := &PeerDetail{
+				Name: name,
+				URL:  addr,
+				Addr: addr,
+			}
+			mc.setNameDetail(name, detail2, s)
+		}
+	}
+	return
+}
+
 func (s *TubeNode) Start(
 	myPeer *rpc.LocalPeer,
 	ctx0 context.Context,
@@ -786,13 +829,14 @@ func (s *TubeNode) Start(
 
 		//vv("%v iAmReplicaInCurrentMC = %v; iAmDesignatedLeader = %v", s.me(), iAmReplicaInCurrentMC, iAmDesignatedLeader)
 
-		// moving away form designated leader to just elections
+		// moving away from designated leader to just elections
 		if s.state.MC == nil {
 			/*  moving away form designated leader to just elections
 			if false && iAmDesignatedLeader {
 				//vv("%v we are designated initial leader (no prior config in wal). Writing a bootstrap entry to wal before loading it.", s.name)
 
 				boot := s.NewFirstRaftLogEntryBootstrap()
+				boot.NewConfig = s.newMCfromAddr2Node()
 				boot.NewConfig.BootCount = s.cfg.ClusterSize // in Start()
 
 				// differentiate designated leader; fresh followers
@@ -800,42 +844,6 @@ func (s *TubeNode) Start(
 				boot.NewConfig.ConfigVersion = 1
 				// not sure we have quorum yet:
 				boot.NewConfig.IsCommitted = false
-
-				detail := &PeerDetail{
-					Name:                   s.name,
-					URL:                    s.URL,
-					PeerID:                 s.PeerID,
-					Addr:                   s.MyPeer.BaseServerAddr,
-					PeerServiceName:        s.MyPeer.PeerServiceName,
-					PeerServiceNameVersion: s.MyPeer.PeerServiceNameVersion,
-				}
-				boot.NewConfig.setNameDetail(s.name, detail, s)
-
-				for name, addr := range s.cfg.Node2Addr {
-					// why don't we want ourselves in NewConfig.PeerName?
-					// because we just added ourselves above.
-					if name == "" {
-						panic(fmt.Sprintf("cannot have empty cfg.Node2Addr names (keys): cfg='%v", s.cfg))
-					}
-					addr = FixAddrPrefix(addr)
-					if name != s.name {
-						_, ok := boot.NewConfig.PeerNames.get2(name)
-						if ok {
-							panic(fmt.Sprintf("%v: double entry for peerName='%v' in the cfg Node2Addr: '%#v'", s.name, name, s.cfg.Node2Addr))
-						}
-						if addr == "" {
-							addr = "boot.blank"
-							alwaysPrintf("%v warning: s.cfg.Node2Addr had no address for name='%v'; using boot.blank", s.name, name)
-							panic(fmt.Sprintf("%v: no empty addresses allowed. fix the config for name='%v'", s.name, name))
-						}
-						detail2 := &PeerDetail{
-							Name: name,
-							URL:  addr,
-							Addr: addr,
-						}
-						boot.NewConfig.setNameDetail(name, detail2, s)
-					}
-				}
 
 				// this will start replicating the ticket too,
 				// (and that will stall on noop0 but meh, its
@@ -936,7 +944,7 @@ func (s *TubeNode) Start(
 	// (sent on in <-newCircuitCh handling below).
 	arrivingNetworkFrag := make(chan *fragCkt)
 
-	//vv("%v about to enter for/select loop. nextElection timeout '%v'", s.me(), time.Until(s.nextElection))
+	vv("%v about to enter for/select loop. nextElection timeout '%v'; MC=%v ; cfg.Node2Addr = '%v'", s.me(), time.Until(s.nextElection), s.state.MC, s.cfg.Node2Addr)
 
 	var loopPrevBeg, loopCurBeg time.Time
 	for i := 0; ; i++ {
@@ -3309,12 +3317,18 @@ func NewCluster(testName string, cfg *TubeConfig) (cluster *TubeCluster) {
 	// let nodes report things like leader election.
 	cfg.testCluster = cluster
 
+	if cfg.Node2Addr == nil {
+		cfg.Node2Addr = make(map[string]string)
+	}
 	for i := range cfg.ClusterSize { // in NewCluster; make new test cluster
 		name := fmt.Sprintf("node_%v", i)
 		cluster.Name2num[name] = i
 		node := NewTubeNode(name, cfg)
 		cluster.Nodes = append(cluster.Nodes, node)
 		cluster.Halt.AddChild(node.Halt)
+
+		// try to get an initial MC for 059/402/403?
+		cfg.Node2Addr[name] = name
 	}
 
 	return
@@ -4193,8 +4207,9 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 			tkt.Stage += fmt.Sprintf(":redirectToLeader(true,not_leader)_from_%v", fileLine(2))
 			return true
 		}
+		vv("%v stashForLeader is false, and s.leaderID is empty", s.me())
 		// stashing for later leader made for a weird
-		// command line tubeadd experience/hang.
+		// command line tubeadd experience/hang. better to eagerly error.
 		tkt.Err = fmt.Errorf("ahem. no leader known to me (node '%v')", s.name)
 		//s.respondToClientTicketApplied(tkt)
 		s.replyToForwardedTicketWithError(tkt)
@@ -4227,6 +4242,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 		}
 		// stashing for later leader made for a weird
 		// command line tubeadd experience/hang.
+		vv("%v stashForLeader is false, and no cktall for leader '%v'", s.me(), s.leaderName)
 		tkt.Err = fmt.Errorf("hmm. no leader known to me (node '%v')", s.name)
 		//s.respondToClientTicketApplied(tkt)
 		s.replyToForwardedTicketWithError(tkt)

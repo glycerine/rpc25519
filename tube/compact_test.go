@@ -61,7 +61,7 @@ func Test059_new_node_joins_after_compaction(t *testing.T) {
 				}
 			}
 
-			// add node_4 to cluster
+			vv("add node_4 to cluster. c.Cfg='%v'", c.Cfg)
 			node4 := NewTubeNode("node_4", c.Cfg)
 			c.Halt.AddChild(node4.Halt)
 			err = node4.InitAndStart()
@@ -91,7 +91,7 @@ func Test059_new_node_joins_after_compaction(t *testing.T) {
 			// does node0 (leader) see new node4?
 			inspLead := c.Nodes[leadi].Inspect()
 			if _, ok := inspLead.CktReplicaByName[node4.name]; !ok {
-				panic(fmt.Sprintf("leader (node 0) does not have node4 in its CktReplicaByName: %v", inspLead.CktReplicaByName))
+				panic(fmt.Sprintf("contacted (%v) -> leader (%v) does not have node4 in its CktReplicaByName: %v", c.Nodes[leadi].name, inspLead.CurrentLeaderName, inspLead.CktReplicaByName))
 			}
 			vv("good: leader sees new node4 as a replica. it should be replicating logs to it...")
 
