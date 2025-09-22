@@ -123,7 +123,7 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 	panicOn(err)
 	defer node.Close()
 
-	leaderURL, leaderName, insp := node.HelperFindLeader(cfg, cmdCfg.ContactName)
+	leaderURL, leaderName, insp := node.HelperFindLeader(cfg, cmdCfg.ContactName, false)
 	pp("tubels using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
 
 	if leaderName == "" {

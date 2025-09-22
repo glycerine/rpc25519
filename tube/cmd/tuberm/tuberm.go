@@ -149,7 +149,7 @@ func main() {
 	panicOn(err)
 	defer node.Close()
 
-	leaderURL, leaderName, insp := node.HelperFindLeader(cfg, cmdCfg.ContactName)
+	leaderURL, leaderName, insp := node.HelperFindLeader(cfg, cmdCfg.ContactName, true)
 	pp("tuberm is doing RemovePeerIDFromCluster using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
 
 	if cmdCfg.WipeName != "" {

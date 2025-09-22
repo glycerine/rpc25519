@@ -15,7 +15,7 @@ type set struct {
 	nodes []string
 }
 
-func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection) {
+func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requireOnlyContact bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection) {
 
 	// contact everyone, get their idea of who is leader
 	leaders := make(map[string]*set)
@@ -121,8 +121,10 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string) (las
 			}
 		} else {
 			if lastLeaderName != contactName {
-				fmt.Printf("abort: we see existing leader '%v'; conflicts with request -c %v\n", lastLeaderName, contactName)
-				os.Exit(1)
+				if requireOnlyContact {
+					fmt.Printf("abort: we see existing leader '%v'; conflicts with request -c %v\n", lastLeaderName, contactName)
+					os.Exit(1)
+				}
 			}
 		}
 	} else {

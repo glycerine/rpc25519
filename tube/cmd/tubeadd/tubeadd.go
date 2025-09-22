@@ -146,7 +146,7 @@ func main() {
 	panicOn(err)
 	defer node.Close()
 
-	leaderURL, leaderName, _ := node.HelperFindLeader(cfg, cmdCfg.ContactName)
+	leaderURL, leaderName, _ := node.HelperFindLeader(cfg, cmdCfg.ContactName, true)
 	pp("tubeadd is doing AddPeerIDToCluster using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
 
 	targetPeerID := "" // empty string allowed now
