@@ -130,6 +130,10 @@ func (s *TermsRLE) AddTerm(term int64) {
 
 // remove a suffix, keeping all <= keepIndex
 func (s *TermsRLE) Truncate(keepIndex int64, syncme *IndexTerm) {
+	if syncme != nil {
+		syncme.Index = s.BaseC
+		syncme.Term = s.CompactTerm
+	}
 	base := s.BaseC
 	if keepIndex <= base {
 		// 802 hits: panic("wat? keepIndex <= s.BaseC; tossing it all; try not to call here!")

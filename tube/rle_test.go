@@ -22,7 +22,8 @@ func TestRleCompactNewBeg1(t *testing.T) {
 			{Term: 2, Count: 2},
 		},
 	}
-	f.CompactNewBeg(1, nil)
+	var ti IndexTerm
+	f.CompactNewBeg(1, &ti)
 	if f.BaseC != 0 {
 		panic(fmt.Sprintf("wanted f.BaseC == 0, got %v", f.BaseC))
 	}
@@ -53,9 +54,13 @@ func TestRleCompactNewBeg2(t *testing.T) {
 			{Term: 2, Count: 2},
 		},
 	}
-	f.CompactNewBeg(2, nil)
+	var ti IndexTerm
+	f.CompactNewBeg(2, &ti)
 	if f.BaseC != 1 {
 		panic(fmt.Sprintf("wanted f.BaseC == 1, got %v", f.BaseC))
+	}
+	if f.BaseC != ti.Index {
+		panicf("ti.Index(%v) should match f.BaseC(%v)", ti.Index, f.BaseC)
 	}
 	if f.Runs[0].Count != 1 {
 		panic(fmt.Sprintf("wanted f.Runs[0].Count == 1, got %v", f.Runs[0].Count))
@@ -80,9 +85,13 @@ func TestRleCompactNewBeg3(t *testing.T) {
 			{Term: 2, Count: 2},
 		},
 	}
-	f.CompactNewBeg(3, nil)
+	var ti IndexTerm
+	f.CompactNewBeg(3, &ti)
 	if f.BaseC != 2 {
 		panic(fmt.Sprintf("wanted f.BaseC == 2, got %v", f.BaseC))
+	}
+	if f.BaseC != ti.Index {
+		panicf("ti.Index(%v) should match f.BaseC(%v)", ti.Index, f.BaseC)
 	}
 	if len(f.Runs) != 1 {
 		panic(fmt.Sprintf("wanted len(f.Runs) == 1, got %v", len(f.Runs)))
@@ -110,9 +119,13 @@ func TestRleCompactNewBeg4(t *testing.T) {
 			{Term: 2, Count: 2}, // want -> {Term:2, Count:1}
 		},
 	}
-	f.CompactNewBeg(4, nil)
+	var ti IndexTerm
+	f.CompactNewBeg(4, &ti)
 	if f.BaseC != 3 {
 		panic(fmt.Sprintf("wanted f.BaseC == 2, got %v", f.BaseC))
+	}
+	if f.BaseC != ti.Index {
+		panicf("ti.Index(%v) should match f.BaseC(%v)", ti.Index, f.BaseC)
 	}
 	if len(f.Runs) != 1 {
 		panic(fmt.Sprintf("wanted len(f.Runs) == 1, got %v", len(f.Runs)))
@@ -140,12 +153,16 @@ func TestRleTruncate3(t *testing.T) {
 			{Term: 2, Count: 2}, // want -> split {Term:2, Count:1} kept.
 		},
 	}
-	f.Truncate(3, nil)
+	var ti IndexTerm
+	f.Truncate(3, &ti)
 	if f.Endi != 3 {
 		panic(fmt.Sprintf("wanted f.Endi == 3, got %v", f.Endi))
 	}
 	if f.BaseC != 1 {
 		panic(fmt.Sprintf("wanted f.BaseC == 1, got %v", f.BaseC))
+	}
+	if f.BaseC != ti.Index {
+		panicf("ti.Index(%v) should match f.BaseC(%v)", ti.Index, f.BaseC)
 	}
 	if len(f.Runs) != 2 {
 		panic(fmt.Sprintf("wanted len(f.Runs) == 2, got %v", len(f.Runs)))
@@ -176,12 +193,16 @@ func TestRleTruncate2(t *testing.T) {
 			{Term: 2, Count: 2}, // want -> gone.
 		},
 	}
-	f.Truncate(2, nil)
+	var ti IndexTerm
+	f.Truncate(2, &ti)
 	if f.Endi != 2 {
 		panic(fmt.Sprintf("wanted f.Endi == 2, got %v", f.Endi))
 	}
 	if f.BaseC != 1 {
 		panic(fmt.Sprintf("wanted f.BaseC == 1, got %v", f.BaseC))
+	}
+	if f.BaseC != ti.Index {
+		panicf("ti.Index(%v) should match f.BaseC(%v)", ti.Index, f.BaseC)
 	}
 	if len(f.Runs) != 1 {
 		panic(fmt.Sprintf("wanted len(f.Runs) == 1, got %v", len(f.Runs)))

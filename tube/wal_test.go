@@ -300,7 +300,8 @@ func Test205_raftWriteAheadLog_overwrite_of_entries_possible(t *testing.T) {
 		PrevTerm:  1,
 	}
 
-	err = plog.overwriteEntries(2, []*RaftLogEntry{over}, false, -1, 0, nil)
+	var ti IndexTerm
+	err = plog.overwriteEntries(2, []*RaftLogEntry{over}, false, -1, 0, &ti)
 	panicOn(err)
 
 	// read back [term 1, idx 1], [term 1, idx 2], [term 2, idx 3]
@@ -357,7 +358,8 @@ func Test206_raftWriteAheadLog_Compact_0_keeps_all_logical_content(t *testing.T)
 
 		path1 := plog.path
 		vv("call Compact(j=%v)", j)
-		path0, _, err1 := plog.Compact(j, nil)
+		var idxterm IndexTerm
+		path0, _, err1 := plog.Compact(j, &idxterm)
 		panicOn(err1)
 		//vv("path0=origPath = '%v' after Compact(%v)", path0, j)
 
