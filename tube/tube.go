@@ -10733,7 +10733,7 @@ func (s *TubeNode) getCircuitToLeader(ctx context.Context, leaderURL string, fir
 		return
 	}
 	if serviceName != "" && serviceName != string(TUBE_REPLICA) {
-		panic(fmt.Sprintf("sanity check failed, serviceName('%v') != %v", serviceName, TUBE_REPLICA))
+		panicf("sanity check failed, serviceName('%v') != '%v' in leaderURL = '%v'", serviceName, TUBE_REPLICA, leaderURL)
 	}
 	// INVAR: serviceName == "" || serviceName == string(TUBE_REPLICA),
 	// from the leaderURL parse (nothing to do with us and our s.PeerServiceName)

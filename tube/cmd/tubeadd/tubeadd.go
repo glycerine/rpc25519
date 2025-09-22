@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/glycerine/ipaddr"
-	//rpc "github.com/glycerine/rpc25519"
+	rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/tube"
 )
 
@@ -189,7 +189,11 @@ func main() {
 					xtra[name] = url
 				}
 			} else {
-				xtra[name] = url
+				// avoid adding other clients/ourselves
+				_, serviceName, _, _, err1 := rpc.ParsePeerURL(url)
+				if err1 == nil && serviceName == tube.TUBE_REPLICA {
+					xtra[name] = url
+				}
 			}
 		}
 	}
