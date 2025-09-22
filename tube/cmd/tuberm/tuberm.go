@@ -10,7 +10,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"net/url"
+	//"net/url"
 	"os"
 	//"strings"
 	//"path/filepath"
@@ -145,36 +145,12 @@ func main() {
 		}
 	}
 
-	var cli *rpc.Client
-	//cli, err := node.StartClientOnly(ctx, addr)
 	err = node.InitAndStart()
 	panicOn(err)
-
-	if false { // err != nil {
-		if cli != nil {
-			cli.Close()
-		}
-		node.Halt.ReqStop.Close()
-		if cmdCfg.WipeName != "" {
-			panic(fmt.Sprintf("error: could not connect to server '%v': err='%v'", cmdCfg.WipeName, err))
-		}
-		node = tube.NewTubeNode(name, cfg)
-
-		// try others
-		for name, addr := range cfg.Node2Addr {
-			if name == greet {
-				continue
-			}
-			cli, err = node.StartClientOnly(ctx, addr)
-			if err == nil {
-				leaderURL = tube.FixAddrPrefix(addr)
-				break
-			}
-		}
-		panicOn(err)
-	}
-	//defer cli.Close()
 	defer node.Close()
+
+	leaderURL, leaderName, insp := node.HelperFindLeader(cfg, cmdCfg.ContactName)
+	pp("tuberm is doing RemovePeerIDFromCluster using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
 
 	if cmdCfg.WipeName != "" {
 		err = node.InjectEmptyMC(ctx, leaderURL, cmdCfg.WipeName)
@@ -186,60 +162,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	//err = node.UseLeaderURL(ctx, leaderURL)
-	//panicOn(err)
-	//vv("back from cli.UseLeaderURL(leaderURL='%v')", leaderURL)
-
-	newestMembership, insp, actualLeaderURL, leaderName, onlyPossibleAddr, err := node.GetPeerListFrom(ctx, leaderURL)
-	_ = onlyPossibleAddr
-	_ = insp
-	panicOn(err)
-	if target == "" {
-		fmt.Printf("existing membership: (%v leader)\n", leaderName)
-		for name, det := range newestMembership.PeerNames.All() {
-			fmt.Printf("  %v:   %v\n", name, det)
-		}
-		os.Exit(0)
-	}
-	//vv("GetPeerListFrom(leaderURL='%v') -> actualLeaderURL = '%v'", leaderURL, actualLeaderURL)
-	if actualLeaderURL != "" && actualLeaderURL != leaderURL {
-		//vv("use actual as leaderURL='%v' rather than orig='%v'", actualLeaderURL, leaderURL)
-		leaderURL = actualLeaderURL
-
-		// so I guess we must start another client.
-		//cli.Close()
-		//node.Close()
-
-		//node = tube.NewTubeNode(name, cfg)
-
-		addr2, _, _, _, err := rpc.ParsePeerURL(leaderURL)
-		panicOn(err)
-		u, err := url.Parse(addr2)
-		panicOn(err)
-		host := u.Host
-		// port := u.Port()
-		// if port != "" {
-		// 	host = net.JoinHostPort(host, port)
-		// }
-
-		//vv("make cli2 to host='%v'", host)
-		//cli2, err := node.StartClientOnly(ctx, host)
-		//panicOn(err)
-		//defer cli2.Close()
-		// this makes it work, but we were not getting ack
-		// b/c the new leader didn't know how to contact us.
-		// It hit the dead letter.
-
-		// try again
-		newestMembership, insp, actualLeaderURL, leaderName, onlyPossibleAddr, err = node.GetPeerListFrom(ctx, host)
-		_ = insp
-		_ = onlyPossibleAddr
-		panicOn(err)
-	}
-
-	if newestMembership == nil {
-		panic("why is newestMembership nil?")
-	}
+	newestMembership := insp.MC
 	var det *tube.PeerDetail
 
 	if cmdCfg.NonVotingShadowFollower {

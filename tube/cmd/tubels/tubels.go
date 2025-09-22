@@ -6,17 +6,17 @@ package main
 // find the cluster.
 
 import (
-	"context"
+	//"context"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	//"sort"
-	"time"
+	//"time"
 
 	"github.com/glycerine/ipaddr"
-	rpc "github.com/glycerine/rpc25519"
+	//rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/tube"
 	//"github.com/glycerine/zygomys/zygo"
 )
@@ -116,81 +116,18 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 	//ps := zygo.NewPrintStateWithIndent(4)
 	pp("cfg = '%v'", cfg.ShortSexpString(nil))
 
-	//nodeID := rpc.NewCallID("")
 	name := cfg.MyName
 	node := tube.NewTubeNode(name, cfg)
-	//defer node.Close()
-	ctx := context.Background()
 
-	var leaderURL string
-	greet := cmdCfg.ContactName
-	if greet == "" {
-		greet = cfg.InitialLeaderName
-	}
-	addr, ok := cfg.Node2Addr[greet]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "error: giving up, as no address! gotta have cfg.InitialLeaderName or -c name of node to contact (we use the names listed in the config file '%v' under Node2Addr).\n", pathCfg)
-		os.Exit(1)
-	} else {
-		leaderURL = tube.FixAddrPrefix(addr)
-		if cmdCfg.ContactName == "" {
-			pp("by default we contact cfg.InitialLeaderName='%v'; addr='%v' -> leaderURL = '%v'", cfg.InitialLeaderName, addr, leaderURL)
-		} else {
-			pp("requested cmdCfg.ContactName='%v' maps to addr='%v' -> URL = '%v'", cmdCfg.ContactName, addr, leaderURL)
-		}
-	}
-
-	pp("leaderURL='%v'; addr='%v'", leaderURL, addr)
-	var cli *rpc.Client
-	//cli, err := node.StartClientOnly(ctx, addr)
 	err = node.InitAndStart()
 	panicOn(err)
-
-	if false { // err != nil {
-		pp("error on client attempt to connect to addr='%v': %v", addr, err)
-		if cli != nil {
-			cli.Close()
-		}
-		node.Halt.ReqStop.Close()
-		node = tube.NewTubeNode(name, cfg)
-
-		// try others
-		var name, addr string
-		for name, addr = range cfg.Node2Addr {
-			if name == greet || name == cfg.MyName {
-				continue
-			}
-			pp("instead trying addr='%v'", addr)
-			cli, err = node.StartClientOnly(ctx, addr)
-			if err == nil {
-				leaderURL = tube.FixAddrPrefix(addr)
-				break
-			}
-		}
-		if err != nil {
-			alwaysPrintf("could not contact anyone. last attempt to '%v' (addr: '%v') => err='%v'\n", name, addr, err)
-		}
-	}
-	//defer cli.Close()
 	defer node.Close()
 
-	//err = node.UseLeaderURL(ctx, leaderURL)
-	//panicOn(err)
-	//pp("back from cli.UseLeaderURL(leaderURL='%v')", leaderURL)
+	leaderURL, leaderName, insp := node.HelperFindLeader(cfg, cmdCfg.ContactName)
+	pp("tubels using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
 
-	ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
-	newestMembership, insp, actualLeaderURL, leaderName, onlyPossibleAddr, err := node.GetPeerListFrom(ctx5sec, leaderURL)
-	canc5()
-	if insp != nil {
-		//alwaysPrintf("     insp.ResponderName='%v'", insp.ResponderName)
-	}
-	if err != nil {
-		alwaysPrintf("error from node.GetPeerListFrom(leaderURL='%v'): %v", leaderURL, err)
-		os.Exit(1)
-	}
-	_ = insp
-	_ = actualLeaderURL
-	_ = onlyPossibleAddr
+	newestMembership := insp.MC
+
 	if leaderName == "" {
 		leaderName = "no known"
 	}
@@ -223,56 +160,5 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 			delete(seen, name)
 		}
 	}
-	if false { // usually dead, kind of irrelevant
-		if len(seen) > 0 {
-			fmt.Printf("   -- others in insp.CktAllByName:\n")
-			for name, url := range seen {
-				fmt.Printf("     %v:   %v\n", name, url)
-			}
-		}
-	}
 	return
-	/*
-		if memlistAfter == nil ||
-			memlistAfter.MC == nil ||
-			memlistAfter.MC.PeerNames == nil {
-			fmt.Printf("empty or nil membership from '%v'\n", leaderName)
-		} else {
-			for name, det := range memlistAfter.MC.PeerNames.All() {
-				fmt.Printf("  %v:   %v\n", name, det.URL)
-			}
-		}
-	*/
-	/*
-	   //vv("GetPeerListFrom(leaderURL='%v') -> actualLeaderURL = '%v'", leaderURL, actualLeaderURL)
-
-	   	if actualLeaderURL != "" && actualLeaderURL != leaderURL {
-	   		vv("use actual='%v' rather than orig='%v'", actualLeaderURL, leaderURL)
-	   		leaderURL = actualLeaderURL
-	   	}
-
-	   url, ok := newestMembership[target]
-
-	   	if !ok {
-	   		fmt.Printf("error: target not in current membership. target='%v'\n", target)
-	   		fmt.Printf("\nexisting membership:\n")
-	   		for name, url := range sorted(newestMembership) {
-	   			fmt.Printf("  %v:   %v\n", name, url)
-	   		}
-	   		os.Exit(1)
-	   	}
-
-	   _, _, targetPeerID, _, err := rpc.ParsePeerURL(url)
-	   panicOn(err)
-
-	   errWriteDur := time.Second * 20
-	   memlistAfter, err := node.RemovePeerIDFromCluster(ctx, target, targetPeerID, tube.TUBE_REPLICA, "", leaderURL, errWriteDur)
-	   panicOn(err)
-
-	   fmt.Printf("\nmembership after removing '%v':\n", target)
-
-	   	for name, url := range memlistAfter.MC.PeerNames.All() {
-	   		fmt.Printf("  %v:   %v\n", name, url)
-	   	}
-	*/
 }

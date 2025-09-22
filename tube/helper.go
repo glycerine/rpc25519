@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	rpc "github.com/glycerine/rpc25519"
 )
@@ -14,7 +15,7 @@ type set struct {
 	nodes []string
 }
 
-func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string) (lastLeaderURL, lastLeaderName string) {
+func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection) {
 
 	// contact everyone, get their idea of who is leader
 	leaders := make(map[string]*set)
@@ -24,9 +25,11 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string) (las
 	var insps []*Inspection
 	for name, addr := range cfg.Node2Addr {
 		url := FixAddrPrefix(addr)
-		_, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
-		//mc, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
 
+		ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
+		_, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx5sec, url)
+		//mc, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
+		canc5()
 		if err != nil {
 			//pp("skip '%v' b/c err = '%v'", leaderName, err)
 			continue
@@ -34,6 +37,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string) (las
 		if leaderName != "" {
 			pp("candidate leader = '%v', url = '%v", leaderName, leaderURL)
 			insps = append(insps, insp)
+			lastInsp = insp
 			lastLeaderName = leaderName
 			lastLeaderURL = leaderURL
 			s := leaders[leaderName]
@@ -73,14 +77,17 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string) (las
 			continue
 		}
 		//url = FixAddrPrefix(url)
-		_, _, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
+		ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
+		_, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx5sec, url)
 		//mc, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
+		canc5()
 		if err != nil {
 			continue
 		}
 		if leaderName != "" {
 			lastLeaderName = leaderName
 			lastLeaderURL = leaderURL
+			lastInsp = insp
 			pp("extra candidate leader = '%v', url = '%v", leaderName, leaderURL)
 			s := leaders[leaderName]
 			if s == nil {
