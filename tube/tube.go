@@ -883,23 +883,21 @@ func (s *TubeNode) Start(
 	if s.state.MC != nil {
 		detail, present := s.state.MC.PeerNames.get2(s.name)
 		_ = detail
-		// prod bad: this was always adding each lone node to its own cluster
-		//if !present || detail.URL == "boot.blank" {
-		// better:
+		updatedDetail := &PeerDetail{
+			Name:                   s.name,
+			URL:                    s.URL,
+			PeerID:                 s.PeerID,
+			PeerServiceName:        s.PeerServiceName,
+			PeerServiceNameVersion: s.PeerServiceNameVersion,
+			Addr:                   myPeer.NetAddr,
+		}
+		if s.MyPeer.BaseServerAddr != "" {
+			updatedDetail.Addr = s.MyPeer.BaseServerAddr
+		}
 		if present {
-			updatedDetail := &PeerDetail{
-				Name:                   s.name,
-				URL:                    s.URL,
-				PeerID:                 s.PeerID,
-				PeerServiceName:        s.PeerServiceName,
-				PeerServiceNameVersion: s.PeerServiceNameVersion,
-				Addr:                   myPeer.NetAddr,
-			}
-			if s.MyPeer.BaseServerAddr != "" {
-				updatedDetail.Addr = s.MyPeer.BaseServerAddr
-			}
 			s.state.MC.setNameDetail(s.name, updatedDetail, s)
 		}
+		s.state.Known.PeerNames.set(s.name, updatedDetail)
 	} else {
 		if !strings.HasPrefix(s.name, "tup") {
 			// for tup we expect it. do not bark.
