@@ -6204,7 +6204,7 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 			eLast := ae.Entries[last]
 			eLastIndex := eLast.Index
 			if e0index > lli+1 {
-				vv("gap, no overlap, no idea how far back it goes. e0index(%v) > lli(%v)", e0index, lli)
+				//vv("gap, no overlap, no idea how far back it goes. e0index(%v) > lli(%v)", e0index, lli)
 				return true, -1, -1
 			}
 			if eLastIndex < baseC {
@@ -6263,7 +6263,7 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 				// mismatched at PrevLogIndex and maybe before, but
 				// since we are compacted, we cannot scan back
 				// through the log to find the first mis-match (below).
-				vv("ae.PrevLogIndex(%v) == baseC(%v) but ae.PrevLogTerm(%v) != s.state.CompactionDiscardedLastTerm(%v)", ae.PrevLogIndex, baseC, ae.PrevLogTerm, s.state.CompactionDiscardedLastTerm)
+				//vv("ae.PrevLogIndex(%v) == baseC(%v) but ae.PrevLogTerm(%v) != s.state.CompactionDiscardedLastTerm(%v)", ae.PrevLogIndex, baseC, ae.PrevLogTerm, s.state.CompactionDiscardedLastTerm)
 				return true, -1, -1
 			}
 		}
@@ -6274,7 +6274,7 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 	// INVAR: ae.PrevLogIndex > 0
 	entry, err := s.wal.GetEntry(ae.PrevLogIndex)
 	if err != nil {
-		vv("not present, our log is too short; ae.PrevLogIndex=%v; baseC=%v", ae.PrevLogIndex, baseC)
+		//vv("not present, our log is too short; ae.PrevLogIndex=%v; baseC=%v", ae.PrevLogIndex, baseC)
 		return true, -1, -1 // not present, our log is too short.
 	}
 	prevTerm := entry.Term
@@ -14906,7 +14906,7 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	if s.wal.logIndex.CompactTerm != s.state.CompactionDiscardedLastTerm {
 		panicf("%v: s.wal.logIndex.CompactTerm(%v) != (%v)s.state.CompactionDiscardedLastTerm", s.name, s.wal.logIndex.CompactTerm, s.state.CompactionDiscardedLastTerm)
 	}
-	vv("%v end of applyNewStateSnapshot. good: s.wal.index.BaseC(%v) == s.state.CompactionDiscardedLastIndex; logIndex.Endi=%v ; wal.lli=%v", s.name, s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.lli)
+	//vv("%v end of applyNewStateSnapshot. good: s.wal.index.BaseC(%v) == s.state.CompactionDiscardedLastIndex; logIndex.Endi=%v ; wal.lli=%v", s.name, s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.lli)
 }
 
 // properly set CompactionDiscardedLastIndex/Term
