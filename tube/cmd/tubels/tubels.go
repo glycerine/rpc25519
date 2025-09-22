@@ -126,18 +126,19 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 	leaderURL, leaderName, insp := node.HelperFindLeader(cfg, cmdCfg.ContactName)
 	pp("tubels using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
 
-	var newestMembership *tube.MemberConfig
-	if insp != nil {
-		newestMembership = insp.MC
-	}
-
 	if leaderName == "" {
 		leaderName = "no known"
 	}
 	seen := make(map[string]string)
-	for k, v := range insp.CktAllByName {
-		if k != cfg.MyName && !strings.HasPrefix(k, "tup_") {
-			seen[k] = v
+
+	var newestMembership *tube.MemberConfig
+	if insp != nil {
+		newestMembership = insp.MC
+
+		for k, v := range insp.CktAllByName {
+			if k != cfg.MyName && !strings.HasPrefix(k, "tup_") {
+				seen[k] = v
+			}
 		}
 	}
 	fmt.Printf("existing membership: (%v leader)\n", leaderName)
@@ -149,7 +150,8 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 	} else {
 		fmt.Printf("   -- newestMembership is nil.\n")
 	}
-	if insp.ShadowReplicas != nil &&
+	if insp != nil &&
+		insp.ShadowReplicas != nil &&
 		insp.ShadowReplicas.PeerNames != nil &&
 		insp.ShadowReplicas.PeerNames.Len() > 0 {
 

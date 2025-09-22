@@ -120,8 +120,10 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string) (las
 					cfg.InitialLeaderName, lastLeaderName)
 			}
 		} else {
-			fmt.Printf("abort: we see existing leader '%v'; conflicts with request -c %v\n", lastLeaderName, contactName)
-			os.Exit(1)
+			if lastLeaderName != contactName {
+				fmt.Printf("abort: we see existing leader '%v'; conflicts with request -c %v\n", lastLeaderName, contactName)
+				os.Exit(1)
+			}
 		}
 	} else {
 		// INVAR: len(leaders) == 0
