@@ -4213,8 +4213,15 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	// long to wait for a leader. If 0 then deadline will
 	// be zero (e.g. for command line clients), and they
 	// can choose to get eager errors when no leader is
-	// available. At least that is the idea.
+	// available. At least that is the idea. At the moment
+	// this is a little backwards from that design,
+	// but does get all green tests and the cli tubeadd
+	// responds immediately if no leader available,
+	// with just this simple rule of stashing only
+	// on no deadline, which the 402/403 membership
+	// tests invoke with errWriteDur == 0.
 	stashForLeader := tkt.WaitLeaderDeadline.IsZero()
+	vv("%v stashForLeader is %v; tkt.WaitLeaderDeadline='%v'", s.name, stashForLeader, nice9(tkt.WaitLeaderDeadline))
 	// three red tests under stashForLeader = false that need fixing:
 	// red 059 compact_test.go
 	// red Test402_build_up_a_cluster_from_one_node membership_test.go
@@ -12954,7 +12961,7 @@ func (s *TubeNode) followerDownDur() time.Duration {
 func (s *TubeNode) connectToMC(origin string) {
 	if s.state.MC == nil ||
 		s.state.MC.PeerNames.Len() == 0 {
-		vv("%v connectToMC() returning early; sees empty MC", s.name)
+		//vv("%v connectToMC() returning early; sees empty MC", s.name)
 		return
 	}
 	if s.name == "node_4" {
@@ -15516,7 +15523,10 @@ func (s *TubeNode) errorOutAwaitingLeaderTooLongTickets() {
 			goner = append(goner, ticketID)
 		}
 	}
-	// delete from map while iterating is undefined, so cleanup after:
+	// delete from map while iterating is not guaranteed
+	// by the Go spec to mean we will see all keys (in
+	// fact not mentioned at all) so cleanup afterwards
+	// just to be safe.
 	for _, ticketID := range goner {
 		delete(s.ticketsAwaitingLeader, ticketID)
 	}
