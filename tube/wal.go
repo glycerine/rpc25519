@@ -154,6 +154,11 @@ func (s *TubeNode) RaftWALString() (r string) {
 // readOnly flag provided for DumpRaftWAL above/tuber diagnostics.
 func (cfg *TubeConfig) newRaftWriteAheadLog(path string, readOnly bool) (s *raftWriteAheadLog, err0 error) {
 	//vv("newRaftWriteAheadLog(path = '%v'); nodisk=%v; cfg.MyName='%v'", path, cfg.NoDisk, cfg.MyName)
+
+	defer func() {
+		s.assertConsistentWalAndIndex(0)
+	}()
+
 	if cfg.NoDisk {
 		return cfg.newRaftWriteAheadLogMemoryOnlyTestingOnly()
 	}
@@ -218,11 +223,21 @@ func (s *raftWriteAheadLog) loadPathHelper(fd *os.File, sz int64, readOnly bool)
 		}
 		if j == 0 {
 			// restore Base b/c Compaction can make > 0.
+
+			// here in wal.loadPathHelper()
 			s.logIndex.BaseC = e.PrevIndex
 			if e.PrevIndex != e.Index-1 {
 				panic(fmt.Sprintf("assert red: chain link bad! en.Index-1=%v but en.PrevIndex = %v", e.Index-1, e.PrevIndex)) // panic: assert red: chain link bad! en.Index-1=1 but en.PrevIndex = 0
 			}
 			s.logIndex.CompactTerm = e.PrevTerm
+
+			// we check these in the defer on newRaftWriteAheadLog,
+			// and its tough to call here directly.
+			//if syncme != nil {
+			//	syncme.Index = e.logIndex.BaseC
+			//	syncme.Term = e.logIndex.CompactTerm
+			//}
+
 			s.lli = e.Index - 1
 			s.llt = e.PrevTerm
 		} else {
@@ -1033,9 +1048,13 @@ func (s *raftWriteAheadLog) Compact(keepIndex int64, syncme *IndexTerm) (origPat
 		panic("s.noLogCompaction true, we should never have called Compact!")
 	}
 
-	if true { // TODO restore: isTest {
-		defer s.assertConsistentWalAndIndex(keepIndex)
-	}
+	defer func() {
+		if syncme != nil {
+			syncme.Index = s.logIndex.BaseC
+			syncme.Term = s.logIndex.CompactTerm
+		}
+		s.assertConsistentWalAndIndex(keepIndex)
+	}()
 
 	// no change, but in case we bail early.
 	compactIndex = s.logIndex.BaseC
