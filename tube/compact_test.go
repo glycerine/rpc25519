@@ -85,9 +85,29 @@ func Test059_new_node_joins_after_compaction(t *testing.T) {
 			panicOn(err)
 			c.Nodes = append(c.Nodes, node4)
 
-			cktP := <-node4.verifyPeerReplicaOrNot
-			vv("got cktP = %v", cktP)
-
+			// wait until we have a connection to leader.
+			// When stashForLeader was true, we did not
+			// need this since we would stash our call
+			// in s.ticketsAwaitingLeader and wait while
+			// for round-trip to the leader and back
+			// eventually completed and then automatically
+			// we would resume the ticket and complete
+			// the AddPeerIDToCluster call. But that made
+			// for a crappy command line experience
+			// of hangs when no leader could/will ever be
+			// found. So we prefer NOT to stashForLeader
+			// and instead to eager return errors to the
+			// to that effect to the command line. But that means
+			// we here have to pre-establish a circuit to
+			// the leader before we attempt to AddPeerIDToCluster.
+			for {
+				cktP := <-node4.verifyPeerReplicaOrNot
+				vv("got cktP = %v", cktP)
+				// could be not leader... keep waiting if not.
+				if cktP.PeerName == c.Nodes[leadi].name {
+					break
+				}
+			}
 			// same call that tube/tubecli.go does to join cluster.
 			baseServerHostPort := node4.BaseServerHostPort()
 			errWriteDur := time.Second * 10
