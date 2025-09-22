@@ -4206,7 +4206,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	// stashForLeader = false will be much easier
 	// to reason about, since tup hangs plus ctrl-c do not result
 	// in later addition of members once a leader is found.
-	const stashForLeader = false
+	stashForLeader := !tkt.WaitLeaderDeadline.IsZero()
 	// three red tests under stashForLeader = false that need fixing:
 	// red 059 compact_test.go
 	// red Test402_build_up_a_cluster_from_one_node membership_test.go
@@ -4547,6 +4547,11 @@ type Ticket struct {
 	KeyValRangeScan *art.Tree `zid:"55"`
 
 	UserDefinedOpCode int64 `zid:"59"`
+
+	// let clients/tests 402/403 tell
+	// AddPeerIDToCluster how long to
+	// await leader.
+	WaitLeaderDeadline time.Time `zid:"60"`
 
 	// where in tkthist we were entered locally.
 	localHistIndex int
@@ -6625,8 +6630,10 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	s.leaderURL = ae.LeaderURL
 
 	// earlier but may be redundant with  :6443
+	didDeferRetryTicketsAwaitingLeader := false
 	if len(s.ticketsAwaitingLeader) > 0 {
 		defer s.dispatchAwaitingLeaderTickets()
+		didDeferRetryTicketsAwaitingLeader = true
 	}
 
 	numNew := len(ae.Entries)
@@ -6812,10 +6819,12 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		s.leaderURL = ae.LeaderURL
 		//vv("%v sees new leader %v",rpc.AliasDecode(s.me()), rpc.AliasDecode(s.leader))
 	}
-	if leaderChanged || len(s.ticketsAwaitingLeader) > 0 {
-		defer func() {
-			s.host.dispatchAwaitingLeaderTickets()
-		}()
+	if !didDeferRetryTicketsAwaitingLeader {
+		if leaderChanged || len(s.ticketsAwaitingLeader) > 0 {
+			defer func() {
+				s.host.dispatchAwaitingLeaderTickets()
+			}()
+		}
 	}
 
 	leaderLog := ae.LogTermsRLE
@@ -10991,14 +11000,16 @@ func (s *TubeNode) BaseServerHostPort() (hp string) {
 
 func (s *TubeNode) AddPeerIDToCluster(ctx context.Context, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, baseServerHostPort, leaderURL string, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
 
+	const addNotRemove = true
 	targetPeerServiceNameVersion := "" // placeholder/versioning of service code
-	return s.SingleUpdateClusterMemberConfig(ctx, nonVoting, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL, true, errWriteDur)
+	return s.SingleUpdateClusterMemberConfig(ctx, nonVoting, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL, addNotRemove, errWriteDur)
 }
 
 func (s *TubeNode) RemovePeerIDFromCluster(ctx context.Context, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, baseServerHostPort, leaderURL string, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
 
+	const addNotRemove = false
 	targetPeerServiceNameVersion := ""
-	return s.SingleUpdateClusterMemberConfig(ctx, nonVoting, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL, false, errWriteDur)
+	return s.SingleUpdateClusterMemberConfig(ctx, nonVoting, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL, addNotRemove, errWriteDur)
 }
 
 // SingleUpdateClusterMemberConfig is an
@@ -11080,6 +11091,10 @@ func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, nonVotin
 	desc += fmt.Sprintf(", tkt4=%v targetPeerID='%v'", tkt.TicketID[:4], targetPeerID)
 	tkt.Desc = desc
 	tkt.GuessLeaderURL = leaderURL
+	if errWriteDur > 0 {
+		tkt.WaitLeaderDeadline = time.Now().Add(errWriteDur)
+	}
+
 	if addNotRemove {
 		tkt.AddPeerName = targetPeerName
 		tkt.AddPeerID = targetPeerID
