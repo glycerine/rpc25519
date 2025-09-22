@@ -1238,6 +1238,8 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			s.lastElectionTimeOut = time.Now()
 			s.lastElectionTimeCount = s.countElections
 
+			s.errorOutAwaitingLeaderTooLongTickets()
+
 			if s.observerOnlyNow() {
 				vv("%v observerOnlyNow so exiting", s.me())
 				// try to get a single node cluster to shut itself
@@ -15379,9 +15381,9 @@ The integration would involve augmenting the `PreVote` RPC and the corresponding
 1.  **Modified RPC:** The `PreVote` RPC would be expanded to include not just the candidate's term and last log index, but also **log validation information**. This could be a set of checksums for recent log entries or, more efficiently, a [Merkle root](https://en.wikipedia.org/wiki/Merkle_tree) of the log.
 
 2.  **New Validation Step:** When a server receives a `PreVote` request, its checklist becomes:
-    * Can I currently hear from a healthy leader? (Standard Pre-Vote check)
-    * Is the candidate's log at least as up-to-date as mine? (Standard Raft check)
-    * **New PAR Check:** Does the candidate's log validation info match my own? If the checksums or Merkle roots don't match, it signals data corruption on either the candidate's or the local server's log.
+  - Can I currently hear from a healthy leader? (Standard Pre-Vote check)
+  - Is the candidate's log at least as up-to-date as mine? (Standard Raft check)
+  - **New PAR Check:** Does the candidate's log validation info match my own? If the checksums or Merkle roots don't match, it signals data corruption on either the candidate's or the local server's log.
 
 3.  **Informed Response:** If the PAR check fails, the server would deny the pre-vote. More importantly, it can flag that a corruption was detected, allowing both nodes to enter a PAR-style recovery or audit mode.
 
@@ -15396,7 +15398,6 @@ This approach yields significant benefits for building a production-grade Raft i
 * **Efficiency:** It leverages an existing protocol phase. Instead of adding a separate, periodic "log scrubbing" RPC, it piggybacks on the network traffic that already occurs when a node times out.
 
 * **Prevents Corrupt Leaders:** A node with a damaged log will fail the Pre-Vote round. It learns about its own corruption and is prevented from ever starting a real election, let alone winning it and propagating bad data. This is a massive improvement to the system's overall safety.
-
 
 Q2: Okay, so if PAR is done during the Pre-vote, does that then make the simpler reconfig algorithm viable again?
 
@@ -15480,5 +15481,34 @@ When the cluster halts, monitoring and alerts (triggered by the failing PAR chec
 4.  **Restart** the repaired nodes.
 
 Once a majority of servers are back online with consistent, non-corrupt logs, the Pre-Vote process will naturally succeed, a leader will be elected, and the cluster will automatically resume normal operation.
-
 */
+func (s *TubeNode) errorOutAwaitingLeaderTooLongTickets() {
+	if len(s.ticketsAwaitingLeader) == 0 {
+		return
+	}
+	// TODO: possible optimization would be to use
+	// an imap.go tree indexed by deadline instead of
+	// a simple go map, to avoid a linear scan
+	// through all waiting tickets. 2nd order optimzation; defer for now.
+	now := time.Now()
+	var goner []string
+	for ticketID, tkt := range s.ticketsAwaitingLeader {
+		if tkt.WaitLeaderDeadline.IsZero() {
+			// client did not specify an errWriteDur,
+			// indicating that they wish to keep waiting
+			// for as long as it takes.
+			continue
+		}
+		if tkt.WaitLeaderDeadline.After(now) {
+			vv("%v deadline passed, releasing ticket '%v'", s.name, tkt.Short())
+			tkt.Err = fmt.Errorf("%v ticketsAwaitingLeader deadline passed for tkt='%v'", s.name, tkt.Short())
+			//s.respondToClientTicketApplied(tkt)
+			s.replyToForwardedTicketWithError(tkt)
+			s.FinishTicket(tkt, false)
+			goner = append(goner, ticketID)
+		}
+	}
+	for _, ticketID := range goner {
+		delete(s.ticketsAwaitingLeader, ticketID)
+	}
+}
