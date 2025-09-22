@@ -34,6 +34,7 @@ func (s *TermsRLE) fixTot() {
 	}
 }
 
+/*
 // planned but not used atm.
 func (s *TermsRLE) setBase(base int64, syncme *IndexTerm) {
 
@@ -45,6 +46,7 @@ func (s *TermsRLE) setBase(base int64, syncme *IndexTerm) {
 
 	// should we be setting Endi too? not necessarily.
 }
+*/
 
 func (s *TermsRLE) lastIndex() int64 {
 	n := len(s.Runs)
@@ -200,13 +202,17 @@ func (s *TermsRLE) CompactNewBeg(newBeg int64, syncme *IndexTerm) {
 		//vv("CompactNewBegin(newBeg=%v) updating CompactIndex from %v -> %v", newBeg, s.BaseC, newBeg-1)
 		// wait to set this below so we don't destroy the info we need
 		// to split the Runs.
-		//s.BaseC = newBeg - 1
 		if newBeg == 1 {
 			s.CompactTerm = 0
 		} else {
 			// INVAR: newBeg > 1
 			s.CompactTerm = s.getTermForIndex(newBeg - 1)
 		}
+		if syncme != nil {
+			//syncme.Index = s.BaseC
+			syncme.Term = s.CompactTerm
+		}
+
 	}
 	if newBeg <= s.BaseC {
 		panic("nothing to cut away")

@@ -4180,8 +4180,8 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 		s.leaderName = ""
 		s.leaderURL = ""
 	}
-	const stashForLeader = false
-	//const stashForLeader = true
+	//const stashForLeader = false
+	const stashForLeader = true
 	if s.leaderID == "" {
 		if stashForLeader {
 			// save it until we do get a leader?
