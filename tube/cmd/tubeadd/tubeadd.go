@@ -123,20 +123,22 @@ func main() {
 	ctx := context.Background()
 
 	var leaderURL string
-	greet := cmdCfg.ContactName
-	if greet == "" {
-		greet = cfg.InitialLeaderName
-	}
-	addr, ok := cfg.Node2Addr[greet]
-	if !ok {
-		fmt.Fprintf(os.Stderr, "error: giving up, as no address! gotta have cfg.InitialLeaderName or -c name of node to contact (we use the names listed in the config file '%v' under Node2Addr).\n", pathCfg)
-		os.Exit(1)
-	} else {
-		leaderURL = tube.FixAddrPrefix(addr)
-		if cmdCfg.ContactName == "" {
-			//vv("by default we contact cfg.InitialLeaderName='%v'; addr='%v' -> leaderURL = '%v'", cfg.InitialLeaderName, addr, leaderURL)
+	if false {
+		greet := cmdCfg.ContactName
+		if greet == "" {
+			greet = cfg.InitialLeaderName
+		}
+		addr, ok := cfg.Node2Addr[greet]
+		if !ok {
+			fmt.Fprintf(os.Stderr, "error: giving up, as no address! gotta have cfg.InitialLeaderName or -c name of node to contact (we use the names listed in the config file '%v' under Node2Addr).\n", pathCfg)
+			os.Exit(1)
 		} else {
-			//vv("requested cmdCfg.ContactName='%v' maps to addr='%v' -> URL = '%v'", cmdCfg.ContactName, addr, leaderURL)
+			leaderURL = tube.FixAddrPrefix(addr)
+			if cmdCfg.ContactName == "" {
+				//vv("by default we contact cfg.InitialLeaderName='%v'; addr='%v' -> leaderURL = '%v'", cfg.InitialLeaderName, addr, leaderURL)
+			} else {
+				//vv("requested cmdCfg.ContactName='%v' maps to addr='%v' -> URL = '%v'", cmdCfg.ContactName, addr, leaderURL)
+			}
 		}
 	}
 
@@ -146,7 +148,8 @@ func main() {
 	panicOn(err)
 	defer node.Close()
 
-	leaderURL, leaderName, _ := node.HelperFindLeader(cfg, cmdCfg.ContactName, true)
+	leaderURL, leaderName, _, reallyLeader := node.HelperFindLeader(cfg, cmdCfg.ContactName, true)
+	_ = reallyLeader
 	pp("tubeadd is doing AddPeerIDToCluster using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
 
 	targetPeerID := "" // empty string allowed now

@@ -123,7 +123,7 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 	panicOn(err)
 	defer node.Close()
 
-	leaderURL, leaderName, insp := node.HelperFindLeader(cfg, cmdCfg.ContactName, false)
+	leaderURL, leaderName, insp, reallyLeader := node.HelperFindLeader(cfg, cmdCfg.ContactName, false)
 	pp("tubels using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
 
 	if leaderName == "" {
@@ -141,7 +141,13 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 			}
 		}
 	}
-	fmt.Printf("existing membership: (%v leader)\n", leaderName)
+	var who string
+	if reallyLeader {
+		who = fmt.Sprintf("(%v leader)", leaderName)
+	} else {
+		who = fmt.Sprintf("(contacted %v)", leaderName)
+	}
+	fmt.Printf("existing membership: %v\n", who)
 	if newestMembership != nil && newestMembership.PeerNames != nil {
 		for name, det := range newestMembership.PeerNames.All() {
 			fmt.Printf("  %v:   %v\n", name, det.URL)

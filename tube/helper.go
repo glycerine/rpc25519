@@ -1,6 +1,6 @@
 package tube
 
-// helper for tubeadd, tuberm, tubels
+// helper for cmd/tubeadd, tuberm, tubels
 
 import (
 	"context"
@@ -15,7 +15,7 @@ type set struct {
 	nodes []string
 }
 
-func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requireOnlyContact bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection) {
+func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requireOnlyContact bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection, isActuallyLeader bool) {
 
 	// contact everyone, get their idea of who is leader
 	leaders := make(map[string]*set)

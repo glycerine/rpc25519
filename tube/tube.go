@@ -10888,7 +10888,7 @@ func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL string) (mc *M
 		//vv("%v GetPeerListFrom got error from getCircuitToLeader('%v') err='%v'; s.electionTimeoutCh='%p', s.nextElection in '%v'", s.me(), leaderURL, err, s.electionTimeoutCh, time.Until(s.nextElection))
 		return nil, nil, "", "", onlyPossibleAddr, err
 	}
-	leaderName = ckt.RemotePeerName
+	//leaderName = ckt.RemotePeerName
 
 	itkt := s.newRemoteInspectionTicket(ckt)
 	select {
@@ -10913,7 +10913,8 @@ func (s *TubeNode) GetPeerListFrom(ctx context.Context, leaderURL string) (mc *M
 
 		actualLeaderURL = itkt.insp.CurrentLeaderURL
 		// correct the leaderName if we got it wrong:
-		if itkt.insp.CurrentLeaderName != leaderName {
+		//vv("%v orig leaderName (ckt.RemotePeerName) = '%v'; itkt.insp.CurrentLeaderName='%v'", s.name, leaderName, itkt.insp.CurrentLeaderName)
+		if itkt.insp.CurrentLeaderName != "" {
 			leaderName = itkt.insp.CurrentLeaderName
 		}
 	case <-ctx.Done():
