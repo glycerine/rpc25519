@@ -4240,7 +4240,32 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 		vv("%v stashForLeader is false, and s.leaderID is empty", s.me())
 		// stashing for later leader made for a weird
 		// command line tubeadd experience/hang. better to eagerly error.
-		tkt.Err = fmt.Errorf("ahem. no leader known to me (node '%v')", s.name)
+
+		tkt.Err = fmt.Errorf("ahem. no leader known to me (node '%v'). To prevent a node from adding a dead neighbor (the drowned sailor scenario, page 22, The Part-Time Parliament) by mistake, we require additions to leaderless clusters to come from self-add only. See also bootstrappedMembership() circa tube.go:15131. This error from redirectToLeader() circa tube.go:4244.", s.name)
+
+		// page 22 of Lamport 1998, "The Part-Time Parliament".
+		// "Changing the composition of Parliament in this
+		// way [me: choosing new members based on a prior,
+		// n-3, log entry] was dangerous and had to be done with care.
+		// The consistency and progress conditions would always hold.
+		// However, the progress condition guaranteed progress
+		// only if a majority set was in the Chamber; it did
+		// not guarantee that a majority set would ever be there. In fact,
+		// the mechanism for choosing legislators led to the
+		// downfall of the Parliamentary system in Paxos. Because
+		// of a scribe’s error, a decree that was supposed to honor
+		// sailors who had drowned in a shipwreck instead
+		// declared them to be the only members of Parliament.
+		// Its passage prevented any new decrees from being passed—
+		// including the decrees proposed to correct the mistake.
+		// Government in Paxos came to a halt. A general named
+		// Λαµπσων took advantage of the confusion to stage
+		// a coup, establishinga military dictatorship that
+		// ended centuries of progressive government. Paxos grew
+		// weak under a series of corrupt dictators, and was unable
+		// to repel an invasion from the east that led to the
+		// destruction of its civilization."
+
 		//s.respondToClientTicketApplied(tkt)
 		s.replyToForwardedTicketWithError(tkt)
 		s.FinishTicket(tkt, false)
