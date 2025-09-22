@@ -937,6 +937,15 @@ func (s *TubeNode) Start(
 		}
 	}
 
+	// try getting 059/402/403 to work without needing
+	// to stall on leader coming in... nope. did not help; or
+	// just not fast enough.
+	if s.cfg.isTest && s.cfg.testNum != 802 {
+		// just calls s.adjustCktReplicaForNewMembership() if viable.
+		vv("%v starting circuits to MC = '%v'", s.name, s.state.MC)
+		s.connectToMC("test, top of main loop")
+	}
+
 	done0 := ctx0.Done()
 
 	// centralize all peer incomming messages here,
@@ -1814,7 +1823,9 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			// new Circuit connection arrives: a replica joins the cluster.
 		case ckt := <-newCircuitCh:
 			//s.ay("%v ckt := <-newCircuitCh, ckt = '%v'", s.me(), ckt)
-			//vv("%v ckt := <-newCircuitCh, from ckt.RemotePeerName='%v'; ckt.RemotePeerID='%v'", s.me(), ckt.RemotePeerName, ckt.RemotePeerID)
+			if s.name == "node_4" {
+				vv("%v ckt := <-newCircuitCh, from ckt.RemotePeerName='%v'; ckt.RemotePeerID='%v'", s.me(), ckt.RemotePeerName, ckt.RemotePeerID) // not seen 059
+			}
 			err := s.handleNewCircuit(ckt, done0, arrivingNetworkFrag, cktHasError, cktHasDied)
 			if err != nil {
 				return err
@@ -1846,7 +1857,9 @@ func (s *TubeNode) handleNewCircuit(
 	if ckt.RemotePeerID == "" {
 		panic(fmt.Sprintf("cannot have ckt.RemotePeerID empty: ckt='%v'", ckt))
 	}
-
+	if s.name == "node_4" {
+		vv("%v top handleNewCircuit ckt from '%v'", s.name, ckt.RemotePeerName)
+	}
 	// below we work hard to distinguish
 	// replicas (that participate as Raft nodes)
 	// versus clients (that should _not_ be sent
@@ -12918,16 +12931,20 @@ func (s *TubeNode) followerDownDur() time.Duration {
 func (s *TubeNode) connectToMC(origin string) {
 	if s.state.MC == nil ||
 		s.state.MC.PeerNames.Len() == 0 {
-		//vv("%v connectToMC() returning early; sees empty MC", s.name)
+		vv("%v connectToMC() returning early; sees empty MC", s.name)
 		return
 	}
-	//vv("%v top connectToMC()", s.name)
+	if s.name == "node_4" {
+		vv("%v top connectToMC(); MC='%v'; keys of s.cktAllByName = '%v'", s.name, s.state.MC, keys(s.cktAllByName))
+	}
 
 	var backgroundConnCount int
 	_ = backgroundConnCount
-	//defer func() {
-	//vv("%v end of connectToMC(); backgroundConnCount=%v", s.me(), backgroundConnCount)
-	//}()
+	defer func() {
+		if s.name == "node_4" {
+			vv("%v end of connectToMC(); backgroundConnCount=%v", s.me(), backgroundConnCount)
+		}
+	}()
 
 	sortedPeerNamesCached := s.state.MC.PeerNames.cached()
 	numNames := len(sortedPeerNamesCached)
@@ -12945,71 +12962,77 @@ func (s *TubeNode) connectToMC(origin string) {
 	// triangle remains passive, accepting
 	// but not initiating connections.
 	var wantConnection []string
-	sawMyself := false
-	for i := range sortedPeerNamesCached {
-		active := sortedPeerNamesCached[i].key
-		if active != s.name {
-			continue // not our row. but what if we are not in the config?
-		} else {
-			sawMyself = true
-		}
-		// INVAR: we are on the one row that is ours;
-		// where we are the active initiator of
-		// grid connections.
-
-		// Drat: this "upper-triangle only" approach
-		// doesn't work when node_2 is leader
-		// and node_0 is down and we want the leader to
-		// detect this and try to reconnect. Which means
-		// we can easily end up with logical races where
-		// two nodes attempt to connect to each other
-		// in parallel and both succeed. Well just allow
-		// duplicate circuits for now because pruning
-		// is kinda dangerous and having an extra circuit
-		// should not hurt (methinks).
-
-		//for j := i + 1; j < numNames; j++ { // 055 node 0 ends up with no other conn to node_1, node_2. 402 green. 052 green
-
-		// why does reaching out to more failed nodes
-		// cause our leader step down to not happen??? in 052 with this:
-		for j := range numNames { // node_0 has conn to node_2 at least! but makes 402 hang. why cannot node_1 reach node_0 once it comes back? b/c it does not try in upper triangle. So why cannot node_0 reach node_1 (or node_2 maybe--maybe it is that node_2 is finding node_0 but not vice-versa). but now 052 red. 402 hangs!?!
-			target := sortedPeerNamesCached[j].key
-			if target == s.name {
-				continue // no need to connect to self.
-			}
-			// can have isPending
-			cktP, ok := s.cktAllByName[target]
-			_ = cktP
-			if !ok {
-				//vv("%v sees no ckt to '%v', adding to wantConnection", s.me(), target)
-				wantConnection = append(wantConnection, target)
-
-				// this would be redundant with the below
-				// call to connectInBackgroundIfNoCircuitTo().
-				//cktP := s.newCktPlus(target, TUBE_REPLICA)
-				//cktP.startWatchdog()
-				//s.cktAllByName[target] = cktP
-
-				//vv("%v: setting up isPending cktP for target = '%v'", s.name, target)
+	/*
+		sawMyself := false
+		for i := range sortedPeerNamesCached {
+			active := sortedPeerNamesCached[i].key
+			if active != s.name {
+				// preventing 059 node_4 from connecting, methinks. yep.
+				if s.name == "node_4" {
+					vv("%v not our row; numNames=%v", s.name, numNames)
+				}
+				continue // not our row. but what if we are not in the config?
 			} else {
-				// already have connection to target.
-				// watchdog should take care of the rest.
+				sawMyself = true
 			}
+			// INVAR: we are on the one row that is ours;
+			// where we are the active initiator of
+			// grid connections.
+
+			// Drat: this "upper-triangle only" approach
+			// doesn't work when node_2 is leader
+			// and node_0 is down and we want the leader to
+			// detect this and try to reconnect. Which means
+			// we can easily end up with logical races where
+			// two nodes attempt to connect to each other
+			// in parallel and both succeed. Well just allow
+			// duplicate circuits for now because pruning
+			// is kinda dangerous and having an extra circuit
+			// should not hurt (methinks).
+
+			//for j := i + 1; j < numNames; j++ { // 055 node 0 ends up with no other conn to node_1, node_2. 402 green. 052 green
+
+	*/
+	// why does reaching out to more failed nodes
+	// cause our leader step down to not happen??? in 052 with this:
+	for j := range numNames { // node_0 has conn to node_2 at least! but makes 402 hang. why cannot node_1 reach node_0 once it comes back? b/c it does not try in upper triangle. So why cannot node_0 reach node_1 (or node_2 maybe--maybe it is that node_2 is finding node_0 but not vice-versa). but now 052 red. 402 hangs!?!
+		target := sortedPeerNamesCached[j].key
+		if target == s.name {
+			continue // no need to connect to self.
+		}
+		// can have isPending
+		cktP, ok := s.cktAllByName[target]
+		_ = cktP
+		if !ok {
+			vv("%v sees no ckt to '%v', adding to wantConnection", s.me(), target)
+			wantConnection = append(wantConnection, target)
+
+			// this would be redundant with the below
+			// call to connectInBackgroundIfNoCircuitTo().
+			//cktP := s.newCktPlus(target, TUBE_REPLICA)
+			//cktP.startWatchdog()
+			//s.cktAllByName[target] = cktP
+
+			//vv("%v: setting up isPending cktP for target = '%v'", s.name, target)
+		} else {
+			// already have connection to target.
+			// watchdog should take care of the rest.
 		}
 	}
-	backgroundConnCount = len(wantConnection)
-	//if backgroundConnCount > 0 {
-	//vv("%v: in connectToMC() wantConnection (len %v) = '%#v'", s.me(), len(wantConnection), wantConnection)
 	//}
+	backgroundConnCount = len(wantConnection)
+	if backgroundConnCount > 0 {
+		vv("%v: in connectToMC() wantConnection (len %v) = '%#v'", s.me(), len(wantConnection), wantConnection)
+	}
 
-	_ = sawMyself
+	/*_ = sawMyself
 	if !sawMyself {
 		// non-members still needed to resolve liveness situations
 		// mentioned in the dissertation, so keep grid up even
 		// if we are not in the replica set.
 		//vv("%v I am not in the MC, so should I skip creating connection to the cluster? for now we proceed...", s.me())
 	}
-
+	*/
 	for _, peerName := range wantConnection {
 
 		// peerID might be empty. we try via url anyway.
@@ -13040,7 +13063,7 @@ func (s *TubeNode) connectInBackgroundIfNoCircuitTo(peerName, origin string) {
 	if peerName == s.name {
 		return // already connected to self.
 	}
-	//vv("%v top connectInBackgroundIfNoCircuitTo '%v'", s.me(), peerName) // seen in 055
+	vv("%v top connectInBackgroundIfNoCircuitTo '%v'", s.me(), peerName) // seen in 059
 
 	var url, peerID, netAddr string
 	detail, ok := s.state.MC.PeerNames.get2(peerName)
@@ -13053,7 +13076,7 @@ func (s *TubeNode) connectInBackgroundIfNoCircuitTo(peerName, origin string) {
 			panic("cannot have empty url")
 		}
 		if url == "boot.blank" {
-			//vv("%v no way to connect to boot.blank... skipping background connect to peerName='%v'", s.me(), peerName) // 055 seen alot, stops all re-tries! fixed
+			vv("%v no way to connect to boot.blank... skipping background connect to peerName='%v'", s.me(), peerName) // 059 sees! arg. the culprit!
 			// SO: we need to update the details in
 			// s.state.MC.PeerNames when we get
 			// an actual connection made for the first time! thought
@@ -13066,13 +13089,13 @@ func (s *TubeNode) connectInBackgroundIfNoCircuitTo(peerName, origin string) {
 	if !okPeerNameInCktAllByName {
 		// notice that all we have is the peerName
 		cktP = s.newCktPlus(peerName, TUBE_REPLICA)
-		//vv("%v calling startWatchdog in connectInBackgroundIfNoCircuitTo on cktP=%p for '%v'", s.me(), cktP, cktP.PeerName)
+		vv("%v calling startWatchdog in connectInBackgroundIfNoCircuitTo on cktP=%p for '%v'", s.me(), cktP, cktP.PeerName)
 		cktP.startWatchdog()
 
 		//vv("%v set up isPending cktP for peerName = '%v'; cktP='%v'", s.name, peerName, cktP) // seen 055 for node_0 only though.
 		s.cktAllByName[peerName] = cktP
 	} else {
-		//vv("%v ok = true, will connect in background below!", s.name)
+		vv("%v ok = true, will connect in background below!", s.name)
 		//url = cktP.URL
 		netAddr = cktP.PeerBaseServerAddr
 		if netAddr == "" {
@@ -13102,7 +13125,7 @@ func (s *TubeNode) connectInBackgroundIfNoCircuitTo(peerName, origin string) {
 	if cktP.Addr == "" {
 		cktP.Addr = netAddr
 	}
-	//vv("%v starting background connection to '%v' via url='%v'; where netAddr='%v'", s.name, peerName, url, netAddr) // 402 not seen, auto-cli reject above keeps everything 402 out. 055 seen both old and new leader, good.
+	vv("%v starting background connection to '%v' via url='%v'; where netAddr='%v'", s.name, peerName, url, netAddr) // 402 not seen, auto-cli reject above keeps everything 402 out. 055 seen both old and new leader, good. 059 not seen with stashLeader false
 	s.backgroundConnectToPeer(cktP, url, netAddr, from)
 
 }
@@ -13233,7 +13256,7 @@ func (s *TubeNode) serviceMembershipObservers() {
 // from cktReplica, and add in any new ones
 // we have cktall for (except ourselves of course).
 func (s *TubeNode) adjustCktReplicaForNewMembership() {
-	//vv("%v top adjustCktReplicaForNewMembership()", s.me())
+	vv("%v top adjustCktReplicaForNewMembership()", s.name)
 	if s.state.MC == nil {
 		if !s.isTest() {
 			panic("must have s.state.MC")
@@ -13304,7 +13327,7 @@ func (s *TubeNode) adjustCktReplicaForNewMembership() {
 					panic(err)
 				}
 			} else {
-				//vv("%v warning: drat! we want to add a member '%v' to cktReplica, but no ckt available in cktall: '%v'", s.me(), peerName, s.showCktall())
+				//vv("%v warning: drat! we want to add a member '%v' to cktReplica, but no ckt available in cktall: '%v'", s.me(), peerName, s.showCktall()) // not seen 059
 
 				// we are inside adjustCktReplicaForNewMembership() here.
 				s.connectInBackgroundIfNoCircuitTo(peerName, "adjustCktReplicaForNewMembership") // call 4

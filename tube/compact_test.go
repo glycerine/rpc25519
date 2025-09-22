@@ -48,8 +48,12 @@ func Test059_new_node_joins_after_compaction(t *testing.T) {
 			// verify they have all caught up (and
 			// thus also compacted logs).
 			var lli, llt int64
+			var leaderInsp *Inspection
 			for j := range numNodes {
 				insp := c.Nodes[j].Inspect()
+				if j == leadi {
+					leaderInsp = insp
+				}
 				if j == 0 {
 					lli = insp.LastLogIndex
 					llt = insp.LastLogTerm
@@ -63,10 +67,26 @@ func Test059_new_node_joins_after_compaction(t *testing.T) {
 
 			vv("add node_4 to cluster. c.Cfg='%v'", c.Cfg)
 			node4 := NewTubeNode("node_4", c.Cfg)
+
+			// attempt to make connections not need to
+			// stall for leader. not sure this will work.
+			// drat. URL == "boot.blank" prevents this from working!
+			//node4.state.MC = c.BootMC
+			//mc := node4.NewMemberConfig("compact_test")
+			//for name, url := range leaderInsp {
+			//	mc.PeerNames.set(name, &PeerDetail{Name: name, URL: url})
+			//}
+			node4.state.MC = leaderInsp.MC
+			// Arg. alone it did not; we need to wait more.
+			// Try: <-node4.verifyPeerReplicaOrNot below
+
 			c.Halt.AddChild(node4.Halt)
 			err = node4.InitAndStart()
 			panicOn(err)
 			c.Nodes = append(c.Nodes, node4)
+
+			cktP := <-node4.verifyPeerReplicaOrNot
+			vv("got cktP = %v", cktP)
 
 			// same call that tube/tubecli.go does to join cluster.
 			baseServerHostPort := node4.BaseServerHostPort()
