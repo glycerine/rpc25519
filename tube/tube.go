@@ -4193,13 +4193,13 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	// stashForLeader = false will be much easier
 	// to reason about, since tup hangs plus ctrl-c do not result
 	// in later addition of members once a leader is found.
-	//const stashForLeader = false
+	const stashForLeader = false
 	// three red tests under stashForLeader = false that need fixing:
 	// red 059 compact_test.go
 	// red Test402_build_up_a_cluster_from_one_node membership_test.go
 	// read Test403_reduce_a_cluster_down_to_one_node
 
-	const stashForLeader = true // needed atm for green tests.
+	//const stashForLeader = true // needed atm for green tests.
 	if s.leaderID == "" {
 		if stashForLeader {
 			// save it until we do get a leader?
@@ -14840,17 +14840,19 @@ func (a *MemberConfig) merge(b *MemberConfig) {
 		return
 	}
 	for name, det := range b.PeerNames.all() {
-		cur, ok := a.PeerNames.get2(name)
+		_, ok := a.PeerNames.get2(name)
 		if ok {
 			// already have name. which to keep?
-			// Avoid new one if it has no info; is pending.
-			if cur.URL == "pending" {
-				// pending currently, new one cannot be worse.
+			// Avoid new one if it has no info; is pending,
+			// otherwise adopt it, since is probably
+			// a snapshot from leader who is more actively
+			// keeping connections up.
+			if det.URL != "pending" {
 				a.PeerNames.set(name, det)
 			}
 			continue
 		}
-		// something new, add it.
+		// totally new peer, add it.
 		a.PeerNames.set(name, det)
 	}
 }
@@ -14908,6 +14910,9 @@ func (s *TubeNode) handleStateSnapshotEnclosed(frag *rpc.Fragment, ckt *rpc.Circ
 // instead of going field by field? maybe we were
 // just wanting to assert before to figure out
 // how stuff was getting lost, but we already fixed that.
+//
+// Well, we do want to merge the two Known sets, but besides
+// that...
 //
 // called when <-s.ApplyNewStateSnapshotCh; and when
 // above handleStateSnapshotEnclosed.
