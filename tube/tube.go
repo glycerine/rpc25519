@@ -15069,11 +15069,11 @@ func (s *TubeNode) bootstrappedMembership(tkt *Ticket) bool {
 	}
 	s.state.MC.setNameDetail(s.name, detail, s)
 	s.state.ShadowReplicas.PeerNames.delkey(s.name)
-	//vv("%v bootstrapped rather than redirectToLeader. now MC='%v'", s.me(), s.state.MC)
+	vv("%v bootstrapped rather than redirectToLeader. now MC='%v'", s.me(), s.state.MC)
 	if s.role != LEADER {
 		s.becomeLeader()
 	}
-
+	s.addInspectionToTicket(tkt)
 	// this does s.FinishTicket(tkt) only if WaitingAtLeader
 	s.respondToClientTicketApplied(tkt)
 	s.FinishTicket(tkt, true)
