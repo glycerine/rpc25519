@@ -63,9 +63,10 @@ func setupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 			boot.NewConfig.PeerNames.set(node.name, &PeerDetail{Name: node.name, URL: "boot.blank"})
 		}
 		//c.Nodes[forceLeader].testBootstrapLogCh <- boot
+		c.BootMC = boot.NewConfig
 
 		// test from Start() rather than needing loop going:
-		// inject an actual log.
+		// inject an actual log. Sets MC from boot.NewConfig.Clone()
 		c.Nodes[forceLeader].testSetupFirstRaftLogEntryBootstrapLog(boot)
 		vv("back from testSetupFirstRaftLogEntryBootstrapLog(boot); c.Nodes[forceLeader].state.CurrentTerm = %v", c.Nodes[forceLeader].state.CurrentTerm)
 
@@ -111,6 +112,7 @@ func setupTestClusterWithCustomConfig(cfg *TubeConfig, t *testing.T, numNodes, f
 			// will hang here b/c c.Start() not called yet.
 			//<-boot.Done
 		}
+		c.BootMC = boot.NewConfig
 	}
 
 	c.Start() // needs to run at least part of main loop to build grid.

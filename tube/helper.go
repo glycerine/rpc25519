@@ -15,6 +15,14 @@ type set struct {
 	nodes []string
 }
 
+// connects to all nodes listed in cfg.Node2Addr, and
+// inspects them looking for a leader using the
+// GetPeerListFrom() call. For each circuit
+// show in the inspection.CktAll returned, we
+// also contact them to try extra hard to
+// find a leader even if our static configuration
+// loaded from disk into cfg.Node2Addr is
+// unaware of them.
 func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requireOnlyContact bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection, reallyLeader bool) {
 
 	// contact everyone, get their idea of who is leader
@@ -49,7 +57,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 			}
 		}
 	}
-	// put together a transition set of known/connected nodes...
+	// put together a transitive set of known/connected nodes...
 	xtra := make(map[string]string)
 	for _, ins := range insps {
 		for name, url := range ins.CktAll {

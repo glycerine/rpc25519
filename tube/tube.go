@@ -767,7 +767,7 @@ func (s *TubeNode) Start(
 		// modified s.state.MC if changed
 		changed := s.updateSelfAddressInMemberConfig(s.state.MC)
 		if changed {
-			// ARG! This has a very bad side effect:
+			// ARG! incrementing ConfigVersion has a very bad side effect:
 			// by incrementing the version of our MC, we can no
 			// longer participate in elections/elect a leader
 			// among ourselves!?! since we are not _actually_
@@ -3292,6 +3292,8 @@ type TubeCluster struct {
 	Name2num               map[string]int
 	Snap                   *rpc.SimnetSnapshotter `msg:"-"`
 	termChanges            chan *testTermChange
+
+	BootMC *MemberConfig
 }
 
 // make a test cluster
@@ -4191,13 +4193,13 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	// stashForLeader = false will be much easier
 	// to reason about, since tup hangs plus ctrl-c do not result
 	// in later addition of members once a leader is found.
-	const stashForLeader = false
+	//const stashForLeader = false
 	// three red tests under stashForLeader = false that need fixing:
 	// red 059 compact_test.go
 	// red Test402_build_up_a_cluster_from_one_node membership_test.go
 	// read Test403_reduce_a_cluster_down_to_one_node
 
-	//const stashForLeader = true // needed atm for green tests.
+	const stashForLeader = true // needed atm for green tests.
 	if s.leaderID == "" {
 		if stashForLeader {
 			// save it until we do get a leader?
@@ -13335,6 +13337,7 @@ func peerIDfromULR(leaderURL string) string {
 }
 
 // test specific version of setupFirstRaftLogEntryBootstrapLog circa :8920
+// sets s.state.MC from boot.NewConfig.Clone()
 func (s *TubeNode) testSetupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntryBootstrap) (err error) {
 	//vv("top testSetupFirstRaftLogEntryBootstrapLog()")
 	if s.wal != nil {
@@ -14232,6 +14235,7 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus) {
 		//vv("%v on new ckt in addToCktall(), updating detail for '%v' from '%v' -> to '%v'", s.name, ckt.RemotePeerName, detail, updatedDetail)
 
 		s.state.MC.setNameDetail(ckt.RemotePeerName, updatedDetail, s)
+		// in addToCktall here.
 		s.state.Known.PeerNames.set(ckt.RemotePeerName, updatedDetail)
 
 		// have a call to s.adjustCktReplicaForNewMembership() ?
@@ -14827,7 +14831,28 @@ func (s *TubeNode) mergeCktPToKnown(cktP *cktPlus) {
 		PeerServiceNameVersion: ckt.RemotePeerServiceNameVersion,
 		Addr:                   addr,
 	}
+	// in mergeCktPToKnown here
 	s.state.Known.PeerNames.set(det.Name, det)
+}
+
+func (a *MemberConfig) merge(b *MemberConfig) {
+	if b == nil || a == nil {
+		return
+	}
+	for name, det := range b.PeerNames.all() {
+		cur, ok := a.PeerNames.get2(name)
+		if ok {
+			// already have name. which to keep?
+			// Avoid new one if it has no info; is pending.
+			if cur.URL == "pending" {
+				// pending currently, new one cannot be worse.
+				a.PeerNames.set(name, det)
+			}
+			continue
+		}
+		// something new, add it.
+		a.PeerNames.set(name, det)
+	}
 }
 
 func (s *TubeNode) updateMCindex(commitIndex, commitIndexEntryTerm int64) {
@@ -14917,8 +14942,10 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	if state2.ShadowReplicas != nil {
 		s.state.ShadowReplicas = state2.ShadowReplicas
 	}
-	if s.state.Known != nil {
+	if s.state.Known == nil {
 		s.state.Known = state2.Known
+	} else {
+		s.state.Known.merge(state2.Known)
 	}
 	s.state.LastSaveTimestamp = state2.LastSaveTimestamp
 
