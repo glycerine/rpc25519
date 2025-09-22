@@ -6158,26 +6158,13 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 	// INVAR: nes > 0
 
 	if ae.PrevLogIndex <= 0 {
-		// no constraint on log
+		//no constraint on log
 		return false, -1, -1
 	}
+	// INVAR: ae.PrevLogIndex > 0
 
 	lli, llt := s.wal.LastLogIndexAndTerm()
 	_ = llt
-
-	// last log index is independent of any compaction.
-	// actually no: lli could be completely compacted away.
-	// example:
-	// PeerLogTermsRLE:
-	//        [BaseC: 2[CompactTerm: 2]|logical len 0; (2:2]TermsRLE{ Base: 2, Endi: 2, Runs:},
-	// so lli = 2, llt = 2
-	// SuppliedLeaderTermsRLE:
-	//        [BaseC: 0[CompactTerm: 0]|logical len 3; (0:3]TermsRLE{ Base: 0, Endi: 3, Runs:
-	// &tube.TermRLE{Term:1, Count:1}
-	// &tube.TermRLE{Term:2, Count:1}
-	// &tube.TermRLE{Term:3, Count:1}
-	// },
-	// ae.PrevLogIndex: 1;
 
 	if lli < ae.PrevLogIndex {
 		return true, -1, -1 // reject, our log is too short.
@@ -6216,8 +6203,8 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 			e0index := e0.Index
 			eLast := ae.Entries[last]
 			eLastIndex := eLast.Index
-			if e0index > lli {
-				// gap, no overlap, no idea how far back it goes.
+			if e0index > lli+1 {
+				vv("gap, no overlap, no idea how far back it goes. e0index(%v) > lli(%v)", e0index, lli)
 				return true, -1, -1
 			}
 			if eLastIndex < baseC {
@@ -6276,6 +6263,7 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 				// mismatched at PrevLogIndex and maybe before, but
 				// since we are compacted, we cannot scan back
 				// through the log to find the first mis-match (below).
+				vv("ae.PrevLogIndex(%v) == baseC(%v) but ae.PrevLogTerm(%v) != s.state.CompactionDiscardedLastTerm(%v)", ae.PrevLogIndex, baseC, ae.PrevLogTerm, s.state.CompactionDiscardedLastTerm)
 				return true, -1, -1
 			}
 		}
@@ -6283,8 +6271,10 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 
 	} // end if baseC > 0
 
+	// INVAR: ae.PrevLogIndex > 0
 	entry, err := s.wal.GetEntry(ae.PrevLogIndex)
 	if err != nil {
+		vv("not present, our log is too short; ae.PrevLogIndex=%v; baseC=%v", ae.PrevLogIndex, baseC)
 		return true, -1, -1 // not present, our log is too short.
 	}
 	prevTerm := entry.Term
@@ -6316,6 +6306,7 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 		}
 		return false, -1, -1
 	}
+
 	// tell the server how we mismatch
 	//
 	// page 21
