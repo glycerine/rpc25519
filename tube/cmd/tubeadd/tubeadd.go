@@ -150,11 +150,67 @@ func main() {
 	panicOn(err)
 	defer node.Close()
 
+	leaderURL, leaderName := findLeader(cfg, cmdCfg, node)
+	pp("tubeadd is doing AddPeerIDToCluster using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
+
+	targetPeerID := "" // empty string allowed now
+	errWriteDur := time.Second * 20
+	peerServiceName := tube.TUBE_REPLICA
+	baseServerHostPort := ""
+	memlistAfter, stateSnapshot, err := node.AddPeerIDToCluster(ctx, cmdCfg.NonVotingShadowFollower, target, targetPeerID, peerServiceName, baseServerHostPort, leaderURL, errWriteDur)
+	panicOn(err)
+
+	pp("good: no error on AddPeerIDToCluster('%v'); shadow/nonVoting='%v'; contacting leader '%v'", target, cmdCfg.NonVotingShadowFollower, leaderURL)
+
+	if target == cfg.MyName {
+		// we could apply the state snapshot like peercli does,
+		// but usually we are just a client and not the peer
+		// itself, and we don't really want to compete with/
+		// overwrite the state if the user/admin is not expecting it.x
+		if stateSnapshot != nil {
+			// select {
+			// case node.ApplyNewStateSnapshotCh <- stateSnapshot:
+			// 	vv("%v we sent node.ApplyNewStateSnapshotCh <- stateSnapshot", cfg.MyName)
+			// case <-node.Halt.Done.Chan:
+			// 	return
+			// }
+		}
+	}
+
+	if memlistAfter == nil ||
+		memlistAfter.MC == nil ||
+		memlistAfter.MC.PeerNames == nil ||
+		memlistAfter.MC.PeerNames.Len() == 0 {
+
+		fmt.Printf("empty or nil membership from '%v'\n", leaderName)
+	} else {
+		fmt.Printf("membership after adding '%v': (%v leader)\n", target, leaderName)
+		for name, det := range memlistAfter.MC.PeerNames.All() {
+			fmt.Printf("  %v:   %v\n", name, det.URL)
+		}
+	}
+	if memlistAfter.ShadowReplicas == nil ||
+		memlistAfter.ShadowReplicas.PeerNames == nil ||
+		memlistAfter.ShadowReplicas.PeerNames.Len() == 0 {
+
+	} else {
+		fmt.Printf("\nshadow replicas:\n")
+		for name, det := range memlistAfter.ShadowReplicas.PeerNames.All() {
+			url, ok := memlistAfter.CktAllByName[name]
+			if !ok {
+				url = det.Addr
+			}
+			fmt.Printf("  %v:   %v\n", name, tube.URLTrimCktID(url))
+		}
+	}
+}
+
+func findLeader(cfg *tube.TubeConfig, cmdCfg *TubeRemoveConfig, node *tube.TubeNode) (lastLeaderURL, lastLeaderName string) {
 	// contact everyone, get their idea of who is leader
 	leaders := make(map[string]*set)
 
-	var lastLeaderName string
-	var lastLeaderURL string
+	ctx := context.Background()
+
 	var insps []*tube.Inspection
 	for name, addr := range cfg.Node2Addr {
 		url := tube.FixAddrPrefix(addr)
@@ -269,122 +325,5 @@ func main() {
 			lastLeaderURL = tube.FixAddrPrefix(addr)
 		}
 	}
-	/*
-		err = node.UseLeaderURL(ctx, leaderURL)
-		//panicOn(err)
-		//vv("back from cli.UseLeaderURL(leaderURL='%v')", leaderURL)
-
-		newestMembership, insp, actualLeaderURL, leaderName, onlyPossibleAddr, err := node.GetPeerListFrom(ctx, leaderURL)
-		_ = insp
-		_ = onlyPossibleAddr
-		panicOn(err)
-		if target == "" {
-			fmt.Printf("existing membership: (%v leader)\n", leaderName)
-			for name, det := range newestMembership.PeerNames.All() {
-				fmt.Printf("  %v:   %v\n", name, det.URL)
-			}
-			os.Exit(0)
-		}
-		//vv("GetPeerListFrom(leaderURL='%v') -> actualLeaderURL = '%v'", leaderURL, actualLeaderURL)
-		var host string
-		if actualLeaderURL != "" && actualLeaderURL != leaderURL {
-			//vv("use actual='%v' rather than orig='%v'", actualLeaderURL, leaderURL)
-			leaderURL = actualLeaderURL
-
-			// so I guess we must start another client.
-			// maybe? cli.Close()
-			addr2, _, _, _, err := rpc.ParsePeerURL(leaderURL)
-			panicOn(err)
-			u, err := url.Parse(addr2)
-			panicOn(err)
-			host = u.Host
-			// port := u.Port()
-			// if port != "" {
-			// 	host = net.JoinHostPort(host, port)
-			// }
-
-			//cli2, err := node.StartClientOnly(ctx, host)
-			//panicOn(err)
-			//defer cli2.Close()
-
-			newestMembership, insp, actualLeaderURL, leaderName, onlyPossibleAddr, err = node.GetPeerListFrom(ctx, host)
-			_ = insp
-			_ = onlyPossibleAddr
-			panicOn(err)
-		}
-	*/
-	/*
-		if false {
-			det, ok := newestMembership.PeerNames.Get2(target)
-			// have to do it anyway to get election started on one node recovery(!)
-			if false {
-				if ok {
-					fmt.Printf("error: target already in current membership. target='%v'; queried (leaderURL='%v' host='%v' (call: GetPeerListFrom)\n", target, host, leaderURL)
-					fmt.Printf("existing membership: (%v leader)\n", leaderName)
-					for name, det := range newestMembership.PeerNames.All() {
-						fmt.Printf("  %v:   %v\n", name, det.URL)
-					}
-					os.Exit(1)
-				}
-			}
-
-			_ = det
-			//_, _, targetPeerID, _, err := rpc.ParsePeerURL(det.URL) // det is nil here.
-			//panicOn(err)
-		}
-	*/
-	targetPeerID := "" // allowed now
-
-	leaderURL = lastLeaderURL
-	pp("tubeadd is doing AddPeerIDToCluster using leaderName = '%v'; leaderURL='%v'", lastLeaderName, lastLeaderURL)
-
-	errWriteDur := time.Second * 20
-	peerServiceName := tube.TUBE_REPLICA
-	baseServerHostPort := ""
-	memlistAfter, stateSnapshot, err := node.AddPeerIDToCluster(ctx, cmdCfg.NonVotingShadowFollower, target, targetPeerID, peerServiceName, baseServerHostPort, leaderURL, errWriteDur)
-	panicOn(err)
-
-	pp("good: no error on AddPeerIDToCluster('%v'); shadow/nonVoting='%v'; contacting leader '%v'", target, cmdCfg.NonVotingShadowFollower, leaderURL)
-
-	if target == cfg.MyName {
-		// we could apply the state snapshot like peercli does,
-		// but usually we are just a client and not the peer
-		// itself, and we don't really want to compete with/
-		// overwrite the state if the user/admin is not expecting it.x
-		if stateSnapshot != nil {
-			// select {
-			// case node.ApplyNewStateSnapshotCh <- stateSnapshot:
-			// 	vv("%v we sent node.ApplyNewStateSnapshotCh <- stateSnapshot", cfg.MyName)
-			// case <-node.Halt.Done.Chan:
-			// 	return
-			// }
-		}
-	}
-
-	if memlistAfter == nil ||
-		memlistAfter.MC == nil ||
-		memlistAfter.MC.PeerNames == nil ||
-		memlistAfter.MC.PeerNames.Len() == 0 {
-
-		fmt.Printf("empty or nil membership from '%v'\n", lastLeaderName)
-	} else {
-		fmt.Printf("membership after adding '%v': (%v leader)\n", target, lastLeaderName)
-		for name, det := range memlistAfter.MC.PeerNames.All() {
-			fmt.Printf("  %v:   %v\n", name, det.URL)
-		}
-	}
-	if memlistAfter.ShadowReplicas == nil ||
-		memlistAfter.ShadowReplicas.PeerNames == nil ||
-		memlistAfter.ShadowReplicas.PeerNames.Len() == 0 {
-
-	} else {
-		fmt.Printf("\nshadow replicas:\n")
-		for name, det := range memlistAfter.ShadowReplicas.PeerNames.All() {
-			url, ok := memlistAfter.CktAllByName[name]
-			if !ok {
-				url = det.Addr
-			}
-			fmt.Printf("  %v:   %v\n", name, tube.URLTrimCktID(url))
-		}
-	}
+	return
 }
