@@ -4208,7 +4208,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	// stashForLeader = false will be much easier
 	// to reason about, since tup hangs plus ctrl-c do not result
 	// in later addition of members once a leader is found.
-	stashForLeader := !tkt.WaitLeaderDeadline.IsZero()
+	stashForLeader := tkt.WaitLeaderDeadline.IsZero()
 	// three red tests under stashForLeader = false that need fixing:
 	// red 059 compact_test.go
 	// red Test402_build_up_a_cluster_from_one_node membership_test.go
