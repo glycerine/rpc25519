@@ -97,7 +97,7 @@ func (s *raftWriteAheadLog) clone() (c *raftWriteAheadLog) {
 // a Raft principle that is necessary for safety.
 // leaders should never call this, in fact! We will
 // panic to remind them.
-func (s *raftWriteAheadLog) overwriteEntries_NODISK(keepIndex int64, es []*RaftLogEntry, isLeader bool, curCommitIndex, lastAppliedIndex, keepCount, overwriteCount int64, syncme *IndexTerm) (compactPrevIndex, compactPrevTerm int64, err error) {
+func (s *raftWriteAheadLog) overwriteEntries_NODISK(keepIndex int64, es []*RaftLogEntry, isLeader bool, curCommitIndex, lastAppliedIndex, keepCount, overwriteCount int64, syncme *IndexTerm) (err error) {
 
 	if isLeader {
 		panic("leaders should use saveRaftLogEntry(), never overwriteEntries, since Raft requires leaders never overwrite their logs.")
@@ -184,7 +184,7 @@ func (s *raftWriteAheadLog) overwriteEntries_NODISK(keepIndex int64, es []*RaftL
 		// section 5.1.3 -- "Implementation concerns").
 		//
 		// leave off until TermsRLE is compaction ready.
-		compactPrevIndex, compactPrevTerm = s.maybeCompact(curCommitIndex, syncme)
+		s.maybeCompact(curCommitIndex, syncme)
 	}
 
 	return

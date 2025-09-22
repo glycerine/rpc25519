@@ -742,7 +742,7 @@ func (s *TubeSim) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (num
 
 		s.host.choice("have %v neededEntries after clipping off the redundant. nOver=%v, nTrunc=%v, nAppend=%v", needed, numOverwrote, numTruncated, numAppended)
 
-		_, _, err := s.wal.overwriteEntries(keepCount, neededEntries, false, s.state.CommitIndex, s.state.LastApplied, nil)
+		err := s.wal.overwriteEntries(keepCount, neededEntries, false, s.state.CommitIndex, s.state.LastApplied, nil)
 		panicOn(err)
 		didAddData = true
 		done = true // don't call s.wal.overwriteEntries() again below.
@@ -787,7 +787,7 @@ func (s *TubeSim) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (num
 				numTruncated = 0
 				numAppended = int64(len(entries))
 
-				_, _, err := s.wal.overwriteEntries(keepCount, entries, false, s.state.CommitIndex, s.state.LastApplied, nil)
+				err := s.wal.overwriteEntries(keepCount, entries, false, s.state.CommitIndex, s.state.LastApplied, nil)
 				panicOn(err)
 				didAddData = true
 			}
@@ -807,7 +807,7 @@ func (s *TubeSim) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (num
 			numTruncated = max(0, int64(len(rlog))-entriesIdxEnd)
 			numAppended = max(0, entriesIdxEnd-int64(len(rlog)))
 
-			_, _, err := s.wal.overwriteEntries(keepCount, entries, false, s.state.CommitIndex, s.state.LastApplied, nil)
+			err := s.wal.overwriteEntries(keepCount, entries, false, s.state.CommitIndex, s.state.LastApplied, nil)
 			panicOn(err)
 			didAddData = true
 		} // end else !extends

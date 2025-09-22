@@ -612,7 +612,7 @@ func (s *raftWriteAheadLog) saveBlake3sumFor(by []byte, doFsync bool) (nw int, b
 //
 // overwriteEntries may call maybeCompact()
 // if log-compaction is on.
-func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry, isLeader bool, curCommitIndex, lastAppliedIndex int64, syncme *IndexTerm) (compactIndex, compactTerm int64, err error) {
+func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry, isLeader bool, curCommitIndex, lastAppliedIndex int64, syncme *IndexTerm) (err error) {
 
 	//vv("%v begin overwriteEntries()[isAppend=%v] keepIndex=%v; len(raftLog)=%v: %v", s.name, s.isAppendLoggingHelper(keepIndex), keepIndex, len(s.raftLog), s.StringWithCommit(curCommitIndex))
 
@@ -653,7 +653,7 @@ func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry
 		proposedNewLastIndex := keepIndex + nes
 		if proposedNewLastIndex <= earliestMustKeepBarrier {
 			vv("warning: dropping log entries! nothing we can do; all of es is already snapshot/compacted behind our barrier")
-			return s.logIndex.BaseC, s.logIndex.CompactTerm, nil
+			return nil
 		}
 		// INVAR: keepIndex + nes > earliestMustKeepBarrier
 		//  subtract keepIndex from both sides:
@@ -789,7 +789,7 @@ func (s *raftWriteAheadLog) overwriteEntries(keepIndex int64, es []*RaftLogEntry
 		// section 5.1.3 -- "Implementation concerns").
 		//
 		// leave off until TermsRLE is compaction ready.
-		compactIndex, compactTerm = s.maybeCompact(lastAppliedIndex, syncme)
+		s.maybeCompact(lastAppliedIndex, syncme)
 	}
 	return
 }
@@ -820,12 +820,13 @@ func (s *raftWriteAheadLog) isAppendLoggingHelper(keepIndex int64) bool {
 	return overwriteCount == 0
 }
 
-func (s *raftWriteAheadLog) maybeCompact(lastAppliedIndex int64, syncme *IndexTerm) (compactIndex, compactTerm int64) {
+func (s *raftWriteAheadLog) maybeCompact(lastAppliedIndex int64, syncme *IndexTerm) {
 
 	// defaults in case we bail early (important to keep stuff in sync!)
-	compactIndex = s.logIndex.BaseC
-	compactTerm = s.logIndex.CompactTerm
-
+	if syncme != nil {
+		syncme.Index = s.logIndex.BaseC
+		syncme.Term = s.logIndex.CompactTerm
+	}
 	if s.noLogCompaction {
 		return
 	}
@@ -841,7 +842,7 @@ func (s *raftWriteAheadLog) maybeCompact(lastAppliedIndex int64, syncme *IndexTe
 		s.prevLastAppliedIndex = lastAppliedIndex
 		var err error
 		// only live call (non-test) to Compact is here in maybeCompact().
-		_, _, compactIndex, compactTerm, err = s.Compact(lastAppliedIndex, syncme)
+		_, _, err = s.Compact(lastAppliedIndex, syncme)
 		panicOn(err)
 	} else {
 		//vv("%v compaction is on, but skipping because lastAppliedIndex(%v) <= s.prevLastAppliedIndex(%v)", s.name, lastAppliedIndex, s.prevLastAppliedIndex)
@@ -1040,7 +1041,7 @@ the proof of this claim."
 // entry from the current log. We will panic to assert this.
 // keepIndex == 0 by convention means keep everything => NO-OP.
 // So any keepIndex <= 0 will be a NO-OP.
-func (s *raftWriteAheadLog) Compact(keepIndex int64, syncme *IndexTerm) (origPath, origParPath string, compactIndex, compactTerm int64, err0 error) {
+func (s *raftWriteAheadLog) Compact(keepIndex int64, syncme *IndexTerm) (origPath, origParPath string, err0 error) {
 
 	//vv("%v Compact(keepIndex=%v) called.", s.name, keepIndex)
 
@@ -1055,10 +1056,6 @@ func (s *raftWriteAheadLog) Compact(keepIndex int64, syncme *IndexTerm) (origPat
 		}
 		s.assertConsistentWalAndIndex(keepIndex)
 	}()
-
-	// no change, but in case we bail early.
-	compactIndex = s.logIndex.BaseC
-	compactTerm = s.logIndex.CompactTerm
 
 	n := int64(len(s.raftLog))
 	if n == 0 || keepIndex <= 0 {
@@ -1098,8 +1095,8 @@ func (s *raftWriteAheadLog) Compact(keepIndex int64, syncme *IndexTerm) (origPat
 	//vv("%v good: in sync after CompactNewBeg", s.name)
 
 	// save these to restore below/be ready to return in nodisk.
-	compactIndex = s.logIndex.BaseC
-	compactTerm = s.logIndex.CompactTerm
+	compactIndex := s.logIndex.BaseC
+	compactTerm := s.logIndex.CompactTerm
 
 	if s.nodisk {
 		s.Compact_NODISK(keepIndex, keep0)

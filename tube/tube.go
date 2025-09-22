@@ -2461,13 +2461,6 @@ func (s *KVStore) clone() (r *KVStore) {
 	return
 }
 
-func (s *RaftState) setCompaction(idx, term int64) {
-	//if idx == 1 {
-	//vv("setCompaction idx -> 1; caller=%v", fileLine(2))
-	//}
-	s.CompactionDiscardedLast.Index = idx
-	s.CompactionDiscardedLast.Term = term
-}
 func (s *RaftState) votedStatus() string {
 	return fmt.Sprintf(`
 votedStatus{
@@ -5202,8 +5195,8 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 	s.wal.saveRaftLogEntry(entry)
 
 	// log compaction: here in replicateTicket().
-	compactIndex, compactTerm := s.wal.maybeCompact(s.state.CommitIndex, &s.state.CompactionDiscardedLast) // if compaction enabled.
-	s.state.setCompaction(compactIndex, compactTerm)
+	s.wal.maybeCompact(s.state.CommitIndex, &s.state.CompactionDiscardedLast) // if compaction enabled.
+	//s.state.setCompaction(compactIndex, compactTerm)
 	if true {
 		s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
 	}
@@ -7007,9 +7000,8 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		}
 
 		// in handleAppendEntries here.
-		compactIndex, compactTerm, err := s.wal.overwriteEntries(keepCount, neededEntries, false, s.state.CommitIndex, s.state.LastApplied, &s.state.CompactionDiscardedLast)
+		err := s.wal.overwriteEntries(keepCount, neededEntries, false, s.state.CommitIndex, s.state.LastApplied, &s.state.CompactionDiscardedLast)
 		panicOn(err)
-		s.state.setCompaction(compactIndex, compactTerm)
 		if true { // TODO restore: s.cfg.isTest {
 			s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
 		}
@@ -7069,9 +7061,9 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 				numTruncated = 0
 				numAppended = int64(len(entries))
 				// in handleAppendEntries here.
-				compactIndex, compactTerm, err := s.wal.overwriteEntries(keepCount, entries, false, s.state.CommitIndex, s.state.LastApplied, &s.state.CompactionDiscardedLast)
+				err := s.wal.overwriteEntries(keepCount, entries, false, s.state.CommitIndex, s.state.LastApplied, &s.state.CompactionDiscardedLast)
 				panicOn(err)
-				s.state.setCompaction(compactIndex, compactTerm)
+
 				if true { // TODO restore: s.cfg.isTest {
 					s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
 				}
@@ -11959,9 +11951,8 @@ func (s *TubeNode) setupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntryBoo
 	var curCommitIndex int64 = 1
 	var keepCount int64 = 0
 	// in setupFirstRaftLogEntryBootstrapLog() here.
-	compactIndex, compactTerm, err := s.wal.overwriteEntries(keepCount, es, isLeader, curCommitIndex, 0, &s.state.CompactionDiscardedLast)
+	err := s.wal.overwriteEntries(keepCount, es, isLeader, curCommitIndex, 0, &s.state.CompactionDiscardedLast)
 	panicOn(err)
-	s.state.setCompaction(compactIndex, compactTerm)
 	if true { // TODO restore: s.cfg.isTest {
 		s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
 	}
@@ -13368,9 +13359,9 @@ func (s *TubeNode) testSetupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntr
 	var curCommitIndex int64 = 1
 	var keepCount int64 = 0
 	// in testSetupFirstRaftLogEntryBootstrapLog() here.
-	compactIndex, compactTerm, err := s.wal.overwriteEntries(keepCount, es, isLeader, curCommitIndex, 0, &s.state.CompactionDiscardedLast)
+	err = s.wal.overwriteEntries(keepCount, es, isLeader, curCommitIndex, 0, &s.state.CompactionDiscardedLast)
 	panicOn(err)
-	s.state.setCompaction(compactIndex, compactTerm)
+
 	if true { // TODO restore: s.cfg.isTest {
 		s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
 	}
@@ -14906,14 +14897,14 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	s.state.LastSaveTimestamp = state2.LastSaveTimestamp
 
 	compactIndex := state2.CompactionDiscardedLast.Index
-	compactTerm := state2.CompactionDiscardedLast.Term
+	//compactTerm := state2.CompactionDiscardedLast.Term
 
 	//vv("%v snapshot about to update s.state.CompactionDiscardedLastIndex from %v -> %v; and s.state.CompactionDiscardedLast.Term from %v -> %v", s.name, s.state.CompactionDiscardedLastIndex, compactIndex, s.state.CompactionDiscardedLast.Term, compactTerm)
 
 	if compactIndex < s.state.CompactionDiscardedLast.Index {
 		panic(fmt.Sprintf("%v we should never be rolling back commits with state snapshots! compactIndex(%v) < s.state.CompactionDiscardedLastIndex(%v)", s.name, compactIndex, s.state.CompactionDiscardedLast.Index))
 	}
-	s.state.setCompaction(compactIndex, compactTerm)
+	s.state.CompactionDiscardedLast = state2.CompactionDiscardedLast
 
 	//vv("%v snapshot set s.state.CompactionDiscardedLastIndex=%v; s.state.CompactionDiscardedLast.Term=%v", s.name, s.state.CompactionDiscardedLastIndex, s.state.CompactionDiscardedLast.Term)
 
