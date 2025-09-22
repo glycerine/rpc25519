@@ -3166,10 +3166,11 @@ type AppendEntriesAck struct {
 	PeerMC *MemberConfig `zid:"34"`
 
 	PeerCompactionDiscardedLastIndex   int64 `zid:"35"`
-	NeedSnapshotGap                    bool  `zid:"36"`
-	SuppliedLeaderCommitIndexEntryTerm int64 `zid:"37"`
-	SuppliedCompactIndex               int64 `zid:"38"`
-	SuppliedCompactTerm                int64 `zid:"39"`
+	PeerCompactionDiscardedLastTerm    int64 `zid:"36"`
+	NeedSnapshotGap                    bool  `zid:"37"`
+	SuppliedLeaderCommitIndexEntryTerm int64 `zid:"38"`
+	SuppliedCompactIndex               int64 `zid:"39"`
+	SuppliedCompactTerm                int64 `zid:"40"`
 }
 
 func (ack *AppendEntriesAck) clone() (p *AppendEntriesAck) {
@@ -6135,6 +6136,13 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 	conflictTerm int64, // -1 if no conflict
 	conflictTerm1stIndex int64) { // -1 if no conflict
 
+	if true { // !s.cfg.isTest || s.cfg.testNo != 802 {
+		s.wal.assertConsistentWalAndIndex(0)
+		if s.state.CompactionDiscardedLastIndex != s.wal.logIndex.BaseC {
+			panicf("s.state.CompactionDiscardedLastIndex(%v) != s.wal.logIndex.BaseC(%v)", s.state.CompactionDiscardedLastIndex, s.wal.logIndex.BaseC)
+		}
+	}
+
 	//defer func() {
 	//vv("%v logsAreMismatched returning reject=%v; conflictTerm=%v; conflictTerm1stIndex=%v; ae='%v'", s.me(), reject, conflictTerm, conflictTerm1stIndex, ae)
 	//}()
@@ -6181,57 +6189,83 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 
 	// we can only really check at the earliest these guys,
 	// if they are available ( > 0 ).
-	baseC := s.state.CompactionDiscardedLastIndex
+	//baseC := s.state.CompactionDiscardedLastIndex
+	baseC := s.wal.logIndex.BaseC
 	if baseC > 0 {
 		// have to assume we match before what we compacted
 		// away, since we only compact committed values.
 
-		if ae.PrevLogIndex <= baseC { // 1 < 2
+		if ae.PrevLogIndex <= baseC { // 3 <= ?
 
 			if ae.PrevLogIndex == baseC {
 				if ae.PrevLogTerm != s.state.CompactionDiscardedLastTerm {
 					return true, ae.PrevLogTerm, ae.PrevLogIndex
 				}
+				// INVAR: ae.PrevLogTerm == s.state.CompactionDiscardedLastTerm
+				// we match terms at BaseC, but have to look at BaseC+1...
 			}
+
 			// compaction must/assumes that we always have
 			// agreement though <= s.state.CompactionDiscardedLastIndex.
 			// check the rest
-			for i, e := range ae.Entries {
-				switch {
-				case e.Index < baseC:
+
+			//for i, e := range ae.Entries {
+
+			last := nes - 1
+			e0 := ae.Entries[0]
+			e0index := e0.Index
+			eLast := ae.Entries[last]
+			eLastIndex := eLast.Index
+			if e0index > lli {
+				// gap, no overlap, no idea how far back it goes.
+				return true, -1, -1
+			}
+			if eLastIndex < baseC {
+				// we have all of their stuff anyway
+				return false, -1, -1
+			}
+			// INVAR: we have some overlap.
+			// ae.PrevLogIndex          <=  baseC <= eM.Index
+			//                 e0.Index <=        <= lli
+
+			// the earliest we can start comparing is
+			// ae.PrevLogIndex on the leader side, and
+			// baseC on the follower side here. We
+			// know from above that baseC >= ae.PrevLogIndex.
+			beg := baseC
+			if beg == 0 {
+				beg = 1 // earliest possible term we can compare
+			}
+			for fTerm, fIndex := range s.wal.logIndex.getTermIndexStartingAt(beg) {
+				// INVAR: fIndex >= 1
+				if fIndex < ae.PrevLogIndex {
+					// no comparison possible
 					continue
-				case e.Index == baseC:
-					if e.Term != s.state.CompactionDiscardedLastTerm {
-						return true, e.Term, e.Index
+				}
+				if fIndex == ae.PrevLogIndex {
+					if fTerm != ae.PrevLogTerm {
+						return true, fTerm, fIndex
 					}
-					if lli == baseC {
-						// done
-						return false, -1, -1 // no reject
-					}
-					// INVAR: lli > baseC (since lli never < baseC).
-					j := i + 1
-					if j >= nes {
-						return false, -1, -1 // no reject
-					}
-					for fTerm, fIndex := range s.wal.logIndex.getTermIndexStartingAt(baseC + 1) {
-						e = ae.Entries[j]
-						if e.Index != fIndex {
-							panicf("bad internal logic here, we should have "+
-								"matching indexes but leader data e.Index=%v "+
-								"while follower fIndex=%v", e.Index, fIndex)
-						}
-						if e.Term != fTerm {
-							return true, e.Term, e.Index
-						}
-						j++
-						if j == nes {
-							return false, -1, -1 // no reject
-						}
-					}
-					// we have more AE than we do existing log, and are fine to append
+					continue
+				}
+				// INVAR: fIndex > ae.PrevLogIndex
+
+				i := fIndex - ae.PrevLogIndex - 1
+				e := ae.Entries[i]
+				if e.Index != fIndex {
+					panicf("bad internal logic here, beg=%v; we should have "+
+						"matching indexes but leader data e.Index=%v "+
+						"while follower fIndex=%v (our baseC=%v)\n follower state='%v'", beg, e.Index, fIndex, baseC, s.state)
+				}
+				if e.Term != fTerm {
+					return true, e.Term, e.Index
+				}
+				if fIndex == eLastIndex {
+					// last viable comparison (last overlap),
+					// no conflict found.
 					return false, -1, -1
 				}
-			}
+			} // end for fTerm
 			return false, -1, -1
 		}
 		if ae.PrevLogIndex == baseC {
@@ -6632,6 +6666,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	compactedTo := s.state.CompactionDiscardedLastIndex
 	if compactedTo > 0 {
 		ack.PeerCompactionDiscardedLastIndex = compactedTo
+		ack.PeerCompactionDiscardedLastTerm = s.state.CompactionDiscardedLastTerm
 		ack.LargestCommonRaftIndex = compactedTo // rather than -1
 	}
 
@@ -9317,6 +9352,8 @@ func (a *AppendEntriesAck) String() string {
          PeerLogFirstTerm: %v,
          PeerLogLastIndex: %v,
           PeerLogLastTerm: %v,
+PeerCompactionDiscardedLastIndex: %v,
+ PeerCompactionDiscardedLastTerm: %v,
           PeerLogTermsRLE: %v,
         --- leader supplied its own log info ---
    SuppliedLeaderTermsRLE: %v,
@@ -9329,7 +9366,7 @@ func (a *AppendEntriesAck) String() string {
 SuppliedLeaderCommitIndex: %v,
 SuppliedLeaderCommitIndexEntryTerm: %v,
 }
-`, rpc.AliasDecode(a.ClusterID), a.FromPeerID, a.FromPeerName, a.FromPeerServiceName, rpc.AliasDecode(a.SuppliedLeader), a.SuppliedLeaderName, a.Term, a.Rejected, a.RejectReason, a.LogsMatchExactly, a.LargestCommonRaftIndex, a.ConflictTerm, a.ConflictTerm1stIndex, a.NeedSnapshotGap, a.PeerLogCompactIndex, a.PeerLogCompactTerm, a.PeerLogFirstIndex, a.PeerLogFirstTerm, a.PeerLogLastIndex, a.PeerLogLastTerm, a.PeerLogTermsRLE, a.SuppliedLeaderTermsRLE, a.SuppliedCompactIndex, a.SuppliedCompactTerm, a.SuppliedPrevLogIndex, a.SuppliedPrevLogTerm, a.SuppliedEntriesIndexBeg, a.SuppliedEntriesIndexEnd, a.SuppliedLeaderCommitIndex, a.SuppliedLeaderCommitIndexEntryTerm)
+`, rpc.AliasDecode(a.ClusterID), a.FromPeerID, a.FromPeerName, a.FromPeerServiceName, rpc.AliasDecode(a.SuppliedLeader), a.SuppliedLeaderName, a.Term, a.Rejected, a.RejectReason, a.LogsMatchExactly, a.LargestCommonRaftIndex, a.ConflictTerm, a.ConflictTerm1stIndex, a.NeedSnapshotGap, a.PeerLogCompactIndex, a.PeerLogCompactTerm, a.PeerLogFirstIndex, a.PeerLogFirstTerm, a.PeerLogLastIndex, a.PeerLogLastTerm, a.PeerCompactionDiscardedLastIndex, a.PeerCompactionDiscardedLastTerm, a.PeerLogTermsRLE, a.SuppliedLeaderTermsRLE, a.SuppliedCompactIndex, a.SuppliedCompactTerm, a.SuppliedPrevLogIndex, a.SuppliedPrevLogTerm, a.SuppliedEntriesIndexBeg, a.SuppliedEntriesIndexEnd, a.SuppliedLeaderCommitIndex, a.SuppliedLeaderCommitIndexEntryTerm)
 }
 
 func (a *RaftLogEntry) Equal(b *RaftLogEntry) bool {
@@ -14878,7 +14915,7 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	if s.wal.logIndex.CompactTerm != s.state.CompactionDiscardedLastTerm {
 		panicf("%v: s.wal.logIndex.CompactTerm(%v) != (%v)s.state.CompactionDiscardedLastTerm", s.name, s.wal.logIndex.CompactTerm, s.state.CompactionDiscardedLastTerm)
 	}
-	//vv("%v end of applyNewStateSnapshot. good: s.wal.index.BaseC(%v) == s.state.CompactionDiscardedLastIndex; logIndex.Endi=%v ; wal.lli=%v", s.name, s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.lli)
+	vv("%v end of applyNewStateSnapshot. good: s.wal.index.BaseC(%v) == s.state.CompactionDiscardedLastIndex; logIndex.Endi=%v ; wal.lli=%v", s.name, s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.lli)
 }
 
 // properly set CompactionDiscardedLastIndex/Term

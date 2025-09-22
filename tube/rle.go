@@ -921,13 +921,18 @@ func (leaderLog *TermsRLE) extends_pre_compacting(followerLog *TermsRLE) (extend
 func (s *TermsRLE) getTermIndexStartingAt(idx int64) iter.Seq2[int64, int64] {
 
 	base := s.BaseC
-	if idx <= base || idx > s.Endi {
+	if idx < base || idx > s.Endi {
 		panic(fmt.Sprintf("don't have it/don't know; idx=%v; s=%v", idx, s))
 	}
 	return func(yield func(int64, int64) bool) {
 		nextIdx := idx
-		//base := s.BaseC
 		foundFirst := false
+		if idx == base {
+			idx++ // advance for search below
+			if !yield(s.CompactTerm, base) {
+				return
+			}
+		}
 		for _, run := range s.Runs {
 			if !foundFirst {
 				thisRunEnd := base + run.Count

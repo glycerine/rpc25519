@@ -29,6 +29,7 @@ type TubeRemoveConfig struct {
 	Help        bool   // -h for help, false, show this help
 	//ForceName   string // -f force node to remove MC change
 	NonVotingShadowFollower bool // -shadow add as non-voting-follower ("shadow replica")
+	Verbose                 bool // -v verbose: show config/connection attempts.
 }
 
 func (c *TubeRemoveConfig) SetFlags(fs *flag.FlagSet) {
@@ -36,6 +37,7 @@ func (c *TubeRemoveConfig) SetFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.Help, "h", false, "show this help")
 	fs.BoolVar(&c.NonVotingShadowFollower, "shadow", false, "add node as non-voting shadow follower replica")
 	//fs.StringVar(&c.ForceName, "f", "", "name of node to force add MC change")
+	fs.BoolVar(&c.Verbose, "v", false, "verbose diagnostics logging to stdout")
 }
 
 func (c *TubeRemoveConfig) FinishConfig(fs *flag.FlagSet) (err error) {
@@ -57,6 +59,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "tubeadd help:\n")
 		fs.PrintDefaults()
 		return
+	}
+	if cmdCfg.Verbose {
+		verboseVerbose = true
 	}
 
 	var target string

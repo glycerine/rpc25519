@@ -51,6 +51,7 @@ type ConfigTubeCli struct {
 	Cpuprofile string `json:"cpuProfile" zid:"37"` // -cpuprofile, write cpu profile to file
 	Memprofile string `json:"memProfile" zid:"38"` // -memprofile, write memory profile to this file
 	WebProfile bool
+	Verbose    bool // -v verbose: show config/connection attempts.
 }
 
 func (c *ConfigTubeCli) SetFlags(fs *flag.FlagSet) {
@@ -65,6 +66,7 @@ func (c *ConfigTubeCli) SetFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.Cpuprofile, "cpuprofile", "", "write cpu profile to file")
 	fs.StringVar(&c.Memprofile, "memprofile", "", "write memory profile to this file")
 	fs.BoolVar(&c.NonVotingShadowFollower, "shadow", false, "add node as non-voting shadow follower replica")
+	fs.BoolVar(&c.Verbose, "v", false, "verbose diagnostics logging to stdout")
 }
 
 func (c *ConfigTubeCli) FinishConfig(fs *flag.FlagSet) (err error) {
@@ -86,6 +88,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "tube {options} <a tube.cfg path>\n")
 		fs.PrintDefaults()
 		return
+	}
+	if cmdCfg.Verbose {
+		verboseVerbose = true
 	}
 
 	if cmdCfg.WebProfile {

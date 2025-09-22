@@ -30,6 +30,7 @@ type TubeRemoveConfig struct {
 	//ForceName   string // -f force node to remove MC change
 	WipeName                string // -e wipe to empty MC
 	NonVotingShadowFollower bool   // -shadow remove shadow replica
+	Verbose                 bool   // -v verbose: show config/connection attempts.
 }
 
 func (c *TubeRemoveConfig) SetFlags(fs *flag.FlagSet) {
@@ -38,6 +39,7 @@ func (c *TubeRemoveConfig) SetFlags(fs *flag.FlagSet) {
 	//fs.StringVar(&c.ForceName, "f", "", "name of node to force remove MC change")
 	fs.StringVar(&c.WipeName, "e", "", "name of node to force install empty MC")
 	fs.BoolVar(&c.NonVotingShadowFollower, "shadow", false, "remove this non-voting shadow follower replica")
+	fs.BoolVar(&c.Verbose, "v", false, "verbose diagnostics logging to stdout")
 }
 
 func (c *TubeRemoveConfig) FinishConfig(fs *flag.FlagSet) (err error) {
@@ -59,6 +61,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "tuberm help:\n")
 		fs.PrintDefaults()
 		return
+	}
+	if cmdCfg.Verbose {
+		verboseVerbose = true
 	}
 
 	var target string
