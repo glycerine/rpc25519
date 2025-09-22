@@ -12962,35 +12962,35 @@ func (s *TubeNode) connectToMC(origin string) {
 	// triangle remains passive, accepting
 	// but not initiating connections.
 	var wantConnection []string
-	/*
-		sawMyself := false
-		for i := range sortedPeerNamesCached {
-			active := sortedPeerNamesCached[i].key
-			if active != s.name {
-				// preventing 059 node_4 from connecting, methinks. yep.
-				if s.name == "node_4" {
-					vv("%v not our row; numNames=%v", s.name, numNames)
-				}
-				continue // not our row. but what if we are not in the config?
-			} else {
-				sawMyself = true
+	/* looks okay to delete this old commented stuff now.
+	sawMyself := false
+	for i := range sortedPeerNamesCached {
+		active := sortedPeerNamesCached[i].key
+		if active != s.name {
+			// preventing 059 node_4 from connecting, methinks. yep.
+			if s.name == "node_4" {
+				vv("%v not our row; numNames=%v", s.name, numNames)
 			}
-			// INVAR: we are on the one row that is ours;
-			// where we are the active initiator of
-			// grid connections.
+			continue // not our row. but what if we are not in the config?
+		} else {
+			sawMyself = true
+		}
+		// INVAR: we are on the one row that is ours;
+		// where we are the active initiator of
+		// grid connections.
 
-			// Drat: this "upper-triangle only" approach
-			// doesn't work when node_2 is leader
-			// and node_0 is down and we want the leader to
-			// detect this and try to reconnect. Which means
-			// we can easily end up with logical races where
-			// two nodes attempt to connect to each other
-			// in parallel and both succeed. Well just allow
-			// duplicate circuits for now because pruning
-			// is kinda dangerous and having an extra circuit
-			// should not hurt (methinks).
+		// Drat: this "upper-triangle only" approach
+		// doesn't work when node_2 is leader
+		// and node_0 is down and we want the leader to
+		// detect this and try to reconnect. Which means
+		// we can easily end up with logical races where
+		// two nodes attempt to connect to each other
+		// in parallel and both succeed. Well just allow
+		// duplicate circuits for now because pruning
+		// is kinda dangerous and having an extra circuit
+		// should not hurt (methinks).
 
-			//for j := i + 1; j < numNames; j++ { // 055 node 0 ends up with no other conn to node_1, node_2. 402 green. 052 green
+		//for j := i + 1; j < numNames; j++ { // 055 node 0 ends up with no other conn to node_1, node_2. 402 green. 052 green
 
 	*/
 	// why does reaching out to more failed nodes
