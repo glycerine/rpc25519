@@ -4259,7 +4259,8 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 		// Its passage prevented any new decrees from being passed—
 		// including the decrees proposed to correct the mistake.
 		// Government in Paxos came to a halt. A general named
-		// Λαµπσων took advantage of the confusion to stage
+		// Λαµπσων [me: "Lampson", referring to Butler Lampson]
+		// took advantage of the confusion to stage
 		// a coup, establishinga military dictatorship that
 		// ended centuries of progressive government. Paxos grew
 		// weak under a series of corrupt dictators, and was unable
