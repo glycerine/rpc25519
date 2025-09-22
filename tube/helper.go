@@ -15,7 +15,7 @@ type set struct {
 	nodes []string
 }
 
-func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requireOnlyContact bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection, isActuallyLeader bool) {
+func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requireOnlyContact bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection, reallyLeader bool) {
 
 	// contact everyone, get their idea of who is leader
 	leaders := make(map[string]*set)
@@ -40,6 +40,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 			lastInsp = insp
 			lastLeaderName = leaderName
 			lastLeaderURL = leaderURL
+			reallyLeader = true // else leaderName is empty string
 			s := leaders[leaderName]
 			if s == nil {
 				leaders[leaderName] = &set{nodes: []string{name}}
@@ -87,6 +88,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 		if leaderName != "" {
 			lastLeaderName = leaderName
 			lastLeaderURL = leaderURL
+			reallyLeader = true
 			lastInsp = insp
 			pp("extra candidate leader = '%v', url = '%v", leaderName, leaderURL)
 			s := leaders[leaderName]

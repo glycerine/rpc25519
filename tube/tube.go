@@ -4177,13 +4177,13 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	// stashForLeader = false will be much easier
 	// to reason about, since tup hangs plus ctrl-c do not result
 	// in later addition of members once a leader is found.
-	//const stashForLeader = false
+	const stashForLeader = false
 	// three red tests under stashForLeader = false that need fixing:
 	// red 059 compact_test.go
 	// red Test402_build_up_a_cluster_from_one_node membership_test.go
 	// read Test403_reduce_a_cluster_down_to_one_node
 
-	const stashForLeader = true // needed atm for green tests.
+	//const stashForLeader = true // needed atm for green tests.
 	if s.leaderID == "" {
 		if stashForLeader {
 			// save it until we do get a leader?
@@ -15051,6 +15051,12 @@ func (s *TubeNode) bootstrappedMembership(tkt *Ticket) bool {
 		//vv("%v not just me; MC=%v", s.name, s.state.MC)
 		return false
 	}
+	// We experimented with letting a node add another
+	// node, but then we don't have the connection details
+	// to give out, and they might be offline and stay
+	// offline. (Hopefully we avoid having the list
+	// of drowned sailors be the members of the
+	// part time parliament...)
 	if tkt.AddPeerName != s.name {
 		//vv("%v not trying to add self to MC", s.me())
 		return false
