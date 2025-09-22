@@ -4208,6 +4208,12 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	// stashForLeader = false will be much easier
 	// to reason about, since tup hangs plus ctrl-c do not result
 	// in later addition of members once a leader is found.
+	// To accomodate 402 and 403 membership_tests, we use
+	// the errWriteDur in the AddPeer call to decide how
+	// long to wait for a leader. If 0 then deadline will
+	// be zero (e.g. for command line clients), and they
+	// can choose to get eager errors when no leader is
+	// available. At least that is the idea.
 	stashForLeader := tkt.WaitLeaderDeadline.IsZero()
 	// three red tests under stashForLeader = false that need fixing:
 	// red 059 compact_test.go
