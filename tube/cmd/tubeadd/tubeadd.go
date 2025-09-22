@@ -18,15 +18,11 @@ import (
 	"time"
 
 	"github.com/glycerine/ipaddr"
-	rpc "github.com/glycerine/rpc25519"
+	//rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/tube"
 )
 
 var sep = string(os.PathSeparator)
-
-type set struct {
-	nodes []string
-}
 
 type TubeRemoveConfig struct {
 	ContactName string // -c name of node to contact
@@ -150,7 +146,7 @@ func main() {
 	panicOn(err)
 	defer node.Close()
 
-	leaderURL, leaderName := findLeader(cfg, cmdCfg, node)
+	leaderURL, leaderName := node.HelperFindLeader(cfg, cmdCfg.ContactName)
 	pp("tubeadd is doing AddPeerIDToCluster using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
 
 	targetPeerID := "" // empty string allowed now
@@ -203,127 +199,4 @@ func main() {
 			fmt.Printf("  %v:   %v\n", name, tube.URLTrimCktID(url))
 		}
 	}
-}
-
-func findLeader(cfg *tube.TubeConfig, cmdCfg *TubeRemoveConfig, node *tube.TubeNode) (lastLeaderURL, lastLeaderName string) {
-	// contact everyone, get their idea of who is leader
-	leaders := make(map[string]*set)
-
-	ctx := context.Background()
-
-	var insps []*tube.Inspection
-	for name, addr := range cfg.Node2Addr {
-		url := tube.FixAddrPrefix(addr)
-		_, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
-		//mc, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
-
-		if err != nil {
-			//pp("skip '%v' b/c err = '%v'", leaderName, err)
-			continue
-		}
-		if leaderName != "" {
-			pp("candidate leader = '%v', url = '%v", leaderName, leaderURL)
-			insps = append(insps, insp)
-			lastLeaderName = leaderName
-			lastLeaderURL = leaderURL
-			s := leaders[leaderName]
-			if s == nil {
-				leaders[leaderName] = &set{nodes: []string{name}}
-			} else {
-				s.nodes = append(s.nodes, name)
-			}
-		}
-	}
-	// put together a transition set of known/connected nodes...
-	xtra := make(map[string]string)
-	for _, ins := range insps {
-		for name, url := range ins.CktAll {
-			_, skip := cfg.Node2Addr[name]
-			if skip {
-				// already contacted
-				continue
-			}
-			surl, ok := xtra[name]
-			if ok {
-				if surl == "pending" {
-					xtra[name] = url
-				}
-			} else {
-				// avoid adding other clients/ourselves
-				_, serviceName, _, _, err1 := rpc.ParsePeerURL(url)
-				if err1 == nil && serviceName == tube.TUBE_REPLICA {
-					xtra[name] = url
-				}
-			}
-		}
-	}
-
-	for name, url := range xtra {
-		if url == "pending" {
-			continue
-		}
-		//url = tube.FixAddrPrefix(url)
-		_, _, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
-		//mc, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
-		if err != nil {
-			continue
-		}
-		if leaderName != "" {
-			lastLeaderName = leaderName
-			lastLeaderURL = leaderURL
-			pp("extra candidate leader = '%v', url = '%v", leaderName, leaderURL)
-			s := leaders[leaderName]
-			if s == nil {
-				leaders[leaderName] = &set{nodes: []string{name}}
-			} else {
-				s.nodes = append(s.nodes, name)
-			}
-		}
-	}
-
-	if len(leaders) > 1 {
-		if cmdCfg.ContactName == "" {
-			fmt.Printf("ugh. we see multiple leaders in our nodes\n")
-			fmt.Printf("     --not sure which one to talk to...\n")
-			for lead, s := range leaders {
-				for _, n := range s.nodes {
-					fmt.Printf("  '%v' sees leader '%v'\n", n, lead)
-				}
-			}
-			os.Exit(1)
-		}
-	}
-	if len(leaders) == 1 {
-		if cmdCfg.ContactName == "" {
-			if cfg.InitialLeaderName != "" &&
-				cfg.InitialLeaderName != lastLeaderName {
-
-				fmt.Printf("warning: ignoring default '%v' "+
-					"because we see leader '%v'\n",
-					cfg.InitialLeaderName, lastLeaderName)
-			}
-		} else {
-			fmt.Printf("abort: we see existing leader '%v'; conflicts with request -c %v\n", lastLeaderName, cmdCfg.ContactName)
-			os.Exit(1)
-		}
-	} else {
-		// INVAR: len(leaders) == 0
-		if cmdCfg.ContactName == "" {
-			if cfg.InitialLeaderName == "" {
-				fmt.Printf("no leaders found and no cfg.InitialLeaderName; use -c to contact a specific node.\n")
-				os.Exit(1)
-			} else {
-				pp("based on cfg.InitialLeaderName we will try to contact '%v'", cfg.InitialLeaderName)
-				lastLeaderName = cfg.InitialLeaderName
-				addr := cfg.Node2Addr[lastLeaderName]
-				lastLeaderURL = tube.FixAddrPrefix(addr)
-			}
-		} else {
-			lastLeaderName = cmdCfg.ContactName
-			pp("based on -c we will try to contact '%v'", cmdCfg.ContactName)
-			addr := cfg.Node2Addr[lastLeaderName]
-			lastLeaderURL = tube.FixAddrPrefix(addr)
-		}
-	}
-	return
 }
