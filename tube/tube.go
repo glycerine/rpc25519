@@ -4176,12 +4176,23 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 		s.leaderName = ""
 		s.leaderURL = ""
 	}
+	const stashForLeader = false
+	//const stashForLeader = true
 	if s.leaderID == "" {
-		// save it until we do get a leader.
-		s.ticketsAwaitingLeader[tkt.TicketID] = tkt
-		//s.Waiting[tkt.TicketID] = tkt
-		vv("%v no leader yet, saving ticket until then: '%v'", s.me(), tkt)
-		tkt.Stage += fmt.Sprintf(":redirectToLeader(true,not_leader)_from_%v", fileLine(2))
+		if stashForLeader {
+			// save it until we do get a leader?
+			s.ticketsAwaitingLeader[tkt.TicketID] = tkt
+			//s.Waiting[tkt.TicketID] = tkt
+			vv("%v no leader yet, saving ticket until then: '%v'", s.me(), tkt)
+			tkt.Stage += fmt.Sprintf(":redirectToLeader(true,not_leader)_from_%v", fileLine(2))
+			return true
+		}
+		// stashing for later leader made for a weird
+		// command line tubeadd experience/hang.
+		tkt.Err = fmt.Errorf("ahem. no leader known to me (node '%v')", s.name)
+		//s.respondToClientTicketApplied(tkt)
+		s.replyToForwardedTicketWithError(tkt)
+		s.FinishTicket(tkt, false)
 		return true
 	}
 	if tkt.FromID == s.PeerID {
@@ -4200,11 +4211,20 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 		// return true so that we do not assume we are
 		// the leader, even if we cannot contact one.
 		// stash it like above where we had no leader.
-		s.ticketsAwaitingLeader[tkt.TicketID] = tkt
-		//s.Waiting[tkt.TicketID] = tkt ?
+		if stashForLeader {
+			s.ticketsAwaitingLeader[tkt.TicketID] = tkt
+			//s.Waiting[tkt.TicketID] = tkt ?
 
-		vv("%v no leader yet, saving ticket until then: '%v'", s.me(), tkt)
-		tkt.Stage += ":redirectToLeader(true,no_leader_yet)" // was (true,cannot_redirect_to_leader)
+			vv("%v no leader yet, saving ticket until then: '%v'", s.me(), tkt)
+			tkt.Stage += ":redirectToLeader(true,no_leader_yet)" // was (true,cannot_redirect_to_leader)
+			return true
+		}
+		// stashing for later leader made for a weird
+		// command line tubeadd experience/hang.
+		tkt.Err = fmt.Errorf("hmm. no leader known to me (node '%v')", s.name)
+		//s.respondToClientTicketApplied(tkt)
+		s.replyToForwardedTicketWithError(tkt)
+		s.FinishTicket(tkt, false)
 		return true
 	}
 	ckt := cktP.ckt
@@ -9365,7 +9385,7 @@ func (a *RaftLogEntry) Equal(b *RaftLogEntry) bool {
 }
 
 func (s *TubeNode) dispatchAwaitingLeaderTickets() {
-	vv("%v: top dispatchAwaitingLeaderTickets(); len(s.ticketsAwaitingLeader)=%v", s.name, len(s.ticketsAwaitingLeader))
+	//vv("%v: top dispatchAwaitingLeaderTickets(); len(s.ticketsAwaitingLeader)=%v", s.name, len(s.ticketsAwaitingLeader))
 
 	// any tickets waiting for a leader?
 	for id, tkt := range sorted(s.ticketsAwaitingLeader) {

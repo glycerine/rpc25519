@@ -162,18 +162,20 @@ func main() {
 		//mc, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
 
 		if err != nil {
-			pp("skip '%v' b/c err = '%v'", leaderName, err)
+			//pp("skip '%v' b/c err = '%v'", leaderName, err)
 			continue
 		}
-		pp("candidate leader = '%v', url = '%v", leaderName, leaderURL)
-		insps = append(insps, insp)
-		lastLeaderName = leaderName
-		lastLeaderURL = leaderURL
-		s := leaders[leaderName]
-		if s == nil {
-			leaders[leaderName] = &set{nodes: []string{name}}
-		} else {
-			s.nodes = append(s.nodes, name)
+		if leaderName != "" {
+			pp("candidate leader = '%v', url = '%v", leaderName, leaderURL)
+			insps = append(insps, insp)
+			lastLeaderName = leaderName
+			lastLeaderURL = leaderURL
+			s := leaders[leaderName]
+			if s == nil {
+				leaders[leaderName] = &set{nodes: []string{name}}
+			} else {
+				s.nodes = append(s.nodes, name)
+			}
 		}
 	}
 	// put together a transition set of known/connected nodes...
@@ -210,14 +212,16 @@ func main() {
 		if err != nil {
 			continue
 		}
-		lastLeaderName = leaderName
-		lastLeaderURL = leaderURL
-		pp("extra candidate leader = '%v', url = '%v", leaderName, leaderURL)
-		s := leaders[leaderName]
-		if s == nil {
-			leaders[leaderName] = &set{nodes: []string{name}}
-		} else {
-			s.nodes = append(s.nodes, name)
+		if leaderName != "" {
+			lastLeaderName = leaderName
+			lastLeaderURL = leaderURL
+			pp("extra candidate leader = '%v', url = '%v", leaderName, leaderURL)
+			s := leaders[leaderName]
+			if s == nil {
+				leaders[leaderName] = &set{nodes: []string{name}}
+			} else {
+				s.nodes = append(s.nodes, name)
+			}
 		}
 	}
 
@@ -340,6 +344,8 @@ func main() {
 	memlistAfter, stateSnapshot, err := node.AddPeerIDToCluster(ctx, cmdCfg.NonVotingShadowFollower, target, targetPeerID, peerServiceName, baseServerHostPort, leaderURL, errWriteDur)
 	panicOn(err)
 
+	pp("good: no error on AddPeerIDToCluster('%v'); shadow/nonVoting='%v'; contacting leader '%v'", target, cmdCfg.NonVotingShadowFollower, leaderURL)
+
 	if target == cfg.MyName {
 		// we could apply the state snapshot like peercli does,
 		// but usually we are just a client and not the peer
@@ -360,7 +366,7 @@ func main() {
 		memlistAfter.MC.PeerNames == nil ||
 		memlistAfter.MC.PeerNames.Len() == 0 {
 
-		//fmt.Printf("empty or nil membership from '%v'\n", leaderName)
+		fmt.Printf("empty or nil membership from '%v'\n", lastLeaderName)
 	} else {
 		fmt.Printf("membership after adding '%v': (%v leader)\n", target, lastLeaderName)
 		for name, det := range memlistAfter.MC.PeerNames.All() {

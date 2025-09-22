@@ -357,6 +357,7 @@ func main() {
 						// can have network unavail at first. Yes freak since otherwise we won't be up!
 						//panicOn(err)
 						if err == nil {
+							pp("good: no error on AddPeerIDToCluster('%v'); shadow/nonVoting='%v'; contacting leader '%v'", cfg.MyName, cmdCfg.NonVotingShadowFollower, actualLeaderURL)
 							if stateSnapshot != nil {
 								select {
 								case node.ApplyNewStateSnapshotCh <- stateSnapshot:
