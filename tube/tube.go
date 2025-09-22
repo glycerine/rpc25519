@@ -4180,7 +4180,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 		// save it until we do get a leader.
 		s.ticketsAwaitingLeader[tkt.TicketID] = tkt
 		//s.Waiting[tkt.TicketID] = tkt
-		//vv("%v no leader yet, saving ticket until then: '%v'", s.me(), tkt)
+		vv("%v no leader yet, saving ticket until then: '%v'", s.me(), tkt)
 		tkt.Stage += fmt.Sprintf(":redirectToLeader(true,not_leader)_from_%v", fileLine(2))
 		return true
 	}
@@ -4203,7 +4203,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 		s.ticketsAwaitingLeader[tkt.TicketID] = tkt
 		//s.Waiting[tkt.TicketID] = tkt ?
 
-		//vv("%v no leader yet, saving ticket until then: '%v'", s.me(), tkt)
+		vv("%v no leader yet, saving ticket until then: '%v'", s.me(), tkt)
 		tkt.Stage += ":redirectToLeader(true,no_leader_yet)" // was (true,cannot_redirect_to_leader)
 		return true
 	}
@@ -9365,7 +9365,7 @@ func (a *RaftLogEntry) Equal(b *RaftLogEntry) bool {
 }
 
 func (s *TubeNode) dispatchAwaitingLeaderTickets() {
-	//vv("%v: top dispatchAwaitingLeaderTickets(); len(s.ticketsAwaitingLeader)=%v", s.name, len(s.ticketsAwaitingLeader))
+	vv("%v: top dispatchAwaitingLeaderTickets(); len(s.ticketsAwaitingLeader)=%v", s.name, len(s.ticketsAwaitingLeader))
 
 	// any tickets waiting for a leader?
 	for id, tkt := range sorted(s.ticketsAwaitingLeader) {
@@ -9379,7 +9379,7 @@ func (s *TubeNode) dispatchAwaitingLeaderTickets() {
 			//s.replicateTicket(tkt)
 			s.commandSpecificLocalActionsThenReplicateTicket(tkt, "dispatchAwaitingLeaderTickets")
 		} else {
-			//vv("%v dispatchAwaitingLeaderTickets: follower sees ticket waiting for leader, calling redirectToLeader: '%v'", s.me(), tkt.TicketID)
+			vv("%v dispatchAwaitingLeaderTickets: follower sees ticket waiting for leader, calling redirectToLeader: '%v'", s.me(), tkt.TicketID)
 			s.redirectToLeader(tkt)
 		}
 	}
@@ -11970,7 +11970,7 @@ func (s *TubeNode) setupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntryBoo
 // Any new config installed (and not stalled) will start
 // with IsCommitted false.
 func (s *TubeNode) changeMembership(tkt *Ticket) {
-	//vv("%v top of changeMembership(); tkt.Desc='%v'", s.me(), tkt.Desc)
+	vv("%v top of changeMembership(); tkt.Desc='%v'", s.me(), tkt.Desc)
 
 	if tkt.finishTicketCalled {
 		//vv("%v tkt.finishTicketCalled so exit changeMembership early; tkt.Desc='%v'", s.me(), tkt.Desc)
@@ -12326,8 +12326,8 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	// INVAR: new config differs from cur config by
 	// exactly one (or zero; no change in) peers.
 
-	//vv("%v good, in changeMembership, cur config = '%v'", s.me(), curConfig)
-	//vv("vs new config = '%v'", newConfig)
+	vv("%v good, in changeMembership, cur config = '%v'", s.me(), curConfig)
+	vv("vs new config = '%v'", newConfig)
 
 	// double check that
 	memDiff := s.membershipDiffOldNew(curConfig, newConfig)
@@ -12372,7 +12372,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	// conditions Q1,Q2,P1 of Algorithm 1 (page 6)
 	// of the Mongo paper; any older configs have been
 	// deactivated and a new/other leader cannot revive them.
-	//vv("%v mongo logless commit observed", s.me())
+	vv("%v mongo logless commit observed", s.me())
 
 	// We could do this to document the fact... but they are
 	// about to get replaced by newConfig which is not committed anyway.
@@ -12399,7 +12399,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 
 	// this does s.FinishTicket(tkt) only if WaitingAtLeader
 	s.respondToClientTicketApplied(tkt)
-	//vv("%v mongo changeMembership done, back from respondToClientTicketApplied with tkt='%v'", s.me(), tkt)
+	vv("%v mongo changeMembership done, back from respondToClientTicketApplied with tkt='%v'", s.me(), tkt)
 	s.FinishTicket(tkt, true)
 	//vv("%v mongo FinishTicket done for tkt4=%v", s.me(), tkt.TicketID[:4])
 

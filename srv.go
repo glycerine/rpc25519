@@ -174,7 +174,8 @@ func (s *Server) runServerMain(
 		// a.IP is a net.IP
 		if a.IP.IsUnspecified() {
 			externalIP, extNetIP := ipaddr.GetExternalIP2() // e.g. 100.x.x.x
-			alwaysPrintf("have unspecified IP, trying to report a specific external: '%v'", externalIP)
+			_ = externalIP
+			//alwaysPrintf("have unspecified IP, trying to report a specific external: '%v'", externalIP)
 			a.IP = extNetIP
 		}
 	default:

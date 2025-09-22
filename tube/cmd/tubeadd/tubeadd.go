@@ -10,7 +10,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"net/url"
+	//"net/url"
 	"os"
 	//"strings"
 	//"path/filepath"
@@ -18,11 +18,15 @@ import (
 	"time"
 
 	"github.com/glycerine/ipaddr"
-	rpc "github.com/glycerine/rpc25519"
+	//rpc "github.com/glycerine/rpc25519"
 	"github.com/glycerine/rpc25519/tube"
 )
 
 var sep = string(os.PathSeparator)
+
+type set struct {
+	nodes []string
+}
 
 type TubeRemoveConfig struct {
 	ContactName string // -c name of node to contact
@@ -140,100 +144,186 @@ func main() {
 		}
 	}
 
-	var cli *rpc.Client
+	//var cli *rpc.Client
 	//cli, err := node.StartClientOnly(ctx, addr)
 	err = node.InitAndStart()
 	panicOn(err)
-	if false { // err != nil {
-		if cli != nil {
-			cli.Close()
-		}
-		node.Halt.ReqStop.Close()
-		node = tube.NewTubeNode(name, cfg)
-
-		// try others
-		for name, addr := range cfg.Node2Addr {
-			if name == greet {
-				continue
-			}
-			cli, err = node.StartClientOnly(ctx, addr)
-			if err == nil {
-				leaderURL = tube.FixAddrPrefix(addr)
-				break
-			}
-		}
-		if err != nil {
-			vv("no luck with any of cfg.Node2Addr: '%#v'", cfg.Node2Addr)
-			panicOn(err) // panic: error: client local: ''/name='tubeadd_TU2YQwnLO3AoA9i7EYJS' failed to connect to server: 'dial tcp :7010: connect: connection refused'
-		}
-	}
-	//defer cli.Close()
 	defer node.Close()
 
-	//err = node.UseLeaderURL(ctx, leaderURL)
-	//panicOn(err)
-	//vv("back from cli.UseLeaderURL(leaderURL='%v')", leaderURL)
+	// contact everyone, get their idea of who is leader
+	leaders := make(map[string]*set)
 
-	newestMembership, insp, actualLeaderURL, leaderName, onlyPossibleAddr, err := node.GetPeerListFrom(ctx, leaderURL)
-	_ = insp
-	_ = onlyPossibleAddr
-	panicOn(err)
-	if target == "" {
-		fmt.Printf("existing membership: (%v leader)\n", leaderName)
-		for name, det := range newestMembership.PeerNames.All() {
-			fmt.Printf("  %v:   %v\n", name, det.URL)
+	var lastLeaderName string
+	var lastLeaderURL string
+	var insps []*tube.Inspection
+	for name, addr := range cfg.Node2Addr {
+		url := tube.FixAddrPrefix(addr)
+		_, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
+		//mc, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
+
+		if err != nil {
+			continue
 		}
-		os.Exit(0)
+		insps = append(insps, insp)
+		lastLeaderName = leaderName
+		lastLeaderURL = leaderURL
+		s := leaders[leaderName]
+		if s == nil {
+			leaders[leaderName] = &set{nodes: []string{name}}
+		} else {
+			s.nodes = append(s.nodes, name)
+		}
 	}
-	//vv("GetPeerListFrom(leaderURL='%v') -> actualLeaderURL = '%v'", leaderURL, actualLeaderURL)
-	var host string
-	if actualLeaderURL != "" && actualLeaderURL != leaderURL {
-		//vv("use actual='%v' rather than orig='%v'", actualLeaderURL, leaderURL)
-		leaderURL = actualLeaderURL
+	// put together a transition set of known/connected nodes...
+	xtra := make(map[string]string)
+	for _, ins := range insps {
+		for name, url := range ins.CktAll {
+			_, skip := cfg.Node2Addr[name]
+			if skip {
+				// already contacted
+				continue
+			}
+			surl, ok := xtra[name]
+			if ok {
+				if surl == "pending" {
+					xtra[name] = url
+				}
+			} else {
+				xtra[name] = url
+			}
+		}
+	}
 
-		// so I guess we must start another client.
-		// maybe? cli.Close()
-		addr2, _, _, _, err := rpc.ParsePeerURL(leaderURL)
-		panicOn(err)
-		u, err := url.Parse(addr2)
-		panicOn(err)
-		host = u.Host
-		// port := u.Port()
-		// if port != "" {
-		// 	host = net.JoinHostPort(host, port)
-		// }
+	for name, url := range xtra {
+		if url == "pending" {
+			continue
+		}
+		//url = tube.FixAddrPrefix(url)
+		_, _, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
+		//mc, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
+		if err != nil {
+			continue
+		}
+		lastLeaderName = leaderName
+		lastLeaderURL = leaderURL
+		s := leaders[leaderName]
+		if s == nil {
+			leaders[leaderName] = &set{nodes: []string{name}}
+		} else {
+			s.nodes = append(s.nodes, name)
+		}
+	}
 
-		//cli2, err := node.StartClientOnly(ctx, host)
+	if len(leaders) > 1 {
+		if cmdCfg.ContactName == "" {
+			fmt.Printf("ugh. we see multiple leaders in our nodes\n")
+			fmt.Printf("     --not sure which one to talk to...\n")
+			for lead, s := range leaders {
+				for _, n := range s.nodes {
+					fmt.Printf("  '%v' sees leader '%v'\n", n, lead)
+				}
+			}
+			os.Exit(1)
+		}
+	}
+	if len(leaders) == 1 {
+		if cmdCfg.ContactName == "" {
+			if cfg.InitialLeaderName != "" &&
+				cfg.InitialLeaderName != lastLeaderName {
+
+				fmt.Printf("warning: ignoring default '%v' "+
+					"because we see leader '%v'\n",
+					cfg.InitialLeaderName, lastLeaderName)
+			}
+		} else {
+			fmt.Printf("abort: we see existing leader '%v'; conflicts with request -c %v\n", lastLeaderName, cmdCfg.ContactName)
+			os.Exit(1)
+		}
+	} else {
+		// INVAR: len(leaders) == 0
+		if cmdCfg.ContactName == "" {
+			if cfg.InitialLeaderName == "" {
+				fmt.Printf("no leaders found and no cfg.InitialLeaderName; use -c to contact a specific node.\n")
+				os.Exit(1)
+			} else {
+				lastLeaderName = cfg.InitialLeaderName
+				addr := cfg.Node2Addr[lastLeaderName]
+				lastLeaderURL = tube.FixAddrPrefix(addr)
+			}
+		} else {
+			lastLeaderName = cmdCfg.ContactName
+			addr := cfg.Node2Addr[lastLeaderName]
+			lastLeaderURL = tube.FixAddrPrefix(addr)
+		}
+	}
+	/*
+		err = node.UseLeaderURL(ctx, leaderURL)
 		//panicOn(err)
-		//defer cli2.Close()
+		//vv("back from cli.UseLeaderURL(leaderURL='%v')", leaderURL)
 
-		newestMembership, insp, actualLeaderURL, leaderName, onlyPossibleAddr, err = node.GetPeerListFrom(ctx, host)
+		newestMembership, insp, actualLeaderURL, leaderName, onlyPossibleAddr, err := node.GetPeerListFrom(ctx, leaderURL)
 		_ = insp
 		_ = onlyPossibleAddr
 		panicOn(err)
-	}
-
-	if false {
-		det, ok := newestMembership.PeerNames.Get2(target)
-		// have to do it anyway to get election started on one node recovery(!)
-		if false {
-			if ok {
-				fmt.Printf("error: target already in current membership. target='%v'; queried (leaderURL='%v' host='%v' (call: GetPeerListFrom)\n", target, host, leaderURL)
-				fmt.Printf("existing membership: (%v leader)\n", leaderName)
-				for name, det := range newestMembership.PeerNames.All() {
-					fmt.Printf("  %v:   %v\n", name, det.URL)
-				}
-				os.Exit(1)
+		if target == "" {
+			fmt.Printf("existing membership: (%v leader)\n", leaderName)
+			for name, det := range newestMembership.PeerNames.All() {
+				fmt.Printf("  %v:   %v\n", name, det.URL)
 			}
+			os.Exit(0)
 		}
+		//vv("GetPeerListFrom(leaderURL='%v') -> actualLeaderURL = '%v'", leaderURL, actualLeaderURL)
+		var host string
+		if actualLeaderURL != "" && actualLeaderURL != leaderURL {
+			//vv("use actual='%v' rather than orig='%v'", actualLeaderURL, leaderURL)
+			leaderURL = actualLeaderURL
 
-		_ = det
-		//_, _, targetPeerID, _, err := rpc.ParsePeerURL(det.URL) // det is nil here.
-		//panicOn(err)
-	}
+			// so I guess we must start another client.
+			// maybe? cli.Close()
+			addr2, _, _, _, err := rpc.ParsePeerURL(leaderURL)
+			panicOn(err)
+			u, err := url.Parse(addr2)
+			panicOn(err)
+			host = u.Host
+			// port := u.Port()
+			// if port != "" {
+			// 	host = net.JoinHostPort(host, port)
+			// }
+
+			//cli2, err := node.StartClientOnly(ctx, host)
+			//panicOn(err)
+			//defer cli2.Close()
+
+			newestMembership, insp, actualLeaderURL, leaderName, onlyPossibleAddr, err = node.GetPeerListFrom(ctx, host)
+			_ = insp
+			_ = onlyPossibleAddr
+			panicOn(err)
+		}
+	*/
+	/*
+		if false {
+			det, ok := newestMembership.PeerNames.Get2(target)
+			// have to do it anyway to get election started on one node recovery(!)
+			if false {
+				if ok {
+					fmt.Printf("error: target already in current membership. target='%v'; queried (leaderURL='%v' host='%v' (call: GetPeerListFrom)\n", target, host, leaderURL)
+					fmt.Printf("existing membership: (%v leader)\n", leaderName)
+					for name, det := range newestMembership.PeerNames.All() {
+						fmt.Printf("  %v:   %v\n", name, det.URL)
+					}
+					os.Exit(1)
+				}
+			}
+
+			_ = det
+			//_, _, targetPeerID, _, err := rpc.ParsePeerURL(det.URL) // det is nil here.
+			//panicOn(err)
+		}
+	*/
 	targetPeerID := "" // allowed now
 
-	vv("tubeadd is doing AddPeerIDToCluster using leaderURL='%v'", leaderURL)
+	leaderURL = lastLeaderURL
+	pp("tubeadd is doing AddPeerIDToCluster using leaderURL='%v'", leaderURL)
 	errWriteDur := time.Second * 20
 	peerServiceName := tube.TUBE_REPLICA
 	baseServerHostPort := ""
@@ -262,7 +352,7 @@ func main() {
 
 		//fmt.Printf("empty or nil membership from '%v'\n", leaderName)
 	} else {
-		fmt.Printf("membership after adding '%v': (%v leader)\n", target, leaderName)
+		fmt.Printf("membership after adding '%v': (%v leader)\n", target, lastLeaderName)
 		for name, det := range memlistAfter.MC.PeerNames.All() {
 			fmt.Printf("  %v:   %v\n", name, det.URL)
 		}
