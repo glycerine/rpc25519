@@ -22,7 +22,7 @@ func TestRleCompactNewBeg1(t *testing.T) {
 			{Term: 2, Count: 2},
 		},
 	}
-	f.CompactNewBeg(1)
+	f.CompactNewBeg(1, nil)
 	if f.BaseC != 0 {
 		panic(fmt.Sprintf("wanted f.BaseC == 0, got %v", f.BaseC))
 	}
@@ -53,7 +53,7 @@ func TestRleCompactNewBeg2(t *testing.T) {
 			{Term: 2, Count: 2},
 		},
 	}
-	f.CompactNewBeg(2)
+	f.CompactNewBeg(2, nil)
 	if f.BaseC != 1 {
 		panic(fmt.Sprintf("wanted f.BaseC == 1, got %v", f.BaseC))
 	}
@@ -80,7 +80,7 @@ func TestRleCompactNewBeg3(t *testing.T) {
 			{Term: 2, Count: 2},
 		},
 	}
-	f.CompactNewBeg(3)
+	f.CompactNewBeg(3, nil)
 	if f.BaseC != 2 {
 		panic(fmt.Sprintf("wanted f.BaseC == 2, got %v", f.BaseC))
 	}
@@ -110,7 +110,7 @@ func TestRleCompactNewBeg4(t *testing.T) {
 			{Term: 2, Count: 2}, // want -> {Term:2, Count:1}
 		},
 	}
-	f.CompactNewBeg(4)
+	f.CompactNewBeg(4, nil)
 	if f.BaseC != 3 {
 		panic(fmt.Sprintf("wanted f.BaseC == 2, got %v", f.BaseC))
 	}
@@ -140,7 +140,7 @@ func TestRleTruncate3(t *testing.T) {
 			{Term: 2, Count: 2}, // want -> split {Term:2, Count:1} kept.
 		},
 	}
-	f.Truncate(3)
+	f.Truncate(3, nil)
 	if f.Endi != 3 {
 		panic(fmt.Sprintf("wanted f.Endi == 3, got %v", f.Endi))
 	}
@@ -176,7 +176,7 @@ func TestRleTruncate2(t *testing.T) {
 			{Term: 2, Count: 2}, // want -> gone.
 		},
 	}
-	f.Truncate(2)
+	f.Truncate(2, nil)
 	if f.Endi != 2 {
 		panic(fmt.Sprintf("wanted f.Endi == 2, got %v", f.Endi))
 	}

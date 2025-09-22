@@ -2373,12 +2373,11 @@ type RaftState struct {
 	// the AppendEntries consistency check uses
 	// these to anchor log replication in an
 	// induction style step.
-	CompactionDiscardedLastIndex int64 `zid:"21"`
-	CompactionDiscardedLastTerm  int64 `zid:"22"`
+	CompactionDiscardedLast IndexTerm `zid:"21"`
 
 	// ch6 client sessions for linz (linearizability).
 	// key is SessionID
-	SessTable map[string]*SessionTableEntry `zid:"23"`
+	SessTable map[string]*SessionTableEntry `zid:"22"`
 
 	// ====================================
 	// Raft: Volatile state on leaders (reinitilized after election)
@@ -2386,6 +2385,11 @@ type RaftState struct {
 	//   []matchIndex for each server): See the RaftNodeInfo
 	//   struct above.
 	// ====================================
+}
+
+type IndexTerm struct {
+	Index int64 `zid:"0"`
+	Term  int64 `zid:"1"`
 }
 
 type ArtTable struct {
@@ -2461,8 +2465,8 @@ func (s *RaftState) setCompaction(idx, term int64) {
 	//if idx == 1 {
 	//vv("setCompaction idx -> 1; caller=%v", fileLine(2))
 	//}
-	s.CompactionDiscardedLastIndex = idx
-	s.CompactionDiscardedLastTerm = term
+	s.CompactionDiscardedLast.Index = idx
+	s.CompactionDiscardedLast.Term = term
 }
 func (s *RaftState) votedStatus() string {
 	return fmt.Sprintf(`
@@ -5198,7 +5202,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 	s.wal.saveRaftLogEntry(entry)
 
 	// log compaction: here in replicateTicket().
-	compactIndex, compactTerm := s.wal.maybeCompact(s.state.CommitIndex) // if compaction enabled.
+	compactIndex, compactTerm := s.wal.maybeCompact(s.state.CommitIndex, &s.state.CompactionDiscardedLast) // if compaction enabled.
 	s.state.setCompaction(compactIndex, compactTerm)
 	if true {
 		s.wal.assertConsistentWalAndIndex(s.state.CommitIndex)
@@ -6158,8 +6162,8 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 
 	if true { // !s.cfg.isTest || s.cfg.testNo != 802 {
 		s.wal.assertConsistentWalAndIndex(0)
-		if s.state.CompactionDiscardedLastIndex != s.wal.logIndex.BaseC {
-			panicf("s.state.CompactionDiscardedLastIndex(%v) != s.wal.logIndex.BaseC(%v)", s.state.CompactionDiscardedLastIndex, s.wal.logIndex.BaseC)
+		if s.state.CompactionDiscardedLast.Index != s.wal.logIndex.BaseC {
+			panicf("s.state.CompactionDiscardedLastIndex(%v) != s.wal.logIndex.BaseC(%v)", s.state.CompactionDiscardedLast.Index, s.wal.logIndex.BaseC) // panic: s.state.CompactionDiscardedLastIndex(0) != s.wal.logIndex.BaseC(1)
 		}
 	}
 
@@ -6205,10 +6209,10 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 		if ae.PrevLogIndex <= baseC { // 3 <= ?
 
 			if ae.PrevLogIndex == baseC {
-				if ae.PrevLogTerm != s.state.CompactionDiscardedLastTerm {
+				if ae.PrevLogTerm != s.state.CompactionDiscardedLast.Term {
 					return true, ae.PrevLogTerm, ae.PrevLogIndex
 				}
-				// INVAR: ae.PrevLogTerm == s.state.CompactionDiscardedLastTerm
+				// INVAR: ae.PrevLogTerm == s.state.CompactionDiscardedLast.Term
 				// we match terms at BaseC, but have to look at BaseC+1...
 			}
 
@@ -6276,14 +6280,14 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 			return false, -1, -1
 		}
 		if ae.PrevLogIndex == baseC {
-			if ae.PrevLogTerm == s.state.CompactionDiscardedLastTerm {
+			if ae.PrevLogTerm == s.state.CompactionDiscardedLast.Term {
 				// ok. no reject. as above, we only check ae.PrevLogTerm.
 				return false, -1, -1
 			} else {
 				// mismatched at PrevLogIndex and maybe before, but
 				// since we are compacted, we cannot scan back
 				// through the log to find the first mis-match (below).
-				//vv("ae.PrevLogIndex(%v) == baseC(%v) but ae.PrevLogTerm(%v) != s.state.CompactionDiscardedLastTerm(%v)", ae.PrevLogIndex, baseC, ae.PrevLogTerm, s.state.CompactionDiscardedLastTerm)
+				//vv("ae.PrevLogIndex(%v) == baseC(%v) but ae.PrevLogTerm(%v) != s.state.CompactionDiscardedLast.Term(%v)", ae.PrevLogIndex, baseC, ae.PrevLogTerm, s.state.CompactionDiscardedLast.Term)
 				return true, -1, -1
 			}
 		}
@@ -6674,10 +6678,10 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		PeerMC: s.state.MC,
 	}
 	// report on past compations too.
-	compactedTo := s.state.CompactionDiscardedLastIndex
+	compactedTo := s.state.CompactionDiscardedLast.Index
 	if compactedTo > 0 {
 		ack.PeerCompactionDiscardedLastIndex = compactedTo
-		ack.PeerCompactionDiscardedLastTerm = s.state.CompactionDiscardedLastTerm
+		ack.PeerCompactionDiscardedLastTerm = s.state.CompactionDiscardedLast.Term
 		ack.LargestCommonRaftIndex = compactedTo // rather than -1
 	}
 
@@ -7003,7 +7007,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		}
 
 		// in handleAppendEntries here.
-		compactIndex, compactTerm, err := s.wal.overwriteEntries(keepCount, neededEntries, false, s.state.CommitIndex, s.state.LastApplied)
+		compactIndex, compactTerm, err := s.wal.overwriteEntries(keepCount, neededEntries, false, s.state.CommitIndex, s.state.LastApplied, &s.state.CompactionDiscardedLast)
 		panicOn(err)
 		s.state.setCompaction(compactIndex, compactTerm)
 		if true { // TODO restore: s.cfg.isTest {
@@ -7065,7 +7069,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 				numTruncated = 0
 				numAppended = int64(len(entries))
 				// in handleAppendEntries here.
-				compactIndex, compactTerm, err := s.wal.overwriteEntries(keepCount, entries, false, s.state.CommitIndex, s.state.LastApplied)
+				compactIndex, compactTerm, err := s.wal.overwriteEntries(keepCount, entries, false, s.state.CommitIndex, s.state.LastApplied, &s.state.CompactionDiscardedLast)
 				panicOn(err)
 				s.state.setCompaction(compactIndex, compactTerm)
 				if true { // TODO restore: s.cfg.isTest {
@@ -7190,7 +7194,7 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		_, ack.LargestCommonRaftIndex, ack.NeedSnapshotGap = leaderLog.Extends(ack.PeerLogTermsRLE)
 		if ack.LargestCommonRaftIndex == 0 {
 			// account for compactions that already happened.
-			ack.LargestCommonRaftIndex = s.state.CompactionDiscardedLastIndex
+			ack.LargestCommonRaftIndex = s.state.CompactionDiscardedLast.Index
 		}
 	}
 
@@ -7438,11 +7442,11 @@ func (s *TubeNode) newAE() (ae *AppendEntries) {
 	}
 	// assert agreement, so it does not matter which we
 	// write to LeaderCompactIndex/Term
-	if s.state.CompactionDiscardedLastIndex != s.wal.logIndex.BaseC {
-		panic(fmt.Sprintf("%v: these should be in sync! s.state.CompactionDiscardedLastIndex(%v) != s.wal.logIndex.BaseC(%v)", s.name, s.state.CompactionDiscardedLastIndex, s.wal.logIndex.BaseC))
+	if s.state.CompactionDiscardedLast.Index != s.wal.logIndex.BaseC {
+		panic(fmt.Sprintf("%v: these should be in sync! s.state.CompactionDiscardedLastIndex(%v) != s.wal.logIndex.BaseC(%v)", s.name, s.state.CompactionDiscardedLast.Index, s.wal.logIndex.BaseC))
 	}
-	if s.state.CompactionDiscardedLastTerm != s.wal.logIndex.CompactTerm {
-		panic(fmt.Sprintf("%v: these should be in sync! s.state.CompactionDiscardedLastTerm(%v) != s.wal.logIndex.CompactTerm(%v)", s.name, s.state.CompactionDiscardedLastTerm, s.wal.logIndex.CompactTerm))
+	if s.state.CompactionDiscardedLast.Term != s.wal.logIndex.CompactTerm {
+		panic(fmt.Sprintf("%v: these should be in sync! s.state.CompactionDiscardedLast.Term(%v) != s.wal.logIndex.CompactTerm(%v)", s.name, s.state.CompactionDiscardedLast.Term, s.wal.logIndex.CompactTerm))
 	}
 	for peerID, foll := range s.peers {
 		ae.PeerID2LastHeard[peerID] = foll.LastHeardAnything
@@ -8170,11 +8174,11 @@ func (s *TubeNode) sendAppendEntriesTo(followerID, followerName, followerService
 	var prevLogTerm int64 // term of prevLogIndex
 
 	// assert s.state.CompactionDiscardedLastIndex is up to date
-	if s.state.CompactionDiscardedLastIndex != s.wal.logIndex.BaseC {
-		panic(fmt.Sprintf("s.state.CompactionDiscardedLastIndex(%v) != s.wal.logIndex.BaseC(%v); keep these in sync!", s.state.CompactionDiscardedLastIndex, s.wal.logIndex.BaseC))
+	if s.state.CompactionDiscardedLast.Index != s.wal.logIndex.BaseC {
+		panic(fmt.Sprintf("s.state.CompactionDiscardedLastIndex(%v) != s.wal.logIndex.BaseC(%v); keep these in sync!", s.state.CompactionDiscardedLast.Index, s.wal.logIndex.BaseC))
 	}
 
-	compacted := s.state.CompactionDiscardedLastIndex
+	compacted := s.state.CompactionDiscardedLast.Index
 	if beginIndex <= compacted {
 		// cannot send entries that have been compacted away.
 		// note this might turn us into a heartbeat with no entries.
@@ -8214,10 +8218,10 @@ func (s *TubeNode) sendAppendEntriesTo(followerID, followerName, followerService
 			// note compacted == s.state.CompactionDiscardedLastIndex
 
 			if compacted > 0 && beginIndex == compacted+1 {
-				//vv("%v using prevLogTerm from s.state.CompactionDiscardedLastTerm=%v; prevLogIndex will be %v (from s.state.CompactionDiscardedLastIndex)", s.name, s.state.CompactionDiscardedLastTerm, s.state.CompactionDiscardedLastIndex)
+				//vv("%v using prevLogTerm from s.state.CompactionDiscardedLast.Term=%v; prevLogIndex will be %v (from s.state.CompactionDiscardedLastIndex)", s.name, s.state.CompactionDiscardedLast.Term, s.state.CompactionDiscardedLastIndex)
 
-				prevLogIndex = s.state.CompactionDiscardedLastIndex
-				prevLogTerm = s.state.CompactionDiscardedLastTerm
+				prevLogIndex = s.state.CompactionDiscardedLast.Index
+				prevLogTerm = s.state.CompactionDiscardedLast.Term
 			} else {
 				// can s.wal.logIndex.BaseC save us?
 				if beginIndex == s.wal.logIndex.BaseC+1 {
@@ -8819,7 +8823,7 @@ func (s *TubeNode) commitWhatWeCan(calledOnLeader bool) {
 		// might lack an entry, so avoid an error from
 		// the wal about "index too small" by checking
 		// against our compaction state:
-		if s.state.LastApplied+1 <= s.state.CompactionDiscardedLastIndex {
+		if s.state.LastApplied+1 <= s.state.CompactionDiscardedLast.Index {
 			continue // already committed, applied, and compacted away.
 		}
 		do, err := s.wal.GetEntry(s.state.LastApplied + 1)
@@ -11955,7 +11959,7 @@ func (s *TubeNode) setupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntryBoo
 	var curCommitIndex int64 = 1
 	var keepCount int64 = 0
 	// in setupFirstRaftLogEntryBootstrapLog() here.
-	compactIndex, compactTerm, err := s.wal.overwriteEntries(keepCount, es, isLeader, curCommitIndex, 0)
+	compactIndex, compactTerm, err := s.wal.overwriteEntries(keepCount, es, isLeader, curCommitIndex, 0, &s.state.CompactionDiscardedLast)
 	panicOn(err)
 	s.state.setCompaction(compactIndex, compactTerm)
 	if true { // TODO restore: s.cfg.isTest {
@@ -12376,7 +12380,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 		//vv("%v mongoLeaderCanReconfig gave err = '%v'", s.me(), err)
 
 		if time.Since(tkt.T0) > 10*time.Second {
-			tkt.Err = fmt.Errorf("%v timeout MC change attempts after 10 seconds; erro from mongoLeaderCanReconfig: %v", s.me(), err)
+			tkt.Err = fmt.Errorf("%v timeout MC change attempts after 10 seconds; error from mongoLeaderCanReconfig: %v", s.me(), err)
 			s.replyToForwardedTicketWithError(tkt)
 			return
 		}
@@ -13364,7 +13368,7 @@ func (s *TubeNode) testSetupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntr
 	var curCommitIndex int64 = 1
 	var keepCount int64 = 0
 	// in testSetupFirstRaftLogEntryBootstrapLog() here.
-	compactIndex, compactTerm, err := s.wal.overwriteEntries(keepCount, es, isLeader, curCommitIndex, 0)
+	compactIndex, compactTerm, err := s.wal.overwriteEntries(keepCount, es, isLeader, curCommitIndex, 0, &s.state.CompactionDiscardedLast)
 	panicOn(err)
 	s.state.setCompaction(compactIndex, compactTerm)
 	if true { // TODO restore: s.cfg.isTest {
@@ -14830,10 +14834,10 @@ func (s *TubeNode) handleRequestStateSnapshot(frag *rpc.Fragment, ckt *rpc.Circu
 	// them to their wal. but problem is, these do not
 	// match our compression level yet! so restore them after!
 	// also a good place to assert they are up to date
-	if s.state.CompactionDiscardedLastIndex != s.wal.logIndex.BaseC {
+	if s.state.CompactionDiscardedLast.Index != s.wal.logIndex.BaseC {
 		panic("should be in sync")
 	}
-	if s.state.CompactionDiscardedLastTerm != s.wal.logIndex.CompactTerm {
+	if s.state.CompactionDiscardedLast.Term != s.wal.logIndex.CompactTerm {
 		panic("should be in sync")
 	}
 
@@ -14901,17 +14905,17 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	}
 	s.state.LastSaveTimestamp = state2.LastSaveTimestamp
 
-	compactIndex := state2.CompactionDiscardedLastIndex
-	compactTerm := state2.CompactionDiscardedLastTerm
+	compactIndex := state2.CompactionDiscardedLast.Index
+	compactTerm := state2.CompactionDiscardedLast.Term
 
-	//vv("%v snapshot about to update s.state.CompactionDiscardedLastIndex from %v -> %v; and s.state.CompactionDiscardedLastTerm from %v -> %v", s.name, s.state.CompactionDiscardedLastIndex, compactIndex, s.state.CompactionDiscardedLastTerm, compactTerm)
+	//vv("%v snapshot about to update s.state.CompactionDiscardedLastIndex from %v -> %v; and s.state.CompactionDiscardedLast.Term from %v -> %v", s.name, s.state.CompactionDiscardedLastIndex, compactIndex, s.state.CompactionDiscardedLast.Term, compactTerm)
 
-	if compactIndex < s.state.CompactionDiscardedLastIndex {
-		panic(fmt.Sprintf("%v we should never be rolling back commits with state snapshots! compactIndex(%v) < s.state.CompactionDiscardedLastIndex(%v)", s.name, compactIndex, s.state.CompactionDiscardedLastIndex))
+	if compactIndex < s.state.CompactionDiscardedLast.Index {
+		panic(fmt.Sprintf("%v we should never be rolling back commits with state snapshots! compactIndex(%v) < s.state.CompactionDiscardedLastIndex(%v)", s.name, compactIndex, s.state.CompactionDiscardedLast.Index))
 	}
 	s.state.setCompaction(compactIndex, compactTerm)
 
-	//vv("%v snapshot set s.state.CompactionDiscardedLastIndex=%v; s.state.CompactionDiscardedLastTerm=%v", s.name, s.state.CompactionDiscardedLastIndex, s.state.CompactionDiscardedLastTerm)
+	//vv("%v snapshot set s.state.CompactionDiscardedLastIndex=%v; s.state.CompactionDiscardedLast.Term=%v", s.name, s.state.CompactionDiscardedLastIndex, s.state.CompactionDiscardedLast.Term)
 
 	if state2.SessTable != nil {
 		s.state.SessTable = state2.SessTable
@@ -14920,11 +14924,11 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	s.saver.save(s.state)
 	s.wal.installedSnapshot(s.state)
 
-	if s.wal.logIndex.BaseC != s.state.CompactionDiscardedLastIndex {
-		panicf("%v: s.wal.logIndex.BaseC(%v) != (%v)s.state.CompactionDiscardedLastIndex", s.name, s.wal.logIndex.BaseC, s.state.CompactionDiscardedLastIndex)
+	if s.wal.logIndex.BaseC != s.state.CompactionDiscardedLast.Index {
+		panicf("%v: s.wal.logIndex.BaseC(%v) != (%v)s.state.CompactionDiscardedLastIndex", s.name, s.wal.logIndex.BaseC, s.state.CompactionDiscardedLast.Index)
 	}
-	if s.wal.logIndex.CompactTerm != s.state.CompactionDiscardedLastTerm {
-		panicf("%v: s.wal.logIndex.CompactTerm(%v) != (%v)s.state.CompactionDiscardedLastTerm", s.name, s.wal.logIndex.CompactTerm, s.state.CompactionDiscardedLastTerm)
+	if s.wal.logIndex.CompactTerm != s.state.CompactionDiscardedLast.Term {
+		panicf("%v: s.wal.logIndex.CompactTerm(%v) != (%v)s.state.CompactionDiscardedLast.Term", s.name, s.wal.logIndex.CompactTerm, s.state.CompactionDiscardedLast.Term)
 	}
 	//vv("%v end of applyNewStateSnapshot. good: s.wal.index.BaseC(%v) == s.state.CompactionDiscardedLastIndex; logIndex.Endi=%v ; wal.lli=%v", s.name, s.wal.logIndex.BaseC, s.wal.logIndex.Endi, s.wal.lli)
 }
@@ -14937,25 +14941,25 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 func (s *TubeNode) getStateSnapshot() (snapshot *RaftState) {
 
 	// restore these below
-	idx0 := s.state.CompactionDiscardedLastIndex
-	term0 := s.state.CompactionDiscardedLastTerm
+	idx0 := s.state.CompactionDiscardedLast.Index
+	term0 := s.state.CompactionDiscardedLast.Term
 
 	// why is LastApplied the right point? well, its
 	// the only thing that reflects our current KVstore state.
 	// even though we might have more in our log.
 	// Can we ever compress more than LastApplied? no, that
 	// should be impossible!
-	s.state.CompactionDiscardedLastIndex = s.state.LastApplied
+	s.state.CompactionDiscardedLast.Index = s.state.LastApplied
 	// seems like this might skew out of sync.
-	//s.state.CompactionDiscardedLastTerm = s.state.CurrentTerm
-	s.state.CompactionDiscardedLastTerm = s.state.LastAppliedTerm
+	//s.state.CompactionDiscardedLast.Term = s.state.CurrentTerm
+	s.state.CompactionDiscardedLast.Term = s.state.LastAppliedTerm
 
 	snapshot = s.state.clone()
 
 	// restore afterwards, so we don't get confused about
 	// what we have locally (on leader here) compacted.
-	s.state.CompactionDiscardedLastIndex = idx0
-	s.state.CompactionDiscardedLastTerm = term0
+	s.state.CompactionDiscardedLast.Index = idx0
+	s.state.CompactionDiscardedLast.Term = term0
 
 	return
 }

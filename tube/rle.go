@@ -35,8 +35,14 @@ func (s *TermsRLE) fixTot() {
 }
 
 // planned but not used atm.
-func (s *TermsRLE) setBase(base int64) {
+func (s *TermsRLE) setBase(base int64, syncme *IndexTerm) {
+
 	s.BaseC = base
+	if syncme != nil {
+		syncme.Index = s.BaseC
+		syncme.Term = s.CompactTerm
+	}
+
 	// should we be setting Endi too? not necessarily.
 }
 
@@ -121,13 +127,18 @@ func (s *TermsRLE) AddTerm(term int64) {
 }
 
 // remove a suffix, keeping all <= keepIndex
-func (s *TermsRLE) Truncate(keepIndex int64) {
+func (s *TermsRLE) Truncate(keepIndex int64, syncme *IndexTerm) {
 	base := s.BaseC
 	if keepIndex <= base {
 		// 802 hits: panic("wat? keepIndex <= s.BaseC; tossing it all; try not to call here!")
 		// clear out everything
 		s.Runs = s.Runs[:0]
 		s.BaseC = keepIndex
+
+		if syncme != nil {
+			syncme.Index = s.BaseC
+			syncme.Term = s.CompactTerm
+		}
 		s.CompactTerm = 0
 		s.Endi = keepIndex
 		return
@@ -162,7 +173,7 @@ func (s *TermsRLE) Truncate(keepIndex int64) {
 }
 
 // remove a prefix
-func (s *TermsRLE) CompactNewBeg(newBeg int64) {
+func (s *TermsRLE) CompactNewBeg(newBeg int64, syncme *IndexTerm) {
 
 	if newBeg < 0 {
 		panic(fmt.Sprintf("bad! newBeg(%v) must be >= 0", newBeg))
@@ -177,6 +188,10 @@ func (s *TermsRLE) CompactNewBeg(newBeg int64) {
 		//vv("CompactNewBegin(newBeg=%v) wiping all: updating CompactIndex from %v -> 0", newBeg, s.BaseC, newBeg)
 		s.BaseC = 0
 		s.CompactTerm = 0
+		if syncme != nil {
+			syncme.Index = s.BaseC
+			syncme.Term = s.CompactTerm
+		}
 		s.Endi = 0
 		s.Runs = s.Runs[:0]
 		return
@@ -210,6 +225,10 @@ func (s *TermsRLE) CompactNewBeg(newBeg int64) {
 	if newBeg == s.Endi {
 		//vv("CompactNewBeg(newBeg=%v): most common case: keep just the last", newBeg)
 		s.BaseC = newBeg - 1 // leaving just the last term
+		if syncme != nil {
+			syncme.Index = s.BaseC
+			syncme.Term = s.CompactTerm
+		}
 		n := len(s.Runs)
 		if n == 0 {
 			panic("internal logic error: Endi >= 1 so must have some Runs")
@@ -234,6 +253,10 @@ func (s *TermsRLE) CompactNewBeg(newBeg int64) {
 		//vv("CompactNewBeg(newBeg=%v): easy case, no splitting required, just adjust Count. n=1; retained=%v", newBeg, retained)
 		s.Runs[0].Count = retained
 		s.BaseC = newBeg - 1
+		if syncme != nil {
+			syncme.Index = s.BaseC
+			syncme.Term = s.CompactTerm
+		}
 		return
 	}
 	// have to find the split point and adjust the count on the
@@ -247,6 +270,10 @@ func (s *TermsRLE) CompactNewBeg(newBeg int64) {
 			//vv("CompactNewBeg(newBeg=%v): no split needed, just discard prior to i=%v; will set s.BaseC=newBeg-1=%v", newBeg, i, newBeg-1)
 			s.Runs = s.Runs[i:]
 			s.BaseC = newBeg - 1
+			if syncme != nil {
+				syncme.Index = s.BaseC
+				syncme.Term = s.CompactTerm
+			}
 			return
 		case base < newBeg && newBeg <= thisRunEnd:
 			//vv("CompactNewBeg(newBeg=%v): i=%v is our split point (keep >= i). newBeg(%v) <= thisRunEnd(%v)", newBeg, i, newBeg, thisRunEnd)
@@ -254,6 +281,10 @@ func (s *TermsRLE) CompactNewBeg(newBeg int64) {
 			s.Runs = s.Runs[i:]
 			s.Runs[0].Count = retain
 			s.BaseC = newBeg - 1
+			if syncme != nil {
+				syncme.Index = s.BaseC
+				syncme.Term = s.CompactTerm
+			}
 			return
 		}
 		base = thisRunEnd
