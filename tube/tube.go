@@ -2224,7 +2224,8 @@ type RaftLogEntry struct {
 	PrevIndex int64 `zid:"4"`
 	PrevTerm  int64 `zid:"5"`
 
-	Tm time.Time `zid:"6"`
+	Tm         time.Time `zid:"6"`
+	LeaderName string    `zid:"7"`
 
 	committed bool   // for safety assertions (but local and leader only!)
 	msgbytes  []byte // to sustain the hash-chain
@@ -4210,7 +4211,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 			tkt.Stage += fmt.Sprintf(":redirectToLeader(true,not_leader)_from_%v", fileLine(2))
 			return true
 		}
-		//vv("%v stashForLeader is false, and s.leaderID is empty", s.me())
+		vv("%v stashForLeader is false, and s.leaderID is empty", s.me())
 		// stashing for later leader made for a weird
 		// command line tubeadd experience/hang. better to eagerly error.
 
@@ -5234,6 +5235,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 	tkt.Term = s.state.CurrentTerm
 	entry := &RaftLogEntry{
 		Tm:                 time.Now(),
+		LeaderName:         s.name,
 		Term:               s.state.CurrentTerm,
 		Index:              idx,
 		Ticket:             tkt,
@@ -7639,6 +7641,7 @@ func (s *TubeNode) bcastAppendEntries(es []*RaftLogEntry, prevLogIndex, prevLogT
 		if s.state.ShadowReplicas == nil {
 			panic("fix this! must have ShadowReplicas, even if empty")
 		}
+		// in bcastAppendEntries here.
 		if s.skipAEBecauseNotReplica(info.PeerID,
 			info.PeerName, info.PeerServiceName) {
 			alwaysPrintf("%v skipping non MC replica: %v", s.me(), info.PeerName)
@@ -8166,11 +8169,11 @@ func (s *TubeNode) skipAEBecauseNotReplica(followerID, followerName, followerSer
 		return false // allow shadows.
 	}
 	_, isMember := s.state.MC.PeerNames.get2(followerName)
-	if !isMember {
-		//vv("%v warning: not sending AE to replica that is not shadow and not a current member '%v'; MC='%v'", s.me(), followerName, s.state.MC)
-		return true
+	if isMember {
+		return false
 	}
-	return false
+	vv("%v warning: not sending AE to replica that is not shadow and not a current member '%v'; MC='%v'", s.me(), followerName, s.state.MC)
+	return true
 }
 
 // used by leader
@@ -11978,6 +11981,7 @@ func (s *TubeNode) setupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntryBoo
 
 	entry := &RaftLogEntry{
 		Tm:                 time.Now(),
+		LeaderName:         s.name,
 		Term:               1, // s.state.CurrentTerm,
 		Index:              1, // idx,
 		Ticket:             tkt,
@@ -13355,6 +13359,7 @@ func (s *TubeNode) testSetupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntr
 
 	entry := &RaftLogEntry{
 		Tm:                 time.Now(),
+		LeaderName:         s.name,
 		Term:               1, // s.state.CurrentTerm,
 		Index:              1, // idx,
 		Ticket:             tkt,

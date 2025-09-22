@@ -11989,7 +11989,7 @@ func (z *RaftLogEntry) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields176zgensym_8df0a91a1f250219_177 = 7
+	const maxFields176zgensym_8df0a91a1f250219_177 = 8
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields176zgensym_8df0a91a1f250219_177 uint32
@@ -12103,6 +12103,12 @@ doneWithStruct176zgensym_8df0a91a1f250219_177:
 			if err != nil {
 				return
 			}
+		case "LeaderName_zid07_str":
+			found176zgensym_8df0a91a1f250219_177[7] = true
+			z.LeaderName, err = dc.ReadString()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -12126,16 +12132,16 @@ doneWithStruct176zgensym_8df0a91a1f250219_177:
 }
 
 // fields of RaftLogEntry
-var decodeMsgFieldOrder176zgensym_8df0a91a1f250219_177 = []string{"Term_zid00_i64", "Index_zid01_i64", "Ticket_zid02_ptr", "CurrentCommitIndex_zid03_i64", "PrevIndex_zid04_i64", "PrevTerm_zid05_i64", "Tm_zid06_tim"}
+var decodeMsgFieldOrder176zgensym_8df0a91a1f250219_177 = []string{"Term_zid00_i64", "Index_zid01_i64", "Ticket_zid02_ptr", "CurrentCommitIndex_zid03_i64", "PrevIndex_zid04_i64", "PrevTerm_zid05_i64", "Tm_zid06_tim", "LeaderName_zid07_str"}
 
-var decodeMsgFieldSkip176zgensym_8df0a91a1f250219_177 = []bool{false, false, false, false, false, false, false}
+var decodeMsgFieldSkip176zgensym_8df0a91a1f250219_177 = []bool{false, false, false, false, false, false, false, false}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *RaftLogEntry) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 7
+		return 8
 	}
-	var fieldsInUse uint32 = 7
+	var fieldsInUse uint32 = 8
 	isempty[0] = (z.Term == 0) // number, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -12164,6 +12170,10 @@ func (z *RaftLogEntry) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[6] {
 		fieldsInUse--
 	}
+	isempty[7] = (len(z.LeaderName) == 0) // string, omitempty
+	if isempty[7] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -12175,7 +12185,7 @@ func (z *RaftLogEntry) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_8df0a91a1f250219_178 [7]bool
+	var empty_zgensym_8df0a91a1f250219_178 [8]bool
 	fieldsInUse_zgensym_8df0a91a1f250219_179 := z.fieldsNotEmpty(empty_zgensym_8df0a91a1f250219_178[:])
 
 	// map header
@@ -12287,6 +12297,18 @@ func (z *RaftLogEntry) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_8df0a91a1f250219_178[7] {
+		// write "LeaderName_zid07_str"
+		err = en.Append(0xb4, 0x4c, 0x65, 0x61, 0x64, 0x65, 0x72, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x73, 0x74, 0x72)
+		if err != nil {
+			return err
+		}
+		err = en.WriteString(z.LeaderName)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -12299,7 +12321,7 @@ func (z *RaftLogEntry) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [7]bool
+	var empty [8]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -12356,6 +12378,12 @@ func (z *RaftLogEntry) MarshalMsg(b []byte) (o []byte, err error) {
 		o = msgp.AppendTime(o, z.Tm)
 	}
 
+	if !empty[7] {
+		// string "LeaderName_zid07_str"
+		o = append(o, 0xb4, 0x4c, 0x65, 0x61, 0x64, 0x65, 0x72, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x73, 0x74, 0x72)
+		o = msgp.AppendString(o, z.LeaderName)
+	}
+
 	return
 }
 
@@ -12374,7 +12402,7 @@ func (z *RaftLogEntry) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) 
 
 	var field []byte
 	_ = field
-	const maxFields180zgensym_8df0a91a1f250219_181 = 7
+	const maxFields180zgensym_8df0a91a1f250219_181 = 8
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields180zgensym_8df0a91a1f250219_181 uint32
@@ -12496,6 +12524,13 @@ doneWithStruct180zgensym_8df0a91a1f250219_181:
 			if err != nil {
 				return
 			}
+		case "LeaderName_zid07_str":
+			found180zgensym_8df0a91a1f250219_181[7] = true
+			z.LeaderName, bts, err = nbs.ReadStringBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -12519,9 +12554,9 @@ doneWithStruct180zgensym_8df0a91a1f250219_181:
 }
 
 // fields of RaftLogEntry
-var unmarshalMsgFieldOrder180zgensym_8df0a91a1f250219_181 = []string{"Term_zid00_i64", "Index_zid01_i64", "Ticket_zid02_ptr", "CurrentCommitIndex_zid03_i64", "PrevIndex_zid04_i64", "PrevTerm_zid05_i64", "Tm_zid06_tim"}
+var unmarshalMsgFieldOrder180zgensym_8df0a91a1f250219_181 = []string{"Term_zid00_i64", "Index_zid01_i64", "Ticket_zid02_ptr", "CurrentCommitIndex_zid03_i64", "PrevIndex_zid04_i64", "PrevTerm_zid05_i64", "Tm_zid06_tim", "LeaderName_zid07_str"}
 
-var unmarshalMsgFieldSkip180zgensym_8df0a91a1f250219_181 = []bool{false, false, false, false, false, false, false}
+var unmarshalMsgFieldSkip180zgensym_8df0a91a1f250219_181 = []bool{false, false, false, false, false, false, false, false}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *RaftLogEntry) Msgsize() (s int) {
@@ -12531,7 +12566,7 @@ func (z *RaftLogEntry) Msgsize() (s int) {
 	} else {
 		s += z.Ticket.Msgsize()
 	}
-	s += 29 + msgp.Int64Size + 20 + msgp.Int64Size + 19 + msgp.Int64Size + 13 + msgp.TimeSize
+	s += 29 + msgp.Int64Size + 20 + msgp.Int64Size + 19 + msgp.Int64Size + 13 + msgp.TimeSize + 21 + msgp.StringPrefixSize + len(z.LeaderName)
 	return
 }
 func (z *RaftLogEntry) Gstring() (r string) {
@@ -12543,6 +12578,7 @@ func (z *RaftLogEntry) Gstring() (r string) {
 	r += fmt.Sprintf("         PrevIndex: %v,\n", z.PrevIndex)
 	r += fmt.Sprintf("          PrevTerm: %v,\n", z.PrevTerm)
 	r += fmt.Sprintf("                Tm: %v,\n", z.Tm)
+	r += fmt.Sprintf("        LeaderName: \"%v\",\n", z.LeaderName)
 	r += "}\n"
 	return
 }

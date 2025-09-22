@@ -98,7 +98,7 @@ func (s *TubeNode) DumpRaftWAL() error {
 	for i, e := range wal.raftLog {
 		// count from 1 to match the Raft log Index.
 
-		fmt.Printf("i=%03d %v {Term:%02d, Index:%02d, Ticket: %v, CurrentCommitIndex:%v, Ticket.Op='%v', tkt4=%v Ticket.Desc: %v}\n", i+1, nice9(e.Tm.In(gtz)), e.Term, e.Index, e.Ticket.TicketID, e.CurrentCommitIndex, e.Ticket.Op, e.Ticket.TicketID[:4], e.Ticket.Desc)
+		fmt.Printf("i=%03d %v {Lead:%v, Term:%02d, Index:%02d, Ticket: %v, CurrentCommitIndex:%v, Ticket.Op='%v', tkt4=%v Ticket.Desc: %v}\n", i+1, nice9(e.Tm.In(gtz)), e.LeaderName, e.Term, e.Index, e.Ticket.TicketID, e.CurrentCommitIndex, e.Ticket.Op, e.Ticket.TicketID[:4], e.Ticket.Desc)
 	}
 	fmt.Printf("\n")
 	fmt.Printf("current s.state.MC = %v\n", s.state.MC.Short())
@@ -127,7 +127,7 @@ func (s *TubeNode) RaftWALString() (r string) {
 
 	for i, e := range wal.raftLog {
 		// count from 1 to match the Raft log Index.
-		r += fmt.Sprintf("i=%03d  %v {Term:%02d, Index:%02d, TicketID: %v, CurrentCommitIndex:%v, Ticket.Op='%v', tkt4=%v Ticket.Desc: %v}\n", i+1, nice9(e.Tm.In(gtz)), e.Term, e.Index, e.Ticket.TicketID, e.CurrentCommitIndex, e.Ticket.Op, e.Ticket.TicketID[:4], e.Ticket.Desc)
+		r += fmt.Sprintf("i=%03d  %v {Lead:%v, Term:%02d, Index:%02d, TicketID: %v, CurrentCommitIndex:%v, Ticket.Op='%v', tkt4=%v Ticket.Desc: %v}\n", i+1, nice9(e.Tm.In(gtz)), e.LeaderName, e.Term, e.Index, e.Ticket.TicketID, e.CurrentCommitIndex, e.Ticket.Op, e.Ticket.TicketID[:4], e.Ticket.Desc)
 
 		// assert the chain is linked properly
 		if i == 0 {
