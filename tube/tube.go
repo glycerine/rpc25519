@@ -11117,8 +11117,14 @@ func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, nonVotin
 	desc += fmt.Sprintf(", tkt4=%v targetPeerID='%v'", tkt.TicketID[:4], targetPeerID)
 	tkt.Desc = desc
 	tkt.GuessLeaderURL = leaderURL
+	ctxDeadline, haveCtxDeadline := ctx.Deadline()
 	if errWriteDur > 0 {
 		tkt.WaitLeaderDeadline = time.Now().Add(errWriteDur)
+		if haveCtxDeadline && ctxDeadline.Before(tkt.WaitLeaderDeadline) {
+			tkt.WaitLeaderDeadline = ctxDeadline
+		}
+	} else if haveCtxDeadline {
+		tkt.WaitLeaderDeadline = ctxDeadline
 	}
 
 	if addNotRemove {
