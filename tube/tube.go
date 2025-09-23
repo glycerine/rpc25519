@@ -6442,6 +6442,9 @@ func (s *TubeNode) logsAreMismatched(ae *AppendEntries) (
 // MC update.
 func (s *TubeNode) aeMemberConfigHelper(ae *AppendEntries, numNew int, ack *AppendEntriesAck) {
 
+	if s.state != nil && s.state.Known != nil && ae.MC != nil {
+		s.state.Known.merge(ae.MC)
+	}
 	if s.state.MC != nil &&
 		s.state.MC.VersionEqual(ae.MC) {
 		if ae.MC.IsCommitted && !s.state.MC.IsCommitted {
@@ -12289,6 +12292,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			}
 			s.setAddrURL(det, cktP0)
 			newConfig.setNameDetail(peerName, det, s)
+			s.state.Known.PeerNames.set(peerName, det)
 		}
 	}
 	if s.weAreMemberOfCurrentMC() {
@@ -12304,6 +12308,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			//NonVoting:              s.NonVoting,
 		}
 		newConfig.setNameDetail(s.name, det, s)
+		s.state.Known.PeerNames.set(s.name, det)
 	}
 
 	// DONE: we have updated newConfig set of curConfig members
@@ -12341,6 +12346,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 			}
 			s.setAddrURL(det, cktP)
 			newConfig.setNameDetail(tkt.AddPeerName, det, s)
+			s.state.Known.PeerNames.set(tkt.AddPeerName, det)
 
 		} else {
 
@@ -12359,6 +12365,7 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 					//NonVoting:              s.NonVoting,
 				}
 				newConfig.setNameDetail(s.name, det, s)
+				s.state.Known.PeerNames.set(s.name, det)
 			} else {
 				//vv("%v no existing connection to tkt.AddPeerName='%v', try to spin one up in background", s.me(), target)
 				cktP := s.newCktPlus(target, TUBE_REPLICA)
@@ -14072,6 +14079,8 @@ func (s *TubeNode) addRemoveToMemberConfig(tkt *Ticket, starting *MemberConfig, 
 			s.setAddrURL(det, cktP)
 
 			newConfig.setNameDetail(tkt.AddPeerName, det, s)
+			s.state.Known.PeerNames.set(tkt.AddPeerName, det)
+
 			if tkt.AddPeerID != cktP.PeerID {
 				panic("which is more up to date?")
 			}
@@ -14087,6 +14096,7 @@ func (s *TubeNode) addRemoveToMemberConfig(tkt *Ticket, starting *MemberConfig, 
 				Addr:   tkt.AddPeerBaseServerHostPort,
 			}
 			newConfig.setNameDetail(tkt.AddPeerName, det, s)
+			s.state.Known.PeerNames.set(tkt.AddPeerName, det)
 		}
 	case tkt.RemovePeerName != "":
 		_, already := newConfig.PeerNames.get2(tkt.RemovePeerName)
@@ -14508,6 +14518,8 @@ func (s *TubeNode) updateSelfAddressInMemberConfig(mc *MemberConfig) (changed bo
 		updatedDetail.Addr = s.MyPeer.BaseServerAddr
 	}
 	mc.setNameDetail(s.name, updatedDetail, s)
+	s.state.Known.PeerNames.set(s.name, updatedDetail)
+
 	return
 }
 
@@ -14984,6 +14996,7 @@ func (s *TubeNode) applyNewStateSnapshot(state2 *RaftState, caller string) {
 	} else {
 		s.state.Known.merge(state2.Known)
 	}
+	s.state.Known.merge(s.state.MC)
 	s.state.LastSaveTimestamp = state2.LastSaveTimestamp
 
 	compactIndex := state2.CompactionDiscardedLast.Index
@@ -15159,6 +15172,8 @@ func (s *TubeNode) bootstrappedMembership(tkt *Ticket) bool {
 		PeerServiceNameVersion: s.MyPeer.PeerServiceNameVersion,
 	}
 	s.state.MC.setNameDetail(s.name, detail, s)
+	s.state.Known.PeerNames.set(s.name, detail)
+
 	s.state.ShadowReplicas.PeerNames.delkey(s.name)
 	//vv("%v bootstrapped rather than redirectToLeader. now MC='%v'", s.me(), s.state.MC)
 	if s.role != LEADER {
