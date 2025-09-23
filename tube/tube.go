@@ -4718,6 +4718,12 @@ func (t TicketOp) String() (r string) {
 }
 
 func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
+	s.finishTicketHelper(tkt, calledOnLeader, false)
+}
+func (s *TubeNode) FinishTicketForced(tkt *Ticket) {
+	s.finishTicketHelper(tkt, false, true)
+}
+func (s *TubeNode) finishTicketHelper(tkt *Ticket, calledOnLeader, forced bool) {
 	// idempotent to let CommitWhatWeCan possibly
 	// call us 2x to make sure all membership changes
 	// get at least 1x call here and cleared from WaitingAtLeader.
@@ -15212,13 +15218,14 @@ func (s *TubeNode) bootstrappedOrForcedMembership(tkt *Ticket) bool {
 
 	s.state.ShadowReplicas.PeerNames.delkey(s.name)
 	//vv("%v bootstrapped rather than redirectToLeader. now MC='%v'", s.me(), s.state.MC)
+	wasLeader := s.role == LEADER // for FinishTicket below
 	if s.role != LEADER {
 		s.becomeLeader()
 	}
 	s.addInspectionToTicket(tkt)
 	// this does s.FinishTicket(tkt) only if WaitingAtLeader
 	s.respondToClientTicketApplied(tkt)
-	s.FinishTicket(tkt, true)
+	s.FinishTicket(tkt, wasLeader)
 	return true
 }
 
@@ -15261,13 +15268,14 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket) bool {
 	}
 	// needed?
 	detailTarget, have := s.state.MC.PeerNames.get2(target)
+	_ = detailTarget
 	if isAdd {
 		if have {
 			// return done, is no-op
 			tkt.Err = fmt.Errorf("forceChangeMC ADD is no-op, target already present: target='%v'; MC='%v'", target, s.state.MC)
 			s.addInspectionToTicket(tkt)
 			s.respondToClientTicketApplied(tkt)
-			s.FinishTicket(tkt, true)
+			s.FinishTicket(tkt, false)
 			return true
 		}
 	} else {
@@ -15276,12 +15284,19 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket) bool {
 			tkt.Err = fmt.Errorf("forceChangeMC ADD is no-op, target already absent: target='%v'; MC='%v'", target, s.state.MC)
 			s.addInspectionToTicket(tkt)
 			s.respondToClientTicketApplied(tkt)
-			s.FinishTicket(tkt, true)
+			s.FinishTicket(tkt, false)
 			return true
 		}
 	}
 	// yes, confirmed we do need to force add/remove
-	// INVAR: target is in s.state.MC.
+	// INVAR: target is in s.state.MC, if removing.
+	// and is not, if adding.
+	changeMade := false
+	defer func() {
+		if changeMade {
+			s.saver.save(s.state)
+		}
+	}()
 
 	if tkt.AddPeerName != "" {
 		if tkt.AddPeerName == s.name {
@@ -15292,12 +15307,14 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket) bool {
 			s.state.MC.setNameDetail(s.name, detail, s)
 			s.state.ShadowReplicas.PeerNames.delkey(s.name)
 			s.state.Known.PeerNames.set(s.name, detail)
+			changeMade = true
 
 			vv("%v forcing MC add rather than redirectToLeader. added me='%v'; now MC='%v'", s.me(), s.name, s.state.MC)
 
 			s.addInspectionToTicket(tkt)
 			s.respondToClientTicketApplied(tkt)
-			s.FinishTicket(tkt, true)
+			s.FinishTicket(tkt, false)
+
 			return true
 		}
 		// add, not me though.
@@ -15314,19 +15331,21 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket) bool {
 			s.state.MC.ConfigVersion++
 			s.state.MC.setNameDetail(target, detail, s)
 			s.state.ShadowReplicas.PeerNames.delkey(target)
+			changeMade = true
 
 			vv("%v forcing MC add rather than redirectToLeader. target='%v'; now MC='%v'", s.me(), target, s.state.MC)
 
 			s.addInspectionToTicket(tkt)
 			s.respondToClientTicketApplied(tkt)
-			s.FinishTicket(tkt, true)
+			s.FinishTicket(tkt, false)
+
 			return true
 		}
 
 		tkt.Err = fmt.Errorf("forceChangeMC aborted, no details of how to add target are available from Known or ShadowReplicas; target = '%v'", target)
 		s.addInspectionToTicket(tkt)
 		s.respondToClientTicketApplied(tkt)
-		s.FinishTicket(tkt, true)
+		s.FinishTicket(tkt, false)
 		return true
 	}
 	// remove
@@ -15337,20 +15356,33 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket) bool {
 
 		s.state.MC.ConfigVersion++
 		s.state.MC.PeerNames.delkey(s.name)
-		s.state.ShadowReplicas.PeerNames.set(s.name, detail)
+
+		// assume if we are force removing that
+		// the node is dead and gone, and we do not
+		// want them lingering in shadows either, so comment out:
+		//s.state.ShadowReplicas.PeerNames.set(s.name, detail)
+
 		s.state.Known.PeerNames.set(s.name, detail)
+		changeMade = true
 
 		vv("%v forcing MC remove of myself('%v') rather than redirectToLeader. now MC='%v'", s.me(), s.name, s.state.MC)
 
 		s.addInspectionToTicket(tkt)
 		s.respondToClientTicketApplied(tkt)
-		s.FinishTicket(tkt, true)
+		s.FinishTicket(tkt, false)
+
 		return true
 	}
 	// remove, not me
 	s.state.MC.ConfigVersion++
 	s.state.MC.PeerNames.delkey(target)
-	s.state.ShadowReplicas.PeerNames.set(target, detailTarget)
+	changeMade = true
+
+	// assume if we are force removing that
+	// the node is dead and gone, and we do not
+	// want them lingering in shadows either, so comment out:
+	//s.state.ShadowReplicas.PeerNames.set(target, detailTarget)
+
 	vv("%v forcing MC remove of non-self target rather than redirectToLeader. target='%v'; now MC='%v'", s.me(), target, s.state.MC)
 
 	return true
