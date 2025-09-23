@@ -160,15 +160,16 @@ func main() {
 	leaderURL, leaderName, insp, reallyLeader, contacted, err := node.HelperFindLeader(cfg, cmdCfg.ContactName, true)
 	_ = reallyLeader
 	panicOn(err)
+
 	if true {
 		fmt.Printf("tubeadd contacted:\n")
-		for _, insp := range contacted {
+		for _, insp2 := range contacted {
 			fmt.Printf(`%v %v  (lead: '%v')
    MC: %v   ShadowReplicas: %v   URL: %v
-`, insp.ResponderName, insp.Role, insp.CurrentLeaderName,
-				insp.MC,
-				insp.ShadowReplicas,
-				insp.ResponderPeerURL)
+`, insp2.ResponderName, insp2.Role, insp2.CurrentLeaderName,
+				insp2.MC,
+				insp2.ShadowReplicas,
+				insp2.ResponderPeerURL)
 		}
 	}
 
@@ -184,6 +185,15 @@ func main() {
 		os.Exit(0)
 	}
 
+	if insp == nil {
+		// no leader at the moment.
+		if len(contacted) == 0 {
+			fmt.Printf("could not contact any nodes.\n")
+			os.Exit(1)
+		}
+		insp = contacted[0]
+		fmt.Printf("no leader found, using MC from '%v': %v\n", insp.ResponderName, insp.MC.Short())
+	}
 	newestMembership := insp.MC
 	var det *tube.PeerDetail
 

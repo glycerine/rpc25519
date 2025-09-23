@@ -53,6 +53,10 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 	selfSurelyNotLeader := false
 
 	defer func() {
+		// naw. leave nil if no leader.
+		//if len(contacted) > 0 && insp == nil {
+		//	insp = contacted[0]
+		//}
 		if lastLeaderName == node.name && selfSurelyNotLeader {
 			// try not to mislead caller into thinking they
 			// themselves are leader when they are not.

@@ -20,6 +20,7 @@ import (
 	"os"
 	"strings"
 	//"path/filepath"
+	"runtime/debug"
 	//"sort"
 	cryrand "crypto/rand"
 	"time"
@@ -64,6 +65,7 @@ func (c *ConfigTubeCli) SetFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.Help, "h", false, "show this help")
 
 	fs.BoolVar(&c.WebProfile, "webprofile", false, "start web pprof profiling on localhost:7070")
+
 	// profiling
 	fs.StringVar(&c.Cpuprofile, "cpuprofile", "", "write cpu profile to file")
 	fs.StringVar(&c.Memprofile, "memprofile", "", "write memory profile to this file")
@@ -77,6 +79,8 @@ func (c *ConfigTubeCli) FinishConfig(fs *flag.FlagSet) (err error) {
 func (c *ConfigTubeCli) SetDefaults() {}
 
 func main() {
+	showBinaryVersion("tube")
+
 	cmdCfg := &ConfigTubeCli{}
 
 	fs := flag.NewFlagSet("tube", flag.ExitOnError)
@@ -434,4 +438,23 @@ func showArchive(path string) (exitCode int) {
 		fmt.Printf("(nil KVstore)\n")
 	}
 	return 0
+}
+
+func showBinaryVersion(program string) {
+
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		fmt.Println("warning: build information not available.")
+		return
+	}
+
+	//fmt.Printf("tube module path: %v\n", info.Main.Path)
+	fmt.Printf("%v version: %v\n", program, info.Main.Version)
+
+	// fmt.Println("---")
+	// // You can also iterate through all dependencies.
+	// fmt.Println("Dependencies:")
+	// for _, dep := range info.Deps {
+	// 	fmt.Printf("- %s: %s\n", dep.Path, dep.Version)
+	// }
 }

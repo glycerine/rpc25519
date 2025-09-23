@@ -290,7 +290,7 @@ import (
 	//"path/filepath"
 	//"github.com/glycerine/greenpack/msgp"
 
-	"github.com/glycerine/blake3"
+	//"github.com/glycerine/blake3"
 	"github.com/glycerine/idem"
 	//rb "github.com/glycerine/rbtree"
 	rpc "github.com/glycerine/rpc25519"
@@ -940,7 +940,7 @@ func (s *TubeNode) Start(
 			}
 		}
 
-		if !s.cfg.isTest && i%50 == 0 {
+		if false && !s.cfg.isTest && i%50 == 0 {
 			// monitor liveness of prod processes
 			if s.PeerServiceName == TUBE_REPLICA &&
 				!strings.HasPrefix(s.name, "tup_") &&
@@ -1200,7 +1200,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 		case <-s.electionTimeoutCh:
 			//s.ay("%v electionTimeoutCh", s.me())
 			if !s.cfg.isTest {
-				vv("%v electionTimeoutCh", s.me())
+				//vv("%v electionTimeoutCh", s.me())
 			}
 			// so it is just never getting initialized(!)
 			s.countElections++
@@ -1589,8 +1589,9 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					continue
 				}
 
-				if s.bootstrappedMembership(tkt) {
-					//vv("%v continue after bootstrappedMembership true", s.name)
+				// in case RedirectTicketToLeaderMsg
+				if s.bootstrappedOrForcedMembership(tkt) {
+					//vv("%v continue after bootstrappedOrForcedMembership true", s.name)
 					continue
 				}
 
@@ -4231,7 +4232,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	// in 3 places for tubeadd CLI processing,
 	// so we would need another parameter, ugh.
 	stashForLeader := !tkt.WaitLeaderDeadline.IsZero()
-	vv("%v stashForLeader is %v; tkt.WaitLeaderDeadline='%v' (in %v)", s.name, stashForLeader, nice9(tkt.WaitLeaderDeadline), time.Until(tkt.WaitLeaderDeadline))
+	vv("%v stashForLeader is %v; tkt.WaitLeaderDeadline='%v' (in %v); tkt4=%v", s.name, stashForLeader, nice9(tkt.WaitLeaderDeadline), time.Until(tkt.WaitLeaderDeadline), tkt.TicketID[:4])
 	// three red tests under stashForLeader = false that need fixing:
 	// red 059 compact_test.go
 	// red Test402_build_up_a_cluster_from_one_node membership_test.go
@@ -4254,9 +4255,10 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 		//addOther := false
 		var xtra string
 		if tkt.Op == MEMBERSHIP_SET_UPDATE &&
+			tkt.AddPeerName != "" &&
 			tkt.AddPeerName != s.name {
 			//addOther = true
-			xtra = fmt.Sprintf(" MEMBERSHIP_SET_UPDATE tkt.AddPeerName='%v'. To prevent a node from adding a dead neighbor (the drowned sailor scenario, page 22, The Part-Time Parliament) by mistake, we require additions to leaderless clusters to come from self-add only. See also bootstrappedMembership() circa tube.go:15131. This error from redirectToLeader() circa tube.go:4247.", tkt.AddPeerName)
+			xtra = fmt.Sprintf(" MEMBERSHIP_SET_UPDATE tkt.AddPeerName='%v'. To prevent a node from adding a dead neighbor (the drowned sailor scenario, page 22, The Part-Time Parliament) by mistake, we require additions to leaderless clusters to come from self-add only. See also bootstrappedOrForcedMembership() circa tube.go:15131. This error from redirectToLeader() circa %v", tkt.AddPeerName, fileLine(1))
 		}
 		tkt.Err = fmt.Errorf("ahem. no leader known to me (node '%v'). stashForLeader is false.%v", s.name, xtra)
 
@@ -5279,7 +5281,7 @@ func (s *TubeNode) replicateTicket(tkt *Ticket) {
 		//vv("%v tkt.MemberConfig = '%v'", s.me(), tkt.MC.Short())
 		// addProv does for us:
 		//tkt.MemberConfig.RaftLogIndex = idx
-		//and then calls setPeerNamesContentHash()
+
 	} else {
 		// not a membership action
 		if tkt.MC == nil && s.state.MC != nil {
@@ -9574,7 +9576,7 @@ func (s *TubeNode) beginPreVote() {
 		}
 	}
 
-	//vv("%v \n-------->>>    begin Pre Vote() s.countElections = %v <<<--------", s.me(), s.countElections)
+	vv("%v \n-------->>>    begin Pre Vote() s.countElections = %v <<<--------", s.me(), s.countElections)
 
 	preVoteTerm := s.state.CurrentTerm + 1
 
@@ -11482,24 +11484,23 @@ type MemberConfig struct {
 
 	SerzPeerDetails []*PeerDetail `zid:"0"`
 
-	RaftLogIndex   int64  `zid:"1"`
-	MemberConfigID string `zid:"2"`
+	RaftLogIndex int64 `zid:"1"`
 
 	// 0 if not a bootup, else number of boot nodes.
-	BootCount int `zid:"3"`
+	BootCount int `zid:"2"`
 
 	// whose view is PeerNames from?
-	OriginPeerID                 string `zid:"4"`
-	OriginPeerName               string `zid:"5"`
-	OriginPeerServiceName        string `zid:"6"`
-	OriginPeerServiceNameVersion string `zid:"7"`
+	OriginPeerID                 string `zid:"3"`
+	OriginPeerName               string `zid:"4"`
+	OriginPeerServiceName        string `zid:"5"`
+	OriginPeerServiceNameVersion string `zid:"6"`
 
-	CreateTm  time.Time `zid:"8"`
-	CreateWho string    `zid:"9"`
+	CreateTm  time.Time `zid:"7"`
+	CreateWho string    `zid:"8"`
 
 	// provenance: track flow of information/chain of custody
 	// to figure out where we are getting it wrong/backwards/flipped.
-	Prov []string `zid:"10"`
+	Prov []string `zid:"9"`
 
 	// Note: not used yet:
 	//
@@ -11523,10 +11524,10 @@ type MemberConfig struct {
 	// last revised 20 Nov 2021 (this version, v3).
 	// [2] https://will62794.github.io/distributed-systems/consensus/2025/08/25/logless-raft.html
 	// ConfigVersion is initially 1.
-	ConfigVersion int64 `zid:"11"` // logless analog to Raft log index.
-	ConfigTerm    int64 `zid:"12"` // same as Raft Term. initially 0.
+	ConfigVersion int64 `zid:"10"` // logless analog to Raft log index.
+	ConfigTerm    int64 `zid:"11"` // same as Raft Term. initially 0.
 
-	Shim int64 `zid:"13"`
+	Shim int64 `zid:"12"`
 
 	// Is every version that the leader
 	// broadcasts a committed version? if the
@@ -11537,9 +11538,9 @@ type MemberConfig struct {
 	// it yet.
 	// leader sets to let followers know that
 	// the MC has been loglessly committed.
-	IsCommitted          bool  `zid:"14"`
-	CommitIndex          int64 `zid:"15"`
-	CommitIndexEntryTerm int64 `zid:"16"`
+	IsCommitted          bool  `zid:"13"`
+	CommitIndex          int64 `zid:"14"`
+	CommitIndexEntryTerm int64 `zid:"15"`
 }
 
 func peerNamesUnion(peerNamesA, peerNamesB *omap[string, *PeerDetail]) (r *omap[string, *PeerDetail]) {
@@ -11649,8 +11650,6 @@ func (s *TubeNode) NewMemberConfig(loc string) *MemberConfig {
 	r.OriginPeerServiceNameVersion = s.PeerServiceNameVersion
 	r.addProv(loc, s.name, r.RaftLogIndex)
 
-	r.setPeerNamesContentHash()
-
 	r.CreateTm = time.Now()
 	r.CreateWho = s.name
 
@@ -11661,15 +11660,7 @@ func (s *MemberConfig) addProv(loc string, who string, raftLogIndex int64) {
 	s.RaftLogIndex = raftLogIndex
 	s.OriginPeerName = who
 	// since we just updated s.RaftLogIndex/IsCommitted for replicateTicket:
-	s.setPeerNamesContentHash()
 	s.Prov = append(s.Prov, fmt.Sprintf("[idx %02d] %v: %v", raftLogIndex, who, loc))
-}
-
-func (s *MemberConfig) setPeerNamesContentHash() {
-	hasher := blake3.New(64, nil)
-	str := s.ContentString()
-	hasher.Write([]byte(str))
-	s.MemberConfigID = blake3ToString33B(hasher)
 }
 
 func (s *MemberConfig) check(who *TubeNode) (now time.Time) {
@@ -11701,13 +11692,11 @@ func (s *MemberConfig) setNameDetail(name string, detail *PeerDetail, who *TubeN
 	s.check(who)
 
 	s.PeerNames.set(name, detail)
-	s.setPeerNamesContentHash()
 	// call addProv after if desired; e.g. r.addProv("setNameDetails")
 }
 
 func (s *MemberConfig) delName(name string, who *TubeNode) {
 	s.PeerNames.delkey(name)
-	s.setPeerNamesContentHash()
 
 	// sanity check, where is future update from??
 	now := s.check(who)
@@ -12108,7 +12097,7 @@ func (s *TubeNode) setupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntryBoo
 // Any new config installed (and not stalled) will start
 // with IsCommitted false.
 func (s *TubeNode) changeMembership(tkt *Ticket) {
-	//vv("%v top of changeMembership(); tkt.Desc='%v'", s.me(), tkt.Desc)
+	vv("%v top of changeMembership(); tkt.Desc='%v'", s.me(), tkt.Desc)
 
 	if tkt.finishTicketCalled {
 		//vv("%v tkt.finishTicketCalled so exit changeMembership early; tkt.Desc='%v'", s.me(), tkt.Desc)
@@ -15162,13 +15151,14 @@ func (s *TubeNode) refreshSession(from time.Time, ste *SessionTableEntry) (refre
 	return
 }
 
-func (s *TubeNode) bootstrappedMembership(tkt *Ticket) bool {
+// called by case RedirectTicketToLeaderMsg
+func (s *TubeNode) bootstrappedOrForcedMembership(tkt *Ticket) bool {
 	// allow bootstrapping by handling ADD of self here.
-	//vv("%v top bootstrappedMembership", s.name)
+	vv("%v top bootstrappedOrForcedMembership", s.name)
 
 	// we can be leader but not in membership and
 	// need to allow ourselves to be added back
-	// to the membership.
+	// to the membership. so don't do this:
 	//if s.role == LEADER {
 	//	return false
 	//}
@@ -15178,6 +15168,13 @@ func (s *TubeNode) bootstrappedMembership(tkt *Ticket) bool {
 	}
 	if tkt.Op != MEMBERSHIP_SET_UPDATE {
 		//vv("%v tkt.Op is not membership update", s.me())
+		return false
+	}
+	if tkt.ForceChangeMC {
+		return s.forceChangeMC(tkt)
+	}
+	if tkt.AddPeerName == "" {
+		//vv("%v tkt.Op is not membership Add peer", s.me())
 		return false
 	}
 	n := s.state.MC.PeerNames.Len()
@@ -15192,8 +15189,12 @@ func (s *TubeNode) bootstrappedMembership(tkt *Ticket) bool {
 	// offline. (Hopefully we avoid having the list
 	// of drowned sailors be the members of the
 	// part time parliament...)
-	if tkt.AddPeerName != s.name {
+	if tkt.AddPeerName != "" && tkt.AddPeerName != s.name {
 		//vv("%v not trying to add self to MC", s.me())
+		return false
+	}
+	if tkt.RemovePeerName != "" && tkt.RemovePeerName != s.name {
+		//vv("%v not trying to remove self to MC", s.me())
 		return false
 	}
 	if n == 1 {
@@ -15205,14 +15206,7 @@ func (s *TubeNode) bootstrappedMembership(tkt *Ticket) bool {
 	}
 	// empty MC, or just Me.
 
-	detail := &PeerDetail{
-		Name:                   s.name,
-		URL:                    s.URL,
-		PeerID:                 s.PeerID,
-		Addr:                   s.MyPeer.BaseServerAddr,
-		PeerServiceName:        s.MyPeer.PeerServiceName,
-		PeerServiceNameVersion: s.MyPeer.PeerServiceNameVersion,
-	}
+	detail := s.getMyDetails()
 	s.state.MC.setNameDetail(s.name, detail, s)
 	s.state.Known.PeerNames.set(s.name, detail)
 
@@ -15225,6 +15219,139 @@ func (s *TubeNode) bootstrappedMembership(tkt *Ticket) bool {
 	// this does s.FinishTicket(tkt) only if WaitingAtLeader
 	s.respondToClientTicketApplied(tkt)
 	s.FinishTicket(tkt, true)
+	return true
+}
+
+func (s *TubeNode) getMyDetails() *PeerDetail {
+	return &PeerDetail{
+		Name:                   s.name,
+		URL:                    s.URL,
+		PeerID:                 s.PeerID,
+		Addr:                   s.MyPeer.BaseServerAddr,
+		PeerServiceName:        s.MyPeer.PeerServiceName,
+		PeerServiceNameVersion: s.MyPeer.PeerServiceNameVersion,
+	}
+}
+
+// helper for bootstrappedOrForcedMembership
+// to handle forced MC changes; tubeadd -f and
+// tuberm -f to resurrect a flattened cluster
+// when some needed member is permanently gone.
+func (s *TubeNode) forceChangeMC(tkt *Ticket) bool {
+	if s.PeerServiceName != TUBE_REPLICA {
+		//vv("%v I am not a replica", s.me())
+		return false
+	}
+	if tkt.Op != MEMBERSHIP_SET_UPDATE {
+		//vv("%v tkt.Op is not membership update", s.me())
+		return false
+	}
+	if !tkt.ForceChangeMC {
+		return false
+	}
+	if tkt.RemovePeerName == "" && tkt.AddPeerName == "" {
+		panicf("what other new kind of membership change is there? tkt='%v'", tkt)
+		return false
+	}
+	isAdd := true
+	target := tkt.AddPeerName
+	if target == "" {
+		isAdd = false
+		target = tkt.RemovePeerName
+	}
+	// needed?
+	detailTarget, have := s.state.MC.PeerNames.get2(target)
+	if isAdd {
+		if have {
+			// return done, is no-op
+			tkt.Err = fmt.Errorf("forceChangeMC ADD is no-op, target already present: target='%v'; MC='%v'", target, s.state.MC)
+			s.addInspectionToTicket(tkt)
+			s.respondToClientTicketApplied(tkt)
+			s.FinishTicket(tkt, true)
+			return true
+		}
+	} else {
+		if !have {
+			// return done, is no-op
+			tkt.Err = fmt.Errorf("forceChangeMC ADD is no-op, target already absent: target='%v'; MC='%v'", target, s.state.MC)
+			s.addInspectionToTicket(tkt)
+			s.respondToClientTicketApplied(tkt)
+			s.FinishTicket(tkt, true)
+			return true
+		}
+	}
+	// yes, confirmed we do need to force add/remove
+	// INVAR: target is in s.state.MC.
+
+	if tkt.AddPeerName != "" {
+		if tkt.AddPeerName == s.name {
+			vv("%v forcing MC add rather than redirectToLeader. added me='%v'; now MC='%v'", s.me(), s.name, s.state.MC)
+
+			detail := s.getMyDetails()
+
+			s.state.MC.ConfigVersion++
+			s.state.MC.setNameDetail(s.name, detail, s)
+			s.state.ShadowReplicas.PeerNames.delkey(s.name)
+			s.state.Known.PeerNames.set(s.name, detail)
+
+			s.addInspectionToTicket(tkt)
+			s.respondToClientTicketApplied(tkt)
+			s.FinishTicket(tkt, true)
+			return true
+		}
+		// add, not me though.
+		// where do details come from?
+		// we can try Shadow and Known... else error out?
+		// or put pending? I mean Shadow and Known
+		// might have good host:port, so worth trying.
+		detail, ok := s.state.ShadowReplicas.PeerNames.get2(target)
+		if !ok {
+			detail, ok = s.state.Known.PeerNames.get2(target)
+		}
+		if ok {
+			vv("%v forcing MC add rather than redirectToLeader. target='%v'; now MC='%v'", s.me(), target, s.state.MC)
+
+			s.state.MC.ConfigVersion++
+			s.state.MC.setNameDetail(target, detail, s)
+			s.state.ShadowReplicas.PeerNames.delkey(target)
+
+			s.addInspectionToTicket(tkt)
+			s.respondToClientTicketApplied(tkt)
+			s.FinishTicket(tkt, true)
+			return true
+		}
+
+		tkt.Err = fmt.Errorf("forceChangeMC aborted, no details of how to add target are available from Known or ShadowReplicas; target = '%v'", target)
+		s.addInspectionToTicket(tkt)
+		s.respondToClientTicketApplied(tkt)
+		s.FinishTicket(tkt, true)
+		return true
+	}
+	// remove
+	if tkt.AddPeerName == s.name {
+		// remove myself
+
+		vv("%v forcing MC remove of myself('%v') rather than redirectToLeader. now MC='%v'", s.me(), s.name, s.state.MC)
+
+		detail := s.getMyDetails()
+
+		s.state.MC.ConfigVersion++
+		s.state.MC.PeerNames.delkey(s.name)
+		s.state.ShadowReplicas.PeerNames.set(s.name, detail)
+		s.state.Known.PeerNames.set(s.name, detail)
+
+		s.addInspectionToTicket(tkt)
+		s.respondToClientTicketApplied(tkt)
+		s.FinishTicket(tkt, true)
+		return true
+	}
+	// remove, not me
+	vv("%v forcing MC remove of non-self target rather than redirectToLeader. target='%v'; now MC='%v'", s.me(), target, s.state.MC)
+
+	s.state.MC.ConfigVersion++
+	s.state.MC.PeerNames.delkey(target)
+	s.state.ShadowReplicas.PeerNames.set(target, detailTarget)
+
 	return true
 }
 
@@ -15551,9 +15678,11 @@ func (s *TubeNode) errorOutAwaitingLeaderTooLongTickets() {
 			// for as long as it takes.
 			continue
 		}
-		if tkt.WaitLeaderDeadline.After(now) {
-			vv("%v deadline passed, releasing ticket '%v'", s.name, tkt.Short())
-			tkt.Err = fmt.Errorf("%v ticketsAwaitingLeader deadline passed for tkt='%v'", s.name, tkt.Short())
+		if tkt.WaitLeaderDeadline.Before(now) {
+
+			tkt.Err = fmt.Errorf("%v ticketsAwaitingLeader deadline passed (deadline='%v' < now='%v' by '%v'), releasing ticket '%v'", s.name, tkt.WaitLeaderDeadline, now, now.Sub(tkt.WaitLeaderDeadline), tkt.Short())
+			vv("%v", tkt.Err.Error())
+
 			//s.respondToClientTicketApplied(tkt)
 			s.replyToForwardedTicketWithError(tkt)
 			s.FinishTicket(tkt, false)

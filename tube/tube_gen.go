@@ -9691,7 +9691,7 @@ func (z *MemberConfig) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields152zgensym_8df0a91a1f250219_153 = 18
+	const maxFields152zgensym_8df0a91a1f250219_153 = 17
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields152zgensym_8df0a91a1f250219_153 uint32
@@ -9787,56 +9787,50 @@ doneWithStruct152zgensym_8df0a91a1f250219_153:
 			if err != nil {
 				return
 			}
-		case "MemberConfigID_zid02_str":
+		case "BootCount_zid02_int":
 			found152zgensym_8df0a91a1f250219_153[2] = true
-			z.MemberConfigID, err = dc.ReadString()
-			if err != nil {
-				return
-			}
-		case "BootCount_zid03_int":
-			found152zgensym_8df0a91a1f250219_153[3] = true
 			z.BootCount, err = dc.ReadInt()
 			if err != nil {
 				return
 			}
-		case "OriginPeerID_zid04_str":
-			found152zgensym_8df0a91a1f250219_153[4] = true
+		case "OriginPeerID_zid03_str":
+			found152zgensym_8df0a91a1f250219_153[3] = true
 			z.OriginPeerID, err = dc.ReadString()
 			if err != nil {
 				return
 			}
-		case "OriginPeerName_zid05_str":
-			found152zgensym_8df0a91a1f250219_153[5] = true
+		case "OriginPeerName_zid04_str":
+			found152zgensym_8df0a91a1f250219_153[4] = true
 			z.OriginPeerName, err = dc.ReadString()
 			if err != nil {
 				return
 			}
-		case "OriginPeerServiceName_zid06_str":
-			found152zgensym_8df0a91a1f250219_153[6] = true
+		case "OriginPeerServiceName_zid05_str":
+			found152zgensym_8df0a91a1f250219_153[5] = true
 			z.OriginPeerServiceName, err = dc.ReadString()
 			if err != nil {
 				return
 			}
-		case "OriginPeerServiceNameVersion_zid07_str":
-			found152zgensym_8df0a91a1f250219_153[7] = true
+		case "OriginPeerServiceNameVersion_zid06_str":
+			found152zgensym_8df0a91a1f250219_153[6] = true
 			z.OriginPeerServiceNameVersion, err = dc.ReadString()
 			if err != nil {
 				return
 			}
-		case "CreateTm_zid08_tim":
-			found152zgensym_8df0a91a1f250219_153[8] = true
+		case "CreateTm_zid07_tim":
+			found152zgensym_8df0a91a1f250219_153[7] = true
 			z.CreateTm, err = dc.ReadTime()
 			if err != nil {
 				return
 			}
-		case "CreateWho_zid09_str":
-			found152zgensym_8df0a91a1f250219_153[9] = true
+		case "CreateWho_zid08_str":
+			found152zgensym_8df0a91a1f250219_153[8] = true
 			z.CreateWho, err = dc.ReadString()
 			if err != nil {
 				return
 			}
-		case "Prov_zid10_slc":
-			found152zgensym_8df0a91a1f250219_153[10] = true
+		case "Prov_zid09_slc":
+			found152zgensym_8df0a91a1f250219_153[9] = true
 			var zgensym_8df0a91a1f250219_155 uint32
 			zgensym_8df0a91a1f250219_155, err = dc.ReadArrayHeader()
 			if err != nil {
@@ -9853,38 +9847,38 @@ doneWithStruct152zgensym_8df0a91a1f250219_153:
 					return
 				}
 			}
-		case "ConfigVersion_zid11_i64":
-			found152zgensym_8df0a91a1f250219_153[11] = true
+		case "ConfigVersion_zid10_i64":
+			found152zgensym_8df0a91a1f250219_153[10] = true
 			z.ConfigVersion, err = dc.ReadInt64()
 			if err != nil {
 				return
 			}
-		case "ConfigTerm_zid12_i64":
-			found152zgensym_8df0a91a1f250219_153[12] = true
+		case "ConfigTerm_zid11_i64":
+			found152zgensym_8df0a91a1f250219_153[11] = true
 			z.ConfigTerm, err = dc.ReadInt64()
 			if err != nil {
 				return
 			}
-		case "Shim_zid13_i64":
-			found152zgensym_8df0a91a1f250219_153[13] = true
+		case "Shim_zid12_i64":
+			found152zgensym_8df0a91a1f250219_153[12] = true
 			z.Shim, err = dc.ReadInt64()
 			if err != nil {
 				return
 			}
-		case "IsCommitted_zid14_boo":
-			found152zgensym_8df0a91a1f250219_153[14] = true
+		case "IsCommitted_zid13_boo":
+			found152zgensym_8df0a91a1f250219_153[13] = true
 			z.IsCommitted, err = dc.ReadBool()
 			if err != nil {
 				return
 			}
-		case "CommitIndex_zid15_i64":
-			found152zgensym_8df0a91a1f250219_153[15] = true
+		case "CommitIndex_zid14_i64":
+			found152zgensym_8df0a91a1f250219_153[14] = true
 			z.CommitIndex, err = dc.ReadInt64()
 			if err != nil {
 				return
 			}
-		case "CommitIndexEntryTerm_zid16_i64":
-			found152zgensym_8df0a91a1f250219_153[16] = true
+		case "CommitIndexEntryTerm_zid15_i64":
+			found152zgensym_8df0a91a1f250219_153[15] = true
 			z.CommitIndexEntryTerm, err = dc.ReadInt64()
 			if err != nil {
 				return
@@ -9912,16 +9906,16 @@ doneWithStruct152zgensym_8df0a91a1f250219_153:
 }
 
 // fields of MemberConfig
-var decodeMsgFieldOrder152zgensym_8df0a91a1f250219_153 = []string{"SerzPeerDetails_zid00_slc", "RaftLogIndex_zid01_i64", "MemberConfigID_zid02_str", "BootCount_zid03_int", "OriginPeerID_zid04_str", "OriginPeerName_zid05_str", "OriginPeerServiceName_zid06_str", "OriginPeerServiceNameVersion_zid07_str", "CreateTm_zid08_tim", "CreateWho_zid09_str", "Prov_zid10_slc", "ConfigVersion_zid11_i64", "ConfigTerm_zid12_i64", "Shim_zid13_i64", "IsCommitted_zid14_boo", "CommitIndex_zid15_i64", "CommitIndexEntryTerm_zid16_i64", ""}
+var decodeMsgFieldOrder152zgensym_8df0a91a1f250219_153 = []string{"SerzPeerDetails_zid00_slc", "RaftLogIndex_zid01_i64", "BootCount_zid02_int", "OriginPeerID_zid03_str", "OriginPeerName_zid04_str", "OriginPeerServiceName_zid05_str", "OriginPeerServiceNameVersion_zid06_str", "CreateTm_zid07_tim", "CreateWho_zid08_str", "Prov_zid09_slc", "ConfigVersion_zid10_i64", "ConfigTerm_zid11_i64", "Shim_zid12_i64", "IsCommitted_zid13_boo", "CommitIndex_zid14_i64", "CommitIndexEntryTerm_zid15_i64", ""}
 
-var decodeMsgFieldSkip152zgensym_8df0a91a1f250219_153 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
+var decodeMsgFieldSkip152zgensym_8df0a91a1f250219_153 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *MemberConfig) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 17
+		return 16
 	}
-	var fieldsInUse uint32 = 17
+	var fieldsInUse uint32 = 16
 	isempty[0] = (len(z.SerzPeerDetails) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -9930,64 +9924,60 @@ func (z *MemberConfig) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[1] {
 		fieldsInUse--
 	}
-	isempty[2] = (len(z.MemberConfigID) == 0) // string, omitempty
+	isempty[2] = (z.BootCount == 0) // number, omitempty
 	if isempty[2] {
 		fieldsInUse--
 	}
-	isempty[3] = (z.BootCount == 0) // number, omitempty
+	isempty[3] = (len(z.OriginPeerID) == 0) // string, omitempty
 	if isempty[3] {
 		fieldsInUse--
 	}
-	isempty[4] = (len(z.OriginPeerID) == 0) // string, omitempty
+	isempty[4] = (len(z.OriginPeerName) == 0) // string, omitempty
 	if isempty[4] {
 		fieldsInUse--
 	}
-	isempty[5] = (len(z.OriginPeerName) == 0) // string, omitempty
+	isempty[5] = (len(z.OriginPeerServiceName) == 0) // string, omitempty
 	if isempty[5] {
 		fieldsInUse--
 	}
-	isempty[6] = (len(z.OriginPeerServiceName) == 0) // string, omitempty
+	isempty[6] = (len(z.OriginPeerServiceNameVersion) == 0) // string, omitempty
 	if isempty[6] {
 		fieldsInUse--
 	}
-	isempty[7] = (len(z.OriginPeerServiceNameVersion) == 0) // string, omitempty
+	isempty[7] = (z.CreateTm.IsZero()) // time.Time, omitempty
 	if isempty[7] {
 		fieldsInUse--
 	}
-	isempty[8] = (z.CreateTm.IsZero()) // time.Time, omitempty
+	isempty[8] = (len(z.CreateWho) == 0) // string, omitempty
 	if isempty[8] {
 		fieldsInUse--
 	}
-	isempty[9] = (len(z.CreateWho) == 0) // string, omitempty
+	isempty[9] = (len(z.Prov) == 0) // string, omitempty
 	if isempty[9] {
 		fieldsInUse--
 	}
-	isempty[10] = (len(z.Prov) == 0) // string, omitempty
+	isempty[10] = (z.ConfigVersion == 0) // number, omitempty
 	if isempty[10] {
 		fieldsInUse--
 	}
-	isempty[11] = (z.ConfigVersion == 0) // number, omitempty
+	isempty[11] = (z.ConfigTerm == 0) // number, omitempty
 	if isempty[11] {
 		fieldsInUse--
 	}
-	isempty[12] = (z.ConfigTerm == 0) // number, omitempty
+	isempty[12] = (z.Shim == 0) // number, omitempty
 	if isempty[12] {
 		fieldsInUse--
 	}
-	isempty[13] = (z.Shim == 0) // number, omitempty
+	isempty[13] = (!z.IsCommitted) // bool, omitempty
 	if isempty[13] {
 		fieldsInUse--
 	}
-	isempty[14] = (!z.IsCommitted) // bool, omitempty
+	isempty[14] = (z.CommitIndex == 0) // number, omitempty
 	if isempty[14] {
 		fieldsInUse--
 	}
-	isempty[15] = (z.CommitIndex == 0) // number, omitempty
+	isempty[15] = (z.CommitIndexEntryTerm == 0) // number, omitempty
 	if isempty[15] {
-		fieldsInUse--
-	}
-	isempty[16] = (z.CommitIndexEntryTerm == 0) // number, omitempty
-	if isempty[16] {
 		fieldsInUse--
 	}
 
@@ -10001,7 +9991,7 @@ func (z *MemberConfig) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_8df0a91a1f250219_156 [18]bool
+	var empty_zgensym_8df0a91a1f250219_156 [17]bool
 	fieldsInUse_zgensym_8df0a91a1f250219_157 := z.fieldsNotEmpty(empty_zgensym_8df0a91a1f250219_156[:])
 
 	// map header
@@ -10060,20 +10050,8 @@ func (z *MemberConfig) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	if !empty_zgensym_8df0a91a1f250219_156[2] {
-		// write "MemberConfigID_zid02_str"
-		err = en.Append(0xb8, 0x4d, 0x65, 0x6d, 0x62, 0x65, 0x72, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x73, 0x74, 0x72)
-		if err != nil {
-			return err
-		}
-		err = en.WriteString(z.MemberConfigID)
-		if err != nil {
-			return
-		}
-	}
-
-	if !empty_zgensym_8df0a91a1f250219_156[3] {
-		// write "BootCount_zid03_int"
-		err = en.Append(0xb3, 0x42, 0x6f, 0x6f, 0x74, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x69, 0x6e, 0x74)
+		// write "BootCount_zid02_int"
+		err = en.Append(0xb3, 0x42, 0x6f, 0x6f, 0x74, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x6e, 0x74)
 		if err != nil {
 			return err
 		}
@@ -10083,9 +10061,9 @@ func (z *MemberConfig) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_156[4] {
-		// write "OriginPeerID_zid04_str"
-		err = en.Append(0xb6, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e, 0x50, 0x65, 0x65, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x73, 0x74, 0x72)
+	if !empty_zgensym_8df0a91a1f250219_156[3] {
+		// write "OriginPeerID_zid03_str"
+		err = en.Append(0xb6, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e, 0x50, 0x65, 0x65, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
@@ -10095,9 +10073,9 @@ func (z *MemberConfig) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_156[5] {
-		// write "OriginPeerName_zid05_str"
-		err = en.Append(0xb8, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e, 0x50, 0x65, 0x65, 0x72, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x73, 0x74, 0x72)
+	if !empty_zgensym_8df0a91a1f250219_156[4] {
+		// write "OriginPeerName_zid04_str"
+		err = en.Append(0xb8, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e, 0x50, 0x65, 0x65, 0x72, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
@@ -10107,9 +10085,9 @@ func (z *MemberConfig) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_156[6] {
-		// write "OriginPeerServiceName_zid06_str"
-		err = en.Append(0xbf, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e, 0x50, 0x65, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x73, 0x74, 0x72)
+	if !empty_zgensym_8df0a91a1f250219_156[5] {
+		// write "OriginPeerServiceName_zid05_str"
+		err = en.Append(0xbf, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e, 0x50, 0x65, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
@@ -10119,9 +10097,9 @@ func (z *MemberConfig) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_156[7] {
-		// write "OriginPeerServiceNameVersion_zid07_str"
-		err = en.Append(0xd9, 0x26, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e, 0x50, 0x65, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x73, 0x74, 0x72)
+	if !empty_zgensym_8df0a91a1f250219_156[6] {
+		// write "OriginPeerServiceNameVersion_zid06_str"
+		err = en.Append(0xd9, 0x26, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e, 0x50, 0x65, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
@@ -10131,9 +10109,9 @@ func (z *MemberConfig) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_156[8] {
-		// write "CreateTm_zid08_tim"
-		err = en.Append(0xb2, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x54, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x74, 0x69, 0x6d)
+	if !empty_zgensym_8df0a91a1f250219_156[7] {
+		// write "CreateTm_zid07_tim"
+		err = en.Append(0xb2, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x54, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x74, 0x69, 0x6d)
 		if err != nil {
 			return err
 		}
@@ -10143,9 +10121,9 @@ func (z *MemberConfig) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_156[9] {
-		// write "CreateWho_zid09_str"
-		err = en.Append(0xb3, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x57, 0x68, 0x6f, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x39, 0x5f, 0x73, 0x74, 0x72)
+	if !empty_zgensym_8df0a91a1f250219_156[8] {
+		// write "CreateWho_zid08_str"
+		err = en.Append(0xb3, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x57, 0x68, 0x6f, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x73, 0x74, 0x72)
 		if err != nil {
 			return err
 		}
@@ -10155,9 +10133,9 @@ func (z *MemberConfig) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_156[10] {
-		// write "Prov_zid10_slc"
-		err = en.Append(0xae, 0x50, 0x72, 0x6f, 0x76, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x30, 0x5f, 0x73, 0x6c, 0x63)
+	if !empty_zgensym_8df0a91a1f250219_156[9] {
+		// write "Prov_zid09_slc"
+		err = en.Append(0xae, 0x50, 0x72, 0x6f, 0x76, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x39, 0x5f, 0x73, 0x6c, 0x63)
 		if err != nil {
 			return err
 		}
@@ -10173,9 +10151,9 @@ func (z *MemberConfig) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_156[11] {
-		// write "ConfigVersion_zid11_i64"
-		err = en.Append(0xb7, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x31, 0x5f, 0x69, 0x36, 0x34)
+	if !empty_zgensym_8df0a91a1f250219_156[10] {
+		// write "ConfigVersion_zid10_i64"
+		err = en.Append(0xb7, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x30, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
@@ -10185,9 +10163,9 @@ func (z *MemberConfig) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_156[12] {
-		// write "ConfigTerm_zid12_i64"
-		err = en.Append(0xb4, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x54, 0x65, 0x72, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x32, 0x5f, 0x69, 0x36, 0x34)
+	if !empty_zgensym_8df0a91a1f250219_156[11] {
+		// write "ConfigTerm_zid11_i64"
+		err = en.Append(0xb4, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x54, 0x65, 0x72, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x31, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
@@ -10197,9 +10175,9 @@ func (z *MemberConfig) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_156[13] {
-		// write "Shim_zid13_i64"
-		err = en.Append(0xae, 0x53, 0x68, 0x69, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x33, 0x5f, 0x69, 0x36, 0x34)
+	if !empty_zgensym_8df0a91a1f250219_156[12] {
+		// write "Shim_zid12_i64"
+		err = en.Append(0xae, 0x53, 0x68, 0x69, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x32, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
@@ -10209,9 +10187,9 @@ func (z *MemberConfig) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_156[14] {
-		// write "IsCommitted_zid14_boo"
-		err = en.Append(0xb5, 0x49, 0x73, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x74, 0x65, 0x64, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x34, 0x5f, 0x62, 0x6f, 0x6f)
+	if !empty_zgensym_8df0a91a1f250219_156[13] {
+		// write "IsCommitted_zid13_boo"
+		err = en.Append(0xb5, 0x49, 0x73, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x74, 0x65, 0x64, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x33, 0x5f, 0x62, 0x6f, 0x6f)
 		if err != nil {
 			return err
 		}
@@ -10221,9 +10199,9 @@ func (z *MemberConfig) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_156[15] {
-		// write "CommitIndex_zid15_i64"
-		err = en.Append(0xb5, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x35, 0x5f, 0x69, 0x36, 0x34)
+	if !empty_zgensym_8df0a91a1f250219_156[14] {
+		// write "CommitIndex_zid14_i64"
+		err = en.Append(0xb5, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x34, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
@@ -10233,9 +10211,9 @@ func (z *MemberConfig) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
-	if !empty_zgensym_8df0a91a1f250219_156[16] {
-		// write "CommitIndexEntryTerm_zid16_i64"
-		err = en.Append(0xbe, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x54, 0x65, 0x72, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x36, 0x5f, 0x69, 0x36, 0x34)
+	if !empty_zgensym_8df0a91a1f250219_156[15] {
+		// write "CommitIndexEntryTerm_zid15_i64"
+		err = en.Append(0xbe, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x54, 0x65, 0x72, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x35, 0x5f, 0x69, 0x36, 0x34)
 		if err != nil {
 			return err
 		}
@@ -10257,7 +10235,7 @@ func (z *MemberConfig) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [18]bool
+	var empty [17]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -10288,95 +10266,89 @@ func (z *MemberConfig) MarshalMsg(b []byte) (o []byte, err error) {
 	}
 
 	if !empty[2] {
-		// string "MemberConfigID_zid02_str"
-		o = append(o, 0xb8, 0x4d, 0x65, 0x6d, 0x62, 0x65, 0x72, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x73, 0x74, 0x72)
-		o = msgp.AppendString(o, z.MemberConfigID)
-	}
-
-	if !empty[3] {
-		// string "BootCount_zid03_int"
-		o = append(o, 0xb3, 0x42, 0x6f, 0x6f, 0x74, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x69, 0x6e, 0x74)
+		// string "BootCount_zid02_int"
+		o = append(o, 0xb3, 0x42, 0x6f, 0x6f, 0x74, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x32, 0x5f, 0x69, 0x6e, 0x74)
 		o = msgp.AppendInt(o, z.BootCount)
 	}
 
-	if !empty[4] {
-		// string "OriginPeerID_zid04_str"
-		o = append(o, 0xb6, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e, 0x50, 0x65, 0x65, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x73, 0x74, 0x72)
+	if !empty[3] {
+		// string "OriginPeerID_zid03_str"
+		o = append(o, 0xb6, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e, 0x50, 0x65, 0x65, 0x72, 0x49, 0x44, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x33, 0x5f, 0x73, 0x74, 0x72)
 		o = msgp.AppendString(o, z.OriginPeerID)
 	}
 
-	if !empty[5] {
-		// string "OriginPeerName_zid05_str"
-		o = append(o, 0xb8, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e, 0x50, 0x65, 0x65, 0x72, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x73, 0x74, 0x72)
+	if !empty[4] {
+		// string "OriginPeerName_zid04_str"
+		o = append(o, 0xb8, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e, 0x50, 0x65, 0x65, 0x72, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x34, 0x5f, 0x73, 0x74, 0x72)
 		o = msgp.AppendString(o, z.OriginPeerName)
 	}
 
-	if !empty[6] {
-		// string "OriginPeerServiceName_zid06_str"
-		o = append(o, 0xbf, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e, 0x50, 0x65, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x73, 0x74, 0x72)
+	if !empty[5] {
+		// string "OriginPeerServiceName_zid05_str"
+		o = append(o, 0xbf, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e, 0x50, 0x65, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x35, 0x5f, 0x73, 0x74, 0x72)
 		o = msgp.AppendString(o, z.OriginPeerServiceName)
 	}
 
-	if !empty[7] {
-		// string "OriginPeerServiceNameVersion_zid07_str"
-		o = append(o, 0xd9, 0x26, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e, 0x50, 0x65, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x73, 0x74, 0x72)
+	if !empty[6] {
+		// string "OriginPeerServiceNameVersion_zid06_str"
+		o = append(o, 0xd9, 0x26, 0x4f, 0x72, 0x69, 0x67, 0x69, 0x6e, 0x50, 0x65, 0x65, 0x72, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x4e, 0x61, 0x6d, 0x65, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x36, 0x5f, 0x73, 0x74, 0x72)
 		o = msgp.AppendString(o, z.OriginPeerServiceNameVersion)
 	}
 
-	if !empty[8] {
-		// string "CreateTm_zid08_tim"
-		o = append(o, 0xb2, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x54, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x74, 0x69, 0x6d)
+	if !empty[7] {
+		// string "CreateTm_zid07_tim"
+		o = append(o, 0xb2, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x54, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x37, 0x5f, 0x74, 0x69, 0x6d)
 		o = msgp.AppendTime(o, z.CreateTm)
 	}
 
-	if !empty[9] {
-		// string "CreateWho_zid09_str"
-		o = append(o, 0xb3, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x57, 0x68, 0x6f, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x39, 0x5f, 0x73, 0x74, 0x72)
+	if !empty[8] {
+		// string "CreateWho_zid08_str"
+		o = append(o, 0xb3, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x57, 0x68, 0x6f, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x38, 0x5f, 0x73, 0x74, 0x72)
 		o = msgp.AppendString(o, z.CreateWho)
 	}
 
-	if !empty[10] {
-		// string "Prov_zid10_slc"
-		o = append(o, 0xae, 0x50, 0x72, 0x6f, 0x76, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x30, 0x5f, 0x73, 0x6c, 0x63)
+	if !empty[9] {
+		// string "Prov_zid09_slc"
+		o = append(o, 0xae, 0x50, 0x72, 0x6f, 0x76, 0x5f, 0x7a, 0x69, 0x64, 0x30, 0x39, 0x5f, 0x73, 0x6c, 0x63)
 		o = msgp.AppendArrayHeader(o, uint32(len(z.Prov)))
 		for zgensym_8df0a91a1f250219_151 := range z.Prov {
 			o = msgp.AppendString(o, z.Prov[zgensym_8df0a91a1f250219_151])
 		}
 	}
 
-	if !empty[11] {
-		// string "ConfigVersion_zid11_i64"
-		o = append(o, 0xb7, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x31, 0x5f, 0x69, 0x36, 0x34)
+	if !empty[10] {
+		// string "ConfigVersion_zid10_i64"
+		o = append(o, 0xb7, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x56, 0x65, 0x72, 0x73, 0x69, 0x6f, 0x6e, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x30, 0x5f, 0x69, 0x36, 0x34)
 		o = msgp.AppendInt64(o, z.ConfigVersion)
 	}
 
-	if !empty[12] {
-		// string "ConfigTerm_zid12_i64"
-		o = append(o, 0xb4, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x54, 0x65, 0x72, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x32, 0x5f, 0x69, 0x36, 0x34)
+	if !empty[11] {
+		// string "ConfigTerm_zid11_i64"
+		o = append(o, 0xb4, 0x43, 0x6f, 0x6e, 0x66, 0x69, 0x67, 0x54, 0x65, 0x72, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x31, 0x5f, 0x69, 0x36, 0x34)
 		o = msgp.AppendInt64(o, z.ConfigTerm)
 	}
 
-	if !empty[13] {
-		// string "Shim_zid13_i64"
-		o = append(o, 0xae, 0x53, 0x68, 0x69, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x33, 0x5f, 0x69, 0x36, 0x34)
+	if !empty[12] {
+		// string "Shim_zid12_i64"
+		o = append(o, 0xae, 0x53, 0x68, 0x69, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x32, 0x5f, 0x69, 0x36, 0x34)
 		o = msgp.AppendInt64(o, z.Shim)
 	}
 
-	if !empty[14] {
-		// string "IsCommitted_zid14_boo"
-		o = append(o, 0xb5, 0x49, 0x73, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x74, 0x65, 0x64, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x34, 0x5f, 0x62, 0x6f, 0x6f)
+	if !empty[13] {
+		// string "IsCommitted_zid13_boo"
+		o = append(o, 0xb5, 0x49, 0x73, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x74, 0x65, 0x64, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x33, 0x5f, 0x62, 0x6f, 0x6f)
 		o = msgp.AppendBool(o, z.IsCommitted)
 	}
 
-	if !empty[15] {
-		// string "CommitIndex_zid15_i64"
-		o = append(o, 0xb5, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x35, 0x5f, 0x69, 0x36, 0x34)
+	if !empty[14] {
+		// string "CommitIndex_zid14_i64"
+		o = append(o, 0xb5, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x34, 0x5f, 0x69, 0x36, 0x34)
 		o = msgp.AppendInt64(o, z.CommitIndex)
 	}
 
-	if !empty[16] {
-		// string "CommitIndexEntryTerm_zid16_i64"
-		o = append(o, 0xbe, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x54, 0x65, 0x72, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x36, 0x5f, 0x69, 0x36, 0x34)
+	if !empty[15] {
+		// string "CommitIndexEntryTerm_zid15_i64"
+		o = append(o, 0xbe, 0x43, 0x6f, 0x6d, 0x6d, 0x69, 0x74, 0x49, 0x6e, 0x64, 0x65, 0x78, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x54, 0x65, 0x72, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x31, 0x35, 0x5f, 0x69, 0x36, 0x34)
 		o = msgp.AppendInt64(o, z.CommitIndexEntryTerm)
 	}
 
@@ -10398,7 +10370,7 @@ func (z *MemberConfig) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) 
 
 	var field []byte
 	_ = field
-	const maxFields158zgensym_8df0a91a1f250219_159 = 18
+	const maxFields158zgensym_8df0a91a1f250219_159 = 17
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields158zgensym_8df0a91a1f250219_159 uint32
@@ -10502,64 +10474,57 @@ doneWithStruct158zgensym_8df0a91a1f250219_159:
 			if err != nil {
 				return
 			}
-		case "MemberConfigID_zid02_str":
+		case "BootCount_zid02_int":
 			found158zgensym_8df0a91a1f250219_159[2] = true
-			z.MemberConfigID, bts, err = nbs.ReadStringBytes(bts)
-
-			if err != nil {
-				return
-			}
-		case "BootCount_zid03_int":
-			found158zgensym_8df0a91a1f250219_159[3] = true
 			z.BootCount, bts, err = nbs.ReadIntBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "OriginPeerID_zid04_str":
-			found158zgensym_8df0a91a1f250219_159[4] = true
+		case "OriginPeerID_zid03_str":
+			found158zgensym_8df0a91a1f250219_159[3] = true
 			z.OriginPeerID, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "OriginPeerName_zid05_str":
-			found158zgensym_8df0a91a1f250219_159[5] = true
+		case "OriginPeerName_zid04_str":
+			found158zgensym_8df0a91a1f250219_159[4] = true
 			z.OriginPeerName, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "OriginPeerServiceName_zid06_str":
-			found158zgensym_8df0a91a1f250219_159[6] = true
+		case "OriginPeerServiceName_zid05_str":
+			found158zgensym_8df0a91a1f250219_159[5] = true
 			z.OriginPeerServiceName, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "OriginPeerServiceNameVersion_zid07_str":
-			found158zgensym_8df0a91a1f250219_159[7] = true
+		case "OriginPeerServiceNameVersion_zid06_str":
+			found158zgensym_8df0a91a1f250219_159[6] = true
 			z.OriginPeerServiceNameVersion, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "CreateTm_zid08_tim":
-			found158zgensym_8df0a91a1f250219_159[8] = true
+		case "CreateTm_zid07_tim":
+			found158zgensym_8df0a91a1f250219_159[7] = true
 			z.CreateTm, bts, err = nbs.ReadTimeBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "CreateWho_zid09_str":
-			found158zgensym_8df0a91a1f250219_159[9] = true
+		case "CreateWho_zid08_str":
+			found158zgensym_8df0a91a1f250219_159[8] = true
 			z.CreateWho, bts, err = nbs.ReadStringBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "Prov_zid10_slc":
-			found158zgensym_8df0a91a1f250219_159[10] = true
+		case "Prov_zid09_slc":
+			found158zgensym_8df0a91a1f250219_159[9] = true
 			if nbs.AlwaysNil {
 				(z.Prov) = (z.Prov)[:0]
 			} else {
@@ -10582,43 +10547,43 @@ doneWithStruct158zgensym_8df0a91a1f250219_159:
 					}
 				}
 			}
-		case "ConfigVersion_zid11_i64":
-			found158zgensym_8df0a91a1f250219_159[11] = true
+		case "ConfigVersion_zid10_i64":
+			found158zgensym_8df0a91a1f250219_159[10] = true
 			z.ConfigVersion, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "ConfigTerm_zid12_i64":
-			found158zgensym_8df0a91a1f250219_159[12] = true
+		case "ConfigTerm_zid11_i64":
+			found158zgensym_8df0a91a1f250219_159[11] = true
 			z.ConfigTerm, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "Shim_zid13_i64":
-			found158zgensym_8df0a91a1f250219_159[13] = true
+		case "Shim_zid12_i64":
+			found158zgensym_8df0a91a1f250219_159[12] = true
 			z.Shim, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "IsCommitted_zid14_boo":
-			found158zgensym_8df0a91a1f250219_159[14] = true
+		case "IsCommitted_zid13_boo":
+			found158zgensym_8df0a91a1f250219_159[13] = true
 			z.IsCommitted, bts, err = nbs.ReadBoolBytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "CommitIndex_zid15_i64":
-			found158zgensym_8df0a91a1f250219_159[15] = true
+		case "CommitIndex_zid14_i64":
+			found158zgensym_8df0a91a1f250219_159[14] = true
 			z.CommitIndex, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
 				return
 			}
-		case "CommitIndexEntryTerm_zid16_i64":
-			found158zgensym_8df0a91a1f250219_159[16] = true
+		case "CommitIndexEntryTerm_zid15_i64":
+			found158zgensym_8df0a91a1f250219_159[15] = true
 			z.CommitIndexEntryTerm, bts, err = nbs.ReadInt64Bytes(bts)
 
 			if err != nil {
@@ -10647,9 +10612,9 @@ doneWithStruct158zgensym_8df0a91a1f250219_159:
 }
 
 // fields of MemberConfig
-var unmarshalMsgFieldOrder158zgensym_8df0a91a1f250219_159 = []string{"SerzPeerDetails_zid00_slc", "RaftLogIndex_zid01_i64", "MemberConfigID_zid02_str", "BootCount_zid03_int", "OriginPeerID_zid04_str", "OriginPeerName_zid05_str", "OriginPeerServiceName_zid06_str", "OriginPeerServiceNameVersion_zid07_str", "CreateTm_zid08_tim", "CreateWho_zid09_str", "Prov_zid10_slc", "ConfigVersion_zid11_i64", "ConfigTerm_zid12_i64", "Shim_zid13_i64", "IsCommitted_zid14_boo", "CommitIndex_zid15_i64", "CommitIndexEntryTerm_zid16_i64", ""}
+var unmarshalMsgFieldOrder158zgensym_8df0a91a1f250219_159 = []string{"SerzPeerDetails_zid00_slc", "RaftLogIndex_zid01_i64", "BootCount_zid02_int", "OriginPeerID_zid03_str", "OriginPeerName_zid04_str", "OriginPeerServiceName_zid05_str", "OriginPeerServiceNameVersion_zid06_str", "CreateTm_zid07_tim", "CreateWho_zid08_str", "Prov_zid09_slc", "ConfigVersion_zid10_i64", "ConfigTerm_zid11_i64", "Shim_zid12_i64", "IsCommitted_zid13_boo", "CommitIndex_zid14_i64", "CommitIndexEntryTerm_zid15_i64", ""}
 
-var unmarshalMsgFieldSkip158zgensym_8df0a91a1f250219_159 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
+var unmarshalMsgFieldSkip158zgensym_8df0a91a1f250219_159 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *MemberConfig) Msgsize() (s int) {
@@ -10661,7 +10626,7 @@ func (z *MemberConfig) Msgsize() (s int) {
 			s += z.SerzPeerDetails[zgensym_8df0a91a1f250219_150].Msgsize()
 		}
 	}
-	s += 23 + msgp.Int64Size + 25 + msgp.StringPrefixSize + len(z.MemberConfigID) + 20 + msgp.IntSize + 23 + msgp.StringPrefixSize + len(z.OriginPeerID) + 25 + msgp.StringPrefixSize + len(z.OriginPeerName) + 32 + msgp.StringPrefixSize + len(z.OriginPeerServiceName) + 40 + msgp.StringPrefixSize + len(z.OriginPeerServiceNameVersion) + 19 + msgp.TimeSize + 20 + msgp.StringPrefixSize + len(z.CreateWho) + 15 + msgp.ArrayHeaderSize
+	s += 23 + msgp.Int64Size + 20 + msgp.IntSize + 23 + msgp.StringPrefixSize + len(z.OriginPeerID) + 25 + msgp.StringPrefixSize + len(z.OriginPeerName) + 32 + msgp.StringPrefixSize + len(z.OriginPeerServiceName) + 40 + msgp.StringPrefixSize + len(z.OriginPeerServiceNameVersion) + 19 + msgp.TimeSize + 20 + msgp.StringPrefixSize + len(z.CreateWho) + 15 + msgp.ArrayHeaderSize
 	for zgensym_8df0a91a1f250219_151 := range z.Prov {
 		s += msgp.StringPrefixSize + len(z.Prov[zgensym_8df0a91a1f250219_151])
 	}
@@ -10672,7 +10637,6 @@ func (z *MemberConfig) Gstring() (r string) {
 	r = "&MemberConfig{\n"
 	r += fmt.Sprintf("             SerzPeerDetails: %v,\n", z.SerzPeerDetails)
 	r += fmt.Sprintf("                RaftLogIndex: %v,\n", z.RaftLogIndex)
-	r += fmt.Sprintf("              MemberConfigID: \"%v\",\n", z.MemberConfigID)
 	r += fmt.Sprintf("                   BootCount: %v,\n", z.BootCount)
 	r += fmt.Sprintf("                OriginPeerID: \"%v\",\n", z.OriginPeerID)
 	r += fmt.Sprintf("              OriginPeerName: \"%v\",\n", z.OriginPeerName)
