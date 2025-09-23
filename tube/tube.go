@@ -14269,10 +14269,9 @@ func (s *TubeNode) addToCktall(ckt *rpc.Circuit) (cktP *cktPlus) {
 
 		s.state.MC.setNameDetail(ckt.RemotePeerName, updatedDetail, s)
 		// in addToCktall here.
-		s.state.Known.PeerNames.set(ckt.RemotePeerName, updatedDetail)
-
 		// have a call to s.adjustCktReplicaForNewMembership() ?
 	}
+	s.state.Known.PeerNames.set(ckt.RemotePeerName, updatedDetail)
 
 	if ckt.RemoteServiceName == TUBE_REPLICA {
 		s.cktReplica[cktP.PeerID] = cktP // cktReplica-write (?)
@@ -15273,6 +15272,7 @@ func (s *TubeNode) doAddShadow(tkt *Ticket) {
 		//URL:                    tkt.AddPeerURL ??
 	}
 	s.state.ShadowReplicas.PeerNames.set(tkt.AddPeerName, detail)
+	s.state.Known.PeerNames.set(tkt.AddPeerName, detail)
 	s.clearFromObservers(tkt.AddPeerName)
 }
 
