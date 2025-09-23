@@ -25,9 +25,9 @@ import (
 var sep = string(os.PathSeparator)
 
 type TubeRemoveConfig struct {
-	ContactName string // -c name of node to contact
-	Help        bool   // -h for help, false, show this help
-	//ForceName   string // -f force node to remove MC change
+	ContactName             string // -c name of node to contact
+	Help                    bool   // -h for help, false, show this help
+	ForceName               string // -f node to forcefully remove from MC
 	WipeName                string // -e wipe to empty MC
 	NonVotingShadowFollower bool   // -shadow remove shadow replica
 	Verbose                 bool   // -v verbose: show config/connection attempts.
@@ -36,7 +36,7 @@ type TubeRemoveConfig struct {
 func (c *TubeRemoveConfig) SetFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.ContactName, "c", "", "name of node to contact (defaults to leader)")
 	fs.BoolVar(&c.Help, "h", false, "show this help")
-	//fs.StringVar(&c.ForceName, "f", "", "name of node to force remove MC change")
+	fs.StringVar(&c.ForceName, "f", "", "forcefully remove node from MC")
 	fs.StringVar(&c.WipeName, "e", "", "name of node to force install empty MC")
 	fs.BoolVar(&c.NonVotingShadowFollower, "shadow", false, "remove this non-voting shadow follower replica")
 	fs.BoolVar(&c.Verbose, "v", false, "verbose diagnostics logging to stdout")
@@ -71,6 +71,11 @@ func main() {
 	args := fs.Args()
 	if len(args) > 0 {
 		target = args[0]
+	}
+	var force bool
+	if cmdCfg.ForceName != "" {
+		force = true
+		target = cmdCfg.ForceName
 	}
 
 	// first connect, then run repl
@@ -222,7 +227,7 @@ func main() {
 
 	//errWriteDur := time.Second * 20
 	var errWriteDur time.Duration
-	insp2, _, err := node.RemovePeerIDFromCluster(ctx, cmdCfg.NonVotingShadowFollower, target, targetPeerID, tube.TUBE_REPLICA, "", leaderURL, errWriteDur)
+	insp2, _, err := node.RemovePeerIDFromCluster(ctx, force, cmdCfg.NonVotingShadowFollower, target, targetPeerID, tube.TUBE_REPLICA, "", leaderURL, errWriteDur)
 	panicOn(err)
 
 	if insp2 == nil ||

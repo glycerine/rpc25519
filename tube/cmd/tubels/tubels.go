@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	//"sort"
 	//"time"
@@ -131,7 +132,7 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 	leaderURL, leaderName, insp, reallyLeader, contacted, err := node.HelperFindLeader(cfg, cmdCfg.ContactName, false)
 
 	fmt.Printf("contacted:\n")
-	for _, insp := range contacted {
+	for _, insp := range sortByName(contacted) {
 		fmt.Printf(`%v %v  (lead: '%v')
    MC: %v   ShadowReplicas: %v   URL: %v
 `, insp.ResponderName, insp.Role, insp.CurrentLeaderName,
@@ -171,6 +172,7 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 	//else {
 	//	who = fmt.Sprintf("(contacted %v)", leaderName)
 	//}
+	fmt.Println()
 	fmt.Printf("existing membership: %v\n", who)
 	if newestMembership != nil && newestMembership.PeerNames != nil {
 		for name, det := range newestMembership.PeerNames.All() {
@@ -196,4 +198,19 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 		}
 	}
 	return
+}
+
+type sortByResponderName []*tube.Inspection
+
+func (lo sortByResponderName) Len() int { return len(lo) }
+func (lo sortByResponderName) Less(i, j int) bool {
+	return lo[i].ResponderName < lo[j].ResponderName
+}
+func (lo sortByResponderName) Swap(i, j int) {
+	lo[i], lo[j] = lo[j], lo[i]
+}
+
+func sortByName(s []*tube.Inspection) (r []*tube.Inspection) {
+	sort.Sort(sortByResponderName(s))
+	return s
 }

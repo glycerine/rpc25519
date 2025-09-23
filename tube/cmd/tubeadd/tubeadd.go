@@ -24,29 +24,29 @@ import (
 
 var sep = string(os.PathSeparator)
 
-type TubeRemoveConfig struct {
-	ContactName string // -c name of node to contact
-	Help        bool   // -h for help, false, show this help
-	//ForceName   string // -f force node to remove MC change
-	NonVotingShadowFollower bool // -shadow add as non-voting-follower ("shadow replica")
-	Verbose                 bool // -v verbose: show config/connection attempts.
+type TubeAddConfig struct {
+	ContactName             string // -c name of node to contact
+	Help                    bool   // -h for help, false, show this help
+	ForceName               string // -f forcely add node to MC
+	NonVotingShadowFollower bool   // -shadow add as non-voting-follower ("shadow replica")
+	Verbose                 bool   // -v verbose: show config/connection attempts.
 }
 
-func (c *TubeRemoveConfig) SetFlags(fs *flag.FlagSet) {
+func (c *TubeAddConfig) SetFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.ContactName, "c", "", "name of node to contact (defaults to leader)")
 	fs.BoolVar(&c.Help, "h", false, "show this help")
 	fs.BoolVar(&c.NonVotingShadowFollower, "shadow", false, "add node as non-voting shadow follower replica")
-	//fs.StringVar(&c.ForceName, "f", "", "name of node to force add MC change")
+	fs.StringVar(&c.ForceName, "f", "", "node to forcefully add to MC")
 	fs.BoolVar(&c.Verbose, "v", false, "verbose diagnostics logging to stdout")
 }
 
-func (c *TubeRemoveConfig) FinishConfig(fs *flag.FlagSet) (err error) {
+func (c *TubeAddConfig) FinishConfig(fs *flag.FlagSet) (err error) {
 	return
 }
-func (c *TubeRemoveConfig) SetDefaults() {}
+func (c *TubeAddConfig) SetDefaults() {}
 
 func main() {
-	cmdCfg := &TubeRemoveConfig{}
+	cmdCfg := &TubeAddConfig{}
 
 	fs := flag.NewFlagSet("tubeadd", flag.ExitOnError)
 	cmdCfg.SetFlags(fs)
@@ -69,6 +69,11 @@ func main() {
 	args := fs.Args()
 	if len(args) > 0 {
 		target = args[0]
+	}
+	var force bool
+	if cmdCfg.ForceName != "" {
+		force = true
+		target = cmdCfg.ForceName
 	}
 
 	// first connect, then run repl
@@ -171,7 +176,7 @@ func main() {
 	errWriteDur := time.Second * 20
 	peerServiceName := tube.TUBE_REPLICA
 	baseServerHostPort := ""
-	memlistAfter, stateSnapshot, err := node.AddPeerIDToCluster(ctx, cmdCfg.NonVotingShadowFollower, target, targetPeerID, peerServiceName, baseServerHostPort, leaderURL, errWriteDur)
+	memlistAfter, stateSnapshot, err := node.AddPeerIDToCluster(ctx, force, cmdCfg.NonVotingShadowFollower, target, targetPeerID, peerServiceName, baseServerHostPort, leaderURL, errWriteDur)
 	panicOn(err)
 
 	pp("good: no error on AddPeerIDToCluster('%v'); shadow/nonVoting='%v'; contacting leader '%v'", target, cmdCfg.NonVotingShadowFollower, leaderURL)

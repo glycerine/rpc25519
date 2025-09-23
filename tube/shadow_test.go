@@ -38,6 +38,7 @@ func Test065_shadow_replicas_get_wal_even_with_leader_change(t *testing.T) {
 
 			vv("current replicas cannot instantly become shadow replicas; must remove from membership first")
 
+			forceChange := false
 			nonVoting := true
 			// same call that tube/tubecli.go does to join cluster.
 			node2 := c.Nodes[2]
@@ -46,7 +47,7 @@ func Test065_shadow_replicas_get_wal_even_with_leader_change(t *testing.T) {
 			actualLeaderURL := c.Nodes[0].URL
 
 			ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
-			inspAfterAdd, stateSnapshot, err := node2.AddPeerIDToCluster(ctx5sec, nonVoting, node2.name, node2.PeerID, node2.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
+			inspAfterAdd, stateSnapshot, err := node2.AddPeerIDToCluster(ctx5sec, forceChange, nonVoting, node2.name, node2.PeerID, node2.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
 			canc5()
 			_ = inspAfterAdd
 			_ = stateSnapshot
@@ -63,7 +64,10 @@ func Test065_shadow_replicas_get_wal_even_with_leader_change(t *testing.T) {
 
 			vv("remove node2 from cluster first then try again")
 
-			inspAfterRemove, stateSnapshot, err := node2.RemovePeerIDFromCluster(ctx, false, node2.name, node2.PeerID, node2.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
+			//const forceChange = false
+			nonVoting = false
+
+			inspAfterRemove, stateSnapshot, err := node2.RemovePeerIDFromCluster(ctx, forceChange, nonVoting, node2.name, node2.PeerID, node2.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
 			panicOn(err)
 			_, node2replica := inspAfterRemove.CktReplicaByName[node2.name]
 			if node2replica {
@@ -82,7 +86,8 @@ func Test065_shadow_replicas_get_wal_even_with_leader_change(t *testing.T) {
 			//inspAfterAdd, stateSnapshot, err = c.Nodes[leadi].AddPeerIDToCluster(ctx5sec, nonVoting, node2.name, node2.PeerID, node2.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
 
 			// node2 should give an error if it cannot add itself as shadow.
-			inspAfterAdd, stateSnapshot, err = node2.AddPeerIDToCluster(ctx5sec, nonVoting, node2.name, node2.PeerID, node2.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
+			nonVoting = true
+			inspAfterAdd, stateSnapshot, err = node2.AddPeerIDToCluster(ctx5sec, forceChange, nonVoting, node2.name, node2.PeerID, node2.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
 			canc5()
 			panicOn(err)
 

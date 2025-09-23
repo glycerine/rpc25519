@@ -124,7 +124,10 @@ func Test401_add_node(t *testing.T) {
 			// from a leader. but it doesn't know
 			//
 			vv("add node4, going from cluster size %v -> %v. this should now fail because node4 is a TUBE_CLIENT and not a TUBE_REPLICA !", numNodes, numNodes+1) // seen
-			memlistAfterAdd, _, err := node4.AddPeerIDToCluster(bkg, false, node4.name, node4.PeerID, node4.PeerServiceName, node4.BaseServerHostPort(), leaderURL, 0)
+			const forceChange = false
+			const nonVoting = false
+
+			memlistAfterAdd, _, err := node4.AddPeerIDToCluster(bkg, forceChange, nonVoting, node4.name, node4.PeerID, node4.PeerServiceName, node4.BaseServerHostPort(), leaderURL, 0)
 			if err == nil {
 				panic("wanted error! got nil")
 			}
@@ -180,7 +183,7 @@ func Test401_add_node(t *testing.T) {
 			}
 
 			vv("add node5, going from cluster size %v -> %v. this should work; node5 is a TUBE_REPLICA", numNodes, numNodes+1) // seen
-			memlistAfterAdd5, _, err := node5.AddPeerIDToCluster(bkg, false, node5.name, node5.PeerID, node5.PeerServiceName, node5.BaseServerHostPort(), leaderURL, 0)
+			memlistAfterAdd5, _, err := node5.AddPeerIDToCluster(bkg, forceChange, nonVoting, node5.name, node5.PeerID, node5.PeerServiceName, node5.BaseServerHostPort(), leaderURL, 0)
 			panicOn(err)
 
 			_, present := memlistAfterAdd5.CktReplicaByName[node5.name]
@@ -253,8 +256,8 @@ func Test401_add_node(t *testing.T) {
 			vv("about to remove node_5 with leaderNode.RemovePeerIDFromCluster()")
 
 			//removeMe := node5.PeerID
-			const nonVoting bool = false
-			memlistAfterRemove, _, err := leaderNode.RemovePeerIDFromCluster(bkg, nonVoting, node5.name, node5.PeerID, node5.PeerServiceName, node5.BaseServerHostPort(), leaderURL, 0)
+
+			memlistAfterRemove, _, err := leaderNode.RemovePeerIDFromCluster(bkg, forceChange, nonVoting, node5.name, node5.PeerID, node5.PeerServiceName, node5.BaseServerHostPort(), leaderURL, 0)
 			panicOn(err)
 			//vv("back from RemovePeerIDFromCluster(node5); memlistAfterRemove = '%v'", memlistAfterRemove) // seen
 
@@ -348,7 +351,11 @@ func Test402_build_up_a_cluster_from_one_node(t *testing.T) {
 			newExpectedClusterSz := i + baseNodeCount
 			//vv("add node '%v', going -> cluster size %v", name1, newExpectedClusterSz)
 			// we automatically get a member list afterwards
-			memlistAfterAdd, _, err := node1.AddPeerIDToCluster(bkg, false, name1, node1.PeerID, node1.PeerServiceName, node1.BaseServerHostPort(), leaderURL, 0)
+
+			const forceChange = false
+			const nonVoting = false
+
+			memlistAfterAdd, _, err := node1.AddPeerIDToCluster(bkg, forceChange, nonVoting, name1, node1.PeerID, node1.PeerServiceName, node1.BaseServerHostPort(), leaderURL, time.Second*2)
 			panicOn(err)
 
 			_, present := memlistAfterAdd.CktReplicaByName[node1.name]
@@ -498,10 +505,13 @@ func Test403_reduce_a_cluster_down_to_one_node(t *testing.T) {
 				}(node1)
 			}
 
+			const forceChange = false
+			const nonVoting = false
+
 			newExpectedClusterSz := i + baseNodeCount
 			vv("add node '%v', going to cluster size %v", name1, newExpectedClusterSz)
 			// we automatically get an Inspection and thus .CktReplicaByName for member list afterwards
-			inspAfterAdd, _, err := node1.AddPeerIDToCluster(bkg, false, name1, node1.PeerID, node1.PeerServiceName, node1.BaseServerHostPort(), leaderURL, 0)
+			inspAfterAdd, _, err := node1.AddPeerIDToCluster(bkg, forceChange, nonVoting, name1, node1.PeerID, node1.PeerServiceName, node1.BaseServerHostPort(), leaderURL, time.Second*2)
 			panicOn(err)
 
 			// on addition, we should get back a committed
@@ -600,8 +610,10 @@ func Test403_reduce_a_cluster_down_to_one_node(t *testing.T) {
 			newExpectedClusterSz := i
 			vv("remove node '%v', going to cluster size %v", namei, newExpectedClusterSz)
 			// we automatically get a member list afterwards
-			const nonVoting bool = false
-			memlistAfterRemove, _, err := node0.RemovePeerIDFromCluster(bkg, nonVoting, namei, nodes[i].PeerID, nodes[i].PeerServiceName, nodes[i].BaseServerHostPort(), leaderURL, 0)
+			const forceChange = false
+			const nonVoting = false
+
+			memlistAfterRemove, _, err := node0.RemovePeerIDFromCluster(bkg, forceChange, nonVoting, namei, nodes[i].PeerID, nodes[i].PeerServiceName, nodes[i].BaseServerHostPort(), leaderURL, 0)
 			panicOn(err) // panic: Q1 unmet, mongoLeaderCanReconfig cannot reconfig on 'node_0': inCurrentConfigCount(1) < curMC.majority(2); curMC='[term:1; vers=5; idx:2_]{node_0,node_1}
 
 			_, present := memlistAfterRemove.CktReplicaByName[nodes[i].name]

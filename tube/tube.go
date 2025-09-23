@@ -4230,8 +4230,8 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	// stashing, but we re-use the errWriteDur
 	// in 3 places for tubeadd CLI processing,
 	// so we would need another parameter, ugh.
-	stashForLeader := tkt.WaitLeaderDeadline.IsZero()
-	vv("%v stashForLeader is %v; tkt.WaitLeaderDeadline='%v'", s.name, stashForLeader, nice9(tkt.WaitLeaderDeadline))
+	stashForLeader := !tkt.WaitLeaderDeadline.IsZero()
+	vv("%v stashForLeader is %v; tkt.WaitLeaderDeadline='%v' (in %v)", s.name, stashForLeader, nice9(tkt.WaitLeaderDeadline), time.Until(tkt.WaitLeaderDeadline))
 	// three red tests under stashForLeader = false that need fixing:
 	// red 059 compact_test.go
 	// red Test402_build_up_a_cluster_from_one_node membership_test.go
@@ -4292,7 +4292,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	if tkt.FromID == s.PeerID {
 		//vv("%v ticket from ourself, we are not leader (%v), tkt: '%v'", s.me(), alias(s.leaderID), tkt)
 	}
-	vv("%v in redirectToLeader (we are %): will send to: s.leaderName = '%v' the tkt='%v'", s.name, s.role, s.leaderName, tkt.Short())
+	vv("%v in redirectToLeader (we are %v): will send to: s.leaderName = '%v' the tkt='%v'", s.name, s.role, s.leaderName, tkt.Short())
 
 	// In redirectToLeader() bool here.
 	// Per Ch 4 on config changes, the leader might not
@@ -4619,6 +4619,8 @@ type Ticket struct {
 	// AddPeerIDToCluster how long to
 	// await leader.
 	WaitLeaderDeadline time.Time `zid:"60"`
+
+	ForceChangeMC bool `zid:"61"`
 
 	// where in tkthist we were entered locally.
 	localHistIndex int
@@ -11053,18 +11055,18 @@ func (s *TubeNode) BaseServerHostPort() (hp string) {
 	return
 }
 
-func (s *TubeNode) AddPeerIDToCluster(ctx context.Context, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, baseServerHostPort, leaderURL string, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
+func (s *TubeNode) AddPeerIDToCluster(ctx context.Context, forceChange, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, baseServerHostPort, leaderURL string, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
 
 	const addNotRemove = true
 	targetPeerServiceNameVersion := "" // placeholder/versioning of service code
-	return s.SingleUpdateClusterMemberConfig(ctx, nonVoting, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL, addNotRemove, errWriteDur)
+	return s.SingleUpdateClusterMemberConfig(ctx, forceChange, nonVoting, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL, addNotRemove, errWriteDur)
 }
 
-func (s *TubeNode) RemovePeerIDFromCluster(ctx context.Context, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, baseServerHostPort, leaderURL string, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
+func (s *TubeNode) RemovePeerIDFromCluster(ctx context.Context, forceChange, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, baseServerHostPort, leaderURL string, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
 
 	const addNotRemove = false
 	targetPeerServiceNameVersion := ""
-	return s.SingleUpdateClusterMemberConfig(ctx, nonVoting, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL, addNotRemove, errWriteDur)
+	return s.SingleUpdateClusterMemberConfig(ctx, forceChange, nonVoting, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL, addNotRemove, errWriteDur)
 }
 
 // SingleUpdateClusterMemberConfig is an
@@ -11080,7 +11082,7 @@ func (s *TubeNode) RemovePeerIDFromCluster(ctx context.Context, nonVoting bool, 
 // to ensure it well tested.
 //
 // results in call to handleLocalModifyMembership inside.
-func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL string, addNotRemove bool, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
+func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, forceChange, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL string, addNotRemove bool, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
 
 	//vv("%v top SingleUpdateClusterMemberConfig; leaderURL='%v'", s.me(), leaderURL)
 
@@ -11138,11 +11140,15 @@ func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, nonVotin
 		}
 	}
 	desc += fmt.Sprintf("%v", targetPeerName)
-
+	if forceChange {
+		desc += " (FORCED)"
+	}
 	tkt := s.NewTicket(desc, "", "", nil, s.PeerID, s.name, MEMBERSHIP_SET_UPDATE, -1, ctx)
 	desc += fmt.Sprintf(", tkt4=%v targetPeerID='%v'", tkt.TicketID[:4], targetPeerID)
 	tkt.Desc = desc
 	tkt.GuessLeaderURL = leaderURL
+	tkt.ForceChangeMC = forceChange
+
 	ctxDeadline, haveCtxDeadline := ctx.Deadline()
 	if errWriteDur > 0 {
 		tkt.WaitLeaderDeadline = time.Now().Add(errWriteDur)
@@ -12488,7 +12494,8 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 	// so we don't use that cache here.
 
 	err := s.mongoLeaderCanReconfig(curConfig, newConfig, inCurrentConfigCount, inCurTermCount)
-	if err != nil {
+
+	if err != nil && !tkt.ForceChangeMC {
 		//vv("%v mongoLeaderCanReconfig gave err = '%v'", s.me(), err)
 
 		if time.Since(tkt.T0) > 10*time.Second {
@@ -12503,19 +12510,24 @@ func (s *TubeNode) changeMembership(tkt *Ticket) {
 		}
 		return
 	}
-	// the "logless commit" of the existing has been observed:
-	// a quorum of servers meet the RECONFIG
-	// conditions Q1,Q2,P1 of Algorithm 1 (page 6)
-	// of the Mongo paper; any older configs have been
-	// deactivated and a new/other leader cannot revive them.
-	//vv("%v mongo logless commit observed", s.me())
+	if err == nil {
+		tkt.Stage += ":mongo_logless_commit_observed_in_changeMembership"
+		// the "logless commit" of the existing has been observed:
+		// a quorum of servers meet the RECONFIG
+		// conditions Q1,Q2,P1 of Algorithm 1 (page 6)
+		// of the Mongo paper; any older configs have been
+		// deactivated and a new/other leader cannot revive them.
+		//vv("%v mongo logless commit observed", s.me())
 
-	// We could do this to document the fact... but they are
-	// about to get replaced by newConfig which is not committed anyway.
-	//curConfig.IsCommitted = true
-	//s.state.MC.IsCommitted = true
-
-	tkt.Stage += ":mongo_logless_commit_observed_in_changeMembership"
+		// We could do this to document the fact... but they are
+		// about to get replaced by newConfig which is not committed anyway.
+		//curConfig.IsCommitted = true
+		//s.state.MC.IsCommitted = true
+	}
+	if err != nil && tkt.ForceChangeMC {
+		alwaysPrintf("%v: -f force change is overriding mongo safe commit rules, thus ignoring: '%v'", s.me(), err)
+		tkt.Stage += ":force_change_overrides_mongo_logless_commit"
+	}
 
 	// inside changeMembership
 	// side effect: removal from MC will add to ShadowReplicas
