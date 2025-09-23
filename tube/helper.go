@@ -221,8 +221,9 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 		// INVAR: len(leaders) == 0
 		if contactName == "" {
 			if cfg.InitialLeaderName == "" {
-				fmt.Printf("no leaders found and no cfg.InitialLeaderName; use -c to contact a specific node.\n")
-				os.Exit(1)
+				fmt.Printf("warning: no leaders found and no cfg.InitialLeaderName; use -c to contact a specific node.\n")
+				//os.Exit(1)
+				return
 			} else {
 				pp("based on cfg.InitialLeaderName we will try to contact '%v'", cfg.InitialLeaderName)
 				lastLeaderName = cfg.InitialLeaderName
