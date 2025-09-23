@@ -1461,7 +1461,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			case InstallEmptyMC:
 				target, ok := frag.GetUserArg("target")
 				if ok && target == s.name {
-					vv("installing empty MC per request from '%v'", frag.FromPeerName)
+					alwaysPrintf("installing empty MC per request from '%v'", frag.FromPeerName)
 					shim := s.state.MC.Shim
 					vers := s.state.MC.ConfigVersion
 					s.state.MC = s.NewMemberConfig("InstallEmptyMC")
@@ -4017,7 +4017,7 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 		if s.role != LEADER ||
 			s.lastBecomeLeaderTerm == 0 ||
 			s.lastBecomeLeaderTerm != s.state.CurrentTerm {
-			vv("%v invalidating self-report of leadership", s.me())
+			//vv("%v invalidating self-report of leadership", s.me())
 
 			ins.CurrentLeaderName = ""
 			ins.CurrentLeaderURL = ""
@@ -4232,7 +4232,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	// in 3 places for tubeadd CLI processing,
 	// so we would need another parameter, ugh.
 	stashForLeader := !tkt.WaitLeaderDeadline.IsZero()
-	vv("%v stashForLeader is %v; tkt.WaitLeaderDeadline='%v' (in %v); tkt4=%v", s.name, stashForLeader, nice9(tkt.WaitLeaderDeadline), time.Until(tkt.WaitLeaderDeadline), tkt.TicketID[:4])
+	//vv("%v stashForLeader is %v; tkt.WaitLeaderDeadline='%v' (in %v); tkt4=%v", s.name, stashForLeader, nice9(tkt.WaitLeaderDeadline), time.Until(tkt.WaitLeaderDeadline), tkt.TicketID[:4])
 	// three red tests under stashForLeader = false that need fixing:
 	// red 059 compact_test.go
 	// red Test402_build_up_a_cluster_from_one_node membership_test.go
@@ -4244,11 +4244,11 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 			// save it until we do get a leader?
 			s.ticketsAwaitingLeader[tkt.TicketID] = tkt
 			//s.Waiting[tkt.TicketID] = tkt
-			vv("%v no leader yet, saving ticket until then: '%v'", s.me(), tkt.Short())
+			//vv("%v no leader yet, saving ticket until then: '%v'", s.me(), tkt.Short())
 			tkt.Stage += fmt.Sprintf(":redirectToLeader(true,not_leader)_from_%v", fileLine(2))
 			return true
 		}
-		vv("%v stashForLeader is false, and s.leaderID is empty", s.me())
+		//vv("%v stashForLeader is false, and s.leaderID is empty", s.me())
 		// stashing for later leader made for a weird
 		// command line tubeadd experience/hang. better to eagerly error.
 
@@ -6567,11 +6567,11 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 	s.testAEchoices = nil
 	if false {
 		lli := s.wal.LastLogIndex()
-		vv("%v: handleAppendEntries top; from '%v'; starting lli=%v; this ae='%v'", s.me(), ae.FromPeerName, lli, ae)
+		alwaysPrintf("%v: diagnostic handleAppendEntries top; from '%v'; starting lli=%v; this ae='%v'", s.me(), ae.FromPeerName, lli, ae)
 
 		defer func() {
 			lli := s.wal.LastLogIndex()
-			vv("%v: end handleAppendEntries from '%v'; ending lli=%v", s.me(), ae.FromPeerName, lli)
+			alwaysPrintf("%v: diagnostic end handleAppendEntries from '%v'; ending lli=%v", s.me(), ae.FromPeerName, lli)
 		}()
 	}
 	//if !s.cfg.isTest {
@@ -7381,7 +7381,7 @@ func (s *TubeNode) leaderSendsHeartbeats(immediately bool) {
 
 	if s.isRegularTest() {
 		if false { // s.cfg.testNum == 65 {
-			vv("%v \n-------->>>    leaderSendsHeartbeats() len(s.ckt)=%v; len(s.peers)=%v  <<<--------\n", s.me(), len(s.cktReplica), len(s.peers))
+			alwaysPrintf("%v \n-------->>>    leaderSendsHeartbeats() len(s.ckt)=%v; len(s.peers)=%v  <<<--------\n", s.me(), len(s.cktReplica), len(s.peers))
 		}
 	}
 
@@ -8351,7 +8351,7 @@ func (s *TubeNode) sendAppendEntriesTo(followerID, followerName, followerService
 	//cktP, ok := s.cktReplica[followerID] // breaks shadows, we filter above.
 	cktP, ok := s.cktall[followerID] // we filter above, so okay.
 	if !ok {
-		vv("%v don't know how to contact '%v' (%v) to send AE. Assuming they died.", s.me(), followerID, followerName)
+		alwaysPrintf("%v don't know how to contact '%v' (%v) to send AE. Assuming they died.", s.me(), followerID, followerName)
 		return
 	}
 	ckt := cktP.ckt
@@ -9576,7 +9576,7 @@ func (s *TubeNode) beginPreVote() {
 		}
 	}
 
-	vv("%v \n-------->>>    begin Pre Vote() s.countElections = %v <<<--------", s.me(), s.countElections)
+	//vv("%v \n-------->>>    begin Pre Vote() s.countElections = %v <<<--------", s.me(), s.countElections)
 
 	preVoteTerm := s.state.CurrentTerm + 1
 
@@ -9910,7 +9910,7 @@ func (s *TubeNode) handleRequestVote(reqVote *RequestVote, ckt0 *rpc.Circuit) {
 	// so use ckt not cktReplica.
 	cktP, ok := s.cktall[reqVote.FromPeerID]
 	if !ok {
-		vv("%v don't know how to contact '%v' in handleRequestVote(). Assuming they died.", s.me(), reqVote.FromPeerID)
+		alwaysPrintf("%v don't know how to contact '%v' in handleRequestVote(). Assuming they died.", s.me(), reqVote.FromPeerID)
 		return
 	}
 	ckt := cktP.ckt
@@ -12097,7 +12097,7 @@ func (s *TubeNode) setupFirstRaftLogEntryBootstrapLog(boot *FirstRaftLogEntryBoo
 // Any new config installed (and not stalled) will start
 // with IsCommitted false.
 func (s *TubeNode) changeMembership(tkt *Ticket) {
-	vv("%v top of changeMembership(); tkt.Desc='%v'", s.me(), tkt.Desc)
+	//vv("%v top of changeMembership(); tkt.Desc='%v'", s.me(), tkt.Desc)
 
 	if tkt.finishTicketCalled {
 		//vv("%v tkt.finishTicketCalled so exit changeMembership early; tkt.Desc='%v'", s.me(), tkt.Desc)
@@ -15154,7 +15154,7 @@ func (s *TubeNode) refreshSession(from time.Time, ste *SessionTableEntry) (refre
 // called by case RedirectTicketToLeaderMsg
 func (s *TubeNode) bootstrappedOrForcedMembership(tkt *Ticket) bool {
 	// allow bootstrapping by handling ADD of self here.
-	vv("%v top bootstrappedOrForcedMembership", s.name)
+	//vv("%v top bootstrappedOrForcedMembership", s.name)
 
 	// we can be leader but not in membership and
 	// need to allow ourselves to be added back
@@ -15300,7 +15300,7 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket, calledOnLeader bool) bool {
 			s.state.Known.PeerNames.set(s.name, detail)
 			changeMade = true
 
-			vv("%v forcing MC add rather than redirectToLeader. added me='%v'; now MC='%v'", s.me(), s.name, s.state.MC)
+			//vv("%v forcing MC add rather than redirectToLeader. added me='%v'; now MC='%v'", s.me(), s.name, s.state.MC)
 
 			s.respondToClientTicketApplied(tkt)
 			return true
@@ -15321,7 +15321,7 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket, calledOnLeader bool) bool {
 			s.state.ShadowReplicas.PeerNames.delkey(target)
 			changeMade = true
 
-			vv("%v forcing MC add rather than redirectToLeader. target='%v'; now MC='%v'", s.me(), target, s.state.MC)
+			//vv("%v forcing MC add rather than redirectToLeader. target='%v'; now MC='%v'", s.me(), target, s.state.MC)
 
 			s.respondToClientTicketApplied(tkt)
 			return true
@@ -15348,7 +15348,7 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket, calledOnLeader bool) bool {
 		s.state.Known.PeerNames.set(s.name, detail)
 		changeMade = true
 
-		vv("%v forcing MC remove of myself('%v') rather than redirectToLeader. now MC='%v'", s.me(), s.name, s.state.MC)
+		//vv("%v forcing MC remove of myself('%v') rather than redirectToLeader. now MC='%v'", s.me(), s.name, s.state.MC)
 
 		s.respondToClientTicketApplied(tkt)
 		return true
@@ -15363,7 +15363,7 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket, calledOnLeader bool) bool {
 	// want them lingering in shadows either, so comment out:
 	//s.state.ShadowReplicas.PeerNames.set(target, detailTarget)
 
-	vv("%v forcing MC remove of non-self target rather than redirectToLeader. target='%v'; now MC='%v'", s.me(), target, s.state.MC)
+	//vv("%v forcing MC remove of non-self target rather than redirectToLeader. target='%v'; now MC='%v'", s.me(), target, s.state.MC)
 
 	s.respondToClientTicketApplied(tkt)
 	return true
@@ -15695,7 +15695,7 @@ func (s *TubeNode) errorOutAwaitingLeaderTooLongTickets() {
 		if tkt.WaitLeaderDeadline.Before(now) {
 
 			tkt.Err = fmt.Errorf("%v ticketsAwaitingLeader deadline passed (deadline='%v' < now='%v' by '%v'), releasing ticket '%v'", s.name, tkt.WaitLeaderDeadline, now, now.Sub(tkt.WaitLeaderDeadline), tkt.Short())
-			vv("%v", tkt.Err.Error())
+			//vv("%v", tkt.Err.Error())
 
 			//s.respondToClientTicketApplied(tkt)
 			s.replyToForwardedTicketWithError(tkt)
