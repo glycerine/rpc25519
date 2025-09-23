@@ -5,9 +5,13 @@ package tube
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/glycerine/ipaddr"
 	rpc "github.com/glycerine/rpc25519"
 )
 
@@ -233,4 +237,36 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 		}
 	}
 	return
+}
+
+// from ":7000" -> "100.x.y.z:7000" for example; so
+// we don't get stuck only on 127.0.0.1 loopback.
+// hint might just be ":0" or ":7001" for example.
+// for real network/prod clients, not simnet.
+func GetExternalAddr(useQUIC bool, hint string) string {
+
+	scheme := "tcp"
+	if useQUIC {
+		scheme = "udp"
+	}
+
+	// ipaddr.GetExternalIP() returns us an
+	// external, non-loopback, IP address if
+	// at all possible.
+	myHost := ipaddr.GetExternalIP()
+
+	hint1 := hint
+	if !strings.Contains(hint, "://") {
+		hint1 = scheme + "://" + hint
+	}
+	u, err := url.Parse(hint1)
+	panicOn(err)
+	port := u.Port()
+	if port == "" || port == "0" {
+		port = fmt.Sprintf("%v", ipaddr.GetAvailPort())
+	}
+	hostport := net.JoinHostPort(myHost, port)
+	//netAddr := u.Scheme + "://" + hostport
+	//return netAddr
+	return hostport
 }

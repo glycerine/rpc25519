@@ -99,6 +99,8 @@ func main() {
 	cfg.MyName = "tuberm_" + tube.CryRand15B()
 	cfg.PeerServiceName = tube.TUBE_CLIENT
 
+	cfg.ConvertToExternalAddr()
+
 	myHost := ipaddr.GetExternalIP()
 	myPort := ipaddr.GetAvailPort()
 	cfg.RpcCfg.ServerAddr = fmt.Sprintf("%v:%v", myHost, myPort)

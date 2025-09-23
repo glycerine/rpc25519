@@ -101,6 +101,8 @@ func main() {
 
 	cfg.ClientProdConfigSaneOrPanic()
 
+	cfg.ConvertToExternalAddr()
+
 	pp("cfg = '%v'", cfg.ShortSexpString(nil))
 
 	//nodeID := rpc.NewCallID("")

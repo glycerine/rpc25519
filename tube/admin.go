@@ -46,6 +46,13 @@ func init() {
 	gsr.RegisterUserdef(pf, true, "tubeConfig")
 }
 
+func (cfg *TubeConfig) ConvertToExternalAddr() {
+	for name, addr := range cfg.Node2Addr {
+		external := GetExternalAddr(cfg.RpcCfg.UseQUIC, addr)
+		cfg.Node2Addr[name] = external
+	}
+}
+
 func NewTubeConfigFromSexpString(sexp string, env *zygo.Zlisp) (cfg *TubeConfig, err error) {
 
 	if env == nil {

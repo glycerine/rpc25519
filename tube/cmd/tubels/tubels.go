@@ -98,6 +98,8 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 	cfg.PeerServiceName = tube.TUBE_CLIENT
 	cfg.MyName = "tubels_" + tube.CryRand15B()
 
+	cfg.ConvertToExternalAddr()
+
 	myHost := ipaddr.GetExternalIP()
 	myPort := ipaddr.GetAvailPort()
 	cfg.RpcCfg.ServerAddr = fmt.Sprintf("%v:%v", myHost, myPort)

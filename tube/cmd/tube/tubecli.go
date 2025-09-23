@@ -140,6 +140,9 @@ func main() {
 		cfg.PeerServiceName = tube.TUBE_CLIENT
 	}
 
+	// from :7000 -> 100.x.y.z:7000 for example.
+	cfg.ConvertToExternalAddr()
+
 	var myAddr string
 	var ok bool
 
@@ -147,7 +150,9 @@ func main() {
 	if !ok {
 		panic(fmt.Sprintf("could not find MyName:'%v' in Node2Addr map: '%#v'", cfg.MyName, cfg.Node2Addr))
 	}
+
 	cfg.RpcCfg.ServerAddr = myAddr
+	vv("will start my server at '%v'", cfg.RpcCfg.ServerAddr)
 
 	// ======== ok
 	if !cmdCfg.ShowLog {
