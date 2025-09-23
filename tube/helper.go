@@ -70,27 +70,27 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 			insp = node.Inspect()
 			leaderName = insp.CurrentLeaderName
 			leaderURL = insp.CurrentLeaderURL
-			vv("%v self inspection gave: leaderName = '%v'", node.name, leaderName)
+			//vv("%v self inspection gave: leaderName = '%v'", node.name, leaderName)
 			if leaderName == "" {
 				selfSurelyNotLeader = true
-				vv("%v self insp says empty leaderName so setting selfSurelyNotLeader=true", node.name)
+				//vv("%v self insp says empty leaderName so setting selfSurelyNotLeader=true", node.name)
 			}
 		} else {
 			ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
 			_, insp, leaderURL, leaderName, _, err = node.GetPeerListFrom(ctx5sec, url, name)
 			canc5()
 			if leaderName == name {
-				vv("did GetPeerListFrom for name = '%v'; got leaderName='%v'", name, leaderName)
+				//vv("did GetPeerListFrom for name = '%v'; got leaderName='%v'", name, leaderName)
 			} else {
 				if leaderName != "" {
-					vv("did GetPeerListFrom for name = '%v'; got leaderName='%v' -- but disallowing non-self reports, since they can be wrong!", name, leaderName) // did GetPeerListFrom for name = 'node_2'; got leaderName='node_0'
+					//vv("did GetPeerListFrom for name = '%v'; got leaderName='%v' -- but disallowing non-self reports, since they can be wrong!", name, leaderName) // did GetPeerListFrom for name = 'node_2'; got leaderName='node_0'
 					leaderName = ""
 				}
 				continue
 			}
 		}
 		if err != nil {
-			vv("skip '%v' b/c err = '%v'", name, err)
+			//vv("skip '%v' b/c err = '%v'", name, err)
 			continue
 		}
 		// INVAR: err == nil
@@ -111,7 +111,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 			if leaderName == node.name && selfSurelyNotLeader {
 				continue // extra protection
 			}
-			vv("%v: candidate leader = '%v', url = '%v", node.name, leaderName, leaderURL)
+			//vv("%v: candidate leader = '%v', url = '%v", node.name, leaderName, leaderURL)
 			insps = append(insps, insp)
 			lastInsp = insp
 			lastLeaderName = leaderName
@@ -153,7 +153,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 	}
 
 	for name, url := range xtra {
-		vv("on xtra name='%v', url='%v'", name, url)
+		//vv("on xtra name='%v', url='%v'", name, url)
 		if name == node.name {
 			continue // skip self
 		}
