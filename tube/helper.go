@@ -39,7 +39,7 @@ type set struct {
 // Note that the servers try to save these
 // dynamically added nodes to state.Known to
 // remember them even after a reboot.
-func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requireOnlyContact bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection, reallyLeader bool) {
+func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requireOnlyContact bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection, reallyLeader bool, contacted []*Inspection, err error) {
 
 	if node.name != cfg.MyName {
 		panicf("must have consistent node.name(%v) == cfg.MyName(%v)", node.name, cfg.MyName)
@@ -63,13 +63,13 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 	}()
 
 	var insps []*Inspection
-	for name, addr := range cfg.Node2Addr {
+	for remoteName, addr := range cfg.Node2Addr {
 		url := FixAddrPrefix(addr)
 
 		var err error
 		var insp *Inspection
 		var leaderURL, leaderName string
-		if name == node.name {
+		if remoteName == node.name {
 			// inspect self
 			insp = node.Inspect()
 			leaderName = insp.CurrentLeaderName
@@ -81,11 +81,20 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 			}
 		} else {
 			ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
-			_, insp, leaderURL, leaderName, _, err = node.GetPeerListFrom(ctx5sec, url, name)
+			_, insp, leaderURL, leaderName, _, err = node.GetPeerListFrom(ctx5sec, url, remoteName)
 			canc5()
-			if leaderName == name {
+			if err == nil && insp != nil {
+				contacted = append(contacted, insp)
+			}
+			if leaderName == remoteName {
 				//vv("did GetPeerListFrom for name = '%v'; got leaderName='%v'", name, leaderName)
 			} else {
+				// who we asked for (remoteName) and who
+				// we were told was leader (leaderName)
+				// are different, so we cannot really
+				// trust their reports of leader identity--it
+				// is just their last best guess--which
+				// is not good enough for us here.
 				if leaderName != "" {
 					//vv("did GetPeerListFrom for name = '%v'; got leaderName='%v' -- but disallowing non-self reports, since they can be wrong!", name, leaderName) // did GetPeerListFrom for name = 'node_2'; got leaderName='node_0'
 					leaderName = ""
@@ -106,7 +115,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 			// We need to only return leader we have gotten AE from,
 			// or self who know are leader. Yeah maybe only
 			// respect self-reports would be easier.
-			if leaderName != name {
+			if leaderName != remoteName {
 				// only consider self-reports of leadership, not
 				// reports from other nodes that may just have a
 				// starting guess or 'hint' still.
@@ -123,42 +132,43 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 			reallyLeader = true // else leaderName is empty string
 			s := leaders[leaderName]
 			if s == nil {
-				leaders[leaderName] = &set{nodes: []string{name}}
+				leaders[leaderName] = &set{nodes: []string{remoteName}}
 			} else {
-				s.nodes = append(s.nodes, name)
+				s.nodes = append(s.nodes, remoteName)
 			}
 		}
 	}
 	// put together a transitive set of known/connected nodes...
 	xtra := make(map[string]string)
 	for _, ins := range insps {
-		for name, url := range ins.CktAllByName {
-			if name == node.name {
+		both := mapUnion(ins.Known, ins.CktAllByName)
+		for iname, url := range both {
+			if iname == node.name {
 				continue // skip self, already done above.
 			}
-			_, skip := cfg.Node2Addr[name]
+			_, skip := cfg.Node2Addr[iname]
 			if skip {
 				// already contacted
 				continue
 			}
-			surl, ok := xtra[name]
+			surl, ok := xtra[iname]
 			if ok {
 				if surl == "pending" {
-					xtra[name] = url
+					xtra[iname] = url
 				}
 			} else {
 				// avoid adding other clients/ourselves
 				_, serviceName, _, _, err1 := rpc.ParsePeerURL(url)
 				if err1 == nil && serviceName == TUBE_REPLICA {
-					xtra[name] = url
+					xtra[iname] = url
 				}
 			}
 		}
 	}
 
-	for name, url := range xtra {
+	for xname, url := range xtra {
 		//vv("on xtra name='%v', url='%v'", name, url)
-		if name == node.name {
+		if xname == node.name {
 			continue // skip self
 		}
 
@@ -166,10 +176,17 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 			continue
 		}
 		//url = FixAddrPrefix(url)
+		var insp *Inspection
+		var leaderURL, leaderName string
+
 		ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
-		_, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx5sec, url, name)
+		_, insp, leaderURL, leaderName, _, err = node.GetPeerListFrom(ctx5sec, url, xname)
 		//mc, insp, leaderURL, leaderName, _, err := node.GetPeerListFrom(ctx, url)
 		canc5()
+		if err == nil && insp != nil {
+			contacted = append(contacted, insp)
+		}
+
 		if err != nil {
 			continue
 		}
@@ -181,23 +198,23 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 			pp("extra candidate leader = '%v', url = '%v", leaderName, leaderURL)
 			s := leaders[leaderName]
 			if s == nil {
-				leaders[leaderName] = &set{nodes: []string{name}}
+				leaders[leaderName] = &set{nodes: []string{xname}}
 			} else {
-				s.nodes = append(s.nodes, name)
+				s.nodes = append(s.nodes, xname)
 			}
 		}
 	}
 
 	if len(leaders) > 1 {
 		if contactName == "" {
-			fmt.Printf("ugh. we see multiple leaders in our nodes\n")
-			fmt.Printf("     --not sure which one to talk to...\n")
+			errs := fmt.Sprintf("error: ugh. we see multiple leaders in our nodes\n     --not sure which one to talk to...\n")
 			for lead, s := range leaders {
 				for _, n := range s.nodes {
-					fmt.Printf("  '%v' sees leader '%v'\n", n, lead)
+					errs += fmt.Sprintf("  '%v' sees leader '%v'\n", n, lead)
 				}
 			}
-			os.Exit(1)
+			err = fmt.Errorf("%v", errs)
+			return
 		}
 	}
 	if len(leaders) == 1 {
@@ -221,7 +238,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 		// INVAR: len(leaders) == 0
 		if contactName == "" {
 			if cfg.InitialLeaderName == "" {
-				fmt.Printf("warning: no leaders found and no cfg.InitialLeaderName; use -c to contact a specific node.\n")
+				err = fmt.Errorf("error: no leaders found and no cfg.InitialLeaderName; use -c to contact a specific node.")
 				//os.Exit(1)
 				return
 			} else {
@@ -272,4 +289,15 @@ func GetExternalAddr(useQUIC bool, hint string) string {
 	}
 	hostport := net.JoinHostPort(myHost, port)
 	return hostport
+}
+
+func mapUnion(a, b map[string]string) (u map[string]string) {
+	u = make(map[string]string)
+	for k, v := range a {
+		u[k] = v
+	}
+	for k, v := range b {
+		u[k] = v
+	}
+	return
 }

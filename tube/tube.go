@@ -940,8 +940,7 @@ func (s *TubeNode) Start(
 			}
 		}
 
-		//if false && !s.cfg.isTest && i%5 == 0 {
-		if false { // s.name == "node_0" {
+		if !s.cfg.isTest && i%50 == 0 {
 			// monitor liveness of prod processes
 			if s.PeerServiceName == TUBE_REPLICA &&
 				!strings.HasPrefix(s.name, "tup_") &&
@@ -1200,7 +1199,9 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 
 		case <-s.electionTimeoutCh:
 			//s.ay("%v electionTimeoutCh", s.me())
-			//vv("%v electionTimeoutCh", s.me())
+			if !s.cfg.isTest {
+				vv("%v electionTimeoutCh", s.me())
+			}
 			// so it is just never getting initialized(!)
 			s.countElections++
 			s.lastElectionTimeOut = time.Now()
@@ -1211,6 +1212,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			if s.observerOnlyNow() {
 				//vv("%v observerOnlyNow so exiting", s.me())
 				// try to get a single node cluster to shut itself
+
 				// down when removed from membership.
 				return
 			}
@@ -1460,7 +1462,11 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 				target, ok := frag.GetUserArg("target")
 				if ok && target == s.name {
 					vv("installing empty MC per request from '%v'", frag.FromPeerName)
+					shim := s.state.MC.Shim
+					vers := s.state.MC.ConfigVersion
 					s.state.MC = s.NewMemberConfig("InstallEmptyMC")
+					s.state.MC.ConfigVersion = vers + 1
+					s.state.MC.Shim = shim + 1
 					s.saver.save(s.state)
 				}
 
@@ -2900,7 +2906,7 @@ func (s *TubeNode) me() string {
 	if lead == "" {
 		lead = "no"
 		if s.state.VotedFor != "" {
-			lead = fmt.Sprintf("voted for %v", rpc.AliasDecode(s.state.VotedFor))
+			lead = fmt.Sprintf("voted for %v", s.state.VotedForName)
 		}
 	}
 	waiting, totalTkt := s.waitingSummary()
@@ -4122,6 +4128,12 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	ins.MC = s.state.MC.Clone() // in inspectHandler
 	ins.ShadowReplicas = s.state.ShadowReplicas.Clone()
 
+	// same format as CktAllByName, for helper.go ease.
+	ins.CktAllByName[s.name] = s.URL
+	for name, det := range s.state.Known.PeerNames.all() {
+		ins.Known[name] = det.URL
+	}
+
 	if ins.done != nil {
 		close(ins.done)
 	}
@@ -4158,7 +4170,7 @@ func (s *TubeNode) followers() (r string) {
 // does _not_ add to s.Waiting, caller should if we return true.
 // we send the redirect back to the caller internally.
 func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
-	//vv("%v redirectToLeader() called by '%v'; s.clusterSize()=%v; s.state.MC=%v; tkt=%v", s.me(), fileLine(2), s.clusterSize(), s.state.MC, tkt)
+	vv("%v redirectToLeader() called by '%v'; s.clusterSize()=%v; s.state.MC=%v; tkt=%v", s.me(), fileLine(2), s.clusterSize(), s.state.MC, tkt)
 
 	// Arg! This makes 402 grow a cluster from 1 node
 	// very difficult, since each new node on its own
@@ -4219,7 +4231,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	// in 3 places for tubeadd CLI processing,
 	// so we would need another parameter, ugh.
 	stashForLeader := tkt.WaitLeaderDeadline.IsZero()
-	//vv("%v stashForLeader is %v; tkt.WaitLeaderDeadline='%v'", s.name, stashForLeader, nice9(tkt.WaitLeaderDeadline))
+	vv("%v stashForLeader is %v; tkt.WaitLeaderDeadline='%v'", s.name, stashForLeader, nice9(tkt.WaitLeaderDeadline))
 	// three red tests under stashForLeader = false that need fixing:
 	// red 059 compact_test.go
 	// red Test402_build_up_a_cluster_from_one_node membership_test.go
@@ -4239,7 +4251,14 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 		// stashing for later leader made for a weird
 		// command line tubeadd experience/hang. better to eagerly error.
 
-		tkt.Err = fmt.Errorf("ahem. no leader known to me (node '%v'). To prevent a node from adding a dead neighbor (the drowned sailor scenario, page 22, The Part-Time Parliament) by mistake, we require additions to leaderless clusters to come from self-add only. See also bootstrappedMembership() circa tube.go:15131. This error from redirectToLeader() circa tube.go:4244.", s.name)
+		//addOther := false
+		var xtra string
+		if tkt.Op == MEMBERSHIP_SET_UPDATE &&
+			tkt.AddPeerName != s.name {
+			//addOther = true
+			xtra = fmt.Sprintf(" MEMBERSHIP_SET_UPDATE tkt.AddPeerName='%v'. To prevent a node from adding a dead neighbor (the drowned sailor scenario, page 22, The Part-Time Parliament) by mistake, we require additions to leaderless clusters to come from self-add only. See also bootstrappedMembership() circa tube.go:15131. This error from redirectToLeader() circa tube.go:4247.", tkt.AddPeerName)
+		}
+		tkt.Err = fmt.Errorf("ahem. no leader known to me (node '%v'). stashForLeader is false.%v", s.name, xtra)
 
 		// page 22 of Lamport 1998, "The Part-Time Parliament".
 		// "Changing the composition of Parliament in this
@@ -4273,7 +4292,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	if tkt.FromID == s.PeerID {
 		//vv("%v ticket from ourself, we are not leader (%v), tkt: '%v'", s.me(), alias(s.leaderID), tkt)
 	}
-	//vv("%v s.PeerID='%v' and s.leaderID='%v'; s.leaderName = '%v'", s.name, s.PeerID, s.leaderID, s.leaderName)
+	vv("%v in redirectToLeader (we are %): will send to: s.leaderName = '%v' the tkt='%v'", s.name, s.role, s.leaderName, tkt.Short())
 
 	// In redirectToLeader() bool here.
 	// Per Ch 4 on config changes, the leader might not
@@ -4366,7 +4385,8 @@ type Inspection struct {
 	LastLogIndex int64 `zid:"19"`
 	LastLogTerm  int64 `zid:"20"`
 
-	ShadowReplicas *MemberConfig `zid:"21"`
+	ShadowReplicas *MemberConfig     `zid:"21"`
+	Known          map[string]string `zid:"22"`
 
 	Tkthist []*Ticket `msg:"-"`
 
@@ -4392,6 +4412,11 @@ func (s *Inspection) String() (r string) {
 		cktall += fmt.Sprintf(`CktAll "%v": -> "%v"
 `, rpc.AliasDecode(id), url)
 	}
+	var known string
+	for name, url := range s.Known {
+		known += fmt.Sprintf(`Known "%v": -> "%v"
+`, name, url)
+	}
 
 	r = fmt.Sprintf(`Inspection{
       ResponderName: %v,
@@ -4403,11 +4428,13 @@ func (s *Inspection) String() (r string) {
 %v
    ---------- CktReplica: --------
 %v
+   ---------- Known: --------
+%v
 
 `, s.ResponderName,
 		s.CurrentLeaderName,
 		s.CurrentLeaderID,
-		cktall, peers, cktreplica)
+		cktall, peers, cktreplica, known)
 
 	r += fmt.Sprintf("   --- WaitingAtLeader: %v\n\n", s.WaitingAtLeader)
 	r += fmt.Sprintf("   --- WaitingAtFollow: %v\n\n", s.WaitingAtFollow)
@@ -4431,6 +4458,7 @@ func newInspection() *Inspection {
 		CktReplicaByName: make(map[string]string),
 		CktAll:           make(map[string]string),
 		CktAllByName:     make(map[string]string),
+		Known:            make(map[string]string),
 		done:             make(chan struct{}),
 		WaitingAtLeader:  make(map[string]*Ticket),
 		WaitingAtFollow:  make(map[string]*Ticket),
@@ -11492,6 +11520,8 @@ type MemberConfig struct {
 	ConfigVersion int64 `zid:"11"` // logless analog to Raft log index.
 	ConfigTerm    int64 `zid:"12"` // same as Raft Term. initially 0.
 
+	Shim int64 `zid:"13"`
+
 	// Is every version that the leader
 	// broadcasts a committed version? if the
 	// ConfigTerm == leader.Term, then we
@@ -11501,9 +11531,9 @@ type MemberConfig struct {
 	// it yet.
 	// leader sets to let followers know that
 	// the MC has been loglessly committed.
-	IsCommitted          bool  `zid:"13"`
-	CommitIndex          int64 `zid:"14"`
-	CommitIndexEntryTerm int64 `zid:"15"`
+	IsCommitted          bool  `zid:"14"`
+	CommitIndex          int64 `zid:"15"`
+	CommitIndexEntryTerm int64 `zid:"16"`
 }
 
 func peerNamesUnion(peerNamesA, peerNamesB *omap[string, *PeerDetail]) (r *omap[string, *PeerDetail]) {
@@ -11757,7 +11787,7 @@ func (s *MemberConfig) short(withProv bool) (r string) {
 	if s.IsCommitted {
 		com = "*"
 	}
-	r = fmt.Sprintf(`[%v term:%v; vers=%v; idx:%v; ci:%v]{`, com, s.ConfigTerm, s.ConfigVersion, s.RaftLogIndex, s.CommitIndex)
+	r = fmt.Sprintf(`[%v term:%v; vers=%v; idx:%v; ci:%v shim:%v]{`, com, s.ConfigTerm, s.ConfigVersion, s.RaftLogIndex, s.CommitIndex, s.Shim)
 	i := 0
 	if s.PeerNames != nil {
 		for peerName := range s.PeerNames.all() {
@@ -13740,7 +13770,7 @@ func (s *TubeNode) handleNewSessionRequestTicket(tkt *Ticket) {
 			return // bail out, error happened.
 		}
 
-		//vv("%v adding to WaitingAtFollow, newSessionRequestCh: '%v'", s.me(), tkt)
+		vv("%v adding to WaitingAtFollow, newSessionRequestCh: '%v'", s.me(), tkt)
 		tkt.Stage += ":after_redirectToLeader_add_WaitingAtFollow"
 
 		prior, already := s.WaitingAtFollow.get2(tkt.TicketID)

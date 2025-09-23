@@ -128,8 +128,23 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 	panicOn(err)
 	defer node.Close()
 
-	leaderURL, leaderName, insp, reallyLeader := node.HelperFindLeader(cfg, cmdCfg.ContactName, false)
-	pp("tubels using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
+	leaderURL, leaderName, insp, reallyLeader, contacted, err := node.HelperFindLeader(cfg, cmdCfg.ContactName, false)
+
+	fmt.Printf("contacted:\n")
+	for _, insp := range contacted {
+		fmt.Printf(`%v %v  (lead: '%v')
+   MC: %v   ShadowReplicas: %v   URL: %v
+`, insp.ResponderName, insp.Role, insp.CurrentLeaderName,
+			insp.MC,
+			insp.ShadowReplicas,
+			insp.ResponderPeerURL)
+	}
+	pp("tubels using leaderName = '%v'; leaderURL='%v'; err='%v'", leaderName, leaderURL, err)
+
+	if err != nil {
+		fmt.Printf("%v\n", err)
+		os.Exit(1)
+	}
 
 	if leaderName == "" {
 		leaderName = "no known"
@@ -150,8 +165,12 @@ https://github.com/glycerine/rpc25519/blob/41cdfa8b5f81a35e0b7e59f44785b61d7ad85
 	if reallyLeader {
 		who = fmt.Sprintf("(%v leader)", leaderName)
 	} else {
-		who = fmt.Sprintf("(contacted %v)", leaderName)
+		// only bother to report from leader
+		return
 	}
+	//else {
+	//	who = fmt.Sprintf("(contacted %v)", leaderName)
+	//}
 	fmt.Printf("existing membership: %v\n", who)
 	if newestMembership != nil && newestMembership.PeerNames != nil {
 		for name, det := range newestMembership.PeerNames.All() {

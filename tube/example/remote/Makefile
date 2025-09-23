@@ -32,14 +32,14 @@ build:
 	cd ../../cmd/tubeadd; go install
 
 clean:
-	pkill -9 tube || true
+	pkill -9 -x tube || true
 	sleep 1 # let them die so they don't replicate log after we wipe it
 	rm -rf ${HOME}/.local/state/tube/123/
 	rm -f log.*
 	(ps -ef |grep tube |grep -v grep) || true
 
 kill:
-	pkill -9 tube || true
+	pkill -9 -x tube || true
 	(ps -ef |grep tube |grep -v grep) || true
 
 who:

@@ -258,8 +258,19 @@ func main() {
 	defer node.Close()
 
 	const requireOnlyContact = false
-	leaderURL, leaderName, _, reallyLeader := node.HelperFindLeader(cfg, cmdCfg.ContactName, requireOnlyContact)
+	leaderURL, leaderName, _, reallyLeader, contacted, err := node.HelperFindLeader(cfg, cmdCfg.ContactName, requireOnlyContact)
 	_ = reallyLeader // leaderName will be empty so maybe not needed?
+	panicOn(err)
+
+	fmt.Printf("contacted:\n")
+	for _, insp := range contacted {
+		fmt.Printf(`%v %v  (lead: '%v')
+   MC: %v   ShadowReplicas: %v   URL: %v
+`, insp.ResponderName, insp.Role, insp.CurrentLeaderName,
+			insp.MC,
+			insp.ShadowReplicas,
+			insp.ResponderPeerURL)
+	}
 
 	switch {
 	case leaderName == cfg.MyName && reallyLeader:

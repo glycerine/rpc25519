@@ -152,8 +152,21 @@ func main() {
 	panicOn(err)
 	defer node.Close()
 
-	leaderURL, leaderName, insp, reallyLeader := node.HelperFindLeader(cfg, cmdCfg.ContactName, true)
+	leaderURL, leaderName, insp, reallyLeader, contacted, err := node.HelperFindLeader(cfg, cmdCfg.ContactName, true)
 	_ = reallyLeader
+	panicOn(err)
+	if true {
+		fmt.Printf("tubeadd contacted:\n")
+		for _, insp := range contacted {
+			fmt.Printf(`%v %v  (lead: '%v')
+   MC: %v   ShadowReplicas: %v   URL: %v
+`, insp.ResponderName, insp.Role, insp.CurrentLeaderName,
+				insp.MC,
+				insp.ShadowReplicas,
+				insp.ResponderPeerURL)
+		}
+	}
+
 	pp("tuberm is doing RemovePeerIDFromCluster using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
 
 	if cmdCfg.WipeName != "" {
