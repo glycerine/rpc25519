@@ -15,15 +15,26 @@ type set struct {
 	nodes []string
 }
 
-// connects to all nodes listed in cfg.Node2Addr, and
+// HelperFindLeader assists clients like
+// tube, tubels, tuberm, tubeadd and tup
+// with searching for the current leader
+// at startup time.
+//
+// It connects to all nodes listed in cfg.Node2Addr, and
 // inspects them looking for a leader using the
 // GetPeerListFrom() call. For each circuit
 // show in the inspection.CktAll returned, we
-// also contact them to try extra hard to
+// also contact to them in turn to try extra hard to
 // find a leader even if our static configuration
 // loaded from disk into cfg.Node2Addr is
 // unaware of them. node_4 for example in our
-// example/local test rig.
+// example/local test rig is not listed
+// the static configurations of the other
+// nodes but can join and become leader.
+//
+// Note that the servers try to save these
+// dynamically added nodes to state.Known to
+// remember them even after a reboot.
 func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requireOnlyContact bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection, reallyLeader bool) {
 
 	if node.name != cfg.MyName {

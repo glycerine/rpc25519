@@ -111,6 +111,8 @@ func main() {
 	panicOn(err)
 	defer node.Close()
 
+	// TODO: use HelperFindLeader.
+
 	var leaderURL string
 	greet := cmdCfg.ContactName
 	if greet == "" {
@@ -204,7 +206,8 @@ func main() {
 		pp("use actual='%v' rather than orig='%v'", actualLeaderURL, leaderURL)
 		leaderURL = actualLeaderURL
 	}
-
+	// when no leader, we hang, our tkt in awaitingLeader.
+	pp("%v: calling node.CreateNewSession(leaderURL = '%v')", cfg.MyName, leaderURL)
 	sess, err := node.CreateNewSession(ctx, leaderURL)
 	panicOn(err)
 	defer sess.Close()

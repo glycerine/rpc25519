@@ -13690,6 +13690,9 @@ func (s *TubeNode) CreateNewSession(ctx context.Context, leaderURL string) (r *S
 		r.cli = s
 		r.ctx = ctx // because is different from the request
 		return
+	case <-ctx.Done():
+		err = ctx.Err()
+		return
 	case <-s.Halt.ReqStop.Chan:
 		err = ErrShutDown
 		return
