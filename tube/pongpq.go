@@ -15,6 +15,7 @@ import (
 // of followers within a leader election timeout.
 // ordered by Pong.RecvTm
 type pongPQ struct {
+	name string
 	tree *rb.Tree
 }
 
@@ -40,6 +41,7 @@ func (s *pongPQ) quorumPongTm(quor int) (tm time.Time, ok bool, newest *Pong) {
 		// single node cluster
 		// Test001_no_replicas_write_new_value
 		ok = true
+		tm = time.Now()
 		return
 	}
 	// PRE: n > 0
@@ -66,6 +68,9 @@ func (s *pongPQ) quorumPongTm(quor int) (tm time.Time, ok bool, newest *Pong) {
 		if i == goal {
 			newest = it.Item().(*Pong)
 			tm = newest.RecvTm
+			if tm.IsZero() {
+				panicf("%v: should never have 0 time in newest.RecvTm!", s.name)
+			}
 			return
 		}
 		i++
@@ -90,6 +95,9 @@ func (s *pongPQ) pop() *Pong {
 // contains at most one pong from a peer
 // at any given point.
 func (s *pongPQ) add(pong Pong) (it rb.Iterator) {
+	if pong.RecvTm.IsZero() {
+		panicf("%v: should never have 0 time in pong.RecvTm!", s.name)
+	}
 	s.delPeerID(pong.PeerID)
 	var added bool
 	added, it = s.tree.InsertGetIt(&pong)
@@ -133,8 +141,9 @@ func (s *pongPQ) deleteAll() {
 }
 
 // order by Pong.RecvTm
-func newPongPQ() *pongPQ {
+func newPongPQ(name string) *pongPQ {
 	return &pongPQ{
+		name: name,
 		tree: rb.NewTree(func(a, b rb.Item) int {
 			av := a.(*Pong)
 			bv := b.(*Pong)
@@ -154,10 +163,7 @@ func newPongPQ() *pongPQ {
 				panic("no nils")
 				return 1
 			}
-			// INVAR: neither av nor bv is nil
-			if av == bv {
-				return 0 // pointer equality is immediate
-			}
+			// INVAR: neither av nor bv is nil; AND av != bv
 
 			// sort largest (most recent) time first.
 			if av.RecvTm.After(bv.RecvTm) {

@@ -93,6 +93,7 @@ func main() {
 	}
 	if cmdCfg.Verbose {
 		verboseVerbose = true
+		tube.VerboseVerbose.Store(true)
 	}
 
 	if cmdCfg.WebProfile {

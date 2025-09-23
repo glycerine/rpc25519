@@ -8,7 +8,7 @@ import (
 )
 
 func Test302_pong_quorum(t *testing.T) {
-	pq := newPongPQ()
+	pq := newPongPQ("test302")
 
 	now := time.Now()
 	var slc []*Pong

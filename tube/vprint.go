@@ -10,9 +10,9 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
-	"unicode"
-	//"sync"
+	"sync/atomic"
 	"time"
+	"unicode"
 
 	"4d63.com/tz"
 	rpc "github.com/glycerine/rpc25519"
@@ -20,7 +20,7 @@ import (
 
 // for tons of debug output
 var verbose bool = false
-var verboseVerbose bool = false
+var VerboseVerbose atomic.Bool // pp() conditional output.
 
 var gtz *time.Location
 var chicago *time.Location
@@ -74,7 +74,7 @@ func (s *TubeNode) ww(format string, a ...interface{}) {
 }
 
 func pp(format string, a ...interface{}) {
-	if verboseVerbose {
+	if VerboseVerbose.Load() {
 		tsPrintf(format, a...)
 	}
 }

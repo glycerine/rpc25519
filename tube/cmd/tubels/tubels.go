@@ -55,7 +55,10 @@ func main() {
 		fs.PrintDefaults()
 		return
 	}
-	verboseVerbose = cmdCfg.Verbose
+	if cmdCfg.Verbose {
+		verboseVerbose = true
+		tube.VerboseVerbose.Store(true)
+	}
 
 	// first connect
 	dir := tube.GetConfigDir()

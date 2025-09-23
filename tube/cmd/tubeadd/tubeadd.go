@@ -62,6 +62,7 @@ func main() {
 	}
 	if cmdCfg.Verbose {
 		verboseVerbose = true
+		tube.VerboseVerbose.Store(true)
 	}
 
 	var target string

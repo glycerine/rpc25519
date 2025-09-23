@@ -1300,9 +1300,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 						durSinceReliable := reliableTm.Sub(s.leaderElectedTm)
 						if durSinceReliable < 0 {
 							// not reliable yet
-							if s.name == "node_0" {
-								//vv("%v we have not been leader long enough to have reliably pinged followers: durSinceReliable=%v is negative", s.me(), durSinceReliable)
-							}
+							//vv("%v we have not been leader long enough to have reliably pinged followers: durSinceReliable=%v is negative", s.me(), durSinceReliable)
 						} else {
 							// we have been leader at least two
 							// election timeout cycles.
@@ -1319,15 +1317,15 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 							// at minimum 4*T and at most 6*T).
 							redline := reliableTm // or just 4*T
 
-							newestQuorumPongTm, ok, newestQuorumPong :=
+							newestQuorumPongTm, quorumPongOK, newestQuorumPong :=
 								s.leaderFullPongPQ.quorumPongTm(quor)
 							_ = newestQuorumPong
-							// note newestQuorumPongTm will be zero if !ok.
+							// note newestQuorumPongTm will be zero if !quorumPongOK.
 							been := redline.Sub(newestQuorumPongTm)
 							_ = been
-							wantPongStepDown = !ok || newestQuorumPongTm.Before(redline)
+							wantPongStepDown = !quorumPongOK || newestQuorumPongTm.Before(redline)
 							if wantPongStepDown {
-								vv("%v wantPongStepDown=true; since redline its been=%v (step down if positive); newestQuorumPongTm = '%v'; ok = %v; redline=%v; stepDown = %v; durSinceReliable=%v", s.name, been, newestQuorumPongTm, ok, nice(redline), wantPongStepDown, durSinceReliable)
+								alwaysPrintf("%v wantPongStepDown=true; since redline its been=%v (step down if positive); newestQuorumPongTm = '%v'; quorumPongOK = %v; redline=%v; stepDown = %v; durSinceReliable=%v", s.me(), been, newestQuorumPongTm, quorumPongOK, nice(redline), wantPongStepDown, durSinceReliable)
 							}
 						}
 					}
@@ -1340,7 +1338,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 					// Otherwise clients could be stuck
 					// talking to us, a non-leader, which could
 					// delay their getting a reply by alot.
-					vv("%v wantPongStepDown=true", s.me()) // I am leader (since %v; for %v) but I did not get pong quorum in window=%v, quor=%v; \n newestQuorumPongTm='%v' (%v ago);\n newestQuorumPong='%#v'; redline='%v' since redline = %v", s.me(), nice9(s.leaderElectedTm), now.Sub(s.leaderElectedTm), window, quor, nice9(newestQuorumPongTm), time.Since(newestQuorumPongTm), newestQuorumPong, nice9(redline), now.Sub(redline))
+					alwaysPrintf("%v wantPongStepDown=true", s.me()) // I am leader (since %v; for %v) but I did not get pong quorum in window=%v, quor=%v; \n newestQuorumPongTm='%v' (%v ago);\n newestQuorumPong='%#v'; redline='%v' since redline = %v", s.me(), nice9(s.leaderElectedTm), now.Sub(s.leaderElectedTm), window, quor, nice9(newestQuorumPongTm), time.Since(newestQuorumPongTm), newestQuorumPong, nice9(redline), now.Sub(redline))
 
 					s.leaderName = ""
 					s.leaderID = ""
@@ -3756,7 +3754,7 @@ func NewTubeNode(name string, cfg *TubeConfig) *TubeNode {
 		singleUpdateMembershipRegistryMap: make(map[string]*Ticket),
 		ApplyNewStateSnapshotCh:           make(chan *RaftState),
 
-		leaderFullPongPQ: newPongPQ(),
+		leaderFullPongPQ: newPongPQ(name),
 		parked:           newParkedTree(),
 		sessByExpiry:     newSessTableByExpiry(),
 	}
@@ -11047,8 +11045,8 @@ func (s *TubeNode) RemovePeerIDFromCluster(ctx context.Context, nonVoting bool, 
 //
 // THIS IS THE SINGLE NODE (AT A TIME) CHANGE.
 //
-// We should just make this a part of the setup
-// process always, to see it well tested.
+// This a part of the setup process always now,
+// to ensure it well tested.
 //
 // results in call to handleLocalModifyMembership inside.
 func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, nonVoting bool, targetPeerName, targetPeerID, targetPeerServiceName, targetPeerServiceNameVersion, baseServerHostPort, leaderURL string, addNotRemove bool, errWriteDur time.Duration) (inspection *Inspection, leaderState *RaftState, err error) {
@@ -11071,11 +11069,8 @@ func (s *TubeNode) SingleUpdateClusterMemberConfig(ctx context.Context, nonVotin
 		return
 	}
 	// allow without PeerID -- only the name matters
-	// if targetPeerID == "" {
-	// 	err = fmt.Errorf("error in SingleUpdateClusterMemberConfig: targetPeerID cannot be empty")
-	// 	panic(err)
-	// 	return
-	// }
+	// so targetPeerID == "" is allowed.
+
 	if leaderURL == "" {
 		err = fmt.Errorf("error in SingleUpdateClusterMemberConfig: leaderURL cannot be empty")
 		panic(err)
