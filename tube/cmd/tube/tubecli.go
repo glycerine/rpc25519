@@ -294,8 +294,9 @@ func main() {
 			// examples.
 			actualLeaderURL := leaderURL
 
+			const forceAdd = false
 			ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
-			memlistAfterAdd, stateSnapshot, err := node.AddPeerIDToCluster(ctx5sec, cmdCfg.NonVotingShadowFollower, cfg.MyName, node.PeerID, node.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
+			memlistAfterAdd, stateSnapshot, err := node.AddPeerIDToCluster(ctx5sec, forceAdd, cmdCfg.NonVotingShadowFollower, cfg.MyName, node.PeerID, node.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
 			canc5()
 			// can have network unavail at first. Yes freak since otherwise we won't be up!
 			//panicOn(err)
