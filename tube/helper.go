@@ -26,11 +26,16 @@ type set struct {
 // example/local test rig.
 func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requireOnlyContact bool) (lastLeaderURL, lastLeaderName string, lastInsp *Inspection, reallyLeader bool) {
 
+	if node.name != cfg.MyName {
+		panicf("must have consistent node.name(%v) == cfg.MyName(%v)", node.name, cfg.MyName)
+	}
+
 	// contact everyone, get their idea of who is leader
 	leaders := make(map[string]*set)
 
 	ctx := context.Background()
 
+	selfSurelyNotLeader := false
 	var insps []*Inspection
 	for name, addr := range cfg.Node2Addr {
 		url := FixAddrPrefix(addr)
@@ -38,24 +43,50 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 		var err error
 		var insp *Inspection
 		var leaderURL, leaderName string
-		if name == node.name || name == cfg.MyName {
+		if name == node.name {
 			// inspect self
 			insp = node.Inspect()
 			leaderName = insp.CurrentLeaderName
 			leaderURL = insp.CurrentLeaderURL
-
+			vv("%v self inspection gave: leaderName = '%v'", node.name, leaderName)
+			if leaderName == "" {
+				selfSurelyNotLeader = true
+			}
 		} else {
-
 			ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
 			_, insp, leaderURL, leaderName, _, err = node.GetPeerListFrom(ctx5sec, url, name)
 			canc5()
+			if leaderName == name {
+				vv("did GetPeerListFrom for name = '%v'; got leaderName='%v'", name, leaderName)
+			} else {
+				if leaderName != "" {
+					vv("did GetPeerListFrom for name = '%v'; got leaderName='%v' -- but disallowing non-self reports, since they can be wrong!", name, leaderName) // did GetPeerListFrom for name = 'node_2'; got leaderName='node_0'
+					leaderName = ""
+				}
+				continue
+			}
 			if err != nil {
 				//pp("skip '%v' b/c err = '%v'", leaderName, err)
 				continue
 			}
 		}
 		if leaderName != "" {
-			pp("candidate leader = '%v', url = '%v", leaderName, leaderURL)
+			// how the heck???: node_0: candidate leader = 'node_0'
+			// well, node_2 thinks that node_0 is the leader,
+			// since it is configured as the default leader.
+			// We need to only return leader we have gotten AE from,
+			// or self who know are leader. Yeah maybe only
+			// respect self-reports would be easier.
+			if leaderName != name {
+				// only consider self-reports of leadership, not
+				// reports from other nodes that may just have a
+				// starting guess or 'hint' still.
+				continue
+			}
+			if leaderName == node.name && selfSurelyNotLeader {
+				continue // extra protection
+			}
+			vv("%v: candidate leader = '%v', url = '%v", node.name, leaderName, leaderURL)
 			insps = append(insps, insp)
 			lastInsp = insp
 			lastLeaderName = leaderName
@@ -73,7 +104,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 	xtra := make(map[string]string)
 	for _, ins := range insps {
 		for name, url := range ins.CktAll {
-			if name == node.name || name == cfg.MyName {
+			if name == node.name {
 				continue // skip self, already done above.
 			}
 			_, skip := cfg.Node2Addr[name]
@@ -97,6 +128,11 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 	}
 
 	for name, url := range xtra {
+		vv("on xtra name='%v', url='%v'", name, url)
+		if name == node.name {
+			continue // skip self
+		}
+
 		if url == "pending" {
 			continue
 		}

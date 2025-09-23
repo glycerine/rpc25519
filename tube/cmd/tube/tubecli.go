@@ -246,6 +246,7 @@ func main() {
 
 	ctx := node.Ctx // peer's Ctx
 
+	vv("starting node.name = '%v'; cfg.MyName = '%v'", node.Name(), cfg.MyName)
 	err = node.InitAndStart()
 	panicOn(err)
 	defer node.Close()
@@ -253,154 +254,53 @@ func main() {
 	const requireOnlyContact = false
 	leaderURL, leaderName, _, reallyLeader := node.HelperFindLeader(cfg, cmdCfg.ContactName, requireOnlyContact)
 	_ = reallyLeader // leaderName will be empty so maybe not needed?
-	/*
-		reconn := true // always try to add self now! needed.
-		if cfg.InitialLeaderName == "" {
-			vv("no leader. my name='%v'", cfg.MyName)
-		} else if cfg.InitialLeaderName == cfg.MyName {
-			// passive approach does not work any more
-			// with the enabling of single node clusters
-			// and the exclusion of self votes when not in MC.
-			vv("I am cfg.InitialLeaderName(cfg.MyName=%v).", cfg.MyName)
-			//vv("I am cfg.InitialLeaderName(cfg.MyName=%v). We will passively wait for cluster to join me... setting reconn = false.", cfg.MyName)
-			reconn = true
-		}
-		if state != nil {
-			_, ok := state.MC.PeerNames.Get2(cfg.MyName)
-			if !ok {
-				vv("reconnecting to Node2Addr...")
-				for name, addr := range cfg.Node2Addr {
-					if name == cfg.MyName {
-						continue
-					}
-					cfg.InitialLeaderName = name
-					vv("trying %v at addr: %v", name, addr)
-					reconn = true
-					break
-				}
-			}
-		}
-	*/
-	/*
-		if reconn {
-			// order the list of names to try
-			// first cfg.InitialLeaderName, then the rest of
-			// Node2Addr, then anything else in current MC.
-			var names []string
-			_, ok := cfg.Node2Addr[cfg.InitialLeaderName]
-			if ok {
-				names = append(names, cfg.InitialLeaderName)
-			}
-			for name := range cfg.Node2Addr {
-				if name == cfg.MyName || name == cfg.InitialLeaderName {
-					continue
-				}
-				names = append(names, name)
-			}
-
-			if state != nil {
-				for name := range state.MC.PeerNames.All() {
-					_, already := cfg.Node2Addr[name]
-					if !already {
-						names = append(names, name)
-					}
-				}
-			}
-		tryNextOne:
-			for _, name := range names {
-				if name == cfg.MyName {
-					continue // don't connect to self.
-				}
-				addr, ok := cfg.Node2Addr[name]
-				if !ok {
-					if state != nil {
-						det, ok2 := state.MC.PeerNames.Get2(name)
-						if ok2 {
-							addr = det.Addr
-							ok = true
-						}
-					}
-				}
-				if ok {
-					leaderURL := tube.FixAddrPrefix(addr)
-					//vv("addr='%v' -> leaderURL='%v'", addr, leaderURL)
-
-					if cfg.PeerServiceName == tube.TUBE_REPLICA {
-						//vv("%v: contact leader at boot time (leaderURL='%v'): and calling AddPeerIDToCluster() for ourselves to join the cluster. node.PeerServiceName='%v'", cfg.MyName, leaderURL, node.PeerServiceName)
-
-						// try to avoid getting stuck talking to a deposed/removed node
-						// who used to be but is no longer, leader.
-						ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
-						newestMembership, insp, actualLeaderURL, leaderName, onlyPossibleAddr, err := node.GetPeerListFrom(ctx5sec, leaderURL)
-						canc5()
-						if err != nil {
-							alwaysPrintf("error from node.GetPeerListFrom(leaderURL='%v'): %v", leaderURL, err)
-							continue tryNextOne
-						}
-						_, _, _, _ = newestMembership, insp, leaderName, onlyPossibleAddr
-						if actualLeaderURL == "" {
-							//vv("leaderURL='%v' was used; does not know who leader is, so tryNextOne; got back leaderName='%v'", leaderURL, leaderName)
-							continue tryNextOne
-						}
-						//vv("%v actualLeaderURL = '%v'", cfg.MyName, actualLeaderURL)
-
-
-	*/
 
 	if leaderName == cfg.MyName {
-		//vv("%v we are local peer and leader. don't make a socket/circuit to talk to ourselves...?", cfg.MyName)
-	}
+		vv("%v wow: we are local peer and leader. don't make a socket/circuit to talk to ourselves... reallyLeader='%v'", cfg.MyName, reallyLeader)
+	} else {
 
-	baseServerHostPort := node.BaseServerHostPort()
-	errWriteDur := time.Second * 10
-retryLoop:
-	for retry := 0; retry < 2; retry++ {
-		// note that this can result in dupliate
-		// entries in the log for this operation if
-		// we have to timeout and try again. That is
-		// fine. We don't use the session logic since
-		// this is for replicas not clients.
-		// See cmd/tup/tup.go for client and session
-		// examples.
-		actualLeaderURL := leaderURL
+		baseServerHostPort := node.BaseServerHostPort()
+		errWriteDur := time.Second * 10
+	retryLoop:
+		for retry := 0; retry < 2; retry++ {
+			// note that this can result in dupliate
+			// entries in the log for this operation if
+			// we have to timeout and try again. That is
+			// fine. We don't use the session logic since
+			// this is for replicas not clients.
+			// See cmd/tup/tup.go for client and session
+			// examples.
+			actualLeaderURL := leaderURL
 
-		ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
-		memlistAfterAdd, stateSnapshot, err := node.AddPeerIDToCluster(ctx5sec, cmdCfg.NonVotingShadowFollower, cfg.MyName, node.PeerID, node.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
-		canc5()
-		// can have network unavail at first. Yes freak since otherwise we won't be up!
-		//panicOn(err)
-		if err == nil {
-			pp("good: no error on AddPeerIDToCluster('%v'); shadow/nonVoting='%v'; contacting leader '%v'", cfg.MyName, cmdCfg.NonVotingShadowFollower, actualLeaderURL)
-			if memlistAfterAdd.CurrentLeaderName != cfg.MyName {
-				if stateSnapshot != nil {
-					select {
-					case node.ApplyNewStateSnapshotCh <- stateSnapshot:
-						vv("%v tubecli sent node.ApplyNewStateSnapshotCh <- stateSnapshot", cfg.MyName)
-					case <-node.Halt.Done.Chan:
-						return
+			ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
+			memlistAfterAdd, stateSnapshot, err := node.AddPeerIDToCluster(ctx5sec, cmdCfg.NonVotingShadowFollower, cfg.MyName, node.PeerID, node.PeerServiceName, baseServerHostPort, actualLeaderURL, errWriteDur)
+			canc5()
+			// can have network unavail at first. Yes freak since otherwise we won't be up!
+			//panicOn(err)
+			if err == nil {
+				pp("good: no error on AddPeerIDToCluster('%v'); shadow/nonVoting='%v'; contacting leader '%v'", cfg.MyName, cmdCfg.NonVotingShadowFollower, actualLeaderURL)
+				if memlistAfterAdd.CurrentLeaderName != cfg.MyName {
+					if stateSnapshot != nil {
+						select {
+						case node.ApplyNewStateSnapshotCh <- stateSnapshot:
+							vv("%v tubecli sent node.ApplyNewStateSnapshotCh <- stateSnapshot", cfg.MyName)
+						case <-node.Halt.Done.Chan:
+							return
+						}
 					}
 				}
+				_ = memlistAfterAdd
+				vv("%v: memlistAfterAdd = '%v'", cfg.MyName, memlistAfterAdd)
+				break retryLoop
+				//break tryNextOne
+			} else {
+				alwaysPrintf("initial add myself to cluster problem: '%v' ... wait 2 sec and try again", err) // 'error timeout' much better than 'connect: connection refused'; or JobErrs: 'no local peerServiceName 'tube-replica' available'.
+				time.Sleep(time.Second * 2)
+				//continue tryNextOne
+				continue retryLoop
 			}
-			_ = memlistAfterAdd
-			vv("%v: memlistAfterAdd = '%v'", cfg.MyName, memlistAfterAdd)
-			break retryLoop
-			//break tryNextOne
-		} else {
-			alwaysPrintf("initial add myself to cluster problem: '%v' ... wait 2 sec and try again", err) // 'error timeout' much better than 'connect: connection refused'; or JobErrs: 'no local peerServiceName 'tube-replica' available'.
-			time.Sleep(time.Second * 2)
-			//continue tryNextOne
-			continue retryLoop
 		}
 	}
-	/*
-					}
-
-				} else {
-					alwaysPrintf("%v: cfg.InitialLeaderName '%v' not found: we will wait passively for leader to find us (as not found in cfg.Node2Addr='%#v')", cfg.MyName, cfg.InitialLeaderName, cfg.Node2Addr)
-				}
-			} // end for name, addr in Node2Addr
-		}
-	*/
 	select {
 	case <-node.Halt.Done.Chan:
 	}

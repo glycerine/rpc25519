@@ -2806,6 +2806,14 @@ type TubeNode struct {
 	// order to get the tree to rebalance. Still
 	// only O(log N) each time.
 	sessByExpiry *sessTableByExpiry
+
+	// try to avoid guesses about if who/I
+	// am leader. If this is > 0 and
+	// matches s.state.CurrentTerm then
+	// we are pretty sure we are currently
+	// the leader, since only s.becomeLeader()
+	// sets it.
+	lastBecomeLeaderTerm int64
 }
 
 // tuber uses to read the DataDir in use.
@@ -2878,6 +2886,10 @@ func (s *TubeNode) waitingSummaryHelper(atLeader bool, tot *int) (sum string) {
 	}
 	sum += ")"
 	return
+}
+
+func (s *TubeNode) Name() string {
+	return s.name
 }
 
 func (s *TubeNode) me() string {
@@ -3989,9 +4001,25 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	ins.ResponderPeerID = s.PeerID
 	ins.ResponderPeerURL = s.URL
 	ins.ResponderName = s.name
+
 	ins.CurrentLeaderName = s.leaderName
 	ins.CurrentLeaderURL = s.leaderURL
 	ins.CurrentLeaderID = s.leaderID
+
+	// don't report ourselves as leader unless
+	// we really are.
+	if s.leaderName == s.name {
+		if s.role != LEADER ||
+			s.lastBecomeLeaderTerm == 0 ||
+			s.lastBecomeLeaderTerm != s.state.CurrentTerm {
+			vv("%v invalidating self-report of leadership", s.me())
+
+			ins.CurrentLeaderName = ""
+			ins.CurrentLeaderURL = ""
+			ins.CurrentLeaderID = ""
+		}
+	}
+
 	ins.ElectionCount = s.countElections
 	ins.LastLeaderActiveStepDown = s.lastLeaderActiveStepDown
 	ins.State = s.getStateSnapshot()
@@ -6100,6 +6128,7 @@ func (s *TubeNode) becomeLeader() {
 	s.preVoteOkLeaderElecTimeoutCh = nil
 	s.countLeaderHeartbeat = 0
 	s.leaderFullPongPQ.deleteAll()
+	s.lastBecomeLeaderTerm = s.state.CurrentTerm
 
 	//s.nextElection = time.Time{}
 	s.readIndexOptim = 0
