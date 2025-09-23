@@ -266,6 +266,10 @@ func GetExternalAddr(useQUIC bool, hint string) string {
 	if port == "" || port == "0" {
 		port = fmt.Sprintf("%v", ipaddr.GetAvailPort())
 	}
+	hn := u.Hostname()
+	if hn != "" {
+		myHost = hn // preserve specified IP
+	}
 	hostport := net.JoinHostPort(myHost, port)
 	//netAddr := u.Scheme + "://" + hostport
 	//return netAddr
