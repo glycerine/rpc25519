@@ -173,7 +173,8 @@ func main() {
 	pp("tubeadd is doing AddPeerIDToCluster using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
 
 	targetPeerID := "" // empty string allowed now
-	errWriteDur := time.Second * 20
+	var errWriteDur time.Duration
+	//errWriteDur := time.Second * 20
 	peerServiceName := tube.TUBE_REPLICA
 	baseServerHostPort := ""
 	memlistAfter, stateSnapshot, err := node.AddPeerIDToCluster(ctx, force, cmdCfg.NonVotingShadowFollower, target, targetPeerID, peerServiceName, baseServerHostPort, leaderURL, errWriteDur)

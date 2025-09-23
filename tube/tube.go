@@ -4718,12 +4718,7 @@ func (t TicketOp) String() (r string) {
 }
 
 func (s *TubeNode) FinishTicket(tkt *Ticket, calledOnLeader bool) {
-	s.finishTicketHelper(tkt, calledOnLeader, false)
-}
-func (s *TubeNode) FinishTicketForced(tkt *Ticket) {
-	s.finishTicketHelper(tkt, false, true)
-}
-func (s *TubeNode) finishTicketHelper(tkt *Ticket, calledOnLeader, forced bool) {
+
 	// idempotent to let CommitWhatWeCan possibly
 	// call us 2x to make sure all membership changes
 	// get at least 1x call here and cleared from WaitingAtLeader.
@@ -9300,18 +9295,17 @@ func (s *TubeNode) otherNoop0applyActions(tkt0 *Ticket) {
 // commitWhatWeCan(); and now by
 // leaderDoneEarlyOnSessionStuff().
 func (s *TubeNode) respondToClientTicketApplied(tkt *Ticket) {
-	if s.role != LEADER {
-		panic("should only be called on leader")
-	}
-	wtkt, ok := s.WaitingAtLeader.get2(tkt.TicketID)
-	//vv("%v respondToClientTicketApplied, is tkt local WaitingAtLeader: ok=%v; tkt='%v'", s.me(), ok, tkt)
-	if ok {
-		wtkt.Stage += ":respondToClientTicketApplied_ok_about_to_FinishTicket_true"
-		//vv("%v: about to call s.FinishTicket(wtkt, true)", s.name)
-		// isn't this more general, so FinishTicket has both
-		// tkt from commitWhatWeCan and the stored WaitingAtLeader
-		s.FinishTicket(tkt, true)
-	}
+
+	calledOnLeader := s.role == LEADER
+	// whelp. in desparate circumstances, a
+	// forced add/remove with tubeadd -f or tuberm -f
+	// we will need to respond to our caller
+	// and not care if we are leader or not. So comment out:
+	//if !calledOnLeader {
+	//	panic("should only be called on leader")
+	//}
+	s.FinishTicket(tkt, calledOnLeader)
+
 	// was it ours and not forwarded to us?
 	if tkt.FromID == s.PeerID {
 		//vv("%v ours; finished now.", s.name)
@@ -15176,8 +15170,10 @@ func (s *TubeNode) bootstrappedOrForcedMembership(tkt *Ticket) bool {
 		//vv("%v tkt.Op is not membership update", s.me())
 		return false
 	}
+	calledOnLeader := s.role == LEADER // for FinishTicket below too.
+
 	if tkt.ForceChangeMC {
-		return s.forceChangeMC(tkt)
+		return s.forceChangeMC(tkt, calledOnLeader)
 	}
 	if tkt.AddPeerName == "" {
 		//vv("%v tkt.Op is not membership Add peer", s.me())
@@ -15218,14 +15214,13 @@ func (s *TubeNode) bootstrappedOrForcedMembership(tkt *Ticket) bool {
 
 	s.state.ShadowReplicas.PeerNames.delkey(s.name)
 	//vv("%v bootstrapped rather than redirectToLeader. now MC='%v'", s.me(), s.state.MC)
-	wasLeader := s.role == LEADER // for FinishTicket below
 	if s.role != LEADER {
 		s.becomeLeader()
 	}
 	s.addInspectionToTicket(tkt)
 	// this does s.FinishTicket(tkt) only if WaitingAtLeader
 	s.respondToClientTicketApplied(tkt)
-	s.FinishTicket(tkt, wasLeader)
+	s.FinishTicket(tkt, calledOnLeader)
 	return true
 }
 
@@ -15244,7 +15239,7 @@ func (s *TubeNode) getMyDetails() *PeerDetail {
 // to handle forced MC changes; tubeadd -f and
 // tuberm -f to resurrect a flattened cluster
 // when some needed member is permanently gone.
-func (s *TubeNode) forceChangeMC(tkt *Ticket) bool {
+func (s *TubeNode) forceChangeMC(tkt *Ticket, calledOnLeader bool) bool {
 	if s.PeerServiceName != TUBE_REPLICA {
 		//vv("%v I am not a replica", s.me())
 		return false
@@ -15273,18 +15268,14 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket) bool {
 		if have {
 			// return done, is no-op
 			tkt.Err = fmt.Errorf("forceChangeMC ADD is no-op, target already present: target='%v'; MC='%v'", target, s.state.MC)
-			s.addInspectionToTicket(tkt)
 			s.respondToClientTicketApplied(tkt)
-			s.FinishTicket(tkt, false)
 			return true
 		}
 	} else {
 		if !have {
 			// return done, is no-op
 			tkt.Err = fmt.Errorf("forceChangeMC ADD is no-op, target already absent: target='%v'; MC='%v'", target, s.state.MC)
-			s.addInspectionToTicket(tkt)
 			s.respondToClientTicketApplied(tkt)
-			s.FinishTicket(tkt, false)
 			return true
 		}
 	}
@@ -15311,10 +15302,7 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket) bool {
 
 			vv("%v forcing MC add rather than redirectToLeader. added me='%v'; now MC='%v'", s.me(), s.name, s.state.MC)
 
-			s.addInspectionToTicket(tkt)
 			s.respondToClientTicketApplied(tkt)
-			s.FinishTicket(tkt, false)
-
 			return true
 		}
 		// add, not me though.
@@ -15335,17 +15323,12 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket) bool {
 
 			vv("%v forcing MC add rather than redirectToLeader. target='%v'; now MC='%v'", s.me(), target, s.state.MC)
 
-			s.addInspectionToTicket(tkt)
 			s.respondToClientTicketApplied(tkt)
-			s.FinishTicket(tkt, false)
-
 			return true
 		}
 
 		tkt.Err = fmt.Errorf("forceChangeMC aborted, no details of how to add target are available from Known or ShadowReplicas; target = '%v'", target)
-		s.addInspectionToTicket(tkt)
 		s.respondToClientTicketApplied(tkt)
-		s.FinishTicket(tkt, false)
 		return true
 	}
 	// remove
@@ -15367,10 +15350,7 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket) bool {
 
 		vv("%v forcing MC remove of myself('%v') rather than redirectToLeader. now MC='%v'", s.me(), s.name, s.state.MC)
 
-		s.addInspectionToTicket(tkt)
 		s.respondToClientTicketApplied(tkt)
-		s.FinishTicket(tkt, false)
-
 		return true
 	}
 	// remove, not me
@@ -15385,6 +15365,7 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket) bool {
 
 	vv("%v forcing MC remove of non-self target rather than redirectToLeader. target='%v'; now MC='%v'", s.me(), target, s.state.MC)
 
+	s.respondToClientTicketApplied(tkt)
 	return true
 }
 
