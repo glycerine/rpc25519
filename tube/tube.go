@@ -15285,7 +15285,6 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket) bool {
 
 	if tkt.AddPeerName != "" {
 		if tkt.AddPeerName == s.name {
-			vv("%v forcing MC add rather than redirectToLeader. added me='%v'; now MC='%v'", s.me(), s.name, s.state.MC)
 
 			detail := s.getMyDetails()
 
@@ -15293,6 +15292,8 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket) bool {
 			s.state.MC.setNameDetail(s.name, detail, s)
 			s.state.ShadowReplicas.PeerNames.delkey(s.name)
 			s.state.Known.PeerNames.set(s.name, detail)
+
+			vv("%v forcing MC add rather than redirectToLeader. added me='%v'; now MC='%v'", s.me(), s.name, s.state.MC)
 
 			s.addInspectionToTicket(tkt)
 			s.respondToClientTicketApplied(tkt)
@@ -15309,11 +15310,12 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket) bool {
 			detail, ok = s.state.Known.PeerNames.get2(target)
 		}
 		if ok {
-			vv("%v forcing MC add rather than redirectToLeader. target='%v'; now MC='%v'", s.me(), target, s.state.MC)
 
 			s.state.MC.ConfigVersion++
 			s.state.MC.setNameDetail(target, detail, s)
 			s.state.ShadowReplicas.PeerNames.delkey(target)
+
+			vv("%v forcing MC add rather than redirectToLeader. target='%v'; now MC='%v'", s.me(), target, s.state.MC)
 
 			s.addInspectionToTicket(tkt)
 			s.respondToClientTicketApplied(tkt)
@@ -15331,8 +15333,6 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket) bool {
 	if tkt.AddPeerName == s.name {
 		// remove myself
 
-		vv("%v forcing MC remove of myself('%v') rather than redirectToLeader. now MC='%v'", s.me(), s.name, s.state.MC)
-
 		detail := s.getMyDetails()
 
 		s.state.MC.ConfigVersion++
@@ -15340,17 +15340,18 @@ func (s *TubeNode) forceChangeMC(tkt *Ticket) bool {
 		s.state.ShadowReplicas.PeerNames.set(s.name, detail)
 		s.state.Known.PeerNames.set(s.name, detail)
 
+		vv("%v forcing MC remove of myself('%v') rather than redirectToLeader. now MC='%v'", s.me(), s.name, s.state.MC)
+
 		s.addInspectionToTicket(tkt)
 		s.respondToClientTicketApplied(tkt)
 		s.FinishTicket(tkt, true)
 		return true
 	}
 	// remove, not me
-	vv("%v forcing MC remove of non-self target rather than redirectToLeader. target='%v'; now MC='%v'", s.me(), target, s.state.MC)
-
 	s.state.MC.ConfigVersion++
 	s.state.MC.PeerNames.delkey(target)
 	s.state.ShadowReplicas.PeerNames.set(target, detailTarget)
+	vv("%v forcing MC remove of non-self target rather than redirectToLeader. target='%v'; now MC='%v'", s.me(), target, s.state.MC)
 
 	return true
 }
