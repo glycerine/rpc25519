@@ -4171,7 +4171,7 @@ func (s *TubeNode) followers() (r string) {
 // does _not_ add to s.Waiting, caller should if we return true.
 // we send the redirect back to the caller internally.
 func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
-	vv("%v redirectToLeader() called by '%v'; s.clusterSize()=%v; s.state.MC=%v; tkt=%v", s.me(), fileLine(2), s.clusterSize(), s.state.MC, tkt)
+	//vv("%v redirectToLeader() called by '%v'; s.clusterSize()=%v; s.state.MC=%v; tkt=%v", s.me(), fileLine(2), s.clusterSize(), s.state.MC, tkt)
 
 	// Arg! This makes 402 grow a cluster from 1 node
 	// very difficult, since each new node on its own
@@ -4244,7 +4244,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 			// save it until we do get a leader?
 			s.ticketsAwaitingLeader[tkt.TicketID] = tkt
 			//s.Waiting[tkt.TicketID] = tkt
-			//vv("%v no leader yet, saving ticket until then: '%v'", s.me(), tkt)
+			vv("%v no leader yet, saving ticket until then: '%v'", s.me(), tkt.Short())
 			tkt.Stage += fmt.Sprintf(":redirectToLeader(true,not_leader)_from_%v", fileLine(2))
 			return true
 		}
@@ -4258,7 +4258,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 			tkt.AddPeerName != "" &&
 			tkt.AddPeerName != s.name {
 			//addOther = true
-			xtra = fmt.Sprintf(" MEMBERSHIP_SET_UPDATE tkt.AddPeerName='%v'. To prevent a node from adding a dead neighbor (the drowned sailor scenario, page 22, The Part-Time Parliament) by mistake, we require additions to leaderless clusters to come from self-add only. See also bootstrappedOrForcedMembership() circa tube.go:15131. This error from redirectToLeader() circa %v", tkt.AddPeerName, fileLine(1))
+			xtra = fmt.Sprintf(" MEMBERSHIP_SET_UPDATE tkt.AddPeerName='%v'. To prevent a node from adding a dead neighbor (the drowned sailor scenario, page 22, The Part-Time Parliament) by mistake, we require additions to leaderless clusters to come from self-add only. See also bootstrappedOrForcedMembership() circa tube.go:15131. This error from redirectToLeader() circa %v. Update: the tubeadd -f forcedNodeAddition can be used as a last resort, but risks membership corruption.", tkt.AddPeerName, fileLine(1))
 		}
 		tkt.Err = fmt.Errorf("ahem. no leader known to me (node '%v'). stashForLeader is false.%v", s.name, xtra)
 
@@ -4294,7 +4294,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 	if tkt.FromID == s.PeerID {
 		//vv("%v ticket from ourself, we are not leader (%v), tkt: '%v'", s.me(), alias(s.leaderID), tkt)
 	}
-	vv("%v in redirectToLeader (we are %v): will send to: s.leaderName = '%v' the tkt='%v'", s.name, s.role, s.leaderName, tkt.Short())
+	//vv("%v in redirectToLeader (we are %v): will send to: s.leaderName = '%v' the tkt='%v'", s.name, s.role, s.leaderName, tkt.Short())
 
 	// In redirectToLeader() bool here.
 	// Per Ch 4 on config changes, the leader might not
@@ -13777,7 +13777,7 @@ func (s *TubeNode) handleNewSessionRequestTicket(tkt *Ticket) {
 			return // bail out, error happened.
 		}
 
-		vv("%v adding to WaitingAtFollow, newSessionRequestCh: '%v'", s.me(), tkt)
+		//vv("%v adding to WaitingAtFollow, newSessionRequestCh: '%v'", s.me(), tkt.Short())
 		tkt.Stage += ":after_redirectToLeader_add_WaitingAtFollow"
 
 		prior, already := s.WaitingAtFollow.get2(tkt.TicketID)
