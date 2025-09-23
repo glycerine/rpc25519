@@ -256,9 +256,14 @@ func main() {
 	leaderURL, leaderName, _, reallyLeader := node.HelperFindLeader(cfg, cmdCfg.ContactName, requireOnlyContact)
 	_ = reallyLeader // leaderName will be empty so maybe not needed?
 
-	if leaderName == cfg.MyName {
+	switch {
+	case leaderName == cfg.MyName && reallyLeader:
 		vv("%v wow: we are local peer and leader. don't make a socket/circuit to talk to ourselves... reallyLeader='%v'", cfg.MyName, reallyLeader)
-	} else {
+	case leaderName == "" || !reallyLeader:
+		vv("%v: empty leaderName('%v') OR !reallyLeader(%v), just let Start() loop run", cfg.MyName, leaderName, reallyLeader)
+
+	default:
+		vv("%v non-empty leaderName='%v' reallyLeader='%v'", cfg.MyName, leaderName, reallyLeader)
 
 		baseServerHostPort := node.BaseServerHostPort()
 		errWriteDur := time.Second * 10

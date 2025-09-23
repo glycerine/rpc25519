@@ -47,6 +47,17 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 	ctx := context.Background()
 
 	selfSurelyNotLeader := false
+
+	defer func() {
+		if lastLeaderName == node.name && selfSurelyNotLeader {
+			// try not to mislead caller into thinking they
+			// themselves are leader when they are not.
+			lastLeaderName = ""
+			lastLeaderURL = ""
+			reallyLeader = false
+		}
+	}()
+
 	var insps []*Inspection
 	for name, addr := range cfg.Node2Addr {
 		url := FixAddrPrefix(addr)
@@ -62,6 +73,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 			vv("%v self inspection gave: leaderName = '%v'", node.name, leaderName)
 			if leaderName == "" {
 				selfSurelyNotLeader = true
+				vv("%v self insp says empty leaderName so setting selfSurelyNotLeader=true", node.name)
 			}
 		} else {
 			ctx5sec, canc5 := context.WithTimeout(ctx, 5*time.Second)
@@ -76,13 +88,15 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 				}
 				continue
 			}
-			if err != nil {
-				//pp("skip '%v' b/c err = '%v'", leaderName, err)
-				continue
-			}
 		}
+		if err != nil {
+			vv("skip '%v' b/c err = '%v'", name, err)
+			continue
+		}
+		// INVAR: err == nil
+
 		if leaderName != "" {
-			// how the heck???: node_0: candidate leader = 'node_0'
+			// how can node_0: candidate leader = 'node_0'?
 			// well, node_2 thinks that node_0 is the leader,
 			// since it is configured as the default leader.
 			// We need to only return leader we have gotten AE from,
@@ -114,7 +128,7 @@ func (node *TubeNode) HelperFindLeader(cfg *TubeConfig, contactName string, requ
 	// put together a transitive set of known/connected nodes...
 	xtra := make(map[string]string)
 	for _, ins := range insps {
-		for name, url := range ins.CktAll {
+		for name, url := range ins.CktAllByName {
 			if name == node.name {
 				continue // skip self, already done above.
 			}
