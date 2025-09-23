@@ -271,7 +271,5 @@ func GetExternalAddr(useQUIC bool, hint string) string {
 		myHost = hn // preserve specified IP
 	}
 	hostport := net.JoinHostPort(myHost, port)
-	//netAddr := u.Scheme + "://" + hostport
-	//return netAddr
 	return hostport
 }
