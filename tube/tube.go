@@ -547,8 +547,17 @@ type TubeConfig struct {
 
 	SkipNoop0 bool `zid:"19"`
 
-	// the tube -zap command line option to
+	// the 'tube -zap' command line option to
 	// clear the state.MC on startup.
+	// It is unlikely that you will want
+	// to actually use ZapMC in a config
+	// file as a permanent or regular
+	// thing -- it is meant for a rare rescue
+	// situation to stand up again a
+	// cluster that has gotten wedged because
+	// it lost quorum. The 'tube -zap' command line
+	// passes it ephemerally to the tube
+	// process on startup using this setting.
 	ZapMC bool `zid:"20"`
 
 	// for internal failure recovery testing,
