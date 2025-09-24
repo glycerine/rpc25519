@@ -4210,35 +4210,35 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 		s.leaderURL = ""
 	}
 
-	// stashForLeader = false will be much easier
+	// stashForLeader = false is easier
 	// to reason about, since tup hangs plus ctrl-c do not result
 	// in later addition of members once a leader is found.
+	// That can be surprising(!) It is a result of
+	// the awaiting leader ticket queue, which prevents
+	// a bunch of logical races when trying to
+	// build up a cluster, for instance in the 402/403 tests.
+	//
 	// To accomodate 402 and 403 membership_tests, we use
 	// the errWriteDur in the AddPeer call to decide how
 	// long to wait for a leader. If 0 then deadline will
-	// be zero (as in 402/403 membership_test.go;
-	// but not for command line clients). The tests
-	// uses stashForLeader true as they traditionally
-	// did, and the tubeadd CLI eagerly errors out
-	// because it does use a deadline... which seems
-	// backwards from our original thought, but
-	// it works; at least for now:
-	// all green tests and the cli tubeadd
-	// responds immediately if no leader available.
-	// In the future maybe we want to reverse this,
-	// and have the CLI specify no deadline and
-	// the tests ask for a deadline to get leader
-	// stashing, but we re-use the errWriteDur
-	// in 3 places for tubeadd CLI processing,
-	// so we would need another parameter, ugh.
-	stashForLeader := !tkt.WaitLeaderDeadline.IsZero()
-	//vv("%v stashForLeader is %v; tkt.WaitLeaderDeadline='%v' (in %v); tkt4=%v", s.name, stashForLeader, nice9(tkt.WaitLeaderDeadline), time.Until(tkt.WaitLeaderDeadline), tkt.TicketID[:4])
-	// three red tests under stashForLeader = false that need fixing:
+	// be zero, and we won't stash away the ticket
+	// waiting for a leader but rather eagerly error out.
+	//
+	// The 059 compact_test and 402/403
+	// membership_test.go use 2 seconds, so
+	// they do stash, as traditionally was done.
+	// The command line clients tubels/rm/add use zero,
+	// so they eagerly error.
+	//   ... the critical ones that needed fixing under
+	//       stashForLeader = false (they now stash with writeErrDur > 0)
 	// red 059 compact_test.go
 	// red Test402_build_up_a_cluster_from_one_node membership_test.go
 	// read Test403_reduce_a_cluster_down_to_one_node
 
-	//const stashForLeader = true // needed atm for green tests.
+	stashForLeader := !tkt.WaitLeaderDeadline.IsZero()
+
+	//vv("%v stashForLeader is %v; tkt.WaitLeaderDeadline='%v' (in %v); tkt4=%v", s.name, stashForLeader, nice9(tkt.WaitLeaderDeadline), time.Until(tkt.WaitLeaderDeadline), tkt.TicketID[:4])
+
 	if s.leaderID == "" {
 		if stashForLeader {
 			// save it until we do get a leader?
@@ -4258,7 +4258,7 @@ func (s *TubeNode) redirectToLeader(tkt *Ticket) (redirected bool) {
 			tkt.AddPeerName != "" &&
 			tkt.AddPeerName != s.name {
 			//addOther = true
-			xtra = fmt.Sprintf(" MEMBERSHIP_SET_UPDATE tkt.AddPeerName='%v'. To prevent a node from adding a dead neighbor (the drowned sailor scenario, page 22, The Part-Time Parliament) by mistake, we require additions to leaderless clusters to come from self-add only. See also bootstrappedOrForcedMembership() circa tube.go:15131. This error from redirectToLeader() circa %v. Update: the tubeadd -f forcedNodeAddition can be used as a last resort, but risks membership corruption.", tkt.AddPeerName, fileLine(1))
+			xtra = fmt.Sprintf(" MEMBERSHIP_SET_UPDATE tkt.AddPeerName='%v'. To prevent a node from adding a dead neighbor (the drowned sailor scenario, page 22, The Part-Time Parliament) by mistake, we require additions to leaderless clusters to come from self-add only. See also bootstrappedOrForcedMembership() circa tube.go:15131. This error from redirectToLeader() circa %v. Update: the tubeadd -f forcedNodeAddition can be used as a last resort, but risks membership corruption...", tkt.AddPeerName, fileLine(1))
 		}
 		tkt.Err = fmt.Errorf("ahem. no leader known to me (node '%v'). stashForLeader is false.%v", s.name, xtra)
 
@@ -12565,6 +12565,8 @@ func (a *MemberConfig) SamePeers(b *MemberConfig) bool {
 }
 
 // tkt has Err set. At end close the tkt.Done
+// can/should we replace use of this with
+// respondToClientTicketApplied(tkt)?
 func (s *TubeNode) replyToForwardedTicketWithError(tkt *Ticket) {
 	if tkt.Done != nil {
 		defer tkt.Done.Close()
