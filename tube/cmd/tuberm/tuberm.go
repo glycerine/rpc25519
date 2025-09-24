@@ -176,12 +176,31 @@ func main() {
 	pp("tuberm is doing RemovePeerIDFromCluster using leaderName = '%v'; leaderURL='%v'", leaderName, leaderURL)
 
 	if cmdCfg.WipeName != "" {
-		err = node.InjectEmptyMC(ctx, leaderURL, cmdCfg.WipeName)
+		target := cmdCfg.WipeName
+		vv("target = '%v'", target)
+		var url string
+		ok = false
+		if insp != nil {
+			url, ok = insp.CktAllByName[target]
+			vv("ok=%v, url = '%v'", ok, url)
+		} else {
+			vv("no insp available")
+		}
+		if !ok {
+			addr2, ok2 := cfg.Node2Addr[target]
+			if ok2 && addr2 != "" {
+				url = tube.FixAddrPrefix(addr2)
+			} else {
+				url = leaderURL // less likely to work.
+			}
+		}
+		vv("for target '%v', using url = '%v'", target, url)
+		err = node.InjectEmptyMC(ctx, url, target)
 		if err != nil {
-			alwaysPrintf("error when installing empty MC on '%v': %v", leaderURL, err)
+			alwaysPrintf("error when installing empty MC on '%v': %v", target, url, err)
 			os.Exit(1)
 		}
-		alwaysPrintf("installed empty MC on '%v'.", leaderURL)
+		alwaysPrintf("installed empty MC on '%v'/'%v'.", target, url)
 		os.Exit(0)
 	}
 
@@ -258,9 +277,9 @@ func main() {
 		} else {
 			// tuberm
 			if insp2.MC.PeerNames.Len() == 0 {
-				fmt.Printf("membership after removing '%v': empty.\n", target)
+				fmt.Printf("\nmembership after removing '%v': empty.\n", target)
 			} else {
-				fmt.Printf("membership after removing '%v': (%v leader)\n", target, leaderName)
+				fmt.Printf("\nmembership after removing '%v': (%v leader)\n", target, leaderName)
 				for name, det := range insp2.MC.PeerNames.All() {
 					fmt.Printf("  %v:   %v\n", name, det.URL)
 				}

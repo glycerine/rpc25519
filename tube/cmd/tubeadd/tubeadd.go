@@ -58,6 +58,49 @@ func main() {
 	if cmdCfg.Help {
 		fmt.Fprintf(os.Stderr, "tubeadd help:\n")
 		fs.PrintDefaults()
+		fmt.Printf(`
+On getting wedged
+=================
+
+In the wedged scenario created by losing quorum:
+
+1. bring up 3 nodes (member: 0,1,2)
+
+2. if we tuberm node_0, to remove node 0
+  into shadow (preparing for take it down...);
+  then say node 1 becomes leader. (members: 1,2)
+
+3. if node 2 accidentally dies (or is killed by
+mistaked) at this point, we have quorum of both
+(members: 1,2) but no way to meet it.
+
+=> we are wedged. We have lost quorum.
+
+We cannot bring back in node 0 to cover for
+the node 2 failure, despite it being still available/
+viable because quorum (2 of 2) needs
+node 2, which has died.
+
+Solution: tubeadd -f node_0 -c node_1
+     AND: tubeadd -f node_0 -c node_0
+
+which says: force 1 and 0 to add node_0 to the membership;
+ignoring the qourum rules that usually forbid this.
+This will enable an election to start.
+
+It is a little risky because the version of the
+membership could possible get desynced, but
+usually it will get the cluster back
+online quickly.
+
+The nuclear option fallback is to use tuberm -e on
+each node in turn to nuke (erase) the membership on
+each and every node in turn, and then tubeadd
+them back one by one. Again risky if
+the versions desync. Similarly, rebooting with
+tube -zap can also be used to clear
+out the node's membership if it comes to that.
+`)
 		return
 	}
 	if cmdCfg.Verbose {
@@ -202,9 +245,9 @@ func main() {
 		memlistAfter.MC.PeerNames == nil ||
 		memlistAfter.MC.PeerNames.Len() == 0 {
 
-		fmt.Printf("empty or nil membership from '%v'\n", leaderName)
+		fmt.Printf("\nempty or nil membership from '%v'\n", leaderName)
 	} else {
-		fmt.Printf("membership after adding '%v': (%v leader)\n", target, leaderName)
+		fmt.Printf("\nmembership after adding '%v': (%v leader)\n", target, leaderName)
 		for name, det := range memlistAfter.MC.PeerNames.All() {
 			fmt.Printf("  %v:   %v\n", name, det.URL)
 		}

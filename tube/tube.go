@@ -547,6 +547,10 @@ type TubeConfig struct {
 
 	SkipNoop0 bool `zid:"19"`
 
+	// the tube -zap command line option to
+	// clear the state.MC on startup.
+	ZapMC bool `zid:"20"`
+
 	// for internal failure recovery testing,
 	// e.g. to drop or ignore messages.
 	// The int key hould correspond to the test number,
@@ -747,6 +751,12 @@ func (s *TubeNode) Start(
 	panicOn(err)
 	if err != nil {
 		return
+	}
+	if s.cfg.ZapMC {
+		alwaysPrintf("%v -zap of MC requested, about to clear restored MC which is currently: '%v' and will clear this set of ShadowReplicas: '%v'", s.me(), s.state.MC, s.state.ShadowReplicas)
+		s.state.MC = s.NewMemberConfig("ZapMC")
+		s.state.ShadowReplicas = s.NewMemberConfig("ZapMC")
+		s.saver.save(s.state)
 	}
 	//recoveredDiskMC := s.state.MC
 
@@ -1459,16 +1469,7 @@ s.nextElection='%v' < shouldHaveElectTO '%v'`,
 			switch frag.FragOp {
 
 			case InstallEmptyMC:
-				target, ok := frag.GetUserArg("target")
-				if ok && target == s.name {
-					alwaysPrintf("installing empty MC per request from '%v'", frag.FromPeerName)
-					shim := s.state.MC.Shim
-					vers := s.state.MC.ConfigVersion
-					s.state.MC = s.NewMemberConfig("InstallEmptyMC")
-					s.state.MC.ConfigVersion = vers + 1
-					s.state.MC.Shim = shim + 1
-					s.saver.save(s.state)
-				}
+				s.handleInstallEmptyMC(frag, fragCkt.ckt)
 
 			case RequestStateSnapshot:
 				//vv("%v sees frag.FragOp RequestStateSnapshot", s.name)
@@ -15711,5 +15712,20 @@ func (s *TubeNode) errorOutAwaitingLeaderTooLongTickets() {
 	// just to be safe.
 	for _, ticketID := range goner {
 		delete(s.ticketsAwaitingLeader, ticketID)
+	}
+}
+
+func (s *TubeNode) handleInstallEmptyMC(frag *rpc.Fragment, ckt *rpc.Circuit) {
+	target, ok := frag.GetUserArg("target")
+	if ok && target == s.name {
+		alwaysPrintf("installing empty MC per request from '%v'", frag.FromPeerName)
+		shim := s.state.MC.Shim
+		vers := s.state.MC.ConfigVersion
+		s.state.MC = s.NewMemberConfig("InstallEmptyMC")
+		s.state.MC.ConfigVersion = vers + 1
+		s.state.MC.Shim = shim + 1
+		s.saver.save(s.state)
+	} else {
+		alwaysPrintf("%v not for us! ignoring empty MC per request from '%v'", s.name, frag.FromPeerName)
 	}
 }
