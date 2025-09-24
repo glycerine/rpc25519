@@ -71,7 +71,7 @@ In the wedged scenario created by losing quorum:
   then say node 1 becomes leader. (members: 1,2)
 
 3. if node 2 accidentally dies (or is killed by
-mistaked) at this point, we have quorum of both
+mistake) at this point, we currently have quorum of both
 (members: 1,2) but no way to meet it.
 
 => we are wedged. We have lost quorum.
