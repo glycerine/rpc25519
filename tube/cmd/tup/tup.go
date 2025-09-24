@@ -113,101 +113,16 @@ func main() {
 	panicOn(err)
 	defer node.Close()
 
-	// TODO: use HelperFindLeader.
+	// Use HelperFindLeader for better chance of locating a leader
 
-	var leaderURL string
-	greet := cmdCfg.ContactName
-	if greet == "" {
-		greet = cfg.InitialLeaderName
-	}
-	addr, ok := cfg.Node2Addr[greet]
-	if greet == "" || !ok {
-		fmt.Fprintf(os.Stderr, "error: giving up, as no address! gotta have cfg.InitialLeaderName or -c name of node to contact (we use the names listed in the config file '%v' under Node2Addr).\n", pathCfg)
-		os.Exit(1)
-	} else {
-		leaderURL = tube.FixAddrPrefix(addr)
-		if cmdCfg.ContactName == "" {
-			pp("by default we contact cfg.InitialLeaderName='%v'; addr='%v' -> leaderURL = '%v'", cfg.InitialLeaderName, addr, leaderURL)
-		} else {
-			pp("requested cmdCfg.ContactName='%v' maps to addr='%v' -> URL = '%v'", cmdCfg.ContactName, addr, leaderURL)
-		}
-	}
-
-	noGood := make(map[string]bool) // list those we tried and rejected
-	noGood[cfg.MyName] = true       // skip self
 	ctx := context.Background()
-	var onlyPossibleAddr string
-	_ = onlyPossibleAddr
-	onlyPossibleAddr, err = node.UseLeaderURL(ctx, leaderURL)
-	if err != nil {
-		noGood[leaderURL] = true
-		// try others
-		for name, addr := range cfg.Node2Addr {
-			if name == greet || name == cfg.MyName {
-				noGood[name] = true
-				continue
-			}
-			pp("instead trying addr='%v'", addr)
-			leaderURL = tube.FixAddrPrefix(addr)
-			_, err = node.UseLeaderURL(ctx, leaderURL)
-			if err == nil {
-				break
-			}
-			noGood[name] = true
-		}
-		panicOn(err)
-	}
-	// note we can still get stuck talking to a
-	// node that has been removed from current membership.
-	// Thus we try again below, consulting the noGood map.
-	//vv("back from node.UseLeaderURL(leaderURL='%v')", leaderURL)
-
-	newestMemberConfig, insp, actualLeaderURL, leaderName, onlyPossibleAddr, err := node.GetPeerListFrom(ctx, leaderURL, greet)
+	const requireOnlyContact = false
+	leaderURL, leaderName, _, reallyLeader, _, err := node.HelperFindLeader(cfg, cmdCfg.ContactName, requireOnlyContact)
 	panicOn(err)
-	_ = insp
-	_ = newestMemberConfig
-	//vv("GetPeerListFrom(leaderURL='%v') -> newestMemberConfig = '%v'", leaderURL, newestMemberConfig)
-	pp("leaderName = '%v'; GetPeerListFrom(leaderURL='%v') -> actualLeaderURL = '%v'", leaderName, leaderURL, actualLeaderURL)
-	if actualLeaderURL != "" && actualLeaderURL != leaderURL {
-		pp("use actual='%v' rather than orig='%v'", actualLeaderURL, leaderURL)
-		leaderURL = actualLeaderURL
+	if !reallyLeader {
+		panic("could not find leader")
 	}
 
-	if actualLeaderURL == "" {
-		// keep searching! that was a dead end.
-		// try others, again.
-
-		var name, addr string
-		for name, addr = range cfg.Node2Addr {
-			if noGood[name] {
-				continue
-			}
-			pp("instead trying addr='%v'", addr)
-			leaderURL = tube.FixAddrPrefix(addr)
-			greet = name
-			_, err = node.UseLeaderURL(ctx, leaderURL)
-			if err == nil {
-				break
-			}
-			noGood[name] = true
-		}
-		if err != nil {
-			alwaysPrintf("could not contact anyone. last attempt to '%v' (addr: '%v') => err='%v'\n", name, addr, err)
-			os.Exit(1)
-		}
-	}
-
-	// repeat this part from above, now the we have actual leader connection.
-	newestMemberConfig, insp, actualLeaderURL, leaderName, onlyPossibleAddr, err = node.GetPeerListFrom(ctx, leaderURL, greet)
-	panicOn(err)
-	_ = insp
-	_ = newestMemberConfig
-	//pp("GetPeerListFrom(leaderURL='%v') -> newestMemberConfig = '%v'", leaderURL, newestMemberConfig)
-	pp("leaderName = '%v'; GetPeerListFrom(leaderURL='%v') -> actualLeaderURL = '%v'", leaderName, leaderURL, actualLeaderURL)
-	if actualLeaderURL != "" && actualLeaderURL != leaderURL {
-		pp("use actual='%v' rather than orig='%v'", actualLeaderURL, leaderURL)
-		leaderURL = actualLeaderURL
-	}
 	// when no leader, we hang, our tkt in awaitingLeader.
 	pp("%v: calling node.CreateNewSession(leaderURL = '%v')", cfg.MyName, leaderURL)
 	sess, err := node.CreateNewSession(ctx, leaderURL)
