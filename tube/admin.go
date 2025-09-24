@@ -108,6 +108,7 @@ func (s *TubeConfig) SexpString(ps *zygo.PrintState) (r string) {
     NoLogCompaction: %v,
           SkipNoop0: %v,
      TCPonly_no_TLS: %v,
+              ZapMC: %v,
        HeartbeatDur: (dur %q),
      MinElectionDur: (dur %q),
         ClusterSize: %v,
@@ -128,6 +129,7 @@ NoBackgroundConnect: %v,
 		s.NoLogCompaction,
 		s.SkipNoop0,
 		s.TCPonly_no_TLS,
+		s.ZapMC,
 		s.HeartbeatDur,
 		s.MinElectionDur,
 		s.ClusterSize,
@@ -175,6 +177,9 @@ func (s *TubeConfig) ShortSexpString(ps *zygo.PrintState) (r string) {
 
 	if s.TCPonly_no_TLS {
 		mainParts = append(mainParts, fmt.Sprintf("     TCPonly_no_TLS: %v", s.TCPonly_no_TLS))
+	}
+	if s.ZapMC {
+		mainParts = append(mainParts, fmt.Sprintf("              ZapMC: %v", s.ZapMC))
 	}
 	if s.HeartbeatDur != 0 {
 		mainParts = append(mainParts, fmt.Sprintf("       HeartbeatDur: (dur %q)", s.HeartbeatDur))

@@ -71,6 +71,7 @@ func Test060_load_config(t *testing.T) {
     NoLogCompaction: true,
           SkipNoop0: true,
      TCPonly_no_TLS: true,
+              ZapMC: true,
        HeartbeatDur: (dur "995ms"),
      MinElectionDur: (dur "11s"),
         ClusterSize: 7,

@@ -54,6 +54,7 @@ type ConfigTubeCli struct {
 	Memprofile string `json:"memProfile" zid:"38"` // -memprofile, write memory profile to this file
 	WebProfile bool
 	Verbose    bool // -v verbose: show config/connection attempts.
+	Zap        bool
 }
 
 func (c *ConfigTubeCli) SetFlags(fs *flag.FlagSet) {
@@ -63,6 +64,7 @@ func (c *ConfigTubeCli) SetFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.ShowStateArchive, "a", "", "display this state archive path")
 	fs.BoolVar(&c.FullConfig, "full", false, "show full config -- all fields even defaults")
 	fs.BoolVar(&c.Help, "h", false, "show this help")
+	fs.BoolVar(&c.Zap, "zap", false, "zap the MC and ShadowReplicas on startup, clearing and zero-ing out the current membership configuration set.")
 
 	fs.BoolVar(&c.WebProfile, "webprofile", false, "start web pprof profiling on localhost:7070")
 
@@ -142,6 +144,9 @@ func main() {
 	}
 	if cmdCfg.ClientOnly {
 		cfg.PeerServiceName = tube.TUBE_CLIENT
+	}
+	if cmdCfg.Zap {
+		cfg.ZapMC = true
 	}
 
 	// from :7000 -> 100.x.y.z:7000 for example.
@@ -441,6 +446,11 @@ func showArchive(path string) (exitCode int) {
 }
 
 func showBinaryVersion(program string) {
+	// nb always going to have +dirty
+	// in the version unless we bother
+	// to get
+	// git status --porcelain -unormal
+	// to give an empty response.
 
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
