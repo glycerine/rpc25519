@@ -6445,7 +6445,7 @@ func (z *Inspection) DecodeMsg(dc *msgp.Reader) (err error) {
 
 	var field []byte
 	_ = field
-	const maxFields98zgensym_8df0a91a1f250219_99 = 24
+	const maxFields98zgensym_8df0a91a1f250219_99 = 25
 
 	// -- templateDecodeMsg starts here--
 	var totalEncodedFields98zgensym_8df0a91a1f250219_99 uint32
@@ -6950,6 +6950,12 @@ doneWithStruct98zgensym_8df0a91a1f250219_99:
 				}
 				z.Known[zgensym_8df0a91a1f250219_96] = zgensym_8df0a91a1f250219_97
 			}
+		case "CurrentLeaderFirstObservedTm_zid23_tim":
+			found98zgensym_8df0a91a1f250219_99[23] = true
+			z.CurrentLeaderFirstObservedTm, err = dc.ReadTime()
+			if err != nil {
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -6973,16 +6979,16 @@ doneWithStruct98zgensym_8df0a91a1f250219_99:
 }
 
 // fields of Inspection
-var decodeMsgFieldOrder98zgensym_8df0a91a1f250219_99 = []string{"CktReplica_zid00_map", "CktReplicaByName_zid01_map", "CktAll_zid02_map", "CktAllByName_zid03_map", "Peers_zid04_map", "WaitingAtLeader_zid05_map", "WaitingAtFollow_zid06_map", "Role_zid07_rct", "State_zid08_ptr", "CurrentLeaderName_zid09_str", "CurrentLeaderID_zid10_str", "CurrentLeaderURL_zid11_str", "ElectionCount_zid12_int", "LastLeaderActiveStepDown_zid13_tim", "Cfg_zid14_rct", "MC_zid15_ptr", "ResponderPeerID_zid16_str", "ResponderPeerURL_zid17_str", "ResponderName_zid18_str", "LastLogIndex_zid19_i64", "LastLogTerm_zid20_i64", "ShadowReplicas_zid21_ptr", "Known_zid22_map", ""}
+var decodeMsgFieldOrder98zgensym_8df0a91a1f250219_99 = []string{"CktReplica_zid00_map", "CktReplicaByName_zid01_map", "CktAll_zid02_map", "CktAllByName_zid03_map", "Peers_zid04_map", "WaitingAtLeader_zid05_map", "WaitingAtFollow_zid06_map", "Role_zid07_rct", "State_zid08_ptr", "CurrentLeaderName_zid09_str", "CurrentLeaderID_zid10_str", "CurrentLeaderURL_zid11_str", "ElectionCount_zid12_int", "LastLeaderActiveStepDown_zid13_tim", "Cfg_zid14_rct", "MC_zid15_ptr", "ResponderPeerID_zid16_str", "ResponderPeerURL_zid17_str", "ResponderName_zid18_str", "LastLogIndex_zid19_i64", "LastLogTerm_zid20_i64", "ShadowReplicas_zid21_ptr", "Known_zid22_map", "CurrentLeaderFirstObservedTm_zid23_tim", ""}
 
-var decodeMsgFieldSkip98zgensym_8df0a91a1f250219_99 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
+var decodeMsgFieldSkip98zgensym_8df0a91a1f250219_99 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
 
 // fieldsNotEmpty supports omitempty tags
 func (z *Inspection) fieldsNotEmpty(isempty []bool) uint32 {
 	if len(isempty) == 0 {
-		return 23
+		return 24
 	}
-	var fieldsInUse uint32 = 23
+	var fieldsInUse uint32 = 24
 	isempty[0] = (len(z.CktReplica) == 0) // string, omitempty
 	if isempty[0] {
 		fieldsInUse--
@@ -7075,6 +7081,10 @@ func (z *Inspection) fieldsNotEmpty(isempty []bool) uint32 {
 	if isempty[22] {
 		fieldsInUse--
 	}
+	isempty[23] = (z.CurrentLeaderFirstObservedTm.IsZero()) // time.Time, omitempty
+	if isempty[23] {
+		fieldsInUse--
+	}
 
 	return fieldsInUse
 }
@@ -7086,7 +7096,7 @@ func (z *Inspection) EncodeMsg(en *msgp.Writer) (err error) {
 	}
 
 	// honor the omitempty tags
-	var empty_zgensym_8df0a91a1f250219_109 [24]bool
+	var empty_zgensym_8df0a91a1f250219_109 [25]bool
 	fieldsInUse_zgensym_8df0a91a1f250219_110 := z.fieldsNotEmpty(empty_zgensym_8df0a91a1f250219_109[:])
 
 	// map header
@@ -7515,6 +7525,18 @@ func (z *Inspection) EncodeMsg(en *msgp.Writer) (err error) {
 		}
 	}
 
+	if !empty_zgensym_8df0a91a1f250219_109[23] {
+		// write "CurrentLeaderFirstObservedTm_zid23_tim"
+		err = en.Append(0xd9, 0x26, 0x43, 0x75, 0x72, 0x72, 0x65, 0x6e, 0x74, 0x4c, 0x65, 0x61, 0x64, 0x65, 0x72, 0x46, 0x69, 0x72, 0x73, 0x74, 0x4f, 0x62, 0x73, 0x65, 0x72, 0x76, 0x65, 0x64, 0x54, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x32, 0x33, 0x5f, 0x74, 0x69, 0x6d)
+		if err != nil {
+			return err
+		}
+		err = en.WriteTime(z.CurrentLeaderFirstObservedTm)
+		if err != nil {
+			return
+		}
+	}
+
 	return
 }
 
@@ -7527,7 +7549,7 @@ func (z *Inspection) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 
 	// honor the omitempty tags
-	var empty [24]bool
+	var empty [25]bool
 	fieldsInUse := z.fieldsNotEmpty(empty[:])
 	o = msgp.AppendMapHeader(o, fieldsInUse)
 
@@ -7770,6 +7792,12 @@ func (z *Inspection) MarshalMsg(b []byte) (o []byte, err error) {
 		}
 	}
 
+	if !empty[23] {
+		// string "CurrentLeaderFirstObservedTm_zid23_tim"
+		o = append(o, 0xd9, 0x26, 0x43, 0x75, 0x72, 0x72, 0x65, 0x6e, 0x74, 0x4c, 0x65, 0x61, 0x64, 0x65, 0x72, 0x46, 0x69, 0x72, 0x73, 0x74, 0x4f, 0x62, 0x73, 0x65, 0x72, 0x76, 0x65, 0x64, 0x54, 0x6d, 0x5f, 0x7a, 0x69, 0x64, 0x32, 0x33, 0x5f, 0x74, 0x69, 0x6d)
+		o = msgp.AppendTime(o, z.CurrentLeaderFirstObservedTm)
+	}
+
 	return
 }
 
@@ -7788,7 +7816,7 @@ func (z *Inspection) UnmarshalMsgWithCfg(bts []byte, cfg *msgp.RuntimeConfig) (o
 
 	var field []byte
 	_ = field
-	const maxFields111zgensym_8df0a91a1f250219_112 = 24
+	const maxFields111zgensym_8df0a91a1f250219_112 = 25
 
 	// -- templateUnmarshalMsg starts here--
 	var totalEncodedFields111zgensym_8df0a91a1f250219_112 uint32
@@ -8396,6 +8424,13 @@ doneWithStruct111zgensym_8df0a91a1f250219_112:
 					z.Known[zgensym_8df0a91a1f250219_96] = zgensym_8df0a91a1f250219_97
 				}
 			}
+		case "CurrentLeaderFirstObservedTm_zid23_tim":
+			found111zgensym_8df0a91a1f250219_112[23] = true
+			z.CurrentLeaderFirstObservedTm, bts, err = nbs.ReadTimeBytes(bts)
+
+			if err != nil {
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -8419,9 +8454,9 @@ doneWithStruct111zgensym_8df0a91a1f250219_112:
 }
 
 // fields of Inspection
-var unmarshalMsgFieldOrder111zgensym_8df0a91a1f250219_112 = []string{"CktReplica_zid00_map", "CktReplicaByName_zid01_map", "CktAll_zid02_map", "CktAllByName_zid03_map", "Peers_zid04_map", "WaitingAtLeader_zid05_map", "WaitingAtFollow_zid06_map", "Role_zid07_rct", "State_zid08_ptr", "CurrentLeaderName_zid09_str", "CurrentLeaderID_zid10_str", "CurrentLeaderURL_zid11_str", "ElectionCount_zid12_int", "LastLeaderActiveStepDown_zid13_tim", "Cfg_zid14_rct", "MC_zid15_ptr", "ResponderPeerID_zid16_str", "ResponderPeerURL_zid17_str", "ResponderName_zid18_str", "LastLogIndex_zid19_i64", "LastLogTerm_zid20_i64", "ShadowReplicas_zid21_ptr", "Known_zid22_map", ""}
+var unmarshalMsgFieldOrder111zgensym_8df0a91a1f250219_112 = []string{"CktReplica_zid00_map", "CktReplicaByName_zid01_map", "CktAll_zid02_map", "CktAllByName_zid03_map", "Peers_zid04_map", "WaitingAtLeader_zid05_map", "WaitingAtFollow_zid06_map", "Role_zid07_rct", "State_zid08_ptr", "CurrentLeaderName_zid09_str", "CurrentLeaderID_zid10_str", "CurrentLeaderURL_zid11_str", "ElectionCount_zid12_int", "LastLeaderActiveStepDown_zid13_tim", "Cfg_zid14_rct", "MC_zid15_ptr", "ResponderPeerID_zid16_str", "ResponderPeerURL_zid17_str", "ResponderName_zid18_str", "LastLogIndex_zid19_i64", "LastLogTerm_zid20_i64", "ShadowReplicas_zid21_ptr", "Known_zid22_map", "CurrentLeaderFirstObservedTm_zid23_tim", ""}
 
-var unmarshalMsgFieldSkip111zgensym_8df0a91a1f250219_112 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
+var unmarshalMsgFieldSkip111zgensym_8df0a91a1f250219_112 = []bool{false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, false, true}
 
 // Msgsize returns an upper bound estimate of the number of bytes occupied by the serialized message
 func (z *Inspection) Msgsize() (s int) {
@@ -8522,33 +8557,35 @@ func (z *Inspection) Msgsize() (s int) {
 			s += msgp.StringPrefixSize + len(zgensym_8df0a91a1f250219_96) + msgp.StringPrefixSize + len(zgensym_8df0a91a1f250219_97)
 		}
 	}
+	s += 40 + msgp.TimeSize
 	return
 }
 func (z *Inspection) Gstring() (r string) {
 	r = "&Inspection{\n"
-	r += fmt.Sprintf("              CktReplica: %v,\n", z.CktReplica)
-	r += fmt.Sprintf("        CktReplicaByName: %v,\n", z.CktReplicaByName)
-	r += fmt.Sprintf("                  CktAll: %v,\n", z.CktAll)
-	r += fmt.Sprintf("            CktAllByName: %v,\n", z.CktAllByName)
-	r += fmt.Sprintf("                   Peers: %v,\n", z.Peers)
-	r += fmt.Sprintf("         WaitingAtLeader: %v,\n", z.WaitingAtLeader)
-	r += fmt.Sprintf("         WaitingAtFollow: %v,\n", z.WaitingAtFollow)
-	r += fmt.Sprintf("                    Role: %v,\n", z.Role)
-	r += fmt.Sprintf("                   State: %v,\n", z.State)
-	r += fmt.Sprintf("       CurrentLeaderName: \"%v\",\n", z.CurrentLeaderName)
-	r += fmt.Sprintf("         CurrentLeaderID: \"%v\",\n", z.CurrentLeaderID)
-	r += fmt.Sprintf("        CurrentLeaderURL: \"%v\",\n", z.CurrentLeaderURL)
-	r += fmt.Sprintf("           ElectionCount: %v,\n", z.ElectionCount)
-	r += fmt.Sprintf("LastLeaderActiveStepDown: %v,\n", z.LastLeaderActiveStepDown)
-	r += fmt.Sprintf("                     Cfg: %v,\n", z.Cfg)
-	r += fmt.Sprintf("                      MC: %v,\n", z.MC)
-	r += fmt.Sprintf("         ResponderPeerID: \"%v\",\n", z.ResponderPeerID)
-	r += fmt.Sprintf("        ResponderPeerURL: \"%v\",\n", z.ResponderPeerURL)
-	r += fmt.Sprintf("           ResponderName: \"%v\",\n", z.ResponderName)
-	r += fmt.Sprintf("            LastLogIndex: %v,\n", z.LastLogIndex)
-	r += fmt.Sprintf("             LastLogTerm: %v,\n", z.LastLogTerm)
-	r += fmt.Sprintf("          ShadowReplicas: %v,\n", z.ShadowReplicas)
-	r += fmt.Sprintf("                   Known: %v,\n", z.Known)
+	r += fmt.Sprintf("                  CktReplica: %v,\n", z.CktReplica)
+	r += fmt.Sprintf("            CktReplicaByName: %v,\n", z.CktReplicaByName)
+	r += fmt.Sprintf("                      CktAll: %v,\n", z.CktAll)
+	r += fmt.Sprintf("                CktAllByName: %v,\n", z.CktAllByName)
+	r += fmt.Sprintf("                       Peers: %v,\n", z.Peers)
+	r += fmt.Sprintf("             WaitingAtLeader: %v,\n", z.WaitingAtLeader)
+	r += fmt.Sprintf("             WaitingAtFollow: %v,\n", z.WaitingAtFollow)
+	r += fmt.Sprintf("                        Role: %v,\n", z.Role)
+	r += fmt.Sprintf("                       State: %v,\n", z.State)
+	r += fmt.Sprintf("           CurrentLeaderName: \"%v\",\n", z.CurrentLeaderName)
+	r += fmt.Sprintf("             CurrentLeaderID: \"%v\",\n", z.CurrentLeaderID)
+	r += fmt.Sprintf("            CurrentLeaderURL: \"%v\",\n", z.CurrentLeaderURL)
+	r += fmt.Sprintf("               ElectionCount: %v,\n", z.ElectionCount)
+	r += fmt.Sprintf("    LastLeaderActiveStepDown: %v,\n", z.LastLeaderActiveStepDown)
+	r += fmt.Sprintf("                         Cfg: %v,\n", z.Cfg)
+	r += fmt.Sprintf("                          MC: %v,\n", z.MC)
+	r += fmt.Sprintf("             ResponderPeerID: \"%v\",\n", z.ResponderPeerID)
+	r += fmt.Sprintf("            ResponderPeerURL: \"%v\",\n", z.ResponderPeerURL)
+	r += fmt.Sprintf("               ResponderName: \"%v\",\n", z.ResponderName)
+	r += fmt.Sprintf("                LastLogIndex: %v,\n", z.LastLogIndex)
+	r += fmt.Sprintf("                 LastLogTerm: %v,\n", z.LastLogTerm)
+	r += fmt.Sprintf("              ShadowReplicas: %v,\n", z.ShadowReplicas)
+	r += fmt.Sprintf("                       Known: %v,\n", z.Known)
+	r += fmt.Sprintf("CurrentLeaderFirstObservedTm: %v,\n", z.CurrentLeaderFirstObservedTm)
 	r += "}\n"
 	return
 }

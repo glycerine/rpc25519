@@ -2531,6 +2531,10 @@ type TubeNode struct {
 	leaderFullPongPQ         *pongPQ
 	lastLeaderActiveStepDown time.Time
 
+	// update in handle AE when leader
+	// changes, try to detect flapping
+	currentLeaderFirstObservedTm time.Time
+
 	nextElection           time.Time
 	lastLegitAppendEntries time.Time
 
@@ -4020,6 +4024,7 @@ func (s *TubeNode) inspectHandler(ins *Inspection) {
 	ins.CurrentLeaderName = s.leaderName
 	ins.CurrentLeaderURL = s.leaderURL
 	ins.CurrentLeaderID = s.leaderID
+	ins.CurrentLeaderFirstObservedTm = s.currentLeaderFirstObservedTm
 
 	// don't report ourselves as leader unless
 	// we really are.
@@ -4399,6 +4404,8 @@ type Inspection struct {
 
 	ShadowReplicas *MemberConfig     `zid:"21"`
 	Known          map[string]string `zid:"22"`
+
+	CurrentLeaderFirstObservedTm time.Time `zid:"23"`
 
 	Tkthist []*Ticket `msg:"-"`
 
@@ -6712,6 +6719,11 @@ func (s *TubeNode) handleAppendEntries(ae *AppendEntries, ckt0 *rpc.Circuit) (nu
 		}
 	}
 
+	if ae.LeaderName != s.leaderName {
+		// try to detect flapping between 2
+		// different leaders under split brain.
+		s.currentLeaderFirstObservedTm = time.Now()
+	}
 	s.leaderName = ae.LeaderName
 	s.leaderID = ae.LeaderID
 	s.leaderURL = ae.LeaderURL
