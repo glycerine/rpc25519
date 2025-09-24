@@ -269,7 +269,16 @@ func main() {
 	const requireOnlyContact = false
 	leaderURL, leaderName, _, reallyLeader, contacted, err := node.HelperFindLeader(cfg, cmdCfg.ContactName, requireOnlyContact)
 	_ = reallyLeader // leaderName will be empty so maybe not needed?
-	panicOn(err)
+	if err != nil {
+		// this is fine... expected under example/remote
+		// "error: no leaders found and no cfg.InitialLeaderName; use -c to contact a specific node"
+		if strings.Contains(err.Error(), "no leaders found") {
+			// ignore it.
+			err = nil
+		} else {
+			panic(err)
+		}
+	}
 
 	fmt.Printf("contacted:\n")
 	for _, insp := range contacted {
