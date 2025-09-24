@@ -70,9 +70,12 @@ In the wedged scenario created by losing quorum:
   into shadow (preparing for take it down...);
   then say node 1 becomes leader. (members: 1,2)
 
-3. if node 2 accidentally dies (or is killed by
-mistake) at this point, we currently have quorum of both
-(members: 1,2) but no way to meet it.
+3. if node 2 accidentally dies (or is otherwise
+unavailable for a long while) at this point,
+ we currently have leader 1 with a quorum of both
+(members: 1,2) but no way to meet it. Without
+a way to meet quorum on any new membership,
+it cannot be installed.
 
 => we are wedged. We have lost quorum.
 
@@ -86,20 +89,24 @@ Solution: tubeadd -f node_0 -c node_1
 
 which says: force 1 and 0 to add node_0 to the membership;
 ignoring the qourum rules that usually forbid this.
-This will enable an election to start.
+This typically will enable an election to start.
 
 It is a little risky because the version of the
-membership could possible get desynced, but
+membership could possible get desynced and
+then differ across the cluster, but
 usually it will get the cluster back
-online quickly.
+online quickly, and the leader will
+quickly bring everyone up to speed with
+its version of membership.
 
-The nuclear option fallback is to use tuberm -e on
-each node in turn to nuke (erase) the membership on
-each and every node in turn, and then tubeadd
-them back one by one. Again risky if
-the versions desync. Similarly, rebooting with
-tube -zap can also be used to clear
-out the node's membership if it comes to that.
+Another (rather nuclear) fallback is to use tuberm -e on
+each node in turn to nuke (erase, that's -e for erase)
+the membership on every node in turn,
+and then tubeadd them back one by one.
+Similarly, rebooting tube with tube -zap
+will clear out the node's membership
+and even the shadow replica set,
+if it comes to that.
 `)
 		return
 	}
