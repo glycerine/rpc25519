@@ -15736,6 +15736,18 @@ func (s *TubeNode) errorOutAwaitingLeaderTooLongTickets() {
 	}
 }
 
+// possible TODO: use Ticket system instead? We don't,
+// for now, because this is intended as a rarely
+// needed wedge-recovery operation for when quorum has been
+// lost, and so it forgeos the usually nicities.
+// We certainly don't want to wait for consensus
+// in such cases, as it will never happen due
+// to the fact that we have already lost quorum.
+// But, replying to a ticket could tell the
+// operator about mis-specified targets (not us)
+// to help them realize quickly what they need
+// to ask for... currently it always looks like
+// tuberm -e succeeds, even when it does not...
 func (s *TubeNode) handleInstallEmptyMC(frag *rpc.Fragment, ckt *rpc.Circuit) {
 	target, ok := frag.GetUserArg("target")
 	if ok && target == s.name {
