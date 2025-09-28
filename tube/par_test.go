@@ -9,6 +9,72 @@ import (
 	rpc "github.com/glycerine/rpc25519"
 )
 
+// PAR paper, figure 1 test scenarios
+type parTestServer struct {
+	serverNum int
+	crashed   bool
+	lagging   bool
+	faulty    [3]bool // wal has 3 entries
+}
+
+// PAR paper, figure 1 test scenarios
+type parTestScenario struct {
+	scenario int
+	node     []*parTestServer
+}
+
+// PAR paper, figure 1 test scenarios
+func genParTestScenarios() (r []*parTestScenario) {
+
+	for i := range 6 {
+		s := &parTestScenario{
+			scenario: i,
+		}
+		r = append(r, s)
+		for j := range 5 {
+			srv := &parTestServer{serverNum: j}
+			s.node = append(s.node, srv)
+		}
+		switch i {
+		case 0:
+			s.node[0].faulty[0] = true
+			s.node[3].crashed = true
+			s.node[4].crashed = true
+		case 1:
+			s.node[0].faulty[0] = true
+			s.node[3].lagging = true
+			s.node[4].lagging = true
+		case 2:
+			s.node[0].faulty[0] = true
+			s.node[1].faulty[1] = true
+			s.node[4].crashed = true
+		case 3:
+			s.node[0].faulty[0] = true
+			s.node[1].faulty[1] = true
+			s.node[4].lagging = true
+		case 4:
+			s.node[0].faulty[0] = true
+			s.node[1].faulty[1] = true
+			s.node[2].faulty[2] = true
+		case 5:
+			s.node[0].faulty[0] = true
+			s.node[1].faulty[1] = true
+			s.node[2].faulty[2] = true
+			s.node[3].faulty[0] = true
+			s.node[4].faulty[1] = true
+		}
+	}
+	return
+}
+
+func TestPar_crash_vs_disk_fault(t *testing.T) {
+
+}
+
+func TestPar_global_commitment_determination(t *testing.T) {
+
+}
+
 func TestParRecord(t *testing.T) {
 
 	// make sure our ParRecord always fits in <= maxParRecord bytes.
