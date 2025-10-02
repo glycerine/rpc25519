@@ -232,6 +232,11 @@ func (s *TubeNode) ReadKeyRange(ctx context.Context, table, key, keyEndx Key, de
 		return
 	}
 
+	// TODO: we can get stuck here if our tcp
+	// connection dropped (e.g. laptop slept and we get
+	// here but have not yet realized it), so we
+	// need to figure out how to bail early/retry
+	// if our request was lost/the network is down...
 	select {
 	case <-tkt.Done.Chan: // Read() waits for completion
 		err = tkt.Err
