@@ -1819,6 +1819,9 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	send.senderLC = origin.lc
 	send.originLC = origin.lc
 
+	// do we want to always advance by 0.1 msec (to match userMaskTime) to allow
+	// any amount of extra sleep to get the reader goro
+	// alone when they pick up the read?
 	send.unmaskedSendArrivalTm = send.initTm.Add(s.scenario.rngHop())
 
 	// make sure send happens before receive by doing
@@ -1837,7 +1840,17 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 		//probDrop = 0 // a guess. not sure. is this the last close/RST though?
 		probDrop = 1 // a better guess.
 	} else {
-		probDrop = cktOrigin.get(send.target).dropSend
+		tarconn := cktOrigin.get(send.target)
+		probDrop = tarconn.dropSend
+
+		// so we want the reader to have a unique wake
+		// time of their own, right? yeah but we don't really
+		// know which reader goro will get it at this point.
+		// For instance, they might disconnect and come back
+		// in the meantime? that does kind of throw a wrench
+		// into trying to only wake at for the reader at their
+		// userMaskTime ending in their goroID though. Ugh.
+		// send.arrivalTm = userMaskTime(send.unmaskedSendArrivalTm, send.target.who??)
 	}
 	if !s.statewiseConnected(send.origin, send.target) ||
 		probDrop >= 1 { // s.localDropSend(send) {
@@ -2886,7 +2899,7 @@ func (s *Simnet) handleTimer(timer *mop) {
 
 func (s *Simnet) armTimer(now time.Time, loopi int64) (armed bool) {
 
-	// Ah! We only want to scheduler to sleep if
+	// Ah! We only want the scheduler to sleep if
 	// we have some work to do in the meq.
 	// then while we are sleeping in the timer arm,
 	// the live goro can wake us to do work
@@ -3004,7 +3017,7 @@ const timeMask9 = time.Microsecond*100 - 1
 
 // userMaskTime makes the last 5 digits
 // of a nanosecond timestamp match the who goroutineID
-// which must be <= 100_000.
+// which must be < 100_000.
 func userMaskTime(tm time.Time, who int) (newtm time.Time) {
 	if who <= 0 {
 		panic(fmt.Sprintf("who %v not set or negative!", who))

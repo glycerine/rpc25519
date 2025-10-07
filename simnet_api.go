@@ -64,6 +64,9 @@ type scenario struct {
 // scenario.tick controls:
 // _ duration of time between network events
 func NewScenario(tick, minHop, maxHop time.Duration, seed [32]byte) *scenario {
+	if minHop < 100_000 {
+		panic(fmt.Sprintf("minHop(%v) < 100_000 will cause collisions and non-determinism because userMaskTime reserves this part of the timestamp for goro ID", minHop))
+	}
 	s := &scenario{
 		seed:    seed,
 		chacha:  mathrand2.NewChaCha8(seed),
