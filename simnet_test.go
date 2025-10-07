@@ -1114,24 +1114,22 @@ func Test102_time_truncate_works_under_synctest(t *testing.T) {
 	}
 }
 
-func Test103_maskTime(t *testing.T) {
-	return // userMaskTime changed and I don't want to update this test; probably delete it?
+func Test103_userMaskTime(t *testing.T) {
 
 	bubbleOrNot(func() {
-		now := time.Now()
+		cur := time.Now()
 		for range 100 {
-			m := userMaskTime(now, 1)
-			if m.Before(now) {
-				panic(fmt.Sprintf("m(%v) < now(%v) wrong", m, now))
+			next := userMaskTime(cur, 1)
+
+			if !next.After(cur) { // we do want next > cur strictly, since we added 1 below.
+				panic(fmt.Sprintf("m(%v) < cur(%v) wrong", next, cur))
 			}
-			mod := m.UnixNano() % int64(timeMask0)
-			if mod != int64(timeMask9) {
-				panic(fmt.Sprintf("mod(%v) != timeMask9(%v)", mod, timeMask9))
-			}
-			//vv("%v -> %v", now, m)
-			advance := time.Duration(cryptoRandPositiveInt64()) %
-				(time.Millisecond * 10)
-			now = now.Add(advance)
+			//vv("%v -> %v", cur, next)
+			//advance := time.Duration(cryptoRandPositiveInt64()) %
+			//	(time.Millisecond * 10)
+			advance := time.Duration(1)
+			//vv("increment  %v -> %v", next, next.Add(advance))
+			cur = next.Add(advance)
 		}
 	})
 }

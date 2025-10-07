@@ -3001,6 +3001,10 @@ const timeMask9 = time.Microsecond*100 - 1
 // 2006-01-02T15:04:05.000000000-07:00
 // maskTime will return
 // 2006-01-02T15:04:05.000099999-07:00
+
+// userMaskTime makes the last 5 digits
+// of a nanosecond timestamp match the who goroutineID
+// which must be <= 100_000.
 func userMaskTime(tm time.Time, who int) (newtm time.Time) {
 	if who <= 0 {
 		panic(fmt.Sprintf("who %v not set or negative!", who))
