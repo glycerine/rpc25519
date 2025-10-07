@@ -405,7 +405,7 @@ func (s *Simnet) nextUniqTm(atleast time.Time, who int) time.Time {
 		//const bump = timeMask0 // more than mask
 		//s.lastTimerDeadline = s.lastTimerDeadline.Add(bump)
 	}
-	s.lastTimerDeadline = userMaskTime(s.lastTimerDeadline, who)
+	s.lastTimerDeadline = s.userMaskTime(s.lastTimerDeadline, who)
 	return s.lastTimerDeadline
 }
 
@@ -722,6 +722,8 @@ func (s *Simnet) handleServerRegistration(op *mop) {
 	}
 	s.dns[srvnode.name] = srvnode
 	s.node2server[srvnode] = srvnode
+
+	op.origin = srvnode
 
 	basesrv, ok := s.servers[reg.serverBaseID]
 	if ok {
@@ -1844,9 +1846,9 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 
 	// make sure send happens before receive by doing
 	// this first.
-	send.completeTm = userMaskTime(now, send.who) // send complete on the sender side.
+	send.completeTm = s.userMaskTime(now, send.who) // send complete on the sender side.
 	// handleSend
-	send.arrivalTm = userMaskTime(send.unmaskedSendArrivalTm, send.who)
+	send.arrivalTm = s.userMaskTime(send.unmaskedSendArrivalTm, send.who)
 	//vv("send.arrivalTm = '%v'", send.arrivalTm)
 	// note that read matching time will be unique based on
 	// send arrival time.
@@ -2404,7 +2406,7 @@ func (s *Simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 	// a) we are on a grid point now; and
 	// b) we are off a grid point and we want the next one.
 
-	goal = userMaskTime(now.Add(tick).Truncate(tick), s.who)
+	goal = s.userMaskTime(now.Add(tick).Truncate(tick), s.who)
 
 	dur = goal.Sub(now)
 	//vv("i=%v; just before dispatchAll(), durToGridPoint computed: dur=%v -> goal:%v to reset the gridTimer; tick=%v", i, dur, goal, s.scenario.tick)
@@ -2936,7 +2938,7 @@ func (s *Simnet) handleTimer(timer *mop) {
 	// mask it up!
 	timer.unmaskedCompleteTm = timer.completeTm
 	timer.unmaskedDur = timer.timerDur
-	timer.completeTm = userMaskTime(timer.completeTm, timer.who) // handle timer
+	timer.completeTm = s.userMaskTime(timer.completeTm, timer.who) // handle timer
 	timer.timerDur = timer.completeTm.Sub(timer.initTm)
 	//vv("masked timer(sn %v):\n dur: %v -> %v\n completeTm: %v -> %v\n timer.who: %v", timer.sn, timer.unmaskedDur, timer.timerDur, nice9(timer.unmaskedCompleteTm), nice9(timer.completeTm), timer.who)
 
@@ -3066,12 +3068,16 @@ const timeMask9 = time.Microsecond*100 - 1
 // userMaskTime makes the last 5 digits
 // of a nanosecond timestamp match the who goroutineID
 // which must be < 100_000.
-func userMaskTime(tm time.Time, who int) (newtm time.Time) {
-	if who <= 0 {
-		panic(fmt.Sprintf("who %v not set or negative!", who))
+func (s *Simnet) userMaskTime(tm time.Time, who0 int) (newtm time.Time) {
+	if who0 <= 0 {
+		panic(fmt.Sprintf("who %v not set or negative!", who0))
 	}
-	if who >= 100_000 {
-		panic(fmt.Sprintf("who goID = %v >= 100_000 limit. simnet currently has a max goroutine limit of 100_000.", who))
+	if who0 >= 100_000 {
+		panic(fmt.Sprintf("who goID = %v >= 100_000 limit. simnet currently has a max goroutine limit of 100_000.", who0))
+	}
+	who, ok := s.perma[who0]
+	if !ok {
+		panic(fmt.Sprintf("bad, goro not in s.perma: %v", who0))
 	}
 	// always bump to next 100 usec, so we are
 	// for sure after tm.
