@@ -1,0 +1,505 @@
+#lang ivy1.6
+
+## from https://github.com/wilcoxjay/notes/raw/refs/heads/master/raft.ivy
+## comment:
+## wilcoxjay: reconstruction of marcelo's raft proof
+
+# stratification graph
+#
+# quorum intersection axiom : quorum -> node
+# term_leader : term -> node
+# value_at : log -> value
+# value_at : index -> value
+# current_log : node -> log
+# term_log : term -> log
+# voting_quorum : term -> quorum
+
+# topo sort
+#
+# term
+# quorum
+# node
+# log
+# index
+# value
+
+
+module totallyordered(t) = {
+    axiom X:t <= X                        # Reflexivity
+    axiom X:t <= Y & Y <= Z -> X <= Z     # Transitivity
+    axiom X:t <= Y & Y <= X -> X = Y      # Anti-symmetry
+    axiom X:t <= Y | Y <= X               # Totality
+    axiom 0 <= X:t                        # 0 is minimal
+
+    # Aliases: <, >, >=
+    axiom X:t < Y <-> X <= Y & X ~= Y
+    axiom X:t > Y <-> Y < X
+    axiom X:t >= Y <-> Y <= X
+}
+
+type term
+type quorum
+type node
+type log
+type index
+type value
+
+instantiate totallyordered(term)
+instantiate totallyordered(index)
+
+relation member(N: node, Q: quorum)
+
+axiom forall Q1: quorum, Q2: quorum. exists N: node. member(N, Q1) & member(N, Q2)
+
+type option_index
+individual none_index: option_index
+relation is_none_index(OI: option_index)
+axiom is_none_index(OI) <-> OI = none_index
+function oi_index(OI: option_index): index
+
+type option_term
+individual none_term: option_term
+relation is_none_term(OT: option_term)
+axiom is_none_term(OT) <-> OT = none_term
+function ot_term(OT: option_term): term
+
+relation append_msg(T: term,
+                    PLI: option_index, PLT: option_term,
+                    EI: index, ET: term, EV: value)
+relation append_reply_msg(F: node, T: term, EI: index, ET: term)
+
+relation request_vote_msg(C: node, T: term, LI: option_index, LT: option_term)
+relation vote_msg(C: node, T: term, V: node)
+
+relation leader(N: node, T: term)
+
+relation voted(N: node, T: term)
+
+relation started(T: term)
+function term_leader(T: term): node
+
+relation current_term(N: node, T: term)
+relation term_bigger(N: node, T: term)
+
+relation index_used(L: log, I: index)
+relation term_at(L: log, I: index, T: term)
+
+function value_at(L: log, I: index): value
+
+function current_log(N: node): log
+
+individual log0: log
+
+relation committed(I: index, V: value)
+
+individual commit_index : index
+individual commit_term : term
+individual commit_value : value
+individual commit_log : log
+individual commit_quorum : quorum
+
+function term_log(T: term): log
+
+relation valid(L: log)
+
+function voting_quorum(T: term): quorum
+
+after init {
+    leader(N,T) := false;
+    started(T) := false;
+    voted(N,T) := false;
+    current_term(N,T) := T = 0;
+    term_bigger(N,T) := false;
+
+    current_log(N) := log0;
+    index_used(L, I) := false;
+
+    term_at(L, I, T) := false;
+
+    append_msg(T, PLI, PLT, EI, ET, EV) := false;
+    append_reply_msg(F, T, EI, ET) := false;
+    request_vote_msg(C, T, LI, LT) := false;
+    vote_msg(C, T, V) := false;
+
+    committed(I, V) := false;
+    commit_index := 0;
+    commit_log := log0;
+
+    term_log(T) := log0;
+
+    valid(L) := L = log0;
+}
+
+action get_last(l: log) returns (lli: option_index, llt: option_term) = {
+    if exists I. index_used(l, I) {
+        assume ~is_none_index(lli);
+        assume ~is_none_term(llt);
+        assume index_used(l, oi_index(lli));
+        assume term_at(l, oi_index(lli), ot_term(llt));
+        assume index_used(l, I) -> I <= oi_index(lli);
+    } else {
+        lli := none_index;
+        llt := none_term;
+    }
+}
+
+action set_term(n: node, t: term) = {
+    current_term(n, T) := T = t;
+    term_bigger(n, T) := T < t;
+}
+
+action receive_request_vote_msg(n: node) = {
+    var t: term;
+    assume current_term(n, t);
+
+    var t2: term;
+    var oli: option_index;
+    var olt: option_term;
+    var cand: node;
+    assume request_vote_msg(cand, t2, oli, olt);
+
+    assume t2 >= t;
+    call set_term(n, t2);
+
+    var my_lli: option_index;
+    var my_llt: option_term;
+    (my_lli, my_llt) := get_last(current_log(n));
+    assert is_none_index(my_lli) <-> is_none_term(my_llt);
+
+    assume ~voted(n, t2);
+
+    if is_none_index(my_lli) |
+       (~is_none_index(my_lli) & ~is_none_index(oli) &
+        (ot_term(olt) > ot_term(my_llt) |
+         (ot_term(olt) = ot_term(my_llt) & oi_index(oli) >= oi_index(my_lli))))
+    {
+        voted(n, t2) := true;
+        vote_msg(cand, t2, n) := true;
+    }
+}
+export receive_request_vote_msg
+
+action become_leader(n: node) = {
+    var t: term;
+    assume current_term(n, t);
+    var q: quorum;
+    assume forall N. member(N, q) -> vote_msg(n, t, N);
+    voting_quorum(t) := q;
+    leader(n, t) := true;
+    started(t) := true;
+    term_leader(t) := n;
+    term_log(t) := current_log(n);
+}
+export become_leader
+
+action timeout(n: node) = {
+    var t: term;
+    assume current_term(n, t);
+    var t2: term;
+    assume t < t2;
+
+    call set_term(n, t2);
+
+    var oli: option_index;
+    var olt: option_term;
+    (oli, olt) := get_last(current_log(n));
+    request_vote_msg(n, t2, oli, olt) := true;
+    voted(n, t2) := true;
+    vote_msg(n, t2, n) := true;
+}
+export timeout
+
+action propose(n: node, v: value) = {
+    var t: term;
+    assume current_term(n, t);
+
+    assume leader(n, t);
+
+    var l: log := current_log(n);
+
+    var i: index;
+    assume ~index_used(l, i);
+    assume forall I. I < i -> index_used(l, I);
+
+    var l2: log;
+    assume index_used(l2, I) <-> I <= i;
+    assume term_at(l2, I, T) <-> ((I < i & term_at(l, I, T)) | I = i & T = t);
+    assume I < i -> value_at(l2, I) = value_at(l, I);
+    assume value_at(l2, i) = v;
+
+    valid(l2) := true;
+    current_log(n) := l2;
+    term_log(t) := l2;
+}
+export propose
+
+action some_index(i: index) returns (oi: option_index) = {
+    assume ~is_none_index(oi) & oi_index(oi) = i;
+}
+
+action some_term(t: term) returns (ot: option_term) = {
+    assume ~is_none_term(ot) & ot_term(ot) = t;
+}
+
+action send_append_msg(n: node) = {
+    var t: term;
+    assume current_term(n, t);
+
+    assume leader(n, t);
+
+    var i: index;
+    assume index_used(current_log(n), i);
+    var ti: term;
+    assume term_at(current_log(n), i, ti);
+
+    if exists PI. PI < i {
+        var pi: index;
+        assume pi < i;
+        assume forall I. I < i -> I <= pi;
+        assert index_used(current_log(n), pi);
+        var pt: term;
+        assume term_at(current_log(n), pi, pt);
+
+        var opi := some_index(pi);
+        var opt := some_term(pt);
+        append_msg(t, opi, opt, i, ti, value_at(current_log(n), i)) := true;
+        append_reply_msg(n, t, i, ti) := true;
+    } else {
+        assert i = 0;
+        append_msg(t, none_index, none_term, i, ti, value_at(current_log(n), i)) := true;
+        append_reply_msg(n, t, i, ti) := true;
+    }
+}
+export send_append_msg
+
+action receive_append_msg(n: node) = {
+    var t: term;
+    assume current_term(n, t);
+
+    var t2: term;
+    var opi: option_index;
+    var opt: option_term;
+    var ei: index;
+    var et: term;
+    var ev: value;
+    assume append_msg(t2, opi, opt, ei, et, ev);
+
+    assume t2 >= t;
+    call set_term(n, t2);
+
+    var l2: log;
+    var ti: term;
+
+    assert is_none_index(opi) <-> is_none_term(opt);
+    if is_none_index(opi) {
+        assert ei = 0;
+        assume index_used(current_log(n), ei) -> term_at(current_log(n), ei, ti);
+        if ~index_used(current_log(n), ei) | et ~= ti {
+            assume index_used(l2, I) <-> I = ei;
+            assume term_at(l2, I, T) <-> I = ei & T = et;
+            assume value_at(l2, ei) = ev;
+            valid(l2) := true;
+            current_log(n) := l2;
+
+            append_reply_msg(n, t2, ei, et) := true;
+        }
+    } else {
+        var pi := oi_index(opi);
+        var pt := ot_term(opt);
+        if term_at(current_log(n), pi, pt) {
+            assume index_used(current_log(n), ei) -> term_at(current_log(n), ei, ti);
+            if ~index_used(current_log(n), ei) | et ~= ti {
+
+                assume index_used(l2, I) <-> I <= ei;
+                assume term_at(l2, I, T) <-> ((I < ei & term_at(current_log(n), I, T)) |
+                                              (I = ei & T = et));
+                assume I < ei -> value_at(l2, I) = value_at(current_log(n), I);
+                assume value_at(l2, ei) = ev;
+                valid(l2) := true;
+                current_log(n) := l2;
+
+                append_reply_msg(n, t2, ei, et) := true;
+            }
+        }
+    }
+}
+export receive_append_msg
+
+action commit(n: node) = {
+    var t: term;
+    assume current_term(n, t);
+
+    assume leader(n, t);
+
+    var l: log := current_log(n);
+
+    var i: index;
+    assume index_used(l, i);
+
+    var q: quorum;
+    assume forall N. member(N, q) -> append_reply_msg(N, t, i, t);
+
+    committed(I, V) := committed(I, V) | (I <= i & V = value_at(l, I));
+
+    if i >= commit_index {
+        commit_index := i;
+        commit_term := t;
+        commit_value := value_at(l, i);
+        commit_quorum := q;
+        commit_log := *;
+        assume ~valid(commit_log);
+        index_used(commit_log, I) := I <= i;
+        term_at(commit_log, I, T) := I <= i & term_at(l, I, T);
+        value_at(commit_log, I) := value_at(l, I);
+        valid(commit_log) := true;
+    }
+}
+export commit
+
+# properties of leader election and vote messages
+conjecture [vote_msg_voted] vote_msg(N2, T, N1) -> voted(N1, T)
+conjecture [vote_msg_partial_func] vote_msg(N2, T, N1) & vote_msg(N3, T, N1) -> N2 = N3
+conjecture [voting_quorum_vote_msg]
+    leader(N1, T) -> forall N2. member(N2, voting_quorum(T)) -> vote_msg(N1, T, N2)
+conjecture [one_leader_per_term] leader(N1, T) & leader(N2, T) -> N1 = N2
+conjecture [RV_option_wf]
+    request_vote_msg(N, T, OLI, OLT) -> (is_none_index(OLI) <-> is_none_term(OLT))
+conjecture [RV_partial_func]
+    request_vote_msg(C, T, OLI1, OLT1) & request_vote_msg(C, T, OLI2, OLT2) ->
+    OLI1 = OLI2 & OLT1 = OLT2
+conjecture [RV_term] request_vote_msg(C, T, OLI, OLT) -> current_term(C, T) | term_bigger(C, T)
+conjecture [RV_some_index_term_at]
+    request_vote_msg(C, T, OLI, OLT) & ~is_none_index(OLI) &
+    ~term_bigger(C, T) & ~started(T) ->
+    term_at(current_log(C), oi_index(OLI), ot_term(OLT))
+conjecture [RV_some_index_no_bigger]
+    request_vote_msg(C, T, OLI, OLT) & ~is_none_index(OLI) &
+    ~term_bigger(C, T) & ~started(T) & I > oi_index(OLI) ->
+    ~index_used(current_log(C), I)
+conjecture [RV_none_index_not_used]
+    request_vote_msg(C, T, OLI, OLT) & is_none_index(OLI) &
+    ~term_bigger(C, T) & ~started(T) ->
+    ~index_used(current_log(C), I)
+
+conjecture [voters_left_term] voted(N, T2) & T1 < T2 -> term_bigger(N, T1)
+
+# properties of log replication
+
+conjecture [AE_option_wf]
+    append_msg(T, OPI, OPT, EI, ET, EV) -> (is_none_index(OPI) <-> is_none_term(OPT))
+conjecture [AE_none_means_init]
+    append_msg(T, OPI, OPT, EI, ET, EV) & is_none_index(OPI) -> EI = 0
+conjecture [AE_some_succ]
+    append_msg(T, OPI, OPT, EI, ET, EV) & ~is_none_index(OPI) ->
+    oi_index(OPI) < EI & (forall I. I < EI -> I <= oi_index(OPI))
+
+conjecture [AE_prev_term_log]
+    append_msg(T, PLI, PLT, EI, ET, EV) & ~is_none_index(PLI) ->
+    term_at(term_log(T), oi_index(PLI), ot_term(PLT))
+conjecture [AE_term_log]
+    append_msg(T, PLI, PLT, EI, ET, EV) ->
+    term_at(term_log(T), EI, ET) &
+    EV = value_at(term_log(T), EI)
+conjecture [AER_term_log] append_reply_msg(N, T, EI, ET) -> term_at(term_log(T), EI, ET)
+
+# valid logs
+
+conjecture [valid_term_log] valid(term_log(T))
+conjecture [valid_current_log] valid(current_log(N))
+conjecture [valid_commit_log] valid(commit_log)
+
+conjecture [log_matching]
+    valid(L1) &
+    valid(L2) &
+    index_used(L1, I1) &
+    term_at(L1, I1, T1) &
+    index_used(L2, I1) &
+    term_at(L2, I1, T1) &
+    I2 <= I1
+-> (term_at(L1, I2, T2) <-> term_at(L2, I2, T2)) &
+   value_at(L1, I2) = value_at(L2, I2)
+
+conjecture [index_used_downward_closed]
+    valid(L) & index_used(L, I1) & I2 <= I1 -> index_used(L, I2)
+
+conjecture [term_at_index_used] valid(L) & term_at(L, I, T) -> index_used(L, I)
+
+conjecture [entries_from_term_in_term_log]
+    valid(L) &
+    term_at(L, I, T)
+->
+    index_used(term_log(T), I) &
+    term_at(term_log(T), I, T) &
+    value_at(term_log(T), I) = value_at(L, I)
+
+# terms
+
+conjecture [term_at_partial_func] term_at(L, I, T1) & term_at(L, I, T2) -> T1 = T2
+conjecture [current_term_partial_func] current_term(N, T1) & current_term(N, T2) -> T1 = T2
+conjecture [lt_current_term_bigger] current_term(N, T1) & T2 < T1 -> term_bigger(N, T2)
+conjecture [term_bigger_downward] term_bigger(N, T1) & T2 < T1 -> term_bigger(N, T2)
+conjecture [term_bigger_not_current] ~(term_bigger(N, T) & current_term(N, T))
+
+conjecture [no_future_leaders] leader(N, T) -> current_term(N, T) | term_bigger(N, T)
+
+conjecture [leader_started] leader(N, T) -> started(T)
+conjecture [started_term_leader] started(T) -> leader(term_leader(T), T)
+
+conjecture [current_log_no_future_entries]
+    term_at(current_log(N), I, T) -> current_term(N, T) | term_bigger(N, T)
+conjecture [term_log_no_future_entries]
+    term_at(term_log(T2), I, T1) -> T1 <= T2
+conjecture [commit_log_no_future_entries]
+    term_at(commit_log, I, T) -> T <= commit_term
+
+conjecture [leader_term_log] leader(N, T) & current_term(N, T) -> current_log(N) = term_log(T)
+
+conjecture [index_used_term_log_started] index_used(term_log(T), I) -> started(T)
+
+# properties of commit
+
+conjecture [CI_zero_until_commit] commit_index ~= 0 -> committed(commit_index, commit_value)
+
+conjecture [any_committed_commit_index_committed]
+    committed(I, V) -> committed(commit_index, commit_value)
+
+conjecture [commit_quorum] committed(commit_index, commit_value) ->
+    forall N. member(N, commit_quorum) ->
+        append_reply_msg(N, commit_term, commit_index, commit_term)
+
+conjecture [commit_log_uses_up_to_commit_index]
+    committed(commit_index, commit_value) -> (index_used(commit_log, I) <-> I <= commit_index)
+
+conjecture [committed_iff_in_commit_log]
+    committed(I, V) <-> (index_used(commit_log, I) & V = value_at(commit_log, I))
+
+conjecture [term_at_commit_term]
+    index_used(commit_log, commit_index) -> term_at(commit_log, commit_index, commit_term)
+
+# definition of choosable and its properties
+
+relation choosable(I: index, T: term) =
+    exists Q. forall N. member(N, Q) ->
+        append_reply_msg(N, T, I, T) | ~term_bigger(N, T)
+
+conjecture [choosable_AER_current_log]
+    choosable(I, T1) & append_reply_msg(N, T1, I, T1) ->
+    term_at(current_log(N), I, T1)
+
+conjecture [choosable_vote_msg]
+    choosable(I, T1) & append_reply_msg(N, T1, I, T1) &
+    vote_msg(C, T2, N) & T2 > T1 & ~started(T2) & ~term_bigger(C, T2) ->
+    term_at(current_log(C), I, T1)
+
+conjecture [choosable_future_term_log]
+    term_at(term_log(T1), I, T1) &
+    choosable(I, T1) &
+    started(T2) &
+    T1 <= T2
+->
+    term_at(term_log(T2), I, T1)
+
+action corollaries = {
+    assert committed(I, V1) & committed(I, V2) -> V1 = V2;
+}
+export corollaries
