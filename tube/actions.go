@@ -237,6 +237,8 @@ func (s *TubeNode) ReadKeyRange(ctx context.Context, table, key, keyEndx Key, de
 	// here but have not yet realized it), so we
 	// need to figure out how to bail early/retry
 	// if our request was lost/the network is down...
+	// Of course we have the ctx.Done already;
+	// which can timeout for clients who want a limited wait.
 	select {
 	case <-tkt.Done.Chan: // Read() waits for completion
 		err = tkt.Err

@@ -32,7 +32,7 @@ type GoroControl struct {
 type mop struct {
 	sn    int64
 	who   int    // goro number
-	where string // generic fileLine (send,read,timer have their atm)
+	where string // generic fileLine (send,read,timer have their own atm)
 
 	proceedMop *mop // in meq, should close(proceed) at completeTm
 
@@ -61,7 +61,7 @@ type mop struct {
 	timerC              weak.Pointer[chan time.Time]
 	timerCstrong        chan time.Time
 	timerDur            time.Duration
-	timerFileLine       string // where was this timer from?
+	timerFileLine       string // where was this timer from
 	timerReseenCount    int
 	handleDiscardCalled bool
 
@@ -88,11 +88,6 @@ type mop struct {
 	// meaning the GC has disposed of it--which tells us that the
 	// client code no longer has the timer and we the simnet can
 	// also dispose of it.
-
-	// is this our single grid step timer?
-	// There should only ever be one
-	// timer with this flag true.
-	isGridStepTimer bool // TODO possible delete.
 
 	// when was the operation initiated?
 	// timer started, read begin waiting, send hits the socket.
@@ -483,7 +478,7 @@ type Simnet struct {
 	xb3hash *blake3.Hasher
 
 	bigbang time.Time
-	//gridStepTimer *mop
+
 	who int
 
 	// upon request, we can be noisy if we
@@ -1974,7 +1969,7 @@ func (s *Simnet) dispatchTimers(simnode *simnode, now time.Time, limit, loopi in
 		if lte(timer.completeTm, now) {
 			// timer.completeTm <= now
 
-			if !timer.isGridStepTimer && !timer.internalPendingTimer {
+			if !timer.internalPendingTimer {
 				//vv("have TIMER firing: '%v'; report = %v", timer, s.schedulerReport())
 			}
 			changes++
@@ -2361,11 +2356,6 @@ func (s *Simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 	// a) we are on a grid point now; and
 	// b) we are off a grid point and we want the next one.
 
-	// since tick is already enforceTickDur()
-	// we shouldn't need to systemMaskTime, but just in case
-	// that changes... it is cheap anyway, and conveys the
-	// convention in force.
-	//goal = systemMaskTime(now.Add(tick).Truncate(tick))
 	goal = userMaskTime(now.Add(tick).Truncate(tick), s.who)
 
 	dur = goal.Sub(now)
@@ -2432,26 +2422,6 @@ func (s *Simnet) scheduler() {
 	s.bigbang = now
 
 	var totalSleepDur time.Duration
-
-	// not in use atm. comment out for possible delete.
-	// get regular scheduler wakeups on a time
-	// grid of step size s.scenario.tick.
-	// We can get woken earlier too by
-	// sends, reads, and timers. The nextTimer
-	// logic below can decide how it wants
-	// to handle that.
-	// timer := newTimerCreateMop(false)
-	// timer.proceed = nil          // never used, don't leak it.
-	// timer.isGridStepTimer = true // should be only one.
-	// timer.initTm = now
-	// timer.timerDur = s.scenario.tick
-	// timer.completeTm = now.Add(s.scenario.tick)
-	// timer.timerFileLine = fileLine(3)
-	//
-	// As a special case, armTimer always includes
-	// the gridStepTimer when computing the minimum
-	// next timer to go off, so barrier cannot deadlock.
-	// s.gridStepTimer = timer
 
 	//restartI:
 	for i := int64(0); ; i++ {
@@ -2786,7 +2756,6 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	_ = nd
 	s.ndtot += nd
 
-	//s.refreshGridStepTimer(now) // not really used atm.
 	armed := s.armTimer(now, i)
 	_ = armed
 
@@ -2914,48 +2883,6 @@ func (s *Simnet) handleTimer(timer *mop) {
 	//vv("LC:%v %v set TIMER %v to fire at '%v'; now timerQ: '%v'", lc, timer.origin.name, timer, timer.completeTm, s.clinode.timerQ)
 
 }
-
-// commented for possible deletion later if we
-// really don't end up needing a grid-step timer.
-//
-// refreshGridStepTimer context:
-// Some dispatch() call just before us
-// might have re-armed the nextTmer,
-// but equally none might have.
-// Also we cannot be the only
-// place that armTimer is called, because
-// another select case may have changed
-// things and set a new nextTimer, and
-// we would not have gotten to again
-// before that next timer fires us
-// to add in our own gridStepTimer.
-// So we have to do armTimer here,
-// even though it might be redundant
-// on occassion, to ensure nextTimer is
-// armed. This is cheap anyway, just
-// a lookup of the min simnode in
-// the each priority queue, which our
-// red-black tree has cached anyway.
-// For K circuits * 3 PQ per simnode => O(K).
-//
-// armTimer is not called; keep it as a separate step.
-// func (s *Simnet) refreshGridStepTimer(now time.Time) (dur time.Duration, goal time.Time) {
-// 	if gte(now, s.gridStepTimer.completeTm) {
-// 		s.gridStepTimer.initTm = now
-// 		dur, goal = s.durToGridPoint(now, s.scenario.tick)
-// 		s.gridStepTimer.timerDur = dur
-// 		s.gridStepTimer.completeTm = goal
-
-// 		if gte(now, s.gridStepTimer.completeTm) {
-// 			panic(fmt.Sprintf("durToGridPoint() gave completeTm(%v) <= now(%v); should be impossible, no? are we servicing all events in order? are we missing a wakeup? oversleeping? wat?", s.gridStepTimer.completeTm, now))
-// 		}
-// 	} else {
-// 		//vv("refreshGridStepTimer does nothing; sees now < s.gridStepTimer.completeTm(%v)", nice(s.gridStepTimer.completeTm)) // seen alot
-// 		goal = s.gridStepTimer.completeTm
-// 		dur = s.gridStepTimer.completeTm.Sub(now)
-// 	}
-// 	return
-// }
 
 func (s *Simnet) armTimer(now time.Time, loopi int64) (armed bool) {
 
