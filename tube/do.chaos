@@ -1,0 +1,10 @@
+
+#GOTRACEBACK=all GOEXPERIMENT=synctest go test -c -o tube.test.st
+
+for i in `seq 0 100`; do
+
+GOTRACEBACK=all GOEXPERIMENT=synctest  rr record -h ./tube.test.st -test.v -test.run elect  &> /home/jaten/issue74019/no_race/log.tube.st.$i.txt
+
+rr pack 
+
+done
