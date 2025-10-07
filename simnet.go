@@ -803,6 +803,7 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 	clinode.setNetAddrSameNetAs(reg.localHostPortStr, srvnode.netAddr)
 	s.allnodes[clinode] = true
 	s.dns[clinode.name] = clinode
+	regop.origin = clinode
 
 	// add simnode to graph
 	clientOutboundEdges := newDmap[*simnode, *simconn]()
