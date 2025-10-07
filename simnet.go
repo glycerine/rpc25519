@@ -2228,6 +2228,22 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 			read.completeTm = now
 			read.arrivalTm = send.arrivalTm // easier diagnostics
 
+			// TRY? should we be bumping to reader goro ID? rough sketch would be:
+			// but should we not be dispatching all possible matches first,
+			// and then sorting them by time? so another 2-step process
+			// to let the readers go... or we could have the reading
+			// goroutine itself do its own sleep accoring to is ID?
+			/*
+				read.completeTm = userMaskTime(now, read.who)
+				dur := read.completeTm.Sub(now)
+				if dur > 0 {
+					time.Sleep(dur)
+					if faketime {
+						synctestWait_LetAllOtherGoroFinish() // 2nd barrier
+					}
+				}
+			*/
+
 			// matchmaking
 			//vv("[1]matchmaking: \nsend '%v' -> \nread '%v' \nread.sn=%v, readAttempt=%v, read.lastP=%v, lastIsDeafTrueTm=%v", send, read, read.sn, read.readAttempt, read.lastP, nice(read.lastIsDeafTrueTm))
 			read.sendmop = send
