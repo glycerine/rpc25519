@@ -1,8 +1,11 @@
 package rpc25519
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
@@ -600,6 +603,7 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	removeAllFilesWithPrefix(xorderPath)
 	loadtest(nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
 	loadtest(nNode1, wantSendPerPeer1, sendEvery1, xorderPath)
+	panicIfFinalHashDifferent(xorderPath)
 	return
 
 	//loadtest(2, 1, 1, time.Second, "707 loadtest 1")
@@ -617,4 +621,31 @@ func Test707_simnet_grid_does_not_lose_messages(t *testing.T) {
 	//loadtest(5, 1, 1, time.Second, "707 loadtest 3")
 
 	//vv("end of 707")
+}
+
+func panicIfFinalHashDifferent(xorderPath string) {
+
+	// snap707.001.snaptxt
+	matches, err := filepath.Glob(xorderPath + "*.snaptxt")
+	panicOn(err)
+
+	vv("matches = '%#v'", matches)
+	var firstHash string
+	for i, m := range matches {
+		hash := getLastHash(m)
+		if i == 0 {
+			firstHash = hash
+			continue
+		}
+		if hash != firstHash {
+			panic(fmt.Sprintf("file[0]='%v'\n (hash: '%v')\n and file[%v]='%v'\n (hash: '%v')\n disagree on last hash", matches[0], firstHash, i, matches[i], hash))
+		}
+	}
+}
+
+func getLastHash(path string) string {
+	by, err := os.ReadFile(path)
+	panicOn(err)
+	pos := bytes.LastIndex(by, []byte("blake3.33B-"))
+	return string(by[pos : len(by)-1])
 }

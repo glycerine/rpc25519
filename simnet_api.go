@@ -4,7 +4,7 @@ import (
 	"fmt"
 	mathrand2 "math/rand/v2"
 	"os"
-	//"strings"
+	"strings"
 	//"runtime"
 	"path/filepath"
 	"time"
@@ -911,6 +911,8 @@ type SimnetSnapshot struct {
 	Xissuetm  []time.Time // when issued
 	Xfintm    []time.Time // when finished
 	Xwho      []int
+	Xorigin   []string // name of origin simnode, to be goro ID independent.
+	Xtarget   []string // name of target simnode, to be goro ID independent.
 
 	Xhash string // hash of the sequence
 
@@ -1107,9 +1109,9 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	for sn := range snap.Xcountsn {
 		if !snap.Xfintm[sn].IsZero() {
 			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
-			fmt.Fprintf(fd, "%v %v %v\t%v %v [goID %v; fin< %v]\n",
+			fmt.Fprintf(fd, "%v %v %v\t%v %v [gid %v; %v; fin< %v]\n",
 				nice9(snap.Xissuetm[sn]), sn, snap.Xwhence[sn], snap.Xkind[sn],
-				elap, snap.Xwho[sn], snap.Xfinorder[sn])
+				elap, snap.Xwho[sn], chompAnyUniqSuffix(snap.Xorigin[sn]), snap.Xfinorder[sn])
 		} else {
 			// not finished yet
 			fmt.Fprintf(fd, "%v %v not_finished\n",
@@ -1118,6 +1120,14 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	}
 	fmt.Fprintf(fd, "%v\n", snap.Xhash)
 	//vv("path = '%v' for %v/ nw=%v; out='%v'", path, len(snap.Xorder), nw, fd.Name())
+}
+
+func chompAnyUniqSuffix(s string) string {
+	pos := strings.Index(s, "___")
+	if pos < 0 {
+		return s
+	}
+	return s[:pos]
 }
 
 // how is this different from AlterHost with SHUTDOWN ?

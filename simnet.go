@@ -422,7 +422,13 @@ func (s *Simnet) fin(op *mop) {
 	w := op.whence() // file:line where created.
 	s.xwhence[op.sn] = w
 	s.xkind[op.sn] = op.kind
-	s.xwho[op.sn] = op.who
+	s.xwho[op.sn] = s.perma[op.who]
+	if op.origin != nil {
+		s.xorigin[op.sn] = op.origin.name
+	}
+	if op.target != nil {
+		s.xtarget[op.sn] = op.target.name
+	}
 
 	i := op.sn
 	var b [9]byte
@@ -449,6 +455,8 @@ func (s *Simnet) simnetNextMopSn() (sn int64) {
 	s.xkind = append(s.xkind, -1)
 	s.xfinorder = append(s.xfinorder, -1)
 	s.xwho = append(s.xwho, -1)
+	s.xorigin = append(s.xorigin, "")
+	s.xtarget = append(s.xtarget, "")
 
 	return
 }
@@ -473,6 +481,15 @@ type Simnet struct {
 	xissuetm  []time.Time
 	xfintm    []time.Time
 	xwho      []int
+	xorigin   []string
+	xtarget   []string
+
+	// sequentially issued IDs to mitigate
+	// the problem of changing goroutineIDs
+	// on the second run of the load test
+	// in simgrid_test 707.
+	perma     map[int]int // key: goroID -> serially issued permanent ID for a goro.
+	nextPerma int
 
 	xmut    sync.Mutex
 	xb3hash *blake3.Hasher
@@ -857,6 +874,7 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 
 	// server creates simnet; must start server first.
 	s := &Simnet{
+		perma: make(map[int]int),
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
 		xb3hash:        blake3.New(64, nil),
 		meq:            newMasterEventQueue("scheduler"),
@@ -1946,6 +1964,7 @@ func (simnode *simnode) optionallyApplyChaos() {
 func lte(a, b time.Time) bool {
 	return !a.After(b)
 }
+
 func gte(a, b time.Time) bool {
 	return !a.Before(b)
 }
@@ -2397,6 +2416,9 @@ func (s *Simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 
 func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 	//vv("i=%v, add2meq %v", loopi, op)
+
+	s.addPerma(op.who)
+
 	// need to bump up the time... with nextUniqTm,
 	// so deliveries are all at a unique time point.
 	if !op.reqtm.IsZero() {
@@ -2410,6 +2432,14 @@ func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 	armed = s.armTimer(time.Now(), loopi)
 	//vv("i=%v, end of add2meq. meq sz %v; armed = %v -> s.lastArmDur: %v; caller %v; op = %v\n\n meq=%v\n", loopi, s.meq.Len(), armed, s.lastArmDur, fileLine(2), op, s.meq)
 	return
+}
+
+func (s *Simnet) addPerma(who int) {
+	if _, already := s.perma[who]; already {
+		return
+	}
+	s.perma[who] = s.nextPerma
+	s.nextPerma++
 }
 
 // scheduler is the heart of the simnet
@@ -2442,6 +2472,8 @@ func (s *Simnet) scheduler() {
 		}
 	}()
 	s.who = goID()
+	s.addPerma(s.who)
+
 	var nextReport time.Time
 
 	// main scheduler loop
@@ -3039,7 +3071,7 @@ func userMaskTime(tm time.Time, who int) (newtm time.Time) {
 		panic(fmt.Sprintf("who %v not set or negative!", who))
 	}
 	if who >= 100_000 {
-		panic(fmt.Sprintf("who goID = %v > 100_000 limit. simnet currently has a max goroutine limit of 100_000.", who))
+		panic(fmt.Sprintf("who goID = %v >= 100_000 limit. simnet currently has a max goroutine limit of 100_000.", who))
 	}
 	// always bump to next 100 usec, so we are
 	// for sure after tm.
@@ -3152,6 +3184,8 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	req.Xissuetm = append([]time.Time{}, s.xissuetm...)
 	req.Xfintm = append([]time.Time{}, s.xfintm...)
 	req.Xwho = append([]int{}, s.xwho...)
+	req.Xorigin = append([]string{}, s.xorigin...)
+	req.Xtarget = append([]string{}, s.xtarget...)
 
 	sum := s.xb3hash.Sum(nil)
 	req.Xhash = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:33])

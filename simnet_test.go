@@ -1621,3 +1621,76 @@ func Test782_simnetonly_server_isolated(t *testing.T) {
 		})
 	})
 }
+
+// originally based on 702 in grid_test
+// Test707 in simgrid_test has a load test we could leverage too.
+func Test790_deterministic_simnet_ring(t *testing.T) {
+
+	// vary GOMAXPROCS and confirm we see the same
+	// order of simnet reads (under synctest).
+
+	// repeat for different rng seeds. (stay self consistent if seeds is same)
+	// repeat for larger rings.
+
+	// same as 781 but for server (isolate with AlterHost -> ISOLATED)
+	onlyBubbled(t, func() {
+
+		//n := 20 // 20*19/2 = 190 tcp conn to setup. ok/green but 35 seconds.
+		//n := 10 // 4.4 sec synctest
+		n := 3
+		gridCfg := &simGridConfig{
+			ReplicationDegree: n,
+			Timeout:           time.Second * 5,
+		}
+
+		cfg := NewConfig()
+		// key setting under test here:
+		cfg.ServerAutoCreateClientsToDialOtherServers = true
+		cfg.UseSimNet = true
+		cfg.ServerAddr = "127.0.0.1:0"
+		cfg.QuietTestMode = true
+		gridCfg.RpcCfg = cfg
+
+		var nodes []*simGridNode
+		for i := range n {
+			name := fmt.Sprintf("grid_node_%v", i)
+			nodes = append(nodes, newSimGridNode(name, gridCfg))
+		}
+		c := newSimGrid(gridCfg, nodes)
+		c.Start()
+		defer c.Close()
+
+		for i, g := range nodes {
+			_ = i
+			select {
+			case <-g.node.peersNeededSeen.Chan:
+				vv("i=%v all peer connections need have been seen(%v) by '%v': '%#v'", i, g.node.peersNeeded, g.node.name, g.node.seen.GetKeySlice())
+
+				// failing test will just hang above.
+				// we cannot really do case <-time.After(time.Minute) with faketime.
+			}
+		}
+
+		grabber := cfg.GetSimnetSnapshotter()
+		if grabber == nil {
+			panic("grid is connected, why no snapshot grabber?")
+		}
+
+		snapshot := grabber.GetSimnetSnapshot()
+		vv("at end, simnet = '%v'", snapshot.LongString())
+		vv("at end, simnet.Peer = '%v'", snapshot.Peer)
+		vv("at end, simnet.DNS = '%#v'", snapshot.DNS)
+		matrix := snapshot.PeerMatrix()
+		gotUR := matrix.UpRightTriCount
+		want := n * (n - 1) / 2
+		vv("expected %v, got gotUR=%v", want, gotUR)
+		vv("matrix='%v'", matrix)
+		//if gotUR != want {
+		if gotUR < want {
+			// panic: wrong number of connections at end (got 64, want 36) on 402. yeah we need prunning??
+			panic(fmt.Sprintf("wrong number of connections at end (got %v, want %v)", gotUR, want))
+		}
+
+		vv("end of 790")
+	})
+}
