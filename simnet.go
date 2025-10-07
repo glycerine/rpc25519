@@ -2437,6 +2437,13 @@ func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 	return
 }
 
+// Since a test like 707 that runs the
+// same simnet simulation twice in a row will end up
+// using different goroutineIDs for the
+// same simnodes (ugh), we map goroutineIDs
+// to a more stable integer identifier
+// based on their first appearance to the simnet.
+// This is the s.perma map.
 func (s *Simnet) addPerma(who int) {
 	if _, already := s.perma[who]; already {
 		return

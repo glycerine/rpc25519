@@ -1119,8 +1119,10 @@ func Test103_userMaskTime(t *testing.T) {
 	bubbleOrNot(func() {
 		cur := time.Now()
 		s := &Simnet{perma: make(map[int]int)}
+		gid := goID()
+		s.addPerma(gid)
 		for range 100 {
-			next := s.userMaskTime(cur, 1)
+			next := s.userMaskTime(cur, gid)
 
 			if !next.After(cur) { // we do want next > cur strictly, since we added 1 below.
 				panic(fmt.Sprintf("m(%v) < cur(%v) wrong", next, cur))
