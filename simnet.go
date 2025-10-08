@@ -2599,7 +2599,10 @@ func (s *Simnet) scheduler() {
 			}
 			s.tickLogicalClocks()
 
-			_, restartNewScenario := s.distributeMEQ(now, i)
+			_, restartNewScenario, shutdown := s.distributeMEQ(now, i)
+			if shutdown {
+				return
+			}
 			if restartNewScenario {
 				vv("restartNewScenario: scenario applied: '%#v'", s.scenario)
 				// what else needs resetting/doing here?
@@ -2732,7 +2735,7 @@ func (s *Simnet) scheduler() {
 	}
 }
 
-func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScenario bool) {
+func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScenario, shutdown bool) {
 	//vv("i=%v, top distributeMEQ", i)
 	// meq is trying for
 	// more deterministic event ordering. we have
@@ -2760,9 +2763,14 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	for j := 0; ; j++ {
 		if j > 0 {
 			// try to separate each action in time.
-			time.Sleep(s.mintick)
-			if faketime {
-				synctestWait_LetAllOtherGoroFinish() // 3rd barrier
+			select {
+			case <-time.After(s.mintick):
+				if faketime {
+					synctestWait_LetAllOtherGoroFinish() // 3rd barrier
+				}
+			case <-s.halt.ReqStop.Chan:
+				shutdown = true
+				return
 			}
 		}
 		top := s.meq.peek()
