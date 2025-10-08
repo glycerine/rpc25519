@@ -1111,9 +1111,10 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	defer fd.Close()
 
 	// try to print in dispatch order?
-	dis := newDmap[timeorder, int]()
-	for i := range snap.Xdispatchtm {
-		dis.set(timeorder(snap.Xdispatchtm[i]), i)
+	dis := newOmap[string, int]()
+	for i, tm := range snap.Xdispatchtm {
+		vv("adding dis.set snap.Xdispatchtm[i] = '%v' for i = %v", tm, i)
+		dis.set(fmt.Sprintf("%v_%v", tm.Format(rfc3339NanoTz0), i), i)
 	}
 
 	// avoid sn order as is non-deterministic when

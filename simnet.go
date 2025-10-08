@@ -1878,20 +1878,21 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	//vv("top of handleSend(send = '%v')", send)
 	defer func() {
 
-		// experiment: try to get send on its own timestamp
-		sendGoal := s.userMaskTime(now, send.who)
-		sendSleep := sendGoal.Sub(now)
-		if sendSleep <= 0 {
-			panicf("wanted sendSleep(%v) to be > 0 ", sendSleep)
-		}
-		select {
-		case <-time.After(sendSleep):
-			if faketime {
-				synctestWait_LetAllOtherGoroFinish() // barrier
+		if false {
+			// experiment: try to get send on its own timestamp
+			sendGoal := s.userMaskTime(now, send.who)
+			sendSleep := sendGoal.Sub(now)
+			if sendSleep <= 0 {
+				panicf("wanted sendSleep(%v) to be > 0 ", sendSleep)
 			}
-		case <-s.halt.ReqStop.Chan:
+			select {
+			case <-time.After(sendSleep):
+				if faketime {
+					synctestWait_LetAllOtherGoroFinish() // barrier
+				}
+			case <-s.halt.ReqStop.Chan:
+			}
 		}
-
 		s.fin(send)
 		close(send.proceed)
 	}()
@@ -2345,21 +2346,22 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 				send.origin.timerQ.del(send.internalPendingTimerForSend)
 			}
 
-			// experiment: try to get read on its own timestamp
-			readGoal := s.userMaskTime(now, read.who)
-			readSleep := readGoal.Sub(now)
-			if readSleep <= 0 {
-				panicf("wanted readSleep(%v) to be > 0 ", readSleep)
-			}
-			select {
-			case <-time.After(readSleep):
-				if faketime {
-					synctestWait_LetAllOtherGoroFinish() // barrier
+			if false {
+				// experiment: try to get read on its own timestamp
+				readGoal := s.userMaskTime(now, read.who)
+				readSleep := readGoal.Sub(now)
+				if readSleep <= 0 {
+					panicf("wanted readSleep(%v) to be > 0 ", readSleep)
 				}
-			case <-s.halt.ReqStop.Chan:
-				return
+				select {
+				case <-time.After(readSleep):
+					if faketime {
+						synctestWait_LetAllOtherGoroFinish() // barrier
+					}
+				case <-s.halt.ReqStop.Chan:
+					return
+				}
 			}
-
 			s.fin(read)
 			close(read.proceed)
 			// send already closed in handleSend()
@@ -2828,10 +2830,10 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	var op *mop
 	for j := 0; ; j++ {
 
-		if j > 0 {
-			// try to separate each action in time.
-			s.dispatchAll(now, -1, i)
-		}
+		//if j > 0 {
+		//	// try to separate each action in time.
+		//	s.dispatchAll(now, -1, i)
+		//}
 
 		top := s.meq.peek()
 		if top == nil {
@@ -2845,22 +2847,25 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		perm := s.perma[op.who]
 		who[perm] = op
 
-		goaltm := s.userMaskTime(now, op.who)
-		dur := goaltm.Sub(now)
-		if dur <= 0 {
-			panicf("wanted dur(%v) > 0", dur)
-		}
-		pp("waiting for dur = %v for op = %v", dur, op)
-		select {
-		case <-time.After(dur):
-			if faketime {
-				synctestWait_LetAllOtherGoroFinish() // barrier
+		if false {
+			// experiment
+			goaltm := s.userMaskTime(now, op.who)
+			dur := goaltm.Sub(now)
+			if dur <= 0 {
+				panicf("wanted dur(%v) > 0", dur)
 			}
-		case <-s.halt.ReqStop.Chan:
-			shutdown = true
-			return
+			pp("waiting for dur = %v for op = %v", dur, op)
+			select {
+			case <-time.After(dur):
+				if faketime {
+					synctestWait_LetAllOtherGoroFinish() // barrier
+				}
+			case <-s.halt.ReqStop.Chan:
+				shutdown = true
+				return
+			}
+			now = time.Now()
 		}
-		now = time.Now()
 		s.xdispatchtm[op.sn] = now
 
 		s.xb3hashDis.Write(whoWhatWhenWhere(perm, op.kind, now, op.whence()))
