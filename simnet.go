@@ -359,10 +359,26 @@ func newMasterEventQueue(owner string) *pq {
 			}
 		}
 		// same origin, same target.
-		// maybe these next?
-		//senderLC int64
-		//readerLC int64
-		//originLC int64
+		if av.senderLC < av.senderLC {
+			return -1
+		}
+		if av.senderLC > av.senderLC {
+			return 1
+		}
+
+		if av.readerLC < av.readerLC {
+			return -1
+		}
+		if av.readerLC > av.readerLC {
+			return 1
+		}
+
+		if av.originLC < av.originLC {
+			return -1
+		}
+		if av.originLC > av.originLC {
+			return 1
+		}
 
 		if asn < bsn {
 			return -1
@@ -467,6 +483,7 @@ func (s *Simnet) simnetNextBatchSn() int64 {
 
 // simnet simulates a network entirely with channels in memory.
 type Simnet struct {
+	mintick   time.Duration
 	ndtotPrev int64
 	ndtot     int64 // num dispatched total.
 
@@ -877,7 +894,8 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 
 	// server creates simnet; must start server first.
 	s := &Simnet{
-		perma: make(map[int]int),
+		mintick: time.Duration(minTickNanos),
+		perma:   make(map[int]int),
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
 		xb3hash:        blake3.New(64, nil),
 		meq:            newMasterEventQueue("scheduler"),
@@ -2256,7 +2274,7 @@ func (s *Simnet) dispatchReadsSends(simnode *simnode, now time.Time, limit, loop
 			// to let the readers go... or we could have the reading
 			// goroutine itself do its own sleep accoring to is ID?
 			/*
-				read.completeTm = userMaskTime(now, read.who)
+				read.completeTm = s.userMaskTime(now, read.who)
 				dur := read.completeTm.Sub(now)
 				if dur > 0 {
 					time.Sleep(dur)
@@ -2731,13 +2749,22 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	// Once we hit steady state we could try to
 	// get more determinism, but start up is inherently
 	// parallel at the moment.
-	who := make(map[int]bool)
+	// TODO Solution: we need to add a small clock increment
+	// after every operation we process.
+	who := make(map[int]*mop)
 
 	// if we don't process all the meq and assign
 	// them timepoints in the future to run, then
 	// the subsequent queued events might get to run first?
 	var op *mop
-	for {
+	for j := 0; ; j++ {
+		if j > 0 {
+			// try to separate each action in time.
+			time.Sleep(s.mintick)
+			if faketime {
+				synctestWait_LetAllOtherGoroFinish() // 3rd barrier
+			}
+		}
 		top := s.meq.peek()
 		if top == nil {
 			break
@@ -2747,8 +2774,9 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		}
 		op = s.meq.pop()
 		npop++
-		who[op.who] = true
+		who[s.perma[op.who]] = op
 
+		vv("meq has op = '%v'", op)
 		switch op.kind {
 		case CLOSE_SIMNODE:
 			//vv("CLOSE_SIMNODE '%v'", op.closeSimnode.simnodeName)
@@ -2817,12 +2845,13 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		}
 	} // end for
 
-	//vv("i=%v; who count = %v", i, len(who))
 	//if len(who) > 1 {
-	//	panic("arg, non-determinism with two callers?!")
+	//	vv("i=%v; who count = %v", i, len(who))
+	//	panic(fmt.Sprintf("arg, non-determinism with two callers?! who='%#v'", who))
 	//}
 	// limit of -1 means no limit on number of dispatched mop.
-	//nd0 += s.dispatchAll(now, -1, i)
+
+	//nd := s.dispatchAll(now, 1, i)
 	nd := s.dispatchAll(now, -1, i)
 	_ = nd
 	s.ndtot += nd
@@ -3073,15 +3102,17 @@ const timeMask9 = time.Microsecond*100 - 1
 // maskTime will return
 // 2006-01-02T15:04:05.000099999-07:00
 
+const minTickNanos = 100_000
+
 // userMaskTime makes the last 5 digits
 // of a nanosecond timestamp match the who goroutineID
-// which must be < 100_000.
+// which must be < minTickNanos (100_000)
 func (s *Simnet) userMaskTime(tm time.Time, who0 int) (newtm time.Time) {
 	if who0 <= 0 {
 		panic(fmt.Sprintf("who %v not set or negative!", who0))
 	}
-	if who0 >= 100_000 {
-		panic(fmt.Sprintf("who goID = %v >= 100_000 limit. simnet currently has a max goroutine limit of 100_000.", who0))
+	if who0 >= minTickNanos {
+		panic(fmt.Sprintf("who goID = %v >= minTickNanos limit. simnet currently has a max goroutine limit of minTickNanos(%v)", who0, minTickNanos))
 	}
 	who, ok := s.perma[who0]
 	if !ok {
