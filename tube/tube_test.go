@@ -644,7 +644,13 @@ func Test010_tube_write_new_value_two_replicas(t *testing.T) {
 // non-parallel version, see 016 in porc_test.go for parallelized.
 func Test015_tube_non_parallel_linz(t *testing.T) {
 
-	bubbleOrNot(func() {
+	// Annoying: non-bubbled can get long
+	// delays between heartbeats and thus elect a new
+	// leader and thus violate the assertions herein
+	// that the leader has not changed.
+	// So keep to bubble-only for now.
+	//bubbleOrNot(func() {
+	onlyBubbled(t, func() {
 
 		defer func() {
 			vv("test 015 wrapping up.")

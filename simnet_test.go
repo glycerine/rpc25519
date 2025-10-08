@@ -1678,9 +1678,9 @@ func Test790_deterministic_simnet_ring(t *testing.T) {
 		}
 
 		snapshot := grabber.GetSimnetSnapshot()
-		vv("at end, simnet = '%v'", snapshot.LongString())
-		vv("at end, simnet.Peer = '%v'", snapshot.Peer)
-		vv("at end, simnet.DNS = '%#v'", snapshot.DNS)
+		//vv("at end, simnet = '%v'", snapshot.LongString())
+		//vv("at end, simnet.Peer = '%v'", snapshot.Peer)
+		//vv("at end, simnet.DNS = '%#v'", snapshot.DNS)
 		matrix := snapshot.PeerMatrix()
 		gotUR := matrix.UpRightTriCount
 		want := n * (n - 1) / 2
