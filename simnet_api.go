@@ -595,7 +595,7 @@ func (s *Simnet) newServerRegistration(srv *Server, srvNetAddr *SimNetAddr) (r *
 		reqtm:        time.Now(),
 		who:          goID(),
 	}
-	vv("serverRegistration(%p) reqtm: %v", r, nice9(r.reqtm))
+	//vv("serverRegistration(%p) reqtm: %v", r, nice9(r.reqtm))
 	return
 }
 
@@ -1122,7 +1122,7 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	// try to print in dispatch order?
 	dis := newOmap[string, int]()
 	for i, d := range snap.Xdispatchtm {
-		vv("adding dis.set snap.Xdispatchtm[i] = '%v' for i = %v", d, i)
+		//vv("adding dis.set snap.Xdispatchtm[i] = '%v' for i = %v", d, i)
 		dis.set(d, i)
 	}
 
