@@ -158,6 +158,13 @@ type mop struct {
 	closeSimnode *closeSimnode
 }
 
+func (op *mop) bestName() string {
+	if op.origin != nil {
+		return op.origin.name
+	}
+	return op.earlyName
+}
+
 func (op *mop) whence() string {
 	switch op.kind {
 	case SCENARIO:
@@ -408,10 +415,10 @@ func (s *mop) clone() (c *mop) {
 // but try again for more deterministic scheduling.
 // simnet wide next deadline assignment for all
 // timers on all nodes, and all send and read points.
-func (s *Simnet) nextUniqTm(atleast time.Time, who int) time.Time {
-	if who == 0 {
-		panic("who 0 not set!")
-	}
+func (s *Simnet) nextUniqTm(atleast time.Time, who string) time.Time {
+	//	if who == 0 {
+	//		panic("who 0 not set!")
+	//	}
 	if atleast.After(s.lastTimerDeadline) {
 		s.lastTimerDeadline = atleast
 	} else {
@@ -445,9 +452,11 @@ func (s *Simnet) fin(op *mop) {
 	w := op.whence() // file:line where created.
 	s.xwhence[op.sn] = w
 	s.xkind[op.sn] = op.kind
-	perm, ok := s.perma[op.who]
+	nm := op.bestName()
+	perm, ok := s.perma[nm]
 	if !ok {
-		panicf("op.who = %v was not in s.perma", op.who)
+		// snapshot request for test code, leave perm == 0.
+		//panicf("op.bestName = %v was not in s.perma", nm)
 	}
 	s.xwho[op.sn] = perm
 	if op.origin != nil {
@@ -533,7 +542,7 @@ type Simnet struct {
 	// the problem of changing goroutineIDs
 	// on the second run of the load test
 	// in simgrid_test 707.
-	perma     map[int]int // key: goroID -> serially issued permanent ID for a goro.
+	perma     map[string]int // key: name -> dns order + 1
 	nextPerma int
 
 	xmut       sync.Mutex
@@ -771,7 +780,7 @@ func (s *Simnet) handleServerRegistration(op *mop) {
 	s.dns[srvnode.name] = srvnode
 	s.node2server[srvnode] = srvnode
 	s.dnsOrdered.set(srvnode.name, srvnode)
-
+	s.redoPerma()
 	op.origin = srvnode
 
 	basesrv, ok := s.servers[reg.serverBaseID]
@@ -853,6 +862,7 @@ func (s *Simnet) handleClientRegistration(regop *mop) {
 	s.allnodes[clinode] = true
 	s.dns[clinode.name] = clinode
 	s.dnsOrdered.set(clinode.name, clinode)
+	s.redoPerma()
 
 	regop.origin = clinode
 
@@ -932,7 +942,7 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	// server creates simnet; must start server first.
 	s := &Simnet{
 		mintick: time.Duration(minTickNanos),
-		perma:   make(map[int]int),
+		perma:   make(map[string]int),
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
 		xb3hashFin:     blake3.New(64, nil),
 		xb3hashDis:     blake3.New(64, nil),
@@ -1378,6 +1388,8 @@ func (s *Simnet) shutdownSimnode(target *simnode) (undo Alteration) {
 			delete(s.node2server, node)
 			delete(s.dns, node.name)
 			s.dnsOrdered.delkey(node.name)
+			s.redoPerma()
+
 			delete(s.servers, node.serverBaseID)
 			delete(s.allnodes, node)
 			delete(s.orphans, node)
@@ -1923,9 +1935,9 @@ func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 
 	// make sure send happens before receive by doing
 	// this first.
-	send.completeTm = s.userMaskTime(now, send.who) // send complete on the sender side.
+	send.completeTm = s.userMaskTime(now, origin.name) // send complete on the sender side.
 	// handleSend
-	send.arrivalTm = s.userMaskTime(send.unmaskedSendArrivalTm, send.who)
+	send.arrivalTm = s.userMaskTime(send.unmaskedSendArrivalTm, origin.name)
 	//vv("send.arrivalTm = '%v'", send.arrivalTm)
 	// note that read matching time will be unique based on
 	// send arrival time.
@@ -2499,7 +2511,7 @@ func (s *Simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 	// a) we are on a grid point now; and
 	// b) we are off a grid point and we want the next one.
 
-	goal = s.userMaskTime(now.Add(tick).Truncate(tick), s.who)
+	goal = s.userMaskTime(now.Add(tick).Truncate(tick), "")
 
 	dur = goal.Sub(now)
 	//vv("i=%v; just before dispatchAll(), durToGridPoint computed: dur=%v -> goal:%v to reset the gridTimer; tick=%v", i, dur, goal, s.scenario.tick)
@@ -2512,7 +2524,8 @@ func (s *Simnet) durToGridPoint(now time.Time, tick time.Duration) (dur time.Dur
 func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 	//vv("i=%v, add2meq %v", loopi, op)
 
-	s.addPerma(op.who, op)
+	//s.addPerma(op.who, op)
+	s.redoPerma()
 
 	// experiment try to separate out each meq in time?
 
@@ -2523,7 +2536,7 @@ func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 			// works fine, but non-determ?
 			//op.reqtm = userMaskTime(op.reqtm, op.who)
 			// experiment with... but now also uses userMaskTime.
-			op.reqtm = s.nextUniqTm(op.reqtm, op.who)
+			op.reqtm = s.nextUniqTm(op.reqtm, op.bestName())
 		}
 	} else {
 		op.reqtm = time.Now()
@@ -2543,6 +2556,7 @@ func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 // to a more stable integer identifier
 // based on their first appearance to the simnet.
 // This is the s.perma map.
+/*
 func (s *Simnet) addPermaOrig(who int) {
 	if _, already := s.perma[who]; already {
 		return
@@ -2550,16 +2564,23 @@ func (s *Simnet) addPermaOrig(who int) {
 	s.perma[who] = s.nextPerma
 	s.nextPerma++
 }
-
-func (s *Simnet) addPerma(who int, op *mop) {
-	name := op.earlyName
-	if op.origin != nil {
-		name = op.origin.name
+*/
+func (s *Simnet) redoPerma() {
+	/*
+		name := op.earlyName
+		if op.origin != nil {
+			name = op.origin.name
+		}
+	*/
+	clear(s.perma)
+	for i, okv := range s.dnsOrdered.cached() {
+		s.perma[okv.key] = i + 1
 	}
-	s.perma[who] = s.dnsOrder(name) + 1
 }
 
 func (s *Simnet) dnsOrder(name string) int {
+	// linear search but meh its a small set of node names
+	// and the cached array should pre-fetch into L1 well.
 	biggest := 0
 	for i, okv := range s.dnsOrdered.cached() {
 		if okv.key == name {
@@ -2666,7 +2687,7 @@ func (s *Simnet) scheduler() {
 					// durToGridPoint does userMaskTime for us now.
 					dur, _ := s.durToGridPoint(now, s.scenario.tick)
 
-					//vv("i=%v, elap=0 and no work, just advance time by dur='%v' and try to dispatch below.", i, dur)
+					vv("i=%v, elap=0 and no work, just advance time by dur='%v' and try to dispatch below.", i, dur)
 
 					time.Sleep(dur)
 					// should we barrier now? no other selects
@@ -2882,7 +2903,7 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		}
 		op = s.meq.pop()
 		npop++
-		perm := s.perma[op.who]
+		perm := s.perma[op.bestName()]
 		who[perm] = op
 
 		// if false {
@@ -3119,7 +3140,7 @@ func (s *Simnet) handleTimer(timer *mop) {
 	// mask it up!
 	timer.unmaskedCompleteTm = timer.completeTm
 	timer.unmaskedDur = timer.timerDur
-	timer.completeTm = s.userMaskTime(timer.completeTm, timer.who) // handle timer
+	timer.completeTm = s.userMaskTime(timer.completeTm, who) // handle timer
 	timer.timerDur = timer.completeTm.Sub(timer.initTm)
 	//vv("masked timer(sn %v):\n dur: %v -> %v\n completeTm: %v -> %v\n timer.who: %v", timer.sn, timer.unmaskedDur, timer.timerDur, nice9(timer.unmaskedCompleteTm), nice9(timer.completeTm), timer.who)
 
@@ -3251,13 +3272,13 @@ const minTickNanos = 100_000
 // userMaskTime makes the last 5 digits
 // of a nanosecond timestamp match the who goroutineID
 // which must be < minTickNanos (100_000)
-func (s *Simnet) userMaskTime(tm time.Time, who0 int) (newtm time.Time) {
-	if who0 <= 0 {
-		panic(fmt.Sprintf("who %v not set or negative!", who0))
-	}
-	if who0 >= minTickNanos {
-		panic(fmt.Sprintf("who goID = %v >= minTickNanos limit. simnet currently has a max goroutine limit of minTickNanos(%v)", who0, minTickNanos))
-	}
+func (s *Simnet) userMaskTime(tm time.Time, who0 string) (newtm time.Time) {
+	// if who0 <= 0 {
+	// 	panic(fmt.Sprintf("who %v not set or negative!", who0))
+	// }
+	// if who0 >= minTickNanos {
+	// 	panic(fmt.Sprintf("who goID = %v >= minTickNanos limit. simnet currently has a max goroutine limit of minTickNanos(%v)", who0, minTickNanos))
+	// }
 	who, ok := s.perma[who0]
 	if !ok {
 		// scheduler, leave who == 0
@@ -3611,6 +3632,7 @@ func (s *Simnet) handleCloseSimnode(clop *mop, now time.Time, iloop int64) {
 		delete(s.node2server, node)
 		delete(s.dns, node.name)
 		s.dnsOrdered.delkey(node.name)
+		s.redoPerma()
 
 		//vv("handleCloseSimnode deleted node.name '%v' from dns", node.name)
 		delete(s.servers, node.serverBaseID)
@@ -3619,6 +3641,8 @@ func (s *Simnet) handleCloseSimnode(clop *mop, now time.Time, iloop int64) {
 	}
 	delete(s.dns, target)
 	s.dnsOrdered.delkey(target)
+	s.redoPerma()
+
 	//vv("handleCloseSimnode deleted target '%v' from dns", target)
 	// set req.err if need be
 }
