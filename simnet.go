@@ -475,8 +475,6 @@ func whoWhatWhenWhere(who int, what mopkind, whenTm time.Time, where string) []b
 	return append(b[:], []byte(where)...)
 }
 
-//s.xb3hashDis.Write(append(b[:], []byte(w)...))
-
 func (s *Simnet) simnetNextMopSn() (sn int64) {
 	s.xmut.Lock()
 	defer s.xmut.Unlock()
@@ -2834,7 +2832,8 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		}
 		op = s.meq.pop()
 		npop++
-		who[s.perma[op.who]] = op
+		perm := s.perma[op.who]
+		who[perm] = op
 
 		goaltm := s.userMaskTime(now, op.who)
 		dur := goaltm.Sub(now)
@@ -2852,6 +2851,8 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		}
 		now = time.Now()
 		s.xdispatchtm[op.sn] = now
+
+		s.xb3hashDis.Write(whoWhatWhenWhere(perm, op.kind, now, op.whence()))
 
 		//vv("meq has op = '%v'", op)
 		switch op.kind {
