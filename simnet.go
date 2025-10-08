@@ -398,10 +398,21 @@ func newMasterEventQueue(owner string) *pq {
 	}
 	return &pq{
 		Owner:   owner,
-		Orderby: "tm() then priority() then sn()",
+		Orderby: "masterMEQ tm() then priority() then name...",
 		Tree:    rb.NewTree(cmp),
 		cmp:     cmp,
 	}
+}
+
+func (s *Simnet) showMEQ() (r string) {
+	sz := s.meq.Len()
+	if sz == 0 {
+		r += "\n empty meq\n"
+		return
+	}
+	r += fmt.Sprintf("\n meq size %v:\n%v", sz, s.meq)
+
+	return
 }
 
 func (s *mop) clone() (c *mop) {
@@ -2863,7 +2874,8 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	} else {
 		verboseVerbose = false
 	}
-	vv("i=%v, top distributeMEQ, size %v", i, sz)
+	vv("i=%v, top distributeMEQ: %v", i, s.showMEQ())
+
 	// meq is trying for
 	// more deterministic event ordering. we have
 	// accumulated and held any events from the
