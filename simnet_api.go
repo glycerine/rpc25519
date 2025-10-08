@@ -904,17 +904,21 @@ type SimnetSnapshot struct {
 	DNS                map[string]string // srvnode.name:simnode.name
 
 	// mop creation/finish data.
-	Xcountsn  int64       // number of mop issued
-	Xfinorder []int64     // finish order (nextMopSn at time of finish)
-	Xwhence   []string    // file:line creation place
-	Xkind     []mopkind   // send,read,timer,discard,...
-	Xissuetm  []time.Time // when issued
-	Xfintm    []time.Time // when finished
-	Xwho      []int
-	Xorigin   []string // name of origin simnode, to be goro ID independent.
-	Xtarget   []string // name of target simnode, to be goro ID independent.
+	Xcountsn  int64     // number of mop issued
+	Xfinorder []int64   // finish order (nextMopSn at time of finish)
+	Xwhence   []string  // file:line creation place
+	Xkind     []mopkind // send,read,timer,discard,...
 
-	Xhash string // hash of the sequence
+	Xissuetm    []time.Time // when issued
+	Xdispatchtm []time.Time // when dispatched (more determistic we hope)
+
+	Xfintm  []time.Time // when finished
+	Xwho    []int
+	Xorigin []string // name of origin simnode, to be goro ID independent.
+	Xtarget []string // name of target simnode, to be goro ID independent.
+
+	XhashFin string // hash of the sequence of fin()
+	XhashDis string // hash of the sequence of dispatches
 
 	ScenarioNum    int
 	ScenarioSeed   [32]byte
@@ -1106,11 +1110,25 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 	panicOn(err)
 	defer fd.Close()
 
-	for sn := range snap.Xcountsn {
+	// try to print in dispatch order?
+	dis := newDmap[timeorder, int]()
+	for i := range snap.Xdispatchtm {
+		dis.set(timeorder(snap.Xdispatchtm[i]), i)
+	}
+
+	// avoid sn order as is non-deterministic when
+	// the client goroutines first start creating simnet api calls.
+	//for sn := range snap.Xcountsn
+
+	// print in dispatch time order
+	for dispatchTm, sn := range dis.all() {
+		_ = dispatchTm
+
 		if !snap.Xfintm[sn].IsZero() {
-			elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
+			//elap := snap.Xfintm[sn].Sub(snap.Xissuetm[sn])
+			elap := snap.Xfintm[sn].Sub(snap.Xdispatchtm[sn])
 			fmt.Fprintf(fd, "%v %v %v\t%v %v [gid %v; %v; fin< %v]\n",
-				nice9(snap.Xissuetm[sn]), sn, snap.Xwhence[sn], snap.Xkind[sn],
+				nice9(snap.Xdispatchtm[sn]), sn, snap.Xwhence[sn], snap.Xkind[sn],
 				elap, snap.Xwho[sn], chompAnyUniqSuffix(snap.Xorigin[sn]), snap.Xfinorder[sn])
 		} else {
 			// not finished yet
@@ -1118,8 +1136,15 @@ func (snap *SimnetSnapshot) ToFile(nm string) {
 				nice9(snap.Xissuetm[sn]), sn)
 		}
 	}
-	fmt.Fprintf(fd, "%v\n", snap.Xhash)
+	fmt.Fprintf(fd, "dispatch order based Xhash: %v\n", snap.XhashDis)
+	fmt.Fprintf(fd, "fin() finish order based Xhash: %v\n", snap.XhashFin)
 	//vv("path = '%v' for %v/ nw=%v; out='%v'", path, len(snap.Xorder), nw, fd.Name())
+}
+
+type timeorder time.Time
+
+func (tm timeorder) id() string {
+	return time.Time(tm).Format(rfc3339NanoTz0)
 }
 
 func chompAnyUniqSuffix(s string) string {

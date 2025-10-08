@@ -438,7 +438,8 @@ func (s *Simnet) fin(op *mop) {
 	w := op.whence() // file:line where created.
 	s.xwhence[op.sn] = w
 	s.xkind[op.sn] = op.kind
-	s.xwho[op.sn] = s.perma[op.who]
+	perm := s.perma[op.who]
+	s.xwho[op.sn] = perm
 	if op.origin != nil {
 		s.xorigin[op.sn] = op.origin.name
 	}
@@ -446,19 +447,35 @@ func (s *Simnet) fin(op *mop) {
 		s.xtarget[op.sn] = op.target.name
 	}
 
-	i := op.sn
-	var b [9]byte
-	b[0] = byte(i >> 56)
-	b[1] = byte(i >> 48)
-	b[2] = byte(i >> 40)
-	b[3] = byte(i >> 32)
-	b[4] = byte(i >> 24)
-	b[5] = byte(i >> 16)
-	b[6] = byte(i >> 8)
-	b[7] = byte(i)
-	b[8] = byte(op.kind)
-	s.xb3hash.Write(append(b[:], []byte(w)...))
+	s.xb3hashFin.Write(whoWhatWhenWhere(perm, op.kind, now, w))
 }
+
+func whoWhatWhenWhere(who int, what mopkind, whenTm time.Time, where string) []byte {
+	var b [17]byte
+	b[0] = byte(who >> 56)
+	b[1] = byte(who >> 48)
+	b[2] = byte(who >> 40)
+	b[3] = byte(who >> 32)
+	b[4] = byte(who >> 24)
+	b[5] = byte(who >> 16)
+	b[6] = byte(who >> 8)
+	b[7] = byte(who)
+
+	when := whenTm.UnixNano()
+	b[8] = byte(when >> 56)
+	b[9] = byte(when >> 48)
+	b[10] = byte(when >> 40)
+	b[11] = byte(when >> 32)
+	b[12] = byte(when >> 24)
+	b[13] = byte(when >> 16)
+	b[14] = byte(when >> 8)
+	b[15] = byte(when)
+
+	b[16] = byte(what)
+	return append(b[:], []byte(where)...)
+}
+
+//s.xb3hashDis.Write(append(b[:], []byte(w)...))
 
 func (s *Simnet) simnetNextMopSn() (sn int64) {
 	s.xmut.Lock()
@@ -466,6 +483,8 @@ func (s *Simnet) simnetNextMopSn() (sn int64) {
 	sn = s.nextMopSn
 	s.nextMopSn++
 	s.xissuetm = append(s.xissuetm, time.Now())
+	s.xdispatchtm = append(s.xdispatchtm, time.Time{})
+
 	s.xfintm = append(s.xfintm, time.Time{})
 	s.xwhence = append(s.xwhence, "")
 	s.xkind = append(s.xkind, -1)
@@ -492,14 +511,15 @@ type Simnet struct {
 
 	// fin records execution/finishing order
 	// for mop sn into xorder.
-	xfinorder []int64
-	xwhence   []string
-	xkind     []mopkind
-	xissuetm  []time.Time
-	xfintm    []time.Time
-	xwho      []int
-	xorigin   []string
-	xtarget   []string
+	xfinorder   []int64
+	xwhence     []string
+	xkind       []mopkind
+	xissuetm    []time.Time
+	xdispatchtm []time.Time
+	xfintm      []time.Time
+	xwho        []int
+	xorigin     []string
+	xtarget     []string
 
 	// sequentially issued IDs to mitigate
 	// the problem of changing goroutineIDs
@@ -508,8 +528,9 @@ type Simnet struct {
 	perma     map[int]int // key: goroID -> serially issued permanent ID for a goro.
 	nextPerma int
 
-	xmut    sync.Mutex
-	xb3hash *blake3.Hasher
+	xmut       sync.Mutex
+	xb3hashFin *blake3.Hasher // ordered by fin() call time
+	xb3hashDis *blake3.Hasher // ordered by dispatch time
 
 	bigbang time.Time
 
@@ -887,6 +908,9 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 	}
 
 	tick := time.Millisecond
+	if tick < time.Duration(minTickNanos) {
+		panicf("must have tick >= minTickNanos(%v)", time.Duration(minTickNanos))
+	}
 	minHop := time.Millisecond * 10
 	maxHop := minHop
 	var seed [32]byte
@@ -897,7 +921,8 @@ func (cfg *Config) bootSimNetOnServer(srv *Server) *Simnet { // (tellServerNewCo
 		mintick: time.Duration(minTickNanos),
 		perma:   make(map[int]int),
 		//uniqueTimerQ:   newPQcompleteTm("simnet uniquetimerQ "),
-		xb3hash:        blake3.New(64, nil),
+		xb3hashFin:     blake3.New(64, nil),
+		xb3hashDis:     blake3.New(64, nil),
 		meq:            newMasterEventQueue("scheduler"),
 		cfg:            cfg,
 		srv:            srv,
@@ -1848,8 +1873,23 @@ func (s *Simnet) statewiseConnected(origin, target *simnode) (linked bool) {
 
 func (s *Simnet) handleSend(send *mop, limit, loopi int64) (changed int64) {
 	now := time.Now()
-	vv("top of handleSend(send = '%v')", send)
+	//vv("top of handleSend(send = '%v')", send)
 	defer func() {
+
+		// experiment: try to get send on its own timestamp
+		sendGoal := s.userMaskTime(now, send.who)
+		sendSleep := sendGoal.Sub(now)
+		if sendSleep <= 0 {
+			panicf("wanted sendSleep(%v) to be > 0 ", sendSleep)
+		}
+		select {
+		case <-time.After(sendSleep):
+			if faketime {
+				synctestWait_LetAllOtherGoroFinish() // barrier
+			}
+		case <-s.halt.ReqStop.Chan:
+		}
+
 		s.fin(send)
 		close(send.proceed)
 	}()
@@ -2455,16 +2495,19 @@ func (s *Simnet) add2meq(op *mop, loopi int64) (armed bool) {
 
 	s.addPerma(op.who)
 
+	// experiment try to separate out each meq in time?
+
 	// need to bump up the time... with nextUniqTm,
 	// so deliveries are all at a unique time point.
 	if !op.reqtm.IsZero() {
 		// works fine, but non-determ?
 		//op.reqtm = userMaskTime(op.reqtm, op.who)
-		// experiment with:
+		// experiment with... but now also uses userMaskTime.
 		op.reqtm = s.nextUniqTm(op.reqtm, op.who)
 	}
 
 	s.meq.add(op)
+
 	armed = s.armTimer(time.Now(), loopi)
 	//vv("i=%v, end of add2meq. meq sz %v; armed = %v -> s.lastArmDur: %v; caller %v; op = %v\n\n meq=%v\n", loopi, s.meq.Len(), armed, s.lastArmDur, fileLine(2), op, s.meq)
 	return
@@ -2751,7 +2794,7 @@ func (s *Simnet) scheduler() {
 }
 
 func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScenario, shutdown bool) {
-	//vv("i=%v, top distributeMEQ", i)
+	vv("i=%v, top distributeMEQ, size %v", i, s.meq.Len())
 	// meq is trying for
 	// more deterministic event ordering. we have
 	// accumulated and held any events from the
@@ -2776,19 +2819,12 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 	// the subsequent queued events might get to run first?
 	var op *mop
 	for j := 0; ; j++ {
+
 		if j > 0 {
 			// try to separate each action in time.
 			s.dispatchAll(now, -1, i)
-			select {
-			case <-time.After(s.mintick):
-				if faketime {
-					synctestWait_LetAllOtherGoroFinish() // 3rd barrier
-				}
-			case <-s.halt.ReqStop.Chan:
-				shutdown = true
-				return
-			}
 		}
+
 		top := s.meq.peek()
 		if top == nil {
 			break
@@ -2799,6 +2835,23 @@ func (s *Simnet) distributeMEQ(now time.Time, i int64) (npop int, restartNewScen
 		op = s.meq.pop()
 		npop++
 		who[s.perma[op.who]] = op
+
+		goaltm := s.userMaskTime(now, op.who)
+		dur := goaltm.Sub(now)
+		if dur <= 0 {
+			panicf("wanted dur(%v) > 0", dur)
+		}
+		select {
+		case <-time.After(dur):
+			if faketime {
+				synctestWait_LetAllOtherGoroFinish() // barrier
+			}
+		case <-s.halt.ReqStop.Chan:
+			shutdown = true
+			return
+		}
+		now = time.Now()
+		s.xdispatchtm[op.sn] = now
 
 		//vv("meq has op = '%v'", op)
 		switch op.kind {
@@ -3251,13 +3304,16 @@ func (s *Simnet) handleSimnetSnapshotRequest(reqop *mop, now time.Time, loopi in
 	req.Xwhence = append([]string{}, s.xwhence...)
 	req.Xkind = append([]mopkind{}, s.xkind...)
 	req.Xissuetm = append([]time.Time{}, s.xissuetm...)
+	req.Xdispatchtm = append([]time.Time{}, s.xdispatchtm...)
 	req.Xfintm = append([]time.Time{}, s.xfintm...)
 	req.Xwho = append([]int{}, s.xwho...)
 	req.Xorigin = append([]string{}, s.xorigin...)
 	req.Xtarget = append([]string{}, s.xtarget...)
 
-	sum := s.xb3hash.Sum(nil)
-	req.Xhash = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sum[:33])
+	sumFin := s.xb3hashFin.Sum(nil)
+	req.XhashFin = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sumFin[:33])
+	sumDis := s.xb3hashDis.Sum(nil)
+	req.XhashDis = "blake3.33B-" + cristalbase64.URLEncoding.EncodeToString(sumDis[:33])
 
 	req.NetClosed = s.halt.ReqStop.IsClosed()
 	if len(s.servers) == 0 {
