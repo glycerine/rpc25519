@@ -412,6 +412,18 @@ func (s *Simnet) showMEQ() (r string) {
 	}
 	r += fmt.Sprintf("\n meq size %v:\n%v", sz, s.meq)
 
+	i := 0
+	r = fmt.Sprintf(" ------- MEQ  --------\n")
+	for it := s.meq.Tree.Min(); !it.Limit(); it = it.Next() {
+
+		item := it.Item() // interface{}
+		if isNil(item) {
+			panic("do not put nil into the pq")
+		}
+		op := item.(*mop)
+		r += fmt.Sprintf("pq[%2d] = %v   %v\n", i, nice9(op.tm()), op)
+		i++
+	}
 	return
 }
 
