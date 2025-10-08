@@ -253,7 +253,7 @@ elected:
 					roleExpect = LEADER
 				}
 				if look.Role != roleExpect {
-					panic(fmt.Sprintf("error: expected node %v to be %v (but is %v) in term %v", i, roleExpect, look.Role, look.State.CurrentTerm)) // CANDIDATE seen... size 8 is rough!
+					panic(fmt.Sprintf("error: expected node %v to be %v (but is %v) in term %v", i, roleExpect, look.Role, look.State.CurrentTerm)) // CANDIDATE seen... size 8 is rough! 015_tube_non_parallel_linz (tube_test.go) red under realtime without synctest (might be sporadic): error: expected node 0 to be LEADER (but is FOLLOWER) in term 2
 				}
 				if i == 0 {
 					term = look.State.CurrentTerm
